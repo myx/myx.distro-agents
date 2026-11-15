@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 ## Behavioural check on the team-data root the schedule's service thread resolves for itself before a pass (S12.19, board task
-## 20261106T0859Z; sh-lib/session/AgentsTools.InternSchedule.include, --intern-schedule). A service thread started from an invited
+## 20261106T0859Z; sh-lib/schedule/AgentsTools.InternSchedule.include, --intern-schedule). A service thread started from an invited
 ## member's session inherits that member's `MDAT_DATA_ROOT`, and that value names another workspace's store. The rule drops it and
 ## resolves this workspace's own.
 ## The member-root half of the same rule (MDAT_SKILLSET_ROOT, `:59-64`) is not here: its proof starts a routine, and a start's
@@ -20,7 +20,7 @@ rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }
 [ -x "$rigFn" ] || rigRefuse "the tooling is not at $rigFn"
-[ -f "$rigPackage/sh-lib/session/AgentsTools.InternSchedule.include" ] || rigRefuse "the schedule's include is not in the package under test"
+[ -f "$rigPackage/sh-lib/schedule/AgentsTools.InternSchedule.include" ] || rigRefuse "the schedule's include is not in the package under test"
 ## The stand-ins this check starts are signalled only while they are still the processes it noted.
 . "$rigPackage/sh-test/check-fixtures/rig-processes.include.sh" || rigRefuse "the rig's process helper is missing from the package"
 . "$rigPackage/sh-test/check-fixtures/rig-control-threads.include.sh" || rigRefuse "the rig's control-thread fixture is missing from the package"

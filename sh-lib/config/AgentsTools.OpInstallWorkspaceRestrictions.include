@@ -1,0 +1,362 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+## AgentsTools.OpInstallWorkspaceRestrictions.include -- the operation `--install-workspace-restrictions`, sourced by AgentsTools.Install.include with the operation's arguments.
+		shift
+
+		local workspaceArg
+		while [ "$#" -gt 0 ] ; do
+			case "$1" in
+				--workspace)
+					if [ -z "$2" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --install-workspace-restrictions: --workspace requires a value" >&2
+						set +e ; return 1
+					fi
+					workspaceArg="$2" ; shift 2
+				;;
+				*)
+					echo "⛔ ERROR: $MDSC_CMD --install-workspace-restrictions: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+
+		local workspace="${workspaceArg:-$MMDAPP}"
+		if [ ! -d "$workspace" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --install-workspace-restrictions: workspace not found: $workspace" >&2
+			set +e ; return 1
+		fi
+		workspace="$( cd "$workspace" && pwd )"
+
+		if [ ! -d "$workspace/.local" ] ; then
+			local wsRootWalk="$workspace" wsRootFound=""
+			while [ "$wsRootWalk" != "/" ] ; do
+				wsRootWalk="$( dirname "$wsRootWalk" )"
+				if [ -d "$wsRootWalk/.local" ] ; then
+					wsRootFound="$wsRootWalk"
+					break
+				fi
+			done
+			echo "⛔ ERROR: $MDSC_CMD --install-workspace-restrictions: not a workspace root: $workspace -- expected '$workspace/.local' to exist (the same check every DistroSourceConsole.sh/DistroDeployConsole.sh/etc. performs on itself at startup), but it is missing. This looks like a sub-project/repo living inside a real workspace, not the workspace root itself." >&2
+			if [ -n "$wsRootFound" ] ; then
+				echo "   likely correct root: $wsRootFound (found '$wsRootFound/.local')" >&2
+			fi
+			set +e ; return 1
+		fi
+
+		local claudeDir="$workspace/.claude"
+		local hooksDir="$claudeDir/hooks"
+		mkdir -p "$hooksDir" || {
+			echo "⛔ ERROR: $MDSC_CMD --install-workspace-restrictions: cannot create $hooksDir" >&2
+			set +e ; return 1
+		}
+
+		local settingsFile="$claudeDir/settings.json"
+		if [ ! -f "$settingsFile" ] ; then
+			printf '{}\n' > "$settingsFile" || {
+				echo "⛔ ERROR: $MDSC_CMD --install-workspace-restrictions: cannot create $settingsFile" >&2
+				set +e ; return 1
+			}
+		fi
+
+		local hooksFailed=0
+
+		## The one place a client tool policy is stated. Both hook scripts
+		## below take their decision and their redirect text from it, and the
+		## verification at the end of this op takes the hook keys from it, so
+		## no value it holds is written down a second time in this file.
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/client/AgentsTools.ClientToolPolicy.include"
+
+		## Each hook is ONE REAL SCRIPT in sh-lib/client-hooks/, INSTALLED BY COPYING.
+		## Nothing is generated, substituted or templated: what the hook refuses and
+		## what it answers with is written out in that script, so a person opening it
+		## reads the policy rather than a `${...}` standing in for it.
+		## Two scripts, because there are two kinds. The reroute hook is unconditional
+		## and payload-blind, one script for every rerouted tool, told which tool it is
+		## deciding by an argument on its own PreToolUse command line. The memory-MD
+		## Read guard is conditional and reads the payload, so it stays separate.
+		## A missing source is a hard refusal: a hook that is absent, or present and
+		## emitting no decision, reads as ALLOW to a *-native client.
+		## PRIMARY -> INDEX -> OUTPUTS: our own harness's hook index is written first, from
+		## the policy's hook records, and both the scripts copied below and the entries
+		## merged into settings.json are generated from that index -- so what a *-native
+		## client runs and what our harness runs can never disagree, and nothing of ours
+		## reads settings.json back as a source.
+		local hookSrcDir="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/client-hooks"
+		local hookRecords hookRecord hookInstallName hookInstallNames="" hookSrcFile hookDstFile hookDstTmp
+		hookRecords="$(
+			harnessHere="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib"
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessHooksLoad.include" || exit 1
+			AgentsHarnessHooksIndexWrite "$workspace" || exit 1
+			AgentsHarnessHooksIndexRecords "$workspace/.local/agents/harness.hooks.index" || exit 1
+			printf '%s' "$agentsHooksRecords"
+		)" || {
+			echo "⛔ ERROR: $MDSC_CMD --install-workspace-restrictions: the harness hook index could not be written from the client tool policy, so no hook was written" >&2
+			set +e ; return 1
+		}
+		echo "🪝 harness hooks index written: .local/agents/harness.hooks.index" >&2
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessHooksLoad.include"
+		while IFS= read -r hookRecord ; do
+			AgentsHarnessHooksRecordSplit "$hookRecord" || continue
+			case $'\n'"$hookInstallNames" in *$'\n'"$agentsHookScript"$'\n'*) continue ;; esac
+			hookInstallNames="$hookInstallNames$agentsHookScript"$'\n'
+		done <<< "$hookRecords"
+
+		while IFS= read -r hookInstallName ; do
+			[ -n "$hookInstallName" ] || continue
+			hookSrcFile="$hookSrcDir/$hookInstallName"
+			hookDstFile="$hooksDir/$hookInstallName"
+			hookDstTmp="$hookDstFile.tmp.$$"
+			if [ ! -s "$hookSrcFile" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --install-workspace-restrictions: the hook script is missing or empty in this package: $hookSrcFile -- refusing rather than installing a hook that emits no decision, which a client reads as allow" >&2
+				hooksFailed=1 ; continue
+			fi
+			if ! cp -- "$hookSrcFile" "$hookDstTmp" || ! chmod 0755 "$hookDstTmp" ; then
+				echo "⛔ ERROR: $MDSC_CMD --install-workspace-restrictions: could not write $hookDstFile" >&2
+				rm -f "$hookDstTmp"
+				hooksFailed=1 ; continue
+			fi
+			if cmp -s "$hookDstTmp" "$hookDstFile" 2>/dev/null ; then
+				rm -f "$hookDstTmp"
+			elif ! mv -f "$hookDstTmp" "$hookDstFile" ; then
+				echo "⛔ ERROR: $MDSC_CMD --install-workspace-restrictions: could not install $hookDstFile" >&2
+				rm -f "$hookDstTmp"
+				hooksFailed=1
+			fi
+		done <<< "$hookInstallNames"
+
+		## Each namespace folder the generated `.code-workspace` lists is a project
+		## root of its own, and an editor session takes the FIRST folder as its
+		## root -- so a workspace `.claude` no folder carries never loads, and the
+		## deny rules and hooks above are silently not in force. A relative
+		## symlink keeps the one generated `.claude` the single source of truth.
+		local nsListed="" nsRoot nsLink nsDir nsWorkspaceReal
+		## Require loads by origin path -- Distro() alone resolves through PATH, which only a console session carries.
+		Require DistroSourceTools || :
+		if [ "$workspace" = "$MMDAPP" ] ; then
+			nsListed="$( Distro DistroSourceTools --list-namespace-roots 2>/dev/null | tr '\n' ' ' )"
+		elif [ -x "$workspace/DistroSourceConsole.sh" ] ; then
+			nsListed="$( echo 'Distro DistroSourceTools --list-namespace-roots' | MMDAPP="$workspace" "$BASH" "$workspace/DistroSourceConsole.sh" --non-interactive 2>/dev/null | tr '\n' ' ' )"
+		fi
+		nsWorkspaceReal="$( cd -P "$workspace" && pwd -P )"
+		if [ -z "$nsListed" ] ; then
+			## Same trust rule the member scan above follows: an unreadable or empty
+			## list is never read as "every namespace disappeared", so nothing goes.
+			echo "🙋 WARNING: $MDSC_CMD --install-workspace-restrictions: workspace $workspace lists no namespace roots -- no .claude clone is created or removed" >&2
+		else
+			for nsRoot in $nsListed ; do
+				nsLink="$workspace/source/$nsRoot/.claude"
+				if [ -d "$workspace/source/$nsRoot" ] ; then
+					case "$( cd -P "$workspace/source/$nsRoot" && pwd -P )/" in
+						"$nsWorkspaceReal"/*) ;;
+						*) echo "🙋 WARNING: $MDSC_CMD --install-workspace-restrictions: source/$nsRoot lies outside the workspace, left untouched" >&2 ; continue ;;
+					esac
+				fi
+				if [ -L "$nsLink" ] && [ ! -e "$nsLink" ] ; then
+					echo "# $MDSC_CMD --install-workspace-restrictions: $nsLink is a dangling symlink (points at $( readlink "$nsLink" ), which does not exist) -- reclaiming the slot" >&2
+					rm -f "$nsLink" || {
+						echo "⛔ ERROR: $MDSC_CMD --install-workspace-restrictions: failed to remove dangling symlink: $nsLink" >&2
+						hooksFailed=1 ; continue
+					}
+				elif [ "$nsLink" -ef "$workspace/.claude" ] ; then
+					continue
+				elif [ -L "$nsLink" ] || [ -e "$nsLink" ] ; then
+					[ -L "$nsLink" ] || [ ! -d "$nsLink" ] || case "$( cd -P "$workspace/.claude" && pwd -P )/" in "$( cd -P "$nsLink" && pwd -P )"/*)
+						echo "⛔ ERROR: $MDSC_CMD --install-workspace-restrictions: $nsLink holds $workspace/.claude itself, not removed" >&2 ; hooksFailed=1 ; continue ;;
+					esac
+					rm -rf -- "$nsLink" || {
+						echo "⛔ ERROR: $MDSC_CMD --install-workspace-restrictions: failed to remove $nsLink" >&2
+						hooksFailed=1 ; continue
+					}
+					echo "# $MDSC_CMD --install-workspace-restrictions: removed: $nsLink" >&2
+				fi
+				AgentsToolsLinkMake ../../.claude "$nsLink" || {
+					echo "⛔ ERROR: $MDSC_CMD --install-workspace-restrictions: failed to create symlink: $nsLink -> ../../.claude" >&2
+					hooksFailed=1
+				}
+			done
+			## A root that stops being listed keeps its directory, so its clone
+			## outlives it unless it goes here. Only this op's own clone is removed.
+			for nsDir in "$workspace"/source/*/ ; do
+				[ -d "${nsDir%/}" ] || continue
+				nsRoot="$( basename "${nsDir%/}" )"
+				case " $nsListed " in *" $nsRoot "*) continue ;; esac
+				nsLink="${nsDir}.claude"
+				[ -L "$nsLink" ] || continue
+				[ "$( readlink "$nsLink" )" = "../../.claude" ] || continue
+				rm -f "$nsLink" || {
+					echo "⛔ ERROR: $MDSC_CMD --install-workspace-restrictions: failed to remove the clone of an unlisted namespace root: $nsLink" >&2
+					hooksFailed=1 ; continue
+				}
+				echo "🔗 removed $nsRoot/.claude, $nsRoot is no longer a listed namespace root" >&2
+			done
+		fi
+
+		if [ "$hooksFailed" != "0" ] ; then
+			set +e ; return 1
+		fi
+
+		## No blanket "Bash": the reroute hook governs it, denying a *-native session
+		## and letting our own spawned ones through, which a static deny cannot do.
+		## Installs that wrote it lose it through the retired-deny list below.
+		local denyAddJson='["Bash(mv *)", "Bash(python3*)", "Bash(rm *)"]'
+
+		local settingsTmp="$settingsFile.tmp.$$"
+
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/client/AgentsTools.ClientAccessRoots.include"
+
+		## No file grant is written: the PreToolUse hooks decide every call. The Read and
+		## Edit entries earlier installs wrote are dropped, each on an exact match.
+		local retiredAllowEntries
+		retiredAllowEntries="$( AgentsToolsClientToolPolicyRetiredAllowEntries "$workspace" )" || {
+			echo "⛔ ERROR: $MDSC_CMD --install-workspace-restrictions: the allow entries earlier installs wrote could not be named, so $settingsFile is left untouched" >&2
+			set +e ; return 1
+		}
+
+		## Every settings.json hook entry below is generated from the index records read
+		## above. Checked in THIS shell, so an index with no reroute entry stops the op
+		## instead of writing a settings file with them quietly missing.
+		case "$hookRecords" in
+			*$'\t'reroute$'\t'*) ;;
+			*)
+				echo "⛔ ERROR: $MDSC_CMD --install-workspace-restrictions: the harness hook index states no rerouted tool, so $settingsFile is left untouched -- a missing reroute entry reads as allow" >&2
+				set +e ; return 1
+			;;
+		esac
+		## The hooks earlier installs wrote and this one retires. The merge drops
+		## their entries, and only after settings.json is rewritten are the files
+		## deleted, so no run leaves an entry running a script it removed.
+		local hooksRetiredNames="$( AgentsToolsClientToolPolicyRetiredHookNames )"
+		## The permissions.deny entries earlier installs wrote and this one retires,
+		## removed on an exact match so a user's own rule stays.
+		local denyRetiredEntries="Bash"
+
+		## The hooks description is the merge .awk's own MYX_WSRESTRICT_HOOKS_FILE
+		## input and has to be a real path. It lives inside this subshell, so its
+		## trap is the subshell's own and can never disarm the caller's, and it is
+		## armed before the file exists. The merge output goes to $settingsTmp, a
+		## file, so nothing has to escape the subshell.
+		if ! (
+			hooksDescFile="$MMDAPP/.local/temp/mdat-ws-restrictions-hooks.$$"
+			trap 'rm -f "$hooksDescFile"' EXIT
+			mkdir -p "$MMDAPP/.local/temp" || {
+				echo "⛔ ERROR: $MDSC_CMD --install-workspace-restrictions: cannot create $MMDAPP/.local/temp" >&2
+				exit 1
+			}
+			## One entry per hook record, in the index's own order. The command is a
+			## shell command line -- it already depends on $CLAUDE_PROJECT_DIR being
+			## expanded and its quotes removed -- so a reroute entry's tool name arrives
+			## as $1. The dedupe key is the record's own, carrying the tool for a reroute
+			## entry, so the verifier at the end of this op asserts each entry rather
+			## than just the shared script. An event other than PreToolUse rides as the
+			## third field; an empty matcher writes no matcher key.
+			while IFS= read -r hookRecord ; do
+				[ -n "$hookRecord" ] || continue
+				AgentsHarnessHooksRecordSplit "$hookRecord" || exit 1
+				hookJson='{'
+				[ -z "$agentsHookMatcher" ] || hookJson="$hookJson\"matcher\": \"$agentsHookMatcher\", "
+				hookJson="$hookJson\"hooks\": [{\"type\": \"command\", \"command\": \"\\\"\$CLAUDE_PROJECT_DIR\\\"/.claude/hooks/$agentsHookScript${agentsHookArg:+ $agentsHookArg}\"${agentsHookTimeout:+, \"timeout\": $agentsHookTimeout}}]}"
+				if [ "$agentsHookEvent" = PreToolUse ] ; then
+					printf '%s\t%s\n' "$agentsHookKey" "$hookJson"
+				else
+					printf '%s\t%s\t%s\n' "$agentsHookKey" "$hookJson" "$agentsHookEvent"
+				fi
+			done <<< "$hookRecords" > "$hooksDescFile" || exit 1
+			MYX_WSRESTRICT_DENY_ADD_JSON="$denyAddJson" \
+				MYX_WSRESTRICT_HOOKS_FILE="$hooksDescFile" \
+				MYX_WSRESTRICT_RETIRED_HOOKS="$hooksRetiredNames" \
+				MYX_WSRESTRICT_RETIRED_DENY="$denyRetiredEntries" \
+				MYX_WSRESTRICT_SETTINGS="$( AgentsToolsClientToolPolicyClaudeSettings )" \
+				MYX_WSRESTRICT_RETIRED_ALLOW="$retiredAllowEntries" \
+				LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsClaudeWorkspaceRestrictionsUpsert.awk" \
+				"$settingsFile" > "$settingsTmp"
+		) ; then
+			echo "⛔ ERROR: $MDSC_CMD --install-workspace-restrictions: settings merge failed, $settingsFile left untouched" >&2
+			rm -f "$settingsTmp"
+			set +e ; return 1
+		fi
+
+		local restrictionsState="installed"
+		if cmp -s "$settingsTmp" "$settingsFile" ; then
+			rm -f "$settingsTmp"
+			restrictionsState="already current"
+		elif ! mv -f "$settingsTmp" "$settingsFile" ; then
+			echo "⛔ ERROR: $MDSC_CMD --install-workspace-restrictions: could not install $settingsFile" >&2
+			rm -f "$settingsTmp"
+			set +e ; return 1
+		fi
+
+		local hookRetired
+		while IFS= read -r hookRetired ; do
+			[ -n "$hookRetired" ] && [ -f "$hooksDir/$hookRetired" ] || continue
+			rm -f "$hooksDir/$hookRetired" || {
+				echo "⛔ ERROR: $MDSC_CMD --install-workspace-restrictions: could not remove the retired hook $hooksDir/$hookRetired" >&2
+				set +e ; return 1
+			}
+		done <<< "$hooksRetiredNames"
+
+		## Read the settings file back before reporting an install: the merge
+		## is a text transform over a file this op did not write alone, so a
+		## hook it failed to add reads from here exactly like a run that added
+		## it. The keys come from the same policy source the hook scripts do,
+		## captured with $( ), which strips the trailing newline the verifier
+		## would otherwise take as an empty key -- and an empty key reports OK
+		## against any non-empty PreToolUse, which is the one way this check
+		## could pass while asserting nothing.
+		local restrictionsHookKeys restrictionsVerify
+		restrictionsHookKeys="$( AgentsToolsClientToolPolicyHookKeys )" || {
+			echo "⛔ ERROR: $MDSC_CMD --install-workspace-restrictions: the client tool policy names no hook keys, so the hooks written into $settingsFile could not be verified" >&2
+			set +e ; return 1
+		}
+		restrictionsVerify="$( MYX_CLAUDEVERIFY_HOOK_KEYS="$restrictionsHookKeys" \
+			LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsClaudeSettingsVerify.awk" \
+			< "$settingsFile" )" || {
+			printf '%s\n' "$restrictionsVerify" >&2
+			echo "⛔ ERROR: $MDSC_CMD --install-workspace-restrictions: $settingsFile does not carry every hook the client tool policy names -- the MISSING line above names which" >&2
+			set +e ; return 1
+		}
+		restrictionsVerify="$( MYX_CLAUDEVERIFY_HOOK_EVENT=PermissionRequest MYX_CLAUDEVERIFY_HOOK_KEYS=".claude/hooks/permission-request-escalation.sh" \
+			LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsClaudeSettingsVerify.awk" \
+			< "$settingsFile" )" || {
+			printf '%s\n' "$restrictionsVerify" >&2
+			echo "⛔ ERROR: $MDSC_CMD --install-workspace-restrictions: $settingsFile does not carry the PermissionRequest hook -- the MISSING line above names it" >&2
+			set +e ; return 1
+		}
+
+		## Every fixed top-level setting the policy names, read back with its value.
+		local restrictionsSetting restrictionsFlat
+		restrictionsFlat="$( tr -d ' \t\n\r' < "$settingsFile" )"
+		while IFS= read -r restrictionsSetting ; do
+			[ -n "$restrictionsSetting" ] || continue
+			case "$restrictionsFlat" in
+				*"\"${restrictionsSetting%%$'\t'*}\":${restrictionsSetting#*$'\t'}"[,}]*) ;;
+				*)
+					echo "⛔ ERROR: $MDSC_CMD --install-workspace-restrictions: $settingsFile does not carry ${restrictionsSetting%%$'\t'*} = ${restrictionsSetting#*$'\t'}" >&2
+					set +e ; return 1
+				;;
+			esac
+		done <<< "$( AgentsToolsClientToolPolicyClaudeSettings )"
+
+		## Every command hook settings.json runs out of .claude/hooks has to exist
+		## and be executable, this package's or not: a missing one exits 127, and
+		## the harness refuses every call that hook matches.
+		local hookScriptList hookScriptEntry hookScriptPath
+		hookScriptList="$( MYX_CLAUDEVERIFY_LIST_HOOK_SCRIPTS=1 \
+			LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsClaudeSettingsVerify.awk" \
+			< "$settingsFile" )" || {
+			echo "⛔ ERROR: $MDSC_CMD --install-workspace-restrictions: could not list the hooks $settingsFile registers, so no hook script was checked" >&2
+			set +e ; return 1
+		}
+		while IFS=$'\t' read -r hookScriptEntry hookScriptPath ; do
+			[ -n "$hookScriptPath" ] || continue
+			if [ ! -f "$workspace/$hookScriptPath" ] || [ ! -x "$workspace/$hookScriptPath" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --install-workspace-restrictions: $settingsFile $hookScriptEntry runs $workspace/$hookScriptPath, which is missing or not executable" >&2
+				hooksFailed=1
+			fi
+		done <<< "$hookScriptList"
+		if [ "$hooksFailed" != "0" ] ; then
+			set +e ; return 1
+		fi
+
+		echo "✅ workspace restrictions $restrictionsState: $settingsFile" >&2
+		return 0

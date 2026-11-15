@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # ^^^ for syntax checking in the editor only
+type AgentsSessionDeathSessions > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
 
 ##
 ## AgentsTools.ManagerDashboard.include -- the panels the agents register in the Dashboard: the most
@@ -36,7 +37,7 @@
 ## secret is a figure.
 ##
 
-type AgentsToolsRegistryMeasureRows > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
+type AgentsToolsRegistryMeasureRows > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.RegistrySpawnedSessions.include"
 type AgentsToolsTeamMemberDirectoryText > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamRegistry.include"
 type AgentsToolsWorkspaceMode > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataGate.include"
 
@@ -73,7 +74,7 @@ agentsManagerDashboardBoardStates="running review blocked pending backlog parked
 ## closed today, or whose control thread left a pid file or a lock. A session left out has
 ## every record closed, no open ask, no end of today and no control thread: the rule reads
 ## it `finished`, and it is in no figure here. A row is closed by the three words the rule
-## itself takes for closed (AgentsToolsRegistryDeriveStateFromSet); a status that is none of
+## itself takes for closed (AgentsToolsRunDeriveStateFromSet); a status that is none of
 ## them is kept. The copy is a file of the tooling's own temp folder, removed in the same
 ## call; where none can be made the whole registry is measured, which costs what the list
 ## costs.
@@ -83,6 +84,8 @@ agentsManagerDashboardBoardStates="running review blocked pending backlog parked
 ## row's live is derived and nowhere in this family, and that place gives the runs of a
 ## registry file only together with the walk of every row.
 AgentsToolsManagerDashboardSessionMeasured(){
+	type AgentsToolsRegistryMeasureRows > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.RegistrySpawnedSessions.include"
+	type AgentsToolsRegistryFile > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
 	local rowsFile rowsPending rowsControl="" rowsNarrow="" rowsMeasure
 	local measuredRows="" measuredDated="" measuredAny="false"
 	rowsFile="$MMDAPP/.local/agents/spawned-sessions.registry"
@@ -90,6 +93,7 @@ AgentsToolsManagerDashboardSessionMeasured(){
 	rowsPending="$MMDAPP/.local/agents/pending-replies.registry"
 	[ -f "$rowsPending" ] || rowsPending="/dev/null"
 	rowsMeasure="$rowsFile"
+	type AgentsToolsManagerSessionControls > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.ManagerSessionRows.include"
 	rowsControl="$( AgentsToolsManagerSessionControls )" || rowsControl=""
 	if mkdir -p "${MMDAPP%/}/.local/temp" 2> /dev/null && rowsNarrow="$( mktemp "${MMDAPP%/}/.local/temp/mdat-manager-dashboard.sessions.XXXXXX" 2> /dev/null )" ; then
 		if MDAT_DASHBOARD_CONTROL="$rowsControl" MDAT_DASHBOARD_PENDING="$rowsPending" LC_ALL=C awk -v todayDate="$dashboardToday" '
@@ -131,7 +135,7 @@ AgentsToolsManagerDashboardSessionCounts(){
 	local countsRows
 	[ -z "$dashboardSessions" ] || return 0
 	dashboardSessions="none"
-	countsRows="$( . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.ManagerSession.include" --definitions-only > /dev/null 2>&1 || :
+	countsRows="$( type AgentsToolsManagerSessionControls > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.ManagerSessionRows.include"
 		AgentsToolsManagerDashboardSessionMeasured 2> /dev/null )" || countsRows=""
 	[ -n "$countsRows" ] || return 0
 	dashboardSessionRows="$countsRows"
@@ -175,10 +179,10 @@ AgentsToolsManagerDashboardSessionCounts(){
 ## is how its own reader says an answer is awaited (AgentsToolsSessionControlDeathCount).
 ## The folders are listed by the shell, and a file is read only where a session has one.
 AgentsToolsManagerDashboardDeaths(){
-	local deathFile deathLine deathOpen
+	type AgentsSessionDeathSessions > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+	local deathSession deathLine deathOpen
 	dashboardDeaths=0
-	for deathFile in "$MMDAPP/.local/agents/sessions"/*/control/dead ; do
-		[ -f "$deathFile" ] && [ -s "$deathFile" ] || continue
+	for deathSession in $( AgentsSessionDeathSessions ) ; do
 		type AgentsToolsSessionControlDeathCount > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionControlDeath.include"
 		deathOpen=""
 		while IFS= read -r deathLine || [ -n "$deathLine" ] ; do
@@ -186,7 +190,7 @@ AgentsToolsManagerDashboardDeaths(){
 			[ "$( AgentsToolsSessionControlDeathCount "$deathLine" asked )" -gt "$( AgentsToolsSessionControlDeathCount "$deathLine" answer )" ] || continue
 			deathOpen="yes"
 			break
-		done < "$deathFile"
+		done <<< "$( AgentsSessionDeathLines "$deathSession" )"
 		[ -z "$deathOpen" ] || dashboardDeaths=$(( dashboardDeaths + 1 ))
 	done
 	return 0
@@ -277,8 +281,8 @@ AgentsToolsManagerDashboardPending(){
 		[ -z "$pendingAt" ] || [ "$pendingAt" = "-" ] || pendingDates="$pendingDates$pendingAt"$'\n'
 	done <<< "$pendingFacts"
 	if [ -n "$pendingAskers" ] ; then
-		pendingLive="$( . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.MemberPendingReply.include" --definitions-only > /dev/null 2>&1 || :
-			printf '%s' "$pendingAskers" | LC_ALL=C sort -u | AgentsToolsPendingReplyAskers 2> /dev/null )" || pendingLive=""
+		type AgentsToolsPendingReplyAskers > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.PendingReplyRecords.include"
+		pendingLive="$( printf '%s' "$pendingAskers" | LC_ALL=C sort -u | AgentsToolsPendingReplyAskers 2> /dev/null )" || pendingLive=""
 		## An asker is gone by the two words the list of the questions marks it by.
 		pendingGone="$( { printf '%s\n=\n' "$pendingLive" ; printf '%s' "$pendingAskers" ; } | LC_ALL=C awk '
 			$0 == "=" { goneRead = 1 ; next ; }
@@ -312,7 +316,7 @@ AgentsToolsManagerDashboardCliSet(){
 	if LocalToolsManagerDashboardKept cli-service "$agentsManagerDashboardSizeSeconds" "${MMDAPP%/}" ; then
 		cliWords="$dashboardKept"
 	else
-		type AgentsToolsPresetRead > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.Preset.include"
+		type AgentsToolsPresetRead > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/settings/AgentsTools.Preset.include"
 		cliRoot="$( AgentsToolsPresetPayRoot 2> /dev/null )" || cliRoot="${MMDAPP%/}"
 		for cliOne in LOW NORMAL HIGH ; do
 			cliSpec="$( AgentsToolsPresetRead "$cliRoot" magic-team "SPAWN_TIER_$cliOne" )"
@@ -322,7 +326,7 @@ AgentsToolsManagerDashboardCliSet(){
 		done
 		cliWords="none"
 		if [ -n "${cliNamed// /}" ] ; then
-			cliLines="$( . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.ManagerConfig.include" --definitions-only > /dev/null 2>&1 || :
+			cliLines="$( type AgentsToolsManagerConfigCli > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.ManagerSettings.include"
 				AgentsToolsManagerConfigCli 2> /dev/null )" || cliLines=""
 			while IFS=$'\t' read -r cliRow cliSubject cliGroup cliKey cliState cliValue cliRest ; do
 				[ "$cliRow" = "line" ] && [ "$cliSubject" = "cli" ] && [ "$cliKey" = "usable" ] && [ "$cliState" = "set" ] && [ "$cliValue" = "yes" ] || continue
@@ -400,6 +404,7 @@ AgentsToolsManagerDashboardTopSessions(){
 ## (LocalToolsManagerDashboardKeep), and read again once what is kept is older than
 ## agentsManagerDashboardSizeSeconds. Who runs is measured at every call.
 AgentsToolsManagerDashboardTeam(){
+	type AgentsToolsTeamMemberIsTeam > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamRegistry.include"
 	local teamMember teamDir teamTotal=0 teamStart=0 teamRest
 	if LocalToolsManagerDashboardKept team-members "$agentsManagerDashboardSizeSeconds" "${MMDAPP%/}" ; then
 		read -r teamTotal teamStart teamRest <<< "$dashboardKept" || :
@@ -587,7 +592,7 @@ AgentsToolsManagerDashboardTeamDataGit(){
 	read -r gitRepo gitBranch gitUpstream gitAhead gitBehind gitDirty gitEpoch gitSubject <<< "$gitWords"
 	LocalToolsManagerDashboardFigure team-data-git repository "Team Data Repository" "${gitRepo:-no}" - - ""
 	[ "$gitRepo" = "yes" ] || return 0
-	case "$( . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.ManagerConfig.include" --definitions-only > /dev/null 2>&1 || : ; AgentsToolsManagerConfigMode 2> /dev/null )" in *" yes") gitJudged="yes" ;; esac
+	case "$( type AgentsToolsManagerConfigMode > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.ManagerSettings.include" ; AgentsToolsManagerConfigMode 2> /dev/null )" in *" yes") gitJudged="yes" ;; esac
 	LocalToolsManagerDashboardFigure team-data-git branch "Team Data Branch" "$gitBranch" - - ""
 	[ "$gitUpstream" = "-" ] || LocalToolsManagerDashboardFigure team-data-git upstream "Team Data Upstream" "$gitUpstream" - - ""
 	case "$gitAhead:$gitBehind" in *[!0123456789:]*|:*|*:) ;; *)
@@ -617,7 +622,7 @@ AgentsToolsManagerDashboardTeamDataGit(){
 ## asks whether one is set and keeps no text of it); elsewhere they are shown plain, `-`.
 AgentsToolsManagerDashboardLoop(){
 	local loopLines loopRow loopSubject loopGroup loopKey loopState loopValue loopRest loopLevel loopJudged=""
-	loopLines="$( . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.ManagerConfig.include" --definitions-only > /dev/null 2>&1 || :
+	loopLines="$( type AgentsToolsManagerConfigMode > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.ManagerSettings.include"
 		printf 'mode\t%s\n' "$( AgentsToolsManagerConfigMode 2> /dev/null )"
 		AgentsToolsManagerConfigLoop 2> /dev/null )" || loopLines=""
 	while IFS=$'\t' read -r loopRow loopSubject loopGroup loopKey loopState loopValue loopRest ; do

@@ -1,0 +1,329 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.SpawnSessionParent.include -- the agent-less parent of a session (start, post, tick, revive, close), and the spawn limit and the spawn queue. Split out of AgentsTools.SpawnSandbox.include by concern, its functions unchanged. Sourced, never
+## run; it relies on what AgentsTools.SpawnSandbox.include sources for it.
+##
+## THE CLOSE OF AN AGENT-LESS PARENT (AgentsToolsSpawnSessionParent, below), once every child
+## its record names has closed and none is queued (`pending:`): its status summed from theirs -- all succeeded reads succeeded,
+## any other close, a child record gone, a start that failed (`start-failed:`), or no child at all reads failed -- its
+## resolved-at stamped, and its handback in its thread naming each child and its outcome.
+## rc 1, nothing changed, while a child is open or queued or the record is closed already. Its watcher calls it, and
+## housekeeping does for a parent whose watcher is gone.
+AgentsToolsSpawnSessionParentClose(){ ## parent record
+	local closeRecord="$1" closeChild closeChildRecord closeStatus closeOutcome="succeeded" closeList="" closeTemp closeThread closeFailed
+	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandbox.include"
+	[ "$( AgentsToolsSpawnSandboxRecordHeader "$closeRecord" status )" = spawn-started ] || return 1
+	[ -z "$( AgentsToolsSpawnSandboxRecordHeader "$closeRecord" pending )" ] || return 1
+	for closeChild in $( AgentsToolsSpawnSandboxRecordHeader "$closeRecord" children ) ; do
+		closeChildRecord="$MMDAPP/.local/agents/spawned/$closeChild/$closeChild.spawn.md" closeStatus="spawn-gone"
+		[ ! -f "$closeChildRecord" ] || closeStatus="$( AgentsToolsSpawnSandboxRecordHeader "$closeChildRecord" status )"
+		case "$closeStatus" in
+			''|spawn-started) return 1 ;;
+			spawn-succeeded) ;;
+			*) closeOutcome="failed" ;;
+		esac
+		closeList="$closeList${closeList:+, }$closeChild $( AgentsToolsSpawnSandboxRecordHeader "$closeChildRecord" owner 2> /dev/null ) ${closeStatus#spawn-}"
+	done
+	for closeFailed in $( AgentsToolsSpawnSandboxRecordHeader "$closeRecord" start-failed ) ; do
+		closeOutcome="failed" ; closeList="$closeList${closeList:+, }$closeFailed start-failed"
+	done
+	[ -n "$closeList" ] || { closeOutcome="failed" ; closeList="no child was started" ; }
+	closeTemp="$( mktemp "$closeRecord.tmp.XXXXXX" )" || return 1
+	LC_ALL=C awk -v outcome="$closeOutcome" -v stamp="$( date +"%Y-%m-%d %H:%M %z" )" '
+		NR == 1 { print ; next ; }
+		$0 == "---" && !closed { print "resolved-at: " stamp ; print ; closed = 1 ; next ; }
+		$0 == "status: spawn-started" { print "status: spawn-" outcome ; next ; }
+		{ print ; }
+	' "$closeRecord" > "$closeTemp" && chmod 644 "$closeTemp" && mv -f "$closeTemp" "$closeRecord" || { rm -f -- "$closeTemp" ; return 1 ; }
+	## Its handback, in the caller's thread, where the parent has one. Best-effort, never the parent's outcome.
+	closeThread="$( AgentsToolsSpawnSandboxRecordHeader "$closeRecord" session-thread )"
+	[ -n "$closeThread" ] || return 0
+	type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+	DistroAgentsTools --intern-op-event-track-post "$( AgentsToolsSpawnSandboxRecordHeader "$closeRecord" owner )" "$closeThread" --kind handback \
+		--session-id "$( AgentsToolsSpawnSandboxRecordHeader "$closeRecord" session-id )" \
+		--field handback="agent-less parent: all spawned sessions are done ($closeOutcome): $closeList" < /dev/null 2>&1 > /dev/null || :
+	return 0
+}
+
+## Header lines set on a spawn record another process may be writing too: read, changed, and moved in only where
+## the file is still what was read (three tries), as AgentsToolsSpawnProxyRunRecord does. Lines on stdin: `<header><TAB><value>`.
+AgentsToolsSpawnSessionRecordNote(){ ## record file
+	local noteFile="$1" noteOps noteSeen noteBody noteNow noteTries=0 noteTmp=""
+	[ -f "$noteFile" ] || return 1
+	noteOps="$( mktemp "$noteFile.ops.XXXXXX" )" || return 1
+	LC_ALL=C awk -F'\t' 'NF >= 2 { printf "upsert\t%s\t%s\n", $1, $2 }' > "$noteOps"
+	while [ "$noteTries" -lt 3 ] ; do
+		noteTries=$(( noteTries + 1 ))
+		noteSeen="" ; IFS= read -r -d '' noteSeen < "$noteFile" 2> /dev/null || :
+		[ -n "$noteSeen" ] || break
+		noteBody="$( printf '%s' "$noteSeen" | LC_ALL=C awk -v opsFile="$noteOps" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsBoardItemHeaderOpsApply.awk" 2> /dev/null )" || noteBody=""
+		[ -n "$noteBody" ] || break
+		[ -n "$noteTmp" ] || noteTmp="$( mktemp "$noteFile.note.XXXXXX" 2> /dev/null )" || break
+		printf '%s\n' "$noteBody" 2> /dev/null > "$noteTmp" || break
+		noteNow="" ; IFS= read -r -d '' noteNow < "$noteFile" 2> /dev/null || :
+		[ "$noteNow" = "$noteSeen" ] || continue
+		chmod 644 "$noteTmp" 2> /dev/null ; mv -f "$noteTmp" "$noteFile" 2> /dev/null && { rm -f "$noteOps" ; return 0 ; }
+		break
+	done
+	rm -f "$noteOps" ${noteTmp:+"$noteTmp"}
+	return 1
+}
+## The founding record of a session this call started, given the lines; a warning, never a stop, where it cannot be.
+AgentsToolsSpawnSessionNoteSession(){ ## session id, the lines (`<header><TAB><value>` a line)
+	local noteRecord
+	for noteRecord in "$MMDAPP"/.local/agents/spawned/*/"$1.spawn.md" ; do
+		[ -f "$noteRecord" ] && printf '%s' "$2" | AgentsToolsSpawnSessionRecordNote "$noteRecord" && return 0
+	done
+	echo "$MDSC_CMD: spawn-session: ⚠️ WARNING: the participants and the likely needs could not be written on the record of session $1" >&2
+	return 0
+}
+
+## THE SPAWN LIMIT AND THE QUEUE (S23.1). With SPAWN_LIMIT of the team scope set above 0 (MDAT_SPAWN_LIMIT overrides it), a spawn that finds that many runs of this host
+## alive is not made: it is recorded as an inquiry in magic-coordinator's inbox and added as an item to the CheckList of the coordinator's running work-duty, so the CheckList is
+## the queue the duty works from. Unset or 0 is no limit, which is how it stands until it is set. A start of a work-duty and a start that joins a session are never queued.
+## AgentsToolsSpawnLimitReached prints `<running> <limit>` and returns 0 where the limit is reached; 1 where there is none or it is not.
+AgentsToolsSpawnLimitReached(){
+	local limitValue="${MDAT_SPAWN_LIMIT:-}" limitRunning
+	if [ -z "$limitValue" ] ; then
+		type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/settings/AgentsTools.ConfigOption.include" || return 1
+		limitValue="$( AgentsToolsConfigOption magic-team --select SPAWN_LIMIT 2> /dev/null )" || limitValue=""
+	fi
+	case "$limitValue" in ''|0|*[!0123456789]*) return 1 ;; esac
+	type AgentsToolsRunWords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunProcesses.include" || return 1
+	limitRunning="$( ps -A -ww -o pid=,args= 2> /dev/null | AgentsToolsRunWords | LC_ALL=C sort -u | LC_ALL=C grep -c . || : )"
+	[ "$limitRunning" -ge "$limitValue" ] || return 1
+	printf '%s %s\n' "$limitRunning" "$limitValue"
+}
+
+## The queue's one entry: the request of a spawn the limit turned away, filed where the coordinator reads (an inquiry in its inbox, carrying the routine, the members and the task) and added
+## as an item to the CheckList of its running work-duty. Prints SPAWN_QUEUED=true, SPAWN_QUEUE_ITEM=<the inquiry> and SPAWN_QUEUE_CHECKLIST=<session>:magic-coordinator, or none where no work-duty
+## runs to take it, the inquiry then waiting in the inbox. rc 1 where the inquiry could not be filed.
+AgentsToolsSpawnQueue(){ ## the limit line, the routine, the members, the description, the task text
+	local queueName queueFile queueBy queueDuty queueSession="" queueCount=""
+	queueName="inquiry-$( date -u +%Y%m%dT%H%MZ )-queued-spawn-$$.md"
+	mkdir -p "$MMDAPP/.local/temp" 2> /dev/null
+	queueFile="$( mktemp "$MMDAPP/.local/temp/spawn-queue.XXXXXX" )" || return 1
+	{
+		printf '# A spawn the limit turned away\n\n'
+		printf 'The limit of %s runs at once was reached with %s running, so this spawn was not made. Start it when a run ends.\n\n' "${1#* }" "${1%% *}"
+		printf -- '- routine: %s\n- members: %s\n- description: %s\n\n## Task\n\n%s\n' "$2" "$3" "${4:--}" "${5:--}"
+	} > "$queueFile"
+	queueBy="$( AgentsToolsActingMember 2> /dev/null )" || queueBy=""
+	[ -n "$queueBy" ] || queueBy="magic-coordinator"
+	type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+	DistroAgentsTools --upsert-inbox-inquiry magic-coordinator "$queueName" --from-member "$queueBy" --from-file "$queueFile" > /dev/null 2>&1 || { rm -f "$queueFile" ; return 1 ; }
+	rm -f "$queueFile"
+	type AgentsToolsScheduleWorkDutyRecord > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/schedule/AgentsTools.DispatcherSchedule.include"
+	queueDuty="$( AgentsToolsScheduleWorkDutyRecord magic-coordinator 2> /dev/null )" || queueDuty=""
+	if [ -n "$queueDuty" ] ; then
+		queueSession="$( AgentsToolsSpawnSandboxRecordHeader "$queueDuty" session-id )"
+		type AgentsHarnessCheckListAppendLines > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessBatch.include"
+		queueCount="$( printf 'queued spawn of %s: start it when a run ends (%s)\n' "$2" "${queueName%.md}" | AgentsHarnessCheckListAppendLines "${queueDuty%/*}" magic-coordinator 2> /dev/null )" || queueCount=""
+	fi
+	printf 'SPAWN_QUEUED=true\nSPAWN_QUEUE_ITEM=%s\nSPAWN_QUEUE_CHECKLIST=%s\n' "${queueName%.md}" "$( [ -n "$queueCount" ] && printf '%s:magic-coordinator' "$queueSession" || printf none )"
+	return 0
+}
+
+## THE AGENT-LESS PARENT of a partitioned spawn (--spawn-session, AgentsTools.SpawnSession.include): it runs no agent of its
+## own -- no CLI is launched. Its children report to it (`reports-to: <its session>`), and the route takes each matter one hop on,
+## to where the parent reports (AgentsToolsRunRoute), so their handbacks, escalations and the answers to them pass by the route.
+## Its record holds the queue as lib/parallel holds its stdin: `pending:` the members not started yet, at most `workers:` children
+## open at once (default 4), `start-failed:` the starts that failed, the rest going on. Its call writes the record, starts the first
+## children and launches the watcher; from then the watcher alone writes it. The files beside the record keep what each start is
+## given: partition.args (the spawn proxy's arguments, NUL-separated), partition.task (its stdin), partition.notes (record lines).
+agentsSpawnSessionParentWorkers=4
+
+## One start of the queue: the member spawned as a child of the parent; an entry `<member>@<n>` is of the n-th line of
+## partition.scopes (--partition-scope), named first in its brief and as `scope:` on its record. Prints the child's
+## session id; rc 1 where it failed.
+AgentsToolsSpawnSessionParentStart(){ ## parent session id, queue entry
+type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+	local startDir="$MMDAPP/.local/agents/spawned/$1" startArgs=() startArg startOut startChild startMember="${2%@*}" startScope="" startNotes="" startShort="${1:0:8}" startRoutine="" startIdentify="" startLabel=""
+	while IFS= read -r -d '' startArg ; do startArgs+=( "$startArg" ) ; done < "$startDir/partition.args"
+	## The session's own short id and identifying part, as its parent's record keeps them: the member's row
+	## carries both, in the same order the parent row does, so the two read as one session.
+	[ ! -s "$startDir/partition.identify" ] || startIdentify="$( cat "$startDir/partition.identify" )"
+	if [ -n "$startIdentify" ] ; then
+		type AgentsToolsTaskTextKept > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.TaskText.include"
+		type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandbox.include"
+		startRoutine="$( AgentsToolsSpawnSandboxRecordHeader "$startDir/$1.spawn.md" routine )"
+		startRoutine="${startRoutine#magic-team.}" ; startRoutine="${startRoutine%.routine.md}"
+		startLabel="$( AgentsToolsTaskTextKept "$startMember, $startRoutine ($startShort): $startIdentify" )"
+		[ -z "$startLabel" ] || startArgs+=( --session-name-or-comment "$startLabel" )
+	fi
+	case "$2" in
+		*@*)
+			startScope="$( LC_ALL=C sed -n "${2##*@}p" "$startDir/partition.scopes" 2> /dev/null )"
+			[ -n "$startScope" ] || return 1
+		;;
+	esac
+	startOut="$( { [ -z "$startScope" ] || printf 'scope: %s\n' "$startScope" ; cat "$startDir/partition.task" ; } \
+		| DistroAgentsTools --intern-op-agent-spawn-proxy "$startMember" ${startArgs[@]+"${startArgs[@]}"} --reports-to "$1" --session-new --parent-session "$1" --context --spawn-session )" || return 1
+	startChild="$( printf '%s\n' "$startOut" | LC_ALL=C awk -F= '$1 == "SESSION_ID" { print $2 ; exit ; }' )"
+	[ -n "$startChild" ] || return 1
+	[ ! -s "$startDir/partition.notes" ] || startNotes="$( cat "$startDir/partition.notes" )"$'\n'
+	[ -z "$startScope" ] || startNotes="${startNotes}scope"$'\t'"$startScope"$'\n'
+	[ -z "$startNotes" ] || AgentsToolsSpawnSessionNoteSession "$startChild" "$startNotes"
+	printf '%s\n' "$startChild"
+}
+
+## One post of the parent into its own tracking thread, made once: its mark goes on the record's `posted:`, so a watcher
+## started again never posts it twice. Best-effort, never the parent's outcome.
+AgentsToolsSpawnSessionParentPost(){ ## parent record, mark, --intern-op-event-track-post arguments...
+	local postRecord="$1" postMark="$2" postDone postId
+	shift 2
+	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandbox.include"
+	postDone="$( AgentsToolsSpawnSandboxRecordHeader "$postRecord" posted )"
+	case " $postDone " in *" $postMark "*) return 0 ;; esac
+	postId="${postRecord##*/}" ; postId="${postId%.spawn.md}"
+	type AgentsToolsEventTrackThreadPost > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/event-track/AgentsTools.EventTrackThread.include"
+	AgentsToolsEventTrackThreadPost "$( AgentsToolsSpawnSandboxRecordHeader "$postRecord" owner )" "$MMDAPP/.local/agents/sessions/$postId" \
+		--session-id "$postId" "$@" < /dev/null > /dev/null 2>&1 || :
+	printf 'posted\t%s\n' "$postDone${postDone:+ }$postMark" | AgentsToolsSpawnSessionRecordNote "$postRecord" || :
+}
+
+## Whether a child's run is dead and the death path leaves it to the parent: open, of this host, no process runs as it, no
+## question of its session waits, no control thread holds its death (AgentsToolsSessionControlDeathHeld), and nothing of it
+## changed for 15 minutes -- the advance pass's own conditions (AgentsToolsAdvanceSpawnHousekeeping). rc 0 dead.
+AgentsToolsSpawnSessionParentChildDead(){ ## child record
+	type AgentsToolsRegistryPendingSessionOpen > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.RegistryPendingReplies.include"
+	type AgentsToolsRegistryFile > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
+	local deadId deadSession deadHost
+	deadId="${1##*/}" ; deadId="${deadId%.spawn.md}"
+	deadSession="$( AgentsToolsSpawnSandboxRecordHeader "$1" session-id )"
+	deadHost="$( AgentsToolsSpawnSandboxRecordHeader "$1" host )"
+	[ "$( AgentsToolsSpawnSandboxRecordHeader "$1" status )" = spawn-started ] || return 1
+	[ -z "$deadHost" ] || [ "$deadHost" = "$( hostname -s 2> /dev/null || echo unknown )" ] || return 1
+	type AgentsToolsSpawnRuns > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunProcesses.include" || return 1
+	! AgentsToolsSpawnRuns "$deadId" "$1" || return 1
+	! AgentsToolsRegistryPendingSessionOpen "$deadSession" || return 1
+	type AgentsToolsSessionControlDeathHeld > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionControlDeath.include" || return 1
+	! AgentsToolsSessionControlDeathHeld "$deadSession" "$deadId" 2> /dev/null || return 1
+	[ -z "$( find "${1%/*}" "$MMDAPP/.local/agents/sessions/$deadId" "$MMDAPP/.local/agents/sessions/$deadSession" -type f -mmin -15 2> /dev/null | head -1 )" ] || return 1
+	return 0
+}
+
+## One pass of the watcher. Its children are rebuilt from the records that name the parent as their parent session; a dead one
+## is closed by the death path; queued members start while fewer than `workers:` are open and the caller is there (gone, the
+## queue holds and says so once); then the close (AgentsToolsSpawnSessionParentClose). rc 0: the parent is closed or gone, and
+## its watcher ends; rc 1: it goes on.
+AgentsToolsSpawnSessionParentTick(){ ## parent record
+	local tickRecord="$1" tickId tickChildren="" tickOpen="" tickFile tickChild tickStatus tickPending tickWorkers tickEntry tickRest
+	local tickStarted tickFailed tickRoute tickCount tickKnown tickStartChildren tickStartPending tickStartWorkers
+	[ -f "$tickRecord" ] && [ "$( AgentsToolsSpawnSandboxRecordHeader "$tickRecord" status )" = spawn-started ] || return 0
+	type AgentsToolsAssertBareName > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.BareName.include"
+	tickId="${tickRecord##*/}" ; tickId="${tickId%.spawn.md}"
+	## No field of the notice comes out empty: one holding nothing says `none`, so the line keeps one shape a reader can trust.
+	tickStartChildren="$( AgentsToolsSpawnSandboxRecordHeader "$tickRecord" children )"
+	tickStartPending="$( AgentsToolsSpawnSandboxRecordHeader "$tickRecord" pending )"
+	tickStartWorkers="$( AgentsToolsSpawnSandboxRecordHeader "$tickRecord" workers )"
+	tickStartWorkers="${tickStartWorkers:-$agentsSpawnSessionParentWorkers}"
+	AgentsToolsSpawnSessionParentPost "$tickRecord" start --kind notice --field what="agent-less parent of $( AgentsToolsSpawnSandboxRecordHeader "$tickRecord" routine ): children ${tickStartChildren:-none}, queued ${tickStartPending:-none}, at most $tickStartWorkers at once"
+	## The children it names keep their order; a record found that it does not name yet is added after them.
+	tickKnown="$( AgentsToolsSpawnSandboxRecordHeader "$tickRecord" children )"
+	tickChildren="$tickKnown"
+	type AgentsToolsSpawnedSessionRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.StartedRecords.include"
+	for tickFile in $( AgentsToolsSpawnedSessionRecords "$tickId" parent ) ; do
+		tickChild="$( AgentsToolsSpawnSandboxRecordHeader "$tickFile" session-id )"
+		AgentsToolsAssertBareName "$tickChild" "a child's session" AgentsToolsSpawnSessionParentTick 2> /dev/null || continue
+		case " $tickChildren " in *" $tickChild "*) ;; *) tickChildren="$tickChildren${tickChildren:+ }$tickChild" ;; esac
+		if AgentsToolsSpawnSessionParentChildDead "$tickFile" ; then
+			type AgentsToolsSessionControlDeathClose > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionControlDeath.include"
+			AgentsToolsSessionControlDeathClose "$tickFile" > /dev/null 2>&1 || :
+			AgentsToolsSpawnSessionParentPost "$tickRecord" "dead:${tickFile##*/}" --kind error \
+				--field what="agent-less parent: the run of child $tickChild ($( AgentsToolsSpawnSandboxRecordHeader "$tickFile" owner )) is dead, closed as $( AgentsToolsSpawnSandboxRecordHeader "$tickFile" status )"
+		fi
+		[ "$( AgentsToolsSpawnSandboxRecordHeader "$tickFile" status )" != spawn-started ] || case " $tickOpen " in *" $tickChild "*) ;; *) tickOpen="$tickOpen $tickChild" ;; esac
+	done
+	[ "$tickChildren" = "$tickKnown" ] \
+		|| printf 'children\t%s\n' "$tickChildren" | AgentsToolsSpawnSessionRecordNote "$tickRecord" || :
+	## The queue: started while there is room and the caller is there.
+	tickPending="$( AgentsToolsSpawnSandboxRecordHeader "$tickRecord" pending )"
+	if [ -n "$tickPending" ] ; then
+		tickRoute="$( AgentsToolsSpawnSandboxRecordHeader "$tickRecord" "$agentsRunRouteField" )"
+		case "$tickRoute" in
+			*:*) AgentsToolsRunRouteAvailable "${tickRoute%%:*}" "${tickRoute#*:}" "$tickRecord" || tickRoute="" ;;
+		esac
+		if [ -z "$tickRoute" ] ; then
+			AgentsToolsSpawnSessionParentPost "$tickRecord" caller-gone --kind error \
+				--field what="agent-less parent: its caller is gone, so the queue holds: $tickPending; the children running go on"
+		else
+			tickWorkers="$( AgentsToolsSpawnSandboxRecordHeader "$tickRecord" workers )"
+			case "$tickWorkers" in ''|*[!0123456789]*|0) tickWorkers="$agentsSpawnSessionParentWorkers" ;; esac
+			tickCount="$( printf '%s\n' $tickOpen | LC_ALL=C grep -c . )"
+			while [ -n "$tickPending" ] && [ "$tickCount" -lt "$tickWorkers" ] ; do
+				read -r tickEntry tickRest <<< "$tickPending"
+				if tickStarted="$( AgentsToolsSpawnSessionParentStart "$tickId" "$tickEntry" )" ; then
+					tickChildren="$tickChildren${tickChildren:+ }$tickStarted" ; tickCount=$(( tickCount + 1 ))
+					printf 'pending\t%s\nchildren\t%s\n' "$tickRest" "$tickChildren" | AgentsToolsSpawnSessionRecordNote "$tickRecord" || :
+					AgentsToolsSpawnSessionParentPost "$tickRecord" "started:$tickStarted" --kind notice --field what="agent-less parent: child $tickStarted ($tickEntry) started"
+				else
+					tickFailed="$( AgentsToolsSpawnSandboxRecordHeader "$tickRecord" start-failed )"
+					printf 'pending\t%s\nstart-failed\t%s\n' "$tickRest" "$tickFailed${tickFailed:+ }$tickEntry" | AgentsToolsSpawnSessionRecordNote "$tickRecord" || :
+					AgentsToolsSpawnSessionParentPost "$tickRecord" "start-failed:$tickEntry" --kind error --field what="agent-less parent: the start of $tickEntry failed; the rest go on"
+				fi
+				tickPending="$tickRest"
+			done
+		fi
+	fi
+	## A child's close is posted here, after the queue: a child started in this same pass may already be done, and the
+	## parent closes right after, which ends the watcher. Its own record settles it, never this pass's snapshot (S5 item 1).
+	for tickChild in $tickChildren ; do
+		tickStatus="$( AgentsToolsSpawnSandboxRecordHeader "$MMDAPP/.local/agents/spawned/$tickChild/$tickChild.spawn.md" status )"
+		case "$tickStatus" in ''|spawn-started) continue ;; esac
+		AgentsToolsSpawnSessionParentPost "$tickRecord" "closed:$tickChild" --kind notice --field what="agent-less parent: child $tickChild closed: ${tickStatus#spawn-}"
+	done
+	AgentsToolsSpawnSessionParentClose "$tickRecord" || return 1
+	AgentsToolsSpawnSessionParentPost "$tickRecord" end --kind notice --field what="agent-less parent: done, $( AgentsToolsSpawnSandboxRecordHeader "$tickRecord" status )"
+	return 0
+}
+
+## The watcher: its own process and start on the record as its first act, then a pass every 2 seconds until the parent is
+## closed. Started by AgentsToolsSpawnSessionParentLaunch, never in a caller's own process.
+AgentsToolsSpawnSessionParent(){ ## parent session id
+	local watchRecord="$MMDAPP/.local/agents/spawned/$1/$1.spawn.md" watchPid
+	[ -f "$watchRecord" ] || return 0
+	## This process's own pid, which bash 3.2 has no BASHPID for: the parent of a child it starts.
+	watchPid="$( exec sh -c 'echo "$PPID"' )"
+	type AgentsToolsAssertBareName > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.BareName.include"
+	type AgentsToolsRunProcessStart > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunProcesses.include"
+	printf 'host\t%s\nrun-process\t%s\n' "$( hostname -s 2> /dev/null || echo unknown )" "$watchPid $( AgentsToolsRunProcessStart "$watchPid" )" | AgentsToolsSpawnSessionRecordNote "$watchRecord" || return 1
+	until AgentsToolsSpawnSessionParentTick "$watchRecord" ; do sleep 2 ; done
+}
+
+## The watcher started fully detached: a process group of its own, no terminal, stdin from /dev/null, disowned, so it outlives its
+## caller and no signal to the caller's group reaches it. Waits up to 10 seconds for the watcher to name itself on the record.
+## rc 1 where it did not. Used by --spawn-session and by housekeeping, for a parent whose watcher is gone.
+AgentsToolsSpawnSessionParentLaunch(){ ## parent session id
+	local launchRecord="$MMDAPP/.local/agents/spawned/$1/$1.spawn.md" launchPid launchLeft=10
+	[ -f "$launchRecord" ] || return 1
+	mkdir -p "$MMDAPP/.local/agents/sessions" 2> /dev/null || :
+	set -m
+	( trap '' HUP
+	  exec "$BASH" -c '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandbox.include" ; AgentsToolsSpawnSessionParent "$1"' agent-less-parent "$1"
+	) < /dev/null >> "$MMDAPP/.local/agents/sessions/$1.log" 2>&1 &
+	launchPid=$!
+	set +m
+	disown "$launchPid" 2> /dev/null || :
+	while [ "$launchLeft" -gt 0 ] ; do
+		LC_ALL=C grep -q -E "^run-process: $launchPid( |\$)" "$launchRecord" 2> /dev/null && return 0
+		sleep 1 ; launchLeft=$(( launchLeft - 1 ))
+	done
+	return 1
+}
+
+## A parent whose watcher is gone, its record still open: its watcher started again, where its record is of this host. rc 0
+## started; rc 1 not (another host's, closed, or its watcher still runs). Housekeeping calls it.
+AgentsToolsSpawnSessionParentRevive(){ ## parent record
+	local reviveId reviveHost
+	reviveId="${1##*/}" ; reviveId="${reviveId%.spawn.md}"
+	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandbox.include"
+	[ "$( AgentsToolsSpawnSandboxRecordHeader "$1" agent-less )" = true ] && [ "$( AgentsToolsSpawnSandboxRecordHeader "$1" status )" = spawn-started ] || return 1
+	reviveHost="$( AgentsToolsSpawnSandboxRecordHeader "$1" host )"
+	[ -z "$reviveHost" ] || [ "$reviveHost" = "$( hostname -s 2> /dev/null || echo unknown )" ] || return 1
+	type AgentsToolsRunRecordedAlive > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunProcesses.include" || return 1
+	! AgentsToolsRunRecordedAlive "$1" || return 1
+	AgentsToolsSpawnSessionParentLaunch "$reviveId"
+}

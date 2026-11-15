@@ -11,6 +11,7 @@ fi
 if type Require >/dev/null 2>&1 ; then
 	Require --help
 fi
+## Agents is the console bootstrap (AgentsContext.include), absent only when this help runs outside the DistroAgents console.
 if type Agents >/dev/null 2>&1 ; then
 	Agents --help
 fi

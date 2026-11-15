@@ -1,3 +1,6 @@
+---
+maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
+---
 # Messaging platforms — size limits, silent truncation, composition
 
 Read this when sending, reading, or storing messages through any chat/messaging platform. Read it

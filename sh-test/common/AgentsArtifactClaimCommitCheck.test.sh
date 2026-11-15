@@ -119,7 +119,7 @@ rigClaim(){ ## result name -- stdin: the shell body
 	printf '%s' "$?" > "$rigTmp/$claimName.rc"
 }
 rigClaimBody(){
-	printf '%s\n' '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.LocalLock.include" > /dev/null 2>&1'
+	printf '%s\n' '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.LocalLock.include" > /dev/null 2>&1'
 	printf '%s\n' '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataCommit.include" > /dev/null 2>&1'
 	printf '%s\n' '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.InternArtifact.include" > /dev/null 2>&1'
 	printf '%s\n' 'artCmd=rig-claim ; artMember=magic-tester ; artCode=ADR ; artTitle="Rig decision" ; artSession=rig-session'

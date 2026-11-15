@@ -1,0 +1,36 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+			case "$sourceMode" in
+				board)
+					trackedItemState="$( AgentsToolsSpawnProxyBoardStateOf "$trackedItemName" )"
+					if [ -z "$trackedItemState" ] ; then
+						## Read from somewhere this op cannot write back to. Said, and said
+						## on stdout too, rather than leaving the caller to assume a record.
+						echo "$MDSC_CMD: agent-spawn-proxy: ⚠️ WARNING: --dispatch-doc:reuse: $trackedItemName is in no board state folder, so this spawn records nothing on it" >&2
+						echo "TRACKING_RECORD=absent"
+					else
+						type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+						DistroAgentsTools --intern-op-board-upsert-move-edit "$trackedItemState" "$trackedItemName" \
+							--from-state:"$trackedItemState" \
+							--context "$opContext" \
+							--header:upsert:session-id:"$sessionId" \
+							--header:upsert:spawn-id:"$MDAT_SPAWN_SESSION_ID" \
+							--header:upsert:executing-workspace:"$executingWorkspaceName" \
+							--header:upsert:paying-workspace:"$payingWorkspaceName" \
+							--header:upsert:member-workspace:"$memberWorkspaceName" \
+							${transcriptRel:+--header:upsert:transcript:"$transcriptRel"} \
+							--header:upsert:status:dispatch-started \
+							--log-verb:updated \
+							|| echo "$MDSC_CMD: agent-spawn-proxy: ⚠️ WARNING: could not mark tracking item $trackedItemName as started" >&2
+					fi
+				;;
+				*)
+					## vault and audit are not board stores and this op has no sanctioned
+					## write path into either. Stated once, plainly, rather than writing
+					## nothing and letting a caller believe a record exists -- which is the
+					## exact failure this change was dispatched to close.
+					echo "$MDSC_CMD: agent-spawn-proxy: ⚠️ WARNING: --dispatch-doc:reuse with a --from-$sourceMode source records nothing: $sourceMode is not a board store and this op has no write path into it" >&2
+					echo "TRACKING_RECORD=absent"
+				;;
+			esac

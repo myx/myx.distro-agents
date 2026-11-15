@@ -545,9 +545,9 @@ rigSpawn="rig-spawn-one"
 
 echo "-- 10. magic-team.work-duty: extended, so the harness does not preload the routine --"
 rigWorkDuty="$MDLT_ORIGIN/myx/myx.distro-agents/skillset/magic-team/magic-team"
-rigAssert "the routine declares cache-prefix: extended (AgentsToolsRoutineKey)"  "$( . "$rigHere/session/AgentsTools.RoutineRequirements.include" ; AgentsToolsRoutineKey "$rigWorkDuty/magic-team.work-duty.routine.md" cache-prefix )" extended
+rigAssert "the routine declares cache-prefix: extended (AgentsToolsRoutineKey)"  "$( . "$rigHere/routine/AgentsTools.RoutineRequirements.include" ; AgentsToolsRoutineKey "$rigWorkDuty/magic-team.work-duty.routine.md" cache-prefix )" extended
 rigAssert "and the validator takes the file"                                              "$( MDLT_ORIGIN="$MDLT_ORIGIN" bash "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-doc-validate routine "$rigWorkDuty/magic-team.work-duty.routine.md" > /dev/null 2>&1 ; printf 'rc=%s' "$?" )" rc=0
-rigWdPolicy="$( . "$rigHere/session/AgentsTools.RoutineRequirements.include" ; AgentsToolsRoutineKey "$rigWorkDuty/magic-team.work-duty.routine.md" cache-prefix )"
+rigWdPolicy="$( . "$rigHere/routine/AgentsTools.RoutineRequirements.include" ; AgentsToolsRoutineKey "$rigWorkDuty/magic-team.work-duty.routine.md" cache-prefix )"
 rigScene wd wd ; rigRecord "$rigWdPolicy" magic-team.work-duty.routine.md
 cp "$rigWorkDuty/magic-team.work-duty.routine.md" "$rigWorkDuty/magic-team.standalone.routine.md" "$rigSkills/magic-team/"
 rigTextStream "$rigDir/res.1" RIG-DONE ; rigRun rig-a yes

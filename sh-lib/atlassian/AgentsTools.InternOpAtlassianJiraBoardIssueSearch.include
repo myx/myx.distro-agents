@@ -1,0 +1,98 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+## AgentsTools.InternOpAtlassianJiraBoardIssueSearch.include -- the operation `--intern-op-atlassian-jira-board-issue-search|--intern-op-atlassian-jira-sprint-list|--intern-op-atlassian-jira-sprint-issue-search`, sourced by AgentsTools.InternOpAtlassianCall.include with the operation's arguments.
+## The three paged agile reads. Same shape, different path, so they share the
+## agile-read helper and differ only in which id they take.
+	type AgentsToolsAtlassianCall > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/atlassian/AgentsTools.AtlassianRequest.include"
+	type AgentsToolsJiraAgileRead > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/atlassian/AgentsTools.JiraReads.include"
+		local agileOpName="${1#--intern-op-atlassian-jira-}"
+		shift
+		local agileOpMember="" agileOpId="" agileOpStartAt="" agileOpLimit="" agileOpContext="intern-op-atlassian-jira-$agileOpName"
+		local agileOpIdFlag="--board-id"
+		case "$agileOpName" in sprint-issue-search) agileOpIdFlag="--sprint-id" ;; esac
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--member|--board-id|--sprint-id|--start-at|--limit|--context)
+					if [ -z "${2:-}" ] ; then
+						printf '%s\n' "⛔ ERROR: $MDSC_CMD --$agileOpContext: $1 value missing" >&2
+						set +e ; return 1
+					fi
+					case "$1" in
+						--member)               agileOpMember="$2" ;;
+						--board-id|--sprint-id) agileOpId="$2" ;;
+						--start-at)             agileOpStartAt="$2" ;;
+						--limit)                agileOpLimit="$2" ;;
+						--context)              agileOpContext="$2" ;;
+					esac
+					shift 2
+				;;
+				*)
+					printf '%s\n' "⛔ ERROR: $MDSC_CMD --$agileOpContext: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		if [ -z "$agileOpMember" ] || [ -z "$agileOpId" ] ; then
+			printf '%s\n' "⛔ ERROR: $MDSC_CMD --$agileOpContext: syntax is --member <team-member> $agileOpIdFlag <n> [--start-at <n>] [--limit <n>] [--context <caller>] -- the acting member is required, since these rows are only those that identity can see" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsAtlassianAssertNumber "$agileOpId" "<${agileOpIdFlag#--}>" "$agileOpContext" || { set +e ; return 1 ; }
+		## Both land in the query string, so a value carrying '&' would append
+		## parameters of its own and change the result set mid-walk.
+		if [ -n "$agileOpStartAt" ] ; then
+			AgentsToolsAtlassianAssertNumber "$agileOpStartAt" "--start-at" "$agileOpContext" || { set +e ; return 1 ; }
+		fi
+		if [ -n "$agileOpLimit" ] ; then
+			AgentsToolsAtlassianAssertNumber "$agileOpLimit" "--limit" "$agileOpContext" || { set +e ; return 1 ; }
+			case "$agileOpLimit" in 0) printf '%s\n' "⛔ ERROR: $MDSC_CMD --$agileOpContext: --limit not above zero" >&2 ; set +e ; return 1 ;; esac
+		fi
+		local agileOpPath
+		case "$agileOpName" in
+			board-issue-search)  agileOpPath="/rest/agile/1.0/board/$agileOpId/issue" ;;
+			sprint-list)         agileOpPath="/rest/agile/1.0/board/$agileOpId/sprint" ;;
+			sprint-issue-search) agileOpPath="/rest/agile/1.0/sprint/$agileOpId/issue" ;;
+		esac
+		if [ "$agileOpName" = sprint-list ] ; then
+			local agileBoardBody agileBoardRc=0
+			agileBoardBody="$( AgentsToolsAtlassianCall "$agileOpMember" jira GET "/rest/agile/1.0/board/$agileOpId" "$agileOpContext" "" )" || agileBoardRc=$?
+			if [ "$agileBoardRc" -ne 0 ] ; then
+				set +e ; return "$agileBoardRc"
+			fi
+			local agileBoardType="$( printf '%s\n' "$agileBoardBody" | LC_ALL=C awk -v path=type -v optional=1 -v dialect=atlassian -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" 2>/dev/null )"
+			case "$agileBoardType" in
+				kanban)
+					printf '%s\n' '{"values":[]}'
+					printf '%s\n' "# $agileOpContext: more: no -- board $agileOpId is a kanban board, which holds no sprints; the sprint endpoint was not called, so the listing is empty" >&2
+					return 0
+				;;
+				simple)
+					local agileFeatureBody agileFeatureRc=0 agileFeatureRows agileFeatureRowsRc=0
+					agileFeatureBody="$( AgentsToolsAtlassianCall "$agileOpMember" jira GET "/rest/agile/1.0/board/$agileOpId/features" "$agileOpContext" "" )" || agileFeatureRc=$?
+					if [ "$agileFeatureRc" -ne 0 ] ; then
+						set +e ; return "$agileFeatureRc"
+					fi
+					agileFeatureRows="$( printf '%s\n' "$agileFeatureBody" | LC_ALL=C awk -v array=features -v want=boardFeature,state -v mode=records -v dialect=atlassian -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" 2>/dev/null )" || agileFeatureRowsRc=$?
+					local agileSprintState=""
+					[ "$agileFeatureRowsRc" -ne 0 ] || agileSprintState="$( printf '%s\n' "$agileFeatureRows" | LC_ALL=C awk -F '\t' '$1 == "SPRINTS" { print $2 ; exit }' )"
+					case "$agileSprintState" in
+						ENABLED) ;;
+						DISABLED)
+							printf '%s\n' '{"values":[]}'
+							printf '%s\n' "# $agileOpContext: more: no -- board $agileOpId is a simple board with its sprints feature disabled, so it holds no sprints; the sprint endpoint was not called, so the listing is empty" >&2
+							return 0
+						;;
+						*)
+							printf '%s\n' "⛔ ERROR: $MDSC_CMD --$agileOpContext: sprints feature state ${agileSprintState:-none} unrecognised" >&2
+							set +e ; return 3
+						;;
+					esac
+				;;
+			esac
+		fi
+		local agileArray=issues
+		case "$agileOpName" in sprint-list) agileArray="" ;; esac
+		local agileOpRc=0
+		AgentsToolsJiraAgileRead "$agileOpMember" "$agileOpPath" "$agileOpContext" "$agileOpStartAt" "$agileOpLimit" "$agileArray" || agileOpRc=$?
+		if [ "$agileOpRc" -ne 0 ] ; then set +e ; return "$agileOpRc" ; fi
+		return 0

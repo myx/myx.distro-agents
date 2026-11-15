@@ -5,7 +5,7 @@
 set -u
 : "${MMDAPP:?MMDAPP is not set}"
 dueHere="${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-lib"
-[ -f "$dueHere/session/AgentsTools.DispatcherSchedule.include" ] || { echo "⛔ ERROR: the dispatcher include is not at the origin this workspace resolves" >&2 ; exit 1 ; }
+[ -f "$dueHere/schedule/AgentsTools.DispatcherSchedule.include" ] || { echo "⛔ ERROR: the dispatcher include is not at the origin this workspace resolves" >&2 ; exit 1 ; }
 
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 ## The rig lives in the workspace's own scratch, never in the system temp folder.
@@ -25,7 +25,7 @@ cd "$dueRoot" || exit 1
 ## The duty records are kept for MDAT_DUTY_RECORDS_SECONDS in the product, and this check makes records between its asks, so it reads them fresh.
 export MDAT_DUTY_RECORDS_SECONDS=0 MDAT_STARTED_RECORDS_SECONDS=0
 set +u
-MDSC_CMD=check . "$dueHere/session/AgentsTools.DispatcherSchedule.include" > /dev/null 2>&1 || { echo "⛔ ERROR: the dispatcher include would not load" >&2 ; exit 1 ; }
+MDSC_CMD=check . "$dueHere/schedule/AgentsTools.DispatcherSchedule.include" > /dev/null 2>&1 || { echo "⛔ ERROR: the dispatcher include would not load" >&2 ; exit 1 ; }
 
 duePass=0
 dueFail=0

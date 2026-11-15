@@ -73,7 +73,7 @@ AgentsToolsSurfaceFlags(){ ## the operation, its arguments...
 ## --tasks: the board as the coordinator reads it: the count of each state and the active items with their tokens, the board's own readers.
 AgentsToolsSurfaceTasks(){ ## the operation, its arguments...
 	[ $# -eq 1 ] || { echo "$MDSC_CMD: ⛔ ERROR: $1: takes no option: $2" >&2 ; return 1 ; }
-	type AgentsToolsBoardCounts > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.MagicCoordinatorState.include" --definitions-only > /dev/null 2>&1 || :
+	type AgentsToolsBoardCounts > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.CoordinatorReads.include"
 	type AgentsToolsBoardCounts > /dev/null 2>&1 || { echo "$MDSC_CMD: ⛔ ERROR: $1: the board's readers could not be loaded" >&2 ; return 1 ; }
 	printf '# board\n'
 	AgentsToolsBoardCounts
@@ -181,7 +181,7 @@ AgentsToolsSurfaceLockTake(){ ## the operation, owner label, wait seconds
 
 ## Gives the lock back (the note committed and pushed).
 AgentsToolsSurfaceLockGive(){ ## the operation
-	type AgentsToolsItemUpsert > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.InternOpItem.include"
+	type AgentsToolsItemUpsert > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/items/AgentsTools.InternOpItem.include"
 	AgentsToolsItemUpsert magic-coordinator "$agentsSurfaceNote" --unlock-lock --header:upsert:state:heartbeat-finished \
 		--commit-message "* directive, standing directives, $( date -u +%Y-%m-%dT%H:%M:%SZ )" --context "$1" > /dev/null 2>&1 \
 		|| echo "$MDSC_CMD: ⚠️ WARNING: $1: the lock of the state-note could not be given back: it stays until its recheck-date" >&2

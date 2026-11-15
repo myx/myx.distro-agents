@@ -72,6 +72,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
    - the cases the work is silent about: empty, one element, absent, extreme.
    - a criterion with no possible check is reported as unverifiable, never as passed.
    - for software, run **software-checks** as well.
+   - Where a criterion names the instrument, the check runs on that instrument. A rig that cannot carry it is no reason to measure a different one. Reach a host that carries it, else request a decision.
 4. **show-each-check-can-fail**: run each check against a case it must fail on, before trusting it. A check never seen failing carries no verdict.
 5. **run-the-checks**: run every check, steps:
    - a check with real consequences is previewed first, and runs only with the confirmation it needs.
@@ -123,6 +124,7 @@ All statements apply at the same time, always. These rules override a participan
 - **Domain questions go to the owner.** A question touching a domain's internals goes to the owning member, per **routing-to-owner**.
 - Waiting follows **wait-never-quit**.
 - Goal-directedness: verify the claimed work. Other findings are recorded quickly and filed, not checked now.
+- **A record of an agreement is a claim about a record.** A row reading "agree" names neither who agreed nor where their words sit. Read such a row as no evidence, and check the file.
 
 # Routine-specific tooling
 

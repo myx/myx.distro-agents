@@ -1,0 +1,159 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+type AgentsSettingsScopeHas > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/settings/AgentsTools.Settings.include"
+
+##
+## AgentsTools.SpawnProxyLaunch.include -- a run launched: its one console run, the proof it launched, the CLI it ran on, its outcome and the bound that ended it.
+## Sourced, never run. Functions only. Loaded by AgentsTools.InternOpAgentSpawnProxy.include.
+##
+
+## Launch proof: only the launcher creates the file named by MDAT_SPAWN_LAUNCH_MARKER,
+## so no agent output can forge one. A launch, never a success.
+AgentsToolsSpawnProxySawSentinel(){
+	[ -n "$1" ] && [ -s "$1" ]
+}
+
+## The agent CLI this spawn actually ran on, read out of that same marker file.
+## Deliberately read from what the launcher recorded rather than recomputed
+## here: the start post names the CLI resolved before the launch, by the same
+## function the console reads it with, and this is the check on it -- a launch
+## that differs is said as a reply (AgentsToolsSpawnProxyEventTrackLaunchedPost),
+## and the end post names this. Empty when no exec happened, which is the same
+## condition SawSentinel calls a failure.
+AgentsToolsSpawnProxyExecutedCli(){
+	local markerCli=""
+	if [ -n "$1" ] && [ -s "$1" ] ; then
+		IFS= read -r markerCli < "$1" || :
+	fi
+	printf '%s' "$markerCli"
+	return 0
+}
+
+## Succeeded means all three: the child exited 0, the bound did not fire, and a launch really happened.
+AgentsToolsSpawnProxyOutcome(){
+	local childExit="$1" markerFile="$2" childTimedOut="$3"
+	## A session our harness ran (its .harness marker) that never armed did no work, whatever
+	## its exit: a clean start is not a session provisioned to work. A native CLI session
+	## carries no such marker, so this reads nothing into its absence.
+	if [ -n "${MDAT_SPAWN_SANDBOX_ROOT:-}" ] && [ -n "${MDAT_SPAWN_SESSION_ID:-}" ] \
+		&& [ -e "$MDAT_SPAWN_SANDBOX_ROOT/$MDAT_SPAWN_SESSION_ID.harness" ] \
+		&& [ ! -s "$MDAT_SPAWN_SANDBOX_ROOT/$MDAT_SPAWN_SESSION_ID.armed" ] ; then
+		echo failed
+		return 0
+	fi
+	if [ "$childTimedOut" = "0" ] && [ "$childExit" = "0" ] && AgentsToolsSpawnProxySawSentinel "$markerFile" ; then
+		echo succeeded
+	else
+		echo failed
+	fi
+}
+
+## The reason a run ended at the tooling's own spawn bound, or nothing where no bound fired (S6.47). One function, so
+## the run's record and the notice told of its end cannot disagree about why it stopped.
+AgentsToolsSpawnProxyBoundReason(){ ## the bound that fired (1 or 0), its seconds
+	[ "${1:-0}" = "1" ] || return 0
+	printf 'ended at the spawn bound of %s seconds (SPAWN_WAIT_TIMEOUT_SECONDS)' "${2:-?}"
+}
+
+## One line, on stderr, naming the AI service this spawn actually used -- so a
+## watcher of a --wait spawn (the main loop's own case) can see which service
+## the iteration ran on. Prefix shape matches --intern-main-loop's own
+## per-iteration lines: "# <command> <operation>: <message>".
+AgentsToolsSpawnProxyAnnounceCli(){
+	local announceOutputFile="$1" announceCli
+	announceCli="$( AgentsToolsSpawnProxyExecutedCli "$announceOutputFile" )"
+	echo "# $MDSC_CMD --intern-op-agent-spawn-proxy: 🤖 AI service used: ${announceCli:-none -- no agent CLI was launched}" >&2
+}
+
+## The async spawn's one console run. With a resume-from (a review return,
+## AgentsReviewRestart), the old native session is resumed and forked under this
+## spawn's own id, prompted with the corrections only; one that exits non-zero before
+## its first stream-json event falls back, once, to a new process on the full brief.
+## Either way the path that ran is recorded on the item and in this spawn's transcript.
+## The handback retry's own resume (MDAT_SPAWN_RESUME) is a different path, untouched.
+AgentsToolsSpawnProxyConsoleRun(){ ## session id, session thread, conversation threads, full prompt, resume from (may be empty), resume prompt, member, item, console CLI args...
+	type AgentsReviewRecord > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ReviewFlow.include"
+	type AgentsToolsSpawnConsoleLaunch > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnConsoleLaunch.include"
+	local runSession="$1" runThread="$2" runConv="$3" runFull="$4" runFrom="$5" runResume="$6" runWho="$7" runItem="$8"
+	local runMark runPid runWatchPid runRc=0 runWatchRc=0
+	shift 8
+	if [ -n "$runFrom" ] ; then
+		runMark="${MDAT_SPAWN_LAUNCH_MARKER:-$MMDAPP/.local/temp/mdat-$MDAT_SPAWN_SESSION_ID.launch}.resume-event"
+		rm -f "$runMark"
+		AgentsToolsSpawnConsoleLaunch MDAT_SKILLSET_ROOT="$( AgentsToolsWorkspaceSkillsetRoot "$MMDAPP" )" MDAT_SESSION_ID="$runSession" MDAT_SESSION_THREAD="$runThread" MDAT_CONVERSATION_THREADS="$runConv" \
+			MDAT_SPAWN_RESUME_FROM="$runFrom" MDAT_SPAWN_RESUME_EVENT_MARKER="$runMark" \
+			-- "$@" <<< "$runResume" &
+		runPid=$!
+		AgentsToolsSpawnProxyRunRecord "$runPid"
+		## The resume recorded when its first event arrives, not when the session ends. The
+		## watcher ends within a second of the run (this shell's wait reaps it), either way.
+		(
+			while [ ! -e "$runMark" ] ; do
+				## A run that marked its first event and ended between these two looks is still
+				## recorded: the mark is looked for once more before the watcher gives up.
+				kill -0 "$runPid" 2>/dev/null || { [ -e "$runMark" ] && break ; exit 0 ; }
+				sleep 1
+			done
+			AgentsReviewRecord "$runWho" "$runItem" review "restart: resumed (from $runFrom)" RESTART "$MDAT_SPAWN_SESSION_ID"
+		) &
+		runWatchPid=$!
+		wait "$runPid" 2>/dev/null || runRc=$?
+		## Waited to its end, as the launch below is, and the watcher after it: a signal the
+		## supervising shell holds (AgentsToolsSpawnProxyHeld) cuts a wait short.
+		while kill -0 "$runPid" 2>/dev/null ; do
+			runRc=0
+			wait "$runPid" 2>/dev/null || runRc=$?
+			[ "$runRc" != 127 ] || break
+		done
+		wait "$runWatchPid" 2>/dev/null || :
+		while kill -0 "$runWatchPid" 2>/dev/null ; do
+			runWatchRc=0
+			wait "$runWatchPid" 2>/dev/null || runWatchRc=$?
+			[ "$runWatchRc" != 127 ] || break
+		done
+		if [ -e "$runMark" ] || [ "$runRc" = 0 ] ; then
+			## Each record in a subshell of its own: the tooling it calls leaves set -e behind.
+			[ -e "$runMark" ] || ( AgentsReviewRecord "$runWho" "$runItem" review "restart: resumed (from $runFrom)" RESTART "$MDAT_SPAWN_SESSION_ID" )
+			rm -f "$runMark"
+			return "$runRc"
+		fi
+		echo "# $MDSC_CMD --intern-op-agent-spawn-proxy: the resume of $runFrom exited $runRc before its first event -- starting a new process instead" >&2
+		( AgentsReviewRecord "$runWho" "$runItem" review "restart: new-process (the resume of $runFrom exited $runRc before its first event)" RESTART "$MDAT_SPAWN_SESSION_ID" )
+	fi
+	## Started in the background and waited for, so that the process it becomes is known, and
+	## kept on the spawn's record (AgentsToolsSpawnProxyRunRecord). Nothing else of the run
+	## changes: its stdin and its streams are the same, its exit status is what this returns,
+	## and the wait lasts until that process has ended.
+	AgentsToolsSpawnConsoleLaunch MDAT_SKILLSET_ROOT="$( AgentsToolsWorkspaceSkillsetRoot "$MMDAPP" )" MDAT_SESSION_ID="$runSession" MDAT_SESSION_THREAD="$runThread" MDAT_CONVERSATION_THREADS="$runConv" \
+		-- "$@" <<< "$runFull" &
+	runPid=$!
+	AgentsToolsSpawnProxyRunRecord "$runPid"
+	runRc=0
+	wait "$runPid" 2>/dev/null || runRc=$?
+	while kill -0 "$runPid" 2>/dev/null ; do
+		runRc=0
+		wait "$runPid" 2>/dev/null || runRc=$?
+	done
+	return "$runRc"
+}
+
+## Whether a resolved CLI runs in this package's harness or is a vendor CLI, by the
+## console's own rule (AgentsConsoleShellScript.template.sh, DagcLegFileFor): a leg is a
+## file sh-lib/harness/Agents<Name>Harness.sh that declares HARNESS_PROVIDER_NAME, its name the
+## <Name> in lower case, and a -native name is never one. Prints harness, native or none.
+AgentsToolsSpawnProxyCliKind(){ ## resolved cli
+	local kindFile kindName
+	case "$1" in
+		''|none) printf 'none' ; return 0 ;;
+		copilot-native|claude-native|grok-native) printf 'native' ; return 0 ;;
+	esac
+	for kindFile in "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/"Agents*Harness.sh ; do
+		[ -f "$kindFile" ] && grep -q '^HARNESS_PROVIDER_NAME=' "$kindFile" || continue
+		kindName="${kindFile##*/}"
+		kindName="${kindName#Agents}"
+		kindName="$( printf '%s' "${kindName%Harness.sh}" | LC_ALL=C tr 'ABCDEFGHIJKLMNOPQRSTUVWXYZ' 'abcdefghijklmnopqrstuvwxyz' )"
+		[ "$kindName" != "$1" ] || { printf 'harness' ; return 0 ; }
+	done
+	printf 'native'
+	return 0
+}

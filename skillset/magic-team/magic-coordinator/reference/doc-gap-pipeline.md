@@ -1,3 +1,6 @@
+---
+maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
+---
 # `doc-gap-pipeline` — doc-gap and knowledge-improvement work sequence
 
 The body of the section of the same name in this member's armed content.

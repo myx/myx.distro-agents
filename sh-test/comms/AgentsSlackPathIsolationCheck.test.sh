@@ -9,8 +9,9 @@
 ##   2. THE STUBS. Each --slack-<op> and each --client-comms-slack-<op> with --print-required-scopes, which needs no network and no
 ##      acting member: it sources nothing of the family but the router and its own include, and prints the scopes the operation has
 ##      always printed. The stub of a member reaches the intern arm by calling the router's own function again, so the pair covers that hop.
-##   3. THE CHEAP LOAD. Every Wait sources the router with --intern-op-comms-slack-read --print-required-scopes: the router answers it
-##      itself, so a call of that pair, and a real Wait over a file source, parse no more than the router's own lines (the router limit).
+##   3. THE CHEAP LOAD. Every Wait sources the router: a plain source defines its functions, prints nothing and ends 0, and the scopes answer
+##      comes from calling its Run function with --intern-op-comms-slack-read --print-required-scopes. The plain source, and a real Wait over a
+##      file source, parse no more than the router's own lines (the router limit).
 ##   4. THE CONTROL. The presence, profile and socket arms, split out long before this epic, are called the same ways (the intern arm,
 ##      the stub of the member and the client stub, each with --print-required-scopes): their calls source the router and their own
 ##      include, and no other.
@@ -53,6 +54,8 @@ rigPieceSend="${RIG_SLACK_PIECE_SEND:-AgentsTools.InternOpCommsSlackSend.include
 rigAlsoFileFetch="${RIG_SLACK_ALSO_FILEFETCH-AgentsTools.InternOpCommsSlackFileInfo.include}"
 rigPiecePresence="AgentsTools.MemberCommsSlackPresence.include"
 rigPieceProfile="AgentsTools.MemberCommsSlackProfile.include"
+## The profile-get arm sources the shared profile file (the case) and then its own include: one operation per file. The profile-set include is not allowed, so a get that sourced it would still fail.
+rigPieceProfileGet="AgentsTools.InternOpCommsSlackProfileGet.include"
 rigPieceSocket="AgentsTools.MemberCommsSlackSocket.include"
 
 rigRefuse(){
@@ -60,7 +63,7 @@ rigRefuse(){
 }
 rigPackage="$MDLT_ORIGIN/$rigPackageRel"
 [ -f "$rigPackage/sh-scripts/DistroAgentsTools.fn.sh" ] || rigRefuse "no dispatcher at the origin this workspace resolves: $rigPackage"
-[ -f "$rigPackage/sh-lib/comms/$rigRouter" ] || rigRefuse "no router at the origin: $rigPackage/sh-lib/comms/$rigRouter"
+[ -f "$rigPackage/sh-lib/slack/$rigRouter" ] || rigRefuse "no router at the origin: $rigPackage/sh-lib/slack/$rigRouter"
 [ -r "${MDAT_SKILLSET_ROOT:-}/$rigMember/$rigMember.basic.md" ] || rigRefuse "MDAT_SKILLSET_ROOT does not hold $rigMember, so a stub would have no member to act as"
 
 mkdir -p "$MMDAPP/.local/temp" || exit 1
@@ -96,7 +99,7 @@ rigClassify(){ ## log, the operation's own include (empty: the router alone is a
 }
 rigLinesOfFamily(){ ## log -- the lines of the family's files it names, as they stand in the package under check
 	LC_ALL=C awk -v rx="$rigFamilyRegex" '{ n = split( $0, part, "/" ) ; if ( part[ n ] ~ rx ) print part[ n ] ; }' "$1" | LC_ALL=C sort -u \
-		| while IFS= read -r famName ; do wc -l < "$rigPackage/sh-lib/comms/$famName" ; done | LC_ALL=C awk '{ sum += $1 ; } END { print sum + 0 ; }'
+		| while IFS= read -r famName ; do wc -l < "$rigPackage/sh-lib/slack/$famName" ; done | LC_ALL=C awk '{ sum += $1 ; } END { print sum + 0 ; }'
 }
 
 echo "-- 6. the instrument: the classifier on logs made by hand --"
@@ -128,7 +131,7 @@ find "$rigOrigin/$rigPackageRel/sh-lib" -name '*.include' -type f | while IFS= r
 		&& cat "$rigFile.rigtmp" > "$rigFile" && rm -f "$rigFile.rigtmp" || exit 1
 done || rigRefuse "the log line could not be put at the head of the includes"
 rigTools="$rigOrigin/$rigPackageRel/sh-scripts/DistroAgentsTools.fn.sh"
-rigRouterCopy="$rigOrigin/$rigPackageRel/sh-lib/comms/$rigRouter"
+rigRouterCopy="$rigOrigin/$rigPackageRel/sh-lib/slack/$rigRouter"
 [ "$( LC_ALL=C sed -n 2p "$rigRouterCopy" | LC_ALL=C cut -c1-40 )" = '[ -z "${RIG_SOURCED_LOG:-}" ] || printf ' ] || rigRefuse "the router of the copy carries no log line"
 
 cat > "$rigTmp/bin/curl" <<'RIG_CURL'
@@ -178,7 +181,7 @@ echo "-- 1. the operations, called by the stub of the member --"
 rigOne(){ ## operation, its include, the Slack method it must reach, the stub's arguments after the member
 	local oneOp="$1" onePiece="$2" oneMethod="$3"
 	shift 3
-	rigCall "--slack-$oneOp" "$rigMember" "$@"
+	rigCall "--slack-$oneOp" "$@"
 	[ -z "${RIG_DEBUG:-}" ] || { echo "== $oneOp rc=$rigRc methods: $( LC_ALL=C tr '\n' ' ' < "$RIG_CURL_LOG" )" ; LC_ALL=C head -4 "$rigTmp/call.err" | LC_ALL=C cut -c1-300 ; }
 	rigAssert "$oneOp: the call reached $oneMethod" "$( rigReached "$oneMethod" )" reached
 	rigAssert "$oneOp: it sourced the router and its own include, and no other of the family" "$( rigClassify "$RIG_SOURCED_LOG" "$onePiece$( [ "$oneOp" != file-fetch ] || printf ' %s' "$rigAlsoFileFetch" )" own-required )" ok
@@ -215,11 +218,22 @@ rigStubs file-share "$rigPieceFileShare" 'files:write chat:write im:write channe
 rigStubs send-message "$rigPieceSend" "chat:write users:read channels:read channels:join|channels:write im:write mpim:write"
 
 echo "-- 3. the cheap load every Wait makes --"
-rigCall --intern-op-comms-slack-read --print-required-scopes
-rigAssert "the pair is answered, and by the router alone" "$rigRc:$( rigScopes ):$( rigClassify "$RIG_SOURCED_LOG" "" own-optional )" \
-	"0:channels:read channels:history groups:read groups:history im:read im:history mpim:read mpim:history im:write:ok"
-rigAssert "and it parsed no more than the router's lines (limit $rigRouterLimit)" \
+: > "$RIG_CURL_LOG" ; : > "$RIG_SOURCED_LOG"
+( cd "$rigTmp/ws" && env -u CLAUDE_CODE_SESSION_ID -u MDAT_SPAWN_SESSION_ID -u MDAT_SPAWN_AGENT -u MDAT_SESSION_ID \
+	MMDAPP="$rigTmp/ws" MDLT_ORIGIN="$rigOrigin" MDAT_DATA_ROOT="$rigTmp/data" MDAT_SPAWN_AGENT="$rigMember" \
+	bash -c '. "$1" ; printf "rc=%s\n" "$?"' rig "$rigRouterCopy" ) \
+	> "$rigTmp/call.out" 2> "$rigTmp/call.err" < /dev/null
+rigAssert "a plain source of the router defines its functions, prints nothing and ends 0" \
+	"$( LC_ALL=C cat "$rigTmp/call.out" 2>/dev/null )" "rc=0"
+rigAssert "the plain source parsed no more than the router's lines (limit $rigRouterLimit)" \
 	"$( [ "$( rigLinesOfFamily "$RIG_SOURCED_LOG" )" -le "$rigRouterLimit" ] && printf within || printf 'over: %s lines parsed' "$( rigLinesOfFamily "$RIG_SOURCED_LOG" )" )" within
+: > "$RIG_CURL_LOG" ; : > "$RIG_SOURCED_LOG"
+( cd "$rigTmp/ws" && env -u CLAUDE_CODE_SESSION_ID -u MDAT_SPAWN_SESSION_ID -u MDAT_SPAWN_AGENT -u MDAT_SESSION_ID \
+	MMDAPP="$rigTmp/ws" MDLT_ORIGIN="$rigOrigin" MDAT_DATA_ROOT="$rigTmp/data" MDAT_SPAWN_AGENT="$rigMember" \
+	bash -c '. "$1" ; AgentsToolsMemberCommsSlackRun --intern-op-comms-slack-read --print-required-scopes' rig "$rigRouterCopy" ) \
+	> "$rigTmp/call.out" 2> "$rigTmp/call.err" < /dev/null
+rigAssert "the Run function answers the scopes, by the router alone" "$( rigScopes ):$( rigClassify "$RIG_SOURCED_LOG" "" own-optional )" \
+	"channels:read channels:history groups:read groups:history im:read im:history mpim:read mpim:history im:write:ok"
 printf 'quiet\n' > "$rigTmp/quiet.txt"
 rigCall --wait-for-input --team-member "$rigMember" --wait-source "file:$rigTmp/quiet.txt" --wait-timeout 2 --wait-poll-interval 1
 rigAssert "control of the wait: it ran its rounds" "$( LC_ALL=C grep -c 'poll round' "$rigTmp/call.out" | LC_ALL=C tr -d ' ' | LC_ALL=C awk '{ print ( $1 > 0 ) ? "ran" : "did-not-run" ; }' )" ran
@@ -236,10 +250,10 @@ rigControl(){ ## operation, its include, the scopes it prints
 }
 rigControl presence-status "$rigPiecePresence" 'rtm:stream users:read'
 rigControl socket-status "$rigPieceSocket" 'app_mentions:read'
-rigControl profile-get "$rigPieceProfile" 'users.profile:read users.profile:write users:read users:write dnd:read dnd:write'
+rigControl profile-get "$rigPieceProfile $rigPieceProfileGet" 'users.profile:read users.profile:write users:read users:write dnd:read dnd:write'
 
 echo "-- 5. the first search of a process --"
-rigCall --slack-search-messages "$rigMember" CRIG00001 --comms-since-utime 1700000000
+rigCall --slack-search-messages CRIG00001 --comms-since-utime 1700000000
 rigAssert "a first search in a fresh process: ended 0, and asked search.messages once" \
 	"$rigRc:$( LC_ALL=C grep -c -x 'search.messages' "$RIG_CURL_LOG" | LC_ALL=C tr -d ' ' )" "0:1"
 ## The control: the same search in a process that has already loaded the router once, as a Wait does with its cheap load. The router file is
@@ -247,7 +261,7 @@ rigAssert "a first search in a fresh process: ended 0, and asked search.messages
 : > "$RIG_CURL_LOG"
 ( cd "$rigTmp/ws" && env -u CLAUDE_CODE_SESSION_ID -u MDAT_SPAWN_SESSION_ID -u MDAT_SESSION_ID \
 	MMDAPP="$rigTmp/ws" MDLT_ORIGIN="$rigOrigin" MDAT_DATA_ROOT="$rigTmp/data" MDAT_SPAWN_AGENT="$rigMember" \
-	bash -c '. "$1" ; set +e ; . "$2" --intern-op-comms-slack-read --print-required-scopes > /dev/null ; DistroAgentsTools --slack-search-messages "$3" CRIG00001 --comms-since-utime 1700000100 > /dev/null ; echo "rc=$?"' \
+	bash -c '. "$1" ; set +e ; . "$2" --intern-op-comms-slack-read --print-required-scopes > /dev/null ; DistroAgentsTools --slack-search-messages CRIG00001 --comms-since-utime 1700000100 > /dev/null ; echo "rc=$?"' \
 	rig "$rigTools" "$rigRouterCopy" "$rigMember" ) > "$rigTmp/loaded.out" 2> "$rigTmp/loaded.err" < /dev/null
 rigAssert "control, the same search in a process that loaded the router before: ended 0, and asked search.messages once" \
 	"$( LC_ALL=C sed -n 's/^rc=//p' "$rigTmp/loaded.out" ):$( LC_ALL=C grep -c -x 'search.messages' "$RIG_CURL_LOG" | LC_ALL=C tr -d ' ' )" "0:1"

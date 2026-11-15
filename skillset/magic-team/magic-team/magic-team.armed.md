@@ -42,10 +42,40 @@ maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 - Duties: three kinds, plus reflection
 - Rule/instruction/definition/description conventions
 - Board & Inbox board-items entity model
+  - Who actually reads/writes the board
 - Vault-items, audit-items, referencing and enveloping
 - Knowledge destinations
 - Workspace
 - Human-owner's standing rules
+  - Recheck before reporting
+  - The tooling locates; a member keeps no environment facts
+  - Atomic move edits
+  - Never re-touch approved content
+  - Corrections go forward, never by reverting
+  - No member commits
+  - Problems are fixed forward, by improving the mechanism
+  - His words: a relay passes them on, a direct message restates them, a produce stands alone
+  - A one-word answer covers the object of its own question
+  - Naming goes via approval, with siblings shown
+  - Conflicts and ambiguities go to the human-owner
+  - Readback-confirm and propose-approve, in any process
+  - A human-owner request is read back before anything acts on it
+  - "later" has two gates
+  - Anything needing the human-owner to act reaches him on his own direct channel
+  - Nothing stops on its own: log, escalate, resolve
+  - One topic per message, and the decision leads it
+  - Every message is addressed, tagged, and sent on a real channel
+  - A reply threads onto the message it answers
+  - All work runs in a coworking session with the right members
+  - We build software, not fixes for one workspace
+  - A workspace outside the team's own source tree is edited only under a grant
+  - Say it only if it is relevant to the reader, or genuinely a fun fact
+  - Compact, structured, simple, important first
+  - The output-style floor
+  - Never mention local-cache sync staleness
+  - Skillset first on a failed or denied operation
+  - The outcome is the whole measure
+  - An unchecked reading is said to be one
 - Domain knowledge: team routines
 - Team-Member's (-specific) tooling
   - Tooling operations
@@ -268,6 +298,7 @@ What to read before acting, in order:
 
 1. The task or dispatch, including its scope boundary and its `access-control:` rows.
    - a task naming an epic item is read with that item's whole section and the epic's `## Decisions`. A member then does not re-derive or ask what the epic settles.
+   - A standing or idle pass first reads the item that names that work, its `condition` and `blocked-on` fields included.
 2. The item's `## Decisions` and the tracking document, for what was already settled.
 3. The `MAGIC.md` of the tree, when the work touches one.
 4. The operation's own help (`--member-help`), never a recollection of its flags.
@@ -312,6 +343,8 @@ How the tooling numbers, reads and records the answer to an ask.
 
 - Each line a close appends to the item's `## Decisions` is marked `<!-- decisions-of: <item> -->`.
 - A received answer clears matching `blocked-on`/`condition`.
+- One finding per recorded line. A line is cut at its own byte cap, and the write that cut it still reports success.
+- A finding that matters also goes into a heading the item gains, and the member reporting it names that heading.
 
 # The round
 
@@ -507,6 +540,7 @@ Writing:
 - English, UK spelling, simple language, in every team-authored write. US spelling already landed is not rewritten for.
 - **A member about to write or edit code invokes `magic-developer` first** — every language, every size. A landed change names its session and that consult.
 - A member writing or editing code, in any language, reads `magic-developer/reference/code-craft.md` first, and `magic-developer/reference/shell.md` for shell and awk. A member running a shell probe it will act on reads `shell.md` too. `magic-developer` maintains both.
+- A reviewer of changed code reads `magic-tester/reference/code-review.md`, whose eleven checks each name what to look for and what is a finding. `magic-tester` maintains it.
 - **A comment is short, or it is not a comment.** An internal comment is one line. A header comment a few lines. Anything longer belongs in the package's `MAGIC.md`.
 - A long-proven legacy file is never edited for a new or unverified feature. The feature waits and is escalated.
 - No external library by default. Standard library and the codebase's own conventions come first.
@@ -558,6 +592,8 @@ Evidence:
 - A finding that should stop a design is written as a constraint, never a caveat.
 - A rule binds its author first: check your own next message and edit against it.
 - Read `reference/engineering-discipline.md` for the further evidence checks.
+- A parent item's Goal is a claim, and it gets the same failing case as any other claim.
+- A structure probe is a claim about the files it passes. Read one of them in full, against its own convention, before a hit on another is called a defect.
 
 Dispatch, relay and produce:
 - A dispatch states only what its sender verified. Unverified facts are marked or left out. A sender never annotates a finding with a judgement it did not verify.
@@ -580,6 +616,7 @@ Tools and channels:
 - A permission claim names the mechanism it is scoped to. Nothing denies a prescribed tooling call. A claimed block is checked before it is passed on.
 - A member addressing the session that spawned it uses `session-parent`, never that session's raw channel id. One addressing the session it works in now uses `session-current` the same way.
 - Private per-session memory is not team knowledge. Findings go where "Knowledge destinations" says.
+- A manual may serve a whole command family, printed by one command and reached by its siblings. Read it before calling that family's contract ambiguous.
 
 # Duties: three kinds, plus reflection
 
@@ -668,6 +705,17 @@ Binding on every member in every session.
 
 Before reporting a negative or surprising result, establish that the test was valid: environment, tree, loaded code. State residual caveats.
 
+## The tooling locates; a member keeps no environment facts
+
+- Routine maintenance, such as a deploy, a redeploy or a sync, is done from the tooling, its manuals and recipes, and the team's own past runs of the same work. It needs no design and no assessment of its own.
+- A maintenance task that is given is done, never offered back as options. Its known steps are part of it: what changed on the target is pulled back before it is overwritten, and the index is brought current first by the standard ingest (`DistroSourcePrepare.fn.sh --ingest-distro-index-from-source`, the workspace task 'Ingest Source Changes'). That is the only command for ingesting changes. A deploy or maintenance task runs the tooling's commands and never needs to know how the scripts work inside. A check after a deploy covers the work the deploy delivers, every ticket of it. The devel hosts it goes to are where the software is checked, never what is checked. Only a real fault that the steps cannot handle is reported, with what was measured.
+- A team document names a path only rig-local (`$MMDAPP/...`) or machine-relative (`~/.agents/...`), never one computer's path.
+- A project is found by the project selector (`--select-projects <name>` and its family), which most commands accept with a plain name. Read the command's `--help` and its examples before using it. `MDSC_SELECT_PROJECTS` is the scripts' form: select once, then work on that selection.
+- An earlier run of the same work is found in the processed items and closed tickets, through the knowledge queries, before anything is claimed or asked.
+- The facts of an environment, such as its hosts, workspaces and deploys, live only in that environment's own knowledge, mostly the MAGIC.md of its projects. They never go into a member's reference or the skillset. There they are an NDA leak and a ceiling: other installs have other hosts, and the tooling never depends on a host or a host name. An example in a command's `--help` is an example, not a ceiling.
+- A workspace that is not used and not updated is never searched. Its contents are stale.
+- A tool is named and called by hand as `<Tool>.fn.sh`, the same for every tooling command, so its current source runs and a fix applies at once. `Distro <Tool>` is the scripts' form. It caches the command until the script or the console that loaded it exits, which is intended for a script. A console can live for weeks and keep an old copy all that time, so it is never used by hand. A bare name runs nowhere.
+
 ## Atomic move edits
 
 Moving content inside a file goes one block per edit, removal and insertion in the same diff.
@@ -676,13 +724,15 @@ Moving content inside a file goes one block per edit, removal and insertion in t
 
 Content he confirmed is never touched as a side effect of unrelated work. Scope every diff to the implicated lines. Where a fix must touch approved content, say so first.
 
+- A `MAGIC.md` bullet the human-owner committed is approved content. A sentence added to it is a change that goes to him first, whoever asked for the sentence.
+
 ## Corrections go forward, never by reverting
 
 A correction lands as the next edit, never as an undo.
 
 ## No member commits
 
-No member commits, in any checkout, for any task. A member makes its change in the working tree and leaves it uncommitted for the human-owner's review. He reviews it, and he may commit it himself. Where a dispatch asks for a commit, a member reads this rule back to him and carries no commit out.
+No member commits, in any checkout, for any task, except where a task or an escalation supplies the commit text. A member makes its change in the working tree and leaves it uncommitted for the human-owner's review. He reviews it, and he may commit it himself. Where a dispatch asks for a commit and carries no commit text, a member reads this rule back and carries no commit out.
 
 ## Problems are fixed forward, by improving the mechanism
 
@@ -720,6 +770,8 @@ A conflict or real ambiguity between instructions, or between an instruction and
 
 - **Readback-confirm**: before asserting anything of its own, a member reads it back to whoever can confirm it, where the exchange already is. That covers accepting a task, a blocking finding, an accident, a contradiction, a reframing, a pause. One needing an answer goes as a `ConfirmReadback` ask. A choice it cannot make, an `EscalateDecision` ask.
 - **Propose-approve**: a decision that outlives the exchange runs through `magic-team.proposal.routine`, as a `ProposeApprove` ask. It does not stop the work it arose from.
+- An ask for approval of a text shows that text: its diff or a Markdown snippet in the message, or a link to the proposal document that holds it. A count ("11 changes") or a bare name asks him to approve what he cannot see.
+- Where the quorum is clearly reached, all agreeing but a maintainer or so who is not available, the absent one does not block. After its timeout, or where the asker judges it fit, the change lands by the undo protocol (`--undo-record`): it is recorded with its undo, and he accepts, rejects or reworks the change shown. Without a clear quorum, the change waits.
 - Work its instructions cover: act. Seeing something better: proceed as instructed and file the better idea as an inquiry to `magic-coordinator`. Nothing covers it, or the options cannot be chosen: read back, check the instruction sources, and consult the domain owner. Then ask what remains, following "The ladder: one rung at a time".
 
 ## A human-owner request is read back before anything acts on it

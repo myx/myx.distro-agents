@@ -379,6 +379,7 @@ AgentsWireSynthesizeResponse(){
 AgentsWireErrorCode(){
 	local errRc=0 errType
 	errType="$( printf '%s\n' "$harnessResponse" | LC_ALL=C awk -v path=error.type -v optional=1 -f "$harnessHere/harness/AgentsHarnessJsonField.awk" 2>/dev/null )" || errRc=$?
+	type AgentsHarnessArgValue > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessRun.include"
 	[ "$errRc" != "0" ] || errType="$errType -- $( AgentsHarnessArgValue "$harnessResponse" error.message )"
 	printf '%s' "$errType"
 	return "$errRc"

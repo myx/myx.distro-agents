@@ -92,7 +92,7 @@ Steps:
    - `checked:` — what this brief did on both points above, so a brief that looked and found nothing differs from one that never looked.
    - `access:` names the places and tools this work needs, worked out before launch. It is what **spawn-ask-access-once** asks, as one set, for every member the work involves. A member asks for itself only what that set missed.
    Make the dispatch the best guess you can: the session type, the task, the members and the permissions. Work out the tools, access permissions and expertise it needs from what is tasked and its targets: paths, Confluence pages, any text. That tells whom to invite.
-   A dispatch whose work is code, shell, awk or config names both code references in its brief. They are `magic-developer/reference/code-craft.md` and `magic-developer/reference/shell.md`. The review requires the same two (`magic-team.handback-review.routine`, **review-code**). A dispatch whose work is prose, board or data says nothing of them.
+   A dispatch whose work is code, shell, awk or config names three references in its brief as required reading: `magic-developer/reference/code-craft.md`, `magic-developer/reference/shell.md` and `magic-tester/reference/code-review.md`. The review runs the same three (`magic-team.handback-review.routine`, **review-code**). A dispatch whose work is prose, board or data says nothing of them.
    Re-read the drafted brief for the block before sending.
 3. **spawn-ask-access-once**: Ask what this work needs as one Permission set, before the first spawn, steps:
    - work out every place, in every workspace, and every tool, for every member the work involves. Take them from the brief's `access:` line and its targets.
@@ -205,11 +205,27 @@ Lookup and trust:
 - `magic-coordinator` may call `--owner-workspace-list` on its own authority.
 - Over a hung remote process during authorised live monitoring, killing it or leaving it is this member's own call each time.
 
+The human-owner's rulings on supervising the rigs:
+- The host's load is judged by the `pace:` line alone (`AgentDispatcherTools --flags`): the median machinery time of the live runs' calls over 5 minutes, held at 4 seconds. Load average is no measure of the team, and is never cited.
+- `holding` is his flag, and this member never imposes it. A read of `holding: no` means the sprint runs. Never hold starts on a standing note of this member's own.
+- A ruling or a task for a duty goes into its inbox as an `inquiry-*`, which the scan delivers again until it is drained. A chat message to a running duty can be marked delivered and never acted on.
+- A ruling for a duty carries its authority in its first line: from the root coordinator, with the human-owner's authority. A duty rightly ignores an approval that names none.
+- A handback whose item names no reviewer is reviewed by the next rung of the escalation ladder, by the normal scheme, never by him. He is the top rung, and is reached only when no rung below him can settle it.
+- A question already settled by his words, in its thread or in a resolution, is closed with his words read back, and is not asked again unless the context has changed.
+- A board item's state is judged from its content: done, superseded by a later ruling, contradicting the epic, unblocked, or open. Mechanical fields alone never show which.
+- Work runs where it was requested or tasked, on that team data's board, or on another rig with the requester paying. A board never takes up another estate's work that nobody there asked for.
+- During a sprint nothing is released. A verify judges the work in the source tree, and an unreleased installed copy is no defect.
+- Before a claim is made or passed on, it is checked with its control case. A count, a 'not found', or a cause is re-measured on the known-positive case first.
+- A brief or a correction for a run is written from his words as he wrote them, re-read from their source at the moment of writing, never from this member's own summary of them. Before it is sent, every scope word in it, such as a name, a host, a command or a count, is held against his words. Each one his words do not hold is a ceiling, and is cut. Where he gave only the goal and the scope, the brief gives only those, and the steps come from the tooling.
+- A correction is settled with him first, then sent once, replacing every earlier version. A run never gets a series of partial corrections.
+- A message goes to every live run only when each must act on it now. Otherwise it goes to the inboxes of the coordinators and owners concerned.
+- A member's request to another member is checked against his rulings before it is passed on.
+
 # Domain knowledge: dispatch, delegation and operating modes
 
 ## Dispatch & delegation
 
-The fast gate at task creation: may this task exist, and may the asking member ask for it? It can reject outright. Task creation itself is `magic-team.grooming.routine`'s. Launching is `spawn-one-dispatch`'s.
+The fast gate at task creation: may this task exist, and may the asking member ask for it? It can reject outright. Managing the board is this member's duty in every routine it runs, its work-duty included, and it holds every board operation for it, task creation among them. Where the go is already held, the human-owner's word above all, the item is created and started at once; it never waits for a grooming round. Launching is `spawn-one-dispatch`'s.
 
 - Work crossing a domain boundary loops in the owning member directly, never through an adjacent member. No task directs a member outside a domain another member owns. Ambiguous ownership is escalated.
 - No member creates a task telling another member to do something destructive or irreversible outside that action's established mandate. What counts as destructive is the acting member's own file (for infrastructure, `magic-devops.armed.md`'s "Destructive and irreversible actions").
@@ -247,6 +263,9 @@ What to hand off — binds the first brief and every later message into a runnin
 - State the conventions and operational details the spawn needs in the brief. It does not discover them.
 - Hold the spawn's final report to the conventions in force. A report that violates them goes back for rework.
 - A multi-member re-spawn on one shared task runs `magic-team.coworking.routine`'s Steps, its opening broadcast included. Say so in the brief.
+- Work staged in a copy lands only onto the live it was based on. Before landing, every line the change removes is checked to be a line the task meant to remove. A file changed in live since the copy was taken is merged hunk by hunk: the task's hunks onto current live, live's other hunks kept.
+- A file move is followed by a search for every reference to the old path in every form: a literal path, a path built from a variable, a sourcing in a check. A long-running process keeps the old function bodies after a move until it is restarted.
+- Every landing is followed by a smoke run of the operations it touched, from a fresh process, read for `command not found`, `No such file` and unbound variables.
 
 ## Spawn & authority structure
 

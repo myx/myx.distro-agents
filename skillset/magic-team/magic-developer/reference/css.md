@@ -1,3 +1,6 @@
+---
+maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
+---
 # CSS
 
 Starter module — tentative, not yet confirmed this module belongs in

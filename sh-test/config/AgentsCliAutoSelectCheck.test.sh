@@ -125,8 +125,8 @@ rigAssert "another sub-operation is refused, and nothing is stored"        "$( r
 rigAssert "so is a second argument"                                         "$( rigRun --owner-setup-cli-auto --check --apply | LC_ALL=C grep -c 'takes one sub-operation' )" 1
 
 echo "-- 5. the detection is not in the spawn path --"
-rigAssert "the CLI a spawn resolves, and the spawn proxy, do not call the check or name the domain"  "$( LC_ALL=C grep -c -e 'AgentsToolsCliServiceWorks' -e 'cli-auto' -e 'agentsCliServiceAutoOrder' "$rigPackage/sh-lib/board/AgentsTools.ReviewFlow.include" "$rigPackage/sh-lib/session/AgentsTools.InternOpAgentSpawnProxy.include" | LC_ALL=C awk -F: '{ n += $NF } END { print n + 0 }' )" 0
-rigAssert "the one place that asks is the setup's: the check is called from the owner include alone"  "$( LC_ALL=C grep -l 'AgentsToolsCliServiceWorks' -r "$rigPackage/sh-lib" "$rigPackage/sh-scripts" | LC_ALL=C sed "s|^$rigPackage/||" | LC_ALL=C sort | tr '\n' ' ' )" "sh-lib/config/AgentsTools.Owner.include sh-lib/harness/AgentsTools.CliService.include "
+rigAssert "the CLI a spawn resolves, and the spawn proxy, do not call the check or name the domain"  "$( LC_ALL=C grep -c -e 'AgentsToolsCliServiceWorks' -e 'cli-auto' -e 'agentsCliServiceAutoOrder' "$rigPackage/sh-lib/board/AgentsTools.ReviewFlow.include" "$rigPackage/sh-lib/spawn/AgentsTools.InternOpAgentSpawnProxy.include" | LC_ALL=C awk -F: '{ n += $NF } END { print n + 0 }' )" 0
+rigAssert "the one place that asks is the setup's: the check is called from the setup's own operation alone"  "$( LC_ALL=C grep -l 'AgentsToolsCliServiceWorks' -r "$rigPackage/sh-lib" "$rigPackage/sh-scripts" | LC_ALL=C sed "s|^$rigPackage/||" | LC_ALL=C sort | tr '\n' ' ' )" "sh-lib/config/AgentsTools.OpOwnerSetupCliAuto.include sh-lib/harness/AgentsTools.CliService.include "
 
 echo "-- 6. the manual --"
 rigOut="$( rigRun --help-setup-cli-auto )"

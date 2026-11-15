@@ -76,7 +76,7 @@ rigHas(){ ## preset, key -- `yes` where the block holds a line of that key
 rigEffective(){ ## preset, key -- AgentsToolsPresetEffective, called as a function of the include; its text and ` rc=<rc>`
 	local effOut effRc
 	effOut="$( cd "$rigWs" && env -i HOME="$rigTmp/home" PATH="/usr/bin:/bin:/usr/sbin:/sbin" MMDAPP="$rigWs" MDLT_ORIGIN="$rigOrigin" MDSC_CMD=rig-check bash -c '
-		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.Preset.include" && AgentsToolsPresetEffective "$MMDAPP" "$1" "$2"
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/settings/AgentsTools.Preset.include" && AgentsToolsPresetEffective "$MMDAPP" "$1" "$2"
 	' rig "$1" "$2" 2>&1 )"
 	effRc=$?
 	printf '%s rc=%s' "$effOut" "$effRc"
@@ -84,7 +84,7 @@ rigEffective(){ ## preset, key -- AgentsToolsPresetEffective, called as a functi
 rigCredKeys(){ ## cli service -- AgentsToolsPresetCredentialKeys, called as a function of the include; its words and ` rc=<rc>`
 	local credOut credRc
 	credOut="$( cd "$rigWs" && env -i HOME="$rigTmp/home" PATH="/usr/bin:/bin:/usr/sbin:/sbin" MMDAPP="$rigWs" MDLT_ORIGIN="$rigOrigin" MDSC_CMD=rig-check bash -c '
-		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.Preset.include" && AgentsToolsPresetCredentialKeys "$1"
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/settings/AgentsTools.Preset.include" && AgentsToolsPresetCredentialKeys "$1"
 	' rig "$1" 2>&1 )"
 	credRc=$?
 	printf '%s rc=%s' "$credOut" "$credRc"
@@ -168,7 +168,7 @@ rigAssert "a refusal names the two it takes and repeats nothing it was given"   
 rigAssert "the stored value is still the last good one"                              "$( rigGet mel-model PRESET_INPUT_CACHE_TIME )" 1h
 rigAssert "the context size takes a whole number of tokens"                       "$( rigSet mel-model PRESET_CONTEXT_MAX_SIZE 200000 )" 0
 rigAssert "a number written otherwise is refused (word, zero, sign, fraction)"     "$( rigSet mel-model PRESET_CONTEXT_MAX_SIZE abc )$( rigSet mel-model PRESET_CONTEXT_MAX_SIZE 0 )$( rigSet mel-model PRESET_CONTEXT_MAX_SIZE -5 )$( rigSet mel-model PRESET_CONTEXT_MAX_SIZE 1.5 )" 1111
-rigAssert "the two keys are named in the preset code, the catalogue, the console, the console's scope reader and its wizard, and by the harness reader and the legs that point at it (the context size is the restart threshold, no longer stored only)" "$( cd "$rigPackage" && LC_ALL=C grep -rl --exclude='*.keep' -e PRESET_INPUT_CACHE_TIME -e PRESET_CONTEXT_MAX_SIZE sh-lib sh-scripts | LC_ALL=C sort | tr '\n' ' ' )" "sh-lib/config/AgentsTools.OwnerSetupOptionSpec.include sh-lib/config/AgentsTools.Preset.include sh-lib/harness/AgentsCopilotHarness.sh sh-lib/harness/AgentsHarnessLimits.include sh-lib/harness/AgentsStandardV1Harness.sh sh-lib/harness/AgentsUniversalHarness.sh sh-lib/manager/AgentsConsoleShellScript.template.sh sh-lib/manager/AgentsManagerScreen.Wizards.py sh-lib/manager/AgentsTools.ManagerScopeAgents.include sh-lib/manager/AgentsTools.ManagerWizard.include sh-lib/member/AgentsTools.MemberWorkspace.include "
+rigAssert "the two keys are named in the preset code, the catalogue, the console, the console's scope reader and its wizard, and by the harness reader and the legs that point at it (the context size is the restart threshold, no longer stored only)" "$( cd "$rigPackage" && LC_ALL=C grep -rl --exclude='*.keep' -e PRESET_INPUT_CACHE_TIME -e PRESET_CONTEXT_MAX_SIZE sh-lib sh-scripts | LC_ALL=C sort | tr '\n' ' ' )" "sh-lib/config/AgentsTools.OwnerSetupOptionSpec.include sh-lib/settings/AgentsTools.Preset.include sh-lib/harness/AgentsCopilotHarness.sh sh-lib/harness/AgentsHarnessLimits.include sh-lib/harness/AgentsStandardV1Harness.sh sh-lib/harness/AgentsUniversalHarness.sh sh-lib/manager/AgentsConsoleShellScript.template.sh sh-lib/manager/AgentsManagerScreen.Wizards.py sh-lib/manager/AgentsTools.ManagerScopeAgents.include sh-lib/manager/AgentsTools.ManagerWizard.include sh-lib/member/AgentsTools.MemberWorkspace.include "
 rigAssert "the endpoint: https is taken"                                          "$( rigSet mel-model PRESET_ENDPOINT_URL https://api.example.com/v1 )" 0
 rigOk=0
 for rigUrl in http://127.0.0.1 http://127.0.0.1:8181/v1 http://localhost:8181/v1 'http://[::1]:8181/v1' ; do [ "$( rigSet mel-model PRESET_ENDPOINT_URL "$rigUrl" )" = 0 ] && rigOk=$(( rigOk + 1 )) ; done

@@ -3,7 +3,7 @@
 ## the post, and -- where the post stands as one top-level message of a direct conversation of
 ## two people -- the conversation itself, because a person answering there types in the
 ## conversation and never opens the thread (AgentsToolsEscalationThreadVerdict,
-## AgentsToolsEscalationAskDirect, both in AgentsTools.MemberEscalation.include).
+## AgentsToolsEscalationAskDirect, both in AgentsTools.Escalation.include).
 ## Covers: an `accept` typed in a direct conversation read as the verdict, applied through the
 ## review flow and signed human-owner, with no reminder after it; a reply there that names none
 ## of the words kept as a comment, the review left open and nothing decided; a reject by his
@@ -20,7 +20,7 @@ rigFn="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 rigLib="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib"
 rigHarness="$rigLib/harness/AgentsUniversalHarness.sh"
 ## The name of the address field, read where it is held, so a rename is one line there.
-rigReportsTo="$( LC_ALL=C sed -n 's/^agentsRunRouteField="\(.*\)"$/\1/p' "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include" )"
+rigReportsTo="$( LC_ALL=C sed -n 's/^agentsRunRouteField="\(.*\)"$/\1/p' "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandbox.include" )"
 rigFixture="$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/review-prompt.curl.stub.sh"
 
 rigRefuse(){

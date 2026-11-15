@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+## AgentsTools.OpManagerKeysTrustAdd.include -- the operation `--manager-keys-trust-add`, sourced by AgentsTools.ManagerKeys.include with the operation's arguments.
+## A public key line put into the account's own authorized keys: whoever holds its private key may then log in
+## here as the account. The line is read whole from the standard input, one line, a key type, then the key, then
+## anything; it is appended with a line end of its own. Refused where the input is not one such line, the key is
+## trusted already, or the file cannot be written. One row `added`.
+		type AgentsToolsManagerKeysTrustedLine > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.PublicKeys.include"
+		local addOp="$1" keysLine keysType keysText keysComment addFile addDir addCount addFinger addN addType addText addComment addFound="" addNew=""
+		shift
+		[ $# -eq 0 ] || { echo "⛔ ERROR: $MDSC_CMD $addOp: syntax is $addOp, the public key line on the standard input, got $# argument(s) -- nothing was added" >&2 ; set +e ; return 1 ; }
+		if ! AgentsToolsManagerKeysTrustedLine ; then
+			echo "⛔ ERROR: $MDSC_CMD $addOp: the standard input is not one public key line to trust, a key type, then the key, then anything -- nothing was added" >&2
+			set +e ; return 1
+		fi
+		addFile="${HOME%/}/.ssh/authorized_keys" ; addDir="${addFile%/*}"
+		[ -f "$addFile" ] || addNew="yes"
+		if [ ! -d "$addDir" ] ; then { mkdir -p "$addDir" && chmod 700 "$addDir" ; } || { echo "⛔ ERROR: $MDSC_CMD $addOp: the folder of the authorized keys could not be made -- nothing was added" >&2 ; set +e ; return 1 ; } ; fi
+		if [ -f "$addFile" ] ; then
+			[ -w "$addFile" ] || { echo "⛔ ERROR: $MDSC_CMD $addOp: the authorized keys file cannot be written: $addFile -- nothing was added" >&2 ; set +e ; return 1 ; }
+			while IFS='|' read -r addN addType addText addComment ; do
+				[ "$addType" != "$keysType" ] || [ "$addText" != "$keysText" ] || addFound="yes"
+			done <<< "$( AgentsToolsManagerKeysTrusted 2> /dev/null )"
+			[ -z "$addFound" ] || { echo "⛔ ERROR: $MDSC_CMD $addOp: that key is trusted already -- nothing was added" >&2 ; set +e ; return 1 ; }
+			## the line goes on a line of its own: where the file does not end in a line end, one is put first
+			[ -z "$( tail -c 1 "$addFile" 2> /dev/null )" ] || printf '\n' >> "$addFile" || { echo "⛔ ERROR: $MDSC_CMD $addOp: the authorized keys file could not be written: $addFile -- nothing was added" >&2 ; set +e ; return 1 ; }
+		fi
+		printf '%s\n' "$keysLine" >> "$addFile" || { echo "⛔ ERROR: $MDSC_CMD $addOp: the authorized keys file could not be written: $addFile -- nothing was added" >&2 ; set +e ; return 1 ; }
+		## the account's own authorized keys, made with mode 600 where it was not there
+		[ -z "$addNew" ] || chmod 600 "$addFile" 2> /dev/null
+		addCount="$( AgentsToolsManagerKeysTrusted | LC_ALL=C grep -c . )"
+		addFinger="$( AgentsToolsManagerKeysTrustedFinger "$keysType" "$keysText" )"
+		AgentsToolsManagerKeysTrustedDone added "$addCount" "$addFile" "$keysType" "$addFinger"
+		return 0

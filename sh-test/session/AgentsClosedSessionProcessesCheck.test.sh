@@ -16,7 +16,7 @@ set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigPkg="$MDLT_ORIGIN/myx/myx.distro-agents"
-rigHouse="$rigPkg/sh-lib/magic/AgentsTools.SpawnHousekeeping.include"
+rigHouse="$rigPkg/sh-lib/board/AgentsTools.BoardHousekeeping.include"
 rigRefuse(){ echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1 ; }
 [ -f "$rigHouse" ] || rigRefuse "the housekeeping include is not at the origin: $rigHouse"
 . "$rigPkg/sh-test/check-fixtures/rig-processes.include.sh" || rigRefuse "the rig's process helper is missing"

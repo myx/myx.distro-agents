@@ -1,0 +1,82 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+type AgentsToolsManagerSessionFinish > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.ManagerSessionKill.include"
+
+## AgentsTools.OpManagerSessionKill.include -- the operation `--manager-session-kill`, sourced by AgentsTools.ManagerSession.include with the operation's arguments.
+## One run, or every live run of one session, ended the hard way, and one row a run saying
+## what happened to it: TAB-separated rows a screen reads, their form the help entry's. It
+## asks for no confirmation: that is the screen's.
+		local killOp="$1" killId="" killOwn="" killPlan="" killRows="" killRc=0 killEnded=0
+		shift
+		## The escalation words (F6.10, AgentsTools.Authority.include), taken out wherever they stand.
+		type AgentsToolsAuthorityFlags > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.Authority.include"
+		AgentsToolsAuthorityFlags "$@" || { set +e ; return 1 ; }
+		set -- ${agentsAuthorityRest[@]+"${agentsAuthorityRest[@]}"}
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--session-id)
+					if [ $# -lt 2 ] || [ -z "$2" ] || [ "$2" = "-" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD $killOp: --session-id needs an id -- syntax is --session-id <id> [--run] [--plan]" >&2
+						set +e ; return 1
+					fi
+					killId="$2" ; shift 2
+				;;
+				--run) killOwn="run" ; shift ;;
+				--plan) killPlan="plan" ; shift ;;
+				*)
+					echo "⛔ ERROR: $MDSC_CMD $killOp: syntax is --session-id <id> [--run] [--plan], got: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		if [ -z "$killId" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD $killOp: syntax is --session-id <id> [--run] [--plan], got no --session-id" >&2
+			set +e ; return 1
+		fi
+		## WHO CARRIES IT OUT. Where the control thread of the session lives, the thread does:
+		## it is asked by a request in its folder and woken, and what it did is printed here.
+		## Where none lives, or it does not take the request in time, this call does, as
+		## before, and says so in one line (AgentsToolsSessionControlRequestKill).
+		type AgentsToolsSessionControlRequestKill > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionControlRequest.include"
+		## The thread's own call carries the kill out, and no more: what the kill of a session
+		## finishes is done by the console that asked, once it has the rows of the kill. Nor
+		## does the thread's call about a death, whose answer `kill` ends what lives of the
+		## session: it settles the record of its dead run itself, and asks for the kill alone
+		## (controlMode is that call's own, AgentsTools.InternSessionControl.include).
+		if [ -n "${agentsSessionControlCarried:-}" ] || [ "${controlMode:-}" = "--death" ] ; then
+			AgentsToolsSessionControlRequestKill "$killOp" "$killId" "$killOwn" || { set +e ; return 1 ; }
+			return 0
+		fi
+		## THE AUTHORITY to end it (F6.10): over one run, whoever it reports to; over a whole session,
+		## whoever its founding run reports to; the owners role; or a grant of it. A plan ends nothing,
+		## and an id no record here carries is refused as it was, below.
+		if [ -z "$killPlan" ] && [ -n "$( LC_ALL=C grep -l -x -F -e "session-id: $killId" -e "spawn-id: $killId" "$MMDAPP"/.local/agents/spawned/*/*.spawn.md 2> /dev/null | head -1 )" ] ; then
+			local killRecord=""
+			type AgentsToolsSessionRunRecord > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionSeats.include"
+			if [ -n "$killOwn" ] ; then
+				killRecord="$( AgentsToolsSessionRunRecord "$killId" )" || killRecord=""
+			else
+				killRecord="$( AgentsToolsAuthoritySessionRecord "$killId" )" || killRecord="$( AgentsToolsSessionRunRecord "$killId" )" || killRecord=""
+			fi
+			## ANY OPERATOR AT A CONSOLE, AND THE COORDINATOR, CAN KILL (sketch 5.4: a kill ends a running session at the first try; the screen asked
+			## for the word before it called). No mapping of the console to the owner is needed for it. A member other than the coordinator
+			## ending another member's run is gated as before.
+			AgentsToolsAuthorityCaller
+			if [ "$agentsAuthorityCallerKind" != person ] && [ "$agentsAuthorityCallerId" != magic-coordinator ] && ! AgentsToolsAuthorityOwnerMapped ; then
+				AgentsToolsAuthorityGate "end $( [ -n "$killOwn" ] && printf 'run %s' "$killId" || printf 'session %s' "$( AgentsToolsAuthoritySessionWords "$killId" )" )" "$killId" "$killRecord" "" console \
+					"$killOp" --session-id "$killId" ${killOwn:+--run} || :
+				AgentsToolsAuthorityExit || { set +e ; return "$agentsAuthorityExit" ; }
+			fi
+		fi
+		## THEN THE SESSION IS FINISHED: its questions dismissed, its open records closed, and
+		## rows that say so after the rows of the kill (AgentsToolsManagerSessionFinish). With
+		## --plan nothing is ended and nothing is done: the same rows say what would be.
+		if [ -z "$killPlan" ] ; then
+			killRows="$( AgentsToolsSessionControlRequestKill "$killOp" "$killId" "$killOwn" )" || killRc=$?
+			[ -z "$killRows" ] || printf '%s\n' "$killRows"
+			[ "$killRc" = 0 ] || { set +e ; return 1 ; }
+			killEnded="$( printf '%s\n' "$killRows" | LC_ALL=C awk -F'\t' '$1 == "kill" && ( $5 == "ended" || $5 == "killed" ) { rowsEnded++ } END { print rowsEnded + 0 }' )"
+		fi
+		AgentsToolsManagerSessionFinish "$killOp" "$killId" "$killOwn" "$killPlan" "$killEnded" || { set +e ; return 1 ; }
+		return 0

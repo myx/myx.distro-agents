@@ -162,15 +162,20 @@ rigWaitFor "$rigTmp/brief.rig-member-b" || rigRefuse "rig-member-b's own console
 rigAssert "each child reports to the agent-less parent" \
 	"$( LC_ALL=C grep -l -x -F "reports-to: $rigSessionId" $( LC_ALL=C grep -l -x -F "parent-session-id: $rigSessionId" "$rigWs/.local/agents/spawned"/*/*.spawn.md 2>/dev/null ) 2>/dev/null | LC_ALL=C grep -c . )" 2
 rigAssert "and each child's route goes one hop on, to the caller's session and member" \
-	"$( for rigKid in $( LC_ALL=C grep -l -x -F "parent-session-id: $rigSessionId" "$rigWs/.local/agents/spawned"/*/*.spawn.md 2>/dev/null ) ; do env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp" PATH="$PATH" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDAT_SKILLSET_ROOT="$rigSkills" MDLT_ORIGIN="$MDLT_ORIGIN" bash -c '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include" ; AgentsToolsRunRoute "$1"' rig "$rigKid" 2>/dev/null ; done | LC_ALL=C sort -u )" "rig-caller-session:magic-coordinator"
+	"$( for rigKid in $( LC_ALL=C grep -l -x -F "parent-session-id: $rigSessionId" "$rigWs/.local/agents/spawned"/*/*.spawn.md 2>/dev/null ) ; do env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp" PATH="$PATH" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDAT_SKILLSET_ROOT="$rigSkills" MDLT_ORIGIN="$MDLT_ORIGIN" bash -c '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandbox.include" ; AgentsToolsRunRoute "$1"' rig "$rigKid" 2>/dev/null ; done | LC_ALL=C sort -u )" "rig-caller-session:magic-coordinator"
 rigAssert "the parent's thread is the caller's, so a child's session-parent is that thread" \
 	"$( cat "$rigWs/.local/agents/sessions/$rigSessionId/session.thread" 2>/dev/null ):$( LC_ALL=C grep -l -x -F 'parent-thread: CRIG00001:1700000000.000500' "$rigWs/.local/agents/spawned"/*/*.spawn.md 2>/dev/null | LC_ALL=C grep -c . )" "CRIG00001:1700000000.000500:2"
 rigParentRecord="$rigWs/.local/agents/spawned/$rigSessionId/$rigSessionId.spawn.md"
 rigLeft=10 ; while [ ! -s "$rigParentRecord" ] && [ "$rigLeft" -gt 0 ] ; do sleep 1 ; rigLeft=$(( rigLeft - 1 )) ; done
 rigAssert "the parent's own record: the caller is its owner, and it reports where the caller is" \
 	"$( LC_ALL=C grep -c -x -e 'owner: magic-coordinator' -e 'reports-to: rig-caller-session:magic-coordinator' -e 'agent-less: true' "$rigParentRecord" 2>/dev/null )" 3
-rigAssert "it names its children, its watcher's pid and its host, and shows as agent-less in the rosters" \
-	"$( LC_ALL=C grep -c -x -F "children: $( printf '%s\n' "$rigOut" | LC_ALL=C sed -n 's/^CHILDREN=//p' )" "$rigParentRecord" ) $( LC_ALL=C grep -c -E '^run-process: [0-9]+ ' "$rigParentRecord" ) $( LC_ALL=C grep -c -x -F "host: $( hostname -s 2>/dev/null || echo unknown )" "$rigParentRecord" ) $( LC_ALL=C grep -c -x -F 'session-comment: agent-less parent of magic-team.coworking.routine.md' "$rigParentRecord" )" "1 1 1 1"
+rigAssert "it names its children, its watcher's pid and its host, and names what its session is with its short id" \
+	"$( LC_ALL=C grep -c -x -F "children: $( printf '%s\n' "$rigOut" | LC_ALL=C sed -n 's/^CHILDREN=//p' )" "$rigParentRecord" ) $( LC_ALL=C grep -c -E '^run-process: [0-9]+ ' "$rigParentRecord" ) $( LC_ALL=C grep -c -x -F "host: $( hostname -s 2>/dev/null || echo unknown )" "$rigParentRecord" ) $( LC_ALL=C grep -c -F "session-comment: non-agent parent of magic-team.coworking.routine.md (" "$rigParentRecord" )" "1 1 1 1"
+rigAssert "its row's name carries the session's own short id, and says what the session is since no name was given" \
+	"$( LC_ALL=C sed -n 's/^session-comment: //p' "$rigParentRecord" | head -1 )" \
+	"non-agent parent of magic-team.coworking.routine.md ($( printf '%s' "$rigSessionId" | cut -c1-8 )): coworking"
+rigAssert "each member row of it carries that same short id and identifying part, so the parent and its runs read as one session" \
+	"$( LC_ALL=C grep -h '^session-comment: ' "$rigWs/.local/agents/spawned"/*/*.spawn.md 2>/dev/null | LC_ALL=C grep -c -x -F -e "session-comment: rig-member-a, coworking ($( printf '%s' "$rigSessionId" | cut -c1-8 )): coworking" -e "session-comment: rig-member-b, coworking ($( printf '%s' "$rigSessionId" | cut -c1-8 )): coworking" )" "2"
 rigLeft=30 ; while LC_ALL=C grep -q -x -F 'status: spawn-started' "$rigParentRecord" 2>/dev/null && [ "$rigLeft" -gt 0 ] ; do sleep 1 ; rigLeft=$(( rigLeft - 1 )) ; done
 ## A notice may be collected for some seconds before it is posted.
 rigLeft=20 ; while ! LC_ALL=C grep -q -F 'agent-less parent: all spawned sessions are done' "$rigTmp/bodies" 2>/dev/null && [ "$rigLeft" -gt 0 ] ; do sleep 1 ; rigLeft=$(( rigLeft - 1 )) ; done
@@ -194,7 +199,7 @@ chmod -R u+w -- "$rigWs/.local/agents/spawned" 2>/dev/null ; rm -rf "$rigWs/.loc
 echo "-- an orphaned parent, a caller gone, and the coordinator's thread: read by the functions themselves --"
 rigFn(){ ## function and its arguments -- run against the rig workspace, the session includes loaded
 	env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp" PATH="$PATH" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDAT_SKILLSET_ROOT="$rigSkills" MDLT_ORIGIN="$MDLT_ORIGIN" \
-		bash -c '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ReviewFlow.include" ; "$@"' rig "$@" 2> /dev/null
+		bash -c '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandbox.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ReviewFlow.include" ; "$@"' rig "$@" 2> /dev/null
 }
 rigRecordAt(){ ## spawn id, lines... -- a spawn record of the rig
 	mkdir -p "$rigWs/.local/agents/spawned/$1"

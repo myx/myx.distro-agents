@@ -88,7 +88,7 @@ rigAssert "a wait-sources: word that is no source of the wait is refused" "$( ri
 
 echo "-- 4. the files a routine includes --"
 rigIncludePaths(){ ## file -- the names of the files the routine includes
-	env -i HOME="$rigTmp/home" PATH="/usr/bin:/bin" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rigSkills" bash -c '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnRoutine.include" ; AgentsToolsSpawnRoutineIncludePaths "$1"' rig "$1" 2> /dev/null | LC_ALL=C sed 's#^.*/##'
+	env -i HOME="$rigTmp/home" PATH="/usr/bin:/bin" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rigSkills" bash -c '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnRoutine.include" ; AgentsToolsSpawnRoutineIncludePaths "$1"' rig "$1" 2> /dev/null | LC_ALL=C sed 's#^.*/##'
 }
 rigBad "$rigGoodIncludes" "$rigGoodWait" > /dev/null
 rigAssert "the checksum of a cached text knows the file the rig copy includes, and a duty includes none" "[$( rigIncludePaths "$rigSkills/rig-member/rig-member.bad.routine.md" )][$( rigIncludePaths "$rigDuty" )]" "[magic-team.advance.routine.md][]"

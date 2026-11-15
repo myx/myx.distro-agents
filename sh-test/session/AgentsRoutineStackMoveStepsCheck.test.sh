@@ -108,7 +108,7 @@ rigResult(){ ## label
 }
 rigFrames(){
 	env -i HOME="$rigTmp/home" PATH="$PATH" MMDAPP="$rigWs" MDLT_ORIGIN="$rigOrigin" MDAT_DATA_ROOT="$rigScn/data" \
-		bash -c '. "$1" ; AgentsToolsSessionRoutineStackLines "$2"' rig "$rigHere/session/AgentsTools.RoutineStack.include" "$rigSession" 2> /dev/null \
+		bash -c '. "$1" ; AgentsToolsSessionRoutineStackLines "$2"' rig "$rigHere/routine/AgentsTools.RoutineStack.include" "$rigSession" 2> /dev/null \
 		| LC_ALL=C sed -n 's/^routine-stack: //p' | LC_ALL=C awk 'BEGIN { ORS = "" } { printf "%s%s", ( NR > 1 ? " → " : "" ), $0 }'
 }
 rigListSum(){ LC_ALL=C cksum < "$rigList" 2> /dev/null ; }

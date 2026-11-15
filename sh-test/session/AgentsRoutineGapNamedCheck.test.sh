@@ -27,7 +27,7 @@ rigAssert(){ ## what is asserted, got, want
 }
 rigRoster(){ ## executors value -> "<rc>:<reason with the tab as a bar>"
 	( cd "$rigWs" && env -i HOME="$rigTmp" PATH="/usr/bin:/bin:/usr/sbin:/sbin" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rigMembers" bash -c '
-		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnRoutine.include"
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnRoutine.include"
 		rosterOut="$( AgentsToolsSpawnRoutineExecutorsRoster "$1" )" ; rosterRc=$?
 		printf "%s:%s" "$rosterRc" "$( printf "%s" "$rosterOut" | head -1 | tr "\t" "|" )"' rig "$1" 2> /dev/null )
 }

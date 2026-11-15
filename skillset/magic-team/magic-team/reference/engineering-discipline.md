@@ -1,3 +1,6 @@
+---
+maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
+---
 # Engineering and operating discipline: further rules
 
 Rules of "Engineering & operating discipline" that a member needs only on occasion.
@@ -6,7 +9,7 @@ Rules of "Engineering & operating discipline" that a member needs only on occasi
 
 - Git, scope and finishing
 - Evidence
-- Dispatch, relay and produce
+- Dispatch and relay
 - Call paths and walks
 
 Git, scope and finishing:

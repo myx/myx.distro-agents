@@ -1,3 +1,6 @@
+---
+maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
+---
 # Member-addressed files
 
 The body of the section of the same name in this member's armed content.

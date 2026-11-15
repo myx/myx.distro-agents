@@ -1,0 +1,219 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+## AgentsTools.InternOpStateNoteUpsert.include -- the operation `--intern-op-state-note-upsert`, sourced by AgentsTools.MagicCoordinatorState.include with the operation's arguments.
+	type AgentsToolsStateNoteField > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.CoordinatorReads.include"
+	type AgentsToolsRecheckDate > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.RecheckDate.include"
+	type AgentsToolsItemUpsert > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/items/AgentsTools.InternOpItem.include"
+
+		shift
+		local callingMember="$1"
+		shift || true
+		if [ -z "$callingMember" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --intern-op-state-note-upsert: syntax is <team-member> -- content via stdin, --from-file <path>, or --edit-patch-from-stdin" >&2
+			set +e ; return 1
+		fi
+		## This document is always magic-coordinator's own -- the target path
+		## below is a fixed literal, never derived from $callingMember. A
+		## caller passing any other name would otherwise silently write into
+		## magic-coordinator's own state note under a different member's
+		## belief that it wrote its own; fail loud instead of ignoring the
+		## argument silently.
+		if [ "$callingMember" != "magic-coordinator" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --intern-op-state-note-upsert: <team-member> must be magic-coordinator -- this document has no other owner (got: $callingMember)" >&2
+			set +e ; return 1
+		fi
+		[ -n "${MDAT_DATA_ROOT:-}" ] || {
+			echo "⛔ ERROR: $MDSC_CMD --intern-op-state-note-upsert: MDAT_DATA_ROOT is not set" >&2
+			set +e ; return 1
+		}
+		local stateDir="$MDAT_DATA_ROOT/inboxes/magic-coordinator/incoming"
+		mkdir -p "$stateDir" || {
+			echo "⛔ ERROR: $MDSC_CMD --intern-op-state-note-upsert: can't create inbox directory: $stateDir" >&2
+			set +e ; return 1
+		}
+		## Same document --state-note-lock-acquire writes, not a separate
+		## file -- state and lock used to be two documents, and the state one never carried a session-id, so
+		## nothing here could ever detect a stolen/expired lock. Merged
+		## 2026-09-09; see MAGIC.md.
+		local target="$stateDir/note-20260809T155000Z-heartbeat-state-and-lock.md"
+		if [ ! -f "$target" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --intern-op-state-note-upsert: $target does not exist -- acquire the lock first (--state-note-lock-acquire)" >&2
+			set +e ; return 1
+		fi
+		local content contentFromFile="false" bodyMode="" bodyModeCount=0
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--from-file)
+					if [ -z "$2" ] || [ ! -f "$2" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --intern-op-state-note-upsert: --from-file: file not found: $2" >&2
+						set +e ; return 1
+					fi
+					content="$( cat "$2" )"
+					contentFromFile="true"
+					bodyMode="file"
+					bodyModeCount=$(( bodyModeCount + 1 ))
+					shift 2
+				;;
+				--edit-patch-from-stdin)
+					bodyMode="patch"
+					bodyModeCount=$(( bodyModeCount + 1 ))
+					shift
+				;;
+				*)
+					echo "⛔ ERROR: $MDSC_CMD --intern-op-state-note-upsert: unrecognized argument: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		if [ "$bodyModeCount" -gt 1 ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --intern-op-state-note-upsert: --from-file and --edit-patch-from-stdin are mutually exclusive" >&2
+			set +e ; return 1
+		fi
+		if [ "$bodyMode" = "patch" ] ; then
+			local patchJson existingContent
+			patchJson="$( cat )"
+			if [ -f "$target" ] ; then existingContent="$( cat "$target" )" ; else existingContent="" ; fi
+			content="$( printf '%s%s' "$patchJson" "$existingContent" | python3 "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsBoardItemPatchApply.py" )" || { set +e ; return 1 ; }
+		else
+			[ "$contentFromFile" = "true" ] || content="$( cat )"
+			## Reported, never refused, and this one is not a tier choice. This
+			## note's own active-project field runs well past the word cap, and it
+			## is rewritten at every state write, so no count of it stays true.
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.OutputStyle.include"
+			printf '%s' "$content" | AgentsToolsOutputStyleRefusal "$callingMember" "" "state note" "" none || :
+		fi
+		## An empty write erases the stored state, directives and all.
+		if [ -z "$content" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --intern-op-state-note-upsert: empty content -- refusing to erase the stored state note" >&2
+			set +e ; return 1
+		fi
+		## Normalize CRLF before any frontmatter/body split below -- a caller
+		## supplying Windows line endings otherwise defeats every literal
+		## "---" match ($0=="---" never matches "---\r"), and both extraction
+		## passes below then silently produce nothing rather than erroring,
+		## which would wipe the document on write with no error at all
+		## (measured; see MAGIC.md). $target itself is never touched here --
+		## it is always written by this same tooling and is always LF.
+		content="$( printf '%s\n' "$content" | LC_ALL=C awk '{ sub(/\r$/, "") ; print }' )"
+		## Preserve the lock-owned frontmatter fields (type/from/date/owner/
+		## state/recheck-date/session-id) exactly as they currently stand --
+		## never hand-named, so a lock-side field added later survives too.
+		## $content carries its own state-only frontmatter (last-iteration-
+		## date etc.) plus body; splice the two frontmatter blocks together
+		## and keep $content's own body verbatim. A body-input mode replaces
+		## the WHOLE document (see reflection-20260908T1023Z), which is
+		## exactly why the lock fields have to be re-spliced in here rather
+		## than trusted to survive on their own.
+		## Filtered to an explicit allowlist, not "every field currently on
+		## the document" -- the document also carries state fields from the
+		## LAST state-upsert call (last-iteration-date, today-stage, etc.),
+		## and those must be REPLACED by this call's own callerFields, never
+		## unioned alongside them. A duplicate key also breaks every reader
+		## here that takes the first match and stops (see session-id's own
+		## awk above), so the stale copy would silently win forever.
+		local lockFields callerFields callerBody
+		lockFields="$( LC_ALL=C awk '
+			NR==1 { if ($0=="---") { inFM=1 ; } ; next ; }
+			inFM {
+				if ($0=="---") exit
+				if ($0 ~ /^(type|from|date|owner|state|recheck-date|session-id): /) print
+			}
+		' "$target" )"
+		if [ -z "$lockFields" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --intern-op-state-note-upsert: $target has no readable frontmatter -- refusing to overwrite a document in an unexpected shape" >&2
+			set +e ; return 1
+		fi
+		## Every state write while a session holds the lock also refreshes it (recheck-date,
+		## now + 15 minutes), so a holder that keeps writing never reads as a crashed one.
+		## Only while the note says heartbeat-running (the stored value of a held lock): a
+		## finished or foreign state is carried over untouched.
+		if printf '%s\n' "$lockFields" | LC_ALL=C grep -qx 'state: heartbeat-running' ; then
+			local refreshDate
+			refreshDate="$( AgentsToolsRecheckDate 15 )"
+			lockFields="$( printf '%s\n' "$lockFields" | LC_ALL=C awk -v recheck="recheck-date: $refreshDate" '
+				/^recheck-date: / { print recheck ; done = 1 ; next ; }
+				{ print ; }
+				END { if (!done) print recheck ; }
+			' )"
+		fi
+		## Excludes the same lock-owned allowlist $lockFields already carries,
+		## not just "print everything" -- --edit-patch-from-stdin's own body
+		## source reconstructs $content from $target's OWN existing content
+		## (AgentsBoardItemPatchApply.py patches and returns the whole
+		## document, frontmatter included), so $content's frontmatter would
+		## otherwise still carry the lock fields verbatim and duplicate every
+		## one of them alongside $lockFields below (measured). No live caller
+		## uses --edit-patch-from-stdin on this op today, but the op accepts
+		## it, so this excludes rather than trusts the caller never to.
+		callerFields="$( printf '%s\n' "$content" | LC_ALL=C awk '
+			NR==1 { if ($0=="---") { inFM=1 ; } ; next ; }
+			inFM {
+				if ($0=="---") exit
+				if ($0 !~ /^(type|from|date|owner|state|recheck-date|session-id): /) print
+			}
+		' )"
+		## A caller supplying no frontmatter at all (just body) is a valid
+		## input -- callerFields alone empty is fine. This is NOT the same
+		## check as the "both empty" guard below.
+		callerBody="$( printf '%s\n' "$content" | LC_ALL=C awk '
+			NR==1 { if ($0=="---") { hasFm=1 ; } ; }
+			hasFm {
+				if ($0=="---") { delims++ ; next ; }
+				if (delims >= 2) print
+				next
+			}
+			{ print ; }
+		' )"
+		## Strip callerBody's own leading blank line(s) before splicing --
+		## $mergedContent below always adds exactly one separating blank line
+		## of its own. Without this strip, feeding a full previously-read
+		## record back in (state-read piped straight into state-upsert,
+		## documented as this op's own normal write-back shape) carries that
+		## record's OWN already-separated body, whose leading blank line(s)
+		## then stack with the template's, growing by one blank line every
+		## round-trip (measured live: 2 blank lines after one such cycle,
+		## 3 after two). Normalizing to zero leading blanks here, then always
+		## adding exactly one, makes the separator idempotent regardless of
+		## how many blank lines the input happened to carry.
+		callerBody="$( printf '%s\n' "$callerBody" | LC_ALL=C awk '
+			BEGIN { started = 0 ; }
+			{ if (!started && $0 == "") next ; started = 1 ; print ; }
+		' )"
+		## Defense in depth: whatever the cause (a future edge case, not only
+		## the two fixed above), extraction producing nothing at all from a
+		## non-empty $content must never fall through to a silent lock-only
+		## write -- fail loud instead, same as the empty-content guard above.
+		if [ -z "$callerFields" ] && [ -z "$callerBody" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --intern-op-state-note-upsert: content parsed to empty fields and empty body -- refusing to overwrite the stored state note with a lock-only document" >&2
+			set +e ; return 1
+		fi
+		## The date and time of the write are the tooling's to stamp; a value the caller
+		## gives wins. last-test-email-sent belongs to --send-report,
+		## so a caller that leaves it out keeps the stored one.
+		local stampLines="" carriedTestSent
+		case $'\n'"$callerFields" in *$'\n''last-iteration-date: '*) ;; *) stampLines="${stampLines}last-iteration-date: $( date +%Y-%m-%d )"$'\n' ;; esac
+		case $'\n'"$callerFields" in *$'\n''last-iteration-timestamp: '*) ;; *) stampLines="${stampLines}last-iteration-timestamp: $( date -u +%Y-%m-%dT%H:%M:%SZ )"$'\n' ;; esac
+		case $'\n'"$callerFields" in
+			*$'\n''last-test-email-sent: '*) ;;
+			*)
+				carriedTestSent="$( AgentsToolsStateNoteField "$target" last-test-email-sent )"
+				[ -z "$carriedTestSent" ] || stampLines="${stampLines}last-test-email-sent: $carriedTestSent"$'\n'
+			;;
+		esac
+		if [ -n "$stampLines" ] ; then
+			if [ -n "$callerFields" ] ; then callerFields="$callerFields"$'\n'"${stampLines%$'\n'}" ; else callerFields="${stampLines%$'\n'}" ; fi
+		fi
+		local mergedContent
+		mergedContent="$( printf -- '---\n%s\n%s\n---\n\n%s' "$lockFields" "$callerFields" "$callerBody" )"
+		## Delegates to the same git-backed, session-id-checked primitive the
+		## lock note already uses -- the target now genuinely carries a
+		## session-id (it is the same document), so the stale/stolen-lock
+		## check this primitive already does applies to this write too,
+		## which it never could when this was a separate, lock-blind file.
+		printf '%s\n' "$mergedContent" | AgentsToolsItemUpsert magic-coordinator \
+			note-20260809T155000Z-heartbeat-state-and-lock.md \
+			--upsert-from-stdin \
+			--commit-message "* main-loop, state-note, $( date -u +%Y-%m-%dT%H:%M:%SZ )" \
+			--context --intern-op-state-note-upsert
+		return $?

@@ -1,0 +1,135 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.SpawnProxyRootMarks.include -- the marks of the root session: their target, their place, retry, clear and pause. Split out of AgentsTools.SpawnSandbox.include by concern, its functions unchanged. Sourced, never
+## run; it relies on what AgentsTools.SpawnSandbox.include sources for it.
+##
+## THE MARKS A SESSION'S ROOT MESSAGE SHOWS (S6.37). The root post of the session's own thread -- the one
+## `session.thread` names, and never a tracking thread -- shows the session's end: `checkered_flag` once no run of the
+## session is left, with `white_check_mark` where every run of it ended well, else `octagonal_sign`. A restart or a
+## resume of the session takes them off again (AgentsToolsSpawnProxyRootMarkClear). What Slack has taken is kept in
+## `root.end` of the session's folder, and what is wanted but not yet taken in `root.want` beside it: a reaction
+## refused, or rate-limited past the shared call's own waits, is placed again by the pass over dead records
+## (AgentsToolsSpawnProxyRootMarkRetry), so the end of a session loses no mark. The event-track posts keep their own
+## flag and are never these.
+## The root post's own `<channel>:<ts>`, or nothing and rc 1 where the session has no session thread.
+AgentsToolsSpawnProxyRootMarkTarget(){ ## session id
+	local markSession="$1" markTarget=""
+	case "$markSession" in ''|-|.|..|*/*) return 1 ;; esac
+	[ -n "${MMDAPP:-}" ] || return 1
+	if [ -s "$MMDAPP/.local/agents/sessions/$markSession/session.thread" ] ; then
+		IFS= read -r markTarget < "$MMDAPP/.local/agents/sessions/$markSession/session.thread" || :
+	fi
+	AgentsToolsSpawnConversationThreadValid "$markTarget" || return 1
+	type AgentsToolsEventTrackThreadIs > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/event-track/AgentsTools.EventTrackThread.include" || return 1
+	AgentsToolsEventTrackThreadIs "$markTarget" && return 1
+	printf '%s\n' "$markTarget"
+}
+
+## The marks `root.want` of a session holds, placed on its root message, one reaction an emoji, and the want becomes
+## `root.end`. A reaction that does not land leaves the want as it is, whole, so the next pass places the set again
+## rather than half of it. Never fails its caller.
+AgentsToolsSpawnProxyRootMarkPlace(){ ## session id
+	local placeSession="$1" placeDir placeTarget placeEmoji placeRc=0
+	case "$placeSession" in ''|-|.|..|*/*) return 0 ;; esac
+	placeDir="$MMDAPP/.local/agents/sessions/$placeSession"
+	[ -f "$placeDir/root.want" ] || return 0
+	placeTarget="$( AgentsToolsSpawnProxyRootMarkTarget "$placeSession" )" || { rm -f "$placeDir/root.want" ; return 0 ; }
+	type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+	while IFS= read -r placeEmoji ; do
+		[ -n "$placeEmoji" ] || continue
+		DistroAgentsTools --intern-op-comms-slack-react magic-team "$placeTarget" "$placeEmoji" --identity-bot > /dev/null 2>&1 || placeRc=1
+	done < "$placeDir/root.want"
+	if [ "$placeRc" = 0 ] ; then
+		mv -f "$placeDir/root.want" "$placeDir/root.end" 2> /dev/null || rm -f "$placeDir/root.want"
+		return 0
+	fi
+	echo "⚠️ WARNING: ${MDSC_CMD:-DistroAgentsTools}: the end marks of session $placeSession are not all on its root message $placeTarget, so $placeDir/root.want is kept, and the next pass over dead records places it again" >&2 || :
+	return 0
+}
+
+## The end marks a session is owed, once no run of it is left: written to `root.want` and placed. Nothing while a run
+## of the session still runs, and nothing for a session with no session thread. Never fails its caller.
+AgentsToolsSpawnProxyRootMarks(){ ## tracking file of the run that just closed
+	local markRecord="$1" markSession markCandidate markStatus markGood="white_check_mark"
+	[ -f "$markRecord" ] || return 0
+	markSession="$( AgentsToolsSpawnSandboxRecordHeader "$markRecord" session-id )"
+	case "$markSession" in ''|-|.|..|*/*) return 0 ;; esac
+	AgentsToolsSpawnProxyRootMarkTarget "$markSession" > /dev/null || return 0
+	[ ! -f "$MMDAPP/.local/agents/sessions/$markSession/root.end" ] || return 0
+	type AgentsToolsSpawnedSessionRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.StartedRecords.include"
+	for markCandidate in $( AgentsToolsSpawnedSessionRecords "$markSession" own 2> /dev/null ) ; do
+		markStatus="$( AgentsToolsSpawnSandboxRecordHeader "$markCandidate" status )"
+		case "$markStatus" in
+			''|spawn-started) return 0 ;;
+			spawn-succeeded) ;;
+			*) markGood="octagonal_sign" ;;
+		esac
+	done
+	{
+		printf 'checkered_flag\n'
+		printf '%s\n' "$markGood"
+	} > "$MMDAPP/.local/agents/sessions/$markSession/root.want.aside" \
+		&& mv -f "$MMDAPP/.local/agents/sessions/$markSession/root.want.aside" "$MMDAPP/.local/agents/sessions/$markSession/root.want" \
+		|| { rm -f "$MMDAPP/.local/agents/sessions/$markSession/root.want.aside" ; return 0 ; }
+	AgentsToolsSpawnProxyRootMarkPlace "$markSession"
+}
+
+## A SESSION THAT STARTS AGAIN SHOWS NO END: a restart or a resume of it takes the end marks off its root message and
+## cancels a want Slack has not taken yet. Costless where the session carries neither, which every start that is no
+## restart finds. A removal that does not land keeps `root.end`, so the next clear takes it off. Never fails its caller.
+AgentsToolsSpawnProxyRootMarkClear(){ ## session id
+	local clearSession="$1" clearDir clearTarget clearEmoji clearRc=0
+	case "$clearSession" in ''|-|.|..|*/*) return 0 ;; esac
+	clearDir="$MMDAPP/.local/agents/sessions/$clearSession"
+	rm -f "$clearDir/root.want" 2> /dev/null
+	[ -f "$clearDir/root.end" ] || return 0
+	clearTarget="$( AgentsToolsSpawnProxyRootMarkTarget "$clearSession" )" || { rm -f "$clearDir/root.end" ; return 0 ; }
+	type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+	while IFS= read -r clearEmoji ; do
+		[ -n "$clearEmoji" ] || continue
+		DistroAgentsTools --intern-op-comms-slack-react magic-team "$clearTarget" "$clearEmoji" --identity-bot --remove > /dev/null 2>&1 || clearRc=1
+	done < "$clearDir/root.end"
+	if [ "$clearRc" = 0 ] ; then rm -f "$clearDir/root.end" 2> /dev/null ; fi
+	return 0
+}
+
+## A PAUSED SESSION SAYS SO ON ITS ROOT MESSAGE, and a resumed one stops saying it (S19, S6.37): `double_vertical_bar`
+## while `paused` stands in the session's folder, and off again once it does not. Asked at every tick of the session's
+## control thread, which is the one reader of that flag that runs by itself. `root.pause` is what the message carries:
+## a reaction that does not land leaves that file as it was, so the next tick asks again, and a rate limit is waited
+## out by the shared call's own rule. A session with no session thread, or one whose thread is a tracking thread, is
+## left alone. Never fails its caller.
+AgentsToolsSpawnProxyRootPauseMarks(){ ## session id
+	local pauseSession="$1" pauseDir pauseTarget pauseWant="" pauseHeld="" pauseRc=0
+	case "$pauseSession" in ''|-|.|..|*/*) return 0 ;; esac
+	pauseDir="$MMDAPP/.local/agents/sessions/$pauseSession"
+	[ -f "$pauseDir/paused" ] && pauseWant="double_vertical_bar"
+	[ ! -f "$pauseDir/root.pause" ] || IFS= read -r pauseHeld < "$pauseDir/root.pause" || :
+	[ "$pauseWant" != "$pauseHeld" ] || return 0
+	pauseTarget="$( AgentsToolsSpawnProxyRootMarkTarget "$pauseSession" )" || return 0
+	type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+	if [ -n "$pauseWant" ] ; then
+		DistroAgentsTools --intern-op-comms-slack-react magic-team "$pauseTarget" "$pauseWant" --identity-bot > /dev/null 2>&1 || pauseRc=1
+		[ "$pauseRc" = 0 ] || return 0
+		printf '%s\n' "$pauseWant" > "$pauseDir/root.pause.aside" 2> /dev/null \
+			&& mv -f "$pauseDir/root.pause.aside" "$pauseDir/root.pause" 2> /dev/null || rm -f "$pauseDir/root.pause.aside" 2> /dev/null
+		return 0
+	fi
+	DistroAgentsTools --intern-op-comms-slack-react magic-team "$pauseTarget" "$pauseHeld" --identity-bot --remove > /dev/null 2>&1 || return 0
+	rm -f "$pauseDir/root.pause" 2> /dev/null
+	return 0
+}
+
+## A WANT A REFUSAL OR A RATE LIMIT LEFT: placed again, for every session that holds one, by the pass over dead
+## records. Nothing where no session holds one. Never fails its caller.
+AgentsToolsSpawnProxyRootMarkRetry(){
+	local retryWant retrySession
+	for retryWant in "${MMDAPP:-/nonexistent}"/.local/agents/sessions/*/root.want ; do
+		[ -f "$retryWant" ] || continue
+		retrySession="${retryWant%/root.want}" ; retrySession="${retrySession##*/}"
+		AgentsToolsSpawnProxyRootMarkPlace "$retrySession"
+	done
+	return 0
+}

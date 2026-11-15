@@ -1,0 +1,113 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+## AgentsTools.OpSweepStateUpsert.include -- the operation `--sweep-state-upsert`, sourced by AgentsTools.MagicSweep.include with the operation's arguments.
+		shift
+		local callingMember="$1"
+		shift || true
+		if [ -z "$callingMember" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --sweep-state-upsert: syntax is <team-member> -- content via stdin, --from-file <path>, or --edit-patch-from-stdin" >&2
+			set +e ; return 1
+		fi
+		[ -n "${MDAT_DATA_ROOT:-}" ] || {
+			echo "⛔ ERROR: $MDSC_CMD --sweep-state-upsert: MDAT_DATA_ROOT is not set" >&2
+			set +e ; return 1
+		}
+		AgentsToolsAssertBareName "$callingMember" "<team-member>" sweep-state-upsert || { set +e ; return 1 ; }
+		## PER-MEMBER STORAGE. The member argument names WHOSE sweep position this
+		## is, and always did in the signature -- it was simply not read, so every
+		## caller shared magic-coordinator's one note and a client-* member had
+		## nowhere to record how far its own sources had been swept. The filename
+		## is deliberately unchanged, so magic-coordinator's own existing note
+		## resolves to exactly the same path it always did.
+		local stateDir="$MDAT_DATA_ROOT/inboxes/$callingMember/incoming"
+		mkdir -p "$stateDir" || {
+			echo "⛔ ERROR: $MDSC_CMD --sweep-state-upsert: can't create inbox directory: $stateDir" >&2
+			set +e ; return 1
+		}
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.MagicSweepState.include"
+		local target="" ; target="$( AgentsToolsMagicSweepStatePath "$callingMember" )"
+		local content contentFromFile="false" bodyMode="" bodyModeCount=0
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--from-file)
+					if [ -z "$2" ] || [ ! -f "$2" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --sweep-state-upsert: --from-file: file not found: $2" >&2
+						set +e ; return 1
+					fi
+					content="$( cat "$2" )"
+					contentFromFile="true"
+					bodyMode="file"
+					bodyModeCount=$(( bodyModeCount + 1 ))
+					shift 2
+				;;
+				--edit-patch-from-stdin)
+					bodyMode="patch"
+					bodyModeCount=$(( bodyModeCount + 1 ))
+					shift
+				;;
+				*)
+					echo "⛔ ERROR: $MDSC_CMD --sweep-state-upsert: unrecognized argument: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		if [ "$bodyModeCount" -gt 1 ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --sweep-state-upsert: --from-file and --edit-patch-from-stdin are mutually exclusive" >&2
+			set +e ; return 1
+		fi
+		if [ "$bodyMode" = "patch" ] ; then
+			local patchJson existingContent
+			patchJson="$( cat )"
+			if [ -f "$target" ] ; then existingContent="$( cat "$target" )" ; else existingContent="" ; fi
+			content="$( printf '%s%s' "$patchJson" "$existingContent" | python3 "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsBoardItemPatchApply.py" )" || { set +e ; return 1 ; }
+		else
+			[ "$contentFromFile" = "true" ] || content="$( cat )"
+			## Reported, never refused, and this one is not a tier choice: a
+			## refusal here would stop the sweep that would carry the fix.
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.OutputStyle.include"
+			printf '%s' "$content" | AgentsToolsOutputStyleRefusal "$callingMember" "" "sweep state" "" none || :
+		fi
+		if [ -z "$content" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --sweep-state-upsert: empty content -- refusing to erase the stored sweep state" >&2
+			set +e ; return 1
+		fi
+
+		## A SWEEP POINTER ONLY EVER MOVES FROM OLDEST TO NEWEST. Enforced here,
+		## in the one place that writes it, rather than left to the discipline of
+		## whichever routine happens to call: a pointer moved backwards re-reads
+		## handled traffic, and one reset forward past unread material loses it
+		## permanently and silently -- the second is unrecoverable, so neither is
+		## accepted. Comparison is textual by design: a Slack ts carries six
+		## fractional digits at a magnitude around 1.8e9, which is at the edge of
+		## a double's precision, so `a+0 < b+0` can compare two adjacent
+		## timestamps wrongly. Seconds and microseconds are compared separately.
+		local existingWatermark="" newWatermark="" existingRc=0 newRc=0
+		if [ -f "$target" ] ; then
+			existingWatermark="$( AgentsMagicSweepStateWatermark < "$target" )" || existingRc=$?
+			## rc 1 is "this note has no frontmatter block", NOT "no position". The
+			## guard below cannot be skipped on the strength of a note nobody could
+			## read: that is precisely when a write might be moving a pointer no one
+			## has checked.
+			if [ "$existingRc" = "1" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --sweep-state-upsert: $callingMember: the stored sweep-state note has no frontmatter block, so its own sweep position could not be read and this write cannot be checked against it. Refusing rather than overwriting a position that was never established. Inspect ${target##*/} and restore its leading '---' block." >&2
+				set +e ; return 1
+			fi
+		fi
+		if [ -n "$existingWatermark" ] ; then
+			newWatermark="$( printf '%s\n' "$content" | AgentsMagicSweepStateWatermark )" || newRc=$?
+			if [ -z "$newWatermark" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --sweep-state-upsert: $callingMember: the stored state carries last_swept_ts $existingWatermark and the content being written carries none. That is a RESET of the sweep pointer, not an update: every message after $existingWatermark would be re-read, and on the next write the position would be re-derived from a pass that never saw them. Refusing. Carry last_swept_ts forward in the content, or use --edit-patch-from-stdin, which preserves the fields it does not touch." >&2
+				set +e ; return 1
+			fi
+			if ! AgentsMagicSweepStateTsNotOlder "$newWatermark" "$existingWatermark" ; then
+				echo "⛔ ERROR: $MDSC_CMD --sweep-state-upsert: $callingMember: refusing to move the sweep pointer BACKWARDS, from $existingWatermark to $newWatermark. A sweep pointer only ever moves from oldest to newest. If material below the stored pointer genuinely needs re-reading, read it directly with an explicit --comms-since-utime on the scan; that is a read, and it does not move the pointer." >&2
+				set +e ; return 1
+			fi
+		fi
+
+		printf '%s\n' "$content" > "$target"
+		echo "# $MDSC_CMD --sweep-state-upsert: wrote ${target#"$stateDir"/} ($( printf '%s\n' "$content" | wc -l | tr -d '[:space:]' ) lines)" >&2
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataCommit.include"
+		AgentsToolsTeamDataCommitPaths "sweep-state-upsert, $callingMember" "$target"
+		return 0

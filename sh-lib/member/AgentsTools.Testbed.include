@@ -13,41 +13,24 @@
 ## are of the eligible tests alone: those whose script is below a sh-test folder a testing directive of the workspace names (AgentsToolsTestbedEligibleIds).
 ## NOTHING IS STORED TWICE: whether a test has passed, and its runs, are the test runner's (AgentsRunTests.sh --passed, its pass record in
 ## $HOME/.agents/magic-team/suite-results, and the receipts of its run folders): the testbed reads them. An invalidation drops the pass record of
-## the test, so that the next batch runs it. Running is the retest queue's, the one queue of the machine (AgentsTools.MemberRetest.include): the
+## the test, so that the next batch runs it. Running is the retest queue's, the one queue of the machine (AgentsTools.RetestQueue.include): the
 ## operations that run tests put them in it.
 ##
 
 agentsTestbedKeys="project script functionality keywords rig documents resources nightly"
 
-## The folder of the registered tests.
-AgentsToolsTestbedDir(){
-	printf '%s\n' "$MMDAPP/.local/agents/testing/tests"
-}
 
-## A test id, a project, a keyword and a path as the metadata keeps them. rc 1, the reason printed, for another form.
-AgentsToolsTestbedCheckId(){ ## test id
-	printf '%s\n' "$1" | LC_ALL=C grep -q -E '^[A-Za-z0-9][A-Za-z0-9._-]*$' || { echo "not the id of a test (letters, digits, dot, dash, underscore): $1" ; return 1 ; }
-}
-AgentsToolsTestbedCheckProject(){ ## project
-	printf '%s\n' "$1" | LC_ALL=C grep -q -E '^[A-Za-z0-9][A-Za-z0-9._/-]*$' || { echo "not a project of the source (such as myx/myx.distro-agents): $1" ; return 1 ; }
-}
-AgentsToolsTestbedCheckWord(){ ## what it is, text
-	printf '%s\n' "$2" | LC_ALL=C grep -q -E '^[A-Za-z0-9][A-Za-z0-9._-]*$' || { echo "not a single word of letters, digits, dot, dash and underscore for $1: $2" ; return 1 ; }
-}
-AgentsToolsTestbedCheckPath(){ ## what it is, path
-	case "$2" in ''|*,*|*[[:cntrl:]]*) echo "not a path (no comma, no control character) for $1: $2" ; return 1 ;; esac
-}
 
 ## One key of a registered test; nothing for a key it lacks.
 AgentsToolsTestbedGet(){ ## test id, key
-	LC_ALL=C awk -v want="$2: " 'NR == 1 { if ( $0 != "---" ) exit ; next } $0 == "---" { exit } index( $0, want ) == 1 { print substr( $0, length( want ) + 1 ) ; exit }' "$( AgentsToolsTestbedDir )/$1.md" 2> /dev/null
+	LC_ALL=C awk -v want="$2: " 'NR == 1 { if ( $0 != "---" ) exit ; next } $0 == "---" { exit } index( $0, want ) == 1 { print substr( $0, length( want ) + 1 ) ; exit }' "$MMDAPP/.local/agents/testing/tests/$1.md" 2> /dev/null
 }
 
 ## A test's file written whole and put in place by one rename: the arguments are `key value` pairs after the id, in the order they are to stand.
 AgentsToolsTestbedWrite(){ ## test id, key, value, key, value...
 	local writeId="$1" writeDir writeTemp
 	shift
-	writeDir="$( AgentsToolsTestbedDir )"
+	writeDir="$MMDAPP/.local/agents/testing/tests"
 	mkdir -p "$writeDir" 2> /dev/null && writeTemp="$( mktemp "$writeDir/.$writeId.XXXXXX" 2> /dev/null )" || { echo "⛔ ERROR: $MDSC_CMD: the testbed folder could not be made: $writeDir" >&2 ; return 1 ; }
 	{
 		printf -- '---\ntest-id: %s\n' "$writeId"
@@ -59,20 +42,20 @@ AgentsToolsTestbedWrite(){ ## test id, key, value, key, value...
 ## The options of a registration or an update, read into the variables of the caller (testbedValues, a `key<TAB>value` line each, and
 ## testbedFrom for --from-folder). The lists (--keyword, --document, --resource) are collected; a key given again is refused.
 AgentsToolsTestbedOptions(){ ## the operation, its arguments after the test id...
-	local optOp="$1" optReason optKeywords="" optDocuments="" optResources="" optValue
+	local optOp="$1" optKeywords="" optDocuments="" optResources="" optValue
 	shift
 	testbedValues="" testbedFrom=""
 	while [ $# -gt 0 ] ; do
 		[ -n "${2:-}" ] || { echo "⛔ ERROR: $MDSC_CMD $optOp: $1 takes a value" >&2 ; return 1 ; }
 		optValue="$2"
 		case "$1" in
-			--project) optReason="$( AgentsToolsTestbedCheckProject "$optValue" )" || { echo "⛔ ERROR: $MDSC_CMD $optOp: $optReason" >&2 ; return 1 ; } ; testbedValues="${testbedValues}project	$optValue"$'\n' ;;
-			--script) optReason="$( AgentsToolsTestbedCheckPath script "$optValue" )" || { echo "⛔ ERROR: $MDSC_CMD $optOp: $optReason" >&2 ; return 1 ; } ; testbedValues="${testbedValues}script	$optValue"$'\n' ;;
-			--functionality) optReason="$( AgentsToolsTestbedCheckWord functionality "$optValue" )" || { echo "⛔ ERROR: $MDSC_CMD $optOp: $optReason" >&2 ; return 1 ; } ; testbedValues="${testbedValues}functionality	$optValue"$'\n' ;;
-			--rig) optReason="$( AgentsToolsTestbedCheckPath rig "$optValue" )" || { echo "⛔ ERROR: $MDSC_CMD $optOp: $optReason" >&2 ; return 1 ; } ; testbedValues="${testbedValues}rig	$optValue"$'\n' ;;
-			--keyword) optReason="$( AgentsToolsTestbedCheckWord keyword "$optValue" )" || { echo "⛔ ERROR: $MDSC_CMD $optOp: $optReason" >&2 ; return 1 ; } ; optKeywords="$optKeywords${optKeywords:+,}$optValue" ;;
-			--document) optReason="$( AgentsToolsTestbedCheckPath document "$optValue" )" || { echo "⛔ ERROR: $MDSC_CMD $optOp: $optReason" >&2 ; return 1 ; } ; optDocuments="$optDocuments${optDocuments:+,}$optValue" ;;
-			--resource) optReason="$( AgentsToolsTestbedCheckPath resource "$optValue" )" || { echo "⛔ ERROR: $MDSC_CMD $optOp: $optReason" >&2 ; return 1 ; } ; optResources="$optResources${optResources:+,}$optValue" ;;
+			--project) printf '%s\n' "$optValue" | LC_ALL=C grep -q -E '^[A-Za-z0-9][A-Za-z0-9._/-]*$' || { echo "⛔ ERROR: $MDSC_CMD $optOp: not a project of the source (such as myx/myx.distro-agents): $optValue" >&2 ; return 1 ; } ; testbedValues="${testbedValues}project	$optValue"$'\n' ;;
+			--script) case "$optValue" in ''|*,*|*[[:cntrl:]]*) echo "⛔ ERROR: $MDSC_CMD $optOp: not a path (no comma, no control character) for script: $optValue" >&2 ; return 1 ;; esac ; testbedValues="${testbedValues}script	$optValue"$'\n' ;;
+			--functionality) printf '%s\n' "$optValue" | LC_ALL=C grep -q -E '^[A-Za-z0-9][A-Za-z0-9._-]*$' || { echo "⛔ ERROR: $MDSC_CMD $optOp: not a single word of letters, digits, dot, dash and underscore for functionality: $optValue" >&2 ; return 1 ; } ; testbedValues="${testbedValues}functionality	$optValue"$'\n' ;;
+			--rig) case "$optValue" in ''|*,*|*[[:cntrl:]]*) echo "⛔ ERROR: $MDSC_CMD $optOp: not a path (no comma, no control character) for rig: $optValue" >&2 ; return 1 ;; esac ; testbedValues="${testbedValues}rig	$optValue"$'\n' ;;
+			--keyword) printf '%s\n' "$optValue" | LC_ALL=C grep -q -E '^[A-Za-z0-9][A-Za-z0-9._-]*$' || { echo "⛔ ERROR: $MDSC_CMD $optOp: not a single word of letters, digits, dot, dash and underscore for keyword: $optValue" >&2 ; return 1 ; } ; optKeywords="$optKeywords${optKeywords:+,}$optValue" ;;
+			--document) case "$optValue" in ''|*,*|*[[:cntrl:]]*) echo "⛔ ERROR: $MDSC_CMD $optOp: not a path (no comma, no control character) for document: $optValue" >&2 ; return 1 ;; esac ; optDocuments="$optDocuments${optDocuments:+,}$optValue" ;;
+			--resource) case "$optValue" in ''|*,*|*[[:cntrl:]]*) echo "⛔ ERROR: $MDSC_CMD $optOp: not a path (no comma, no control character) for resource: $optValue" >&2 ; return 1 ;; esac ; optResources="$optResources${optResources:+,}$optValue" ;;
 			--nightly)
 				case "$optValue" in yes|no) ;; *) echo "⛔ ERROR: $MDSC_CMD $optOp: --nightly is yes or no, got: $optValue" >&2 ; return 1 ;; esac
 				testbedValues="${testbedValues}nightly	$optValue"$'\n'
@@ -102,18 +85,15 @@ AgentsToolsTestbedScriptFile(){ ## project, script
 	done
 	return 1
 }
-AgentsToolsTestbedScript(){ ## project, script
-	AgentsToolsTestbedScriptFile "$1" "$2" > /dev/null
-}
 
 ## THE ELIGIBLE TESTS: those whose script is below a sh-test folder that a testing directive names (`magic-team:testing:<project-glob>:<sh-test-path>:<host-glob>`
 ## in a project.inf of the workspace), which the grants read for magic-tester's write by the one reader this uses (AgentsToolsTestingFolders). A folder no
 ## directive names is not eligible, and where none is named no test is. The test ids on stdin, one a line; the eligible ones on stdout. rc 1, said, where the
 ## directives could not be read.
 AgentsToolsTestbedEligibleIds(){ ## the operation
-	local eligOp="$1" eligFolders eligRc=0 eligId eligFile eligFolder
+	local eligFolders eligRc=0 eligId eligFile eligFolder
 	type AgentsToolsTestingFolders > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.Grants.include" || return 1
-	eligFolders="$( AgentsToolsTestingFolders "$MMDAPP" "$MDSC_CMD $eligOp" < /dev/null )" || eligRc=$?
+	eligFolders="$( AgentsToolsTestingFolders "$MMDAPP" "$MDSC_CMD $1" < /dev/null )" || eligRc=$?
 	[ "$eligRc" = 0 ] || [ "$eligRc" = 3 ] || return 1
 	while IFS= read -r eligId ; do
 		[ -n "$eligId" ] || continue
@@ -129,7 +109,7 @@ AgentsToolsTestbedEligibleIds(){ ## the operation
 ## registered with its metadata; --from-folder registers every *.test.sh of the folder and of the folders one level below it, each by the name of
 ## its file. A test registered already is refused (--test-update); in a folder, left as it is and said.
 AgentsToolsTestbedRegister(){ ## the operation, its arguments...
-	local regOp="$1" regId="" regProject regScript regFrom regNow regCount=0 regSkipped=0 regFile regFolder regName regIds=""
+	local regOp="$1" regId="" regProject regScript regFrom regNow regCount=0 regSkipped=0 regFile regName regIds=""
 	shift
 	if [ "${1:-}" != "" ] && [ "${1#--}" = "$1" ] ; then regId="$1" ; shift ; fi
 	AgentsToolsTestbedOptions "$regOp" "$@" || return 1
@@ -143,8 +123,8 @@ AgentsToolsTestbedRegister(){ ## the operation, its arguments...
 		for regFile in "$regFrom"/*.test.sh "$regFrom"/*/*.test.sh ; do
 			[ -f "$regFile" ] || continue
 			regName="${regFile##*/}" ; regName="${regName%.test.sh}"
-			AgentsToolsTestbedCheckId "$regName" > /dev/null || continue
-			if [ -f "$( AgentsToolsTestbedDir )/$regName.md" ] ; then regSkipped=$(( regSkipped + 1 )) ; echo "skipped: $regName is registered already" ; continue ; fi
+			printf '%s\n' "$regName" | LC_ALL=C grep -q -E '^[A-Za-z0-9][A-Za-z0-9._-]*$' || continue
+			if [ -f "$MMDAPP/.local/agents/testing/tests/$regName.md" ] ; then regSkipped=$(( regSkipped + 1 )) ; echo "skipped: $regName is registered already" ; continue ; fi
 			AgentsToolsTestbedPut "$regName" "$regProject" "${regFile#"${MMDAPP%/}"/}" "$regNow" || return 1
 			regCount=$(( regCount + 1 )) ; regIds="$regIds $regName"
 		done
@@ -153,9 +133,9 @@ AgentsToolsTestbedRegister(){ ## the operation, its arguments...
 		return 0
 	fi
 	[ -n "$regId" ] && [ -n "$regScript" ] || { echo "⛔ ERROR: $MDSC_CMD $regOp: syntax is <test-id> --project <p> --script <path> [options], or --from-folder <dir> --project <p> -- ${regId:+the --script is needed}${regId:-the test id and the --script are needed}" >&2 ; return 1 ; }
-	AgentsToolsTestbedCheckId "$regId" > /dev/null || { echo "⛔ ERROR: $MDSC_CMD $regOp: $( AgentsToolsTestbedCheckId "$regId" )" >&2 ; return 1 ; }
-	[ ! -f "$( AgentsToolsTestbedDir )/$regId.md" ] || { echo "⛔ ERROR: $MDSC_CMD $regOp: $regId is registered already -- change it with --test-update" >&2 ; return 1 ; }
-	AgentsToolsTestbedScript "$regProject" "$regScript" || { echo "⛔ ERROR: $MDSC_CMD $regOp: no such script: $regScript (as given, below the source of $regProject, or below the workspace)" >&2 ; return 1 ; }
+	printf '%s\n' "$regId" | LC_ALL=C grep -q -E '^[A-Za-z0-9][A-Za-z0-9._-]*$' || { echo "⛔ ERROR: $MDSC_CMD $regOp: not the id of a test (letters, digits, dot, dash, underscore): $regId" >&2 ; return 1 ; }
+	[ ! -f "$MMDAPP/.local/agents/testing/tests/$regId.md" ] || { echo "⛔ ERROR: $MDSC_CMD $regOp: $regId is registered already -- change it with --test-update" >&2 ; return 1 ; }
+	AgentsToolsTestbedScriptFile "$regProject" "$regScript" > /dev/null || { echo "⛔ ERROR: $MDSC_CMD $regOp: no such script: $regScript (as given, below the source of $regProject, or below the workspace)" >&2 ; return 1 ; }
 	AgentsToolsTestbedPut "$regId" "$regProject" "$regScript" "$regNow" || return 1
 	echo "registered: $regId"
 	AgentsToolsTestbedSayNotEligible "$regOp" "$regId"
@@ -165,10 +145,9 @@ AgentsToolsTestbedRegister(){ ## the operation, its arguments...
 ## and the system's runs leave those tests out (AgentsToolsTestbedEligibleIds). Never a fault of the registration; where the directives could not be read
 ## that is said by the reader and nothing more.
 AgentsToolsTestbedSayNotEligible(){ ## the operation, test id...
-	local sayOp="$1" sayEligible sayId sayFile sayFolder
-	shift
-	sayEligible="$( printf '%s\n' "$@" | AgentsToolsTestbedEligibleIds "$sayOp" )" || return 0
-	for sayId in "$@" ; do
+	local sayEligible sayId sayFile sayFolder
+	sayEligible="$( printf '%s\n' "${@:2}" | AgentsToolsTestbedEligibleIds "$1" )" || return 0
+	for sayId in "${@:2}" ; do
 		case $'\n'"$sayEligible"$'\n' in *$'\n'"$sayId"$'\n'*) continue ;; esac
 		sayFile="$( AgentsToolsTestbedScriptFile "$( AgentsToolsTestbedGet "$sayId" project )" "$( AgentsToolsTestbedGet "$sayId" script )" )" || continue
 		dirname "${sayFile#"${MMDAPP%/}"/}"
@@ -189,26 +168,25 @@ AgentsToolsTestbedPut(){ ## test id, project, script, now
 
 ## --test-update <test-id> [options]: the metadata named is changed, a list replaced whole; the rest stays. Another project or script is checked as at registration.
 AgentsToolsTestbedUpdate(){ ## the operation, test id, options...
-	local updOp="$1" updId="${2:-}" updKey updProject updScript updNow
+	local updOp="$1" updId="${2:-}" updKey updProject updScript
 	[ -n "$updId" ] && [ "${updId#--}" = "$updId" ] || { echo "⛔ ERROR: $MDSC_CMD $updOp: syntax is <test-id> [--project <p>] [--script <path>] [--functionality <f>] [--keyword <k>]... [--rig <path>] [--document <path>]... [--resource <path>]... [--nightly yes|no]" >&2 ; return 1 ; }
 	shift 2
-	[ -f "$( AgentsToolsTestbedDir )/$updId.md" ] || { echo "⛔ ERROR: $MDSC_CMD $updOp: $updId is not registered -- register it with --test-register" >&2 ; return 1 ; }
+	[ -f "$MMDAPP/.local/agents/testing/tests/$updId.md" ] || { echo "⛔ ERROR: $MDSC_CMD $updOp: $updId is not registered -- register it with --test-register" >&2 ; return 1 ; }
 	AgentsToolsTestbedOptions "$updOp" "$@" || return 1
 	[ -z "$testbedFrom" ] || { echo "⛔ ERROR: $MDSC_CMD $updOp: --from-folder registers; it does not update" >&2 ; return 1 ; }
 	[ -n "$testbedValues" ] || { echo "⛔ ERROR: $MDSC_CMD $updOp: nothing to change is given" >&2 ; return 1 ; }
 	updProject="$( AgentsToolsTestbedValue project )" ; [ -n "$updProject" ] || updProject="$( AgentsToolsTestbedGet "$updId" project )"
 	updScript="$( AgentsToolsTestbedValue script )"
 	if [ -n "$updScript" ] ; then
-		AgentsToolsTestbedScript "$updProject" "$updScript" || { echo "⛔ ERROR: $MDSC_CMD $updOp: no such script: $updScript" >&2 ; return 1 ; }
+		AgentsToolsTestbedScriptFile "$updProject" "$updScript" > /dev/null || { echo "⛔ ERROR: $MDSC_CMD $updOp: no such script: $updScript" >&2 ; return 1 ; }
 	fi
-	updNow="$( date +"%Y-%m-%d %H:%M %z" )"
 	local updPairs=() updValue
 	for updKey in project script functionality keywords rig documents resources nightly registered-at ; do
 		updValue="$( AgentsToolsTestbedValue "$updKey" )"
 		[ -n "$updValue" ] || updValue="$( AgentsToolsTestbedGet "$updId" "$updKey" )"
 		updPairs+=( "$updKey" "${updValue:--}" )
 	done
-	updPairs+=( updated-at "$updNow" invalidated-at "$( AgentsToolsTestbedGet "$updId" invalidated-at )" )
+	updPairs+=( updated-at "$( date +"%Y-%m-%d %H:%M %z" )" invalidated-at "$( AgentsToolsTestbedGet "$updId" invalidated-at )" )
 	AgentsToolsTestbedWrite "$updId" ${updPairs[@]+"${updPairs[@]}"} || return 1
 	echo "updated: $updId"
 }
@@ -221,35 +199,34 @@ AgentsToolsTestbedUnregister(){ ## the operation, test id
 	## takes a bare test id first, so the placed member is shifted once here, and never read as the id.
 	case "${1:-}" in ''|-*) ;; *) shift || : ;; esac
 	[ $# -eq 1 ] && [ -n "$1" ] || { echo "⛔ ERROR: $MDSC_CMD $unrOp: syntax is <test-id>" >&2 ; return 1 ; }
-	AgentsToolsTestbedCheckId "$1" > /dev/null || { echo "⛔ ERROR: $MDSC_CMD $unrOp: $( AgentsToolsTestbedCheckId "$1" )" >&2 ; return 1 ; }
-	[ -f "$( AgentsToolsTestbedDir )/$1.md" ] || { echo "⛔ ERROR: $MDSC_CMD $unrOp: $1 is not registered" >&2 ; return 1 ; }
-	rm -f "$( AgentsToolsTestbedDir )/$1.md" || return 1
+	printf '%s\n' "$1" | LC_ALL=C grep -q -E '^[A-Za-z0-9][A-Za-z0-9._-]*$' || { echo "⛔ ERROR: $MDSC_CMD $unrOp: not the id of a test (letters, digits, dot, dash, underscore): $1" >&2 ; return 1 ; }
+	[ -f "$MMDAPP/.local/agents/testing/tests/$1.md" ] || { echo "⛔ ERROR: $MDSC_CMD $unrOp: $1 is not registered" >&2 ; return 1 ; }
+	rm -f "$MMDAPP/.local/agents/testing/tests/$1.md" || return 1
 	echo "unregistered: $1"
 }
 
 ## --test-invalidate <test-id>: the pass record of the test is dropped (the runner's record, $HOME/.agents/magic-team/suite-results/<test-id>), so the
 ## next batch runs it whatever state it passed on; the metadata keeps when.
 AgentsToolsTestbedInvalidate(){ ## the operation, test id
-	local invOp="$1" invId="" invDir="${HOME:-/nonexistent}/.agents/magic-team/suite-results" invPairs=() invKey invNow
+	local invOp="$1" invId="" invPairs=() invKey
 	shift
 	## The front door places the acting member before the operation's own arguments, and this operation
 	## takes a bare test id first, so the placed member is shifted once here, and never read as the id.
 	case "${1:-}" in ''|-*) ;; *) shift || : ;; esac
 	invId="${1:-}"
 	[ $# -eq 1 ] && [ -n "$invId" ] || { echo "⛔ ERROR: $invOp: syntax is <test-id>" >&2 ; return 1 ; }
-	[ -f "$( AgentsToolsTestbedDir )/$invId.md" ] || { echo "⛔ ERROR: $MDSC_CMD $invOp: $invId is not registered" >&2 ; return 1 ; }
-	AgentsToolsTestbedCheckId "$invId" > /dev/null || return 1
-	rm -rf "$invDir/$invId" 2> /dev/null
-	invNow="$( date +"%Y-%m-%d %H:%M %z" )"
+	[ -f "$MMDAPP/.local/agents/testing/tests/$invId.md" ] || { echo "⛔ ERROR: $MDSC_CMD $invOp: $invId is not registered" >&2 ; return 1 ; }
+	printf '%s\n' "$invId" | LC_ALL=C grep -q -E '^[A-Za-z0-9][A-Za-z0-9._-]*$' || return 1
+	rm -rf "${HOME:-/nonexistent}/.agents/magic-team/suite-results/$invId" 2> /dev/null
 	for invKey in project script functionality keywords rig documents resources nightly registered-at updated-at ; do invPairs+=( "$invKey" "$( AgentsToolsTestbedGet "$invId" "$invKey" )" ) ; done
-	AgentsToolsTestbedWrite "$invId" ${invPairs[@]+"${invPairs[@]}"} invalidated-at "$invNow" || return 1
+	AgentsToolsTestbedWrite "$invId" ${invPairs[@]+"${invPairs[@]}"} invalidated-at "$( date +"%Y-%m-%d %H:%M %z" )" || return 1
 	echo "invalidated: $invId"
 }
 
 ## The registered tests, `<id><TAB><registered-at>` a line, those of a project, a namespace (the first word of the project) and a keyword where given.
 AgentsToolsTestbedSelect(){ ## project (may be empty), namespace (may be empty), keyword (may be empty)
 	local selFile selId selProject selKeywords
-	for selFile in "$( AgentsToolsTestbedDir )"/*.md ; do
+	for selFile in "$MMDAPP/.local/agents/testing/tests"/*.md ; do
 		[ -f "$selFile" ] || continue
 		selId="${selFile##*/}" ; selId="${selId%.md}"
 		selProject="$( AgentsToolsTestbedGet "$selId" project )" ; selKeywords="$( AgentsToolsTestbedGet "$selId" keywords )"
@@ -331,15 +308,15 @@ AgentsToolsTestbedList(){ ## the operation, its arguments...
 	done
 	printf 'tests\t%s\t%s\t%s\n' "$listTotal" "$listPassedCount" "$(( listTotal - listPassedCount ))"
 	## A zero with no registry counts the registry, not the tests on disk: said apart, on stderr, so the table stays as it is.
-	[ -d "$( AgentsToolsTestbedDir )" ] || echo "# $MDSC_CMD $listOp: this workspace has no testbed registry ($( AgentsToolsTestbedDir ) does not exist), so 0 counts the registry, not the checks on disk -- register them with --test-register --from-folder <sh-test folder> --project <p>" >&2
+	[ -d "$MMDAPP/.local/agents/testing/tests" ] || echo "# $MDSC_CMD $listOp: this workspace has no testbed registry ($MMDAPP/.local/agents/testing/tests does not exist), so 0 counts the registry, not the checks on disk -- register them with --test-register --from-folder <sh-test folder> --project <p>" >&2
 }
 
-## Tests put into the one retest queue of the machine (AgentsTools.MemberRetest.include), as the queue is called: the queue is the only one, and a
+## Tests put into the one retest queue of the machine (AgentsTools.RetestQueue.include), as the queue is called: the queue is the only one, and a
 ## request is about this copy of the package. Prints what the queue prints (the request id); with --wait, the outcome.
 AgentsToolsTestbedEnqueue(){ ## the operation, why, wait flag (wait|no-wait), test id...
-	local enqueueOp="$1" enqueueWhy="$2" enqueueWait="$3" retestStore="${HOME:-}/.agents/magic-team/retest-queue" enqueueRc=0
+	local enqueueOp="$1" enqueueWhy="$2" enqueueWait="$3" enqueueRc=0
 	shift 3
-	type AgentsToolsRetestQueue > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberRetest.include" --definitions-only > /dev/null 2>&1 || :
+	type AgentsToolsRetestQueue > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.RetestQueue.include"
 	( set +e ; AgentsToolsRetestQueue "$enqueueOp" --by "${MDAT_SPAWN_AGENT:-user-${USER:-console}}" --why "$enqueueWhy" "--$enqueueWait" "$@" ) || enqueueRc=$?
 	return "$enqueueRc"
 }

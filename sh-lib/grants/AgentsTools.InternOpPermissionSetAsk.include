@@ -1,0 +1,375 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+type AgentsToolsPermissionEntrySplit > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionRecord.include"
+type AgentsToolsPermissionResolvePath > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionPlaces.include"
+type AgentsToolsPermissionOpenAsks > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionParticipants.include"
+type AgentsToolsPermissionSetFill > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionSetPost.include"
+type AgentsToolsPermissionEntryToolKnown > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionHolds.include"
+type AgentsToolsGrantsToolCovers > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.Grants.include"
+
+## AgentsTools.InternOpPermissionSetAsk.include -- the operation `--request-permission-set|--intern-op-permission-set-ask`, sourced by AgentsTools.InternOpPermission.include with the operation's arguments.
+## A task's or session's permission set, asked for at spawn or brief time. Entries any
+## participant already holds are held, and pass on per --pass-permission when the
+## holder delegates. The rest are the extras, asked of the human-owner as ONE
+## permission-set escalation: allow-set, deny or edit. The explicit `--escalate` says the asker
+## needs what a participant holds for itself: such an entry is asked as an extra, not held.
+## A MEMBER'S OWN SET (--intern-op-permission-set-ask, the harness's, for a RequestPermission
+## with entries) is the same request, made by the member a call was refused for: for itself
+## alone, starting from that refusal, whose call its entries must cover, and for its task --
+## the board item its task_ref names, else the session, where no item is found. An ask
+## that would allow that call and is open already is named instead (`THERE: <id>`), and
+## nothing is asked. Everything else is one code: the entries, the post, the record, the
+## answer. After `PERMISSION-SET: asked` it also prints `SCOPE: <scope>[ <item>]`,
+## `ENTRIES: <how many are asked>` and where the post stands, as a send reports one.
+		local setOwn="" setEscalate=""
+		[ "$1" != "--intern-op-permission-set-ask" ] || setOwn=1
+		MDSC_CMD="$MDSC_CMD $1"
+		shift
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.UseAgentsTools.include"
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemDecisions.include"
+		local setBy="${1:-}" setItem="${2:-}" setScope="task" setSession="${MDAT_SESSION_ID:-${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}}" setEntries="" setExtra="" setHeld="" setNamed=""
+		## --purpose <text> says what the access will be used for: it follows the entries of the
+		## place it is for, and is the purpose of every entry since the --purpose before it.
+		local setSince="" setPurposeOf="" setPurposeText setSinceOne
+		## One --entry may name several tools for one target, a comma list before the colon
+		## (`Read,Grep,Glob:<target>`): expanded here, at request time, into the one-tool entries
+		## everything after reads, so a record, a grant and a post never hold a list. A tool is
+		## any the permission model can decide on, and the model says which, in its one place
+		## (AgentsToolsPermissionEntryToolKnown, AgentsTools.PermissionHolds.include). A name it
+		## does not know at all is returned as a correction that names the ones it does, for an
+		## entry of one tool and of several alike. There is no word that means every tool.
+		local setKnownTools="${agentsPermissionEntryTools# }" setEntryTools setEntryRest setEntryTool
+		setKnownTools="${setKnownTools% }"
+		type AgentsToolsTaskTextKept > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.TaskText.include"
+		## A member's own set names no item: only who asks stands ahead of its options.
+		local setRefusal="" setTaskRef="" setReason="" setRefusedTool="" setRefusedTarget="" setOpenAsk=""
+		if [ -n "$setOwn" ] ; then
+			setItem=""
+			shift 2>/dev/null || :
+		else
+			shift 2 2>/dev/null || shift $#
+		fi
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--entry)
+					setEntryTools="${2:-}" ; setEntryRest=""
+					case "$setEntryTools" in *:*) setEntryRest=":${setEntryTools#*:}" ; setEntryTools="${setEntryTools%%:*}" ;; esac
+					setEntryTools="$setEntryTools,"
+					while [ -n "$setEntryTools" ] ; do
+						setEntryTool="${setEntryTools%%,*}" ; setEntryTools="${setEntryTools#*,}"
+						AgentsToolsPermissionEntryToolKnown "$setEntryTool" || {
+							echo "CORRECTION: $MDSC_CMD: nothing was asked. The entry '${2:-}' names a tool the permission model does not know: '${setEntryTool}'. An entry names one of these, or several of them before the colon, separated by commas, with no space and none left empty: ${setKnownTools// /, }; or a tool of an MCP server by its own name, mcp__<server>__<tool>. There is no word for every tool: name each one. Correct the entry and run the request again." >&2
+							set +e ; return 6
+						}
+						setEntries="${setEntries}${setEntryTool}${setEntryRest}"$'\n' ; setSince="${setSince}${setEntryTool}${setEntryRest}"$'\n'
+					done
+					shift 2
+				;;
+				--escalate) setEscalate=1 ; shift ;;
+				--purpose)
+					setPurposeText="$( AgentsToolsTaskTextKept "${2:-}" )"
+					if [ -z "$setPurposeText" ] || [ -z "$setSince" ] ; then
+						echo "$MDSC_CMD: ⛔ ERROR: --purpose <text> follows the --entry options of the place it is for, and says what that access will be used for" >&2
+						set +e ; return 1
+					fi
+					while IFS= read -r setSinceOne ; do
+						[ -z "$setSinceOne" ] || setPurposeOf="${setPurposeOf}${setSinceOne}"$'\t'"${setPurposeText}"$'\n'
+					done <<< "$setSince"
+					setSince=""
+					shift 2
+				;;
+				--scope) setScope="${2:-}" ; shift 2 ;;
+				--session-id) setSession="${2:-}" ; shift 2 ;;
+				--participant) setNamed="${setNamed}${2:-}"$'\n' ; shift 2 ;;
+				## A member's own set: the refusal it starts from, the task it is for, and what the
+				## whole access is for.
+				--refusal-id|--task-ref|--reason)
+					[ -n "$setOwn" ] || { echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2 ; set +e ; return 1 ; }
+					case "$1" in
+						--refusal-id) setRefusal="${2:-}" ;;
+						--task-ref) setTaskRef="${2:-}" ;;
+						*) setReason="$( AgentsToolsTaskTextKept "${2:-}" )" ;;
+					esac
+					shift 2
+				;;
+				*)
+					echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		if [ -n "$setOwn" ] ; then
+			if [ -z "$setBy" ] || [ -z "$setSession" ] || [ -z "$setRefusal" ] || [ -z "$setEntries" ] ; then
+				echo "$MDSC_CMD: ⛔ ERROR: syntax is <asking-member> --session-id <id> --refusal-id <id> [--task-ref <text>] [--reason <text>] (--entry <tool[,tool...]:target>... [--purpose <text>])..." >&2
+				set +e ; return 1
+			fi
+			AgentsToolsAssertBareName "$setBy" "<asking-member>" permission-set-ask || { set +e ; return 1 ; }
+			AgentsToolsActingMemberCheck "$setBy" "--intern-op-permission-set-ask" || { set +e ; return 1 ; }
+			AgentsToolsAssertBareName "$setSession" "--session-id" permission-set-ask || { set +e ; return 1 ; }
+			AgentsToolsAssertBareName "$setRefusal" "--refusal-id" permission-set-ask || { set +e ; return 1 ; }
+			## The call it starts from, from its refusal record: never from the asker's words.
+			if [ ! -f "$MMDAPP/.local/agents/sessions/$setSession/$setRefusal.md" ] \
+				|| [ "$( AgentsToolsPermissionField "$MMDAPP/.local/agents/sessions/$setSession/$setRefusal.md" owner )" != "$setBy" ] ; then
+				echo "$MDSC_CMD: ⛔ ERROR: no refusal $setRefusal of $setBy is recorded for session $setSession, so there is no call to start the set from" >&2
+				set +e ; return 1
+			fi
+			setRefusedTool="$( AgentsToolsPermissionField "$MMDAPP/.local/agents/sessions/$setSession/$setRefusal.md" tool )"
+			setRefusedTarget="$( AgentsToolsPermissionRecordDecode "$( AgentsToolsPermissionField "$MMDAPP/.local/agents/sessions/$setSession/$setRefusal.md" target )" )"
+			## An ask that would allow this very call is open already: it is named, and nothing is asked.
+			setOpenAsk="$( AgentsToolsPermissionOpenAsks "$setBy" "$setSession" "$setRefusedTool" "$setRefusedTarget" | head -1 )"
+			if [ -n "$setOpenAsk" ] ; then
+				printf 'THERE: %s\n' "$setOpenAsk"
+				return 0
+			fi
+			## Its task: the board item its task_ref names, else the session's own dispatch item.
+			## With one the set is for that task; with none it is for the session, and names no item.
+			setItem="$( AgentsToolsDecisionsItemFromRef "$setTaskRef" "$setSession" 2> /dev/null )" || setItem=""
+			[ -n "$setItem" ] && setScope="task" || setScope="session"
+		else
+			if [ -z "$setBy" ] || [ -z "$setItem" ] || [ -z "$setEntries" ] ; then
+				echo "$MDSC_CMD: ⛔ ERROR: syntax is <magic-coordinator> <item> (--entry <tool[,tool...]:target>... [--purpose <text>])... [--scope task|session] [--session-id <id>] [--participant <member>]..." >&2
+				set +e ; return 1
+			fi
+			AgentsToolsAssertBareName "$setBy" "<magic-coordinator>" permission-set-request || { set +e ; return 1 ; }
+			AgentsToolsMagicCallerCheck "--request-permission-set" || { set +e ; return 1 ; }
+			setItem="${setItem##*/}" ; setItem="${setItem%.md}"
+			AgentsToolsAssertBareName "$setItem" "<item>" permission-set-request || { set +e ; return 1 ; }
+			AgentsToolsDecisionsItemPath "$setItem" > /dev/null || {
+				echo "$MDSC_CMD: ⛔ ERROR: no board item $setItem, so there is nothing to record the set on" >&2
+				set +e ; return 1
+			}
+		fi
+		case "$setScope" in
+			task|session) ;;
+			*) echo "$MDSC_CMD: ⛔ ERROR: --scope must be task|session: $setScope" >&2 ; set +e ; return 1 ;;
+		esac
+		if [ -n "$setSession" ] ; then
+			AgentsToolsAssertBareName "$setSession" "--session-id" permission-set-request || { set +e ; return 1 ; }
+		elif [ "$setScope" = "session" ] ; then
+			echo "$MDSC_CMD: ⛔ ERROR: a session-scoped set needs the session, and this caller names none" >&2
+			set +e ; return 1
+		fi
+		## Each entry's place first, before anything is said or asked: an @<name>:<glob> target
+		## resolved, a path in a place shown as name:relative, a write in a read-only place refused.
+		local setResolved="" setPlaces="" setOne permEntryTool permEntryTarget permEntryPlace setPurposes="" setPurposeHeld
+		while IFS= read -r setOne ; do
+			[ -n "$setOne" ] || continue
+			AgentsToolsPermissionEntryPlace "$setOne" "$setSession" || { set +e ; return 1 ; }
+			## The entry as it is asked and stored: its tool with its place resolved to a path, whichever
+			## form was written (AgentsToolsPermissionEntryPlace), so it covers the refused call.
+			setResolved="${setResolved}${permEntryTool}${permEntryTarget:+:$permEntryTarget}"$'\n'
+			## A purpose is its place's: kept with the exact target, one for a place.
+			setPurposeText="$( AgentsToolsPermissionSetLookup "$setPurposeOf" "$setOne" )"
+			if [ -n "$setPurposeText" ] ; then
+				setPurposeHeld="$( AgentsToolsPermissionSetLookup "$setPurposes" "$permEntryTarget" )"
+				if [ -z "$setPurposeHeld" ] ; then
+					setPurposes="${setPurposes}${permEntryTarget}"$'\t'"${setPurposeText}"$'\n'
+				elif [ "$setPurposeHeld" != "$setPurposeText" ] ; then
+					echo "$MDSC_CMD: ⛔ ERROR: one place takes one purpose, and $permEntryTarget is given two: put its entries together, with one --purpose after them" >&2
+					set +e ; return 1
+				fi
+			fi
+			[ -z "$permEntryPlace" ] || setPlaces="${setPlaces}${permEntryTarget}"$'\t'"${permEntryPlace}"$'\n'
+			[ -z "$permEntryPlace" ] || printf 'PLACE: %s:%s is %s\n' "$permEntryTool" "$permEntryTarget" "$permEntryPlace"
+		done <<< "$setEntries"
+		setEntries="$setResolved"
+		## A member's own set starts from a refused call, and asks for at least that: one entry
+		## must speak for its tool (AgentsToolsGrantsToolCovers) and cover its exact target. Else
+		## an allow would leave the very call that was refused refused, so nothing is asked.
+		if [ -n "$setOwn" ] ; then
+			local setCovers="" setCoversEntry setCoversWant
+			while IFS= read -r setOne ; do
+				[ -n "$setOne" ] || continue
+				AgentsToolsPermissionEntrySplit "$setOne" permission-set-request 2> /dev/null || continue
+				AgentsToolsGrantsToolCovers "$permEntryTool" "$setRefusedTool" || continue
+				## Both sides resolved first, so a call named through a link meets the place asked for as one target.
+				setCoversEntry="$( AgentsToolsPermissionResolvePath "$permEntryTarget" )"
+				setCoversWant="$( AgentsToolsPermissionResolvePath "$setRefusedTarget" )"
+				{ [ -n "$setCoversEntry" ] && [ -n "$setCoversWant" ] ; } || { setCoversEntry="$permEntryTarget" ; setCoversWant="$setRefusedTarget" ; }
+				[ "$setCoversEntry" = "$setCoversWant" ] || AgentsToolsPermissionCovers "$setCoversEntry" "$setCoversWant" || continue
+				setCovers=1
+				break
+			done <<< "$setEntries"
+			if [ -z "$setCovers" ] ; then
+				echo "CORRECTION: $MDSC_CMD: nothing was asked. The entries do not cover the call that was refused: $setRefusedTool on $( AgentsToolsPermissionShownTarget "$setRefusedTarget" ). Add an entry that names that tool for that place, or for a folder that holds it, written <folder>/**, and ask again." >&2
+				set +e ; return 6
+			fi
+		fi
+		## A member's own set does not ask again for what the member holds. What a running participant holds is named, and the member is told to ask that participant;
+		## the explicit `--escalate` says the member needs it for itself, and the request is then asked as it stands.
+		## An entry it holds itself is left out of the entries the ask is built from, so the post never shows its own grant as a holder's pass.
+		if [ -n "$setOwn" ] ; then
+			local ownLine ownLayer ownPart ownRunning ownOther ownNamed="" ownKept=""
+			ownRunning="$( AgentsToolsPermissionSessionRunning "$setSession" )"
+			while IFS= read -r ownLine ; do
+				[ -n "$ownLine" ] || continue
+				AgentsToolsPermissionEntrySplit "$ownLine" permission-set-request || { set +e ; return 1 ; }
+				if ownLayer="$( AgentsToolsPermissionHolds "$setBy" "$permEntryTool" "$permEntryTarget" "$setSession" )" ; then
+					printf 'HELD: %s by %s already (%s)\n' "$ownLine" "$setBy" "${ownLayer%% *}"
+					continue
+				fi
+				ownKept="${ownKept}${ownLine}"$'\n'
+				ownOther=""
+				while IFS= read -r ownPart ; do
+					[ -n "$ownPart" ] && [ "$ownPart" != "human-owner" ] && [ "$ownPart" != "$setBy" ] || continue
+					printf '%s\n' "$ownRunning" | LC_ALL=C grep -q -x -F -- "$ownPart" || continue
+					AgentsToolsPermissionHolds "$ownPart" "$permEntryTool" "$permEntryTarget" "$setSession" > /dev/null || continue
+					ownOther="$ownPart" ; break
+				done <<< "$( AgentsToolsPermissionParticipants "$setSession" "$setItem" )"
+				[ -z "$ownOther" ] || ownNamed="${ownNamed}${ownLine} -- held by ${ownOther}"$'\n'
+			done <<< "$setEntries"
+			setEntries="$ownKept"
+			if [ -z "$setEntries" ] ; then
+				printf 'PERMISSION-SET: held -- %s holds every entry already, so nothing was asked and no permission was changed. Make the call again: the gate decides it from what you hold.\n' "$setBy"
+				return 0
+			fi
+			if [ -n "$ownNamed" ] && [ -z "$setEscalate" ] ; then
+				echo "CORRECTION: $MDSC_CMD: nothing was asked. A participant who is running in this session already holds what you ask for: $( printf '%s' "$ownNamed" | LC_ALL=C tr '\n' ';' | LC_ALL=C sed 's/;$//;s/;/; /g' ). Ask that participant to do it for you, or to pass the permission on. If you need it for yourself, call RequestPermission again with escalate true and it is asked as it stands." >&2
+				set +e ; return 6
+			fi
+		fi
+		## The participants, held entries and extras, each said.
+		## WHO A SET IS FOR. A session set: everyone taking part in the session, and any member
+		## named with --participant. A task set: never the session's participants, whose own
+		## tasks are others and may have ended -- the members named with --participant, and
+		## those only; with none named, the members of that task as its records hold them (the
+		## item's owner and `participants:`, the owner of each dispatch tracking it).
+		## A member's own set: the asking member, and nobody else.
+		local setParticipants setLine setHolder setHolderOne setRunning
+		if [ -n "$setOwn" ] ; then
+			setParticipants="$setBy"
+		elif [ "$setScope" = "task" ] && [ -n "$setNamed" ] ; then
+			setParticipants="$( printf '%s' "$setNamed" | LC_ALL=C awk 'NF && $1 != "human-owner" && !seenMember[$1]++ { print $1 ; }' )"
+		elif [ "$setScope" = "task" ] ; then
+			setParticipants="$( AgentsToolsPermissionParticipants "" "$setItem" | LC_ALL=C awk 'NF && $1 != "human-owner" && !seenMember[$1]++ { print $1 ; }' )"
+		else
+			setParticipants="$( { AgentsToolsPermissionParticipants "$setSession" "$setItem" ; printf '%s' "$setNamed" ; } | LC_ALL=C awk 'NF && $1 != "human-owner" && !seenMember[$1]++ { print $1 ; }' )"
+		fi
+		if [ -z "$setParticipants" ] ; then
+			echo "CORRECTION: $MDSC_CMD: nothing was asked. The set would be for nobody: no member was named, and the records of $setItem and of the session name none. Name each member the set is for with --participant <member>, and run the request again." >&2
+			set +e ; return 6
+		fi
+		printf 'PARTICIPANTS: %s\n' "$( printf '%s\n' "$setParticipants" | LC_ALL=C tr '\n' ' ' | LC_ALL=C sed 's/ *$//' )"
+		## A SET NEVER ASKS WHAT ITS PARTICIPANTS HOLD: an entry every participant holds already (its standing rows, a keeper's own
+		## domain among them, or a live grant) is left out, as a member's own set leaves out its own (above); with none left, nothing is asked.
+		if [ -z "$setOwn" ] ; then
+			local heldLine heldPart heldAll heldLayer heldKept=""
+			while IFS= read -r heldLine ; do
+				[ -n "$heldLine" ] || continue
+				AgentsToolsPermissionEntrySplit "$heldLine" permission-set-request || { set +e ; return 1 ; }
+				heldAll=1 ; heldLayer=""
+				while IFS= read -r heldPart ; do
+					[ -n "$heldPart" ] || continue
+					heldLayer="$( AgentsToolsPermissionHolds "$heldPart" "$permEntryTool" "$permEntryTarget" "$setSession" )" || { heldAll="" ; break ; }
+				done <<< "$setParticipants"
+				if [ -n "$heldAll" ] ; then
+					printf 'HELD: %s by every participant already (%s)\n' "$heldLine" "${heldLayer%% *}"
+					continue
+				fi
+				heldKept="${heldKept}${heldLine}"$'\n'
+			done <<< "$setEntries"
+			setEntries="$heldKept"
+			if [ -z "$setEntries" ] ; then
+				printf 'PERMISSION-SET: held -- every participant holds every entry already, so nothing was asked and no permission was changed.\n'
+				return 0
+			fi
+		fi
+		## Held means held by a participant who can pass it on NOW: one with a live run in this
+		## coworking session. An entry only a member that is not running holds is an extra, and
+		## is asked for: nobody is left waiting for a holder who is not there.
+		setRunning="$( AgentsToolsPermissionSessionRunning "$setSession" )"
+		while IFS= read -r setLine ; do
+			[ -n "$setLine" ] || continue
+			AgentsToolsPermissionEntrySplit "$setLine" permission-set-request || { set +e ; return 1 ; }
+			case "$permEntryTarget" in
+				*/../*|*/..) echo "$MDSC_CMD: ⛔ ERROR: an entry target has a .. segment: $setLine" >&2 ; set +e ; return 1 ;;
+			esac
+			setHolder=""
+			while IFS= read -r setHolderOne ; do
+				[ -n "$setHolderOne" ] && [ "${setHolderOne%% *}" != "human-owner" ] || continue
+				printf '%s\n' "$setParticipants" | LC_ALL=C grep -q -x -F -- "${setHolderOne%% *}" || continue
+				printf '%s\n' "$setRunning" | LC_ALL=C grep -q -x -F -- "${setHolderOne%% *}" || continue
+				setHolder="$setHolderOne" ; break
+			done <<< "$( AgentsToolsPermissionHolders "$permEntryTool" "$permEntryTarget" "$setSession" "$setItem" "" )"
+			if [ -n "$setHolder" ] && [ -z "$setEscalate" ] ; then
+				printf 'HELD: %s by %s\n' "$setLine" "$setHolder"
+				setHeld="${setHeld}${setLine}"$'\t'"${setHolder%% *}"$'\n'
+			else
+				## `--escalate`: the asker needs this entry for itself, so a participant's holding of it
+				## neither stands it down nor is it shown as held: it is asked, as it stands.
+				[ -z "$setHolder" ] || printf 'ESCALATED: %s, held by %s\n' "$setLine" "$setHolder"
+				printf 'EXTRA: %s\n' "$setLine"
+				setExtra="${setExtra}${setLine}"$'\n'
+			fi
+		done <<< "$setEntries"
+		if [ -z "$setExtra" ] ; then
+			printf 'PERMISSION-SET: held -- every entry is held by a participant, and passes on when its holder delegates\n'
+			return 0
+		fi
+		## ONE ask for the extras, to the human-owner, as the team bot.
+		local setBody setOut setChannel setTs setAddressees setAsking setId
+		## Its text is its own template's (sh-lib/templates/permission-set.post.format.md): what is
+		## asked grouped by place, each place once by its location root, then what it is about.
+		setBody="$( AgentsToolsPermissionSetPost "$setBy" "$setItem" "$setScope" "$setSession" "$setExtra" "$setHeld" "$setParticipants" "$setPurposes" post "$setPlaces" "$setReason" 2>/dev/null )" || setBody=""
+		if [ -z "$setBody" ] ; then
+			echo "$MDSC_CMD: ⛔ ERROR: the permission-set ask could not be filled from its template, so nothing was asked or recorded" >&2
+			set +e ; return 1
+		fi
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+		setOut="$( printf '%s\n' "$setBody" | DistroAgentsTools --intern-op-comms-slack-send-message "$setBy" human-owner --identity-bot --address-to human-owner --from-stdin 2>&1 )" || {
+			echo "$MDSC_CMD: ⛔ ERROR: the permission-set ask could not be posted, so nothing was asked or recorded: $( LC_ALL=C grep -m1 '⛔' <<< "$setOut" )" >&2
+			set +e ; return 1
+		}
+		setChannel="$( LC_ALL=C sed -n 's/^SENT_MESSAGE_CHANNEL=//p' <<< "$setOut" | head -1 )"
+		setTs="$( LC_ALL=C sed -n 's/^SENT_MESSAGE_TS=//p' <<< "$setOut" | head -1 )"
+		setAddressees="$( LC_ALL=C sed -n 's/^SENT_MESSAGE_ADDRESSEES=//p' <<< "$setOut" | head -1 )"
+		## An addressee with no Slack account of its own stands among the addressees by its member name (S21.20).
+		[ -n "$setAddressees" ] || setAddressees="$( LC_ALL=C sed -n 's/^SENT_MESSAGE_ADDRESSEE_MEMBERS=//p' <<< "$setOut" | head -1 )"
+		setAsking="$( printf '%s\n' "$setOut" | LC_ALL=C grep '^{' | LC_ALL=C awk -v path=message.user -v optional=1 -v dialect=slack -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" 2>/dev/null | LC_ALL=C sort -u | LC_ALL=C tr '\n' ' ' )" || setAsking=""
+		if [ -z "$setChannel" ] || [ -z "$setTs" ] || [ -z "$setAddressees" ] ; then
+			echo "$MDSC_CMD: ⛔ ERROR: the permission-set ask was posted but its thread or addressee could not be named, so its answer could not be recognised" >&2
+			set +e ; return 1
+		fi
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+		setId="$( printf '%s\n' "$setBody" | DistroAgentsTools --intern-op-pending-reply-open "$setBy" --to "$setChannel" \
+			${setSession:+--session-id "$setSession"} --kind permission-set --address-to human-owner --channel "$setChannel" \
+			--question-ts "$setTs" --thread-ts "$setTs" --addressees "$setAddressees" ${setAsking:+--asking-accounts " $setAsking"} \
+			--item "$setItem" ${setTaskRef:+--task-ref "$setTaskRef"} --ask-identity bot --context "$MDSC_CMD" 2>/dev/null )" || setId=""
+		if [ -z "$setId" ] ; then
+			echo "$MDSC_CMD: ⛔ ERROR: the permission-set ask was posted at $setChannel:$setTs but not recorded, so its answer cannot be applied" >&2
+			set +e ; return 1
+		fi
+		## What an allow-set applies, beside the record.
+		{
+			printf 'scope: %s\n' "$setScope"
+			printf 'item: %s\n' "$setItem"
+			printf 'session-id: %s\n' "$setSession"
+			printf 'participants: %s\n' "$( printf '%s\n' "$setParticipants" | LC_ALL=C tr '\n' ' ' | LC_ALL=C sed 's/ *$//' )"
+			printf '%s' "$setExtra" | LC_ALL=C awk 'NF { print "entry: " $0 ; }'
+			printf '%s' "$setPlaces" | LC_ALL=C awk 'NF { print "place: " $0 ; }'
+			## What the asker said each place's access is for: its exact target, a TAB, the text.
+			printf '%s' "$setPurposes" | LC_ALL=C awk 'NF { print "purpose: " $0 ; }'
+			## What the asker said the whole access is for, where it said so: shown once in the post.
+			[ -z "$setReason" ] || printf 'reason: %s\n' "$setReason"
+			## What a participant held already, as the post shows it: the entry, a TAB, its holder.
+			## Kept for the post alone (AgentsToolsPermissionSetRecordFill): an allow-set grants no held entry.
+			printf '%s' "$setHeld" | LC_ALL=C awk 'NF { print "held: " $0 ; }'
+		} > "$MMDAPP/.local/agents/pending/$setId.set" || {
+			echo "$MDSC_CMD: ⛔ ERROR: the permission-set ask $setId is recorded but its entries are not, so an allow-set would grant nothing" >&2
+			set +e ; return 1
+		}
+		## Its click answers, placed under the prompt once it can be answered: the names its
+		## template gives (`# Reactions`), as the identity that posted it. They are never an
+		## answer themselves: only a click by the one it is addressed to is.
+		type AgentsToolsAskPostReact > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.AskPost.include"
+		AgentsToolsAskPostReact "$setBy" "$setChannel:$setTs" bot add $( AgentsToolsPermissionSetFill reactions 2>/dev/null )
+		printf 'PERMISSION-SET: asked %s\n' "$setId"
+		printf 'WAIT-ID: ask:%s\n' "$setId"
+		## For the harness, which waits on a member's own set as on a post it made itself: how
+		## far an allow reaches, how many entries are asked, and where the post stands.
+		if [ -n "$setOwn" ] ; then
+			printf 'SCOPE: %s%s\n' "$setScope" "${setItem:+ $setItem}"
+			printf 'ENTRIES: %s\n' "$( printf '%s' "$setExtra" | LC_ALL=C grep -c . )"
+			printf 'SENT_MESSAGE_CHANNEL=%s\nSENT_MESSAGE_TS=%s\nSENT_MESSAGE_THREAD_TS=%s\nSENT_MESSAGE_ADDRESSEES=%s\n' "$setChannel" "$setTs" "$setTs" "$setAddressees"
+		fi
+		return 0

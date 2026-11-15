@@ -33,7 +33,7 @@ rigAssert "the call is an unknown tool" "$( LC_ALL=C grep -c -F 'ERROR: unknown 
 rigAssert "...and nothing was asked: no ask result, no pending record" "$( LC_ALL=C grep -c -E '^ASK-RESULT' "$rigTmp/out" || : ):$( ls "$rigTmp/ws/.local/agents/pending" 2> /dev/null | wc -l | tr -d ' ' )" "0:0"
 
 echo "-- 2. the code of the harness names no vendor tool --"
-for rigFile in sh-lib/harness/AgentsHarnessRun.include sh-lib/harness/AgentsHarnessBatch.include sh-lib/harness/AgentsHarnessAsk.include sh-lib/harness/AgentsUniversalHarness.sh ; do
+for rigFile in sh-lib/harness/AgentsHarnessRun.include sh-lib/harness/AgentsHarnessBatch.include $( cd "$rigPack" && ls sh-lib/harness/AgentsHarnessAsk*.include ) sh-lib/harness/AgentsUniversalHarness.sh ; do
 	rigAssert "$rigFile: no AskUserQuestion, no TodoWrite" "$( rigCode "$rigPack/$rigFile" | LC_ALL=C grep -c -E 'AskUserQuestion|TodoWrite' || : )" "0"
 done
 

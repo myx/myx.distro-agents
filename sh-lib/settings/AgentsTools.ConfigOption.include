@@ -1,0 +1,143 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.ConfigOption.include -- one of the workspace settings, read or written: `--agents-config-option`, the arm
+## the dispatcher had, and the read AgentsToolsCommonRun makes for a setting of its own. Sourced where it is called, as an
+## in-context helper, so a call that reads one setting parses this include and not the 883-line dispatcher.
+##
+## It takes the arguments after the operation word, and puts the word back itself: the arm body below reads them as it
+## always did.
+##
+
+AgentsToolsConfigOption(){ ## the arguments after --agents-config-option
+	## The borrowing rules this arm reads (AgentsToolsMemberSettingsBorrow*Say, AgentsToolsMemberSettingSystemOf,
+	## and the settings store's AgentsSettingsHoldsKeys) are taken here, once, whatever branch the call takes.
+	type AgentsSettingsHoldsKeys > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/settings/AgentsTools.Settings.include"
+	type AgentsToolsConfigOptionElsewhere > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWorkspace.include"
+	set -- --agents-config-option "$@"
+			## A write into a preset, or of a key that belongs to presets or to the tiers, asks the write check first.
+			case "${3:-}" in
+				--upsert|--upsert-from-stdin|--upsert-if|--delete|--delete-if)
+					case "$2:${4:-}" in
+						preset-*:*|*:PRESET_*|*:SPAWN_TIER_*|*:SPAWN_CLI_SERVICE)
+							type AgentsToolsPresetWriteCheck > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/settings/AgentsTools.Preset.include"
+							AgentsToolsPresetWriteCheck "${MMDAPP%/}" "$2" "$3" "${4:-}" "${5:-}" || { set +e ; return 1 ; }
+							if [ -n "$agentsPresetStdinTaken" ] ; then
+								agentsPresetStdinTaken=""
+								local presetStdinThere=""
+								case "$2:${4:-}" in
+									magic-team:SPAWN_TIER_LOW|magic-team:SPAWN_TIER_NORMAL|magic-team:SPAWN_TIER_HIGH)
+										type AgentsToolsConfigOptionElsewhere > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWorkspace.include"
+										AgentsToolsConfigOptionElsewhere "$2" "${4:-}" || { set +e ; return 1 ; }
+										presetStdinThere="$agentsConfigOptionElsewhere"
+									;;
+								esac
+								( MMDAPP="${presetStdinThere:-${MMDAPP%/}}" ; . "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/LocalTools.Config.include" ) <<< "$agentsPresetStdin"
+								return $?
+							fi
+						;;
+					esac
+				;;
+			esac
+			## A value of REFLECT_MODELS is two positions of their own closed lists, and is
+			## refused at write where either is neither: a typo would otherwise name a silent
+			## third model, which nothing downstream would recognise as one. The value lives in
+			## a local of this arm, so the operation's own write below is still the one write.
+			case "$2:${3:-}:${4:-}" in
+				magic-team:--upsert:REFLECT_MODELS|magic-team:--upsert-if:REFLECT_MODELS)
+					type AgentsToolsReflectModelsWriteCheck > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/settings/AgentsTools.ReflectSetting.include"
+					AgentsToolsReflectModelsWriteCheck "${5:-}" || { set +e ; return 1 ; }
+				;;
+				magic-team:--upsert-from-stdin:REFLECT_MODELS)
+					type AgentsToolsReflectModelsWriteCheck > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/settings/AgentsTools.ReflectSetting.include"
+					local reflectStdinValue=""
+					reflectStdinValue="$( cat )" || reflectStdinValue=""
+					AgentsToolsReflectModelsWriteCheck "$reflectStdinValue" || { set +e ; return 1 ; }
+					set -- --agents-config-option "$2" --upsert "$4" "$reflectStdinValue"
+				;;
+			esac
+			## An option is this workspace's own; a read of one that is another workspace's names that workspace (AgentsToolsConfigOptionElsewhere).
+			case "${3:-}" in
+				--select|--select-default)
+					## The one key with a default of its own: REFLECT_MODELS answers `none` where the
+					## scope holds no line, so its reader is never left reading nothing as a third
+					## state. Every other key reads as it always has, nothing where it is not held.
+					if [ "$2" = "magic-team" ] && [ "${4:-}" = "REFLECT_MODELS" ] ; then
+						local defaultOut=""
+						defaultOut="$( set -- --agents-config-option magic-team "$3" REFLECT_MODELS ; . "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/LocalTools.Config.include" )" || defaultOut=""
+						if [ -n "$defaultOut" ] ; then printf '%s\n' "$defaultOut" ; elif [ "$3" = "--select-default" ] ; then printf '%s\n' "${5:-none}" ; else printf 'none\n' ; fi
+						return 0
+					fi
+					## A spawn setting of the team, where tier settings are configured, is the preset's of the spawn (AgentsToolsPresetOverlay, AgentsTools.Preset.include).
+					if [ "$2" = "magic-team" ] ; then
+						local overlayOut overlayRc=0
+						type AgentsToolsPresetOverlay > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/settings/AgentsTools.Preset.include"
+						overlayOut="$( AgentsToolsPresetOverlay "${4:-}" )" || overlayRc=$?
+						case "$overlayRc" in
+							0)
+								if [ -n "$overlayOut" ] ; then printf '%s\n' "$overlayOut" ; elif [ "$3" = "--select-default" ] ; then printf '%s\n' "${5:-}" ; fi
+								return 0
+							;;
+							1)
+								## The CLI service is the tier's preset's alone: no tier is no CLI service, whatever an old line of the scope still holds (it is not read).
+								if [ "${4:-}" = "SPAWN_CLI_SERVICE" ] ; then
+									if [ "$3" = "--select-default" ] ; then printf '%s\n' "${5:-}" ; fi
+									return 0
+								fi
+							;;
+							*) set +e ; return 1 ;;
+						esac
+					fi
+					type AgentsToolsConfigOptionElsewhere > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWorkspace.include"
+					AgentsToolsConfigOptionElsewhere "$2" "${4:-}" || { set +e ; return 1 ; }
+					if [ -n "$agentsConfigOptionElsewhere" ] ; then
+						( MMDAPP="$agentsConfigOptionElsewhere" ; . "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/LocalTools.Config.include" )
+						return $?
+					fi
+				;;
+				--upsert|--upsert-from-stdin|--upsert-if)
+					## A write is this workspace's own; the first setting of a borrowed system ends the borrowing, said once (AgentsToolsMemberSettingsBorrowEndedSay).
+					## A team tier setting is the exception: it is the paying workspace's, so it is written where it is read.
+					local optionScope="$2" optionKey="${4:-}" optionThere="" optionRc=0
+					case "$optionScope:$optionKey" in
+						magic-team:SPAWN_TIER_LOW|magic-team:SPAWN_TIER_NORMAL|magic-team:SPAWN_TIER_HIGH)
+							AgentsToolsConfigOptionElsewhere "$optionScope" "$optionKey" || { set +e ; return 1 ; }
+							optionThere="$agentsConfigOptionElsewhere" ;;
+						magic-team:*) ;;
+						*) AgentsToolsConfigOptionElsewhere "$optionScope" "$optionKey" 2> /dev/null && optionThere="$agentsConfigOptionElsewhere" ;;
+					esac
+					if [ -n "$optionThere" ] ; then
+						case "$optionScope" in
+							magic-team) ( MMDAPP="$optionThere" ; . "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/LocalTools.Config.include" ) ; return $? ;;
+						esac
+						. "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/LocalTools.Config.include" || optionRc=$?
+						[ "$optionRc" -ne 0 ] || AgentsToolsMemberSettingsBorrowEndedSay "$optionScope" "$optionKey" "$optionThere"
+						return "$optionRc"
+					fi
+				;;
+				--delete|--delete-if)
+					## The mirror: the last setting of a system deleted begins the borrowing again, said once (AgentsToolsMemberSettingsBorrowBegunSay).
+					## A team tier setting is taken out where it is read, and a payer that names no workspace refuses it there.
+					local optionScope="$2" optionKey="${4:-}" optionPrefix="" optionRc=0
+					case "$optionScope:$optionKey" in
+						magic-team:SPAWN_TIER_LOW|magic-team:SPAWN_TIER_NORMAL|magic-team:SPAWN_TIER_HIGH)
+							AgentsToolsConfigOptionElsewhere "$optionScope" "$optionKey" || { set +e ; return 1 ; }
+							[ -z "$agentsConfigOptionElsewhere" ] || { ( MMDAPP="$agentsConfigOptionElsewhere" ; . "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/LocalTools.Config.include" ) ; return $? ; }
+						;;
+						magic-team:*) ;;
+						*) optionPrefix="$( AgentsToolsMemberSettingSystemOf "$optionKey" )" ;;
+					esac
+					if [ -n "$optionPrefix" ] && AgentsSettingsHoldsKeys "${MMDAPP%/}" "$optionScope" "$optionPrefix" ; then
+						. "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/LocalTools.Config.include" || optionRc=$?
+						if [ "$optionRc" -eq 0 ] ; then
+							AgentsToolsConfigOptionElsewhere "$optionScope" "$optionKey" 2> /dev/null || :
+							[ -z "$agentsConfigOptionElsewhere" ] || AgentsToolsMemberSettingsBorrowBegunSay "$optionScope" "$optionKey" "$agentsConfigOptionElsewhere"
+						fi
+						return "$optionRc"
+					fi
+				;;
+			esac
+			. "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/LocalTools.Config.include"
+			return $?
+}

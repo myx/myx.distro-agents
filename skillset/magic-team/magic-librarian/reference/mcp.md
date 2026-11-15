@@ -1,3 +1,6 @@
+---
+maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
+---
 # MCP (Model Context Protocol) / JSON-RPC 2.0
 
 Read this for building, reviewing, or debugging a hand-rolled MCP server. It covers JSON-RPC message handling, tools/resources capabilities, and async execution and cancellation semantics. It is especially for the case where no framework or SDK is available. There JSON-RPC is parsed and emitted by hand (e.g. POSIX shell with no jq, python or node).

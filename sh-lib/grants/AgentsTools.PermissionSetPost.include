@@ -1,0 +1,278 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.PermissionSetPost.include -- the permission set post (sh-lib/templates/permission-set.post.format.md): filled,
+## grouped, shown, and said again once answered.
+## Sourced, never run. Functions only. Loaded by AgentsTools.InternOpPermission.include,
+## which also loads AgentsTools.PermissionHolds.include and AgentsTools.Grants.include.
+##
+
+## One part of the permission set post filled from its own template, by the filler the ask
+## posts use. The slots travel in the caller's environment, as ASKP_F_<slot>.
+AgentsToolsPermissionSetFill(){ ## want (post|block), block `<Section>/<heading>` (with block)
+	type AgentsToolsAskPostFill > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.AskPost.include"
+	ASKP_BLOCK="${2:-}" AgentsToolsAskPostFill "$1" permission-set.post.format.md set
+}
+
+## The first value a `<key><TAB><value>` list holds for one key, or nothing.
+AgentsToolsPermissionSetLookup(){ ## list, key
+	local lookupLine
+	while IFS= read -r lookupLine ; do
+		case "$lookupLine" in
+			"$2"$'\t'*) printf '%s' "${lookupLine#*$'\t'}" ; return 0 ;;
+		esac
+	done <<< "$1"
+}
+
+## A target as the set post shows it: by the place it was asked by, `<name>:<glob>`, where
+## the request holds one for it -- an entry asked as `@<name>[:<glob>]`, a built-in place
+## among them, is shown by that name, as asked -- else by its location root, as every
+## permission post shows a target (AgentsToolsPermissionShownTarget). Nothing for no target.
+AgentsToolsPermissionSetShown(){ ## places `<target><TAB><place>` lines (may be empty), natural target
+	type AgentsToolsPermissionShownTarget > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionPlaces.include"
+	local shownAsked=""
+	[ -n "${2:-}" ] || return 0
+	shownAsked="$( AgentsToolsPermissionSetLookup "$1" "$2" )"
+	[ -n "$shownAsked" ] && printf '%s' "$shownAsked" || AgentsToolsPermissionShownTarget "$2"
+}
+
+## Entries grouped for the post: one line for each place and note, in the order first asked,
+## its tools once each in one fixed order, then any other in the order asked. Stdin:
+## `<tool><TAB><place as shown><TAB><note>` lines; stdout: `<place><TAB><tools><TAB><note>`.
+AgentsToolsPermissionSetGroup(){
+	LC_ALL=C awk -F'\t' -v toolOrder="Read Grep Glob Edit Write NotebookEdit Execute WebFetch WebSearch cred" '
+		BEGIN { orderTotal = split( toolOrder, orderList, " " ) ; for ( orderNo = 1 ; orderNo <= orderTotal ; orderNo++ ) { ranked[orderList[orderNo]] = 1 ; } }
+		NF >= 2 && $1 != "" {
+			groupKey = $2 SUBSEP $3 ;
+			if ( ! ( groupKey in groupSeen ) ) { groupSeen[groupKey] = 1 ; groupKeys[++groupTotal] = groupKey ; groupPlace[groupKey] = $2 ; groupNote[groupKey] = $3 ; }
+			if ( ! ( ( groupKey, $1 ) in groupHas ) ) { groupHas[groupKey, $1] = 1 ; groupTools[groupKey, ++groupCount[groupKey]] = $1 ; }
+		}
+		END {
+			for ( groupNo = 1 ; groupNo <= groupTotal ; groupNo++ ) {
+				groupKey = groupKeys[groupNo] ; toolsText = "" ;
+				for ( orderNo = 1 ; orderNo <= orderTotal ; orderNo++ ) {
+					if ( ( groupKey, orderList[orderNo] ) in groupHas ) { toolsText = toolsText ( toolsText == "" ? "" : ", " ) orderList[orderNo] ; }
+				}
+				for ( toolNo = 1 ; toolNo <= groupCount[groupKey] ; toolNo++ ) {
+					if ( ! ( groupTools[groupKey, toolNo] in ranked ) ) { toolsText = toolsText ( toolsText == "" ? "" : ", " ) groupTools[groupKey, toolNo] ; }
+				}
+				print groupPlace[groupKey] "\t" toolsText "\t" groupNote[groupKey] ;
+			}
+		}
+	'
+}
+
+## One header of a spawn record of a coworking session, or nothing: with a member, of the
+## newest record of that member's spawn in the session; with none, of the record of the
+## spawn that started it, whose spawn id is the session's.
+AgentsToolsPermissionSetSpawnHeader(){ ## coworking session id, member (empty: its starter), header
+	type AgentsToolsPermissionField > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionHolds.include"
+	local spawnFile spawnFound=""
+	case "$1" in ''|*/*|.|..) return 0 ;; esac
+	if [ -z "$2" ] ; then
+		for spawnFile in "$MMDAPP/.local/agents/spawned"/*/"$1.spawn.md" ; do
+			[ -f "$spawnFile" ] || continue
+			spawnFound="$spawnFile" ; break
+		done
+	else
+		## The records of the session come from the kept per-session list (AgentsTools.StartedRecords.include), never a read of every record on a gate call.
+		type AgentsToolsSpawnedSessionRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.StartedRecords.include"
+		while IFS= read -r spawnFile ; do
+			[ -n "$spawnFile" ] && [ -f "$spawnFile" ] && [ "$( AgentsToolsPermissionField "$spawnFile" owner )" = "$2" ] || continue
+			[ -n "$spawnFound" ] && [ ! "$spawnFile" -nt "$spawnFound" ] || spawnFound="$spawnFile"
+		done < <( AgentsToolsSpawnedSessionRecords "$1" own )
+	fi
+	[ -n "$spawnFound" ] || return 0
+	AgentsToolsPermissionField "$spawnFound" "$3"
+}
+
+## A Slack thread as the post shows it: a link where the workspace's address is configured,
+## else its `<channel>:<ts>` in code style. From the configuration on disk, no lookup.
+AgentsToolsPermissionSetThreadShown(){ ## member, thread `<channel>:<ts>`
+	local shownDomain="" shownTs="${2#*:}"
+	case "$2" in ?*:?*) ;; *) return 0 ;; esac
+	type AgentsToolsResolveSlackWorkspaceDomain > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/slack/AgentsTools.CommsSlack.include"
+	shownDomain="$( AgentsToolsResolveSlackWorkspaceDomain "$1" 2>/dev/null )" || shownDomain=""
+	case "$shownDomain" in
+		*.*) printf '[thread](https://%s/archives/%s/p%s)' "$shownDomain" "${2%%:*}" "${shownTs//./}" ;;
+		*) printf '`%s`' "$2" ;;
+	esac
+}
+
+## The permission set post, filled from its template: what is asked, grouped by place, each
+## place once, by the name it was asked by or else by its location root, with its tools and,
+## where the asker gave one, what the access to it is for, a tool asked with no target on a
+## line of its own; what the whole access is for, once, where the asker said so; what is
+## held, grouped the same way with its holder; then what it is about: the task in words, the
+## session, the participants with their hosts, who asks and where.
+## Everything from records on disk. Prints the body; non-zero when the template could not
+## fill it. With `closed`, the same body without its how-to-answer part: the post of a request
+## that no longer takes an answer.
+AgentsToolsPermissionSetPost(){ ## asker, item, scope, session id (may be empty), extra entries, held `<entry><TAB><holder>` lines, participants, purposes `<target><TAB><text>` lines, want (post|closed; default post), places `<target><TAB><place>` lines (may be empty), what the whole access is for (may be empty)
+	type AgentsToolsPermissionEntrySplit > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionRecord.include"
+	type AgentsToolsPermissionRefusalWhere > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionPosts.include"
+	type AgentsToolsPermissionShareStore > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionHolds.include"
+	local postBy="$1" postItem="$2" postScope="$3" postSession="$4" postExtra="$5" postHeld="$6" postParts="$7" postPurposes="$8" postWant="${9:-post}" postPlaces="${10:-}" postReason="${11:-}"
+	local postLine postPlace postTools postNote postAsked="" postHeldText="" postTaskFile postTask postNames="" postName postText="" postTaskText=""
+	local postCow="" postThread="" postSessionText="" postPartsText="" postWhere postByText permEntryTool permEntryTarget
+	type AgentsToolsTaskText > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.TaskText.include"
+	## A grouped line is split by hand: a tab is IFS whitespace, so read would drop the empty
+	## place of an entry asked with no target, and take its tools for the place.
+	while IFS= read -r postLine ; do
+		postPlace="${postLine%%$'\t'*}" ; postLine="${postLine#*$'\t'}"
+		postTools="${postLine%%$'\t'*}" ; postNote="${postLine#*$'\t'}"
+		[ -n "$postTools" ] || continue
+		if [ -n "$postPlace" ] ; then
+			postAsked="$postAsked$( ASKP_F_place="$postPlace" ASKP_F_tools="$postTools" AgentsToolsPermissionSetFill block "Lines/asked" )"$'\n'
+		else
+			postAsked="$postAsked$( ASKP_F_tools="$postTools" AgentsToolsPermissionSetFill block "Lines/asked-any" )"$'\n'
+		fi
+		[ -z "$postNote" ] || postAsked="$postAsked$( ASKP_F_purpose="$( AgentsToolsTaskTextLine "$postNote" )" AgentsToolsPermissionSetFill block "Lines/purpose" )"$'\n'
+	done < <(
+		while IFS= read -r postLine ; do
+			[ -n "$postLine" ] || continue
+			AgentsToolsPermissionEntrySplit "$postLine" permission-set-request 2>/dev/null || continue
+			printf '%s\t%s\t%s\n' "$permEntryTool" "$( AgentsToolsPermissionSetShown "$postPlaces" "$permEntryTarget" )" "$( AgentsToolsPermissionSetLookup "$postPurposes" "$permEntryTarget" )"
+		done <<< "$postExtra" | AgentsToolsPermissionSetGroup
+	)
+	while IFS= read -r postLine ; do
+		postPlace="${postLine%%$'\t'*}" ; postLine="${postLine#*$'\t'}"
+		postTools="${postLine%%$'\t'*}" ; postNote="${postLine#*$'\t'}"
+		[ -n "$postTools" ] || continue
+		if [ -n "$postPlace" ] ; then
+			postHeldText="$postHeldText$( ASKP_F_place="$postPlace" ASKP_F_tools="$postTools" ASKP_F_holder="$postNote" AgentsToolsPermissionSetFill block "Lines/held" )"$'\n'
+		else
+			postHeldText="$postHeldText$( ASKP_F_tools="$postTools" ASKP_F_holder="$postNote" AgentsToolsPermissionSetFill block "Lines/held-any" )"$'\n'
+		fi
+	done < <(
+		while IFS= read -r postLine ; do
+			[ -n "$postLine" ] || continue
+			AgentsToolsPermissionEntrySplit "${postLine%%$'\t'*}" permission-set-request 2>/dev/null || continue
+			printf '%s\t%s\t%s\n' "$permEntryTool" "$( AgentsToolsPermissionSetShown "$postPlaces" "$permEntryTarget" )" "${postLine#*$'\t'}"
+		done <<< "$postHeld" | AgentsToolsPermissionSetGroup
+	)
+	## What the whole access is for, in the asker's own words, where the request gave it: once.
+	local postReasonText=""
+	[ -z "$postReason" ] || postReasonText="$( AgentsToolsTaskTextKept "$postReason" )"
+	## The task in words. With a purpose given for a place, or for the whole access, the title
+	## and its names are enough; with none, a longer text stands in for it: the description
+	## the spawner gave for the dispatch, else the task's own text.
+	type AgentsToolsDecisionsItemPath > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemDecisions.include"
+	postTaskFile="$( AgentsToolsDecisionsItemPath "$postItem" 2>/dev/null )" || postTaskFile=""
+	postTask="$( AgentsToolsTaskText "$postTaskFile" )"
+	for postName in "$( AgentsToolsTaskTextValue "$postTask" item )" "$( AgentsToolsTaskTextValue "$postTask" dispatch )" ; do
+		[ -z "$postName" ] || postNames="$postNames${postNames:+ · }\`$postName\`"
+	done
+	if [ -z "$postPurposes$postReasonText" ] ; then
+		postText="$( AgentsToolsTaskTextRead header "$postTaskFile" description )"
+		[ -n "$postText" ] || postText="$( AgentsToolsTaskTextValue "$postTask" text )"
+	fi
+	postTaskText="$( ASKP_F_task_title="$( AgentsToolsTaskTextValue "$postTask" title )" ASKP_F_task_names="$postNames" ASKP_F_task_text="$postText" AgentsToolsPermissionSetFill block "Lines/task" )"
+	## The session: its short id, its thread, and what the spawn that started it said it is for.
+	if [ -n "$postSession" ] ; then
+		postCow="$( AgentsToolsPermissionShareStore "$postSession" )"
+		postThread="$( AgentsToolsPermissionSetSpawnHeader "$postCow" "" session-thread )"
+		postText="$( AgentsToolsPermissionSetSpawnHeader "$postCow" "" description )"
+		[ -n "$postText" ] || postText="$( AgentsToolsPermissionSetSpawnHeader "$postCow" "" session-comment )"
+		postSessionText="$( ASKP_F_session_id="${postCow:0:8}" ASKP_F_session_thread="$( AgentsToolsPermissionSetThreadShown "$postBy" "$postThread" )" \
+			ASKP_F_session_description="$( AgentsToolsTaskTextLine "$postText" )" AgentsToolsPermissionSetFill block "Lines/session" )"
+	fi
+	## The participants an allow would reach, each with the host its spawn runs on and what
+	## it was brought in for, where its spawn record holds them.
+	while IFS= read -r postLine ; do
+		[ -n "$postLine" ] || continue
+		postPartsText="$postPartsText$( ASKP_F_member="$postLine" ASKP_F_host="$( AgentsToolsPermissionSetSpawnHeader "$postCow" "$postLine" host )" \
+			ASKP_F_description="$( AgentsToolsTaskTextLine "$( AgentsToolsPermissionSetSpawnHeader "$postCow" "$postLine" description )" )" AgentsToolsPermissionSetFill block "Lines/participant" )"$'\n'
+	done <<< "$postParts"
+	postWhere="$( AgentsToolsPermissionRefusalWhere )"
+	postByText="$( ASKP_F_member="$postBy" ASKP_F_host="$( printf '%s\n' "$postWhere" | LC_ALL=C sed -n 's/^host: //p' )" \
+		ASKP_F_workspace="$( printf '%s\n' "$postWhere" | LC_ALL=C sed -n 's/^workspace: //p' )" AgentsToolsPermissionSetFill block "Lines/asked-by" )"
+	ASKP_F_scope_words="$( AgentsToolsPermissionSetFill block "Scope words/$postScope" )" ASKP_F_asked="${postAsked%$'\n'}" ASKP_F_held="${postHeldText%$'\n'}" \
+		ASKP_F_reason="$postReasonText" \
+		ASKP_F_task="$postTaskText" ASKP_F_session="$postSessionText" ASKP_F_participants="${postPartsText%$'\n'}" ASKP_F_asked_by="$postByText" \
+		AgentsToolsPermissionSetFill "$postWant"
+}
+
+## The post of one permission set request filled again from its own record, the `<id>.set`
+## beside its pending-reply record, as AgentsToolsAskPostRecordFill fills the post of any
+## other question from what was kept of it: `post`, `closed` (the same text without its
+## how-to-answer part), `reactions` (the tooling's own answer emoji), or one `block` of the
+## template. The record keeps what was asked, not the text: the task, the session and the
+## participants read as the records on disk say them now; the place each entry was asked by
+## and what the whole access is for are the set's own lines. rc 3 when the record keeps no set.
+AgentsToolsPermissionSetRecordFill(){ ## want (post|closed|reactions|block), pending-reply record file, block `<Section>/<heading>` (with block)
+	type AgentsToolsPermissionField > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionHolds.include"
+	local fillSet="${2%.md}.set" fillLine fillScope="" fillItem="" fillSession="" fillParts="" fillEntries="" fillHeld="" fillPurposes="" fillPlaces="" fillReason=""
+	[ -f "$fillSet" ] || return 3
+	case "$1" in
+		reactions|block) AgentsToolsPermissionSetFill "$1" "${3:-}" ; return ;;
+		post|closed) ;;
+		*) return 3 ;;
+	esac
+	while IFS= read -r fillLine ; do
+		case "$fillLine" in
+			'scope: '*) fillScope="${fillLine#scope: }" ;;
+			'item: '*) fillItem="${fillLine#item: }" ;;
+			'session-id: '*) fillSession="${fillLine#session-id: }" ;;
+			'participants: '*) fillParts="${fillLine#participants: }" ;;
+			'entry: '*) fillEntries="${fillEntries}${fillLine#entry: }"$'\n' ;;
+			'held: '*) fillHeld="${fillHeld}${fillLine#held: }"$'\n' ;;
+			'purpose: '*) fillPurposes="${fillPurposes}${fillLine#purpose: }"$'\n' ;;
+			'place: '*) fillPlaces="${fillPlaces}${fillLine#place: }"$'\n' ;;
+			'reason: '*) fillReason="${fillLine#reason: }" ;;
+		esac
+	done < "$fillSet"
+	[ -n "$fillEntries" ] && [ -n "$fillScope" ] || return 3
+	type AgentsToolsDecisionsItemPath > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemDecisions.include"
+	AgentsToolsPermissionSetPost "$( AgentsToolsPermissionField "$2" owner )" "$fillItem" "$fillScope" "$fillSession" "$fillEntries" "$fillHeld" \
+		"$( printf '%s' "$fillParts" | LC_ALL=C tr ' ' '\n' )" "$fillPurposes" "$1" "$fillPlaces" "$fillReason"
+}
+
+## A set answered, said to its participants: ONE tooling line in the session's thread, for all
+## of them, its text the template's own (`# Told`, allowed or denied), posted by the team bot.
+## Once for a request, whichever process applied its answer (the `<id>.told` mark beside its
+## record). Only where the session has a thread. Never fails its caller: a line that is not
+## posted is one stderr warning.
+AgentsToolsPermissionSetTold(){ ## <pending-id> <allowed|denied> <answered by>
+	type AgentsToolsPermissionPartyName > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionPosts.include"
+	type AgentsToolsPermissionSessionThread > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionParticipants.include"
+	type AgentsToolsPermissionField > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionHolds.include"
+	local toldId="${1:-}" toldWhat="${2:-}" toldBy="${3:-}" toldFile toldLine toldScope="" toldSession="" toldParts="" toldCount=0 toldThread toldText toldOwner
+	toldFile="$MMDAPP/.local/agents/pending/$toldId.set"
+	## Said once the record has closed, so its set is in pending/closed/ by then (retention, T9).
+	[ -f "$toldFile" ] || toldFile="$MMDAPP/.local/agents/pending/closed/$toldId.set"
+	[ -n "$toldId" ] && [ -f "$toldFile" ] || return 0
+	while IFS= read -r toldLine ; do
+		case "$toldLine" in
+			'scope: '*) toldScope="${toldLine#scope: }" ;;
+			'session-id: '*) toldSession="${toldLine#session-id: }" ;;
+			'participants: '*) toldParts="${toldLine#participants: }" ;;
+			'entry: '*) toldCount=$(( toldCount + 1 )) ;;
+		esac
+	done < "$toldFile"
+	[ -n "$toldSession" ] && [ -n "$toldParts" ] || return 0
+	toldThread="$( AgentsToolsPermissionSessionThread "$toldSession" )"
+	[ -n "$toldThread" ] || return 0
+	( set -o noclobber ; : > "${toldFile%.set}.told" ) 2> /dev/null || return 0
+	toldText="$( ASKP_F_set_id="${toldId:0:8}" ASKP_F_by="$( AgentsToolsPermissionPartyName "$toldBy" )" ASKP_F_count="$toldCount" \
+		ASKP_F_scope_words="$( AgentsToolsPermissionSetFill block "Scope words/$toldScope" 2> /dev/null )" \
+		ASKP_F_participants="$( printf '%s' "$toldParts" | LC_ALL=C sed 's/  */, /g' )" AgentsToolsPermissionSetFill block "Told/$toldWhat" 2> /dev/null )" || toldText=""
+	if [ -z "$toldText" ] ; then
+		echo "⚠️ WARNING: $MDSC_CMD: the permission set $toldId is $toldWhat, but the line that tells its participants could not be filled from its template, so they were not told in the session thread" >&2
+		return 0
+	fi
+	toldOwner="$( AgentsToolsPermissionField "${toldFile%.set}.md" owner )"
+	## It is addressed to the participants, each one the member send can address. One it cannot
+	## is still named by the line's own text, and never costs the others the line.
+	local toldArgs=( "${toldOwner:-magic-coordinator}" "$toldThread" --identity-bot ) toldPart
+	type AgentsToolsTeamMemberDirectory > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamRegistry.include"
+	for toldPart in $toldParts ; do
+		! AgentsToolsAssertBareName "$toldPart" "a participant" permission-set-told 2> /dev/null || ! AgentsToolsTeamMemberDirectory "$toldPart" > /dev/null 2>&1 \
+			|| toldArgs=( ${toldArgs[@]+"${toldArgs[@]}"} --address-to "$toldPart" )
+	done
+	type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+	printf '%s\n' "$toldText" | DistroAgentsTools --intern-op-comms-slack-send-message ${toldArgs[@]+"${toldArgs[@]}"} --from-stdin > /dev/null 2>&1 \
+		|| echo "⚠️ WARNING: $MDSC_CMD: the permission set $toldId is $toldWhat, but its participants were not told in the session thread $toldThread" >&2
+	return 0
+}

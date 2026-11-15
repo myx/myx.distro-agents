@@ -19,7 +19,7 @@ rigPackage="$MDLT_ORIGIN/myx/myx.distro-agents"
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }
-[ -f "$rigPackage/sh-lib/session/AgentsTools.DispatcherSchedule.include" ] || rigRefuse "the loop's include is not in the package"
+[ -f "$rigPackage/sh-lib/schedule/AgentsTools.DispatcherSchedule.include" ] || rigRefuse "the loop's include is not in the package"
 . "$rigPackage/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
 rigTmp="$( rigTempDir AgentsDutyKillRestartCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
@@ -69,7 +69,7 @@ rigFn(){ ## the function and its arguments... -- run in the loop's include: `<rc
 		bash -c '
 			case "$MMDAPP" in "$RIG_TMP"/*) ;; *) exit 99 ;; esac
 			set +e
-			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.DispatcherSchedule.include" > /dev/null 2>&1
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/schedule/AgentsTools.DispatcherSchedule.include" > /dev/null 2>&1
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.BoardItemHandler.include" > /dev/null 2>&1
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include" > /dev/null 2>&1
 			"$@"
@@ -135,7 +135,7 @@ rigRestart(){ ## -- the start the schedule makes of a duty, its tooling call rec
 			case "$MMDAPP" in "$RIG_TMP"/*) ;; *) exit 99 ;; esac
 			set +e
 			DistroAgentsTools(){ printf "%s|resume-env=%s\n" "$*" "${MDAT_SPAWN_RESUME:-unset}" > "$RIG_TMP/spawn.args" ; return 0 ; }
-			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.DispatcherSchedule.include" > /dev/null 2>&1
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/schedule/AgentsTools.DispatcherSchedule.include" > /dev/null 2>&1
 			AgentsToolsScheduleSpawn work-duty.magic-coordinator --session-thread:event-track --routine magic-coordinator.work-duty.routine.md magic-coordinator
 		' > /dev/null 2>&1
 	local restartLeft=50

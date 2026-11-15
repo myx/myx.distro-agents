@@ -1,0 +1,87 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+## AgentsTools.OpGetBoardItem.include -- the operation `--get-board-item`, sourced by AgentsTools.Member.include with the operation's arguments.
+## Read one board item by filename and optional state restrictions, with
+## optional line range. Path lookup remains inside AgentsToolsDataRead.
+		shift
+		local memberName="$1"
+		shift || true
+		local itemName="$1"
+		shift || true
+		if [ -z "$memberName" ] || [ -z "$itemName" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --get-board-item: syntax is <team-member> <item-name> [--board-state <state>]... [--start-line <N> --end-line <N>]" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsAssertBareName "$memberName" "<team-member>" get-board-item || { set +e ; return 1 ; }
+		local memberDir="$MDAT_SKILLSET_ROOT/$memberName"
+		if [ ! -d "$memberDir" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --get-board-item: no such member skill directory: $memberDir" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsAssertBareName "$itemName" "<item-name>" get-board-item || { set +e ; return 1 ; }
+		case "$itemName" in
+			*-*.md)
+			;;
+			*)
+				echo "⛔ ERROR: $MDSC_CMD --get-board-item: item name must match <type>-<name>.md: $itemName" >&2
+				set +e ; return 1
+			;;
+		esac
+
+		local boardStates=()
+		local startLine="" endLine=""
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--board-state)
+					case "$2" in
+						backlog|pending|running|review|blocked|parked|processed|archived|retained)
+							boardStates+=( "$2" )
+						;;
+						*)
+							echo "⛔ ERROR: $MDSC_CMD --get-board-item: invalid --board-state: $2" >&2
+							set +e ; return 1
+						;;
+					esac
+					shift 2
+				;;
+				--start-line)
+					startLine="$2"
+					shift 2
+				;;
+				--end-line)
+					endLine="$2"
+					shift 2
+				;;
+				*)
+					echo "⛔ ERROR: $MDSC_CMD --get-board-item: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+
+		if [ -n "$startLine" ] || [ -n "$endLine" ] ; then
+			if [ -z "$startLine" ] || [ -z "$endLine" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --get-board-item: --start-line and --end-line must be provided together" >&2
+				set +e ; return 1
+			fi
+		fi
+		if [ ${#boardStates[@]} -eq 0 ] ; then
+			boardStates=( backlog pending running review blocked parked processed archived retained )
+		fi
+		[ -n "${MDAT_DATA_ROOT:-}" ] || {
+			echo "⛔ ERROR: $MDSC_CMD --get-board-item: MDAT_DATA_ROOT is not set" >&2
+			set +e ; return 1
+		}
+		local readArgs=( "$itemName" --context --get-board-item )
+		local boardState
+		for boardState in ${boardStates[@]+"${boardStates[@]}"} ; do
+			readArgs+=( --lookup-folder "$MDAT_DATA_ROOT/board/$boardState" )
+		done
+
+		if [ -n "$startLine" ] ; then
+			readArgs+=( --start-line "$startLine" --end-line "$endLine" )
+		fi
+		type AgentsToolsDataRead > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.InternOpDataRead.include"
+		AgentsToolsDataRead ${readArgs[@]+"${readArgs[@]}"}
+		return $?

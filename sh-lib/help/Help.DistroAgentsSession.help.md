@@ -76,9 +76,9 @@
 			bound, and with none the call returns on an arrival.
 
 		--get-dispatch-text
-			The dispatch of the session as the run was given it: `dispatch.md`, the
-			board item's copy and `input-scan.md`, each a section, mixed in that
-			order.
+			The dispatch of the session as the run was given it, from its own
+			input folder: `dispatch.md`, the board item's copy and
+			`input-scan.md`, each a section, mixed in that order.
 
 		--get-uninvited-participants
 			The participants the session's record names that have no run in the

@@ -58,10 +58,10 @@ AgentsToolsTaskTick(){ ## seconds, pid served
 AgentsToolsTaskMessagePending(){ ## session, member
 	local pendingText pendingSession
 	[ -n "$2" ] || return 1
-	type AgentsToolsSessionChatFloor > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include" 2> /dev/null || return 1
+	type AgentsToolsSessionChatFloor > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include" || return 1
 	AgentsToolsSessionChatKeyInto ; pendingSession="$agentsSessionChatKey"
 	[ -n "$pendingSession" ] && [ -f "$MMDAPP/.local/agents/sessions/$pendingSession/session.chat" ] || pendingSession="$1"
-	type AgentsToolsSessionChatWaiting > /dev/null 2>&1 && AgentsToolsSessionChatWaiting "$pendingSession" 2> /dev/null || :
+	AgentsToolsSessionChatWaiting "$pendingSession" 2> /dev/null || :
 	pendingText="$( AgentsToolsSessionChatFloor "$pendingSession" "$2" 2> /dev/null )" || pendingText=""
 	[ -n "$pendingText" ]
 }
@@ -86,7 +86,7 @@ AgentsToolsTaskCall(){ ## label, background, timeout, action, function, args...
 	local callDefault="${MDAT_TOOL_TASK_SECONDS:-}" callCeiling="${MDAT_TOOL_TASK_CEILING:-3600}" callPoll="${MDAT_TOOL_TASK_POLL:-2}" callRemaining callBegan callHandle callName
 	## The window is the number this tool carries: a call reads it here, and MDAT_TOOL_TASK_SECONDS replaces every row with one value.
 	if [ -z "$callDefault" ] ; then
-		type AgentsHarnessToolWindowSeconds > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessToolWindow.include" 2> /dev/null || :
+		type AgentsHarnessToolWindowSeconds > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessToolWindow.include"
 		callDefault="$( AgentsHarnessToolWindowSeconds "$callLabel" )"
 		[ -n "$callDefault" ] || callDefault=300
 	fi
@@ -198,8 +198,8 @@ AgentsToolsTaskCall(){ ## label, background, timeout, action, function, args...
 	## does not tell a reader that a limit ended it, nor which limit. The file is written after this point, so the link
 	## stands to a name that appears later, exactly as the status link does.
 	ln -sf "$callName/ceiling" "$callDir/$callHandle.ceiling"
-	type AgentsToolsRegistryProcessesBegan > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include" 2> /dev/null || :
-	callBegan="$( printf '%s\n' "$callPid" | AgentsToolsRegistryProcessesBegan 2> /dev/null )" || callBegan=""
+	type AgentsToolsRunProcessesBegan > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunProcesses.include"
+	callBegan="$( printf '%s\n' "$callPid" | AgentsToolsRunProcessesBegan 2> /dev/null )" || callBegan=""
 	[ -z "$callBegan" ] || printf '%s\n' "$callBegan" > "$callDir/$callHandle.began"
 	printf '%s\n' "$callPid" > "$callDir/$callHandle.pid"
 	disown "$callPid" 2> /dev/null || :
@@ -223,7 +223,7 @@ AgentsToolsTaskCall(){ ## label, background, timeout, action, function, args...
 		message) callReason="a message for you arrived in the session chat" ;;
 		*) if [ -n "$callGiven" ] ; then callReason="your timeout of ${callTimeout}s passed" ; else callReason="the window of ${callDefault}s passed, the window this tool carries" ; fi ;;
 	esac
-	type AgentsTranscriptReplyRef > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionTranscript.include" 2> /dev/null || :
+	type AgentsTranscriptReplyRef > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionTranscript.include"
 	agentsTaskHandle="$callHandle"
 	agentsTaskDetached="yes"
 	agentsTaskRc=0

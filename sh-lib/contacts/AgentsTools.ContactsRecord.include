@@ -1,0 +1,212 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+type AgentsSlackIdentityId > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/slack/AgentsTools.SlackIdentities.include"
+
+##
+## AgentsTools.ContactsRecord.include -- a contact record and its store: the store and its lock, the id, front matter values and lists, a person and an organisation read, written and merged.
+## Sourced, never run. Functions only. Loaded by AgentsTools.Contacts.include, with the other parts it calls.
+##
+
+## The store's folders, set in contactsRoot, contactsPersons, contactsOrgs. rc 1, said, where the data root is not settled.
+contactsRoot="" contactsPersons="" contactsOrgs=""
+AgentsToolsContactsStore(){ ## the operation
+	if [ -z "${MDAT_DATA_ROOT:-}" ] ; then
+		echo "$MDSC_CMD: ⛔ ERROR: $1: MDAT_DATA_ROOT is not set, so the contacts store is not settled" >&2
+		return 1
+	fi
+	contactsRoot="$MDAT_DATA_ROOT/contacts" ; contactsPersons="$contactsRoot/persons" ; contactsOrgs="$contactsRoot/organisations"
+}
+
+## An id: lowercase letters, digits and hyphens, not starting with a hyphen, at most 64 characters. A person's id is the name `contact:<id>` has.
+AgentsToolsContactsSlug(){ ## value
+	case "$1" in
+		''|-*|*[!abcdefghijklmnopqrstuvwxyz0123456789-]*) return 1 ;;
+	esac
+	[ "${#1}" -le 64 ]
+}
+
+## One line of free text as a front matter value: line breaks and tabs made spaces, runs of spaces one, ends trimmed.
+AgentsToolsContactsOneLine(){ ## text
+	printf '%s' "$1" | LC_ALL=C tr '\n\r\t' '   ' | LC_ALL=C tr -s ' ' | LC_ALL=C sed -e 's/^ //' -e 's/ $//'
+}
+
+## The value of a front matter key of a record; nothing for a key it lacks.
+AgentsToolsContactsKey(){ ## file, key
+	LC_ALL=C awk -v want="$2: " 'NR == 1 { if ( $0 != "---" ) exit ; next ; } $0 == "---" { exit ; } index( $0, want ) == 1 { print substr( $0, length( want ) + 1 ) ; exit ; }' "$1" 2> /dev/null
+}
+
+## A list `a, b` with one more item, unless it holds it already (compared without regard to case).
+AgentsToolsContactsListAdd(){ ## list, item
+	local addLower
+	addLower="$( printf '%s' "$2" | LC_ALL=C tr 'ABCDEFGHIJKLMNOPQRSTUVWXYZ' 'abcdefghijklmnopqrstuvwxyz' )"
+	if printf '%s' "$1" | LC_ALL=C tr 'ABCDEFGHIJKLMNOPQRSTUVWXYZ' 'abcdefghijklmnopqrstuvwxyz' | LC_ALL=C awk -v want="$addLower" '{ count = split( $0, parts, /, */ ) ; for ( at = 1 ; at <= count ; at++ ) if ( parts[at] == want ) found = 1 ; } END { exit ! found ; }' ; then
+		printf '%s' "$1"
+	else
+		printf '%s%s' "${1:+$1, }" "$2"
+	fi
+}
+
+## A list without an item (compared without regard to case).
+AgentsToolsContactsListDrop(){ ## list, item
+	local dropLower
+	dropLower="$( printf '%s' "$2" | LC_ALL=C tr 'ABCDEFGHIJKLMNOPQRSTUVWXYZ' 'abcdefghijklmnopqrstuvwxyz' )"
+	printf '%s' "$1" | LC_ALL=C awk -v want="$dropLower" '{ count = split( $0, parts, /, */ ) ; out = "" ; for ( at = 1 ; at <= count ; at++ ) { if ( tolower( parts[at] ) == want || parts[at] == "" ) continue ; out = out ( out == "" ? "" : ", " ) parts[at] ; } printf "%s", out ; }'
+}
+
+AgentsToolsContactsPersonRead(){ ## file
+	type AgentsToolsContactsTierName > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/contacts/AgentsTools.ContactsTiers.include"
+	local readLine readState="" readKey readValue
+	crId="" crName="" crOrg="" crRole="" crRel="" crOwner="" crTier="" crScopeTiers="" crReached="" crSlackId="" crSlackHandle="" crSlackConv="" crEmail="" crHow="" crLanguage="" crAllows="" crExtra="" crLog=""
+	[ -f "$1" ] || return 1
+	while IFS= read -r readLine || [ -n "$readLine" ] ; do
+		case "$readState:$readLine" in
+			':---') readState=front ; continue ;;
+			front:---) readState=body ; continue ;;
+			front:*)
+				readKey="${readLine%%: *}" ; readValue="${readLine#*: }"
+				[ "$readKey" != "$readLine" ] || continue
+				case "$readKey" in
+					type) ;;
+					contact-id) crId="$readValue" ;;
+					display-name) crName="$readValue" ;;
+					organisation) crOrg="$readValue" ;;
+					role) crRole="$readValue" ;;
+					relationship) crRel="$readValue" ;;
+					is-owner) crOwner="$readValue" ;;
+					tier) crTier="$( AgentsToolsContactsTierName "$readValue" )" || crTier="$readValue" ;;
+					scope-tiers) crScopeTiers="$readValue" ;;
+					reached-by) crReached="$readValue" ;;
+					slack-id) crSlackId="$readValue" ;;
+					slack-handle) crSlackHandle="$readValue" ;;
+					slack-conversation) crSlackConv="$readValue" ;;
+					email) crEmail="$readValue" ;;
+					how-to-meet) crHow="$readValue" ;;
+					language) crLanguage="$readValue" ;;
+					allows) crAllows="$readValue" ;;
+					*) crExtra="$crExtra$readLine"$'\n' ;;
+				esac
+			;;
+			body:'## Log') readState=log ;;
+			log:'- '*) crLog="$crLog$readLine"$'\n' ;;
+		esac
+	done < "$1"
+	return 0
+}
+
+## The record as text, from the variables above, to stdout.
+AgentsToolsContactsPersonText(){
+	printf '%s\n' '---' 'type: contact' "contact-id: $crId"
+	[ -z "$crName" ] || printf 'display-name: %s\n' "$crName"
+	[ -z "$crOrg" ] || printf 'organisation: %s\n' "$crOrg"
+	[ -z "$crRole" ] || printf 'role: %s\n' "$crRole"
+	[ -z "$crRel" ] || printf 'relationship: %s\n' "$crRel"
+	[ -z "$crOwner" ] || printf 'is-owner: %s\n' "$crOwner"
+	[ -z "$crTier" ] || printf 'tier: %s\n' "$crTier"
+	[ -z "$crScopeTiers" ] || printf 'scope-tiers: %s\n' "$crScopeTiers"
+	[ -z "$crReached" ] || printf 'reached-by: %s\n' "$crReached"
+	## Each Slack value is written under the workspace it belongs to (AgentsToolsContactsSlackTeam), whatever word its writer gave.
+	type AgentsToolsContactsSlackListTeams > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/contacts/AgentsTools.ContactsCoordinates.include"
+	[ -z "$crSlackId" ] || printf 'slack-id: %s\n' "$( AgentsToolsContactsSlackListTeams "$crSlackId" )"
+	[ -z "$crSlackHandle" ] || printf 'slack-handle: %s\n' "$( AgentsToolsContactsSlackListTeams "$crSlackHandle" )"
+	[ -z "$crSlackConv" ] || printf 'slack-conversation: %s\n' "$( AgentsToolsContactsSlackListTeams "$crSlackConv" )"
+	[ -z "$crEmail" ] || printf 'email: %s\n' "$crEmail"
+	[ -z "$crHow" ] || printf 'how-to-meet: %s\n' "$crHow"
+	## The language the person prefers to be written to in (epic item 45: language and style, read when a member talks to them).
+	[ -z "$crLanguage" ] || printf 'language: %s\n' "$crLanguage"
+	[ -z "$crAllows" ] || printf 'allows: %s\n' "$crAllows"
+	[ -z "$crExtra" ] || printf '%s' "$crExtra"
+	printf '%s\n' '---' "# Contact: ${crName:-$crId}" '' '## Log' ''
+	[ -z "$crLog" ] || printf '%s' "$crLog"
+}
+
+## The record written whole: a temp file in its own folder, then a rename over it. The folder is made. rc 1, said, where it could not be.
+AgentsToolsContactsWriteFile(){ ## operation, target file, function that prints the text
+	local writeTemp
+	## A workspace that keeps no team data (F13.1, AgentsTools.TeamDataGate.include) writes no contact.
+	type AgentsToolsTeamDataGateRefuse > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataGate.include"
+	AgentsToolsTeamDataGateRefuse "$1" || return 1
+	mkdir -p "${2%/*}" 2> /dev/null || { echo "$MDSC_CMD: ⛔ ERROR: $1: the folder of $2 could not be made -- nothing was written" >&2 ; return 1 ; }
+	writeTemp="$( mktemp "${2%/*}/.${2##*/}.write.XXXXXX" )" || { echo "$MDSC_CMD: ⛔ ERROR: $1: $2 could not be written -- nothing was written" >&2 ; return 1 ; }
+	if ! "$3" > "$writeTemp" || ! chmod 644 "$writeTemp" || ! mv -f -- "$writeTemp" "$2" ; then
+		rm -f "$writeTemp"
+		echo "$MDSC_CMD: ⛔ ERROR: $1: $2 could not be written -- nothing was written" >&2
+		return 1
+	fi
+	## THE RECORD IS COMMITTED, as every board and inbox write is (AgentsToolsTeamDataCommitPaths): a record left uncommitted in the store
+	## was lost to the store's own sync, and a lookup then found nobody.
+	type AgentsToolsTeamDataCommitPaths > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataCommit.include"
+	AgentsToolsTeamDataCommitPaths "* contact: $1" "$2" || :
+}
+
+## The stamp of a log line: `YYYY-MM-DD HH:MM +ZZZZ`.
+AgentsToolsContactsStamp(){
+	date '+%Y-%m-%d %H:%M %z'
+}
+
+## The store lock, so that two members' collects do not write over one another. The lock is released by AgentsToolsContactsUnlock.
+contactsLockPath=""
+AgentsToolsContactsLock(){ ## operation
+	type AgentsToolsLocalLockTake > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.LocalLock.include"
+	AgentsToolsLocalLockTake contacts-store 60 "the contacts store" || { echo "$MDSC_CMD: ⛔ ERROR: $1: the contacts store is being changed by another call, and stayed so -- nothing was written" >&2 ; return 1 ; }
+	contactsLockPath="$agentsLocalLockPath"
+}
+
+AgentsToolsContactsUnlock(){
+	type AgentsToolsLocalLockGive > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.LocalLock.include"
+	[ -z "$contactsLockPath" ] || AgentsToolsLocalLockGive "$contactsLockPath"
+	contactsLockPath=""
+}
+
+orgName="" orgDomain="" orgNote="" orgLog=""
+AgentsToolsContactsOrgRead(){ ## file
+	local readLine readState="" readKey readValue
+	orgName="" orgDomain="" orgNote="" orgLog=""
+	[ -f "$1" ] || return 1
+	while IFS= read -r readLine || [ -n "$readLine" ] ; do
+		case "$readState:$readLine" in
+			':---') readState=front ; continue ;;
+			front:---) readState=body ; continue ;;
+			front:*)
+				readKey="${readLine%%: *}" ; readValue="${readLine#*: }"
+				case "$readKey" in
+					display-name) orgName="$readValue" ;;
+					domain) orgDomain="$readValue" ;;
+					note) orgNote="$readValue" ;;
+				esac
+			;;
+			body:'## Log') readState=log ;;
+			log:'- '*) orgLog="$orgLog$readLine"$'\n' ;;
+		esac
+	done < "$1"
+	return 0
+}
+
+orgId=""
+AgentsToolsContactsOrgText(){
+	printf '%s\n' '---' 'type: contact-organisation' "organisation-id: $orgId"
+	[ -z "$orgName" ] || printf 'display-name: %s\n' "$orgName"
+	[ -z "$orgDomain" ] || printf 'domain: %s\n' "$orgDomain"
+	[ -z "$orgNote" ] || printf 'note: %s\n' "$orgNote"
+	printf '%s\n' '---' "# Organisation: ${orgName:-$orgId}" '' '## Log' ''
+	[ -z "$orgLog" ] || printf '%s' "$orgLog"
+}
+
+## What a collect of either kind needs to say about one field: sets `collectSaid` lines and the changed-field list.
+collectChanged="" collectKept=""
+## A scalar field merged: current value in the variable named, the given one; fill an empty one, keep a known one unless --correct.
+AgentsToolsContactsMerge(){ ## variable name, field label, given value, correct (yes|"")
+	local mergeVar="$1" mergeCurrent
+	[ -n "$3" ] || return 0
+	mergeCurrent="${!mergeVar}"
+	if [ -z "$mergeCurrent" ] ; then
+		printf -v "$mergeVar" '%s' "$3"
+		collectChanged="${collectChanged:+$collectChanged, }$2"
+	elif [ "$mergeCurrent" = "$3" ] ; then
+		:
+	elif [ -n "$4" ] ; then
+		printf -v "$mergeVar" '%s' "$3"
+		collectChanged="${collectChanged:+$collectChanged, }$2 (corrected, was: $mergeCurrent)"
+	else
+		collectKept="$collectKept$2 is $mergeCurrent and stays; $3 was given (--correct replaces a known value)"$'\n'
+	fi
+}

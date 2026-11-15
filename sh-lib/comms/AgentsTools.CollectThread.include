@@ -23,13 +23,8 @@
 ## again. Never where MDAT_COLLECT_THREAD is `off` (the runner of the checks sets it).
 ##
 
-type AgentsToolsRegistryProcessesBegan > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
+type AgentsToolsRunProcessesBegan > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunProcesses.include"
 type AgentsToolsCollectOne > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.Collect.include"
-
-AgentsToolsCollectThreadDir(){
-	[ -n "${MMDAPP:-}" ] || return 1
-	printf '%s' "$MMDAPP/.local/agents/collect"
-}
 
 ## One line of the log, with its moment. A call of `--one` says it to its caller too, on standard error.
 AgentsToolsCollectThreadSay(){ ## text
@@ -59,10 +54,11 @@ AgentsToolsCollectThreadLogBound(){
 ## or the one that has it began at another time, or it has ended and is only not collected yet. rc 2 it cannot be told: such a lock
 ## is left alone.
 AgentsToolsCollectThreadHolderLives(){ ## `<pid> <start>`
+	type AgentsToolsRunProcessesBegan > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunProcesses.include"
 	local holderPid="${1%% *}" holderStart="${1#* }" holderNow
 	case "$holderPid" in ''|*[!0123456789]*) return 1 ;; esac
 	[ "$holderStart" != "$1" ] && [ -n "$holderStart" ] || return 1
-	holderNow="$( printf '%s\n' "$holderPid" | AgentsToolsRegistryProcessesBegan )" || holderNow=""
+	holderNow="$( printf '%s\n' "$holderPid" | AgentsToolsRunProcessesBegan )" || holderNow=""
 	[ "$holderNow" != "$1" ] || return 0
 	[ -z "$holderNow" ] || return 1
 	kill -0 "$holderPid" 2> /dev/null || return 1
@@ -136,6 +132,7 @@ AgentsToolsCollectThreadLockGive(){
 ## its errors appended to thread.log. The names that carry a member's session are taken out of its environment. One line of the log is
 ## this function's: the start it made, with the process and when it began.
 AgentsToolsCollectThreadStart(){
+	type AgentsToolsRunProcessesBegan > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunProcesses.include"
 	local startDir startLive startTool startMonitor startPid="" startBegan startDrop
 	if [ "${MDAT_COLLECT_THREAD:-}" = "off" ] ; then
 		printf 'off\n'
@@ -175,7 +172,7 @@ AgentsToolsCollectThreadStart(){
 		;;
 	esac
 	disown "$startPid" 2> /dev/null || :
-	startBegan="$( printf '%s\n' "$startPid" | AgentsToolsRegistryProcessesBegan )" || startBegan=""
+	startBegan="$( printf '%s\n' "$startPid" | AgentsToolsRunProcessesBegan )" || startBegan=""
 	{
 		if [ -n "$startBegan" ] ; then
 			printf '%s a start of the source collector is made: pid %s, begun %s\n' "$( date -u +%Y-%m-%dT%H:%M:%SZ )" "$startPid" "${startBegan#* }"

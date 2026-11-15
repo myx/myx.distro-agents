@@ -17,11 +17,10 @@
 ##
 ## Schedule, per ask, the ask's age taken from its question ts, and for an ask that went on
 ## to the human-owner from its forward, which is when he was asked:
-##   reminder-30m          once, 30 minutes after the ask
-##   reminder-2h           once, 2 hours after the ask
-##   last-daily-reminder   at the first main-loop iteration after 09:00 local each day
-##                         (the day's window, kept in .local/agents/pending-remind.daily),
-##                         an ask 4+ hours old and not yet reminded that day
+##   reminder-30m          once, 30 minutes after the ask: the one nudge
+## The 2-hour and daily stages are retired by the team rule dormancy-nudge-once-then-escalate
+## (see the stage choice below): their stamps, where an old record carries them, are read and
+## send nothing.
 ## Stages due together send ONE reminder and are stamped together. Every send adds to
 ## `reminders: <n>` and sets `last-reminder-at`. The stamps are what makes a repeat
 ## send nothing: a stage stamped is never due again.
@@ -97,8 +96,9 @@ AgentsToolsPendingReplyRemindQuestion(){ ## record file
 ## the count of reminders and the time of the last one stay as they were. Failed: called
 ## with no stage, the record keeps when the send failed, in epoch seconds, and nothing else.
 AgentsToolsPendingReplyRemindStamp(){ ## pending id, record file, stages (comma list), reminder number, stamp time, today, held|failed (empty: the reminder was sent)
+	type AgentsToolsPendingReplyCollectFieldOf > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.PendingReplyCollect.include"
 	local stampLock stampOps stampBody stampStage
-	. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.LocalLock.include"
+	. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.LocalLock.include"
 	AgentsToolsLocalLockTake "pending-reply-$1" 30 || return 1
 	stampLock="$agentsLocalLockPath"
 	if [ "$( AgentsToolsPendingReplyCollectFieldOf "$2" status )" = "reply-pending" ] ; then
@@ -188,6 +188,7 @@ AgentsToolsPendingReplyRemindAnswered(){ ## acting member, pending id, the place
 ## The whole run. Prints the outcome lines and the REMIND summary. With pending ids given it
 ## is a run for those asks alone (a member's wait); with none, for every open ask (the main loop).
 AgentsToolsPendingReplyRemindRun(){ ## optional: pending ids
+	type AgentsToolsPendingReplyCollectFields > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.PendingReplyCollect.include"
 	local remindStore="$MMDAPP/.local/agents/pending" remindDaily="$MMDAPP/.local/agents/pending-remind.daily"
 	local remindNow remindToday remindHhmm remindStamp remindDailyOpen="" remindWork remindLock=""
 	local remindReminded=0 remindThreads=0 remindDigests=0 remindSkipped=0 remindFailed=0 remindHeld=0
@@ -202,7 +203,7 @@ AgentsToolsPendingReplyRemindRun(){ ## optional: pending ids
 		return 1
 	fi
 	mkdir -p "$MMDAPP/.local/temp" || return 1
-	. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.LocalLock.include"
+	. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.LocalLock.include"
 	## One run at a time, so two runs never both find a stage due and both send it.
 	if ! AgentsToolsLocalLockTake "pending-reply-remind" "$remindTries" ; then
 		echo "$MDSC_CMD: another reminder run holds the lock; nothing sent this time" >&2
@@ -281,7 +282,7 @@ AgentsToolsPendingReplyRemindRun(){ ## optional: pending ids
 				processed|archived|retained|'')
 					mootReason="moot: ${fItem%.md} is in $mootState, so its work no longer waits on this answer"
 					[ -n "$mootState" ] || mootReason="moot: ${fItem%.md} is on the board no more, so its work no longer waits on this answer"
-					type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" > /dev/null 2>&1
+					type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 					if DistroAgentsTools --settle-pending-reply --team-member "${fOwner:-magic-coordinator}" "$remindId" --reason "$mootReason" --withdraw > /dev/null 2>&1 ; then
 						printf 'REMIND-MOOT: %s withdrawn -- %s\n' "$remindId" "$mootReason"
 					else
@@ -334,7 +335,7 @@ AgentsToolsPendingReplyRemindRun(){ ## optional: pending ids
 	local rPerson rEpoch rId rFile rStages rN rOwner rIdentity rChannel rQts rTts rAskedAt rForward
 	## When an ask was asked is said as a Slack date token, so each reader sees it in their own
 	## timezone (AgentsTools.SlackDate.include); a moment the helper cannot read stays as it was.
-	type AgentsToolsSlackDateToken > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.SlackDate.include" 2> /dev/null || :
+	type AgentsToolsSlackDateToken > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/slack/AgentsTools.SlackDate.include"
 	for remindPerson in $( LC_ALL=C cut -f1 "$remindWork/due.sorted" | LC_ALL=C uniq ) ; do
 		LC_ALL=C awk -F'\t' -v p="$remindPerson" '$1 == p' "$remindWork/due.sorted" > "$remindWork/group"
 		while IFS=$'\t' read -r rPerson rEpoch rId rFile rStages rN rOwner rIdentity rChannel rQts rTts rAskedAt rForward ; do
@@ -385,6 +386,7 @@ AgentsToolsPendingReplyRemindRun(){ ## optional: pending ids
 ## the same lock as the main loop's. Prints what the run prints, and nothing at all when the
 ## wait stands for no ask.
 AgentsToolsPendingReplyRemindWaitRun(){ ## the waiting session's id (may be empty), the wait's sources
+	type AgentsToolsPendingReplyCollectFieldOf > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.PendingReplyCollect.include"
 	local waitStore="$MMDAPP/.local/agents/pending" waitSource waitId waitSession waitCow waitIds="" waitCows=" " waitKnown=" "
 	[ -d "$waitStore" ] || return 0
 	type AgentsToolsPermissionShareStore > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionHolds.include"

@@ -9,7 +9,8 @@
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigFn="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsKnowledge.fn.sh"
-rigTmp="$( mktemp -d "${TMPDIR:-/tmp}/AgentsMagicSectionUpsertCheck.XXXXXXXX" )" || exit 1
+mkdir -p "$MMDAPP/.local/agents/scratch/sh-test" || exit 1
+rigTmp="$( mktemp -d "$MMDAPP/.local/agents/scratch/sh-test/AgentsMagicSectionUpsertCheck.XXXXXXXX" )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
 rigPass=0 ; rigFail=0
 rigAssert(){ ## what, got, want
@@ -73,7 +74,7 @@ rigAssert "a file with a local change is edited, behind or not: it is the member
 if [ "$rigFail" -ne 0 ] ; then
 	echo "⛔ MAGIC SECTION UPSERT CHECK FAILED: $rigFail of $(( rigPass + rigFail )) assertion(s)" >&2
 	echo "  warn: a write to a MAGIC.md may touch more than its one section, or refuse nothing" >&2
-	echo "  fix:  AgentsToolsMagicSectionUpsert in sh-lib/team-data/AgentsTools.InternOpMagicSection.include" >&2
+	echo "  fix:  AgentsToolsMagicSectionUpsert in sh-lib/knowledge/AgentsTools.InternOpMagicSection.include" >&2
 	exit 1
 fi
 echo "MAGIC_SECTION_UPSERT: OK ($rigPass assertions, offline)"

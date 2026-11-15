@@ -12,7 +12,6 @@
 ##
 
 type AgentsToolsRegistryFile > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
-type AgentsToolsMemberHomesFile > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberHomes.include"
 type LocalToolsManagerField > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/manager/LocalTools.ManagerField.include"
 
 ## The registry of the sessions of this workspace, a path.
@@ -23,7 +22,7 @@ AgentsToolsManagerPlaceSessions(){
 ## What stands in a place that is there: the members whose home the machine keeps in it, then the team data root of this workspace where it lies in the place.
 AgentsToolsManagerPlaceStands(){ ## the path of the place, its state
 	local standsFile standsMember standsHome standsRest
-	standsFile="$( AgentsToolsMemberHomesFile )"
+	standsFile="${HOME:-}/.agents/magic-team/member-homes.registry"
 	if [ -r "$standsFile" ] ; then
 		while IFS=$'\t' read -r standsMember standsHome standsRest ; do
 			[ -n "$standsMember" ] && [ "${standsHome%/}" = "${1%/}" ] || continue

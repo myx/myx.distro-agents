@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.RunRecords.include -- the record of a run: by its spawn id, or the one a run with no spawn id owns.
+## Sourced, never run. Functions only. Each function loads what it calls itself.
+##
+
+## The record of one spawn in this workspace's sandbox roots, by the spawn's own id: the file
+## of that name that names the id as its spawn-id. Prints its path, or nothing.
+AgentsToolsSpawnRecord(){ ## spawn id
+	type AgentsToolsRegistryHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
+	local spawnRecord
+	case "${1:-}" in ''|-|*/*|.|..) return 0 ;; esac
+	for spawnRecord in "${MMDAPP:-/nonexistent}/.local/agents/spawned"/*/"$1.spawn.md" ; do
+		[ -f "$spawnRecord" ] || continue
+		[ "$( AgentsToolsRegistryHeader "$( AgentsToolsRegistryFrontmatter "$spawnRecord" )" spawn-id )" = "$1" ] || continue
+		printf '%s\n' "$spawnRecord"
+		return 0
+	done
+	return 0
+}
+
+## The record of a run that has no spawn-id (an older record, or one a proxy wrote without it): the file of the session in the sandbox of its
+## own, named by the session, whose session-id says it is. Nothing where there is none.
+AgentsToolsRunOwnRecord(){ ## session id
+	type AgentsToolsRegistryHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
+	local ownFile
+	case "${1:-}" in ''|-|*/*|.|..) return 0 ;; esac
+	for ownFile in "$MMDAPP/.local/agents/spawned"/*/"$1.spawn.md" ; do
+		[ -f "$ownFile" ] || continue
+		[ "$( AgentsToolsRegistryHeader "$( AgentsToolsRegistryFrontmatter "$ownFile" )" session-id )" = "$1" ] || continue
+		printf '%s\n' "$ownFile"
+		return 0
+	done
+	return 0
+}

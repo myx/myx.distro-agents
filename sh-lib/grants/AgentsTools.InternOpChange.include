@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # ^^^ for syntax checking in the editor only
+type AgentsSpawnedThreadOfRecord > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
 
 ##
 ## AgentsTools.InternOpChange.include -- a change held for the human-owner's approval.
@@ -27,7 +28,7 @@
 ## Its prompt (sh-lib/templates/change-approve.post.format.md) is recorded as a pending reply
 ## of kind `change`, the asking member's own, in that session's Wait: so the verdict comes
 ## back where every answer does, the prompt is reminded as every ask is, and the verdict is
-## read and carried out where every typed answer is (AgentsTools.MemberEscalation.include),
+## read and carried out where every typed answer is (AgentsTools.Escalation.include),
 ## through AgentsChangeVerdict here.
 ##
 ## An approve is carried out by the member's own tool: the kept call is made again by the
@@ -54,11 +55,11 @@ if ! type AgentsChangeFill > /dev/null 2>&1 ; then
 	AgentsChangeLoad(){
 		local loadLib="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib"
 		type AgentsToolsAskKindRow > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.AskPost.include"
-		type AgentsToolsPermissionShownTarget > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.InternOpPermission.include"
+		type AgentsToolsPermissionShownTarget > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionPlaces.include"
 		type AgentsToolsPermissionIsHumanOwner > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionHolds.include"
 		type AgentsToolsDecisionsItemPath > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemDecisions.include"
 		type AgentsToolsTaskText > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.TaskText.include"
-		type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include"
+		type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandbox.include"
 	}
 
 	## One part of the prompt filled from its own template, by the filler the ask posts use: the
@@ -110,7 +111,7 @@ if ! type AgentsChangeFill > /dev/null 2>&1 ; then
 	## Whether the session that made a held change is gone. Its store says it ended
 	## (AgentsToolsGrantsSessionEnded): a spawn record that is closed, or the marker a session
 	## with no spawn record leaves at its end. Or it is a spawn of this host that no process
-	## runs as (AgentsToolsRegistrySpawnRuns, the one rule for that). A spawn of another host
+	## runs as (AgentsToolsSpawnRuns, the one rule for that). A spawn of another host
 	## cannot be seen from here, and is taken as running. A session with no spawn record runs
 	## while it has a store that does not say it ended. A record that names no session has
 	## none to carry a verdict out for.
@@ -128,8 +129,8 @@ if ! type AgentsChangeFill > /dev/null 2>&1 ; then
 				''|-|"$( hostname -s 2> /dev/null || echo unknown )") ;;
 				*) return 1 ;;
 			esac
-			type AgentsToolsRegistrySpawnRuns > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
-			! AgentsToolsRegistrySpawnRuns "$goneSession" "$goneRecord" || return 1
+			type AgentsToolsSpawnRuns > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunProcesses.include"
+			! AgentsToolsSpawnRuns "$goneSession" "$goneRecord" || return 1
 			return 0
 		done
 		[ ! -d "$MMDAPP/.local/agents/sessions/$goneSession" ] || return 1
@@ -351,11 +352,12 @@ case "$1" in
 			holdThread="$( AgentsToolsSpawnSandboxRecordHeader "$holdRecord" session-thread )"
 			if [ -z "$holdThread" ] || [ "$holdThread" = "-" ] ; then
 				holdThread=""
-				[ ! -f "${holdRecord%/*}/session.thread" ] || IFS= read -r holdThread < "${holdRecord%/*}/session.thread" || :
+				holdThread="$( AgentsSpawnedThreadOfRecord "$holdRecord" )"
 			fi
 			holdSessionText="$( ASKP_F_session_id="${holdCow:0:8}" ASKP_F_session_thread="$( AgentsToolsPermissionSetThreadShown "$holdMember" "$holdThread" )" \
 				ASKP_F_session_description="$( AgentsToolsTaskTextLine "$( AgentsToolsSpawnSandboxRecordHeader "$holdRecord" description )" )" AgentsChangeFill block "Lines/session" 2> /dev/null )" || holdSessionText=""
 		fi
+		type AgentsToolsPermissionRefusalWhere > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionPosts.include"
 		holdWhere="$( AgentsToolsPermissionRefusalWhere )"
 		holdByText="$( ASKP_F_member="$holdMember" ASKP_F_host="$( printf '%s\n' "$holdWhere" | LC_ALL=C sed -n 's/^host: //p' )" \
 			ASKP_F_workspace="$( printf '%s\n' "$holdWhere" | LC_ALL=C sed -n 's/^workspace: //p' )" AgentsChangeFill block "Lines/asked-by" 2> /dev/null )" || holdByText=""

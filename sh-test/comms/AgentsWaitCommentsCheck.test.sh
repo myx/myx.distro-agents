@@ -25,7 +25,7 @@ rigPackage="$MDLT_ORIGIN/$rigPackageRel"
 rigTools="$rigPackage/sh-scripts/DistroAgentsTools.fn.sh"
 [ -f "$rigTools" ] || rigRefuse "no dispatcher at the origin this workspace resolves: $rigPackage"
 for rigName in $rigFiles ; do
-	[ -s "$rigPackage/sh-lib/member/$rigName" ] || rigRefuse "no such file, or an empty one, at the origin: $rigPackage/sh-lib/member/$rigName"
+	[ -s "$rigPackage/sh-lib/wait/$rigName" ] || rigRefuse "no such file, or an empty one, at the origin: $rigPackage/sh-lib/wait/$rigName"
 done
 
 . "$rigPackage/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
@@ -75,12 +75,12 @@ rigAssert "reader: an empty file is none" "$( rigBlocks "$rigTmp/h.empty" )" "0 
 
 echo "-- 1. the comments of the hot wait files --"
 for rigName in $rigFiles ; do
-	rigAssert "$rigName: one-line comments only" "$( rigBlocks "$rigPackage/sh-lib/member/$rigName" )" "0 block(s)"
+	rigAssert "$rigName: one-line comments only" "$( rigBlocks "$rigPackage/sh-lib/wait/$rigName" )" "0 block(s)"
 done
 
 echo "-- 2. the files still run --"
 for rigName in $rigFiles ; do
-	rigAssert "$rigName: parses under bash" "$( bash -n "$rigPackage/sh-lib/member/$rigName" > /dev/null 2>&1 && printf parses || printf 'does-not-parse' )" parses
+	rigAssert "$rigName: parses under bash" "$( bash -n "$rigPackage/sh-lib/wait/$rigName" > /dev/null 2>&1 && printf parses || printf 'does-not-parse' )" parses
 done
 mkdir -p "$rigTmp/ws/.local/.agents" "$rigTmp/ws/.local/agents" "$rigTmp/data" || exit 1
 printf 'quiet\n' > "$rigTmp/quiet.txt"

@@ -15,7 +15,7 @@
 ## is older than the type retention. Contract: MAGIC.md.
 ##
 
-type AgentsToolsInboxDir > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/inbox/AgentsTools.InboxPlace.include"
+type AgentsToolsInboxItemFind > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/inbox/AgentsTools.InboxPlace.include"
 
 ## One header of an inbox item, nothing for a key it lacks.
 AgentsToolsInboxToProcessedField(){ ## file, key
@@ -28,7 +28,7 @@ AgentsToolsInboxToProcessedField(){ ## file, key
 ## not be filed; the mark stands.
 AgentsToolsInboxToProcessedReply(){ ## owner (who processed), request (name), requester
 	local replyText="" replyFile="" replyRc=0 replyName
-	type AgentsToolsEscalationNote > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.MemberEscalation.include" --definitions-only > /dev/null 2>&1 || return 0
+	type AgentsToolsEscalationNote > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.Escalation.include"
 	replyText="$( ASKP_F_owner="$1" ASKP_F_requester="$3" ASKP_F_request="$2" AgentsToolsEscalationNote "Inbox/inquiry-reply" )" || replyText=""
 	replyName="note-$( date -u +%Y%m%dT%H%MZ )-inquiry-reply-${2##*-}"
 	replyName="${replyName%.md}.md"

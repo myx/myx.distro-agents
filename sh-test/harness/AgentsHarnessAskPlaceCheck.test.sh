@@ -35,7 +35,7 @@ mkdir -p "$rigTmp/bin" "$rigTmp/tmp"
 cp "$rigTest/check-fixtures/harness-ask-forms.curl.stub.sh" "$rigTmp/bin/curl" || rigRefuse "the fake curl fixture is missing from the package"
 chmod +x "$rigTmp/bin/curl"
 ## THE RIG'S OWN PROCESS LIST. A spawn is found running by its spawn id in the host's process
-## list (AgentsToolsRegistryRunningSpawns). A rig that read the real list would take any process
+## list (AgentsToolsRunningSpawns). A rig that read the real list would take any process
 ## of this host whose command line holds one of its ids for a live run of its own. So the ps
 ## first on PATH answers the whole-host listing from the rig's own list, one
 ## `<pid> <command line>` line a run, and hands every other call to the real ps.

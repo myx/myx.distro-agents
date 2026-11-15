@@ -20,8 +20,8 @@ rigHere="$MDLT_ORIGIN/myx/myx.distro-agents"
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }
-[ -f "$rigHere/sh-lib/session/AgentsTools.SandboxLinks.include" ] || rigRefuse "the scan is not at the origin this workspace resolves: $rigHere/sh-lib/session/AgentsTools.SandboxLinks.include"
-. "$rigHere/sh-lib/session/AgentsTools.SandboxLinks.include" || exit 1
+[ -f "$rigHere/sh-lib/spawn/AgentsTools.SandboxLinks.include" ] || rigRefuse "the scan is not at the origin this workspace resolves: $rigHere/sh-lib/spawn/AgentsTools.SandboxLinks.include"
+. "$rigHere/sh-lib/spawn/AgentsTools.SandboxLinks.include" || exit 1
 . "$rigHere/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
 rigTmp="$( rigTempDir AgentsSandboxLinkCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
@@ -154,7 +154,7 @@ rigRunPkg="$rigTmp/rws/.local/temp/rig-origin/source/myx/myx.distro-agents"
 mkdir -p "$rigRunPkg/sh-test/check-fixtures" "$rigRunPkg/sh-lib/session" "$rigTmp/rhome" "$rigTmp/rmembers" "$rigTmp/rdata"
 cp "$rigHere/sh-test/AgentsRunTests.sh" "$rigRunPkg/sh-test/AgentsRunTests.sh"
 cp "$rigHere/sh-test/check-fixtures"/runner-*.py "$rigRunPkg/sh-test/check-fixtures/"
-cp "$rigHere/sh-lib/session/AgentsTools.SandboxLinks.include" "$rigRunPkg/sh-lib/session/"
+cp "$rigHere/sh-lib/spawn/AgentsTools.SandboxLinks.include" "$rigRunPkg/sh-lib/session/"
 cat > "$rigRunPkg/sh-test/RigLn.test.sh" <<'RIGLN'
 #!/usr/bin/env bash
 { printf 'LN=%s\n' "$( command -v ln )" ; ln -s "$RIG_AIM" "$RIG_SHARED/rig-slot" 2> /dev/null ; printf 'RC=%s\n' "$?" ; ln -s "$RIG_SHARED/elsewhere" "$RIG_SHARED/rig-ok" ; printf 'OKRC=%s\n' "$?" ; } > "$RIG_SHARED/ln.found"

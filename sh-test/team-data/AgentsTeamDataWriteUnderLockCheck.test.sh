@@ -185,7 +185,7 @@ rigItemUpsert(){ ## result name, item name, body file
 			RIG_GIT_LOG="$rigBin/git.log" RIG_REAL_GIT="$rigRealGit" RIG_GIT_STORE="$rigData" \
 			RIG_GIT_REFUSE="${rigGitRefuse:-0}" RIG_GIT_FAIL_FIRST="${rigGitFailFirst:-0}" RIG_GIT_COUNT="$rigBin/gitfail.count" \
 			bash -c '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.UseAgentsTools.include" 2> /dev/null
-				. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.InternOpItem.include"
+				. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/items/AgentsTools.InternOpItem.include"
 				AgentsToolsItemUpsert rig-member --from-board backlog "$1" --from-file "$2" --context rig' rigup "$upItem" "$upBody"
 	) > "$rigTmp/$upName.out" 2>&1 < /dev/null
 	printf '%s' "$?" > "$rigTmp/$upName.rc"

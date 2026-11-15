@@ -1,3 +1,6 @@
+---
+maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
+---
 # Applying the output-style floor
 
 The body of the section of the same name in this member's armed content.

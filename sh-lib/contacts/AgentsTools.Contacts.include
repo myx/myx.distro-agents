@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+type AgentsSlackIdentityId > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/slack/AgentsTools.SlackIdentities.include"
+
+##
+## AgentsTools.Contacts.include -- the functions of DistroAgentsContacts.fn.sh (F7.10): the people subsystem. Sourced for its functions only;
+## $MDSC_CMD is the caller's.
+##
+## THE STORE is the team data root's `contacts/` (committed with the rest by the team data commit): one file a person,
+## `contacts/persons/<id>.md`, and one an organisation, `contacts/organisations/<id>.md`. A person is a contact of the team, not of a member:
+## `reached-by:` lists the members that hold it. A record is written whole by this file's functions, a rename in its own folder, and read by
+## AgentsContactsIndex.awk; nobody keeps it by hand. A person's front matter, in this order (an empty value is not written):
+##   type contact; contact-id; display-name; organisation (an organisation's id, or none); role; relationship; is-owner (yes|no); reached-by
+##   (members, comma-separated); slack-id, slack-handle, slack-conversation (each entry `<team>:<value>`, the Slack team being the identity scope
+##   of the workspace the value belongs to: an id is unique within one workspace only); email; how-to-meet; allows (what the contact may ask for,
+##   written by the permission model's grant-open and read by its chain, never by this file).
+## The body is a title and `## Log`: one dated line for each change, each note and each escalation, in the order they happened.
+## ACCESS IS NOT HERE. A contact's access level is read from the permission model (the `allows:` entry above and the grants of a session
+## given to `contact:<id>`), never stored a second time; this file asks the chain.
+##
+
+## The parts of the people subsystem, one file per concern (sh-lib/contacts/), each loaded once.
+type AgentsToolsContactsStore > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/contacts/AgentsTools.ContactsRecord.include"
+type AgentsToolsContactsSlackTeam > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/contacts/AgentsTools.ContactsCoordinates.include"
+type AgentsToolsContactsTierName > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/contacts/AgentsTools.ContactsTiers.include"
+type AgentsToolsContactsCollectOrganisation > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/contacts/AgentsTools.ContactsCollect.include"
+type AgentsToolsContactsAll > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/contacts/AgentsTools.ContactsQuery.include"
+type AgentsToolsContactsChain > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/contacts/AgentsTools.ContactsAccess.include"

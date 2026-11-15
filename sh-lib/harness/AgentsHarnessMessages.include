@@ -17,6 +17,7 @@ type AgentsToolsSessionPauseWait > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.dis
 ## own, in a workspace whose inbox fallback is refused too, could not be reached at all, though a
 ## live session of its own was open and waiting).
 AgentsHarnessMessageLiveSessionThread(){ ## team member
+	type AgentsToolsRegistryRowsEntry > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
 	local liveMember="${1:-}" liveStore="${MMDAPP:-}/.local/agents/spawned" liveNames liveFile liveOut liveHost liveTracking
 	local rowTracking rowSession rowParent rowHost rowOwner rowStatus rowExit rowSpawn rowAgentLog rowThread rowWorkspace rowLive rowState rowRest
 	## AgentsToolsRegistryMeasureRows writes measuredRows/measuredDated/measuredAny as its caller's own, not its
@@ -24,8 +25,8 @@ AgentsHarnessMessageLiveSessionThread(){ ## team member
 	## SendMessage never clobbers whatever the real caller already had in them for its own, unrelated reason.
 	local measuredRows="" measuredDated="" measuredAny=""
 	[ -n "$liveMember" ] && [ -d "$liveStore" ] || return 0
-	type AgentsToolsRegistryMeasureRows > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include" 2> /dev/null || return 0
-	type AgentsToolsRegistryRowsEntry > /dev/null 2>&1 || return 0
+	type AgentsToolsRegistryMeasureRows > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.RegistrySpawnedSessions.include"
+	type AgentsToolsRegistryRowsEntry > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
 	liveNames="$( printf '%s\0' "$liveStore"/*/*.spawn.md | LC_ALL=C xargs -0 grep -l -x -F -- "owner: $liveMember" 2> /dev/null )" || :
 	[ -n "$liveNames" ] || return 0
 	liveOut="$( mktemp "${MMDAPP:-}/.local/temp/mdat-message-live.XXXXXX" 2> /dev/null )" || return 0
@@ -53,7 +54,7 @@ AgentsHarnessMessageLiveSessionThread(){ ## team member
 
 AgentsHarnessSessionThread(){ ## the session address as given, what did not happen (default: Nothing was sent.)
 	local sessionResolved="" sessionRc=0 sessionLine sessionChannel="" sessionTs="" sessionWhat="the thread of this session"
-	type DistroAgentsToolsResolveTarget > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsSlack.include" 2> /dev/null || :
+	type DistroAgentsToolsResolveTarget > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/slack/AgentsTools.CommsSlack.include"
 	sessionResolved="$( DistroAgentsToolsResolveTarget "$1" 2> /dev/null )" || sessionRc=$?
 	if [ "$sessionRc" = "3" ] ; then
 		printf 'ERROR: %s %s\n' "$sessionResolved" "${2:-Nothing was sent.}" ; return 1
@@ -104,6 +105,8 @@ AgentsHarnessSendProse(){ ## values...
 ## on stdin, where no shell quoting can reach it -- a single apostrophe in a composed
 ## send emptied one live message in this estate.
 AgentsHarnessToolSendMessageRun(){ ## target, message, as bot, address to, broadcast (true: a thread reply also shown in the conversation), no inbox (true: a team member with no Slack DM is refused, since an inbox cannot be waited on), next (reply|handback: a NEXT: line naming the Wait that follows a sent message)
+	type AgentsHarnessWorkDuty > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessSpawn.include"
+	type AgentsHarnessOwnPostRecord > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessAccess.include"
 	local toolTarget="$1" toolMessage="$2" toolAsBot="$3" toolAddressTo="$4" toolBroadcast="${5:-}" toolNoInbox="${6:-}" toolInboxOnly="" toolNext="${7:-}" toolAgain="${9:-}" sendRc=0 toolShown="" toolSession toolInbox
 	if [ -z "$harnessAgent" ] ; then
 		printf 'ERROR: this harness was started without --agent, so it has no team identity to send under, and one is never guessed here. Nothing was sent. Report this rather than working around it.%s\n' "${harnessAgentMissing:+ ($harnessAgentMissing)}" ; return 0
@@ -130,7 +133,7 @@ AgentsHarnessToolSendMessageRun(){ ## target, message, as bot, address to, broad
 		fi
 	fi
 	if [ -z "$toolTarget" ] ; then
-		type AgentsToolsCommsPrintbackSessionOwnTarget > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsPrintback.include" 2> /dev/null || :
+		type AgentsToolsCommsPrintbackSessionOwnTarget > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsPrintback.include"
 		toolTarget="$( AgentsToolsCommsPrintbackSessionOwnTarget 2> /dev/null )" || toolTarget=""
 	fi
 	if [ -z "$toolTarget" ] || [ -z "$toolMessage" ] ; then
@@ -286,6 +289,7 @@ AgentsHarnessToolSendMessageRun(){ ## target, message, as bot, address to, broad
 	printf 'NEXT: call Wait\n'
 }
 AgentsHarnessToolSendMessage(){ ## target, message, as bot, address to, broadcast (true: a thread reply also shown in the conversation), no inbox (true: a team member with no Slack DM is refused, since an inbox cannot be waited on), next (reply|handback: a NEXT: line naming the Wait that follows a sent message)
+	type AgentsToolsSessionPauseWait > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionPause.include"
 	## S19.2: a send is held at its EXIT, so the message went and the call's result waits for the pause to end.
 	local pauseRc=0
 	AgentsHarnessToolSendMessageRun "$@" || pauseRc=$?
@@ -300,6 +304,7 @@ AgentsHarnessToolSendMessage(){ ## target, message, as bot, address to, broadcas
 ## view/session_id/state are optional filters onto that same registry -- see
 ## AgentsToolsRegistryRenderSpawnedSessions's own header for what each composes with.
 AgentsHarnessToolListAgents(){
+	type AgentsToolsRegistryRenderSpawnedSessions > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.RegistrySpawnedSessions.include"
 	local toolView="${1:-agents}" toolSessionId="$2" toolState="$3"
 	local listRegistries="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
 	if [ -z "${MMDAPP:-}" ] ; then
@@ -313,8 +318,8 @@ AgentsHarnessToolListAgents(){
 		*) printf 'ERROR: view must be agents or sessions, got: %s\n' "$toolView" ; return 0 ;;
 	esac
 	case "$toolState" in
-		''|running|thinking|tool|waiting|idling|paused|parked|unclosed|failed|finished) ;;
-		*) printf 'ERROR: state must be running, thinking, tool, waiting, idling, paused, parked, unclosed, failed or finished, got: %s. running is every run with a process here, and the waiting ones too.\n' "$toolState" ; return 0 ;;
+		''|running|thinking|tool|waiting|idling|busy|paused|parked|unclosed|failed|finished) ;;
+		*) printf 'ERROR: state must be running, thinking, tool, waiting, idling, busy, paused, parked, unclosed, failed or finished, got: %s. running is every run with a process here, and the waiting ones too.\n' "$toolState" ; return 0 ;;
 	esac
 	## A failed run's own reason stands under its row, the first line of the marker the harness kept
 	## beside its record when it ended refused (<sandbox>/<run>.refused). Nothing where none was kept.
@@ -356,6 +361,7 @@ AgentsHarnessToolListAgents(){
 ## holds it (AgentsHarnessSeatTake). Otherwise the run is refused (AgentsHarnessSeatRefuse), rc 0,
 ## and nothing is to be sent; rc 1 where the post may go. Every other send is as it was.
 AgentsHarnessSendSeatRefused(){ ## target as given
+	type AgentsHarnessSeatTake > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessWait.include"
 	local seatedThread="" seatedHolder=""
 	case "$1" in
 		''|"$harnessCurrentName"|"$harnessCurrentName":*)
@@ -376,9 +382,11 @@ AgentsHarnessSendSeatRefused(){ ## target as given
 ## `timeout` with a wait); what the gate said is this call's result. rc 0 the call goes on and
 ## acts; rc 1 it ends here, what became of it said.
 AgentsHarnessAuthorityAsk(){ ## what (words), the run's spawn id, tool, the call's arguments JSON
+	type AgentsHarnessSpawnRecordPath > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessSpawn.include"
+	type AgentsHarnessWholeNumber > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessToolsFile.include"
 	local askRecord=""
-	type AgentsToolsAuthorityGate > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.Authority.include" 2> /dev/null || return 0
-	type AgentsToolsRunRoute > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include" 2> /dev/null || return 0
+	type AgentsToolsAuthorityGate > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.Authority.include"
+	type AgentsToolsRunRoute > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.RunRoute.include"
 	askRecord="$( AgentsHarnessSpawnRecordPath "$2" )"
 	agentsAuthorityMode="" agentsAuthorityTimeout=""
 	case "${harnessArgV_escalate:-}" in
@@ -396,8 +404,9 @@ AgentsHarnessAuthorityAsk(){ ## what (words), the run's spawn id, tool, the call
 ## authority over that run. rc 0 the send is refused or asked for, what became of it said; rc 1 it
 ## may go.
 AgentsHarnessSendDismissRefused(){ ## target as given, message, address to
+	type AgentsHarnessBareName > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessSpawn.include"
 	local dismissBody dismissMember="" dismissRun="" dismissCandidate dismissSession
-	type AgentsToolsAuthorityField > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.Authority.include" 2> /dev/null || return 1
+	type AgentsToolsAuthorityField > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.Authority.include" || return 1
 	dismissBody="$( printf '%s' "$2" | LC_ALL=C tr -d '\r' | LC_ALL=C sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' )"
 	case "$dismissBody" in
 		DISMISSED|DISMISSED.|DISMISSED!) dismissMember="$3" ;;
@@ -405,14 +414,15 @@ AgentsHarnessSendDismissRefused(){ ## target as given, message, address to
 		*) return 1 ;;
 	esac
 	AgentsHarnessBareName "$dismissMember" || return 1
-	type AgentsToolsSessionSeatHolder > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include" 2> /dev/null || return 1
+	type AgentsToolsSessionSeatHolder > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionSeats.include" || return 1
 	dismissSession="${MDAT_SESSION_ID:-}"
 	[ -n "$dismissSession" ] || dismissSession="$( AgentsToolsAuthorityField "$( AgentsHarnessSpawnRecordPath "${MDAT_SPAWN_SESSION_ID:-}" )" session-id 2> /dev/null )"
 	[ -n "$dismissSession" ] || return 1
 	dismissRun="$( AgentsToolsSessionSeatHolder "$dismissSession" "$dismissMember" )" || dismissRun=""
 	if [ -z "$dismissRun" ] ; then
-		type AgentsToolsSpawnedSessionRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include" 2> /dev/null || :
+		type AgentsToolsSpawnedSessionRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.StartedRecords.include"
 		for dismissCandidate in $( AgentsToolsSpawnedSessionRecords "$dismissSession" own 2> /dev/null ) ; do
+			type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandbox.include"
 			[ "$( AgentsToolsSpawnSandboxRecordHeader "$dismissCandidate" owner )" = "$dismissMember" ] || continue
 			AgentsToolsSessionRecordLive "$dismissCandidate" || continue
 			dismissRun="${dismissCandidate##*/}" ; dismissRun="${dismissRun%.spawn.md}"

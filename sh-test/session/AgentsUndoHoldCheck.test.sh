@@ -7,7 +7,7 @@ set -u
 : "${MDAT_WORKSPACE_MODE:=team-rig}" ; export MDAT_WORKSPACE_MODE
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigPackage="$MDLT_ORIGIN/myx/myx.distro-agents"
-rigSweepLib="$rigPackage/sh-lib/session/AgentsTools.SpawnSandbox.include"
+rigSweepLib="$rigPackage/sh-lib/spawn/AgentsTools.SpawnSandbox.include"
 rigTool="$rigPackage/sh-scripts/DistroAgentsTools.fn.sh"
 
 rigRefuse(){

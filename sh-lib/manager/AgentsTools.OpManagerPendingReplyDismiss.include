@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+## AgentsTools.OpManagerPendingReplyDismiss.include -- the operation `--manager-pending-reply-dismiss`, sourced by AgentsTools.ManagerPendingReply.include with the operation's arguments.
+## One open question closed with no answer, from the console: the withdraw every asker has
+## for its own question, done here for any member's, with an optional reason. One row.
+		local dismissOp="$1" dismissSyntax="--id <pending-id> [--reason <text>]" dismissReason="" dismissAccount dismissOut="" dismissRc=0
+		shift
+		AgentsToolsManagerPendingRecord "$dismissOp" "$dismissSyntax" "$@" || { set +e ; return 1 ; }
+		type AgentsToolsAuthorityFlags > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.Authority.include"
+		AgentsToolsAuthorityFlags ${managerPendingRest[@]+"${managerPendingRest[@]}"} || { set +e ; return 1 ; }
+		set -- ${agentsAuthorityRest[@]+"${agentsAuthorityRest[@]}"}
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--reason)
+					if [ $# -lt 2 ] ; then
+						echo "⛔ ERROR: $MDSC_CMD $dismissOp: --reason needs a text -- syntax is $dismissSyntax" >&2
+						set +e ; return 1
+					fi
+					dismissReason="$2" ; shift 2
+				;;
+				*)
+					echo "⛔ ERROR: $MDSC_CMD $dismissOp: syntax is $dismissSyntax, got: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		AgentsToolsManagerPendingOpen "$dismissOp" || { set +e ; return 1 ; }
+		## THE AUTHORITY over the run that asked it -- except a run already ended by a kill, which
+		## an authorised kill of it finishes by dismissing its questions (AgentsToolsManagerSessionFinish).
+		local dismissAsker="" dismissAskerRecord=""
+		dismissAsker="$( AgentsToolsEscalationField "$managerPendingFile" session-id )"
+		type AgentsToolsSessionRunRecord > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionSeats.include"
+		dismissAskerRecord="$( AgentsToolsSessionRunRecord "$dismissAsker" )" || dismissAskerRecord=""
+		if [ -z "$dismissAskerRecord" ] || [ -z "$( AgentsToolsEscalationField "$dismissAskerRecord" killed-by )" ] ; then
+			## A dismissal grants nothing: it is never gated, whoever the question is asked of.
+			agentsAuthorityRefusing="yes"
+			AgentsToolsAuthorityGate "dismiss question $managerPendingId" "$managerPendingId" "$dismissAskerRecord" "" console \
+				"$dismissOp" --id "$managerPendingId" --reason "$dismissReason" || :
+			AgentsToolsAuthorityExit || { set +e ; return "$agentsAuthorityExit" ; }
+		fi
+		dismissAccount="$( AgentsToolsManagerPendingAccount )"
+		dismissOut="$( . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.MemberPendingReply.include" \
+			--manager-pending-reply-dismiss "$dismissAccount" "$managerPendingId" --reason "$dismissReason" )" || dismissRc=$?
+		case "$dismissRc:$dismissOut" in
+			0:*"WITHDRAWN $managerPendingId"*)
+				printf 'dismissed\t%s\tconsole:%s\t%s\n' "$managerPendingId" "$dismissAccount" "$( printf '%s' "${dismissReason:--}" | LC_ALL=C tr '\t\r\n' '   ' )"
+				return 0
+			;;
+		esac
+		echo "⛔ ERROR: $MDSC_CMD $dismissOp: $managerPendingId was not dismissed, and stays as it was" >&2
+		set +e ; return 1

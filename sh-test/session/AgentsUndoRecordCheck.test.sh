@@ -12,7 +12,7 @@ set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigPackage="$MDLT_ORIGIN/myx/myx.distro-agents"
 rigTool="$rigPackage/sh-scripts/DistroAgentsTools.fn.sh"
-rigSimLib="$rigPackage/sh-lib/session/AgentsTools.SpawnSandbox.include"
+rigSimLib="$rigPackage/sh-lib/spawn/AgentsTools.SpawnSandbox.include"
 rigSweepLib="$rigSimLib"
 rigCurl="$rigPackage/sh-test/check-fixtures/change-approval.curl.stub.sh"
 

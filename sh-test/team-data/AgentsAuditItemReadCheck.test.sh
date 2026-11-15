@@ -89,7 +89,7 @@ rigSpawnFinds(){ ## name, line
 rigUpsertFinds(){ ## folder of the item below audit (empty: the root), name
 	local upsertAt="$rigAudit${1:+/$1}/$2" upsertNew="rig upsert of $2"
 	printf '%s\n' "$upsertNew" > "$rigTmp/upsert.in"
-	rigOp --intern-mcp-execute <<< ". \"$rigHere/team-data/AgentsTools.InternOpItem.include\" && AgentsToolsItemUpsert magic-tester --from-audit \"$2\" --from-file \"$rigTmp/upsert.in\" --no-push --context rig-audit-read"
+	rigOp --intern-mcp-execute <<< ". \"$rigHere/items/AgentsTools.InternOpItem.include\" && AgentsToolsItemUpsert magic-tester --from-audit \"$2\" --from-file \"$rigTmp/upsert.in\" --no-push --context rig-audit-read"
 	if [ "$( rigHolds "$upsertAt" "$upsertNew" )" = yes ] ; then printf in-place
 	elif [ -n "$( LC_ALL=C grep -r -l -F -- "$upsertNew" "$rigAudit" 2> /dev/null )" ] ; then printf elsewhere
 	else printf nowhere

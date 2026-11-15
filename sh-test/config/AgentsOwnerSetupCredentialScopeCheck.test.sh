@@ -185,7 +185,7 @@ rigSelect(){ ## scope, key -- what the tooling's reader answers
 }
 rigHolder(){ ## workspace, preset spec -- what the spawn path records as the credential's holder
 	( cd "$1" && env -i HOME="$rigHome" PATH="/usr/bin:/bin:/usr/sbin:/sbin" MMDAPP="$1" MDLT_ORIGIN="$rigToolOrigin" MDSC_CMD=rig-check \
-		bash -c '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.Preset.include" && AgentsToolsPresetCredentialHolder "$MMDAPP" "$1"' rig "$2" ) 2> /dev/null
+		bash -c '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/settings/AgentsTools.Preset.include" && AgentsToolsPresetCredentialHolder "$MMDAPP" "$1"' rig "$2" ) 2> /dev/null
 }
 
 ## The rig's own secrets: made here, never read from anywhere, and never printed by

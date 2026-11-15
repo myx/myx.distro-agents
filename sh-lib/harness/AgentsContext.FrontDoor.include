@@ -68,7 +68,7 @@ case "$1" in
 						echo "$MDSC_CMD: ${frontOpName#--}: ⛔ ERROR: needs --team-member: no MDAT_SPAWN_AGENT in this context and no account (USER) -- nothing was done" >&2
 						set +e ; frontDone=yes ; frontRc=1 ; return 0
 					fi
-					type AgentsToolsMemberWorkspaceResolve > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWorkspace.include"
+					type AgentsToolsMemberSkillsetBring > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWorkspace.include"
 					memberBrought="$( AgentsToolsMemberSkillsetBring "$memberName" "$frontOpName" )" || { set +e ; frontDone=yes ; frontRc=1 ; return 0 ; }
 					memberBroughtFrom="${memberBrought#*$'\t'}"
 					memberBrought="${memberBrought%%$'\t'*}"

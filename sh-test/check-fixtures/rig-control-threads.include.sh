@@ -30,7 +30,7 @@
 ## names it (sh-lib/comms/AgentsTools.CollectThread.include).
 ##
 ## AND THE SCHEDULE'S SERVICE THREAD (S12.12), the same: its start line is in schedule-thread/thread.log and its lock, schedule-thread/thread.lock,
-## names it (sh-lib/session/AgentsTools.ScheduleThread.include).
+## names it (sh-lib/schedule/AgentsTools.ScheduleThread.include).
 ##
 ## AND THE STORE'S ONE COMMIT THREAD (S12.4, T1905Z): any write of a scene into a rig's team-data store starts it, and it can still be
 ## writing when the rig is removed; its lock, team-data-commit/thread.lock in the store's git folder, names it the same way

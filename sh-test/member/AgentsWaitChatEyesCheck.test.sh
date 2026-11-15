@@ -108,8 +108,8 @@ cat > "$rigTmp/probe.sh" <<'EOF'
 #!/usr/bin/env bash
 set -u
 . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.BareName.include" > /dev/null 2>&1
-. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWaitCore.include" > /dev/null 2>&1
-. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWaitChat.include" > /dev/null 2>&1
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/wait/AgentsTools.MemberWaitCore.include" > /dev/null 2>&1
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/wait/AgentsTools.MemberWaitChat.include" > /dev/null 2>&1
 probeOut="$1" probeSession="$2"
 set --
 agentsWaitCovered=""

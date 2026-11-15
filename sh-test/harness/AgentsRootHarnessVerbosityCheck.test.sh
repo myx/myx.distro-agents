@@ -479,7 +479,7 @@ rigDefaultSources(){ ## workspace, session, spawn id, conversation threads (opti
 		export MMDAPP="$1" MDLT_ORIGIN="$rigOrigin" MDAT_SESSION_ID="$2" MDAT_SPAWN_SESSION_ID="$3" MDAT_SPAWN_AGENT="$rigHelperMember"
 		[ -z "${4:-}" ] || export MDAT_CONVERSATION_THREADS="$4"
 		[ -z "${5:-}" ] || export MDAT_SESSION_THREAD="$5"
-		. "$rigOrigin/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include" 2> /dev/null || :
+		. "$rigOrigin/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandbox.include" 2> /dev/null || :
 		rigDefaultsOut="$( AgentsToolsWaitDefaultSources 2> /dev/null )" || rigDefaultsOut=""
 		printf '%s' "${rigDefaultsOut:-<nothing>}"
 	)

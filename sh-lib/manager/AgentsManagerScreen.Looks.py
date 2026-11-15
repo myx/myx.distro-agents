@@ -427,7 +427,7 @@ LIST_PAD = 1
 STATE_LOOKS = {
     "running": LEVEL_OK, "working": LEVEL_OK, "thinking": LEVEL_OK, "tool": LEVEL_OK, "idling": LEVEL_OK, "alive": LEVEL_OK, "present": LEVEL_OK, "ok": LEVEL_OK, "startable": LEVEL_OK,
     "set": LEVEL_OK, "secret-set": LEVEL_OK, "succeeded": LEVEL_OK,
-    "waiting": LEVEL_WARN, "parked": LEVEL_WARN, "unclosed": LEVEL_WARN, "paused": LEVEL_WARN, "warn": LEVEL_WARN, "missing": LEVEL_WARN,
+    "waiting": LEVEL_WARN, "parked": LEVEL_WARN, "unclosed": LEVEL_WARN, "paused": LEVEL_WARN, "busy": LEVEL_WARN, "warn": LEVEL_WARN, "missing": LEVEL_WARN,
     "secret-missing": LEVEL_WARN, "members": LEVEL_WARN, "not-in-registry": LEVEL_WARN,
     "fail": LEVEL_BAD, "failed": LEVEL_BAD, "gone": LEVEL_BAD, "broken": LEVEL_BAD, "not-startable": LEVEL_BAD,
     "session-ended": LEVEL_BAD, "not-present": LEVEL_BAD, "x": LEVEL_BAD,

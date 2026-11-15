@@ -15,7 +15,7 @@ rigPackage="$MDLT_ORIGIN/myx/myx.distro-agents"
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }
-[ -f "$rigPackage/sh-lib/session/AgentsTools.DispatcherSchedule.include" ] || rigRefuse "the Dispatcher include is not in the package"
+[ -f "$rigPackage/sh-lib/schedule/AgentsTools.DispatcherSchedule.include" ] || rigRefuse "the Dispatcher include is not in the package"
 . "$rigPackage/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
 rigTmp="$( rigTempDir AgentsSchedulePaceCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
@@ -36,7 +36,7 @@ mkdir -p "$rigWs/.local/agents" "$rigTmp/store/board" || exit 1
 export MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigTmp/store" MDLT_ORIGIN="$MDLT_ORIGIN"
 cd "$rigWs" || exit 1
 set -- check
-. "$rigPackage/sh-lib/session/AgentsTools.DispatcherSchedule.include" > /dev/null 2>&1 || rigRefuse "the Dispatcher include would not load"
+. "$rigPackage/sh-lib/schedule/AgentsTools.DispatcherSchedule.include" > /dev/null 2>&1 || rigRefuse "the Dispatcher include would not load"
 
 ## The measure as it stands: the median MACHINERY time (mach_ms) of the calls of LIVE runs within the window (MDAT_TOOL_PACE_WINDOW_SECONDS,
 ## 300) by each record's own clock ("ms"), Wait records left out, pace.mcp lines added, against MDAT_TOOL_PACE_MS (4000); the line reads

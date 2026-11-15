@@ -1,0 +1,50 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+## AgentsTools.InternOpAtlassianJiraCommentAdd.include -- the operation `--intern-op-atlassian-jira-comment-add`, sourced by AgentsTools.InternOpAtlassianCall.include with the operation's arguments.
+	type AgentsToolsJiraAdfValidate > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/atlassian/AgentsTools.JiraFields.include"
+	type AgentsToolsAtlassianCall > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/atlassian/AgentsTools.AtlassianRequest.include"
+		shift
+		local jiraCAMember="" jiraCAKey="" jiraCABodyAdf="" jiraCABodyGiven="false" jiraCAContext="intern-op-atlassian-jira-comment-add"
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--member)    shift ; [ -n "${1:-}" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraCAContext: --member value missing" >&2 ; set +e ; return 1 ; } ; jiraCAMember="$1" ; shift ;;
+				--issue-key) shift ; [ -n "${1:-}" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraCAContext: --issue-key value missing" >&2 ; set +e ; return 1 ; } ; jiraCAKey="$1" ; shift ;;
+				--body-adf)
+					shift ; [ -n "${1:-}" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraCAContext: --body-adf value missing" >&2 ; set +e ; return 1 ; }
+					jiraCABodyAdf="$1" ; jiraCABodyGiven="true" ; shift
+				;;
+				--body-adf-from-stdin)
+					jiraCABodyAdf="$( cat )" ; jiraCABodyGiven="true" ; shift
+				;;
+				--body-adf-from-file)
+					shift
+					if [ -z "${1:-}" ] || [ ! -f "$1" ] ; then
+						printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraCAContext: --body-adf-from-file: file not found: ${1:-}" >&2
+						set +e ; return 1
+					fi
+					jiraCABodyAdf="$( cat "$1" )" ; jiraCABodyGiven="true" ; shift
+				;;
+				--context) shift ; [ -n "${1:-}" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraCAContext: --context value missing" >&2 ; set +e ; return 1 ; } ; jiraCAContext="$1" ; shift ;;
+				*)
+					printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraCAContext: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		if [ -z "$jiraCAMember" ] || [ -z "$jiraCAKey" ] ; then
+			printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraCAContext: syntax is --member <team-member> --issue-key <issue-key> (--body-adf <json>|--body-adf-from-stdin|--body-adf-from-file <path>) [--context <caller>] -- there is no visibility (role/group) restriction here: every comment this posts is visible to everyone the issue is already shared with" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsAssertBareName "$jiraCAKey" "<issue-key>" "$jiraCAContext" || { set +e ; return 1 ; }
+		if [ "$jiraCABodyGiven" != "true" ] ; then
+			printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraCAContext: --body-adf|--body-adf-from-stdin|--body-adf-from-file missing" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsJiraAdfValidate "$jiraCABodyAdf" "--body-adf" "$jiraCAContext" || { set +e ; return 1 ; }
+		local jiraCARc=0
+		AgentsToolsAtlassianCall "$jiraCAMember" jira POST "/rest/api/3/issue/$( AgentsToolsAtlassianUrlEncode "$jiraCAKey" )/comment" "$jiraCAContext" "{\"body\":$jiraCABodyAdf}" || jiraCARc=$?
+		if [ "$jiraCARc" -ne 0 ] ; then
+			set +e ; return "$jiraCARc"
+		fi
+		return 0

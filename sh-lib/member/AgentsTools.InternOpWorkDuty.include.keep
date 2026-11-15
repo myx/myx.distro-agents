@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # ^^^ for syntax checking in the editor only
+type AgentsToolsBoardTree > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.BoardStates.include"
 
 ##
 ## AgentsTools.InternOpWorkDuty.include -- the work-duty input scan (F4.1 of the refactorings epic): `--intern-op-work-duty-input-scan
@@ -56,7 +57,7 @@ case "$1" in
 			set +e ; return 1
 		fi
 		## The window: the setting of the team scope where it is a whole number of one second or more, else a minute.
-		type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
+		type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/settings/AgentsTools.ConfigOption.include"
 		workWindow="$( AgentsToolsConfigOption magic-team --select WAIT_COLLECT_SECONDS 2> /dev/null )" || workWindow=""
 		case "$workWindow" in ''|0|*[!0123456789]*) workWindow=60 ;; esac
 		## A START (MDAT_SCAN_AT_START, set by the spawner for the scan it runs for a start) reads Slack once and waits no window: the duty is not running while its start waits for a minute of news, and the pointers this one second sets are the floors its own Wait resumes from.
@@ -126,8 +127,8 @@ case "$1" in
 			## exits non-zero, and the spawner writes that failure into input/input-scan.md in place of a digest. A folder the
 			## board does not have is no failure: a fresh board holds only the states it uses.
 			for workState in pending running review blocked parked ; do
-				[ -e "$MDAT_DATA_ROOT/board/$workState" ] || continue
-				if [ -d "$MDAT_DATA_ROOT/board/$workState" ] && [ -r "$MDAT_DATA_ROOT/board/$workState" ] ; then continue ; fi
+				[ -e "$( AgentsToolsBoardTree )/$workState" ] || continue
+				if [ -d "$( AgentsToolsBoardTree )/$workState" ] && [ -r "$( AgentsToolsBoardTree )/$workState" ] ; then continue ; fi
 				printf '\n(the board could not be read: board/%s is not a readable folder)\n' "$workState" >&2
 				workBoardRc=1
 				break

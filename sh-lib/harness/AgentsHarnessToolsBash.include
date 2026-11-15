@@ -65,8 +65,9 @@ AgentsHarnessProcessRender(){ ## processes dir, handle, out cap, err cap -- the 
 ## One report of a detached process, posted as a notice into the event-track thread, else the session thread, which keeps the credential. The
 ## sentence is the tooling's own words and is what the plain-language floor measures; the output lines after it are the process's.
 ## Every failure goes to the process's own report log, never to nowhere.
-AgentsHarnessProcessPost(){ ## processes dir, handle, thread, address to, sentence, output lines
-	local postDir="$1" postHandle="$2" postRc=0 postArgs
+AgentsHarnessProcessPost(){ ## processes dir, handle, thread, address to, [--again], sentence, output lines
+	local postDir="$1" postHandle="$2" postRc=0 postArgs postAgain=""
+	[ "${5:-}" != "--again" ] || { postAgain="--again" ; set -- "$1" "$2" "$3" "$4" "$6" "$7" ; }
 	if [ -z "$harnessAgent" ] ; then
 		printf 'ERROR: this run has no team identity to post under, so the report was NOT posted: %s\n' "$5" >> "$postDir/$postHandle.report" ; return 1
 	fi
@@ -76,7 +77,7 @@ AgentsHarnessProcessPost(){ ## processes dir, handle, thread, address to, senten
 	## into the session thread, still with no addressee.
 	if [ -n "${MDAT_SPAWN_SESSION_ID:-}" ] ; then
 		(
-			type AgentsToolsEventTrackThreadPost > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.EventTrackThread.include"
+			type AgentsToolsEventTrackThreadPost > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/event-track/AgentsTools.EventTrackThread.include"
 			AgentsToolsEventTrackThreadPost "$harnessAgent" "$( AgentsToolsEventTrackThreadOwnDir )" --kind notice \
 				--session-id "$MDAT_SPAWN_SESSION_ID" --field what="$5" < /dev/null
 		) >> "$postDir/$postHandle.report" 2>&1 || postRc=$?
@@ -86,7 +87,7 @@ AgentsHarnessProcessPost(){ ## processes dir, handle, thread, address to, senten
 			*) printf 'ERROR: the notice was NOT posted to event-track (rc=%s): %s\n' "$postRc" "$5" >> "$postDir/$postHandle.report" ; return "$postRc" ;;
 		esac
 	fi
-	postArgs=( "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --slack-send-message --team-member "$harnessAgent" "$3" )
+	postArgs=( "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --slack-send-message --team-member "$harnessAgent" "$3" ${postAgain:+--again} )
 	printf '%s' "$5" > "$postDir/$postHandle.report.prose"
 	{ printf '%s\n' "$5" ; [ -z "$6" ] || printf '\n%s\n' "$6" ; } | MDAT_SEND_PROSE_FILE="$postDir/$postHandle.report.prose" ${postArgs[@]+"${postArgs[@]}"} --from-stdin >> "$postDir/$postHandle.report" 2>&1 || postRc=$?
 	[ "$postRc" = 0 ] || printf 'ERROR: the report was NOT posted (rc=%s): %s\n' "$postRc" "$5" >> "$postDir/$postHandle.report"
@@ -132,7 +133,7 @@ AgentsHarnessProcessReporter(){ ## processes dir, handle, wrapper pid, thread, a
 			fi
 		fi
 		if [ "$repAlive" -gt 0 ] && [ $(( repNow - repPosted )) -ge "$repAlive" ] ; then
-			AgentsHarnessProcessPost "$repDir" "$repHandle" "$repThread" "" "Process $repHandle is still running. It has written $repBytes bytes so far."
+			AgentsHarnessProcessPost "$repDir" "$repHandle" "$repThread" "" --again "Process $repHandle is still running. It has written $repBytes bytes so far."
 			repPosted="$repNow"
 		fi
 	done
@@ -313,6 +314,14 @@ AgentsHarnessBashKillForeign(){ ## command text
 	return 1
 }
 
+## Ends a process and every process it started, descendants first, so no pipeline stage or search a command started
+## outlives it under launchd. The foreground run uses it, not job control, which would change its stdin and streams.
+AgentsHarnessEndTree(){ ## pid
+	local endChild
+	for endChild in $( pgrep -P "$1" 2> /dev/null ) ; do AgentsHarnessEndTree "$endChild" ; done
+	kill -TERM "$1" 2> /dev/null
+}
+
 AgentsHarnessToolBashRun(){ ## cwd, command, timeout, detach, handle, stop, offset, limit, stdin, output mode
 	local toolCwd="$1" toolCommand="$2" toolTimeout="$3" toolDetach="$4" toolHandle="$5" toolStop="$6" toolOffset="$7" toolLimit="$8" toolStdin="$9" toolOutputMode="${10}" toolStatus=0 toolBytes
 	case "$toolOutputMode" in
@@ -353,7 +362,7 @@ AgentsHarnessToolBashRun(){ ## cwd, command, timeout, detach, handle, stop, offs
 			processPid="" ; processBegan="" ; processMine=""
 			read -r processPid < "$processDir/$toolHandle.pid" 2>/dev/null || processPid=""
 			read -r processBegan < "$processDir/$toolHandle.began" 2>/dev/null || processBegan=""
-			type AgentsToolsRegistryProcessesBegan > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include" 2> /dev/null || :
+			type AgentsToolsRunProcessesBegan > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunProcesses.include"
 			## Signalled only while the pid is still the process that began when the handle was started, read by the one reading a process is kept by: a process that
 			## ended, and a number the system has since given to another, are not signalled, and the handle is closed all the same.
 			## The whole GROUP is signalled, not the one pid: the command is the leader of a
@@ -362,7 +371,7 @@ AgentsHarnessToolBashRun(){ ## cwd, command, timeout, detach, handle, stop, offs
 			## Every wait below is on the GROUP (`kill -0 -pgid`), never on the leader: TERM
 			## takes the wrapper at once while a child that ignores TERM lives on, and a check
 			## of the leader alone would then report the stop done with that child still writing.
-			if [ -n "$processPid" ] && [ -n "$processBegan" ] && [ "$( printf '%s\n' "$processPid" | AgentsToolsRegistryProcessesBegan 2> /dev/null )" = "$processBegan" ] && processMine=1 && { kill -TERM -"$processPid" 2>/dev/null || kill -TERM "$processPid" 2>/dev/null || : ; } ; then
+			if [ -n "$processPid" ] && [ -n "$processBegan" ] && [ "$( printf '%s\n' "$processPid" | AgentsToolsRunProcessesBegan 2> /dev/null )" = "$processBegan" ] && processMine=1 && { kill -TERM -"$processPid" 2>/dev/null || kill -TERM "$processPid" 2>/dev/null || : ; } ; then
 				processWaited=0
 				while [ "$processWaited" -lt 20 ] && kill -0 -"$processPid" 2>/dev/null ; do
 					sleep 0.1
@@ -507,7 +516,7 @@ AgentsHarnessToolBashRun(){ ## cwd, command, timeout, detach, handle, stop, offs
 	case ":$PATH:" in *":$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts:"*) ;; *) . "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/console-.local-path.include" 2> /dev/null || : ;; esac
 	## No command links a sandbox into source (epic S23.11): the guard ln is first on PATH, for the command and for what it starts.
 	## And no shell `grep -r` blocks on a request fifo (epic S10.26): the guard grep beside it puts `-D skip` before the arguments.
-	case ":$PATH:" in *":$MMDAPP/.local/agents/guard-bin:"*) ;; *) . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SandboxLinks.include" && AgentsToolsLnGuardMake "$MMDAPP/.local/agents/guard-bin" && AgentsToolsGrepGuardMake "$MMDAPP/.local/agents/guard-bin" && PATH="$MMDAPP/.local/agents/guard-bin:$PATH" ;; esac
+	case ":$PATH:" in *":$MMDAPP/.local/agents/guard-bin:"*) ;; *) . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SandboxLinks.include" && AgentsToolsLnGuardMake "$MMDAPP/.local/agents/guard-bin" && AgentsToolsGrepGuardMake "$MMDAPP/.local/agents/guard-bin" && PATH="$MMDAPP/.local/agents/guard-bin:$PATH" ;; esac
 	if [ "$toolDetach" = "true" ] || [ "$toolDetach" = "1" ] || [ "$toolDetach" = "yes" ] ; then
 		if ! AgentsHarnessCwdAllowed "$toolCwd" ; then return 0 ; fi
 		toolCwd="$harnessResolvedPath"
@@ -561,8 +570,8 @@ AgentsHarnessToolBashRun(){ ## cwd, command, timeout, detach, handle, stop, offs
 		set +m
 		disown "$processPid" 2> /dev/null || :
 		## When the process began is kept beside its pid, written first, so a stop signals the pid only while it is still the process that began then.
-		type AgentsToolsRegistryProcessesBegan > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include" 2> /dev/null || :
-		printf '%s\n' "$processPid" | AgentsToolsRegistryProcessesBegan 2> /dev/null > "$processDir/$toolHandle.began" || :
+		type AgentsToolsRunProcessesBegan > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunProcesses.include"
+		printf '%s\n' "$processPid" | AgentsToolsRunProcessesBegan 2> /dev/null > "$processDir/$toolHandle.began" || :
 		printf '%s\n' "$processPid" > "$processDir/$toolHandle.pid"
 		## The reporter posts this process's progress and end into the session thread (S3.1), or says now that it cannot.
 		processReportThread="$( AgentsHarnessSessionThread "$harnessCurrentName" 2> /dev/null )" || processReportThread=""
@@ -616,12 +625,12 @@ AgentsHarnessToolBashRun(){ ## cwd, command, timeout, detach, handle, stop, offs
 			## The watchdog ends the command it was started for and no other process: at the
 			## bound the pid alone may name whoever was given that number since. So it keeps
 			## when the command began, read as the watchdog starts, and signals only while that
-			## pid is still the process that began then (AgentsToolsRegistryProcessesBegan, the
+			## pid is still the process that began then (AgentsToolsRunProcessesBegan, the
 			## one reading a process is kept by, loaded in the watchdog's own shell). Where no
 			## start can be read, nothing is signalled by the number alone.
 			(
-				type AgentsToolsRegistryProcessesBegan > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include" 2> /dev/null
-				harnessRunBegan="$( printf '%s\n' "$harnessRunPid" | AgentsToolsRegistryProcessesBegan 2> /dev/null )"
+				type AgentsToolsRunProcessesBegan > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunProcesses.include"
+				harnessRunBegan="$( printf '%s\n' "$harnessRunPid" | AgentsToolsRunProcessesBegan 2> /dev/null )"
 				## The sleep is a child of this watchdog: the TERM that ends the watchdog once the call
 				## returned must end the sleep too, else one `sleep <timeout>` outlives every call under launchd.
 				## The trap ends every background child of this watchdog, by the job list, not by a pid kept in a variable: a TERM that
@@ -631,14 +640,14 @@ AgentsHarnessToolBashRun(){ ## cwd, command, timeout, detach, handle, stop, offs
 				sleep "$toolTimeout" & watchSleep=$!
 				wait "$watchSleep" || exit 0
 				watchSleep=""
-				[ -n "$harnessRunBegan" ] && [ "$( printf '%s\n' "$harnessRunPid" | AgentsToolsRegistryProcessesBegan 2> /dev/null )" = "$harnessRunBegan" ] && kill -TERM "$harnessRunPid" 2>/dev/null && : > "$harnessScratch/run.timedout"
+				[ -n "$harnessRunBegan" ] && [ "$( printf '%s\n' "$harnessRunPid" | AgentsToolsRunProcessesBegan 2> /dev/null )" = "$harnessRunBegan" ] && AgentsHarnessEndTree "$harnessRunPid" && : > "$harnessScratch/run.timedout"
 			) >/dev/null &
 			harnessWatchPid=$!
 			printf '%s\n' "$harnessWatchPid" > "$harnessScratch/watch.pid"
 			## The child's own run is not machinery time (the owner's pace ruling): its span is kept for the call's record (mach_ms).
-			harnessRunT0="$( AgentsTranscriptNowMs 2> /dev/null )" || harnessRunT0=""
+			harnessRunT0="$( date +%s )000" || harnessRunT0=""
 			wait "$harnessRunPid" || toolStatus=$?
-			case "$harnessRunT0" in ''|*[!0-9]*) ;; *) harnessToolRunMs=$(( $( AgentsTranscriptNowMs 2> /dev/null || printf 0 ) - harnessRunT0 )) ; [ "$harnessToolRunMs" -ge 0 ] || harnessToolRunMs=0 ;; esac
+			case "$harnessRunT0" in ''|*[!0-9]*) ;; *) harnessToolRunMs=$(( $( date +%s )000 - harnessRunT0 )) ; [ "$harnessToolRunMs" -ge 0 ] || harnessToolRunMs=0 ; ! type AgentsHarnessToolRunMsKeep > /dev/null 2>&1 || AgentsHarnessToolRunMsKeep "$harnessToolRunMs" ;; esac
 			kill -TERM "$harnessWatchPid" 2>/dev/null || :
 			wait "$harnessWatchPid" 2>/dev/null || :
 			## Reaped normally: the records exist so the cleanup can reach a child the
@@ -688,10 +697,20 @@ AgentsHarnessBashReadOnly(){ ## command
 AgentsHarnessToolBash(){ ## cwd, command, timeout, detach, handle, stop, offset, limit, stdin, output mode
 	## ONE READ IS NO ROUND OF ITS OWN (BatchTools, F7.8): a lone Bash call that only reads re-sends the whole context to learn a few
 	## lines. It is answered with the batched form instead of run; inside a BatchTools call it runs, as a batch's reads are the point.
-	## A detached, handled or stopped call is never this case.
-	if [ -z "${MDAT_REPLY_IN_BATCH:-}" ] && [ -z "${4:-}${5:-}${6:-}" ] && [ -n "${2:-}" ] && AgentsHarnessBashReadOnly "$2" && { type AgentsToolsEmergencyHolds > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.Emergency.include" 2> /dev/null ; } && ! AgentsToolsEmergencyHolds ; then
-		printf '%s\n' "NOT RUN: this command only reads, and a read is no round of its own: each round re-sends your whole context. Put every read you need now into ONE BatchTools call -- Read for a file or its lines (offset, limit), Grep for a pattern, Glob for names, or Bash entries for shell reads -- and read the results together. For example: BatchTools calls=[{tool: Read, arguments: {file_path: <a>}}, {tool: Grep, arguments: {pattern: <p>, path: <dir>}}, {tool: Bash, arguments: {command: \"ls <dir>\"}}]. A command that changes something runs here as before."
-		return 0
+	## A detached, handled or stopped call is never this case, nor one given stdin: it reads what the caller hands it, not a file.
+	## A served call (--intern-tool) is never this case either: its model is no round of any context, so the reply layer's
+	## cost is not the tool's, and a test that drives the tool through it is stopped by nothing but the cwd gate it exercises.
+	## The cwd gate runs first on the one shape this note would otherwise answer: a plain foreground call with a command. A cwd
+	## outside the allowed roots must refuse with its REFUSAL-ID, never answer with the read-batching note, and must not fall
+	## through to the run, which would refuse the same cwd a second time.
+	if [ -z "${MDAT_REPLY_IN_BATCH:-}" ] && [ -z "${4:-}${5:-}${6:-}${9:-}" ] && [ -n "${2:-}" ] ; then
+		if ! AgentsHarnessCwdAllowed "${1:-}" ; then
+			return 0
+		fi
+		if [ -z "$harnessToolOnly" ] && AgentsHarnessBashReadOnly "$2" && { type AgentsToolsEmergencyHolds > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.Emergency.include" ; } && ! AgentsToolsEmergencyHolds ; then
+			printf '%s\n' "NOT RUN: this command only reads, and a read is no round of its own: each round re-sends your whole context. Put every read you need now into ONE BatchTools call -- Read for a file or its lines (offset, limit), Grep for a pattern, Glob for names, or Bash entries for shell reads -- and read the results together. For example: BatchTools calls=[{tool: Read, arguments: {file_path: <a>}}, {tool: Grep, arguments: {pattern: <p>, path: <dir>}}, {tool: Bash, arguments: {command: \"ls <dir>\"}}]. A command that changes something runs here as before."
+			return 0
+		fi
 	fi
 	## S19.2: a command is held at its EXIT, so it ran and its result waits for the pause to end.
 	local pauseRc=0
@@ -734,8 +753,8 @@ AgentsHarnessToolWorkspaceContextExecuteRun(){ ## command, workspace, timeout
 			## The watchdog ends the group the call leads, as the MCP execute ends its own: the
 			## script runs in a subshell of the tooling process, so a bare pid leaves it running.
 			(
-				type AgentsToolsRegistryProcessesBegan > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include" 2> /dev/null
-				harnessRunBegan="$( printf '%s\n' "$harnessRunPid" | AgentsToolsRegistryProcessesBegan 2> /dev/null )"
+				type AgentsToolsRunProcessesBegan > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunProcesses.include"
+				harnessRunBegan="$( printf '%s\n' "$harnessRunPid" | AgentsToolsRunProcessesBegan 2> /dev/null )"
 				## The sleep is a child of this watchdog: the TERM that ends the watchdog once the call
 				## returned must end the sleep too, else one `sleep <timeout>` outlives every call under launchd.
 				## The trap ends every background child by the job list, as above: no sleep outlives the call.
@@ -743,14 +762,14 @@ AgentsHarnessToolWorkspaceContextExecuteRun(){ ## command, workspace, timeout
 				sleep "$toolTimeout" & watchSleep=$!
 				wait "$watchSleep" || exit 0
 				watchSleep=""
-				[ -n "$harnessRunBegan" ] && [ "$( printf '%s\n' "$harnessRunPid" | AgentsToolsRegistryProcessesBegan 2> /dev/null )" = "$harnessRunBegan" ] && kill -TERM -- "-$harnessRunPid" 2>/dev/null && : > "$harnessScratch/run.timedout"
+				[ -n "$harnessRunBegan" ] && [ "$( printf '%s\n' "$harnessRunPid" | AgentsToolsRunProcessesBegan 2> /dev/null )" = "$harnessRunBegan" ] && kill -TERM -- "-$harnessRunPid" 2>/dev/null && : > "$harnessScratch/run.timedout"
 			) >/dev/null &
 			harnessWatchPid=$!
 			printf '%s\n' "$harnessWatchPid" > "$harnessScratch/watch.pid"
 			## The child's own run is not machinery time (the owner's pace ruling): its span is kept for the call's record (mach_ms).
-			harnessRunT0="$( AgentsTranscriptNowMs 2> /dev/null )" || harnessRunT0=""
+			harnessRunT0="$( date +%s )000" || harnessRunT0=""
 			wait "$harnessRunPid" || toolStatus=$?
-			case "$harnessRunT0" in ''|*[!0-9]*) ;; *) harnessToolRunMs=$(( $( AgentsTranscriptNowMs 2> /dev/null || printf 0 ) - harnessRunT0 )) ; [ "$harnessToolRunMs" -ge 0 ] || harnessToolRunMs=0 ;; esac
+			case "$harnessRunT0" in ''|*[!0-9]*) ;; *) harnessToolRunMs=$(( $( date +%s )000 - harnessRunT0 )) ; [ "$harnessToolRunMs" -ge 0 ] || harnessToolRunMs=0 ; ! type AgentsHarnessToolRunMsKeep > /dev/null 2>&1 || AgentsHarnessToolRunMsKeep "$harnessToolRunMs" ;; esac
 			kill -TERM "$harnessWatchPid" 2>/dev/null || :
 			wait "$harnessWatchPid" 2>/dev/null || :
 			rm -f "$harnessScratch/run.pid" "$harnessScratch/watch.pid"

@@ -1,0 +1,93 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+## AgentsTools.InternOpAtlassianJiraCommentRead.include -- the operation `--intern-op-atlassian-jira-comment-read`, sourced by AgentsTools.InternOpAtlassianCall.include with the operation's arguments.
+	type AgentsToolsAtlassianCall > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/atlassian/AgentsTools.AtlassianRequest.include"
+		shift
+		local jiraCRMember="" jiraCRKey="" jiraCRFormat="" jiraCRStartAt="" jiraCRContext="intern-op-atlassian-jira-comment-read"
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--member|--issue-key|--format|--start-at|--context)
+					if [ -z "${2:-}" ] ; then
+						printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraCRContext: $1 value missing" >&2
+						set +e ; return 1
+					fi
+					case "$1" in
+						--member)    jiraCRMember="$2" ;;
+						--issue-key) jiraCRKey="$2" ;;
+						--format)    jiraCRFormat="$2" ;;
+						--start-at)  jiraCRStartAt="$2" ;;
+						--context)   jiraCRContext="$2" ;;
+					esac
+					shift 2
+				;;
+				*)
+					printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraCRContext: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		if [ -z "$jiraCRMember" ] || [ -z "$jiraCRKey" ] ; then
+			printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraCRContext: syntax is --member <team-member> --issue-key <issue-key> [--format adf|rendered] [--start-at <n>] [--context <caller>] -- the acting member is required, since comments are visible only to identities the issue is shared with" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsAssertBareName "$jiraCRKey" "<issue-key>" "$jiraCRContext" || { set +e ; return 1 ; }
+		[ -n "$jiraCRFormat" ] || jiraCRFormat=adf
+		case "$jiraCRFormat" in
+			adf|rendered) ;;
+			*) printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraCRContext: --format invalid: $jiraCRFormat" >&2 ; set +e ; return 1 ;;
+		esac
+		if [ -n "$jiraCRStartAt" ] ; then
+			AgentsToolsAtlassianAssertNumber "$jiraCRStartAt" "--start-at" "$jiraCRContext" || { set +e ; return 1 ; }
+		fi
+		local jiraCRPath="/rest/api/3/issue/$( AgentsToolsAtlassianUrlEncode "$jiraCRKey" )/comment?maxResults=100"
+		[ -z "$jiraCRStartAt" ] || jiraCRPath="${jiraCRPath}&startAt=$jiraCRStartAt"
+		[ "$jiraCRFormat" = rendered ] && jiraCRPath="${jiraCRPath}&expand=renderedBody"
+		local jiraCRBody jiraCRRc=0
+		jiraCRBody="$( AgentsToolsAtlassianCall "$jiraCRMember" jira GET "$jiraCRPath" "$jiraCRContext" "" )" || jiraCRRc=$?
+		if [ "$jiraCRRc" -ne 0 ] ; then
+			set +e ; return "$jiraCRRc"
+		fi
+		local jiraCRWant='id,author.accountId,author.displayName,created,updated'
+		local jiraCRRawFlag=()
+		if [ "$jiraCRFormat" = rendered ] ; then
+			jiraCRWant="${jiraCRWant},renderedBody"
+		else
+			jiraCRWant="${jiraCRWant},body"
+			jiraCRRawFlag=( -v raw=body )
+		fi
+		local jiraCRRows jiraCRRowsRc=0
+		jiraCRRows="$( printf '%s\n' "$jiraCRBody" | LC_ALL=C awk -v array=comments -v want="$jiraCRWant" ${jiraCRRawFlag[@]+"${jiraCRRawFlag[@]}"} -v mode=records -v dialect=atlassian -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" )" || jiraCRRowsRc=$?
+		if [ "$jiraCRRowsRc" -ne 0 ] ; then
+			printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraCRContext: comments field unreadable" >&2
+			set +e ; return 3
+		fi
+		printf 'COMMENT_ID\tAUTHOR_ID\tAUTHOR_NAME\tCREATED\tUPDATED\tBODY\n'
+		[ -z "$jiraCRRows" ] || printf '%s\n' "$jiraCRRows"
+		local jiraCRFieldAwk="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk"
+		local jiraCRTotal="$( printf '%s\n' "$jiraCRBody" | LC_ALL=C awk -v path=total -v optional=1 -v dialect=atlassian -f "$jiraCRFieldAwk" 2>/dev/null )"
+		local jiraCRRespStart="$( printf '%s\n' "$jiraCRBody" | LC_ALL=C awk -v path=startAt -v optional=1 -v dialect=atlassian -f "$jiraCRFieldAwk" 2>/dev/null )"
+		local jiraCREmitted=0
+		[ -z "$jiraCRRows" ] || jiraCREmitted="$( printf '%s\n' "$jiraCRRows" | LC_ALL=C awk 'END { print NR }' )"
+		case "$jiraCRTotal" in
+			''|*[!0123456789]*)
+				printf '%s\n' "# $jiraCRContext: more: unknown -- this response carried no numeric total, so whether issue $jiraCRKey has comments beyond these $jiraCREmitted cannot be told from it. That is NOT a confirmation that the list is complete" >&2
+			;;
+			*)
+				case "$jiraCRRespStart" in
+					''|*[!0123456789]*)
+						printf '%s\n' "# $jiraCRContext: more: unknown -- this response carried no numeric startAt, so completeness cannot be computed from it. That is NOT a confirmation that the list is complete" >&2
+					;;
+					*)
+						if [ "$(( jiraCRRespStart + jiraCREmitted ))" -lt "$jiraCRTotal" ] ; then
+							printf '%s\n' "# $jiraCRContext: more: yes -- issue $jiraCRKey has $jiraCRTotal comments; this page starts at $jiraCRRespStart and carries $jiraCREmitted, so the rest were not read. Pass $(( jiraCRRespStart + jiraCREmitted )) back as --start-at" >&2
+						elif [ "$jiraCREmitted" -eq 0 ] ; then
+							printf '%s\n' "# $jiraCRContext: more: no -- issue $jiraCRKey has $jiraCRTotal comments; this page starts at $jiraCRRespStart and carries none" >&2
+						else
+							printf '%s\n' "# $jiraCRContext: more: no -- issue $jiraCRKey has $jiraCRTotal comments; this page starts at $jiraCRRespStart and ends at the last of them" >&2
+						fi
+					;;
+				esac
+			;;
+		esac
+		return 0

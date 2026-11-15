@@ -1,0 +1,135 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+##
+## AgentsTools.MemberCommsSlack.include -- the router of the per-member Slack comms operations.
+## The member and client stubs, and one arm per --intern-op-comms-slack-* operation that sources the include
+## of that operation alone: AgentsTools.InternOpCommsSlack<Operation>.include, and the presence, profile and socket includes.
+## The one alias -> channel-setting map (F7.1): every channel alias resolves through it, so no
+## channel-setting literal stands in these files.
+##
+## This file is a library: sourcing it defines its functions and runs nothing, and its
+## operations run through AgentsToolsMemberCommsSlackRun. An operation dispatched here, and
+## the intern arm behind it, run in the process that already sourced this file. Calling the
+## dispatcher again would parse the kernel, the front door and this file a second time for one
+## operation (MAGIC.md, section 1).
+
+AgentsToolsMemberCommsSlackRun(){ ## arguments as the case below takes them
+case "$1" in
+		## The member stubs. Each acts under the named member's own credentials, so a spawned
+		## session names only itself (AgentsToolsActingMemberCheck); tooling calls the
+		## --intern-op-comms-slack-* implementation below directly. A member's operation
+		## reaches our own organisation (MDAT_COMMS_SIDE, AgentsTools.CommsSlack.include), for a
+		## client-* member too, unless its address is a client: one.
+		--slack-read|--slack-search-messages|--slack-react|--slack-delete-message|--slack-edit-message|--slack-file-info|--slack-file-fetch|--slack-file-share|--slack-send-message|--slack-presence-keep|--slack-presence-status|--slack-presence-stop|--slack-profile-set|--slack-profile-get|--slack-socket-start|--slack-socket-status|--slack-socket-stop)
+			local -x MDAT_COMMS_SIDE=own MDAT_COMMS_OP=""
+			case "${2:-}" in
+				''|--print-required-scopes) ;;
+				*) AgentsToolsActingMemberCheck "$2" "${1#--}" || { set +e ; return 1 ; } ;;
+			esac
+			## A stub whose implementation is an in-context helper calls it by name.
+			case "$1" in
+				--slack-file-info) type AgentsToolsCommsSlackFileInfo > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/slack/AgentsTools.InternOpCommsSlackFileInfo.include" ; AgentsToolsCommsSlackFileInfo "${@:2}" ; return $? ;;
+			esac
+			## A member's own message is one a person reads: over the plain-language floor it is
+			## held back, for its sender to correct and send again (MDAT_SEND_FLOOR, read where
+			## the send measures). Tooling's own sends call the implementation below directly,
+			## and stay measured and reported only: nobody can rewrite those.
+			## The arm's own messages name the dispatcher here, as they did while it ran in its own process.
+			case "$1" in
+				--slack-send-message)
+					local MDSC_CMD='DistroAgentsTools'
+					MDAT_SEND_FLOOR=hold AgentsToolsMemberCommsSlackRun "--intern-op-comms-${1#--}" "${@:2}"
+					return $?
+				;;
+			esac
+			local MDSC_CMD='DistroAgentsTools'
+			AgentsToolsMemberCommsSlackRun "--intern-op-comms-${1#--}" "${@:2}"
+			return $?
+		;;
+		## The client stubs: the same operations on the side of the other organisation, for a
+		## client-* member alone, under the settings that member itself holds for it. The side is
+		## set, and who may call is asked, where a --client-* operation is dispatched: the client's
+		## own session alone (AgentsToolsClientCallerCheck).
+		--client-comms-slack-read|--client-comms-slack-search-messages|--client-comms-slack-react|--client-comms-slack-delete-message|--client-comms-slack-edit-message|--client-comms-slack-file-info|--client-comms-slack-file-fetch|--client-comms-slack-file-share|--client-comms-slack-send-message|--client-comms-slack-presence-keep|--client-comms-slack-presence-status|--client-comms-slack-presence-stop|--client-comms-slack-profile-set|--client-comms-slack-profile-get|--client-comms-slack-socket-start|--client-comms-slack-socket-status|--client-comms-slack-socket-stop)
+			case "${2:-}" in
+				--print-required-scopes) ;;
+				client-*) ;;
+				*)
+					echo "⛔ ERROR: $MDSC_CMD $1: runs only as a client-* member, and ${2:-<no member named>} is not one -- this family reaches an external organisation's own Slack under that member's own settings for it" >&2
+					set +e ; return 1
+				;;
+			esac
+			## A stub whose implementation is an in-context helper calls it by name.
+			case "$1" in
+				--client-comms-slack-file-info) type AgentsToolsCommsSlackFileInfo > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/slack/AgentsTools.InternOpCommsSlackFileInfo.include" ; AgentsToolsCommsSlackFileInfo "${@:2}" ; return $? ;;
+			esac
+			## Held at the plain-language floor as a member's own message is: a person reads it.
+			case "$1" in
+				--client-comms-slack-send-message)
+					local MDSC_CMD='DistroAgentsTools'
+					MDAT_SEND_FLOOR=hold AgentsToolsMemberCommsSlackRun "--intern-op-${1#--client-}" "${@:2}"
+					return $?
+				;;
+			esac
+			local MDSC_CMD='DistroAgentsTools'
+			AgentsToolsMemberCommsSlackRun "--intern-op-${1#--client-}" "${@:2}"
+			return $?
+		;;
+		## Own file for size only; the service keeps one dispatcher arm.
+		--intern-op-comms-slack-presence-*)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/slack/AgentsTools.MemberCommsSlackPresence.include"
+			return $?
+		;;
+		## Own file for size only; the service keeps one dispatcher arm.
+		--intern-op-comms-slack-profile-*)
+			type AgentsToolsCommsSlackProfileEmitField > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/slack/AgentsTools.MemberCommsSlackProfile.include"
+			return $?
+		;;
+		## Own file for size only; the service keeps one dispatcher arm.
+		--intern-op-comms-slack-socket-*)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/slack/AgentsTools.MemberCommsSlackSocket.include"
+			return $?
+		;;
+		## Every Wait loads this file with the scopes request of this operation: answered here, without the include of the operation.
+		--intern-op-comms-slack-read)
+			if [ "${2:-}" = "--print-required-scopes" ] ; then
+				printf '%s\n' channels:read channels:history groups:read groups:history im:read im:history mpim:read mpim:history im:write
+				return 0
+			fi
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/slack/AgentsTools.InternOpCommsSlackRead.include"
+			return $?
+		;;
+		--intern-op-comms-slack-search-messages)
+			type AgentsToolsCommsSlackSearchAnswer > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/slack/AgentsTools.InternOpCommsSlackSearch.include"
+			return $?
+		;;
+		--intern-op-comms-slack-react)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/slack/AgentsTools.InternOpCommsSlackReact.include"
+			return $?
+		;;
+		--intern-op-comms-slack-delete-message)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/slack/AgentsTools.InternOpCommsSlackDelete.include"
+			return $?
+		;;
+		--intern-op-comms-slack-edit-message)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/slack/AgentsTools.InternOpCommsSlackEdit.include"
+			return $?
+		;;
+		--intern-op-comms-slack-file-fetch)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/slack/AgentsTools.InternOpCommsSlackFileFetch.include"
+			return $?
+		;;
+		--intern-op-comms-slack-file-share)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/slack/AgentsTools.InternOpCommsSlackFileShare.include"
+			return $?
+		;;
+		--intern-op-comms-slack-send-message)
+			type AgentsToolsCommsSlackPresentationField > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/slack/AgentsTools.InternOpCommsSlackSend.include"
+			return $?
+		;;
+		*)
+			echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
+			set +e ; return 1
+		;;
+esac
+}

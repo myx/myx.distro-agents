@@ -331,12 +331,13 @@ rigAssert "mixed: the dispatch, the item, the scan, in that order"  "$rigRc:$( L
 rigAssert "each a section of its own"                               "$( LC_ALL=C grep -c -x -e '# Dispatch' -e '# Board item' -e '# Input scan' "$rigOut" )" 3
 rigAssert "the dispatch's own headings sit below its section"       "$( LC_ALL=C grep -c -x -e '## Brief' -e '### Your sandbox' "$rigOut" )" 2
 rigAssert "the conversation, the pointers, the MAGIC copy and an inline scan are not the dispatch" "$( LC_ALL=C grep -c -e 'RIG-CONV' -e 'RIG-POINTERS' -e 'RIG-MAGIC' -e 'RIG-INLINE' "$rigOut" )" 0
-rigSandbox="" ; mkdir -p "$rigWs/.local/agents/spawned/rig-spawn/input"
-printf '# Brief\n\nRIG-FALLBACK found by the spawn id.\n' > "$rigWs/.local/agents/spawned/rig-spawn/input/dispatch.md"
+## Each spawn's input is its own folder under the sandbox's input/ (input/<spawn id>/), as the spawner writes it.
+rigSandbox="" ; mkdir -p "$rigWs/.local/agents/spawned/rig-spawn/input/rig-spawn"
+printf '# Brief\n\nRIG-FALLBACK found by the spawn id.\n' > "$rigWs/.local/agents/spawned/rig-spawn/input/rig-spawn/dispatch.md"
 ( cd "$rigWs" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp/home" "PATH=/usr/bin:/bin:/usr/sbin:/sbin" "MMDAPP=$rigWs" "MDLT_ORIGIN=$rigOrigin" "MDLT_OPTION=--run-from-path $rigOrigin" "MDAT_SPAWN_AGENT=rig-member" "MDAT_SPAWN_SESSION_ID=rig-spawn" \
 	python3 -I -B "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-exec.py" --alarm 60 -- bash "$rigSessionFn" --get-dispatch-text ) > "$rigScn/d-3.out" 2> "$rigScn/d-3.err" < /dev/null
 rigAssert "with no sandbox variable, the sandbox of the spawn id"   "$( LC_ALL=C grep -c 'RIG-FALLBACK' "$rigScn/d-3.out" )" 1
-rm -f "$rigWs/.local/agents/spawned/rig-spawn/input/dispatch.md"
+rm -f "$rigWs/.local/agents/spawned/rig-spawn/input/rig-spawn/dispatch.md"
 ( cd "$rigWs" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp/home" "PATH=/usr/bin:/bin:/usr/sbin:/sbin" "MMDAPP=$rigWs" "MDLT_ORIGIN=$rigOrigin" "MDLT_OPTION=--run-from-path $rigOrigin" "MDAT_SPAWN_AGENT=rig-member" "MDAT_SPAWN_SESSION_ID=rig-spawn" \
 	python3 -I -B "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-exec.py" --alarm 60 -- bash "$rigSessionFn" --get-dispatch-text ) > "$rigScn/d-4.out" 2> "$rigScn/d-4.err" < /dev/null
 rigAssert "a sandbox with no dispatch: a plain line, nothing printed" "$?:$( wc -c < "$rigScn/d-4.out" | LC_ALL=C tr -d ' ' ):$( LC_ALL=C grep -c 'no dispatch' "$rigScn/d-4.err" )" "1:0:1"
@@ -363,7 +364,7 @@ rigScene brief
 rigBriefWs="$rigScn/ws"
 mkdir -p "$rigBriefWs/.local/.agents" "$rigScn/data" "$rigScn/home" "$rigBriefWs/source/rigrepo/rigpkg"
 printf 'SLACK_BOT_TOKEN=rig-SECRET-1\nSPAWN_TIER_NORMAL=rig-cli\n' > "$rigBriefWs/.local/.agents/magic-team.agent.env" ; printf 'PRESET_CLI_SERVICE=rig-cli\n' > "$rigBriefWs/.local/.agents/preset-rig-cli.agent.env"
-printf '#!/bin/sh\n## cli-configured MDAT_SPAWN_LAUNCH_MARKER --cli)\ncat > /dev/null\ncat "$MDAT_SPAWN_SANDBOX_ROOT"/input/dispatch.md > "%s/dispatch-while-running"\n' "$rigScn" > "$rigBriefWs/DistroAgentsConsole.sh"
+printf '#!/bin/sh\n## cli-configured MDAT_SPAWN_LAUNCH_MARKER --cli)\ncat > /dev/null\ncat "$MDAT_SPAWN_SANDBOX_ROOT/input/$MDAT_SPAWN_SESSION_ID/dispatch.md" > "%s/dispatch-while-running"\n' "$rigScn" > "$rigBriefWs/DistroAgentsConsole.sh"
 chmod +x "$rigBriefWs/DistroAgentsConsole.sh"
 printf 'Work on rigrepo/rigpkg following no routine at all.\n' \
 	| env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigScn/home" PATH="/usr/bin:/bin" MMDAPP="$rigBriefWs" MDAT_DATA_ROOT="$rigScn/data" MDLT_ORIGIN="$rigOrigin" \

@@ -1,3 +1,6 @@
+---
+maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
+---
 # Board states and lifecycle
 
 Read this for board states, the item lifecycle, garbage collection and the board dynamics. The board's only writer and the item types are in "Board & Inbox board-items entity model".

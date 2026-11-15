@@ -264,7 +264,7 @@ while [ "$( LC_ALL=C grep -c . "$rigTmp/started" 2> /dev/null || : )" -lt $(( ri
 rigAssert "and each of the two ran its console, and nobody else" \
 	"$( LC_ALL=C sort "$rigTmp/started" 2> /dev/null | LC_ALL=C uniq -c | LC_ALL=C awk '{ printf "%s=%s ", $2, $1 }' )" "keeper-far=3 keeper-rig=3 magic-coordinator=3 "
 rigAssert "the rule is one function, which the spawner starts by and the list prints: defined once, and called by both" \
-	"$( cat "$rigHere"/*/*.include | LC_ALL=C grep -c -E '^AgentsToolsSpawnRoutineExecutorsRoster\(\)\{' || : ) $( LC_ALL=C grep -v '^[[:space:]]*#' "$rigHere/magic/AgentsTools.MagicSpawnSession.include" | LC_ALL=C grep -c -e 'AgentsToolsSpawnRoutineExecutorsRoster "' || : ) $( LC_ALL=C grep -v '^[[:space:]]*#' "$rigHere/manager/AgentsTools.ManagerRoutine.include" 2> /dev/null | LC_ALL=C grep -c -e 'AgentsToolsSpawnRoutineExecutorsRoster "' || : )" "1 1 1"
+	"$( cat "$rigHere"/*/*.include | LC_ALL=C grep -c -E '^AgentsToolsSpawnRoutineExecutorsRoster\(\)\{' || : ) $( LC_ALL=C grep -v '^[[:space:]]*#' "$rigHere/spawn/AgentsTools.SpawnSession.include" | LC_ALL=C grep -c -e 'AgentsToolsSpawnRoutineExecutorsRoster "' || : ) $( LC_ALL=C grep -v '^[[:space:]]*#' "$rigHere/manager/AgentsTools.ManagerRoutine.include" 2> /dev/null | LC_ALL=C grep -c -e 'AgentsToolsSpawnRoutineExecutorsRoster "' || : )" "1 1 1"
 
 echo "-- 4. the caller rule, and the place in the family --"
 rigPre=( "MDAT_SPAWN_AGENT=magic-coordinator" )

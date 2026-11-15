@@ -1,0 +1,79 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.RunLeft.include -- what a stop or a kill left of a run, kept in the run's own store.
+## Sourced, never run. Functions only. Each function loads what it calls itself.
+##
+
+## WHAT IS LEFT OF A RUN after it was signalled, for the caller that signalled it and kept what
+## it signalled as AgentsToolsRunProcessesBegan gave it, each process with when it began:
+## those of them that are still the processes they were, and whatever the walk gives for the
+## run now. The first is what tells a process the run had started and that outlives it: once
+## the run's own process is gone, nothing under the run's name leads to that one any more, so
+## a walk alone would read it as gone. A kept pid that another process has taken since began
+## at another time: it is none of them, and is never signalled for the first. One place, for
+## the manager's kill and for a stop alike. One pid a line.
+AgentsToolsRunLeft(){ ## spawn id, the processes signalled as `<pid> <start>` lines (may be empty), the asking process (as AgentsToolsRunProcesses takes it)
+	type AgentsToolsRunProcessesBegan > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunProcesses.include"
+	{
+		[ -z "${2:-}" ] || { printf '%s\n' "$2" | AgentsToolsRunProcessesBegan ; printf '=\n%s\n' "$2" ; } \
+			| LC_ALL=C awk '$0 == "=" { leftKept = 1 ; next ; } ! leftKept { leftNow[$0] = 1 ; next ; } ( $0 in leftNow ) { print $1 ; }'
+		AgentsToolsRunProcesses "${1:-}" "" "${3:-$$}"
+	} | LC_ALL=C sort -u
+	return 0
+}
+
+## WHAT A STOP OR A KILL LEFT OF A RUN, KEPT IN THE RUN'S OWN STORE:
+## .local/agents/sessions/<spawn id>/stop.left, a line a process, `<pid> <start>`, the start
+## as AgentsToolsRunProcessesBegan gives it. A process the run started that outlived a
+## stop stands under no process of the run any more, so no walk from the run finds it again:
+## this file is what the next stop or kill of that run finds it by.
+## An entry is a process only while its pid is still the process that began when the entry
+## says. One whose process is gone, and one whose pid another process has taken, are nothing,
+## and are never signalled. So the file needs no clearing when the run is started again: what
+## an earlier life of the run left behind in name alone is told by its start time, and what
+## it left behind alive is still this run's to end. The file is removed by the read that
+## finds nothing of it left, and by the stop or the kill after which nothing is left.
+AgentsToolsRunLeftFile(){ ## spawn id -- prints the path; rc 1 for an id that names no store
+	type AgentsSessionMarkerFile > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+	[ -n "${MMDAPP:-}" ] || return 1
+	AgentsSessionMarkerFile "${1:-}" stop.left
+}
+
+## The entries kept for a run that are still the processes they were, `<pid> <start>` a line.
+## A file that holds none any more is removed.
+AgentsToolsRunLeftKept(){ ## spawn id
+	type AgentsToolsRunProcessesBegan > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunProcesses.include"
+	local keptFile keptLines keptStill
+	keptFile="$( AgentsToolsRunLeftFile "${1:-}" )" || return 0
+	[ -f "$keptFile" ] || return 0
+	keptLines="$( cat "$keptFile" 2>/dev/null )" || keptLines=""
+	keptStill=""
+	[ -z "$keptLines" ] || keptStill="$( { printf '%s\n' "$keptLines" | AgentsToolsRunProcessesBegan ; printf '=\n%s\n' "$keptLines" ; } \
+		| LC_ALL=C awk '$0 == "=" { keptRead = 1 ; next ; } ! keptRead { keptNow[$0] = 1 ; next ; } ( $0 in keptNow ) && ! keptSaid[$0]++ { print ; }' )" || keptStill=""
+	if [ -z "$keptStill" ] ; then
+		rm -f "$keptFile" 2>/dev/null
+		return 0
+	fi
+	printf '%s\n' "$keptStill"
+	return 0
+}
+
+## Keeps for a run the processes given, which its caller signalled and found still there, each
+## with when it began; with none given, or none of them a process any more, the file is
+## removed. Written aside and put in place by one rename. Never fails its caller.
+AgentsToolsRunLeftKeep(){ ## spawn id, the process ids still there (a space or a line between them; may be empty)
+	type AgentsToolsRunProcessesBegan > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunProcesses.include"
+	local keepFile keepLines
+	keepFile="$( AgentsToolsRunLeftFile "${1:-}" )" || return 0
+	keepLines=""
+	[ -z "${2:-}" ] || keepLines="$( printf '%s\n' ${2} | AgentsToolsRunProcessesBegan )" || keepLines=""
+	if [ -z "$keepLines" ] ; then
+		rm -f "$keepFile" 2>/dev/null
+		return 0
+	fi
+	mkdir -p "${keepFile%/*}" 2>/dev/null || return 0
+	{ printf '%s\n' "$keepLines" > "$keepFile.$$.aside" && mv -f "$keepFile.$$.aside" "$keepFile" ; } 2>/dev/null || rm -f "$keepFile.$$.aside" 2>/dev/null
+	return 0
+}

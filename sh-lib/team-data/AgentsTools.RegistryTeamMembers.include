@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.RegistryTeamMembers.include -- the team-members registry: its rows and its rebuild.
+## Sourced, never run. Functions only. Each function loads what it calls itself. The registry mechanics are AgentsTools.Registries.include.
+##
+
+##
+## team-members -- every team-member that has a path in this workspace.
+## Columns: member workspace link-kind skillset-path
+##
+## Built from this workspace's own member registry, .local/agents/members.registry,
+## which the skillset-symlink installer writes (AgentsTools.TeamRegistry.include). That
+## registry IS this one's store; this is the same records in the common column format,
+## so nothing enumerates members a second way. A rules-file row is not a member and has
+## no row here.
+##
+AgentsToolsRegistryTeamMembersRows(){
+	local membersIndex thisRoot
+	membersIndex="$MMDAPP/.local/agents/members.registry"
+	[ -f "$membersIndex" ] || return 0
+	thisRoot="$( cd "$MMDAPP" 2>/dev/null && pwd )" || thisRoot="${MMDAPP%/}"
+	## The store's separator is a TAB; the registries' is whitespace. The fields are a
+	## member name, a workspace root, a link kind and a path relative to that kind's
+	## base, none of which contains either; the root is written as its basename.
+	LC_ALL=C awk -F'\t' -v here="$thisRoot" '
+		$1 == "" || $2 != here || $3 == "rules-symlink" { next ; }
+		{
+			ws = $2 ; sub( /.*\//, "", ws ) ;
+			printf "%s %s %s %s\n", $1, (ws == "" ? "-" : ws), ($3 == "" ? "-" : $3), ($4 == "" ? "-" : $4) ;
+		}
+	' "$membersIndex"
+	return 0
+}
+
+AgentsToolsRegistryTeamMembersRebuild(){
+	type AgentsToolsRegistryWrite > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
+	AgentsToolsRegistryWrite team-members AgentsToolsRegistryTeamMembersRows
+}

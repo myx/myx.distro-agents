@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 ## Behavioural check on the status of the router of the Slack comms operations (epic 20261026-refactorings, S28.8): the router passes the
 ## status of the operation on to whoever sourced it, and the dispatcher that sources it ends with that status. Held, run and not read:
-##   1. THE SOURCER. A process that sources the router with a failing call sees the status of the failure on the `.` command: a client stub
-##      named for a member that is no client, and an operation the router does not know. A call that succeeds is seen as 0.
+##   1. THE SOURCER. A process that sources the router (a library: defines its functions, runs nothing) and calls its Run function with a failing
+##      call sees the status: a client stub named for a member that is no client, and an operation the router does not know. A call that succeeds is seen as 0.
 ##   2. THE DISPATCHER. The same calls through DistroAgentsTools.fn.sh end non-zero, and so does a real operation that fails at Slack
 ##      (a reaction Slack refuses with ok:false, over a Slack-shaped fake curl). A reaction Slack accepts, and the scopes answer, end 0.
 ##   3. THE INSTRUMENT. The probe that reads a sourced file's status is run on two files made by hand, one that returns 0 and one that
@@ -21,7 +21,7 @@ rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }
 rigPackage="$MDLT_ORIGIN/$rigPackageRel"
-rigRouter="$rigPackage/sh-lib/comms/AgentsTools.MemberCommsSlack.include"
+rigRouter="$rigPackage/sh-lib/slack/AgentsTools.MemberCommsSlack.include"
 rigTools="$rigPackage/sh-scripts/DistroAgentsTools.fn.sh"
 [ -f "$rigTools" ] || rigRefuse "no dispatcher at the origin this workspace resolves: $rigPackage"
 [ -f "$rigRouter" ] || rigRefuse "no router at the origin: $rigRouter"
@@ -85,6 +85,10 @@ rigSourced(){ ## the file to source, its arguments -- the status the sourcer rea
 	rigEnv bash -c '. "$1" "${@:2}" ; printf "SOURCED-STATUS=%s\n" "$?"' rig "$@"
 	LC_ALL=C sed -n 's/^SOURCED-STATUS=//p' "$rigTmp/call.out" | LC_ALL=C tail -1
 }
+rigRun(){ ## the file to source, the Run function's arguments -- the status the Run function ends with
+	rigEnv bash -c '. "$1" ; AgentsToolsMemberCommsSlackRun "${@:2}" ; printf "SOURCED-STATUS=%s\n" "$?"' rig "$@"
+	LC_ALL=C sed -n 's/^SOURCED-STATUS=//p' "$rigTmp/call.out" | LC_ALL=C tail -1
+}
 rigDispatched(){ ## the dispatcher's arguments -- the status the dispatcher ends with
 	rigEnv bash "$rigTools" "$@"
 	printf '%s' "$rigRc"
@@ -97,21 +101,21 @@ rigAssert "probe: a file that returns 0 reads 0" "$( rigSourced "$rigTmp/ret0.in
 rigAssert "probe: a file that returns 3 reads 3" "$( rigSourced "$rigTmp/ret3.include" )" 3
 rigAssert "reader: 0 is zero, 3 is non-zero, and nothing is no status" "$( rigNonZero 0 ) $( rigNonZero 3 ) $( rigNonZero '' )" "zero non-zero not-a-status:"
 
-echo "-- 1. the sourcer reads the status of the operation --"
-rigAssert "a client stub named for a member that is no client: the source ends non-zero" "$( rigNonZero "$( rigSourced "$rigRouter" --client-comms-slack-read notaclient )" )" non-zero
-rigAssert "an operation the router does not know: the source ends non-zero" "$( rigNonZero "$( rigSourced "$rigRouter" --intern-op-comms-slack-nonsense )" )" non-zero
-rigAssert "control: the scopes answer, which succeeds: the source ends 0" "$( rigSourced "$rigRouter" --intern-op-comms-slack-read --print-required-scopes )" 0
+echo "-- 1. the sourcer reads the status of the operation through the Run function --"
+rigAssert "a client stub named for a member that is no client: the Run ends non-zero" "$( rigNonZero "$( rigRun "$rigRouter" --client-comms-slack-read notaclient )" )" non-zero
+rigAssert "an operation the router does not know: the Run ends non-zero" "$( rigNonZero "$( rigRun "$rigRouter" --intern-op-comms-slack-nonsense )" )" non-zero
+rigAssert "control: the scopes answer, which succeeds: the Run ends 0" "$( rigRun "$rigRouter" --intern-op-comms-slack-read --print-required-scopes )" 0
 
 echo "-- 2. the dispatcher ends with the status of the operation --"
 rigAssert "a client stub named for a member that is no client: the dispatcher ends non-zero" "$( rigNonZero "$( rigDispatched --client-comms-slack-read notaclient )" )" non-zero
 rigAssert "an operation the router does not know: the dispatcher ends non-zero" "$( rigNonZero "$( rigDispatched --intern-op-comms-slack-nonsense )" )" non-zero
 : > "$RIG_CURL_LOG"
-RIG_REACT_REFUSED=1 rigDispatched --slack-react "$rigMember" CRIG00001:1700000000.000100 eyes > "$rigTmp/refused.status"
+RIG_REACT_REFUSED=1 rigDispatched --slack-react CRIG00001:1700000000.000100 eyes > "$rigTmp/refused.status"
 rigAssert "a reaction Slack refuses: it asked reactions.add" "$( LC_ALL=C grep -c -x -F reactions.add "$RIG_CURL_LOG" | LC_ALL=C awk '{ print ( $1 > 0 ) ? "asked" : "not-asked" ; }' )" asked
 rigAssert "a reaction Slack refuses: its own error says it was not added" "$( LC_ALL=C grep -c 'COULD NOT REACT' "$rigTmp/call.err" | LC_ALL=C awk '{ print ( $1 > 0 ) ? "said" : "silent" ; }' )" said
 rigAssert "a reaction Slack refuses: the dispatcher ends non-zero" "$( rigNonZero "$( cat "$rigTmp/refused.status" )" )" non-zero
 : > "$RIG_CURL_LOG"
-rigAssert "control: a reaction Slack accepts: the dispatcher ends 0" "$( rigDispatched --slack-react "$rigMember" CRIG00001:1700000000.000100 eyes )" 0
+rigAssert "control: a reaction Slack accepts: the dispatcher ends 0" "$( rigDispatched --slack-react CRIG00001:1700000000.000100 eyes )" 0
 rigAssert "control: that reaction was asked of Slack" "$( LC_ALL=C grep -c -x -F reactions.add "$RIG_CURL_LOG" | LC_ALL=C awk '{ print ( $1 > 0 ) ? "asked" : "not-asked" ; }' )" asked
 rigAssert "control: the scopes answer through the dispatcher ends 0" "$( rigDispatched --intern-op-comms-slack-read --print-required-scopes )" 0
 

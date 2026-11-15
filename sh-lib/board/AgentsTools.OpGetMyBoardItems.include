@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+## AgentsTools.OpGetMyBoardItems.include -- the operation `--get-my-board-items`, sourced by AgentsTools.Member.include with the operation's arguments.
+## The board items assigned to a member and active (pending and running): the collection the work-duty input scan reads for the member
+## (`--do-board-related-startable` of the session-context scan), so a member asks at any point of its work what the duty's scan
+## would list, and the two never disagree. Read only. Blocked and review items are not in it (the scan has no such collection).
+		shift
+		local memberName="$1"
+		shift || true
+		if [ -z "$memberName" ] || [ $# -gt 0 ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --get-my-board-items: syntax is <team-member>" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsAssertBareName "$memberName" "<team-member>" get-my-board-items || { set +e ; return 1 ; }
+		if [ ! -d "$MDAT_SKILLSET_ROOT/$memberName" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --get-my-board-items: no such member skill directory: $MDAT_SKILLSET_ROOT/$memberName" >&2
+			set +e ; return 1
+		fi
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+		DistroAgentsTools --intern-op-session-context-scan "$memberName" --all-types \
+			--no-inbox-inquiry --no-inbox-reflections --no-inbox-notes --no-inbox-other \
+			--no-slack --no-email --no-trello --do-board-related-startable \
+			--context --get-my-board-items
+		return $?

@@ -51,11 +51,9 @@ AgentsToolsMonitoringHealth(){ ## workspace (default MMDAPP)
 	healthNow="$( date +%s )"
 
 	## THE FLAGS FIRST: planned maintenance decides how an alarm prints, holding says the schedule starts nothing.
-	type AgentsToolsScheduleOverrideLeft > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.DispatcherSchedule.include" 2> /dev/null || :
-	if type AgentsToolsScheduleOverrideLeft > /dev/null 2>&1 ; then
+	type AgentsToolsScheduleOverrideLeft > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/schedule/AgentsTools.DispatcherSchedule.include"
 		healthMaintLeft="$( MMDAPP="$healthWs" AgentsToolsScheduleOverrideLeft MDAT_SCHEDULE_PLANNED_MAINTENANCE "$healthNow" 2> /dev/null )" || healthMaintLeft=""
 		healthHold="$( MMDAPP="$healthWs" AgentsToolsScheduleOverrideLeft MDAT_SCHEDULE_HOLDING "$healthNow" 2> /dev/null )" || healthHold=""
-	fi
 	case "$healthMaintLeft" in '') healthMaint="" ;; on) healthMaint="on" ;; *) healthMaint="$healthMaintLeft" ;; esac
 	if [ -n "$healthMaint" ] ; then AgentsToolsMonitoringLine health "$healthName" planned-maintenance yes "$healthMaint seconds left" ; else AgentsToolsMonitoringLine health "$healthName" planned-maintenance no "" ; fi
 	if [ -n "$healthHold" ] ; then AgentsToolsMonitoringLine health "$healthName" holding yes "$healthHold" ; else AgentsToolsMonitoringLine health "$healthName" holding no "" ; fi
@@ -88,15 +86,13 @@ AgentsToolsMonitoringHealth(){ ## workspace (default MMDAPP)
 	AgentsToolsMonitoringLine health "$healthName" control-threads "$healthCount alive" "$healthLine dead"
 
 	## THE RUNS: the started records kept by the tooling, and the pace of their tool calls.
-	type AgentsToolsSpawnedStartedRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include" 2> /dev/null || :
+	type AgentsToolsSpawnedStartedRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.StartedRecords.include"
 	healthCount=0
-	if type AgentsToolsSpawnedStartedRecords > /dev/null 2>&1 ; then
+	type AgentsToolsSpawnedStartedRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.StartedRecords.include"
 		while IFS= read -r healthLine ; do [ -z "$healthLine" ] || healthCount=$(( healthCount + 1 )) ; done <<< "$( MMDAPP="$healthWs" AgentsToolsSpawnedStartedRecords 2> /dev/null )"
-	fi
 	AgentsToolsMonitoringLine health "$healthName" runs-started "$healthCount" "records with status spawn-started"
-	if type AgentsToolsSchedulePaceText > /dev/null 2>&1 ; then
+	type AgentsToolsSchedulePaceText > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/schedule/AgentsTools.DispatcherSchedule.include"
 		healthPace="$( MMDAPP="$healthWs" AgentsToolsSchedulePaceText 2> /dev/null )" || healthPace=""
-	fi
 	AgentsToolsMonitoringLine health "$healthName" tool-pace "${healthPace:-unknown}" ""
 
 	## THE COMMS: the outbox of every channel, records a send queued and the reader has not posted.
@@ -109,14 +105,15 @@ AgentsToolsMonitoringHealth(){ ## workspace (default MMDAPP)
 	[ "$healthCount" -le "$agentsMonitoringOutboxAlarm" ] || healthAlarms="${healthAlarms}comms-outbox"$'\t'"$healthCount records queued, over $agentsMonitoringOutboxAlarm"$'\n'
 
 	## SLACK: whether the team bot has a token here, never the token.
-	type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include" 2> /dev/null || :
+	type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/settings/AgentsTools.ConfigOption.include"
 	healthState="absent"
-	if type AgentsToolsConfigOption > /dev/null 2>&1 && [ -n "$( MMDAPP="$healthWs" AgentsToolsConfigOption magic-team --select SLACK_BOT_TOKEN 2> /dev/null )" ] ; then healthState="present" ; fi
+	type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/settings/AgentsTools.ConfigOption.include"
+	if [ -n "$( MMDAPP="$healthWs" AgentsToolsConfigOption magic-team --select SLACK_BOT_TOKEN 2> /dev/null )" ] ; then healthState="present" ; fi
 	AgentsToolsMonitoringLine health "$healthName" slack-bot-token "$healthState" "of the magic-team scope"
 
 	## THE TEAM DATA: the store the workspace runs on, its git state where it has one.
-	type AgentsToolsTeamDataRootOf > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataRoot.include" 2> /dev/null || :
-	type AgentsToolsWorkspaceMode > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataGate.include" 2> /dev/null || :
+	type AgentsToolsTeamDataRootOf > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataRoot.include"
+	type AgentsToolsWorkspaceMode > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataGate.include"
 	read -r healthMode healthModeSource <<< "$( MMDAPP="$healthWs" AgentsToolsWorkspaceMode 2> /dev/null )" || :
 	AgentsToolsMonitoringLine health "$healthName" workspace-mode "${healthMode:-unknown}" "${healthModeSource:-}"
 	healthRoot="$( AgentsToolsTeamDataRootOf "$healthWs" 2> /dev/null )" || healthRoot=""

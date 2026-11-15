@@ -1,3 +1,6 @@
+---
+maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
+---
 # human-owner — Maintainer Notes
 
 The body of `# Maintainer Notes` in `human-owner.armed.md`. Read it when that file is updated, assessed or tested.

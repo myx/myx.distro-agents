@@ -43,7 +43,7 @@ rigView(){ ## the registry's agent view, and its session view
 	env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp" PATH="/usr/bin:/bin:/usr/sbin:/sbin" \
 		MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
 		MDAT_SPAWN_AGENT=magic-coordinator \
-		bash -c '. "$1" ; AgentsToolsRegistryRenderSpawnedSessions "$2"' rig "$rigPkg/sh-lib/team-data/AgentsTools.Registries.include" "$1" 2>&1
+		bash -c '. "$1" ; AgentsToolsRegistryRenderSpawnedSessions "$2"' rig "$rigPkg/sh-lib/team-data/AgentsTools.RegistrySpawnedSessions.include" "$1" 2>&1
 }
 rigStateOf(){ ## view output, spawn id -- the state column of that row
 	printf '%s\n' "$1" | LC_ALL=C awk -v want="$2" '$8 == want { print $13 }' | head -1
@@ -71,7 +71,7 @@ mkdir -p "$rigWs/.local/agents/sessions/rig-closing-$$"
 : > "$rigWs/.local/agents/sessions/rig-closing-$$/parked"
 ( cd "$rigWs" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp" PATH="/usr/bin:/bin:/usr/sbin:/sbin" \
 	MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_SPAWN_AGENT=magic-coordinator \
-	bash -c '. "$1" ; AgentsToolsSpawnProxyCloseSandbox "$2" succeeded 0 "the rig closed it"' rig "$rigPkg/sh-lib/session/AgentsTools.SpawnSandbox.include" \
+	bash -c '. "$1" ; AgentsToolsSpawnProxyCloseSandbox "$2" succeeded 0 "the rig closed it"' rig "$rigPkg/sh-lib/spawn/AgentsTools.SpawnSandbox.include" \
 	"$rigSpawned/rig-closing-$$/rig-closing-$$.spawn.md" ) > /dev/null 2>&1
 rigAssert "the record is closed"                          "$( LC_ALL=C sed -n 's/^status: //p' "$rigSpawned/rig-closing-$$/rig-closing-$$.spawn.md" | head -1 )" "spawn-succeeded"
 rigAssert "and its mark is gone"                          "$( [ -f "$rigWs/.local/agents/sessions/rig-closing-$$/parked" ] && printf present || printf gone )" "gone"
@@ -89,7 +89,7 @@ echo "-- 5. a live run carrying a stale mark reads what it is doing, not parked 
 mkdir -p "$rigSpawned/rig-lively-$$" "$rigWs/.local/agents/sessions/rig-lively-$$"
 : > "$rigWs/.local/agents/sessions/rig-lively-$$/parked"
 printf '1 %s thinking\n' "$( date +%s )" > "$rigWs/.local/agents/sessions/rig-lively-$$/activity"
-rigAssert "a live run with a stale mark reads thinking"  "$( cd "$rigWs" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp" PATH="/usr/bin:/bin" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" bash -c '. "$1" ; AgentsToolsRegistryDeriveState spawn-succeeded running rig-lively-$$ rig-lively-$$' rig "$rigPkg/sh-lib/team-data/AgentsTools.Registries.include" 2>&1 )" "thinking"
+rigAssert "a live run with a stale mark reads thinking"  "$( cd "$rigWs" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp" PATH="/usr/bin:/bin" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" bash -c '. "$1" ; AgentsToolsRunDeriveState spawn-succeeded running rig-lively-$$ rig-lively-$$' rig "$rigPkg/sh-lib/run/AgentsTools.RunState.include" 2>&1 )" "thinking"
 
 if [ "$rigFail" -ne 0 ] ; then
 	echo "⛔ PARK RECORD CHECK FAILED: $rigFail of $(( rigPass + rigFail )) assertion(s)" >&2 ; exit 1

@@ -1,0 +1,155 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.InternOpAtlassianCall.include -- the shared Atlassian layer, for
+## both products and both directions. Credentials reach curl on its stdin only:
+## never argv, never a file.
+##
+## THE OUTCOME IS CLASSIFIED ON THE HTTP STATUS, NEVER ON THE BODY'S LENGTH. A
+## write answers 204 with no content, so an empty body is a real answer and
+## exits 0. Classifying on emptiness reports every write as a failure, which is
+## the one decision here that cannot survive the write half landing.
+##
+## DUAL USE -- dispatch, and definitions-only sourcing, same shape as
+## AgentsTools.CommsSlack.include. NEVER WIDEN the --intern-op-atlassian-* arm
+## below: a sourcer whose own $1 matched it would dispatch here and again in
+## its own case, twice, with rc 0.
+##
+## The helper takes every value as an argument and reads nothing from a
+## caller's frame, so no arm owes it a `local` declaration.
+##
+## Exit -- the mark follows the CLASS, never the number (MAGIC.md severity marks).
+## 0 answered. Faults, ⛔ ERROR: 1 contract error, 3 answer UNKNOWN, 4 credential
+## rejected (401). Designed refusals, 🙋 WARNING -- the site answered and the
+## answer is no: 5 conflict (409), 6 not configured, 7 forbidden (403), 8 not
+## found or invisible (404), 9 the site answered and refused, and no retry of the
+## same request will change it (every other 4xx, 410 included).
+##
+
+case "$1" in
+	--intern-op-atlassian-*)
+		local scanSeen=" " scanArg
+		for scanArg in "$@" ; do
+			case "$scanArg" in
+				--member|--context)
+					case "$scanSeen" in
+						*" $scanArg "*)
+							printf '%s\n' "⛔ ERROR: $MDSC_CMD: $scanArg is given twice, so the call is refused before anything is sent" >&2
+							set +e ; return 1
+						;;
+					esac
+					scanSeen="$scanSeen$scanArg "
+				;;
+			esac
+		done
+	;;
+esac
+
+case "$1" in
+
+	--intern-op-atlassian-call)
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/atlassian/AgentsTools.InternOpAtlassianCallRun.include"
+	;;
+
+	--intern-op-atlassian-check)
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/atlassian/AgentsTools.InternOpAtlassianCheck.include"
+	;;
+
+	--intern-op-atlassian-confluence-space-list)
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/atlassian/AgentsTools.InternOpAtlassianConfluenceSpaceList.include"
+	;;
+
+	--intern-op-atlassian-confluence-space-create)
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/atlassian/AgentsTools.InternOpAtlassianConfluenceSpaceCreate.include"
+	;;
+
+	--intern-op-atlassian-jira-board-list)
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/atlassian/AgentsTools.InternOpAtlassianJiraBoardList.include"
+	;;
+
+	--intern-op-atlassian-jira-board-read)
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/atlassian/AgentsTools.InternOpAtlassianJiraBoardRead.include"
+	;;
+
+	--intern-op-atlassian-jira-board-issue-search|--intern-op-atlassian-jira-sprint-list|--intern-op-atlassian-jira-sprint-issue-search)
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/atlassian/AgentsTools.InternOpAtlassianJiraBoardIssueSearch.include"
+	;;
+
+	--intern-op-atlassian-jira-issue-search)
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/atlassian/AgentsTools.InternOpAtlassianJiraIssueSearch.include"
+	;;
+
+	--intern-op-atlassian-jira-comment-read)
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/atlassian/AgentsTools.InternOpAtlassianJiraCommentRead.include"
+	;;
+
+	--intern-op-atlassian-jira-issue-create)
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/atlassian/AgentsTools.InternOpAtlassianJiraIssueCreate.include"
+	;;
+
+	--intern-op-atlassian-jira-issue-update)
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/atlassian/AgentsTools.InternOpAtlassianJiraIssueUpdate.include"
+	;;
+
+	--intern-op-atlassian-jira-issue-transition)
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/atlassian/AgentsTools.InternOpAtlassianJiraIssueTransition.include"
+	;;
+
+	--intern-op-atlassian-jira-comment-add)
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/atlassian/AgentsTools.InternOpAtlassianJiraCommentAdd.include"
+	;;
+
+	--intern-op-atlassian-jira-issue-link-page)
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/atlassian/AgentsTools.InternOpAtlassianJiraIssueLinkPage.include"
+	;;
+
+	--intern-op-atlassian-jira-issue-delete)
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/atlassian/AgentsTools.InternOpAtlassianJiraIssueDelete.include"
+	;;
+
+	--intern-op-atlassian-jira-project-delete)
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/atlassian/AgentsTools.InternOpAtlassianJiraProjectDelete.include"
+	;;
+
+	--intern-op-atlassian-confluence-page-search)
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/atlassian/AgentsTools.InternOpAtlassianConfluencePageSearch.include"
+	;;
+
+	--intern-op-atlassian-confluence-comment-read)
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/atlassian/AgentsTools.InternOpAtlassianConfluenceCommentRead.include"
+	;;
+
+	--intern-op-atlassian-confluence-page-create)
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/atlassian/AgentsTools.InternOpAtlassianConfluencePageCreate.include"
+	;;
+
+	--intern-op-atlassian-confluence-page-update)
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/atlassian/AgentsTools.InternOpAtlassianConfluencePageUpdate.include"
+	;;
+
+	--intern-op-atlassian-confluence-comment-add)
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/atlassian/AgentsTools.InternOpAtlassianConfluenceCommentAdd.include"
+	;;
+
+	--intern-op-atlassian-confluence-page-delete)
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/atlassian/AgentsTools.InternOpAtlassianConfluencePageDelete.include"
+	;;
+
+	--intern-op-atlassian-*)
+		printf '%s\n' "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
+		set +e ; return 1
+	;;
+
+	## DEFINITIONS-ONLY SOURCE -- see DUAL USE in this file's own header. Nothing
+	## to dispatch, and nothing is an error: every part is loaded. A caller that needs one
+	## helper sources the part that holds it (AgentsTools.AtlassianRequest, JiraReads,
+	## JiraFields, ConfluenceReads).
+	*)
+		type AgentsToolsAtlassianCall > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/atlassian/AgentsTools.AtlassianRequest.include"
+		type AgentsToolsJiraAgileRead > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/atlassian/AgentsTools.JiraReads.include"
+		type AgentsToolsJiraAdfValidate > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/atlassian/AgentsTools.JiraFields.include"
+		type AgentsToolsAtlassianConfluencePageRead > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/atlassian/AgentsTools.ConfluenceReads.include"
+	;;
+
+esac

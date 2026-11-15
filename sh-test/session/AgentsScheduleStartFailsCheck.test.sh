@@ -41,7 +41,7 @@ rigAssert(){ ## what is asserted, got, want
 export MMDAPP="$rigWs"
 ## The include's own sourcing reads a positional parameter, so -u is lifted around it, as AgentsSchedulePaceAndStandingCheck does.
 set +u
-. "$rigPackage/sh-lib/session/AgentsTools.DispatcherSchedule.include" > /dev/null 2>&1 || :
+. "$rigPackage/sh-lib/schedule/AgentsTools.DispatcherSchedule.include" > /dev/null 2>&1 || :
 set -u
 type AgentsToolsScheduleStartFailed > /dev/null 2>&1 || rigRefuse "AgentsToolsScheduleStartFailed is not defined by sourcing the schedule's functions"
 type AgentsToolsScheduleStartHeld > /dev/null 2>&1 || rigRefuse "AgentsToolsScheduleStartHeld is not defined by sourcing the schedule's functions"

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 ## Behavioural check on `scan:work-duty` as a Wait source over a report that carries live token counters (AgentsWaitProbeScan,
-## sh-lib/member/AgentsTools.MemberWait.include). The board sections of the scan print the `tokens:` and `tokens-total:` lines of
+## sh-lib/wait/AgentsTools.MemberWait.include). The board sections of the scan print the `tokens:` and `tokens-total:` lines of
 ## every running item, and the harness rewrites those at every model round, so a report summed whole differed at every wait: the
 ## idle wait of a work-duty run returned after one round, whatever had arrived, with a 190 KB report that held nothing new. The
 ## wake is on a change of the report other than those counters. Held:

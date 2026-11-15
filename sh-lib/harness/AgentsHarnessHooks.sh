@@ -109,6 +109,7 @@ AgentsHarnessHooksRefusal(){
 		case "$hookToolName" in
 			Read|Write|Edit)
 				if [ "$hookToolName" = Read ] ; then
+					type AgentsHarnessArgValue > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessRun.include"
 					harnessArgV_offset="$( AgentsHarnessArgValue "$hookArgsRaw" offset )"
 					harnessArgV_limit="$( AgentsHarnessArgValue "$hookArgsRaw" limit )"
 				fi
@@ -139,6 +140,7 @@ AgentsHarnessHooksRefusal(){
 			hookReadLimit="${harnessArgV_limit-}"
 			hookReadPath="${harnessArgV_file_path-}"
 			[ -n "$hookReadPath" ] || hookReadPath="${harnessArgV_path-}"
+			type AgentsHarnessWholeNumber > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessToolsFile.include"
 			AgentsHarnessWholeNumber "$hookReadOffset" || hookReadOffset=""
 			AgentsHarnessWholeNumber "$hookReadLimit" || hookReadLimit=""
 			hookInputJson='{"file_path":"'"$( printf '%s' "$hookReadPath" | LC_ALL=C awk -f "$harnessHere/mcp/AgentsMcpJsonEscape.awk" )"'"'"${hookReadOffset:+,\"offset\":$hookReadOffset}${hookReadLimit:+,\"limit\":$hookReadLimit}"'}'
@@ -225,7 +227,7 @@ AgentsHarnessHooksRefusal(){
 			## hook it was started for and no other process: sixty seconds on, the pid alone may
 			## name whoever was given that number since. So it keeps when the hook began, read as
 			## the watchdog starts, and signals only while that pid is still the process that
-			## began then, by the one reading a process is kept by (AgentsToolsRegistryProcessesBegan).
+			## began then, by the one reading a process is kept by (AgentsToolsRunProcessesBegan).
 			## Loaded and read in the watchdog's own shell: the hook is waited for at once, and
 			## what is loaded is gone with the watchdog. Where no start can be read, nothing is
 			## signalled by the number alone.
@@ -233,15 +235,15 @@ AgentsHarnessHooksRefusal(){
 				printf '%s' "$hookPayload" | CLAUDE_PROJECT_DIR="$MMDAPP" "$BASH" -c "$hookCommand" > "$harnessScratch/hook.out" 2>"$harnessScratch/hook.err" &
 				hookRunPid=$!
 				(
-					type AgentsToolsRegistryProcessesBegan > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include" 2> /dev/null
-					hookRunBegan="$( printf '%s\n' "$hookRunPid" | AgentsToolsRegistryProcessesBegan 2> /dev/null )"
+					type AgentsToolsRunProcessesBegan > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunProcesses.include"
+					hookRunBegan="$( printf '%s\n' "$hookRunPid" | AgentsToolsRunProcessesBegan 2> /dev/null )"
 					## The sleep is a child of this watchdog: the TERM that ends the watchdog once the hook returned must end the
 					## sleep too, else one `sleep 60` outlives every hook under launchd.
 					watchSleep="" ; trap '[ -z "$watchSleep" ] || kill "$watchSleep" 2>/dev/null ; exit 0' TERM
 					sleep 60 & watchSleep=$!
 					wait "$watchSleep" || exit 0
 					watchSleep=""
-					[ -n "$hookRunBegan" ] && [ "$( printf '%s\n' "$hookRunPid" | AgentsToolsRegistryProcessesBegan 2> /dev/null )" = "$hookRunBegan" ] && kill -TERM "$hookRunPid" 2>/dev/null
+					[ -n "$hookRunBegan" ] && [ "$( printf '%s\n' "$hookRunPid" | AgentsToolsRunProcessesBegan 2> /dev/null )" = "$hookRunBegan" ] && kill -TERM "$hookRunPid" 2>/dev/null
 				) >/dev/null &
 				hookWatchPid=$!
 				wait "$hookRunPid" || hookRc=$?

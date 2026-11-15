@@ -107,7 +107,7 @@ rigWriterLeft(){ ## path, the text it wrote there
 }
 ## The board resync a duty start runs, as AgentsToolsAdvanceCloneSync makes it.
 rigResync(){ ## result name
-	rigRun "$1" '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.RoutineLock.include" ;
+	rigRun "$1" '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/routine/AgentsTools.RoutineLock.include" ;
 		AgentsToolsAdvanceCloneSync "$MDAT_DATA_ROOT" "$( LC_ALL=C sed -n "s/^TEAM_DATA_GIT_REMOTE=//p" "$MMDAPP/.local/.agents/magic-team.agent.env" )" main ;
 		printf "RESYNC-RC=%s\n" "$?"'
 }

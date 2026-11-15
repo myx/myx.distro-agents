@@ -11,13 +11,17 @@
 ## post that goes through.
 set -u
 rigHeader="$( cat )"
-rigMethod="" rigPrevArg="" rigBody="" rigHeaderFile="" rigChannel="" rigThread="" rigPostThread=""
+rigMethod="" rigPrevArg="" rigBody="" rigHeaderFile="" rigChannel="" rigThread="" rigPostThread="" rigTs=""
 while [ $# -gt 0 ] ; do
 	rigArg="$1"
 	case "$rigArg" in
 		https://slack.com/api/*) rigMethod="${rigArg#https://slack.com/api/}" ;;
 	esac
 	[ "$rigPrevArg" != "--data-binary" ] || case "$rigArg" in @*) rigBody="${rigArg#@}" ;; esac
+	[ "$rigPrevArg" != "--data-urlencode" ] || case "$rigArg" in
+		ts@*) rigTs="$( cat "${rigArg#ts@}" 2>/dev/null )" ;;
+		channel@*) rigChannel="$( cat "${rigArg#channel@}" 2>/dev/null )" ;;
+	esac
 	[ "$rigPrevArg" != "-D" ] || rigHeaderFile="$rigArg"
 	rigPrevArg="$rigArg"
 	shift
@@ -48,6 +52,12 @@ case "$rigMethod" in
 		printf '{"ok":true,"channel":"%s","ts":"1760000001.%06d","message":{"ts":"1760000001.%06d","user":"URIGBOT01"%s}}\n' \
 			"$rigChannel" "$rigPost" "$rigPost" "${rigPostThread:+,\"thread_ts\":\"$rigPostThread\"}"
 	;;
+	conversations.replies)
+		## A reply into a thread is sent only once Slack confirms its parent message exists: echo one,
+		## a bot message so the send's own reply-author check infers no person as the addressee.
+		printf '%s %s %s -\n' "$rigMethod" "${rigChannel:--}" "${rigTs:--}" >> "$RIG_SCENARIO/calls"
+		printf '{"ok":true,"messages":[{"ts":"%s","bot_id":"BRIG1","subtype":"bot_message"}]}\n' "${rigTs:-1760000000.000000}"
+	;;
 	conversations.info)
 		printf '{"ok":true,"channel":{"id":"%s","is_im":false,"is_mpim":false}}\n' "${rigChannel:-CRIG00001}"
 	;;
@@ -56,6 +66,6 @@ case "$rigMethod" in
 	*) printf '{"ok":true}\n' ;;
 esac
 case "$rigMethod" in
-	chat.postMessage) ;;
+	chat.postMessage|conversations.replies) ;;
 	*) printf '%s %s - -\n' "${rigMethod:-unknown}" "-" >> "$RIG_SCENARIO/calls" ;;
 esac

@@ -39,6 +39,7 @@ fi
 
 mirrorOut=""
 for mirrorFile in $agentsFrontSecondary ; do
+	type AgentsToolsFrontSummary > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.FrontTable.Help.include"
 	mirrorDesc="$( AgentsToolsFrontSummary "$mirrorFile" ) Run its operations here, not through execute. Pass description to give a short description of why."
 	mirrorDesc="$( printf '%s' "$mirrorDesc" | LC_ALL=C awk -f "$mirrorEscape" )"
 	[ -z "$mirrorOut" ] || mirrorOut="$mirrorOut,"

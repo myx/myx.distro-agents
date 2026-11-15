@@ -12,7 +12,7 @@
 set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 rigPkg="${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}/myx/myx.distro-agents"
-rigSandbox="$rigPkg/sh-lib/session/AgentsTools.SpawnSandbox.include"
+rigSandbox="$rigPkg/sh-lib/spawn/AgentsTools.SpawnSandbox.include"
 rigHarnessWait="$rigPkg/sh-lib/harness/AgentsHarnessWait.include"
 rigMatch="$rigPkg/sh-lib/questions/AgentsDismissalMatch.awk"
 rigMatcher="$rigPkg/sh-lib/harness/AgentsHarnessWaitDismissed.awk"

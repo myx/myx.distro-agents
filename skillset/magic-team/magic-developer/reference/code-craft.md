@@ -1,3 +1,6 @@
+---
+maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
+---
 # Code craft: writing style, names, and indirection
 
 Read this before writing code in any language. It is not a per-language module, and does not compete with them. It governs how code is written at all, and applies on top of whichever language module is open, in any project.
@@ -5,12 +8,15 @@ Read this before writing code in any language. It is not a per-language module, 
 ## Contents
 
 - The style
+- Loads and contracts
+- Inlining and removal
 - Simplicity is a requirement
 - A check is code, and it is proven by its red
 - Bounds, reserves, and the guard that repairs
 - Comments: quantity and content are two separate checks
 - A requirement is a property of the result, not a structure in the code
 - The habit this exists to break
+- Each call runs only its own path
 - The three costs of needless work
 - The counter-rule
 - What already works is not rewritten
@@ -22,6 +28,7 @@ Read this before writing code in any language. It is not a per-language module, 
 - Fewer names is better code: fewer functions, fewer variables, fewer layers, fewer files. Each one added is something the next reader must hold in their head, and a place a defect can hide.
 - In doubt, write it where it is used.
 - A path, filename, or other location is written literally at the site that uses it. It is never assembled through a chain of names the reader has to walk backwards to resolve.
+- A system-wide convention is written literally where it is used: a store path such as `"$MMDAPP/.local/agents/sessions"`, `"$MDAT_DATA_ROOT/board"` or `"$MDLT_ORIGIN/..."`. No place function wraps it.
 - A file with two readers has two grammars, and only one of them is visible in the file. Where a tool parses a source file as data, its layout is not free, and an edit that looks cosmetic breaks it silently. Read the parser's anchor before reformatting anything, and prove the check can fail by feeding it the broken form. Where the constraint is invisible from the file, one short line records it at the point an editor would break it.
 - A number is written only where its reader needs it in order to act. In code that rule falls on several things:
   - a tally beside the list enumerating its own items.
@@ -45,9 +52,28 @@ Read this before writing code in any language. It is not a per-language module, 
   - a variable trivially derived from another.
   - a global used as an out-parameter.
   - a wrapper that only renames an existing call.
+- A function stays only where a trap or a similar shell mechanism needs one. It stays where an API needs a function whatever its content. An API needs it called by name from another file, through a variable, from a dispatch table, or stubbed by a check. It stays where it carries non-obvious knowledge that needs its gotcha comments. Everything else is written where it is used.
+- A variable derived from another stays only where it is set and used within the same few lines of one block. There the reader sees both. It also stays where the algorithm needs it there.
 - A name that earns its place is at least two words in camelCase — `doClose`, `needsClose`, `openChar`, `nestDepth`, `fieldCount`. Never a bare `close`, `depth`, `key`, `value`, `data`, `i`, `n`. Applies to every language and to every kind of name: parameter, local, field, function.
 - The rule is mechanical, not aesthetic. A bare word is the one shape that collides with a language's own vocabulary, and the diagnostic rarely says so. `close`, `index`, `length`, `split`, `sub` and `system` are AWK built-ins. A parameter named after one is a parse error, not a shadowing warning. `function f(s, i, open, close)` reports "4 missing }'s" and points at an unrelated construct, so the real cause is invisible in the message. Two words cannot collide. The same holds for a shell variable one `readonly` or one sourced file away from a clash it will never announce.
+- A name takes the prefix its neighbours share. A global takes its file's prefix: `harnessX` in the harness, `agentsX` elsewhere. A local takes its function's prefix, the one its other locals share, so a function holding `actPath` and `actRound` takes `actX`. A bare generic name such as `sessionsDir`, `boardTree` or `tmp` is a defect.
 - The same rule holds for every token a search must find: a record key, a pointer kind, a marker, a file stem. Make it a compound of at least two words, such as `mentions-checked:` or `work-duty`, never a bare word such as `dms:`, `read:` or `scan:`. A bare word also matches the prose, the comments and the unrelated code around it, so a search for it returns everything but the token.
+
+## Loads and contracts
+
+- A call to a package function loads that function's file where it is called: `type F > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/<file>"` in the calling function, or before the statement in an operation body. Never trust a caller to have loaded it.
+- A load is loud: never `2> /dev/null` on it, never a silent fallback after it (`|| :`, `|| true`, `|| return 0`, `|| exit 0`, `|| continue`). An explicit failure (`|| return 1`) is fine.
+- No optional call of a package function (`type F && F`, `if type F`): it turns a broken load into stale data while the checks stay green. Only the family's entry functions may be asked for that way: the DistroAgentsContext bootstrap, as myx.distro-source does with DistroSystemContext, or a lazy tool entry that falls back to running the same tool script.
+- A file is a library or a dispatcher, never both. A library defines functions and runs nothing at load; its operations run through its Run function. Nobody sources a file with a dummy word (`--definitions-only`) to reach its functions.
+- A load inside a function is guarded by `type`, so it parses once a process. A load stays unguarded only where re-loading resets per-call state on purpose, and then a comment says so.
+- A load is placed where the call is reached: never before a loop body that runs it each turn, never at a file's top for a function of a rare branch.
+- A file that runs a side effect at load — spawning servers, an enumeration — is never loaded from a guard.
+
+## Inlining and removal
+
+- Before inlining or removing a function, every caller in `sh-lib`, `sh-scripts` and `sh-test` is found by name. A function named from another file is API: it stays, or every caller is changed in the same change.
+- A function defined twice: the first copy is dead and goes. One name with two implementations in two files is fixed to one implementation.
+- A function named nowhere else is dead and goes.
 
 ## Simplicity is a requirement
 
@@ -73,6 +99,7 @@ A checker reports green on its own counterexample as readily as on a clean subje
 - **A stage that cannot reach its subject fails loudly. It never passes.** A rig that fails to extract the thing under test and then prints its PASS lines is reporting on nothing. Those lines read exactly like a result. Every step that loads, extracts or selects the subject is a failure branch, not a best effort.
 - **A checker's failure text is written about the subject, so a rig that never started reports exactly like a subject that broke.** Measured: a check copied into an origin holding one package reported 13 of 17 assertions failed, every word of them about the subject. Its sends had never left the rig, and its own `*.out` held two missing includes. With its siblings beside it, the same check on the same tree failed 1 of 17. So a batch of failures arriving together is read in the rig's own output before any of them is believed. Build the rig with every sibling the run sources, not the package under test alone. A workspace setting is missing the same way, and it reads the same way. Measured on a two-assertion stand-in check: without `SLACK_CHANNEL_MAGIC_TEAM` in the environment it reported both assertions failed, and with the variable set both passed. So the rig also needs the environment files the real run has, not only its siblings.
 - **A control is a control only once its two directions return different values.** Run it both ways before the measurement it qualifies is trusted: one case that must pass, one that must fail. Where both come back the same, the instrument is broken, not the subject clean. The measurement is withdrawn, never reported with a caveat. **The control goes in the first run, not the second.** A zero that arrived before its control came back has established nothing. Where the probe's answer decides what another member is told, the control belongs in the same call. Measured case: a hyphen count run through BSD `sed` with `\|` returned 0, and a rewrite using four `case` arms printed 4.
+- **An assertion count is not an arm count, and a green band covers only the arms it reached.** Measured on `AgentsCloseUnlockRecordCheck.test.sh`: 25 assertions over three labelled blocks, and one of those blocks carries thirteen of them. Read the block count before the assertion count, because one case repeated across many assertions reports as many results and is one.
 - **A measurement taken by someone else answers the question it was taken with, and no wider one.** Measured case: another member's table showed a here-string backed by a regular file, with a pipe as its control. That settled only that a file exists. Three further questions had no measurement: whether the file outlives the call, where bash puts it, and whether `TMPDIR` moves it. One answer changed the sentence. So name what the rule will assert, and give each part its own measurement. A part with no measurement is either taken now or left out.
 - **A shared directory is not a stable baseline, so take the count twice with nothing between.** Measured on this estate's Darwin box: `/private/var/tmp` held 276 entries on one read and 275 on the next, with nothing run between them. Two hundred here-strings then moved it by nothing at all. Control: an owned directory holding one file read 1 on ten consecutive reads, and a planted second file read 2, so the instrument sees a change of one. So a count taken against a population that moves on its own cannot separate its subject's effect from the drift.
 - **A tool that prints a hard error and still exits 0 makes every caller's status check dead code.** The message is written for a person reading a terminal. The status is the only thing a caller reads. Where the two disagree, the caller is told the operation succeeded. A diagnostic is not a failure signal. Whatever prints the error exits non-zero on that same path, and every layer between it and the caller passes the status on. The caller's check is worth writing only once that chain holds. `shell.md` states the shell mechanics each layer drops it through.
@@ -84,6 +111,12 @@ A checker reports green on its own counterexample as readily as on a clean subje
 - **A digest mismatch is a finding about the convention, not the subject, until the convention is named.** A hash answers only for the exact byte string it was given. Where the writer publishes no convention, a mismatch reports the reader's guess instead. Name the convention that reproduces, or say no convention reproduced. The digest convention is the instrument's definition, so this is "read the instrument before trusting the measurement" applied to a hash.
 - **A report of absence built by subtracting one list from another is a fact about the two lists, never about the thing that is absent.** Where every path that touches a subject fills the first list except one, that one path is reported as a failure. A deliberate skip and a source that could not be read then print the same words, and no reader can tell the two apart. So a skip path marks its subject in the list its neighbours mark, or the report gives a skipped subject a word of its own. Before a name in such a report is quoted as a fact about its subject, read the code that built the list. The `WAIT-NEVER-READ` line is that fault, against the skip the wait takes.
 - **A bound spent inside a walk over peers starves every peer after the first one that can absorb it.** A bound that keeps one pass short belongs to each member of the walk, not to the walk. Shared, it is spent on whichever peer has the most waiting, and the peers after it are never reached at all. The fault hides because each peer's own bound looks correct in isolation, and only the caller's arithmetic is wrong. Where a pass has a total budget as well, the walk carries two numbers: one per peer, one for the walk. The second one either rotates the starting point or divides the first.
+- **A check runs only through `sh-test/AgentsRunTests.sh`**, with `MDAT_SKILLSET_ROOT` set to the workspace's members. Never through a home-made driver: a driver that does not clear the caller's environment lets a rig run as the caller.
+- **A check that reads code by file name breaks on every move.** It finds its subject by function name, or by a glob over `sh-lib/*/`. Never by a fixed folder.
+- **A fixture's data and a harness's argument list are both program text, and either can run something.** A fixture value naming a builtin is a call. Measured: a bare expansion whose variable held `set` ran `set`, printed the environment and exited 0, on a row that read as confirmed. A runner that selected its subjects with `*.sh` in its own folder selected itself. It started a copy, which started a third, until the call timed out. Write the fixture as the assignment the real code takes, choose a value the language does not execute, and name every subject the harness runs.
+
+- A check calls an operation in the syntax its help gives (`--help-syntax <op>`), never from memory. Member operations take `--team-member <member>`; the positional member is retired.
+- A check runs in seconds: one interpreter process for a whole scan, never one per file.
 
 ## Bounds, reserves, and the guard that repairs
 
@@ -120,16 +153,21 @@ A checker reports green on its own counterexample as readily as on a clean subje
 ## Each call runs only its own path
 
 - A call parses and runs what its own path needs, on a small shared setup. Nothing goes upfront to serve a minority of calls.
+- A function loads what it calls of another file right before it needs it: `type F || . file`, a builtin test and no fork. A file never loads, at its top, files only some of its paths need.
 - No trivial variable and no trivial function goes in a common place. Repeat a few lines at each site, twenty times if that is faster for the call paths.
 - A large repeat, or a complicated gotcha, becomes an include. It is sourced only on the paths that use it, at each of them.
 - A chain of five or more small includes of about 1 kB each, loaded on the path, is better than one 3000-line file loaded once and then run again in many calls inside it.
 - A file is split per source, per feature or per operation. Never into trivial tiny pieces.
+- One operation, one file. A multi-operation file is a compact dispatcher whose branch sources the operation's own file. That file is the operation's body, never a function called once. A branch of a few lines stays inline.
 - A router, or any file of distinct parts for separate operations, stays compact. The parser never reads a 1000-line file for a 2-line operation.
+- A copy-paste family of operations is one branch whose pattern lists them, with a table of their differences. Never N copies.
+- A subsystem has its own folder under `sh-lib/`, and a file lives in the folder of the subsystem it serves. The folders are `spawn/`, `schedule/`, `supervise/`, `undo/`, `routine/`, `event-track/`, `wait/`, `slack/`, `email/`, `google/`, `trello/`, `atlassian/`, `knowledge/`, `contacts/`, `grants/`, `board/`, `inbox/` and the rest.
 - One long algorithm may be a large file by itself, when it is one piece with the most common path threading through it. It may still be split.
 - A command script is for an external call. An internal step sources the exact include it needs, never re-enters a whole command script.
 - Inside tooling code, a tool is reached through its loaded functions: `Require ListDistroProjects ; Distro ListDistroProjects --select-all`. This is how tooling is written, never how it is operated. An operator, and a member at work, calls the command, `<Tool>.fn.sh --<operation>`, as `magic-team.armed.md`, 'Execution mechanisms', states.
 - A call path takes a kept measure or an index, never a walk of a store. A call path is a schedule pass, a Wait round, a permission gate, an ask or a start. It reads a kept list or the registry as it stands. A new walk is listed in `AgentsHotPathWalksCheck` with its reason, or it does not land. See `magic-team/reference/engineering-discipline.md`, "Call paths and walks".
 - An include the MCP server sources on every request, such as `sh-lib/mcp/AgentsTools.InternMcpRequest.include`, holds its tool list in one single-quoted string. No apostrophe goes into that string. An edit to such an include is followed by `bash -n` before the next tool call.
+- A guard is one builtin; a load is a parse. No operation does parser or interpreter work it does not need: no load on a path that does not call into the file, no fork a builtin can do, no subshell per record where one awk pass reads them all.
 - A review requires all of this. Code that breaks it is sent back, whatever else it fixes.
 
 ## The three costs of needless work

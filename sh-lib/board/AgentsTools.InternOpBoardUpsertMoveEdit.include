@@ -53,7 +53,7 @@ case "$1" in
 			set +e ; return 1
 		}
 		local boardRoot=""
-		boardRoot="$( AgentsToolsBoardTree )"
+		boardRoot="$MDAT_DATA_ROOT/board"
 		local fromState="" isCreate="false" sourcePath="" bodyMode="" scriptLang="" bodyModeCount=0 sourceModeCount=0 msgVerb="wrote" actingMember="" bodyText=""
 		## Space-delimited field names the caller named in --header:, for the move stamp's override check.
 		local callerHeaderFields=""
@@ -401,7 +401,7 @@ case "$1" in
 		handlerNew="$( printf '%s\n' "$body" | LC_ALL=C awk 'NR == 1 { if ($0 != "---") exit ; next } $0 == "---" { exit } index($0, "handler-routine: ") == 1 { print substr($0, 18) ; exit }' )"
 		if [ "$isCreate" != "true" ] ; then handlerOld="$( AgentsToolsBoardItemKey "$sourcePath" handler-routine )" ; fi
 		if [ "$handlerNew" != "$handlerOld" ] ; then
-			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.LocalLock.include"
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.LocalLock.include"
 			if AgentsToolsLocalLockTake "handler-${itemName%.md}" 30 "the handler-routine of $itemName" ; then handlerLock="$agentsLocalLockPath" ; fi
 			if [ "$isCreate" != "true" ] ; then handlerOld="$( AgentsToolsBoardItemKey "$sourcePath" handler-routine )" ; fi
 			if [ "$handlerNew" != "$handlerOld" ] ; then
@@ -449,7 +449,7 @@ case "$1" in
 				local seatSession=""
 				seatSession="$( printf '%s\n' "$body" | LC_ALL=C awk '/^session-id: / { print substr( $0, 13 ) ; exit }' )"
 				case "$seatSession" in ''|*/*|.|..) ;; *)
-					type AgentsToolsGrantsStoreTouch > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.Grants.include" 2> /dev/null || :
+					type AgentsToolsGrantsStoreTouch > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.Grants.include"
 					AgentsToolsGrantsStoreTouch "$MMDAPP/.local/agents/sessions/$seatSession" > /dev/null 2>&1 || :
 				;; esac
 			;;
@@ -477,7 +477,7 @@ case "$1" in
 		type AgentsToolsTeamDataCommitPaths > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataCommit.include"
 		AgentsToolsTeamDataCommitPaths "board-upsert-move-edit: $itemName $moveFrom -> $toState, $opContext" ${commitPaths[@]+"${commitPaths[@]}"}
 		## The waits of the workspace are poked, so one that naps long still reads the move at once (AgentsToolsWakePoke).
-		type AgentsToolsWakePoke > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.WakeMarker.include" 2> /dev/null || :
+		type AgentsToolsWakePoke > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.WakeMarker.include"
 		! type AgentsToolsWakePoke > /dev/null 2>&1 || AgentsToolsWakePoke
 
 		return 0

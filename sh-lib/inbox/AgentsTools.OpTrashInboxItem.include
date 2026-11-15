@@ -1,0 +1,78 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+## AgentsTools.OpTrashInboxItem.include -- the operation `--trash-inbox-item`, sourced by AgentsTools.Member.include with the operation's arguments.
+##
+## Member-scoped trash for one item out of the member's OWN inbox, by its name
+## alone, from either folder of the inbox (with --exclude-incoming a processed
+## item only).
+## Forwards to the same intern-op arm --librarian-inbox-item-trash
+## calls; the difference is only where --from-inbox: comes from.
+##
+## <member> is one positional carrying both the acting member and the
+## owning inbox, matching --get-inbox-item's own convention.
+## A spawned session naming another member than itself is refused
+## (AgentsToolsActingMemberCheck); a call from no spawned session, a
+## human at the console, is taken at the name it gives.
+##
+## No type-prefix whitelist, unlike the sibling read op: see the
+## "DELIBERATELY ABSENT" note in AgentsTools.InternOpBoardTrash.include
+## for why -- a whitelist would make the misfiled board-type document,
+## the item whose removal is least in doubt, the one item that cannot
+## be removed.
+##
+		shift
+		##
+		## --from-inbox: FAILS CLOSED in every position. This op synthesises
+		## that value from the acting member itself; accepting a
+		## caller-supplied one would turn a member-scoped operation into a
+		## cross-member one silently. Scanned across the whole argument
+		## vector before the positionals are consumed, so a --from-inbox:
+		## standing where <item-filename> belongs is refused for the real
+		## reason rather than as some downstream arity error.
+		##
+		local trashScanArg
+		for trashScanArg in "$@" ; do
+			## A ROUTINE'S LOCK NOTE IS THE TOOLING'S (AgentsToolsInboxIsLockNote, the index of the routines' own declarations): never trashed.
+			type AgentsToolsInboxIsLockNote > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/inbox/AgentsTools.InboxPlace.include"
+			if AgentsToolsInboxIsLockNote "$trashScanArg" ; then
+				echo "⛔ ERROR: $MDSC_CMD --trash-inbox-item: $trashScanArg is a routine's lock note, which the routine lock reads at its own place -- it is never trashed, and nothing was done" >&2
+				set +e ; return 1
+			fi
+			case "$trashScanArg" in
+				--from-inbox:*)
+					echo "⛔ ERROR: $MDSC_CMD --trash-inbox-item: $trashScanArg is not valid here -- this op trashes an item out of <member>'s own inbox, so the source inbox and the acting member are the same one positional. Use --librarian-inbox-item-trash for a cross-member inbox." >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		local memberName="$1"
+		shift || true
+		local itemName="$1"
+		shift || true
+		if [ -z "$memberName" ] || [ -z "$itemName" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --trash-inbox-item: syntax is [--team-member <member>] <item-filename> [--exclude-incoming]" >&2
+			set +e ; return 1
+		fi
+		local trashOnly=()
+		if [ "${1:-}" = "--exclude-incoming" ] ; then
+			trashOnly=( --exclude-incoming ) ; shift
+		fi
+		if [ $# -gt 0 ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --trash-inbox-item: invalid option: $1" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsAssertBareName "$memberName" "<member>" trash-inbox-item || { set +e ; return 1 ; }
+		AgentsToolsAssertBareName "$itemName" "<item-filename>" trash-inbox-item || { set +e ; return 1 ; }
+		AgentsToolsActingMemberCheck "$memberName" trash-inbox-item || { set +e ; return 1 ; }
+		case "$itemName" in
+			*.md) ;;
+			*)
+				echo "⛔ ERROR: $MDSC_CMD --trash-inbox-item: <item-filename> must end in .md -- every inbox item is a markdown document: $itemName" >&2
+				set +e ; return 1
+			;;
+		esac
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+		DistroAgentsTools --intern-op-board-trash "$memberName" "--from-inbox:$memberName" "$itemName" \
+			${trashOnly[@]+"${trashOnly[@]}"} --context --trash-inbox-item
+		return $?

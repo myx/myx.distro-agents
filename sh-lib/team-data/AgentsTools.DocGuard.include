@@ -19,18 +19,14 @@
 ## team-data store is read here.
 ##
 
-## The registry path, one declared file, versioned with the package.
-AgentsToolsDocGuardRegistry(){
-	printf '%s\n' "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsDocContract.registry"
-}
 
 ## Whether the path is a document type the registry declares: rc 0 where it is. The hot path, no I/O.
 AgentsToolsDocGuardMatch(){ ## path
 	case "$1" in
 		*.routine.md) return 0 ;;
 		## The vault kinds (S12.30), by the type word that opens the file's name, as their contracts state it: a vault holds many file
-		## types, so the kind is the name's prefix and the extension stays the file's own. The planning and tracking kinds are declared
-		## and have no contract yet; MAGIC.md the same.
+		## types, so the kind is the name's prefix and the extension stays the file's own. MAGIC.md is the one kind declared
+		## here that has no contract yet.
 		*/epic-blueprint-*.md|epic-blueprint-*.md|*/investigation-*.md|investigation-*.md|*/adr-*.md|adr-*.md|*/verbatim-record-*.md|verbatim-record-*.md) return 0 ;;
 		*/planning-*.md|planning-*.md|*/tracking-*.md|tracking-*.md|*/MAGIC.md|MAGIC.md) return 0 ;;
 		*) return 1 ;;
@@ -40,7 +36,7 @@ AgentsToolsDocGuardMatch(){ ## path
 ## The registry row of the path: kind TAB state TAB contract, rc 1 where none.
 AgentsToolsDocGuardRow(){ ## path
 	local regFile regKind regExt regState regContract
-	regFile="$( AgentsToolsDocGuardRegistry )"
+	regFile="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsDocContract.registry"
 	[ -f "$regFile" ] || return 1
 	while IFS=$'\t' read -r regKind regExt regState regContract ; do
 		[ -n "$regKind" ] || continue
@@ -73,10 +69,10 @@ AgentsToolsDocGuardValidateText(){ ## kind, shown path, text
 	(
 		set +e
 		set +u
-		type AgentsToolsDocValidateRoutine > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.InternDocValidate.include" > /dev/null 2>&1
+		type AgentsToolsDocValidateRoutine > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.InternDocValidate.include" > /dev/null
 		local vTemp="" vRows="" vRc=0
-		mkdir -p "${MMDAPP:-/tmp}/.local/temp" 2>/dev/null || exit 0
-		vTemp="$( mktemp "${MMDAPP:-/tmp}/.local/temp/AgentsDocGuard.XXXXXX" )" 2>/dev/null || exit 0
+		mkdir -p "$MMDAPP/.local/temp" 2>/dev/null || exit 0
+		vTemp="$( mktemp "$MMDAPP/.local/temp/AgentsDocGuard.XXXXXX" )" 2>/dev/null || exit 0
 		printf '%s' "$vText" > "$vTemp" || { rm -f -- "$vTemp" ; exit 0 ; }
 		case "$vKind" in
 			routine) vRows="$( AgentsToolsDocValidateRoutine "$vTemp" "$vShown" )" || vRc=$? ;;

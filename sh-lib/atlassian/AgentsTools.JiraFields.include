@@ -1,0 +1,113 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.JiraFields.include -- the fields a Jira write sends: an ADF document checked, and an assignee resolved, under the learning rule.
+## Sourced, never run. Functions only. Each function loads what it calls itself.
+##
+
+## Validates that a caller-supplied ADF document (an issue description, a
+## comment body) is at least syntactically valid JSON before it is spliced
+## into a request body -- a malformed value here would otherwise surface as a
+## confusing Atlassian 400 instead of a clear local one. Arguments: the JSON
+## text, a label for the error, and the calling context. Shared by every Jira
+## write arm below.
+AgentsToolsJiraAdfValidate() {
+	local adfText="$1" adfLabel="$2" adfContext="$3"
+	if ! python3 -c "import json,sys; json.loads(sys.argv[1])" "$adfText" >/dev/null 2>&1 ; then
+		printf '%s\n' "⛔ ERROR: $MDSC_CMD --$adfContext: $adfLabel is not valid JSON -- an Atlassian Document Format value is a full JSON document ({\"type\":\"doc\",\"version\":1,\"content\":[...]}), and the value passed did not parse as one" >&2
+		return 1
+	fi
+	return 0
+}
+
+## A HUMAN ASSIGNEE BELOW PARTNER, WHILE `learning` IS ON (S20.8): the human-owner's one-time permission, and one-time means
+## each assignment. A contact is a person of the other side by definition -- the store keeps persons, never our members -- so
+## the tier is the whole test: `partner` and `recorded` are allowed standing, and anything else asks him. `is-owner: yes` is his
+## own record and asks nobody. ASKED DIRECTLY, not through the authority rule: a coordinator holds that rule over any run, and
+## this permission is his own whatever the caller is. The ask is posted in his own conversation, and it KEEPS THE REFUSED CALL
+## AS ITS ACTION, as the tier ask keeps `--intern-op-contact-tier-apply` (AgentsTools.Contacts.include): his answer runs that
+## call once, and `AgentsToolsAuthorityApproved` is what lets this very call through when it runs as that action. One open ask
+## per contact and project: a second call of that assignment joins it rather than asking him twice.
+AgentsToolsJiraAssigneeLearningAllowed() { ## <team-member>, <contact>, <project>, <context>, [the refused call's own words...]
+	local learnMember="$1" learnContact="$2" learnProject="$3" learnContext="$4" learnTier="" learnWhat learnOpened learnKept
+	shift 4
+	type AgentsToolsContactsKey > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/contacts/AgentsTools.ContactsRecord.include" || return 1
+	AgentsToolsContactsStore "$learnContext" || return 1
+	[ -f "$contactsPersons/$learnContact.md" ] || return 0
+	learnTier="$( AgentsToolsContactsKey "$contactsPersons/$learnContact.md" tier )"
+	case "$learnTier" in partner|recorded) return 0 ;; esac
+	[ "$( AgentsToolsContactsKey "$contactsPersons/$learnContact.md" is-owner )" != yes ] || return 0
+	type AgentsToolsScheduleSetting > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/schedule/AgentsTools.DispatcherSchedule.include"
+	[ "$( AgentsToolsScheduleSetting MDAT_SCHEDULE_LEARNING )" = on ] || return 0
+	type AgentsToolsAuthorityApproved > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.Authority.include" || return 1
+	## HIS ANSWER HAS ALREADY LET THIS CALL THROUGH: it runs as the action the ask kept, and the answer is taken here, so it lets
+	## one call run and never a second (AgentsToolsAuthorityApproved).
+	AgentsToolsAuthorityApproved "$learnContact" && return 0
+	AgentsToolsAuthorityCaller
+	learnWhat="the Jira assignment of $learnProject to the contact $learnContact, a person below partner while learning is on"
+	learnKept="$( AgentsToolsAuthorityOpenRequestFor "$learnContact" "$learnWhat" )" || learnKept=""
+	## THE ASK KEEPS THIS CALL AS ITS ACTION, one word a line, so a value holding a newline cannot be carried: refused here, where
+	## the ask is the only reason, and said rather than replayed wrong.
+	if [ -z "$learnKept" ] ; then
+		case "$*" in
+			*$'\n'*)
+				printf '%s\n' "⛔ ERROR: $MDSC_CMD --$learnContext: the contact $learnContact is below partner while learning is on, so this call needs the human-owner's permission, and its own ask keeps this call as the action to run -- one word a line, which a value holding a newline cannot be. Nothing was written: repeat the call with that value on one line, or record the contact at partner tier" >&2
+				return 1
+			;;
+		esac
+	fi
+	[ -n "$learnKept" ] || learnOpened="$( AgentsToolsAuthorityRequestOpen enqueue yes human-owner "${agentsAuthorityCallerSession:-}" \
+		"$learnContact" "$learnWhat" "" "$@" )" || learnOpened=""
+	case "$learnOpened" in PENDING\ *) learnKept="${learnOpened#PENDING }" ; learnKept="${learnKept%% *}" ;; esac
+	[ -n "$learnKept" ] || {
+		printf '%s\n' "⛔ ERROR: $MDSC_CMD --$learnContext: the contact $learnContact is a person below partner on the organisation's side, and learning is on, so its assignment needs the human-owner's permission, which could not be asked -- nothing was written" >&2
+		return 1
+	}
+	printf '%s\n' "⛔ ERROR: $MDSC_CMD --$learnContext: the contact $learnContact is a person below partner on the organisation's side, and learning is on, so its assignment is the human-owner's own permission: it is asked as $learnKept, nothing was written, and his answer runs this call and creates it" >&2
+	printf 'ASKED\t%s\t%s\n' "$learnContact" "$learnKept"
+	return 1
+}
+
+## The Jira account id --assignee names, resolved through the contacts database: the word `me` is the acting identity's
+## own account, and any other word is a contact's id whose recorded e-mail address the site answers an account for. The
+## contacts store keeps no Jira coordinate, and an account id is the only handle the assignee field takes. Prints the id;
+## rc 1, said, where the contact is not recorded, holds no single address, or no assignable account answers to it. The
+## words after the four named ones are the calling operation's own, which its permission ask keeps as the action to run.
+AgentsToolsJiraAssigneeAccountId() { ## <team-member>, <assignee>, <project>, <context>, [the calling operation's own words...]
+	type AgentsToolsAtlassianCall > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/atlassian/AgentsTools.AtlassianRequest.include"
+	local assigneeMember="$1" assigneeWant="$2" assigneeProject="$3" assigneeContext="$4" assigneeMail="" assigneeId=""
+	shift 4
+	if [ "$assigneeWant" = "me" ] ; then
+		assigneeId="$( AgentsToolsAtlassianCall "$assigneeMember" jira GET /rest/api/3/myself "$assigneeContext" "" | LC_ALL=C awk -v path=accountId -v optional=1 -v dialect=atlassian -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" 2> /dev/null )" || assigneeId=""
+		case "$assigneeId" in
+			'') printf '%s\n' "⛔ ERROR: $MDSC_CMD --$assigneeContext: --assignee me needs the acting identity's own accountId, and the site did not answer one -- nothing was written" >&2 ; return 1 ;;
+		esac
+		printf '%s\n' "$assigneeId"
+		return 0
+	fi
+	AgentsToolsAssertBareName "$assigneeWant" "<contact-id>" "$assigneeContext" || return 1
+	type AgentsToolsContactsStore > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/contacts/AgentsTools.ContactsRecord.include" || return 1
+	AgentsToolsContactsStore "$assigneeContext" || return 1
+	if [ ! -f "$contactsPersons/$assigneeWant.md" ] ; then
+		printf '%s\n' "⛔ ERROR: $MDSC_CMD --$assigneeContext: no contact $assigneeWant is recorded, so no Jira account answers to it -- find one with DistroAgentsContacts.fn.sh --find-contact <value>, or give --assignee me" >&2
+		return 1
+	fi
+	assigneeMail="$( AgentsToolsContactsKey "$contactsPersons/$assigneeWant.md" email )"
+	AgentsToolsJiraAssigneeLearningAllowed "$assigneeMember" "$assigneeWant" "$assigneeProject" "$assigneeContext" "$@" || return 1
+	case "$assigneeMail" in
+		''|*[[:space:]]*|*,*|*@*@*)
+			printf '%s\n' "⛔ ERROR: $MDSC_CMD --$assigneeContext: the contact $assigneeWant holds no single e-mail address, and a Jira account is looked up by one -- record it with --collect-contact --id $assigneeWant --email <address>" >&2
+			return 1
+		;;
+	esac
+	## The site answers one bare array here, and the package reader takes one object, so the body is wrapped
+	## under one key before it is read.
+	assigneeId="$( AgentsToolsAtlassianCall "$assigneeMember" jira GET "/rest/api/3/user/assignable/search?query=$( AgentsToolsAtlassianUrlEncode "$assigneeMail" )&project=$( AgentsToolsAtlassianUrlEncode "$assigneeProject" )" "$assigneeContext" "" \
+		| LC_ALL=C awk '{ held = held $0 } END { if ( substr( held, 1, 1 ) == "[" ) { print "{\"users\":" held "}" } else { print held } }' \
+		| LC_ALL=C awk -v array=users -v want=accountId -v mode=records -v dialect=atlassian -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" 2> /dev/null | LC_ALL=C sed -n 1p )" || assigneeId=""
+	case "$assigneeId" in
+		'') printf '%s\n' "⛔ ERROR: $MDSC_CMD --$assigneeContext: the site knows no account assignable in $assigneeProject for the contact $assigneeWant ($assigneeMail), so nothing was written -- give --assignee another contact, or add that account to the project" >&2 ; return 1 ;;
+	esac
+	printf '%s\n' "$assigneeId"
+}

@@ -138,14 +138,14 @@ rigDerived(){ ## run id -- the registry's own word for it
 	rigWantRun="$1"
 	( cd "$rigWs" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" PATH="$rigTmp/bin:/usr/bin:/bin:/usr/sbin:/sbin" \
 		MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
-		bash -c '. "$1" ; AgentsToolsRegistryRenderSpawnedSessions agents' rig "$rigPkg/sh-lib/team-data/AgentsTools.Registries.include" ) 2>&1 \
+		bash -c '. "$1" ; AgentsToolsRegistryRenderSpawnedSessions agents' rig "$rigPkg/sh-lib/team-data/AgentsTools.RegistrySpawnedSessions.include" ) 2>&1 \
 		| LC_ALL=C awk -v want="$rigWantRun" 'NF == 13 && $8 == want { print $13 }' | head -1
 }
 rigJudged(){ ## session id -- what the control thread's own judging says of it
 	( cd "$rigWs" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" PATH="$rigTmp/bin:/usr/bin:/bin:/usr/sbin:/sbin" \
 		MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
 		bash -c '. "$1" ; . "$2" ; AgentsToolsRegistryRenderSpawnedSessions agents | LC_ALL=C awk "NF == 13 && \$2 != \"-\"" | AgentsToolsSessionControlJudged' \
-			rig "$rigPkg/sh-lib/team-data/AgentsTools.Registries.include" "$rigPkg/sh-lib/session/AgentsTools.SessionControlStart.include" ) 2>&1 \
+			rig "$rigPkg/sh-lib/team-data/AgentsTools.RegistrySpawnedSessions.include" "$rigPkg/sh-lib/session/AgentsTools.SessionControlStart.include" ) 2>&1 \
 		| LC_ALL=C awk -v want="$1" '$1 == want { print $2 }' | head -1
 }
 rigReacted(){ LC_ALL=C tr '\n' ' ' < "$rigSlack/react" 2> /dev/null || : ; }
@@ -183,7 +183,7 @@ rigInRig(){
 	( cd "$rigWs" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" PATH="$rigTmp/bin:/usr/bin:/bin:/usr/sbin:/sbin" \
 		MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
 		MDAT_SKILLSET_ROOT="$rigSkills" SLACK_BOT_TOKEN=rig-bot-token-TEAM RIG_SCENARIO="$rigSlack" \
-		bash -c '. "$1" ; shift ; "$@"' rig "$rigPkg/sh-lib/session/AgentsTools.SpawnSandbox.include" "$@" ) 2>&1
+		bash -c '. "$1" ; shift ; "$@"' rig "$rigPkg/sh-lib/spawn/AgentsTools.SpawnSandbox.include" "$@" ) 2>&1
 }
 rigSection
 rigInRig AgentsToolsSpawnProxyRootPauseMarks pause-sess > /dev/null

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-## Behavioural check on the clock bound of the work-duty DM look (`AgentsToolsScheduleDmTags`, sh-lib/session/AgentsTools.DispatcherSchedule.include).
+## Behavioural check on the clock bound of the work-duty DM look (`AgentsToolsScheduleDmTags`, sh-lib/schedule/AgentsTools.DispatcherSchedule.include).
 ## A pass under load spent 35 minutes in the look before it reached its start (MEL, 2026-11-09): every roster and every read is a Slack call. Held:
 ##   1. UNDER THE BOUND every member is looked at, stamped, and given a floor; no line is printed.
 ##   2. OVER THE BOUND the members not reached wait: unstamped, no floor, and one `dms:` line names them.
@@ -13,7 +13,7 @@ rigPackage="$MDLT_ORIGIN/myx/myx.distro-agents"
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }
-[ -f "$rigPackage/sh-lib/session/AgentsTools.DispatcherSchedule.include" ] || rigRefuse "the schedule's include is not in the package"
+[ -f "$rigPackage/sh-lib/schedule/AgentsTools.DispatcherSchedule.include" ] || rigRefuse "the schedule's include is not in the package"
 . "$rigPackage/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
 rigTmp="$( rigTempDir AgentsScheduleDmBudgetCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
@@ -42,7 +42,7 @@ rigLook(){ ## budget, force, members within flags...
 	env -i PATH="/usr/bin:/bin:/usr/sbin:/sbin" MDLT_ORIGIN="$MDLT_ORIGIN" MDAT_SCHEDULE_DM_BUDGET_SECONDS="$lookBudget" RIG_TMP="$rigTmp" RIG_FORCE="$lookForce" RIG_MEMBERS="$*" RIG_BOT="${RIG_BOT:-}" bash -c '
 		MMDAPP="$RIG_TMP" ; export MMDAPP
 		set +e +u
-		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.DispatcherSchedule.include" > /dev/null 2>&1
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/schedule/AgentsTools.DispatcherSchedule.include" > /dev/null 2>&1
 		## The include defines every helper the look calls, so the stand-ins go in AFTER it is sourced, never before.
 		AgentsToolsTrackingDrop(){ cat ; }
 		AgentsToolsScheduleTagNote(){ printf "note:%s=%s\n" "$1" "$2" >> "$RIG_TMP/notes" ; }

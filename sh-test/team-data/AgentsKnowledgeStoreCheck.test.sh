@@ -165,12 +165,12 @@ cp -R "$rigLancedbStub/lancedb" "$rigTmp/pylib/lancedb" || rigRefuse "cannot sta
 cp -R "$rigModelStub/model2vec" "$rigTmp/pylib/model2vec" || rigRefuse "cannot stage the model2vec stand-in"
 rigRunner(){ ## -- the engine's own Python, over the store's environment
 	env -i HOME="$rigHome" PATH="/usr/bin:/bin:/usr/sbin:/sbin:$rigPythonDir" RIG_LANCEDB_STUB="$rigTmp/pylib" RIG_MODEL_LOG="$rigTmp/model.log" \
-		"$rigDws/.local/lancedb/venv/bin/python" "$rigPackage/sh-lib/team-data/AgentsKnowledgeStore.py" "$@"
+		"$rigDws/.local/lancedb/venv/bin/python" "$rigPackage/sh-lib/knowledge/AgentsKnowledgeStore.py" "$@"
 }
 rigBuild(){ ## stamp, files... -- one index build over those files; its rc in build.rc
 	local buildStamp="$1" buildSections buildRc=0
 	shift
-	buildSections="$( printf '%s\n' "$@" | LC_ALL=C awk -v format=index -v wsRoot="${rigDws%/}/" -f "$rigPackage/sh-lib/team-data/AgentsKnowledgeScan.awk" )" || { printf '1' > "$rigTmp/build.rc" ; return 0 ; }
+	buildSections="$( printf '%s\n' "$@" | LC_ALL=C awk -v format=index -v wsRoot="${rigDws%/}/" -f "$rigPackage/sh-lib/knowledge/AgentsKnowledgeScan.awk" )" || { printf '1' > "$rigTmp/build.rc" ; return 0 ; }
 	printf '%s' "$buildSections" | rigRunner build --index "$rigTmp/index" --model-dir "$rigTmp/model" --model-stamp "$buildStamp" > "$rigTmp/build.out" 2> "$rigTmp/build.err" || buildRc=$?
 	printf '%s' "$buildRc" > "$rigTmp/build.rc"
 	return 0

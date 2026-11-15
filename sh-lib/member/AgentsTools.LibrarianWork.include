@@ -22,23 +22,12 @@
 ## no permission (S6.42). And it changes the skillset only while learning is on.
 ##
 
-## What the functions below call, loaded where first needed.
-AgentsToolsLibrarianLoad(){
-	type AgentsToolsActingMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.CallerCheck.include"
-	type AgentsToolsAssertBareName > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.BareName.include"
-	type AgentsToolsInboxItemFind > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/inbox/AgentsTools.InboxPlace.include"
-}
-
-## The tooling's own script, called as the family calls it from another script.
-AgentsToolsLibrarianTool(){ ## the script, its arguments...
-	local toolScript="$1" ; shift
-	"$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/$toolScript.fn.sh" "$@"
-}
-
 ## Who the call acts as, else a refusal: `librarian` is magic-librarian alone, `member` is any member's session. Prints the member.
 AgentsToolsLibrarianCaller(){ ## op, who (librarian|member)
 	local callerMember
-	AgentsToolsLibrarianLoad
+	type AgentsToolsActingMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.CallerCheck.include"
+	type AgentsToolsAssertBareName > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.BareName.include"
+	type AgentsToolsInboxItemFind > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/inbox/AgentsTools.InboxPlace.include"
 	callerMember="$( AgentsToolsActingMember )"
 	case "$2" in
 		librarian)
@@ -178,7 +167,9 @@ AgentsToolsLibrarianPathCheck(){ ## pathname
 ## reason in `librarianWhy`. The file is below the copy and not out of it by a link, and no link or folder itself.
 AgentsToolsLibrarianSkillFile(){ ## target
 	local fileMember fileRest fileCopy fileTarget fileAncestor fileReason
-	AgentsToolsLibrarianLoad
+	type AgentsToolsActingMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.CallerCheck.include"
+	type AgentsToolsAssertBareName > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.BareName.include"
+	type AgentsToolsInboxItemFind > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/inbox/AgentsTools.InboxPlace.include"
 	librarianWhy="" librarianFile=""
 	case "$1" in
 		?*:?*) fileMember="${1%%:*}" ; fileRest="${1#*:}" ;;
@@ -232,15 +223,16 @@ AgentsToolsLibrarianProduceInput(){ ## target file (unused), op, mode, path
 ## producer function (called with the target file, then its own arguments; it prints the file with the text), validated, then saved.
 AgentsToolsLibrarianSkillsetCore(){ ## op, team-member, pathname, producer, producer arguments...
 type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
-	local upOp="$1" upMember="$2" upPath="$3" upProducer="$4" upTarget upText upRows upRc=0 upFlag upReason
+	local upOp="$1" upMember="$2" upPath="$3" upProducer="$4" upTarget upText upRows upRc=0 upReason
 	shift 4
-	AgentsToolsLibrarianLoad
+	type AgentsToolsActingMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.CallerCheck.include"
+	type AgentsToolsAssertBareName > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.BareName.include"
+	type AgentsToolsInboxItemFind > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/inbox/AgentsTools.InboxPlace.include"
 	AgentsToolsAssertBareName "$upMember" "<team-member>" "${upOp#--}" || return 1
 	upReason="$( AgentsToolsLibrarianPathCheck "$upPath" )" || { echo "$MDSC_CMD: ⛔ ERROR: $upOp: $upReason" >&2 ; return 1 ; }
 	AgentsToolsLibrarianCaller "$upOp" librarian > /dev/null || return 1
 	## learning: the librarian changes the skillset when learning is on, and offers proposals when it is not
-	upFlag="$( AgentsToolsLibrarianTool DistroAgentsDispatcher --current-flags 2> /dev/null | LC_ALL=C sed -n 's/^learning: //p' )"
-	case "$upFlag" in
+	case "$( "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsDispatcher.fn.sh" --current-flags 2> /dev/null | LC_ALL=C sed -n 's/^learning: //p' )" in
 		yes*) ;;
 		*)
 			echo "$MDSC_CMD: ⛔ ERROR: $upOp: learning is off, so the librarian offers proposals and changes no skillset file: file this change as an inquiry-* to magic-coordinator, its text labelled (draft), for the quorum of the file's maintainers (magic-team.armed.md); nothing was saved" >&2
@@ -259,7 +251,7 @@ type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents
 	upRows=""
 	case "$upPath" in
 		*.routine.md)
-			upRows="$( AgentsToolsLibrarianTool DistroAgentsTools --intern-doc-validate routine --from-stdin --as "$upTarget" < "$upText" 2> /dev/null )" || upRc=1
+			upRows="$( "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-doc-validate routine --from-stdin --as "$upTarget" < "$upText" 2> /dev/null )" || upRc=1
 		;;
 	esac
 	if [ "$upRc" != 0 ] ; then
@@ -268,7 +260,7 @@ type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents
 		rm -f "$upText"
 		return 1
 	fi
-	upRows="$upRows$( AgentsToolsLibrarianTool DistroAgentsTools --intern-doc-validate document --from-stdin --as "$upTarget" < "$upText" 2> /dev/null )" || :
+	upRows="$upRows$( "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-doc-validate document --from-stdin --as "$upTarget" < "$upText" 2> /dev/null )" || :
 	[ -z "$upRows" ] || printf '%s\n' "$upRows" | LC_ALL=C grep -v '^$'
 	AgentsToolsLibrarianSave "$upTarget" "$upText" || upRc=$?
 	rm -f "$upText"
@@ -333,12 +325,12 @@ AgentsToolsLibrarianTargetFile(){ ## kind, target
 
 ## Where a request's base stands now, one line: its target's recorded checksum against the file as it is. Nothing for a request that recorded none.
 AgentsToolsLibrarianBase(){ ## request file
-	local baseKind baseTarget baseFile baseSum baseNow baseDate baseThen
+	local baseFile baseSum baseNow baseDate baseTarget baseThen
 	baseSum="$( AgentsToolsLibrarianKey "$1" update-target-checksum )"
 	[ -n "$baseSum" ] || return 0
-	baseKind="$( AgentsToolsLibrarianKey "$1" update-kind )" ; baseTarget="$( AgentsToolsLibrarianKey "$1" update-target )"
+	baseTarget="$( AgentsToolsLibrarianKey "$1" update-target )"
 	baseThen="$( AgentsToolsLibrarianKey "$1" update-target-date )"
-	AgentsToolsLibrarianTargetFile "$baseKind" "$baseTarget" 2> /dev/null || librarianFile=""
+	AgentsToolsLibrarianTargetFile "$( AgentsToolsLibrarianKey "$1" update-kind )" "$baseTarget" 2> /dev/null || librarianFile=""
 	baseFile="$librarianFile"
 	if [ -z "$baseFile" ] || [ ! -f "$baseFile" ] ; then
 		if [ "$baseSum" = none ] ; then printf 'BASE: the file was not there when this was written, and is not there now\n'
@@ -359,10 +351,11 @@ AgentsToolsLibrarianBase(){ ## request file
 
 ## The update requests that wait: the inquiries in magic-librarian's incoming/ that carry an `update-kind`, oldest name first, one path a line.
 AgentsToolsLibrarianWaiting(){
-	local waitFile waitDir
-	AgentsToolsLibrarianLoad
-	waitDir="$MDAT_DATA_ROOT/inboxes/magic-librarian/incoming"
-	for waitFile in "$waitDir"/inquiry-*.md ; do
+	local waitFile
+	type AgentsToolsActingMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.CallerCheck.include"
+	type AgentsToolsAssertBareName > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.BareName.include"
+	type AgentsToolsInboxItemFind > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/inbox/AgentsTools.InboxPlace.include"
+	for waitFile in "$MDAT_DATA_ROOT/inboxes/magic-librarian/incoming"/inquiry-*.md ; do
 		[ -f "$waitFile" ] || continue
 		[ -n "$( AgentsToolsLibrarianKey "$waitFile" update-kind )" ] || continue
 		printf '%s\n' "$waitFile"
@@ -378,7 +371,7 @@ AgentsToolsLibrarianWaiting(){
 AgentsToolsLibrarianRequestUpdate(){ ## the operation, its arguments...
 type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 	local reqOp="$1" reqKind="" reqTarget="" reqWhy="" reqMode="" reqFrom="" reqWhole="" reqReply="" reqOld="" reqOldSet="" reqOldFile="" reqNew="" reqNewSet="" reqNewFile=""
-	local reqMember reqForm reqFile reqDetail="" reqOldPath="" reqNewPath="" reqText reqName reqTail reqSent reqRc=0 reqDate="" reqSum="" reqWhy2 reqLeft
+	local reqMember reqForm reqFile reqDetail="" reqOldPath="" reqNewPath="" reqText reqName reqTail reqSent reqRc=0 reqDate="" reqSum="" reqLeft
 	shift
 	reqMember="$( AgentsToolsLibrarianCaller "$reqOp" member )" || return 1
 	while [ $# -gt 0 ] ; do
@@ -477,7 +470,7 @@ type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents
 			return 1
 		fi
 	done
-	type AgentsToolsEscalationNote > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.MemberEscalation.include" --definitions-only > /dev/null 2>&1 || :
+	type AgentsToolsEscalationNote > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.Escalation.include"
 	reqText="$( ASKP_F_member="$reqMember" ASKP_F_kind="$reqKind" ASKP_F_target="$reqTarget" ASKP_F_why="$reqWhy" ASKP_F_form="$reqForm" ASKP_F_target_date="$reqDate" ASKP_F_target_checksum="$reqSum" ASKP_F_reply="$reqReply" AgentsToolsEscalationNote "Librarian/update-request" )" || reqText=""
 	if [ -z "$reqText" ] ; then
 		rm -f "$reqDetail" "$reqOldPath" "$reqNewPath"
@@ -495,7 +488,7 @@ type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents
 			edit) AgentsToolsLibrarianBlockWrite old "$reqOldPath" ; AgentsToolsLibrarianBlockWrite new "$reqNewPath" ;;
 		esac
 	} > "$reqSent"
-	AgentsToolsLibrarianTool DistroAgentsTools --upsert-inbox-inquiry magic-librarian "$reqName" --from-member "$reqMember" --from-file "$reqSent" > /dev/null || reqRc=$?
+	"$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --upsert-inbox-inquiry magic-librarian "$reqName" --from-member "$reqMember" --from-file "$reqSent" > /dev/null || reqRc=$?
 	rm -f "$reqDetail" "$reqOldPath" "$reqNewPath" "$reqSent"
 	if [ "$reqRc" != 0 ] ; then
 		echo "$MDSC_CMD: ⛔ ERROR: $reqOp: the request could not be filed into magic-librarian's inbox -- nothing was filed" >&2
@@ -585,7 +578,7 @@ AgentsToolsLibrarianProduceEdit(){ ## target file, op, request file
 AgentsToolsLibrarianReply(){ ## op, request name, requester, kind, target, outcome, result
 type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 	local replyText replyFile replyRc=0 replyName
-	type AgentsToolsEscalationNote > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.MemberEscalation.include" --definitions-only > /dev/null 2>&1 || :
+	type AgentsToolsEscalationNote > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.Escalation.include"
 	replyText="$( ASKP_F_requester="$3" ASKP_F_request="$2" ASKP_F_kind="$4" ASKP_F_target="$5" ASKP_F_outcome="$6" ASKP_F_result="$7" AgentsToolsEscalationNote "Librarian/update-reply" )" || replyText=""
 	replyName="note-$( date -u +%Y%m%dT%H%MZ )-update-$6-${2##*-}"
 	replyName="${replyName%.md}.md"
@@ -597,7 +590,7 @@ type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents
 		return 0
 	fi
 	printf '%s\n' "$replyText" > "$replyFile"
-	AgentsToolsLibrarianTool DistroAgentsTools --intern-op-member-inbox-upsert "$3" "$replyName" --from-member magic-librarian --from-file "$replyFile" --context "$1" > /dev/null || replyRc=$?
+	"$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-op-member-inbox-upsert "$3" "$replyName" --from-member magic-librarian --from-file "$replyFile" --context "$1" > /dev/null || replyRc=$?
 	rm -f "$replyFile"
 	[ "$replyRc" = 0 ] || echo "$MDSC_CMD: ⚠️ WARNING: $1: $2 is closed, but the note to $3 could not be filed" >&2
 	return 0
@@ -612,7 +605,7 @@ type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents
 	closeFrom="$( AgentsToolsLibrarianKey "$closeFile" from )" ; closeReply="$( AgentsToolsLibrarianKey "$closeFile" reply-requested )"
 	closeKind="$( AgentsToolsLibrarianKey "$closeFile" update-kind )" ; closeTarget="$( AgentsToolsLibrarianKey "$closeFile" update-target )"
 	closePending="$( AgentsToolsLibrarianKey "$closeFile" pending-question )"
-	AgentsToolsLibrarianTool DistroAgentsTools --librarian-inbox-to-processed --team-member magic-librarian "$2" "--header:upsert:update-outcome:$3" "--header:upsert:update-result:$4" > /dev/null || {
+	"$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --librarian-inbox-to-processed --team-member magic-librarian "$2" "--header:upsert:update-outcome:$3" "--header:upsert:update-result:$4" > /dev/null || {
 		echo "$MDSC_CMD: ⛔ ERROR: $1: $2 could not be closed -- it still waits" >&2
 		return 1
 	}
@@ -643,7 +636,9 @@ AgentsToolsLibrarianQueueDone(){ ## the operation, its arguments...
 		esac
 	done
 	[ -n "$doneMode" ] || { echo "$MDSC_CMD: ⛔ ERROR: $doneOp: syntax is <name> (--apply | --refuse <reason> | --result <text>)" >&2 ; return 1 ; }
-	AgentsToolsLibrarianLoad
+	type AgentsToolsActingMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.CallerCheck.include"
+	type AgentsToolsAssertBareName > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.BareName.include"
+	type AgentsToolsInboxItemProcessed > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/inbox/AgentsTools.InboxPlace.include"
 	AgentsToolsAssertBareName "$doneName" "<name>" "${doneOp#--}" || return 1
 	[ -n "${MDAT_DATA_ROOT:-}" ] || { echo "$MDSC_CMD: ⛔ ERROR: $doneOp: MDAT_DATA_ROOT is not set" >&2 ; return 1 ; }
 	AgentsToolsLibrarianCaller "$doneOp" librarian > /dev/null || return 1
@@ -693,7 +688,9 @@ AgentsToolsLibrarianQueueDone(){ ## the operation, its arguments...
 AgentsToolsLibrarianRequestResult(){ ## the operation, name
 	local resultFile resultKind
 	[ -n "${2:-}" ] && [ $# -eq 2 ] || { echo "$MDSC_CMD: ⛔ ERROR: $1: syntax is <name>" >&2 ; return 1 ; }
-	AgentsToolsLibrarianLoad
+	type AgentsToolsActingMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.CallerCheck.include"
+	type AgentsToolsAssertBareName > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.BareName.include"
+	type AgentsToolsInboxItemFind > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/inbox/AgentsTools.InboxPlace.include"
 	AgentsToolsAssertBareName "$2" "<name>" "${1#--}" || return 1
 	[ -n "${MDAT_DATA_ROOT:-}" ] || { echo "$MDSC_CMD: ⛔ ERROR: $1: MDAT_DATA_ROOT is not set" >&2 ; return 1 ; }
 	resultFile="$( AgentsToolsInboxItemFind magic-librarian "$2" yes )" || resultFile=""
@@ -713,114 +710,6 @@ AgentsToolsLibrarianRequestResult(){ ## the operation, name
 
 ## ---- --doc-drift and --queue-ask ----
 
-## A file's change time in whole seconds since the epoch, portable; nothing and rc 1 where it cannot be read.
-AgentsToolsLibrarianMtime(){ ## file
-	local mtEpoch
-	mtEpoch="$( stat -f '%m' "$1" 2> /dev/null )" || mtEpoch=""
-	case "$mtEpoch" in ''|*[!0123456789]*) mtEpoch="$( stat -c '%Y' "$1" 2> /dev/null )" || mtEpoch="" ;; esac
-	case "$mtEpoch" in ''|*[!0123456789]*) return 1 ;; esac
-	printf '%s' "$mtEpoch"
-}
-
-## --doc-drift [<path>…] [--queue]: the packages whose code changed after the documents that describe it. A package is each
-## path given -- each direct child of $MMDAPP/source/myx by default -- that carries both a doc file (MAGIC.md, README.md, a
-## help/*.md, docs/*.md or sh-lib/help/*.md) and a code file (.fn.sh, .include, .awk, .sh or .py). A package drifts where its
-## newest code file is newer than its newest doc file; each is printed `<path>\t<doc-mtime>\t<code-mtime>` with no heading,
-## rc 0 with none. --queue files one message update request into magic-librarian's inbox for each, recording the newest code
-## file's checksum (`update-target-checksum`), so the librarian decides it with --queue-done.
-AgentsToolsLibrarianDocDrift(){ ## the operation, its arguments...
-type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
-	local driftOp="$1" driftQueue="" driftRoots=() driftPkg driftFile driftDocNew="" driftCodeNew="" driftM driftNewestFile="" driftSum driftName driftTail
-	local driftText driftSent driftWhy driftRc=0
-	shift
-	while [ $# -gt 0 ] ; do
-		case "$1" in
-			--queue) driftQueue=1 ; shift ;;
-			-*) echo "$MDSC_CMD: ⛔ ERROR: $driftOp: unknown option: $1" >&2 ; return 1 ;;
-			*) driftRoots+=( "$1" ) ; shift ;;
-		esac
-	done
-	AgentsToolsLibrarianLoad
-	if [ ${#driftRoots[@]} -eq 0 ] ; then
-		[ -d "$MMDAPP/source/myx" ] || { echo "$MDSC_CMD: ⛔ ERROR: $driftOp: no path given and $MMDAPP/source/myx is not a directory -- nothing was done" >&2 ; return 1 ; }
-		for driftPkg in "$MMDAPP/source/myx"/* ; do [ -d "$driftPkg" ] && driftRoots+=( "$driftPkg" ) ; done
-	fi
-	for driftPkg in ${driftRoots[@]+"${driftRoots[@]}"} ; do
-		[ -d "$driftPkg" ] || { echo "$MDSC_CMD: ⚠️ WARNING: $driftOp: $driftPkg is not a directory, skipped" >&2 ; continue ; }
-		driftDocNew="" driftCodeNew="" driftNewestFile=""
-		while IFS= read -r driftFile ; do
-			[ -n "$driftFile" ] || continue
-			case "/${driftFile#"$driftPkg"/}/" in
-				*/.git/*) continue ;;
-			esac
-			case "/${driftFile#"$driftPkg"/}/" in
-				*/MAGIC.md/|*/README.md/|*/help/*.md/|*/docs/*.md/|*/sh-lib/help/*.md/)
-					driftM="$( AgentsToolsLibrarianMtime "$driftFile" )" || continue
-					[ -n "$driftDocNew" ] && [ "$driftDocNew" -ge "$driftM" ] || driftDocNew="$driftM"
-				;;
-				*.fn.sh/|*.include/|*.awk/|*.sh/|*.py/)
-					driftM="$( AgentsToolsLibrarianMtime "$driftFile" )" || continue
-					if [ -z "$driftCodeNew" ] || [ "$driftM" -gt "$driftCodeNew" ] ; then driftCodeNew="$driftM" ; driftNewestFile="$driftFile" ; fi
-				;;
-			esac
-		done <<< "$( find -L "$driftPkg" -type f 2>/dev/null | LC_ALL=C sort )"
-		[ -n "$driftDocNew" ] && [ -n "$driftCodeNew" ] || continue
-		[ "$driftCodeNew" -gt "$driftDocNew" ] || continue
-		printf '%s\t%s\t%s\n' "$driftPkg" "$driftDocNew" "$driftCodeNew"
-		[ -n "$driftQueue" ] || continue
-		driftSum="$( AgentsToolsLibrarianSum "$driftNewestFile" 2> /dev/null )" || driftSum=""
-		driftWhy="code changed after its documents (newest code file ${driftNewestFile##*/} at mtime $driftCodeNew, newest doc at mtime $driftDocNew)"
-		type AgentsToolsEscalationNote > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.MemberEscalation.include" --definitions-only > /dev/null 2>&1 || :
-		driftText="$( ASKP_F_member=magic-librarian ASKP_F_kind=document ASKP_F_target="$driftPkg" ASKP_F_why="$driftWhy" ASKP_F_form=message ASKP_F_target_checksum="$driftSum" ASKP_F_reply="" AgentsToolsEscalationNote "Librarian/update-request" )" || driftText=""
-		[ -n "$driftText" ] || { echo "$MDSC_CMD: ⚠️ WARNING: $driftOp: $driftPkg drifts, but its request could not be filled -- not queued" >&2 ; continue ; }
-		driftTail="$( uuidgen 2> /dev/null | LC_ALL=C tr 'ABCDEF' 'abcdef' | LC_ALL=C cut -c1-8 )"
-		driftName="inquiry-$( date -u +%Y%m%dT%H%MZ )-update-document-${driftTail:-$RANDOM$RANDOM}.md"
-		driftSent="$( mktemp "$MMDAPP/.local/temp/agent-librarian-tools.XXXXXX" )" || continue
-		printf '%s\n\n%s changed after its documents: newest code file %s (mtime %s), newest doc (mtime %s).\n' "$driftText" "$driftPkg" "${driftNewestFile##*/}" "$driftCodeNew" "$driftDocNew" > "$driftSent"
-		AgentsToolsLibrarianTool DistroAgentsTools --upsert-inbox-inquiry magic-librarian "$driftName" --from-member magic-librarian --from-file "$driftSent" > /dev/null || driftRc=$?
-		rm -f "$driftSent"
-		[ "$driftRc" = 0 ] || echo "$MDSC_CMD: ⚠️ WARNING: $driftOp: $driftPkg drifts, but the request could not be queued" >&2
-	done
-	return 0
-}
-
-## --queue-ask <name>: the librarian escalates one waiting concrete-edit request to a pending question instead of deciding it now.
-## A question record is written to the pending store (`$MMDAPP/.local/agents/pending/<id>.md`), a sidecar `<id>.action` beside it
-## holds the one line `--queue-done <name> --apply` for the answerer to run, and the request's frontmatter gains
-## `pending-question: <id>`. Prints the question id. rc 1 where the request is no waiting concrete edit.
-AgentsToolsLibrarianQueueAsk(){ ## the operation, name
-	local askOp="$1" askName="${2:-}" askFile askForm askId askDir askAction askHeaderOps askTemp
-	[ -n "$askName" ] && [ $# -le 2 ] || { echo "$MDSC_CMD: ⛔ ERROR: $askOp: syntax is $askOp <name>" >&2 ; return 1 ; }
-	AgentsToolsLibrarianLoad
-	AgentsToolsAssertBareName "$askName" "<name>" "${askOp#--}" || return 1
-	[ -n "${MDAT_DATA_ROOT:-}" ] || { echo "$MDSC_CMD: ⛔ ERROR: $askOp: MDAT_DATA_ROOT is not set" >&2 ; return 1 ; }
-	AgentsToolsLibrarianCaller "$askOp" librarian > /dev/null || return 1
-	askFile="$MDAT_DATA_ROOT/inboxes/magic-librarian/incoming/$askName"
-	if [ ! -f "$askFile" ] || [ -z "$( AgentsToolsLibrarianKey "$askFile" update-kind )" ] ; then
-		echo "$MDSC_CMD: ⛔ ERROR: $askOp: $askName is no update request that waits in magic-librarian's inbox -- nothing was done" >&2
-		return 1
-	fi
-	askForm="$( AgentsToolsLibrarianKey "$askFile" update-form )"
-	[ "$askForm" = "edit" ] || {
-		echo "$MDSC_CMD: ⛔ ERROR: $askOp: $askName is a $askForm request, and only a concrete edit is escalated to a pending question -- nothing was done" >&2
-		return 1
-	}
-	askId="$( uuidgen 2> /dev/null | LC_ALL=C tr 'ABCDEF' 'abcdef' )"
-	[ -n "$askId" ] || askId="question-$RANDOM$RANDOM$RANDOM"
-	askDir="$MMDAPP/.local/agents/pending"
-	mkdir -p "$askDir" 2> /dev/null || { echo "$MDSC_CMD: ⛔ ERROR: $askOp: $askDir could not be made -- nothing was done" >&2 ; return 1 ; }
-	printf '%s\n' '---' "type: pending-question" "pending-id: $askId" "owner: magic-librarian" "status: reply-pending" "action: --queue-done $askName --apply" '---' '' '# Pending question' '' "The librarian escalates the concrete edit $askName to this question; its answer decides it. Run the action line to apply it." > "$askDir/$askId.md"
-	printf '%s\n' "--queue-done $askName --apply" > "$askDir/$askId.action"
-	## The request gains pending-question: <id>, in place, without closing it.
-	askHeaderOps="$( mktemp "$MMDAPP/.local/temp/agent-librarian-tools.XXXXXX" )" || { echo "$MDSC_CMD: ⚠️ WARNING: $askOp: the question $askId is written, but the request's pending-question key could not be set" >&2 ; printf '%s\n' "$askId" ; return 0 ; }
-	printf 'upsert\tpending-question\t%s\n' "$askId" > "$askHeaderOps"
-	askTemp="$( mktemp "$askFile.tmp.XXXXXX" )" || askTemp=""
-	LC_ALL=C awk -v opsFile="$askHeaderOps" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsBoardItemHeaderOpsApply.awk" "$askFile" > "$askTemp" 2>/dev/null && chmod 644 "$askTemp" && mv -f "$askTemp" "$askFile"
-	[ -z "$askTemp" ] || rm -f -- "$askTemp"
-	rm -f "$askHeaderOps"
-	printf '%s\n' "$askId"
-}
-
 ## ---- the tooling's own detection of a stale document, and its self-queue (K2) ----
 
 ## The docs of a package, one absolute path a line: its MAGIC.md, its README.md and its help files (help/ and sh-lib/help/).
@@ -835,12 +724,12 @@ AgentsToolsLibrarianDocDriftDocs(){ ## package dir
 
 ## The newest change time, in epoch seconds, of a package's code: every regular file under it except its docs, .git and .local.
 AgentsToolsLibrarianDocDriftCodeNewest(){ ## package dir
-	local codePath="$1" codeFile codeEpoch codeNewest=0
+	local codeFile codeEpoch codeNewest=0
 	while IFS= read -r -d '' codeFile ; do
 		[ -n "$codeFile" ] || continue
 		codeEpoch="$( AgentsToolsLibrarianEpoch "$codeFile" )" || continue
 		[ "$codeEpoch" -gt "$codeNewest" ] && codeNewest="$codeEpoch"
-	done < <( LC_ALL=C find "$codePath" \( -name .git -o -name .local -o -name help \) -prune -o -type f ! -name MAGIC.md ! -name README.md -print0 2> /dev/null )
+	done < <( LC_ALL=C find "$1" \( -name .git -o -name .local -o -name help \) -prune -o -type f ! -name MAGIC.md ! -name README.md -print0 2> /dev/null )
 	printf '%s' "$codeNewest"
 }
 
@@ -849,14 +738,14 @@ AgentsToolsLibrarianDocDriftCodeNewest(){ ## package dir
 ## it could not be filed.
 AgentsToolsLibrarianDocDriftQueue(){ ## op, target (rel path), doc file
 type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
-	local queueOp="$1" queueTarget="$2" queueFile="$3" queueText="" queueName queueSent queueRc=0 queueTail
+	local queueOp="$1" queueFile="$3" queueText="" queueName queueSent queueRc=0 queueTail
 	local queueSum="" queueDate=""
 	if [ -f "$queueFile" ] ; then
 		queueSum="$( AgentsToolsLibrarianSum "$queueFile" )" || queueSum=""
 		queueDate="$( AgentsToolsLibrarianFileDate "$queueFile" )" || queueDate=""
 	fi
-	type AgentsToolsEscalationNote > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.MemberEscalation.include" --definitions-only > /dev/null 2>&1 || :
-	queueText="$( ASKP_F_member="magic-librarian" ASKP_F_kind="document" ASKP_F_target="$queueTarget" ASKP_F_why="code changed after this document" ASKP_F_form="message" ASKP_F_target_date="$queueDate" ASKP_F_target_checksum="$queueSum" ASKP_F_reply="" AgentsToolsEscalationNote "Librarian/update-request" )" || queueText=""
+	type AgentsToolsEscalationNote > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.Escalation.include"
+	queueText="$( ASKP_F_member="magic-librarian" ASKP_F_kind="document" ASKP_F_target="$2" ASKP_F_why="code changed after this document" ASKP_F_form="message" ASKP_F_target_date="$queueDate" ASKP_F_target_checksum="$queueSum" ASKP_F_reply="" AgentsToolsEscalationNote "Librarian/update-request" )" || queueText=""
 	if [ -z "$queueText" ] ; then
 		echo "$MDSC_CMD: ⛔ ERROR: $queueOp: the request could not be filled from its template (tooling-note.post.format.md, Librarian/update-request) -- nothing was filed" >&2
 		return 1
@@ -869,7 +758,7 @@ type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents
 		printf '%s\n\n' "$queueText"
 		printf 'The code changed after this document; update it.\n'
 	} > "$queueSent"
-	AgentsToolsLibrarianTool DistroAgentsTools --intern-op-member-inbox-upsert magic-librarian "$queueName" --from-member magic-librarian --from-file "$queueSent" --context "$queueOp" > /dev/null || queueRc=$?
+	"$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-op-member-inbox-upsert magic-librarian "$queueName" --from-member magic-librarian --from-file "$queueSent" --context "$queueOp" > /dev/null || queueRc=$?
 	rm -f "$queueSent"
 	if [ "$queueRc" != 0 ] ; then
 		echo "$MDSC_CMD: ⛔ ERROR: $queueOp: the request could not be filed into magic-librarian's inbox -- nothing was filed" >&2
@@ -892,7 +781,9 @@ AgentsToolsLibrarianDocDrift(){ ## the operation, its arguments...
 			*) driftNamed+=( "$1" ) ; shift ;;
 		esac
 	done
-	AgentsToolsLibrarianLoad
+	type AgentsToolsActingMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.CallerCheck.include"
+	type AgentsToolsAssertBareName > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.BareName.include"
+	type AgentsToolsInboxItemFind > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/inbox/AgentsTools.InboxPlace.include"
 	if [ -n "$driftQueue" ] ; then
 		AgentsToolsLibrarianCaller "$driftOp" librarian > /dev/null || return 1
 	fi
@@ -945,17 +836,13 @@ AgentsToolsLibrarianDocDrift(){ ## the operation, its arguments...
 
 ## ---- a concrete edit decided in Pending Questions as well as by the librarian (K2) ----
 
-AgentsToolsLibrarianQuestionsLoad(){
-	type AgentsToolsQuestionsStore > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.Authority.include"
-}
-
 ## The pending question a request is also being decided by, withdrawn: --queue-done decided first, so an answer to it would be moot.
 ## Best effort; the close stands whatever it does.
 AgentsToolsLibrarianPendingWithdraw(){ ## op, pending id
 	local withId="$2" withRec
-	AgentsToolsLibrarianQuestionsLoad
+	type AgentsToolsAuthorityField > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.Authority.include"
 	[ -n "$withId" ] || return 0
-	withRec="$( AgentsToolsQuestionsStore )/$withId.md"
+	withRec="${MMDAPP:-/nonexistent}/.local/questions/$withId.md"
 	[ -f "$withRec" ] || return 0
 	[ "$( AgentsToolsAuthorityField "$withRec" status )" = reply-pending ] || return 0
 	AgentsToolsAuthorityFieldSet "$withRec" status withdrawn withdrawn-by "tooling ($1 decided first)" withdrawn-at "$( date +"%Y-%m-%d %H:%M %z" )" || :
@@ -971,7 +858,9 @@ AgentsToolsLibrarianQueueAsk(){ ## the operation, name
 type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 	local askOp="$1" askName="${2:-}" askFile askKind askForm askTarget askFrom askText askId askHolder askOptions askRequester askRequesterRun
 	[ -n "$askName" ] && [ $# -eq 2 ] || { echo "$MDSC_CMD: ⛔ ERROR: $askOp: syntax is <name>" >&2 ; return 1 ; }
-	AgentsToolsLibrarianLoad
+	type AgentsToolsActingSession > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.CallerCheck.include"
+	type AgentsToolsAssertBareName > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.BareName.include"
+	type AgentsToolsInboxItemFind > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/inbox/AgentsTools.InboxPlace.include"
 	AgentsToolsAssertBareName "$askName" "<name>" "${askOp#--}" || return 1
 	[ -n "${MDAT_DATA_ROOT:-}" ] || { echo "$MDSC_CMD: ⛔ ERROR: $askOp: MDAT_DATA_ROOT is not set" >&2 ; return 1 ; }
 	askRequester="$( AgentsToolsLibrarianCaller "$askOp" librarian )" || return 1
@@ -987,17 +876,17 @@ type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents
 		return 1
 	fi
 	[ -z "$( AgentsToolsLibrarianKey "$askFile" pending-question )" ] || { echo "$MDSC_CMD: ⛔ ERROR: $askOp: $askName is already being decided in Pending Questions -- nothing was done" >&2 ; return 1 ; }
-	AgentsToolsLibrarianQuestionsLoad
+	type AgentsToolsAuthorityFieldSet > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.Authority.include"
 	askTarget="$( AgentsToolsLibrarianKey "$askFile" update-target )" ; askFrom="$( AgentsToolsLibrarianKey "$askFile" from )"
 	askHolder="human-owner"
 	askOptions="$( printf '%s\n%s\n' "allow: apply the edit to $askTarget" "deny: refuse it" )"
 	askText="$( printf '%s\n' "A concrete edit of $askTarget was asked by ${askFrom:-a member}. Apply it (allow) or refuse it (deny)." )"
-	askId="$( printf '%s\n' "$askText" | AgentsToolsLibrarianTool DistroAgentsTools --intern-op-pending-reply-open magic-librarian --store questions --to "$askHolder" --kind decision --address-to "$askHolder" --options "$askOptions" --request-of "$askName" --requester "$askRequester" --requester-run "$askRequesterRun" --request-what "$askTarget" --request-mode enqueue 2> /dev/null )" || askId=""
+	askId="$( printf '%s\n' "$askText" | "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-op-pending-reply-open magic-librarian --store questions --to "$askHolder" --kind decision --address-to "$askHolder" --options "$askOptions" --request-of "$askName" --requester "$askRequester" --requester-run "$askRequesterRun" --request-what "$askTarget" --request-mode enqueue 2> /dev/null )" || askId=""
 	if [ -z "$askId" ] ; then
 		echo "$MDSC_CMD: ⛔ ERROR: $askOp: the pending question could not be opened -- nothing was done" >&2
 		return 1
 	fi
-	printf '%s\n' '--queue-done' "$askName" '--apply' > "$( AgentsToolsQuestionsStore )/$askId.action" || {
+	printf '%s\n' '--queue-done' "$askName" '--apply' > "${MMDAPP:-/nonexistent}/.local/questions/$askId.action" || {
 		echo "$MDSC_CMD: ⛔ ERROR: $askOp: the action of the pending question could not be kept -- nothing was done" >&2
 		return 1
 	}

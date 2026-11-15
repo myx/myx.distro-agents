@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+type AgentsToolsPermissionFolderEntry > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionPlaces.include"
+type AgentsToolsPermissionField > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionHolds.include"
+
+## AgentsTools.InternOpPermissionFolder.include -- the operation `--intern-op-permission-folder`, sourced by AgentsTools.InternOpPermission.include with the operation's arguments.
+## What the folder answer of one refused call would grant, for the harness that asks the
+## permission: `ENTRY: <tool>:<folder>/**`, natural, and `SHOWN: <that folder as a post shows
+## a target>`. Nothing is printed where no folder can be offered
+## (AgentsToolsPermissionFolderEntry), or the refusal is not that member's. rc 0 either way.
+## And after them what the project answer of it would grant, where one is offered beside
+## the folder (AgentsToolsPermissionProjectEntry): `PROJECT-ENTRY: <tool>:<project>/**` and
+## `PROJECT-SHOWN: <that project as a post shows a target>`.
+		shift
+		MDSC_CMD="$MDSC_CMD --intern-op-permission-folder"
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.UseAgentsTools.include"
+		local folderMember="${1:-}" folderSession="" folderRefusal="" folderRecord folderEntry folderProject
+		shift || true
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--session-id) folderSession="${2:-}" ; shift 2 ;;
+				--refusal-id) folderRefusal="${2:-}" ; shift 2 ;;
+				*)
+					echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		if [ -z "$folderMember" ] || [ -z "$folderSession" ] || [ -z "$folderRefusal" ] ; then
+			echo "$MDSC_CMD: ⛔ ERROR: syntax is <member> --session-id <id> --refusal-id <id>" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsAssertBareName "$folderMember" "<member>" permission-folder || { set +e ; return 1 ; }
+		AgentsToolsAssertBareName "$folderSession" "--session-id" permission-folder || { set +e ; return 1 ; }
+		AgentsToolsAssertBareName "$folderRefusal" "--refusal-id" permission-folder || { set +e ; return 1 ; }
+		folderRecord="$MMDAPP/.local/agents/sessions/$folderSession/$folderRefusal.md"
+		[ -f "$folderRecord" ] && [ "$( AgentsToolsPermissionField "$folderRecord" owner )" = "$folderMember" ] || return 0
+		folderEntry="$( AgentsToolsPermissionFolderEntry "$( AgentsToolsPermissionField "$folderRecord" tool )" \
+			"$( AgentsToolsPermissionRecordDecode "$( AgentsToolsPermissionField "$folderRecord" target )" )" "$folderSession" )" || return 0
+		printf 'ENTRY: %s\nSHOWN: %s\n' "$folderEntry" "$( AgentsToolsPermissionShownTarget "${folderEntry#*:}" )"
+		folderProject="$( AgentsToolsPermissionProjectEntry "$( AgentsToolsPermissionField "$folderRecord" tool )" \
+			"$( AgentsToolsPermissionRecordDecode "$( AgentsToolsPermissionField "$folderRecord" target )" )" "$folderSession" )" || return 0
+		printf 'PROJECT-ENTRY: %s\nPROJECT-SHOWN: %s\n' "$folderProject" "$( AgentsToolsPermissionShownTarget "${folderProject#*:}" )"
+		return 0

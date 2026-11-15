@@ -7,6 +7,9 @@
 ##   2. THE SYNTAX LINE FOR --override-flag STANDS, which is how `holding` is set and cleared.
 ##   3. THE BODY NAMES `holding` AS `--stop-sessions` REQUIRES IT, and says the schedule starts nothing while it holds.
 ##   4. THE READER CAN FAIL: run against a copy with those three passages removed, every row above reports the passage absent.
+##   5. THE --current-flags BODY NAMES `holding` AMONG ITS FLAGS, AND THE --override-flag BODY NAMES `planned-maintenance`. Each is read in
+##      its own body alone, since both words stand elsewhere in the manual, and each reader is shown to fail on a copy with the word taken
+##      out of that body only.
 ## Offline: the manual this check reads, and a rig of its own.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
@@ -51,6 +54,29 @@ rigAssert "with the three passages removed, the flag's syntax line is absent" "$
 rigAssert "with them removed, the hold's own wording is absent" "$( rigHas "$rigCopy" 'It refuses unless `holding` holds' )" 0
 rigAssert "and the copy still carries the other syntax lines, so the removal was surgical" \
 	"$( rigHas "$rigCopy" '📘 syntax: DistroAgentsDispatcher.fn.sh --current-flags' )" 1
+
+echo "-- 5. each body names its flag --"
+## One option's body: the lines after its own heading line, up to the next option's heading.
+rigBody(){ ## the file, the heading as it stands after its two tabs
+	LC_ALL=C awk -v want="$2" 'on && /^\t\t[^\t]/ { exit } on { print } $0 == "\t\t" want { on = 1 }' "$1"
+}
+## How often a word stands, whole, in one body.
+rigBodyWord(){ ## the file, the heading, the word
+	rigBody "$1" "$2" | LC_ALL=C tr -c 'A-Za-z0-9-' '\n' | LC_ALL=C grep -c -x -F -- "$3" || :
+}
+rigFlagsHead='--current-flags'
+rigOverHead='--override-flag [--no] <flag> [<ttl>] [--days <n>] [--member <member>]'
+rigAssert "control: both bodies are found, each of more than one line" \
+	"$( [ "$( rigBody "$rigHelp" "$rigFlagsHead" | LC_ALL=C grep -c . )" -gt 1 ] && printf yes || printf no ):$( [ "$( rigBody "$rigHelp" "$rigOverHead" | LC_ALL=C grep -c . )" -gt 1 ] && printf yes || printf no )" "yes:yes"
+rigAssert "the --current-flags body names holding" "$( rigBodyWord "$rigHelp" "$rigFlagsHead" holding )" 1
+rigAssert "the --override-flag body names planned-maintenance" "$( rigBodyWord "$rigHelp" "$rigOverHead" planned-maintenance )" 1
+rigCopyFlags="$rigTmp/manual-without-holding-in-current-flags.md"
+LC_ALL=C awk -v want="$rigFlagsHead" 'on && /^\t\t[^\t]/ { on = 0 } on { gsub( /holding, /, "" ) } { print } $0 == "\t\t" want { on = 1 }' "$rigHelp" > "$rigCopyFlags" || exit 1
+rigAssert "the reader fails with holding taken out of that body, and the word still stands elsewhere in the copy" \
+	"$( rigBodyWord "$rigCopyFlags" "$rigFlagsHead" holding ):$( [ "$( LC_ALL=C grep -c -w holding "$rigCopyFlags" )" -gt 0 ] && printf elsewhere || printf nowhere )" "0:elsewhere"
+rigCopyOver="$rigTmp/manual-without-planned-maintenance-in-override-flag.md"
+LC_ALL=C awk -v want="$rigOverHead" 'on && /^\t\t[^\t]/ { on = 0 } on { gsub( /planned-maintenance/, "" ) } { print } $0 == "\t\t" want { on = 1 }' "$rigHelp" > "$rigCopyOver" || exit 1
+rigAssert "the reader fails with planned-maintenance taken out of that body" "$( rigBodyWord "$rigCopyOver" "$rigOverHead" planned-maintenance )" 0
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ DISPATCHER HELP HOLDING CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount ))" >&2 ; exit 1

@@ -14,7 +14,7 @@
 ## Offline: the renderings are made here, and only the addressing awk is run.
 set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
-rigAwk="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib/member/AgentsWaitReplyAddress.awk"
+rigAwk="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib/wait/AgentsWaitReplyAddress.awk"
 rigRefuse(){ echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1 ; }
 [ -f "$rigAwk" ] || rigRefuse "the reply-address awk is not at the origin this workspace resolves: $rigAwk"
 rigFails=0 rigPasses=0
@@ -50,7 +50,7 @@ rigAssert "the thread reply answers where the thread is" "$( printf '%s\n' "$rig
 rigAssert "and a top-level message answers at its own ts" "$( printf '%s\n' "$rigOut" | LC_ALL=C grep -c 'reply-to: slack:C0BJ49W7ZCM:1793494251.398389' )" "1"
 
 echo "-- 5. control: a source whose conversation is unknown invents no address --"
-rigOut="$( printf '%s\n' '1793000031.000100 | U5 | a line with no conversation' | rigAddressed file "file:/tmp/rig-drop" )"
+rigOut="$( printf '%s\n' '1793000031.000100 | U5 | a line with no conversation' | rigAddressed file "file:$rigTmp/rig-drop" )"
 rigAssert "the line is printed as it stands" "$( printf '%s\n' "$rigOut" | LC_ALL=C grep -c 'reply-to' )" "0"
 
 echo "-- 6. a source that names a bare channel: each message answers at its own ts there --"

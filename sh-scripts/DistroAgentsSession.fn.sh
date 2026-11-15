@@ -34,10 +34,6 @@ DistroAgentsSessionTools(){
 	## The common library the team data's writers sync with, found as DistroAgentsTools.fn.sh finds it.
 	if [ -n "${MYXROOT:-}" ] && [ -d "$MYXROOT" ] && [ -f "$MYXROOT/bin/lib/catMarkdown.Common" ] ; then
 		export MYXROOT
-	elif [ -f "$MDLT_ORIGIN/myx/myx.common/os-myx.common/host/tarball/share/myx.common/bin/lib/catMarkdown.Common" ] ; then
-		export MYXROOT="$MDLT_ORIGIN/myx/myx.common/os-myx.common/host/tarball/share/myx.common"
-	elif [ -f "/usr/local/share/myx.common/bin/lib/catMarkdown.Common" ] ; then
-		export MYXROOT="/usr/local/share/myx.common"
 	elif command -v myx.common > /dev/null 2>&1 && [ -n "$( myx.common which lib/catMarkdown 2> /dev/null )" ] ; then
 		export MYXROOT="$( myx.common which lib/catMarkdown )"
 		export MYXROOT="${MYXROOT%/bin/lib/catMarkdown*}"
@@ -45,11 +41,6 @@ DistroAgentsSessionTools(){
 		export MYXROOT=''
 	fi
 	type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
-}
-
-## The session channel's operations (AgentsTools.ThisSession.include), loaded where they are asked for.
-DistroAgentsSessionThis(){
-	type AgentsToolsThisSessionWait > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.ThisSession.include"
 }
 
 ## The operations that came here from DistroAgentsTools.fn.sh (F1.4): every one of them is asked what each name of the table is asked, in AgentsContext.FrontDoor.include.
@@ -71,7 +62,7 @@ DistroAgentsSessionMoved(){
 		;;
 
 		--wait-for-input)
-			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWait.include"
+			type AgentsWaitProbedFlush > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/wait/AgentsTools.MemberWait.include"
 			return $?
 		;;
 
@@ -130,7 +121,7 @@ DistroAgentsSession(){
 				echo "$MDSC_CMD: ⛔ ERROR: --get-routine-text: syntax is <routine-selector>" >&2
 				set +e ; return 1
 			fi
-			type AgentsToolsSpawnRoutineMixText > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnRoutine.include"
+			type AgentsToolsSpawnRoutineMixText > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnRoutine.include"
 			local routineTextFile
 			routineTextFile="$( AgentsToolsSpawnRoutineResolve "$2" )" || { set +e ; return 1 ; }
 			## A harness run that read this text into its first message (the prefetch, F10.8) is told so in one line while it is unchanged.
@@ -149,7 +140,7 @@ DistroAgentsSession(){
 				set +e ; return 1
 			fi
 			DistroAgentsSessionTools
-			type AgentsToolsRoutineRunInline > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.RoutineRunInline.include"
+			type AgentsToolsRoutineRunInline > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/routine/AgentsTools.RoutineRunInline.include"
 			AgentsToolsRoutineRunInline "$2"
 			return $?
 		;;
@@ -157,7 +148,7 @@ DistroAgentsSession(){
 		## The thread of the session, <channel>:<ts>, the one the session-current alias names.
 		--get-session-channel-id)
 			shift
-			DistroAgentsSessionThis
+			type AgentsToolsThisSessionChannelId > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.ThisSession.include"
 			AgentsToolsThisSessionChannelId "$@"
 			return $?
 		;;
@@ -166,7 +157,7 @@ DistroAgentsSession(){
 		--post-session-channel)
 			shift
 			DistroAgentsSessionTools
-			DistroAgentsSessionThis
+			type AgentsToolsThisSessionPost > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.ThisSession.include"
 			AgentsToolsThisSessionPost "$@"
 			return $?
 		;;
@@ -174,7 +165,7 @@ DistroAgentsSession(){
 		## The session thread read from the session chat file, all of it or with --own the caller's own traffic. No network call.
 		--get-session-thread)
 			shift
-			DistroAgentsSessionThis
+			type AgentsToolsThisSessionThread > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.ThisSession.include"
 			AgentsToolsThisSessionThread "$@"
 			return $?
 		;;
@@ -183,7 +174,7 @@ DistroAgentsSession(){
 		--wait-session-channel)
 			shift
 			DistroAgentsSessionTools
-			DistroAgentsSessionThis
+			type AgentsToolsThisSessionWait > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.ThisSession.include"
 			AgentsToolsThisSessionWait "$@"
 			return $?
 		;;
@@ -191,7 +182,7 @@ DistroAgentsSession(){
 		## The dispatch of the session from the sandbox's input/: dispatch.md, the board item's copy and input-scan.md, mixed.
 		--get-dispatch-text)
 			shift
-			DistroAgentsSessionThis
+			type AgentsToolsThisSessionDispatchText > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.ThisSession.include"
 			AgentsToolsThisSessionDispatchText "$@"
 			return $?
 		;;
@@ -199,7 +190,7 @@ DistroAgentsSession(){
 		## The participants the session's record names that have no run in it yet, one a line: the executor's default list to invite from.
 		--get-uninvited-participants)
 			shift
-			DistroAgentsSessionThis
+			type AgentsToolsThisSessionUninvited > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.ThisSession.include"
 			AgentsToolsThisSessionUninvited "$@"
 			return $?
 		;;
@@ -237,7 +228,7 @@ DistroAgentsSession(){
 				echo "$MDSC_CMD: ⛔ ERROR: --routine-stack: syntax is --routine-stack (--push <routine>|--replace <routine>|--rewind|--return|--return-to <frame>) [--reason <text>] [--by chair|routine|tool]. Nothing was done." >&2
 				set +e ; return 1
 			}
-			type AgentsToolsRoutineStackMove > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.RoutineStack.include"
+			type AgentsToolsRoutineStackMove > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/routine/AgentsTools.RoutineStack.include"
 			AgentsToolsRoutineStackMove "$stackVerb" "$stackRoutine" "$stackReason" "$stackBy"
 			return $?
 		;;
@@ -260,7 +251,7 @@ DistroAgentsSession(){
 		--executor-checkpoint-push|--executor-checkpoint-rewind|--executor-checkpoint-exit)
 			local checkpointOp="${1#--executor-checkpoint-}"
 			shift
-			DistroAgentsSessionThis
+			type AgentsToolsThisSessionCheckpoint > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.ThisSession.include"
 			AgentsToolsThisSessionCheckpoint "$checkpointOp" "$@"
 			return $?
 		;;
@@ -270,7 +261,7 @@ DistroAgentsSession(){
 		## participants, nothing is waited on and nothing returned: a notice says so, and Wait is the way to wait there.
 		--idle-wait)
 			shift
-			DistroAgentsSessionThis
+			type AgentsToolsThisSessionIdleWait > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.ThisSession.include"
 			AgentsToolsThisSessionIdleWait "$@"
 			return $?
 		;;
@@ -278,7 +269,7 @@ DistroAgentsSession(){
 		## The explicit timed removal of the run's delivery floor: <seconds>, after which the session channel is read from the start again.
 		--session-floor-remove)
 			shift
-			DistroAgentsSessionThis
+			type AgentsToolsThisSessionFloorRemove > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.ThisSession.include"
 			AgentsToolsThisSessionFloorRemove "$@"
 			return $?
 		;;
@@ -289,7 +280,7 @@ DistroAgentsSession(){
 		--set-session-topic)
 			shift
 			DistroAgentsSessionTools
-			DistroAgentsSessionThis
+			type AgentsToolsThisSessionSetTopic > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.ThisSession.include"
 			AgentsToolsThisSessionSetTopic "$@"
 			return $?
 		;;
@@ -298,7 +289,7 @@ DistroAgentsSession(){
 		--set-session-chapter)
 			shift
 			DistroAgentsSessionTools
-			DistroAgentsSessionThis
+			type AgentsToolsThisSessionSetChapter > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.ThisSession.include"
 			AgentsToolsThisSessionSetChapter "$@"
 			return $?
 		;;

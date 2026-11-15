@@ -112,7 +112,9 @@ rigRunIn(){ ## workspace, args... -- one dispatcher call from that workspace; st
 }
 rigSend(){ ## member, further arguments of the send... -- a --member- send to the team's conversation, from ws-here
 	local sendMember="$1" ; shift
-	rigRunIn ws-here --slack-send-message --team-member "$sendMember" magic-team "$@"
+	## A post to the team channel itself is a step told to post there (--told): untold, a member's magic-team post goes to its session
+	## thread, addressed to magic-coordinator, and the header this check reads is that routing's, not the row's.
+	rigRunIn ws-here --slack-send-message --team-member "$sendMember" magic-team --told "$@"
 }
 rigText(){ ## -- the text field of the first posted body, escapes as sent
 	LC_ALL=C sed -n '1s/^{"channel":"[^"]*","text":"//; 1s/","blocks":.*//; 1s/"}$//; 1p' "$rigTmp/bodies"
@@ -167,55 +169,55 @@ rigAssert "and one line on stderr says it has no row, here or where it is set up
 rigAssert "that line names the workspace the send ran from and what builds the registry" \
 	"$( LC_ALL=C grep -F -- "member 'keeper-norow' has no row" "$rigTmp/err" | LC_ALL=C grep -c -F -- "$rigWork/ws-here" ):$( LC_ALL=C grep -F -- "member 'keeper-norow' has no row" "$rigTmp/err" | LC_ALL=C grep -c -F -- '--make-agents-indices' )" "1:1"
 rigSend magic-plain RIG-BODY
-rigAssert "magic-*, no mark: its group's icon"              "$( rigHeader )" '🤖 *_magic-plain_* → this conversation.'
+rigAssert "magic-*, no mark: its group's icon"              "$( rigHeader )" '🤖 *_magic-plain_* (console) → this conversation.'
 rigSend magic-coordinator --identity-bot RIG-BODY
-rigAssert "magic-*, its own mark: kept"                     "$( rigHeader )" '🐭 *_magic-coordinator_* @dispatchr → this conversation.'
+rigAssert "magic-*, its own mark: kept"                     "$( rigHeader )" '🐭 *_magic-coordinator_* @dispatchr (console) → this conversation.'
 rigSend partner-plain RIG-BODY
-rigAssert "partner-*, no mark: its group's icon"            "$( rigHeader )" '👫 *_partner-plain_* → this conversation.'
+rigAssert "partner-*, no mark: its group's icon"            "$( rigHeader )" '👫 *_partner-plain_* (console) → this conversation.'
 rigSend partner-marked RIG-BODY
-rigAssert "partner-*, its own mark: kept"                   "$( rigHeader )" '🧷 *_partner-marked_* @marapart → this conversation.'
+rigAssert "partner-*, its own mark: kept"                   "$( rigHeader )" '🧷 *_partner-marked_* @marapart (console) → this conversation.'
 rigSend warden-plain RIG-BODY
-rigAssert "warden-*, no mark: its group's icon"             "$( rigHeader )" '🔏 *_warden-plain_* → this conversation.'
+rigAssert "warden-*, no mark: its group's icon"             "$( rigHeader )" '🔏 *_warden-plain_* (console) → this conversation.'
 rigSend warden-marked RIG-BODY
-rigAssert "warden-*, its own mark: kept"                    "$( rigHeader )" '🔔 *_warden-marked_* @wandaward → this conversation.'
+rigAssert "warden-*, its own mark: kept"                    "$( rigHeader )" '🔔 *_warden-marked_* @wandaward (console) → this conversation.'
 rigSend keeper-nomark RIG-BODY
-rigAssert "keeper-*, a row with an alias and no mark: its group's icon, and the alias of its row, with nothing said" "$( rigHeader ) $( rigNoRowLines keeper-nomark )" '🔏 *_keeper-nomark_* @nomarkkeep → this conversation. 0'
+rigAssert "keeper-*, a row with an alias and no mark: its group's icon, and the alias of its row, with nothing said" "$( rigHeader ) $( rigNoRowLines keeper-nomark )" '🔏 *_keeper-nomark_* @nomarkkeep (console) → this conversation. 0'
 rigSend keeper-here RIG-BODY
-rigAssert "keeper-*, its own mark: kept"                    "$( rigHeader )" '🔧 *_keeper-here_* @herakeep → this conversation.'
+rigAssert "keeper-*, its own mark: kept"                    "$( rigHeader )" '🔧 *_keeper-here_* @herakeep (console) → this conversation.'
 rigSend client-plain RIG-BODY
-rigAssert "client-*, no row: its group's icon, its member name, and the one line" "$rigRc $( rigHeader ) $( rigNoRowLines client-plain )" '0 👥 *_client-plain_* → this conversation. 1'
+rigAssert "client-*, no row: its group's icon, its member name, and the one line" "$rigRc $( rigHeader ) $( rigNoRowLines client-plain )" '0 👥 *_client-plain_* (console) → this conversation. 1'
 rigSend client-nomark RIG-BODY
-rigAssert "client-*, a row with no mark: its group's icon, its member name and not the alias of its row, with nothing said" "$rigRc $( rigHeader ) $( rigNoRowLines client-nomark )" '0 👥 *_client-nomark_* → this conversation. 0'
+rigAssert "client-*, a row with no mark: its group's icon, its member name and not the alias of its row, with nothing said" "$rigRc $( rigHeader ) $( rigNoRowLines client-nomark )" '0 👥 *_client-nomark_* (console) → this conversation. 0'
 rigSend client-rig RIG-BODY
-rigAssert "client-*, a mark in its row: kept"               "$( rigHeader )" '🐭 *_client-rig_* → this conversation.'
+rigAssert "client-*, a mark in its row: kept"               "$( rigHeader )" '🐭 *_client-rig_* (console) → this conversation.'
 rigSend keeper-here --address-to keeper-norow --address-to magic-plain --address-to client-plain --address-to partner-marked RIG-BODY
 rigAssert "addressed: a member with no mark by its group's icon and its member name, one with its own by that, and the send is not held over it" \
-	"$rigRc $( rigHeader )" '0 🔧 *_keeper-here_* @herakeep → 🔏 *_keeper-norow_*; 🤖 *_magic-plain_*; 👥 *_client-plain_*; 🧷 *_partner-marked_* @marapart.'
+	"$rigRc $( rigHeader )" '0 🔧 *_keeper-here_* @herakeep (console) → 🔏 *_keeper-norow_*; 🤖 *_magic-plain_*; 👥 *_client-plain_*; 🧷 *_partner-marked_* @marapart.'
 rigSend keeper-here --address-to human-owner RIG-BODY
-rigAssert "the human-owner's own mark is kept" "$( rigHeader | LC_ALL=C sed 's/ <@[A-Z0-9]*>\.$/ <@ID>./' )" '🔧 *_keeper-here_* @herakeep → :rig-owner: *_human-owner_* <@ID>.'
+rigAssert "the human-owner's own mark is kept" "$( rigHeader | LC_ALL=C sed 's/ <@[A-Z0-9]*>\.$/ <@ID>./' )" '🔧 *_keeper-here_* @herakeep (console) → :rig-owner: *_human-owner_* <@ID>.'
 rigAssert "no member is named by the rule: the list holds prefixes, and of single names only the human-owner the member table already had" \
-	"$( LC_ALL=C sed -n '/^AgentsToolsTeamMemberKindIcon()/,/^}/p' "$rigHere/team-data/AgentsTools.TeamRegistry.include" | LC_ALL=C grep -c ') *printf' ):$( LC_ALL=C sed -n '/^AgentsToolsTeamMemberKindIcon()/,/^}/p' "$rigHere/team-data/AgentsTools.TeamRegistry.include" | LC_ALL=C grep ') *printf' | LC_ALL=C grep -v -e '^[[:space:]]*[a-z|*-]*-\*)' -e '^[[:space:]]*\*)' -e '^[[:space:]]*human-owner)' | wc -l | tr -d ' ' ):$( LC_ALL=C sed -n '/^AgentsToolsCommsSlackMemberTeamPresentation()/,/^}/p' "$rigHere/comms/AgentsTools.InternOpCommsSlackSend.include" | LC_ALL=C grep -c -e 'client-[a-z]' -e 'keeper-[a-z]' -e 'magic-[a-z]' -e 'partner-[a-z]' )" "6:0:0"
+	"$( LC_ALL=C sed -n '/^AgentsToolsTeamMemberKindIcon()/,/^}/p' "$rigHere/team-data/AgentsTools.TeamRegistry.include" | LC_ALL=C grep -c ') *printf' ):$( LC_ALL=C sed -n '/^AgentsToolsTeamMemberKindIcon()/,/^}/p' "$rigHere/team-data/AgentsTools.TeamRegistry.include" | LC_ALL=C grep ') *printf' | LC_ALL=C grep -v -e '^[[:space:]]*[a-z|*-]*-\*)' -e '^[[:space:]]*\*)' -e '^[[:space:]]*human-owner)' | wc -l | tr -d ' ' ):$( LC_ALL=C sed -n '/^AgentsToolsCommsSlackMemberTeamPresentation()/,/^}/p' "$rigHere/slack/AgentsTools.InternOpCommsSlackSend.include" | LC_ALL=C grep -c -e 'client-[a-z]' -e 'keeper-[a-z]' -e 'magic-[a-z]' -e 'partner-[a-z]' )" "6:0:0"
 rigAssert "the installer's table and the author line take the icon from the one list: neither file holds an icon of a kind" \
-	"$( LC_ALL=C grep -c -e '👥' -e '👫' -e '🔏' -e '👤' "$rigHere/config/AgentsTools.Install.include" ):$( LC_ALL=C grep -c -e '👥' -e '👫' -e '🔏' -e '👤' "$rigHere/comms/AgentsTools.InternOpCommsSlackSend.include" ):$( LC_ALL=C grep -c 'AgentsToolsTeamMemberKindIcon "' "$rigHere/config/AgentsTools.Install.include" ):$( LC_ALL=C grep -c 'AgentsToolsTeamMemberKindIcon "' "$rigHere/comms/AgentsTools.InternOpCommsSlackSend.include" )" "0:0:1:1"
+	"$( LC_ALL=C grep -c -e '👥' -e '👫' -e '🔏' -e '👤' "$rigHere/config/AgentsTools.Install.include" ):$( LC_ALL=C grep -c -e '👥' -e '👫' -e '🔏' -e '👤' "$rigHere/slack/AgentsTools.InternOpCommsSlackSend.include" ):$( LC_ALL=C grep -c 'AgentsToolsTeamMemberKindIcon "' "$rigHere/config/AgentsTools.Install.include" ):$( LC_ALL=C grep -c 'AgentsToolsTeamMemberKindIcon "' "$rigHere/slack/AgentsTools.InternOpCommsSlackSend.include" )" "0:0:1:1"
 rm -f "$( rigNames ws-there )"
 rigSend keeper-there RIG-BODY
-rigAssert "with no registry at all in the workspace it is set up in: its group's icon, its member name, and the one line" "$rigRc $( rigText ) $( rigNoRowLines keeper-there )" '0 🔏 *_keeper-there_* → this conversation.\nRIG-BODY 1'
+rigAssert "with no registry at all in the workspace it is set up in: its group's icon, its member name, and the one line" "$rigRc $( rigText ) $( rigNoRowLines keeper-there )" '0 🔏 *_keeper-there_* (console) → this conversation.\nRIG-BODY 1'
 LC_ALL=C grep -v '^human-owner ' "$( rigNames ws-here )" > "$rigTmp/names.cut" && cat "$rigTmp/names.cut" > "$( rigNames ws-here )"
 rigSend keeper-here --address-to human-owner RIG-BODY
-rigAssert "the human-owner with no mark where the tooling looks: the icon the member table has for it" "$rigRc $( rigHeader | LC_ALL=C sed 's/ <@[A-Z0-9]*>\.$/ <@ID>./' )" '0 🔧 *_keeper-here_* @herakeep → 👤 *_human-owner_* <@ID>.'
+rigAssert "the human-owner with no mark where the tooling looks: the icon the member table has for it" "$rigRc $( rigHeader | LC_ALL=C sed 's/ <@[A-Z0-9]*>\.$/ <@ID>./' )" '0 🔧 *_keeper-here_* @herakeep (console) → 👤 *_human-owner_* <@ID>.'
 
 echo "-- a client inside our own team: a team member, by its own member name, with the mark of its row --"
 rigWorld
 rigSend client-rig RIG-BODY
 rigAssert "an invited client's --member- send: the mark of its row and its member name, never the alias of its persona" \
-	"$rigRc $( rigText )" '0 🐭 *_client-rig_* → this conversation.\nRIG-BODY'
+	"$rigRc $( rigText )" '0 🐭 *_client-rig_* (console) → this conversation.\nRIG-BODY'
 rigAssert "the persona's alias and names are not in the post, nor the default icon: it has a mark" "$( LC_ALL=C grep -c -e 'dispatchr' -e 'Magic Vane' -e '👥' "$rigTmp/bodies" )" 0
 rigAssert "and nothing is said on stderr about its row or its alias" "$( rigNoRowLines client-rig ):$( rigSaid 'is invited from another workspace' )" "0:0"
 rigSend magic-coordinator --identity-bot --address-to client-rig RIG-BODY
 rigAssert "addressed by the member whose persona it shares: two members, two aliases" \
-	"$rigRc $( rigHeader )" '0 🐭 *_magic-coordinator_* @dispatchr → 🐭 *_client-rig_*.'
-rigRunIn ws-there --slack-send-message --team-member client-rig magic-team RIG-BODY
-rigAssert "the same in the workspace it is set up in, where the registry holds its persona row" "$rigRc $( rigText )" '0 🐭 *_client-rig_* → this conversation.\nRIG-BODY'
+	"$rigRc $( rigHeader )" '0 🐭 *_magic-coordinator_* @dispatchr (console) → 🐭 *_client-rig_*.'
+rigRunIn ws-there --slack-send-message --team-member client-rig magic-team --told RIG-BODY
+rigAssert "the same in the workspace it is set up in, where the registry holds its persona row" "$rigRc $( rigText )" '0 🐭 *_client-rig_* (console) → this conversation.\nRIG-BODY'
 rigAssert "no registry row is written, added or removed by a send: both registries stand as they were" \
 	"$( LC_ALL=C grep -c '' "$( rigNames ws-here )" ):$( LC_ALL=C grep -c '' "$( rigNames ws-there )" ):$( LC_ALL=C grep -c '^client-rig 🐭 Magic Vane dispatchr$' "$( rigNames ws-there )" )" "7:6:1"
 
@@ -229,19 +231,19 @@ rigRunIn ws-here --client-comms-slack-send-message client-rig CCLIENT001 RIG-BOD
 rigAssert "a --client- send: the mark, names and alias of its persona row, and no member name of ours" \
 	"$rigRc $( rigText ) $( LC_ALL=C grep -c -e 'client-rig' -e '👥' "$rigTmp/bodies" )" '0 🐭 *_Magic Vane_* @dispatchr → this conversation.\nRIG-BODY 0'
 rigSend client-rig RIG-BODY
-rigAssert "and its --member- send, with that token in its scope, is still the team member's" "$rigRc $( rigHeader )" '0 🐭 *_client-rig_* → this conversation.'
+rigAssert "and its --member- send, with that token in its scope, is still the team member's" "$rigRc $( rigHeader )" '0 🐭 *_client-rig_* (console) → this conversation.'
 
 echo "-- an invited member whose alias a member here already goes by: its member name, and one line --"
 rigSend keeper-clash RIG-BODY
-rigAssert "as sender: its own mark, its member name as alias, never the alias a member here has" "$rigRc $( rigText )" '0 🧭 *_keeper-clash_* → this conversation.\nRIG-BODY'
+rigAssert "as sender: its own mark, its member name as alias, never the alias a member here has" "$rigRc $( rigText )" '0 🧭 *_keeper-clash_* (console) → this conversation.\nRIG-BODY'
 rigAssert "and one line on stderr says so, naming the alias" "$( rigSaid "member 'keeper-clash' is invited from another workspace, where its alias is 'herakeep', which a member of $rigWork/ws-here already goes by" )" 1
 rigSend keeper-here --address-to keeper-clash RIG-BODY
 rigAssert "as addressee, beside the member that has the alias here: two members, two aliases, and the same line" \
-	"$rigRc $( rigHeader ) $( rigSaid "member 'keeper-clash' is invited from another workspace" )" '0 🔧 *_keeper-here_* @herakeep → 🧭 *_keeper-clash_*. 1'
-rigRunIn ws-there --slack-send-message --team-member keeper-clash magic-team RIG-BODY
-rigAssert "control: in the workspace it is set up in, where no other member has it, its alias is its own" "$rigRc $( rigHeader ) $( rigSaid 'is invited from another workspace' )" '0 🧭 *_keeper-clash_* @herakeep → this conversation. 0'
+	"$rigRc $( rigHeader ) $( rigSaid "member 'keeper-clash' is invited from another workspace" )" '0 🔧 *_keeper-here_* @herakeep (console) → 🧭 *_keeper-clash_*. 1'
+rigRunIn ws-there --slack-send-message --team-member keeper-clash magic-team --told RIG-BODY
+rigAssert "control: in the workspace it is set up in, where no other member has it, its alias is its own" "$rigRc $( rigHeader ) $( rigSaid 'is invited from another workspace' )" '0 🧭 *_keeper-clash_* @herakeep (console) → this conversation. 0'
 rigSend keeper-there RIG-BODY
-rigAssert "control: an invited member whose alias nobody here has keeps it, with nothing said" "$( rigHeader ) $( rigSaid 'is invited from another workspace' )" '🌾 *_keeper-there_* @farmhand → this conversation. 0'
+rigAssert "control: an invited member whose alias nobody here has keeps it, with nothing said" "$( rigHeader ) $( rigSaid 'is invited from another workspace' )" '🌾 *_keeper-there_* @farmhand (console) → this conversation. 0'
 
 echo "-- reading takes what posting writes: a message addressed to the client in its in-team form --"
 ## One message as a wait renders it: its head line, then its text as it was sent, a line break
@@ -252,36 +254,36 @@ rigDismisses(){ ## member, the text of a message as sent -- yes when that messag
 }
 rigSend keeper-here --address-to client-rig DISMISSED
 rigToClient="$( rigText )"
-rigAssert "control: the message as posted, addressed to the client by its in-team form" "$rigToClient" '🔧 *_keeper-here_* @herakeep → 🐭 *_client-rig_*.\nDISMISSED'
+rigAssert "control: the message as posted, addressed to the client by its in-team form" "$rigToClient" '🔧 *_keeper-here_* @herakeep (console) → 🐭 *_client-rig_*.\nDISMISSED'
 rigAssert "it dismisses the client, and not the member whose persona the client shares" "$( rigDismisses client-rig "$rigToClient" ):$( rigDismisses magic-coordinator "$rigToClient" ):$( rigDismisses keeper-here "$rigToClient" )" "yes:no:no"
 rigSend keeper-here --address-to magic-coordinator DISMISSED
 rigToPersona="$( rigText )"
 rigAssert "one addressed to that member, by the alias the persona carries, dismisses that member and not the client" \
-	"$( rigHeader | LC_ALL=C sed 's/ → .*$//' ):$( LC_ALL=C grep -c -F -- '*_magic-coordinator_* @dispatchr' "$rigTmp/bodies" ):$( rigDismisses magic-coordinator "$rigToPersona" ):$( rigDismisses client-rig "$rigToPersona" )" '🔧 *_keeper-here_* @herakeep:1:yes:no'
+	"$( rigHeader | LC_ALL=C sed 's/ → .*$//' ):$( LC_ALL=C grep -c -F -- '*_magic-coordinator_* @dispatchr' "$rigTmp/bodies" ):$( rigDismisses magic-coordinator "$rigToPersona" ):$( rigDismisses client-rig "$rigToPersona" )" '🔧 *_keeper-here_* @herakeep (console):1:yes:no'
 rigAssert "typed with its in-team alias, which is its member name, a dismissal reaches the client" "$( rigDismisses client-rig 'DISMISSED client-rig' ):$( rigDismisses client-rig 'DISMISSED dispatchr' )" "yes:no"
 rigSend client-rig --address-to keeper-here RIG-BODY
 ## memberSendHeaderLength is what every reader of a reply takes a send header off by.
 printf '%s\n' '{ gsub( /\\n/, "\n" ) ; split( $0, lineOf, "\n" ) ; print ( memberSendHeaderLength( lineOf[1] ) == length( lineOf[1] ) ? "header" : "no-header" ) ; }' > "$rigTmp/header.awk"
 rigAssert "the client's own in-team author line is a send header to every reader: its length is its whole first line" \
-	"$( rigText ):$( rigText | LC_ALL=C awk -f "$rigHere/questions/AgentsDismissalMatch.awk" -f "$rigTmp/header.awk" 2> /dev/null )" '🐭 *_client-rig_* → 🔧 *_keeper-here_* @herakeep.\nRIG-BODY:header'
+	"$( rigText ):$( rigText | LC_ALL=C awk -f "$rigHere/questions/AgentsDismissalMatch.awk" -f "$rigTmp/header.awk" 2> /dev/null )" '🐭 *_client-rig_* (console) → 🔧 *_keeper-here_* @herakeep.\nRIG-BODY:header'
 
 echo "-- a name is said once: a member whose alias is its own name, as sender and as addressee --"
 rigSend magic-plain --address-to keeper-here --address-to partner-plain RIG-BODY
 rigAssert "its name stands once, with no @name beside it, and a member whose alias is another word keeps name and alias" \
-	"$rigRc $( rigText )" '0 🤖 *_magic-plain_* → 🔧 *_keeper-here_* @herakeep; 👫 *_partner-plain_*.\nRIG-BODY'
+	"$rigRc $( rigText )" '0 🤖 *_magic-plain_* (console) → 🔧 *_keeper-here_* @herakeep; 👫 *_partner-plain_*.\nRIG-BODY'
 rigAssert "nowhere in the post does the name follow itself" "$( LC_ALL=C grep -c -e '@magic-plain' -e '@partner-plain' "$rigTmp/bodies" )" 0
 rigAssert "the line the reader takes off a reply is the whole first line: a header" \
 	"$( rigText | LC_ALL=C awk -f "$rigHere/questions/AgentsDismissalMatch.awk" -f "$rigTmp/header.awk" 2> /dev/null )" header
 rigAssert "the one rule is asked in two places of the send, the sender and the addressee, and the send writes no alias of its own" \
-	"$( LC_ALL=C grep -c 'AgentsToolsCommsSlackAliasShown "' "$rigHere/comms/AgentsTools.InternOpCommsSlackSend.include" ):$( LC_ALL=C grep -c -e '@\$fromAlias' -e '@\$addrAlias' "$rigHere/comms/AgentsTools.InternOpCommsSlackSend.include" )" "2:0"
+	"$( LC_ALL=C grep -c 'AgentsToolsCommsSlackAliasShown "' "$rigHere/slack/AgentsTools.InternOpCommsSlackSend.include" ):$( LC_ALL=C grep -c -e '@\$fromAlias' -e '@\$addrAlias' "$rigHere/slack/AgentsTools.InternOpCommsSlackSend.include" )" "2:0"
 rigSend keeper-here --address-to magic-plain DISMISSED
 rigToPlain="$( rigText )"
 rigAssert "addressed to it, a dismissal reaches it by its name said once, and nobody else" \
-	"$rigToPlain:$( rigDismisses magic-plain "$rigToPlain" ):$( rigDismisses keeper-here "$rigToPlain" ):$( rigDismisses partner-plain "$rigToPlain" )" '🔧 *_keeper-here_* @herakeep → 🤖 *_magic-plain_*.\nDISMISSED:yes:no:no'
+	"$rigToPlain:$( rigDismisses magic-plain "$rigToPlain" ):$( rigDismisses keeper-here "$rigToPlain" ):$( rigDismisses partner-plain "$rigToPlain" )" '🔧 *_keeper-here_* @herakeep (console) → 🤖 *_magic-plain_*.\nDISMISSED:yes:no:no'
 rigSend magic-plain --address-to keeper-here DISMISSED
 rigFromPlain="$( rigText )"
 rigAssert "sent by it, a dismissal reaches the member it names and never its own sender" \
-	"$rigFromPlain:$( rigDismisses keeper-here "$rigFromPlain" ):$( rigDismisses magic-plain "$rigFromPlain" )" '🤖 *_magic-plain_* → 🔧 *_keeper-here_* @herakeep.\nDISMISSED:yes:no'
+	"$rigFromPlain:$( rigDismisses keeper-here "$rigFromPlain" ):$( rigDismisses magic-plain "$rigFromPlain" )" '🤖 *_magic-plain_* (console) → 🔧 *_keeper-here_* @herakeep.\nDISMISSED:yes:no'
 rigAssert "what a person types to name such a member is its member name" "$( rigDismisses magic-plain 'DISMISSED magic-plain' ):$( rigDismisses magic-plain 'DISMISSED @magic-plain' )" "yes:no"
 ## The verdict reader takes a member's reply by its first word after the header (AgentsEscalationVerdict.awk).
 rigVerdictOf(){ ## reply text -- the verdict the reader takes from it
@@ -298,7 +300,7 @@ rigAssert "no request left this box: every call went to the fake curl" "$( LC_AL
 if [ "$rigFails" -ne 0 ] ; then
 	echo "⛔ SLACK HEADER INVITED MEMBER CHECK FAILED: $rigFails of $(( rigPasses + rigFails )) assertion(s)" >&2
 	echo "  warn: a member is shown with no icon or not with its own mark, an invited member under another member's alias, a client inside our team under its persona's alias, or a name said twice or not read where it is said once" >&2
-	echo "  fix:  repair AgentsToolsCommsSlackMemberTeamPresentation, AgentsToolsCommsSlackMemberPresentation and AgentsToolsCommsSlackAliasShown in sh-lib/comms/AgentsTools.InternOpCommsSlackSend.include, or the readers of the line (AgentsDismissalMatch.awk, AgentsEscalationVerdict.awk) -- never the assertion" >&2
+	echo "  fix:  repair AgentsToolsCommsSlackMemberTeamPresentation, AgentsToolsCommsSlackMemberPresentation and AgentsToolsCommsSlackAliasShown in sh-lib/slack/AgentsTools.InternOpCommsSlackSend.include, or the readers of the line (AgentsDismissalMatch.awk, AgentsEscalationVerdict.awk) -- never the assertion" >&2
 	exit 1
 fi
 printf 'SLACK_HEADER_INVITED_MEMBER: OK (%d assertions, offline)\n' "$rigPasses"

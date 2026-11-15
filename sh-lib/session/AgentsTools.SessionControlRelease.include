@@ -54,7 +54,7 @@ AgentsToolsSessionControlRelease(){
 				AgentsToolsSessionDismissHeld "$releaseRecord" > /dev/null || releaseWhy="its item ${releaseItem%.md} is in $releaseState"
 			;;
 			review)
-				type AgentsReviewWaitLeft > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ReviewFlow.include" > /dev/null 2>&1 || :
+				type AgentsReviewWaitLeft > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ReviewFlow.include"
 				[ "$( AgentsReviewWaitLeft "$releaseSpawn" 2> /dev/null )" != "expired" ] || AgentsToolsSessionLimitHeld "$releaseRecord" > /dev/null \
 					|| releaseWhy="its handback on ${releaseItem%.md} waited past the review limit for a verdict"
 			;;

@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+			local routineBriefArgs=( --intern-op-spawn-prepare-brief "$callerName" )
+			if [ "$routineDefault" = "true" ] ; then
+				routineBriefArgs+=( --routine-default )
+			else
+				routineBriefArgs+=( --routine "$routineSelector" )
+			fi
+			[ -z "$spawnCliService" ] || routineBriefArgs+=( --cli-service "$spawnCliService" )
+			[ -z "$spawnSettingsWorkspace" ] || routineBriefArgs+=( --settings-workspace "$spawnSettingsWorkspace" )
+			local routineBriefBlock
+			routineBriefBlock="$( DistroAgentsTools ${routineBriefArgs[@]+"${routineBriefArgs[@]}"} --context "$opContext" )" || { set +e ; spawnProxyRoutineBriefEnded=1 ; return 1 ; }
+			spawnContext="$( printf '%s\n\n%s\n' "$routineBriefBlock" "$spawnContext" )"
+			## The routine file the brief resolved, by name, for the session record: its
+			## `allows:` hold for this session (AgentsTools.PermissionHolds.include).
+			routineRecorded="$(
+				. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnRoutine.include"
+				routineRecordSelector="$routineSelector"
+				[ "$routineDefault" != "true" ] || routineRecordSelector="$( AgentsToolsSpawnRoutineDefaultName )" || exit 1
+				AgentsToolsSpawnRoutineResolve "$routineRecordSelector"
+			)" 2>/dev/null || routineRecorded=""
+			## A routine whose runs report to no one says so in its own frontmatter (`reports-to: none`).
+			[ ! -f "$routineRecorded" ] || [ "$( AgentsToolsSpawnSandboxRecordHeader "$routineRecorded" "$agentsRunRouteField" )" != none ] || routineReportsTo="none"
+			routineFilePath="$routineRecorded"
+			routineRecorded="${routineRecorded##*/}"
+			## THE STARTING PATH (S6.27): the frames this session begins with, one `routine-stack:` line each. The
+			## chain the dispatch declares, else the routine's own `routine-chain:`, else the one routine in force.
+			## A chain that names no routine, or that begins elsewhere than the routine in force, refuses the spawn
+			## here, before its dispatch item or its record is made.
+			local routineChainPath="$routineChainSaid"
+			if [ -z "$routineChainPath" ] && [ -n "$routineFilePath" ] && [ -f "$routineFilePath" ] ; then
+				type AgentsToolsRoutineKeyLinesOwn > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/routine/AgentsTools.RoutineRequirements.include"
+				routineChainPath="$( AgentsToolsRoutineKeyLinesOwn "$routineFilePath" routine-chain 2> /dev/null | LC_ALL=C tr '\n' ',' )"
+				routineChainPath="${routineChainPath%,}"
+			fi
+			if [ -n "$routineRecorded" ] ; then
+				type AgentsToolsRoutineStackStartLines > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/routine/AgentsTools.RoutineStack.include"
+				routineStackLines="$( AgentsToolsRoutineStackStartLines "$routineRecorded" "$routineChainPath" )" || { set +e ; spawnProxyRoutineBriefEnded=1 ; return 1 ; }
+			fi
+			## A work-duty's routine is `cache-prefix: armed` now, so the harness does not preload it: the routine and the member's
+			## static reference guidance are put at the head of that run's dispatch instead (AgentsTools.WorkDutyDispatch.include),
+			## where they are the same bytes on every work-duty run of the member and cache after the first.
+			if [ -n "$routineFilePath" ] && [ -f "$routineFilePath" ] ; then
+				type AgentsToolsWorkDutyDispatchIs > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/schedule/AgentsTools.WorkDutyDispatch.include"
+				AgentsToolsWorkDutyDispatchIs "$routineFilePath" && workDutyDispatchFile="$routineFilePath" || workDutyDispatchFile=""
+			fi
+			if [ -n "$workDutyDispatchFile" ] ; then
+				local workDutyDispatchHead
+				workDutyDispatchHead="$( AgentsToolsWorkDutyDispatchHead "$workDutyDispatchFile" "$spawnSkillsetRoot" "$callerName" )" || workDutyDispatchHead=""
+				[ -z "$workDutyDispatchHead" ] || spawnContext="$( printf '%s\n\n%s\n' "$workDutyDispatchHead" "$spawnContext" )"
+			fi

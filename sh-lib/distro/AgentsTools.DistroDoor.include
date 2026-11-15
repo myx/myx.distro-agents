@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.DistroDoor.include -- the distro door: the only way myx.distro-agents reads a list the distro tooling keeps
+## (projects, declares). The lists, their index files and project.inf are the distro tooling's; this package reads them only
+## through the tooling's own operations, so a change of the tooling's sources or formats reaches no code here. Sourced, never run.
+##
+## AgentsDistroDeclaresCut <workspace> <prefix>: `<project> <rest>` a line, for each declare of that workspace's distro that
+## starts with <prefix>, the prefix cut (ListDistroDeclares --all-filter-and-cut). The workspace's own input spec is used:
+## its source where it has one, else its installed distro. rc is the tool's; nothing is printed on a failure.
+AgentsDistroDeclaresCut(){ ## workspace, prefix
+	local doorWs="${1%/}" doorPrefix="${2:?⛔ ERROR: AgentsDistroDeclaresCut: a declare prefix is required}" doorSpec="--distro-from-distro"
+	[ ! -d "$doorWs/source" ] || doorSpec="--distro-from-source"
+	(
+		export MMDAPP="$doorWs"
+		type DistroAgentsContext > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.include"
+		DistroAgentsContext "$doorSpec" > /dev/null || exit 2
+		Require ListDistroDeclares > /dev/null 2>&1 || :
+		Distro ListDistroDeclares --all-filter-and-cut "$doorPrefix"
+	)
+}

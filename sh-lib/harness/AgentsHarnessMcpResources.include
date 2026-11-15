@@ -167,6 +167,7 @@ AgentsHarnessToolReadMcpResourceTool(){ ## server, uri
 }
 
 AgentsHarnessToolReadMcpResourceDirTool(){ ## server, uri_prefix, limit
+	type AgentsHarnessWholeNumber > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessToolsFile.include"
 	local toolServer="$1" toolPrefix="$2" toolLimit="$3" dirServers="" dirServerRc=0 dirRc=0
 	local dirCount dirIndex dirUri dirMatched=0 dirRead=0 dirMatches="" dirErr
 	if [ -z "$toolServer" ] ; then
@@ -247,6 +248,7 @@ AgentsHarnessMcpServerSet(){
 		ListMcpResourcesTool|ReadMcpResourceTool|ReadMcpResourceDirTool|ToolSearch|'')
 			if [ -n "${MMDAPP:-}" ] ; then
 				## From the installer's index, else the same registration composed from our primary sources.
+				type AgentsHarnessMcpKeys > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessMcpConfig.include"
 				AgentsHarnessMcpKeys
 				while IFS= read -r harnessToolPeer ; do
 					[ -n "$harnessToolPeer" ] || continue

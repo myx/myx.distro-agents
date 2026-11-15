@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+## AgentsTools.OpManagerRoutineText.include -- the operation `--manager-routine-text`, sourced by AgentsTools.ManagerRoutine.include with the operation's arguments.
+## The routine's own file, whole: its frontmatter (the contract its rows list by), its title line and its body, as the file holds them,
+## nothing mixed in and nothing computed. The selector is resolved as the session spawner resolves a --routine selector
+## (AgentsToolsSpawnRoutineResolve), so it is the one file --spawn-session given the same name would start.
+		local textOp="$1" textSelector textFile textVerdicts="no" textFault textContract
+		shift
+		if [ $# -ge 1 ] && [ "$1" = "--with-verdict" ] ; then textVerdicts="yes" ; shift ; fi
+		if [ $# -ne 1 ] ; then
+			echo "⛔ ERROR: $MDSC_CMD $textOp: syntax is [--with-verdict] <routine-selector>" >&2
+			set +e ; return 1
+		fi
+		textSelector="$1"
+		textFile="$( AgentsToolsSpawnRoutineResolve "$textSelector" )" || { set +e ; return 1 ; }
+		cat "$textFile"
+		## R15: the verdicts come WITH the routine the operator selected, in one read, after a
+		## marker the console splits off -- the file's own text stays the file's own text.
+		if [ "$textVerdicts" = "yes" ] ; then
+			textFault="$( set -- --intern-doc-validate routine "$textFile" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.InternDocValidate.include"| LC_ALL=C grep -v -e '^[^ ]*:[0-9]*: report-' | LC_ALL=C sed -n '1s/^[^ ]*:[0-9]*: [^ ]*: //p' )" || textFault=""
+			if textContract="$( AgentsToolsSpawnRoutineContractCheck "$textFile" 2>&1 )" ; then textContract="startable" ; else textContract="broken" ; fi
+			printf '\n%s\n' "$MDAT_ROUTINE_VERDICT_MARK"
+			printf 'valid\t%s\n' "$( [ -z "$textFault" ] && printf 'yes' || printf 'no: %s' "$textFault" )"
+			printf 'start\t%s\n' "$textContract"
+			printf 'reason\t%s\n' "$( [ -z "$textFault" ] && printf -- '-' || printf '%s' "$textFault" )"
+		fi
+		return 0

@@ -23,9 +23,8 @@
 ## the source stays due.
 ##
 
-type AgentsToolsInboxDir > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/inbox/AgentsTools.InboxPlace.include"
 type AgentsToolsSourceTtlOf > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.SourceTtl.include"
-type AgentsToolsLocalLockTake > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.LocalLock.include"
+type AgentsToolsLocalLockTake > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.LocalLock.include"
 type AgentsToolsCommsOwnSettingsApply > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsSide.include"
 
 ## What the last call of AgentsToolsCollectOne and of the two collectors left: the line it prints, how many notes it made, and why
@@ -35,12 +34,9 @@ agentsCollectLine="" agentsCollectNew=0 agentsCollectWhy=""
 ## the collection of each source does (no): a pass of 64 mails is one commit, not 64.
 agentsCollectWritten=() agentsCollectDefer="no"
 
-AgentsToolsCollectDir(){
-	printf '%s\n' "$MMDAPP/.local/agents/collect"
-}
 
 AgentsToolsCollectStatePath(){ ## kind, member
-	printf '%s/%s.%s.state\n' "$( AgentsToolsCollectDir )" "$1" "$2"
+	printf '%s/%s.%s.state\n' "$MMDAPP/.local/agents/collect" "$1" "$2"
 }
 
 ## The value of a key of a source's state, nothing for a key it has none of.
@@ -74,7 +70,7 @@ AgentsToolsCollectStateSet(){ ## kind, member, key, value, ...
 ## side (MDAT_COMMS_SIDE=client), as the scan reads it.
 AgentsToolsCollectScanMembers(){
 	local scanFile scanExecutors scanExecutor scanName scanDir scanOut=""
-	type AgentsToolsRoutineKeyOwn > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.RoutineRequirements.include"
+	type AgentsToolsRoutineKeyOwn > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/routine/AgentsTools.RoutineRequirements.include"
 	type AgentsToolsTeamMemberDirectoryText > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamRegistry.include"
 	for scanFile in "${MDAT_SKILLSET_ROOT:-/nonexistent}"/*/*.routine.md ; do
 		[ -f "$scanFile" ] || continue
@@ -100,14 +96,14 @@ AgentsToolsCollectConfigured(){ ## kind, member
 	AgentsToolsCommsOwnSettingsApply "$confMember" || return 5
 	case "$confKind" in
 		mail)
-			type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
+			type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/settings/AgentsTools.ConfigOption.include"
 			confA="$( AgentsToolsConfigOption "$confMember" --select EMAIL_IMAP_HOST 2> /dev/null )" || confA=""
 			confB="$( AgentsToolsConfigOption "$confMember" --select EMAIL_USER 2> /dev/null )" || confB=""
 			confC="$( AgentsToolsConfigOption "$confMember" --select EMAIL_APP_PASSWORD 2> /dev/null )" || confC=""
 			[ -n "$confA" ] && [ -n "$confB" ] && [ -n "$confC" ] || return 4
 		;;
 		trello)
-			type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
+			type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/settings/AgentsTools.ConfigOption.include"
 			confA="$( AgentsToolsConfigOption "$confMember" --select TRELLO_KEY 2> /dev/null )" || confA=""
 			confB="$( AgentsToolsConfigOption "$confMember" --select TRELLO_TOKEN 2> /dev/null )" || confB=""
 			[ -n "$confA" ] && [ -n "$confB" ] || return 4
@@ -132,7 +128,7 @@ AgentsToolsCollectItemWrite(){ ## member, item name, channel id, block file
 	} | DistroAgentsTools --intern-op-member-inbox-upsert "$itemMember" "$itemName" --no-commit --context --intern-op-collect-sources > /dev/null 2> "$itemErr" || itemRc=$?
 	LC_ALL=C grep -e 'WARNING' -e 'ERROR' -e 'nothing was written' -e 'contract-' "$itemErr" >&2 || :
 	rm -f "$itemErr"
-	[ "$itemRc" -ne 0 ] || agentsCollectWritten+=( "$( AgentsToolsInboxDir "$itemMember" )/$itemName" )
+	[ "$itemRc" -ne 0 ] || agentsCollectWritten+=( "$MDAT_DATA_ROOT/inboxes/$itemMember/incoming/$itemName" )
 	return "$itemRc"
 }
 
@@ -143,7 +139,7 @@ AgentsToolsCollectItemWrite(){ ## member, item name, channel id, block file
 AgentsToolsCollectCommit(){ ## what, push (yes|no)
 	local commitCount="${#agentsCollectWritten[@]}"
 	[ "$commitCount" -gt 0 ] || return 0
-	type AgentsToolsTeamDataCommitPaths > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataCommit.include" 2> /dev/null || { agentsCollectWritten=() ; return 0 ; }
+	type AgentsToolsTeamDataCommitPaths > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataCommit.include"
 	AgentsToolsTeamDataCommitPaths "$1: $commitCount new note(s)" ${agentsCollectWritten[@]+"${agentsCollectWritten[@]}"}
 	agentsCollectWritten=()
 	[ "${2:-no}" != "yes" ] || AgentsToolsTeamDataPushIfAhead "source collection"
@@ -155,7 +151,7 @@ AgentsToolsCollectCommit(){ ## what, push (yes|no)
 AgentsToolsCollectKnown(){ ## kind, member
 	local knownKind="$1" knownMember="$2" knownFile knownId knownOut="" knownMark="-email-u"
 	[ "$knownKind" = "trello" ] && knownMark="-trello-"
-	for knownFile in "$( AgentsToolsInboxDirFor "$knownMember" no )"/note-*"$knownMark"*.md "$( AgentsToolsInboxDirFor "$knownMember" yes )"/note-*"$knownMark"*.md ; do
+	for knownFile in "$MDAT_DATA_ROOT/inboxes/$knownMember/incoming"/note-*"$knownMark"*.md "$MDAT_DATA_ROOT/inboxes/$knownMember/processed"/note-*"$knownMark"*.md ; do
 		[ -e "$knownFile" ] || continue
 		knownId="${knownFile##*"$knownMark"}" ; knownId="${knownId%.md}"
 		knownOut="$knownOut $knownId"
@@ -202,7 +198,7 @@ AgentsToolsCollectMail(){ ## member, since
 	local mailMember="$1" mailSince="${2:-}" mailHost mailUser mailPass mailWork mailOut mailRc=0 mailPointer mailKnown mailUids mailUid
 	local mailLast mailGap=0 mailItemRc mailName mailDate mailBlockRc mailNotRead="" mailPending=0
 	agentsCollectNew=0 ; agentsCollectWhy=""
-	type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
+	type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/settings/AgentsTools.ConfigOption.include"
 	mailHost="$( AgentsToolsConfigOption "$mailMember" --select EMAIL_IMAP_HOST 2> /dev/null )" || mailHost=""
 	mailUser="$( AgentsToolsConfigOption "$mailMember" --select EMAIL_USER 2> /dev/null )" || mailUser=""
 	mailPass="$( AgentsToolsConfigOption "$mailMember" --select EMAIL_APP_PASSWORD 2> /dev/null )" || mailPass=""
@@ -218,7 +214,7 @@ AgentsToolsCollectMail(){ ## member, since
 	## The credentials live in the environment of this one child.
 	mailOut="$( AGENTS_IMAP_HOST="$mailHost" AGENTS_IMAP_USER="$mailUser" AGENTS_IMAP_PASS="$mailPass" AGENTS_IMAP_MAILBOX="INBOX" \
 		AGENTS_IMAP_SINCE="$mailSince" AGENTS_IMAP_MAX="64" AGENTS_IMAP_OUT_DIR="$mailWork" AGENTS_IMAP_AFTER_UID="$mailPointer" AGENTS_IMAP_SKIP_UIDS="$mailKnown" \
-		python3 "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsImapSweepFetch.py" 2> "$mailWork/err" )" || mailRc=$?
+		python3 "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/email/AgentsImapSweepFetch.py" 2> "$mailWork/err" )" || mailRc=$?
 	if [ "$mailRc" -ne 0 ] ; then
 		agentsCollectWhy="$( LC_ALL=C sed -n '1p' "$mailWork/err" 2> /dev/null | LC_ALL=C cut -c1-200 )"
 		[ -n "$agentsCollectWhy" ] || agentsCollectWhy="the IMAP session failed"
@@ -252,7 +248,7 @@ AgentsToolsCollectMail(){ ## member, since
 		fi
 		AGENTS_EMAIL_UID="$mailUid" AGENTS_EMAIL_MAILBOX="INBOX" AGENTS_EMAIL_STATUS="unseen" python3 "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsSessionContextEmailItem.py" \
 			< "$mailWork/$mailUid.eml" > "$mailWork/$mailUid.block" 2> /dev/null || { mailGap=1 ; mailNotRead="$mailNotRead $mailUid:2" ; continue ; }
-		mailDate="$( python3 "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsCollectMailDate.py" < "$mailWork/$mailUid.eml" 2> /dev/null )" || mailDate="-"
+		mailDate="$( python3 "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/email/AgentsCollectMailDate.py" < "$mailWork/$mailUid.eml" 2> /dev/null )" || mailDate="-"
 		case "$mailDate" in ????????T????Z) ;; *) mailDate="$( date -u +%Y%m%dT%H%MZ )" ;; esac
 		mailName="note-$mailDate-email-u$mailUid.md"
 		mailItemRc=0
@@ -274,7 +270,7 @@ AgentsToolsCollectMail(){ ## member, since
 AgentsToolsCollectTrello(){ ## member
 	local trMember="$1" trWork trJson trRc=0 trKnown trId trName trDate trItemRc
 	agentsCollectNew=0 ; agentsCollectWhy=""
-	type AgentsToolsCommsTrelloCheck > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.MemberCommsTrello.include"
+	type AgentsToolsCommsTrelloCheck > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/trello/AgentsTools.MemberCommsTrello.include"
 	trWork="$( mkdir -p "$MMDAPP/.local/temp" && mktemp -d "$MMDAPP/.local/temp/mdat-collect-trello.XXXXXX" )" || { agentsCollectWhy="no working folder could be made" ; return 1 ; }
 	trJson="$( AgentsToolsCommsTrelloCheck "$trMember" 2> "$trWork/err" )" || trRc=$?
 	if [ "$trRc" -ne 0 ] ; then
@@ -318,7 +314,7 @@ AgentsToolsCollectTrello(){ ## member
 AgentsToolsCollectSinceOf(){ ## member
 	local sinceOp="magic-sweep-input-scan" sinceTs sinceIso sinceMonth=""
 	case "$1" in client-*) sinceOp="client-sweep-input-scan" ;; esac
-	type AgentsToolsMagicSweepStoredPosition > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.MagicSweepState.include" 2> /dev/null || return 0
+	type AgentsToolsMagicSweepStoredPosition > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.MagicSweepState.include"
 	sinceTs="$( AgentsToolsMagicSweepStoredPosition "$1" "$sinceOp" 2> /dev/null )" || return 0
 	sinceIso="$( printf '%s\n' "$(( ${sinceTs%%.*} - 86400 ))" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/output/LocalEpochToIsoDate.awk" )" || return 0
 	case "$sinceIso" in ????-??-??) ;; *) return 0 ;; esac
@@ -391,7 +387,7 @@ AgentsToolsCollectEnsure(){ ## member, kind, since (dd-Mon-yyyy, or empty)
 	## A scan used a source: the thread is wanted, and where other sources are long expired, with none to update them, one is started.
 	## What the check says is of no use to the scan, and its failure no fault of it.
 	local ensureLine="$agentsCollectLine" ensureNew="$agentsCollectNew" ensureWhy="$agentsCollectWhy"
-	type AgentsToolsCollectThreadCheck > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CollectThread.include" 2> /dev/null || :
+	type AgentsToolsCollectThreadCheck > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CollectThread.include"
 	! type AgentsToolsCollectThreadCheck > /dev/null 2>&1 || AgentsToolsCollectThreadCheck scan "$1" > /dev/null 2>&1 || :
 	agentsCollectLine="$ensureLine" ; agentsCollectNew="$ensureNew" ; agentsCollectWhy="$ensureWhy"
 	return "$ensureRc"

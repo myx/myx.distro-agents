@@ -1,0 +1,619 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.SpawnProxyClose.include -- closing a run: its board state, its dispatch, its sandbox, its asks, its park, its children, its dismissal. Split out of AgentsTools.SpawnSandbox.include by concern, its functions unchanged. Sourced, never
+## run; it relies on what AgentsTools.SpawnSandbox.include sources for it.
+##
+## Which board state folder actually holds an item, or empty when none does.
+## AgentsToolsDataRead searches several lookup folders and does not report which
+## one matched, and the board upsert has to be told the state -- so it is
+## established here rather than assumed to be `running`, which is true only of a
+## document this op created itself. A reused tracking document belongs to a caller
+## and may sit in any state; moving it would relocate that caller's own work item
+## as a side effect of spawning.
+AgentsToolsSpawnProxyBoardStateOf(){ ## item-filename
+	local stateName
+	for stateName in running pending review backlog blocked parked processed archived retained ; do
+		if [ -f "$MDAT_DATA_ROOT/board/$stateName/$1" ] ; then
+			printf '%s' "$stateName"
+			return 0
+		fi
+	done
+	return 0
+}
+
+AgentsToolsSpawnProxyCloseDispatch(){
+	local itemName="$1" briefBody="$2" childExit="$3" childOutputFile="$4" outcome="$5"
+	## Defaulted rather than required, so the create path calls this exactly as it
+	## always has and only the reuse path names a state of its own.
+	local itemState="${6:-running}"
+	## Where the closed item rests, named by the caller rather than derived here.
+	## Defaults to no move, so a caller naming no target keeps what it had: a
+	## REUSED document belongs to a caller and is never relocated by a spawn
+	## closing. One this op created itself moves to `review`, so `running` holds
+	## only sessions that are actually running. It stops at `review` and not at
+	## `processed` because grooming owns entry to that state -- human-owner ruling,
+	## 2026-09-23: "grooming owns the state - but spawn moves to pending - ok? so
+	## grooming sees" -- board-review now sits between them, entered here and left
+	## only by a reviewer's own reject/accept. This op marks and parks; it never adjudicates the close.
+	local itemTargetState="${7:-$itemState}"
+	## Why a running item enters review here: a child that ended with no handback, by default.
+	local reviewReason="${8:-ended-without-handback}"
+	## Why the child ended, where its harness recorded one (a refused request): shown on the
+	## Result the reviewer reads, never left to the log alone.
+	local childEndReason="${9:-}"
+	local currentBody resultBody actualState reviewHeaders=()
+	## The close moves only an item still where the caller left it, and the one move it makes
+	## is running -> review. An item a handback, a verdict or an ending already moved is never
+	## moved out of review, processed or pending by a close: one in review gets its Result in
+	## place, any other is left as it is (AgentsTools.ReviewFlow.include).
+	actualState="$( AgentsToolsSpawnProxyBoardStateOf "$itemName" )"
+	if [ "$actualState" != "$itemState" ] ; then
+		if [ "$actualState" != review ] ; then
+			echo "# --intern-op-agent-spawn-proxy: $itemName is in ${actualState:-no board state}, not $itemState, so the close leaves it as it is" >&2
+			return 0
+		fi
+		itemState=review ; itemTargetState=review
+	fi
+	## An item nobody reviews (AgentsToolsItemReviewer says `none`: its review-by, else where its run
+	## reports to) does not enter review: it closes straight to processed, and says so in its Decisions.
+	local reviewNone=""
+	type AgentsToolsItemReviewer > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemReviewer.include"
+	if [ "$itemState" = running ] && [ "$itemTargetState" = review ] && [ "$( AgentsToolsItemReviewer "$MDAT_DATA_ROOT/board/$itemState/$itemName" )" = none ] ; then
+		reviewNone="$( date +"%Y-%m-%d %H:%M %z" )" ; itemTargetState="processed"
+		reviewHeaders=( --header:upsert:processed-at:"$reviewNone" --header:upsert:execution-receipt:processed:"$reviewNone" )
+	fi
+	[ "$itemState" != running ] || [ "$itemTargetState" != review ] \
+		|| reviewHeaders=( --header:upsert:review-since-epoch:"$( date +%s )" --header:upsert:review-reason:"$reviewReason" )
+	type AgentsToolsDataRead > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.InternOpDataRead.include"
+	## The body is read and written under the same per-item lock the Decisions appenders take, so a
+	## decision recorded while this close runs is neither overwritten by its snapshot nor refused
+	## while the item is between board states.
+	local closeItemLock=""
+	type AgentsToolsLocalLockTake > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.LocalLock.include"
+	AgentsToolsLocalLockTake "decisions-${itemName%.md}" 30 "the Decisions of $itemName" && closeItemLock="$agentsLocalLockPath" \
+		|| echo "⚠️ WARNING: --intern-op-agent-spawn-proxy: the Decisions lock on $itemName could not be taken; closing without it" >&2
+	currentBody="$( AgentsToolsDataRead "$itemName" \
+		--lookup-folder "$MDAT_DATA_ROOT/board/$itemState" \
+		--context --intern-op-agent-spawn-proxy )" || currentBody="$briefBody"
+	resultBody="$( printf '%s\n' \
+		"$currentBody" \
+		"" \
+		"## Result" \
+		"" \
+		"status: $outcome" \
+		"exit-code: $childExit" \
+		"output-file: $childOutputFile" \
+		${childEndReason:+"reason: $childEndReason"} \
+		"completed-at: $( date -u +%Y-%m-%dT%H:%M:%SZ )" )"
+	mkdir -p "$MDAT_DATA_ROOT/board/$itemTargetState" || {
+		echo "⚠️ WARNING: --intern-op-agent-spawn-proxy: can't create board state directory $MDAT_DATA_ROOT/board/$itemTargetState, so dispatch item $itemName was not closed" >&2
+		return 0
+	}
+	type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+	printf '%s\n' "$resultBody" | DistroAgentsTools --intern-op-board-upsert-move-edit "$itemTargetState" "$itemName" \
+		--from-state:"$itemState" \
+		--header:upsert:status:dispatch-"$outcome" \
+		--header:upsert:resolved-at:"$( date +"%Y-%m-%d %H:%M %z" )" \
+		"${reviewHeaders[@]+"${reviewHeaders[@]}"}" \
+		--upsert-from-stdin \
+		--context --intern-op-agent-spawn-proxy \
+		--log-verb:updated \
+		|| { [ -z "$closeItemLock" ] || AgentsToolsLocalLockGive "$closeItemLock" ; echo "⚠️ WARNING: --intern-op-agent-spawn-proxy: could not close dispatch item $itemName" >&2 ; return 0 ; }
+	[ -z "$closeItemLock" ] || AgentsToolsLocalLockGive "$closeItemLock"
+	## The entry into review recorded, in Decisions and the transcript; and an item with no review, as that.
+	if [ -n "$reviewNone" ] ; then
+		type AgentsReviewRecord > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ReviewFlow.include"
+		AgentsReviewRecord tooling "$itemName" review "none: the child ended ($outcome, exit $childExit), and nobody reviews this item" REVIEW "" || :
+	elif [ "${#reviewHeaders[@]}" -gt 0 ] ; then
+		type AgentsReviewRecord > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ReviewFlow.include"
+		AgentsReviewRecord tooling "$itemName" review "$reviewReason: the child ended ($outcome, exit $childExit)" REVIEW "" || :
+	fi
+	return 0
+}
+
+## A RUN IS DISMISSED BY THE TOOLING'S OWN STATE, NOT BY A MESSAGE (S6.25). The dismissal is kept in the run's
+## own store, `sessions/<spawn id>/dismissed`, which its harness reads first thing and returns as DISMISSED
+## every time it is asked. The same act is written into the session's chat file, as a block addressed to that
+## run's member, which its Wait reads at its own tick: so a run already waiting is reached with no message
+## posted to it, and one that asks again is answered from its mark. The block's ts is `-` because nothing was
+## posted, and its `where` is the session thread, so the one matcher a harness reads a DISMISSED with
+## (AgentsDismissalMatch.awk) reads it exactly as it reads a posted message. Kept once; rc 1 where the mark
+## cannot be kept. Prints one DISMISS line.
+AgentsToolsRunDismiss(){ ## spawn id, who dismissed it
+	local disSpawn="$1" disBy="$2" disFile disTemp disRecord="" disSession="" disMember="" disThread=""
+	type AgentsToolsAssertBareName > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.BareName.include"
+	AgentsToolsAssertBareName "$disSpawn" "the run" AgentsToolsRunDismiss 2> /dev/null || return 1
+	[ -n "${MMDAPP:-}" ] || return 1
+	disFile="$MMDAPP/.local/agents/sessions/$disSpawn/dismissed"
+	if [ ! -f "$disFile" ] ; then
+		mkdir -p "${disFile%/*}" 2> /dev/null || return 1
+		disTemp="$( mktemp "$disFile.tmp.XXXXXX" 2> /dev/null )" || return 1
+		{ printf '%s\n' "$disBy" > "$disTemp" 2> /dev/null && chmod 644 "$disTemp" && mv -f "$disTemp" "$disFile" ; } 2> /dev/null \
+			|| { rm -f "$disTemp" ; return 1 ; }
+	fi
+	for disRecord in "$MMDAPP"/.local/agents/spawned/*/"$disSpawn.spawn.md" ; do
+		[ ! -f "$disRecord" ] || break
+	done
+	if [ -f "$disRecord" ] ; then
+		type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandbox.include"
+		disSession="$( AgentsToolsSpawnSandboxRecordHeader "$disRecord" session-id )"
+		disMember="$( AgentsToolsSpawnSandboxRecordHeader "$disRecord" owner )"
+	fi
+	case "$disSession" in ''|-|.|..|*/*) disSession="" ;; esac
+	printf 'DISMISS: %s dismissed by %s\n' "$disSpawn" "$disBy"
+	[ -n "$disSession" ] || return 0
+	## The block is recorded under the session's own thread, never the run's: that is the thread its floor reads.
+	type AgentsSessionThread > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+	disThread="$( AgentsSessionThread "$disSession" )"
+	if [ -z "$disThread" ] ; then
+		for disRecord in "$MMDAPP"/.local/agents/spawned/*/"$disSession.spawn.md" ; do
+			[ ! -f "$disRecord" ] || break
+		done
+		[ ! -f "$disRecord" ] || disThread="$( AgentsToolsSpawnSandboxRecordHeader "$disRecord" session-thread )"
+	fi
+	case "$disThread" in ''|-) disThread="local" ;; esac
+	type AgentsToolsSessionChatAppend > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include"
+	## THE MARK IS THE STATE AND THE BLOCK IS THE DELIVERY (S6.25): the mark is written first, so it is the answer
+	## of every later Wait, and the block tells a run that is already waiting, within its own tick. A restart takes
+	## a spawn id of its own and so carries no mark, and its floor's pointer starts where the file ended, so this
+	## block is never its dismissal.
+	if ! printf 'DISMISSED\n' | AgentsToolsSessionChatAppend "$disSession" "$disBy" "${disMember:-$disBy}" - "$disThread" own > /dev/null 2>&1 ; then
+		printf 'DISMISS: %s marked, and its chat trace was NOT written, so a run already waiting learns it at its next Wait\n' "$disSpawn"
+	fi
+	return 0
+}
+
+## An accept releases the child: a board item moved to processed has its own spawned session dismissed, by the
+## tooling's own mark and the session chat file its Wait reads (AgentsToolsRunDismiss), so its next Wait returns
+## WAIT-RESULT: DISMISSED with nothing posted to it. The child is the spawn record the item's spawn-id names, or,
+## with none, the one live record whose spawns/spawned-by links the item. Never fails the move it follows: prints
+## one ACCEPT-DISMISS line, saying what was done or why nothing was.
+AgentsToolsBoardAcceptDismissChild(){ ## sending member, item path
+	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandbox.include"
+	type AgentsToolsSpawnSandboxFoldersOfItem > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandboxSweep.include"
+	type AgentsToolsSessionDismissHeld > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionSeats.include"
+	local sendBy="$1" itemPath="$2" itemSpawn recordPath="" recordCandidate folderName
+	local childStatus childMember childHost thisHost sendOut
+	itemSpawn="$( AgentsToolsSpawnSandboxRecordHeader "$itemPath" spawn-id )"
+	if [ -n "$itemSpawn" ] && [ "$itemSpawn" != "-" ] ; then
+		for recordCandidate in "$MMDAPP/.local/agents/spawned"/*/"$itemSpawn.spawn.md" ; do
+			[ ! -f "$recordCandidate" ] || { recordPath="$recordCandidate" ; break ; }
+		done
+	else
+		for folderName in $( AgentsToolsSpawnSandboxFoldersOfItem "$itemPath" ) ; do
+			for recordCandidate in "$MMDAPP/.local/agents/spawned/$folderName"/*.spawn.md ; do
+				[ -f "$recordCandidate" ] || continue
+				[ "$( AgentsToolsSpawnSandboxRecordHeader "$recordCandidate" status )" = spawn-started ] || continue
+				[ -z "$recordPath" ] || { printf 'ACCEPT-DISMISS: not done: more than one live spawn links %s, so which child to dismiss is not decided here\n' "${itemPath##*/}" ; return 0 ; }
+				recordPath="$recordCandidate"
+			done
+		done
+	fi
+	[ -n "$recordPath" ] || { printf 'ACCEPT-DISMISS: not done: no spawn record found for %s (spawn-id %s)\n' "${itemPath##*/}" "${itemSpawn:--}" ; return 0 ; }
+	itemSpawn="${recordPath##*/}" ; itemSpawn="${itemSpawn%.spawn.md}"
+	childStatus="$( AgentsToolsSpawnSandboxRecordHeader "$recordPath" status )"
+	[ "$childStatus" = spawn-started ] || { printf 'ACCEPT-DISMISS: not done: spawn %s has already ended (status %s)\n' "$itemSpawn" "${childStatus:--}" ; return 0 ; }
+	childHost="$( AgentsToolsSpawnSandboxRecordHeader "$recordPath" host )"
+	thisHost="$( hostname -s 2>/dev/null )" || thisHost="unknown"
+	if [ "$childHost" = "$thisHost" ] ; then
+		## Running is a process that runs as the spawn, by the one rule of the spawned-sessions render.
+		type AgentsToolsSpawnRuns > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunProcesses.include"
+		AgentsToolsSpawnRuns "$itemSpawn" "$recordPath" || { printf 'ACCEPT-DISMISS: not done: spawn %s is not running on this host, so its session has ended\n' "$itemSpawn" ; return 0 ; }
+	fi
+	childMember="$( AgentsToolsSpawnSandboxRecordHeader "$recordPath" owner )"
+	[ -n "$childMember" ] || { printf 'ACCEPT-DISMISS: not done: spawn %s names no owner member to dismiss\n' "$itemSpawn" ; return 0 ; }
+	[ "$childMember" != "$sendBy" ] || { printf 'ACCEPT-DISMISS: not done: the accepting member %s is the child member itself\n' "$sendBy" ; return 0 ; }
+	## A run is not dismissed while runs that need it still run (F6.9, AgentsToolsSessionDismissHeld):
+	## its dismissal is kept, and given at its first Wait once they have ended.
+	local childOthers=""
+	if childOthers="$( AgentsToolsSessionDismissHeld "$recordPath" )" ; then
+		AgentsToolsSessionDismissHold "$itemSpawn" "$sendBy (the accept of ${itemPath##*/})"
+		printf 'ACCEPT-DISMISS: held: runs that need spawn %s still run (%s): its DISMISSED is given at its first Wait once they have ended\n' \
+			"$itemSpawn" "$( printf '%s' "$childOthers" | LC_ALL=C tr '\n' ' ' | LC_ALL=C sed 's/ $//' )"
+		return 0
+	fi
+	if sendOut="$( AgentsToolsRunDismiss "$itemSpawn" "$sendBy (the accept of ${itemPath##*/})" )" ; then
+		printf 'ACCEPT-DISMISS: sent DISMISSED to spawn %s\n' "$itemSpawn"
+	else
+		printf 'ACCEPT-DISMISS: not done: the dismissal of spawn %s could not be kept: %s\n' "$itemSpawn" "${sendOut:-no reason given}"
+	fi
+	return 0
+}
+
+## THE PROCESS A LAUNCH STARTED, kept on the spawn's own record: its pid and when it began,
+## `run-process: <pid> <start>`, written by the launcher the moment it has started the console.
+## The console becomes the CLI, or waits for it, so that process lives as long as the run
+## does. It is how a run is seen alive where its CLI is given no session word of its own on
+## its command line (AgentsToolsRunRecordedAlive, run/AgentsTools.RunProcesses.include):
+## for every CLI alike, and the same pid begun at another time is another process. A later
+## launch of the same spawn -- a resume, the handback retry -- replaces the one before it.
+## AND THE SHELL THAT SUPERVISES THE RUN, beside it and in the same form:
+## `supervisor-process: <pid> <start>`. That is the shell this is called in, the one that
+## started the console: it waits on the run and, once the run has ended, resumes it once for
+## a missing handback, posts the end and closes this record. It is the process the proxy
+## starts for a run that is not waited for (PID= of its receipt), and the process the call
+## itself runs in for a run its caller waits on. A later launch of the same spawn is made by
+## that same shell, and leaves the line as it was. It is how a run whose process is gone and
+## whose record is still open is told from one that nobody will close
+## (AgentsToolsRunRecordedSupervisor, run/AgentsTools.RunProcesses.include). Kept also where
+## the console had ended before its own start could be read: `run-process` is then not written.
+## Through this package's own header writer, aside and then one rename. Never fails the launch.
+## A record is read, changed and put back whole, and put back only while it is still what was
+## read: what another writer -- a closer, the mark of a kill -- put in place meanwhile is kept,
+## and the same lines are written again on the record as it then stands, three times at most.
+## The record is read and compared by the shell itself, so no process is started between the
+## compare and the rename; only a change made in that moment is lost. And the time a launch
+## holds it is kept as short, and as soon after the launch, as it was before the shell was
+## named: which shell this is, is read before the launch (AgentsToolsSpawnProxyShellNote) and
+## only looked up here.
+AgentsToolsSpawnProxyShellNote(){ ## -- keeps `<pid> <start>` of the shell it is called in, for that shell (agentsSpawnProxyShellIs)
+	local noteShell noteStart
+	## Kept already, by this very shell: nothing is started to find that out. What a subshell
+	## has of the shell it came from was kept one level up (BASH_SUBSHELL), and names that one:
+	## read again. A process started anew has none of it.
+	case "${agentsSpawnProxyShellOf:-}" in "level-$BASH_SUBSHELL") return 0 ;; esac
+	agentsSpawnProxyShellIs="" ; agentsSpawnProxyShellOf="level-$BASH_SUBSHELL"
+	type AgentsToolsRunProcessStart > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunProcesses.include"
+	## This shell's own process, which `$$` does not name in a subshell: what a command it starts has as its parent.
+	noteShell="$( exec sh -c 'echo "$PPID"' 2> /dev/null )" || noteShell=""
+	case "$noteShell" in ''|*[!0123456789]*) return 0 ;; esac
+	noteStart="$( AgentsToolsRunProcessStart "$noteShell" )" || noteStart=""
+	agentsSpawnProxyShellIs="${noteStart:+$noteShell $noteStart}"
+	return 0
+}
+AgentsToolsSpawnProxyRunRecord(){ ## pid of the console process just started
+	local runFile="${MDAT_SPAWN_SANDBOX_ROOT:-}/${MDAT_SPAWN_SESSION_ID:-}.spawn.md" runStart runOps runBody runSeen runNow runTries=0
+	[ -n "${MDAT_SPAWN_SANDBOX_ROOT:-}" ] && [ -n "${MDAT_SPAWN_SESSION_ID:-}" ] && [ -f "$runFile" ] || return 0
+	case "${1:-}" in ''|*[!0123456789]*) return 0 ;; esac
+	type AgentsToolsRunProcessStart > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunProcesses.include"
+	runStart="$( AgentsToolsRunProcessStart "$1" )" || runStart=""
+	AgentsToolsSpawnProxyShellNote
+	[ -n "$runStart${agentsSpawnProxyShellIs:-}" ] || return 0
+	runOps="$MMDAPP/.local/temp/mdat-session-run-ops.$$.$1"
+	mkdir -p "$MMDAPP/.local/temp" 2> /dev/null || return 0
+	{
+		[ -z "$runStart" ] || printf 'upsert\trun-process\t%s %s\n' "$1" "$runStart"
+		[ -z "${agentsSpawnProxyShellIs:-}" ] || printf 'upsert\tsupervisor-process\t%s\n' "$agentsSpawnProxyShellIs"
+	} > "$runOps" 2> /dev/null || return 0
+	while [ "$runTries" -lt 3 ] ; do
+		runTries=$(( runTries + 1 ))
+		runSeen="" ; IFS= read -r -d '' runSeen < "$runFile" 2> /dev/null || :
+		[ -n "$runSeen" ] || break
+		runBody="$( printf '%s' "$runSeen" | LC_ALL=C awk -v opsFile="$runOps" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsBoardItemHeaderOpsApply.awk" 2> /dev/null )" || runBody=""
+		[ -n "$runBody" ] || break
+		printf '%s\n' "$runBody" 2> /dev/null > "$runFile.run.$$" || break
+		runNow="" ; IFS= read -r -d '' runNow < "$runFile" 2> /dev/null || :
+		[ "$runNow" = "$runSeen" ] || continue
+		mv -f "$runFile.run.$$" "$runFile" 2> /dev/null
+		break
+	done
+	rm -f "$runOps" "$runFile.run.$$"
+	return 0
+}
+
+## Closes the session tracking file by updating its frontmatter, through this
+## package's own header writer -- nothing here parses or re-emits frontmatter of its
+## own. The headers ARE the state, so a close is a header update and never a rewrite
+## of the file. A failure leaves the file exactly as it was: a tracking record that
+## still says started is recoverable by a rescan, where a truncated one is not.
+## So the changed record is written aside and put in place by one rename, as a launch writes
+## it (AgentsToolsSpawnProxyRunRecord): a reader finds the record as it was or as it is, and so
+## does whoever comes after a closer that was ended half way; never a record cut short.
+## rc 0 closed; rc 1 where this try could not close it, the record as it was.
+AgentsToolsSpawnProxyCloseSandboxOnce(){ ## tracking file, outcome, exit code, end reason (optional)
+	local sandboxFile="$1" sandboxOutcome="$2" sandboxExit="$3" sandboxEndReason="${4:-}" sandboxOps sandboxBody sandboxAside sandboxReason="" sandboxRestarts="" sandboxRefused=""
+	[ -f "$sandboxFile" ] || return 1
+	## A RECORD THAT HAS SETTLED IS LEFT AS IT IS (S6.26): a close ends a run that still runs. The accept of a
+	## review settles its run, and that run's own supervising shell closes it again a moment later, with the
+	## exit code of the kill that ended it; overwriting the settlement made an accepted run read as failed.
+	AgentsToolsSpawnProxyCloseSettled "$sandboxFile" && return 0
+	mkdir -p "$MMDAPP/.local/temp" || return 1
+	## A temp file of this close's own, by mktemp and never by $$: the members one call
+	## started (--spawn-session) close in subshells of that one shell, which have its
+	## $$, so two closing at once met on one name, and one read no changes and stayed started.
+	sandboxOps="$( mktemp "$MMDAPP/.local/temp/mdat-session-header-ops.XXXXXX" )" || return 1
+	{
+		## `status` carries the outcome, and `outcome` itself is deliberately absent:
+		## the entity model defines that name with a closed set of values for what an
+		## advance pass did to a running board item, so a spawn's exit result written
+		## there would be an undefined value in a defined set. `resolved-at` is the
+		## model's own conclusion stamp, and is used rather than a second spelling of
+		## it. `exit-code` has no counterpart in the model at all, which is not a
+		## re-mint: this file is the session's own record, not team data, so nothing
+		## defines that concept for it.
+		printf 'upsert\tstatus\tspawn-%s\n' "$sandboxOutcome"
+		printf 'upsert\texit-code\t%s\n' "$sandboxExit"
+		printf 'upsert\tresolved-at\t%s\n' "$( date +"%Y-%m-%d %H:%M %z" )"
+		## Whether the session read its own duty file, as the harness recorded it beside this file.
+		## "no" only where the harness loop ran and could see it; a native CLI's session is unknown.
+		if [ -s "${sandboxFile%.spawn.md}.armed" ] ; then
+			printf 'upsert\tarmed\tyes\n'
+			printf 'upsert\tarmed-at\t%s\n' "$( head -1 "${sandboxFile%.spawn.md}.armed" )"
+		elif [ -e "${sandboxFile%.spawn.md}.harness" ] ; then
+			printf 'upsert\tarmed\tno\n'
+		else
+			printf 'upsert\tarmed\tunknown\n'
+		fi
+		## Why a run that refused to run went no further, as the harness kept it beside this
+		## file when it ended on a refused request (an API usage cap and the like). One line,
+		## newlines and tabs already collapsed by the writer; kept so the session's own record
+		## carries the reason, never only the log. Absent for a run that ended for another
+		## reason, or one the harness could not name. A RUN THAT WENT ON IS NOT ONE (S6.26): the
+		## marker says why a run ended refused, so it is read only where this close is closing a
+		## failure. A run that recovered from a context refusal and ended well carries a marker of
+		## its own no longer, and a copy left over is no reason it ended.
+		if [ -s "${sandboxFile%.spawn.md}.refused" ] && [ "$sandboxOutcome" = failed ] ; then
+			sandboxReason="$( head -1 "${sandboxFile%.spawn.md}.refused" | LC_ALL=C tr '\t' ' ' )"
+			printf 'upsert\tend-reason\t%s\n' "$sandboxReason"
+		elif [ -n "$sandboxEndReason" ] ; then
+			## A caller that saw why the run ended states it, where the run itself left no refusal
+			## to say it: the record is what a later reader opens, so the reason goes here.
+			sandboxReason="$( printf '%s' "$sandboxEndReason" | LC_ALL=C tr '\t' ' ' )"
+			printf 'upsert\tend-reason\t%s\n' "$sandboxReason"
+		fi
+		## How many summarise-and-restarts this run made, from the marker the harness appends
+		## beside this file, one line per restart (AgentsHarnessRestartKeep). A run that never
+		## restarted, or one no harness ran, carries no such header. The count is a header, so
+		## the session read prints it with the record's other headers; each restart's own time
+		## and threshold stay in the marker, and the transcript keeps its RESTART line.
+		if [ -s "${sandboxFile%.spawn.md}.restarts" ] ; then
+			sandboxRestarts="$( LC_ALL=C awk 'NF { counted++ } END { print counted + 0 }' "${sandboxFile%.spawn.md}.restarts" 2> /dev/null )"
+			case "$sandboxRestarts" in ''|0|*[!0123456789]*) ;; *) printf 'upsert\trestarts\t%s\n' "$sandboxRestarts" ;; esac
+		fi
+		## Every refusal this run hit, not only the one that ended it (sketch 3.6): the count
+		## of the marker the harness appends beside this file, one line per refusal
+		## (AgentsHarnessRefusalKeep). A run the harness never flagged, or one no harness ran,
+		## carries no such header, the same shape `restarts` already has.
+		if [ -s "${sandboxFile%.spawn.md}.refused-log" ] ; then
+			sandboxRefused="$( LC_ALL=C awk 'NF { counted++ } END { print counted + 0 }' "${sandboxFile%.spawn.md}.refused-log" 2> /dev/null )"
+			case "$sandboxRefused" in ''|0|*[!0123456789]*) ;; *) printf 'upsert\trefused\t%s\n' "$sandboxRefused" ;; esac
+		fi
+	} > "$sandboxOps" || { rm -f "$sandboxOps" ; return 1 ; }
+	sandboxBody="$( LC_ALL=C awk -v opsFile="$sandboxOps" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsBoardItemHeaderOpsApply.awk" < "$sandboxFile" )" || sandboxBody=""
+	rm -f "$sandboxOps"
+	[ -n "$sandboxBody" ] || return 1
+	## Aside and then one rename, with the mode the record has: the name by mktemp, since its
+	## supervising shell and an advance pass may close one record at the same moment.
+	sandboxAside="$( mktemp "$sandboxFile.close.XXXXXX" 2> /dev/null )" || return 1
+	{ cp -p "$sandboxFile" "$sandboxAside" && printf '%s\n' "$sandboxBody" > "$sandboxAside" && mv -f "$sandboxAside" "$sandboxFile" ; } 2> /dev/null \
+		|| { rm -f "$sandboxAside" ; return 1 ; }
+	## A RUN STOPPED ON THE PROVIDER'S USAGE LIMIT is flagged in its own store, from the same
+	## reason the record keeps: the one wording the session list, the Dashboard and the end
+	## notice show, with the date the provider said it reopens. ONLY A REFUSAL THE HARNESS KEPT IS
+	## ONE (S6.26): a reason a caller states for its own ending -- an accept's, an advance pass's --
+	## is no provider refusal, and flagging it made an accepted run read as a refused one. Never
+	## fails the close.
+	if [ -s "${sandboxFile%.spawn.md}.refused" ] && [ "$sandboxOutcome" = failed ] ; then
+		type AgentsToolsUsageLimitMark > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.UsageLimit.include"
+		type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandbox.include"
+		AgentsToolsUsageLimitMark "$( AgentsToolsSpawnSandboxRecordHeader "$sandboxFile" spawn-id )" "$( head -1 "${sandboxFile%.spawn.md}.refused" )" 2> /dev/null || :
+	fi
+	return 0
+}
+
+## THE QUESTIONS A RUN ASKED ARE ITS OWN TO SETTLE, AND IT SETTLES THEM WHEN IT ENDS: nobody is left
+## to hear an answer once its record closes, so the close settles every question that run still has
+## open. AN ANSWER ALREADY GIVEN OUTLIVES THE RUN (S6.33): each record's thread is read once, as the
+## collect reads it, before anything is taken away. An answer standing there closes the record with
+## that answer and goes to the asker's inbox, where whoever runs as that member next -- its duty --
+## finds it, and the question is never withdrawn over it. Only the rest are withdrawn, through the
+## one withdraw an asker has (--settle-pending-reply --withdraw): the record closes as withdrawn,
+## with the reason, and the person who was asked is told in the question's own thread by that same
+## operation. A readback, decision or permission is read here as the main loop's own pass reads
+## it, and never withdrawn unread: at the close of the run that asked, nobody else is left to
+## read it, and the escalation read applies a verdict only from an account that may give it. THE ASKER IS READ FROM THE ASK: an ask carries the id of the run that asked it
+## in `session-id`, which is that run's own spawn id (a run that founded its session has the two equal),
+## and its `owner` is the member that asked. A question the TOOLING asked ABOUT a run is not the run's
+## and is left as it is: a review prompt carries that run's id as its asking session and must still be
+## answered, so `kind: review` is not withdrawn here. The live store alone is read, since a record that
+## already closed is no question of anybody's. Never fails the close: one warning at most, and the
+## record is closed whatever came of its questions.
+AgentsToolsSpawnProxyWithdrawAsks(){ ## tracking file
+	local askRun askFile askList askId askOwner askReason="" askRc=0 askWarned="" askSeen=""
+	## The question's own reader takes typed records by this switch, as the main loop's pass does
+	## (AgentsTools.PendingReplyCollect.include): the run that asked is gone either way.
+	local collectTyped=1
+	[ -f "${1:-}" ] || return 0
+	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandbox.include"
+	[ "$( AgentsToolsSpawnSandboxRecordHeader "$1" status )" = "spawn-started" ] || return 0
+	## The run's own id: its spawn-id, and for a record written without one the session it names,
+	## which is the same id for a run that founded its session.
+	askRun="$( AgentsToolsSpawnSandboxRecordHeader "$1" spawn-id )"
+	case "$askRun" in ''|'-') askRun="$( AgentsToolsSpawnSandboxRecordHeader "$1" session-id )" ;; esac
+	case "$askRun" in ''|-|.|..|*/*) return 0 ;; esac
+	local askFiles=()
+	while IFS= read -r askFile ; do
+		[ -z "$askFile" ] || [ ! -f "$askFile" ] || askFiles[${#askFiles[@]}]="$askFile"
+	done <<< "$( LC_ALL=C grep -l -x -F "session-id: $askRun" "$MMDAPP/.local/agents/pending"/*.md 2> /dev/null )"
+	[ "${#askFiles[@]}" -gt 0 ] || return 0
+	## The open ones, with the member that asked each: its record read once, its header fields only.
+	askList="$( LC_ALL=C awk '
+		FNR == 1 { dashes = 0 ; status = "" ; kind = "" ; owner = "" ; name = FILENAME ; sub( /^.*\//, "", name ) ; sub( /\.md$/, "", name ) }
+		$0 == "---" {
+			if ( ++dashes == 2 ) {
+				sub( /[[:space:]]+$/, "", owner ) ;
+				sub( /[[:space:]]+$/, "", status ) ;
+				sub( /[[:space:]]+$/, "", kind ) ;
+				if ( status == "reply-pending" && kind != "review" ) printf "%s\t%s\n", name, owner ;
+			}
+			next ;
+		}
+		dashes == 1 && index( $0, "status: " ) == 1 { status = substr( $0, 9 ) }
+		dashes == 1 && index( $0, "kind: " ) == 1 { kind = substr( $0, 7 ) }
+		dashes == 1 && index( $0, "owner: " ) == 1 { owner = substr( $0, 8 ) }
+	' ${askFiles[@]+"${askFiles[@]}"} 2> /dev/null )" || askList=""
+	[ -n "$askList" ] || return 0
+	## Why a question is withdrawn: a line of the note template's `# Reasons`, never a text written here.
+	type AgentsToolsAskPostFill > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.AskPost.include"
+	askReason="$( ASKP_BLOCK="Reasons/asker-ended" AgentsToolsAskPostFill block tooling-note.post.format.md "" 2> /dev/null )" || askReason=""
+	[ -n "$askReason" ] || echo "⚠️ WARNING: ${MDSC_CMD:-DistroAgentsTools}: the reason of a withdrawal could not be filled from its template (tooling-note.post.format.md, Reasons), so the questions of run $askRun are withdrawn with none" >&2
+	## The one reader of a question's thread (AgentsTools.PendingReplyCollect.include): the close
+	## looks for an answer already given before it takes anything away.
+	type AgentsToolsPendingReplyCollectOne > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.PendingReplyCollect.include"
+	while IFS=$'\t' read -r askId askOwner ; do
+		[ -n "$askId" ] && [ -n "$askOwner" ] && [ "$askOwner" != "-" ] || continue
+		askRc=0
+		## Read first, withdraw second: a record whose thread already holds the answer is closed
+		## with it and its asker's inbox told, and is never withdrawn over an answer nobody read.
+		askSeen="$( AgentsToolsPendingReplyCollectOne "$MMDAPP/.local/agents/pending/$askId.md" 2> /dev/null )" || askSeen=""
+		case "${askSeen%% *}" in
+			ANSWERED)
+				AgentsToolsPendingReplyAnsweredNote "$askOwner" "$askId" "${askSeen#ANSWERED }"
+				continue
+			;;
+			ALREADY-CLOSED) continue ;;
+			UNREADABLE)
+				[ -n "$askWarned" ] || { askWarned="yes" ; echo "⚠️ WARNING: ${MDSC_CMD:-DistroAgentsTools}: the thread of $askId could not be read, so it is withdrawn without knowing whether an answer stood in it" >&2 ; }
+			;;
+		esac
+		## The asker's own withdraw, done in the asker's name: the member that asked is what this
+		## call acts as, so the one gate every withdraw has sees the run that asked it and nobody else.
+		if type DistroAgentsTools > /dev/null 2>&1 ; then
+			type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+			( export MDAT_SPAWN_AGENT="$askOwner" ; DistroAgentsTools --settle-pending-reply --team-member "$askOwner" "$askId" --reason "$askReason" --withdraw ) > /dev/null 2>&1 || askRc=$?
+		else
+			( export MDAT_SPAWN_AGENT="$askOwner" ; "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --settle-pending-reply --team-member "$askOwner" "$askId" --reason "$askReason" --withdraw ) > /dev/null 2>&1 || askRc=$?
+		fi
+		[ "$askRc" = 0 ] || [ -n "$askWarned" ] || { askWarned="yes" ; echo "⚠️ WARNING: ${MDSC_CMD:-DistroAgentsTools}: the question $askId that run $askRun asked was not withdrawn (rc $askRc), so it stays as it was" >&2 ; }
+	done <<< "$askList"
+	return 0
+}
+
+## The close as its callers ask for it. Where the first try could not close the record it is
+## tried once more, a moment later: what stopped it may have been of that moment, a signal to
+## the run's group that took the header writer with it, a temp folder that was full. Where
+## the second cannot either, that is said, on stderr: the record then still says what it
+## said, and a later advance pass closes it. Never fails its caller.
+## THE HANDBACK NOBODY READ (S27.3): one message into the reviewer's own thread, naming the item
+## and how long it has waited, so a handback left unread is raised outside whatever waits on it.
+## Never fails its caller, and says nothing where the reviewer has no thread to reach.
+AgentsToolsSpawnProxyStaleHandbackTell(){ ## the member the scan acts as, the reviewer told, the item, how long it waited
+	local staleBy="$1" staleTo="$2" staleItem="$3" staleWaited="${4:-}" staleArgs staleText
+	[ -n "$staleBy" ] && [ -n "$staleTo" ] && [ -n "$staleItem" ] || return 0
+	type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+	## A post to the DM of magic-coordinator opens with its mention, which is the human-owner's own account: he got every notice as an alert, 289 in a day.
+	## The coordinator's notices go to the event-track thread, named by no one. Another member's notice is still a DM that names it.
+	if [ "$staleTo" = magic-coordinator ] ; then
+		staleArgs=( "$staleBy" event-track --identity-bot --from-stdin )
+	else
+		staleArgs=( "$staleBy" "$staleTo" --identity-bot --address-to "$staleTo" --from-stdin )
+	fi
+	staleText="A handback nobody read: ${staleItem%.md} has waited ${staleWaited}s for a verdict. Its run ended and its record waits in review."
+	printf '%s\n' "$staleText" | DistroAgentsTools --intern-op-comms-slack-send-message ${staleArgs[@]+"${staleArgs[@]}"} > /dev/null 2>&1 || :
+	return 0
+}
+
+## THE RUNS A CLOSING RUN STILL ANSWERS FOR, AND NO OTHERS (S6.25), sourced where the close needs it so
+## this file keeps its own top level free of the review flow's.
+AgentsToolsSpawnProxyChildrenDismiss(){ ## tracking file of the closing run
+	local cdRecord="$1" cdBy
+	[ -f "$cdRecord" ] || return 0
+	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandbox.include"
+	cdBy="$( AgentsToolsSpawnSandboxRecordHeader "$cdRecord" owner )"
+	[ -n "$cdBy" ] || return 0
+	type AgentsReviewChildrenDismiss > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ReviewFlow.include"
+	AgentsReviewChildrenDismiss "$cdRecord" "$cdBy" 2> /dev/null || :
+	return 0
+}
+
+## A STALE PARK MARK GOES (S6.14): a mark is the harness's own, left while its run waits for a verdict, and the close
+## takes it away. A record settled by an ACCEPT could keep the mark of its earlier handback beside it -- the run
+## handed back and parked, and the verdict then closed the record -- and the mark alone holds its session in
+## `awaiting-review` for good: session d3206c74 on MEL read so from 2 November, its item already in `processed`.
+## The store of a run whose record an accept settled gives its mark up here, in the pass that already closes what
+## a dead spawn left open, so no store is edited by hand. Nothing else is swept: a record settled another way, and
+## one still open, keeps its mark, which is the state a run waiting for a verdict reads by.
+AgentsToolsSpawnProxyStaleParkClear(){
+	local staleMark staleRun staleRecord staleCleared=0
+	[ -d "$MMDAPP/.local/agents/sessions" ] || return 0
+	for staleMark in "$MMDAPP/.local/agents/sessions"/*/parked ; do
+		[ -f "$staleMark" ] || continue
+		staleRun="${staleMark%/parked}" ; staleRun="${staleRun##*/}"
+		case "$staleRun" in ''|-|.|..|*/*) continue ;; esac
+		staleRecord=""
+		for staleRecord in "$MMDAPP/.local/agents/spawned"/*/"$staleRun.spawn.md" ; do
+			[ -f "$staleRecord" ] || { staleRecord="" ; continue ; }
+			break
+		done
+		[ -n "$staleRecord" ] || continue
+		type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandbox.include"
+		case "$( AgentsToolsSpawnSandboxRecordHeader "$staleRecord" end-reason )" in
+			"the accept of "*) ;;
+			*) continue ;;
+		esac
+		rm -f "$staleMark" 2> /dev/null || continue
+		staleCleared=$(( staleCleared + 1 ))
+	done
+	[ "$staleCleared" -eq 0 ] || printf 'housekeeping: cleared %s stale park mark(s), their records settled by an accept\n' "$staleCleared"
+	return 0
+}
+
+## The park mark of a run is taken away where its record closes (S27.2). The mark is written under
+## the id the harness holds, and a run's record carries both that one and its session-id.
+AgentsToolsSpawnProxyParkClear(){ ## tracking file of the closing run
+	local pcRecord="$1" pcSpawn pcSession
+	[ -f "$pcRecord" ] || return 0
+	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandbox.include"
+	pcSpawn="$( AgentsToolsSpawnSandboxRecordHeader "$pcRecord" spawn-id )"
+	pcSession="$( AgentsToolsSpawnSandboxRecordHeader "$pcRecord" session-id )"
+	case "$pcSpawn" in ''|-|.|..|*/*) pcSpawn="" ;; esac
+	case "$pcSession" in ''|-|.|..|*/*) pcSession="" ;; esac
+	[ -z "$pcSpawn" ] || rm -f "$MMDAPP/.local/agents/sessions/$pcSpawn/parked" 2> /dev/null || :
+	[ -z "$pcSession" ] || [ "$pcSession" = "$pcSpawn" ] || rm -f "$MMDAPP/.local/agents/sessions/$pcSession/parked" 2> /dev/null || :
+	return 0
+}
+
+## Whether a record has settled, printed as one line and rc 0 where it has. A close ends a run that still runs.
+AgentsToolsSpawnProxyCloseSettled(){ ## tracking file
+	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandbox.include"
+	case "$( AgentsToolsSpawnSandboxRecordHeader "$1" status )" in
+		''|spawn-started) return 1 ;;
+	esac
+	printf 'CLOSE: %s is already settled as %s\n' "${1##*/}" "$( AgentsToolsSpawnSandboxRecordHeader "$1" status )"
+	return 0
+}
+
+AgentsToolsSpawnProxyCloseSandbox(){ ## tracking file, outcome, exit code, end reason (optional)
+	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandbox.include"
+	type AgentsToolsSessionSeatRelease > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionSeats.include"
+	type AgentsToolsSpawnProxyRootMarks > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnProxyRootMarks.include"
+	[ -f "$1" ] || return 0
+	## THE PARK MARK GOES WITH THE RECORD IT BELONGED TO (S27.2), AND IT GOES FIRST (S6.14): a mark beside a
+	## record that has settled is a stale one, and the settled guard below ends this close before any later
+	## step could take it away. So it is taken away at the top, on every close a run takes.
+	AgentsToolsSpawnProxyParkClear "$1" || :
+	## A SETTLED RECORD IS CLOSED BY NOTHING (S6.26): no question of it is withdrawn, no run of its session is dismissed,
+	## and nothing is said a second time about its end. The checks below all read a record that still says it was
+	## started, and this is the guard that makes that true for a second close as well as for a first.
+	AgentsToolsSpawnProxyCloseSettled "$1" && return 0
+	## The run's own questions are settled first, while its record still says it was started: a question
+	## of a run that has ended is withdrawn by it, and never left waiting for an answer nobody hears.
+	AgentsToolsSpawnProxyWithdrawAsks "$1" || :
+	## A run whose session holds a routine's lock gives it back when it is the last of its session (F6.2).
+	if [ -n "$( AgentsToolsSpawnSandboxRecordHeader "$1" routine-lock )" ] ; then
+		type AgentsToolsRoutineLockRelease > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/routine/AgentsTools.RoutineLock.include"
+		AgentsToolsRoutineLockRelease "$1" "$2" "$3" || :
+	fi
+	## A run that closes holds no seat (F6.9).
+	AgentsToolsSessionSeatRelease "$( AgentsToolsSpawnSandboxRecordHeader "$1" session-id )" "$( AgentsToolsSpawnSandboxRecordHeader "$1" owner )" "$( AgentsToolsSpawnSandboxRecordHeader "$1" spawn-id )" || :
+	## THE RUNS A CLOSING EXECUTOR STILL ANSWERS FOR (S6.25): each run it spawned and that still waits is
+	## dismissed by the tooling's own mark here, so a chair's close leaves no participant waiting on a run
+	## that is gone. A participant's close ends itself alone. Done before the record closes, while the
+	## record still names its session.
+	AgentsToolsSpawnProxyChildrenDismiss "$1" || :
+	## THE SESSION'S ROOT MESSAGE SHOWS ITS END (S6.37), placed here and only here: the one close a record takes, so a
+	## second close adds nothing, and the settled guard above is what makes that true.
+	if AgentsToolsSpawnProxyCloseSandboxOnce "$@" ; then
+		AgentsToolsSpawnProxyRootMarks "$1" || :
+		return 0
+	fi
+	sleep 1 || :
+	if AgentsToolsSpawnProxyCloseSandboxOnce "$@" ; then
+		AgentsToolsSpawnProxyRootMarks "$1" || :
+		return 0
+	fi
+	echo "⚠️ WARNING: ${MDSC_CMD:-DistroAgentsTools}: the spawn record $1 could not be closed as spawn-$2 (exit $3), tried twice: it still says what it said" >&2 || :
+	return 0
+}

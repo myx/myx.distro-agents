@@ -19,12 +19,12 @@
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigPackage="${RIG_PACKAGE:-$MDLT_ORIGIN/myx/myx.distro-agents}"
-rigInclude="$rigPackage/sh-lib/session/AgentsTools.DispatcherSchedule.include"
+rigInclude="$rigPackage/sh-lib/schedule/AgentsTools.DispatcherSchedule.include"
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }
 [ -f "$rigInclude" ] || rigRefuse "the Dispatcher include is not at $rigInclude"
-[ -f "$rigPackage/sh-lib/session/AgentsDispatcherCompleted.awk" ] || rigRefuse "the run-history awk is not in the package"
+[ -f "$rigPackage/sh-lib/schedule/AgentsDispatcherCompleted.awk" ] || rigRefuse "the run-history awk is not in the package"
 . "$rigPackage/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
 rigTmp="$( rigTempDir AgentsScheduleDueAfterFailedCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1

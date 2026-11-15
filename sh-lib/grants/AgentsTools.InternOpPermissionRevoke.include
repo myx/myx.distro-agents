@@ -1,0 +1,122 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+type AgentsToolsPermissionItemRow > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionSetApply.include"
+type AgentsToolsPermissionRelatedStores > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionHolds.include"
+type AgentsToolsGrantsItemRuns > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.Grants.include"
+
+## AgentsTools.InternOpPermissionRevoke.include -- the operation `--revoke-permission|--intern-op-permission-revoke`, sourced by AgentsTools.InternOpPermission.include with the operation's arguments.
+## Revokes one grant of a session store by its reference (refusal-, pass- or set-<id>): a
+## marker beside its record, and the store touched, so every session index joining it is
+## rebuilt without it and every reader leaves it out. The coordinator stub and the
+## implementation are one arm, as pass is.
+		local revokeOp="$1"
+		shift
+		MDSC_CMD="$MDSC_CMD $revokeOp"
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.UseAgentsTools.include"
+		local revokeRef="${1:-}" revokeSession="" revokeStore="" revokeOne revokeLine revokeFound="" revokeBy
+		shift || true
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--session-id) revokeSession="${2:-}" ; shift 2 ;;
+				*)
+					echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		if [ -z "$revokeRef" ] ; then
+			echo "$MDSC_CMD: ⛔ ERROR: syntax is <ref> [--session-id <id>]" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsAssertBareName "$revokeRef" "<ref>" permission-revoke || { set +e ; return 1 ; }
+		[ -z "$revokeSession" ] || AgentsToolsAssertBareName "$revokeSession" "--session-id" permission-revoke || { set +e ; return 1 ; }
+		## The store whose grants name it: one the named session reads, else any holding its record.
+		## The named session reads the stores of its member's other runs on the same board item
+		## too, for the grant's own member (AgentsToolsGrantsItemRuns).
+		local revokeStores=""
+		[ -z "$revokeSession" ] || revokeStores=$'\n'"$( AgentsToolsPermissionRelatedStores "$revokeSession" )"$'\n'
+		for revokeOne in "$MMDAPP/.local/agents/sessions"/*/"$revokeRef.md" ; do
+			[ -f "$revokeOne" ] && [ -f "${revokeOne%/*}/grants" ] || continue
+			revokeLine="${revokeOne%/*}" ; revokeLine="${revokeLine##*/}"
+			if [ -n "$revokeSession" ] && AgentsToolsGrantsItemRuns "${MMDAPP%/}" "$revokeSession" "$( AgentsToolsPermissionField "$revokeOne" owner )" ; then
+				case $'\n'"$agentsGrantsItemRunsStores"$'\n' in *$'\n'"${MMDAPP%/}/.local/agents/sessions/$revokeLine"$'\n'*) revokeStores="$revokeStores$revokeLine"$'\n' ;; esac
+			fi
+			case "${revokeSession:+$revokeStores}" in ''|*$'\n'"$revokeLine"$'\n'*) ;; *) continue ;; esac
+			while IFS= read -r revokeLine ; do
+				case "$revokeLine" in *":$revokeRef") revokeFound=1 ; break ;; esac
+			done < "${revokeOne%/*}/grants"
+			[ -z "$revokeFound" ] || { revokeStore="${revokeOne%/*}" ; break ; }
+		done
+		if [ -z "$revokeStore" ] ; then
+			echo "$MDSC_CMD: ⛔ ERROR: no grant $revokeRef is recorded${revokeSession:+ in session $revokeSession}, so nothing is revoked" >&2
+			set +e ; return 1
+		fi
+		if [ -e "$revokeStore/revoked/$revokeRef" ] ; then
+			printf 'REVOKED: %s already\n' "$revokeRef"
+			return 0
+		fi
+		revokeBy="$( AgentsToolsActingMember )"
+		mkdir -p "$revokeStore/revoked" 2>/dev/null \
+			&& printf 'revoked-by: %s\nrevoked-at: %s\n' "${revokeBy:-human-owner}" "$( date +"%Y-%m-%d %H:%M %z" )" > "$revokeStore/revoked/$revokeRef" || {
+			echo "$MDSC_CMD: ⛔ ERROR: can't write the revoke marker in $revokeStore, so $revokeRef stands" >&2
+			set +e ; return 1
+		}
+		AgentsToolsGrantsStoreTouch "$revokeStore"
+		## A task grant's entries leave its item's `access-control:` too, so no later dispatch tracking the
+		## item carries them, and the revoke goes on the item's Decisions. Best effort: the grant
+		## is revoked either way. An access-control row is made of its grants line without the trailing ref.
+		local revokeEntries="" revokeTask="" revokePath revokeState revokeOld revokeNew="" revokeEntry revokeText="" revokeAllowsGone="" revokeRows revokeTool revokeStamp revokeSigner
+		while IFS= read -r revokeLine ; do
+			case "$revokeLine" in
+				"task:"*":$revokeRef") revokeEntries="$revokeEntries${revokeLine%":$revokeRef"}"$'\n' ;;
+			esac
+		done < "$revokeStore/grants"
+		if [ -n "$revokeEntries" ] ; then
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemDecisions.include"
+			revokeTask="$( AgentsToolsPermissionField "$revokeStore/$revokeRef.md" task )"
+			[ -n "$revokeTask" ] || [ ! -f "$revokeStore/$revokeRef.task" ] || IFS= read -r revokeTask < "$revokeStore/$revokeRef.task" || :
+			revokeTask="${revokeTask##*/}" ; revokeTask="${revokeTask%.md}"
+			if [ -n "$revokeTask" ] && revokePath="$( AgentsToolsDecisionsItemPath "$revokeTask" )" ; then
+				revokeState="${revokePath%/*}" ; revokeState="${revokeState##*/}"
+				revokeOld="$( AgentsToolsDecisionsField "$revokePath" access-control | LC_ALL=C sed 's/, */,/g' )"
+				revokeRows=""
+				while IFS= read -r revokeEntry ; do
+					[ -n "$revokeEntry" ] || continue
+					revokeEntry="${revokeEntry#task:}"
+					revokeTool="${revokeEntry%%:*}" ; revokeEntry="${revokeEntry#*:}"
+					revokeStamp="${revokeEntry##*:}" ; revokeEntry="${revokeEntry%:*}"
+					revokeSigner="${revokeEntry##*:}" ; revokeEntry="${revokeEntry%:*}"
+					revokeRows="$revokeRows$( AgentsToolsPermissionItemRow "$revokeTool" "$revokeEntry" "$revokeSigner" "$revokeStamp" )"$'\n'
+				done <<< "$revokeEntries"
+				while [ -n "$revokeOld" ] ; do
+					revokeEntry="${revokeOld%%,*}"
+					if [ "$revokeEntry" != "$revokeOld" ] ; then revokeOld="${revokeOld#*,}" ; else revokeOld="" ; fi
+					revokeEntry="${revokeEntry# }"
+					[ -n "$revokeEntry" ] || continue
+					case $'\n'"$revokeRows" in *$'\n'"$revokeEntry"$'\n'*) continue ;; esac
+					revokeNew="${revokeNew:+$revokeNew,}$revokeEntry"
+				done
+				if [ "$revokeNew" != "$( AgentsToolsDecisionsField "$revokePath" access-control | LC_ALL=C sed 's/, */,/g' )" ] ; then
+					type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+					if printf '{ print ; }\n' | DistroAgentsTools --intern-op-board-upsert-move-edit "$revokeState" "${revokePath##*/}" --from-state:"$revokeState" \
+						--edit-script-from-stdin:awk "$( if [ -n "$revokeNew" ] ; then printf -- '--header:upsert:access-control:%s' "$( printf '%s' "$revokeNew" | LC_ALL=C sed 's/,/, /g' )" ; else printf -- '--header:remove:access-control' ; fi )" \
+						--context "$MDSC_CMD" --log-verb:updated > /dev/null 2>&1 ; then
+						revokeAllowsGone="$revokeTask"
+					else
+						echo "⚠️ WARNING: $MDSC_CMD: $revokeRef is revoked, but it is still written as $revokeTask's access-control, so a later dispatch tracking it may carry it" >&2
+					fi
+				fi
+				while IFS= read -r revokeEntry ; do
+					[ -n "$revokeEntry" ] || continue
+					revokeEntry="${revokeEntry#task:}"
+					revokeText="${revokeText:+$revokeText, }${revokeEntry%%:*}:$( AgentsToolsPermissionUnescape "$( printf '%s' "${revokeEntry#*:}" | LC_ALL=C sed 's/:[^:]*:[^:]*$//' )" )"
+				done <<< "$revokeEntries"
+				type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+				DistroAgentsTools --intern-op-decisions-append "${revokeBy:-human-owner}" "$revokeTask" --kind verdict \
+					--text "task grant $revokeRef revoked: $revokeText" --source "$revokeRef" --context "$MDSC_CMD" > /dev/null 2>&1 \
+					|| echo "⚠️ WARNING: $MDSC_CMD: $revokeRef is revoked, but not recorded on $revokeTask's Decisions" >&2
+			fi
+		fi
+		printf 'REVOKED: %s\n' "$revokeRef"
+		[ -z "$revokeAllowsGone" ] || printf 'ALLOWS-REMOVED: %s\n' "$revokeAllowsGone"
+		return 0

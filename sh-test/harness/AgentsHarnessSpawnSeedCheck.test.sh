@@ -160,7 +160,7 @@ rigAssert "no item is written closed or in progress"                    "$( rigL
 echo "-- 6. the writer on a list it holds --"
 rigWriter="$rigTmp/writer.sh"
 cat > "$rigWriter" << 'RIG_WRITER'
-. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include"
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandbox.include"
 . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.CheckListSeed.include"
 printf '%s\n' "$RIG_ITEMS" | AgentsToolsCheckListSeed rig-session rig-member
 RIG_WRITER

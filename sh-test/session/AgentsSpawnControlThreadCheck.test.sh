@@ -407,7 +407,7 @@ rigAssert "and the list of sessions shows it finished, with no thread" "$( rigLi
 
 echo "-- 9. the spawn does not wait for the thread: where the start stands --"
 rigCode(){ LC_ALL=C grep -n -v '^[[:space:]]*#' "$1" ; } ## file -- its lines that are no comment, numbered
-rigProxy="$rigLib/session/AgentsTools.InternOpAgentSpawnProxy.include"
+rigProxy="$rigLib/spawn/AgentsTools.InternOpAgentSpawnProxy.include"
 rigAt(){ rigCode "$rigProxy" | LC_ALL=C grep -F -- "$1" | LC_ALL=C sed -n "${2:-1}p" | LC_ALL=C cut -d: -f1 ; } ## fixed text, which of its lines -- the number of that line
 rigCallAt="$( rigAt 'AgentsToolsSessionControlStart "$sessionId"' )"
 rigAssert "the spawner calls the one function once, with the id of the session" "$( rigCode "$rigProxy" | LC_ALL=C grep -c -F 'AgentsToolsSessionControlStart "' )" "1"

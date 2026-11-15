@@ -13,6 +13,7 @@
 ## Offline: a rig store is written under this workspace's scratch, and nothing is called.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
+: "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 rigHere="$MDLT_ORIGIN/myx/myx.distro-agents"
 rigGrants="$rigHere/sh-lib/grants/AgentsTools.Grants.include"
 [ -f "$rigGrants" ] || { echo "⛔ ERROR: no grants include at $rigGrants" >&2 ; exit 1 ; }
@@ -27,7 +28,8 @@ rigAssert(){
 	fi
 }
 
-rigTmp="$( mktemp -d "${TMPDIR:-/tmp}/AgentsGrantsSessionEndedCheck.XXXXXX" )" || exit 1
+mkdir -p "$MMDAPP/.local/agents/scratch/sh-test" || exit 1
+rigTmp="$( mktemp -d "$MMDAPP/.local/agents/scratch/sh-test/AgentsGrantsSessionEndedCheck.XXXXXX" )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
 
 rigScene(){ ## store root, session id, status, activity after the record (yes|no)

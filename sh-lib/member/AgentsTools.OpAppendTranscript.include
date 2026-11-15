@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+## AgentsTools.OpAppendTranscript.include -- the operation `--append-transcript`, sourced by AgentsTools.Member.include with the operation's arguments.
+## The calling session's own transcript, or a named shared one; magic-coordinator's, any session's, named by --of-session <session-id>.
+## A spawned session appends as its own member only.
+		shift
+		local ofSession="" ofArgs=() ofNext=""
+		for ofArg in "$@" ; do
+			if [ -n "$ofNext" ] ; then ofSession="$ofArg" ; ofNext="" ; continue ; fi
+			if [ "$ofArg" = "--of-session" ] ; then ofNext=1 ; continue ; fi
+			ofArgs[${#ofArgs[@]}]="$ofArg"
+		done
+		set -- ${ofArgs[@]+"${ofArgs[@]}"}
+		if [ -n "$ofNext" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --append-transcript: --of-session takes a session id -- nothing was done" >&2
+			set +e ; return 1
+		fi
+		if [ -n "$ofSession" ] ; then
+			if [ "${1:-}" != magic-coordinator ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --append-transcript: --of-session runs only as magic-coordinator, and ${1:-nobody} is not it -- a member appends to its own session by leaving it out" >&2
+				set +e ; return 1
+			fi
+			AgentsToolsActingMemberCheck "$1" append-transcript || { set +e ; return 1 ; }
+			type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+			DistroAgentsTools --intern-op-append-session-transcript "$1" "$ofSession" "${@:2}"
+			return $?
+		fi
+		[ -z "${1:-}" ] || AgentsToolsActingMemberCheck "$1" append-transcript || { set +e ; return 1 ; }
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+		DistroAgentsTools --intern-op-append-session-transcript "${1:-}" - "${@:2}"
+		return $?

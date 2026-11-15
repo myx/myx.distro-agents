@@ -1,3 +1,6 @@
+---
+maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
+---
 # Java
 
 Read this for Java idiom and style axioms — independent of any single repository's own project conventions. [code-craft.md](code-craft.md) applies on top of this one for any Java code actually being written: straight-line, top-to-bottom, structure only where the code genuinely has structure.

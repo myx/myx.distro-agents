@@ -9,6 +9,7 @@
 ##   3. a note already finished: refused
 ##   4. a note holding no session-id: refused
 ##   5. a reason given is carried into the receipt
+##   6. the state write cannot land: refused, the note stays -running, no release word
 ## Offline: a fake curl first on PATH; every tree is this rig's own.
 set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
@@ -101,6 +102,14 @@ rigNote "rigrelease-running" "$rigSession"
 rigRelease reason "$rigLockValue" "manual-override"
 rigReceipt="$( rigField last-receipt )"
 rigAssert "with a reason: released, the receipt carries it" "$( cat "$rigTmp/reason.rc" ):$( [ "${rigReceipt#released by the console: the holder has no open record (manual-override)}" != "$rigReceipt" ] && echo named || echo none )" "0:named"
+
+echo "-- 6. the state write cannot land: refused, no release word --"
+rigNote "rigrelease-running" "$rigSession"
+chmod 555 "$rigInbox"
+rigRelease write-fails "$rigLockValue"
+chmod 755 "$rigInbox"
+rigAssert "write fails: exit non-zero, the note stays rigrelease-running" "$( cat "$rigTmp/write-fails.rc" ):$( rigField state )" "1:rigrelease-running"
+rigAssert "write fails: no release word printed" "$( LC_ALL=C grep -c '^released: ' "$rigTmp/write-fails.out" )" "0"
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ ROUTINE LOCK RELEASE CONSOLE CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

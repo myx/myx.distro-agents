@@ -76,8 +76,8 @@ cat > "$rigWs/DistroAgentsConsole.sh" <<'RIGCONSOLE'
 cat > "$RIG_SCENARIO/brief.part"
 printf '%s\n' "${MDAT_CONVERSATION_THREADS:-}" > "$RIG_SCENARIO/env"
 cp "$MDAT_SPAWN_SANDBOX_ROOT/input/conversation.md" "$RIG_SCENARIO/conversation.md" 2>/dev/null || : > "$RIG_SCENARIO/conversation.md"
-( . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include" ; AgentsToolsWaitDefaultSources ) > "$RIG_SCENARIO/wait-default" 2>&1
-( unset MDAT_CONVERSATION_THREADS ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include" ; AgentsToolsConversationThreadsFind ) > "$RIG_SCENARIO/record-threads" 2>&1
+( . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandbox.include" ; AgentsToolsWaitDefaultSources ) > "$RIG_SCENARIO/wait-default" 2>&1
+( unset MDAT_CONVERSATION_THREADS ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandbox.include" ; AgentsToolsConversationThreadsFind ) > "$RIG_SCENARIO/record-threads" 2>&1
 printf "rig-cli\n" > "$MDAT_SPAWN_LAUNCH_MARKER"
 mv "$RIG_SCENARIO/brief.part" "$RIG_SCENARIO/brief"
 RIGCONSOLE

@@ -24,7 +24,7 @@ AgentsToolsMcpToolListRender(){ ## dir
 	local renderDir="$1" renderTmp="" renderServed="" renderUnserved="" renderSecondary="" renderNames=""
 	[ -n "$renderDir" ] || return 1
 	[ ! -f "$renderDir/ready" ] || return 0
-	. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessUnserved.include"
+	type AgentsToolsUnservedMcpEntries > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessUnserved.include"
 	renderNames="$( printf '%s' "$agentsUnservedOnMcp" | LC_ALL=C tr '\n' ' ' )"
 	renderTmp="$( mktemp -d "${renderDir%/*}/.tools.XXXXXX" 2>/dev/null )" || return 1
 	if [ -z "${MDAT_MCP_SERVED_MARKER:-}" ] ; then
@@ -54,7 +54,7 @@ AgentsToolsMcpToolListRender(){ ## dir
 ## reached directly) renders it now, once, and every later request reads that.
 AgentsToolsMcpToolListLoad(){ ## dir
 	local loadDir="$1"
-	. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessUnserved.include"
+	type AgentsToolsUnservedInHarness > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessUnserved.include"
 	mcpUnservedToolNames="$( printf '%s' "$agentsUnservedOnMcp" | LC_ALL=C tr '\n' ' ' )"
 	mcpServedToolsJson='' ; mcpUnservedEntriesJson='' ; mcpSecondaryToolsJson=''
 	[ -f "$loadDir/ready" ] || AgentsToolsMcpToolListRender "$loadDir" || return 1

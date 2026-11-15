@@ -9,7 +9,7 @@
 ## of another declared id kind included; --optional is informational only.
 ## No --help entry: internal plumbing.
 ## NOT A SLACK OP: --resolve-slack-workspace-into <KEY> goes through a helper in
-## sh-lib/comms/AgentsTools.CommsSlack.include, sourced from inside that branch alone.
+## sh-lib/slack/AgentsTools.CommsSlack.include, sourced from inside that branch alone.
 ##
 
 case "$1" in
@@ -147,7 +147,7 @@ case "$1" in
 			checkKey="${checkSpec%%:*}"
 			checkHint="${checkSpec#*:}"
 			if [ "$checkHint" = "$checkSpec" ] ; then checkHint="<value>" ; fi
-			type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
+			type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/settings/AgentsTools.ConfigOption.include"
 			checkVal="$( AgentsToolsConfigOption "$callingMember" --select "$checkKey" )"
 			if [ -n "$checkVal" ] ; then
 				local warnDetail=() idKindFault=""
@@ -246,7 +246,7 @@ case "$1" in
 			## Sourced HERE, not at file top: a check that resolves no workspace never
 			## pulls Slack credential resolvers into its shell. Sourcing dispatches
 			## nothing for a name that file does not own -- see its DUAL USE header.
-			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsSlack.include"
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/slack/AgentsTools.CommsSlack.include"
 
 			## Scope-pinned: the value is about to be persisted INTO this scope, so the
 			## resolver never falls back to magic-team's token.
@@ -264,7 +264,7 @@ case "$1" in
 					if [ -n "$agentsConfigOptionElsewhere" ] ; then
 						echo "$resolveWorkspaceKey: OK (resolved $wsUrl, not persisted here: this scope's settings of that system are read from $agentsConfigOptionElsewhere, the workspace $callingMember is set up in)"
 					else
-						type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
+						type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/settings/AgentsTools.ConfigOption.include"
 						AgentsToolsConfigOption "$callingMember" --upsert "$resolveWorkspaceKey" "$wsUrl" >/dev/null
 						echo "$resolveWorkspaceKey: OK (resolved $wsUrl)"
 					fi

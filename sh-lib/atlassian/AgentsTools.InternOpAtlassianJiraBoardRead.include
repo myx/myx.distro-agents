@@ -1,0 +1,43 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+## AgentsTools.InternOpAtlassianJiraBoardRead.include -- the operation `--intern-op-atlassian-jira-board-read`, sourced by AgentsTools.InternOpAtlassianCall.include with the operation's arguments.
+## One board. A single object rather than a page, so it carries no isLast and
+## goes through the transport directly rather than the agile-read helper.
+	type AgentsToolsAtlassianCall > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/atlassian/AgentsTools.AtlassianRequest.include"
+		shift
+		local boardReadMember="" boardReadId="" boardReadContext="intern-op-atlassian-jira-board-read"
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--member|--board-id|--context)
+					if [ -z "${2:-}" ] ; then
+						printf '%s\n' "⛔ ERROR: $MDSC_CMD --$boardReadContext: $1 value missing" >&2
+						set +e ; return 1
+					fi
+					case "$1" in
+						--member)   boardReadMember="$2" ;;
+						--board-id) boardReadId="$2" ;;
+						--context)  boardReadContext="$2" ;;
+					esac
+					shift 2
+				;;
+				*)
+					printf '%s\n' "⛔ ERROR: $MDSC_CMD --$boardReadContext: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		if [ -z "$boardReadMember" ] || [ -z "$boardReadId" ] ; then
+			printf '%s\n' "⛔ ERROR: $MDSC_CMD --$boardReadContext: syntax is --member <team-member> --board-id <n> [--context <caller>] -- the acting member is required, since a board is visible only to identities its project is shared with" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsAtlassianAssertNumber "$boardReadId" "<board-id>" "$boardReadContext" || { set +e ; return 1 ; }
+		local boardReadRc=0
+		AgentsToolsAtlassianCall "$boardReadMember" jira GET "/rest/agile/1.0/board/$boardReadId" "$boardReadContext" "" || boardReadRc=$?
+		if [ "$boardReadRc" -ne 0 ] ; then
+			## Worded conditionally: this arm also runs for an rc where no call was
+			## made, and an unconditional 404 note would describe a round trip that
+			## never happened.
+			set +e ; return "$boardReadRc"
+		fi
+		return 0

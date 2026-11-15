@@ -1,0 +1,100 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+## AgentsTools.InternOpPendingReplyRevise.include -- the operation `--intern-op-pending-reply-revise`, sourced by AgentsTools.InternOpPendingReply.include with the operation's arguments.
+## The same question asked again, changed, in its own thread: the same record, id and number.
+## The revised body, read from stdin, is kept under `## Revision <n>` after the first body,
+## which stays as asked. The header takes `revision-ts`, the live revision's own message,
+## which answers are read on from then (AgentsWaitProbeAsk, AgentsToolsEscalationThreadVerdict),
+## with `revisions` and `revised-at`. --select, --options and --fields replace the answer
+## form, the options and the fields beside the record, an empty value removing it. Only a
+## record still open: one closed meanwhile is left as it is, rc 3. Where the question
+## belongs to an item, its Decisions take one line. Prints `REVISED <id> <n>`.
+		shift
+		MDSC_CMD="$MDSC_CMD --intern-op-pending-reply-revise"
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.UseAgentsTools.include"
+		local revId="${1:-}" revFile revTs="" revSelect="" revSelectSet="" revOptions="" revOptionsSet="" revFields="" revBy="" revSuperseded="" revIn revLock="" revNow revCount revOps revBody
+		shift || true
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--from-stdin) shift ;;
+				--revision-ts) revTs="${2:-}" ; shift 2 ;;
+				--select) revSelect="${2:-}" ; revSelectSet=1 ; shift 2 ;;
+				--options) revOptions="${2:-}" ; revOptionsSet=1 ; shift 2 ;;
+				--fields) revFields="${2:-}" ; shift 2 ;;
+				--revised-by) revBy="${2:-}" ; shift 2 ;;
+				## A version this one replaces that stays in the thread, marked: kept in `superseded`.
+				--superseded) revSuperseded="${2:-}" ; shift 2 ;;
+				--context) shift 2 ;;
+				*)
+					echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		if [ -z "$revId" ] || [ -z "$revTs" ] ; then
+			echo "$MDSC_CMD: ⛔ ERROR: syntax is <pending-reply-id> --revision-ts <ts> [--select <form>] [--options <lines>] [--fields <lines>] [--revised-by <member>] -- the revised body is read from stdin" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsAssertBareName "$revId" "<pending-reply-id>" pending-reply-revise || { set +e ; return 1 ; }
+		revFile="$MMDAPP/.local/agents/pending/$revId.md"
+		## A closed record is in pending/closed/ (retention, T9): found there, and the revise then refuses it as closed.
+		[ -f "$revFile" ] || revFile="$MMDAPP/.local/agents/pending/closed/$revId.md"
+		[ -f "$revFile" ] || { echo "$MDSC_CMD: ⛔ ERROR: no pending-reply record: $revFile" >&2 ; set +e ; return 1 ; }
+		revIn="$( cat )"
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.LocalLock.include"
+		AgentsToolsLocalLockTake "pending-reply-$revId" 30 || { echo "$MDSC_CMD: ⛔ ERROR: the lock on $revId could not be taken, so the record was left unchanged" >&2 ; set +e ; return 1 ; }
+		revLock="$agentsLocalLockPath"
+		revNow="$( LC_ALL=C awk -F': ' 'NR > 1 && $0 == "---" { exit ; } $1 == "status" { print substr($0, 9) ; exit ; }' "$revFile" )"
+		if [ "$revNow" != "reply-pending" ] ; then
+			AgentsToolsLocalLockGive "$revLock"
+			printf 'ALREADY-CLOSED %s %s\n' "$revId" "${revNow:-unknown}"
+			set +e ; return 3
+		fi
+		revCount="$( LC_ALL=C awk 'NR > 1 && $0 == "---" { exit ; } index( $0, "revisions: " ) == 1 { print substr( $0, 12 ) ; exit ; }' "$revFile" )"
+		case "$revCount" in ''|*[!0-9]*) revCount=0 ;; esac
+		revCount=$(( revCount + 1 ))
+		mkdir -p "$MMDAPP/.local/temp" && revOps="$( mktemp "$MMDAPP/.local/temp/mdat-pending-reply-revise-ops.XXXXXX" )" || { AgentsToolsLocalLockGive "$revLock" ; set +e ; return 1 ; }
+		{
+			printf 'upsert\trevision-ts\t%s\n' "${revTs//$'\n'/ }"
+			printf 'upsert\trevisions\t%s\n' "$revCount"
+			printf 'upsert\trevised-at\t%s\n' "$( date +"%Y-%m-%d %H:%M %z" )"
+			if [ -n "$revSuperseded" ] ; then
+				revNow="$( LC_ALL=C awk 'NR > 1 && $0 == "---" { exit ; } index( $0, "superseded: " ) == 1 { print substr( $0, 13 ) ; exit ; }' "$revFile" )"
+				printf 'upsert\tsuperseded\t%s\n' "${revNow:+$revNow, }${revSuperseded//$'\n'/ }"
+			fi
+			## The first time, the answer form of the first post is kept beside the one it changes to.
+			if [ "$revCount" = "1" ] ; then
+				revNow="$( LC_ALL=C awk 'NR > 1 && $0 == "---" { exit ; } index( $0, "select: " ) == 1 { print substr( $0, 9 ) ; exit ; }' "$revFile" )"
+				[ -z "$revNow" ] || printf 'upsert\tfirst-select\t%s\n' "$revNow"
+			fi
+			if [ -n "$revSelectSet" ] ; then
+				[ -n "$revSelect" ] && printf 'upsert\tselect\t%s\n' "${revSelect//$'\n'/ }" || printf 'remove\tselect\t\n'
+			fi
+		} > "$revOps" || { rm -f "$revOps" ; AgentsToolsLocalLockGive "$revLock" ; set +e ; return 1 ; }
+		revBody="$( LC_ALL=C awk -v opsFile="$revOps" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsBoardItemHeaderOpsApply.awk" < "$revFile" )" || revBody=""
+		rm -f "$revOps"
+		if [ -z "$revBody" ] ; then
+			AgentsToolsLocalLockGive "$revLock"
+			echo "$MDSC_CMD: ⚠️ WARNING: the record was left unchanged: $revFile" >&2
+			set +e ; return 1
+		fi
+		## Aside, then one rename, as every close writes it.
+		{ printf '%s\n\n## Revision %s\n\n%s\n' "$revBody" "$revCount" "$revIn" > "$revFile.$$" && mv -f "$revFile.$$" "$revFile" ; } \
+			|| { rm -f "$revFile.$$" ; AgentsToolsLocalLockGive "$revLock" ; set +e ; return 1 ; }
+		## What the first post was filled with is kept aside the first time: that post never
+		## changes with the question, and is filled again from it (AgentsToolsAskPostRecordFill).
+		if [ "$revCount" = "1" ] ; then
+			[ ! -f "${revFile%.md}.fields" ] || cp -f "${revFile%.md}.fields" "${revFile%.md}.first.fields" 2>/dev/null || :
+			[ ! -f "${revFile%.md}.options" ] || cp -f "${revFile%.md}.options" "${revFile%.md}.first.options" 2>/dev/null || :
+		fi
+		if [ -n "$revOptionsSet" ] ; then
+			[ -n "$revOptions" ] && printf '%s\n' "$revOptions" > "${revFile%.md}.options" || rm -f "${revFile%.md}.options"
+		fi
+		[ -z "$revFields" ] || printf '%s\n' "$revFields" > "${revFile%.md}.fields" || :
+		AgentsToolsLocalLockGive "$revLock"
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemDecisions.include"
+		AgentsToolsDecisionsClarification "$revId" "$revFile" "${revBy:-unknown}" \
+			"asked again, changed (revision $revCount): $( printf '%s\n' "$revIn" | LC_ALL=C awk '$0 !~ /^#/ && $0 !~ /^[ \t]*$/ { print ; exit ; }' )" "$revTs"
+		printf 'REVISED %s %s\n' "$revId" "$revCount"
+		return 0

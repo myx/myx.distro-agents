@@ -1,3 +1,6 @@
+---
+maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
+---
 # Board item model: types, fields, vault and audit items
 
 Read this when creating, moving or reading board, audit and vault items. The inbox types and the inbox frontmatter fields are in "Board & Inbox board-items entity model".
@@ -34,8 +37,13 @@ Not types: `talk-*` (use `interview-*`), `approve-*` (use `approval-*`), `epic-*
 - `verbatim-record-*` — vault.
 - `investigation-*` — vault. An investigation report, the result of a board `investigation-*`. The two share a type word, and the store tells them apart.
 - `adr-*` — vault. A decision record, one per technical question, kept by `magic-architect`.
+- `epic-blueprint-*` — vault. An epic's tracking document, kept as a standing record of the work and how it is checked.
+- `planning-*` — vault. The recurrent work document of one planning cycle: its goals, deliverables, constraints and order.
+- `tracking-*` — vault. One run's record, kept as a standing document: what is done, what runs and what is next.
 
-**Every type has one contract:** `contracts/<store>-item.<type>.contract.format.md`. Its keys, value forms, body and rules are the type's template. A document names its own in `document-contract`, and `--intern-doc-validate <kind>` reads it against that file. The board and inbox writers run it on every save.
+**Every type has one contract:** a file under `contracts/`, whose keys, value forms, body and rules are the type's template. Two vault kinds carry a type word their documents' names do not: `adr` for `vault-item.decision-record`, and `investigation` for `vault-item.investigation-report`. A document names its own in `document-contract`, and `--intern-doc-validate <kind>` reads it against that file. The board and inbox writers run it on every save.
+
+**A vault document with no frontmatter names no contract.** `document-contract` is a frontmatter key, so a plain document carries none. The registry's state column records whether a type's contract is `refusing`, `reporting` or `absent`.
 
 **Every board item is a tracking document.** It records who worked on it (`participants`) and the state they left it in. A restart spawns that group at that state.
 
@@ -44,7 +52,7 @@ Not types: `talk-*` (use `interview-*`), `approve-*` (use `approval-*`), `epic-*
 - `blocks`/`blocked-by`, `spawns`/`spawned-by`, `supersedes`/`superseded-by` — relations. Bare item names, no folder, no `.md`, comma-separated without brackets. The dependency recompute keeps both directions of `blocks`/`blocked-by`.
 - `approved-by`/`approved-at` — who gave the go, and when. The go is a header fact, not a folder.
 - `status` — free-text state label. Dropped when stale.
-- `recheck-date`/`condition` — when to look again, and what for, on a blocked, parked or retained item.
+- `recheck-date`/`condition` — when to look again, and what for, on a blocked, parked, retained or running item.
 - `owner-session`/`owner-session-since` — the live session kind holding the item, and since when.
 - `session-id` — the active coworking session.
 - `participants` — who worked on it, added as they join.

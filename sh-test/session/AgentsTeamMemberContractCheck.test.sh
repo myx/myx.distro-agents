@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 ## Behavioural check on the `<type>-*`/`<type>-?`/`all-present-members` roster tokens of the routine spawner
-## (sh-lib/session/AgentsTools.SpawnRoutine.include), run rather than read: the members a type wildcard names, the
+## (sh-lib/spawn/AgentsTools.SpawnRoutine.include), run rather than read: the members a type wildcard names, the
 ## attendance a `.basic.md` states, the members present, the entries a value expands to, and the executors and invitees
 ## rosters built over them. Offline: a rig member directory stands for the team; nothing reaches Slack.
 set -u
@@ -42,7 +42,7 @@ rigMember keeper-myx
 rigMember keeper-far present
 rigMember partner-ndm
 
-. "$rigHere/session/AgentsTools.SpawnRoutine.include"
+. "$rigHere/spawn/AgentsTools.SpawnRoutine.include"
 
 echo "-- the members a type wildcard names --"
 rigAssert "magic-* names the magic members, the team excepted" "$( AgentsToolsSpawnRoutineTypeMembers magic | LC_ALL=C sort | LC_ALL=C tr '\n' ' ' | LC_ALL=C sed 's/ $//' )" "magic-coordinator magic-developer"

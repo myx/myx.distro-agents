@@ -147,7 +147,7 @@ case "$1" in
 				set +e ; return 1
 			}
 			## The husk is an item of the old name's own type (the write gate holds the type to the name), and what replaces it is a bare item name.
-			type AgentsToolsItemNameType > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.ItemNameShape.include"
+			type AgentsToolsItemNameType > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/items/AgentsTools.ItemNameShape.include"
 			local huskType
 			huskType="$( AgentsToolsItemNameType "$oldName" )" || huskType=""
 			[ -n "$huskType" ] || huskType="note"

@@ -12,7 +12,7 @@ set -u
 : "${MMDAPP:?MMDAPP is not set}"
 : "${MDLT_ORIGIN:?MDLT_ORIGIN is not set}"
 rigPkg="$MDLT_ORIGIN/myx/myx.distro-agents"
-[ -f "$rigPkg/sh-lib/member/AgentsTools.MemberWaitLocal.include" ] || { echo "ERROR: no wait include" >&2 ; exit 1 ; }
+[ -f "$rigPkg/sh-lib/wait/AgentsTools.MemberWaitLocal.include" ] || { echo "ERROR: no wait include" >&2 ; exit 1 ; }
 mkdir -p "$MMDAPP/.local/temp" || exit 1
 rigTmp="$( mktemp -d "$MMDAPP/.local/temp/AgentsWaitChecklistDueBucketCheck.XXXXXX" )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
@@ -25,8 +25,8 @@ rigAssert(){ if [ "$2" = "$3" ] ; then printf '  PASS  %s\n' "$1" ; rigPass=$(( 
 ## The probe's own rendering: its buckets are `<bucket><tab><line>`.
 rigProbe(){ ## output file
 	MMDAPP="$rigTmp" MDLT_ORIGIN="$MDLT_ORIGIN" bash -c '
-		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWaitCore.include"
-		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWaitLocal.include"
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/wait/AgentsTools.MemberWaitCore.include"
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/wait/AgentsTools.MemberWaitLocal.include"
 		waitSessionId=rig-bucket
 		AgentsWaitProbeChecklist magic-developer magic-developer x "$1"
 	' _ "$1"

@@ -1,3 +1,6 @@
+---
+maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
+---
 # magic-tester — Maintainer Notes
 
 The body of this member's armed `# Maintainer Notes`. Read it when that file is updated, assessed or tested.

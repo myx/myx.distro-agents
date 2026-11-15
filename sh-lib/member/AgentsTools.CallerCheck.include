@@ -103,7 +103,7 @@ if ! type AgentsToolsCallerRefusalId >/dev/null 2>&1 ; then
 	AgentsToolsCallerRefusalId(){ ## acting member, operation, reason
 		local refusalId="" refusalSession=""
 		refusalSession="$( AgentsToolsActingSession )"
-		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" > /dev/null 2>&1 || :
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 		refusalId="$( DistroAgentsTools --intern-op-permission-refusal-log "$1" --session-id "${refusalSession:-no-session-$$}" --tool "$2" --target "$2" --reason "$3" \
 			2> /dev/null | LC_ALL=C sed -n 's/^\(refusal-[0-9a-f-]*\)$/\1/p' | head -1 )" || refusalId=""
 		printf ' REFUSAL-ID: %s' "${refusalId:-none}"

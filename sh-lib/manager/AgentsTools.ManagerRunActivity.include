@@ -1,0 +1,146 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.ManagerRunActivity.include -- what a live run is doing and what the host carries, as the console
+## shows it: a run waiting or working, how long it has been idle, the load average and the host name.
+## Sourced, never run: definitions and the values they share only.
+##
+
+## For how long the full name of this host is kept once it was read, and for how long what
+## stands in its place is kept where it could not be read, in seconds: a day, and an hour.
+agentsManagerHostFullSeconds=86400
+agentsManagerHostPlainSeconds=3600
+
+## Whether a live run sits inside a Wait call, by its own store, .local/agents/sessions/<spawn
+## id>: `waiting` when the last line of its milestones is `wait going idle`, which a Wait
+## writes as it starts, and its wait/state, which a wait writes as it ends, is older than
+## that line or was never written; or when the last line is `ask going idle`, an ask that
+## writes that as it starts and ends the block with a line of its own; `working` otherwise, a
+## run with no milestones among them.
+## Working is one thing here: no file of a run's store says a tool call from thinking. Asked
+## of a live run only. stat(1) differs by platform: its flavour is the caller's, probed once.
+AgentsToolsManagerRunActivity(){ ## spawn id, stat flavour (bsd, gnu)
+	local activityDir activityLine activityLast="" activityEnded="" activityYear activityMonth activityStamp
+	case "${1:-}" in ''|*/*|.|..) printf 'working\n' ; return 0 ;; esac
+	activityDir="$MMDAPP/.local/agents/sessions/$1"
+	[ -f "$activityDir/milestones" ] || { printf 'working\n' ; return 0 ; }
+	while IFS= read -r activityLine || [ -n "$activityLine" ] ; do
+		[ -z "$activityLine" ] || activityLast="$activityLine"
+	done < "$activityDir/milestones"
+	case "$activityLast" in
+		[0123456789][0123456789][0123456789][0123456789]-[0123456789][0123456789]-[0123456789][0123456789]T[0123456789][0123456789]:[0123456789][0123456789]:[0123456789][0123456789]Z' wait going idle') ;;
+		[0123456789][0123456789][0123456789][0123456789]-[0123456789][0123456789]-[0123456789][0123456789]T[0123456789][0123456789]:[0123456789][0123456789]:[0123456789][0123456789]Z' ask going idle') printf 'waiting\n' ; return 0 ;;
+		*) printf 'working\n' ; return 0 ;;
+	esac
+	[ -f "$activityDir/wait/state" ] || { printf 'waiting\n' ; return 0 ; }
+	case "${2:-}" in
+		bsd) activityEnded="$( stat -f '%m' "$activityDir/wait/state" 2>/dev/null )" || activityEnded="" ;;
+		gnu) activityEnded="$( stat -c '%Y' "$activityDir/wait/state" 2>/dev/null )" || activityEnded="" ;;
+	esac
+	## A wait/state that cannot be dated says nothing of a wait: working, as any run not known to wait.
+	case "$activityEnded" in ''|*[!0123456789]*) printf 'working\n' ; return 0 ;; esac
+	## The line's own time, `2026-10-12T23:15:19Z`, as seconds since 1970, by the calendar alone.
+	activityYear=$(( 10#${activityLast:0:4} )) ; activityMonth=$(( 10#${activityLast:5:2} ))
+	[ "$activityMonth" -gt 2 ] || { activityYear=$(( activityYear - 1 )) ; activityMonth=$(( activityMonth + 12 )) ; }
+	activityStamp=$(( ( 365 * activityYear + activityYear / 4 - activityYear / 100 + activityYear / 400 + ( 153 * ( activityMonth - 3 ) + 2 ) / 5 + 10#${activityLast:8:2} - 719469 ) * 86400 + 10#${activityLast:11:2} * 3600 + 10#${activityLast:14:2} * 60 + 10#${activityLast:17:2} ))
+	if [ "$activityEnded" -lt "$activityStamp" ] ; then printf 'waiting\n' ; else printf 'working\n' ; fi
+	return 0
+}
+
+## Since when a waiting run has been idle, as an epoch: the stamp of the first `wait going idle` line of the stretch of them that ends its milestones
+## (a Wait that came back quiet and was called again adds a line to the stretch and does not end it; an arrival, a post, a rewind, a handback does).
+## rc 1, nothing printed, for a run that does not wait or whose stretch cannot be dated.
+AgentsToolsManagerRunIdleSince(){ ## spawn id, stat flavour (bsd, gnu)
+	local sinceLine sinceFirst=""
+	[ "$( AgentsToolsManagerRunActivity "${1:-}" "${2:-}" )" = "waiting" ] || return 1
+	while IFS= read -r sinceLine || [ -n "$sinceLine" ] ; do
+		case "$sinceLine" in
+			'') ;;
+			*' wait going idle') [ -n "$sinceFirst" ] || sinceFirst="$sinceLine" ;;
+			*' ask going idle') [ -n "$sinceFirst" ] || sinceFirst="$sinceLine" ;;
+			*) sinceFirst="" ;;
+		esac
+	done < "$MMDAPP/.local/agents/sessions/$1/milestones"
+	[ -n "$sinceFirst" ] || return 1
+	sinceFirst="$( printf '%s\n' "${sinceFirst%% *}" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/output/LocalIsoToEpoch.awk" 2> /dev/null )" || return 1
+	case "$sinceFirst" in ''|*[!0123456789]*) return 1 ;; esac
+	printf '%s\n' "$sinceFirst"
+}
+
+## The one-minute load average of this host, as one figure; `-` where it cannot be read.
+AgentsToolsManagerLoadAverage(){
+	local loadText
+	loadText="$( LC_ALL=C uptime 2>/dev/null )" || loadText=""
+	case "$loadText" in
+		*'load averages: '*) loadText="${loadText##*load averages: }" ;;
+		*'load average: '*) loadText="${loadText##*load average: }" ;;
+		*) loadText="" ;;
+	esac
+	loadText="${loadText%%[ ,]*}"
+	case "$loadText" in ''|*[!0123456789.]*) loadText="-" ;; esac
+	printf '%s\n' "$loadText"
+}
+
+## THE FULL NAME OF THIS HOST, for the eye of whoever reads the counters of the list, and for
+## nothing else: the `host` of a record, the folder of a wait and every question whether a
+## run is of this host go by the short name, `hostname -s`, as before. One word, never empty:
+## what `hostname -f` gives where that resolves, else the plain `hostname`, else the short
+## name, `unknown` where the host says none.
+## ASKED ONCE, AND KEPT. The list is called every ten seconds, each time as a process of its
+## own, and the full name is a question to the resolver, which on a host whose resolver is
+## broken does not answer for many seconds. So the answer is kept in the machine's own folder,
+## $HOME/.agents/magic-team/host-full-name, one line, `<short name> <name> <asked, seconds
+## since 1970> <kept for, seconds>`, put in place by one rename, and a call reads that file
+## and asks the host nothing while the line is of this short name and not older than it says.
+## AND BOUNDED. Where it is asked, the lookup is a process of its own, given one second: one
+## that has not answered by then is ended, and so is no lookup that every later call would
+## start again, since what stands in its place is kept too, for an hour. A name that reads
+## `localhost` is no name of this host. With no folder to keep the answer in, the host is not
+## asked at all, and the plain name stands.
+## What a call costs more than the short name it read before: one reading of the time and
+## one of a file of one line; the lookup itself once a day.
+AgentsToolsManagerHostName(){
+	local hostShort="" hostDir="" hostKept="" hostFor="" hostFull="" hostAsked="" hostHeld="" hostNow="" hostAside="" hostPid="" hostTurns=0 hostPlain=""
+	hostShort="$( hostname -s 2> /dev/null )" || hostShort=""
+	hostShort="${hostShort%%[[:space:]]*}"
+	[ -n "$hostShort" ] || hostShort="unknown"
+	hostNow="$( date +%s 2> /dev/null )" || hostNow=""
+	case "$hostNow" in ''|*[!0123456789]*) hostNow=0 ;; esac
+	if [ -n "${HOME:-}" ] ; then hostDir="$HOME/.agents/magic-team" ; hostKept="$hostDir/host-full-name" ; fi
+	if [ -n "$hostKept" ] && [ -f "$hostKept" ] ; then
+		{ read -r hostFor hostFull hostAsked hostHeld < "$hostKept" ; } 2> /dev/null || :
+		case "$hostAsked" in ''|*[!0123456789]*|????????????*) hostFull="" ; hostAsked=0 ;; esac
+		case "$hostHeld" in ''|*[!0123456789]*|????????*) hostFull="" ; hostHeld=0 ;; esac
+		if [ -z "$hostFull" ] || [ "$hostFor" != "$hostShort" ] || [ "$hostNow" -lt "$hostAsked" ] || [ "$(( hostNow - hostAsked ))" -ge "$hostHeld" ] ; then hostFull="" ; fi
+	fi
+	if [ -z "$hostFull" ] ; then
+		hostHeld="$agentsManagerHostPlainSeconds"
+		if [ -n "$hostDir" ] && mkdir -p "$hostDir" 2> /dev/null && hostAside="$( mktemp "$hostDir/host-full-name.XXXXXX" 2> /dev/null )" ; then
+			( exec hostname -f ) > "$hostAside" 2> /dev/null < /dev/null &
+			hostPid=$!
+			while kill -0 "$hostPid" 2> /dev/null && [ "$hostTurns" -lt 20 ] ; do sleep 0.05 ; hostTurns=$(( hostTurns + 1 )) ; done
+			if kill -0 "$hostPid" 2> /dev/null ; then
+				## Ended, and its file left to it: what is kept is written to another.
+				kill -TERM "$hostPid" 2> /dev/null || :
+				rm -f "$hostAside" 2> /dev/null
+				hostAside="$( mktemp "$hostDir/host-full-name.XXXXXX" 2> /dev/null )" || hostAside=""
+			elif wait "$hostPid" 2> /dev/null ; then
+				{ IFS= read -r hostFull < "$hostAside" ; } 2> /dev/null || :
+				hostFull="${hostFull%%[[:space:]]*}" ; hostFull="${hostFull%.}"
+				case "$hostFull" in localhost|localhost.*) hostFull="" ;; esac
+				[ -z "$hostFull" ] || hostHeld="$agentsManagerHostFullSeconds"
+			fi
+		fi
+		if [ -z "$hostFull" ] ; then
+			hostPlain="$( hostname 2> /dev/null )" || hostPlain=""
+			hostFull="${hostPlain%%[[:space:]]*}"
+			[ -n "$hostFull" ] || hostFull="$hostShort"
+		fi
+		if [ -n "$hostAside" ] ; then
+			{ printf '%s %s %s %s\n' "$hostShort" "$hostFull" "$hostNow" "$hostHeld" > "$hostAside" && chmod 644 "$hostAside" && mv -f "$hostAside" "$hostKept" ; } 2> /dev/null || rm -f "$hostAside" 2> /dev/null || :
+		fi
+	fi
+	printf '%s\n' "$hostFull"
+	return 0
+}

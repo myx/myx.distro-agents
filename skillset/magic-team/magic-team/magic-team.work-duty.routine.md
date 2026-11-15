@@ -63,10 +63,10 @@ Every harness tool and `magic-tooling` operation this routine uses. A harness to
 ## Tooling operations
 
 - `--idle-wait [--wait-timeout <seconds>]` (`ThisSession`)
-- `--skillset-upsert <team-member> <pathname>`
+- `--skillset-upsert [--team-member <team-member>] <pathname>` (`AgentLibrarianTools`)
 - `--mark-inbox-processed <item-filename>` (`DistroAgentsItems`)
 - `--get-board-item <item-filename>` (`DistroAgentsItems`)
 - `--trash-inbox-item <item-filename>` (`DistroAgentsItems`)
-- `--queue-list`
-- `--queue-take`
-- `--queue-done <name>`
+- `--queue-list` (`AgentLibrarianTools`)
+- `--queue-take` (`AgentLibrarianTools`)
+- `--queue-done <name> (--apply|--refuse <reason>|--result <text>)` (`AgentLibrarianTools`)

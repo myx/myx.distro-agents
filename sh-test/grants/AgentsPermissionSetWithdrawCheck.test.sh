@@ -126,7 +126,7 @@ rigSetAsk(){ ## item, request options... -> the pending id
 }
 rigWithdraw(){ ## pending id, reason, [the member that withdraws; default the asker]
 	RIG_OP_AGENT="${3:-magic-coordinator}" RIG_OP_SESSION=rig-set
-	rigOp --settle-pending-reply "${3:-magic-coordinator}" "$1" --reason "$2" --withdraw
+	rigOp --settle-pending-reply --team-member "${3:-magic-coordinator}" "$1" --reason "$2" --withdraw
 	RIG_OP_AGENT="" RIG_OP_SESSION=""
 }
 rigGrantRead(){ ## member, session, tool, target

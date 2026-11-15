@@ -65,7 +65,7 @@ rigDutyRecord(){ ## spawn id, extra header line -- a duty's record, and the sand
 }
 rigDismiss(){ ## spawn id -- one call of the dismissal, its run idle (the activity and the hold probes are the rig's)
 	rigEnv bash -c '
-		cd "$MMDAPP" && . "$RIG_FN" && . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.DispatcherSchedule.include" || exit 98
+		cd "$MMDAPP" && . "$RIG_FN" && . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/schedule/AgentsTools.DispatcherSchedule.include" || exit 98
 		AgentsToolsManagerRunActivity(){ printf waiting ; }
 		AgentsToolsSessionDismissHeld(){ return 1 ; }
 		AgentsToolsScheduleDismiss "$MMDAPP/.local/agents/spawned/$1/$1.spawn.md" "rig is done"

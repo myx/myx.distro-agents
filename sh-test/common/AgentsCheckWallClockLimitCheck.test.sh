@@ -11,13 +11,15 @@
 ## The real rig-temp fixture runs, over a rig of its own with a private HOME, so the machine's line is left alone. Offline.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
+: "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 rigPackage="$MDLT_ORIGIN/myx/myx.distro-agents"
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }
 [ -f "$rigPackage/sh-test/check-fixtures/rig-temp.include.sh" ] || rigRefuse "the rig-temp fixture is not in the package"
 . "$rigPackage/sh-test/check-fixtures/rig-processes.include.sh" || rigRefuse "the rig's process helper is missing"
-rigTmp="$( mktemp -d "${TMPDIR:-/tmp}/agent-check-limit.XXXXXX" )" || exit 1
+mkdir -p "$MMDAPP/.local/agents/scratch/sh-test" || exit 1
+rigTmp="$( mktemp -d "$MMDAPP/.local/agents/scratch/sh-test/agent-check-limit.XXXXXX" )" || exit 1
 trap 'rigProcSignalWithChildren TERM $rigStarted 2> /dev/null ; rm -rf -- "$rigTmp"' EXIT
 rigStarted=""
 HOME="$rigTmp/home" ; export HOME

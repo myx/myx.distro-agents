@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # ^^^ for syntax checking in the editor only
+type AgentsSettingsScopeHas > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/settings/AgentsTools.Settings.include"
 
 ##
 ## AgentsTools.MemberWorkspace.include -- the workspace a team-member operation runs in.
@@ -8,7 +9,8 @@
 
 ## The member set root for work in another workspace: that workspace's own member index
 ## view where the root here is this workspace's own view, which holds this workspace's
-## members only (AgentsTools.TeamRegistry.include); a root set anywhere else is kept as it is.
+## members only (AgentsTools.TeamRegistry.include); a root set anywhere else is kept as it is,
+## because that root is an invited member's own, and its session reads its own skillset there.
 AgentsToolsWorkspaceSkillsetRoot(){ ## workspace path
 	if [ "${MDAT_SKILLSET_ROOT:-}" = "${MMDAPP%/}/.local/agents/members" ] ; then
 		printf '%s\n' "${1%/}/.local/agents/members"
@@ -219,16 +221,6 @@ AgentsToolsWorkspaceByName(){ ## name
 	printf '%s\n' "$byFound"
 }
 
-## Whether a workspace's scope holds any setting whose key begins with a prefix.
-AgentsToolsScopeHoldsKeys(){ ## workspace, scope, key prefix
-	local holdsFile="${1%/}/.local/.agents/$2.agent.env" holdsLine
-	[ -f "$holdsFile" ] && [ -r "$holdsFile" ] || return 1
-	while IFS= read -r holdsLine || [ -n "$holdsLine" ] ; do
-		case "$holdsLine" in "$3"*=*) return 0 ;; esac
-	done < "$holdsFile"
-	return 1
-}
-
 ## SPAWN SETTINGS, the workspace that PAYS. The CLI service a member is spawned on, the
 ## harness tier asked of it and the credentials that CLI is started with are settings of
 ## the magic-team scope, read from the workspace we run from unless another workspace known
@@ -267,15 +259,13 @@ AgentsToolsSpawnSettingKey(){ ## key
 ## scope names for every spawn. Prints its path, and nothing where this workspace pays for
 ## itself. rc 1, with one message, where the workspace named for every spawn names none.
 AgentsToolsSpawnSettingsWorkspace(){
-	local payFile="${MMDAPP%/}/.local/.agents/magic-team.agent.env" payLine payName="" payPath
+	local payName="" payPath
 	if [ -n "${MDAT_SPAWN_SETTINGS_WORKSPACE:-}" ] ; then
 		[ "${MDAT_SPAWN_SETTINGS_WORKSPACE%/}" = "${MMDAPP%/}" ] || printf '%s\n' "${MDAT_SPAWN_SETTINGS_WORKSPACE%/}"
 		return 0
 	fi
-	[ -f "$payFile" ] && [ -r "$payFile" ] || return 0
-	while IFS= read -r payLine || [ -n "$payLine" ] ; do
-		case "$payLine" in SPAWN_SETTINGS_WORKSPACE=*) payName="${payLine#*=}" ;; esac
-	done < "$payFile"
+	type AgentsSettingsRead > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/settings/AgentsTools.Settings.include"
+	payName="$( AgentsSettingsRead "${MMDAPP%/}" magic-team --select SPAWN_SETTINGS_WORKSPACE 2> /dev/null )" || payName=""
 	[ -n "$payName" ] || return 0
 	payPath="$( AgentsToolsWorkspaceByName "$payName" )" || {
 		echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools}: '$payName' is named to pay for every spawn of ${MMDAPP%/} (SPAWN_SETTINGS_WORKSPACE in its magic-team scope), and $payPath -- no spawn setting was read. Name a workspace this machine knows, or remove the setting so this workspace pays for itself." >&2
@@ -306,25 +296,6 @@ AgentsToolsMemberSettingSystemOf(){ ## key
 	return 0
 }
 
-## The names of the settings a workspace's scope holds of a system, each once, joined by
-## ", ": names only, never a value. One key may be left out.
-AgentsToolsScopeKeyNames(){ ## workspace, scope, key prefix, a key to leave out (may be empty)
-	local namesFile="${1%/}/.local/.agents/$2.agent.env" namesLine namesText=""
-	[ -f "$namesFile" ] && [ -r "$namesFile" ] || return 0
-	while IFS= read -r namesLine || [ -n "$namesLine" ] ; do
-		case "$namesLine" in
-			"$3"*=*)
-				[ "${namesLine%%=*}" != "${4:-}" ] || continue
-				case ", $namesText, " in
-					*", ${namesLine%%=*}, "*) ;;
-					*) namesText="$namesText${namesText:+, }${namesLine%%=*}" ;;
-				esac
-			;;
-		esac
-	done < "$namesFile"
-	printf '%s' "$namesText"
-}
-
 ## For a line that says a member's own settings are read from the workspace it is set up in:
 ## a client-* member's own settings are the other organisation's, read on the client side
 ## alone (AgentsTools.CommsSide.include), and such a line is said before the side of the
@@ -341,8 +312,8 @@ AgentsToolsMemberSettingsSideClause(){ ## member
 AgentsToolsMemberSettingsBorrowedSay(){ ## member, operation, the workspace the member is set up in
 	local saySystem sayList=""
 	for saySystem in $agentsMemberSettingSystems ; do
-		! AgentsToolsScopeHoldsKeys "${MMDAPP%/}" "$1" "${saySystem}_" || continue
-		AgentsToolsScopeHoldsKeys "$3" "$1" "${saySystem}_" || continue
+		! AgentsSettingsHoldsKeys "${MMDAPP%/}" "$1" "${saySystem}_" || continue
+		AgentsSettingsHoldsKeys "$3" "$1" "${saySystem}_" || continue
 		sayList="$sayList${sayList:+, }${saySystem}_*"
 	done
 	[ -n "$sayList" ] || return 0
@@ -372,7 +343,7 @@ AgentsToolsSpawnSettingsSettle(){ ## member, the workspace named for this one sp
 	fi
 	if [ -z "$settleName" ] ; then
 		settleBy="SPAWN_SETTINGS_WORKSPACE in the $1 scope"
-		type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
+		type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/settings/AgentsTools.ConfigOption.include"
 		settleName="$( AgentsToolsConfigOption "$1" --select SPAWN_SETTINGS_WORKSPACE 2> /dev/null )" || settleName=""
 	fi
 	[ -n "$settleName" ] || return 0
@@ -393,8 +364,8 @@ AgentsToolsMemberSettingsBorrowEndedSay(){ ## member, the key written, the works
 	local endedPrefix endedKeys
 	endedPrefix="$( AgentsToolsMemberSettingSystemOf "$2" )"
 	[ -n "$endedPrefix" ] || return 0
-	AgentsToolsScopeHoldsKeys "${MMDAPP%/}" "$1" "$endedPrefix" || return 0
-	endedKeys="$( AgentsToolsScopeKeyNames "$3" "$1" "$endedPrefix" "$2" )"
+	AgentsSettingsHoldsKeys "${MMDAPP%/}" "$1" "$endedPrefix" || return 0
+	endedKeys="$( AgentsSettingsKeyNamesJoined "$3" "$1" "$endedPrefix" "$2" )"
 	[ -n "$endedKeys" ] || return 0
 	echo "# $MDSC_CMD --agents-config-option: member '$1' now holds $2 in ${MMDAPP%/}, so its ${endedPrefix}* settings are read here alone from now on -- no longer read from ${3%/}, the workspace it is set up in: $endedKeys" >&2
 	return 0
@@ -409,8 +380,8 @@ AgentsToolsMemberSettingsBorrowBegunSay(){ ## member, the key deleted, the works
 	local begunPrefix begunKeys
 	begunPrefix="$( AgentsToolsMemberSettingSystemOf "$2" )"
 	[ -n "$begunPrefix" ] || return 0
-	! AgentsToolsScopeHoldsKeys "${MMDAPP%/}" "$1" "$begunPrefix" || return 0
-	begunKeys="$( AgentsToolsScopeKeyNames "$3" "$1" "$begunPrefix" "" )"
+	! AgentsSettingsHoldsKeys "${MMDAPP%/}" "$1" "$begunPrefix" || return 0
+	begunKeys="$( AgentsSettingsKeyNamesJoined "$3" "$1" "$begunPrefix" "" )"
 	[ -n "$begunKeys" ] || return 0
 	echo "# $MDSC_CMD --agents-config-option: member '$1' holds no ${begunPrefix}* setting in ${MMDAPP%/} now that $2 is deleted, so its ${begunPrefix}* settings are read from ${3%/}, the workspace it is set up in, from now on$( AgentsToolsMemberSettingsSideClause "$1" ): $begunKeys" >&2
 	return 0
@@ -428,7 +399,7 @@ AgentsToolsConfigOptionElsewhere(){ ## scope, key
 	case "$1" in
 		'') return 0 ;;
 		magic-team)
-			[ -n "${MDAT_SPAWN_SETTINGS_WORKSPACE:-}" ] || AgentsToolsScopeHoldsKeys "${MMDAPP%/}" magic-team SPAWN_SETTINGS_WORKSPACE || return 0
+			[ -n "${MDAT_SPAWN_SETTINGS_WORKSPACE:-}" ] || AgentsSettingsHoldsKeys "${MMDAPP%/}" magic-team SPAWN_SETTINGS_WORKSPACE || return 0
 			## A tier setting is the paying workspace's as a spawn setting is, so that the console's tier row and its write are one value, and a tier may name a preset only that workspace holds.
 			case "$2" in SPAWN_TIER_LOW|SPAWN_TIER_NORMAL|SPAWN_TIER_HIGH) ;; *) AgentsToolsSpawnSettingKey "$2" || return 0 ;; esac
 			agentsConfigOptionElsewhere="$( AgentsToolsSpawnSettingsWorkspace )" || return 1
@@ -439,10 +410,10 @@ AgentsToolsConfigOptionElsewhere(){ ## scope, key
 		case "$2" in "$elsewhereSystem"_*) elsewhereFound="${elsewhereSystem}_" ; break ;; esac
 	done
 	[ -n "$elsewhereFound" ] || return 0
-	! AgentsToolsScopeHoldsKeys "${MMDAPP%/}" "$1" "$elsewhereFound" || return 0
+	! AgentsSettingsHoldsKeys "${MMDAPP%/}" "$1" "$elsewhereFound" || return 0
 	## Its failures were said where the operation began, by the bring: here it only answers.
 	agentsConfigOptionElsewhere="$( AgentsToolsMemberWorkspaceResolve "$1" "--agents-config-option" 2> /dev/null )" || agentsConfigOptionElsewhere=""
 	[ -n "$agentsConfigOptionElsewhere" ] || return 0
-	AgentsToolsScopeHoldsKeys "$agentsConfigOptionElsewhere" "$1" "$elsewhereFound" || agentsConfigOptionElsewhere=""
+	AgentsSettingsHoldsKeys "$agentsConfigOptionElsewhere" "$1" "$elsewhereFound" || agentsConfigOptionElsewhere=""
 	return 0
 }

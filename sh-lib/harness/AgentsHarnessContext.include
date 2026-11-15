@@ -64,6 +64,19 @@ AgentsHarnessContextMachine(){
 	hostname -s 2>/dev/null || echo unknown
 }
 
+## The kept-context file of one run in a sandbox folder, by what the files say, never by the folder's name (a folder is named for its
+## session, or for a tracking name): the run's own context.<spawn id>.jsonl where it has one; else context.jsonl where that is free or
+## its header names this run; else, another run holding context.jsonl, context.<spawn id>.jsonl. Printed.
+AgentsHarnessContextFileOf(){ ## sandbox folder, spawn id
+	local ofRoot="${1%/}" ofSession=""
+	[ ! -f "$ofRoot/context.$2.jsonl" ] || { printf '%s/context.%s.jsonl' "$ofRoot" "$2" ; return 0 ; }
+	if [ -s "$ofRoot/context.jsonl" ] ; then
+		ofSession="$( head -1 "$ofRoot/context.jsonl" 2> /dev/null | LC_ALL=C sed -n 's/.*"session":"\([^"]*\)".*/\1/p' )"
+		[ -z "$ofSession" ] || [ "$ofSession" = "$2" ] || { printf '%s/context.%s.jsonl' "$ofRoot" "$2" ; return 0 ; }
+	fi
+	printf '%s/context.jsonl' "$ofRoot"
+}
+
 ## Decides whether this run keeps its context, and says where. Called once, before the loop.
 AgentsHarnessContextInit(){
 	local initDir
@@ -74,13 +87,20 @@ AgentsHarnessContextInit(){
 	[ -n "${MDAT_SPAWN_SESSION_ID:-}" ] || return 0
 	[ "${MDAT_SPAWN_CALLER_WAITS:-}" != "true" ] || return 0
 	[ "$( AgentsTranscriptSessionKey 2>/dev/null )" = "$MDAT_SPAWN_SESSION_ID" ] || return 0
-	harnessContextFile="$MDAT_SPAWN_SANDBOX_ROOT/context.jsonl"
+	## ONE FILE A RUN: the sandbox folder is the session's, shared by every run that joined it, so a run keeps context.jsonl only in a folder
+	## named for it (the session's own executor) and context.<spawn id>.jsonl in one it joined. One name for all of them had a joined run
+	## rewrite the executor's file at its start and both append to it, so the executor's records and lines no longer matched, its transcript
+	## stopped, and its kept context held another run's messages (AgentsHarnessContextFileOf, the one rule its readers use too).
+	harnessContextFile="$( AgentsHarnessContextFileOf "$MDAT_SPAWN_SANDBOX_ROOT" "$MDAT_SPAWN_SESSION_ID" )"
+	## A RESUME TAKES OVER THE FILE IT CONTINUES: the run it resumes has ended (AgentsReviewContextResumeEligible refuses a live one), and the
+	## kept context becomes this run's, in the same file.
+	case "${MDAT_HARNESS_RESUME_CONTEXT:-}" in "${MDAT_SPAWN_SANDBOX_ROOT%/}"/context*.jsonl) harnessContextFile="$MDAT_HARNESS_RESUME_CONTEXT" ;; esac
 	## The transcript is rendered from the log from here on, not written by the per-call hooks.
 	agentsTranscriptFromLog=1
 	if initDir="$( AgentsTranscriptSessionDir "$MDAT_SPAWN_SESSION_ID" 2>/dev/null )" && mkdir -p "$initDir" 2>/dev/null ; then
 		printf '%s\n' "$harnessContextFile" > "$initDir/context" 2>/dev/null || :
 		## Its feed, while that is switched on (AgentsTools.EventTrackThread.include).
-		type AgentsToolsEventTrackFeedOn > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.EventTrackThread.include" 2> /dev/null || :
+		type AgentsToolsEventTrackFeedOn > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/event-track/AgentsTools.EventTrackThread.include"
 		! type AgentsToolsEventTrackFeedOn > /dev/null 2>&1 || ! AgentsToolsEventTrackFeedOn "$initDir" || harnessContextFeed="$initDir/feed"
 	fi
 	return 0
@@ -89,7 +109,7 @@ AgentsHarnessContextInit(){
 ## One message line; the record last, as its own bytes, or escaped where it holds a newline.
 AgentsHarnessContextLine(){ ## n, kind, meta fragment (starting with a comma, or empty), record
 	local lineRecord="$4" lineMs
-	lineMs="$( AgentsTranscriptNowMs 2>/dev/null )" || lineMs=0
+	lineMs="$( date +%s )000" || lineMs=0
 	case "$lineRecord" in
 		*$'\n'*)
 			printf '{"type":"message","n":%s,"leg":%s,"kind":"%s","round":%s,"ts":"%s","ms":%s%s,"record_text":"%s"}\n' \
@@ -191,10 +211,23 @@ AgentsHarnessContextAssistantMeta(){
 	printf ',"in":%s,"cache_read":%s,"cache_write":%s,"out":%s' "${metaIn:-0}" "${metaCr:-0}" "${metaCw:-0}" "${metaOut:-0}"
 }
 
+## WHAT A CALL ITSELF RAN, KEPT WHERE ITS RECORD READS IT: every tool runs in the subshell of harnessResult="$( ... )"
+## (AgentsHarnessRun.include), so a variable it sets is gone when the record is written, and every call was all machinery --
+## a 256 s Wait counted 256 s, and the pace gate held starts it should allow. The span goes to a file of the run's scratch too.
+AgentsHarnessToolRunMsKeep(){ ## milliseconds the call itself ran
+	harnessToolRunMs="$1"
+	[ -z "${harnessScratch:-}" ] || printf '%s\n' "$1" > "$harnessScratch/tool.run.ms" 2> /dev/null || :
+}
+
 ## The meta of a tool result: the call it answers, how long it ran and how it came out.
 AgentsHarnessContextToolMeta(){ ## tool name, call id, result, preset outcome
 	local metaDur=0 metaMach=0
-	[ -z "${agentsTranscriptT0:-}" ] || metaDur=$(( $( AgentsTranscriptNowMs ) - agentsTranscriptT0 ))
+	[ -z "${agentsTranscriptT0:-}" ] || metaDur=$(( $( date +%s )000 - agentsTranscriptT0 ))
+	## The span the tool kept from inside its subshell (AgentsHarnessToolRunMsKeep), read once and taken away, so no later call reads it.
+	if [ -n "${harnessScratch:-}" ] && [ -f "$harnessScratch/tool.run.ms" ] ; then
+		[ -n "${harnessToolRunMs:-}" ] || { IFS= read -r harnessToolRunMs < "$harnessScratch/tool.run.ms" ; } 2> /dev/null || :
+		rm -f "$harnessScratch/tool.run.ms" 2> /dev/null || :
+	fi
 	## MACHINERY TIME (the owner's pace ruling): what the tooling spent around the call, which is the call's whole time less what the
 	## call itself ran -- the Bash child's run (AgentsHarnessToolsBash sets harnessToolRunMs around its wait), the Wait's own waiting
 	## (AgentsHarnessWait sets it from the seconds waited). A tool that sets nothing is all machinery. The pace gate reads mach_ms.

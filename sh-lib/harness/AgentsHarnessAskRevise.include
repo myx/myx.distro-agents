@@ -1,0 +1,196 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+type AgentsToolsPendingRecordPath > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.Authority.include"
+
+## AgentsHarnessAskRevise.include: a question already asked: acted on by its asker, revised, and a proposal's verdict and reply.
+## Sourced by AgentsHarnessAsk.include, definitions only.
+
+## The asker acting on its own question already asked, by pending id: withdraw it with a
+## reason (--settle-pending-reply --withdraw), or close its decision by a readback
+## naming the option it takes the reply to mean (--readback-escalation). Prints the
+## result block.
+AgentsHarnessAskAct(){ ## pending id, readback option, withdraw reason, understood text
+	type AgentsHarnessBareName > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessSpawn.include"
+	local actId="$1" actReadback="$2" actWithdraw="$3" actUnderstood="$4" actOut actRc=0
+	local actTools="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+	if [ -z "$actId" ] ; then
+		printf 'ERROR: %s: readback and withdraw act on a question already asked, so they need its pending_id. Nothing was posted.\n' "$harnessAskName" ; return 0
+	fi
+	if [ -n "$actReadback" ] && [ -n "$actWithdraw" ] ; then
+		printf 'ERROR: %s: readback and withdraw are two different acts, and both were given. Nothing was done to pending reply %s.\n' "$harnessAskName" "$actId" ; return 0
+	fi
+	if ! AgentsHarnessBareName "$actId" || ! AgentsToolsPendingRecordPath "$actId" > /dev/null ; then
+		printf 'ERROR: %s: pending_id %s names no pending reply in this workspace. Nothing was done.\n' "$harnessAskName" "$actId" ; return 0
+	fi
+	if [ -n "$actWithdraw" ] ; then
+		actOut="$( "$BASH" "$actTools" --settle-pending-reply --team-member "$harnessAgent" "$actId" --reason "$actWithdraw" --withdraw 2>&1 )" || actRc=$?
+		if [ "$actRc" = "0" ] && printf '%s\n' "$actOut" | LC_ALL=C grep -q -x -F "WITHDRAWN $actId" ; then
+			AgentsHarnessAskWaitItem drop "$actId" || :
+			printf 'ASK-RESULT: WITHDRAWN\nPending reply %s is withdrawn: closed with your reason and no verdict, so it answers, grants and decides nothing, and it is reminded no more. A note in its thread tells the person it is no longer needed, and it has left your Wait set.\n' "$actId"
+			## What could not be done to its post (its mark, its answer emoji, the edit) fails no
+			## withdraw, and is logged as every warning of this tool is, never dropped.
+			printf '%s\n' "$actOut" | LC_ALL=C grep -F -- '⚠️ WARNING: ' >&2 || :
+			return 0
+		fi
+		printf 'ERROR: %s: pending reply %s was NOT withdrawn, and stays as it was. What the operation reported follows:\n%s\n' "$harnessAskName" "$actId" "$actOut"
+		return 0
+	fi
+	actOut="$( "$BASH" "$actTools" --readback-escalation --team-member "$harnessAgent" "$actId" "$actReadback" "$actUnderstood" 2>&1 )" || actRc=$?
+	if [ "$actRc" = "0" ] && printf '%s\n' "$actOut" | LC_ALL=C grep -q -x -F "ESCALATION: $actId answered" ; then
+		## The item stays in the Wait set: a later reply there is an objection, kept on the decision.
+		AgentsHarnessAskWaitItem add "$actId" || :
+		printf 'ASK-RESULT: RECEIVED\n'
+		printf '%s\n' "$actOut" | LC_ALL=C grep -E '^(VERDICT|VERDICT-TEXT|ANSWERED-BY|CLOSED-BY): ' || :
+		printf 'Your readback is posted in the thread of pending reply %s, and closes it with that verdict. The replies there are kept on the decision as clarifications. The question stays in your Wait set: a later reply from the person there, such as an objection, arrives on Wait and is kept the same way.\n' "$actId"
+		printf 'WAIT-ID: ask:%s\n' "$actId"
+		return 0
+	fi
+	printf 'ERROR: %s: the readback did NOT close pending reply %s, which stays open. What the operation reported follows:\n%s\n' "$harnessAskName" "$actId" "$actOut"
+	return 0
+}
+
+## The same question asked again, changed (revise): the same record, id and number, however
+## much of it changes. A field given replaces the one the question was asked with, and the
+## rest stay. A question with its own thread keeps its first post as the place to answer:
+## that post is marked once, its answer emoji follow the changed answers, and the changed
+## question is one reply under it, the one before it removed. A question asked inside
+## another thread is asked again as a new reply there: the version before it stays, marked,
+## without its answer emoji and its How to answer part, and nothing is deleted. A proposal
+## is the reply under its root from the start, so every change of it removes the reply
+## before and posts the changed one: its root is never marked, and takes no question. Reads and
+## sets the caller's tool* and ask* fields. Prints an ERROR line and returns 1 when the
+## question stands as it was.
+AgentsHarnessAskRevise(){ ## record file, options given (empty: unchanged), select given (empty: unchanged, text: free text)
+	local revRecord="$1" revOptions="$2" revSelect="$3" revSlot revValue revAsBot="false" revPrev revTs="" revOld revNew revName revOut revSuperseded=""
+	local revTools="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+	if ! AgentsHarnessAskPost || [ ! -f "${revRecord%.md}.fields" ] ; then
+		printf 'ERROR: %s: pending reply %s was asked before the fields of a question were kept, so it cannot be asked again changed. Withdraw it and ask the changed question anew. Nothing was posted.\n' "$harnessAskName" "$toolPendingId" ; return 1
+	fi
+	if [ "$toolKind" = "proposal" ] && [ -n "$toolQuestion" ] ; then
+		printf 'CORRECTION: %s: the question of a proposal is the root of its thread, which is posted once and never changes, so a changed proposal takes no question. Pass what you change: proposal, document or context. Nothing was posted, and pending reply %s stands as it was.\n' "$harnessAskName" "$toolPendingId" ; return 1
+	fi
+	if [ -z "$toolQuestion$toolContext$toolUnderstood$toolFrom$toolWillDo$toolReason$toolTaskRef$toolProposal$toolDocument$revOptions$revSelect" ] ; then
+		printf 'ERROR: %s: revise asks the same question again, changed, so it needs at least one changed field. Nothing was posted, and pending reply %s stands as it was.\n' "$harnessAskName" "$toolPendingId" ; return 1
+	fi
+	while IFS=$'\t' read -r revSlot revValue ; do
+		## Never `printf -v` an empty result: bash 3.2 then leaves the buffer of the one before.
+		[ -z "$revValue" ] || printf -v revValue '%b' "$revValue"
+		case "$revSlot" in
+			## The post keeps the skeleton of the name the question was first asked by.
+			asked-as) askPostName="$revValue" ;;
+			question) [ -n "$toolQuestion" ] || toolQuestion="$revValue" ;;
+			context) [ -n "$toolContext" ] || toolContext="$revValue" ;;
+			understood) [ -n "$toolUnderstood" ] || toolUnderstood="$revValue" ;;
+			source) [ -n "$toolFrom" ] || toolFrom="$revValue" ;;
+			will-do) [ -n "$toolWillDo" ] || toolWillDo="$revValue" ;;
+			reason) [ -n "$toolReason" ] || toolReason="$revValue" ;;
+			task) [ -n "$toolTaskRef" ] || toolTaskRef="$revValue" ;;
+			proposal) [ -n "$toolProposal" ] || toolProposal="$revValue" ;;
+			document) [ -n "$toolDocument" ] || toolDocument="$revValue" ;;
+		esac
+	done < "${revRecord%.md}.fields"
+	case "$revSelect" in
+		'') ;;
+		text) toolSelect="" ;;
+		*) toolSelect="$revSelect" ;;
+	esac
+	[ -z "$revOptions" ] || toolOptions="$revOptions"
+	## Yes or no takes no options, so those of the form before it go.
+	[ "$toolKind:$toolSelect" != "question:yes-no" ] || [ -n "$revOptions" ] || toolOptions=""
+	## Free text takes none either, so a question taken back to it leaves them too.
+	[ "$toolKind:$revSelect" != "question:text" ] || [ -n "$revOptions" ] || toolOptions=""
+	AgentsHarnessAskCheck || return 1
+	[ "$toolKind" = "question" ] || toolSelect=""
+	## The emoji the question had, before its record changes.
+	revOld=" $( AgentsToolsAskPostRecordFill reactions "$revRecord" 2> /dev/null | LC_ALL=C tr '\n' ' ' )"
+	revPrev="$( AgentsHarnessAskRecordField "$toolPendingId" revision-ts )"
+	[ "$( AgentsHarnessAskRecordField "$toolPendingId" ask-identity )" != "bot" ] || revAsBot="true"
+	askBody="$( AgentsHarnessAskBody 1 )" || askBody=""
+	if [ -z "$askBody" ] ; then
+		printf 'ERROR: %s: the changed post could not be filled from its template, so nothing was posted and pending reply %s stands as it was. What the fill reported follows:\n%s\n' "$harnessAskName" "$toolPendingId" "$( cat "$harnessScratch/ask-post.err" 2>/dev/null )" ; return 1
+	fi
+	revOut="$( harnessSendProse="$( AgentsHarnessAskProse )" AgentsHarnessToolSendMessage "$askChannel:$askThreadTs" "$askBody" "$revAsBot" "$toolAddressTo" "" true )"
+	revTs="$( printf '%s\n' "$revOut" | LC_ALL=C sed -n 's/^SENT_MESSAGE_TS=//p' | head -1 )"
+	case "$revOut" in ERROR:*) revTs="" ;; esac
+	## Over the plain-language floor: a correction to make, passed on as it is. The question
+	## stands as it was asked until the corrected one is posted.
+	case "$revOut" in CORRECTION:*) printf '%s\n' "$revOut" ; return 1 ;; esac
+	if [ -z "$revTs" ] ; then
+		printf 'ERROR: %s: the changed question could NOT be posted, so pending reply %s stands as it was asked. What the send reported follows:\n%s\n' "$harnessAskName" "$toolPendingId" "$revOut" ; return 1
+	fi
+	revNew=" $( AgentsHarnessAskSeedNames | LC_ALL=C tr '\n' ' ' )"
+	if [ "$askThreadTs" = "$askTs" ] ; then
+		if [ -n "$revPrev" ] ; then
+			## One live update under the root: the one before it goes, under the identity that posted it.
+			"$BASH" "$revTools" --slack-delete-message --team-member "$harnessAgent" "$askChannel:$revPrev" $( [ "$revAsBot" != "true" ] || printf -- '--identity-bot' ) > /dev/null 2>&1 \
+				|| printf 'WARNING: %s: the update before this one, %s:%s, could not be removed, so the thread holds two.\n' "$harnessAskName" "$askChannel" "$revPrev" >&2
+		elif AgentsToolsAskKindRow "$toolKind" ; then
+			AgentsHarnessAskReact "$askChannel:$askTs" "$revAsBot" add $( ASKP_BLOCK="Marks/superseded" AgentsToolsAskPostFill block "$agentsAskRowTemplate" "" 2> /dev/null )
+		fi
+		## The emoji under the root follow the live version: those that no longer answer go,
+		## and the missing ones are placed.
+		for revName in $revOld ; do
+			case "$revNew" in *" $revName "*) ;; *) AgentsHarnessAskReact "$askChannel:$askTs" "$revAsBot" remove "$revName" ;; esac
+		done
+		for revName in $revNew ; do
+			case "$revOld" in *" $revName "*) ;; *) AgentsHarnessAskReact "$askChannel:$askTs" "$revAsBot" add "$revName" ;; esac
+		done
+	else
+		revSuperseded="${revPrev:-$askTs}"
+		MDSC_CMD="$harnessAskName" AgentsToolsAskPostClose "$revRecord" "$revSuperseded" superseded edit
+	fi
+	## A proposal's emoji stand under its root alone (F9.4): its reply carries none, and a changed one no more than the first.
+	[ "$toolKind" = "proposal" ] || AgentsHarnessAskReact "$askChannel:$revTs" "$revAsBot" add $revNew
+	revOut="$( printf '%s' "$askBody" | "$BASH" "$revTools" --intern-op-pending-reply-revise "$toolPendingId" --from-stdin --revision-ts "$revTs" --select "$toolSelect" --options "$toolOptions" \
+		--fields "$( AgentsHarnessAskFields )" --revised-by "$harnessAgent" ${revSuperseded:+--superseded "$revSuperseded"} --context "$harnessAskName" 2>&1 )" || {
+		printf 'ERROR: %s: the changed question WAS posted as %s:%s, and then pending reply %s could not be updated, so an answer is still read against the question as it was. What the operation reported follows:\n%s\n' "$harnessAskName" "$askChannel" "$revTs" "$toolPendingId" "$revOut" ; return 1
+	}
+	## Its wait item starts afresh: what the thread held before the change is no arrival.
+	AgentsHarnessAskWaitItem drop "$toolPendingId" || :
+	askSent="(pending reply $toolPendingId asked again, changed: its live version is $askChannel:$revTs, in the thread of the question. ${revOut##*$'\n'})"
+	return 0
+}
+
+## A proposal is changed only while its root carries no verdict. With one there -- read now
+## from its thread, or recorded before -- nothing is posted: prints the correction, with the
+## verdict, and returns 1.
+AgentsHarnessAskProposalVerdict(){ ## pending reply id
+	local verdictLines
+	verdictLines="$( AgentsHarnessEscalationRead "$1" )"
+	case "$verdictLines" in
+		*"ESCALATION: $1 answered"*) ;;
+		*) return 0 ;;
+	esac
+	printf 'CORRECTION: %s: the root of this proposal already carries its verdict, so no changed proposal was posted. A verdict is on the whole proposal and closes it: pending reply %s is closed with the verdict below, and a changed proposal is a new one, put with a new call.\n' "$harnessAskName" "$1"
+	printf '%s\n' "$verdictLines" | LC_ALL=C grep -E '^(VERDICT|VERDICT-TEXT|ANSWERED-BY): ' || :
+	return 1
+}
+
+## The proposal itself, posted as the one reply under the root just sent. Sets the caller's
+## askLiveTs, and adds what the send reported to its askSent. A reply that could not be
+## posted leaves no proposal, so its root goes too, under the identity that posted it:
+## prints the ERROR, or the CORRECTION of the send, and returns 1.
+AgentsHarnessAskProposalReply(){ ## -- reads the caller's ask* and tool* fields
+	local replyOut="" replyBot="" replyRoot="the root could not be named, so it may stand with no proposal under it"
+	case "$toolAsBot" in true|1|yes) replyBot="--identity-bot" ;; esac
+	if [ -n "$askChannel" ] && [ -n "$askTs" ] ; then
+		replyOut="$( harnessSendProse="$( AgentsHarnessAskProse )" AgentsHarnessToolSendMessage "$askChannel:$askTs" "$askBody" "$toolAsBot" "$toolAddressTo" "" true )"
+		askLiveTs="$( printf '%s\n' "$replyOut" | LC_ALL=C sed -n 's/^SENT_MESSAGE_TS=//p' | head -1 )"
+		case "$replyOut" in ERROR:*|CORRECTION:*) askLiveTs="" ;; esac
+		if [ -n "$askLiveTs" ] ; then
+			askSent="$askSent"$'\n'"$replyOut"
+			return 0
+		fi
+		## No root stands without its proposal.
+		if "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --slack-delete-message --team-member "$harnessAgent" "$askChannel:$askTs" $replyBot > /dev/null 2>&1 ; then
+			replyRoot="its root was removed"
+		else
+			replyRoot="its root $askChannel:$askTs could not be removed, and stands with no proposal under it"
+		fi
+	fi
+	case "$replyOut" in
+		CORRECTION:*) printf '%s\n' "$replyOut" ;;
+		*) printf 'ERROR: %s: the proposal could NOT be posted under its root, so %s, and nothing is pending anywhere. THE PROPOSAL DOES NOT EXIST: this is not a proposal that went unanswered. Put it again. What the send reported follows:\n%s\n' "$harnessAskName" "$replyRoot" "${replyOut:-the send of the root named no message to reply under}" ;;
+	esac
+	return 1
+}

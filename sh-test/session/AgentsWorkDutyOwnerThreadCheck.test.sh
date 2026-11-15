@@ -132,7 +132,7 @@ rigSchedule(){ ## name
 	( cd "$rigWs" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp" PATH="$PATH" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" \
 		MDAT_SKILLSET_ROOT="$rigSkills" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
 		RIG_SCENARIO="$rigTmp" RIG_TMP="$rigTmp" RIG_FN="$rigTool" \
-		bash -c 'cd "$MMDAPP" && . "$RIG_FN" && . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.DispatcherSchedule.include" && AgentsToolsScheduleWorkDuty' \
+		bash -c 'cd "$MMDAPP" && . "$RIG_FN" && . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/schedule/AgentsTools.DispatcherSchedule.include" && AgentsToolsScheduleWorkDuty' \
 	) > "$rigTmp/$1.out" 2> "$rigTmp/$1.err" < /dev/null
 	rigQuiet
 	rigConsolesSettle
@@ -247,7 +247,7 @@ rigDayFirst(){ ## verb -- the real function's answer, on the rig's own clock and
 	( cd "$rigWs" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp" PATH="$rigTmp/binclock:$PATH" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" \
 		MDAT_SKILLSET_ROOT="$rigSkills" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
 		RIG_SCENARIO="$rigTmp" RIG_TMP="$rigTmp" RIG_FN="$rigTool" \
-		bash -c 'cd "$MMDAPP" && . "$RIG_FN" && . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.DispatcherSchedule.include" && AgentsToolsScheduleDayFirst "$1"' rig-day-first "$1" \
+		bash -c 'cd "$MMDAPP" && . "$RIG_FN" && . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/schedule/AgentsTools.DispatcherSchedule.include" && AgentsToolsScheduleDayFirst "$1"' rig-day-first "$1" \
 	) 2> /dev/null
 }
 rm -f "$rigWs/.local/agents/schedule/day-first"

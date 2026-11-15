@@ -74,6 +74,8 @@ DistroAgentsItems	--upsert-inbox-note	member
 DistroAgentsItems	--upsert-inbox-reflection	member
 DistroAgentsItems	--upsert-vault-decision-record	member
 DistroAgentsItems	--upsert-vault-epic-blueprint	member
+DistroAgentsItems	--upsert-vault-planning	member
+DistroAgentsItems	--upsert-vault-tracking	member
 DistroAgentsItems	--upsert-vault-investigation-report	member
 DistroAgentsItems	--upsert-vault-item	member
 DistroAgentsItems	--upsert-vault-verbatim-record	member

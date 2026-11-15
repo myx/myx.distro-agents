@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+type AgentsToolsPermissionGranteeAssert > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionHolds.include"
+
+## AgentsTools.InternOpPermissionContactHolds.include -- the operation `--intern-op-permission-contact-holds`, sourced by AgentsTools.InternOpPermission.include with the operation's arguments.
+## What a contact holds standing (F7.10): a row `ALLOW <tool> <target> <granted by> <time>` for each entry of the `allows:` of its record.
+## rc 1 for a contact that is not recorded. The reader of a contact's access that DistroAgentsContacts.fn.sh asks, since the chain is the
+## model that holds it.
+		shift
+		MDSC_CMD="$MDSC_CMD --intern-op-permission-contact-holds"
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.UseAgentsTools.include"
+		local holdsContact="${1:-}" holdsRows
+		if [ -z "$holdsContact" ] || [ $# -ne 1 ] ; then
+			echo "$MDSC_CMD: ⛔ ERROR: syntax is contact:<id>" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsPermissionGranteeAssert "$holdsContact" "<contact>" permission-contact-holds || { set +e ; return 1 ; }
+		case "$holdsContact" in contact:*) ;; *) echo "$MDSC_CMD: ⛔ ERROR: <contact> is contact:<id>: $holdsContact" >&2 ; set +e ; return 1 ;; esac
+		holdsRows="$( AgentsToolsPermissionContactAllowsList "$holdsContact" )"
+		printf '%s\n' "$holdsRows" | LC_ALL=C awk -F'\t' 'NF { print "ALLOW\t" $1 "\t" $2 "\t" $3 "\t" $4 ; }'
+		return 0

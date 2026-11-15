@@ -48,7 +48,7 @@ case "$1" in
 	--manager-harness-read)
 		local readKey readValue
 		for readKey in $agentsHarnessSettings ; do
-			type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
+			type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/settings/AgentsTools.ConfigOption.include"
 			readValue="$( AgentsToolsConfigOption magic-team --select "$readKey" 2> /dev/null )" || readValue=""
 			printf '%s\t%s\n' "$readKey" "$readValue"
 		done
@@ -80,18 +80,18 @@ case "$1" in
 		applyIndex=0
 		while [ "$applyIndex" -lt "${#applyKeys[@]}" ] ; do
 			applyKey="${applyKeys[$applyIndex]}" ; applyValue="${applyValues[$applyIndex]}" ; applyIndex=$(( applyIndex + 1 ))
-			type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
+			type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/settings/AgentsTools.ConfigOption.include"
 			applyNow="$( AgentsToolsConfigOption magic-team --select "$applyKey" 2> /dev/null )" || applyNow=""
 			if [ "$applyNow" = "$applyValue" ] ; then
 				printf 'unchanged\t%s\n' "$applyKey"
 				continue
 			fi
 			if [ -z "$applyValue" ] ; then
-				type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
+				type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/settings/AgentsTools.ConfigOption.include"
 				AgentsToolsConfigOption magic-team --delete "$applyKey" > /dev/null 2>&1 || { echo "$MDSC_CMD: ⛔ ERROR: $applyKey could not be taken out -- the rows above were applied, this and the rest were not" >&2 ; return 1 ; }
 				printf 'removed\t%s\n' "$applyKey"
 			else
-				type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
+				type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/settings/AgentsTools.ConfigOption.include"
 				AgentsToolsConfigOption magic-team --upsert "$applyKey" "$applyValue" > /dev/null 2>&1 || { echo "$MDSC_CMD: ⛔ ERROR: $applyKey was not written -- the rows above were applied, this and the rest were not" >&2 ; return 1 ; }
 				printf 'set\t%s\n' "$applyKey"
 			fi

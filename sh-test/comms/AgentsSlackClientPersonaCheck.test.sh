@@ -26,7 +26,7 @@ rigHere="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib"
 rigTest="${rigHere%/sh-lib}/sh-test"
 rigPackage="${rigHere%/sh-lib}"
 rigTool="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
-rigInclude="$rigHere/comms/AgentsTools.MemberCommsSlack.include"
+rigInclude="$rigHere/slack/AgentsTools.MemberCommsSlack.include"
 rigRegInclude="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
 rigPersona="magic-coordinator"
 rigOpName="--make-agents-indices"
@@ -770,10 +770,10 @@ rigAssert "control: the same read of all includes does find a function that is t
 rigAssert "the marks function is defined in the registries include, not the Slack include" "$( LC_ALL=C grep -c '^AgentsToolsCommsSlackMemberMarks(){' "$rigRegInclude" || : ) $( LC_ALL=C grep -c '^AgentsToolsCommsSlackMemberMarks(){' "$rigInclude" || : )" "1 0"
 rigMarksFn="$( rigFnCut "$rigRegInclude" AgentsToolsCommsSlackMemberMarks )"
 rigAssert "the marks function is byte for byte as recorded (cksum, bytes)" "$( printf '%s\n' "$rigMarksFn" | cksum )" "45624737 261"
-rigAssert "its awk is byte for byte as recorded"                           "$( cksum < "$rigHere/comms/AgentsToolsCommsSlackMemberMarks.awk" )" "175965626 570"
+rigAssert "its awk is byte for byte as recorded"                           "$( cksum < "$rigHere/slack/AgentsToolsCommsSlackMemberMarks.awk" )" "175965626 570"
 rigAssert "control: another function text gives another checksum"          "$( [ "$( printf 'x\n' | cksum )" = "45624737 261" ] && printf blind || printf notices )" notices
 rigRegistryName(){ ## registry name -- the file name AgentsToolsRegistryFile gives it in the rig workspace
-	( MMDAPP="$rigWs" ; . "$rigRegInclude" && AgentsToolsRegistryFile "$1" )
+	( MMDAPP="$rigWs" ; . "$rigRegInclude" ; . "${rigRegInclude%/*}/AgentsTools.RegistryTeamMembers.include" ; . "${rigRegInclude%/*}/AgentsTools.RegistryMemberNames.include" ; . "${rigRegInclude%/*}/AgentsTools.RegistrySpawnedSessions.include" ; . "${rigRegInclude%/*}/AgentsTools.RegistryPendingReplies.include" && AgentsToolsRegistryFile "$1" )
 }
 rigAssert "every registry name, the earlier three and the new two, gives <name>.registry" "$( for rigReg in team-members team-members-names spawned-sessions pending-replies ; do rigRegistryName "$rigReg" ; done | LC_ALL=C tr '\n' ' ' )" "$rigAgentsDir/team-members.registry $rigAgentsDir/team-members-names.registry $rigAgentsDir/spawned-sessions.registry $rigAgentsDir/pending-replies.registry "
 rigAssert "control: a name is not used as given, whatever it holds"        "$( rigRegistryName member-presentation.index )" "$rigAgentsDir/member-presentation.index.registry"

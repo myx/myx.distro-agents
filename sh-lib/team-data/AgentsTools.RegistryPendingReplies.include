@@ -1,0 +1,179 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.RegistryPendingReplies.include -- the pending-replies registry: its rows, its rebuild, and whether a session or its asker still has an open question.
+## Sourced, never run. Functions only. Each function loads what it calls itself. The registry mechanics are AgentsTools.Registries.include.
+##
+
+## Whether a session still has a genuinely open ask against it -- read straight from
+## the pending-replies registry rather than re-derived here, so the two registries
+## never disagree about what "waiting" means. Never rebuilds that registry itself:
+## the caller rebuilds it once per render, not once per row.
+AgentsToolsRegistryPendingSessionOpen(){ ## session-id
+	local wantSession="$1" pendingFile spawnedFile
+	[ -n "$wantSession" ] && [ "$wantSession" != "-" ] || return 1
+	pendingFile="$MMDAPP/.local/agents/pending-replies.registry"
+	[ -f "$pendingFile" ] || return 1
+	spawnedFile="$MMDAPP/.local/agents/spawned-sessions.registry"
+	[ -f "$spawnedFile" ] || spawnedFile=""
+	## pending-replies columns: key source session-id owner status blocked-on
+	## communication-channel-id -- session-id is field 3, source is field 2,
+	## status is field 5. Two stores, two open-conditions: an `ask` row is open
+	## by its own status (`reply-pending`); a `board-item` row carries no such
+	## status value at all -- it is only ever written into this registry while
+	## still genuinely blocked (AgentsToolsRegistryPendingRepliesRows filters
+	## out any board item whose own blocked-on has cleared), so its mere
+	## presence with source board-item is itself the open condition.
+	## An ask's session-id is the id of the RUN that asked, which is its session's id
+	## only for a lone spawn and for the founder of a coworking session. So the ask of
+	## a run that joined a session is an ask against that session too, found through
+	## that run's own row of spawned-sessions, read first where the file is there:
+	## spawn-id, field 8, is the run, and session-id, field 2, the session it joined.
+	LC_ALL=C awk -v want="$wantSession" -v haveRuns="$spawnedFile" '
+		haveRuns != "" && FILENAME == ARGV[1] {
+			if ( ( $2 "" ) == ( want "" ) && $8 != "" && $8 != "-" ) { runIds[++runCount] = $8 ; }
+			next ;
+		}
+		( $2 == "ask" && $5 == "reply-pending" ) || $2 == "board-item" {
+			if ( $3 == want ) { found = 1 ; exit ; }
+			for ( runIdx = 1 ; runIdx <= runCount ; runIdx++ ) {
+				if ( $3 == runIds[runIdx] ) { found = 1 ; exit ; }
+			}
+		}
+		END { exit ( found ? 0 : 1 ) ; }
+	' ${spawnedFile:+"$spawnedFile"} "$pendingFile"
+}
+
+## The session ids of a spawned-sessions registry that AgentsToolsRegistryPendingSessionOpen
+## would call open, one per line between newlines, from ONE awk over both registries
+## instead of one per row. The same `==` as that function's, numeric where awk sees two
+## numbers, so the answer is the same id for id. An id holding a backslash is left out:
+## `-v` would have read it as an escape, so the caller asks the function itself. A row
+## whose own run asked, its spawn-id being the session-id of an open ask, gives its
+## session too, as that function finds it: an ask carries the id of the run that asked.
+AgentsToolsRegistryPendingOpenSessions(){ ## spawned-sessions registry file
+	local openPending
+	openPending="$MMDAPP/.local/agents/pending-replies.registry"
+	printf '\n'
+	[ -f "$openPending" ] && [ -f "$1" ] || return 0
+	LC_ALL=C awk '
+		FILENAME == ARGV[1] {
+			if ( ( $2 == "ask" && $5 == "reply-pending" ) || $2 == "board-item" ) { openIds[++openCount] = $3 ; }
+			next ;
+		}
+		$2 == "" || $2 == "-" || index($2, "\\") > 0 { next ; }
+		{
+			for (openIdx = 1 ; openIdx <= openCount ; openIdx++) {
+				if ($2 == openIds[openIdx] || ($8 != "" && $8 != "-" && $8 == openIds[openIdx])) { print $2 ; break ; }
+			}
+		}
+	' "$openPending" "$1" 2>/dev/null || :
+}
+
+##
+## pending-replies -- every question waiting on an answer, kept non-purged so a saved
+## reply can resume the work and an unanswered one can be asked again.
+## Columns: key source session-id owner status blocked-on communication-channel-id
+##
+## TWO stores feed it, and the first is by far the larger. `AskQuestion` -- our
+## universal harness tool, its stub in the myx.distro MCP, and a `*-native` client's
+## own AskUserQuestion that the hook reroutes into it -- is where nearly every pending
+## reply comes from, and each posted question writes a record of its own. Only SOME of
+## them ever become board items; those are the second store, recognised by carrying
+## `blocked-on`. The `source` column says which store a row came from, because what
+## resumes an ask and what resumes a board item are not the same act.
+##
+AgentsToolsRegistryPendingRepliesRows(){
+	type AgentsToolsRegistryRowsEntry > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
+	local askFile boardState boardFile
+	{
+		## The ask store first: the commonest source, and the one nothing else records.
+		## Closed records stay listed rather than being dropped: a received reply is
+		## what resumes the work and a timed-out one is what a re-ask is posted from,
+		## so both are still wanted here. The status column is what tells them apart.
+		## Closed records live in pending/closed/ (retention, T9) and stay listed: both stores feed the rows.
+		for askFile in "$MMDAPP/.local/agents/pending"/*.md "$MMDAPP/.local/agents/pending/closed"/*.md ; do
+			[ -f "$askFile" ] || continue
+			AgentsToolsRegistryRowsEntry A "$askFile"
+		done
+		## Then the board items that became items, recognised by carrying `blocked-on`.
+		## Both `running` and `blocked` are walked, because an item may be waiting
+		## without having been moved. One not waiting on a reply is not a pending
+		## reply, and the awk drops it: the registry lists what is actually blocked,
+		## never every running item.
+		if [ -n "${MDAT_DATA_ROOT:-}" ] ; then
+			for boardState in running blocked ; do
+				[ -d "$MDAT_DATA_ROOT/board/$boardState" ] || continue
+				for boardFile in "$MDAT_DATA_ROOT/board/$boardState"/*.md ; do
+					[ -f "$boardFile" ] || continue
+					AgentsToolsRegistryRowsEntry B "$boardFile"
+				done
+			done
+		fi
+	} | LC_ALL=C awk -v registryRows=pending -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsRegistryHeaderRows.awk"
+	return 0
+}
+
+AgentsToolsRegistryPendingRepliesRebuild(){
+	type AgentsToolsRegistryWrite > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
+	AgentsToolsRegistryWrite pending-replies AgentsToolsRegistryPendingRepliesRows
+}
+
+## Whether the run that asked is alive, for each asking id given: measured now and never
+## stored, since a file an hour old would call a dead asker alive. An ask's session-id is
+## the id of the run that asked -- its spawn id, or the client's own id of a session no
+## spawn started -- never the coworking session that run joined. So each id is matched to
+## the run that has it as its own, by the one rule a run is recognised by, and to nothing
+## else. stdin is the asking ids, a line each; the process list is read once for them all.
+## Prints `<id> <live>` a line, what this host says of that id:
+##   running          a process of this host runs as it (AgentsToolsRunWords), or the
+##                    process its record names still lives, that record being of this host
+##                    and still open (AgentsToolsRunRecordedAlive), as a row is read
+##   no-process       a spawn record names it and nothing runs as it: no live asker
+##   session-ended    no spawn record names it, and its own store carries the end marker of
+##                    a root session (AgentsToolsGrantsSessionEnded): no live asker
+##   no-spawn-record  no spawn record names it and nothing says it ended: a root session,
+##                    which a rule for runs cannot measure, or an id nothing here knows
+## On which host an ask was asked is its record's own `host`, which the caller holds: the
+## ask of another host is not for this to measure.
+AgentsToolsRegistryAskersLive(){ ## process list text -- stdin: the asking ids, a line each
+	type AgentsToolsRunWords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunProcesses.include"
+	local askersWords askersHost askerId askerRecord askerLine askerFront askerStatus askerHost askerSeen askerLive
+	askersWords="
+$( printf '%s' "$1" | AgentsToolsRunWords )
+"
+	askersHost="$( hostname -s 2>/dev/null )" || askersHost=""
+	[ -n "$askersHost" ] || askersHost="unknown"
+	while IFS= read -r askerId ; do
+		case "$askerId" in ''|-|.|..|*/*) continue ;; esac
+		case "$askersWords" in *"
+$askerId
+"*) printf '%s running\n' "$askerId" ; continue ;; esac
+		askerSeen="" ; askerLive="no-process"
+		for askerRecord in "${MMDAPP:-/nonexistent}/.local/agents/spawned"/*/"$askerId.spawn.md" ; do
+			[ -f "$askerRecord" ] || continue
+			askerSeen=1
+			## Only a record of this host that is still open can name a living process.
+			askerFront="" ; askerStatus="" ; askerHost=""
+			while IFS= read -r askerLine ; do
+				case "$askerFront:$askerLine" in
+					':---') askerFront=1 ;;
+					'1:---') break ;;
+					'1:status: '*) [ -n "$askerStatus" ] || askerStatus="${askerLine#status: }" ;;
+					'1:host: '*) [ -n "$askerHost" ] || askerHost="${askerLine#host: }" ;;
+				esac
+			done < "$askerRecord"
+			case "$askerStatus" in spawn-succeeded|spawn-failed|spawn-ended-without-close) continue ;; esac
+			[ "$askerHost" = "$askersHost" ] || continue
+			! AgentsToolsRunRecordedAlive "$askerRecord" || { askerLive="running" ; break ; }
+		done
+		if [ -z "$askerSeen" ] ; then
+			askerLive="no-spawn-record"
+			type AgentsToolsGrantsSessionEnded > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.Grants.include"
+			! AgentsToolsGrantsSessionEnded "${MMDAPP:-/nonexistent}/.local/agents/sessions/$askerId" || askerLive="session-ended"
+		fi
+		printf '%s %s\n' "$askerId" "$askerLive"
+	done
+	return 0
+}

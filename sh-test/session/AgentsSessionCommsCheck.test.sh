@@ -378,7 +378,7 @@ rigWaited=0
 while [ "$rigWaited" -lt 20 ] && [ ! -e "$rigDir/ws/.local/agents/comms/lock" ] ; do sleep 0.5 ; rigWaited=$(( rigWaited + 1 )) ; done
 rigAssert "the lock names it: its pid, and when it began"              "$( cat "$rigDir/ws/.local/agents/comms/lock" 2> /dev/null | LC_ALL=C awk '{ print $1 }' ):$( cat "$rigDir/ws/.local/agents/comms/lock" 2> /dev/null | LC_ALL=C awk 'NF == 2 { print "two" }' )" "${rigDaemon:-none}:two"
 rigAssert "it shows in the process list as its operation, a process of its own" "$( LC_ALL=C ps -ww -o args= -p "${rigDaemon:-0}" 2> /dev/null | LC_ALL=C grep -c -F -e '--intern-session-comms --run' )" 1
-rigAssert "it is no run of any session, by the rule that tells a run"   "$( cd "$rigDir/ws" && MDLT_ORIGIN="$MDLT_ORIGIN" bash -c ". '$rigHere/team-data/AgentsTools.Registries.include' ; ps -ww -o pid=,args= -p ${rigDaemon:-0} | AgentsToolsRegistryRunWords | wc -l | tr -d ' '" )" 0
+rigAssert "it is no run of any session, by the rule that tells a run"   "$( cd "$rigDir/ws" && MDLT_ORIGIN="$MDLT_ORIGIN" bash -c ". '$rigHere/team-data/AgentsTools.Registries.include' ; . '$rigHere/run/AgentsTools.RunProcesses.include' ; . '$rigHere/run/AgentsTools.RunState.include' ; . '$rigHere/run/AgentsTools.RunLeft.include' ; . '$rigHere/run/AgentsTools.RunRecords.include' ; ps -ww -o pid=,args= -p ${rigDaemon:-0} | AgentsToolsRunWords | wc -l | tr -d ' '" )" 0
 rigOp proc-again --start < /dev/null
 rigAssert "a second start is told it lives, and starts nothing"        "$( LC_ALL=C head -1 "$rigDir/proc-again.out" )" "alive ${rigDaemon:-none}"
 rigWaited=0
@@ -535,7 +535,7 @@ rigPush queued-x-ok
 rigAssert "after the writer's post the copy has the ts too, and the rows are gone" "$( LC_ALL=C awk -F'\t' '$1 == 1 { print ( $2 != "-" ) ? "has-ts" : "no-ts" }' "$rigOtherDir/session.chat.index" ):$( ls "$rigSessDir/chat.copies" 2> /dev/null | LC_ALL=C grep -c . || : )" "has-ts:0"
 
 echo "-- 8. the places --"
-rigProxy="$rigHere/session/AgentsTools.InternOpAgentSpawnProxy.include"
+rigProxy="$rigHere/spawn/AgentsTools.InternOpAgentSpawnProxy.include"
 rigAssert "the spawner starts the reader once, beside the control thread" "$( LC_ALL=C grep -v '^[[:space:]]*#' "$rigProxy" | LC_ALL=C grep -c '"\$( AgentsToolsSessionCommsStart' )" 1
 rigAssert "the runner keeps it out of the checks it runs"                "$( LC_ALL=C grep -c '^[[:space:]]*export MDAT_COMMS_READER=off$' "$rigTest/AgentsRunTests.sh" )" 1
 rigAssert "a rig's fixture that ends threads ends this one too"          "$( LC_ALL=C grep -c -F -e "'*/comms/log'" "$rigFixtures/rig-control-threads.include.sh" )" 1

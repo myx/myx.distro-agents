@@ -1,3 +1,6 @@
+---
+maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
+---
 # Authoring rules: rules, instructions, definitions and descriptions
 
 Read this when writing or repairing a rule, an instruction, a definition or a description.

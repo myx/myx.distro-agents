@@ -1,0 +1,73 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+type AgentsToolsPermissionField > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionHolds.include"
+
+## AgentsTools.InternOpPermissionSingleAsks.include -- the operation `--intern-op-permission-single-asks`, sourced by AgentsTools.InternOpPermission.include with the operation's arguments.
+## THE STREAM OF CALLS ASKED ALONE, counted for the harness before one more is posted to the
+## human-owner (AgentsHarnessAsk): how many requests for one call alone he has already
+## answered for this member, in this session, for this task, against the one number they
+## are held to (agentsPermissionSingleAsks, AgentsTools.PermissionHolds.include).
+## A request counts where its record is this member's and this session's and is closed
+## with an allow or a deny that he gave himself, never one a member or the coordinator
+## gave, and where it is a single permission, or a prompt single calls were added to
+## (--intern-op-escalation-permission-add: its set names the refusal of each). A Permission
+## set asked as one never counts. The same task is the same board item, where either
+## request has one; with none, the same task_ref, compared loosely
+## (AgentsToolsDecisionsNorm).
+## Prints `SINGLE-ASKS: stop|go <counted> <the number>`, then `ANSWERED: <pending-id>` for
+## each one counted, oldest first. rc 0.
+		shift
+		MDSC_CMD="$MDSC_CMD --intern-op-permission-single-asks"
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.UseAgentsTools.include"
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemDecisions.include"
+		local singleMember="${1:-}" singleSession="" singleTaskRef=""
+		shift || true
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--session-id) singleSession="${2:-}" ; shift 2 ;;
+				--task-ref) singleTaskRef="${2:-}" ; shift 2 ;;
+				*)
+					echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		if [ -z "$singleMember" ] || [ -z "$singleSession" ] ; then
+			echo "$MDSC_CMD: ⛔ ERROR: syntax is <asking-member> --session-id <id> [--task-ref <text>]" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsAssertBareName "$singleMember" "<asking-member>" permission-single-asks || { set +e ; return 1 ; }
+		AgentsToolsAssertBareName "$singleSession" "--session-id" permission-single-asks || { set +e ; return 1 ; }
+		local singleItem singleWords singleFile singleHas singleFound=""
+		singleItem="$( AgentsToolsDecisionsItemFromRef "$singleTaskRef" "$singleSession" 2> /dev/null )" || singleItem=""
+		singleWords="$( AgentsToolsDecisionsNorm "$singleTaskRef" )"
+		while IFS= read -r singleFile ; do
+			[ -n "$singleFile" ] && [ -f "$singleFile" ] || continue
+			[ "$( AgentsToolsPermissionField "$singleFile" owner )" = "$singleMember" ] && [ "$( AgentsToolsPermissionField "$singleFile" status )" = "reply-received" ] || continue
+			case "$( AgentsToolsPermissionField "$singleFile" kind )" in
+				permission) ;;
+				permission-set) LC_ALL=C grep -q '^refusal: ' "${singleFile%.md}.set" 2> /dev/null || continue ;;
+				*) continue ;;
+			esac
+			case "$( AgentsToolsPermissionField "$singleFile" verdict )" in
+				allow-*|deny) ;;
+				*) continue ;;
+			esac
+			AgentsToolsPermissionIsHumanOwner "$( AgentsToolsPermissionField "$singleFile" answered-by )" || continue
+			singleHas="$( AgentsToolsPermissionField "$singleFile" item )"
+			if [ -n "$singleItem$singleHas" ] ; then
+				[ "$singleHas" = "$singleItem" ] || continue
+			else
+				[ "$( AgentsToolsDecisionsNorm "$( AgentsToolsPermissionField "$singleFile" task-ref )" )" = "$singleWords" ] || continue
+			fi
+			singleHas="${singleFile##*/}"
+			singleFound="$singleFound$( AgentsToolsPermissionField "$singleFile" question-ts )"$'\t'"${singleHas%.md}"$'\n'
+		## An answer closes its record, and a closed record is retained in pending/closed/
+		## (retention, T9): both stores are read, or a request he has answered is counted only
+		## until it is closed, and the one after it is posted as if it were the first.
+		done <<< "$( LC_ALL=C grep -l -x -F -- "session-id: $singleSession" "$MMDAPP/.local/agents/pending"/*.md "$MMDAPP/.local/agents/pending/closed"/*.md 2> /dev/null )"
+		singleFound="$( printf '%s' "$singleFound" | LC_ALL=C sort | LC_ALL=C cut -f2- )"
+		singleHas="$( printf '%s\n' "$singleFound" | LC_ALL=C grep -c . || : )"
+		printf 'SINGLE-ASKS: %s %s %s\n' "$( [ "$singleHas" -ge "$agentsPermissionSingleAsks" ] && printf 'stop' || printf 'go' )" "$singleHas" "$agentsPermissionSingleAsks"
+		[ -z "$singleFound" ] || printf '%s\n' "$singleFound" | LC_ALL=C awk 'NF { print "ANSWERED: " $0 ; }'
+		return 0

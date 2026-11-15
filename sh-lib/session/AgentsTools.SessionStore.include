@@ -1,0 +1,101 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.SessionStore.include -- where a workspace keeps its sessions and its spawn records: the one answer, so no other part
+## builds the path. Sourced, never run. A session's folder is `<sessions store>/<session id>`, a spawn's `<spawned store>/<spawn id>`.
+## The files inside a session's folder are the session subsystem's own; another part asks for what it needs rather than reading them.
+##
+## Every path here is built by printf -v, never by a command substitution, so a call in a hot path forks no process; each printing
+## query has an `...Into <variable>` form for a caller that wants the path without a fork.
+##
+## AgentsSessionStoreDir <workspace>   the sessions store of that workspace (AgentsSessionStoreDirInto <variable> <workspace>)
+## AgentsSpawnedStoreDir <workspace>   the spawn records of that workspace (AgentsSpawnedStoreDirInto <variable> <workspace>)
+## AgentsSessionThread <session>       the session's Slack thread `<channel>:<ts>`, as its folder records it, else as its founding
+##                                      run's record names it (then kept in the folder); nothing where it has none
+## AgentsSessionThreadSet <session> <channel:ts>   records the session's thread in its folder
+## AgentsSpawnedThreadOfRecord <spawn record>       the thread the folder of a spawn record keeps; nothing for none
+## AgentsSessionDeathFile <session>                  the session's record of deaths (control/dead), for its writer (...Into)
+## AgentsSessionHasDeathRecord <session>             rc 0 where the session records a death
+## AgentsSessionRunDead <session> <run>              rc 0 where the session's record of deaths names the run
+## AgentsSessionDeathSessions                         the sessions with a death recorded, one a line
+## AgentsSessionDeathLines <session>                  the lines of the session's record of deaths
+## AgentsSessionMarkerFile <id> <marker>             a run's or a session's lifecycle marker: paused, parked, dismissed, stop.left, control/closed (...Into)
+## AgentsSessionMarked <id> <marker>                  rc 0 where that marker is set
+## AgentsSessionRunClosed <session> <run>             rc 0 where the session's control/closed names the run (`-`: the session itself)
+## AgentsSessionCloseRun <session> <run> <who> <when> names the run in the session's control/closed, once
+agentsSessionStoreLeaf=".local/agents/sessions"
+agentsSpawnedStoreLeaf=".local/agents/spawned"
+AgentsSessionThread(){ ## session
+	local threadSession="${1:-}" threadHere threadValue="" threadRecord
+	case "$threadSession" in ''|-|.|..|*/*|*[[:space:]]*) return 0 ;; esac
+	[ -n "${MMDAPP:-}" ] || return 0
+	printf -v threadHere '%s/%s/%s' "${MMDAPP%/}" "$agentsSessionStoreLeaf" "$threadSession"
+	{ IFS= read -r threadValue < "$threadHere/session.thread" ; } 2> /dev/null || threadValue=""
+	if [ -z "$threadValue" ] ; then
+		printf -v threadRecord '%s/%s/%s/%s.spawn.md' "${MMDAPP%/}" "$agentsSpawnedStoreLeaf" "$threadSession" "$threadSession"
+		if [ -f "$threadRecord" ] ; then
+			threadValue="$( LC_ALL=C awk '$0 == "---" { if ( ++fence > 1 ) exit ; next } fence == 1 && index( $0, "session-thread: " ) == 1 { print substr( $0, 17 ) ; exit }' "$threadRecord" 2> /dev/null )"
+		fi
+		case "$threadValue" in [A-Z]*:[0-9]*.[0-9]*) printf '%s\n' "$threadValue" > "$threadHere/session.thread" 2> /dev/null || : ;; *) threadValue="" ;; esac
+	fi
+	printf '%s' "$threadValue"
+}
+AgentsSessionThreadSet(){ ## session, channel:ts
+	local setHere
+	printf -v setHere '%s/%s/%s' "${MMDAPP%/}" "$agentsSessionStoreLeaf" "$1"
+	mkdir -p "$setHere" && printf '%s\n' "$2" > "$setHere/session.thread"
+}
+AgentsSpawnedThreadOfRecord(){ ## spawn record path
+	local recordThread=""
+	{ IFS= read -r recordThread < "${1%/*}/session.thread" ; } 2> /dev/null || recordThread=""
+	printf '%s' "$recordThread"
+}
+AgentsSessionHasDeathRecord(){ ## session
+	case "${1:-}" in ''|-|.|..|*/*) return 1 ;; esac
+	[ -f "${MMDAPP:-/nonexistent}/.local/agents/sessions/$1/control/dead" ]
+}
+AgentsSessionRunDead(){ ## session, run
+	[ -n "${2:-}" ] && AgentsSessionHasDeathRecord "${1:-}" || return 1
+	LC_ALL=C awk -v want="$2" '$1 == want { found = 1 ; exit } END { exit ( found ? 0 : 1 ) }' "${MMDAPP:-/nonexistent}/.local/agents/sessions/$1/control/dead" 2> /dev/null
+}
+AgentsSessionDeathSessions(){
+	local deathFile deathSession
+	for deathFile in "${MMDAPP:-/nonexistent}/$agentsSessionStoreLeaf"/*/control/dead ; do
+		[ -s "$deathFile" ] || continue
+		deathSession="${deathFile%/control/dead}" ; printf '%s\n' "${deathSession##*/}"
+	done
+}
+AgentsSessionDeathLines(){ ## session
+	AgentsSessionHasDeathRecord "$1" || return 0
+	cat "${MMDAPP:-/nonexistent}/.local/agents/sessions/$1/control/dead" 2> /dev/null
+}
+AgentsSessionMarkerFileInto(){ ## variable, run or session id, marker -- rc 1 for an id or a marker that is none
+	case "${2:-}" in ''|-|.|..|*/*|*[[:space:]]*) return 1 ;; esac
+	case "${3:-}" in paused|parked|dismissed|stop.left|control/closed) ;; *) return 1 ;; esac
+	printf -v "$1" '%s/%s/%s/%s' "${MMDAPP:-/nonexistent}" "$agentsSessionStoreLeaf" "$2" "$3"
+}
+AgentsSessionMarkerFile(){ ## run or session id, marker
+	local markerPath
+	AgentsSessionMarkerFileInto markerPath "${1:-}" "${2:-}" || return 1
+	printf '%s\n' "$markerPath"
+}
+AgentsSessionMarked(){ ## run or session id, marker
+	local markedFile
+	AgentsSessionMarkerFileInto markedFile "${1:-}" "${2:-}" || return 1
+	[ -e "$markedFile" ]
+}
+AgentsSessionRunClosed(){ ## session, run (`-` or empty: the session itself)
+	local closedWant="${2:-}" closedFile
+	case "$closedWant" in ''|-) closedWant="${1:-}" ;; esac
+	AgentsSessionMarkerFileInto closedFile "${1:-}" control/closed || return 1
+	[ -e "$closedFile" ] || return 1
+	LC_ALL=C awk -v want="$closedWant" '$1 == want { found = 1 ; exit } END { exit ( found ? 0 : 1 ) }' "$closedFile" 2> /dev/null
+}
+AgentsSessionCloseRun(){ ## session, run (`-`: the session itself), who, when
+	local closeFile closeRun="${2:-}"
+	case "$closeRun" in ''|-) closeRun="$1" ;; esac
+	AgentsSessionRunClosed "$1" "$closeRun" && return 0
+	AgentsSessionMarkerFileInto closeFile "$1" control/closed || return 1
+	{ mkdir -p "${closeFile%/*}" && printf '%s %s %s\n' "$closeRun" "$3" "$4" >> "$closeFile" ; } 2> /dev/null
+}

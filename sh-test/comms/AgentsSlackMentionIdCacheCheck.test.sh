@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-## Behavioural check on the Slack mention-id cache ($MMDAPP/.local/.agents/slack-mention-ids.cache), run rather than
+## Behavioural check on the Slack mention-id cache ($MMDAPP/.local/agents/cache/slack-identities.cache, AgentsTools.SlackIdentities.include), run rather than
 ## read, against a scenario workspace built here. A row is member=id and, once completed, member=id=handle=real name=
 ## display name=workspace domain, the account columns coming from one read-only users.info call. Holds: a fresh
 ## resolution writes the full row after exactly auth.test and users.info, with "=" and a backslash stripped from a value;
@@ -15,8 +15,8 @@ set -u
 rigHere="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib"
 rigTest="${rigHere%/sh-lib}/sh-test"
 rigTool="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
-rigInclude="$rigHere/comms/AgentsTools.MemberCommsSlack.include"
-rigSendInclude="$rigHere/comms/AgentsTools.InternOpCommsSlackSend.include"
+rigInclude="$rigHere/slack/AgentsTools.MemberCommsSlack.include"
+rigSendInclude="$rigHere/slack/AgentsTools.InternOpCommsSlackSend.include"
 
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
@@ -45,7 +45,7 @@ rigAssert(){ ## what is asserted, got, want
 	fi
 }
 
-rigCache="$rigWs/.local/.agents/slack-mention-ids.cache"
+rigCache="$rigWs/.local/agents/cache/slack-identities.cache"
 rigIdle="4294967295 0"
 rigDomain="rig.example"
 rigWorld(){ ## -- a fresh workspace: tokens for three members, the human-owner id, the team domain, an empty cache
@@ -60,6 +60,7 @@ rigWorld(){ ## -- a fresh workspace: tokens for three members, the human-owner i
 	: > "$rigTmp/calls"
 }
 rigCacheWrite(){ ## rows... -- the cache holding the idle lock generation and these rows
+	mkdir -p "${rigCache%/*}" || exit 1
 	{ printf '%s\n' "$rigIdle" ; printf '%s\n' "$@" ; } > "$rigCache"
 	chmod 600 "$rigCache"
 }
@@ -164,7 +165,7 @@ rigAssert "a row without columns never matches, nor does a - row, by the member'
 rigAssert "a row with too few columns never matches, even where a column holds the name"   "$( rigCall AgentsToolsCommsSlackMentionFindByName shortrow ; cat "$rigTmp/fn.out" )" ""
 rigAssert "a partial name does not match"                                "$( rigCall AgentsToolsCommsSlackMentionFindByName magic ; cat "$rigTmp/fn.out" )" ""
 rigAssert "it reads the cache and nothing else: no Slack call was made"  "$( rigCalls )" ""
-rigAssert "the include holds the function in a few lines on the cache alone: lines between its heading and its closing brace" "$( LC_ALL=C awk '/^AgentsToolsCommsSlackMentionFindByName\(\)/ { on = 1 } on { n++ } on && /^}/ { print n ; exit }' "$rigSendInclude" )" 3
+rigAssert "the include holds the function in a few lines on the cache alone: lines between its heading and its closing brace" "$( LC_ALL=C awk '/^AgentsToolsCommsSlackMentionFindByName\(\)/ { on = 1 } on { n++ } on && /^}/ { print n ; exit }' "${rigSendInclude%/*}/AgentsTools.SlackIdentities.include" )" 3
 
 if [ "$rigFails" -ne 0 ] ; then
 	echo "⛔ SLACK MENTION ID CACHE CHECK FAILED: $rigFails of $(( rigPasses + rigFails )) assertion(s)" >&2 ; exit 1

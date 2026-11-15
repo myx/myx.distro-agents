@@ -8,8 +8,10 @@
 ## Offline: a temp store of this check alone, removed at its end; nothing is requested.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
+: "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 rigLib="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib"
-rigTmp="$( mktemp -d "${MMDAPP:-${TMPDIR:-/tmp}}/.local/agents/scratch/sh-test/AgentsScheduleChildrenKeepCheck.XXXXXXXX" 2> /dev/null || mktemp -d "${TMPDIR:-/tmp}/AgentsScheduleChildrenKeepCheck.XXXXXXXX" )" || exit 1
+mkdir -p "$MMDAPP/.local/agents/scratch/sh-test" || exit 1
+rigTmp="$( mktemp -d "$MMDAPP/.local/agents/scratch/sh-test/AgentsScheduleChildrenKeepCheck.XXXXXXXX" )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
 rigWs="$rigTmp/ws"
 rigPass=0 ; rigFail=0
@@ -22,7 +24,7 @@ rigRecord(){ ## folder, spawn id, parent spawn id
 	printf -- '---\nsession-id: %s\nspawn-id: %s\nparent-spawn-id: %s\nowner: magic-tester\nstatus: spawn-started\n---\n\n# Spawn session\n' "$2" "$2" "$3" > "$rigWs/.local/agents/spawned/$1/$2.spawn.md"
 }
 rigKeep(){ ## the bound in seconds
-	( MMDAPP="$rigWs" MDAT_SCHEDULE_CHILDREN_REPAIR_SECONDS="$1" ; export MMDAPP MDAT_SCHEDULE_CHILDREN_REPAIR_SECONDS ; . "$rigLib/session/AgentsTools.ScheduleThread.include" ; AgentsToolsScheduleThreadChildrenKeep ) 2> /dev/null
+	( MMDAPP="$rigWs" MDAT_SCHEDULE_CHILDREN_REPAIR_SECONDS="$1" ; export MMDAPP MDAT_SCHEDULE_CHILDREN_REPAIR_SECONDS ; . "$rigLib/schedule/AgentsTools.ScheduleThread.include" ; AgentsToolsScheduleThreadChildrenKeep ) 2> /dev/null
 }
 rigMark="$rigWs/.local/agents/children/.indexed"
 rigRecord p-folder rig-parent none
@@ -53,7 +55,7 @@ echo "-- 5. the default bound stands at 300 s, not 3600 --"
 ## A mark 900 s old separates the two: past 300, well short of 3600. Both platforms' `date` are tried, and the arm skips where neither answers.
 rigAgo="$( date -r "$(( $( date +%s ) - 900 ))" '+%Y%m%d%H%M' 2> /dev/null || date -d "@$(( $( date +%s ) - 900 ))" '+%Y%m%d%H%M' 2> /dev/null )" || rigAgo=""
 if [ -n "$rigAgo" ] ; then
-	rigKeepDefault(){ ( MMDAPP="$rigWs" ; export MMDAPP ; unset MDAT_SCHEDULE_CHILDREN_REPAIR_SECONDS ; . "$rigLib/session/AgentsTools.ScheduleThread.include" ; AgentsToolsScheduleThreadChildrenKeep ) 2> /dev/null ; }
+	rigKeepDefault(){ ( MMDAPP="$rigWs" ; export MMDAPP ; unset MDAT_SCHEDULE_CHILDREN_REPAIR_SECONDS ; . "$rigLib/schedule/AgentsTools.ScheduleThread.include" ; AgentsToolsScheduleThreadChildrenKeep ) 2> /dev/null ; }
 	rm -rf "$rigWs/.local/agents/children"
 	rigKeepDefault
 	rigAssert "with no mark the default repairs the lists"          "$( [ -f "$rigMark" ] && printf yes || printf no )" yes
@@ -69,7 +71,7 @@ fi
 if [ "$rigFail" -ne 0 ] ; then
 	echo "⛔ SCHEDULE CHILDREN KEEP CHECK FAILED: $rigFail of $(( rigPass + rigFail )) assertion(s)" >&2
 	echo "  warn: a rig with no main loop keeps no children lists, and every reader of a parent's children reads every record" >&2
-	echo "  fix:  AgentsToolsScheduleThreadChildrenKeep in sh-lib/session/AgentsTools.ScheduleThread.include" >&2
+	echo "  fix:  AgentsToolsScheduleThreadChildrenKeep in sh-lib/schedule/AgentsTools.ScheduleThread.include" >&2
 	exit 1
 fi
 echo "SCHEDULE_CHILDREN_KEEP: OK ($rigPass assertions, offline)"

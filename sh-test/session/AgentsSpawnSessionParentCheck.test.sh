@@ -19,7 +19,7 @@
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigHere="$MDLT_ORIGIN/myx/myx.distro-agents"
-rigInclude="$rigHere/sh-lib/session/AgentsTools.SpawnSandbox.include"
+rigInclude="$rigHere/sh-lib/spawn/AgentsTools.SpawnSandbox.include"
 [ -f "$rigInclude" ] || { echo "⛔ ERROR: no spawn sandbox include at $rigInclude" >&2 ; exit 1 ; }
 
 rigPasses=0
@@ -32,7 +32,8 @@ rigAssert(){
 	fi
 }
 
-rigTmp="$( mktemp -d "${TMPDIR:-/tmp}/AgentsSpawnSessionParentCheck.XXXXXX" )" || exit 1
+mkdir -p "$MMDAPP/.local/agents/scratch/sh-test" || exit 1
+rigTmp="$( mktemp -d "$MMDAPP/.local/agents/scratch/sh-test/AgentsSpawnSessionParentCheck.XXXXXX" )" || exit 1
 rigChildPids=""
 rigStop(){
 	[ -z "$rigChildPids" ] || kill $rigChildPids 2> /dev/null || :

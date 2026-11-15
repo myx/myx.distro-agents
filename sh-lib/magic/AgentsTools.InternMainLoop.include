@@ -111,7 +111,7 @@ case "$1" in
 					case "$(
 						for mainLoopAuthKey in ANTHROPIC_API_KEY CLAUDE_CODE_OAUTH_TOKEN ; do
 							mainLoopOptionSpec="$( AgentsToolsOwnerSetupOptionSpec "$mainLoopAuthKey" )"
-							type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
+							type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/settings/AgentsTools.ConfigOption.include"
 							mainLoopAuthValue="$( AgentsToolsConfigOption "${mainLoopOptionSpec%%|*}" --select "$mainLoopAuthKey" 2>/dev/null )"
 							[ -n "$mainLoopAuthValue" ] || continue
 							export "$mainLoopAuthKey=$mainLoopAuthValue"
@@ -131,10 +131,10 @@ case "$1" in
 		fi
 
 		local sleepSeconds mainLoopRc nextDelaySeconds maxDelaySeconds
-		type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
+		type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/settings/AgentsTools.ConfigOption.include"
 		sleepSeconds="$( AgentsToolsConfigOption magic-coordinator --select-default MAIN_LOOP_RESTART_DELAY_SECONDS 29 )"
 		case "$sleepSeconds" in *[!0123456789]*|'') sleepSeconds=29 ;; esac
-		type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
+		type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/settings/AgentsTools.ConfigOption.include"
 		maxDelaySeconds="$( AgentsToolsConfigOption magic-coordinator --select-default MAIN_LOOP_RESTART_DELAY_MAX_SECONDS 1200 )"
 		case "$maxDelaySeconds" in *[!0123456789]*|'') maxDelaySeconds=1200 ;; esac
 		nextDelaySeconds="$sleepSeconds"
@@ -146,10 +146,10 @@ case "$1" in
 		## iteration. A configured value collapses both arms to one correct test.
 		local mainLoopDataRemote mainLoopDataBranch
 		mainLoopOptionSpec="$( AgentsToolsOwnerSetupOptionSpec TEAM_DATA_GIT_REMOTE )"
-		type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
+		type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/settings/AgentsTools.ConfigOption.include"
 		mainLoopDataRemote="$( AgentsToolsConfigOption "${mainLoopOptionSpec%%|*}" --select TEAM_DATA_GIT_REMOTE 2>/dev/null )"
 		mainLoopOptionSpec="$( AgentsToolsOwnerSetupOptionSpec TEAM_DATA_BRANCH )"
-		type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
+		type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/settings/AgentsTools.ConfigOption.include"
 		mainLoopDataBranch="$( AgentsToolsConfigOption "${mainLoopOptionSpec%%|*}" --select-default TEAM_DATA_BRANCH main )"
 		[ -n "$mainLoopDataBranch" ] || mainLoopDataBranch="main"
 		local mainLoopTeamData="skipped" mainLoopTeamDataFailures=0
@@ -270,12 +270,12 @@ case "$1" in
 			local mainLoopConfigOk=""
 			if AgentsToolsMainLoopConfigCheck ; then mainLoopConfigOk="yes" ; else mainLoopRc=1 ; fi
 			AgentsToolsMainLoopSyncTeamData
-			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include"
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandbox.include"
 			AgentsToolsSpawnSandboxSweep "--intern-main-loop"
 			## Each parent session's list of its children, rebuilt from the spawn records in
 			## one pass, before anything is spawned. Logged, never fatal: lists that could not
 			## be rebuilt stay unmarked, and every harness then scans every record.
-			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.ChildrenIndex.include" \
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.ChildrenIndex.include" \
 				&& AgentsToolsChildrenIndexRepair "$MMDAPP" \
 				&& echo "# $MDSC_CMD --intern-main-loop: children lists rebuilt under .local/agents/children" >&2 \
 				|| echo "# $MDSC_CMD --intern-main-loop: the children lists could not be rebuilt -- every harness scans every spawn record until an iteration rebuilds them" >&2
@@ -286,9 +286,9 @@ case "$1" in
 			local mainLoopHouse="" mainLoopHouseLine
 			mainLoopHouse="$(
 				set +e
-				. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include" > /dev/null 2>&1 || exit 1
-				. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.SpawnHousekeeping.include" > /dev/null 2>&1 || exit 1
-				. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.BoardDependencies.include" > /dev/null 2>&1 || exit 1
+				. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"|| exit 1
+				. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.BoardHousekeeping.include"|| exit 1
+				. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.BoardDependencies.include"|| exit 1
 				AgentsToolsAdvanceSpawnHousekeeping 24 magic-coordinator no-threads 2>&1 > /dev/null
 				AgentsToolsBoardDependencies 2> /dev/null
 			)" || mainLoopHouse="housekeeping: the board's housekeeping could not run"
@@ -347,7 +347,7 @@ case "$1" in
 			local mainLoopCollect=""
 			mainLoopCollect="$(
 				set +e
-				. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CollectThread.include" 2> /dev/null || exit 1
+				. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CollectThread.include" || exit 1
 				AgentsToolsCollectThreadCheck main-loop 2> /dev/null
 			)" || mainLoopCollect="failed - the check could not run"
 			case "$mainLoopCollect" in
@@ -360,7 +360,7 @@ case "$1" in
 			[ "$mainLoopInterrupted" = "false" ] || return 0
 			if [ -n "$mainLoopConfigOk" ] ; then
 				if [ "${MDAT_SCHEDULE_THREAD:-}" != "off" ] ; then
-					type AgentsToolsScheduleThreadAsk > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.ScheduleThread.include" 2> /dev/null || :
+					type AgentsToolsScheduleThreadAsk > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/schedule/AgentsTools.ScheduleThread.include"
 					mainLoopScheduleAsk="$( AgentsToolsScheduleThreadAsk 2> /dev/null )" || :
 					case "$mainLoopScheduleAsk" in
 						started*|failed*) echo "# $MDSC_CMD --intern-main-loop: the schedule's service thread: $mainLoopScheduleAsk" >&2 ;;
@@ -368,7 +368,7 @@ case "$1" in
 				else
 					mainLoopSchedule="$(
 						set +e
-						. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.DispatcherSchedule.include" 2> /dev/null || exit 1
+						. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/schedule/AgentsTools.DispatcherSchedule.include" || exit 1
 						AgentsToolsScheduleLoop 2> /dev/null
 					)" || mainLoopSchedule="schedule: the steps could not run"
 					while IFS= read -r mainLoopScheduleLine ; do

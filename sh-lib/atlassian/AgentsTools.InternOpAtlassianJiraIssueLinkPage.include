@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+## AgentsTools.InternOpAtlassianJiraIssueLinkPage.include -- the operation `--intern-op-atlassian-jira-issue-link-page`, sourced by AgentsTools.InternOpAtlassianCall.include with the operation's arguments.
+	type AgentsToolsAtlassianCall > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/atlassian/AgentsTools.AtlassianRequest.include"
+		shift
+		local jiraLPMember="" jiraLPKey="" jiraLPUrl="" jiraLPTitle="" jiraLPContext="intern-op-atlassian-jira-issue-link-page"
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--member)    shift ; [ -n "${1:-}" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraLPContext: --member value missing" >&2 ; set +e ; return 1 ; } ; jiraLPMember="$1" ; shift ;;
+				--issue-key) shift ; [ -n "${1:-}" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraLPContext: --issue-key value missing" >&2 ; set +e ; return 1 ; } ; jiraLPKey="$1" ; shift ;;
+				--url)       shift ; [ -n "${1:-}" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraLPContext: --url value missing" >&2 ; set +e ; return 1 ; } ; jiraLPUrl="$1" ; shift ;;
+				--title)     shift ; [ -n "${1:-}" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraLPContext: --title value missing" >&2 ; set +e ; return 1 ; } ; jiraLPTitle="$1" ; shift ;;
+				--context)   shift ; [ -n "${1:-}" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraLPContext: --context value missing" >&2 ; set +e ; return 1 ; } ; jiraLPContext="$1" ; shift ;;
+				*)
+					printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraLPContext: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		if [ -z "$jiraLPMember" ] || [ -z "$jiraLPKey" ] || [ -z "$jiraLPUrl" ] || [ -z "$jiraLPTitle" ] ; then
+			printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraLPContext: syntax is --member <team-member> --issue-key <issue-key> --url <page-url> --title <text> [--context <caller>]" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsAssertBareName "$jiraLPKey" "<issue-key>" "$jiraLPContext" || { set +e ; return 1 ; }
+		case "$jiraLPUrl" in
+			https://*) ;;
+			*)
+				printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraLPContext: --url is not an https address: $jiraLPUrl" >&2
+				set +e ; return 1
+			;;
+		esac
+		## The page's address is the link's global id, and the site replaces a link whose id it already holds: a retry leaves one link.
+		local jiraLPUrlEsc jiraLPTitleEsc jiraLPRc=0
+		jiraLPUrlEsc="$( printf '%s' "$jiraLPUrl" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/mcp/AgentsMcpJsonEscape.awk" )"
+		jiraLPTitleEsc="$( printf '%s' "$jiraLPTitle" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/mcp/AgentsMcpJsonEscape.awk" )"
+		AgentsToolsAtlassianCall "$jiraLPMember" jira POST "/rest/api/3/issue/$( AgentsToolsAtlassianUrlEncode "$jiraLPKey" )/remotelink" "$jiraLPContext" "{\"globalId\":\"$jiraLPUrlEsc\",\"object\":{\"url\":\"$jiraLPUrlEsc\",\"title\":\"$jiraLPTitleEsc\"}}" || jiraLPRc=$?
+		if [ "$jiraLPRc" -ne 0 ] ; then
+			set +e ; return "$jiraLPRc"
+		fi
+		return 0

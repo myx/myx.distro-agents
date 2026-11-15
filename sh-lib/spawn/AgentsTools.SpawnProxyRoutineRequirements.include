@@ -1,0 +1,50 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+			local requirementVerdict requirementItem="attached"
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/routine/AgentsTools.RoutineRequirements.include"
+			[ "$dispatchDocMode" != "none" ] || requirementItem="none"
+			requirementVerdict="$( AgentsToolsRoutineRequirement tracking-item spawn "$routineFilePath" "item=$requirementItem context=$startContext" )" || {
+				if requirementHeld="$( AgentsToolsRoutineOverride "$spawnCallMember" "$parentSessionId" tracking-item "$routineRecorded" )" ; then
+					routineOverrides="${routineOverrides}tracking-item $routineRecorded, held through $requirementHeld"$'\n'
+					echo "$MDSC_CMD: agent-spawn-proxy: ⚠️ WARNING: $routineRecorded: ${requirementVerdict#*$'\t'} -- overridden by a permission held through $requirementHeld" >&2
+				else
+					echo "$MDSC_CMD: agent-spawn-proxy: ⛔ ERROR: $routineRecorded: ${requirementVerdict#*$'\t'} -- nothing was started$( AgentsToolsRoutineOverrideAsk tracking-item "$routineRecorded" )" >&2
+					set +e ; spawnProxyRoutineRequirementsEnded=1 ; return 1
+				fi
+			}
+			[ "${requirementVerdict%%$'\t'*}" != "automate" ] || [ "$teamDataKept" = "no" ] || dispatchDocMode="create"
+			## HELP: the one party who can supply what is missing is asked, by the path every hand-off to the coordinator takes, an
+			## inquiry in its inbox naming the routine, and the start goes on with a warning that is counted: it is kept on the
+			## run's record as `start-warning:` and said here, where the start's own output (the Launch of the console among
+			## it) shows it. Counted from the records.
+			if [ "${requirementVerdict%%$'\t'*}" = "help" ] ; then
+				startWarnings="${startWarnings}start-warning: ${requirementVerdict#*$'\t'}"$'\n'
+				echo "$MDSC_CMD: agent-spawn-proxy: ⚠️ WARNING: $routineRecorded: ${requirementVerdict#*$'\t'}" >&2
+				AgentsToolsRoutineStartAsk "$callerName" "$routineRecorded" tracking-item "${requirementVerdict#*$'\t'}" "$sessionId" "$MDAT_SPAWN_SESSION_ID" || :
+			fi
+			requirementVerdict="$( AgentsToolsRoutineRequirement start-context spawn "$routineFilePath" "context=$startContext" )" || {
+				if requirementHeld="$( AgentsToolsRoutineOverride "$spawnCallMember" "$parentSessionId" start-context "$routineRecorded" )" ; then
+					routineOverrides="${routineOverrides}start-context $routineRecorded, held through $requirementHeld"$'\n'
+					echo "$MDSC_CMD: agent-spawn-proxy: ⚠️ WARNING: $routineRecorded: ${requirementVerdict#*$'\t'} -- overridden by a permission held through $requirementHeld" >&2
+				else
+					echo "$MDSC_CMD: agent-spawn-proxy: ⛔ ERROR: $routineRecorded: ${requirementVerdict#*$'\t'} -- nothing was started$( AgentsToolsRoutineOverrideAsk start-context "$routineRecorded" )" >&2
+					set +e ; spawnProxyRoutineRequirementsEnded=1 ; return 1
+				fi
+			}
+			## What the routine's `operations:` finds against its executors is said and refuses nothing: the row predicts another system's refusal.
+			requirementVerdict="$( AgentsToolsRoutineRequirement operations spawn "$routineFilePath" )" || :
+			printf '%s\n' "$requirementVerdict" | LC_ALL=C awk -F'\t' -v routine="$routineRecorded" '$1 == "reject" || $1 == "help" { print "⚠️ REPORT: " routine ": " $2 }' >&2 || :
+			## WHETHER THE RUN'S ITEM IS REVIEWED is the routine's say (`review-by:`, its own else its kind routine's, F6.5): `none`
+			## disables the review, `inherit` leaves it to where the run reports to, any other value is the reviewer. A reviewer
+			## its caller named (--review-by) stands, as the more specific.
+			local routineReviewBy
+			requirementVerdict="$( AgentsToolsRoutineRequirement review-by spawn "$routineFilePath" )" || {
+				echo "$MDSC_CMD: agent-spawn-proxy: ⛔ ERROR: $routineRecorded: ${requirementVerdict#*$'\t'} -- nothing was started" >&2
+				set +e ; spawnProxyRoutineRequirementsEnded=1 ; return 1
+			}
+			routineReviewBy="$( AgentsToolsRoutineKey "$routineFilePath" review-by )"
+			case "$routineReviewBy" in
+				''|inherit) ;;
+				*) [ -n "$reviewBySaid" ] || reviewBySaid="$routineReviewBy" ;;
+			esac

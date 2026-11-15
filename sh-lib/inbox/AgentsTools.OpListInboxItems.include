@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+## AgentsTools.OpListInboxItems.include -- the operation `--list-inbox-items`, sourced by AgentsTools.Member.include with the operation's arguments.
+## THE ITEMS OF AN INBOX, ONE ROW EACH, in one call: what a run otherwise found by cd, ls and cat over the inbox folders. A row is
+## `<state> <item> <type> <from> <date> <title>`, newest first; --of <member> lists another member's inbox, --include-processed its
+## processed items too, --grep <text> keeps the items whose title or name holds the text. Read only. An item is read whole with
+## --get-inbox-item, several at once in one BatchTools call.
+		shift
+		local listMember="" listOf="" listProcessed="no" listGrep="" listFolder listState
+		case "${1:-}" in ''|-*) ;; *) listMember="$1" ; shift ;; esac
+		[ -n "$listMember" ] || listMember="$( AgentsToolsTeamMember 2> /dev/null )" || listMember=""
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--of) listOf="${2:-}" ; shift 2 ;;
+				--include-processed) listProcessed="yes" ; shift ;;
+				--grep) listGrep="${2:-}" ; shift 2 ;;
+				*) echo "⛔ ERROR: $MDSC_CMD --list-inbox-items: syntax is [--team-member <member>] [--of <member>] [--include-processed] [--grep <text>], got: $1" >&2 ; set +e ; return 1 ;;
+			esac
+		done
+		listMember="${listOf:-$listMember}"
+		[ -n "$listMember" ] || { echo "⛔ ERROR: $MDSC_CMD --list-inbox-items: whose inbox is not known: give --team-member or --of" >&2 ; set +e ; return 1 ; }
+		AgentsToolsAssertBareName "$listMember" "<member>" list-inbox-items || { set +e ; return 1 ; }
+		[ -n "${MDAT_DATA_ROOT:-}" ] || { echo "⛔ ERROR: $MDSC_CMD --list-inbox-items: MDAT_DATA_ROOT is not set" >&2 ; set +e ; return 1 ; }
+		type AgentsToolsInboxFolders > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/inbox/AgentsTools.InboxPlace.include"
+		while IFS= read -r listFolder ; do
+			[ -d "$listFolder" ] || continue
+			listState="${listFolder##*/}"
+			LC_ALL=C awk -v state="$listState" -v want="$( printf '%s' "$listGrep" | LC_ALL=C tr 'A-Z' 'a-z' )" '
+				function emit() { if ( name == "" ) return ; line = state "\t" name "\t" ( type != "" ? type : "-" ) "\t" ( from != "" ? from : "-" ) "\t" ( date != "" ? date : "-" ) "\t" ( title != "" ? title : "-" )
+					if ( want == "" || index( tolower( name "\t" title ), want ) ) print line }
+				FNR == 1 { emit() ; name = FILENAME ; sub( /.*\//, "", name ) ; type = "" ; from = "" ; date = "" ; title = "" ; hdr = 0 }
+				/^---$/ { hdr++ ; next }
+				hdr == 1 && /^type: / { type = substr( $0, 7 ) }
+				hdr == 1 && /^from: / { from = substr( $0, 7 ) }
+				hdr == 1 && /^date: / { date = substr( $0, 7, 16 ) }
+				hdr >= 2 && title == "" && /^# / { title = substr( $0, 3 ) }
+				END { emit() }' "$listFolder"/*.md 2> /dev/null || :
+		done < <( AgentsToolsInboxFolders "$listMember" "$listProcessed" ) | LC_ALL=C sort -t "$( printf '\t' )" -k5,5r
+		return 0

@@ -6,7 +6,7 @@
 ## epic): --manager-session-message leaves a message for a session or for some of its participants, and --manager-session-join
 ## brings magic-coordinator into a session that has finished, waits or is stuck, with a task to assess it. Sourced from the
 ## `--manager-session-message|--manager-session-join)` arm of AgentsTools.Manager.include; who may call was asked where the
-## family is dispatched. The rest of the family stays in AgentsTools.ManagerSession.include.
+## family is dispatched. The rest of the family stays in AgentsTools.ManagerConsoleIdentity.include.
 ##
 ## A MESSAGE FROM THE CONSOLE IS A PERSON'S: it is from `user-<account>` (AgentsToolsManagerConsoleMember), the account at the
 ## console, under the authority rule of F6.10, never from magic-coordinator or any other member. It goes through the one
@@ -30,8 +30,8 @@
 ## it says on standard error where the join was recorded instead of refusing it.
 ##
 
-type AgentsToolsManagerSessionScope > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.ManagerSession.include" --definitions-only > /dev/null 2>&1 || :
-type AgentsToolsSessionChatDir > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include" 2> /dev/null || :
+type AgentsToolsManagerSessionScope > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.ManagerSessionRows.include"
+type AgentsToolsSessionChatDir > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include"
 
 case "$1" in
 
@@ -100,8 +100,8 @@ case "$1" in
 			## The runs this session started, from the kept per-session list (the records naming it as parent-session-id): each runs under its own
 			## session id, and that id is where a message reaches its lead. Named here, so the console is told the id and not only the rule.
 			local messageLead messageLeads="" messageLeadOwner messageLeadSession
-			type AgentsToolsSpawnedSessionRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include" 2> /dev/null || :
-			type AgentsToolsRegistryHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include" 2> /dev/null || :
+			type AgentsToolsSpawnedSessionRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.StartedRecords.include"
+			type AgentsToolsRegistryHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
 			for messageLead in $( AgentsToolsSpawnedSessionRecords "$scopeSession" parent 2> /dev/null ) ; do
 				[ -f "$messageLead" ] || continue
 				messageLeadOwner="$( AgentsToolsRegistryHeader "$( AgentsToolsRegistryFrontmatter "$messageLead" )" owner )"
@@ -127,6 +127,7 @@ case "$1" in
 				;;
 			esac
 		done
+		type AgentsToolsManagerConsoleMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.ManagerConsoleIdentity.include"
 		messageFrom="$( AgentsToolsManagerConsoleMember )" || {
 			echo "⛔ ERROR: $MDSC_CMD $messageOp: the system gives no account for the person at the console, and a message is not sent under a made-up name -- nothing was left" >&2
 			set +e ; return 1
@@ -202,6 +203,7 @@ case "$1" in
 		## InternOpAgentSpawnProxy.include), and a session that has no thread by kind posts nothing there by design.
 		joinThread="$( MDAT_SESSION_THREAD="" AgentsToolsSessionChatThread "$scopeSession" )" || joinThread=""
 		type AgentsToolsAskPostFill > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.AskPost.include"
+		type AgentsToolsManagerConsoleUser > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.ManagerConsoleIdentity.include"
 		joinBy="$( AgentsToolsManagerConsoleUser )"
 		joinWhy="$( ASKP_BLOCK="Tasks/assess-session-why" AgentsToolsAskPostFill block tooling-note.post.format.md "" 2> /dev/null )" || joinWhy=""
 		joinStateWords="$( ASKP_BLOCK="Words/state-$joinState" AgentsToolsAskPostFill block tooling-note.post.format.md "" 2> /dev/null )" || joinStateWords=""

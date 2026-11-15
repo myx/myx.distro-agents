@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # ^^^ for syntax checking in the editor only
+type AgentsSettingsScopeHas > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/settings/AgentsTools.Settings.include"
 
 ##
 ## AgentsTools.ManagerScopeAgents.include -- what the agents register for `Scope Settings` (F11.7), the console view of `.local` (sh-lib/config/scope-settings.list).
@@ -8,27 +9,25 @@
 ##
 
 type AgentsToolsTeamMemberDirectory > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamRegistry.include"
-type AgentsToolsPresetCredentialKeys > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.Preset.include"
+type AgentsToolsPresetCredentialKeys > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/settings/AgentsTools.Preset.include"
 type AgentsToolsCredentialShown > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.CredentialDisplay.include"
-type AgentsToolsManagerConfigKeySecret > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.ManagerConfig.include" --definitions-only > /dev/null 2>&1 || :
+type AgentsToolsManagerConfigKeySecret > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.ManagerSettings.include"
 type LocalToolsManagerScopeNameOk > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/manager/LocalTools.ManagerScope.include" --definitions-only > /dev/null 2>&1 || :
 
 ## The scopes of the agents, one a line as `.local` lists them: the id, `Agents`, the name, the file, and that it may be deleted.
 AgentsToolsManagerScopeAgentsSources(){
 	local sourceFile sourceName sourceRoot
-	for sourceFile in "${MMDAPP%/}/.local/.agents"/*.agent.env ; do
-		[ -f "$sourceFile" ] || continue
-		sourceName="${sourceFile##*/}" ; sourceName="${sourceName%.agent.env}"
+	for sourceName in $( AgentsSettingsScopes "${MMDAPP%/}" ) ; do
 		LocalToolsManagerScopeNameOk "$sourceName" || continue
 		## The team's scope is the paying workspace's where one pays: its tiers are read and written there, so the file the console shows, edits and unsets is that one.
 		sourceRoot="${MMDAPP%/}"
 		case "$sourceName" in
 			magic-team)
-				type AgentsToolsPresetPayRoot > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.Preset.include"
+				type AgentsToolsPresetPayRoot > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/settings/AgentsTools.Preset.include"
 				sourceRoot="$( AgentsToolsPresetPayRoot 2> /dev/null )" || sourceRoot="${MMDAPP%/}"
 			;;
 		esac
-		printf 'agents:%s\tAgents\t%s\t%s\tyes\n' "$sourceName" "$sourceName" "$sourceRoot/.local/.agents/$sourceName.agent.env"
+		printf 'agents:%s\tAgents\t%s\t%s\tyes\n' "$sourceName" "$sourceName" "$( AgentsSettingsScopeFile "$sourceRoot" "$sourceName" )"
 	done
 	return 0
 }
@@ -39,12 +38,12 @@ AgentsToolsManagerScopeAgentsCall(){ ## `read` or `write`, then the reader's arg
 	local callHow="$1" callRoot="${MMDAPP%/}" ; shift
 	case "$scopeName:$1:${2:-}" in
 		magic-team:--select:SPAWN_TIER_LOW|magic-team:--select:SPAWN_TIER_NORMAL|magic-team:--select:SPAWN_TIER_HIGH)
-			type AgentsToolsPresetPayRoot > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.Preset.include"
+			type AgentsToolsPresetPayRoot > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/settings/AgentsTools.Preset.include"
 			callRoot="$( AgentsToolsPresetPayRoot 2> /dev/null )" || callRoot="${MMDAPP%/}"
 		;;
 	esac
 	if [ "$callHow" = write ] ; then
-		type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
+		type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/settings/AgentsTools.ConfigOption.include"
 		AgentsToolsConfigOption "$scopeName" "$@"
 	else
 		( MMDAPP="$callRoot" ; set -- --agents-config-option "$scopeName" "$@" ; . "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/LocalTools.Config.include" )
@@ -55,7 +54,7 @@ AgentsToolsManagerScopeAgentsCall(){ ## `read` or `write`, then the reader's arg
 AgentsToolsManagerScopeAgentsUnlisted(){ ## id
 	local unlistedName="${1#agents:}"
 	if [ "$unlistedName" != "magic-team" ] && LocalToolsManagerScopeNameOk "$unlistedName" && AgentsToolsTeamMemberDirectory "$unlistedName" > /dev/null 2>&1 ; then
-		printf '%s\tAgents\t%s\t%s\tno\n' "$1" "$unlistedName" "${MMDAPP%/}/.local/.agents/$unlistedName.agent.env"
+		printf '%s\tAgents\t%s\t%s\tno\n' "$1" "$unlistedName" "$( AgentsSettingsScopeFile "${MMDAPP%/}" "$unlistedName" )"
 	fi
 	return 0
 }
@@ -63,8 +62,7 @@ AgentsToolsManagerScopeAgentsUnlisted(){ ## id
 ## A scope of the agents made, empty: its file in the agents' folder, with the mode the others have.
 AgentsToolsManagerScopeAgentsCreate(){ ## name of the scope
 	LocalToolsManagerScopeNameOk "$1" || return 1
-	mkdir -p "${MMDAPP%/}/.local/.agents" || return 1
-	( umask 007 ; : > "${MMDAPP%/}/.local/.agents/$1.agent.env" ) || return 1
+	AgentsSettingsScopeCreate "${MMDAPP%/}" "$1" || return 1
 	return 0
 }
 
@@ -86,9 +84,8 @@ AgentsToolsManagerScopeAgentsKnown(){ ## the name of the scope of the agents
 	local knownName="$1" knownFile knownOne knownList="" knownEfforts="" knownService="" knownKey knownEffort knownPreset knownPayRoot=""
 	case "$knownName" in
 		preset-*)
-			for knownFile in "${MMDAPP%/}/.local/.agents"/preset-*.agent.env ; do
-				[ -f "$knownFile" ] || continue
-				knownOne="${knownFile##*/preset-}" ; knownOne="${knownOne%.agent.env}"
+			for knownOne in $( AgentsSettingsScopes "${MMDAPP%/}" preset- ) ; do
+				knownOne="${knownOne#preset-}"
 				[ "preset-$knownOne" = "$knownName" ] || knownList="$knownList${knownList:+,}$knownOne=$knownOne"
 			done
 			if [ -n "$knownList" ] ; then
@@ -150,19 +147,17 @@ AgentsToolsManagerScopeAgentsKnown(){ ## the name of the scope of the agents
 		*)
 			## the tiers: of the team, and optionally of a member; the scope of anything else holds none
 			case "$knownName" in magic-team) ;; *) AgentsToolsTeamMemberDirectory "$knownName" > /dev/null 2>&1 || return 0 ;; esac
-			for knownFile in "${MMDAPP%/}/.local/.agents"/preset-*.agent.env ; do
-				[ -f "$knownFile" ] || continue
-				knownPreset="${knownFile##*/preset-}" ; knownPreset="${knownPreset%.agent.env}"
+			for knownPreset in $( AgentsSettingsScopes "${MMDAPP%/}" preset- ) ; do
+				knownPreset="${knownPreset#preset-}"
 				knownList="$knownList${knownList:+,}$knownPreset"
 			done
 			## The team's tier may name a preset only the paying workspace holds, and its write check accepts one there: the selector offers those too.
 			if [ "$knownName" = magic-team ] ; then
-				type AgentsToolsPresetPayRoot > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.Preset.include"
+				type AgentsToolsPresetPayRoot > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/settings/AgentsTools.Preset.include"
 				knownPayRoot="$( AgentsToolsPresetPayRoot 2> /dev/null )" || knownPayRoot="${MMDAPP%/}"
 				if [ "${knownPayRoot%/}" != "${MMDAPP%/}" ] ; then
-					for knownFile in "${knownPayRoot%/}/.local/.agents"/preset-*.agent.env ; do
-						[ -f "$knownFile" ] || continue
-						knownPreset="${knownFile##*/preset-}" ; knownPreset="${knownPreset%.agent.env}"
+					for knownPreset in $( AgentsSettingsScopes "${knownPayRoot%/}" preset- ) ; do
+						knownPreset="${knownPreset#preset-}"
 						case ",$knownList," in *",$knownPreset,"*) continue ;; esac
 						knownList="$knownList${knownList:+,}$knownPreset"
 					done

@@ -18,7 +18,7 @@ printf 'PRESET_CLI_SERVICE=claude\n' > "$rigWs/.local/.agents/preset-base.agent.
 ## Each call runs in a shell of its own: the scope include's chain ends its process when it
 ## dispatches, so a test that sourced it in place would end with it.
 rigKnown(){ ## scope
-	MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" "$BASH" -c '. "$1/config/AgentsTools.Preset.include" ; . "$1/manager/AgentsTools.ManagerScopeAgents.include" ; AgentsToolsManagerScopeAgentsKnown "$2"' _ "$rigHere" "$1" 2> /dev/null
+	MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" "$BASH" -c '. "$1/settings/AgentsTools.Preset.include" ; . "$1/manager/AgentsTools.ManagerScopeAgents.include" ; AgentsToolsManagerScopeAgentsKnown "$2"' _ "$rigHere" "$1" 2> /dev/null
 }
 rigSpec(){ ## key
 	MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" "$BASH" -c '. "$1/config/AgentsTools.OwnerSetupOptionSpec.include" ; AgentsToolsOwnerSetupOptionSpec "$2"' _ "$rigHere" "$1" 2> /dev/null

@@ -101,7 +101,7 @@ rigScene(){
 	rigStandPid=$!
 	rigProcNote "$rigStandPid" ; rigStarted="$rigStarted $rigStandPid"
 	disown "$rigStandPid" 2> /dev/null || :
-	bash -c ". '$rigHere/sh-lib/team-data/AgentsTools.Registries.include' ; printf '%s\n' $rigStandPid | AgentsToolsRegistryProcessesBegan" > "$rigSess/control/pid"
+	bash -c ". '$rigHere/sh-lib/team-data/AgentsTools.Registries.include' ; . '$rigHere/sh-lib/run/AgentsTools.RunProcesses.include' ; . '$rigHere/sh-lib/run/AgentsTools.RunState.include' ; . '$rigHere/sh-lib/run/AgentsTools.RunLeft.include' ; . '$rigHere/sh-lib/run/AgentsTools.RunRecords.include' ; printf '%s\n' $rigStandPid | AgentsToolsRunProcessesBegan" > "$rigSess/control/pid"
 	## The list the control thread keeps, written here as that thread writes it: its own line for the live session.
 	mkdir -p "$rigWs/.local/agents/comms"
 	printf '%s CRIGSES01:%s\n' "${rigSess##*/}" "$rigRoot" > "$rigWs/.local/agents/comms/sessions"
@@ -190,7 +190,7 @@ rigAssert "and takes it away when it ends, so a closed session costs nothing" "$
 echo "-- 5. the pusher's line --"
 rigScene push 0
 ## A reader that lives, so a send queues into the cache outbox instead of posting itself.
-bash -c ". '$rigHere/sh-lib/team-data/AgentsTools.Registries.include' ; printf '%s\n' $rigStandPid | AgentsToolsRegistryProcessesBegan" > "$rigWs/.local/agents/comms/lock"
+bash -c ". '$rigHere/sh-lib/team-data/AgentsTools.Registries.include' ; . '$rigHere/sh-lib/run/AgentsTools.RunProcesses.include' ; . '$rigHere/sh-lib/run/AgentsTools.RunState.include' ; . '$rigHere/sh-lib/run/AgentsTools.RunLeft.include' ; . '$rigHere/sh-lib/run/AgentsTools.RunRecords.include' ; printf '%s\n' $rigStandPid | AgentsToolsRunProcessesBegan" > "$rigWs/.local/agents/comms/lock"
 rigSendEnv="MDAT_SEND_ASYNC=true"
 rigSend "RIG-QUEUED-BODY"
 rigSendEnv=""

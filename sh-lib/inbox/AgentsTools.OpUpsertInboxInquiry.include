@@ -1,0 +1,150 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+## AgentsTools.OpUpsertInboxInquiry.include -- the operation `--upsert-inbox-inquiry`, sourced by AgentsTools.Member.include with the operation's arguments.
+## An inquiry into any member's inbox, from the caller: --from-member names the acting
+## member only, and an item already there is updated only by the member that wrote it.
+		shift
+		local inquiryFrom="" inquiryArg inquiryNext="" inquiryFile inquiryAuthor
+		## --from-reflection <reflection-file>: the lesson this inquiry files came from a reflection of the filing member's own inbox, and
+		## filing it is that reflection's exit -- the reflection is marked processed in the same call, after the inquiry is written.
+		local inquiryReflection="" inquiryReflectionNext="" inquiryArgs=()
+		for inquiryArg in "$@" ; do
+			[ -z "$inquiryNext" ] || { inquiryFrom="$inquiryArg" ; inquiryNext="" ; inquiryArgs+=( "$inquiryArg" ) ; continue ; }
+			[ -z "$inquiryReflectionNext" ] || { inquiryReflection="$inquiryArg" ; inquiryReflectionNext="" ; continue ; }
+			case "$inquiryArg" in
+				--edit-patch-from-stdin)
+					echo "⛔ ERROR: $MDSC_CMD --upsert-inbox-inquiry: --edit-patch-from-stdin is not taken -- an inquiry is filed whole, never patched -- nothing was written" >&2
+					set +e ; return 1
+				;;
+				--from-member) inquiryNext=1 ; inquiryArgs+=( "$inquiryArg" ) ;;
+				--from-reflection) inquiryReflectionNext=1 ;;
+				--reply) inquiryArgs+=( "--reply-requested" ) ;;
+				*) inquiryArgs+=( "$inquiryArg" ) ;;
+			esac
+		done
+		if [ -n "$inquiryReflectionNext" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --upsert-inbox-inquiry: --from-reflection takes a reflection file name -- nothing was done" >&2
+			set +e ; return 1
+		fi
+		set -- ${inquiryArgs[@]+"${inquiryArgs[@]}"}
+		[ -z "$inquiryFrom" ] || AgentsToolsActingMemberCheck "$inquiryFrom" upsert-inbox-inquiry || { set +e ; return 1 ; }
+		[ -n "$inquiryFrom" ] || inquiryFrom="$( AgentsToolsActingMember )"
+		## AN INQUIRY GOES TO ONE EXACT PLACE (the human-owner's routing): magic-coordinator by default, which files it, resolves it or starts a
+		## session. A target alias names the kind of inquiry, never a list; several targets are one inquiry to the coordinator, never a fan-out.
+		## A member target stays where it is only for the clear cases: the coordinator writing, the coordinator or the librarian addressed, a
+		## domain owner addressed (keeper-*, partner-*, client-*), or a reply to a member that wrote to the sender within the last day.
+		local inquiryTarget="${1:-}" inquiryRouted=""
+		case "$inquiryTarget" in
+			*,*) inquiryRouted="magic-coordinator" ;;
+			@coordinator|@all|@team|@grooming|@default) inquiryRouted="magic-coordinator" ;;
+			@retro|@docs|@conventions|@librarian) inquiryRouted="magic-librarian" ;;
+			@design|@architecture) inquiryRouted="magic-architect" ;;
+			@ops|@deploy|@infra) inquiryRouted="magic-devops" ;;
+			@tests|@verify) inquiryRouted="magic-tester" ;;
+			@code) inquiryRouted="magic-developer" ;;
+			@ui|@frontend) inquiryRouted="magic-frontender" ;;
+			@*) echo "⛔ ERROR: $MDSC_CMD --upsert-inbox-inquiry: $inquiryTarget is no target alias: @coordinator (default, also @all @team @grooming), @retro @docs @conventions (librarian), @design, @ops, @tests, @code, @ui -- nothing was written" >&2 ; set +e ; return 1 ;;
+			''|magic-coordinator|magic-librarian|keeper-*|partner-*|client-*) ;;
+			*)
+				## A NAME NO MEMBER RECORD HOLDS IS REFUSED BEFORE ANY ROUTING, as the send refuses an addressee that names nobody: a typo
+				## never passes silently to the coordinator.
+				type AgentsToolsTeamMemberDirectory > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamRegistry.include"
+				if ! AgentsToolsTeamMemberDirectory "$inquiryTarget" > /dev/null 2>&1 ; then
+					echo "⛔ ERROR: $MDSC_CMD --upsert-inbox-inquiry: $inquiryTarget is no team member here and no target alias, so it names nobody -- nothing was written" >&2
+					set +e ; return 1
+				fi
+				if [ "$inquiryFrom" != "magic-coordinator" ] ; then
+					local inquiryRecent=""
+					[ -z "${MDAT_DATA_ROOT:-}" ] || [ -z "$inquiryFrom" ] || inquiryRecent="$( find "$MDAT_DATA_ROOT/inboxes/$inquiryFrom" -name '*.md' -mtime -1 -exec grep -l -x "from: $inquiryTarget" {} + 2> /dev/null | head -1 )" || inquiryRecent=""
+					[ -n "$inquiryRecent" ] || inquiryRouted="magic-coordinator"
+				fi
+			;;
+		esac
+		## In an emergency a member target stays direct: no detour through the coordinator (AgentsToolsEmergencyHolds); an alias still resolves.
+		case "$inquiryTarget" in @*|*,*) ;; *) { type AgentsToolsEmergencyHolds > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.Emergency.include"; } ; ! AgentsToolsEmergencyHolds || inquiryRouted="" ;; esac
+		if [ -n "$inquiryRouted" ] && [ "$inquiryRouted" != "$inquiryTarget" ] ; then
+			echo "# $MDSC_CMD --upsert-inbox-inquiry: routed to $inquiryRouted, not $inquiryTarget: an inquiry goes to one place, the coordinator by default; a member is written to directly only as the reply to its own inquiry, or as a domain owner." >&2
+			shift ; set -- "$inquiryRouted" "$@"
+		fi
+		## The reflection is checked before anything is written: a bare name of a reflection still in the filing member's own incoming/.
+		if [ -n "$inquiryReflection" ] ; then
+			AgentsToolsAssertBareName "$inquiryReflection" "<reflection-file>" upsert-inbox-inquiry || { set +e ; return 1 ; }
+			case "$inquiryReflection" in
+				reflection-*.md) ;;
+				*)
+					echo "⛔ ERROR: $MDSC_CMD --upsert-inbox-inquiry: --from-reflection names a reflection-*.md item, not $inquiryReflection -- nothing was done" >&2
+					set +e ; return 1
+				;;
+			esac
+			if [ -z "$inquiryFrom" ] || [ ! -f "$MDAT_DATA_ROOT/inboxes/$inquiryFrom/incoming/$inquiryReflection" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --upsert-inbox-inquiry: $inquiryReflection is not an unprocessed reflection in ${inquiryFrom:-the filing member}'s own inbox -- nothing was done" >&2
+				set +e ; return 1
+			fi
+		fi
+		## ONE SUBJECT, ONE OPEN INQUIRY (the human-owner: match, then append): where the target's open inbox holds an inquiry from the same
+		## sender whose title shares 0.7 or more of its words with this one's, the new text is appended to it under a dated heading instead
+		## of a second item. Only an inquiry given whole by --from-file is matched.
+		local inquirySource="" inquiryAt=0 inquiryWord inquiryNewTitle="" inquirySame="" inquiryMerged=""
+		for inquiryWord in "$@" ; do
+			[ "$inquiryAt" = 1 ] && { inquirySource="$inquiryWord" ; break ; }
+			[ "$inquiryWord" = "--from-file" ] && inquiryAt=1
+		done
+		if [ -n "$inquirySource" ] && [ -f "$inquirySource" ] && [ -n "${MDAT_DATA_ROOT:-}" ] && [ -n "$inquiryFrom" ] && [ -d "$MDAT_DATA_ROOT/inboxes/${1:-}/incoming" ] ; then
+			inquiryNewTitle="$( LC_ALL=C awk '/^# / { print substr( $0, 3 ) ; exit }' "$inquirySource" )"
+			[ -z "$inquiryNewTitle" ] || inquirySame="$( LC_ALL=C awk -v want="$inquiryNewTitle" -v from="$inquiryFrom" -v self="${2:-}" '
+				function words( t, set,   n, i, w ) { t = tolower( t ) ; gsub( /[^a-z0-9]+/, " ", t ) ; n = split( t, w, " " ) ; for ( i = 1 ; i <= n ; i++ ) if ( length( w[i] ) > 2 ) set[w[i]] = 1 }
+				function jac(   k, i, u ) { i = 0 ; u = 0 ; for ( k in A ) { u++ ; if ( k in B ) i++ } ; for ( k in B ) if ( !( k in A ) ) u++ ; return u ? i / u : 0 }
+				BEGIN { words( want, A ) }
+				FNR == 1 { hdr = 0 ; fr = "" ; ty = "" ; name = FILENAME ; sub( /.*\//, "", name ) }
+				/^---$/ { hdr++ ; next }
+				hdr == 1 && /^from: / { fr = substr( $0, 7 ) } hdr == 1 && /^type: / { ty = substr( $0, 7 ) }
+				hdr >= 2 && /^# / { if ( fr == from && ty == "inquiry" && name != self ) { delete B ; words( substr( $0, 3 ), B ) ; if ( jac() >= 0.7 ) { print name ; exit } } nextfile }
+			' "$MDAT_DATA_ROOT/inboxes/${1:-}/incoming/"inquiry-*.md 2> /dev/null )" || inquirySame=""
+			if [ -n "$inquirySame" ] ; then
+				mkdir -p "$MMDAPP/.local/temp" 2> /dev/null
+				inquiryMerged="$( mktemp "$MMDAPP/.local/temp/mdat-inquiry-append.XXXXXX" 2> /dev/null )" || inquiryMerged=""
+				if [ -n "$inquiryMerged" ] ; then
+					{ LC_ALL=C awk '/^---$/ { hdr++ ; next } hdr >= 2' "$MDAT_DATA_ROOT/inboxes/${1:-}/incoming/$inquirySame"
+					  printf '\n## Added %s\n\n' "$( date '+%Y-%m-%d %H:%M %z' )"
+					  LC_ALL=C awk 'done || !/^# / { print ; next } { done = 1 }' "$inquirySource" ; } > "$inquiryMerged"
+					echo "# $MDSC_CMD --upsert-inbox-inquiry: appended to $inquirySame in $1's inbox, the open inquiry from $inquiryFrom on the same subject, instead of a second item ${2:-}." >&2
+					local inquiryRebuilt=() inquiryNextIsSource=""
+					for inquiryWord in "$@" ; do
+						if [ -n "$inquiryNextIsSource" ] ; then inquiryRebuilt+=( "$inquiryMerged" ) ; inquiryNextIsSource="" ; continue ; fi
+						[ "$inquiryWord" = "--from-file" ] && inquiryNextIsSource=1
+						inquiryRebuilt+=( "$inquiryWord" )
+					done
+					inquiryRebuilt[1]="$inquirySame"
+					set -- ${inquiryRebuilt[@]+"${inquiryRebuilt[@]}"}
+				fi
+			fi
+		fi
+		case "${1:-}:${2:-}" in
+			*/*|:*|*:) ;;
+			*)
+				inquiryFile=""
+				type AgentsToolsInboxItemFind > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/inbox/AgentsTools.InboxPlace.include"
+				[ -z "${MDAT_DATA_ROOT:-}" ] || inquiryFile="$( AgentsToolsInboxItemFind "$1" "$2" yes )" || inquiryFile=""
+				if [ -n "$inquiryFile" ] && [ -f "$inquiryFile" ] && [ -n "$inquiryFrom" ] ; then
+					inquiryAuthor="$( LC_ALL=C awk '$0 == "---" { if ( ++fm == 2 ) exit ; next ; } fm == 1 && index( $0, "from: " ) == 1 { print substr( $0, 7 ) ; exit ; }' "$inquiryFile" 2> /dev/null )" || inquiryAuthor=""
+					if [ "$inquiryAuthor" != "$inquiryFrom" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --upsert-inbox-inquiry: $2 is already in $1's inbox, written by ${inquiryAuthor:-nobody named}, so $inquiryFrom cannot overwrite it -- nothing was done" >&2
+						set +e ; return 1
+					fi
+				fi
+			;;
+		esac
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+		DistroAgentsTools --intern-op-member-inbox-upsert "$@" --context --upsert-inbox-inquiry || { [ -z "$inquiryMerged" ] || rm -f "$inquiryMerged" ; return 1 ; }
+		[ -z "$inquiryMerged" ] || rm -f "$inquiryMerged"
+		if [ -n "$inquiryReflection" ] ; then
+			type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+			DistroAgentsTools --intern-op-inbox-to-processed "$inquiryFrom" "$inquiryReflection" \
+				--context --upsert-inbox-inquiry \
+				"--header:upsert:disposition:filed-as-inquiry" "--header:upsert:filed-as:${2:-}" || {
+				echo "⛔ ERROR: $MDSC_CMD --upsert-inbox-inquiry: the inquiry ${2:-} is filed, but $inquiryReflection could not be marked processed -- mark it with --mark-inbox-processed" >&2
+				set +e ; return 1
+			}
+		fi
+		return 0

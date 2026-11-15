@@ -1,0 +1,235 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+type AgentsToolsPendingRecordPath > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.Authority.include"
+
+## AgentsHarnessAskPost.include: the post of a question: its tool's row, its party, its answer form and checks, its body, its fields and its emoji.
+## Sourced by AgentsHarnessAsk.include, definitions only.
+
+## The table of the tools that ask and the post each makes, loaded where first needed.
+AgentsHarnessAskPost(){
+	type AgentsToolsAskToolRow > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.AskPost.include"
+}
+
+## Whether a name is a party a permission is routed for: the human-owner, or a team member
+## by its name. A conversation, an account id and a routine are none.
+AgentsHarnessAskParty(){ ## name
+	case "$1" in
+		human-owner) return 0 ;;
+		''|event-track|event-alert|magic-team|*[!abcdefghijklmnopqrstuvwxyz0123456789-]*) return 1 ;;
+	esac
+	[ -d "${MDAT_SKILLSET_ROOT:-${MMDAPP:-}/.local/agents/members}/$1" ]
+}
+
+## The answer form of the caller's question: its kind's own, else its select, else free text.
+AgentsHarnessAskForm(){
+	AgentsToolsAskKindRow "$toolKind" || :
+	printf '%s' "${agentsAskRowForm:-${toolSelect:-text}}"
+}
+
+## A question is refused before anything is sent when its kind or its answer form lacks a
+## field it needs. Prints the ERROR line and returns 1. For a permission the refused call is
+## read from its record into the caller's askRefused*, never taken from the asker's words,
+## and with it askRefusedCall, what a request for it is known by.
+## What a proposal lacks is a correction its caller makes, so its line starts with CORRECTION,
+## and so does the line for options given with no answer form.
+AgentsHarnessAskCheck(){ ## -- reads the caller's tool* fields
+	type AgentsHarnessRefusedTargetDecode > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessReports.include"
+	type AgentsHarnessBareName > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessSpawn.include"
+	## OPTIONS ARE ONE PER LINE, AND A CALLER THAT SENT A JSON LIST OF STRINGS ON ONE LINE MEANT THAT (2026-11-10 11:13: a question to
+	## the human-owner showed one option holding the whole list, and one click answered nothing): a single line shaped ["a", "b"] is
+	## split into its strings, one per line, their escapes read. Any other shape stays as given.
+	case "$toolOptions" in
+		"["*"]")
+			if [ "$( printf '%s\n' "$toolOptions" | LC_ALL=C grep -c . )" = "1" ] ; then
+				toolOptions="$( printf '%s' "$toolOptions" | LC_ALL=C awk '
+					{
+						s = $0 ; sub( /^[[:space:]]*\[[[:space:]]*/, "", s ) ; sub( /[[:space:]]*\][[:space:]]*$/, "", s )
+						n = 0 ; inStr = 0 ; cur = ""
+						for ( i = 1 ; i <= length( s ) ; i++ ) {
+							c = substr( s, i, 1 )
+							if ( inStr ) {
+								if ( c == "\\" && i < length( s ) ) { i++ ; e = substr( s, i, 1 ) ; cur = cur ( e == "n" ? " " : e ) }
+								else if ( c == "\"" ) { inStr = 0 ; out[++n] = cur ; cur = "" }
+								else cur = cur c
+							} else if ( c == "\"" ) inStr = 1
+						}
+						for ( i = 1 ; i <= n ; i++ ) print out[i]
+					}
+				' )"
+			fi
+		;;
+	esac
+	case "$toolSelect" in
+		''|yes-no|one|many) ;;
+		*) printf 'ERROR: %s: select must be yes-no, one or many, got: %s. Nothing was sent.\n' "$harnessAskName" "$toolSelect" ; return 1 ;;
+	esac
+	case "$toolKind" in
+		question)
+			case "$toolSelect" in
+				'')
+					## Free text takes no options: a list under it would look like answers and take no click.
+					[ -z "$toolOptions" ] || {
+						printf 'CORRECTION: %s: options are given with no select, so the post would list answers nobody can click. Pass select one to take one of them, or select many to take any number of them. Nothing was sent.\n' "$harnessAskName" ; return 1
+					}
+				;;
+				yes-no)
+					[ -z "$toolOptions" ] || {
+						printf 'ERROR: %s: select yes-no takes no options, since its answers are yes and no. Use select one to offer your own answers. Nothing was sent.\n' "$harnessAskName" ; return 1
+					}
+				;;
+				one|many)
+					[ -n "$toolOptions" ] || {
+						printf 'ERROR: %s: select %s needs options, one per line, each starting with the word that answers it. Nothing was sent.\n' "$harnessAskName" "$toolSelect" ; return 1
+					}
+					## The verdict names an option by its first word, so two alike would make it a guess.
+					if [ -n "$( printf '%s\n' "$toolOptions" | LC_ALL=C awk '{ sub( /^- /, "" ) ; optionWord = tolower( $1 ) ; if ( optionWord != "" && seenWord[optionWord]++ ) { print optionWord ; exit ; } ; }' )" ] ; then
+						printf 'ERROR: %s: select %s needs each option to start with a different word, and two start with the same one. Nothing was sent.\n' "$harnessAskName" "$toolSelect" ; return 1
+					fi
+				;;
+			esac
+		;;
+		readback)
+			[ -n "$toolUnderstood" ] && [ -n "$toolFrom" ] && [ -n "$toolWillDo" ] || {
+				printf 'ERROR: %s: kind readback needs understood, source and will_do, and one was empty. Nothing was sent.\n' "$harnessAskName" ; return 1
+			}
+		;;
+		decision)
+			[ -n "$toolOptions" ] || {
+				printf 'ERROR: %s: kind decision needs options, one per line, each starting with the word that answers it. Nothing was sent.\n' "$harnessAskName" ; return 1
+			}
+			## Two options answered by the same word would make the verdict a guess.
+			if [ -n "$( printf '%s\n' "$toolOptions" | LC_ALL=C awk '{ sub( /^- /, "" ) ; optionWord = tolower( $1 ) ; if ( optionWord != "" && seenWord[optionWord]++ ) { print optionWord ; exit ; } ; }' )" ] ; then
+				printf 'ERROR: %s: kind decision needs each option to start with a different word, and two start with the same one. Nothing was sent.\n' "$harnessAskName" ; return 1
+			fi
+			## A plain "ok" takes the recommended option, so at most one may be marked.
+			if [ "$( printf '%s\n' "$toolOptions" | LC_ALL=C grep -c -i -F '(recommended)' )" -gt 1 ] ; then
+				printf 'ERROR: %s: kind decision takes at most one option marked (recommended), and more than one is. Nothing was sent.\n' "$harnessAskName" ; return 1
+			fi
+		;;
+		permission)
+			[ -n "$toolRefusalId" ] && [ -n "$toolReason" ] && [ -n "$toolTaskRef" ] || {
+				printf 'ERROR: %s: kind permission needs refusal_id, reason and task_ref, and one was empty. Nothing was sent.\n' "$harnessAskName" ; return 1
+			}
+			askSession="${harnessSessionId:-${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}}"
+			askRecord=""
+			AgentsHarnessBareName "$toolRefusalId" && [ -n "$askSession" ] && askRecord="$MMDAPP/.local/agents/sessions/$askSession/$toolRefusalId.md"
+			if [ -z "$askRecord" ] || [ ! -f "$askRecord" ] ; then
+				printf 'ERROR: %s: no refusal %s is recorded for this session, so there is nothing to ask permission for. Nothing was sent.\n' "$harnessAskName" "$toolRefusalId" ; return 1
+			fi
+			## The refused call is shown from the record, never from the asker's words.
+			while IFS= read -r askRecordLine ; do
+				case "$askRecordLine" in
+					'owner: '*) askRefusedOwner="${askRecordLine#owner: }" ;;
+					'tool: '*) askRefusedTool="${askRecordLine#tool: }" ;;
+					'target: '*) askRefusedTarget="$( AgentsHarnessRefusedTargetDecode "${askRecordLine#target: }" )" ;;
+					'# '*) break ;;
+				esac
+			done < "$askRecord"
+			## What makes two requests the same one: the refused call itself -- its tool, its exact
+			## target, whose call it was and in which session -- never the words the asker puts
+			## beside it. The check for a request already open is keyed on it (AgentsHarnessAsk).
+			askRefusedCall="permission $askSession $askRefusedOwner $askRefusedTool $askRefusedTarget"
+			## A person is shown the target by its location root, `<place>:<relative path>`, where
+			## it lies in a registered place, and then never its absolute path beside it; as given
+			## where it lies in none. The record keeps the exact target, which the grant is written from.
+			[ -z "$askRefusedTarget" ] || askRefusedTarget="$( "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-op-permission-place "$harnessAgent" "$askRefusedTarget" 2>/dev/null \
+				|| printf '%s\n' "$askRefusedTarget" )"
+			## The folder of the refused file, which a request for one call offers as one more
+			## answer: as the post shows it, and nothing where it cannot be right
+			## (--intern-op-permission-folder). A request with entries is a set, and offers none.
+			## The project that file lies in is one more answer beside the folder, where the same
+			## operation names one: a project of a source tree that is wider than the folder.
+			askRefusedFolder="" ; askRefusedProject="" ; askRefusedContact=""
+			[ -n "${toolEntries:-}" ] || askRefusedFolder="$( "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-op-permission-folder "$harnessAgent" \
+				--session-id "$askSession" --refusal-id "$toolRefusalId" 2> /dev/null )" || askRefusedFolder=""
+			askRefusedProject="$( LC_ALL=C sed -n 's/^PROJECT-SHOWN: //p' <<< "$askRefusedFolder" | head -1 )"
+			askRefusedFolder="$( LC_ALL=C sed -n 's/^SHOWN: //p' <<< "$askRefusedFolder" | head -1 )"
+			## A call refused for a contact (`contact:<id>`, the contacts subsystem, F7.10) is answered by the contact's own answers: the session
+			## and the contact, never the folder or the project of a file.
+			case "$askRefusedOwner" in contact:?*) askRefusedContact="${askRefusedOwner#contact:}" ; askRefusedFolder="" ; askRefusedProject="" ;; esac
+		;;
+		proposal)
+			## Put by its own tool only: the skeleton of the second name has no place for its document.
+			AgentsToolsAskKindRow proposal && [ "${askPostName:-$harnessAskName}" = "$agentsAskRowName" ] || {
+				printf 'ERROR: %s: a proposal is put with %s, its own tool. Nothing was sent.\n' "$harnessAskName" "${agentsAskRowName:-its own tool}" ; return 1
+			}
+			## Only the coordinator proposes: the proposal routine names no other executor.
+			[ "$harnessAgent" = "magic-coordinator" ] || {
+				printf 'CORRECTION: %s: only magic-coordinator puts a proposal to the human-owner, and this call is made as %s. Hand the proposal to magic-coordinator, which puts it. Nothing was sent.\n' "$harnessAskName" "${harnessAgent:-no team member}" ; return 1
+			}
+			## A proposal is never posted without its document: what is approved is that document.
+			case "$toolDocument" in
+				''|*[[:space:]]*) false ;;
+				http://?*|https://?*) : ;;
+				*) false ;;
+			esac || {
+				printf 'CORRECTION: %s: a proposal is put with the link to its document, and document must be the absolute http:// or https:// URL of a page that already exists, got: %s. Publish the document first, with Artifact file=<path> kind=PRO, and pass the link its result names. Nothing was sent.\n' "$harnessAskName" "${toolDocument:-<none>}" ; return 1
+			}
+			[ -n "$toolProposal" ] || {
+				printf 'CORRECTION: %s: proposal is required and was empty: the proposed form and its tight reasoning. Nothing was sent.\n' "$harnessAskName" ; return 1
+			}
+		;;
+		*)
+			printf 'ERROR: %s: kind must be question, readback, decision or permission, got: %s. Nothing was sent.\n' "$harnessAskName" "$toolKind" ; return 1
+		;;
+	esac
+	return 0
+}
+
+## The post of the caller's question, filled from its tool's own template
+## (sh-lib/templates/, AgentsTools.AskPost.include). Prints the body; non-zero, with the
+## reason in ask-post.err, when the template could not fill it.
+AgentsHarnessAskBody(){ ## optional revised (1: the question asked again, changed)
+	AgentsHarnessAskPost && AgentsToolsAskKindRow "$toolKind" || return 3
+	## A second name of the tools shows every field in its own skeleton, around its kind's template.
+	ASKP_SKELETON="$( AgentsToolsAskPostSkeleton "${askPostName:-$harnessAskName}" )" \
+	ASKP_OPTIONS="$toolOptions" ASKP_REVISED="${1:-}" ASKP_F_tag="$askTag" ASKP_F_question="$toolQuestion" ASKP_F_context="$toolContext" \
+		ASKP_F_understood="$toolUnderstood" ASKP_F_source="$toolFrom" ASKP_F_will_do="$toolWillDo" \
+		ASKP_F_refused_tool="$askRefusedTool" ASKP_F_refused_target="$askRefusedTarget" ASKP_F_refused_for="$askRefusedOwner" ASKP_F_refusal_id="$toolRefusalId" \
+		ASKP_F_folder="${askRefusedFolder:-}" ASKP_F_project="${askRefusedProject:-}" ASKP_F_contact="${askRefusedContact:-}" \
+		ASKP_F_reason="$toolReason" ASKP_F_task="$toolTaskRef" ASKP_F_proposal="$toolProposal" ASKP_F_document="$toolDocument" \
+		AgentsToolsAskPostFill post "$agentsAskRowTemplate" "$( AgentsHarnessAskForm )" 2> "$harnessScratch/ask-post.err"
+}
+
+## The root a proposal opens its thread with: the `## root` block of its template, the
+## question alone. It is posted once, and no later call changes it. Prints it; non-zero,
+## with the reason in ask-post.err, when the template has no such block.
+AgentsHarnessAskRootBody(){
+	AgentsHarnessAskPost && AgentsToolsAskKindRow "$toolKind" || return 3
+	ASKP_BLOCK="Skeleton/root" ASKP_F_question="$toolQuestion" AgentsToolsAskPostFill block "$agentsAskRowTemplate" "" 2> "$harnessScratch/ask-post.err"
+}
+
+## The asker's own words in the post: the fields the call gave, its options as the list they
+## are. The title, the headings, the refused call of a permission and the lines that say how
+## to answer are the template's, and are not measured against the plain-language floor.
+AgentsHarnessAskProse(){
+	type AgentsHarnessSendProse > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessMessages.include"
+	AgentsHarnessSendProse "$toolQuestion" "$toolContext" "$toolUnderstood" "$toolFrom" "$toolWillDo" "$toolReason" "$toolTaskRef" "$toolProposal" \
+		"$( [ -z "$toolOptions" ] || printf '%s\n' "$toolOptions" | LC_ALL=C awk 'NF { sub( /^- /, "" ) ; print "- " $0 ; }' )"
+}
+
+## What the post was filled with, as kept beside its record: a later fill starts from it.
+AgentsHarnessAskFields(){
+	AgentsHarnessAskPost || return 0
+	AgentsToolsAskPostFieldsPack asked-as "${askPostName:-$harnessAskName}" tag "$askTag" question "$toolQuestion" context "$toolContext" understood "$toolUnderstood" source "$toolFrom" will-do "$toolWillDo" \
+		refused-tool "$askRefusedTool" refused-target "$askRefusedTarget" refused-for "$askRefusedOwner" refusal-id "$toolRefusalId" folder "${askRefusedFolder:-}" project "${askRefusedProject:-}" contact "${askRefusedContact:-}" \
+		reason "$toolReason" task "$toolTaskRef" proposal "$toolProposal" document "$toolDocument"
+}
+
+## The answer emoji of the caller's question, as Slack names: what its template places for
+## its answer form, the folder's too where a permission offers the folder of the refused file,
+## and the project's where it offers the project beside it.
+AgentsHarnessAskSeedNames(){
+	AgentsHarnessAskPost && AgentsToolsAskKindRow "$toolKind" || return 0
+	ASKP_OPTIONS="$toolOptions" ASKP_F_folder="${askRefusedFolder:-}" ASKP_F_project="${askRefusedProject:-}" ASKP_F_contact="${askRefusedContact:-}" AgentsToolsAskPostFill reactions "$agentsAskRowTemplate" "$( AgentsHarnessAskForm )" 2> /dev/null || :
+}
+
+## Places emoji under one post, or takes them off, as the identity that posted it. A failed
+## one is logged and never fails the ask. They are never an answer: only an addressee's is.
+AgentsHarnessAskReact(){ ## <channel>:<ts>, as bot (true|...), add|remove, emoji names...
+	local reactAt="$1" reactAs="member" reactDo="$3"
+	case "$2" in true|1|yes|bot) reactAs="bot" ;; esac
+	shift 3
+	[ -n "$reactAt" ] && [ $# -gt 0 ] && AgentsHarnessAskPost || return 0
+	MDSC_CMD="$harnessAskName" AgentsToolsAskPostReact "$harnessAgent" "$reactAt" "$reactAs" "$reactDo" "$@"
+}

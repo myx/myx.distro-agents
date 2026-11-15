@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+type AgentsToolsPermissionEscalationAsk > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionParticipants.include"
+
+## AgentsTools.InternOpPermissionEscalationInputScan.include -- the operation `--intern-op-permission-escalation-input-scan`, sourced by AgentsTools.InternOpPermission.include with the operation's arguments.
+## magic-coordinator.permission-escalation.routine's input scan: the implementation the spawner runs for the routine's
+## `input-scan-def:`. It has no stub: no agent calls a scan (F6.4).
+## The oldest 20 open permission asks addressed to permission-escalation.routine (or its full
+## name), across every workspace this machine knows (LocalToolsPlacesWorkspaceRoots), this
+## one first; each as AgentsToolsPermissionEscalationAsk prints it.
+		shift
+		MDSC_CMD="$MDSC_CMD --intern-op-permission-escalation-input-scan"
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.UseAgentsTools.include"
+		local escBy="${1:-}" escRoot escRows="" escEpoch escId escAt escTotal escCap=20
+		if [ -z "$escBy" ] || [ $# -gt 1 ] ; then
+			echo "$MDSC_CMD: ⛔ ERROR: syntax is <team-member>" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsAssertBareName "$escBy" "<team-member>" permission-escalation-input-scan || { set +e ; return 1 ; }
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ReviewFlow.include"
+		type LocalToolsPlacesWorkspaceRoots > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/places/LocalTools.Places.include"
+		while IFS= read -r escRoot ; do
+			[ -n "$escRoot" ] && [ -d "$escRoot" ] || continue
+			escRows="$escRows$( AgentsPendingAsksForRoutine permission-escalation "$escRoot" | LC_ALL=C awk -F'\t' -v OFS='\t' -v root="$escRoot" '$3 == "permission" { print $1, root, $2, $5 ; }' )"$'\n'
+		done <<< "$( LocalToolsPlacesWorkspaceRoots "${MMDAPP%/}" 2> /dev/null )"
+		escRows="$( printf '%s' "$escRows" | LC_ALL=C awk 'NF' | LC_ALL=C sort -t "$( printf '\t' )" -k1,1n -k3,3 )"
+		escTotal="$( printf '%s' "$escRows" | LC_ALL=C awk 'NF { n++ ; } END { print n + 0 ; }' )"
+		printf '%s\n\n' "## permission asks addressed to permission-escalation.routine"
+		if [ "$escTotal" = 0 ] ; then
+			printf '(none)\n'
+			return 0
+		fi
+		printf 'shown: %s of %s, oldest first\n' "$(( escTotal < escCap ? escTotal : escCap ))" "$escTotal"
+		while IFS=$'\t' read -r escEpoch escRoot escId escAt ; do
+			[ -n "$escId" ] || continue
+			AgentsToolsPermissionEscalationAsk "$escBy" "$escRoot" "$escId" "$escAt"
+		done <<< "$( printf '%s\n' "$escRows" | head -n "$escCap" )"
+		return 0

@@ -8,7 +8,7 @@
 set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 rigPkg="${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}/myx/myx.distro-agents"
-rigHouse="$rigPkg/sh-lib/magic/AgentsTools.SpawnHousekeeping.include"
+rigHouse="$rigPkg/sh-lib/board/AgentsTools.BoardHousekeeping.include"
 
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
@@ -45,7 +45,7 @@ rigRead(){ ## the demand read: the registry rendered, which is where the TTL che
 	env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp" PATH="/usr/bin:/bin:/usr/sbin:/sbin" \
 		MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
 		MDAT_SPAWN_AGENT=magic-coordinator \
-		bash -c '. "$1" ; . "$2" ; AgentsToolsRegistryRenderSpawnedSessions agents ; sleep 20' rig "$rigPkg/sh-lib/team-data/AgentsTools.Registries.include" "$rigHouse" 2>&1
+		bash -c '. "$1" ; . "$2" ; AgentsToolsRegistryRenderSpawnedSessions agents ; sleep 20' rig "$rigPkg/sh-lib/team-data/AgentsTools.RegistrySpawnedSessions.include" "$rigHouse" 2>&1
 }
 
 echo "-- 1. a read past the TTL closes the record of a run whose process is gone (S27.0) --"

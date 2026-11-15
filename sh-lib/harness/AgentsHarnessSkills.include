@@ -12,6 +12,7 @@ AgentsHarnessToolToolSearch(){ ## query, max_results
 		printf 'ERROR: ToolSearch: query is required and was empty. Nothing was searched.\n' ; return 0
 	fi
 	if [ -n "$toolMax" ] ; then
+		type AgentsHarnessWholeNumber > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessToolsFile.include"
 		if ! AgentsHarnessWholeNumber "$toolMax" || [ "$toolMax" -lt 1 ] ; then
 			printf 'ERROR: ToolSearch: max_results must be a whole number of tools, at least 1, got: %s\n' "$toolMax" ; return 0
 		fi
@@ -19,6 +20,7 @@ AgentsHarnessToolToolSearch(){ ## query, max_results
 		toolMax=5
 	fi
 	if [ -s "$harnessToolSearchFloorFile" ] ; then
+		type AgentsHarnessFileText > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessRun.include"
 		AgentsHarnessFileText "$harnessToolSearchFloorFile"
 		searchFloor="$harnessFileText"
 	else
@@ -128,6 +130,7 @@ AgentsHarnessPrefetchTaskReads(){
 }
 
 AgentsHarnessPrefetchRoutineText(){
+	type AgentsToolsSpawnRoutineMixText > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnRoutine.include"
 	AgentsToolsSpawnRoutineMixText "$agentsPrefetchRoutineFile"
 }
 
@@ -141,7 +144,7 @@ AgentsHarnessPrefetchRecordKey(){ ## record file, key -- the value of a line of 
 AgentsHarnessMemberPlusText(){ ## skillset root, member
 	local plusDir="$1/$2/reference" plusFile plusArgs=()
 	[ -n "$1" ] && [ -n "$2" ] && [ -d "$plusDir" ] || return 0
-	type AgentsToolsMergeMdFiles > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsTools.InternMergeMdFiles.include" 2> /dev/null || return 0
+	type AgentsToolsMergeMdFiles > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsTools.InternMergeMdFiles.include"
 	while IFS= read -r plusFile ; do
 		[ -n "$plusFile" ] && plusArgs+=( --mixin "$plusFile" "${plusFile##*/}" )
 	done <<< "$( find "$plusDir" -maxdepth 1 -type f -name '*.md' 2> /dev/null | LC_ALL=C sort )"
@@ -150,6 +153,8 @@ AgentsHarnessMemberPlusText(){ ## skillset root, member
 }
 
 AgentsHarnessPrefetchBuild(){
+	type AgentsToolsPrefetchMarkerWrite > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsTools.PrefetchRoutine.include"
+	type AgentsHarnessArmNote > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessRun.include"
 	local pfRoot="${MDAT_SKILLSET_ROOT:-}" pfMember="$harnessAgent" pfCacheDir pfStamp pfHow pfBody="$harnessScratch/prefetch.body" pfRoutineBody="$harnessScratch/prefetch.routine"
 	local pfPlus pfRecord pfPolicy="" pfRoutine="" pfKindFile pfText="" pfReads="" pfWhat pfHits=0 pfBuilt=0 pfCount=0 pfArmed="" pfName pfFile pfSections pfWanted pfPath pfTask=0 pfBlank=$'\n\n'
 	local pfMemberText="" pfSessionReads="" pfRead pfRoutineText=""
@@ -211,13 +216,13 @@ AgentsHarnessPrefetchBuild(){
 		[ -z "$pfPlus" ] || printf -v pfText '%s\n\n%s\n\n%s' "$pfText" "## Member+ -- more of the text of $pfMember, the same for every session of $pfMember that declares cache-prefix: extended" "$pfPlus"
 	fi
 	if [ "$pfPolicy" = routine ] && [ -n "$pfRoutine" ] && AgentsHarnessSkillSegmentOk "$pfRoutine" ; then
-		type AgentsToolsSpawnRoutineMixText > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnRoutine.include" 2> /dev/null || :
-		type AgentsToolsTeamMemberDirectoryText > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamRegistry.include" 2> /dev/null || :
+		type AgentsToolsSpawnRoutineResolve > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnRoutine.include"
+		type AgentsToolsTeamMemberDirectoryText > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamRegistry.include"
 		agentsPrefetchRoutineFile="$( AgentsToolsSpawnRoutineResolve "$pfRoutine" 2> /dev/null )" || agentsPrefetchRoutineFile=""
 		if [ -f "$agentsPrefetchRoutineFile" ] ; then
 			pfKindFile="$( AgentsToolsSpawnRoutineKindPath "$agentsPrefetchRoutineFile" 2> /dev/null )" || pfKindFile=""
 			## No further condition: the policy names the routine, and the routine's own text is the session's first item.
-			pfStamp="$( AgentsHarnessPrefetchStamp "$agentsPrefetchRoutineFile" "${pfKindFile:-$agentsPrefetchRoutineFile}" "$harnessHere/session/AgentsTools.SpawnRoutine.include" \
+			pfStamp="$( AgentsHarnessPrefetchStamp "$agentsPrefetchRoutineFile" "${pfKindFile:-$agentsPrefetchRoutineFile}" "$harnessHere/spawn/AgentsTools.SpawnRoutine.include" \
 				"$harnessHere/harness/AgentsTools.InternMergeMdFiles.include" "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/markdown/LocalMergeMdFiles.awk" "$harnessHere/board/AgentsBoardItemFrontmatterPrintSelected.awk" \
 				$( AgentsToolsSpawnRoutineIncludePaths "$agentsPrefetchRoutineFile" 2> /dev/null ) )"
 			if pfHow="$( AgentsHarnessPrefetchEntry "$pfCacheDir/routine.$pfRoutine" "$pfRoutineBody" "$pfStamp" AgentsHarnessPrefetchRoutineText )" ; then

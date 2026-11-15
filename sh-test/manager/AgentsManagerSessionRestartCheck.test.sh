@@ -31,7 +31,7 @@ printf 'rig\n' > "$rigSkills/magic-coordinator/magic-coordinator.basic.md"
 printf '#!/bin/sh\nprintf "%%s\\n" "\$*" >> "%s/curl.calls"\nexit 7\n' "$rigTmp" > "$rigTmp/bin/curl"
 chmod +x "$rigTmp/bin/curl"
 ## THE LIVE RUN: a run is alive while the process its record names as its launch, `run-process: <pid> <start>`, is still that
-## process (AgentsToolsRegistryRecordedRunAlive), as the kill reads it. The rig's stand-in is a sleeper of its own, ended at the end.
+## process (AgentsToolsRunRecordedAlive), as the kill reads it. The rig's stand-in is a sleeper of its own, ended at the end.
 rigPids=""
 trap '[ -z "$rigPids" ] || rigProcSignal KILL $rigPids ; rm -rf -- "$rigTmp"' EXIT
 rigAlive(){ ## -- starts the sleeper; its pid in rigAlivePid, its start as the tooling writes it in rigAliveStart

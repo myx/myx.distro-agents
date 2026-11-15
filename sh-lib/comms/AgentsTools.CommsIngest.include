@@ -14,7 +14,7 @@
 ##                   sequence in memory, replies through its request fifo, dies on idle, and updates no file. Its origin is
 ##                   read once for the thread's whole life.
 ##
-## Sourced, never run: functions only. AgentsTools.InternCommsEventId.include is the operation's own arm.
+## Sourced, never run: functions only. DistroAgentsTools.fn.sh's --intern-comms-event-id arm calls AgentsToolsInternCommsEventId.
 ##
 
 agentsCommsEventIdle="${MDAT_COMMS_EVENT_ID_IDLE_SECONDS:-60}"
@@ -141,7 +141,7 @@ AgentsCommsIngestSlack(){ ## member, the channel id, [--as-bot] [--floor <slack 
 	[ -z "$ingestFloor" ] || ingestFloor="$( AgentsCommsIngestSlackTs "$ingestFloor" )"
 	mkdir -p "$ingestDir" 2> /dev/null
 	ingestRows="$( mktemp "$ingestDir/rows.XXXXXX" 2> /dev/null )" || { echo "⛔ ERROR: the ingest could not make a working file in $ingestDir" >&2 ; return 1 ; }
-	AgentsCommsIngestLoadSlack
+	type AgentsToolsSlackReadPagedConversation > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/slack/AgentsTools.CommsSlack.include"
 	AgentsToolsSlackReadPagedConversation "$ingestMember" conversations.history "$ingestChannel" \
 		"$( [ "$ingestAsBot" = "false" ] && printf user || printf bot )" "" "$ingestFloor" "comms-ingest" "" "" || { rm -f "$ingestRows" ; return 1 ; }
 	ingestHistory=( ${pagedPages[@]+"${pagedPages[@]}"} )
@@ -162,12 +162,6 @@ AgentsCommsIngestSlack(){ ## member, the channel id, [--as-bot] [--floor <slack 
 	return 0
 }
 
-## The Slack include, loaded where it is not. Sourced inside a function, so the include's own dispatch finds no operation
-## word among its caller's arguments and runs nothing.
-AgentsCommsIngestLoadSlack(){
-	type AgentsToolsSlackReadPagedConversation > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsSlack.include"
-}
-
 ## The event rows one raw read holds that the store does not, as the fifteen columns that follow the id.
 AgentsCommsIngestRows(){ ## the cache folder, and the read's body on stdin
 	local rowsDir rowsFiles=""
@@ -183,7 +177,7 @@ AgentsCommsIngestRows(){ ## the cache folder, and the read's body on stdin
 AgentsCommsIngestThreadTargets(){ ## the channel, the floor, and the history body on stdin
 	LC_ALL=C awk -v channel="$1" ${2:+-v oldest="$2"} \
 		-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" \
-		-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsSlackHistoryThreadTargets.awk"
+		-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/slack/AgentsSlackHistoryThreadTargets.awk"
 }
 
 ## THE EVENTS WRITTEN, AND THE POINTER AFTER THEM: the rows made distinct and sorted before any id is pasted on, so the

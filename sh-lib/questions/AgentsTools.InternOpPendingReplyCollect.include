@@ -1,0 +1,128 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+## AgentsTools.InternOpPendingReplyCollect.include -- the operation `--intern-op-pending-reply-collect`, sourced by AgentsTools.InternOpPendingReply.include with the operation's arguments.
+## Collects answers to open plain questions nobody is waiting on
+## (AgentsTools.PendingReplyCollect.include). --session-id: that session's records,
+## and --mark-ended marks the ones still open for the main loop. --ended: the marked
+## records, each answer found going to its asker's inbox as a note. --id: one record.
+		shift
+		MDSC_CMD="$MDSC_CMD --intern-op-pending-reply-collect"
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.UseAgentsTools.include"
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.PendingReplyCollect.include"
+		local collectSession="" collectEnded="" collectId="" collectMark="" collectTyped=""
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--session-id)
+					[ -n "${2:-}" ] || { echo "$MDSC_CMD: ⛔ ERROR: --session-id requires a value (<id>)" >&2 ; set +e ; return 1 ; }
+					collectSession="$2" ; shift 2
+				;;
+				--id)
+					[ -n "${2:-}" ] || { echo "$MDSC_CMD: ⛔ ERROR: --id requires a value (<pending-id>)" >&2 ; set +e ; return 1 ; }
+					collectId="$2" ; shift 2
+				;;
+				--ended) collectEnded=1 ; shift ;;
+				--mark-ended) collectMark=1 ; shift ;;
+				--context) shift 2 ;;
+				*)
+					echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		if [ -z "$collectSession$collectEnded$collectId" ] || { [ -n "$collectMark" ] && [ -z "$collectSession" ] ; } ; then
+			echo "$MDSC_CMD: ⛔ ERROR: syntax is --session-id <id> [--mark-ended] | --ended | --id <pending-id>" >&2
+			set +e ; return 1
+		fi
+		[ -z "$collectId" ] || AgentsToolsAssertBareName "$collectId" "<pending-id>" pending-reply-collect || { set +e ; return 1 ; }
+		mkdir -p "$MMDAPP/.local/temp" || { set +e ; return 1 ; }
+		local collectStore="$MMDAPP/.local/agents/pending" collectFile collectFiles=() collectAnswered=0 collectUnmatched=0 collectOpen=0 collectUnreadable=0
+		## The requests for the authority in the questions store, in the main loop's pass: each
+		## whose answer stands in its thread is settled, and acted on (AgentsTools.Authority.include).
+		if [ -n "$collectEnded" ] ; then
+			type AgentsToolsEscalationThreadVerdict > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.Escalation.include"
+			type AgentsToolsAuthorityRequestsSweep > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.Authority.include"
+			type AgentsToolsRunRoute > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.RunRoute.include"
+			AgentsToolsAuthorityRequestsSweep >&2 || :
+		fi
+		## Found by grep over whole header lines, so a pass costs one scan however the store grows.
+		if [ -n "$collectId" ] ; then
+			[ ! -f "$collectStore/$collectId.md" ] || collectFiles=( "$collectStore/$collectId.md" )
+		elif [ -n "$collectSession" ] ; then
+			while IFS= read -r collectFile ; do collectFiles+=( "$collectFile" ) ; done \
+				< <( LC_ALL=C grep -l -x -F "session-id: $collectSession" "$collectStore"/*.md 2>/dev/null )
+		else
+			while IFS= read -r collectFile ; do collectFiles+=( "$collectFile" ) ; done \
+				< <( LC_ALL=C grep -l -x -F "collect: ended" "$collectStore"/*.md 2>/dev/null )
+			## Only a spawn's own close marks its records ended, so an ask from any other session
+			## (a native or console one) was never collected and stayed pending for good. Every
+			## open one asked over MDAT_PENDING_COLLECT_STALE_MINUTES ago (default 120) is
+			## collected too, at most MDAT_PENDING_COLLECT_STALE_MAX (default 40) a pass, oldest
+			## first: a live session's wait finds it closed and says so, which costs nothing.
+			local collectStaleMinutes="${MDAT_PENDING_COLLECT_STALE_MINUTES:-120}" collectStaleMax="${MDAT_PENDING_COLLECT_STALE_MAX:-40}"
+			case "$collectStaleMinutes" in ''|*[!0-9]*) collectStaleMinutes=120 ;; esac
+			case "$collectStaleMax" in ''|*[!0-9]*) collectStaleMax=40 ;; esac
+			while IFS= read -r collectFile ; do collectFiles+=( "$collectFile" ) ; done < <(
+				LC_ALL=C grep -l -x -F "status: reply-pending" "$collectStore"/*.md 2>/dev/null \
+					| while IFS= read -r collectFile ; do
+						LC_ALL=C grep -q -x -F "collect: ended" "$collectFile" && continue
+						LC_ALL=C awk -v file="$collectFile" '$0 == "---" { if ( ++dashes == 2 ) { exit ; } next ; } dashes == 1 && index( $0, "question-ts: " ) == 1 { split( substr( $0, 14 ), part, "." ) ; print part[1] "\t" file ; exit ; }' "$collectFile" 2>/dev/null
+					done \
+					| LC_ALL=C awk -F '\t' -v cutoff="$(( $( date +%s ) - collectStaleMinutes * 60 ))" '$1 ~ /^[0-9]+$/ && $1 + 0 <= cutoff + 0' \
+					| while IFS=$'\t' read -r collectTs collectFile ; do
+						## Least recently checked first: a checked record is touched below, so one
+						## still unanswered goes to the back and the cap never starves newer asks.
+						printf '%s\t%s\n' "$( stat -f %m "$collectFile" 2>/dev/null || stat -c %Y "$collectFile" 2>/dev/null || printf '%s' "$collectTs" )" "$collectFile"
+					done \
+					| LC_ALL=C sort -n | head -n "$collectStaleMax" | cut -f2- )
+			collectTyped=1
+		fi
+		local collectOutcome collectAnswer collectLine collectOwner collectNoteId collectQuiet="" collectRunning="" collectAskSession
+		## In the main loop's pass, an ask whose session is still running -- a stale ask of a
+		## live session, or a marked one whose session was joined again -- is closed silently:
+		## its answer and Decisions line are recorded and its blocker cleared, and no reaction
+		## and no "after your session ended" note go out. Its own wait finds it closed.
+		## Read once a pass, and only when there is something to collect.
+		[ -z "$collectEnded" ] || [ "${#collectFiles[@]}" -eq 0 ] || collectRunning="$( AgentsToolsPendingReplySessionsRunning )"
+		for collectFile in ${collectFiles[@]+"${collectFiles[@]}"} ; do
+			[ -f "$collectFile" ] || continue
+			collectQuiet=""
+			if [ -n "$collectEnded" ] ; then
+				collectAskSession="$( AgentsToolsPendingReplyCollectFieldOf "$collectFile" session-id )"
+				case "$collectRunning" in *" ${collectAskSession:-<none>} "*) collectQuiet=1 ;; esac
+			fi
+			collectLine="$( AgentsToolsPendingReplyCollectOne "$collectFile" )"
+			collectOutcome="${collectLine%% *}"
+			## The collect closed the record, which moved to closed/ (retention, T9): the note below reads it there.
+			[ -f "$collectFile" ] || collectFile="$MMDAPP/.local/agents/pending/closed/${collectFile##*/}"
+			[ -z "$collectTyped" ] || [ ! -f "$collectFile" ] || touch "$collectFile" 2>/dev/null || :
+			case "$collectOutcome" in
+				''|SKIPPED) continue ;;
+			esac
+			printf '%s\n' "$collectLine"
+			case "$collectOutcome" in
+				ANSWERED)
+					collectAnswered=$(( collectAnswered + 1 ))
+					if [ -n "$collectEnded" ] && [ -z "$collectQuiet" ] ; then
+						## Its session is gone, so the answer goes to whoever next runs as the asker.
+						collectOwner="$( AgentsToolsPendingReplyCollectFieldOf "$collectFile" owner )"
+						collectNoteId="${collectFile##*/}" ; collectNoteId="${collectNoteId%.md}"
+						AgentsToolsPendingReplyAnsweredNote "$collectOwner" "$collectNoteId" "$collectLine"
+					fi
+				;;
+				UNMATCHED) collectUnmatched=$(( collectUnmatched + 1 )) ;;
+				UNREADABLE) collectUnreadable=$(( collectUnreadable + 1 )) ;;
+				OPEN) collectOpen=$(( collectOpen + 1 )) ;;
+			esac
+			## A record still open when its session ends is marked, so the main loop collects it.
+			if [ -n "$collectMark" ] ; then
+				case "$collectOutcome" in
+					UNMATCHED|UNREADABLE|OPEN)
+						collectNoteId="${collectFile##*/}"
+						AgentsToolsPendingReplyMarkEnded "${collectNoteId%.md}" "$collectFile" 2>/dev/null || :
+					;;
+				esac
+			fi
+		done
+		printf 'COLLECT: answered=%s unmatched=%s open=%s unreadable=%s\n' "$collectAnswered" "$collectUnmatched" "$collectOpen" "$collectUnreadable"
+		return 0

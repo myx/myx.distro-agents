@@ -349,7 +349,7 @@ rigNativeRun="$( rigRunId )" ; rigNativeLog="$rigLog"
 ## THE ONE READING ITSELF (AgentsToolsSpawnProxyHandbacks): a line for each handback the transcript of a run holds, with
 ## where it went; the output only where the transcript holds none, or the run has no transcript.
 rigRead(){ ## run, its output file -- what the one reading says of it, its lines side by side
-	rigEnv "$rigTmp" bash -c '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include" ; AgentsToolsSpawnProxyHandbacks "$1" "$2"' rig "$1" "$2" 2> /dev/null | LC_ALL=C tr '\n' ' '
+	rigEnv "$rigTmp" bash -c '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandbox.include" ; AgentsToolsSpawnProxyHandbacks "$1" "$2"' rig "$1" "$2" 2> /dev/null | LC_ALL=C tr '\n' ' '
 }
 rigRunOf(){ basename "$( head -1 "$rigTmp/$1/record" 2> /dev/null )" .spawn.md ; } ## scenario -- the run of it
 printf '📦 SubagentHandback\n' > "$rigTmp/harness-shaped.log"
@@ -374,12 +374,12 @@ rigAssert "it is no ask: no record of a question is opened, and nothing is place
 rigAssert "and its record is closed, its item in review" "$( rigHeader "$rigRecord" status ):$( rigItemIn "$rigItem" )" "spawn-succeeded:review"
 
 echo "-- 4b. a run that reports to a member is told in that member's own conversation: its inbox, where it has no Slack DM --"
-rigReportsTo="$( LC_ALL=C sed -n 's/^agentsRunRouteField="\(.*\)"$/\1/p' "$rigLib/session/AgentsTools.SpawnSandbox.include" )"
+rigReportsTo="$( LC_ALL=C sed -n 's/^agentsRunRouteField="\(.*\)"$/\1/p' "$rigLib/spawn/AgentsTools.SpawnSandbox.include" )"
 rigToMember="rtm4b$$x"
 mkdir -p "$rigSp/$rigToMember" "$rigTmp/s4b"
 printf -- '---\nsession-id: %s\nspawn-id: %s\nparent-spawn-id: none\n%s: rig-member-b\ntracking-name: %s\nhost: %s\nworkspace: ws\nowner: rig-member-a\nstatus: spawn-ended-without-close\nsession-thread: CRIGOWN4B:1700000004.000200\n---\n' \
 	"$rigToMember" "$rigToMember" "$rigReportsTo" "$rigToMember" "$rigHost" > "$rigSp/$rigToMember/$rigToMember.spawn.md"
-printf '%s\n' ". \"\$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include\" ; AgentsToolsSpawnProxyEndNotice '$rigSp/$rigToMember/$rigToMember.spawn.md' missing ; printf 'SAID=%s\\n' \"\$agentsSpawnProxyEndNoticeSaid\"" \
+printf '%s\n' ". \"\$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandbox.include\" ; AgentsToolsSpawnProxyEndNotice '$rigSp/$rigToMember/$rigToMember.spawn.md' missing ; printf 'SAID=%s\\n' \"\$agentsSpawnProxyEndNoticeSaid\"" \
 	| rigEnv "$rigTmp/s4b" bash "$rigTool" --intern-mcp-execute > "$rigTmp/s4b/out" 2>&1
 rigAssert "told once, in the inbox of the member it reports to, and in no conversation" \
 	"$( LC_ALL=C grep -c -x 'SAID=posted' "$rigTmp/s4b/out" ):$( LC_ALL=C grep -l -F -- "${rigToMember:0:8}" "$rigData/inboxes/rig-member-b/incoming"/inquiry-*.md 2> /dev/null | LC_ALL=C awk 'END { print NR + 0 }' ):$( rigNoteCount "$rigTmp/s4b" "${rigToMember:0:8}" )" "1:1:0"
@@ -389,7 +389,7 @@ rigToNone="rtn4c$$x"
 mkdir -p "$rigSp/$rigToNone" "$rigTmp/s4c"
 printf -- '---\nsession-id: %s\nspawn-id: %s\nparent-spawn-id: none\n%s: none\ntracking-name: %s\nhost: %s\nworkspace: ws\nowner: rig-member-a\nstatus: spawn-ended-without-close\nsession-thread: CRIGOWN4C:1700000004.000300\n---\n' \
 	"$rigToNone" "$rigToNone" "$rigReportsTo" "$rigToNone" "$rigHost" > "$rigSp/$rigToNone/$rigToNone.spawn.md"
-printf '%s\n' ". \"\$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include\" ; AgentsToolsSpawnProxyEndNotice '$rigSp/$rigToNone/$rigToNone.spawn.md' missing ; printf 'SAID=%s\\n' \"\$agentsSpawnProxyEndNoticeSaid\"" \
+printf '%s\n' ". \"\$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandbox.include\" ; AgentsToolsSpawnProxyEndNotice '$rigSp/$rigToNone/$rigToNone.spawn.md' missing ; printf 'SAID=%s\\n' \"\$agentsSpawnProxyEndNoticeSaid\"" \
 	| rigEnv "$rigTmp/s4c" bash "$rigTool" --intern-mcp-execute > "$rigTmp/s4c/out" 2>&1
 rigAssert "nothing said, nothing posted, nothing left in an inbox" \
 	"$( LC_ALL=C grep -c -x 'SAID=none' "$rigTmp/s4c/out" ):$( rigNoteCount "$rigTmp/s4c" "${rigToNone:0:8}" ):$( LC_ALL=C grep -l -F -- "${rigToNone:0:8}" "$rigData"/inboxes/*/incoming/inquiry-*.md 2> /dev/null | LC_ALL=C awk 'END { print NR + 0 }' )" "1:0:0"
@@ -405,7 +405,7 @@ mkdir -p "$rigSp/$rigLimitRun" "$rigTmp/s4d"
 printf -- '---\nsession-id: %s\nspawn-id: %s\nparent-spawn-id: none\n%s: rig-member-b\ntracking-name: %s\nhost: %s\nworkspace: ws\nowner: rig-member-a\nstatus: spawn-started\nsession-thread: CRIGOWN4D:1700000004.000400\n---\n' \
 	"$rigLimitRun" "$rigLimitRun" "$rigReportsTo" "$rigLimitRun" "$rigHost" > "$rigSp/$rigLimitRun/$rigLimitRun.spawn.md"
 cp "$rigLimitFixture" "$rigSp/$rigLimitRun/$rigLimitRun.refused"
-printf '%s\n' ". \"\$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include\" ; AgentsToolsSpawnProxyCloseSandbox '$rigSp/$rigLimitRun/$rigLimitRun.spawn.md' failed 1 ; AgentsToolsSpawnProxyEndNotice '$rigSp/$rigLimitRun/$rigLimitRun.spawn.md' missing ; printf 'SAID=%s\\n' \"\$agentsSpawnProxyEndNoticeSaid\"" \
+printf '%s\n' ". \"\$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandbox.include\" ; AgentsToolsSpawnProxyCloseSandbox '$rigSp/$rigLimitRun/$rigLimitRun.spawn.md' failed 1 ; AgentsToolsSpawnProxyEndNotice '$rigSp/$rigLimitRun/$rigLimitRun.spawn.md' missing ; printf 'SAID=%s\\n' \"\$agentsSpawnProxyEndNoticeSaid\"" \
 	| rigEnv "$rigTmp/s4d" bash "$rigTool" --intern-mcp-execute > "$rigTmp/s4d/out" 2>&1
 rigAssert "the close keeps the provider's reason on the record, and the one wording with the date in the run's store" \
 	"$( rigHeader "$rigSp/$rigLimitRun/$rigLimitRun.spawn.md" end-reason ):$( cat "$rigWs/.local/agents/sessions/$rigLimitRun/usage-limit" 2> /dev/null )" \
@@ -421,7 +421,7 @@ rigLimitOld="rtl4e$$x"
 mkdir -p "$rigSp/$rigLimitOld" "$rigTmp/s4e"
 printf -- '---\nsession-id: %s\nspawn-id: %s\nparent-spawn-id: none\n%s: rig-member-b\ntracking-name: %s\nhost: %s\nworkspace: ws\nowner: rig-member-a\nstatus: spawn-failed\nend-reason: %s\nsession-thread: CRIGOWN4E:1700000004.000500\n---\n' \
 	"$rigLimitOld" "$rigLimitOld" "$rigReportsTo" "$rigLimitOld" "$rigHost" "$( cat "$rigLimitFixture" )" > "$rigSp/$rigLimitOld/$rigLimitOld.spawn.md"
-printf '%s\n' ". \"\$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include\" ; AgentsToolsSpawnProxyEndNotice '$rigSp/$rigLimitOld/$rigLimitOld.spawn.md' missing ; printf 'SAID=%s\\n' \"\$agentsSpawnProxyEndNoticeSaid\"" \
+printf '%s\n' ". \"\$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandbox.include\" ; AgentsToolsSpawnProxyEndNotice '$rigSp/$rigLimitOld/$rigLimitOld.spawn.md' missing ; printf 'SAID=%s\\n' \"\$agentsSpawnProxyEndNoticeSaid\"" \
 	| rigEnv "$rigTmp/s4e" bash "$rigTool" --intern-mcp-execute > "$rigTmp/s4e/out" 2>&1
 rigAssert "the record's reason alone is enough: the same two facts, read from the record" \
 	"$( LC_ALL=C grep -c -x 'SAID=posted' "$rigTmp/s4e/out" ):$( LC_ALL=C grep -h -F -- "The run \`${rigLimitOld:0:8}\` of rig-member-a $rigLimitText." "$rigData/inboxes/rig-member-b/incoming"/inquiry-*.md 2> /dev/null | head -1 )" \
@@ -434,7 +434,7 @@ mkdir -p "$rigSp/$rigRefusedRun" "$rigTmp/s4f"
 printf -- '---\nsession-id: %s\nspawn-id: %s\nparent-spawn-id: none\n%s: rig-member-b\ntracking-name: %s\nhost: %s\nworkspace: ws\nowner: rig-member-a\nstatus: spawn-started\nsession-thread: CRIGOWN4F:1700000004.000600\n---\n' \
 	"$rigRefusedRun" "$rigRefusedRun" "$rigReportsTo" "$rigRefusedRun" "$rigHost" > "$rigSp/$rigRefusedRun/$rigRefusedRun.spawn.md"
 printf '%s\n' 'anthropic refused the request -- rate_limit_error: slow down' > "$rigSp/$rigRefusedRun/$rigRefusedRun.refused"
-printf '%s\n' ". \"\$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include\" ; AgentsToolsSpawnProxyCloseSandbox '$rigSp/$rigRefusedRun/$rigRefusedRun.spawn.md' failed 1 ; AgentsToolsSpawnProxyEndNotice '$rigSp/$rigRefusedRun/$rigRefusedRun.spawn.md' missing ; printf 'SAID=%s\\n' \"\$agentsSpawnProxyEndNoticeSaid\"" \
+printf '%s\n' ". \"\$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandbox.include\" ; AgentsToolsSpawnProxyCloseSandbox '$rigSp/$rigRefusedRun/$rigRefusedRun.spawn.md' failed 1 ; AgentsToolsSpawnProxyEndNotice '$rigSp/$rigRefusedRun/$rigRefusedRun.spawn.md' missing ; printf 'SAID=%s\\n' \"\$agentsSpawnProxyEndNoticeSaid\"" \
 	| rigEnv "$rigTmp/s4f" bash "$rigTool" --intern-mcp-execute > "$rigTmp/s4f/out" 2>&1
 rigAssert "the run's store keeps the flag, and the end is told once with the reason, as the template's line" \
 	"$( cat "$rigWs/.local/agents/sessions/$rigRefusedRun/usage-limit" 2> /dev/null ):$( LC_ALL=C grep -c -x 'SAID=posted' "$rigTmp/s4f/out" ):$( LC_ALL=C grep -h -F -- "The run \`${rigRefusedRun:0:8}\` of rig-member-a $rigRefusedText." "$rigData/inboxes/rig-member-b/incoming"/inquiry-*.md 2> /dev/null | head -1 )" \
@@ -600,7 +600,7 @@ for rigPhrase in 'posted no handback' 'Its handback was posted in another thread
 	rigAssert "no code line holds: $rigPhrase" "$( rigInCode "$rigPhrase" )" 0
 done
 rigAssert "one function tells the end of a run, whoever closes it: the supervising shell in both its closes, and the housekeeping pass" \
-	"$( LC_ALL=C grep -v '^[[:space:]]*#' "$rigLib/session/AgentsTools.InternOpAgentSpawnProxy.include" | LC_ALL=C grep -c -F 'AgentsToolsSpawnProxyEndNotice "$sandboxTracking"' ):$( LC_ALL=C grep -v '^[[:space:]]*#' "$rigLib/magic/AgentsTools.SpawnHousekeeping.include" | LC_ALL=C grep -c -F 'AgentsToolsSpawnProxyEndNotice "$recordPath"' ):$( cat "$rigLib"/*/*.include "$rigLib"/*/*.sh | LC_ALL=C grep -c -E '^AgentsToolsSpawnProxy(EndNotice|SessionNotice)\(\)\{' )" "2:1:2"
+	"$( LC_ALL=C grep -v '^[[:space:]]*#' "$rigLib/spawn/AgentsTools.InternOpAgentSpawnProxy.include" | LC_ALL=C grep -c -F 'AgentsToolsSpawnProxyEndNotice "$sandboxTracking"' ):$( LC_ALL=C grep -v '^[[:space:]]*#' "$rigLib/board/AgentsTools.BoardHousekeeping.include" | LC_ALL=C grep -c -F 'AgentsToolsSpawnProxyEndNotice "$recordPath"' ):$( cat "$rigLib"/*/*.include "$rigLib"/*/*.sh | LC_ALL=C grep -c -E '^AgentsToolsSpawnProxy(EndNotice|SessionNotice)\(\)\{' )" "2:1:2"
 
 if [ "$rigFails" -ne 0 ] ; then
 	echo "⛔ SPAWN END NOTICE CHECK FAILED: $rigFails of $(( rigPasses + rigFails )) assertion(s)" >&2 ; exit 1

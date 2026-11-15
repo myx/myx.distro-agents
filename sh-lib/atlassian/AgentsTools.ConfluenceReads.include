@@ -1,0 +1,81 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.ConfluenceReads.include -- Confluence reads as the acting member: one page body.
+## Sourced, never run. Functions only. Each function loads what it calls itself.
+##
+
+## One Confluence page body, read as the acting member: in-context helper, no operation of
+## its own (MAGIC.md, section 1). Diagnostics on stderr, the body on stdout.
+AgentsToolsAtlassianConfluencePageRead() { ## --member <team-member> --page-id <page-id> [--format storage|atlas_doc_format] [--version <n>] [--context <caller>]
+	type AgentsToolsAtlassianArgsOnce > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/atlassian/AgentsTools.AtlassianRequest.include"
+	local MDSC_CMD='DistroAgentsTools'
+	AgentsToolsAtlassianArgsOnce "$@" || { set +e ; return 1 ; }
+	local confPRMember="" confPRPageId="" confPRFormat="" confPRVersion="" confPRContext="atlassian-confluence-page-read"
+	while [ $# -gt 0 ] ; do
+		case "$1" in
+			--member|--page-id|--format|--version|--context)
+				if [ -z "${2:-}" ] ; then
+					printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confPRContext: $1 value missing" >&2
+					set +e ; return 1
+				fi
+				case "$1" in
+					--member)  confPRMember="$2" ;;
+					--page-id) confPRPageId="$2" ;;
+					--format)  confPRFormat="$2" ;;
+					--version) confPRVersion="$2" ;;
+					--context) confPRContext="$2" ;;
+				esac
+				shift 2
+			;;
+			*)
+				printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confPRContext: invalid option: $1" >&2
+				set +e ; return 1
+			;;
+		esac
+	done
+	if [ -z "$confPRMember" ] || [ -z "$confPRPageId" ] ; then
+		printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confPRContext: syntax is --member <team-member> --page-id <page-id> [--format storage|atlas_doc_format] [--version <n>] [--context <caller>] -- a page is readable only by identities it is shared with" >&2
+		set +e ; return 1
+	fi
+	AgentsToolsAtlassianAssertNumber "$confPRPageId" "<page-id>" "$confPRContext" || { set +e ; return 1 ; }
+	[ -n "$confPRFormat" ] || confPRFormat=storage
+	case "$confPRFormat" in
+		storage|atlas_doc_format) ;;
+		*) printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confPRContext: --format invalid: $confPRFormat" >&2 ; set +e ; return 1 ;;
+	esac
+	## Read-only: a version query asks the v2 page-by-id endpoint for that
+	## exact historical rendering, same transport and response shape as the
+	## current-version read. Nothing here writes, so there is nothing to
+	## conflict and no next-version number to compute.
+	if [ -n "$confPRVersion" ] ; then
+		AgentsToolsAtlassianAssertNumber "$confPRVersion" "--version" "$confPRContext" || { set +e ; return 1 ; }
+	fi
+	local confPRPath="/wiki/api/v2/pages/$( AgentsToolsAtlassianUrlEncode "$confPRPageId" )?body-format=$( AgentsToolsAtlassianUrlEncode "$confPRFormat" )"
+	if [ -n "$confPRVersion" ] ; then
+		confPRPath="$confPRPath&version=$( AgentsToolsAtlassianUrlEncode "$confPRVersion" )"
+	fi
+	local confPRBody confPRRc=0
+	confPRBody="$( AgentsToolsAtlassianCall "$confPRMember" confluence GET "$confPRPath" "$confPRContext" "" )" || confPRRc=$?
+	if [ "$confPRRc" -ne 0 ] ; then
+		set +e ; return "$confPRRc"
+	fi
+	local confPRFieldAwk="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk"
+	local confPRRawFlag=()
+	[ "$confPRFormat" = storage ] || confPRRawFlag=( -v raw=1 )
+	local confPRValue confPRValueRc=0
+	confPRValue="$( printf '%s\n' "$confPRBody" | LC_ALL=C awk -v path="body.$confPRFormat.value" ${confPRRawFlag[@]+"${confPRRawFlag[@]}"} -v dialect=atlassian -f "$confPRFieldAwk" 2>/dev/null )" || confPRValueRc=$?
+	if [ "$confPRValueRc" -ne 0 ] ; then
+		printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confPRContext: $confPRFormat body unreadable" >&2
+		set +e ; return 3
+	fi
+	printf '# page %s: title=%s version=%s spaceId=%s format=%s\n' \
+		"$confPRPageId" \
+		"$( printf '%s\n' "$confPRBody" | LC_ALL=C awk -v path=title -v optional=1 -v dialect=atlassian -f "$confPRFieldAwk" 2>/dev/null )" \
+		"$( printf '%s\n' "$confPRBody" | LC_ALL=C awk -v path=version.number -v optional=1 -v dialect=atlassian -f "$confPRFieldAwk" 2>/dev/null )" \
+		"$( printf '%s\n' "$confPRBody" | LC_ALL=C awk -v path=spaceId -v optional=1 -v dialect=atlassian -f "$confPRFieldAwk" 2>/dev/null )" \
+		"$confPRFormat" >&2
+	printf '%s' "$confPRValue"
+	return 0
+}

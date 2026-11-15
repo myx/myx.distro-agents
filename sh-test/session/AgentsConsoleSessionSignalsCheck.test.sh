@@ -192,8 +192,8 @@ rigAssert "a holder file with no start: nothing is signalled by the number alone
 	"$( rigLive stale-bare s1 ) $( rigSaid "$rigTmp/stale-bare/s2.err" "--console-start: the holder process of this channel was NOT signalled" ) $( rigSaid "$rigTmp/stale-bare/s2.err" "holder.pid names pid $( rigValue stale-bare s1 HOLDER_PID ) with no start time" )" "holder 1 1"
 
 echo "-- a session keeps its processes by the one reading the tooling keeps a process by --"
-rigAssert "the include signals the pid of a file with the comparison of when it began, keeps and reads that through AgentsToolsRegistryProcessesBegan, and ends no pid by the old names" \
-	"$( rigCode "$rigInclude" | LC_ALL=C grep -c -F '= "$signalLine" ] && kill "-$1" "$signalPid"' ) $( rigCode "$rigInclude" | LC_ALL=C grep -c -F '| AgentsToolsRegistryProcessesBegan' ) $( rigCode "$rigInclude" | LC_ALL=C grep -c -e '-9 "\$' )" "1 2 0"
+rigAssert "the include signals the pid of a file with the comparison of when it began, keeps and reads that through AgentsToolsRunProcessesBegan, and ends no pid by the old names" \
+	"$( rigCode "$rigInclude" | LC_ALL=C grep -c -F '= "$signalLine" ] && kill "-$1" "$signalPid"' ) $( rigCode "$rigInclude" | LC_ALL=C grep -c -F '| AgentsToolsRunProcessesBegan' ) $( rigCode "$rigInclude" | LC_ALL=C grep -c -e '-9 "\$' )" "1 2 0"
 
 if [ "$rigFails" -ne 0 ] ; then
 	echo "⛔ CONSOLE SESSION SIGNALS CHECK FAILED: $rigFails of $(( rigPasses + rigFails )) assertion(s)" >&2 ; exit 1

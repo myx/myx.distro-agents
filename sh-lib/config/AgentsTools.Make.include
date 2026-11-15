@@ -55,9 +55,11 @@ case "$1" in
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.Grants.include"
 		;; esac
 		case "$makeWanted" in *" permissions "*)
+			type AgentsToolsGrantsRegistryWrite > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.Grants.include"
 			( AgentsToolsGrantsRegistryWrite "$MMDAPP" "$MDSC_CMD $makeOp" ) || { set +e ; return 1 ; }
 		;; esac
 		case "$makeWanted" in *" grants "*)
+			type AgentsToolsGrantsIndexWrite > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.Grants.include"
 			AgentsToolsGrantsIndexWrite "$MMDAPP" || {
 				echo "$MDSC_CMD: ⛔ ERROR: $makeOp: could not write $MMDAPP/.local/agents/grants.index" >&2
 				set +e ; return 1

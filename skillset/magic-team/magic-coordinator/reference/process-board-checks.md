@@ -1,3 +1,6 @@
+---
+maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
+---
 # Board-state procedures: `check-process-board` and `check-pending-comms-actions`
 
 The steps of two of this member's local procedures.

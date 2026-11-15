@@ -8,7 +8,7 @@ set -u
 ## test is a plain function, so the unbound-reference guard is off while it is
 ## sourced.
 set +u
-rigInc="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.MemberCommsEmail.include"
+rigInc="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/email/AgentsTools.MemberCommsEmail.include"
 [ -f "$rigInc" ] || { echo "⛔ ERROR: no $rigInc" >&2 ; exit 1 ; }
 
 pass=0 fail=0

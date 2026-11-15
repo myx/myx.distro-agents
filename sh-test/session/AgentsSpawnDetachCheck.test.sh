@@ -344,7 +344,7 @@ rigDir="$rigTmp/poster-hup"
 mkdir -p "$rigDir" "$rigWs/.local/agents/sessions/rig-poster-hup"
 ( cd "$rigWs" && env -u MDAT_DATA_ROOT -u CLAUDE_CODE_SESSION_ID -u MDAT_SPAWN_SESSION_ID RIG_SCENARIO="$rigDir" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" \
 	python3 -I -B "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-exec.py" --default-signals HUP -- bash -c '
-		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.EventTrackFeed.include"
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/event-track/AgentsTools.EventTrackFeed.include"
 		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-processes.include.sh" || { echo "RIG-GUARD: the process helper of the rig is missing from the package" >&2 ; exit 99 ; }
 		rigFeed="$MMDAPP/.local/agents/sessions/rig-poster-hup/feed"
 		AgentsEventTrackFeedRun rig-poster-hup keeper-myx CRIGTRACK:9.9 &
@@ -398,13 +398,13 @@ echo "-- a run's helpers end once the shell that started them is gone: the poste
 rigOrphanWs="$rigTmp/orphan-ws"
 mkdir -p "$rigOrphanWs/.local/agents/sessions/rig-orphan" && : > "$rigTmp/orphan.out"
 ## The starter lives three seconds after starting them, the time this check takes to see both running, and is then gone.
-MMDAPP="$rigOrphanWs" bash -c '. "$1/session/AgentsTools.EventTrackFeed.include" && . "$1/session/AgentsTools.SpawnSandbox.include" || exit 1
+MMDAPP="$rigOrphanWs" bash -c '. "$1/event-track/AgentsTools.EventTrackFeed.include" && . "$1/spawn/AgentsTools.SpawnSandbox.include" || exit 1
 	AgentsEventTrackFeedRun rig-orphan rig-member C0RIG00001:1700000000.000001 > /dev/null 2>&1 &
 	starterPids="$!"
 	AgentsToolsSpawnProxyFollow "$2/orphan.out" > /dev/null 2>&1 &
 	starterPids="$starterPids $!"
 	## The proxy file defines its functions first; sourced with no operation, it ends at its refusal of none.
-	. "$1/session/AgentsTools.InternOpAgentSpawnProxy.include" rig-no-operation > /dev/null 2>&1
+	. "$1/spawn/AgentsTools.InternOpAgentSpawnProxy.include" rig-no-operation > /dev/null 2>&1
 	AgentsToolsSpawnProxyEventTrackLaunched C0RIG00001:1700000000.000001 rig-member "$2/orphan.never-launched" rig-cli > /dev/null 2>&1 &
 	printf "%s %s\n" "$starterPids" "$!" > "$2/orphan.pids.new" && mv "$2/orphan.pids.new" "$2/orphan.pids"
 	sleep 3' rig-orphan-starter "$rigHere" "$rigTmp" > /dev/null 2>&1 &

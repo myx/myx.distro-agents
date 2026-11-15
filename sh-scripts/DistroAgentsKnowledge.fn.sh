@@ -8,7 +8,7 @@
 ## with its source: markdown, merged by the one nesting engine (--intern-merge-md-files), or under `--mdat-output-format json` before the first word, JSON.
 ## The three stores of the team, a project's, the workspace's and the team's own, are read as sources of one query. A LanceDB store beside each MAGIC.md
 ## (MAGIC.LanceDB, F8.2) is searched with the text, the store off, uninstalled or absent meaning the text alone. The functions are in
-## sh-lib/team-data/AgentsTools.Knowledge.include.
+## sh-lib/knowledge/AgentsTools.Knowledge.include.
 ##
 ## From DistroAgentsTools.fn.sh (F1.4): the names in sh-lib/harness/AgentsContext.FrontTable.include that name this file.
 ##
@@ -50,7 +50,7 @@ DistroAgentsKnowledgeMoved(){
 		;;
 
 		--get-roster)
-			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.MagicTeamRoster.include"
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamRoster.include"
 			return $?
 		;;
 
@@ -66,7 +66,7 @@ DistroAgentsKnowledgeMoved(){
 
 		## The one write a member makes to a MAGIC.md: one section, by its heading (S10.23).
 		--magic-section-upsert)
-			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.InternOpMagicSection.include"
+			type AgentsToolsMagicSectionUpsert > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/knowledge/AgentsTools.InternOpMagicSection.include"
 			return $?
 		;;
 
@@ -124,7 +124,7 @@ DistroAgentsKnowledge(){
 	esac
 	## The data root, the skillset root and the bare-name gate, as every operation of the tooling settles them.
 	. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.UseAgentsTools.include"
-	type AgentsToolsKnowledgeRun > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Knowledge.include"
+	type AgentsToolsKnowledgeRun > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/knowledge/AgentsTools.Knowledge.include"
 	AgentsToolsKnowledgeRun "${agentsKnowledgeFormat:-md}" "$@"
 	return $?
 }

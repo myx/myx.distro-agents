@@ -62,8 +62,8 @@
 ## the note template (`# Death`), never a text written here.
 ##
 
-type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include"
-type AgentsToolsRegistrySpawnRecord > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
+type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandbox.include"
+type AgentsToolsSpawnRecord > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunRecords.include"
 
 ## The outcome word a record is closed with here: the advance pass's own, for a run that
 ## ended and that no supervising shell closed (AgentsToolsAdvanceSpawnHousekeeping).
@@ -76,7 +76,7 @@ type AgentsToolsPendingRecordPath > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.di
 AgentsToolsSessionControlDeathLine(){ ## session id, run id
 	local lineFile lineOne
 	case "${1:-}" in ''|-|.|..|*/*) return 1 ;; esac
-	lineFile="$MMDAPP/.local/agents/sessions/$1/control/dead"
+	lineFile="${MMDAPP:-/nonexistent}/.local/agents/sessions/$1/control/dead"
 	[ -n "${2:-}" ] && [ -f "$lineFile" ] || return 1
 	{
 		while IFS= read -r lineOne || [ -n "$lineOne" ] ; do
@@ -122,7 +122,7 @@ AgentsToolsSessionControlDeathHeld(){ ## session id, run id
 	local heldLine
 	heldLine="$( AgentsToolsSessionControlDeathLine "${1:-}" "${2:-}" )" || return 1
 	case " $heldLine " in *" settled="*) return 1 ;; esac
-	type AgentsToolsSessionControlLive > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionControlStart.include" 2> /dev/null || return 1
+	type AgentsToolsSessionControlLive > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionControlStart.include" || return 1
 	[ -n "$( printf '%s\n' "$1" | AgentsToolsSessionControlLive 2> /dev/null )" ]
 }
 
@@ -206,7 +206,7 @@ AgentsToolsSessionControlDeathOption(){ ## word
 AgentsToolsSessionControlDeathQuestion(){ ## session id
 	local questionFile questionLine questionWords questionWord questionId questionRecord questionAt questionLast=""
 	case "${1:-}" in ''|-|.|..|*/*) return 0 ;; esac
-	questionFile="$MMDAPP/.local/agents/sessions/$1/control/dead"
+	questionFile="${MMDAPP:-/nonexistent}/.local/agents/sessions/$1/control/dead"
 	[ -f "$questionFile" ] || return 0
 	while IFS= read -r questionLine || [ -n "$questionLine" ] ; do
 		## Every question the line names: one that was asked again stands beside the one before it.
@@ -254,7 +254,7 @@ AgentsToolsSessionControlDeathQuestion(){ ## session id
 AgentsToolsSessionControlDeathAsk(){ ## session id, record file, where it is asked (a thread `<channel>:<ts>`, or human-owner), whom it is asked, the item of the run (may be empty); then, for a question asked again: its number, the answer that was not carried out, why, how many times in a row where that is three or more (else empty), the item that was put back in review (may be empty)
 	local askSession="$1" askRecord="$2" askWhere="$3" askWhom="$4" askItem="${5:-}" askTry="${6:-1}" askFailed="${7:-}" askWhy="${8:-}" askRepeat="${9:-}" askBack="${10:-}" askKey
 	local askRun askMember askRole askName askShort="" askQuestion askOptions askContext askBody askOut askChannel askTs askThread askAddressees askAsking askId askSent askFound
-	type AgentsToolsAskPostReact > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.AskPost.include"
+	type AgentsToolsAskKindRow > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.AskPost.include"
 	askRun="${askRecord##*/}" ; askRun="${askRun%.spawn.md}"
 	askMember="$( AgentsToolsSpawnSandboxRecordHeader "$askRecord" owner )"
 	[ -n "$askMember" ] || { printf 'failed %s\n' "its record names no member" ; return 1 ; }
@@ -354,13 +354,15 @@ AgentsToolsSessionControlDeathAsk(){ ## session id, record file, where it is ask
 ## once the line of the death holds the answer, it is carried out
 ## (AgentsToolsSessionControlDeathAct).
 AgentsToolsSessionControlDeathWork(){ ## session id, run id, the file its result goes to
+	type AgentsToolsSpawnRecord > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunRecords.include"
+	type AgentsToolsSpawnRuns > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunProcesses.include"
 	local workSession="$1" workRun="$2" workResult="$3"
 	local workRecord workLine workTold workAsked workField workItem="" workState workReviewer="" workParent workThread workWhere="" workWhom="" workLives="" workSaid workOut workStamp
 	## The team data and the members, as every operation of the tooling finds them.
 	. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.UseAgentsTools.include"
 	set +e +u
 	workStamp="$( date -u +%Y-%m-%dT%H:%M:%SZ )"
-	workRecord="$( AgentsToolsRegistrySpawnRecord "$workRun" )"
+	workRecord="$( AgentsToolsSpawnRecord "$workRun" )"
 	if [ -z "$workRecord" ] ; then
 		printf 'error: %s\n' "no record of run $workRun is found" >> "$workResult"
 		return 0
@@ -415,7 +417,7 @@ AgentsToolsSessionControlDeathWork(){ ## session id, run id, the file its result
 		workThread="${workThread%% *}"
 	fi
 	AgentsToolsSpawnConversationThreadValid "$workThread" || workThread=""
-	[ -z "$workParent" ] || ! AgentsToolsRegistrySpawnRuns "$workParent" "" || workLives="yes"
+	[ -z "$workParent" ] || ! AgentsToolsSpawnRuns "$workParent" "" || workLives="yes"
 	## Where the question goes, and to whom: in the thread of the session it reports to, to its
 	## member, where that member still runs there; else the human-owner, for a person, for a member
 	## (whose own conversation the bot cannot read an answer in), and for a session that has ended.
@@ -574,6 +576,7 @@ AgentsToolsSessionControlDeathSay(){ ## thread, member, whom it is told, line, r
 ## next question does. The result says `back: <item>`, and the note and the next question
 ## name it.
 AgentsToolsSessionControlDeathAct(){ ## session id, record file, the line of the death, the file its result goes to
+	type AgentsToolsSpawnRuns > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunProcesses.include"
 	local actSession="$1" actRecord="$2" actLine="$3" actResult="$4"
 	local actRun actAnswer actId actPending actBy actMember actField actItem="" actState="" actNow actOut="" actWhy="" actSaid="" actReason="" actThread actParent actParentMember actBack="" actShown
 	actRun="${actRecord##*/}" ; actRun="${actRun%.spawn.md}"
@@ -594,11 +597,11 @@ AgentsToolsSessionControlDeathAct(){ ## session id, record file, the line of the
 	case "$actAnswer" in
 		resume|fresh)
 			actNow="$( [ -z "$actItem" ] || AgentsToolsSpawnSandboxRecordHeader "$MDAT_DATA_ROOT/board/$actState/$actItem.md" spawn-id )"
-			if AgentsToolsRegistrySpawnRuns "$actRun" "$actRecord" || [ -n "$( AgentsToolsRegistryRunProcesses "$actRun" "$actRecord" - 2> /dev/null )" ] ; then
+			if AgentsToolsSpawnRuns "$actRun" "$actRecord" || [ -n "$( AgentsToolsRunProcesses "$actRun" "$actRecord" - 2> /dev/null )" ] ; then
 				actWhy="a process still runs as the run it would replace, so nothing was started"
 			elif [ -z "$actItem" ] ; then
 				actWhy="its record links no dispatch item of the board to start it again on"
-			elif [ -n "$actNow" ] && [ "$actNow" != "-" ] && [ "$actNow" != "$actRun" ] && AgentsToolsRegistrySpawnRuns "$actNow" "" ; then
+			elif [ -n "$actNow" ] && [ "$actNow" != "-" ] && [ "$actNow" != "$actRun" ] && AgentsToolsSpawnRuns "$actNow" "" ; then
 				actSaid="death-$actAnswer"
 			else
 				[ "$( AgentsToolsSpawnSandboxRecordHeader "$actRecord" status )" != "spawn-started" ] || AgentsToolsSessionControlDeathClose "$actRecord" \

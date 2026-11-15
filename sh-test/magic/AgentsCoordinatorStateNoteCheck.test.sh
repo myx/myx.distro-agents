@@ -69,7 +69,7 @@ rigBoardFn(){ ## function name -- one of the board readers of the state-note inc
 		RIG_TMP="$rigTmp" RIG_FN="$1" \
 		bash -c '
 			case "$MDAT_DATA_ROOT" in "$RIG_TMP"/*) ;; *) exit 99 ;; esac
-			MDSC_CMD=rig ; set -- --rig-none ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.MagicCoordinatorState.include" 2> /dev/null
+			MDSC_CMD=rig ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.CoordinatorReads.include"
 			"$RIG_FN"
 		'
 }

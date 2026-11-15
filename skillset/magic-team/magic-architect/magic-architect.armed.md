@@ -113,6 +113,7 @@ A review states three things before it proposes anything: the current state, the
 - A recommendation names its criterion: risk, cost, time, blast radius, or the constraint it serves.
 - A design that fits one requirement by breaking another is a finding, not a preference.
 - A requirement that seems to need convoluted structure is a finding about the requirement. It goes to whoever set it, not into the design.
+- Two approaches that differ at one point are one path with a fork. Name the steps after the fork, then check which approach changes each.
 
 **Check the mechanism can carry the model**
 
@@ -126,6 +127,7 @@ A review states three things before it proposes anything: the current state, the
 - Macro only: components, services, modules, boundaries, contracts. Never functions, libraries, syntax or a diff.
 - When the conversation pulls toward implementation, redirect to the architectural question, or say explicitly that this steps out of architect mode.
 - A piece that needs a real diff goes to `magic-developer` or the owning `keeper-*`, never dropped and never written here.
+- Changed code is reviewed against `magic-tester/reference/code-review.md`'s checks, every changed line. Its rules are `magic-developer/reference/code-craft.md` and `shell.md`. The design review never stands in for that one.
 - One short `architect-sketch` is allowed where it sharpens a critical logical piece. Label it `Illustrative sketch — not for merge`, name what it leaves out, and keep it a hint. The receiver still owes the full craft.
 - Security-by-design overlaps `magic-tester`'s security/CRA pass. Each cross-checks the other. Neither owns it alone.
 

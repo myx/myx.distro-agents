@@ -28,7 +28,7 @@ rigTool="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 rigHarness="$rigHere/harness/AgentsUniversalHarness.sh"
 . "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-harness-text.include.sh" || exit 1
 ## The name of the address field, read where it is held, so a rename is one line there.
-rigReportsTo="$( LC_ALL=C sed -n 's/^agentsRunRouteField="\(.*\)"$/\1/p' "$rigHere/session/AgentsTools.SpawnSandbox.include" )"
+rigReportsTo="$( LC_ALL=C sed -n 's/^agentsRunRouteField="\(.*\)"$/\1/p' "$rigHere/spawn/AgentsTools.SpawnSandbox.include" )"
 rigMember="magic-tester"
 
 rigRefuse(){
@@ -151,7 +151,7 @@ rigResolve(){ ## session thread (empty for none), target, who calls (default: th
 			joined) export MDAT_SPAWN_SESSION_ID=rig-child-id MDAT_SESSION_ID=rig-native-id ;;
 			*) export MDAT_SPAWN_SESSION_ID=rig-child-id ;;
 		esac
-		. "$rigHere/comms/AgentsTools.CommsSlack.include" definitions-only
+		. "$rigHere/slack/AgentsTools.CommsSlack.include"
 		resolveRc=0
 		resolveOut="$( DistroAgentsToolsResolveTarget "$2" )" || resolveRc=$?
 		printf 'rc=%s %s' "$resolveRc" "$( printf '%s' "$resolveOut" | tr '\n' '|' )"
@@ -514,7 +514,7 @@ rigAssert "session-parent:<ts>: that message, in the parent thread's conversatio
 rigAssert "with no session thread it names nowhere, by the same line" "$( rigResolve "" "session-current:$rigMessage" )" "rc=3 $rigNoCurrent"
 rigSessionRecord rig-native-id "$rigNativeThread"
 rigAssert "in a session that is itself the coworking session: its recorded conversation" "$( rigResolve "" "session-current:$rigMessage" native )" "rc=0 CHANNEL=CNATIVE1|THREAD_TS=$rigMessage"
-rigAssert "on the client side an alias of our own side stays refused, with its message too" "$( set +u ; export MDAT_COMMS_SIDE=client MDAT_SESSION_THREAD="$rigCurrent" MMDAPP="$rigScenarioDir/ws" ; . "$rigHere/comms/AgentsTools.CommsSlack.include" definitions-only ; DistroAgentsToolsResolveTarget "session-current:$rigMessage" client-rig > "$rigScenarioDir/client.out" ; printf 'rc=%s:%s' "$?" "$( LC_ALL=C grep -c "is refused: for 'session-current', this addressee alias is only usable in" "$rigScenarioDir/client.out" )" )" "rc=3:1"
+rigAssert "on the client side an alias of our own side stays refused, with its message too" "$( set +u ; export MDAT_COMMS_SIDE=client MDAT_SESSION_THREAD="$rigCurrent" MMDAPP="$rigScenarioDir/ws" ; . "$rigHere/slack/AgentsTools.CommsSlack.include" ; DistroAgentsToolsResolveTarget "session-current:$rigMessage" client-rig > "$rigScenarioDir/client.out" ; printf 'rc=%s:%s' "$?" "$( LC_ALL=C grep -c "is refused: for 'session-current', this addressee alias is only usable in" "$rigScenarioDir/client.out" )" )" "rc=3:1"
 
 echo "-- every operation that acts on one message takes <alias>:<ts>, for all six aliases --"
 rigAliasScene opMessageRead

@@ -108,7 +108,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
    - a duplicate control thread.
 
    Never end one of the critical session's own.
-5. **sample-the-rest**: Sample the sessions that are not stuck, at random, or all of them as load allows. Read what each filed in `event-track` and the content it produced. Check its decisions and quality against the brief, the epic and the rules in force.
+5. **sample-the-rest**: Sample the sessions that are not stuck, at random, or all of them as load allows. Read what each filed in `event-track` and the content it produced. Check its decisions and quality against the brief, the epic and the rules in force. Read the planning documents against the rulings too, and correct any line a later ruling has overtaken.
 6. **assess-the-system**: Assess how the whole system works: tooling, setup, processes, people and teams. Look for gaps, inefficiency and what to tune.
 7. **handle-a-problem**: Assess each problem the steps above found, before any action. Then fix it, file it, or send a request to magic.vane@meloscope.com (`--email-send`). Choose by the start mode, the install, the situation and the kind of problem.
    - detect problems and areas to improve actively, by reading the code and the running system, not only what a run reports.
@@ -192,6 +192,15 @@ Steps:
    - where it finds a better solution, it offers the options to grooming or `magic-coordinator`, and builds only the approved one.
    - a different fix replaces the MVP forward. The MVP is never reverted to leave the fault open.
 9. Report the fix and its rework task in one line, in this tick's **report-on-change**.
+
+## `land-a-diff` — land a member's built change when the member holds no source write
+
+Steps:
+1. Read the member's report: the diff's path, its evidence that the check failed before and passes after, and what it did not run.
+2. Dry-run the diff against the source, then apply it. Leave no `.orig` or `.rej` file.
+3. Check every changed file with `bash -n` or its own check.
+4. Re-run the member's check yourself, in the background, and read it the next tick.
+5. Record the landing on the board item and in the epic, with the evidence and what is still unrun.
 
 # Routine's local rules
 

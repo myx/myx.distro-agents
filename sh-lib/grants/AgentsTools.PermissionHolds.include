@@ -89,7 +89,7 @@ AgentsToolsPermissionIsHumanOwner(){ ## who
 			AgentsToolsAuthorityOwnerNamed "$1" && return 0
 		;;
 	esac
-	type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
+	type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/settings/AgentsTools.ConfigOption.include"
 	ownerAccount="$( AgentsToolsConfigOption magic-team --select SLACK_CHANNEL_HUMAN_OWNER 2>/dev/null )" || ownerAccount=""
 	[ -n "$ownerAccount" ] && [ "$ownerAccount" = "$1" ] && return 0
 	return 1
@@ -247,8 +247,8 @@ AgentsToolsPermissionFloorRoots(){ ## workspace, member, read|write, session id 
 	esac
 	[ "$floorPurpose" = "read" ] || return 0
 	if [ -n "$floorSession" ] ; then
-		type AgentsToolsGrantsRunSeats > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.Grants.include" 2> /dev/null || :
-		type AgentsToolsGrantsRunSeats > /dev/null 2>&1 && AgentsToolsGrantsRunSeats "$floorWs" "$floorSession" || :
+		type AgentsToolsGrantsRunSeats > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.Grants.include"
+		AgentsToolsGrantsRunSeats "$floorWs" "$floorSession" || :
 	fi
 	[ -z "${MDLT_ORIGIN:-}" ] || printf '%s\n' "$MDLT_ORIGIN/myx/myx.distro-agents/skillset"
 	return 0
@@ -280,6 +280,7 @@ AgentsToolsPermissionStandingRows(){ ## member
 ## deny-write takes away Edit and Write on its glob, deny-read Read, Grep and Glob, deny-tool the tool it names.
 ## All denies together override all allows together.
 AgentsToolsPermissionStandingDenied(){ ## member, tool, natural target
+	type AgentsToolsGrantsCovers > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.Grants.include"
 	local denyVerb denyGlob denyPattern denyLayer denyRowTool denyRowTarget
 	while IFS=$'\t' read -r denyVerb denyGlob denyPattern denyLayer ; do
 		[ -n "$denyGlob" ] || continue
@@ -397,6 +398,7 @@ AgentsToolsPermissionOnceLive(){ ## grant time
 ## with that run, and for its task grants. item-runs-task: for its task grants alone, what
 ## those runs share for the session having ended.
 AgentsToolsPermissionGrantScan(){ ## session dir, member, tool, natural target, use|hold|item-runs|item-runs-task, store a once is used up in (default: the session dir)
+	type AgentsToolsPermissionEscape > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionRecord.include"
 	local scanDir="$1" scanMember="$2" scanTool="$3" scanWant="$4" scanMode="$5" scanConsumed="${6:-$1}"
 	local scanEntry scanKind scanRest scanEntryTool scanEntryTarget scanBy scanTime scanRef scanWantEsc scanTask
 	[ -f "$scanDir/grants" ] || return 1
@@ -492,7 +494,7 @@ AgentsToolsPermissionSessionRoutine(){ ## session id
 	done
 	## A root-harness session has no spawn record: the routine its mint kept in its folder is the one it runs.
 	if [ -z "$srRoutine" ] && [ -z "$srCow" ] ; then
-		type AgentsToolsRootHarnessRoutineRead > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.RootHarnessKind.include" 2> /dev/null || :
+		type AgentsToolsRootHarnessRoutineRead > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.RootHarnessKind.include"
 		srRoutine="$( AgentsToolsRootHarnessRoutineRead "$srSession" 2> /dev/null )" || srRoutine=""
 	fi
 	if [ -z "$srRoutine" ] && [ -n "$srCow" ] && [ "$srCow" != "$srSession" ] ; then
@@ -590,7 +592,7 @@ AgentsToolsPermissionRoutineHolds(){ ## member, tool, natural target, session id
 				case "$rhEntryTarget" in
 					''|'*'|'**'|/*) ;;
 					@team-data|@team-data/*)
-						type AgentsToolsTeamDataRootOf > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataRoot.include" 2> /dev/null || :
+						type AgentsToolsTeamDataRootOf > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataRoot.include"
 						rhEntryTarget="${MDAT_DATA_ROOT:-$( AgentsToolsTeamDataRootOf "$MMDAPP" 2> /dev/null )}${rhEntryTarget#@team-data}"
 					;;
 					*) rhEntryTarget="${MMDAPP%/}/$rhEntryTarget" ;;
@@ -681,7 +683,7 @@ AgentsToolsPermissionRoutineDenies(){ ## member, tool, natural target, session i
 					''|'*'|'**'|/*) ;;
 					## `@team-data`, the rig's team data root, as the allow side reads it.
 					@team-data|@team-data/*)
-						type AgentsToolsTeamDataRootOf > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataRoot.include" 2> /dev/null || :
+						type AgentsToolsTeamDataRootOf > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataRoot.include"
 						dnEntryTarget="${MDAT_DATA_ROOT:-$( AgentsToolsTeamDataRootOf "$MMDAPP" 2> /dev/null )}${dnEntryTarget#@team-data}"
 					;;
 					*) dnEntryTarget="${MMDAPP%/}/$dnEntryTarget" ;;
@@ -754,7 +756,7 @@ AgentsToolsPermissionDenyRefusal(){ ## member, tool, natural target, session id,
 		case "${1:-}:${4:-}" in
 			:*|*:) printf 'REFUSAL-ID: none -- this session has no team identity or session id, so the refusal was not recorded and cannot be escalated by id.\n' ; return 0 ;;
 		esac
-		denyId="$( export MDAT_EVENT_TRACK_POST_NOWAIT=1 MDSC_CMD="${MDSC_CMD:-DistroAgentsTools}" ; type AgentsToolsAssertBareName > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.BareName.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.InternOpPermission.include" --intern-op-permission-refusal-log "${1}" --session-id "${4}" --tool "${2}" --target "${3}" --reason "denied by $denyWhy" --limit-owner human-owner 2> /dev/null | LC_ALL=C sed -n 's/^\(refusal-[0-9a-f-]*\)$/\1/p' | head -1 )"
+		denyId="$( export MDAT_EVENT_TRACK_POST_NOWAIT=1 MDSC_CMD="${MDSC_CMD:-DistroAgentsTools}" ; type AgentsToolsAssertBareName > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.BareName.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.InternOpPermission.include" --intern-op-permission-refusal-log "${1}" --session-id "${4}" --tool "${2}" --target "${3}" --reason "denied by $denyWhy" --limit-owner human-owner | LC_ALL=C sed -n 's/^\(refusal-[0-9a-f-]*\)$/\1/p' | head -1 )"
 		case "$denyId" in
 			refusal-*) printf 'REFUSAL-ID: %s\n' "$denyId" ;;
 			*) printf 'REFUSAL-ID: none -- recording the refusal failed, so it cannot be escalated by id.\n' ;;
@@ -798,7 +800,7 @@ AgentsToolsPermissionAccessBlock(){ ## member, routine file (optional)
 		esac
 	done
 	if [ -n "${MMDAPP:-}" ] && [ -n "$abMember" ] ; then
-		type AgentsToolsGrantsMemberRows > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.Grants.include" 2> /dev/null || :
+		type AgentsToolsGrantsMemberRows > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.Grants.include"
 		while IFS=$'\t' read -r abVerb abGlob abOne abRest ; do
 			abGlob="${abGlob#"$MMDAPP"/}"
 			case "$abVerb" in
@@ -982,7 +984,7 @@ AgentsToolsPermissionParticipants(){ ## session id (may be empty), task item (ma
 			## record on a gate call (AgentsTools.StartedRecords.include): the coworking session's and this
 			## session's own records, this run's record, the runs it spawned, and its parent's record. The
 			## selection below then runs over those files alone, and decides as it always did.
-			type AgentsToolsSpawnedSessionRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include" 2> /dev/null || :
+			type AgentsToolsSpawnedSessionRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.StartedRecords.include"
 			while IFS= read -r partRecord ; do
 				[ -n "$partRecord" ] && [ -f "$partRecord" ] || continue
 				partFiles+=( "$partRecord" )
@@ -1010,7 +1012,7 @@ AgentsToolsPermissionParticipants(){ ## session id (may be empty), task item (ma
 		fi
 		## A root-harness session has no spawn record: the coordinator is its one participant.
 		if [ -n "$partSession" ] && [ -n "${MMDAPP:-}" ] ; then
-			type AgentsToolsRootHarnessRoutineRead > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.RootHarnessKind.include" 2> /dev/null || :
+			type AgentsToolsRootHarnessRoutineRead > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.RootHarnessKind.include"
 			! AgentsToolsRootHarnessRoutineRead "$partSession" > /dev/null 2>&1 || printf 'magic-coordinator\n'
 		fi
 		if [ -n "$partTask" ] && [ -n "${MDAT_DATA_ROOT:-}" ] ; then

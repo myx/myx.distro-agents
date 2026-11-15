@@ -5,7 +5,7 @@ set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigPackage="$MDLT_ORIGIN/myx/myx.distro-agents"
 . "$rigPackage/sh-lib/member/AgentsTools.CallerCheck.include"
-. "$rigPackage/sh-lib/session/AgentsTools.Dispatcher.include"
+. "$rigPackage/sh-lib/schedule/AgentsTools.Dispatcher.include"
 rigFails=0 rigPasses=0
 rigAssert(){ if [ "$2" = "$3" ] ; then printf '  PASS  %s\n' "$1" ; rigPasses=$(( rigPasses + 1 )) ; else printf '  FAIL  %s\n        got:  %s\n        want: %s\n' "$1" "$2" "$3" ; rigFails=$(( rigFails + 1 )) ; fi ; }
 rigHas(){ LC_ALL=C grep -c -F -- "$1" <<< "$2" || : ; }

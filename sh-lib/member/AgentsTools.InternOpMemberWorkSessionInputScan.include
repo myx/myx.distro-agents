@@ -1,0 +1,43 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+## AgentsTools.InternOpMemberWorkSessionInputScan.include -- the operation `--intern-op-member-work-session-input-scan`, sourced by AgentsTools.Member.include with the operation's arguments.
+		shift
+		local memberName="$1"
+		shift || true
+		if [ -z "$memberName" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --intern-op-member-work-session-input-scan: syntax is <member>" >&2
+			set +e ; return 1
+		fi
+		if [ $# -gt 0 ] ; then
+			case "$1" in
+				--*)
+					echo "⛔ ERROR: $MDSC_CMD --intern-op-member-work-session-input-scan: invalid option: $1 -- syntax is <team-member>, no other arguments -- an input-scan reads all baseline-relevant items itself. SEE Skill magic-team/magic-team.armed.md" >&2
+					set +e ; return 1
+				;;
+				*)
+					echo "⛔ ERROR: $MDSC_CMD --intern-op-member-work-session-input-scan: syntax is <team-member>, no other arguments -- an input-scan reads all baseline-relevant items itself, an item name is not a parameter. SEE Skill magic-team/magic-team.armed.md" >&2
+					set +e ; return 1
+				;;
+			esac
+		fi
+		AgentsToolsAssertBareName "$memberName" "<team-member>" member-work-session-input-scan || { set +e ; return 1 ; }
+		local memberDir="$MDAT_SKILLSET_ROOT/$memberName"
+		if [ ! -d "$memberDir" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --intern-op-member-work-session-input-scan: no such member skill directory: $memberDir" >&2
+			set +e ; return 1
+		fi
+
+		## Every non-terminal state, owner-filtered, and the member's whole own inbox: the item's own terms.
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+		DistroAgentsTools --intern-op-session-context-scan "$memberName" \
+			--state backlog --state pending --state running --state review --state blocked --state parked \
+			--all-types --filter-owner "$memberName" \
+			--do-inbox-reflections \
+			--do-inbox-notes \
+			--do-inbox-inquiry-active \
+			--do-inbox-other \
+			--no-slack --no-email --no-trello \
+			--no-board-related \
+			--context --intern-op-member-work-session-input-scan
+		return $?

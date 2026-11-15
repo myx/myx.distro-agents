@@ -14,7 +14,7 @@
 set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
-rigInclude="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsEmail.include"
+rigInclude="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/email/AgentsTools.CommsEmail.include"
 [ -f "$rigInclude" ] || { echo "⛔ ERROR: the email driver is not at the origin this workspace resolves: $rigInclude" >&2 ; exit 1 ; }
 
 rigPasses=0

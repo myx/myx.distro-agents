@@ -12,7 +12,7 @@ set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 rigPackage="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents"
 rigAwk="$rigPackage/../myx.distro-.local/sh-lib/markdown/LocalMarkdownHtmlDocument.awk"
-rigEmailAwk="$rigPackage/sh-lib/comms/AgentsEmailHtmlBuild.awk"
+rigEmailAwk="$rigPackage/sh-lib/email/AgentsEmailHtmlBuild.awk"
 rigAxiomAwk="$rigPackage/sh-test/harness/AgentsHarnessAwkAxiom.test.awk"
 rigFixtures="$rigPackage/sh-test/check-fixtures"
 

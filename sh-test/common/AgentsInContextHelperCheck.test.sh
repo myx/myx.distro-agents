@@ -17,6 +17,7 @@
 ## Offline: the files of this package are read, and nothing is run.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
+: "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 rigHere="$MDLT_ORIGIN/myx/myx.distro-agents"
 [ -d "$rigHere/sh-lib" ] || { echo "⛔ ERROR: no sh-lib at $rigHere" >&2 ; exit 1 ; }
 
@@ -30,15 +31,16 @@ rigAssert(){
 	fi
 }
 
-rigTmp="$( mktemp -d "${TMPDIR:-/tmp}/AgentsInContextHelperCheck.XXXXXX" )" || exit 1
+mkdir -p "$MMDAPP/.local/agents/scratch/sh-test" || exit 1
+rigTmp="$( mktemp -d "$MMDAPP/.local/agents/scratch/sh-test/AgentsInContextHelperCheck.XXXXXX" )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
 
 ## The helpers this package calls in context, and the include that defines each.
 rigHelpers="$rigTmp/helpers.tsv"
 cat > "$rigHelpers" <<'RIGHELPERS'
-AgentsToolsConfigOption	sh-lib/config/AgentsTools.ConfigOption.include
-AgentsToolsCommsSlackRun	sh-lib/comms/AgentsTools.CommsSlack.include
-AgentsToolsMemberCommsSlackRun	sh-lib/comms/AgentsTools.MemberCommsSlack.include
+AgentsToolsConfigOption	sh-lib/settings/AgentsTools.ConfigOption.include
+AgentsToolsCommsSlackRun	sh-lib/slack/AgentsTools.CommsSlack.include
+AgentsToolsMemberCommsSlackRun	sh-lib/slack/AgentsTools.MemberCommsSlack.include
 AgentsToolsMyRoot	sh-lib/common/AgentsTools.MyRoot.include
 AgentsToolsFrontSyntax	sh-lib/harness/AgentsContext.FrontTable.Help.include
 AgentsToolsFrontHelp	sh-lib/harness/AgentsContext.FrontTable.Help.include
@@ -86,9 +88,9 @@ rigAssert "no call path reaches a moved helper unsourced" "$rigMissing" "0"
 [ "$rigMissing" = "0" ] || LC_ALL=C head -20 "$rigTmp/missing.tsv" | LC_ALL=C sed 's/^/        /' >&2
 
 echo "-- 2. the control: a file-scope guard --"
-LC_ALL=C printf 'helper = "sh-lib/config/AgentsTools.ConfigOption.include"\n' > "$rigTmp/ctl1.sh"
-LC_ALL=C printf 'type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"\nF(){ AgentsToolsConfigOption x ; }\n' > "$rigTmp/ctl2.sh"
-rigAssert "a guard at the top of the file satisfies a call in a function" "$( rigReach "$rigTmp/ctl2.sh" AgentsToolsConfigOption sh-lib/config/AgentsTools.ConfigOption.include > /dev/null ; printf '%s' "$?" )" "0"
+LC_ALL=C printf 'helper = "sh-lib/settings/AgentsTools.ConfigOption.include"\n' > "$rigTmp/ctl1.sh"
+LC_ALL=C printf 'type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/settings/AgentsTools.ConfigOption.include"\nF(){ AgentsToolsConfigOption x ; }\n' > "$rigTmp/ctl2.sh"
+rigAssert "a guard at the top of the file satisfies a call in a function" "$( rigReach "$rigTmp/ctl2.sh" AgentsToolsConfigOption sh-lib/settings/AgentsTools.ConfigOption.include > /dev/null ; printf '%s' "$?" )" "0"
 
 echo "-- 3. the control: a function's own include --"
 rigAssert "the include that defines a helper is not reported" "$( LC_ALL=C awk -F'\t' '$1 == $3' "$rigTmp/missing.tsv" | LC_ALL=C wc -l | tr -d ' ' )" "0"

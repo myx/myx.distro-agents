@@ -1,3 +1,6 @@
+---
+maintainers: magic-librarian, magic-coordinator, magic-architect, human-owner
+---
 # CSS `linear()` as a physics-animation data container
 
 The body of the section of the same name in this member's armed content.

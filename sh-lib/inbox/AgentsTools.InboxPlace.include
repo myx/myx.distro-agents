@@ -6,7 +6,7 @@
 ## every inbox operation, scan, Wait and the GC ask (MAGIC.md, "Inbox items live in incoming/
 ## and processed/"). In-context helpers with no operation of their own. Sourced for its
 ## functions only:
-##   type AgentsToolsInboxDir > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/inbox/AgentsTools.InboxPlace.include"
+##   type AgentsToolsInboxFolders > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/inbox/AgentsTools.InboxPlace.include"
 ##
 ## THE SPLIT INBOX. An inbox holds two folders, `incoming/` and `processed/`, and an item's
 ## processed stamp (`processed-at` in its front matter) decides its folder: no stamp, incoming/;
@@ -18,22 +18,14 @@
 ## folder that is not there yet is made by the first write into it; git keeps no empty folder.
 ##
 
-## Where an item of that inbox with no processed stamp lives: its incoming/.
-AgentsToolsInboxDir(){ ## member
-	printf '%s\n' "$MDAT_DATA_ROOT/inboxes/$1/incoming"
-}
 
-## Where an item of that inbox belongs by its stamp: `yes` it carries processed-at, else not.
-## processed/ or incoming/.
-AgentsToolsInboxDirFor(){ ## member, stamped (yes|no)
-	if [ "$2" = "yes" ] ; then printf '%s\n' "$MDAT_DATA_ROOT/inboxes/$1/processed" ; else printf '%s\n' "$MDAT_DATA_ROOT/inboxes/$1/incoming" ; fi
-}
+
 
 ## The folders a read of that inbox looks in, one a line, in their order: incoming/, and
 ## processed/ after it where `yes` includes the processed.
 AgentsToolsInboxFolders(){ ## member, include processed (yes|no)
-	printf '%s\n' "$MDAT_DATA_ROOT/inboxes/$1/incoming"
-	[ "${2:-no}" != "yes" ] || printf '%s\n' "$MDAT_DATA_ROOT/inboxes/$1/processed"
+	printf '%s/inboxes/%s/incoming\n' "$MDAT_DATA_ROOT" "$1"
+	[ "${2:-no}" != "yes" ] || printf '%s/inboxes/%s/processed\n' "$MDAT_DATA_ROOT" "$1"
 }
 
 ## The path of the item of that name in that inbox, where a read finds it: rc 1, and nothing
@@ -54,14 +46,21 @@ AgentsToolsInboxItemProcessed(){ ## member, item name
 ## The path of a standing note of that inbox, the state and lock notes of the routines among
 ## them, there or not yet. A member's inbox has standing notes in both folders, for different things:
 ## those of magic-coordinator are its work, an item with no processed stamp in incoming/
-## (AgentsToolsInboxDir); the state and lock note of a routine of any other member is no work of
+## (AgentsToolsInboxFolders); the state and lock note of a routine of any other member is no work of
 ## that member, so it lives in processed/ with a stamp, out of the demand the schedule reads in
 ## incoming/, out of the scans and out of Wait (AgentsToolsInboxNoteProcessed says which).
 AgentsToolsInboxNotePath(){ ## member, note name
 	if AgentsToolsInboxNoteProcessed "$1" "$2" ; then
-		printf '%s/%s\n' "$( AgentsToolsInboxDirFor "$1" yes )" "$2"
+		local notePlace
+		notePlace="$MDAT_DATA_ROOT/inboxes/$1/processed"
+		## A note of this kind found in incoming/ alone is moved to its place on the first lookup, so every reader and
+		## writer meets it in one place, whichever older writer put it in incoming/.
+		if [ ! -f "$notePlace/$2" ] && [ -f "$MDAT_DATA_ROOT/inboxes/$1/incoming/$2" ] ; then
+			mkdir -p "$notePlace" 2> /dev/null && mv -f "$MDAT_DATA_ROOT/inboxes/$1/incoming/$2" "$notePlace/$2" 2> /dev/null || :
+		fi
+		printf '%s/%s\n' "$notePlace" "$2"
 	else
-		printf '%s/%s\n' "$MDAT_DATA_ROOT/inboxes/$1/incoming" "$2"
+		printf '%s/inboxes/%s/incoming/%s\n' "$MDAT_DATA_ROOT" "$1" "$2"
 	fi
 }
 

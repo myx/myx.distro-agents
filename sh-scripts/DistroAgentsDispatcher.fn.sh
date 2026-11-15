@@ -32,17 +32,6 @@ case "$BASH" in
 	;;
 esac
 
-## The Dispatcher's operations (AgentsTools.Dispatcher.include), loaded where they are asked for.
-DistroAgentsDispatcherTools(){
-	type AgentsToolsDispatcherSessions > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.Dispatcher.include"
-}
-
-## The schedule's (AgentsTools.DispatcherSchedule.include): the flags, their setters and the autorun's decision.
-DistroAgentsDispatcherSchedule(){
-	DistroAgentsDispatcherTools
-	type AgentsToolsScheduleDue > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.DispatcherSchedule.include"
-}
-
 ## The operations that came here from DistroAgentsTools.fn.sh (F1.4): every one of them is asked what each name of the table is asked, in AgentsContext.FrontDoor.include.
 DistroAgentsDispatcherMoved(){
 	local MDSC_CMD='DistroAgentsDispatcher' frontDone="" frontRc=0
@@ -62,7 +51,7 @@ DistroAgentsDispatcherMoved(){
 		;;
 
 		--spawn-session)
-			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.MagicSpawnSession.include"
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSession.include"
 			return $?
 		;;
 
@@ -118,7 +107,7 @@ DistroAgentsDispatcher(){
 		--all-sessions|--active-sessions|--waiting-sessions)
 			local sessionsOp="$1"
 			shift
-			DistroAgentsDispatcherTools
+			type AgentsToolsDispatcherSessions > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/schedule/AgentsTools.Dispatcher.include"
 			AgentsToolsDispatcherSessions "$sessionsOp" "$@"
 			return $?
 		;;
@@ -136,7 +125,7 @@ DistroAgentsDispatcher(){
 		--camunda-diagram-sync-stale)
 			local camundaOp="$1"
 			shift
-			DistroAgentsDispatcherTools
+			type AgentsToolsCamundaDiagramSyncStale > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/schedule/AgentsTools.Dispatcher.include"
 			AgentsToolsCamundaDiagramSyncStale "$camundaOp" "$@"
 			return $?
 		;;
@@ -145,7 +134,7 @@ DistroAgentsDispatcher(){
 		--session-record)
 			local recordOp="$1"
 			shift
-			DistroAgentsDispatcherTools
+			type AgentsToolsDispatcherRecord > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/schedule/AgentsTools.Dispatcher.include"
 			AgentsToolsDispatcherRecord "$recordOp" "$@"
 			return $?
 		;;
@@ -155,7 +144,7 @@ DistroAgentsDispatcher(){
 		--routine-completed)
 			local completedOp="$1"
 			shift
-			DistroAgentsDispatcherTools
+			type AgentsToolsDispatcherCompleted > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/schedule/AgentsTools.Dispatcher.include"
 			AgentsToolsDispatcherCompleted "$completedOp" "$@"
 			return $?
 		;;
@@ -165,7 +154,8 @@ DistroAgentsDispatcher(){
 		--current-flags)
 			local flagsOp="$1"
 			shift
-			DistroAgentsDispatcherSchedule
+			type AgentsToolsDispatcherSessions > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/schedule/AgentsTools.Dispatcher.include"
+			type AgentsToolsScheduleCurrentFlags > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/schedule/AgentsTools.DispatcherSchedule.include"
 			AgentsToolsScheduleCurrentFlags "$flagsOp" "$@"
 			return $?
 		;;
@@ -174,47 +164,95 @@ DistroAgentsDispatcher(){
 		--override-flag)
 			local overrideOp="$1"
 			shift
-			DistroAgentsDispatcherSchedule
+			type AgentsToolsDispatcherSessions > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/schedule/AgentsTools.Dispatcher.include"
+			type AgentsToolsScheduleOverride > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/schedule/AgentsTools.DispatcherSchedule.include"
 			AgentsToolsScheduleOverride "$overrideOp" "$@" || return $?
 			## A flag set by hand asks the schedule thread once, so a flag that keeps duties starts them with no session live to ask.
-			type AgentsToolsScheduleThreadAsk > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.ScheduleThread.include"
+			type AgentsToolsScheduleThreadAsk > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/schedule/AgentsTools.ScheduleThread.include"
 			AgentsToolsScheduleThreadAsk > /dev/null 2>&1 || :
 			return 0
 		;;
 
-		## The stop of a rig, in order (S12.15): it refuses unless `holding` holds, so nothing starts again; then every live session is ended
-		## with the console stop, and the schedule thread last. One line for each session ended.
+		## The stop of a rig, in order (S12.15): it refuses unless `holding` holds, so nothing starts again; then every live session is dismissed and
+		## given the chance to end itself, the console kill taking only what did not go, and the schedule thread last. One line for each session; a
+		## session that could not be ended is a WARNING, and the answer is 1. Run at the console, which is the only caller the list and the kill admit.
 		--stop-sessions)
-			local stopOp="$1" stopId stopHolder stopRc=0 stopList=""
+			local stopOp="$1" stopId stopHolder stopRc=0 stopList="" stopSoft stopWait stopKill stopLeft stopWaited stopActing stopKillOut stopKillRc=0
 			shift
 			[ $# -eq 0 ] || { echo "⛔ ERROR: $MDSC_CMD $stopOp: takes no argument, got: $1" >&2 ; return 1 ; }
-			DistroAgentsDispatcherSchedule
+			## WHO MAY STOP A RIG: the console, or a session of magic-coordinator. Every other member's session is refused here, with what the refusal is,
+			## rather than through the list read and the console stop below, which refuse it in their own words two layers down.
+			type AgentsToolsActingMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.CallerCheck.include"
+			stopActing="$( AgentsToolsActingMember )"
+			if [ -n "$stopActing" ] && [ "$stopActing" != magic-coordinator ] ; then
+				echo "⛔ ERROR: $MDSC_CMD $stopOp: this session acts as $stopActing, and stopping a rig is the console's own: the session list (--scope all) and the console stop are both refused to a member's session -- nothing was ended. Run it at the console, or from magic-coordinator." >&2
+				return 1
+			fi
+			type AgentsToolsDispatcherSessions > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/schedule/AgentsTools.Dispatcher.include"
+			type AgentsToolsScheduleCurrentFlags > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/schedule/AgentsTools.DispatcherSchedule.include"
 			case "$( AgentsToolsScheduleCurrentFlags --current-flags )" in
 				*"holding: yes"*) ;;
 				*) echo "⛔ ERROR: $MDSC_CMD $stopOp: holding is not set -- set it first with --override-flag holding, so the schedule starts nothing again" >&2 ; return 1 ;;
 			esac
 			type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 			## A START STILL IN FLIGHT JOINS AFTER THE PASS: the pass is repeated while one was in flight, each start waited for up to 120s.
-			local stopPass=0 stopFlight stopWaited
+			local stopPass=0 stopFlight
 			while [ "$stopPass" -lt 3 ] ; do
 				stopPass=$(( stopPass + 1 ))
+				stopSoft="" ; stopWait="" ; stopKill=""
 				## THE LIST IS READ ONCE, AND A LIST THAT COULD NOT BE READ ENDS THE STOP: a call refused the sessions has ended none, and
 				## answering 0 there reports a stop that never happened. Its refusal reaches the caller here, as one plain line.
 				stopList="$( DistroAgentsDispatcher --active-sessions --scope all 2>&1 )" || {
 					echo "⛔ ERROR: $MDSC_CMD $stopOp: no session was ended, since the live sessions could not be listed: $( printf '%s\n' "$stopList" | LC_ALL=C grep -m 1 -E 'ERROR|REFUS' | LC_ALL=C cut -c1-300 )" >&2 ; return 1
 				}
 				for stopId in $( printf '%s\n' "$stopList" | LC_ALL=C awk -F'\t' '$1 == "session" && $4 != "failed" && $4 != "finished" { print $2 }' ) ; do
-					( DistroAgentsTools --manager-session-kill --session-id "$stopId" ) | LC_ALL=C grep '^finish' || { echo "⚠️ WARNING: $MDSC_CMD $stopOp: session $stopId could not be ended" >&2 ; stopRc=1 ; }
+					## THE SOFT STOP FIRST, THE CONSOLE KILL ONLY FOR WHAT DID NOT GO (S12.15's still-needed line): a dismissed run ends itself at its
+					## next Wait with its handback given, so no handback is skipped where a dismissal would have done.
+					if ( DistroAgentsTools --manager-session-stop --session-id "$stopId" ) | LC_ALL=C awk -F'\t' '$1 == "stop" && ( $5 == "dismissed" || $5 == "already-dismissed" ) { soft = 1 } END { exit ( soft ? 0 : 1 ) }' ; then
+						stopSoft="$stopSoft $stopId"
+					else
+						stopKill="$stopKill $stopId"
+					fi
 				done
-				stopFlight="$( find "$MMDAPP/.local/agents/schedule/starting" -type f ! -name '*.hold' ! -name '*.out' ! -name '*.rc' 2> /dev/null )"
+				## A SESSION WITH NO RUN ALIVE ON THIS HOST CANNOT END ITSELF: only one that has is owed the bounded wait, and the rest go straight to the
+				## console kill. A run's liveness is its own row's process column: `running` is a process of this host, and the record's status is no reading of it.
+				for stopId in $stopSoft ; do
+					if printf '%s\n' "$stopList" | LC_ALL=C awk -F'\t' -v wantId="$stopId" '$1 == "run" && $2 == wantId && $6 == "running" { alive = 1 } END { exit ( alive ? 0 : 1 ) }' ; then
+						stopWait="$stopWait $stopId"
+					else
+						stopKill="$stopKill $stopId"
+					fi
+				done
+				stopWaited=0
+				while [ -n "$stopWait" ] && [ "$stopWaited" -lt 60 ] ; do
+					sleep 5 ; stopWaited=$(( stopWaited + 5 )) ; stopLeft=""
+					stopList="$( DistroAgentsDispatcher --active-sessions --scope all 2>&1 )" || break
+					for stopId in $stopWait ; do
+						printf '%s\n' "$stopList" | LC_ALL=C awk -F'\t' -v wantId="$stopId" '$1 == "run" && $2 == wantId && $6 == "running" { live = 1 } END { exit ( live ? 1 : 0 ) }' \
+							|| stopLeft="$stopLeft $stopId"
+					done
+					stopWait="$stopLeft"
+				done
+				for stopId in $stopKill $stopWait ; do
+					## THE KILL'S OWN STATUS, NEVER ITS ROW ALONE: a kill that could not close a record prints a `finish` row and still exits 1, so a caller reading
+					## only that row reports an ending that did not happen. The row is kept for the reader, and the status is the verdict.
+					stopKillOut="$( DistroAgentsTools --manager-session-kill --session-id "$stopId" 2> /dev/null )" || stopKillRc=$?
+					printf '%s\n' "$stopKillOut" | LC_ALL=C grep '^finish' || :
+					[ "$stopKillRc" = 0 ] || { echo "⚠️ WARNING: $MDSC_CMD $stopOp: session $stopId could not be ended" >&2 ; stopRc=1 ; }
+					stopKillRc=0
+				done
+				## A RIG THAT NEVER STARTED ANYTHING HAS NO FOLDER: that is no start in flight, never a failed read the stop ends on.
+				stopFlight=""
+				[ ! -d "$MMDAPP/.local/agents/schedule/starting" ] || stopFlight="$( find "$MMDAPP/.local/agents/schedule/starting" -type f ! -name '*.hold' ! -name '*.out' ! -name '*.rc' 2> /dev/null )"
 				[ -n "$stopFlight" ] || break
 				stopWaited=0
 				while [ -n "$stopFlight" ] && [ "$stopWaited" -lt 120 ] ; do
 					sleep 5 ; stopWaited=$(( stopWaited + 5 ))
-					stopFlight="$( find "$MMDAPP/.local/agents/schedule/starting" -type f ! -name '*.hold' ! -name '*.out' ! -name '*.rc' 2> /dev/null )"
+					stopFlight=""
+					[ ! -d "$MMDAPP/.local/agents/schedule/starting" ] || stopFlight="$( find "$MMDAPP/.local/agents/schedule/starting" -type f ! -name '*.hold' ! -name '*.out' ! -name '*.rc' 2> /dev/null )"
 				done
 			done
-			type AgentsToolsScheduleThreadDir > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.ScheduleThread.include"
+			type AgentsToolsScheduleThreadDir > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/schedule/AgentsTools.ScheduleThread.include"
 			stopHolder="$( cat "$( AgentsToolsScheduleThreadDir )/thread.lock" 2> /dev/null )" || stopHolder=""
 			if [ -n "$stopHolder" ] && AgentsToolsThreadLockHolderLives "$stopHolder" 2> /dev/null ; then
 				kill -TERM "${stopHolder%% *}" 2> /dev/null && printf 'thread\t%s\tended\n' "${stopHolder%% *}"
@@ -250,7 +288,8 @@ DistroAgentsDispatcher(){
 		--set-country|--set-timezone|--set-worktime|--set-weekend)
 			local setOp="$1"
 			shift
-			DistroAgentsDispatcherSchedule
+			type AgentsToolsDispatcherSessions > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/schedule/AgentsTools.Dispatcher.include"
+			type AgentsToolsScheduleSet > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/schedule/AgentsTools.DispatcherSchedule.include"
 			AgentsToolsScheduleSet "$setOp" "$@"
 			return $?
 		;;
@@ -260,7 +299,8 @@ DistroAgentsDispatcher(){
 		--routine-due)
 			local dueOp="$1"
 			shift
-			DistroAgentsDispatcherSchedule
+			type AgentsToolsDispatcherSessions > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/schedule/AgentsTools.Dispatcher.include"
+			type AgentsToolsScheduleDue > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/schedule/AgentsTools.DispatcherSchedule.include"
 			AgentsToolsScheduleDue "$dueOp" "$@"
 			return $?
 		;;
@@ -270,7 +310,7 @@ DistroAgentsDispatcher(){
 		--rebuild-stats|--stats-check|--run-stats|--run-history|--routine-stats|--token-stats)
 			local statsOp="$1"
 			shift
-			type AgentsToolsStatsDerive > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.DispatcherStats.include"
+			type AgentsToolsStatsRebuild > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/schedule/AgentsTools.DispatcherStats.include"
 			case "$statsOp" in
 				--rebuild-stats) AgentsToolsStatsRebuild "$statsOp" "$@" ;;
 				--stats-check) AgentsToolsStatsCheck "$statsOp" "$@" ;;

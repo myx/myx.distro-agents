@@ -1,3 +1,6 @@
+---
+maintainers: magic-librarian, magic-coordinator, magic-architect, human-owner
+---
 # Universal CSS resets can break nested-list indentation
 
 The body of the section of the same name in this member's armed content.

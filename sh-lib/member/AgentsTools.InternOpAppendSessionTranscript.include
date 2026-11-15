@@ -1,0 +1,185 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+## AgentsTools.InternOpAppendSessionTranscript.include -- the operation `--intern-op-append-session-transcript`, sourced by AgentsTools.Member.include with the operation's arguments.
+## The implementation. <session-id> is `-` for the calling session's own transcript.
+		shift
+		local memberName="$1"
+		shift || true
+		local namedSessionId="${1:-}"
+		shift || true
+		[ "$namedSessionId" != "-" ] || namedSessionId=""
+		[ -z "$namedSessionId" ] || AgentsToolsAssertBareName "$namedSessionId" "<session-id>" intern-op-append-session-transcript || { set +e ; return 1 ; }
+		if [ -z "$memberName" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --append-transcript: syntax is <team-member> [--speaker <speaker-name>] [--timestamp <ISO-UTC-date-time>] (--message <verbatim-text>|--from-stdin|--from-file <path>) [--transcript-name <transcript-file-name>] [--create]" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsAssertBareName "$memberName" "<team-member>" append-transcript || { set +e ; return 1 ; }
+		local speakerName timestampUtc messageText transcriptName
+		local messageFromStdin="false" messageFile messageArgProvided="false"
+		local allowCreate="false"
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--speaker)
+					speakerName="$2"
+					shift 2
+				;;
+				--timestamp)
+					timestampUtc="$2"
+					shift 2
+				;;
+				--message)
+					messageText="$2"
+					messageArgProvided="true"
+					shift 2
+				;;
+				--message-from-stdin|--from-stdin)
+					messageFromStdin="true"
+					shift
+				;;
+				--message-file|--from-file)
+					messageFile="$2"
+					shift 2
+				;;
+				--transcript-name)
+					transcriptName="$2"
+					shift 2
+				;;
+				--create)
+					allowCreate="true"
+					shift
+				;;
+				*)
+					echo "⛔ ERROR: $MDSC_CMD --append-transcript: unrecognized argument: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+
+		## With no --transcript-name: the calling session's own transcript, never another
+		## session's (AgentsTranscriptSessionKey). --create starts it when the session has
+		## none yet. Refused where no session resolves.
+		local sessionMode="false"
+		if [ -n "$namedSessionId" ] && [ -n "$transcriptName" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --intern-op-append-session-transcript: a named session takes no --transcript-name" >&2
+			set +e ; return 1
+		fi
+		if [ -z "$transcriptName" ] ; then
+			sessionMode="true"
+			[ -n "$speakerName" ] || speakerName="$memberName"
+			[ -n "$timestampUtc" ] || timestampUtc="$( date -u +%Y-%m-%dT%H:%M:%SZ )"
+		fi
+		if [ -z "$speakerName" ] || [ -z "$timestampUtc" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --append-transcript: required args with --transcript-name: --speaker --timestamp" >&2
+			set +e ; return 1
+		fi
+		local payloadSources=0
+		if [ "$messageArgProvided" = "true" ] ; then
+			payloadSources=$((payloadSources + 1))
+		fi
+		if [ "$messageFromStdin" = "true" ] ; then
+			payloadSources=$((payloadSources + 1))
+		fi
+		if [ -n "$messageFile" ] ; then
+			payloadSources=$((payloadSources + 1))
+		fi
+		if [ "$payloadSources" -ne 1 ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --append-transcript: provide exactly one payload source: --message, --from-stdin, or --from-file" >&2
+			set +e ; return 1
+		fi
+		if [ "$messageFromStdin" = "true" ] ; then
+			messageText="$(cat)"
+		elif [ -n "$messageFile" ] ; then
+			if [ ! -f "$messageFile" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --append-transcript: message file not found: $messageFile" >&2
+				set +e ; return 1
+			fi
+			messageText="$(cat -- "$messageFile")"
+		fi
+		if [ "$sessionMode" = "true" ] ; then
+			if ! printf '%s' "$timestampUtc" | grep -Eq '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]+)?Z$' ; then
+				echo "⛔ ERROR: $MDSC_CMD --append-transcript: --timestamp must be ISO UTC date-time (suffix Z): $timestampUtc" >&2
+				set +e ; return 1
+			fi
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionTranscript.include"
+			local sessionOut="" sessionRc=0 targetSessionId=""
+			targetSessionId="${namedSessionId:-$( AgentsTranscriptSessionKey )}"
+			if [ "$allowCreate" = "true" ] && [ -n "$targetSessionId" ] && ! AgentsTranscriptBase "$targetSessionId" > /dev/null 2>&1 ; then
+				AgentsTranscriptStart "$targetSessionId" "${MDAT_DATA_ROOT:-}" "$( AgentsTranscriptNewRel "$memberName" "$targetSessionId" )" "$memberName"
+			fi
+			sessionOut="$( AgentsTranscriptNote "$targetSessionId" "$speakerName" "$messageText" "$timestampUtc" )" || sessionRc=$?
+			if [ "$sessionRc" != "0" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --append-transcript: ${sessionOut#ERROR: }" >&2
+				set +e ; return 1
+			fi
+			echo "$sessionOut"
+			return 0
+		fi
+		AgentsToolsAssertBareName "$transcriptName" "<transcript-file-name>" append-transcript || { set +e ; return 1 ; }
+		## A session's tooling-written log is that session's alone: it is reached with no
+		## --transcript-name, from inside the session, never named from another.
+		case "$transcriptName" in
+			session-*.log|session-*-part[0-9]*.log)
+				echo "⛔ ERROR: $MDSC_CMD --append-transcript: $transcriptName is a session's own log -- only that session writes it, with no --transcript-name" >&2
+				set +e ; return 1
+			;;
+		esac
+		if ! printf '%s' "$timestampUtc" | grep -Eq '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]+)?Z$' ; then
+			echo "⛔ ERROR: $MDSC_CMD --append-transcript: --timestamp must be ISO UTC date-time (suffix Z): $timestampUtc" >&2
+			set +e ; return 1
+		fi
+
+		local memberDir="$MDAT_SKILLSET_ROOT/$memberName"
+		if [ ! -d "$memberDir" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --append-transcript: no such member skill directory: $memberDir" >&2
+			set +e ; return 1
+		fi
+		## The month folder comes from the name's own date, so a session crossing
+		## a month boundary keeps appending to the one file it started.
+		## By the one audit lookup (AgentsToolsAuditMonth), which every reader of it looks up by.
+		type AgentsToolsAuditMonth > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.InternOpDataRead.include"
+		local yearMonth
+		yearMonth="$( AgentsToolsAuditMonth "$transcriptName" )" || yearMonth="$( date -u +%Y-%m )"
+		[ -n "${MDAT_DATA_ROOT:-}" ] || {
+			echo "⛔ ERROR: $MDSC_CMD --append-transcript: MDAT_DATA_ROOT is not set" >&2
+			set +e ; return 1
+		}
+		local transcriptDir="$MDAT_DATA_ROOT/audit/$yearMonth"
+		mkdir -p "$transcriptDir" || {
+			echo "⛔ ERROR: $MDSC_CMD --append-transcript: can't create transcript directory: $transcriptDir" >&2
+			set +e ; return 1
+		}
+		local target="$transcriptDir/$transcriptName"
+		if [ ! -f "$target" ] && [ "$allowCreate" != "true" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --append-transcript: transcript does not exist (pass --create to allow creation): $target" >&2
+			set +e ; return 1
+		fi
+		## A new transcript opens with the frontmatter that names its contract (audit-item.transcript), as `type` is named,
+		## filled from the tool-side template (sh-lib/templates/audit-item.transcript.document.format.md).
+		if [ ! -f "$target" ] ; then
+			type AgentsToolsToolingTemplateFill > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.ToolingTemplate.include"
+			AgentsToolsToolingTemplateFill "audit-item.transcript.document.format.md" vault/AgentsVaultAuditDocumentFill.awk > "$target" || {
+				echo "⛔ ERROR: $MDSC_CMD --append-transcript: failed to create transcript: $target" >&2
+				set +e ; return 1
+			}
+		fi
+
+		## One small entry, built in a variable and appended once. $( ) drops the
+		## trailing newlines, which the `\n\n` below puts back -- the blank line
+		## that separates one transcript entry from the next.
+		local entryText
+		entryText="$( printf '%s (%s):\n\n' "$speakerName" "$timestampUtc" ; printf '%s' "$messageText" | LC_ALL=C awk '{ print "> " $0 } END { if (NR == 0) print "> " }' )"
+
+		local addedBytes addedLines
+		addedBytes="$( printf '%s\n\n' "$entryText" | wc -c | tr -d '[:space:]' )"
+		addedLines="$( printf '%s\n\n' "$entryText" | wc -l | tr -d '[:space:]' )"
+		printf '%s\n\n' "$entryText" >> "$target" || {
+			echo "⛔ ERROR: $MDSC_CMD --append-transcript: failed to append to transcript: $target" >&2
+			set +e ; return 1
+		}
+
+		echo "# $MDSC_CMD --append-transcript: appended ${target#"$MDAT_DATA_ROOT/audit"/} (+${addedLines} lines, +${addedBytes} bytes)" >&2
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataCommit.include"
+		AgentsToolsTeamDataCommitPaths "append-transcript, $transcriptName" "$target"
+		echo "$target"
+		return 0

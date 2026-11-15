@@ -3,7 +3,7 @@ maintainers: magic-librarian, magic-coordinator, magic-architect, human-owner
 ---
 # epic — document contract
 
-Normative contract: this file's own `# Contract` section, at its end. The document is a plain source file with no frontmatter. The document validator reads it with `--intern-doc-validate epic <file>`, and `--epic-update` edits it.
+Normative contract: this file's own `# Contract` section, at its end. The document is the body of a vault item, whose store, name and frontmatter are `vault-item.epic-blueprint`'s. The document validator reads it with `--intern-doc-validate epic <file>`, and `--epic-update` edits it.
 
 ## Contents
 
@@ -20,11 +20,11 @@ An epic is the tracking document of the epic-* routines. It holds the work that 
 
 # Contract
 
-- Kind `epic`: a plain source file named `<YYYYMMDD>-<matter>.epic.md`, in the `backlog` folder of a `todo-sketchpad` scratchpad.
-- It has no frontmatter and no store. The tooling finds it by its path.
+- Kind `epic`: the body of a vault item of type word `epic-blueprint`, named `epic-blueprint-<date>-<matter>.md`. `vault-item.epic-blueprint` owns the store, the name and every key.
+- The body carries no key. The frontmatter is the vault item's, and the tooling finds the epic by that item's bare name.
 - The epic-* routines hold it as their tracking document, as they hold any other. They declare `tracking-item: required`, which makes the spawner attach a board item to each run. The epic is not that item.
-- The epic file owns scope, order, settled lines and status. The `project-*` item owns run state and names the epic file in its body.
-- The dispatch input names the epic file and the feature id.
+- The epic owns scope, order, settled lines and status. The `project-*` item owns run state and names the epic in its body.
+- The dispatch input names the epic item and the feature id.
 - A key the Sections and Feature tables do not name is not part of this contract.
 - The validator reads the Sections table, the Feature table and the unmarked Rules. A rule marked `[store]` needs more than the file to check. A rule marked `[judged]` is for a reader to judge.
 
@@ -34,7 +34,7 @@ An epic is the tracking document of the epic-* routines. It holds the work that 
 
 | section | heading | presence | holds |
 |---|---|---|---|
-| title | `# <title>` | required | The first line, and the only level-1 heading. |
+| title | `# <title>` | required | The first line after the frontmatter block, with no blank line between them, and the only level-1 heading. |
 | preface | `Source:` and `Builders:` lines | required | The sketch the epic comes from, and who builds. |
 | decisions | `## Decisions` | required | What the epic settles, as plain present-tense bullets. |
 | ground rules | `## Ground rules` | optional | Rules every item keeps. |
@@ -59,7 +59,7 @@ A feature is a `## ` section whose heading starts with its id. The id is `S` and
 | settled | plain lines after a `Settled:` label or the status line | optional | Present-tense rules. `--epic-update --add-settled` writes them. |
 | open work | numbered items, `N. <text>` | required while the feature stands | One item states one outcome that a check can pass or fail. An item with two outcomes is split before either closes. |
 | item owner | `Owner: <member>.` ending the item | required unless the owner line covers it | The member who builds the item. |
-| moved item | `Moved to <epic file>, section <id>: <what>.` | optional | Stands in place of an item that left this epic. |
+| moved item | `Moved to <epic-item-name>, section <id>: <what>.` | optional | Stands in place of an item that left this epic. The name is bare, with no folder and no `.md`. |
 | sub-heading | `### <text>` | optional | Groups a feature's items, such as stages. |
 
 A label line, such as `Settled:`, `Open:`, `Rules:`, `MUST:` or `SHOULD:`, heads a group of lines. A label is not an item.
@@ -84,4 +84,4 @@ A label line, such as `Settled:`, `Open:`, `Rules:`, `MUST:` or `SHOULD:`, heads
 - [judged] An open item states an outcome and the check that proves it, never a list of actions.
 - [judged] A settled line is a plain present-tense rule. It carries no date, no owner and no story.
 - [judged] The file holds no rework log and no status diary.
-- [store] Every moved item exists in the epic file and the section its moved line names.
+- [store] Every moved item exists in the epic item and the section its moved line names.

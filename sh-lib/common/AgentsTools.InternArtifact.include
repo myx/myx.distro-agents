@@ -39,7 +39,7 @@ AgentsToolsArtifactType(){ ## kind
 
 ## One value of a scope, or empty.
 AgentsToolsArtifactOption(){ ## scope, key
-	type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
+	type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/settings/AgentsTools.ConfigOption.include"
 	AgentsToolsConfigOption "$1" --select "$2" 2>/dev/null || :
 }
 
@@ -96,7 +96,7 @@ AgentsToolsArtifactRecordWrite(){ ## state, url
 		"date: $( date +"%Y-%m-%d %H:%M %z" )"$'\n' \
 		"state: $1"$'\n' \
 		"full-title: $artFullTitle"$'\n' > "$recordSlotsFile" || { rm -f "$recordSlotsFile" ; return 1 ; }
-	VDS_SLOTS="$recordSlotsFile" AgentsToolsToolingTemplateFill "audit-item.artifact.document.format.md" team-data/AgentsVaultAuditDocumentFill.awk > "$artRecord" || {
+	VDS_SLOTS="$recordSlotsFile" AgentsToolsToolingTemplateFill "audit-item.artifact.document.format.md" vault/AgentsVaultAuditDocumentFill.awk > "$artRecord" || {
 		rm -f "$recordSlotsFile"
 		echo "⛔ ERROR: $artCmd: the record $artRecord could not be written" >&2
 		return 1
@@ -213,11 +213,13 @@ AgentsToolsArtifactRecordClose(){ ## published|released
 
 ## Confluence, as the caller: one request, the body into a file.
 AgentsToolsArtifactConfluence(){ ## output file, method, path, json body, attachment
+	type AgentsToolsAtlassianCall > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/atlassian/AgentsTools.AtlassianRequest.include"
 	AgentsToolsAtlassianCall "$artMember" confluence "$2" "$3" intern-artifact-publish "${4:-}" "${5:-}" > "$1"
 }
 
 ## The ids of the current pages of the space titled exactly so, one per line.
 AgentsToolsArtifactConfluenceTitled(){ ## title
+	type AgentsToolsAtlassianUrlEncode > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/atlassian/AgentsTools.AtlassianRequest.include"
 	AgentsToolsArtifactConfluence "$artWork/titled.json" GET "/wiki/api/v2/pages?space-id=$artSpaceId&status=current&limit=25&title=$( AgentsToolsAtlassianUrlEncode "$1" )" || return $?
 	LC_ALL=C awk -v array=results -v want='id,title' -v mode=records -v dialect=atlassian -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" < "$artWork/titled.json" 2>/dev/null \
 		| LC_ALL=C awk -F'\t' -v want="$1" '$2 == want { print $1 ; }'
@@ -299,6 +301,7 @@ AgentsToolsArtifactConfluencePublish(){
 
 ## The Google worker, as the caller: one op, its output into a file.
 AgentsToolsArtifactGoogle(){ ## output file, op
+	type AgentsToolsGoogleCall > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/google/AgentsTools.MemberCommsGoogle.include"
 	AgentsToolsGoogleCall "$2" > "$1"
 }
 
@@ -358,6 +361,7 @@ AgentsToolsArtifactGooglePublish(){
 	if [ -n "$artHtml" ] ; then
 		ARTIFACT_FILES="$artFiles" ARTIFACT_LINKS="$links" python3 "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsArtifactHtml.py" google "$artHtml" > "$artWork/document.google.html" || return 1
 		googleName="$artFullTitle" googleParentId="$folderId" googleUploadPath=""
+		type AgentsToolsGoogleCall > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/google/AgentsTools.MemberCommsGoogle.include"
 		AgentsToolsGoogleCall doc-import < "$artWork/document.google.html" > "$artWork/document.out" || return $?
 		artUrl="$( LC_ALL=C sed -n 's/^FILE_URL=//p' "$artWork/document.out" | head -1 )"
 		artDocId="$( LC_ALL=C sed -n 's/^FILE_ID=//p' "$artWork/document.out" | head -1 )"
@@ -383,8 +387,8 @@ AgentsToolsArtifactGooglePublish(){
 ## are given back on every way out, so those two are the subshell globals the EXIT trap sees.
 AgentsToolsArtifactPublish(){
 	artWork="" artLock=""
-	. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.LocalLock.include"
-	. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataCommit.include"
+	. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.LocalLock.include"
+	type AgentsToolsTeamDataThreadDir > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataCommit.include"
 	local artBackend="" artSpace="" artSpaceId="" artGoogleRoot="" artHtml="" artUses="" artAttach=""
 	local artNumber="" artFullTitle="" artFilePrefix="" artUrl="" artPageId="" artPartial=0 artCreatedId="" artUploadedUrl=""
 	local artRecord="" artRepo="" artOrigin="" artBranch="" recordSlug="" artDocId="" artUploadedId=""
@@ -410,13 +414,13 @@ AgentsToolsArtifactPublish(){
 			echo "🙋 WARNING: $artCmd: CONFLUENCE_SPACE names the team space $artSpace, and neither $artMember's own scope nor this workspace's magic-team scope holds CONFLUENCE_SITE/CONFLUENCE_USER/CONFLUENCE_API_TOKEN -- set them in one of the two. Nothing was published" >&2
 			return 6
 		fi
-		type AgentsToolsAtlassianCall > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.InternOpAtlassianCall.include"
+		type AgentsToolsAtlassianUrlEncode > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/atlassian/AgentsTools.AtlassianRequest.include"
 	elif ! AgentsToolsArtifactKeysSet "$artMember" GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET GOOGLE_REFRESH_TOKEN ; then
 		echo "🙋 WARNING: $artCmd: no team place is set up for $artMember -- set CONFLUENCE_SPACE (its own scope or magic-team) with CONFLUENCE_SITE/CONFLUENCE_USER/CONFLUENCE_API_TOKEN in its own scope or in magic-team, or GOOGLE_CLIENT_ID/GOOGLE_CLIENT_SECRET/GOOGLE_REFRESH_TOKEN in its own scope with a Google folder named $agentsArtifactGoogleRoot shared with it. Nothing was published" >&2
 		return 6
 	else
 		artBackend=google
-		type AgentsToolsGoogleCall > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.MemberCommsGoogle.include"
+		type AgentsToolsGoogleResolveMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/google/AgentsTools.MemberCommsGoogle.include"
 		AgentsToolsGoogleResolveMember intern-artifact-publish "$artMember" || return 1
 	fi
 

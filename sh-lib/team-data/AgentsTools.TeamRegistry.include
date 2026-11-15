@@ -44,18 +44,6 @@
 ## Dot-sourced; functions only.
 ##
 
-AgentsToolsTeamSharedDir(){
-	printf '%s\n' "${HOME:-}/.agents/magic-team"
-}
-AgentsToolsTeamSharedMembers(){
-	printf '%s\n' "${HOME:-}/.agents/magic-team/members.registry"
-}
-AgentsToolsTeamSharedWorkspaces(){
-	printf '%s\n' "${HOME:-}/.agents/magic-team/known-workspaces.registry"
-}
-AgentsToolsTeamSharedGrants(){
-	printf '%s\n' "${HOME:-}/.agents/magic-team/permissions.registry"
-}
 AgentsToolsTeamLocalFile(){ ## workspace, name
 	printf '%s\n' "${1%/}/.local/agents/$2"
 }
@@ -258,7 +246,7 @@ AgentsToolsRoutineFile(){ ## routine name
 ## there is refused rather than removed. Non-zero on a failure.
 AgentsToolsTeamMemberIndexWrite(){ ## workspace
 	local writeWs="${1%/}" writeDir writeText writeName writeTarget writeRest writeSlot writeRc=0 writeNames=$'\n' writeTemp
-	type AgentsToolsLinkMake > /dev/null 2>&1 || . "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-lib/session/AgentsTools.SandboxLinks.include" || return 1
+	type AgentsToolsLinkMake > /dev/null 2>&1 || . "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SandboxLinks.include" || return 1
 	writeWs="$( cd "$writeWs" && pwd )" || return 1
 	writeDir="$writeWs/.local/agents"
 	mkdir -p "$writeDir/members" || return 1
@@ -279,6 +267,7 @@ AgentsToolsTeamMemberIndexWrite(){ ## workspace
 			writeRc=1 ; continue
 		fi
 		[ -L "$writeSlot" ] && [ "$( readlink "$writeSlot" )" = "$writeTarget" ] && continue
+		type AgentsToolsLinkMake > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SandboxLinks.include"
 		AgentsToolsLinkMake "$writeTarget" "$writeSlot" || writeRc=1
 	done <<< "$writeText"
 	for writeSlot in "$writeDir/members"/* "$writeDir/members"/.[!.]* ; do
@@ -287,9 +276,4 @@ AgentsToolsTeamMemberIndexWrite(){ ## workspace
 		rm -f "$writeSlot" || writeRc=1
 	done
 	return "$writeRc"
-}
-
-## The member set root this workspace's tools read: the index's members/ view.
-AgentsToolsTeamMemberIndexRoot(){ ## workspace
-	printf '%s\n' "${1%/}/.local/agents/members"
 }

@@ -13,7 +13,7 @@ rigPackage="$MDLT_ORIGIN/myx/myx.distro-agents"
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }
-[ -f "$rigPackage/sh-lib/session/AgentsTools.SpawnSandbox.include" ] || rigRefuse "the include is not in the package"
+[ -f "$rigPackage/sh-lib/spawn/AgentsTools.SpawnSandbox.include" ] || rigRefuse "the include is not in the package"
 . "$rigPackage/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
 rigTmp="$( rigTempDir AgentsSpawnQueueCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
@@ -44,7 +44,7 @@ rigFn(){ ## the function and its arguments... -- run in the include: `<rc>:<what
 		bash -c '
 			case "$MMDAPP" in "$RIG_TMP"/*) ;; *) exit 99 ;; esac
 			set +e
-			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include" > /dev/null 2>&1
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandbox.include" > /dev/null 2>&1
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include" > /dev/null 2>&1
 			## The stand-in of the tool the queue files its inquiry with: it keeps what it was asked and the text it was given.
 			DistroAgentsTools(){

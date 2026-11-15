@@ -45,15 +45,15 @@ rigAssert(){ ## what is asserted, got, want
 	fi
 	return 0
 }
-. "$rigPackage/sh-lib/team-data/AgentsTools.Registries.include" > /dev/null 2>&1 || rigRefuse "the registries' functions could not be sourced"
-type AgentsToolsRegistryProcessesBegan > /dev/null 2>&1 || rigRefuse "AgentsToolsRegistryProcessesBegan is not defined"
+. "$rigPackage/sh-lib/team-data/AgentsTools.Registries.include" ; . "$rigPackage/sh-lib/run/AgentsTools.RunProcesses.include" ; . "$rigPackage/sh-lib/run/AgentsTools.RunState.include" ; . "$rigPackage/sh-lib/run/AgentsTools.RunLeft.include" ; . "$rigPackage/sh-lib/run/AgentsTools.RunRecords.include" > /dev/null 2>&1 || rigRefuse "the registries' functions could not be sourced"
+type AgentsToolsRunProcessesBegan > /dev/null 2>&1 || rigRefuse "AgentsToolsRunProcessesBegan is not defined"
 ## ONE SLEEPER and its pid file: `<pid> <began>` as the tooling writes it, or the rest the caller gives.
 rigControlThread(){ ## the pid-file path, the rest of the line or `began` for the real one
 	local rest="$2"
 	python3 -I -B -c 'import time; time.sleep(300)' > /dev/null 2>&1 &
 	rigLastPid="$!" ; rigProcNote "$rigLastPid"
 	sleep 0.2
-	[ "$rest" != began ] || { rest="$( printf '%s\n' "$rigLastPid" | AgentsToolsRegistryProcessesBegan )" ; rest="${rest#"$rigLastPid" }" ; }
+	[ "$rest" != began ] || { rest="$( printf '%s\n' "$rigLastPid" | AgentsToolsRunProcessesBegan )" ; rest="${rest#"$rigLastPid" }" ; }
 	mkdir -p "${1%/*}" || exit 1
 	printf '%s %s\n' "$rigLastPid" "$rest" > "$1"
 }

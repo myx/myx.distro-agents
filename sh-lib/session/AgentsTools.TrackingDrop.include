@@ -13,7 +13,7 @@
 ## Sourced, never run. Functions only.
 ##
 
-type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include"
+type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandbox.include"
 
 ## A rendering on stdin for a member, its tooling's own posts taken out, on stdout.
 ## ONLY THE RUNS THE RENDERING NAMES ARE LOOKED UP: the `[session: <spawn id>]` marks in it, each one's own record read, never every

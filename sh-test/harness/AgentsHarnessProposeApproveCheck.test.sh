@@ -239,7 +239,7 @@ rigAssert "the other kinds read as before: approved is no readback answer" \
 	"$( printf '%s\n' '1700000001.000300 | URIGOWNER | approved' | MDAT_VERDICT_KIND=readback MDAT_VERDICT_AUTHORS="URIGOWNER" LC_ALL=C awk -f "$rigHere/questions/AgentsEscalationVerdict.awk" | LC_ALL=C tr '\t' '|' )" "RETURNED||"
 rigAssert "only the replies after the live proposal reply are read, and every reaction line" \
 	"$( printf '%s\n' 'reaction on the question: [reactions: x x1 (URIGOWNER)]' '1700000001.000150 | URIGOWNER | an old comment' 'its second line' '1700000001.000300 | URIGOWNER | a new comment' 'and more' \
-		| LC_ALL=C awk -v sinceTs=1700000001.000201 -f "$rigHere/comms/AgentsSlackThreadAnswersSince.awk" | LC_ALL=C tr '\n' '|' )" \
+		| LC_ALL=C awk -v sinceTs=1700000001.000201 -f "$rigHere/slack/AgentsSlackThreadAnswersSince.awk" | LC_ALL=C tr '\n' '|' )" \
 	"reaction on the question: [reactions: x x1 (URIGOWNER)]|1700000001.000300 | URIGOWNER | a new comment|and more|"
 ## The two readers over one thread rendering, so the marking of a set-aside reply is the one the
 ## first of them prints: the answers to the question of 1700000001.000101, in a thread it shares
@@ -251,8 +251,8 @@ rigSince(){ ## the rendered thread after its first two messages, a line each
 		printf '%s\n' '1700000001.000101 | URIGSELF1 | [reactions: x x1 (URIGOWNER)] the question' '1700000001.000120 | URIGSELF1 | another question, asked after it'
 		printf '%s\n' "$@"
 	} | LC_ALL=C awk -v rootTs=1700000001.000101 -v fromUsers=URIGOWNER -v askingUsers=URIGSELF1 -v tag="$rigSinceTag" -v threadCount=2 -v others='1700000001.000120/1700000001' \
-			-f "$rigHere/questions/AgentsDismissalMatch.awk" -f "$rigHere/comms/AgentsSlackThreadAnswers.awk" \
-		| LC_ALL=C awk -v sinceTs=1700000002.500000 -f "$rigHere/comms/AgentsSlackThreadAnswersSince.awk" | LC_ALL=C tr '\n' '|'
+			-f "$rigHere/questions/AgentsDismissalMatch.awk" -f "$rigHere/slack/AgentsSlackThreadAnswers.awk" \
+		| LC_ALL=C awk -v sinceTs=1700000002.500000 -f "$rigHere/slack/AgentsSlackThreadAnswersSince.awk" | LC_ALL=C tr '\n' '|'
 }
 rigOld='1700000002.000100 | URIGOWNER |'
 rigLive='1700000002.500000 | URIGSELF1 | the live proposal reply'
@@ -270,7 +270,7 @@ rigAssert "a set-aside reply above a reply that is read is still ignored whole" 
 	"reaction on the question: [reactions: x x1 (URIGOWNER)]|$rigNew a new numbered comment|its second line|"
 rigAssert "a reply marked on its head line alone, as before, goes the same way with the lines under it" \
 	"$( printf '%s\n' "UNMATCHED-REPLY $rigOld an old comment" 'its second line' "UNMATCHED-REPLY $rigNew a new comment" 'its second line' \
-		| LC_ALL=C awk -v sinceTs=1700000002.500000 -f "$rigHere/comms/AgentsSlackThreadAnswersSince.awk" | LC_ALL=C tr '\n' '|' )" \
+		| LC_ALL=C awk -v sinceTs=1700000002.500000 -f "$rigHere/slack/AgentsSlackThreadAnswersSince.awk" | LC_ALL=C tr '\n' '|' )" \
 	"UNMATCHED-REPLY $rigNew a new comment|its second line|"
 rigSinceTag=""
 ## A line that reads as one of the thread reader's own marks comes from it one space in (ownLine).

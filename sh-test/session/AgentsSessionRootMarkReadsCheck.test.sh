@@ -20,7 +20,7 @@ set -u
 rigPackage="$MDLT_ORIGIN/myx/myx.distro-agents"
 rigDropAwk="$rigPackage/sh-lib/session/AgentsTrackingDrop.awk"
 rigImportAwk="$rigPackage/sh-lib/session/AgentsSessionChatImport.awk"
-rigRepliesAwk="$rigPackage/sh-lib/member/AgentsWaitOwnPostReplies.awk"
+rigRepliesAwk="$rigPackage/sh-lib/wait/AgentsWaitOwnPostReplies.awk"
 rigMatchAwk="$rigPackage/sh-lib/questions/AgentsDismissalMatch.awk"
 
 rigRefuse(){

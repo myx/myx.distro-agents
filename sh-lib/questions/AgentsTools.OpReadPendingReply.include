@@ -1,0 +1,87 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+## AgentsTools.OpReadPendingReply.include -- the operation `--read-pending-reply`, sourced by AgentsTools.MemberPendingReply.include with the operation's arguments.
+## Reads pending-reply records: one by id, or a list of the member's own, open by
+## default. Read-only: it changes no record, and reads no thread. A list is also the
+## reader that passes by: it rebuilds the pending-replies registry first, by the one
+## rebuild function every other rebuild of it calls, so that file is current after any
+## list. And each open record says whether the run that asked it is alive, measured in
+## the same call. One record by its id rebuilds nothing: after the lines a list prints
+## for it, it prints the whole of what the stores hold of that ask. With --count it prints only
+## the number of the records that list would show, by the same store and the same test of what is
+## open, and renders nothing: no registry is rebuilt and no asker measured. The console asks it
+## whatever it shows, for the number beside Pending Questions.
+		shift
+		MDSC_CMD="$MDSC_CMD --read-pending-reply"
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.UseAgentsTools.include"
+		type AgentsToolsPendingReplyField > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.PendingReplyRecords.include"
+		local readMember="${1:-}" readId="" readAll="" readAnyOwner="" readCount="" readFile readRegistry readAskers=""
+		shift || true
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--all) readAll=1 ; shift ;;
+				--any-owner) readAnyOwner=1 ; shift ;;
+				--count) readCount=1 ; shift ;;
+				-*)
+					echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+				*)
+					[ -z "$readId" ] || { echo "$MDSC_CMD: ⛔ ERROR: one pending id at most, got a second: $1" >&2 ; set +e ; return 1 ; }
+					readId="$1" ; shift
+				;;
+			esac
+		done
+		if [ -z "$readMember" ] ; then
+			echo "$MDSC_CMD: ⛔ ERROR: syntax is <team-member> [<pending-id>] [--all] [--any-owner]" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsAssertBareName "$readMember" "<team-member>" pending-reply-read || { set +e ; return 1 ; }
+		## Every read checks the caller's own open asks for an answer already on Slack (AgentsToolsPendingReplyPollOwn), not only the console's periodic count.
+		AgentsToolsPendingReplyPollOwn "$readMember"
+		## The count is what the console reads on its period, whatever it shows: it also looks at the requests the console itself made (AgentsToolsAuthorityRequestsPollOwn).
+		if [ -n "$readCount" ] && [ -z "$readId" ] ; then
+			type AgentsToolsAuthorityRequestsPollOwn > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.Authority.include"
+			AgentsToolsAuthorityRequestsPollOwn > /dev/null 2>&1 || :
+		fi
+		if [ -n "$readId" ] ; then
+			[ -z "$readCount" ] || { echo "$MDSC_CMD: ⛔ ERROR: --count counts the list, and takes no <pending-id>" >&2 ; set +e ; return 1 ; }
+			AgentsToolsAssertBareName "$readId" "<pending-id>" pending-reply-read || { set +e ; return 1 ; }
+			## In either store: the asks, and the requests for the authority (AgentsToolsPendingRecordPath).
+			type AgentsToolsPendingRecordPath > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.Authority.include"
+			readFile="$( AgentsToolsPendingRecordPath "$readId" )" || { echo "$MDSC_CMD: ⛔ ERROR: no pending-reply record $readId" >&2 ; set +e ; return 1 ; }
+			[ "$( AgentsToolsPendingReplyField "$readFile" status )" != "reply-pending" ] \
+				|| readAskers="$( AgentsToolsPendingReplyField "$readFile" session-id | AgentsToolsPendingReplyAskers )"
+			AgentsToolsPendingReplyWholeFind "$readFile" "$readId"
+			MDAT_PENDING_WHOLE=1 MDAT_PENDING_BESIDE="$replyWholeBeside" MDAT_PENDING_REFUSAL="$replyWholeRefusal" MDAT_PENDING_CHANGE="$replyWholeChange" \
+				AgentsToolsPendingReplyScan "" "" "" "$readAskers" "$readFile"
+			return 0
+		fi
+		if [ -z "$readCount" ] ; then
+			type AgentsToolsRegistryPendingRepliesRebuild > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.RegistryPendingReplies.include"
+			readRegistry="$MMDAPP/.local/agents/pending-replies.registry"
+			if AgentsToolsRegistryPendingRepliesRebuild ; then
+				## That an open ask has no live asker is found in this same call, from the rows just
+				## written: the asking ids of the asks still open, each measured now. It is never
+				## stored -- no registry holds liveness -- so it is said in what this prints.
+				readAskers="$( LC_ALL=C awk '$2 == "ask" && $5 == "reply-pending" && $3 != "-" && ! askerSeen[$3]++ { print $3 ; }' "$readRegistry" 2> /dev/null | AgentsToolsPendingReplyAskers )"
+			else
+				echo "$MDSC_CMD: ⚠️ WARNING: the pending-replies registry could not be rebuilt at $readRegistry -- the list is read from the records themselves, and no asker of it was measured" >&2
+			fi
+		fi
+		## The asks, and the requests for the authority of the questions store, listed as one.
+		local readFiles=() readCandidate
+		for readCandidate in "$MMDAPP/.local/agents/pending"/*.md "$MMDAPP/.local/questions"/*.md ; do
+			[ ! -f "$readCandidate" ] || readFiles[${#readFiles[@]}]="$readCandidate"
+		done
+		if [ "${#readFiles[@]}" -eq 0 ] ; then
+			if [ -n "$readCount" ] ; then printf '0\n' ; else printf 'PENDING-REPLIES: 0\n' ; fi
+			return 0
+		fi
+		local readOwnerFilter="$readMember" readOpenFilter="1" readCountLine=1
+		[ -z "$readAnyOwner" ] || readOwnerFilter=""
+		[ -z "$readAll" ] || readOpenFilter=""
+		[ -z "$readCount" ] || readCountLine=only
+		AgentsToolsPendingReplyScan "$readOwnerFilter" "$readOpenFilter" "$readCountLine" "$readAskers" ${readFiles[@]+"${readFiles[@]}"}
+		return 0

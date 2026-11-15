@@ -5,7 +5,7 @@
 ##
 ## Held (coordinator's ruling on S7.18, relayed 2026-11-03; audit S7.16 item 9): the kill reads the asked session's own
 ## record and signals first, and rebuilds the registry only where no record names that id. Today
-## `AgentsToolsManagerSessionKill` rebuilds the whole registry before anything else (AgentsTools.ManagerSession.include:640-644),
+## `AgentsToolsManagerSessionKill` rebuilds the whole registry before anything else (AgentsTools.ManagerSessionKill.include:646-651),
 ## so where that rebuild cannot be written the kill refuses and signals nothing — and where the registry is large, the
 ## rebuild is what an operator waits through.
 ##

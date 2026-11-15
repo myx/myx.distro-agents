@@ -1,0 +1,332 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+type AgentsToolsPendingRecordPath > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.Authority.include"
+
+## AgentsHarnessAskResolve.include: an answer a wait saw on an asked question, taken into its pending record: its wait item, its record's fields, and what the asker is told.
+## Sourced by AgentsHarnessAsk.include, definitions only.
+
+## What a round of the session's stored wait brought to an asking call, told apart. The part
+## of the call's own ask is left in $harnessScratch/ask-own.out, as a wait that returned it
+## alone would have printed it; empty when that ask did not arrive. Everything else that
+## arrived is printed: each source as the wait showed it, then each arrived ask taken into its
+## record as a Wait takes it (AgentsHarnessWaitAskResolve). Nothing is printed when the own
+## ask is all that arrived.
+AgentsHarnessAskSessionArrivals(){ ## own pending reply id, wait output
+	printf '%s\n' "$2" | LC_ALL=C awk -v ownHead="# arrived on: ask:$1" -v ownFile="$harnessScratch/ask-own.out" -v otherFile="$harnessScratch/ask-others.out" '
+		BEGIN { printf "" > ownFile ; printf "" > otherFile ; }
+		$0 == ownHead { inOwn = 1 ; print "WAIT-RESULT: RECEIVED" > ownFile ; }
+		inOwn { print > ownFile ; if ( $0 == "# --- end ---" ) { inOwn = 0 ; } next ; }
+		{ print > otherFile ; }
+	'
+	LC_ALL=C grep -q '^# arrived on: ' "$harnessScratch/ask-others.out" 2> /dev/null || return 0
+	LC_ALL=C awk '/^# arrived on: / { shown = 1 ; } shown { print ; }' "$harnessScratch/ask-others.out"
+	harnessAskName="" AgentsHarnessWaitAskResolve "$harnessScratch/ask-others.out"
+}
+
+## What a pending reply's record says, one field: the frontmatter ahead of its body.
+AgentsHarnessAskRecordField(){ ## pending reply id, field name
+	type AgentsHarnessBareName > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessSpawn.include"
+	## A closed record is RETAINED, not deleted: it moves with its sidecars into
+	## pending/closed/ (AgentsTools.InternOpPendingReply.include). Both are read here, or a
+	## field of an answered question -- its status, its follow floor -- would read as absent,
+	## and a later Wait would drop the question from the session's wait set.
+	local fieldLine fieldFile="$MMDAPP/.local/agents/pending/$1.md"
+	AgentsHarnessBareName "$1" && { [ -f "$fieldFile" ] || fieldFile="$MMDAPP/.local/agents/pending/closed/$1.md" ; } || return 0
+	[ -f "$fieldFile" ] || return 0
+	while IFS= read -r fieldLine ; do
+		case "$fieldLine" in
+			"$2: "*) printf '%s' "${fieldLine#"$2: "}" ; return 0 ;;
+			'# '*) return 0 ;;
+		esac
+	done < "$fieldFile"
+}
+
+## An asked question's wait item, ask:<pending-id> (AgentsTools.MemberWait.include), joins this
+## session's stored wait when the question is posted and leaves it once answered, so the
+## session's next Wait mode=continue covers an answer nobody waited for in the asking call.
+## Through the team's own wait operation, never by writing its state from here. rc 1 when it
+## could not be added; a drop of an item the stored wait does not hold starts nothing.
+AgentsHarnessAskWaitItem(){ ## add|drop, pending reply id, and `chat` for the session's own chat source beside that ask
+	type AgentsHarnessBareName > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessSpawn.include"
+	local itemTools="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" itemSession itemLine
+	[ -n "$2" ] && [ -n "$harnessAgent" ] && [ -x "$itemTools" ] || return 1
+	itemSession="${harnessSessionId:-${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}}"
+	AgentsHarnessBareName "$itemSession" || return 1
+	if [ "$1" = "drop" ] ; then
+		itemLine="$( LC_ALL=C sed -n 's/^sources: //p' "$MMDAPP/.local/agents/sessions/$itemSession/wait/state" 2>/dev/null | head -1 )"
+		case " $itemLine" in
+			*" ask:$2 "*) ;;
+			*) return 0 ;;
+		esac
+	fi
+	case "${3:-}" in
+		## The chat of the session itself joins the same stored wait, so an ask is woken by a floor message.
+		chat) "$BASH" "$itemTools" --intern-op-wait-for-input "$harnessAgent" "--wait-$1" --wait-session-id "$itemSession" --wait-source "chat:$itemSession" > /dev/null 2>&1 ;;
+		*) "$BASH" "$itemTools" --intern-op-wait-for-input "$harnessAgent" "--wait-$1" --wait-session-id "$itemSession" --wait-source "ask:$2" > /dev/null 2>&1 ;;
+	esac
+}
+
+## The lines that end an ask left open: its wait item, and the Wait that collects its answer.
+AgentsHarnessAskWaitNext(){ ## pending reply id
+	[ -n "$1" ] || return 0
+	printf 'WAIT-ID: ask:%s\n' "$1"
+	if AgentsHarnessAskWaitItem add "$1" ; then
+		printf 'NEXT: call Wait\n'
+	else
+		printf 'NEXT: to wait for the answer, call Wait sources=ask:%s -- it posts nothing\n' "$1"
+	fi
+}
+
+## How an answer that a wait saw on an asked question is taken into its pending record --
+## the one place, for an asking call's own wait and for a Wait whose ask:<pending-id> item
+## arrived. Prints the ASK-RESULT block; the caller's own text (shown) goes after it.
+## The item leaves the session's wait once its record is no longer pending.
+AgentsHarnessAskResolve(){ ## pending reply id, kind, question tag, wait output, answered elsewhere (non-empty) or empty, wait note, caller ask|wait, shown
+	type AgentsHarnessEscalationRead > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessAskPending.include"
+	local askPendingId="$1" toolKind="${2:-question}" askTag="$3" askWaitOut="$4" askAnsweredElsewhere="$5" askWaitNote="$6" askCaller="$7" askShown="$8"
+	local askFirst askOutcome
+	## A permission question that took a further call is a Permission set by now
+	## (--intern-op-escalation-permission-add): what is said of it follows its record.
+	[ "$toolKind" != "permission" ] || [ "$( AgentsHarnessAskRecordField "$askPendingId" kind )" != "permission-set" ] || toolKind="permission-set"
+	## The outcome is read off the wait's own first line, each as itself: RECEIVED, TIMEOUT,
+	## DISMISSED (a dismissal of this member came where the answer was waited for) or CLOSED.
+	## Each directs a different next step, so none is folded into another. A wait that could
+	## not run, and a first line this tool does not know, are an ERROR that says which, the
+	## unknown line quoted: guessing an outcome for it is the failure this prevents.
+	askFirst="${askWaitOut%%$'\n'*}"
+	case "$askFirst" in
+		'WAIT-RESULT: RECEIVED'*)  askOutcome="RECEIVED" ;;
+		'WAIT-RESULT: TIMEOUT'*)   askOutcome="TIMEOUT" ;;
+		'WAIT-RESULT: DISMISSED'*) askOutcome="DISMISSED" ;;
+		'WAIT-RESULT: CLOSED'*)    askOutcome="CLOSED" ;;
+		*)                         askOutcome="ERROR" ;;
+	esac
+	[ -z "$askAnsweredElsewhere" ] || askOutcome="RECEIVED"
+	## Only a received answer closes the record; every other outcome deliberately leaves it
+	## open. A timeout is a question still standing, and a pending record never expires by
+	## age, so it stays pending for the next wait. An ERROR means nothing whatever is known
+	## about whether anybody answered, and recording it as unanswered would assert exactly
+	## what was not learned.
+	if [ "$askOutcome" = "ERROR" ] ; then
+		case "$askFirst" in
+			'WAIT-RESULT: ERROR'*|'ERROR'*)
+				printf 'ERROR: %s: the wait on pending reply %s could not be performed, so NOTHING is known about whether it was answered, and its record is left as it was. Its silence must not be read as quiet.\n' "${harnessAskName:-Wait}" "${askPendingId:-<none>}"
+			;;
+			*)
+				printf 'ERROR: %s: the wait on pending reply %s returned a first line this tool does not know, so NOTHING is known about whether it was answered, and its record is left as it was. That line: "%s"\n' "${harnessAskName:-Wait}" "${askPendingId:-<none>}" "$askFirst"
+			;;
+		esac
+		[ -z "$askShown" ] || printf '%s\n' "$askShown"
+		[ -z "$askPendingId" ] || AgentsHarnessAskWaitNext "$askPendingId"
+		return 0
+	fi
+	## A typed kind's verdict is read and applied by the escalation operation, the one place that does it.
+	## A plain question with an answer form (select) takes its verdict the same way.
+	local askVerdict="" askReadLines="" askReason="" askForm=""
+	[ "$toolKind" != "question" ] || askForm="$( AgentsHarnessAskRecordField "$askPendingId" select )"
+	if { [ "$toolKind" != "question" ] || [ -n "$askForm" ] ; } && [ "$askOutcome" = "RECEIVED" ] ; then
+		askReadLines="$( AgentsHarnessEscalationRead "$askPendingId" )"
+		## The one place that reads a verdict could not read the thread: nothing is known about how
+		## it was answered. An ERROR that says so, never RETURNED, and the record is left open.
+		case "$askReadLines" in
+			*"ESCALATION: $askPendingId unreadable"*)
+				printf 'ERROR: %s: something arrived on pending reply %s, and then its thread could not be read for the verdict, so NOTHING is known about how it was answered, and its record is left as it was, open. %s\n' \
+					"${harnessAskName:-Wait}" "$askPendingId" "$( printf '%s\n' "$askReadLines" | LC_ALL=C sed -n 's/^UNREADABLE-REASON: //p' | head -1 )"
+				[ -z "$askShown" ] || printf '%s\n' "$askShown"
+				AgentsHarnessAskWaitNext "$askPendingId"
+				return 0
+			;;
+		esac
+		askVerdict="$( printf '%s\n' "$askReadLines" | LC_ALL=C sed -n 's/^VERDICT: //p' | head -1 )"
+		askReason="$( printf '%s\n' "$askReadLines" | LC_ALL=C sed -n 's/^VERDICT-REASON: //p' | head -1 )"
+		## RETURNED: the reply names none of the answers, so the question comes back to its asker.
+		## A read that still says UNCLASSIFIED, the word before it, means the same.
+		[ -n "$askVerdict" ] && [ "$askVerdict" != "UNCLASSIFIED" ] || askVerdict="RETURNED"
+	fi
+	## In a thread several questions share, a reply with no number that came after the latest
+	## question above it was already answered answers none of them: it goes back to the
+	## asker as RETURNED, with the record open, as a typed kind's would.
+	if [ "$toolKind" = "question" ] && [ "$askOutcome" = "RECEIVED" ] \
+		&& printf '%s\n' "$askWaitOut" | LC_ALL=C grep -q '^UNMATCHED-REPLY ' \
+		&& ! printf '%s\n' "$askWaitOut" | LC_ALL=C grep -q -E '^([0-9]+\.[0-9]+ \| |reaction on the question: )' ; then
+		askVerdict="RETURNED"
+		askReason="a reply with no question number came after the latest question above it was already answered, so it answers none -- a reply to this question starts with the plain text ${askTag:-its number}"
+	fi
+	case "$askOutcome:$toolKind:$askVerdict" in
+		RECEIVED:*:*)
+			## An answer of ANY kind -- a plain question, a decision, a readback, a permission,
+			## a proposal, a review, a change -- closes its record here and keeps the rest of
+			## the reply and every later reply as its clarifications (the reply form is the same
+			## for all of them). A reply that names none of the answers (RETURNED) is not an
+			## answer: it closes nothing and the question stays open.
+			if [ "$askVerdict" != "RETURNED" ] ; then
+			## The reply taken as the answer, so the close can mark it :eyes:, and its text and
+			## author, so the record and the item's Decisions keep what the answer said. Its
+			## first line is the answer; the rest of it, and every later reply, are kept as
+			## clarifications on it (AgentsPendingReplyClarifications.awk).
+			local askAnswerHead="" askAnswerText="" askAnswerBody="" askAnswerTs="" askClarify=""
+			askAnswerBody="$( AgentsHarnessAskAnswerBody "$askWaitOut" "$askPendingId" )"
+			askAnswerHead="$( printf '%s\n' "$askAnswerBody" | LC_ALL=C grep -m1 -E '^([0-9]+\.[0-9]+ \| |reaction on the question: )' )" || askAnswerHead=""
+			case "$askAnswerHead" in
+				'reaction on the question: '*) askAnswerText="$askAnswerHead" ;;
+				?*) askAnswerText="$( printf '%s\n' "$askAnswerBody" | AgentsHarnessAskOwnWords | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsPendingReplyAnswerText.awk" 2>/dev/null )" || askAnswerText="" ;;
+			esac
+			askAnswerTs="$( printf '%s\n' "$askAnswerBody" | LC_ALL=C sed -n -E 's/^([0-9]+\.[0-9]+) \| .*/\1/p' | head -1 )"
+			AgentsHarnessPendingReplyClose "$askPendingId" reply-received "$askAnswerText" "$askAnswerTs" \
+				"$( printf '%s\n' "$askAnswerHead" | LC_ALL=C sed -n -E 's/^[0-9]+\.[0-9]+ \| ([^|]*[^| ]) *\|.*/\1/p' )"
+			case "$askAnswerHead" in
+				'reaction on the question: '*) askAnswerTs="$( AgentsHarnessAskRecordField "$askPendingId" question-ts )" ;;
+			esac
+			[ -z "$askAnswerTs" ] || askClarify="$( printf '%s\n' "$askAnswerBody" | AgentsHarnessAskOwnWords | LC_ALL=C awk -v answerTs="$askAnswerTs" \
+				-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsPendingReplyClarifications.awk" 2>/dev/null )" || askClarify=""
+			## The thread stays watched from the newest message read here, so a later one is new.
+			AgentsHarnessAskKeepClarifications "$askPendingId" "$askClarify" "$( printf '%s\n' "$askAnswerBody" | LC_ALL=C awk '/^[0-9]+\.[0-9]+ \| / { ts = $1 ; } END { print ts ; }' )" close > /dev/null
+			fi
+		;;
+	esac
+	## A plain question answered through an operation, the console's among them, stands in no
+	## thread: its record carries the words and who gave them (answered-session says it came
+	## that way), and they are given to its asker as a verdict and its giver are.
+	if [ "$askOutcome:$toolKind:$askVerdict" = "RECEIVED:question:" ] && [ -z "$askForm" ] && [ -n "$askPendingId" ] \
+		&& [ "$( AgentsHarnessAskRecordField "$askPendingId" status )" = "reply-received" ] && [ -n "$( AgentsHarnessAskRecordField "$askPendingId" answered-session )" ] ; then
+		askVerdict="$( AgentsHarnessAskRecordField "$askPendingId" verdict )"
+		askReadLines="ANSWERED-BY: $( AgentsHarnessAskRecordField "$askPendingId" answered-by )"
+	fi
+	printf 'ASK-RESULT: %s\n' "$askOutcome"
+	[ -z "$askVerdict" ] || printf 'VERDICT: %s\n' "$askVerdict"
+	[ -z "$askReadLines" ] || printf '%s\n' "$askReadLines" | LC_ALL=C grep -E '^(VERDICT-TEXT|ANSWERED-BY|CLOSED-BY|GRANT|CHANGE): ' || :
+	[ -z "$askReadLines" ] || AgentsHarnessAskLaterSaid "$askWaitOut"
+	[ -z "$askWaitNote" ] || printf '%s\n' "$askWaitNote"
+	## An outcome that collected no answer says what it means for the question: it stays open.
+	case "$askOutcome" in
+		TIMEOUT)
+			printf 'No answer arrived within this wait. Pending reply %s stays open: a pending reply never expires by age.\n' "${askPendingId:-<none>}"
+		;;
+		DISMISSED)
+			printf 'You were dismissed where this answer was waited for, so none was collected here. Pending reply %s stays open, and is answered or withdrawn as any other: %s pending_id=%s withdraw=<why> discards it where it is no longer needed.\n' \
+				"${askPendingId:-<none>}" "${harnessAskName:-AskQuestion}" "${askPendingId:-<none>}"
+		;;
+		CLOSED)
+			printf 'The wait was closed before an answer came, so none was collected here. Pending reply %s stays open.\n' "${askPendingId:-<none>}"
+		;;
+	esac
+	if [ "$askVerdict" = "RETURNED" ] ; then
+		printf 'VERDICT-REASON: %s\n' "${askReason:-the reply names none of the answers this kind takes}"
+		## What it may mean, and the ways on, each with its exact call: the template's own words.
+		AgentsHarnessAskReturnedHint "$askPendingId" "$toolKind" "$askForm" "$( [ "$askCaller" != "ask" ] || printf '%s' "$harnessAskName" )"
+		if [ "$askCaller" = "wait" ] ; then
+			printf 'Record %s stays open and in your Wait set: Wait mode=continue returns the next reply or click, and posts nothing.\n' "${askPendingId:-<none>}"
+		else
+			printf 'Record %s stays open. To wait for the next reply or click, call Wait as the NEXT: line says, or the call on the last line. Neither posts anything.\n' "${askPendingId:-<none>}"
+		fi
+	fi
+	[ -z "$askShown" ] || printf '%s\n' "$askShown"
+	## Still pending, the item stays for the next Wait. Answered, it stays too while its thread
+	## is watched (a follow floor): a later message there is a clarification or correction kept
+	## with the answer, until the session ends. Closed any other way, it leaves the Wait set.
+	if [ -n "$askPendingId" ] && [ "$( AgentsHarnessAskRecordField "$askPendingId" status )" != "reply-pending" ] ; then
+		if [ "$( AgentsHarnessAskRecordField "$askPendingId" status )" = "reply-received" ] && [ -n "$( AgentsHarnessAskRecordField "$askPendingId" follow-floor )" ] ; then
+			AgentsHarnessAskWaitItem add "$askPendingId" || :
+			printf 'Pending reply %s stays in your Wait set, and its thread stays watched: a later message there arrives on Wait as ASK-RESULT: CLARIFIED, kept with the answer.\n' "$askPendingId"
+		else
+			AgentsHarnessAskWaitItem drop "$askPendingId" || :
+		fi
+	fi
+	## An outcome with no answer names its own next step: a dismissal ends the run, a timeout
+	## or a closed wait leaves the answer to the next Wait.
+	case "$askOutcome" in
+		DISMISSED)
+			printf 'NEXT: you are dismissed -- give your handback if you have not, then end your run\n'
+			return 0
+		;;
+		TIMEOUT|CLOSED)
+			[ -z "$askPendingId" ] || AgentsHarnessAskWaitNext "$askPendingId"
+			return 0
+		;;
+	esac
+	[ "$askCaller" = "ask" ] && [ "$askVerdict" = "RETURNED" ] && [ -n "$askPendingId" ] || return 0
+	AgentsHarnessAskWaitNext "$askPendingId"
+	printf '%s pending_id=%s\n' "$harnessAskName" "$askPendingId"
+}
+
+## What the asker of a returned question is told: the hint of its tool's own template
+## (`# Returned`), saying what the reply may mean, with the exact call of each way on.
+AgentsHarnessAskReturnedHint(){ ## pending reply id, kind, answer form (empty for none), the tool name as called (empty: the tool of that kind)
+	type AgentsHarnessAskPost > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessAskPost.include"
+	local hintId="${1:-<none>}" hintTool="${4:-}" hintThread="" hintReadback="" hintText=""
+	AgentsHarnessAskPost && AgentsToolsAskKindRow "$2" || return 0
+	[ -n "$hintTool" ] || hintTool="$agentsAskRowName"
+	## A kind no tool asks is acted on by its id through the first of the tools that ask.
+	[ -n "$hintTool" ] || hintTool="AskQuestion"
+	hintThread="$( AgentsHarnessAskRecordField "$1" channel )"
+	[ -z "$hintThread" ] || hintThread="$hintThread:$( AgentsHarnessAskRecordField "$1" thread-ts )"
+	## A readback may close a decision or a question with an answer form, never a permission.
+	case "$2:$3" in
+		decision:*|question:?*) hintReadback="$hintTool pending_id=$hintId readback=<the answer you take the reply to mean> understood=<why>" ;;
+	esac
+	hintText="$( ASKP_BLOCK="Returned/hint" ASKP_F_explain_call="SendMessage to=${hintThread:-<the thread of the question>} message=<your explanation>, then Wait mode=continue" \
+		ASKP_F_revise_call="$hintTool pending_id=$hintId revise=true with the fields you change" \
+		ASKP_F_withdraw_call="$hintTool pending_id=$hintId withdraw=<why>" ASKP_F_readback_call="$hintReadback" \
+		AgentsToolsAskPostFill block "$agentsAskRowTemplate" "" 2> /dev/null )" || hintText=""
+	[ -z "$hintText" ] || printf '%s\n' "$hintText"
+}
+
+## A Wait whose ask:<pending-id> items arrived: each is taken into its record by
+## AgentsHarnessAskResolve, from its own section of what the wait returned, after that output.
+AgentsHarnessWaitAskResolve(){ ## wait output file
+	type AgentsHarnessAskAnswerBody > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessAskPending.include"
+	local resolveItem resolveId resolveSection resolveStatus
+	for resolveItem in $( LC_ALL=C sed -n 's/^# arrived on: \(ask:[0-9A-Za-z._-]*\)$/\1/p' "$1" ) ; do
+		resolveId="${resolveItem#ask:}"
+		resolveSection="$( LC_ALL=C awk -v item="$resolveItem" '
+			$0 == "# arrived on: " item { inItem = 1 ; next ; }
+			inItem && $0 == "# --- what that source holds now follows ---" { next ; }
+			inItem && $0 == "# --- end ---" { exit ; }
+			inItem { print ; }
+		' "$1" )"
+		resolveStatus="$( AgentsHarnessAskRecordField "$resolveId" status )"
+		printf '# --- pending reply %s, as the asking call would take it ---\n' "$resolveId"
+		## Which ask it is, in its own first words: a result may carry the answers to several.
+		printf 'ASKED: %s, %s: %s\n' "$( AgentsHarnessAskRecordField "$resolveId" kind )" "$( AgentsHarnessAskRecordField "$resolveId" asked-at )" \
+			"$( LC_ALL=C awk '$0 == "---" { dashes++ ; next ; } dashes >= 2 && $0 !~ /^#/ && $0 !~ /^[ \t]*$/ { print substr( $0, 1, 200 ) ; exit ; }' "$( AgentsToolsPendingRecordPath "$resolveId" || printf '%s' "$MMDAPP/.local/agents/pending/$resolveId.md" )" 2> /dev/null )"
+		## Withdrawn by its asker: nothing more to take, and it leaves the Wait set.
+		if [ "$resolveStatus" = "withdrawn" ] ; then
+			printf 'NOTE: pending reply %s is withdrawn, so nothing that arrives there is taken as an answer, and it leaves your Wait set.\n' "$resolveId"
+			## Dismissed from the console, its record says so and by which account: said as that, with the reason given there.
+			case "$( AgentsHarnessAskRecordField "$resolveId" withdrawn-by )" in
+				console:*)
+					printf 'It was dismissed from the console by %s. Reason: %s. That is no answer: nothing was answered, granted or decided.\n' \
+						"$( AgentsHarnessAskRecordField "$resolveId" withdrawn-by | LC_ALL=C sed 's/^console://' )" "$( AgentsHarnessAskRecordField "$resolveId" withdraw-reason )"
+				;;
+			esac
+			AgentsHarnessAskWaitItem drop "$resolveId" || :
+			continue
+		fi
+		## Answered, and its thread still watched from its follow floor: what arrives is what the
+		## person wrote there since, kept with the answer as clarifications or corrections, and
+		## shown, since it may correct the answer -- or object to the asker's readback.
+		## With nothing new kept, it is read as before: the answer the record carries.
+		local resolveClarify="" resolveReadback=""
+		if [ "$resolveStatus" = "reply-received" ] && [ -n "$( AgentsHarnessAskRecordField "$resolveId" follow-floor )" ] ; then
+			## Read without the probe's own last line, where it says the record is closed: that is
+			## no word of the person's (AgentsHarnessAskAnswerBody).
+			resolveClarify="$( AgentsHarnessAskAnswerBody "# --- what that source holds now follows ---"$'\n'"$resolveSection"$'\n'"# --- end ---" "$resolveId" | AgentsHarnessAskOwnWords | LC_ALL=C awk -v answerTs="$( AgentsHarnessAskRecordField "$resolveId" follow-floor )" \
+				-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsPendingReplyClarifications.awk" 2>/dev/null )" || resolveClarify=""
+			[ -z "$resolveClarify" ] || [ "$( AgentsHarnessAskKeepClarifications "$resolveId" "$resolveClarify" )" != "0" ] || resolveClarify=""
+		fi
+		if [ -n "$resolveClarify" ] ; then
+			[ "$( AgentsHarnessAskRecordField "$resolveId" closed-by )" != "readback" ] || resolveReadback=1
+			printf 'ASK-RESULT: CLARIFIED\nVERDICT: %s\n' "$( AgentsHarnessAskRecordField "$resolveId" verdict )"
+			[ -z "$resolveReadback" ] || printf 'CLOSED-BY: readback\n'
+			printf 'Pending reply %s is answered%s. The person wrote in its thread after that, and it is kept with the answer as clarifications, on its record and its item Decisions. Read it: it may correct the answer%s, which may then need changing. It stays in your Wait set for anything more.\n' \
+				"$resolveId" "${resolveReadback:+ by your readback}" "${resolveReadback:+, or object to your readback}"
+			printf '%s\n' "$resolveSection"
+			continue
+		fi
+		[ "$resolveStatus" = "reply-pending" ] || printf 'NOTE: pending reply %s was already closed (%s) before this Wait saw it, so its record is left as it was.\n' "$resolveId" "${resolveStatus:-no record}"
+		## Its section goes on between the wait's own markers, as the wait printed it: what the person
+		## wrote is told from the wait's own lines by where it stands (AgentsHarnessAskAnswerBody).
+		AgentsHarnessAskResolve "$resolveId" "$( AgentsHarnessAskRecordField "$resolveId" kind )" "$( AgentsHarnessAskRecordField "$resolveId" question-tag )" \
+			"WAIT-RESULT: RECEIVED"$'\n'"# --- what that source holds now follows ---"$'\n'"$resolveSection"$'\n'"# --- end ---" "" "" wait ""
+	done
+}

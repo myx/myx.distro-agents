@@ -7,7 +7,7 @@
 #
 # WHY A SEPARATE READER, and not one of the two that already exist. Neither
 # fits, and neither was bent to fit:
-#   - sh-lib/comms/AgentsSlackMessagesFormat.awk is anchored on `messages.<idx>.`,
+#   - sh-lib/slack/AgentsSlackMessagesFormat.awk is anchored on `messages.<idx>.`,
 #     the flat array conversations.history/conversations.replies return.
 #     search.messages nests its own array one level deeper, at
 #     `messages.matches.<idx>.`, so that formatter reads nothing at all here.
@@ -42,7 +42,7 @@
 # thread_ts-bearing permalink means "reply".
 #
 # Parsing engine (skipws/hex2dec/utf8enc/parseString/parseValue/parseObject/
-# parseArray) is copied verbatim from sh-lib/comms/AgentsSlackMessagesFormat.awk,
+# parseArray) is copied verbatim from sh-lib/slack/AgentsSlackMessagesFormat.awk,
 # which copied it in turn from myx.common's agentMcpJsonParseRequest.awk --
 # same recursive-descent JSON parser, only the leaf-emission logic differs.
 #
@@ -234,7 +234,7 @@ function permalinkThreadTs(link,   qs, qmark, count, pairs, i, eq, name) {
 
 ## A text with every Slack date token in it, `<!date^<epoch>^<token string>|<fallback>>`,
 ## as its fallback text: what a reader of these lines can use, where the raw control
-## string is noise. The tooling's own posts carry them (sh-lib/comms/AgentsSlackDate.awk, whose
+## string is noise. The tooling's own posts carry them (sh-lib/slack/AgentsSlackDate.awk, whose
 ## sldFallbacks this is, word for word; a copy, because this file runs with no other
 ## loaded, as it carries its JSON engine).
 function dateFallbacks(textValue,   outText, tokenText, barAt) {

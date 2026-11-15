@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+## AgentsTools.OpManagerFeaturePreset.include -- the operation `--manager-feature-preset`, sourced by AgentsTools.ManagerFeature.include with the operation's arguments.
+## A preset for the local CLI service, from one installed chat model: the existing preset writer makes it (--manager-preset-new) and the setting reader of the dispatcher
+## writes its model, so the write checks of a preset are asked as for any preset. Its row `created` names the scope and the model.
+		local presetOp="$1" presetModel="${2:-}" presetName="local" presetState presetPart presetCheck
+		case "$presetModel" in ''|-*) echo "⛔ ERROR: $MDSC_CMD $presetOp: syntax is $presetOp <model-id> [--name <preset>], got: ${presetModel:-no model}" >&2 ; set +e ; return 1 ;; esac
+		shift 2
+		if [ $# -gt 0 ] ; then
+			if [ $# -ne 2 ] || [ "$1" != "--name" ] || [ -z "$2" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD $presetOp: syntax is $presetOp <model-id> [--name <preset>] -- nothing was made" >&2 ; set +e ; return 1
+			fi
+			presetName="$2"
+		fi
+		presetCheck="$( AgentsToolsManagerFeatureCheck setup.feature-local-ai )" || :
+		presetState="$( printf '%s\n' "$presetCheck" | AgentsToolsManagerFeaturePartState setup.feature-local-ai "$presetModel" )" || { AgentsToolsManagerFeatureRefuse "$presetOp" "$presetModel is no model of the local AI feature" ; set +e ; return 1 ; }
+		presetPart="$( printf '%s\n' "$presetCheck" | AgentsToolsManagerFeatureValue "part.$presetModel.part" )" || presetPart=""
+		[ "$presetState" = "installed" ] || { AgentsToolsManagerFeatureRefuse "$presetOp" "$presetModel is $presetState" ; set +e ; return 1 ; }
+		[ "$presetPart" = "chat" ] || { AgentsToolsManagerFeatureRefuse "$presetOp" "$presetModel is a $presetPart model, and a preset speaks to a chat model" ; set +e ; return 1 ; }
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+		DistroAgentsTools --manager-preset-new "$presetName" --cli-service local > /dev/null || { set +e ; return 1 ; }
+		type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/settings/AgentsTools.ConfigOption.include"
+		printf '%s\n' "$presetModel" | AgentsToolsConfigOption "preset-$presetName" --upsert-from-stdin PRESET_MODEL_OR_MACRO > /dev/null || {
+			echo "⛔ ERROR: $MDSC_CMD $presetOp: the setting reader refused the model of the preset -- the preset was taken out again" >&2
+			AgentsSettingsScopeDelete "${MMDAPP%/}" "preset-$presetName"
+			set +e ; return 1
+		}
+		printf 'created\tagents:preset-%s\t%s\n' "$presetName" "$presetModel"
+		return 0

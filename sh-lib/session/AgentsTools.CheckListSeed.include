@@ -105,6 +105,7 @@ AgentsToolsCheckListRoutineSteps(){ ## session id, spawn id
 ## for the spawn named it. An item the list already holds keeps the source it has. Prints how many it added.
 AgentsToolsCheckListSeed(){ ## session id, member name, the routine's step names (a line each, may be empty)
 	local seedFolder seedTemp seedLine seedAdded=0 seedSteps="${3:-}" seedFile="" seedAddedText=""
+	type AgentsToolsSpawnRecordPath > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionSeats.include"
 	seedFolder="$( AgentsToolsSpawnRecordPath "$1" )"
 	seedFolder="${seedFolder%/*}"
 	[ -n "$seedFolder" ] || seedFolder="$MMDAPP/.local/agents/sessions/$1"
@@ -126,9 +127,7 @@ AgentsToolsCheckListSeed(){ ## session id, member name, the routine's step names
 	fi
 	## The source of each item, marked from the list as it now stands: a step of the routine in force is `step`, and
 	## every item of the brief, the epic and the arguments is `parent`, since whoever asked for the spawn gave them.
-	type AgentsToolsCheckListSourcesMark > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.CheckListSources.include" 2> /dev/null || :
-	if type AgentsToolsCheckListSourcesMark > /dev/null 2>&1 ; then
+	type AgentsToolsCheckListSourcesMark > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.CheckListSources.include"
 		AgentsToolsCheckListSourcesMark "$seedFile" "$seedSteps" "$seedAddedText" 2> /dev/null || :
-	fi
 	printf '%s\n' "$seedAdded"
 }

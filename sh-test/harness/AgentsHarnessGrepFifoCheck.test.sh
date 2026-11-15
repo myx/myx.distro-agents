@@ -111,7 +111,7 @@ rigAssert "the empty answer is the tool's own words, not a blocked call" "$( pri
 
 echo "-- 5. a shell grep -r through the guard grep returns --"
 rigGuardBin="$rigTmp/ws/.local/agents/guard-bin"
-( . "$rigPackage/sh-lib/session/AgentsTools.SandboxLinks.include" && AgentsToolsGrepGuardMake "$rigGuardBin" ) || rigRefuse "the guard grep could not be made in the rig"
+( . "$rigPackage/sh-lib/spawn/AgentsTools.SandboxLinks.include" && AgentsToolsGrepGuardMake "$rigGuardBin" ) || rigRefuse "the guard grep could not be made in the rig"
 rigAssert "the guard grep is first on the rig's PATH" "$( PATH="$rigGuardBin:$PATH" command -v grep )" "$rigGuardBin/grep"
 PATH="$rigGuardBin:$PATH" grep -r 'rig-alpha' "$rigFolder" > "$rigTmp/out" 2>&1 &
 rigGrepPid="$!"

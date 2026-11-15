@@ -60,6 +60,7 @@ AgentsHarnessSearchJson(){ ## raw text
 ## One POST of a search request file to a url with the service's credential: the status in $nativeStatus, the body in $nativeBody; rc 1 with an ERROR line on failure.
 AgentsHarnessSearchPost(){ ## url, request file
 	local postRc=0 postCode
+	type AgentsHarnessRefreshBearer > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessModelRound.include"
 	AgentsHarnessRefreshBearer
 	postCode="Authorization: Bearer $harnessBearer"
 	[ -z "$harnessExtraHeaders" ] || postCode="$postCode"$'\n'"$harnessExtraHeaders"
@@ -189,6 +190,7 @@ AgentsHarnessSearchNative(){ ## query, allowed domains, blocked domains, denied 
 	elif [ -n "$nativeBlockedJson" ] ; then nativeToolJson="$nativeToolJson,\"blocked_domains\":[$nativeBlockedJson]" ; fi
 	nativeToolJson="$nativeToolJson}"
 	printf '%s' '{"model":"'"$harnessModel"'","max_tokens":2048,"tools":['"$nativeToolJson"'],"messages":[{"role":"user","content":"Search the web for: '"$( AgentsWireJsonEscape "$nativeQuery" )"'\n\nReply with the findings only: for each result its title, its URL and one line of what it says."}]}' > "$harnessScratch/search.native.request"
+	type AgentsHarnessRefreshBearer > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessModelRound.include"
 	AgentsHarnessRefreshBearer
 	nativeAuth="Authorization: Bearer $harnessBearer"
 	[ -z "$harnessExtraHeaders" ] || nativeAuth="$nativeAuth"$'\n'"$harnessExtraHeaders"
@@ -378,6 +380,7 @@ AgentsHarnessToolWebSearch(){ ## query, raw arguments
 }
 
 AgentsHarnessToolWebFetch(){ ## url, prompt
+	type AgentsHarnessGranted > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessAccess.include"
 	local toolUrl="$1" toolPrompt="${2-}" fetchUrl="$1" fetchStatus fetchTarget fetchRc=0 fetchHops=0 toolBytes fetchTools="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" fetchVerdict fetchAllowExtra="" fetchDenied="" fetchUnread="" fetchFromHost fetchToHost
 	case "$toolUrl" in
 		http://*|https://*) ;;

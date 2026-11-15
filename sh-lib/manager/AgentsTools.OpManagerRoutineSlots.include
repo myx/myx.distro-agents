@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+## AgentsTools.OpManagerRoutineSlots.include -- the operation `--manager-routine-slots`, sourced by AgentsTools.ManagerRoutine.include with the operation's arguments.
+## The members each entry of one routine's executors and participants can take, by the session spawner's one rule
+## (AgentsToolsSpawnRoutineEntryMembers), for a form's required selects: `slot<TAB><executors|participants><TAB><entry><TAB><kind><TAB><member>...`,
+## the kind choose (a <type>-?, every candidate, even one), all (a <type>-*), named or present (all-present-members), or the entry and
+## `none` where it has no candidate. Reads only; starts nothing.
+		local slotsOp="$1" slotsFile slotsContract slotsExec slotsInv slotsSide slotsLine slotsList slotsEntry slotsKind slotsOut
+		shift
+		if [ $# -ne 1 ] || [ -z "$1" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD $slotsOp: syntax is <routine selector>, got: $*" >&2
+			set +e ; return 1
+		fi
+		slotsFile="$( AgentsToolsSpawnRoutineResolve "$1" )" || { set +e ; return 1 ; }
+		slotsContract="$( AgentsToolsSpawnRoutineContractCheck "$slotsFile" )" || { set +e ; return 1 ; }
+		{ IFS= read -r slotsExec ; IFS= read -r slotsInv ; } <<< "$( AgentsToolsSpawnRoutineContractExecutorsInvitees "$slotsContract" )"
+		for slotsSide in executors participants ; do
+			slotsLine="$slotsExec" ; [ "$slotsSide" = executors ] || slotsLine="$slotsInv"
+			case "$slotsLine" in ''|none) continue ;; esac
+			IFS=',' read -r -a slotsList <<< "$slotsLine"
+			for slotsEntry in ${slotsList[@]+"${slotsList[@]}"} ; do
+				slotsEntry="${slotsEntry#"${slotsEntry%%[![:space:]]*}"}" ; slotsEntry="${slotsEntry%"${slotsEntry##*[![:space:]]}"}"
+				[ -n "$slotsEntry" ] || continue
+				case "$slotsEntry" in
+					all-present-members) slotsKind=present ; slotsOut="$( AgentsToolsSpawnRoutinePresentMembers )" ;;
+					*-\?) slotsKind=choose ; slotsOut="$( AgentsToolsSpawnRoutineEntryMembers "$slotsEntry" )" || slotsOut="$( printf '%s\n' "$slotsOut" | LC_ALL=C awk -F'\t' '$1 != "none-of-type" && $1 != "choice-required"' )" ;;
+					*-\*) slotsKind=all ; slotsOut="$( AgentsToolsSpawnRoutineEntryMembers "$slotsEntry" )" || slotsOut="" ;;
+					*) slotsKind=named ; slotsOut="$( AgentsToolsSpawnRoutineEntryMembers "$slotsEntry" )" || slotsOut="" ;;
+				esac
+				if [ -z "$slotsOut" ] ; then
+					printf 'slot\t%s\t%s\tnone\n' "$slotsSide" "$slotsEntry"
+				else
+					printf 'slot\t%s\t%s\t%s\t%s\n' "$slotsSide" "$slotsEntry" "$slotsKind" "$( printf '%s\n' "$slotsOut" | LC_ALL=C awk 'NF { printf "%s%s", ( n++ ? "\t" : "" ), $0 } END { printf "\n" }' )"
+				fi
+			done
+		done
+		return 0

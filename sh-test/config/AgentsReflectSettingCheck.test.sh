@@ -174,7 +174,7 @@ echo "-- 4. the shape: one write path, no global out-parameter, and no stray arg
 ## A global used as an out-parameter is banned outright, and a second write path beside the
 ## operation's own is the same fault. The value on stdin is kept in a local of the arm that
 ## writes it, so nothing of it stands at file scope.
-rigReflectInclude="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ReflectSetting.include"
+rigReflectInclude="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/settings/AgentsTools.ReflectSetting.include"
 rigEqual "the include names no variable outside a function: no global carries a value out" \
 	"$( LC_ALL=C grep -c 'agentsReflectStdin' "$rigReflectInclude" )" "0"
 rigEqual "a good value on stdin still stores, through the one write path" \

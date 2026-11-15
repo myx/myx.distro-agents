@@ -28,9 +28,6 @@
 ## workspace's declares, AgentsToolsWorkspaceSwitch (AgentsTools.MemberWorkspace.include).
 ##
 
-AgentsToolsMemberHomesFile(){
-	printf '%s\n' "${HOME:-}/.agents/magic-team/member-homes.registry"
-}
 
 ## A workspace where the agents subsystem is installed: its own member registry exists.
 AgentsToolsMemberHomesHasAgents(){ ## workspace
@@ -206,7 +203,7 @@ AgentsToolsMemberHomesWrite(){
 	local homesRegistry homesFile homesRows homesMembers homesMember homesCands homesTied homesRoot homesDone=$'\n'
 	local homesWeights="" homesChoice homesOut="" homesState homesTry=0 homesRc=0
 	homesRegistry="${HOME:-}/.agents/magic-team/members.registry"
-	homesFile="$( AgentsToolsMemberHomesFile )"
+	homesFile="${HOME:-}/.agents/magic-team/member-homes.registry"
 	[ -f "$homesRegistry" ] || return 0
 	homesRows="$( LC_ALL=C awk -F'\t' 'NF >= 5 && $1 != "" && $1 != "trash" && $3 != "rules-symlink" && !( ( $1 SUBSEP $2 ) in seen ) { seen[$1 SUBSEP $2] = 1 ; print $1 "\t" $2 "\t" $3 "\t" $5 ; }' "$homesRegistry" )"
 	homesMembers="$( printf '%s\n' "$homesRows" | LC_ALL=C awk -F'\t' 'NF >= 4 { n[$1]++ ; } END { for ( m in n ) if ( n[m] > 1 ) print m ; }' | LC_ALL=C sort )"

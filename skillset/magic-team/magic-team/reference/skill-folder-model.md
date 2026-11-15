@@ -1,3 +1,6 @@
+---
+maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
+---
 # Skill-folder model
 
 Read this for how skill folders, routines and skillset files are built and written.
@@ -135,6 +138,7 @@ A list of one kind drops the prefixes and declares the kind on the parent line (
 - **Owner-guaranteed**: a file stating a rule that protects the human-owner's identity, consent and channel, or credential boundary carries `human-owner` in `maintainers:`.
 - **Invitees**: routines with multi-member sessions declare `invitees:` — a floor, not a cap. Acting members never declare it. Its entries take the same member-name and `<type>-*`/`<type>-?` tokens as `executors:`, plus the standing-members keyword `all-present-members`. That keyword extends to every member whose `.basic.md` `attendance:` is `present`, and to every `magic-*` member where it says nothing.
 - A routine's own executor notes and roster live in that routine's file. Which routines exist: each owner's `.armed.md` Domain knowledge index.
+- **A `reference/…` pointer takes the citing member's own folder as its base.** A pointer to another member's module names that member in the same sentence. A path a reader follows from a shell takes the tree the reader stands in.
 
 ## Doc/disk mismatch repair loop
 

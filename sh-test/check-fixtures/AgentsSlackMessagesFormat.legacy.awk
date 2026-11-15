@@ -16,10 +16,10 @@
 #
 # Lives here (myx.distro-agents/sh-lib, not myx.common) because it's
 # Slack/DistroAgentsTools-specific. Consumers, by call site: the two
-# `AgentsToolsSlackCheck` reads in sh-lib/comms/AgentsTools.CommsSlack.include
+# `AgentsToolsSlackCheck` reads in sh-lib/slack/AgentsTools.CommsSlack.include
 # (per-DM fan-out leg, single-conversation path), the escalation-thread
 # read in sh-lib/questions/AgentsTools.MemberEscalation.include, and the Wait thread
-# probe in sh-lib/member/AgentsTools.MemberWait.include. NOT --intern-op-sweep-input-scan,
+# probe in sh-lib/wait/AgentsTools.MemberWait.include. NOT --intern-op-sweep-input-scan,
 # which never invokes this file -- that op feeds AgentsSessionContextCommsItems.awk.
 #
 # Parsing engine (skipws/hex2dec/utf8enc/parseString/parseValue/
@@ -142,7 +142,7 @@ function parseString(   c, out, hex, code, hex2, code2, cp, tail, at, quoteAt) {
 
 ## A text with every Slack date token in it, `<!date^<epoch>^<token string>|<fallback>>`,
 ## as its fallback text: what a reader of this rendering can use, where the raw control
-## string is noise. The tooling's own posts carry them (sh-lib/comms/AgentsSlackDate.awk, whose
+## string is noise. The tooling's own posts carry them (sh-lib/slack/AgentsSlackDate.awk, whose
 ## sldFallbacks this is, word for word; a copy, because this file runs with no other
 ## loaded, as it carries its JSON engine).
 function dateFallbacks(textValue,   outText, tokenText, barAt) {

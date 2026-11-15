@@ -1,3 +1,6 @@
+---
+maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
+---
 # myx.distro-* pipeline and console family
 
 Read this when working on `myx.distro-*` itself (source/deploy/system/remote/.local packages), a workspace's console entry points, or fleet-execution tooling (`ExecuteParallel`/`ExecuteSequence`/`ShellTo`).

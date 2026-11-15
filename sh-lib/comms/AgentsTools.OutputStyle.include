@@ -91,12 +91,12 @@ AgentsToolsOutputStyleRefusal(){ ## acting member, declared group, destination, 
 		## most of these rows is the next one to come out of the machine.
 		## ONE RIG'S TEAM DATA ONLY (S12.19): the record is an audit item, team data, so a workspace that keeps none (a Just Agents
 		## workspace, by its mode) records nothing here and says so; the measurement itself still reaches the caller above.
-		type AgentsToolsTeamDataGateOpen > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataGate.include" 2> /dev/null || :
+		type AgentsToolsTeamDataGateOpen > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataGate.include"
 		if ! AgentsToolsTeamDataGateOpen 2> /dev/null ; then
 			echo "# $MDSC_CMD: this workspace keeps no team data, so the measurement is not recorded in an audit store here." >&2
 		elif [ -d "$MDAT_DATA_ROOT/audit" ] ; then
 			local refusalLog="$MDAT_DATA_ROOT/audit/refusal-$( date -u +%Y%m%dT0000Z )-$( AgentsToolsOutputStyleHost )-output-style.md"
-			[ -f "$refusalLog" ] || { type AgentsToolsToolingTemplateFill > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.ToolingTemplate.include" ; AgentsToolsToolingTemplateFill "audit-item.refusal.document.format.md" team-data/AgentsVaultAuditDocumentFill.awk >> "$refusalLog" ; }
+			[ -f "$refusalLog" ] || { type AgentsToolsToolingTemplateFill > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.ToolingTemplate.include" ; AgentsToolsToolingTemplateFill "audit-item.refusal.document.format.md" vault/AgentsVaultAuditDocumentFill.awk >> "$refusalLog" ; }
 			## The kind separates what was stopped from what was only reported.
 			## Promotion asks whether a predicate has produced a false REFUSAL, so
 			## the two must never be counted together.
@@ -107,7 +107,7 @@ AgentsToolsOutputStyleRefusal(){ ## acting member, declared group, destination, 
 				-v rowKind="$rowKind" '
 				NF { printf "%s\t%s\t%s\t%s\t%s\t%s\n", stamp, rowKind, who, declared, dest, $0 ; }
 			' >> "$refusalLog" || echo "# $MDSC_CMD: the measurement could not be recorded, so nothing counts whether this floor is mis-set." >&2
-			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataCommit.include"
+			type AgentsToolsTeamDataCommitPaths > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataCommit.include"
 			AgentsToolsTeamDataCommitPaths "output-style $rowKind, $styleMember" "$refusalLog"
 		fi
 		## Held back for the sender to correct: its own outcome, apart from every failure.
@@ -124,7 +124,7 @@ AgentsToolsOutputStyleRefusal(){ ## acting member, declared group, destination, 
 	## group passes none and reaches nothing here.
 	if [ -n "$styleGroup" ] && [ "$styleGroup" != "message" ] ; then
 		## The declaration is an audit item too (S12.19): a workspace that keeps no team data records none, so the declared send is refused here with the reason.
-		type AgentsToolsTeamDataGateOpen > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataGate.include" 2> /dev/null || :
+		type AgentsToolsTeamDataGateOpen > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataGate.include"
 		if ! AgentsToolsTeamDataGateOpen 2> /dev/null ; then
 			echo "⛔ ERROR: $MDSC_CMD: --text-group $styleGroup declares this text as not message group, and every such declaration is recorded in the team's audit store. This workspace keeps no team data (its mode is not team-rig), so the declaration cannot be recorded and NOTHING WAS SENT: send it from a team rig, or as the message group." >&2
 			return 1
@@ -142,7 +142,7 @@ AgentsToolsOutputStyleRefusal(){ ## acting member, declared group, destination, 
 			echo "⛔ ERROR: $MDSC_CMD: THE DECLARATION QUEUE IS FULL at 1000 entries, so this declared send was refused and NOTHING WAS SENT. This is NOT a style refusal and the text passed the floor. magic-librarian drains the queue; until it does, a --text-group send cannot be recorded, and recording it is what makes the declaration real. An ordinary message-group send is unaffected." >&2
 			return 1
 		fi
-		[ -f "$declarationLog" ] || { type AgentsToolsToolingTemplateFill > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.ToolingTemplate.include" ; AgentsToolsToolingTemplateFill "audit-item.declaration.document.format.md" team-data/AgentsVaultAuditDocumentFill.awk >> "$declarationLog" ; }
+		[ -f "$declarationLog" ] || { type AgentsToolsToolingTemplateFill > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.ToolingTemplate.include" ; AgentsToolsToolingTemplateFill "audit-item.declaration.document.format.md" vault/AgentsVaultAuditDocumentFill.awk >> "$declarationLog" ; }
 		## The text goes in whole: the reader judges whether the declared group
 		## matches what was actually written, and a prefix cannot answer that.
 		## Its newlines and tabs collapse so one declaration stays one row.
@@ -157,7 +157,7 @@ AgentsToolsOutputStyleRefusal(){ ## acting member, declared group, destination, 
 			echo "⛔ ERROR: $MDSC_CMD: the --text-group $styleGroup declaration could not be appended to the audit store, so NOTHING WAS SENT. A declaration that leaves no trace is the silent off switch this design refuses." >&2
 			return 1
 		}
-		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataCommit.include"
+		type AgentsToolsTeamDataCommitPaths > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataCommit.include"
 		AgentsToolsTeamDataCommitPaths "output-style declaration, $styleMember" "$declarationLog"
 	fi
 

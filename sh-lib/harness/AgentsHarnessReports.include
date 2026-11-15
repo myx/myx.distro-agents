@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # ^^^ for syntax checking in the editor only
+type AgentsSessionThread > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
 
 ## AgentsHarnessReports.include: handbacks, findings, notifications and artifacts. Sourced by AgentsUniversalHarness.sh, definitions only.
 
@@ -14,6 +15,7 @@ type AgentsToolsSessionPauseWait > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.dis
 ## an omission must never be read as. Prints the body; non-zero, with the reason in
 ## report-post.err, when the template could not fill it.
 AgentsHarnessFormalBody(){ ## block `<Section>/<heading>`
+	type AgentsHarnessAskPost > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessAskPost.include"
 	AgentsHarnessAskPost || return 3
 	ASKP_BLOCK="$1" AgentsToolsAskPostFill block report.post.format.md "" 2> "$harnessScratch/report-post.err"
 }
@@ -30,9 +32,8 @@ AgentsHarnessReportTask(){ ## the task as the call gave it (may be empty)
 	local reportSession reportItem="" reportPath="" reportTask="" reportTitle="" reportName reportNames=""
 	reportSession="${harnessSessionId:-${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}}"
 	if [ -n "$reportSession" ] && [ -n "${MDAT_DATA_ROOT:-}" ] ; then
-		type AgentsToolsDecisionsItemFromRef > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemDecisions.include" 2> /dev/null || :
-		type AgentsToolsTaskText > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.TaskText.include" 2> /dev/null || :
-		if type AgentsToolsDecisionsItemFromRef > /dev/null 2>&1 && type AgentsToolsTaskText > /dev/null 2>&1 ; then
+		type AgentsToolsDecisionsItemFromRef > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemDecisions.include"
+		type AgentsToolsTaskText > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.TaskText.include"
 			reportItem="$( AgentsToolsDecisionsItemFromRef "" "$reportSession" 2> /dev/null )" || reportItem=""
 			[ -z "$reportItem" ] || reportPath="$( AgentsToolsDecisionsItemPath "$reportItem" 2> /dev/null )" || reportPath=""
 			[ -z "$reportPath" ] || reportTask="$( AgentsToolsTaskText "$reportPath" )"
@@ -40,7 +41,6 @@ AgentsHarnessReportTask(){ ## the task as the call gave it (may be empty)
 			for reportName in "$( AgentsToolsTaskTextValue "$reportTask" item )" "$( AgentsToolsTaskTextValue "$reportTask" dispatch )" ; do
 				[ -z "$reportName" ] || reportNames="$reportNames${reportNames:+ · }\`$reportName\`"
 			done
-		fi
 	fi
 	if [ -n "$reportTitle" ] ; then
 		ASKP_F_task_title="$reportTitle" ASKP_F_task_names="$reportNames" ASKP_F_task_given="${1:-}" AgentsHarnessFormalBody "Lines/task" && return 0
@@ -81,6 +81,7 @@ AgentsHarnessRefusedTargetDecode(){ ## value
 ## AgentsHarnessSelfCheck.test.awk matches site by site, and a helper with no tool behind it
 ## is reported there as an orphan.
 AgentsHarnessFormalSend(){ ## tool name, target, as_bot, body text, optional next (see AgentsHarnessToolSendMessage), optional address to (who the post is for, as SendMessage takes it)
+	type AgentsHarnessToolSendMessage > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessMessages.include"
 	local formalName="$1" formalTo="$2" formalAsBot="$3" formalBody="$4"
 	if [ -z "$formalTo" ] ; then
 		printf 'ERROR: %s: to is required and was empty, so there is nowhere to post it. Nothing was sent.\n' "$formalName" ; return 0
@@ -93,7 +94,7 @@ AgentsHarnessFormalSend(){ ## tool name, target, as_bot, body text, optional nex
 AgentsHarnessReportsTo(){
 	local reportsRecord=""
 	reportsRecord="$( AgentsHarnessSpawnRecordPath "${MDAT_SPAWN_SESSION_ID:-}" )" && [ -n "$reportsRecord" ] || return 1
-	type AgentsToolsRunRoute > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include" 2> /dev/null || return 1
+	type AgentsToolsRunRoute > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.RunRoute.include" || return 1
 	AgentsToolsRunRoute "$reportsRecord" 2> /dev/null
 }
 
@@ -107,12 +108,12 @@ AgentsHarnessReportRoute(){ ## the to the run gave, the address_to it gave
 	routeOwn="${MDAT_SESSION_THREAD:-}"
 	if [ -z "$routeOwn" ] ; then
 		## The one finder of a session's own thread: the session the run joined, its spawn record, else its sessions/<id>/session.thread.
-		type AgentsToolsSessionCurrentThreadFind > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include" 2> /dev/null || :
+		type AgentsToolsSessionCurrentThreadFind > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionThreads.include"
 		routeOwn="$( AgentsToolsSessionCurrentThreadFind 2> /dev/null )" || routeOwn=""
 	fi
 	case "$routeOwn" in [CG][A-Z0-9]*:[0-9]*.[0-9]*) ;; *) routeOwn="" ;; esac
 	routeTo="$routeGiven" ; routeAddress="${2:-}"
-	type AgentsToolsRunRouteKind > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include" 2> /dev/null || :
+	type AgentsToolsRunRouteKind > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.RunRoute.include"
 	routeWhere="$( AgentsHarnessReportsTo )" && [ -n "$routeWhere" ] || return 1
 	routeKind="$( AgentsToolsRunRouteKind "$routeWhere" 2> /dev/null )" || routeKind=""
 	## A RUN THAT REPORTS TO NO ONE REPORTS UP THE LADDER (the human-owner's rule): `reports-to: none` means no review, never no
@@ -144,7 +145,7 @@ AgentsHarnessReportRoute(){ ## the to the run gave, the address_to it gave
 				## Into the coordinator's duty-session thread, where it reads its runs' reports, never a direct conversation of the human-owner's.
 				local routeDuty="" routeThread=""
 				routeDuty="$( head -1 "${MMDAPP:-/nonexistent}/.local/agents/schedule/duty-session/magic-coordinator" 2> /dev/null )" || routeDuty=""
-				case "$routeDuty" in ''|*/*|.|..) ;; *) routeThread="$( head -1 "$MMDAPP/.local/agents/sessions/$routeDuty/session.thread" 2> /dev/null )" || routeThread="" ;; esac
+				case "$routeDuty" in ''|*/*|.|..) ;; *) routeThread="$( AgentsSessionThread "$routeDuty" )" || routeThread="" ;; esac
 				case "$routeThread" in [CG][A-Z0-9]*:[0-9]*.[0-9]*) routeTo="$routeThread" ;; *) routeTo="magic-coordinator" ;; esac
 				## A duty thread in a direct conversation is his: the run's own channel thread takes the report, addressed to the coordinator.
 				case "$routeTo" in [CG][A-Z0-9]*:*) ;; *) [ -z "$routeOwn" ] || routeTo="$harnessCurrentName" ;; esac
@@ -170,7 +171,7 @@ AgentsHarnessReportRoute(){ ## the to the run gave, the address_to it gave
 AgentsHarnessReportsNone(){
 	local noneRecord=""
 	noneRecord="$( AgentsHarnessSpawnRecordPath "${MDAT_SPAWN_SESSION_ID:-}" )" && [ -n "$noneRecord" ] || return 1
-	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include" 2> /dev/null || return 1
+	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandbox.include" || return 1
 	[ "$( AgentsToolsSpawnSandboxRecordHeader "$noneRecord" "$agentsRunRouteField" )" = none ]
 }
 
@@ -179,6 +180,10 @@ AgentsHarnessReportsNone(){
 ## A HANDBACK HAS NO ADDRESSEE OF THE RUN'S, BY DESIGN: where it goes and who it is for are the tooling's alone
 ## (AgentsHarnessReportRoute), so the tool takes neither.
 AgentsHarnessToolSubagentHandbackRun(){ ## task, outcome, findings, unfinished, as_bot, checklist_pending_count
+	type AgentsHarnessCheckListOpenItems > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessBatch.include"
+	type AgentsHarnessSessionThread > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessMessages.include"
+	type AgentsHarnessDismissedKeep > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessWait.include"
+	type AgentsToolsSessionDismissHold > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionSeats.include"
 	local toolTo="$harnessParentName" toolTask="$1" toolOutcome="$2" toolFindings="$3" toolUnfinished="$4" toolAsBot="$5" toolAddressTo="" toolPendingCount="${6:-0}" toolBody
 	local toolOpen="" toolOpenRc=0 toolOther="" toolLine="" toolOthers=0
 	if [ -z "$toolOutcome" ] ; then
@@ -309,6 +314,8 @@ AgentsHarnessHandbackNext(){ ## the outcome field
 ## where a verdict can arrive and nothing is still open, and the mark it leaves is the one home
 ## of that fact. Prints nothing; never fails its caller.
 AgentsHarnessParkOnHandback(){
+	type AgentsHarnessCheckListOpenItems > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessBatch.include"
+	type AgentsToolsItemReviewer > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemReviewer.include"
 	local parkItem parkReviewer
 	## Nothing pending: a handback that leaves an item open is not a finished run.
 	[ -z "$( AgentsHarnessCheckListOpenItems 2> /dev/null )" ] || { AgentsHarnessParkClear ; return 0 ; }
@@ -326,15 +333,17 @@ AgentsHarnessParkItemOfRun(){
 	local parkRun parkLink
 	parkRun="${MDAT_SPAWN_SESSION_ID:-}"
 	case "$parkRun" in ''|-|.|..|*/*) return 1 ;; esac
-	type AgentsToolsItemReviewer > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include" 2> /dev/null || return 1
-	type AgentsReviewItemOfSession > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ReviewFlow.include" 2> /dev/null || return 1
+	type AgentsToolsItemReviewer > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemReviewer.include" || return 1
+	type AgentsReviewItemOfSession > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ReviewFlow.include"|| return 1
 	parkLink="$( AgentsReviewItemOfSession "$parkRun" 2> /dev/null )" || return 1
+	type AgentsToolsDecisionsItemPath > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemDecisions.include"
 	AgentsToolsDecisionsItemPath "${parkLink%.md}" 2> /dev/null
 }
 
 ## The mark is written only when it should stand, and taken away whenever a resume starts the
 ## run again: a parking flag surviving one resume parks the run on its own first turn.
 AgentsHarnessParkMark(){
+	type AgentsHarnessParkedFile > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessWait.include"
 	local markPath
 	markPath="$( AgentsHarnessParkedFile )" || return 0
 	mkdir -p "${markPath%/*}" 2> /dev/null || return 0
@@ -342,12 +351,14 @@ AgentsHarnessParkMark(){
 }
 
 AgentsHarnessParkClear(){
+	type AgentsHarnessParkedFile > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessWait.include"
 	local markPath
 	markPath="$( AgentsHarnessParkedFile )" || return 0
 	rm -f "$markPath" 2> /dev/null || :
 }
 
 AgentsHarnessToolReportFindings(){
+	type AgentsHarnessSendProse > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessMessages.include"
 	local toolTo="$1" toolSubject="$2" toolFindings="$3" toolEvidence="$4" toolConfidence="$5" toolAsBot="$6" toolAddressTo="${7:-}" toolBody
 	if [ -z "$toolSubject" ] || [ -z "$toolFindings" ] ; then
 		printf 'ERROR: ReportFindings: both subject and findings are required, and one of them was empty. Nothing was sent.\n' ; return 0
@@ -364,6 +375,7 @@ AgentsHarnessToolReportFindings(){
 }
 
 AgentsHarnessToolPushNotification(){
+	type AgentsHarnessSendProse > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessMessages.include"
 	local toolTo="$1" toolSeverity="$2" toolHeadline="$3" toolDetail="$4" toolAction="$5" toolAsBot="$6" toolAddressTo="${7:-}" toolBody toolMark
 	if [ -z "$toolHeadline" ] ; then
 		printf 'ERROR: PushNotification: headline is required and was empty. Nothing was sent.\n' ; return 0
@@ -414,6 +426,8 @@ AgentsHarnessToolArtifact(){
 ## every file, since publishing sends it out. The tooling does the rest as this member
 ## (--intern-artifact-publish, AgentsTools.InternArtifact.include).
 AgentsHarnessArtifactPublish(){
+	type AgentsHarnessArgValue > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessRun.include"
+	type AgentsHarnessGranted > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessAccess.include"
 	local pubTools="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" pubSession pubArgs=() pubPath pubCount pubIndex=0 pubRc=0
 	if [ -n "$toolUrl" ] ; then
 		printf 'ERROR: Artifact: give url to announce a document that exists, or file to publish one, not both. Nothing was sent, and nothing was published.\n' ; return 1

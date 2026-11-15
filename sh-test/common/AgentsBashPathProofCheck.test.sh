@@ -265,7 +265,7 @@ RIGPY
 rigStarter(){ ## run folder, screen|socket, environment settings... -- one start by that starter, on the PATH without bash
 	local starterDir="$1" starterKind="$2" starterFile="$rigCoreHere/manager/LocalManagerScreen.py"
 	shift 2
-	[ "$starterKind" = screen ] || starterFile="$rigHere/comms/AgentsSlackSocketMode.py"
+	[ "$starterKind" = screen ] || starterFile="$rigHere/slack/AgentsSlackSocketMode.py"
 	mkdir -p "$starterDir"
 	env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" PATH="$rigNoBashPath" MMDAPP="$rigTmp" RIG_FILED="$starterDir/$starterKind.filed" SOCKET_MODE_LOG_DIR="$starterDir/log" "$@" \
 		"$rigPython" -I -B "$rigTmp/starters.py" "$starterKind" "$starterFile" "$rigTmp/stand-tool.sh" > "$starterDir/$starterKind.out" 2>&1
@@ -277,7 +277,7 @@ rigCommand='
 	printf "%s\n" "${MDAT_BASH:-}" > "$RIG_OUT/handed"
 	"$RIG_HOOK" < "$RIG_OUT/payload" > "$RIG_OUT/hook.out" 2> "$RIG_OUT/hook.err" ; printf "%s" "$?" > "$RIG_OUT/hook.rc"
 	RIG_FILED="$RIG_OUT/screen.filed" python3 -I -B "$RIG_TMP/starters.py" screen "$RIG_CORE_LIB/manager/LocalManagerScreen.py" "$RIG_TMP/stand-tool.sh" > "$RIG_OUT/screen.out" 2>&1
-	RIG_FILED="$RIG_OUT/socket.filed" SOCKET_MODE_LOG_DIR="$RIG_OUT/log" python3 -I -B "$RIG_TMP/starters.py" socket "$RIG_LIB/comms/AgentsSlackSocketMode.py" "$RIG_TMP/stand-tool.sh" > "$RIG_OUT/socket.out" 2>&1
+	RIG_FILED="$RIG_OUT/socket.filed" SOCKET_MODE_LOG_DIR="$RIG_OUT/log" python3 -I -B "$RIG_TMP/starters.py" socket "$RIG_LIB/slack/AgentsSlackSocketMode.py" "$RIG_TMP/stand-tool.sh" > "$RIG_OUT/socket.out" 2>&1
 	:
 '
 rigEntered(){ ## run name, the PATH it is entered with

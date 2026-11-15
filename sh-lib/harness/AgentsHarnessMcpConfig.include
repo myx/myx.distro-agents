@@ -108,8 +108,10 @@ AgentsHarnessMcpSpecAdd(){ ## name, command, env pair count, key, value, ..., ar
 ## to $MMDAPP/.local while the workspace runs from source.
 AgentsHarnessMcpServersPrimary(){
 	AgentsHarnessMcpSpecReset
+	local mcpCommonServer=""
+	mcpCommonServer="$( command -v myx.common >/dev/null 2>&1 && myx.common which lib/agentMcpServer 2>/dev/null )" || mcpCommonServer=""
 	[ ! -x "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" ] || AgentsHarnessMcpSpecAdd "myx.distro" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" 2 MMDAPP "$MMDAPP" MDLT_ORIGIN "$MDLT_ORIGIN" --intern-mcp-server --run
-	[ ! -x "$MDLT_ORIGIN/myx/myx.common/os-myx.common/host/tarball/share/myx.common/bin/lib/agentMcpServer.Common" ] || AgentsHarnessMcpSpecAdd "myx.common" "$MDLT_ORIGIN/myx/myx.common/os-myx.common/host/tarball/share/myx.common/bin/lib/agentMcpServer.Common" 2 MMDAPP "$MMDAPP" MDLT_ORIGIN "$MDLT_ORIGIN" --run
+	[ ! -x "$mcpCommonServer" ] || AgentsHarnessMcpSpecAdd "myx.common" "$mcpCommonServer" 2 MMDAPP "$MMDAPP" MDLT_ORIGIN "$MDLT_ORIGIN" --run
 	return 0
 }
 

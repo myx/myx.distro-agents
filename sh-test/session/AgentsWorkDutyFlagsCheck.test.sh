@@ -12,7 +12,7 @@ export MDAT_STARTED_RECORDS_SECONDS=0 MDAT_DUTY_RECORDS_SECONDS=0
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 rigHere="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib"
 rigRefuse(){ echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1 ; }
-[ -f "$rigHere/session/AgentsTools.DispatcherSchedule.include" ] || rigRefuse "the schedule's functions are not at the origin this workspace resolves: $rigHere"
+[ -f "$rigHere/schedule/AgentsTools.DispatcherSchedule.include" ] || rigRefuse "the schedule's functions are not at the origin this workspace resolves: $rigHere"
 . "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
 rigTmp="$( rigTempDir AgentsWorkDutyFlagsCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
@@ -28,7 +28,7 @@ rigData="$rigWs/data"
 mkdir -p "$rigWs/.local/agents/spawned" "$rigData/board/pending" "$rigWs/.local/agents/schedule"
 export MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDSC_CMD=check
 set +u
-. "$rigHere/session/AgentsTools.DispatcherSchedule.include" > /dev/null 2>&1
+. "$rigHere/schedule/AgentsTools.DispatcherSchedule.include" > /dev/null 2>&1
 set -u
 type AgentsToolsScheduleWorkDuty > /dev/null 2>&1 || rigRefuse "the schedule's functions are not defined by sourcing them"
 
@@ -61,7 +61,6 @@ AgentsToolsScheduleDmTags(){ return 0 ; }
 AgentsToolsScheduleTagCarry(){ return 0 ; }
 AgentsToolsScheduleTagGive(){ return 0 ; }
 AgentsToolsScheduleDutyRoutine(){ printf 'magic-team.work-duty.routine.md\n' ; }
-AgentsToolsInboxDir(){ printf '%s\n' "$rigTmp/inbox-$1" ; }
 ## A duty started is a duty live from then on (the record a real start leaves), so the next pass starts the next member and not this one again.
 AgentsToolsScheduleSpawn(){ printf '%s\n' "${2:-$1}" >> "$rigSpawnLog" ; case "$1" in work-duty.*) printf '%s\n' "${1#work-duty.}" >> "$rigSpawnLog.members" ;; esac ; return 0 ; }
 AgentsToolsScheduleDismiss(){ printf '%s\n' "$1" >> "$rigDismissLog" ; }

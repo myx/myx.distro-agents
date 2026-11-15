@@ -1,3 +1,6 @@
+---
+maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
+---
 # Install-script anti-patterns (generic, cross-project)
 
 These are generic, portable install-script lessons, held here in the abstract

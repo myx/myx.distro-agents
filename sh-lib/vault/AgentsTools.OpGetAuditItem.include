@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+## AgentsTools.OpGetAuditItem.include -- the operation `--get-audit-item`, sourced by AgentsTools.Member.include with the operation's arguments.
+## One audit document, by bare filename. A stub: it checks who is asking, and
+## --intern-op-audit-item-read resolves and reads (AgentsTools.InternOpVaultAudit.include).
+		shift
+		local memberName="${1:-}"
+		shift || true
+		local documentName="${1:-}"
+		shift || true
+		if [ -z "$memberName" ] || [ -z "$documentName" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --get-audit-item: syntax is <team-member> <document-name> [--start-line <N> --end-line <N>]" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsAssertBareName "$memberName" "<team-member>" get-audit-item || { set +e ; return 1 ; }
+		if [ ! -d "$MDAT_SKILLSET_ROOT/$memberName" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --get-audit-item: no such member skill directory: $MDAT_SKILLSET_ROOT/$memberName" >&2
+			set +e ; return 1
+		fi
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+		DistroAgentsTools --intern-op-audit-item-read "$documentName" "$@"
+		return $?

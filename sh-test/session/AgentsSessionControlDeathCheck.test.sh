@@ -613,12 +613,12 @@ rigHeldAfter="$( rigInside '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session
 rigAssert "a death the thread keeps and has not settled is held by it while it lives, for the advance pass to leave alone; a settled one is not, and none is once the thread has ended" \
 	"$rigHeld$rigHeldAfter" "rig-held=0 rig-settled=1 rig-held=1 "
 rigBodies="$( wc -l < "$rigSlack/bodies" | LC_ALL=C tr -d ' ' )"
-rigInside '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include"' "AgentsToolsSpawnProxyEndNotice '$rigSp/d-hang/d-hang.spawn.md' ; AgentsToolsSpawnProxyEndNotice '$rigSp/d-ho/d-ho.spawn.md' missing" > /dev/null
+rigInside '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandbox.include"' "AgentsToolsSpawnProxyEndNotice '$rigSp/d-hang/d-hang.spawn.md' ; AgentsToolsSpawnProxyEndNotice '$rigSp/d-ho/d-ho.spawn.md' missing" > /dev/null
 rigAssert "a death the thread told is told by no other closer: the record keeps that it was told, and the one function that tells an end says nothing more of that run" \
 	"$( [ -n "$( rigHeader d-hang death-told )" ] && [ -n "$( rigHeader d-ho death-told )" ] && echo marked ):$(( $( wc -l < "$rigSlack/bodies" | LC_ALL=C tr -d ' ' ) - rigBodies ))" "marked:0"
 rigRec d-other d-other keeper-rig spawn-ended-without-close "${rigClosed}${rigAsked}supervisor-process: $rigGoneShell
 "
-rigInside '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include"' "AgentsToolsSpawnProxyEndNotice '$rigSp/d-other/d-other.spawn.md' missing" > /dev/null
+rigInside '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandbox.include"' "AgentsToolsSpawnProxyEndNotice '$rigSp/d-other/d-other.spawn.md' missing" > /dev/null
 rigAssert "control: a run no thread told is told by that function as before, as one that posted no handback" \
 	"$( rigPosts 'posted no handback' '`d-other`' | LC_ALL=C tr '\n' ';' )" "${rigReqThread%%:*} ${rigReqThread#*:} magic-coordinator;"
 rigAssert "no text the thread posts is written in its code: each is a block of the note template" \

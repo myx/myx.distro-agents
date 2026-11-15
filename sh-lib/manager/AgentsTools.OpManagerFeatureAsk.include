@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+## AgentsTools.OpManagerFeatureAsk.include -- the operation `--manager-feature-ask`, sourced by AgentsTools.ManagerFeature.include with the operation's arguments.
+		local askOp="$1" askModel="${2:-}" askSource="" askFile="" askPrompt askTool askState askJson askKind
+		local askSyntax="<model-id> [--from-stdin|--from-file <path>]"
+		case "$askModel" in ''|-*) echo "⛔ ERROR: $MDSC_CMD $askOp: syntax is $askSyntax, got: ${askModel:-no model}" >&2 ; set +e ; return 1 ;; esac
+		shift 2
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--from-stdin|--from-file)
+					[ -z "$askSource" ] || { echo "⛔ ERROR: $MDSC_CMD $askOp: use only one of --from-stdin | --from-file <path>" >&2 ; set +e ; return 1 ; }
+					askSource="${1#--from-}" ; shift
+					if [ "$askSource" = "file" ] ; then
+						[ -n "${1:-}" ] && [ -f "$1" ] || { echo "⛔ ERROR: $MDSC_CMD $askOp: --from-file: file not found: ${1:-}" >&2 ; set +e ; return 1 ; }
+						askFile="$1" ; shift
+					fi
+				;;
+				*) echo "⛔ ERROR: $MDSC_CMD $askOp: syntax is $askSyntax, got: $1" >&2 ; set +e ; return 1 ;;
+			esac
+		done
+		askState="$( AgentsToolsManagerFeatureCheck setup.feature-local-ai | AgentsToolsManagerFeaturePartState setup.feature-local-ai "$askModel" )" || { AgentsToolsManagerFeatureRefuse "$askOp" "$askModel is no model of the local AI feature" ; set +e ; return 1 ; }
+		[ "$askState" = "installed" ] || { AgentsToolsManagerFeatureRefuse "$askOp" "$askModel is $askState" ; set +e ; return 1 ; }
+		askKind="$( AgentsToolsManagerFeatureCheck setup.feature-local-ai | AgentsToolsManagerFeatureValue "part.$askModel.part" )" || askKind=""
+		[ "$askKind" = "chat" ] || { AgentsToolsManagerFeatureRefuse "$askOp" "$askModel is a $askKind model, and a prompt goes to a chat model" ; set +e ; return 1 ; }
+		if [ "$askSource" = "file" ] ; then askPrompt="$( cat < "$askFile" )" || askPrompt="" ; else askPrompt="$( cat )" || askPrompt="" ; fi
+		case "$askPrompt" in *[![:space:]]*) ;; *) AgentsToolsManagerFeatureRefuse "$askOp" "the prompt is empty" ; set +e ; return 1 ;; esac
+		askTool="$MDLT_ORIGIN/myx/mdci-packages-myx/setup.feature-local-ai/data/local-ai/mdci-local-ai"
+		askJson="$( printf '%s\n' "$askPrompt" | sh "$askTool" ask "$askModel" )" || { echo "⛔ ERROR: $MDSC_CMD $askOp: the model did not answer" >&2 ; set +e ; return 1 ; }
+		printf '%s\n' "$askJson" | AgentsToolsManagerFeatureJsonText chat || { echo "⛔ ERROR: $MDSC_CMD $askOp: the answer holds no reply" >&2 ; set +e ; return 1 ; }
+		return 0

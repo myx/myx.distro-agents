@@ -19,8 +19,8 @@
 ##
 
 type AgentsToolsCredentialShown > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.CredentialDisplay.include"
-type AgentsToolsPresetCredentialKeys > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.Preset.include"
-type AgentsToolsManagerKeysDeclared > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.ManagerKeys.include" --definitions-only > /dev/null 2>&1 || :
+type AgentsToolsPresetCredentialKeys > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/settings/AgentsTools.Preset.include"
+type AgentsToolsManagerKeysDeclared > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.PublicKeys.include"
 
 ## One field of a row: its whitespace reads `_`, an empty one `-`.
 AgentsToolsManagerWizardField(){ ## text
@@ -36,16 +36,15 @@ AgentsToolsManagerWizardField(){ ## text
 ## The presets of this workspace, one name a line.
 AgentsToolsManagerWizardPresets(){
 	local presetFile presetName
-	for presetFile in "${MMDAPP%/}/.local/.agents"/preset-*.agent.env ; do
-		[ -f "$presetFile" ] || continue
-		presetName="${presetFile##*/preset-}" ; presetName="${presetName%.agent.env}"
+	for presetName in $( AgentsSettingsScopes "${MMDAPP%/}" preset- ) ; do
+		presetName="${presetName#preset-}"
 		printf '%s\n' "$presetName"
 	done
 }
 
 ## One value of one scope, as the setting reader of the sibling package gives it: what the file holds, nothing else.
 AgentsToolsManagerWizardValue(){ ## scope, key
-	[ -f "${MMDAPP%/}/.local/.agents/$1.agent.env" ] || return 0
+	AgentsSettingsScopeHas "${MMDAPP%/}" "$1" || return 0
 	(
 		set -- --agents-config-option "$1" --select "$2"
 		. "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/LocalTools.Config.include"
@@ -111,11 +110,12 @@ AgentsToolsManagerWizardWrite(){ ## scope, key, value
 	local writeBefore writeErr writeRc
 	writeBefore="$( AgentsToolsManagerWizardValue "$1" "$2" )"
 	if [ -z "$3" ] ; then
-		if [ -z "$writeBefore" ] && ! LC_ALL=C grep -q -e "^$2=" "${MMDAPP%/}/.local/.agents/$1.agent.env" 2> /dev/null ; then
+		type AgentsSettingsKeyNames > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/settings/AgentsTools.Settings.include"
+		if [ -z "$writeBefore" ] && ! AgentsSettingsKeyNames "${MMDAPP%/}" "$1" "$2" | LC_ALL=C grep -qxF -- "$2" ; then
 			printf 'unchanged\t%s\t%s\n' "$1" "$2"
 			return 0
 		fi
-		type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
+		type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/settings/AgentsTools.ConfigOption.include"
 		AgentsToolsConfigOption "$1" --delete "$2" > /dev/null 2>&1 < /dev/null || { echo "$MDSC_CMD: ⛔ ERROR: $2 could not be taken out of $1 -- the rows above were applied, this and the rest were not" >&2 ; return 1 ; }
 		printf 'removed\t%s\t%s\n' "$1" "$2"
 		return 0
@@ -125,7 +125,7 @@ AgentsToolsManagerWizardWrite(){ ## scope, key, value
 		return 0
 	fi
 	writeRc=0
-	type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
+	type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/settings/AgentsTools.ConfigOption.include"
 	writeErr="$( printf '%s\n' "$3" | AgentsToolsConfigOption "$1" --upsert-from-stdin "$2" 2>&1 > /dev/null )" || writeRc=$?
 	if [ "$writeRc" != 0 ] ; then
 		printf '%s\n' "$writeErr" | LC_ALL=C grep -F -- 'ERROR' | LC_ALL=C head -1 >&2
@@ -161,11 +161,13 @@ case "$1" in
 				## (sketch 13.4), read the same way --manager-feature-models reads an installed state,
 				## never by guessing from the tsv alone.
 				if AgentsToolsManagerFeatureNames 2> /dev/null | LC_ALL=C grep -q -x -F -- setup.feature-local-ai ; then
+					type AgentsToolsManagerFeatureCheck > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.ManagerFeature.include"
 					readLocalCheck="$( AgentsToolsManagerFeatureCheck setup.feature-local-ai 2> /dev/null )" || readLocalCheck=""
-					readLocalTsv="$( AgentsToolsManagerFeatureRoot )/setup.feature-local-ai/data/local-ai/models.tsv"
+					readLocalTsv="$MDLT_ORIGIN/myx/mdci-packages-myx/setup.feature-local-ai/data/local-ai/models.tsv"
 					if [ -n "$readLocalCheck" ] && [ -f "$readLocalTsv" ] ; then
 						while IFS= read -r readLocalModel ; do
 							[ -n "$readLocalModel" ] || continue
+							type AgentsToolsManagerFeaturePartState > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.ManagerFeature.include"
 							readLocalState="$( printf '%s\n' "$readLocalCheck" | AgentsToolsManagerFeaturePartState setup.feature-local-ai "$readLocalModel" 2> /dev/null )" || readLocalState="unknown"
 							[ "$readLocalState" = installed ] || continue
 							printf 'option\tlocal-model\t%s\t%s\n' "$readLocalModel" "$readLocalModel"

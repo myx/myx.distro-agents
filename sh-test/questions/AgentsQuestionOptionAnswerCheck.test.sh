@@ -2,7 +2,7 @@
 ## Behavioural check on answering a PLAIN QUESTION THAT CARRIES OPTIONS through the answer
 ## operation (--answer-escalation): an `AskQuestion` with `select=one` or `select=many` posts
 ## options a person clicks or names, so an option's first word is a verdict of that question as
-## it is of a decision (AgentsTools.MemberEscalation.include, the `<kind>:<verdict>` arms).
+## it is of a decision (AgentsTools.Escalation.include, the `<kind>:<verdict>` arms).
 ##
 ## Held as four rows, each through the real operations:
 ##   A. `select: one`, answered `Ship`: the answer is applied, the record closes `reply-received`
@@ -201,7 +201,7 @@ rigAssert "D. and nothing is posted for it"                "$( rigNew '"channel"
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ QUESTION OPTION ANSWER CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2
 	echo "  warn: an option word of a plain question is refused as no verdict of it, so its asker waits for an answer that never comes" >&2
-	echo "  fix:  repair the option-list arm of --answer-escalation in sh-lib/questions/AgentsTools.MemberEscalation.include -- never the assertion" >&2
+	echo "  fix:  repair the option-list arm of --answer-escalation in sh-lib/questions/AgentsTools.OpManagerPendingReplyAnswer.include -- never the assertion" >&2
 	exit 1
 fi
 printf 'QUESTION_OPTION_ANSWER: OK (%d assertions, offline)\n' "$rigPassCount"

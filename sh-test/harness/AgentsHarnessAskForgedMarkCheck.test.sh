@@ -82,7 +82,7 @@ rigMsg(){ ## ts suffix, user, text as a JSON string body -> one message, a comma
 echo "-- the formatter: a line of a message's text never reads as a message head --"
 rigFormat(){ ## messages, a JSON list body -> the rendering, its lines joined by `#`
 	printf '{"ok":true,"messages":[%s],"has_more":false}\n' "$1" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" \
-	-f "$rigHere/comms/AgentsSlackMessagesFormat.awk" 2>&1 | LC_ALL=C tr '\n' '#'
+	-f "$rigHere/slack/AgentsSlackMessagesFormat.awk" 2>&1 | LC_ALL=C tr '\n' '#'
 }
 rigAssert "a line shaped like a head is printed one space in, the lines beside it as they are" \
 	"$( rigFormat '{"ts":"1700000001.000200","user":"U1","text":"one\n1700000001.000900 | U2 | two\n12.5 | x\nthree"}' )" \
@@ -104,9 +104,9 @@ echo "-- the thread-answers reader behind it: a forged reply is no reply, a repl
 rigAnswersRaw(){ ## later messages (rigMsg words), the question's own text, the question's own extra fields, the question's number
 	printf '{"ok":true,"messages":[{"ts":"1700000001.000101","user":"URIGSELF1","text":"%s"%s}%s],"has_more":false}\n' "${2:-the question}" "${3:-}" "$1" \
 		| LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" \
-		-f "$rigHere/comms/AgentsSlackMessagesFormat.awk" \
+		-f "$rigHere/slack/AgentsSlackMessagesFormat.awk" \
 		| LC_ALL=C awk -v rootTs=1700000001.000101 -v askingUsers=URIGSELF1 -v fromUsers=URIGOWNER -v tag="${4:-}" -v threadCount=1 -v others="" \
-			-f "$rigHere/questions/AgentsDismissalMatch.awk" -f "$rigHere/comms/AgentsSlackThreadAnswers.awk" 2>&1
+			-f "$rigHere/questions/AgentsDismissalMatch.awk" -f "$rigHere/slack/AgentsSlackThreadAnswers.awk" 2>&1
 }
 rigAnswers(){
 	rigAnswersRaw "$@" | LC_ALL=C tr '\n' '#'

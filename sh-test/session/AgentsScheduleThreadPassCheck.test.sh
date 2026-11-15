@@ -17,7 +17,7 @@ rigPackage="$MDLT_ORIGIN/myx/myx.distro-agents"
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }
-[ -f "$rigPackage/sh-lib/session/AgentsTools.ScheduleThread.include" ] || rigRefuse "the schedule thread's include is not in the package"
+[ -f "$rigPackage/sh-lib/schedule/AgentsTools.ScheduleThread.include" ] || rigRefuse "the schedule thread's include is not in the package"
 . "$rigPackage/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
 rigTmp="$( rigTempDir AgentsScheduleThreadPassCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
@@ -47,7 +47,7 @@ rigRun(){ ## -- what the pass answers, and how many passes ran
 			export -f AgentsToolsScheduleCurrentFlags AgentsToolsScheduleLoop AgentsToolsBoardDependencies
 			export RIG_FLAGS RIG_STEPS
 			set +e +u
-			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.ScheduleThread.include" > /dev/null 2>&1
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/schedule/AgentsTools.ScheduleThread.include" > /dev/null 2>&1
 			AgentsToolsScheduleThreadPass
 			printf "%s" "$?"
 			AgentsToolsScheduleThreadPass
@@ -99,7 +99,7 @@ rigAskDue(){ ## the member with overtime (may be empty), seconds to the next wor
 			export -f AgentsToolsScheduleCurrentFlags
 			export RIG_FLAGS RIG_ASKS RIG_OVER RIG_TO
 			set +e +u
-			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.ScheduleThread.include" > /dev/null 2>&1
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/schedule/AgentsTools.ScheduleThread.include" > /dev/null 2>&1
 			## The include, and the includes it sources, define these themselves, so the stand-ins go in after it.
 			AgentsToolsTeamMemberDirectoryText(){ printf "keeper-rig\t/x\nmagic-coordinator\t/y\n" ; }
 			AgentsToolsScheduleMemberFlag(){ [ "$2" = "$RIG_OVER" ] && [ "$1" = overtime ] && printf "on\n" ; return 0 ; }

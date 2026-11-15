@@ -20,7 +20,7 @@ set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigPackage="$MDLT_ORIGIN/myx/myx.distro-agents"
 rigChecker="$rigPackage/sh-lib/comms/AgentsOutputStyleCheck.awk"
-rigBlocks="$rigPackage/sh-lib/comms/AgentsSlackBlocksBuild.awk"
+rigBlocks="$rigPackage/sh-lib/slack/AgentsSlackBlocksBuild.awk"
 
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1

@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.ManagerConsoleIdentity.include -- who the console acts as: its account, its user and the
+## team member it stands for. Sourced, never run: definitions only.
+##
+
+## The name the console's user has in the operating system: one word, as a Decisions line and a record header take it.
+## Nothing and rc 1 where the system gives none.
+AgentsToolsManagerConsoleAccount(){
+	type AgentsToolsConsoleAccount > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.CallerCheck.include"
+	AgentsToolsConsoleAccount
+}
+
+## The same, which a kill is recorded under: `unknown` where the system gives none.
+AgentsToolsManagerConsoleUser(){
+	AgentsToolsManagerConsoleAccount || printf 'unknown\n'
+}
+
+## The name a person at the console acts under (F6.10), in a message and in an answer: `user-<account>`, the account as the system gives it, in the
+## small letters, digits and hyphens a name of a member takes. The one place that says it. Nothing and rc 1 where the system gives no account,
+## or one with no letter or digit in it: the name is never made up, and what is done under it is refused by whoever asks.
+AgentsToolsManagerConsoleMember(){
+	local memberAccount
+	memberAccount="$( AgentsToolsManagerConsoleAccount )" || return 1
+	memberAccount="$( printf '%s\n' "$memberAccount" | LC_ALL=C tr 'A-Z' 'a-z' | LC_ALL=C tr -c 'a-z0-9\n' '-' | LC_ALL=C sed -e 's/--*/-/g' -e 's/^-//' -e 's/-$//' )"
+	[ -n "$memberAccount" ] || return 1
+	printf 'user-%s\n' "$memberAccount"
+}

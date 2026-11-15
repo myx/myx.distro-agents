@@ -8,10 +8,11 @@
 ## step stand aside -- the batching steer of a lone read (S12.159), the floor-wait rewind (S12.172), the in-place restart on new code
 ## (S12.189) and the routing of an inquiry through the coordinator (S12.168) -- so a
 ## tooling fault or a board step does not become the emergency's blocker. A verify of unchanged work stays held in an emergency too. The flag is the team setting MDAT_SCHEDULE_EMERGENCY: `on`, or
-## `until <epoch>` while that moment is ahead (--override-flag emergency <ttl>), read straight from the team's agent settings.
+## `until <epoch>` while that moment is ahead (--override-flag emergency <ttl>), read through the agents settings store (AgentsTools.Settings.include).
 AgentsToolsEmergencyHolds(){
 	local emergencyValue="" emergencyEnd=""
-	emergencyValue="$( LC_ALL=C sed -n 's/^MDAT_SCHEDULE_EMERGENCY=//p' "${MMDAPP:-/nonexistent}/.local/.agents/magic-team.agent.env" 2> /dev/null | tail -1 )"
+	type AgentsSettingsRead > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/settings/AgentsTools.Settings.include"
+	emergencyValue="$( AgentsSettingsRead "${MMDAPP:-/nonexistent}" magic-team --select MDAT_SCHEDULE_EMERGENCY 2> /dev/null )"
 	emergencyValue="${emergencyValue#\"}" ; emergencyValue="${emergencyValue%\"}"
 	case "$emergencyValue" in
 		on) return 0 ;;

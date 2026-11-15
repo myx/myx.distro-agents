@@ -1,0 +1,286 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.BoardAdvance.include -- routine-advance's own --advance-*
+## operation group (DistroAgentsItems.fn.sh, and --advance-sleep-run of AgentDispatcherTools.fn.sh).
+## Sourced lazily from the arm of the tool file that owns its names (sh-lib/harness/AgentsContext.FrontTable.include).
+## Not standalone: relies on being dot-sourced for $1/$@/$MDSC_CMD.
+##
+## The two lock paths resync the board through myx.common git/cloneSync
+## whenever TEAM_DATA_GIT_REMOTE is set, and the acquire path refuses a lock
+## it cannot prove is the actual head's. See MAGIC.md, "The advance lock
+## paths: resync, conflict check, and the unlock order".
+##
+
+## Where an inbox item lives (F4.3).
+
+## The resync, the conflict check and the head check the lock paths run, shared by every routine lock
+## (AgentsTools.RoutineLock.include): the advance lock's own protocol, made general (F6.2).
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/routine/AgentsTools.RoutineLock.include"
+
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.BoardHousekeeping.include"
+
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.RecheckDate.include"
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.BoardRoundScan.include"
+
+type AgentsToolsItemUpsert > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/items/AgentsTools.InternOpItem.include"
+
+case "$1" in
+
+	--advance-to-running)
+		shift
+		local callingMember="$1"
+		shift || true
+		local itemName="$1"
+		shift || true
+		if [ -z "$callingMember" ] || [ -z "$itemName" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --advance-to-running: syntax is <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--upsert-body:<text>|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
+			set +e ; return 1
+		fi
+		local fromStateArg=""
+		local passthrough=()
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--from-state:*) fromStateArg="$1" ; shift ;;
+				--recheck-in) passthrough+=( "$1" "${2:-}" ) ; shift ; shift || true ;;
+				--header:*|--upsert-from-stdin|--upsert-body:*|--edit-script-from-stdin:*|--edit-patch-from-stdin)
+					passthrough+=( "$1" ) ; shift
+				;;
+				*)
+					echo "⛔ ERROR: $MDSC_CMD --advance-to-running: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		if [ -z "$fromStateArg" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --advance-to-running: --from-state:<state> is required" >&2
+			set +e ; return 1
+		fi
+		local startedAt ; startedAt="$( date +"%Y-%m-%d %H:%M %z" )"
+		mkdir -p "$MDAT_DATA_ROOT/board/running" || {
+			echo "⛔ ERROR: $MDSC_CMD --advance-to-running: can't create board state directory: $MDAT_DATA_ROOT/board/running" >&2
+			set +e ; return 1
+		}
+		## Stamped on a move only: a same-state edit of an item already running keeps the
+		## started-at it has, as the help says.
+		local startedArgs=( --header:upsert:started-at:"$startedAt" )
+		[ "$fromStateArg" != "--from-state:running" ] || startedArgs=()
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+		DistroAgentsTools --intern-op-board-upsert-move-edit running "$itemName" \
+			"$fromStateArg" \
+			${startedArgs[@]+"${startedArgs[@]}"} \
+			--context --advance-to-running \
+			${passthrough[@]+"${passthrough[@]}"}
+		return $?
+	;;
+
+	--advance-to-parked)
+		shift
+		## <team-member> captured for future logging/validation, unused today
+		local callingMember="$1"
+		shift || true
+		local itemName="$1"
+		shift || true
+		if [ -z "$callingMember" ] || [ -z "$itemName" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --advance-to-parked: syntax is <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--upsert-body:<text>|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
+			set +e ; return 1
+		fi
+		local fromStateArg=""
+		local passthrough=()
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--from-state:*) fromStateArg="$1" ; shift ;;
+				--recheck-in) passthrough+=( "$1" "${2:-}" ) ; shift ; shift || true ;;
+				--header:*|--upsert-from-stdin|--upsert-body:*|--edit-script-from-stdin:*|--edit-patch-from-stdin)
+					passthrough+=( "$1" ) ; shift
+				;;
+				*)
+					echo "⛔ ERROR: $MDSC_CMD --advance-to-parked: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		if [ -z "$fromStateArg" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --advance-to-parked: --from-state:<state> is required" >&2
+			set +e ; return 1
+		fi
+		mkdir -p "$MDAT_DATA_ROOT/board/parked" || {
+			echo "⛔ ERROR: $MDSC_CMD --advance-to-parked: can't create board state directory: $MDAT_DATA_ROOT/board/parked" >&2
+			set +e ; return 1
+		}
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+		DistroAgentsTools --intern-op-board-upsert-move-edit parked "$itemName" \
+			"$fromStateArg" \
+			--context --advance-to-parked \
+			${passthrough[@]+"${passthrough[@]}"}
+		return $?
+	;;
+
+	--advance-batch-outcome)
+		shift
+		local callingMember="$1"
+		shift || true
+		if [ -z "$callingMember" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --advance-batch-outcome: syntax is <team-member> --items:<item-filename>:<outcome>:<execution-receipt>[,...]" >&2
+			set +e ; return 1
+		fi
+		local itemsArg=""
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--items:*)
+					if [ -n "$itemsArg" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --advance-batch-outcome: --items: given more than once" >&2
+						set +e ; return 1
+					fi
+					itemsArg="${1#--items:}"
+					shift
+				;;
+				*)
+					echo "⛔ ERROR: $MDSC_CMD --advance-batch-outcome: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		if [ -z "$itemsArg" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --advance-batch-outcome: --items:<item-filename>:<outcome>:<execution-receipt>[,...] is required" >&2
+			set +e ; return 1
+		fi
+
+		local itemsRemaining="$itemsArg"
+		local spec itemName rest outcome receipt itemCount=0 failCount=0 priorOutcome priorReceipt
+		local itemState roundState priorRound priorRoundEpoch roundRecorded roundStamp
+		## THE STATES AN ITEM CAN BE IN, from the one list (AgentsTools.BoardStates.include). A round is recorded
+		## on a document in whatever state it was given (S16 stage 2), so the state is resolved from the item's
+		## own name. Before this, every write assumed `running`: an item in `review` was refused, and under `set -e`
+		## the awk over the missing `running/` path ended the whole call with rc 2 and no message.
+		type AgentsToolsBoardItemEpoch > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.BoardStates.include"
+		while [ -n "$itemsRemaining" ] ; do
+			case "$itemsRemaining" in
+				*,*) spec="${itemsRemaining%%,*}" ; itemsRemaining="${itemsRemaining#*,}" ;;
+				*)   spec="$itemsRemaining" ; itemsRemaining="" ;;
+			esac
+			[ -z "$spec" ] && continue
+			itemCount=$(( itemCount + 1 ))
+			itemName="${spec%%:*}"
+			rest="${spec#*:}"
+			if [ "$rest" = "$spec" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --advance-batch-outcome: malformed entry (need <item-filename>:<outcome>:<execution-receipt>): $spec" >&2
+				failCount=$(( failCount + 1 )) ; continue
+			fi
+			outcome="${rest%%:*}"
+			receipt="${rest#*:}"
+			if [ "$receipt" = "$rest" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --advance-batch-outcome: malformed entry (need <item-filename>:<outcome>:<execution-receipt>): $spec" >&2
+				failCount=$(( failCount + 1 )) ; continue
+			fi
+			if ! AgentsToolsAssertBareName "$itemName" "<item-filename> (in --items entry: $spec)" advance-batch-outcome ; then
+				failCount=$(( failCount + 1 )) ; continue
+			fi
+			## THE OUTCOMES THE ROUTINES NAME, and no others: `advanced` is what a completed round records
+			## (`magic-team.advance.routine.md`) and `parked-spawn-failed` what a failed start's park records
+			## (`magic-coordinator.work-duty.routine.md`). A word outside this list is a fault of the entry, and
+			## never of the batch: one bad entry leaves the items behind it alone.
+			case "$outcome" in
+				nudged|advanced|respawned|redispatched|flagged-once|no-action|parked-spawn-failed) ;;
+				*)
+					echo "⛔ ERROR: $MDSC_CMD --advance-batch-outcome: invalid outcome in entry $spec: $outcome" >&2
+					failCount=$(( failCount + 1 )) ; continue
+				;;
+			esac
+			if [ -z "$receipt" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --advance-batch-outcome: entry $spec: execution-receipt required" >&2
+				failCount=$(( failCount + 1 )) ; continue
+			fi
+			itemState=""
+			for roundState in $agentsBoardActiveStates ; do
+				[ ! -f "$MDAT_DATA_ROOT/board/$roundState/$itemName" ] || { itemState="$roundState" ; break ; }
+			done
+			if [ -z "$itemState" ] ; then
+				## The item is found by its name, never by a state its caller names (states change while a caller thinks): where it now lies
+				## outside the active states is said, so the reader reads it there instead of searching.
+				local roundElsewhere=""
+				for roundState in $agentsBoardStates ; do
+					[ ! -f "$MDAT_DATA_ROOT/board/$roundState/$itemName" ] || { roundElsewhere="$roundState" ; break ; }
+				done
+				local roundWhere="it is in no state of the board"
+				[ -z "$roundElsewhere" ] || roundWhere="it is in $roundElsewhere now, where a round records no outcome"
+				echo "⛔ ERROR: $MDSC_CMD --advance-batch-outcome: entry $spec: no active state ($agentsBoardActiveStates) holds $itemName -- $roundWhere" >&2
+				failCount=$(( failCount + 1 )) ; continue
+			fi
+			## ONE WRITER, FOR ONE ROUND (S26.4, re-scoped by S16 stage 2 item 1). The document's
+			## `last-round-at` says when a round last visited it, so a stamp inside the staleness window
+			## IS this window's round, and a different value now would overwrite what that round decided.
+			## Outside the window the document is due a new round, and this call is that round's proof:
+			## the guard must never hold a document out of its own next round.
+			## The three are read from the frontmatter only (the lines between the first two `---`), so a body line cannot pose as the prior value (epic S10.7).
+			priorOutcome="$( LC_ALL=C awk 'NR == 1 { if ( $0 != "---" ) exit ; next } $0 == "---" { exit } /^outcome: /{ print substr($0, 10) ; exit }' "$MDAT_DATA_ROOT/board/$itemState/$itemName" 2> /dev/null )" || :
+			priorReceipt="$( LC_ALL=C awk 'NR == 1 { if ( $0 != "---" ) exit ; next } $0 == "---" { exit } /^execution-receipt: /{ print substr($0, 20) ; exit }' "$MDAT_DATA_ROOT/board/$itemState/$itemName" 2> /dev/null )" || :
+			priorRound="$( LC_ALL=C awk 'NR == 1 { if ( $0 != "---" ) exit ; next } $0 == "---" { exit } /^last-round-at: /{ print substr($0, 16) ; exit }' "$MDAT_DATA_ROOT/board/$itemState/$itemName" 2> /dev/null )" || :
+			priorRoundEpoch="$( AgentsToolsBoardItemEpoch "$priorRound" )"
+			roundRecorded=0
+			case "$priorRoundEpoch" in
+				''|*[!0123456789]*) ;;
+				*) [ "$(( priorRoundEpoch + agentsBoardStaleWindowSeconds ))" -le "$( date +%s )" ] || roundRecorded=1 ;;
+			esac
+			if [ "$roundRecorded" = 1 ] \
+				&& { { [ -n "$priorOutcome" ] && [ "$priorOutcome" != "$outcome" ] ; } || { [ -n "$priorReceipt" ] && [ "$priorReceipt" != "$receipt" ] ; } ; } ; then
+				echo "⛔ ERROR: $MDSC_CMD --advance-batch-outcome: entry $spec: this window's round is already recorded on the item, as outcome '$priorOutcome' and execution-receipt '$priorReceipt', so this different value is refused" >&2
+				failCount=$(( failCount + 1 ))
+				continue
+			fi
+			type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+			## `last-round-at` is stamped by a round and by nothing else, so `advanced` alone carries it.
+			## A `no-action` or a `parked-spawn-failed` records an administrative act on a document a
+			## sweep gave no round (S16 stage 2, the model's "Per state, a sweep gives"), and `nudged`,
+			## `respawned`, `redispatched` and `flagged-once` record what a pass did about a document
+			## rather than a round on it. Stamping those would cost the document a whole window.
+			roundStamp=()
+			[ "$outcome" != advanced ] || roundStamp=( --header:upsert:last-round-at:"$( date +"%Y-%m-%d %H:%M %z" )" )
+			if ! DistroAgentsTools --intern-op-board-upsert-move-edit "$itemState" "$itemName" \
+				--from-state:"$itemState" \
+				--header:upsert:outcome:"$outcome" \
+				--header:upsert:execution-receipt:"$receipt" \
+				${roundStamp[@]+"${roundStamp[@]}"} \
+				--context --advance-batch-outcome
+			then
+				failCount=$(( failCount + 1 ))
+			fi
+		done
+
+		if [ "$itemCount" -eq 0 ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --advance-batch-outcome: --items: no item entries found" >&2
+			set +e ; return 1
+		fi
+		if [ "$failCount" -gt 0 ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --advance-batch-outcome: $failCount of $itemCount item(s) failed" >&2
+			set +e ; return 1
+		fi
+		echo "# $MDSC_CMD --advance-batch-outcome: recorded outcomes for $itemCount item(s)" >&2
+		return 0
+	;;
+
+	## Fixed 5-loop countdown-then-continue signal. No options.
+	--advance-sleep-run)
+		shift
+		if [ $# -gt 0 ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --advance-sleep-run: takes no arguments" >&2
+			set +e ; return 1
+		fi
+		## Five one-second loops, the owner's own specification.
+		local remaining=5
+		while [ "$remaining" -gt 0 ] ; do
+			echo "$remaining"
+			sleep 1
+			remaining=$(( remaining - 1 ))
+		done
+		printf 'All Done.\nPLEASE CONTINUE!\n'
+		return 0
+	;;
+
+
+	*)
+		echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
+		set +e ; return 1
+	;;
+esac

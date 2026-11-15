@@ -203,7 +203,7 @@ rigAssert "--find-contact with --scope rmm2=tier-admin finds her, matched on id,
 
 ## How an ask to a tier closes: the first answer for tier-owner, a quorum for tier-admin, stuck where no quorum can come.
 rigClose(){ ## tier, holders, answers... -- what the decision prints
-	env -i HOME="$rigTmp/home" PATH="/usr/bin:/bin" MDLT_ORIGIN="$MDLT_ORIGIN" MDSC_CMD=rig bash -c '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.Contacts.include" 2> /dev/null ; AgentsToolsContactsTierClosing "$@"' rig "$@" 2>&1
+	env -i HOME="$rigTmp/home" PATH="/usr/bin:/bin" MDLT_ORIGIN="$MDLT_ORIGIN" MDSC_CMD=rig bash -c '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/contacts/AgentsTools.Contacts.include" 2> /dev/null ; AgentsToolsContactsTierClosing "$@"' rig "$@" 2>&1
 }
 rigAssert "tier-owner with no answer is open" "$( rigClose tier-owner 3 )" open
 rigAssert "tier-owner closes on the first answer, a no among later yeses" "$( rigClose tier-owner 3 a=no b=yes c=yes )" "closed no"

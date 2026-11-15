@@ -94,6 +94,7 @@ Team text carries three kinds of sentence. Keep them apart, and let the reader s
 - A count's name is a label someone chose. Its definition is the code that produced it. Read the unit off the code before quoting the number.
 - A measurement whose scope and claim differ is a different measurement wearing the claim's words. Widen the run, not the wording. A difference between two counts names a cause only where it survives at the population the claim is about.
 - A uniform "none anywhere" is a finding about the instrument until one known-positive subject has been put through the same probe.
+- A known-positive control is read through the same stream as the measurement. A control that is absent by construction tests the call's shape, never where its answer lands.
 - A search over a partial view reports the view it reached, never the thing searched. A view is partial when a store, an index or a listing holds only some of the thing searched. Corroboration that repeats the same instrument and the same view is one observation, not two.
 - A refusal for want of privilege reads exactly like an empty result. Establish that the identity could see the thing, before reporting it absent.
 - Absence of a notification is not evidence of progress. Presence of output is not evidence of liveness. Both are reporting surfaces, not state.
@@ -146,6 +147,7 @@ Team text carries three kinds of sentence. Keep them apart, and let the reader s
 - Establish the failing case before the passing one: construct the input the defect makes fail, watch it fail, apply the fix, watch it pass.
 - A check you would act on is not a result until it has been shown able to fail.
 - Verify what stores, not what sends. A write path's own success reports the send. Read the stored content back through a separate path.
+- A read that names one folder answers about that folder. A check for an item stored anywhere names the whole store, or says which folder it read.
 - An account of an event is read from the event's own record, never from recollection.
 - A resumed run reads the store before it trusts the routine state note. Where the two disagree, the store is what happened.
 - Read the instrument before trusting the measurement. A count, a list and a probe each answer their own predicate.
@@ -193,6 +195,7 @@ The floor's clauses, with their benchmarks, are stated once in `magic-team.armed
 - A narrowing is final: never re-expanded, never re-asked.
 - A task's scope is exactly what was approved. Growth is filed as a proposal while the approved scope continues.
 - Know when a word is load-bearing: a rule, a name, a path, a flag, a verdict. Those are quoted, never paraphrased.
+- Name a line only to help a reader find wording already quoted. The quote is the citation: a line number alone is a position that one insert moves.
 
 ## Communication: reaching the reader
 

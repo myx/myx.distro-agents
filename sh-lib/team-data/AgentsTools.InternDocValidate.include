@@ -18,7 +18,7 @@
 ## no logic of their own.
 ##
 
-type AgentsToolsRoutineRequirement > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.RoutineRequirements.include"
+type AgentsToolsRoutineRequirement > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/routine/AgentsTools.RoutineRequirements.include"
 ## The functions its callers share, the writers' gate among them: the row, the type rule sets, the dispositions.
 type AgentsToolsDocValidateGate > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.DocValidate.include"
 
@@ -31,17 +31,6 @@ AgentsToolsDocValidateKeyLine(){ ## file, key
 		inFront && index( $0, key ": " ) == 1 { print NR ; exit ; }
 	' "$1" )"
 	printf '%s\n' "${keyLineAt:-1}"
-}
-
-## The line of a frontmatter line `key: value` in a file, exactly; 1 where it is not there.
-AgentsToolsDocValidateKeyLineOf(){ ## file, key, value
-	local keyLineOfAt
-	keyLineOfAt="$( LC_ALL=C awk -v want="$2: $3" '
-		NR == 1 && $0 == "---" { inFront = 1 ; next ; }
-		inFront && $0 == "---" { exit ; }
-		inFront && $0 == want { print NR ; exit ; }
-	' "$1" )"
-	printf '%s\n' "${keyLineOfAt:-1}"
 }
 
 ## The chain a `runs-after:` starts (F7.5): the routine it names is exactly one routine file of the skillset, and the names followed on
@@ -309,7 +298,7 @@ AgentsToolsDocValidateRoutine(){ ## file, file as shown
 	done <<< "$routineVerdict"
 	## The lock the spawner takes for the routine's session: `routine-lock-document: inbox:<member>:<note>.md`.
 	if [ -n "$routineLockValue" ] ; then
-		type AgentsToolsRoutineLockParse > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.RoutineLock.include"
+		type AgentsToolsRoutineLockShape > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/routine/AgentsTools.RoutineLock.include"
 		for routineLockOne in ${routineLockValue//,/ } ; do
 			AgentsToolsRoutineLockShape "$routineLockOne" > /dev/null || AgentsToolsDocValidateRow "$routineShown" "$routineLockLine" routine-lock-document "routine-lock-document: $routineLockOne is not inbox:<member>:<note>.md, a note in the inbox of a named member or of the member of the start ({{team-member}}); several, separated by commas"
 		done

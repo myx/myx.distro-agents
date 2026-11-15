@@ -68,15 +68,6 @@ ProposeApprove|proposal|propose-approve.post.format.md|approve|question proposal
 		return 1
 	}
 
-	## Every name that asks, space-separated.
-	AgentsToolsAskToolNames(){
-		local namesOut="" namesName namesRest
-		while IFS='|' read -r namesName namesRest ; do
-			[ -z "$namesName" ] || namesOut="$namesOut$namesName "
-		done <<< "$agentsAskTools"
-		printf '%s' "${namesOut% }"
-	}
-
 	## One ask post filled from a template. The slots travel in the caller's environment:
 	## ASKP_OPTIONS, ASKP_REVISED, ASKP_BLOCK, ASKP_SKELETON and ASKP_F_<slot> (AgentsAskPostFill.awk).
 	AgentsToolsAskPostFill(){ ## want (post|closed|reactions|block), template file name, answer form
@@ -132,7 +123,7 @@ ProposeApprove|proposal|propose-approve.post.format.md|approve|question proposal
 		local fillBase="${2%.md}" fillSelectField="select"
 		if [ -f "$fillBase.set" ] && [ "$( AgentsToolsAskPostField "$2" kind )" = "permission-set" ] ; then
 			(
-				type AgentsToolsPermissionSetRecordFill > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.InternOpPermission.include" || exit 3
+				type AgentsToolsPermissionSetRecordFill > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionSetPost.include" || exit 3
 				AgentsToolsPermissionSetRecordFill "$1" "$2" "${3:-}"
 			)
 			return

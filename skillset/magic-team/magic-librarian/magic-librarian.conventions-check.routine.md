@@ -60,6 +60,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
    - rule: a `MAGIC.md` or `README.md` change is measured not only against a sibling file. It is also measured against the `MAGIC.md` bar ("Content philosophy") and the no-narration floor ("Rule/instruction/definition/description conventions").
    - rule: a coding proposal is also compared against "A call path takes a kept measure or an index, never a walk of a store" (`magic-team.armed.md`, Engineering & operating discipline). A new walk of a store on a call path, not on the list of `AgentsHotPathWalksCheck`, is a genuine finding.
    - rule: emitted text is compared against "The output-style floor", as "Applying the output-style floor" applies it. Carried spans are not measured.
+   - rule: a word count over a bullet is `wc -w` on its own text, with the `- ` marker, a leading bold term and a trailing `;` left in.
 3. **structure-the-output**: Structure every output in labelled sections, with before and after where relevant.
 4. **classify-each-finding**: Classify each finding: genuine violation, judgement call worth flagging, or clean. A formulation is a genuine finding when it is not easily understood, or when a better candidate exists. It is also one when a readback drops an intent, detail or benchmark the original had.
 5. **cite-real-evidence**: Cite the file and line each finding is checked against. An output-style finding cites the clause number and the measured value. A clause carrying no number is a judgement call.

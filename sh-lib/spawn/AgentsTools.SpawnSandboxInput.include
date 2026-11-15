@@ -1,0 +1,103 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.SpawnSandboxInput.include -- the input folder of a spawn's sandbox: its named paths, the nearest MAGIC.md, filling and cleaning it. Split out of AgentsTools.SpawnSandbox.include by concern, its functions unchanged. Sourced, never
+## run; it relies on what AgentsTools.SpawnSandbox.include sources for it.
+##
+## Path-like words of a text that name something on disk, one resolved path per line.
+AgentsToolsSpawnSandboxNamedPaths(){ ## text
+	local namedWord namedPath
+	printf '%s\n' "$1" | LC_ALL=C grep -oE '[A-Za-z0-9_.~/-]*[A-Za-z0-9_.-]/[A-Za-z0-9_./-]+' | LC_ALL=C sort -u | while IFS= read -r namedWord ; do
+		namedWord="${namedWord%%:*}"
+		for namedPath in "$MMDAPP/source/$namedWord" "$MMDAPP/source"/*/"$namedWord" "$MMDAPP/$namedWord" "$namedWord" ; do
+			[ -e "$namedPath" ] || continue
+			printf '%s\n' "$namedPath"
+			break
+		done
+	done
+}
+
+## The nearest MAGIC.md above a path, never above $MMDAPP/source.
+AgentsToolsSpawnSandboxNearestMagic(){ ## path
+	local magicDir="$1"
+	[ -d "$magicDir" ] || magicDir="${magicDir%/*}"
+	magicDir="$( cd "$magicDir" 2>/dev/null && pwd -P )" || return 0
+	local sourceRoot
+	sourceRoot="$( cd "$MMDAPP/source" 2>/dev/null && pwd -P )" || return 0
+	while [ -n "$magicDir" ] ; do
+		case "$magicDir/" in "$sourceRoot"/*) ;; *) return 0 ;; esac
+		[ ! -f "$magicDir/MAGIC.md" ] || { printf '%s\n' "$magicDir/MAGIC.md" ; return 0 ; }
+		[ "$magicDir" != "$sourceRoot" ] || return 0
+		magicDir="${magicDir%/*}"
+	done
+}
+
+## Fills this run's own input folder: the brief, the board item behind it, the MAGIC.md copies,
+## pointers.md, and conversation.md when the spawn continues a conversation.
+## Copies, never links, and never secret material: the
+## credentials line in pointers.md names the identity the tooling acts as, not a value.
+AgentsToolsSpawnSandboxFillInput(){ ## this run's input folder, brief text, board item path (may be empty), member, conversation threads (may be empty), input scan result file (may be empty)
+	local fillInput="$1" fillBrief="$2" fillItem="$3" fillMember="$4" fillConversations="${5:-}"
+	local fillText fillPath fillMagic fillName fillCount=0 fillMembers fillMemberName fillMemberDir
+	[ -d "$fillInput" ] || return 0
+	## This run's own folder, which no sibling writes: any earlier start of this same spawn is emptied first.
+	AgentsToolsSpawnSandboxCleanInput "$fillInput"
+	printf '%s\n' "$fillBrief" > "$fillInput/dispatch.md" || {
+		echo "⚠️ WARNING: $MDSC_CMD: could not write $fillInput/dispatch.md, so this spawn's input/ holds no brief" >&2
+		return 0
+	}
+	fillText="$fillBrief"
+	if [ -n "$fillItem" ] && [ -f "$fillItem" ] ; then
+		cp -p "$fillItem" "$fillInput/${fillItem##*/}" 2>/dev/null
+		fillText="$fillText"$'\n'"$( cat "$fillItem" 2>/dev/null )"
+	fi
+	## MAGIC.md of every repo or package the brief or its item names, else the workspace's.
+	while IFS= read -r fillPath ; do
+		fillMagic="$( AgentsToolsSpawnSandboxNearestMagic "$fillPath" )"
+		[ -n "$fillMagic" ] || continue
+		fillName="${fillMagic#"$( cd "$MMDAPP/source" && pwd -P )"/}"
+		fillName="MAGIC.${fillName%/MAGIC.md}.md"
+		fillName="${fillName//\//--}"
+		[ -e "$fillInput/$fillName" ] || { cp -p "$fillMagic" "$fillInput/$fillName" 2>/dev/null && fillCount=$(( fillCount + 1 )) ; }
+	done < <( AgentsToolsSpawnSandboxNamedPaths "$fillText" )
+	if [ "$fillCount" -eq 0 ] && [ -f "$MMDAPP/MAGIC.md" ] ; then
+		cp -p "$MMDAPP/MAGIC.md" "$fillInput/MAGIC.workspace.md" 2>/dev/null
+	fi
+	## Routines and skillset files: every one is a pointer, routines included. A copy is a
+	## snapshot of whatever tree the root resolved to at spawn time, and the brief has the
+	## spawn read its routine through the skillset reader anyway, which serves the live file.
+	## Every member's folder, a member of another workspace included (AgentsTools.TeamRegistry.include).
+	type AgentsToolsTeamMemberDirectoryText > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamRegistry.include"
+	fillMembers="$( AgentsToolsTeamMemberDirectoryText )"
+	{
+		printf '%s\n' "# Pointers for this spawn" ""
+		printf '%s\n' "Credentials: none are copied here. The team tooling acts as \`$fillMember\` for this spawn and resolves that member's credentials itself."
+		printf '%s\n' ""
+		printf '%s\n' "$fillText" | LC_ALL=C grep -oE '[a-z0-9][a-z0-9-]*(\.[a-z0-9-]+)+\.md' | LC_ALL=C sort -u | while IFS= read -r fillName ; do
+			while IFS=$'\t' read -r fillMemberName fillMemberDir ; do
+				[ -n "$fillMemberDir" ] && [ -f "$fillMemberDir/$fillName" ] || continue
+				printf '%s\n' "- \`$fillName\`: read with Skill, name \`$fillMemberName\`, file \`$fillName\`"
+				break
+			done <<< "$fillMembers"
+		done
+	} > "$fillInput/pointers.md" 2>/dev/null
+	[ -z "$fillConversations" ] || AgentsToolsSpawnConversationHistory "$fillInput/conversation.md" "$fillMember" "$fillConversations" "$fillItem"
+	## The result of the routine's own input scan, which the spawner ran (F6.3), beside the brief and the pointers. The
+	## brief names this file only when this start ran a scan, so the name always holds this start's report.
+	if [ -n "${6:-}" ] && [ -f "$6" ] ; then
+		mv -f "$6" "$fillInput/input-scan.md" 2>/dev/null || :
+	fi
+	## Read-only by mode, whatever the client's access flag can say: a flag with no verb
+	## grants input/ for writing too, so the files and the folder carry no write bit.
+	chmod -R a-w "$fillInput" 2>/dev/null || :
+	return 0
+}
+
+## Empties one input folder and keeps the folder itself, its output/ and the root record.
+AgentsToolsSpawnSandboxCleanInput(){ ## an input folder
+	[ -d "$1" ] || return 0
+	chmod -R u+w "$1" 2>/dev/null || :
+	find "$1" -mindepth 1 -maxdepth 1 -exec rm -rf -- {} + 2>/dev/null
+	return 0
+}

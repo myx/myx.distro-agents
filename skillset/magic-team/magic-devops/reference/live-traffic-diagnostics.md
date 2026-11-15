@@ -1,3 +1,6 @@
+---
+maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
+---
 # Live-fleet network-traffic inspection methodology
 
 Read this when inspecting live network traffic on a real fleet (e.g. `tcpdump`-based sweeps across multiple hosts), a different sub-domain from

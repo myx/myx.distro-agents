@@ -47,7 +47,7 @@ rigView(){ ## the registry's agent view
 	env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp" PATH="/usr/bin:/bin:/usr/sbin:/sbin" \
 		MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
 		MDAT_SPAWN_AGENT=magic-coordinator \
-		bash -c '. "$1" ; AgentsToolsRegistryRenderSpawnedSessions agents' rig "$rigPkg/sh-lib/team-data/AgentsTools.Registries.include" 2>&1
+		bash -c '. "$1" ; AgentsToolsRegistryRenderSpawnedSessions agents' rig "$rigPkg/sh-lib/team-data/AgentsTools.RegistrySpawnedSessions.include" 2>&1
 }
 rigStateOf(){ ## view output, spawn id
 	printf '%s\n' "$1" | LC_ALL=C awk -v want="$2" '$8 == want { print $13 }' | head -1
@@ -62,6 +62,7 @@ rigRun rig-tool rig-tool-$$ spawn-started "tool Read" ; rigAlive rig-tool-$$
 rigRun rig-wait rig-wait-$$ spawn-started "tool Wait" ; rigAlive rig-wait-$$
 rigRun rig-idle rig-idle-$$ spawn-started "idle" ; rigAlive rig-idle-$$
 rigRun rig-ask rig-ask-$$ spawn-started "tool AskQuestion" ; rigAlive rig-ask-$$
+rigRun rig-busy rig-busy-$$ spawn-started "busy" ; rigAlive rig-busy-$$
 rigRun rig-park rig-park-$$ spawn-succeeded ""
 : > "$rigWs/.local/agents/sessions/rig-park-$$/parked"
 rigRun rig-done rig-done-$$ spawn-succeeded "tool Read"
@@ -72,9 +73,10 @@ rigAssert "a run inside a tool reads tool"              "$( rigStateOf "$rigOut"
 rigAssert "a run inside Wait on a named source reads waiting" "$( rigStateOf "$rigOut" "rig-wait-$$" )" "waiting"
 rigAssert "a run inside an ask reads waiting"           "$( rigStateOf "$rigOut" "rig-ask-$$" )" "waiting"
 rigAssert "a run in a wait on its floor alone reads idling" "$( rigStateOf "$rigOut" "rig-idle-$$" )" "idling"
+rigAssert "a run waiting on a busy provider reads busy, not thinking (S6.21)" "$( rigStateOf "$rigOut" "rig-busy-$$" )" "busy"
 rigAssert "a parked run reads parked"                   "$( rigStateOf "$rigOut" "rig-park-$$" )" "parked"
 rigAssert "an ended run reads finished, its word ignored" "$( rigStateOf "$rigOut" "rig-done-$$" )" "finished"
-rigAssert "the process column of the five live runs reads running" "$( for rigId in think tool wait idle ask ; do rigLiveOf "$rigOut" "rig-$rigId-$$" ; done | LC_ALL=C sort -u | tr '\n' ' ' )" "running "
+rigAssert "the process column of the five live runs reads running" "$( for rigId in think tool wait idle ask busy ; do rigLiveOf "$rigOut" "rig-$rigId-$$" ; done | LC_ALL=C sort -u | tr '\n' ' ' )" "running "
 rigAssert "the process column of a parked and of an ended run reads gone" "$( rigLiveOf "$rigOut" "rig-park-$$" ) $( rigLiveOf "$rigOut" "rig-done-$$" )" "gone gone"
 
 echo "-- 2. a word left by a dead process is never the answer (the silent-stale case) --"

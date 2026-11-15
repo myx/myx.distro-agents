@@ -36,8 +36,9 @@ AgentsToolsTeamDataSettleDirty(){ ## -- the store's uncommitted tracked paths, o
 	git -C "$MDAT_DATA_ROOT" status --porcelain -z 2> /dev/null \
 		| while IFS= read -r -d '' settleEntry ; do
 			settleEntry="${settleEntry#???}"
-			## A live run's transcript is written by that run alone and committed on its own bound: no resync waits on it.
-			case "$settleEntry" in ''|'??'*|audit/*/session-*.log) continue ;; esac
+			## An untracked path is not this list's: a pull moves a tracked file, and the audit logs are no tracked file
+			## (AgentsToolsTeamDataAuditUntrack). A path the pull would still collide with is carried by PrepareSync itself.
+			case "$settleEntry" in ''|'??'*) continue ;; esac
 			printf '%s/%s\n' "${MDAT_DATA_ROOT%/}" "$settleEntry"
 		done
 }
@@ -64,6 +65,84 @@ AgentsToolsTeamDataSettle(){ ## bound seconds
 	[ -z "$( AgentsToolsTeamDataSettleDirty )" ]
 }
 
+## THE AUDIT LOG FAMILY IS NO TEAM DATA A PULL MAY MOVE (task-20261113T1619Z). A live session appends to audit/<month>/*.log for its whole
+## run, so a tracked one is dirty whenever any session runs, the set rotates each pass, and every other member's pull is refused over it.
+## The family leaves the store's index and enters the store's own .gitignore: the files stay, and no pull moves them.
+## NOTHING IS LOST IN THE CROSSING. A tracked log whose last lines are uncommitted is committed first, so the lines a session appended
+## exist in the branch before the index stops carrying the file, and a merge that takes origin's copy of it loses no line that was
+## recorded. A store that tracks no log is left untouched: no commit, and no rule written for a file it never carried.
+AgentsToolsTeamDataAuditUntrack(){ ## where
+	[ -n "${MDAT_DATA_ROOT:-}" ] || return 0
+	local untrackRoot untrackPaths=() untrackPending=() untrackEntry untrackOut
+	untrackRoot="$( git -C "$MDAT_DATA_ROOT" rev-parse --show-toplevel 2> /dev/null )" || return 0
+	[ -n "$untrackRoot" ] || return 0
+	while IFS= read -r untrackEntry ; do
+		[ -z "$untrackEntry" ] || untrackPaths+=( "$untrackEntry" )
+	done <<< "$( git -C "$untrackRoot" ls-files -- audit 2> /dev/null | LC_ALL=C grep '\.log$' || : )"
+	[ "${#untrackPaths[@]}" -gt 0 ] || return 0
+	if [ ! -f "$untrackRoot/.gitignore" ] ; then
+		printf 'audit/**/*.log\n' > "$untrackRoot/.gitignore"
+	elif ! LC_ALL=C grep -qxF 'audit/**/*.log' "$untrackRoot/.gitignore" 2> /dev/null ; then
+		printf 'audit/**/*.log\n' >> "$untrackRoot/.gitignore"
+	fi
+	while IFS= read -r untrackEntry ; do
+		[ -z "$untrackEntry" ] || untrackPending+=( "${MDAT_DATA_ROOT%/}/$untrackEntry" )
+	done <<< "$( git -C "$untrackRoot" status --porcelain -- ${untrackPaths[@]+"${untrackPaths[@]}"} 2> /dev/null | LC_ALL=C awk '{ print $NF ; }' || : )"
+	[ "${#untrackPending[@]}" -eq 0 ] || AgentsToolsTeamDataCommitPathsNow "the audit log lines a live session appended, kept in the branch before the family leaves the index" ${untrackPending[@]+"${untrackPending[@]}"}
+	untrackOut="$( git -C "$untrackRoot" rm -q --cached -- ${untrackPaths[@]+"${untrackPaths[@]}"} 2>&1 )" || {
+		echo "⚠️ WARNING: $MDSC_CMD: $1: the audit log family could not leave the store's index, so a pull is still refused over it: $untrackOut" >&2
+		return 1
+	}
+	git -C "$untrackRoot" add -- .gitignore > /dev/null 2>&1 || return 1
+	untrackOut="$( git -C "$untrackRoot" commit -q -m "* audit: ${#untrackPaths[@]} live log(s) leave the tracked set, kept on disk, so no pull is refused by a session's own append" 2>&1 )" || {
+		echo "⚠️ WARNING: $MDSC_CMD: $1: the audit log family left the store's index and could not be committed, so the removal waits: $untrackOut" >&2
+		return 1
+	}
+	echo "# $MDSC_CMD: $1: ${#untrackPaths[@]} live log(s) left the team-data index and stay on disk; a session's own append refuses no pull" >&2
+	return 0
+}
+
+## A PULL MOVES A TREE, AND NEVER OVER A PATH IT DID NOT WRITE (task-20261113T1619Z). Every caller that pulls the store comes through
+## AgentsToolsTeamDataSyncWithRemote below, so one rule holds at all of them: the writers are settled first, so a path any member's run left
+## uncommitted is a commit rather than a refusal, and a path origin also moves that is still uncommitted here is carried as this store's own
+## commit, untracked ones included. A path this store's own rules will not commit is named in one line a caller can act on, and nothing is
+## moved over it.
+AgentsToolsTeamDataPrepareSync(){ ## where, branch
+	local prepareWhere="$1" prepareBranch="$2" preparePath prepareLeft=""
+	[ -n "${MDAT_DATA_ROOT:-}" ] || return 0
+	AgentsToolsTeamDataSettle 60 || :
+	git -C "$MDAT_DATA_ROOT" fetch -q origin "refs/heads/$prepareBranch" > /dev/null 2>&1 || :
+	while IFS= read -r preparePath ; do
+		[ -n "$preparePath" ] || continue
+		[ -n "$( git -C "$MDAT_DATA_ROOT" status --porcelain --untracked-files=all -- "$preparePath" 2> /dev/null )" ] || continue
+		AgentsToolsTeamDataCommitPathsNow "the store's uncommitted change to a path origin also moved, carried so the pull need not refuse" "${MDAT_DATA_ROOT%/}/$preparePath"
+		[ -z "$( git -C "$MDAT_DATA_ROOT" status --porcelain --untracked-files=all -- "$preparePath" 2> /dev/null )" ] || prepareLeft="$prepareLeft $preparePath"
+	done < <( git -C "$MDAT_DATA_ROOT" diff --name-only HEAD FETCH_HEAD 2> /dev/null )
+	[ -n "$prepareLeft" ] || return 0
+	echo "⚠️ WARNING: $MDSC_CMD: $prepareWhere: the team-data pull was not run: origin also moves these paths, and this store holds them uncommitted in a way this store will not commit, so git would refuse to merge over them; nothing of them is lost and the next pass retries:$prepareLeft" >&2
+	return 1
+}
+
+## ONE PULL OF THE STORE, AND EVERY CALLER'S. myx.common's git/cloneSync does the pull and the push, as before; this adds the three steps
+## the store needs around them, in the only order that loses nothing. The writers are settled first, so no member's uncommitted path refuses
+## it. A pull that stopped on a conflict is taken again by the tooling's own merge and settled inside the file (AgentsToolsTeamDataMergeAgain),
+## as the close push settles one, and the pull runs once more: a store whose two sides both changed one item still comes level. The audit log
+## family leaves the tracked set only after that: a log both sides appended is merged line by line first, so the crossing loses no line.
+## Flags go before the three paths, as cloneSync takes them.
+AgentsToolsTeamDataSyncWithRemote(){ ## where, repository root, origin url, branch, then the cloneSync flags
+	local syncWhere="$1" syncRoot="$2" syncOrigin="$3" syncBranch="$4" syncRc=0
+	shift 4
+	[ -n "${MDAT_DATA_ROOT:-}" ] || return 0
+	AgentsToolsTeamDataPrepareSync "$syncWhere" "$syncBranch" || return 1
+	LC_ALL=C "$MYXROOT/bin/git/cloneSync.Common" "$@" "$syncRoot" "$syncOrigin" "$syncBranch" || syncRc=$?
+	if [ "$syncRc" -ne 0 ] && AgentsToolsTeamDataMergeAgain "$syncWhere" "$syncRoot" "$syncBranch" ; then
+		syncRc=0
+		LC_ALL=C "$MYXROOT/bin/git/cloneSync.Common" "$@" "$syncRoot" "$syncOrigin" "$syncBranch" || syncRc=$?
+	fi
+	[ "$syncRc" -ne 0 ] || AgentsToolsTeamDataAuditUntrack "$syncWhere" || :
+	return "$syncRc"
+}
+
 ## A write into the team data that is to be committed and pushed. The writer runs no git: the paths and what to say of them are left as
 ## one entry file in the thread's folder (AgentsToolsTeamDataThreadDir), and the one thread that commits and pushes (--intern-team-data-commit,
 ## AgentsTools.InternTeamDataCommit.include) is started where none lives and asked to commit. A lock another writer holds can no longer
@@ -87,7 +166,7 @@ AgentsToolsTeamDataCommitPaths(){ ## context, path...
 		AgentsToolsTeamDataCommitPathsNow "$queueContext" "$@"
 		return 0
 	fi
-	type AgentsToolsOnDemandThreadAsk > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.OnDemandThread.include"
+	type AgentsToolsOnDemandThreadStart > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.OnDemandThread.include"
 	queueStart="$( AgentsToolsOnDemandThreadStart "$queueDir" --intern-team-data-commit --run )" || queueStart="failed - the start ended with an error"
 	case "$queueStart" in
 		failed*)
@@ -187,6 +266,13 @@ AgentsToolsTeamDataCommitPathsNow(){ ## context, path...
 	local knownPaths=() addPaths=()
 	for commitPath in ${commitPaths[@]+"${commitPaths[@]}"} ; do
 		if [ -e "$commitPath" ] || git -C "$repoRoot" ls-files --error-unmatch -- "$commitPath" > /dev/null 2>&1 ; then
+			## THE AUDIT LOG FAMILY IS NO TEAM DATA A COMMIT CARRIES (task-20261113T1619Z): it left the index and the store's
+			## .gitignore names it, so `git add` refuses it. Skipped and said, never owed: a debt for it would never be paid.
+			if ! git -C "$repoRoot" ls-files --error-unmatch -- "$commitPath" > /dev/null 2>&1 && 
+				git -C "$repoRoot" check-ignore -q -- "$commitPath" 2> /dev/null ; then
+				echo "# $MDSC_CMD: team-data commit: the store ignores this path, so nothing of it is committed and it stays on disk: $commitPath" >&2
+				continue
+			fi
 			addPaths+=( "$commitPath" )
 		elif ! git -C "$repoRoot" ls-files --error-unmatch --with-tree=HEAD -- "$commitPath" > /dev/null 2>&1 ; then
 			continue
@@ -361,7 +447,7 @@ AgentsToolsTeamDataMergeSettle(){ ## where
 ## unpaid is therefore re-attempted on every later push instead of being re-forgotten.
 AgentsToolsTeamDataPushIfAhead(){ ## where
 	[ -n "${MDAT_DATA_ROOT:-}" ] || return 0
-	. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.LocalLock.include"
+	. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.LocalLock.include"
 	local pushLock="" pushOwed="" pushTries=30
 	pushOwed="$( AgentsToolsTeamDataPushOwedPath )" || pushOwed=""
 	## A store already owed a push does not skip again: it waits the lock out, and the state
@@ -432,7 +518,7 @@ AgentsToolsTeamDataPushIfAheadLocked(){ ## where
 	repoRoot="$( git -C "$MDAT_DATA_ROOT" rev-parse --show-toplevel 2>/dev/null )" || return 0
 	[ -n "$repoRoot" ] || return 0
 	gitDir="$( git -C "$repoRoot" rev-parse --absolute-git-dir 2>/dev/null )" || return 0
-	type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
+	type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/settings/AgentsTools.ConfigOption.include"
 	originUrl="$( AgentsToolsConfigOption magic-team --select TEAM_DATA_GIT_REMOTE 2>/dev/null )" || originUrl=""
 	[ -n "$originUrl" ] || return 0
 	storeRoot="$( cd "$MDAT_DATA_ROOT" && pwd -P )" || storeRoot=""
@@ -552,12 +638,12 @@ AgentsToolsTeamDataEnsureClone(){ ## where
 	## Once per process tree: an op dispatching nested ops never tries, or warns, twice.
 	[ -z "${MDAT_TEAM_DATA_CLONE_TRIED:-}" ] || return 0
 	local cloneRemote="" cloneLock=""
-	type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
+	type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/settings/AgentsTools.ConfigOption.include"
 	cloneRemote="$( AgentsToolsConfigOption magic-team --select TEAM_DATA_GIT_REMOTE 2>/dev/null )" || cloneRemote=""
 	[ -n "$cloneRemote" ] || return 0
 	export MDAT_TEAM_DATA_CLONE_TRIED=1
 	## Two first writers never both clone: the loser, once it holds the lock, finds the clone done.
-	. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.LocalLock.include"
+	. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.LocalLock.include"
 	if ! AgentsToolsLocalLockTake "team-data-clone" 30 "the team-data clone" ; then
 		echo "⚠️ WARNING: $MDSC_CMD: $1: another writer holds the team-data clone lock, so this one did not clone" >&2
 		return 0
@@ -584,7 +670,7 @@ AgentsToolsTeamDataEnsureCloneLocked(){ ## where, remote
 		echo "⚠️ WARNING: $MDSC_CMD: $1: TEAM_DATA_GIT_REMOTE is set and no local board exists, but myx.common git/clonePull is unreachable, so it was not cloned" >&2
 		return 0
 	fi
-	type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
+	type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/settings/AgentsTools.ConfigOption.include"
 	cloneBranch="$( AgentsToolsConfigOption magic-team --select-default TEAM_DATA_BRANCH main 2>/dev/null )" || cloneBranch=""
 	[ -n "$cloneBranch" ] || cloneBranch="main"
 	if ( GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=init.defaultBranch GIT_CONFIG_VALUE_0="$cloneBranch" \
@@ -611,7 +697,7 @@ AgentsToolsTeamDataPrepareStore(){
 	. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.UseAgentsTools.include"
 	[ -n "${MDAT_DATA_ROOT:-}" ] || { echo "⛔ ERROR: $MDSC_CMD --owner-setup-storage: the team-data store could not be resolved" >&2 ; return 1 ; }
 	type AgentsToolsBoardReady > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.BoardStates.include"
-	type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
+	type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/settings/AgentsTools.ConfigOption.include"
 	prepareRemote="$( AgentsToolsConfigOption magic-team --select TEAM_DATA_GIT_REMOTE 2>/dev/null )" || prepareRemote=""
 	## A store inside a larger repository is never given a nested one, nor an identity of the outer one's.
 	local prepareProbe="$MDAT_DATA_ROOT"
@@ -629,7 +715,7 @@ AgentsToolsTeamDataPrepareStore(){
 			type AgentsToolsMyRoot > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.MyRoot.include"
 			if [ -n "${MYXROOT:-}" ] && [ -f "$MYXROOT/bin/git/cloneSync.Common" ] && [ -d "$MDAT_DATA_ROOT" ] && [ -n "$( ls -A "$MDAT_DATA_ROOT" 2>/dev/null )" ] ; then
 				local prepareBranch=""
-				type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
+				type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/settings/AgentsTools.ConfigOption.include"
 				prepareBranch="$( AgentsToolsConfigOption magic-team --select-default TEAM_DATA_BRANCH main 2>/dev/null )" || prepareBranch=""
 				[ -n "$prepareBranch" ] || prepareBranch="main"
 				( GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=init.defaultBranch GIT_CONFIG_VALUE_0="$prepareBranch" \
@@ -647,7 +733,7 @@ AgentsToolsTeamDataPrepareStore(){
 		fi
 	fi
 	[ -z "$prepareRemote" ] || AgentsToolsTeamDataRemoteAlign "--owner-setup-storage" "$prepareRemote" || :
-	type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
+	type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/settings/AgentsTools.ConfigOption.include"
 	prepareName="$( AgentsToolsConfigOption magic-team --select TEAM_DATA_GIT_USER_NAME 2>/dev/null )" || prepareName=""
 	prepareEmail="$( AgentsToolsConfigOption magic-team --select TEAM_DATA_GIT_USER_EMAIL 2>/dev/null )" || prepareEmail=""
 	[ -z "$prepareName" ] || git -C "$MDAT_DATA_ROOT" config user.name "$prepareName" || return 1

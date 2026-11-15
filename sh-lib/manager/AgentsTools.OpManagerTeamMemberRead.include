@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+## AgentsTools.OpManagerTeamMemberRead.include -- the operation `--manager-team-member-read`, sourced by AgentsTools.ManagerTeamMember.include with the operation's arguments.
+## One member: its row, its information, its sessions, its grants and its settings. The
+## dispatcher brings no member for this family, so where the member is set up is asked here.
+## `--full` ahead of the member is how the console reads: its settings come from the digest
+## in full.
+		local readOp="$1" readFull=""
+		shift
+		if [ "${1:-}" = "--full" ] ; then
+			readFull="full"
+			shift
+		fi
+		if [ $# -eq 0 ] || [ -z "$1" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD $readOp: syntax is <team-member>, got no team member" >&2
+			set +e ; return 1
+		fi
+		if [ $# -gt 1 ] ; then
+			echo "⛔ ERROR: $MDSC_CMD $readOp: syntax is <team-member>, got also: $2" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsAssertBareName "$1" "<team-member>" "${readOp#--}" || { set +e ; return 1 ; }
+		AgentsToolsManagerTeamMemberReadRows "$readOp" "$1" || { set +e ; return 1 ; }
+		return 0

@@ -1,3 +1,6 @@
+---
+maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
+---
 # Team terminology: further terms
 
 Terms of "Terminology: Team terminology" that a member needs only on occasion.

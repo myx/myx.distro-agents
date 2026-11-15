@@ -1,0 +1,90 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+type AgentsToolsPermissionRefusalHint > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionPosts.include"
+type AgentsToolsPermissionHookDecision > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionHook.include"
+type AgentsToolsPermissionResolvePath > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionPlaces.include"
+
+## AgentsTools.InternOpPermissionHook.include -- the operation `--intern-op-permission-hook`, sourced by AgentsTools.InternOpPermission.include with the operation's arguments.
+		shift
+		MDSC_CMD="$MDSC_CMD --intern-op-permission-hook"
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.UseAgentsTools.include"
+		## A native client's PermissionRequest, decided for an unattended session the way
+		## the harness gate decides its own calls: a grant for this session, tool and
+		## target admits; anything else is a recorded refusal, denied with its id and the
+		## way to ask. It always prints a decision, because none is a deny with no reason.
+		local hookMember="$1" hookInput hookSession hookTool hookTarget hookGrant hookId
+		hookInput="$( cat )"
+		hookSession="$( printf '%s\n' "$hookInput" | LC_ALL=C awk -v path=session_id -v optional=1 -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" 2>/dev/null )" || hookSession=""
+		hookTool="$( printf '%s\n' "$hookInput" | LC_ALL=C awk -v path=tool_name -v optional=1 -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" 2>/dev/null )" || hookTool=""
+		## The session a spawn was given wins: it is the id every grant and refusal of this run is keyed by.
+		[ -z "${MDAT_SPAWN_SESSION_ID:-}" ] || hookSession="$MDAT_SPAWN_SESSION_ID"
+		## A file tool's path, a command's exact text, or the whole input as sent.
+		hookTarget="$( printf '%s\n' "$hookInput" | LC_ALL=C awk -v path=tool_input.file_path -v optional=1 -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" 2>/dev/null ; printf 'x' )"
+		hookTarget="${hookTarget%x}" ; hookTarget="${hookTarget%$'\n'}"
+		if [ -n "$hookTarget" ] ; then
+			hookTarget="$( AgentsToolsPermissionResolvePath "$hookTarget" )"
+		else
+			hookTarget="$( printf '%s\n' "$hookInput" | LC_ALL=C awk -v path=tool_input.command -v optional=1 -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" 2>/dev/null ; printf 'x' )"
+			hookTarget="${hookTarget%x}" ; hookTarget="${hookTarget%$'\n'}"
+		fi
+		[ -n "$hookTarget" ] || hookTarget="$( printf '%s\n' "$hookInput" | LC_ALL=C awk -v path=tool_input -v mode=raw -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" 2>/dev/null )" || hookTarget=""
+		if [ -z "$hookMember" ] || [ -z "$hookSession" ] || [ -z "$hookTool" ] || [ -z "$hookTarget" ] ; then
+			AgentsToolsPermissionHookDecision deny "Refused, and not recorded: the member, session, tool or target of this call could not be read, so it cannot be escalated by id."
+			return 0
+		fi
+		## A change an approve grant covers is held, never refused or let through
+		## (AgentsTools.InternOpChange.include). The client's own tool applies at once or not at
+		## all, so its call is put first to the team's tool of the same name, which here only
+		## holds (MDAT_CHANGE_HOLD_ONLY, a file that tool creates where its gate answers approve):
+		## the change is kept and shown, and the client's call is denied with what that came to,
+		## which says it is held and how the verdict arrives. A MultiEdit is an Edit with a list.
+		## A call that tool's gate admits is allowed; any other goes on as before.
+		case "$hookTool" in
+			Edit|MultiEdit|Write)
+				local hookHeld="" hookHeldTool="Edit" hookHeldMark="$MMDAPP/.local/temp/mdat-permission-hook-held.$$.$RANDOM"
+				[ "$hookTool" != "Write" ] || hookHeldTool="Write"
+				mkdir -p "$MMDAPP/.local/temp" 2>/dev/null || :
+				rm -f "$hookHeldMark"
+				hookHeld="$( printf '%s\n' "$hookInput" | LC_ALL=C awk -v path=tool_input -v mode=raw -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" 2>/dev/null \
+					| MDAT_CHANGE_HOLD_ONLY="$hookHeldMark" MDAT_SPAWN_AGENT="$hookMember" MDAT_SPAWN_SESSION_ID="$hookSession" \
+						"$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsUniversalHarness.sh" --intern-tool "$hookHeldTool" 2>/dev/null )" || :
+				if [ -e "$hookHeldMark" ] ; then
+					rm -f "$hookHeldMark"
+					AgentsToolsPermissionHookDecision deny "${hookHeld:-This change needs the approval of the human-owner, and holding it gave no result, so nothing is held and nothing was written. Make the call again.}"
+					return 0
+				fi
+				case "$hookHeld" in
+					'NOT-HELD: allowed'*) AgentsToolsPermissionHookDecision allow ; return 0 ;;
+				esac
+			;;
+		esac
+		## Kept where it found no grant too: it names an ask that is open and would allow this call.
+		local hookOpen=""
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+		hookGrant="$( DistroAgentsTools --intern-op-permission-grant-read "$hookMember" --session-id "$hookSession" --tool "$hookTool" --target "$hookTarget" 2>/dev/null )" || :
+		hookOpen="$( printf '%s\n' "$hookGrant" | LC_ALL=C awk '$1 == "OPEN-ASK:" { printf "%s%s (a %s, waiting on %s)", sep, $2, $3, $4 ; sep = ", " ; }' )"
+		[ -z "$hookOpen" ] || hookOpen=" An ask that would allow this call is already open: $hookOpen. Do not ask again: wait for its answer with Wait sources=ask:<its id>, then retry the call."
+		hookGrant="$( printf '%s\n' "$hookGrant" | LC_ALL=C sed -n 's/^GRANT: //p' | head -1 )"
+		case "$hookGrant" in
+			'session '*|'task '*|'planned '*|'standing '*)
+				AgentsToolsPermissionHookDecision allow
+				return 0
+			;;
+			'once '*)
+				type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+				if DistroAgentsTools --intern-op-permission-grant-consume --session-id "$hookSession" --refusal-id "${hookGrant#once }" > /dev/null 2>&1 ; then
+					AgentsToolsPermissionHookDecision allow
+					return 0
+				fi
+			;;
+		esac
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+		hookId="$( DistroAgentsTools --intern-op-permission-refusal-log "$hookMember" --session-id "$hookSession" --tool "$hookTool" \
+			--target "$hookTarget" --reason "a native $hookTool call this unattended session holds no grant for" 2>/dev/null \
+			| LC_ALL=C sed -n 's/^\(refusal-[0-9a-f-]*\)$/\1/p' | head -1 )"
+		if [ -z "$hookId" ] ; then
+			AgentsToolsPermissionHookDecision deny "Refused. REFUSAL-ID: none -- recording the refusal failed, so it cannot be escalated by id."
+			return 0
+		fi
+		AgentsToolsPermissionHookDecision deny "Refused. REFUSAL-ID: $hookId.$hookOpen $( AgentsToolsPermissionRefusalHint "$hookId" | LC_ALL=C tr '\n' ' ' | LC_ALL=C sed 's/ $//' )"
+		return 0

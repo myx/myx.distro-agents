@@ -1,0 +1,152 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.SlackIdentities.include -- the Slack identity directory: which Slack account each member of the team is, kept as the
+## agents subsystem's own cache. Sourced, never run. This include alone reads and writes the store and knows its format; every other
+## part asks it. The store is `<workspace>/.local/agents/cache/slack-identities.cache`: a generation line, then one row a member,
+## `member=user id=handle=real name=display name=workspace domain`, `-` for a value Slack does not give, `member=-` for no account.
+## A row always holds `=`; the generation line never does, so a reader knows a row by that, not by its line number.
+## It moves once, on first use, from its former place in .local's settings folder, which is .local's and never held a cache of ours.
+##
+## AgentsSlackIdentityId <member>              the member's cached user id; nothing for none (no lookup)
+## AgentsSlackIdentityMember <id> [--not-owner] the member a user id is; nothing for an account of no member
+## AgentsSlackIdentityOwnerId                   the human-owner's user id
+## AgentsSlackIdentityTeamIds                   every member's user id, one a line
+## AgentsSlackIdentityOwnIds                    the team's own accounts: the members' ids and the tokens' own ids, one a line, each once
+## AgentsSlackIdentityKnown <id>                rc 0 where the id is a member's
+## AgentsSlackIdentityOwn <id>                  rc 0 where the id is one of the team's own accounts: a member's, or a token's own
+## AgentsSlackIdentityPairs                     `id=member` a line, for each member with an id
+## AgentsSlackIdentityRows                      the rows, the generation line left out, for a bulk reader
+## AgentsToolsCommsSlackMentionUserId <member>  the user id, resolved through Slack and cached once a lock cycle
+## AgentsToolsCommsSlackMentionFindByName <text>  `<member> TAB <id>` for each member whose handle, real name or display name is the text, any case
+agentsSlackIdentitiesFormer=".local/.agents/slack-mention-ids.cache"
+agentsSlackIdentitiesPlace=".local/agents/cache/slack-identities.cache"
+AgentsSlackIdentitiesFileInto(){ ## variable -- the store of this workspace, moved once from its former place; the former place while it cannot move
+	local fileOut="$1" filePath="${MMDAPP:-/nonexistent}/$agentsSlackIdentitiesPlace" fileFormer="${MMDAPP:-/nonexistent}/$agentsSlackIdentitiesFormer"
+	if [ ! -f "$filePath" ] && [ -f "$fileFormer" ] ; then
+		{ mkdir -p "${filePath%/*}" && mv -f "$fileFormer" "$filePath" ; } 2> /dev/null || { printf -v "$fileOut" '%s' "$fileFormer" ; return 0 ; }
+	fi
+	[ -d "${filePath%/*}" ] || mkdir -p "${filePath%/*}" 2> /dev/null || :
+	printf -v "$fileOut" '%s' "$filePath"
+}
+AgentsSlackIdentityRows(){
+	local rowsFile ; AgentsSlackIdentitiesFileInto rowsFile
+	[ -s "$rowsFile" ] || return 0
+	LC_ALL=C awk 'index( $0, "=" ) > 1' "$rowsFile"
+}
+AgentsSlackIdentityId(){ ## member
+	AgentsSlackIdentityRows | LC_ALL=C awk -F= -v who="$1" '$1 == who && $2 != "-" && $2 != "" { print $2 ; exit }'
+}
+AgentsSlackIdentityMember(){ ## user id, --not-owner to pass the human-owner by
+	AgentsSlackIdentityRows | LC_ALL=C awk -F= -v id="$1" -v notOwner="${2:-}" '$2 == id && !( notOwner != "" && $1 == "human-owner" ) { print $1 ; exit }'
+}
+AgentsSlackIdentityOwnerId(){
+	AgentsSlackIdentityId human-owner
+}
+AgentsSlackIdentityTeamIds(){
+	AgentsSlackIdentityRows | LC_ALL=C awk -F= '$2 ~ /^U[A-Z0-9]+$/ { print $2 }'
+}
+AgentsSlackIdentityOwnIds(){
+	{ AgentsSlackIdentityTeamIds ; LC_ALL=C awk '$2 ~ /^U[A-Z0-9]+$/ { print $2 }' "${MMDAPP:-/nonexistent}/.local/cache/comms/slack"/.user-id-*.txt 2> /dev/null ; } | LC_ALL=C awk 'NF && !seen[$0]++'
+}
+AgentsSlackIdentityKnown(){ ## user id
+	[ -n "$1" ] && [ -n "$( AgentsSlackIdentityMember "$1" )" ]
+}
+AgentsSlackIdentityOwn(){ ## user id
+	[ -n "$1" ] && AgentsSlackIdentityOwnIds | LC_ALL=C grep -qxF -- "$1"
+}
+AgentsSlackIdentityPairs(){
+	AgentsSlackIdentityRows | LC_ALL=C awk -F= '$1 ~ /^[A-Za-z0-9_.-]+$/ && $2 ~ /^[A-Z0-9]+$/ { print $2 "=" $1 }'
+}
+
+## The account columns of one cache row: "handle=real name=display name=workspace
+## domain", from one read-only users.info call under the member's own token (the
+## human-owner has none, so the call is made as the member named in $3). A value
+## the API does not give is "-", and a failed call gives all four: the row is
+## then complete for this lock cycle and is not asked for again. The domain is
+## the member's configured workspace domain, because users.info names no domain.
+## "=" and control characters are stripped so a value never breaks a row.
+AgentsToolsCommsSlackMentionAccountColumns(){ ## member, user id, calling member
+	local columnsResp columnsValue columnsPath columnsLine=""
+	type AgentsToolsCommsSlackRun > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/slack/AgentsTools.CommsSlack.include"
+	columnsResp="$( AgentsToolsCommsSlackRun --intern-op-slack-call "${3:-$1}" --api users.info --form "user=$2" --context "AgentsToolsCommsSlackMentionUserId" 2>/dev/null )" || columnsResp=""
+	for columnsPath in user.name user.real_name user.profile.display_name ; do
+		columnsValue="$( printf '%s\n' "$columnsResp" | LC_ALL=C awk -v path="$columnsPath" -v optional=1 -v dialect=slack -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" 2>/dev/null | LC_ALL=C tr -d '\\\000-\037=' )" || columnsValue=""
+		columnsLine="$columnsLine${columnsValue:--}="
+	done
+	type AgentsToolsResolveSlackWorkspaceDomain > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/slack/AgentsTools.CommsSlack.include"
+	columnsValue="$( AgentsToolsResolveSlackWorkspaceDomain "$1" 2>/dev/null | LC_ALL=C tr -d '\\\000-\037=' )" || columnsValue=""
+	printf '%s%s\n' "$columnsLine" "${columnsValue:--}"
+}
+## A cached row that holds only member=id is completed in place with the
+## account columns; nothing else about the cache changes.
+AgentsToolsCommsSlackMentionRowBackfill(){ ## member, user id
+	local backfillFile ; AgentsSlackIdentitiesFileInto backfillFile
+	local backfillRow
+	backfillRow="$1=$2=$( AgentsToolsCommsSlackMentionAccountColumns "$1" "$2" "$( [ "$1" != "human-owner" ] || printf magic-coordinator )" )"
+	LC_ALL=C awk -F= -v who="$1" -v row="$backfillRow" '$1 == who { print row ; next ; } { print ; }' "$backfillFile" > "$backfillFile.new" 2>/dev/null \
+		&& chmod 600 "$backfillFile.new" 2>/dev/null && mv -f "$backfillFile.new" "$backfillFile" 2>/dev/null || rm -f "$backfillFile.new" 2>/dev/null || true
+}
+## One member's Slack user id, for a real mention element; nothing at all when
+## that member has no Slack account of its own, which is the caller's cue to
+## keep the plain "@alias" text. Cached in the identity directory and re-resolved
+## once per advance/state-note lock cycle, never per message. See MAGIC.md,
+## "A member name renders as a real Slack mention".
+AgentsToolsCommsSlackMentionUserId(){
+	type AgentsToolsCommsOwnSettingsApply > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsSide.include"
+	type DistroAgentsToolsResolveTarget > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/slack/AgentsTools.CommsSlack.include"
+	## A client-* member's only account is the other organisation's: on our own side it has
+	## none, and nothing is read or cached for it (AgentsToolsCommsOwnSettingsApply).
+	AgentsToolsCommsOwnSettingsApply "$1" || return 0
+	local cacheFile ; AgentsSlackIdentitiesFileInto cacheFile
+	local lockGen
+	lockGen="$( LC_ALL=C cat \
+		"$MDAT_DATA_ROOT/inboxes/magic-coordinator/incoming/note-20260809T154715Z-advance-state-and-lock.md" \
+		"$MDAT_DATA_ROOT/inboxes/magic-coordinator/incoming/note-20260809T155000Z-heartbeat-state-and-lock.md" \
+		2>/dev/null | cksum )"
+	if [ "$lockGen" != "$( head -n 1 "$cacheFile" 2>/dev/null )" ] ; then
+		printf '%s\n' "$lockGen" > "$cacheFile" 2>/dev/null || true
+		## A cache, not a config scope, so it does not take the scope mode; a plain redirect would leave it at the umask.
+		chmod 600 "$cacheFile" 2>/dev/null || true
+	fi
+	local cachedId
+	cachedId="$( LC_ALL=C awk -F= -v who="$1" '$1 == who { cachedId = $2 ; } END { print cachedId ; }' "$cacheFile" 2>/dev/null )" || cachedId=""
+	if [ -n "$cachedId" ] ; then
+		if [ "$cachedId" != "-" ] ; then
+			printf '%s\n' "$cachedId"
+			## A row from before the account columns is completed once, after the id is already out.
+			[ "$( LC_ALL=C awk -F= -v who="$1" '$1 == who { cols = NF ; } END { print cols + 0 ; }' "$cacheFile" 2>/dev/null )" -ge 6 ] || AgentsToolsCommsSlackMentionRowBackfill "$1" "$cachedId"
+		fi
+		return 0
+	fi
+	local memberId="" memberToken
+	type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/settings/AgentsTools.ConfigOption.include"
+	memberToken="$( AgentsToolsConfigOption "$1" --select "$( AgentsToolsCommsClientKey "$1" SLACK_USER_TOKEN )" 2>/dev/null )" || memberToken=""
+	if [ -n "$memberToken" ] ; then
+		## Token on curl's stdin, never argv -- keeps it out of ps.
+		local authResp
+		authResp="$( curl -sS --connect-timeout 10 --max-time 30 https://slack.com/api/auth.test -H @- <<< "Authorization: Bearer $memberToken" 2>/dev/null )" || authResp=""
+		memberId="$( printf '%s\n' "$authResp" | LC_ALL=C awk -v path=user_id -v optional=1 -v dialect=slack -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" )" || memberId=""
+	elif [ "$1" = "human-owner" ] ; then
+		memberId="$( DistroAgentsToolsResolveTarget human-owner | sed -n 's/^CHANNEL=//p' )" || memberId=""
+		## Only a user id is an account. A DM conversation id is not one, and
+		## the member degrades to plain text rather than mentioning a channel.
+		case "$memberId" in
+			U[A-Z0-9][A-Z0-9]*) ;;
+			*) memberId="" ;;
+		esac
+	fi
+	if [ -n "$memberId" ] ; then
+		printf '%s=%s=%s\n' "$1" "$memberId" "$( AgentsToolsCommsSlackMentionAccountColumns "$1" "$memberId" "$( [ "$1" != "human-owner" ] || printf magic-coordinator )" )" >> "$cacheFile" 2>/dev/null || true
+	else
+		printf '%s=-\n' "$1" >> "$cacheFile" 2>/dev/null || true
+	fi
+	echo "# $MDSC_CMD: Slack mention id for '$1': ${memberId:-<none -- renders as plain text>} (resolved and cached for lock generation $lockGen)" >&2
+	[ -z "$memberId" ] || printf '%s\n' "$memberId"
+	return 0
+}
+## The cached person whose handle, real name or display name is the text, ASCII case-insensitive: "<member> TAB <id>" per match.
+AgentsToolsCommsSlackMentionFindByName(){ ## text
+	AgentsSlackIdentityRows | LC_ALL=C awk -F= -v want="$1" 'BEGIN { want = tolower( want ) ; } NF >= 6 && $2 != "-" && ( tolower( $3 ) == want || tolower( $4 ) == want || tolower( $5 ) == want ) { printf "%s\t%s\n", $1, $2 ; }'
+}

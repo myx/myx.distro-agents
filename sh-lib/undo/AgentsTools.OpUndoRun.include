@@ -1,0 +1,53 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+## AgentsTools.OpUndoRun.include -- the operation `--undo-run`, sourced by AgentsTools.UndoRecord.include with the operation's arguments.
+## --undo-run <record-id> [--session-id <id>]: takes the inverse, one step at a time, each step
+## recorded before it is made so a stopped run resumes. Closes the record and drops the hold.
+		shift
+		local undoRunId="" undoRunSession="" undoRunDir="" undoRunWhy="" undoRunLock="${MMDAPP%/}/.local/temp/undo-run.lock" undoRunTries=0
+		local undoRunNo=0 undoRunTool undoRunOp undoRunArg undoRunRc=0 undoRunWord=""
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--session-id) undoRunSession="${2:-}" ; shift 2 ;;
+				--*) echo "⛔ ERROR: $MDSC_CMD --undo-run: invalid option: $1" >&2 ; set +e ; return 1 ;;
+				*) undoRunId="$1" ; shift ;;
+			esac
+		done
+		undoRunDir="$( AgentsToolsUndoFind "$undoRunId" "$undoRunSession" )" || { set +e ; return 1 ; }
+		undoRunWord="$( AgentsToolsUndoOwnerWord "$undoRunDir" "reject" )" || { set +e ; return 1 ; }
+		case "$( AgentsToolsUndoField "$undoRunDir" state )" in
+			open) ;;
+			done|accepted) printf 'nothing to do: the record is already %s\n' "$( AgentsToolsUndoField "$undoRunDir" state )" ; return 0 ;;
+			*) printf 'not run: the record is %s, so it promises nothing to run\n' "$( AgentsToolsUndoField "$undoRunDir" state )" ; set +e ; return 1 ;;
+		esac
+		undoRunWhy="$( AgentsToolsUndoBlockedBy "$undoRunDir" )"
+		[ -z "$undoRunWhy" ] || { printf 'not run: %s\n' "$undoRunWhy" ; set +e ; return 1 ; }
+		mkdir -p "${undoRunLock%/*}" 2> /dev/null || :
+		until mkdir "$undoRunLock" 2> /dev/null ; do
+			undoRunTries=$(( undoRunTries + 1 ))
+			[ "$undoRunTries" -le 120 ] || { echo "⛔ ERROR: $MDSC_CMD --undo-run: the lock stays taken: $undoRunLock" >&2 ; set +e ; return 1 ; }
+			sleep 5
+		done
+		trap 'rm -rf -- "$undoRunLock"' EXIT
+		while IFS=$'\t' read -r undoRunTool undoRunOp undoRunArg ; do
+			[ -n "$undoRunTool" ] || continue
+			undoRunNo=$(( undoRunNo + 1 ))
+			if LC_ALL=C grep -Fxq -- "made"$'\t'"$undoRunNo" "$undoRunDir/steps" 2> /dev/null ; then
+				printf '  step %s already made\n' "$undoRunNo"
+				continue
+			fi
+			printf 'made\t%s\n' "$undoRunNo" >> "$undoRunDir/steps"
+			AgentsToolsUndoStepRun "$undoRunDir" "$undoRunTool" "$undoRunOp" "$undoRunArg" || { undoRunRc=1 ; break ; }
+			printf '  step %s %s %s\n' "$undoRunNo" "$undoRunTool" "$undoRunOp"
+		done <<< "$( AgentsToolsUndoSteps "$undoRunDir" )"
+		rm -rf -- "$undoRunLock"
+		if [ "$undoRunRc" -ne 0 ] ; then
+			printf 'stopped: a step failed, and the record stays open at step %s\n' "$undoRunNo" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsUndoSet "$undoRunDir" state done || :
+		undoHoldDir="$( AgentsToolsUndoField "$undoRunDir" hold-dir )"
+		[ -z "$undoHoldDir" ] || AgentsToolsUndoHoldDrop "$undoHoldDir" "$( AgentsToolsUndoField "$undoRunDir" session-id )" "$undoRunId"
+		printf 'RAN %s\n' "$undoRunId"
+		return 0

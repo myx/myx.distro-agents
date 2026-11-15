@@ -40,6 +40,7 @@ that the code and docs do not readily tell you.
 
 ## 1. Dispatcher and code layout
 
+
 - **One dispatcher.** `DistroAgentsTools.fn.sh` has exactly one top-level function and one `case`, like
   every sibling `Distro*Tools`. New operations go inline in that `case`. Never a separate
   `DistroAgentsTools<OpName>` function per operation.
@@ -82,10 +83,9 @@ that the code and docs do not readily tell you.
   organisation's. They are read on the client side only, with nothing of the
   team's read in their place.
   The prefix and the address select the side, never a credential the member happens to hold.
-- **All non-member Slack code is in `sh-lib/comms/AgentsTools.CommsSlack.include`**: the shared helpers, the
+- **All non-member Slack code is in `sh-lib/slack/AgentsTools.CommsSlack.include`**: the shared helpers, the
   in-context helper `AgentsToolsSlackCheck`, and `--intern-op-slack-call` and `-check-scopes` (whose
-  `--scope-source` may name an `AgentsTools*` helper). The dispatcher holds no Slack code. Any include may source that file just for its helpers. Its `case` ends in a
-  branch that runs nothing for a name that is not its own. An unimplemented `--intern-op-slack-*` name is still refused there.
+  `--scope-source` may name an `AgentsTools*` helper). The dispatcher holds no Slack code. Any include may source that file just for its helpers. It is a library: sourcing it defines its functions and runs nothing, and its two operations run through `AgentsToolsCommsSlackRun`. An unimplemented `--intern-op-slack-*` name is still refused there.
 - **One operation calling another** recurses into `DistroAgentsTools` itself (the
   `DistroLocalTools --upgrade-installed-tools` precedent) when it needs what
   the dispatcher does on entry. Either the call is a root entry, or it names a
@@ -274,8 +274,8 @@ that the code and docs do not readily tell you.
 - **A spin loop whose counter resets after each sleep is not bounded.**
 - **`kill` a job's process group, not its pid**, and only while its leader is
   still the process that was kept as it was started
-  (`AgentsToolsRegistryGroupBegan`). Once the leader has ended, what is left
-  is ended one pid at a time (`AgentsToolsRegistryGroupLeft`). It never ends
+  (`AgentsToolsRunGroupBegan`). Once the leader has ended, what is left
+  is ended one pid at a time (`AgentsToolsRunGroupLeft`). It never ends
   the group by a number that is no longer its own. Fork under `set -m` and put the whole pipeline in the
   backgrounded subshell, or `$!` names the last process while the group id is the first.
 - **`nohup` sets `SIGHUP` to ignored in the child.** Use `SIGUSR1` to signal a holder.
@@ -963,7 +963,7 @@ User view: [docs/use.md](docs/use.md#running-the-agents-console).
   `.local/agents/bare-spawn.log`. It starts the console (`DistroAgentsConsole.sh --non-interactive`), the layer
   below the spawn proxy, by the one function that starts the console for every
   spawn, `AgentsToolsSpawnConsoleLaunch`
-  (`sh-lib/session/AgentsTools.SpawnConsoleLaunch.include`). The proxy, its
+  (`sh-lib/spawn/AgentsTools.SpawnConsoleLaunch.include`). The proxy, its
   retry and both resumes use that function too. It passes
   `MDAT_SPAWN_BARE=true` and an empty `MDAT_SPAWN_AGENT`. The console's
   template skips the coordinator default and the roots of a member for it. Its code is `sh-lib/manager/AgentsTools.ManagerSpawnAgent.include`;
@@ -1075,7 +1075,7 @@ User view: [docs/use.md](docs/use.md#running-the-agents-console).
   (`AgentsToolsSessionControlLeftovers`), so the session reads `none`. Code is in the arm of `AgentsTools.ManagerSession.include` and in
   `sh-lib/session/AgentsTools.SessionControlStart.include`; `AgentsSessionControlStartCheck` is its test.
 - **A kill and `TaskStop` find a run's processes by one walk**,
-  `AgentsToolsRegistryRunProcesses`: the run's own processes and every process
+  `AgentsToolsRunProcesses`: the run's own processes and every process
   they started, to any depth. It never finds a process group, the run's own
   supervising shell, or a run of another spawn. A process that left the run's tree before the kill
   is not found. What a stop signalled and found still there is kept in the run's store, the
@@ -1350,15 +1350,17 @@ User view: [docs/use.md](docs/use.md#running-the-agents-console).
   under `source/` a member reads the docs floor and what its own grants name. `held-context:` is
   conversation context, not documents. A spawn takes its brief from one
   source.
-- **Sandbox `input/`** (`AgentsTools.SpawnSandbox.include`) holds `dispatch.md`
+- **Sandbox `input/`** is a container, and `input/<spawn-id>/` is the one run's own folder
+  (`AgentsTools.SpawnSandbox.include`). Co-spawns of one session share the sandbox, its `output/` and
+  its records, never an input folder: a spawn fills and empties only its own. That folder holds `dispatch.md`
   and a copy of the board item. It also holds `MAGIC.<package>.md` copies of
   the nearest MAGIC.md above every named path, never above `source/`, and
   `pointers.md` naming skillset files to read through Skill. A routine is
   never copied: the live file is read. Last comes `conversation.md` for a
   spawn continuing a thread, newest 50 per thread,
   `MDAT_CONVERSATION_HISTORY_MAX`. It is made read-only by file mode, because a verb-less access flag
-  grants it for writing. Credentials are never copied. Emptied on every close path.
-- **Sandbox sweep**: each main-loop iteration empties `input/` of sandboxes on
+  grants it for writing. Credentials are never copied. A run's own close empties its own folder.
+- **Sandbox sweep**: each main-loop iteration empties the `input/` container of sandboxes on
   this host with no live process. It asks the one alive-by-one-rule check
   every reader now shares (see "A run is alive by one rule only" below). Never touched: another host, a running session, no record,
   or a record under 10 minutes old.
@@ -1458,7 +1460,7 @@ User view: [docs/use.md](docs/use.md#running-the-agents-console).
   record names, while that is still the same process. `TaskOutput`, the sandbox sweep and the ending of
   a dismissed run all ask this one rule now; no reader keeps a match of its own. A line that only
   carries a run's id holds no sandbox.
-- **`AgentsToolsRegistryRecordedSupervisor <record>`**
+- **`AgentsToolsRunRecordedSupervisor <record>`**
   (`AgentsTools.Registries.include`) says whether a record's
   `supervisor-process` still lives: `alive`, `gone` or `unknown`, rc 0 for
   each. A record with no such header, of another host, or cut short reads
@@ -1563,7 +1565,7 @@ User view: [docs/use.md](docs/use.md#running-the-agents-console).
   sides). The parent's record is written before the first child. It names the children
   started, and `start-failed:` where a start failed. A failed start does not
   stop the rest, and the error names the children started. It names
-  `session-comment: agent-less parent of <routine>` for the rosters. The files
+  `session-comment: non-agent parent of <routine> (<short id>): <what the session is>` for the rosters, and every child of it carries that same short id. The files
   beside it keep what each start is given. Its watcher runs detached in a process group of its own and names its
   `run-process:` and `host:`. From then it is the record's one writer. It
   rebuilds `children:` from the records whose `parent-session-id:` is the
@@ -2686,7 +2688,7 @@ below) and removes it as it ends, and nothing else removes it while that wait li
 that was killed leaves its directory behind, so the next wait of that member sweeps on its
 way in: by whose a directory is, never by how old it looks. A directory holds `owner`, the
 host and the process its wait runs in with when that process began, as the one reading of
-that gives it (AgentsToolsRegistryProcessesBegan), and it goes only once that process is no
+that gives it (AgentsToolsRunProcessesBegan), and it goes only once that process is no
 process of this host any more; the same pid begun at another time is another process. So a
 wait that stands for days keeps its directory, and so do several waits of one member at
 once, in as many sessions. A directory another host made is never touched, and none is
@@ -3613,7 +3615,7 @@ flag would be a silent no-op there -- refused instead, same shape as the
   repeatable `input-scan-def: <scan> [--option value ...]` line (`none` alone
   for no scan). The spawner runs it at start, after the lock, in the order
   written, for the member of the start. The results are saved to
-  `input/input-scan.md` of the session sandbox and named in the brief. One parser reads the
+  `input/<spawn-id>/input-scan.md`, in the run's own input folder, and named in the brief. One parser reads the
   line for the validator and the spawner (`AgentsToolsInputScanDefWords`, `AgentsTools.InputScanDef.include`;
   `AgentsToolsInputScanNames` is the list of scans). A value that exists only at session time is a macro: `{{<option-name>}}` over
   the five names of the common option set. It is written only where the
@@ -4945,7 +4947,7 @@ Standing decisions of the human-owner. Each holds until he changes it.
 - **A context refusal withholds tool results.** The harness records each tool result of a leg. A refusal for length withholds the results of the round that overflowed, and a refused summarise round is asked again once with every result withheld. A withheld result is a notice that the call ran.
 - **A duty's start does not wait for Slack news.** The spawner marks its real run of a scan `MDAT_SCAN_AT_START=1`, and the duty scan then reads Slack once with a one-second window. A Wait's own scan keeps `WAIT_COLLECT_SECONDS`.
 - **An epic is a vault item, and any member reads it.** `vault-item.epic-blueprint` is the vault's type for an epic, written by `--upsert-vault-epic-blueprint` as `epic-blueprint-<date>-<matter>.md`, and `epic` keeps its shape. `AgentDispatcherTools --epic-read <epic-file|epic-item> [--feature <id>]` and `--epic-list [<folder>]` serve any member: a vault epic blueprint's bare name, or a path under a `todo-sketchpad` folder with no `..` part. `--epic-update` stays magic-coordinator's, and writes a vault item through `--upsert-vault-epic-blueprint`, so its contract check and its commit happen at that one write.
-- **A run's words are one word each (S27.4).** The `live` column reads `running`, `gone`, `remote` (the record names another host) or `unknown` (it names no host or no run). The `state` column reads `thinking`, `tool`, `waiting`, `idling`, `parked`, `finished`, `failed` or `unclosed`, plus `starting` for a run its start has not yet shown. A run on another host with an open record reads `unclosed`. `AgentsToolsRegistryMeasureRows` derives both, and `AgentsToolsRegistryDeriveState`, `AgentsToolsRegistryDeriveStateFromSet` and the legacy fixture of the diff check must give the same words. `idling` is a Wait whose sources are all the floor: `AgentsWaitActivityIdle` rewrites the run's `tool Wait` mark as `idle`, and the harness's idle-wait writes `idle`. A session's own state words (`running`, `waiting`, `awaiting-review`, `unknown-foreign`) are the console's and stay. The `ListAgents` filter `running` keeps every row whose `live` is `running`, and the `waiting` ones.
+- **A run's words are one word each (S27.4).** The `live` column reads `running`, `gone`, `remote` (the record names another host) or `unknown` (it names no host or no run). The `state` column reads `thinking`, `tool`, `waiting`, `idling`, `parked`, `finished`, `failed` or `unclosed`, plus `starting` for a run its start has not yet shown. A run on another host with an open record reads `unclosed`. `AgentsToolsRegistryMeasureRows` derives both, and `AgentsToolsRunDeriveState`, `AgentsToolsRunDeriveStateFromSet` and the legacy fixture of the diff check must give the same words. `idling` is a Wait whose sources are all the floor: `AgentsWaitActivityIdle` rewrites the run's `tool Wait` mark as `idle`, and the harness's idle-wait writes `idle`. A session's own state words (`running`, `waiting`, `awaiting-review`, `unknown-foreign`) are the console's and stay. The `ListAgents` filter `running` keeps every row whose `live` is `running`, and the `waiting` ones.
 
 ## A session's root message shows its end (S6.37)
 
@@ -4959,7 +4961,7 @@ Standing decisions of the human-owner. Each holds until he changes it.
 
 ## A wait's first look reads from the run's beginning (S6.39)
 
-- **A post never looked at starts at the run's own beginning.** A record line's thread and conversation floors are `-` until a first look, and that look read from the post's own ts. What stood after the post but before the run began was handed over as new and took a seen `eyes`: 373 of 373 claims written on MDV on 3 November were for messages over six hours old, and 684 of 813 on MEL. `AgentsWaitRepliesStart` (`sh-lib/member/AgentsTools.MemberWaitReplies.include`) reads the launch marker once a wait, and the look starts there where the post is older. A run launched through no marker keeps the floor its line carries.
+- **A post never looked at starts at the run's own beginning.** A record line's thread and conversation floors are `-` until a first look, and that look read from the post's own ts. What stood after the post but before the run began was handed over as new and took a seen `eyes`: 373 of 373 claims written on MDV on 3 November were for messages over six hours old, and 684 of 813 on MEL. `AgentsWaitRepliesStart` (`sh-lib/wait/AgentsTools.MemberWaitReplies.include`) reads the launch marker once a wait, and the look starts there where the post is older. A run launched through no marker keeps the floor its line carries.
 - **History is dropped, work is not.** A message after the run began is still returned and still marked, and a later look returns what arrived while the run worked. `sh-test/member/AgentsWaitRepliesFirstLookCheck.test.sh` holds both directions, and the react log below.
 - **The seen path logs one line an attempt**, `comms-slack-react.YYYY-MM.log` beside the send log: `<stamp> <member> <target> <identity>:<account> <ok|failed> <reason>`. A mark that fails leaves no claim, so this log is the only record of it.
 - **The second identity is spent only where it can help.** `AgentsToolsSeenHopeless` lists the reasons no identity of ours can change, `already_reacted` among them; the react path stops after the first failure for one of those instead of calling again as the bot.
@@ -4969,7 +4971,7 @@ Standing decisions of the human-owner. Each holds until he changes it.
 - **The flag is one file, and its folder is what it holds.** `sessions/<id>/paused`, one line of `<when> <by>`, written by `--manager-session-pause` and removed by `--manager-session-resume`. A session's own id in that folder holds every run of it, and a run's own id holds that run alone. `sh-lib/session/AgentsTools.SessionPause.include` is its one home: `AgentsToolsSessionPauseHeld`, `AgentsToolsSessionPauseOwn`, `AgentsToolsSessionPauseWait`, and the set and clear.
 - **Every point asks the run and its session, and there is one loop.** `AgentsToolsSessionPauseOwn` asks the harness's own run id and the coworking session it joined, so no point restates the chain; `AgentsToolsSessionPauseWait` is the 5-second look, shared by all of them.
 - **The start of a call and its exit are different pauses.** Read and Wait hold at their START, so a paused run reads nothing while it holds. SendMessage, SubagentHandback, Bash, WorkspaceContextExecute, Write and Edit hold at their EXIT, so the work is done and its result waits. `execute` (`--intern-mcp-execute`) is checked at its start and then REFUSED with PAUSED, exit 75, so nothing ran and the run calls it again.
-- **`paused` is a state word of the registry, never a busy one.** `AgentsToolsRegistryDeriveState`, `AgentsToolsRegistryDeriveStateFromSet` and the one awk pass in `AgentsToolsRegistryMeasureRows` all read it before the activity mark, for a live run only, at the same two ids the park mark is read at. A held run is therefore never `stuck`, `dead` or `idling`, and the console counts it apart: `sessions-paused` and the session's own `paused` state.
+- **`paused` is a state word of the registry, never a busy one.** `AgentsToolsRunDeriveState`, `AgentsToolsRunDeriveStateFromSet` and the one awk pass in `AgentsToolsRegistryMeasureRows` all read it before the activity mark, for a live run only, at the same two ids the park mark is read at. A held run is therefore never `stuck`, `dead` or `idling`, and the console counts it apart: `sessions-paused` and the session's own `paused` state.
 - **Nothing ends a held run.** `AgentsToolsSessionControlRelease` turns away from a run a pause holds and drops its release mark, so the closing time counts again from the resume. The control thread's own judging keeps the session `running`, so no thread calls it finished.
 - **Two marks wait on it, and both are wired to this file.** S6.37's `double_vertical_bar` (`AgentsToolsSpawnProxyRootPauseMarks`) and S13.18's `paused=yes` with its `waiting` verdict (`AgentsSuperviseScan`) ask the same flag, and neither keeps a copy of its path.
 - **A pause is said where its members read it.** The operation writes one block into the session's chat file as `console`, and the work-duty scan prints one `PAUSED:` line naming the session.
@@ -5020,7 +5022,7 @@ Standing decisions of the human-owner. Each holds until he changes it.
 
 ## The schedule as a service thread (S12.12)
 
-- **The schedule runs in a process of its own, on the shared on-demand thread.** `--intern-schedule --run` serves `AgentsToolsScheduleThreadPass` (`sh-lib/session/AgentsTools.ScheduleThread.include`), the schedule's steps (`AgentsToolsScheduleLoop`) and the board's dependencies (`AgentsToolsBoardDependencies`), on the one thread `AgentsTools.OnDemandThread.include` gives. `--one` makes one pass and ends, for a check by hand. Its files are in `.local/agents/schedule-thread/`: `request.fifo`, `thread.lock`, `thread.log`, `thread.wanted` and `thread.asked`.
+- **The schedule runs in a process of its own, on the shared on-demand thread.** `--intern-schedule --run` serves `AgentsToolsScheduleThreadPass` (`sh-lib/schedule/AgentsTools.ScheduleThread.include`), the schedule's steps (`AgentsToolsScheduleLoop`) and the board's dependencies (`AgentsToolsBoardDependencies`), on the one thread `AgentsTools.OnDemandThread.include` gives. `--one` makes one pass and ends, for a check by hand. Its files are in `.local/agents/schedule-thread/`: `request.fifo`, `thread.lock`, `thread.log`, `thread.wanted` and `thread.asked`.
 - **The passes are minutes apart, and the includes are parsed once.** A pass runs when `MDAT_SCHEDULE_PASS_SECONDS` (180) have passed since the last one, so with a morning review at 09:00 and grooming at 09:00 a rig's schedule is checked within a few minutes of its time, and the cost of a rig that does nothing is one pass every three minutes. The includes a pass needs are read once, at the thread's first pass, and the variables survive between passes: that is the profit over the main loop's iteration, which parses them at each turn.
 - **One ask starts it, and the ask is throttled.** `AgentsToolsScheduleThreadAsk` is the only way it is started or put back. It reads `thread.lock`, answers `alive <pid>` where the process it names still lives, and otherwise starts the thread. It looks at the lock no more than once in `MDAT_SCHEDULE_ASK_SECONDS` (300), so a place that asks often spends one file test. It says one line: `off`, `waiting`, `alive <pid>`, `started <pid>` or `failed - <why>`.
 - **Three places ask, and none is a watcher of its own.** A session's control thread asks at its read in full, which comes once a minute at most. That is S12.12's "logically cheap place", as that same thread and the spawn path start the communications reader.
@@ -5038,3 +5040,13 @@ Standing decisions of the human-owner. Each holds until he changes it.
 ## The typed vault write and the plain-document contracts
 
 - **The typed vault write stamps a frontmatter block that two contracts forbid.** `--intern-op-vault-item-write` writes `type`, `document-contract`, `from` and `date` through its header ops (`AgentsTools.InternOpVaultAudit.include:142-143`) on every typed create. `vault-item.planning` and `vault-item.tracking` each state at their own line 30 that the document "carries no `---` block, and names no `document-contract`". So a `planning-*` or `tracking-*` item written through its typed op lands with four `contract-unknown-key` rows and one `contract-frontmatter` row, and no write path satisfies the contract. Measured 2026-11-12 in a copy of this tree: the two ops answer rc 0 and the name stores, so the fault is the stamped block, not the operation. A new vault kind whose contract wants a plain document needs a per-kind stamping list, or a frontmatter block in the contract.
+
+## The team-data pull: settled writers, and no refusal over a file it did not write (S12.4, task-20261113T1619Z)
+
+- **A pull settles every writer before it moves the tree.** `AgentsToolsTeamDataPrepareSync` asks the one commit thread to commit what waits, then commits anything still waiting itself, so a path any member's run left uncommitted is a commit and not a refusal. It then reads what origin moved and carries every one of those paths this store still holds uncommitted, untracked ones included, as this store's own commit. A path this store's own rules will not commit is named in one line, and nothing is moved over it.
+- **A pull that stopped on a conflict is settled and run again.** `AgentsToolsTeamDataMergeAgain` takes origin's branch and settles the conflict inside the file, as the close push already does, and the pull runs once more. One item both sides changed no longer leaves the store behind its origin.
+- **The audit log family is out of the tracked set.** A live session appends to `audit/<month>/*.log` for its whole run, so a tracked one is dirty whenever any session runs and the set rotates each pass. `AgentsToolsTeamDataAuditUntrack` commits whatever those logs hold, takes them out of the index with `git rm --cached`, and writes `audit/**/*.log` into the store's own `.gitignore`: the files stay on disk, their history stays in the branch, and no pull moves them. A store that tracks no log is left untouched.
+- **The removal lands after the merge, never before.** A log both sides appended is merged line by line first, so the crossing loses no line, and only then does the family leave the index. A removal done first turns the two sides into a modify/delete conflict the merge settle cannot work, and origin's copy wins over the local one.
+- **Every caller pulls through one function.** `AgentsToolsTeamDataSyncWithRemote` wraps myx.common's `git/cloneSync`: the settle and carry first, cloneSync's own pull and push, the settle-again and the untrack after a pull that landed. The board resync in `AgentsToolsAdvanceCloneSync` and the read-back sync of `item-upsert` both come through it, so one rule holds at every caller.
+- **A landed write is never reported as a failure.** The read-back sync of `item-upsert` runs through the same wrapper, so another member's uncommitted path, or a session's own append to a log, no longer makes a write that stands on origin read as `LOCK_UNCHECKABLE`.
+- **The checks.** `sh-test/team-data/AgentsTeamDataLiveLogSyncCheck.test.sh` holds the live log appended on both sides, the family leaving the index and the ignore rule reaching origin, a foreign writer's path, a path the store will not commit, one item both sides changed, and both control directions. It reads 10 of 22 red on the tree before this change and 22 of 22 green after.

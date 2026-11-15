@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # ^^^ for syntax checking in the editor only
+type AgentsSettingsScopeHas > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/settings/AgentsTools.Settings.include"
 
 ##
 ## AgentsTools.InternOpOwnerSetup.include -- --intern-op-owner-setup.
@@ -151,7 +152,7 @@ case "$1" in
 			## Read-only where the scope has never been written: a --select
 			## through --agents-config-option creates the file it reads.
 			setupCurrent=""
-			if [ -f "$setupWorkspace/.local/.agents/$setupScope.agent.env" ] ; then
+			if AgentsSettingsScopeHas "$setupWorkspace" "$setupScope" ; then
 				type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 				setupCurrent="$( MMDAPP="$setupWorkspace" ; DistroAgentsTools --agents-config-option "$setupScope" --select "$setupKey" || : )"
 			fi
@@ -254,7 +255,7 @@ case "$1" in
 				setupSpec="$( AgentsToolsOwnerSetupOptionSpec "$setupGroupKey" )"
 				setupScope="${setupSpec%%|*}"
 				setupCurrent=""
-				if [ -f "$setupWorkspace/.local/.agents/$setupScope.agent.env" ] ; then
+				if AgentsSettingsScopeHas "$setupWorkspace" "$setupScope" ; then
 					type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 					setupCurrent="$( MMDAPP="$setupWorkspace" ; DistroAgentsTools --agents-config-option "$setupScope" --select "$setupGroupKey" || : )"
 				fi
@@ -305,7 +306,7 @@ case "$1" in
 		## the service selection further down finds it already there. Made the way
 		## that selection would make it, and an existing block is left exactly as
 		## it stands: nothing here overwrites a preset.
-		if [ -n "$setupServiceKey" ] && [ ! -f "$setupWorkspace/.local/.agents/preset-$setupServiceValue.agent.env" ] ; then
+		if [ -n "$setupServiceKey" ] && ! AgentsSettingsScopeHas "$setupWorkspace" "preset-$setupServiceValue" ; then
 			type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 			printf '%s' "$setupServiceValue" | ( MMDAPP="$setupWorkspace" ; DistroAgentsTools --agents-config-option "preset-$setupServiceValue" --upsert-from-stdin PRESET_CLI_SERVICE ) || {
 				echo "$MDSC_CMD: owner-setup: ⛔ ERROR: could not make the preset $setupServiceValue in $setupWorkspace" >&2
@@ -319,7 +320,7 @@ case "$1" in
 			setupSpec="$( AgentsToolsOwnerSetupOptionSpec "$setupKey" )"
 			setupScope="${setupSpec%%|*}"
 			setupCurrent=""
-			if [ -f "$setupWorkspace/.local/.agents/$setupScope.agent.env" ] ; then
+			if AgentsSettingsScopeHas "$setupWorkspace" "$setupScope" ; then
 				type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 				setupCurrent="$( MMDAPP="$setupWorkspace" ; DistroAgentsTools --agents-config-option "$setupScope" --select "$setupKey" || : )"
 			fi
@@ -364,7 +365,7 @@ case "$1" in
 			setupSpec="$( AgentsToolsOwnerSetupOptionSpec "$setupServiceKey" )"
 			setupScope="${setupSpec%%|*}"
 			setupCurrent=""
-			if [ -f "$setupWorkspace/.local/.agents/$setupScope.agent.env" ] ; then
+			if AgentsSettingsScopeHas "$setupWorkspace" "$setupScope" ; then
 				type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 				setupCurrent="$( MMDAPP="$setupWorkspace" ; DistroAgentsTools --agents-config-option "$setupScope" --select "$setupServiceKey" || : )"
 			fi

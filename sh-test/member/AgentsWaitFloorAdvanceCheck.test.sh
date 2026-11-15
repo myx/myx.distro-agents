@@ -36,7 +36,7 @@ rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }
 [ -f "$rigHere/session/AgentsTools.SessionChat.include" ] || rigRefuse "the chat include is missing"
-[ -f "$rigHere/member/AgentsTools.MemberWait.include" ] || rigRefuse "the wait include is missing"
+[ -f "$rigHere/wait/AgentsTools.MemberWait.include" ] || rigRefuse "the wait include is missing"
 . "$rigFixtures/rig-temp.include.sh" || exit 1
 rigTmp="$( rigTempDir AgentsWaitFloorAdvanceCheck )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
@@ -107,7 +107,7 @@ rigImportThread(){
 	local importRender
 	importRender="$( mktemp "$rigDir/import.XXXXXX" )"
 	LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" \
-	-f "$rigHere/comms/AgentsSlackMessagesFormat.awk" < "$rigDir/replies.CRIGSES01.$(( rigNow - 400 )).000001.json" > "$importRender" 2> /dev/null
+	-f "$rigHere/slack/AgentsSlackMessagesFormat.awk" < "$rigDir/replies.CRIGSES01.$(( rigNow - 400 )).000001.json" > "$importRender" 2> /dev/null
 	$rigEnvClean MMDAPP="$rigDir/ws" MDAT_SPAWN_LAUNCH_MARKER="$rigDir/launch.marker" bash -c \
 		". '$rigHere/session/AgentsTools.SessionChat.include' ; AgentsToolsSessionChatImport '$rigSession' '$rigThread' '$importRender' slack -"
 	rm -f "$importRender"
@@ -121,7 +121,7 @@ rigProbeNew(){ ## probeSince
 	probeLog="$probeFile.log"
 	rm -f "$probeFile"
 	$rigEnvClean MMDAPP="$rigDir/ws" MDAT_SPAWN_LAUNCH_MARKER="$rigDir/launch.marker" MDAT_SESSION_ID="$rigSession" MDAT_SKILLSET_ROOT="$rigTmp/skills" PATH="$rigWaitPath" RIG_SCENARIO="$rigDir" MDAT_SLACK_THREAD_CACHE_SECONDS=0 \
-		bash -c ". '$rigHere/member/AgentsTools.MemberWaitSlack.include' ; AgentsWaitProbeSlack '$rigMember' '${rigThread}:conversation' '$1' '$probeFile' '' false" > "$probeLog" 2>&1
+		bash -c ". '$rigHere/wait/AgentsTools.MemberWaitSlack.include' ; AgentsWaitProbeSlack '$rigMember' '${rigThread}:conversation' '$1' '$probeFile' '' false" > "$probeLog" 2>&1
 	[ -f "$probeFile" ] && cat "$probeFile"
 	rm -f "$probeFile" "$probeFile.rendered" "$probeFile.err" "$probeLog"
 }

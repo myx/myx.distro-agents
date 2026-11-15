@@ -9,8 +9,10 @@
 ## Offline: a temp folder of this check alone, removed at its end; nothing is requested.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
+: "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 rigAwk="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsOutputStyleCheck.awk"
-rigTmp="$( mktemp -d "${TMPDIR:-/tmp}/AgentsOutputStylePredicatesCheck.XXXXXXXX" )" || exit 1
+mkdir -p "$MMDAPP/.local/agents/scratch/sh-test" || exit 1
+rigTmp="$( mktemp -d "$MMDAPP/.local/agents/scratch/sh-test/AgentsOutputStylePredicatesCheck.XXXXXXXX" )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
 rigPass=0 ; rigFail=0
 rigAssert(){ ## what, got, want

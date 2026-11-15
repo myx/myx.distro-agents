@@ -7,7 +7,7 @@ set -u
 ## The include's own dispatcher references $1 at the top level; the function under test
 ## is a plain function, so the unbound-reference guard is off while it is sourced.
 set +u
-rigInc="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.MemberCommsTrello.include"
+rigInc="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/trello/AgentsTools.MemberCommsTrello.include"
 [ -f "$rigInc" ] || { echo "⛔ ERROR: no $rigInc" >&2 ; exit 1 ; }
 
 scratch="$( mkdir -p "${MMDAPP:?⛔ ERROR: MMDAPP is not set}/.local/temp" && mktemp -d "$MMDAPP/.local/temp/AgentsTrelloEnvTokenCheck.XXXXXX" )" || { echo "⛔ ERROR: mktemp failed under the workspace's own temp folder" >&2 ; exit 1 ; }

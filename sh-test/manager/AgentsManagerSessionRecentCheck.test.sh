@@ -14,7 +14,7 @@
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigPackage="${RIG_PACKAGE:-$MDLT_ORIGIN/myx/myx.distro-agents}"
-rigInclude="$rigPackage/sh-lib/manager/AgentsTools.ManagerSession.include"
+rigInclude="$rigPackage/sh-lib/manager/AgentsTools.ManagerSessionRows.include"
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }
@@ -67,7 +67,7 @@ rigRows(){ ## the clock in minutes, then `active` or nothing
 	env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp" PATH="/usr/bin:/bin:/usr/sbin:/sbin" \
 		MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDLT_ORIGIN="$rigOrigin" MDLT_OPTION="--run-from-path $rigOrigin" \
 		MDAT_SPAWN_AGENT=magic-coordinator MDSC_CMD=DistroAgentsTools MDAT_MANAGER_NOW_MINUTES="$1" \
-		bash -c '. "$1" --definitions-only > /dev/null 2>&1 ; shift ; AgentsToolsManagerSessionRows --manager-session-list "$@"' rig "$rigInclude" "${2:-}" 2>&1
+		bash -c '. "$1" ; shift ; AgentsToolsManagerSessionRows --manager-session-list "$@"' rig "$rigInclude" "${2:-}" 2>&1
 }
 ## Whether one session's row stands in a list, by its id.
 rigHas(){ ## the rows, the session id

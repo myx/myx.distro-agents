@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # ^^^ for syntax checking in the editor only
+type AgentsSessionMarkerFile > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
 
 ##
 ## AgentsTools.SessionPause.include -- the paused state of a session or of one run (S19): the flag, the one question
@@ -15,8 +16,8 @@ AgentsToolsSessionPauseHeld(){ ## run id, session id (may be empty)
 	case "$pauseRun" in ''|-|.|..|*/*) pauseRun="" ;; esac
 	case "$pauseSession" in ''|-|.|..|*/*) pauseSession="" ;; esac
 	[ -n "$pauseRun$pauseSession" ] || return 1
-	[ -z "$pauseRun" ] || [ ! -f "$MMDAPP/.local/agents/sessions/$pauseRun/paused" ] || return 0
-	[ -z "$pauseSession" ] || [ "$pauseSession" = "$pauseRun" ] || [ ! -f "$MMDAPP/.local/agents/sessions/$pauseSession/paused" ] || return 0
+	[ -z "$pauseRun" ] || [ ! -f "$( AgentsSessionMarkerFile "$pauseRun" paused )" ] || return 0
+	[ -z "$pauseSession" ] || [ "$pauseSession" = "$pauseRun" ] || [ ! -f "$( AgentsSessionMarkerFile "$pauseSession" paused )" ] || return 0
 	return 1
 }
 
@@ -38,17 +39,17 @@ AgentsToolsSessionPauseSet(){ ## id, by
 	local setPauseId="${1:-}" setPauseBy="${2:-unknown}" setPauseAside
 	case "$setPauseId" in ''|-|.|..|*/*|*[[:space:]]*) return 1 ;; esac
 	[ -d "${MMDAPP:-/nonexistent}/.local/agents/sessions/$setPauseId" ] || return 1
-	setPauseAside="$( mktemp "$MMDAPP/.local/agents/sessions/$setPauseId/paused.XXXXXX" 2> /dev/null )" || return 1
+	setPauseAside="$( mktemp "$( AgentsSessionMarkerFile "$setPauseId" paused ).XXXXXX" 2> /dev/null )" || return 1
 	{ printf '%s %s\n' "$( date -u +%Y-%m-%dT%H:%M:%SZ )" "$setPauseBy" > "$setPauseAside" \
-		&& mv -f "$setPauseAside" "$MMDAPP/.local/agents/sessions/$setPauseId/paused" ; } 2> /dev/null \
+		&& mv -f "$setPauseAside" "$( AgentsSessionMarkerFile "$setPauseId" paused )" ; } 2> /dev/null \
 		|| { rm -f "$setPauseAside" 2> /dev/null ; return 1 ; }
-	printf '%s\n' "$MMDAPP/.local/agents/sessions/$setPauseId/paused"
+	printf '%s\n' "$( AgentsSessionMarkerFile "$setPauseId" paused )"
 }
 
 ## Removes the flag of one id. rc 0 whether or not one stood: resuming a session that is not paused is no fault.
 AgentsToolsSessionPauseClear(){ ## id
 	case "${1:-}" in ''|-|.|..|*/*|*[[:space:]]*) return 1 ;; esac
-	rm -f "${MMDAPP:-/nonexistent}/.local/agents/sessions/$1/paused" 2> /dev/null
+	rm -f "$( AgentsSessionMarkerFile "$1" paused )" 2> /dev/null
 	return 0
 }
 
@@ -57,7 +58,7 @@ AgentsToolsSessionPauseClear(){ ## id
 AgentsToolsSessionPauseSay(){ ## session id, the words
 	local saySession="${1:-}" sayWords="${2:-}" sayBy="${3:-tooling}"
 	[ -n "$saySession" ] && [ -n "$sayWords" ] || return 0
-	type AgentsToolsSessionChatAppend > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include" 2> /dev/null || return 0
+	type AgentsToolsSessionChatAppend > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include"
 	printf '%s\n' "$sayWords" | AgentsToolsSessionChatAppend "$saySession" "$sayBy" all - local console > /dev/null 2>&1 || :
 	return 0
 }

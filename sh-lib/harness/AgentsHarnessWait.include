@@ -1,13 +1,17 @@
 #!/usr/bin/env bash
 # ^^^ for syntax checking in the editor only
+type AgentsSessionMarkerFileInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
 
 ## AgentsHarnessWait.include: dismissal records, seats, the Wait tool and the CheckList it names on every return. Sourced by AgentsUniversalHarness.sh, definitions only.
 
 ## The mark's file. rc 1, nothing printed, for a session that keeps none.
 AgentsHarnessDismissedFile(){
+	local dismissedMarkerFile=""
+	type AgentsHarnessBareName > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessSpawn.include"
 	[ -n "${MDAT_SPAWN_SESSION_ID:-}" ] && [ -n "${MMDAPP:-}" ] && AgentsHarnessBareName "$MDAT_SPAWN_SESSION_ID" || return 1
 	case "$MDAT_SPAWN_SESSION_ID" in .|..) return 1 ;; esac
-	printf '%s' "$MMDAPP/.local/agents/sessions/$MDAT_SPAWN_SESSION_ID/dismissed"
+	AgentsSessionMarkerFileInto dismissedMarkerFile "$MDAT_SPAWN_SESSION_ID" dismissed || return 1
+	printf '%s' "$dismissedMarkerFile"
 }
 
 ## Keeps the dismissal, once: who dismissed this session, as its Wait said it.
@@ -24,9 +28,12 @@ AgentsHarnessDismissedKeep(){ ## who dismissed it (the WAIT-DISMISSED-BY value)
 ## run handed back with nothing pending and waits for a verdict. It is the one home of the fact,
 ## so the registry derives `awaiting review` from it rather than from a field set beside it.
 AgentsHarnessParkedFile(){
+	local parkedMarkerFile=""
+	type AgentsHarnessBareName > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessSpawn.include"
 	[ -n "${MDAT_SPAWN_SESSION_ID:-}" ] && [ -n "${MMDAPP:-}" ] && AgentsHarnessBareName "$MDAT_SPAWN_SESSION_ID" || return 1
 	case "$MDAT_SPAWN_SESSION_ID" in .|..) return 1 ;; esac
-	printf '%s' "$MMDAPP/.local/agents/sessions/$MDAT_SPAWN_SESSION_ID/parked"
+	AgentsSessionMarkerFileInto parkedMarkerFile "$MDAT_SPAWN_SESSION_ID" parked || return 1
+	printf '%s' "$parkedMarkerFile"
 }
 
 ## Whether this run is parked: rc 0 where the mark stands, rc 1 where it does not.
@@ -126,6 +133,8 @@ AgentsHarnessDismissedNext(){
 }
 
 AgentsHarnessDismissedAfter(){ ## tool name
+	type AgentsHarnessWholeNumber > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessToolsFile.include"
+	type AgentsHarnessSessionWordPids > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessSpawn.include"
 	local afterFile afterDelay afterSession afterGrace="${MDAT_DISMISSED_END_GRACE:-60}"
 	case "$1" in SubagentHandback|Wait|SendMessage) ;; *) return 0 ;; esac
 	afterFile="$( AgentsHarnessDismissedFile )" && [ -f "$afterFile.handback" ] || return 0
@@ -136,7 +145,7 @@ AgentsHarnessDismissedAfter(){ ## tool name
 	AgentsHarnessWholeNumber "$afterGrace" || afterGrace=60
 	afterDelay=2 ; [ "$1" != "SubagentHandback" ] || afterDelay="$afterGrace"
 	afterSession="$MDAT_SPAWN_SESSION_ID"
-	type AgentsToolsRegistryRunWords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include" 2> /dev/null || return 0
+	type AgentsToolsRunWords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunProcesses.include"
 	(
 		trap '' HUP INT
 		afterFd=3 ; while [ "$afterFd" -lt 64 ] ; do eval "exec $afterFd>&-" ; afterFd=$(( afterFd + 1 )) ; done
@@ -144,7 +153,7 @@ AgentsHarnessDismissedAfter(){ ## tool name
 		afterWord="$( AgentsHarnessSessionWordPids "$afterSession" )"
 		afterPids=""
 		for afterPid in $afterWord ; do
-			[ "$( ps -p "$afterPid" -ww -o args= 2> /dev/null | AgentsToolsRegistryRunWords )" != "$afterSession" ] || afterPids="$afterPids $afterPid"
+			[ "$( ps -p "$afterPid" -ww -o args= 2> /dev/null | AgentsToolsRunWords )" != "$afterSession" ] || afterPids="$afterPids $afterPid"
 		done
 		[ -n "$afterPids" ] || [ -n "$afterWord" ] || afterPids="$( AgentsHarnessSessionPids "$afterSession" )"
 		[ -n "$afterPids" ] || exit 0
@@ -162,8 +171,10 @@ AgentsHarnessDismissedAfter(){ ## tool name
 ## now); rc 1, the holder's spawn id printed, where another live run of its member holds it.
 AgentsHarnessSeatTake(){
 	local seatRecord="" seatSession="" seatHolder="" seatRc=0
+	type AgentsHarnessSpawnRecordPath > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessSpawn.include"
 	seatRecord="$( AgentsHarnessSpawnRecordPath "${MDAT_SPAWN_SESSION_ID:-}" )" && [ -n "$seatRecord" ] || return 0
-	type AgentsToolsSessionSeatTake > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include" 2> /dev/null || return 0
+	type AgentsToolsSessionSeatTake > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionSeats.include"
+	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandbox.include"
 	seatSession="$( AgentsToolsSpawnSandboxRecordHeader "$seatRecord" session-id )"
 	[ -n "$seatSession" ] || return 0
 	seatHolder="$( AgentsToolsSessionSeatTake "$seatSession" "$harnessAgent" "$seatRecord" )" || seatRc=$?
@@ -175,6 +186,8 @@ AgentsHarnessSeatTake(){
 ## Whether the run that holds this run's seat is its restart: its record names this run as the
 ## one it restarts (`restarted-from:`). rc 0 it is.
 AgentsHarnessSeatPassed(){ ## the holder's spawn id
+	type AgentsToolsSessionRunRecord > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionSeats.include"
+	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandbox.include"
 	local passedRecord=""
 	passedRecord="$( AgentsToolsSessionRunRecord "$1" )" || return 1
 	[ "$( AgentsToolsSpawnSandboxRecordHeader "$passedRecord" restarted-from )" = "${MDAT_SPAWN_SESSION_ID:-}" ]
@@ -201,8 +214,9 @@ AgentsHarnessWaitReadsSession(){ ## sources, mode
 ## participants of its session that still run printed on one line.
 AgentsHarnessDismissWaits(){
 	local waitsRecord="" waitsOthers=""
+	type AgentsHarnessSpawnRecordPath > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessSpawn.include"
 	waitsRecord="$( AgentsHarnessSpawnRecordPath "${MDAT_SPAWN_SESSION_ID:-}" )" && [ -n "$waitsRecord" ] || return 1
-	type AgentsToolsSessionDismissHeld > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include" 2> /dev/null || return 1
+	type AgentsToolsSessionDismissHeld > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionSeats.include" || return 1
 	waitsOthers="$( AgentsToolsSessionDismissHeld "$waitsRecord" )" || return 1
 	printf '%s' "$waitsOthers" | LC_ALL=C tr '\n' ' ' | LC_ALL=C sed 's/ $//'
 }
@@ -212,6 +226,7 @@ AgentsHarnessDismissWaits(){
 ## where none is held, or where it still waits.
 AgentsHarnessDismissHeldGive(){
 	local giveFile giveBy="" giveHandback=""
+	type AgentsHarnessBareName > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessSpawn.include"
 	[ -n "${MDAT_SPAWN_SESSION_ID:-}" ] && [ -n "${MMDAPP:-}" ] && AgentsHarnessBareName "$MDAT_SPAWN_SESSION_ID" || return 1
 	giveFile="$MMDAPP/.local/agents/sessions/$MDAT_SPAWN_SESSION_ID/dismiss-held"
 	[ -f "$giveFile" ] || return 1
@@ -231,7 +246,8 @@ AgentsHarnessDismissHeldGive(){
 ## once this call is over (AgentsHarnessDismissedAfter). rc 0.
 AgentsHarnessSeatRefuse(){ ## what was refused (read, sent), the holder's spawn id
 	local refuseSession="" refuseMark=""
-	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include" 2> /dev/null || :
+	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandbox.include"
+	type AgentsHarnessSpawnRecordPath > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessSpawn.include"
 	refuseSession="$( AgentsToolsSpawnSandboxRecordHeader "$( AgentsHarnessSpawnRecordPath "${MDAT_SPAWN_SESSION_ID:-}" )" session-id )"
 	printf 'ERROR: not %s: run %s holds the seat of %s in session %s, and a member is active once in a session. This run is refused and ends. Send what it should do there with SendMessage to %s:%s.\n' \
 		"$1" "$2" "$harnessAgent" "$refuseSession" "$refuseSession" "$harnessAgent"
@@ -246,6 +262,7 @@ AgentsHarnessSeatRefuse(){ ## what was refused (read, sent), the holder's spawn 
 ## nothing, having nowhere to keep one, and neither does a call that waits for an ask (its output is the ask's, not a Wait result's).
 AgentsHarnessWaitCheckListLine(){
 	local lineCounts="" lineRc=0 lineAll=0 lineOpen=0 lineActive=0
+	type AgentsHarnessCheckListCounts > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessBatch.include"
 	lineCounts="$( AgentsHarnessCheckListCounts )" ; lineRc=$?
 	case "$lineRc" in
 		0) ;;
@@ -267,6 +284,7 @@ AgentsHarnessWaitCheckListLine(){
 AgentsHarnessWaitBackgroundLine(){
 	local bgSession bgDir bgFile bgName bgPid bgRest bgList="" bgCount=0
 	bgSession="${harnessSessionId:-${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}}" || return 0
+	type AgentsHarnessBareName > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessSpawn.include"
 	[ -n "$bgSession" ] && AgentsHarnessBareName "$bgSession" || return 0
 	bgDir="$MMDAPP/.local/agents/sessions/$bgSession/processes"
 	for bgFile in "$bgDir"/process-*.pid ; do
@@ -290,6 +308,7 @@ AgentsHarnessWaitBackgroundLine(){
 AgentsHarnessWaitCheckListDue(){
 	local dueOut="" dueRc=0
 	[ "$1" = "true" ] || return 0
+	type AgentsHarnessCheckListDue > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessBatch.include"
 	dueOut="$( AgentsHarnessCheckListDue )" ; dueRc=$?
 	[ "$dueRc" = "0" ] || return 0
 	printf 'CheckList pending: these items of your list are past their due time, and they are yours to close before you wait again.\n%s\n' "$dueOut"
@@ -306,6 +325,8 @@ AgentsHarnessWaitCheckListDue(){
 ## The mark `handback.given`, in the same folder, is written by a delivered handback and cleared by a Wait that delivers an arrival:
 ## it is the whole of "has handed back since its last arrival", one local file, and a work duty needs none of it.
 AgentsHarnessWaitCheckListIdle(){ ## the sources the call itself named, its mode
+	type AgentsHarnessCheckListOpenItems > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessBatch.include"
+	type AgentsHarnessWorkDuty > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessSpawn.include"
 	local idleOwn="$1" idleModeArg="$2" idleOpen="" idleRc=0 idleCount=0 idleItem=""
 	local idleFolder="" idleGiven="" idleActive=0
 	[ -z "$idleOwn" ] || return 0
@@ -338,7 +359,7 @@ AgentsHarnessWaitCheckListIdle(){ ## the sources the call itself named, its mode
 ## with no delivery, so no pointer moves), with the one dismissal rule the Wait uses. rc 0 one is there. One local file, no network.
 AgentsHarnessWaitChatDismissal(){
 	local peekKey="" peekFloor=""
-	type AgentsToolsSessionChatFloor > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include" 2> /dev/null || return 1
+	type AgentsToolsSessionChatFloor > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include" || return 1
 	AgentsToolsSessionChatKeyInto ; peekKey="$agentsSessionChatKey"
 	[ -n "$peekKey" ] && [ -n "$harnessAgent" ] || return 1
 	peekFloor="$( AgentsToolsSessionChatFloor "$peekKey" "$harnessAgent" 2> /dev/null )" || return 1
@@ -350,6 +371,7 @@ AgentsHarnessWaitChatDismissal(){
 ## is one again only after another handback. One local file, removed, and nothing read from the network.
 AgentsHarnessWaitCheckListAnswered(){
 	local answeredFolder=""
+	type AgentsHarnessCheckListPlace > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessBatch.include"
 	AgentsHarnessCheckListPlace || return 0
 	answeredFolder="$checkListFolder"
 	[ ! -f "$answeredFolder/handback.given" ] || rm -f "$answeredFolder/handback.given" 2> /dev/null || :
@@ -379,9 +401,10 @@ AgentsHarnessWaitCheckListAnswered(){
 AgentsHarnessWaitFloorRewind(){ ## the sources the Wait named, the wait result file
 	local fwSource fwTarget="" fwRow="" fwSum="" fwHalf
 	[ -n "${harnessCheckpointDir:-}" ] || return 0
-	type AgentsHarnessWorkDuty > /dev/null 2>&1 && AgentsHarnessWorkDuty || return 0
+	type AgentsHarnessWorkDuty > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessSpawn.include"
+	AgentsHarnessWorkDuty || return 0
 	## In an emergency the conversation is kept (AgentsToolsEmergencyHolds).
-	{ type AgentsToolsEmergencyHolds > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.Emergency.include" 2> /dev/null ; } ; ! AgentsToolsEmergencyHolds || return 0
+	{ type AgentsToolsEmergencyHolds > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.Emergency.include"; } ; ! AgentsToolsEmergencyHolds || return 0
 	## WHAT ARRIVED MUST CARRY ITS OWN CONTEXT, since the rewind drops the conversation that asked: each source this arrival came on is a
 	## permanent record -- an ask's answer (the floor notice restates the question and the verdict), an inbox document, an input-scan update,
 	## the session floor's own records -- never a raw channel message (slack:, mentions:, tagged:, dms:), which would arrive without it.
@@ -404,6 +427,7 @@ AgentsHarnessWaitFloorRewind(){ ## the sources the Wait named, the wait result f
 		printf 'NOTE: no return to the checkpoint on this floor wait: this duty holds no opening or armed snapshot.\n' ; return 0
 	fi
 	fwRow="$( printf '%s\n' "${harnessSnapshots:-}" | LC_ALL=C awk -F '\t' -v want="$fwTarget" '$1 == want { print $4 " " $5 ; exit }' )"
+	type AgentsHarnessCheckpointSum > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessCheckpoint.include"
 	fwSum="$( AgentsHarnessCheckpointSum )"
 	if [ -z "$fwRow" ] || [ "$fwRow" != "$fwSum" ] ; then
 		printf 'NOTE: no return to the checkpoint on this floor wait: the tools or the system text changed since the snapshot %s, so its cached prefix would not be read.\n' "$fwTarget" ; return 0
@@ -416,6 +440,10 @@ AgentsHarnessWaitFloorRewind(){ ## the sources the Wait named, the wait result f
 }
 
 AgentsHarnessToolWait(){
+	type AgentsHarnessSpawnRecordPath > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessSpawn.include"
+	type AgentsHarnessWholeNumber > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessToolsFile.include"
+	type AgentsHarnessSessionThread > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessMessages.include"
+	type AgentsHarnessCheckListCounts > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessBatch.include"
 	local toolSources="$1" toolTimeout="$2" toolPoll="$3" toolSince="$4" toolAddressee="$5" toolIncludeOwn="$6" waitRc=0 waitDiag="" waitSource waitStateful="false" waitSession waitName waitThread waitOwnSources="$1" waitIdleReturn=""
 	local waitCounts waitBusy waitFloorOnly="" waitAll waitOpen waitActive
 	local toolMode="${7:-}" toolSeen="${8:-}" toolNote="${9:-}" toolDone="${10:-}" toolWaitIds="${11:-}"
@@ -476,7 +504,7 @@ AgentsHarnessToolWait(){
 	local waitRecord="" waitSeatHolder="" waitHeldOthers=""
 	[ "$waitTool" != "true" ] || waitRecord="$( AgentsHarnessSpawnRecordPath "${MDAT_SPAWN_SESSION_ID:-}" 2> /dev/null )" || waitRecord=""
 	if [ -n "$waitRecord" ] ; then
-		type AgentsToolsSessionSeatTake > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include" 2> /dev/null || :
+		type AgentsToolsSessionLimitHeld > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionSeats.include"
 		if AgentsHarnessDismissHeldGive ; then
 			AgentsHarnessDismissedNext
 			return 0
@@ -523,7 +551,7 @@ AgentsHarnessToolWait(){
 			if [ -f "$MMDAPP/.local/agents/spawned/$waitOwnKey/$waitOwnKey.spawn.md" ] ; then
 				waitOwnRecord="$MMDAPP/.local/agents/spawned/$waitOwnKey/$waitOwnKey.spawn.md"
 			elif [ -d "$MMDAPP/.local/agents/spawned" ] ; then
-				type AgentsToolsSpawnedSessionRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include" 2> /dev/null || :
+				type AgentsToolsSpawnedSessionRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.StartedRecords.include"
 				! type AgentsToolsSpawnedSessionRecords > /dev/null 2>&1 || waitOwnRecord="$( AgentsToolsSpawnedSessionRecords "$waitOwnKey" own 2> /dev/null | LC_ALL=C sed -n '1p' )"
 				[ -z "$waitOwnRecord" ] || [ -f "$waitOwnRecord" ] || waitOwnRecord=""
 			fi
@@ -531,7 +559,7 @@ AgentsHarnessToolWait(){
 	fi
 	if [ -n "$waitOwnRecord" ] ; then
 		local waitReviewLeft=""
-		type AgentsReviewWaitLeft > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ReviewFlow.include" 2> /dev/null || :
+		type AgentsReviewWaitLeft > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ReviewFlow.include"
 		waitReviewLeft="$( AgentsReviewWaitLeft "${harnessSessionId:-${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}}" 2> /dev/null )" || waitReviewLeft=""
 		case "$waitReviewLeft" in
 			'') ;;
@@ -568,7 +596,7 @@ AgentsHarnessToolWait(){
 	## -- magic-team and human-owner, resolved below by --wait-for-input itself
 	## from an empty sources list.
 	if [ -z "$toolSources" ] && [ "$toolMode" != "continue" ] && [ "$toolMode" != "close" ] ; then
-		type AgentsToolsWaitDefaultSources > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include" 2> /dev/null || :
+		type AgentsToolsWaitDefaultSources > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/wait/AgentsTools.MemberWaitSourcesDefault.include"
 		local waitDefaultThread=""
 		waitDefaultThread="$( AgentsToolsWaitDefaultSources 2>/dev/null )" || waitDefaultThread=""
 		[ -z "$waitDefaultThread" ] || toolSources="$waitDefaultThread"
@@ -683,7 +711,9 @@ AgentsHarnessToolWait(){
 	## THE SECONDS WAITED ARE NOT MACHINERY TIME (the owner's pace ruling): the call's record keeps what the tooling spent around the
 	## wait (mach_ms), from the wait's own `# waited: <n>s` line, which both a TIMEOUT and a RECEIVED carry.
 	waitWaitedSec="$( LC_ALL=C sed -n 's/^# waited: \([0-9]*\)s of .*/\1/p' "$harnessScratch/wait.out" 2> /dev/null | head -1 )"
-	case "$waitWaitedSec" in ''|*[!0-9]*) ;; *) harnessToolRunMs=$(( waitWaitedSec * 1000 )) ;; esac
+	## Kept where the record reads it (AgentsHarnessToolRunMsKeep, where the kept context is loaded), else in the variable alone.
+	type AgentsHarnessToolRunMsKeep > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessContext.include"
+	case "$waitWaitedSec" in ''|*[!0-9]*) ;; *) AgentsHarnessToolRunMsKeep "$(( waitWaitedSec * 1000 ))" ;; esac
 	if [ "$waitTool" = "true" ] && [ "$( head -1 "$harnessScratch/wait.out" )" = "WAIT-RESULT: TIMEOUT" ] ; then
 		waitCounts="$( AgentsHarnessCheckListCounts )" || waitCounts=""
 		waitOpen="" waitActive=""

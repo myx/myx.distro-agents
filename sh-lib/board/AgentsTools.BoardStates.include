@@ -29,12 +29,6 @@ agentsBoardActiveStates="pending running review blocked parked"
 ## next sweep's set. Stated once, here, and every reader asks this name.
 agentsBoardStaleWindowSeconds=3600
 
-## THE BOARD TREE: the one answer to where the board of this context is, printed. Its two
-## writers -- the board move primitive and the scan's `scope:` line -- read it here, so the
-## tree a sweep scans and the tree its rounds write is one constant, never two literals.
-AgentsToolsBoardTree(){
-	printf '%s\n' "$MDAT_DATA_ROOT/board"
-}
 
 ## Makes the board ready to be written: its folder, and the folder of every state of the
 ## one list. Called by the one operation every board write goes through

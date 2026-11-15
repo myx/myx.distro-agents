@@ -16,9 +16,9 @@ set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 rigPkg="${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}/myx/myx.distro-agents"
 rigRegistries="$rigPkg/sh-lib/team-data/AgentsTools.Registries.include"
-rigSandbox="$rigPkg/sh-lib/session/AgentsTools.SpawnSandbox.include"
+rigSandbox="$rigPkg/sh-lib/spawn/AgentsTools.SpawnSandbox.include"
 rigControl="$rigPkg/sh-lib/session/AgentsTools.InternSessionControl.include"
-rigHousekeeping="$rigPkg/sh-lib/session/AgentsTools.SpawnSandbox.include"
+rigHousekeeping="$rigPkg/sh-lib/spawn/AgentsTools.SpawnSandbox.include"
 rigRowsAwk="$rigPkg/sh-lib/manager/AgentsManagerSessionRows.awk"
 rigTokensAwk="$rigPkg/sh-lib/manager/AgentsManagerSessionTokens.awk"
 rigMinutesAwk="$rigPkg/sh-lib/manager/AgentsManagerDateMinutes.awk"
@@ -51,7 +51,7 @@ cat > "$rigTmp/state.sh" <<'RIGSTATE'
 ## spawn id, status, live -- the state the registry derives for one run
 rigA1="$1" rigA2="$2" rigA3="$3" ; set --
 . "$RIG_INCLUDE" || exit 1
-AgentsToolsRegistryDeriveState "$rigA2" "$rigA3" "$rigA1" "$rigA1"
+AgentsToolsRunDeriveState "$rigA2" "$rigA3" "$rigA1" "$rigA1"
 RIGSTATE
 cat > "$rigTmp/control.sh" <<'RIGCONTROL'
 ## session id -- one tick of the session's own control thread, and the state word it left in control/state
@@ -124,7 +124,7 @@ rigMark(){ ## spawn id -- whether its park mark stands
 	[ -f "$rigStores/$1/parked" ] && printf present || printf gone
 }
 rigStateOf(){ ## spawn id, status, live
-	rigInRig "$rigRegistries" "$rigTmp/state.sh" "$1" "$2" "$3"
+	rigInRig "${rigRegistries%/team-data/*}/run/AgentsTools.RunState.include" "$rigTmp/state.sh" "$1" "$2" "$3"
 }
 rigSessionRow(){ ## session id
 	rigInRig "$rigRegistries" "$rigTmp/row.sh" "$1"

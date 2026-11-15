@@ -86,7 +86,7 @@ rigSettle
 
 echo "-- 3. the review-unseen mark reaches a commit --"
 ( cd "$rigWs" || exit 1
-  . "$rigLib/magic/AgentsTools.SpawnHousekeeping.include" < /dev/null > /dev/null 2>&1
+  . "$rigLib/board/AgentsTools.BoardHousekeeping.include" < /dev/null > /dev/null 2>&1
   AgentsToolsReviewUnseenEscalate rig-member ) > "$rigTmp/unseen.out" 2>&1
 rigAssert "3. the mark is written"                      "$( [ -f "$rigData/board/review/.unseen-dispatch-rig-unseen.md" ] && printf yes || printf no )" yes
 rigAssert "3. the mark reaches a commit"                "$( rigClean )" clean

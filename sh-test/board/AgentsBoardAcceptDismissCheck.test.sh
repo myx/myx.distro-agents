@@ -3,7 +3,9 @@
 ## item whose spawn-id names a live spawn sends DISMISSED, addressed to that spawn's own
 ## member, into its session thread -- the message AgentsDismissalMatch.awk recognises, so
 ## the child's Wait returns WAIT-RESULT: DISMISSED. Every case where nothing can be sent
-## still moves the item and says why. The stub is the coordinator's; the review flow calls its
+## still moves the item and says why. S6.27 stage 4: an accept closes the frame it reviews, and a run
+## whose session still holds a frame that asks for work stays live, while the same accept on a session's
+## last frame dismisses it as before. The stub is the coordinator's; the review flow calls its
 ## implementation, the in-context helper AgentsToolsBoardToProcessed, for a member reviewer. A fake `curl` first on PATH logs each Slack call and
 ## opens no socket; a ps beside it lists the rig's own runs only; the board, sandboxes and workspace are this rig's own temp tree.
 set -u
@@ -21,7 +23,7 @@ rigRefuse(){
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set, so the rig has no workspace temp folder}"
 rigTmp="$( mkdir -p "$MMDAPP/.local/temp" && mktemp -d "$MMDAPP/.local/temp/AgentsBoardAcceptDismissCheck-XXXXXXXX" )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
-trap 'rm -rf -- "$rigTmp"' EXIT
+trap '[ -n "${KEEP_RIG:-}" ] || rm -rf -- "$rigTmp"' EXIT
 rigData="$rigTmp/data"
 rigWs="$rigTmp/ws"
 rigSpawned="$rigWs/.local/agents/spawned"
@@ -84,7 +86,7 @@ rigAccept(){ ## result file, item filename, from state
 ## (--intern-mcp-execute), by <member> from a session acting as RIG_AGENT when set.
 rigAcceptHelper(){ ## result file, item filename, from state, member
 	: > "$rigTmp/calls" ; : > "$rigTmp/bodies"
-	printf '%s\n' 'type AgentsToolsBoardToProcessed > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.MagicBoard.include"' \
+	printf '%s\n' 'type AgentsToolsBoardToProcessed > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.BoardMoves.include"' \
 		'AgentsToolsBoardToProcessed "$RIG_A_WHO" "$RIG_A_ITEM" --from-state:"$RIG_A_STATE"' \
 	| env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp" PATH="$rigTmp/bin:/usr/bin:/bin:/usr/sbin:/sbin" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDLT_ORIGIN="$MDLT_ORIGIN" \
 		MDLT_OPTION="--run-from-path $MDLT_ORIGIN" RIG_TMP="$rigTmp" RIG_FN="$rigFn" RIG_SCENARIO="$rigTmp" ${RIG_AGENT:+MDAT_SPAWN_AGENT="$RIG_AGENT"} \
@@ -163,7 +165,7 @@ rigAssert "process gone: the op says it is not running"    "$( LC_ALL=C grep -c 
 
 ## The same, with its spawn id still standing on another process's command line: inside the
 ## path of its folder, and quoted in that process's brief. A run is its own --session-id or
-## --resume word alone (AgentsToolsRegistryRunWords), so that line is no run of this child.
+## --resume word alone (AgentsToolsRunWords), so that line is no run of this child.
 rigRecord rig-held-e1f2 spawn-started "$rigHost" CRIGSESS6:1700000000.000600
 rigItem review dispatch-rig-held.md rig-held-e1f2
 printf '900002 claude --add-dir %s/rig-held-e1f2/input --session-id rig-other-run-0a1b --agent keeper-myx Readable %s/rig-held-e1f2/input, as said by --session-id rig-held-e1f2\n' "$rigSpawned" "$rigSpawned" >> "$rigTmp/ps.list"
@@ -195,6 +197,45 @@ RIG_AGENT=keeper-myx rigAccept "$rigTmp/o8" dispatch-rig-who.md review
 rigAssert "the coordinator's stub from another member's session is refused, the item stays" "$( cat "$rigTmp/o8.rc" ):$( [ -f "$rigData/board/review/dispatch-rig-who.md" ] && echo stays ):$( LC_ALL=C grep -c "move-to-processed is magic-coordinator's only" "$rigTmp/o8" )" 1:stays:1
 RIG_AGENT=keeper-myx rigAcceptHelper "$rigTmp/o9" dispatch-rig-who.md review keeper-myx
 rigAssert "the review flow's implementation helper accepts it for that member's own review" "$( cat "$rigTmp/o9.rc" ):$( [ -f "$rigData/board/processed/dispatch-rig-who.md" ] && echo processed )" 0:processed
+
+echo "-- S6.27 stage 4: an accept closes the frame it reviews, and a frame below it keeps the run live --"
+## The record carries the session's stack: the top frame `current`, one `open` below it. The accept closes the top,
+## the open one still asks for work, so the run is not dismissed and stays live (design lines 257 to 265).
+rigRecordWithStack(){ ## spawn-id, the routine-stack lines
+	mkdir -p "$rigSpawned/$1" "$rigWs/.local/agents/sessions/$1"
+	{
+		printf -- '---\nsession-id: %s\nspawn-id: %s\nhost: %s\nowner: keeper-myx\nstatus: spawn-started\n' "$1" "$1" "$rigHost"
+		printf 'routine-stack: %s\n' $2
+		printf -- '---\n'
+	} > "$rigSpawned/$1/$1.spawn.md"
+}
+rigFramesOf(){ ## spawn id -- the frames its record holds, joined
+	LC_ALL=C awk '$0 == "---" { if ( ++d == 2 ) exit ; next } d == 1 && index( $0, "routine-stack: " ) == 1 { printf "%s%s", ( n++ ? " -> " : "" ), substr( $0, 16 ) }' "$rigSpawned/$1/$1.spawn.md" 2> /dev/null
+}
+## Both stand-in runs go into the rig's process list before the first accept, because the tooling keeps a
+## read of that list for 10 s: a pid added between two calls is invisible to the second.
+rigLiveSpawn2="rig-stack-$$-b2c3"
+rigLiveSpawn3="rig-stack-$$-c4d5"
+printf '900003 rig-run --session-id %s\n900004 rig-run --session-id %s\n' "$rigLiveSpawn2" "$rigLiveSpawn3" >> "$rigTmp/ps.list"
+rigRecordWithStack "$rigLiveSpawn2" "rig-a.routine.md:current rig-b.routine.md:open"
+rigItem review dispatch-rig-stack.md "$rigLiveSpawn2"
+rigAccept "$rigTmp/o10" dispatch-rig-stack.md review
+rigAssert "the move succeeds and the item lands in processed"  "$( cat "$rigTmp/o10.rc" ):$( [ -f "$rigData/board/processed/dispatch-rig-stack.md" ] && echo yes )" "0:yes"
+rigAssert "the accept says the run keeps its session, and why" "$( LC_ALL=C grep -c '^ACCEPT-DISMISS: not done: the run keeps its session, because 1 frame(s) still ask for work' "$rigTmp/o10" )" 1
+rigAssert "the frame it reviewed is done, and the open one stays open" "$( rigFramesOf "$rigLiveSpawn2" )" "rig-a.routine.md:done -> rig-b.routine.md:open"
+rigAssert "so the run carries no dismissal mark"               "$( rigMark "$rigLiveSpawn2" )" "none"
+rigAssert "and nothing was posted to it"                       "$( rigPosts )" 0
+
+## The control: the same record with one frame. The accept closes it, nothing asks for work, and the run is dismissed
+## as any run was before the stack existed. Without this, the case above would pass on an accept that never dismissed.
+rigRecordWithStack "$rigLiveSpawn3" "rig-a.routine.md:current"
+rigItem review dispatch-rig-stack-one.md "$rigLiveSpawn3"
+rigAccept "$rigTmp/o11" dispatch-rig-stack-one.md review
+rigAssert "control: the last frame closes, so it is dismissed"  "$( rigAcceptLine "$rigTmp/o11" )" "ACCEPT-DISMISS: sent DISMISSED"
+rigAssert "control: its frame reads done"                      "$( rigFramesOf "$rigLiveSpawn3" )" "rig-a.routine.md:current"
+rigAssert "control: nothing is written into a stack that holds no frame asking for work" \
+	"$( LC_ALL=C grep -c 'routine-stack-close' "$rigSpawned/$rigLiveSpawn3/$rigLiveSpawn3.spawn.md" 2> /dev/null || : )" 0
+rigAssert "control: and it carries its dismissal mark"         "$( rigMark "$rigLiveSpawn3" )" "magic-coordinator (the accept of dispatch-rig-stack-one.md)"
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ BOARD ACCEPT DISMISS CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

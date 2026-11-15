@@ -1,0 +1,50 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+## AgentsTools.OpManagerKeysTrustDelete.include -- the operation `--manager-keys-trust-delete`, sourced by AgentsTools.ManagerKeys.include with the operation's arguments.
+## A trusted key removed: the one line that holds it is taken out of the account's authorized keys, and every
+## other line, options, comments and blanks, stays as it stands. It is named `trusted-<n>`, as --manager-keys-list
+## prints it, n counting from 1. Refused where the file is not there, holds no such key, or cannot be written.
+## One row `deleted`.
+		type AgentsToolsManagerKeysTrusted > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.PublicKeys.include"
+		local deleteOp="$1" deleteKey="${2:-}" deleteN="" deleteFile deleteMode deleteTmp deleteFound="" deleteType deleteText deleteComment deleteFinger delN delType delText delComment
+		shift
+		[ $# -eq 1 ] || { echo "⛔ ERROR: $MDSC_CMD $deleteOp: syntax is $deleteOp <trusted-<n>>, got $# argument(s) -- nothing was done" >&2 ; set +e ; return 1 ; }
+		case "$deleteKey" in
+			trusted-[0123456789]*) deleteN="${deleteKey#trusted-}" ;;
+			*) echo "⛔ ERROR: $MDSC_CMD $deleteOp: the word given is no trusted key, which --manager-keys-list names trusted-<n> -- nothing was done" >&2 ; set +e ; return 1 ;;
+		esac
+		case "$deleteN" in 0*|'') echo "⛔ ERROR: $MDSC_CMD $deleteOp: the word given is no trusted key, which --manager-keys-list names trusted-<n>, n counting from 1 -- nothing was done" >&2 ; set +e ; return 1 ;; esac
+		deleteFile="${HOME%/}/.ssh/authorized_keys"
+		[ -f "$deleteFile" ] && [ -r "$deleteFile" ] || { echo "⛔ ERROR: $MDSC_CMD $deleteOp: no authorized keys file stands at $deleteFile -- nothing was done" >&2 ; set +e ; return 1 ; }
+		while IFS='|' read -r delN deleteType deleteText deleteComment ; do
+			[ "$delN" = "$deleteN" ] || continue
+			deleteFound="yes" ; break
+		done <<< "$( AgentsToolsManagerKeysTrusted )"
+		[ -n "$deleteFound" ] || { echo "⛔ ERROR: $MDSC_CMD $deleteOp: the file holds no trusted key $deleteKey -- nothing was done" >&2 ; set +e ; return 1 ; }
+		[ -w "$deleteFile" ] || { echo "⛔ ERROR: $MDSC_CMD $deleteOp: the authorized keys file cannot be written: $deleteFile -- nothing was done" >&2 ; set +e ; return 1 ; }
+		deleteFinger="$( AgentsToolsManagerKeysTrustedFinger "$deleteType" "$deleteText" )"
+		deleteMode="$( AgentsToolsManagerKeysMode "$deleteFile" )"
+		deleteTmp="$( mktemp "$deleteFile.delete.XXXXXX" 2> /dev/null )" || { echo "⛔ ERROR: $MDSC_CMD $deleteOp: a file for the new authorized keys could not be made beside it -- nothing was changed" >&2 ; set +e ; return 1 ; }
+		if ! LC_ALL=C awk -v n="$deleteN" '
+			/^[ \t]*(#|$)/ { print ; next }
+			{
+				for ( at = 1 ; at < NF ; at++ ) { if ( $at ~ /^(ssh-|ecdsa-|sk-)/ ) { break } }
+				if ( at < NF && $at ~ /^(ssh-|ecdsa-|sk-)/ && $(at + 1) ~ /^[A-Za-z0-9+\/=]+$/ ) {
+					total++
+					if ( total == n ) { next }
+				}
+				print
+			}' "$deleteFile" > "$deleteTmp" ; then
+			rm -f -- "$deleteTmp"
+			echo "⛔ ERROR: $MDSC_CMD $deleteOp: the authorized keys could not be read -- nothing was changed" >&2
+			set +e ; return 1
+		fi
+		[ -n "$deleteMode" ] && chmod "$deleteMode" "$deleteTmp" 2> /dev/null
+		if ! mv -f -- "$deleteTmp" "$deleteFile" ; then
+			rm -f -- "$deleteTmp"
+			echo "⛔ ERROR: $MDSC_CMD $deleteOp: the new authorized keys could not be put in place -- nothing was changed" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsManagerKeysTrustedDone deleted "$deleteN" "$deleteFile" "$deleteType" "$deleteFinger"
+		return 0

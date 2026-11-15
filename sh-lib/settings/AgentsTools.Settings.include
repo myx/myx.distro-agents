@@ -1,0 +1,58 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.Settings.include -- the agents settings store: the scopes of the agents subsystem and their keys. Sourced, never run.
+## A scope is the file .local's setting reader keeps for `--agents-config-option <scope>` (LocalTools.Config.include). This include is the
+## one place that knows where a scope lives, and the agents subsystem's registered reader of its own scopes (LocalTools.ManagerScope.include,
+## `source`). A key is read only through .local's setting reader, never by a read of the file, so a change of its format reaches no code here.
+##
+## AgentsSettingsStoreDir <workspace>             the folder of the scopes, for the paths the console shows
+## AgentsSettingsScopeFile <workspace> <scope>      the scope's file, for the scope rows the console prints
+## AgentsSettingsScopeHas <workspace> <scope>       rc 0 where the scope exists
+## AgentsSettingsScopes <workspace> [<prefix>]      the names of the scopes, those starting with <prefix>, one a line
+## AgentsSettingsRead <workspace> <scope> <reader arguments>...   .local's setting reader: --select KEY, --select-default KEY DEFAULT, --select-all
+## AgentsSettingsKeyNames <workspace> <scope> [<prefix>]           the keys the scope holds, those starting with <prefix>, one a line, each once
+## AgentsSettingsHoldsKeys <workspace> <scope> <prefix>            rc 0 where the scope holds a key starting with <prefix>
+## AgentsSettingsKeyNamesJoined <workspace> <scope> <prefix> [<key to leave out>]  those keys joined by ", ": names only, never a value
+## AgentsSettingsScopeCreate|AgentsSettingsScopeDelete <workspace> <scope>, AgentsSettingsScopeRename <workspace> <old> <new>
+AgentsSettingsStoreDir(){ ## workspace
+	printf '%s/.local/.agents\n' "${1%/}"
+}
+AgentsSettingsScopeFile(){ ## workspace, scope
+	printf '%s/.local/.agents/%s.agent.env\n' "${1%/}" "$2"
+}
+AgentsSettingsScopeHas(){ ## workspace, scope
+	[ -f "${1%/}/.local/.agents/$2.agent.env" ]
+}
+AgentsSettingsScopes(){ ## workspace, prefix (may be empty)
+	local scopesFile scopesName
+	for scopesFile in "${1%/}/.local/.agents/${2:-}"*.agent.env ; do
+		[ -f "$scopesFile" ] || continue
+		scopesName="${scopesFile##*/}"
+		printf '%s\n' "${scopesName%.agent.env}"
+	done
+}
+AgentsSettingsRead(){ ## workspace, scope, the setting reader's arguments
+	( MMDAPP="${1%/}" ; shift ; set -- --agents-config-option "$@" ; . "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/LocalTools.Config.include" )
+}
+AgentsSettingsKeyNames(){ ## workspace, scope, prefix (may be empty)
+	AgentsSettingsScopeHas "$1" "$2" || return 0
+	AgentsSettingsRead "$1" "$2" --select-all | LC_ALL=C awk -v p="${3:-}" '{ k = $0 ; sub( /=.*/, "", k ) } index( k, p ) == 1 && !( k in seen ) { seen[k] = 1 ; print k }'
+}
+AgentsSettingsHoldsKeys(){ ## workspace, scope, prefix
+	[ -n "$( AgentsSettingsKeyNames "$1" "$2" "$3" )" ]
+}
+AgentsSettingsKeyNamesJoined(){ ## workspace, scope, prefix, a key to leave out (may be empty)
+	AgentsSettingsKeyNames "$1" "$2" "$3" | LC_ALL=C awk -v out="${4:-}" '$0 != out { printf "%s%s", ( n++ ? ", " : "" ), $0 }'
+}
+AgentsSettingsScopeCreate(){ ## workspace, scope -- an empty scope, as the setting reader makes one: the folder 770, the file 660
+	mkdir -p "${1%/}/.local/.agents" && chmod 770 "${1%/}/.local/.agents" && ( umask 007 ; : > "${1%/}/.local/.agents/$2.agent.env" ) && chmod 660 "${1%/}/.local/.agents/$2.agent.env"
+}
+AgentsSettingsScopeDelete(){ ## workspace, scope
+	rm -f -- "${1%/}/.local/.agents/$2.agent.env"
+}
+AgentsSettingsScopeRename(){ ## workspace, old scope, new scope -- rc 1 where the new one is there already
+	[ ! -e "${1%/}/.local/.agents/$3.agent.env" ] || return 1
+	mv -- "${1%/}/.local/.agents/$2.agent.env" "${1%/}/.local/.agents/$3.agent.env"
+}

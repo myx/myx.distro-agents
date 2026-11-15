@@ -1,3 +1,6 @@
+---
+maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
+---
 # Evidence discipline: making a check able to fail, and a result mean what it says
 
 Read this when judging whether something is actually verified — a fix, a
@@ -89,6 +92,8 @@ different bounds, filters or formatting are two measurements, and the
 difference between them is the apparatus. One session read a subject with
 `head -14` and its control with `head -4`, and reported its own truncation as a
 property of the subject. Take the control through the identical shape.
+
+**A success word belongs to its call site.** Where a check crosses two routes to one effect, read each route's own token and assert each one. Separate a run that reports several failures at once into instrument and subject before writing either down.
 
 **A two-sided probe is read against the flip its arm must see.** The flip is a
 change in the subject with every other input held. An input is held only when
@@ -384,6 +389,8 @@ resolves by ordering, rather than by argument.
 - State the file's `mtime` beside the claim's own stamp.
 - An absent-at-read with a file stamp earlier than the claim is a finding about the claim.
 - An absent-at-read with a file stamp later than the claim is a finding about the reader.
+
+A format string that appends a suffix is not a conversion. `stat -f '%Sm' -t '%Y-%m-%dT%H:%M:%SZ'` prints local time with a typed `Z`. Compute the instant with `date -u -r "$( stat -f '%m' <file> )"`. Both commands are macOS and FreeBSD forms. The two arms agree only under `TZ=UTC`, where local time is UTC. Run them side by side in another zone: there, agreement is an instrument that never reached its subject.
 
 ## A refusal and a failure share one status
 

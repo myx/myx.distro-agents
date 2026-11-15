@@ -1,0 +1,145 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.SpawnSandboxSweep.include -- the sweep of the spawn sandboxes: the folders of an item and the state of a folder. Split out of AgentsTools.SpawnSandbox.include by concern, its functions unchanged. Sourced, never
+## run; it relies on what AgentsTools.SpawnSandbox.include sources for it.
+##
+## Empties input/ of every sandbox on this host with no live session, and says which; and
+## clears the harness scratch a run left in its tmp/ when it ended before its own cleanup.
+## A sandbox recorded on another host, or with any session still running, is never touched.
+## Running is asked for each record of the one rule a run is recognised by, and of no match
+## of this sweep's own (AgentsToolsSpawnRuns, run/AgentsTools.RunProcesses.include): a
+## process runs as the spawn by its own word, or the process its record names still lives. A
+## command line that only carries a spawn's id holds no sandbox: a process of the tooling
+## that waits on its session, or another run whose line holds this sandbox's path.
+AgentsToolsSpawnSandboxSweep(){ ## where
+	local sweepRoot="$MMDAPP/.local/agents/spawned" sweepDir sweepRecord sweepSession sweepHost sweepLive sweepHold thisHost
+	[ -d "$sweepRoot" ] || return 0
+	thisHost="$( hostname -s 2>/dev/null )" || thisHost="unknown"
+	type AgentsToolsUndoHoldState > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/undo/AgentsTools.UndoHold.include"
+	## A process list that cannot be read says nothing of any run: nothing is touched then.
+	ps -A -ww -o args= > /dev/null 2>&1 || return 0
+	type AgentsToolsSpawnRuns > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunProcesses.include"
+	for sweepDir in "$sweepRoot"/*/ ; do
+		sweepDir="${sweepDir%/}"
+		[ -d "$sweepDir/input" ] || continue
+		[ -n "$( find "$sweepDir/input" "$sweepDir/tmp" -mindepth 1 -maxdepth 1 2>/dev/null | head -1 )" ] || continue
+		## A sandbox with no record, or with a record under 10 minutes old, may still be launching.
+		sweepLive="no-record"
+		for sweepRecord in "$sweepDir"/*.spawn.md ; do
+			[ -f "$sweepRecord" ] || continue
+			sweepLive=""
+			if [ -n "$( find "$sweepRecord" -mmin -10 2>/dev/null )" ] ; then sweepLive="launching" ; break ; fi
+			## spawn-id, not session-id: session-id is now the coworking session's own
+			## shared identifier, which a joined spawn's own process never carries in
+			## its argv, where spawn-id (this process's own identity) always does.
+			sweepSession="$( LC_ALL=C awk '/^spawn-id: /{ print substr($0, 11) ; exit ; }' "$sweepRecord" )"
+			sweepHost="$( LC_ALL=C awk '/^host: /{ print substr($0, 7) ; exit ; }' "$sweepRecord" )"
+			if [ "$sweepHost" != "$thisHost" ] ; then sweepLive="other-host" ; break ; fi
+			[ -n "$sweepSession" ] || continue
+			if AgentsToolsSpawnRuns "$sweepSession" "$sweepRecord" ; then sweepLive="running" ; break ; fi
+		done
+		[ -z "$sweepLive" ] || continue
+		## A sandbox a promise of undo holds is never swept, whatever the record
+		## says: the marker is the cleaner's own, read beside the liveness test, and
+		## what it protects is the record it names.
+		sweepHold="$( AgentsToolsUndoHoldState "$sweepDir/undo.hold" )"
+		case "$sweepHold" in
+			absent) ;;
+			missing)
+				echo "# $MDSC_CMD: $1: kept ${sweepDir##*/}, whose undo.hold names no open record: $( AgentsToolsUndoHoldUnresolved "$sweepDir/undo.hold" | LC_ALL=C tr '\n' ' ' )" >&2
+				continue
+			;;
+			*) continue ;;
+		esac
+		if [ -n "$( find "$sweepDir/input" -mindepth 1 -maxdepth 1 2>/dev/null | head -1 )" ] ; then
+			AgentsToolsSpawnSandboxCleanInput "$sweepDir/input"
+			echo "# $MDSC_CMD: $1: emptied input/ of ${sweepDir##*/}, whose session is no longer running" >&2
+		fi
+		## Scratch stays scratch: what a harness run left in tmp/ (a run killed before its
+		## own cleanup) goes; whatever mattered was already written to its session log.
+		if [ -n "$( find "$sweepDir/tmp" -mindepth 1 -maxdepth 1 2>/dev/null | head -1 )" ] ; then
+			find "$sweepDir/tmp" -mindepth 1 -maxdepth 1 -exec rm -rf -- {} + 2>/dev/null
+			echo "# $MDSC_CMD: $1: cleared the scratch left in tmp/ of ${sweepDir##*/}, whose session is no longer running" >&2
+		fi
+	done
+	return 0
+}
+
+## Sandbox folder names linked to one board item, one per line, sorted, empty when none. Two links, either one is enough:
+## the item's own spawn-id naming a record, and a record's spawns/spawned-by naming the item. An empty or `-` spawn-id matches nothing.
+AgentsToolsSpawnSandboxFoldersOfItem(){ ## item path
+	local itemStem="${1##*/}" itemSpawn
+	itemStem="${itemStem%.md}"
+	itemSpawn="$( AgentsToolsSpawnSandboxRecordHeader "$1" spawn-id )"
+	[ -d "$MMDAPP/.local/agents/spawned" ] || return 0
+	LC_ALL=C awk -v wantStem="$itemStem" -v wantSpawn="$itemSpawn" '
+		FNR == 1 {
+			fmCount = 0 ;
+			folderName = FILENAME ; sub( /\/[^\/]*$/, "", folderName ) ; sub( /^.*\//, "", folderName ) ;
+			recordName = FILENAME ; sub( /^.*\//, "", recordName ) ;
+			if ( wantSpawn != "" && wantSpawn != "-" && recordName == wantSpawn ".spawn.md" ) { print folderName ; }
+		}
+		$0 == "---" { fmCount++ ; next ; }
+		fmCount == 1 && ( index( $0, "spawns: " ) == 1 || index( $0, "spawned-by: " ) == 1 ) {
+			linkText = $0 ; sub( /^[^:]*: /, "", linkText ) ;
+			partCount = split( linkText, linkParts, / *, */ ) ;
+			for ( partIndex = 1 ; partIndex <= partCount ; partIndex++ ) {
+				linkStem = linkParts[partIndex] ; sub( /\.md$/, "", linkStem ) ;
+				if ( linkStem == wantStem ) { print folderName ; break ; }
+			}
+		}
+	' "$MMDAPP/.local/agents/spawned"/*/*.spawn.md 2> /dev/null | LC_ALL=C sort -u || :
+}
+
+## Whether a sandbox folder may be removed for one item that is going: `open` (a record still started or without a status),
+## `shared` (another board item still links to it, or the folder is not a plain directory under the spawned root),
+## `held` (its root carries the marker a promise of undo writes, so no cleaner may remove it), else `removable`.
+AgentsToolsSpawnSandboxFolderState(){ ## folder name, item stem going away
+	local folderName="$1" skipStem="$2" spawnRoot="$MMDAPP/.local/agents/spawned"
+	local recordPath recordStatus recordSpawn linkField linkText linkStem boardPath spawnIds="" sharedHold
+	type AgentsToolsUndoHoldState > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/undo/AgentsTools.UndoHold.include"
+	case "$folderName" in ''|.|..|*/*) echo shared ; return 0 ;; esac
+	[ -d "$spawnRoot/$folderName" ] && [ ! -L "$spawnRoot/$folderName" ] || { echo shared ; return 0 ; }
+	## A marker naming no open record keeps the folder as a marker naming one does: the
+	## cleaner cannot tell a promise it cannot see from no promise, so it deletes nothing.
+	sharedHold="$( AgentsToolsUndoHoldState "$spawnRoot/$folderName/undo.hold" )"
+	case "$sharedHold" in
+		absent) ;;
+		missing) echo "# $MDSC_CMD: kept sandbox $folderName, whose undo.hold names no open record: $( AgentsToolsUndoHoldUnresolved "$spawnRoot/$folderName/undo.hold" | LC_ALL=C tr '\n' ' ' )" >&2 ; echo held ; return 0 ;;
+		*) echo held ; return 0 ;;
+	esac
+	for recordPath in "$spawnRoot/$folderName"/*.spawn.md ; do
+		[ -f "$recordPath" ] || continue
+		recordStatus="$( AgentsToolsSpawnSandboxRecordHeader "$recordPath" status )"
+		case "$recordStatus" in ''|spawn-started) echo open ; return 0 ;; esac
+	done
+	for recordPath in "$spawnRoot/$folderName"/*.spawn.md ; do
+		[ -f "$recordPath" ] || continue
+		recordSpawn="${recordPath##*/}"
+		spawnIds="$spawnIds ${recordSpawn%.spawn.md}"
+		for linkField in spawns spawned-by ; do
+			linkText="$( AgentsToolsSpawnSandboxRecordHeader "$recordPath" "$linkField" )"
+			for linkStem in ${linkText//,/ } ; do
+				linkStem="${linkStem%.md}"
+				[ "$linkStem" != "$skipStem" ] || continue
+				for boardPath in "$MDAT_DATA_ROOT"/board/*/"$linkStem.md" ; do
+					[ ! -f "$boardPath" ] || { echo shared ; return 0 ; }
+				done
+			done
+		done
+	done
+	if LC_ALL=C awk -v wantIds="$spawnIds" -v skipStem="$skipStem" '
+		BEGIN { idCount = split( wantIds, idParts, " " ) ; for ( idIndex = 1 ; idIndex <= idCount ; idIndex++ ) { idSet[idParts[idIndex]] = 1 ; } }
+		FNR == 1 { fmCount = 0 ; fileBase = FILENAME ; sub( /^.*\//, "", fileBase ) ; skipFile = ( fileBase == skipStem ".md" ) ; }
+		skipFile { next ; }
+		$0 == "---" { fmCount++ ; next ; }
+		fmCount == 1 && index( $0, "spawn-id: " ) == 1 && ( substr( $0, 11 ) in idSet ) { found = 1 ; exit ; }
+		END { exit ( found ? 0 : 1 ) ; }
+	' "$MDAT_DATA_ROOT"/board/*/*.md 2> /dev/null ; then
+		echo shared ; return 0
+	fi
+	echo removable
+	return 0
+}

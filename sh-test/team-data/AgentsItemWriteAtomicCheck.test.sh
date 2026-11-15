@@ -48,7 +48,7 @@ rigUpsert(){ ## body text -- the call's output
 		"MDAT_DATA_ROOT=$rigData" "MDAT_SPAWN_AGENT=rig-member" "MDAT_SESSION_ID=rig-session" \
 		bash -c '
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.UseAgentsTools.include" 2> /dev/null
-			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.InternOpItem.include"
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/items/AgentsTools.InternOpItem.include"
 			AgentsToolsItemUpsert rig-member --from-board backlog "'"$rigItem"'" --upsert-from-stdin --context rig
 		' ) 2>&1 || upRc=$?
 	printf 'UPSERT-EXIT=%s\n' "$upRc"

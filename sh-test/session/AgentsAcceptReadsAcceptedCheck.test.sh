@@ -11,7 +11,7 @@
 set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 rigPkg="${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}/myx/myx.distro-agents"
-rigSandbox="$rigPkg/sh-lib/session/AgentsTools.SpawnSandbox.include"
+rigSandbox="$rigPkg/sh-lib/spawn/AgentsTools.SpawnSandbox.include"
 rigFixture="$rigPkg/sh-test/check-fixtures/harness-ask-check.curl.stub.sh"
 
 rigRefuse(){

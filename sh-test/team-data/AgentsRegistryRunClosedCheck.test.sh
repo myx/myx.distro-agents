@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 ## Behavioural check on a died start with no record of its own, closed by its session id (S5.2, board task 20261106T1031Z;
-## `AgentsToolsRegistryRunClosed` and `AgentsToolsRegistryDeriveState` in AgentsTools.Registries.include). A start that died
+## `AgentsSessionRunClosed` in session/AgentsTools.SessionStore.include and `AgentsToolsRunDeriveState` in run/AgentsTools.RunState.include). A start that died
 ## before it wrote a record has no id but its session's, so the console's close names the session: a run carrying no spawn-id
 ## goes by its session id, and reads finished only then. Held, run rather than read, against a store of this check's own:
 ##   1. A RUN WITH NO RECORD OF ITS OWN READS FINISHED once control/closed names its session id.
@@ -13,7 +13,7 @@
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigPackage="${RIG_PACKAGE:-$MDLT_ORIGIN/myx/myx.distro-agents}"
-rigInclude="$rigPackage/sh-lib/team-data/AgentsTools.Registries.include"
+rigInclude="$rigPackage/sh-lib/run/AgentsTools.RunState.include"
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }
@@ -39,7 +39,7 @@ rigAssert(){ ## what is asserted, got, want
 }
 ## The state the registry derives, for one run, in a shell of its own with only the include loaded: status, live, session id, run id.
 rigState(){ ## status, live, session id, run id
-	MMDAPP="$rigWs" bash -c '. "$1" ; shift ; AgentsToolsRegistryDeriveState "$@"' rig-state "$rigInclude" "$@" 2>&1 | tail -n 1
+	MMDAPP="$rigWs" bash -c '. "$1" ; shift ; AgentsToolsRunDeriveState "$@"' rig-state "$rigInclude" "$@" 2>&1 | tail -n 1
 }
 rigClose(){ ## what control/closed holds: a row, or a bare id
 	printf '%s\n' "$1" > "$rigCtl/closed"

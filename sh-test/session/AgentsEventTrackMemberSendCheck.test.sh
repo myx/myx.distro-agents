@@ -58,7 +58,7 @@ rigPosts(){ ## -> the chat.postMessage lines of the log, "<second>\t<text>"
 rigQueue="$rigWs/.local/agents/event-track-send/CRIGTRACK"
 mkdir -p "$rigTmp/src" && : > "$rigTmp/src/lines" && printf 'what=rig-queued-notice\0' > "$rigTmp/src/fields"
 MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" bash -c '
-	. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.EventTrackSend.include"
+	. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/event-track/AgentsTools.EventTrackSend.include"
 	queue="$( AgentsToolsEventTrackSendDir CRIGTRACK )" && AgentsToolsEventTrackSendAppend "$queue" keeper-myx notice "" event-track CRIGTRACK "" "$1/fields" "$1/lines"' rig "$rigTmp/src" > /dev/null \
 	|| rigRefuse "the rig could not queue a post"
 rigAssert "control: one post waits in the outbox, nothing was sent" "$( find "$rigQueue" -mindepth 1 -maxdepth 1 -type d -name '[0-9]*' | LC_ALL=C awk 'END { print NR + 0 }' ):$( rigPosts | LC_ALL=C awk 'END { print NR + 0 }' )" "1:0"

@@ -25,7 +25,7 @@ rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }
 [ -x "$rigTool" ] || rigRefuse "the team tooling is not at the origin this workspace resolves: $rigTool"
-[ -f "$rigHere/member/AgentsWaitSourceMode.awk" ] || rigRefuse "the form awk is missing"
+[ -f "$rigHere/wait/AgentsWaitSourceMode.awk" ] || rigRefuse "the form awk is missing"
 . "$rigFixtures/rig-temp.include.sh" || exit 1
 rigTmp="$( rigTempDir AgentsWaitSourceModeCheck )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT

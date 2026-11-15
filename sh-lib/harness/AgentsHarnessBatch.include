@@ -37,6 +37,7 @@ AgentsHarnessBatchServes(){ ## tool name
 ## One call of a batch, made as the call alone would be: the arm gate first, in the model loop, then a served call.
 AgentsHarnessBatchCall(){ ## tool name, arguments file, call number
 	local callGate
+	type AgentsHarnessArmGate > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessRun.include"
 	callGate="$( AgentsHarnessArmGate "$1" )"
 	[ -z "$callGate" ] || { printf '%s\n' "$callGate" ; return 1 ; }
 	MDAT_SPAWN_AGENT="${MDAT_SPAWN_AGENT:-$harnessAgent}" "$BASH" "$harnessHere/harness/AgentsUniversalHarness.sh" --intern-tool "$1" \
@@ -44,6 +45,7 @@ AgentsHarnessBatchCall(){ ## tool name, arguments file, call number
 }
 
 AgentsHarnessToolCheckList(){ ## raw arguments
+	type AgentsHarnessArgParse > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessRun.include"
 	if [ -n "$harnessPlaceOnly" ] ; then
 		## --intern-checklist-place: where the list would go, or why it has no place; the native
 		## TodoWrite hook reads it, and CheckList itself stays listed wherever this refuses.
@@ -149,7 +151,7 @@ AgentsHarnessToolCheckList(){ ## raw arguments
 	rm -f "$todoFile.added" 2>/dev/null || :
 	## THE MEMBER'S OWN WRITE MARKS WHAT IT WROTE (S6.27): an item of its new list that no mark names is `own`. The
 	## seed and a parent's add mark their own items, so a step and a parent's item keep what they were given.
-	type AgentsToolsCheckListSourcesMark > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.CheckListSources.include" 2>/dev/null || :
+	type AgentsToolsCheckListSourcesMark > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.CheckListSources.include"
 	AgentsToolsCheckListSourcesMark "$todoFile" "" "" 2>/dev/null || :
 	AgentsHarnessCheckListUnlock "$todoFile"
 	## The result names the member and the session it belongs to and gives no path: where the list is kept is the tooling's business, and
@@ -159,6 +161,7 @@ AgentsHarnessToolCheckList(){ ## raw arguments
 }
 
 AgentsHarnessCheckListPlace(){
+	type AgentsHarnessSpawnRecordPath > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessSpawn.include"
 	local placeRecord=""
 	checkListMember="" checkListSession="" checkListFolder="" checkListWhy=""
 	if [ -z "$harnessAgent" ] ; then
@@ -199,7 +202,7 @@ AgentsHarnessCheckListMembers(){
 	local membersFile membersName
 	{
 		printf '%s\n' "$checkListMember"
-		( . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include" && AgentsToolsSpawnedSessionRecords "$checkListSession" own 2> /dev/null ) \
+		( . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.StartedRecords.include" && AgentsToolsSpawnedSessionRecords "$checkListSession" own 2> /dev/null ) \
 			| while IFS= read -r membersFile ; do [ -n "$membersFile" ] && [ -f "$membersFile" ] && printf '%s\n' "$membersFile" ; done \
 			| LC_ALL=C xargs -n 200 awk 'FNR == 1 { fence = 0 } $0 == "---" { fence++ ; if ( fence > 1 ) nextfile ; next } fence == 1 && index( $0, "owner: " ) == 1 { owner = substr( $0, 8 ) ; if ( owner != "" && owner != "-" ) print owner ; nextfile }' 2> /dev/null
 		for membersFile in "$checkListFolder"/*.checklist.md ; do
@@ -208,6 +211,7 @@ AgentsHarnessCheckListMembers(){
 			printf '%s\n' "${membersFile%.checklist.md}"
 		done
 	} | while IFS= read -r membersName ; do
+		type AgentsHarnessBareName > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessSpawn.include"
 		! AgentsHarnessBareName "$membersName" || printf '%s\n' "$membersName"
 	done | LC_ALL=C sort -u
 }
@@ -231,6 +235,7 @@ AgentsHarnessCheckListRead(){ ## member name, `*`, or empty for the caller's own
 	case $'\n'"$readMembers"$'\n' in
 		*$'\n'"$readWant"$'\n'*) ;;
 		*)
+			type AgentsHarnessTruncateArg > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessRun.include"
 			printf 'ERROR: %s is not a participant of session %s, so it has no checklist here. Its participants are: %s. Give one of them as member, or * for all. Nothing was written.\n' \
 				"$( AgentsHarnessTruncateArg "$readWant" )" "$checkListSession" "$( printf '%s\n' "$readMembers" | LC_ALL=C awk 'NF { printf "%s%s", ( n++ ? ", " : "" ), $0 ; }' )"
 			return 0
@@ -245,7 +250,7 @@ AgentsHarnessCheckListRead(){ ## member name, `*`, or empty for the caller's own
 AgentsHarnessCheckListShown(){ ## the list file
 	local shownStore shownFile="$1"
 	[ -s "$shownFile" ] || { printf '(empty)\n' ; return 0 ; }
-	type AgentsToolsCheckListSourcesPath > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.CheckListSources.include" 2> /dev/null || :
+	type AgentsToolsCheckListSourcesPath > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.CheckListSources.include"
 	shownStore="$( AgentsToolsCheckListSourcesPath "$shownFile" )"
 	[ -n "$shownStore" ] && [ -f "$shownStore" ] || shownStore="/dev/null"
 	CHECKLIST_STORE="$shownStore" LC_ALL=C awk '
@@ -403,7 +408,7 @@ AgentsHarnessCheckListAppendLines(){ ## folder, member -- stdin: the item texts,
 	AgentsHarnessCheckListUnlock "$appendFile"
 	## AN ADDED ITEM WAKES ITS OWNER (S10.34): the owner's wait naps on a fifo, and a poke ends the nap, so the item is read now and not at the nap's end.
 	if [ "$appendCount" -gt 0 ] ; then
-		type AgentsToolsWakePoke > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.WakeMarker.include" 2> /dev/null || :
+		type AgentsToolsWakePoke > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.WakeMarker.include"
 		! type AgentsToolsWakePoke > /dev/null 2>&1 || AgentsToolsWakePoke "$2" || :
 	fi
 	printf '%s\n' "$appendCount"
@@ -413,6 +418,8 @@ AgentsHarnessCheckListAppendLines(){ ## folder, member -- stdin: the item texts,
 ## (the target's record names the caller's session as `parent-session-id`) and the participant its executor (the record's owner) -- or, with no session, to the caller's own list. Nothing
 ## already on a list is changed. The result names the member and the session and gives no path.
 AgentsHarnessCheckListAppend(){
+	type AgentsHarnessArgFind > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessRun.include"
+	type AgentsHarnessBareName > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessSpawn.include"
 	local appendMember="${harnessArgV_member:-}" appendSession="${harnessArgV_session:-}" appendCount appendIndex=0 appendItems="" appendRecord appendFolder appendAdded appendDueText appendDueAt
 	if AgentsHarnessArgFind todos.__count ; then
 		printf 'ERROR: append adds to a list and takes no todos, which replace your own: give one or the other. Nothing was written.\n' ; return 0
@@ -465,7 +472,7 @@ AgentsHarnessCheckListAppend(){
 		printf 'ERROR: the checklist of %s could not be written to. Nothing was written.\n' "$appendMember" ; return 0
 	fi
 	## WHAT A PARENT ADDED IS THE PARENT'S (S6.27): each line just added is marked so, and nothing already marked moves.
-	type AgentsToolsCheckListSourcesMark > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.CheckListSources.include" 2>/dev/null || :
+	type AgentsToolsCheckListSourcesMark > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.CheckListSources.include"
 	AgentsToolsCheckListSourcesMark "$appendFolder/$appendMember.checklist.md" "" "$appendItems" 2>/dev/null || :
 	printf 'OK: %s item(s) added, as pending, to the checklist of %s in session %s.\n' "$appendAdded" "$appendMember" "${appendSession:-$checkListSession}"
 }

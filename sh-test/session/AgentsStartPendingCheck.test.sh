@@ -11,7 +11,7 @@ set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 rigHere="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib"
 rigRefuse(){ echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1 ; }
-[ -f "$rigHere/session/AgentsTools.DispatcherSchedule.include" ] || rigRefuse "the schedule's functions are not at the origin this workspace resolves: $rigHere"
+[ -f "$rigHere/schedule/AgentsTools.DispatcherSchedule.include" ] || rigRefuse "the schedule's functions are not at the origin this workspace resolves: $rigHere"
 . "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
 rigTmp="$( rigTempDir AgentsStartPendingCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
@@ -43,7 +43,7 @@ export RIG_ITEMS_LOG="$rigItemsLog"
 export MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDSC_CMD=check
 ## The two includes are sourced as the schedule thread sources them, with no `set -u`: they read variables a caller may not have set.
 set +u
-MDLT_ORIGIN="$rigRealOrigin" . "$rigHere/session/AgentsTools.DispatcherSchedule.include" > /dev/null 2>&1
+MDLT_ORIGIN="$rigRealOrigin" . "$rigHere/schedule/AgentsTools.DispatcherSchedule.include" > /dev/null 2>&1
 MDLT_ORIGIN="$rigRealOrigin" . "$rigHere/board/AgentsTools.BoardItemHandler.include" > /dev/null 2>&1
 set -u
 type AgentsToolsScheduleStartPending > /dev/null 2>&1 || rigRefuse "AgentsToolsScheduleStartPending is not defined by sourcing the schedule's functions"

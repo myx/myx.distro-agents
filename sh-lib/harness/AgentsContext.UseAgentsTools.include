@@ -9,10 +9,10 @@
 export PYTHONDONTWRITEBYTECODE=1
 
 ## The bare-name gate, in an include of its own that has no other effect.
-. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.BareName.include"
+type AgentsToolsAssertBareName > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.BareName.include"
 
 ## The caller-check layer, in an include of its own that has no other effect.
-. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.CallerCheck.include"
+type AgentsToolsManagerCallerCheck > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.CallerCheck.include"
 
 ## Guarded like MDAT_SKILLSET_ROOT below: identical behaviour when set, and
 ## no unbound-variable death for a caller that runs under `set -u`. No

@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # ^^^ for syntax checking in the editor only
+type AgentsSessionThread > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
 
 ##
 ## AgentsTools.SessionComms.include -- the communications reader and writer of a workspace (F9.3 of the refactorings epic): one
@@ -48,7 +49,7 @@
 ## the next spawn starts it again.
 ##
 
-type AgentsToolsRegistryProcessesBegan > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
+type AgentsToolsRunProcessesBegan > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunProcesses.include"
 type AgentsToolsSessionChatDir > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include"
 type AgentsToolsSessionControlLive > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionControlStart.include"
 
@@ -117,8 +118,8 @@ AgentsToolsCommsActivityPass(){ ## now
 	agentsCommsActivityAt="$actNow"
 	actStore="$MMDAPP/.local/agents/comms/activity"
 	mkdir -p "$actStore" 2> /dev/null || return 0
-	type AgentsEventTrackPostQueueLines > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.InternOpEventTrackPost.include" dummy-arg > /dev/null 2>&1 || return 0
-	type AgentsToolsSessionRecordLive > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include" 2> /dev/null || return 0
+	type AgentsEventTrackPostQueueLines > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/event-track/AgentsTools.InternOpEventTrackPost.include" dummy-arg
+	type AgentsToolsSessionRecordLive > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionSeats.include"
 	while IFS= read -r actRecord ; do
 		[ -f "$actRecord" ] || continue
 		actSpawn="${actRecord##*/}" ; actSpawn="${actSpawn%.spawn.md}"
@@ -189,7 +190,7 @@ AgentsToolsCommsActivityPass(){ ## now
 		fi
 		rm -f "$actTmp"
 		actDone=$(( actDone + 1 ))
-	done <<< "$( type AgentsToolsSpawnedStartedRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include" 2> /dev/null ; AgentsToolsSpawnedStartedRecords )"
+	done <<< "$( type AgentsToolsSpawnedStartedRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.StartedRecords.include"; AgentsToolsSpawnedStartedRecords )"
 	return 0
 }
 
@@ -219,10 +220,11 @@ AgentsToolsSessionCommsLogBound(){
 ## or the one that has it began at another time, or it has ended and is only not collected yet. rc 2 it cannot be told: such a lock
 ## is left alone.
 AgentsToolsSessionCommsHolderLives(){ ## `<pid> <start>`
+	type AgentsToolsRunProcessesBegan > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunProcesses.include"
 	local holderPid="${1%% *}" holderStart="${1#* }" holderNow
 	case "$holderPid" in ''|*[!0123456789]*) return 1 ;; esac
 	[ "$holderStart" != "$1" ] && [ -n "$holderStart" ] || return 1
-	holderNow="$( printf '%s\n' "$holderPid" | AgentsToolsRegistryProcessesBegan )" || holderNow=""
+	holderNow="$( printf '%s\n' "$holderPid" | AgentsToolsRunProcessesBegan )" || holderNow=""
 	[ "$holderNow" != "$1" ] || return 0
 	[ -z "$holderNow" ] || return 1
 	kill -0 "$holderPid" 2> /dev/null || return 1
@@ -296,6 +298,7 @@ AgentsToolsSessionCommsLockGive(){
 ## and its errors appended to comms/log. The names that carry a member's session are taken out of its environment. One line of the
 ## log is this function's: the start it made, with the process and when it began.
 AgentsToolsSessionCommsStart(){
+	type AgentsToolsRunProcessesBegan > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunProcesses.include"
 	local startDir startLive startTool startMonitor startPid="" startBegan startDrop
 	if [ "${MDAT_COMMS_READER:-}" = "off" ] ; then
 		printf 'off\n'
@@ -346,7 +349,7 @@ AgentsToolsSessionCommsStart(){
 		;;
 	esac
 	disown "$startPid" 2> /dev/null || :
-	startBegan="$( printf '%s\n' "$startPid" | AgentsToolsRegistryProcessesBegan )" || startBegan=""
+	startBegan="$( printf '%s\n' "$startPid" | AgentsToolsRunProcessesBegan )" || startBegan=""
 	{
 		if [ -n "$startBegan" ] ; then
 			printf '%s a start of the communications reader is made: pid %s, begun %s\n' "$( date -u +%Y-%m-%dT%H:%M:%SZ )" "$startPid" "${startBegan#* }"
@@ -358,34 +361,6 @@ AgentsToolsSessionCommsStart(){
 	return 0
 }
 
-## THE LIST THE COMMUNICATIONS READER READS (S5.6). comms/sessions holds `<session> <channel>:<thread>` for each session whose control
-## thread lives and that has a thread, one a line. The thread writes its own line when it holds its lock, and takes it away when it
-## ends, so the list changes only when a session starts or ends. A reader over it never walks the folder of a closed session, and a
-## session that has just started is in it, so nothing waits for a walk either. A thread killed outright leaves its line behind, and the
-## reader's own minute check (AgentsToolsSessionCommsListSweep) takes away only the sessions the list names whose thread no longer
-## lives: no walk of a closed session is ever made.
-AgentsToolsSessionCommsListPath(){
-	[ -n "${MMDAPP:-}" ] || return 1
-	printf '%s' "$MMDAPP/.local/agents/comms/sessions"
-}
-
-## The thread of one session, as its own folder records it; where only the record of its founding run names it, read there once and
-## kept in the folder. Nothing where it has none.
-AgentsToolsSessionCommsThreadOf(){ ## session
-	local threadSession="${1:-}" threadHere threadValue="" threadRecord
-	case "$threadSession" in ''|-|.|..|*/*|*[[:space:]]*) return 0 ;; esac
-	[ -n "${MMDAPP:-}" ] || return 0
-	threadHere="$MMDAPP/.local/agents/sessions/$threadSession"
-	{ IFS= read -r threadValue < "$threadHere/session.thread" ; } 2> /dev/null || threadValue=""
-	if [ -z "$threadValue" ] ; then
-		threadRecord="$MMDAPP/.local/agents/spawned/$threadSession/$threadSession.spawn.md"
-		if [ -f "$threadRecord" ] ; then
-			threadValue="$( LC_ALL=C awk '$0 == "---" { if ( ++fence > 1 ) exit ; next } fence == 1 && index( $0, "session-thread: " ) == 1 { print substr( $0, 17 ) ; exit }' "$threadRecord" 2> /dev/null )"
-		fi
-		case "$threadValue" in [A-Z]*:[0-9]*.[0-9]*) printf '%s\n' "$threadValue" > "$threadHere/session.thread" 2> /dev/null || : ;; *) threadValue="" ;; esac
-	fi
-	printf '%s' "$threadValue"
-}
 
 ## The list without one session's line, printed.
 AgentsToolsSessionCommsListExcept(){ ## session
@@ -411,7 +386,7 @@ AgentsToolsSessionCommsListWrite(){
 AgentsToolsSessionCommsListAdd(){ ## session
 	local addSession="${1:-}" addThread
 	case "$addSession" in ''|-|.|..|*/*|*[[:space:]]*) return 0 ;; esac
-	addThread="$( AgentsToolsSessionCommsThreadOf "$addSession" )"
+	addThread="$( AgentsSessionThread "$addSession" )"
 	if [ -z "$addThread" ] ; then
 		AgentsToolsSessionCommsListRemove "$addSession"
 		return 0
@@ -428,14 +403,6 @@ AgentsToolsSessionCommsListRemove(){ ## session
 	return 0
 }
 
-## MARKED BY THE WRITERS, so the reader knows what waits without walking the folders of the sessions (S5.6): comms/work/<session> is
-## written by a send that leaves a post for the writer, by the console's inject, and by the pushing of a channel's outbox, and it is
-## taken away by the writer's own pass once the session has nothing left. A pass reads the marks by the shell alone.
-AgentsToolsSessionCommsMarkPath(){ ## session
-	case "${1:-}" in ''|-|.|..|*/*|*[[:space:]]*) return 1 ;; esac
-	[ -n "${MMDAPP:-}" ] || return 1
-	printf '%s' "$MMDAPP/.local/agents/comms/work/$1"
-}
 AgentsToolsSessionCommsMark(){
 	local markFile
 	case "${1:-}" in ''|-|.|..|*/*|*[[:space:]]*) return 0 ;; esac
@@ -443,14 +410,6 @@ AgentsToolsSessionCommsMark(){
 	markFile="$MMDAPP/.local/agents/comms/work/$1"
 	{ [ -d "${markFile%/*}" ] || mkdir -p "${markFile%/*}" ; } 2> /dev/null || return 0
 	{ printf '%s\n' "$( date +%s )" > "$markFile" ; } 2> /dev/null || :
-	return 0
-}
-AgentsToolsSessionCommsUnmark(){
-	local markFile
-	case "${1:-}" in ''|-|.|..|*/*|*[[:space:]]*) return 0 ;; esac
-	[ -n "${MMDAPP:-}" ] || return 0
-	markFile="$MMDAPP/.local/agents/comms/work/$1"
-	[ ! -e "$markFile" ] || rm -f "$markFile" 2> /dev/null || :
 	return 0
 }
 
@@ -544,18 +503,18 @@ AgentsToolsSessionCommsListBootstrap(){
 ## The sessions to look after, walked: `<session> <channel>:<thread>` for each whose control thread lives and that has a thread. The
 ## reader does not call this; it reads the list the control threads keep (AgentsToolsSessionCommsList, AgentsTools.SessionControlStart.include).
 AgentsToolsSessionCommsSessions(){
-	local sessionsDir="$MMDAPP/.local/agents/sessions" sessionPidFile sessionId sessionThread liveId livePid
-	for sessionPidFile in "$sessionsDir"/*/control/pid ; do
+	local sessionPidFile sessionId sessionThread liveId livePid
+	for sessionPidFile in "$MMDAPP/.local/agents/sessions"/*/control/pid ; do
 		[ -f "$sessionPidFile" ] || continue
 		sessionId="${sessionPidFile%/control/pid}" ; sessionId="${sessionId##*/}"
 		printf '%s\n' "$sessionId"
 	done | AgentsToolsSessionControlLive | while read -r liveId livePid ; do
 		sessionThread=""
-		{ IFS= read -r sessionThread < "$sessionsDir/$liveId/session.thread" ; } 2> /dev/null || :
+		{ IFS= read -r sessionThread < "$MMDAPP/.local/agents/sessions/$liveId/session.thread" ; } 2> /dev/null || :
 		## A session whose thread is named only in the record of its founding run: read there once, and kept in session.thread.
 		if [ -z "$sessionThread" ] ; then
 			sessionThread="$( LC_ALL=C awk '$0 == "---" { if ( ++fence > 1 ) exit ; next } fence == 1 && index( $0, "session-thread: " ) == 1 { print substr( $0, 17 ) ; exit }' "$MMDAPP/.local/agents/spawned/$liveId/$liveId.spawn.md" 2> /dev/null )"
-			case "$sessionThread" in [A-Z]*:[0-9]*.[0-9]*) printf '%s\n' "$sessionThread" > "$sessionsDir/$liveId/session.thread" 2> /dev/null || : ;; *) sessionThread="" ;; esac
+			case "$sessionThread" in [A-Z]*:[0-9]*.[0-9]*) printf '%s\n' "$sessionThread" > "$MMDAPP/.local/agents/sessions/$liveId/session.thread" 2> /dev/null || : ;; *) sessionThread="" ;; esac
 		fi
 		[ -z "$sessionThread" ] || printf '%s %s\n' "$liveId" "$sessionThread"
 	done
@@ -565,10 +524,10 @@ AgentsToolsSessionCommsSessions(){
 ## The sessions that have something left to deliver, live or not: a post waiting in the outbox, a message left by the console.
 ## Prints the session ids, once each.
 AgentsToolsSessionCommsWork(){
-	local sessionsDir="$MMDAPP/.local/agents/sessions" workFile workSeen="" workId
-	for workFile in "$sessionsDir"/*/chat.outbox/*.retry "$sessionsDir"/*/chat.inbox/*.msg ; do
+	local workFile workSeen="" workId
+	for workFile in "$MMDAPP/.local/agents/sessions"/*/chat.outbox/*.retry "$MMDAPP/.local/agents/sessions"/*/chat.inbox/*.msg ; do
 		[ -e "$workFile" ] || continue
-		workId="${workFile#"$sessionsDir"/}" ; workId="${workId%%/*}"
+		workId="${workFile#"$MMDAPP/.local/agents/sessions"/}" ; workId="${workId%%/*}"
 		case " $workSeen " in *" $workId "*) continue ;; esac
 		workSeen="$workSeen $workId"
 		printf '%s\n' "$workId"
@@ -709,7 +668,7 @@ AgentsToolsSessionCommsPauseSet(){ ## epoch
 ## record that carries the id as its session-id. Nothing for none.
 AgentsToolsSessionCommsMember(){ ## session
 	local memberRecord="" memberFile
-	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include" 2> /dev/null || return 0
+	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandbox.include"
 	for memberFile in "$MMDAPP/.local/agents/spawned"/*/"$1.spawn.md" ; do
 		[ -f "$memberFile" ] || continue
 		memberRecord="$memberFile"
@@ -717,7 +676,7 @@ AgentsToolsSessionCommsMember(){ ## session
 	done
 	if [ -z "$memberRecord" ] && [ -d "$MMDAPP/.local/agents/spawned" ] ; then
 		## The session's first record from the kept per-session list (AgentsTools.StartedRecords.include), never a grep of every record on a comms pass.
-		type AgentsToolsSpawnedSessionRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include" 2> /dev/null || :
+		type AgentsToolsSpawnedSessionRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.StartedRecords.include"
 		memberRecord="$( AgentsToolsSpawnedSessionRecords "$1" own 2> /dev/null | LC_ALL=C sed -n '1p' )" || memberRecord=""
 	fi
 	[ -n "$memberRecord" ] || return 0
@@ -726,14 +685,15 @@ AgentsToolsSessionCommsMember(){ ## session
 
 ## The number of blocks a chat index holds, read by the shell: its line count, since one line is one block. Sets
 ## agentsCommsIndexCount, 0 where the index is missing or empty. Called at every read and take of the reader pass, once a second
-## per live session, so it starts no process. Not to be called in a command substitution: what it sets is its caller's.
+## per live session, so it starts no process. A line is counted by `read`, linear in the file: a pattern substitution over the whole
+## text is quadratic in bash and held a reader on a 16 KB index for seconds a call. A last line with no newline is no block yet and
+## is not counted. Not to be called in a command substitution: what it sets is its caller's.
 AgentsToolsSessionCommsIndexCount(){ ## index file
-	local indexText=""
+	local indexLine="" indexCount=0
 	agentsCommsIndexCount=0
 	[ -s "$1" ] || return 0
-	IFS= read -r -d '' indexText < "$1" 2> /dev/null || :
-	indexText="${indexText//[!$'\n']/}"
-	agentsCommsIndexCount="${#indexText}"
+	while IFS= read -r indexLine ; do indexCount=$(( indexCount + 1 )) ; done < "$1" 2> /dev/null
+	agentsCommsIndexCount="$indexCount"
 	return 0
 }
 
@@ -757,7 +717,7 @@ AgentsToolsSessionCommsRead(){ ## session, conversation:thread, member
 		return 1
 	fi
 	LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" \
-		-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsSlackMessagesFormat.awk" < "$readWork/read" > "$readWork/render" 2> /dev/null || :
+		-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/slack/AgentsSlackMessagesFormat.awk" < "$readWork/read" > "$readWork/render" 2> /dev/null || :
 	## What is there before the run began is history for the floor: the launch of the founder of the session is the boundary.
 	( export MDAT_SPAWN_LAUNCH_MARKER="$readDir/launch" ; AgentsToolsSessionChatImport "$readSession" "$readThread" "$readWork/render" slack - )
 	AgentsToolsSessionCommsIndexCount "$readDir/$agentsSessionChatName.index" ; readAfter="$agentsCommsIndexCount"
@@ -813,10 +773,10 @@ AgentsToolsSessionCommsPost(){ ## session, outbox file `<n>.retry`
 	## reports its posting reads the reason kept on line 2 rather than claiming one.
 	postWhy="$( LC_ALL=C sed -n '2p' "$postFile" 2> /dev/null )"
 	postPayload="$( tail -n +3 "$postFile" 2> /dev/null )"
-	type AgentsToolsResolveSlackBotToken > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsSlack.include" 2> /dev/null || return 1
+	type AgentsToolsResolveSlackBotToken > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/slack/AgentsTools.CommsSlack.include" || return 1
 	if [ "$postIdentity" = "user" ] ; then
-		type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
-		postToken="$( AgentsToolsSlackOwnSettingsApply "$postMember" && AgentsToolsConfigOption "$postMember" --select SLACK_USER_TOKEN 2> /dev/null )" || postToken=""
+		type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/settings/AgentsTools.ConfigOption.include"
+		postToken="$( AgentsToolsCommsOwnSettingsApply "$postMember" && AgentsToolsConfigOption "$postMember" --select SLACK_USER_TOKEN 2> /dev/null )" || postToken=""
 	else
 		postLine="$( AgentsToolsResolveSlackBotToken "$postMember" )" || postLine=""
 		postToken="${postLine#* }"

@@ -2,7 +2,8 @@
 ## Behavioural check on the ORDER OF THE FORMS of the help of the family (board task 2026-11-09T1425Z): an operation's help lists
 ## its most preferred and most frequent form first, and its least preferred last. A help page is `sh-lib/help/Help.<Tool>.help.md`,
 ## the authority, and a `Help*.include` beside it prints the syntax lines `--help-syntax` gives. Where an operation takes a body, the
-## patch form `--edit-patch-from-stdin` comes before the whole-body forms. Read rather than run, over the help of all six
+## patch form `--edit-patch-from-stdin` comes before the whole-body forms, and where it takes none, the inline text comes before
+## `--from-stdin`, which comes before `--from-file`. Read rather than run, over the help of all six
 ## myx.distro-* packages: .local, agents, deploy, remote, source and system. Held:
 ##   1. THE HELP WAS READ WHOLE: every `*.help.md` and every `Help*.include` of every one of the six packages, the counts said, and
 ##      each package carrying both kinds. A scan of none, or of too few, is a refusal, not a pass. The reader saw the form it judges,
@@ -10,8 +11,11 @@
 ##   2. NO LINE PUTS ANOTHER FORM BEFORE THE PATCH FORM. A form group is a bracketed or parenthesised alternative list, read whole,
 ##      an inner bracket included. A group holding `--edit-patch-from-stdin` that begins with another form is a row, written
 ##      `<package>/sh-lib/help/<file>:<line>: form-order: <group>`. A group beginning with the patch form gives none.
-##   3. THE READER CAN FAIL: a seeded page and a seeded include, each with a group that puts the whole body first, give exactly their
-##      rows, and the pair written right gives none.
+##   3. NO BODY GROUP PUTS A LATER-SOURCE FORM FIRST. A group holding two or more of the body-source forms ranks them: the inline
+##      text first, `--from-stdin` next, `--from-file` last. A group out of that order is a row, written
+##      `<package>/sh-lib/help/<file>:<line>: body-order: <group>`. A group holding one of them, or none, gives none.
+##   4. THE READER CAN FAIL: a seeded page and a seeded include, each with a group that puts the whole body first, give exactly their
+##      rows, and the pair written right gives none. The same two groups written out of body order give their own rows, on the same terms.
 ## Offline: the help of the six packages at the origin, and a rig tree of the check's own. No network, no session, no other workspace.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
@@ -35,8 +39,8 @@ rigAssert(){ ## what is asserted, got, want
 	return 0
 }
 ## The rows of one help folder: every form group of a line, in the order the line writes them, and one row for a group that holds the
-## patch form and puts another form first. A group is read to its own closing bracket, an inner bracket included, so the nested
-## `<py|awk>` of `--edit-script-from-stdin:<py|awk>` never cuts the group short.
+## patch form and puts another form first, or that ranks the body-source forms out of order. A group is read to its own closing
+## bracket, an inner bracket included, so the nested `<py|awk>` of `--edit-script-from-stdin:<py|awk>` never cuts the group short.
 rigRows(){ ## help folder, the name its files are written under
 	LC_ALL=C awk '
 		function firstForm( group,   first ) {
@@ -47,6 +51,27 @@ rigRows(){ ## help folder, the name its files are written under
 		function shortName( path,   name ) {
 			name = path ; sub( /^.*\//, "", name )
 			return name
+		}
+		function sourceRank( form,   bare ) {
+			bare = form
+			sub( /^[\[(]/, "", bare ) ; sub( /[\])]$/, "", bare )
+			if ( bare ~ /^<text\.\.\.>$/ || bare ~ /^<body\.\.\.>$/ || bare ~ /^--message / || bare ~ /^--text / || bare ~ /^--message-text / ) return 1
+			if ( bare == "--from-stdin" ) return 2
+			if ( bare ~ /^--from-file / || bare ~ /^--message-text-from-file / ) return 3
+			return 0
+		}
+		function bodyRow( group,   parts, count, rankAt, ranked, seenLast ) {
+			count = split( group, parts, "|" )
+			seenLast = 0
+			for ( rankAt = 1 ; rankAt <= count ; rankAt++ ) {
+				ranked = sourceRank( parts[ rankAt ] )
+				if ( ranked == 0 ) continue
+				if ( ranked < seenLast ) {
+					printf "%s/sh-lib/help/%s:%d: body-order: %s\n", where, shortName( FILENAME ), FNR, group
+					return
+				}
+				seenLast = ranked
+			}
 		}
 		{
 			text = $0 ; size = length( text ) ; at = 1
@@ -62,9 +87,9 @@ rigRows(){ ## help folder, the name its files are written under
 				}
 				if ( depth != 0 ) break
 				group = substr( text, at, end - at + 1 ) ; at = end + 1
-				if ( index( group, "--edit-patch-from-stdin" ) == 0 ) continue
-				if ( firstForm( group ) == "--edit-patch-from-stdin" ) continue
-				printf "%s/sh-lib/help/%s:%d: form-order: %s\n", where, shortName( FILENAME ), FNR, group
+				if ( index( group, "--edit-patch-from-stdin" ) > 0 && firstForm( group ) != "--edit-patch-from-stdin" )
+					printf "%s/sh-lib/help/%s:%d: form-order: %s\n", where, shortName( FILENAME ), FNR, group
+				bodyRow( group )
 			}
 		}' where="$2" "$1"/*.help.md "$1"/Help*.include
 }
@@ -109,6 +134,19 @@ rigAssert "the page whose group puts the whole body first gives its rows, on its
 rigAssert "and so does its include, on its own line (1)" \
 	"$( LC_ALL=C grep -F 'Help.Bad.include:' "$rigTmp/seed.rows" | LC_ALL=C sed 's|^.*Help\.Bad\.include:\([0-9]*\):.*|\1|' )" 1
 rigAssert "the seeded tree gives exactly those three rows, and no more" "$( LC_ALL=C grep -c . "$rigTmp/seed.rows" )" 3
+
+rigBodySeed="$rigTmp/body/myx/myx.distro-body/sh-lib/help"
+mkdir -p "$rigBodySeed" || exit 1
+printf '%s\n' '📘 syntax: Body.fn.sh --body-write (--from-stdin|--text <text>)' \
+	'📘 syntax: Body.fn.sh --body-send (--from-file <path>|--from-stdin)' \
+	'📘 syntax: Body.fn.sh --body-ok (--text <text>|--from-stdin|--from-file <path>)' > "$rigBodySeed/Help.Body.help.md"
+printf '%s\n' 'echo "📘 syntax: Body.fn.sh --body-send (--from-file <path>|--from-stdin)" >&2' > "$rigBodySeed/Help.Body.include"
+rigRows "$rigBodySeed" "myx/myx.distro-body" > "$rigTmp/body.rows" 2> "$rigTmp/body.err" \
+	|| rigRefuse "the scan of the seeded body tree ended with an error: $( LC_ALL=C sed -n 1p "$rigTmp/body.err" )"
+rigAssert "a page whose body groups are out of order gives exactly its own rows, on its own lines (1 and 2)" \
+	"$( LC_ALL=C grep -F 'body-order:' "$rigTmp/body.rows" | LC_ALL=C grep -F 'Help.Body.help.md:' | LC_ALL=C sed 's|^.*Help\.Body\.help\.md:\([0-9]*\):.*|\1|' | LC_ALL=C tr '\n' ',' )" "1,2,"
+rigAssert "the group written in body order gives none, and the include gives its own row" \
+	"$( LC_ALL=C grep -c -F 'Help.Body.help.md:3:' "$rigTmp/body.rows" ):$( LC_ALL=C grep -c -F 'Help.Body.include:1: body-order:' "$rigTmp/body.rows" )" "0:1"
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ HELP FORM ORDER CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

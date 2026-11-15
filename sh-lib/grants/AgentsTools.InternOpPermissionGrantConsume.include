@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+type AgentsToolsGrantsStoreTouch > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.Grants.include"
+
+## AgentsTools.InternOpPermissionGrantConsume.include -- the operation `--intern-op-permission-grant-consume`, sourced by AgentsTools.InternOpPermission.include with the operation's arguments.
+		shift
+		MDSC_CMD="$MDSC_CMD --intern-op-permission-grant-consume"
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.UseAgentsTools.include"
+		local consumeSession="" consumeRefusal=""
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--session-id) consumeSession="${2:-}" ; shift 2 ;;
+				--refusal-id) consumeRefusal="${2:-}" ; shift 2 ;;
+				*)
+					echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		if [ -z "$consumeSession" ] || [ -z "$consumeRefusal" ] ; then
+			echo "$MDSC_CMD: ⛔ ERROR: syntax is --session-id <id> --refusal-id <id>" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsAssertBareName "$consumeSession" "--session-id" permission-grant-consume || { set +e ; return 1 ; }
+		AgentsToolsAssertBareName "$consumeRefusal" "--refusal-id" permission-grant-consume || { set +e ; return 1 ; }
+		## One mkdir is the whole lock: the first caller to create the marker uses the grant.
+		mkdir -p "$MMDAPP/.local/agents/sessions/$consumeSession/consumed" 2>/dev/null || { set +e ; return 1 ; }
+		mkdir "$MMDAPP/.local/agents/sessions/$consumeSession/consumed/$consumeRefusal" 2>/dev/null || { set +e ; return 1 ; }
+		AgentsToolsGrantsStoreTouch "$MMDAPP/.local/agents/sessions/$consumeSession"
+		printf 'CONSUMED: %s\n' "$consumeRefusal"
+		return 0

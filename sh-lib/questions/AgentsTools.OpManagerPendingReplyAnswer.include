@@ -1,0 +1,164 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+## AgentsTools.OpManagerPendingReplyAnswer.include -- the operation `--answer-escalation|--manager-pending-reply-answer`, sourced by AgentsTools.MemberEscalation.include with the operation's arguments.
+## The addressee answers as itself. magic-coordinator may also answer a question addressed to another
+## member, on its behalf, signed as the coordinator.
+## The console's arm comes here too (--manager-pending-reply-answer, sourced by
+## AgentsTools.ManagerPendingReply.include, which says whose word the answer is): the same
+## apply, for every kind a reply answers, with the answer as it was typed.
+		local answerOp="$1"
+		shift
+		MDSC_CMD="$MDSC_CMD $answerOp"
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.UseAgentsTools.include"
+		## THE AUTHORITY (F6.10, AgentsTools.Authority.include): the escalation words are taken
+		## out of the arguments first, wherever they stand.
+		type AgentsToolsAuthorityFlags > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.Authority.include"
+		type AgentsToolsRunRoute > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.RunRoute.include"
+		if [ "$answerOp" != "--manager-pending-reply-answer" ] ; then
+			AgentsToolsAuthorityFlags "$@" || { set +e ; return 1 ; }
+			set -- ${agentsAuthorityRest[@]+"${agentsAuthorityRest[@]}"}
+		fi
+		local answerMember="$1" answerId="$2" answerVerdict="$3" answerText="${4:-}" answerFile answerKind answerOwner answerTo answerOptionLine answerFound=""
+		## From the console: the fifth word is the account at the console, the sixth `reject`
+		## where the answer is the kind's own negative one.
+		local answerConsole="" answerBlock="console-answered"
+		if [ "$answerOp" = "--manager-pending-reply-answer" ] ; then
+			answerConsole="${5:-unknown}"
+			[ "${6:-}" != "reject" ] || answerBlock="console-rejected"
+		fi
+		if [ -z "$answerMember" ] || [ -z "$answerId" ] || [ -z "$answerVerdict" ] ; then
+			echo "$MDSC_CMD: ⛔ ERROR: syntax is <team-member> <request-id> <verdict> [text]" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsAssertBareName "$answerMember" "<team-member>" escalation-answer || { set +e ; return 1 ; }
+		AgentsToolsActingMemberCheck "$answerMember" "${answerOp#--}" || { set +e ; return 1 ; }
+		answerFile="$( AgentsToolsEscalationRecord "$answerId" )" || { set +e ; return 1 ; }
+		## A request for the authority is answered by whom it asks, and its answer acts on what it asked for.
+		if [ -n "$( AgentsToolsEscalationField "$answerFile" request-of )" ] ; then
+			AgentsToolsAuthorityRequestAnswer "$answerFile" "$answerVerdict" || { set +e ; return 1 ; }
+			return 0
+		fi
+		answerKind="$( AgentsToolsEscalationField "$answerFile" kind )"
+		answerOwner="$( AgentsToolsEscalationField "$answerFile" owner )"
+		answerTo="$( AgentsToolsEscalationField "$answerFile" address-to )"
+		## Only the member the question was addressed to answers it, an executor of the routine it
+		## was addressed to, or the coordinator on its behalf, and never the one who asked.
+		local answerAddressee="$answerTo"
+		case "$answerTo" in
+			*.routine)
+				. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemDecisions.include"
+				! AgentsToolsRoutineIsExecutor "$answerTo" "$answerMember" || answerAddressee="$answerMember"
+			;;
+		esac
+		## An operator at the console is nobody's asker, whoever's word its answer has.
+		if [ -z "$answerConsole" ] && { { [ "$answerMember" != "$answerAddressee" ] && [ "$answerMember" != "magic-coordinator" ] ; } || [ "$answerMember" = "$answerOwner" ] ; } ; then
+			echo "$MDSC_CMD: ⛔ ERROR: $answerId is addressed to ${answerTo:-nobody} and asked by ${answerOwner:-nobody}, so $answerMember cannot answer it (only the addressee answers, and magic-coordinator on its behalf)" >&2
+			set +e ; return 1
+		fi
+		## The answering session comes from the caller's own environment, never from an
+		## argument, and is recorded beside the member. One the question pinned must match.
+		local answerSession="${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}" answerPinned
+		## An operator of the console answers from no session. What the record keeps in its
+		## place names the console and the account, `console:<account>`: so the asking run's
+		## Wait takes the answer from the record, as it takes any answer given through an
+		## operation (AgentsWaitProbeAsk), and a question pinned to one session is no bar to it.
+		[ -z "$answerConsole" ] || answerSession="console:$answerConsole"
+		if [ -z "$answerSession" ] ; then
+			## A console answers with no session of its own: a direct --answer-escalation, the raw
+			## answer op the manager's own answer reaches too, is applied without a session. A member's
+			## answer carries its session, and one without is refused.
+			## THE RAW OPERATION NAMES ITS MEMBER AS ITS FIRST ARGUMENT and carries no account, so an
+			## answer through it has no session to be bound to and is refused. The console's own arm
+			## (`--manager-pending-reply-answer`) carries its account — `console:<account>` — and is
+			## applied; the guard is never entered for it (proved: session=[console:myx], 15 calls).
+			if [ "$answerOp" = "--answer-escalation" ] || [ -n "$( AgentsToolsActingMember )" ] ; then
+				echo "$MDSC_CMD: ⛔ ERROR: this caller carries no session id, so the answer cannot be bound to a session and is not applied; $answerId stays open" >&2
+				set +e ; return 1
+			fi
+		fi
+		answerPinned="$( AgentsToolsEscalationField "$answerFile" answerer-session )"
+		if [ -z "$answerConsole" ] && [ -n "$answerPinned" ] && [ "$answerPinned" != "$answerSession" ] ; then
+			echo "$MDSC_CMD: ⛔ ERROR: $answerId may be answered only from session $answerPinned, and this caller is session $answerSession; it stays open" >&2
+			set +e ; return 1
+		fi
+		## Its own session, if it is also the asking session, is the asker answering itself.
+		if [ "$answerSession" = "$( AgentsToolsEscalationField "$answerFile" session-id )" ] ; then
+			echo "$MDSC_CMD: ⛔ ERROR: $answerId was asked from this same session $answerSession, so it cannot be answered from it; it stays open" >&2
+			set +e ; return 1
+		fi
+		if [ "$( AgentsToolsEscalationField "$answerFile" status )" != "reply-pending" ] ; then
+			echo "$MDSC_CMD: ⛔ ERROR: $answerId is not open, so it takes no answer" >&2
+			set +e ; return 1
+		fi
+		## One form on the record whichever way the answer came: a Slack reply is read lowercased.
+		if [ -n "$answerConsole" ] ; then
+			## Typed at a console: read as the first line of a reply is, by the same reader, so a
+			## kind's own word, the number of an option and the words after a word all stand. A
+			## plain question with no answer form takes words alone: they are its answer, kept
+			## as the first line of a reply is kept.
+			local answerTyped="$answerVerdict"
+			if { [ -z "$answerKind" ] || [ "$answerKind" = "question" ] ; } && [ -z "$( AgentsToolsEscalationField "$answerFile" select )" ] ; then
+				answerVerdict="$( printf '%s' "$answerTyped${answerText:+ $answerText}" | LC_ALL=C tr -s '\r\n\t' '   ' )" ; answerText=""
+				case "$answerVerdict" in *[!\ ]*) answerFound=1 ;; esac
+			else
+				answerVerdict="$( AgentsToolsEscalationTypedVerdict "$answerFile" "$answerTyped" )"
+				case "$answerVerdict" in
+					*' -- '*) [ -n "$answerText" ] || answerText="${answerVerdict#* -- }" ; answerVerdict="${answerVerdict%% -- *}" ;;
+				esac
+				[ -z "$answerVerdict" ] || answerFound=1
+			fi
+			if [ -z "$answerFound" ] ; then
+				echo "$MDSC_CMD: ⛔ ERROR: \"$answerTyped\" is not an answer of this ${answerKind:-question}, so nothing is applied and $answerId stays open" >&2
+				set +e ; return 1
+			fi
+		else
+			answerVerdict="$( printf '%s' "$answerVerdict" | LC_ALL=C tr 'A-Z' 'a-z' )"
+		fi
+		case "$answerKind:$answerVerdict" in
+			readback:yes|readback:no|readback:correct|permission:deny|permission:allow-once|permission:allow-session|permission:allow-task) answerFound=1 ;;
+			permission-set:allow-set|permission-set:deny|permission-set:edit) answerFound=1 ;;
+			## The folder answer, only of a request whose post offered the folder; the project
+			## answer, only of one whose post offered the project.
+			permission:allow-folder|permission:allow-project|permission:allow-contact) [ -z "$( AgentsToolsEscalationFolderOffered "$answerFile" "${answerVerdict#allow-}" )" ] || answerFound=1 ;;
+			## An option's first word answers: a decision's options, and a plain question's own where it
+			## has them. A list that is not there is read as none, never as a read fault.
+			decision:*|question:*)
+				while IFS= read -r answerOptionLine ; do
+					answerOptionLine="${answerOptionLine#- }"
+					answerOptionLine="${answerOptionLine%%[ $'\t']*}"
+					answerOptionLine="${answerOptionLine%:}"
+					answerOptionLine="$( printf '%s' "$answerOptionLine" | LC_ALL=C tr 'A-Z' 'a-z' )"
+					[ "$answerOptionLine" != "$answerVerdict" ] || answerFound=1
+				done < <( cat "${answerFile%.md}.options" 2> /dev/null )
+			;;
+		esac
+		if [ -z "$answerFound" ] ; then
+			echo "$MDSC_CMD: ⛔ ERROR: $answerVerdict is not a verdict of this ${answerKind:-question}, so nothing is applied" >&2
+			set +e ; return 1
+		fi
+		## Answered on another's behalf from a member's run (magic-coordinator, not the addressee): only by one
+		## that holds the authority over the run that asked it -- else asked for, as the words say.
+		## The verdict is checked first, so a wrong one is refused as one; then the authority.
+		if [ -z "$answerConsole" ] && [ "$answerMember" != "$answerAddressee" ] ; then
+			local answerAsker="" answerAskerRecord=""
+			answerAsker="$( AgentsToolsEscalationField "$answerFile" session-id )"
+			answerAskerRecord="$( AgentsToolsSessionRunRecord "$answerAsker" )" || answerAskerRecord=""
+			AgentsToolsAuthorityGate "answer question $answerId with $answerVerdict" "$answerId" "$answerAskerRecord" "$answerFile" console \
+				"$answerOp" "$answerMember" "$answerId" "$answerVerdict" ${answerText:+"$answerText"} || :
+			AgentsToolsAuthorityExit || { set +e ; return "$agentsAuthorityExit" ; }
+			[ -z "$( AgentsToolsAuthorityChosen )" ] || answerVerdict="$( AgentsToolsAuthorityChosen )"
+		fi
+		## An answer that lost the claim to another one is not applied, and is not said in the thread.
+		## One answer, one reply: what became of this one is said in the question's thread by the
+		## apply itself, once, as the confirmation of its kind (AgentsToolsEscalationConfirm) --
+		## what is granted, that nothing is, or that the answer is not applied and who the
+		## request goes to now. It carries the addressee of the ask. Nothing is added to it here.
+		AgentsToolsEscalationApply "$answerFile" "$answerId" "$answerVerdict" "$answerText" "$answerMember" "$answerSession" || {
+			echo "$MDSC_CMD: ⛔ ERROR: the answer $answerVerdict for $answerId was not applied" >&2
+			set +e ; return 1
+		}
+		## The apply closed the record, which moved to closed/ (retention, T9): the console trace reads it there.
+		[ -f "$answerFile" ] || answerFile="$MMDAPP/.local/agents/pending/closed/$answerId.md"
+		[ -z "$answerConsole" ] || AgentsToolsEscalationConsoleTrace "$answerFile" "$answerId" "$answerBlock" "$answerConsole" "$answerVerdict" "$answerText"
+		return 0

@@ -17,14 +17,9 @@
 ## AgentsToolsIncomingOne, by kind.
 ##
 
-type AgentsToolsScheduleDmTags > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.DispatcherSchedule.include"
+type AgentsToolsScheduleDmTags > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/schedule/AgentsTools.DispatcherSchedule.include"
 type AgentsToolsCollectOne > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.Collect.include"
 
-## The kinds of the incoming sources a member pre-caches, in their order: the mailbox and the Trello notifications the
-## collection owns, the tagged team channel (mentions), the DMs, and the live session thread.
-AgentsToolsIncomingKinds(){
-	printf '%s\n' "mail trello tagged dm chat"
-}
 
 ## The DMs of a member, read by force (however soon the last look was): AgentsToolsScheduleDmTags <member> "" yes. What the
 ## look found is left by that function in the globals agentsScheduleDmNewest and agentsScheduleDmNew. Prints
@@ -41,7 +36,7 @@ AgentsToolsIncomingDms(){ ## member
 ## `collect: chat:<member>: no session ...` -- that is none, never a failure.
 AgentsToolsIncomingChat(){ ## member
 	local incomingChatRecord="" incomingChatSession="" incomingChatThread="" incomingChatAdded=0
-	type AgentsToolsSessionCommsRead > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionComms.include" 2> /dev/null || :
+	type AgentsToolsSessionCommsRead > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionComms.include"
 	if incomingChatRecord="$( AgentsToolsScheduleWorkDutyRecord "$1" 2> /dev/null )" ; then
 		incomingChatSession="$( AgentsToolsSpawnSandboxRecordHeader "$incomingChatRecord" session-id 2> /dev/null )"
 		incomingChatThread="$( AgentsToolsSpawnSandboxRecordHeader "$incomingChatRecord" session-thread 2> /dev/null )"
@@ -81,7 +76,7 @@ AgentsToolsIncomingOne(){ ## kind, member, [force: yes|no, no by default]
 		dm) AgentsToolsIncomingDms "$incomingMember" || incomingRc=$? ;;
 		chat) AgentsToolsIncomingChat "$incomingMember" || incomingRc=$? ;;
 		*)
-			echo "⛔ ERROR: $MDSC_CMD incoming: no such kind of incoming source: $incomingKind -- the kinds are $( AgentsToolsIncomingKinds )" >&2
+			echo "⛔ ERROR: $MDSC_CMD incoming: no such kind of incoming source: $incomingKind -- the kinds are mail trello tagged dm chat" >&2
 			return 1
 		;;
 	esac
@@ -101,7 +96,7 @@ AgentsToolsIncomingSync(){ ## member, [scope: all|start]
 		return 1
 	fi
 	case "$incomingScope" in
-		all|'') incomingKinds="$( AgentsToolsIncomingKinds )" ;;
+		all|'') incomingKinds="mail trello tagged dm chat" ;;
 		start) incomingKinds="mail" ;;
 		*)
 			echo "⛔ ERROR: $MDSC_CMD member-incoming-sync: no such scope of the sync: $incomingScope -- the scopes are all start" >&2
@@ -121,7 +116,7 @@ AgentsToolsIncomingSync(){ ## member, [scope: all|start]
 ## rig that must see the whole read.
 AgentsToolsIncomingSyncBounded(){ ## member, [scope]
 	local syncMember="${1:-}" syncScope="${2:-all}" syncBound syncPid syncTurns=0 syncRc=0 syncMonitor
-	type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
+	type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/settings/AgentsTools.ConfigOption.include"
 	syncBound="$( AgentsToolsConfigOption magic-team --select-default SPAWN_INCOMING_SYNC_SECONDS 20 2> /dev/null )" || syncBound=""
 	case "$syncBound" in ''|*[!0123456789]*) syncBound=20 ;; esac
 	if [ "$syncBound" = "0" ] ; then

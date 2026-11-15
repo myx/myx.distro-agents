@@ -267,7 +267,7 @@ rigCommsThreadPids=""
 rigCommsThreadStart(){ ## env words, NAME=value, the rig's own
 	local threadLog threadPid
 	type rigProcNote > /dev/null 2>&1 || . "$( dirname "${BASH_SOURCE[0]}" )/rig-processes.include.sh" 2> /dev/null || :
-	threadLog="${rigTmp:-${TMPDIR:-/tmp}}/rig-comms-thread.log"
+	threadLog="$rigTmp/rig-comms-thread.log"
 	env -u MDAT_SPAWN_SESSION_ID -u MDAT_SPAWN_AGENT -u MDAT_SESSION_ID -u MDAT_SESSION_THREAD -u MDAT_CONVERSATION_THREADS -u CLAUDE_CODE_SESSION_ID "$@" \
 		bash "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-session-comms --run >> "$threadLog" 2>&1 < /dev/null &
 	threadPid=$!

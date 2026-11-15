@@ -98,7 +98,7 @@ rigList(){
 rigStateOf(){ ## run id -- its row's derived state, through the registry's one render
 	( cd "$rigWs" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp" PATH="$rigTmp/bin:/usr/bin:/bin:/usr/sbin:/sbin" \
 		MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
-		bash -c '. "$1" ; AgentsToolsRegistryRenderSpawnedSessions agents' rig "$rigPkg/sh-lib/team-data/AgentsTools.Registries.include" ) 2>&1 \
+		bash -c '. "$1" ; AgentsToolsRegistryRenderSpawnedSessions agents' rig "$rigPkg/sh-lib/team-data/AgentsTools.RegistrySpawnedSessions.include" ) 2>&1 \
 		| LC_ALL=C awk -v want="$1" 'NF == 13 && $8 == want { print $13 }' | head -1
 }
 rigCounters(){ ## -- the sessions the console counts as paused: the counters row of --manager-session-list

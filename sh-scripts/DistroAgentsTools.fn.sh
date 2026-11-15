@@ -95,7 +95,7 @@ DistroAgentsTools(){
 			[ "$commonRc" = 9 ] || return "$commonRc"
 		;;
 	esac
-	type AgentsToolsMemberWorkspaceResolve > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWorkspace.include"
+	type AgentsToolsMemberSkillsetBring > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWorkspace.include"
 	## We run from here: a member named by an operation uses this workspace; one set up elsewhere only has its skillset brought (AgentsToolsMemberSkillsetBring).
 	case "$1:${2:-}" in
 		--intern-op-agent-spawn-proxy:*|--intern-op-routine-lock-*:*|--intern-merge-md-files:*|--intern-mcp-execute:*|--intern-op-decisions-append:*|--intern-op-review-*:*|--intern-directory-*:*|--owner-workspace-*:*|--make-*:*|--manager-*:*|--session-floor-remove:*|--camunda-diagram-sync-stale:*|*:|*:-*) ;;
@@ -146,13 +146,13 @@ DistroAgentsTools(){
 
 	case "$1" in
 		--console-*)
-			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.ConsoleSession.include"
+			type DistroAgentsToolsResolveChannelDir > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.ConsoleSession.include"
 			return $?
 		;;
 
 
 		--agents-config-option)
-			type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
+			type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/settings/AgentsTools.ConfigOption.include"
 			AgentsToolsConfigOption "${@:2}"
 			return $?
 		;;
@@ -164,7 +164,7 @@ DistroAgentsTools(){
 			case "$1" in
 				--backend)
 					shift
-					type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
+					type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/settings/AgentsTools.ConfigOption.include"
 					AgentsToolsConfigOption "$@"
 					return $?
 				;;
@@ -179,12 +179,14 @@ DistroAgentsTools(){
 		## in the tool files (DistroAgentsSlack, DistroAgentsMail, DistroAgentsTrello, DistroAgentsGoogle, DistroAgentsAtlassian),
 		## and the --client-comms-* arm below holds Jira and Confluence.
 		--client-comms-slack-*|--intern-op-comms-slack-*)
-			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.MemberCommsSlack.include"
+			type AgentsToolsMemberCommsSlackRun > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/slack/AgentsTools.MemberCommsSlack.include"
+			AgentsToolsMemberCommsSlackRun "$@"
 			return $?
 		;;
 
 		--intern-op-slack-*)
-			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsSlack.include"
+			type AgentsToolsCommsSlackRun > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/slack/AgentsTools.CommsSlack.include"
+			AgentsToolsCommsSlackRun "$@"
 			return $?
 		;;
 
@@ -202,33 +204,33 @@ DistroAgentsTools(){
 		;;
 
 		--client-comms-email-*|--intern-op-comms-email-*)
-			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.MemberCommsEmail.include"
+			type AgentsToolsCommsEmailMarkSeen > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/email/AgentsTools.MemberCommsEmail.include"
 			return $?
 		;;
 
 		--client-comms-trello-*|--intern-op-comms-trello-*)
-			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.MemberCommsTrello.include"
+			type AgentsToolsCommsTrelloCheck > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/trello/AgentsTools.MemberCommsTrello.include"
 			return $?
 		;;
 
 		--client-comms-google-*|--intern-op-comms-google-*)
-			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.MemberCommsGoogle.include"
+			type AgentsToolsGoogleResolveMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/google/AgentsTools.MemberCommsGoogle.include"
 			return $?
 		;;
 
 		--intern-op-comms-confluence-*)
-			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.MemberCommsConfluence.include"
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/atlassian/AgentsTools.MemberCommsConfluence.include"
 			return $?
 		;;
 
 		--intern-op-comms-jira-*)
-			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.MemberCommsJira.include"
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/atlassian/AgentsTools.MemberCommsJira.include"
 			return $?
 		;;
 
 		## Grouped with the Atlassian arms above, as --intern-op-slack-* sits with the Slack routes.
 		--intern-op-atlassian-*)
-			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.InternOpAtlassianCall.include"
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/atlassian/AgentsTools.InternOpAtlassianCall.include"
 			return $?
 		;;
 
@@ -301,7 +303,7 @@ DistroAgentsTools(){
 
 		## The long-poll operation is its own file, not a Member.include arm.
 		--intern-op-wait-*)
-			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWait.include"
+			type AgentsWaitProbedFlush > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/wait/AgentsTools.MemberWait.include"
 			return $?
 		;;
 
@@ -347,18 +349,18 @@ DistroAgentsTools(){
 
 		## The installer of the knowledge store's Python environment, beside the other installs.
 		--install-knowledge-store)
-			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.InstallKnowledgeStore.include"
+			type AgentsToolsInstallKnowledgeStoreRefuse > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.InstallKnowledgeStore.include"
 			return $?
 		;;
 
 		## The librarian's spread and retire of the knowledge store (F8.3), beside the installer, and the build of its index.
 		--knowledge-store-spread|--knowledge-store-retire|--knowledge-index-build)
-			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.KnowledgeStore.include"
+			type AgentsToolsKnowledgeIndexRoot > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/knowledge/AgentsTools.KnowledgeStore.include"
 			return $?
 		;;
 
 		--install-*)
-			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.Install.include"
+			type AgentsToolsInstallScanMembers > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.Install.include"
 			return $?
 		;;
 
@@ -368,25 +370,27 @@ DistroAgentsTools(){
 		--owner-stray-store-list)
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.StrayStore.include"
 			shift
+			type AgentsToolsStrayStoreList > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.StrayStore.include"
 			AgentsToolsStrayStoreList "$@"
 			return $?
 		;;
 		--owner-stray-store-return)
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.StrayStore.include"
 			shift
+			type AgentsToolsStrayStoreReturn > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.StrayStore.include"
 			AgentsToolsStrayStoreReturn "$@"
 			return $?
 		;;
 
 		--owner-*)
-			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.Owner.include"
+			type AgentsToolsOwnerSetupRow > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.Owner.include"
 			return $?
 		;;
 
 		## The undo protocol (S13.19): the record, its dry run, its run and its purge. A name of
 		## this dispatch that is no `--undo-*` one, and never a front-table name.
 		--undo-*)
-			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.UndoRecord.include"
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/undo/AgentsTools.UndoRecord.include"
 			return $?
 		;;
 
@@ -396,7 +400,7 @@ DistroAgentsTools(){
 		;;
 
 		--intern-op-item-rename)
-			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.InternOpItemRename.include"
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/items/AgentsTools.InternOpItemRename.include"
 			return $?
 		;;
 
@@ -411,17 +415,17 @@ DistroAgentsTools(){
 		;;
 
 		--intern-team-data-final-gc-deletion)
-			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.InternTeamDataFinalGcDeletion.include"
+			type AgentsToolsFinalGcGitTimes > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.InternTeamDataFinalGcDeletion.include"
 			return $?
 		;;
 
 		--intern-team-data-reflection-sweep)
-			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.InternTeamDataReflectionSweep.include"
+			type AgentsToolsReflectionSweepCutoff > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.InternTeamDataReflectionSweep.include"
 			return $?
 		;;
 
 		--intern-op-inbox-to-processed)
-			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/inbox/AgentsTools.InternOpInboxToProcessed.include"
+			type AgentsToolsInboxToProcessedField > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/inbox/AgentsTools.InternOpInboxToProcessed.include"
 			return $?
 		;;
 
@@ -431,7 +435,7 @@ DistroAgentsTools(){
 		;;
 
 		--intern-op-contact-*)
-			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.InternContact.include"
+			type AgentsToolsContactAssertKnown > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/contacts/AgentsTools.InternContact.include"
 			return $?
 		;;
 
@@ -446,28 +450,28 @@ DistroAgentsTools(){
 		;;
 
 		--intern-op-agent-spawn-proxy)
-			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.InternOpAgentSpawnProxy.include"
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.InternOpAgentSpawnProxy.include"
 			return $?
 		;;
 
 		--intern-op-spawn-prepare-brief)
-			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.InternOpSpawnPrepareBrief.include"
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.InternOpSpawnPrepareBrief.include"
 			return $?
 		;;
 
 		## The tooling's own tracking posts, from the event-track post template: never a member's message.
 		--intern-op-event-track-post)
-			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.InternOpEventTrackPost.include"
+			type AgentsEventTrackPostTemplate > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/event-track/AgentsTools.InternOpEventTrackPost.include"
 			return $?
 		;;
 
 		--intern-op-vault-*|--intern-op-audit-*)
-			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.InternOpVaultAudit.include"
+			type AgentsToolsVaultAuditRange > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/vault/AgentsTools.InternOpVaultAudit.include"
 			return $?
 		;;
 
 		--intern-op-pending-reply-*)
-			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.InternOpPendingReply.include"
+			type AgentsToolsPendingReplyFloorNotice > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.InternOpPendingReply.include"
 			return $?
 		;;
 
@@ -494,7 +498,7 @@ DistroAgentsTools(){
 
 		## One request of that server, in a process of its own: started by the server only.
 		--intern-mcp-request)
-			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/mcp/AgentsTools.InternMcpRequest.include"
+			type AgentsMcpPaceRecord > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/mcp/AgentsTools.InternMcpRequest.include"
 			return $?
 		;;
 
@@ -506,7 +510,7 @@ DistroAgentsTools(){
 		## The control thread of one coworking session, a sibling of --intern-main-loop above: a
 		## shell process of the tooling that watches the runs of one session and keeps its state.
 		--intern-session-control)
-			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.InternSessionControl.include"
+			type AgentsToolsSessionControlAgain > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.InternSessionControl.include"
 			return $?
 		;;
 
@@ -533,7 +537,9 @@ DistroAgentsTools(){
 
 		## The event ids of the comms cache, minted by one thread holding last time and sequence (S12.11, its first use on an event).
 		--intern-comms-event-id)
-			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.InternCommsEventId.include"
+			shift
+			type AgentsToolsInternCommsEventId > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsIngest.include"
+			AgentsToolsInternCommsEventId "$@"
 			return $?
 		;;
 
@@ -541,15 +547,16 @@ DistroAgentsTools(){
 		## that a name is a command with a .fn.sh suffix, never a function, and where it stands.
 		--commands-list)
 			shift
-			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.CommandsList.include"
+			type AgentsToolsCommandsList > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.CommandsList.include"
 			AgentsToolsCommandsList "$@"
 			return $?
 		;;
 
 		## The one hand that appends to the session chat files (S5.8), on the shared on-demand thread.
 		--intern-session-chat-writer)
-			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChatWriter.include"
+			type AgentsToolsInternSessionChatWriter > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChatWriter.include"
 			shift
+			type AgentsToolsInternSessionChatWriter > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChatWriter.include"
 			AgentsToolsInternSessionChatWriter "$@"
 			return $?
 		;;
@@ -557,7 +564,7 @@ DistroAgentsTools(){
 		## The schedule as one service thread (S12.12): the schedule's steps and the board's dependencies run in a process of the tooling, and a
 		## periodic place that already looks at the workspace asks for it. No agent calls it.
 		--intern-schedule)
-			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.InternSchedule.include"
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/schedule/AgentsTools.InternSchedule.include"
 			return $?
 		;;
 
@@ -569,7 +576,7 @@ DistroAgentsTools(){
 
 		## Member homes, and the members of workspaces without agents: beside the member scan it runs.
 		--intern-member-home-register)
-			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.Install.include"
+			type AgentsToolsInstallScanMembers > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.Install.include"
 			return $?
 		;;
 
@@ -583,14 +590,14 @@ DistroAgentsTools(){
 		## Markdown files merged into one document, each by a mixin naming its section. Its consumer is
 		## the Skill tool, which serves a member's basic and armed files as one read.
 		--intern-merge-md-files)
-			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsTools.InternMergeMdFiles.include"
+			type AgentsToolsMergeMdFiles > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsTools.InternMergeMdFiles.include"
 			return $?
 		;;
 
 		## The one validator of a document, a rule set for each kind (`routine`, and `document`, the
 		## self-check). Read-only; one row per fault, `<file>:<line>: <rule>: <text>`.
 		--intern-doc-validate)
-			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.InternDocValidate.include"
+			type AgentsToolsDocValidateKeyLine > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.InternDocValidate.include"
 			return $?
 		;;
 
@@ -603,7 +610,7 @@ DistroAgentsTools(){
 
 		## A document published to the team own place, numbered per type: the harness Artifact tool calls it.
 		--intern-artifact-*)
-			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.InternArtifact.include"
+			type AgentsToolsArtifactTypes > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.InternArtifact.include"
 			return $?
 		;;
 
@@ -611,7 +618,7 @@ DistroAgentsTools(){
 			shift
 			## S19.2: `execute` is checked at its START. A call that waited is refused with PAUSED, so nothing ran,
 			## and the run calls it again against what is there then.
-			type AgentsToolsSessionPauseHeld > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionPause.include"
+			type AgentsToolsSessionPauseOwn > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionPause.include"
 			if AgentsToolsSessionPauseOwn "${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}" ; then
 				AgentsToolsSessionPauseWait "${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}"
 				echo "$MDSC_CMD: mcp-execute: ⛔ PAUSED: this session was paused while this call waited, and nothing ran. Run the same call again." >&2
@@ -648,7 +655,7 @@ DistroAgentsTools(){
 			## The console's own command path, so a command is called by its name (epic S12.25).
 			. "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/console-.local-path.include" || echo "$MDSC_CMD: mcp-execute: WARNING: the console path include failed, so commands may not resolve by name" >&2
 			## No call links a sandbox into source (epic S23.11): the guard ln is first on the call's PATH. Without a guard folder the call runs as before.
-			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SandboxLinks.include" && AgentsToolsLnGuardMake "$MMDAPP/.local/agents/guard-bin" && PATH="$MMDAPP/.local/agents/guard-bin:$PATH"
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SandboxLinks.include" && AgentsToolsLnGuardMake "$MMDAPP/.local/agents/guard-bin" && PATH="$MMDAPP/.local/agents/guard-bin:$PATH"
 			## tested, not bare: set -e would kill the process instead of returning the status
 			( set -e ; eval "$( cat )" ) || execStatus=$?
 			if [ "$execStatus" != "0" ] ; then
@@ -674,12 +681,12 @@ DistroAgentsTools(){
 
 		## The input scans are tooling-internal: the spawner runs the one a routine declares in `input-scan-def:`, and no agent calls one (F6.4).
 		--intern-op-grooming-input-scan)
-			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.MagicGrooming.include"
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.BoardGrooming.include"
 			return $?
 		;;
 
 		--intern-op-sweep-input-scan)
-			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.MagicSweep.include"
+			type AgentsMagicSweepStateWatermark > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.MagicSweep.include"
 			return $?
 		;;
 
@@ -689,14 +696,14 @@ DistroAgentsTools(){
 		;;
 
 		--client-comms-*)
-			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/client/AgentsTools.ClientComms.include"
+			type AgentsToolsClientCommsSnapshotBeforeWrite > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/client/AgentsTools.ClientComms.include"
 			return $?
 		;;
 
 		## The update of the locked document of a session's routine (F6.2): ThisSession's --update-routine-state reaches it here.
 		--intern-op-update-routine-state)
 			shift
-			type AgentsToolsRoutineSessionStateUpdate > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.RoutineLock.include"
+			type AgentsToolsRoutineSessionStateUpdate > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/routine/AgentsTools.RoutineLock.include"
 			AgentsToolsRoutineSessionStateUpdate "$@"
 			return $?
 		;;
@@ -730,18 +737,8 @@ DistroAgentsTools(){
 		## mtime against each diagram's, the stale diagrams printed. <definitions-dir> <diagrams-dir>. The agent only decides.
 		--camunda-diagram-sync-stale)
 			shift
-			local camundaDefs="${1:-}" camundaDiagrams="${2:-}"
-			shift 2 2>/dev/null || shift $#
-			if [ -z "$camundaDefs" ] || [ -z "$camundaDiagrams" ] ; then
-				echo "$MDSC_CMD: ⛔ ERROR: --camunda-diagram-sync-stale: syntax is <definitions-dir> <diagrams-dir>" >&2
-				set +e ; return 1
-			fi
-			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.CamundaDiagramSync.include"
-			AgentsToolsCamundaDiagramSyncStale "$camundaDefs" "$camundaDiagrams" || {
-				echo "$MDSC_CMD: ⛔ ERROR: --camunda-diagram-sync-stale: both arguments must be directories: $camundaDefs, $camundaDiagrams" >&2
-				set +e ; return 1
-			}
-			return 0
+			type AgentsToolsCamundaDiagramSyncStale > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/schedule/AgentsTools.Dispatcher.include"
+			AgentsToolsCamundaDiagramSyncStale --camunda-diagram-sync-stale "$@"
 		;;
 
 		## The take and the giving back of the standing lock of a routine (advance, daily, grooming or retro) are the spawner's own: its functions, and these two
@@ -749,7 +746,7 @@ DistroAgentsTools(){
 		--intern-op-routine-lock-take|--intern-op-routine-lock-close)
 			local routineLockOp="$1" routineLockFn
 			shift
-			type AgentsToolsRoutineLockTakeOwn > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.RoutineLock.include"
+			type AgentsToolsRoutineLockTakeOwn > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/routine/AgentsTools.RoutineLock.include"
 			case "$routineLockOp" in
 				--intern-op-routine-lock-take) routineLockFn=AgentsToolsRoutineLockTakeOwn ;;
 				*) routineLockFn=AgentsToolsRoutineLockCloseOwn ;;
@@ -762,13 +759,13 @@ DistroAgentsTools(){
 		## is finished or holds no session, or where a spawn record still names its holder; else gives the lock back.
 		--intern-op-routine-lock-release)
 			shift
-			type AgentsToolsRoutineLockReleaseConsole > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.RoutineLock.include"
+			type AgentsToolsRoutineLockReleaseConsole > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/routine/AgentsTools.RoutineLock.include"
 			AgentsToolsRoutineLockReleaseConsole "$@"
 			return $?
 		;;
 
 		--intern-op-routine-coworking-session-input-scan)
-			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.RoutineCoworking.include"
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/routine/AgentsTools.RoutineCoworking.include"
 			return $?
 		;;
 
@@ -779,7 +776,7 @@ DistroAgentsTools(){
 
 		## magic-librarian.morning-review.routine: its input scan. The cut-off is the routine's own state, updated with --update-routine-state.
 		--intern-op-morning-review-*)
-			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.InternOpMorningReview.include"
+			type AgentsToolsMorningReviewStatePath > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.InternOpMorningReview.include"
 			return $?
 		;;
 
@@ -799,7 +796,7 @@ DistroAgentsTools(){
 				echo "$MDSC_CMD: member-incoming-sync: ⛔ ERROR: no such member skill directory: $MDAT_SKILLSET_ROOT/$incomingMember" >&2
 				set +e ; return 1
 			fi
-			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.Incoming.include"
+			type AgentsToolsIncomingSync > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.Incoming.include"
 			AgentsToolsIncomingSync "$incomingMember"
 			return $?
 		;;

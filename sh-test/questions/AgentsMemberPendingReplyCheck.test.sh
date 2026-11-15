@@ -283,7 +283,7 @@ rigAgents2="$rigWs2/.local/agents"
 rigStore2="$rigAgents2/pending"
 rigReg2="$rigAgents2/pending-replies.registry"
 rigRegInclude="${MDLT_ORIGIN}/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
-rigReadInclude="${MDLT_ORIGIN}/myx/myx.distro-agents/sh-lib/questions/AgentsTools.MemberPendingReply.include"
+rigReadInclude="${MDLT_ORIGIN}/myx/myx.distro-agents/sh-lib/questions/AgentsTools.OpReadPendingReply.include"
 mkdir -p "$rigStore2" "$rigAgents2/spawned" "$rigAgents2/sessions" "$rigTmp/data2/board/running" "$rigWs2/.local"
 cp -R "$rigTmp/ws/.local/.agents" "$rigWs2/.local/.agents" || rigRefuse "the second workspace got no settings"
 rigAsk2(){ ## id, status, host ("" for none), session-id ("" for none), question line
@@ -304,7 +304,7 @@ rigOp2(){ ## output name, op, arguments... -- rigOp, in that workspace
 }
 ## The rows of that workspace's registry as the one rows function gives them now.
 rigRows2(){
-	( MMDAPP="$rigWs2" ; MDAT_DATA_ROOT="$rigTmp/data2" ; . "$rigRegInclude" ; AgentsToolsRegistryPendingRepliesRows ) 2> /dev/null
+	( MMDAPP="$rigWs2" ; MDAT_DATA_ROOT="$rigTmp/data2" ; . "$rigRegInclude" ; . "${rigRegInclude%/*}/AgentsTools.RegistryTeamMembers.include" ; . "${rigRegInclude%/*}/AgentsTools.RegistryMemberNames.include" ; . "${rigRegInclude%/*}/AgentsTools.RegistrySpawnedSessions.include" ; . "${rigRegInclude%/*}/AgentsTools.RegistryPendingReplies.include" ; AgentsToolsRegistryPendingRepliesRows ) 2> /dev/null
 }
 rigRegRow2(){ ## key -- its row of the registry file
 	LC_ALL=C awk -v wantKey="$1" '$1 == wantKey { print ; }' "$rigReg2" 2> /dev/null

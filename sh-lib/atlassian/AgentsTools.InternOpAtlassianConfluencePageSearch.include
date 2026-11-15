@@ -1,0 +1,49 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+## AgentsTools.InternOpAtlassianConfluencePageSearch.include -- the operation `--intern-op-atlassian-confluence-page-search`, sourced by AgentsTools.InternOpAtlassianCall.include with the operation's arguments.
+	type AgentsToolsAtlassianCall > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/atlassian/AgentsTools.AtlassianRequest.include"
+		shift
+		local confPSMember="" confPSCql="" confPSLimit="" confPSContext="intern-op-atlassian-confluence-page-search"
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--member|--cql|--limit|--context)
+					if [ -z "${2:-}" ] ; then
+						printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confPSContext: $1 value missing" >&2
+						set +e ; return 1
+					fi
+					case "$1" in
+						--member)  confPSMember="$2" ;;
+						--cql)     confPSCql="$2" ;;
+						--limit)   confPSLimit="$2" ;;
+						--context) confPSContext="$2" ;;
+					esac
+					shift 2
+				;;
+				*)
+					printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confPSContext: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		if [ -z "$confPSMember" ] || [ -z "$confPSCql" ] ; then
+			printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confPSContext: syntax is --member <team-member> --cql <cql> [--limit <n>] [--context <caller>] -- a search returns only what that identity can see. For a plain text search the CQL is: text ~ \"term\"" >&2
+			set +e ; return 1
+		fi
+		[ -n "$confPSLimit" ] || confPSLimit=25
+		local confPSPath="/wiki/rest/api/search?cql=$( AgentsToolsAtlassianUrlEncode "$confPSCql" )&limit=$( AgentsToolsAtlassianUrlEncode "$confPSLimit" )"
+		local confPSBody confPSRc=0
+		confPSBody="$( AgentsToolsAtlassianCall "$confPSMember" confluence GET "$confPSPath" "$confPSContext" "" )" || confPSRc=$?
+		if [ "$confPSRc" -ne 0 ] ; then
+			set +e ; return "$confPSRc"
+		fi
+		local confPSRows confPSRowsRc=0
+		confPSRows="$( printf '%s\n' "$confPSBody" | LC_ALL=C awk -v array=results -v want='content.id,content.type,title,lastModified,url' -v mode=records -v dialect=atlassian -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" )" || confPSRowsRc=$?
+		if [ "$confPSRowsRc" -ne 0 ] ; then
+			printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confPSContext: results field unreadable" >&2
+			set +e ; return 3
+		fi
+		printf 'CONTENT_ID\tTYPE\tTITLE\tLAST_MODIFIED\tURL\n'
+		[ -z "$confPSRows" ] || printf '%s\n' "$confPSRows"
+		printf '%s\n' "# $confPSContext: more: unknown -- this endpoint reports no isLast/total, so whether results exist beyond this page cannot be determined from the response" >&2
+		return 0

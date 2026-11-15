@@ -1,0 +1,187 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+## AgentsTools.InternOpEscalationRead.include -- the operation `--intern-op-escalation-read`, sourced by AgentsTools.MemberEscalation.include with the operation's arguments.
+		shift
+		MDSC_CMD="$MDSC_CMD --intern-op-escalation-read"
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.UseAgentsTools.include"
+		local readMember="$1" readId="$2" readFile readStatus readKind readVerdict readText="" readAnswerTs=""
+		if [ -z "$readMember" ] || [ -z "$readId" ] ; then
+			echo "$MDSC_CMD: ⛔ ERROR: syntax is <team-member> <request-id>" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsAssertBareName "$readMember" "<team-member>" escalation-read || { set +e ; return 1 ; }
+		readFile="$( AgentsToolsEscalationRecord "$readId" )" || { set +e ; return 1 ; }
+		readKind="$( AgentsToolsEscalationField "$readFile" kind )"
+		case "$readKind" in
+			readback|decision|permission|permission-set|proposal|review|change) ;;
+			## A plain question with an answer form (select) carries a verdict too.
+			''|question)
+				[ -n "$( AgentsToolsEscalationField "$readFile" select )" ] || {
+					echo "$MDSC_CMD: ⛔ ERROR: $readId is not an escalation (kind ${readKind:-question}), so it carries no verdict" >&2
+					set +e ; return 1
+				}
+			;;
+			*)
+				echo "$MDSC_CMD: ⛔ ERROR: $readId is not an escalation (kind ${readKind:-question}), so it carries no verdict" >&2
+				set +e ; return 1
+			;;
+		esac
+		readStatus="$( AgentsToolsEscalationField "$readFile" status )"
+		if [ "$readStatus" = "reply-received" ] ; then
+			## An apply that stopped after its record closed is finished first, so what is read
+			## is the whole of it.
+			AgentsToolsEscalationApplyResume "$readFile" "$readId"
+			AgentsToolsEscalationRecorded "$readFile" "$readId"
+			return 0
+		fi
+		## Closed some other way -- withdrawn by its asker -- it takes no verdict.
+		if [ "$readStatus" != "reply-pending" ] ; then
+			printf 'ESCALATION: %s closed %s\n' "$readId" "${readStatus:-unknown}"
+			return 0
+		fi
+		## A held change is carried out only while the session that made it runs. With that
+		## session gone it is dropped, whatever its thread holds, and its prompt says so.
+		if [ "$readKind" = "change" ] ; then
+			type AgentsChangeSessionGone > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.InternOpChange.include"
+			if AgentsChangeSessionGone "$readFile" ; then
+				AgentsChangeDrop "$readFile" "$readId" tooling "the session that made it has ended"
+				## The drop closed the record, which moved to closed/ (retention, T9): its status reads from there.
+				[ -f "$readFile" ] || readFile="$MMDAPP/.local/agents/pending/closed/$readId.md"
+				printf 'ESCALATION: %s closed %s\n' "$readId" "$( AgentsToolsEscalationField "$readFile" status )"
+				return 0
+			fi
+		fi
+		## An apply that stopped before its record closed is completed first: the answer it noted
+		## stands, whatever its thread says now. A holder still alive is left to it.
+		if [ -f "$( AgentsToolsEscalationClaimDir "$readFile" )/verdict" ] ; then
+			local readResumed="" readResumeRc=0
+			readResumed="$( AgentsToolsEscalationApply "$readFile" "$readId" "" "" "" )" || readResumeRc=$?
+			case "$readResumeRc" in
+				0|5) printf '%s\n' "$readResumed" ; return 0 ;;
+			esac
+		fi
+		## Not answered yet: the question's own thread, then a forward's thread, are read now.
+		## The first line is the verdict; the CLARIFY lines after it are kept once it is applied.
+		## A request that went up the chain (AgentsToolsEscalationReroute) is answered by the one
+		## it is addressed to now: its own thread, where the accounts it was first addressed to
+		## answer, gives no verdict any more. So an answer that was not applied is never read and
+		## sent up again on the next read, and never stands in front of the answer of a forward.
+		local readOut="" readRerouted=""
+		readRerouted="$( AgentsToolsEscalationField "$readFile" rerouted-from )"
+		readOut="$( AgentsToolsEscalationThreadVerdict "$readMember" "$readFile" "$readId" \
+			"$( AgentsToolsEscalationField "$readFile" channel )" "$( AgentsToolsEscalationField "$readFile" question-ts )" \
+			"$( AgentsToolsEscalationField "$readFile" thread-ts )" "$( AgentsToolsEscalationField "$readFile" addressees )" \
+			"$( [ "$( AgentsToolsEscalationField "$readFile" ask-identity )" != "bot" ] || printf 'true' )" "$readRerouted" )"
+		readVerdict="${readOut%%$'\n'*}"
+		local readReason="" readForward="" readUnreadable="" readForwardOut=""
+		[ "${readVerdict%%$'\t'*}" != "UNREADABLE" ] || readUnreadable="${readVerdict##*$'\t'}"
+		case "${readVerdict%%$'\t'*}" in
+			RETURNED|OPEN|UNREADABLE)
+				if [ -n "$( AgentsToolsEscalationField "$readFile" forward-ts )" ] ; then
+					readForward=1
+					readForwardOut="$( AgentsToolsEscalationThreadVerdict "$readMember" "$readFile" "$readId" \
+						"$( AgentsToolsEscalationField "$readFile" forward-channel )" "$( AgentsToolsEscalationField "$readFile" forward-ts )" \
+						"$( AgentsToolsEscalationField "$readFile" forward-ts )" "$( AgentsToolsEscalationField "$readFile" forward-addressees )" true )"
+					case "${readForwardOut%%$'\t'*}" in
+						UNREADABLE) readForwardOut="${readForwardOut%%$'\n'*}" ; readUnreadable="${readUnreadable:+$readUnreadable; }${readForwardOut##*$'\t'}" ;;
+						## Nothing in the forward's thread yet: what the question's own thread gave stands.
+						OPEN) ;;
+						*) readOut="$readForwardOut" ; readVerdict="${readOut%%$'\n'*}" ;;
+					esac
+				fi
+			;;
+		esac
+		## A thread that could not be read, and no verdict from the other one: an error that names
+		## the conversation, the identity it was read with and Slack's error. Never RETURNED, and
+		## never open, since whether it was answered is exactly what is not known.
+		case "${readVerdict%%$'\t'*}" in
+			RETURNED|OPEN|UNREADABLE)
+				if [ -n "$readUnreadable" ] ; then
+					echo "$MDSC_CMD: ⛔ ERROR: whether $readId is answered is NOT known: $readUnreadable -- its record is left as it was, open" >&2
+					printf 'ESCALATION: %s unreadable\n' "$readId"
+					printf 'UNREADABLE-REASON: %s\n' "$readUnreadable"
+					set +e ; return 1
+				fi
+			;;
+		esac
+		## Nothing there yet from who may answer: still open, said as that, with who it waits on.
+		if [ "${readVerdict%%$'\t'*}" = "OPEN" ] ; then
+			printf 'ESCALATION: %s open\n' "$readId"
+			printf 'WAITING-ON: %s\n' "$( AgentsToolsEscalationField "$readFile" address-to )"
+			[ -z "$readRerouted" ] || printf 'REROUTE-REASON: %s\n' "$( AgentsToolsEscalationField "$readFile" reroute-reason )"
+			return 0
+		fi
+		if [ "${readVerdict%%$'\t'*}" = "RETURNED" ] ; then
+			readReason="${readVerdict#*$'\t'}" ; readReason="${readReason#*$'\t'}"
+			## Up the chain and not answered there yet: said as that, never as a reply that named nothing.
+			[ -n "$readReason" ] || [ -z "$readRerouted" ] || readReason="$( AgentsToolsEscalationField "$readFile" reroute-reason ), so that answer is not applied; the request is addressed to $( AgentsToolsEscalationField "$readFile" address-to ) now and stays open for that answer"
+			## Returned to the asker: what the person wrote is kept on the record and its item's
+			## Decisions, as clarifications are, and the question stays open.
+			! printf '%s\n' "$readOut" | LC_ALL=C grep -q '^CLARIFY' || AgentsToolsEscalationClarify "$readId" "$readOut" > /dev/null
+			printf 'ESCALATION: %s open\n' "$readId"
+			printf 'VERDICT: RETURNED\n'
+			[ -z "$readReason" ] || printf 'VERDICT-REASON: %s\n' "$readReason"
+			AgentsToolsEscalationSaid "$readOut"
+			return 0
+		fi
+		## The words on the verdict's own line come with it as "<verdict> -- <words>", for every
+		## kind (AgentsEscalationVerdict.awk, MDAT_VERDICT_WORDS): they are its text, given to the
+		## asker with it and kept on the record. The verdict is what stands ahead of them.
+		case "${readVerdict%%$'\t'*}" in
+			*' -- '*) readText="${readVerdict%%$'\t'*}" ; readText="${readText#* -- }" ; readVerdict="${readVerdict%% -- *}"$'\t'"${readVerdict#*$'\t'}" ;;
+		esac
+		## A review verdict's text is what the person wrote with it: after the word, in the rest
+		## of that reply and in every later one; for a click, in every reply of his there.
+		if [ "$readKind" = "review" ] ; then
+			type AgentsReviewPromptText > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ReviewFlow.include"
+			readText="$( AgentsReviewPromptText "$readOut" )"
+			readVerdict="${readVerdict%%[ $'\t']*}"$'\t'"${readVerdict#*$'\t'}"
+		fi
+		## The floor is a message of the question's own thread, which is what stays watched; a
+		## verdict read from a forward's thread leaves it at the question.
+		local readFloor=""
+		[ -n "$readForward" ] || readFloor="$( AgentsToolsEscalationFloor "$readOut" )"
+		## The message he sent, taken as this answer: its ts rides with the verdict, so the close can
+		## acknowledge the answer ON that message (:eyes:) and not on the question's own post. A verdict
+		## read from a forward's thread names a message of another conversation, so the close is given
+		## none there -- a reaction in the question's channel on that ts would be in the wrong channel.
+		[ -n "$readForward" ] || readAnswerTs="$( printf '%s\n' "$readOut" | LC_ALL=C awk -F'\t' '$1 == "ANSWER-TS" { print $2 ; exit }' )"
+		local readApplied="" readApplyRc=0
+		readApplied="$( AgentsToolsEscalationApply "$readFile" "$readId" "${readVerdict%%$'\t'*}" "$readText" "${readVerdict#*$'\t'}" "" "" "$readFloor" "$readForward" "$readAnswerTs" )" || readApplyRc=$?
+		case "$readApplyRc" in
+			0)
+				printf '%s\n' "$readApplied"
+				## An allow that went up the chain is not applied: for the asker the question is
+				## still open, said with the reason and never as a reply that named nothing.
+				case "$readApplied" in
+					"ESCALATION: $readId rerouted"*)
+						printf 'VERDICT: RETURNED\n'
+						printf 'VERDICT-REASON: %s, so that answer is not applied; the request is addressed to %s now and stays open for that answer\n' \
+							"$( AgentsToolsEscalationField "$readFile" reroute-reason )" "$( AgentsToolsEscalationField "$readFile" address-to )"
+						return 0
+					;;
+				esac
+			;;
+			## An allow whose grant could not be written: not applied, said as returned, still open.
+			5) printf '%s\n' "$readApplied" ; return 0 ;;
+			## The claim was another answer's. A read reports what stands: the verdict that
+			## answer recorded, or that it is still being recorded.
+			3)
+				if [ "$( AgentsToolsEscalationField "$readFile" status )" = "reply-received" ] ; then
+					AgentsToolsEscalationRecorded "$readFile" "$readId"
+				else
+					printf '%s\n' "$readApplied"
+				fi
+				return 0
+			;;
+			*)
+				[ -z "$readApplied" ] || printf '%s\n' "$readApplied"
+				set +e ; return 1
+			;;
+		esac
+		## The rest of the reply and every later one: clarifications on this verdict, given to
+		## whoever reads this result and kept on the record.
+		AgentsToolsEscalationSaid "$readOut"
+		[ "$( AgentsToolsEscalationField "$readFile" status )" != "reply-received" ] || AgentsToolsEscalationClarify "$readId" "$readOut"
+		return 0

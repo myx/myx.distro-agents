@@ -465,7 +465,7 @@ echo ""
 if [ "$rigFails" -ne 0 ] ; then
 	echo "⛔ SESSION CONTROL KILL REQUEST CHECK FAILED: $rigFails of $(( rigPasses + rigFails )) assertion(s)" >&2
 	echo "  warn: a kill of a session does not go through its control thread as it should, or depends on it" >&2
-	echo "  fix:  the request and its outcome (sh-lib/session/AgentsTools.SessionControlRequest.include), the thread's look at a tick and its call apart (sh-lib/session/AgentsTools.InternSessionControl.include), the operation (sh-lib/manager/AgentsTools.ManagerSession.include) -- never the assertion" >&2
+	echo "  fix:  the request and its outcome (sh-lib/session/AgentsTools.SessionControlRequest.include), the thread's look at a tick and its call apart (sh-lib/session/AgentsTools.InternSessionControl.include), the operation (sh-lib/manager/AgentsTools.ManagerSessionKill.include) -- never the assertion" >&2
 	exit 1
 fi
 printf 'SESSION_CONTROL_KILL_REQUEST: OK (%d assertions, offline, rig tree only)\n' "$rigPasses"

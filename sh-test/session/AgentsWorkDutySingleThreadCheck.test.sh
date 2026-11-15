@@ -93,7 +93,7 @@ rigDuty(){ ## member
 		MDLT_OPTION="--run-from-path $MDLT_ORIGIN" RIG_SCENARIO="$rigTmp" RIG_TMP="$rigTmp" RIG_FN="$rigTool" \
 		bash -c '
 			case "$MMDAPP" in "$RIG_TMP"/*) ;; *) exit 99 ;; esac
-			cd "$MMDAPP" && . "$RIG_FN" && . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.DispatcherSchedule.include" \
+			cd "$MMDAPP" && . "$RIG_FN" && . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/schedule/AgentsTools.DispatcherSchedule.include" \
 				&& AgentsToolsScheduleSpawn "work-duty.$1" --session-thread:event-track --routine "$1.work-duty.routine.md" "$1"
 		' rig-duty-wrapper "$1" > "$rigTmp/duty.$1.out" 2>&1 < /dev/null
 	local waited=0

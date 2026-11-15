@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-## Behavioural check on AgentsToolsManagerRunActivity (sh-lib/manager/AgentsTools.ManagerSession.include), run rather than
+## Behavioural check on AgentsToolsManagerRunActivity (sh-lib/manager/AgentsTools.ManagerRunActivity.include), run rather than
 ## read: what the console calls a live run that sits inside a call waiting on a person. Held: a Wait writes `wait going idle`
 ## as it starts and its wait/state says whether it is over; an ask writes `ask going idle` as it starts and a later milestone
 ## of its own says it is over, so a member idle in Wait for its coordinator's verdict reads waiting, never running (owner
@@ -7,7 +7,7 @@
 ## working. Offline; the rig is a directory of stores in this check's own temp tree.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
-rigInclude="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.ManagerSession.include"
+rigInclude="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.ManagerRunActivity.include"
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }
@@ -21,7 +21,7 @@ rigStores="$rigWs/.local/agents/sessions"
 mkdir -p "$rigStores"
 ## The include is read for its definitions alone, by a shell that is not reading this check: its dispatcher answers
 ## no operation it is not given, and the dispatch names a command only its own caller sets.
-MMDAPP="$rigWs" bash -c '. "$1" --definitions-only > /dev/null 2>&1 ; type AgentsToolsManagerRunActivity > /dev/null 2>&1' _ "$rigInclude" \
+MMDAPP="$rigWs" bash -c '. "$1" ; type AgentsToolsManagerRunActivity > /dev/null 2>&1' _ "$rigInclude" \
 	|| rigRefuse "the manager session include could not be read with MMDAPP set"
 
 rigPassCount=0
@@ -36,7 +36,7 @@ rigAssert(){ ## what is asserted, got, want
 rigStat=gnu
 [ "$( uname -s )" != "Darwin" ] || rigStat=bsd
 rigActivity(){ ## spawn id -- what the console calls that run, from its store alone
-	MMDAPP="$rigWs" bash -c '. "$1" --definitions-only > /dev/null 2>&1 ; AgentsToolsManagerRunActivity "$2" "$3"' _ "$rigInclude" "$1" "$rigStat"
+	MMDAPP="$rigWs" bash -c '. "$1" ; AgentsToolsManagerRunActivity "$2" "$3"' _ "$rigInclude" "$1" "$rigStat"
 }
 rigStore(){ ## spawn id, the lines of its milestones, one a line
 	rm -rf -- "$rigStores/$1"
@@ -70,8 +70,8 @@ echo "-- 3. what this check does not call waiting --"
 rigStore run-post '2026-10-13T07:15:19Z message out'
 rigAssert "a run that has just posted reads working" "$( rigActivity run-post )" working
 rigStore run-none
-rigAssert "a run with no store reads working" "$( MMDAPP="$rigWs" bash -c '. "$1" --definitions-only > /dev/null 2>&1 ; AgentsToolsManagerRunActivity "$2" "$3"' _ "$rigInclude" run-nowhere "$rigStat" )" working
-rigAssert "and so does one given no bare id at all" "$( MMDAPP="$rigWs" bash -c '. "$1" --definitions-only > /dev/null 2>&1 ; AgentsToolsManagerRunActivity "" "$2"' _ "$rigInclude" "$rigStat" )" working
+rigAssert "a run with no store reads working" "$( MMDAPP="$rigWs" bash -c '. "$1" ; AgentsToolsManagerRunActivity "$2" "$3"' _ "$rigInclude" run-nowhere "$rigStat" )" working
+rigAssert "and so does one given no bare id at all" "$( MMDAPP="$rigWs" bash -c '. "$1" ; AgentsToolsManagerRunActivity "" "$2"' _ "$rigInclude" "$rigStat" )" working
 
 echo "-- 4. the harness writes the milestone that says a run is inside an ask --"
 rigTranscript="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionTranscript.include"
@@ -83,7 +83,7 @@ printf '%s\n' "$rigTmp/ask-store/transcript.log" > "$rigAskDir/transcript"
 printf '%s\n' "$rigTmp/ask-data" > "$rigAskDir/data-root"
 rigAskTurn(){ ## tool name -- the last milestone of the run after that tool's start
 	MMDAPP="$rigAskWs" MDAT_SPAWN_SESSION_ID="$rigAskSid" MDAT_DATA_ROOT="$rigTmp/ask-data" \
-		bash -c '. "$1" --definitions-only > /dev/null 2>&1 ; AgentsTranscriptToolStart "$2"' _ "$rigTranscript" "$1" > /dev/null 2>&1
+		bash -c '. "$1" ; AgentsTranscriptToolStart "$2"' _ "$rigTranscript" "$1" > /dev/null 2>&1
 	awk '{ $1 = "" ; print }' "$rigAskDir/milestones" 2> /dev/null | tail -1
 }
 rigAssert "an ask about to block writes ask going idle, as a Wait writes wait going idle: that line is what the console reads" "$( rigAskTurn AskQuestion )" " ask going idle"
@@ -96,12 +96,12 @@ rigBareDir="$rigBareWs/.local/agents/sessions/$rigBareSid"
 mkdir -p "$rigBareDir" "$rigTmp/bare-data"
 rigBareTurn(){ ## tool name -- the last milestone after that tool's start, for a run with no transcript
 	MMDAPP="$rigBareWs" MDAT_SPAWN_SESSION_ID="$rigBareSid" MDAT_DATA_ROOT="$rigTmp/bare-data" \
-		bash -c '. "$1" --definitions-only > /dev/null 2>&1 ; AgentsTranscriptToolStart "$2"' _ "$rigTranscript" "$1" > /dev/null 2>&1
+		bash -c '. "$1" ; AgentsTranscriptToolStart "$2"' _ "$rigTranscript" "$1" > /dev/null 2>&1
 	awk '{ $1 = "" ; print }' "$rigBareDir/milestones" 2> /dev/null | tail -1
 }
 rigAssert "a run with no transcript of its own still records that it went into a Wait: that line is the console's only record" "$( rigBareTurn Wait )" " wait going idle"
-rigAssert "and the console calls it waiting from that line alone" "$( MMDAPP="$rigBareWs" bash -c '. "$1" --definitions-only > /dev/null 2>&1 ; AgentsToolsManagerRunActivity "$2" "$3"' _ "$rigInclude" "$rigBareSid" "$rigStat" )" waiting
-rigAssert "and an ask reads waiting there too" "$( rigBareTurn AskQuestion ):$( MMDAPP="$rigBareWs" bash -c '. "$1" --definitions-only > /dev/null 2>&1 ; AgentsToolsManagerRunActivity "$2" "$3"' _ "$rigInclude" "$rigBareSid" "$rigStat" )" " ask going idle:waiting"
+rigAssert "and the console calls it waiting from that line alone" "$( MMDAPP="$rigBareWs" bash -c '. "$1" ; AgentsToolsManagerRunActivity "$2" "$3"' _ "$rigInclude" "$rigBareSid" "$rigStat" )" waiting
+rigAssert "and an ask reads waiting there too" "$( rigBareTurn AskQuestion ):$( MMDAPP="$rigBareWs" bash -c '. "$1" ; AgentsToolsManagerRunActivity "$2" "$3"' _ "$rigInclude" "$rigBareSid" "$rigStat" )" " ask going idle:waiting"
 
 echo "-- the count --"
 if [ "$rigFailCount" -eq 0 ] ; then

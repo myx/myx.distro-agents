@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+## AgentsTools.OpManagerKeysList.include -- the operation `--manager-keys-list`, sourced by AgentsTools.ManagerKeys.include with the operation's arguments.
+## The public keys of this server, one row each: TAB-separated rows a screen reads. Their
+## form is the help entry's.
+		type AgentsToolsManagerKeysDeclared > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.PublicKeys.include"
+		local listOp="$1" listKey listLabel listGroup listFor listFile listWhy listAll listNow="" listRows listNote keysLine keysType keysText listShown listTrusted listN listType listText listComment listFileOf
+		shift
+		if [ $# -gt 0 ] ; then
+			echo "⛔ ERROR: $MDSC_CMD $listOp: syntax is $listOp, got $# argument(s) -- nothing is shown" >&2
+			set +e ; return 1
+		fi
+		## A group at a time, in the order its first key stands: one `group` row, with how many
+		## keys it has, its label, and, where none of them can be read, why; then its keys.
+		listAll="$( AgentsToolsManagerKeysDeclared )"
+		while IFS='|' read -r listKey listLabel listGroup listFor listFile listWhy ; do
+			[ -n "$listKey" ] || continue
+			listShown="$( AgentsToolsManagerKeysListed "$listGroup" )"
+			if [ "$listShown" != "$listNow" ] ; then
+				[ -z "$listNow" ] || { printf 'group\t%s\t%s\t%s\t%s\n' "$listNow" "$( printf '%s\n' "$listRows" | LC_ALL=C grep -c . )" "$( AgentsToolsManagerKeysField "$( AgentsToolsManagerKeysGroupLabel "$listNow" )" )" "$( AgentsToolsManagerKeysField "$listNote" )" ; printf '%s\n' "$listRows" ; }
+				listNow="$listShown" ; listRows="" ; listNote=""
+			fi
+			## why a key of the group cannot be read, each once, in the order the keys stand
+			if ! AgentsToolsManagerKeysPublic "$listFile" ; then listNote="$listNote${listNote:+; }${listWhy:-no public key can be read at $listFile}" ; fi
+			listRows="$listRows${listRows:+$'\n'}$( AgentsToolsManagerKeysRow "$listKey" "$listLabel" "$listGroup" "$listFor" "$listFile" )"
+		done <<< "$listAll"
+		[ -z "$listNow" ] || { printf 'group\t%s\t%s\t%s\t%s\n' "$listNow" "$( printf '%s\n' "$listRows" | LC_ALL=C grep -c . )" "$( AgentsToolsManagerKeysField "$( AgentsToolsManagerKeysGroupLabel "$listNow" )" )" "$( AgentsToolsManagerKeysField "$listNote" )" ; printf '%s\n' "$listRows" ; }
+		## The keys this account trusts, read-only: the lines of its authorized keys that hold a public key.
+		listFileOf="${HOME%/}/.ssh/authorized_keys"
+		if listTrusted="$( AgentsToolsManagerKeysTrusted )" && [ -n "$listTrusted" ] ; then
+			printf 'group\ttrusted\t%s\t%s\t-\n' "$( printf '%s\n' "$listTrusted" | LC_ALL=C grep -c . )" "$( AgentsToolsManagerKeysField "$( AgentsToolsManagerKeysGroupLabel trusted )" )"
+			while IFS='|' read -r listN listType listText listComment ; do
+				AgentsToolsManagerKeysTrustedRow "$listN" "$listType" "$listText" "$listComment"
+			done <<< "$listTrusted"
+		else
+			printf 'group\ttrusted\t0\t%s\t%s\n' "$( AgentsToolsManagerKeysField "$( AgentsToolsManagerKeysGroupLabel trusted )" )" "$( AgentsToolsManagerKeysField "$( [ -f "$listFileOf" ] && printf 'the authorized keys of this account, %s, hold no public key' "$listFileOf" || printf 'no authorized keys file stands at %s' "$listFileOf" )" )"
+		fi
+		return 0

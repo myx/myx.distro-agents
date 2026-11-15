@@ -31,7 +31,7 @@ set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 rigHere="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib"
-rigSpawn="$rigHere/session/AgentsTools.SpawnSandbox.include"
+rigSpawn="$rigHere/spawn/AgentsTools.SpawnSandbox.include"
 rigFixtures="$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures"
 rigTool="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 rigMember="rig-member"
@@ -104,7 +104,7 @@ rigDefaults(){ ## the default sources of a plain Wait in the children workspace
 		MDLT_ORIGIN="$MDLT_ORIGIN" RIG_TMP="$rigTmp" MDAT_SESSION_THREAD="$rigParentThread" MDAT_SPAWN_SESSION_ID="$rigParent" \
 		"$rigBash" -c '
 			case "$MMDAPP" in "$RIG_TMP"/*) ;; *) exit 99 ;; esac
-			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include"
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandbox.include"
 			AgentsToolsWaitDefaultSources
 		' 2>/dev/null
 }
@@ -118,7 +118,7 @@ rigChildRecord rigchild0004 rig-kid-session-4 CRIGKID04:200.000004 spawn-started
 rigChildRun rigchild0001
 rigChildRun rigchild0001b
 rigChildRun rigchild0002
-( . "$rigHere/session/AgentsTools.ChildrenIndex.include" ; . "$rigSpawn" ; AgentsToolsChildrenIndexRepair "$rigKidsWs" ) > /dev/null 2>&1 \
+( . "$rigHere/spawn/AgentsTools.ChildrenIndex.include" ; . "$rigSpawn" ; AgentsToolsChildrenIndexRepair "$rigKidsWs" ) > /dev/null 2>&1 \
 	|| rigRefuse "the rig could not list the children it made"
 rigAssert "the parent's index lists one record a line"  "$( wc -l < "$rigKidsWs/.local/agents/children/$rigParent" | tr -d ' ' )" 5
 rigAssert "a plain Wait watches the session and each running child once" "$( rigDefaults )" \

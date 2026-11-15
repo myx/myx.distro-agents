@@ -94,27 +94,16 @@ AgentsToolsCommsCacheInterest(){ ## cache folder, now, the reader's TTL (optiona
 	## ON A TEAM RIG the reader that pulls what is read lately runs whenever anything is read: started here where it is not running
 	## (lazy, owner 2026-10-29), its mode read once a process. Elsewhere a read pulls by itself, past its TTL.
 	if [ -z "${agentsCommsRigMode+set}" ] ; then
-		type AgentsToolsWorkspaceMode > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataGate.include" 2> /dev/null
+		type AgentsToolsWorkspaceMode > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataGate.include"
 		agentsCommsRigMode="$( AgentsToolsWorkspaceMode 2> /dev/null )" || agentsCommsRigMode=""
 	fi
 	case "$agentsCommsRigMode" in
 		team-rig*)
-			type AgentsToolsSessionCommsStart > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionComms.include" 2> /dev/null
+			type AgentsToolsSessionCommsStart > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionComms.include"
 			! type AgentsToolsSessionCommsStart > /dev/null 2>&1 || AgentsToolsSessionCommsStart > /dev/null 2>&1 || :
 		;;
 	esac
 	return 0
-}
-
-## Whether this process works on a team rig (read once a process). The cache-only reads no longer ask it: a Wait never calls a
-## service on any rig (the owner's design), and a rig with no comms thread reads its sources as never read until one pulls them.
-AgentsToolsCommsCacheTeamRig(){
-	if [ -z "${agentsCommsRigMode+set}" ] ; then
-		type AgentsToolsWorkspaceMode > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataGate.include" 2> /dev/null
-		agentsCommsRigMode="$( AgentsToolsWorkspaceMode 2> /dev/null )" || agentsCommsRigMode=""
-	fi
-	case "$agentsCommsRigMode" in team-rig*) return 0 ;; esac
-	return 1
 }
 
 ## ONE PULL OF A CHANNEL AT A TIME: the first makes `.pulling.txt` where it is absent (noclobber, so only one can) with its epoch;
@@ -198,7 +187,7 @@ AgentsToolsCommsCacheWanted(){ ## cache folder, the recipe line
 	## THE WANT ASKS THE SERVICE THREAD TO RUN, never pulls: where no comms thread lives for this workspace, one is started on the current
 	## code (AgentsToolsSessionCommsStart, which answers `alive` where one lives), and it pulls the want on its pass. So a reader on any
 	## rig, a check's included, waits on the thread and not on luck.
-	type AgentsToolsSessionCommsStart > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionComms.include" 2> /dev/null || :
+	type AgentsToolsSessionCommsStart > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionComms.include"
 	local wantSaid="" wantPid=""
 	! type AgentsToolsSessionCommsStart > /dev/null 2>&1 || wantSaid="$( AgentsToolsSessionCommsStart 2> /dev/null )" || wantSaid=""
 	## AND WAKES IT: the thread sleeps between passes and wakes on USR1 (its own trap), so the pull comes now and not at its next
@@ -260,7 +249,7 @@ AgentsToolsCommsCacheSlackThread(){ ## member, <channel>:<thread ts>, the render
 	fi
 	## THE ONE RENDERING (epic S11): the read operation, this cache and the Wait render through AgentsToolsSlackFormatPagedConversation,
 	## so what a rendering carries -- a voice message's words among it -- is decided in one place and not three.
-	type AgentsToolsSlackFormatPagedConversation > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsSlack.include"
+	type AgentsToolsSlackFormatPagedConversation > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/slack/AgentsTools.CommsSlack.include"
 	AgentsToolsSlackFormatPagedConversation "$1" "$( cat "$3.read" )" > "$3.fresh" 2>> "$3.err" || tcRc=2
 	[ "$tcRc" != 0 ] || AgentsToolsCommsCacheMerge "$tcDir" "$3.fresh" "$tcTs" "$tcNow" "slack-thread $2 $1 ${4:-false}" || tcRc=1
 	rm -f "$3.fresh"
@@ -349,6 +338,7 @@ AgentsToolsCommsCachePush(){ ## cache folder, now, most (optional; 0 or none: no
 			## refused, unreached), and a caller under set -e (DistroAgentsTools.fn.sh) is killed outright by that
 			## return unless it is the left side of ||, never just followed by `; pushRc=$?`.
 			pushRc=0
+			type AgentsToolsSessionCommsPost > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionComms.include"
 			AgentsToolsSessionCommsPost "$pushSession" "$pushWork/$pushBlock.retry" || pushRc=$?
 			rm -f "$pushWork/$pushBlock".*
 			if [ "$pushRc" = 1 ] ; then
@@ -505,7 +495,7 @@ AgentsToolsCommsCachePullWatched(){ ## now, most (optional; the channels one cal
 			;;
 			slack-mentions)
 				## A member's mentions, searched by the thread for the Wait that reads the cache alone (AgentsWaitMentionsPull).
-				type AgentsWaitMentionsPull > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWaitMentions.include" 2> /dev/null || :
+				type AgentsWaitMentionsPull > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/wait/AgentsTools.MemberWaitMentions.include"
 				## Its stderr is the thread's log: the one line that says why a member's mentions cannot be searched lands there.
 				! type AgentsWaitMentionsPull > /dev/null 2>&1 || MDAT_COMMS_CACHE_ONLY="" MDAT_COMMS_CACHE_PULLER=true AgentsWaitMentionsPull "$watchTarget" "$watchDir" "$1" > /dev/null || :
 			;;

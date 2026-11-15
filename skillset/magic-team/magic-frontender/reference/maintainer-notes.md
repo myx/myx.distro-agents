@@ -1,3 +1,6 @@
+---
+maintainers: magic-librarian, magic-coordinator, magic-architect, human-owner
+---
 # magic-frontender — Maintainer Notes
 
 The body of this member's armed `# Maintainer Notes`. Read it when that file is updated, assessed or tested.

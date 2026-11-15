@@ -1,0 +1,51 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+type AgentsSettingsScopeHas > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/settings/AgentsTools.Settings.include"
+
+##
+## AgentsTools.SpawnProxyHelpers.include -- the supervising shell: it holds until its close is done, and keeps the helper processes it starts beside a run.
+## Sourced, never run. Functions only. Loaded by AgentsTools.InternOpAgentSpawnProxy.include.
+##
+
+## A SUPERVISING SHELL HOLDS UNTIL ITS CLOSE IS DONE. The shell that started a run waits on
+## it and then closes it: its record, its item, the lines that say how it ended. An end sent
+## to that shell before then -- a polite end, an interrupt, a quit; to it alone, or to the
+## process group it leads, where a command of its run signals its own group -- is no end of
+## the run and no reason to leave the run unclosed. So it is held: said here, in the run's
+## log, and the shell goes on. Nothing in the tooling sends one on purpose: a kill and a stop
+## end the run's own processes and never its supervising shell
+## (AgentsToolsRunProcesses), which then closes the run as it always does. An end
+## meant for the shell is therefore told from a stray one by where the shell stands, never by
+## who sent it: before its close is done every end that can be held is held, and whoever
+## wants the shell itself gone then has the one that cannot be; once its close is done the
+## hold is taken off, and what is left, the commit of the transcript's end and the push of
+## team data, which have no bound of their own, ends at any end the shell is sent.
+## Held by a trap and never by ignoring: what the shell starts after it, the run among them,
+## takes every signal as it always did. A wait such a signal cuts short is taken up again
+## by whoever waits.
+AgentsToolsSpawnProxyHeld(){ ## signal name
+	echo "# ${MDSC_CMD:-DistroAgentsTools} --intern-op-agent-spawn-proxy: the supervising shell of spawn ${MDAT_SPAWN_SESSION_ID:-} was sent $1 before its close was done -- held: it goes on to close the run, and ends once that is done" >&2 || :
+	return 0
+}
+
+## THE HELPERS OF A RUN, each a process the supervising shell starts beside the run, keeps for
+## its whole length and ends when the run has ended: the reader of its log, the poster of its
+## feed, the poller of its launch. A pid is a number the system gives again, and a helper may
+## have ended long before the run does: the poller ends by itself seconds into the run, once
+## the launch is seen, and hours later its number can be any process's of the same user. So
+## each is kept with when it began, read as it is started (AgentsToolsRunProcessesBegan,
+## the one reading a process is kept by), and is signalled only while its pid is still the
+## process that began then. One that has ended by itself, and one whose start could not be
+## read, is never signalled; and a helper that was not signalled is not waited for.
+AgentsToolsSpawnProxyHelperBegan(){ ## pid -- prints `<pid> <start>`, or nothing where it is no process now
+	type AgentsToolsRunProcessesBegan > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunProcesses.include"
+	printf '%s\n' "${1:-}" | AgentsToolsRunProcessesBegan 2> /dev/null
+	return 0
+}
+
+AgentsToolsSpawnProxyHelperEnd(){ ## what AgentsToolsSpawnProxyHelperBegan printed for it (may be empty), signal name (default TERM) -- rc 0 signalled
+	type AgentsToolsRunProcessesBegan > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunProcesses.include"
+	case "${1:-}" in *' '*) ;; *) return 1 ;; esac
+	type AgentsToolsRunProcessesBegan > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunProcesses.include"
+	[ "$( printf '%s\n' "${1%% *}" | AgentsToolsRunProcessesBegan 2> /dev/null )" = "$1" ] && kill "-${2:-TERM}" "${1%% *}" 2>/dev/null
+}

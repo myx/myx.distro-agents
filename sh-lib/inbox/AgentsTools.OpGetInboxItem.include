@@ -1,0 +1,75 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+## AgentsTools.OpGetInboxItem.include -- the operation `--get-inbox-item`, sourced by AgentsTools.Member.include with the operation's arguments.
+		shift
+		local memberName="$1"
+		shift || true
+		local itemName="$1"
+		shift || true
+		if [ -z "$memberName" ] || [ -z "$itemName" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --get-inbox-item: syntax is [--team-member <member>] <item-filename> [--include-processed] [--start-line <N> --end-line <N>]" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsAssertBareName "$memberName" "<member>" get-inbox-item || { set +e ; return 1 ; }
+		local memberDir="$MDAT_SKILLSET_ROOT/$memberName"
+		if [ ! -d "$memberDir" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --get-inbox-item: no such member skill directory: $memberDir" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsAssertBareName "$itemName" "<item-filename>" get-inbox-item || { set +e ; return 1 ; }
+		case "$itemName" in
+			note-*|inquiry-*|reflection-*|warning-*)
+			;;
+			*)
+				echo "⛔ ERROR: $MDSC_CMD --get-inbox-item: only note-*/inquiry-*/reflection-*/warning-* items are allowed: $itemName" >&2
+				set +e ; return 1
+			;;
+		esac
+
+		local startLine="" endLine="" includeProcessed="no"
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--include-processed)
+					includeProcessed="yes"
+					shift
+				;;
+				--start-line)
+					startLine="$2"
+					shift 2
+				;;
+				--end-line)
+					endLine="$2"
+					shift 2
+				;;
+				*)
+					echo "⛔ ERROR: $MDSC_CMD --get-inbox-item: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+
+		if [ -n "$startLine" ] || [ -n "$endLine" ] ; then
+			if [ -z "$startLine" ] || [ -z "$endLine" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --get-inbox-item: --start-line and --end-line must be provided together" >&2
+				set +e ; return 1
+			fi
+		fi
+		[ -n "${MDAT_DATA_ROOT:-}" ] || {
+			echo "⛔ ERROR: $MDSC_CMD --get-inbox-item: MDAT_DATA_ROOT is not set" >&2
+			set +e ; return 1
+		}
+		## Where a read finds it (AgentsToolsInboxFolders): incoming/, and processed/ with
+		## --include-processed.
+		local readArgs=( "$itemName" --context --get-inbox-item ) readFolder
+		type AgentsToolsInboxFolders > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/inbox/AgentsTools.InboxPlace.include"
+		while IFS= read -r readFolder ; do
+			readArgs+=( --lookup-folder "$readFolder" )
+		done < <( AgentsToolsInboxFolders "$memberName" "$includeProcessed" )
+
+		if [ -n "$startLine" ] ; then
+			readArgs+=( --start-line "$startLine" --end-line "$endLine" )
+		fi
+		type AgentsToolsDataRead > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.InternOpDataRead.include"
+		AgentsToolsDataRead ${readArgs[@]+"${readArgs[@]}"}
+		return $?

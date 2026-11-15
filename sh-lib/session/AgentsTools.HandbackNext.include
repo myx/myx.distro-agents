@@ -14,7 +14,7 @@
 ## Sourced for the functions only.
 ##
 
-type AgentsToolsSpawnRecordPath > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include"
+type AgentsToolsSpawnRecordPath > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionSeats.include"
 
 ## One frontmatter value of a file, trimmed, empty where absent.
 AgentsToolsHandbackNextKey(){ ## file, key
@@ -67,11 +67,18 @@ AgentsToolsHandbackNext(){ ## member, spawn id, the outcome field of the handbac
 	local nextMarker nextName nextTask nextManual nextWhy="" nextExecutorOk="no" nextAllowed nextEntry nextArgs=() nextGateRows nextGateRc=0
 	nextRecord="$( AgentsToolsSpawnRecordPath "$nextSession" )"
 	[ -n "$nextRecord" ] || return 0
+	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandbox.include"
 	nextRoutine="$( AgentsToolsSpawnSandboxRecordHeader "$nextRecord" routine )"
 	nextRoutineFile="$( AgentsToolsHandbackNextRoutineFile "$nextRoutine" )"
 	[ -n "$nextRoutineFile" ] || return 0
 	nextWant="$( AgentsToolsHandbackNextKey "$nextRoutineFile" hands-over-to )"
 	[ -n "$nextWant" ] || return 0
+	## S6.27 stage 4: the hand-over leaves its own frame `current` and opens the successor's frame with `by: routine`,
+	## in this session's stack (design lines 136 to 139). Recorded before the successor starts, so a reader of the stack
+	## sees the hand-over even where the start below is refused. A stack that cannot be recorded ends nothing.
+	if type AgentsToolsRoutineStackMove > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/routine/AgentsTools.RoutineStack.include"; then
+		AgentsToolsRoutineStackMove push "${nextWant##*/}" "hands over to ${nextWant##*/}" routine > /dev/null 2>&1 || :
+	fi
 	## Only the executor of the routine hands it over: a worker run that writes the line starts nothing.
 	nextOwner="$( AgentsToolsSpawnSandboxRecordHeader "$nextRecord" owner )"
 	nextExecutors="$( AgentsToolsHandbackNextKey "$nextRoutineFile" executors )"

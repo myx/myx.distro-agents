@@ -108,7 +108,7 @@ BEGIN {
 	agentsDir = ENVIRON["MDAT_MANAGER_AGENTS"] ;
 	## The states a run is in, as the registry derives them, in the order a tally names them: those of a live run first.
 ## `paused` sits among the live ones (S19.1): a run a pause holds is alive and held, never busy and never ended.
-	stateTotal = split("thinking tool idling starting waiting paused parked unclosed failed finished", stateOrder, " ") ;
+	stateTotal = split("thinking tool idling busy starting waiting paused parked unclosed failed finished", stateOrder, " ") ;
 	controlTotal = split(ENVIRON["MDAT_MANAGER_CONTROL"], controlLines, "\n") ;
 	for (controlAt = 1 ; controlAt <= controlTotal ; controlAt++) {
 		if (split(controlLines[controlAt], controlWords, " ") >= 2) controlOf[controlWords[1]] = controlWords[2] ;
@@ -152,6 +152,9 @@ NF != 16 && NF != 18 && NF != 19 { next ; }
 		## A RUN A PAUSE HOLDS IS NEITHER WORKING NOR WAITING (S19.1): it is counted apart, so the counters and the
 		## session's own state say what holds it, and no reader takes it for a busy or an idle run.
 		if ($13 == "paused") { runActivity[runTotal] = "paused" ; agentsPaused++ ; sessionLivePaused[sessionKey]++ ; }
+		## A RUN WAITING ON A BUSY PROVIDER IS COUNTED APART TOO (S6.21), and the counters row gains no column for it: that
+		## row's seven fields are pinned by every console fixture, and the run's own word names the pause.
+		else if ($13 == "busy") { runActivity[runTotal] = "busy" ; sessionLiveBusy[sessionKey]++ ; }
 		else if ($13 == "waiting" || $13 == "idling") { runActivity[runTotal] = "waiting" ; agentsWaiting++ ; sessionLiveWaiting[sessionKey]++ ; }
 		else { runActivity[runTotal] = "working" ; agentsWorking++ ; }
 	}
@@ -210,6 +213,7 @@ END {
 		## still open does not hold a session whose runs have all ended -- it is counted in the counters row.
 		if (sessionKey in sessionLive) {
 			if (sessionLivePaused[sessionKey] == sessionLiveCount[sessionKey]) sessionState[sessionKey] = "paused" ;
+			else if (sessionLiveBusy[sessionKey] == sessionLiveCount[sessionKey]) sessionState[sessionKey] = "busy" ;
 			else sessionState[sessionKey] = ( sessionLiveWaiting[sessionKey] == sessionLiveCount[sessionKey] ) ? "waiting" : "running" ;
 		}
 		else if (sessionKey in sessionStarting) sessionState[sessionKey] = "starting" ;

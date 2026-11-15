@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # ^^^ for syntax checking in the editor only
+type AgentsSessionThread > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
 
 ##
 ## AgentsTools.Authority.include -- the authority to resolve, dismiss or end another run's
@@ -39,10 +40,6 @@
 ## anything else as a permission; an owner's confirmation as a readback.
 ##
 
-## The questions store, where a request is kept.
-AgentsToolsQuestionsStore(){
-	printf '%s' "${MMDAPP:-/nonexistent}/.local/questions"
-}
 
 ## The record of a pending question by its id, in either store: printed, rc 0; rc 1 where none is.
 AgentsToolsPendingRecordPath(){ ## pending id
@@ -50,7 +47,7 @@ AgentsToolsPendingRecordPath(){ ## pending id
 	type AgentsToolsAssertBareName > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.BareName.include"
 	AgentsToolsAssertBareName "$1" "<pending-id>" pending-record 2> /dev/null || return 1
 	## A closed record lives in pending/closed/ (retention, T9): the live store first, then the closed one, then the questions store.
-	for pathStore in "${MMDAPP:-/nonexistent}/.local/agents/pending" "${MMDAPP:-/nonexistent}/.local/agents/pending/closed" "$( AgentsToolsQuestionsStore )" ; do
+	for pathStore in "${MMDAPP:-/nonexistent}/.local/agents/pending" "${MMDAPP:-/nonexistent}/.local/agents/pending/closed" "${MMDAPP:-/nonexistent}/.local/questions" ; do
 		[ ! -f "$pathStore/$1.md" ] || { printf '%s' "$pathStore/$1.md" ; return 0 ; }
 	done
 	return 1
@@ -81,21 +78,17 @@ AgentsToolsAuthorityFieldSet(){ ## file, name, value, ...
 	' "$setFile" > "$setTemp" && mv -f "$setTemp" "$setFile" || { rm -f "$setTemp" ; return 1 ; }
 }
 
-## The account at the console, as every console operation records it.
-AgentsToolsAuthorityAccount(){
-	type AgentsToolsConsoleAccount > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.CallerCheck.include"
-	AgentsToolsConsoleAccount || printf 'unknown\n'
-}
-
 ## Who calls, set here: agentsAuthorityCallerKind `member` for a member's run, with
 ## agentsAuthorityCallerId the member, agentsAuthorityCallerRun its spawn id,
 ## agentsAuthorityCallerSession its session and agentsAuthorityCallerRecord its record; else
 ## `person`, with agentsAuthorityCallerId `user-<account>`.
 AgentsToolsAuthorityCaller(){
-	agentsAuthorityCallerKind="person" agentsAuthorityCallerId="user-$( AgentsToolsAuthorityAccount )"
+	agentsAuthorityCallerKind="person"
+	{ type AgentsToolsConsoleAccount > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.CallerCheck.include" ; }
+	agentsAuthorityCallerId="user-$( AgentsToolsConsoleAccount || printf 'unknown\n' )"
 	agentsAuthorityCallerRun="" agentsAuthorityCallerSession="" agentsAuthorityCallerRecord=""
 	[ -n "${MDAT_SPAWN_AGENT:-}" ] || return 0
-	type AgentsToolsSessionRunRecord > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include"
+	type AgentsToolsSessionRunRecord > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionSeats.include"
 	agentsAuthorityCallerKind="member" agentsAuthorityCallerId="$MDAT_SPAWN_AGENT" agentsAuthorityCallerRun="${MDAT_SPAWN_SESSION_ID:-}"
 	agentsAuthorityCallerRecord="$( AgentsToolsSessionRunRecord "$agentsAuthorityCallerRun" )" || agentsAuthorityCallerRecord=""
 	[ -z "$agentsAuthorityCallerRecord" ] || agentsAuthorityCallerSession="$( AgentsToolsAuthorityField "$agentsAuthorityCallerRecord" session-id )"
@@ -105,9 +98,9 @@ AgentsToolsAuthorityCaller(){
 ## The record of a session's founding run: printed, rc 0; rc 1 where none is found here.
 AgentsToolsAuthorityFounder(){ ## session
 	local founderRecord
-	type AgentsToolsSessionRunExecutor > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include"
+	type AgentsToolsSessionRunExecutor > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionSeats.include"
 	## The session's records from the kept per-session list (AgentsTools.StartedRecords.include), never a grep of every record on an ask.
-	type AgentsToolsSpawnedSessionRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include" 2> /dev/null || :
+	type AgentsToolsSpawnedSessionRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.StartedRecords.include"
 	for founderRecord in $( AgentsToolsSpawnedSessionRecords "$1" own 2> /dev/null ) ; do
 		! AgentsToolsSessionRunExecutor "$founderRecord" || { printf '%s' "$founderRecord" ; return 0 ; }
 	done
@@ -122,9 +115,10 @@ AgentsToolsAuthoritySessionRecord(){ ## session
 	local sessionRecord="" sessionCandidate sessionAny=""
 	sessionRecord="$( AgentsToolsAuthorityFounder "$1" )" && { printf '%s' "$sessionRecord" ; return 0 ; }
 	AgentsToolsAuthorityCaller
-	type AgentsToolsSpawnedSessionRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include" 2> /dev/null || :
+	type AgentsToolsSpawnedSessionRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.StartedRecords.include"
 	for sessionCandidate in $( AgentsToolsSpawnedSessionRecords "$1" own 2> /dev/null ) ; do
 		[ -n "$sessionAny" ] || sessionAny="$sessionCandidate"
+		type AgentsToolsRunRoute > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.RunRoute.include"
 		AgentsToolsAuthorityHolds "$( AgentsToolsRunRoute "$sessionCandidate" )" "$1" || { printf '%s' "$sessionCandidate" ; return 0 ; }
 	done
 	[ -n "$sessionAny" ] || return 1
@@ -135,7 +129,7 @@ AgentsToolsAuthoritySessionRecord(){ ## session
 ## where it has one; the routine is the founding run's; the members are those that have a run in it.
 AgentsToolsAuthoritySessionWords(){ ## session
 	local wordsFile wordsName="" wordsRoutine="" wordsMembers="" wordsOwner
-	type AgentsToolsSpawnedSessionRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include" 2> /dev/null || :
+	type AgentsToolsSpawnedSessionRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.StartedRecords.include"
 	for wordsFile in $( AgentsToolsSpawnedSessionRecords "$1" own 2> /dev/null ) ; do
 		[ -n "$wordsName" ] || wordsName="$( AgentsToolsAuthorityField "$wordsFile" session-comment )"
 		[ -n "$wordsRoutine" ] || wordsRoutine="$( AgentsToolsAuthorityField "$wordsFile" routine )"
@@ -157,7 +151,9 @@ AgentsToolsAuthorityAddressHeld(){ ## address
 		[ "$1" = "$agentsAuthorityCallerId" ] || [ "${1##*:}" = "$agentsAuthorityCallerId" ]
 		return
 	fi
+	type AgentsToolsSessionRunExecutor > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionSeats.include"
 	[ -z "$agentsAuthorityCallerRecord" ] || ! AgentsToolsSessionRunExecutor "$agentsAuthorityCallerRecord" || heldExecutor="executor"
+	type AgentsToolsSessionAddressNames > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionSeats.include"
 	AgentsToolsSessionAddressNames "$1" "$agentsAuthorityCallerSession" "$agentsAuthorityCallerId" "$heldExecutor"
 }
 
@@ -182,10 +178,11 @@ AgentsToolsAuthorityLadderUp(){ ## spawn record of the run whose authority is as
 	local ladderParent ladderRun ladderSeen=0
 	ladderParent="$( AgentsToolsAuthorityField "$1" parent-session-id )"
 	case "$ladderParent" in ''|-|.|..|*/*) return 1 ;; esac
-	type AgentsToolsSpawnedSessionRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include" 2> /dev/null || :
+	type AgentsToolsSpawnedSessionRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.StartedRecords.include"
 	for ladderRun in $( AgentsToolsSpawnedSessionRecords "$ladderParent" own 2> /dev/null ) ; do
 		ladderSeen=1
 		[ "$( AgentsToolsAuthorityField "$ladderRun" status )" = spawn-started ] || continue
+		type AgentsToolsSessionRecordLive > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionSeats.include"
 		AgentsToolsSessionRecordLive "$ladderRun" && return 1
 	done
 	[ "$ladderSeen" = 1 ] || return 1
@@ -263,22 +260,6 @@ AgentsToolsAuthorityOwnerMembers(){
 		case "$membersLine" in user-*) continue ;; esac
 		printf '%s\n' "$membersLine"
 	done <<< "$membersList"
-}
-
-## The quorum rule of a question kind (HUMAN_OWNER_QUORUM, T8): the <kind>=<rule> pair for the kind, one of
-## all, first, any-approves, any-rejects or majority. Prints the rule, or `first` where none is set for the kind.
-AgentsToolsAuthorityOwnerQuorum(){ ## question kind
-	local quorumText="" quorumLine quorumRule
-	quorumText="$( "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --agents-config-option magic-team --select HUMAN_OWNER_QUORUM 2> /dev/null )" || quorumText=""
-	while IFS= read -r quorumLine ; do
-		case "$quorumLine" in
-			"$1="*)
-				quorumRule="${quorumLine#*=}"
-				case "$quorumRule" in all|first|any-approves|any-rejects|majority) printf '%s\n' "$quorumRule" ; return 0 ;; esac
-			;;
-		esac
-	done <<< "$quorumText"
-	printf 'first\n'
 }
 
 ## THE OWNERS ROLE (epic T8, the predecessor's F6.11). human-owner is a role with members, each
@@ -400,7 +381,7 @@ AgentsToolsAuthorityQuorumCase(){ ## request record, out: agentsAuthorityQuorumM
 AgentsToolsAuthorityQuorumRead(){ ## request record
 	local qFile="$1" qMember qOut qVerdict qVotes="" qDecide qWin qWinVerdict qWinAuthor
 	AgentsToolsAuthorityQuorumCase "$qFile" || return 2
-	type AgentsToolsEscalationThreadVerdict > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.MemberEscalation.include" --definitions-only 2> /dev/null || return 2
+	type AgentsToolsEscalationThreadVerdict > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.Escalation.include"
 	for qMember in $agentsAuthorityQuorumMembers ; do
 		qOut="$( AgentsToolsEscalationThreadVerdict "$( AgentsToolsAuthorityField "$qFile" owner )" "$qFile" "$( basename "$qFile" .md )" \
 			"$( AgentsToolsAuthorityField "$qFile" channel )" "$( AgentsToolsAuthorityField "$qFile" question-ts )" "$( AgentsToolsAuthorityField "$qFile" thread-ts )" \
@@ -447,6 +428,7 @@ AgentsToolsAuthorityTarget(){ ## holder
 		printf 'human-owner\n'
 		return 0
 	fi
+	type AgentsToolsRunRoute > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.RunRoute.include"
 	[ -n "$agentsAuthorityCallerRecord" ] && targetTo="$( AgentsToolsRunRoute "$agentsAuthorityCallerRecord" )" || targetTo=""
 	case "$targetTo" in ''|none) targetTo="$1" ;; esac
 	printf '%s\n' "$targetTo"
@@ -498,7 +480,7 @@ AgentsToolsAuthorityApproved(){ ## original (pending id or spawn id)
 	[ -n "${MDAT_AUTHORITY_REQUEST:-}" ] || return 1
 	type AgentsToolsAssertBareName > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.BareName.include"
 	AgentsToolsAssertBareName "$MDAT_AUTHORITY_REQUEST" "the request" authority 2> /dev/null || return 1
-	approvedFile="$( AgentsToolsQuestionsStore )/$MDAT_AUTHORITY_REQUEST.md"
+	approvedFile="${MMDAPP:-/nonexistent}/.local/questions/$MDAT_AUTHORITY_REQUEST.md"
 	[ -f "$approvedFile" ] || return 1
 	[ "$( AgentsToolsAuthorityField "$approvedFile" request-of )" = "$1" ] || return 1
 	[ "$( AgentsToolsAuthorityField "$approvedFile" status )" = reply-received ] || return 1
@@ -511,7 +493,7 @@ AgentsToolsAuthorityApproved(){ ## original (pending id or spawn id)
 AgentsToolsAuthorityChosen(){
 	[ -z "${agentsAuthorityChosenNow:-}" ] || { printf '%s\n' "$agentsAuthorityChosenNow" ; return 0 ; }
 	[ -n "${MDAT_AUTHORITY_REQUEST:-}" ] || return 0
-	AgentsToolsAuthorityField "$( AgentsToolsQuestionsStore )/$MDAT_AUTHORITY_REQUEST.md" chosen
+	AgentsToolsAuthorityField "${MMDAPP:-/nonexistent}/.local/questions/$MDAT_AUTHORITY_REQUEST.md" chosen
 }
 
 ## The refusal of a bare call, said where the caller reads it (agentsAuthorityStream `out`, a
@@ -563,12 +545,13 @@ AgentsToolsAuthorityRequestOpen(){ ## mode (enqueue|wait), confirmation (yes|emp
 	if [ -n "$openConfirm" ] ; then
 		openTarget="human-owner" ; openAddress="human-owner"
 	else
+		type AgentsToolsRunRouteKind > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.RunRoute.include"
 		case "$( AgentsToolsRunRouteKind "$openTo" )" in
 			person|none) openTarget="human-owner" ; openAddress="human-owner" ;;
 			member)
 				openAddress="$openTo"
 				openThreadSession="$openSession"
-				openThread="$( LC_ALL=C sed -n '1p' "${MMDAPP:-/nonexistent}/.local/agents/sessions/$openSession/session.thread" 2> /dev/null )"
+				openThread="$( AgentsSessionThread "$openSession" )"
 			;;
 			session)
 				case "$openTo" in
@@ -576,7 +559,7 @@ AgentsToolsAuthorityRequestOpen(){ ## mode (enqueue|wait), confirmation (yes|emp
 					*) openFounder="$( AgentsToolsAuthorityFounder "$openTo" )" && openAddress="$( AgentsToolsAuthorityField "$openFounder" owner )" ;;
 				esac
 				openThreadSession="${openTo%%:*}"
-				openThread="$( LC_ALL=C sed -n '1p' "${MMDAPP:-/nonexistent}/.local/agents/sessions/${openTo%%:*}/session.thread" 2> /dev/null )"
+				openThread="$( AgentsSessionThread "${openTo%%:*}" )"
 			;;
 		esac
 		## Asked as the ask tools ask a member: a reply in the session's thread, addressed to it.
@@ -639,7 +622,7 @@ AgentsToolsAuthorityRequestOpen(){ ## mode (enqueue|wait), confirmation (yes|emp
 		echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools}: the request to $openTo was posted but could not be kept, so its answer would act on nothing" >&2
 		return 1
 	fi
-	AgentsToolsAuthorityFieldSet "$( AgentsToolsQuestionsStore )/$openId.md" refusal-id "$openRefusal" || :
+	AgentsToolsAuthorityFieldSet "${MMDAPP:-/nonexistent}/.local/questions/$openId.md" refusal-id "$openRefusal" || :
 	[ -z "$openUnthreaded" ] || printf '⚠️ WARNING: %s: no thread of its session is known (session %s), so the request to %s is asked of the owners role instead -- it is recorded as %s in the questions store, and answered in the owners-role conversation\n' \
 		"${MDSC_CMD:-DistroAgentsTools}" "${openUnthreaded:-none}" "${openUnasked:-$openTo}" "$openId" >&2
 	## The answer emoji go under the post, as the identity that posted it: the form's own, but for a request that asks for a text or a choice.
@@ -648,7 +631,7 @@ AgentsToolsAuthorityRequestOpen(){ ## mode (enqueue|wait), confirmation (yes|emp
 		[ -z "$openNames" ] || AgentsToolsAskPostReact "$openSender" "$openChannel:$openTs" bot add $openNames
 	fi
 	## The action it lets run, one word a line.
-	for openLine in "$@" ; do printf '%s\n' "$openLine" ; done > "$( AgentsToolsQuestionsStore )/$openId.action" || {
+	for openLine in "$@" ; do printf '%s\n' "$openLine" ; done > "${MMDAPP:-/nonexistent}/.local/questions/$openId.action" || {
 		echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools}: the action of request $openId could not be kept, so its answer would act on nothing" >&2
 		return 1
 	}
@@ -696,7 +679,47 @@ AgentsToolsAuthorityRequestSettle(){ ## request record, verdict, answered by
 		return 0
 	fi
 	[ "$( AgentsToolsAuthorityField "$settleFile" request-mode )" != wait ] || { printf 'APPROVED %s: its waiter acts\n' "$( basename "$settleFile" .md )" ; return 0 ; }
-	AgentsToolsAuthorityRequestAct "$settleFile"
+	local settleActed="" settleActRc=0
+	settleActed="$( AgentsToolsAuthorityRequestAct "$settleFile" )" || settleActRc=$?
+	printf '%s\n' "$settleActed"
+	## WHAT WAS ANSWERED IS SAID BACK, AND TOLD TO WHO ASKED. The answer acted on here is closed in the thread it was given in, by the one
+	## confirmation its kind's template holds (AgentsToolsEscalationConfirm, posted once), and the run that asked is told in its own
+	## session chat, which its Wait reads at its next tick: its ask lives in the questions store, which no Wait of it named before, so
+	## without this an answer given and applied reached nobody and the asker went on as if he had not answered.
+	if [ "$settleActRc" = 0 ] ; then
+		type AgentsToolsEscalationConfirm > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.Escalation.include"
+		! type AgentsToolsEscalationConfirm > /dev/null 2>&1 || AgentsToolsEscalationConfirm "$settleFile" "$( basename "$settleFile" .md )" taken "${settleChosen:-$settleVerdict}" "$settleBy" "" "" || :
+	fi
+	AgentsToolsAuthorityRequesterTell "$settleFile" "${settleChosen:-$settleVerdict}" "$settleBy" "$settleActRc"
+	return "$settleActRc"
+}
+
+## The run that asked for a request is told its answer, and whether the action it let run did: one block in that run's session chat,
+## addressed to the member that asked, which its Wait reads at its next tick. Never fails its caller: a request with no run, or a
+## session with no folder, is told nothing.
+AgentsToolsAuthorityRequesterTell(){ ## request record, the answer, answered by, the action's exit status
+	local tellFile="$1" tellRun tellBy tellSession="" tellRecord="" tellThread="" tellWhat tellId
+	tellRun="$( AgentsToolsAuthorityField "$tellFile" requester-run )"
+	tellBy="$( AgentsToolsAuthorityField "$tellFile" requester )"
+	case "$tellRun" in ''|none|-|.|..|*/*) return 0 ;; esac
+	[ -n "$tellBy" ] && [ -n "${MMDAPP:-}" ] || return 0
+	tellId="$( basename "$tellFile" .md )"
+	tellWhat="$( AgentsToolsAuthorityField "$tellFile" request-what )"
+	for tellRecord in "$MMDAPP"/.local/agents/spawned/*/"$tellRun.spawn.md" ; do [ ! -f "$tellRecord" ] || break ; done
+	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandbox.include"
+	[ ! -f "$tellRecord" ] || tellSession="$( AgentsToolsSpawnSandboxRecordHeader "$tellRecord" session-id 2> /dev/null )"
+	case "$tellSession" in ''|-|.|..|*/*) tellSession="$tellRun" ;; esac
+	[ -d "$MMDAPP/.local/agents/sessions/$tellSession" ] || return 0
+	tellThread="$( AgentsSessionThread "$tellSession" )"
+	case "$tellThread" in ''|-) tellThread="local" ;; esac
+	type AgentsToolsSessionChatAppend > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include"
+	type AgentsToolsPermissionPartyName > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionPosts.include"
+	if [ "$4" = 0 ] ; then
+		printf 'Your request %s, %s, is answered: `%s` by %s, and it is applied.\n' "$tellId" "${tellWhat:-as asked}" "$2" "$( AgentsToolsPermissionPartyName "$3" 2> /dev/null || printf '%s' "$3" )"
+	else
+		printf 'Your request %s, %s, is answered: `%s` by %s, and its action did NOT apply (exit %s). Nothing is set; ask again or escalate.\n' "$tellId" "${tellWhat:-as asked}" "$2" "$( AgentsToolsPermissionPartyName "$3" 2> /dev/null || printf '%s' "$3" )" "$4"
+	fi | AgentsToolsSessionChatAppend "$tellSession" tooling "$tellBy" - "$tellThread" own > /dev/null 2>&1 || :
+	return 0
 }
 
 ## The authority over a session given for as long as it lives (an `allow-session` of a request): the grant of the refusal the request logged, signed by
@@ -765,14 +788,14 @@ AgentsToolsAuthorityRequestDiscardPost(){ ## request record
 	discChannel="$( AgentsToolsAuthorityField "$discFile" channel )"
 	discTs="$( AgentsToolsAuthorityField "$discFile" question-ts )"
 	[ -n "$discChannel" ] && [ -n "$discTs" ] || return 0
-	type AgentsToolsAskPostClose > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.AskPost.include" 2> /dev/null || return 0
+	type AgentsToolsAskPostClose > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.AskPost.include"
 	AgentsToolsAskPostClose "$discFile" "$discTs" cancelled edit
 }
 
 AgentsToolsAuthorityRequestWaitLoop(){ ## request id, bound in seconds (empty: none)
 	local waitFile waitBegan waitReadAt=0 waitNow waitChecks=0 waitErrors=0 waitProgressAt waitProgressEvery="${MDAT_AUTHORITY_WAIT_PROGRESS_SECONDS:-300}"
 	case "$waitProgressEvery" in ''|*[!0-9]*) waitProgressEvery=300 ;; esac
-	waitFile="$( AgentsToolsQuestionsStore )/$1.md"
+	waitFile="${MMDAPP:-/nonexistent}/.local/questions/$1.md"
 	waitBegan="$( date +%s )" ; waitProgressAt="$waitBegan"
 	while : ; do
 		case "$( AgentsToolsAuthorityField "$waitFile" status )" in
@@ -855,7 +878,7 @@ AgentsToolsAuthorityGate(){ ## what (words), original (pending id or spawn id), 
 	agentsAuthorityOutcome="act" agentsAuthorityChosenNow=""
 	## A refusal the caller says it is (agentsAuthorityRefusing, taken once) grants nothing: it is not gated.
 	if [ -n "${agentsAuthorityRefusing:-}" ] ; then agentsAuthorityRefusing="" ; return 0 ; fi
-	type AgentsToolsRunRoute > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include"
+	type AgentsToolsRunRoute > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.RunRoute.include"
 	! AgentsToolsAuthorityApproved "$gateOriginal" || return 0
 	AgentsToolsAuthorityCaller
 	gateHolder="$( AgentsToolsRunRoute "$gateRecord" )"
@@ -886,7 +909,7 @@ AgentsToolsAuthorityGate(){ ## what (words), original (pending id or spawn id), 
 			return 0
 		fi
 		printf 'already asked as %s, waiting\n' "$gateId"
-		AgentsToolsAuthorityFieldSet "$( AgentsToolsQuestionsStore )/$gateId.md" request-mode wait || :
+		AgentsToolsAuthorityFieldSet "${MMDAPP:-/nonexistent}/.local/questions/$gateId.md" request-mode wait || :
 	else
 		gateOpened="$( AgentsToolsAuthorityRequestOpen "${agentsAuthorityMode:-enqueue}" "$gateConfirm" "$gateTo" "$gateSession" "$gateOriginal" "$gateWhat" "$gateQuestion" "$@" )" || {
 			agentsAuthorityOutcome="refused" ; return 1
@@ -910,8 +933,8 @@ AgentsToolsAuthorityGate(){ ## what (words), original (pending id or spawn id), 
 	case "$gateRc" in
 		0)
 			## Approved: this waiter acts now, and the request is marked as acted on.
-			AgentsToolsAuthorityFieldSet "$( AgentsToolsQuestionsStore )/$gateId.md" acted-at "$( date +"%Y-%m-%d %H:%M %z" )" || :
-			agentsAuthorityChosenNow="$( AgentsToolsAuthorityField "$( AgentsToolsQuestionsStore )/$gateId.md" chosen )"
+			AgentsToolsAuthorityFieldSet "${MMDAPP:-/nonexistent}/.local/questions/$gateId.md" acted-at "$( date +"%Y-%m-%d %H:%M %z" )" || :
+			agentsAuthorityChosenNow="$( AgentsToolsAuthorityField "${MMDAPP:-/nonexistent}/.local/questions/$gateId.md" chosen )"
 			agentsAuthorityOutcome="act"
 			return 0
 		;;
@@ -976,8 +999,8 @@ AgentsToolsAuthorityRequestRead(){ ## request record
 	if AgentsToolsAuthorityQuorumRead "$readFile" ; then
 		return 0
 	fi
-	type AgentsToolsEscalationThreadVerdict > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.MemberEscalation.include" --definitions-only 2> /dev/null || return 0
-	type AgentsToolsRunRoute > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include" 2> /dev/null || :
+	type AgentsToolsEscalationThreadVerdict > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.Escalation.include"
+	type AgentsToolsRunRoute > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.RunRoute.include"
 	readOut="$( AgentsToolsEscalationThreadVerdict "$( AgentsToolsAuthorityField "$readFile" owner )" "$readFile" "$( basename "$readFile" .md )" \
 		"$( AgentsToolsAuthorityField "$readFile" channel )" "$( AgentsToolsAuthorityField "$readFile" question-ts )" "$( AgentsToolsAuthorityField "$readFile" thread-ts )" \
 		"$( AgentsToolsAuthorityField "$readFile" addressees )" true 2> /dev/null )" || readOut=""
@@ -1041,7 +1064,7 @@ AgentsToolsAuthorityRequestWithdrawn(){ ## request record
 AgentsToolsAuthorityRequestTell(){ ## request record, kind, stamp (the ts it is told for)
 	local tellFile="$1" tellText tellTo tellId
 	[ "$( AgentsToolsAuthorityField "$tellFile" "told-$2" )" != "$3" ] || return 0
-	type AgentsToolsAskPostFill > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.AskPost.include" 2> /dev/null || return 0
+	type AgentsToolsAskPostFill > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.AskPost.include"
 	tellText="$( ASKP_BLOCK="Authority/$2" AgentsToolsAskPostFill block request-permission.post.format.md "" 2> /dev/null )" || tellText=""
 	[ -n "$tellText" ] || return 0
 	tellId="$( basename "$tellFile" .md )" ; tellTo="$( AgentsToolsAuthorityField "$tellFile" address-to )"
@@ -1058,9 +1081,9 @@ AgentsToolsAuthorityRequestTell(){ ## request record, kind, stamp (the ts it is 
 ## sweep can say whether one runs on this host (AgentsToolsAuthoritySweepAge).
 AgentsToolsAuthorityRequestsSweep(){
 	local sweepFile
-	type AgentsToolsEscalationThreadVerdict > /dev/null 2>&1 || return 0
+	type AgentsToolsEscalationThreadVerdict > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.Escalation.include"
 	mkdir -p "${MMDAPP:-/nonexistent}/.local/temp" 2> /dev/null && date +%s > "${MMDAPP}/.local/temp/mdat-authority-sweep-at" 2> /dev/null || :
-	for sweepFile in "$( AgentsToolsQuestionsStore )"/*.md ; do
+	for sweepFile in "${MMDAPP:-/nonexistent}/.local/questions"/*.md ; do
 		[ -f "$sweepFile" ] || continue
 		AgentsToolsAuthorityRequestRead "$sweepFile" || :
 	done
@@ -1074,7 +1097,7 @@ AgentsToolsAuthorityRequestsPollOwn(){
 	AgentsToolsAuthorityCaller
 	## Only the person at the console polls: a member that reads its count polls nothing, since the process flow of the team is not the console's.
 	[ "${agentsAuthorityCallerKind:-}" != member ] || return 0
-	for pollFile in "$( AgentsToolsQuestionsStore )"/*.md ; do
+	for pollFile in "${MMDAPP:-/nonexistent}/.local/questions"/*.md ; do
 		[ -f "$pollFile" ] || continue
 		[ "$( AgentsToolsAuthorityField "$pollFile" status )" = reply-pending ] || continue
 		[ -n "$( AgentsToolsAuthorityField "$pollFile" request-of )" ] || continue
@@ -1097,7 +1120,7 @@ AgentsToolsAuthoritySweepAge(){
 ## The open request this caller made for that very action on that original, if any: its id. A call asks once; asked again it finds the request it made.
 AgentsToolsAuthorityOpenRequestFor(){ ## original, what (words)
 	local openedFile
-	for openedFile in "$( AgentsToolsQuestionsStore )"/*.md ; do
+	for openedFile in "${MMDAPP:-/nonexistent}/.local/questions"/*.md ; do
 		[ -f "$openedFile" ] || continue
 		[ "$( AgentsToolsAuthorityField "$openedFile" status )" = reply-pending ] || continue
 		[ "$( AgentsToolsAuthorityField "$openedFile" request-of )" = "$1" ] || continue

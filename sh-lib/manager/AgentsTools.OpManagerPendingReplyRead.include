@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+## AgentsTools.OpManagerPendingReplyRead.include -- the operation `--manager-pending-reply-read`, sourced by AgentsTools.ManagerPendingReply.include with the operation's arguments.
+## What can be done with one question: one `question` row, then an `answer` row for each
+## answer it takes while it is open. TAB-separated, their form the help entry's. Changes
+## nothing, and reads no thread.
+		local readOp="$1" readAs readStatus readText="-" readReject="-" readDismiss="no" readField readRow=""
+		shift
+		AgentsToolsManagerPendingRecord "$readOp" "--id <pending-id>" "$@" || { set +e ; return 1 ; }
+		if [ "${#managerPendingRest[@]}" -gt 0 ] ; then
+			echo "⛔ ERROR: $MDSC_CMD $readOp: syntax is --id <pending-id>, got: ${managerPendingRest[0]}" >&2
+			set +e ; return 1
+		fi
+		readAs="$( AgentsToolsManagerPendingStanding "$managerPendingFile" )" || { AgentsToolsManagerPendingNobody "$readOp" ; set +e ; return 1 ; }
+		readStatus="$( AgentsToolsEscalationField "$managerPendingFile" status )"
+		if [ "$readStatus" = "reply-pending" ] ; then
+			readDismiss="yes" ; readText="words"
+			! AgentsToolsManagerPendingPlain "$managerPendingFile" || readText="answer"
+			readReject="$( AgentsToolsManagerPendingReject "$managerPendingFile" )"
+		fi
+		for readField in kind select owner address-to ; do
+			readField="$( AgentsToolsEscalationField "$managerPendingFile" "$readField" )"
+			readRow="$readRow"$'\t'"${readField:--}"
+		done
+		readField="$( AgentsToolsManagerPendingLink "$managerPendingFile" )"
+		printf 'question\t%s\t%s%s\t%s\t%s\t%s\t%s\t%s\n' "$managerPendingId" "${readStatus:--}" "$readRow" "$readAs" "$readText" "${readReject:--}" "$readDismiss" "${readField:--}"
+		[ "$readStatus" != "reply-pending" ] || AgentsToolsManagerPendingAnswers "$managerPendingFile" "$readAs"
+		return 0

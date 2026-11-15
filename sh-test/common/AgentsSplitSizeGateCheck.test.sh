@@ -2,7 +2,7 @@
 ## Gate on the size of the split files (epic 20261026-refactorings, S28.1). A line count is a gate and never the measure of the split: the
 ## isolation checks (AgentsSlackPathIsolationCheck, AgentsWaitPathIsolationCheck) measure what a call parses, and this check only refuses a
 ## file that has grown back into the size the split removed. Held, run and not read:
-##   1. THE ROUTER. sh-lib/comms/AgentsTools.MemberCommsSlack.include is at most 150 lines (the brief said 120, Q126: see rigRouterLimit below), and holds the body of no operation: no Slack API
+##   1. THE ROUTER. sh-lib/slack/AgentsTools.MemberCommsSlack.include is at most 150 lines (the brief said 120, Q126: see rigRouterLimit below), and holds the body of no operation: no Slack API
 ##      method an operation asks (chat.postMessage, reactions.add, chat.delete, chat.update, files.getUploadURLExternal, search.messages,
 ##      conversations.history, files.info) is written in it.
 ##   2. THE FAMILY. Every sh-lib/comms/AgentsTools.MemberCommsSlack*.include is at most 1500 lines.
@@ -32,7 +32,7 @@ rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }
 rigPackage="$MDLT_ORIGIN/$rigPackageRel"
-[ -f "$rigPackage/sh-lib/comms/$rigRouter" ] || rigRefuse "no router at the origin this workspace resolves: $rigPackage/sh-lib/comms/$rigRouter"
+[ -f "$rigPackage/sh-lib/slack/$rigRouter" ] || rigRefuse "no router at the origin this workspace resolves: $rigPackage/sh-lib/slack/$rigRouter"
 mkdir -p "$MMDAPP/.local/temp" || exit 1
 rigTmp="$( mktemp -d "$MMDAPP/.local/temp/AgentsSplitSizeGateCheck.XXXXXX" )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
@@ -81,33 +81,33 @@ rigAssert "verb reader: a file that only has part of the name names none" "$( ri
 rigAssert "verb reader: a method named in a comment line is no arm" "$( rigVerbsIn "$rigTmp/comment-verb.txt" )" ""
 
 echo "-- 1. the router --"
-rigAssert "the router is at most $rigRouterLimit lines" "$( rigWithin "$rigPackage/sh-lib/comms/$rigRouter" "$rigRouterLimit" )" within
-rigAssert "the router writes no Slack API method an operation asks" "$( rigVerbsIn "$rigPackage/sh-lib/comms/$rigRouter" )" ""
-rigFamilyVerbs="$( for rigGlob in $rigSlackGlobs ; do for rigFile in "$rigPackage"/sh-lib/comms/$rigGlob ; do [ -f "$rigFile" ] && rigVerbsIn "$rigFile" ; done ; done | LC_ALL=C tr ' ' '\n' | LC_ALL=C awk 'NF' | LC_ALL=C sort -u | LC_ALL=C tr '\n' ' ' )"
+rigAssert "the router is at most $rigRouterLimit lines" "$( rigWithin "$rigPackage/sh-lib/slack/$rigRouter" "$rigRouterLimit" )" within
+rigAssert "the router writes no Slack API method an operation asks" "$( rigVerbsIn "$rigPackage/sh-lib/slack/$rigRouter" )" ""
+rigFamilyVerbs="$( for rigGlob in $rigSlackGlobs ; do for rigFile in "$rigPackage"/sh-lib/slack/$rigGlob ; do [ -f "$rigFile" ] && rigVerbsIn "$rigFile" ; done ; done | LC_ALL=C tr ' ' '\n' | LC_ALL=C awk 'NF' | LC_ALL=C sort -u | LC_ALL=C tr '\n' ' ' )"
 rigAssert "control: each of those methods is written in some include of the family, so the reader can find them" \
 	"$( printf '%s\n' $rigFamilyVerbs | LC_ALL=C sort -u | LC_ALL=C tr '\n' ' ' )" "$( printf '%s\n' $rigVerbs | LC_ALL=C sort -u | LC_ALL=C tr '\n' ' ' )"
 
 echo "-- 2. every include of the Slack family --"
 rigSeen=0
 for rigGlob in $rigSlackGlobs ; do
-	for rigFile in "$rigPackage"/sh-lib/comms/$rigGlob ; do
+	for rigFile in "$rigPackage"/sh-lib/slack/$rigGlob ; do
 		[ -f "$rigFile" ] || continue
 		rigSeen=$(( rigSeen + 1 ))
 		rigAssert "${rigFile##*/} is at most $rigFileLimit lines" "$( rigWithin "$rigFile" "$rigFileLimit" )" within
 	done
 done
-rigAssert "control: the family glob found files, the router among them" "$( [ "$rigSeen" -ge 1 ] && [ -f "$rigPackage/sh-lib/comms/$rigRouter" ] && printf found || printf none )" found
+rigAssert "control: the family glob found files, the router among them" "$( [ "$rigSeen" -ge 1 ] && [ -f "$rigPackage/sh-lib/slack/$rigRouter" ] && printf found || printf none )" found
 
 echo "-- 3. every include of the Wait --"
 rigSeen=0
 for rigGlob in $rigWaitGlobs ; do
-	for rigFile in "$rigPackage"/sh-lib/member/$rigGlob ; do
+	for rigFile in "$rigPackage"/sh-lib/wait/$rigGlob ; do
 		[ -f "$rigFile" ] || continue
 		rigSeen=$(( rigSeen + 1 ))
 		rigAssert "${rigFile##*/} is at most $rigFileLimit lines" "$( rigWithin "$rigFile" "$rigFileLimit" )" within
 	done
 done
-rigAssert "control: the wait glob found files, the arm among them" "$( [ "$rigSeen" -ge 1 ] && [ -f "$rigPackage/sh-lib/member/AgentsTools.MemberWait.include" ] && printf found || printf none )" found
+rigAssert "control: the wait glob found files, the arm among them" "$( [ "$rigSeen" -ge 1 ] && [ -f "$rigPackage/sh-lib/wait/AgentsTools.MemberWait.include" ] && printf found || printf none )" found
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ SPLIT SIZE GATE CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

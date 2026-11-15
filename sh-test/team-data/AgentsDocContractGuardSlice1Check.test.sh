@@ -10,9 +10,9 @@
 ##   5. the same fixture gives the same verdict through the in-tool door and through the hook;
 ##   6. a registry row in `refusing` whose contract file is missing refuses, and names the missing file;
 ##   7. the guard is called from the two harness doors and the hook, and from no team writer;
-##   8. the vault kinds are registered by the type word that opens the name (S12.30): the four with a contract report, the
-##      planning and tracking kinds are absent and allowed, a vault file of no registered kind is no document type, and a
-##      Write of a vault epic-blueprint goes on under its reporting row.
+##   8. the vault kinds are registered by the type word that opens the name (S12.30): each of the six with a contract
+##      reports against it, MAGIC.md is declared and absent and so allows, a vault file of no registered kind is no
+##      document type, and a Write of a vault epic-blueprint goes on under its reporting row.
 ## Offline: MMDAPP and HOME are this rig's own; the guard reads only its own files and the contract.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
@@ -183,7 +183,8 @@ rigVaultRow(){ ## path -> "<match rc>:<row or ->"
 }
 rigAssert "an epic-blueprint reports against its contract, under the kind the validator knows" "$( rigVaultRow /rig/vault/epic-blueprint-20261102-refactorings.md )" "0:vault-item.epic-blueprint reporting vault-item.epic-blueprint.contract.format.md"
 rigAssert "an investigation, an adr and a verbatim record the same" "$( rigVaultRow /rig/vault/investigation-20261101T1509Z-model.md | LC_ALL=C cut -d ' ' -f 2 ):$( rigVaultRow /rig/vault/adr-20261101T1509Z-x.md | LC_ALL=C cut -d ' ' -f 2 ):$( rigVaultRow /rig/vault/verbatim-record-20261101T1509Z-x.md | LC_ALL=C cut -d ' ' -f 2 )" "reporting:reporting:reporting"
-rigAssert "planning and tracking are declared, absent"     "$( rigVaultRow /rig/vault/planning-20261109-sprint.md ):$( rigVaultRow /rig/vault/tracking-20261102-refactorings.md )" "0:planning absent -:0:tracking absent -"
+rigAssert "planning and tracking report against their contracts" "$( rigVaultRow /rig/vault/planning-20261109-sprint.md ):$( rigVaultRow /rig/vault/tracking-20261102-refactorings.md )" "0:vault-item.planning reporting vault-item.planning.contract.format.md:0:vault-item.tracking reporting vault-item.tracking.contract.format.md"
+rigAssert "MAGIC.md is declared, absent"                   "$( rigVaultRow /rig/vault/MAGIC.md )" "0:magic absent -"
 rigAssert "a vault file of no registered kind is no document type" "$( rigVaultRow /rig/vault/product-card-ae3.md )" "1:-"
 rigAssert "a routine is still matched by its ending"       "$( rigVaultRow /rig/team/x.routine.md | LC_ALL=C cut -d ' ' -f 1-2 )" "0:routine refusing"
 mkdir -p "$rigDir/vault"

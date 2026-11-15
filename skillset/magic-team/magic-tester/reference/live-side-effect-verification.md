@@ -1,3 +1,6 @@
+---
+maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
+---
 # Verifying changes with real side effects (network/filesystem/live execution)
 
 Read this when a change needs verification but the real thing means real

@@ -74,7 +74,7 @@ rigRead(){ ## question (1|2), the other question (open|<epoch second>|alone|unnu
 		[ "$readCount" = 1 ] || printf '%s\n' '1700000001.000201 | URIGSELF1 | question two'
 		printf '%s\n' "$@"
 	} | LC_ALL=C awk -v rootTs="$readRoot" -v askingUsers=URIGSELF1 -v fromUsers=URIGOWNER -v tag="$readTag" -v threadCount="$readCount" -v others="$readOther" \
-		-f "$rigHere/questions/AgentsDismissalMatch.awk" -f "$rigHere/comms/AgentsSlackThreadAnswers.awk" 2>&1 | LC_ALL=C tr '\n' '#'
+		-f "$rigHere/questions/AgentsDismissalMatch.awk" -f "$rigHere/slack/AgentsSlackThreadAnswers.awk" 2>&1 | LC_ALL=C tr '\n' '#'
 }
 rigReply='1700000009.000400 | URIGOWNER |'
 rigLater='1700000009.000500 | URIGOWNER |'

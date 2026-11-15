@@ -158,14 +158,14 @@ rigSpawn(){ ## tag, member, policy, routine, dispatch, own routine (the record's
 ## this run's variables. The head is the builder's, byte for byte, so two runs can be compared before their variables.
 rigWorkDutyHead(){ ## member
 	( export MMDAPP="$rigWs" MDAT_SKILLSET_ROOT="$rigSkills" MDLT_ORIGIN="$MDLT_ORIGIN"
-		. "$rigHere/session/AgentsTools.WorkDutyDispatch.include"
+		. "$rigHere/schedule/AgentsTools.WorkDutyDispatch.include"
 		AgentsToolsWorkDutyDispatchHead "$rigSkills/magic-team/magic-team.work-duty.routine.md" "$rigSkills" "$1" )
 }
 rigWorkDutyDispatch(){ ## tag, member
 	local rigWdTag="$1" rigWdMember="$2" rigWdHead="" rigWdVars=""
 	rigWdHead="$( rigWorkDutyHead "$rigWdMember" )" || rigRefuse "the work-duty dispatch head could not be built for $rigWdMember"
 	rigWdVars="$( ( export MMDAPP="$rigWs" MDAT_SKILLSET_ROOT="$rigSkills" MDLT_ORIGIN="$MDLT_ORIGIN"
-		. "$rigHere/session/AgentsTools.WorkDutyDispatch.include"
+		. "$rigHere/schedule/AgentsTools.WorkDutyDispatch.include"
 		AgentsToolsWorkDutyDispatchVariables "$rigWdTag" "$rigWdTag" "2026-10-26 14:00 UTC" "" ) )" || rigRefuse "the work-duty dispatch variables could not be built"
 	printf '%s\n\n%s' "$rigWdHead" "$rigWdVars"
 }

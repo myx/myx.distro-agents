@@ -207,17 +207,17 @@ AgentsHarnessMcpRun(){ ## server name, wall-clock bound in whole seconds, awaite
 				## The watchdog ends the server it was started for and no other process: at the
 				## bound the pid alone may name whoever was given that number since. So it keeps
 				## when the server began, read as the watchdog starts, and signals only while that
-				## pid is still the process that began then (AgentsToolsRegistryProcessesBegan, the
+				## pid is still the process that began then (AgentsToolsRunProcessesBegan, the
 				## one reading a process is kept by, loaded in the watchdog's own shell). Where no
 				## start can be read, nothing is signalled by the number alone.
 				(
-					type AgentsToolsRegistryProcessesBegan > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include" 2> /dev/null
-					runBegan="$( printf '%s\n' "$runPid" | AgentsToolsRegistryProcessesBegan 2> /dev/null )"
+					type AgentsToolsRunProcessesBegan > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunProcesses.include"
+					runBegan="$( printf '%s\n' "$runPid" | AgentsToolsRunProcessesBegan 2> /dev/null )"
 					## The sleep is a background child of this watchdog and the TERM that ends the watchdog ends it too, by the job list:
 					## a foreground sleep survived the TERM as an orphan under launchd, one `sleep <bound>` a server start (the restart check counted them).
 					trap 'kill $( jobs -p ) 2>/dev/null ; exit 0' TERM
 					sleep "$runBound" & wait $! || exit 0
-					[ -n "$runBegan" ] && [ "$( printf '%s\n' "$runPid" | AgentsToolsRegistryProcessesBegan 2> /dev/null )" = "$runBegan" ] && kill -TERM "$runPid" 2>/dev/null && : > "$harnessScratch/mcp.timedout"
+					[ -n "$runBegan" ] && [ "$( printf '%s\n' "$runPid" | AgentsToolsRunProcessesBegan 2> /dev/null )" = "$runBegan" ] && kill -TERM "$runPid" 2>/dev/null && : > "$harnessScratch/mcp.timedout"
 				) >/dev/null &
 				runWatchPid=$!
 				wait "$runPid" || runRc=$?
@@ -421,6 +421,7 @@ AgentsHarnessMcpEnumerate(){
 	harnessMcpDeclList=""
 	harnessMcpConfigFile=""
 	harnessMcpConfigFault=""
+	type AgentsHarnessMcpServerSet > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessMcpResources.include"
 	AgentsHarnessMcpServerSet
 	if [ "${#harnessMcpServers[@]}" -gt 0 ] ; then
 		## Enumeration runs before the member does any work, and a healthy stdio server
@@ -527,7 +528,8 @@ AgentsHarnessMcpEnumerate(){
 		## MCP tools stand after the floor in every request, and the same set is then the same bytes from one run to the next.
 		## A declaration is one line (its newlines are escaped) and holds no raw tab.
 		## The tools only the MCP server serves are listed here too, in the same order, saying where they run, so the harness and the server list the same tools (S2.1).
-		if [ -z "${harnessToolOnly:-}" ] && [ -z "${MDAT_MCP_SERVED_MARKER:-}" ] && . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessUnserved.include" 2> /dev/null ; then
+		type AgentsToolsUnservedInHarness > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessUnserved.include"
+		if [ -z "${harnessToolOnly:-}" ] && [ -z "${MDAT_MCP_SERVED_MARKER:-}" ] ; then
 			while IFS= read -r harnessMcpUnservedName ; do
 				[ -n "$harnessMcpUnservedName" ] || continue
 				## Named as the server's tools are in the harness, mcp__<server>__<tool>.

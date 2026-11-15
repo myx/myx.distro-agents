@@ -1,25 +1,6 @@
 #!/usr/bin/env bash
 # ^^^ for syntax checking in the editor only
 
-##
-## AgentsTools.ManagerKeysState.include -- the server keys the console serves (C1 of the refactorings epic): the key state
-## machine, kept in this workspace's own registry, `<workspace>/.local/agents/keys.registry`, one key a line -- its name, its
-## state and the material it serves, TAB-separated, the whitespace of a value `_` and an empty one `-`. A key is added as
-## `pending`, is approved to `served` and is live from then on, and is `revoked` when it is deactivated; a revoked key is kept
-## until it is removed. A served (active) key is never removed -- it is revoked first ("leave active keys"). THE REGISTRY IS
-## THE STATE: nothing else holds it, and a read never makes the file.
-##
-## IT IS A SUBJECT OF ITS OWN, beside AgentsTools.ManagerKeys.include, which is the PUBLIC keys this server shows to others
-## and opens public key files alone: nothing here reads, derives or asks anything of a key file, and no ssh-keygen is run.
-## Sourced from the `--manager-keys-*)` arm of AgentsTools.Manager.include, which hands these five operations to it; who may
-## call was asked where the family is dispatched.
-##
-## The operations: --manager-keys-state [<key>], --manager-keys-add <key> (the material on the standard input, never an
-## argument), --manager-keys-approve <key>, --manager-keys-revoke <key> and --manager-keys-remove <key>.
-##
-AgentsToolsManagerKeysRegistry(){
-	printf '%s\n' "${MMDAPP%/}/.local/agents/keys.registry"
-}
 
 ## One value as the registry and a row keep it: its whitespace `_`, an empty one `-`.
 AgentsToolsManagerKeysStateField(){ ## text
@@ -37,7 +18,7 @@ AgentsToolsManagerKeysStateName(){ ## word
 AgentsToolsManagerKeysStateFind(){ ## key
 	local findFile findName findState findMaterial
 	keysState="" ; keysMaterial=""
-	findFile="$( AgentsToolsManagerKeysRegistry )"
+	findFile="${MMDAPP%/}/.local/agents/keys.registry"
 	[ -f "$findFile" ] || return 1
 	while IFS=$'\t' read -r findName findState findMaterial ; do
 		[ "$findName" = "$1" ] || continue
@@ -51,7 +32,7 @@ AgentsToolsManagerKeysStateFind(){ ## key
 ## the old one and put in place by a rename. rc 1 where it cannot be read or written, and the registry is then as it was.
 AgentsToolsManagerKeysStateSet(){ ## key, state
 	local setFile setNew setRc=0 setName setState setMaterial
-	setFile="$( AgentsToolsManagerKeysRegistry )"
+	setFile="${MMDAPP%/}/.local/agents/keys.registry"
 	setNew="$( mktemp "${setFile}.set.XXXXXX" 2> /dev/null )" || return 1
 	while IFS=$'\t' read -r setName setState setMaterial ; do
 		[ -n "$setName" ] || continue
@@ -67,7 +48,7 @@ AgentsToolsManagerKeysStateSet(){ ## key, state
 ## rename. rc 1 where it cannot be read or written, and the registry is then as it was.
 AgentsToolsManagerKeysStateDrop(){ ## key
 	local dropFile dropNew dropRc=0 dropName dropState dropMaterial
-	dropFile="$( AgentsToolsManagerKeysRegistry )"
+	dropFile="${MMDAPP%/}/.local/agents/keys.registry"
 	dropNew="$( mktemp "${dropFile}.drop.XXXXXX" 2> /dev/null )" || return 1
 	while IFS=$'\t' read -r dropName dropState dropMaterial ; do
 		[ -n "$dropName" ] || continue
@@ -89,7 +70,7 @@ case "$1" in
 		local stateOp="$1" stateFile stateName stateState stateMaterial
 		shift
 		[ $# -le 1 ] || { echo "⛔ ERROR: $MDSC_CMD $stateOp: syntax is $stateOp [<key>], got $# argument(s) -- nothing is shown" >&2 ; set +e ; return 1 ; }
-		stateFile="$( AgentsToolsManagerKeysRegistry )"
+		stateFile="${MMDAPP%/}/.local/agents/keys.registry"
 		if [ $# -eq 0 ] ; then
 			[ -f "$stateFile" ] || return 0
 			while IFS=$'\t' read -r stateName stateState stateMaterial ; do
@@ -119,7 +100,7 @@ case "$1" in
 		fi
 		IFS= read -r addMaterial || addMaterial=""
 		[ -n "$addMaterial" ] || { echo "⛔ ERROR: $MDSC_CMD $addOp: the standard input holds no material for the key -- nothing was added" >&2 ; set +e ; return 1 ; }
-		addFile="$( AgentsToolsManagerKeysRegistry )" ; addDir="${addFile%/*}"
+		addFile="${MMDAPP%/}/.local/agents/keys.registry" ; addDir="${addFile%/*}"
 		[ -d "$addDir" ] || { mkdir -p "$addDir" && chmod 700 "$addDir" ; } || { echo "⛔ ERROR: $MDSC_CMD $addOp: the folder of the registry could not be made -- nothing was added" >&2 ; set +e ; return 1 ; }
 		addMaterial="$( AgentsToolsManagerKeysStateField "$addMaterial" )"
 		printf '%s\tpending\t%s\n' "$addName" "$addMaterial" >> "$addFile" || { echo "⛔ ERROR: $MDSC_CMD $addOp: the registry cannot be written -- nothing was added" >&2 ; set +e ; return 1 ; }

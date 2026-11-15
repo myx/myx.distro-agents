@@ -1,0 +1,77 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+## AgentsTools.InternOpAtlassianJiraIssueCreate.include -- the operation `--intern-op-atlassian-jira-issue-create`, sourced by AgentsTools.InternOpAtlassianCall.include with the operation's arguments.
+	type AgentsToolsJiraAdfValidate > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/atlassian/AgentsTools.JiraFields.include"
+	type AgentsToolsAtlassianCall > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/atlassian/AgentsTools.AtlassianRequest.include"
+		shift
+		local jiraICMember="" jiraICProject="" jiraICIssuetype="" jiraICSummary="" jiraICSummaryGiven="false"
+		local jiraICDescriptionAdf="" jiraICDescriptionGiven="false" jiraICFieldsJson="" jiraICContext="intern-op-atlassian-jira-issue-create" jiraICAgnee="me"
+		## The call's own words, kept before the loop takes them apart: they are what a permission ask for a low-tier assignee
+		## keeps as its action, and the action is a whole tooling call, so it opens with this operation's own name
+		## (AgentsToolsJiraAssigneeAccountId, AgentsToolsAuthorityRequestAct).
+		local jiraICWords=( --intern-op-atlassian-jira-issue-create "$@" )
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--member)     shift ; [ -n "${1:-}" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraICContext: --member value missing" >&2 ; set +e ; return 1 ; } ; jiraICMember="$1" ; shift ;;
+				--project)    shift ; [ -n "${1:-}" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraICContext: --project value missing" >&2 ; set +e ; return 1 ; } ; jiraICProject="$1" ; shift ;;
+				--issuetype)  shift ; [ -n "${1:-}" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraICContext: --issuetype value missing" >&2 ; set +e ; return 1 ; } ; jiraICIssuetype="$1" ; shift ;;
+				--summary)    shift ; [ -n "${1:-}" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraICContext: --summary value missing" >&2 ; set +e ; return 1 ; } ; jiraICSummary="$1" ; jiraICSummaryGiven="true" ; shift ;;
+				--description-adf)
+					shift ; [ -n "${1:-}" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraICContext: --description-adf value missing" >&2 ; set +e ; return 1 ; }
+					jiraICDescriptionAdf="$1" ; jiraICDescriptionGiven="true" ; shift
+				;;
+				--description-adf-from-stdin)
+					jiraICDescriptionAdf="$( cat )" ; jiraICDescriptionGiven="true" ; shift
+				;;
+				--description-adf-from-file)
+					shift
+					if [ -z "${1:-}" ] || [ ! -f "$1" ] ; then
+						printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraICContext: --description-adf-from-file: file not found: ${1:-}" >&2
+						set +e ; return 1
+					fi
+					jiraICDescriptionAdf="$( cat "$1" )" ; jiraICDescriptionGiven="true" ; shift
+				;;
+				--fields-json) shift ; [ -n "${1:-}" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraICContext: --fields-json value missing" >&2 ; set +e ; return 1 ; } ; jiraICFieldsJson="$1" ; shift ;;
+				--assignee)    shift ; [ -n "${1:-}" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraICContext: --assignee value missing" >&2 ; set +e ; return 1 ; } ; jiraICAgnee="$1" ; shift ;;
+				--context)     shift ; [ -n "${1:-}" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraICContext: --context value missing" >&2 ; set +e ; return 1 ; } ; jiraICContext="$1" ; shift ;;
+				*)
+					printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraICContext: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		if [ -z "$jiraICMember" ] ; then
+			printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraICContext: syntax is --member <team-member> --project <key> --issuetype <name> --summary <text> [--description-adf <json>|--description-adf-from-stdin|--description-adf-from-file <path>] [--fields-json <json>] [--assignee <contact|me>] [--context <caller>] -- --project, --issuetype and --summary are all required. This operation never fetches that project's own createmeta to validate fields it usually already knows apply; a caller targeting an unfamiliar project/issuetype should read /rest/api/3/issue/createmeta/{project}/issuetypes/{issueTypeId} itself first" >&2
+			set +e ; return 1
+		fi
+		[ -n "$jiraICProject" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraICContext: --project missing" >&2 ; set +e ; return 1 ; }
+		[ -n "$jiraICIssuetype" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraICContext: --issuetype missing" >&2 ; set +e ; return 1 ; }
+		[ "$jiraICSummaryGiven" = "true" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraICContext: --summary missing" >&2 ; set +e ; return 1 ; }
+		if [ "$jiraICDescriptionGiven" = "true" ] ; then
+			AgentsToolsJiraAdfValidate "$jiraICDescriptionAdf" "--description-adf" "$jiraICContext" || { set +e ; return 1 ; }
+		fi
+		local jiraICProjectEsc jiraICIssuetypeEsc jiraICSummaryEsc
+		jiraICProjectEsc="$( printf '%s' "$jiraICProject" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/mcp/AgentsMcpJsonEscape.awk" )"
+		jiraICIssuetypeEsc="$( printf '%s' "$jiraICIssuetype" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/mcp/AgentsMcpJsonEscape.awk" )"
+		jiraICSummaryEsc="$( printf '%s' "$jiraICSummary" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/mcp/AgentsMcpJsonEscape.awk" )"
+		## Every ticket has an assignee (epic S20.8): --assignee names a contact, whose recorded address the site answers an
+		## account for, and the default is the acting identity's own account. An unresolvable assignee creates nothing.
+		local jiraICAgneeId="" jiraICAgneeEsc=""
+		jiraICAgneeId="$( AgentsToolsJiraAssigneeAccountId "$jiraICMember" "$jiraICAgnee" "$jiraICProject" "$jiraICContext" ${jiraICWords[@]+"${jiraICWords[@]}"} )" || { set +e ; return 1 ; }
+		jiraICAgneeEsc="$( printf '%s' "$jiraICAgneeId" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/mcp/AgentsMcpJsonEscape.awk" )"
+		local jiraICFields="{\"project\":{\"key\":\"$jiraICProjectEsc\"},\"issuetype\":{\"name\":\"$jiraICIssuetypeEsc\"},\"summary\":\"$jiraICSummaryEsc\",\"assignee\":{\"id\":\"$jiraICAgneeEsc\"}"
+		[ "$jiraICDescriptionGiven" = "true" ] && jiraICFields="$jiraICFields,\"description\":$jiraICDescriptionAdf"
+		jiraICFields="$jiraICFields}"
+		if [ -n "$jiraICFieldsJson" ] ; then
+			jiraICFields="$( python3 "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/atlassian/AgentsAtlassianJsonObjectMerge.py" "$jiraICFields" "$jiraICFieldsJson" )" || {
+				printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraICContext: --fields-json rejected -- nothing was created" >&2
+				set +e ; return 1
+			}
+		fi
+		local jiraICRc=0
+		AgentsToolsAtlassianCall "$jiraICMember" jira POST /rest/api/3/issue "$jiraICContext" "{\"fields\":$jiraICFields}" || jiraICRc=$?
+		if [ "$jiraICRc" -ne 0 ] ; then
+			set +e ; return "$jiraICRc"
+		fi
+		return 0

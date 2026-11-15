@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # ^^^ for syntax checking in the editor only
+type AgentsSlackIdentityId > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/slack/AgentsTools.SlackIdentities.include"
 
 ##
 ## AgentsTools.SessionChat.include -- the session chat file (F9.1 of the refactorings epic), and the one reader of it
@@ -85,11 +86,6 @@ AgentsToolsSessionChatKey(){
 	printf '%s' "$agentsSessionChatKey"
 }
 
-## The UTC time, as a header keeps it, before which a post that has no ts yet is given up by a floor.
-AgentsToolsSessionChatPendingCutoff(){
-	date -u -v-"$agentsSessionChatPendingSeconds"S +%Y-%m-%dT%H:%M:%SZ 2> /dev/null || date -u -d "$agentsSessionChatPendingSeconds seconds ago" +%Y-%m-%dT%H:%M:%SZ 2> /dev/null || printf ''
-}
-
 ## Says to the communications reader that a wait is blocked on the session: a marker in its folder is touched, and the reader
 ## looks at the thread every few seconds while the marker is fresh (AgentsToolsSessionCommsActive). Quiet, for a session with no folder.
 AgentsToolsSessionChatWaiting(){ ## session
@@ -130,10 +126,11 @@ AgentsToolsSessionChatTo(){ ## addressees...
 ## The lock of a session's chat files, taken by one function and given back by it: sets chatLock to what Give is handed.
 AgentsToolsSessionChatLockTake(){ ## session
 	chatLock=""
-	type AgentsToolsLocalLockTake > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.LocalLock.include" 2> /dev/null || :
+	type AgentsToolsLocalLockTake > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.LocalLock.include"
 	! AgentsToolsLocalLockTake "chat-$1" 10 "the chat file of session $1" 2> /dev/null || chatLock="$agentsLocalLockPath"
 }
 AgentsToolsSessionChatLockGive(){
+	type AgentsToolsLocalLockGive > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.LocalLock.include"
 	[ -z "${chatLock:-}" ] || AgentsToolsLocalLockGive "$chatLock"
 	chatLock=""
 }
@@ -144,8 +141,8 @@ AgentsToolsSessionChatLockGive(){
 ## the session has no folder to be kept in. Through the chat writer thread where it is on, else directly here.
 AgentsToolsSessionChatAppend(){ ## session, from, to, ts, where, origin, time (optional), seen (optional) -- the body on stdin
 	local appendIn
-	type AgentsToolsSessionChatWriterOn > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChatWriter.include" 2> /dev/null || :
-	if type AgentsToolsSessionChatWriterOn > /dev/null 2>&1 && AgentsToolsSessionChatWriterOn ; then
+	type AgentsToolsSessionChatWriterOn > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChatWriter.include"
+	if AgentsToolsSessionChatWriterOn ; then
 		## The body is read once, so the fallback has it too.
 		appendIn="$( cat ; printf x )" ; appendIn="${appendIn%x}"
 		if printf '%s' "$appendIn" | AgentsToolsSessionChatWriterAppend "$@" ; then return 0 ; fi
@@ -177,7 +174,7 @@ AgentsToolsSessionChatAppendDirect(){ ## session, from, to, ts, where, origin, t
 		|| { AgentsToolsSessionChatLockGive ; return 1 ; }
 	AgentsToolsSessionChatLockGive
 	## The waits of the workspace are poked, so a wait naps long and still reads this block at once (AgentsToolsWakePoke).
-	type AgentsToolsWakePoke > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.WakeMarker.include" 2> /dev/null || :
+	type AgentsToolsWakePoke > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.WakeMarker.include"
 	! type AgentsToolsWakePoke > /dev/null 2>&1 || AgentsToolsWakePoke
 	printf '%s\n' "$appendNo"
 }
@@ -187,7 +184,7 @@ AgentsToolsSessionChatAppendDirect(){ ## session, from, to, ts, where, origin, t
 ## one hand for every write of the chat files, the lock the fallback alone). rc 1 where the thread brought no answer, so
 ## the caller makes the direct write itself.
 AgentsToolsSessionChatViaWriter(){ ## kind, the arguments of the direct write
-	type AgentsToolsSessionChatWriterOn > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChatWriter.include" 2> /dev/null || return 1
+	type AgentsToolsSessionChatWriterOn > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChatWriter.include" || return 1
 	AgentsToolsSessionChatWriterOn || return 1
 	AgentsToolsSessionChatWriterRequest "$@"
 }
@@ -243,7 +240,6 @@ AgentsToolsSessionChatThreadRoots(){
 	local rootsFile="" rootsName="" rootsPath=""
 	[ -n "${MMDAPP:-}" ] || return 0
 	printf '%s\n' "${MMDAPP%/}"
-	type AgentsToolsTeamSharedDir > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamRegistry.include" 2> /dev/null || return 0
 	rootsFile="${HOME:-}/.agents/magic-team/directories.registry"
 	[ -f "$rootsFile" ] || return 0
 	while IFS=$'\t' read -r rootsName rootsPath ; do
@@ -258,7 +254,7 @@ AgentsToolsSessionChatThreadRoots(){
 ## workspace, and only where it holds none, those of the other roots (AgentsToolsSessionChatThreadRoots). The sending session
 ## itself is never listed. rc 1, nothing printed, for a thread no other session keeps.
 AgentsToolsSessionChatThreadSessions(){ ## conversation:thread, the sending session (may be empty)
-	local ownerThread="$1" ownerSelf="${2:-}" ownerRoot="" ownerFile="" ownerSession="" ownerFound=""
+	local ownerThread="$1" ownerRoot="" ownerFile="" ownerSession="" ownerFound=""
 	case "$ownerThread" in [ABCDEFGHIJKLMNOPQRSTUVWXYZ]*:[0123456789]*.[0123456789]*) ;; *) return 1 ;; esac
 	while IFS= read -r ownerRoot ; do
 		[ -n "$ownerRoot" ] || continue
@@ -266,7 +262,7 @@ AgentsToolsSessionChatThreadSessions(){ ## conversation:thread, the sending sess
 		[ -z "$ownerFound" ] || break
 		for ownerFile in $( LC_ALL=C grep -l -x -F -- "$ownerThread" "$ownerRoot"/.local/agents/sessions/*/session.thread 2> /dev/null ) ; do
 			ownerSession="${ownerFile%/session.thread}" ; ownerSession="${ownerSession##*/}"
-			[ "$ownerRoot" != "${MMDAPP%/}" ] || [ "$ownerSession" != "$ownerSelf" ] || continue
+			[ "$ownerRoot" != "${MMDAPP%/}" ] || [ "$ownerSession" != "${2:-}" ] || continue
 			printf '%s\t%s\n' "$ownerRoot" "$ownerSession"
 			ownerFound="true"
 		done
@@ -442,11 +438,10 @@ AgentsToolsSessionChatPointerUnsetDirect(){ ## session, reader
 ## seconds). While it is ahead, the floor is consumed silently (AgentsToolsSessionChatFloor); an expired deadline is
 ## cleared there. Explicit, so nothing else removes it, and timed, so it comes back by itself.
 AgentsToolsSessionChatFloorRemove(){ ## session, member, seconds
-	local removeNow removeDeadline
+	local removeNow
 	case "$3" in ''|*[!0123456789]*) return 1 ;; esac
 	removeNow="$( date +%s )" || return 1
-	removeDeadline=$(( removeNow + $3 ))
-	AgentsToolsSessionChatPointerSet "$1" "remove:$2" "$removeDeadline"
+	AgentsToolsSessionChatPointerSet "$1" "remove:$2" "$(( removeNow + $3 ))"
 }
 
 ## The thread of the session, `<channel>:<ts>`: the one a run is given, else the one the session keeps. rc 1, nothing printed, for none.
@@ -467,12 +462,6 @@ AgentsToolsSessionChatRole(){ ## session
 	else
 		printf 'participant'
 	fi
-}
-
-## A member's Slack account, from the mention-id cache; nothing for none.
-AgentsToolsSessionChatMemberId(){ ## member
-	[ -n "${MMDAPP:-}" ] && [ -f "$MMDAPP/.local/.agents/slack-mention-ids.cache" ] || return 0
-	LC_ALL=C awk -F= -v who="$1" '$1 == who && $2 != "-" { print $2 ; exit ; }' "$MMDAPP/.local/.agents/slack-mention-ids.cache" 2> /dev/null
 }
 
 ## A member's pointer, made where it has none: at the end of the file as it stands, 0 for a file with nothing in it yet. What is
@@ -541,12 +530,12 @@ AgentsToolsSessionChatFloor(){ ## session, member, covered (optional), `deliver`
 	## from the one chat file (AgentsSessionChatRead.awk's own-thread rule, given that thread here). No other
 	## reader of a session's thread asks for this: the tooling thread is its external channel, never its record.
 	if [ -z "$floorThread" ] ; then
-		type AgentsToolsCommsPrintbackTrackThread > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsPrintback.include" 2> /dev/null || :
+		type AgentsToolsCommsPrintbackTrackThread > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsPrintback.include"
 		floorThread="$( AgentsToolsCommsPrintbackTrackThread "$1" 2> /dev/null )" || floorThread=""
 	fi
 	floorSide="$( mktemp "$floorDir/floor.XXXXXX" 2> /dev/null )" || return 0
-	LC_ALL=C awk -v after="$floorPointer" -v session="$1" -v member="$2" -v role="$( AgentsToolsSessionChatRole "$1" )" -v thread="$floorThread" -v memberId="$( AgentsToolsSessionChatMemberId "$2" )" \
-		-v covered="${3:-}" -v replySource="replies:$1" -v side="$floorSide" -v filter="${agentsSessionChatFilter:-}" -v pendingBefore="$( AgentsToolsSessionChatPendingCutoff )" \
+	LC_ALL=C awk -v after="$floorPointer" -v session="$1" -v member="$2" -v role="$( AgentsToolsSessionChatRole "$1" )" -v thread="$floorThread" -v memberId="$( AgentsSlackIdentityId "$2" )" \
+		-v covered="${3:-}" -v replySource="replies:$1" -v side="$floorSide" -v filter="${agentsSessionChatFilter:-}" -v pendingBefore="$( date -u -v-"$agentsSessionChatPendingSeconds"S +%Y-%m-%dT%H:%M:%SZ 2> /dev/null || date -u -d "$agentsSessionChatPendingSeconds seconds ago" +%Y-%m-%dT%H:%M:%SZ 2> /dev/null || printf '' )" \
 		-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsSessionChatRead.awk" "$floorDir/$agentsSessionChatName.index" "$floorDir/$agentsSessionChatName" 2> /dev/null || :
 	agentsSessionChatNewest="$( LC_ALL=C sed -n 's/^newest //p' "$floorSide" 2> /dev/null | head -1 )"
 	agentsSessionChatSeen="$( LC_ALL=C sed -n 's/^seen //p' "$floorSide" 2> /dev/null | LC_ALL=C tr '\n' ' ' )"
@@ -564,8 +553,8 @@ AgentsToolsSessionChatFloor(){ ## session, member, covered (optional), `deliver`
 	if [ "${4:-}" = "deliver" ] && [ -n "$floorThreadTs" ] ; then
 		case "$floorThread" in
 			*:*)
-				type AgentsWaitFloorAdvance > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWaitCore.include" 2> /dev/null || :
-				type AgentsWaitFloorAdvance > /dev/null 2>&1 && AgentsWaitFloorAdvance "$1" "slack:$floorThread:conversation" "$floorThreadTs"
+				type AgentsWaitFloorAdvance > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/wait/AgentsTools.MemberWaitCore.include"
+				AgentsWaitFloorAdvance "$1" "slack:$floorThread:conversation" "$floorThreadTs"
 			;;
 		esac
 	fi
@@ -641,8 +630,8 @@ AgentsToolsSessionChatImportDirect(){ ## session, conversation:thread, rendering
 	[ -f "$importDir/$agentsSessionChatName" ] || : > "$importDir/$agentsSessionChatName"
 	importLine=$(( $( { LC_ALL=C wc -l < "$importDir/$agentsSessionChatName" ; } 2> /dev/null || printf 0 ) + 1 ))
 	importNo=$(( $( { LC_ALL=C wc -l < "$importDir/$agentsSessionChatName.index" ; } 2> /dev/null || printf 0 ) + 1 ))
-	importMap="${MMDAPP:-/nonexistent}/.local/.agents/slack-mention-ids.cache"
-	[ -f "$importMap" ] || importMap="$importWork/none"
+	importMap="$importWork/identities"
+	AgentsSlackIdentityRows > "$importMap" 2> /dev/null || : > "$importMap"
 	LC_ALL=C awk -v channel="${2%%:*}" -v where="$2" -v origin="${4:-slack}" -v seen="${5:--}" -v historyBefore="$importHistory" \
 		-v startLine="$importLine" -v startNo="$importNo" -v chatOut="$importWork/chat" -v indexOut="$importWork/index" \
 		-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsSessionChatImport.awk" \

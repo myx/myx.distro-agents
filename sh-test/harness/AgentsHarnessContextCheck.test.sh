@@ -361,7 +361,7 @@ AgentsReviewCliResolved(){ printf 'other-leg' ; }
 rigAssert "nor one whose cli changed" "$( AgentsReviewContextResumeEligible "$rigRec" ; echo " rc=$?" )" "the cli is now other-leg, the old session ran on rig-leg rc=1"
 
 echo "-- 5. event-track: one open post, sent 7 s after its first line and by no line early, against a fake Slack --"
-. "$rigHere/session/AgentsTools.EventTrackFeed.include"
+. "$rigHere/event-track/AgentsTools.EventTrackFeed.include"
 rigSlack="$rigTmp/slack"
 : > "$rigSlack"
 ## The post op's own rendering and cutting are AgentsEventTrackPostCheck's: this fake keeps what the feed hands it,
@@ -376,7 +376,9 @@ AgentsTranscriptEvent "$rigSidF" VERDICT "" 0 item rig-item
 rigAssert "a transcript event goes to the open feed too" "$( LC_ALL=C grep -c ' VERDICT item=rig-item' "$rigWs/.local/agents/sessions/$rigSidF/feed" )" 1
 rigPosts(){ LC_ALL=C grep -c '^POST ' "$rigSlack" ; }
 ## The removed knobs set, to show they change nothing: the window is fixed in code, and no kind of line sends a post.
-( MDAT_EVENT_TRACK_BATCH_SECONDS=1 MDAT_EVENT_TRACK_IMMEDIATE_KINDS=VERDICT AgentsEventTrackFeedRun "$rigSidF" magic-tester "CRIG:9.9" ) &
+## The comms service thread posts a live run's feed; a run's own poster, the one this section measures, runs where its
+## caller keeps its own feed (MDAT_SPAWN_PROXY_OWN_FEED), as a rig with no comms thread does.
+( MDAT_SPAWN_PROXY_OWN_FEED=1 MDAT_EVENT_TRACK_BATCH_SECONDS=1 MDAT_EVENT_TRACK_IMMEDIATE_KINDS=VERDICT AgentsEventTrackFeedRun "$rigSidF" magic-tester "CRIG:9.9" ) &
 rigFeedPid=$!
 rigProcNote "$rigFeedPid"
 sleep 3

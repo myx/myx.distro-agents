@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+## AgentsTools.InternOpAtlassianConfluenceCommentRead.include -- the operation `--intern-op-atlassian-confluence-comment-read`, sourced by AgentsTools.InternOpAtlassianCall.include with the operation's arguments.
+	type AgentsToolsAtlassianCall > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/atlassian/AgentsTools.AtlassianRequest.include"
+		shift
+		local confCRMember="" confCRPageId="" confCRContext="intern-op-atlassian-confluence-comment-read"
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--member|--page-id|--context)
+					if [ -z "${2:-}" ] ; then
+						printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confCRContext: $1 value missing" >&2
+						set +e ; return 1
+					fi
+					case "$1" in
+						--member)  confCRMember="$2" ;;
+						--page-id) confCRPageId="$2" ;;
+						--context) confCRContext="$2" ;;
+					esac
+					shift 2
+				;;
+				*)
+					printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confCRContext: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		if [ -z "$confCRMember" ] || [ -z "$confCRPageId" ] ; then
+			printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confCRContext: syntax is --member <team-member> --page-id <page-id> [--context <caller>] -- comments are visible only to identities the page is shared with" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsAtlassianAssertNumber "$confCRPageId" "<page-id>" "$confCRContext" || { set +e ; return 1 ; }
+		local confCRPath="/wiki/api/v2/pages/$( AgentsToolsAtlassianUrlEncode "$confCRPageId" )/footer-comments?body-format=storage&limit=100"
+		local confCRBody confCRRc=0
+		confCRBody="$( AgentsToolsAtlassianCall "$confCRMember" confluence GET "$confCRPath" "$confCRContext" "" )" || confCRRc=$?
+		if [ "$confCRRc" -ne 0 ] ; then
+			set +e ; return "$confCRRc"
+		fi
+		local confCRRows confCRRowsRc=0
+		confCRRows="$( printf '%s\n' "$confCRBody" | LC_ALL=C awk -v array=results -v want='id,version.authorId,version.createdAt,body.storage.value' -v mode=records -v dialect=atlassian -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" )" || confCRRowsRc=$?
+		if [ "$confCRRowsRc" -ne 0 ] ; then
+			printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confCRContext: results field unreadable" >&2
+			set +e ; return 3
+		fi
+		printf 'COMMENT_ID\tVERSION_AUTHOR_ID\tCREATED\tBODY\n'
+		[ -z "$confCRRows" ] || printf '%s\n' "$confCRRows"
+		printf '%s\n' "# $confCRContext: more: unknown -- this endpoint reports no isLast/total, so whether comments exist beyond this page cannot be determined from the response" >&2
+		return 0

@@ -2,8 +2,9 @@
 ## Behavioural check on the router of the Slack comms operations (epic 20261026-refactorings, S28.6): the scopes answer every Slack Wait asks for
 ## parses the router alone, never AgentsTools.CommsSlack.include (the Slack kernel, 1746 lines). The router sources the kernel only in the arms
 ## that use it. Held, run and not read (every file a call sources is logged by a line put at the head of each .include of a copy of the package):
-##   1. THE ANSWER. A process that sources the router with --intern-op-comms-slack-read --print-required-scopes, as every Wait does: it prints the
-##      scopes the operation has always printed, ends 0, and the files it sourced are the router and nothing else.
+##   1. THE ANSWER. A process that sources the router (a plain source defines its functions, prints nothing, ends 0) and calls its Run function
+##      with --intern-op-comms-slack-read --print-required-scopes: the Run prints the scopes the operation has always printed, ends 0, and the
+##      files it sourced are the router and nothing else.
 ##   2. THE CALL. The same pair through the dispatcher, as the tools run it: the kernel is not among the files it sourced.
 ##   3. THE ARMS THAT NEED THE KERNEL. A react and a send of the member, over a Slack-shaped fake curl, still reach their Slack method: the
 ##      kernel is loaded where the arm uses it, so taking it out of the router's head breaks no operation.
@@ -27,8 +28,8 @@ rigRefuse(){
 }
 rigPackage="$MDLT_ORIGIN/$rigPackageRel"
 [ -f "$rigPackage/sh-scripts/DistroAgentsTools.fn.sh" ] || rigRefuse "no dispatcher at the origin this workspace resolves: $rigPackage"
-[ -f "$rigPackage/sh-lib/comms/$rigRouter" ] || rigRefuse "no router at the origin: $rigPackage/sh-lib/comms/$rigRouter"
-[ -f "$rigPackage/sh-lib/comms/$rigKernel" ] || rigRefuse "no kernel at the origin: $rigPackage/sh-lib/comms/$rigKernel"
+[ -f "$rigPackage/sh-lib/slack/$rigRouter" ] || rigRefuse "no router at the origin: $rigPackage/sh-lib/slack/$rigRouter"
+[ -f "$rigPackage/sh-lib/slack/$rigKernel" ] || rigRefuse "no kernel at the origin: $rigPackage/sh-lib/slack/$rigKernel"
 [ -r "${MDAT_SKILLSET_ROOT:-}/$rigMember/$rigMember.basic.md" ] || rigRefuse "MDAT_SKILLSET_ROOT does not hold $rigMember, so a stub would have no member to act as"
 
 . "$rigPackage/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
@@ -81,8 +82,8 @@ find "$rigOrigin/$rigPackageRel/sh-lib" -name '*.include' -type f | while IFS= r
 		&& cat "$rigFile.rigtmp" > "$rigFile" && rm -f "$rigFile.rigtmp" || exit 1
 done || rigRefuse "the log line could not be put at the head of the includes"
 rigTools="$rigOrigin/$rigPackageRel/sh-scripts/DistroAgentsTools.fn.sh"
-rigRouterCopy="$rigOrigin/$rigPackageRel/sh-lib/comms/$rigRouter"
-rigKernelCopy="$rigOrigin/$rigPackageRel/sh-lib/comms/$rigKernel"
+rigRouterCopy="$rigOrigin/$rigPackageRel/sh-lib/slack/$rigRouter"
+rigKernelCopy="$rigOrigin/$rigPackageRel/sh-lib/slack/$rigKernel"
 [ "$( LC_ALL=C sed -n 2p "$rigRouterCopy" | LC_ALL=C cut -c1-40 )" = '[ -z "${RIG_SOURCED_LOG:-}" ] || printf ' ] || rigRefuse "the router of the copy carries no log line"
 [ "$( LC_ALL=C sed -n 2p "$rigKernelCopy" | LC_ALL=C cut -c1-40 )" = '[ -z "${RIG_SOURCED_LOG:-}" ] || printf ' ] || rigRefuse "the kernel of the copy carries no log line"
 
@@ -124,10 +125,10 @@ rigScopes(){ ## -- the scopes the last call printed, on one line
 	LC_ALL=C tr '\n' ' ' < "$rigTmp/call.out" | LC_ALL=C sed 's/ $//'
 }
 
-echo "-- 1. the answer, as every Wait asks for it: the router sourced with the pair --"
+echo "-- 1. the answer: a plain source defines the functions and runs nothing; the Run answers the pair --"
 : > "$RIG_SOURCED_LOG"
-rigEnv bash -c '. "$1" --intern-op-comms-slack-read --print-required-scopes' rig "$rigRouterCopy"
-rigAssert "the router answers with the scopes it has always printed, and ends 0" "$rigRc:$( rigScopes )" "0:$rigScopesRead"
+rigEnv bash -c '. "$1" ; AgentsToolsMemberCommsSlackRun --intern-op-comms-slack-read --print-required-scopes' rig "$rigRouterCopy"
+rigAssert "the router's Run answers with the scopes it has always printed, and ends 0" "$rigRc:$( rigScopes )" "0:$rigScopesRead"
 rigAssert "the router was sourced (the log can see it)" "$( rigNamed "$RIG_SOURCED_LOG" "$rigRouter" )" named
 rigAssert "the kernel was not sourced" "$( rigNamed "$RIG_SOURCED_LOG" "$rigKernel" )" absent
 rigAssert "the files it sourced are the router and nothing else" "$( rigFiles "$RIG_SOURCED_LOG" )" "$rigRouter"
@@ -140,10 +141,10 @@ rigAssert "the kernel was not sourced" "$( rigNamed "$RIG_SOURCED_LOG" "$rigKern
 
 echo "-- 3. the arms that need the kernel still reach their Slack method --"
 : > "$RIG_CURL_LOG" ; : > "$RIG_SOURCED_LOG"
-rigEnv bash "$rigTools" --slack-react "$rigMember" CRIG00001:1700000000.000100 eyes
+rigEnv bash "$rigTools" --slack-react CRIG00001:1700000000.000100 eyes
 rigAssert "react: ended 0 and asked reactions.add" "$rigRc:$( LC_ALL=C grep -c -x -F reactions.add "$RIG_CURL_LOG" | LC_ALL=C tr -d ' ' )" "0:1"
 : > "$RIG_CURL_LOG" ; : > "$RIG_SOURCED_LOG"
-rigEnv bash "$rigTools" --slack-send-message "$rigMember" CRIG00001 RIG-BODY
+rigEnv bash "$rigTools" --slack-send-message CRIG00001 RIG-BODY
 rigAssert "send: ended 0 and asked chat.postMessage" "$rigRc:$( LC_ALL=C grep -c -x -F chat.postMessage "$RIG_CURL_LOG" | LC_ALL=C tr -d ' ' )" "0:1"
 
 ## A Wait over a Slack source loads the router with the pair and then needs the kernel's resolver and readers: the kernel must be loaded where the Wait uses it.

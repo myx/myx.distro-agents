@@ -55,12 +55,12 @@ DistroAgentsItems(){
 		;;
 
 		--advance-batch-outcome|--advance-to-parked|--advance-to-running)
-			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.MagicAdvance.include"
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.BoardAdvance.include"
 			return $?
 		;;
 
 		--commit-pending)
-			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.MagicTeamData.include"
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataCommitPending.include"
 			return $?
 		;;
 
@@ -69,12 +69,12 @@ DistroAgentsItems(){
 		## the mode, moves the flat inbox items by their processed stamp and pushes. Sourced,
 		## it runs on this arm's own words.
 		--repair-team-data-checkout)
-			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.MagicTeamDataCheckoutRepair.include"
+			type AgentsToolsTeamDataRepairMoveFlatItems > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataCheckoutRepair.include"
 			return $?
 		;;
 
 		--create-running|--move-to-backlog|--move-to-blocked|--move-to-parked|--move-to-pending|--move-to-processed)
-			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.MagicBoard.include"
+			type AgentsToolsBoardToProcessed > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.BoardMoves.include"
 			return $?
 		;;
 
@@ -84,13 +84,13 @@ DistroAgentsItems(){
 			return $?
 		;;
 
-		--get-audit-item|--get-board-item|--get-inbox-item|--list-inbox-items|--get-vault-item|--mark-inbox-processed|--trash-inbox-item|--trash-board-item|--upsert-inbox-inquiry|--upsert-inbox-note|--upsert-inbox-reflection|--upsert-vault-decision-record|--upsert-vault-epic-blueprint|--upsert-vault-investigation-report|--upsert-vault-item|--upsert-vault-verbatim-record)
+		--get-audit-item|--get-board-item|--get-inbox-item|--list-inbox-items|--get-vault-item|--mark-inbox-processed|--trash-inbox-item|--trash-board-item|--upsert-inbox-inquiry|--upsert-inbox-note|--upsert-inbox-reflection|--upsert-vault-*)
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.Member.include"
 			return $?
 		;;
 
 		--grooming-create-backlog|--grooming-create-blocked|--grooming-create-pending|--grooming-create-processed|--grooming-create-running|--grooming-to-archived|--grooming-to-backlog|--grooming-to-blocked|--grooming-to-parked|--grooming-to-pending|--grooming-to-processed|--grooming-to-retained|--grooming-to-running)
-			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.MagicGrooming.include"
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.BoardGrooming.include"
 			return $?
 		;;
 

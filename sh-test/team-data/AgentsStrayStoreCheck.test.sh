@@ -13,8 +13,10 @@
 ## Offline: a temp folder of this check alone, two workspaces beside each other, removed at its end; nothing is requested.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
+: "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 rigLib="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib"
-rigTmp="$( mktemp -d "${MMDAPP:-${TMPDIR:-/tmp}}/.local/agents/scratch/sh-test/AgentsStrayStoreCheck.XXXXXXXX" 2> /dev/null || mktemp -d "${TMPDIR:-/tmp}/AgentsStrayStoreCheck.XXXXXXXX" )" || exit 1
+mkdir -p "$MMDAPP/.local/agents/scratch/sh-test" || exit 1
+rigTmp="$( mktemp -d "$MMDAPP/.local/agents/scratch/sh-test/AgentsStrayStoreCheck.XXXXXXXX" )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
 rigPass=0 ; rigFail=0
@@ -106,7 +108,7 @@ rigAssert "the placed one is moved to its rig's inbox"       "$( [ -f "$rigTwo/r
 rigAssert "the stamped one is moved to the rig it names"     "$( [ -f "$rigTwo/rig-three/team-data/inboxes/magic-tester/incoming/inquiry-stamped.md" ] && printf yes || printf no )" yes
 rigAssert "the ambiguous and the unplaced stay"              "$( [ -f "$rigStore2/inboxes/magic-tester/incoming/inquiry-ambiguous.md" ] && [ -f "$rigStore2/inboxes/magic-tester/incoming/inquiry-none.md" ] && printf yes || printf no )" yes
 rigAssert "the summary"                                      "$( LC_ALL=C grep -c '2 moved, 0 removed as identical, 2 left' "$rigTmp/err" )" 1
-rigAssert "no runs table is left behind"                     "$( ls -d "${TMPDIR:-/tmp}"/stray-runs.* 2> /dev/null | LC_ALL=C wc -l | LC_ALL=C tr -d ' ' )" 0
+rigAssert "no runs table is left behind"                     "$( ls -d "$MMDAPP/.local/agents/scratch/sh-test"/stray-runs.* 2> /dev/null | LC_ALL=C wc -l | LC_ALL=C tr -d ' ' )" 0
 
 echo "-- 7. the owner names the rig of what no run placed --"
 rigRun just-agents AgentsToolsStrayStoreReturn "$rigJ2" --inbox-to rig-two > "$rigTmp/plan4"

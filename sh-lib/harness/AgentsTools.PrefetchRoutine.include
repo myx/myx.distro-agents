@@ -12,10 +12,6 @@
 ## `DistroAgentsSession.fn.sh --get-routine-text` prints, so a read of it while its checksum is still that one is said in one line.
 ##
 
-## The one line every such answer starts with.
-AgentsToolsPrefetchOneLine(){
-	printf '%s' "Already in this run's first message, unchanged since then"
-}
 
 ## The marker of the run this process belongs to; rc 1 and nothing printed outside a spawned run with a sandbox.
 AgentsToolsPrefetchMarkerFile(){
@@ -49,7 +45,7 @@ AgentsToolsPrefetchRoutineUnchanged(){ ## routine file path, [file name, checksu
 		unchangedSum="$( LC_ALL=C awk 'index( $0, "routine-sum: " ) == 1 { print substr( $0, 14 ) ; exit }' "$unchangedMarker" )"
 	fi
 	[ -n "$unchangedName" ] && [ -n "$unchangedSum" ] && [ "${1##*/}" = "$unchangedName" ] || return 1
-	type AgentsToolsSpawnRoutineMixText > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnRoutine.include" 2> /dev/null || return 1
+	type AgentsToolsSpawnRoutineMixText > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnRoutine.include" || return 1
 	[ "$( AgentsToolsSpawnRoutineMixText "$1" 2> /dev/null | LC_ALL=C cksum )" = "$unchangedSum" ]
 }
 
@@ -57,5 +53,5 @@ AgentsToolsPrefetchRoutineUnchanged(){ ## routine file path, [file name, checksu
 ## rc 1, nothing printed, for any other.
 AgentsToolsPrefetchRoutineSaid(){ ## routine file path
 	AgentsToolsPrefetchRoutineUnchanged "$1" || return 1
-	printf '%s: the text of %s mixed with the routine of its kind, as this prints it. Nothing was printed again.\n' "$( AgentsToolsPrefetchOneLine )" "${1##*/}"
+	printf '%s: the text of %s mixed with the routine of its kind, as this prints it. Nothing was printed again.\n' "Already in this run's first message, unchanged since then" "${1##*/}"
 }

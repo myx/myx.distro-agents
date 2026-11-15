@@ -1,0 +1,51 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+## AgentsTools.OpManagerSessionChecklistRead.include -- the operation `--manager-session-checklist-read`, sourced by AgentsTools.ManagerSession.include with the operation's arguments.
+## One member's checklist in one coworking session: the file <member>.checklist.md that the CheckList tool keeps in the place of the session, the sandbox
+## root of the spawn that founded it where a spawn founded it, else the folder sessions/<id>. Its lines as they stand, one an item, `- [x]` done and
+## `- [ ]` not yet, the item in progress followed by its activeForm: Markdown, which a screen renders. Nothing is printed for a member that kept none.
+## It reads that one file, and writes nothing.
+		local checklistOp="$1" checklistId="" checklistMember="" checklistRecord="" checklistFolder=""
+		local checklistSyntax="--session-id <id> <member>"
+		shift
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--session-id)
+					if [ $# -lt 2 ] || [ -z "$2" ] || [ "$2" = "-" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD $checklistOp: --session-id needs an id -- syntax is $checklistSyntax" >&2
+						set +e ; return 1
+					fi
+					checklistId="$2" ; shift 2
+				;;
+				-*)
+					echo "⛔ ERROR: $MDSC_CMD $checklistOp: syntax is $checklistSyntax, got: $1" >&2
+					set +e ; return 1
+				;;
+				*)
+					if [ -n "$checklistMember" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD $checklistOp: syntax is $checklistSyntax, got a second member: $1" >&2
+						set +e ; return 1
+					fi
+					checklistMember="$1" ; shift
+				;;
+			esac
+		done
+		if [ -z "$checklistId" ] || [ -z "$checklistMember" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD $checklistOp: syntax is $checklistSyntax, got no $( [ -n "$checklistId" ] && echo member || echo --session-id )" >&2
+			set +e ; return 1
+		fi
+		type AgentsToolsAssertBareName > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.BareName.include"
+		AgentsToolsAssertBareName "$checklistId" "the session id" "$checklistOp" || { set +e ; return 1 ; }
+		AgentsToolsAssertBareName "$checklistMember" "the member" "$checklistOp" || { set +e ; return 1 ; }
+		## The record of a spawn is found the one way (AgentsToolsSpawnRecord): the file <id>.spawn.md
+		## of whatever folder of spawned/ holds it, naming that id as its own spawn-id. Only where no folder
+		## holds it is the session store the place: a session that founded none keeps its checklist in it.
+		type AgentsToolsSpawnRecord > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunRecords.include"
+		checklistRecord="$( AgentsToolsSpawnRecord "$checklistId" )"
+		checklistFolder="${checklistRecord%/*}"
+		[ -n "$checklistFolder" ] || checklistFolder="$MMDAPP/.local/agents/sessions/$checklistId"
+		## A session whose checklist was kept in its store, a root session among them, is read there where its record's folder holds none.
+		[ -f "$checklistFolder/$checklistMember.checklist.md" ] || checklistFolder="$MMDAPP/.local/agents/sessions/$checklistId"
+		[ ! -f "$checklistFolder/$checklistMember.checklist.md" ] || cat "$checklistFolder/$checklistMember.checklist.md"
+		return 0

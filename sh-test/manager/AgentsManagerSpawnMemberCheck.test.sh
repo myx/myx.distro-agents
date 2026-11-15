@@ -208,16 +208,27 @@ rigItem="$( LC_ALL=C awk -F'\t' '{ print $5 }' "$rigTmp/out" )"
 rigItemPath="$( find "$rigData/board" -type f -name "$rigItem" 2> /dev/null | head -1 )"
 rigAssert "it made a dispatch item, the one the row names, whose brief holds the prompt" \
 	"$( rigItemNamed "$rigItem" ) $( [ -n "$rigItemPath" ] && LC_ALL=C grep -c -x -F -e 'first line of the prompt' -e 'second line of it' "$rigItemPath" )" "named 2"
-rigAssert "with no name given the row's name is the member and its routine, and the record keeps that same title" "$( LC_ALL=C awk -F'\t' '{ print $4 }' "$rigTmp/out" ) [$( rigHeader "$rigFirst" session-comment )]" "keeper-myx,_coworking [keeper-myx, coworking]"
+rigAssert "with no name given the row's name is the member and its routine with the session's short id, and the record keeps that same title" "$( LC_ALL=C awk -F'\t' '{ print $4 }' "$rigTmp/out" ) [$( rigHeader "$rigFirst" session-comment )]" "keeper-myx,_coworking_($( printf '%s' "$rigFirst" | cut -c1-8 )) [keeper-myx, coworking ($( printf '%s' "$rigFirst" | cut -c1-8 ))]"
 rigAssert "one sandbox, one run store, one item and one console more than before" "$rigMadeBefore -> $( rigMade )" "0 0 0 0 -> 1 1 1 1"
 
 echo "-- 2. the name given is on the record --"
 rigRun "$rigTmp/prompt.two" "$rigOp" keeper-myx --session-name-or-comment "fix the index" --description "the index went stale"
 rigNamed="$rigId"
-rigAssert "the start ends 0, and its row carries the name as a registry writes it" "$rigRc $( LC_ALL=C awk -F'\t' '{ print $1, NF, $3, $4 }' "$rigTmp/out" )" "0 spawn 5 keeper-myx fix_the_index"
-rigAssert "the spawn record of the run holds that text as its session-comment, and the description given" "[$( rigHeader "$rigNamed" session-comment )] [$( rigHeader "$rigNamed" description )]" "[fix the index] [the index went stale]"
+rigAssert "the start ends 0, and its row carries the name as a registry writes it" "$rigRc $( LC_ALL=C awk -F'\t' '{ print $1, NF, $3, $4 }' "$rigTmp/out" )" "0 spawn 5 keeper-myx fix_the_index_($( printf '%s' "$rigId" | cut -c1-8 ))"
+rigAssert "the spawn record of the run holds that text, with its short id, and the description given" "[$( rigHeader "$rigNamed" session-comment )] [$( rigHeader "$rigNamed" description )]" "[fix the index ($( printf '%s' "$rigNamed" | cut -c1-8 ))] [the index went stale]"
 rigAssert "it is another session than the first: each start is a session of its own" "$( [ -n "$rigNamed" ] && [ "$rigNamed" != "$rigFirst" ] && echo another ) $( rigHeader "$rigNamed" session-id | LC_ALL=C grep -c -x -F -- "$rigNamed" )" "another 1"
 rigWaitFor 30 test -s "$rigSc/done.$rigNamed"
+
+## S7: two sessions carrying one name tell apart by the short id that name ends with. The second start below
+## is given the very name of the first, so a list of them shows two rows and neither reads as the other.
+rigRun "$rigTmp/prompt.two" "$rigOp" keeper-myx --session-name-or-comment "coworking"
+rigSame="$rigId"
+rigAssert "the two sessions share the name they were given, and each carries its own short id" \
+	"$( rigHeader "$rigFirst" session-comment | LC_ALL=C sed 's/ (.*//' ) $( rigHeader "$rigSame" session-comment | LC_ALL=C sed 's/ (.*//' ) $( rigHeader "$rigSame" session-comment | LC_ALL=C grep -c -x -F "coworking ($( printf '%s' "$rigSame" | cut -c1-8 ))" )" \
+	"keeper-myx, coworking coworking 1"
+rigAssert "the two names differ, and neither session reads as the other" \
+	"$( [ "$rigFirst" != "$rigSame" ] && echo two-sessions ) $( [ "$( rigHeader "$rigFirst" session-comment )" != "$( rigHeader "$rigSame" session-comment )" ] && echo two-names )" \
+	"two-sessions two-names"
 
 echo "-- 3. a prompt with odd characters arrives unchanged --"
 rigRun "$rigTmp/prompt.odd" "$rigOp" keeper-myx
@@ -379,7 +390,10 @@ rm -f "$rigSc/release"
 
 echo "-- 10. the caller rule, and the place in the family --"
 rigMadeBefore="$( rigMadeSettled )"
-rigPre=( "MDAT_SPAWN_AGENT=magic-coordinator" )
+## Any member but magic-coordinator: the coordinator manages runs from its own sessions (AgentsToolsManagerCallerCheck).
+## A real member session carries its session id, and the refusal is recorded in that session's own store, so the
+## refusal adds no store of its own: the duty run above stands in for it.
+rigPre=( "MDAT_SPAWN_AGENT=magic-developer" "MDAT_SPAWN_SESSION_ID=$rigDuty" )
 rigRun "$rigTmp/prompt.two" "$rigOp" keeper-myx
 rigPre=()
 rigAssert "from inside a member's session it is refused, rc 1, nothing on stdout, in the one line of the family's rule, and nothing is started" \
@@ -405,7 +419,7 @@ rigPassStarted(){ [ -s "$rigTmp/pass.out" ] && [ -s "$rigSc/pid.$( LC_ALL=C awk 
 rigWaitFor 40 rigPassStarted || rigRefuse "the stand-in console never started for the start from a bare console: $( rigFirstError "$rigTmp/pass.err" )"
 rigLone="$( LC_ALL=C awk -F'\t' '$1 == "spawn" { print $2 ; exit }' "$rigTmp/pass.out" )"
 rigLoneAlive(){ kill -0 "$( cat "$rigSc/pid.$rigLone" 2> /dev/null || echo 999999 )" 2> /dev/null && printf alive || printf gone ; }
-rigAssert "the caller had no session id in its environment, and was returned to at once: its row is there while the member runs" "$( LC_ALL=C awk -F'\t' '{ print $1, $3, $4 }' "$rigTmp/pass.out" ) $( rigLoneAlive ) $( rigHeader "$rigLone" parent-spawn-id )" "spawn keeper-myx outlives_its_starter alive none"
+rigAssert "the caller had no session id in its environment, and was returned to at once: its row is there while the member runs" "$( LC_ALL=C awk -F'\t' '{ print $1, $3, $4 }' "$rigTmp/pass.out" ) $( rigLoneAlive ) $( rigHeader "$rigLone" parent-spawn-id )" "spawn keeper-myx outlives_its_starter_($( printf '%s' "$rigLone" | cut -c1-8 )) alive none"
 rigOwnGroup="$( ps -o pgid= -p $$ | tr -d ' ' )"
 rigLoneGroup="$( cat "$rigSc/pgid.$rigLone" 2> /dev/null || printf none )"
 rigAssert "the member's run is in a process group of its own, not its starter's and not this check's" \

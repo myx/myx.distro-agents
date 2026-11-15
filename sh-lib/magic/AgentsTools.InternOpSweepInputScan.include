@@ -1,0 +1,227 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+## AgentsTools.InternOpSweepInputScan.include -- the operation `--intern-op-sweep-input-scan`, sourced by AgentsTools.MagicSweep.include with the operation's arguments.
+		shift
+		local callingMember="$1"
+		shift || true
+		if [ -z "$callingMember" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --intern-op-sweep-input-scan: syntax is <team-member> [--comms-since-date-time <value>|--comms-since-utime <value>]" >&2
+			set +e ; return 1
+		fi
+
+		local commsCutoffArgs=()
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--comms-since-date-time|--comms-since-utime)
+					if [ -z "${2:-}" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --intern-op-sweep-input-scan: $1: value required" >&2
+						set +e ; return 1
+					fi
+					if [ ${#commsCutoffArgs[@]} -gt 0 ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --intern-op-sweep-input-scan: --comms-since-date-time and --comms-since-utime are mutually exclusive, and neither is repeatable -- one cut-off, one spelling" >&2
+						set +e ; return 1
+					fi
+					commsCutoffArgs=( "$1" "$2" )
+					shift 2
+				;;
+				--*)
+					echo "⛔ ERROR: $MDSC_CMD --intern-op-sweep-input-scan: invalid option: $1 -- syntax is <team-member> [--comms-since-date-time <value>|--comms-since-utime <value>] -- an input-scan reads all baseline-relevant items itself. SEE Skill magic-coordinator/magic-coordinator.communication-sweep.routine.md" >&2
+					set +e ; return 1
+				;;
+				*)
+					echo "⛔ ERROR: $MDSC_CMD --intern-op-sweep-input-scan: syntax is <team-member> [--comms-since-date-time <value>|--comms-since-utime <value>] -- an input-scan reads all baseline-relevant items itself, an item name is not a parameter. SEE Skill magic-coordinator/magic-coordinator.communication-sweep.routine.md" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+
+		local phaseAOutput
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+		phaseAOutput="$( DistroAgentsTools --intern-op-session-context-scan "$callingMember" \
+			--state backlog --state pending --state running --state review --state blocked \
+			--header communication-channel-id \
+			--all-types \
+			--no-slack --no-email --no-trello \
+			--no-inbox-inquiry --no-inbox-reflections \
+			--no-inbox-notes --no-inbox-other \
+			--no-board-related \
+			--context --intern-op-sweep-input-scan )" || return 1
+
+		local survivorNames
+		survivorNames="$( LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsMagicSweepSlackThreadNames.awk" <<< "$phaseAOutput" )" || {
+			echo "⛔ ERROR: $MDSC_CMD --intern-op-sweep-input-scan: survivor extraction failed over the phase-A scan -- refusing to continue, since an empty survivor set here is indistinguishable from a board with no open threads" >&2
+			set +e ; return 1
+		}
+
+		## MENTIONS ARE ASKED FOR EXPLICITLY. `--do-all` is Slack, email and
+		## Trello; it has never implied the tag search, so until now the only way a
+		## channel mention reached this sweep was as a side effect of thread
+		## discovery. Asking for it here is what makes the mention path stand on
+		## its own, which has to be true before discovery stops carrying it.
+		##
+		## USER_TOKEN ONLY, AND THAT IS SLACK'S LIMIT RATHER THAN A GAP HERE:
+		## search.messages is refused to a bot token at any scope, so the bot
+		## persona's mentions are only ever the ones sitting in a conversation
+		## already read above. A member holding no SLACK_USER_TOKEN says so in its
+		## own partial note rather than reporting silence.
+		## THE TEAM PART RESUMES FROM THE CALLING MEMBER'S OWN STORED POSITION when
+		## no cut-off is stated -- the default window only when none is stored. A
+		## stated cut-off wins and applies to the team part alone: it is never
+		## forwarded to a client, which resolves its own (below).
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.MagicSweepState.include"
+		## A SOURCE WHOSE STORED POSITION IS OLDER THAN THE PASS POSITION READS
+		## FROM ITS OWN. That is the whole point of the store: one source left
+		## behind by an earlier pass is caught up on its own floor, and the pass
+		## position is the fallback for a source with no position of its own. The
+		## floors are stated only when the caller stated no cut-off: an explicit
+		## --comms-since-* is a deliberate re-read and outranks every stored value.
+		local sourceFloorArgs=() teamFloorRows="" teamFloorRc=0
+		if [ ${#commsCutoffArgs[@]} -eq 0 ] ; then
+			local teamStoredTs="" teamStoredRc=0
+			teamStoredTs="$( AgentsToolsMagicSweepStoredPosition "$callingMember" magic-sweep-input-scan )" || teamStoredRc=$?
+			case "$teamStoredRc" in
+				0)
+					commsCutoffArgs=( --comms-since-utime "$teamStoredTs" )
+					echo "# $MDSC_CMD --intern-op-sweep-input-scan: $callingMember: resuming from its own stored sweep position $teamStoredTs" >&2
+				;;
+				3)
+					echo "# $MDSC_CMD --intern-op-sweep-input-scan: $callingMember: no sweep position stored -- the scan's own default window applies" >&2
+				;;
+				*)
+					set +e ; return 1
+				;;
+			esac
+			teamFloorRows="$( AgentsToolsMagicSweepStoredSourcePositions "$callingMember" magic-sweep-input-scan )" || teamFloorRc=$?
+			case "$teamFloorRc" in
+				0|3) ;;
+				*) set +e ; return 1 ;;
+			esac
+			if [ -n "$teamFloorRows" ] ; then
+				while IFS="$( printf '\t' )" read -r teamFloorKey teamFloorTs ; do
+					[ -n "$teamFloorKey" ] && [ -n "$teamFloorTs" ] || continue
+					sourceFloorArgs+=( --comms-source-floor "$teamFloorKey" "$teamFloorTs" )
+				done <<< "$teamFloorRows"
+				echo "# $MDSC_CMD --intern-op-sweep-input-scan: $callingMember: $( printf '%s\n' "$teamFloorRows" | LC_ALL=C awk 'NF { n++ } END { print n + 0 }' ) source(s) resume from a position of their own" >&2
+			fi
+		fi
+
+		local commsArgs=( --do-all --do-slack-tags ${commsCutoffArgs[@]+"${commsCutoffArgs[@]}"} ${sourceFloorArgs[@]+"${sourceFloorArgs[@]}"} )
+
+		local phaseBArgs=( --state backlog --state pending --state running --state review --state blocked ) n
+		while IFS= read -r n ; do
+			if [ -n "$n" ] ; then phaseBArgs+=( --item "$n" ) ; fi
+		done < <( sort -u <<< "$survivorNames" )
+
+		## The members that exist, not the ones a cache remembers. The name is asserted
+		## here because a worker's command line is built from it before the callee sees it.
+		## A name that fails is held until the team's own document is out, where it has
+		## always been reported, and no client is swept.
+		## Every workspace's clients, from the member directory (AgentsTools.TeamRegistry.include):
+		## each is invited here, and its own operation reaches its other organisation from here.
+		local clientMembers="" clientMember clientMemberDir clientNameRefused=""
+		type AgentsToolsTeamMemberDirectoryText > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamRegistry.include"
+		while IFS=$'\t' read -r clientMember clientMemberDir ; do
+			case "$clientMember" in client-*) ;; *) continue ;; esac
+			if [ -d "$clientMemberDir" ] ; then
+				AgentsToolsAssertBareName "$clientMember" "<team-member>" magic-sweep-input-scan || { clientNameRefused="true" ; clientMembers="" ; break ; }
+				clientMembers="$clientMembers $clientMember"
+			fi
+		done <<< "$( AgentsToolsTeamMemberDirectoryText )"
+
+		## Every client-* member is swept in this same pass, under its own credentials.
+		## The sweep runs inside a subshell, so each member's document needs a real path
+		## to be read back from; naming it after the member keeps the combined document
+		## tagged by whose sweep it was rather than by who finished first.
+		##
+		## The directory's whole life is the subshell below, so its trap is the
+		## SUBSHELL'S own: it cannot replace the caller's -- a console session and
+		## the MCP server both keep one -- and it fires on every way out, including
+		## a failure not enumerated here. The pass's own 0/3/4 verdict leaves as the
+		## subshell's exit status, which is what lets the cleanup sit inside it.
+		local sweepRc=0
+		(
+			## Its own, by mktemp and never by $$: concurrent scans share one $$.
+			clientSweepDir="$( mkdir -p "$MMDAPP/.local/temp" && mktemp -d "$MMDAPP/.local/temp/mdat-magic-sweep-clients.$callingMember.XXXXXX" )" || exit 1
+			trap 'rm -rf "$clientSweepDir"' EXIT
+
+			## All accounts concurrently, emitted in the original order (MAGIC.md).
+			AgentsToolsMagicSweepAccountOne(){ ## team | client <member>
+				local accountStatus=0
+				if [ "$1" = "team" ] ; then
+					type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+					DistroAgentsTools --intern-op-session-context-scan "$callingMember" ${phaseBArgs[@]+"${phaseBArgs[@]}"} --all-types ${commsArgs[@]+"${commsArgs[@]}"} \
+						--do-inbox-inquiry-active --do-inbox-reflections \
+						--do-inbox-notes --do-inbox-other \
+						--no-board-related \
+						--context --intern-op-sweep-input-scan > "$clientSweepDir/team.document" || accountStatus=$?
+					printf '%s\n' "$accountStatus" > "$clientSweepDir/team.status"
+					return 0
+				fi
+				## NO CUT-OFF IS FORWARDED, deliberately. This pass's own cut-off is a
+				## position in the TEAM's traffic; a client-* member's conversations are
+				## a different stream under different credentials, and the two have no
+				## common position. Forwarding it -- which is what this call used to do
+				## -- filtered every client's messages by the team's last team-side pass
+				## and reported the remainder as "nothing new": against the live NDM
+				## workspace that hid all ten of its messages. --intern-op-client-sweep-input-scan
+				## resolves that member's OWN stored position itself (its own
+				## sweep-state record, the default window only when it has none).
+				## SWEPT AS THAT CLIENT. The scan reads one client's own accounts, and this pass is the
+				## coordinator's: it runs the scan as the client named, for the one call.
+				type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+				( local -x MDAT_SPAWN_AGENT="$2" ; DistroAgentsTools --intern-op-client-sweep-input-scan "$2" ) \
+					> "$clientSweepDir/$2.document" || accountStatus=$?
+				printf '%s\n' "$accountStatus" > "$clientSweepDir/$2.status"
+				return 0
+			}
+			type AgentsToolsMyRoot > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.MyRoot.include"
+			( type Parallel > /dev/null 2>&1 || . "$MYXROOT/bin/lib/parallel.Common" || exit 1
+				Parallel AgentsToolsMagicSweepAccountOne ) < <( printf 'team\n' ; for clientMember in $clientMembers ; do printf 'client %s\n' "$clientMember" ; done ) \
+				|| echo "# $MDSC_CMD --intern-op-sweep-input-scan: the concurrent sweeps did not all report; each one missing is stated below" >&2
+
+			## The team's own document, and its verdict, exactly where they always were.
+			magicSweepStatus="$( cat "$clientSweepDir/team.status" 2>/dev/null )" || magicSweepStatus=""
+			[ -n "$magicSweepStatus" ] || magicSweepStatus=1
+			cat "$clientSweepDir/team.document" 2>/dev/null
+			case "$magicSweepStatus" in
+				0|3|4) ;;
+				*) exit "$magicSweepStatus" ;;
+			esac
+			if [ -n "$clientNameRefused" ] ; then exit 1 ; fi
+
+			## A member that recorded no coverage of its own is a member nothing was read
+			## for, never one with nothing new, and it is said in that member's own place:
+			## a silently absent member is the one gap a reader cannot see.
+			memberStatus="" ; sweepComplete="true" ; sweepScannedSomething="false"
+			if [ "$magicSweepStatus" != 0 ] ; then sweepComplete="false" ; fi
+			case "$magicSweepStatus" in 0|3) sweepScannedSomething="true" ;; esac
+			for clientMember in $clientMembers ; do
+				memberStatus="$( cat "$clientSweepDir/$clientMember.status" 2>/dev/null )" || memberStatus=""
+				case "$memberStatus" in
+					0|3|4)
+						## Tested: a document that cannot be read is no coverage, and
+						## bash suppresses `set -e` inside a subshell whose status is
+						## tested, so an unchecked read here would pass as a scan.
+						cat "$clientSweepDir/$clientMember.document" || memberStatus=4
+					;;
+					*)
+						memberStatus=4
+						printf '# Incoming Communications Sweep -- %s\n\nmember: %s\nmember-kind: client\n**NOTE:** no scan was made -- this member recorded no coverage of its own; its sources enter no source total\n\n' "$clientMember" "$clientMember"
+					;;
+				esac
+				if [ "$memberStatus" != 0 ] ; then sweepComplete="false" ; fi
+				case "$memberStatus" in 0|3) sweepScannedSomething="true" ;; esac
+			done
+
+			## Complete only when every member's own scan was, empty only when none of them
+			## read anything, partial everywhere in between -- so a sweep one member failed
+			## can never be read as one that covered them all.
+			if [ "$sweepComplete" = "true" ] ; then exit 0 ; fi
+			if [ "$sweepScannedSomething" = "true" ] ; then exit 3 ; fi
+			exit 4
+		) || sweepRc=$?
+		if [ "$sweepRc" != "0" ] ; then
+			set +e ; return "$sweepRc"
+		fi
+		return 0

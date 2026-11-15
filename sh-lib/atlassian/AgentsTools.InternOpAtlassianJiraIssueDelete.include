@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+## AgentsTools.InternOpAtlassianJiraIssueDelete.include -- the operation `--intern-op-atlassian-jira-issue-delete`, sourced by AgentsTools.InternOpAtlassianCall.include with the operation's arguments.
+	type AgentsToolsAtlassianCall > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/atlassian/AgentsTools.AtlassianRequest.include"
+		shift || :
+		local jiraIDMember="" jiraIDKey="" jiraIDContext="intern-op-atlassian-jira-issue-delete" jiraIDFlag="" jiraIDValue=""
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--member|--issue-key|--context)
+					jiraIDFlag="$1"
+					shift || :
+					jiraIDValue="${1:-}"
+					shift || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraIDContext: $jiraIDFlag value missing" >&2 ; set +e ; return 1 ; }
+					[ -n "$jiraIDValue" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraIDContext: $jiraIDFlag value missing" >&2 ; set +e ; return 1 ; }
+					case "$jiraIDFlag" in
+						--member)     jiraIDMember="$jiraIDValue" ;;
+						--issue-key)  jiraIDKey="$jiraIDValue" ;;
+						--context)    jiraIDContext="$jiraIDValue" ;;
+					esac
+				;;
+				*)
+					printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraIDContext: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		if [ -z "$jiraIDMember" ] || [ -z "$jiraIDKey" ] ; then
+			printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraIDContext: syntax is --member <team-member> --issue-key <issue-key> [--context <caller>] -- the acting member is required, since an issue is deleted only by an identity its project allows to delete it" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsAssertBareName "$jiraIDKey" "<issue-key>" "$jiraIDContext" || { set +e ; return 1 ; }
+		local jiraIDRc=0
+		AgentsToolsAtlassianCall "$jiraIDMember" jira DELETE "/rest/api/3/issue/$( AgentsToolsAtlassianUrlEncode "$jiraIDKey" )" "$jiraIDContext" "" || jiraIDRc=$?
+		if [ "$jiraIDRc" -ne 0 ] ; then
+			set +e ; return "$jiraIDRc"
+		fi
+		return 0

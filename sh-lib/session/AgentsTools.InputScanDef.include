@@ -8,7 +8,7 @@
 ## operation with the team member of the start as its first argument, then the options as given. A value that exists
 ## only at session time is a macro, `{{<option-name>}}` over the five names of the common option set (team-member,
 ## session-id, spawn-id, select-workspace, tooling-origin), written in a static document. The spawner runs each scan
-## itself, with no instruction to an agent, and saves the results to `input/input-scan.md` of the session sandbox.
+## itself, with no instruction to an agent, and saves the results to `input/<spawn-id>/input-scan.md` of the run's own folder.
 ## Sourced, never run. Functions only.
 ##
 ## AgentsToolsInputScanDefWords is THE ONE PARSER of the line form: the validator and the spawner both call it, so
@@ -119,6 +119,7 @@ AgentsToolsInputScanCachedCall(){ ## scan words (one a line), session or spawn i
 		fi
 	fi
 	while IFS= read -r callWord ; do callArgs+=( "$callWord" ) ; done <<< "$1"
+	type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 	DistroAgentsTools ${callArgs[@]+"${callArgs[@]}"} > "$4" 2> "$5" || callRc=$?
 	[ "$callRc" != 0 ] || [ -z "$cachedFile" ] || cp "$4" "$cachedFile" 2> /dev/null || :
 	return "$callRc"
@@ -126,7 +127,7 @@ AgentsToolsInputScanCachedCall(){ ## scan words (one a line), session or spawn i
 
 ## Whether a scan's report holds nothing to work: rc 0 where every line of it is blank, a heading (`#`), a section's `scope:` or `cap:` line, `(none)`, a
 ## `**NOTE:** no new ...` line or `Nothing new ...`. An FYI row is no work either: a row whose head line carries the `[fyi: ...]` mark right after its sender
-## (AgentsWaitTaggedPart, sh-lib/member/AgentsTools.MemberWait.include) is a message of a session chat thread where the member's own instance is present,
+## (AgentsWaitTaggedPart, sh-lib/wait/AgentsTools.MemberWait.include) is a message of a session chat thread where the member's own instance is present,
 ## returned for knowledge only, and a report of nothing else starts nothing. Any other line is input, so a scan that words its emptiness in another way
 ## starts the run, and a report is never taken for empty on a guess: the mistake can only be a start.
 AgentsToolsInputScanReportEmpty(){ ## the report file
@@ -148,6 +149,7 @@ AgentsToolsInputScanDefOne(){ ## definition line, team member, session id, spawn
 	local oneWords oneWord oneArgs=() oneRc=0
 	oneWords="$( AgentsToolsInputScanDefWords "$1" "$2" "$3" "$4" )" || return 1
 	while IFS= read -r oneWord ; do oneArgs+=( "$oneWord" ) ; done <<< "$oneWords"
+	type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 	DistroAgentsTools ${oneArgs[@]+"${oneArgs[@]}"} > "$5" 2> "$5.err" || oneRc=$?
 	if [ "$oneRc" -ne 0 ] ; then
 		{ printf 'The input scan failed (exit %s):\n' "$oneRc" ; cat "$5.err" 2> /dev/null ; } >> "$5"
@@ -166,7 +168,7 @@ AgentsToolsInputScanDefOne(){ ## definition line, team member, session id, spawn
 ## (one line says so, on stdout); rc 1 the wait could not be made.
 AgentsToolsInputScanDefAwait(){ ## definition lines (one a line), team member, session id, spawn id, the routine file, the folder for the reports
 	local awaitLine awaitIndex=0 awaitSeconds awaitScan awaitFile awaitDeadline awaitLeft awaitSources awaitWord awaitArgs awaitOut awaitHead awaitFrom
-	type AgentsToolsRoutineKeyLines > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.RoutineRequirements.include"
+	type AgentsToolsRoutineWaitWords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/routine/AgentsTools.RoutineRequirements.include"
 	while IFS= read -r awaitLine ; do
 		[ -n "$awaitLine" ] && [ "$awaitLine" != "none" ] || continue
 		awaitIndex=$(( awaitIndex + 1 ))
@@ -214,7 +216,7 @@ AgentsToolsInputScanDefAwait(){ ## definition lines (one a line), team member, s
 AgentsToolsInputScanDefSeed(){ ## definition line, scan, team member, session id, the file the spawner's run of the scan printed
 	local seedFile="$5" seedKept seedSum
 	[ -n "$4" ] || return 0
-	type AgentsToolsSessionChatPointerSet > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include" 2> /dev/null || return 0
+	type AgentsToolsSessionChatPointerSet > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include"
 	if [ "$1" != "$2" ] ; then
 		seedFile="$5.seed"
 		## The baseline is the view a Wait reads when nothing is new, so the scan runs without its collect window (MDAT_SCAN_SEED_QUIET): the start does not wait it out a second time.

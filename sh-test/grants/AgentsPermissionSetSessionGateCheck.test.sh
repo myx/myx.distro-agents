@@ -39,7 +39,7 @@ rigApply(){ ## pending-id, approver
 
 echo "-- 1. a session-id that fails the bare-name assert is never silently treated as success --"
 rm -rf "$rigWs" ; mkdir -p "$rigWs/.local/agents/pending" "$rigWs/.local/agents/sessions"
-printf -- 'scope: session\nsession-id: bad/session\nparticipants: rig-member\nentry: Read:/tmp/rig/**\n' > "$rigWs/.local/agents/pending/rig-set-bad.set"
+printf -- 'scope: session\nsession-id: bad/session\nparticipants: rig-member\nentry: Read:$rigWs/rig/**\n' > "$rigWs/.local/agents/pending/rig-set-bad.set"
 rigOut="$( rigApply rig-set-bad rig-approver )" ; rigRc=$?
 rigAssert "the apply fails rather than reporting a success with 0 entries" "$( [ "$rigRc" != 0 ] && printf failed )" failed
 rigAssert "it names the session-id that could not be used" "$( printf '%s' "$rigOut" | LC_ALL=C grep -c -F 'bad/session' )" 1
@@ -48,7 +48,7 @@ rigAssert "nothing was written to any session's grants" "$( find "$rigWs/.local/
 
 echo "-- 2. a valid session-id still applies, and the grant is written --"
 rm -rf "$rigWs" ; mkdir -p "$rigWs/.local/agents/pending" "$rigWs/.local/agents/sessions/rig-session-good"
-printf -- 'scope: session\nsession-id: rig-session-good\nparticipants: rig-member\nentry: Read:/tmp/rig/**\n' > "$rigWs/.local/agents/pending/rig-set-good.set"
+printf -- 'scope: session\nsession-id: rig-session-good\nparticipants: rig-member\nentry: Read:$rigWs/rig/**\n' > "$rigWs/.local/agents/pending/rig-set-good.set"
 rigOut="$( rigApply rig-set-good rig-approver )" ; rigRc=$?
 rigAssert "the apply succeeds" "$rigRc" 0
 rigAssert "with a real, non-zero count" "$( printf '%s' "$rigOut" | LC_ALL=C grep -c -F 'GRANT: set 1 entries for rig-member' )" 1

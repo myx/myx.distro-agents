@@ -1,0 +1,61 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+type AgentsToolsManagerConsoleMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.ManagerConsoleIdentity.include"
+
+## AgentsTools.OpManagerSessionStop.include -- the operation `--manager-session-stop`, sourced by AgentsTools.ManagerSession.include with the operation's arguments.
+## The paused state of a session or of one run of it (S19.1). `--manager-session-pause` writes
+## `sessions/<id>/paused`, holding `<when> <by>`, and `--manager-session-resume` removes it. <id> is a
+## session's or a run's own, as --manager-session-read takes it. One row each, TAB-separated: the
+## operation, the id, the file it wrote or removed, and for a resume the word `resumed` where a flag stood.
+## Nothing is signalled: each run asks the flag at its own pause points (S19.2). Exit 1, nothing written,
+## with one error line, where the id is no bare name, or names no folder this workspace keeps.
+## THE SOFT STOP (S7.19, the human-owner's ruling): the live runs of a session are dismissed the proper way, by the tooling's own mark
+## and a DISMISSED block in the session's chat addressed to each run's member (AgentsToolsRunDismiss), and each run ends itself at its
+## next Wait, its handback given. No process is signalled, and no closure is skipped: the hard way is --manager-session-kill. <id> is
+## taken as the kill takes it: a session's id stops every live run of it, and --run takes <id> as one run's own. One `stop` row a run,
+## `session run member outcome`, the outcome `dismissed` or `already-dismissed`; a `none` row where the id names no live run here.
+		local stopOp="$1" stopId="" stopOwn="" stopBy stopRecord stopSpawn stopMember stopCount=0 stopOutcome stopSyntax="--session-id <id> [--run]"
+		shift
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--session-id)
+					if [ $# -lt 2 ] || [ -z "$2" ] || [ "$2" = "-" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD $stopOp: --session-id needs an id -- syntax is $stopSyntax" >&2
+						set +e ; return 1
+					fi
+					stopId="$2" ; shift 2
+				;;
+				--run) stopOwn="run" ; shift ;;
+				*)
+					echo "⛔ ERROR: $MDSC_CMD $stopOp: syntax is $stopSyntax, got: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		if [ -z "$stopId" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD $stopOp: syntax is $stopSyntax, got no --session-id" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsAssertBareName "$stopId" "the session id" "$stopOp" || { set +e ; return 1 ; }
+		stopBy="$( AgentsToolsManagerConsoleMember 2> /dev/null )" || stopBy="console"
+		type AgentsToolsRunDismiss > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnProxyClose.include"
+		## The records the id names, by one grep over them, as the kill finds its own; then the few headers of each.
+		while IFS= read -r stopRecord ; do
+			[ -n "$stopRecord" ] && [ -f "$stopRecord" ] || continue
+			[ "$( AgentsToolsSpawnSandboxRecordHeader "$stopRecord" status )" = "spawn-started" ] || continue
+			stopSpawn="$( AgentsToolsSpawnSandboxRecordHeader "$stopRecord" spawn-id )"
+			case "$stopSpawn" in ''|-) continue ;; esac
+			stopMember="$( AgentsToolsSpawnSandboxRecordHeader "$stopRecord" owner )"
+			if AgentsSessionMarked "$stopSpawn" dismissed ; then
+				## Dismissed once already: its mark stands and its block was written, so nothing is written twice.
+				stopOutcome="already-dismissed"
+			else
+				stopOutcome="dismissed"
+				AgentsToolsRunDismiss "$stopSpawn" "$stopBy" > /dev/null 2>&1 || stopOutcome="failed"
+			fi
+			printf 'stop\t%s\t%s\t%s\t%s\n' "$stopId" "$stopSpawn" "${stopMember:--}" "$stopOutcome"
+			stopCount=$(( stopCount + 1 ))
+		done <<< "$( if [ -n "$stopOwn" ] ; then LC_ALL=C grep -l -x -F -e "spawn-id: $stopId" "$MMDAPP"/.local/agents/spawned/*/*.spawn.md 2> /dev/null ; else LC_ALL=C grep -l -x -F -e "session-id: $stopId" "$MMDAPP"/.local/agents/spawned/*/*.spawn.md 2> /dev/null ; fi )"
+		[ "$stopCount" -gt 0 ] || printf 'none\t%s\t-\t-\tno live run of this workspace is named by that id\n' "$stopId"
+		return 0

@@ -2,7 +2,7 @@
 ##
 ## AgentsManagerConfigLabels.awk -- gives each row of the settings digest what the one
 ## declaration says of it, its label and, in full, its description and whether it can be
-## changed: for AgentsToolsManagerConfigLabelled (AgentsTools.ManagerConfig.include). On
+## changed: for AgentsToolsManagerConfigLabelled (AgentsTools.ManagerSettings.include). On
 ## standard input, in this order: the rows of the declaration (THE LABELS there, which says
 ## what a row is), one line that holds the byte \034 alone, and the rows of a subject as the
 ## digest made them, a TAB between their fields: its `subject` row and its `line` rows. A

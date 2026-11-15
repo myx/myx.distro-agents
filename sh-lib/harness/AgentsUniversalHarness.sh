@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+type AgentsSessionMarked > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
 set -e
 
 ## AgentsUniversalHarness.sh -- the universal tool-calling harness: all of the
@@ -757,16 +758,15 @@ if [ -n "$harnessParentKey" ] && [ -n "${MMDAPP:-}" ] ; then
 	## output/ that are real directories, not links, resolve under it to exactly what
 	## `cd && pwd -P` gives, so only a child with a link or a missing folder is resolved
 	## on its own.
-	harnessSpawnedDir="$MMDAPP/.local/agents/spawned"
 	harnessSpawnedReal=""
 	harnessRootsBeforeChildren="$harnessRoots" harnessWriteRootsBeforeChildren="$harnessWriteRoots"
 	while IFS= read -r harnessChildRecord ; do
 		[ -n "$harnessChildRecord" ] || continue
 		harnessChildRoot="${harnessChildRecord%/*}"
-		harnessChildName="${harnessChildRoot#"$harnessSpawnedDir/"}"
+		harnessChildName="${harnessChildRoot#"$MMDAPP/.local/agents/spawned/"}"
 		if [ "$harnessChildName" != "$harnessChildRoot" ] && [ -n "$harnessChildName" ] && [ "${harnessChildName%/*}" = "$harnessChildName" ] \
 			&& [ ! -L "$harnessChildRoot" ] && [ -d "$harnessChildRoot/output" ] && [ ! -L "$harnessChildRoot/output" ] && [ -d "$harnessChildRoot/input" ] && [ ! -L "$harnessChildRoot/input" ] ; then
-			[ -n "$harnessSpawnedReal" ] || harnessSpawnedReal="$( AgentsHarnessResolveDir "$harnessSpawnedDir" )"
+			[ -n "$harnessSpawnedReal" ] || harnessSpawnedReal="$( AgentsHarnessResolveDir "$MMDAPP/.local/agents/spawned" )"
 			harnessRoots="${harnessRoots}$harnessSpawnedReal/$harnessChildName/output"$'\n'
 			harnessWriteRoots="${harnessWriteRoots}$harnessSpawnedReal/$harnessChildName/input"$'\n'
 		else
@@ -920,7 +920,7 @@ harnessGrantLayer=""
 harnessGateOrigin="${MDLT_ORIGIN:+$MDLT_ORIGIN/myx/myx.distro-agents/skillset}"
 
 
-. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessToolsFile.include"
+[ -n "$harnessToolOnly" ] || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessToolsFile.include"
 
 
 
@@ -951,13 +951,13 @@ harnessChangeHoldOnly="${MDAT_CHANGE_HOLD_ONLY:-}"
 
 
 
-. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessToolsBash.include"
+[ -n "$harnessToolOnly" ] || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessToolsBash.include"
 
 
 
 
 
-. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessSearch.include"
+[ -n "$harnessToolOnly" ] || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessSearch.include"
 
 
 
@@ -973,7 +973,7 @@ harnessChangeHoldOnly="${MDAT_CHANGE_HOLD_ONLY:-}"
 harnessParentName="session-parent"
 harnessCurrentName="session-current"
 
-. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessMessages.include"
+[ -n "$harnessToolOnly" ] || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessMessages.include"
 
 
 
@@ -989,14 +989,14 @@ harnessCurrentName="session-current"
 ## DISMISSED that reaches it by its member's name changes nothing in it. A spawn id is not
 ## run again once it was dismissed, so the mark is never taken back.
 
-. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessWait.include"
+[ -n "$harnessToolOnly" ] || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessWait.include"
 ## After a tool ran: a session that was dismissed and has given its handback since is ended by
 ## the harness itself. Its own model loop stops at the end of the round (harnessDismissedEnd).
 ## A served call belongs to the run of another CLI, which this cannot stop from inside: that
 ## run is given MDAT_DISMISSED_END_GRACE seconds (default 60) after its handback to end by
 ## itself, and two where it waits again, and is then sent TERM, as TaskStop sends it, by a
 ## process of its own that outlives this call. The run is recognised by its own word on its
-## own command line, the one rule (AgentsToolsRegistryRunWords), so a command line that only
+## own command line, the one rule (AgentsToolsRunWords), so a command line that only
 ## quotes the id is never signalled; where no process runs as it by that word, whatever line
 ## quotes the id, it is the process its launch started, with what that started
 ## (AgentsHarnessSessionPids).
@@ -1024,7 +1024,7 @@ harnessDismissedEnd=""
 
 
 
-. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessBatch.include"
+[ -n "$harnessToolOnly" ] || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessBatch.include"
 
 
 ## Whether the harness knows the caller's checklist, and where: the member is the caller as the
@@ -1043,7 +1043,7 @@ checkListMember="" checkListSession="" checkListFolder="" checkListWhy=""
 ## AgentsHarnessTool*: that family is the static tool class AgentsHarnessSelfCheck.test.awk
 ## matches site by site, and a helper with no tool behind it is an orphan there.
 
-. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessSpawn.include"
+[ -n "$harnessToolOnly" ] || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessSpawn.include"
 
 
 
@@ -1059,7 +1059,7 @@ checkListMember="" checkListSession="" checkListFolder="" checkListWhy=""
 
 
 
-. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessReports.include"
+[ -n "$harnessToolOnly" ] || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessReports.include"
 
 
 
@@ -1119,7 +1119,7 @@ harnessAskName="AskQuestion"
 
 
 
-. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessMcpResources.include"
+[ -n "$harnessToolOnly" ] || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessMcpResources.include"
 
 
 
@@ -1133,7 +1133,7 @@ harnessAskName="AskQuestion"
 ## is tried again, and says why, on the next call. The MCP entries are this round's
 ## $harnessMcpToolsJson, each already carrying its separating comma.
 harnessToolSearchFloorFile="$harnessScratch/toolsearch.floor"
-. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessSkills.include"
+[ -n "$harnessToolOnly" ] || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessSkills.include"
 
 
 
@@ -1166,7 +1166,7 @@ harnessPrefetch="" harnessPrefetchWhat="" harnessPrefetchReads="" harnessPrefetc
 ## tool floor stays shared by every session. A skillset with no Team+ file, or no reference/ folder, has no such layer. A
 ## work-duty's routine and member static guidance are carried by its dispatch (the session layer). The routine's own
 ## `cache-prefix: routine` remains the one policy that preloads a routine.
-harnessPrefetchOneLine="$( AgentsToolsPrefetchOneLine )"
+harnessPrefetchOneLine="Already in this run's first message, unchanged since then"
 ## One read as the Skill tool answers it: the file of a skill, or the sections of it, whole whatever the cap of a result.
 agentsPrefetchReadName="" agentsPrefetchReadFile="" agentsPrefetchReadSections=""
 agentsPrefetchRoutineFile=""
@@ -1219,6 +1219,86 @@ harnessReplyDate=""
 ## One file's whole content, as `$( cat file )` gives it -- every trailing newline
 ## dropped, empty when it is absent -- into harnessFileText, with builtins only.
 harnessFileText=""
+
+## A SERVED CALL LOADS ITS OWN TOOL ONLY: on --intern-tool the tool includes above are not loaded, and each tool
+## is a stub that loads its include on its first call (the model path loads them all, above), as is every
+## function of those includes that another file of the harness calls.
+if [ -n "$harnessToolOnly" ] ; then
+	AgentsHarnessCheckListCloseHandback(){ . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessBatch.include" ; AgentsHarnessCheckListCloseHandback "$@" ; }
+	AgentsHarnessCheckListCounts(){ . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessBatch.include" ; AgentsHarnessCheckListCounts "$@" ; }
+	AgentsHarnessCheckListDue(){ . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessBatch.include" ; AgentsHarnessCheckListDue "$@" ; }
+	AgentsHarnessCheckListNamesHandback(){ . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessBatch.include" ; AgentsHarnessCheckListNamesHandback "$@" ; }
+	AgentsHarnessCheckListOpenItems(){ . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessBatch.include" ; AgentsHarnessCheckListOpenItems "$@" ; }
+	AgentsHarnessCheckListPlace(){ . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessBatch.include" ; AgentsHarnessCheckListPlace "$@" ; }
+	AgentsHarnessAuthorityAsk(){ . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessMessages.include" ; AgentsHarnessAuthorityAsk "$@" ; }
+	AgentsHarnessSendProse(){ . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessMessages.include" ; AgentsHarnessSendProse "$@" ; }
+	AgentsHarnessSessionThread(){ . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessMessages.include" ; AgentsHarnessSessionThread "$@" ; }
+	AgentsHarnessParkClear(){ . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessReports.include" ; AgentsHarnessParkClear "$@" ; }
+	AgentsHarnessRefusedTargetDecode(){ . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessReports.include" ; AgentsHarnessRefusedTargetDecode "$@" ; }
+	AgentsHarnessReportsNone(){ . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessReports.include" ; AgentsHarnessReportsNone "$@" ; }
+	AgentsHarnessPrefetchBuild(){ . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessSkills.include" ; AgentsHarnessPrefetchBuild "$@" ; }
+	AgentsHarnessPrefetchRecordKey(){ . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessSkills.include" ; AgentsHarnessPrefetchRecordKey "$@" ; }
+	AgentsHarnessBareName(){ . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessSpawn.include" ; AgentsHarnessBareName "$@" ; }
+	AgentsHarnessCallerMember(){ . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessSpawn.include" ; AgentsHarnessCallerMember "$@" ; }
+	AgentsHarnessDispatchField(){ . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessSpawn.include" ; AgentsHarnessDispatchField "$@" ; }
+	AgentsHarnessDispatchItemPath(){ . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessSpawn.include" ; AgentsHarnessDispatchItemPath "$@" ; }
+	AgentsHarnessOthersRunning(){ . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessSpawn.include" ; AgentsHarnessOthersRunning "$@" ; }
+	AgentsHarnessSessionPids(){ . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessSpawn.include" ; AgentsHarnessSessionPids "$@" ; }
+	AgentsHarnessSessionWordPids(){ . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessSpawn.include" ; AgentsHarnessSessionWordPids "$@" ; }
+	AgentsHarnessSpawnRecordPath(){ . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessSpawn.include" ; AgentsHarnessSpawnRecordPath "$@" ; }
+	AgentsHarnessWindowedRead(){ . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessSpawn.include" ; AgentsHarnessWindowedRead "$@" ; }
+	AgentsHarnessWorkDuty(){ . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessSpawn.include" ; AgentsHarnessWorkDuty "$@" ; }
+	AgentsHarnessReadRange(){ . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessToolsFile.include" ; AgentsHarnessReadRange "$@" ; }
+	AgentsHarnessWholeNumber(){ . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessToolsFile.include" ; AgentsHarnessWholeNumber "$@" ; }
+	AgentsHarnessActivityWrite(){ . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessWait.include" ; AgentsHarnessActivityWrite "$@" ; }
+	AgentsHarnessDismissWaits(){ . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessWait.include" ; AgentsHarnessDismissWaits "$@" ; }
+	AgentsHarnessDismissedAfter(){ . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessWait.include" ; AgentsHarnessDismissedAfter "$@" ; }
+	AgentsHarnessDismissedBy(){ . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessWait.include" ; AgentsHarnessDismissedBy "$@" ; }
+	AgentsHarnessDismissedFile(){ . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessWait.include" ; AgentsHarnessDismissedFile "$@" ; }
+	AgentsHarnessDismissedKeep(){ . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessWait.include" ; AgentsHarnessDismissedKeep "$@" ; }
+	AgentsHarnessParked(){ . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessWait.include" ; AgentsHarnessParked "$@" ; }
+	AgentsHarnessParkedFile(){ . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessWait.include" ; AgentsHarnessParkedFile "$@" ; }
+	AgentsHarnessRefusalClear(){ . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessWait.include" ; AgentsHarnessRefusalClear "$@" ; }
+	AgentsHarnessRefusalKeep(){ . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessWait.include" ; AgentsHarnessRefusalKeep "$@" ; }
+	AgentsHarnessRestartKeep(){ . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessWait.include" ; AgentsHarnessRestartKeep "$@" ; }
+	AgentsHarnessSeatRefuse(){ . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessWait.include" ; AgentsHarnessSeatRefuse "$@" ; }
+	AgentsHarnessSeatTake(){ . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessWait.include" ; AgentsHarnessSeatTake "$@" ; }
+	AgentsHarnessToolRead(){ . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessToolsFile.include" ; AgentsHarnessToolRead "$@" ; }
+	AgentsHarnessToolWriteRun(){ . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessToolsFile.include" ; AgentsHarnessToolWriteRun "$@" ; }
+	AgentsHarnessToolWrite(){ . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessToolsFile.include" ; AgentsHarnessToolWrite "$@" ; }
+	AgentsHarnessToolEditRun(){ . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessToolsFile.include" ; AgentsHarnessToolEditRun "$@" ; }
+	AgentsHarnessToolEdit(){ . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessToolsFile.include" ; AgentsHarnessToolEdit "$@" ; }
+	AgentsHarnessToolGlob(){ . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessToolsFile.include" ; AgentsHarnessToolGlob "$@" ; }
+	AgentsHarnessToolGrep(){ . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessToolsFile.include" ; AgentsHarnessToolGrep "$@" ; }
+	AgentsHarnessToolStreams(){ . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessToolsBash.include" ; AgentsHarnessToolStreams "$@" ; }
+	AgentsHarnessToolBashRun(){ . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessToolsBash.include" ; AgentsHarnessToolBashRun "$@" ; }
+	AgentsHarnessToolBash(){ . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessToolsBash.include" ; AgentsHarnessToolBash "$@" ; }
+	AgentsHarnessToolWorkspaceContextExecuteRun(){ . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessToolsBash.include" ; AgentsHarnessToolWorkspaceContextExecuteRun "$@" ; }
+	AgentsHarnessToolWorkspaceContextExecute(){ . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessToolsBash.include" ; AgentsHarnessToolWorkspaceContextExecute "$@" ; }
+	AgentsHarnessToolWebSearch(){ . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessSearch.include" ; AgentsHarnessToolWebSearch "$@" ; }
+	AgentsHarnessToolWebFetch(){ . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessSearch.include" ; AgentsHarnessToolWebFetch "$@" ; }
+	AgentsHarnessToolSendMessageRun(){ . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessMessages.include" ; AgentsHarnessToolSendMessageRun "$@" ; }
+	AgentsHarnessToolSendMessage(){ . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessMessages.include" ; AgentsHarnessToolSendMessage "$@" ; }
+	AgentsHarnessToolListAgents(){ . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessMessages.include" ; AgentsHarnessToolListAgents "$@" ; }
+	AgentsHarnessToolSessionTranscriptAppend(){ . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessMessages.include" ; AgentsHarnessToolSessionTranscriptAppend "$@" ; }
+	AgentsHarnessToolThisSession(){ . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessMessages.include" ; AgentsHarnessToolThisSession "$@" ; }
+	AgentsHarnessToolWait(){ . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessWait.include" ; AgentsHarnessToolWait "$@" ; }
+	AgentsHarnessToolBatchTools(){ . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessBatch.include" ; AgentsHarnessToolBatchTools "$@" ; }
+	AgentsHarnessToolCheckList(){ . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessBatch.include" ; AgentsHarnessToolCheckList "$@" ; }
+	AgentsHarnessToolAgent(){ . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessSpawn.include" ; AgentsHarnessToolAgent "$@" ; }
+	AgentsHarnessToolTaskOutput(){ . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessSpawn.include" ; AgentsHarnessToolTaskOutput "$@" ; }
+	AgentsHarnessToolTaskStop(){ . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessSpawn.include" ; AgentsHarnessToolTaskStop "$@" ; }
+	AgentsHarnessToolSubagentHandbackRun(){ . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessReports.include" ; AgentsHarnessToolSubagentHandbackRun "$@" ; }
+	AgentsHarnessToolSubagentHandback(){ . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessReports.include" ; AgentsHarnessToolSubagentHandback "$@" ; }
+	AgentsHarnessToolReportFindings(){ . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessReports.include" ; AgentsHarnessToolReportFindings "$@" ; }
+	AgentsHarnessToolPushNotification(){ . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessReports.include" ; AgentsHarnessToolPushNotification "$@" ; }
+	AgentsHarnessToolArtifact(){ . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessReports.include" ; AgentsHarnessToolArtifact "$@" ; }
+	AgentsHarnessToolListMcpResourcesTool(){ . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessMcpResources.include" ; AgentsHarnessToolListMcpResourcesTool "$@" ; }
+	AgentsHarnessToolReadMcpResourceTool(){ . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessMcpResources.include" ; AgentsHarnessToolReadMcpResourceTool "$@" ; }
+	AgentsHarnessToolReadMcpResourceDirTool(){ . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessMcpResources.include" ; AgentsHarnessToolReadMcpResourceDirTool "$@" ; }
+	AgentsHarnessToolToolSearch(){ . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessSkills.include" ; AgentsHarnessToolToolSearch "$@" ; }
+	AgentsHarnessToolSkill(){ . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessSkills.include" ; AgentsHarnessToolSkill "$@" ; }
+fi
 
 ## Includes load only on the path that uses them. A served --intern-tool call needs the
 ## wire and the MCP client only for the tools that reach an MCP server -- the client
@@ -1354,7 +1434,7 @@ if [ ! -f "$harnessMcpFile" ] ; then
 fi
 [ -z "$harnessNeedsMcp" ] || . "$harnessMcpFile"
 ## The local lock primitive Write and Edit take; absent, every write is refused as unlockable.
-[ ! -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.LocalLock.include" ] || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.LocalLock.include"
+[ ! -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.LocalLock.include" ] || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.LocalLock.include"
 ## The session transcript and token hooks; every one returns 0, and is called with || : besides.
 [ ! -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionTranscript.include" ] || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionTranscript.include"
 
@@ -1366,6 +1446,7 @@ fi
 ## read their arguments through one reader. stdout carries the result and nothing else.
 if [ -n "$harnessToolOnly" ] ; then
 	if [ -n "$harnessPlaceOnly" ] ; then
+		type AgentsHarnessCheckListPlace > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessBatch.include"
 		if AgentsHarnessCheckListPlace ; then
 			printf 'CHECKLIST-PLACE: %s\n' "$checkListFolder"
 		else
@@ -1452,12 +1533,11 @@ if [ -n "${MDAT_SPAWN_SESSION_ID:-}" ] ; then
 ## coworking session itself rather than being spawned into it, has no spawner to carry the rule above --
 ## so it is checked here instead, straight against the session's other live participants.
 elif [ -n "${MDAT_SESSION_ID:-}" ] ; then
-	type AgentsHarnessSpawnRecordPath > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessSpawn.include" 2> /dev/null || :
-	type AgentsToolsSessionOthersRunning > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include" 2> /dev/null || :
+	type AgentsHarnessSpawnRecordPath > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessSpawn.include"
+	type AgentsToolsSessionOthersRunning > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionSeats.include"
 	harnessExecutorRecord=""
-	if type AgentsHarnessSpawnRecordPath > /dev/null 2>&1 ; then
+	type AgentsHarnessSpawnRecordPath > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessSpawn.include"
 		harnessExecutorRecord="$( AgentsHarnessSpawnRecordPath "$MDAT_SESSION_ID" 2> /dev/null )" || harnessExecutorRecord=""
-	fi
 	if [ -n "$harnessExecutorRecord" ] && type AgentsToolsSessionOthersRunning > /dev/null 2>&1 \
 		&& AgentsToolsSessionOthersRunning "$harnessExecutorRecord" > /dev/null 2>&1 ; then
 		harnessSpawnedWaitNote=" You lead this coworking session, and another participant of it still runs: you are not the last one running, so you do not end on your own yet. Wait for the others with the Wait tool, and keep obeying what arrives there, until you are the last one running or a Wait returns DISMISSED."
@@ -1610,7 +1690,7 @@ AgentsHarnessCacheWatch(){
 ## a thread it cannot reach, or a post that will not go, is said on stderr and the pause goes on.
 AgentsHarnessBusySay(){ ## the words
 	local sayThread=""
-	type AgentsToolsSessionCurrentThreadFind > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include" 2> /dev/null || :
+	type AgentsToolsSessionCurrentThreadFind > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionThreads.include"
 	sayThread="$( AgentsToolsSessionCurrentThreadFind 2> /dev/null )" || sayThread=""
 	if [ -z "$sayThread" ] ; then
 		printf '%s\n' "${harnessDim}this run has no session thread, so the pause is not posted there${harnessOff}" >&2
@@ -1878,6 +1958,8 @@ while : ; do
 
 		if [ "$harnessCurlRc" = "0" ] && [ -f "$harnessScratch/stream.done" ] ; then
 			harnessStreamOk=1
+			## A run that waited out a busy provider is working again, and its mark says so before the answer is read (S6.21).
+			[ -z "$harnessBusySaid" ] || AgentsHarnessActivityWrite thinking
 			break
 		fi
 
@@ -1920,6 +2002,8 @@ while : ; do
 				fi
 				harnessBusyWait=$(( harnessBusyWait > 0 ? harnessBusyWait * 2 : ( harnessRetryDelay > 0 ? harnessRetryDelay : 0 ) ))
 				[ "$harnessBusyWait" -le 300 ] || harnessBusyWait=300
+				## The console reads this word off the run's own mark (S6.21): a busy wait is neither tool work nor a wait on a person.
+				AgentsHarnessActivityWrite busy
 				[ "$harnessBusyWait" -eq 0 ] || sleep "$harnessBusyWait" 2>/dev/null || :
 				harnessBusyWaited=$(( harnessBusyWaited + ( harnessBusyWait > 0 ? harnessBusyWait : 1 ) ))
 				harnessStreamAttempt=$(( harnessStreamAttempt - 1 ))
@@ -2140,6 +2224,8 @@ while : ; do
 				fi
 				harnessBusyWait=$(( harnessBusyWait > 0 ? harnessBusyWait * 2 : ( harnessRetryDelay > 0 ? harnessRetryDelay : 0 ) ))
 				[ "$harnessBusyWait" -le 300 ] || harnessBusyWait=300
+				## An empty answer is the same pause as a busy one, and the console shows it as the same word (S6.21).
+				AgentsHarnessActivityWrite busy
 				[ "$harnessBusyWait" -eq 0 ] || sleep "$harnessBusyWait" 2>/dev/null || :
 				harnessBusyWaited=$(( harnessBusyWaited + ( harnessBusyWait > 0 ? harnessBusyWait : 1 ) ))
 				continue
@@ -2161,10 +2247,10 @@ while : ; do
 		## THE ROOT EXECUTOR HAS NO SPAWN RECORD OF ITS OWN TO CARRY THE RULE (AgentsHarnessOthersRunning needs this run itself spawned or joined):
 		## a coordinator that started the session natively, with another participant still running, is checked live here too, against the same
 		## executor record the task-block note above was built from (harnessExecutorRecord).
-		type AgentsToolsSessionOthersRunning > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include" 2> /dev/null || :
+		type AgentsToolsSessionOthersRunning > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionSeats.include"
 		if [ -z "$harnessDismissedEnd" ] && [ "${harnessDutyPlainRuns:-0}" -lt 10 ] \
-			&& { AgentsHarnessWorkDuty || AgentsHarnessOthersRunning || { [ -n "$harnessExecutorRecord" ] && type AgentsToolsSessionOthersRunning > /dev/null 2>&1 && AgentsToolsSessionOthersRunning "$harnessExecutorRecord" > /dev/null 2>&1 ; } ; } \
-			&& [ ! -e "$MMDAPP/.local/agents/sessions/${MDAT_SPAWN_SESSION_ID:-/}/dismissed" ] ; then
+			&& { AgentsHarnessWorkDuty || AgentsHarnessOthersRunning || { [ -n "$harnessExecutorRecord" ] && AgentsToolsSessionOthersRunning "$harnessExecutorRecord" > /dev/null 2>&1 ; } ; } \
+			&& ! AgentsSessionMarked "${MDAT_SPAWN_SESSION_ID:-}" dismissed ; then
 			harnessDutyPlainRuns=$(( ${harnessDutyPlainRuns:-0} + 1 ))
 			harnessIdleForce=1
 			AgentsHarnessIdleWait - $( AgentsHarnessIdleRoutineSources | LC_ALL=C tr '\n' ' ' )
@@ -2283,7 +2369,7 @@ while : ; do
 			## session, a reply there as every other is (AgentsToolsEventTrackThreadPost), never a
 			## post of its own at the top of event-track.
 			(
-				. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.EventTrackThread.include"
+				. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/event-track/AgentsTools.EventTrackThread.include"
 				AgentsToolsEventTrackThreadPost "$harnessAgent" "$( AgentsToolsEventTrackThreadOwnDir )" --kind refusal \
 					--session-id "$MDAT_SPAWN_SESSION_ID" --field what="Unarmed call redirected" --field tool="$harnessFuncName" \
 					--field reason="read $harnessAgent.armed.md with Skill first" < /dev/null

@@ -1,0 +1,79 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+## AgentsTools.InternOpAtlassianConfluencePageUpdate.include -- the operation `--intern-op-atlassian-confluence-page-update`, sourced by AgentsTools.InternOpAtlassianCall.include with the operation's arguments.
+	type AgentsToolsAtlassianCall > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/atlassian/AgentsTools.AtlassianRequest.include"
+		shift
+		local confPUMember="" confPUPageId="" confPUVersion="" confPUTitle="" confPUTitleGiven="false"
+		local confPUStatus="" confPUStatusGiven="false" confPUSpaceId="" confPUBodyStorage="" confPUBodyGiven="false" confPUContext="intern-op-atlassian-confluence-page-update"
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--member)    shift ; [ -n "${1:-}" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confPUContext: --member value missing" >&2 ; set +e ; return 1 ; } ; confPUMember="$1" ; shift ;;
+				--page-id)   shift ; [ -n "${1:-}" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confPUContext: --page-id value missing" >&2 ; set +e ; return 1 ; } ; confPUPageId="$1" ; shift ;;
+				--version)   shift ; [ -n "${1:-}" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confPUContext: --version value missing" >&2 ; set +e ; return 1 ; } ; confPUVersion="$1" ; shift ;;
+				--title)     shift ; [ -n "${1:-}" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confPUContext: --title value missing" >&2 ; set +e ; return 1 ; } ; confPUTitle="$1" ; confPUTitleGiven="true" ; shift ;;
+				--status)    shift ; [ -n "${1:-}" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confPUContext: --status value missing" >&2 ; set +e ; return 1 ; } ; confPUStatus="$1" ; confPUStatusGiven="true" ; shift ;;
+				--space-id)  shift ; [ -n "${1:-}" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confPUContext: --space-id value missing" >&2 ; set +e ; return 1 ; } ; confPUSpaceId="$1" ; shift ;;
+				--body-storage)
+					shift ; [ -n "${1:-}" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confPUContext: --body-storage value missing" >&2 ; set +e ; return 1 ; }
+					confPUBodyStorage="$1" ; confPUBodyGiven="true" ; shift
+				;;
+				--body-storage-from-stdin)
+					confPUBodyStorage="$( cat )" ; confPUBodyGiven="true" ; shift
+				;;
+				--body-storage-from-file)
+					shift
+					if [ -z "${1:-}" ] || [ ! -f "$1" ] ; then
+						printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confPUContext: --body-storage-from-file: file not found: ${1:-}" >&2
+						set +e ; return 1
+					fi
+					confPUBodyStorage="$( cat "$1" )" ; confPUBodyGiven="true" ; shift
+				;;
+				--context) shift ; [ -n "${1:-}" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confPUContext: --context value missing" >&2 ; set +e ; return 1 ; } ; confPUContext="$1" ; shift ;;
+				*)
+					printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confPUContext: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		if [ -z "$confPUMember" ] || [ -z "$confPUPageId" ] ; then
+			printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confPUContext: syntax is --member <team-member> --page-id <page-id> --version <n> --title <text> --status <value> (--body-storage <html>|--body-storage-from-stdin|--body-storage-from-file <path>) [--space-id <numeric-id>] [--context <caller>] -- <n> is the version this caller already read, NEVER re-read here: this operation computes <n>+1 and submits it. This is a FULL REPLACE: --title and --status are required on every call and are overwritten with whatever is passed, even when only the body actually changed" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsAtlassianAssertNumber "$confPUPageId" "<page-id>" "$confPUContext" || { set +e ; return 1 ; }
+		case "$confPUVersion" in
+			''|*[!0123456789]*)
+				printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confPUContext: --version not a number: '$confPUVersion'" >&2
+				set +e ; return 1
+			;;
+		esac
+		if [ -n "$confPUSpaceId" ] ; then
+			case "$confPUSpaceId" in
+				*[!0123456789]*)
+					printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confPUContext: --space-id not a number: $confPUSpaceId" >&2
+					set +e ; return 1
+				;;
+			esac
+		fi
+		if [ "$confPUTitleGiven" != "true" ] || [ "$confPUStatusGiven" != "true" ] || [ "$confPUBodyGiven" != "true" ] ; then
+			printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confPUContext: --title, --status and one of --body-storage/--body-storage-from-stdin/--body-storage-from-file are all required -- this is a full-resource replace, so a field left out is not left unchanged, it is overwritten" >&2
+			set +e ; return 1
+		fi
+		local confPUIdEsc confPUStatusEsc confPUTitleEsc confPUBodyEsc
+		confPUIdEsc="$( printf '%s' "$confPUPageId" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/mcp/AgentsMcpJsonEscape.awk" )"
+		confPUStatusEsc="$( printf '%s' "$confPUStatus" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/mcp/AgentsMcpJsonEscape.awk" )"
+		confPUTitleEsc="$( printf '%s' "$confPUTitle" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/mcp/AgentsMcpJsonEscape.awk" )"
+		confPUBodyEsc="$( printf '%s' "$confPUBodyStorage" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/mcp/AgentsMcpJsonEscape.awk" )"
+		local confPUNextVersion=$(( confPUVersion + 1 ))
+		local confPUUpdateBody="{\"id\":\"$confPUIdEsc\",\"status\":\"$confPUStatusEsc\",\"title\":\"$confPUTitleEsc\",\"version\":{\"number\":$confPUNextVersion}"
+		[ -n "$confPUSpaceId" ] && confPUUpdateBody="$confPUUpdateBody,\"spaceId\":\"$confPUSpaceId\""
+		confPUUpdateBody="$confPUUpdateBody,\"body\":{\"representation\":\"storage\",\"value\":\"$confPUBodyEsc\"}}"
+		local confPURc=0
+		AgentsToolsAtlassianCall "$confPUMember" confluence PUT "/wiki/api/v2/pages/$( AgentsToolsAtlassianUrlEncode "$confPUPageId" )" "$confPUContext" "$confPUUpdateBody" || confPURc=$?
+		if [ "$confPURc" = "5" ] ; then
+			set +e ; return "$confPURc"
+		fi
+		if [ "$confPURc" -ne 0 ] ; then
+			set +e ; return "$confPURc"
+		fi
+		return 0

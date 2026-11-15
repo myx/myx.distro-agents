@@ -228,9 +228,9 @@ AgentsToolsCommonRun(){ ## main function, tool script, operation, arguments...
 			## The root-harness session acts on every rig this machine knows: magic-coordinator.root-harness.routine names `--spawn-run --select-workspace <place>`.
 			## Root: a minted root session, or magic-coordinator's own session here that no spawn made (its folder has no `control/state`).
 			runRootSession="${MDAT_SESSION_ID:-${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}}"
-			type AgentsToolsRootHarnessSessionIs > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.RootHarnessKind.include" 2> /dev/null || :
+			type AgentsToolsRootHarnessSessionIs > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.RootHarnessKind.include"
 			{ [ -n "$runRootSession" ] && case "$runRootSession" in */*|.|..) false ;; esac && {
-				{ type AgentsToolsRootHarnessSessionIs > /dev/null 2>&1 && AgentsToolsRootHarnessSessionIs "$runRootSession" ; } ||
+				{ AgentsToolsRootHarnessSessionIs "$runRootSession" ; } ||
 				{ [ "$runActing" = magic-coordinator ] && [ -d "${MMDAPP%/}/.local/agents/sessions/$runRootSession" ] && [ ! -e "${MMDAPP%/}/.local/agents/sessions/$runRootSession/control/state" ] ; }
 			} ; } ||
 			AgentsToolsMemberWorkspaceSelectable "$runActing" "$runWsAbs" || { echo "$MDSC_CMD: ${runOp#--}: ⛔ ERROR: this session acts as $runActing, and --select-workspace names $runWsAbs, which is not the workspace it is in nor the one it is set up in -- nothing was done" >&2 ; return 1 ; }

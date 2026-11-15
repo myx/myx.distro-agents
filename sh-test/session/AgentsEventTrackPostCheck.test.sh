@@ -135,7 +135,7 @@ echo "-- every kind renders from the template, as a block of its subject --"
 set -- --rig-none
 MDSC_CMD=rig
 unset MDAT_SKILLSET_ROOT
-. "$rigLib/session/AgentsTools.InternOpEventTrackPost.include"
+. "$rigLib/event-track/AgentsTools.InternOpEventTrackPost.include"
 ## The render's own workspace, in the rig tree: a Slack account cache of its own, and no
 ## session directory unless a check below makes one.
 rigRenderWs="$rigTmp/render-ws"
@@ -273,7 +273,7 @@ rigAssert "one date in a subtitle, never a range" \
 rigKindAt="$( rigSubtitle "$rigTmp/flat.start" | LC_ALL=C sed -n 's/.*<!date^\([0-9]*\)^.*/\1/p' )"
 rigAssert "a kind's own line is of the moment the post is made: that is its box's date" \
 	"$( [ -n "$rigKindAt" ] && [ "$rigKindAt" -ge "$rigKindsFrom" ] && [ "$rigKindAt" -le "$rigKindsTo" ] && printf now || printf 'not now: %s' "$rigKindAt" )" now
-. "$rigLib/comms/AgentsTools.SlackDate.include"
+. "$rigLib/slack/AgentsTools.SlackDate.include"
 rigAssert "the date is the shared helper's: its moment and its UTC fallback, in the subject's own format" \
 	"$( rigSubtitle "$rigTmp/flat.member" | LC_ALL=C sed 's/\^{[^|]*|/^|/' )" "$( AgentsToolsSlackDateToken 1893456540 date-time | LC_ALL=C sed 's/\^{[^|]*|/^|/' )"
 rigAssert "both date formats are the template's own lines, to change there" \
@@ -856,18 +856,18 @@ rigAssert "MDAT_EVENT_TRACK_CHUNK_BYTES changes nothing: still one post, and one
 rigAssert "neither knob is read anywhere in sh-lib" \
 	"$( LC_ALL=C grep -r -l -e 'MDAT_EVENT_TRACK_CHUNK_BYTES' -e 'MDAT_EVENT_TRACK_POLL_SECONDS' -e 'ETP_CAP' "$rigLib" | LC_ALL=C awk 'END { print NR }' )" 0
 rigAssert "the feed polls every 4 s: with the 7 s window, under 12 s from a line to its send" \
-	"$( LC_ALL=C grep -c -e '^	local runFeed .* runPoll=4 ' "$rigLib/session/AgentsTools.EventTrackFeed.include" )" 1
+	"$( LC_ALL=C grep -c -e '^	local runFeed .* runPoll=4 ' "$rigLib/event-track/AgentsTools.EventTrackFeed.include" )" 1
 rigAssert "the window is 7 s, in the loop and in the nap, and no 5 s window is left" \
-	"$( LC_ALL=C grep -c -e 'runNow - runSince )) -ge 7 ]' -e 'runSince + 7 - runNow' "$rigLib/session/AgentsTools.EventTrackFeed.include" ):$( LC_ALL=C grep -c -e 'runSince + 5' -e 'runSince )) -ge 5' "$rigLib/session/AgentsTools.EventTrackFeed.include" )" 2:0
+	"$( LC_ALL=C grep -c -e 'runNow - runSince )) -ge 7 ]' -e 'runSince + 7 - runNow' "$rigLib/event-track/AgentsTools.EventTrackFeed.include" ):$( LC_ALL=C grep -c -e 'runSince + 5' -e 'runSince )) -ge 5' "$rigLib/event-track/AgentsTools.EventTrackFeed.include" )" 2:0
 
 ## ---------------------------------------------------------------------------
 echo "-- no line ends a post early, and the feed sends its posts in order --"
 ## ---------------------------------------------------------------------------
-. "$rigLib/session/AgentsTools.EventTrackFeed.include"
+. "$rigLib/event-track/AgentsTools.EventTrackFeed.include"
 rigPlan(){ ## all (1|0), lines... -- the planner's posts and open post, marks as #POST and #OPEN, lines as their third word
 	local planAll="$1"
 	shift
-	printf '2030-01-01T00:00:00Z %s\n' "$@" | ETF_ALL="$planAll" LC_ALL=C awk -f "$rigLib/session/AgentsEventTrackFeedPlan.awk" \
+	printf '2030-01-01T00:00:00Z %s\n' "$@" | ETF_ALL="$planAll" LC_ALL=C awk -f "$rigLib/event-track/AgentsEventTrackFeedPlan.awk" \
 		| LC_ALL=C tr '\001' '#' | LC_ALL=C awk '/^#/ { printf "%s ", $0 ; next } { printf "%s ", $2 }'
 }
 rigAssert "ordinary lines stay in the open post" "$( rigPlan 0 'TOOL Read path=/x -> ok' 'ROUND n=1' 'VERDICT item=x' )" '#OPEN TOOL ROUND VERDICT '
@@ -918,7 +918,7 @@ rigAssert "the poster holds its first line through the window: one post, both li
 	"$rigRunSends:$( LC_ALL=C grep -o '/run/[12]' "$rigSends" | LC_ALL=C tr '\n' ' ' )" "1:/run/1 /run/2 "
 rigAssert "and that post goes no sooner than 7 s after the first line" "$( [ -n "$rigRunSentAt" ] && [ $(( rigRunSentAt - rigRunAt )) -ge 7 ] && printf yes || printf no )" yes
 ## The real send, its op a fake: what the feed hands the post op.
-. "$rigLib/session/AgentsTools.EventTrackFeed.include"
+. "$rigLib/event-track/AgentsTools.EventTrackFeed.include"
 cat > "$rigTmp/fake-tools" <<'RIG_FAKE_EOF'
 #!/usr/bin/env bash
 printf '%s\n' "$*" >> "$RIG_ARGS"
@@ -1071,7 +1071,7 @@ rigOp /dev/null --intern-op-event-track-post magic-tester CRIGTRACK:1699999999.0
 rigAssert "--update is refused as an unknown option, and no Slack call is made" \
 	"$rigOpRc:$( LC_ALL=C grep -c -F 'invalid option: --update' "$rigTmp/op.err" ):$( [ -s "$rigTmp/scenario/calls" ] && printf called || printf none )" 1:1:none
 rigAssert "no tracking-post path in sh-lib calls chat.update or passes --update" \
-	"$( LC_ALL=C grep -l -e 'chat\.update' -e 'event-track-post.*--update' "$rigLib"/session/AgentsTools.InternOpEventTrackPost.include "$rigLib"/session/AgentsTools.InternOpAgentSpawnProxy.include "$rigLib"/session/AgentsTools.EventTrackFeed.include | LC_ALL=C awk 'END { print NR }' )" 0
+	"$( LC_ALL=C grep -l -e 'chat\.update' -e 'event-track-post.*--update' "$rigLib"/event-track/AgentsTools.InternOpEventTrackPost.include "$rigLib"/spawn/AgentsTools.InternOpAgentSpawnProxy.include "$rigLib"/event-track/AgentsTools.EventTrackFeed.include | LC_ALL=C awk 'END { print NR }' )" 0
 
 echo "-- a refused post fails, said and logged --"
 rigReset
@@ -1128,7 +1128,7 @@ echo "-- one collector for every post into a thread: in order, one message per 7
 ## Driven here with a clock and a sender of this check's own, so the order, the pacing and
 ## the collection are asserted exactly and without waiting a second. The post op above and
 ## the spawn below go through this same outbox, with the real sender.
-. "$rigLib/session/AgentsTools.EventTrackSend.include"
+. "$rigLib/event-track/AgentsTools.EventTrackSend.include"
 rigOutClock="$rigTmp/outbox.clock"
 rigOutSends="$rigTmp/outbox.sends"
 rigOutBox(){ ## channel
@@ -1238,9 +1238,9 @@ rigAssert "an outbox removed mid-drain ends its drain, and leaves no process run
 ## its channel's outbox and drained from there -- a start post, a refusal, a notice and the
 ## feed's lines alike.
 rigAssert "the post op queues every post and drains the outbox, and has no post path of its own" \
-	"$( LC_ALL=C grep -c 'AgentsToolsEventTrackSendAppend "\$etpQueue"' "$rigLib/session/AgentsTools.InternOpEventTrackPost.include" ):$( LC_ALL=C grep -c 'AgentsToolsEventTrackSendDrain "\$etpQueue" AgentsEventTrackPostSend' "$rigLib/session/AgentsTools.InternOpEventTrackPost.include" ):$( LC_ALL=C grep -c 'chat.postMessage' "$rigLib/session/AgentsTools.InternOpEventTrackPost.include" )" 1:1:1
+	"$( LC_ALL=C grep -c 'AgentsToolsEventTrackSendAppend "\$etpQueue"' "$rigLib/event-track/AgentsTools.InternOpEventTrackPost.include" ):$( LC_ALL=C grep -c 'AgentsToolsEventTrackSendDrain "\$etpQueue" AgentsEventTrackPostSend' "$rigLib/event-track/AgentsTools.InternOpEventTrackPost.include" ):$( LC_ALL=C grep -c 'chat.postMessage' "$rigLib/event-track/AgentsTools.InternOpEventTrackPost.include" )" 1:1:1
 rigAssert "the window is 7 s, fixed in code, and nothing configures it" \
-	"$( LC_ALL=C grep -c 'agentsEventTrackSendPaceSeconds=7' "$rigLib/session/AgentsTools.EventTrackSend.include" ):$( LC_ALL=C grep -r -l -e 'MDAT_EVENT_TRACK_PACE' -e 'EVENT_TRACK_PACE_SECONDS' "$rigLib" | LC_ALL=C awk 'END { print NR }' )" 1:0
+	"$( LC_ALL=C grep -c 'agentsEventTrackSendPaceSeconds=7' "$rigLib/event-track/AgentsTools.EventTrackSend.include" ):$( LC_ALL=C grep -r -l -e 'MDAT_EVENT_TRACK_PACE' -e 'EVENT_TRACK_PACE_SECONDS' "$rigLib" | LC_ALL=C awk 'END { print NR }' )" 1:0
 
 ## A QUIET CHANNEL'S IMMEDIATE POSTS COLLECT, A FEED POST DOES NOT. The window opens at the lead
 ## record's own arrival, so the first immediate post of a burst waits its 7 s and collects what
@@ -1485,7 +1485,7 @@ env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp/home" PATH="$rigTmp/bin:/usr/b
 		case "$MMDAPP" in "$RIG_TMP"/*) ;; *) echo "RIG-GUARD: MMDAPP outside the rig tree" >&2 ; exit 99 ;; esac
 		case "$( command -v curl )" in "$RIG_TMP"/*) ;; *) echo "RIG-GUARD: curl is not the rig fake" >&2 ; exit 99 ;; esac
 		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-processes.include.sh" || { echo "RIG-GUARD: the process helper of the rig is missing from the package" >&2 ; exit 99 ; }
-		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.EventTrackFeed.include"
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/event-track/AgentsTools.EventTrackFeed.include"
 		AgentsEventTrackFeedOpen "$RIG_A" "$RIG_THREAD" ; AgentsEventTrackFeedOpen "$RIG_B" "$RIG_THREAD"
 		AgentsEventTrackFeedRun "$RIG_A" magic-coordinator "$RIG_THREAD" & feedA=$!
 		AgentsEventTrackFeedRun "$RIG_B" magic-tester "$RIG_THREAD" & feedB=$!
@@ -1549,7 +1549,7 @@ rigAssert "its grant too, where the refusal is" \
 ## file left there names another thread: nothing reads it.
 printf 'CRIGTRACK:1700000001.000999\n' > "$rigStore/spawned/$rigCow/event-track.thread"
 printf '%s\n' "export MDAT_SPAWN_SESSION_ID='$rigJoiner' MDAT_SPAWN_SANDBOX_ROOT='$rigStore/spawned/$rigCow'" \
-	'. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include"' \
+	'. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandbox.include"' \
 	"AgentsToolsHousekeepingReport magic-tester 'housekeeping: rig-cow closed one record'" > "$rigTmp/housekeeping.script"
 rigOp "$rigTmp/housekeeping.script" --intern-mcp-execute
 rigAssert "the joiner's housekeeping report lands in the session's thread, found by its own id, never where a file of the shared sandbox points" \

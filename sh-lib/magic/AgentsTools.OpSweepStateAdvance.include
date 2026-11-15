@@ -1,0 +1,121 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+## AgentsTools.OpSweepStateAdvance.include -- the operation `--sweep-state-advance`, sourced by AgentsTools.MagicSweep.include with the operation's arguments.
+## Moves ONE member's own pointer to the newest message that member's pass
+## actually processed, and touches nothing else in its record. The pointer
+## is the one field a sweep has to move every pass; making that a rewrite of
+## the whole record left it to whoever composed the record, and it stopped
+## moving. Same backwards-move guard as --sweep-state-upsert; an equal
+## value is a no-op, not an error; a missing record is created.
+		shift
+		local callingMember="" advanceTs="" advanceSource="" advanceHasSource="false"
+		## `--for-source <key>` MOVES ONE SOURCE'S OWN POSITION and leaves every
+		## other source's, and the member's own `last_swept_ts`, exactly as they
+		## stand. Without it the member-wide pointer moves, as it always did. The
+		## flag is parsed HERE rather than in the common option set: that set is
+		## stripped before this arm runs, so a flag declared there would never
+		## reach the operation that uses it.
+		if [ $# -ge 1 ] ; then callingMember="$1" ; shift ; fi
+		if [ $# -ge 1 ] ; then advanceTs="$1" ; shift ; fi
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--for-source)
+					if [ -z "${2:-}" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --sweep-state-advance: --for-source needs a source key" >&2
+						set +e ; return 1
+					fi
+					advanceSource="$2" ; advanceHasSource="true" ; shift 2
+				;;
+				*)
+					echo "⛔ ERROR: $MDSC_CMD --sweep-state-advance: invalid option: $1 -- syntax is <team-member> <ts> [--for-source <key>]" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		if [ -z "$callingMember" ] || [ -z "$advanceTs" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --sweep-state-advance: syntax is <team-member> <ts> [--for-source <key>] -- <ts> is the newest message this member's pass processed" >&2
+			set +e ; return 1
+		fi
+		if [ "$advanceHasSource" = "true" ] ; then
+			case "$advanceSource" in
+				''|*[!A-Za-z0-9._-]*)
+					echo "⛔ ERROR: $MDSC_CMD --sweep-state-advance: --for-source: a source key is letters, digits, dot, underscore and hyphen only: $advanceSource" >&2
+					set +e ; return 1
+				;;
+			esac
+		fi
+		[ -n "${MDAT_DATA_ROOT:-}" ] || {
+			echo "⛔ ERROR: $MDSC_CMD --sweep-state-advance: MDAT_DATA_ROOT is not set" >&2
+			set +e ; return 1
+		}
+		AgentsToolsAssertBareName "$callingMember" "<team-member>" sweep-state-advance || { set +e ; return 1 ; }
+		case "$advanceTs" in
+			*[!0-9.]*|.*|*.|*.*.*)
+				echo "⛔ ERROR: $MDSC_CMD --sweep-state-advance: $callingMember: <ts> must be epoch seconds, optionally with a fractional part (a Slack ts): $advanceTs" >&2
+				set +e ; return 1
+			;;
+		esac
+		## A pointer set past now hides every message until then, permanently --
+		## the one mistake this field cannot recover from. A minute of clock skew
+		## is allowed.
+		local advanceNow=""
+		advanceNow="$( date +%s )" || advanceNow=""
+		case "$advanceNow" in ''|*[!0-9]*) advanceNow="" ;; esac
+		local advanceSec="${advanceTs%%.*}"
+		if [ -z "$advanceNow" ] || [ "${#advanceSec}" -gt 12 ] || [ "$advanceSec" -gt "$(( advanceNow + 60 ))" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --sweep-state-advance: $callingMember: refusing a pointer in the future ($advanceTs, now $advanceNow) -- it would hide every message until then" >&2
+			set +e ; return 1
+		fi
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.MagicSweepState.include"
+		local stateDir="$MDAT_DATA_ROOT/inboxes/$callingMember/incoming" target=""
+		target="$( AgentsToolsMagicSweepStatePath "$callingMember" )"
+		mkdir -p "$stateDir" || {
+			echo "⛔ ERROR: $MDSC_CMD --sweep-state-advance: can't create inbox directory: $stateDir" >&2
+			set +e ; return 1
+		}
+		local existingTs="" existingRc=0 newContent="" existingLabel="last_swept_ts"
+		if [ "$advanceHasSource" = "true" ] ; then
+			existingLabel="source-$advanceSource-last-swept-ts"
+			existingTs="$( AgentsToolsMagicSweepStoredSourcePosition "$callingMember" sweep-state-advance "$advanceSource" )" || existingRc=$?
+		else
+			existingTs="$( AgentsToolsMagicSweepStoredPosition "$callingMember" sweep-state-advance )" || existingRc=$?
+		fi
+		case "$existingRc" in
+			0)
+				if [ "$existingTs" = "$advanceTs" ] ; then
+					echo "# $MDSC_CMD --sweep-state-advance: $callingMember: already at $advanceTs for $existingLabel, nothing written" >&2
+					return 0
+				fi
+				if ! AgentsMagicSweepStateTsNotOlder "$advanceTs" "$existingTs" ; then
+					echo "⛔ ERROR: $MDSC_CMD --sweep-state-advance: $callingMember: refusing to move $existingLabel BACKWARDS, from $existingTs to $advanceTs. To re-read material below the pointer, pass an explicit --comms-since-utime to the scan; a read does not move the pointer." >&2
+					set +e ; return 1
+				fi
+			;;
+			3) ;;
+			*) set +e ; return 1 ;;
+		esac
+		if [ -f "$target" ] ; then
+			if [ "$advanceHasSource" = "true" ] ; then
+				newContent="$( LC_ALL=C awk -v ts="$advanceTs" -v key="$advanceSource" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsMagicSweepStateWatermarkSet.awk" < "$target" )" || {
+					echo "⛔ ERROR: $MDSC_CMD --sweep-state-advance: $callingMember: could not set $existingLabel in ${target##*/} -- its frontmatter block is missing or unclosed; nothing written" >&2
+					set +e ; return 1
+				}
+			else
+				newContent="$( LC_ALL=C awk -v ts="$advanceTs" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsMagicSweepStateWatermarkSet.awk" < "$target" )" || {
+					echo "⛔ ERROR: $MDSC_CMD --sweep-state-advance: $callingMember: could not set last_swept_ts in ${target##*/} -- its frontmatter block is missing or unclosed; nothing written" >&2
+					set +e ; return 1
+				}
+			fi
+		else
+			if [ "$advanceHasSource" = "true" ] ; then
+				newContent="$( printf -- '---\nsource-%s-last-swept-ts: %s\n---\n\n# sweep-state-note\n' "$advanceSource" "$advanceTs" )"
+			else
+				newContent="$( printf -- '---\nlast_swept_ts: %s\n---\n\n# sweep-state-note\n' "$advanceTs" )"
+			fi
+		fi
+		printf '%s\n' "$newContent" > "$target"
+		echo "# $MDSC_CMD --sweep-state-advance: $callingMember: $existingLabel ${existingTs:-<none>} -> $advanceTs" >&2
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataCommit.include"
+		AgentsToolsTeamDataCommitPaths "sweep-state-advance, $callingMember" "$target"
+		return 0

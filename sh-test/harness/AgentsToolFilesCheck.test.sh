@@ -22,6 +22,15 @@ rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }
 [ -f "$rigInclude" ] || rigRefuse "the table of the tool files is not at the origin this workspace resolves: $rigInclude"
+rigRetired="$rigPackage/sh-lib/harness/AgentsContext.FrontTable.Retired.include"
+[ -f "$rigRetired" ] || rigRefuse "the retired names of the operations are not at the origin this workspace resolves: $rigRetired"
+## The file a tool file's syntax lines are read from, the file AgentsToolsFrontSyntaxLines reads: its own manual, else the
+## shared include. A check of those lines reads this same choice, never the include alone.
+rigSyntaxSource(){ ## tool file
+	local rigManual="$rigPackage/sh-lib/help/Help.$1.help.md"
+	[ -f "$rigManual" ] || rigManual="$rigPackage/sh-lib/help/Help.DistroAgentsTools.include"
+	printf '%s\n' "$rigManual"
+}
 . "$rigPackage/sh-test/check-fixtures/rig-control-threads.include.sh" || rigRefuse "the rig's fixture that ends control threads is missing from the package"
 rigTmp="$( mkdir -p "${MMDAPP:?⛔ ERROR: MMDAPP is not set}/.local/temp" && mktemp -d "$MMDAPP/.local/temp/AgentsToolFilesCheck.XXXXXX" )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
@@ -66,7 +75,7 @@ done
 rigAssert "each tool file of the table exists in sh-scripts" "[${rigMissing# }]" "[]"
 rigNoSyntax=""
 while IFS="$(printf '\t')" read -r rigKey rigName rigWho ; do
-	LC_ALL=C grep -q -F "echo \"📘 syntax: $rigKey.fn.sh $rigName" "$rigPackage/sh-lib/help/Help.DistroAgentsTools.include" || rigNoSyntax="$rigNoSyntax $rigName"
+	LC_ALL=C grep -q -F "📘 syntax: $rigKey.fn.sh $rigName" "$( rigSyntaxSource "$rigKey" )" || rigNoSyntax="$rigNoSyntax $rigName"
 done < "$rigTmp/table"
 rigAssert "each name has a syntax line that names its tool file" "[${rigNoSyntax# }]" "[]"
 rigHelpWrong=""
@@ -101,7 +110,7 @@ while IFS="$(printf '\t')" read -r rigOldName rigNow ; do
 		\(*) LC_ALL=C grep -q -F -- "$rigOldName is retired: " "$rigTmp/call.out" || rigNotRefused="$rigNotRefused $rigOldName" ;;
 		*) LC_ALL=C grep -q -F -- "$rigOldName was renamed: use $rigNow" "$rigTmp/call.out" || rigNotRefused="$rigNotRefused $rigOldName" ;;
 	esac
-done < <( . "$rigInclude" && printf '%s\n' "$agentsFrontRetired" )
+done < <( . "$rigRetired" && printf '%s\n' "$agentsFrontRetired" )
 rigAssert "every old name ($rigOld) is refused with its new place in the line, or with why it is gone" "[${rigNotRefused# }]" "[]"
 
 ## 5. who may call
@@ -118,11 +127,11 @@ rigAssert "another member's grants are magic-coordinator's to list" "$( LC_ALL=C
 
 ## 6. --help-syntax of a tool file
 rigCall DistroAgentsItems --help-syntax
-rigAssert "a bare --help-syntax lists the syntax lines of the file, and only of the file" "$( LC_ALL=C grep -c -F '📘 syntax: DistroAgentsItems.fn.sh ' "$rigTmp/call.out" ):$( LC_ALL=C grep -F '📘 syntax: ' "$rigTmp/call.out" | LC_ALL=C grep -c -v -F '📘 syntax: DistroAgentsItems.fn.sh ' )" "$( LC_ALL=C grep -c -F 'echo "📘 syntax: DistroAgentsItems.fn.sh ' "$rigPackage/sh-lib/help/Help.DistroAgentsTools.include" ):0"
+rigAssert "a bare --help-syntax lists the syntax lines of the file, and only of the file" "$( LC_ALL=C grep -c -F '📘 syntax: DistroAgentsItems.fn.sh ' "$rigTmp/call.out" ):$( LC_ALL=C grep -F '📘 syntax: ' "$rigTmp/call.out" | LC_ALL=C grep -c -v -F '📘 syntax: DistroAgentsItems.fn.sh ' )" "$( LC_ALL=C grep -c -F '📘 syntax: DistroAgentsItems.fn.sh ' "$( rigSyntaxSource DistroAgentsItems )" ):0"
 rigCall DistroAgentsItems --help-syntax --get-audit-item
 rigAssert "one name: its syntax line alone" "$( LC_ALL=C grep -c -F '📘 syntax: ' "$rigTmp/call.out" ):$( LC_ALL=C grep -c -F -- '--get-audit-item' "$rigTmp/call.out" )" "1:1"
 rigCall DistroAgentsItems --help-syntax --grooming-
-rigAssert "a prefix ending in a dash: the lines of every name it begins" "$( LC_ALL=C grep -c -F -- ' --grooming-' "$rigTmp/call.out" )" "$( LC_ALL=C grep -c -F 'DistroAgentsItems.fn.sh --grooming-' "$rigPackage/sh-lib/help/Help.DistroAgentsTools.include" )"
+rigAssert "a prefix ending in a dash: the lines of every name it begins" "$( LC_ALL=C grep -c -F -- ' --grooming-' "$rigTmp/call.out" )" "$( LC_ALL=C grep -c -F 'DistroAgentsItems.fn.sh --grooming-' "$( rigSyntaxSource DistroAgentsItems )" )"
 rigCall DistroAgentsItems --help-syntax --rig-no-such-operation
 rigAssert "a word that names none is refused" "$( LC_ALL=C grep -c -F 'no operation of DistroAgentsItems is named so' "$rigTmp/call.out" )" 1
 

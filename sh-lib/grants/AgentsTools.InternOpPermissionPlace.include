@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+type AgentsToolsPermissionMemberWorkspace > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionPlaces.include"
+
+## AgentsTools.InternOpPermissionPlace.include -- the operation `--intern-op-permission-place`, sourced by AgentsTools.InternOpPermission.include with the operation's arguments.
+## A target as a permission post shows it to a person (AgentsToolsPermissionShownTarget):
+## for a caller outside the tooling's own context, which fills a post of its own.
+		shift
+		MDSC_CMD="$MDSC_CMD --intern-op-permission-place"
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.UseAgentsTools.include"
+		if [ $# -ne 2 ] || [ -z "$1" ] ; then
+			echo "$MDSC_CMD: ⛔ ERROR: syntax is <member> <target>" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsAssertBareName "$1" "<member>" permission-place || { set +e ; return 1 ; }
+		local placeWorkspace=""
+		placeWorkspace="$( AgentsToolsPermissionMemberWorkspace "$1" )" || placeWorkspace=""
+		AgentsToolsPermissionShownTarget "$2" "$placeWorkspace"
+		printf '\n'
+		return 0

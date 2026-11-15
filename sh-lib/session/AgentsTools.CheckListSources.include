@@ -71,7 +71,7 @@ AgentsToolsCheckListReplace(){ ## the list file, the step names of the routine n
 	[ -f "$replaceFile" ] || return 1
 	replaceStore="$( AgentsToolsCheckListSourcesPath "$replaceFile" )"
 	[ -n "$replaceStore" ] || return 1
-	type AgentsHarnessCheckListLock > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessBatch.include" 2> /dev/null || return 1
+	type AgentsHarnessCheckListLock > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessBatch.include" || return 1
 	AgentsHarnessCheckListLock "$replaceFile" || return 1
 	replaceTemp="$( mktemp "$replaceFile.XXXXXX" 2> /dev/null )" || replaceTemp=""
 	replaceMarkTemp="$( mktemp "$replaceStore.XXXXXX" 2> /dev/null )" || replaceMarkTemp=""

@@ -1,0 +1,214 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+type AgentsSettingsScopeHas > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/settings/AgentsTools.Settings.include"
+
+##
+## AgentsTools.SpawnProxyHandbackMissing.include -- a run that ends with no handback: retried once on its own session unless closed, a work-duty resumed, its open questions and the missing handback said.
+## Sourced, never run. Functions only. Loaded by AgentsTools.InternOpAgentSpawnProxy.include.
+##
+
+## Whether a spawn session is closed, so the handback retry must not resume it. Closed is
+## what the rest of the tooling reads as ended: its record no longer says spawn-started (the
+## rule of AgentsToolsGrantsSessionEnded; another closer, such as the advance pass for a dead
+## spawn, got there first), or its transcript records its ending -- a Wait that returned
+## DISMISSED, or an ordered ENDING (taskstop, shutdown, archived, trashed, review-wait-expired),
+## which AgentsTools.ReviewFlow.include records before it stops anything. Or its record says
+## that the console killed it: `killed-at`, written before the signal by
+## --manager-session-kill (AgentsTools.ManagerSession.include), which is what tells a killed
+## run that has no item and no transcript to record an ending in. rc 0 closed, the reason
+## printed; rc 1 open, or nothing to tell it by.
+AgentsToolsSpawnProxyRetryClosed(){ ## record file (may be empty), spawn id (may be empty)
+	local closedStatus="" closedPart closedKilled=""
+	if [ -n "$1" ] && [ -f "$1" ] ; then
+		closedStatus="$( AgentsToolsSpawnSandboxRecordHeader "$1" status )"
+		case "$closedStatus" in
+			''|spawn-started) ;;
+			*) printf 'its record is already closed (status %s)' "$closedStatus" ; return 0 ;;
+		esac
+		closedKilled="$( AgentsToolsSpawnSandboxRecordHeader "$1" killed-at )"
+		if [ -n "$closedKilled" ] ; then
+			printf 'its record says it was killed (by %s, %s)' "$( AgentsToolsSpawnSandboxRecordHeader "$1" killed-by )" "$closedKilled"
+			return 0
+		fi
+	fi
+	type AgentsTranscriptParts > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionTranscript.include"
+	[ -n "$2" ] || return 1
+	while IFS= read -r closedPart ; do
+		[ -n "$closedPart" ] && [ -f "$closedPart" ] || continue
+		if LC_ALL=C grep -q -E '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:]+Z (DISMISSED|ENDING)( |$)' "$closedPart" 2>/dev/null ; then
+			printf 'its transcript records its ending (a DISMISSED, or an ordered ENDING)'
+			return 0
+		fi
+	done <<< "$( AgentsTranscriptParts "$2" 2>/dev/null || : )"
+	return 1
+}
+
+## A question, a finding needing confirmation or a refusal is never only left in a log --
+## the member hands back instead. A spawn whose process ended with no SubagentHandback call
+## at all leaves nothing in the session thread, so the tooling says so itself: the box that
+## tracks it in the session's tracking thread, and one message in the session thread for
+## the member that brought this one in (AgentsToolsSpawnProxySessionNotice).
+## Whether it handed back is the one reading of that (AgentsToolsSpawnProxyHandbacks,
+## AgentsTools.SpawnSandbox.include): the transcript of the run first, which holds each
+## handback that was delivered, whichever CLI ran and however its log shows a call; the
+## announce line of the call in outputFile only where that transcript holds none. Silent when there is
+## neither thread, or no output file to check: a spawn with nowhere captured is not reported
+## wrongly as silent.
+##   $1 = session thread, $2 = member, $3 = output file, $4 = session id, $5 = the session's
+##   tracking thread, $6 = the member that brought this one in (either may be empty),
+##   $7... = the launch's own console CLI args (spawnCliArgs) -- the retry gets exactly the
+##   launch's env prefix and CLI selection, never the caller's own, in the workspace this
+##   spawn runs in
+## Called before any close step, while the record still says spawn-started: the retry resumes
+## this very spawn id, so it must never run on a session already closed (AgentsToolsSpawnProxyRetryClosed).
+## A WORK-DUTY THAT ENDS ON ITS FINAL ANSWER IS NOT DISMISSED (S4.6): the harness's own runs catch this live,
+## inside their one model-call loop (AgentsUniversalHarness.sh:1878-1897), and idle-wait there. A claude-native
+## run has no such loop here to catch it in: the vendor CLI's own process has already ended by the time this is
+## called. The duty is resumed instead, in its own kept session, the one mechanical shape
+## AgentsToolsSpawnProxyHandbackWarn's own retry already uses (MDAT_SPAWN_RESUME=true). A handback given, or
+## not, is not read here: a work-duty's plain final answer is never its end, whichever it was. Only a
+## dismissal, a run that is no longer a work-duty, or a round that did not exit clean (a crash, a kill -- not
+## "its final answer") stop this. Leaves the last round's exit code in spawnProxyContinueExitCode, so what runs
+## after it sees that round, never the first.
+AgentsToolsSpawnProxyWorkDutyContinue(){ ## session thread, session id, the sandbox tracking record, the output file (may be empty), the exit code so far, cli args...
+	local contThread="$1" contSessionId="$2" contTracking="$3" contLog="$4" contRounds=0 contPid
+	spawnProxyContinueExitCode="${5:-0}"
+	shift 5 2>/dev/null || shift $#
+	local contCliArgs=( "$@" )
+	[ ${#contCliArgs[@]} -gt 0 ] || contCliArgs=( --cli-configured )
+	[ -n "$contLog" ] && [ -f "$contLog" ] || return 0
+	while [ "$spawnProxyContinueExitCode" = 0 ] && [ "$contRounds" -lt 1000 ] ; do
+		case "$( AgentsToolsSpawnSandboxRecordHeader "$contTracking" routine 2>/dev/null )" in *.work-duty.routine.md) ;; *) return 0 ;; esac
+		[ ! -e "$MMDAPP/.local/agents/sessions/$contSessionId/dismissed" ] || return 0
+		contRounds=$(( contRounds + 1 ))
+		( trap - PIPE ; AgentsToolsSpawnConsoleLaunch MDAT_SKILLSET_ROOT="$( AgentsToolsWorkspaceSkillsetRoot "$MMDAPP" )" MDAT_SESSION_ID="$contSessionId" MDAT_SESSION_THREAD="$contThread" MDAT_SPAWN_RESUME=true -- ${contCliArgs[@]+"${contCliArgs[@]}"} \
+			<<< "$( printf '%s\n%s\n' \
+				"This is a work-duty: your plain final answer is not its end." \
+				"Continue the duty now in this same session." )" >> "$contLog" 2>&1 ) &
+		contPid=$!
+		AgentsToolsSpawnProxyRunRecord "$contPid"
+		spawnProxyContinueExitCode=0
+		wait "$contPid" 2>/dev/null || spawnProxyContinueExitCode=$?
+	done
+	return 0
+}
+
+AgentsToolsSpawnProxyHandbackWarn(){
+	local warnThread="$1" warnMember="$2" warnLog="$3" warnSessionId="$4" warnTrack="${5:-}" warnTell="${6:-}" warnClosed=""
+	## Whether a handback is still missing when this returns: what AgentsToolsSpawnProxyHandbackNotice says.
+	agentsSpawnProxyHandbackMissing=""
+	shift 6 2>/dev/null || shift $#
+	local warnCliArgs=( "$@" )
+	[ ${#warnCliArgs[@]} -gt 0 ] || warnCliArgs=( --cli-configured )
+	[ -n "$warnThread$warnTrack" ] && [ -n "$warnLog" ] && [ -f "$warnLog" ] || return 0
+	[ -z "$( AgentsToolsSpawnProxyHandbacks "${MDAT_SPAWN_SESSION_ID:-}" "$warnLog" )" ] || return 0
+	## A closed session is never resumed, as a closed child is never messaged (AgentsToolsBoardAcceptDismissChild,
+	## AgentsReviewChildLive): no retry, the handback-missing notice below, and the close takes its item to review.
+	warnClosed="$( AgentsToolsSpawnProxyRetryClosed "${MDAT_SPAWN_SANDBOX_ROOT:+$MDAT_SPAWN_SANDBOX_ROOT/${MDAT_SPAWN_SESSION_ID:-none}.spawn.md}" "${MDAT_SPAWN_SESSION_ID:-}" )" || warnClosed=""
+	[ -z "$warnClosed" ] || echo "# $MDSC_CMD --intern-op-agent-spawn-proxy: no handback retry for spawn ${MDAT_SPAWN_SESSION_ID:-}: $warnClosed -- the handback-missing notice is posted instead" >&2
+	## One bounded retry, mechanical rather than a reminder: the run ended
+	## without calling SubagentHandback, so it is resumed once, in its own
+	## transcript, and told to call it now. No `timeout`/`gtimeout` dependency --
+	## this package is not guaranteed one on Darwin -- so the bound is the same
+	## background-sleep-then-kill idiom this file's own --wait branch already
+	## uses. MDAT_SPAWN_RESUME on a CLI with no real --resume refuses itself in
+	## the console (AgentsConsoleShellScript.template.sh), so a resume that
+	## cannot really happen is never silently reported as one.
+	if [ -z "$warnClosed" ] && [ -x "$MMDAPP/DistroAgentsConsole.sh" ] ; then
+		local warnRetryPid warnWatchPid warnRetryRc
+		## Started with the broken pipe at its default: a waiting shell ignores it while it closes
+		## its run, and what it starts must not take that over.
+		( trap - PIPE ; AgentsToolsSpawnConsoleLaunch MDAT_SKILLSET_ROOT="$( AgentsToolsWorkspaceSkillsetRoot "$MMDAPP" )" MDAT_SESSION_ID="$warnSessionId" MDAT_SESSION_THREAD="$warnThread" MDAT_SPAWN_RESUME=true -- ${warnCliArgs[@]+"${warnCliArgs[@]}"} \
+			<<< "$( printf '%s\n%s\n%s\n' \
+				"Your previous run on this task ended without calling SubagentHandback." \
+				"Call SubagentHandback now with your outcome so far." \
+				"Do not do new work first." )" >> "$warnLog" 2>&1 ) &
+		warnRetryPid=$!
+		AgentsToolsSpawnProxyRunRecord "$warnRetryPid"
+		## The watchdog ends the retry it was started for and no other process: at the bound the
+		## pid alone may name whoever was given that number since. So it keeps when the retry
+		## began, read as the watchdog starts, and sends each of its two signals only while that
+		## pid is still the process that began then (AgentsToolsRunProcessesBegan, the one
+		## reading a process is kept by). Where no start can be read, nothing is signalled.
+		(
+			type AgentsToolsRunProcessesBegan > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunProcesses.include"
+			warnRetryBegan="$( printf '%s\n' "$warnRetryPid" | AgentsToolsRunProcessesBegan 2> /dev/null )"
+			## It stands in a sleep of its own, which ends with it: ended by its shell once the retry
+			## is back, it would else leave that sleep behind for up to three minutes, holding this
+			## run's log open, and its caller's output where the caller waits. A sleep that did not
+			## end by itself is no bound reached: then nothing is signalled.
+			warnWatchSleep=""
+			trap '[ -z "$warnWatchSleep" ] || kill "$warnWatchSleep" 2>/dev/null ; exit 0' TERM
+			sleep 180 &
+			warnWatchSleep=$!
+			wait "$warnWatchSleep" 2>/dev/null || exit 0
+			warnWatchSleep=""
+			[ -n "$warnRetryBegan" ] && [ "$( printf '%s\n' "$warnRetryPid" | AgentsToolsRunProcessesBegan 2> /dev/null )" = "$warnRetryBegan" ] && kill -TERM "$warnRetryPid" 2>/dev/null || exit 0
+			sleep 5 &
+			warnWatchSleep=$!
+			wait "$warnWatchSleep" 2>/dev/null || exit 0
+			warnWatchSleep=""
+			[ "$( printf '%s\n' "$warnRetryPid" | AgentsToolsRunProcessesBegan 2> /dev/null )" = "$warnRetryBegan" ] && kill -KILL "$warnRetryPid" 2>/dev/null
+		) &
+		warnWatchPid=$!
+		wait "$warnRetryPid" 2>/dev/null || :
+		## Waited to its end: a signal the supervising shell holds (AgentsToolsSpawnProxyHeld) cuts
+		## a wait short. A wait that names no child of this shell any more ends it.
+		while kill -0 "$warnRetryPid" 2>/dev/null ; do
+			warnRetryRc=0
+			wait "$warnRetryPid" 2>/dev/null || warnRetryRc=$?
+			[ "$warnRetryRc" != 127 ] || break
+		done
+		kill "$warnWatchPid" 2>/dev/null || :
+		wait "$warnWatchPid" 2>/dev/null || :
+		[ -z "$( AgentsToolsSpawnProxyHandbacks "${MDAT_SPAWN_SESSION_ID:-}" "$warnLog" )" ] || return 0
+	fi
+	## Still none. Said here, at once, unless the caller says it itself once it has closed the
+	## run's record (agentsSpawnProxyHandbackNoticeLater): a post that cannot be made must never
+	## hold a record open.
+	agentsSpawnProxyHandbackMissing="yes"
+	[ -n "${agentsSpawnProxyHandbackNoticeLater:-}" ] || AgentsToolsSpawnProxyHandbackNotice "$warnThread" "$warnMember" "$warnTrack" "$warnTell"
+	return 0
+}
+
+## The two lines that say a run ended with no handback, after its one retry: the box that
+## tracks it in the session's tracking thread, and one message in the session thread for the
+## member that brought this one in (AgentsToolsSpawnProxySessionNotice,
+## AgentsTools.SpawnSandbox.include). Only where AgentsToolsSpawnProxyHandbackWarn found
+## none, and once for that finding. A close gives no session thread here, and so has the box
+## alone: how its run ended it tells itself, to the session that requested the run
+## (AgentsToolsSpawnProxyEndNotice).
+## Never fails the spawn: one stderr warning at most per Slack call.
+AgentsToolsSpawnProxyHandbackNotice(){ ## session thread, member, the session's tracking thread, the member that brought this one in (the last two may be empty)
+	[ "${agentsSpawnProxyHandbackMissing:-}" = "yes" ] || return 0
+	agentsSpawnProxyHandbackMissing=""
+	type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+	[ -z "${3:-}" ] || DistroAgentsTools --intern-op-event-track-post "$2" "$3" --kind handback --session-id "${MDAT_SPAWN_SESSION_ID:-}" \
+		--field handback="none posted -- no SubagentHandback call seen in its output" 2>&1 > /dev/null \
+	  | LC_ALL=C awk 'index( $0, "⛔" ) == 1 && ! warned { print "⚠️ WARNING: --intern-op-agent-spawn-proxy: handback-missing notice not posted " $0 > "/dev/stderr" ; warned = 1 ; }' \
+	  || :
+	AgentsToolsSpawnProxySessionNotice "$1" "$2" "${4:-}" handback-missing
+	return 0
+}
+
+## magic-architect's own finding: this spawn's own unanswered questions are already
+## collected below into PENDING_OPEN/PENDING_REPLY -- real, but only in this call's own
+## structured return, which only a reader of that return ever sees. An open question is
+## never only left in a log either, so a real one is said too: the box that lists them in
+## the session's tracking thread, and one message in the session thread for the member that
+## brought this one in (AgentsToolsSpawnProxySessionNotice).
+##   $1 = session thread, $2 = member, $3 = collected lines (ANSWERED/OPEN/UNMATCHED/UNREADABLE, one per line),
+##   $4 = the session's tracking thread, $5 = the member that brought this one in (either may be empty)
+AgentsToolsSpawnProxyOpenQuestionWarn(){
+	local warnThread="$1" warnMember="$2" warnTrack="${4:-}" warnTell="${5:-}" warnOpenLines
+	[ -n "$warnThread$warnTrack" ] || return 0
+	warnOpenLines="$( printf '%s\n' "$3" | LC_ALL=C grep -E '^(OPEN|UNMATCHED|UNREADABLE) ' || : )"
+	[ -n "$warnOpenLines" ] || return 0
+	[ -z "$warnTrack" ] || printf '%s\n' "$warnOpenLines" \
+	  | DistroAgentsTools --intern-op-event-track-post "$warnMember" "$warnTrack" --kind notice --session-id "${MDAT_SPAWN_SESSION_ID:-}" \
+		--field what="ended with its own question still open, never answered" --from-stdin 2>&1 > /dev/null \
+	  | LC_ALL=C awk 'index( $0, "⛔" ) == 1 && ! warned { print "⚠️ WARNING: --intern-op-agent-spawn-proxy: open-question notice not posted " $0 > "/dev/stderr" ; warned = 1 ; }' \
+	  || :
+	AgentsToolsSpawnProxySessionNotice "$warnThread" "$warnMember" "$warnTell" question-open "$( printf '%s\n' "$warnOpenLines" | LC_ALL=C awk 'END { print NR + 0 ; }' )"
+	return 0
+}

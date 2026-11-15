@@ -1,0 +1,1164 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.Escalation.include -- a typed question's verdict, read, given or forwarded.
+##
+## An escalation is a ConfirmReadback, EscalateDecision, RequestPermission or ProposeApprove.
+## Its pending-reply record keeps what an answer is judged against: the kind, the thread,
+## the accounts that may answer and the accounts that asked. A verdict is applied in
+## one place, here: the record closes carrying it, and an allow on a permission is
+## written as a grant from the refusal record, signed by whoever answered.
+## The review prompt of a handback (kind review) is read and applied here too: its verdict
+## is given through the review flow, signed by who answered (AgentsTools.ReviewFlow.include).
+## So is the prompt of a change held for approval (kind change): an approve applies the kept
+## change, a reject drops it, and both are the human-owner's alone (AgentsTools.InternOpChange.include).
+##
+## Function-only: sourced for its definitions, never run. The dispatcher that runs an
+## escalation operation is AgentsTools.MemberEscalation.include, which loads this library
+## before each operation it dispatches.
+##
+
+## One frontmatter field of a record, or empty.
+AgentsToolsEscalationField(){ ## record file, field
+	local fieldLine
+	while IFS= read -r fieldLine ; do
+		case "$fieldLine" in
+			"$2: "*) printf '%s' "${fieldLine#"$2: "}" ; return 0 ;;
+			'# '*) return 0 ;;
+		esac
+	done < "$1"
+}
+
+## Upserts header fields through this package's own header writer. Pairs of key, value.
+AgentsToolsEscalationUpsert(){ ## record file, key, value, ...
+	local upsertFile="$1" upsertOps="" upsertBody
+	shift
+	while [ $# -ge 2 ] ; do
+		upsertOps="${upsertOps}upsert"$'\t'"$1"$'\t'"${2//$'\n'/ }"$'\n'
+		shift 2
+	done
+	## The header writer opens its operations by path, so they take a file of their own, gone with the subshell.
+	upsertBody="$( mkdir -p "$MMDAPP/.local/temp" && opsFile="$( mktemp "$MMDAPP/.local/temp/mdat-escalation-ops.XXXXXX" )" || exit 1
+		trap 'rm -f "$opsFile"' EXIT
+		printf '%s' "$upsertOps" > "$opsFile" || exit 1
+		LC_ALL=C awk -v opsFile="$opsFile" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsBoardItemHeaderOpsApply.awk" < "$upsertFile" )" || upsertBody=""
+	[ -n "$upsertBody" ] || return 1
+	printf '%s\n' "$upsertBody" > "$upsertFile"
+}
+
+## The result lines of an answered record, as it was recorded.
+AgentsToolsEscalationRecorded(){ ## record file, request id
+	local recordedValue
+	printf 'ESCALATION: %s answered\n' "$2"
+	printf 'VERDICT: %s\n' "$( AgentsToolsEscalationField "$1" verdict )"
+	recordedValue="$( AgentsToolsEscalationField "$1" verdict-text )"
+	[ -z "$recordedValue" ] || printf 'VERDICT-TEXT: %s\n' "$recordedValue"
+	printf 'ANSWERED-BY: %s\n' "$( AgentsToolsEscalationField "$1" answered-by )"
+	recordedValue="$( AgentsToolsEscalationField "$1" closed-by )"
+	[ -z "$recordedValue" ] || printf 'CLOSED-BY: %s\n' "$recordedValue"
+	recordedValue="$( AgentsToolsEscalationField "$1" grant )"
+	[ -z "$recordedValue" ] || printf 'GRANT: %s\n' "$recordedValue"
+	recordedValue="$( AgentsToolsEscalationField "$1" change-outcome )"
+	[ -z "$recordedValue" ] || printf 'CHANGE: %s\n' "$recordedValue"
+}
+
+## The permission an allow on this record would approve, as "<tool>\t<natural target>"
+## lines: the refused call of a permission, every extra of a permission set.
+AgentsToolsEscalationAsked(){ ## record file
+	local askedKind askedSession askedRefusal askedRecord askedLine askedTool="" askedTarget=""
+	type AgentsToolsPermissionRecordDecode > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionHolds.include"
+	askedKind="$( AgentsToolsEscalationField "$1" kind )"
+	case "$askedKind" in
+		permission)
+			askedSession="$( AgentsToolsEscalationField "$1" session-id )"
+			askedRefusal="$( AgentsToolsEscalationField "$1" refusal-id )"
+			case "$askedSession:$askedRefusal" in */*|*:|:*) return 0 ;; esac
+			askedRecord="$MMDAPP/.local/agents/sessions/$askedSession/$askedRefusal.md"
+			[ -f "$askedRecord" ] || return 0
+			while IFS= read -r askedLine ; do
+				case "$askedLine" in
+					'tool: '*) askedTool="${askedLine#tool: }" ;;
+					'target: '*) askedTarget="${askedLine#target: }" ;;
+					'# '*) break ;;
+				esac
+			done < "$askedRecord"
+			[ -n "$askedTool" ] || return 0
+			printf '%s\t%s\n' "$askedTool" "$( AgentsToolsPermissionRecordDecode "$askedTarget" )"
+		;;
+		permission-set)
+			[ -f "${1%.md}.set" ] || return 0
+			while IFS= read -r askedLine ; do
+				case "$askedLine" in
+					'entry: '*:*) askedLine="${askedLine#entry: }" ; printf '%s\t%s\n' "${askedLine%%:*}" "${askedLine#*:}" ;;
+					'entry: '*) printf '%s\t\n' "${askedLine#entry: }" ;;
+				esac
+			done < "${1%.md}.set"
+		;;
+	esac
+	return 0
+}
+
+## The folder a single permission offers beside its plain answers, as its post shows it
+## (`<place>:<folder>/**`), or nothing: the `folder` slot that post was filled with
+## (`<id>.fields`). Only a request whose post said what the folder answer grants takes it.
+## Named `project`, the same of the project it offers beside the folder: its `project` slot.
+AgentsToolsEscalationFolderOffered(){ ## record file, optional: project (default: folder)
+	[ -f "${1%.md}.fields" ] && [ "$( AgentsToolsEscalationField "$1" kind )" = "permission" ] || return 0
+	LC_ALL=C awk -F'\t' -v slot="${2:-folder}" '$1 == slot && $2 != "" { print $2 ; exit ; }' "${1%.md}.fields" 2> /dev/null || :
+}
+
+## What the folder answer of a single permission grants, `<tool>:<folder>/**`, natural: worked
+## out from its refusal record at the moment it is asked for, never from the post
+## (AgentsToolsPermissionFolderEntry, AgentsTools.InternOpPermission.include). rc 1, nothing
+## printed, where the request offered no folder, or none can be granted now. Named `project`,
+## the same of its project answer, `<tool>:<project>/**` (AgentsToolsPermissionProjectEntry).
+AgentsToolsEscalationFolder(){ ## record file, optional: project (default: folder)
+	type AgentsToolsPermissionField > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionHolds.include"
+	local folderSession folderRefusal folderRecord folderEntry=AgentsToolsPermissionFolderEntry
+	[ "${2:-folder}" != "project" ] || folderEntry=AgentsToolsPermissionProjectEntry
+	[ -n "$( AgentsToolsEscalationFolderOffered "$1" "${2:-folder}" )" ] || return 1
+	folderSession="$( AgentsToolsEscalationField "$1" session-id )"
+	folderRefusal="$( AgentsToolsEscalationField "$1" refusal-id )"
+	case "$folderSession:$folderRefusal" in */*|*:|:*) return 1 ;; esac
+	folderRecord="$MMDAPP/.local/agents/sessions/$folderSession/$folderRefusal.md"
+	[ -f "$folderRecord" ] || return 1
+	type "$folderEntry" > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionPlaces.include"
+	"$folderEntry" "$( AgentsToolsPermissionField "$folderRecord" tool )" \
+		"$( AgentsToolsPermissionRecordDecode "$( AgentsToolsPermissionField "$folderRecord" target )" )" "$folderSession"
+}
+
+## One block of the template of a record's kind, filled: `<Section>/<heading>`, its slots in
+## the caller's environment as ASKP_F_<slot>. Nothing printed, rc not 0, where the template
+## has no such block.
+AgentsToolsEscalationTemplateBlock(){ ## kind, block `<Section>/<heading>`
+	(
+		type AgentsToolsAskPostFill > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.AskPost.include"
+		case "$1" in
+			permission-set) ASKP_BLOCK="$2" AgentsToolsAskPostFill block permission-set.post.format.md set ;;
+			*)
+				AgentsToolsAskKindRow "${1:-question}" || exit 3
+				ASKP_BLOCK="$2" AgentsToolsAskPostFill block "$agentsAskRowTemplate" "${agentsAskRowForm:-text}"
+			;;
+		esac
+	) 2> /dev/null
+}
+
+## One of the tooling's own lines about an ask, filled: a block of the note template
+## (sh-lib/templates/tooling-note.post.format.md), `<Section>/<heading>`, its slots in the
+## caller's environment as ASKP_F_<slot>. Nothing printed, rc not 0, where the template has
+## no such block.
+AgentsToolsEscalationNote(){ ## block `<Section>/<heading>`
+	(
+		type AgentsToolsAskPostFill > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.AskPost.include"
+		ASKP_BLOCK="$1" AgentsToolsAskPostFill block tooling-note.post.format.md ""
+	) 2> /dev/null
+}
+
+## THE CONFIRMATION. Once an answer is read, the tooling says so with one reply in the thread
+## the answer was read in, as the identity that posted there: what was read (the verdict and
+## who gave it) and what was done with it -- what is now granted, to whom and how far; that
+## nothing is granted; or that the answer could not be applied and why, so nobody is left
+## thinking it worked. Its text is the prompt's own template's (`# Confirmations`). One reply
+## for an answer: a mark beside the record, named for that answer, keeps a later read from
+## saying it again. Never fails its caller: a reply not posted is one stderr warning.
+AgentsToolsEscalationConfirm(){ ## record file, request id, block (granted|denied|edit|taken|applied|rejected|not-applied|not-yet|sent-up), verdict, answered by, read in the forward's thread (non-empty|empty), reason or the answer's text, who it goes to now (sent-up)
+	type AgentsToolsPermissionShownTarget > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionPlaces.include"
+	local cfFile="$1" cfId="$2" cfBlock="$3" cfVerdict="$4" cfBy="$5" cfForward="${6:-}" cfReason="${7:-}" cfHolder="${8:-}"
+	local cfKind cfChannel cfThread cfBot="" cfMark cfText="" cfOwner cfWho cfAsked cfTool="" cfTarget="" cfScope="" cfParts="" cfCount=0 cfLine cfArgs
+	cfKind="$( AgentsToolsEscalationField "$cfFile" kind )"
+	cfChannel="$( AgentsToolsEscalationField "$cfFile" channel )" ; cfThread="$( AgentsToolsEscalationField "$cfFile" thread-ts )"
+	[ "$( AgentsToolsEscalationField "$cfFile" ask-identity )" != "bot" ] || cfBot=1
+	if [ -n "$cfForward" ] ; then
+		cfChannel="$( AgentsToolsEscalationField "$cfFile" forward-channel )" ; cfThread="$( AgentsToolsEscalationField "$cfFile" forward-ts )" ; cfBot=1
+	fi
+	[ -n "$cfChannel" ] && [ -n "$cfThread" ] || return 0
+	cfMark="${cfFile%.md}.confirmed.$( printf '%s' "$cfBlock:$cfVerdict:$cfBy" | LC_ALL=C cksum | LC_ALL=C tr -d ' \t' )"
+	( set -o noclobber ; : > "$cfMark" ) 2> /dev/null || return 0
+	cfOwner="$( AgentsToolsEscalationField "$cfFile" owner )" ; cfWho="$cfOwner"
+	type AgentsToolsPermissionPartyName > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionPosts.include"
+	case "$cfKind" in
+		permission)
+			cfAsked="$( AgentsToolsEscalationAsked "$cfFile" | head -1 )"
+			cfTool="${cfAsked%%$'\t'*}" ; cfTarget="${cfAsked#*$'\t'}"
+			## A call refused for a contact (F7.10) is granted to the contact, not to the member that asked.
+			cfLine="$( AgentsToolsEscalationField "$MMDAPP/.local/agents/sessions/$( AgentsToolsEscalationField "$cfFile" session-id )/$( AgentsToolsEscalationField "$cfFile" refusal-id ).md" owner 2> /dev/null )" || cfLine=""
+			case "$cfLine" in contact:?*) cfWho="$cfLine" ;; esac
+			case "$cfVerdict" in
+				## The folder answer, and the project answer: what was granted is the folder, or the
+				## project, its set keeps, for the session.
+				allow-folder|allow-project)
+					cfTarget="$( LC_ALL=C sed -n 's/^entry: [^:]*://p' "${cfFile%.md}.set" 2> /dev/null | head -1 )"
+					cfScope="session"
+				;;
+				allow-*) cfScope="${cfVerdict#allow-}" ;;
+			esac
+			[ -z "$cfTarget" ] || cfTarget="$( AgentsToolsPermissionShownTarget "$cfTarget" )"
+		;;
+		permission-set)
+			while IFS= read -r cfLine ; do
+				case "$cfLine" in
+					'scope: '*) cfScope="${cfLine#scope: }" ;;
+					'participants: '*) cfParts="$( printf '%s' "${cfLine#participants: }" | LC_ALL=C sed 's/  */, /g' )" ;;
+					'entry: '*) cfCount=$(( cfCount + 1 )) ;;
+				esac
+			done < "${cfFile%.md}.set" 2> /dev/null
+		;;
+		## The file of a held change, as its prompt showed it.
+		change)
+			type AgentsChangeSlot > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.InternOpChange.include"
+			cfTarget="$( AgentsChangeSlot "$cfFile" file )"
+		;;
+	esac
+	cfText="$( ASKP_F_verdict="$cfVerdict" ASKP_F_by="$( AgentsToolsPermissionPartyName "$cfBy" )" ASKP_F_member="$cfWho" ASKP_F_tool="$cfTool" ASKP_F_target="$cfTarget" \
+		ASKP_F_scope_words="$( [ -z "$cfScope" ] || AgentsToolsEscalationTemplateBlock "$cfKind" "Scope words/$cfScope" )" ASKP_F_participants="$cfParts" ASKP_F_count="$cfCount" \
+		ASKP_F_reason="$cfReason" ASKP_F_text="$cfReason" ASKP_F_holder="$cfHolder" AgentsToolsEscalationTemplateBlock "$cfKind" "Confirmations/$cfBlock" )" || cfText=""
+	if [ -z "$cfText" ] ; then
+		echo "⚠️ WARNING: $MDSC_CMD: the answer $cfVerdict for $cfId was read, but its confirmation could not be filled from the template of its kind (${cfKind:-question}, Confirmations/$cfBlock), so it was not said in the thread" >&2
+		return 0
+	fi
+	cfArgs=( "$cfOwner" "$cfChannel:$cfThread" --from-stdin )
+	[ -z "$cfBot" ] || cfArgs=( ${cfArgs[@]+"${cfArgs[@]}"} --identity-bot )
+	## It carries the addressee of the ask it follows, as the ask named it: in the thread of a
+	## forward, the human-owner the forward was addressed to (AgentsToolsEscalationForwardPost).
+	local cfTo
+	cfTo="$( AgentsToolsEscalationField "$cfFile" address-to )"
+	[ -z "$cfForward" ] || cfTo="human-owner"
+	## THE READ CONFIRMATION NAMES NOBODY (the owner's ruling, 2026-11-09): `Read: yes by human-owner. It is recorded` is the
+	## tooling closing the exchange, not a message for the person who just answered. Every other confirmation keeps its addressee.
+	[ "$cfBlock" = "taken" ] || [ -z "$cfTo" ] || cfArgs=( ${cfArgs[@]+"${cfArgs[@]}"} --address-to "$cfTo" )
+	type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+	printf '%s\n' "$cfText" | DistroAgentsTools --intern-op-comms-slack-send-message ${cfArgs[@]+"${cfArgs[@]}"} > /dev/null 2>&1 \
+		|| echo "⚠️ WARNING: $MDSC_CMD: the answer $cfVerdict for $cfId was read, but its confirmation was not posted in $cfChannel:$cfThread" >&2
+	return 0
+}
+
+## The forward's own work: the request posted by the team bot to who it goes up to, its answer
+## emoji placed under it so it is answered by a click as well as by a reply, and its thread
+## kept on the record as a place its answer is read from (forward-channel, forward-ts,
+## forward-addressees). The line it opens with is the note template's (`# Ask`, forwarded):
+## who forwards it, and why the answer before it was not applied where that is why it goes
+## up. Prints FORWARDED-TO; rc 1, said on stderr, when it was not posted or could not be kept.
+AgentsToolsEscalationForwardPost(){ ## record file, request id, forwarded by, why the answer before it was not applied, as a post says it (may be empty)
+	local fpFile="$1" fpId="$2" fpBy="$3" fpLead="" fpOut fpChannel fpTs fpAddressees fpEmoji
+	fpLead="$( ASKP_F_by="$fpBy" ASKP_F_reason="${4:-}" ASKP_F_address_to=human-owner AgentsToolsEscalationNote "Ask/forwarded" )" || fpLead=""
+	if [ -z "$fpLead" ] ; then
+		echo "$MDSC_CMD: ⛔ ERROR: the forward could not be posted, so $fpId is still answered only where it was asked: the line it opens with could not be filled from its template (tooling-note.post.format.md, Ask/forwarded)" >&2
+		return 1
+	fi
+	fpOut="$( {
+		printf '%s\n\n' "$fpLead"
+		LC_ALL=C awk 'seenBody { print ; next } /^# Question asked$/ { seenBody = 1 }' "$fpFile"
+	type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+	} | DistroAgentsTools --intern-op-comms-slack-send-message "$fpBy" human-owner --identity-bot --address-to human-owner --from-stdin 2>&1 )" || {
+		echo "$MDSC_CMD: ⛔ ERROR: the forward could not be posted, so $fpId is still answered only where it was asked: $( LC_ALL=C grep -m1 '⛔' <<< "$fpOut" )" >&2
+		return 1
+	}
+	fpChannel="$( LC_ALL=C sed -n 's/^SENT_MESSAGE_CHANNEL=//p' <<< "$fpOut" | head -1 )"
+	fpTs="$( LC_ALL=C sed -n 's/^SENT_MESSAGE_TS=//p' <<< "$fpOut" | head -1 )"
+	fpAddressees="$( LC_ALL=C sed -n 's/^SENT_MESSAGE_ADDRESSEES=//p' <<< "$fpOut" | head -1 )"
+	if [ -z "$fpChannel" ] || [ -z "$fpTs" ] || [ -z "$fpAddressees" ] ; then
+		echo "$MDSC_CMD: ⛔ ERROR: the forward was posted but its thread or addressee could not be named, so its answer could not be recognised" >&2
+		return 1
+	fi
+	AgentsToolsEscalationUpsert "$fpFile" forward-channel "$fpChannel" forward-ts "$fpTs" forward-addressees "$fpAddressees" forwarded-by "$fpBy" || {
+		echo "$MDSC_CMD: ⛔ ERROR: the forward was posted but not recorded on $fpId" >&2
+		return 1
+	}
+	## Its click answers, the names its kind's template gives, placed by the bot that posted it:
+	## never an answer themselves, only a click by the one it is addressed to is.
+	type AgentsToolsAskPostReact > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.AskPost.include"
+	fpEmoji="$( AgentsToolsAskPostRecordFill reactions "$fpFile" 2> /dev/null )" || fpEmoji=""
+	## A record that keeps no slots of its post still has a kind, and a kind with one answer form has its emoji.
+	[ -n "$fpEmoji" ] || fpEmoji="$( AgentsToolsAskKindRow "$( AgentsToolsEscalationField "$fpFile" kind )" 2> /dev/null && [ -n "$agentsAskRowForm" ] \
+		&& AgentsToolsAskPostFill reactions "$agentsAskRowTemplate" "$agentsAskRowForm" 2> /dev/null )" || fpEmoji=""
+	[ -z "$fpEmoji" ] || AgentsToolsAskPostReact "$fpBy" "$fpChannel:$fpTs" bot add $fpEmoji
+	printf 'FORWARDED-TO: human-owner %s:%s\n' "$fpChannel" "$fpTs"
+	return 0
+}
+
+## No approving what you do not hold: an allow from an approver who does not hold every
+## permission it approves is not applied, and the request goes UP the chain instead, to
+## someone who can grant it AND can be reached: a holder taking part in this coworking session
+## now, its run alive, told in the session's thread; else the human-owner, the request posted
+## to them by the team bot with its answer emoji (AgentsToolsEscalationForwardPost). A holder
+## with no live run in the session is never chosen: nobody there would see the request. And it
+## is never silent: where the request cannot be posted to who it goes up to, it is not
+## re-addressed at all, and the answer says so. Prints the result lines.
+AgentsToolsEscalationReroute(){ ## record file, request id, approver, what is not held, the verdict that is not applied, read in the forward's thread (non-empty|empty)
+	type AgentsToolsPermissionPartyName > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionPosts.include"
+	type AgentsToolsPermissionShownTarget > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionPlaces.include"
+type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+	local rrFile="$1" rrId="$2" rrBy="$3" rrWhat="$4" rrVerdict="${5:-}" rrFromForward="${6:-}" rrTool rrTarget rrHolder="" rrTo rrOut="" rrSession rrRunning rrOne rrThread="" rrWhy rrOwner rrSaid="" rrNote=""
+	rrTool="${rrWhat%%$'\t'*}" ; rrTarget="${rrWhat#*$'\t'}"
+	rrTo="$( AgentsToolsEscalationField "$rrFile" address-to )"
+	rrOwner="$( AgentsToolsEscalationField "$rrFile" owner )"
+	rrSession="$( AgentsToolsEscalationField "$rrFile" session-id )"
+	rrWhy="$rrBy does not hold $rrTool ${rrTarget:-(any target)}"
+	type AgentsToolsPermissionSessionRunning > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionParticipants.include"
+	## The same reason as a post says it (`# Reasons`, not-held): who by name, the target by its
+	## place. The record and the result lines keep the exact target.
+	rrSaid="$( ASKP_F_by="$( AgentsToolsPermissionPartyName "$rrBy" )" ASKP_F_tool="$rrTool" ASKP_F_target="$( AgentsToolsPermissionShownTarget "$rrTarget" )" AgentsToolsEscalationNote "Reasons/not-held" )" || rrSaid=""
+	rrRunning="$( AgentsToolsPermissionSessionRunning "$rrSession" )"
+	while IFS= read -r rrOne ; do
+		[ -n "$rrOne" ] && [ "$rrOne" != "human-owner" ] || continue
+		case $'\n'"$rrRunning"$'\n' in *$'\n'"$rrOne"$'\n'*) rrHolder="$rrOne" ; break ;; esac
+	done <<< "$( AgentsToolsPermissionHoldersPrint "$rrTool" "$rrTarget" --session-id "$rrSession" --task "$( AgentsToolsEscalationField "$rrFile" item )" \
+		--exclude "$rrOwner" --exclude "$rrBy" --exclude "$rrTo" 2>/dev/null | LC_ALL=C sed -n 's/^HOLDER: \([^ ]*\) .*$/\1/p' )"
+	## A holder in the session is told in the session's thread, the one place every member
+	## taking part watches; with no such thread it cannot be reached there either.
+	[ -z "$rrHolder" ] || rrThread="$( AgentsToolsPermissionSessionThread "$rrSession" )"
+	[ -n "$rrThread" ] || rrHolder=""
+	if [ -n "$rrHolder" ] ; then
+		rrNote="$( ASKP_F_member="$rrOwner" ASKP_F_address_to="$rrHolder" ASKP_F_reason="$rrSaid" ASKP_F_request_id="$rrId" AgentsToolsEscalationNote "Ask/now-yours" )" || rrNote=""
+		[ -n "$rrNote" ] && [ -n "$rrSaid" ] && printf '%s\n' "$rrNote" \
+			| DistroAgentsTools --intern-op-comms-slack-send-message "$rrOwner" "$rrThread" --identity-bot --address-to "$rrHolder" --from-stdin > /dev/null 2>&1 || {
+			echo "⚠️ WARNING: $MDSC_CMD: $rrHolder holds $rrTool ${rrTarget:-(any target)} and runs in this session, but could not be told of $rrId in the session thread $rrThread, so the request goes to the human-owner instead" >&2
+			rrHolder=""
+		}
+	fi
+	if [ -z "$rrHolder" ] ; then
+		rrHolder="human-owner"
+		## Posted to the human-owner once, by whoever the request is addressed to now: for a routine, the executor answering.
+		if [ "$rrTo" != "human-owner" ] && [ -z "$( AgentsToolsEscalationField "$rrFile" forward-ts )" ] ; then
+			local rrForwardBy="$rrTo"
+			case "$rrTo" in *.routine) rrForwardBy="$rrBy" ;; esac
+			rrOut="$( AgentsToolsEscalationForwardPost "$rrFile" "$rrId" "$rrForwardBy" "${rrSaid:-$rrWhy}" 2>&1 )" || {
+				echo "$MDSC_CMD: ⛔ ERROR: $rrWhy, so its answer is not applied, and $rrId could not be posted to the human-owner either, so it is NOT re-addressed: it stays addressed to $rrTo, open -- $( LC_ALL=C grep -m1 '⛔' <<< "$rrOut" )" >&2
+				AgentsToolsEscalationConfirm "$rrFile" "$rrId" not-applied "$rrVerdict" "$rrBy" "$rrFromForward" "${rrSaid:-$rrWhy}, and the request could not be posted to the human-owner."
+				printf 'ESCALATION: %s open\n' "$rrId"
+				printf 'VERDICT: RETURNED\n'
+				printf 'VERDICT-REASON: %s, so that answer is not applied, and the request could not be posted to the human-owner; it stays addressed to %s and open\n' "$rrWhy" "$rrTo"
+				return 0
+			}
+		fi
+	fi
+	AgentsToolsEscalationUpsert "$rrFile" address-to "$rrHolder" blocked-on "reply from $rrHolder" rerouted-from "$rrBy" answerer-session "" \
+		reroute-reason "$rrWhy" || {
+		echo "$MDSC_CMD: ⛔ ERROR: $rrWhy, and $rrId could not be re-addressed; it stays open" >&2
+		return 1
+	}
+	## Said in the thread the answer was read in, so the one who answered and the people there see it.
+	AgentsToolsEscalationConfirm "$rrFile" "$rrId" sent-up "$rrVerdict" "$rrBy" "$rrFromForward" "${rrSaid:-$rrWhy}" "$rrHolder"
+	echo "⚠️ WARNING: $MDSC_CMD: $rrBy does not hold $rrTool ${rrTarget:-(any target)}, so its answer is not applied; $rrId is re-addressed to $rrHolder" >&2
+	printf 'ESCALATION: %s rerouted\n' "$rrId"
+	printf 'ADDRESS-TO: %s\n' "$rrHolder"
+	printf 'REROUTE-REASON: %s does not hold %s %s\n' "$rrBy" "$rrTool" "${rrTarget:-(any target)}"
+	return 0
+}
+
+## THE CLAIM on an open record's answer: <record>.answered/, a directory, and in it one
+## holder.<n> for each process that held it, a file whose text names that process as
+## `<host>:<pid>:<start>` -- its short host name, the pid of the shell that applies, and when
+## that process started, so a pid given to another process later is never taken for it. The
+## holder in charge is the one of the highest number. A holder is created by `set -C`, which
+## names it in the same step and fails where that number is taken: of any number of answers
+## at once exactly one gets a number, the first as a takeover alike, so exactly one applies.
+## Nothing is ever renamed or removed to take a claim over. A claim whose holder is gone --
+## no such process on this host, or one that started at another time -- is taken over by the
+## next number, while the record is still open; a holder that is alive is respected, and so
+## is one on another host, which cannot be seen from here. A claim with no holder named is
+## one being named this moment, or one of a process that named none: respected for 30
+## seconds, then taken over as gone.
+
+## When a process started, as one word; nothing when there is no such process.
+AgentsToolsEscalationClaimStart(){ ## pid
+	LC_ALL=C ps -o lstart= -p "$1" 2>/dev/null | LC_ALL=C awk 'NF { $1 = $1 ; gsub( / /, "_" ) ; print ; exit ; }'
+}
+
+## rc 0 while the process a holder names is alive, or cannot be known to be gone; rc 1 when
+## it is gone.
+AgentsToolsEscalationClaimAlive(){ ## holder, `<host>:<pid>:<start>`
+	local aliveHost="${1%%:*}" aliveRest="${1#*:}" alivePid aliveStart aliveNow
+	[ "$aliveRest" != "$1" ] || return 1
+	alivePid="${aliveRest%%:*}" ; aliveStart="${aliveRest#*:}"
+	[ "$aliveStart" != "$aliveRest" ] || aliveStart=""
+	## A process on another host cannot be seen from here: its claim is respected.
+	[ "$aliveHost" = "$( hostname -s 2>/dev/null || echo unknown )" ] || return 0
+	case "$alivePid" in ''|*[!0-9]*) return 1 ;; esac
+	aliveNow="$( AgentsToolsEscalationClaimStart "$alivePid" )"
+	if [ -z "$aliveNow" ] ; then
+		## No such process -- where this host can tell: one whose own start cannot be read
+		## here has no ps to ask, and goes by the pid alone.
+		[ -z "$( AgentsToolsEscalationClaimStart "$$" )" ] || return 1
+		kill -0 "$alivePid" 2>/dev/null ; return $?
+	fi
+	## The same pid, started at another time, is another process.
+	[ -z "$aliveStart" ] || [ "$aliveStart" = "$aliveNow" ]
+}
+
+## The claim directory of a record: always in pending/, whether the record is still open or already closed to closed/
+## (the close leaves it, so the apply can still rename verdict to verdict.applied).
+AgentsToolsEscalationClaimDir(){ ## record file
+	local claimBase="${1##*/}"
+	printf '%s' "$MMDAPP/.local/agents/pending/${claimBase%.md}.answered"
+}
+
+## Whether a claim on a record still has something to do: an answer to apply to an open
+## record or, for a finish, a verdict noted there and not marked applied.
+AgentsToolsEscalationClaimOpen(){ ## record file, finish (non-empty|empty)
+	if [ -n "${2:-}" ] ; then
+		[ -f "$( AgentsToolsEscalationClaimDir "$1" )/verdict" ]
+	else
+		[ "$( AgentsToolsEscalationField "$1" status )" = "reply-pending" ]
+	fi
+}
+
+## The holder a claim names: the holder file's own text, or the target of the link an older
+## release made. Empty where it names nobody.
+AgentsToolsEscalationClaimHolder(){ ## holder path
+	if [ -L "$1" ] ; then readlink "$1" 2>/dev/null ; else cat "$1" 2>/dev/null ; fi
+}
+
+## Takes the claim on one open record for the process that will apply an answer to it. rc 0:
+## held by this process, agentsEscalationClaimHolder naming its own holder file. rc 3: not
+## taken -- the record is answered, or a live holder kept it for the 10 seconds it is given
+## to finish. Must run in the shell that applies, never in a subshell of its own.
+## For a finish (second argument) it is the claim on a record already closed whose apply
+## stopped before its end: taken while its verdict is noted and not marked applied.
+AgentsToolsEscalationClaim(){ ## record file, finish (non-empty|empty)
+	local claimDir="$( AgentsToolsEscalationClaimDir "$1" )" claimFinish="${2:-}" claimMade="" claimPid claimSelf claimGen claimName claimHolder claimKept claimWaited=0 claimLost=0
+	agentsEscalationClaimHolder=""
+	## The shell this runs in, a subshell included: $$ would name the script's first shell.
+	claimPid="$( exec sh -c 'echo "$PPID"' )"
+	claimSelf="$( hostname -s 2>/dev/null || echo unknown ):$claimPid:$( AgentsToolsEscalationClaimStart "$claimPid" )"
+	[ -n "$claimFinish" ] || { mkdir "$claimDir" 2>/dev/null && claimMade=1 ; }
+	while : ; do
+		AgentsToolsEscalationClaimOpen "$1" "$claimFinish" || return 3
+		claimGen=0 ; claimHolder="" ; claimKept=""
+		for claimName in "$claimDir"/holder.* ; do
+			[ -e "$claimName" ] || [ -L "$claimName" ] || continue
+			case "${claimName##*.}" in ''|*[!0-9]*) continue ;; esac
+			[ "${claimName##*.}" -le "$claimGen" ] || claimGen="${claimName##*.}"
+		done
+		if [ "$claimGen" != "0" ] ; then
+			claimHolder="$( AgentsToolsEscalationClaimHolder "$claimDir/holder.$claimGen" )"
+			! AgentsToolsEscalationClaimAlive "$claimHolder" || claimKept=1
+		elif [ -z "$claimMade" ] ; then
+			## No holder named, and not this process's own: respected while it is new.
+			[ $(( $( date +%s ) - $( stat -f %m "$claimDir" 2>/dev/null || stat -c %Y "$claimDir" 2>/dev/null || date +%s ) )) -ge 30 ] || claimKept=1
+		fi
+		if [ -n "$claimKept" ] ; then
+			## A live holder is given a few seconds to finish, so what its loser says is its
+			## outcome and never a snapshot of the middle of it.
+			[ "$claimWaited" -lt 50 ] || return 3
+			sleep 0.2
+			claimWaited=$(( claimWaited + 1 ))
+			continue
+		fi
+		if ( set -C ; printf '%s' "$claimSelf" > "$claimDir/holder.$(( claimGen + 1 ))" ) 2>/dev/null ; then
+			agentsEscalationClaimHolder="$claimDir/holder.$(( claimGen + 1 ))"
+			## The holder before may have closed the record just before it went.
+			AgentsToolsEscalationClaimOpen "$1" "$claimFinish" || return 3
+			[ "$claimGen" = "0" ] && [ -n "$claimMade" ] \
+				|| echo "⚠️ WARNING: $MDSC_CMD: the claim on ${1##*/} is taken over: ${claimHolder:-a holder that named itself nowhere} is gone" >&2
+			return 0
+		fi
+		## Another took that number in the same moment, and is looked at next. A claim that
+		## cannot be named at all is not taken.
+		claimLost=$(( claimLost + 1 ))
+		[ "$claimLost" -lt 20 ] || return 3
+	done
+}
+
+## Gives a claim back, for a holder whose answer could not be applied, so the next answer is
+## not kept out: its own holder goes, and the claim with it where no other holder was.
+AgentsToolsEscalationClaimGive(){
+	[ -n "${agentsEscalationClaimHolder:-}" ] || return 0
+	rm -f "$agentsEscalationClaimHolder" 2>/dev/null
+	rmdir "${agentsEscalationClaimHolder%/*}" 2>/dev/null || :
+	agentsEscalationClaimHolder=""
+}
+
+## THE NOTE of the verdict a claim applies: <record>.answered/verdict, `<key>: <value>`
+## lines -- verdict, by, text, session, closed-by, floor, then grant-stamp and grant -- written
+## by the holder before anything else, replaced whole on every change, and renamed to
+## verdict.applied once all of it is done. It is what makes an apply that stopped half way
+## recoverable: the next holder of the claim completes the verdict noted, never another one.
+
+## One value of a note, or empty.
+AgentsToolsEscalationNoteField(){ ## note file, key
+	LC_ALL=C awk -v key="$2" 'index( $0, key ": " ) == 1 { print substr( $0, length( key ) + 3 ) ; exit ; }' "$1" 2>/dev/null
+}
+
+## Sets keys of a note, keeping its other lines. Pairs of key, value.
+AgentsToolsEscalationNoteSet(){ ## note file, key, value, ...
+	local noteFile="$1" noteKeys="" noteNew=""
+	shift
+	while [ $# -ge 2 ] ; do
+		noteKeys="$noteKeys$1"$'\n'
+		noteNew="$noteNew$1: ${2//$'\n'/ }"$'\n'
+		shift 2
+	done
+	{
+		[ ! -f "$noteFile" ] || NOTE_KEYS="$noteKeys" LC_ALL=C awk '
+			BEGIN { keyTotal = split( ENVIRON["NOTE_KEYS"], keyList, "\n" ) ; for ( keyIndex = 1 ; keyIndex <= keyTotal ; keyIndex++ ) { if ( keyList[keyIndex] != "" ) { dropKey[keyList[keyIndex]] = 1 ; } } }
+			{ lineKey = $0 ; sub( /: .*$/, "", lineKey ) ; if ( ! ( lineKey in dropKey ) ) { print ; } }' "$noteFile"
+		printf '%s' "$noteNew"
+	} > "$noteFile.$$.tmp" 2>/dev/null && mv -f "$noteFile.$$.tmp" "$noteFile" 2>/dev/null || { rm -f "$noteFile.$$.tmp" 2>/dev/null ; return 1 ; }
+}
+
+## The rest of an applied verdict, once its record is closed: what the note carries is kept
+## on the record -- the verdict text, the answering session, closed-by, the grant line, the
+## follow floor -- and the verdict goes on the item's Decisions, where it is not written a
+## second time. Then the note is marked applied. Run by the holder of the claim.
+AgentsToolsEscalationApplyFinish(){ ## record file, request id
+	local finishFile="$1" finishId="$2" finishNote="$( AgentsToolsEscalationClaimDir "$1" )/verdict" finishValue finishItem finishPath
+	[ -f "$finishNote" ] || return 0
+	## Kept on the record, so a later read reports the same result the answer did.
+	set --
+	finishValue="$( AgentsToolsEscalationNoteField "$finishNote" text )"
+	[ -z "$finishValue" ] || set -- "$@" verdict-text "$finishValue"
+	finishValue="$( AgentsToolsEscalationNoteField "$finishNote" session )"
+	[ -z "$finishValue" ] || set -- "$@" answered-session "$finishValue"
+	finishValue="$( AgentsToolsEscalationNoteField "$finishNote" closed-by )"
+	[ -z "$finishValue" ] || set -- "$@" closed-by "$finishValue"
+	finishValue="$( AgentsToolsEscalationNoteField "$finishNote" grant )"
+	[ -z "$finishValue" ] || set -- "$@" grant "$finishValue"
+	finishValue="$( AgentsToolsEscalationNoteField "$finishNote" change )"
+	[ -z "$finishValue" ] || set -- "$@" change-outcome "$finishValue"
+	## Answered, its thread is still watched from here on: every later message there is a
+	## clarification, which the asking session's Wait keeps (AgentsWaitProbeAsk).
+	finishValue="$( AgentsToolsEscalationNoteField "$finishNote" floor )"
+	[ -z "$( AgentsToolsEscalationField "$finishFile" channel )" ] \
+		|| set -- "$@" follow-floor "${finishValue:-$( AgentsToolsEscalationField "$finishFile" question-ts )}"
+	[ $# -eq 0 ] || AgentsToolsEscalationUpsert "$finishFile" "$@" \
+		|| echo "⚠️ WARNING: $MDSC_CMD: the verdict is applied, but its text or grant line is not kept on $finishId" >&2
+	## The verdict, with its text, on the ask's item, where a reopened task reads it: once.
+	type AgentsToolsDecisionsItemPath > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemDecisions.include"
+	finishItem="$( AgentsToolsEscalationField "$finishFile" item )"
+	finishValue="$( AgentsToolsEscalationNoteField "$finishNote" verdict )"
+	if [ -n "$finishItem" ] && finishPath="$( AgentsToolsDecisionsItemPath "$finishItem" 2>/dev/null )" \
+		&& LC_ALL=C grep -F -- "($finishId" "$finishPath" 2>/dev/null | LC_ALL=C grep -q -F -- " -> $finishValue" ; then
+		:
+	else
+		AgentsToolsDecisionsFromPending "$finishId" "$finishFile" reply-received "" ""
+	fi
+	mv -f "$finishNote" "$finishNote.applied" 2>/dev/null || :
+}
+
+## A closed record whose apply stopped before its end -- its verdict still noted, its holder
+## gone -- is finished by the next read of it. A holder that is alive is left to finish.
+AgentsToolsEscalationApplyResume(){ ## record file, request id
+	[ -f "$( AgentsToolsEscalationClaimDir "$1" )/verdict" ] || return 0
+	AgentsToolsEscalationClaim "$1" finish || return 0
+	AgentsToolsEscalationApplyFinish "$1" "$2"
+}
+
+## Applies one verdict to one open record. The claim above is the lock, so of two answers
+## landing together only one is applied. In this order, each step safe to run again by the
+## holder that completes an apply which stopped: the verdict is noted; the grant an allow
+## carries is written; the record closes carrying the verdict and who gave it; the rest is
+## kept (AgentsToolsEscalationApplyFinish). So a record never says allow with no grant
+## behind it, and a grant is never written twice. An allow whose grant cannot be written is
+## not applied: the request stays open, said as RETURNED with the reason, rc 5. Called with
+## no verdict it only completes a noted one, rc 4 when none is. Prints the result lines.
+AgentsToolsEscalationApply(){ ## record file, request id, verdict, verdict text, answered by, optional answering session, optional closed-by (readback), optional follow floor, optional: read in the forward's thread (non-empty), optional: ts of the answer message in the question's own thread
+	type AgentsToolsPermissionSessionDir > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionRecord.include"
+	local applyFile="$1" applyId="$2" applyVerdict="$3" applyText="$4" applyBy="$5" applyAnswerSession="${6:-}" applyClosedBy="${7:-}" applyFloor="${8:-}" applyFromForward="${9:-}" applyAnswerTs="${10:-}" applyKind applySession applyRefusal applyGrant=""
+	## The folder answer of a single permission (allow-folder): what it grants is the folder of
+	## the refused file, worked out now from the refusal record. Where the request offered no
+	## folder, or none can be granted, the answer is not applied and the request stays open.
+	## The project answer (allow-project) the same, of the project that file lies in: applyWide
+	## is which of the two the answer is, `folder` or `project`, the word after its `allow-`.
+	local applyFolder="" applyWide=""
+	case "$( AgentsToolsEscalationField "$applyFile" kind ):$applyVerdict" in
+		permission:allow-folder|permission:allow-project) applyWide="${applyVerdict#allow-}" ;;
+	esac
+	if [ -n "$applyWide" ] ; then
+		applyFolder="$( AgentsToolsEscalationFolder "$applyFile" "$applyWide" )" || applyFolder=""
+		if [ -z "$applyFolder" ] ; then
+			echo "$MDSC_CMD: ⛔ ERROR: $applyId offers no $applyWide that can be allowed, so $applyVerdict is not applied and the request stays open" >&2
+			AgentsToolsEscalationConfirm "$applyFile" "$applyId" not-applied "$applyVerdict" "$applyBy" "$applyFromForward" "$( ASKP_F_offer="$applyWide" AgentsToolsEscalationTemplateBlock permission "Reasons/not-offered" )"
+			printf 'ESCALATION: %s open\n' "$applyId"
+			printf 'VERDICT: RETURNED\n'
+			printf 'VERDICT-REASON: %s answered %s, but this request offers no %s that can be allowed, so nothing is granted and the request stays open\n' "$applyBy" "$applyVerdict" "$applyWide"
+			return 5
+		fi
+	fi
+	## An allow is applied only from an approver who holds what it approves; the
+	## human-owner holds everything. Anyone else's goes up the chain, still open.
+	## The console's answer is recorded under the person who gave it (applyBy) and held to what
+	## magic-coordinator holds (agentsEscalationCapacity, set by the console's answer): the
+	## grant is as wide as it always was, and only the name it is recorded under is another.
+	case "$( AgentsToolsEscalationField "$applyFile" kind ):$applyVerdict" in
+		permission:allow-*|permission-set:allow-set)
+			local applyAsked applySession="" applyHolder="${agentsEscalationCapacity:-$applyBy}"
+			applySession="$( AgentsToolsEscalationField "$applyFile" session-id )"
+			while IFS= read -r applyAsked ; do
+				[ -n "$applyAsked" ] || continue
+				type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+				case "$( DistroAgentsTools --intern-op-permission-holds "$applyHolder" "${applyAsked%%$'\t'*}" "${applyAsked#*$'\t'}" \
+					${applySession:+--session-id "$applySession"} 2>/dev/null | head -1 )" in
+					'HOLDS '*) continue ;;
+				esac
+				AgentsToolsEscalationReroute "$applyFile" "$applyId" "$applyHolder" "$applyAsked" "$applyVerdict" "$applyFromForward" || return 1
+				return 0
+			done <<< "$( [ -n "$applyFolder" ] && printf '%s\t%s\n' "${applyFolder%%:*}" "${applyFolder#*:}" || AgentsToolsEscalationAsked "$applyFile" )"
+		;;
+	esac
+	if ! AgentsToolsEscalationClaim "$applyFile" ; then
+		## Another answer holds the claim, or has applied, so this one is NOT applied: rc 3,
+		## whichever of the two was a moment ahead. The caller decides what a lost claim means
+		## for it: an answer given is refused, and only a read takes the recorded verdict as
+		## its own result.
+		if [ "$( AgentsToolsEscalationField "$applyFile" status )" = "reply-pending" ] ; then
+			echo "⚠️ WARNING: $MDSC_CMD: $applyId is being answered by another answer right now, so this one is not applied" >&2
+			printf 'ESCALATION: %s being-answered\n' "$applyId"
+			return 3
+		fi
+		echo "⚠️ WARNING: $MDSC_CMD: $applyId was answered first by $( AgentsToolsEscalationField "$applyFile" answered-by ), with $( AgentsToolsEscalationField "$applyFile" verdict ), so this answer is not applied" >&2
+		printf 'ESCALATION: %s not-applied\n' "$applyId"
+		return 3
+	fi
+	applyKind="$( AgentsToolsEscalationField "$applyFile" kind )"
+	## The note first: one left by a holder that is gone is the answer that was being applied,
+	## and it is completed as it stands, in place of the answer this call brought.
+	local applyNote="$( AgentsToolsEscalationClaimDir "$applyFile" )/verdict" applyOwn="$applyVerdict"$'\t'"$applyBy" applyStamp="" applyWhy=""
+	if [ -f "$applyNote" ] ; then
+		applyVerdict="$( AgentsToolsEscalationNoteField "$applyNote" verdict )"
+		applyBy="$( AgentsToolsEscalationNoteField "$applyNote" by )"
+		applyText="$( AgentsToolsEscalationNoteField "$applyNote" text )"
+		applyAnswerSession="$( AgentsToolsEscalationNoteField "$applyNote" session )"
+		applyClosedBy="$( AgentsToolsEscalationNoteField "$applyNote" closed-by )"
+		applyFloor="$( AgentsToolsEscalationNoteField "$applyNote" floor )"
+		echo "⚠️ WARNING: $MDSC_CMD: the answer $applyVerdict by $applyBy for $applyId was being applied when its process went, and is completed now" >&2
+	elif [ -z "$applyVerdict" ] ; then
+		## Called only to complete a noted one, and none is.
+		AgentsToolsEscalationClaimGive
+		return 4
+	elif ! AgentsToolsEscalationNoteSet "$applyNote" verdict "$applyVerdict" by "$applyBy" text "$applyText" session "$applyAnswerSession" closed-by "$applyClosedBy" floor "$applyFloor" ; then
+		AgentsToolsEscalationClaimGive
+		echo "$MDSC_CMD: ⛔ ERROR: the verdict $applyVerdict for $applyId could not be noted before it is applied, so it is not applied" >&2
+		return 1
+	fi
+	## The grant an allow carries is written BEFORE the record closes. Its line goes under a
+	## stamp noted first, so the holder that completes this apply finds the line it wrote and
+	## writes no second one; a stamp whose line never came is replaced by a new one.
+	case "$applyKind:$applyVerdict" in
+		permission:allow-once|permission:allow-session|permission:allow-task|permission:allow-contact)
+			applySession="$( AgentsToolsEscalationField "$applyFile" session-id )"
+			applyRefusal="$( AgentsToolsEscalationField "$applyFile" refusal-id )"
+			applyStamp="$( AgentsToolsEscalationNoteField "$applyNote" grant-stamp )"
+			if [ -z "$applyStamp" ] || ! LC_ALL=C grep -q -F -- ":$applyStamp:$applyRefusal" "$MMDAPP/.local/agents/sessions/$applySession/grants" 2>/dev/null ; then
+				applyStamp="$( date -u +%Y%m%dT%H%M%SZ )"
+				AgentsToolsEscalationNoteSet "$applyNote" grant-stamp "$applyStamp" || applyStamp=""
+			fi
+			## A task grant is for the ask's own item, and lives while it is open.
+			type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+			[ -z "$applyStamp" ] || applyGrant="$( DistroAgentsTools --intern-op-permission-grant-open "$applyBy" --session-id "$applySession" \
+				--refusal-id "$applyRefusal" --kind "${applyVerdict#allow-}" --asked "$( AgentsToolsEscalationField "$applyFile" address-to )" --stamp "$applyStamp" \
+				$( [ -z "${agentsEscalationCapacity:-}" ] || printf -- '--holds-as %s' "$agentsEscalationCapacity" ) \
+				$( [ "$applyVerdict" != "allow-task" ] || printf -- '--task %s' "$( AgentsToolsEscalationField "$applyFile" item )" ) 2>&1 )" || :
+			applyWhy="$applyGrant"
+			applyGrant="$( printf '%s\n' "$applyGrant" | LC_ALL=C sed -n 's/^\(GRANT: .*\)$/\1/p' | head -1 )"
+		;;
+		## The folder answer: a Permission set of one entry, of the session, for the member whose
+		## call was refused, kept beside the record and applied by the code that applies every
+		## set, which writes no grant line twice. It names no item: the answer's own line on the
+		## item's Decisions is the record of it. The project answer is the same set, its one
+		## entry the project. What was worked out above stands only for the answer it was worked
+		## out for: a noted answer completed in place of this call's is worked out anew.
+		permission:allow-folder|permission:allow-project)
+			[ -n "$applyFolder" ] && [ "$applyWide" = "${applyVerdict#allow-}" ] || applyFolder="$( AgentsToolsEscalationFolder "$applyFile" "${applyVerdict#allow-}" )" || applyFolder=""
+			type AgentsToolsPermissionSetApply > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionSetApply.include"
+			if [ -n "$applyFolder" ] && [ ! -f "${applyFile%.md}.set" ] ; then
+				{
+					printf 'scope: session\n'
+					printf 'item: \n'
+					printf 'session-id: %s\n' "$( AgentsToolsEscalationField "$applyFile" session-id )"
+					printf 'participants: %s\n' "$( AgentsToolsEscalationField "$applyFile" owner )"
+					printf 'entry: %s\n' "$applyFolder"
+				} > "${applyFile%.md}.set.$$" && mv -f "${applyFile%.md}.set.$$" "${applyFile%.md}.set" || rm -f "${applyFile%.md}.set.$$"
+			fi
+			[ ! -f "${applyFile%.md}.set" ] || applyGrant="$( AgentsToolsPermissionSetApply "$applyId" "$applyBy" 2>&1 )" || :
+			applyWhy="$applyGrant"
+			applyGrant="$( printf '%s\n' "$applyGrant" | LC_ALL=C sed -n 's/^\(GRANT: .*\)$/\1/p' | head -1 )"
+		;;
+		## An approved permission set becomes the participants' grants and the item's record.
+		permission-set:allow-set)
+			type AgentsToolsPermissionSetApply > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionSetApply.include"
+			applyGrant="$( AgentsToolsPermissionSetApply "$applyId" "$applyBy" 2>&1 )" || :
+			applyWhy="$applyGrant"
+			applyGrant="$( printf '%s\n' "$applyGrant" | LC_ALL=C sed -n 's/^\(GRANT: .*\)$/\1/p' | head -1 )"
+		;;
+	esac
+	case "$applyKind:$applyVerdict" in
+		permission:allow-once|permission:allow-session|permission:allow-task|permission:allow-contact|permission:allow-folder|permission:allow-project|permission-set:allow-set)
+			if [ -z "$applyGrant" ] ; then
+				## Nothing is granted, so nothing is recorded: the note goes and the claim with it,
+				## and the request stays open for an answer that can be applied. The one-entry set of
+				## a folder answer, or of a project answer, goes too: the request is the single
+				## permission it was.
+				case "$applyKind:$applyVerdict" in
+					permission:allow-folder|permission:allow-project) rm -f "${applyFile%.md}.set" 2>/dev/null ;;
+				esac
+				rm -f "$applyNote" 2>/dev/null
+				AgentsToolsEscalationClaimGive
+				applyWhy="$( printf '%s\n' "$applyWhy" | LC_ALL=C grep -m1 -F '⛔' )" || applyWhy=""
+				echo "$MDSC_CMD: ⛔ ERROR: the grant of $applyVerdict for $applyId could not be written, so the verdict is not applied and the request stays open${applyWhy:+ -- $applyWhy}" >&2
+				## Said in the thread too, so who answered is not left thinking it worked.
+				AgentsToolsEscalationConfirm "$applyFile" "$applyId" not-applied "$applyVerdict" "$applyBy" "$applyFromForward" "The grant could not be written."
+				printf 'ESCALATION: %s open\n' "$applyId"
+				printf 'VERDICT: RETURNED\n'
+				printf 'VERDICT-REASON: %s answered %s, but its grant could not be written, so nothing is granted and the request stays open\n' "$applyBy" "$applyVerdict"
+				return 5
+			fi
+			AgentsToolsEscalationNoteSet "$applyNote" grant "${applyGrant#GRANT: }" || :
+		;;
+	esac
+	## A review prompt's verdict is given through the review flow BEFORE the record closes, as
+	## a grant is written: so a record never says accept with the item still in review. Once
+	## given it is noted, and the holder that completes this apply gives it no second time. One
+	## that is not given is not applied: said as RETURNED with the reason, the request open
+	## unless the review itself is no longer, rc 5.
+	if [ "$applyKind" = "review" ] && [ -z "$( AgentsToolsEscalationNoteField "$applyNote" review-given )" ] ; then
+		type AgentsReviewPromptVerdict > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ReviewFlow.include"
+		if applyWhy="$( AgentsReviewPromptVerdict "$applyFile" "$applyId" "$applyVerdict" "$applyText" "$applyBy" )" ; then
+			AgentsToolsEscalationNoteSet "$applyNote" review-given "$applyVerdict" || :
+		else
+			rm -f "$applyNote" 2>/dev/null
+			AgentsToolsEscalationClaimGive
+			case "$( AgentsToolsEscalationField "$applyFile" status )" in
+				reply-pending) printf 'ESCALATION: %s open\n' "$applyId" ;;
+				*) printf 'ESCALATION: %s closed %s\n' "$applyId" "$( AgentsToolsEscalationField "$applyFile" status )" ;;
+			esac
+			## Said in the thread too, once, so who answered is not left thinking it worked.
+			AgentsToolsEscalationConfirm "$applyFile" "$applyId" not-applied "$applyVerdict" "$applyBy" "$applyFromForward" "${applyWhy:-The review flow did not take it, so nothing is decided.}"
+			printf 'VERDICT: RETURNED\n'
+			printf 'VERDICT-REASON: %s\n' "${applyWhy:-$applyBy answered $applyVerdict, but the review flow did not take it, so nothing is decided}"
+			return 5
+		fi
+	fi
+	## A held change's verdict is carried out BEFORE the record closes, as a grant is written: so
+	## a record never says approve with nothing done about its change. Once carried out it is
+	## noted, with how -- applied, dropped, or not applied for good -- and the holder that
+	## completes this apply carries it out no second time. One that is not carried out now -- an
+	## answer that is not the human-owner's, a tool that could not run this time -- is not
+	## applied: said as RETURNED with the reason, the change still held and the request open, rc 5.
+	local applyChange=""
+	if [ "$applyKind" = "change" ] ; then
+		applyChange="$( AgentsToolsEscalationNoteField "$applyNote" change )"
+		if [ -z "$applyChange" ] ; then
+			type AgentsChangeVerdict > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.InternOpChange.include"
+			if applyChange="$( AgentsChangeVerdict "$applyFile" "$applyId" "$applyVerdict" "$applyText" "$applyBy" )" ; then
+				AgentsToolsEscalationNoteSet "$applyNote" change "$applyChange" || :
+			else
+				rm -f "$applyNote" 2>/dev/null
+				AgentsToolsEscalationClaimGive
+				## Said in the thread too, once, so who answered is not left thinking it worked.
+				AgentsToolsEscalationConfirm "$applyFile" "$applyId" not-yet "$applyVerdict" "$applyBy" "$applyFromForward" "${applyChange:-the change could not be applied this time}"
+				printf 'ESCALATION: %s open\n' "$applyId"
+				printf 'VERDICT: RETURNED\n'
+				printf 'VERDICT-REASON: %s, so nothing is done with that answer yet and the change stays held\n' "${applyChange:-$applyBy answered $applyVerdict, but the change could not be applied this time}"
+				return 5
+			fi
+		fi
+	fi
+	## Its Decisions line is written below, once the verdict text is on the record too. The answer
+	## message in the question's own thread goes with the close, so the :eyes: that acknowledges it
+	## lands on the message the person sent rather than on the question, which only takes the mark of
+	## the answer. A forward's own answer names no message of this channel's thread, so it passes none.
+	type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+	DistroAgentsTools --intern-op-pending-reply-close "$applyId" --status reply-received --verdict "$applyVerdict" --answered-by "$applyBy" \
+		${applyAnswerTs:+--answer-ts "$applyAnswerTs"} --no-decision --context escalation > /dev/null 2>&1 || {
+		## The claim goes with the failed close, so the next answer is not kept out. With a
+		## grant written the note stays, so what that answer completes is this verdict.
+		[ -n "$applyGrant" ] || rm -f "$applyNote" 2>/dev/null
+		AgentsToolsEscalationClaimGive
+		echo "$MDSC_CMD: ⛔ ERROR: the verdict $applyVerdict for $applyId could not be recorded, so it is not applied" >&2
+		return 1
+	}
+	## The close moved the now-closed record to closed/ (retention, T9): the rest reads its fields from there.
+	[ -f "$applyFile" ] || applyFile="$MMDAPP/.local/agents/pending/closed/$applyId.md"
+	## HIS ANSWER TO A PROMISE OF UNDO IS CARRIED OUT HERE, and nowhere else: the record of the act
+	## is closed with his verdict first, so the lane's own gate finds his answer on it, and then the
+	## operation the verdict names runs. An accept purges the record, a reject runs its inverse, and
+	## a rework keeps his words and the hold. One that cannot be carried out says so, with why, and
+	## the record keeps his answer either way.
+	local applyUndo="" applyUndoDir="" applyUndoOut="" applyUndoRc=0 applyUndoOp=""
+	if [ "$applyKind" = "undo" ] ; then
+		type AgentsToolsUndoRecordOfAsk > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/undo/AgentsTools.UndoRecord.include"
+		applyUndoDir="$( AgentsToolsUndoRecordOfAsk "$applyId" )"
+		if [ -z "$applyUndoDir" ] ; then
+			applyUndo="not-applied -- the act this answer is about is no longer in the store of this workspace"
+		else
+			case "${applyVerdict%% *}" in
+				accept) applyUndoOp="--undo-purge" ;;
+				reject) applyUndoOp="--undo-run" ;;
+				rework) applyUndoOp="--undo-rework" ;;
+				*) applyUndoOp="" ;;
+			esac
+			if [ -z "$applyUndoOp" ] ; then
+				applyUndo="not-applied -- ${applyVerdict%% *} is no answer this lane carries out"
+			else
+				applyUndoOut="$( "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" "$applyUndoOp" "$( AgentsToolsUndoField "$applyUndoDir" record-id )" --session-id "$( AgentsToolsUndoField "$applyUndoDir" session-id )" 2>&1 )" || applyUndoRc=$?
+				if [ "$applyUndoRc" -eq 0 ] ; then
+					applyUndo="done -- $( printf '%s\n' "$applyUndoOut" | LC_ALL=C grep -m1 -E '^(PURGED|RAN|REWORK) ' )"
+				else
+					applyUndo="not-applied -- $( printf '%s\n' "$applyUndoOut" | LC_ALL=C grep -m1 -v '^$' )"
+				fi
+			fi
+		fi
+	fi
+	if [ "$applyKind" = "permission" ] ; then
+		case "$applyVerdict" in
+			## A denial is said where the refusal was, in the asking session's tracking-thread, as
+			## a grant is where it is written: one post, which never fails the verdict.
+			deny)
+				local applyDenied=""
+				applySession="$( AgentsToolsEscalationField "$applyFile" session-id )"
+				applyDenied="$( AgentsToolsEscalationAsked "$applyFile" | head -1 )"
+				type AgentsToolsPermissionAnswerPost > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionPosts.include"
+				case "$applySession" in
+					''|*/*) ;;
+					*)
+						AgentsToolsPermissionAnswerPost denial "$( AgentsToolsEscalationField "$applyFile" owner )" "$MMDAPP/.local/agents/sessions/$applySession" "$applySession" \
+							"$( AgentsToolsEscalationField "$applyFile" refusal-id )" "${applyDenied%%$'\t'*}" "${applyDenied#*$'\t'}" "$applyBy" "" "$( AgentsToolsEscalationField "$applyFile" address-to )" || :
+					;;
+				esac
+			;;
+		esac
+	fi
+	## A denied permission set is said in a tracking-thread as any deny is: that of the session
+	## it was asked for, in the store an allow-set would have written its grants to
+	## (AgentsToolsPermissionSetApply), so a set's grants and its denial never sit in two threads.
+	if [ "$applyKind" = "permission-set" ] && [ "$applyVerdict" = "deny" ] ; then
+		applySession="$( AgentsToolsEscalationField "$applyFile" session-id )"
+		type AgentsToolsPermissionAnswerPost > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionPosts.include"
+		type AgentsToolsPermissionShareStore > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionHolds.include"
+		case "$applySession" in
+			''|*/*) ;;
+			*)
+				AgentsToolsPermissionAnswerPost denial "$( AgentsToolsEscalationField "$applyFile" owner )" "$( AgentsToolsPermissionSessionDir "$( AgentsToolsPermissionShareStore "$applySession" )" )" "$applySession" \
+					"" "" "" "$applyBy" "" "$( AgentsToolsEscalationField "$applyFile" address-to )" \
+					"permission set $applyId, $( AgentsToolsEscalationAsked "$applyFile" | LC_ALL=C grep -c . ) permission(s)" || :
+			;;
+		esac
+	fi
+	## A set answered is said to its participants, in one line in the session's thread.
+	if [ "$applyKind" = "permission-set" ] ; then
+		case "$applyVerdict" in
+			allow-set|deny)
+				type AgentsToolsPermissionSetTold > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionSetPost.include"
+				! type AgentsToolsPermissionSetTold > /dev/null 2>&1 || AgentsToolsPermissionSetTold "$applyId" "$( [ "$applyVerdict" = "deny" ] && printf 'denied' || printf 'allowed' )" "$applyBy" || :
+			;;
+		esac
+	fi
+	## A held change that was not applied leaves a prompt that takes no answer any more: closed
+	## the way the post of a discarded permission set is.
+	case "$applyKind:$applyChange" in
+		change:applied*) ;;
+		change:*)
+			type AgentsChangePostClose > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.InternOpChange.include"
+			AgentsChangePostClose "$applyFile"
+		;;
+	esac
+	## The rest of it, from the note: its text, grant line and follow floor on the record, its
+	## line on the item's Decisions. The note is then marked applied.
+	AgentsToolsEscalationApplyFinish "$applyFile" "$applyId"
+	## The confirmation, in the thread the answer was read in: what was read, and what was done.
+	case "$applyKind:$applyVerdict" in
+		permission:allow-*|permission-set:allow-set) AgentsToolsEscalationConfirm "$applyFile" "$applyId" granted "$applyVerdict" "$applyBy" "$applyFromForward" ;;
+		permission:deny|permission-set:deny) AgentsToolsEscalationConfirm "$applyFile" "$applyId" denied "$applyVerdict" "$applyBy" "$applyFromForward" ;;
+		permission-set:edit) AgentsToolsEscalationConfirm "$applyFile" "$applyId" edit "$applyVerdict" "$applyBy" "$applyFromForward" "$applyText" ;;
+		## A promise of undo: what was done with it, by how its verdict was carried out.
+		undo:*)
+			case "$applyUndo" in
+				done*) AgentsToolsEscalationConfirm "$applyFile" "$applyId" taken "$applyVerdict" "$applyBy" "$applyFromForward" "$applyText" ;;
+				*) AgentsToolsEscalationConfirm "$applyFile" "$applyId" not-applied "$applyVerdict" "$applyBy" "$applyFromForward" "${applyUndo#not-applied -- }" ;;
+			esac
+		;;
+		## A held change: what was done with it, by how its verdict was carried out.
+		change:*)
+			case "$applyChange" in
+				applied*) AgentsToolsEscalationConfirm "$applyFile" "$applyId" applied "$applyVerdict" "$applyBy" "$applyFromForward" "$applyText" ;;
+				dropped*) AgentsToolsEscalationConfirm "$applyFile" "$applyId" rejected "$applyVerdict" "$applyBy" "$applyFromForward" "$applyText" ;;
+				## Why, without what the member is told to do about it, which the confirmation says itself.
+				*) applyWhy="${applyChange#* -- }" ; AgentsToolsEscalationConfirm "$applyFile" "$applyId" not-applied "$applyVerdict" "$applyBy" "$applyFromForward" "${applyWhy%%. Make the change again*}" ;;
+			esac
+		;;
+		*)
+			AgentsToolsEscalationConfirm "$applyFile" "$applyId" taken "$applyVerdict" "$applyBy" "$applyFromForward" "$applyText"
+			## THE ANSWERED POST LOSES ITS `How to answer` GROUP (the owner's ruling, 2026-11-09, and the template's own rule: a post that no
+			## longer takes an answer is the same text without that group): edited in place once the answer is read, as a superseded
+			## version already is. Best effort, said on stderr where the edit does not land.
+			type AgentsToolsAskPostClose > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.AskPost.include"
+			! type AgentsToolsAskPostClose > /dev/null 2>&1 || AgentsToolsAskPostClose "$applyFile" "$( AgentsToolsEscalationField "$applyFile" question-ts )" "" edit
+		;;
+	esac
+	## A noted answer completed in place of the one this call brought: that one is not applied.
+	if [ -n "${applyOwn%%$'\t'*}" ] && [ "$applyOwn" != "$applyVerdict"$'\t'"$applyBy" ] ; then
+		echo "⚠️ WARNING: $MDSC_CMD: $applyId was answered first by $applyBy, with $applyVerdict, so this answer is not applied" >&2
+		printf 'ESCALATION: %s not-applied\n' "$applyId"
+		return 3
+	fi
+	printf 'ESCALATION: %s answered\n' "$applyId"
+	printf 'VERDICT: %s\n' "$applyVerdict"
+	[ -z "$applyText" ] || printf 'VERDICT-TEXT: %s\n' "$applyText"
+	printf 'ANSWERED-BY: %s\n' "$applyBy"
+	[ -z "$applyClosedBy" ] || printf 'CLOSED-BY: %s\n' "$applyClosedBy"
+	[ -z "$applyGrant" ] || printf '%s\n' "$applyGrant"
+	[ -z "$applyChange" ] || printf 'CHANGE: %s\n' "$applyChange"
+	[ -z "$applyUndo" ] || printf 'UNDO: %s\n' "$applyUndo"
+	return 0
+}
+
+## The verdict one thread carries for this record, as "<verdict>\t<author>", taken
+## from the accounts that may answer there and never from the accounts that asked.
+## The lines after it, "CLARIFY\t<ts>\t<author>\t<text>", are the clarifications on that
+## answer (AgentsPendingReplyClarifications.awk): the rest of the reply the verdict was read
+## from, and every later reply. With no verdict, every reply there is one. A thread that gives
+## no verdict any more (non-empty ninth argument) is read for its clarifications only.
+## Three first words are no verdict, and each means its own thing, so none is said as another:
+## RETURNED, something an accepted account wrote or clicked is there and names no answer, so
+## the question goes back to its asker; OPEN, nothing from an accepted account is there yet
+## (or the record names no thread to read); UNREADABLE, the thread could not be read, so
+## nothing is known -- its third field names the conversation, the identity it was read with
+## and Slack's own error.
+## WHERE THE ANSWER IS READ: the thread of the question. A question that is one top-level post
+## of a direct conversation is answered where its person types as well -- the conversation
+## itself -- and that is read too, when its thread holds nothing (AgentsToolsEscalationAskDirect).
+AgentsToolsEscalationThreadVerdict(){ ## member, record file, pending id, channel, question ts, thread ts, accepted authors, read as bot (true|empty), no verdict from this thread (non-empty|empty)
+	local threadMember="$1" threadFile="$2" threadPending="$3" threadChannel="$4" threadQuestion="$5" threadRoot="$6" threadAuthors="$7" threadAsBot="${8:-}" threadNoVerdict="${9:-}"
+	local threadWork threadRc=0 threadVerdict threadAuthor threadAsking threadOptions="" threadVerdictTs="" threadClarify=""
+	local threadErrFile="" threadErr="" threadAs="member $threadMember" threadFilterRc=0
+	[ -z "$threadAsBot" ] || threadAs="the team bot"
+	[ -n "$threadChannel" ] && [ -n "$threadQuestion" ] && [ -n "$threadRoot" ] && [ -n "$threadAuthors" ] || { printf 'OPEN\t\n' ; return 0 ; }
+	threadErrFile="$( mkdir -p "$MMDAPP/.local/temp" 2> /dev/null && mktemp "$MMDAPP/.local/temp/mdat-escalation-thread.XXXXXX" 2> /dev/null )" || threadErrFile=""
+	type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+	threadWork="$( DistroAgentsTools --intern-op-comms-slack-read "$threadMember" "$threadChannel:$threadRoot" --thread ${threadAsBot:+--identity-bot} 2> "${threadErrFile:-/dev/null}" )" || threadRc=$?
+	if [ "$threadRc" != "0" ] ; then
+		## Slack's own error where the call names one, else the read's first error line as it stands.
+		[ -z "$threadErrFile" ] || threadErr="$( LC_ALL=C sed -n 's/^.*"error":"\([^"]*\)".*$/\1/p' "$threadErrFile" 2> /dev/null | head -1 )"
+		[ -n "$threadErr" ] || [ -z "$threadErrFile" ] || threadErr="$( LC_ALL=C grep -m1 -F '⛔' "$threadErrFile" 2> /dev/null | LC_ALL=C sed 's/^.*⛔ ERROR: //' )"
+		[ -z "$threadErrFile" ] || rm -f "$threadErrFile"
+		printf 'UNREADABLE\t\tthe thread %s could not be read as %s: %s\n' "$threadChannel:$threadRoot" "$threadAs" "${threadErr:-the read failed and named no error}"
+		return 0
+	fi
+	[ -z "$threadErrFile" ] || rm -f "$threadErrFile"
+	[ ! -f "${threadFile%.md}.options" ] || threadOptions="$( cat "${threadFile%.md}.options" )"
+	## A thread several questions share (AgentsTools.AskThread.include): a reply with no number
+	## answers the latest question above it; one after that question closed is set aside, and
+	## named if nothing else answers.
+	local threadStanding="" threadAnswers="" threadUntagged=""
+	type AgentsToolsAskThreadStanding > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.AskThread.include"
+	threadStanding="$( AgentsToolsAskThreadStanding "$threadChannel" "$threadQuestion" )"
+	local threadOthers=""
+	[ "${threadStanding#*$'\t'}" = "0" ] || [ "${threadStanding#*$'\t'}" = "1" ] || threadOthers="$( AgentsToolsAskThreadOthers "$threadChannel" "$threadQuestion" )"
+	## A revised question is answered on its live revision, a reply in its own thread: the
+	## clicks under that reply, and the replies after it.
+	local threadLive="$threadQuestion" threadKind=""
+	[ "$threadQuestion" != "$( AgentsToolsEscalationField "$threadFile" question-ts )" ] || threadLive="$( AgentsToolsEscalationField "$threadFile" revision-ts )"
+	[ -n "$threadLive" ] || threadLive="$threadQuestion"
+	## Where the question has its own thread, a click on its first post still answers.
+	local threadAlso=""
+	[ "$threadLive" = "$threadQuestion" ] || [ "$threadRoot" != "$threadQuestion" ] || threadAlso="$threadQuestion"
+	threadKind="$( AgentsToolsEscalationField "$threadFile" kind )"
+	## A proposal is answered on its root alone: the clicks under its root, never those under
+	## the proposal reply, and the replies after that reply (AgentsSlackThreadAnswersSince.awk).
+	local threadSince=""
+	if [ "$threadKind" = "proposal" ] && [ "$threadLive" != "$threadQuestion" ] ; then
+		threadSince="$threadLive" ; threadLive="$threadQuestion" ; threadAlso=""
+	fi
+	if [ "$threadRc" = "0" ] ; then
+		threadAnswers="$( LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" \
+		-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/slack/AgentsSlackMessagesFormat.awk" <<< "$threadWork" 2>/dev/null \
+			| LC_ALL=C awk -v rootTs="$threadLive" -v alsoTs="$threadAlso" -v askingUsers="$( AgentsToolsEscalationField "$threadFile" asking-accounts )" -v fromUsers="$threadAuthors" -v tag="${threadStanding%%$'\t'*}" -v threadCount="${threadStanding#*$'\t'}" -v others="$threadOthers" \
+				-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsDismissalMatch.awk" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/slack/AgentsSlackThreadAnswers.awk" 2>/dev/null )" || threadFilterRc=$?
+		## A rendering that does not hold the question's own message is not known to be its
+		## thread: nothing is known from it, which is never the same as nobody having answered.
+		if [ "$threadFilterRc" != "0" ] ; then
+			printf 'UNREADABLE\t\tthe thread %s was read as %s, but what came back does not hold the question (%s), so whether it was answered is not known\n' "$threadChannel:$threadRoot" "$threadAs" "$threadLive"
+			return 0
+		fi
+		[ -z "$threadSince" ] || threadAnswers="$( printf '%s\n' "$threadAnswers" | LC_ALL=C awk -v sinceTs="$threadSince" \
+			-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/slack/AgentsSlackThreadAnswersSince.awk" 2>/dev/null )" || threadAnswers=""
+		## AN ANSWER TYPED IN THE CONVERSATION, where the question is one top-level post of a
+		## conversation of two people (a direct message). What the post asks is answered by a
+		## click under it or by a reply in its thread, and a person answering there does neither:
+		## he types in the conversation, where a reply is no reply to the post at all, so nothing
+		## a thread read returns ever carries it. What stands after the question there, from the
+		## account it was addressed to, is therefore read as its answer too -- but only where its
+		## own thread holds nothing at all, so a click or a reply that already answers keeps
+		## answering as it did, and only in a direct conversation, where no other question stands
+		## that an unnumbered reply could belong to. A conversation that cannot be read leaves
+		## the result exactly what the thread said: never an answer guessed at.
+		if ! printf '%s\n' "$threadAnswers" | LC_ALL=C grep -q -E '^([0-9]+\.[0-9]+ \| |reaction on the question: |UNMATCHED-REPLY )' \
+			&& AgentsToolsEscalationAskDirect "$threadFile" "$threadChannel" ; then
+			local threadDirect="" threadDirectRc=0
+			type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+			threadDirect="$( DistroAgentsTools --intern-op-comms-slack-read "$threadMember" "$threadChannel" --oldest "$threadLive" \
+				${threadAsBot:+--identity-bot} 2> /dev/null )" || threadDirectRc=$?
+			if [ "$threadDirectRc" = "0" ] ; then
+				threadAnswers="$( printf '%s\n' "$threadDirect" | LC_ALL=C awk 'NR == 1 && /^## target=/ { next ; } { print }' \
+					| LC_ALL=C awk -v rootTs="$threadLive" -v askingUsers="$( AgentsToolsEscalationField "$threadFile" asking-accounts )" -v fromUsers="$threadAuthors" \
+						-v mode=conversation -v callerName="$threadMember" -v includeOwn=0 \
+						-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsDismissalMatch.awk" \
+						-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/slack/AgentsSlackThreadAnswers.awk" 2>/dev/null )" || threadAnswers=""
+			fi
+		fi
+		## Nothing an accepted account wrote or clicked: the question is open, and nothing is returned.
+		printf '%s\n' "$threadAnswers" | LC_ALL=C grep -q -E '^([0-9]+\.[0-9]+ \| |reaction on the question: |UNMATCHED-REPLY )' || { printf 'OPEN\t\n' ; return 0 ; }
+		threadUntagged="$( printf '%s\n' "$threadAnswers" | LC_ALL=C grep -c '^UNMATCHED-REPLY ' )"
+		threadVerdict="$( printf '%s\n' "$threadAnswers" | LC_ALL=C grep -v '^UNMATCHED-REPLY ' \
+			| MDAT_VERDICT_WORDS=1 MDAT_VERDICT_KIND="${threadKind:-question}" MDAT_VERDICT_OPTIONS="$threadOptions" MDAT_VERDICT_AUTHORS="$threadAuthors" \
+				MDAT_VERDICT_FOLDER="$( AgentsToolsEscalationFolderOffered "$threadFile" )" MDAT_VERDICT_PROJECT="$( AgentsToolsEscalationFolderOffered "$threadFile" project )" \
+				MDAT_VERDICT_CONTACT="$( AgentsToolsEscalationFolderOffered "$threadFile" contact )" \
+				MDAT_VERDICT_SELECT="$( AgentsToolsEscalationField "$threadFile" select )" MDAT_VERDICT_ASKING="$( AgentsToolsEscalationField "$threadFile" asking-accounts )" \
+				LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsEscalationVerdict.awk" 2>/dev/null )" || threadVerdict=""
+		[ -z "$threadNoVerdict" ] || [ -z "$threadVerdict" ] || threadVerdict="RETURNED"$'\t'$'\t'
+		## The verdict reader's third field is the reply it was read from; the line ends at the author.
+		case "$threadVerdict" in
+			*$'\t'*$'\t'*) threadVerdictTs="${threadVerdict##*$'\t'}" ; threadVerdict="${threadVerdict%$'\t'*}" ;;
+		esac
+		[ "${threadVerdict%%$'\t'*}" != "RETURNED" ] || threadVerdictTs=""
+		## A member's send header is taken off first (AgentsPendingReplyOwnWords.awk): it is no clarification.
+		threadClarify="$( printf '%s\n' "$threadAnswers" \
+			| LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsDismissalMatch.awk" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsPendingReplyOwnWords.awk" 2>/dev/null \
+			| LC_ALL=C awk -v answerTs="${threadVerdictTs:-$threadQuestion}" \
+			-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsPendingReplyClarifications.awk" 2>/dev/null | LC_ALL=C awk '{ print "CLARIFY\t" $0 ; }' )" || threadClarify=""
+	fi
+	if [ "${threadUntagged:-0}" -gt 0 ] && { [ -z "$threadVerdict" ] || [ "${threadVerdict%%$'\t'*}" = "RETURNED" ] ; } ; then
+		printf 'RETURNED\t\ta reply with no question number came after the latest question above it was already answered, so it answers none -- a reply to this question starts with the plain text %s\n' "${threadStanding%%$'\t'*}"
+		[ -z "$threadClarify" ] || printf '%s\n' "$threadClarify"
+		return 0
+	fi
+	[ -n "$threadVerdict" ] || { printf 'RETURNED\t\n' ; return 0 ; }
+	threadAuthor="${threadVerdict#*$'\t'}"
+	## An answer from the asking account, or with no asking account known, is never taken.
+	[ "${threadVerdict%%$'\t'*}" != "RETURNED" ] || { printf 'RETURNED\t\n' ; [ -z "$threadClarify" ] || printf '%s\n' "$threadClarify" ; return 0 ; }
+	threadAsking=" $( AgentsToolsEscalationField "$threadFile" asking-accounts ) "
+	case "$threadAsking" in
+		'  '|'   ') printf 'RETURNED\t\tthe asking account could not be established, so no answer can be told apart from its own\n' ; return 0 ;;
+		*" $threadAuthor "*) printf 'RETURNED\t\tthe answer came from the account that asked, so it is not taken\n' ; return 0 ;;
+	esac
+	printf '%s\n' "$threadVerdict"
+	[ -z "$threadVerdictTs" ] || printf 'ANSWER-TS\t%s\n' "$threadVerdictTs"
+	[ -z "$threadClarify" ] || printf '%s\n' "$threadClarify"
+}
+
+## The follow floor a thread verdict leaves: the newest message it read there, the reply the
+## verdict came from or the last one kept with it; empty when it read none (a reaction alone).
+AgentsToolsEscalationFloor(){ ## thread verdict output
+	printf '%s\n' "$1" | LC_ALL=C awk -F'\t' '
+		function newer( a, b,    sa, sb, fa, fb ) {
+			sa = a ; sub( /\..*$/, "", sa ) ; sb = b ; sub( /\..*$/, "", sb ) ;
+			fa = a ; sub( /^[^.]*\.?/, "", fa ) ; fb = b ; sub( /^[^.]*\.?/, "", fb ) ;
+			return ( sa + 0 > sb + 0 || ( sa + 0 == sb + 0 && substr( fa "000000", 1, 6 ) > substr( fb "000000", 1, 6 ) ) ) ;
+		}
+		$1 == "ANSWER-TS" || $1 == "CLARIFY" { if ( top == "" || newer( $2, top ) ) { top = $2 ; } }
+		END { print top ; }'
+}
+
+## What the person wrote beside the verdict's own line, for whoever reads this result: the
+## CLARIFY lines of a thread verdict, a line a message, `CLARIFICATION: <ts> <author>: <text>`,
+## worded as the record keeps it. A reply that gives a verdict is not only a verdict: what he
+## wrote under it, and after it, is for the asker to read.
+AgentsToolsEscalationSaid(){ ## thread verdict output
+	printf '%s\n' "$1" | LC_ALL=C awk -F'\t' '$1 == "CLARIFY" { saidText = $0 ; sub( /^CLARIFY\t[^\t]*\t[^\t]*\t/, "", saidText ) ; printf "CLARIFICATION: %s %s: %s\n", $2, $3, saidText ; }'
+}
+
+## Keeps the CLARIFY lines a thread verdict carried on the record and its item's Decisions,
+## and moves its follow floor up to <floor> when one is given.
+AgentsToolsEscalationClarify(){ ## request id, thread verdict output, optional follow floor
+	local clarifyLines
+	clarifyLines="$( printf '%s\n' "$2" | LC_ALL=C awk 'index( $0, "CLARIFY\t" ) == 1 { print substr( $0, 9 ) ; }' )"
+	[ -n "$clarifyLines" ] || [ -n "${3:-}" ] || return 0
+	type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+	printf '%s\n' "$clarifyLines" | DistroAgentsTools --intern-op-pending-reply-clarify "$1" --from-stdin ${3:+--follow-floor "$3"} --context "$MDSC_CMD" 2>/dev/null \
+		| LC_ALL=C grep '^CLARIFIED ' || echo "⚠️ WARNING: $MDSC_CMD: the clarifications on $1 were not kept" >&2
+	return 0
+}
+
+## The call of one refusal record as an entry of a Permission set, `<tool>:<target>`, its
+## target natural: only where a set's grant would be for exactly that call. rc 1, nothing
+## printed, for a record that names no tool; a target a set reads as a pattern, or one with a
+## `..` segment, a line break or a tab, which the set's record cannot keep on one line; and a
+## write in a read-only place, which nothing grants.
+AgentsToolsEscalationSetEntry(){ ## refusal record file, session id
+	type AgentsToolsPermissionField > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionHolds.include"
+	type AgentsToolsPermissionCeilingRefuse > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionPlaces.include"
+	local entryTool entryTarget
+	entryTool="$( AgentsToolsPermissionField "$1" tool )"
+	entryTarget="$( AgentsToolsPermissionRecordDecode "$( AgentsToolsPermissionField "$1" target )" )"
+	[ -n "$entryTool" ] && AgentsToolsAssertBareName "$entryTool" "tool" escalation-permission-add 2> /dev/null || return 1
+	case "$entryTarget" in
+		''|'*'|'**'|*/'**'|*://*'*'|*/../*|*/..|*$'\n'*|*$'\r'*|*$'\t'*) return 1 ;;
+	esac
+	AgentsToolsPermissionCeilingRefuse "$entryTool" "$entryTarget" "$2" "$entryTool:$entryTarget" 2> /dev/null || return 1
+	printf '%s:%s' "$entryTool" "$entryTarget"
+}
+
+## The record of one request, found by id, in either store of pending questions: the asks of
+## .local/agents/pending, and the requests for the authority of .local/questions
+## (AgentsToolsPendingRecordPath, AgentsTools.Authority.include). Prints its path.
+AgentsToolsEscalationRecord(){ ## request id
+	AgentsToolsAssertBareName "$1" "<request-id>" escalation || return 1
+	type AgentsToolsPendingRecordPath > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.Authority.include"
+	AgentsToolsPendingRecordPath "$1" || {
+		echo "$MDSC_CMD: ⛔ ERROR: no escalation record $1" >&2
+		return 1
+	}
+}
+
+## Whether an ask stands as ONE TOP-LEVEL POST of a conversation of two people (a direct
+## message), where the person answers by typing in the conversation rather than by opening the
+## thread under the post: rc 0 it does. Read from the record's own places -- the question is
+## the first message of its thread (its thread ts is its own), and Slack says the conversation
+## is a direct one. A conversation that cannot be read is not taken for a direct one, so
+## nothing is read from it and the answer is taken where it always was: never guessed at.
+AgentsToolsEscalationAskDirect(){ ## record file, channel
+	local directChannel="$2" directIdentity="" directInfo="" directIsIm=""
+	[ -n "$directChannel" ] || return 1
+	[ "$( AgentsToolsEscalationField "$1" thread-ts )" = "$( AgentsToolsEscalationField "$1" question-ts )" ] || return 1
+	[ "$( AgentsToolsEscalationField "$1" ask-identity )" != "bot" ] || directIdentity="bot"
+	type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+	directInfo="$( DistroAgentsTools --intern-op-slack-call "$( AgentsToolsEscalationField "$1" owner )" --api conversations.info \
+		--resolve-target "$directChannel" ${directIdentity:+--identity "$directIdentity"} --context "--intern-op-escalation-read" 2> /dev/null )" || return 1
+	directIsIm="$( printf '%s\n' "$directInfo" | LC_ALL=C awk -v path=channel.is_im -v dialect=slack \
+		-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" 2> /dev/null )" || return 1
+	[ "$directIsIm" = "true" ]
+}
+
+## The verdict one line typed at a console gives for this record, by the one reader of a
+## reply's first line (AgentsEscalationVerdict.awk), which is given that line as the one
+## reply of an accepted account: a kind's own word, the number of an option, and whatever
+## words follow the word in the shapes that reader takes. Prints "<verdict>" or
+## "<verdict> -- <words>"; nothing where the line names no answer of the kind.
+AgentsToolsEscalationTypedVerdict(){ ## record file, the line as typed
+	local typedOptions="" typedOut=""
+	[ ! -f "${1%.md}.options" ] || typedOptions="$( cat "${1%.md}.options" )"
+	typedOut="$( printf '1.000001 | CONSOLE | %s\n' "${2//$'\n'/ }" \
+		| MDAT_VERDICT_WORDS=1 MDAT_VERDICT_KIND="$( AgentsToolsEscalationField "$1" kind )" MDAT_VERDICT_OPTIONS="$typedOptions" MDAT_VERDICT_AUTHORS="CONSOLE" \
+			MDAT_VERDICT_FOLDER="$( AgentsToolsEscalationFolderOffered "$1" )" MDAT_VERDICT_PROJECT="$( AgentsToolsEscalationFolderOffered "$1" project )" \
+			MDAT_VERDICT_CONTACT="$( AgentsToolsEscalationFolderOffered "$1" contact )" \
+			MDAT_VERDICT_SELECT="$( AgentsToolsEscalationField "$1" select )" MDAT_VERDICT_ASKING="" \
+			LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsEscalationVerdict.awk" 2>/dev/null )" || typedOut=""
+	typedOut="${typedOut%%$'\t'*}"
+	case "$typedOut" in ''|RETURNED) return 0 ;; esac
+	printf '%s\n' "$typedOut"
+}
+
+## THE TRACE of an answer given at a console: one line more in the question's own thread, by
+## the team bot whatever identity asked, which says it came from the console, by which
+## account and with which answer (the note template, `# Ask`, console-answered or
+## console-rejected). Never fails its caller: a line not posted is one stderr warning, and
+## the answer stands.
+AgentsToolsEscalationConsoleTrace(){ ## record file, request id, block (console-answered|console-rejected), account, verdict, its text (may be empty)
+	local traceChannel traceThread traceTo traceText traceArgs
+	traceChannel="$( AgentsToolsEscalationField "$1" channel )" ; traceThread="$( AgentsToolsEscalationField "$1" thread-ts )"
+	[ -n "$traceChannel" ] && [ -n "$traceThread" ] || return 0
+	traceText="$( ASKP_F_by="$4" ASKP_F_option="$5" ASKP_F_text="$6" AgentsToolsEscalationNote "Ask/$3" )" || traceText=""
+	if [ -z "$traceText" ] ; then
+		echo "⚠️ WARNING: $MDSC_CMD: $2 is answered from the console, but the line that says so could not be filled from its template (tooling-note.post.format.md, Ask/$3)" >&2
+		return 0
+	fi
+	traceArgs=( "$( AgentsToolsEscalationField "$1" owner )" "$traceChannel:$traceThread" --from-stdin --identity-bot )
+	traceTo="$( AgentsToolsEscalationField "$1" address-to )"
+	[ -z "$traceTo" ] || traceArgs=( ${traceArgs[@]+"${traceArgs[@]}"} --address-to "$traceTo" )
+	type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+	printf '%s\n' "$traceText" | DistroAgentsTools --intern-op-comms-slack-send-message ${traceArgs[@]+"${traceArgs[@]}"} > /dev/null 2>&1 \
+		|| echo "⚠️ WARNING: $MDSC_CMD: $2 is answered from the console, but the line that says so was not posted in $traceChannel:$traceThread" >&2
+	return 0
+}

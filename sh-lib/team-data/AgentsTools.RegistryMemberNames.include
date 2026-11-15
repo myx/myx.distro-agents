@@ -1,0 +1,179 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.RegistryMemberNames.include -- the team-members-names registry: a member's name fields and marks, read, checked and rebuilt.
+## Sourced, never run. Functions only. Each function loads what it calls itself. The registry mechanics are AgentsTools.Registries.include.
+##
+
+## One member's own display marks from its .basic.md, tab-separated: the icon
+## (Slack shortcode, else the unicode character) and the alias (the member's
+## own name instead, when the alias is absent or malformed).
+AgentsToolsCommsSlackMemberMarks(){
+	local marksFile="$MDAT_SKILLSET_ROOT/$1/$1.basic.md"
+	[ -f "$marksFile" ] || return 1
+	LC_ALL=C awk -F": " -v who="$1" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/slack/AgentsToolsCommsSlackMemberMarks.awk" "$marksFile"
+}
+
+## Why a name or alias value, as written, cannot be stored, or nothing when it can. A
+## value is a plain scalar (not quoted), is held to what a JSON string carries
+## (pinned to the C locale, so the verdict does not follow the caller: a double quote,
+## a backslash, an ASCII control and a two-byte C1 control refuse, every other UTF-8
+## byte passes), and an alias to what an @handle carries, which has no space. A name
+## keeps its spaces, which the registry writes as `_`, so a name holds no `_` itself.
+AgentsToolsRegistryNameInvalid(){ ## key, value as written
+	local invalidBad
+	case "$2" in
+		\"*|\'*)
+			printf '%s\n' "is quoted"
+			return 0
+		;;
+	esac
+	if [ "$1" != "alias" ] && [ "${2#*_}" != "$2" ] ; then
+		printf '%s\n' "holds an underscore, which the registry keeps for a space"
+		return 0
+	fi
+	invalidBad="$( printf '["\\\\]|[[:cntrl:]]|\302[\200-\237]' )"
+	if printf '%s' "$2" | LC_ALL=C grep -qE "$invalidBad" ; then
+		printf '%s\n' "holds a double quote, a backslash or a control character"
+		return 0
+	fi
+	if [ "$1" = "alias" ] && { ! printf '%s' "$2" | LC_ALL=C grep -qE '^[A-Za-z0-9._-]+$' || [ "${2#-}" != "$2" ] ; } ; then
+		printf '%s\n' "is not a handle: letters, digits, dot, underscore and dash, not starting with a dash"
+	fi
+	return 0
+}
+
+## A member's Name bullet from its basic.md as plain words: the value after the colon,
+## backticks removed, one final period dropped. Prints nothing and returns 1 when the
+## line is absent or holds anything but words (letters, digits, hyphen, apostrophe,
+## single spaces; bytes above 0x7f pass, so a localised name does).
+AgentsToolsRegistryMemberNameBullet(){ ## member
+	local bulletFile="$MDAT_SKILLSET_ROOT/$1/$1.basic.md" bulletName bulletPlain
+	[ -f "$bulletFile" ] || return 1
+	bulletName="$( LC_ALL=C awk '
+		/^- \*\*Name\*\*:/ {
+			name = $0 ;
+			sub( /^- \*\*Name\*\*:[ \t]*/, "", name ) ;
+			gsub( /`/, "", name ) ;
+			sub( /[ \t\r]+$/, "", name ) ;
+			sub( /\.$/, "", name ) ;
+			print name ;
+			exit ;
+		}
+	' "$bulletFile" )" || bulletName=""
+	[ -n "$bulletName" ] || return 1
+	bulletPlain="$( printf "^[A-Za-z0-9'\200-\377-]+( [A-Za-z0-9'\200-\377-]+)*\$" )"
+	printf '%s' "$bulletName" | LC_ALL=C grep -qE "$bulletPlain" || return 1
+	printf '%s\n' "$bulletName"
+}
+
+## One member's stored name fields, "<mark> <first-name> <family-name> <alias>", `-` for
+## each that is absent or cannot be stored, the whitespace of a name written as `_`.
+## Defaults come from the member's basic.md (the marks function; the Name bullet split
+## at its first space); each is replaced by the member's scope key FIRST_NAME,
+## FAMILY_NAME or ALIAS when that key is set.
+AgentsToolsRegistryMemberNamesRead(){ ## member
+	local readMember="$1" readMarks readMark readAlias readName readFirst readFamily readKey readScopeKey readValue readOverride readReason readRow
+	readMarks="$( AgentsToolsCommsSlackMemberMarks "$readMember" 2>/dev/null )" || readMarks=""
+	readMark="$( printf '%s' "${readMarks%%$'\t'*}" | LC_ALL=C tr -d ' \t' )"
+	readAlias=""
+	[ -z "$readMarks" ] || readAlias="${readMarks#*$'\t'}"
+	[ "$readAlias" != "$readMember" ] || readAlias=""
+	readFirst="" ; readFamily=""
+	if readName="$( AgentsToolsRegistryMemberNameBullet "$readMember" )" ; then
+		readFirst="${readName%% *}"
+		case "$readName" in *" "*) readFamily="${readName#* }" ;; esac
+	fi
+	readRow="${readMark:--}"
+	for readKey in first-name family-name alias ; do
+		readScopeKey="$( printf '%s' "${readKey//-/_}" | LC_ALL=C tr 'a-z' 'A-Z' )"
+		case "$readKey" in
+			first-name) readValue="$readFirst" ;;
+			family-name) readValue="$readFamily" ;;
+			alias) readValue="$readAlias" ;;
+		esac
+		type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/settings/AgentsTools.ConfigOption.include"
+		readOverride="$( AgentsToolsConfigOption "$readMember" --select "$readScopeKey" 2>/dev/null )" || readOverride=""
+		[ -z "$readOverride" ] || readValue="$readOverride"
+		[ "$readValue" != "not decided yet" ] || readValue=""
+		readReason=""
+		[ -z "$readValue" ] || readReason="$( AgentsToolsRegistryNameInvalid "$readKey" "$readValue" )"
+		if [ -z "$readValue" ] || [ -n "$readReason" ] ; then
+			readValue="-"
+		else
+			readValue="$( printf '%s' "$readValue" | LC_ALL=C tr ' ' '_' )"
+		fi
+		readRow="$readRow $readValue"
+	done
+	printf '%s\n' "$readRow"
+}
+
+## The names of a row's fields that are `-`, space separated: first-name, family-name, alias.
+AgentsToolsRegistryMemberNamesMissing(){ ## row text
+	printf '%s\n' "$1" | LC_ALL=C awk '{ if ( $2 == "-" ) { out = out " first-name" ; } if ( $3 == "-" ) { out = out " family-name" ; } if ( $4 == "-" ) { out = out " alias" ; } sub( /^ /, "", out ) ; print out ; }'
+}
+
+##
+## team-members-names -- the display names of this workspace's team-members.
+## Columns: member mark first-name family-name alias
+##
+## One row per team-members row. The names are the member's own basic.md bullets
+## (Name split at its first space, Alias), each replaced by the member's scope key
+## FIRST_NAME, FAMILY_NAME or ALIAS when that key is set. A field that is absent,
+## `not decided yet`, or cannot be stored is `-` and warns, unless the member is
+## reference-only or is magic-team or human-owner, which have no person name by
+## design. Every client-* has the persona member's values instead: its own
+## files and scope are not read, and a persona field that is `-` makes every client
+## row `-`, with one warning naming the persona member and the field. The Slack
+## send reads this file and nothing else for a member's names, and for a member
+## invited from another workspace the same file of the workspace it is set up in.
+##
+AgentsToolsRegistryTeamMembersNamesRows(){
+	type AgentsToolsTeamMemberDirectory > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamRegistry.include"
+	type AgentsToolsRegistryFrontmatter > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
+	type AgentsToolsRegistryTeamMembersRows > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.RegistryTeamMembers.include"
+	local namesMember namesWorkspace namesKind namesPath namesFile namesText namesStatus namesFields namesMissing namesKey
+	local personaFields="" personaMissing="" personaRead="false" personaDir
+	while read -r namesMember namesWorkspace namesKind namesPath ; do
+		[ -n "$namesMember" ] || continue
+		case "$namesMember" in
+			client-*)
+				if [ "$personaRead" != "true" ] ; then
+					personaRead="true"
+					## The persona member may be another workspace's: read from its own folder,
+					## found through the shared registry (AgentsToolsTeamMemberDirectory).
+					personaDir="$( AgentsToolsTeamMemberDirectory "$registryPersonaMember" )" || personaDir=""
+					personaFields="$( [ -z "$personaDir" ] || MDAT_SKILLSET_ROOT="${personaDir%/*}" ; AgentsToolsRegistryMemberNamesRead "$registryPersonaMember" )"
+					personaMissing="$( AgentsToolsRegistryMemberNamesMissing "$personaFields" )"
+					for namesKey in $personaMissing ; do
+						echo "⚠️ WARNING: $MDSC_CMD ${registryBuildOp:---make-harness-indices}: persona member $registryPersonaMember: required field $namesKey is missing or not valid in its basic.md (a Name bullet of plain words, or its scope key)" >&2
+					done
+				fi
+				if [ -n "$personaMissing" ] ; then
+					printf '%s - - - -\n' "$namesMember"
+				else
+					printf '%s %s\n' "$namesMember" "$personaFields"
+				fi
+				continue
+			;;
+		esac
+		namesFile="$MDAT_SKILLSET_ROOT/$namesMember/SKILL.md"
+		namesText=""
+		[ ! -f "$namesFile" ] || namesText="$( AgentsToolsRegistryFrontmatter "$namesFile" )"
+		namesStatus="$( AgentsToolsRegistryHeader "$namesText" status )"
+		namesFields="$( AgentsToolsRegistryMemberNamesRead "$namesMember" )"
+		if [ "$namesStatus" != "reference-only" ] && [ "$namesMember" != "magic-team" ] && [ "$namesMember" != "human-owner" ] ; then
+			for namesKey in $( AgentsToolsRegistryMemberNamesMissing "$namesFields" ) ; do
+				echo "⚠️ WARNING: $MDSC_CMD ${registryBuildOp:---make-harness-indices}: member $namesMember: required field $namesKey is missing or not valid in its basic.md (a Name bullet of plain words, or its scope key)" >&2
+			done
+		fi
+		printf '%s %s\n' "$namesMember" "$namesFields"
+	done < <( AgentsToolsRegistryTeamMembersRows )
+	return 0
+}
+
+AgentsToolsRegistryTeamMembersNamesRebuild(){
+	type AgentsToolsRegistryWrite > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
+	AgentsToolsRegistryWrite team-members-names AgentsToolsRegistryTeamMembersNamesRows
+}

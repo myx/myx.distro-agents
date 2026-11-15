@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # ^^^ for syntax checking in the editor only
+type AgentsOwnPostsHas > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.OwnPosts.include"
 
 ## AgentsHarnessAccess.include: roots, children, path gates, grants and the refusal. Sourced by AgentsUniversalHarness.sh, definitions only.
 
@@ -170,7 +171,8 @@ AgentsHarnessSessionKey(){
 ## holds (AgentsTools.MemberWaitReplies.include, AgentsWaitProbeReplies, which writes the other words as it
 ## looks): the addressees comma-joined, a word not known yet `-`, the siblings and the check time 0.
 AgentsHarnessOwnPostRecord(){ ## send output file
-	local ownSession ownChannel ownTs ownThread ownAddressees ownDir ownTmp ownLock=""
+	type AgentsHarnessBareName > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessSpawn.include"
+	local ownSession ownChannel ownTs ownThread ownAddressees
 	ownSession="${harnessSessionId:-${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}}"
 	[ -n "$ownSession" ] && [ -n "${MMDAPP:-}" ] && AgentsHarnessBareName "$ownSession" || return 0
 	ownChannel="$( LC_ALL=C sed -n 's/^SENT_MESSAGE_CHANNEL=//p' "$1" | head -1 )"
@@ -181,17 +183,8 @@ AgentsHarnessOwnPostRecord(){ ## send output file
 	[ -z "$ownThread" ] || AgentsHarnessBareName "$ownThread" || return 0
 	ownAddressees="$( LC_ALL=C sed -n -e 's/^SENT_MESSAGE_ADDRESSEES=//p' -e 's/^SENT_MESSAGE_ADDRESSEE_MEMBERS=//p' "$1" | LC_ALL=C tr -s ' ' '\n' | LC_ALL=C awk 'NF { printf "%s%s", ( count++ ? "," : "" ), $1 ; }' )"
 	[ -n "$ownAddressees" ] || ownAddressees="-"
-	ownDir="$MMDAPP/.local/agents/sessions/$ownSession"
-	mkdir -p "$ownDir" 2>/dev/null || return 0
-	## The wait that looks at these posts rewrites their words: the one local lock keeps the two apart.
-	type AgentsToolsLocalLockTake > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.LocalLock.include" 2> /dev/null || :
-	! AgentsToolsLocalLockTake "own-posts-$ownSession" 5 "the record of the run's own posts" 2> /dev/null || ownLock="$agentsLocalLockPath"
-	ownTmp="$( mktemp "$ownDir/last-own-post.XXXXXX" 2>/dev/null )" || ownTmp=""
-	if [ -n "$ownTmp" ] ; then
-		{ printf '%s:%s %s %s - - 0 - 0\n' "$ownChannel" "${ownThread:-$ownTs}" "$ownTs" "$ownAddressees" ; [ ! -f "$ownDir/last-own-post" ] || cat "$ownDir/last-own-post" ; } >| "$ownTmp" 2>/dev/null \
-			&& mv -f "$ownTmp" "$ownDir/last-own-post" 2>/dev/null || rm -f "$ownTmp"
-	fi
-	[ -z "$ownLock" ] || AgentsToolsLocalLockGive "$ownLock"
+	## The wait that looks at these posts rewrites their words: the record takes its one lock for both.
+	AgentsOwnPostsAdd "$ownSession" "$( printf '%s:%s %s %s - - 0 - 0' "$ownChannel" "${ownThread:-$ownTs}" "$ownTs" "$ownAddressees" )"
 	return 0
 }
 
@@ -295,7 +288,7 @@ AgentsHarnessDeniedPath(){ ## tool, path
 	for deniedRoot in "$harnessSandboxInReal" "$harnessSandboxOutReal" ; do
 		[ -z "$deniedRoot" ] || case "$deniedPath/" in "${deniedRoot%/}"/*) return 1 ;; esac
 	done
-	type AgentsToolsPermissionDenyRefusal > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionHolds.include" 2> /dev/null || return 1
+	type AgentsToolsPermissionDenyRefusal > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionHolds.include" || return 1
 	deniedSession="${harnessSessionId:-${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}}"
 	deniedText="$( AgentsToolsPermissionDenyRefusal "$harnessAgent" "$1" "$deniedPath" "$deniedSession" 2> /dev/null )" || return 1
 	AgentsHarnessRefusal "$1" "$deniedPath" "$deniedText"
@@ -303,6 +296,7 @@ AgentsHarnessDeniedPath(){ ## tool, path
 }
 
 AgentsHarnessFileGate(){ ## tool, path, read|write
+	type AgentsToolsGrantsSessionCheck > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.Grants.include"
 	local gateRoots gateRootsOk=1 gateRc=0 gateSession gateOwn
 	if AgentsHarnessStaleTree "$1" "$2" ; then
 		return 1
@@ -405,9 +399,10 @@ AgentsHarnessCwdRefusalText(){ ## cwd
 }
 
 ## One writer per target at a time, through the package's one local lock primitive
-## (sh-lib/magic/AgentsTools.LocalLock.include), keyed by the cksum of the resolved path.
+## (sh-lib/common/AgentsTools.LocalLock.include), keyed by the cksum of the resolved path.
 AgentsHarnessLockTake(){ ## resolved target
 	local lockKey
 	lockKey="$( printf '%s' "$1" | LC_ALL=C cksum | LC_ALL=C tr ' ' '-' )" || return 1
+	type AgentsToolsLocalLockTake > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.LocalLock.include"
 	AgentsToolsLocalLockTake "$lockKey" 30 "$1"
 }

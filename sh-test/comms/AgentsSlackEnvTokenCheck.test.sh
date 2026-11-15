@@ -7,7 +7,7 @@ set -u
 ## The include's own dispatcher references $1 at the top level; the resolver under test is a
 ## plain function, so the unbound-reference guard is off while it is sourced.
 set +u
-rigInc="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsSlack.include"
+rigInc="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/slack/AgentsTools.CommsSlack.include"
 [ -f "$rigInc" ] || { echo "⛔ ERROR: no $rigInc" >&2 ; exit 1 ; }
 
 pass=0 fail=0
@@ -18,8 +18,8 @@ check(){ if [ "$2" = "$3" ] ; then printf '  PASS  %s\n' "$1" ; pass=$((pass+1))
 ## a rig has no workspace of its own, so an unstubbed read answers from the operator's live
 ## store and this check would measure that instead of the branch under test.
 DistroAgentsTools(){ echo "scope-read should not run" >&2 ; return 1 ; }
-AgentsToolsSlackOwnSettingsApply(){ echo "scope-read should not run" >&2 ; return 1 ; }
-AgentsToolsSlackClientSide(){ echo "scope-read should not run" >&2 ; return 1 ; }
+AgentsToolsCommsOwnSettingsApply(){ echo "scope-read should not run" >&2 ; return 1 ; }
+AgentsToolsCommsClientSide(){ echo "scope-read should not run" >&2 ; return 1 ; }
 AgentsToolsConfigOption(){ echo "scope-read should not run" >&2 ; return 1 ; }
 
 . "$rigInc"

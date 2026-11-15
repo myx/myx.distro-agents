@@ -292,7 +292,7 @@ fi
 if [ -n "$runSweep" ] ; then
 	runSweepRoot="$MMDAPP/.local/agents/scratch/sh-test"
 	[ -d "$runSweepRoot" ] || { echo "sweep: no rig folder at $runSweepRoot" ; exit 0 ; }
-	. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SandboxLinks.include" || exit 1
+	. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SandboxLinks.include" || exit 1
 	runSweepRoots="$( AgentsToolsSourceRoots )"
 	runSweepLive="$( ps -A -ww -o args= 2> /dev/null | LC_ALL=C grep -F -- "$runSweepRoot/" || : )"
 	runSweepYoung=0 runSweepHeld=0 runSweepDone=0 runSweepFailed=0
@@ -786,8 +786,8 @@ mkdir -p "$runRoot" 2>/dev/null
 mkdir "$runDir" 2>/dev/null || { runDir="$runDir-$$" ; mkdir -p "$runDir" ; } || { echo "⛔ ERROR: AgentsRunTests.sh: cannot create $runDir" >&2 ; exit 1 ; }
 ln -sfn "$runDir" "$runRoot/latest" 2>/dev/null || :
 ## No test links a rig into source (epic S23.11): each finds a guard `ln` first on its PATH. A runner copied alone into a rig cannot reach sh-lib and runs with none.
-if [ -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SandboxLinks.include" ] ; then
-	. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SandboxLinks.include" && AgentsToolsLnGuardMake "$runDir/guard-bin" && PATH="$runDir/guard-bin:$PATH"
+if [ -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SandboxLinks.include" ] ; then
+	. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SandboxLinks.include" && AgentsToolsLnGuardMake "$runDir/guard-bin" && PATH="$runDir/guard-bin:$PATH"
 fi
 
 runList="$runDir/tests.list"

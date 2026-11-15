@@ -110,11 +110,13 @@ rigItem running task-rig-x $'blocks: task-rig-y\n'
 rigItem running task-rig-y $'blocks: task-rig-x\n'
 rigItem blocked task-rig-z $'blocked-by: task-rig-gone\n'
 rigItem backlog task-rig-solo ''
+rigItem blocked task-rig-lone ''
 rigRun "$rigTmp/r3" AgentsToolsBoardDependencies
 rigAssert "a cycle of blocks is reported" "$( LC_ALL=C grep -c -E '^cycles: .*(task-rig-x -> task-rig-y -> task-rig-x|task-rig-y -> task-rig-x -> task-rig-y)' "$rigReport" )" 1
 rigAssert "what must happen first: an item that gates others and waits for none" "$( LC_ALL=C sed -n 's/^must happen first: //p' "$rigReport" | LC_ALL=C tr ' ' '\n' | LC_ALL=C grep -c -x -e task-rig-a -e task-rig-c -e task-rig-f -e task-rig-h -e task-rig-q )" 5
 rigAssert "what waits, and on what" "$( LC_ALL=C grep -c -x -e '- task-rig-b <- task-rig-a' -e '- task-rig-d <- task-rig-c' -e '- task-rig-i <- task-rig-h' "$rigReport" )" 3
 rigAssert "a blocked item naming no blocker on the board" "$( LC_ALL=C sed -n 's/^blocked with no blocker on the board: //p' "$rigReport" )" "task-rig-z"
+rigAssert "a blocked item with no recorded edge at all is reported as such, and not counted independent" "$( LC_ALL=C sed -n 's/^blocked with no recorded edge: //p' "$rigReport" )" "task-rig-lone"
 rigAssert "the independent items are counted" "$( LC_ALL=C sed -n 's/^independent: //p' "$rigReport" )" 2
 rigAssert "the fixes of the first recompute stay in the report that made them" "$( LC_ALL=C grep -c -x -F -e '- task-rig-b blocked-by now task-rig-a' "$rigReport" || : )" 0
 rigRun "$rigTmp/s1" AgentsToolsBoardDependenciesSection

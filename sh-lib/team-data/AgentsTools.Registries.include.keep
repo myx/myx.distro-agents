@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # ^^^ for syntax checking in the editor only
+type AgentsToolsBoardTree > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.BoardStates.include"
 
 ## Four registries, one pattern: a columnar cache rebuilt from a store, never
 ## maintained beside it, built like the distro's own indices -- whitespace columns,
@@ -1178,8 +1179,8 @@ AgentsToolsRegistryPendingRepliesRows(){
 		## never every running item.
 		if [ -n "${MDAT_DATA_ROOT:-}" ] ; then
 			for boardState in running blocked ; do
-				[ -d "$MDAT_DATA_ROOT/board/$boardState" ] || continue
-				for boardFile in "$MDAT_DATA_ROOT/board/$boardState"/*.md ; do
+				[ -d "$( AgentsToolsBoardTree )/$boardState" ] || continue
+				for boardFile in "$( AgentsToolsBoardTree )/$boardState"/*.md ; do
 					[ -f "$boardFile" ] || continue
 					AgentsToolsRegistryRowsEntry B "$boardFile"
 				done

@@ -1,0 +1,107 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+## AgentsTools.InternOpAtlassianConfluencePageCreate.include -- the operation `--intern-op-atlassian-confluence-page-create`, sourced by AgentsTools.InternOpAtlassianCall.include with the operation's arguments.
+	type AgentsToolsAtlassianCall > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/atlassian/AgentsTools.AtlassianRequest.include"
+		shift
+		local confPCMember="" confPCSpaceKey="" confPCSpaceId="" confPCTitle="" confPCTitleGiven="false"
+		local confPCParentId="" confPCBodyStorage="" confPCBodyGiven="false" confPCContext="intern-op-atlassian-confluence-page-create"
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--member)    shift ; [ -n "${1:-}" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confPCContext: --member value missing" >&2 ; set +e ; return 1 ; } ; confPCMember="$1" ; shift ;;
+				--space)     shift ; [ -n "${1:-}" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confPCContext: --space value missing" >&2 ; set +e ; return 1 ; } ; confPCSpaceKey="$1" ; shift ;;
+				--space-id)  shift ; [ -n "${1:-}" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confPCContext: --space-id value missing" >&2 ; set +e ; return 1 ; } ; confPCSpaceId="$1" ; shift ;;
+				--title)     shift ; [ -n "${1:-}" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confPCContext: --title value missing" >&2 ; set +e ; return 1 ; } ; confPCTitle="$1" ; confPCTitleGiven="true" ; shift ;;
+				--parent-id) shift ; [ -n "${1:-}" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confPCContext: --parent-id value missing" >&2 ; set +e ; return 1 ; } ; confPCParentId="$1" ; shift ;;
+				--body-storage)
+					shift ; [ -n "${1:-}" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confPCContext: --body-storage value missing" >&2 ; set +e ; return 1 ; }
+					confPCBodyStorage="$1" ; confPCBodyGiven="true" ; shift
+				;;
+				--body-storage-from-stdin)
+					confPCBodyStorage="$( cat )" ; confPCBodyGiven="true" ; shift
+				;;
+				--body-storage-from-file)
+					shift
+					if [ -z "${1:-}" ] || [ ! -f "$1" ] ; then
+						printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confPCContext: --body-storage-from-file: file not found: ${1:-}" >&2
+						set +e ; return 1
+					fi
+					confPCBodyStorage="$( cat "$1" )" ; confPCBodyGiven="true" ; shift
+				;;
+				--context) shift ; [ -n "${1:-}" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confPCContext: --context value missing" >&2 ; set +e ; return 1 ; } ; confPCContext="$1" ; shift ;;
+				*)
+					printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confPCContext: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		if [ -z "$confPCMember" ] ; then
+			printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confPCContext: syntax is --member <team-member> (--space <key>|--space-id <numeric-id>) --title <text> (--body-storage <html>|--body-storage-from-stdin|--body-storage-from-file <path>) [--parent-id <id>] [--context <caller>] -- the page is created under that identity and only in a space it can see" >&2
+			set +e ; return 1
+		fi
+		if [ -n "$confPCSpaceKey" ] && [ -n "$confPCSpaceId" ] ; then
+			printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confPCContext: --space and --space-id both given" >&2
+			set +e ; return 1
+		fi
+		if [ -z "$confPCSpaceKey" ] && [ -z "$confPCSpaceId" ] ; then
+			printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confPCContext: --space|--space-id missing" >&2
+			set +e ; return 1
+		fi
+		if [ -n "$confPCSpaceId" ] ; then
+			case "$confPCSpaceId" in
+				*[!0123456789]*)
+					printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confPCContext: --space-id not a number: $confPCSpaceId" >&2
+					set +e ; return 1
+				;;
+			esac
+		fi
+		if [ -n "$confPCParentId" ] ; then
+			case "$confPCParentId" in
+				*[!0123456789]*)
+					printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confPCContext: --parent-id not a number: $confPCParentId" >&2
+					set +e ; return 1
+				;;
+			esac
+		fi
+		if [ "$confPCTitleGiven" != "true" ] ; then
+			printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confPCContext: --title missing" >&2
+			set +e ; return 1
+		fi
+		if [ "$confPCBodyGiven" != "true" ] ; then
+			printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confPCContext: --body-storage|--body-storage-from-stdin|--body-storage-from-file missing" >&2
+			set +e ; return 1
+		fi
+		if [ -n "$confPCSpaceKey" ] ; then
+			local confPCLookupBody confPCLookupRc=0
+			confPCLookupBody="$( AgentsToolsAtlassianCall "$confPCMember" confluence GET "/wiki/api/v2/spaces?keys=$( AgentsToolsAtlassianUrlEncode "$confPCSpaceKey" )" "$confPCContext" "" )" || confPCLookupRc=$?
+			if [ "$confPCLookupRc" -ne 0 ] ; then
+				set +e ; return "$confPCLookupRc"
+			fi
+			local confPCSpaceRows confPCSpaceRowsRc=0
+			confPCSpaceRows="$( printf '%s\n' "$confPCLookupBody" | LC_ALL=C awk -v array=results -v want='id,key' -v mode=records -v dialect=atlassian -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" )" || confPCSpaceRowsRc=$?
+			if [ "$confPCSpaceRowsRc" -ne 0 ] ; then
+				printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confPCContext: the space lookup returned no results array (rc=$confPCSpaceRowsRc) -- nothing was created" >&2
+				set +e ; return 1
+			fi
+			local confPCSpaceMatches confPCSpaceMatchCount
+			confPCSpaceMatches="$( printf '%s\n' "$confPCSpaceRows" | LC_ALL=C awk -F'\t' -v want="$confPCSpaceKey" '$2 == want { print $1 }' )"
+			confPCSpaceMatchCount=0
+			[ -z "$confPCSpaceMatches" ] || confPCSpaceMatchCount="$( printf '%s\n' "$confPCSpaceMatches" | LC_ALL=C awk 'END { print NR }' )"
+			if [ "$confPCSpaceMatchCount" -ne 1 ] ; then
+				printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confPCContext: space key '$confPCSpaceKey' resolved to $confPCSpaceMatchCount ids as $confPCMember, not exactly one -- nothing was created. A 0 usually means this identity cannot see that space or the key is wrong; pass --space-id directly if the numeric id is already known" >&2
+				set +e ; return 1
+			fi
+			confPCSpaceId="$confPCSpaceMatches"
+		fi
+		local confPCTitleEsc confPCBodyEsc
+		confPCTitleEsc="$( printf '%s' "$confPCTitle" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/mcp/AgentsMcpJsonEscape.awk" )"
+		confPCBodyEsc="$( printf '%s' "$confPCBodyStorage" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/mcp/AgentsMcpJsonEscape.awk" )"
+		local confPCCreateBody="{\"spaceId\":\"$confPCSpaceId\",\"status\":\"current\",\"title\":\"$confPCTitleEsc\""
+		[ -n "$confPCParentId" ] && confPCCreateBody="$confPCCreateBody,\"parentId\":\"$confPCParentId\""
+		confPCCreateBody="$confPCCreateBody,\"body\":{\"representation\":\"storage\",\"value\":\"$confPCBodyEsc\"}}"
+		local confPCRc=0
+		AgentsToolsAtlassianCall "$confPCMember" confluence POST /wiki/api/v2/pages "$confPCContext" "$confPCCreateBody" || confPCRc=$?
+		if [ "$confPCRc" -ne 0 ] ; then
+			set +e ; return "$confPCRc"
+		fi
+		return 0

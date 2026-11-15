@@ -5,7 +5,7 @@
 ## commits never pushed, and the remote moved from another clone; the op shows the local-only commits and the
 ## remote's, trial-merges in a throwaway copy, and, with a mode, repairs: --take-remote sets the local commits
 ## aside and takes the remote, --keep-merged merges the remote keeping the local commits, and both end with the
-## F4.3 move of the flat inbox items, then push. It is one implementation, sh-lib/magic/AgentsTools.MagicTeamDataCheckoutRepair.include,
+## F4.3 move of the flat inbox items, then push. It is one implementation, sh-lib/team-data/AgentsTools.TeamDataCheckoutRepair.include,
 ## reached by the one arm of DistroAgentsItems.fn.sh; the older function of TeamDataCommit.include is gone, and the check says so below.
 ## Setup uses git on this rig's own mktemp trees only.
 set -u
@@ -203,7 +203,7 @@ rigAssert "uncommitted paths are refused"               "$( cat "$rigTmp/r4.rc" 
 
 echo "-- one implementation --"
 rigAssert "the older function is gone from TeamDataCommit.include, and the one arm of the tool file sources the one include" \
-	"$( LC_ALL=C grep -c 'AgentsToolsTeamDataCheckoutRepair' "$rigPackage/sh-lib/team-data/AgentsTools.TeamDataCommit.include" || : ):$( LC_ALL=C grep -c -e '--repair-team-data-checkout)' "$rigPackage/sh-scripts/DistroAgentsItems.fn.sh" || : ):$( LC_ALL=C grep -c 'AgentsTools.MagicTeamDataCheckoutRepair.include' "$rigPackage/sh-scripts/DistroAgentsItems.fn.sh" || : )" "0:1:1"
+	"$( LC_ALL=C grep -c 'AgentsToolsTeamDataCheckoutRepair' "$rigPackage/sh-lib/team-data/AgentsTools.TeamDataCommit.include" || : ):$( LC_ALL=C grep -c -e '--repair-team-data-checkout)' "$rigPackage/sh-scripts/DistroAgentsItems.fn.sh" || : ):$( LC_ALL=C grep -c 'AgentsTools.TeamDataCheckoutRepair.include' "$rigPackage/sh-scripts/DistroAgentsItems.fn.sh" || : )" "0:1:1"
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ TEAM DATA CHECKOUT REPAIR CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

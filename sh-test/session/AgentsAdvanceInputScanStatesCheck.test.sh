@@ -423,7 +423,7 @@ rigCheck "its item status names ended-without-close"                      "$( ri
 echo "   registry rows, rebuilt in the same pass"
 rigCheck "the unclosed local row is now closed and finished"              "$( rigRegRow "$rigTmp/b2.s1" rig-ldead )" "spawn-ended-without-close finished"
 rigCheck "the unclosed foreign row is now closed and finished"            "$( rigRegRow "$rigTmp/b2.s1" rig-fdead )" "spawn-ended-without-close finished"
-## A live run's state is its activity word since 2 November (AgentsToolsRegistryRunActivity: `thinking` with no activity file), and a run of another host reads `unclosed` (1ecf19d2, 9a275a30).
+## A live run's state is its activity word since 2 November (AgentsToolsRunActivity: `thinking` with no activity file), and a run of another host reads `unclosed` (1ecf19d2, 9a275a30).
 rigCheck "control: the live row is untouched and live, its state the activity word" "$( rigRegRow "$rigTmp/b2.s1" rig-live )" "spawn-started thinking"
 rigCheck "control: the recent dead row stays unclosed"                    "$( rigRegRow "$rigTmp/b2.s1" rig-lfresh )" "spawn-started unclosed"
 rigCheck "control: the foreign alive row stays open, read as unclosed from this host" "$( rigRegRow "$rigTmp/b2.s1" rig-falive )" "spawn-started unclosed"
@@ -574,7 +574,7 @@ rigCheck "control, order reversed: diag lands in the result file, so the rig can
 rigCheck "control, order reversed: the outer stderr is empty"             "$( LC_ALL=C awk 'END { print NR }' "$rigDir4/outer2" )" 0
 
 echo "   a spawned child never inherits fd 4"
-rigSpawnInc="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.InternOpAgentSpawnProxy.include"
+rigSpawnInc="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.InternOpAgentSpawnProxy.include"
 rigCheck "the 4 console launch sites that redirect their own output each close fd 4 with 4>&-" "$( LC_ALL=C awk '
 	index($0, "AgentsToolsSpawnConsoleLaunch MDAT_SKILLSET_ROOT=") && index($0, "\"${spawnCliArgs[@]}\"") && index($0, "\"$spawnContext\" >") > 0 { sites++ ; if ( index($0, "4>&-") > 0 ) { closed++ } }
 	END { printf "%d %d", sites, closed }' "$rigSpawnInc" )" "4 4"
@@ -656,7 +656,7 @@ rigAsyncEnded(){ ## -- waits, up to a minute, for that record to leave spawn-sta
 }
 ## Whether the one rule takes that spawn for running: asked as the review flow and the accept dismissal ask it.
 rigAsyncRuns(){
-	( PATH="$rigTmp/ps-bin:$PATH" ; MMDAPP="$rigW" ; . "${rigTool%/sh-scripts/*}/../myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include" ; rigAsyncId="${rigAsyncRecord##*/}" ; AgentsToolsRegistrySpawnRuns "${rigAsyncId%.spawn.md}" "$rigAsyncRecord" && printf running || printf not-running )
+	( PATH="$rigTmp/ps-bin:$PATH" ; MMDAPP="$rigW" ; . "${rigTool%/sh-scripts/*}/../myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include" ; . "${rigTool%/sh-scripts/*}/../myx.distro-agents/sh-lib/run/AgentsTools.RunProcesses.include" ; . "${rigTool%/sh-scripts/*}/../myx.distro-agents/sh-lib/run/AgentsTools.RunState.include" ; . "${rigTool%/sh-scripts/*}/../myx.distro-agents/sh-lib/run/AgentsTools.RunLeft.include" ; . "${rigTool%/sh-scripts/*}/../myx.distro-agents/sh-lib/run/AgentsTools.RunRecords.include" ; rigAsyncId="${rigAsyncRecord##*/}" ; AgentsToolsSpawnRuns "${rigAsyncId%.spawn.md}" "$rigAsyncRecord" && printf running || printf not-running )
 }
 rigAsync exit7 'echo first-on-stdout ; echo second-on-stderr >&2 ; echo third-on-stdout ; exit 7'
 rigAsyncEnded
@@ -773,7 +773,7 @@ mkdir "$rigO2/myx/myx.distro-agents"
 rigTool2="$rigO2/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 rigArms="$rigTmp/s2arms.txt"
 cat > "$rigArms" <<'RIGARMS'
-		--rig-daemon) . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include" ; AgentsToolsDaemonLine "housekeeping: rig-daemon" ; echo "daemon-op-stdout" ; return 0 ;;
+		--rig-daemon) . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandbox.include" ; AgentsToolsDaemonLine "housekeeping: rig-daemon" ; echo "daemon-op-stdout" ; return 0 ;;
 RIGARMS
 rigDisp="$rigTool2"
 LC_ALL=C awk -v armsFile="$rigArms" '{ print } !done && $0 == "\tcase \"$1\" in" { while ( ( getline armLine < armsFile ) > 0 ) { print armLine } ; done = 1 }' "$rigDisp" > "$rigDisp.new" && mv "$rigDisp.new" "$rigDisp" && chmod +x "$rigDisp"
@@ -804,7 +804,7 @@ rigCheck "fd 4 closed: and never on stdout"                               "$( ri
 rigCheck "fd 4 closed: stdout is the op's own line and nothing else"      "$( LC_ALL=C grep -c . "$rigTmp/s2l.out" || : )" 1
 echo "   the daemon line function alone, under /bin/sh, bash 3.2, bash --posix and dash (fd 4 closed, a file, read-only)"
 rigDlFn="$rigTmp/daemonline.fn.sh"
-LC_ALL=C awk '/^AgentsToolsDaemonLine\(\)/ { on = 1 } on { print } on && /^}/ { exit }' "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include" > "$rigDlFn"
+LC_ALL=C awk '/^AgentsToolsDaemonLine\(\)/ { on = 1 } on { print } on && /^}/ { exit }' "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandbox.include" > "$rigDlFn"
 rigCheck "control: the function text was cut out of the include"          "$( LC_ALL=C grep -c '^AgentsToolsDaemonLine()' "$rigDlFn" || : )" 1
 printf 'unchanged\n' > "$rigTmp/dl.ro"
 rigDlRun(){ ## label, fd 4 mode (closed|file|ro), shell and its options... -- <label>.out .err .status; the shell's own status line says it lived on

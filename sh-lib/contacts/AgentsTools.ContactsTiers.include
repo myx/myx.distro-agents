@@ -1,0 +1,220 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+type AgentsSlackIdentityId > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/slack/AgentsTools.SlackIdentities.include"
+
+##
+## AgentsTools.ContactsTiers.include -- the contact tiers: their words, the tier a record stands at for a scope, and the ask to the human-owner that changes one.
+## Sourced, never run. Functions only. Loaded by AgentsTools.Contacts.include, with the other parts it calls.
+##
+
+## The tiers a contact's `tier:` holds, lowest first, each including the ones before it. One place. The names say the rank:
+## moot (unauthenticated, or its confirmation is pending or was refused), contact (and every member of its organisation), client (team-wide or per
+## project), admin (the almost-top step of the escalation ladder, several may answer for a quorum) and owner (the top step: asked last, only when every lower step cannot settle a matter, and its answer overrides any other answer or quorum at once).
+agentsContactTiers=" tier-moot tier-contact tier-client tier-admin tier-owner "
+
+## THE OLD WORDS ARE RETIRED (every stored record holds the new ones): ingest, basic, partner and recorded name no tier, and a call giving
+## one is refused with the five words shown. Prints the word of the ladder for a word of the ladder, else nothing, rc 1.
+AgentsToolsContactsTierName(){ ## word
+	case "$1" in
+		*)
+			case "$agentsContactTiers" in
+				*" $1 "*) printf '%s' "$1" ;;
+				*) return 1 ;;
+			esac
+		;;
+	esac
+	return 0
+}
+
+## Whether a word is one of them, or an old word of one.
+AgentsToolsContactsTierKnown(){ ## word
+	[ -n "$( AgentsToolsContactsTierName "$1" )" ]
+}
+
+## The words in one line, for a refusal to name them.
+AgentsToolsContactsTiersShown(){
+	printf 'tier-moot, tier-contact, tier-client, tier-admin and tier-owner'
+}
+
+## A person's record read into crId, crName, crOrg, crRole, crRel, crOwner, crTier, crReached, crSlackId, crSlackHandle, crSlackConv, crEmail, crHow,
+## crAllows; crExtra holds the front matter lines this file does not know (kept as they stand), crLog the log lines. rc 1 for no file.
+crId="" crName="" crOrg="" crRole="" crRel="" crOwner="" crTier="" crScopeTiers="" crReached="" crSlackId="" crSlackHandle="" crSlackConv="" crEmail="" crHow="" crLanguage="" crAllows="" crExtra="" crLog=""
+## Whether this call is the human-owner's: his own member name, or the console account mapped to him. rc 0 where it is.
+AgentsToolsContactsCallerIsOwner(){
+	local ownerBy
+	ownerBy="$( AgentsToolsActingMember )"
+	if [ -z "$ownerBy" ] ; then
+		type AgentsToolsConsoleAccount > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.CallerCheck.include"
+		ownerBy="user-$( AgentsToolsConsoleAccount )"
+	fi
+	type AgentsToolsPermissionIsHumanOwner > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionHolds.include"
+	AgentsToolsPermissionIsHumanOwner "$ownerBy"
+}
+
+## The tier a record stands at for a scope: the scope's own entry of `scope-tiers` (`<scope>=<tier>,...`) where there is one, else the record's tier,
+## else tier-contact for a member of an organisation (every member of a contact's organisation holds it without an ask), else none. Printed.
+AgentsToolsContactsTierFor(){ ## scope (may be empty); reads crTier, crOrg, crScopeTiers
+	local forScope="${1:-}" forEntry forTier=""
+	if [ -n "$forScope" ] && [ -n "$crScopeTiers" ] ; then
+		while IFS= read -r forEntry ; do
+			[ "${forEntry%%=*}" = "$forScope" ] && forTier="${forEntry#*=}"
+		done <<< "$( printf '%s' "$crScopeTiers" | LC_ALL=C tr ',' '\n' )"
+	fi
+	[ -n "$forTier" ] || forTier="$crTier"
+	[ -n "$forTier" ] || { [ -z "$crOrg" ] || forTier=tier-contact ; }
+	printf '%s' "$forTier"
+}
+
+## The open ask about one contact's tier, if one stands: its id. A member asking again joins it rather than asking him twice.
+AgentsToolsContactsTierAskOpen(){ ## contact id, [scope]
+	local openFile openWhat="the tier of the contact $1${2:+ for the scope $2}"
+	for openFile in "${MMDAPP:-/nonexistent}/.local/questions"/*.md ; do
+		[ -f "$openFile" ] || continue
+		type AgentsToolsAuthorityField > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.Authority.include"
+		[ "$( AgentsToolsAuthorityField "$openFile" status )" = reply-pending ] || continue
+		[ "$( AgentsToolsAuthorityField "$openFile" request-of )" = "$1" ] || continue
+		[ "$( AgentsToolsAuthorityField "$openFile" request-what )" = "$openWhat" ] || continue
+		basename "$openFile" .md ; return 0
+	done
+	return 1
+}
+
+## A member's --tier call: it writes nothing, and asks the human-owner once, in his own conversation, with the contact and the proposed
+## tier in the ask and the four words as its answers. The action it keeps beside the record is the ordinary collect that writes the word
+## he chooses, run as the member that asked (AgentsToolsContactsCollectContact's own tier gate lets it, once answered).
+## Prints `ASKED <contact> <tier> <ask>`; the ask already standing is named instead, and nothing is posted.
+AgentsToolsContactsTierAsk(){ ## operation, contact id, the tier proposed, [scope]
+	local askScope="${4:-}" askWhat askOp="$1" askId="$2" askTier="$3" askBy askRun askAsked askText askOut askChannel askTs askThread askAddressees askAsking askPending askFields askOptions askQuestion
+	askBy="$( AgentsToolsActingMember )"
+	[ -n "$askBy" ] || { echo "$MDSC_CMD: ⛔ ERROR: $askOp: a tier is asked for by a member, and this call comes from no member's session" >&2 ; return 1 ; }
+	[ -f "$contactsPersons/$askId.md" ] || { echo "$MDSC_CMD: ⛔ ERROR: $askOp: the contact $askId is not recorded yet, and a tier is asked only of a contact on record: record it in a call without --tier, then ask for its tier" >&2 ; return 1 ; }
+	type AgentsToolsAskPostFill > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.AskPost.include"
+	type AgentsToolsAuthorityField > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.Authority.include"
+	askWhat="the tier of the contact $askId${askScope:+ for the scope $askScope}"
+	askAsked="$( AgentsToolsContactsTierAskOpen "$askId" "$askScope" )" && {
+		echo "$MDSC_CMD: ⛔ ERROR: $askOp: the tier of $askId is already asked as $askAsked, and he has not answered; nothing was asked again and nothing was written" >&2
+		return 1
+	}
+	## Lowest first, each with what it adds, and the proposed one marked: a rank is read from the order and the words, never guessed.
+	askTier="$( AgentsToolsContactsTierName "$askTier" || printf '%s' "$askTier" )"
+	askOptions="tier-moot: the lowest. The team reads and understands what the contact sends, and nothing is given back
+tier-contact: adds conversation, public information and consultation, nothing long-running or costly
+tier-client: adds talking about what the team does, a little help and small research
+tier-admin: adds what affects the board, dispatches jobs and asks for internal information, with several able to answer for a quorum
+tier-owner: the highest. Asked last, only when every lower step cannot settle it; the answer then overrides any other answer or quorum at once"
+	askOptions="$( printf '%s\n' "$askOptions" | LC_ALL=C awk -v want="$askTier" -F: '$1 == want { print $0 " (recommended)" ; next } { print }' )"
+	askQuestion="Set the tier of the contact $askId${askScope:+ for the scope $askScope}? $askBy proposes $askTier, marked recommended below."
+	askText="$( ASKP_F_question="$askQuestion" ASKP_OPTIONS="$askOptions" AgentsToolsAskPostFill post ask-question.post.format.md one 2> /dev/null )" || askText=""
+	[ -n "$askText" ] || { echo "$MDSC_CMD: ⛔ ERROR: $askOp: the ask about the tier of $askId could not be filled from its template, so nothing was asked" >&2 ; return 1 ; }
+	askOut="$( printf '%s\n' "$askText" | "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-op-comms-slack-send-message "$askBy" human-owner --identity-bot --address-to human-owner --from-stdin 2>&1 )" || {
+		echo "$MDSC_CMD: ⛔ ERROR: $askOp: the ask about the tier of $askId could not be posted to the human-owner, so nothing was asked: $( printf '%s\n' "$askOut" | LC_ALL=C grep -m1 'ERROR' )" >&2
+		return 1
+	}
+	askChannel="$( printf '%s\n' "$askOut" | LC_ALL=C sed -n 's/^SENT_MESSAGE_CHANNEL=//p' | head -1 )"
+	askTs="$( printf '%s\n' "$askOut" | LC_ALL=C sed -n 's/^SENT_MESSAGE_TS=//p' | head -1 )"
+	askThread="$( printf '%s\n' "$askOut" | LC_ALL=C sed -n 's/^SENT_MESSAGE_THREAD_TS=//p' | head -1 )"
+	askAddressees="$( printf '%s\n' "$askOut" | LC_ALL=C sed -n 's/^SENT_MESSAGE_ADDRESSEES=//p' | head -1 )"
+	askAsking="$( printf '%s\n' "$askOut" | LC_ALL=C grep '^{' | LC_ALL=C awk -v path=message.user -v optional=1 -v dialect=slack -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" 2> /dev/null | head -1 )"
+	askRun="$( AgentsToolsActingSession )"
+	askFields="$( AgentsToolsAskPostFieldsPack asked-as AskQuestion question "$askQuestion" )"
+	askPending="$( printf '%s\n' "$askText" | "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-op-pending-reply-open "$askBy" --store questions --to "$askChannel" \
+		--session-id "${askRun:-none}" --kind decision --address-to human-owner --channel "$askChannel" --question-ts "$askTs" --thread-ts "${askThread:-$askTs}" \
+		--addressees "${askAddressees:-human-owner}" ${askAsking:+--asking-accounts " $askAsking"} --ask-identity bot --select one --options "$askOptions" \
+		--request-of "$askId" --requester "$askBy" --requester-run "$askRun" --request-mode enqueue --request-what "$askWhat" \
+		--fields "$askFields" --context "$askOp" 2> /dev/null )" || askPending=""
+	if [ -z "$askPending" ] ; then
+		echo "$MDSC_CMD: ⛔ ERROR: $askOp: the ask about the tier of $askId was posted but not recorded, so his answer would set nothing" >&2
+		return 1
+	fi
+	## The write his answer lets run: the ordinary collect, as the member that asked, named here because the act runs it with no session.
+	printf '%s\n' '--intern-op-contact-tier-apply' "$askId" '--by' "$askBy" ${askScope:+--scope "$askScope"} > "${MMDAPP:-/nonexistent}/.local/questions/$askPending.action" || {
+		echo "$MDSC_CMD: ⛔ ERROR: $askOp: the action of $askPending could not be kept, so his answer would set nothing" >&2
+		return 1
+	}
+	AgentsToolsAskPostReact "$askBy" "$askChannel:$askTs" bot add $( ASKP_OPTIONS="$askOptions" AgentsToolsAskPostFill reactions ask-question.post.format.md one 2> /dev/null )
+	echo "$MDSC_CMD: $askOp: the tier $askTier proposed for the contact $askId${askScope:+ for the scope $askScope} is asked as $askPending in his own conversation, and his answer is what sets it" >&2
+	printf 'ASKED\t%s\t%s\t%s\n' "$askId" "${askScope:+$askScope=}$askTier" "$askPending"
+	return 0
+}
+
+## The word the human-owner answered for one contact's tier, where an answered ask of this very contact stands which no tier has been set from
+## yet: printed. Read only, so a caller may look before it writes. rc 1 where no usable answer stands, which is what makes a later call -- a
+## second member's, or the same one asking a different word -- open a fresh ask instead of reusing an answer already acted on.
+AgentsToolsContactsTierAnswerWord(){ ## contact id, [scope]
+	local answeredFile answeredWord
+	[ -n "${MDAT_AUTHORITY_REQUEST:-}" ] || return 1
+	type AgentsToolsAuthorityField > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.Authority.include"
+	answeredFile="$( AgentsToolsPendingRecordPath "$MDAT_AUTHORITY_REQUEST" )" || answeredFile=""
+	[ -n "$answeredFile" ] || return 1
+	[ "$( AgentsToolsAuthorityField "$answeredFile" request-of )" = "$1" ] || return 1
+	[ "$( AgentsToolsAuthorityField "$answeredFile" request-what )" = "the tier of the contact $1${2:+ for the scope $2}" ] || return 1
+	[ "$( AgentsToolsAuthorityField "$answeredFile" status )" = reply-received ] || return 1
+	[ -z "$( AgentsToolsAuthorityField "$answeredFile" acted-at )" ] || return 1
+	answeredWord="$( AgentsToolsAuthorityField "$answeredFile" chosen )"
+	[ -n "$answeredWord" ] || answeredWord="$( AgentsToolsAuthorityField "$answeredFile" verdict )"
+	AgentsToolsContactsTierKnown "$answeredWord" || return 1
+	printf '%s\n' "$answeredWord"
+}
+
+## The action a tier ask keeps, run by the authority act once he has answered: the ordinary collect, as the member that asked -- named in the
+## action itself, because the act runs it with no member's session. rc 1 where no answered tier stands for this contact.
+AgentsToolsContactsTierApply(){ ## contact id, [--by <member>], [--scope <scope>]
+	local applyId="${1:-}" applyBy="" applyScope="" applyWord applySet
+	shift
+	while [ $# -gt 0 ] ; do
+		case "$1" in
+			--by) applyBy="${2:-}" ; shift ;;
+			--scope) applyScope="${2:-}" ; shift ;;
+		esac
+		shift
+	done
+	applyWord="$( AgentsToolsContactsTierAnswerWord "$applyId" "$applyScope" )" || { echo "$MDSC_CMD: ⛔ ERROR: --intern-op-contact-tier-apply: no answer of his stands unused for the tier of $applyId, so nothing was written" >&2 ; return 1 ; }
+	[ -z "$applyBy" ] || MDAT_SPAWN_AGENT="$applyBy"
+	if [ -n "$applyScope" ] ; then
+		type AgentsToolsContactsCollectContact > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/contacts/AgentsTools.ContactsCollect.include"
+		AgentsToolsContactsCollectContact --collect-contact --id "$applyId" --scope-tier "$applyScope=$applyWord" || return 1
+	else
+		AgentsToolsContactsCollectContact --collect-contact --id "$applyId" --tier "$applyWord" || return 1
+	fi
+	## HIS ANSWER IS SPENT ONCE IT HAS SET A TIER (S6.36): the mark is set on the request he answered, so a second run of this action, and any
+	## later call reading that request, finds it used and asks him afresh instead of standing as if he had just ruled. A closed record lives in
+	## pending/closed/, so its path is asked for rather than built here.
+	type AgentsToolsPendingRecordPath > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.Authority.include"
+	applySet="$( AgentsToolsPendingRecordPath "$MDAT_AUTHORITY_REQUEST" )" || applySet=""
+	[ -n "$applySet" ] || { echo "$MDSC_CMD: ⛔ ERROR: --intern-op-contact-tier-apply: the tier of $applyId was written, and the request $MDAT_AUTHORITY_REQUEST it came from is not found, so the answer could set a second tier" >&2 ; return 1 ; }
+	AgentsToolsAuthorityFieldSet "$applySet" acted-at "$( date +"%Y-%m-%d %H:%M %z" )" || { echo "$MDSC_CMD: ⛔ ERROR: --intern-op-contact-tier-apply: the tier of $applyId was written, and the answer it came from could not be marked as used, so it could set a second tier" >&2 ; return 1 ; }
+	return 0
+}
+
+## HOW AN ASK TO A TIER CLOSES (the ruling on the top two tiers): tier-owner closes on the FIRST answer, whoever gives it and whatever it is;
+## tier-admin closes on a QUORUM of the admins who hold the ask, more than half of them, the verdict being the one that reached it. An ask
+## whose two verdicts can no longer reach a quorum with the answers still to come is `stuck`, which goes up to the owners. One answer from a
+## contact counts once, the latest. Prints `open`, `closed <verdict>` or `stuck`. The arguments: the tier, how many contacts of the tier hold the ask, then the
+## answers, `<contact>=<verdict>` each, in the order they came. A pure decision: it reads no file and posts nothing.
+## HOW AN ASK TO A TIER CLOSES (the human-owner's spec): each tier includes the ones below it, so the tier-owners of a scope sit in its
+## tier-admin quorum. The holders are every participant, admins and owners alike. An owner's answer (`<who>@tier-owner=<what>`, or
+## any answer to an ask to tier-owner) overrides at once and needs no quorum, the first owner to answer deciding. Without one, more
+## than half of the holders resolving the same closes it, whether an owner voted or not; where no quorum can come any more, stuck.
+AgentsToolsContactsTierClosing(){ ## tier, holders, answers...
+	local closeTier="$1" closeHolders="$2"
+	shift 2
+	case "$closeHolders" in ''|*[!0123456789]*|0) echo "$MDSC_CMD: ⛔ ERROR: tier closing: the holders are a number above 0: $closeHolders" >&2 ; return 1 ;; esac
+	case "$closeTier" in tier-admin|tier-owner) ;; *) echo "$MDSC_CMD: ⛔ ERROR: tier closing: only tier-admin and tier-owner close an ask by their own rule: $closeTier" >&2 ; return 1 ;; esac
+	printf '%s\n' "$@" | LC_ALL=C awk -v tier="$closeTier" -v holders="$closeHolders" '
+		NF == 0 { next }
+		{ at = index( $0, "=" ) ; if ( at == 0 ) next ; who = substr( $0, 1, at - 1 ) ; what = substr( $0, at + 1 ) ; if ( who == "" || what == "" ) next
+		  isOwner = ( tier == "tier-owner" || who ~ /@tier-owner$/ ) ; sub( /@tier-[a-z]+$/, "", who )
+		  if ( isOwner && firstOwner == "" ) firstOwner = what
+		  if ( ! ( who in verdict ) ) order[ ++given ] = who
+		  verdict[who] = what }
+		END {
+			if ( firstOwner != "" ) { print "closed " firstOwner ; exit }
+			if ( given == 0 ) { print "open" ; exit }
+			quorum = int( holders / 2 ) + 1
+			for ( n = 1 ; n <= given ; n++ ) count[verdict[order[n]]]++
+			best = "" ; for ( one in count ) if ( count[one] >= quorum && ( best == "" || count[one] > count[best] ) ) best = one
+			if ( best != "" ) { print "closed " best ; exit }
+			left = holders - given ; top = 0 ; for ( one in count ) if ( count[one] > top ) top = count[one]
+			print ( top + left >= quorum ) ? "open" : "stuck"
+		}'
+}

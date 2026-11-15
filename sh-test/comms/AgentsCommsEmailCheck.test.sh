@@ -11,7 +11,7 @@ rigHere="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib"
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }
-[ -f "$rigHere/comms/AgentsTools.CommsEmail.include" ] || rigRefuse "the email driver is not at the origin this workspace resolves"
+[ -f "$rigHere/email/AgentsTools.CommsEmail.include" ] || rigRefuse "the email driver is not at the origin this workspace resolves"
 
 rigPassCount=0
 rigFailCount=0
@@ -41,7 +41,7 @@ rigMailArgs=""
 rigMailStdin=""
 DistroAgentsTools(){ rigMailArgs="$*" ; rigMailStdin="$( cat )" ; return 0 ; }
 
-. "$rigHere/comms/AgentsTools.CommsEmail.include"
+. "$rigHere/email/AgentsTools.CommsEmail.include"
 
 echo "-- an email channel resolves to its bare address --"
 rigAssert "an email id" "$( AgentsToolsCommsEmailResolveAddress 'email:rig@rig.invalid' )" "rig@rig.invalid"

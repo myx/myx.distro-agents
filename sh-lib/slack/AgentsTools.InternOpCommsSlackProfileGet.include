@@ -1,0 +1,200 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+## AgentsTools.InternOpCommsSlackProfileGet.include -- the operation `--intern-op-comms-slack-profile-get`, sourced by AgentsTools.MemberCommsSlackProfile.include with the operation's arguments.
+		shift
+		if [ "$1" = "--print-required-scopes" ] ; then
+			printf '%s\n' users.profile:read users.profile:write users:read users:write dnd:read dnd:write
+			return 0
+		fi
+		local profileMember="$1"
+		shift || true
+		if [ -z "$profileMember" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --slack-profile-get: <team-member> missing" >&2
+			set +e ; return 1
+		fi
+		type AgentsToolsAssertBareName > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.BareName.include"
+		AgentsToolsAssertBareName "$profileMember" "<team-member>" slack-profile-get || { set +e ; return 1 ; }
+		case "$profileMember" in
+			routine-*)
+				echo "⛔ ERROR: $MDSC_CMD --slack-profile-get: a routine-* caller is REFUSED by this operation -- a routine is bot-authored by the one identity rule every Slack op here shares, and it owns no Slack account, so it has no profile, presence or do-not-disturb state to read. Name the team-member whose own account should be read instead. Refused here, and with its own message, so the cause is not misreported as a missing user token." >&2
+				set +e ; return 1
+			;;
+			*)
+				if [ ! -d "$MDAT_SKILLSET_ROOT/$profileMember" ] ; then
+					echo "⛔ ERROR: $MDSC_CMD --slack-profile-get: no such member skill directory: $MDAT_SKILLSET_ROOT/$profileMember" >&2
+					set +e ; return 1
+				fi
+			;;
+		esac
+		local profileRawOutput="false"
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--identity-bot)
+					echo "⛔ ERROR: $MDSC_CMD --slack-profile-get: --identity-bot is REFUSED by this operation -- users.profile:read, users:read and dnd:read are read here as the ACCOUNT'S OWN state, and a bot has no persona whose profile, presence or do-not-disturb state this could be. The bot would answer for the app, not for the member, which is a different account's answer wearing this member's name. The flag is rejected rather than accepted-and-ignored on purpose, because reading under the member's user identity while the caller asked for the bot would be a silent identity substitution. Exactly three operations refuse --identity-bot: --slack-search-messages, --slack-profile-set and --slack-profile-get. The message, reaction and file operations accept it; the --member-comms-slack-presence-* and --member-comms-slack-socket-* operations do not take the flag at all. Re-run without the flag." >&2
+					set +e ; return 1
+				;;
+				## Same spelling and same meaning as --slack-file-info's own --raw: the body replaces the parsed fields.
+				--raw)
+					profileRawOutput="true" ; shift
+				;;
+				*)
+					echo "⛔ ERROR: $MDSC_CMD --slack-profile-get: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		local profileRead=0 profileFailed=0 profileFieldRc=0
+		local profileResponse="" profileRc=0 profileFieldSpec=""
+		## Kept because the custom-fields facet joins this body against the
+		## workspace's own definitions; empty means that facet has no values to read.
+		local profileBodyProfile=""
+		profileRc=0
+		profileResponse="$( AgentsToolsCommsSlackProfileCall --slack-profile-get profile \
+			"GET users.profile.get (acting member $profileMember)" \
+			"$profileMember" --api users.profile.get \
+			--identity user --context "--slack-profile-get" )" || profileRc=$?
+		printf '%s\n' PROFILE_GET_FACET=profile
+		if [ "$profileRc" = "0" ] ; then
+			profileBodyProfile="$profileResponse"
+			printf '%s\n' PROFILE_GET_STATE=read
+			profileFieldRc=0
+			for profileFieldSpec in \
+				"PROFILE_DISPLAY_NAME profile.display_name" \
+				"PROFILE_REAL_NAME profile.real_name" \
+				"PROFILE_TITLE profile.title" \
+				"PROFILE_STATUS_TEXT profile.status_text" \
+				"PROFILE_STATUS_EMOJI profile.status_emoji" \
+				"PROFILE_STATUS_EXPIRATION profile.status_expiration" \
+				"PROFILE_AVATAR_URL profile.image_512" \
+				"PROFILE_AVATAR_ORIGINAL_URL profile.image_original" \
+				"PROFILE_AVATAR_HASH profile.avatar_hash" \
+				"PROFILE_AVATAR_IS_CUSTOM profile.is_custom_image" \
+				"PROFILE_EMAIL profile.email" \
+				"PROFILE_FIRST_NAME profile.first_name" \
+				"PROFILE_LAST_NAME profile.last_name" \
+				"PROFILE_PHONE profile.phone" \
+			; do
+				## --raw hands back this facet's own body instead of its parsed fields, as file-info's --raw does.
+				if [ "$profileRawOutput" = "true" ] ; then printf '%s\n' "$profileResponse" ; break ; fi
+				AgentsToolsCommsSlackProfileEmitField $profileFieldSpec "$profileResponse" || { profileFieldRc=$? ; break ; }
+			done
+			if [ "$profileFieldRc" != "0" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --slack-profile-get: the profile field set above for $profileMember is INCOMPLETE -- a field could not be read out of the users.profile.get response (see the emitter's own error above) and the remaining profile fields were not attempted. Do not treat the lines already printed as a full profile." >&2
+				set +e ; return 1
+			fi
+			profileRead=$(( profileRead + 1 ))
+		else
+			printf '%s\n' PROFILE_GET_STATE=failed
+			profileFailed=$(( profileFailed + 1 ))
+		fi
+		profileRc=0
+		profileResponse="$( AgentsToolsCommsSlackProfileCall --slack-profile-get presence \
+			"GET users.getPresence (acting member $profileMember)" \
+			"$profileMember" --api users.getPresence \
+			--identity user --context "--slack-profile-get" )" || profileRc=$?
+		printf '%s\n' PROFILE_GET_FACET=presence
+		if [ "$profileRc" = "0" ] ; then
+			printf '%s\n' PROFILE_GET_STATE=read
+			profileFieldRc=0
+			for profileFieldSpec in \
+				"PRESENCE presence" \
+				"PRESENCE_AUTO_AWAY auto_away" \
+				"PRESENCE_MANUAL_AWAY manual_away" \
+				"PRESENCE_CONNECTION_COUNT connection_count" \
+			; do
+				## --raw hands back this facet's own body instead of its parsed fields, as file-info's --raw does.
+				if [ "$profileRawOutput" = "true" ] ; then printf '%s\n' "$profileResponse" ; break ; fi
+				AgentsToolsCommsSlackProfileEmitField $profileFieldSpec "$profileResponse" || { profileFieldRc=$? ; break ; }
+			done
+			if [ "$profileFieldRc" != "0" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --slack-profile-get: the presence field set above for $profileMember is INCOMPLETE -- a field could not be read out of the users.getPresence response (see the emitter's own error above) and the remaining presence fields were not attempted. Do not treat the lines already printed as a full presence report." >&2
+				set +e ; return 1
+			fi
+			profileRead=$(( profileRead + 1 ))
+		else
+			printf '%s\n' PROFILE_GET_STATE=failed
+			profileFailed=$(( profileFailed + 1 ))
+		fi
+		profileRc=0
+		profileResponse="$( AgentsToolsCommsSlackProfileCall --slack-profile-get dnd \
+			"GET dnd.info (acting member $profileMember)" \
+			"$profileMember" --api dnd.info \
+			--identity user --context "--slack-profile-get" )" || profileRc=$?
+		printf '%s\n' PROFILE_GET_FACET=dnd
+		if [ "$profileRc" = "0" ] ; then
+			printf '%s\n' PROFILE_GET_STATE=read
+			profileFieldRc=0
+			for profileFieldSpec in \
+				"DND_ENABLED dnd_enabled" \
+				"DND_NEXT_START_TS next_dnd_start_ts" \
+				"DND_NEXT_END_TS next_dnd_end_ts" \
+				"DND_SNOOZE_ENABLED snooze_enabled" \
+				"DND_SNOOZE_ENDTIME snooze_endtime" \
+			; do
+				## --raw hands back this facet's own body instead of its parsed fields, as file-info's --raw does.
+				if [ "$profileRawOutput" = "true" ] ; then printf '%s\n' "$profileResponse" ; break ; fi
+				AgentsToolsCommsSlackProfileEmitField $profileFieldSpec "$profileResponse" || { profileFieldRc=$? ; break ; }
+			done
+			if [ "$profileFieldRc" != "0" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --slack-profile-get: the do-not-disturb field set above for $profileMember is INCOMPLETE -- a field could not be read out of the dnd.info response (see the emitter's own error above) and the remaining fields were not attempted. Do not treat the lines already printed as a full do-not-disturb report." >&2
+				set +e ; return 1
+			fi
+			profileRead=$(( profileRead + 1 ))
+		else
+			printf '%s\n' PROFILE_GET_STATE=failed
+			profileFailed=$(( profileFailed + 1 ))
+		fi
+		local profileTeamResponse=""
+		profileRc=0
+		profileTeamResponse="$( AgentsToolsCommsSlackProfileCall --slack-profile-get custom-fields \
+			"GET team.profile.get (acting member $profileMember)" \
+			"$profileMember" --api team.profile.get \
+			--identity user --context "--slack-profile-get" )" || profileRc=$?
+		printf '%s\n' PROFILE_GET_FACET=custom-fields
+		if [ "$profileRc" != "0" ] ; then
+			printf '%s\n' PROFILE_GET_STATE=failed
+			profileFailed=$(( profileFailed + 1 ))
+		elif [ -z "$profileBodyProfile" ] ; then
+			## The profile facet failed earlier, so there are no values to join.
+			printf '%s\n' PROFILE_GET_STATE=failed
+			echo "⛔ ERROR: $MDSC_CMD --slack-profile-get: the custom-fields facet needs the profile facet's own response body to read this account's values, and that facet did not complete. The definitions were fetched; the values are UNKNOWN, not empty." >&2
+			profileFailed=$(( profileFailed + 1 ))
+		elif [ "$profileRawOutput" = "true" ] ; then
+			printf '%s\n' PROFILE_GET_STATE=read
+			printf '%s\n' "$profileTeamResponse"
+			profileRead=$(( profileRead + 1 ))
+		else
+			## Both bodies to the reader through the environment, its records
+			## back in a variable -- neither response touches the disk.
+			local profileCfOut="" profileCfRc=0 profileCfIndex=0
+			profileCfOut="$( MDAT_CF_DEFS="$profileTeamResponse" MDAT_CF_VALS="$profileBodyProfile" \
+				LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/slack/AgentsSlackProfileCustomFields.awk" </dev/null )" || profileCfRc=$?
+			if [ "$profileCfRc" != "0" ] ; then
+				printf '%s\n' PROFILE_GET_STATE=failed
+				echo "⛔ ERROR: $MDSC_CMD --slack-profile-get: the custom-field reader could not scan one of the two response bodies (see its own error above). This account's custom fields are UNKNOWN from this call, which is NOT a report that it has none." >&2
+				profileFailed=$(( profileFailed + 1 ))
+			else
+				printf '%s\n' PROFILE_GET_STATE=read
+				printf 'PROFILE_FIELDS_COUNT=%s\n' "$( grep -c . <<< "$profileCfOut" )"
+				while IFS=$'\t' read -r profileCfId profileCfLabel profileCfValue profileCfAlt ; do
+					[ -n "$profileCfId" ] || continue
+					profileCfIndex=$(( profileCfIndex + 1 ))
+					printf 'PROFILE_FIELD_%s_KEY=%s\n' "$profileCfIndex" "$profileCfId"
+					printf 'PROFILE_FIELD_%s_LABEL=%s\n' "$profileCfIndex" "$profileCfLabel"
+					printf 'PROFILE_FIELD_%s_VALUE=%s\n' "$profileCfIndex" "$profileCfValue"
+					printf 'PROFILE_FIELD_%s_ALT=%s\n' "$profileCfIndex" "$profileCfAlt"
+				done <<< "$profileCfOut"
+				profileRead=$(( profileRead + 1 ))
+			fi
+		fi
+		echo "# $MDSC_CMD --slack-profile-get: $profileRead facet(s) read, $profileFailed not read (acting member $profileMember)" >&2
+		if [ "$profileFailed" = "0" ] ; then
+			return 0
+		fi
+		if [ "$profileRead" = "0" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --slack-profile-get: NONE of the facets could be read for $profileMember -- each is named with its own reason above. Nothing is known from this call about this account's state; this is not a report that it is unset." >&2
+			set +e ; return 4
+		fi
+		echo "⛔ ERROR: $MDSC_CMD --slack-profile-get: $profileFailed facet(s) could NOT be read for $profileMember -- read the per-facet PROFILE_GET_STATE lines above. The facets reported read really were read; the ones reported failed are UNKNOWN, not absent and not unset." >&2
+		set +e ; return 3

@@ -1,0 +1,316 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.BoardGrooming.include -- routine-grooming's own --grooming-*
+## operation group of DistroAgentsItems.fn.sh. Sourced lazily from the arm of the tool file that owns its names (sh-lib/harness/AgentsContext.FrontTable.include).
+## Not standalone: relies on being dot-sourced for $1/$@/$MDSC_CMD.
+##
+
+## Where an inbox item lives (F4.3).
+
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.RecheckDate.include"
+
+type AgentsToolsItemUpsert > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/items/AgentsTools.InternOpItem.include"
+
+## magic-coordinator is the board's only writer (ban #2): an agent-facing stub refuses any other resolved
+## member here; the internal operations the tooling calls decide no grant.
+case "$1" in
+	--grooming-to-*|--grooming-create-*)
+		type AgentsToolsTeamMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.CommonOptions.include"
+		case "$( AgentsToolsTeamMember 2> /dev/null )" in
+			''|magic-coordinator|user-*) ;;
+			*)
+				echo "$MDSC_CMD: $1: ⛔ ERROR: magic-coordinator is the board's only writer, and this call is made as $( AgentsToolsTeamMember 2> /dev/null ). Ask magic-coordinator for the change, with post-inquiry." >&2
+				set +e ; return 1
+			;;
+		esac
+	;;
+esac
+
+case "$1" in
+
+	## routine-grooming does NOT move items into board-retained, and this op
+	## is not evidence that it does.
+	## groomed-from is deliberately NOT stamped by any create arm.
+	--grooming-to-backlog|--grooming-to-pending|--grooming-to-processed|--grooming-to-parked|--grooming-to-blocked|--grooming-to-running|--grooming-to-archived|--grooming-to-retained)
+		local familyState="${1#--grooming-to-}"
+		local familyMember familyItemName familyFromArg familyOwner familyFromVal familyGroomedAt familyProcessedAt familyBlockedAt familyHasReceipt familyLoopWord
+		local familyPassthrough=() familyItemArgs=() familyScanArgs=()
+		shift
+		## <team-member> captured for future logging/validation, unused today
+		familyMember="$1" ; shift || true
+		familyItemName="$1" ; shift || true
+		if [ -z "$familyMember" ] || [ -z "$familyItemName" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --grooming-to-$familyState: syntax is <team-member> <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--upsert-body:<text>|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
+			set +e ; return 1
+		fi
+		familyFromArg="" familyOwner=""
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--from-state:*) familyFromArg="$1" ; shift ;;
+				--owner-header-value)
+					if [ -z "$2" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --grooming-to-$familyState: --owner-header-value: value required" >&2
+						set +e ; return 1
+					fi
+					familyOwner="$2" ; shift 2
+				;;
+				--recheck-in) familyPassthrough+=( "$1" "${2:-}" ) ; shift ; shift || true ;;
+				--header:*|--upsert-from-stdin|--upsert-body:*|--edit-script-from-stdin:*|--edit-patch-from-stdin)
+					familyPassthrough+=( "$1" ) ; shift
+				;;
+				*)
+					echo "⛔ ERROR: $MDSC_CMD --grooming-to-$familyState: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		if [ -z "$familyFromArg" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --grooming-to-$familyState: --from-state:<state> is required" >&2
+			set +e ; return 1
+		fi
+		if [ -z "$familyOwner" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --grooming-to-$familyState: --owner-header-value <value> is required" >&2
+			set +e ; return 1
+		fi
+		familyFromVal="${familyFromArg#--from-state:}"
+		familyGroomedAt="$( date +"%Y-%m-%d %H:%M %z" )"
+		familyItemArgs=( --header:upsert:owner:"$familyOwner" --header:upsert:groomed-at:"$familyGroomedAt" --header:upsert:groomed-from:"$familyFromVal" --header:upsert:track:true )
+		case "$familyState" in
+			backlog)
+				## Back in backlog an item is unassessed, so its approval is cleared here and
+				## check-backlog-promote re-earns it. A caller's own approved-by/approved-at
+				## header in this call stands untouched.
+				familyScanArgs=( --header:remove:approved-by --header:remove:approved-at )
+				for familyLoopWord in ${familyPassthrough[@]+"${familyPassthrough[@]}"} ; do
+					case "$familyLoopWord" in
+						--header:*:approved-by|--header:*:approved-by:*|--header:*:approved-at|--header:*:approved-at:*) familyScanArgs=() ; break ;;
+					esac
+				done
+			;;
+			processed)
+				familyProcessedAt="$( date +"%Y-%m-%d %H:%M %z" )"
+				familyItemArgs+=( --header:upsert:processed-at:"$familyProcessedAt" )
+			;;
+			blocked)
+				familyHasReceipt="false"
+				for familyLoopWord in ${familyPassthrough[@]+"${familyPassthrough[@]}"} ; do
+					case "$familyLoopWord" in
+						--header:upsert:execution-receipt:*|--header:append:execution-receipt:*)
+							familyHasReceipt="true"
+						;;
+					esac
+				done
+				if [ "$familyHasReceipt" = "false" ] ; then
+					familyBlockedAt="$( date +"%Y-%m-%d %H:%M %z" )"
+					familyPassthrough+=( "--header:upsert:execution-receipt:blocked:$familyBlockedAt" )
+				fi
+			;;
+		esac
+		mkdir -p "$MDAT_DATA_ROOT/board/$familyState" || {
+			echo "⛔ ERROR: $MDSC_CMD --grooming-to-$familyState: can't create board state directory: $MDAT_DATA_ROOT/board/$familyState" >&2
+			set +e ; return 1
+		}
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+		case "$familyState" in
+			backlog)
+				DistroAgentsTools --intern-op-board-upsert-move-edit backlog "$familyItemName" \
+					"$familyFromArg" \
+					"${familyItemArgs[@]}" \
+					--context --grooming-to-backlog \
+					"${familyScanArgs[@]+"${familyScanArgs[@]}"}" \
+					"${familyPassthrough[@]+"${familyPassthrough[@]}"}"
+				return $?
+			;;
+			archived)
+				DistroAgentsTools --intern-op-board-upsert-move-edit archived "$familyItemName" \
+					"$familyFromArg" \
+					"${familyItemArgs[@]}" \
+					--context --grooming-to-archived \
+					${familyPassthrough[@]+"${familyPassthrough[@]}"} || return $?
+				## An archive ends the item's child, ordered and recorded (AgentsTools.ReviewFlow.include):
+				## only on a real move into archived, and never failing the move.
+				if [ "$familyFromVal" != archived ] && [ -f "$MDAT_DATA_ROOT/board/archived/$familyItemName" ] ; then
+					. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ReviewFlow.include"
+					AgentsReviewEndChild "$familyMember" "$MDAT_DATA_ROOT/board/archived/$familyItemName" archived || :
+				fi
+				return 0
+			;;
+			*)
+				DistroAgentsTools --intern-op-board-upsert-move-edit "$familyState" "$familyItemName" \
+					"$familyFromArg" \
+					"${familyItemArgs[@]}" \
+					--context --grooming-to-"$familyState" \
+					${familyPassthrough[@]+"${familyPassthrough[@]}"}
+				return $?
+			;;
+		esac
+	;;
+	--grooming-create-backlog|--grooming-create-processed|--grooming-create-pending|--grooming-create-blocked|--grooming-create-running)
+		local familyState="${1#--grooming-create-}"
+		local familyMember familyItemName familyOwner familyBodyMode familyGroomedAt familyProcessedAt
+		local familyPassthrough=() familyItemArgs=()
+		shift
+		## <team-member> captured for future logging/validation, unused today
+		familyMember="$1" ; shift || true
+		familyItemName="$1" ; shift || true
+		if [ -z "$familyMember" ] || [ -z "$familyItemName" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --grooming-create-$familyState: syntax is <team-member> <item-filename> --owner-header-value <value> (--upsert-from-stdin|--upsert-body:<text>|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]..." >&2
+			set +e ; return 1
+		fi
+		familyOwner="" familyBodyMode=""
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--from-state:*)
+					echo "⛔ ERROR: $MDSC_CMD --grooming-create-$familyState: --from-state: is not valid here -- this op creates a board-item, and a created item has no source state. Use --grooming-to-$familyState to move an item that already exists." >&2
+					set +e ; return 1
+				;;
+				--owner-header-value)
+					if [ -z "$2" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --grooming-create-$familyState: --owner-header-value: value required" >&2
+						set +e ; return 1
+					fi
+					familyOwner="$2" ; shift 2
+				;;
+				--upsert-from-stdin|--upsert-body:*|--edit-script-from-stdin:*|--edit-patch-from-stdin)
+					familyBodyMode="$1"
+					familyPassthrough+=( "$1" ) ; shift
+				;;
+				--recheck-in) familyPassthrough+=( "$1" "${2:-}" ) ; shift ; shift || true ;;
+				--header:*) familyPassthrough+=( "$1" ) ; shift ;;
+				*)
+					echo "⛔ ERROR: $MDSC_CMD --grooming-create-$familyState: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		if [ -z "$familyOwner" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --grooming-create-$familyState: --owner-header-value <value> is required" >&2
+			set +e ; return 1
+		fi
+		if [ -z "$familyBodyMode" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --grooming-create-$familyState: one body-input mode is required on create (--upsert-from-stdin|--upsert-body:<text>|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) -- a created board-item has no existing body to carry forward, and filing an empty one is never intended" >&2
+			set +e ; return 1
+		fi
+		familyGroomedAt="$( date +"%Y-%m-%d %H:%M %z" )"
+		familyItemArgs=( --header:upsert:owner:"$familyOwner" --header:upsert:groomed-at:"$familyGroomedAt" --header:upsert:track:true )
+		if [ "$familyState" = processed ] ; then
+			familyProcessedAt="$( date +"%Y-%m-%d %H:%M %z" )"
+			familyItemArgs+=( --header:upsert:processed-at:"$familyProcessedAt" )
+		fi
+		mkdir -p "$MDAT_DATA_ROOT/board/$familyState" || {
+			echo "⛔ ERROR: $MDSC_CMD --grooming-create-$familyState: can't create board state directory: $MDAT_DATA_ROOT/board/$familyState" >&2
+			set +e ; return 1
+		}
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+		DistroAgentsTools --intern-op-board-upsert-move-edit "$familyState" "$familyItemName" \
+			--create \
+			--acting-member:"$familyMember" \
+			"${familyItemArgs[@]}" \
+			--context --grooming-create-"$familyState" \
+			${familyPassthrough[@]+"${familyPassthrough[@]}"}
+		return $?
+	;;
+	--intern-op-grooming-input-scan)
+		shift
+		## <team-member> captured for future logging/validation, unused today
+		local callingMember="$1"
+		shift || true
+		if [ -z "$callingMember" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --intern-op-grooming-input-scan: syntax is <team-member>" >&2
+			set +e ; return 1
+		fi
+		if [ $# -gt 0 ] ; then
+			case "$1" in
+				--*)
+					echo "⛔ ERROR: $MDSC_CMD --intern-op-grooming-input-scan: invalid option: $1 -- syntax is <team-member>, no other arguments -- an input-scan reads all baseline-relevant items itself. SEE Skill magic-team/magic-team.grooming.routine.md" >&2
+					set +e ; return 1
+				;;
+				*)
+					echo "⛔ ERROR: $MDSC_CMD --intern-op-grooming-input-scan: syntax is <team-member>, no other arguments -- an input-scan reads all baseline-relevant items itself, an item name is not a parameter. SEE Skill magic-team/magic-team.grooming.routine.md" >&2
+					set +e ; return 1
+				;;
+			esac
+		fi
+		[ -n "${MDAT_DATA_ROOT:-}" ] || {
+			echo "⛔ ERROR: $MDSC_CMD --intern-op-grooming-input-scan: MDAT_DATA_ROOT is not set" >&2
+			set +e ; return 1
+		}
+		printf '%s\n\n' "## state-and-lock (routine-grooming)"
+		local lockNote="$MDAT_DATA_ROOT/inboxes/magic-coordinator/incoming/note-20260809T154332Z-grooming-state-and-lock.md"
+		if [ -f "$lockNote" ] ; then cat "$lockNote" ; else echo "(no state-and-lock note recorded yet)" ; fi
+		printf '\n%s\n\n' "## team-roster (cache)"
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+		DistroAgentsTools --get-roster --team-member "$callingMember"
+		## The board scope below is already all types / any owner, so an item a
+		## client-* member filed on the board has always been visible here. An
+		## INBOX item was not: the scan read inboxes/<calling member>/ alone, and an
+		## inquiry the communication sweep filed into inboxes/client-ndm/ was
+		## invisible. Each client-* member's inbox is widened into the same scan,
+		## read-only -- grooming never acts as that identity and never writes into
+		## that inbox; --do-inbox-also-member widens the read and nothing else. Same
+		## "the members that exist, not the ones a cache remembers" enumeration
+		## --intern-op-sweep-input-scan uses; the roster note is a cache and does not
+		## decide which inboxes are in scope. Moved here from the advance scan, which
+		## no longer reads inquiries.
+		## Every workspace's clients, from the member directory (AgentsTools.TeamRegistry.include).
+		local groomingInboxAlso=() groomingClientDir groomingClientName
+		type AgentsToolsTeamMemberDirectoryText > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamRegistry.include"
+		while IFS=$'\t' read -r groomingClientName groomingClientDir ; do
+			case "$groomingClientName" in client-*) ;; *) continue ;; esac
+			if [ -d "$groomingClientDir" ] ; then
+				AgentsToolsAssertBareName "$groomingClientName" "<team-member>" magic-grooming-input-scan || { set +e ; return 1 ; }
+				## The acting member's own inbox is already the scan's first section.
+				if [ "$groomingClientName" != "$callingMember" ] ; then
+					groomingInboxAlso+=( --do-inbox-also-member "$groomingClientName" )
+				fi
+			fi
+		done <<< "$( AgentsToolsTeamMemberDirectoryText )"
+		printf '\n%s\n\n' "## board digest"
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+		DistroAgentsTools --intern-op-session-context-scan "$callingMember" \
+			--state backlog --state pending --state running --state review --state blocked --state parked \
+			--all-types \
+			--do-inbox-inquiry-active --do-inbox-reflections \
+			--do-inbox-notes --do-inbox-other \
+			--no-slack --no-email --no-trello \
+			--no-board-related \
+			"${groomingInboxAlso[@]+"${groomingInboxAlso[@]}"}" \
+			--context --intern-op-grooming-input-scan
+		local groomingScanRc=$?
+		## The review items this routine reviews on this run (AgentsTools.ReviewFlow.include).
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ReviewFlow.include"
+		printf '\n%s\n\n' "## review items addressed to grooming.routine"
+		AgentsReviewItemsForRoutine grooming
+		return $groomingScanRc
+	;;
+
+
+	--grooming-lock-refresh)
+		shift
+		local callingMember="$1" ; shift || true
+		if [ -z "$callingMember" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --grooming-lock-refresh: <team-member> required" >&2
+			set +e ; return 1
+		fi
+		if [ $# -gt 0 ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --grooming-lock-refresh: invalid option: $1" >&2
+			set +e ; return 1
+		fi
+		local recheckDate
+		recheckDate="$( AgentsToolsRecheckDate 30 )"
+		AgentsToolsItemUpsert "$callingMember" \
+			note-20260809T154332Z-grooming-state-and-lock.md \
+			--update-lock \
+			--header:upsert:state:grooming-running \
+			--header:upsert:recheck-date:"$recheckDate" \
+			--context --grooming-lock-refresh
+		return $?
+	;;
+
+	*)
+		echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
+		set +e ; return 1
+	;;
+esac

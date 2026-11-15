@@ -48,11 +48,11 @@ rigKeyRow(){ ## key -- the fields of that key's row in the last output after its
 }
 rigChosen(){ ## member, the tier asked -- the spawner's own choice of the preset, from the rig workspace
 	( cd "$rigWs" && env -i HOME="$rigTmp/home" PATH="/usr/bin:/bin:/usr/sbin:/sbin" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDSC_CMD=rig \
-		bash -c '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.Preset.include" ; AgentsToolsPresetPayRoot() { printf "%s\n" "$MMDAPP" ; } ; AgentsToolsPresetChosen "$1"' rig "$1" 2> /dev/null )
+		bash -c '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/settings/AgentsTools.Preset.include" ; AgentsToolsPresetPayRoot() { printf "%s\n" "$MMDAPP" ; } ; AgentsToolsPresetChosen "$1"' rig "$1" 2> /dev/null )
 }
 rigEffective(){ ## preset, key
 	( cd "$rigWs" && env -i HOME="$rigTmp/home" PATH="/usr/bin:/bin:/usr/sbin:/sbin" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDSC_CMD=rig \
-		bash -c '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.Preset.include" ; AgentsToolsPresetEffective "$MMDAPP" "$1" "$2"' rig "$1" "$2" 2> /dev/null )
+		bash -c '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/settings/AgentsTools.Preset.include" ; AgentsToolsPresetEffective "$MMDAPP" "$1" "$2"' rig "$1" "$2" 2> /dev/null )
 }
 
 echo "-- 1. the list --"

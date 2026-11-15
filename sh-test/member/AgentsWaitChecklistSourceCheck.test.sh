@@ -22,7 +22,7 @@ set -u
 rigMdltOrigin="$MDLT_ORIGIN"
 rigPkg="$MDLT_ORIGIN/myx/myx.distro-agents"
 rigOp="$rigPkg/sh-scripts/DistroAgentsSession.fn.sh"
-rigInclude="$rigPkg/sh-lib/member/AgentsTools.MemberWait.include"
+rigInclude="$rigPkg/sh-lib/wait/AgentsTools.MemberWait.include"
 
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
@@ -78,7 +78,7 @@ echo "-- 1. the kind is registered --"
 rigOut="$( rigWait 1 --wait-list-sources )"
 rigAssert "the listing offers the checklist kind" "$( rigHolds "$rigOut" 'checklist	AgentsWaitProbeChecklist' )" "yes"
 rigAssert "and the probe it names is defined in the source" \
-	"$( LC_ALL=C grep -c '^AgentsWaitProbeChecklist(){' "$rigPkg/sh-lib/member/AgentsTools.MemberWaitLocal.include" 2> /dev/null | LC_ALL=C tr -d ' ' )" "1"
+	"$( LC_ALL=C grep -c '^AgentsWaitProbeChecklist(){' "$rigPkg/sh-lib/wait/AgentsTools.MemberWaitLocal.include" 2> /dev/null | LC_ALL=C tr -d ' ' )" "1"
 
 ## THE BASELINE IS THE STORED WAIT, NEVER THE CLOCK. A first look at a source with a non-empty baseline takes that look as
 ## the baseline and returns nothing, so an append made while a call is running races that first look: measured, an append

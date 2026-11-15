@@ -188,9 +188,9 @@ printf -- '---\ntype: note\n---\n\n# A deployment\n\nA failed deployment goes ba
 printf -- '---\ntype: note\n---\n\n# An exact term\n\nThe RIGIXEXACTWORD stands here.\n' > "$rigIxData/vault/note-20260101T0001Z-exact.md"
 printf -- '---\ntype: note\n---\n\n# A secret\n\nA failed release returns to the previous build.\n' > "$rigIxData/vault/note-20260101T0002Z-secret.md"
 printf 'keeper-rig:ix:workspace:Read(/%s/vault/note-20260101T0000Z-deploy.md)\nkeeper-rig:ix:workspace:Read(/%s/vault/note-20260101T0001Z-exact.md)\n' "$rigIxData" "$rigIxData" > "$rigIx/.local/agents/permissions.registry"
-rigIxSections="$( printf '%s\n' "$rigIxData/vault/note-20260101T0000Z-deploy.md" "$rigIxData/vault/note-20260101T0001Z-exact.md" "$rigIxData/vault/note-20260101T0002Z-secret.md" | LC_ALL=C awk -v format=index -v dataRoot="${rigIxData%/}/" -f "$rigIxPackage/sh-lib/team-data/AgentsKnowledgeScan.awk" )"
+rigIxSections="$( printf '%s\n' "$rigIxData/vault/note-20260101T0000Z-deploy.md" "$rigIxData/vault/note-20260101T0001Z-exact.md" "$rigIxData/vault/note-20260101T0002Z-secret.md" | LC_ALL=C awk -v format=index -v dataRoot="${rigIxData%/}/" -f "$rigIxPackage/sh-lib/knowledge/AgentsKnowledgeScan.awk" )"
 if printf '%s' "$rigIxSections" | env -i HOME="$rigTmp/home" PATH="/usr/bin:/bin:/usr/sbin:/sbin:$rigPythonDir" RIG_LANCEDB_STUB="$rigIxLib" \
-	"$rigIx/.local/lancedb/venv/bin/python" "$rigIxPackage/sh-lib/team-data/AgentsKnowledgeStore.py" build --index "$rigIx/.local/knowledge-index" \
+	"$rigIx/.local/lancedb/venv/bin/python" "$rigIxPackage/sh-lib/knowledge/AgentsKnowledgeStore.py" build --index "$rigIx/.local/knowledge-index" \
 	--model-dir "$rigIx/.local/lancedb/model/potion-base-8M" --model-stamp 'potion-base-8M@rig111@2' > "$rigTmp/ixbuild.out" 2> "$rigTmp/ixbuild.err" ; then
 	rigIxQuery(){ ## result name, store setting, words... -- a query as keeper-rig's run, over the index rig
 		local ixName="$1" ixSetting="$2" ixRc=0
@@ -217,7 +217,7 @@ if printf '%s' "$rigIxSections" | env -i HOME="$rigTmp/home" PATH="/usr/bin:/bin
 	rigAssert "the JSON shape is unchanged on the fused path: its source, its store and its heading path" "$( python3 -I -c 'import json, sys
 data = json.load( open( sys.argv[1] ) )
 print( ",".join( sorted( e["source"] + ":" + e["store"] + ":" + e["section"] for e in data["entries"] ) ) )' "$rigTmp/fusedjson.out" 2> /dev/null )" "vault/note-20260101T0000Z-deploy.md:vault:A deployment,vault/note-20260101T0001Z-exact.md:vault:An exact term"
-	rigAssert "the one resolver answers the path the index was built at, and nothing else names it" "$( env -i MMDAPP="$rigIx" MDLT_ORIGIN="$rigOrigin" bash -c '. "'"$rigOrigin"'/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.KnowledgeStore.include" ; AgentsToolsKnowledgeIndexRoot' ):$( [ -f "$rigIx/.local/knowledge-index/sections.json" ] && printf built || printf absent ):$( LC_ALL=C grep -c -F -e '.local/knowledge-index' "$rigIxPackage/sh-lib/team-data/AgentsTools.KnowledgeStore.include" || : )" "$rigIx/.local/knowledge-index:built:1"
+	rigAssert "the one resolver answers the path the index was built at, and nothing else names it" "$( env -i MMDAPP="$rigIx" MDLT_ORIGIN="$rigOrigin" bash -c '. "'"$rigOrigin"'/myx/myx.distro-agents/sh-lib/knowledge/AgentsTools.KnowledgeStore.include" ; AgentsToolsKnowledgeIndexRoot' ):$( [ -f "$rigIx/.local/knowledge-index/sections.json" ] && printf built || printf absent ):$( LC_ALL=C grep -c -F -e '.local/knowledge-index' "$rigIxPackage/sh-lib/knowledge/AgentsTools.KnowledgeStore.include" || : )" "$rigIx/.local/knowledge-index:built:1"
 else
 	rigAssert "the rig index could be built (the store's Python and the two stand-ins)" "$( LC_ALL=C head -2 "$rigTmp/ixbuild.err" | LC_ALL=C tr '\n' ' ' )" "built"
 fi

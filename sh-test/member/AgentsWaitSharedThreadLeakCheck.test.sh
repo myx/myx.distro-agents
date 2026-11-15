@@ -33,7 +33,7 @@ rigMember="rig-member"
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }
-for rigFile in "$rigTool" "$rigFixtures/wait-own-post-replies.curl.stub.sh" "$rigPackage/sh-lib/member/AgentsWaitOwnPostReplies.awk" ; do
+for rigFile in "$rigTool" "$rigFixtures/wait-own-post-replies.curl.stub.sh" "$rigPackage/sh-lib/wait/AgentsWaitOwnPostReplies.awk" ; do
 	[ -f "$rigFile" ] || rigRefuse "not found at the origin this workspace resolves: $rigFile"
 done
 

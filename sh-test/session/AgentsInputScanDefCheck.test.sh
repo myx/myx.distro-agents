@@ -45,7 +45,7 @@ printf '%s\n' '#!/usr/bin/env bash' \
 	'## --cli-configured stand-in: writes MDAT_SPAWN_LAUNCH_MARKER and records the context.' \
 	'cat > "$RIG_SCENARIO/brief.$MDAT_SPAWN_AGENT"' \
 	'## input/ is emptied when the run closes: what the scan left there is read while the run is live.' \
-	'cp "$MDAT_SPAWN_SANDBOX_ROOT/input/input-scan.md" "$RIG_SCENARIO/input-scan.seen" 2> /dev/null || :' \
+	'cp "$MDAT_SPAWN_SANDBOX_ROOT/input/$MDAT_SPAWN_SESSION_ID/input-scan.md" "$RIG_SCENARIO/input-scan.seen" 2> /dev/null || :' \
 	'## The run is in its session: its pointers, then the first wait on a scan the spawner ran, and one on a scan it did not.' \
 	'cat "$MMDAPP/.local/agents/sessions/$MDAT_SESSION_ID/session.chat.pointers" "$MMDAPP"/.local/agents/member-pointers/*.pointers > "$RIG_SCENARIO/pointers.seen" 2> /dev/null || :' \
 	'bash "$RIG_FN" --wait-for-input --team-member "$MDAT_SPAWN_AGENT" --wait-source scan:permission-escalation --wait-timeout 0 > "$RIG_SCENARIO/wait.seen" 2> /dev/null < /dev/null || :' \

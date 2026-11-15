@@ -45,22 +45,22 @@ AgentsToolsBatchStatus(){ ## folder, call number
 
 ## Ends a call still running, as TaskStop ends a job: TERM at once to it and to every process it started, as the
 ## process list stands at this moment, each kept with when it began; KILL two seconds later only to those that are
-## still the processes they were, by the one reading a process is kept by (AgentsToolsRegistryProcessesBegan). Its
+## still the processes they were, by the one reading a process is kept by (AgentsToolsRunProcessesBegan). Its
 ## leader is this shell's own child, not yet waited for, so that number is still that process.
 AgentsToolsBatchCancel(){ ## folder, call number
 	local cancelPid="" cancelLeft=20 cancelTree cancelKept cancelStill
 	IFS= read -r cancelPid < "$1/$2.pid" 2> /dev/null || return 0
 	[ ! -f "$1/$2.rc" ] || return 0
 	: > "$1/$2.cancelled"
-	type AgentsToolsRegistryProcessesBegan > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include" 2> /dev/null
+	type AgentsToolsRunProcessesBegan > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunProcesses.include"
 	cancelTree="$( ps -A -o pid=,ppid= 2> /dev/null | LC_ALL=C awk -v root="$cancelPid" '
 		{ under[$2] = under[$2] " " $1 }
 		END { queue = root ; while ( queue != "" ) { count = split( queue, now, " " ) ; queue = "" ; for ( at = 1 ; at <= count ; at++ ) { print now[at] ; queue = queue under[now[at]] } } }' )"
-	cancelKept="$( printf '%s\n' $cancelTree | AgentsToolsRegistryProcessesBegan 2> /dev/null )"
+	cancelKept="$( printf '%s\n' $cancelTree | AgentsToolsRunProcessesBegan 2> /dev/null )"
 	kill -TERM $cancelTree 2> /dev/null
 	while [ "$cancelLeft" -gt 0 ] && [ ! -f "$1/$2.rc" ] ; do sleep 0.1 ; cancelLeft=$(( cancelLeft - 1 )) ; done
 	[ -n "$cancelKept" ] || return 0
-	cancelStill="$( { printf '%s\n' "$cancelKept" ; printf '%s\n' "$cancelKept" | LC_ALL=C awk '{ print $1 }' | AgentsToolsRegistryProcessesBegan 2> /dev/null ; } | LC_ALL=C sort | LC_ALL=C uniq -d | LC_ALL=C awk '{ print $1 }' )"
+	cancelStill="$( { printf '%s\n' "$cancelKept" ; printf '%s\n' "$cancelKept" | LC_ALL=C awk '{ print $1 }' | AgentsToolsRunProcessesBegan 2> /dev/null ; } | LC_ALL=C sort | LC_ALL=C uniq -d | LC_ALL=C awk '{ print $1 }' )"
 	[ -z "$cancelStill" ] || kill -KILL $cancelStill 2> /dev/null
 	return 0
 }

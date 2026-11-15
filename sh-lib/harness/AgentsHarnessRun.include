@@ -166,6 +166,7 @@ AgentsHarnessTruncateArg(){
 ## tell it from one it wrote itself. The chat source of a Wait is read every second, so the dismissal
 ## lands within the wait's own check interval. Never fails the send.
 AgentsHarnessDismissalChatRecord(){
+	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandbox.include"
 	local chatTo chatSession chatName chatMine chatTheirs chatRecord chatWhere
 	chatSession="${MDAT_SESSION_ID:-}"
 	chatTo="${harnessArgV_address_to:-}"
@@ -175,14 +176,14 @@ AgentsHarnessDismissalChatRecord(){
 		[ "$chatName" = "$harnessAgent" ] || continue
 		chatTheirs="none"
 		## The session's records from the kept per-session list (AgentsTools.StartedRecords.include), never every record on a dismissal.
-		type AgentsToolsSpawnedSessionRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include" 2> /dev/null || :
+		type AgentsToolsSpawnedSessionRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.StartedRecords.include"
 		for chatRecord in $( AgentsToolsSpawnedSessionRecords "$chatSession" own 2> /dev/null ) ; do
 			[ -f "$chatRecord" ] || continue
 			[ "$( AgentsToolsSpawnSandboxRecordHeader "$chatRecord" owner )" = "$chatName" ] || continue
 			[ "$( AgentsToolsSpawnSandboxRecordHeader "$chatRecord" status )" = spawn-started ] || continue
 			chatTheirs="${chatRecord##*/}" ; chatTheirs="${chatTheirs%.spawn.md}"
 			done
-		type AgentsToolsSessionChatAppend > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include" 2> /dev/null || return 0
+		type AgentsToolsSessionChatAppend > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include"
 		## Recorded as a message delivered into the session (AgentsToolsSessionChatDeliverCopy's form): its conversation the session thread,
 		## else the session's printback channel, and origin `delivered`. The floor hands such a block to the member it names, and the
 		## dismissal match reads the two runs off its header. Under conversation `chat` and origin `own` no floor ever delivered it.
@@ -195,6 +196,8 @@ AgentsHarnessDismissalChatRecord(){
 }
 
 AgentsHarnessAnnounceTool(){
+	type AgentsHarnessAskAnnounce > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessAsk.include"
+	type AgentsHarnessTitleState > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessDisplay.include"
 	local announceFuncName="$1" announceArgsRaw="$2" announceIcon="❓" announceDetail="" announcePath=""
 	## Parsed once here; the dispatch that follows reads the same table.
 	AgentsHarnessArgParse "$announceArgsRaw"
@@ -482,7 +485,7 @@ AgentsHarnessArmGate(){ ## tool name -- prints the redirect when the call must w
 ## The Skill calls of a batch, each with its entry as the batch returned it (text or json), to the arming note.
 AgentsHarnessArmNoteBatch(){ ## batch arguments JSON, batch result
 	local noteAt=0 noteCount noteText
-	type AgentsToolsBatchArg > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsTools.BatchTools.include" 2> /dev/null || return 0
+	type AgentsToolsBatchArg > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsTools.BatchTools.include"
 	noteCount="$( AgentsToolsBatchArg "$1" calls.__count )"
 	case "$noteCount" in ''|*[!0123456789]*) return 0 ;; esac
 	while [ "$noteAt" -lt "$noteCount" ] && [ -z "$harnessArmedAt" ] ; do
@@ -537,6 +540,15 @@ AgentsHarnessArmNote(){ ## tool name, arguments JSON, result -- records the armi
 }
 
 AgentsHarnessRunToolNow(){ ## tool name, arguments JSON -- sets harnessResult
+	type AgentsHarnessToolCheckList > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessBatch.include"
+	type AgentsHarnessToolListMcpResourcesTool > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessMcpResources.include"
+	type AgentsHarnessToolSendMessage > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessMessages.include"
+	type AgentsHarnessToolSubagentHandback > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessReports.include"
+	type AgentsHarnessToolWebSearch > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessSearch.include"
+	type AgentsHarnessToolSkill > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessSkills.include"
+	type AgentsHarnessToolAgent > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessSpawn.include"
+	type AgentsHarnessToolRead > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessToolsFile.include"
+	type AgentsHarnessToolWait > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessWait.include"
 	local harnessFuncName="$1" harnessFuncArgsRaw="$2"
 	## One parse per call -- a no-op when the announce already parsed this same string --
 	## and every arm below reads its fields from harnessArgV_*/harnessArgD_*.
@@ -688,6 +700,8 @@ AgentsHarnessTaskBody(){ ## tool name, arguments JSON -- the result on stdout
 }
 
 AgentsHarnessRunTool(){ ## tool name, arguments JSON -- sets harnessResult
+	type AgentsHarnessCwdRefusalText > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessAccess.include"
+	type AgentsHarnessDismissedAfter > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessWait.include"
 	local taskName="$1" taskArgs="$2" taskTimeout taskAction taskBackground taskCwdRefusal
 	case "$taskName" in
 		Wait|AskQuestion|ConfirmReadback|EscalateDecision|RequestPermission|ProposeApprove|ThisSession|TaskOutput|TaskStop|SubagentHandback|BatchTools)
@@ -740,9 +754,11 @@ AgentsHarnessReply(){ ## tool name, result -- sets harnessReply and harnessReply
 	harnessReply="$2" harnessReplyDate=""
 	[ -z "${MDAT_CHANGE_APPLY:-}" ] && [ -z "${MDAT_CHANGE_HOLD_ONLY:-}" ] || return 0
 	case "$2" in NOT-HELD:*) return 0 ;; esac
-	type AgentsTranscriptReplyFinish > /dev/null 2>&1 || return 0
+	type AgentsTranscriptReplyFinish > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionTranscript.include"
 	## A Read given offset or limit is a range, and comes back whole (AgentsTranscriptReplyFinish).
+	type AgentsTranscriptReplyFinish > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionTranscript.include"
 	harnessReply="$( AgentsTranscriptReplyFinish "$1" "$2" "$( [ "$1" != Read ] || printf '%s' "${harnessArgV_file_path:-${harnessArgV_path}}" )" "$( [ "$1" != Read ] || [ -z "${harnessArgV_offset:-}${harnessArgV_limit:-}" ] || printf ranged )" )" || harnessReply="$2"
+	type AgentsTranscriptReplyBeside > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionTranscript.include"
 	[ -z "$2" ] || harnessReplyDate="$( AgentsTranscriptReplyBeside )"
 }
 

@@ -13,7 +13,7 @@ set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigOrigin="$( cd "$MDLT_ORIGIN" && pwd -P )" || exit 1
 rigPackage="$rigOrigin/myx/myx.distro-agents"
-rigInclude="$rigPackage/sh-lib/session/AgentsTools.SpawnSandbox.include"
+rigInclude="$rigPackage/sh-lib/spawn/AgentsTools.SpawnSandbox.include"
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }

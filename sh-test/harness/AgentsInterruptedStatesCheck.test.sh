@@ -27,10 +27,10 @@ set -u
 rigPackage="$MDLT_ORIGIN/myx/myx.distro-agents"
 rigHarness="$rigPackage/sh-lib/harness/AgentsUniversalHarness.sh"
 rigToolTask="$rigPackage/sh-lib/session/AgentsTools.ToolTask.include"
-rigWaitLocal="$rigPackage/sh-lib/member/AgentsTools.MemberWaitLocal.include"
+rigWaitLocal="$rigPackage/sh-lib/wait/AgentsTools.MemberWaitLocal.include"
 rigRunner="$rigPackage/sh-test/AgentsRunTests.sh"
 rigKnowledge="$rigPackage/sh-scripts/DistroAgentsKnowledge.fn.sh"
-rigSpawn="$rigPackage/sh-lib/session/AgentsTools.InternOpAgentSpawnProxy.include"
+rigSpawn="$rigPackage/sh-lib/spawn/AgentsTools.SpawnProxyLaunch.include"
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }
@@ -132,7 +132,7 @@ rigAssert "control: and is not called a signal end"              "$( rigHas "$ri
 echo "-- 3. the Wait probe of the same handle --"
 rigProbeOut="$rigTmp/probe.out"
 ( cd "$rigTmp/ws" && env -i HOME="$rigTmp/home" PATH="$rigPath" MMDAPP="$rigTmp/ws" MDLT_ORIGIN="$MDLT_ORIGIN" MDAT_SPAWN_SESSION_ID="$rigReadSession" \
-	bash -c '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWaitLocal.include" ; waitSessionId="$MDAT_SPAWN_SESSION_ID" ; AgentsWaitProbeProcess rig-a process-9 "" "$1" ; printf "%s" "$?"' rig "$rigProbeOut" ) > "$rigTmp/probe.rc" 2> "$rigTmp/probe.err"
+	bash -c '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/wait/AgentsTools.MemberWaitLocal.include" ; waitSessionId="$MDAT_SPAWN_SESSION_ID" ; AgentsWaitProbeProcess rig-a process-9 "" "$1" ; printf "%s" "$?"' rig "$rigProbeOut" ) > "$rigTmp/probe.rc" 2> "$rigTmp/probe.err"
 rigAssert "the probe read the handle"                            "$( cat "$rigTmp/probe.rc" )" "0"
 rigAssert "its state line is the one it always printed"          "$( LC_ALL=C sed -n 's/^\(State: FINISHED, exit status 137\)$/\1/p' "$rigProbeOut" | head -1 )" "State: FINISHED, exit status 137"
 rigAssert "it says on its own line that a signal ended it"       "$( LC_ALL=C grep -c -x 'End: ENDED BY A SIGNAL (exit status 137), so its output stops where that signal caught it and may be incomplete.' "$rigProbeOut" )" "1"

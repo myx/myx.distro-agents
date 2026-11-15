@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+## AgentsTools.OpSpawnPrompt.include -- the operation `--spawn-prompt`, sourced by AgentsTools.MagicCoordinatorState.include with the operation's arguments.
+		shift
+		local callingMember="$1"
+		shift || true
+		if [ -z "$callingMember" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --spawn-prompt: syntax is <team-member> [--from-board <board-item-name> [--board-state <state>]...] [--from-vault <audit-item-name>] [--from-audit <vault-item-name>] [--session-thread:event-track|magic-team] [--description <text>] [--wait]" >&2
+			set +e ; return 1
+		fi
+		## The team itself is no member, and is refused in the line every start refuses it
+		## in, ahead of the list below: the one check of a start, which the proxy asks again
+		## of whoever passes here (AgentsToolsTeamMemberStartCheck, AgentsTools.TeamRegistry.include).
+		type AgentsToolsTeamMemberStartCheck > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamRegistry.include"
+		AgentsToolsTeamMemberStartCheck "$callingMember" "" "--spawn-prompt" || { set +e ; return 1 ; }
+		case "$callingMember" in
+			magic-coordinator)
+				;;
+			*)
+				echo "⛔ ERROR: $MDSC_CMD --spawn-prompt: unsupported caller: $callingMember (allowed: magic-coordinator)" >&2
+				set +e ; return 1
+			;;
+		esac
+		## Craft the dispatch-doc mode this relay needs -- not an agent-facing flag.
+		## A stdin/--from-file brief names no tracking item, so one is minted: that
+		## document carries the session id, and it is the only thing ListAgents
+		## reads, TaskOutput resolves and TaskStop acts on. This passed `none` until
+		## 2026-09-23, which left every helper spawned this way unlistable and
+		## unstoppable. The board-running dispatch-*-spawn-proxy pile-up `none` was
+		## answering is closed at the other end instead: the spawn op moves a
+		## dispatch item it created itself out of `running` when the child ends.
+		## advance's --from-board/--from-vault/--from-audit relay reuses the named
+		## item as its own tracking document, unchanged.
+		local spawnDispatchDoc="create" spawnProxyArg
+		for spawnProxyArg in "$@" ; do
+			case "$spawnProxyArg" in
+				--from-board|--from-vault|--from-audit) spawnDispatchDoc="reuse" ; break ;;
+			esac
+		done
+		## The spawn proxy's own include, never the dispatcher: on a console DistroAgentsTools is
+		## no command (S6.24).
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.InternOpAgentSpawnProxy.include" --intern-op-agent-spawn-proxy "$callingMember" "$@" --dispatch-doc:"$spawnDispatchDoc" --context --spawn-prompt
+		return $?

@@ -1,0 +1,117 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.PermissionPosts.include -- what a refusal and its answer say, to the member and on the event track.
+## Sourced, never run. Functions only. Loaded by AgentsTools.InternOpPermission.include,
+## which also loads AgentsTools.PermissionHolds.include and AgentsTools.Grants.include.
+##
+
+## Where a refusal was made, as the lines its record and its post both carry: the short
+## host name, and the workspace by its name -- never its path. One source, so the two
+## never differ.
+AgentsToolsPermissionRefusalWhere(){
+	local whereHost whereWorkspace="${MMDAPP%/}"
+	whereHost="$( hostname -s 2>/dev/null )" || whereHost=""
+	whereWorkspace="${whereWorkspace##*/}"
+	printf 'host: %s\n' "${whereHost:-unknown}"
+	printf 'workspace: %s\n' "${whereWorkspace:-unknown}"
+}
+
+## HOW TO ASK, as a member is told it: the practice the RequestPermission declaration carries
+## (sh-lib/harness/AgentsOpenAiChatWire.sh), read from that declaration, one numbered line each, so
+## the hint of a refused call and the description of the tool say the same words and neither
+## is a copy of the other. It stands there between `How to ask, in five lines: ` and the
+## sentence ` The details follow.` Nothing is printed where the declaration carries none.
+AgentsToolsPermissionAskPractice(){
+	LC_ALL=C awk 'index( $0, "\"name\":\"RequestPermission\"" ) {
+			practiceFrom = index( $0, "How to ask, in five lines: (1) " ) ; practiceTo = index( $0, " The details follow." ) ;
+			if ( practiceFrom && practiceTo > practiceFrom ) {
+				practiceText = substr( $0, practiceFrom + 27, practiceTo - practiceFrom - 27 ) ;
+				for ( practiceNo = 2 ; practiceNo <= 9 ; practiceNo++ ) { gsub( " \\(" practiceNo "\\) ", "\n(" practiceNo ") ", practiceText ) ; }
+				print practiceText ;
+			}
+			exit ;
+		}' "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsOpenAiChatWire.sh" 2> /dev/null || :
+}
+
+## What a refused call is told after its refusal id: that a refusal is no verdict and which
+## tool asks for the call, then how to ask. One text, for the harness gate and for a native
+## client's hook alike: each prints these lines as they are.
+AgentsToolsPermissionRefusalHint(){ ## refusal id
+	local hintPractice
+	printf 'This is a refusal, not a verdict. If this task needs the call, ask for it with RequestPermission refusal_id=%s, a reason and a task_ref. Carry on with work that does not need it. A granted call is retried exactly as it was made.\n' "$1"
+	hintPractice="$( AgentsToolsPermissionAskPractice )"
+	[ -z "$hintPractice" ] || printf 'How to ask, as the description of RequestPermission says it:\n%s\n' "$hintPractice"
+}
+
+## One refusal's event-track post: the `refusal` tracking post, the same fields for every
+## refusal, where it was made from the same source as its record.
+AgentsToolsPermissionRefusalPost(){ ## owner, session dir, refusal id, session id, tool, target, reason
+	type AgentsToolsPermissionMemberWorkspace > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionPlaces.include"
+	type AgentsToolsPermissionPoster > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionHolds.include"
+	local postWhere postWorkspace
+	postWhere="$( AgentsToolsPermissionRefusalWhere )"
+	postWorkspace="$( AgentsToolsPermissionMemberWorkspace "${1:-}" )" || postWorkspace=""
+	AgentsToolsPermissionEventTrack "$( AgentsToolsPermissionPoster "$1" )" "$2" --kind refusal --session-id "$4" --field what="Permission refused" --field refusal-id="$3" \
+		--field host="$( printf '%s\n' "$postWhere" | LC_ALL=C sed -n 's/^host: //p' )" \
+		--field workspace="$( printf '%s\n' "$postWhere" | LC_ALL=C sed -n 's/^workspace: //p' )" \
+		--field tool="$5" --field target="$( AgentsToolsPermissionShownTarget "$6" "$postWorkspace" )" --field reason="${7:-none}" --field caller="$1"
+}
+
+## Posts one event-track entry for a session, through the tooling's own tracking post, into
+## the thread of the coworking session that session belongs to: ONE THREAD PER COWORKING
+## SESSION, read, opened and recorded in one place (AgentsToolsEventTrackThreadPost,
+## AgentsTools.EventTrackThread.include). Never fails its caller: a post that does not
+## happen is one stderr warning.
+AgentsToolsPermissionEventTrack(){ ## member, session dir, --intern-op-event-track-post arguments...
+	local trackMember="$1" trackDir="$2" trackRc=0
+	shift 2
+	type AgentsToolsEventTrackThreadPost > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/event-track/AgentsTools.EventTrackThread.include"
+	AgentsToolsEventTrackThreadPost "$trackMember" "$trackDir" "$@" || trackRc=$?
+	case "$trackRc" in
+		1) echo "⚠️ WARNING: $MDSC_CMD: the ${agentsPermissionTrackWhat:-refusal} is recorded locally but was NOT posted to event-track: $agentsEventTrackError" >&2 ;;
+		2) echo "⚠️ WARNING: $MDSC_CMD: no event-track channel is configured, so this ${agentsPermissionTrackWhat:-refusal} is recorded locally only" >&2 ;;
+	esac
+	return 0
+}
+
+## What became of a refusal, said where the refusal was: the `grant` tracking post where a
+## grant is written, the `denial` post where a deny is applied, in the session's own
+## event-track thread. Who answered reads as a name: a member's own, or for a Slack account
+## the name the team's account cache holds (the human-owner's configured account by that
+## name). One post per answer, never for a grant read or used. Never fails its caller: a
+## post that does not happen is one stderr warning, and nothing is printed to stdout.
+AgentsToolsPermissionAnswerPost(){ ## kind (grant|denial), member whose call it was, session dir, session id, refusal or grant id, tool, target, answered by, scope (grant only; may be empty), who was asked (may be empty), what it is about where no one call is (may be empty)
+	type AgentsToolsPermissionShownTarget > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionPlaces.include"
+	type AgentsToolsPermissionPoster > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionHolds.include"
+	local answerBy="$8" answerByName answerAsked="${10:-}" answerAskedName answerWhere
+	[ -n "$3" ] && [ -d "$3" ] || {
+		echo "⚠️ WARNING: $MDSC_CMD: the $1 has no session store to track it in, so it was NOT posted to event-track" >&2
+		return 0
+	}
+	answerByName="$( AgentsToolsPermissionPartyName "$answerBy" )"
+	answerAskedName="$( AgentsToolsPermissionPartyName "$answerAsked" )"
+	## Who was asked is said only where it is not who answered.
+	[ "$answerAskedName" != "$answerByName" ] || answerAskedName=""
+	answerWhere="$( AgentsToolsPermissionRefusalWhere )"
+	agentsPermissionTrackWhat="$1" AgentsToolsPermissionEventTrack "$( AgentsToolsPermissionPoster "$2" )" "$3" --kind "$1" --session-id "$4" --field refusal-id="${5:--}" \
+		--field host="$( printf '%s\n' "$answerWhere" | LC_ALL=C sed -n 's/^host: //p' )" \
+		--field workspace="$( printf '%s\n' "$answerWhere" | LC_ALL=C sed -n 's/^workspace: //p' )" \
+		--field tool="${6:--}" --field target="$( [ -z "${7:-}" ] && printf '%s' - || AgentsToolsPermissionShownTarget "$7" )" --field caller="${2:--}" --field by="${answerByName:--}" \
+		--field asked="${answerAskedName:--}" --field scope="${9:--}" --field what="${11:--}" > /dev/null || :
+	return 0
+}
+
+## One party of a permission post as a name: a member's own name as it is, and for a Slack
+## account the name the team's account cache holds, the human-owner's configured account by
+## that name. From local records only: nothing is looked up over the network for a post.
+AgentsToolsPermissionPartyName(){ ## member name or Slack account id (may be empty)
+	type AgentsSlackIdentityMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/slack/AgentsTools.SlackIdentities.include"
+	local partyName=""
+	[ -n "$1" ] || return 0
+	partyName="$( AgentsSlackIdentityMember "$1" )" || partyName=""
+	type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/settings/AgentsTools.ConfigOption.include"
+	[ -n "$partyName" ] || [ "$1" != "$( AgentsToolsConfigOption magic-team --select SLACK_CHANNEL_HUMAN_OWNER 2>/dev/null )" ] || partyName="human-owner"
+	printf '%s' "${partyName:-$1}"
+}

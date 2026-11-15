@@ -21,7 +21,7 @@ set -u
 rigPackage="$MDLT_ORIGIN/myx/myx.distro-agents"
 rigTool="$rigPackage/sh-scripts/DistroAgentsTools.fn.sh"
 rigFixDir="$rigPackage/sh-test/check-fixtures"
-rigKnowledge="$rigPackage/sh-lib/team-data/AgentsTools.Knowledge.include"
+rigKnowledge="$rigPackage/sh-lib/knowledge/AgentsTools.Knowledge.include"
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }

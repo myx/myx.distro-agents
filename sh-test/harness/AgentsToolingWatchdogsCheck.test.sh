@@ -2,7 +2,7 @@
 ## Behavioural check on three watchdogs of the tooling, each run rather than read: the Bash tool's
 ## (sh-lib/harness/AgentsUniversalHarness.sh, AgentsHarnessToolBash), the MCP client's (sh-lib/harness/AgentsHarnessMcpClient.sh,
 ## AgentsHarnessMcpRun), both where the host has no `timeout` command, and the one of the handback retry
-## (sh-lib/session/AgentsTools.InternOpAgentSpawnProxy.include, AgentsToolsSpawnProxyHandbackWarn). Each starts a process,
+## (sh-lib/spawn/AgentsTools.InternOpAgentSpawnProxy.include, AgentsToolsSpawnProxyHandbackWarn). Each starts a process,
 ## and beside it a watchdog that ends that process at its bound, so a command, a call or a retry that hangs does
 ## not hold its caller. Each watchdog knows its process by its pid, and a pid is a number the system gives again:
 ## at the bound it may name another process. The hook's watchdog is AgentsHarnessHookWatchdogCheck's.
@@ -28,12 +28,12 @@ rigHere="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib"
 rigHarness="$rigHere/harness/AgentsUniversalHarness.sh"
 . "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-harness-text.include.sh" || exit 1
 rigMcpClient="$rigHere/harness/AgentsHarnessMcpClient.sh"
-rigSpawnInclude="$rigHere/session/AgentsTools.InternOpAgentSpawnProxy.include"
+rigSpawnInclude="$rigHere/spawn/AgentsTools.InternOpAgentSpawnProxy.include"
 
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }
-for rigFile in "$rigHarness" "$rigMcpClient" "$rigSpawnInclude" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include" ; do
+for rigFile in "$rigHarness" "$rigMcpClient" "$rigSpawnInclude" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunProcesses.include" ; do
 	[ -f "$rigFile" ] || rigRefuse "not found at the origin this workspace resolves: $rigFile"
 done
 rigRealSleep="$( command -v sleep )" || rigRefuse "no sleep on PATH to hand the other waits to"
@@ -235,8 +235,8 @@ rigAssert "the number taken between the two ends: the hard one is not sent, and 
 
 echo "-- each watchdog keeps its process by the one reading the tooling keeps a process by --"
 ## The harness holds two such watchdogs, each reading twice: the Bash tool's and the one behind WorkspaceContextExecute.
-rigAssert "none of the three files signals a pid after a wait by the number alone, and each reads when its process began through AgentsToolsRegistryProcessesBegan" \
-	"$( rigCode <( rigHarnessCat ) | LC_ALL=C grep -c -e 'sleep "\$toolTimeout" ; kill' ) $( rigCode "$rigMcpClient" | LC_ALL=C grep -c -e 'sleep "\$runBound" ; kill' ) $( rigCode "$rigSpawnInclude" | LC_ALL=C grep -c -e 'sleep 180 ; kill' ) $( rigCode <( rigHarnessCat ) | LC_ALL=C grep -c -F '"$harnessRunPid" | AgentsToolsRegistryProcessesBegan' ) $( rigCode "$rigMcpClient" | LC_ALL=C grep -c -F '"$runPid" | AgentsToolsRegistryProcessesBegan' ) $( rigCode "$rigSpawnInclude" | LC_ALL=C grep -c -F '"$warnRetryPid" | AgentsToolsRegistryProcessesBegan' )" "0 0 0 4 2 3"
+rigAssert "none of the three files signals a pid after a wait by the number alone, and each reads when its process began through AgentsToolsRunProcessesBegan" \
+	"$( rigCode <( rigHarnessCat ) | LC_ALL=C grep -c -e 'sleep "\$toolTimeout" ; kill' ) $( rigCode "$rigMcpClient" | LC_ALL=C grep -c -e 'sleep "\$runBound" ; kill' ) $( rigCode "$rigSpawnInclude" | LC_ALL=C grep -c -e 'sleep 180 ; kill' ) $( rigCode <( rigHarnessCat ) | LC_ALL=C grep -c -F '"$harnessRunPid" | AgentsToolsRunProcessesBegan' ) $( rigCode "$rigMcpClient" | LC_ALL=C grep -c -F '"$runPid" | AgentsToolsRunProcessesBegan' ) $( rigCode "$rigSpawnInclude" | LC_ALL=C grep -c -F '"$warnRetryPid" | AgentsToolsRunProcessesBegan' )" "0 0 0 4 2 3"
 
 if [ "$rigFails" -ne 0 ] ; then
 	echo "⛔ TOOLING WATCHDOGS CHECK FAILED: $rigFails of $(( rigPasses + rigFails )) assertion(s)" >&2 ; exit 1

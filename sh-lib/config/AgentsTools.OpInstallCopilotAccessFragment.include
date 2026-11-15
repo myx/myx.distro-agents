@@ -1,0 +1,166 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+## AgentsTools.OpInstallCopilotAccessFragment.include -- the operation `--install-copilot-access-fragment`, sourced by AgentsTools.Install.include with the operation's arguments.
+## Prepares the copilot launch fragment: the `--add-dir <root>` tokens giving
+## copilot the same read/write access the claude settings writers grant. Root
+## set comes from AgentsTools.ClientAccessRoots.include; this op only formats
+## what it yields. Internal step of --install-workspace-integrations, never a
+## user-facing operation: it is out of help and out of every --owner-setup-*
+## remedy, which name the integrations installer instead.
+		shift
+
+		local workspaceArg
+		while [ "$#" -gt 0 ] ; do
+			case "$1" in
+				--workspace)
+					if [ -z "$2" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --install-copilot-access-fragment: --workspace requires a value" >&2
+						set +e ; return 1
+					fi
+					workspaceArg="$2" ; shift 2
+				;;
+				*)
+					echo "⛔ ERROR: $MDSC_CMD --install-copilot-access-fragment: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+
+		local workspace="${workspaceArg:-$MMDAPP}"
+		if [ ! -d "$workspace" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --install-copilot-access-fragment: workspace not found: $workspace" >&2
+			set +e ; return 1
+		fi
+		workspace="$( cd "$workspace" && pwd )"
+
+		if [ ! -d "$workspace/.local" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --install-copilot-access-fragment: not a workspace root: $workspace -- expected '$workspace/.local' to exist. This looks like a sub-project/repo living inside a real workspace, not the workspace root itself." >&2
+			set +e ; return 1
+		fi
+
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/client/AgentsTools.ClientAccessRoots.include"
+
+		## Single source of the root set; this op only formats what it yields.
+		local rootsList
+		rootsList="$( AgentsToolsClientAccessRoots "$workspace" )"
+
+		## Catch a bad/empty root set BEFORE emitting a broken launch line: an
+		## empty fragment is a setup failure, not a valid "grant nothing".
+		if [ -z "$rootsList" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --install-copilot-access-fragment: computed an empty access-root set -- refusing to write an empty/broken copilot fragment" >&2
+			set +e ; return 1
+		fi
+		## One line so `local` masks grep's exit 1 on a legitimately empty member set.
+		local memberCount="$( AgentsToolsClientAccessRootsMembers readable | grep -c '' )"
+		if [ "$memberCount" -lt 1 ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --install-copilot-access-fragment: no member skill directories resolved under $MDAT_SKILLSET_ROOT -- refusing to write a copilot fragment with no member grants" >&2
+			set +e ; return 1
+		fi
+
+		local claudeDir="$workspace/.claude"
+		mkdir -p "$claudeDir" || {
+			echo "⛔ ERROR: $MDSC_CMD --install-copilot-access-fragment: cannot create $claudeDir" >&2
+			set +e ; return 1
+		}
+		local fragmentFile="$claudeDir/copilot-add-dir.fragment"
+		local fragmentTmp="$fragmentFile.tmp.$$"
+
+		## Every root is tagged own/explicit/wildcard (AgentsTools.ClientAccessRoots
+		## .include's AgentsToolsClientAccessRootTag) so the console launcher knows
+		## which it may trust unconditionally and which it must live-check at spawn
+		## time. own and explicit roots are created for real, right here, at
+		## install time -- own also gets a short MAGIC.md explaining why the
+		## directory exists. A wildcard root is never created; the console alone
+		## decides at spawn time whether it is there to use. If a root this op
+		## means to guarantee can't actually be created, it is recorded as
+		## wildcard instead rather than left as a false promise the console would
+		## trust unconditionally.
+		local fragmentRoot fragmentTag ownCount=0 explicitCount=0 wildcardCount=0 createdCount=0
+		: > "$fragmentTmp"
+		while IFS= read -r fragmentRoot ; do
+			[ -n "$fragmentRoot" ] || continue
+			## Only a workspace:* grant root -- the one selector that sweeps the
+			## WHOLE registry rather than naming a specific path -- ever gets a
+			## sidecar row tagged wildcard. Every other root (board/member/
+			## namespace/project grants, the plain workspace source tree,
+			## reference roots, and workspace:./workspace:<name> grants) either
+			## carries its own own/explicit row or carries none at all -- and "no
+			## row" means it was never a candidate for the wildcard-sweep failure
+			## in the first place, so it defaults to own, not wildcard.
+			## A root under the workspace actually being installed is own from
+			## THIS install's own point of view, full stop -- checked before the
+			## sidecar lookup, never after. The sidecar is a flat path->tag map
+			## with no workspace scoping of its own, so the same path can carry a
+			## tag another workspace's install wrote from ITS point of view (e.g.
+			## this workspace's own source root, seen as wildcard by some other
+			## workspace's workspace:* sweep) -- that tag is correct for that
+			## other install, not for this one.
+			case "$fragmentRoot" in
+				"$workspace"|"$workspace"/*) fragmentTag="own" ;;
+				*)
+					fragmentTag="$( AgentsToolsClientAccessRootTag "$fragmentRoot" )"
+					[ -n "$fragmentTag" ] || fragmentTag="own"
+				;;
+			esac
+			case "$fragmentTag" in
+				own)
+					if [ -d "$fragmentRoot" ] ; then
+						ownCount=$(( ownCount + 1 ))
+					elif mkdir -p "$fragmentRoot" 2>/dev/null ; then
+						createdCount=$(( createdCount + 1 ))
+						## Only ever written into a directory this run just created --
+						## never into one that already existed, whatever it holds.
+						printf '%s\n' \
+							"# $( basename "$fragmentRoot" )" \
+							"" \
+							"Auto-created access-grant directory. Standing, not scratch." \
+							> "$fragmentRoot/MAGIC.md" 2>/dev/null || true
+						ownCount=$(( ownCount + 1 ))
+					else
+						echo "🙋 WARNING: $MDSC_CMD --install-copilot-access-fragment: could not create own-workspace root $fragmentRoot -- recorded as wildcard (live-checked at spawn time) instead of install-guaranteed" >&2
+						fragmentTag="wildcard"
+						wildcardCount=$(( wildcardCount + 1 ))
+					fi
+				;;
+				explicit)
+					[ -d "$fragmentRoot" ] || createdCount=$(( createdCount + 1 ))
+					if mkdir -p "$fragmentRoot" 2>/dev/null ; then
+						explicitCount=$(( explicitCount + 1 ))
+					else
+						echo "🙋 WARNING: $MDSC_CMD --install-copilot-access-fragment: could not create explicit-name root $fragmentRoot -- recorded as wildcard (live-checked at spawn time) instead of install-guaranteed" >&2
+						fragmentTag="wildcard"
+						wildcardCount=$(( wildcardCount + 1 ))
+					fi
+				;;
+				*) wildcardCount=$(( wildcardCount + 1 )) ;;
+			esac
+			printf '%s\t%s\n' "$fragmentTag" "$fragmentRoot" >> "$fragmentTmp"
+		done <<< "$rootsList"
+
+		## A root this run created changes what one index holds: the harness's roots index
+		## keeps every root as it resolved, and one made before that root existed keeps it
+		## unresolved. The step that changes what an index holds writes it, as the MCP
+		## registration and the member links write theirs: that one index, by its name, and
+		## only for the workspace the tooling runs for, which is the one the index is of.
+		if [ "$createdCount" -gt 0 ] && [ "$workspace" = "$( cd "$MMDAPP" && pwd )" ] ; then
+			type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+			DistroAgentsTools --make-harness-indices harness.roots || { rm -f "$fragmentTmp" ; set +e ; return 1 ; }
+		fi
+
+		local rootCount="$( printf '%s\n' "$rootsList" | grep -c '' )"
+
+		if cmp -s "$fragmentTmp" "$fragmentFile" ; then
+			rm -f "$fragmentTmp"
+			echo "✅ copilot access already configured ($ownCount own + $explicitCount explicit + $wildcardCount wildcard = ${rootCount:-?} root(s))" >&2
+			return 0
+		fi
+
+		if ! mv -f "$fragmentTmp" "$fragmentFile" ; then
+			echo "⛔ ERROR: $MDSC_CMD --install-copilot-access-fragment: could not install $fragmentFile" >&2
+			rm -f "$fragmentTmp"
+			set +e ; return 1
+		fi
+
+		echo "✅ copilot access configured ($ownCount own + $explicitCount explicit + $wildcardCount wildcard = ${rootCount:-?} root(s))" >&2
+		return 0

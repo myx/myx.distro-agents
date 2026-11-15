@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+## AgentsTools.InternOpAtlassianConfluencePageDelete.include -- the operation `--intern-op-atlassian-confluence-page-delete`, sourced by AgentsTools.InternOpAtlassianCall.include with the operation's arguments.
+## An Atlassian operation name this file does not implement. Reported, never
+## swallowed. Never widen this glob -- see DUAL USE in this file's header.
+	type AgentsToolsAtlassianCall > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/atlassian/AgentsTools.AtlassianRequest.include"
+		shift || :
+		local confPDMember="" confPDPageId="" confPDContext="intern-op-atlassian-confluence-page-delete" confPDFlag="" confPDValue=""
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--member|--page-id|--context)
+					confPDFlag="$1"
+					shift || :
+					confPDValue="${1:-}"
+					shift || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confPDContext: $confPDFlag value missing" >&2 ; set +e ; return 1 ; }
+					[ -n "$confPDValue" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confPDContext: $confPDFlag value missing" >&2 ; set +e ; return 1 ; }
+					case "$confPDFlag" in
+						--member)   confPDMember="$confPDValue" ;;
+						--page-id)  confPDPageId="$confPDValue" ;;
+						--context)  confPDContext="$confPDValue" ;;
+					esac
+				;;
+				*)
+					printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confPDContext: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		if [ -z "$confPDMember" ] || [ -z "$confPDPageId" ] ; then
+			printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confPDContext: syntax is --member <team-member> --page-id <page-id> [--context <caller>] -- the acting member is required, since a page is deleted only by an identity allowed to delete it" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsAtlassianAssertNumber "$confPDPageId" "<page-id>" "$confPDContext" || { set +e ; return 1 ; }
+		local confPDRc=0
+		AgentsToolsAtlassianCall "$confPDMember" confluence DELETE "/wiki/api/v2/pages/$( AgentsToolsAtlassianUrlEncode "$confPDPageId" )" "$confPDContext" "" || confPDRc=$?
+		if [ "$confPDRc" -ne 0 ] ; then
+			set +e ; return "$confPDRc"
+		fi
+		return 0

@@ -4,7 +4,7 @@
 ## less than 4 characters and not more than 20, every following character replaced by `*`, even for a long key.
 ## A quarter rounds down (open-names 56: the simplest form); most values are chosen so 25 percent is a whole number,
 ## and two are not, to hold the rounding. F11.8 replaces "A secret is
-## never printed" (AgentsTools.ManagerConfig.include:18); AgentsCredentialExposureCheck and AgentsManagerConfigDigestCheck
+## never printed" (AgentsTools.ManagerSettings.include:18); AgentsCredentialExposureCheck and AgentsManagerConfigDigestCheck
 ## are reconciled in the same feature. The other printing surfaces are the builder's to enumerate first, and join here.
 ## Held, for credentials of the workspace scope, each a key the tooling knows as one:
 ##   1. 16 characters: the first 4, then 12 `*`

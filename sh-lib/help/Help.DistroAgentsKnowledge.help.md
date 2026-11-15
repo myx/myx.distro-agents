@@ -5,7 +5,7 @@
 📘 syntax: DistroAgentsKnowledge.fn.sh --get-place-path <name>[/<relative>]
 📘 syntax: DistroAgentsKnowledge.fn.sh --list-namespaces [<namespace>]
 📘 syntax: DistroAgentsKnowledge.fn.sh --local-models-list
-📘 syntax: DistroAgentsKnowledge.fn.sh --magic-section-upsert <MAGIC.md path> --section <heading> (--from-stdin|--text <text>)
+📘 syntax: DistroAgentsKnowledge.fn.sh --magic-section-upsert <MAGIC.md path> --section <heading> (--text <text>|--from-stdin)
 📘 syntax: DistroAgentsKnowledge.fn.sh [--mdat-output-format json] [<project selector: --select-*|--filter-*|--remove-*>] (--add-source-docs|--add-board-items|--add-vault-items|--add-inbox-items)... (--query-keyword <text>|--query-pattern <regex>|--query-glob <glob>|--query-open-and|--query-open-or|--query-close)...
 📘 syntax: DistroAgentsKnowledge.fn.sh [--help-syntax [<op>]]
 📘 syntax: DistroAgentsKnowledge.fn.sh [--help]
@@ -52,7 +52,7 @@
 			in the last three. Reads only. Prints nothing and ends 1 where
 			the local server cannot be reached. Takes no arguments.
 
-		--magic-section-upsert <MAGIC.md path> --section <heading> (--from-stdin|--text <text>)
+		--magic-section-upsert <MAGIC.md path> --section <heading> (--text <text>|--from-stdin)
 			The one write to a MAGIC.md: the body of the `## <heading>` section
 			becomes the text given, or the section is added at the end where the
 			file has none. The path names a MAGIC.md that stands and is no link.

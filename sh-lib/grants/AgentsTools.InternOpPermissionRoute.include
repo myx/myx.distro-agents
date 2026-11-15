@@ -1,0 +1,73 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+type AgentsToolsPermissionSessionRunning > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionParticipants.include"
+type AgentsToolsPermissionField > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionHolds.include"
+
+## AgentsTools.InternOpPermissionRoute.include -- the operation `--intern-op-permission-route`, sourced by AgentsTools.InternOpPermission.include with the operation's arguments.
+## WHO A PERMISSION QUESTION GOES TO, settled when it is asked, so it never waits on someone
+## who cannot grant it or is not there: the one the asker named, where it holds the refused
+## call and can be reached; else a holder with a live run in this coworking session; else
+## the human-owner. Reached: the human-owner always; magic-coordinator, whose own session
+## leads the coworking session and is no spawn of it; any other member only with a live
+## run in the session. A routine keeps its own executors. Prints `ROUTE: <who>`, and
+## `ROUTE-REASON: <why>` where that is not who was named. Decides only: it posts nothing.
+		shift
+		MDSC_CMD="$MDSC_CMD --intern-op-permission-route"
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.UseAgentsTools.include"
+		local routeAsker="${1:-}" routeSession="" routeRefusal="" routeTo="" routeRecord routeTool="" routeTarget="" routeRunning routeOne routeWhy=""
+		shift || true
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--session-id) routeSession="${2:-}" ; shift 2 ;;
+				--refusal-id) routeRefusal="${2:-}" ; shift 2 ;;
+				--address-to) routeTo="${2:-}" ; shift 2 ;;
+				*)
+					echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		if [ -z "$routeAsker" ] || [ -z "$routeSession" ] || [ -z "$routeRefusal" ] || [ -z "$routeTo" ] ; then
+			echo "$MDSC_CMD: ⛔ ERROR: syntax is <asking-member> --session-id <id> --refusal-id <id> --address-to <member|human-owner>" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsAssertBareName "$routeSession" "--session-id" permission-route || { set +e ; return 1 ; }
+		AgentsToolsAssertBareName "$routeRefusal" "--refusal-id" permission-route || { set +e ; return 1 ; }
+		routeRecord="$MMDAPP/.local/agents/sessions/$routeSession/$routeRefusal.md"
+		## The human-owner grants anything, a routine has its executors, and a refusal that
+		## cannot be read leaves the question with who was named.
+		case "$routeTo" in human-owner|*.routine) printf 'ROUTE: %s\n' "$routeTo" ; return 0 ;; esac
+		[ -f "$routeRecord" ] || { printf 'ROUTE: %s\n' "$routeTo" ; return 0 ; }
+		## A REFUSAL ONLY ITS LIMIT'S OWNER CAN LIFT is asked of that owner alone: every step below it, a holder or a coordinator, cannot
+		## grant past the limit, so the ask skips them.
+		local routeLimitOwner=""
+		routeLimitOwner="$( AgentsToolsPermissionField "$routeRecord" limit-owner )"
+		if [ -n "$routeLimitOwner" ] ; then
+			printf 'ROUTE: %s\n' "$routeLimitOwner"
+			[ "$routeLimitOwner" = "$routeTo" ] || printf 'ROUTE-REASON: the call was refused by a limit only %s can lift\n' "$routeLimitOwner"
+			return 0
+		fi
+		routeTool="$( AgentsToolsPermissionField "$routeRecord" tool )"
+		routeTarget="$( AgentsToolsPermissionRecordDecode "$( AgentsToolsPermissionField "$routeRecord" target )" )"
+		[ -n "$routeTool" ] || { printf 'ROUTE: %s\n' "$routeTo" ; return 0 ; }
+		routeRunning="$( AgentsToolsPermissionSessionRunning "$routeSession" )"
+		if ! AgentsToolsPermissionHolds "$routeTo" "$routeTool" "$routeTarget" "$routeSession" > /dev/null 2>&1 ; then
+			routeWhy="$routeTo does not hold $routeTool ${routeTarget:-(any target)}"
+		elif [ "$routeTo" != "magic-coordinator" ] && ! printf '%s\n' "$routeRunning" | LC_ALL=C grep -q -x -F -- "$routeTo" ; then
+			routeWhy="$routeTo has no live run in this session"
+		fi
+		if [ -z "$routeWhy" ] ; then
+			printf 'ROUTE: %s\n' "$routeTo"
+			return 0
+		fi
+		while IFS= read -r routeOne ; do
+			routeOne="${routeOne%% *}"
+			[ -n "$routeOne" ] && [ "$routeOne" != "human-owner" ] || continue
+			printf '%s\n' "$routeRunning" | LC_ALL=C grep -q -x -F -- "$routeOne" || continue
+			printf 'ROUTE: %s\n' "$routeOne"
+			printf 'ROUTE-REASON: %s, and %s holds it and runs in this session\n' "$routeWhy" "$routeOne"
+			return 0
+		done <<< "$( AgentsToolsPermissionHolders "$routeTool" "$routeTarget" "$routeSession" "" "$routeAsker $routeTo" )"
+		printf 'ROUTE: human-owner\n'
+		printf 'ROUTE-REASON: %s, and nobody running in this session holds it\n' "$routeWhy"
+		return 0

@@ -12,7 +12,7 @@
 
 agentsHarnessResumeLib="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib"
 ## The one function that starts the console for every spawn, loaded with this file.
-type AgentsToolsSpawnConsoleLaunch > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnConsoleLaunch.include"
+type AgentsToolsSpawnConsoleLaunch > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnConsoleLaunch.include"
 
 ## Whether a context file parses as one the harness can load. rc 0 and its message count;
 ## rc 1 and the reason.
@@ -46,7 +46,9 @@ AgentsReviewContextResumeEligible(){ ## record path (may be empty)
 	ctxHost="$( AgentsToolsSpawnSandboxRecordHeader "$ctxRecord" host )"
 	thisHost="$( hostname -s 2> /dev/null )" || thisHost="unknown"
 	[ "$ctxHost" = "$thisHost" ] || { printf 'the old session ran on host %s, not %s' "${ctxHost:--}" "$thisHost" ; return 1 ; }
-	ctxFile="${ctxRecord%/*}/context.jsonl"
+	## The run's own file in its folder: context.<spawn id>.jsonl where it kept one (another run held context.jsonl), else context.jsonl,
+	## whose header the check below holds to this run (AgentsHarnessContextFileOf, AgentsHarnessContext.include).
+	if [ -f "${ctxRecord%/*}/context.$ctxSpawn.jsonl" ] ; then ctxFile="${ctxRecord%/*}/context.$ctxSpawn.jsonl" ; else ctxFile="${ctxRecord%/*}/context.jsonl" ; fi
 	ctxWhy="$( AgentsHarnessContextCheck "$ctxFile" )" || { printf 'the kept context does not load: %s' "$ctxWhy" ; return 1 ; }
 	ctxSession="$( head -1 "$ctxFile" | LC_ALL=C awk -v path=session -v optional=1 -f "$agentsHarnessResumeLib/harness/AgentsHarnessJsonField.awk" 2>/dev/null )" || ctxSession=""
 	[ "$ctxSession" = "$ctxSpawn" ] || { printf 'the kept context belongs to session %s, not %s' "${ctxSession:--}" "$ctxSpawn" ; return 1 ; }
@@ -68,6 +70,7 @@ AgentsToolsSpawnProxyHarnessResumeRun(){ ## session id, session thread, conversa
 	runFrom="$( head -1 "$runContext" 2>/dev/null | LC_ALL=C awk -v path=session -v optional=1 -f "$agentsHarnessResumeLib/harness/AgentsHarnessJsonField.awk" 2>/dev/null )" || runFrom=""
 	runMark="${MDAT_SPAWN_LAUNCH_MARKER:-$MMDAPP/.local/temp/mdat-$MDAT_SPAWN_SESSION_ID.launch}.resume-context"
 	rm -f "$runMark"
+	type AgentsToolsWorkspaceSkillsetRoot > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWorkspace.include"
 	AgentsToolsSpawnConsoleLaunch MDAT_SKILLSET_ROOT="$( AgentsToolsWorkspaceSkillsetRoot "$MMDAPP" )" MDAT_SESSION_ID="$runSession" MDAT_SESSION_THREAD="$runThread" MDAT_CONVERSATION_THREADS="$runConv" \
 		MDAT_HARNESS_RESUME_CONTEXT="$runContext" MDAT_HARNESS_RESUME_MARKER="$runMark" \
 		-- "$@" <<< "$runResume" &

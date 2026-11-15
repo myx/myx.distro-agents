@@ -99,7 +99,6 @@ case "$1" in
 			## The item by its name alone, in incoming/ or in processed/
 			## (AgentsTools.InboxPlace.include), no state change first; with
 			## --exclude-incoming in processed/ alone.
-			type AgentsToolsInboxDir > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/inbox/AgentsTools.InboxPlace.include"
 			local inboxRootDir="$MDAT_DATA_ROOT/inboxes/$inboxMember/incoming"
 			local inboxProcessedDir="$MDAT_DATA_ROOT/inboxes/$inboxMember/processed"
 			local inboxSourcePath="" inboxCandidateDir="" inboxCandidates=( "$inboxRootDir" "$inboxProcessedDir" )
@@ -252,7 +251,8 @@ case "$1" in
 		## without git keeps the trashed copy, so it gets the full record.
 		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ReviewFlow.include"
 		if [ -n "$repoRoot" ] ; then
-			AgentsReviewLoad
+			type AgentsToolsDecisionsField > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemDecisions.include"
+			type AgentsTranscriptEventAfterEnd > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionTranscript.include"
 			local endOut="" endSpawn=""
 			endOut="$( AgentsToolsBoardAcceptDismissChild "$callingMember" "$sourcePath" )" || :
 			endOut="${endOut#ACCEPT-DISMISS: }"

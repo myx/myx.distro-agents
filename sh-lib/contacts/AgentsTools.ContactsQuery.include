@@ -1,0 +1,134 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+type AgentsSlackIdentityId > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/slack/AgentsTools.SlackIdentities.include"
+
+##
+## AgentsTools.ContactsQuery.include -- contacts read: listed, indexed, found, one record whole, whether one is known, and how to reach one.
+## Sourced, never run. Functions only. Loaded by AgentsTools.Contacts.include, with the other parts it calls.
+##
+
+## --all-contacts [--organisation <slug>] [--reached-by <member>] [--scope <scope>[=<tier>]]: a row a contact, `contact <id> <display-name> <organisation> <reached-by> - <scope-tiers>`, by id. `--scope <scope>[=<tier>]` keeps the contacts holding that scope tier.
+AgentsToolsContactsAll(){ ## the operation, its arguments...
+	local allOp="$1" allOrg="" allMember="" allScope="" allOut
+	shift
+	while [ $# -gt 0 ] ; do
+		case "$1" in
+			--organisation|--reached-by|--scope)
+				[ -n "${2:-}" ] || { echo "$MDSC_CMD: ⛔ ERROR: $allOp: $1 takes a value" >&2 ; return 1 ; }
+				case "$1" in --organisation) allOrg="$2" ;; --reached-by) allMember="$2" ;; *) allScope="$2" ;; esac
+				shift 2
+			;;
+			*) echo "$MDSC_CMD: ⛔ ERROR: $allOp: unknown option: $1 -- syntax is [--organisation <slug>] [--reached-by <member>] [--scope <scope>[=<tier>]]" >&2 ; return 1 ;;
+		esac
+	done
+	type AgentsToolsContactsStore > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/contacts/AgentsTools.ContactsRecord.include"
+	AgentsToolsContactsStore "$allOp" || return 1
+	allOut="$( AgentsToolsContactsIndex all "" "" "$allMember" "$allOrg" "$allScope" )"
+	if [ -z "$allOut" ] ; then
+		echo "# $allOp: no contact is recorded${allOrg:+ for the organisation $allOrg}${allMember:+ that $allMember holds}${allScope:+ with the scope tier $allScope}" >&2
+		return 0
+	fi
+	printf '%s\n' "$allOut" | LC_ALL=C sort -t "$(printf '\t')" -k2,2
+}
+
+## The index rows: mode, wanted text, Slack team, member, organisation. The person files of the store, in the order of their names.
+AgentsToolsContactsIndex(){ ## mode, want, team, member, organisation, [scope or scope=tier]
+	local indexMode="$1" indexWant="$2" indexTeam="$3" indexMember="$4" indexOrg="$5" indexScope="${6:-}"
+	## The team asked for is named as the records name it: its Slack workspace.
+	type AgentsToolsContactsSlackTeam > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/contacts/AgentsTools.ContactsCoordinates.include"
+	[ -z "$indexTeam" ] || indexTeam="$( AgentsToolsContactsSlackTeam "$indexTeam" )"
+	[ -d "$contactsPersons" ] || return 0
+	set -- "$contactsPersons"/*.md
+	[ -f "$1" ] || return 0
+	LC_ALL=C awk -v mode="$indexMode" -v want="$indexWant" -v team="$indexTeam" -v member="$indexMember" -v orgfilter="$indexOrg" -v scopefilter="$indexScope" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/contacts/AgentsContactsIndex.awk" "$@"
+}
+
+## --all-organisations: a row an organisation, `organisation <id> <display-name> <domain> <how many contacts>`, by id.
+AgentsToolsContactsAllOrganisations(){ ## the operation
+	local orgFile orgIdName orgCountN
+	[ $# -eq 1 ] || { echo "$MDSC_CMD: ⛔ ERROR: $1: takes no option: $2" >&2 ; return 1 ; }
+	type AgentsToolsContactsStore > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/contacts/AgentsTools.ContactsRecord.include"
+	AgentsToolsContactsStore "$1" || return 1
+	if [ ! -d "$contactsOrgs" ] || [ -z "$( ls "$contactsOrgs" 2> /dev/null | LC_ALL=C grep '\.md$' )" ] ; then
+		echo "# $1: no organisation is recorded" >&2
+		return 0
+	fi
+	for orgFile in "$contactsOrgs"/*.md ; do
+		[ -f "$orgFile" ] || continue
+		orgIdName="${orgFile##*/}" ; orgIdName="${orgIdName%.md}"
+		type AgentsToolsContactsOrgRead > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/contacts/AgentsTools.ContactsRecord.include"
+		AgentsToolsContactsOrgRead "$orgFile"
+		orgCountN="$( AgentsToolsContactsIndex all "" "" "" "$orgIdName" | LC_ALL=C grep -c . )" || orgCountN=0
+		printf 'organisation\t%s\t%s\t%s\t%s\n' "$orgIdName" "$orgName" "$orgDomain" "$orgCountN"
+	done | LC_ALL=C sort -t "$(printf '\t')" -k2,2
+}
+
+## --contact-record <id>: the record, whole.
+AgentsToolsContactsRecord(){ ## the operation, id
+	[ -n "${2:-}" ] && [ $# -eq 2 ] || { echo "$MDSC_CMD: ⛔ ERROR: $1: syntax is <id>" >&2 ; return 1 ; }
+	type AgentsToolsContactsSlug > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/contacts/AgentsTools.ContactsRecord.include"
+	AgentsToolsContactsSlug "$2" || { echo "$MDSC_CMD: ⛔ ERROR: $1: <id> is a contact's id, lowercase letters, digits and hyphens: $2" >&2 ; return 1 ; }
+	type AgentsToolsContactsStore > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/contacts/AgentsTools.ContactsRecord.include"
+	AgentsToolsContactsStore "$1" || return 1
+	if [ ! -f "$contactsPersons/$2.md" ] ; then
+		echo "$MDSC_CMD: ⛔ ERROR: $1: no contact $2 is recorded -- find one with --find-contact <value>" >&2
+		return 1
+	fi
+	cat "$contactsPersons/$2.md"
+}
+
+## --find-contact <value> [--team <scope>] [--reached-by <member>] [--scope <scope>[=<tier>]]: the contacts that value names, rows as --all-contacts with the last field
+## saying what matched (id, name, slack-id, slack-conversation, slack-handle, email). rc 1 with none, saying what was searched.
+contactsFound=""
+AgentsToolsContactsFind(){ ## the operation, its arguments...
+	local findOp="$1" findValue="" findTeam="" findMember="" findScope="" findCount
+	shift
+	while [ $# -gt 0 ] ; do
+		case "$1" in
+			--team|--reached-by|--scope)
+				[ -n "${2:-}" ] || { echo "$MDSC_CMD: ⛔ ERROR: $findOp: $1 takes a value" >&2 ; return 1 ; }
+				case "$1" in --team) findTeam="$2" ;; --reached-by) findMember="$2" ;; *) findScope="$2" ;; esac
+				shift 2
+			;;
+			-*) echo "$MDSC_CMD: ⛔ ERROR: $findOp: unknown option: $1 -- syntax is <value> [--team <scope>] [--reached-by <member>] [--scope <scope>[=<tier>]]" >&2 ; return 1 ;;
+			*)
+				[ -z "$findValue" ] || { echo "$MDSC_CMD: ⛔ ERROR: $findOp: one value, got a second: $1" >&2 ; return 1 ; }
+				findValue="$1" ; shift
+			;;
+		esac
+	done
+	[ -n "$findValue" ] || { echo "$MDSC_CMD: ⛔ ERROR: $findOp: syntax is <value> [--team <scope>] [--reached-by <member>] [--scope <scope>[=<tier>]]" >&2 ; return 1 ; }
+	type AgentsToolsContactsStore > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/contacts/AgentsTools.ContactsRecord.include"
+	AgentsToolsContactsStore "$findOp" || return 1
+	contactsFound="$( AgentsToolsContactsIndex find "$findValue" "$findTeam" "$findMember" "" "$findScope" | LC_ALL=C sort -t "$(printf '\t')" -k2,2 )"
+	if [ -z "$contactsFound" ] ; then
+		findCount="$( ls "$contactsPersons" 2> /dev/null | LC_ALL=C grep -c '\.md$' )" || findCount=0
+		echo "$MDSC_CMD: $findOp: no contact matches \"$findValue\"${findTeam:+ in the Slack team $findTeam}${findMember:+ among those $findMember holds} (searched the ids, names, Slack ids, conversations and handles, and e-mails of $findCount contact(s))" >&2
+		return 1
+	fi
+	printf '%s\n' "$contactsFound"
+}
+
+## The outbound gate's question (AgentsToolsContactAssertKnown): whether a recipient is a coordinate of a contact the member holds. rc 0 it is,
+## rc 1 it is not or the store is not there. A Slack send names its team (the sending member's identity scope), an e-mail none.
+AgentsToolsContactsKnown(){ ## member, value, [Slack team]
+	[ -n "${MDAT_DATA_ROOT:-}" ] || return 1
+	contactsPersons="$MDAT_DATA_ROOT/contacts/persons"
+	[ -n "$( AgentsToolsContactsIndex known "$2" "${3:-}" "$1" "" )" ]
+}
+
+## --reach-contact <id>: reaching one. The coordinates by channel, how to meet it, the send lines of the template.
+AgentsToolsContactsReach(){ ## the operation, id
+	type AgentsToolsContactsSlug > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/contacts/AgentsTools.ContactsRecord.include"
+	local reachFile reachSlack reachMail
+	[ -n "${2:-}" ] && [ $# -eq 2 ] || { echo "$MDSC_CMD: ⛔ ERROR: $1: syntax is <id>" >&2 ; return 1 ; }
+	AgentsToolsContactsSlug "$2" || { echo "$MDSC_CMD: ⛔ ERROR: $1: <id> is a contact's id, lowercase letters, digits and hyphens: $2" >&2 ; return 1 ; }
+	AgentsToolsContactsStore "$1" || return 1
+	reachFile="$contactsPersons/$2.md"
+	[ -f "$reachFile" ] || { echo "$MDSC_CMD: ⛔ ERROR: $1: no contact $2 is recorded -- find one with --find-contact <value>" >&2 ; return 1 ; }
+	AgentsToolsContactsPersonRead "$reachFile"
+	reachSlack="${crSlackConv:+conversations $crSlackConv}${crSlackId:+${crSlackConv:+, }ids $crSlackId}"
+	reachMail="$crEmail"
+	type AgentsToolsEscalationNote > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.Escalation.include"
+	ASKP_F_id="$crId" ASKP_F_name="${crName:-$crId}" ASKP_F_organisation="$( [ "$crOrg" = none ] || printf '%s' "$crOrg" )" ASKP_F_how="$crHow" ASKP_F_slack="$reachSlack" ASKP_F_email="$reachMail" AgentsToolsEscalationNote "Contacts/reaching"
+}

@@ -25,7 +25,7 @@ rigHarness="$rigHere/harness/AgentsUniversalHarness.sh"
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }
-for rigFile in "$rigHarness" "$rigHere/harness/AgentsHarnessHooks.sh" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include" ; do
+for rigFile in "$rigHarness" "$rigHere/harness/AgentsHarnessHooks.sh" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunProcesses.include" ; do
 	[ -f "$rigFile" ] || rigRefuse "not found at the origin this workspace resolves: $rigFile"
 done
 rigRealSleep="$( command -v sleep )" || rigRefuse "no sleep on PATH to hand the other waits to"
@@ -139,8 +139,8 @@ rigAssert "it ran to its end and its silence lets the call go on" "$( rigHook ) 
 
 echo "-- the watchdog keeps a process by the one reading the tooling keeps a process by --"
 rigCode(){ LC_ALL=C grep -v '^[[:space:]]*#' "$1" ; } ## file -- its lines that are no comment
-rigAssert "the hooks file signals the hook's pid in one place, and reads when it began through AgentsToolsRegistryProcessesBegan, as it starts and before it signals" \
-	"$( rigCode "$rigHere/harness/AgentsHarnessHooks.sh" | LC_ALL=C grep -c -F 'kill -TERM "$hookRunPid"' ) $( rigCode "$rigHere/harness/AgentsHarnessHooks.sh" | LC_ALL=C grep -c -F '"$hookRunPid" | AgentsToolsRegistryProcessesBegan' ) $( rigCode "$rigHere/harness/AgentsHarnessHooks.sh" | LC_ALL=C grep -c -F 'sleep 60 ; kill' )" "1 2 0"
+rigAssert "the hooks file signals the hook's pid in one place, and reads when it began through AgentsToolsRunProcessesBegan, as it starts and before it signals" \
+	"$( rigCode "$rigHere/harness/AgentsHarnessHooks.sh" | LC_ALL=C grep -c -F 'kill -TERM "$hookRunPid"' ) $( rigCode "$rigHere/harness/AgentsHarnessHooks.sh" | LC_ALL=C grep -c -F '"$hookRunPid" | AgentsToolsRunProcessesBegan' ) $( rigCode "$rigHere/harness/AgentsHarnessHooks.sh" | LC_ALL=C grep -c -F 'sleep 60 ; kill' )" "1 2 0"
 
 if [ "$rigFails" -ne 0 ] ; then
 	echo "⛔ HARNESS HOOK WATCHDOG CHECK FAILED: $rigFails of $(( rigPasses + rigFails )) assertion(s)" >&2 ; exit 1

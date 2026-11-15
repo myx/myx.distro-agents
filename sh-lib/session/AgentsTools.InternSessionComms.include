@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # ^^^ for syntax checking in the editor only
+type AgentsToolsRunProcessesBegan > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunProcesses.include"
 
 ##
 ## AgentsTools.InternSessionComms.include -- the communications reader and writer of a workspace (F9.3): a shell process of the
@@ -127,14 +128,14 @@ case "$1" in
 		commsPid="$( exec sh -c 'echo "$PPID"' 2> /dev/null )" || commsPid=""
 		case "$commsPid" in ''|*[!0123456789]*) commsPid="" ;; esac
 		commsMe=""
-		[ -z "$commsPid" ] || commsMe="$( printf '%s\n' "$commsPid" | AgentsToolsRegistryProcessesBegan )" || commsMe=""
+		[ -z "$commsPid" ] || commsMe="$( printf '%s\n' "$commsPid" | AgentsToolsRunProcessesBegan )" || commsMe=""
 		if [ -z "$commsMe" ] ; then
 			echo "⛔ ERROR: $MDSC_CMD --intern-session-comms: could not read which process this is and when it began, so its lock would name nobody -- nothing was started" >&2
 			return 1
 		fi
 		## IT IS NO RUN OF A SESSION. By the one rule a run is recognised by, a command line of the tooling is none, whatever it carries.
 		commsLine="$( LC_ALL=C ps -ww -o args= -p "$commsPid" 2> /dev/null )" || commsLine=""
-		if [ -n "$( printf '%s %s\n' "$commsPid" "$commsLine" | AgentsToolsRegistryRunWords )" ] ; then
+		if [ -n "$( printf '%s %s\n' "$commsPid" "$commsLine" | AgentsToolsRunWords )" ] ; then
 			echo "⛔ ERROR: $MDSC_CMD --intern-session-comms: the command line of this process would read as a run of a session: start it with the tooling script as the command itself, or as the first word after its interpreter -- nothing was started" >&2
 			return 1
 		fi
@@ -228,7 +229,7 @@ case "$1" in
 			if [ "$commsMode" = "--run" ] && [ -z "$commsEnd" ] && [ -f "$MMDAPP/.local/cache/comms/.wanted" ] ; then
 				rm -f "$MMDAPP/.local/cache/comms/.wanted" 2> /dev/null
 				commsPullAt="$SECONDS"
-				type AgentsToolsCommsCachePullWatched > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsCache.include" 2> /dev/null || :
+				type AgentsToolsCommsCachePullWatched > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsCache.include"
 				! type AgentsToolsCommsCachePullWatched > /dev/null 2>&1 || AgentsToolsCommsCachePullWatched "$commsNow" "$agentsSessionCommsPullsPerPass"
 			fi
 			## THE BEAT of this pass, written by the shell's own redirection and by nothing else: a ring of 61 empty files, one a pass,
@@ -315,7 +316,7 @@ case "$1" in
 			## What waits in the outboxes of the comms cache, pushed every pass, and only this pass's share of it: a backlog of posts is drained
 			## over passes, so the pass that drains it still takes the console's messages and reads the threads (AgentsToolsCommsCachePushAll).
 			if [ -z "$commsEnd" ] ; then
-				type AgentsToolsCommsCachePushAll > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsCache.include" 2> /dev/null || :
+				type AgentsToolsCommsCachePushAll > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsCache.include"
 				! type AgentsToolsCommsCachePushAll > /dev/null 2>&1 || AgentsToolsCommsCachePushAll "$commsPassNow" "$agentsSessionCommsPostsPerPass"
 				## A pass that posted is work: the thread does not end in the middle of draining a backlog (it ended with 18,884 posts waiting, after ten minutes
 				## in which it had only posted them). A backlog that posts nothing -- Slack down, a record refused -- is no work, and the thread ends as it did.
@@ -324,11 +325,9 @@ case "$1" in
 			## The activity of the live runs, from their logs (AgentsToolsCommsActivityPass): this thread is the one sender, and the spawner only adds to
 			## the log. A pass that posted some counts as something done, so the thread does not end while runs are tracked.
 			if [ "$commsMode" = "--run" ] && [ -z "$commsEnd" ] ; then
-				type AgentsToolsCommsActivityPass > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionComms.include" 2> /dev/null || :
-				if type AgentsToolsCommsActivityPass > /dev/null 2>&1 ; then
-					AgentsToolsCommsActivityPass "$commsNow"
-					[ -z "${agentsCommsActivityPosted:-}" ] || commsIdleFrom="$SECONDS"
-				fi
+				type AgentsToolsCommsActivityPass > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionComms.include"
+				AgentsToolsCommsActivityPass "$commsNow"
+				[ -z "${agentsCommsActivityPosted:-}" ] || commsIdleFrom="$SECONDS"
 			fi
 			## The rig's pull of the channels members read lately (AgentsToolsCommsCachePullWatched), every 30 s: it reads a mark a channel
 			## watched, and a workspace of hundreds of them would otherwise spend every pass on it, holding the console's messages behind it.
@@ -337,7 +336,7 @@ case "$1" in
 			if [ "$commsMode" = "--run" ] && [ -z "$commsEnd" ] && { [ -f "$MMDAPP/.local/cache/comms/.wanted" ] || [ $(( SECONDS - ${commsPullAt:--100} )) -ge 30 ] ; } ; then
 				rm -f "$MMDAPP/.local/cache/comms/.wanted" 2> /dev/null
 				commsPullAt="$SECONDS"
-				type AgentsToolsCommsCachePullWatched > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsCache.include" 2> /dev/null || :
+				type AgentsToolsCommsCachePullWatched > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsCache.include"
 				! type AgentsToolsCommsCachePullWatched > /dev/null 2>&1 || AgentsToolsCommsCachePullWatched "$commsNow" "$agentsSessionCommsPullsPerPass"
 			fi
 			commsLoops=$(( commsLoops + 1 ))
@@ -350,7 +349,7 @@ case "$1" in
 			## THE READER RUNS THE CODE IT LOADED AT ITS START, for hours: a change to one of its own includes ends it, and the next reader
 			## or writer that asks starts one on the current code. Newer than its lock, written when it took it; the shell's own test, no process.
 			if [ "$(( commsLoops % 30 ))" = 0 ] ; then
-				for commsCode in "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.InternSessionComms.include" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionComms.include" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsCache.include" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsSlack.include" ${MDAT_COMMS_CODE_EXTRA:-} ; do
+				for commsCode in "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.InternSessionComms.include" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionComms.include" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsCache.include" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/slack/AgentsTools.CommsSlack.include" ${MDAT_COMMS_CODE_EXTRA:-} ; do
 					[ "$commsCode" -nt "$commsLock" ] || continue
 					commsLeave="its code changed: ${commsCode##*/}" ; break
 				done
@@ -358,7 +357,7 @@ case "$1" in
 			fi
 			## THE SCHEDULE THREAD IS ASKED FOR where it is wanted: this reader lives while any session of the host does, which at the hour of worktime is the
 			## owner's console, so it finds a thread that ended on its idle bound at night and starts it (AgentsToolsScheduleThreadAskDue, once a minute).
-			type AgentsToolsScheduleThreadAskDue > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.ScheduleThread.include" > /dev/null 2>&1 || :
+			type AgentsToolsScheduleThreadAskDue > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/schedule/AgentsTools.ScheduleThread.include"
 			! type AgentsToolsScheduleThreadAskDue > /dev/null 2>&1 || AgentsToolsScheduleThreadAskDue
 			## The ends of its own: nothing to do for the time set; its folder, or its lock, gone.
 			if [ "$(( SECONDS - commsIdleFrom ))" -ge "$commsIdleLimit" ] ; then

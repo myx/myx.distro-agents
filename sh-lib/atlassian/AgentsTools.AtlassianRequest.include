@@ -1,0 +1,242 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.AtlassianRequest.include -- the one authenticated Atlassian request, and the checks every operation makes of its arguments: once each, a number, a URL value.
+## Sourced, never run. Functions only. Each function loads what it calls itself.
+##
+
+## One authenticated Atlassian request. Arguments in order: acting member,
+## product, method, path, calling context, JSON body (empty for none), and a
+## local file sent as a multipart attachment under its own base name (empty for
+## none, never with a JSON body). Response body on stdout, every diagnostic on stderr.
+AgentsToolsAtlassianCall() {
+	local actingMember="$1" productName="$2" methodName="$3" pathText="$4" callContext="$5" jsonBody="$6" attachFile="${7:-}"
+	## curl -F reads ; , and a double quote in its value as its own syntax.
+	case "$attachFile" in
+		*';'*|*','*|*'"'*)
+			printf '%s\n' "⛔ ERROR: $MDSC_CMD --$callContext: an attachment path may not hold ; , or a double quote: $attachFile" >&2
+			return 1
+		;;
+	esac
+	if [ -n "$attachFile" ] && { [ -n "$jsonBody" ] || [ ! -f "$attachFile" ] ; } ; then
+		printf '%s\n' "⛔ ERROR: $MDSC_CMD --$callContext: an attachment is one existing file and never travels with a JSON body: $attachFile" >&2
+		return 1
+	fi
+
+	AgentsToolsAssertBareName "$actingMember" "<team-member>" "$callContext" || return 1
+
+	## Checked before the config resolver runs: reaching the resolver with an
+	## unchecked name creates that scope's file and leaves a phantom on disk.
+	case "$actingMember" in
+		routine-*)
+			## A routine acting as caller has no skill directory and is not expected to grow one.
+		;;
+		*)
+			if [ ! -d "$MDAT_SKILLSET_ROOT/$actingMember" ] ; then
+				printf '%s\n' "⛔ ERROR: $MDSC_CMD --$callContext: no such member skill directory: $MDAT_SKILLSET_ROOT/$actingMember" >&2
+				return 1
+			fi
+		;;
+	esac
+
+	local keyPrefix
+	case "$productName" in
+		jira)       keyPrefix=JIRA ;;
+		confluence) keyPrefix=CONFLUENCE ;;
+		*)
+			printf '%s\n' "⛔ ERROR: $MDSC_CMD --$callContext: --product invalid: $productName" >&2
+			return 1
+		;;
+	esac
+
+	case "$methodName" in
+		GET|POST|PUT|DELETE) ;;
+		*)
+			printf '%s\n' "⛔ ERROR: $MDSC_CMD --$callContext: --method invalid: $methodName" >&2
+			return 1
+		;;
+	esac
+
+	case "$pathText" in
+		/*) ;;
+		*)
+			printf '%s\n' "⛔ ERROR: $MDSC_CMD --$callContext: the path must start with '/' and carry no scheme or host: $pathText" >&2
+			return 1
+		;;
+	esac
+
+	## The set's scope, by the side of the call (AgentsTools.CommsSide.include): on our own
+	## side a client-* member holds none, the expected state below, said in the one plain line
+	## that names its --client-* twin. An Atlassian API token IS an identity, and acting under
+	## the wrong one raises no error at all.
+	type AgentsToolsCommsOwnSettingsApply > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsSide.include"
+	if ! AgentsToolsCommsOwnSettingsApply "$actingMember" ; then
+		printf '%s\n' "🙋 WARNING: $MDSC_CMD --$callContext: $( AgentsToolsCommsOwnSideLine "$actingMember" "$( [ "$productName" = jira ] && printf Jira || printf Confluence )" "$callContext" )" >&2
+		return 6
+	fi
+	## The client's own Atlassian is a separate explicit key set, read on the client
+	## side only: CLIENT_JIRA_* and CLIENT_CONFLUENCE_*.
+	type AgentsToolsCommsClientSide > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsSide.include"
+	! AgentsToolsCommsClientSide "$actingMember" || keyPrefix="CLIENT_$keyPrefix"
+	local siteHost userEmail apiToken credentialScope=""
+	local siteEnvName="${keyPrefix}_SITE" userEnvName="${keyPrefix}_USER" apiEnvName="${keyPrefix}_API_TOKEN"
+	## THE CREDENTIAL FROM THE ENVIRONMENT (D4): the platform tool stands alone, with
+	## its key in the environment, before it asks any scope. The same name the config
+	## store holds, so a caller that exports it needs no team data at all.
+	siteHost="${!siteEnvName:-}" userEmail="${!userEnvName:-}" apiToken="${!apiEnvName:-}"
+	## The rest comes from the scope the set is read from (AgentsToolsCommsScopeOf): the acting
+	## member's own in this workspace, else this rig's magic-team scope, and the whole set from
+	## that one place. A call the environment answers whole asks no scope at all.
+	if [ -z "$siteHost" ] || [ -z "$userEmail" ] || [ -z "$apiToken" ] ; then
+		type AgentsToolsCommsScopeOf > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsSide.include"
+		credentialScope="$( AgentsToolsCommsScopeOf "$actingMember" "${keyPrefix}_" )"
+	fi
+	type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/settings/AgentsTools.ConfigOption.include"
+	[ -n "$siteHost" ] || siteHost="$( AgentsToolsConfigOption "${credentialScope:-$actingMember}" --select "${keyPrefix}_SITE" )" || siteHost=""
+	[ -n "$userEmail" ] || userEmail="$( AgentsToolsConfigOption "${credentialScope:-$actingMember}" --select "${keyPrefix}_USER" )" || userEmail=""
+	[ -n "$apiToken" ] || apiToken="$( AgentsToolsConfigOption "${credentialScope:-$actingMember}" --select "${keyPrefix}_API_TOKEN" )" || apiToken=""
+	## Not a contract error: a member holding no credential for this product is an
+	## expected state, so it carries its own code rather than 1.
+	if [ -z "$siteHost" ] || [ -z "$userEmail" ] || [ -z "$apiToken" ] ; then
+		local missingKeys=""
+		[ -n "$siteHost" ] || missingKeys="${keyPrefix}_SITE"
+		[ -n "$userEmail" ] || missingKeys="${missingKeys:+$missingKeys/}${keyPrefix}_USER"
+		[ -n "$apiToken" ] || missingKeys="${missingKeys:+$missingKeys/}${keyPrefix}_API_TOKEN"
+		printf '%s\n' "🙋 WARNING: $MDSC_CMD --$callContext: $missingKeys missing" >&2
+		return 6
+	fi
+
+	## An embedded newline means the stored config is corrupted, and it is refused
+	## rather than stripped: the resulting 401 reads as a revoked credential.
+	local configNewline=$'\n'
+	case "$siteHost$userEmail$apiToken" in
+		*"$configNewline"*)
+			printf '%s\n' "⛔ ERROR: $MDSC_CMD --$callContext: ${keyPrefix}_SITE/${keyPrefix}_USER/${keyPrefix}_API_TOKEN in the ${credentialScope:-$actingMember} scope contains a newline -- none of them ever legitimately does, so the config is corrupted. The value is NOT stripped or repaired here: the resulting 401 would be misread as a revoked credential" >&2
+			return 1
+		;;
+	esac
+
+	## A scheme, path or port left on the site value would build a wrong URL
+	## rather than raise an obvious error.
+	case "$siteHost" in
+		*/*|*:*)
+			printf '%s\n' "⛔ ERROR: $MDSC_CMD --$callContext: ${keyPrefix}_SITE invalid: $siteHost" >&2
+			return 1
+		;;
+	esac
+
+	local curlArgs=( -sS --connect-timeout 10 --max-time 120 -X "$methodName" "https://$siteHost$pathText" -H @- -H 'Accept: application/json' -w '\n%{http_code}' )
+
+	## The header goes in on curl's stdin, so the token never reaches argv or a
+	## file. `tr -d` because base64 line-wraps on some platforms and the flag that
+	## would stop it is not portable; a wrapped header is not one. A JSON body
+	## travels in a file, never argv, which a long one outgrows. curl's own
+	## stderr passes through untouched, keeping stdout the body alone.
+	local curlOut curlRc=0
+	curlOut="$( if [ -n "$jsonBody" ] ; then
+			mkdir -p "$MMDAPP/.local/temp" && bodyFile="$( mktemp "$MMDAPP/.local/temp/mdat-atlassian-call.XXXXXX" )" || exit 1
+			trap 'rm -f "$bodyFile"' EXIT
+			printf '%s' "$jsonBody" > "$bodyFile" || exit 1
+			curlArgs+=( -H 'Content-Type: application/json' --data-binary "@$bodyFile" )
+		fi
+		## Confluence refuses an upload without this header, as a cross-site request guard.
+		[ -z "$attachFile" ] || curlArgs+=( -H 'X-Atlassian-Token: no-check' -F "file=@$attachFile" )
+		printf '%s\n' "Authorization: Basic $( printf '%s' "$userEmail:$apiToken" | base64 | tr -d '\n' )" | curl ${curlArgs[@]+"${curlArgs[@]}"} )" || curlRc=$?
+	if [ "$curlRc" -ne 0 ] ; then
+		printf '%s\n' "⛔ ERROR: $MDSC_CMD --$callContext: curl exit $curlRc" >&2
+		return 3
+	fi
+
+	## The -w line is last and on its own, so the body is everything above it.
+	local httpStatus="${curlOut##*$configNewline}" responseBody="${curlOut%$configNewline*}"
+	case "$httpStatus" in
+		200|201|202|203)
+			printf '%s\n' "$responseBody"
+			return 0
+		;;
+		204)
+			## Reached and succeeded with nothing to return, which is what every
+			## write answers. Said on stderr so stdout stays the body alone.
+			printf '%s\n' "# $MDSC_CMD --$callContext: HTTP 204, the request succeeded and the response carries no content. This is an answer, not a failed call" >&2
+			return 0
+		;;
+		## 401 and 403 were one arm and are two: a rejected token is our fault, an
+		## authenticated identity refused on that content is the site's decision.
+		401)
+			printf '%s\n' "⛔ ERROR: $MDSC_CMD --$callContext: 401${responseBody:+: $responseBody}" >&2
+			return 4
+		;;
+		403)
+			printf '%s\n' "🙋 WARNING: $MDSC_CMD --$callContext: 403${responseBody:+: $responseBody}" >&2
+			return 7
+		;;
+		404)
+			printf '%s\n' "🙋 WARNING: $MDSC_CMD --$callContext: 404${responseBody:+: $responseBody}" >&2
+			return 8
+		;;
+		409)
+			printf '%s\n' "🙋 WARNING: $MDSC_CMD --$callContext: 409${responseBody:+: $responseBody}" >&2
+			return 5
+		;;
+		4??)
+			printf '%s\n' "🙋 WARNING: $MDSC_CMD --$callContext: $httpStatus${responseBody:+: $responseBody}" >&2
+			return 9
+		;;
+		*)
+			printf '%s\n' "⛔ ERROR: $MDSC_CMD --$callContext: $httpStatus${responseBody:+: $responseBody}" >&2
+			return 3
+		;;
+	esac
+}
+
+## A whole number, or a refusal naming the field it came from. Arguments: value,
+## field label, calling context.
+AgentsToolsAtlassianAssertNumber() {
+	case "$1" in
+		''|*[!0123456789]*)
+			printf '%s\n' "⛔ ERROR: $MDSC_CMD --$3: $2 not a number: $1" >&2
+			return 1
+		;;
+	esac
+	return 0
+}
+
+## Percent-encodes one value for a URL path segment or query string, byte for
+## byte under LC_ALL=C. Unreserved set only (RFC 3986 A-Za-z0-9-_.~); anything
+## outside it becomes %XX -- the same set curl's own --data-urlencode and
+## Python's urllib.parse.quote(safe="") use. A caller builds its own path/query
+## string from encoded pieces before handing it to AgentsToolsAtlassianCall,
+## which does no encoding of its own.
+AgentsToolsAtlassianUrlEncode() {
+	LC_ALL=C awk -v s="$1" 'BEGIN {
+		for (i = 0; i < 256; i++) byteOrd[sprintf("%c", i)] = i
+		out = ""
+		for (i = 1; i <= length(s); i++) {
+			c = substr(s, i, 1)
+			if (c ~ /^[A-Za-z0-9._~-]$/) out = out c
+			else out = out sprintf("%%%02X", byteOrd[c])
+		}
+		printf "%s", out
+	}'
+}
+
+## The arguments of one Atlassian helper call, refused when --member or --context is given
+## twice: the check the --intern-op-atlassian-* operations make before they dispatch.
+AgentsToolsAtlassianArgsOnce() { ## arguments...
+	local scanSeen=" " scanArg
+	for scanArg in "$@" ; do
+		case "$scanArg" in
+			--member|--context)
+				case "$scanSeen" in
+					*" $scanArg "*)
+						printf '%s\n' "⛔ ERROR: $MDSC_CMD: $scanArg is given twice, so the call is refused before anything is sent" >&2
+						return 1
+					;;
+				esac
+				scanSeen="$scanSeen$scanArg "
+			;;
+		esac
+	done
+	return 0
+}

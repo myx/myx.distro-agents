@@ -10,7 +10,7 @@
 ## Offline: the renderings are made here, and only the mark awk is run.
 set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
-rigAwk="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib/member/AgentsWaitSenderMark.awk"
+rigAwk="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib/wait/AgentsWaitSenderMark.awk"
 rigRefuse(){ echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1 ; }
 [ -f "$rigAwk" ] || rigRefuse "the sender-mark awk is not at the origin this workspace resolves: $rigAwk"
 rigFails=0 rigPasses=0
@@ -18,7 +18,8 @@ rigAssert(){ ## what is asserted, got, want
 	if [ "$2" = "$3" ] ; then printf '  PASS  %s\n' "$1" ; rigPasses=$(( rigPasses + 1 ))
 	else printf '  FAIL  %s\n        got:  %s\n        want: %s\n' "$1" "$2" "$3" ; rigFails=$(( rigFails + 1 )) ; fi
 }
-rigTmp="$( mktemp -d )" || rigRefuse "no temporary folder"
+mkdir -p "$MMDAPP/.local/agents/scratch/sh-test" || exit 1
+rigTmp="$( mktemp -d "$MMDAPP/.local/agents/scratch/sh-test/AgentsWaitSenderMarkCheck.XXXXXXXX" )" || rigRefuse "no temporary folder"
 trap 'rm -rf "$rigTmp"' EXIT
 printf 'UKNOWN001\tJulia Stepanova, ndmsystems, contact julia-stepanova\n' > "$rigTmp/map"
 rigMark(){ ## the marked rendering of stdin
@@ -46,7 +47,7 @@ rigOut="$( printf '%s\n' '# in D1' '1794295463.464499 | notanid | text' 'plain l
 rigAssert "marker, a non-account author and a plain line are unchanged" "$rigOut" "$( printf '%s\n' '# in D1' '1794295463.464499 | notanid | text' 'plain line' )"
 
 echo "-- 6. the reply address after the mark is still found --"
-rigAddr="${MDLT_ORIGIN}/myx/myx.distro-agents/sh-lib/member/AgentsWaitReplyAddress.awk"
+rigAddr="${MDLT_ORIGIN}/myx/myx.distro-agents/sh-lib/wait/AgentsWaitReplyAddress.awk"
 if [ -f "$rigAddr" ] ; then
 	rigOut="$( printf '%s\n' '# in D1' '1794295463.464499 | UKNOWN001 | hello' | LC_ALL=C awk -v kind=dms -v source="dms:x" -f "$rigAddr" | rigMark )"
 	rigAssert "one head line with both the sender and the reply address" "$( printf '%s\n' "$rigOut" | LC_ALL=C grep -c '\[sender: Julia Stepanova, ndmsystems, contact julia-stepanova\] \[reply-to: slack:D1:1794295463.464499\]' )" "1"

@@ -17,9 +17,9 @@
 ## same operation starts it with members named after the selector.
 ##
 
-type AgentsToolsSpawnRoutineExecutorsRoster > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnRoutine.include"
+type AgentsToolsSpawnRoutineExecutorsRoster > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnRoutine.include"
 type AgentsToolsTeamMemberIsTeam > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamRegistry.include"
-type AgentsToolsRoutineRequirement > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.RoutineRequirements.include"
+type AgentsToolsRoutineRequirement > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/routine/AgentsTools.RoutineRequirements.include"
 
 ## The rows --manager-routine-list prints: one for each routine file, by owner, then by
 ## selector. Nothing is written by this operation. A value's own whitespace goes out as `_` and an absent one
@@ -289,7 +289,7 @@ AgentsToolsManagerRoutineRows(){ ## the operation as it was called
 			rowsAuto="no"
 			case "$rowsRunsAt" in ''|none) ;; *) rowsAuto="yes" ;; esac
 			## Valid: the words of the first row of the validator that refuses (a row of a report- rule refuses nothing; its rule and its place stand ahead of them).
-			rowsFault="$( set -- --intern-doc-validate routine "$rowsFile" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.InternDocValidate.include" 2> /dev/null | LC_ALL=C grep -v -e '^[^ ]*:[0-9]*: report-' | LC_ALL=C sed -n '1s/^[^ ]*:[0-9]*: [^ ]*: //p' )" || rowsFault=""
+			rowsFault="$( set -- --intern-doc-validate routine "$rowsFile" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.InternDocValidate.include"| LC_ALL=C grep -v -e '^[^ ]*:[0-9]*: report-' | LC_ALL=C sed -n '1s/^[^ ]*:[0-9]*: [^ ]*: //p' )" || rowsFault=""
 			rowsValid="yes" ; [ -z "$rowsFault" ] || rowsValid="no:$rowsFault"
 			## Would start now: what the spawner would not start, then the evaluator against a fresh spawn (no item attached, a spawned start), then the window of the autorun.
 			rowsWould="yes"
@@ -326,33 +326,8 @@ AgentsToolsManagerRoutineRows(){ ## the operation as it was called
 
 case "$1" in
 
-	## Every routine file of every member's folder, one TAB-separated row each, with whether
-	## the session spawner would start it by itself. Its form is the help entry's.
-	## THE VERDICTS OF ONE ROUTINE, asked for the routine an operator has selected (R15): what the
-	## validator says of its file, and what the spawner would say of a start now. The list itself
-	## carries neither, because asking them for every routine is what made it slow.
 	--manager-routine-verdict)
-		local verdictOp="$1" verdictPath=""
-		shift
-		[ $# -gt 0 ] || { echo "⛔ ERROR: $MDSC_CMD $verdictOp: syntax is <routine file>" >&2 ; set +e ; return 1 ; }
-		verdictPath="$1"
-		## a selector or a path, as the spawner resolves it: the console knows the routine by its
-		## selector, and the file is what the rules read.
-		if [ ! -f "$verdictPath" ] ; then
-			verdictPath="$( AgentsToolsSpawnRoutineResolve "$verdictPath" 2> /dev/null )" || verdictPath=""
-		fi
-		[ -n "$verdictPath" ] && [ -f "$verdictPath" ] || { echo "⛔ ERROR: $MDSC_CMD $verdictOp: no such routine: $1" >&2 ; set +e ; return 1 ; }
-		local verdictFault verdictContract verdictStart
-		verdictFault="$( set -- --intern-doc-validate routine "$verdictPath" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.InternDocValidate.include" 2> /dev/null | LC_ALL=C grep -v -e '^[^ ]*:[0-9]*: report-' | LC_ALL=C sed -n '1s/^[^ ]*:[0-9]*: [^ ]*: //p' )" || verdictFault=""
-		if verdictContract="$( AgentsToolsSpawnRoutineContractCheck "$verdictPath" 2>&1 )" ; then
-			verdictStart="startable"
-		else
-			verdictStart="broken"
-		fi
-		printf 'valid\t%s\n' "$( [ -z "$verdictFault" ] && printf 'yes' || printf 'no: %s' "$verdictFault" )"
-		printf 'start\t%s\n' "$verdictStart"
-		printf 'reason\t%s\n' "$( [ -z "$verdictFault" ] && printf -- '-' || printf '%s' "${verdictFault}" )"
-		return 0
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.OpManagerRoutineVerdict.include"
 	;;
 
 	--manager-routine-list)
@@ -371,97 +346,16 @@ case "$1" in
 		return 0
 	;;
 
-	## The members each entry of one routine's executors and participants can take, by the session spawner's one rule
-	## (AgentsToolsSpawnRoutineEntryMembers), for a form's required selects: `slot<TAB><executors|participants><TAB><entry><TAB><kind><TAB><member>...`,
-	## the kind choose (a <type>-?, every candidate, even one), all (a <type>-*), named or present (all-present-members), or the entry and
-	## `none` where it has no candidate. Reads only; starts nothing.
 	--manager-routine-slots)
-		local slotsOp="$1" slotsFile slotsContract slotsExec slotsInv slotsSide slotsLine slotsList slotsEntry slotsKind slotsOut
-		shift
-		if [ $# -ne 1 ] || [ -z "$1" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD $slotsOp: syntax is <routine selector>, got: $*" >&2
-			set +e ; return 1
-		fi
-		slotsFile="$( AgentsToolsSpawnRoutineResolve "$1" )" || { set +e ; return 1 ; }
-		slotsContract="$( AgentsToolsSpawnRoutineContractCheck "$slotsFile" )" || { set +e ; return 1 ; }
-		{ IFS= read -r slotsExec ; IFS= read -r slotsInv ; } <<< "$( AgentsToolsSpawnRoutineContractExecutorsInvitees "$slotsContract" )"
-		for slotsSide in executors participants ; do
-			slotsLine="$slotsExec" ; [ "$slotsSide" = executors ] || slotsLine="$slotsInv"
-			case "$slotsLine" in ''|none) continue ;; esac
-			IFS=',' read -r -a slotsList <<< "$slotsLine"
-			for slotsEntry in ${slotsList[@]+"${slotsList[@]}"} ; do
-				slotsEntry="${slotsEntry#"${slotsEntry%%[![:space:]]*}"}" ; slotsEntry="${slotsEntry%"${slotsEntry##*[![:space:]]}"}"
-				[ -n "$slotsEntry" ] || continue
-				case "$slotsEntry" in
-					all-present-members) slotsKind=present ; slotsOut="$( AgentsToolsSpawnRoutinePresentMembers )" ;;
-					*-\?) slotsKind=choose ; slotsOut="$( AgentsToolsSpawnRoutineEntryMembers "$slotsEntry" )" || slotsOut="$( printf '%s\n' "$slotsOut" | LC_ALL=C awk -F'\t' '$1 != "none-of-type" && $1 != "choice-required"' )" ;;
-					*-\*) slotsKind=all ; slotsOut="$( AgentsToolsSpawnRoutineEntryMembers "$slotsEntry" )" || slotsOut="" ;;
-					*) slotsKind=named ; slotsOut="$( AgentsToolsSpawnRoutineEntryMembers "$slotsEntry" )" || slotsOut="" ;;
-				esac
-				if [ -z "$slotsOut" ] ; then
-					printf 'slot\t%s\t%s\tnone\n' "$slotsSide" "$slotsEntry"
-				else
-					printf 'slot\t%s\t%s\t%s\t%s\n' "$slotsSide" "$slotsEntry" "$slotsKind" "$( printf '%s\n' "$slotsOut" | LC_ALL=C awk 'NF { printf "%s%s", ( n++ ? "\t" : "" ), $0 } END { printf "\n" }' )"
-				fi
-			done
-		done
-		return 0
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.OpManagerRoutineSlots.include"
 	;;
 
-	## The routine's own file, whole: its frontmatter (the contract its rows list by), its title line and its body, as the file holds them,
-	## nothing mixed in and nothing computed. The selector is resolved as the session spawner resolves a --routine selector
-	## (AgentsToolsSpawnRoutineResolve), so it is the one file --spawn-session given the same name would start.
 	--manager-routine-text)
-		local textOp="$1" textSelector textFile textVerdicts="no" textFault textContract
-		shift
-		if [ $# -ge 1 ] && [ "$1" = "--with-verdict" ] ; then textVerdicts="yes" ; shift ; fi
-		if [ $# -ne 1 ] ; then
-			echo "⛔ ERROR: $MDSC_CMD $textOp: syntax is [--with-verdict] <routine-selector>" >&2
-			set +e ; return 1
-		fi
-		textSelector="$1"
-		textFile="$( AgentsToolsSpawnRoutineResolve "$textSelector" )" || { set +e ; return 1 ; }
-		cat "$textFile"
-		## R15: the verdicts come WITH the routine the operator selected, in one read, after a
-		## marker the console splits off -- the file's own text stays the file's own text.
-		if [ "$textVerdicts" = "yes" ] ; then
-			textFault="$( set -- --intern-doc-validate routine "$textFile" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.InternDocValidate.include" 2> /dev/null | LC_ALL=C grep -v -e '^[^ ]*:[0-9]*: report-' | LC_ALL=C sed -n '1s/^[^ ]*:[0-9]*: [^ ]*: //p' )" || textFault=""
-			if textContract="$( AgentsToolsSpawnRoutineContractCheck "$textFile" 2>&1 )" ; then textContract="startable" ; else textContract="broken" ; fi
-			printf '\n%s\n' "$MDAT_ROUTINE_VERDICT_MARK"
-			printf 'valid\t%s\n' "$( [ -z "$textFault" ] && printf 'yes' || printf 'no: %s' "$textFault" )"
-			printf 'start\t%s\n' "$textContract"
-			printf 'reason\t%s\n' "$( [ -z "$textFault" ] && printf -- '-' || printf '%s' "$textFault" )"
-		fi
-		return 0
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.OpManagerRoutineText.include"
 	;;
 
-	## The frontmatter block of one routine, for the console to show as facts: each line of the
-	## `---` block as `fm<TAB>key<TAB>value`, in its order. Nothing is computed here.
 	--manager-routine-frontmatter)
-		local fmOp="$1" fmSelector fmFile
-		shift
-		if [ $# -ne 1 ] || [ -z "$1" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD $fmOp: syntax is <routine selector>, got: $*" >&2
-			set +e ; return 1
-		fi
-		fmSelector="${1#*/}"
-		fmFile="$( AgentsToolsSpawnRoutineResolve "$fmSelector" 2> /dev/null )" || {
-			echo "⛔ ERROR: $MDSC_CMD $fmOp: no such routine: $fmSelector" >&2
-			set +e ; return 1
-		}
-		LC_ALL=C awk '
-			NR == 1 && $0 == "---" { fm = 1 ; next }
-			fm && $0 == "---" { exit }
-			fm {
-				at = index( $0, ": " )
-				if ( at == 0 ) next
-				key = substr( $0, 1, at - 1 )
-				value = substr( $0, at + 2 )
-				sub( /[ \t]+$/, "", value )
-				print "fm\t" key "\t" value
-			}
-		' "$fmFile"
-		return 0
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.OpManagerRoutineFrontmatter.include"
 	;;
 
 	*)

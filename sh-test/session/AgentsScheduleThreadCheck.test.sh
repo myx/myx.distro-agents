@@ -25,7 +25,7 @@ rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }
 [ -x "$rigFn" ] || rigRefuse "dispatcher not found"
-[ -f "$rigPackage/sh-lib/session/AgentsTools.ScheduleThread.include" ] || rigRefuse "the schedule thread's include is not in the package"
+[ -f "$rigPackage/sh-lib/schedule/AgentsTools.ScheduleThread.include" ] || rigRefuse "the schedule thread's include is not in the package"
 . "$rigPackage/sh-test/check-fixtures/rig-processes.include.sh" || rigRefuse "the rig's process helper is missing from the package"
 . "$rigPackage/sh-test/check-fixtures/rig-control-threads.include.sh" || rigRefuse "the rig's control-thread fixture is missing from the package"
 . "$rigPackage/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
@@ -104,7 +104,7 @@ rigAsk(){ ## name, [assignments...]
 	rigIn "$askName" "$@" bash -c '
 		case "$MMDAPP" in "$RIG_TMP"/*) ;; *) echo "RIG-GUARD: MMDAPP outside the rig tree" >&2 ; exit 99 ;; esac
 		! command -v claude > /dev/null 2>&1 || { echo "RIG-GUARD: an agent CLI is on PATH" >&2 ; exit 99 ; }
-		. "$PKG/sh-lib/session/AgentsTools.ScheduleThread.include" || exit 98
+		. "$PKG/sh-lib/schedule/AgentsTools.ScheduleThread.include" || exit 98
 		cd "$MMDAPP" && AgentsToolsScheduleThreadAsk
 	' rig
 }
@@ -112,7 +112,7 @@ rigPass(){ ## name -- the thread's own pass, in a process of its own
 	rigIn "$1" bash -c '
 		case "$MMDAPP" in "$RIG_TMP"/*) ;; *) echo "RIG-GUARD: MMDAPP outside the rig tree" >&2 ; exit 99 ;; esac
 		! command -v claude > /dev/null 2>&1 || { echo "RIG-GUARD: an agent CLI is on PATH" >&2 ; exit 99 ; }
-		. "$PKG/sh-lib/session/AgentsTools.ScheduleThread.include" || exit 98
+		. "$PKG/sh-lib/schedule/AgentsTools.ScheduleThread.include" || exit 98
 		cd "$MMDAPP" && AgentsToolsScheduleThreadPass
 	' rig
 }
@@ -224,7 +224,7 @@ echo "-- 6. the passes are minutes apart --"
 rigRoutine ticks
 rigIn ticks bash -c '
 	case "$MMDAPP" in "$RIG_TMP"/*) ;; *) echo "RIG-GUARD" >&2 ; exit 99 ;; esac
-	. "$PKG/sh-lib/session/AgentsTools.ScheduleThread.include" || exit 98
+	. "$PKG/sh-lib/schedule/AgentsTools.ScheduleThread.include" || exit 98
 	cd "$MMDAPP" && AgentsToolsScheduleThreadPass && AgentsToolsScheduleThreadPass
 ' rig
 rigAssert "two ticks a second apart make one pass between them: the routine made for this section is started once" "$( rigStartsSaid ticks ):$( rigSaidOut ticks 'autorun: started keeper-rig-02.ticks.routine.md' )" "1:1"

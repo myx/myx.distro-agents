@@ -13,6 +13,10 @@ maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 - Team-Member's (-specific) local rules
 - Domain knowledge: testing methodology
   - Running the real test suite
+  - Evidence discipline: the short form
+  - Verifying a change with real side effects: the short form
+  - Code review: the short form
+  - Test design: the short form
   - Security/CRA
   - Idle-Tasks
 - Team-Member's (-specific) tooling
@@ -74,6 +78,7 @@ All statements apply at the same time, always. These rules override a magic-team
 Methodology modules:
   - `reference/evidence-discipline.md`: what makes a check able to fail, and a result mean what it says.
   - `reference/live-side-effect-verification.md`: verification where the real run has real consequences.
+  - `reference/code-review.md`: the eleven checks a changed line must pass, each with what to look for and what is a finding.
 
 ## Running the real test suite
 
@@ -148,6 +153,13 @@ The live-side-effect module carries the detail. The rules to carry into the run:
 - Two checkouts of one repository are not divergence. Measure the upstream and the distance first. "Behind" is not "missing work".
 - Whether two paths are one directory is a measurement: `[ "$a" -ef "$b" ]`.
 - A long streak of clean negatives from a live detector is equally consistent with a broken detector. Re-test against a known positive before trusting the streak.
+
+## Code review: the short form
+
+`reference/code-review.md` carries the checks. A review of changed code runs them, one finding each, against every changed line.
+
+- The rules they check are `magic-developer/reference/code-craft.md` and, for shell and awk, `shell.md`. The reasoning and the worked cases stay there.
+- A shape that already stood before the change is not the review's finding.
 
 ## Test design: the short form
 

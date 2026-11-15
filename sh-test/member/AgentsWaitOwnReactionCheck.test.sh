@@ -17,7 +17,7 @@ set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigPkg="$MDLT_ORIGIN/myx/myx.distro-agents"
-rigAwk="$rigPkg/sh-lib/member/AgentsWaitOwnPostReplies.awk"
+rigAwk="$rigPkg/sh-lib/wait/AgentsWaitOwnPostReplies.awk"
 rigDismiss="$rigPkg/sh-lib/questions/AgentsDismissalMatch.awk"
 [ -f "$rigAwk" ] || { echo "⛔ ERROR: the replies awk is not at the origin: $rigAwk" >&2 ; exit 1 ; }
 mkdir -p "$MMDAPP/.local/temp"
@@ -54,7 +54,7 @@ rigWs="$rigTmp/ws"
 mkdir -p "$rigWs/.local/cache/comms/slack" "$rigWs/.local/.agents" || exit 1
 printf '1793567564 U0BT7PCNG7Q\n' > "$rigWs/.local/cache/comms/slack/.user-id-magic-developer.txt"
 printf '113992406 3626\nmagic-coordinator=U0BTTMPPZLG=magic.vane=Magic Vane=dispatchr=meloscope.slack.com\nmagic-tester=-\n' > "$rigWs/.local/.agents/slack-mention-ids.cache"
-rigOurs="$( MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" bash -c ". '$rigPkg/sh-lib/member/AgentsTools.MemberWaitReplies.include' > /dev/null 2>&1 || exit 9 ; AgentsToolsWaitOursReactIds" 2> /dev/null )" || rigOurs=""
+rigOurs="$( MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" bash -c ". '$rigPkg/sh-lib/wait/AgentsTools.MemberWaitReplies.include' > /dev/null 2>&1 || exit 9 ; AgentsToolsWaitOursReactIds" 2> /dev/null )" || rigOurs=""
 rigAssert "the tooling's own accounts are read from the files the workspace keeps" "$( printf '%s\n' "$rigOurs" | LC_ALL=C tr ' ' '\n' | LC_ALL=C sort | LC_ALL=C tr '\n' ' ' )" "U0BT7PCNG7Q U0BTTMPPZLG "
 
 ## One read of that rendering: the side file's reactions, and what the read returned.

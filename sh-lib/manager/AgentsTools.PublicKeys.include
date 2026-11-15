@@ -1,0 +1,318 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.PublicKeys.include -- the functions of the --manager-keys-* operations: what
+## the PUBLIC keys of this server are, and how each is read, made, replaced, removed and
+## trusted. A library, loaded and never run: every definition lives here. The dispatcher of
+## the family stays AgentsTools.ManagerKeys.include, whose operations load this file.
+##
+## WHICH KEYS THEY ARE IS NOT DECIDED HERE. They are the keys the rig's own command prints,
+## `mdci-public-keys` (mdci-packages-myx/setup.feature-mdci/data/os-commands), found where it
+## finds them, in its two kinds:
+##   add-to-git         the key the account uses for git, which an owner lists on a git host
+##       as a deploy or user key: the one its ssh command names (`git config --global
+##       core.sshCommand`, its `-i`), else the deploy key of the account under its home ($HOME),
+##       else the generated default; and that default beside it where it is another key;
+##   trust-on-connect   the ssh host keys of this server, which whoever connects to it
+##       checks and accepts: /etc/ssh/ssh_host_*_key.pub.
+## And a third kind, which that command does not print, found as the family's own outgoing
+## ssh finds its identity (myx.distro-deploy/sh-lib/lib.distro-image.include, what
+## DistroSshConnect is given): in the ssh home of the one who runs the tools, ~/.ssh where a
+## command names no other, the first that is there of client.key, id_ecdsa, id_ed25519,
+## id_rsa, client.rsa:
+##   add-to-authorized-keys   the key the deploy and remote tools of this workspace connect
+##       out with, which the owner of a target puts into its authorized keys.
+## An ssh home a command names itself (--ssh-home, a folder of the workspace's source) is not
+## known here: only the default one is listed.
+## THAT COMMAND IS NOT RUN HERE: where a public file is missing it derives the key from the
+## private one, and it asks every git repository whether the key reads it. Here ONLY A PUBLIC
+## FILE IS EVER OPENED, a file whose name ends `.pub`, and ssh-keygen is given no other. Of a
+## private key only whether it is there is asked, as the command asks it, to know which key
+## the account uses: it is never opened, and nothing of it is printed. A place with no
+## public file says so. Nothing is written, and nothing reaches another host.
+##
+
+## The home of the rig's account, and the account, as mdci-public-keys takes them. On a team rig the home is
+## the home of the rig's mdci user, as the mdci daemons have it (sketch 14.10), whoever runs the tools: on mdci that is
+## /usr/local/mdci. Anywhere else, or where the account has no home on this machine, it is the HOME of the one who runs the tools.
+AgentsToolsManagerKeysHome(){
+	local homeAccount homeOf
+	if [ "${MDAT_WORKSPACE_MODE:-}" = "team-rig" ] ; then
+		homeAccount="$( AgentsToolsManagerKeysAccount )"
+		case "$homeAccount" in
+			''|-*|*[!abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._-]*) ;;
+			*)
+				homeOf="$( eval "printf '%s' ~$homeAccount" 2> /dev/null )" || homeOf=""
+				if [ -n "$homeOf" ] && [ "$homeOf" != "~$homeAccount" ] && [ -d "$homeOf" ] ; then
+					printf '%s\n' "$homeOf"
+					return 0
+				fi
+			;;
+		esac
+	fi
+	printf '%s\n' "$HOME"
+}
+AgentsToolsManagerKeysAccount(){
+	sysrc -n mdcid_user 2> /dev/null || echo mdci
+}
+
+## The key the account uses for git, as mdci-public-keys finds it: the path of the private
+## key, which is only named here. Its public file is that path with `.pub` after it.
+AgentsToolsManagerKeysDeploy(){
+	local deployHome deployCommand deployNamed
+	deployHome="$( AgentsToolsManagerKeysHome )"
+	deployCommand="$( git config --global --get core.sshCommand 2> /dev/null )" || deployCommand=""
+	deployNamed="$( printf '%s\n' "$deployCommand" | LC_ALL=C sed -n 's/.* -i \([^ ]*\).*/\1/p' )"
+	if [ -n "$deployNamed" ] ; then
+		printf '%s\n' "$deployNamed"
+	elif [ -f "$deployHome/deploy-keys/$( AgentsToolsManagerKeysAccount )" ] ; then
+		printf '%s\n' "$deployHome/deploy-keys/$( AgentsToolsManagerKeysAccount )"
+	else
+		printf '%s\n' "$deployHome/.ssh/id_ed25519"
+	fi
+}
+
+## The keys, one a line, `<key>|<label>|<group>|<what it is for>|<public file>|<why none>`, in
+## the order mdci-public-keys prints them: the key for git, the generated default where it is
+## another, then each host key by the name of its file, or one line for the host keys where
+## none is; then the key the tools connect out with. <why none> says, for a key that may not
+## be there, why no public key is read at its file where none is.
+AgentsToolsManagerKeysDeclared(){
+	local declaredDeploy declaredHome declaredHost="${MDAT_MANAGER_KEYS_HOST_DIR:-/etc/ssh}" declaredFile declaredName declaredAny=""
+	declaredHome="$( AgentsToolsManagerKeysHome )"
+	declaredDeploy="$( AgentsToolsManagerKeysDeploy )"
+	printf '%s\n' "deploy|Deploy Key To Add To Git|add-to-git|the deploy key of this server, to list as a deploy key on each git repository it reads|$declaredDeploy.pub"
+	if [ "$declaredDeploy" != "$declaredHome/.ssh/id_ed25519" ] && [ -f "$declaredHome/.ssh/id_ed25519" ] ; then
+		printf '%s\n' "generated|Generated Key Not Used For Git|add-to-git|another key the account generated, not used for git unless a repository is set up with it|$declaredHome/.ssh/id_ed25519.pub"
+	fi
+	for declaredFile in "$declaredHost"/ssh_host_*_key.pub ; do
+		[ -f "$declaredFile" ] || continue
+		declaredName="${declaredFile##*/ssh_host_}" ; declaredName="${declaredName%_key.pub}"
+		case "$declaredName" in ''|*[!abcdefghijklmnopqrstuvwxyz0123456789]*) continue ;; esac
+		declaredAny="yes"
+		printf '%s\n' "host-$declaredName|Host Key $( printf '%s' "$declaredName" | LC_ALL=C tr 'a-z' 'A-Z' ) To Trust On Connect|trust-on-connect|an ssh host key of this server, for the known hosts of those who connect to it|$declaredFile"
+	done
+	[ -n "$declaredAny" ] || printf '%s\n' "host|Host Key To Trust On Connect|trust-on-connect|an ssh host key of this server, for the known hosts of those who connect to it|$declaredHost/ssh_host_key.pub|no ssh host key file stands in $declaredHost"
+	## The key the tools connect out with: the first identity of their five names in the ssh
+	## home of the one who runs them. Whether each is there is asked, as the tools ask it;
+	## none is opened.
+	declaredHome="${HOME%/}/.ssh" ; declaredAny=""
+	for declaredName in client.key id_ecdsa id_ed25519 id_rsa client.rsa ; do
+		[ -f "$declaredHome/$declaredName" ] || continue
+		declaredAny="$declaredName"
+		break
+	done
+	if [ -n "$declaredAny" ] ; then
+		printf '%s\n' "outgoing|Our Key For Targets' Authorized Keys|add-to-authorized-keys|the key the deploy and remote tools of this workspace connect out with, as the user who runs them, to a target that lists it in its authorized keys|$declaredHome/$declaredAny.pub|the identity the tools take, $declaredAny, has no public file beside it"
+	else
+		printf '%s\n' "outgoing|Our Key For Targets' Authorized Keys|add-to-authorized-keys|the key the deploy and remote tools of this workspace connect out with, as the user who runs them, to a target that lists it in its authorized keys|$declaredHome/id_ed25519.pub|no identity of the tools stands in $declaredHome: none of client.key, id_ecdsa, id_ed25519, id_rsa, client.rsa"
+	fi
+	return 0
+}
+
+## THE TWO GROUPS THE LIST SHOWS (F11.7): `ours`, every key of this server that others are to trust, whatever it is for (a git server, the known hosts
+## of those who connect, another host's authorized keys: each key says what it is for), and `trusted`, the keys this account trusts, its own authorized
+## keys, which are only listed. The three kinds above stay what the keys of `ours` are, for the paste and for what may be made.
+AgentsToolsManagerKeysListed(){ ## kind of a declared key
+	case "$1" in
+		add-to-git|trust-on-connect|add-to-authorized-keys) printf '%s\n' "ours" ;;
+		*) printf '%s\n' "$1" ;;
+	esac
+}
+
+## What a group of keys is called on a screen, by its name.
+AgentsToolsManagerKeysGroupLabel(){ ## group
+	case "$1" in
+		ours) printf '%s\n' "Our Keys To Trust" ;;
+		trusted) printf '%s\n' "Keys We Trust" ;;
+		*) printf '%s\n' "$1" ;;
+	esac
+}
+
+AgentsToolsManagerKeysTrusted(){
+	local trustedFile
+	trustedFile="${HOME%/}/.ssh/authorized_keys"
+	[ -f "$trustedFile" ] && [ -r "$trustedFile" ] || return 1
+	LC_ALL=C awk '
+		/^[ \t]*(#|$)/ { next ; }
+		{
+			for ( at = 1 ; at < NF ; at++ ) { if ( $at ~ /^(ssh-|ecdsa-|sk-)/ ) { break ; } }
+			if ( at >= NF || $at !~ /^(ssh-|ecdsa-|sk-)/ || $(at + 1) !~ /^[A-Za-z0-9+\/=]+$/ ) { next ; }
+			comment = "" ;
+			for ( rest = at + 2 ; rest <= NF ; rest++ ) { comment = comment ( comment == "" ? "" : " " ) $rest ; }
+			printf "%d|%s|%s|%s\n", ++total, $at, $(at + 1), comment ;
+		}
+	' "$trustedFile"
+}
+
+## The `key` row of one trusted key, as the row of an own key has it: always `present`, the line as it stands in the file (type, key, comment).
+AgentsToolsManagerKeysTrustedRow(){ ## n, type, key, comment
+	local trustedPrint trustedLabel trustedShort="$3" trustedLine="$2 $3${4:+ $4}"
+	trustedPrint="$( printf '%s\n' "$2 $3" | ssh-keygen -l -f - 2> /dev/null | LC_ALL=C awk '{ print $2 ; exit }' )" || trustedPrint=""
+	trustedLabel="${4:-Trusted Key $1}"
+	[ "${#trustedShort}" -le 24 ] || trustedShort="${3:0:12}...${3: -8}"
+	printf 'key\ttrusted-%s\t%s\ttrusted\t%s\t%s\t%s\t%s\t%s\tpresent\t%s\n' "$1" "$( AgentsToolsManagerKeysField "$trustedLabel" )" \
+		"$( AgentsToolsManagerKeysField "a key this account trusts, from its authorized keys: whoever holds its private key may log in here" )" "$2" "${trustedPrint:--}" "$trustedShort" \
+		"$( AgentsToolsManagerKeysField "${HOME%/}/.ssh/authorized_keys" )" "$( AgentsToolsManagerKeysField "$trustedLine" )"
+}
+
+## One field of a row: its whitespace reads `_`, and an empty one `-`, as in a registry.
+AgentsToolsManagerKeysField(){ ## text
+	local fieldText="${1//[[:space:]]/_}"
+	printf '%s' "${fieldText:--}"
+}
+
+## The first line of a public key file, where it is one: `<type> <key> [<comment>]`, the type
+## a key type's name and the key in the letters of base64 alone. Sets keysLine, keysType and
+## keysText; rc 1, all three empty, where the file is not there, cannot be read, is no `.pub`
+## file, or holds no such line. NOTHING BUT A FILE NAMED `.pub` IS OPENED.
+AgentsToolsManagerKeysPublic(){ ## public file
+	keysLine="" ; keysType="" ; keysText=""
+	case "$1" in *.pub) ;; *) return 1 ;; esac
+	[ -f "$1" ] && [ -r "$1" ] || return 1
+	IFS= read -r keysLine < "$1" || [ -n "$keysLine" ] || return 1
+	keysType="${keysLine%% *}" ; keysText="${keysLine#* }" ; keysText="${keysText%% *}"
+	case "$keysType" in ssh-*|ecdsa-*|sk-*) ;; *) keysLine="" ; keysType="" ; keysText="" ; return 1 ;; esac
+	case "$keysText" in ''|*[!ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=]*) keysLine="" ; keysType="" ; keysText="" ; return 1 ;; esac
+	return 0
+}
+
+## The line of a public key as one pastes it: for a key to add to git the public key line as
+## its file has it, whole; for a host key the line of a known hosts file, the name of this
+## host ahead of the type and the key, as mdci-public-keys prints it. From what
+## AgentsToolsManagerKeysPublic set.
+AgentsToolsManagerKeysPaste(){ ## group
+	local pasteHost
+	if [ "$1" = "trust-on-connect" ] ; then
+		pasteHost="$( hostname 2> /dev/null )" || pasteHost=""
+		printf '%s %s %s\n' "${pasteHost:-localhost}" "$keysType" "$keysText"
+	else
+		printf '%s\n' "$keysLine"
+	fi
+}
+
+## The `key` row of one declared key: `present` with its type, its fingerprint, its key in
+## short, the first twelve and the last eight letters, and, the last field, THE WHOLE PUBLIC
+## LINE as one pastes it, its blanks written as every field has them: a public key is public,
+## and nothing of it is held back. `absent`, with `-` for these, where no public key can be
+## read at its file. The fingerprint is ssh-keygen's, of the public file. The short form
+## stays where it stood for whoever reads the row by its places.
+AgentsToolsManagerKeysRow(){ ## key, label, group, what it is for, public file
+	local rowPrint="" rowShort="-" rowState="absent" rowPaste="" keysLine keysType keysText
+	if AgentsToolsManagerKeysPublic "$5" ; then
+		rowState="present"
+		rowPaste="$( AgentsToolsManagerKeysPaste "$3" )"
+		rowPrint="$( ssh-keygen -l -f "$5" 2> /dev/null | LC_ALL=C awk '{ print $2 ; exit }' )" || rowPrint=""
+		rowShort="$keysText"
+		[ "${#keysText}" -le 24 ] || rowShort="${keysText:0:12}...${keysText: -8}"
+	fi
+	printf 'key\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$1" "$( AgentsToolsManagerKeysField "$2" )" "$( AgentsToolsManagerKeysListed "$3" )" "$( AgentsToolsManagerKeysField "$4" )" "${keysType:--}" "${rowPrint:--}" "$rowShort" "$( AgentsToolsManagerKeysField "$5" )" "$rowState" "$( AgentsToolsManagerKeysField "$rowPaste" )"
+}
+
+## THE KEYS THIS WORKSPACE MAY MAKE, REPLACE AND REMOVE (F11.7): the three of the account that runs the tools, `deploy` (the
+## key for git), `generated` (the generated default, where it is another) and `outgoing` (the key the tools connect out with). The
+## ssh host keys of the server, `trust-on-connect`, are the system's and are never touched here. A key is the pair a private file
+## and its public file stand for: the private file is the public file's name without `.pub`, as AgentsToolsManagerKeysDeclared names
+## it. A key is made as the rig's own installer makes the git key: ed25519, no passphrase, its comment `<account>@<host>`.
+## Into private, public and group (set by AgentsToolsManagerKeysMine): the files of the key a word names. rc 1, with the reason
+## and nothing done, for a word that names none of the three.
+AgentsToolsManagerKeysMine(){ ## operation, key
+	local mineKey mineLabel mineGroup mineFor mineFile mineRest
+	keysPrivate="" ; keysPublic="" ; keysGroup=""
+	case "$2" in ''|*[!abcdefghijklmnopqrstuvwxyz0123456789-]*)
+		echo "⛔ ERROR: $MDSC_CMD $1: syntax is $1 <key>, and the word given is no name of a key -- nothing was done" >&2
+		return 1
+	;; esac
+	while IFS='|' read -r mineKey mineLabel mineGroup mineFor mineFile mineRest ; do
+		[ "$mineKey" = "$2" ] || continue
+		case "$mineGroup" in
+			add-to-git|add-to-authorized-keys) ;;
+			*) echo "⛔ ERROR: $MDSC_CMD $1: the key '$2' is a host key of this server, the system's, and is never made, replaced or removed here -- nothing was done" >&2 ; return 1 ;;
+		esac
+		keysPublic="$mineFile" ; keysPrivate="${mineFile%.pub}" ; keysGroup="$mineGroup"
+		return 0
+	done <<< "$( AgentsToolsManagerKeysDeclared )"
+	echo "⛔ ERROR: $MDSC_CMD $1: no key is named '$2' -- nothing was done. The keys are those ${1%-*}-list prints" >&2
+	return 1
+}
+
+## A key made: its private file and its public file, beside each other, in a folder of the account's own (mode 700 where it is made
+## here). Made under a name of its own first, and put in place by a rename, so that a key it replaces stays whole until the new one is.
+## rc 1, with the reason, where ssh-keygen is not there or does not make it.
+AgentsToolsManagerKeysMake(){ ## operation, private file
+	local makeDir makeAccount makeTemp
+	command -v ssh-keygen > /dev/null 2>&1 || { echo "⛔ ERROR: $MDSC_CMD $1: ssh-keygen is not on the PATH -- nothing was done" >&2 ; return 1 ; }
+	makeDir="${2%/*}"
+	[ -d "$makeDir" ] || { mkdir -p "$makeDir" && chmod 700 "$makeDir" ; } || { echo "⛔ ERROR: $MDSC_CMD $1: the folder of the key could not be made -- nothing was done" >&2 ; return 1 ; }
+	makeAccount="$( id -un 2> /dev/null )" || makeAccount=""
+	makeTemp="$( mktemp -d "$2.new.XXXXXX" 2> /dev/null )" || { echo "⛔ ERROR: $MDSC_CMD $1: a folder for the new key could not be made beside it -- nothing was changed" >&2 ; return 1 ; }
+	if ! ssh-keygen -q -t ed25519 -N '' -C "${makeAccount:-key}@$( hostname 2> /dev/null || echo localhost )" -f "$makeTemp/key" > /dev/null 2>&1 ; then
+		rm -rf -- "$makeTemp"
+		echo "⛔ ERROR: $MDSC_CMD $1: ssh-keygen did not make the key -- nothing was changed" >&2
+		return 1
+	fi
+	chmod 600 "$makeTemp/key" && chmod 644 "$makeTemp/key.pub" && mv -f "$makeTemp/key.pub" "$2.pub" && mv -f "$makeTemp/key" "$2" || { rm -rf -- "$makeTemp" ; echo "⛔ ERROR: $MDSC_CMD $1: the new key could not be put in place" >&2 ; return 1 ; }
+	rm -rf -- "$makeTemp"
+	return 0
+}
+
+## The row that says a key was made, replaced or removed, from the pair as it stands: what happened, the key, its private file, its type
+## and its fingerprint (`-` for a removed one).
+AgentsToolsManagerKeysDone(){ ## what happened, key, private file
+	local doneType="-" doneFinger="-" keysLine keysType keysText
+	if AgentsToolsManagerKeysPublic "$3.pub" ; then
+		doneType="$keysType"
+		doneFinger="$( ssh-keygen -l -f "$3.pub" 2> /dev/null | LC_ALL=C awk '{ print $2 ; exit }' )" || doneFinger=""
+	fi
+	printf '%s\t%s\t%s\t%s\t%s\n' "$1" "$2" "$( AgentsToolsManagerKeysField "$3" )" "$doneType" "${doneFinger:--}"
+}
+
+## THE KEYS THIS ACCOUNT TRUSTS, ADDED AND REMOVED (C1): the native `authorized_keys` in the ssh home of the one who
+## runs the tools, one line a public key, options, comments and blanks left as they stand. A key is added by its whole
+## public line, as it is pasted, and removed by its name in the list, `trusted-<n>`. Nothing is reached, and nothing but
+## that file is written: a public key is public, and the file holds no secret.
+
+## The one public key line to trust, read whole from the standard input, and what it is: its type, its key, its
+## comment. Sets keysLine (the line as it was read), keysType, keysText and keysComment; rc 1, all four empty, where
+## the input is not exactly one such line: a key type, then the key in the letters of base64, then anything, with no
+## control character and no second line.
+AgentsToolsManagerKeysTrustedLine(){
+	keysLine="" ; keysType="" ; keysText="" ; keysComment=""
+	local trustAll
+	## Read from the standard input with the shell itself: no unbounded reader is used here, and
+	## the include opens no file of its own for it.
+	trustAll="$( < /dev/stdin )" || return 1
+	[ -n "$trustAll" ] || return 1
+	## a command substitution ends where the line ends; any line end that is left is a second line
+	case "$trustAll" in *$'\n'*) return 1 ;; esac
+	case "$trustAll" in *[[:cntrl:]]*) return 1 ;; esac
+	keysType="${trustAll%% *}" ; keysLine="$trustAll"
+	[ "$keysType" != "$trustAll" ] || return 1
+	keysText="${trustAll#* }"
+	case "$keysText" in
+		*' '*) keysComment="${keysText#* }" ; keysText="${keysText%% *}" ;;
+		*) keysComment="" ;;
+	esac
+	case "$keysType" in ssh-*|ecdsa-*|sk-*) ;; *) return 1 ;; esac
+	case "$keysText" in ''|*[!ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=]*) return 1 ;; esac
+	return 0
+}
+
+## The fingerprint of a public key given by its type and its key, as ssh-keygen gives it; `-` where it cannot.
+AgentsToolsManagerKeysTrustedFinger(){ ## type, key
+	local fingerPrint
+	fingerPrint="$( printf '%s %s\n' "$1" "$2" | ssh-keygen -l -f - 2> /dev/null | LC_ALL=C awk '{ print $2 ; exit }' )" || fingerPrint=""
+	printf '%s' "${fingerPrint:--}"
+}
+
+## The row that says a key was added to or removed from the authorized keys: what happened, its number among them,
+## the file, its type and its fingerprint.
+AgentsToolsManagerKeysTrustedDone(){ ## what happened, n, file, type, fingerprint
+	printf '%s\ttrusted-%s\t%s\t%s\t%s\n' "$1" "$2" "$( AgentsToolsManagerKeysField "$3" )" "$4" "$5"
+}
+
+## The mode of a file, to put it back after a write: BSD and GNU stat both.
+AgentsToolsManagerKeysMode(){ ## file
+	stat -f '%Lp' "$1" 2> /dev/null || stat -c '%a' "$1"
+}

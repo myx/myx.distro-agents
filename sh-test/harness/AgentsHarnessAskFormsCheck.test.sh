@@ -929,7 +929,7 @@ rigCall 60 RequestPermission "{$rigAsk,\"question\":\"May the rig write this fil
 rigAssert "the grant lands in that same thread"        "$( rigHolds "$( rigPostWith '✅ permission granted' )" '"thread_ts":"1700000001.000050"' )" yes
 rigAssert "the record still names that one thread"     "$( cat "$( rigSessionDir )/event-track.thread" 2>/dev/null )" "CRIGTRACK:1700000001.000050"
 rigFeedSwitch(){ ## -> on|off, as every writer of the feed asks
-	( . "$rigHere/session/AgentsTools.EventTrackThread.include" ; AgentsToolsEventTrackFeedOn "$( rigSessionDir )" && printf on || printf off )
+	( . "$rigHere/event-track/AgentsTools.EventTrackThread.include" ; AgentsToolsEventTrackFeedOn "$( rigSessionDir )" && printf on || printf off )
 }
 rigAssert "its feed is on by its own marker, and nothing writes the old file" "$( rigFeedSwitch ):$( [ -e "$( rigSessionDir )/event-track" ] && printf old-file || printf none )" "on:none"
 ## A session running since before the rule: one file was both its thread and its feed switch.
@@ -947,7 +947,7 @@ rigCall 60 Write "{\"path\":\"/dev/null/rig-forms/track-two-before\",\"content\"
 rigAssert "two threads from before the rule: the start post's is the session's, and neither file is rewritten" "$( rigHolds "$rigScenarioDir/post.1" '"thread_ts":"1700000001.000060"' ):$( cat "$( rigSessionDir )/event-track" 2>/dev/null ):$( cat "$( rigSessionDir )/event-track.thread" 2>/dev/null )" "yes:CRIGTRACK:1700000001.000060:CRIGTRACK:1700000001.000070"
 ## The first record stands, whoever asks to record a second one: no path opens a second thread.
 rigAssert "a thread recorded for a session that has one changes nothing, and the one it has is given back" \
-	"$( . "$rigHere/session/AgentsTools.EventTrackThread.include" ; AgentsToolsEventTrackThreadRecord "$( rigSessionDir )" 'CRIGTRACK:1700000001.000999' ):$( cat "$( rigSessionDir )/event-track.thread" 2>/dev/null )" \
+	"$( . "$rigHere/event-track/AgentsTools.EventTrackThread.include" ; AgentsToolsEventTrackThreadRecord "$( rigSessionDir )" 'CRIGTRACK:1700000001.000999' ):$( cat "$( rigSessionDir )/event-track.thread" 2>/dev/null )" \
 	"CRIGTRACK:1700000001.000060:CRIGTRACK:1700000001.000070"
 ## A session spawned before the rule with no feed has neither file: its start post's thread
 ## is in its spawn record alone, and its first refusal goes there instead of opening another.

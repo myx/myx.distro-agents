@@ -1,0 +1,104 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+type AgentsToolsManagerSessionScope > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.ManagerSessionRows.include"
+
+## AgentsTools.OpManagerSessionTranscriptRead.include -- the operation `--manager-session-transcript-read`, sourced by AgentsTools.ManagerSession.include with the operation's arguments.
+## What one run, or every run of one session, did: the lines the tracking thread of the
+## session shows, from where they last, the run's transcript, in the order of their times,
+## the newest last. A run with no transcript gives the end of its session log in their
+## place, and --log asks for that raw log of every run; a `source` row says which of the
+## two each run gave. TAB-separated rows a screen reads; their form is the help entry's.
+		local transcriptOp="$1" transcriptId="" transcriptOwn="" transcriptTail=200 transcriptLog=""
+		local transcriptSyntax="--session-id <id> [--run] [--tail <lines>] [--log]"
+		local transcriptLib="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib" transcriptTab=$'\t' transcriptNl=$'\n' transcriptBs='\'
+		local transcriptSources="" transcriptLogs="" transcriptFeed="" transcriptFrom=""
+		local runKind runSession runSpawn runMember runRest runSource runPath runShown runLines runCut runRows runFrom
+		local scopeSession="" scopeRun="" scopeMeasured="" scopeListed="" scopeControl=""
+		shift
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--session-id)
+					if [ $# -lt 2 ] || [ -z "$2" ] || [ "$2" = "-" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD $transcriptOp: --session-id needs an id -- syntax is $transcriptSyntax" >&2
+						set +e ; return 1
+					fi
+					transcriptId="$2" ; shift 2
+				;;
+				--tail)
+					case "${2:-}" in
+						''|0*|*[!0123456789]*)
+							echo "⛔ ERROR: $MDSC_CMD $transcriptOp: --tail needs a count of lines, 1 or more, got: ${2:-nothing} -- syntax is $transcriptSyntax" >&2
+							set +e ; return 1
+						;;
+					esac
+					transcriptTail="$2" ; shift 2
+				;;
+				--run) transcriptOwn="run" ; shift ;;
+				--log) transcriptLog="log" ; shift ;;
+				*)
+					echo "⛔ ERROR: $MDSC_CMD $transcriptOp: syntax is $transcriptSyntax, got: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		if [ -z "$transcriptId" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD $transcriptOp: syntax is $transcriptSyntax, got no --session-id" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsManagerSessionScope "$transcriptOp" "$transcriptId" "$transcriptOwn" || { set +e ; return 1 ; }
+		type AgentsTranscriptBase > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionTranscript.include"
+		while IFS="$transcriptTab" read -r runKind runSession runSpawn runMember runRest ; do
+			[ "$runKind" = "run" ] || continue
+			[ "$scopeRun" = "-" ] || [ "$runSpawn" = "$scopeRun" ] || continue
+			## Where this run's lines are read from: its transcript where it has one, else its
+			## session log; with --log its session log alone.
+			runSource="none" ; runPath=""
+			case "$runSpawn" in
+				-|.|..|*/*|*' '*) ;;
+				*)
+					if [ -z "$transcriptLog" ] && runPath="$( AgentsTranscriptBase "$runSpawn" )" ; then
+						runSource="transcript"
+					elif [ -f "$MMDAPP/.local/agents/sessions/$runSpawn/session.log" ] ; then
+						runSource="session-log" ; runPath="$MMDAPP/.local/agents/sessions/$runSpawn/session.log"
+					else
+						runPath=""
+					fi
+				;;
+			esac
+			runShown="${runPath:--}"
+			runShown=${runShown//"$transcriptBs"/"$transcriptBs$transcriptBs"}
+			runShown=${runShown//"$transcriptTab"/"${transcriptBs}t"}
+			transcriptSources="${transcriptSources}source$transcriptTab$runSpawn$transcriptTab$runMember$transcriptTab$runSource$transcriptTab$runShown$transcriptNl"
+			case "$runSource" in
+				session-log)
+					runRows="$( tail -n "$transcriptTail" "$runPath" 2>/dev/null \
+						| MDAT_MANAGER_SPAWN="$runSpawn" MDAT_MANAGER_MEMBER="$runMember" LC_ALL=C awk -v transcriptMode=log -f "$transcriptLib/session/AgentsSessionTranscriptFormat.awk" -f "$transcriptLib/manager/AgentsManagerSessionTranscript.awk" )"
+					[ -z "$runRows" ] || transcriptLogs="$transcriptLogs$runRows$transcriptNl"
+				;;
+				transcript)
+					runLines="$( AgentsToolsManagerTranscriptTail "$runSpawn" "$transcriptTail" )" || runLines=""
+					runCut=${runLines%%"$transcriptNl"*}
+					case "$runLines" in *"$transcriptNl"*) runLines=${runLines#*"$transcriptNl"} ;; *) runLines="" ;; esac
+					[ -n "$runLines" ] || continue
+					## Each operation as the line the tracking thread shows for it, by the tracking
+					## post's own renderer and its template; no post is made, and nothing is written.
+					type AgentsEventTrackPostRender > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/event-track/AgentsTools.InternOpEventTrackPost.include"
+					runRows="$( printf '%s\n' "$runLines" | ETP_ROWS=1 AgentsEventTrackPostRender feed "$runMember" "" "" - \
+						| MDAT_MANAGER_SPAWN="$runSpawn" MDAT_MANAGER_MEMBER="$runMember" LC_ALL=C awk -v transcriptMode=feed -f "$transcriptLib/session/AgentsSessionTranscriptFormat.awk" -f "$transcriptLib/manager/AgentsManagerSessionTranscript.awk" )"
+					[ -n "$runRows" ] || continue
+					transcriptFeed="$transcriptFeed$runRows$transcriptNl"
+					## A run whose transcript is cut holds nothing before its first line here: the
+					## lines of a session start where every run's are held, the latest such moment.
+					if [ "$runCut" = "cut" ] ; then
+						runFrom=${runRows#feed"$transcriptTab"} ; runFrom=${runFrom%%"$transcriptTab"*}
+						[ "$runFrom" = "-" ] || { [ -n "$transcriptFrom" ] && [ ! "$runFrom" \> "$transcriptFrom" ] ; } || transcriptFrom="$runFrom"
+					fi
+				;;
+			esac
+		done <<< "$scopeListed"
+		printf '%s' "$transcriptSources$transcriptLogs"
+		[ -z "$transcriptFeed" ] || printf '%s' "$transcriptFeed" \
+			| LC_ALL=C sort -s -t "$transcriptTab" -k2,2 \
+			| LC_ALL=C awk -F "$transcriptTab" -v fromMoment="$transcriptFrom" '$2 == "-" || $2 >= fromMoment'
+		return 0

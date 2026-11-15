@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-## Behavioural check on --manager-session-stop --session-id <id> [--run] (S7.19, the soft stop; AgentsTools.ManagerSession.include),
+## Behavioural check on --manager-session-stop --session-id <id> [--run] (S7.19, the soft stop; AgentsTools.ManagerSessionKill.include),
 ## run rather than read, against a rig workspace built here with its own spawn records. A stop dismisses the live runs the id
 ## names the proper way (AgentsToolsRunDismiss): the mark `sessions/<run>/dismissed` holding who, and a DISMISSED block in the
 ## session's chat; no process is signalled. Held:

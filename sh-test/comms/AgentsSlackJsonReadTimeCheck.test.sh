@@ -47,7 +47,7 @@ rigRefuse(){
 [ -f "$rigEngine" ] || rigRefuse "the JSON engine is not at the origin this workspace resolves: $rigEngine"
 [ -x "$rigTools" ] || rigRefuse "dispatcher not found at the origin this workspace resolves: $rigTools"
 for rigName in AgentsSlackMessagesFormat AgentsSlackMessageSelect AgentsSlackHistoryThreadTargets AgentsSlackConversationCounterparty AgentsSlackSearchMatches ; do
-	[ -f "$rigHere/comms/$rigName.awk" ] || rigRefuse "a comms reader is missing: $rigHere/comms/$rigName.awk"
+	[ -f "$rigHere/slack/$rigName.awk" ] || rigRefuse "a comms reader is missing: $rigHere/comms/$rigName.awk"
 	[ -f "$rigTest/check-fixtures/$rigName.legacy.awk" ] || rigRefuse "the kept original of $rigName is missing from check-fixtures"
 done
 . "$rigTest/check-fixtures/rig-temp.include.sh" || exit 1
@@ -121,7 +121,7 @@ rigReaderTable(){
 rigReaderTable > "$rigTmp/readers"
 while IFS='|' read -r rigName rigArgs rigWantRc rigWantOut ; do
 	[ -n "$rigName" ] || continue
-	rigGot="$( rigTimed "$rigTmp/time" ${rigEngineArgs[@]+"${rigEngineArgs[@]}"} -f "$rigHere/comms/$rigName.awk" $rigArgs )"
+	rigGot="$( rigTimed "$rigTmp/time" ${rigEngineArgs[@]+"${rigEngineArgs[@]}"} -f "$rigHere/slack/$rigName.awk" $rigArgs )"
 	if [ "$rigGot" = "BOUND-HIT" ] ; then
 		rigAssert "$rigName finishes inside ${rigBound}s" "still running at ${rigBound}s" "finished inside the bound"
 		continue
@@ -166,7 +166,7 @@ for rigLine in \
 	rigBody="${rigRest%%:*}" rigArgs="${rigRest#*:}"
 	rigOldRc=0 ; rigNewRc=0
 	LC_ALL=C awk $rigArgs -f "$rigTest/check-fixtures/$rigName.legacy.awk" < "$rigBody" > "$rigTmp/old.out" 2> "$rigTmp/old.err" || rigOldRc=$?
-	LC_ALL=C awk $rigArgs -f "$rigEngine" -f "$rigHere/comms/$rigName.awk" < "$rigBody" > "$rigTmp/new.out" 2> "$rigTmp/new.err" || rigNewRc=$?
+	LC_ALL=C awk $rigArgs -f "$rigEngine" -f "$rigHere/slack/$rigName.awk" < "$rigBody" > "$rigTmp/new.out" 2> "$rigTmp/new.err" || rigNewRc=$?
 	rigAssert "$rigName: stdout as before" \
 		"$( LC_ALL=C cksum < "$rigTmp/new.out" | LC_ALL=C awk '{ print $1 "-" $2 }' )" \
 		"$( LC_ALL=C cksum < "$rigTmp/old.out" | LC_ALL=C awk '{ print $1 "-" $2 }' )"
@@ -240,7 +240,7 @@ cat > "$rigTmp/helperProbe.sh" <<'PROBE'
 ## The helper's own failure line goes to THIS shell's stderr, which the caller of this probe
 ## keeps, so the probe's own stderr file is that line's file.
 MDSC_CMD=probe MMDAPP="$RIG_WS"
-. "$1/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsSlack.include" || { echo "rc=missing" > "$3.rc" ; exit 1 ; }
+. "$1/myx/myx.distro-agents/sh-lib/slack/AgentsTools.CommsSlack.include" || { echo "rc=missing" > "$3.rc" ; exit 1 ; }
 MDAT_SLACK_READ_BOUND_SECONDS="$5" AgentsToolsSlackReadBounded "$3" "$4" "$RIG_SLEEP"
 echo "rc=$?" > "$3.rc"
 PROBE
@@ -274,7 +274,7 @@ cat > "$rigTmp/sameProbe.sh" <<'PROBE'
 #!/usr/bin/env bash
 ## Its stderr IS the very file the read is collected into: the shape that grew without end.
 MDSC_CMD=probe
-. "$1/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsSlack.include" || exit 1
+. "$1/myx/myx.distro-agents/sh-lib/slack/AgentsTools.CommsSlack.include" || exit 1
 AgentsToolsSlackReadBounded "$2" "$2" "$3"
 PROBE
 chmod +x "$rigTmp/sameProbe.sh"

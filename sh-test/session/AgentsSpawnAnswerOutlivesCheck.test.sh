@@ -20,7 +20,7 @@ rigNote="tooling-note.post.format.md"
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }
-[ -f "$rigPackage/sh-lib/session/AgentsTools.SpawnSandbox.include" ] || rigRefuse "the spawn sandbox include is not at the origin: $rigPackage"
+[ -f "$rigPackage/sh-lib/spawn/AgentsTools.SpawnSandbox.include" ] || rigRefuse "the spawn sandbox include is not at the origin: $rigPackage"
 [ -f "$rigPackage/sh-test/check-fixtures/harness-ask-check.curl.stub.sh" ] || rigRefuse "the fake curl fixture is missing from the package"
 . "$rigPackage/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
 rigTmp="$( rigTempDir AgentsSpawnAnswerOutlivesCheck )" || exit 1
@@ -78,7 +78,7 @@ rigClose(){ ## spawn id -- the close the proxy makes when a run ends
 		RIG_SCENARIO="$rigTmp" RIG_CURL_LOG="$rigTmp/curl.log" MDAT_SPAWN_AGENT=rig-member \
 		MDAT_COLLECT_THREAD=off MDAT_COMMS_READER=off MDAT_WAIT_REMIND=off MDAT_TEAM_DATA_COMMIT_THREAD=off \
 		bash -c '. "$1" ; AgentsToolsSpawnProxyCloseSandbox "$2" succeeded 0 "the rig ended it"' rig \
-		"$rigPackage/sh-lib/session/AgentsTools.SpawnSandbox.include" "$rigWs/.local/agents/spawned/$1/$1.spawn.md" 2>&1
+		"$rigPackage/sh-lib/spawn/AgentsTools.SpawnSandbox.include" "$rigWs/.local/agents/spawned/$1/$1.spawn.md" 2>&1
 }
 rigAsked(){ ## pending id, header -- its value, from the live store or the one a close moved it to
 	if [ -f "$rigPend/$1.md" ] ; then rigHeader "$rigPend/$1.md" "$2" ; else rigHeader "$rigPend/closed/$1.md" "$2" ; fi

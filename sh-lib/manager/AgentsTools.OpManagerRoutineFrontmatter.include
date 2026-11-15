@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+## AgentsTools.OpManagerRoutineFrontmatter.include -- the operation `--manager-routine-frontmatter`, sourced by AgentsTools.ManagerRoutine.include with the operation's arguments.
+## The frontmatter block of one routine, for the console to show as facts: each line of the
+## `---` block as `fm<TAB>key<TAB>value`, in its order. Nothing is computed here.
+		local fmOp="$1" fmSelector fmFile
+		shift
+		if [ $# -ne 1 ] || [ -z "$1" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD $fmOp: syntax is <routine selector>, got: $*" >&2
+			set +e ; return 1
+		fi
+		fmSelector="${1#*/}"
+		fmFile="$( AgentsToolsSpawnRoutineResolve "$fmSelector" 2> /dev/null )" || {
+			echo "⛔ ERROR: $MDSC_CMD $fmOp: no such routine: $fmSelector" >&2
+			set +e ; return 1
+		}
+		LC_ALL=C awk '
+			NR == 1 && $0 == "---" { fm = 1 ; next }
+			fm && $0 == "---" { exit }
+			fm {
+				at = index( $0, ": " )
+				if ( at == 0 ) next
+				key = substr( $0, 1, at - 1 )
+				value = substr( $0, at + 2 )
+				sub( /[ \t]+$/, "", value )
+				print "fm\t" key "\t" value
+			}
+		' "$fmFile"
+		return 0

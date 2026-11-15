@@ -104,7 +104,11 @@ rigRun --intern-directory-register
 [ "$rigRc" = 0 ] || rigRefuse "the places of ws-main could not be registered: $( head -3 "$rigTmp/err" )"
 rigRun --make-agents-indices
 [ "$rigRc" = 0 ] || rigRefuse "--make-agents-indices failed in the rig: $( LC_ALL=C grep -m3 -e ERROR -e WARNING "$rigTmp/err" )"
-[ "$( rigN "$rigMain/.local/agents/grants.index" "$rigTmp/rw-dir/*.md" )" = 1 ] || rigRefuse "keeper-d's standing row is not in the grants index"
+## The index's name comes from the code that writes and reads it, never a rule restated here.
+. "$rigHere/grants/AgentsTools.Grants.include"
+MDAT_SKILLSET_ROOT="$rigSkills" AgentsToolsGrantsSessionLocate "$rigMain" keeper-d ""
+[ -f "$agentsGrantsIndexFile" ] || rigRefuse "the rig build wrote no grants index at $agentsGrantsIndexFile"
+[ "$( rigN "$agentsGrantsIndexFile" "$rigTmp/rw-dir/*.md" )" = 1 ] || rigRefuse "keeper-d's standing row is not in the grants index"
 
 ## One served call, as the MCP server makes it; output in call.out.
 rigCall(){ ## member, session, tool, argument object
@@ -183,9 +187,13 @@ sleep 1 ; : > "$rigTmp/marker" ; sleep 1
 LC_ALL=C sed 's/^status: spawn-started$/status: spawn-succeeded/' "$rigMain/.local/agents/spawned/sb-d/s-d.spawn.md" > "$rigTmp/rec" && cat "$rigTmp/rec" > "$rigMain/.local/agents/spawned/sb-d/s-d.spawn.md"
 rigAssert "ended: refused on read, the index not rebuilt"      "$( rigRead keeper-d s-d "$rigTmp/rw-dir/sub/a.md" ):$( [ "$rigMain/.local/agents/sessions/s-d/permissions.keeper-d.index" -nt "$rigTmp/marker" ] && printf rebuilt || printf kept )" "refused:kept"
 rigAssert "and by grant-read"                                  "$( rigGrantRead keeper-d s-d Read "$rigTmp/rw-dir/sub/a.md" )" none
-touch "$rigMain/.local/agents/sessions/s-d/grants"
+## A reader uses the session index as it stands, so the rebuild is the index written again from the
+## stores: taken away, the next read writes it. The control comes first, or a row read off a missing
+## file answers 0 exactly as the rebuild does.
+rigAssert "control: the index as it stands still carries the ended session's grant" "$( rigSessionRows s-d keeper-d "$rigIdD" )" 1
+rm -f -- "$rigMain/.local/agents/sessions/s-d/permissions.keeper-d.index"
 rigRead keeper-d s-d "$rigTmp/rw-dir/sub/a.md" > /dev/null
-rigAssert "the rebuild drops the ended session's grant"        "$( rigSessionRows s-d keeper-d "$rigIdD" )" 0
+rigAssert "the rebuild drops the ended session's grant"        "$( [ -f "$rigMain/.local/agents/sessions/s-d/permissions.keeper-d.index" ] && printf rebuilt || printf missing ):$( rigSessionRows s-d keeper-d "$rigIdD" )" "rebuilt:0"
 
 echo "-- 4. revoke --"
 rigRead keeper-d s-k "$rigTmp/rw-dir/sub/b.md" > /dev/null

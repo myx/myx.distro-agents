@@ -49,12 +49,13 @@ DistroAgentsSlack(){
 	case "$1" in
 
 		--slack-conversations-roster|--slack-resolve-ids)
-			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.MagicComms.include"
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CoordinatorComms.include"
 			return $?
 		;;
 
 		--slack-delete-message|--slack-edit-message|--slack-file-fetch|--slack-file-info|--slack-file-share|--slack-presence-keep|--slack-presence-status|--slack-presence-stop|--slack-profile-get|--slack-profile-set|--slack-react|--slack-read|--slack-search-messages|--slack-send-message|--slack-socket-start|--slack-socket-status|--slack-socket-stop)
-			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.MemberCommsSlack.include"
+			type AgentsToolsMemberCommsSlackRun > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/slack/AgentsTools.MemberCommsSlack.include"
+			AgentsToolsMemberCommsSlackRun "$@"
 			return $?
 		;;
 

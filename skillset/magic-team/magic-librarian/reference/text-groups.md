@@ -1,3 +1,6 @@
+---
+maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
+---
 # Text groups: instruction layer and data layer
 
 The lists of "Text groups".

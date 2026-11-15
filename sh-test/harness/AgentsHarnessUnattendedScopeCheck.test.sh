@@ -97,7 +97,7 @@ rigAssert "under a session id of its own"              "$( [ -n "$( sed -n 's/.*
 
 echo "-- the spawn relay spawns through that proxy (call site only: PARTIAL) --"
 ## Text matching proves the call site exists and nothing more; the edited copy is its control.
-rigRelay="$rigHere/magic/AgentsTools.MagicCoordinatorState.include"
+rigRelay="$rigHere/magic/AgentsTools.OpSpawnPrompt.include"
 rigAssert "the spawn relay calls the spawn proxy"       "$( LC_ALL=C grep -c -- '--intern-op-agent-spawn-proxy' "$rigRelay" )" 1
 sed 's/--intern-op-agent-spawn-proxy/--rig-removed/' "$rigRelay" > "$rigTmp/relay.edited"
 rigAssert "control: the same check on a copy without the call finds none" "$( LC_ALL=C grep -c -- '--intern-op-agent-spawn-proxy' "$rigTmp/relay.edited" )" 0

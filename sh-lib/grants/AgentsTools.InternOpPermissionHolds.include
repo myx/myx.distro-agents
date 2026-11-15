@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+type AgentsToolsPermissionHolds > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionHolds.include"
+
+## AgentsTools.InternOpPermissionHolds.include -- the operation `--intern-op-permission-holds`, sourced by AgentsTools.InternOpPermission.include with the operation's arguments.
+## Whether a member holds one permission, and through which layer. Always rc 0 once
+## the arguments are good: the answer is the line, HOLDS <layer> or NOT-HOLDS.
+		shift
+		MDSC_CMD="$MDSC_CMD --intern-op-permission-holds"
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.UseAgentsTools.include"
+		local holdsMember="${1:-}" holdsTool="${2:-}" holdsTarget="${3:-}" holdsSession="" holdsLayer
+		shift 3 2>/dev/null || shift $#
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--session-id) holdsSession="${2:-}" ; shift 2 ;;
+				*)
+					echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		if [ -z "$holdsMember" ] || [ -z "$holdsTool" ] ; then
+			echo "$MDSC_CMD: ⛔ ERROR: syntax is <member> <tool> <target> [--session-id <id>]" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsAssertBareName "$holdsMember" "<member>" permission-holds || { set +e ; return 1 ; }
+		AgentsToolsAssertBareName "$holdsTool" "<tool>" permission-holds || { set +e ; return 1 ; }
+		[ -z "$holdsSession" ] || AgentsToolsAssertBareName "$holdsSession" "--session-id" permission-holds || { set +e ; return 1 ; }
+		if holdsLayer="$( AgentsToolsPermissionHolds "$holdsMember" "$holdsTool" "$holdsTarget" "$holdsSession" )" ; then
+			printf 'HOLDS %s\n' "$holdsLayer"
+		else
+			printf 'NOT-HOLDS\n'
+		fi
+		return 0

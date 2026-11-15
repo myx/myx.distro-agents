@@ -117,10 +117,14 @@
 
 		--stop-sessions
 			Stops the rig in order. It refuses unless `holding` holds, so the schedule
-			starts nothing again. Then it ends every live session of this workspace
-			with the console stop (--manager-session-kill), a `finish` row each, and
-			the schedule thread last. To resume: the next ask starts a thread on the
-			current code, then --override-flag --no holding.
+			starts nothing again, and it is the console's own: a member's session is
+			refused, magic-coordinator's excepted. Then each live session of this
+			workspace is dismissed first, so each run ends itself at its next Wait with
+			its handback given, and the console stop (--manager-session-kill) takes only
+			what did not go, a `finish` row each, and the schedule thread last. A
+			session that could not be ended is a warning, and the answer is 1. To resume:
+			the next ask starts a thread on the current code, then --override-flag --no
+			holding.
 
 		--close-failed-sessions
 			Closes every failed session of this workspace with the console stop

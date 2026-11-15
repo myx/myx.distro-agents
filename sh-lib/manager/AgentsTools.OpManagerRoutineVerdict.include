@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+## AgentsTools.OpManagerRoutineVerdict.include -- the operation `--manager-routine-verdict`, sourced by AgentsTools.ManagerRoutine.include with the operation's arguments.
+## Every routine file of every member's folder, one TAB-separated row each, with whether
+## the session spawner would start it by itself. Its form is the help entry's.
+## THE VERDICTS OF ONE ROUTINE, asked for the routine an operator has selected (R15): what the
+## validator says of its file, and what the spawner would say of a start now. The list itself
+## carries neither, because asking them for every routine is what made it slow.
+		local verdictOp="$1" verdictPath=""
+		shift
+		[ $# -gt 0 ] || { echo "⛔ ERROR: $MDSC_CMD $verdictOp: syntax is <routine file>" >&2 ; set +e ; return 1 ; }
+		verdictPath="$1"
+		## a selector or a path, as the spawner resolves it: the console knows the routine by its
+		## selector, and the file is what the rules read.
+		if [ ! -f "$verdictPath" ] ; then
+			verdictPath="$( AgentsToolsSpawnRoutineResolve "$verdictPath" 2> /dev/null )" || verdictPath=""
+		fi
+		[ -n "$verdictPath" ] && [ -f "$verdictPath" ] || { echo "⛔ ERROR: $MDSC_CMD $verdictOp: no such routine: $1" >&2 ; set +e ; return 1 ; }
+		local verdictFault verdictContract verdictStart
+		verdictFault="$( set -- --intern-doc-validate routine "$verdictPath" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.InternDocValidate.include"| LC_ALL=C grep -v -e '^[^ ]*:[0-9]*: report-' | LC_ALL=C sed -n '1s/^[^ ]*:[0-9]*: [^ ]*: //p' )" || verdictFault=""
+		if verdictContract="$( AgentsToolsSpawnRoutineContractCheck "$verdictPath" 2>&1 )" ; then
+			verdictStart="startable"
+		else
+			verdictStart="broken"
+		fi
+		printf 'valid\t%s\n' "$( [ -z "$verdictFault" ] && printf 'yes' || printf 'no: %s' "$verdictFault" )"
+		printf 'start\t%s\n' "$verdictStart"
+		printf 'reason\t%s\n' "$( [ -z "$verdictFault" ] && printf -- '-' || printf '%s' "${verdictFault}" )"
+		return 0

@@ -9,8 +9,10 @@
 ## Offline: a temp store of this check alone, removed at its end; nothing is requested.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
+: "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 rigLib="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib"
-rigTmp="$( mktemp -d "${MMDAPP:-${TMPDIR:-/tmp}}/.local/agents/scratch/sh-test/AgentsSpawnedChildRecordsCheck.XXXXXXXX" 2> /dev/null || mktemp -d "${TMPDIR:-/tmp}/AgentsSpawnedChildRecordsCheck.XXXXXXXX" )" || exit 1
+mkdir -p "$MMDAPP/.local/agents/scratch/sh-test" || exit 1
+rigTmp="$( mktemp -d "$MMDAPP/.local/agents/scratch/sh-test/AgentsSpawnedChildRecordsCheck.XXXXXXXX" )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
 rigWs="$rigTmp/ws"
 rigPass=0 ; rigFail=0
@@ -23,7 +25,7 @@ rigRecord(){ ## folder, spawn id, parent spawn id
 	printf -- '---\nsession-id: %s\nspawn-id: %s\nparent-spawn-id: %s\nowner: magic-tester\nstatus: spawn-started\n---\n\n# Spawn session\n' "$2" "$2" "$3" > "$rigWs/.local/agents/spawned/$1/$2.spawn.md"
 }
 rigAsk(){ ## parent, then the extra arguments -- the paths printed, newline-joined, relative to the store
-	( MMDAPP="$rigWs" ; export MMDAPP ; . "$rigLib/session/AgentsTools.StartedRecords.include" ; AgentsToolsSpawnedChildRecords "$@" ) 2> /dev/null | LC_ALL=C sed "s|^$rigWs/.local/agents/spawned/||" | LC_ALL=C tr '\n' ' ' | LC_ALL=C sed 's/ $//'
+	( MMDAPP="$rigWs" ; export MMDAPP ; . "$rigLib/spawn/AgentsTools.StartedRecords.include" ; AgentsToolsSpawnedChildRecords "$@" ) 2> /dev/null | LC_ALL=C sed "s|^$rigWs/.local/agents/spawned/||" | LC_ALL=C tr '\n' ' ' | LC_ALL=C sed 's/ $//'
 }
 rigRecord p-folder rig-parent none
 rigRecord a-folder rig-a rig-parent
@@ -33,7 +35,7 @@ rigRecord o-folder rig-o rig-other
 echo "-- 1. no mark: one grep over the records answers --"
 rigAssert "the two children of the parent, and no other"       "$( rigAsk rig-parent | LC_ALL=C tr ' ' '\n' | LC_ALL=C sort | LC_ALL=C tr '\n' ' ' | LC_ALL=C sed 's/ $//' )" "a-folder/rig-a.spawn.md b-folder/rig-b.spawn.md"
 rigAssert "a parent with no children gets nothing"             "$( rigAsk rig-a )" ""
-rigAssert "the workspace argument is honoured"                 "$( ( . "$rigLib/session/AgentsTools.StartedRecords.include" ; AgentsToolsSpawnedChildRecords rig-other "$rigWs" ) 2> /dev/null | LC_ALL=C sed "s|^$rigWs/.local/agents/spawned/||" )" "o-folder/rig-o.spawn.md"
+rigAssert "the workspace argument is honoured"                 "$( ( . "$rigLib/spawn/AgentsTools.StartedRecords.include" ; AgentsToolsSpawnedChildRecords rig-other "$rigWs" ) 2> /dev/null | LC_ALL=C sed "s|^$rigWs/.local/agents/spawned/||" )" "o-folder/rig-o.spawn.md"
 
 echo "-- 2. the lists marked complete: the parent's list answers, and no record is read --"
 mkdir -p "$rigWs/.local/agents/children"
@@ -52,7 +54,7 @@ rigAssert "empty, dash and a slash get nothing"                "$( rigAsk "" )|$
 if [ "$rigFail" -ne 0 ] ; then
 	echo "⛔ SPAWNED CHILD RECORDS CHECK FAILED: $rigFail of $(( rigPass + rigFail )) assertion(s)" >&2
 	echo "  warn: the gate's run seats and the close of a parent's children read the wrong runs" >&2
-	echo "  fix:  AgentsToolsSpawnedChildRecords in sh-lib/session/AgentsTools.StartedRecords.include" >&2
+	echo "  fix:  AgentsToolsSpawnedChildRecords in sh-lib/spawn/AgentsTools.StartedRecords.include" >&2
 	exit 1
 fi
 echo "SPAWNED_CHILD_RECORDS: OK ($rigPass assertions, offline)"

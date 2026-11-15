@@ -78,7 +78,7 @@ AgentsHarnessRootsFingerprint(){ ## workspace
 		"index:$agentsRootsIndexHere/harness/AgentsHarnessRootsIndex.include" \
 		"team:$agentsRootsIndexHere/team-data/AgentsTools.TeamRegistry.include" \
 		"members:$printWorkspace/.local/agents/members.index" \
-		"pointers:$( AgentsToolsTeamSharedGrants )" \
+		"pointers:${HOME:-}/.agents/magic-team/permissions.registry" \
 		"places:$printWorkspace/.local/agents/directories.registry" \
 		"places-shared:${HOME:-}/.agents/magic-team/directories.registry" \
 		"grants-index:$printWorkspace/.local/agents/grants.index" \
@@ -106,6 +106,7 @@ AgentsHarnessRootsFingerprint(){ ## workspace
 ## The producer runs with MDLT_ORIGIN empty -- DistroAgentsTools keeps the real one -- so
 ## the set is the one every origin shares; the file is the caller's to write atomically.
 AgentsHarnessRootsIndexText(){ ## workspace
+	type AgentsToolsClientAccessRoots > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/client/AgentsTools.ClientAccessRoots.include"
 	local writeWorkspace="$1" writeRead writeWref writeGrant writePrint writeOut
 	AgentsHarnessRootsFingerprint "$writeWorkspace" || return 1
 	writePrint="$agentsRootsPrint"

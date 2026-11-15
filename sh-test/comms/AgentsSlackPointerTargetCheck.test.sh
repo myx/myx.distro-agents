@@ -12,14 +12,14 @@ set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 rigPackage="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents"
 rigRefuse(){ echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1 ; }
-[ -f "$rigPackage/sh-lib/comms/AgentsTools.CommsSlack.include" ] || rigRefuse "the Slack driver is not at the origin this workspace resolves: $rigPackage"
+[ -f "$rigPackage/sh-lib/slack/AgentsTools.CommsSlack.include" ] || rigRefuse "the Slack driver is not at the origin this workspace resolves: $rigPackage"
 
 . "$rigPackage/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
 rigTmp="$( rigTempDir AgentsSlackPointerTargetCheck )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
 . "$rigPackage/sh-lib/comms/AgentsTools.CommsChannel.include"
 ## The include ends by dispatching its own arguments, and a source with none reads an unset $1.
-set +u ; . "$rigPackage/sh-lib/comms/AgentsTools.CommsSlack.include" ; set -u
+set +u ; . "$rigPackage/sh-lib/slack/AgentsTools.CommsSlack.include" ; set -u
 
 rigFails=0 rigPasses=0
 rigAssert(){ ## what is asserted, got, want

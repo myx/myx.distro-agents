@@ -1,9 +1,9 @@
 ---
 maintainers: magic-librarian, magic-coordinator, magic-architect, human-owner
 ---
-# vault-item.planning — plain-document contract
+# vault-item.planning — frontmatter contract
 
-Normative contract: this file's own `# Contract` section, at its end. The document is a plain vault file and carries no frontmatter block. Its kind is built from this file, and the validator lists `vault-item.planning`. On the live planning document it returns one `report-contract-frontmatter` row and stops, because the type reader needs a block to read. Measured 2026-11-12. `sh-lib/team-data/AgentsDocContract.registry` registers the kind by the name pattern `planning-*.md`.
+Normative contract: this file's own `# Contract` section, at its end. The document opens with a frontmatter block, which the typed writer stamps. Measured 2026-11-13: the live planning document carries `type` and `document-contract`, and the validator reports each as a key the contract did not name. `sh-lib/team-data/AgentsDocContract.registry` registers the kind by the name pattern `planning-*.md`.
 
 ## Contents
 
@@ -17,7 +17,7 @@ Normative contract: this file's own `# Contract` section, at its end. The docume
 
 # Summary
 
-A planning document is the recurrent work document of one planning cycle. It closes the cycle's gaps, states the goals and the deliverables, sets the constraints, orders the work and records what is settled. `planning-20261109-sprint.md`, the sprint starting 2026-11-09, is the first document of this kind, and the shape below is stated from it.
+A planning document is the recurrent work document of one planning cycle. It closes the cycle's gaps, states the goals and the deliverables, sets the constraints, orders the work and records what is settled. `planning-20261109T0000Z-sprint.md`, the sprint starting 2026-11-09, is the first document of this kind, and the shape below is stated from it.
 
 A planning round always runs the same way. It closes gaps, identifies goals, agrees deliverables, sets constraints, decomposes, then structures the plan. The sections below follow that order, so an open gap stands above the work that waits on it.
 
@@ -27,13 +27,20 @@ Planning is one kind with modes. The human-owner settled on 2026-11-09 that a mo
 
 - Kind `vault-item.planning`: store vault, type word `planning`.
 - Filename: `planning-<YYYYMMDD>-<matter>.md`, in the vault. The date is the cycle's start date, so a sprint's Monday.
-- No frontmatter: the document opens with its level-1 heading, carries no `---` block, and names no `document-contract`.
-- Constraint: the Kind line above registers the type word `planning` in the vault's type table, which `AgentsToolsDocValidateVaultTypes` reads from every `vault-item.*.contract.format.md` in the skillset. From the moment this file stands, the generic `--upsert-vault-item` refuses a `planning-*` name and names `--upsert-vault-planning` as its writer, and that operation is not built. Measured 2026-11-12: the refusal stands on the live planning name, and before this file existed the same write landed on a rig store. So a planning document has no tooling write path until that operation exists.
+- A document names this contract in `document-contract`, with the value `vault-item.planning`. The writer fills it where missing, with `type` beside it on every write.
+- Constraint: the Kind line above registers the type word `planning` in the vault's type table, which `AgentsToolsDocValidateVaultTypes` reads from every `vault-item.*.contract.format.md` in the skillset. So the generic `--upsert-vault-item` refuses a `planning-*` name, and only `--upsert-vault-planning` writes it. Measured 2026-11-13: the arm for that writer is in `AgentsTools.Member.include:442`. Neither `DistroAgentsItems` nor `DistroAgentsTools` routes to it. So a planning document has no reachable write path until that route lands.
 - A rule marked `[store]` needs more than the file to check. A rule marked `[judged]` is held by a reader, and no check holds it.
 
 ## Keys
 
-None. The document has no frontmatter block, so it has no key.
+`presence`: `required` is present on every document of the kind; `optional` is present when it applies. `writer`: `member` is written by a member; `tooling` is never written by a member. `either` is filled by the tooling where missing, and written by a member only to set another value.
+
+| key | presence | writer | value form | rule |
+|---|---|---|---|---|
+| `document-contract` | required | either | `literal vault-item.planning` | Names this contract. The writer fills it where missing. |
+| `type` | required | either | `literal planning` | The filename's type word, never a genre. The writer fills it where missing. |
+| `from` | required | either | `member` | The author. The writer fills it when it creates the item. |
+| `date` | required | either | `date-time` | When the planning document was written as an item. Never the cycle's start date, which stands in the filename. The writer fills it when it creates the item. |
 
 ## Value forms
 
@@ -49,7 +56,7 @@ The body is the level-1 heading, the `Audience:` line, then the sections in this
 
 | # | part | presence | what it holds |
 |---|---|---|---|
-| 1 | `# <cycle> <start date>: planning` | required, first line | The one level-1 heading. It names the cycle and its start date. |
+| 1 | `# <cycle> <start date>: planning` | required, first line after the block | The one level-1 heading. It names the cycle and its start date. |
 | 2 | `Audience:` line | required | Who reads the document, and why it exists. |
 | 3 | `## Contents` | required | The `## ` headings below it, in their order, nested under the parent. |
 | 4 | `## What this is` | required | The document, its subject, its limit and its job. |
@@ -64,7 +71,7 @@ The body is the level-1 heading, the `Audience:` line, then the sections in this
 
 ## Rules
 
-- [judged] The first line is the only level-1 heading, and it names the cycle and its start date.
+- [judged] The only level-1 heading opens the body, and it names the cycle and its start date.
 - [judged] `## Contents` lists the `## ` headings below it in their order, nested under their parent, and lists none that is absent.
 - [judged] Every part stands once, in the table's order, and `## Done` is the last `## ` heading.
 - [judged] `## Pending` holds `### Incoming`, `### Chosen`, `### Later` and `### Carried`, in that order.

@@ -49,16 +49,6 @@ AgentsToolsClientToolPolicyClaudeDenyJson(){
 	printf '%s\n' '["mcp__claude_ai_*"]'
 }
 
-## The vendor copilot CLI's own memory tools, one comma-separated value for its
-## --excluded-tools, which hides them from the model (copilot-native launches only:
-## AgentsConsoleShellScript.template.sh). store_memory writes Copilot Memory, a store kept
-## by GitHub and shared with the repository's collaborators; vote_memory rates one. Like
-## the claude memory directory, it is not team knowledge. copilot 1.0.87 changelog: "Inject
-## repo memories in the prompt and add memory storage tool"; its session-events schema
-## names both tools. Prompt mode (-p) already runs without memory unless --enable-memory.
-AgentsToolsClientToolPolicyCopilotExcludedTools(){
-	printf '%s\n' "store_memory,vote_memory"
-}
 
 ## The top-level settings --install-workspace-restrictions fixes in a workspace's
 ## .claude/settings.json, one `<key><TAB><JSON scalar>` per line; each is set to exactly
@@ -142,15 +132,6 @@ AgentsToolsClientToolPolicyRetiredHookNames(){
 	printf '%s\n' "deny-bash-tool.sh" "deny-ask-user-question-tool.sh"
 }
 
-## The permissions.deny entries earlier installs wrote into a workspace's
-## .claude/settings.json and this one retires, one per line, each the exact entry
-## text. The settings merge removes an entry only on an exact match, so a narrower
-## rule a user added beside it is never touched. Static denies of a tool the hooks
-## and permission policy govern belong to neither: a blanket "Bash" deny blocked
-## our own spawned sessions too, which the reroute hook lets through.
-AgentsToolsClientToolPolicyRetiredDenyEntries(){
-	printf '%s\n' "Bash"
-}
 
 ## The permissions.allow entries earlier installs wrote into a workspace's
 ## .claude/settings.json and none writes any more, one per line, each the exact entry

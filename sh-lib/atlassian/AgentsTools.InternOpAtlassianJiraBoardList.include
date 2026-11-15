@@ -1,0 +1,82 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+## AgentsTools.InternOpAtlassianJiraBoardList.include -- the operation `--intern-op-atlassian-jira-board-list`, sourced by AgentsTools.InternOpAtlassianCall.include with the operation's arguments.
+## Jira agile boards, the one endpoint behind every board listing. Names its
+## product for the same reason the Confluence op above does.
+	type AgentsToolsAtlassianCall > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/atlassian/AgentsTools.AtlassianRequest.include"
+		shift
+		local boardMember="" boardStartAt="" boardLimit="" boardContext="intern-op-atlassian-jira-board-list"
+		while [ $# -gt 0 ] ; do
+			## Every flag here takes a value, so the one emptiness check covers them all.
+			case "$1" in
+				--member|--start-at|--limit|--context)
+					if [ -z "${2:-}" ] ; then
+						printf '%s\n' "⛔ ERROR: $MDSC_CMD --$boardContext: $1 value missing" >&2
+						set +e ; return 1
+					fi
+					case "$1" in
+						--member)   boardMember="$2" ;;
+						--start-at) boardStartAt="$2" ;;
+						--limit)    boardLimit="$2" ;;
+						--context)  boardContext="$2" ;;
+					esac
+					shift 2
+				;;
+				*)
+					printf '%s\n' "⛔ ERROR: $MDSC_CMD --$boardContext: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		if [ -z "$boardMember" ] ; then
+			printf '%s\n' "⛔ ERROR: $MDSC_CMD --$boardContext: syntax is --member <team-member> [--start-at <n>] [--limit <n>] [--context <caller>] -- the acting member is required, since a board is visible only to identities its project is shared with" >&2
+			set +e ; return 1
+		fi
+		## Both land in the query string, so a value carrying '&' would append
+		## parameters of its own and silently change the result set mid-walk. Whole
+		## numbers only, refused rather than repaired. --start-at 0 is the first
+		## page and legitimate; a --limit of 0 asks for nothing.
+		if [ -n "$boardStartAt" ] ; then
+			case "$boardStartAt" in
+				*[!0123456789]*)
+					printf '%s\n' "⛔ ERROR: $MDSC_CMD --$boardContext: --start-at not a number: $boardStartAt" >&2
+					set +e ; return 1
+				;;
+			esac
+		fi
+		if [ -n "$boardLimit" ] ; then
+			case "$boardLimit" in
+				*[!0123456789]*|0)
+					printf '%s\n' "⛔ ERROR: $MDSC_CMD --$boardContext: --limit not above zero: $boardLimit" >&2
+					set +e ; return 1
+				;;
+			esac
+		fi
+		local boardPath="/rest/agile/1.0/board" boardJoin="?"
+		if [ -n "$boardStartAt" ] ; then boardPath="$boardPath${boardJoin}startAt=$boardStartAt" ; boardJoin="&" ; fi
+		## Jira spells the page size maxResults; --limit is this package's own
+		## caller-facing spelling, shared with the Confluence listings.
+		if [ -n "$boardLimit" ] ; then boardPath="$boardPath${boardJoin}maxResults=$boardLimit" ; fi
+		local boardBody boardRc=0
+		boardBody="$( AgentsToolsAtlassianCall "$boardMember" jira GET "$boardPath" "$boardContext" "" )" || boardRc=$?
+		if [ "$boardRc" -ne 0 ] ; then
+			set +e ; return "$boardRc"
+		fi
+		printf '%s\n' "$boardBody"
+		## isLast is the only truncation signal this endpoint carries, and all three
+		## states are stated: a complete page and an unanswerable one must never read
+		## alike, which is exactly what silence-means-complete made them.
+		local boardIsLast="$( printf '%s\n' "$boardBody" | LC_ALL=C awk -v path=isLast -v optional=1 -v dialect=atlassian -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" 2>/dev/null )"
+		case "$boardIsLast" in
+			true)
+				printf '%s\n' "# $boardContext: more: no -- the site reported isLast=true, so the boards above are the complete set visible to $boardMember" >&2
+			;;
+			false)
+				printf '%s\n' "# $boardContext: more: yes -- MORE BOARDS EXIST beyond this page and were not read. Read this page's own startAt and maxResults from the body above and pass their sum back as --start-at" >&2
+			;;
+			*)
+				printf '%s\n' "# $boardContext: more: unknown -- this response carried no isLast field, so whether more boards exist cannot be told from it. That is NOT a confirmation that the page is complete" >&2
+			;;
+		esac
+		return 0

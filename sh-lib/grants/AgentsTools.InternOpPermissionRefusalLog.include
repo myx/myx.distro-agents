@@ -1,0 +1,76 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+type AgentsToolsPermissionEscapeRecord > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionRecord.include"
+type AgentsToolsPermissionRefusalWhere > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionPosts.include"
+type AgentsToolsPermissionGranteeAssert > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionHolds.include"
+
+## AgentsTools.InternOpPermissionRefusalLog.include -- the operation `--intern-op-permission-refusal-log`, sourced by AgentsTools.InternOpPermission.include with the operation's arguments.
+		shift
+		MDSC_CMD="$MDSC_CMD --intern-op-permission-refusal-log"
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.UseAgentsTools.include"
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/slack/AgentsTools.CommsSlack.include"
+		local refusalOwner="$1"
+		shift || true
+		local refusalSession="" refusalTool="" refusalTarget="" refusalReason="" refusalLimitOwner=""
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--session-id) refusalSession="${2:-}" ; shift 2 ;;
+				--tool) refusalTool="${2:-}" ; shift 2 ;;
+				--target) refusalTarget="${2:-}" ; shift 2 ;;
+				--reason) refusalReason="${2:-}" ; shift 2 ;;
+				## Who alone can lift the limit that refused the call (a deny row: the human-owner); the route asks only them.
+				--limit-owner) refusalLimitOwner="${2:-}" ; shift 2 ;;
+				*)
+					echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		## A call refused before it named a target (a path argument missing, or passed under a name
+		## the tool does not take) is still a refusal, and still gets an id to escalate by.
+		[ -n "$refusalTarget" ] || refusalTarget="(no target given)"
+		if [ -z "$refusalOwner" ] || [ -z "$refusalSession" ] || [ -z "$refusalTool" ] ; then
+			echo "$MDSC_CMD: ⛔ ERROR: syntax is <team-member> --session-id <id> --tool <tool> --target <target> [--reason <text>]" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsPermissionGranteeAssert "$refusalOwner" "<team-member>" permission-refusal-log || { set +e ; return 1 ; }
+		AgentsToolsAssertBareName "$refusalSession" "--session-id" permission-refusal-log || { set +e ; return 1 ; }
+		AgentsToolsAssertBareName "$refusalTool" "--tool" permission-refusal-log || { set +e ; return 1 ; }
+		## A refusal outside any session (a caller passes no-session-<pid>) is kept in the one shared store `no-session`,
+		## never a store per call: every such call made a run store of its own that no session ever owned.
+		case "$refusalSession" in no-session-*) refusalSession="no-session" ;; esac
+		local refusalId refusalDir
+		refusalId="$( uuidgen 2>/dev/null | LC_ALL=C tr 'ABCDEF' 'abcdef' )"
+		if [ -z "$refusalId" ] ; then
+			echo "$MDSC_CMD: ⛔ ERROR: no id could be generated, so no refusal was recorded" >&2
+			set +e ; return 1
+		fi
+		refusalId="refusal-$refusalId"
+		refusalDir="$( AgentsToolsPermissionSessionDir "$refusalSession" )" || {
+			echo "$MDSC_CMD: ⛔ ERROR: can't create the session store for $refusalSession, so no refusal was recorded" >&2
+			set +e ; return 1
+		}
+		{
+			printf '%s\n' "---"
+			printf 'status: %s\n' "refused"
+			printf 'owner: %s\n' "$refusalOwner"
+			AgentsToolsPermissionRefusalWhere
+			printf 'session-id: %s\n' "$refusalSession"
+			printf 'tool: %s\n' "$refusalTool"
+			printf 'target: %s\n' "$( AgentsToolsPermissionEscapeRecord "$refusalTarget" )"
+			printf 'refused-at: %s\n' "$( date +"%Y-%m-%d %H:%M %z" )"
+			[ -z "$refusalLimitOwner" ] || printf 'limit-owner: %s\n' "$refusalLimitOwner"
+			printf '%s\n' "---"
+			printf '\n# Refused\n\n%s\n' "${refusalReason:-no reason given}"
+		} > "$refusalDir/$refusalId.md" || {
+			rm -f "$refusalDir/$refusalId.md"
+			echo "$MDSC_CMD: ⛔ ERROR: can't write the refusal record, so no refusal id exists" >&2
+			set +e ; return 1
+		}
+		## The id on stdout before the post, because the record already stands without it.
+		printf '%s\n' "$refusalId"
+		## And how to ask for the call, each line as `HINT: <text>`, for whoever refused it to print.
+		AgentsToolsPermissionRefusalHint "$refusalId" | LC_ALL=C sed 's/^/HINT: /'
+		AgentsToolsPermissionRefusalPost "$refusalOwner" "$refusalDir" "$refusalId" \
+			"$refusalSession" "$refusalTool" "$refusalTarget" "$refusalReason"
+		return 0

@@ -9,7 +9,7 @@
 set -u
 : "${MMDAPP:?MMDAPP is not set}"
 checkHere="${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-lib"
-[ -f "$checkHere/session/AgentsTools.DispatcherSchedule.include" ] || { echo "⛔ ERROR: the scheduler include is not at the origin this workspace resolves" >&2 ; exit 1 ; }
+[ -f "$checkHere/schedule/AgentsTools.DispatcherSchedule.include" ] || { echo "⛔ ERROR: the scheduler include is not at the origin this workspace resolves" >&2 ; exit 1 ; }
 
 checkPass=0
 checkFail=0
@@ -43,11 +43,12 @@ if [ "${1:-}" = "record" ] ; then
 fi
 
 ## --- 2. the team-channel tag, through the real scheduler ------------------------
-checkRoot="$( mktemp -d "${TMPDIR:-/tmp}/duty-tag-check.XXXXXX" )" || exit 1
+mkdir -p "$MMDAPP/.local/agents/scratch/sh-test" || exit 1
+checkRoot="$( mktemp -d "$MMDAPP/.local/agents/scratch/sh-test/duty-tag-check.XXXXXX" )" || exit 1
 trap 'rm -rf -- "$checkRoot"' EXIT
 mkdir -p "$checkRoot/.local/agents/schedule/tags"
 export MMDAPP="$checkRoot"
-. "$checkHere/session/AgentsTools.DispatcherSchedule.include" > /dev/null 2>&1 || { echo "⛔ ERROR: the dispatcher include would not load" >&2 ; exit 1 ; }
+. "$checkHere/schedule/AgentsTools.DispatcherSchedule.include" > /dev/null 2>&1 || { echo "⛔ ERROR: the dispatcher include would not load" >&2 ; exit 1 ; }
 
 ## The read the scheduler makes, answered from $CHECK_CANNED. Declared before the call, so the
 ## scheduler's own `type DistroAgentsTools` guard leaves it alone.

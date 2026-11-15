@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+## AgentsTools.OpManagerSessionEffort.include -- the operation `--manager-session-effort`, sourced by AgentsTools.ManagerSession.include with the operation's arguments.
+## The effort a running session asks of its model, changed while it runs (F10.7): written for the harness to read at its next
+## round, sessions/<id>/effort in the store of a run or of a coworking session (AgentsHarnessCacheWatch,
+## AgentsUniversalHarness.sh). One row, TAB-separated, its form the help entry's. Nothing is signalled: the run reads it itself.
+## A change discards the input token cache of the run that reads it, and that run says so when it does.
+		local effortOp="$1" effortId effortValue effortDir effortTmp
+		shift
+		if [ $# -ne 2 ] ; then
+			echo "⛔ ERROR: $MDSC_CMD $effortOp: syntax is <session-id> <unset|none|low|normal|high>, got $# argument(s)" >&2
+			set +e ; return 1
+		fi
+		effortId="$1" ; effortValue="$2"
+		AgentsToolsAssertBareName "$effortId" "the session id" "$effortOp" || { set +e ; return 1 ; }
+		case "$effortValue" in
+			unset|none|low|normal|high) ;;
+			*) echo "⛔ ERROR: $MDSC_CMD $effortOp: the effort is unset, none, low, normal or high -- nothing was saved" >&2 ; set +e ; return 1 ;;
+		esac
+		effortDir="$MMDAPP/.local/agents/sessions/$effortId"
+		if [ ! -d "$effortDir" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD $effortOp: no store of a session or of a run is named by that id in this workspace -- nothing was saved" >&2
+			set +e ; return 1
+		fi
+		effortTmp="$( mktemp "$effortDir/.effort.XXXXXX" 2> /dev/null )" || effortTmp=""
+		{ [ -n "$effortTmp" ] && printf '%s\n' "$effortValue" > "$effortTmp" && mv -f "$effortTmp" "$effortDir/effort" ; } || {
+			[ -z "$effortTmp" ] || rm -f "$effortTmp" 2> /dev/null
+			echo "⛔ ERROR: $MDSC_CMD $effortOp: the effort could not be saved in $effortDir -- nothing was saved" >&2
+			set +e ; return 1
+		}
+		printf 'effort\t%s\t%s\t%s\n' "$effortId" "$effortValue" "${effortDir//[[:space:]]/_}/effort"
+		return 0

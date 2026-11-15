@@ -36,6 +36,8 @@
 📘 syntax: DistroAgentsItems.fn.sh --upsert-vault-decision-record [--team-member <team-member>] <item-name> [--edit-patch-from-stdin|--from-file <path>|--upsert-from-stdin]
 📘 syntax: DistroAgentsItems.fn.sh --upsert-vault-verbatim-record [--team-member <team-member>] <item-name> [--edit-patch-from-stdin|--from-file <path>|--upsert-from-stdin]
 📘 syntax: DistroAgentsItems.fn.sh --upsert-vault-epic-blueprint [--team-member <team-member>] <item-name> [--edit-patch-from-stdin|--from-file <path>|--upsert-from-stdin]
+📘 syntax: DistroAgentsItems.fn.sh --upsert-vault-planning [--team-member <team-member>] <item-name> [--edit-patch-from-stdin|--from-file <path>|--upsert-from-stdin]
+📘 syntax: DistroAgentsItems.fn.sh --upsert-vault-tracking [--team-member <team-member>] <item-name> [--edit-patch-from-stdin|--from-file <path>|--upsert-from-stdin]
 📘 syntax: DistroAgentsItems.fn.sh --get-board-item [--team-member <team-member>] <item-name> [--board-state <state>]... [--start-line <N> --end-line <N>]
 📘 syntax: DistroAgentsItems.fn.sh --get-my-board-items <team-member>
 📘 syntax: DistroAgentsItems.fn.sh --upsert-inbox-inquiry <member> <item-filename> [--from-member <member>] [--include-processed] [--from-reflection <reflection-file>] [--reply] [--from-file <path>|--upsert-from-slots]
@@ -149,9 +151,12 @@
 		--upsert-vault-decision-record <item-name> [--edit-patch-from-stdin|--from-file <path>|--upsert-from-stdin]
 		--upsert-vault-verbatim-record <item-name> [--edit-patch-from-stdin|--from-file <path>|--upsert-from-stdin]
 		--upsert-vault-epic-blueprint <item-name> [--edit-patch-from-stdin|--from-file <path>|--upsert-from-stdin]
+		--upsert-vault-planning <item-name> [--edit-patch-from-stdin|--from-file <path>|--upsert-from-stdin]
+		--upsert-vault-tracking <item-name> [--edit-patch-from-stdin|--from-file <path>|--upsert-from-stdin]
 			Writes a vault document of one contract: `investigation-*` (vault-item.investigation-report),
-			`adr-*` (vault-item.decision-record), `verbatim-record-*` (vault-item.verbatim-record) or
-			`epic-blueprint-*` (vault-item.epic-blueprint). The name must
+			`adr-*` (vault-item.decision-record), `verbatim-record-*` (vault-item.verbatim-record),
+			`epic-blueprint-*` (vault-item.epic-blueprint), `planning-*` (vault-item.planning) or
+			`tracking-*` (vault-item.tracking). The name must
 			start with that contract's type word. A new document gets `type`, `from`, `date` and
 			`document-contract` where it names none. The document is checked against its contract, and
 			a fault the contract refuses on stops the write.

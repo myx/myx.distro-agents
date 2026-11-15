@@ -256,15 +256,15 @@ rigAssert "a second request moves nothing out of review"   "$( LC_ALL=C grep -c 
 echo "-- 3. the close fix: only a running item moves; review, processed and pending stay --"
 for rigState in review processed pending ; do
 	rigItem "$rigState" "dispatch-20261008T1200Z-close-$rigState" ""
-	rigRun "$rigTmp/c-$rigState" bash -c '. "$1" ; . "$2" ; . "${2%/session/*}/member/AgentsTools.BareName.include" ; AgentsToolsSpawnProxyCloseDispatch "$3" "" 0 rig.log succeeded running review' \
-		rig "$rigFn" "$rigLib/session/AgentsTools.SpawnSandbox.include" "dispatch-20261008T1200Z-close-$rigState.md"
+	rigRun "$rigTmp/c-$rigState" bash -c '. "$1" ; . "$2" ; . "${2%/spawn/*}/member/AgentsTools.BareName.include" ; AgentsToolsSpawnProxyCloseDispatch "$3" "" 0 rig.log succeeded running review' \
+		rig "$rigFn" "$rigLib/spawn/AgentsTools.SpawnSandbox.include" "dispatch-20261008T1200Z-close-$rigState.md"
 	rigAssert "an item in $rigState stays in $rigState"    "$( rigLoc "dispatch-20261008T1200Z-close-$rigState" )" "$rigState"
 done
 rigAssert "the review item gets its Result in place"       "$( LC_ALL=C grep -c '^## Result' "$rigData/board/review/dispatch-20261008T1200Z-close-review.md" )" 1
 rigAssert "the processed item is left untouched"           "$( LC_ALL=C grep -c '^## Result' "$rigData/board/processed/dispatch-20261008T1200Z-close-processed.md" )" 0
 rigItem running dispatch-20261008T1200Z-close-running ""
-rigRun "$rigTmp/c-running" bash -c '. "$1" ; . "$2" ; . "${2%/session/*}/member/AgentsTools.BareName.include" ; AgentsToolsSpawnProxyCloseDispatch "$3" "" 0 rig.log succeeded running review' \
-	rig "$rigFn" "$rigLib/session/AgentsTools.SpawnSandbox.include" dispatch-20261008T1200Z-close-running.md
+rigRun "$rigTmp/c-running" bash -c '. "$1" ; . "$2" ; . "${2%/spawn/*}/member/AgentsTools.BareName.include" ; AgentsToolsSpawnProxyCloseDispatch "$3" "" 0 rig.log succeeded running review' \
+	rig "$rigFn" "$rigLib/spawn/AgentsTools.SpawnSandbox.include" dispatch-20261008T1200Z-close-running.md
 rigAssert "a running one moves to review"                  "$( rigLoc dispatch-20261008T1200Z-close-running )" review
 rigAssert "as ended-without-handback, in Decisions"        "$( rigDecisions "$rigData/board/review/dispatch-20261008T1200Z-close-running.md" 'review: ended-without-handback' )" 1
 
@@ -418,7 +418,7 @@ rigEnv=()
 rigAssert "its handback reaches the thread of the session that started the run it replaces" \
 	"$( LC_ALL=C grep -c 'no recorded parent session' "$rigTmp/v3h" ):$( LC_ALL=C grep '"channel": *"CPRS00001"' "$rigTmp/bodies" | LC_ALL=C grep -c -F 'redone' )" 0:1
 
-rigReportsTo="$( LC_ALL=C sed -n 's/^agentsRunRouteField="\(.*\)"$/\1/p' "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include" )"
+rigReportsTo="$( LC_ALL=C sed -n 's/^agentsRunRouteField="\(.*\)"$/\1/p' "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandbox.include" )"
 echo "-- 9d. return to an ended run that had no parent session, made from inside another session: it has none again --"
 rigRecord rig-ended-np spawn-succeeded CENP00001:1700000000.000570 dispatch-20261008T1200Z-np trk-rig-np 'start-context: spawned
 '
@@ -883,7 +883,7 @@ rigAssert "with a spawn record of that id and no item of its own, the founding s
 	"$( LC_ALL=C grep -c '^STOP-RESULT: STOPPED' "$rigTmp/e4l" ):$( LC_ALL=C grep -c -F "No dispatch item names session rig-lost-ts-$$ as its own run, so there is no item to record a stop on." "$rigTmp/e4l" ):$( rigAlive "$rigLostPid" ):$( rigAlive "$rigPart3Pid" "$rigPart4Pid" ):$( rigDecisions "$rigData/board/running/dispatch-20261008T1100Z-p3ts.md" 'dismissed: taskstop' )" 1:1:0:2:0
 rigProcSignal TERM "$rigPart3Pid" "$rigPart4Pid"
 ## A run with processes under it. A stop ends what the run started, to any depth, by the one walk
-## the manager's kill uses too (AgentsToolsRegistryRunProcesses): its tool command and that
+## the manager's kill uses too (AgentsToolsRunProcesses): its tool command and that
 ## command's own child. It never signals a process that runs as another spawn, nor the process that
 ## started that one and waits for it, though both stand under the run.
 rigStandInKids(){ ## spawn id -- a stand-in run with a tool command that has a child, and a process whose child runs as another spawn; sets rigKidsPid, rigKidsTool, rigKidsDeep, rigKidsSuper and rigKidsOther
@@ -968,7 +968,7 @@ rigAssert "with force the command gets the hard kill: it is gone with the run, a
 ## reads it by the same function): a kept line whose start is no longer the process's own gives nothing.
 rigStandIn
 rigAssert "a kept pid that another process has taken since is none of what is left: the same pid with another start gives nothing, and with its own start gives the pid" \
-	"$( MMDAPP="$rigWs" PATH="$rigTmp/bin:/usr/bin:/bin:/usr/sbin:/sbin" bash -c '. "$1/AgentsTools.Registries.include" 2> /dev/null ; AgentsToolsRegistryRunLeft rig-no-such-run "$2 Mon_Jan__1_00:00:00_2001" - | tr "\n" " " ; printf "/ " ; AgentsToolsRegistryRunLeft rig-no-such-run "$2 $3" - | tr "\n" " "' rig-left "$rigLib/team-data" "$rigStandPid" "$rigStandStart" )" "/ $rigStandPid "
+	"$( MMDAPP="$rigWs" PATH="$rigTmp/bin:/usr/bin:/bin:/usr/sbin:/sbin" bash -c '. "$1/../run/AgentsTools.RunLeft.include" 2> /dev/null ; AgentsToolsRunLeft rig-no-such-run "$2 Mon_Jan__1_00:00:00_2001" - | tr "\n" " " ; printf "/ " ; AgentsToolsRunLeft rig-no-such-run "$2 $3" - | tr "\n" " "' rig-left "$rigLib/team-data" "$rigStandPid" "$rigStandStart" )" "/ $rigStandPid "
 rigProcSignal TERM "$rigStandChild" "$rigStandPid"
 
 ## ---------------------------------------------------------------- a return resumed natively

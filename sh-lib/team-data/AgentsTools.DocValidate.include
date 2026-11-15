@@ -21,7 +21,7 @@
 ## line. A reporting fault the write introduced is said and the write goes on. Both are the same row, said the same way.
 ##
 
-type AgentsToolsItemNameType > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.ItemNameShape.include"
+type AgentsToolsItemNameType > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/items/AgentsTools.ItemNameShape.include"
 
 ## One fault row: the rows a rule set prints are its faults, one line each.
 AgentsToolsDocValidateRow(){ ## file as shown, line, rule, text

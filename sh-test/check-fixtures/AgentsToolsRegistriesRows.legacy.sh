@@ -137,9 +137,9 @@ AgentsToolsRegistryLegacyPendingRepliesRows(){
 
 ## The spawned-sessions render as it stood before its per-row state derivation stopped forking;
 
-## only its own name changed, so it calls the current rebuild and AgentsToolsRegistryDeriveState.
+## only its own name changed, so it calls the current rebuild and AgentsToolsRunDeriveState.
 ## Whether a process of the list runs as one spawn, the per-row way of the rule
-## AgentsToolsRegistryRunningSpawns states: the value of that process's own --session-id word,
+## AgentsToolsRunningSpawns states: the value of that process's own --session-id word,
 ## or of its own --resume word, is the spawn id, matched whole -- the first of the two on its
 ## line, a run resumed and forked naming itself by the --session-id after its --fork-session.
 ## A command line of the tooling itself (DistroAgentsTools.fn.sh) is no run.
@@ -170,7 +170,7 @@ AgentsToolsRegistryLegacyRunsAs(){ ## process list text (`<pid> <command line>` 
 
 ## Whether the process an open record names as the one its launch started
 ## (`run-process: <pid> <start>`) is still that same process, the per-row way of the rule
-## AgentsToolsRegistryRecordedRunAlive states: that pid, started at that time.
+## AgentsToolsRunRecordedAlive states: that pid, started at that time.
 AgentsToolsRegistryLegacyRecordedRun(){ ## spawn id
 	local runRecord runNamed runNow
 	for runRecord in "$MMDAPP/.local/agents/spawned"/*/"$1.spawn.md" ; do
@@ -234,7 +234,7 @@ AgentsToolsRegistryLegacyRenderSpawnedSessions(){ ## view, session-id filter, st
 				*) ! AgentsToolsRegistryLegacyRecordedRun "$rowSpawn" || rowLive="running" ;;
 			esac
 		fi
-		rowState="$( AgentsToolsRegistryDeriveState "$rowStatus" "$rowLive" "$rowSession" "$rowSpawn" )"
+		rowState="$( AgentsToolsRunDeriveState "$rowStatus" "$rowLive" "$rowSession" "$rowSpawn" )"
 		[ -z "$filterSession" ] || [ "$rowSession" = "$filterSession" ] || continue
 		extendedRows="$extendedRows$rowTracking $rowSession $rowParent $rowHost $rowOwner $rowStatus $rowExit $rowSpawn $rowAgentLogThread $rowSessionThread $rowWorkspace $rowLive $rowState
 "

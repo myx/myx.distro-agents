@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+## AgentsTools.OpGetVaultItem.include -- the operation `--get-vault-item`, sourced by AgentsTools.Member.include with the operation's arguments.
+## One vault item, by bare filename. A stub: it checks who is asking, and
+## --intern-op-vault-item-read resolves and reads (AgentsTools.InternOpVaultAudit.include).
+		shift
+		local memberName="${1:-}"
+		shift || true
+		local itemName="${1:-}"
+		shift || true
+		if [ -z "$memberName" ] || [ -z "$itemName" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --get-vault-item: syntax is <team-member> <item-name> [--start-line <N> --end-line <N>]" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsAssertBareName "$memberName" "<team-member>" get-vault-item || { set +e ; return 1 ; }
+		if [ ! -d "$MDAT_SKILLSET_ROOT/$memberName" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --get-vault-item: no such member skill directory: $MDAT_SKILLSET_ROOT/$memberName" >&2
+			set +e ; return 1
+		fi
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+		DistroAgentsTools --intern-op-vault-item-read "$itemName" "$@"
+		return $?

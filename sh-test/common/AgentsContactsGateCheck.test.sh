@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 ## Behavioural check on the outbound contact gate over the contacts store (F7.10 of the refactorings epic): AgentsToolsContactAssertKnown
-## (sh-lib/common/AgentsTools.InternContact.include), the check every real send (Slack, e-mail) makes right before its network call, run rather
+## (sh-lib/contacts/AgentsTools.InternContact.include), the check every real send (Slack, e-mail) makes right before its network call, run rather
 ## than read, in a rig: a workspace with its team data root and the real tooling; the contacts are recorded by the tool that keeps them
 ## (DistroAgentsContacts.fn.sh --collect-contact). Held:
 ##   1. KNOWN is a coordinate of a contact the acting member holds: a Slack id or a Slack conversation within the sending member's team, an e-mail
@@ -49,7 +49,7 @@ rigGate(){ ## result prefix, the gate's words after the member... -- the gate as
 		bash -c '
 			DistroAgentsTools(){ "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" "$@" ; }
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.BareName.include"
-			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.InternContact.include"
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/contacts/AgentsTools.InternContact.include"
 			AgentsToolsContactAssertKnown client-ndm "$@"' rig "$@" ) > "$gateOut.out" 2> "$gateOut.err" < /dev/null
 	rigRc=$?
 }

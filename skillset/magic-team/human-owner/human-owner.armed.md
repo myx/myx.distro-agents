@@ -12,6 +12,11 @@ maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 - Team-Member's (-specific) local procedures
   - `reach-human-owner` — contact the real human-owner asynchronously
 - Team-Member's (-specific) local rules
+- Working with the ask tools
+  - The kinds
+  - What a question carries
+  - Reading the answer
+  - The open record
 - Domain knowledge: none
 - Team-Member's (-specific) tooling
   - Tooling operations

@@ -1,0 +1,54 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.CoordinatorReads.include -- the coordinator's own read-only readers: one
+## frontmatter field of the state note, and the board's live counts and active items.
+## Sourced for its functions only; runs nothing at load.
+##
+
+## One frontmatter field's value from a note, bounded to the block between the
+## first two `---` lines; empty when the note or the field is absent.
+AgentsToolsStateNoteField(){ ## <path> <field>
+	[ -f "$1" ] || return 0
+	LC_ALL=C awk -v fieldName="$2" '
+		{ sub(/\r$/, "") ; }
+		$0 == "---" { fmDepth++ ; if (fmDepth >= 2) exit ; next ; }
+		fmDepth == 1 && index($0, fieldName ": ") == 1 { print substr($0, length(fieldName) + 3) ; exit ; }
+	' "$1"
+}
+
+## Live counts, read at call time and never stored: one `<state>: <n>` line per
+## board state, counting the *.md files directly in that state's folder.
+AgentsToolsBoardCounts(){
+	local countState countFile countN
+	for countState in backlog pending running review blocked parked processed archived retained ; do
+		countN=0
+		for countFile in "$MDAT_DATA_ROOT/board/$countState"/*.md ; do
+			[ -f "$countFile" ] && countN=$(( countN + 1 ))
+		done
+		printf '%s: %s\n' "$countState" "$countN"
+	done
+}
+
+## The active and blocked items, one `<state>/<item-filename>` line each, at
+## most 40, then one `(+<n> more)` line for the rest; `(none)` when empty.
+AgentsToolsBoardActiveItems(){
+type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+	local activeState activeFile activeN=0 activeCap=40 activeRows="" activeTokens
+	## Token totals, summed now over what sits under each item (AgentsTools.SessionTranscript.include).
+	. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionTranscript.include"
+	activeRows="$( cd "$MDAT_DATA_ROOT/board" 2>/dev/null && AgentsSessionTokensRollupRows running/*.md review/*.md pending/*.md blocked/*.md 2>/dev/null )"
+	for activeState in running review pending blocked ; do
+		for activeFile in "$MDAT_DATA_ROOT/board/$activeState"/*.md ; do
+			[ -f "$activeFile" ] || continue
+			activeN=$(( activeN + 1 ))
+			activeTokens=""
+			[ -z "$activeRows" ] || activeTokens="$( AgentsSessionTokensRollupText "$( AgentsSessionTokensRollupRowOf "$activeRows" "${activeFile##*/}" )" )"
+			[ "$activeN" -gt "$activeCap" ] || printf '%s/%s%s\n' "$activeState" "${activeFile##*/}" "${activeTokens:+ -- $activeTokens}"
+		done
+	done
+	[ "$activeN" -le "$activeCap" ] || printf '(+%s more)\n' "$(( activeN - activeCap ))"
+	[ "$activeN" -gt 0 ] || printf '(none)\n'
+	return 0
+}

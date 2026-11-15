@@ -13,6 +13,7 @@
 ## Offline: a rig of its own, with its own queue under its own HOME.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
+: "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 rigPackage="$MDLT_ORIGIN/myx/myx.distro-agents"
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
@@ -20,7 +21,8 @@ rigRefuse(){
 [ -f "$rigPackage/sh-test/check-fixtures/rig-temp.include.sh" ] || rigRefuse "the rig-temp fixture is not in the package"
 ## The fixture is sourced for its queue functions alone: a private HOME gives this check a line of its own, which is how the
 ## check of the line itself keeps out of the machine's one.
-rigTmp="$( mktemp -d "${TMPDIR:-/tmp}/agent-queue-stall.XXXXXX" )" || exit 1
+mkdir -p "$MMDAPP/.local/agents/scratch/sh-test" || exit 1
+rigTmp="$( mktemp -d "$MMDAPP/.local/agents/scratch/sh-test/agent-queue-stall.XXXXXX" )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
 HOME="$rigTmp/home" ; export HOME
 mkdir -p "$HOME" "$rigTmp/ws/.local/agents" || exit 1

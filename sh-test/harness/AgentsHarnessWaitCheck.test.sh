@@ -20,7 +20,7 @@ rigHere="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib"
 rigTest="${rigHere%/sh-lib}/sh-test"
 . "$rigTest/check-fixtures/rig-reply.include.sh" || { echo "⛔ ERROR: the rig's reply fixture is missing from the package: sh-test/check-fixtures/rig-reply.include.sh -- refusing to report a result" >&2 ; exit 1 ; }
 rigHarness="$rigHere/harness/AgentsUniversalHarness.sh"
-rigInclude="$rigHere/member/AgentsTools.MemberWait.include"
+rigInclude="$rigHere/wait/AgentsTools.MemberWait.include"
 rigTool="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 rigMember="magic-tester"
 
@@ -649,7 +649,7 @@ rigVerdict "--wait-include-own on a source where it has no effect -- refused, wi
 ##    the primary and its control -- and the other member's post counts in both,
 ##    which is what proves this is a filter and not a wipe.
 ## ---------------------------------------------------------------------------
-rigAnswersAwk="$rigHere/comms/AgentsSlackThreadAnswers.awk"
+rigAnswersAwk="$rigHere/slack/AgentsSlackThreadAnswers.awk"
 rigRenderFile="$rigTmp/render.conversation.txt"
 cat > "$rigRenderFile" <<RIG_RENDER
 1700000002.000001 | U100 | [sender: $rigMember] RIG-OWN-POST
@@ -1352,7 +1352,7 @@ rigVerdict "many threads in one wait -- two plain threads, a plain thread beside
 ##      operation itself reports. The control is "slack:1", which probes every round.
 ## ---------------------------------------------------------------------------
 rigMakeOrigin(){ ## directory, kind-every value
-	local originDir="$1" originEvery="$2" originEntry originName originInclude="myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWait.include"
+	local originDir="$1" originEvery="$2" originEntry originName originInclude="myx/myx.distro-agents/sh-lib/wait/AgentsTools.MemberWait.include"
 	grep -q '^agentsWaitKindEvery="' "$MDLT_ORIGIN/$originInclude" || rigRefuse "the include no longer assigns agentsWaitKindEvery on a line of its own, so the divider rows would test nothing"
 	mkdir -p "$originDir/myx/myx.distro-agents/sh-lib"
 	for originEntry in "$MDLT_ORIGIN"/* ; do
@@ -1369,12 +1369,12 @@ rigMakeOrigin(){ ## directory, kind-every value
 	done
 	for originEntry in "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib"/* ; do
 		originName="${originEntry##*/}"
-		[ "$originName" = "member" ] || rigCopyTree "$originEntry" "$originDir/myx/myx.distro-agents/sh-lib/$originName"
+		[ "$originName" = "wait" ] || rigCopyTree "$originEntry" "$originDir/myx/myx.distro-agents/sh-lib/$originName"
 	done
-	mkdir -p "$originDir/myx/myx.distro-agents/sh-lib/member"
-	for originEntry in "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member"/* ; do
+	mkdir -p "$originDir/myx/myx.distro-agents/sh-lib/wait"
+	for originEntry in "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/wait"/* ; do
 		originName="${originEntry##*/}"
-		[ "$originName" = "AgentsTools.MemberWait.include" ] || rigCopyTree "$originEntry" "$originDir/myx/myx.distro-agents/sh-lib/member/$originName"
+		[ "$originName" = "AgentsTools.MemberWait.include" ] || rigCopyTree "$originEntry" "$originDir/myx/myx.distro-agents/sh-lib/wait/$originName"
 	done
 	LC_ALL=C sed "s/^agentsWaitKindEvery=\".*\"/agentsWaitKindEvery=\"$originEvery\"/" "$MDLT_ORIGIN/$originInclude" > "$originDir/$originInclude"
 	[ "$( rigHolds "$originDir/$originInclude" "agentsWaitKindEvery=\"$originEvery\"" )" = yes ] || rigRefuse "the scratch include does not carry the divider $originEvery, so the divider rows would test nothing"

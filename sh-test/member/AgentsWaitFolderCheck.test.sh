@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 ## Behavioural check on the working directory of a wait ($MMDAPP/.local/temp/mdat-member-wait.<member>.XXXXXX,
-## sh-lib/member/AgentsTools.MemberWait.include) and on the sweep of the ones a killed wait left behind. A wait keeps its
+## sh-lib/wait/AgentsTools.MemberWait.include) and on the sweep of the ones a killed wait left behind. A wait keeps its
 ## baselines and renderings there, so a wait whose directory is taken from under it reads nothing any more: every
 ## probe then ends on "No such file or directory", round after round, and the member hears nothing. Held here:
 ##   1. SEVERAL WAITS OF ONE MEMBER AT ONCE, two and then four, each of its own session on its own thread of the
@@ -25,7 +25,7 @@
 ##      directory`, then `awk: can't open file .../now.1`), and the rendering of a round, which was returned as
 ##      RECEIVED with nothing in it. The wait ends at once on ERROR and one line that names the file, and keeps
 ##      its directory, with `kept`, which the sweep leaves for its day whoever owned it.
-## When a process began is read by the tooling's own reading (AgentsToolsRegistryProcessStart) and by no second one.
+## When a process began is read by the tooling's own reading (AgentsToolsRunProcessStart) and by no second one.
 ## Offline: a Slack-shaped fake curl is first on PATH, a ps that lists the rig's own runs only is beside it, and
 ## every scenario runs in its own workspace under this check's temp tree, in $MMDAPP/.local/temp. No process is
 ## signalled: every wait here is bounded and ends by itself.
@@ -41,7 +41,7 @@ rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }
 [ -f "$rigTools" ] || rigRefuse "the tooling is not at the origin this workspace resolves: $rigTools"
-[ -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include" ] || rigRefuse "the include that reads when a process began is missing from the package"
+[ -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunProcesses.include" ] || rigRefuse "the include that reads when a process began is missing from the package"
 [ -r "${MDAT_SKILLSET_ROOT:-}/$rigMember/$rigMember.basic.md" ] || rigRefuse "MDAT_SKILLSET_ROOT does not hold $rigMember, so the wait would have no identity to read under"
 
 mkdir -p "$MMDAPP/.local/temp" || exit 1
@@ -281,7 +281,7 @@ rigGonePid=$!
 wait "$rigGonePid" 2>/dev/null
 ## A process that lives through the scenario: this check's own shell, and when it began by the tooling's own reading.
 rigLivePid="$$"
-rigLiveStart="$( set +u ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include" > /dev/null 2>&1 ; AgentsToolsRegistryProcessStart "$rigLivePid" )"
+rigLiveStart="$( set +u ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunProcesses.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunState.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunLeft.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunRecords.include" > /dev/null 2>&1 ; AgentsToolsRunProcessStart "$rigLivePid" )"
 [ -n "$rigLiveStart" ] || rigRefuse "the tooling's own reading does not say when this check's shell began, so no live owner can be recorded"
 rigMade(){ ## directory name, host (empty: no record), process (may be empty), "old" to set it years back
 	mkdir -p "$rigTempOf/$1" && : > "$rigTempOf/$1/now.1"

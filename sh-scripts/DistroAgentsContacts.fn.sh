@@ -4,7 +4,7 @@
 ## DistroAgentsContacts.fn.sh -- Contacts (F7.10): the people subsystem. A subsystem interface: results are read from it, by agent tools,
 ## the shell console and shell automation alike. Every member uses it, the coordinator and the client-* members most: they collect a
 ## contact, check one, escalate about one and record what that contact may ask for. The store is the team data root's `contacts/`, one record
-## a person and one an organisation (sh-lib/common/AgentsTools.Contacts.include); the records are written by this file and kept by no one by hand.
+## a person and one an organisation (sh-lib/contacts/AgentsTools.Contacts.include); the records are written by this file and kept by no one by hand.
 ##   --collect-contact, --collect-organisation   record or fill a contact, or an organisation
 ##   --find-contact, --all-contacts, --all-organisations, --contact-record   read them
 ##   --contacted-by, --reach-contact   the two scenarios: being contacted by a contact, and reaching one
@@ -41,7 +41,7 @@ DistroAgentsContactsMoved(){
 	case "$1" in
 
 		--send-contact-digest)
-			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.MemberContact.include"
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/contacts/AgentsTools.MemberContact.include"
 			return $?
 		;;
 
@@ -86,7 +86,7 @@ DistroAgentsContacts(){
 	esac
 	## The data root, the skillset root and the bare-name gate, as every operation of the tooling settles them.
 	. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.UseAgentsTools.include"
-	type AgentsToolsContactsCollectContact > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.Contacts.include"
+	type AgentsToolsContactsCollectContact > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/contacts/AgentsTools.ContactsCollect.include"
 	case "$1" in
 
 		## --id <slug> [--name <text>] [--organisation <slug>] [--role <text>] [--relationship <text>] [--how-to-meet <text>] [--owner yes|no]
@@ -106,42 +106,49 @@ DistroAgentsContacts(){
 
 		## <value> [--team <scope>] [--reached-by <member>] [--scope <scope>[=<tier>]]: the contacts a value names; rows, rc 1 with none.
 		--find-contact)
+			type AgentsToolsContactsFind > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/contacts/AgentsTools.ContactsQuery.include"
 			AgentsToolsContactsFind "$@"
 			return $?
 		;;
 
 		## [--organisation <slug>] [--reached-by <member>] [--scope <scope>[=<tier>]]: every contact, a row each.
 		--all-contacts)
+			type AgentsToolsContactsAll > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/contacts/AgentsTools.ContactsQuery.include"
 			AgentsToolsContactsAll "$@"
 			return $?
 		;;
 
 		## Every organisation, a row each.
 		--all-organisations)
+			type AgentsToolsContactsAllOrganisations > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/contacts/AgentsTools.ContactsQuery.include"
 			AgentsToolsContactsAllOrganisations "$@"
 			return $?
 		;;
 
 		## <id>: the record, whole.
 		--contact-record)
+			type AgentsToolsContactsRecord > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/contacts/AgentsTools.ContactsQuery.include"
 			AgentsToolsContactsRecord "$@"
 			return $?
 		;;
 
 		## <value> [--team <scope>]: being contacted. The sender looked up: its record, what it holds, the tier and the next step.
 		--contacted-by)
+			type AgentsToolsContactsContactedBy > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/contacts/AgentsTools.ContactsContactedBy.include"
 			AgentsToolsContactsContactedBy "$@"
 			return $?
 		;;
 
 		## <id>: reaching one. Its coordinates by channel, how to meet it, the send lines.
 		--reach-contact)
+			type AgentsToolsContactsReach > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/contacts/AgentsTools.ContactsQuery.include"
 			AgentsToolsContactsReach "$@"
 			return $?
 		;;
 
 		## <id> [--tool <tool> --target <target>] [--session-id <id>]: the permission model's answer for a call, or what the contact holds standing.
 		--contact-access)
+			type AgentsToolsContactsAccess > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/contacts/AgentsTools.ContactsAccess.include"
 			AgentsToolsContactsAccess "$@"
 			return $?
 		;;
@@ -149,12 +156,14 @@ DistroAgentsContacts(){
 		## <id> --tool <tool> --target <target> --asked <text> [--session-id <id>]: what the contact asks for and holds no access to: the refusal recorded for
 		## the contact, and the call that asks the human-owner (RequestPermission) printed.
 		--escalate-contact)
+			type AgentsToolsContactsEscalate > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/contacts/AgentsTools.ContactsAccess.include"
 			AgentsToolsContactsEscalate "$@"
 			return $?
 		;;
 
 		## <id> --session-id <id> --refusal-id <id> --kind session|contact: a member gives the contact what the member holds (a stub over grant-open, signed by the member).
 		--allow-contact)
+			type AgentsToolsContactsAllow > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/contacts/AgentsTools.ContactsAccess.include"
 			AgentsToolsContactsAllow "$@"
 			return $?
 		;;

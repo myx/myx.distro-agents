@@ -1,0 +1,149 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+## AgentsTools.OpSettlePendingReply.include -- the operation `--settle-pending-reply|--manager-pending-reply-dismiss`, sourced by AgentsTools.MemberPendingReply.include with the operation's arguments.
+## Closes one of the member's own open questions as settled, with the reason, when it
+## no longer needs an answer. Only the member that asked it, and only a plain question:
+## a readback, decision or permission closes through its own escalation ops. The
+## coordinator may also settle another member's question on its behalf.
+## --withdraw instead discards the asker's own open question, of any kind: the record
+## closes as withdrawn, with the reason and no verdict, so it answers, grants and decides
+## nothing; reminders stop with it, and a short note in its thread tells the person it is
+## no longer needed. Only the member that asked it, on either stub.
+## The console's arm comes here too (--manager-pending-reply-dismiss, sourced by
+## AgentsTools.ManagerPendingReply.include): the same withdraw, of any member's question,
+## by whoever is at the console.
+		local settleOp="$1"
+		shift
+		MDSC_CMD="$MDSC_CMD $settleOp"
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.UseAgentsTools.include"
+		type AgentsToolsPendingReplyField > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.PendingReplyRecords.include"
+		local settleMember="${1:-}" settleId="${2:-}" settleReason="" settleFile settleOwner settleKind settleRc=0 settleWithdraw=""
+		shift 2 2>/dev/null || shift $#
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--reason)
+					[ $# -ge 2 ] || { echo "$MDSC_CMD: ⛔ ERROR: --reason requires a value (<text>)" >&2 ; set +e ; return 1 ; }
+					settleReason="$2" ; shift 2
+				;;
+				--withdraw)
+					settleWithdraw=1 ; shift
+				;;
+				*)
+					echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		## From the console: the first word is the account at the console, and what is done is
+		## the withdraw. The record says who by `console:<account>`, a reason is not required,
+		## and the note in the thread is the team bot's, whatever identity asked.
+		local settleConsole="" settleBy="" settleSaid=""
+		if [ "$settleOp" = "--manager-pending-reply-dismiss" ] ; then
+			settleConsole="${settleMember:-unknown}" ; settleBy="console:$settleConsole" ; settleMember="magic-coordinator" ; settleWithdraw=1
+			settleSaid="$settleReason"
+			[ -n "$settleReason" ] || settleReason="dismissed from the console, no reason given"
+		fi
+		if [ -z "$settleMember" ] || [ -z "$settleId" ] || [ -z "$settleReason" ] ; then
+			echo "$MDSC_CMD: ⛔ ERROR: syntax is <team-member> <pending-id> --reason <text> [--withdraw]" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsAssertBareName "$settleMember" "<team-member>" pending-reply-settle || { set +e ; return 1 ; }
+		AgentsToolsAssertBareName "$settleId" "<pending-id>" pending-reply-settle || { set +e ; return 1 ; }
+		AgentsToolsActingMemberCheck "$settleMember" "${settleOp#--}" || { set +e ; return 1 ; }
+		## A closed record lives in pending/closed/ (retention, T9): settling one says ALREADY-CLOSED, so it is found there.
+		settleFile="$MMDAPP/.local/agents/pending/$settleId.md"
+		[ -f "$settleFile" ] || settleFile="$MMDAPP/.local/agents/pending/closed/$settleId.md"
+		[ -f "$settleFile" ] || { echo "$MDSC_CMD: ⛔ ERROR: no pending-reply record $settleId" >&2 ; set +e ; return 1 ; }
+		settleOwner="$( AgentsToolsPendingReplyField "$settleFile" owner )"
+		if [ -z "$settleOwner" ] ; then
+			## Another run's close moved a closed record to closed/ meanwhile (retention, T9): read it again where it is.
+			settleFile="$MMDAPP/.local/agents/pending/$settleId.md"
+			[ -f "$settleFile" ] || settleFile="$MMDAPP/.local/agents/pending/closed/$settleId.md"
+			settleOwner="$( AgentsToolsPendingReplyField "$settleFile" owner )"
+		fi
+		if [ -z "$settleConsole" ] && [ "$settleOwner" != "$settleMember" ] && { [ -n "$settleWithdraw" ] || [ "$settleMember" != "magic-coordinator" ] ; } ; then
+			echo "$MDSC_CMD: ⛔ ERROR: $settleId was asked by ${settleOwner:-nobody}, so $settleMember cannot $( [ -n "$settleWithdraw" ] && printf withdraw || printf settle ) it (the asker settles its own, and magic-coordinator another's); it stays as it is" >&2
+			set +e ; return 1
+		fi
+		## What is then done to the question's own post is done in its asker's name, as the
+		## asker's own withdraw does it.
+		[ -z "$settleConsole" ] || settleMember="$settleOwner"
+		[ -n "$settleConsole" ] || settleSaid="$settleReason"
+		if [ -n "$settleWithdraw" ] ; then
+			type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+			DistroAgentsTools --intern-op-pending-reply-close "$settleId" --if-open --status withdrawn \
+				--withdrawn-by "${settleBy:-$settleMember}" --withdraw-reason "$settleReason" --context "$MDSC_CMD" || settleRc=$?
+			case "$settleRc" in
+				0) ;;
+				3) return 0 ;;
+				*) set +e ; return 1 ;;
+			esac
+			## The close moved the now-withdrawn record to closed/ (retention, T9): read its post fields from there.
+			[ -f "$settleFile" ] || settleFile="$MMDAPP/.local/agents/pending/closed/$settleId.md"
+			## Said in the question's own thread, under the identity it was asked with, so the
+			## person knows it needs no answer. Best effort: the record is already closed.
+			local settleChannel settleThread settleNote
+			settleChannel="$( AgentsToolsPendingReplyField "$settleFile" channel )"
+			settleThread="$( AgentsToolsPendingReplyField "$settleFile" thread-ts )"
+			if [ -n "$settleChannel" ] && [ -n "$settleThread" ] ; then
+				## It carries the addressee of the question it withdraws, as the question named it.
+				local settleArgs=( "$settleMember" "$settleChannel:$settleThread" --from-stdin ) settleTo
+				[ -z "$settleConsole" ] && [ "$( AgentsToolsPendingReplyField "$settleFile" ask-identity )" != "bot" ] || settleArgs=( ${settleArgs[@]+"${settleArgs[@]}"} --identity-bot )
+				settleTo="$( AgentsToolsPendingReplyField "$settleFile" address-to )"
+				[ -z "$settleTo" ] || settleArgs=( ${settleArgs[@]+"${settleArgs[@]}"} --address-to "$settleTo" )
+				## Its text is the note template's (sh-lib/templates/tooling-note.post.format.md, `# Ask`, withdrawn).
+				type AgentsToolsAskPostFill > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.AskPost.include"
+				## From the console it is the line of a dismissal (console-dismissed), which names the account.
+				settleNote="$( ASKP_BLOCK="Ask/$( [ -n "$settleConsole" ] && printf 'console-dismissed' || printf 'withdrawn' )" ASKP_F_by="$settleConsole" ASKP_F_member="$settleMember" ASKP_F_reason="$settleSaid" ASKP_F_address_to="$settleTo" \
+					AgentsToolsAskPostFill block tooling-note.post.format.md "" 2> /dev/null )" || settleNote=""
+				[ -n "$settleNote" ] || echo "⚠️ WARNING: $MDSC_CMD: $settleId is withdrawn, but the note that says so could not be filled from its template (tooling-note.post.format.md, Ask/withdrawn)" >&2
+				type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+				printf '%s\n' "$settleNote" | DistroAgentsTools --intern-op-comms-slack-send-message ${settleArgs[@]+"${settleArgs[@]}"} > /dev/null 2>&1 \
+					|| echo "⚠️ WARNING: $MDSC_CMD: $settleId is withdrawn, but the note was not posted in its thread" >&2
+			fi
+			## The question's post takes no answer any more: it gets the cancelled mark of its
+			## template, loses the tooling's own answer emoji, and its How to answer part is
+			## edited away. The post is the root of a question with its own thread, else the
+			## live version of one asked inside another thread. Best effort, each step.
+			local settleQts settleLive
+			settleQts="$( AgentsToolsPendingReplyField "$settleFile" question-ts )"
+			settleLive="$( AgentsToolsPendingReplyField "$settleFile" revision-ts )"
+			if [ -n "$settleChannel" ] && [ -n "$settleQts" ] ; then
+				. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.AskPost.include"
+				if [ "$settleThread" != "$settleQts" ] ; then
+					AgentsToolsAskPostClose "$settleFile" "${settleLive:-$settleQts}" cancelled edit
+				elif [ "$( AgentsToolsPendingReplyField "$settleFile" kind )" = "proposal" ] ; then
+					## A proposal's own post is the reply under its root: it gets the cancelled mark and is edited. The root is
+					## never marked or edited, but the tooling's own two answer emoji (F9.4) are taken off it, as the identity that
+					## placed them; the click of anyone else stays.
+					AgentsToolsAskPostReact "$settleMember" "$settleChannel:$settleQts" "$( AgentsToolsPendingReplyField "$settleFile" ask-identity )" remove \
+						$( AgentsToolsAskPostRecordFill reactions "$settleFile" 2>/dev/null )
+					[ -z "$settleLive" ] || AgentsToolsAskPostClose "$settleFile" "$settleLive" cancelled edit
+				else
+					## Asked again since: the update under the root invites no click either. The root
+					## itself is edited to its own text, as it was first asked.
+					[ -z "$settleLive" ] || AgentsToolsAskPostReact "$settleMember" "$settleChannel:$settleLive" "$( AgentsToolsPendingReplyField "$settleFile" ask-identity )" remove \
+						$( AgentsToolsAskPostRecordFill reactions "$settleFile" 2>/dev/null )
+					AgentsToolsAskPostClose "$settleFile" "$settleQts" cancelled edit
+				fi
+			fi
+			printf 'WITHDRAWN %s\n' "$settleId"
+			return 0
+		fi
+		settleKind="$( AgentsToolsPendingReplyField "$settleFile" kind )"
+		case "$settleKind" in
+			''|question) ;;
+			*)
+				echo "$MDSC_CMD: ⛔ ERROR: $settleId is a $settleKind, which closes through its own escalation ops, never by settling; it stays as it is" >&2
+				set +e ; return 1
+			;;
+		esac
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+		DistroAgentsTools --intern-op-pending-reply-close "$settleId" --if-open --status reply-received --resolved-as settled \
+			--verdict "settled: $settleReason" --answered-by "$settleMember (settled)" --context "$MDSC_CMD" || settleRc=$?
+		case "$settleRc" in
+			0) printf 'SETTLED %s\n' "$settleId" ; return 0 ;;
+			3) return 0 ;;
+			*) set +e ; return 1 ;;
+		esac

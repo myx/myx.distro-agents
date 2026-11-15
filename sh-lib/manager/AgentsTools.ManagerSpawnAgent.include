@@ -72,7 +72,7 @@ case "$1" in
 		mkdir -p "${agentLog%/*}" 2> /dev/null || :
 		local agentCliArgs=( --cli-configured )
 		[ -z "$agentCli" ] || agentCliArgs=( --cli "$agentCli" )
-		type AgentsToolsSpawnConsoleLaunch > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnConsoleLaunch.include"
+		type AgentsToolsSpawnConsoleLaunch > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnConsoleLaunch.include"
 		(
 			agentRc=0
 			printf '%s\n' "$agentPrompt" | (

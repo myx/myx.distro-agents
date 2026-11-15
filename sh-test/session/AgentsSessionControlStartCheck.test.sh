@@ -420,7 +420,7 @@ rigCall(){ ## short name of a session -- the function alone, called as a starter
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include" || exit 90
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionControlStart.include" || exit 91
 			## The start reads a session'\''s records through the per-session list; it is loaded before the origin becomes the stand-in.
-			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include" || exit 92
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.StartedRecords.include" || exit 92
 			MDLT_ORIGIN="$RIG_FAKE"
 			exec 5> "$RIG_TMP/fn.fd5" 9> "$RIG_TMP/fn.fd9"
 			fnFrom="$SECONDS"
@@ -495,7 +495,7 @@ rigCode(){ ## file -- its lines that are no comment
 	LC_ALL=C grep -v '^[[:space:]]*#' "$1"
 }
 rigAssert "one function starts a thread, and the console, the advance lock take (through the board's housekeeping) and the main loop reach it through the one check" \
-	"$( cat "$rigHere"/*/*.include "$rigHere"/*/*.sh | LC_ALL=C grep -c -E '^AgentsToolsSessionControlStart\(\)\{' || : ) $( cat "$rigHere"/*/*.include "$rigHere"/*/*.sh | LC_ALL=C grep -v '^[[:space:]]*#' | LC_ALL=C grep -c -F -e '--intern-session-control --run --session-id "$startSession"' || : ) $( rigCode "$rigHere/manager/AgentsTools.ManagerSession.include" | LC_ALL=C grep -c -e 'AgentsToolsSessionControlCheckWorkspace' -e 'AgentsToolsSessionControlStart "' || : ) $( rigCode "$rigHere/magic/AgentsTools.SpawnHousekeeping.include" | LC_ALL=C grep -c -e '| AgentsToolsSessionControlCheck ' || : ) $( rigCode "$rigHere/magic/AgentsTools.InternMainLoop.include" | LC_ALL=C grep -c -e 'AgentsToolsSessionControlCheckWorkspace' || : )" "1 1 2 1 1"
+	"$( cat "$rigHere"/*/*.include "$rigHere"/*/*.sh | LC_ALL=C grep -c -E '^AgentsToolsSessionControlStart\(\)\{' || : ) $( cat "$rigHere"/*/*.include "$rigHere"/*/*.sh | LC_ALL=C grep -v '^[[:space:]]*#' | LC_ALL=C grep -c -F -e '--intern-session-control --run --session-id "$startSession"' || : ) $( rigCode "$rigHere/manager/AgentsTools.OpManagerSessionControlStart.include" | LC_ALL=C grep -c -e 'AgentsToolsSessionControlCheckWorkspace' -e 'AgentsToolsSessionControlStart "' || : ) $( rigCode "$rigHere/board/AgentsTools.BoardHousekeeping.include" | LC_ALL=C grep -c -e '| AgentsToolsSessionControlCheck ' || : ) $( rigCode "$rigHere/magic/AgentsTools.InternMainLoop.include" | LC_ALL=C grep -c -e 'AgentsToolsSessionControlCheckWorkspace' || : )" "1 1 2 1 1"
 
 echo "-- 10. the guard: every check of sh-test that names an operation which starts control threads ends them --"
 ## THE OPERATIONS that start the control thread of a session of the workspace they are called for: the advance

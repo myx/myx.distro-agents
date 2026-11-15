@@ -21,6 +21,12 @@
 ##      until `--no` clears it, at any hour; it shows in --current-flags with the seconds left. While it holds, worktime reads `no (holiday)`
 ##      whatever the hours say; it overrides worktime and nothing else: emergency and overtime stand (an overtime may be set while it holds, and
 ##      ends when normal worktime next starts); when it ends or is cleared, worktime is what the clock says.
+##   6. planned-maintenance is set with a TTL and prints its own flag line, `planned-maintenance: yes (<n> seconds left)`, keeping its end
+##      as a setting; `--no` prints `planned-maintenance: no`. It is not one of --current-flags' eight lines, which stand in order beside it.
+##      An unknown flag is refused with a message naming all nine flags.
+## RED RECIPES, both on one copy on 2026-11-14 (AgentsTools.DispatcherSchedule.include), 3 of 102 red and those three alone:
+##   `planned-maintenance` taken out of the flag-line case at :191 -- both rows of 6 on its flag line fail, the control stands.
+##   `holding, ` and ` and planned-maintenance` taken out of the unknown-flag message at :393 -- the nine-flags row of 6 fails, 7 of 9.
 ## Offline: a date first on PATH gives the rig's clock; every workspace is a folder of the rig's own.
 set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
@@ -291,6 +297,25 @@ rigRun "$rigDispatcher" --override-flag --no emergency
 rigRun "$rigDispatcher" --override-flag --no holidays
 rigRun "$rigDispatcher" --set-holidays 2026-12-25
 rigAssert "there is no setter for holidays: it is an override, not a list of dates" "$rigRc:$( rigFlag holidays )" "1:holidays: no"
+
+echo "-- 6. planned-maintenance, and the flags an unknown one is told --"
+rigAt "$rigMon13"
+rigRun "$rigDispatcher" --override-flag holding 3600
+rigAssert "control: holding <ttl> prints its flag line" "$rigRc:$rigOut" "0:holding: yes (3600 seconds left)"
+rigRun "$rigDispatcher" --override-flag planned-maintenance 3600
+rigAssert "planned-maintenance <ttl>: its flag line with the seconds left, the end kept as a setting" "$rigRc:$rigOut:$( rigSetting MDAT_SCHEDULE_PLANNED_MAINTENANCE )" \
+	"0:planned-maintenance: yes (3600 seconds left):until $(( rigMon13 + 3600 ))"
+rigRun "$rigDispatcher" --current-flags
+rigAssert "--current-flags still prints its eight flags in order, holding among them" \
+	"$( printf '%s\n' "$rigOut" | LC_ALL=C sed -n '1,8s/: .*//p' | tr '\n' '|' ):$( rigFlag holding )" \
+	"worktime|weekend|holidays|holding|emergency|overtime|learning|supervised|:holding: yes (3600 seconds left)"
+rigRun "$rigDispatcher" --override-flag --no planned-maintenance
+rigAssert "--no: its flag line says no, and the setting is gone" "$rigRc:$rigOut:$( rigSetting MDAT_SCHEDULE_PLANNED_MAINTENANCE )" "0:planned-maintenance: no:-"
+rigRun "$rigDispatcher" --override-flag --no holding
+rigRun "$rigDispatcher" --override-flag bogus
+rigAssert "an unknown flag is refused, rc 1, and the message names all nine flags" \
+	"$rigRc:$( printf '%s\n' "$rigOut" | LC_ALL=C sed -n 's/.*no flag bogus -- the flags are \(.*\), and all but.*/\1/p' | LC_ALL=C tr ', ' '\n\n' \
+		| LC_ALL=C grep -c -x -e worktime -e weekend -e holidays -e holding -e emergency -e overtime -e learning -e supervised -e planned-maintenance )" "1:9"
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ SCHEDULER FLAGS CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

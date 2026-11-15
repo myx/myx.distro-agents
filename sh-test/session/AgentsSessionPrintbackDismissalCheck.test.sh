@@ -289,7 +289,7 @@ rigResolve(){ ## helper session (empty: the root's), spawn id, target
 		export MMDAPP="$rigWs" MDLT_ORIGIN="$rigOrigin"
 		[ -z "$1" ] || export MDAT_SESSION_ID="$1" MDAT_SPAWN_SESSION_ID="$2" MDAT_SPAWN_AGENT="$rigHelperMember"
 		[ -n "$1" ] || export MDAT_SPAWN_SESSION_ID="$rigRootSession"
-		. "$rigOrigin/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsSlack.include" definitions-only
+		. "$rigOrigin/myx/myx.distro-agents/sh-lib/slack/AgentsTools.CommsSlack.include"
 		rigResolveOut="$( DistroAgentsToolsResolveTarget "$3" )" || rigResolveRc=$?
 		printf 'rc=%s %s' "$rigResolveRc" "$( printf '%s' "$rigResolveOut" | LC_ALL=C tr '\n' '|' )"
 	)
@@ -312,7 +312,7 @@ rigDefaultSources(){ ## workspace, session, spawn id, conversation threads (opti
 		unset MDAT_SESSION_THREAD MDAT_SESSION_ID MDAT_SPAWN_SESSION_ID CLAUDE_CODE_SESSION_ID MDAT_SPAWN_AGENT MDAT_CONVERSATION_THREADS
 		export MMDAPP="$1" MDLT_ORIGIN="$rigOrigin" MDAT_SESSION_ID="$2" MDAT_SPAWN_SESSION_ID="$3" MDAT_SPAWN_AGENT="$rigHelperMember"
 		[ -z "${4:-}" ] || export MDAT_CONVERSATION_THREADS="$4"
-		. "$rigOrigin/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include" 2> /dev/null || :
+		. "$rigOrigin/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandbox.include" 2> /dev/null || :
 		rigDefaultsOut="$( AgentsToolsWaitDefaultSources 2> /dev/null )" || rigDefaultsOut=""
 		printf '%s' "${rigDefaultsOut:-<nothing>}"
 	)

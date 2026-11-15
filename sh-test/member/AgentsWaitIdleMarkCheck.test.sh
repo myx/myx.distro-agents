@@ -10,7 +10,7 @@ rigPkg="$MDLT_ORIGIN/myx/myx.distro-agents"
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }
-[ -f "$rigPkg/sh-lib/member/AgentsTools.MemberWait.include" ] || rigRefuse "the Wait include is not at the origin"
+[ -f "$rigPkg/sh-lib/wait/AgentsTools.MemberWait.include" ] || rigRefuse "the Wait include is not at the origin"
 . "$rigPkg/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
 rigTmp="$( rigTempDir AgentsWaitIdleMarkCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
@@ -27,12 +27,13 @@ rigAssert(){ ## what is asserted, got, want
 		printf '  FAIL  %s\n        got:  %s\n        want: %s\n' "$1" "$2" "$3" ; rigFails=$(( rigFails + 1 ))
 	fi
 }
-rigWait(){ ## mark line (empty: no mark), the sources of the wait -- the round and the word the mark holds after the call
-	rm -f "$rigMark"
+rigWait(){ ## mark line (empty: no mark), the sources of the wait, the run's own list (may be empty) -- the round and the word the mark holds after the call
+	rm -f "$rigMark" "${rigMark%/*}/keeper-x.checklist.md"
 	[ -z "$1" ] || printf '%s\n' "$1" > "$rigMark"
+	[ -z "${3:-}" ] || printf '%s\n' "$3" > "${rigMark%/*}/keeper-x.checklist.md"
 	env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp" PATH="/usr/bin:/bin:/usr/sbin:/sbin" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" \
-		MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_SPAWN_SESSION_ID=rig-run \
-		bash -c '. "$1" ; . "$2" ; AgentsWaitActivityIdle "$3"' rig "$rigPkg/sh-lib/session/AgentsTools.SpawnSandbox.include" "$rigPkg/sh-lib/member/AgentsTools.MemberWait.include" "$2" > /dev/null 2>&1
+		MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_SPAWN_SESSION_ID=rig-run MDAT_SPAWN_AGENT=keeper-x \
+		bash -c '. "$1" ; . "$2" ; AgentsWaitActivityIdle "$3"' rig "$rigPkg/sh-lib/spawn/AgentsTools.SpawnSandbox.include" "$rigPkg/sh-lib/wait/AgentsTools.MemberWait.include" "$2" > /dev/null 2>&1
 	[ -f "$rigMark" ] || { echo "no mark" ; return 0 ; }
 	LC_ALL=C awk '{ w = $0 ; sub(/^[^ ]* [^ ]* /, "", w) ; print $1 " " w }' "$rigMark"
 }
@@ -44,6 +45,10 @@ echo "-- a wait on a named source is waiting --"
 rigAssert "a thread that is not the session's own stays tool Wait" "$( rigWait '7 100 tool Wait' 'chat:rig-run slack:C0RIG00001:1700000000.000100:conversation dms:keeper-x ' )" "7 tool Wait"
 rigAssert "an ask stays tool Wait" "$( rigWait '7 100 tool Wait' 'chat:rig-run ask:rig-pending-1 dms:keeper-x ' )" "7 tool Wait"
 rigAssert "a process stays tool Wait" "$( rigWait '7 100 tool Wait' 'chat:rig-run process:process-3 ' )" "7 tool Wait"
+echo "-- a run whose own list holds open work is waiting, never idle --"
+rigAssert "an item in progress on the run's list: stays tool Wait" "$( rigWait '7 100 tool Wait' 'chat:rig-run ' '- [~] Collect the participants'"'"' reports' )" "7 tool Wait"
+rigAssert "a pending item on the run's list: stays tool Wait" "$( rigWait '7 100 tool Wait' 'chat:rig-run ' '- [ ] Hand back the round' )" "7 tool Wait"
+rigAssert "only the wait-for-more item and done items: idle" "$( rigWait '7 100 tool Wait' 'chat:rig-run ' "$( printf '%s\n' '- [x] Build it' '- [ ] wait for more: call ThisSession, operation idle-wait' )" )" "7 idle"
 echo "-- a mark that is not a Wait's is never touched --"
 rigAssert "a run in another tool keeps its mark" "$( rigWait '7 100 tool Read' 'chat:rig-run ' )" "7 tool Read"
 rigAssert "a thinking run keeps its mark" "$( rigWait '7 100 thinking' 'chat:rig-run ' )" "7 thinking"

@@ -1,0 +1,100 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+## AgentsTools.InternOpAtlassianConfluenceSpaceList.include -- the operation `--intern-op-atlassian-confluence-space-list`, sourced by AgentsTools.InternOpAtlassianCall.include with the operation's arguments.
+## Confluence spaces, the one endpoint behind every space listing. It names its
+## product because it is product-specific: --call and --check take --product and
+## serve both, while only Confluence has spaces. Same shape for any future
+## product-specific op in this family.
+	type AgentsToolsAtlassianCall > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/atlassian/AgentsTools.AtlassianRequest.include"
+		shift
+		local spaceMember="" spaceCursor="" spaceLimit="" spaceContext="intern-op-atlassian-confluence-space-list"
+		while [ $# -gt 0 ] ; do
+			## Every flag here takes a value, so the one emptiness check covers them all.
+			case "$1" in
+				--member|--cursor|--limit|--context)
+					if [ -z "${2:-}" ] ; then
+						printf '%s\n' "⛔ ERROR: $MDSC_CMD --$spaceContext: $1 value missing" >&2
+						set +e ; return 1
+					fi
+					case "$1" in
+						--member)  spaceMember="$2" ;;
+						--cursor)  spaceCursor="$2" ;;
+						--limit)   spaceLimit="$2" ;;
+						--context) spaceContext="$2" ;;
+					esac
+					shift 2
+				;;
+				*)
+					printf '%s\n' "⛔ ERROR: $MDSC_CMD --$spaceContext: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		if [ -z "$spaceMember" ] ; then
+			printf '%s\n' "⛔ ERROR: $MDSC_CMD --$spaceContext: syntax is --member <team-member> [--cursor <value>] [--limit <n>] [--context <caller>] -- the acting member is required, since the listing is exactly what that identity can see" >&2
+			set +e ; return 1
+		fi
+		## The cursor lands in the query string, so a value carrying '&' would append
+		## parameters of its own -- changing sort or status MID-WALK, which silently
+		## skips or repeats rows and breaks the completeness this operation reports.
+		## Refused, never repaired, matching the Slack target grammar; re-encoding is
+		## not the fix, since it double-encodes the padding a real cursor ends in.
+		## Enumerated, never a bracket range: those are collation-dependent.
+		local spaceCursorRest="$spaceCursor" spaceCursorChar
+		while [ -n "$spaceCursorRest" ] ; do
+			spaceCursorChar="${spaceCursorRest%"${spaceCursorRest#?}"}"
+			spaceCursorRest="${spaceCursorRest#?}"
+			case "$spaceCursorChar" in
+				a|b|c|d|e|f|g|h|i|j|k|l|m|n|o|p|q|r|s|t|u|v|w|x|y|z) ;;
+				A|B|C|D|E|F|G|H|I|J|K|L|M|N|O|P|Q|R|S|T|U|V|W|X|Y|Z) ;;
+				0|1|2|3|4|5|6|7|8|9) ;;
+				-|_|.|~|%|=|+|/) ;;
+				*)
+					printf '%s\n' "⛔ ERROR: $MDSC_CMD --$spaceContext: --cursor invalid: $spaceCursor" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		if [ -n "$spaceLimit" ] ; then
+			case "$spaceLimit" in
+				''|*[!0123456789]*|0)
+					printf '%s\n' "⛔ ERROR: $MDSC_CMD --$spaceContext: --limit not above zero: $spaceLimit" >&2
+					set +e ; return 1
+				;;
+			esac
+		fi
+		## The same v2 endpoint page-create already resolves a space key against.
+		local spacePath="/wiki/api/v2/spaces" spaceJoin="?"
+		## Atlassian's own already-encoded token, taken from its next link verbatim:
+		## re-encoding it here would double-encode the padding it ends in.
+		if [ -n "$spaceCursor" ] ; then spacePath="$spacePath${spaceJoin}cursor=$spaceCursor" ; spaceJoin="&" ; fi
+		if [ -n "$spaceLimit" ] ; then spacePath="$spacePath${spaceJoin}limit=$spaceLimit" ; fi
+		local spaceBody spaceRc=0
+		spaceBody="$( AgentsToolsAtlassianCall "$spaceMember" confluence GET "$spacePath" "$spaceContext" "" )" || spaceRc=$?
+		if [ "$spaceRc" -ne 0 ] ; then
+			set +e ; return "$spaceRc"
+		fi
+		local spaceRows spaceRowsRc=0
+		spaceRows="$( printf '%s\n' "$spaceBody" | LC_ALL=C awk -v array=results -v want='id,key,name,type,status' -v mode=records -v dialect=atlassian -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" )" || spaceRowsRc=$?
+		if [ "$spaceRowsRc" -ne 0 ] ; then
+			printf '%s\n' "⛔ ERROR: $MDSC_CMD --$spaceContext: results array unreadable" >&2
+			set +e ; return 3
+		fi
+		printf 'SPACE_ID\tKEY\tNAME\tTYPE\tSTATUS\n'
+		[ -z "$spaceRows" ] || printf '%s\n' "$spaceRows"
+		## Unlike page-search, this endpoint DOES terminate: _links.next is present
+		## while pages follow and absent on the last one. Measured at both ends.
+		local spaceNext="$( printf '%s\n' "$spaceBody" | LC_ALL=C awk -v path=_links.next -v optional=1 -v dialect=atlassian -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" 2>/dev/null )"
+		if [ -n "$spaceNext" ] ; then
+			## Cut at the FIRST '&': from page 2 on the next link appends &limit=N after
+			## the cursor, and emitting that whole tail prints a value this operation's
+			## own validator then refuses -- while the refusal tells the caller to pass
+			## back exactly what was printed. Measured: page 3 of a --limit walk.
+			local spaceNextCursor="${spaceNext#*cursor=}"
+			spaceNextCursor="${spaceNextCursor%%&*}"
+			printf '%s\n' "# $spaceContext: more: yes -- MORE SPACES EXIST beyond this page and were not read. Continue with --cursor $spaceNextCursor" >&2
+		else
+			printf '%s\n' "# $spaceContext: more: no -- this response carries no next link, which this endpoint omits only on its last page, so the spaces above are the complete set visible to $spaceMember" >&2
+		fi
+		return 0

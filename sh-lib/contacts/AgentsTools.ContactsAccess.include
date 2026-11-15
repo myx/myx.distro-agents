@@ -1,0 +1,189 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+type AgentsSlackIdentityId > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/slack/AgentsTools.SlackIdentities.include"
+
+##
+## AgentsTools.ContactsAccess.include -- what a contact may ask for, read from the permission model's chain: standing grants, access, escalation and an allow.
+## Sourced, never run. Functions only. Loaded by AgentsTools.Contacts.include, with the other parts it calls.
+##
+
+## The tooling's own script, called as the family calls it from another script.
+AgentsToolsContactsChain(){ ## DistroAgentsTools arguments...
+	"$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" "$@"
+}
+
+## A standing grant for a contact, entered by grant-open --kind contact (AgentsTools.InternOpPermission.include): the entry
+## `contact:<tool>:<target>:<granted by>:<time>` joins the `allows:` of the record, the way a task grant's joins its board item's, and one dated log
+## line says what it allows. An entry for the same tool, target and signer is there once. The permission model reads the key, never this file.
+AgentsToolsContactsAllowAdd(){ ## id, entry, the natural target (for the log line)
+	type AgentsToolsContactsStore > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/contacts/AgentsTools.ContactsRecord.include"
+	local allowId="$1" allowEntry="$2" allowNatural="$3" allowFile allowKey allowTool allowRest allowBy
+	type AgentsToolsActingMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.CallerCheck.include"
+	type AgentsToolsAssertBareName > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.BareName.include"
+	AgentsToolsContactsStore allow-add || return 1
+	allowFile="$contactsPersons/$allowId.md"
+	[ -f "$allowFile" ] || return 1
+	allowKey="${allowEntry%:*}:"
+	allowRest="${allowEntry#contact:}" ; allowTool="${allowRest%%:*}"
+	allowRest="${allowRest#*:}" ; allowRest="${allowRest#*:}" ; allowBy="${allowRest%%:*}"
+	AgentsToolsContactsLock allow-add || return 1
+	AgentsToolsContactsPersonRead "$allowFile" || { AgentsToolsContactsUnlock ; return 1 ; }
+	if [[ ",$crAllows," != *",$allowKey"* ]] ; then
+		crAllows="${crAllows:+$crAllows,}$allowEntry"
+		type AgentsToolsPermissionPartyName > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionPosts.include"
+		crLog="$crLog- $( AgentsToolsContactsStamp ) -- $( AgentsToolsPermissionPartyName "$allowBy" ) -- allowed: $allowTool $allowNatural (standing)"$'\n'
+		AgentsToolsContactsWriteFile allow-add "$allowFile" AgentsToolsContactsPersonText || { AgentsToolsContactsUnlock ; return 1 ; }
+	fi
+	AgentsToolsContactsUnlock
+}
+
+## What the chain says a contact holds standing, one line a grant: `ALLOW <tool> <target> <granted by> <time>`, or the words that there is none, naming
+## the tiers the record's `tier:` adds to Ingest and Basic. An unknown value on a record hand-edited is read as no tier, so it adds nothing.
+AgentsToolsContactsAccessText(){ ## id
+	local accessRows accessTiers="Moot and Contact only"
+	accessRows="$( AgentsToolsContactsChain --intern-op-permission-contact-holds "contact:$1" 2> /dev/null | LC_ALL=C awk -F'\t' 'NF >= 5 { printf "%s%s on %s (allowed by %s)", sep, $2, $3, $4 ; sep = ", " ; }' )" || accessRows=""
+	type AgentsToolsContactsKey > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/contacts/AgentsTools.ContactsRecord.include"
+	type AgentsToolsContactsTierName > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/contacts/AgentsTools.ContactsTiers.include"
+	case "${contactsEffectiveTier:-$( AgentsToolsContactsTierName "$( AgentsToolsContactsKey "$contactsPersons/$1.md" tier )" )}" in
+		tier-moot) accessTiers="Moot only" ;;
+		tier-contact) accessTiers="Moot and Contact only" ;;
+		tier-client) accessTiers="Moot, Contact and Client only" ;;
+		tier-admin) accessTiers="Moot, Contact, Client and Admin only" ;;
+		tier-owner) accessTiers="Moot, Contact, Client, Admin and Owner only" ;;
+	esac
+	printf '%s' "${accessRows:-nothing standing, so $accessTiers}"
+}
+
+## --contact-access <id> [--tool <tool> --target <target>] [--session-id <id>]: with a call, the permission model's answer to whether the contact may
+## ask for it (`GRANT: contact <id>` or `GRANT: session <ref>`, else `NO-GRANT: ...`, rc 1, with the asks that are open named); with none, what it
+## holds standing, a row `ALLOW <tool> <target> <granted by> <time>` each.
+AgentsToolsContactsAccess(){ ## the operation, its arguments...
+	local accOp="$1" accId="${2:-}" accTool="" accTarget="" accSession="" accOut accRc=0
+	[ -n "$accId" ] || { echo "$MDSC_CMD: ⛔ ERROR: $accOp: syntax is <id> [--tool <tool> --target <target>] [--session-id <id>]" >&2 ; return 1 ; }
+	shift 2
+	while [ $# -gt 0 ] ; do
+		case "$1" in
+			--tool|--target|--session-id)
+				[ -n "${2:-}" ] || { echo "$MDSC_CMD: ⛔ ERROR: $accOp: $1 takes a value" >&2 ; return 1 ; }
+				case "$1" in --tool) accTool="$2" ;; --target) accTarget="$2" ;; --session-id) accSession="$2" ;; esac
+				shift 2
+			;;
+			*) echo "$MDSC_CMD: ⛔ ERROR: $accOp: unknown option: $1 -- syntax is <id> [--tool <tool> --target <target>] [--session-id <id>]" >&2 ; return 1 ;;
+		esac
+	done
+	type AgentsToolsActingMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.CallerCheck.include"
+	type AgentsToolsAssertBareName > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.BareName.include"
+	type AgentsToolsContactsSlug > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/contacts/AgentsTools.ContactsRecord.include"
+	AgentsToolsContactsSlug "$accId" || { echo "$MDSC_CMD: ⛔ ERROR: $accOp: <id> is a contact's id, lowercase letters, digits and hyphens: $accId" >&2 ; return 1 ; }
+	type AgentsToolsContactsStore > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/contacts/AgentsTools.ContactsRecord.include"
+	AgentsToolsContactsStore "$accOp" || return 1
+	[ -f "$contactsPersons/$accId.md" ] || { echo "$MDSC_CMD: ⛔ ERROR: $accOp: no contact $accId is recorded -- find one with --find-contact <value>" >&2 ; return 1 ; }
+	if [ -n "$accTool$accTarget" ] ; then
+		[ -n "$accTool" ] && [ -n "$accTarget" ] || { echo "$MDSC_CMD: ⛔ ERROR: $accOp: --tool and --target come together" >&2 ; return 1 ; }
+		accOut="$( AgentsToolsContactsChain --intern-op-permission-grant-read "contact:$accId" --session-id "${accSession:-${MDAT_SPAWN_SESSION_ID:-no-session}}" --tool "$accTool" --target "$accTarget" 2> /dev/null )" || accRc=$?
+		[ -z "$accOut" ] || printf '%s\n' "$accOut"
+		if [ "$accRc" != 0 ] ; then
+			printf 'NO-GRANT: contact:%s %s %s\n' "$accId" "$accTool" "$accTarget"
+			return 1
+		fi
+		return 0
+	fi
+	AgentsToolsContactsChain --intern-op-permission-contact-holds "contact:$accId"
+}
+
+## --escalate-contact <id> --tool <tool> --target <target> --asked <text> [--session-id <id>]: what a contact asks for and holds no access to is put to the
+## human-owner. The permission model records the refusal for `contact:<id>` in the member's session (REFUSAL-ID), one dated line of the contact's log says
+## it, and the text of the template says the one call that asks him, the permission request of the existing escalation path (RequestPermission on that
+## refusal): no second filing is made here. His answer is the escalation apply's, signed by whoever answered: for the session, or for the contact.
+AgentsToolsContactsEscalate(){ ## the operation, its arguments...
+	type AgentsToolsContactsOneLine > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/contacts/AgentsTools.ContactsRecord.include"
+	local escOp="$1" escId="${2:-}" escTool="" escTarget="" escAsked="" escSession="" escBy escRefusal escName escText
+	[ -n "$escId" ] || { echo "$MDSC_CMD: ⛔ ERROR: $escOp: syntax is <id> --tool <tool> --target <target> --asked <text> [--session-id <id>]" >&2 ; return 1 ; }
+	shift 2
+	while [ $# -gt 0 ] ; do
+		case "$1" in
+			--tool|--target|--asked|--session-id)
+				[ -n "${2:-}" ] || { echo "$MDSC_CMD: ⛔ ERROR: $escOp: $1 takes a value" >&2 ; return 1 ; }
+				case "$1" in --tool) escTool="$2" ;; --target) escTarget="$2" ;; --asked) escAsked="$( AgentsToolsContactsOneLine "$2" )" ;; --session-id) escSession="$2" ;; esac
+				shift 2
+			;;
+			*) echo "$MDSC_CMD: ⛔ ERROR: $escOp: unknown option: $1 -- syntax is <id> --tool <tool> --target <target> --asked <text> [--session-id <id>]" >&2 ; return 1 ;;
+		esac
+	done
+	type AgentsToolsActingMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.CallerCheck.include"
+	type AgentsToolsAssertBareName > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.BareName.include"
+	AgentsToolsContactsSlug "$escId" || { echo "$MDSC_CMD: ⛔ ERROR: $escOp: <id> is a contact's id, lowercase letters, digits and hyphens: $escId" >&2 ; return 1 ; }
+	[ -n "$escTool" ] && [ -n "$escTarget" ] && [ -n "$escAsked" ] || { echo "$MDSC_CMD: ⛔ ERROR: $escOp: --tool, --target and --asked are needed: the call the contact asks for, and who wants what" >&2 ; return 1 ; }
+	[ "${#escAsked}" -le 400 ] || { echo "$MDSC_CMD: ⛔ ERROR: $escOp: --asked is at most 400 characters" >&2 ; return 1 ; }
+	escBy="$( AgentsToolsActingMember )"
+	[ -n "$escBy" ] || { echo "$MDSC_CMD: ⛔ ERROR: $escOp: a ruling is asked by a member, and this call comes from no member's session" >&2 ; return 1 ; }
+	escSession="${escSession:-${MDAT_SPAWN_SESSION_ID:-}}"
+	[ -n "$escSession" ] || { echo "$MDSC_CMD: ⛔ ERROR: $escOp: the refusal is recorded in a session, and this call names none: --session-id <id>" >&2 ; return 1 ; }
+	AgentsToolsContactsStore "$escOp" || return 1
+	[ -f "$contactsPersons/$escId.md" ] || { echo "$MDSC_CMD: ⛔ ERROR: $escOp: no contact $escId is recorded -- find one with --find-contact <value>" >&2 ; return 1 ; }
+	escRefusal="$( AgentsToolsContactsChain --intern-op-permission-refusal-log "contact:$escId" --session-id "$escSession" --tool "$escTool" --target "$escTarget" --reason "$escAsked" 2> /dev/null | LC_ALL=C sed -n 's/^\(refusal-[0-9a-f-]*\)$/\1/p' | LC_ALL=C sed -n 1p )"
+	[ -n "$escRefusal" ] || { echo "$MDSC_CMD: ⛔ ERROR: $escOp: the permission model recorded no refusal for contact:$escId -- nothing was asked" >&2 ; return 1 ; }
+	AgentsToolsContactsLock "$escOp" || return 1
+	AgentsToolsContactsPersonRead "$contactsPersons/$escId.md" || { AgentsToolsContactsUnlock ; return 1 ; }
+	escName="$crName"
+	crLog="$crLog- $( AgentsToolsContactsStamp ) -- $escBy -- escalated: $escTool $escTarget: $escAsked (refusal $escRefusal)"$'\n'
+	AgentsToolsContactsWriteFile "$escOp" "$contactsPersons/$escId.md" AgentsToolsContactsPersonText || { AgentsToolsContactsUnlock ; return 1 ; }
+	AgentsToolsContactsUnlock
+	type AgentsToolsEscalationNote > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.Escalation.include"
+	escText="$( ASKP_F_member="$escBy" ASKP_F_id="$escId" ASKP_F_name="$escName" ASKP_F_asked="$escAsked" ASKP_F_refusal="$escRefusal" ASKP_F_session="$escSession" AgentsToolsEscalationNote "Contacts/escalation-ask" )" || escText=""
+	if [ -z "$escText" ] ; then
+		echo "$MDSC_CMD: ⛔ ERROR: $escOp: the way to ask could not be filled from its template (tooling-note.post.format.md, Contacts/escalation-ask) -- the refusal $escRefusal stands" >&2
+		return 1
+	fi
+	printf 'REFUSAL-ID: %s\n' "$escRefusal"
+	printf '%s\n' "$escText"
+}
+
+## --allow-contact <id> --session-id <id> --refusal-id <id> --kind session|contact: a member gives a contact what it holds itself, through grant-open, signed
+## by the member: for the session (`session`) or for the contact (`contact`, an entry of the `allows:` of its record). grant-open's holding check bounds it
+## (a member gives only what it holds, rc 3 with the holders up the chain). The human-owner's, or any authority's, allow is not this: it is the answer to
+## the refusal's permission request (RequestPermission), applied by the escalation apply and signed by whoever answered. Refused for a refusal that is not
+## recorded for this contact.
+AgentsToolsContactsAllow(){ ## the operation, its arguments...
+	type AgentsToolsContactsSlug > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/contacts/AgentsTools.ContactsRecord.include"
+	local allowOp="$1" allowId="${2:-}" allowSession="" allowRefusal="" allowKind="" allowBy allowRecord allowOut allowRc=0 allowTool allowTarget
+	[ -n "$allowId" ] || { echo "$MDSC_CMD: ⛔ ERROR: $allowOp: syntax is <id> --session-id <id> --refusal-id <id> --kind session|contact" >&2 ; return 1 ; }
+	shift 2
+	while [ $# -gt 0 ] ; do
+		case "$1" in
+			--session-id|--refusal-id|--kind)
+				[ -n "${2:-}" ] || { echo "$MDSC_CMD: ⛔ ERROR: $allowOp: $1 takes a value" >&2 ; return 1 ; }
+				case "$1" in --session-id) allowSession="$2" ;; --refusal-id) allowRefusal="$2" ;; --kind) allowKind="$2" ;; esac
+				shift 2
+			;;
+			*) echo "$MDSC_CMD: ⛔ ERROR: $allowOp: unknown option: $1 -- syntax is <id> --session-id <id> --refusal-id <id> --kind session|contact" >&2 ; return 1 ;;
+		esac
+	done
+	type AgentsToolsActingMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.CallerCheck.include"
+	type AgentsToolsAssertBareName > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.BareName.include"
+	AgentsToolsContactsSlug "$allowId" || { echo "$MDSC_CMD: ⛔ ERROR: $allowOp: <id> is a contact's id, lowercase letters, digits and hyphens: $allowId" >&2 ; return 1 ; }
+	[ -n "$allowSession" ] && [ -n "$allowRefusal" ] && [ -n "$allowKind" ] || { echo "$MDSC_CMD: ⛔ ERROR: $allowOp: --session-id, --refusal-id and --kind are needed" >&2 ; return 1 ; }
+	case "$allowKind" in session|contact) ;; *) echo "$MDSC_CMD: ⛔ ERROR: $allowOp: --kind is session (this session) or contact (the contact, standing): $allowKind" >&2 ; return 1 ;; esac
+	AgentsToolsAssertBareName "$allowSession" "--session-id" "${allowOp#--}" || return 1
+	AgentsToolsAssertBareName "$allowRefusal" "--refusal-id" "${allowOp#--}" || return 1
+	allowBy="$( AgentsToolsActingMember )"
+	[ -n "$allowBy" ] || { echo "$MDSC_CMD: ⛔ ERROR: $allowOp: a grant is signed by a member, and this call comes from no member's session" >&2 ; return 1 ; }
+	AgentsToolsContactsStore "$allowOp" || return 1
+	[ -f "$contactsPersons/$allowId.md" ] || { echo "$MDSC_CMD: ⛔ ERROR: $allowOp: no contact $allowId is recorded -- find one with --find-contact <value>" >&2 ; return 1 ; }
+	allowRecord="$MMDAPP/.local/agents/sessions/$allowSession/$allowRefusal.md"
+	if [ ! -f "$allowRecord" ] || [ "$( AgentsToolsContactsKey "$allowRecord" owner )" != "contact:$allowId" ] ; then
+		echo "$MDSC_CMD: ⛔ ERROR: $allowOp: the refusal $allowRefusal of session $allowSession is not one recorded for contact:$allowId (--escalate-contact records it) -- nothing is granted" >&2
+		return 1
+	fi
+	allowTool="$( AgentsToolsContactsKey "$allowRecord" tool )" ; allowTarget="$( AgentsToolsContactsKey "$allowRecord" target )"
+	allowOut="$( AgentsToolsContactsChain --intern-op-permission-grant-open "$allowBy" --session-id "$allowSession" --refusal-id "$allowRefusal" --kind "$allowKind" )" || allowRc=$?
+	[ -z "$allowOut" ] || printf '%s\n' "$allowOut"
+	[ "$allowRc" = 0 ] || return "$allowRc"
+	[ "$allowKind" = session ] || return 0
+	AgentsToolsContactsLock "$allowOp" || return 1
+	if AgentsToolsContactsPersonRead "$contactsPersons/$allowId.md" ; then
+		crLog="$crLog- $( AgentsToolsContactsStamp ) -- $allowBy -- allowed for the session $allowSession: $allowTool $allowTarget (refusal $allowRefusal)"$'\n'
+		AgentsToolsContactsWriteFile "$allowOp" "$contactsPersons/$allowId.md" AgentsToolsContactsPersonText || :
+	fi
+	AgentsToolsContactsUnlock
+}

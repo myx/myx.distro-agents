@@ -106,7 +106,7 @@ echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-slack-delete-message [
 echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-slack-edit-message [--team-member <team-member>] <channel>:<ts> [--identity-bot] (<text...>|--from-stdin|--from-file <path>)" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-slack-file-fetch [--team-member <team-member>] <file-id> <destination-path> [--identity-bot] [--overwrite]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-slack-file-info [--team-member <team-member>] <file-id> [--identity-bot] [--raw]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-slack-file-share [--team-member <team-member>] (<conversation-id>|<channel>:<ts>) (--from-file <path>|--from-stdin) [--snippet-type <v>] [--title <v>] [--comment <text>] [--identity-bot]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-slack-file-share [--team-member <team-member>] (<conversation-id>|<channel>:<ts>) (--from-stdin|--from-file <path>) [--snippet-type <v>] [--title <v>] [--comment <text>] [--identity-bot]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-slack-presence-keep [--team-member <team-member>] [--ttl <seconds>]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-slack-presence-status [--team-member <team-member>]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-slack-presence-stop [--team-member <team-member>]" >&2
@@ -308,7 +308,7 @@ echo "📘 syntax: DistroAgentsKnowledge.fn.sh --list-places" >&2
 echo "📘 syntax: DistroAgentsKnowledge.fn.sh --get-place-path <name>[/<relative>]" >&2
 echo "📘 syntax: DistroAgentsKnowledge.fn.sh --list-namespaces [<namespace>]" >&2
 echo "📘 syntax: DistroAgentsKnowledge.fn.sh --local-models-list" >&2
-echo "📘 syntax: DistroAgentsKnowledge.fn.sh --magic-section-upsert <MAGIC.md path> --section <heading> (--from-stdin|--text <text>)" >&2
+echo "📘 syntax: DistroAgentsKnowledge.fn.sh --magic-section-upsert <MAGIC.md path> --section <heading> (--text <text>|--from-stdin)" >&2
 echo "📘 syntax: DistroAgentsAtlassian.fn.sh --confluence-page-read [--team-member <team-member>] <page-id> [--format storage|atlas_doc_format] [--version <n>]" >&2
 echo "📘 syntax: DistroAgentsMail.fn.sh --email-check [--team-member <team-member>]" >&2
 echo "📘 syntax: DistroAgentsMail.fn.sh --email-read [--team-member <team-member>] <uid> [--seen]" >&2
@@ -326,7 +326,7 @@ echo "📘 syntax: DistroAgentsSlack.fn.sh --slack-delete-message [--team-member
 echo "📘 syntax: DistroAgentsSlack.fn.sh --slack-edit-message [--team-member <team-member>] <channel>:<ts>|<alias>:<ts>|session-current|session-parent [--identity-bot] [<text...>|--from-stdin|--from-file <path>] [--text-group report|brief|relay]" >&2
 echo "📘 syntax: DistroAgentsSlack.fn.sh --slack-file-fetch [--team-member <team-member>] <file-id> <destination-path> [--identity-bot] [--overwrite]" >&2
 echo "📘 syntax: DistroAgentsSlack.fn.sh --slack-file-info [--team-member <team-member>] <file-id> [--identity-bot] [--raw]" >&2
-echo "📘 syntax: DistroAgentsSlack.fn.sh --slack-file-share [--team-member <team-member>] <target> (--from-file <path>|--from-stdin) [--snippet-type <v>] [--title <v>] [--comment <text>] [--identity-bot]" >&2
+echo "📘 syntax: DistroAgentsSlack.fn.sh --slack-file-share [--team-member <team-member>] <target> (--from-stdin|--from-file <path>) [--snippet-type <v>] [--title <v>] [--comment <text>] [--identity-bot]" >&2
 echo "📘 syntax: DistroAgentsSlack.fn.sh --slack-profile-get [--team-member <team-member>] [--raw]" >&2
 echo "📘 syntax: DistroAgentsSlack.fn.sh --slack-profile-set [--team-member <team-member>] {--display-name <v>|--title <v>|--status-text <v>|--status-emoji <v>|--status-expiry <ts>|--email <address>|--avatar <path>|--presence (auto|away)|--snooze <minutes>|--snooze-end}" >&2
 echo "📘 syntax: DistroAgentsSlack.fn.sh --slack-presence-keep [--team-member <team-member>] [--ttl <seconds>]" >&2
@@ -351,6 +351,8 @@ echo "📘 syntax: DistroAgentsItems.fn.sh --upsert-inbox-reflection [--team-mem
 echo "📘 syntax: DistroAgentsItems.fn.sh --get-audit-item [--team-member <team-member>] <document-name> [--start-line <N> --end-line <N>]" >&2
 echo "📘 syntax: DistroAgentsItems.fn.sh --get-vault-item [--team-member <team-member>] <item-name> [--start-line <N> --end-line <N>]" >&2
 echo "📘 syntax: DistroAgentsItems.fn.sh --upsert-vault-epic-blueprint [--team-member <team-member>] <item-name> [--edit-patch-from-stdin|--from-file <path>|--upsert-from-stdin]" >&2
+echo "📘 syntax: DistroAgentsItems.fn.sh --upsert-vault-planning [--team-member <team-member>] <item-name> [--edit-patch-from-stdin|--from-file <path>|--upsert-from-stdin]" >&2
+echo "📘 syntax: DistroAgentsItems.fn.sh --upsert-vault-tracking [--team-member <team-member>] <item-name> [--edit-patch-from-stdin|--from-file <path>|--upsert-from-stdin]" >&2
 echo "📘 syntax: DistroAgentsItems.fn.sh --get-my-board-items <team-member>"
 echo "📘 syntax: DistroAgentsMonitoring.fn.sh --health [--workspace <path>]"
 echo "📘 syntax: DistroAgentsTools.fn.sh --commands-list [--names]"

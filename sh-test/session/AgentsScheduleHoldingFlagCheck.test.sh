@@ -14,16 +14,16 @@
 ## AgentsScheduleLoopCheck's and AgentsAutorunCheck's question. Until 2026-11-09 `AgentsToolsScheduleStartPending` had no stand-in, so
 ## the pass reached the real `$MDAT_DATA_ROOT/board/pending` and advanced a real item while this check reported itself offline.
 ## RED RECIPE, measured on a copy under this check's own scratch on 2026-11-06:
-##   the holding gate (the `MDAT_SCHEDULE_HOLDING` test that returns before the pass's steps, :1728-1732 at 2026-11-09 02:57) deleted —
+##   the holding gate (the `MDAT_SCHEDULE_HOLDING` test that returns before the pass's steps, :1963-1967 at 2026-11-14 14:10) deleted —
 ##   row 4 fails with all five of its "starts nothing" assertions, and row 5's holding line fails.
-##   `holding` removed from the flags list (the `for flagsFlag in` line, :227) — row 2 fails, and only row 2.
+##   `holding` removed from the flags list (the `for flagsFlag in` line, :265 at 2026-11-14 14:10) — row 2 fails, and only row 2.
 ## Measured 2026-11-09 on a copy: with `AgentsToolsScheduleStartPending` called above the holding gate instead of below it, the run reads
 ## OK at 17 of 17 before this check's stand-in and assertion, and 1 of 18 red after it, on the row `no pending board item was started`.
 ## Offline: the include this check loads, a rig of its own, and no spawner, git or network.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigPackage="${RIG_PACKAGE:-$MDLT_ORIGIN/myx/myx.distro-agents}"
-rigInclude="$rigPackage/sh-lib/session/AgentsTools.DispatcherSchedule.include"
+rigInclude="$rigPackage/sh-lib/schedule/AgentsTools.DispatcherSchedule.include"
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }

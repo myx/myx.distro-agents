@@ -474,15 +474,17 @@ rigRecordOf(){ ## line -- of the tool scenario's record
 rigToolStart send
 rigToolCall SendMessage '{"to":"magic-team","address_to":"URIGSOME1","message":"m"}' first
 rigAssert "SendMessage ends with a NEXT: line that says only to call Wait"  "$( rigLastLine "$rigToolDir/first.out" )" "NEXT: call Wait"
-rigAssert "the record of the run's own posts has the post, with its addressee" "$( rigRecordOf 1 )" "CRIG00001:1700000001.000101 1700000001.000101 URIGSOME1 - - 0 - 0"
+## A member's magic-team post that is not told to the channel goes to its session's thread (InternOpCommsSlackSend.include, the
+## owner's design), here MDAT_SESSION_THREAD's 1700000002.000202; the record keeps it as it went, in that thread, with its addressee.
+rigAssert "the record of the run's own posts has the post, with its addressee" "$( rigRecordOf 1 )" "CRIG00001:1700000002.000202 1700000001.000101 URIGSOME1 - - 0 - 0"
 rigToolCall SendMessage '{"to":"CRIG00001:1700000001.000101","address_to":"URIGSOME2","message":"m"}' second
 rigAssert "a reply in a thread: the same line"                               "$( rigLastLine "$rigToolDir/second.out" )" "NEXT: call Wait"
 rigAssert "the latest post is the first line, as its first two words always were" "$( rigRecordOf 1 )" "CRIG00001:1700000001.000101 1700000001.000102 URIGSOME2 - - 0 - 0"
-rigAssert "the earlier post is kept under it"                                "$( rigRecordOf 2 )" "CRIG00001:1700000001.000101 1700000001.000101 URIGSOME1 - - 0 - 0"
+rigAssert "the earlier post is kept under it"                                "$( rigRecordOf 2 )" "CRIG00001:1700000002.000202 1700000001.000101 URIGSOME1 - - 0 - 0"
 rigToolStart ask
 rigToolCall AskQuestion '{"to":"magic-team","address_to":"URIGSOME1","question":"May the rig go on?","wait":false}' ask
 rigAssert "a tool that asks ends with a NEXT: line that says only to call Wait" "$( rigLastLine "$rigToolDir/ask.out" )" "NEXT: call Wait"
-rigAssert "its post is in the record of the run's own posts, whatever tool posted it" "$( rigRecordOf 1 | LC_ALL=C awk '{ print $1 " " $3 ; }' )" "CRIG00001:1700000001.000101 URIGSOME1"
+rigAssert "its post is in the record of the run's own posts, whatever tool posted it" "$( rigRecordOf 1 | LC_ALL=C awk '{ print $1 " " $3 ; }' )" "CRIG00001:1700000002.000202 URIGSOME1"
 
 rigToolStart wait-tool
 mkdir -p "$rigToolDir/ws/.local/agents/sessions/rig-child-id"

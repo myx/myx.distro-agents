@@ -42,7 +42,7 @@
 ## made at once: it is one start for one act.
 ##
 
-type AgentsToolsRegistryProcessesBegan > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
+type AgentsToolsRunProcessesBegan > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunProcesses.include"
 
 ## For how long the check now leaves a session alone after the last line of the log of its
 ## thread, in seconds; and for how long the console asks whether a thread it started took
@@ -59,6 +59,7 @@ agentsSessionControlHoldSeconds=10
 ## AgentsTools.ManagerSession.include), so what the list calls alive is left alone here. The
 ## files are read by the shell, and the process list is asked once for all of them.
 AgentsToolsSessionControlLive(){ ## -- stdin: session ids, a line each
+	type AgentsToolsRunProcessesBegan > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunProcesses.include"
 	local liveSession liveLine livePid liveFrom liveSeen livePairs="" liveNow="" liveNl=$'\n'
 	while IFS= read -r liveSession ; do
 		case "$liveSession" in ''|-|.|..|*/*|*[[:space:]]*) continue ;; esac
@@ -79,11 +80,11 @@ AgentsToolsSessionControlLive(){ ## -- stdin: session ids, a line each
 		done
 	done
 	[ -n "$livePairs" ] || return 0
-	liveNow="$( printf '%s' "$livePairs" | LC_ALL=C awk '{ print $2 ; }' | AgentsToolsRegistryProcessesBegan )" || liveNow=""
+	liveNow="$( printf '%s' "$livePairs" | LC_ALL=C awk '{ print $2 ; }' | AgentsToolsRunProcessesBegan )" || liveNow=""
 	## One number the system takes for no process id leaves that reading empty: then each by itself.
 	if [ -z "$liveNow" ] ; then
 		case "${livePairs%"$liveNl"}" in
-			*"$liveNl"*) liveNow="$( printf '%s' "$livePairs" | while read -r liveSession livePid liveLine ; do printf '%s\n' "$livePid" | AgentsToolsRegistryProcessesBegan ; done )" || liveNow="" ;;
+			*"$liveNl"*) liveNow="$( printf '%s' "$livePairs" | while read -r liveSession livePid liveLine ; do printf '%s\n' "$livePid" | AgentsToolsRunProcessesBegan ; done )" || liveNow="" ;;
 		esac
 	fi
 	[ -n "$liveNow" ] || return 0
@@ -212,6 +213,7 @@ AgentsToolsSessionControlWritten(){ ## file
 ## none gets one only where a record carries the id as its session-id, as the thread itself
 ## asks: a folder made for an id that names nothing would be taken for a session.
 AgentsToolsSessionControlStart(){ ## session id
+	type AgentsToolsRunProcessesBegan > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunProcesses.include"
 	local startSession="${1:-}" startStore startDir startLive startTool startMonitor startPid="" startBegan startDrop
 	case "$startSession" in
 		''|-|.|..|*/*|*[[:space:]]*)
@@ -228,7 +230,7 @@ AgentsToolsSessionControlStart(){ ## session id
 	startDir="$startStore/control"
 	if [ ! -d "$startStore" ] ; then
 		## The session's records from the kept per-session list (AgentsTools.StartedRecords.include), never a grep of every record at a start.
-		type AgentsToolsSpawnedSessionRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include" 2> /dev/null || :
+		type AgentsToolsSpawnedSessionRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.StartedRecords.include"
 		if [ ! -d "$MMDAPP/.local/agents/spawned" ] || [ -z "$( AgentsToolsSpawnedSessionRecords "$startSession" own 2> /dev/null | LC_ALL=C sed -n '1p' )" ] ; then
 			printf 'failed - %s\n' "'$startSession' names no session of this workspace: no folder of a session has that name, and no record carries it as its session-id"
 			return 1
@@ -267,7 +269,7 @@ AgentsToolsSessionControlStart(){ ## session id
 		;;
 	esac
 	disown "$startPid" 2> /dev/null || :
-	startBegan="$( printf '%s\n' "$startPid" | AgentsToolsRegistryProcessesBegan )" || startBegan=""
+	startBegan="$( printf '%s\n' "$startPid" | AgentsToolsRunProcessesBegan )" || startBegan=""
 	{
 		if [ -n "$startBegan" ] ; then
 			printf '%s a start of the control thread of session %s is made: pid %s, begun %s\n' "$( date -u +%Y-%m-%dT%H:%M:%SZ )" "$startSession" "$startPid" "${startBegan#* }"
@@ -289,6 +291,7 @@ AgentsToolsSessionControlStart(){ ## session id
 ## process that is still there after that time is no start in flight, and the next start is
 ## made. Prints its pid; nothing where there is none. rc 0 always.
 AgentsToolsSessionControlStarting(){ ## session id
+	type AgentsToolsRunProcessesBegan > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunProcesses.include"
 	local flightLog flightLine="" flightAt="" flightPid="" flightBegan="" flightSince=""
 	case "${1:-}" in ''|-|.|..|*/*|*[[:space:]]*) return 0 ;; esac
 	flightLog="$MMDAPP/.local/agents/sessions/$1/control/log"
@@ -299,7 +302,7 @@ AgentsToolsSessionControlStarting(){ ## session id
 	flightSince="$( date -u -v-"$agentsSessionControlHoldSeconds"S +%Y-%m-%dT%H:%M:%SZ 2> /dev/null || date -u -d "$agentsSessionControlHoldSeconds seconds ago" +%Y-%m-%dT%H:%M:%SZ 2> /dev/null )" || flightSince=""
 	## Both are the same form of a moment, so they are in order as texts are.
 	[ -n "$flightSince" ] && [[ "$flightAt" > "$flightSince" ]] || return 0
-	[ "$( printf '%s\n' "$flightPid" | AgentsToolsRegistryProcessesBegan )" = "$flightPid $flightBegan" ] || return 0
+	[ "$( printf '%s\n' "$flightPid" | AgentsToolsRunProcessesBegan )" = "$flightPid $flightBegan" ] || return 0
 	printf '%s\n' "$flightPid"
 	return 0
 }
@@ -317,6 +320,7 @@ AgentsToolsSessionControlStarting(){ ## session id
 ##                        start.
 ## rc 0 for the first two, rc 1 for the third. It signals nothing and ends nothing.
 AgentsToolsSessionControlStartOutcome(){ ## session id, pid of the process that was started, seconds to wait at most
+	type AgentsToolsRunProcessesBegan > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunProcesses.include"
 	local outcomeSession="$1" outcomePid="$2" outcomeLeft=$(( ${3:-0} * 5 )) outcomeLive outcomeLog outcomeSince outcomeWhy
 	while : ; do
 		outcomeLive="$( printf '%s\n' "$outcomeSession" | AgentsToolsSessionControlLive )" || outcomeLive=""
@@ -324,7 +328,7 @@ AgentsToolsSessionControlStartOutcome(){ ## session id, pid of the process that 
 			if [ "${outcomeLive#* }" = "$outcomePid" ] ; then printf 'started %s\n' "$outcomePid" ; else printf 'alive %s\n' "${outcomeLive#* }" ; fi
 			return 0
 		fi
-		[ -n "$( printf '%s\n' "$outcomePid" | AgentsToolsRegistryProcessesBegan )" ] || break
+		[ -n "$( printf '%s\n' "$outcomePid" | AgentsToolsRunProcessesBegan )" ] || break
 		if [ "$outcomeLeft" -le 0 ] ; then
 			printf 'started %s %s\n' "$outcomePid" "it had not taken the lock of its session after ${3:-0} seconds, and is a process still"
 			return 0
@@ -404,6 +408,8 @@ AgentsToolsSessionControlCheck(){ ## -- stdin: measured rows
 ## ever ran in has nothing to check. rc 1, nothing started, where the registry cannot be
 ## rebuilt.
 AgentsToolsSessionControlCheckWorkspace(){
+	type AgentsToolsRegistrySpawnedSessionsRebuild > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.RegistrySpawnedSessions.include"
+	type AgentsToolsRegistryFile > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
 	local measuredRows="" measuredDated="" measuredAny="false"
 	[ -d "$MMDAPP/.local/agents/spawned" ] || return 0
 	AgentsToolsRegistrySpawnedSessionsRebuild || return 1

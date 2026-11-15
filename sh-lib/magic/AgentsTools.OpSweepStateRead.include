@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+## AgentsTools.OpSweepStateRead.include -- the operation `--sweep-state-read`, sourced by AgentsTools.MagicSweep.include with the operation's arguments.
+		shift
+		local callingMember="$1"
+		shift || true
+		if [ -z "$callingMember" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --sweep-state-read: <team-member> required" >&2
+			set +e ; return 1
+		fi
+		if [ $# -gt 0 ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --sweep-state-read: takes no arguments" >&2
+			set +e ; return 1
+		fi
+		[ -n "${MDAT_DATA_ROOT:-}" ] || {
+			echo "⛔ ERROR: $MDSC_CMD --sweep-state-read: MDAT_DATA_ROOT is not set" >&2
+			set +e ; return 1
+		}
+		AgentsToolsAssertBareName "$callingMember" "<team-member>" sweep-state-read || { set +e ; return 1 ; }
+		## Same path as every other writer and reader of this record
+		## (AgentsToolsMagicSweepStatePath) -- a member reading another member's
+		## position would resume from a place its own sources were never swept to.
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.MagicSweepState.include"
+		local target="" ; target="$( AgentsToolsMagicSweepStatePath "$callingMember" )"
+		if [ -f "$target" ] ; then
+			cat "$target"
+		else
+			echo "NO_STATE"
+		fi
+		return 0

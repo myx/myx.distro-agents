@@ -1,0 +1,176 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+case "$1" in
+
+		## The member stubs. Each acts under the named member's own credentials, so a spawned
+		## session names only itself (AgentsToolsActingMemberCheck); tooling calls the
+		## --intern-op-comms-jira-* implementation below directly. A member's operation reaches
+		## our own organisation (MDAT_COMMS_SIDE, AgentsTools.CommsSide.include), for a client-*
+		## member too: what such a member holds for this system is the other organisation's.
+		--jira-board-list|--jira-board-read|--jira-board-issue-search|--jira-issue-link-list|--jira-issue-read|--jira-sprint-issue-search|--jira-sprint-list)
+			local -x MDAT_COMMS_SIDE=own MDAT_COMMS_OP=""
+			[ -z "${2:-}" ] || AgentsToolsActingMemberCheck "$2" "${1#--}" || { set +e ; return 1 ; }
+			## A stub whose implementation is an in-context helper calls it by name, as --trello-check does:
+			## the helper needs no dispatcher, and the dispatcher is no command in every context this file
+			## runs in (S6.24 of the refactoring epic).
+			case "$1" in
+				--jira-issue-link-list)
+					local linkListMember="${2:-}" linkListKey="${3:-}" linkListRc=0
+					if [ -z "$linkListMember" ] || [ -z "$linkListKey" ] ; then
+						printf '%s\n' "⛔ ERROR: $MDSC_CMD --jira-issue-link-list: syntax is [--team-member <team-member>] <issue-key> -- the issue key is required, since the links read are that issue's own" >&2
+						set +e ; return 1
+					fi
+					case "$#:${4:-}" in
+						3:) ;;
+						*) printf '%s\n' "⛔ ERROR: $MDSC_CMD --jira-issue-link-list: not accepted: $linkListMember $linkListKey $*" >&2 ; set +e ; return 1 ;;
+					esac
+					type AgentsToolsAtlassianJiraIssueLinkList > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/atlassian/AgentsTools.JiraReads.include"
+					AgentsToolsAtlassianJiraIssueLinkList --member "$linkListMember" --context jira-issue-link-list --issue-key "$linkListKey" || linkListRc=$?
+					return "$linkListRc"
+				;;
+			esac
+			## The stub reaches its implementation in this file, never through the dispatcher (S6.24):
+			## an include calls the include that holds the code, and DistroAgentsTools is no command here.
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/atlassian/AgentsTools.MemberCommsJira.include" "--intern-op-comms-${1#--}" "${@:2}"
+			return $?
+		;;
+
+		--intern-op-comms-jira-board-list)
+			shift
+			local actingMember="${1:-}"
+			shift || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --jira-board-list: <team-member> missing" >&2 ; set +e ; return 1 ; }
+			[ -n "$actingMember" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --jira-board-list: <team-member> missing" >&2 ; set +e ; return 1 ; }
+			case "$#:${1:-}" in
+				0:|2:--start-at) ;;
+				*) printf '%s\n' "⛔ ERROR: $MDSC_CMD --jira-board-list: not accepted: $actingMember $*" >&2 ; set +e ; return 1 ;;
+			esac
+			local opRc=0
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/atlassian/AgentsTools.InternOpAtlassianCall.include" --intern-op-atlassian-jira-board-list --member "$actingMember" --context jira-board-list "$@" || opRc=$?
+			if [ "$opRc" -ne 0 ] ; then set +e ; return "$opRc" ; fi
+			return 0
+		;;
+
+		--intern-op-comms-jira-board-read)
+			shift
+			local actingMember="${1:-}" boardId="${2:-}"
+			shift || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --jira-board-read: <team-member> missing" >&2 ; set +e ; return 1 ; }
+			[ -n "$actingMember" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --jira-board-read: <team-member> missing" >&2 ; set +e ; return 1 ; }
+			shift || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --jira-board-read: <board-id> missing" >&2 ; set +e ; return 1 ; }
+			[ -n "$boardId" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --jira-board-read: <board-id> missing" >&2 ; set +e ; return 1 ; }
+			case "$#:${1:-}" in
+				0:) ;;
+				*) printf '%s\n' "⛔ ERROR: $MDSC_CMD --jira-board-read: not accepted: $actingMember $boardId $*" >&2 ; set +e ; return 1 ;;
+			esac
+			local opRc=0
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/atlassian/AgentsTools.InternOpAtlassianCall.include" --intern-op-atlassian-jira-board-read --member "$actingMember" --context jira-board-read --board-id "$boardId" || opRc=$?
+			if [ "$opRc" -ne 0 ] ; then set +e ; return "$opRc" ; fi
+			return 0
+		;;
+
+		--intern-op-comms-jira-board-issue-search)
+			shift
+			local actingMember="${1:-}" boardId="${2:-}"
+			shift || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --jira-board-issue-search: <team-member> missing" >&2 ; set +e ; return 1 ; }
+			[ -n "$actingMember" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --jira-board-issue-search: <team-member> missing" >&2 ; set +e ; return 1 ; }
+			shift || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --jira-board-issue-search: <board-id> missing" >&2 ; set +e ; return 1 ; }
+			[ -n "$boardId" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --jira-board-issue-search: <board-id> missing" >&2 ; set +e ; return 1 ; }
+			case "$#:${1:-}" in
+				0:|2:--start-at) ;;
+				*) printf '%s\n' "⛔ ERROR: $MDSC_CMD --jira-board-issue-search: not accepted: $actingMember $boardId $*" >&2 ; set +e ; return 1 ;;
+			esac
+			local opRc=0
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/atlassian/AgentsTools.InternOpAtlassianCall.include" --intern-op-atlassian-jira-board-issue-search --member "$actingMember" --context jira-board-issue-search --board-id "$boardId" "$@" || opRc=$?
+			if [ "$opRc" -ne 0 ] ; then set +e ; return "$opRc" ; fi
+			return 0
+		;;
+
+		--intern-op-comms-jira-sprint-list)
+			shift
+			local actingMember="${1:-}" boardId="${2:-}"
+			shift || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --jira-sprint-list: <team-member> missing" >&2 ; set +e ; return 1 ; }
+			[ -n "$actingMember" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --jira-sprint-list: <team-member> missing" >&2 ; set +e ; return 1 ; }
+			shift || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --jira-sprint-list: <board-id> missing" >&2 ; set +e ; return 1 ; }
+			[ -n "$boardId" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --jira-sprint-list: <board-id> missing" >&2 ; set +e ; return 1 ; }
+			case "$#:${1:-}" in
+				0:|2:--start-at) ;;
+				*) printf '%s\n' "⛔ ERROR: $MDSC_CMD --jira-sprint-list: not accepted: $actingMember $boardId $*" >&2 ; set +e ; return 1 ;;
+			esac
+			local opRc=0
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/atlassian/AgentsTools.InternOpAtlassianCall.include" --intern-op-atlassian-jira-sprint-list --member "$actingMember" --context jira-sprint-list --board-id "$boardId" "$@" || opRc=$?
+			if [ "$opRc" -ne 0 ] ; then set +e ; return "$opRc" ; fi
+			return 0
+		;;
+
+		--intern-op-comms-jira-sprint-issue-search)
+			shift
+			## ONE GUARD AN ARGUMENT (S6.23): `shift` answers only whether a word remains, never whether that word is empty, so a
+			## `shift || { ... missing }` beside the `[ -n ... ]` test carried one message twice. The shifts stay bare, and the
+			## `-n` tests are the ones naming a missing argument.
+			local actingMember="${1:-}" sprintId="${2:-}"
+			shift || :
+			[ -n "$actingMember" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --jira-sprint-issue-search: <team-member> missing" >&2 ; set +e ; return 1 ; }
+			shift || :
+			[ -n "$sprintId" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --jira-sprint-issue-search: <sprint-id> missing" >&2 ; set +e ; return 1 ; }
+			case "$#:${1:-}" in
+				0:|2:--start-at) ;;
+				*) printf '%s\n' "⛔ ERROR: $MDSC_CMD --jira-sprint-issue-search: not accepted: $actingMember $sprintId $*" >&2 ; set +e ; return 1 ;;
+			esac
+			local opRc=0
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/atlassian/AgentsTools.InternOpAtlassianCall.include" --intern-op-atlassian-jira-sprint-issue-search --member "$actingMember" --context jira-sprint-issue-search --sprint-id "$sprintId" "$@" || opRc=$?
+			if [ "$opRc" -ne 0 ] ; then set +e ; return "$opRc" ; fi
+			return 0
+		;;
+
+		--intern-op-comms-jira-issue-read)
+			shift
+			## ONE GUARD AN ARGUMENT (S6.23), as the sprint-issue-search arm above.
+			local actingMember="${1:-}" issueKey="${2:-}"
+			shift || :
+			[ -n "$actingMember" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --jira-issue-read: <team-member> missing" >&2 ; set +e ; return 1 ; }
+			shift || :
+			[ -n "$issueKey" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --jira-issue-read: <issue-key> missing" >&2 ; set +e ; return 1 ; }
+			case "$#:${1:-}" in
+				0:|2:--format) ;;
+				*) printf '%s\n' "⛔ ERROR: $MDSC_CMD --jira-issue-read: not accepted: $actingMember $issueKey $*" >&2 ; set +e ; return 1 ;;
+			esac
+			local opRc=0
+			type AgentsToolsAtlassianJiraIssueRead > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/atlassian/AgentsTools.JiraReads.include"
+			AgentsToolsAtlassianJiraIssueRead --member "$actingMember" --context jira-issue-read --issue-key "$issueKey" "$@" || opRc=$?
+			if [ "$opRc" -ne 0 ] ; then set +e ; return "$opRc" ; fi
+			return 0
+		;;
+
+		--intern-op-comms-jira-issue-link-list)
+			shift
+			## ONE GUARD AN ARGUMENT: `shift` answers only whether a word remains, never whether that word is empty, so a
+			## `shift || { ... missing }` beside the `[ -n ... ]` test carried one message twice and a copy of it could never
+			## reach its own case (S6.23). The shifts stay bare, and the `-n` tests are the ones naming a missing argument.
+			local actingMember="${1:-}" linkKey="${2:-}"
+			shift || :
+			[ -n "$actingMember" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --jira-issue-link-list: <team-member> missing" >&2 ; set +e ; return 1 ; }
+			shift || :
+			[ -n "$linkKey" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --jira-issue-link-list: <issue-key> missing" >&2 ; set +e ; return 1 ; }
+			case "$#:${1:-}" in
+				0:) ;;
+				*) printf '%s\n' "⛔ ERROR: $MDSC_CMD --jira-issue-link-list: not accepted: $actingMember $linkKey $*" >&2 ; set +e ; return 1 ;;
+			esac
+			local opRc=0
+			type AgentsToolsAtlassianJiraIssueLinkList > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/atlassian/AgentsTools.JiraReads.include"
+			AgentsToolsAtlassianJiraIssueLinkList --member "$actingMember" --context jira-issue-link-list --issue-key "$linkKey" || opRc=$?
+			if [ "$opRc" -ne 0 ] ; then set +e ; return "$opRc" ; fi
+			return 0
+		;;
+
+		--jira-*|--intern-op-comms-jira-*)
+			printf '%s\n' "⛔ ERROR: $MDSC_CMD: unknown --jira-* operation: $1 -- the supported operations are --jira-board-list, --jira-board-read, --jira-board-issue-search, --jira-issue-link-list, --jira-issue-read, --jira-sprint-list and --jira-sprint-issue-search" >&2
+			set +e ; return 1
+		;;
+
+		## DEFINITIONS-ONLY SOURCE. Nothing to dispatch, and nothing is an error:
+		## the supported way for another include to reach this file's helpers.
+		*)
+			:
+		;;
+
+esac

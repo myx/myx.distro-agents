@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+## AgentsTools.InternOpAtlassianCallRun.include -- the operation `--intern-op-atlassian-call`, sourced by AgentsTools.InternOpAtlassianCall.include with the operation's arguments.
+	type AgentsToolsAtlassianCall > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/atlassian/AgentsTools.AtlassianRequest.include"
+		shift
+		local callMember="" callProduct="" callMethod="GET" callPath="" callBody="" callContext="intern-op-atlassian-call"
+		while [ $# -gt 0 ] ; do
+			## Every flag here takes a value, so the one emptiness check covers them all.
+			case "$1" in
+				--member|--product|--method|--path|--json-body|--context)
+					if [ -z "${2:-}" ] ; then
+						printf '%s\n' "⛔ ERROR: $MDSC_CMD --intern-op-atlassian-call: $1 value missing" >&2
+						set +e ; return 1
+					fi
+					case "$1" in
+						--member)    callMember="$2" ;;
+						--product)   callProduct="$2" ;;
+						--method)    callMethod="$2" ;;
+						--path)      callPath="$2" ;;
+						--json-body) callBody="$2" ;;
+						--context)   callContext="$2" ;;
+					esac
+					shift 2
+				;;
+				*)
+					printf '%s\n' "⛔ ERROR: $MDSC_CMD --intern-op-atlassian-call: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		if [ -z "$callMember" ] || [ -z "$callProduct" ] || [ -z "$callPath" ] ; then
+			printf '%s\n' "⛔ ERROR: $MDSC_CMD --intern-op-atlassian-call: syntax is --member <team-member> --product jira|confluence --path </rest/...> [--method GET|POST|PUT|DELETE] [--json-body <json>] [--context <caller>] -- the acting member is required, since an API token resolves to exactly one Atlassian account and a read returns only what that identity can see" >&2
+			set +e ; return 1
+		fi
+		local callRc=0
+		AgentsToolsAtlassianCall "$callMember" "$callProduct" "$callMethod" "$callPath" "$callContext" "$callBody" || callRc=$?
+		if [ "$callRc" -ne 0 ] ; then set +e ; return "$callRc" ; fi
+		return 0

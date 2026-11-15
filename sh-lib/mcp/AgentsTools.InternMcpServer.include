@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # ^^^ for syntax checking in the editor only
+type AgentsToolsRunProcessesBegan > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunProcesses.include"
 
 ##
 ## The `myx.distro` MCP stdio server. Sourced from DistroAgentsTools.fn.sh's
@@ -66,7 +67,7 @@ case "$1" in
 		## first, deepest first, then the handler. A background job a call detached is a process of the session, not of a request: it
 		## is kept under jobs/ and is not in flight here.
 		mkdir -p "$mcpScratchRoot/inflight" 2> /dev/null || :
-		type AgentsToolsRegistryProcessesBegan > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include" 2> /dev/null || :
+		type AgentsToolsRunProcessesBegan > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunProcesses.include"
 		## Every pid below one, deepest first: a grandchild a request forked goes with it. One ps a level, at the end alone.
 		AgentsToolsMcpServerEndDescendants(){ ## pid
 			local endChild
@@ -85,7 +86,7 @@ case "$1" in
 				[ -f "$endFile" ] || continue
 				IFS=' ' read -r endPid endBegan < "$endFile" 2> /dev/null || continue
 				case "$endPid" in ''|*[!0-9]*) continue ;; esac
-				endNow="$( printf '%s\n' "$endPid" | AgentsToolsRegistryProcessesBegan 2> /dev/null )"
+				endNow="$( printf '%s\n' "$endPid" | AgentsToolsRunProcessesBegan 2> /dev/null )"
 				[ -n "$endNow" ] && [ "$endNow" = "$endPid $endBegan" ] || continue
 				AgentsToolsMcpServerEndDescendants "$endPid"
 			done
@@ -139,7 +140,7 @@ case "$1" in
 				printf '%s\n' "$mcpLine" | exec "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-mcp-request "$$" "$AGENTS_MCP_REQ_SEQ" 3>&1 1>&2
 			) < /dev/null &
 			## The handler is kept in flight with when it began, so the end signals this process and never a later one of the same number.
-			printf '%s\n' "$!" | AgentsToolsRegistryProcessesBegan 2> /dev/null > "$mcpScratchRoot/inflight/$AGENTS_MCP_REQ_SEQ" || :
+			printf '%s\n' "$!" | AgentsToolsRunProcessesBegan 2> /dev/null > "$mcpScratchRoot/inflight/$AGENTS_MCP_REQ_SEQ" || :
 		done
 		wait
 

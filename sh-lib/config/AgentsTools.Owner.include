@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # ^^^ for syntax checking in the editor only
+type AgentsSettingsScopeHas > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/settings/AgentsTools.Settings.include"
 
 ## One readable status row, `<label> ..... <status>`. The dot run is a fixed
 ## field so a column of rows aligns; a label longer than the field gets no dots
@@ -17,7 +18,7 @@ AgentsToolsOwnerSetupRow(){
 ## The CLI a spawn of a workspace resolves to, as the spawner resolves it (the preset its tier names,
 ## AgentsToolsPresetSpawnCli), and nothing where no tier is set. Read-only; a subshell, so nothing it sources stays.
 AgentsToolsOwnerSpawnCli(){ ## workspace root
-	( MMDAPP="$1" MDAT_SPAWN_PRESET="" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.Preset.include" && AgentsToolsPresetSpawnCli 2> /dev/null )
+	( MMDAPP="$1" MDAT_SPAWN_PRESET="" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/settings/AgentsTools.Preset.include" && AgentsToolsPresetSpawnCli 2> /dev/null )
 }
 
 ## True when a generated console differs from the template --make-console-command
@@ -288,81 +289,8 @@ AgentsToolsOwnerSetupBlock1Verdict(){
 
 case "$1" in
 
-	## A place no project declares, as an owner row of this workspace's own registry
-	## (LocalTools.Places.include): a workspace by default, always read-write.
 	--owner-workspace-upsert)
-		shift
-		local wsPath="$1" wsName="" wsKind="workspace" wsCeiling="read-write"
-		shift || true
-		if [ -z "$wsPath" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --owner-workspace-upsert: <path> required" >&2
-			set +e ; return 1
-		fi
-		while [ $# -gt 0 ] ; do
-			case "$1" in
-				--name)
-					if [ -z "${2:-}" ] ; then
-						echo "⛔ ERROR: $MDSC_CMD --owner-workspace-upsert: --name requires a value" >&2
-						set +e ; return 1
-					fi
-					wsName="$2" ; shift 2
-				;;
-				--kind)
-					case "${2:-}" in
-						workspace|directory) wsKind="$2" ;;
-						*)
-							echo "⛔ ERROR: $MDSC_CMD --owner-workspace-upsert: --kind must be workspace or directory" >&2
-							set +e ; return 1
-						;;
-					esac
-					shift 2
-				;;
-				--ceiling)
-					case "${2:-}" in
-						read-only|ceiling-read) wsCeiling="read-only" ;;
-						read-write|ceiling-write) wsCeiling="read-write" ;;
-						*)
-							echo "⛔ ERROR: $MDSC_CMD --owner-workspace-upsert: --ceiling must be read-only or read-write" >&2
-							set +e ; return 1
-						;;
-					esac
-					shift 2
-				;;
-				--*)
-					echo "⛔ ERROR: $MDSC_CMD --owner-workspace-upsert: invalid option: $1" >&2
-					set +e ; return 1
-				;;
-				*)
-					echo "⛔ ERROR: $MDSC_CMD --owner-workspace-upsert: takes exactly one <path>, and more followed it: $*" >&2
-					set +e ; return 1
-				;;
-			esac
-		done
-		case "$wsPath" in
-			/*)
-			;;
-			*)
-				echo "⛔ ERROR: $MDSC_CMD --owner-workspace-upsert: path must be absolute: $wsPath" >&2
-				set +e ; return 1
-			;;
-		esac
-		[ "$wsPath" = "/" ] || wsPath="${wsPath%/}"
-		[ -n "$wsName" ] || wsName="${wsPath##*/}"
-		. "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/places/LocalTools.Places.include"
-		if ! LocalToolsPlacesNameValid "$wsName" ; then
-			echo "⛔ ERROR: $MDSC_CMD --owner-workspace-upsert: a place name is letters, digits and . _ + - only: $wsName" >&2
-			set +e ; return 1
-		fi
-		if [ "$wsKind" = "workspace" ] && [ "$wsCeiling" != "read-write" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --owner-workspace-upsert: a workspace is always read-write" >&2
-			set +e ; return 1
-		fi
-		if [ ! -d "${MMDAPP%/}/.local" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --owner-workspace-upsert: not a set-up workspace, no .local: $MMDAPP" >&2
-			set +e ; return 1
-		fi
-		LocalToolsPlacesOwnerUpsert "${MMDAPP%/}" "$wsName" "$wsKind" "$wsCeiling" "$wsPath" || { set +e ; return 1 ; }
-		return 0
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.OpOwnerWorkspaceUpsert.include"
 	;;
 
 	--owner-workspace-forget)
@@ -394,295 +322,27 @@ case "$1" in
 	;;
 
 	--owner-credential-store-verify)
-		shift
-		if [ $# -gt 0 ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --owner-credential-store-verify: takes no arguments" >&2
-			set +e ; return 1
-		fi
-		local storeDir="$MMDAPP/.local/.agents"
-		if [ ! -d "$storeDir" ] ; then
-			echo "# $MDSC_CMD --owner-credential-store-verify: $storeDir does not exist yet (nothing to verify)" >&2
-			return 0
-		fi
-
-		local storeFailed=0
-		local storePerm
-		storePerm="$( stat -c '%a' "$storeDir" 2>/dev/null || stat -f '%Lp' "$storeDir" 2>/dev/null )"
-		if [ "$storePerm" = "770" ] ; then
-			echo "OK   770  $storeDir"
-		else
-			echo "BAD  ${storePerm:-?}  $storeDir  (expected 770)"
-			storeFailed=1
-		fi
-
-		local storeFile
-		for storeFile in "$storeDir"/*.agent.env ; do
-			[ -e "$storeFile" ] || continue
-			storePerm="$( stat -c '%a' "$storeFile" 2>/dev/null || stat -f '%Lp' "$storeFile" 2>/dev/null )"
-			if [ "$storePerm" = "660" ] ; then
-				echo "OK   660  $storeFile"
-			else
-				echo "BAD  ${storePerm:-?}  $storeFile  (expected 660)"
-				storeFailed=1
-			fi
-		done
-
-		if [ "$storeFailed" = "1" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --owner-credential-store-verify: one or more paths under $storeDir are not hardened to 660/770" >&2
-			set +e ; return 1
-		fi
-		echo "# $MDSC_CMD --owner-credential-store-verify: all paths under $storeDir are correctly hardened (770 dir / 660 files)" >&2
-		return 0
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.OpOwnerCredentialStoreVerify.include"
 	;;
 
 	--owner-credential-store-harden)
-		shift
-		if [ $# -gt 0 ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --owner-credential-store-harden: takes no arguments -- always hardens $MMDAPP/.local/.agents" >&2
-			set +e ; return 1
-		fi
-		local storeDir="$MMDAPP/.local/.agents"
-		if [ ! -d "$storeDir" ] ; then
-			echo "# $MDSC_CMD --owner-credential-store-harden: $storeDir does not exist yet (nothing to harden)" >&2
-			return 0
-		fi
-		local storeFailed=0
-		chmod 770 "$storeDir" || storeFailed=1
-		local storeFile
-		for storeFile in "$storeDir"/*.agent.env ; do
-			[ -e "$storeFile" ] || continue
-			chmod 660 "$storeFile" || storeFailed=1
-		done
-		if [ "$storeFailed" = "1" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --owner-credential-store-harden: could not set 770/660 on every path under $storeDir" >&2
-			set +e ; return 1
-		fi
-		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
-		DistroAgentsTools --owner-credential-store-verify || return 1
-		return 0
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.OpOwnerCredentialStoreHarden.include"
 	;;
 
 	--owner-credential-store-self-test)
-		shift
-		if [ $# -gt 0 ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --owner-credential-store-self-test: takes no arguments" >&2
-			set +e ; return 1
-		fi
-		echo "# $MDSC_CMD --owner-credential-store-self-test: exercising --agents-config-option permission-hardening under umask 022 (ignoring caller's ambient umask)" >&2
-
-		local probeKey="DAT_SELFTEST_PROBE"
-		local probeVal="selftest-$$-$( date +%s )"
-		local probeFailed=0
-
-		type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
-		if ! ( umask 022 ; AgentsToolsConfigOption magic-coordinator --upsert "$probeKey" "$probeVal" >/dev/null ) ; then
-			echo "⛔ ERROR: $MDSC_CMD --owner-credential-store-self-test: --upsert under umask 022 failed" >&2
-			set +e ; return 1
-		fi
-
-		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
-		DistroAgentsTools --owner-credential-store-verify || probeFailed=1
-
-		type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
-		if [ "$( AgentsToolsConfigOption magic-coordinator --select "$probeKey" )" != "$probeVal" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --owner-credential-store-self-test: probe key round-trip mismatch" >&2
-			probeFailed=1
-		fi
-
-		type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
-		AgentsToolsConfigOption magic-coordinator --delete "$probeKey" >/dev/null
-
-		## Each file this package seeds or publishes, at the mode it claims for it. A file
-		## that is absent is stated and not asserted: there is nothing to hold a mode.
-		local modeWant modePath modeGot
-		for modeWant in \
-			"600:$HOME/.claude.json" \
-			"644:$MMDAPP/.local/agents/mcp.servers.json" \
-			"644:$MMDAPP/.vscode/mcp.json" \
-			"644:$MMDAPP/.mcp.json" \
-		; do
-			modePath="${modeWant#*:}" ; modeWant="${modeWant%%:*}"
-			if [ ! -e "$modePath" ] ; then
-				echo "# $MDSC_CMD --owner-credential-store-self-test: $modePath is absent, so its mode 0$modeWant is not asserted" >&2
-				continue
-			fi
-			modeGot="$( stat -c '%a' "$modePath" 2>/dev/null || stat -f '%Lp' "$modePath" 2>/dev/null )"
-			if [ "$modeGot" = "$modeWant" ] ; then
-				echo "# $MDSC_CMD --owner-credential-store-self-test: $modePath is 0$modeWant: OK" >&2
-			else
-				echo "⛔ ERROR: $MDSC_CMD --owner-credential-store-self-test: $modePath is 0${modeGot:-<unreadable>}, and this package claims 0$modeWant for it" >&2
-				probeFailed=1
-			fi
-		done
-
-		if [ "$probeFailed" = "1" ] ; then
-			echo "⛔ $MDSC_CMD --owner-credential-store-self-test: FAILED" >&2
-			set +e ; return 1
-		fi
-		echo "# $MDSC_CMD --owner-credential-store-self-test: PASSED -- permission hardening holds under umask 022, and every present seeded or published file holds its mode" >&2
-		return 0
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.OpOwnerCredentialStoreSelfTest.include"
 	;;
 
 	--owner-cleanup-purge)
-		shift
-		if [ $# -gt 0 ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --owner-cleanup-purge: takes no arguments -- always purges $MMDAPP/.local/.cleanup" >&2
-			set +e ; return 1
-		fi
-		local cleanupDir="$MMDAPP/.local/.cleanup"
-		local cleanupSpawned="$MMDAPP/.local/agents/spawned"
-		local cleanupHold cleanupHoldState cleanupUnresolved=""
-		type AgentsToolsUndoHoldState > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.UndoHold.include"
-		for cleanupHold in "$cleanupSpawned"/*/undo.hold ; do
-			[ -f "$cleanupHold" ] || continue
-			cleanupHoldState="$( AgentsToolsUndoHoldState "$cleanupHold" )"
-			case "$cleanupHoldState" in
-				absent) ;;
-				missing) cleanupUnresolved="$cleanupUnresolved $( AgentsToolsUndoHoldUnresolved "$cleanupHold" | LC_ALL=C tr '\n' ' ' )"
-					echo "⛔ ERROR: $MDSC_CMD --owner-cleanup-purge: refusing -- ${cleanupHold%/undo.hold} carries a hold naming no open record, so what it protects cannot be told from what it does not:${cleanupUnresolved}" >&2
-					set +e ; return 1
-				;;
-				*) echo "⛔ ERROR: $MDSC_CMD --owner-cleanup-purge: refusing -- an open undo record holds a sandbox of this workspace: $cleanupHold" >&2
-					set +e ; return 1
-				;;
-			esac
-		done
-		if [ ! -d "$cleanupDir" ] ; then
-			echo "# $MDSC_CMD --owner-cleanup-purge: $cleanupDir does not exist -- nothing to purge" >&2
-			return 0
-		fi
-		echo "# $MDSC_CMD --owner-cleanup-purge: purging all contents of $cleanupDir (folder itself stays)" >&2
-		local cleanupEntry
-		for cleanupEntry in "$cleanupDir"/* "$cleanupDir"/.[!.]* ; do
-			[ -e "$cleanupEntry" ] || [ -L "$cleanupEntry" ] || continue
-			echo "  rm -rf $cleanupEntry" >&2
-			rm -rf -- "$cleanupEntry"
-		done
-		echo "# $MDSC_CMD --owner-cleanup-purge: done" >&2
-		return 0
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.OpOwnerCleanupPurge.include"
 	;;
 
-	## --owner-clear-just-agents (F13.2) -- the clear of a Just Agents workspace: the configuration settings that do not belong in `Just Agents, default`,
-	## and nothing else. SETTINGS ONLY, never any data (Settled 2026-10-19): no file or folder of the team data, of .local/agents or of .local/temp is
-	## looked at, let alone removed. The six: TEAM_DATA_DIRECTORY (scope magic-coordinator) and TEAM_DATA_GIT_REMOTE, TEAM_DATA_BRANCH,
-	## TEAM_DATA_GIT_USER_NAME, TEAM_DATA_GIT_USER_EMAIL and MDAT_WORKSPACE_MODE (scope magic-team); the last because a workspace that sets no mode is
-	## just agents, by default. Each is taken out by the settings writer (--agents-config-option --delete), never by hand. --check, which a bare call is,
-	## names the ones that are set and changes nothing; --apply clears them. A key is named, never its value: a setting is asked through a pipe that keeps
-	## no text of it. It acts on the workspace it runs in, and the order that runs it names that workspace and this operation (F13.2: authorised for one
-	## named workspace at a time, destructive and irreversible). F13.1 lands first: the gate keeps the team data from returning.
 	--owner-clear-just-agents)
-		shift
-		local clearApply="no" clearSettings clearScope clearKey clearSet=0 clearDone=0 clearAll=0
-		case "${1:-}" in
-			''|--check) ;;
-			--apply) clearApply="yes" ;;
-			*)
-				echo "⛔ ERROR: $MDSC_CMD --owner-clear-just-agents: syntax is [--check|--apply], and it takes nothing after: $1" >&2
-				set +e ; return 1
-			;;
-		esac
-		if [ $# -gt 1 ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --owner-clear-just-agents: syntax is [--check|--apply], and it takes nothing after: $2" >&2
-			set +e ; return 1
-		fi
-		clearSettings="magic-coordinator TEAM_DATA_DIRECTORY
-magic-team TEAM_DATA_GIT_REMOTE
-magic-team TEAM_DATA_BRANCH
-magic-team TEAM_DATA_GIT_USER_NAME
-magic-team TEAM_DATA_GIT_USER_EMAIL
-magic-team MDAT_WORKSPACE_MODE"
-		while read -r clearScope clearKey ; do
-			clearAll=$(( clearAll + 1 ))
-			type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
-			AgentsToolsConfigOption "$clearScope" --select-all 2> /dev/null < /dev/null | LC_ALL=C grep -q -- "^$clearKey=" || continue
-			clearSet=$(( clearSet + 1 ))
-			echo "SETTING: $clearScope $clearKey set"
-			[ "$clearApply" = "yes" ] || continue
-			type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
-			AgentsToolsConfigOption "$clearScope" --delete "$clearKey" > /dev/null 2>&1 < /dev/null || :
-			if AgentsToolsConfigOption "$clearScope" --select-all 2> /dev/null < /dev/null | LC_ALL=C grep -q -- "^$clearKey=" ; then
-				echo "⛔ ERROR: $MDSC_CMD --owner-clear-just-agents: $clearScope $clearKey is still set after its delete" >&2
-				set +e ; return 1
-			fi
-			clearDone=$(( clearDone + 1 ))
-		done <<< "$clearSettings"
-		if [ "$clearApply" = "yes" ] ; then
-			echo "CLEARED: $clearDone"
-		elif [ "$clearSet" -gt 0 ] ; then
-			echo "CHECK: $clearSet of $clearAll set; --apply clears them"
-		else
-			echo "CHECK: 0 of $clearAll set; nothing to clear"
-		fi
-		return 0
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.OpOwnerClearJustAgents.include"
 	;;
 
-	## --owner-setup-cli-auto (F13.4) -- which of the vendor CLIs the console starts, claude-native or copilot-native, is installed and works on this machine, and the setup of the first that does.
-	## A bare call and --check are the read-only diagnosis; --apply carries out `--owner-setup-<that CLI> --apply`, so the one mechanism makes the preset named as that CLI and points SPAWN_TIER_NORMAL at it.
-	## The detection is here, run by a person or by the console, and never at a spawn: a spawn resolves its tier's preset and scans no PATH (AgentsReviewCliResolved).
-	## Declared ahead of --owner-setup-*), which would take it for a domain of that family.
 	--owner-setup-cli-auto)
-		shift
-		local autoOperation="--check" autoPick="" autoOne autoWhy autoRc autoNow autoToolPath="${MMDAPP%/}/.local/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
-		case "${1:-}" in
-			''|--check) ;;
-			--apply) autoOperation="--apply" ;;
-			*)
-				echo "⛔ ERROR: $MDSC_CMD --owner-setup-cli-auto: takes --check or --apply, and nothing else, got: $1" >&2
-				set +e ; return 1
-			;;
-		esac
-		if [ $# -gt 1 ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --owner-setup-cli-auto: takes one sub-operation, --check or --apply, got $# arguments" >&2
-			set +e ; return 1
-		fi
-		type AgentsToolsCliServiceWorks > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsTools.CliService.include"
-		[ "$autoOperation" != "--check" ] || echo "# $MDSC_CMD --owner-setup-cli-auto --check: read-only diagnosis (nothing applied)"
-		for autoOne in $agentsCliServiceAutoOrder ; do
-			autoRc=0
-			autoWhy="$( AgentsToolsCliServiceWorks "$autoOne" )" || autoRc=$?
-			if [ "$autoRc" = 0 ] ; then
-				[ -n "$autoPick" ] || autoPick="$autoOne"
-				[ "$autoOperation" != "--check" ] || echo "$( printf '%s' "$autoOne" | LC_ALL=C tr 'a-z-' 'A-Z_' )_WORKS: OK"$'\n'"  note: $autoWhy"
-			else
-				[ "$autoOperation" != "--check" ] || echo "$( printf '%s' "$autoOne" | LC_ALL=C tr 'a-z-' 'A-Z_' )_WORKS: FAIL"$'\n'"  warn: $autoWhy"
-			fi
-		done
-		## Read only where the scope file already exists: a --select creates the file it reads, and a check writes nothing.
-		## What a spawn resolves is `now` (the reader every spawn uses: the CLI service of the preset its tier names, and none where no tier is set).
-		autoNow=""
-		if [ -f "${MMDAPP%/}/.local/.agents/magic-team.agent.env" ] ; then
-			autoNow="$( AgentsToolsOwnerSpawnCli "${MMDAPP%/}" )" || autoNow=""
-		fi
-		if [ -z "$autoPick" ] ; then
-			if [ "$autoOperation" = "--check" ] ; then
-				echo "SPAWN_CLI_AUTO: FAIL"
-				echo "  warn: neither claude-native nor copilot-native works on this machine, so none is selected"
-				echo "  why:  each is asked of the CLI itself, above"
-				echo "  now:  the spawns start ${autoNow:-nothing (no tier is set)}"
-			else
-				echo "⛔ ERROR: $MDSC_CMD --owner-setup-cli-auto --apply: neither claude-native nor copilot-native is installed and works on this machine, so none was selected and nothing was changed -- $MDSC_CMD --owner-setup-cli-auto --check says why for each" >&2
-			fi
-			set +e ; return 1
-		fi
-		if [ "$autoOperation" = "--check" ] ; then
-			echo "SPAWN_CLI_AUTO: OK"
-			echo "  pick: $autoPick, the first of $agentsCliServiceAutoOrder that works"
-			echo "  now:  the spawns start ${autoNow:-nothing (no tier is set)}"
-			echo "  fix:  $autoToolPath --owner-setup-cli-auto --apply"
-			return 0
-		fi
-		echo "# $MDSC_CMD --owner-setup-cli-auto --apply: $autoPick is the first of $agentsCliServiceAutoOrder that works; carrying out --owner-setup-$autoPick --set-as-default --apply (the spawns start ${autoNow:-nothing} now)"
-		autoRc=0
-		( DistroAgentsTools "--owner-setup-$autoPick" --set-as-default --apply ) || autoRc=$?
-		[ "$autoRc" = 0 ] || echo "⛔ ERROR: $MDSC_CMD --owner-setup-cli-auto --apply: --owner-setup-$autoPick --set-as-default --apply did not end well, what it says is above" >&2
-		## Written is not in effect: asked again as a spawn asks it, and said plainly where a tier preset stands ahead of the setting just written.
-		autoNow="$( AgentsToolsOwnerSpawnCli "${MMDAPP%/}" )" || autoNow=""
-		if [ "$autoNow" != "$autoPick" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --owner-setup-cli-auto --apply: SPAWN_TIER_NORMAL was pointed at the preset $autoPick, but a spawn still resolves ${autoNow:-nothing} -- look at the preset it names" >&2
-			autoRc=1
-		fi
-		[ "$autoRc" = 0 ] || { set +e ; return 1 ; }
-		return 0
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.OpOwnerSetupCliAuto.include"
 	;;
 
 	## --owner-setup-<domain> -- per-domain setup op family, one domain per macro
@@ -816,10 +476,10 @@ magic-team MDAT_WORKSPACE_MODE"
 				setupScanI=$(( setupScanI + 1 ))
 			done
 			if [ -z "$setupMissingModel" ] ; then
-				type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
+				type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/settings/AgentsTools.ConfigOption.include"
 				setupMissingModel="$( MMDAPP="${setupWorkspaceRoot:-${MMDAPP%/}}" ; AgentsToolsConfigOption magic-team --select REFLECT_MODELS 2> /dev/null )" || setupMissingModel=""
 			fi
-			type AgentsToolsReflectHalfLacks > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ReflectSetting.include"
+			type AgentsToolsReflectHalfLacks > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/settings/AgentsTools.ReflectSetting.include"
 			local setupMissingPair="" setupMissingLine="" setupMissingAny=""
 			setupMissingPair="$( AgentsToolsReflectModelsParse "${setupMissingModel:-none}" )" || {
 				echo "REFLECT_MODELS: FAIL"
@@ -1051,7 +711,7 @@ magic-team MDAT_WORKSPACE_MODE"
 					## The place keys are already stored above, which is what the reads need beside
 					## the tokens each half's own mechanism holds where it holds them.
 					if [ "$setupDomain" = "reflection" ] && [ -n "$setupReflectValue" ] ; then
-						type AgentsToolsReflectHalvesProve > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ReflectSetting.include"
+						type AgentsToolsReflectHalvesProve > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.OwnerReflectProve.include"
 						type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 						AgentsToolsReflectHalvesProve "$setupReflectValue" || {
 							echo "⛔ ERROR: $MDSC_CMD --owner-setup-reflection --apply: stopped at the live proof step -- the settings above are stored and REFLECT_MODELS is not written" >&2
@@ -1120,7 +780,7 @@ magic-team MDAT_WORKSPACE_MODE"
 					--context "--owner-setup-slack:$setupCtxTag" || true
 			;;
 			storage)
-				type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
+				type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/settings/AgentsTools.ConfigOption.include"
 				if [ -n "$( AgentsToolsConfigOption magic-coordinator --select TEAM_DATA_DIRECTORY 2>/dev/null )" ] ; then
 					type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 					DistroAgentsTools --intern-op-check-configs magic-coordinator \
@@ -1153,8 +813,8 @@ magic-team MDAT_WORKSPACE_MODE"
 			reflection)
 				local setupReflectModel="" setupReflectPair="" setupReflectHalf="" setupReflectKey=""
 				local setupReflectShort=""
-				type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
-				type AgentsToolsReflectModelsParse > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ReflectSetting.include"
+				type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/settings/AgentsTools.ConfigOption.include"
+				type AgentsToolsReflectModelsParse > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/settings/AgentsTools.ReflectSetting.include"
 				setupReflectModel="$( AgentsToolsConfigOption magic-team --select REFLECT_MODELS 2> /dev/null )" || setupReflectModel=""
 				setupReflectPair="$( AgentsToolsReflectModelsParse "$setupReflectModel" 2> /dev/null )" || setupReflectPair=""
 				if [ -z "$setupReflectPair" ] ; then
@@ -1219,12 +879,12 @@ magic-team MDAT_WORKSPACE_MODE"
 				## --agents-config-option makes the file it reads, so this scope is
 				## read only where the preset already exists: a --check writes nothing.
 				local setupCredValue=""
-				if [ -f "$setupHere/.local/.agents/preset-grok.agent.env" ] ; then
+				if AgentsSettingsScopeHas "$setupHere" "preset-grok" ; then
 					type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 					DistroAgentsTools --intern-op-check-configs preset-grok \
 						--optional "XAI_API_KEY:<key>" --expect-secret XAI_API_KEY \
 						--context "--owner-setup-grok:$setupCtxTag" || true
-					type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
+					type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/settings/AgentsTools.ConfigOption.include"
 					setupCredValue="$( AgentsToolsConfigOption preset-grok --select XAI_API_KEY 2>/dev/null )"
 				fi
 				if [ -z "$setupCredValue" ] ; then
@@ -1260,12 +920,12 @@ magic-team MDAT_WORKSPACE_MODE"
 				## service, and in no other scope -- the same rule as grok's above,
 				## and the same read-only guard around it.
 				local setupCredValue=""
-				if [ -f "$setupHere/.local/.agents/preset-deepseek.agent.env" ] ; then
+				if AgentsSettingsScopeHas "$setupHere" "preset-deepseek" ; then
 					type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 					DistroAgentsTools --intern-op-check-configs preset-deepseek \
 						--optional "DEEPSEEK_API_KEY:<key>" --expect-secret DEEPSEEK_API_KEY \
 						--context "--owner-setup-deepseek:$setupCtxTag" || true
-					type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
+					type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/settings/AgentsTools.ConfigOption.include"
 					setupCredValue="$( AgentsToolsConfigOption preset-deepseek --select DEEPSEEK_API_KEY 2>/dev/null )"
 				fi
 				if [ -z "$setupCredValue" ] ; then
@@ -1532,7 +1192,7 @@ magic-team MDAT_WORKSPACE_MODE"
 						echo "  warn: a wait no longer comes back the way a caller has to be able"
 						echo "        to read it -- each failed assertion above names what it"
 						echo "        wanted and what it got instead"
-						echo "  fix:  repair the behaviour in sh-lib/member/AgentsTools.MemberWait.include"
+						echo "  fix:  repair the behaviour in sh-lib/wait/AgentsTools.MemberWait.include"
 						echo "        or sh-lib/harness/AgentsUniversalHarness.sh -- never the assertion"
 						setupRc=1
 					fi
@@ -1717,12 +1377,12 @@ magic-team MDAT_WORKSPACE_MODE"
 				## uses is the preset's PRESET_MODEL_OR_MACRO and never a credential's
 				## name. A preset called mel-scaleway-deepseek is only a name.
 				local setupCredValue=""
-				if [ -f "$setupHere/.local/.agents/preset-scaleway.agent.env" ] ; then
+				if AgentsSettingsScopeHas "$setupHere" "preset-scaleway" ; then
 					type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 					DistroAgentsTools --intern-op-check-configs preset-scaleway \
 						--optional "SCALEWAY_API_KEY:<key>" --expect-secret SCALEWAY_API_KEY \
 						--context "--owner-setup-scaleway:$setupCtxTag" || true
-					type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
+					type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/settings/AgentsTools.ConfigOption.include"
 					setupCredValue="$( AgentsToolsConfigOption preset-scaleway --select SCALEWAY_API_KEY 2>/dev/null )"
 				fi
 				if [ -z "$setupCredValue" ] ; then
@@ -1836,7 +1496,7 @@ magic-team MDAT_WORKSPACE_MODE"
 
 				## Read only where the scope file already exists: a --select creates the file it reads.
 				setupCliValue=""
-				if [ -f "$setupHere/.local/.agents/magic-team.agent.env" ] ; then
+				if AgentsSettingsScopeHas "$setupHere" "magic-team" ; then
 					setupCliValue="$( AgentsToolsOwnerSpawnCli "$setupHere" )" || setupCliValue=""
 				fi
 				if [ -z "$setupCliValue" ] ; then
@@ -2042,8 +1702,8 @@ magic-team MDAT_WORKSPACE_MODE"
 				## preset exists: a --select through --agents-config-option makes the
 				## file it reads, so a --check writes nothing.
 				setupCredential=""
-				if [ -f "$setupHere/.local/.agents/preset-copilot.agent.env" ] ; then
-					type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
+				if AgentsSettingsScopeHas "$setupHere" "preset-copilot" ; then
+					type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/settings/AgentsTools.ConfigOption.include"
 					setupCredential="$( MMDAPP="$setupHere" ; DistroAgentsTools --agents-config-option preset-copilot --select COPILOT_GITHUB_TOKEN || : )"
 				fi
 				if [ -n "$setupCredential" ] ; then
@@ -2076,7 +1736,7 @@ magic-team MDAT_WORKSPACE_MODE"
 				## Read only where the scope file already exists: a --select through
 				## --agents-config-option creates the file it reads.
 				setupCliValue=""
-				if [ -f "$setupHere/.local/.agents/magic-team.agent.env" ] ; then
+				if AgentsSettingsScopeHas "$setupHere" "magic-team" ; then
 					setupCliValue="$( AgentsToolsOwnerSpawnCli "$setupHere" )" || setupCliValue=""
 				fi
 				if [ -z "$setupCliValue" ] ; then
@@ -2468,7 +2128,7 @@ magic-team MDAT_WORKSPACE_MODE"
 					## --agents-config-option creates the file it reads, and this
 					## operation applies nothing.
 					setupCliValue=""
-					if [ -f "$setupRoot/.local/.agents/magic-team.agent.env" ] ; then
+					if AgentsSettingsScopeHas "$setupRoot" "magic-team" ; then
 						setupCliValue="$( AgentsToolsOwnerSpawnCli "$setupRoot" )" || setupCliValue=""
 					fi
 					setupWillRun="$setupCliValue"
@@ -2564,8 +2224,8 @@ magic-team MDAT_WORKSPACE_MODE"
 						setupAuthLine="$(
 							MMDAPP="$setupRoot"
 							for setupAuthKey in ANTHROPIC_API_KEY CLAUDE_CODE_OAUTH_TOKEN ; do
-								[ -f "$setupRoot/.local/.agents/preset-claude.agent.env" ] || continue
-								type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
+								AgentsSettingsScopeHas "$setupRoot" "preset-claude" || continue
+								type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/settings/AgentsTools.ConfigOption.include"
 								setupAuthValue="$( AgentsToolsConfigOption preset-claude --select "$setupAuthKey" 2>/dev/null || : )"
 								[ -n "$setupAuthValue" ] || continue
 								export "$setupAuthKey=$setupAuthValue"

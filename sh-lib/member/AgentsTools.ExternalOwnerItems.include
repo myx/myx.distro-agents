@@ -14,7 +14,6 @@
 ##
 
 type AgentsToolsTeamMemberDirectoryText > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamRegistry.include"
-type AgentsToolsInboxDir > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/inbox/AgentsTools.InboxPlace.include"
 
 ## The rows of the external owners' items, one a line: `<folder>/<item file> TAB <owner> TAB <recheck-date> TAB <why>`, `why` being `recheck-passed`,
 ## `changed` or, for `all`, `-`. `due` (the default) keeps the items that are due; `all` every one.
@@ -22,7 +21,7 @@ AgentsToolsExternalOwnerRows(){ ## due|all
 	local extWhich="${1:-due}" extMarker="${MMDAPP%/}/.local/agents/schedule/duty/magic-coordinator" extMembers extFiles extState extFile extRow extOwner extRecheck extEpoch extNow extWhy extChanged=""
 	extMembers="$( AgentsToolsTeamMemberDirectoryText 2> /dev/null | LC_ALL=C awk -F'\t' '$1 != "human-owner" { print $1 }' )"
 	extFiles=()
-	for extFile in "$( AgentsToolsInboxDir magic-coordinator )"/*.md ; do [ -f "$extFile" ] && extFiles+=( "$extFile" ) ; done
+	for extFile in "$MDAT_DATA_ROOT/inboxes/magic-coordinator/incoming"/*.md ; do [ -f "$extFile" ] && extFiles+=( "$extFile" ) ; done
 	for extState in backlog pending running review blocked parked ; do
 		for extFile in "$MDAT_DATA_ROOT/board/$extState"/*.md ; do [ -f "$extFile" ] && extFiles+=( "$extFile" ) ; done
 	done

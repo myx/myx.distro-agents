@@ -158,7 +158,7 @@ printf '1\tinbox:rig-member\t%s\n' "$rigTmp/line6.body" > "$rigTmp/line6.manifes
 printf 'note-rig-6.md\n' > "$rigTmp/line6.body"
 rigLine6='keep it where the record says C:\path and stays'
 rigAssert "a wording carrying a backslash is printed as it was written" \
-	"$( INBOX_LINE="$rigLine6" LC_ALL=C awk -v manifest="$rigTmp/line6.manifest" -f "$rigPkg/sh-lib/member/AgentsWaitArrivalsOrder.awk" < /dev/null | LC_ALL=C grep -c -x -F -- "$rigLine6" )" 1
+	"$( INBOX_LINE="$rigLine6" LC_ALL=C awk -v manifest="$rigTmp/line6.manifest" -f "$rigPkg/sh-lib/wait/AgentsWaitArrivalsOrder.awk" < /dev/null | LC_ALL=C grep -c -x -F -- "$rigLine6" )" 1
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ INBOX INSTRUCTION LINE CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

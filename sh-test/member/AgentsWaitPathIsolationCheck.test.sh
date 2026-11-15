@@ -11,7 +11,7 @@
 ##   2. THE FLOOR. A --wait-default wait of a session adds to the sources it was given the replies of the session's own posts, the
 ##      member's DMs and mentions and its wake marker (the chat of the session too, where the session has a folder; the rig's has none):
 ##      a wait of a file source in such a session sources the Local, Replies, Dms and Mentions pieces, and no other.
-##   3. THE CALLERS. AgentsToolsPendingReplyPollOwn (MemberPendingReply.include) needs the ask probe, and the floor of the session chat that
+##   3. THE CALLERS. AgentsToolsPendingReplyPollOwn (PendingReplyRecords.include) needs the ask probe, and the floor of the session chat that
 ##      advances a stored wait's floor (SessionChat.include) needs the floor helper: each sources the core and what it uses (the floor
 ##      advance: the core and at most one piece), and never the arm file, which would also run a wait arm over the caller's own arguments.
 ##   4. THE INSTRUMENT. The classifier is run on logs and function lists made by hand: the pair it must pass, and one each for the faults it
@@ -57,7 +57,7 @@ rigRefuse(){
 }
 rigPackage="$MDLT_ORIGIN/$rigPackageRel"
 [ -f "$rigPackage/sh-scripts/DistroAgentsTools.fn.sh" ] || rigRefuse "no dispatcher at the origin this workspace resolves: $rigPackage"
-[ -f "$rigPackage/sh-lib/member/$rigArm" ] || rigRefuse "no wait arm at the origin: $rigPackage/sh-lib/member/$rigArm"
+[ -f "$rigPackage/sh-lib/wait/$rigArm" ] || rigRefuse "no wait arm at the origin: $rigPackage/sh-lib/wait/$rigArm"
 [ -r "${MDAT_SKILLSET_ROOT:-}/$rigMember/$rigMember.basic.md" ] || rigRefuse "MDAT_SKILLSET_ROOT does not hold $rigMember, so a wait would have no member to act as"
 
 mkdir -p "$MMDAPP/.local/temp" || exit 1
@@ -151,7 +151,7 @@ find "$rigOrigin/$rigPackageRel/sh-lib" -name '*.include' -type f | while IFS= r
 		&& cat "$rigFile.rigtmp" > "$rigFile" && rm -f "$rigFile.rigtmp" || exit 1
 done || rigRefuse "the log line could not be put at the head of the includes"
 rigTools="$rigOrigin/$rigPackageRel/sh-scripts/DistroAgentsTools.fn.sh"
-[ "$( LC_ALL=C sed -n 2p "$rigOrigin/$rigPackageRel/sh-lib/member/$rigArm" | LC_ALL=C cut -c1-40 )" = '[ -z "${RIG_SOURCED_LOG:-}" ] || printf ' ] || rigRefuse "the wait arm of the copy carries no log line"
+[ "$( LC_ALL=C sed -n 2p "$rigOrigin/$rigPackageRel/sh-lib/wait/$rigArm" | LC_ALL=C cut -c1-40 )" = '[ -z "${RIG_SOURCED_LOG:-}" ] || printf ' ] || rigRefuse "the wait arm of the copy carries no log line"
 
 cat > "$rigTmp/bin/curl" <<'RIG_CURL'
 #!/usr/bin/env bash
@@ -234,7 +234,7 @@ rigAssert "and it holds the probe functions of those four pieces, and no other" 
 	"$( rigDiff "$( LC_ALL=C cat "$RIG_HELD_LIST" )" "$( rigWantProbes "$rigPieceLocal" "$rigPieceReplies" "$rigPieceDms" "$rigPieceMentions" )" )" ok
 
 echo "-- 3. the callers that source a piece of the wait --"
-rigProcess '. "$1" ; set +e ; . "$MDLT_ORIGIN/'"$rigPackageRel"'/sh-lib/questions/AgentsTools.MemberPendingReply.include" ; AgentsToolsPendingReplyPollOwn '"$rigMember"' ;'
+rigProcess '. "$1" ; set +e ; . "$MDLT_ORIGIN/'"$rigPackageRel"'/sh-lib/questions/AgentsTools.PendingReplyRecords.include" ; AgentsToolsPendingReplyPollOwn '"$rigMember"' ;'
 RIG_POLLOWN_LOG="$rigTmp/sourced.pollown.log"
 cp "$RIG_SOURCED_LOG" "$RIG_POLLOWN_LOG"
 rigAssert "AgentsToolsPendingReplyPollOwn: the core, the Ask piece and the Slack piece it needs, and no other; never the arm file" \
@@ -279,7 +279,7 @@ rigFloorRun(){ ## the script to run in a process of the copy, in the floor's wor
 rigFloorImport(){ ## thread messages as a JSON array body -- rendered by the formatter of the copy and imported into the session's chat file
 	printf '{"ok":true,"messages":[%s],"has_more":false}\n' "$1" > "$rigTmp/thread.json"
 	LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" \
-	-f "$rigOrigin/$rigPackageRel/sh-lib/comms/AgentsSlackMessagesFormat.awk" < "$rigTmp/thread.json" > "$rigTmp/thread.rendered" 2> /dev/null
+	-f "$rigOrigin/$rigPackageRel/sh-lib/slack/AgentsSlackMessagesFormat.awk" < "$rigTmp/thread.json" > "$rigTmp/thread.rendered" 2> /dev/null
 	rigFloorRun ". '$rigOrigin/$rigPackageRel/sh-lib/session/AgentsTools.SessionChat.include' ; AgentsToolsSessionChatImport '$rigFloorSession' '$rigThread' '$rigTmp/thread.rendered' slack -"
 }
 rigFloorDeliver(){

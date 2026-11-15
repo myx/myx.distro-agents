@@ -1,0 +1,100 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.MemberWaitSourcesDefault.include -- what a Wait watches by default: its own sources, and the threads of its children. Split out of AgentsTools.SpawnSandbox.include by concern, its functions unchanged. Sourced, never
+## run; it relies on what AgentsTools.SpawnSandbox.include sources for it.
+##
+## A bare Wait's default sources, space-separated: this session's own thread and every
+## conversation thread it continues, each as slack:<channel>:<ts>:conversation, no repeats.
+## Prints nothing and returns 1 when there is neither (the solo default then applies).
+## THE CHANNEL KIND IS DECIDED FIRST (F2.3, F3.1): a session whose external side is the root-native printback
+## channel, or the tooling thread -- `none` or `track` on the session's own record -- has one default source,
+## that session's `chat:<session>` read, and it is answered before a thread or a conversation is looked for.
+## A conversation thread is a Slack source, and such a session is on no Slack channel of its own, so a Wait of
+## it must not watch one even where the spawn handed some down: what the tooling thread received is recorded in
+## the one chat file, and the chat file is what is read back. Only a session on another kind -- `full`, a
+## session on a recorded thread, one with no kind recorded -- reaches the Slack sources, exactly as it always
+## did.
+AgentsToolsWaitDefaultSources(){
+	local defaultThread defaultList="" defaultSeen=" " defaultChat="" defaultKind=""
+	type AgentsToolsCommsPrintbackSessionInUse > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsPrintback.include"
+	type AgentsToolsSessionChatKeyInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include"
+	type AgentsToolsRootHarnessKindRead > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.RootHarnessKind.include"
+	AgentsToolsSessionChatKeyInto ; defaultChat="$agentsSessionChatKey"
+	if [ -n "$defaultChat" ] ; then
+		## THE KIND THE SESSION RECORDED (F3.1), before any thread or conversation: `none` and `track` are read
+		## from the one chat file, and only another kind reaches the Slack sources.
+		defaultKind="$( AgentsToolsRootHarnessKindRead "$defaultChat" 2> /dev/null )" || defaultKind=""
+		case "$defaultKind" in
+			none|track)
+				printf 'chat:%s\n' "$defaultChat"
+				return 0
+			;;
+		esac
+		## A session with no kind recorded keeps the F2.3 mark's decision: the printback channel is read from the
+		## chat file, and one on a thread (or on no channel) reaches the Slack sources as it always did.
+		if AgentsToolsCommsPrintbackSessionInUse "$defaultChat" ; then
+			printf 'chat:%s\n' "$defaultChat"
+			return 0
+		fi
+	fi
+	type AgentsToolsConversationThreadsFind > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionThreads.include"
+	for defaultThread in $( AgentsToolsSessionThreadFind 2>/dev/null ) $( AgentsToolsConversationThreadsFind 2>/dev/null ) $( AgentsToolsWaitChildThreadSources 2>/dev/null ) ; do
+		case "$defaultSeen" in *" $defaultThread "*) continue ;; esac
+		defaultSeen="$defaultSeen$defaultThread "
+		defaultList="$defaultList${defaultList:+ }slack:$defaultThread:conversation"
+	done
+	[ -n "$defaultList" ] || return 1
+	printf '%s\n' "$defaultList"
+	return 0
+}
+
+## The session thread of every child this session started (S21.6), live ones only: one still
+## running or waiting, by AgentsToolsSessionOthersRunning's own test, deduped by session id --
+## a respawned child lists more than once in .local/agents/children/<this spawn-id> (the children
+## index, AgentsTools.ChildrenIndex.include), and the file itself says a reader de-duplicates.
+## Printed bare, each `<channel>:<ts>`, space-separated, for the caller above to prefix as a
+## slack: conversation source same as any other thread. Prints nothing and returns 1 for none.
+AgentsToolsWaitChildThreadSources(){
+	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandbox.include"
+	type AgentsToolsSessionRecordLive > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionSeats.include"
+	type AgentsToolsSpawnConversationThreadValid > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionThreads.include"
+	## The same key a spawn is filed under as a child, by the parent's own run at the moment
+	## it spawned (AgentsTools.InternOpAgentSpawnProxy.include): this run's own spawn id, or
+	## the native CLI's session id where this run was never itself spawned, the coordinator's
+	## own root console included.
+	local childKey="${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}" childIndexed childRecords childLine childRecord
+	local childSeen=" " childSession childThread childList=""
+	[ -n "$childKey" ] || return 1
+	case "$childKey" in */*|.|..) return 1 ;; esac
+	childIndexed="$MMDAPP/.local/agents/children/.indexed"
+	if [ -f "$childIndexed" ] ; then
+		childRecords=""
+		if [ -f "$MMDAPP/.local/agents/children/$childKey" ] ; then
+			while IFS= read -r childLine ; do
+				[ -n "$childLine" ] || continue
+				childRecords="$childRecords$MMDAPP/.local/agents/spawned/$childLine"$'\n'
+			done < "$MMDAPP/.local/agents/children/$childKey"
+		fi
+	else
+		childRecords="$( LC_ALL=C grep -l -x -F "parent-spawn-id: $childKey" "$MMDAPP"/.local/agents/spawned/*/*.spawn.md 2> /dev/null )"$'\n' || childRecords=""
+	fi
+	type AgentsToolsAssertBareName > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.BareName.include"
+	while IFS= read -r childRecord ; do
+		[ -n "$childRecord" ] && [ -f "$childRecord" ] || continue
+		childSession="$( AgentsToolsSpawnSandboxRecordHeader "$childRecord" session-id )"
+		AgentsToolsAssertBareName "$childSession" "the child session" AgentsToolsWaitChildThreadSources 2> /dev/null || continue
+		case "$childSeen" in *" $childSession "*) continue ;; esac
+		AgentsToolsSessionRecordLive "$childRecord" || continue
+		! AgentsToolsSessionRunSeatless "$childRecord" || continue
+		childSeen="$childSeen$childSession "
+		childThread="$( AgentsToolsSpawnSandboxRecordHeader "$childRecord" session-thread )"
+		[ -n "$childThread" ] || continue
+		AgentsToolsSpawnConversationThreadValid "$childThread" || continue
+		childList="$childList${childList:+ }$childThread"
+	done <<< "$childRecords"
+	[ -n "$childList" ] || return 1
+	printf '%s\n' "$childList"
+	return 0
+}

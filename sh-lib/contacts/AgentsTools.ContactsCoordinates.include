@@ -1,0 +1,78 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+type AgentsSlackIdentityId > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/slack/AgentsTools.SlackIdentities.include"
+
+##
+## AgentsTools.ContactsCoordinates.include -- a contact's coordinates: the Slack team each belongs to, and a coordinate checked before it is stored.
+## Sourced, never run. Functions only. Loaded by AgentsTools.Contacts.include, with the other parts it calls.
+##
+
+## THE SLACK TEAM OF A COORDINATE is the Slack workspace the value belongs to, named by the first label of its domain (`ndms` for
+## ndms.slack.com), because an account id is unique within one workspace only. A team given as a member's name is that member's
+## workspace: its own SLACK_WORKSPACE_DOMAIN (CLIENT_SLACK_WORKSPACE_DOMAIN first for a client member), else magic-team's. A member is
+## a name the machine-wide members.registry lists. Any other word is taken as the workspace label it already is. Lowercase, printed.
+AgentsToolsContactsSlackTeam(){ ## team word
+	local teamWord teamDomain=""
+	teamWord="$( printf '%s' "${1:-}" | LC_ALL=C tr 'ABCDEFGHIJKLMNOPQRSTUVWXYZ' 'abcdefghijklmnopqrstuvwxyz' )"
+	[ -n "$teamWord" ] || return 0
+	if [ -n "${contactsTeamMemo:-}" ] ; then
+		case "$contactsTeamMemo" in *" $teamWord="*) teamDomain="${contactsTeamMemo#* $teamWord=}" ; printf '%s\n' "${teamDomain%% *}" ; return 0 ;; esac
+	fi
+	if LC_ALL=C grep -q "^$teamWord"$'\t' "${HOME:-}/.agents/magic-team/members.registry" 2> /dev/null ; then
+		type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/settings/AgentsTools.ConfigOption.include"
+		case "$teamWord" in client-*) teamDomain="$( AgentsToolsConfigOption "$teamWord" --select CLIENT_SLACK_WORKSPACE_DOMAIN 2> /dev/null )" || teamDomain="" ;; esac
+		[ -n "$teamDomain" ] || teamDomain="$( AgentsToolsConfigOption "$teamWord" --select SLACK_WORKSPACE_DOMAIN 2> /dev/null )" || teamDomain=""
+		[ -n "$teamDomain" ] || teamDomain="$( AgentsToolsConfigOption magic-team --select SLACK_WORKSPACE_DOMAIN 2> /dev/null )" || teamDomain=""
+		teamDomain="$( printf '%s' "${teamDomain#*://}" | LC_ALL=C tr 'ABCDEFGHIJKLMNOPQRSTUVWXYZ' 'abcdefghijklmnopqrstuvwxyz' )"
+		teamDomain="${teamDomain%%.*}"
+	fi
+	[ -n "$teamDomain" ] || teamDomain="$teamWord"
+	contactsTeamMemo="${contactsTeamMemo:- } $teamWord=$teamDomain "
+	printf '%s\n' "$teamDomain"
+}
+
+## A coordinate list `a:x, b:y` with each entry's team named as its Slack workspace (AgentsToolsContactsSlackTeam), duplicates dropped.
+AgentsToolsContactsSlackListTeams(){ ## list
+	type AgentsToolsContactsListAdd > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/contacts/AgentsTools.ContactsRecord.include"
+	local listOut="" listEntry listRest="$1" listTeam
+	while [ -n "$listRest" ] ; do
+		listEntry="${listRest%%,*}" ; [ "$listEntry" != "$listRest" ] && listRest="${listRest#*,}" || listRest=""
+		listEntry="${listEntry# }" ; listEntry="${listEntry% }"
+		[ -n "$listEntry" ] || continue
+		case "$listEntry" in *:*) listTeam="$( AgentsToolsContactsSlackTeam "${listEntry%%:*}" )" ; listEntry="$listTeam:${listEntry#*:}" ;; esac
+		listOut="$( AgentsToolsContactsListAdd "$listOut" "$listEntry" )"
+	done
+	printf '%s' "$listOut"
+}
+
+## The shape of a value of each coordinate, or rc 1 and the reason in contactsWhy.
+contactsWhy=""
+AgentsToolsContactsCoordinateCheck(){ ## kind (slack-id|slack-handle|slack-conversation|email), value
+	local coordTeam coordRest
+	contactsWhy=""
+	case "$1" in
+		slack-id|slack-handle|slack-conversation)
+			case "$2" in
+				?*:?*) coordTeam="${2%%:*}" ; coordRest="${2#*:}" ;;
+				*) contactsWhy="a Slack coordinate is <team>:<value>, the Slack team being the identity scope of its workspace: $2" ; return 1 ;;
+			esac
+			AgentsToolsAssertBareName "$coordTeam" "the Slack team" contacts-coordinate 2> /dev/null || { contactsWhy="the Slack team of $2 is a bare name (letters, digits, '.', '_', '-')" ; return 1 ; }
+			if [ "$1" = slack-handle ] ; then
+				case "$coordRest" in
+					@?*) ;;
+					*) contactsWhy="a Slack handle is <team>:@<handle>: $2" ; return 1 ;;
+				esac
+				case "${coordRest#@}" in *[!ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._-]*) contactsWhy="a Slack handle holds letters, digits, '.', '_' and '-': $2" ; return 1 ;; esac
+			else
+				case "$coordRest" in ''|*[!ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789]*) contactsWhy="a Slack id is letters and digits in capitals: $2" ; return 1 ;; esac
+			fi
+		;;
+		email)
+			case "$2" in
+				*[[:space:],]*|''|*@*@*|@*|*@|*@.*|*@*.|*[!-ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789@._+]*) contactsWhy="not an e-mail address: $2" ; return 1 ;;
+			esac
+			case "$2" in *@*.*) ;; *) contactsWhy="not an e-mail address: $2" ; return 1 ;; esac
+		;;
+	esac
+	return 0
+}

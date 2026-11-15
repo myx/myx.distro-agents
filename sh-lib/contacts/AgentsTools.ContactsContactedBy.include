@@ -1,0 +1,172 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+type AgentsSlackIdentityId > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/slack/AgentsTools.SlackIdentities.include"
+
+##
+## AgentsTools.ContactsContactedBy.include -- being contacted by someone not yet a contact: the note kept of them, and the contact made from it.
+## Sourced, never run. Functions only. Loaded by AgentsTools.Contacts.include, with the other parts it calls.
+##
+
+
+AgentsToolsContactsNotAddedFresh(){ ## prints the floor epoch: entries newer than it hold
+	local freshNow freshOrg=""
+	freshNow="$( date +%s )"
+	freshOrg="$( LC_ALL=C ls -t "${MDAT_DATA_ROOT:-${MMDAPP%/}/.local/agents/team-data-root}/contacts/organisations/"*.md 2> /dev/null | head -1 )"
+	[ -z "$freshOrg" ] || freshOrg="$( stat -f %m "$freshOrg" 2> /dev/null || stat -c %Y "$freshOrg" 2> /dev/null || echo 0 )"
+	LC_ALL=C awk -v a="$(( freshNow - 43200 ))" -v b="${freshOrg:-0}" 'BEGIN { print ( a > b ? a : b ) }'
+}
+
+AgentsToolsContactsNotAddedGet(){ ## id -- prints the held profile (may be empty), rc 1 where none holds
+	local getFile getFloor
+	getFile="${MMDAPP:-/nonexistent}/.local/agents/contacts-not-added.tsv" ; [ -f "$getFile" ] || return 1
+	getFloor="$( AgentsToolsContactsNotAddedFresh )"
+	LC_ALL=C awk -F '\t' -v id="$1" -v floor="$getFloor" '$1 == id && $2 > floor { print $3 ; found = 1 ; exit } END { exit found ? 0 : 1 }' "$getFile" 2> /dev/null
+}
+
+AgentsToolsContactsNotAddedPut(){ ## id, profile
+	local putFile putFloor putTmp
+	putFile="${MMDAPP:-/nonexistent}/.local/agents/contacts-not-added.tsv"
+	mkdir -p "${putFile%/*}" 2> /dev/null || return 0
+	putFloor="$( AgentsToolsContactsNotAddedFresh )"
+	putTmp="$( mktemp "$putFile.XXXXXX" 2> /dev/null )" || return 0
+	{ [ ! -f "$putFile" ] || LC_ALL=C awk -F '\t' -v id="$1" -v floor="$putFloor" '$1 != id && $2 > floor' "$putFile" ; printf '%s\t%s\t%s\n' "$1" "$( date +%s )" "$( printf '%s' "${2:-}" | LC_ALL=C tr '\t\n' '  ' )" ; } > "$putTmp" 2> /dev/null && mv -f "$putTmp" "$putFile" 2> /dev/null || rm -f "$putTmp"
+}
+
+AgentsToolsContactsContactedBy(){ ## the operation, its arguments...
+	type AgentsToolsContactsStore > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/contacts/AgentsTools.ContactsRecord.include"
+	type AgentsToolsContactsIndex > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/contacts/AgentsTools.ContactsQuery.include"
+	type AgentsToolsContactsSlackTeam > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/contacts/AgentsTools.ContactsCoordinates.include"
+	type AgentsToolsContactsTierFor > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/contacts/AgentsTools.ContactsTiers.include"
+	type AgentsToolsContactsAccessText > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/contacts/AgentsTools.ContactsAccess.include"
+	local byOp="$1" byValue="" byScope="" bySlackTeam="" byRows byCount byId byTier
+	shift
+	while [ $# -gt 0 ] ; do
+		case "$1" in
+			--team|--slack-team)
+				[ -n "${2:-}" ] || { echo "$MDSC_CMD: ⛔ ERROR: $byOp: $1 takes a value" >&2 ; return 1 ; }
+				case "$1" in --team) byScope="$2" ;; *) bySlackTeam="$2" ;; esac
+				shift 2
+			;;
+			-*) echo "$MDSC_CMD: ⛔ ERROR: $byOp: unknown option: $1 -- syntax is <value> [--team <scope>] [--slack-team <team>]" >&2 ; return 1 ;;
+			*)
+				[ -z "$byValue" ] || { echo "$MDSC_CMD: ⛔ ERROR: $byOp: one value, got a second: $1" >&2 ; return 1 ; }
+				byValue="$1" ; shift
+			;;
+		esac
+	done
+	[ -n "$byValue" ] || { echo "$MDSC_CMD: ⛔ ERROR: $byOp: syntax is <value> [--team <scope>] [--slack-team <team>]" >&2 ; return 1 ; }
+	AgentsToolsContactsStore "$byOp" || return 1
+	type AgentsToolsEscalationNote > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.Escalation.include"
+	byRows="$( AgentsToolsContactsIndex find "$byValue" "$bySlackTeam" "" "" | LC_ALL=C sort -t "$(printf '\t')" -k2,2 )"
+	if [ -z "$byRows" ] ; then
+		## A SLACK ACCOUNT NO RECORD HOLDS is read on its Slack profile, so the one who answers has the name and the handle to hand and guesses none.
+		local byProfile="" byProfileMember byProfileResp byProfileName byProfileHandle byHeld=""
+		## Held as not added within its time: no Slack call, the same escalation with the profile held.
+		if byHeld="$( AgentsToolsContactsNotAddedGet "$byValue" )" ; then
+			ASKP_F_value="$byValue" ASKP_F_profile="$byHeld" AgentsToolsEscalationNote "Contacts/contacted-unknown"
+			return 1
+		fi
+		case "$byValue" in
+			U[A-Z0-9][A-Z0-9][A-Z0-9][A-Z0-9][A-Z0-9][A-Z0-9][A-Z0-9][A-Z0-9]*)
+				byProfileMember="$( AgentsToolsActingMember 2> /dev/null )" ; [ -n "$byProfileMember" ] || byProfileMember=magic-coordinator
+				type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+				byProfileResp="$( DistroAgentsTools --intern-op-slack-call "$byProfileMember" --api users.info --identity bot --form "user=$byValue" --context "--contacted-by" 2> /dev/null )" || byProfileResp=""
+				byProfileName="$( printf '%s\n' "$byProfileResp" | LC_ALL=C awk -v path=user.real_name -v optional=1 -v dialect=slack -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" 2> /dev/null )" || byProfileName=""
+				byProfileHandle="$( printf '%s\n' "$byProfileResp" | LC_ALL=C awk -v path=user.name -v optional=1 -v dialect=slack -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" 2> /dev/null )" || byProfileHandle=""
+				[ -z "$byProfileName$byProfileHandle" ] || byProfile="${byProfileName:-?}${byProfileHandle:+ (@$byProfileHandle)}"
+				## A PERSON WHO WROTE IS RECORDED ON CONTACT, BY THE TOOLING (the owner's rule: record on contact): the Slack profile gives the
+				## name, the handle and the account, in the acting member's workspace. The id is the name made a slug, and never an id another
+				## record already holds. The record carries no tier, so the next step this operation prints is the no-tier one.
+				## A bot account (the team's own bot, an integration) is no person and is never recorded.
+				local byProfileBot=""
+				byProfileBot="$( printf '%s\n' "$byProfileResp" | LC_ALL=C awk -v path=user.is_bot -v optional=1 -v dialect=slack -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" 2> /dev/null )" || byProfileBot=""
+				## Slackbot, an app's account and a deactivated account are never recorded either; the team's own accounts (the mention cache) are no contacts of the team.
+				case "$byValue" in USLACKBOT) byProfileBot="true" ;; esac
+				! printf '%s' "$byProfileResp" | LC_ALL=C grep -q -E '"is_app_user":true|"deleted":true' || byProfileBot="true"
+				! AgentsSlackIdentityKnown "$byValue" || byProfileBot="true"
+				## AN ORGANISATION CONTACT IS RECORDED ON CONTACT, by ANY of: the profile's e-mail domain is the `domain:` of an organisation
+				## record (recorded), or the person is a full member of the workspace (implied, below). Anyone else is left unrecorded, and the
+				## escalation note below carries the profile to the run.
+				local byProfileMail="" byProfileOrg=""
+				byProfileMail="$( printf '%s\n' "$byProfileResp" | LC_ALL=C awk -v path=user.profile.email -v optional=1 -v dialect=slack -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" 2> /dev/null )" || byProfileMail=""
+				case "$byProfileMail" in ?*@?*.?*)
+					byProfileOrg="$( LC_ALL=C awk -v want="$( printf '%s' "${byProfileMail##*@}" | LC_ALL=C tr 'ABCDEFGHIJKLMNOPQRSTUVWXYZ' 'abcdefghijklmnopqrstuvwxyz' )" 'FNR == 1 { org = "" } /^organisation-id: / { org = substr( $0, 18 ) } /^domain: / { m = split( tolower( substr( $0, 9 ) ), ds, /[ ,]+/ ) ; for ( k = 1 ; k <= m ; k++ ) if ( ds[k] == want && org != "" ) { print org ; exit } }' "${contactsPersons%/persons}/organisations/"*.md 2> /dev/null )" || byProfileOrg=""
+				;; esac
+				## OR IMPLIED: a member, guests included (someone let them in), never a bot, of the Slack workspace this call reads in, the team's own or a client-*
+				## member's, is an organisation contact by that alone. Its organisation is the one whose record names that workspace's domain,
+				## where none came from the e-mail; with none named, the person is recorded with no organisation.
+				local byProfileMember1="" byProfileTeam="" byOwnTeam="" byWsDomain=""
+				byProfileTeam="$( printf '%s\n' "$byProfileResp" | LC_ALL=C awk -v path=user.team_id -v optional=1 -v dialect=slack -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" 2> /dev/null )" || byProfileTeam=""
+				if [ -n "$byProfileTeam" ] ; then
+					byOwnTeam="$( DistroAgentsTools --intern-op-slack-call "$byProfileMember" --api auth.test --identity bot --context "--contacted-by" 2> /dev/null | LC_ALL=C awk -v path=team_id -v optional=1 -v dialect=slack -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" 2> /dev/null )" || byOwnTeam=""
+					if [ -n "$byOwnTeam" ] && [ "$byOwnTeam" = "$byProfileTeam" ] ; then
+						byProfileMember1="workspace"
+						if [ -z "$byProfileOrg" ] ; then
+							byWsDomain="$( AgentsToolsContactsSlackTeam "$byProfileMember" )"
+							[ -z "$byWsDomain" ] || byProfileOrg="$( LC_ALL=C awk -v want="$byWsDomain.slack.com" 'FNR == 1 { org = "" } /^organisation-id: / { org = substr( $0, 18 ) } index( tolower( $0 ), want ) && org != "" { print org ; exit }' "${contactsPersons%/persons}/organisations/"*.md 2> /dev/null )" || byProfileOrg=""
+						fi
+					fi
+				fi
+				if [ -n "$byProfileName$byProfileHandle" ] && { [ -n "$byProfileOrg" ] || [ -n "$byProfileMember1" ] ; } && [ "$byProfileBot" != "true" ] && [ -z "${MDAT_CONTACT_RECORDED_ON_CONTACT:-}" ] ; then
+					local byNewId=""
+					byNewId="$( printf '%s' "${byProfileName:-$byProfileHandle}" | LC_ALL=C tr 'ABCDEFGHIJKLMNOPQRSTUVWXYZ' 'abcdefghijklmnopqrstuvwxyz' | LC_ALL=C sed 's/[^a-z0-9][^a-z0-9]*/-/g; s/^-//; s/-$//' | cut -c1-48 )"
+					case "$byNewId" in ''|*[!a-z0-9-]*) byNewId="slack-$( printf '%s' "$byValue" | LC_ALL=C tr 'ABCDEFGHIJKLMNOPQRSTUVWXYZ' 'abcdefghijklmnopqrstuvwxyz' )" ;; esac
+					## ONE RECORD PER PERSON, whatever number of runs meet them at once: the record is made under a lock of this account, and a
+					## record that already holds the account, made by another run meanwhile, is that person's.
+					local byLock="$contactsPersons/.record-$byValue.lock" byLockTries=0
+					while ! mkdir "$byLock" 2> /dev/null ; do
+						byLockTries=$(( byLockTries + 1 )) ; [ "$byLockTries" -lt 20 ] || break ; sleep 1
+					done
+					if LC_ALL=C grep -l -E "^slack-id:.*:$byValue(,|\$| )" "$contactsPersons"/*.md > /dev/null 2>&1 ; then
+						rmdir "$byLock" 2> /dev/null || :
+						MDAT_CONTACT_RECORDED_ON_CONTACT=1 "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsContacts.fn.sh" --contacted-by "$byValue" ${byScope:+--team "$byScope"} ${bySlackTeam:+--slack-team "$bySlackTeam"} < /dev/null
+						return $?
+					fi
+					## AN UPSERT, NEVER A SECOND RECORD OF ONE PERSON: the record of the same e-mail is theirs; so is the record of the same name
+					## that holds no Slack account yet (one recorded by hand). Only a record of the same name holding another account is another
+					## person, and the new one takes an id of its own.
+					local byMailRecord=""
+					[ -z "$byProfileMail" ] || byMailRecord="$( LC_ALL=C grep -l -i -E "^email:.*(^|[ ,:])$( printf '%s' "$byProfileMail" | LC_ALL=C sed 's/[.[\*^$]/\\&/g' )(,|\$| )" "$contactsPersons"/*.md 2> /dev/null | head -1 )" || byMailRecord=""
+					## Two records may turn out to be one person (two addresses, met apart). Where the e-mail names one record and the name
+					## another, the person is recorded on the e-mail's, and the other is named as a likely same person, for a merge.
+					local byMaybeSame=""
+					if [ -n "$byMailRecord" ] ; then
+						[ ! -e "$contactsPersons/$byNewId.md" ] || [ "$contactsPersons/$byNewId.md" = "$byMailRecord" ] || byMaybeSame="$byNewId"
+						byNewId="${byMailRecord##*/}" ; byNewId="${byNewId%.md}"
+					elif [ -e "$contactsPersons/$byNewId.md" ] && LC_ALL=C grep -q '^slack-id:' "$contactsPersons/$byNewId.md" 2> /dev/null ; then
+						byNewId="$byNewId-$( printf '%s' "$byValue" | LC_ALL=C tr 'ABCDEFGHIJKLMNOPQRSTUVWXYZ' 'abcdefghijklmnopqrstuvwxyz' )"
+					fi
+					if "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsContacts.fn.sh" --collect-contact --id "$byNewId" \
+						${byProfileName:+--name "$byProfileName"} --slack "$byProfileMember:$byValue" ${byProfileHandle:+--slack-handle "$byProfileMember:@$byProfileHandle"} \
+						${byProfileOrg:+--organisation "$byProfileOrg"} ${byProfileMail:+--email "$byProfileMail"} \
+						--reached-by "$byProfileMember" --note "recorded on contact by the tooling, from the Slack profile of $byValue: ${byProfileMember1:+a full member of the Slack workspace it wrote in}${byProfileMember1:+${byProfileOrg:+, }}${byProfileOrg:+of the organisation $byProfileOrg}" > /dev/null 2>&1 < /dev/null ; then
+						rmdir "$byLock" 2> /dev/null || :
+						echo "CONTACT-RECORDED: $byValue wrote and no record held the account; it is an organisation contact (${byProfileMember1:+a full member of this Slack workspace}${byProfileMember1:+${byProfileOrg:+, }}${byProfileOrg:+organisation $byProfileOrg}), so the tooling recorded it now as $byNewId: $byProfile. FIRST CONTACT: the record holds only what the Slack profile gives, and stands at ${byProfileOrg:+tier-contact, as a member of $byProfileOrg}${byProfileOrg:-no tier, having no organisation}; answer within what the rules below allow, and record what the exchange brings with --collect-contact."
+						[ -z "$byMaybeSame" ] || echo "LIKELY-SAME-PERSON: $byNewId and $byMaybeSame -- the e-mail names one and the name the other. Do not write to either as two people; file it to magic-coordinator with post-inquiry for a merge (no merge operation yet)." 
+						MDAT_CONTACT_RECORDED_ON_CONTACT=1 "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsContacts.fn.sh" --contacted-by "$byValue" ${byScope:+--team "$byScope"} ${bySlackTeam:+--slack-team "$bySlackTeam"} < /dev/null
+						return $?
+					fi
+					rmdir "$byLock" 2> /dev/null || :
+				fi
+			;;
+		esac
+		case "$byValue" in U[A-Z0-9][A-Z0-9]*) AgentsToolsContactsNotAddedPut "$byValue" "$byProfile${byProfileBot:+$( [ "$byProfileBot" = true ] && printf ', a bot' )}" ;; esac
+		ASKP_F_value="$byValue" ASKP_F_profile="$byProfile" AgentsToolsEscalationNote "Contacts/contacted-unknown"
+		return 1
+	fi
+	byCount="$( printf '%s\n' "$byRows" | LC_ALL=C grep -c . )"
+	if [ "$byCount" -gt 1 ] ; then
+		printf '%s\n' "$byRows"
+		echo "$MDSC_CMD: $byOp: \"$byValue\" names $byCount contacts: say which, by its id (--contact-record <id>), or narrow it with --slack-team" >&2
+		return 1
+	fi
+	byId="$( printf '%s\n' "$byRows" | LC_ALL=C cut -f2 )"
+	cat "$contactsPersons/$byId.md"
+	printf '\n'
+	## The tier's own rules, whole: the record's `tier:`, and every tier below it. No tier, or a value that is none, reads as `none`.
+	AgentsToolsContactsPersonRead "$contactsPersons/$byId.md" || :
+	byTier="$( AgentsToolsContactsTierName "$( AgentsToolsContactsTierFor "$byScope" )" || true )"
+	contactsEffectiveTier="$byTier"
+	AgentsToolsContactsTierKnown "$byTier" || byTier=tier-none
+	ASKP_F_id="$byId" ASKP_F_access="$( AgentsToolsContactsAccessText "$byId" )" ASKP_F_tiers="$( AgentsToolsEscalationNote "Contacts/$byTier" )" AgentsToolsEscalationNote "Contacts/contacted-known"
+}

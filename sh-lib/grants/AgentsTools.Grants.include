@@ -214,7 +214,7 @@ AgentsToolsGrantsIndexText(){ ## workspace
 ## its mode set on it (AgentsToolsRegistryWrite, AgentsTools.Registries.include). On a
 ## failure the old index stays, rc 1.
 AgentsToolsGrantsIndexWrite(){ ## workspace
-	local writeFile="${1%/}/.local/agents/grants.index" writeTemp
+	local writeFile="${1%/}/.local/agents/grants.index" writeTemp writeSliceDir writeSliceNew
 	## One index per member set root, so callers under different roots never rebuild each other's: the workspace's own root keeps the plain name.
 	AgentsToolsGrantsSkillsetRoot "$1"
 	[ "$agentsGrantsSkillsetRoot" = "${1%/}/.local/agents/members" ] || writeFile="$writeFile.${agentsGrantsSkillsetRoot//[!A-Za-z0-9._-]/_}"
@@ -224,7 +224,36 @@ AgentsToolsGrantsIndexWrite(){ ## workspace
 		echo "⛔ ERROR: grants: the grants index generator failed -- $writeFile left unchanged" >&2
 		return 1
 	fi
-	chmod 644 "$writeTemp" && mv -f -- "$writeTemp" "$writeFile" || { rm -f -- "$writeTemp" ; return 1 ; }
+	writeSliceDir="$writeFile.by-member"
+	writeSliceNew="$( mktemp -d "$writeSliceDir.new.XXXXXX" )" || writeSliceNew=""
+	[ -n "$writeSliceNew" ] || { rm -f -- "$writeTemp" ; return 1 ; }
+	## One slice per member, the `*` rows then that member's own, in the index's own row order:
+	## the rows AgentsToolsGrantsCommonCheckRows keeps. Two awk passes over the index -- the
+	## first collects the member names, the second writes the rows -- never a bash loop. The
+	## new folder is swapped into place before the index is renamed, so a slice is never newer
+	## than its index.
+	if ! ( umask 022 ; writeSliceNew="$writeSliceNew" LC_ALL=C awk -F'\t' '
+		BEGIN { writeSlicePass = 1 ; writeSliceMemberCount = 0 ; writeSliceOutDir = ENVIRON["writeSliceNew"] }
+		FNR == 1 && NR > 1 { writeSlicePass = 2 ; next }
+		writeSlicePass == 1 {
+			if ( FNR > 1 && $1 != "*" && $1 != "end" && ! ( $1 in writeSliceSeen ) ) { writeSliceSeen[$1] = 1 ; writeSliceMember[++writeSliceMemberCount] = $1 }
+			next
+		}
+		{
+			if ( $1 == "end" ) next
+			if ( $1 == "*" ) { for ( writeSliceI = 1 ; writeSliceI <= writeSliceMemberCount ; writeSliceI++ ) print $0 >> ( writeSliceOutDir "/" writeSliceMember[writeSliceI] ) ; next }
+			print $0 >> ( writeSliceOutDir "/" $1 )
+		}
+	' "$writeTemp" "$writeTemp" ) ; then
+		rm -rf -- "$writeSliceNew" "$writeTemp"
+		return 1
+	fi
+	chmod 755 "$writeSliceNew" || { rm -rf -- "$writeSliceNew" "$writeTemp" ; return 1 ; }
+	chmod 644 "$writeTemp" || { rm -rf -- "$writeSliceNew" "$writeTemp" ; return 1 ; }
+	[ ! -e "$writeSliceDir" ] || rm -rf -- "$writeSliceDir"
+	[ ! -e "$writeSliceDir" ] || { rm -rf -- "$writeSliceNew" "$writeTemp" ; return 1 ; }
+	mv -f -- "$writeSliceNew" "$writeSliceDir" || { rm -rf -- "$writeSliceNew" "$writeTemp" ; return 1 ; }
+	mv -f -- "$writeTemp" "$writeFile" || { rm -f -- "$writeTemp" ; return 1 ; }
 }
 
 ## A current index for a reader: agentsGrantsIndexFile names it, or, where .local/agents
@@ -379,6 +408,7 @@ AgentsToolsTestingDirectiveRows(){ ## selected project ids, op name for messages
 AgentsToolsTestingFolders(){ ## workspace root, op name for messages
 	local foldersWs="${1%/}" foldersOp="$2" foldersSelected foldersRows
 	[ -d "$foldersWs/source" ] || return 3
+	type DistroAgentsContext > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.include"
 	DistroAgentsContext --distro-from-source || { echo "⛔ ERROR: $foldersOp: cannot establish an input spec for workspace $foldersWs" >&2 ; return 2 ; }
 	Require ListDistroProjects || :
 	Require ListDistroDeclares || :
@@ -409,37 +439,22 @@ AgentsToolsTestingFolders(){ ## workspace root, op name for messages
 AgentsToolsGrantsDeclaredText(){ ## declaring workspace root, op name for messages
 	local declWs="${1%/}" declOp="$2" declName declSelected="" declSelectStatus=0 declStatus=0 declTrusted=0
 	local declNamespace="" declWorkspace="" declFloor="" declDirectory="" declProject="" declTesting="" declScope declLines declLine declSel declRest
-	local declVerb declPerm declMember declGlob declRoot declOne declTag declTagRoot declPattern declInf declLocal=""
+	local declVerb declPerm declMember declGlob declRoot declOne declTag declTagRoot declPattern declLocal=""
 	declName="${declWs##*/}"
-	## The floor directives of the packages installed under .local/myx, `<package folder> <rest>` as the cut prints them: read through the .local declares index
-	## (system-index/distro-declares.txt, one `<project id> <declare>` row each), never by globbing the project.inf files. An installed package with no index to
-	## read is a fault, said, and no row may be dropped on its strength.
-	declInf="$declWs/.local/system-index/distro-declares.txt"
-	## The index is a cache, and nothing refreshed it when a package's project.inf changed: the grants were built
-	## from rows that package had already left, and the build said nothing. It says so now, naming the step that
-	## refreshes the index, so a grant declared today is never lost without a word.
-	case "$declOp" in
-		*--make-harness-indices|*--make-agents-indices)
-			for declOne in "$declWs"/.local/myx/*/project.inf ; do
-				[ -f "$declOne" ] && [ -f "$declInf" ] && [ "$declOne" -nt "$declInf" ] || continue
-				echo "🙋 WARNING: $declOp: ${declOne#"$declWs"/.local/myx/} is newer than $declInf, so the grants are built from the declares that package had before that change, and what it declares now is missing. Refresh the index with DistroSourcePrepare --ingest-distro-index-from-source" >&2
-			done
-		;;
-	esac
-	if [ -f "$declInf" ] ; then
-		declLocal="$( LC_ALL=C awk -v pkg="$declWs/.local/myx/" '{ t = $2 ; if ( sub( /^--magic-team:permissions:workspace:/, "", t ) ) { n = split( $1, id, "/" ) ; print pkg id[n] " " t ; } }' "$declInf" )" \
-			|| { echo "⛔ ERROR: $declOp: COULD-NOT-CHECK declared grants: cannot read $declInf" >&2 ; return 2 ; }
+	## The floor directives of the packages installed under .local/myx, `<package folder> <rest>`: read through the distro door
+	## (AgentsDistroDeclaresCut), never from the distro tooling's index or project.inf, which are the tooling's own. A read that
+	## fails is a fault, said, and no row may be dropped on its strength.
+	if AgentsToolsGrantsHoldsDir "$declWs/.local/myx" ; then
+		type AgentsDistroDeclaresCut > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/distro/AgentsTools.DistroDoor.include"
+		declLocal="$( AgentsDistroDeclaresCut "$declWs" '--magic-team:permissions:workspace' )" \
+			|| { echo "⛔ ERROR: $declOp: COULD-NOT-CHECK declared grants: the distro tooling could not list the declares of $declWs" >&2 ; return 2 ; }
+		declLocal="$( printf '%s\n' "$declLocal" | LC_ALL=C awk -v pkg="$declWs/.local/myx/" 'NF { n = split( $1, id, "/" ) ; print pkg id[n] " " $2 }' )"
 		[ -z "$declLocal" ] || declLocal="$declLocal"$'\n'
-	elif AgentsToolsGrantsHoldsDir "$declWs/.local/myx" ; then
-		## A PACKAGE IS A DIRECTORY: `.local/myx` holding only a `MAGIC.md`, a note or a temporary file has no package whose
-		## declares a missing index could hide, so it is not the fault the row below reports (owner 2026-10-30: a test scratch
-		## carrying that one file stopped `--make-harness-indices`).
-		echo "⛔ ERROR: $declOp: COULD-NOT-CHECK declared grants: packages are installed under $declWs/.local/myx but $declInf is not there to read" >&2
-		return 2
 	fi
 	if [ -d "$declWs/source" ] ; then
 		## Source, never --distro-path-auto: the grants are read off project.inf as it stands, and
 		## a prepared or output cache that lags source drops real declarations a rewrite would drop.
+		type DistroAgentsContext > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.include"
 		DistroAgentsContext --distro-from-source || {
 			echo "⛔ ERROR: $declOp: cannot establish an input spec for workspace $declWs" >&2
 			return 2
@@ -551,6 +566,7 @@ AgentsToolsGrantsDeclaredText(){ ## declaring workspace root, op name for messag
 						elif [ "$declSel" != "*" ] && [ "$declPattern" = 0 ] ; then declTag=explicit
 						else declTag=wildcard
 						fi
+						type AgentsToolsClientAccessWidenGrantRoot > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/client/AgentsTools.ClientAccessRoots.include"
 						declTagRoot="$( AgentsToolsClientAccessWidenGrantRoot "$declPerm(/$declRoot/$declGlob)" )"
 						[ -z "$declTagRoot" ] || printf 'tag\t%s:%s:%s:%s\n' "$declMember" "$declName" "$declTag" "$declTagRoot"
 					done <<< "$(
@@ -606,7 +622,7 @@ AgentsToolsGrantsRegistryWrite(){ ## workspace, op name for messages
 	regWs="$( cd "${1%/}" 2> /dev/null && pwd )" || { echo "⛔ ERROR: $regOp: workspace not found: $1" >&2 ; return 1 ; }
 	regName="${regWs##*/}"
 	type LocalToolsPlacesMergedText > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/places/LocalTools.Places.include" || return 1
-	type AgentsToolsTeamGrantRows > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamRegistry.include" || return 1
+	type AgentsToolsTeamGrantPointerUpsert > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamRegistry.include" || return 1
 	type AgentsToolsClientAccessRootsMembers > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/client/AgentsTools.ClientAccessRoots.include" || return 1
 	type AgentsToolsWorkspaceSwitch > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWorkspace.include" || return 1
 	agentsGrantsPlaces="$( LocalToolsPlacesMergedText "$regWs" quiet )"
@@ -670,7 +686,7 @@ AgentsToolsGrantsRegistryWrite(){ ## workspace, op name for messages
 		return 1
 	fi
 	AgentsToolsTeamGrantPointerUpsert "$regWs" || {
-		echo "⛔ ERROR: $regOp: could not record $regWs in $( AgentsToolsTeamSharedGrants )" >&2
+		echo "⛔ ERROR: $regOp: could not record $regWs in ${HOME:-}/.agents/magic-team/permissions.registry" >&2
 		return 1
 	}
 	echo "# $regOp: wrote $regFile ($( printf '%s\n' "$regRows" | LC_ALL=C awk 'NF && !seenRow[$0]++' | LC_ALL=C grep -c . ) rows)" >&2
@@ -734,7 +750,7 @@ AgentsToolsGrantsRunSeats(){ ## workspace, session id
 	## The runs it spawned: each of their records names this run as its parent. From the parent's
 	## children list where the lists are marked complete, else one grep over all the records
 	## (AgentsToolsSpawnedChildRecords): this runs on every gate call, so it never forks once per record.
-	type AgentsToolsSpawnedChildRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include" 2> /dev/null || :
+	type AgentsToolsSpawnedChildRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.StartedRecords.include"
 	while IFS= read -r seatsRecord ; do
 		[ -f "$seatsRecord" ] || continue
 		seatsReviewId="${seatsRecord##*/}" ; seatsReviewId="${seatsReviewId%.spawn.md}"
@@ -851,7 +867,7 @@ AgentsToolsGrantsItemRuns(){ ## workspace, session id, member
 	## on a gate call. The session that one of these runs started is in the list too: its id is that run's.
 	runsCow="$( LC_ALL=C awk '$0 == "---" { if ( ++fence > 1 ) exit ; next } fence == 1 && index( $0, "session-id: " ) == 1 { print substr( $0, 13 ) ; exit }' "$runsRecord" 2> /dev/null )" || runsCow=""
 	case "$runsCow" in ''|*/*|.|..) return 1 ;; esac
-	type AgentsToolsSpawnedSessionRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include" 2> /dev/null || :
+	type AgentsToolsSpawnedSessionRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.StartedRecords.include"
 	while IFS= read -r runsCandidate ; do
 		[ -n "$runsCandidate" ] && [ -f "$runsCandidate" ] || continue
 		runsFiles+=( "$runsCandidate" )
@@ -1146,9 +1162,14 @@ AgentsToolsGrantsJoinedAdd(){ ## joined store, joining store
 
 ## One file-tool call decided by the two files: the grants index, then the session's own.
 AgentsToolsGrantsSessionCheck(){ ## tool, resolved path, own session store
-	local commonRc=0
+	local commonRc=0 commonSlice=""
 	if [ -n "${agentsGrantsIndexFile:-}" ] && [ -f "$agentsGrantsIndexFile" ] ; then
-		AgentsToolsGrantsCommonCheckRows "$1" "$2" "${agentsGrantsCheckMember:-}" < "$agentsGrantsIndexFile" || commonRc=$?
+		commonSlice="$agentsGrantsIndexFile.by-member/${agentsGrantsCheckMember:-}"
+		if [ -f "$commonSlice" ] && [ ! "$agentsGrantsIndexFile" -nt "$commonSlice" ] ; then
+			AgentsToolsGrantsCommonCheckRows "$1" "$2" "${agentsGrantsCheckMember:-}" < "$commonSlice" || commonRc=$?
+		else
+			AgentsToolsGrantsCommonCheckRows "$1" "$2" "${agentsGrantsCheckMember:-}" < "$agentsGrantsIndexFile" || commonRc=$?
+		fi
 	else
 		AgentsToolsGrantsCommonCheckRows "$1" "$2" "${agentsGrantsCheckMember:-}" <<< "${agentsGrantsIndexText:-}" || commonRc=$?
 	fi

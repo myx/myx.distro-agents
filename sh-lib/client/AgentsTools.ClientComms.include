@@ -15,7 +15,7 @@ AgentsToolsClientCommsSnapshotBeforeWrite(){ ## actingMember, writeOp, system, r
 	local snapTime snapName snapBody snapRc=0 snapTmp
 	snapTime="$( date -u +%Y%m%dT%H%M%SZ )"
 	snapName="snapshot-$snapTime-$snapSystem-$snapResourceType-$snapResourceId.md"
-	type AgentsToolsAtlassianJiraIssueRead > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.InternOpAtlassianCall.include"
+	type AgentsToolsAtlassianJiraIssueRead > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/atlassian/AgentsTools.JiraReads.include"
 	snapBody="$( "$@" --context "$snapWriteOp-snapshot" 2>/dev/null )" || snapRc=$?
 	if [ "$snapRc" -ne 0 ] ; then
 		printf '%s\n' "⛔ ERROR: $MDSC_CMD --$snapWriteOp: could not read the current $snapResourceType to snapshot it -- refusing the write" >&2
@@ -38,7 +38,7 @@ AgentsToolsClientCommsSnapshotBeforeWrite(){ ## actingMember, writeOp, system, r
 		"write-op: $snapWriteOp"$'\n' \
 		"captured-by: $snapMember"$'\n' \
 		"captured-at: $snapTime"$'\n' > "$snapSlotsFile" || { rm -f "$snapTmp" "$snapSlotsFile" ; return 1 ; }
-	VDS_SLOTS="$snapSlotsFile" AgentsToolsToolingTemplateFill "audit-item.snapshot.document.format.md" team-data/AgentsVaultAuditDocumentFill.awk > "$snapTmp" || {
+	VDS_SLOTS="$snapSlotsFile" AgentsToolsToolingTemplateFill "audit-item.snapshot.document.format.md" vault/AgentsVaultAuditDocumentFill.awk > "$snapTmp" || {
 		rm -f "$snapTmp" "$snapSlotsFile"
 		printf '%s\n' "⛔ ERROR: $MDSC_CMD --$snapWriteOp: the snapshot frontmatter could not be filled -- refusing the write" >&2
 		return 1
@@ -56,657 +56,152 @@ AgentsToolsClientCommsSnapshotBeforeWrite(){ ## actingMember, writeOp, system, r
 	return 0
 }
 
-type AgentsToolsItemUpsert > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.InternOpItem.include"
+type AgentsToolsItemUpsert > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/items/AgentsTools.InternOpItem.include"
 
 case "$1" in
 
-	--client-comms-jira-board-list)
+	## The 21 Jira and Confluence client-comms stubs, one branch. A bash 3.2
+	## case pattern cannot take its alternatives from a variable, so the names
+	## sit literally here; the inner case sets each op's own values, and one
+	## common body validates and builds the arguments, then reaches the Atlassian
+	## layer once (the intern call, or its helper for the two read ops). Error
+	## messages stay byte for byte as they were, their per-op parts set above.
+	--client-comms-jira-board-list|--client-comms-jira-board-read|--client-comms-jira-board-issue-search|--client-comms-jira-sprint-list|--client-comms-jira-sprint-issue-search|--client-comms-jira-issue-search|--client-comms-jira-issue-read|--client-comms-jira-comment-read|--client-comms-jira-issue-create|--client-comms-jira-issue-update|--client-comms-jira-issue-transition|--client-comms-jira-comment-add|--client-comms-jira-issue-delete|--client-comms-confluence-space-list|--client-comms-confluence-page-read|--client-comms-confluence-page-search|--client-comms-confluence-comment-read|--client-comms-confluence-page-create|--client-comms-confluence-page-update|--client-comms-confluence-comment-add|--client-comms-confluence-page-delete)
+		local fwdOp="${1#--}" fwdShort="${1#--client-comms-}" fwdSecondFlag="" fwdSecondLabel="" fwdRestKind="" fwdStubValues="" fwdStubNoValues="" fwdMemberVerb="" fwdMemberSystem="" fwdHelper="" fwdSnapSystem="" fwdSnapResourceType="" fwdSnapReadHelper="" fwdSnapRaw=""
 		shift
+		case "$fwdShort" in
+			jira-board-list) fwdRestKind=startAt ; fwdMemberVerb=reads ; fwdMemberSystem=Jira ;;
+			jira-board-read) fwdSecondFlag=--board-id ; fwdSecondLabel='<board-id>' ; fwdRestKind=none ; fwdMemberVerb=reads ; fwdMemberSystem=Jira ;;
+			jira-board-issue-search) fwdSecondFlag=--board-id ; fwdSecondLabel='<board-id>' ; fwdRestKind=startAt ; fwdMemberVerb=reads ; fwdMemberSystem=Jira ;;
+			jira-sprint-list) fwdSecondFlag=--board-id ; fwdSecondLabel='<board-id>' ; fwdRestKind=startAt ; fwdMemberVerb=reads ; fwdMemberSystem=Jira ;;
+			jira-sprint-issue-search) fwdSecondFlag=--sprint-id ; fwdSecondLabel='<sprint-id>' ; fwdRestKind=startAt ; fwdMemberVerb=reads ; fwdMemberSystem=Jira ;;
+			jira-issue-search) fwdSecondFlag=--jql ; fwdSecondLabel='<jql>' ; fwdRestKind=limit ; fwdMemberVerb=reads ; fwdMemberSystem=Jira ;;
+			jira-issue-read) fwdSecondFlag=--issue-key ; fwdSecondLabel='<issue-key>' ; fwdRestKind=format ; fwdMemberVerb=reads ; fwdMemberSystem=Jira ; fwdHelper=AgentsToolsAtlassianJiraIssueRead ;;
+			jira-comment-read) fwdSecondFlag=--issue-key ; fwdSecondLabel='<issue-key>' ; fwdRestKind=commentRead ; fwdMemberVerb=reads ; fwdMemberSystem=Jira ;;
+			jira-issue-create) fwdRestKind=stub ; fwdStubValues='--project --issuetype --summary --description-adf --description-adf-from-file --fields-json' ; fwdStubNoValues='--description-adf-from-stdin' ; fwdMemberVerb='writes to' ; fwdMemberSystem=Jira ;;
+			jira-issue-update) fwdSecondFlag=--issue-key ; fwdSecondLabel='<issue-key>' ; fwdRestKind=stub ; fwdStubValues='--fields-json --update-json' ; fwdStubNoValues='--notify-users' ; fwdMemberVerb='writes to' ; fwdMemberSystem=Jira ; fwdSnapSystem=jira ; fwdSnapResourceType=issue ; fwdSnapReadHelper=AgentsToolsAtlassianJiraIssueRead ; fwdSnapRaw='--format raw' ;;
+			jira-issue-transition) fwdSecondFlag=--issue-key ; fwdSecondLabel='<issue-key>' ; fwdRestKind=stub ; fwdStubValues='--to-status --fields-json --comment-adf --comment-adf-from-file' ; fwdStubNoValues='--comment-adf-from-stdin' ; fwdMemberVerb='writes to' ; fwdMemberSystem=Jira ; fwdSnapSystem=jira ; fwdSnapResourceType=issue ; fwdSnapReadHelper=AgentsToolsAtlassianJiraIssueRead ; fwdSnapRaw='--format raw' ;;
+			jira-comment-add) fwdSecondFlag=--issue-key ; fwdSecondLabel='<issue-key>' ; fwdRestKind=stub ; fwdStubValues='--body-adf --body-adf-from-file' ; fwdStubNoValues='--body-adf-from-stdin' ; fwdMemberVerb='writes to' ; fwdMemberSystem=Jira ;;
+			jira-issue-delete) fwdSecondFlag=--issue-key ; fwdSecondLabel='<issue-key>' ; fwdRestKind=none ; fwdMemberVerb='writes to' ; fwdMemberSystem=Jira ; fwdSnapSystem=jira ; fwdSnapResourceType=issue ; fwdSnapReadHelper=AgentsToolsAtlassianJiraIssueRead ; fwdSnapRaw='--format raw' ;;
+			confluence-space-list) fwdRestKind=cursor ; fwdMemberVerb=reads ; fwdMemberSystem=Confluence ;;
+			confluence-page-read) fwdSecondFlag=--page-id ; fwdSecondLabel='<page-id>' ; fwdRestKind=pageRead ; fwdMemberVerb=reads ; fwdMemberSystem=Confluence ; fwdHelper=AgentsToolsAtlassianConfluencePageRead ;;
+			confluence-page-search) fwdSecondFlag=--cql ; fwdSecondLabel='<cql>' ; fwdRestKind=limit ; fwdMemberVerb=reads ; fwdMemberSystem=Confluence ;;
+			confluence-comment-read) fwdSecondFlag=--page-id ; fwdSecondLabel='<page-id>' ; fwdRestKind=none ; fwdMemberVerb=reads ; fwdMemberSystem=Confluence ;;
+			confluence-page-create) fwdRestKind=stub ; fwdStubValues='--space --space-id --title --parent-id --body-storage --body-storage-from-file' ; fwdStubNoValues='--body-storage-from-stdin' ; fwdMemberVerb='writes to' ; fwdMemberSystem=Confluence ;;
+			confluence-page-update) fwdSecondFlag=--page-id ; fwdSecondLabel='<page-id>' ; fwdRestKind=stub ; fwdStubValues='--version --title --status --space-id --body-storage --body-storage-from-file' ; fwdStubNoValues='--body-storage-from-stdin' ; fwdMemberVerb='writes to' ; fwdMemberSystem=Confluence ; fwdSnapSystem=confluence ; fwdSnapResourceType=page ; fwdSnapReadHelper=AgentsToolsAtlassianConfluencePageRead ;;
+			confluence-comment-add) fwdSecondFlag=--page-id ; fwdSecondLabel='<page-id>' ; fwdRestKind=stub ; fwdStubValues='--body-storage --body-storage-from-file --parent-comment-id' ; fwdStubNoValues='--body-storage-from-stdin' ; fwdMemberVerb='writes to' ; fwdMemberSystem=Confluence ;;
+			confluence-page-delete) fwdSecondFlag=--page-id ; fwdSecondLabel='<page-id>' ; fwdRestKind=none ; fwdMemberVerb='writes to' ; fwdMemberSystem=Confluence ; fwdSnapSystem=confluence ; fwdSnapResourceType=page ; fwdSnapReadHelper=AgentsToolsAtlassianConfluencePageRead ;;
+		esac
 		local actingMember="${1:-}"
-		shift || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --client-comms-jira-board-list: <team-member> missing" >&2 ; set +e ; return 1 ; }
-		[ -n "$actingMember" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --client-comms-jira-board-list: <team-member> missing" >&2 ; set +e ; return 1 ; }
-		case "$#:${1:-}" in
-			0:|2:--start-at) ;;
-			*) printf '%s\n' "⛔ ERROR: $MDSC_CMD --client-comms-jira-board-list: not accepted: $actingMember $*" >&2 ; set +e ; return 1 ;;
-		esac
-		AgentsToolsAssertBareName "$actingMember" "<team-member>" client-comms-jira-board-list || { set +e ; return 1 ; }
-		case "$actingMember" in
-			client-*) ;;
-			*)
-				printf '%s\n' "⛔ ERROR: $MDSC_CMD --client-comms-jira-board-list: runs only as a client-* member, and $actingMember is not one -- this family reads an external organisation's own Jira under that member's own credential" >&2
-				set +e ; return 1
-			;;
-		esac
-		local opRc=0
-		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
-		DistroAgentsTools --intern-op-atlassian-jira-board-list --member "$actingMember" --context client-comms-jira-board-list "$@" || opRc=$?
-		if [ "$opRc" -ne 0 ] ; then set +e ; return "$opRc" ; fi
-		return 0
-	;;
-
-	--client-comms-jira-board-read)
-		shift
-		local actingMember="${1:-}" boardId="${2:-}"
-		shift || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --client-comms-jira-board-read: <team-member> missing" >&2 ; set +e ; return 1 ; }
-		[ -n "$actingMember" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --client-comms-jira-board-read: <team-member> missing" >&2 ; set +e ; return 1 ; }
-		shift || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --client-comms-jira-board-read: <board-id> missing" >&2 ; set +e ; return 1 ; }
-		[ -n "$boardId" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --client-comms-jira-board-read: <board-id> missing" >&2 ; set +e ; return 1 ; }
-		case "$#:${1:-}" in
-			0:) ;;
-			*) printf '%s\n' "⛔ ERROR: $MDSC_CMD --client-comms-jira-board-read: not accepted: $actingMember $boardId $*" >&2 ; set +e ; return 1 ;;
-		esac
-		AgentsToolsAssertBareName "$actingMember" "<team-member>" client-comms-jira-board-read || { set +e ; return 1 ; }
-		case "$actingMember" in
-			client-*) ;;
-			*)
-				printf '%s\n' "⛔ ERROR: $MDSC_CMD --client-comms-jira-board-read: runs only as a client-* member, and $actingMember is not one -- this family reads an external organisation's own Jira under that member's own credential" >&2
-				set +e ; return 1
-			;;
-		esac
-		local opRc=0
-		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
-		DistroAgentsTools --intern-op-atlassian-jira-board-read --member "$actingMember" --context client-comms-jira-board-read --board-id "$boardId" || opRc=$?
-		if [ "$opRc" -ne 0 ] ; then set +e ; return "$opRc" ; fi
-		return 0
-	;;
-
-	--client-comms-jira-board-issue-search)
-		shift
-		local actingMember="${1:-}" boardId="${2:-}"
-		shift || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --client-comms-jira-board-issue-search: <team-member> missing" >&2 ; set +e ; return 1 ; }
-		[ -n "$actingMember" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --client-comms-jira-board-issue-search: <team-member> missing" >&2 ; set +e ; return 1 ; }
-		shift || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --client-comms-jira-board-issue-search: <board-id> missing" >&2 ; set +e ; return 1 ; }
-		[ -n "$boardId" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --client-comms-jira-board-issue-search: <board-id> missing" >&2 ; set +e ; return 1 ; }
-		case "$#:${1:-}" in
-			0:|2:--start-at) ;;
-			*) printf '%s\n' "⛔ ERROR: $MDSC_CMD --client-comms-jira-board-issue-search: not accepted: $actingMember $boardId $*" >&2 ; set +e ; return 1 ;;
-		esac
-		AgentsToolsAssertBareName "$actingMember" "<team-member>" client-comms-jira-board-issue-search || { set +e ; return 1 ; }
-		case "$actingMember" in
-			client-*) ;;
-			*)
-				printf '%s\n' "⛔ ERROR: $MDSC_CMD --client-comms-jira-board-issue-search: runs only as a client-* member, and $actingMember is not one -- this family reads an external organisation's own Jira under that member's own credential" >&2
-				set +e ; return 1
-			;;
-		esac
-		local opRc=0
-		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
-		DistroAgentsTools --intern-op-atlassian-jira-board-issue-search --member "$actingMember" --context client-comms-jira-board-issue-search --board-id "$boardId" "$@" || opRc=$?
-		if [ "$opRc" -ne 0 ] ; then set +e ; return "$opRc" ; fi
-		return 0
-	;;
-
-	--client-comms-jira-sprint-list)
-		shift
-		local actingMember="${1:-}" boardId="${2:-}"
-		shift || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --client-comms-jira-sprint-list: <team-member> missing" >&2 ; set +e ; return 1 ; }
-		[ -n "$actingMember" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --client-comms-jira-sprint-list: <team-member> missing" >&2 ; set +e ; return 1 ; }
-		shift || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --client-comms-jira-sprint-list: <board-id> missing" >&2 ; set +e ; return 1 ; }
-		[ -n "$boardId" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --client-comms-jira-sprint-list: <board-id> missing" >&2 ; set +e ; return 1 ; }
-		case "$#:${1:-}" in
-			0:|2:--start-at) ;;
-			*) printf '%s\n' "⛔ ERROR: $MDSC_CMD --client-comms-jira-sprint-list: not accepted: $actingMember $boardId $*" >&2 ; set +e ; return 1 ;;
-		esac
-		AgentsToolsAssertBareName "$actingMember" "<team-member>" client-comms-jira-sprint-list || { set +e ; return 1 ; }
-		case "$actingMember" in
-			client-*) ;;
-			*)
-				printf '%s\n' "⛔ ERROR: $MDSC_CMD --client-comms-jira-sprint-list: runs only as a client-* member, and $actingMember is not one -- this family reads an external organisation's own Jira under that member's own credential" >&2
-				set +e ; return 1
-			;;
-		esac
-		local opRc=0
-		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
-		DistroAgentsTools --intern-op-atlassian-jira-sprint-list --member "$actingMember" --context client-comms-jira-sprint-list --board-id "$boardId" "$@" || opRc=$?
-		if [ "$opRc" -ne 0 ] ; then set +e ; return "$opRc" ; fi
-		return 0
-	;;
-
-	--client-comms-jira-sprint-issue-search)
-		shift
-		local actingMember="${1:-}" sprintId="${2:-}"
-		shift || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --client-comms-jira-sprint-issue-search: <team-member> missing" >&2 ; set +e ; return 1 ; }
-		[ -n "$actingMember" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --client-comms-jira-sprint-issue-search: <team-member> missing" >&2 ; set +e ; return 1 ; }
-		shift || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --client-comms-jira-sprint-issue-search: <sprint-id> missing" >&2 ; set +e ; return 1 ; }
-		[ -n "$sprintId" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --client-comms-jira-sprint-issue-search: <sprint-id> missing" >&2 ; set +e ; return 1 ; }
-		case "$#:${1:-}" in
-			0:|2:--start-at) ;;
-			*) printf '%s\n' "⛔ ERROR: $MDSC_CMD --client-comms-jira-sprint-issue-search: not accepted: $actingMember $sprintId $*" >&2 ; set +e ; return 1 ;;
-		esac
-		AgentsToolsAssertBareName "$actingMember" "<team-member>" client-comms-jira-sprint-issue-search || { set +e ; return 1 ; }
-		case "$actingMember" in
-			client-*) ;;
-			*)
-				printf '%s\n' "⛔ ERROR: $MDSC_CMD --client-comms-jira-sprint-issue-search: runs only as a client-* member, and $actingMember is not one -- this family reads an external organisation's own Jira under that member's own credential" >&2
-				set +e ; return 1
-			;;
-		esac
-		local opRc=0
-		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
-		DistroAgentsTools --intern-op-atlassian-jira-sprint-issue-search --member "$actingMember" --context client-comms-jira-sprint-issue-search --sprint-id "$sprintId" "$@" || opRc=$?
-		if [ "$opRc" -ne 0 ] ; then set +e ; return "$opRc" ; fi
-		return 0
-	;;
-
-	--client-comms-jira-issue-search)
-		shift
-		local actingMember="${1:-}" jqlQuery="${2:-}"
-		shift || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --client-comms-jira-issue-search: <team-member> missing" >&2 ; set +e ; return 1 ; }
-		[ -n "$actingMember" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --client-comms-jira-issue-search: <team-member> missing" >&2 ; set +e ; return 1 ; }
-		shift || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --client-comms-jira-issue-search: <jql> missing" >&2 ; set +e ; return 1 ; }
-		[ -n "$jqlQuery" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --client-comms-jira-issue-search: <jql> missing" >&2 ; set +e ; return 1 ; }
-		case "$#:${1:-}" in
-			0:|2:--limit) ;;
-			*) printf '%s\n' "⛔ ERROR: $MDSC_CMD --client-comms-jira-issue-search: not accepted: $actingMember $jqlQuery $*" >&2 ; set +e ; return 1 ;;
-		esac
-		AgentsToolsAssertBareName "$actingMember" "<team-member>" client-comms-jira-issue-search || { set +e ; return 1 ; }
-		case "$actingMember" in
-			client-*) ;;
-			*)
-				printf '%s\n' "⛔ ERROR: $MDSC_CMD --client-comms-jira-issue-search: runs only as a client-* member, and $actingMember is not one -- this family reads an external organisation's own Jira under that member's own credential" >&2
-				set +e ; return 1
-			;;
-		esac
-		local opRc=0
-		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
-		DistroAgentsTools --intern-op-atlassian-jira-issue-search --member "$actingMember" --context client-comms-jira-issue-search --jql "$jqlQuery" "$@" || opRc=$?
-		if [ "$opRc" -ne 0 ] ; then set +e ; return "$opRc" ; fi
-		return 0
-	;;
-
-	--client-comms-jira-issue-read)
-		shift
-		local actingMember="${1:-}" issueKey="${2:-}"
-		shift || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --client-comms-jira-issue-read: <team-member> missing" >&2 ; set +e ; return 1 ; }
-		[ -n "$actingMember" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --client-comms-jira-issue-read: <team-member> missing" >&2 ; set +e ; return 1 ; }
-		shift || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --client-comms-jira-issue-read: <issue-key> missing" >&2 ; set +e ; return 1 ; }
-		[ -n "$issueKey" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --client-comms-jira-issue-read: <issue-key> missing" >&2 ; set +e ; return 1 ; }
-		case "$#:${1:-}" in
-			0:|2:--format) ;;
-			*) printf '%s\n' "⛔ ERROR: $MDSC_CMD --client-comms-jira-issue-read: not accepted: $actingMember $issueKey $*" >&2 ; set +e ; return 1 ;;
-		esac
-		AgentsToolsAssertBareName "$actingMember" "<team-member>" client-comms-jira-issue-read || { set +e ; return 1 ; }
-		case "$actingMember" in
-			client-*) ;;
-			*)
-				printf '%s\n' "⛔ ERROR: $MDSC_CMD --client-comms-jira-issue-read: runs only as a client-* member, and $actingMember is not one -- this family reads an external organisation's own Jira under that member's own credential" >&2
-				set +e ; return 1
-			;;
-		esac
-		local opRc=0
-		type AgentsToolsAtlassianJiraIssueRead > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.InternOpAtlassianCall.include"
-		AgentsToolsAtlassianJiraIssueRead --member "$actingMember" --context client-comms-jira-issue-read --issue-key "$issueKey" "$@" || opRc=$?
-		if [ "$opRc" -ne 0 ] ; then set +e ; return "$opRc" ; fi
-		return 0
-	;;
-
-	--client-comms-jira-comment-read)
-		shift
-		local actingMember="${1:-}" issueKey="${2:-}"
-		shift || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --client-comms-jira-comment-read: <team-member> missing" >&2 ; set +e ; return 1 ; }
-		[ -n "$actingMember" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --client-comms-jira-comment-read: <team-member> missing" >&2 ; set +e ; return 1 ; }
-		shift || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --client-comms-jira-comment-read: <issue-key> missing" >&2 ; set +e ; return 1 ; }
-		[ -n "$issueKey" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --client-comms-jira-comment-read: <issue-key> missing" >&2 ; set +e ; return 1 ; }
-		case "$#:${1:-}:${3:-}" in
-			0::|2:--format:|2:--start-at:|4:--format:--start-at|4:--start-at:--format) ;;
-			*) printf '%s\n' "⛔ ERROR: $MDSC_CMD --client-comms-jira-comment-read: not accepted: $actingMember $issueKey $*" >&2 ; set +e ; return 1 ;;
-		esac
-		AgentsToolsAssertBareName "$actingMember" "<team-member>" client-comms-jira-comment-read || { set +e ; return 1 ; }
-		case "$actingMember" in
-			client-*) ;;
-			*)
-				printf '%s\n' "⛔ ERROR: $MDSC_CMD --client-comms-jira-comment-read: runs only as a client-* member, and $actingMember is not one -- this family reads an external organisation's own Jira under that member's own credential" >&2
-				set +e ; return 1
-			;;
-		esac
-		local opRc=0
-		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
-		DistroAgentsTools --intern-op-atlassian-jira-comment-read --member "$actingMember" --context client-comms-jira-comment-read --issue-key "$issueKey" "$@" || opRc=$?
-		if [ "$opRc" -ne 0 ] ; then set +e ; return "$opRc" ; fi
-		return 0
-	;;
-
-	--client-comms-jira-issue-create)
-		shift
-		local actingMember="${1:-}"
-		shift || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --client-comms-jira-issue-create: <team-member> missing" >&2 ; set +e ; return 1 ; }
-		[ -n "$actingMember" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --client-comms-jira-issue-create: <team-member> missing" >&2 ; set +e ; return 1 ; }
-		AgentsToolsAssertBareName "$actingMember" "<team-member>" client-comms-jira-issue-create || { set +e ; return 1 ; }
-		case "$actingMember" in
-			client-*) ;;
-			*)
-				printf '%s\n' "⛔ ERROR: $MDSC_CMD --client-comms-jira-issue-create: runs only as a client-* member, and $actingMember is not one -- this family writes to an external organisation's own Jira under that member's own credential" >&2
-				set +e ; return 1
-			;;
-		esac
-		local stubArg stubTakesValue=""
-		for stubArg in "$@" ; do
-			if [ -n "$stubTakesValue" ] ; then
-				stubTakesValue=""
-				continue
+		shift || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --$fwdOp: <team-member> missing" >&2 ; set +e ; return 1 ; }
+		[ -n "$actingMember" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --$fwdOp: <team-member> missing" >&2 ; set +e ; return 1 ; }
+		if [ -n "$fwdSecondFlag" ] ; then
+			local fwdSecondValue="${1:-}"
+			shift || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --$fwdOp: $fwdSecondLabel missing" >&2 ; set +e ; return 1 ; }
+			if [ "$fwdRestKind" = stub ] ; then
+				case "$fwdSecondValue" in ''|-*) printf '%s\n' "⛔ ERROR: $MDSC_CMD --$fwdOp: $fwdSecondLabel missing" >&2 ; set +e ; return 1 ;; esac
+			else
+				[ -n "$fwdSecondValue" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --$fwdOp: $fwdSecondLabel missing" >&2 ; set +e ; return 1 ; }
 			fi
-			case "$stubArg" in
-				--project|--issuetype|--summary|--description-adf|--description-adf-from-file|--fields-json) stubTakesValue=yes ;;
-				--description-adf-from-stdin) ;;
+		fi
+		if [ "$fwdRestKind" = stub ] ; then
+			AgentsToolsAssertBareName "$actingMember" "<team-member>" "$fwdOp" || { set +e ; return 1 ; }
+			case "$actingMember" in
+				client-*) ;;
 				*)
-					printf '%s\n' "⛔ ERROR: $MDSC_CMD --client-comms-jira-issue-create: unexpected: $stubArg" >&2
+					printf '%s\n' "⛔ ERROR: $MDSC_CMD --$fwdOp: runs only as a client-* member, and $actingMember is not one -- this family $fwdMemberVerb an external organisation's own $fwdMemberSystem under that member's own credential" >&2
 					set +e ; return 1
 				;;
 			esac
-		done
-		local opRc=0
-		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
-		DistroAgentsTools --intern-op-atlassian-jira-issue-create --member "$actingMember" --context client-comms-jira-issue-create "$@" || opRc=$?
-		if [ "$opRc" -ne 0 ] ; then set +e ; return "$opRc" ; fi
-		return 0
-	;;
-
-	--client-comms-jira-issue-update)
-		shift
-		local actingMember="${1:-}" issueKey="${2:-}"
-		shift || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --client-comms-jira-issue-update: <team-member> missing" >&2 ; set +e ; return 1 ; }
-		[ -n "$actingMember" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --client-comms-jira-issue-update: <team-member> missing" >&2 ; set +e ; return 1 ; }
-		shift || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --client-comms-jira-issue-update: <issue-key> missing" >&2 ; set +e ; return 1 ; }
-		case "$issueKey" in
-			''|-*)
-				printf '%s\n' "⛔ ERROR: $MDSC_CMD --client-comms-jira-issue-update: <issue-key> missing" >&2
+			local fwdStubArg fwdStubTakesValue=""
+			for fwdStubArg in "$@" ; do
+				if [ -n "$fwdStubTakesValue" ] ; then
+					fwdStubTakesValue=""
+					continue
+				fi
+				case " $fwdStubValues " in
+					*" $fwdStubArg "*)
+						fwdStubTakesValue=yes
+						continue
+					;;
+				esac
+				case " $fwdStubNoValues " in
+					*" $fwdStubArg "*) continue ;;
+				esac
+				printf '%s\n' "⛔ ERROR: $MDSC_CMD --$fwdOp: unexpected: $fwdStubArg" >&2
 				set +e ; return 1
-			;;
-		esac
-		AgentsToolsAssertBareName "$actingMember" "<team-member>" client-comms-jira-issue-update || { set +e ; return 1 ; }
-		case "$actingMember" in
-			client-*) ;;
-			*)
-				printf '%s\n' "⛔ ERROR: $MDSC_CMD --client-comms-jira-issue-update: runs only as a client-* member, and $actingMember is not one -- this family writes to an external organisation's own Jira under that member's own credential" >&2
-				set +e ; return 1
-			;;
-		esac
-		local stubArg stubTakesValue=""
-		for stubArg in "$@" ; do
-			if [ -n "$stubTakesValue" ] ; then
-				stubTakesValue=""
-				continue
-			fi
-			case "$stubArg" in
-				--fields-json|--update-json) stubTakesValue=yes ;;
-				--notify-users) ;;
+			done
+		else
+			local fwdNotAcceptedArgs="$actingMember"
+			if [ -n "$fwdSecondFlag" ] ; then fwdNotAcceptedArgs="$actingMember $fwdSecondValue" ; fi
+			case "$fwdRestKind" in
+				none)
+					case "$#:${1:-}" in
+						0:) ;;
+						*) printf '%s\n' "⛔ ERROR: $MDSC_CMD --$fwdOp: not accepted: $fwdNotAcceptedArgs $*" >&2 ; set +e ; return 1 ;;
+					esac
+				;;
+				startAt)
+					case "$#:${1:-}" in
+						0:|2:--start-at) ;;
+						*) printf '%s\n' "⛔ ERROR: $MDSC_CMD --$fwdOp: not accepted: $fwdNotAcceptedArgs $*" >&2 ; set +e ; return 1 ;;
+					esac
+				;;
+				cursor)
+					case "$#:${1:-}" in
+						0:|2:--cursor) ;;
+						*) printf '%s\n' "⛔ ERROR: $MDSC_CMD --$fwdOp: not accepted: $fwdNotAcceptedArgs $*" >&2 ; set +e ; return 1 ;;
+					esac
+				;;
+				limit)
+					case "$#:${1:-}" in
+						0:|2:--limit) ;;
+						*) printf '%s\n' "⛔ ERROR: $MDSC_CMD --$fwdOp: not accepted: $fwdNotAcceptedArgs $*" >&2 ; set +e ; return 1 ;;
+					esac
+				;;
+				format)
+					case "$#:${1:-}" in
+						0:|2:--format) ;;
+						*) printf '%s\n' "⛔ ERROR: $MDSC_CMD --$fwdOp: not accepted: $fwdNotAcceptedArgs $*" >&2 ; set +e ; return 1 ;;
+					esac
+				;;
+				commentRead)
+					case "$#:${1:-}:${3:-}" in
+						0::|2:--format:|2:--start-at:|4:--format:--start-at|4:--start-at:--format) ;;
+						*) printf '%s\n' "⛔ ERROR: $MDSC_CMD --$fwdOp: not accepted: $fwdNotAcceptedArgs $*" >&2 ; set +e ; return 1 ;;
+					esac
+				;;
+				pageRead)
+					case "$#:${1:-}:${3:-}" in
+						0::|2:--format:|2:--version:|4:--format:--version|4:--version:--format) ;;
+						*) printf '%s\n' "⛔ ERROR: $MDSC_CMD --$fwdOp: not accepted: $fwdNotAcceptedArgs $*" >&2 ; set +e ; return 1 ;;
+					esac
+				;;
+			esac
+			AgentsToolsAssertBareName "$actingMember" "<team-member>" "$fwdOp" || { set +e ; return 1 ; }
+			case "$actingMember" in
+				client-*) ;;
 				*)
-					printf '%s\n' "⛔ ERROR: $MDSC_CMD --client-comms-jira-issue-update: unexpected: $stubArg" >&2
+					printf '%s\n' "⛔ ERROR: $MDSC_CMD --$fwdOp: runs only as a client-* member, and $actingMember is not one -- this family $fwdMemberVerb an external organisation's own $fwdMemberSystem under that member's own credential" >&2
 					set +e ; return 1
 				;;
 			esac
-		done
-		AgentsToolsClientCommsSnapshotBeforeWrite "$actingMember" client-comms-jira-issue-update jira issue "$issueKey" \
-			AgentsToolsAtlassianJiraIssueRead --member "$actingMember" --issue-key "$issueKey" --format raw || { set +e ; return 1 ; }
-		local opRc=0
-		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
-		DistroAgentsTools --intern-op-atlassian-jira-issue-update --member "$actingMember" --context client-comms-jira-issue-update --issue-key "$issueKey" "$@" || opRc=$?
-		if [ "$opRc" -ne 0 ] ; then set +e ; return "$opRc" ; fi
-		return 0
-	;;
-
-	--client-comms-jira-issue-transition)
-		shift
-		local actingMember="${1:-}" issueKey="${2:-}"
-		shift || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --client-comms-jira-issue-transition: <team-member> missing" >&2 ; set +e ; return 1 ; }
-		[ -n "$actingMember" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --client-comms-jira-issue-transition: <team-member> missing" >&2 ; set +e ; return 1 ; }
-		shift || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --client-comms-jira-issue-transition: <issue-key> missing" >&2 ; set +e ; return 1 ; }
-		case "$issueKey" in
-			''|-*)
-				printf '%s\n' "⛔ ERROR: $MDSC_CMD --client-comms-jira-issue-transition: <issue-key> missing" >&2
-				set +e ; return 1
-			;;
-		esac
-		AgentsToolsAssertBareName "$actingMember" "<team-member>" client-comms-jira-issue-transition || { set +e ; return 1 ; }
-		case "$actingMember" in
-			client-*) ;;
-			*)
-				printf '%s\n' "⛔ ERROR: $MDSC_CMD --client-comms-jira-issue-transition: runs only as a client-* member, and $actingMember is not one -- this family writes to an external organisation's own Jira under that member's own credential" >&2
-				set +e ; return 1
-			;;
-		esac
-		local stubArg stubTakesValue=""
-		for stubArg in "$@" ; do
-			if [ -n "$stubTakesValue" ] ; then
-				stubTakesValue=""
-				continue
-			fi
-			case "$stubArg" in
-				--to-status|--fields-json|--comment-adf|--comment-adf-from-file) stubTakesValue=yes ;;
-				--comment-adf-from-stdin) ;;
-				*)
-					printf '%s\n' "⛔ ERROR: $MDSC_CMD --client-comms-jira-issue-transition: unexpected: $stubArg" >&2
-					set +e ; return 1
-				;;
-			esac
-		done
-		AgentsToolsClientCommsSnapshotBeforeWrite "$actingMember" client-comms-jira-issue-transition jira issue "$issueKey" \
-			AgentsToolsAtlassianJiraIssueRead --member "$actingMember" --issue-key "$issueKey" --format raw || { set +e ; return 1 ; }
-		local opRc=0
-		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
-		DistroAgentsTools --intern-op-atlassian-jira-issue-transition --member "$actingMember" --context client-comms-jira-issue-transition --issue-key "$issueKey" "$@" || opRc=$?
-		if [ "$opRc" -ne 0 ] ; then set +e ; return "$opRc" ; fi
-		return 0
-	;;
-
-	--client-comms-jira-comment-add)
-		shift
-		local actingMember="${1:-}" issueKey="${2:-}"
-		shift || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --client-comms-jira-comment-add: <team-member> missing" >&2 ; set +e ; return 1 ; }
-		[ -n "$actingMember" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --client-comms-jira-comment-add: <team-member> missing" >&2 ; set +e ; return 1 ; }
-		shift || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --client-comms-jira-comment-add: <issue-key> missing" >&2 ; set +e ; return 1 ; }
-		case "$issueKey" in
-			''|-*)
-				printf '%s\n' "⛔ ERROR: $MDSC_CMD --client-comms-jira-comment-add: <issue-key> missing" >&2
-				set +e ; return 1
-			;;
-		esac
-		AgentsToolsAssertBareName "$actingMember" "<team-member>" client-comms-jira-comment-add || { set +e ; return 1 ; }
-		case "$actingMember" in
-			client-*) ;;
-			*)
-				printf '%s\n' "⛔ ERROR: $MDSC_CMD --client-comms-jira-comment-add: runs only as a client-* member, and $actingMember is not one -- this family writes to an external organisation's own Jira under that member's own credential" >&2
-				set +e ; return 1
-			;;
-		esac
-		local stubArg stubTakesValue=""
-		for stubArg in "$@" ; do
-			if [ -n "$stubTakesValue" ] ; then
-				stubTakesValue=""
-				continue
-			fi
-			case "$stubArg" in
-				--body-adf|--body-adf-from-file) stubTakesValue=yes ;;
-				--body-adf-from-stdin) ;;
-				*)
-					printf '%s\n' "⛔ ERROR: $MDSC_CMD --client-comms-jira-comment-add: unexpected: $stubArg" >&2
-					set +e ; return 1
-				;;
-			esac
-		done
-		local opRc=0
-		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
-		DistroAgentsTools --intern-op-atlassian-jira-comment-add --member "$actingMember" --context client-comms-jira-comment-add --issue-key "$issueKey" "$@" || opRc=$?
-		if [ "$opRc" -ne 0 ] ; then set +e ; return "$opRc" ; fi
-		return 0
-	;;
-
-	--client-comms-jira-issue-delete)
-		shift || :
-		local actingMember="${1:-}" issueKey="${2:-}"
-		shift || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --client-comms-jira-issue-delete: <team-member> missing" >&2 ; set +e ; return 1 ; }
-		[ -n "$actingMember" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --client-comms-jira-issue-delete: <team-member> missing" >&2 ; set +e ; return 1 ; }
-		shift || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --client-comms-jira-issue-delete: <issue-key> missing" >&2 ; set +e ; return 1 ; }
-		[ -n "$issueKey" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --client-comms-jira-issue-delete: <issue-key> missing" >&2 ; set +e ; return 1 ; }
-		case "$#:${1:-}" in
-			0:) ;;
-			*) printf '%s\n' "⛔ ERROR: $MDSC_CMD --client-comms-jira-issue-delete: not accepted: $actingMember $issueKey $*" >&2 ; set +e ; return 1 ;;
-		esac
-		AgentsToolsAssertBareName "$actingMember" "<team-member>" client-comms-jira-issue-delete || { set +e ; return 1 ; }
-		case "$actingMember" in
-			client-*) ;;
-			*)
-				printf '%s\n' "⛔ ERROR: $MDSC_CMD --client-comms-jira-issue-delete: runs only as a client-* member, and $actingMember is not one -- this family writes to an external organisation's own Jira under that member's own credential" >&2
-				set +e ; return 1
-			;;
-		esac
-		AgentsToolsClientCommsSnapshotBeforeWrite "$actingMember" client-comms-jira-issue-delete jira issue "$issueKey" \
-			AgentsToolsAtlassianJiraIssueRead --member "$actingMember" --issue-key "$issueKey" --format raw || { set +e ; return 1 ; }
-		local opRc=0
-		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
-		DistroAgentsTools --intern-op-atlassian-jira-issue-delete --member "$actingMember" --context client-comms-jira-issue-delete --issue-key "$issueKey" || opRc=$?
-		if [ "$opRc" -ne 0 ] ; then set +e ; return "$opRc" ; fi
-		return 0
-	;;
-
-	--client-comms-confluence-space-list)
-		shift
-		local actingMember="${1:-}"
-		shift || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --client-comms-confluence-space-list: <team-member> missing" >&2 ; set +e ; return 1 ; }
-		[ -n "$actingMember" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --client-comms-confluence-space-list: <team-member> missing" >&2 ; set +e ; return 1 ; }
-		case "$#:${1:-}" in
-			0:|2:--cursor) ;;
-			*) printf '%s\n' "⛔ ERROR: $MDSC_CMD --client-comms-confluence-space-list: not accepted: $actingMember $*" >&2 ; set +e ; return 1 ;;
-		esac
-		AgentsToolsAssertBareName "$actingMember" "<team-member>" client-comms-confluence-space-list || { set +e ; return 1 ; }
-		case "$actingMember" in
-			client-*) ;;
-			*)
-				printf '%s\n' "⛔ ERROR: $MDSC_CMD --client-comms-confluence-space-list: runs only as a client-* member, and $actingMember is not one -- this family reads an external organisation's own Confluence under that member's own credential" >&2
-				set +e ; return 1
-			;;
-		esac
-		local opRc=0
-		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
-		DistroAgentsTools --intern-op-atlassian-confluence-space-list --member "$actingMember" --context client-comms-confluence-space-list "$@" || opRc=$?
-		if [ "$opRc" -ne 0 ] ; then set +e ; return "$opRc" ; fi
-		return 0
-	;;
-
-	--client-comms-confluence-page-read)
-		shift
-		local actingMember="${1:-}" pageId="${2:-}"
-		shift || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --client-comms-confluence-page-read: <team-member> missing" >&2 ; set +e ; return 1 ; }
-		[ -n "$actingMember" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --client-comms-confluence-page-read: <team-member> missing" >&2 ; set +e ; return 1 ; }
-		shift || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --client-comms-confluence-page-read: <page-id> missing" >&2 ; set +e ; return 1 ; }
-		[ -n "$pageId" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --client-comms-confluence-page-read: <page-id> missing" >&2 ; set +e ; return 1 ; }
-		case "$#:${1:-}:${3:-}" in
-			0::|2:--format:|2:--version:|4:--format:--version|4:--version:--format) ;;
-			*) printf '%s\n' "⛔ ERROR: $MDSC_CMD --client-comms-confluence-page-read: not accepted: $actingMember $pageId $*" >&2 ; set +e ; return 1 ;;
-		esac
-		AgentsToolsAssertBareName "$actingMember" "<team-member>" client-comms-confluence-page-read || { set +e ; return 1 ; }
-		case "$actingMember" in
-			client-*) ;;
-			*)
-				printf '%s\n' "⛔ ERROR: $MDSC_CMD --client-comms-confluence-page-read: runs only as a client-* member, and $actingMember is not one -- this family reads an external organisation's own Confluence under that member's own credential" >&2
-				set +e ; return 1
-			;;
-		esac
-		local opRc=0
-		type AgentsToolsAtlassianConfluencePageRead > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.InternOpAtlassianCall.include"
-		AgentsToolsAtlassianConfluencePageRead --member "$actingMember" --context client-comms-confluence-page-read --page-id "$pageId" "$@" || opRc=$?
-		if [ "$opRc" -ne 0 ] ; then set +e ; return "$opRc" ; fi
-		return 0
-	;;
-
-	--client-comms-confluence-page-search)
-		shift
-		local actingMember="${1:-}" cqlQuery="${2:-}"
-		shift || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --client-comms-confluence-page-search: <team-member> missing" >&2 ; set +e ; return 1 ; }
-		[ -n "$actingMember" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --client-comms-confluence-page-search: <team-member> missing" >&2 ; set +e ; return 1 ; }
-		shift || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --client-comms-confluence-page-search: <cql> missing" >&2 ; set +e ; return 1 ; }
-		[ -n "$cqlQuery" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --client-comms-confluence-page-search: <cql> missing" >&2 ; set +e ; return 1 ; }
-		case "$#:${1:-}" in
-			0:|2:--limit) ;;
-			*) printf '%s\n' "⛔ ERROR: $MDSC_CMD --client-comms-confluence-page-search: not accepted: $actingMember $cqlQuery $*" >&2 ; set +e ; return 1 ;;
-		esac
-		AgentsToolsAssertBareName "$actingMember" "<team-member>" client-comms-confluence-page-search || { set +e ; return 1 ; }
-		case "$actingMember" in
-			client-*) ;;
-			*)
-				printf '%s\n' "⛔ ERROR: $MDSC_CMD --client-comms-confluence-page-search: runs only as a client-* member, and $actingMember is not one -- this family reads an external organisation's own Confluence under that member's own credential" >&2
-				set +e ; return 1
-			;;
-		esac
-		local opRc=0
-		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
-		DistroAgentsTools --intern-op-atlassian-confluence-page-search --member "$actingMember" --context client-comms-confluence-page-search --cql "$cqlQuery" "$@" || opRc=$?
-		if [ "$opRc" -ne 0 ] ; then set +e ; return "$opRc" ; fi
-		return 0
-	;;
-
-	--client-comms-confluence-comment-read)
-		shift
-		local actingMember="${1:-}" pageId="${2:-}"
-		shift || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --client-comms-confluence-comment-read: <team-member> missing" >&2 ; set +e ; return 1 ; }
-		[ -n "$actingMember" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --client-comms-confluence-comment-read: <team-member> missing" >&2 ; set +e ; return 1 ; }
-		shift || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --client-comms-confluence-comment-read: <page-id> missing" >&2 ; set +e ; return 1 ; }
-		[ -n "$pageId" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --client-comms-confluence-comment-read: <page-id> missing" >&2 ; set +e ; return 1 ; }
-		case "$#:${1:-}" in
-			0:) ;;
-			*) printf '%s\n' "⛔ ERROR: $MDSC_CMD --client-comms-confluence-comment-read: not accepted: $actingMember $pageId $*" >&2 ; set +e ; return 1 ;;
-		esac
-		AgentsToolsAssertBareName "$actingMember" "<team-member>" client-comms-confluence-comment-read || { set +e ; return 1 ; }
-		case "$actingMember" in
-			client-*) ;;
-			*)
-				printf '%s\n' "⛔ ERROR: $MDSC_CMD --client-comms-confluence-comment-read: runs only as a client-* member, and $actingMember is not one -- this family reads an external organisation's own Confluence under that member's own credential" >&2
-				set +e ; return 1
-			;;
-		esac
-		local opRc=0
-		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
-		DistroAgentsTools --intern-op-atlassian-confluence-comment-read --member "$actingMember" --context client-comms-confluence-comment-read --page-id "$pageId" || opRc=$?
-		if [ "$opRc" -ne 0 ] ; then set +e ; return "$opRc" ; fi
-		return 0
-	;;
-
-	--client-comms-confluence-page-create)
-		shift
-		local actingMember="${1:-}"
-		shift || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --client-comms-confluence-page-create: <team-member> missing" >&2 ; set +e ; return 1 ; }
-		[ -n "$actingMember" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --client-comms-confluence-page-create: <team-member> missing" >&2 ; set +e ; return 1 ; }
-		AgentsToolsAssertBareName "$actingMember" "<team-member>" client-comms-confluence-page-create || { set +e ; return 1 ; }
-		case "$actingMember" in
-			client-*) ;;
-			*)
-				printf '%s\n' "⛔ ERROR: $MDSC_CMD --client-comms-confluence-page-create: runs only as a client-* member, and $actingMember is not one -- this family writes to an external organisation's own Confluence under that member's own credential" >&2
-				set +e ; return 1
-			;;
-		esac
-		local stubArg stubTakesValue=""
-		for stubArg in "$@" ; do
-			if [ -n "$stubTakesValue" ] ; then
-				stubTakesValue=""
-				continue
-			fi
-			case "$stubArg" in
-				--space|--space-id|--title|--parent-id|--body-storage|--body-storage-from-file) stubTakesValue=yes ;;
-				--body-storage-from-stdin) ;;
-				*)
-					printf '%s\n' "⛔ ERROR: $MDSC_CMD --client-comms-confluence-page-create: unexpected: $stubArg" >&2
-					set +e ; return 1
-				;;
-			esac
-		done
-		local opRc=0
-		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
-		DistroAgentsTools --intern-op-atlassian-confluence-page-create --member "$actingMember" --context client-comms-confluence-page-create "$@" || opRc=$?
-		if [ "$opRc" -ne 0 ] ; then set +e ; return "$opRc" ; fi
-		return 0
-	;;
-
-	--client-comms-confluence-page-update)
-		shift
-		local actingMember="${1:-}" pageId="${2:-}"
-		shift || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --client-comms-confluence-page-update: <team-member> missing" >&2 ; set +e ; return 1 ; }
-		[ -n "$actingMember" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --client-comms-confluence-page-update: <team-member> missing" >&2 ; set +e ; return 1 ; }
-		shift || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --client-comms-confluence-page-update: <page-id> missing" >&2 ; set +e ; return 1 ; }
-		case "$pageId" in
-			''|-*)
-				printf '%s\n' "⛔ ERROR: $MDSC_CMD --client-comms-confluence-page-update: <page-id> missing" >&2
-				set +e ; return 1
-			;;
-		esac
-		AgentsToolsAssertBareName "$actingMember" "<team-member>" client-comms-confluence-page-update || { set +e ; return 1 ; }
-		case "$actingMember" in
-			client-*) ;;
-			*)
-				printf '%s\n' "⛔ ERROR: $MDSC_CMD --client-comms-confluence-page-update: runs only as a client-* member, and $actingMember is not one -- this family writes to an external organisation's own Confluence under that member's own credential" >&2
-				set +e ; return 1
-			;;
-		esac
-		local stubArg stubTakesValue=""
-		for stubArg in "$@" ; do
-			if [ -n "$stubTakesValue" ] ; then
-				stubTakesValue=""
-				continue
-			fi
-			case "$stubArg" in
-				--version|--title|--status|--space-id|--body-storage|--body-storage-from-file) stubTakesValue=yes ;;
-				--body-storage-from-stdin) ;;
-				*)
-					printf '%s\n' "⛔ ERROR: $MDSC_CMD --client-comms-confluence-page-update: unexpected: $stubArg" >&2
-					set +e ; return 1
-				;;
-			esac
-		done
-		AgentsToolsClientCommsSnapshotBeforeWrite "$actingMember" client-comms-confluence-page-update confluence page "$pageId" \
-			AgentsToolsAtlassianConfluencePageRead --member "$actingMember" --page-id "$pageId" || { set +e ; return 1 ; }
-		local opRc=0
-		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
-		DistroAgentsTools --intern-op-atlassian-confluence-page-update --member "$actingMember" --context client-comms-confluence-page-update --page-id "$pageId" "$@" || opRc=$?
-		if [ "$opRc" -ne 0 ] ; then set +e ; return "$opRc" ; fi
-		return 0
-	;;
-
-	--client-comms-confluence-comment-add)
-		shift
-		local actingMember="${1:-}" pageId="${2:-}"
-		shift || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --client-comms-confluence-comment-add: <team-member> missing" >&2 ; set +e ; return 1 ; }
-		[ -n "$actingMember" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --client-comms-confluence-comment-add: <team-member> missing" >&2 ; set +e ; return 1 ; }
-		shift || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --client-comms-confluence-comment-add: <page-id> missing" >&2 ; set +e ; return 1 ; }
-		case "$pageId" in
-			''|-*)
-				printf '%s\n' "⛔ ERROR: $MDSC_CMD --client-comms-confluence-comment-add: <page-id> missing" >&2
-				set +e ; return 1
-			;;
-		esac
-		AgentsToolsAssertBareName "$actingMember" "<team-member>" client-comms-confluence-comment-add || { set +e ; return 1 ; }
-		case "$actingMember" in
-			client-*) ;;
-			*)
-				printf '%s\n' "⛔ ERROR: $MDSC_CMD --client-comms-confluence-comment-add: runs only as a client-* member, and $actingMember is not one -- this family writes to an external organisation's own Confluence under that member's own credential" >&2
-				set +e ; return 1
-			;;
-		esac
-		local stubArg stubTakesValue=""
-		for stubArg in "$@" ; do
-			if [ -n "$stubTakesValue" ] ; then
-				stubTakesValue=""
-				continue
-			fi
-			case "$stubArg" in
-				--body-storage|--body-storage-from-file|--parent-comment-id) stubTakesValue=yes ;;
-				--body-storage-from-stdin) ;;
-				*)
-					printf '%s\n' "⛔ ERROR: $MDSC_CMD --client-comms-confluence-comment-add: unexpected: $stubArg" >&2
-					set +e ; return 1
-				;;
-			esac
-		done
-		local opRc=0
-		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
-		DistroAgentsTools --intern-op-atlassian-confluence-comment-add --member "$actingMember" --context client-comms-confluence-comment-add --page-id "$pageId" "$@" || opRc=$?
-		if [ "$opRc" -ne 0 ] ; then set +e ; return "$opRc" ; fi
-		return 0
-	;;
-
-	--client-comms-confluence-page-delete)
-		shift || :
-		local actingMember="${1:-}" pageId="${2:-}"
-		shift || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --client-comms-confluence-page-delete: <team-member> missing" >&2 ; set +e ; return 1 ; }
-		[ -n "$actingMember" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --client-comms-confluence-page-delete: <team-member> missing" >&2 ; set +e ; return 1 ; }
-		shift || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --client-comms-confluence-page-delete: <page-id> missing" >&2 ; set +e ; return 1 ; }
-		[ -n "$pageId" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --client-comms-confluence-page-delete: <page-id> missing" >&2 ; set +e ; return 1 ; }
-		case "$#:${1:-}" in
-			0:) ;;
-			*) printf '%s\n' "⛔ ERROR: $MDSC_CMD --client-comms-confluence-page-delete: not accepted: $actingMember $pageId $*" >&2 ; set +e ; return 1 ;;
-		esac
-		AgentsToolsAssertBareName "$actingMember" "<team-member>" client-comms-confluence-page-delete || { set +e ; return 1 ; }
-		case "$actingMember" in
-			client-*) ;;
-			*)
-				printf '%s\n' "⛔ ERROR: $MDSC_CMD --client-comms-confluence-page-delete: runs only as a client-* member, and $actingMember is not one -- this family writes to an external organisation's own Confluence under that member's own credential" >&2
-				set +e ; return 1
-			;;
-		esac
-		AgentsToolsClientCommsSnapshotBeforeWrite "$actingMember" client-comms-confluence-page-delete confluence page "$pageId" \
-			AgentsToolsAtlassianConfluencePageRead --member "$actingMember" --page-id "$pageId" || { set +e ; return 1 ; }
-		local opRc=0
-		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
-		DistroAgentsTools --intern-op-atlassian-confluence-page-delete --member "$actingMember" --context client-comms-confluence-page-delete --page-id "$pageId" || opRc=$?
-		if [ "$opRc" -ne 0 ] ; then set +e ; return "$opRc" ; fi
+		fi
+		if [ -n "$fwdSnapSystem" ] ; then
+			AgentsToolsClientCommsSnapshotBeforeWrite "$actingMember" "$fwdOp" "$fwdSnapSystem" "$fwdSnapResourceType" "$fwdSecondValue" \
+				"$fwdSnapReadHelper" --member "$actingMember" "$fwdSecondFlag" "$fwdSecondValue" $fwdSnapRaw || { set +e ; return 1 ; }
+		fi
+		local fwdInternArgs=( --member "$actingMember" --context "$fwdOp" )
+		if [ -n "$fwdSecondFlag" ] ; then fwdInternArgs+=( "$fwdSecondFlag" "$fwdSecondValue" ) ; fi
+		if [ "$fwdRestKind" != none ] ; then fwdInternArgs+=( "$@" ) ; fi
+		local fwdOpRc=0
+		if [ -n "$fwdHelper" ] ; then
+			type "$fwdHelper" > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/atlassian/AgentsTools.InternOpAtlassianCall.include"
+			"$fwdHelper" "${fwdInternArgs[@]}" || fwdOpRc=$?
+		else
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/atlassian/AgentsTools.InternOpAtlassianCall.include" "--intern-op-atlassian-$fwdShort" "${fwdInternArgs[@]}" || fwdOpRc=$?
+		fi
+		if [ "$fwdOpRc" -ne 0 ] ; then set +e ; return "$fwdOpRc" ; fi
 		return 0
 	;;
 

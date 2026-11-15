@@ -1,3 +1,6 @@
+---
+maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
+---
 # `team-self-sufficiency-audit` — daily check across every `magic-*` skill folder
 
 The body of the section of the same name in this member's armed content.

@@ -62,7 +62,7 @@ AgentsToolsRootHarnessKindSetting(){
 ## record of its own (a session minted before this feature, or no session at all). Never a path.
 AgentsToolsRootHarnessKindRead(){ ## session
 	local kindDir="" kindLine=""
-	type AgentsToolsSessionChatDir > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include" 2> /dev/null || return 1
+	type AgentsToolsSessionChatDir > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include" || return 1
 	kindDir="$( AgentsToolsSessionChatDir "${1:-}" 2> /dev/null )" || return 1
 	[ -n "$kindDir" ] && [ -f "$kindDir/$agentsRootHarnessKindName" ] || return 1
 	IFS= read -r kindLine < "$kindDir/$agentsRootHarnessKindName" || :
@@ -108,7 +108,7 @@ AgentsToolsRootHarnessRoutineWrite(){ ## session dir
 ## The routine recorded for one session, a routine file's name; rc 1, nothing printed, where there is none. Never a path.
 AgentsToolsRootHarnessRoutineRead(){ ## session
 	local routineDir="" routineLine=""
-	type AgentsToolsSessionChatDir > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include" 2> /dev/null || return 1
+	type AgentsToolsSessionChatDir > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include" || return 1
 	routineDir="$( AgentsToolsSessionChatDir "${1:-}" 2> /dev/null )" || return 1
 	[ -n "$routineDir" ] && [ -f "$routineDir/$agentsRootHarnessRoutineName" ] || return 1
 	IFS= read -r routineLine < "$routineDir/$agentsRootHarnessRoutineName" || :
@@ -121,7 +121,7 @@ AgentsToolsRootHarnessRoutineRead(){ ## session
 ## Whether a session is a root-harness session: its folder holds the token its mint kept. rc 0 it is. Never a path.
 AgentsToolsRootHarnessSessionIs(){ ## session
 	local profileDir=""
-	type AgentsToolsSessionChatDir > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include" 2> /dev/null || return 1
+	type AgentsToolsSessionChatDir > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include" || return 1
 	profileDir="$( AgentsToolsSessionChatDir "${1:-}" 2> /dev/null )" || return 1
 	[ -n "$profileDir" ] && [ -s "$profileDir/root-session.token" ]
 }

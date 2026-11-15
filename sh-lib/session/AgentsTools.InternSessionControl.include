@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 # ^^^ for syntax checking in the editor only
+type AgentsToolsRunProcessesBegan > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunProcesses.include"
+type AgentsToolsSpawnRecord > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunRecords.include"
 
 ##
 ## AgentsTools.InternSessionControl.include -- the control thread of one coworking session: a
@@ -205,10 +207,11 @@ AgentsToolsSessionControlLogBound(){
 ## another time, or it has ended and is only not collected yet. rc 2 it cannot be told: a
 ## process has the number and when it began could not be read; such a lock is left alone.
 AgentsToolsSessionControlHolderLives(){ ## `<pid> <start>`
+	type AgentsToolsRunProcessesBegan > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunProcesses.include"
 	local holderPid="${1%% *}" holderStart="${1#* }" holderNow
 	case "$holderPid" in ''|*[!0123456789]*) return 1 ;; esac
 	[ "$holderStart" != "$1" ] && [ -n "$holderStart" ] || return 1
-	holderNow="$( printf '%s\n' "$holderPid" | AgentsToolsRegistryProcessesBegan )" || holderNow=""
+	holderNow="$( printf '%s\n' "$holderPid" | AgentsToolsRunProcessesBegan )" || holderNow=""
 	[ "$holderNow" != "$1" ] || return 0
 	[ -z "$holderNow" ] || return 1
 	kill -0 "$holderPid" 2> /dev/null || return 1
@@ -271,7 +274,7 @@ AgentsToolsSessionControlLeave(){
 	[ "$leaveLine" != "$controlMe" ] || rm -f "$controlDir/pid" 2> /dev/null
 	[ "$( AgentsToolsSessionControlLockHolder "$controlLock" )" != "$controlMe" ] || rm -f "$controlLock" 2> /dev/null
 	if [ "${controlMode:-}" = "--run" ] && [ -n "${controlSession:-}" ] ; then
-		type AgentsToolsSessionCommsListRemove > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionComms.include" 2> /dev/null || :
+		type AgentsToolsSessionCommsListRemove > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionComms.include"
 		! type AgentsToolsSessionCommsListRemove > /dev/null 2>&1 || AgentsToolsSessionCommsListRemove "$controlSession" || :
 	fi
 	rm -f "$controlRowsFile" 2> /dev/null
@@ -295,12 +298,14 @@ AgentsToolsSessionControlPidWrite(){
 ## controlRowsNames, the record files they were read from; rc 1 where the rows could not
 ## be made.
 AgentsToolsSessionControlRows(){ ## session id
-	local rowsStore="$MMDAPP/.local/agents/spawned" rowsFile rowsTracking
+	type AgentsToolsRegistryMeasureRows > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.RegistrySpawnedSessions.include"
+	type AgentsToolsRegistryRowsEntry > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
+	local rowsFile rowsTracking
 	local measuredRows="" measuredDated="" measuredAny="false"
 	controlRows="" ; controlRowsNames=""
-	[ -d "$rowsStore" ] || return 0
+	[ -d "$MMDAPP/.local/agents/spawned" ] || return 0
 	## The names go to grep on a pipe, never as its arguments: a store of any size is read.
-	controlRowsNames="$( printf '%s\0' "$rowsStore"/*/*.spawn.md | LC_ALL=C xargs -0 grep -l -x -F -- "session-id: $1" 2> /dev/null )" || :
+	controlRowsNames="$( printf '%s\0' "$MMDAPP/.local/agents/spawned"/*/*.spawn.md | LC_ALL=C xargs -0 grep -l -x -F -- "session-id: $1" 2> /dev/null )" || :
 	[ -n "$controlRowsNames" ] || return 0
 	[ -d "${controlRowsFile%/*}" ] || mkdir -p "${controlRowsFile%/*}" 2> /dev/null
 	{
@@ -420,27 +425,28 @@ AgentsToolsSessionControlStateWrite(){ ## state word, reason
 ## The processes that run as the runs of the session now, `<pid> <start>` a line, into
 ## controlWitness: for each row the last read measured alive, the processes that run as that
 ## spawn by their own word, or, where none does, the process its record names, each by the
-## one rule's own reading (AgentsToolsRegistryRunPids, AgentsToolsRegistryRecordedRun). Empty
+## one rule's own reading (AgentsToolsRunPids, AgentsToolsRunRecorded). Empty
 ## where none could be named: every tick then reads in full.
 AgentsToolsSessionControlWitness(){
+	type AgentsToolsRunProcessArgs > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunProcesses.include"
 	local witnessList witnessPids="" witnessFound witnessFile witnessSkip witnessSpawn witnessLive witnessRest
 	controlWitness=""
-	AgentsToolsRegistryProcessArgs ; witnessList="$agentsProcessArgs"
+	AgentsToolsRunProcessArgs ; witnessList="$agentsProcessArgs"
 	while read -r witnessSkip witnessSkip witnessSkip witnessSkip witnessSkip witnessSkip witnessSkip witnessSpawn witnessSkip witnessSkip witnessSkip witnessLive witnessRest ; do
 		[ "$witnessLive" = "running" ] || continue
 		case "$witnessSpawn" in ''|-) continue ;; esac
-		witnessFound="$( printf '%s\n' "$witnessList" | AgentsToolsRegistryRunPids "$witnessSpawn" )" || witnessFound=""
+		witnessFound="$( printf '%s\n' "$witnessList" | AgentsToolsRunPids "$witnessSpawn" )" || witnessFound=""
 		if [ -z "$witnessFound" ] ; then
 			while IFS= read -r witnessFile ; do
 				[ "${witnessFile##*/}" = "$witnessSpawn.spawn.md" ] || continue
-				witnessFound="$( AgentsToolsRegistryRecordedRun "$witnessFile" )" || witnessFound=""
+				witnessFound="$( AgentsToolsRunRecorded "$witnessFile" )" || witnessFound=""
 				[ -z "$witnessFound" ] || break
 			done <<< "$controlRowsNames"
 		fi
 		witnessPids="$witnessPids $witnessFound"
 	done <<< "$controlRows"
 	case "$witnessPids" in *[0123456789]*) ;; *) return 0 ;; esac
-	controlWitness="$( printf '%s\n' $witnessPids | AgentsToolsRegistryProcessesBegan )" || controlWitness=""
+	controlWitness="$( printf '%s\n' $witnessPids | AgentsToolsRunProcessesBegan )" || controlWitness=""
 	return 0
 }
 
@@ -468,7 +474,7 @@ AgentsToolsSessionControlKeep(){ ## name of the file, its text
 ## else its default; a value that is no number above zero reads as the default.
 AgentsToolsSessionControlSeconds(){ ## key, default
 	local secondsValue
-	type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
+	type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/settings/AgentsTools.ConfigOption.include"
 	secondsValue="$( AgentsToolsConfigOption magic-team --select-default "$1" "$2" 2> /dev/null )" || secondsValue=""
 	case "$secondsValue" in ''|*[!0123456789]*|0|????????*) secondsValue="$2" ;; esac
 	printf '%s\n' "$secondsValue"
@@ -484,6 +490,7 @@ AgentsToolsSessionControlSeconds(){ ## key, default
 ## one started again. A start that is one of many, the read of a thread on its period, is
 ## not said in the log.
 AgentsToolsSessionControlDeathStart(){ ## run id, `quiet` for a start that is not said (may be empty)
+	type AgentsToolsRunProcessesBegan > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunProcesses.include"
 	local startRun="$1" startPid="" startBegan=""
 	(
 		## A shell cannot give back a signal it inherited ignored, so the call starts through a python helper that resets them, then execs.
@@ -503,7 +510,7 @@ $startRun $(( SECONDS + controlPostBound ))"
 		;;
 	esac
 	disown "$startPid" 2> /dev/null || :
-	startBegan="$( printf '%s\n' "$startPid" | AgentsToolsRegistryProcessesBegan )" || startBegan=""
+	startBegan="$( printf '%s\n' "$startPid" | AgentsToolsRunProcessesBegan )" || startBegan=""
 	AgentsToolsSessionControlKeep "post.$startRun" "${startBegan:-$startPid}" || :
 	[ -n "${2:-}" ] || AgentsToolsSessionControlSay event "session $controlSession: the death of run $startRun: what is due about it is done by pid $startPid, apart from the tick, within ${controlPostBound}s"
 	return 0
@@ -669,7 +676,7 @@ AgentsToolsSessionControlDeathStep(){
 ## live run is told by), its record is still open (`spawn-started`), the record does not say
 ## that it was killed (`killed-by`, `killed-at`, AgentsToolsManagerKillMark), and its
 ## supervising shell is gone (`supervisor-process` of the record, read by
-## AgentsToolsRegistryRecordedSupervisor). While that shell is alive the run is being
+## AgentsToolsRunRecordedSupervisor). While that shell is alive the run is being
 ## closed, and is no death -- for at most SESSION_CONTROL_CLOSING_SECONDS, after which a
 ## shell still alive is one that will never close the record, and the record is closed as an
 ## ordered end with nothing asked. Whether the run handed back is not read: a handback alone
@@ -686,6 +693,8 @@ AgentsToolsSessionControlDeathStep(){
 ## Then each death that is not settled is taken one step further
 ## (AgentsToolsSessionControlDeathStep). controlDeadOpen: how many are not settled.
 AgentsToolsSessionControlDeaths(){
+	type AgentsToolsSessionPauseHeld > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionPause.include"
+	type AgentsToolsRunWords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunProcesses.include"
 	local deathsWas="" deathsNow="" deathsGoneWas="" deathsGoneNow="" deathsOut="" deathsAt deathsNoted deathsRecord deathsShell deathsRole deathsLine deathsOne
 	local rowTracking rowSession rowParent rowHost rowOwner rowStatus rowExit rowSpawn rowAgentLog rowThread rowWorkspace rowLive rowState rowRest
 	controlDeadOpen=0
@@ -713,7 +722,7 @@ $deathsNow" in *"
 $rowSpawn "*) continue ;; esac
 		deathsRecord="$MMDAPP/.local/agents/spawned/$rowTracking/$rowSpawn.spawn.md"
 		[ -f "$deathsRecord" ] || continue
-		deathsShell="$( AgentsToolsRegistryRecordedSupervisor "$deathsRecord" 2> /dev/null )" || deathsShell=""
+		deathsShell="$( AgentsToolsRunRecordedSupervisor "$deathsRecord" 2> /dev/null )" || deathsShell=""
 		## A run the console killed is an ordered end, not a death: its record is closed and nothing is asked.
 		if [ -n "$( AgentsToolsSpawnSandboxRecordHeader "$deathsRecord" killed-by )$( AgentsToolsSpawnSandboxRecordHeader "$deathsRecord" killed-at )" ] ; then
 			! AgentsToolsSessionControlDeathClose "$deathsRecord" || AgentsToolsSessionControlSay event "session $controlSession: run $rowSpawn of $rowOwner was killed from the console and its record was still open: it is closed, and nothing is asked about it"
@@ -737,7 +746,7 @@ $rowSpawn "*) continue ;; esac
 			continue
 		fi
 		[ "$( AgentsToolsSpawnSandboxRecordHeader "$deathsRecord" status )" = "spawn-started" ] || continue
-		! AgentsToolsRegistrySpawnRuns "$rowSpawn" "$deathsRecord" || continue
+		! AgentsToolsSpawnRuns "$rowSpawn" "$deathsRecord" || continue
 		## A RUN PARKED ON ITS HANDBACK OR DISMISSED IS NOT DEAD (S6.34): the harness ends such a run
 		## on purpose, leaving its record as it was, so its handback is its result and no question is
 		## asked about it. Its mark is the answer, and its record is closed as an ordered end.
@@ -849,13 +858,11 @@ AgentsToolsSessionControlTick(){
 	## look in MDAT_SCHEDULE_ASK_SECONDS, and it starts the thread where none lives and where its lock names a process that is gone. It says one line,
 	## kept in the thread's own log, and never ends this tick.
 	if [ "$controlMode" = "--run" ] ; then
-		type AgentsToolsScheduleThreadAsk > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.ScheduleThread.include" 2> /dev/null || :
-		if type AgentsToolsScheduleThreadAsk > /dev/null 2>&1 ; then
+		type AgentsToolsScheduleThreadAsk > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/schedule/AgentsTools.ScheduleThread.include"
 			tickSchedule="$( AgentsToolsScheduleThreadAsk 2> /dev/null )" || tickSchedule=""
 			case "$tickSchedule" in
 				started*|failed*) AgentsToolsSessionControlSay event "session $controlSession: the schedule's service thread: $tickSchedule" ;;
 			esac
-		fi
 	fi
 	AgentsToolsSessionControlLook ; tickRc=$?
 	if [ "$tickRc" = 0 ] && [ "$controlSeen" = "finished" ] ; then
@@ -882,7 +889,7 @@ AgentsToolsSessionControlTick(){
 	## does not. This tick is the one reader of that flag that runs by itself, and the call is costless where the flag has not moved:
 	## it reads two files and posts nothing. A reaction that does not land leaves its mark as it was, and the next tick asks again.
 	if [ "$controlMode" = "--run" ] ; then
-		type AgentsToolsSpawnProxyRootPauseMarks > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include" 2> /dev/null || :
+		type AgentsToolsSpawnProxyRootPauseMarks > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnProxyRootMarks.include"
 		! type AgentsToolsSpawnProxyRootPauseMarks > /dev/null 2>&1 || AgentsToolsSpawnProxyRootPauseMarks "$controlSession" || :
 	fi
 	## NOTHING HAS RUN FOR A LONG TIME: the thread ends itself (S5.6, item 6). A session with no run alive on this host, no death left
@@ -1053,9 +1060,9 @@ case "$1" in
 			[ -z "${!controlDrop+set}" ] || local -x "$controlDrop="
 		done
 
-		type AgentsToolsRegistryMeasureRows > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
+		type AgentsToolsRegistryMeasureRows > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.RegistrySpawnedSessions.include"
 		type AgentsToolsSessionControlDeathPost > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionControlDeath.include"
-		type AgentsToolsSessionControlRequestStep > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionControlRequest.include"
+		type AgentsToolsSessionControlRequestCarry > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionControlRequest.include"
 
 		## THE CARRYING OUT OF A REQUEST OF THE CONSOLE: the one bounded call, in this process of
 		## its own, which the thread started and does not wait for. It takes no lock and is no
@@ -1099,7 +1106,7 @@ case "$1" in
 					return 1
 				;;
 			esac
-			type AgentsToolsManagerSessionKill > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.ManagerSession.include" --definitions-only > /dev/null 2>&1 || :
+			type AgentsToolsManagerSessionKill > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.ManagerSessionKill.include"
 			AgentsToolsManagerSessionKill "--intern-session-control --release" "$controlDeathRun" run session-control
 			return 0
 		fi
@@ -1110,7 +1117,7 @@ case "$1" in
 		controlPid="$( exec sh -c 'echo "$PPID"' 2> /dev/null )" || controlPid=""
 		case "$controlPid" in ''|*[!0123456789]*) controlPid="" ;; esac
 		controlMe=""
-		[ -z "$controlPid" ] || controlMe="$( printf '%s\n' "$controlPid" | AgentsToolsRegistryProcessesBegan )" || controlMe=""
+		[ -z "$controlPid" ] || controlMe="$( printf '%s\n' "$controlPid" | AgentsToolsRunProcessesBegan )" || controlMe=""
 		if [ -z "$controlMe" ] ; then
 			AgentsToolsSessionControlRefuse "could not read which process this is and when it began, so its lock would name nobody -- nothing was started"
 			return 1
@@ -1120,7 +1127,7 @@ case "$1" in
 		## script, an option of the interpreter, would read as a run of the very session it
 		## watches, and that session would then never finish. Such a start is refused.
 		controlLine="$( LC_ALL=C ps -ww -o args= -p "$controlPid" 2> /dev/null )" || controlLine=""
-		if [ -n "$( printf '%s %s\n' "$controlPid" "$controlLine" | AgentsToolsRegistryRunWords )" ] ; then
+		if [ -n "$( printf '%s %s\n' "$controlPid" "$controlLine" | AgentsToolsRunWords )" ] ; then
 			AgentsToolsSessionControlRefuse "the command line of this process would read as a run of a session, by the rule a live run is told by: start the thread with the tooling script as the command itself, or as the first word after its interpreter -- nothing was started"
 			return 1
 		fi
@@ -1137,7 +1144,7 @@ case "$1" in
 		fi
 
 		local controlTick
-		type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
+		type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/settings/AgentsTools.ConfigOption.include"
 		controlTick="$( AgentsToolsConfigOption magic-team --select-default SESSION_CONTROL_TICK_SECONDS 5 2> /dev/null )" || controlTick=5
 		case "$controlTick" in ''|*[!0123456789]*) controlTick=5 ;; esac
 		[ "$controlTick" -gt 0 ] || controlTick=5
@@ -1163,7 +1170,8 @@ case "$1" in
 			return 1
 		fi
 		if [ -z "$controlRows" ] ; then
-			controlOwn="$( AgentsToolsRegistrySpawnRecord "$controlSession" )" || controlOwn=""
+			controlOwn="$( AgentsToolsSpawnRecord "$controlSession" )" || controlOwn=""
+			type AgentsToolsRegistryFrontmatter > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
 			[ -z "$controlOwn" ] || controlOwn="$( AgentsToolsRegistryHeader "$( AgentsToolsRegistryFrontmatter "$controlOwn" )" session-id )"
 			case "$controlOwn" in
 				''|-) ;;
@@ -1219,7 +1227,7 @@ case "$1" in
 		## ITS LINE IN THE READER'S LIST, written the moment it holds its lock (S5.6): the communications reader reads that list alone,
 		## so a session that starts is looked after at once and a session that has closed costs it nothing.
 		if [ "$controlMode" = "--run" ] ; then
-			type AgentsToolsSessionCommsListAdd > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionComms.include" 2> /dev/null || :
+			type AgentsToolsSessionCommsListAdd > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionComms.include"
 			! type AgentsToolsSessionCommsListAdd > /dev/null 2>&1 || AgentsToolsSessionCommsListAdd "$controlSession" || :
 		fi
 

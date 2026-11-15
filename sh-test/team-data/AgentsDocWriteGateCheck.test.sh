@@ -200,7 +200,7 @@ rigRefLog="$( rigStyleLog refusal )"
 rigAssert "the output-style refusal log: its contract named, and it meets it" "$( rigField "$rigRefLog" document-contract ):$( rigMeets audit-item.refusal "$rigRefLog" )" "audit-item.refusal:0:0"
 
 echo "-- 8. the dispatch the spawn proxy creates names its acting member --"
-rigAssert "the create of the dispatch item carries --acting-member:<the caller>" "$( LC_ALL=C grep -c -e '--acting-member:"$callerName"' "$rigPackage/sh-lib/session/AgentsTools.InternOpAgentSpawnProxy.include" )" "1"
+rigAssert "the create of the dispatch item carries --acting-member:<the caller>" "$( LC_ALL=C grep -c -e '--acting-member:"$callerName"' "$rigPackage/sh-lib/spawn/AgentsTools.InternOpAgentSpawnProxy.include" )" "1"
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ DOC WRITE GATE CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

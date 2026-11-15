@@ -8,8 +8,6 @@
 ##
 
 type LocalToolsManagerField > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/manager/LocalTools.ManagerField.include"
-type AgentsToolsMemberHomesFile > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberHomes.include"
-type AgentsToolsTeamSharedMembers > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamRegistry.include"
 
 ## THE MEMBERS THAT BELONG TO A WORKSPACE, a `member` row each, by the one fact the tooling
 ## has of where a member belongs: the machine's registry of members
@@ -30,7 +28,7 @@ AgentsToolsManagerPlaceMembers(){ ## the path of the place, its state
 	local membersRows membersFolder membersName membersReal
 	## the place as the registry may write it, through a link or not
 	membersReal="$( cd -P "${1%/}" 2> /dev/null && pwd -P )" || membersReal=""
-	membersRows="$( MDAT_MANAGER_PLACE_HOMES="$( AgentsToolsMemberHomesFile )" LC_ALL=C awk -F'\t' -v OFS='\t' -v place="${1%/}" -v placeReal="${membersReal:-${1%/}}" '
+	membersRows="$( MDAT_MANAGER_PLACE_HOMES="${HOME:-}/.agents/magic-team/member-homes.registry" LC_ALL=C awk -F'\t' -v OFS='\t' -v place="${1%/}" -v placeReal="${membersReal:-${1%/}}" '
 		BEGIN {
 			homes = ENVIRON["MDAT_MANAGER_PLACE_HOMES"]
 			while ( homes != "" && ( getline line < homes ) > 0 ) { split( line, part, "\t" ) ; sub( /\/+$/, "", part[2] ) ; home[part[1]] = part[2] }

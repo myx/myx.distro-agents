@@ -11,7 +11,7 @@
 ## function refuses is refused here, and nothing is stored.
 ##
 
-type AgentsToolsScheduleCurrentFlags > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.DispatcherSchedule.include"
+type AgentsToolsScheduleTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/schedule/AgentsTools.DispatcherSchedule.include"
 
 case "$1" in
 
@@ -44,7 +44,7 @@ case "$1" in
 		done
 		## THE MEMBERS' OWN FLAGS (AgentsToolsScheduleMemberFlag): the entry row of vacation, which is set for one member, and a row `<flag>:<member>` for each member whose
 		## vacation or overtime holds now, so a person sees who is on one and clears it from its own row.
-		type AgentsToolsTeamMemberDirectoryText > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamRegistry.include" 2> /dev/null || :
+		type AgentsToolsTeamMemberDirectoryText > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamRegistry.include"
 		printf 'flag\tvacation\tper member\t-\n'
 		while IFS=$'\t' read -r scheduleMember scheduleDir ; do
 			[ -n "$scheduleDir" ] || continue

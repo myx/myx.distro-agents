@@ -1,0 +1,157 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+## AgentsTools.OpInstallWorkspaceIntegrations.include -- the operation `--install-workspace-integrations`, sourced by AgentsTools.Install.include with the operation's arguments.
+		shift
+
+		local scope workspaceArg
+		while [ "$#" -gt 0 ] ; do
+			case "$1" in
+				## accepted and ignored: the step narration it used to drop is gone
+				--quiet)
+					shift
+				;;
+				--scope)
+					if [ -z "$2" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --install-workspace-integrations: --scope requires a value" >&2
+						set +e ; return 1
+					fi
+					scope="$2" ; shift 2
+				;;
+				--workspace)
+					if [ -z "$2" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --install-workspace-integrations: --workspace requires a value" >&2
+						set +e ; return 1
+					fi
+					workspaceArg="$2" ; shift 2
+				;;
+				*)
+					echo "⛔ ERROR: $MDSC_CMD --install-workspace-integrations: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+
+		local workspace="${workspaceArg:-$MMDAPP}"
+		if [ ! -d "$workspace" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --install-workspace-integrations: workspace not found: $workspace" >&2
+			set +e ; return 1
+		fi
+		workspace="$( cd "$workspace" && pwd )"
+
+		## The whole install, or one of its two parts for --make-workspace-integrations, which
+		## makes the indices between them and names the part in makeInstallPart, a local of
+		## its own run. `before-indices` is what the indices are made from: the MCP registration
+		## and the member links, which write the member registry. `after-indices` is what reads
+		## them: the trust, the permissions, the settings and the copilot access. Run by itself
+		## it is both, as it always was.
+		local integrationsPart="${makeInstallPart:-}"
+		if [ "$integrationsPart" != "after-indices" ] ; then
+			type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+			DistroAgentsTools --install-vscode-integrations --workspace "$workspace" || { set +e ; return 1 ; }
+
+			local ownsReport="false"
+			if [ -z "$MDSC_SKILLSET_REPORT" ] ; then
+				MDSC_SKILLSET_REPORT="$MMDAPP/.local/temp/magic-skillset-report.$$"
+				mkdir -p "$MMDAPP/.local/temp" && : > "$MDSC_SKILLSET_REPORT" || { set +e ; return 1 ; }
+				export MDSC_SKILLSET_REPORT ; ownsReport="true"
+			fi
+			local ownsPrescan="false" installStatus=0
+			if [ -z "$MDSC_SKILLSET_PRESCAN" ] ; then
+				local scanMemberNames scanMemberSources scanDiscoveryTrusted scanDiscoveryError
+				AgentsToolsInstallScanMembers "$workspace" "false" "$MDLT_ORIGIN/myx/myx.distro-agents/skillset/magic-team"
+				export MDSC_SKILLSET_MEMBERNAMES="$scanMemberNames"
+				export MDSC_SKILLSET_MEMBERSOURCES="$scanMemberSources"
+				export MDSC_SKILLSET_DISCOVERY_TRUSTED="$scanDiscoveryTrusted"
+				export MDSC_SKILLSET_DISCOVERY_ERROR="$scanDiscoveryError"
+				export MDSC_SKILLSET_PRESCAN="1" ; ownsPrescan="true"
+			fi
+			if [ -n "$scope" ] ; then
+				type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+				DistroAgentsTools --install-skillset-symlinks --scope "$scope" --workspace "$workspace" || installStatus=1
+			else
+				type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+				DistroAgentsTools --install-skillset-symlinks --scope user-home --workspace "$workspace" || installStatus=1
+				DistroAgentsTools --install-skillset-symlinks --scope workspace --workspace "$workspace" || installStatus=1
+			fi
+			if [ "$ownsPrescan" = "true" ] ; then
+				unset MDSC_SKILLSET_PRESCAN MDSC_SKILLSET_MEMBERNAMES MDSC_SKILLSET_MEMBERSOURCES MDSC_SKILLSET_DISCOVERY_TRUSTED MDSC_SKILLSET_DISCOVERY_ERROR
+			fi
+			if [ "$ownsReport" = "true" ] ; then
+				type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+				DistroAgentsTools --install-skillset-report-render
+				rm -f "$MDSC_SKILLSET_REPORT" ; unset MDSC_SKILLSET_REPORT
+			fi
+			[ "$installStatus" = "0" ] || { set +e ; return 1 ; }
+		fi
+		[ "$integrationsPart" != "before-indices" ] || return 0
+
+		## must follow --install-vscode-integrations, which creates $HOME/.claude.json when missing
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+		DistroAgentsTools --install-claude-workspace-trust --workspace "$workspace" || { set +e ; return 1 ; }
+		DistroAgentsTools --install-claude-permissions --workspace "$workspace" || { set +e ; return 1 ; }
+
+		local claudeDir="$workspace/.claude"
+		mkdir -p "$claudeDir" || { echo "⛔ ERROR: $MDSC_CMD --install-workspace-integrations: cannot create $claudeDir" >&2 ; set +e ; return 1 ; }
+		local settingsFile="$claudeDir/settings.json"
+		if [ ! -f "$settingsFile" ] ; then
+			printf '{}\n' > "$settingsFile" || { echo "⛔ ERROR: $MDSC_CMD --install-workspace-integrations: cannot create $settingsFile" >&2 ; set +e ; return 1 ; }
+		fi
+		local allowSettingsTmp="$settingsFile.tmp.$$"
+		## No allow grant is added any more -- the PreToolUse hooks decide every call --
+		## so this merge only drops the Read entries earlier runs added, each on an exact
+		## match (AgentsToolsClientToolPolicyRetiredAllowEntries).
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/client/AgentsTools.ClientToolPolicy.include"
+		local allowRetiredEntries
+		allowRetiredEntries="$( AgentsToolsClientToolPolicyRetiredAllowEntries "$workspace" )" || {
+			echo "⛔ ERROR: $MDSC_CMD --install-workspace-integrations: the allow entries earlier installs wrote could not be named, so $settingsFile is left untouched" >&2
+			set +e ; return 1
+		}
+		## The hooks description is empty on purpose -- this op installs no hooks --
+		## but the merge .awk still reads it by path. Same
+		## subshell-scoped trap as --install-workspace-restrictions above: armed
+		## before the file exists, never the caller's, and the merge output goes to
+		## $allowSettingsTmp, a file, so nothing has to escape.
+		if ! (
+			allowHooksDescFile="$MMDAPP/.local/temp/mdat-ws-integrations-hooks.$$"
+			trap 'rm -f "$allowHooksDescFile"' EXIT
+			mkdir -p "$MMDAPP/.local/temp" && : > "$allowHooksDescFile" || {
+				echo "⛔ ERROR: $MDSC_CMD --install-workspace-integrations: cannot write $allowHooksDescFile" >&2
+				exit 1
+			}
+			MYX_WSRESTRICT_DENY_ADD_JSON='[]' \
+				MYX_WSRESTRICT_HOOKS_FILE="$allowHooksDescFile" \
+				MYX_WSRESTRICT_RETIRED_ALLOW="$allowRetiredEntries" \
+				LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsClaudeWorkspaceRestrictionsUpsert.awk" \
+				"$settingsFile" > "$allowSettingsTmp"
+		) ; then
+			echo "⛔ ERROR: $MDSC_CMD --install-workspace-integrations: settings merge failed, $settingsFile left untouched" >&2
+			rm -f "$allowSettingsTmp"
+			set +e ; return 1
+		fi
+		if cmp -s "$allowSettingsTmp" "$settingsFile" ; then
+			rm -f "$allowSettingsTmp"
+		elif ! mv -f "$allowSettingsTmp" "$settingsFile" ; then
+			echo "⛔ ERROR: $MDSC_CMD --install-workspace-integrations: could not install $settingsFile" >&2
+			rm -f "$allowSettingsTmp"
+			set +e ; return 1
+		fi
+
+		## A workspace whose restrictions were installed before keeps its hooks current: the hooks
+		## and their settings entries come from the policy as it stands now. The hook index is the mark,
+		## written only by --install-workspace-restrictions.
+		if [ -f "$workspace/.local/agents/harness.hooks.index" ] ; then
+			type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+			DistroAgentsTools --install-workspace-restrictions --workspace "$workspace" || { set +e ; return 1 ; }
+		fi
+
+		## Prepare the copilot launch fragment from the same single access-root
+		## source, so a workspace set up here has copilot's --add-dir access
+		## ready for the generated console -- installer prepares it, launcher
+		## uses it. Copilot only; harmless where copilot is never run.
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+		DistroAgentsTools --install-copilot-access-fragment --workspace "$workspace" || { set +e ; return 1 ; }
+		DistroAgentsTools --install-copilot-agent-files || { set +e ; return 1 ; }
+
+		echo "✅ workspace integrations installed" >&2
+		return 0

@@ -84,7 +84,7 @@ printf 'SLACK_CHANNEL_MAGIC_TEAM=CRIG00001\nSLACK_CHANNEL_EVENT_TRACK=CRIGTRACK\
 rigSpawn(){ ## extra --intern-op-agent-spawn-proxy arguments...
 	: > "$rigTmp/brief"
 	: > "$rigTmp/bodies"
-	( cd "$rigWs" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp" PATH="$PATH" TMPDIR="${TMPDIR:-/tmp}" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" \
+	( cd "$rigWs" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp" PATH="$PATH" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" \
 		MDAT_SKILLSET_ROOT="$rigSkills" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" RIG_SCENARIO="$rigTmp" \
 		bash -c '
 			case "$MMDAPP" in "$RIG_SCENARIO"/*) ;; *) exit 99 ;; esac
@@ -179,7 +179,7 @@ printf -- '---\nsession-id: %s\nspawn-id: rig-joining-run\nstatus: spawn-started
 	"$rigStackSession" > "$rigWs/.local/agents/spawned/rig-joining-run/rig-joining-run.spawn.md"
 rigAssert "the frames of a session are read from the record that names it, not only from one named by its id" \
 	"$( env -i HOME="$rigTmp" PATH="$PATH" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" \
-		bash -c '. "$1" ; AgentsToolsSessionRoutineStackLines "$2"' rig "$rigPackage/sh-lib/session/AgentsTools.RoutineStack.include" "$rigStackSession" 2> /dev/null \
+		bash -c '. "$1" ; AgentsToolsSessionRoutineStackLines "$2"' rig "$rigPackage/sh-lib/routine/AgentsTools.RoutineStack.include" "$rigStackSession" 2> /dev/null \
 		| LC_ALL=C tr '\n' '|' )" \
 	"routine-stack: rig-a.routine.md:current|routine-stack: rig-b.routine.md:pending|"
 

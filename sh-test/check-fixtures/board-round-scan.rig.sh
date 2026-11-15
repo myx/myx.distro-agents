@@ -11,7 +11,7 @@ rigMember="${2:?usage: board-round-scan.rig.sh <DistroAgentsTools.fn.sh> <team-m
 rigLib="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib"
 printf '%s\n' \
 	". \"$rigLib/team-data/AgentsTools.Registries.include\"" \
-	". \"$rigLib/session/AgentsTools.SpawnSandbox.include\"" \
+	". \"$rigLib/spawn/AgentsTools.SpawnSandbox.include\"" \
 	". \"$rigLib/board/AgentsTools.RecheckDate.include\"" \
 	". \"$rigLib/board/AgentsTools.BoardRoundScan.include\"" \
 	"AgentsToolsBoardRoundSections $rigMember board-round-scan-rig" \

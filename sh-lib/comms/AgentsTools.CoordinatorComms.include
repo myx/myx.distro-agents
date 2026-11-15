@@ -1,0 +1,156 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.CoordinatorComms.include -- coordinator comms dispatcher.
+## Dispatches the coordinator's own comms operations into the include that
+## holds each arm, and reports an invalid option otherwise. The Slack helpers
+## this file once also defined now live in
+## AgentsTools.CoordinatorCommsSlack.include, loaded by the two Slack arms
+## below. Runs nothing at load: the `case "$1"` only.
+##
+## The operations of this file are our own organisation's side, whoever the member it is given
+## is (MDAT_COMMS_SIDE, AgentsTools.CommsSide.include): the coordinator acting for that member
+## inside our team. Its own name goes with the side (MDAT_COMMS_OP), so where our side holds
+## nothing of a system for a client-* member, the line that says so names the coordinator's own
+## way to the other organisation, --client-operation-run (AgentsToolsCommsOwnSideLine).
+case "$1" in
+	--intern-op-*) ;;
+	--*) local -x MDAT_COMMS_SIDE=own MDAT_COMMS_OP="$1" ;;
+esac
+
+case "$1" in
+
+	## The coordinator acting for another member inside our own team, on our own organisation's side. The operations it shares with the members
+	## (reading and sending Slack, mail, the Jira and Confluence reads) are the member form's, in the members' includes. A client-* member's sources in its
+	## other organisation are not reached here: they are its --client-* operations, which the coordinator runs with --client-operation-run. The Trello comment
+	## has no member form: its one implementation is --intern-op-comms-trello-post-comment (AgentsTools.MemberCommsTrello.include).
+	--trello-post-comment)
+		## The arm reaches the implementation in the include that holds it, never through the
+		## dispatcher (S6.24): DistroAgentsTools is a function of the tool file and no command.
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/trello/AgentsTools.MemberCommsTrello.include" "--intern-op-comms-${1#--}" "${@:2}"
+		return $?
+	;;
+
+	## The coordinator's stubs over two Slack helpers the tooling also calls for other members.
+	--slack-resolve-ids)
+		type AgentsToolsCommsSlackResolveIds > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CoordinatorCommsSlack.include"
+		AgentsToolsCommsSlackResolveIds "${@:2}"
+		return $?
+	;;
+	--slack-conversations-roster)
+		type AgentsToolsCommsSlackConversationsRoster > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CoordinatorCommsSlack.include"
+		AgentsToolsCommsSlackConversationsRoster "${@:2}"
+		return $?
+	;;
+
+	--jira-issue-search|--jira-comment-read|--jira-issue-create|--jira-issue-update|--jira-issue-transition|--jira-comment-add|--jira-issue-link-page|--jira-issue-delete|--jira-project-delete|--confluence-page-search|--confluence-comment-read|--confluence-page-create|--confluence-space-create|--confluence-page-update|--confluence-comment-add|--confluence-page-delete)
+		local fwdOp="${1#--}" fwdSecondFlag="" fwdSecondLabel="" fwdRestKind="" fwdStubValues="" fwdStubNoValues="" fwdMemberTail=""
+		shift
+		case "$fwdOp" in
+			jira-issue-search) fwdSecondFlag=--jql ; fwdSecondLabel='<jql>' ; fwdRestKind=limit ; fwdMemberTail=' -- the client-facing search is --client-comms-jira-issue-search' ;;
+			jira-comment-read) fwdSecondFlag=--issue-key ; fwdSecondLabel='<issue-key>' ; fwdRestKind=commentRead ; fwdMemberTail=' -- the client-facing read is --client-comms-jira-comment-read' ;;
+			jira-issue-create) fwdRestKind=stub ; fwdStubValues='--project --issuetype --summary --description-adf --description-adf-from-file --fields-json --assignee' ; fwdStubNoValues='--description-adf-from-stdin' ; fwdMemberTail=' -- the client-facing write is --client-comms-jira-issue-create' ;;
+			jira-issue-update) fwdSecondFlag=--issue-key ; fwdSecondLabel='<issue-key>' ; fwdRestKind=stub ; fwdStubValues='--fields-json --update-json --assignee --project' ; fwdStubNoValues='--notify-users' ; fwdMemberTail=' -- the client-facing write is --client-comms-jira-issue-update' ;;
+			jira-issue-transition) fwdSecondFlag=--issue-key ; fwdSecondLabel='<issue-key>' ; fwdRestKind=stub ; fwdStubValues='--to-status --fields-json --comment-adf --comment-adf-from-file' ; fwdStubNoValues='--comment-adf-from-stdin' ; fwdMemberTail=' -- the client-facing write is --client-comms-jira-issue-transition' ;;
+			jira-comment-add) fwdSecondFlag=--issue-key ; fwdSecondLabel='<issue-key>' ; fwdRestKind=stub ; fwdStubValues='--body-adf --body-adf-from-file' ; fwdStubNoValues='--body-adf-from-stdin' ; fwdMemberTail=' -- the client-facing write is --client-comms-jira-comment-add' ;;
+			jira-issue-link-page) fwdSecondFlag=--issue-key ; fwdSecondLabel='<issue-key>' ; fwdRestKind=stub ; fwdStubValues='--url --title' ;;
+			jira-issue-delete) fwdSecondFlag=--issue-key ; fwdSecondLabel='<issue-key>' ; fwdRestKind=none ; fwdMemberTail=' -- the client-facing write is --client-comms-jira-issue-delete' ;;
+			jira-project-delete) fwdSecondFlag=--project-key ; fwdSecondLabel='<project-key>' ; fwdRestKind=none ; fwdMemberTail=" -- a project is the site's own top-level container, so only the coordinator deletes one" ;;
+			confluence-page-search) fwdSecondFlag=--cql ; fwdSecondLabel='<cql>' ; fwdRestKind=limit ; fwdMemberTail=' -- the client-facing search is --client-comms-confluence-page-search' ;;
+			confluence-comment-read) fwdSecondFlag=--page-id ; fwdSecondLabel='<page-id>' ; fwdRestKind=none ; fwdMemberTail=' -- the client-facing read is --client-comms-confluence-comment-read' ;;
+			confluence-page-create) fwdRestKind=stub ; fwdStubValues='--space --space-id --title --parent-id --body-storage --body-storage-from-file' ; fwdStubNoValues='--body-storage-from-stdin' ; fwdMemberTail=' -- the client-facing write is --client-comms-confluence-page-create' ;;
+			confluence-space-create) fwdRestKind=stub ; fwdStubValues='--key --name --description' ; fwdMemberTail=" -- a space is the site's own top-level container, so only the coordinator creates one" ;;
+			confluence-page-update) fwdSecondFlag=--page-id ; fwdSecondLabel='<page-id>' ; fwdRestKind=stub ; fwdStubValues='--version --title --status --space-id --body-storage --body-storage-from-file' ; fwdStubNoValues='--body-storage-from-stdin' ; fwdMemberTail=' -- the client-facing write is --client-comms-confluence-page-update' ;;
+			confluence-comment-add) fwdSecondFlag=--page-id ; fwdSecondLabel='<page-id>' ; fwdRestKind=stub ; fwdStubValues='--body-storage --body-storage-from-file --parent-comment-id' ; fwdStubNoValues='--body-storage-from-stdin' ; fwdMemberTail=' -- the client-facing write is --client-comms-confluence-comment-add' ;;
+			confluence-page-delete) fwdSecondFlag=--page-id ; fwdSecondLabel='<page-id>' ; fwdRestKind=none ; fwdMemberTail=' -- the client-facing write is --client-comms-confluence-page-delete' ;;
+		esac
+		local actingMember="${1:-}"
+		shift || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --$fwdOp: <team-member> missing" >&2 ; set +e ; return 1 ; }
+		[ -n "$actingMember" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --$fwdOp: <team-member> missing" >&2 ; set +e ; return 1 ; }
+		if [ -n "$fwdSecondFlag" ] ; then
+			local fwdSecondValue="${1:-}"
+			shift || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --$fwdOp: $fwdSecondLabel missing" >&2 ; set +e ; return 1 ; }
+			if [ "$fwdRestKind" = stub ] ; then
+				case "$fwdSecondValue" in ''|-*) printf '%s\n' "⛔ ERROR: $MDSC_CMD --$fwdOp: $fwdSecondLabel missing" >&2 ; set +e ; return 1 ;; esac
+			else
+				[ -n "$fwdSecondValue" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --$fwdOp: $fwdSecondLabel missing" >&2 ; set +e ; return 1 ; }
+			fi
+		fi
+		if [ "$fwdRestKind" = stub ] ; then
+			AgentsToolsAssertBareName "$actingMember" "<team-member>" "$fwdOp" || { set +e ; return 1 ; }
+			case "$actingMember" in
+				magic-coordinator) ;;
+				*)
+					printf '%s\n' "⛔ ERROR: $MDSC_CMD --$fwdOp: runs only as magic-coordinator, and $actingMember is not it${fwdMemberTail}" >&2
+					set +e ; return 1
+				;;
+			esac
+			local fwdStubArg fwdStubTakesValue=""
+			for fwdStubArg in "$@" ; do
+				if [ -n "$fwdStubTakesValue" ] ; then
+					fwdStubTakesValue=""
+					continue
+				fi
+				case " $fwdStubValues " in
+					*" $fwdStubArg "*)
+						fwdStubTakesValue=yes
+						continue
+					;;
+				esac
+				case " $fwdStubNoValues " in
+					*" $fwdStubArg "*) continue ;;
+				esac
+				printf '%s\n' "⛔ ERROR: $MDSC_CMD --$fwdOp: unexpected: $fwdStubArg" >&2
+				set +e ; return 1
+			done
+		else
+			case "$fwdRestKind" in
+				limit)
+					case "$#:${1:-}" in
+						0:|2:--limit) ;;
+						*) printf '%s\n' "⛔ ERROR: $MDSC_CMD --$fwdOp: not accepted: $actingMember $fwdSecondValue $*" >&2 ; set +e ; return 1 ;;
+					esac
+				;;
+				commentRead)
+					case "$#:${1:-}:${3:-}" in
+						0::|2:--format:|2:--start-at:|4:--format:--start-at|4:--start-at:--format) ;;
+						*) printf '%s\n' "⛔ ERROR: $MDSC_CMD --$fwdOp: not accepted: $actingMember $fwdSecondValue $*" >&2 ; set +e ; return 1 ;;
+					esac
+				;;
+				none)
+					case "$#:${1:-}" in
+						0:) ;;
+						*) printf '%s\n' "⛔ ERROR: $MDSC_CMD --$fwdOp: not accepted: $actingMember $fwdSecondValue $*" >&2 ; set +e ; return 1 ;;
+					esac
+				;;
+			esac
+			AgentsToolsAssertBareName "$actingMember" "<team-member>" "$fwdOp" || { set +e ; return 1 ; }
+			case "$actingMember" in
+				magic-coordinator) ;;
+				*)
+					printf '%s\n' "⛔ ERROR: $MDSC_CMD --$fwdOp: runs only as magic-coordinator, and $actingMember is not it${fwdMemberTail}" >&2
+					set +e ; return 1
+				;;
+			esac
+		fi
+		local fwdInternArgs=( "--intern-op-atlassian-$fwdOp" --member "$actingMember" --context "$fwdOp" )
+		if [ -n "$fwdSecondFlag" ] ; then fwdInternArgs+=( "$fwdSecondFlag" "$fwdSecondValue" ) ; fi
+		if [ "$fwdRestKind" != none ] ; then fwdInternArgs+=( "$@" ) ; fi
+		local fwdOpRc=0
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/atlassian/AgentsTools.InternOpAtlassianCall.include" "${fwdInternArgs[@]}" || fwdOpRc=$?
+		if [ "$fwdOpRc" -ne 0 ] ; then set +e ; return "$fwdOpRc" ; fi
+		return 0
+	;;
+
+	## The retired names of its two helpers are reported, never swallowed.
+	--intern-op-comms-slack-resolve-ids|--intern-op-comms-slack-conversations-roster)
+		echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
+		set +e ; return 1
+	;;
+
+	*)
+		echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
+		set +e ; return 1
+	;;
+esac

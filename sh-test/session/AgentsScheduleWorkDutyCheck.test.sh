@@ -18,7 +18,7 @@ rigPackage="$MDLT_ORIGIN/myx/myx.distro-agents"
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }
-[ -f "$rigPackage/sh-lib/session/AgentsTools.DispatcherSchedule.include" ] || rigRefuse "the schedule's include is not in the package"
+[ -f "$rigPackage/sh-lib/schedule/AgentsTools.DispatcherSchedule.include" ] || rigRefuse "the schedule's include is not in the package"
 . "$rigPackage/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
 rigTmp="$( rigTempDir AgentsScheduleWorkDutyCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
@@ -64,7 +64,7 @@ rigRun(){ ## -- the reasons the pass stated, from RIG_CALLS, and the line of eac
 			MMDAPP="${RIG_DATA%/data}" ; export MMDAPP
 			MDAT_DATA_ROOT="$RIG_DATA" ; export MDAT_DATA_ROOT
 			set +e +u
-			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.DispatcherSchedule.include" > /dev/null 2>&1
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/schedule/AgentsTools.DispatcherSchedule.include" > /dev/null 2>&1
 			## The include defines every helper this pass calls, so the stand-ins go in AFTER it is sourced, never before.
 			AgentsToolsScheduleCurrentFlags(){ cat "$RIG_FLAGS" ; return 0 ; }
 			AgentsToolsSchedulePaceText(){ printf "pace: 1 of 9 calls in 30 minutes -- under 7000, a duty start is allowed\n" ; return 0 ; }

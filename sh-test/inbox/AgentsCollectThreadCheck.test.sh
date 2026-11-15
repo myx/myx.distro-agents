@@ -173,7 +173,7 @@ rigAssert "a start says it started a process" "$( rigWord proc-start )" started
 rigWaitFor 20 test -e "$rigDir/ws/.local/agents/collect/thread.lock"
 rigAssert "the lock names it: its pid, and when it began" "$( rigLockPid ):$( cat "$rigDir/ws/.local/agents/collect/thread.lock" 2> /dev/null | LC_ALL=C awk 'NF == 2 { print "two" }' )" "${rigDaemon:-none}:two"
 rigAssert "it shows in the process list as its operation, a process of its own" "$( LC_ALL=C ps -ww -o args= -p "${rigDaemon:-0}" 2> /dev/null | LC_ALL=C grep -c -F -e '--intern-source-collect --run' )" 1
-rigAssert "it is no run of any session, by the rule that tells a run" "$( cd "$rigDir/ws" && MDLT_ORIGIN="$MDLT_ORIGIN" bash -c ". '$rigHere/team-data/AgentsTools.Registries.include' ; ps -ww -o pid=,args= -p ${rigDaemon:-0} | AgentsToolsRegistryRunWords | wc -l | tr -d ' '" )" 0
+rigAssert "it is no run of any session, by the rule that tells a run" "$( cd "$rigDir/ws" && MDLT_ORIGIN="$MDLT_ORIGIN" bash -c ". '$rigHere/team-data/AgentsTools.Registries.include' ; . '$rigHere/run/AgentsTools.RunProcesses.include' ; . '$rigHere/run/AgentsTools.RunState.include' ; . '$rigHere/run/AgentsTools.RunLeft.include' ; . '$rigHere/run/AgentsTools.RunRecords.include' ; ps -ww -o pid=,args= -p ${rigDaemon:-0} | AgentsToolsRunWords | wc -l | tr -d ' '" )" 0
 rigWaitFor 40 rigHasNotes rig-member 2
 rigAssert "it collects by itself: the mail is in the inbox of the member" "$( rigNotes rig-member )" "2"
 rigAssert "bounded as the scan bounds it: since the day before the member's stored sweep position, not the backlog of years" "$( rigCount "$rigFix/imap.log" '^UID SEARCH UNSEEN SINCE 08-Oct-2026$' | LC_ALL=C awk '{ print ( $1 >= 1 ) ? "bounded" : "unbounded" }' )" bounded

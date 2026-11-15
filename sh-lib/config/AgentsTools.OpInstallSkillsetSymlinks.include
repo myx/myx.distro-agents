@@ -1,0 +1,797 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+## AgentsTools.OpInstallSkillsetSymlinks.include -- the operation `--install-skillset-symlinks`, sourced by AgentsTools.Install.include with the operation's arguments.
+		shift
+
+		local scope="workspace" workspaceArg scopeExplicit="false" removeMode="false" targetRootArg
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--remove)
+					removeMode="true" ; shift
+				;;
+				--scope)
+					case "$2" in
+						workspace|user-home)
+						;;
+						*)
+							echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: --scope must be workspace or user-home" >&2
+							set +e ; return 1
+						;;
+					esac
+					scope="$2" ; scopeExplicit="true" ; shift 2
+				;;
+				--workspace)
+					if [ -z "$2" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: --workspace requires a value" >&2
+						set +e ; return 1
+					fi
+					workspaceArg="$2" ; shift 2
+				;;
+				--target-root)
+					if [ -z "$2" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: --target-root requires a value" >&2
+						set +e ; return 1
+					fi
+					targetRootArg="$2" ; shift 2
+				;;
+				*)
+					echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+
+		local workspace="${workspaceArg:-$MMDAPP}"
+		[ -d "$workspace" ] && workspace="$( cd "$workspace" && pwd )"
+
+		if [ ! -f "$workspace/.local/myx/myx.distro-.local/sh-lib/LocalContext.include" ] ; then
+			if [ "$scope" = "workspace" ] ; then
+				if [ "$scopeExplicit" = "true" ] ; then
+					echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: not a set-up myx.distro workspace: $workspace" >&2
+					set +e ; return 1
+				fi
+				scope="user-home"
+			fi
+		fi
+
+		local bundleRoot="$MDLT_ORIGIN/myx/myx.distro-agents/skillset/magic-team"
+		if [ "$removeMode" != "true" ] && [ ! -d "$bundleRoot" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: bundle directory does not exist: $bundleRoot" >&2
+			set +e ; return 1
+		fi
+
+		local rulesFiles="magic-team/magic-team.basic.md"
+		local rulesNames="" rulesNamesInit
+		for rulesNamesInit in $rulesFiles ; do
+			rulesNames="${rulesNames}$( basename "$rulesNamesInit" ) "
+		done
+
+		local targetRoot
+		if [ -z "$targetRootArg" ] ; then
+			local fanRoots fanRoot fanStatus=0
+			case "$scope" in
+				user-home)
+					fanRoots="$HOME/.agents/skills"$'\n'"$HOME/.copilot/skills"$'\n'"$HOME/.claude/skills"
+				;;
+				workspace)
+					fanRoots="$workspace/.agents/skills"$'\n'"$workspace/.claude/skills"
+				;;
+			esac
+			local ownsReport="false"
+			if [ -z "$MDSC_SKILLSET_REPORT" ] ; then
+				MDSC_SKILLSET_REPORT="$MMDAPP/.local/temp/magic-skillset-report.$$"
+				mkdir -p "$MMDAPP/.local/temp" && : > "$MDSC_SKILLSET_REPORT" || { set +e ; return 1 ; }
+				export MDSC_SKILLSET_REPORT ; ownsReport="true"
+			fi
+
+			## Scan once for the whole fan and thread it through the environment, so
+			## no per-root pass re-runs the declared-member discovery. PRESCAN is
+			## exported last so a consumer never sees the flag with the data missing.
+			local ownsPrescan="false"
+			if [ -z "$MDSC_SKILLSET_PRESCAN" ] ; then
+				local scanMemberNames scanMemberSources scanDiscoveryTrusted scanDiscoveryError
+				AgentsToolsInstallScanMembers "$workspace" "$removeMode" "$bundleRoot"
+				export MDSC_SKILLSET_MEMBERNAMES="$scanMemberNames"
+				export MDSC_SKILLSET_MEMBERSOURCES="$scanMemberSources"
+				export MDSC_SKILLSET_DISCOVERY_TRUSTED="$scanDiscoveryTrusted"
+				export MDSC_SKILLSET_DISCOVERY_ERROR="$scanDiscoveryError"
+				export MDSC_SKILLSET_PRESCAN="1" ; ownsPrescan="true"
+			fi
+
+			while IFS= read -r fanRoot ; do
+				[ -n "$fanRoot" ] || continue
+				if [ "$removeMode" = "true" ] ; then
+					type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+					DistroAgentsTools --install-skillset-symlinks --remove --scope "$scope" --workspace "$workspace" --target-root "$fanRoot" || fanStatus=1
+				else
+					type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+					DistroAgentsTools --install-skillset-symlinks --scope "$scope" --workspace "$workspace" --target-root "$fanRoot" || fanStatus=1
+				fi
+			done <<< "$fanRoots"
+
+			if [ "$ownsPrescan" = "true" ] ; then
+				unset MDSC_SKILLSET_PRESCAN MDSC_SKILLSET_MEMBERNAMES MDSC_SKILLSET_MEMBERSOURCES MDSC_SKILLSET_DISCOVERY_TRUSTED MDSC_SKILLSET_DISCOVERY_ERROR
+			fi
+			if [ "$ownsReport" = "true" ] ; then
+				type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+				DistroAgentsTools --install-skillset-report-render
+				rm -f "$MDSC_SKILLSET_REPORT" ; unset MDSC_SKILLSET_REPORT
+			fi
+			## The member index follows every registry change, whichever scope made it.
+			if [ -d "$workspace/.local" ] ; then
+				. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamRegistry.include"
+				if AgentsToolsTeamMemberIndexWrite "$workspace" ; then
+					echo "🧭 member index written: .local/agents/members.index" >&2
+				else
+					echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: could not write the member index in $workspace/.local/agents" >&2
+					fanStatus=1
+				fi
+			fi
+			if [ "$fanStatus" != "0" ] ; then
+				set +e ; return 1
+			fi
+			return 0
+		fi
+
+		targetRoot="$targetRootArg"
+		mkdir -p "$targetRoot" || {
+			echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: cannot create target directory: $targetRoot" >&2
+			set +e ; return 1
+		}
+
+		## Consume the fan branch's single scan; a direct --target-root invocation
+		## with no fan parent scans for itself here, through the same helper.
+		local hadError="false"
+		local memberNames memberSources discoveryTrusted
+		if [ -n "$MDSC_SKILLSET_PRESCAN" ] ; then
+			memberNames="$MDSC_SKILLSET_MEMBERNAMES"
+			memberSources="$MDSC_SKILLSET_MEMBERSOURCES"
+			discoveryTrusted="$MDSC_SKILLSET_DISCOVERY_TRUSTED"
+			[ "$MDSC_SKILLSET_DISCOVERY_ERROR" = "true" ] && hadError="true"
+		else
+			local scanMemberNames scanMemberSources scanDiscoveryTrusted scanDiscoveryError
+			AgentsToolsInstallScanMembers "$workspace" "$removeMode" "$bundleRoot"
+			memberNames="$scanMemberNames"
+			memberSources="$scanMemberSources"
+			discoveryTrusted="$scanDiscoveryTrusted"
+			[ "$scanDiscoveryError" = "true" ] && hadError="true"
+		fi
+
+		local memberName memberTarget memberBundled memberActual
+		local ownedMembers="" ownedNames="" newLinks="" deletedMembers="" errorMembers=""
+		while IFS= read -r memberName ; do
+			[ -n "$memberName" ] || continue
+			[ "$memberName" != "trash" ] || continue
+			memberTarget="$targetRoot/$memberName"
+			memberBundled="$bundleRoot/$memberName"
+			if [ -L "$memberTarget" ] && [ ! -e "$memberTarget" ] ; then
+				echo "# $MDSC_CMD --install-skillset-symlinks: $memberTarget is a dangling symlink (points at $( readlink "$memberTarget" ), which does not exist) -- reclaiming the slot" >&2
+				if ! rm -f "$memberTarget" ; then
+					echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: failed to remove dangling symlink: $memberTarget" >&2
+					errorMembers="${errorMembers}${memberName} " ; hadError="true"
+					continue
+				fi
+			elif [ -L "$memberTarget" ] ; then
+				memberActual="$( readlink "$memberTarget" )"
+				case "$( AgentsToolsInstallSlotClaim "$scope" "$workspace" "$memberTarget" "$memberBundled" "$memberName" )" in
+					claim)
+						if ! rm -f "$memberTarget" ; then
+							echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: failed to remove the link to claim: $memberTarget" >&2
+							errorMembers="${errorMembers}${memberName} " ; hadError="true"
+							continue
+						fi
+					;;
+					keep)
+						ownedMembers="${ownedMembers}${memberName} ${memberBundled}"$'\n' ; ownedNames="$ownedNames $memberName"
+						continue
+					;;
+					*)
+						ownedMembers="${ownedMembers}${memberName} ${memberActual}"$'\n' ; ownedNames="$ownedNames $memberName"
+						continue
+					;;
+				esac
+			fi
+			if [ "$memberTarget" -ef "$memberBundled" ] ; then
+				ownedMembers="${ownedMembers}${memberName} ${memberBundled}"$'\n' ; ownedNames="$ownedNames $memberName"
+				continue
+			elif [ -e "$memberTarget" ] ; then
+				[ "$scope" = "workspace" ] || { echo "🙋 WARNING: $MDSC_CMD --install-skillset-symlinks: real content at $memberTarget, left untouched (outside the workspace)" >&2 ; continue ; }
+				[ ! -d "$memberTarget" ] || case "$( cd -P "$memberBundled" && pwd -P )/" in "$( cd -P "$memberTarget" && pwd -P )"/*)
+					echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: $memberTarget holds $memberBundled itself, not removed" >&2
+					errorMembers="${errorMembers}${memberName} " ; hadError="true" ; continue ;;
+				esac
+				rm -rf -- "$memberTarget" || {
+					echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: failed to remove $memberTarget" >&2
+					errorMembers="${errorMembers}${memberName} " ; hadError="true"
+					continue
+				}
+				echo "# $MDSC_CMD --install-skillset-symlinks: removed: $memberTarget" >&2
+			fi
+			if ! AgentsToolsLinkMake "$memberBundled" "$memberTarget" ; then
+				echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: failed to create symlink: $memberTarget" >&2
+				errorMembers="${errorMembers}${memberName} " ; hadError="true"
+				continue
+			fi
+			ownedMembers="${ownedMembers}${memberName} ${memberBundled}"$'\n' ; ownedNames="$ownedNames $memberName"
+			newLinks="${newLinks}${memberName} "
+		done <<< "$memberNames"
+
+		local workspaceName registryFile compositeRoot originRoot
+		workspaceName="$( basename "$workspace" )"
+		## The member registry is our own data, never a file inside a vendor link folder
+		## (AgentsTools.TeamRegistry.include): the user-home scope writes the machine-wide
+		## directory every workspace reads, the workspace scope this workspace's own.
+		## Rows are TAB-separated: member, workspace root, link kind, relative path,
+		## member directory.
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamRegistry.include"
+		case "$scope" in
+			user-home) registryFile="${HOME:-}/.agents/magic-team/members.registry" ;;
+			*) registryFile="$( AgentsToolsTeamLocalFile "$workspace" members.registry )" ;;
+		esac
+		mkdir -p "${registryFile%/*}" || {
+			echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: cannot create the registry directory: ${registryFile%/*}" >&2
+			set +e ; return 1
+		}
+		## Every vendor folder this scope fans into: a member no workspace registers any
+		## more is unlinked from all of them at once, since the one registry serves them all.
+		local scopeRoots
+		case "$scope" in
+			user-home) scopeRoots="$HOME/.agents/skills"$'\n'"$HOME/.copilot/skills"$'\n'"$HOME/.claude/skills" ;;
+			*) scopeRoots="$workspace/.agents/skills"$'\n'"$workspace/.claude/skills" ;;
+		esac
+		case $'\n'"$scopeRoots"$'\n' in *$'\n'"$targetRoot"$'\n'*) ;; *) scopeRoots="$targetRoot"$'\n'"$scopeRoots" ;; esac
+		compositeRoot="$workspace/.local/agents/magic-team-composite"
+		originRoot="${MDLT_ORIGIN:-}"
+		[ -n "$originRoot" ] || originRoot="$compositeRoot"
+
+		local dcMember dcSources dcCount dcLinkTarget dcSrc
+		for dcMember in $( printf '%s' "$memberSources" | LC_ALL=C awk 'NF { print $1; }' | sort -u ) ; do
+			dcSources="$( printf '%s\n' "$memberSources" | LC_ALL=C awk -v m="$dcMember" '$1 == m { sub(/^[^ ]+ /, ""); print; }' )"
+			dcCount="$( printf '%s' "$dcSources" | grep -c '' )"
+
+			if [[ " $ownedNames " == *" $dcMember "* ]] ; then
+				## Same name, same member: every declared source resolves to the slot's own folder,
+				## so it is one entity declared twice and not a collision (human-owner, 2026-08-27).
+				local dcOwnedReal="" dcSame="true"
+				dcOwnedReal="$( printf '%s\n' "$ownedMembers" | LC_ALL=C awk -v m="$dcMember" 'NF && $1 == m { sub( /^[^ ]+ /, "" ) ; print ; exit ; }' )"
+				dcOwnedReal="$( cd "$dcOwnedReal" 2>/dev/null && pwd -P )" || dcOwnedReal=""
+				while IFS= read -r dcSrc ; do
+					[ -n "$dcSrc" ] || continue
+					[ -n "$dcOwnedReal" ] && [ "$( cd "$dcSrc" 2>/dev/null && pwd -P )" = "$dcOwnedReal" ] || dcSame="false"
+				done <<< "$dcSources"
+				if [ "$dcSame" = "true" ] ; then
+					echo "# $MDSC_CMD --install-skillset-symlinks: $dcMember is bundled and declared from the same folder -- one member, not a collision" >&2
+					continue
+				fi
+				echo "🙋 WARNING: $MDSC_CMD --install-skillset-symlinks: NAME COLLISION on team-member $dcMember -- it is both bundled and declared by a workspace project. The bundled copy holds the slot $targetRoot/$dcMember and stays registered; the declared source(s) below are NOT linked and NOT registered, and will be shadowed until one of the two is renamed:" >&2
+				while IFS= read -r dcSrc ; do
+					[ -n "$dcSrc" ] || continue
+					echo "#   shadowed declared source: $dcSrc" >&2
+				done <<< "$dcSources"
+				continue
+			fi
+
+			if [ "$dcCount" = "1" ] ; then
+				dcLinkTarget="$dcSources"
+			else
+				echo "# $MDSC_CMD --install-skillset-symlinks: composite team-member $dcMember from $dcCount source project(s)" >&2
+
+				local dcCollisions
+				dcCollisions="$(
+					while IFS= read -r dcSrc ; do
+						[ -n "$dcSrc" ] || continue
+						( cd "$dcSrc" && find -L . -type f -print ) | sed 's|^\./||'
+					done <<< "$dcSources" | sort | uniq -d
+				)"
+				if [ -n "$dcCollisions" ] ; then
+					echo "🙋 WARNING: $MDSC_CMD --install-skillset-symlinks: composite $dcMember has $( printf '%s' "$dcCollisions" | grep -c '' ) colliding path(s) across its sources; later source wins per path:" >&2
+					while IFS= read -r dcCollision ; do
+						[ -n "$dcCollision" ] || continue
+						echo "#   collision: $dcCollision" >&2
+					done <<< "$dcCollisions"
+				fi
+
+				local dcTarget="$compositeRoot/$dcMember"
+				if [ -L "$dcTarget" ] ; then
+					echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: composite build path is a symlink, refusing to clear it: $dcTarget" >&2
+					hadError="true"
+					continue
+				fi
+				if [ -e "$dcTarget" ] && [ ! -d "$dcTarget" ] ; then
+					echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: composite build path exists and is not a directory: $dcTarget" >&2
+					hadError="true"
+					continue
+				fi
+				rm -rf "$dcTarget" 2>/dev/null || true
+				mkdir -p "$dcTarget" || {
+					echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: can't create composite directory: $dcTarget" >&2
+					hadError="true"
+					continue
+				}
+				local dcRsyncFailed="false"
+				while IFS= read -r dcSrc ; do
+					[ -n "$dcSrc" ] || continue
+					if ! rsync -a -I "$dcSrc/" "$dcTarget/" ; then
+						echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: rsync failed for composite $dcMember source: $dcSrc" >&2
+						dcRsyncFailed="true"
+					fi
+				done <<< "$dcSources"
+				if [ "$dcRsyncFailed" = "true" ] ; then
+					hadError="true"
+					continue
+				fi
+				dcLinkTarget="$dcTarget"
+			fi
+
+			local dcSlot="$targetRoot/$dcMember"
+			if [ -L "$dcSlot" ] && [ ! -e "$dcSlot" ] ; then
+				echo "# $MDSC_CMD --install-skillset-symlinks: $dcSlot is a dangling symlink (points at $( readlink "$dcSlot" ), which does not exist) -- reclaiming the slot" >&2
+				if ! rm -f "$dcSlot" ; then
+					echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: failed to remove dangling symlink: $dcSlot" >&2
+					hadError="true"
+					continue
+				fi
+			elif [ -L "$dcSlot" ] ; then
+				if [ "$( AgentsToolsInstallSlotClaim "$scope" "$workspace" "$dcSlot" "$dcLinkTarget" "$dcMember" )" != claim ] ; then
+					ownedMembers="${ownedMembers}${dcMember} ${dcLinkTarget}"$'\n' ; ownedNames="$ownedNames $dcMember"
+					continue
+				fi
+				if ! rm -f "$dcSlot" ; then
+					echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: failed to remove the link to claim: $dcSlot" >&2
+					errorMembers="${errorMembers}${dcMember} " ; hadError="true"
+					continue
+				fi
+			fi
+			if [ "$dcSlot" -ef "$dcLinkTarget" ] ; then
+				ownedMembers="${ownedMembers}${dcMember} ${dcLinkTarget}"$'\n' ; ownedNames="$ownedNames $dcMember"
+				continue
+			elif [ -e "$dcSlot" ] ; then
+				[ "$scope" = "workspace" ] || { echo "🙋 WARNING: $MDSC_CMD --install-skillset-symlinks: real content at $dcSlot, left untouched (outside the workspace)" >&2 ; continue ; }
+				[ ! -d "$dcSlot" ] || case "$( cd -P "$dcLinkTarget" && pwd -P )/" in "$( cd -P "$dcSlot" && pwd -P )"/*)
+					echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: $dcSlot holds $dcLinkTarget itself, not removed" >&2
+					errorMembers="${errorMembers}${dcMember} " ; hadError="true" ; continue ;;
+				esac
+				rm -rf -- "$dcSlot" || {
+					echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: failed to remove $dcSlot" >&2
+					errorMembers="${errorMembers}${dcMember} " ; hadError="true"
+					continue
+				}
+				echo "# $MDSC_CMD --install-skillset-symlinks: removed: $dcSlot" >&2
+			fi
+			if ! AgentsToolsLinkMake "$dcLinkTarget" "$dcSlot" ; then
+				echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: failed to create symlink: $dcSlot" >&2
+				errorMembers="${errorMembers}${dcMember} " ; hadError="true"
+				continue
+			fi
+			ownedMembers="${ownedMembers}${dcMember} ${dcLinkTarget}"$'\n' ; ownedNames="$ownedNames $dcMember"
+			newLinks="${newLinks}${dcMember} "
+		done
+
+		if [ "$removeMode" != "true" ] ; then
+			local unclaimedDir unclaimedName
+			for unclaimedDir in "$bundleRoot"/*/ ; do
+				[ -d "${unclaimedDir%/}" ] || continue
+				unclaimedName="$( basename "${unclaimedDir%/}" )"
+				[ "$unclaimedName" != "trash" ] || continue
+				case " $ownedNames " in
+					*" $unclaimedName "*) ;;
+					*) echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: bundled team-member $unclaimedName was not installed into $targetRoot and will not load" >&2 ;;
+				esac
+			done
+		fi
+
+		if [ "$scope" = "workspace" ] && [ "$targetRoot" = "$workspace/.claude/skills" ] && [ "$removeMode" != "true" ] ; then
+			local rulesDir="$workspace/.claude/rules"
+			mkdir -p "$rulesDir" || {
+				echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: cannot create rules directory: $rulesDir" >&2
+				hadError="true"
+			}
+
+			local rfEntry rfName rfBundled rfTarget rfActual
+			for rfEntry in $rulesFiles ; do
+				[ -n "$rfEntry" ] || continue
+				rfName="$( basename "$rfEntry" )"
+				rfBundled="$bundleRoot/$rfEntry"
+				rfTarget="$rulesDir/$rfName"
+
+				if [ ! -f "$rfBundled" ] ; then
+					echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: bundled rules file does not exist: $rfBundled" >&2
+					errorMembers="${errorMembers}${rfName} " ; hadError="true"
+					continue
+				fi
+
+				if [ -L "$rfTarget" ] && [ ! -e "$rfTarget" ] ; then
+					echo "# $MDSC_CMD --install-skillset-symlinks: $rfTarget is a dangling symlink (points at $( readlink "$rfTarget" ), which does not exist) -- reclaiming the slot" >&2
+					if ! rm -f "$rfTarget" ; then
+						echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: failed to remove dangling symlink: $rfTarget" >&2
+						errorMembers="${errorMembers}${rfName} " ; hadError="true"
+						continue
+					fi
+				elif [ -L "$rfTarget" ] ; then
+					rfActual="$( readlink "$rfTarget" )"
+					ownedMembers="${ownedMembers}${rfName} ${rfActual}"$'\n' ; ownedNames="$ownedNames $rfName"
+					continue
+				fi
+				if [ "$rfTarget" -ef "$rfBundled" ] ; then
+					ownedMembers="${ownedMembers}${rfName} ${rfBundled}"$'\n' ; ownedNames="$ownedNames $rfName"
+					continue
+				elif [ -e "$rfTarget" ] ; then
+					[ ! -d "$rfTarget" ] || case "$( cd -P "${rfBundled%/*}" && pwd -P )/${rfBundled##*/}/" in "$( cd -P "$rfTarget" && pwd -P )"/*)
+						echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: $rfTarget holds $rfBundled itself, not removed" >&2
+						errorMembers="${errorMembers}${rfName} " ; hadError="true" ; continue ;;
+					esac
+					rm -rf -- "$rfTarget" || {
+						echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: failed to remove $rfTarget" >&2
+						errorMembers="${errorMembers}${rfName} " ; hadError="true"
+						continue
+					}
+					echo "# $MDSC_CMD --install-skillset-symlinks: removed: $rfTarget" >&2
+				fi
+				if ! AgentsToolsLinkMake "$rfBundled" "$rfTarget" ; then
+					echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: failed to create symlink: $rfTarget" >&2
+					errorMembers="${errorMembers}${rfName} " ; hadError="true"
+					continue
+				fi
+				ownedMembers="${ownedMembers}${rfName} ${rfBundled}"$'\n' ; ownedNames="$ownedNames $rfName"
+				newLinks="${newLinks}${rfName} "
+			done
+		fi
+
+		local regLock="$registryFile.lock" regWait=0 regLocked="false"
+		while true ; do
+			if mkdir "$regLock" 2>/dev/null ; then
+				regLocked="true"
+				break
+			fi
+			regWait=$(( regWait + 1 ))
+			if [ "$regWait" -gt 10 ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: registry busy, lock not acquired after $regWait attempts: $regLock" >&2
+				hadError="true"
+				break
+			fi
+			sleep 1
+		done
+
+		if [ "$regLocked" = "true" ] ; then
+			## Every command that could abort while the lock is held is tested, so each one ends at the one release below.
+			[ -f "$registryFile" ] || : > "$registryFile" || {
+				echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: cannot create registry: $registryFile" >&2
+				hadError="true"
+			}
+
+			local regEntry regName regResolved regType regRel regLine regTmp regContent regDir regVerdict=""
+			local regReadFailed="false"
+			regContent=$'\n'"$( cat "$registryFile" 2>/dev/null )"$'\n' || {
+				echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: registry read failed: $registryFile -- removing NOTHING" >&2
+				regContent=$'\n' ; regReadFailed="true" ; hadError="true"
+			}
+			while IFS= read -r regEntry ; do
+				[ -n "$regEntry" ] || continue
+				regName="${regEntry%% *}"
+				regResolved="${regEntry#* }"
+				regVerdict=""
+
+				local regRulesMatch="false" regRulesEntry regBundled regVerdict regSlot
+				for regRulesEntry in $rulesFiles ; do
+					if [ "$regResolved" = "$bundleRoot/$regRulesEntry" ] ; then
+						regRulesMatch="true"
+						break
+					fi
+				done
+
+				if [ "$regRulesMatch" = "true" ] ; then
+					regType="rules-symlink" ; regRel="${regResolved#$originRoot/}"
+				else
+					case "$regResolved" in
+						"$compositeRoot"/*)      regType=".local-merged"   ; regRel="${regResolved#$workspace/.local/}" ;;
+						"$workspace/.local/"*)   regType=".local-symlink"  ; regRel="${regResolved#$workspace/.local/}" ;;
+						"$workspace/source/"*)   regType="source-symlink"  ; regRel="${regResolved#$workspace/source/}" ;;
+						## last of the known-good arms: a vendored copy matches one of the three
+						## above first, so this one only speaks for an origin outside $workspace.
+						"$originRoot"/*)         regType="origin-symlink"  ; regRel="${regResolved#$originRoot/}" ;;
+						*)
+							## Reaching here means the link points outside both this workspace
+							## and the origin about to be linked into. What is left to separate
+							## is a link into a DIFFERENT workspace carrying the same skillset
+							## from one that is genuinely foreign. $regResolved is readlink
+							## output, so a relative link lands here too and stays foreign: a
+							## member link is based on $targetRoot but a rules link on $rulesDir,
+							## so it cannot be resolved here.
+							regBundled="$bundleRoot/$regName"
+							for regRulesEntry in $rulesFiles ; do
+								[ "${regRulesEntry##*/}" = "$regName" ] || continue
+								regBundled="$bundleRoot/$regRulesEntry"
+								break
+							done
+							regVerdict="foreign"
+							case "$regResolved" in
+								/*)
+									## The same skillset reached by another path. `diff -r` covers a
+									## rules entry (a file) and a member (a directory) alike.
+									if diff -r -q "$regResolved" "$regBundled" >/dev/null 2>&1 ; then
+										regVerdict="same"
+									elif [[ "$regContent" == *$'\n'"$regName"$'\t'* ]] ; then
+										## Content differs, but one of our own workspaces registered this
+										## member into this shared root: known, so not foreign.
+										regVerdict="ours"
+									fi
+								;;
+							esac
+							if [ "$regVerdict" = "foreign" ] && AgentsToolsInstallRigOwnSkillset "$regResolved" "$regName" ; then
+								## The rig's own link: kept where it is and registered below, with no warning.
+								regVerdict="rigown"
+							fi
+							case "$regVerdict" in
+								same|rigown)
+									## A member/rules entry this workspace itself bundles, reached
+									## through a foreign workspace's identical-content link: presence
+									## here is what AgentsToolsMemberWorkspaceResolve reads, so this
+									## workspace still registers its own row, from its own bundled
+									## path -- the slot itself is left exactly as found, not relinked
+									## (human-owner, 2026-10-06).
+									## `rigown` reaches the same answer for another reason: a rig has ONE workspace per
+									## machine, so a link outside this workspace and its origin is not another
+									## workspace's copy -- it is the rig's own skillset (AgentsToolsInstallRigOwnSkillset),
+									## kept as found and registered from the rig's own copy, not warned about.
+									case " $rulesNames " in
+										*" $regName "*)
+											regType="rules-symlink" ; regRel="${regBundled#$originRoot/}"
+										;;
+										*)
+											case "$regBundled" in
+												"$compositeRoot"/*)      regType=".local-merged"   ; regRel="${regBundled#$workspace/.local/}" ;;
+												"$workspace/.local/"*)   regType=".local-symlink"  ; regRel="${regBundled#$workspace/.local/}" ;;
+												"$workspace/source/"*)   regType="source-symlink"  ; regRel="${regBundled#$workspace/source/}" ;;
+												"$originRoot"/*)         regType="origin-symlink"  ; regRel="${regBundled#$originRoot/}" ;;
+												*)
+													if AgentsToolsInstallRigWorkspacePlace "$regBundled" ; then
+														continue
+													fi
+													echo "🙋 WARNING: $MDSC_CMD --install-skillset-symlinks: $regName is bundled here and identical at $regResolved, but $regBundled resolves outside this workspace and its origin -- not registered" >&2
+													continue
+												;;
+											esac
+										;;
+									esac
+								;;
+								ours)
+									case " $rulesNames " in
+										*" $regName "*) regSlot="$workspace/.claude/rules/$regName" ;;
+										*)              regSlot="$targetRoot/$regName" ;;
+									esac
+									if rm -f "$regSlot" && AgentsToolsLinkMake "$regBundled" "$regSlot" ; then
+										newLinks="${newLinks}${regName} "
+									else
+										echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: failed to relink: $regSlot -> $regBundled" >&2
+										errorMembers="${errorMembers}${regName} " ; hadError="true"
+									fi
+									continue
+								;;
+								*)
+									## THE SAME MEMBER'S SKILLSET, REACHED THROUGH AN OLD ROOT OF THIS MACHINE, IS
+									## A STALE LINK AND NOT A FOREIGN ONE. A rig that once had its tooling at a
+									## shorter prefix leaves links whose tail is `skillset/magic-team/<member>`
+									## while the tree moved: warning about them and keeping them leaves an install
+									## that never converges -- the owner sees a wall of warnings on every run, and
+									## a warning on a successful install is an error. So a target that ends in this
+									## member's own skillset path is RELINKED to the bundled copy, exactly as an
+									## `ours` link is; anything else still warns, because that is another member's
+									## copy and not ours to claim.
+									case "$regResolved" in
+										*/skillset/magic-team/"$regName")
+											if rm -f "$regSlot" && AgentsToolsLinkMake "$regBundled" "$regSlot" ; then
+												newLinks="${newLinks}${regName} "
+											else
+												echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: failed to relink a stale link: $regSlot -> $regBundled" >&2
+												errorMembers="${errorMembers}${regName} " ; hadError="true"
+											fi
+											continue
+										;;
+									esac
+									if AgentsToolsInstallRigWorkspacePlace "$regResolved" ; then
+										continue
+									fi
+									echo "🙋 WARNING: $MDSC_CMD --install-skillset-symlinks: not registered, points outside both workspace $workspace and origin $originRoot (pre-existing link kept, not ours to claim): $regName -> $regResolved" >&2
+									continue
+								;;
+							esac
+						;;
+					esac
+				fi
+				regDir="$regResolved"
+				case "$regVerdict" in same|rigown) regDir="$regBundled" ;; esac
+				regLine="$regName"$'\t'"$workspace"$'\t'"$regType"$'\t'"$regRel"$'\t'"$regDir"
+
+				case "$regContent" in *$'\n'"$regLine"$'\n'*) continue ;; esac
+				if [[ "$regContent" == *$'\n'"$regName"$'\t'"$workspace"$'\t'* ]] ; then
+					regTmp="$registryFile.tmp.$$"
+					if LC_ALL=C awk -F'\t' -v m="$regName" -v w="$workspace" '!( $1 == m && $2 == w )' "$registryFile" > "$regTmp" ; then
+						printf '%s\n' "$regLine" >> "$regTmp" || {
+							echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: registry rewrite failed for $regLine" >&2
+							rm -f "$regTmp" 2>/dev/null || true
+							hadError="true"
+							continue
+						}
+						if ! mv -f "$regTmp" "$registryFile" ; then
+							echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: registry rewrite failed for $regLine" >&2
+							rm -f "$regTmp" 2>/dev/null || true
+							hadError="true"
+							continue
+						fi
+						regContent=$'\n'"$( cat "$registryFile" 2>/dev/null )"$'\n' || {
+							echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: registry re-read failed after rewriting $regLine -- removing NOTHING" >&2
+							regContent="$regContent$regLine"$'\n' ; hadError="true"
+						}
+					else
+						echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: registry read failed while rewriting $regLine -- registry left untouched" >&2
+						rm -f "$regTmp" 2>/dev/null || true
+						hadError="true"
+						continue
+					fi
+				else
+					if [ "$regReadFailed" = "true" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: registry was not readable, $regLine not appended -- registry left untouched" >&2
+					elif printf '%s\n' "$regLine" >> "$registryFile" ; then
+						regContent="$regContent$regLine"$'\n'
+					else
+						echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: registry append failed for $regLine" >&2
+						hadError="true"
+					fi
+				fi
+			done <<< "$ownedMembers"
+
+			if [ "$discoveryTrusted" != "true" ] ; then
+				echo "🙋 WARNING: $MDSC_CMD --install-skillset-symlinks: discovery could not be trusted this run -- removing NOTHING. An unreadable or empty member list is never read as 'every member disappeared'." >&2
+			elif [ "$hadError" = "true" ] ; then
+				echo "🙋 WARNING: $MDSC_CMD --install-skillset-symlinks: errors earlier this run -- removing NOTHING, this run's member list is not a complete picture of the workspace." >&2
+			else
+				local rcOwned rcEntry rcName rcType rcRel rcPath rcSlot rcTmp
+				rcOwned="$(
+					LC_ALL=C awk -F'\t' -v w="$workspace" '
+						$2 == w && NF >= 5 { printf "%s\t%s\t%s\n", $1, $3, $5 }
+					' "$registryFile"
+				)" || {
+					echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: registry read failed while listing $workspace's entries -- removing NOTHING" >&2
+					rcOwned="" ; hadError="true"
+				}
+				while IFS=$'\t' read -r rcName rcType rcRel ; do
+					[ -n "$rcName" ] || continue
+					case " $ownedNames " in *" $rcName "*) continue ;; esac
+
+					## rcRel is the member directory the row recorded.
+					case "$rcType" in
+						rules-symlink)  rcPath="$workspace/.claude/rules/$rcName" ;;
+						*)              rcPath="$rcRel" ;;
+					esac
+					if [ "$removeMode" != "true" ] && [ -e "$rcPath" ] ; then
+						continue
+					fi
+
+					rcTmp="$registryFile.tmp.$$"
+					if ! LC_ALL=C awk -F'\t' -v m="$rcName" -v w="$workspace" '!( $1 == m && $2 == w )' "$registryFile" > "$rcTmp" ; then
+						echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: registry read failed while removing $rcName of $workspace -- registry left untouched" >&2
+						rm -f "$rcTmp" 2>/dev/null || true
+						hadError="true"
+						continue
+					fi
+					if ! mv -f "$rcTmp" "$registryFile" ; then
+						echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: registry rewrite failed removing $rcName of $workspace" >&2
+						rm -f "$rcTmp" 2>/dev/null || true
+						hadError="true"
+						continue
+					fi
+					deletedMembers="${deletedMembers}${rcName} "
+
+					if LC_ALL=C awk -F'\t' -v m="$rcName" '$1 == m { hit = 1; } END { exit !hit; }' "$registryFile" 2>/dev/null ; then
+						continue
+					fi
+					## a rules-file link lives beside the workspace's .claude/skills, not
+					## under it; a member link is unlinked from every folder of this scope.
+					local rcSlots="" rcScopeRoot
+					case "$rcType" in
+						rules-symlink) rcSlots="$workspace/.claude/rules/$rcName" ;;
+						*)
+							while IFS= read -r rcScopeRoot ; do
+								[ -n "$rcScopeRoot" ] || continue
+								rcSlots="$rcSlots$rcScopeRoot/$rcName"$'\n'
+							done <<< "$scopeRoots"
+						;;
+					esac
+					while IFS= read -r rcSlot ; do
+						[ -n "$rcSlot" ] || continue
+						if [ -L "$rcSlot" ] ; then
+							if rm -f "$rcSlot" ; then
+								echo "🔗 unlinked $rcSlot, no workspace registers $rcName any more" >&2
+							else
+								echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: failed to unlink: $rcSlot" >&2
+								hadError="true"
+							fi
+						elif [ -e "$rcSlot" ] ; then
+							echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: $rcSlot is not a symlink, refusing to remove real content" >&2
+							hadError="true"
+						fi
+					done <<< "$rcSlots"
+				done <<< "$rcOwned"
+			fi
+
+			rmdir "$regLock" 2>/dev/null || true
+		fi
+
+		local shortRoot="$targetRoot" reportEntry reportName reportWho reportTarget reportHome reportWspace classifyHome classifyWspace
+		local regLineName regLineWs regLineRest foreignMembers=""
+
+		## members another workspace registered into this same root: present and real, not ours to touch,
+		## but they are in the root and the count has to say so
+		if [ -f "$registryFile" ] ; then
+			while IFS=$'\t' read -r regLineName regLineWs regLineRest ; do
+				[ -n "$regLineName" ] || continue
+				[ "$regLineWs" != "$workspace" ] || continue
+				[ -e "$targetRoot/$regLineName" ] || continue
+				case " $foreignMembers " in *" $regLineName "*) continue ;; esac
+				## a rules file is not a skill member -- keep it out of the
+				## foreign-members table/count the same as everywhere else below
+				case " $rulesNames " in *" $regLineName "*) continue ;; esac
+				case " $ownedNames " in *" $regLineName "*) continue ;; esac
+				foreignMembers="${foreignMembers}${regLineName} "
+			done < "$registryFile"
+		fi
+		case "$shortRoot" in
+			"$workspace"/*) shortRoot=".${shortRoot#$workspace}" ;;
+			"$HOME"/*) shortRoot="~${shortRoot#$HOME}" ;;
+		esac
+
+		if [ "$removeMode" != "true" ] ; then
+			## one record per member; the caller owning the report renders them as a single table at the end
+			if [ -n "$MDSC_SKILLSET_REPORT" ] ; then
+				{
+					while IFS= read -r reportEntry ; do
+						[ -n "$reportEntry" ] || continue
+						reportName="${reportEntry%% *}"
+						case " $errorMembers " in *" $reportName "*) continue ;; esac
+						case " $rulesNames " in *" $reportName "*) continue ;; esac
+						## the slot is read back after any relink this run, so the row says where the link resolves now
+						reportTarget="$( readlink "$targetRoot/$reportName" 2>/dev/null )" || reportTarget=""
+						AgentsToolsInstallReportIcon "$reportName"
+						AgentsToolsInstallClassifyTarget "$reportTarget" "$workspace"
+						reportHome="$classifyHome" ; reportWspace="$classifyWspace"
+						case " $newLinks " in
+							*" $reportName "*) printf '%s\t%s\t%s\t%s\t%s\n' "$reportName" "updated" "$reportWho" "$reportHome" "$reportWspace" ;;
+							*) printf '%s\t%s\t%s\t%s\t%s\n' "$reportName" "kept" "$reportWho" "$reportHome" "$reportWspace" ;;
+						esac
+					done <<< "$ownedMembers"
+					for reportName in $errorMembers ; do
+						case " $rulesNames " in *" $reportName "*) continue ;; esac
+						AgentsToolsInstallReportIcon "$reportName"
+						printf '%s\t%s\t%s\t%s\t%s\n' "$reportName" "error" "$reportWho" "-" "-"
+					done
+					for reportName in $deletedMembers ; do
+						case " $rulesNames " in *" $reportName "*) continue ;; esac
+						AgentsToolsInstallReportIcon "$reportName"
+						printf '%s\t%s\t%s\t%s\t%s\n' "$reportName" "deleted" "$reportWho" "-" "-"
+					done
+					for reportName in $foreignMembers ; do
+						case " $rulesNames " in *" $reportName "*) continue ;; esac
+						reportTarget="$( readlink "$targetRoot/$reportName" 2>/dev/null )" || reportTarget=""
+						AgentsToolsInstallReportIcon "$reportName"
+						AgentsToolsInstallClassifyTarget "$reportTarget" "$workspace"
+						reportHome="$classifyHome" ; reportWspace="$classifyWspace"
+						printf '%s\t%s\t%s\t%s\t%s\n' "$reportName" "kept" "$reportWho" "$reportHome" "$reportWspace"
+					done
+				} >> "$MDSC_SKILLSET_REPORT"
+			fi
+			## progress while the roots are worked through; the table lands once, after all of them --
+			## a rules row counts toward neither term, same exclusion as the report loop above.
+			local reportRulesOwnedCount=0 reportRulesEntry reportRulesName
+			while IFS= read -r reportRulesEntry ; do
+				[ -n "$reportRulesEntry" ] || continue
+				reportRulesName="${reportRulesEntry%% *}"
+				case " $rulesNames " in *" $reportRulesName "*) reportRulesOwnedCount=$(( reportRulesOwnedCount + 1 )) ;; esac
+			done <<< "$ownedMembers"
+			echo "🔗 $shortRoot: $(( $( printf '%s' "$ownedMembers" | grep -c '' ) - reportRulesOwnedCount + $( printf '%s' "$foreignMembers" | wc -w ) )) members" >&2
+		fi
+
+		if [ "$hadError" = "true" ] ; then
+			set +e ; return 1
+		fi
+		return 0

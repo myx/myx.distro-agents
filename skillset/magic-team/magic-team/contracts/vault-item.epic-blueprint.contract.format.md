@@ -21,7 +21,7 @@ An epic blueprint: the tracking document of the epic-* routines, kept as a stand
 # Contract
 
 - Kind `vault-item.epic-blueprint`: store vault, type word `epic-blueprint`.
-- Filename: `epic-blueprint-<date>-<matter>.md`. `<date>` is `YYYYMMDD'T'HHmm'Z'` (UTC), per Terminology. It is the date the epic's own file carried, so the item's identity never changes with the day of a move; midnight UTC stands where the time was never recorded.
+- Filename: `epic-blueprint-<date>-<matter>.md`. `<date>` is `YYYYMMDD'T'HHmm'Z'` (UTC), per Terminology. It is the date the epic carried before it became an item. So the item's identity never changes with the day of a move. Midnight UTC stands where the time was never recorded.
 - A document names this contract in `document-contract`, with the value `vault-item.epic-blueprint`. The writer fills it where missing.
 - A key the Keys table does not name is not part of this contract. How a stored document that does not match is treated is set by the validator's per-rule disposition, not here.
 - The validator reads the Keys table, the Body and the unmarked Rules. A rule marked `[store]` needs more than the file to check. A rule marked `[judged]` is for a reader to judge.

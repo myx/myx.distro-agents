@@ -145,7 +145,7 @@ AgentsMcpReplyText(){ ## tool name, result
 AgentsMcpReplyNoticePart(){
 	[ -z "${MDAT_REPLY_IN_BATCH:-}" ] || return 0
 	[ -n "${mcpRootSessionId:-}" ] || return 0
-	type AgentsToolsCommsPrintbackNoticeDigest > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsPrintback.include" 2> /dev/null || return 0
+	type AgentsToolsCommsPrintbackNoticeDigest > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsPrintback.include"
 	local noticePart=""
 	noticePart="$( AgentsToolsCommsPrintbackNoticeDigest "$mcpRootSessionId" "${MDAT_SPAWN_AGENT:-magic-coordinator}" 2> /dev/null )" || noticePart=""
 	[ -z "$noticePart" ] || printf ',{"type":"text","text":"%s"}' "$( printf '%s' "$noticePart" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/mcp/AgentsMcpJsonEscape.awk" )"
@@ -157,21 +157,9 @@ AgentsMcpReplyNoticePart(){
 ## the batch's reply has the one.
 AgentsMcpReplyBesidePart(){
 	[ -z "${MDAT_REPLY_IN_BATCH:-}" ] || return 0
-	if type AgentsTranscriptReplyBeside > /dev/null 2>&1 ; then
+	type AgentsTranscriptReplyBeside > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionTranscript.include"
 		printf ',{"type":"text","text":"%s"}' "$( AgentsTranscriptReplyBeside | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/mcp/AgentsMcpJsonEscape.awk" )"
-	fi
 	AgentsMcpReplyNoticePart
-}
-
-## A notification carries no id and is never answered, so it has a sender of its own.
-AgentsMcpSendNotification(){
-	if ! AgentsMcpWireLockAcquire ; then
-		printf '%s\n' "$MDSC_CMD: mcp-request: ⛔ ERROR: wire lock not acquired after 30s -- DROPPING the notification $1." >&2
-		return 0
-	fi
-	printf '{"jsonrpc":"2.0","method":"%s"}\n' "$1" >&3
-	rmdir "$mcpScratchRoot/wire.lock" 2>/dev/null
-	return 0
 }
 
 ## One notifications/progress line for a call still running. The token is the raw JSON value the
@@ -254,7 +242,7 @@ AgentsMcpMemberOptionSet(){
 }
 
 ## The pid a job's pid file names: its first word. The file holds one line, `<pid> <start>`, the
-## leader of the job's process group and when it began, as AgentsToolsRegistryProcessesBegan read it
+## leader of the job's process group and when it began, as AgentsToolsRunProcessesBegan read it
 ## when the job was started, put in place together by one rename. A file written before start times
 ## were kept, or for a job that had ended before its start could be read, holds the pid alone.
 AgentsMcpJobPid(){ ## job directory
@@ -274,17 +262,17 @@ AgentsMcpJobPid(){ ## job directory
 ## A WATCHDOG WHOSE HANDLER WAS ENDED HARD LIVES ON, and wakes at its bound, up to hours later, with
 ## a number: by then the pid may be another process, and as a group it is every process of a
 ## stranger's group. So it keeps when the call began, read as the watchdog starts by the one reading
-## a process is kept by (AgentsToolsRegistryProcessesBegan, loaded in the watchdog's own shell), and
+## a process is kept by (AgentsToolsRunProcessesBegan, loaded in the watchdog's own shell), and
 ## signals the group by its number only while its leader is still that process: at the bound, where
-## the members are read too (AgentsToolsRegistryGroupBegan), and again before the KILL. Once the
+## the members are read too (AgentsToolsRunGroupBegan), and again before the KILL. Once the
 ## TERM has ended the leader the number is no longer the call's, and what is left is ended one
 ## process at a time: those members that are still the processes they were, and what they started
-## since (AgentsToolsRegistryGroupLeft). Where no start can be read, nothing is signalled by the
+## since (AgentsToolsRunGroupLeft). Where no start can be read, nothing is signalled by the
 ## number alone.
 AgentsMcpCallWatch(){ ## seconds, pid of the call (the leader of its process group), kill file
 	local watchBegan watchMembers watchLeft
-	type AgentsToolsRegistryGroupLeft > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include" 2> /dev/null
-	watchBegan="$( printf '%s\n' "$2" | AgentsToolsRegistryProcessesBegan 2> /dev/null )"
+	type AgentsToolsRunGroupLeft > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunProcesses.include"
+	watchBegan="$( printf '%s\n' "$2" | AgentsToolsRunProcessesBegan 2> /dev/null )"
 	## Each sleep is a child of this watch: the TERM that ends the watch once the call returned must end the
 	## sleep too, else one `sleep <seconds>` outlives every call under launchd. A TERM ends the watch at once.
 	local watchSleep=""
@@ -292,12 +280,12 @@ AgentsMcpCallWatch(){ ## seconds, pid of the call (the leader of its process gro
 	sleep "$1" & watchSleep=$!
 	wait "$watchSleep" || exit 0
 	watchSleep=""
-	watchMembers="$( AgentsToolsRegistryGroupBegan "$watchBegan" 2> /dev/null )" && { : > "$3" ; kill -TERM -- "-$2" 2>/dev/null ; } || return 0
+	watchMembers="$( AgentsToolsRunGroupBegan "$watchBegan" 2> /dev/null )" && { : > "$3" ; kill -TERM -- "-$2" 2>/dev/null ; } || return 0
 	sleep 5 & watchSleep=$!
 	wait "$watchSleep" || exit 0
 	watchSleep=""
-	if [ "$( printf '%s\n' "$2" | AgentsToolsRegistryProcessesBegan 2> /dev/null )" = "$watchBegan" ] ; then kill -KILL -- "-$2" 2>/dev/null ; return 0 ; fi
-	watchLeft="$( AgentsToolsRegistryGroupLeft "$2" "$watchMembers" 2> /dev/null )"
+	if [ "$( printf '%s\n' "$2" | AgentsToolsRunProcessesBegan 2> /dev/null )" = "$watchBegan" ] ; then kill -KILL -- "-$2" 2>/dev/null ; return 0 ; fi
+	watchLeft="$( AgentsToolsRunGroupLeft "$2" "$watchMembers" 2> /dev/null )"
 	[ -z "$watchLeft" ] || kill -KILL $watchLeft 2>/dev/null
 	return 0
 }
@@ -472,11 +460,10 @@ case "$1" in
 				## The session transcript hooks (AgentsTools.SessionTranscript.include): each call's
 				## tool line goes to the session's transcript and, with its session, to the daemon log.
 				mcpCallError='' ; mcpTranscript=''
-				if [ -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionTranscript.include" ] \
-					&& . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionTranscript.include" 2>/dev/null ; then
-					mcpTranscript=1
-					agentsTranscriptT0="$( AgentsTranscriptNowMs )"
-				fi
+				## Loaded at each request on purpose: the load resets the transcript's per-call state.
+				. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionTranscript.include"
+				mcpTranscript=1
+				agentsTranscriptT0="$( date +%s )000"
 
 				## Membership in the floor rendered above, and only for a name that is
 				## actually there. The name is matched as a whole quoted JSON value in the
@@ -497,7 +484,8 @@ case "$1" in
 				## on its answer as Wait does, and a second name of them, listed nowhere, is still
 				## taken wherever the floor is served.
 				mcpIsAskTool=''
-				if [ -n "$mcpServedToolsJson" ] && . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.AskPost.include" 2>/dev/null && AgentsToolsAskToolRow "$mcpToolName" ; then
+				. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.AskPost.include"
+				if [ -n "$mcpServedToolsJson" ] && AgentsToolsAskToolRow "$mcpToolName" ; then
 					mcpIsAskTool=1 ; mcpIsHarnessTool=1
 				fi
 
@@ -530,7 +518,7 @@ case "$1" in
 				esac
 				[ -z "${mcpRootSessionId:-}" ] || [ -n "$mcpGateMember" ] || mcpGateMember="magic-coordinator"
 				if [ -n "$mcpGateMember" ] && [ "RootSession" != "$mcpToolName" ] ; then
-					type AgentsToolsPermissionDenyRefusal > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionHolds.include" 2> /dev/null || :
+					type AgentsToolsPermissionDenyRefusal > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionHolds.include"
 					mcpRootRefusal="$( AgentsToolsPermissionDenyRefusal "$mcpGateMember" "$mcpToolName" "$mcpGateTarget" "$mcpGateSession" record 2> /dev/null )" || mcpRootRefusal=''
 				fi
 				if [ -n "${mcpMintStuck:-}" ] && [ "RootSession" != "$mcpToolName" ] ; then
@@ -545,11 +533,8 @@ case "$1" in
 				elif [ "BatchTools" = "$mcpToolName" ] && [ -z "${MDAT_MCP_SERVED_MARKER:-}" ] ; then
 					mcpIsHarnessTool=''
 					[ -n "$mcpToolArgs" ] || mcpToolArgs='{}'
-					if . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsTools.BatchTools.include" 2>/dev/null ; then
-						mcpOutput="$( AgentsToolsBatchRun AgentsMcpBatchCall AgentsMcpBatchServes "$mcpToolArgs" )"
-					else
-						mcpOutput='ERROR: BatchTools: its engine is missing from this package -- nothing was run.'
-					fi
+					type AgentsToolsBatchRun > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsTools.BatchTools.include"
+					mcpOutput="$( AgentsToolsBatchRun AgentsMcpBatchCall AgentsMcpBatchServes "$mcpToolArgs" )"
 					mcpIsError='false'
 					case "$mcpOutput" in ERROR:*) mcpIsError='true' ;; esac
 					AgentsMcpSendResult "$mcpId" "$( printf '{"content":[{"type":"text","text":"%s"}%s],"isError":%s}' "$( AgentsMcpReplyText "$mcpToolName" "$mcpOutput" )" "$( AgentsMcpReplyBesidePart )" "$mcpIsError" )"
@@ -691,6 +676,7 @@ case "$1" in
 						AgentsMcpSendError "$mcpId" -32602 "$mcpToolName requires a non-empty 'operation': the operation to run, such as --slack-send-message."
 					## A name of the front table, or one the tool file's own syntax lines carry: an operation the
 					## file serves as its own has no row to be found by.
+					type AgentsToolsFrontSyntaxLines > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.FrontTable.Help.include"
 					elif ! AgentsToolsFrontKnows "$mcpToolName" "$mcpSecondaryOp" && [ -z "$( AgentsToolsFrontSyntaxLines "$mcpToolName" "$mcpSecondaryOp" )" ] ; then
 						AgentsMcpSendError "$mcpId" -32602 "$mcpToolName: not an operation of that tool file, or not one: $mcpSecondaryOp"
 					elif AgentsMcpTaskUsable ; then
@@ -783,13 +769,13 @@ case "$1" in
 									## The file may be of any age and its pid a number the system has given
 									## again, so the group of that number is this job's only while its leader
 									## is still the process that began when the file says
-									## (AgentsToolsRegistryProcessesBegan). Where it is not, the job has ended,
+									## (AgentsToolsRunProcessesBegan). Where it is not, the job has ended,
 									## whoever has the number now. Where the file holds no start and a process
 									## has that number, nothing shows whose it is: nothing is signalled by the
 									## number alone, and the caller is told so.
 									mcpIsError='false'
-									type AgentsToolsRegistryProcessesBegan > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include" 2> /dev/null
-									if [ -n "$mcpJobPid" ] && [ "$( printf '%s\n' "$mcpJobPid" | AgentsToolsRegistryProcessesBegan 2> /dev/null )" = "$mcpJobKept" ] && kill -TERM -- "-$mcpJobPid" 2>/dev/null ; then
+									type AgentsToolsRunProcessesBegan > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunProcesses.include"
+									if [ -n "$mcpJobPid" ] && [ "$( printf '%s\n' "$mcpJobPid" | AgentsToolsRunProcessesBegan 2> /dev/null )" = "$mcpJobKept" ] && kill -TERM -- "-$mcpJobPid" 2>/dev/null ; then
 										mcpOutput="[job $mcpJob: TERM sent to process group $mcpJobPid]"
 									elif [ -n "$mcpJobPid" ] && [ "$mcpJobPid" = "$mcpJobKept" ] && kill -0 "$mcpJobPid" 2>/dev/null ; then
 										mcpIsError='true'
@@ -902,8 +888,8 @@ case "$1" in
 					## Kept with when it began, read here as the job starts, and put in place with the
 					## pid by one rename (the directory is this request's alone): the kill action signals
 					## the group of that number only while its leader is still that process.
-					type AgentsToolsRegistryProcessesBegan > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include" 2> /dev/null
-					mcpJobKept="$( printf '%s\n' "$mcpJobPid" | AgentsToolsRegistryProcessesBegan 2> /dev/null )"
+					type AgentsToolsRunProcessesBegan > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunProcesses.include"
+					mcpJobKept="$( printf '%s\n' "$mcpJobPid" | AgentsToolsRunProcessesBegan 2> /dev/null )"
 					printf '%s\n' "${mcpJobKept:-$mcpJobPid}" > "$mcpJobsDir/$mcpJobId/pid.aside" && mv -f "$mcpJobsDir/$mcpJobId/pid.aside" "$mcpJobsDir/$mcpJobId/pid"
 
 					mcpOutput="[job $mcpJobId started, pid $mcpJobPid]"$'\n'"[poll it:  $mcpToolName with job=$mcpJobId]"$'\n'"[stop it:  $mcpToolName with job=$mcpJobId action=kill]"$'\n'"[log file: $mcpJobsDir/$mcpJobId/out]"

@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+## AgentsTools.OpUndoRework.include -- the operation `--undo-rework`, sourced by AgentsTools.UndoRecord.include with the operation's arguments.
+## --undo-rework <record-id> [--session-id <id>]: the owner asked for the act to be done
+## differently. The promise stands and so does the hold, and his words are kept on the record
+## as he wrote them. A rework with no words is no verdict and nothing is written: the words
+## are the whole of the instruction.
+		shift
+		local undoReworkId="" undoReworkSession="" undoReworkDir="" undoReworkWord="" undoReworkText=""
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--session-id) undoReworkSession="${2:-}" ; shift 2 ;;
+				--*) echo "⛔ ERROR: $MDSC_CMD --undo-rework: invalid option: $1" >&2 ; set +e ; return 1 ;;
+				*) undoReworkId="$1" ; shift ;;
+			esac
+		done
+		undoReworkDir="$( AgentsToolsUndoFind "$undoReworkId" "$undoReworkSession" )" || { set +e ; return 1 ; }
+		undoReworkWord="$( AgentsToolsUndoOwnerWord "$undoReworkDir" "rework" )" || { set +e ; return 1 ; }
+		undoReworkText="${undoReworkWord#* -- }"
+		[ "$undoReworkText" != "$undoReworkWord" ] && [ -n "$undoReworkText" ] || {
+			printf 'not reworked: %s names a rework with no words, and a rework with no words is no verdict. The promise stands and the record stays %s\n' \
+				"$( AgentsToolsUndoField "$undoReworkDir" ask )" "$( AgentsToolsUndoField "$undoReworkDir" state )"
+			set +e ; return 1 ; }
+		## The state first, then his words: a reader that sees the one sees the other.
+		AgentsToolsUndoSet "$undoReworkDir" state rework-asked || { echo "⛔ ERROR: $MDSC_CMD --undo-rework: could not move the record" >&2 ; set +e ; return 1 ; }
+		AgentsToolsUndoSet "$undoReworkDir" rework-text "$undoReworkText" || {
+			echo "⛔ ERROR: $MDSC_CMD --undo-rework: the record moved and his words were not kept" >&2 ; set +e ; return 1 ; }
+		printf 'REWORK %s %s\n' "$undoReworkId" "$( AgentsToolsUndoField "$undoReworkDir" hold-dir )"
+		return 0

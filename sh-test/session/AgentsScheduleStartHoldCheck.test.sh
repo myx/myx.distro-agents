@@ -14,7 +14,7 @@ rigPackage="$MDLT_ORIGIN/myx/myx.distro-agents"
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }
-[ -f "$rigPackage/sh-lib/session/AgentsTools.DispatcherSchedule.include" ] || rigRefuse "the Dispatcher include is not in the package"
+[ -f "$rigPackage/sh-lib/schedule/AgentsTools.DispatcherSchedule.include" ] || rigRefuse "the Dispatcher include is not in the package"
 . "$rigPackage/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
 rigTmp="$( rigTempDir AgentsScheduleStartHoldCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
@@ -48,7 +48,7 @@ export PATH="$rigTmp/bin:$PATH"
 cd "$rigWs" || exit 1
 ## The include is sourced with one harmless positional word: the tooling's own context reader reads $1, and must not be handed the check's arguments.
 set -- check
-. "$rigPackage/sh-lib/session/AgentsTools.DispatcherSchedule.include" || rigRefuse "the Dispatcher include would not load"
+. "$rigPackage/sh-lib/schedule/AgentsTools.DispatcherSchedule.include" || rigRefuse "the Dispatcher include would not load"
 ## A start is made apart, and its markers say when it ended: the call waits for them here, as the next pass would meet them.
 rigStart(){ ## the key, then the arguments
 	AgentsToolsScheduleSpawn "$@" > /dev/null 2>&1 || return 1

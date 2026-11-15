@@ -15,7 +15,7 @@
 ## changes its folder.
 ##
 
-type AgentsToolsInboxDir > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/inbox/AgentsTools.InboxPlace.include"
+type AgentsToolsInboxItemFind > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/inbox/AgentsTools.InboxPlace.include"
 
 case "$1" in
 
@@ -165,6 +165,10 @@ case "$1" in
 			set +e ; return 1
 		fi
 		target="${existingPath:-$MDAT_DATA_ROOT/inboxes/$memberName/incoming/$itemName}"
+		## A new standing note is written where its kind lives, by the one place rule (AgentsToolsInboxNotePath).
+		case "$existingPath:$itemName" in
+			:note-*.md) target="$( AgentsToolsInboxNotePath "$memberName" "$itemName" )" && mkdir -p "${target%/*}" ;;
+		esac
 		if [ "$bodyMode" = "patch" ] ; then
 			local patchJson existingContent
 			patchJson="$( cat )"
@@ -175,7 +179,7 @@ case "$1" in
 			## body from its template (sh-lib/templates/inbox-item.<type>.document.format.md), and the
 			## front matter is stamped by the creation defaults below, as on any create.
 			type AgentsToolsToolingTemplateFill > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.ToolingTemplate.include"
-			type AgentsToolsItemNameType > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.ItemNameShape.include"
+			type AgentsToolsItemNameType > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/items/AgentsTools.ItemNameShape.include"
 			local slotsBlock slotsType slotsFile
 			slotsBlock="$( cat )"
 			slotsType="$( AgentsToolsItemNameType "$itemName" )"
@@ -308,7 +312,7 @@ case "$1" in
 		## folder moves there, nothing of it left where it was.
 		local movedFrom="" stampedNow="no"
 		[ "$( printf '%s\n' "$content" | LC_ALL=C awk -v fieldName=processed-at -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsBoardItemFrontmatterFieldProbe.awk" )" != "HAS" ] || stampedNow="yes"
-		target="$( AgentsToolsInboxDirFor "$memberName" "$stampedNow" )/$itemName"
+		if [ "$stampedNow" = "yes" ] ; then target="$MDAT_DATA_ROOT/inboxes/$memberName/processed/$itemName" ; else target="$MDAT_DATA_ROOT/inboxes/$memberName/incoming/$itemName" ; fi
 		[ -z "$existingPath" ] || [ "$existingPath" = "$target" ] || movedFrom="$existingPath"
 		## THE WRITE GATE (AgentsTools.DocValidate.include): the item as it would be, against the item as it is. A fault of
 		## its contract that this write introduces, and whose rule refuses, refuses the write and nothing is written; one
@@ -323,7 +327,7 @@ case "$1" in
 		printf '%s\n' "$content" > "$target"
 		[ -z "$movedFrom" ] || rm -f -- "$movedFrom"
 		## The waits of the member are poked, so one that naps long still reads the new item at once (AgentsToolsWakePoke).
-		type AgentsToolsWakePoke > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.WakeMarker.include" 2> /dev/null || :
+		type AgentsToolsWakePoke > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.WakeMarker.include"
 		! type AgentsToolsWakePoke > /dev/null 2>&1 || AgentsToolsWakePoke "$memberName"
 		echo "# $MDSC_CMD: member-inbox-upsert: wrote $itemName ($( printf '%s\n' "$content" | wc -l | tr -d '[:space:]' ) lines)" >&2
 

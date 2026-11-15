@@ -95,6 +95,19 @@ rigToolAccent(){ ## request number -- a name whose only fault is a letter a brac
 rigToolBad(){ ## request number -- an answer whose one tool call carries a name broken by the provider's own markup
 	printf 'data: {"choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"rig-bad","type":"function","function":{"name":"Read</|DSML| parameter>\\n<|DSML| parameter name=","arguments":"{}"}}]}}]}\ndata: {"choices":[{"index":0,"delta":{},"finish_reason":"tool_calls"}],"usage":{"prompt_tokens":20,"completion_tokens":2,"total_tokens":22}}\ndata: [DONE]\n' > "$rigDir/res.$1"
 }
+## THE WIRE A SECTION DRIVES, AND THE NAMES A LEG JUDGES ITS LIMITS BY. The chat leg reads a
+## model name as it stands; the Messages leg judges the model's family, so `rig-light` is
+## refused there before any request (`AgentsHarnessLimits.include`). A section that drives the
+## Messages leg sets all four below and puts them back.
+rigWire="OpenAiChat"
+rigEndpoint="https://harness-busy-check.invalid/v1/chat/completions"
+rigExtraHeaders=""
+rigModelLight="rig-light"
+rigModelMain="rig-main"
+## The Messages leg requires the maximum output per tier; the chat leg needs none.
+rigOutLight=""
+rigOutMain=""
+
 rigRunStatus=0
 rigRoundCount=0
 rigRun(){ ## context tokens, agent name (empty: a run with no team identity, which posts nowhere), then NAME=value assignments for this run
@@ -104,9 +117,10 @@ rigRun(){ ## context tokens, agent name (empty: a run with no team identity, whi
 	( cd "$rigWs" && env -i HOME="$rigTmp/home" PATH="$rigPath" MMDAPP="$rigWs" MDLT_ORIGIN="$rigOrigin" MDLT_OPTION="--run-from-path $rigOrigin" \
 		MDAT_SKILLSET_ROOT="$rigTmp/skills" MDAT_SPAWN_SESSION_ID=rig-busy MDAT_SPAWN_AGENT="$rigMember" RIG_SCENARIO="$rigDir" RIG_SLACK_STUB="$rigFixtures/session-address-first.curl.stub.sh" \
 		MDAT_WAIT_REMIND=off MDAT_HARNESS_CONTEXT_TOKENS="$rigTokens" ${@+"$@"} \
-		HARNESS_PROVIDER_NAME="busy-answer rig" HARNESS_SELF_NAME="AgentsHarnessBusyAnswerCheck.test.sh" HARNESS_WIRE="OpenAiChat" HARNESS_CREDENTIAL_NAMES="none" \
-		HARNESS_ENDPOINT="https://harness-busy-check.invalid/v1/chat/completions" HARNESS_HOST="harness-busy-check.invalid" \
-		HARNESS_MODEL_LIGHT="rig-light" HARNESS_MODEL_MAIN="rig-main" HARNESS_TOKEN_LIGHT="rig-not-a-credential" HARNESS_TOKEN_MAIN="rig-not-a-credential" \
+		HARNESS_PROVIDER_NAME="busy-answer rig" HARNESS_SELF_NAME="AgentsHarnessBusyAnswerCheck.test.sh" HARNESS_WIRE="$rigWire" HARNESS_CREDENTIAL_NAMES="none" \
+		HARNESS_ENDPOINT="$rigEndpoint" HARNESS_HOST="harness-busy-check.invalid" ${rigExtraHeaders:+HARNESS_EXTRA_HEADERS="$rigExtraHeaders"} \
+		HARNESS_MODEL_LIGHT="$rigModelLight" HARNESS_MODEL_MAIN="$rigModelMain" HARNESS_TOKEN_LIGHT="rig-not-a-credential" HARNESS_TOKEN_MAIN="rig-not-a-credential" \
+		${rigOutLight:+HARNESS_OUTPUT_TOKENS_LIGHT="$rigOutLight"} ${rigOutMain:+HARNESS_OUTPUT_TOKENS_MAIN="$rigOutMain"} \
 		HARNESS_STREAM_ATTEMPTS=3 HARNESS_RETRY_DELAY=0 \
 		python3 -I -B "$rigFixtures/rig-exec.py" --alarm 120 -- bash "$rigHarness" ${rigAgentName:+--agent "$rigAgentName"} --access-root "$rigDir" RIG-TASK-MARKER ) > "$rigDir/out" 2> "$rigDir/err" || rigRunStatus=$?
 	rigRoundCount="$( cat "$rigDir/round" )"
@@ -187,6 +201,70 @@ rigToolBadWrite 1
 rigText 2 RIG-FINAL-MARKER
 rigRun 0 "$rigMember"
 rigAssert "an unarmed run's broken Write call is redirected to its duty file" "$( rigHolds "$rigDir/req.2" 'read your duty file first' )" yes
+
+echo "-- 5b. the same two repairs on the Messages wire --"
+## Section 5 drives the chat wire alone, so every statement it makes is a statement about that wire.
+## The broken-name refusal and the replay of the repaired name sit in AgentsUniversalHarness.sh, above
+## both wires (:2238 to :2251, the repair at :2277), so the Messages wire owes its own red. Its own
+## stream shape is what an answer is written in here, and its own request shape is what the red asserts.
+rigMessagesToolBad(){ ## file -- one tool_use block whose name the provider broke
+	printf 'event: message_start\ndata: {"type":"message_start","message":{"id":"msg_rigbusy_bad","type":"message","role":"assistant","content":[],"usage":{"input_tokens":100,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"output_tokens":1}}}\n\n' > "$1"
+	printf 'event: content_block_start\ndata: {"type":"content_block_start","index":0,"content_block":{"type":"tool_use","id":"rig-mbad","name":"Read</|DSML| parameter>","input":{}}}\n\n' >> "$1"
+	printf 'event: content_block_delta\ndata: {"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":"{}"}}\n\n' >> "$1"
+	printf 'event: content_block_stop\ndata: {"type":"content_block_stop","index":0}\n\n' >> "$1"
+	printf 'event: message_delta\ndata: {"type":"message_delta","delta":{"stop_reason":"tool_use"},"usage":{"output_tokens":5}}\n\n' >> "$1"
+	printf 'event: message_stop\ndata: {"type":"message_stop"}\n\n' >> "$1"
+}
+rigMessagesText(){ ## file, text
+	printf 'event: message_start\ndata: {"type":"message_start","message":{"id":"msg_rigbusy_text","type":"message","role":"assistant","content":[],"usage":{"input_tokens":60,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"output_tokens":1}}}\n\n' > "$1"
+	printf 'event: content_block_start\ndata: {"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}\n\n' >> "$1"
+	printf 'event: content_block_delta\ndata: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"%s"}}\n\n' "$2" >> "$1"
+	printf 'event: content_block_stop\ndata: {"type":"content_block_stop","index":0}\n\n' >> "$1"
+	printf 'event: message_delta\ndata: {"type":"message_delta","delta":{"stop_reason":"end_turn"},"usage":{"output_tokens":5}}\n\n' >> "$1"
+	printf 'event: message_stop\ndata: {"type":"message_stop"}\n\n' >> "$1"
+}
+rigWireWas="$rigWire" ; rigEndpointWas="$rigEndpoint" ; rigHeadersWas="$rigExtraHeaders"
+rigLightWas="$rigModelLight" ; rigMainWas="$rigModelMain"
+rigWire="AnthropicMessages"
+rigEndpoint="https://harness-busy-check.invalid/v1/messages"
+rigExtraHeaders="anthropic-version: 2023-06-01"
+rigModelLight="rig-flash-light"
+rigModelMain="rig-flash-main"
+rigOutLight="4101"
+rigOutMain="4202"
+
+rigStart broken-tool-name-messages
+rigMessagesToolBad "$rigDir/res.1"
+rigMessagesText "$rigDir/res.2" RIG-FINAL-MARKER
+rigRun 0 ""
+rigAssert "the Messages leg ends normally after a broken name"          "$rigRunStatus" 0
+rigAssert "it makes two requests"                                      "$rigRoundCount" 2
+rigAssert "the replay answers the call by its own id, as a tool_result" "$( rigHolds "$rigDir/req.2" '"type":"tool_result","tool_use_id":"rig-mbad"' )" yes
+rigAssert "the replay carries the name cut back to Read"               "$( rigHolds "$rigDir/req.2" '"type":"tool_use","id":"rig-mbad","name":"Read"' )" yes
+rigAssert "the replay carries no broken name"                          "$( rigHolds "$rigDir/req.2" 'DSML' )" no
+rigAssert "the refusal is the result the model reads next"             "$( rigHolds "$rigDir/req.2" 'came back with a broken name from the provider' )" yes
+rigAssert "the run goes on to its answer"                              "$( cat "$rigDir/out" )" RIG-FINAL-MARKER
+
+## The control: the same Messages shape carrying a sound name calls the tool instead of
+## refusing it. Without this, the assertions above would pass on any tool_use block at all.
+rigMessagesToolSound(){ ## file -- the same shape, with a name the provider left whole
+	printf 'event: message_start\ndata: {"type":"message_start","message":{"id":"msg_rigbusy_ok","type":"message","role":"assistant","content":[],"usage":{"input_tokens":100,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"output_tokens":1}}}\n\n' > "$1"
+	printf 'event: content_block_start\ndata: {"type":"content_block_start","index":0,"content_block":{"type":"tool_use","id":"rig-mok","name":"Read","input":{}}}\n\n' >> "$1"
+	printf 'event: content_block_delta\ndata: {"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":"{\\"path\\": \\"%s\\"}"}}\n\n' "$rigDir/read.txt" >> "$1"
+	printf 'event: content_block_stop\ndata: {"type":"content_block_stop","index":0}\n\n' >> "$1"
+	printf 'event: message_delta\ndata: {"type":"message_delta","delta":{"stop_reason":"tool_use"},"usage":{"output_tokens":5}}\n\n' >> "$1"
+	printf 'event: message_stop\ndata: {"type":"message_stop"}\n\n' >> "$1"
+}
+rigStart sound-tool-name-messages
+rigMessagesToolSound "$rigDir/res.1"
+rigMessagesText "$rigDir/res.2" RIG-FINAL-MARKER
+rigRun 0 ""
+rigAssert "the control, a sound name on the same wire, runs the call"   "$( rigHolds "$rigDir/req.2" 'came back with a broken name from the provider' )" no
+rigAssert "and its replay names the tool it called"                     "$( rigHolds "$rigDir/req.2" '"type":"tool_use","id":"rig-mok","name":"Read"' )" yes
+
+rigWire="$rigWireWas" ; rigEndpoint="$rigEndpointWas" ; rigExtraHeaders="$rigHeadersWas"
+rigModelLight="$rigLightWas" ; rigModelMain="$rigMainWas"
+rigOutLight="" ; rigOutMain=""
 
 echo "-- 4. a context-length refusal at HTTP 400 still summarises --"
 rigStart context-refusal

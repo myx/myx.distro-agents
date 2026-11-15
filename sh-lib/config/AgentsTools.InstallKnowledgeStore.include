@@ -7,7 +7,7 @@
 ## and its arguments.
 ##
 ## The store is optional, and turned on by the setting MDAT_KNOWLEDGE_STORE (the catalogue of the changeable settings,
-## AgentsTools.ManagerConfig.include): off unless it is on, in the environment or in the settings of the team. With it off
+## AgentsTools.ManagerSettings.include): off unless it is on, in the environment or in the settings of the team. With it off
 ## nothing is installed. With it on, this is a thin call: the install is the feature setup.feature-lancedb, its fragment
 ## host/install/feature-lancedb.install.txt, which makes the environment in $LANCEDB_HOME (else $MMDAPP/.local/lancedb) with
 ## the embedded Python of the local tools, the pinned LanceDB and the embedding model, and carries the licences. This keeps the
@@ -19,17 +19,6 @@
 AgentsToolsInstallKnowledgeStoreRefuse(){ ## text -- why, on standard error; rc 1
 	echo "$MDSC_CMD: ⛔ ERROR: --install-knowledge-store: $1" >&2
 	return 1
-}
-
-## The setting: on or off. The first place of its row in the catalogue that holds a value it takes (`on` or `off`), the
-## environment first, then the settings of the team; else off.
-AgentsToolsKnowledgeStoreSetting(){
-	local settingValue="${MDAT_KNOWLEDGE_STORE:-}"
-	case "$settingValue" in on|off) printf '%s\n' "$settingValue" ; return 0 ;; esac
-	type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
-	settingValue="$( AgentsToolsConfigOption magic-team --select MDAT_KNOWLEDGE_STORE 2> /dev/null < /dev/null )" || settingValue=""
-	case "$settingValue" in on|off) printf '%s\n' "$settingValue" ; return 0 ;; esac
-	printf 'off\n'
 }
 
 AgentsToolsKnowledgeStoreInstall(){ ## the arguments after the operation word
@@ -49,6 +38,7 @@ AgentsToolsKnowledgeStoreInstall(){ ## the arguments after the operation word
 	done
 	[ -n "${MMDAPP:-}" ] && [ -d "$MMDAPP/.local" ] || { AgentsToolsInstallKnowledgeStoreRefuse "no workspace: MMDAPP is not set, or has no .local" ; return 1 ; }
 
+	type AgentsToolsKnowledgeStoreSetting > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/settings/AgentsTools.KnowledgeStoreSetting.include"
 	if [ "$( AgentsToolsKnowledgeStoreSetting )" != "on" ] ; then
 		AgentsToolsInstallKnowledgeStoreRefuse "the knowledge store is off (MDAT_KNOWLEDGE_STORE), so nothing was installed. Turn it on with: DistroAgentsTools.fn.sh --manager-config-set MDAT_KNOWLEDGE_STORE on"
 		return 1

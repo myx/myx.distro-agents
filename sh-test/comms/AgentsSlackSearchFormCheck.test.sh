@@ -20,7 +20,7 @@ set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 rigHere="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib"
 rigTools="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
-rigReader="$rigHere/comms/AgentsSlackSearchMatches.awk"
+rigReader="$rigHere/slack/AgentsSlackSearchMatches.awk"
 rigEngine="$rigHere/harness/AgentsHarnessJsonField.awk"
 rigMember="magic-tester"
 

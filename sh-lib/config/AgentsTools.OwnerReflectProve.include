@@ -1,0 +1,47 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.OwnerReflectProve.include -- the --owner-setup-reflection wizard's live proof of
+## the halves REFLECT_MODELS names, before the wizard writes the value. A front's part: it calls
+## the services each half names. The setting itself (its parse, its keys, what a half lacks) is
+## sh-lib/settings/AgentsTools.ReflectSetting.include.
+##
+
+## The wizard's step 4: each chosen half answers one live read, in the order the model names
+## them, and a half that does not is named. A half whose keys are missing cannot answer, so
+## the same walk gates that case and no second walk restates it. The read reaches the call
+## through the environment, which every comms read takes before any scope, so no scope file
+## is made for it.
+AgentsToolsReflectHalvesProve(){ ## model
+	local proveHalves proveHalf proveKey proveValue proveRc=0
+	type AgentsToolsReflectModelsParse > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/settings/AgentsTools.ReflectSetting.include"
+	proveHalves="$( AgentsToolsReflectModelsParse "$1" )" || return 1
+	for proveHalf in $proveHalves ; do
+		[ "$proveHalf" != "none" ] || continue
+		for proveKey in $( AgentsToolsReflectHalfKeys "$proveHalf" ) ; do
+			proveValue="$( AgentsToolsReflectKeyValue "$proveKey" )"
+			[ -z "$proveValue" ] || export "$proveKey=$proveValue"
+		done
+		case "$proveHalf" in
+			jira|confluence)
+				type AgentsToolsAtlassianCall > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/atlassian/AgentsTools.AtlassianRequest.include"
+				type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+				DistroAgentsTools --intern-op-atlassian-check --member routine-reflection-setup --product "$proveHalf" > /dev/null 2>&1 || proveRc=$?
+			;;
+			trello)
+				type AgentsToolsCommsTrelloCheck > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/trello/AgentsTools.MemberCommsTrello.include"
+				AgentsToolsCommsTrelloCheck routine-reflection-setup > /dev/null 2>&1 || proveRc=$?
+			;;
+			google-docs)
+				type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+				DistroAgentsTools --intern-op-comms-google-whoami routine-reflection-setup > /dev/null 2>&1 || proveRc=$?
+			;;
+		esac
+		[ "$proveRc" = 0 ] || {
+			echo "${MDSC_CMD:-DistroAgentsTools}: ⛔ ERROR: --owner-setup-reflection --apply: the $proveHalf half did not answer a live read, so REFLECT_MODELS was not written -- it never names a half this workspace cannot use now" >&2
+			return 1
+		}
+	done
+	return 0
+}

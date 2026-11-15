@@ -213,7 +213,7 @@ rigRec(){ ## sandbox, record name, session id, spawn id, owner, status, started-
 		printf -- '---\n\n# Spawn session: %s\n' "$3"
 	} > "$rigSp/$1/$2.spawn.md"
 }
-## The tooling keeps the process list it read for 10 s (AgentsToolsRegistryProcessArgs, .local/temp/ps-args.txt): a change of
+## The tooling keeps the process list it read for 10 s (AgentsToolsRunProcessArgs, .local/temp/ps-args.txt): a change of
 ## the rig's list drops the kept one, so the next call reads the list as it stands.
 rigPsChanged(){ rm -f "$rigWs/.local/temp/ps-args.txt" ; }
 rigLive(){ ## spawn id... -- the rig's process list: each a run by its own --session-id word

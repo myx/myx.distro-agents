@@ -50,9 +50,9 @@ AgentsToolsCommsClientKey(){ ## acting member, key
 ## rig's identity, never its home one. A client-side call takes no team rung at all, the team
 ## holding nothing of the other organisation's.
 AgentsToolsCommsScopeOf(){ ## acting member, the key prefix of the set -- the scope its settings are read from
-	type AgentsToolsScopeHoldsKeys > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWorkspace.include"
+	type AgentsSettingsHoldsKeys > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/settings/AgentsTools.Settings.include"
 	if [ "$1" != magic-team ] && ! AgentsToolsCommsClientSide "$1" ; then
-		if ! AgentsToolsScopeHoldsKeys "${MMDAPP%/}" "$1" "$2" && AgentsToolsScopeHoldsKeys "${MMDAPP%/}" magic-team "$2" ; then
+		if ! AgentsSettingsHoldsKeys "${MMDAPP%/}" "$1" "$2" && AgentsSettingsHoldsKeys "${MMDAPP%/}" magic-team "$2" ; then
 			printf 'magic-team\n' ; return 0
 		fi
 	fi
@@ -68,10 +68,11 @@ AgentsToolsCommsScopeOf(){ ## acting member, the key prefix of the set -- the sc
 ## --client-operation-run, its caller, the operation, the member.
 AgentsToolsCommsOwnSideLine(){ ## member, the system in a word, the operation as it was run, with no leading --
 	local sideTwin="a --client-comms-* operation" sideCoordinator=""
-	type AgentsToolsFrontFile > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.FrontTable.include"
+	type AgentsToolsFrontAudience > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.FrontTable.include"
 	[ -z "${MDAT_COMMS_OP:-}" ] || [ "$( AgentsToolsFrontAudience "$MDAT_COMMS_OP" )" != coordinator ] || sideCoordinator=yes
 	## A name the members and the coordinator share is the coordinator's own when its session runs it: its way is the same.
-	type AgentsToolsActingMember > /dev/null 2>&1 && [ "$( AgentsToolsActingMember )" = magic-coordinator ] && sideCoordinator=yes
+	type AgentsToolsActingMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.CallerCheck.include"
+	[ "$( AgentsToolsActingMember )" = magic-coordinator ] && sideCoordinator=yes
 	case "$3" in
 		--client-*|--intern-op-client-sweep-input-scan) sideTwin="$3" ;;
 		*)

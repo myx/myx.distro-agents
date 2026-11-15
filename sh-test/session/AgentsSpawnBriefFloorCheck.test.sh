@@ -17,7 +17,8 @@ rigAssert(){ ## what is asserted, got, want
 		printf '  FAIL  %s\n        got:  %s\n        want: %s\n' "$1" "$2" "$3" ; rigFailCount=$(( rigFailCount + 1 ))
 	fi
 }
-rigTmp="$( mktemp -d "${TMPDIR:-/tmp}/AgentsSpawnBriefFloorCheck.XXXXXX" )" || exit 1
+mkdir -p "$MMDAPP/.local/agents/scratch/sh-test" || exit 1
+rigTmp="$( mktemp -d "$MMDAPP/.local/agents/scratch/sh-test/AgentsSpawnBriefFloorCheck.XXXXXX" )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
 ## The block as the filler emits it: from SPAWN-PREPARE-BRIEF to its closing line, its tags stripped.
 LC_ALL=C awk '

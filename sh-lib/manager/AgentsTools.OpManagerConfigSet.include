@@ -1,0 +1,82 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+## AgentsTools.OpManagerConfigSet.include -- the operation `--manager-config-set`, sourced by AgentsTools.ManagerConfig.include with the operation's arguments.
+## Saves one changeable setting, a row of THE CHANGEABLE SETTINGS, and nothing else: the
+## one operation here that writes. A key of the configuration is none of them, and is
+## refused as any other. AN EMPTY VALUE REMOVES THE SETTING: its key is taken out of the
+## file, and no key with nothing after it is ever written. One row a program reads. Its
+## form is the help entry's.
+		local setOp="$1" setSubject setGroup setKey setKind setPlaces setDefault setTakes setSave setKeys="" setFound="" setValues="" setHow="" setWhere="" setNone="" setScope="" setFile="" setSaved
+		shift
+		if [ $# -ne 2 ] ; then
+			echo "⛔ ERROR: $MDSC_CMD $setOp: syntax is $setOp <key> <value>, got $# argument(s) -- nothing was saved" >&2
+			set +e ; return 1
+		fi
+		while IFS='|' read -r setSubject setGroup setKey setKind setPlaces setDefault setTakes setSave ; do
+			[ -n "$setKey" ] || continue
+			setKeys="$setKeys${setKeys:+, }$setKey"
+			[ "$setKey" != "$1" ] || { setFound="$setKind" ; setValues="$setTakes" ; setHow="$setPlaces" ; setWhere="${setSave:-}" ; setNone="$setDefault" ; }
+		done <<< "$agentsManagerConfigSettings"
+		## Nothing that was given is repeated in a refusal: a word that is no key and no value
+		## of a setting may be anything, a secret pasted by mistake among it.
+		if [ -z "$setFound" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD $setOp: the key given is none of the changeable settings -- nothing was saved. Its keys: $setKeys" >&2
+			set +e ; return 1
+		fi
+		[ -z "$setFound" ] || setValues="$( AgentsToolsManagerConfigSettingOffers "$setValues" )" || setValues=""
+		## another name of a value is saved as the value it means
+		set -- "$1" "$( AgentsToolsManagerConfigSettingFormer "$1" "$2" )"
+		if [ -n "$2" ] && ! AgentsToolsManagerConfigSettingTakes "$setFound" "$setValues" "$2" "" ; then
+			if [ "$setFound" = "number" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD $setOp: the value given is no whole number from ${setValues%%..*} to ${setValues##*..}, which $1 takes -- nothing was saved" >&2
+			else
+				setValues="$( printf '%s\n' "$setValues" | LC_ALL=C sed -e 's/^=[^,]*,//' -e 's/=[^,]*//g' -e 's/,/, /g' )"
+				echo "⛔ ERROR: $MDSC_CMD $setOp: the value given is none of the values of $1 -- nothing was saved. Its values: $setValues" >&2
+			fi
+			set +e ; return 1
+		fi
+		IFS=$'\t' read -r setScope setFile <<< "$( AgentsToolsManagerConfigSettingPlace "$setHow" "$setWhere" )"
+		if [ -z "$setFile" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD $setOp: there is no file to save $1 in: the operating system gives the user who runs this call no name -- nothing was saved" >&2
+			set +e ; return 1
+		fi
+		## A setting of the workspace is changed for everybody. Whoever reaches this arm is the
+		## console's operator, who stands at least equal to magic-coordinator: a member's
+		## session, magic-coordinator's among them, was refused where the family is dispatched.
+		## The empty value: the key is taken out, where the setting is kept, by the operation
+		## that removes one, and what the file holds of it then is read back. Its row says so,
+		## with the default the setting is at now.
+		if [ -z "$2" ] ; then
+			if [ "$setWhere" = "system" ] ; then
+				AgentsToolsManagerConfigSystemDrop "$1" || :
+				setSaved="$( AgentsToolsManagerConfigSystemValue "$1" )" || setSaved="?"
+			elif [ "$setScope" = "user" ] ; then
+				AgentsToolsManagerConfigUserDrop "$1" || :
+				setSaved="$( AgentsToolsManagerConfigUserValue "$1" )" || setSaved="?"
+			else
+				AgentsToolsManagerConfigTeamDrop "$1" || :
+				setSaved="$( AgentsToolsManagerConfigTeamValue "$1" )" || setSaved="?"
+			fi
+			if [ -n "$setSaved" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD $setOp: $1 could not be removed: $setFile still holds it after the write" >&2
+				set +e ; return 1
+			fi
+			printf 'removed\t%s\t%s\t%s\t%s\n' "$1" "${setNone:--}" "$setScope" "${setFile//[[:space:]]/_}"
+			return 0
+		elif [ "$setWhere" = "system" ] ; then
+			AgentsToolsManagerConfigSystemSave "$1" "$2" || :
+			setSaved="$( AgentsToolsManagerConfigSystemValue "$1" )" || setSaved=""
+		elif [ "$setScope" = "user" ] ; then
+			AgentsToolsManagerConfigUserSave "$1" "$2" || :
+			setSaved="$( AgentsToolsManagerConfigUserValue "$1" )" || setSaved=""
+		else
+			AgentsToolsManagerConfigTeamSave "$1" "$2" || :
+			setSaved="$( AgentsToolsManagerConfigTeamValue "$1" )" || setSaved=""
+		fi
+		if [ "$setSaved" != "$2" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD $setOp: $1 could not be saved: $setFile does not hold the value after the write" >&2
+			set +e ; return 1
+		fi
+		printf 'saved\t%s\t%s\t%s\t%s\n' "$1" "$setSaved" "$setScope" "${setFile//[[:space:]]/_}"
+		return 0

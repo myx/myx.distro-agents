@@ -80,7 +80,7 @@ set +u
 . "$rigContextInclude"
 ## The event-track helper's own chain reaches the tooling's dispatch file, which reads a positional
 ## parameter; loaded here, at the top level and once, so the context init finds it already there.
-. "$rigHere/session/AgentsTools.EventTrackThread.include"
+. "$rigHere/event-track/AgentsTools.EventTrackThread.include"
 set -u
 rigHas(){ ## file, fixed text -- 1 when some line holds it
 	LC_ALL=C grep -c -F -- "$2" "$1" 2> /dev/null | LC_ALL=C awk '{ print ( $1 > 0 ) ? 1 : 0 }'
@@ -203,6 +203,24 @@ rigAssert "6. the REVIEW line is written once" "$( rigOnceVerdict "$rigOrderT" R
 rigAssert "6. the TOOL line is written once" "$( rigOnceVerdict "$rigOrderT" TOOL )" once
 rigAssert "6. the ROUND line is written once" "$( rigOnceVerdict "$rigOrderT" ROUND )" once
 rigAssert "6. the START line is written once" "$( rigOnceVerdict "$rigOrderT" START )" once
+
+echo "-- 7. a run spawned from inside another writes its own model; a harness nested in a run writes none --"
+## The spawned run inherits its spawner's harness pid, live, under the spawner's session key.
+sleep 300 & rigLivePid=$!
+rigSpawnedSid="ffff6666-0000-4000-8000-000000000006"
+AgentsTranscriptStart "$rigSpawnedSid" "$rigStore" "audit/2026-11/session-spawned.log" rig-member
+rigModelOf(){ cat "$MMDAPP/.local/agents/sessions/$1/model" 2> /dev/null || printf 'none' ; }
+harnessSessionId="$rigSpawnedSid" ; harnessModel="rig-spawned-model"
+export MDAT_SPAWN_SESSION_ID="$rigSpawnedSid" MDAT_HARNESS_RUN_PID="$rigLivePid" MDAT_HARNESS_RUN_KEY="$rigOrderSid"
+AgentsTranscriptHarnessStart
+rigAssert "7. a run spawned from inside another writes its own model" "$( rigModelOf "$rigSpawnedSid" )" rig-spawned-model
+## A harness started inside that run: the same session key, another live pid.
+harnessModel="rig-nested-model"
+export MDAT_HARNESS_RUN_PID="$rigLivePid" MDAT_HARNESS_RUN_KEY="$rigSpawnedSid"
+AgentsTranscriptHarnessStart
+rigAssert "7. a harness nested in the run leaves the run's model as it was" "$( rigModelOf "$rigSpawnedSid" )" rig-spawned-model
+kill "$rigLivePid" 2> /dev/null || :
+wait "$rigLivePid" 2> /dev/null || :
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	printf '⛔ AUDIT_LOG_ONE_FORMAT CHECK FAILED: %s of %s assertion(s)\n' "$rigFailCount" "$(( rigPassCount + rigFailCount ))" >&2

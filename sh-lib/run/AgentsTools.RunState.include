@@ -1,0 +1,149 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.RunState.include -- the state word of a run: parked, its activity, and the one derivation of its state.
+## Sourced, never run. Functions only. Each function loads what it calls itself.
+##
+
+## thinking/tool/waiting/idling for a run with a process here, parked/failed/finished for one that ended, plus the case a guess would
+## get wrong: unclosed (no process is seen, and no open ask exists against its session -- ended without closing its own record, or on
+## another host, unmeasurable from here). status is
+## authoritative once the spawn has closed itself, regardless of what live measured -- but a
+## run still here is running (S21.4): a mark written before its own start cannot end it, and a
+## run the session's control/dead names is failed, whatever its record came to carry.
+## THE MARK A PARKED RUN LEAVES (S27.2) is the one home of that fact. The harness writes it under
+## the id it holds (`MDAT_SPAWN_SESSION_ID`), and a run's record carries two ids: that one, and its
+## `session-id`, which is the coworking session it joined. So the mark is looked for at both, and
+## the run is parked where either holds it.
+## THE MARK A PAUSED RUN LEAVES (S19.1) is the flag the pause operation writes, and it is read at the same two ids and no
+## more: `sessions/<id>/paused`, a line of when and by whom. A live run held by it reads `paused` whatever its own activity word
+## says, because a pause is state of its own and never a busy-looking run; once the flag is gone the activity word is the answer
+## again. Only a live run is asked: a flag left beside a run that ended changes nothing.
+AgentsToolsRunParked(){ ## run id, session id (may be empty)
+	type AgentsSessionMarked > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+	local parkedRun="${1:-}" parkedSession="${2:-}"
+	[ -d "${MMDAPP:-/nonexistent}/.local/agents/sessions" ] || return 1
+	case "$parkedRun" in ''|-|.|..|*/*) parkedRun="" ;; esac
+	case "$parkedSession" in ''|-|.|..|*/*) parkedSession="" ;; esac
+	[ -n "$parkedRun$parkedSession" ] || return 1
+	[ -z "$parkedRun" ] || ! AgentsSessionMarked "$parkedRun" parked || return 0
+	[ -z "$parkedSession" ] || [ "$parkedSession" = "$parkedRun" ] || ! AgentsSessionMarked "$parkedSession" parked || return 0
+	return 1
+}
+
+## THE ACTIVITY WORD A RUN LEFT (S27.4): `sessions/<spawn-id>/activity` holds `<round> <epoch> <word>`.
+## It is read only after the run is told alive, so a word left by a dead process is never the answer;
+## a word dated before the run's own record is stale too, and is no answer either. Prints one of
+## `thinking`, `tool`, `waiting` where the word is a Wait on a named source or an ask, or `idling` where the run waits on its floor alone.
+AgentsToolsRunActivity(){ ## spawn id, live word
+	local actSpawn="$1" actLive="${2:-}" actPath actRound actAt actWord actLine=""
+	case "$actSpawn" in ''|-|.|..|*/*) return 1 ;; esac
+	[ "$actLive" = running ] || return 1
+	actPath="${MMDAPP:-/nonexistent}/.local/agents/sessions/$actSpawn/activity"
+	[ -f "$actPath" ] || { printf 'thinking\n' ; return 0 ; }
+	IFS= read -r actLine < "$actPath" || :
+	actRound="${actLine%% *}" ; actLine="${actLine#* }"
+	actAt="${actLine%% *}" ; actWord="${actLine#* }"
+	case "$actRound:$actAt" in *[!0123456789:]*|:*) printf 'thinking\n' ; return 0 ;; esac
+	case "$actWord" in
+		thinking) printf 'thinking\n' ;;
+		"tool Wait"|"tool AskQuestion"|"tool ConfirmReadback"|"tool EscalateDecision"|"tool RequestPermission"|"tool ProposeApprove") printf 'waiting\n' ;;
+		idle) printf 'idling\n' ;;
+		busy) printf 'busy\n' ;;
+		tool\ *) printf 'tool\n' ;;
+		*) printf 'thinking\n' ;;
+	esac
+	return 0
+}
+
+AgentsToolsRunDeriveState(){ ## status, live, session-id, run id
+	type AgentsSessionRunClosed > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+	type AgentsToolsSessionPauseHeld > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionPause.include"
+	local dsStatus="$1" dsLive="$2" dsSession="$3" dsSpawn="${4:-}"
+	## A run not running that control/closed names is finished, before any other mark is read.
+	[ "$dsLive" = running ] || ! AgentsSessionRunClosed "$dsSession" "$dsSpawn" || { printf 'finished\n' ; return 0 ; }
+	## A PARKED RUN IS NEITHER RUNNING NOR FINISHED, BUT A LIVE RUN IS RUNNING (S27.2): the liveness
+	## check comes first, so a mark left by a run that started again is never the answer.
+	if [ "$dsLive" != running ] ; then
+		AgentsToolsRunParked "$dsSpawn" "$dsSession" && { printf 'parked\n' ; return 0 ; }
+	fi
+	## A LIVE RUN HELD BY A PAUSE READS `paused` (S19.1), before its activity word: a held run is not idle, not busy
+	## and not stuck, and a reader that called it any of those would restart or end it.
+	if [ "$dsLive" = running ] && AgentsToolsSessionPauseHeld "$dsSpawn" "$dsSession" ; then printf 'paused\n' ; return 0 ; fi
+	## A LIVE RUN SAYS WHAT IT IS DOING (S27.4): thinking, inside a tool, or in a call that waits.
+	[ "$dsLive" != running ] || { AgentsToolsRunActivity "$dsSpawn" "$dsLive" ; return 0 ; }
+	case "$dsStatus" in
+		spawn-failed|spawn-succeeded)
+			[ "$dsLive" != "running" ] || { printf 'running\n' ; return 0 ; }
+			AgentsSessionRunDead "$dsSession" "$dsSpawn" && { printf 'failed\n' ; return 0 ; }
+			case "$dsStatus" in spawn-failed) printf 'failed\n' ;; *) printf 'finished\n' ;; esac
+			return 0
+		;;
+		## A RUN PARKED ON ITS HANDBACK (S27.2) is neither running nor finished: it waits for a
+		## verdict, and only that verdict starts it again.
+		spawn-awaiting-review)
+			printf 'parked\n'
+			return 0
+		;;		spawn-ended-without-close)
+			## The advance pass closes a clean handback this way, and settles a death the same way
+			## (control/dead): the one tells the other apart (S21.4), never guessed from status alone.
+			if AgentsSessionRunDead "$dsSession" "$dsSpawn"
+			then
+				printf 'failed\n'
+			else
+				printf 'finished\n'
+			fi
+			return 0
+		;;
+	esac
+	[ "$dsLive" != "remote" ] || { printf 'unclosed\n' ; return 0 ; }
+	[ "$dsLive" != "running" ] || { printf 'running\n' ; return 0 ; }
+	## A run with no live process never reads waiting (sketch 5.4): an open ask of the session leaves the run unclosed; the ask stands on the session row.
+	printf 'unclosed\n'
+}
+
+## AgentsToolsRunDeriveState without a fork: the same answer, into derivedState of the
+## caller, the open asks read from AgentsToolsRegistryPendingOpenSessions's set.
+AgentsToolsRunDeriveStateFromSet(){ ## status, live, session-id, open-session set, run id
+	type AgentsSessionRunClosed > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+	type AgentsToolsSessionPauseHeld > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionPause.include"
+	## A run not running that control/closed names is finished, before any other mark is read.
+	[ "$2" = running ] || ! AgentsSessionRunClosed "$3" "${5:-}" || { derivedState="finished" ; return 0 ; }
+	## A parked run is neither running nor finished (S27.2), unless it is live: the liveness check
+	## comes first, so a mark left by a run that started again is never the answer.
+	if [ "$2" != running ] ; then
+		AgentsToolsRunParked "${5:-}" "$3" && { derivedState="parked" ; return 0 ; }
+	fi
+	## A live run says what it is doing (S27.4), read from its own activity mark, and a live run held by a pause reads
+	## `paused` before either (S19.1).
+	if [ "$2" = running ] && AgentsToolsSessionPauseHeld "${5:-}" "$3" ; then derivedState="paused" ; return 0 ; fi
+	[ "$2" != running ] || { derivedState="$( AgentsToolsRunActivity "${5:-}" running )" || derivedState="thinking" ; return 0 ; }
+	case "$1" in
+		spawn-failed|spawn-succeeded)
+			## A run still here is running, and a run its session records as dead is failed (S21.4): the same two readings the
+			## forking form takes before it honours the status word.
+			[ "$2" != "running" ] || { derivedState="running" ; return 0 ; }
+			if AgentsSessionRunDead "$3" "${5:-}"
+			then
+				derivedState="failed" ; return 0
+			fi
+			case "$1" in spawn-failed) derivedState="failed" ;; *) derivedState="finished" ;; esac ; return 0
+		;;
+		spawn-ended-without-close)
+			## Same death check as AgentsToolsRunDeriveState (S21.4): control/dead tells a settled
+			## death from the advance pass's own clean close, which share this one status word.
+			derivedState="finished"
+			if AgentsSessionRunDead "$3" "${5:-}"
+			then
+				derivedState="failed"
+			fi
+			return 0
+		;;
+	esac
+	[ "$2" != "remote" ] || { derivedState="unclosed" ; return 0 ; }
+	[ "$2" != "running" ] || { derivedState="running" ; return 0 ; }
+	## A run with no live process never reads waiting (sketch 5.4): an open ask of its session leaves the run unclosed.
+	derivedState="unclosed"
+	return 0
+}

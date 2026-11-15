@@ -8,7 +8,7 @@
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigFn="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
-rigSandboxLib="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include"
+rigSandboxLib="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandbox.include"
 
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
@@ -44,8 +44,8 @@ printf '# workspace\n' > "$rigWs/MAGIC.md"
 printf '# rig routine\n' > "$rigTmp/skills/rig-member/magic-team.rig.routine.md"
 printf '# rig armed\n' > "$rigTmp/skills/rig-member/rig-member.armed.md"
 printf -- '---\nmaintainers: rig\n---\nrig identity\n' > "$rigTmp/skills/rig-member/rig-member.basic.md"
-## The fake console records what input/ held while it ran, and leaves a deliverable.
-printf '#!/bin/sh\n## cli-configured MDAT_SPAWN_LAUNCH_MARKER --cli)\ncat > /dev/null\nls "$MDAT_SPAWN_SANDBOX_ROOT/input" > "%s/input-while-running"\ncat "$MDAT_SPAWN_SANDBOX_ROOT"/input/* > "%s/input-content" 2>/dev/null\necho deliverable > "$MDAT_SPAWN_SANDBOX_ROOT/output/result.txt"\n' \
+## The fake console records what its own input folder held while it ran, and leaves a deliverable.
+printf '#!/bin/sh\n## cli-configured MDAT_SPAWN_LAUNCH_MARKER --cli)\nrigIn="$MDAT_SPAWN_SANDBOX_ROOT/input/$MDAT_SPAWN_SESSION_ID"\ncat > /dev/null\nls "$rigIn" > "%s/input-while-running"\ncat "$rigIn"/* > "%s/input-content" 2>/dev/null\necho deliverable > "$MDAT_SPAWN_SANDBOX_ROOT/output/result.txt"\n' \
 	"$rigTmp" "$rigTmp" > "$rigWs/DistroAgentsConsole.sh"
 chmod +x "$rigWs/DistroAgentsConsole.sh"
 
@@ -71,16 +71,16 @@ rigAssert "nothing secret is in input/"                "$( rigYes env LC_ALL=C g
 rigSandbox="$( ls -d "$rigWs/.local/agents/spawned"/*/ 2>/dev/null | head -1 )"
 rigSandbox="${rigSandbox%/}"
 [ -n "$rigSandbox" ] || rigRefuse "no sandbox was created"
-rigAssert "after close input/ is empty"                "$( find "$rigSandbox/input" -mindepth 1 | LC_ALL=C grep -c . || : )" 0
-rigAssert "input/ itself is kept"                      "$( rigYes test -d "$rigSandbox/input" )" yes
+rigAssert "after close the run's own input folder is empty" "$( find "$rigSandbox"/input/*/ -mindepth 1 2>/dev/null | LC_ALL=C grep -c . || : )" 0
+rigAssert "the input container is kept"               "$( rigYes test -d "$rigSandbox/input" )" yes
 rigAssert "and output/ keeps the deliverable"          "$( cat "$rigSandbox/output/result.txt" 2>/dev/null )" deliverable
 
 echo "-- the sweep --"
 rigSpawned="$rigWs/.local/agents/spawned"
 rigThisHost="$( hostname -s 2>/dev/null || echo unknown )"
 rigMake(){ ## name, record age (old|new|none), host
-	mkdir -p "$rigSpawned/$1/input" "$rigSpawned/$1/output"
-	: > "$rigSpawned/$1/input/brief.md"
+	mkdir -p "$rigSpawned/$1/input/rig-run-$1" "$rigSpawned/$1/output"
+	: > "$rigSpawned/$1/input/rig-run-$1/brief.md"
 	[ "$2" != none ] || return 0
 	printf 'session-id: rig-dead-%s\nhost: %s\n' "$1" "$3" > "$rigSpawned/$1/rig-dead-$1.spawn.md"
 	[ "$2" != old ] || touch -t 202001010000 "$rigSpawned/$1/rig-dead-$1.spawn.md"
@@ -93,14 +93,14 @@ rigMake otherhost old rig-elsewhere
 ## empty, and in a fresh one, which keeps it.
 rigScratch(){ mkdir -p "$rigSpawned/$1/tmp/AgentsUniversalHarness.rig" && printf 'rig\n' > "$rigSpawned/$1/tmp/AgentsUniversalHarness.rig/wait.err" ; }
 rigMake scratchonly old "$rigThisHost"
-rm -f "$rigSpawned/scratchonly/input/brief.md"
+rm -f "$rigSpawned/scratchonly/input/rig-run-scratchonly/brief.md"
 rigScratch stale ; rigScratch scratchonly ; rigScratch fresh
 env -i MDAT_WORKSPACE_MODE=team-rig PATH="/usr/bin:/bin:/usr/sbin:/sbin" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" RIG_TMP="$rigTmp" RIG_LIB="$rigSandboxLib" \
 	bash -c '
 		case "$MMDAPP" in "$RIG_TMP"/*) ;; *) exit 99 ;; esac
 		MDSC_CMD=rig ; . "$RIG_LIB" ; AgentsToolsSpawnSandboxSweep rig-sweep
 	' 2> "$rigTmp/sweep.err"
-rigLeft(){ find "$rigSpawned/$1/input" -mindepth 1 | LC_ALL=C grep -c . || : ; }
+rigLeft(){ find "$rigSpawned/$1/input" -mindepth 2 -maxdepth 2 -type f 2>/dev/null | LC_ALL=C grep -c . || : ; }
 rigAssert "a stale sandbox is emptied"                 "$( rigLeft stale )" 0
 rigAssert "and said"                                   "$( rigYes env LC_ALL=C grep -q 'emptied input/ of stale' "$rigTmp/sweep.err" )" yes
 rigAssert "a fresh one is skipped"                     "$( rigLeft fresh )" 1

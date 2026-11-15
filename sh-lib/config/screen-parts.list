@@ -25,6 +25,7 @@ AgentsManagerScreen.Members.py
 AgentsManagerScreen.TeamData.py
 AgentsManagerScreen.Contacts.py
 AgentsManagerScreen.Routines.py
+AgentsManagerScreen.Epics.py
 AgentsManagerScreen.Schedule.py
 AgentsManagerScreen.Tokens.py before LocalManagerScreen.Places.py
 AgentsManagerScreen.Consoles.py

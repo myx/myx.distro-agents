@@ -1,0 +1,167 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+type AgentsToolsPendingRecordPath > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.Authority.include"
+
+## AgentsHarnessAskPending.include: a question's pending reply: opened and closed, the answer it already has, and the answers a wait returned on it, read.
+## Sourced by AgentsHarnessAsk.include, definitions only.
+
+## Composed from the two tools it is built on and nothing else: the question goes out
+## through AgentsHarnessToolSendMessage and the wait is AgentsHarnessToolWait over the
+## same target. THE OUTCOME LINE IS THIS TOOL'S WHOLE CONTRACT. POSTED, RECEIVED,
+## TIMEOUT and an ERROR must never read alike, because what to do next differs for all
+## four -- and above all a question that was never posted must never look like one
+## nobody answered. Both call sites capture rather than stream, which is safe because
+## each of those functions already redirects its own child to a file: nothing the send
+## or the wait forks holds this capture pipe open.
+## The pending-reply store is the tooling's, reached the way this harness reaches all
+## tooling: through an intern op, never by writing that store's files from here. One
+## place records a posted question for every path that can ask one -- this harness's own
+## tools that ask (AskQuestion, ConfirmReadback, EscalateDecision, RequestPermission), their
+## stubs in the myx.distro MCP, and the vendor call a client hook reroutes to them -- because
+## they all arrive at this function.
+##
+## Neither helper can fail this tool. A question that was genuinely asked must be
+## reported as asked even where recording it did not work, so a failure here degrades
+## to no record and a warning, never to a wrong outcome line.
+AgentsHarnessPendingReplyOpen(){ ## conversation id, question body, then the typed-question metadata: kind, address_to, channel, question ts, thread ts, addressees, asking accounts, refusal id, options, then the thread tag and the question key, then as bot (true: posted under the bot identity), then the task_ref the item is found by, then the reason, then the answer form (select), then the fields the post was filled with, then the live version where the first post is not it (the reply a proposal is)
+	local openTools="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" openId="" openSession openIdentity="member"
+	[ -x "$openTools" ] || return 0
+	[ -n "$harnessAgent" ] || return 0
+	openSession="${harnessSessionId:-${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}}"
+	## Kept on the record, so the tooling's reminders post under the identity the question did.
+	case "${14:-}" in
+		true|1|yes) openIdentity="bot" ;;
+	esac
+	## Who may answer is written on the record in TWO names, and the wait's reader reads the
+	## `addressees:` one: a record opened with only `--address-to` was a source the wait could
+	## not read (WAIT-NEVER-READ). Where no addressee list was given, the address is that list.
+	local openAddressees="${8:-}"
+	[ -n "$openAddressees" ] || openAddressees="${4:-}"
+	openId="$( printf '%s' "$2" | "$BASH" "$openTools" --intern-op-pending-reply-open "$harnessAgent" \
+		--to "$1" \
+		${openSession:+--session-id "$openSession"} \
+		${3:+--kind "$3"} ${4:+--address-to "$4"} ${5:+--channel "$5"} ${6:+--question-ts "$6"} ${7:+--thread-ts "$7"} \
+		${openAddressees:+--addressees "$openAddressees"} ${9:+--asking-accounts "$9"} ${10:+--refusal-id "${10}"} ${11:+--options "${11}"} \
+		${12:+--question-tag "${12}"} ${13:+--question-key "${13}"} ${15:+--task-ref "${15}"} ${16:+--reason "${16}"} --ask-identity "$openIdentity" \
+		${17:+--select "${17}"} ${18:+--fields "${18}"} ${19:+--revision-ts "${19}"} \
+		--context "$harnessAskName" 2>"$harnessScratch/pending-open.err" )" || openId=""
+	if [ -z "$openId" ] ; then
+		printf 'WARNING: %s: the question was posted but NOT recorded as a pending reply, so nothing will resume or re-ask it later. What the operation reported follows:\n' "$harnessAskName" >&2
+		cat "$harnessScratch/pending-open.err" >&2 2>/dev/null || :
+		return 0
+	fi
+	printf '%s\n' "$openId"
+}
+
+AgentsHarnessPendingReplyClose(){ ## pending reply id, status, optional verdict, optional ts of the reply taken as the answer, optional answerer
+	local closeTools="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+	[ -n "$1" ] || return 0
+	[ -x "$closeTools" ] || return 0
+	## Only while still open: a record another closer (a collect, a settle) closed first is left as it is.
+	local closeRc=0
+	"$BASH" "$closeTools" --intern-op-pending-reply-close "$1" --if-open --status "$2" ${3:+--verdict "$3"} ${4:+--answer-ts "$4"} ${5:+--answered-by "$5"} --context "$harnessAskName" >/dev/null 2>&1 || closeRc=$?
+	case "$closeRc" in
+		0|3) ;;
+		*) printf 'WARNING: %s: pending reply %s could not be closed as %s, so it still reads as waiting.\n' "$harnessAskName" "$1" "$2" >&2 ;;
+	esac
+	return 0
+}
+
+## Before a question is posted: the answer it already has, from this session's closed asks or
+## its item's `## Decisions`, read by the pending-reply store's own op. Prints the whole
+## ASK-RESULT block and rc 0 when one is found, so the caller posts nothing; rc 1 otherwise.
+AgentsHarnessAskEarlier(){ ## kind, question, question key, address_to, refusal id, task ref
+	local earlyTools="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" earlyFound earlyId earlyAnswer
+	[ -x "$earlyTools" ] && [ -n "$harnessAgent" ] || return 1
+	earlyFound="$( printf '%s' "$2" | "$BASH" "$earlyTools" --intern-op-pending-reply-earlier "$harnessAgent" --session-id "${harnessSessionId:-${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}}" \
+		--kind "$1" ${3:+--question-key "$3"} ${4:+--address-to "$4"} ${5:+--refusal-id "$5"} ${6:+--task-ref "$6"} 2>/dev/null \
+		| LC_ALL=C grep -m1 -E '^EARLIER-(RECORD|DECISION) ' )" || earlyFound=""
+	[ -n "$earlyFound" ] || return 1
+	printf 'ASK-RESULT: RECEIVED\n'
+	case "$earlyFound" in
+		'EARLIER-RECORD '*)
+			earlyId="${earlyFound#EARLIER-RECORD }" ; earlyId="${earlyId%% | *}"
+			## A plain question carries a verdict only where it had an answer form (select).
+			AgentsHarnessEscalationRead "$earlyId" | LC_ALL=C grep -E '^(VERDICT|VERDICT-TEXT|ANSWERED-BY|GRANT): ' || :
+			printf 'NOT ASKED AGAIN: this session already asked the same question as pending reply %s, and it is answered, so nothing was posted. The earlier answer, as `EARLIER-RECORD <id> | <answer> | <answered-by> | <answered-at>`:\n%s\n' "$earlyId" "$earlyFound"
+		;;
+		*)
+			if [ "$1" != "question" ] ; then
+				earlyAnswer="${earlyFound##* -> }" ; earlyAnswer="${earlyAnswer% (*}"
+				printf 'VERDICT: %s\n' "${earlyAnswer%% *}"
+				case "$earlyAnswer" in *' -- '*) printf 'VERDICT-TEXT: %s\n' "${earlyAnswer#* -- }" ;; esac
+			fi
+			printf 'NOT ASKED AGAIN: the Decisions of the task item already answer this question, so nothing was posted. Decisions are binding. The line, as `EARLIER-DECISION <item> | <line>`:\n%s\n' "$earlyFound"
+		;;
+	esac
+	return 0
+}
+
+## What the read of an answer kept beside it that the wait's own rendering does not hold: a
+## message he posted between the two reads. The read keeps it on the record and watches the
+## thread from it on, so no later Wait brings it: it is given with the answer, as the read
+## worded it. $1: what the wait returned.
+AgentsHarnessAskLaterSaid(){
+	local saidLine saidTs
+	LC_ALL=C grep '^CLARIFICATION: ' "$harnessScratch/escalation-read.out" 2> /dev/null | while IFS= read -r saidLine ; do
+		saidTs="${saidLine#CLARIFICATION: }" ; saidTs="${saidTs%% *}"
+		printf '%s\n' "$1" | LC_ALL=C grep -q -F -- "$saidTs | " || printf '%s\n' "$saidLine"
+	done
+	return 0
+}
+
+## A typed question's verdict, read and applied by the team's escalation operation.
+## Prints its result lines; nothing at all when there is no record to read.
+AgentsHarnessEscalationRead(){ ## pending reply id
+	[ -n "$1" ] && [ -n "$harnessAgent" ] || return 0
+	"$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-op-escalation-read "$harnessAgent" "$1" \
+		> "$harnessScratch/escalation-read.out" 2> /dev/null || :
+	LC_ALL=C grep -E '^(ESCALATION|VERDICT|VERDICT-TEXT|VERDICT-REASON|ANSWERED-BY|GRANT|CHANGE|WAITING-ON|UNREADABLE-REASON): ' "$harnessScratch/escalation-read.out" 2>/dev/null || :
+}
+
+## The answers a wait returned on a question, without the wait's own lines: the section
+## between its source markers where it has them, else every line that is no wait line.
+## Inside the section a line is the wait's own by where it stands, never by what it starts
+## with, since a person writes lines that start with `# ` too. There is one: the last, where
+## the probe says the record is closed (AgentsWaitProbeAsk), naming the record by its id.
+AgentsHarnessAskAnswerBody(){ ## wait output, pending reply id
+	case "$1" in
+		*"# --- what that source holds now follows ---"*)
+			printf '%s\n' "$1" | MDAT_ASK_CLOSED_LINE="# pending reply ${2:-} is closed: " LC_ALL=C awk '
+				function lastLine() { if ( heldAny && index( heldLine, ENVIRON["MDAT_ASK_CLOSED_LINE"] ) != 1 ) { print heldLine ; } heldAny = 0 ; }
+				$0 == "# --- what that source holds now follows ---" { inBody = 1 ; heldAny = 0 ; next ; }
+				$0 == "# --- end ---" { lastLine() ; inBody = 0 ; next ; }
+				inBody { if ( heldAny ) { print heldLine ; } heldLine = $0 ; heldAny = 1 ; }
+				END { if ( inBody ) { lastLine() ; } }'
+		;;
+		*) printf '%s\n' "$1" | LC_ALL=C grep -v -E '^(# |WAIT-|NEXT: |ASK-RESULT: )' || : ;;
+	esac
+}
+
+## The answers a wait returned, as their writers' own words: the send header a member's reply
+## starts with is taken off (AgentsPendingReplyOwnWords.awk) on the way to the readers that
+## keep what a reply says, so it is never kept as an answer or as a clarification.
+AgentsHarnessAskOwnWords(){ ## stdin: the answers
+	LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsDismissalMatch.awk" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsPendingReplyOwnWords.awk" 2>/dev/null
+}
+
+## Keeps clarification lines ("<ts>\t<author>\t<text>") on a question's record and its item's
+## Decisions. At the close (a floor given, "close" as the fourth argument) it also sets its
+## follow floor to the newest message read, or to the question when none was: its thread stays
+## watched from there, so only what comes later arrives. After the close the floor stays put,
+## and the Wait's own baseline tells new from seen. Prints how many lines were new.
+AgentsHarnessAskKeepClarifications(){ ## pending id, clarification lines, newest message ts read (may be empty), close|empty
+	[ -n "$1" ] || { printf '0\n' ; return 0 ; }
+	local keepFloor="" keepOut=""
+	if [ "${4:-}" = "close" ] ; then
+		keepFloor="${3:-}"
+		[ -n "$keepFloor" ] || keepFloor="$( AgentsHarnessAskRecordField "$1" question-ts )"
+	fi
+	[ -n "$2" ] || [ -n "$keepFloor" ] || { printf '0\n' ; return 0 ; }
+	keepOut="$( printf '%s\n' "$2" | "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-op-pending-reply-clarify "$1" --from-stdin \
+		${keepFloor:+--follow-floor "$keepFloor"} 2>/dev/null )" \
+		|| printf 'WARNING: %s: the clarifications on pending reply %s were not kept on its record.\n' "$harnessAskName" "$1" >&2
+	keepOut="$( printf '%s\n' "$keepOut" | LC_ALL=C sed -n 's/^CLARIFIED [^ ]* \([0-9][0-9]*\)$/\1/p' | head -1 )"
+	printf '%s\n' "${keepOut:-0}"
+	return 0
+}

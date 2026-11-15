@@ -1,3 +1,6 @@
+---
+maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
+---
 # `project.inf` — the declaration idioms the shipped manuals do not carry
 
 **The `project.inf` file itself has one home, and it is not this module.** That home is the

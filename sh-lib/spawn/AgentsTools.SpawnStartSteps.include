@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.SpawnStartSteps.include -- the start steps of a spawn: each step marked as it begins and ends, and said once. Split out of AgentsTools.SpawnSandbox.include by concern, its functions unchanged. Sourced, never
+## run; it relies on what AgentsTools.SpawnSandbox.include sources for it.
+##
+AgentsToolsStartStepBegin(){
+	agentsStartStepFirst="$( date +%s )" ; agentsStartStepAt="$agentsStartStepFirst" ; agentsStartSteps=""
+}
+AgentsToolsStartStepMark(){ ## step name
+	local markNow markSteps
+	markNow="$( date +%s )"
+	[ -n "${agentsStartStepAt:-}" ] || return 0
+	markSteps="$(( markNow - agentsStartStepAt ))s"
+	agentsStartSteps="${agentsStartSteps:+$agentsStartSteps }$1=$markSteps"
+	if [ -n "${MDAT_SPAWN_SESSION_ID:-}" ] && [ -n "${MMDAPP:-}" ] ; then
+		mkdir -p "$MMDAPP/.local/agents/sessions/$MDAT_SPAWN_SESSION_ID" 2> /dev/null || :
+		printf '%s=%s\n' "$1" "$markSteps" >> "$MMDAPP/.local/agents/sessions/$MDAT_SPAWN_SESSION_ID/launch.steps" 2> /dev/null || :
+	fi
+	agentsStartStepAt="$markNow"
+}
+## The words of the start milestone: `start steps: <step>=<n>s ... total=<n>s`, or plain `start` where the clock never began.
+## The file of the scan's own sections (MDAT_SCAN_TRACE_FILE, one `<section>=<n>s` word a line) is set in brackets after the
+## step `input-scan`, so a slow scan names its slow section in the same line.
+AgentsToolsStartStepsSay(){ ## scan sections file (may be empty)
+	local sayNow saySections="" sayLine
+	[ -n "${agentsStartStepFirst:-}" ] || { printf 'start' ; return 0 ; }
+	sayNow="$( date +%s )"
+	if [ -n "${1:-}" ] && [ -s "$1" ] ; then
+		while IFS= read -r sayLine ; do saySections="${saySections:+$saySections }$sayLine" ; done < "$1"
+		agentsStartSteps="${agentsStartSteps/input-scan=/input-scan[$saySections]=}"
+	fi
+	printf 'start steps: %s total=%ss' "$agentsStartSteps" "$(( sayNow - agentsStartStepFirst ))"
+}

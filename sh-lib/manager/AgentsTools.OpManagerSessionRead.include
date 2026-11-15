@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+type AgentsToolsManagerSessionReadRows > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.ManagerSessionRows.include"
+
+## AgentsTools.OpManagerSessionRead.include -- the operation `--manager-session-read`, sourced by AgentsTools.ManagerSession.include with the operation's arguments.
+## One session, or one run of it, in full: its rows as the list prints them, what it was
+## started for, and each run's record and store. TAB-separated rows a screen reads; their
+## form is the help entry's. It reads one session's records and stores, never another's.
+		local readOp="$1" readId="" readOwn=""
+		shift
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--session-id)
+					if [ $# -lt 2 ] || [ -z "$2" ] || [ "$2" = "-" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD $readOp: --session-id needs an id -- syntax is --session-id <id> [--run]" >&2
+						set +e ; return 1
+					fi
+					readId="$2" ; shift 2
+				;;
+				--run) readOwn="run" ; shift ;;
+				*)
+					echo "⛔ ERROR: $MDSC_CMD $readOp: syntax is --session-id <id> [--run], got: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		if [ -z "$readId" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD $readOp: syntax is --session-id <id> [--run], got no --session-id" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsManagerSessionReadRows "$readOp" "$readId" "$readOwn" || { set +e ; return 1 ; }
+		AgentsToolsManagerSessionChecklistRows "$readId"
+		return 0

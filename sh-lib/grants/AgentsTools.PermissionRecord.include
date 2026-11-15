@@ -1,0 +1,82 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.PermissionRecord.include -- the refusal record and grants-file formats, and the session store they live in.
+## Sourced, never run. Functions only. Loaded by AgentsTools.InternOpPermission.include,
+## which also loads AgentsTools.PermissionHolds.include and AgentsTools.Grants.include.
+##
+
+## A value is always natural. Storing it is a presentation like any other, so each
+## format escapes only what that format itself needs, and reading it back
+## materialises the natural value (AgentsHarnessRefusedTargetDecode, in
+## AgentsUniversalHarness.sh, for the refusal record).
+## The refusal record is a one-line-per-field front-matter file read by a person:
+## it needs only %, newline, CR and edge whitespace escaped, so a colon or a comma
+## stays as it is and a URL reads as a URL.
+AgentsToolsPermissionEscapeRecord(){ ## value
+	local escValue="$1" escLead="" escTail="" escChar
+	escValue="${escValue//%/%25}"
+	escValue="${escValue//$'\n'/%0A}"
+	escValue="${escValue//$'\r'/%0D}"
+	while : ; do
+		escChar="${escValue%"${escValue#?}"}"
+		case "$escChar" in
+			' ') escLead="$escLead%20" ;;
+			$'\t') escLead="$escLead%09" ;;
+			*) break ;;
+		esac
+		escValue="${escValue#?}"
+	done
+	while : ; do
+		escChar="${escValue#"${escValue%?}"}"
+		case "$escChar" in
+			' ') escTail="%20$escTail" ;;
+			$'\t') escTail="%09$escTail" ;;
+			*) break ;;
+		esac
+		escValue="${escValue%?}"
+	done
+	printf '%s' "$escLead$escValue$escTail"
+}
+
+## The grants file is a colon-delimited line with the target as one field, so that
+## format also needs the comma and the colon escaped. Takes a value already in the
+## record form, a stored record's target included, so it never double-escapes.
+AgentsToolsPermissionRecordToGrantField(){ ## record-form value
+	local grantField="$1"
+	grantField="${grantField//,/%2C}"
+	grantField="${grantField//:/%3A}"
+	printf '%s' "$grantField"
+}
+
+## A natural value serialised for the grants file; what a grant match compares.
+AgentsToolsPermissionEscape(){ ## value
+	AgentsToolsPermissionRecordToGrantField "$( AgentsToolsPermissionEscapeRecord "$1" )"
+}
+
+## The session's own directory in the store, created on first use. Prints it.
+AgentsToolsPermissionSessionDir(){ ## session id
+	local sessionDir="$MMDAPP/.local/agents/sessions/$1"
+	mkdir -p "$sessionDir" 2>/dev/null || return 1
+	printf '%s' "$sessionDir"
+}
+
+## A new reference id with a prefix (pass-, set-), or rc 1.
+AgentsToolsPermissionNewRef(){ ## prefix
+	local refUuid
+	refUuid="$( uuidgen 2>/dev/null | LC_ALL=C tr 'ABCDEF' 'abcdef' )" || refUuid=""
+	[ -n "$refUuid" ] || return 1
+	printf '%s%s' "$1" "$refUuid"
+}
+
+## A permission entry `<tool>:<target>` split into permEntryTool and permEntryTarget; the
+## tool a bare name, the target natural. rc 1, saying why, for an entry of no tool.
+AgentsToolsPermissionEntrySplit(){ ## entry, context
+	permEntryTool="${1%%:*}" ; permEntryTarget=""
+	case "$1" in
+		*:*) permEntryTarget="${1#*:}" ;;
+	esac
+	AgentsToolsAssertBareName "$permEntryTool" "entry tool" "$2" || return 1
+	return 0
+}

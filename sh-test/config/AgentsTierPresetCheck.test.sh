@@ -86,7 +86,7 @@ rigPut(){ ## scope, key, value -- the rc of the write through the tooling
 rigFn(){ ## a function of the include and its arguments -- output and ` rc=<rc>`
 	local fnOut fnRc
 	fnOut="$( cd "$rigWs" && env -i HOME="$rigTmp/home" PATH="/usr/bin:/bin:/usr/sbin:/sbin" MMDAPP="$rigWs" MDLT_ORIGIN="$rigOrigin" MDSC_CMD=rig-check ${rigPreset:+MDAT_SPAWN_PRESET="$rigPreset"} bash -c '
-		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.Preset.include" && "$@"
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/settings/AgentsTools.Preset.include" && "$@"
 	' rig "$@" 2>&1 )"
 	fnRc=$?
 	printf '%s rc=%s' "$fnOut" "$fnRc"

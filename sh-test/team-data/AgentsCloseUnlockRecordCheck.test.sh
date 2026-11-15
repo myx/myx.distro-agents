@@ -5,7 +5,7 @@
 ## and that every way the close cannot be recorded keeps the lock: no RELEASED, rc 1, a
 ## CLOSE_NOT_RECORDED error, and the note not left finished. Covers a plain store, a git
 ## store with no remote, and one with a temp bare origin: a missing note, a note with no
-## frontmatter (one is added: released), an unwritable note, a failing commit, a concurrent push to the same note,
+## frontmatter (one is added: released), a note whose folder refuses the write, a failing commit, a concurrent push to the same note,
 ## an unrelated concurrent push (rebased and pushed: released), and an unreachable origin.
 ## Offline: MMDAPP, MDAT_DATA_ROOT and the git global config all point into a mktemp tree.
 set -u
@@ -81,9 +81,9 @@ printf 'no frontmatter here\n' > "$rigNote"
 rigClose "$rigTmp/p3"
 rigAssert "no frontmatter: one is added, the close in it, RELEASED" "$( rigOutcome "$rigTmp/p3" ) $( rigField "$rigNote" state ) $( rigField "$rigNote" last-close-date )" "0:1:0 grooming-finished $rigToday"
 rigRunningNote rig
-chmod 444 "$rigNote"
+chmod 555 "$( dirname "$rigNote" )"
 rigClose "$rigTmp/p4"
-chmod 644 "$rigNote"
+chmod 755 "$( dirname "$rigNote" )"
 rigAssert "unwritable note: not released, rc 1, said" "$( rigOutcome "$rigTmp/p4" )" "1:0:1"
 rigAssert "unwritable note: the lock is kept"         "$( rigField "$rigNote" state )" grooming-running
 

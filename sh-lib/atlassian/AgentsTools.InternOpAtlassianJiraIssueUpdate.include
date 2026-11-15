@@ -1,0 +1,77 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+## AgentsTools.InternOpAtlassianJiraIssueUpdate.include -- the operation `--intern-op-atlassian-jira-issue-update`, sourced by AgentsTools.InternOpAtlassianCall.include with the operation's arguments.
+	type AgentsToolsJiraAssigneeAccountId > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/atlassian/AgentsTools.JiraFields.include"
+	type AgentsToolsAtlassianCall > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/atlassian/AgentsTools.AtlassianRequest.include"
+		shift
+		local jiraIUMember="" jiraIUKey="" jiraIUFieldsJson="" jiraIUUpdateJson="" jiraIUNotify="false" jiraIUContext="intern-op-atlassian-jira-issue-update"
+		local jiraICAgnee="" jiraIUProject="" jiraICAgneeId="" jiraICAgneeJson=""
+		## The call's own words, kept as the create arm keeps them, operation name first (AgentsToolsJiraAssigneeAccountId).
+		local jiraIUWords=( --intern-op-atlassian-jira-issue-update "$@" )
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--member)      shift ; [ -n "${1:-}" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraIUContext: --member value missing" >&2 ; set +e ; return 1 ; } ; jiraIUMember="$1" ; shift ;;
+				--issue-key)   shift ; [ -n "${1:-}" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraIUContext: --issue-key value missing" >&2 ; set +e ; return 1 ; } ; jiraIUKey="$1" ; shift ;;
+				--fields-json) shift ; [ -n "${1:-}" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraIUContext: --fields-json value missing" >&2 ; set +e ; return 1 ; } ; jiraIUFieldsJson="$1" ; shift ;;
+				--update-json) shift ; [ -n "${1:-}" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraIUContext: --update-json value missing" >&2 ; set +e ; return 1 ; } ; jiraIUUpdateJson="$1" ; shift ;;
+				--notify-users) jiraIUNotify="true" ; shift ;;
+				--assignee)    shift ; [ -n "${1:-}" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraIUContext: --assignee value missing" >&2 ; set +e ; return 1 ; } ; jiraICAgnee="$1" ; shift ;;
+				--project)     shift ; [ -n "${1:-}" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraIUContext: --project value missing" >&2 ; set +e ; return 1 ; } ; jiraIUProject="$1" ; shift ;;
+				--context)     shift ; [ -n "${1:-}" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraIUContext: --context value missing" >&2 ; set +e ; return 1 ; } ; jiraIUContext="$1" ; shift ;;
+				*)
+					printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraIUContext: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		if [ -z "$jiraIUMember" ] || [ -z "$jiraIUKey" ] ; then
+			printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraIUContext: syntax is --member <team-member> --issue-key <issue-key> [--fields-json <json>] [--update-json <json>] [--notify-users] [--assignee <contact|me> --project <key>] [--context <caller>] -- at least one of --fields-json/--update-json/--assignee is required. --fields-json is the WHOLE fields object, plain set-semantics per field it names; --update-json is Jira's own {\"field\":[{\"add\"/\"remove\"/\"set\"}]} shape. fields.status is refused in either shape -- change status with the issue-transition operation of the same family instead. There is no read-before-write here: this is ordinary last-write-wins" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsAssertBareName "$jiraIUKey" "<issue-key>" "$jiraIUContext" || { set +e ; return 1 ; }
+		if [ -z "$jiraIUFieldsJson" ] && [ -z "$jiraIUUpdateJson" ] && [ -z "$jiraICAgnee" ] ; then
+			printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraIUContext: --fields-json|--update-json|--assignee missing" >&2
+			set +e ; return 1
+		fi
+		## --assignee on an update names a contact as it does on a create, and needs the project that contact must be
+		## assignable in. It joins a caller's own --fields-json rather than replacing it.
+		if [ -n "$jiraICAgnee" ] ; then
+			[ -n "$jiraIUProject" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraIUContext: --assignee needs --project <key>, so the contact can be checked as assignable in that project" >&2 ; set +e ; return 1 ; }
+			jiraICAgneeId="$( AgentsToolsJiraAssigneeAccountId "$jiraIUMember" "$jiraICAgnee" "$jiraIUProject" "$jiraIUContext" ${jiraIUWords[@]+"${jiraIUWords[@]}"} )" || { set +e ; return 1 ; }
+			jiraICAgneeJson="$( printf '{"assignee":{"id":"%s"}}' "$( printf '%s' "$jiraICAgneeId" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/mcp/AgentsMcpJsonEscape.awk" )" )"
+			jiraIUFieldsJson="$( python3 "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/atlassian/AgentsAtlassianJsonObjectMerge.py" "${jiraIUFieldsJson:-{\}}" "$jiraICAgneeJson" )" || {
+				printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraIUContext: --assignee could not be joined to --fields-json -- nothing was changed" >&2
+				set +e ; return 1
+			}
+		fi
+		local jiraIUBody="{" jiraIUHasPart="false"
+		if [ -n "$jiraIUFieldsJson" ] ; then
+			local jiraIUMergedFields=""
+			jiraIUMergedFields="$( python3 "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/atlassian/AgentsAtlassianJsonObjectMerge.py" "{}" "$jiraIUFieldsJson" status )" || {
+				local jiraIUMergeRc=$?
+				printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraIUContext: --fields-json rejected -- nothing was changed" >&2
+				[ "$jiraIUMergeRc" -ne 3 ] || printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraIUContext: status cannot be set through --fields-json or --update-json -- change status with the issue-transition operation of the same family instead" >&2
+				set +e ; return 1
+			}
+			jiraIUBody="$jiraIUBody\"fields\":$jiraIUMergedFields"
+			jiraIUHasPart="true"
+		fi
+		if [ -n "$jiraIUUpdateJson" ] ; then
+			local jiraIUMergedUpdate=""
+			jiraIUMergedUpdate="$( python3 "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/atlassian/AgentsAtlassianJsonObjectMerge.py" "{}" "$jiraIUUpdateJson" status )" || {
+				local jiraIUMergeRc=$?
+				printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraIUContext: --update-json rejected -- nothing was changed" >&2
+				[ "$jiraIUMergeRc" -ne 3 ] || printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraIUContext: status cannot be set through --fields-json or --update-json -- change status with the issue-transition operation of the same family instead" >&2
+				set +e ; return 1
+			}
+			[ "$jiraIUHasPart" = "true" ] && jiraIUBody="$jiraIUBody,"
+			jiraIUBody="$jiraIUBody\"update\":$jiraIUMergedUpdate"
+		fi
+		jiraIUBody="$jiraIUBody}"
+		local jiraIURc=0
+		AgentsToolsAtlassianCall "$jiraIUMember" jira PUT "/rest/api/3/issue/$( AgentsToolsAtlassianUrlEncode "$jiraIUKey" )?notifyUsers=$jiraIUNotify" "$jiraIUContext" "$jiraIUBody" || jiraIURc=$?
+		if [ "$jiraIURc" -ne 0 ] ; then
+			set +e ; return "$jiraIURc"
+		fi
+		return 0

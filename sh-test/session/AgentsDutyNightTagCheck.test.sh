@@ -25,7 +25,7 @@ rigFn(){ ## the function and its arguments... -- run in the loop's include; prin
 		bash -c '
 			case "$MMDAPP" in "$RIG_TMP"/*) ;; *) exit 99 ;; esac
 			set +e
-			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.DispatcherSchedule.include" > /dev/null 2>&1
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/schedule/AgentsTools.DispatcherSchedule.include" > /dev/null 2>&1
 			[ -z "${RIG_SUB:-}" ] || agentsScheduleTagsSub="$RIG_SUB"
 			"$@"
 		' rig "$@" > /dev/null 2>&1 && printf yes || printf no

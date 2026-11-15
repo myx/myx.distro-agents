@@ -1,0 +1,92 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+## AgentsTools.InternOpAtlassianJiraIssueTransition.include -- the operation `--intern-op-atlassian-jira-issue-transition`, sourced by AgentsTools.InternOpAtlassianCall.include with the operation's arguments.
+	type AgentsToolsJiraAdfValidate > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/atlassian/AgentsTools.JiraFields.include"
+	type AgentsToolsAtlassianCall > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/atlassian/AgentsTools.AtlassianRequest.include"
+		shift
+		local jiraITMember="" jiraITKey="" jiraITToStatus="" jiraITFieldsJson="" jiraITCommentAdf="" jiraITCommentGiven="false" jiraITContext="intern-op-atlassian-jira-issue-transition"
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--member)    shift ; [ -n "${1:-}" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraITContext: --member value missing" >&2 ; set +e ; return 1 ; } ; jiraITMember="$1" ; shift ;;
+				--issue-key) shift ; [ -n "${1:-}" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraITContext: --issue-key value missing" >&2 ; set +e ; return 1 ; } ; jiraITKey="$1" ; shift ;;
+				--to-status) shift ; [ -n "${1:-}" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraITContext: --to-status value missing" >&2 ; set +e ; return 1 ; } ; jiraITToStatus="$1" ; shift ;;
+				--fields-json) shift ; [ -n "${1:-}" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraITContext: --fields-json value missing" >&2 ; set +e ; return 1 ; } ; jiraITFieldsJson="$1" ; shift ;;
+				--comment-adf)
+					shift ; [ -n "${1:-}" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraITContext: --comment-adf value missing" >&2 ; set +e ; return 1 ; }
+					jiraITCommentAdf="$1" ; jiraITCommentGiven="true" ; shift
+				;;
+				--comment-adf-from-stdin)
+					jiraITCommentAdf="$( cat )" ; jiraITCommentGiven="true" ; shift
+				;;
+				--comment-adf-from-file)
+					shift
+					if [ -z "${1:-}" ] || [ ! -f "$1" ] ; then
+						printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraITContext: --comment-adf-from-file: file not found: ${1:-}" >&2
+						set +e ; return 1
+					fi
+					jiraITCommentAdf="$( cat "$1" )" ; jiraITCommentGiven="true" ; shift
+				;;
+				--context) shift ; [ -n "${1:-}" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraITContext: --context value missing" >&2 ; set +e ; return 1 ; } ; jiraITContext="$1" ; shift ;;
+				*)
+					printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraITContext: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		if [ -z "$jiraITMember" ] || [ -z "$jiraITKey" ] ; then
+			printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraITContext: syntax is --member <team-member> --issue-key <issue-key> --to-status <name> [--fields-json <json>] [--comment-adf <json>|--comment-adf-from-stdin|--comment-adf-from-file <path>] [--context <caller>] -- <name> is matched exactly (never fuzzily) against each transition CURRENTLY AVAILABLE from this issue's own status, by that transition's own destination status name (to.name), never by the transition's own action label" >&2
+			set +e ; return 1
+		fi
+		[ -n "$jiraITToStatus" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraITContext: --to-status missing" >&2 ; set +e ; return 1 ; }
+		AgentsToolsAssertBareName "$jiraITKey" "<issue-key>" "$jiraITContext" || { set +e ; return 1 ; }
+		if [ "$jiraITCommentGiven" = "true" ] ; then
+			AgentsToolsJiraAdfValidate "$jiraITCommentAdf" "--comment-adf" "$jiraITContext" || { set +e ; return 1 ; }
+		fi
+		local jiraITListBody jiraITListRc=0
+		jiraITListBody="$( AgentsToolsAtlassianCall "$jiraITMember" jira GET "/rest/api/3/issue/$( AgentsToolsAtlassianUrlEncode "$jiraITKey" )/transitions" "$jiraITContext" "" )" || jiraITListRc=$?
+		if [ "$jiraITListRc" -ne 0 ] ; then
+			set +e ; return "$jiraITListRc"
+		fi
+		local jiraITRows jiraITRowsRc=0
+		jiraITRows="$( printf '%s\n' "$jiraITListBody" | LC_ALL=C awk -v array=transitions -v want='id,name,to.name' -v mode=records -v dialect=atlassian -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" )" || jiraITRowsRc=$?
+		if [ "$jiraITRowsRc" -ne 0 ] ; then
+			printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraITContext: the transitions call returned no transitions array (rc=$jiraITRowsRc) -- nothing was changed" >&2
+			set +e ; return 1
+		fi
+		local jiraITMatchedIds jiraITMatchCount
+		jiraITMatchedIds="$( printf '%s\n' "$jiraITRows" | LC_ALL=C awk -F'\t' -v want="$jiraITToStatus" '$3 == want { print $1 }' )"
+		jiraITMatchCount=0
+		[ -z "$jiraITMatchedIds" ] || jiraITMatchCount="$( printf '%s\n' "$jiraITMatchedIds" | LC_ALL=C awk 'END { print NR }' )"
+		if [ "$jiraITMatchCount" -eq 0 ] ; then
+			printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraITContext: no transition leads to a status named exactly '$jiraITToStatus' from issue $jiraITKey's own current status -- nothing was changed. Transitions available from here (action -> destination status):" >&2
+			printf '%s\n' "$jiraITRows" | LC_ALL=C awk -F'\t' '{ print "#   " $2 " -> " $3 }' >&2
+			set +e ; return 1
+		fi
+		if [ "$jiraITMatchCount" -gt 1 ] ; then
+			printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraITContext: '$jiraITToStatus' matched $jiraITMatchCount transitions from issue $jiraITKey's own current status -- ambiguous, so nothing was changed. This is never fuzzy-resolved" >&2
+			set +e ; return 1
+		fi
+		local jiraITTransitionId="$jiraITMatchedIds"
+		local jiraITTransitionIdEsc
+		jiraITTransitionIdEsc="$( printf '%s' "$jiraITTransitionId" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/mcp/AgentsMcpJsonEscape.awk" )"
+		local jiraITBody="{\"transition\":{\"id\":\"$jiraITTransitionIdEsc\"}"
+		if [ -n "$jiraITFieldsJson" ] ; then
+			local jiraITMergedFields=""
+			jiraITMergedFields="$( python3 "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/atlassian/AgentsAtlassianJsonObjectMerge.py" "{}" "$jiraITFieldsJson" )" || {
+				printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraITContext: --fields-json rejected -- nothing was changed" >&2
+				set +e ; return 1
+			}
+			jiraITBody="$jiraITBody,\"fields\":$jiraITMergedFields"
+		fi
+		if [ "$jiraITCommentGiven" = "true" ] ; then
+			jiraITBody="$jiraITBody,\"update\":{\"comment\":[{\"add\":{\"body\":$jiraITCommentAdf}}]}"
+		fi
+		jiraITBody="$jiraITBody}"
+		local jiraITRc=0
+		AgentsToolsAtlassianCall "$jiraITMember" jira POST "/rest/api/3/issue/$( AgentsToolsAtlassianUrlEncode "$jiraITKey" )/transitions" "$jiraITContext" "$jiraITBody" || jiraITRc=$?
+		if [ "$jiraITRc" -ne 0 ] ; then
+			set +e ; return "$jiraITRc"
+		fi
+		printf '%s\n' "# $jiraITContext: issue $jiraITKey transitioned to '$jiraITToStatus' (transition id $jiraITTransitionId)" >&2
+		return 0

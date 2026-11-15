@@ -1,0 +1,178 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+type AgentsToolsPermissionRecordToGrantField > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionRecord.include"
+type AgentsToolsPermissionAnswerPost > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionPosts.include"
+type AgentsToolsPermissionCeilingRefuse > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionPlaces.include"
+type AgentsToolsPermissionItemOpen > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionHolds.include"
+type AgentsToolsGrantsStoreTouch > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.Grants.include"
+
+## AgentsTools.InternOpPermissionGrantOpen.include -- the operation `--intern-op-permission-grant-open`, sourced by AgentsTools.InternOpPermission.include with the operation's arguments.
+		shift
+		MDSC_CMD="$MDSC_CMD --intern-op-permission-grant-open"
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.UseAgentsTools.include"
+		local grantBy="$1"
+		shift || true
+		local grantSession="" grantRefusal="" grantKind="" grantTask="" grantAsked="" grantStamp="" grantHoldsAs=""
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--session-id) grantSession="${2:-}" ; shift 2 ;;
+				--refusal-id) grantRefusal="${2:-}" ; shift 2 ;;
+				--kind) grantKind="${2:-}" ; shift 2 ;;
+				## The member whose holding bounds this grant, where the one who grants is another and holds nothing of its own: a person at a
+				## console, user-<account> (F6.10), granting as that person within what magic-coordinator holds. The grant is recorded under the
+				## one who grants, never under this member.
+				--holds-as) grantHoldsAs="${2:-}" ; shift 2 ;;
+				--task) grantTask="${2:-}" ; shift 2 ;;
+				## The stamp its grants line is written under, named by an applier that noted it
+				## first (AgentsToolsEscalationApply): the line that stands under it already is not
+				## written again. Without it the line is stamped now, as ever.
+				--stamp) grantStamp="${2:-}" ; shift 2 ;;
+				## Who the permission was asked of, for its tracking post only: it changes no grant.
+				--asked) grantAsked="${2:-}" ; shift 2 ;;
+				*)
+					echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		if [ -z "$grantBy" ] || [ -z "$grantSession" ] || [ -z "$grantRefusal" ] || [ -z "$grantKind" ] ; then
+			echo "$MDSC_CMD: ⛔ ERROR: syntax is <granting-member> --session-id <id> --refusal-id <id> --kind once|session|task|contact [--task <item>]" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsAssertBareName "$grantBy" "<granting-member>" permission-grant-open || { set +e ; return 1 ; }
+		[ -z "$grantHoldsAs" ] || AgentsToolsAssertBareName "$grantHoldsAs" "--holds-as" permission-grant-open || { set +e ; return 1 ; }
+		AgentsToolsAssertBareName "$grantSession" "--session-id" permission-grant-open || { set +e ; return 1 ; }
+		AgentsToolsAssertBareName "$grantRefusal" "--refusal-id" permission-grant-open || { set +e ; return 1 ; }
+		case "$grantStamp" in
+			''|[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]T[0-9][0-9][0-9][0-9][0-9][0-9]Z) ;;
+			*)
+				echo "$MDSC_CMD: ⛔ ERROR: --stamp must be a UTC stamp as a grants line carries it, YYYYMMDDTHHMMSSZ: $grantStamp" >&2
+				set +e ; return 1
+			;;
+		esac
+		case "$grantKind" in
+			once|session|contact) ;;
+			task)
+				## A task grant lives while its item is open, so it names one that is.
+				grantTask="${grantTask##*/}" ; grantTask="${grantTask%.md}"
+				if [ -z "$grantTask" ] || ! AgentsToolsAssertBareName "$grantTask" "--task" permission-grant-open || ! AgentsToolsPermissionItemOpen "$grantTask" ; then
+					echo "$MDSC_CMD: ⛔ ERROR: a task grant needs --task <item> naming an open board item, got: ${grantTask:-none}" >&2
+					set +e ; return 1
+				fi
+			;;
+			*)
+				echo "$MDSC_CMD: ⛔ ERROR: --kind must be once|session|task|contact: $grantKind" >&2
+				set +e ; return 1
+			;;
+		esac
+		local grantDir="$MMDAPP/.local/agents/sessions/$grantSession"
+		local grantRecord="$grantDir/$grantRefusal.md"
+		if [ ! -f "$grantRecord" ] ; then
+			echo "$MDSC_CMD: ⛔ ERROR: no refusal $grantRefusal is recorded for session $grantSession, so nothing is granted" >&2
+			set +e ; return 1
+		fi
+		## Tool and target come from the record, never from the request that asked.
+		local grantOwner="" grantTool="" grantTarget="" grantLine
+		while IFS= read -r grantLine ; do
+			case "$grantLine" in
+				'owner: '*) grantOwner="${grantLine#owner: }" ;;
+				'tool: '*) grantTool="${grantLine#tool: }" ;;
+				'target: '*) grantTarget="${grantLine#target: }" ;;
+				'# '*) break ;;
+			esac
+		done < "$grantRecord"
+		if [ -z "$grantOwner" ] || [ -z "$grantTool" ] || [ -z "$grantTarget" ] ; then
+			echo "$MDSC_CMD: ⛔ ERROR: the refusal record $grantRecord lacks its owner, tool or target, so nothing is granted" >&2
+			set +e ; return 1
+		fi
+		## THE GRANTEE (F7.10): a refusal logged for a contact has `contact:<id>` for its owner. Such a contact is granted for a session
+		## (`session`) or for the contact (`contact`, written as an `allows:` entry of its record) and for nothing else, and the kind
+		## `contact` is for a refusal of a contact alone.
+		case "$grantOwner" in
+			contact:*)
+				case "$grantKind" in
+					session|contact) ;;
+					*)
+						echo "$MDSC_CMD: ⛔ ERROR: $grantOwner is a contact, granted for a session (--kind session) or for the contact (--kind contact), not $grantKind -- nothing is granted" >&2
+						set +e ; return 1
+					;;
+				esac
+				AgentsToolsPermissionGranteeAssert "$grantOwner" "the owner of the refusal" permission-grant-open || { set +e ; return 1 ; }
+			;;
+			*)
+				if [ "$grantKind" = "contact" ] ; then
+					echo "$MDSC_CMD: ⛔ ERROR: --kind contact is for the refusal of a contact, and the refusal $grantRefusal is $grantOwner's -- nothing is granted" >&2
+					set +e ; return 1
+				fi
+			;;
+		esac
+		if [ "$grantBy" = "$grantOwner" ] ; then
+			echo "$MDSC_CMD: ⛔ ERROR: $grantBy asked for this call and cannot grant it to itself, so nothing is granted" >&2
+			set +e ; return 1
+		fi
+		## No approving what you do not hold: the approver holds this tool and target, or is
+		## the human-owner. Refused with rc 3 and the holders up the chain, for the caller to
+		## re-address the request to.
+		local grantNatural grantHeld grantHolders grantPlace grantHolder="${grantHoldsAs:-$grantBy}"
+		grantNatural="$( AgentsToolsPermissionRecordDecode "$grantTarget" )"
+		## No write is granted in a read-only place, by anyone: refused first, with the route.
+		AgentsToolsPermissionCeilingRefuse "$grantTool" "$grantNatural" "$grantSession" "$grantTool:$grantNatural" || { set +e ; return 1 ; }
+		if ! grantHeld="$( AgentsToolsPermissionHolds "$grantHolder" "$grantTool" "$grantNatural" "$grantSession" )" ; then
+			grantHolders="$( AgentsToolsPermissionHolders "$grantTool" "$grantNatural" "$grantSession" "$grantTask" "$grantOwner $grantHolder" | LC_ALL=C awk '{ printf "%s%s", ( NR > 1 ? " " : "" ), $1 ; }' )" || grantHolders="human-owner"
+			printf 'NOT-HOLDS: %s %s %s\n' "$grantHolder" "$grantTool" "$grantNatural"
+			printf 'HOLDERS: %s\n' "$grantHolders"
+			echo "$MDSC_CMD: ⛔ ERROR: $grantHolder does not hold $grantTool $grantNatural, so $grantBy cannot grant it; nothing is granted -- the request goes up to: $grantHolders" >&2
+			set +e ; return 3
+		fi
+		## The record's target is in record form and the grants line is colon-delimited, so it
+		## becomes a grants field here.
+		grantTarget="$( AgentsToolsPermissionRecordToGrantField "$grantTarget" )"
+		## A grant for a contact, standing: an entry of the `allows:` of its record, as a task's is of its board item, read by the chain
+		## (grant-read, for the holder `contact:<id>`). Written by the contacts store's own function, once for what it holds already.
+		if [ "$grantKind" = "contact" ] ; then
+			local grantEntry="contact:$grantTool:$grantTarget:$grantBy:${grantStamp:-$( date -u +%Y%m%dT%H%M%SZ )}"
+			type AgentsToolsContactsAllowAdd > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/contacts/AgentsTools.ContactsAccess.include"
+			AgentsToolsContactsAllowAdd "${grantOwner#contact:}" "$grantEntry" "$grantNatural" || {
+				echo "$MDSC_CMD: ⛔ ERROR: can't write the grant for $grantRefusal into the record of $grantOwner, so nothing is granted" >&2
+				set +e ; return 1
+			}
+			AgentsToolsPermissionAnswerPost grant "$grantOwner" "$grantDir" "$grantSession" "$grantRefusal" "$grantTool" "$grantNatural" "$grantBy" "contact ${grantOwner#contact:}" "$grantAsked"
+			printf 'GRANT: contact %s\n' "$grantRefusal"
+			return 0
+		fi
+		## One line per stamp: where the line this call would write stands already, the grant was
+		## written by the apply that stopped after it, so nothing is written or said a second time.
+		if [ -n "$grantStamp" ] && LC_ALL=C grep -q -x -F -- "$grantKind:$grantTool:$grantTarget:$grantBy:$grantStamp:$grantRefusal" "$grantDir/grants" 2>/dev/null ; then
+			printf 'GRANT: %s %s\n' "$grantKind" "$grantRefusal"
+			return 0
+		fi
+		## A task grant's item beside its refusal record, which stays as it was written.
+		if [ "$grantKind" = "task" ] ; then
+			printf '%s\n' "$grantTask" > "$grantDir/$grantRefusal.task" || {
+				echo "$MDSC_CMD: ⛔ ERROR: can't record the task of the grant for $grantRefusal, so nothing is granted" >&2
+				set +e ; return 1
+			}
+		fi
+		## The place its path lies in, as name:relative, recorded beside it as a hint.
+		grantPlace="$( AgentsToolsPermissionPlaceHint "$grantNatural" )"
+		if [ -n "$grantPlace" ] ; then
+			printf '%s\t%s\n' "$grantNatural" "$grantPlace" > "$grantDir/$grantRefusal.places" \
+				|| echo "⚠️ WARNING: $MDSC_CMD: the place of the grant for $grantRefusal was not recorded: $grantPlace" >&2
+			printf 'PLACE: %s\n' "$grantPlace"
+		fi
+		## Stamped to the second: an Allow once lapses unused a TTL after it (AgentsToolsPermissionOnceLive).
+		printf '%s:%s:%s:%s:%s:%s\n' "$grantKind" "$grantTool" "$grantTarget" "$grantBy" "${grantStamp:-$( date -u +%Y%m%dT%H%M%SZ )}" "$grantRefusal" >> "$grantDir/grants" || {
+			echo "$MDSC_CMD: ⛔ ERROR: can't write the grant for $grantRefusal, so nothing is granted" >&2
+			set +e ; return 1
+		}
+		## Interim, until the grants move into the session file itself: that file is written again now.
+		AgentsToolsGrantsStoreTouch "$grantDir"
+		## Said where its refusal was, in the session's tracking-thread: one post per grant written.
+		local grantScope="$grantKind"
+		case "$grantKind" in
+			session) grantScope="this session" ;;
+			task) grantScope="task $grantTask" ;;
+		esac
+		AgentsToolsPermissionAnswerPost grant "$grantOwner" "$grantDir" "$grantSession" "$grantRefusal" "$grantTool" "$grantNatural" "$grantBy" "$grantScope" "$grantAsked"
+		printf 'GRANT: %s %s\n' "$grantKind" "$grantRefusal"
+		return 0

@@ -1,0 +1,376 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.RegistrySpawnedSessions.include -- the spawned-sessions registry: its rows, its rebuild, and its renders with what is measured for each run.
+## Sourced, never run. Functions only. Each function loads what it calls itself. The registry mechanics are AgentsTools.Registries.include.
+##
+
+## The shell globs the store, so the row order is the shell's own; one awk reads every
+## record's headers (AgentsRegistryHeaderRows.awk) -- never a process per file or per
+## column, which cost minutes over a few hundred records. The same awk reads the state of a
+## session from that session's own folder, once for a session: each state file there is
+## named to it first, by the shell that found it to be a file.
+AgentsToolsRegistrySpawnedSessionsRows(){
+	type AgentsToolsRegistryRowsEntry > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
+	local sandboxDir sessionFile sawRecord rowTracking
+	{
+		for sessionFile in "$MMDAPP/.local/agents/sessions"/*/control/state ; do
+			[ -f "$sessionFile" ] || continue
+			AgentsToolsRegistryRowsEntry T "$sessionFile"
+		done
+		for sandboxDir in "$MMDAPP/.local/agents/spawned"/*/ ; do
+			[ -d "$sandboxDir" ] || continue
+			## The sandbox root's own name is the tracking name, and is the fallback for
+			## a record carrying no header of its own: a sandbox that exists is listable,
+			## which is the whole reason it is created even when empty. The record's own
+			## tracking-name wins over the folder name where it has one -- they agree
+			## unless a sandbox was moved by hand, and then the record is what the spawn
+			## itself wrote; the awk applies that.
+			rowTracking="${sandboxDir%/}"
+			rowTracking="${rowTracking##*/}"
+			AgentsToolsRegistryRowsEntry D "$rowTracking"
+			sawRecord="false"
+			## A record is a <spawn id>.spawn.md; the other files of the folder (a member's checklist, ...) are none.
+			for sessionFile in "$sandboxDir"*.spawn.md ; do
+				[ -f "$sessionFile" ] || continue
+				sawRecord="true"
+				AgentsToolsRegistryRowsEntry S "$sessionFile"
+			done
+			## An empty sandbox is a listed session, not a missing one. It has no session
+			## id to be reached by, and saying so is the point.
+			[ "$sawRecord" = "true" ] || printf 'E\n'
+		done
+	} | LC_ALL=C awk -v registryRows=spawned -v registryColumns=17 -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsRegistryHeaderRows.awk"
+	return 0
+}
+
+AgentsToolsRegistrySpawnedSessionsRebuild(){
+	type AgentsToolsRegistryHousekeepingDue > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
+	AgentsToolsRegistryHousekeepingDue
+	AgentsToolsRegistryWrite spawned-sessions AgentsToolsRegistrySpawnedSessionsRows
+}
+
+## Sessions view: the same extended rows (tracking session parent host owner status
+## exit spawn agentlog sessionthread workspace live state), grouped by session-id.
+## No new registry -- grouped at render time only.
+AgentsToolsRegistryRenderSpawnedSessionsGrouped(){ ## extended rows text, state filter
+	local sourceRows="$1" filterState="${2:-}"
+	printf '%s\n' "columns: session-id workspace host owner agent-count session-thread state-tally"
+	printf '%s\n\n' "state-tally: state=count pairs for every agent row in this session, comma-joined -- a session has no single state of its own, its agents do. workspace/host read \"mixed\" where a session's own rows disagree."
+	printf '%s\n' "$sourceRows" | LC_ALL=C awk -v filterState="$filterState" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsRegistrySessionsGrouped.awk"
+	printf '\n'
+	return 0
+}
+
+## Every row of a spawned-sessions registry file with what is measured for it, a line a row,
+## into three variables of the caller: measuredRows, the thirteen columns the render prints
+## (the eleven first ones, then live and state); measuredDated, those and the three appended
+## columns (started-at resolved-at session-comment), `-` where the file has none, which the
+## manager's list reads (AgentsTools.ManagerSession.include); and measuredAny, whether the
+## file held a row at all, whatever the filter. A caller that names 16 as the stored columns
+## it counts gets, at the end of each measuredDated row, the two appended after those as well
+## (session-state session-state-at); one that names none gets the rows it knows, so a reader
+## that counts sixteen words still finds them. The ONE place a row live and state are derived,
+## and ONE pass over the rows for every one of them: the running set is matched there, never by
+## a shell pattern match a row, and a row session is asked of the open set the same way. The
+## process list is read ONCE for every row rather than once per row -- this answers "which of
+## these are alive here", a different question from the harness own "what are this session
+## pids". The caller has rebuilt both registries in the same call: the pending-replies one is
+## what the "waiting" state is derived from, never once per row, and never stale for it either.
+AgentsToolsRegistryMeasureRows(){ ## spawned-sessions registry file, this host (asked of the host where not given), session-id filter, the stored columns the caller counts (14 where not given, 16 for the state of the session too, 17 for the refused count as well), "fresh" where the caller signals and so must read the process list now
+	type AgentsToolsRegistryPendingSessionOpen > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.RegistryPendingReplies.include"
+	type AgentsToolsRunProcessArgs > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunProcesses.include"
+	local measuredFile="$1" thisHost="${2:-}" filterSession="${3:-}" measuredColumns="${4:-14}" measuredFresh="${5:-}" psText openSet="" runningSet="" backslashOpen=""
+	local startingKeys=" " startingRecords="" startingMark backslashId measuredAll
+	measuredRows="" ; measuredDated="" ; measuredAny="false"
+	[ -f "$measuredFile" ] || return 0
+	[ -n "$thisHost" ] || thisHost="$( hostname -s 2>/dev/null )" || thisHost=""
+	[ -n "$thisHost" ] || thisHost="unknown"
+	AgentsToolsRunProcessArgs "$measuredFresh" ; psText="$agentsProcessArgs"
+	## The open asks are read once for every row too, never by an awk per row.
+	openSet="$( AgentsToolsRegistryPendingOpenSessions "$measuredFile" )
+"
+	## And the process list is read once for the spawns it runs as, not by a shell
+	## pattern match per row over the whole list.
+	runningSet="$( AgentsToolsRunningSpawns "$measuredFile" "$psText" )
+"
+	## A session id holding a backslash is left out of that set (a `-v` would read the
+	## backslash as an escape), so the function itself answers for that one, as it always did.
+	backslashOpen="
+$( LC_ALL=C awk '$2 ~ /\\/ { print $2 }' "$measuredFile" 2> /dev/null | LC_ALL=C sort -u | while IFS= read -r backslashId ; do AgentsToolsRegistryPendingSessionOpen "$backslashId" && printf '%s\n' "$backslashId" ; done )
+"
+	## The starts the main loop has in hand (schedule/starting/<key> with no <key>.rc yet): a run of one of them whose record is
+	## open and whose process is not seen yet is `starting`, not `unclosed`. The key is work-duty.<member> or the routine file.
+	for startingMark in "${MMDAPP:-/nonexistent}/.local/agents/schedule/starting"/* ; do
+		[ -f "$startingMark" ] || continue
+		case "$startingMark" in *.rc|*.out) continue ;; esac
+		[ -e "$startingMark.rc" ] || startingKeys="$startingKeys${startingMark##*/} "
+	done
+	[ "$startingKeys" = " " ] || startingRecords="$( printf '%s\n' "${MMDAPP:-/nonexistent}/.local/agents/spawned"/*/*.spawn.md )"
+	## ONE awk for every row: the rows of thirteen words and the wider rows the manager list
+	## reads, each line tagged with the block it belongs to, and the three variables split below.
+	measuredAll="$( MDAT_REGISTRY_RUNNING="$runningSet" MDAT_REGISTRY_OPEN="$openSet" \
+		MDAT_REGISTRY_BACKSLASH_OPEN="$backslashOpen" MDAT_REGISTRY_STARTING="$startingKeys" \
+		MDAT_REGISTRY_RECORDS="$startingRecords" MDAT_REGISTRY_HOST="$thisHost" \
+		MDAT_REGISTRY_FILTER="$filterSession" MDAT_REGISTRY_COLUMNS="$measuredColumns" \
+		MDAT_REGISTRY_AGENTS="${MMDAPP:-/nonexistent}/.local/agents" \
+		LC_ALL=C awk '
+			## A run of this host is alive by the one rule: a process of the list runs as it,
+			## or the process its record names as the one its launch started is still that same
+			## process. The second half is what AgentsToolsRunRecordedAlive answers for
+			## one record, read here for every record of them and compared against one ps.
+			function deadNames( session, runId,   deadFile, deadLine, deadFields, deadCount ) {
+				if ( session == "" || session == "-" || runId == "" || runId == "-" ) return 0 ;
+				if ( ! ( session in deadRead ) ) {
+					deadRead[session] = 1 ; deadRuns[session] = " " ;
+					deadFile = agentsDir "/sessions/" session "/control/dead" ;
+					while ( ( getline deadLine < deadFile ) > 0 ) {
+						sub( /^[ \t]+/, "", deadLine ) ;
+						deadCount = split( deadLine, deadFields, /[ \t]+/ ) ;
+						if ( deadCount >= 1 && deadFields[1] != "" ) { deadRuns[session] = deadRuns[session] deadFields[1] " " ; }
+					}
+					close( deadFile ) ;
+				}
+				return index( deadRuns[session], " " runId " " ) > 0 ;
+			}
+			## Whether control/closed of the session names the run: its ending was ordered.
+			function closedNames( session, runId,   closedFile, closedLine, closedFields, closedCount ) {
+				if ( session == "" || session == "-" ) return 0 ;
+				if ( runId == "" || runId == "-" ) runId = session ;
+				if ( ! ( session in closedRead ) ) {
+					closedRead[session] = 1 ; closedRuns[session] = " " ;
+					closedFile = agentsDir "/sessions/" session "/control/closed" ;
+					while ( ( getline closedLine < closedFile ) > 0 ) {
+						sub( /^[ \t]+/, "", closedLine ) ;
+						closedCount = split( closedLine, closedFields, /[ \t]+/ ) ;
+						if ( closedCount >= 1 && closedFields[1] != "" ) { closedRuns[session] = closedRuns[session] closedFields[1] " " ; }
+					}
+					close( closedFile ) ;
+				}
+				return index( closedRuns[session], " " runId " " ) > 0 ;
+			}
+			## WHAT A LIVE RUN IS DOING (S27.4), from its own mark: `thinking`, `tool`, `waiting`, `idling` or `busy`.
+			## A run whose mark is missing or unreadable is thinking, never a stale word.
+			function activityOf( rowSpawn,   actPath, actLine, actWord ) {
+				if ( rowSpawn == "" || rowSpawn == "-" || rowSpawn ~ /\// ) return "thinking" ;
+				actPath = agentsDir "/sessions/" rowSpawn "/activity" ;
+				actLine = "" ;
+				if ( ( getline actLine < actPath ) < 0 ) { close( actPath ) ; return "thinking" ; }
+				close( actPath ) ;
+				actWord = actLine ;
+				sub( /^[^ ]* [^ ]* /, "", actWord ) ;
+				if ( actWord ~ /^tool (Wait|AskQuestion|ConfirmReadback|EscalateDecision|RequestPermission|ProposeApprove)$/ ) return "waiting" ;
+				if ( actWord == "idle" ) return "idling" ;
+				if ( actWord == "busy" ) return "busy" ;
+				if ( actWord ~ /^tool / ) return "tool" ;
+				return "thinking" ;
+			}
+			## WHETHER A RUN IS PARKED (S27.2), by the file the harness left under the id it holds, and by
+			## the same file under the session id the record also carries, which a coworking member differs in.
+			function parkedOf( rowSpawn, rowSession,   parkedAt, parkedKey, parkedLine ) {
+				for ( parkedAt = 1 ; parkedAt <= 2 ; parkedAt++ ) {
+					parkedKey = ( parkedAt == 1 ) ? rowSpawn : rowSession ;
+					if ( parkedKey == "" || parkedKey == "-" || parkedKey ~ /\// ) continue ;
+					if ( ! ( parkedKey in parkedSeen ) ) {
+						parkedSeen[parkedKey] = "no" ;
+						parkedLine = "" ;
+						if ( ( getline parkedLine < ( agentsDir "/sessions/" parkedKey "/parked" ) ) >= 0 ) { parkedSeen[parkedKey] = "yes" ; }
+						close( agentsDir "/sessions/" parkedKey "/parked" ) ;
+					}
+					if ( parkedSeen[parkedKey] == "yes" ) return 1 ;
+				}
+				return 0 ;
+			}
+			## WHETHER A LIVE RUN IS HELD BY A PAUSE (S19.1), by the flag under the id it holds and under the
+			## session id its record also carries, the same two the park mark is looked for at.
+			function pausedOf( rowSpawn, rowSession,   pausedAt, pausedKey, pausedLine ) {
+				for ( pausedAt = 1 ; pausedAt <= 2 ; pausedAt++ ) {
+					pausedKey = ( pausedAt == 1 ) ? rowSpawn : rowSession ;
+					if ( pausedKey == "" || pausedKey == "-" || pausedKey ~ /\// ) continue ;
+					if ( ! ( pausedKey in pausedSeen ) ) {
+						pausedSeen[pausedKey] = "no" ;
+						pausedLine = "" ;
+						if ( ( getline pausedLine < ( agentsDir "/sessions/" pausedKey "/paused" ) ) >= 0 ) { pausedSeen[pausedKey] = "yes" ; }
+						close( agentsDir "/sessions/" pausedKey "/paused" ) ;
+					}
+					if ( pausedSeen[pausedKey] == "yes" ) return 1 ;
+				}
+				return 0 ;
+			}
+			## The state a row comes to, exactly as AgentsToolsRunDeriveStateFromSet gives it.
+			function derivedOf( rowStatus, rowLive, rowSession, rowSpawn ) {
+				## A run not running that control/closed names is finished, before any other mark is read.
+				if ( rowLive != "running" && closedNames( rowSession, rowSpawn ) ) { return "finished" ; }
+				## A parked run is neither running nor finished (S27.2), unless it is live: the liveness
+				## check comes first, and the mark is looked for at both of the two ids the run carries.
+				if ( rowLive != "running" && parkedOf( rowSpawn, rowSession ) ) { return "parked" ; }
+				## A run a pause holds reads `paused` whatever its activity word says (S19.1).
+				if ( rowLive == "running" && pausedOf( rowSpawn, rowSession ) ) { return "paused" ; }
+				if ( rowStatus == "spawn-failed" || rowStatus == "spawn-succeeded" ) {
+					if ( rowLive == "running" ) return activityOf( rowSpawn ) ;
+					if ( deadNames( rowSession, rowSpawn ) ) return "failed" ;
+					return ( rowStatus == "spawn-failed" ) ? "failed" : "finished" ;
+				}
+				if ( rowStatus == "spawn-ended-without-close" ) {
+					return deadNames( rowSession, rowSpawn ) ? "failed" : "finished" ;
+				}
+				if ( rowLive == "remote" ) return "unclosed" ;
+				if ( rowLive == "running" ) return activityOf( rowSpawn ) ;
+				## A RUN WITH NO LIVE PROCESS NEVER READS waiting (sketch 5.4): an open ask of the session does not make a dead run wait,
+				## it leaves the run unclosed, and the ask stands on the session. The open-ask sets stay for the session row.
+				return "unclosed" ;
+			}
+			## The routine a run started from: the first record of its spawn, and the first
+			## `routine: ` line of that record frontmatter, as the awk this replaces read it.
+			function routineOf( rowSpawn,   pathList, pathTotal, pathAt, recordPath, recordBase, recordLine, fence ) {
+				if ( rowSpawn == "" || rowSpawn == "-" ) return "" ;
+				if ( rowSpawn in routineSeen ) return routineSeen[rowSpawn] ;
+				routineSeen[rowSpawn] = "" ;
+				pathTotal = split( records, pathList, "\n" ) ;
+				for ( pathAt = 1 ; pathAt <= pathTotal ; pathAt++ ) {
+					recordPath = pathList[pathAt] ;
+					if ( recordPath == "" ) continue ;
+					recordBase = recordPath ; sub( /.*\//, "", recordBase ) ;
+					if ( recordBase != rowSpawn ".spawn.md" ) continue ;
+					fence = 0 ;
+					while ( ( getline recordLine < recordPath ) > 0 ) {
+						if ( recordLine == "---" ) { if ( ++fence > 1 ) break ; continue ; }
+						if ( fence == 1 && index( recordLine, "routine: " ) == 1 ) { routineSeen[rowSpawn] = substr( recordLine, 10 ) ; break ; }
+					}
+					close( recordPath ) ;
+					break ;
+				}
+				return routineSeen[rowSpawn] ;
+			}
+			BEGIN {
+				runSet = ENVIRON["MDAT_REGISTRY_RUNNING"] ;
+				openSet = ENVIRON["MDAT_REGISTRY_OPEN"] ;
+				backslashSet = ENVIRON["MDAT_REGISTRY_BACKSLASH_OPEN"] ;
+				startingKeys = " " ENVIRON["MDAT_REGISTRY_STARTING"] ;
+				startingAsked = ( ENVIRON["MDAT_REGISTRY_STARTING"] != " " ) ;
+				records = ENVIRON["MDAT_REGISTRY_RECORDS"] ;
+				thisHost = ENVIRON["MDAT_REGISTRY_HOST"] ;
+				filterSession = ENVIRON["MDAT_REGISTRY_FILTER"] ;
+				storedColumns = ENVIRON["MDAT_REGISTRY_COLUMNS"] ;
+				agentsDir = ENVIRON["MDAT_REGISTRY_AGENTS"] ;
+			}
+			{
+				if ( NF == 0 ) next ;
+				anyRow = 1 ;
+				trackingName = $1 ; session = $2 ; parent = $3 ; rowHost = $4 ; owner = $5 ;
+				rowStatus = $6 ; exitCode = $7 ; rowSpawn = $8 ; agentLog = $9 ; sessionThread = $10 ;
+				workspace = ( NF >= 11 ) ? $11 : "" ;
+				started = ( NF >= 12 ) ? $12 : "" ; resolved = ( NF >= 13 ) ? $13 : "" ; comment = ( NF >= 14 ) ? $14 : "" ;
+				stateWord = ( NF >= 15 ) ? $15 : "" ; stateAt = ( NF >= 16 ) ? $16 : "" ; refused = ( NF >= 17 ) ? $17 : "" ;
+				## More words than columns: a sandbox folder named with a space. Its words stay
+				## together as they always did, so no reader takes it for a row of thirteen columns.
+				if ( NF > 17 ) {
+					workspace = workspace " " started " " resolved " " comment " " stateWord " " stateAt " " refused ;
+					for ( extraAt = 18 ; extraAt <= NF ; extraAt++ ) { workspace = workspace " " $extraAt ; }
+				}
+				if ( rowSpawn == "-" ) { rowLive = "unknown" ; }
+				else if ( rowHost == "-" ) { rowLive = "unknown" ; }
+				else if ( rowHost != thisHost ) { rowLive = "remote" ; }
+				else if ( rowSpawn == "" ) { rowLive = "running" ; }
+				else { rowLive = ( index( runSet, "\n" rowSpawn "\n" ) > 0 ) ? "running" : "gone" ; }
+				## A row whose launch never wrote its record has no session id but its tracking name, which the list shows and a close names.
+				state = derivedOf( rowStatus, rowLive, ( session == "-" || session == "" ) ? trackingName : session, rowSpawn ) ;
+				if ( state == "unclosed" && startingAsked ) {
+					if ( index( startingKeys, " work-duty." owner " " ) > 0 ) { state = "starting" ; }
+					else {
+						startingRoutine = routineOf( rowSpawn ) ;
+						if ( startingRoutine != "" && startingRoutine !~ /[.]work-duty[.]routine[.]md$/ && index( startingKeys, " " startingRoutine " " ) > 0 ) { state = "starting" ; }
+					}
+				}
+				if ( filterSession != "" && session != filterSession ) next ;
+				if ( storedColumns == "16" ) { stated = " " ( ( stateWord == "" ) ? "-" : stateWord ) " " ( ( stateAt == "" ) ? "-" : stateAt ) ; }
+				else if ( storedColumns == "17" ) { stated = " " ( ( stateWord == "" ) ? "-" : stateWord ) " " ( ( stateAt == "" ) ? "-" : stateAt ) " " ( ( refused == "" ) ? "-" : refused ) ; }
+				else { stated = "" ; }
+				printRow[++rowTotal] = "R " trackingName " " session " " parent " " rowHost " " owner " " rowStatus " " exitCode " " rowSpawn " " agentLog " " sessionThread " " workspace " " rowLive " " state ;
+				printDated[++datedTotal] = "D " trackingName " " session " " parent " " rowHost " " owner " " rowStatus " " exitCode " " rowSpawn " " agentLog " " sessionThread " " workspace " " rowLive " " state " " ( ( started == "" ) ? "-" : started ) " " ( ( resolved == "" ) ? "-" : resolved ) " " ( ( comment == "" ) ? "-" : comment ) stated ;
+			}
+			## One line a row, its first word the block it belongs to: the thirteen words, or the
+			## same row with the columns the manager list reads after them.
+			END {
+				print "A" ( anyRow ? "true" : "false" ) ;
+				for ( rowAt = 1 ; rowAt <= rowTotal ; rowAt++ ) { print printRow[rowAt] ; }
+				for ( datedAt = 1 ; datedAt <= datedTotal ; datedAt++ ) { print printDated[datedAt] ; }
+			}
+		' "$measuredFile" 2> /dev/null )" || measuredAll="Afalse"
+	measuredAny="${measuredAll%%$'\n'*}" ; measuredAny="${measuredAny#A}"
+	measuredRows="$( printf '%s\n' "$measuredAll" | LC_ALL=C awk '/^R / { sub( /^R /, "" ) ; print }' )
+"
+	measuredDated="$( printf '%s\n' "$measuredAll" | LC_ALL=C awk '/^D / { sub( /^D /, "" ) ; print }' )
+"
+	return 0
+}
+
+## The spawned-sessions render is the one that adds measured/derived columns, so it
+## does not go through the plain renderer: its rows come measured from
+## AgentsToolsRegistryMeasureRows above. The pending-replies registry is rebuilt once
+## too, for the "waiting" state derivation.
+##
+## view: "agents" (default) -- one row per spawn-id, today's shape plus two trailing
+## columns (workspace, state). "sessions" -- the same rows grouped by session-id,
+## one row per coworking session. session-id filter narrows either view; a state
+## filter narrows the sessions view to sessions holding at least one agent in that
+## state, keeping each matching session's own full state-tally rather than trimming
+## it to the filtered state alone.
+AgentsToolsRegistryRenderSpawnedSessions(){ ## view, session-id filter, state filter
+	type AgentsToolsRegistryPendingRepliesRebuild > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.RegistryPendingReplies.include"
+	local viewWanted="${1:-agents}" filterSession="${2:-}" filterState="${3:-}"
+	local registryFile thisHost thisWorkspace rowState rowLive
+	local extendedRows="" registryRow sawRow="false" sawAny="false" measuredRows="" measuredDated="" measuredAny="false"
+	registryFile="$MMDAPP/.local/agents/spawned-sessions.registry"
+	printf '%s\n\n' "## spawned sessions"
+	if [ ! -d "$MMDAPP/.local/agents/spawned" ] ; then
+		printf '%s\n\n' "**NOTE:** no scan was made -- no spawn sandbox root exists yet, so no spawn has ever run in this workspace"
+		return 0
+	fi
+	if ! AgentsToolsRegistrySpawnedSessionsRebuild ; then
+		printf '%s\n\n' "**NOTE:** no scan was made -- the registry could not be rebuilt at $registryFile"
+		return 0
+	fi
+	AgentsToolsRegistryPendingRepliesRebuild || :
+	thisHost="$( hostname -s 2>/dev/null )" || thisHost=""
+	[ -n "$thisHost" ] || thisHost="unknown"
+	thisWorkspace="$( basename "$MMDAPP" 2>/dev/null )" || thisWorkspace=""
+	[ -n "$thisWorkspace" ] || thisWorkspace="unknown"
+	printf 'registry: %s -- rebuilt by this scan\n' "$registryFile"
+	printf 'this-host: %s\n' "$thisHost"
+	printf 'this-workspace: %s\n' "$thisWorkspace"
+	## The three appended columns of a measured row are not this view's: it prints thirteen.
+	AgentsToolsRegistryMeasureRows "$registryFile" "$thisHost" "$filterSession"
+	extendedRows="$measuredRows" ; sawAny="$measuredAny"
+	if [ "$viewWanted" = "sessions" ] ; then
+		AgentsToolsRegistryRenderSpawnedSessionsGrouped "$extendedRows" "$filterState"
+		return 0
+	fi
+	printf '%s\n' "columns: tracking-name session-id parent-spawn-id host owner status exit-code spawn-id agent-log-thread session-thread workspace live state"
+	printf '%s\n\n' "live and state: measured/derived during this scan and NOT stored in the registry file, which has the eleven columns before them. live is a process of this host that runs as the spawn: the value of its own --session-id or --resume argument is the spawn-id, matched whole, or it is the process the spawn's record names as the one its launch started, still living; an id standing anywhere else on a command line is no run. live reads running, gone (no such process here), remote (the record names another host) or unknown (it names no host or no run). state is thinking/tool/waiting/idling/busy/paused for a run whose live is running, else parked/failed/finished/unclosed (starting, and waiting for a gone run with an open ask, as before) -- failed and finished are read straight from status and stand regardless of live."
+	while IFS= read -r registryRow ; do
+		[ -n "$registryRow" ] || continue
+		rowState="${registryRow##* }" ; rowLive="${registryRow% *}" ; rowLive="${rowLive##* }"
+		## running keeps the rows with a process here, and the waiting ones too -- a waiting agent is still in flight.
+		case "$filterState" in
+			"") ;;
+			running) [ "$rowLive" = "running" ] || [ "$rowState" = "waiting" ] || continue ;;
+			*) [ "$rowState" = "$filterState" ] || continue ;;
+		esac
+		sawRow="true"
+		printf '%s\n' "$registryRow"
+	done <<< "$extendedRows"
+	if [ "$sawRow" != "true" ] ; then
+		if [ "$sawAny" != "true" ] ; then
+			printf '%s\n' "**NOTE:** no spawned sessions -- the sandbox root exists and holds none"
+		else
+			printf '%s\n' "**NOTE:** no rows match this view's own session-id/state filter -- other spawned sessions exist, filtered out here"
+		fi
+	fi
+	printf '\n'
+	## Stated for the pass that reads this, because a row alone does not say what to
+	## do with it.
+	printf '%s\n\n' "Compare these rows against the board \`running/\` items before acting on either: a row whose status is still started with no live process and no open ask is state unclosed, a row whose live is running is busy, a row on another host reads live remote, and a \`running/\` item whose session appears in no row has no spawn record behind it at all."
+	return 0
+}

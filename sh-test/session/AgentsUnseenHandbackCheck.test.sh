@@ -8,7 +8,7 @@
 set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 rigPkg="${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}/myx/myx.distro-agents"
-rigHouse="$rigPkg/sh-lib/magic/AgentsTools.SpawnHousekeeping.include"
+rigHouse="$rigPkg/sh-lib/board/AgentsTools.BoardHousekeeping.include"
 rigFixture="$rigPkg/sh-test/check-fixtures/harness-ask-check.curl.stub.sh"
 
 rigRefuse(){

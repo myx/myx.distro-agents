@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 ## Behavioural check on S12.10: a close that cannot be recorded drops its OWN commit, never whatever commit
 ## HEAD has moved on to. Held, over a real git store under this rig's own tree, on the one function every
-## failed close goes through (AgentsToolsItemUnlockKeep, sh-lib/team-data/AgentsTools.InternOpItem.include):
+## failed close goes through (AgentsToolsItemUnlockKeep, sh-lib/items/AgentsTools.InternOpItem.include):
 ##   1. THE CONTROL, and the function's own positive: HEAD is this call's own commit, and the drop takes it
 ##      away. A function that dropped nothing would pass every other case here.
 ##   2. THE SUBJECT: another writer commits after this call's own commit, and the close still fails. HEAD is
@@ -20,7 +20,7 @@ set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigOrigin="$( cd "$MDLT_ORIGIN" && pwd -P )" || exit 1
 rigPkg="$rigOrigin/myx/myx.distro-agents"
-rigItem="$rigPkg/sh-lib/team-data/AgentsTools.InternOpItem.include"
+rigItem="$rigPkg/sh-lib/items/AgentsTools.InternOpItem.include"
 rigRefuse(){ echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1 ; }
 [ -f "$rigItem" ] || rigRefuse "the item include is not at the origin this workspace resolves: $rigItem"
 command -v git > /dev/null || rigRefuse "git is not installed"

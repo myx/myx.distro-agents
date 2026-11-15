@@ -1,0 +1,130 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+## AgentsTools.OpReadbackEscalation.include -- the operation `--readback-escalation`, sourced by AgentsTools.MemberEscalation.include with the operation's arguments.
+## The asker closes its own decision with a readback, once the person has replied and no
+## reply names an option (VERDICT: RETURNED): it says in the question's own thread,
+## under the identity the question was asked with, which option it takes the reply to
+## mean, and the record closes with that option as its verdict and `closed-by: readback`.
+## The person's replies are kept as clarifications, and `follow-floor` is the readback's
+## ts, so the asking session's Wait still sees a later reply there -- an objection -- and
+## keeps it as one more. The asker only, and never a permission, which keeps needing an
+## explicit answer. The asker answers its own question no other way.
+		shift
+		MDSC_CMD="$MDSC_CMD --readback-escalation"
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.UseAgentsTools.include"
+		local rbMember="${1:-}" rbId="${2:-}" rbOption="${3:-}" rbText="${4:-}" rbFile rbKind rbOwner rbOut rbVerdict rbOptionLine rbFound=""
+		local rbChannel rbThread rbSent rbTs rbNote
+		if [ -z "$rbMember" ] || [ -z "$rbId" ] || [ -z "$rbOption" ] ; then
+			echo "$MDSC_CMD: ⛔ ERROR: syntax is <team-member> <request-id> <option word> [what you understood]" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsAssertBareName "$rbMember" "<team-member>" escalation-readback || { set +e ; return 1 ; }
+		AgentsToolsActingMemberCheck "$rbMember" "readback-escalation" || { set +e ; return 1 ; }
+		rbFile="$( AgentsToolsEscalationRecord "$rbId" )" || { set +e ; return 1 ; }
+		rbKind="$( AgentsToolsEscalationField "$rbFile" kind )"
+		local rbSelect=""
+		case "$rbKind" in
+			decision) ;;
+			## A plain question with an answer form is closed the same way.
+			''|question)
+				rbSelect="$( AgentsToolsEscalationField "$rbFile" select )"
+				[ -n "$rbSelect" ] || {
+					echo "$MDSC_CMD: ⛔ ERROR: $rbId is a question with no answer form, and a readback closes only a decision or a question with one" >&2
+					set +e ; return 1
+				}
+			;;
+			permission|permission-set)
+				echo "$MDSC_CMD: ⛔ ERROR: $rbId is a $rbKind, which keeps needing an explicit answer, so no readback closes it" >&2
+				set +e ; return 1
+			;;
+			*)
+				echo "$MDSC_CMD: ⛔ ERROR: $rbId is a ${rbKind:-question}, and a readback closes only a decision" >&2
+				set +e ; return 1
+			;;
+		esac
+		rbOwner="$( AgentsToolsEscalationField "$rbFile" owner )"
+		if [ "$rbOwner" != "$rbMember" ] ; then
+			echo "$MDSC_CMD: ⛔ ERROR: $rbId was asked by ${rbOwner:-nobody}, so only its asker reads its reply back, not $rbMember" >&2
+			set +e ; return 1
+		fi
+		if [ "$( AgentsToolsEscalationField "$rbFile" status )" != "reply-pending" ] ; then
+			echo "$MDSC_CMD: ⛔ ERROR: $rbId is not open, so there is nothing to read back" >&2
+			set +e ; return 1
+		fi
+		rbOption="$( printf '%s' "$rbOption" | LC_ALL=C tr 'A-Z' 'a-z' )"
+		while IFS= read -r rbOptionLine ; do
+			rbOptionLine="${rbOptionLine#- }"
+			rbOptionLine="${rbOptionLine%%[ $'\t']*}"
+			rbOptionLine="${rbOptionLine%:}"
+			rbOptionLine="$( printf '%s' "$rbOptionLine" | LC_ALL=C tr 'A-Z' 'a-z' )"
+			[ "$rbOptionLine" != "$rbOption" ] || rbFound=1
+		done < <( [ -n "$rbSelect" ] || cat "${rbFile%.md}.options" 2>/dev/null )
+		## An answer form takes what its own reader takes (AgentsEscalationVerdict.awk), written as a reply would be.
+		if [ -n "$rbSelect" ] ; then
+			rbOptionLine="$( printf '1.000001 | readback | %s\n' "$rbOption" | MDAT_VERDICT_KIND=question MDAT_VERDICT_SELECT="$rbSelect" MDAT_VERDICT_AUTHORS=readback \
+				MDAT_VERDICT_OPTIONS="$( cat "${rbFile%.md}.options" 2>/dev/null )" LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsEscalationVerdict.awk" 2>/dev/null )" || rbOptionLine=""
+			rbOptionLine="${rbOptionLine%%$'\t'*}"
+			case "$rbOptionLine" in ''|RETURNED) ;; *) rbOption="$rbOptionLine" ; rbFound=1 ;; esac
+		fi
+		if [ -z "$rbFound" ] ; then
+			echo "$MDSC_CMD: ⛔ ERROR: $rbOption is not an option of $rbId, so nothing is read back" >&2
+			set +e ; return 1
+		fi
+		rbChannel="$( AgentsToolsEscalationField "$rbFile" channel )"
+		rbThread="$( AgentsToolsEscalationField "$rbFile" thread-ts )"
+		rbOut="$( AgentsToolsEscalationThreadVerdict "$rbMember" "$rbFile" "$rbId" "$rbChannel" \
+			"$( AgentsToolsEscalationField "$rbFile" question-ts )" "$rbThread" "$( AgentsToolsEscalationField "$rbFile" addressees )" \
+			"$( [ "$( AgentsToolsEscalationField "$rbFile" ask-identity )" != "bot" ] || printf 'true' )" )"
+		rbVerdict="${rbOut%%$'\n'*}"
+		case "${rbVerdict%%$'\t'*}" in
+			RETURNED) ;;
+			OPEN)
+				echo "$MDSC_CMD: ⛔ ERROR: nobody has replied to $rbId yet, so there is no reply to read back -- wait for it" >&2
+				set +e ; return 1
+			;;
+			UNREADABLE)
+				echo "$MDSC_CMD: ⛔ ERROR: whether anybody replied to $rbId is NOT known, so nothing is read back: ${rbVerdict##*$'\t'}" >&2
+				set +e ; return 1
+			;;
+			*)
+				rbVerdict="${rbVerdict%%$'\t'*}"
+				echo "$MDSC_CMD: ⛔ ERROR: the reply in the thread of $rbId already names ${rbVerdict%% -- *}, so no readback is needed -- collect it with Wait" >&2
+				set +e ; return 1
+			;;
+		esac
+		## Only a reply to read back: with none yet, the asker would be answering itself.
+		if ! printf '%s\n' "$rbOut" | LC_ALL=C grep -q '^CLARIFY' ; then
+			echo "$MDSC_CMD: ⛔ ERROR: nobody has replied to $rbId yet, so there is no reply to read back -- wait for it" >&2
+			set +e ; return 1
+		fi
+		## Its text is the note template's (`# Ask`, readback).
+		rbNote="$( ASKP_F_member="$rbMember" ASKP_F_option="$rbOption" ASKP_F_text="$rbText" ASKP_F_address_to="$( AgentsToolsEscalationField "$rbFile" address-to )" AgentsToolsEscalationNote "Ask/readback" )" || rbNote=""
+		if [ -z "$rbNote" ] ; then
+			echo "$MDSC_CMD: ⛔ ERROR: the readback could not be filled from its template (tooling-note.post.format.md, Ask/readback), so it was not posted in the thread of $rbId, which stays open" >&2
+			set +e ; return 1
+		fi
+		if [ "$( AgentsToolsEscalationField "$rbFile" ask-identity )" = "bot" ] ; then
+			type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+			rbSent="$( printf '%s\n' "$rbNote" | DistroAgentsTools --intern-op-comms-slack-send-message "$rbMember" "$rbChannel:$rbThread" --identity-bot \
+				--address-to "$( AgentsToolsEscalationField "$rbFile" address-to )" --from-stdin 2>&1 )" || rbSent=""
+		else
+			type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+			rbSent="$( printf '%s\n' "$rbNote" | DistroAgentsTools --intern-op-comms-slack-send-message "$rbMember" "$rbChannel:$rbThread" \
+				--address-to "$( AgentsToolsEscalationField "$rbFile" address-to )" --from-stdin 2>&1 )" || rbSent=""
+		fi
+		rbTs="$( printf '%s\n' "$rbSent" | LC_ALL=C sed -n 's/^SENT_MESSAGE_TS=//p' | head -1 )"
+		if [ -z "$rbTs" ] ; then
+			echo "$MDSC_CMD: ⛔ ERROR: the readback could not be posted in the thread of $rbId, so it stays open" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsEscalationApply "$rbFile" "$rbId" "$rbOption" "$rbText" "$rbMember (readback)" "" readback "$rbTs" || { set +e ; return 1 ; }
+		## An authority request (a contact's tier, a request of a party) is settled as every other answer settles it: its action
+		## runs and its requester is told, so a readback never closes the record with nothing done.
+		if [ -n "$( AgentsToolsEscalationField "$rbFile" request-of )" ] ; then
+			type AgentsToolsAuthorityRequestSettle > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.Authority.include"
+			AgentsToolsAuthorityRequestSettle "$rbFile" "$rbOption" "$rbMember (readback)" || { set +e ; return 1 ; }
+		fi
+		AgentsToolsEscalationClarify "$rbId" "$rbOut"
+		printf 'FOLLOW-FLOOR: %s\n' "$rbTs"
+		return 0

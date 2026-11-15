@@ -12,7 +12,6 @@
 ##
 
 ## Where an inbox item lives (F4.3).
-type AgentsToolsInboxDir > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/inbox/AgentsTools.InboxPlace.include"
 
 ## Prints the path of <member>'s own sweep-state record. The filename is fixed
 ## and unchanged, so magic-coordinator's existing record resolves where it

@@ -138,6 +138,19 @@ rigContract="$rigPackage/skillset/magic-team/magic-team/contracts/routine.contra
 rigAssert "routine-lock-document: states the {{team-member}} macro" "$( LC_ALL=C grep -A2 -F -e '- `routine-lock-document:` (optional)' "$rigContract" | LC_ALL=C grep -c -F -e '{{team-member}}' || : )" "1"
 rigAssert "input-scan-def: lists work-duty among the scans" "$( LC_ALL=C grep -A2 -F -e '- `input-scan-def:` (optional)' "$rigContract" | LC_ALL=C grep -c -F -e '`work-duty`' || : )" "1"
 
+echo "-- 7. a member's lock note found in incoming/ alone is moved to its place --"
+rigStray="note-20261020T000000Z-stray-state-and-lock.md"
+mkdir -p "$rigData/inboxes/rig-keeper/incoming" "$rigData/inboxes/magic-coordinator/incoming"
+printf '%s\n' "stray" > "$rigData/inboxes/rig-keeper/incoming/$rigStray"
+printf '%s\n' "own" > "$rigData/inboxes/magic-coordinator/incoming/$rigStray"
+rigPlace(){ ## member -- the path the place rule gives for the stray note, relative to the data root
+	env -i PATH="$PATH" MDAT_DATA_ROOT="$rigData" MDLT_ORIGIN="$MDLT_ORIGIN" bash -c '. "$1" ; AgentsToolsInboxNotePath "$2" "$3"' rig \
+		"$rigPackage/sh-lib/inbox/AgentsTools.InboxPlace.include" "$1" "$rigStray" 2> /dev/null | sed "s|^$rigData/||"
+}
+rigAssert "the keeper's stray note resolves to processed/" "$( rigPlace rig-keeper )" "inboxes/rig-keeper/processed/$rigStray"
+rigAssert "and stands there, not in incoming/" "$( [ -f "$rigData/inboxes/rig-keeper/processed/$rigStray" ] && echo moved ):$( [ -e "$rigData/inboxes/rig-keeper/incoming/$rigStray" ] && echo left || echo gone )" "moved:gone"
+rigAssert "the coordinator's note stays in incoming/" "$( rigPlace magic-coordinator ):$( cat "$rigData/inboxes/magic-coordinator/incoming/$rigStray" )" "inboxes/magic-coordinator/incoming/$rigStray:own"
+
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ ROUTINE PER MEMBER LOCK CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1
 fi

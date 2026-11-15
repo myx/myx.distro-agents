@@ -37,6 +37,7 @@ AgentsHarnessReadRange(){ ## path, offset, limit, optional numbered
 }
 
 AgentsHarnessToolRead(){
+	type AgentsHarnessReadGate > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessAccess.include"
 	## S19.2: a read is one of the two points held at its START, so a paused run reads nothing while it holds.
 	AgentsToolsSessionPauseWait
 	local toolPath="${5:-$1}" toolOffset="$2" toolLimit="$3" toolPages="$4" toolBytes toolMime pdfFirst pdfLast pdfText imagePath imageEdge
@@ -210,6 +211,7 @@ AgentsHarnessChangeBaseSame(){ ## resolved target
 ## where the call leaves the file as it is, so there is nothing to hold; or the ERROR that
 ## says nothing is held, and why. The member is never kept waiting here.
 AgentsHarnessChangeHold(){ ## tool, resolved target, the file as it stands (empty: there is none), the file as the call leaves it, raw arguments, what each edit matched (Edit)
+	type AgentsHarnessAskWaitNext > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessAskResolve.include"
 	local holdTools="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" holdSession holdOut="" holdRc=0 holdId holdShown holdCut=""
 	holdSession="${harnessSessionId:-${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}}"
 	if [ -z "$holdSession" ] || [ -z "$harnessAgent" ] || [ ! -x "$holdTools" ] ; then
@@ -242,6 +244,7 @@ AgentsHarnessChangeHold(){ ## tool, resolved target, the file as it stands (empt
 
 ## Whole-file overwrite or create, never a partial patch; Edit is the partial path.
 AgentsHarnessToolWriteRun(){
+	type AgentsHarnessRefusal > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessAccess.include"
 	local toolPath="${3:-$1}" toolContent="$2" toolTemp toolLock="" toolGateRc=0 toolHeld=""
 	if [ -z "$toolPath" ] ; then
 		AgentsHarnessRefusal Write "" "ERROR: no path was given -- pass file_path, or path. Keys received: $( printf '{"a":%s}' "$4" | LC_ALL=C awk -v path=a -v mode=keys -f "$harnessHere/harness/AgentsHarnessJsonField.awk" 2>/dev/null | LC_ALL=C awk 'BEGIN { keyList = "" ; } { keyList = keyList ( NR > 1 ? ", " : "" ) $0 ; } END { print ( keyList == "" ? "none" : keyList ) ; }' ). Nothing was written." ; return 0
@@ -292,6 +295,7 @@ AgentsHarnessToolWriteRun(){
 	toolLock="$agentsLocalLockPath"
 	## A kept Write is applied only over the file it was shown against: it replaces the whole of it.
 	if [ -n "$harnessChangeApply" ] && ! AgentsHarnessChangeBaseSame "$toolPath" ; then
+		type AgentsToolsLocalLockGive > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.LocalLock.include"
 		AgentsToolsLocalLockGive "$toolLock"
 		printf 'STALE: %s has changed since this change was shown, and a Write replaces the whole file, so nothing was written\n' "$toolPath" ; return 0
 	fi
@@ -325,6 +329,8 @@ AgentsHarnessToolWrite(){
 ## applied in order, each to the text the one before it left, and written once, all or
 ## nothing. An edit of a list that cannot be applied is named by its position from 1.
 AgentsHarnessToolEditRun(){
+	type AgentsHarnessRefusal > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessAccess.include"
+	type AgentsHarnessArgParse > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessRun.include"
 	local toolPath="${5:-$1}" toolOld="$2" toolNew="$3" toolAll="$4" toolCount toolTemp toolLock="" toolGateRc=0
 	local editsListed="" editsCount=1 editsIndex=0 editsOld=() editsNew=() editsAll=() editsSource editsOut editsSpare editsWhere="" editsNote=""
 	local toolHeld="" editsSeen=""
@@ -411,6 +417,7 @@ AgentsHarnessToolEditRun(){
 		[ -n "$toolCount" ] || toolCount=0
 		## A kept change is applied only where each edit matches what it matched when it was shown.
 		if [ -n "$harnessChangeApply" ] && [ "$toolCount" != "$( AgentsHarnessChangeMatched "$editsIndex" )" ] ; then
+			type AgentsToolsLocalLockGive > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.LocalLock.include"
 			AgentsToolsLocalLockGive "$toolLock"
 			printf 'STALE: %s has changed since this change was shown: %sits old_string matched %s place(s) then and matches %s now, so nothing was written\n' \
 				"$toolPath" "${editsListed:+edit $(( editsIndex + 1 )) of $editsCount, }" "$( AgentsHarnessChangeMatched "$editsIndex" )" "$toolCount" ; return 0
@@ -502,6 +509,7 @@ AgentsHarnessToolEdit(){
 ## The root is tested before the pattern is evaluated, so a missing directory is named
 ## as missing rather than collapsing into "the pattern matched nothing".
 AgentsHarnessToolGlob(){
+	type AgentsHarnessReadGate > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessAccess.include"
 	local toolPattern="$1" toolPath="${2:-$PWD}" toolLong="$3" toolBytes globStat globLine globSlice
 	AgentsHarnessReadGate Glob "$toolPath" || return 0
 	toolPath="$harnessResolvedPath"
@@ -589,6 +597,7 @@ AgentsHarnessGrepTypeGlobs(){ ## type name
 
 ## `ripgrep` would replace this `grep -rn` outright; the human-owner ruled "Not now".
 AgentsHarnessToolGrep(){ ## pattern, path, context, before, after, ignore_case, output_mode, glob, -n, -o, -A, -B, -C, -i, head_limit, offset, multiline, type
+	type AgentsHarnessReadGate > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessAccess.include"
 	local toolPattern="$1" toolPath="${2:-$PWD}" toolContext="${13:-$3}" toolBefore="${12:-$4}" toolAfter="${11:-$5}" toolIgnoreCase="${14:-$6}" toolMode="${7:-files_with_matches}" toolGlob="$8" toolLineNumbers="$9" toolOnlyMatching="${10}" toolHeadLimit="${15:-250}" toolOffset="${16:-0}" toolBytes toolRegex grepFlags globPrefix globGroup globSuffix globAlts globAlt typeGlobs typeGlob typeFind=()
 	case "${17}" in
 		true|1) printf 'ERROR: multiline is not supported by this Grep, only by the native Grep tool. Search with a pattern that matches within one line instead. Nothing was searched.\n' ; return 0 ;;

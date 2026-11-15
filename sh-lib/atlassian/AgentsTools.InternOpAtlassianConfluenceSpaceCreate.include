@@ -1,0 +1,86 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+## AgentsTools.InternOpAtlassianConfluenceSpaceCreate.include -- the operation `--intern-op-atlassian-confluence-space-create`, sourced by AgentsTools.InternOpAtlassianCall.include with the operation's arguments.
+## One Confluence space, created by the same v2 endpoint space-list reads. The name is
+## what the site requires; the key identifies the space in every page address. A
+## description is sent in the one form a create takes, plain text.
+	type AgentsToolsAtlassianCall > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/atlassian/AgentsTools.AtlassianRequest.include"
+		shift
+		local confSCMember="" confSCKey="" confSCName="" confSCDescription="" confSCContext="intern-op-atlassian-confluence-space-create"
+		while [ $# -gt 0 ] ; do
+			## Every flag here takes a value, so the one emptiness check covers them all.
+			case "$1" in
+				--member|--key|--name|--description|--context)
+					if [ -z "${2:-}" ] ; then
+						printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confSCContext: $1 value missing" >&2
+						set +e ; return 1
+					fi
+					case "$1" in
+						--member)      confSCMember="$2" ;;
+						--key)         confSCKey="$2" ;;
+						--name)        confSCName="$2" ;;
+						--description) confSCDescription="$2" ;;
+						--context)     confSCContext="$2" ;;
+					esac
+					shift 2
+				;;
+				*)
+					printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confSCContext: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		if [ -z "$confSCMember" ] || [ -z "$confSCKey" ] || [ -z "$confSCName" ] ; then
+			printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confSCContext: syntax is --member <team-member> --key <space-key> --name <text> [--description <text>] [--context <caller>] -- the space is created under that identity, and only where it may create spaces" >&2
+			set +e ; return 1
+		fi
+		## A space key is Confluence's own identifier: letters, digits, '-' and '_'. Enumerated,
+		## never a bracket range, and refused rather than repaired, since the site's key is what
+		## every page address carries afterwards.
+		local confSCKeyRest="$confSCKey" confSCKeyChar
+		while [ -n "$confSCKeyRest" ] ; do
+			confSCKeyChar="${confSCKeyRest%"${confSCKeyRest#?}"}"
+			confSCKeyRest="${confSCKeyRest#?}"
+			case "$confSCKeyChar" in
+				a|b|c|d|e|f|g|h|i|j|k|l|m|n|o|p|q|r|s|t|u|v|w|x|y|z) ;;
+				A|B|C|D|E|F|G|H|I|J|K|L|M|N|O|P|Q|R|S|T|U|V|W|X|Y|Z) ;;
+				0|1|2|3|4|5|6|7|8|9) ;;
+				-|_) ;;
+				*)
+					printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confSCContext: --key invalid: $confSCKey -- a space key is letters, digits, '-' and '_', and it becomes the space's own address, so it is refused rather than repaired" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		local confSCNameEsc confSCDescEsc confSCCreateBody
+		confSCNameEsc="$( printf '%s' "$confSCName" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/mcp/AgentsMcpJsonEscape.awk" )"
+		confSCCreateBody="{\"key\":\"$confSCKey\",\"name\":\"$confSCNameEsc\""
+		if [ -n "$confSCDescription" ] ; then
+			confSCDescEsc="$( printf '%s' "$confSCDescription" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/mcp/AgentsMcpJsonEscape.awk" )"
+			confSCCreateBody="$confSCCreateBody,\"description\":{\"value\":\"$confSCDescEsc\",\"representation\":\"plain\"}"
+		fi
+		confSCCreateBody="$confSCCreateBody}"
+		local confSCBody confSCRc=0
+		confSCBody="$( AgentsToolsAtlassianCall "$confSCMember" confluence POST /wiki/api/v2/spaces "$confSCContext" "$confSCCreateBody" )" || confSCRc=$?
+		if [ "$confSCRc" -ne 0 ] ; then
+			set +e ; return "$confSCRc"
+		fi
+		## 201 is the documented answer and it is this family's exit 0 (AgentsToolsAtlassianCall).
+		## Nothing is created twice by a retry of a create whose outcome is unknown, so a body
+		## with no id is reported UNKNOWN rather than printed as a space.
+		local confSCFieldAwk="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk"
+		local confSCId="$( printf '%s\n' "$confSCBody" | LC_ALL=C awk -v path=id -v optional=1 -v dialect=atlassian -f "$confSCFieldAwk" 2>/dev/null )"
+		if [ -z "$confSCId" ] ; then
+			printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confSCContext: UNKNOWN -- the site answered without a space id, so whether the space exists cannot be told from the answer. Read the space list for key $confSCKey before creating it again" >&2
+			set +e ; return 3
+		fi
+		local confSCUrl="$( printf '%s\n' "$confSCBody" | LC_ALL=C awk -v path=_links.base -v optional=1 -v dialect=atlassian -f "$confSCFieldAwk" 2>/dev/null )$( printf '%s\n' "$confSCBody" | LC_ALL=C awk -v path=_links.webui -v optional=1 -v dialect=atlassian -f "$confSCFieldAwk" 2>/dev/null )"
+		printf 'SPACE_ID\tKEY\tNAME\tURL\n'
+		printf '%s\t%s\t%s\t%s\n' \
+			"$confSCId" \
+			"$( printf '%s\n' "$confSCBody" | LC_ALL=C awk -v path=key -v optional=1 -v dialect=atlassian -f "$confSCFieldAwk" 2>/dev/null )" \
+			"$( printf '%s\n' "$confSCBody" | LC_ALL=C awk -v path=name -v optional=1 -v dialect=atlassian -f "$confSCFieldAwk" 2>/dev/null )" \
+			"${confSCUrl:--}"
+		[ -n "$confSCUrl" ] || printf '%s\n' "🙋 WARNING: $MDSC_CMD --$confSCContext: the answer carried no _links, so the space's address is not printed here -- read it from --confluence-space-list" >&2
+		return 0

@@ -58,7 +58,7 @@ rigRun(){ ## the console's arguments -- one call from the rig workspace, its val
 }
 rigChosen(){ ## member (may be empty) -- the preset the spawner chooses, as the spawn proxy takes it
 	( cd "$rigWs" && env -i HOME="$rigTmp/home" PATH="/usr/bin:/bin:/usr/sbin:/sbin" MMDAPP="$rigWs" MDLT_ORIGIN="$rigOrigin" MDSC_CMD=rig \
-		bash -c '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.Preset.include" ; AgentsToolsPresetChosen "$1"' rig "$1" 2> /dev/null )
+		bash -c '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/settings/AgentsTools.Preset.include" ; AgentsToolsPresetChosen "$1"' rig "$1" 2> /dev/null )
 }
 
 echo "-- A. a workspace that pays for itself --"

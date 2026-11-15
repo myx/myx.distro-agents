@@ -165,7 +165,7 @@ AgentsToolsInternSessionChatWriter(){ ## --run
 	exec < /dev/null >> "$agentsSessionChatWriterFolder/thread.log" 2>&1
 	cd / 2> /dev/null
 	## The code this thread runs for hours: a change to one of these ends it, and the next send starts one on the current code (AgentsToolsOnDemandThreadServe).
-	agentsOnDemandCodeFiles="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChatWriter.include $MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include $MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsSlack.include $MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.OnDemandThread.include"
+	agentsOnDemandCodeFiles="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChatWriter.include $MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include $MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/slack/AgentsTools.CommsSlack.include $MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.OnDemandThread.include"
 	AgentsToolsOnDemandThreadServe "$agentsSessionChatWriterFolder" "$agentsSessionChatWriterIdle" AgentsToolsSessionChatWriterHandler - no
 	return $?
 }

@@ -1,0 +1,163 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+type AgentsToolsPermissionEscapeRecord > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionRecord.include"
+type AgentsToolsPermissionAnswerPost > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionPosts.include"
+type AgentsToolsPermissionEntryPlace > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionPlaces.include"
+type AgentsToolsPermissionItemOpen > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionHolds.include"
+type AgentsToolsGrantsItemRuns > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.Grants.include"
+
+## AgentsTools.InternOpPermissionPass.include -- the operation `--pass-permission|--intern-op-permission-pass`, sourced by AgentsTools.InternOpPermission.include with the operation's arguments.
+## Passing a held permission on. The member's own judgement whether to; tooling
+## enforces only the limits: no more than the passer holds, no longer than its own
+## grant lives, and only to a participant of the session or task, or a member it
+## spawned for it. Written as a grant of the receiver's own, signed by the passer.
+## The target may name a place, @<name>[:<glob>], resolved as a set request's entry is;
+## a write in a read-only place is refused with its route; a session pass needs the
+## passer in the session too; the store is touched, so session indices rebuild.
+		local passOp="$1"
+		shift
+		MDSC_CMD="$MDSC_CMD $passOp"
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.UseAgentsTools.include"
+		local passBy="${1:-}" passTo="" passTool="" passTarget="" passKind="" passTask="" passSession="${MDAT_SESSION_ID:-${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}}"
+		shift || true
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--to) passTo="${2:-}" ; shift 2 ;;
+				--tool) passTool="${2:-}" ; shift 2 ;;
+				--target) passTarget="${2:-}" ; shift 2 ;;
+				--kind) passKind="${2:-}" ; shift 2 ;;
+				--task) passTask="${2:-}" ; shift 2 ;;
+				--session-id) passSession="${2:-}" ; shift 2 ;;
+				*)
+					echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		if [ -z "$passBy" ] || [ -z "$passTo" ] || [ -z "$passTool" ] || [ -z "$passKind" ] || [ -z "$passSession" ] ; then
+			echo "$MDSC_CMD: ⛔ ERROR: syntax is <passing-member> --to <member> --tool <tool> --target <target> --kind once|session|task [--task <item>] [--session-id <id>]" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsAssertBareName "$passBy" "<passing-member>" permission-pass || { set +e ; return 1 ; }
+		AgentsToolsAssertBareName "$passTo" "--to" permission-pass || { set +e ; return 1 ; }
+		AgentsToolsAssertBareName "$passTool" "--tool" permission-pass || { set +e ; return 1 ; }
+		AgentsToolsAssertBareName "$passSession" "--session-id" permission-pass || { set +e ; return 1 ; }
+		[ "$passOp" != "--pass-permission" ] || AgentsToolsActingMemberCheck "$passBy" "${passOp#--}" || { set +e ; return 1 ; }
+		if [ "$passTo" = "$passBy" ] ; then
+			echo "$MDSC_CMD: ⛔ ERROR: $passBy cannot pass a permission to itself, so nothing is passed" >&2
+			set +e ; return 1
+		fi
+		passTask="${passTask##*/}" ; passTask="${passTask%.md}"
+		case "$passKind" in
+			once|session) ;;
+			task)
+				if [ -z "$passTask" ] || ! AgentsToolsAssertBareName "$passTask" "--task" permission-pass || ! AgentsToolsPermissionItemOpen "$passTask" ; then
+					echo "$MDSC_CMD: ⛔ ERROR: a task pass needs --task <item> naming an open board item, got: ${passTask:-none}" >&2
+					set +e ; return 1
+				fi
+			;;
+			*)
+				echo "$MDSC_CMD: ⛔ ERROR: --kind must be once|session|task: $passKind" >&2
+				set +e ; return 1
+			;;
+		esac
+		## The target: a place by name resolved to its path, a path in a place said as
+		## name:relative, a write in a read-only place refused (AgentsToolsPermissionEntryPlace).
+		local permEntryTool permEntryTarget permEntryPlace passPlace
+		AgentsToolsPermissionEntryPlace "$passTool:$passTarget" "$passSession" || { set +e ; return 1 ; }
+		passTarget="$permEntryTarget" ; passPlace="$permEntryPlace"
+		## Limit one: no more than the passer holds.
+		local passHeld passLayer passFromKind passFromRef passFromTask="" passStore
+		if ! passHeld="$( AgentsToolsPermissionHolds "$passBy" "$passTool" "$passTarget" "$passSession" )" ; then
+			echo "$MDSC_CMD: ⛔ ERROR: $passBy does not hold $passTool ${passTarget:-(any target)} in session $passSession, so it cannot pass it on -- ask for it instead" >&2
+			set +e ; return 1
+		fi
+		## Limit two: no longer than the passer's own grant lives. Standing and floor
+		## permissions outlive any session; a session grant outlives its tasks; a task
+		## grant passes on only for the same task, or once.
+		passLayer="${passHeld%% *}"
+		case "$passLayer" in
+			routine)
+				## A routine's allow ends with the session, which a task may outlive.
+				if [ "$passKind" = "task" ] ; then
+					echo "$MDSC_CMD: ⛔ ERROR: $passBy holds $passTool only for this session's ${passHeld#routine }, so it passes it only once or for the session, not as task" >&2
+					set +e ; return 1
+				fi
+			;;
+			granted|set|passed)
+				passFromKind="${passHeld#* }" ; passFromRef="${passFromKind#* }" ; passFromKind="${passFromKind%% *}"
+				if [ "$passFromKind" = "task" ] ; then
+					## Its record is in a store the session reads, or in that of another run of the passer on
+					## the same board item, whose task grants it holds too (AgentsToolsGrantsItemRuns).
+					AgentsToolsGrantsItemRuns "${MMDAPP%/}" "$passSession" "$passBy" || :
+					while IFS= read -r passStore ; do
+						passStore="${passStore##*/}"
+						[ -n "$passStore" ] && [ -f "$MMDAPP/.local/agents/sessions/$passStore/$passFromRef.md" ] || continue
+						passFromTask="$( AgentsToolsPermissionField "$MMDAPP/.local/agents/sessions/$passStore/$passFromRef.md" task )"
+						[ -n "$passFromTask" ] || [ ! -f "$MMDAPP/.local/agents/sessions/$passStore/$passFromRef.task" ] || IFS= read -r passFromTask < "$MMDAPP/.local/agents/sessions/$passStore/$passFromRef.task" || :
+						break
+					done <<< "$( AgentsToolsPermissionRelatedStores "$passSession" ; printf '%s\n' "$agentsGrantsItemRunsStores" )"
+					if [ "$passKind" = "session" ] || { [ "$passKind" = "task" ] && [ "$passTask" != "$passFromTask" ] ; } ; then
+						echo "$MDSC_CMD: ⛔ ERROR: $passBy holds $passTool only for task ${passFromTask:-unknown}, so it passes it only once or for that task, not as $passKind${passTask:+ for $passTask}" >&2
+						set +e ; return 1
+					fi
+				fi
+			;;
+		esac
+		## Limit three: the receiver takes part in the session or task, or was spawned by the passer for it.
+		if ! AgentsToolsPermissionParticipants "$passSession" "$passTask" | LC_ALL=C grep -q -x -F -- "$passTo" ; then
+			echo "$MDSC_CMD: ⛔ ERROR: $passTo takes no part in session $passSession${passTask:+ or task $passTask}, so $passBy cannot pass it a permission there" >&2
+			set +e ; return 1
+		fi
+		## A session pass: the passer takes part in that session too.
+		if [ "$passKind" = "session" ] && ! AgentsToolsPermissionParticipants "$passSession" "" | LC_ALL=C grep -q -x -F -- "$passBy" ; then
+			echo "$MDSC_CMD: ⛔ ERROR: $passBy takes no part in session $passSession, so it cannot pass a permission for it" >&2
+			set +e ; return 1
+		fi
+		## Kept where the receiver reads it: the coworking session's store, or the passer's own.
+		local passRef passDir
+		passDir="$MMDAPP/.local/agents/sessions/$( AgentsToolsPermissionShareStore "$passSession" )"
+		passRef="$( AgentsToolsPermissionNewRef pass- )" || {
+			echo "$MDSC_CMD: ⛔ ERROR: no id could be generated, so nothing is passed" >&2
+			set +e ; return 1
+		}
+		mkdir -p "$passDir" 2>/dev/null || {
+			echo "$MDSC_CMD: ⛔ ERROR: can't create the session store for $passSession, so nothing is passed" >&2
+			set +e ; return 1
+		}
+		{
+			printf '%s\n' "---"
+			printf 'status: %s\n' "passed"
+			printf 'owner: %s\n' "$passTo"
+			printf 'passed-by: %s\n' "$passBy"
+			printf 'held-as: %s\n' "$passHeld"
+			printf 'session-id: %s\n' "$passSession"
+			printf 'tool: %s\n' "$passTool"
+			printf 'target: %s\n' "$( AgentsToolsPermissionEscapeRecord "$passTarget" )"
+			printf 'kind: %s\n' "$passKind"
+			[ -z "$passTask" ] || printf 'task: %s\n' "$passTask"
+			printf 'passed-at: %s\n' "$( date +"%Y-%m-%d %H:%M %z" )"
+			printf '%s\n' "---"
+			printf '\n# Passed\n\n%s passed %s %s to %s.\n' "$passBy" "$passTool" "${passTarget:-(any target)}" "$passTo"
+		} > "$passDir/$passRef.md" || {
+			rm -f "$passDir/$passRef.md"
+			echo "$MDSC_CMD: ⛔ ERROR: can't write the pass record, so nothing is passed" >&2
+			set +e ; return 1
+		}
+		## The place its path lies in, as name:relative, recorded beside it as a hint.
+		if [ -n "$passPlace" ] ; then
+			printf '%s\t%s\n' "$passTarget" "$passPlace" > "$passDir/$passRef.places" \
+				|| echo "⚠️ WARNING: $MDSC_CMD: the place of $passRef was not recorded: $passPlace" >&2
+			printf 'PLACE: %s:%s is %s\n' "$passTool" "$passTarget" "$passPlace"
+		fi
+		printf '%s:%s:%s:%s:%s:%s\n' "$passKind" "$passTool" "$( AgentsToolsPermissionEscape "$passTarget" )" "$passBy" "$( date -u +%Y%m%dT%H%M%SZ )" "$passRef" >> "$passDir/grants" || {
+			echo "$MDSC_CMD: ⛔ ERROR: can't write the grant for $passRef, so nothing is passed" >&2
+			AgentsToolsGrantsStoreTouch "$passDir"
+			set +e ; return 1
+		}
+		## Every session index joining this store is rebuilt at its next check.
+		AgentsToolsGrantsStoreTouch "$passDir"
+		## A grant written by passing one on is said in that session's tracking-thread too.
+		AgentsToolsPermissionAnswerPost grant "$passTo" "$passDir" "${passDir##*/}" "$passRef" "$passTool" "$passTarget" "$passBy" "$passKind, passed on"
+		printf 'GRANT: %s %s\n' "$passKind" "$passRef"
+		return 0

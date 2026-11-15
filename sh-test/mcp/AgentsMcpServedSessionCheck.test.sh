@@ -50,7 +50,7 @@ rigServe(){ ## handshake line, reply file
 	  printf '%s\n' '{"jsonrpc":"2.0","method":"notifications/initialized"}'
 	  printf '%s\n' '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"execute","arguments":{"command":"printf %s ${MDAT_SPAWN_SESSION_ID:-none}"}}}'
 	  sleep 8 ; } \
-		| ( cd "$rigWs" && env -i PATH="$PATH" HOME="$rigTmp/home" TMPDIR="${TMPDIR:-/tmp}" MMDAPP="$rigWs" MDLT_ORIGIN="$rigTmp/origin" \
+		| ( cd "$rigWs" && env -i PATH="$PATH" HOME="$rigTmp/home" MMDAPP="$rigWs" MDLT_ORIGIN="$rigTmp/origin" \
 			bash "$rigTool" --intern-mcp-server --run 2> "$2.err" ) \
 		| LC_ALL=C grep '"id":2' > "$2" || :
 }

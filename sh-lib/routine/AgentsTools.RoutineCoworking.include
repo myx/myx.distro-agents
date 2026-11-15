@@ -1,0 +1,125 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.RoutineCoworking.include -- routine-coworking's own
+## --routine-coworking-* operation group for DistroAgentsTools.fn.sh's
+## dispatcher. Sourced lazily from the `--routine-coworking-*)` wildcard arm
+## via the standard $MDLT_ORIGIN-based path. Not standalone: relies on being
+## dot-sourced for $1/$@/$MDSC_CMD.
+##
+
+case "$1" in
+
+	--intern-op-routine-coworking-session-input-scan)
+		shift
+		local callingMember="$1"
+		shift || true
+		if [ -z "$callingMember" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --intern-op-routine-coworking-session-input-scan: syntax is <team-member> <tracking-document>... -- <team-member> required" >&2
+			set +e ; return 1
+		fi
+		local names=()
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--*)
+					echo "⛔ ERROR: $MDSC_CMD --intern-op-routine-coworking-session-input-scan: invalid option: $1 -- syntax is <team-member> <tracking-document>... -- an input-scan reads all baseline-relevant items itself, including everything reached via blocks:/blocked-by:. SEE Skill magic-team/magic-team.coworking.routine.md" >&2
+					set +e ; return 1
+				;;
+				*)
+					AgentsToolsAssertBareName "$1" "<tracking-document>" routine-coworking-session-input-scan || { set +e ; return 1 ; }
+					local trackingDoc="$1"
+					case "$trackingDoc" in *.md) ;; *) trackingDoc="$trackingDoc.md" ;; esac
+					names+=( "$trackingDoc" )
+					shift
+				;;
+			esac
+		done
+		## None given: the session's own dispatch (F6.3/F6.4). The spawner runs this scan for the coworking kind and gives it no
+		## document: they are the tracking documents the spawn record of the run it works for names -- the dispatch item it made
+		## (`spawns:`) and the item it was started from (`spawned-by:`) -- which is context, not a value to write in a definition.
+		if [ ${#names[@]} -eq 0 ] && [ -n "${MDAT_SPAWN_SESSION_ID:-}" ] && [ -n "${MMDAPP:-}" ] ; then
+			local ownRecord ownName
+			for ownRecord in "$MMDAPP/.local/agents/spawned"/*/"$MDAT_SPAWN_SESSION_ID.spawn.md" ; do
+				[ -f "$ownRecord" ] || continue
+				while IFS= read -r ownName ; do
+					[ -n "$ownName" ] || continue
+					case "$ownName" in *.md) ;; *) ownName="$ownName.md" ;; esac
+					names+=( "$ownName" )
+				done <<< "$( LC_ALL=C awk '$0 == "---" { if ( ++fm == 2 ) exit ; next ; } fm == 1 && ( index( $0, "spawns: " ) == 1 || index( $0, "spawned-by: " ) == 1 ) { v = $0 ; sub( /^[a-z-]+: /, "", v ) ; print v ; }' "$ownRecord" )"
+				break
+			done
+		fi
+		## No document named, and the spawn record names none either: the start still gets a scan, of the member's own inbox, and its
+		## result says what it could not read. A dispatch that names no tracking document is the dispatch's gap, never a failed start.
+		local scanNote="" scanHasDocument="false"
+		if [ ${#names[@]} -gt 0 ] ; then
+			scanHasDocument="true"
+		else
+			scanNote="## no tracking document was named: this scan covers the session's own inbox only"
+		fi
+
+		local allStates=( backlog pending running review blocked parked processed archived retained )
+		local phaseAArgs=() s n
+
+		if [ "$scanHasDocument" = "true" ] ; then
+			phaseAArgs+=( --no-inbox-inquiry --no-inbox-reflections --no-inbox-notes --no-inbox-other )
+		else
+			phaseAArgs+=( --do-inbox-inquiry-active --do-inbox-reflections --do-inbox-notes --do-inbox-other )
+		fi
+		for s in ${allStates[@]+"${allStates[@]}"} ; do phaseAArgs+=( --state "$s" ) ; done
+		if [ ${#names[@]} -gt 0 ] ; then
+			for n in ${names[@]+"${names[@]}"} ; do phaseAArgs+=( --item "$n" ) ; done
+		fi
+
+		local phaseAOutput
+		[ -z "$scanNote" ] || printf '%s\n' "$scanNote"
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+		phaseAOutput="$( DistroAgentsTools --intern-op-session-context-scan "$callingMember" ${phaseAArgs[@]+"${phaseAArgs[@]}"} \
+			--header blocks --header blocked-by --all-types \
+			--no-slack --no-email --no-trello \
+			--no-board-related \
+			--context --intern-op-routine-coworking-session-input-scan )" || return 1
+
+		local unionNames=()
+		if [ ${#names[@]} -gt 0 ] ; then
+			for n in ${names[@]+"${names[@]}"} ; do unionNames+=( "$n" ) ; done
+		fi
+
+		## blocks:/blocked-by: carry bare names while --item compares against
+		## the filename -- without this every reached item is dropped.
+		while IFS= read -r n ; do
+			[ -z "$n" ] && continue
+			case "$n" in *.md) ;; *) n="$n.md" ;; esac
+			case " ${unionNames[*]} " in
+				*" $n "*) ;;
+				*) unionNames+=( "$n" ) ;;
+			esac
+		done < <( LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/routine/AgentsRoutineCoworkingReferenceNames.awk" <<< "$phaseAOutput" | sort -u )
+
+		if [ ${#unionNames[@]} -eq 0 ] ; then
+			return 0
+		fi
+
+		## Every real state on the display call -- a reached item may have
+		## moved to a terminal one.
+		local phaseBArgs=()
+		for s in ${allStates[@]+"${allStates[@]}"} ; do phaseBArgs+=( --state "$s" ) ; done
+		for n in ${unionNames[@]+"${unionNames[@]}"} ; do phaseBArgs+=( --item "$n" ) ; done
+
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+		DistroAgentsTools --intern-op-session-context-scan "$callingMember" ${phaseBArgs[@]+"${phaseBArgs[@]}"} \
+			--all-types --item-include-inbox \
+			--do-inbox-inquiry-active --do-inbox-reflections \
+			--do-inbox-notes --do-inbox-other \
+			--no-slack --no-email --no-trello \
+			--no-board-related \
+			--context --intern-op-routine-coworking-session-input-scan
+		return $?
+	;;
+
+	*)
+		echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
+		set +e ; return 1
+	;;
+esac

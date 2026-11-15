@@ -1,0 +1,63 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.SpawnSandbox.include -- what a spawn sandbox's input/ holds, and when it
+## is emptied. Sourced, never run. Functions only. Contract: MAGIC.md, "Spawn sandbox input/".
+##
+
+## THE CLOCK OF A START: the whole seconds each step of a start took, kept in $agentsStartSteps as `<step>=<n>s` words and said
+## by the start milestone of the session (AgentsToolsStartStepsSay). Begin starts the clock; Mark closes the step that ran since
+## the last mark under its name. Plain variables of the one process that runs the start, so a mark inside `$( )` is lost: a mark
+## stands in the start's own body. A step that does not run is not marked, and is not in the line.
+## Each step is also appended to `launch.steps` beside the launcher's `launch` (and its bare `launch.noticed`), one `<step>=<n>s`
+## a line. That record needs no data root, so a start is timed in a Just Agents workspace too, where the transcript milestone
+## that carries the line is never written. `launch`'s own mtime is left alone: the Wait takes the session start from it.
+## The dispatcher is loaded on its first call, never at load: most loads of this file never call it.
+type DistroAgentsTools > /dev/null 2>&1 || DistroAgentsTools(){ unset -f DistroAgentsTools ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"&& DistroAgentsTools "$@" ; }
+
+## THE PARTS, each one concern, split by concern; sourced here so every caller of this include keeps every function.
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnStartSteps.include"
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandboxInput.include"
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionThreads.include"
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.RunRoute.include"
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSessionParent.include"
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionSeats.include"
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/wait/AgentsTools.MemberWaitSourcesDefault.include"
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnProxyRootMarks.include"
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnProxyNotices.include"
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandboxSweep.include"
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemReviewer.include"
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnProxyClose.include"
+
+## One line to the daemon output, never stdout: fd 4 where execute opened it (the request's own stderr, not the result), else stderr, which is the log in a console or harness run.
+## The write that can fail is a redirection on a subshell, stderr silenced first, since a failed redirection on a special builtin ends a POSIX shell.
+## fd 4 closed or not writable falls back to stderr.
+AgentsToolsDaemonLine(){ ## text...
+	( printf '%s\n' "$*" ) 2> /dev/null >&4 || printf '%s\n' "$*" >&2
+}
+
+## Reports housekeeping lines to the daemon output and as one message into the event-track thread of this spawn's coworking session; nothing goes to stdout or stderr.
+## The thread is found through the session's one record, by this spawn's own id (AgentsTools.EventTrackThread.include), never through a file of the sandbox, which spawns may share.
+AgentsToolsHousekeepingReport(){ ## member, lines
+	local reportThread="" reportLine
+	[ -n "$2" ] || return 0
+	while IFS= read -r reportLine ; do
+		AgentsToolsDaemonLine "$reportLine"
+	done <<< "$2"
+	type AgentsToolsEventTrackThreadRead > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/event-track/AgentsTools.EventTrackThread.include"
+	reportThread="$( AgentsToolsEventTrackThreadRead "$( AgentsToolsEventTrackThreadOwnDir )" )"
+	[ -n "$reportThread" ] || return 0
+	type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+	printf '%s\n' "$2" | DistroAgentsTools --intern-op-event-track-post "$1" "$reportThread" --kind activity --session-id "${MDAT_SPAWN_SESSION_ID:-}" \
+		--field what="board housekeeping" --from-stdin > /dev/null 2>&1 || :
+	return 0
+}
+
+## First value of one frontmatter header of a file, empty when absent. Bounded to the frontmatter block, so a body line cannot spoof it.
+AgentsToolsSpawnSandboxRecordHeader(){ ## file, header
+	LC_ALL=C awk -v wantHeader="$2" '
+		$0 == "---" { fmCount++ ; if ( fmCount > 1 ) { exit ; } next ; }
+		fmCount == 1 && index( $0, wantHeader ": " ) == 1 { print substr( $0, length( wantHeader ) + 3 ) ; exit ; }
+	' "$1" 2> /dev/null || :
+}

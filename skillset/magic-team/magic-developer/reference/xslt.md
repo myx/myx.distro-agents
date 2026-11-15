@@ -1,3 +1,6 @@
+---
+maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
+---
 # XSLT
 
 Read this when writing, reviewing, or debugging XSLT — especially XSLT 1.0. Favors elegant, minimal solutions using only basic/standard XSLT 1.0 features over verbose or non-standard extensions. This is `magic-developer`'s XSLT language module and the canonical home for

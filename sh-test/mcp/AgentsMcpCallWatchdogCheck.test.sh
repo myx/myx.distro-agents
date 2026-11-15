@@ -11,9 +11,9 @@
 ## its state, when it began) and the rig's own clock (the 3600 seconds of a served call pass in three, the five
 ## between the polite end and the hard one in three). Held here:
 ##   1. THE GROUP OF A KEPT PROCESS (myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include), on stand-in groups of this check's
-##      own: AgentsToolsRegistryGroupBegan gives the members of a group only while its leader is still the process
+##      own: AgentsToolsRunGroupBegan gives the members of a group only while its leader is still the process
 ##      that was kept, and nothing for the same number begun at another time or kept with no start;
-##      AgentsToolsRegistryGroupLeft gives, once the leader has ended, the kept members that are still themselves
+##      AgentsToolsRunGroupLeft gives, once the leader has ended, the kept members that are still themselves
 ##      and what those started since, and nothing of a kept pid another process has taken.
 ##   2. THE WATCHDOG. A call that comes back is answered as before. A call that hangs is ended at its bound and its
 ##      caller told that it timed out, served and `execute` alike. THE NUMBER TAKEN BY ANOTHER PROCESS IS NOT
@@ -50,7 +50,7 @@ export MDAT_TOOL_TASK_OFF=yes
 rigSource="${MDLT_ORIGIN:=$MMDAPP/.local}"
 rigPackage="$rigSource/myx/myx.distro-agents"
 rigInclude="$rigPackage/sh-lib/mcp/AgentsTools.InternMcpRequest.include"
-rigRegistries="$rigPackage/sh-lib/team-data/AgentsTools.Registries.include"
+rigRegistries="$rigPackage/sh-lib/run/AgentsTools.RunProcesses.include"
 rigHelper="$rigPackage/sh-test/check-fixtures/rig-processes.include.sh"
 
 rigRefuse(){
@@ -206,26 +206,26 @@ rigGroup(){ ## the tooling's function, then its arguments -- in a shell of its o
 	( set +u ; . "$rigRegistries" > /dev/null 2>&1 ; "$@" )
 }
 rigLeadKept="$( rigProcBegan "$rigLead" )"
-rigMembers="$( rigGroup AgentsToolsRegistryGroupBegan "$rigLeadKept" )" ; rigRc=$?
+rigMembers="$( rigGroup AgentsToolsRunGroupBegan "$rigLeadKept" )" ; rigRc=$?
 rigAssert "while the leader is still the process that was kept, the members of its group are given, each with when it began: rc 0, the three of them, the leader among them" \
 	"$rigRc $( printf '%s\n' "$rigMembers" | LC_ALL=C grep -c -E '^[0-9]+ [A-Z][a-z]{2}_[A-Z][a-z]{2}_[0-9]{1,2}_[0-9:]{8}_[0-9]{4}$' ) $( printf '%s\n' "$rigMembers" | LC_ALL=C grep -c -x -F -- "$rigLeadKept" )" "0 3 1"
-rigTaken="$( rigGroup AgentsToolsRegistryGroupBegan "$rigLead Mon_Jan__1_00:00:00_2001" )" ; rigRc=$?
-rigBare="$( rigGroup AgentsToolsRegistryGroupBegan "$rigLead" )" ; rigRcBare=$?
+rigTaken="$( rigGroup AgentsToolsRunGroupBegan "$rigLead Mon_Jan__1_00:00:00_2001" )" ; rigRc=$?
+rigBare="$( rigGroup AgentsToolsRunGroupBegan "$rigLead" )" ; rigRcBare=$?
 rigAssert "the same number kept with another start, as once another process has taken it, and one kept with no start, lead no group of the caller's: rc 1, nothing given" "$rigRc [$rigTaken] $rigRcBare [$rigBare]" "1 [] 1 []"
-rigAssert "control: while the leader lives nothing is left of the group but itself: the three" "$( rigGroup AgentsToolsRegistryGroupLeft "$rigLead" "$rigMembers" | LC_ALL=C grep -c . )" 3
+rigAssert "control: while the leader lives nothing is left of the group but itself: the three" "$( rigGroup AgentsToolsRunGroupLeft "$rigLead" "$rigMembers" | LC_ALL=C grep -c . )" 3
 rigProcSignal KILL "$rigLead" ; wait "$rigLead" 2> /dev/null
-rigGone="$( rigGroup AgentsToolsRegistryGroupBegan "$rigLeadKept" )" ; rigRc=$?
+rigGone="$( rigGroup AgentsToolsRunGroupBegan "$rigLeadKept" )" ; rigRc=$?
 rigAssert "once the leader has ended the group of its number is nobody's: rc 1, nothing given" "$rigRc [$rigGone]" "1 []"
-rigAssert "what is left of it is the two members that are still themselves" "$( rigGroup AgentsToolsRegistryGroupLeft "$rigLead" "$rigMembers" | LC_ALL=C sort | LC_ALL=C tr '\n' ' ' )" "$( printf '%s\n' "$rigMembers" | LC_ALL=C awk -v leadPid="$rigLead" '$1 != leadPid { print $1 ; }' | LC_ALL=C sort | LC_ALL=C tr '\n' ' ' )"
+rigAssert "what is left of it is the two members that are still themselves" "$( rigGroup AgentsToolsRunGroupLeft "$rigLead" "$rigMembers" | LC_ALL=C sort | LC_ALL=C tr '\n' ' ' )" "$( printf '%s\n' "$rigMembers" | LC_ALL=C awk -v leadPid="$rigLead" '$1 != leadPid { print $1 ; }' | LC_ALL=C sort | LC_ALL=C tr '\n' ' ' )"
 : > "$rigTmp/group.pipe"
 rigLeftTurns=50
-while [ "$( rigGroup AgentsToolsRegistryGroupLeft "$rigLead" "$rigMembers" | LC_ALL=C grep -c . )" -lt 3 ] && [ "$rigLeftTurns" -gt 0 ] ; do "$rigRealSleep" 0.2 ; rigLeftTurns=$(( rigLeftTurns - 1 )) ; done
-rigLeft="$( rigGroup AgentsToolsRegistryGroupLeft "$rigLead" "$rigMembers" )"
+while [ "$( rigGroup AgentsToolsRunGroupLeft "$rigLead" "$rigMembers" | LC_ALL=C grep -c . )" -lt 3 ] && [ "$rigLeftTurns" -gt 0 ] ; do "$rigRealSleep" 0.2 ; rigLeftTurns=$(( rigLeftTurns - 1 )) ; done
+rigLeft="$( rigGroup AgentsToolsRunGroupLeft "$rigLead" "$rigMembers" )"
 rigProcNote $rigLeft ; rigStandIns="$rigStandIns $rigLeft"
 rigAssert "a process a kept member started since is left of the group too: three, one of them no kept member" \
 	"$( printf '%s\n' "$rigLeft" | LC_ALL=C grep -c . ) $( { printf '%s\n' "$rigMembers" | LC_ALL=C awk '{ print $1 ; }' ; printf '=\n%s\n' "$rigLeft" ; } | LC_ALL=C awk '$0 == "=" { leftRead = 1 ; next ; } ! leftRead { wasKept[$0] = 1 ; next ; } ! ( $0 in wasKept ) { notKept++ ; } END { print notKept + 0 ; }' )" "3 1"
 rigAssert "kept pids that other processes have taken, each begun at another time, are none of it, and nothing they started is" \
-	"[$( rigGroup AgentsToolsRegistryGroupLeft "$rigLead" "$( printf '%s\n' "$rigMembers" | LC_ALL=C sed 's/_[0-9]*$/_2001/' )" )]" "[]"
+	"[$( rigGroup AgentsToolsRunGroupLeft "$rigLead" "$( printf '%s\n' "$rigMembers" | LC_ALL=C sed 's/_[0-9]*$/_2001/' )" )]" "[]"
 rigProcSignal KILL $rigLeft
 
 ## ONE LIFE OF A SERVER OF THE RIG: what the feeder writes is its wire in, what it answers is kept in wire.
@@ -379,8 +379,8 @@ rigAssert "a pid file with no start, as jobs were kept before: nothing is signal
 	"$( rigSaid job-bare 4 '[job 2: NOT signalled. Its pid file names pid ' ) $( rigSaid job-bare 4 'with no start time, and a process has that number now: nothing shows that it is this job, so nothing is signalled by the number alone.' ) $( rigIsError job-bare 4 ) $( rigBecame job-bare job )" "1 1 true ended-by-itself"
 
 echo "-- the request keeps each process it ends by the one reading the tooling keeps a process by --"
-rigAssert "the include probes no call by its number before it ends a group, both watchdogs are the one function, each handler ends its watchdog only where that has not fired, and a job is kept and read with when it began through AgentsToolsRegistryProcessesBegan" \
-	"$( rigCode "$rigInclude" | LC_ALL=C grep -c -e 'kill -0 "\$mcpCmdPid"' ) $( rigCode "$rigInclude" | LC_ALL=C grep -c -e '^[[:space:]]*AgentsMcpCallWatch "\$mcp[A-Za-z]*" "\$mcpCmdPid" "\$mcpKillFile" 3>&- &$' ) $( rigCode "$rigInclude" | LC_ALL=C grep -c -x -e '[[:space:]]*if \[ ! -f "\$mcpKillFile" \] ; then' ) $( rigCode "$rigInclude" | LC_ALL=C grep -c -F '"$mcpJobPid" | AgentsToolsRegistryProcessesBegan' )" "0 2 3 2"
+rigAssert "the include probes no call by its number before it ends a group, both watchdogs are the one function, each handler ends its watchdog only where that has not fired, and a job is kept and read with when it began through AgentsToolsRunProcessesBegan" \
+	"$( rigCode "$rigInclude" | LC_ALL=C grep -c -e 'kill -0 "\$mcpCmdPid"' ) $( rigCode "$rigInclude" | LC_ALL=C grep -c -e '^[[:space:]]*AgentsMcpCallWatch "\$mcp[A-Za-z]*" "\$mcpCmdPid" "\$mcpKillFile" 3>&- &$' ) $( rigCode "$rigInclude" | LC_ALL=C grep -c -x -e '[[:space:]]*if \[ ! -f "\$mcpKillFile" \] ; then' ) $( rigCode "$rigInclude" | LC_ALL=C grep -c -F '"$mcpJobPid" | AgentsToolsRunProcessesBegan' )" "0 2 3 2"
 
 if [ "$rigFails" -ne 0 ] ; then
 	echo "⛔ MCP CALL WATCHDOG CHECK FAILED: $rigFails of $(( rigPasses + rigFails )) assertion(s)" >&2 ; exit 1

@@ -1,0 +1,47 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+## AgentsTools.OpManagerConfigDigest.include -- the operation `--manager-config-digest`, sourced by AgentsTools.ManagerConfig.include with the operation's arguments.
+## The settings of this workspace as they are, by subject: TAB-separated rows a screen
+## reads. Their form is the help entry's.
+		local digestOp="$1" digestName digestKnown digestFound digestWanted=" " digestLines digestLine digestCount digestFull=""
+		shift
+		## Each line in full, where that is asked ahead of every name.
+		if [ "${1:-}" = "--full" ] ; then
+			digestFull="full"
+			shift
+		fi
+		for digestName in "$@" ; do
+			digestFound="false"
+			for digestKnown in $agentsManagerConfigSubjects ; do
+				[ "$digestKnown" != "$digestName" ] || digestFound="true"
+			done
+			if [ "$digestFound" != "true" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD $digestOp: '$digestName' is none of its subjects -- nothing was printed. Its subjects: ${agentsManagerConfigSubjects// /, }" >&2
+				set +e ; return 1
+			fi
+			digestWanted="$digestWanted$digestName "
+		done
+		[ $# -gt 0 ] || digestWanted=" $agentsManagerConfigSubjects "
+		for digestName in $agentsManagerConfigSubjects ; do
+			case "$digestWanted" in *" $digestName "*) ;; *) continue ;; esac
+			case "$digestName" in
+				workspace) digestLines="$( AgentsToolsManagerConfigWorkspace )" || digestLines="" ;;
+				cli) digestLines="$( AgentsToolsManagerConfigCli )" || digestLines="" ;;
+				systems) digestLines="$( AgentsToolsManagerConfigSystems )" || digestLines="" ;;
+				loop) digestLines="$( AgentsToolsManagerConfigLoop )" || digestLines="" ; [ -n "$digestLines" ] || continue ;;
+				scopes) digestLines="$( AgentsToolsManagerConfigScopes )" || digestLines="" ;;
+				interface|console|control|knowledge) digestLines="$( AgentsToolsManagerConfigDeclared "$digestName" )" || digestLines="" ;;
+			esac
+			digestCount=0
+			if [ -n "$digestLines" ] ; then
+				while IFS= read -r digestLine ; do
+					digestCount=$(( digestCount + 1 ))
+				done <<< "$digestLines"
+			fi
+			{
+				printf 'subject\t%s\t%s\n' "$digestName" "$digestCount"
+				[ -z "$digestLines" ] || printf '%s\n' "$digestLines"
+			} | AgentsToolsManagerConfigLabelled "$digestFull"
+		done
+		return 0

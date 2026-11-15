@@ -12,7 +12,7 @@ set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigPkg="$MDLT_ORIGIN/myx/myx.distro-agents"
-rigSend="$rigPkg/sh-lib/comms/AgentsTools.InternOpCommsSlackSend.include"
+rigSend="$rigPkg/sh-lib/slack/AgentsTools.InternOpCommsSlackSend.include"
 rigRefuse(){ echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1 ; }
 [ -f "$rigSend" ] || rigRefuse "the send include is not at the origin: $rigSend"
 . "$rigPkg/sh-test/check-fixtures/rig-temp.include.sh" || exit 1

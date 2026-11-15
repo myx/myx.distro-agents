@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+## AgentsTools.OpUndoPlan.include -- the operation `--undo-plan`, sourced by AgentsTools.UndoRecord.include with the operation's arguments.
+## --undo-plan <record-id> [--session-id <id>]: the dry run, read-only. Says what the inverse
+## would take, or `not ready` and why the operands have moved since the act.
+		shift
+		local undoPlanId="" undoPlanSession="" undoPlanDir="" undoPlanWhy="" undoPlanStep
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--session-id) undoPlanSession="${2:-}" ; shift 2 ;;
+				--*) echo "⛔ ERROR: $MDSC_CMD --undo-plan: invalid option: $1" >&2 ; set +e ; return 1 ;;
+				*) undoPlanId="$1" ; shift ;;
+			esac
+		done
+		undoPlanDir="$( AgentsToolsUndoFind "$undoPlanId" "$undoPlanSession" )" || { set +e ; return 1 ; }
+		case "$( AgentsToolsUndoField "$undoPlanDir" state )" in
+			open|rework-asked) ;;
+			*) printf 'not ready: the record is %s, so it promises nothing to run\n' "$( AgentsToolsUndoField "$undoPlanDir" state )" ; return 1 ;;
+		esac
+		undoPlanWhy="$( AgentsToolsUndoBlockedBy "$undoPlanDir" )"
+		if [ -n "$undoPlanWhy" ] ; then
+			printf 'not ready: %s\n' "$undoPlanWhy"
+			return 1
+		fi
+		printf 'ready %s\n' "$undoPlanId"
+		AgentsToolsUndoSteps "$undoPlanDir" | while IFS=$'\t' read -r undoPlanStep undoPlanOp undoPlanArg ; do
+			printf '  step %s %s %s\n' "$undoPlanStep" "$undoPlanOp" "$undoPlanArg"
+		done
+		return 0

@@ -41,7 +41,7 @@ mkdir -p "$rigTmp/bin" "$rigTmp/home"
 cp "$rigTest/check-fixtures/harness-ask-check.curl.stub.sh" "$rigTmp/bin/curl" || rigRefuse "the fake curl fixture is missing from the package"
 chmod +x "$rigTmp/bin/curl"
 ## THE RIG'S OWN PROCESS LIST. A spawn is found running by its spawn id in the host's process
-## list (AgentsToolsRegistryRunningSpawns). A rig that read the real list would take any process
+## list (AgentsToolsRunningSpawns). A rig that read the real list would take any process
 ## of this host whose command line holds one of its ids -- another run of this check, a session
 ## whose brief quotes one -- for a live run of its own. So the ps first on PATH answers the
 ## whole-host listing from the rig's own list, one `<pid> <command line>` line a run, and hands
@@ -107,7 +107,7 @@ rigSpawnRecord(){ ## spawn id, owner, parent session id
 }
 ## A LIVE RUN of one spawn: a line of the rig's own process list that carries its spawn id, which
 ## is how the spawned-sessions render finds a spawn running. Ended by rigDead.
-## The tooling keeps the process list it read for 10 s (AgentsToolsRegistryProcessArgs, .local/temp/ps-args.txt),
+## The tooling keeps the process list it read for 10 s (AgentsToolsRunProcessArgs, .local/temp/ps-args.txt),
 ## so a change to the rig's list takes that kept copy away: a measure within those seconds would read the old one.
 rigLive(){ ## spawn id
 	printf '%s rig-run --session-id %s\n' "$(( 900000 + RANDOM ))" "$1" >> "$RIG_PS_LIST"
@@ -377,7 +377,11 @@ echo "-- a routine allows its participants permissions for its run --"
 ## rig-ncow runs the second.
 rigSkillsReal="$MDAT_SKILLSET_ROOT"
 rigSkills="$rigTmp/skills"
-mkdir -p "$rigSkills/magic-tester" "$rigSkills/magic-developer" "$rigWs/.local/agents/spawned/rig-rcow" "$rigWs/.local/agents/spawned/rig-ncow"
+mkdir -p "$rigSkills/magic-tester" "$rigSkills/magic-developer" "$rigSkills/magic-coordinator" "$rigSkills/human-owner" "$rigWs/.local/agents/spawned/rig-rcow" "$rigWs/.local/agents/spawned/rig-ncow"
+## A permission-set ask needs two members beside the participants: the one that asks, and the human-owner it is addressed to.
+for rigAskMember in magic-coordinator human-owner ; do
+	printf -- '---\nmaintainers: rig\n---\nrig identity\n' > "$rigSkills/$rigAskMember/$rigAskMember.basic.md"
+done
 printf -- '---\nexecutors: magic-tester\nmaintainers: magic-tester, human-owner\ninvitees: magic-developer\naccess-control: magic-tester:allow-write:ROUT/**, executors:allow-tool:WebFetch:https%%3A//ex.rig.example/*, participants:allow-write:PART/**, magic-developer:allow-tool:cred:rig-token\nrequires-session-kind: standalone\n---\n# rig routine\n' \
 	> "$rigSkills/magic-tester/magic-tester.rig-review.routine.md"
 printf -- '---\nexecutors: magic-tester\nmaintainers: magic-developer\naccess-control: participants:allow-tool:cred:rig-secret, participants:allow-write:DEV/n/**, participants:allow-write:ELSE/**\nrequires-session-kind: standalone\n---\n# rig routine without the human-owner\n' \
@@ -573,7 +577,8 @@ rigTrackThread="$( cat "$rigWs/.local/agents/sessions/rig-cow/event-track.thread
 rigAssert "it opens the tracking-thread of the session the grant is written in, recorded once" "${rigTrackThread#*:}:$( LC_ALL=C grep -c -F '"thread_ts"' "$rigTmp/post.$(( rigTrackFrom + 1 ))" )" "1700000001.00010$(( rigTrackFrom + 1 )):0"
 rigTrackMark
 RIG_OP_AGENT=magic-coordinator RIG_OP_SESSION=rig-coord
-rigOp --request-permission-set --team-member magic-coordinator task-rig --entry "WebFetch:https://track.rig.example/*" --scope task --session-id rig-cow \
+## An entry no participant holds, so the set is really asked: bare WebFetch granted on task-rig above covers every target.
+rigOp --request-permission-set --team-member magic-coordinator task-rig --entry "Write:$rigWs/ELSE/set.txt" --scope task --session-id rig-cow \
 	--participant magic-coordinator --participant magic-developer --participant magic-tester
 RIG_OP_AGENT="" RIG_OP_SESSION=""
 rigTrackSet="$( LC_ALL=C sed -n 's/^PERMISSION-SET: asked //p' "$rigTmp/op.out" )"
@@ -594,7 +599,8 @@ done
 rigAssert "and no denial post"                             "$( rigTrackPosts '❌ permission denied' )" 0
 rigTrackMark
 RIG_OP_AGENT=magic-coordinator RIG_OP_SESSION=rig-coord
-rigOp --request-permission-set --team-member magic-coordinator task-rig --entry "WebFetch:https://deny.rig.example/*" --scope session --session-id rig-cow
+## An entry no participant holds, for the same reason as the set above.
+rigOp --request-permission-set --team-member magic-coordinator task-rig --entry "cred:rig-deny-token" --scope session --session-id rig-cow
 RIG_OP_AGENT="" RIG_OP_SESSION=""
 rigTrackDenied="$( LC_ALL=C sed -n 's/^PERMISSION-SET: asked //p' "$rigTmp/op.out" )"
 [ -n "$rigTrackDenied" ] || rigRefuse "the rig asked for no permission set to deny"
@@ -602,7 +608,7 @@ RIG_OP_SESSION=rig-human rigOp --answer-escalation --team-member human-owner "$r
 rigAssert "a set denied"                                   "$( rigHas "$rigTmp/op.out" "ESCALATION: $rigTrackDenied answered" ):$( rigField "$rigWs/.local/agents/pending/$rigTrackDenied.md" verdict )" "yes:deny"
 rigAssert "is said in one denial post in that same thread: the set, who denied it, who asked" \
 	"$( rigTrackPosts '❌ permission denied' "permission set $rigTrackDenied, 1 permission(s)" 'denied by: human-owner · member: magic-coordinator' "\"thread_ts\":\"${rigTrackThread#*:}\"" ):$( rigTrackPosts '❌ permission denied' )" "1:1"
-rigAssert "with no grant post, and no grant"               "$( rigTrackPosts '✅ permission granted' ):$( rigGrantRead magic-tester rig-tester WebFetch https://deny.rig.example/x )" "0:"
+rigAssert "with no grant post, and no grant"               "$( rigTrackPosts '✅ permission granted' ):$( rigGrantRead magic-tester rig-tester cred rig-deny-token )" "0:"
 ## A target is shown to a person by its location root, <place>:<relative path>, where it lies
 ## in a registered place, and as given where it lies in none. The rig workspace is registered
 ## as a place only now, so the pass above showed its target as given.
@@ -926,7 +932,7 @@ rigAssert "the coordinator named, the only holder not running: the human-owner, 
 	"$( rigRoute magic-tester rig-tester "$rigIdRt" magic-coordinator )" "human-owner"
 ## The holder's run is gone, and another participant's command line still holds its spawn id:
 ## inside the path of a folder, and quoted in its brief after the very words a launcher uses.
-## A run is its own --session-id or --resume word alone (AgentsToolsRegistryRunningSpawns), so
+## A run is its own --session-id or --resume word alone (AgentsToolsRunningSpawns), so
 ## that line is the other participant's run and none of the holder's.
 printf '900777 claude --add-dir %s/.local/agents/spawned/rig-dev/input --session-id rig-tester --agent magic-tester Readable %s/.local/agents/spawned/rig-dev/input, as said by --session-id rig-dev\n' "$rigWs" "$rigWs" >> "$RIG_PS_LIST"
 rigHelperScript AgentsTools.InternOpPermission.include AgentsToolsPermissionSessionRunning rig-tester | rigOp --intern-mcp-execute

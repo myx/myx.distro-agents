@@ -23,7 +23,7 @@ set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 rigPackage="${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents"
 rigTools="$rigPackage/sh-scripts/DistroAgentsTools.fn.sh"
-rigWaitInclude="$rigPackage/sh-lib/member/AgentsTools.MemberWait.include"
+rigWaitInclude="$rigPackage/sh-lib/wait/AgentsTools.MemberWait.include"
 [ -f "$rigTools" ] || { echo "⛔ ERROR: no tool script at $rigTools" >&2 ; exit 1 ; }
 [ -f "$rigWaitInclude" ] || { echo "⛔ ERROR: no Wait include at $rigWaitInclude" >&2 ; exit 1 ; }
 rigTmp="$( mktemp -d "$MMDAPP/.local/temp/AgentsIdleWaitForkCheck.XXXXXX" )" || exit 1
@@ -41,7 +41,12 @@ rigShimmed=0
 while read -r rigWord ; do
 	## bash, sh and env are never shimmed: the shim's own interpreter line names bash through
 	## env, so shimming either would have env resolve "bash" back into this very shim dir.
-	case "$rigWord" in ''|-*|*[!a-z0-9_.-]*|bash|sh|env) continue ;; esac
+	## Those three are skipped by name in any case. A word list taken from the includes' prose
+	## carries `Bash`, and the `a-z` range above does not match a capital under a UTF-8 locale.
+	## This filesystem is case-insensitive, so shim/Bash would BE shim/bash and every shim's
+	## own interpreter line would run the shim again.
+	case "$rigWord" in ''|-*|*[!a-z0-9_.-]*) continue ;; esac
+	case "$rigWord" in [Bb][Aa][Ss][Hh]|[Ss][Hh]|[Ee][Nn][Vv]) continue ;; esac
 	[ "$( type -t "$rigWord" )" = "file" ] || continue
 	rigReal=""
 	for rigDir in /bin /usr/bin /usr/sbin /sbin ; do

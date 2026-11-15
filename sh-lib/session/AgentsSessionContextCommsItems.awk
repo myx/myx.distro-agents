@@ -120,7 +120,7 @@ function oneLine(v) {
 
 ## A text with every Slack date token in it, `<!date^<epoch>^<token string>|<fallback>>`,
 ## as its fallback text: what a reader of this document can use, where the raw control
-## string is noise. The tooling's own posts carry them (sh-lib/comms/AgentsSlackDate.awk, whose
+## string is noise. The tooling's own posts carry them (sh-lib/slack/AgentsSlackDate.awk, whose
 ## sldFallbacks this is, word for word; a copy, because this file runs with no other
 ## loaded, as it carries its JSON engine).
 function dateFallbacks(textValue,   outText, tokenText, barAt) {

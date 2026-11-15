@@ -23,6 +23,7 @@ agentsBoardDependenciesActive="backlog pending running review blocked parked"
 ##   FIRST<TAB>item                                    gates others and has no blocker still on the board
 ##   WAITING<TAB>item<TAB>blockers                     has a blocker still on the board (an item of an active state)
 ##   OUTSIDE<TAB>item                                  is in blocked and names no blocker on the board
+##   UNLINKED<TAB>item                                 is in blocked and records no edge at all, neither `blocks` nor `blocked-by`
 ##   INDEPENDENT<TAB>count                             active items with no edge at all
 AgentsToolsBoardDependenciesFindings(){
 	local depRoot="$MDAT_DATA_ROOT/board"
@@ -84,7 +85,7 @@ AgentsToolsBoardDependenciesFindings(){
 			indep = 0
 			for (a in state) {
 				if (!(state[a] in isActive)) continue
-				if (blocks[a] == "" && bby[a] == "") { indep++ ; continue }
+				if (blocks[a] == "" && bby[a] == "") { if (state[a] == "blocked") print "UNLINKED\t" a ; else indep++ ; continue }
 				live = ""
 				n = split(bby[a], parts, ",")
 				for (i = 1 ; i <= n ; i++) { x = bare(parts[i]) ; if (x != "" && (x in state) && (state[x] in isActive)) live = addTo(live, x) }
@@ -144,6 +145,7 @@ AgentsToolsBoardDependencies(){
 		printf 'waiting (item <- blockers still on the board):\n'
 		printf '%s\n' "$depFindings" | LC_ALL=C awk -F'\t' '$1 == "WAITING" { printf "- %s <- %s\n", $2, $3 ; n++ } END { if ( n == 0 ) printf "- none\n" }'
 		printf 'blocked with no blocker on the board: %s\n' "$( printf '%s\n' "$depFindings" | LC_ALL=C sed -n 's/^OUTSIDE\t//p' | LC_ALL=C tr '\n' ' ' | LC_ALL=C sed 's/ $//' | LC_ALL=C awk '{ print ( NF ? $0 : "none" ) }' )"
+		printf 'blocked with no recorded edge: %s\n' "$( printf '%s\n' "$depFindings" | LC_ALL=C sed -n 's/^UNLINKED\t//p' | LC_ALL=C tr '\n' ' ' | LC_ALL=C sed 's/ $//' | LC_ALL=C awk '{ print ( NF ? $0 : "none" ) }' )"
 		printf 'independent: %s\n' "$( printf '%s\n' "$depFindings" | LC_ALL=C awk -F'\t' '$1 == "INDEPENDENT" { print $2 }' )"
 		if [ -n "$depFixed" ] ; then
 			printf 'written by the tooling this time:\n'

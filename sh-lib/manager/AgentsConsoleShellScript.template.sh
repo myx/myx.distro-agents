@@ -487,10 +487,7 @@ else
 	esac
 fi
 
-DAGC_MYXROOT="$MDLT_ORIGIN/myx/myx.common/os-myx.common/host/tarball/share/myx.common"
-if [ -x "$DAGC_MYXROOT/bin/setup/agentMcp.Common" ] ; then
-	MYXROOT="$DAGC_MYXROOT" MYX_AGENTMCP_TARGET_CWD="$MMDAPP" "$DAGC_MYXROOT/bin/setup/agentMcp.Common" >/dev/null 2>&1 || :
-elif command -v myx.common >/dev/null 2>&1 ; then
+if command -v myx.common >/dev/null 2>&1 ; then
 	MYX_AGENTMCP_TARGET_CWD="$MMDAPP" myx.common setup/agentMcp >/dev/null 2>&1 || :
 fi
 
@@ -1039,7 +1036,7 @@ DAGC_POLICY_ARGS=()
 if [ "$DAGC_CLI" = "copilot-native" ] ; then
 	DAGC_POLICY_INCLUDE="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/client/AgentsTools.ClientToolPolicy.include"
 	DAGC_COPILOT_EXCLUDED=""
-	[ ! -f "$DAGC_POLICY_INCLUDE" ] || { . "$DAGC_POLICY_INCLUDE" && DAGC_COPILOT_EXCLUDED="$( AgentsToolsClientToolPolicyCopilotExcludedTools )" ; }
+	[ ! -f "$DAGC_POLICY_INCLUDE" ] || { . "$DAGC_POLICY_INCLUDE" && DAGC_COPILOT_EXCLUDED="store_memory,vote_memory" ; }
 	if [ -z "$DAGC_COPILOT_EXCLUDED" ] ; then
 		echo "⛔ ERROR: DistroAgentsConsole: the client tool policy could not name copilot's memory tools to exclude: $DAGC_POLICY_INCLUDE -- refusing rather than launching copilot with them" >&2
 		exit 1

@@ -205,10 +205,12 @@ AgentsToolsOnDemandThreadEnd(){ ## reason
 ## <once> `yes` calls the tick alone and ends, for a caller that wants the work now rather than a request served.
 ## DESCRIPTOR 3 IS ALWAYS OPEN, at /dev/null except while one request's answer is served, so a handler prints its answer to descriptor
 ## 3 and never tests whether anyone is there. What the thread prints elsewhere is what its starter keeps: its log for a started thread,
-## the caller's own output for a direct call. It runs with `set +e +u` and with the terminal's signals ignored, so no handler guards
-## either. EVERY CALL OUT IS CHECKED, by `||`: a handler or tick that runs `set -e` leaves it on, and the next non-zero status would end the
-## thread with no end line. A non-zero answer is logged with its code, and a tick's 2 is a request.
+## the caller's own output for a direct call. It runs with `set +e +u`, with the terminal's signals ignored, so no handler guards
+## either, and it takes that mode back after every call to its handler or tick. A handler or tick that runs `set -e` leaves it on, so a
+## pass would otherwise end on the next call the loop does not test. The calls whose answer matters are checked by `||`, and a
+## non-zero answer is logged with its code. A tick's 2 is a request.
 AgentsToolsOnDemandThreadServe(){ ## folder, idle seconds, handler, tick or -, once (yes|no)
+	type AgentsToolsRunProcessesBegan > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunProcesses.include"
 	local serveFolder="${1:-}" serveIdle="${2:-60}" serveHandler="${3:-}" serveTick="${4:--}" serveOnce="${5:-no}"
 	local serveEnd="" servePid="" serveMe="" serveHolder="" serveTook="" serveLine="" serveSplit="" serveLeave=""
 	local serveLoops=0 serveLast=0 serveFields=() serveReply="" serveRc=0 serveCode=""
@@ -227,7 +229,7 @@ AgentsToolsOnDemandThreadServe(){ ## folder, idle seconds, handler, tick or -, o
 	mkdir -p "$serveFolder" 2> /dev/null || { printf '⛔ ERROR: the thread could not make its folder: %s\n' "$serveFolder" >&2 ; return 1 ; }
 	servePid="$( exec sh -c 'echo "$PPID"' 2> /dev/null )" || servePid=""
 	case "$servePid" in ''|*[!0123456789]*) printf '⛔ ERROR: the thread could not read which process it is\n' >&2 ; return 1 ;; esac
-	serveMe="$( printf '%s\n' "$servePid" | AgentsToolsRegistryProcessesBegan )" || serveMe=""
+	serveMe="$( printf '%s\n' "$servePid" | AgentsToolsRunProcessesBegan )" || serveMe=""
 	if [ -z "$serveMe" ] ; then
 		printf '⛔ ERROR: the thread could not read when its own process began, so its lock would name nobody\n' >&2
 		return 1
@@ -267,7 +269,8 @@ AgentsToolsOnDemandThreadServe(){ ## folder, idle seconds, handler, tick or -, o
 	## thread reads the bound in force, and a caller is told which one governs.
 	printf '%s\n' "$serveIdle" > "$serveFolder/thread.idle" 2> /dev/null || :
 	if [ "$serveOnce" = yes ] ; then
-		[ "$serveTick" = "-" ] || "$serveTick" || printf '%s %s answered %s\n' "$( date -u +%Y-%m-%dT%H:%M:%SZ )" "$serveTick" "$?" >&2
+		## THE CODE IS CAPTURED BEFORE ANY SUBSTITUTION RUNS: a `$?` written after `$( date ... )` reads date's status, which is 0.
+		[ "$serveTick" = "-" ] || "$serveTick" || { serveRc=$? ; printf '%s %s answered %s\n' "$( date -u +%Y-%m-%dT%H:%M:%SZ )" "$serveTick" "$serveRc" >&2 ; }
 		trap - EXIT
 		exec 9>&-
 		AgentsToolsThreadLockGive "$serveFolder/thread.lock" "$serveMe"
@@ -286,9 +289,9 @@ AgentsToolsOnDemandThreadServe(){ ## folder, idle seconds, handler, tick or -, o
 					serveFields=()
 					IFS=$'\t' read -r -a serveFields <<< "$serveSplit" || :
 					if [ "$serveReply" = "-" ] ; then
-						"$serveHandler" "${serveFields[@]+"${serveFields[@]}"}" || printf '%s %s answered %s\n' "$( date -u +%Y-%m-%dT%H:%M:%SZ )" "$serveHandler" "$?" >&2
+						"$serveHandler" "${serveFields[@]+"${serveFields[@]}"}" || { serveRc=$? ; printf '%s %s answered %s\n' "$( date -u +%Y-%m-%dT%H:%M:%SZ )" "$serveHandler" "$serveRc" >&2 ; }
 					elif [ -e "$serveReply" ] && { exec 3<> "$serveReply" ; } 2> /dev/null ; then
-						"$serveHandler" "${serveFields[@]+"${serveFields[@]}"}" || printf '%s %s answered %s\n' "$( date -u +%Y-%m-%dT%H:%M:%SZ )" "$serveHandler" "$?" >&2
+						"$serveHandler" "${serveFields[@]+"${serveFields[@]}"}" || { serveRc=$? ; printf '%s %s answered %s\n' "$( date -u +%Y-%m-%dT%H:%M:%SZ )" "$serveHandler" "$serveRc" >&2 ; }
 						## THE TERMINATOR IS THE THREAD'S (S12.11 ruling 2), never the handler's to remember: a handler that
 						## ran and said nothing still ends its answer, so its caller reads served-and-empty, not no answer.
 						printf '.\n' >&3 2> /dev/null || :
@@ -309,6 +312,9 @@ AgentsToolsOnDemandThreadServe(){ ## folder, idle seconds, handler, tick or -, o
 				*) printf '%s %s answered %s\n' "$( date -u +%Y-%m-%dT%H:%M:%SZ )" "$serveTick" "$serveRc" >&2 ;;
 			esac
 		fi
+		## THE LOOP'S MODE IS TAKEN BACK AFTER ITS OWNER CALL (S12.14): a tick or a handler that ran `set -e` leaves it on,
+		## and the answer's terminator and the calls below would otherwise end the thread with no end line.
+		set +e +u
 		[ -z "$serveEnd" ] || { serveLeave="it was ended by $serveEnd" ; break ; }
 		[ "$(( SECONDS - serveLast ))" -lt "$serveIdle" ] || { serveLeave="no request came for ${serveIdle}s" ; break ; }
 		serveLoops=$(( serveLoops + 1 ))

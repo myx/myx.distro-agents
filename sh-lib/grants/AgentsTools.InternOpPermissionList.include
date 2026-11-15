@@ -1,0 +1,51 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+type AgentsToolsGrantsMemberList > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.Grants.include"
+
+## AgentsTools.InternOpPermissionList.include -- the operation `--list-permissions|--intern-op-permission-list`, sourced by AgentsTools.InternOpPermission.include with the operation's arguments.
+## One member's effective grants, one TAB-separated row each: kind (floor, standing,
+## session, task, once), read, write or the tool, target, its place as name:relative or -,
+## origin, expiry (AgentsToolsGrantsMemberList). Revoked, used, lapsed and ended ones are
+## left out. The coordinator stub names any member; a member's own lists its own only.
+		local listOp="$1" listActing="" listMember="" listSession=""
+		shift
+		MDSC_CMD="$MDSC_CMD $listOp"
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.UseAgentsTools.include"
+		listActing="${1:-}"
+		shift || true
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--member)
+					if [ "$listOp" != "--list-permissions" ] ; then
+						echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
+						set +e ; return 1
+					fi
+					listMember="${2:-}" ; shift 2
+				;;
+				--session-id) listSession="${2:-}" ; shift 2 ;;
+				*)
+					echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		if [ -z "$listActing" ] ; then
+			echo "$MDSC_CMD: ⛔ ERROR: syntax is <team-member> [--member <member>] [--session-id <id>]" >&2
+			set +e ; return 1
+		fi
+		[ -n "$listMember" ] || listMember="$listActing"
+		AgentsToolsAssertBareName "$listMember" "<member>" permission-list || { set +e ; return 1 ; }
+		[ -z "$listSession" ] || AgentsToolsAssertBareName "$listSession" "--session-id" permission-list || { set +e ; return 1 ; }
+		if [ "$listOp" = "--list-permissions" ] ; then
+			AgentsToolsActingMemberCheck "$listActing" "${listOp#--}" || { set +e ; return 1 ; }
+			## Another member's grants are magic-coordinator's to list, or the console's.
+			if [ "$listMember" != "$listActing" ] && [ -n "$( AgentsToolsActingMember )" ] && [ "$( AgentsToolsActingMember )" != magic-coordinator ] ; then
+				echo "$MDSC_CMD: ⛔ ERROR: $listActing lists its own grants, and $listMember's are magic-coordinator's to list -- nothing was done" >&2
+				set +e ; return 1
+			fi
+		fi
+		AgentsToolsGrantsMemberList "${MMDAPP%/}" "$listMember" "$listSession" || {
+			echo "$MDSC_CMD: ⛔ ERROR: the grants of $listMember could not be listed: no grants index could be read or built" >&2
+			set +e ; return 1
+		}
+		return 0

@@ -33,11 +33,6 @@ case "$BASH" in
 	;;
 esac
 
-## The testbed's operations (AgentsTools.Testbed.include), loaded where they are asked for.
-DistroAgentsTestingTestbed(){
-	type AgentsToolsTestbedRegister > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.Testbed.include"
-}
-
 ## The operations that came here from DistroAgentsTools.fn.sh (F1.4): every one of them is asked what each name of the table is asked, in AgentsContext.FrontDoor.include.
 DistroAgentsTestingMoved(){
 	local MDSC_CMD='DistroAgentsTesting' frontDone="" frontRc=0
@@ -102,7 +97,7 @@ DistroAgentsTesting(){
 		--test-register)
 			local testOp="$1"
 			shift
-			DistroAgentsTestingTestbed
+			type AgentsToolsTestbedRegister > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.Testbed.include"
 			AgentsToolsTestbedRegister "$testOp" "$@"
 			return $?
 		;;
@@ -111,7 +106,7 @@ DistroAgentsTesting(){
 		--test-update)
 			local testOp="$1"
 			shift
-			DistroAgentsTestingTestbed
+			type AgentsToolsTestbedUpdate > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.Testbed.include"
 			AgentsToolsTestbedUpdate "$testOp" "$@"
 			return $?
 		;;
@@ -120,7 +115,7 @@ DistroAgentsTesting(){
 		--test-unregister)
 			local testOp="$1"
 			shift
-			DistroAgentsTestingTestbed
+			type AgentsToolsTestbedUnregister > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.Testbed.include"
 			AgentsToolsTestbedUnregister "$testOp" "$@"
 			return $?
 		;;
@@ -129,7 +124,7 @@ DistroAgentsTesting(){
 		--test-invalidate)
 			local testOp="$1"
 			shift
-			DistroAgentsTestingTestbed
+			type AgentsToolsTestbedInvalidate > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.Testbed.include"
 			AgentsToolsTestbedInvalidate "$testOp" "$@"
 			return $?
 		;;
@@ -138,7 +133,7 @@ DistroAgentsTesting(){
 		--test-list)
 			local testOp="$1"
 			shift
-			DistroAgentsTestingTestbed
+			type AgentsToolsTestbedList > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.Testbed.include"
 			AgentsToolsTestbedList "$testOp" "$@"
 			return $?
 		;;
@@ -147,7 +142,7 @@ DistroAgentsTesting(){
 		--run-oldest-untested|--run-all-nightly-regressions)
 			local testOp="$1"
 			shift
-			DistroAgentsTestingTestbed
+			type AgentsToolsTestbedRun > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.Testbed.include"
 			AgentsToolsTestbedRun "$testOp" "$@"
 			return $?
 		;;

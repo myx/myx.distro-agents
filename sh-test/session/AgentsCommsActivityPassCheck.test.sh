@@ -113,7 +113,7 @@ AgentsToolsCommsActivityPass $(( rigAt + 2240 ))
 rigAssert "a feed run with an event-track.thread of its own posts there, not in its record's thread" "$( rigOutbox CRIGFEED2-1793000000.000700 ):$( rigOutbox CRIGFEED-1793000000.000600 )" "1:1"
 
 ## The started records are read from the tree once in the TTL, and kept.
-. "$rigHere/session/AgentsTools.StartedRecords.include" || rigRefuse "the started records' include could not be sourced"
+. "$rigHere/spawn/AgentsTools.StartedRecords.include" || rigRefuse "the started records' include could not be sourced"
 rm -f "$rigWs/.local/agents/schedule/started.records"
 rigListA="$( MDAT_STARTED_RECORDS_SECONDS=60 AgentsToolsSpawnedStartedRecords | wc -l | tr -d ' ' )"
 rigG=gggg7777-0000-0000-0000-000000000007
@@ -124,7 +124,7 @@ rigAssert "the first call reads the tree, a call within the TTL still sees the r
 rigAssert "the kept list is a file: the epoch it was kept at and the newest folder's epoch on its first line, then a path a line" "$( LC_ALL=C sed -n '1p' "$rigWs/.local/agents/schedule/started.records" | LC_ALL=C grep -c '^[0-9][0-9]* [0-9][0-9]*$' ):$( LC_ALL=C sed 1d "$rigWs/.local/agents/schedule/started.records" | LC_ALL=C grep -c 'spawn.md$' )" "1:$rigListB"
 
 ## The per-run feed poster returns at once unless it is asked.
-eval "$( sed -n '/^AgentsEventTrackFeedRun()/,/^}/p' "$rigHere/session/AgentsTools.EventTrackFeed.include" )"
+eval "$( sed -n '/^AgentsEventTrackFeedRun()/,/^}/p' "$rigHere/event-track/AgentsTools.EventTrackFeed.include" )"
 type AgentsEventTrackFeedRun > /dev/null 2>&1 || rigRefuse "the feed poster is not in the feed include"
 rigPollStart="$SECONDS"
 rigPollRc=0 ; ( unset MDAT_SPAWN_PROXY_OWN_FEED ; AgentsEventTrackFeedRun "$rigA" magic-tester CRIGCHAN:1 > /dev/null 2>&1 ) || rigPollRc=$?
@@ -132,7 +132,7 @@ rigAssert "the feed poster returns at once, rc 0, so no run keeps one" "$rigPoll
 
 ## The spawner's own poller does nothing unless it is asked.
 ## The function alone is taken out of the include: the include is a whole arm of the tool and ends a shell that sources it with no operation.
-eval "$( sed -n '/^AgentsToolsSpawnProxyEventTrackBatch()/,/^}/p' "$rigHere/session/AgentsTools.InternOpAgentSpawnProxy.include" )"
+eval "$( sed -n '/^AgentsToolsSpawnProxyEventTrackBatch()/,/^}/p' "$rigHere/spawn/AgentsTools.InternOpAgentSpawnProxy.include" )"
 type AgentsToolsSpawnProxyEventTrackBatch > /dev/null 2>&1 || rigRefuse "the spawner's poller is not in the proxy include"
 rigPollStart="$SECONDS"
 rigPollRc=0 ; ( unset MDAT_SPAWN_PROXY_OWN_ACTIVITY ; AgentsToolsSpawnProxyEventTrackBatch CRIGCHAN:1 magic-tester "$rigWs/.local/agents/sessions/$rigA/session.log" > /dev/null 2>&1 ) || rigPollRc=$?

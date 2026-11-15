@@ -1,0 +1,125 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+## AgentsTools.OpInstallClaudePermissions.include -- the operation `--install-claude-permissions`, sourced by AgentsTools.Install.include with the operation's arguments.
+		shift
+
+		local workspaceArg
+		while [ "$#" -gt 0 ] ; do
+			case "$1" in
+				--workspace)
+					if [ -z "$2" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --install-claude-permissions: --workspace requires a value" >&2
+						set +e ; return 1
+					fi
+					workspaceArg="$2" ; shift 2
+				;;
+				*)
+					echo "⛔ ERROR: $MDSC_CMD --install-claude-permissions: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+
+		## The workspace this run acts FOR: the grant set is read from its registries, and
+		## what it projected is recorded beside them, so it must be the caller's workspace.
+		local workspace="${workspaceArg:-$MMDAPP}"
+		if [ ! -d "$workspace" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --install-claude-permissions: workspace not found: $workspace" >&2
+			set +e ; return 1
+		fi
+		workspace="$( cd "$workspace" && pwd )"
+		local workspaceName="$( basename "$workspace" )"
+
+		local settingsFile="$HOME/.claude/settings.json"
+		if [ ! -f "$settingsFile" ] ; then
+			mkdir -p "$HOME/.claude" && printf '{}\n' > "$settingsFile" || {
+				echo "⛔ ERROR: $MDSC_CMD --install-claude-permissions: cannot create $settingsFile" >&2
+				set +e ; return 1
+			}
+		fi
+
+		## No file grant is projected any more: the PreToolUse hooks decide every call, so
+		## no Read or Edit entry is written. What earlier runs projected from the permissions
+		## registries is kept beside them, and every entry it names is dropped, nothing else:
+		## nothing is identified by shape. With no such record, the entries the registries
+		## claim now are taken as what an earlier run wrote. The record is then left empty.
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/client/AgentsTools.ClientAccessRoots.include"
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/client/AgentsTools.ClientToolPolicy.include"
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamRegistry.include"
+		local grantsFile="$MMDAPP/.local/temp/mdat-claude-permissions-grants.$$"
+		local projectedFile="$workspace/.local/agents/claude-permissions.projected"
+		mkdir -p "$MMDAPP/.local/temp" || {
+			echo "⛔ ERROR: $MDSC_CMD --install-claude-permissions: cannot create $MMDAPP/.local/temp" >&2
+			set +e ; return 1
+		}
+		## The WHOLE machine-wide set, every workspace's rows unioned and de-duplicated: what an
+		## earlier run projected, where it left no record. Field 4 is taken whole by offset, never
+		## by splitting, so a grant carrying its own colons is reproduced exactly. Tool rows and
+		## unresolved rows name no path; deny rows are no grant, so none is projected into client settings.
+		if ! AgentsToolsTeamGrantRows "$workspace" permissions.registry | LC_ALL=C awk -F: '$3 != "tool" && $3 != "unresolved" && $3 != "deny" && $4 !~ /^Deny(Edit|Read)\(/ {
+			grantText = substr( $0, length($1) + length($2) + length($3) + 4 )
+			if ( grantText != "" && !seenGrant[grantText]++ ) print grantText
+		}' > "$grantsFile" ; then
+			echo "⛔ ERROR: $MDSC_CMD --install-claude-permissions: the permissions registries could not be read for workspace $workspaceName" >&2
+			rm -f "$grantsFile"
+			set +e ; return 1
+		fi
+		if [ -f "$projectedFile" ] ; then
+			cp "$projectedFile" "$grantsFile.prev" || { rm -f "$grantsFile" "$grantsFile.prev" ; set +e ; return 1 ; }
+		else
+			cp "$grantsFile" "$grantsFile.prev" || { rm -f "$grantsFile" "$grantsFile.prev" ; set +e ; return 1 ; }
+		fi
+
+		local settingsTmp="$settingsFile.tmp.$$"
+
+		## Member real dirs come from the single access-root source
+		## (AgentsTools.ClientAccessRoots.include), shared with the copilot launch
+		## fragment. Materialised because the .awk reads them by path. The file
+		## lives inside this subshell, so its trap is the subshell's own and can
+		## never disarm the caller's, and it is armed before the file exists. The
+		## merge output goes to $settingsTmp, a file, so the only thing that has to
+		## escape is the member count on stdout.
+		local memberCount
+		memberCount="$(
+			memberPathsFile="$MMDAPP/.local/temp/mdat-claude-permissions-members.$$"
+			trap 'rm -f "$memberPathsFile"' EXIT
+			mkdir -p "$MMDAPP/.local/temp" && AgentsToolsClientAccessRootsMembers acting > "$memberPathsFile" || {
+				echo "⛔ ERROR: $MDSC_CMD --install-claude-permissions: cannot write $memberPathsFile" >&2
+				exit 1
+			}
+			MYX_CLAUDEPERMS_STATIC_ALLOW_JSON="$( AgentsToolsClientToolPolicyClaudeAllowJson )" \
+				MYX_CLAUDEPERMS_DENY_ADD_JSON="$( AgentsToolsClientToolPolicyClaudeDenyJson )" \
+				MYX_CLAUDEPERMS_MCP_SERVERS_JSON="$( AgentsToolsClientToolPolicyClaudeMcpServersJson )" \
+				MYX_CLAUDEPERMS_MEMBERS_FILE="$memberPathsFile" \
+				MYX_CLAUDEPERMS_GRANTS_PREV_FILE="$grantsFile.prev" \
+				LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsClaudeSettingsPermissionsUpsert.awk" \
+				"$settingsFile" > "$settingsTmp" || exit 1
+			## Zero members is a legitimate empty result -- grep -c '' prints 0 and exits 1.
+			grep -c '' "$memberPathsFile" || true
+		)" || {
+			echo "⛔ ERROR: $MDSC_CMD --install-claude-permissions: permissions merge failed, $settingsFile left untouched" >&2
+			rm -f "$settingsTmp" "$grantsFile" "$grantsFile.prev"
+			set +e ; return 1
+		}
+
+		local settingsState="installed"
+		if cmp -s "$settingsTmp" "$settingsFile" ; then
+			rm -f "$settingsTmp"
+			settingsState="already current"
+		elif ! mv -f "$settingsTmp" "$settingsFile" ; then
+			echo "⛔ ERROR: $MDSC_CMD --install-claude-permissions: could not install $settingsFile" >&2
+			rm -f "$settingsTmp" "$grantsFile" "$grantsFile.prev"
+			set +e ; return 1
+		fi
+
+		## What this run projected: nothing, so the next run drops nothing more.
+		mkdir -p "${projectedFile%/*}" && : > "$projectedFile.tmp.$$" && mv -f "$projectedFile.tmp.$$" "$projectedFile" || {
+			rm -f "$projectedFile.tmp.$$"
+			echo "🙋 WARNING: $MDSC_CMD --install-claude-permissions: could not record in $projectedFile that nothing was projected, so the next run drops again what earlier runs projected" >&2
+		}
+		## Read only by the merge above and the record, so they go as soon as both are done.
+		rm -f "$grantsFile" "$grantsFile.prev"
+
+		echo "✅ claude permissions $settingsState: $settingsFile (fixed grants only, no file grant: the hooks decide; $memberCount acting member(s))" >&2
+		return 0

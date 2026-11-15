@@ -31,13 +31,17 @@ rigAssert(){ ## what is asserted, got, want
 	fi
 }
 ## Every whole path spelled after $MDLT_ORIGIN, as `<file below the origin's packages>|<path>`, one a line.
-( cd "$MDLT_ORIGIN/myx" && find -L myx.distro-* -name .git -prune -o -type f -print 2> /dev/null ) | LC_ALL=C sort > "$rigTmp/files"
+## A kept copy (`*.keep`) beside a file is no code of the package: left out, as AgentsBashPathGuardCheck leaves it out.
+( cd "$MDLT_ORIGIN/myx" && find -L myx.distro-* -name .git -prune -o -type f ! -name '*.keep' -print 2> /dev/null ) | LC_ALL=C sort > "$rigTmp/files"
 [ "$( LC_ALL=C grep -c . "$rigTmp/files" )" -ge 100 ] 2> /dev/null || rigRefuse "too few files of the packages were found to be read right"
 rigPathsReader="$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-origin-paths.py"
+## One reader process for the whole list: a process per file does not finish inside the runner's time limit.
+rigFiles=()
 while IFS= read -r rigFile ; do
-	[ "${rigFile##*/}" != "${0##*/}" ] || continue
-	python3 -I -B "$rigPathsReader" "$MDLT_ORIGIN/myx/$rigFile" 2> /dev/null
-done < "$rigTmp/files" | LC_ALL=C sort -u > "$rigTmp/paths"
+	[ "${rigFile##*/}" = "${0##*/}" ] || rigFiles+=( "$rigFile" )
+done < "$rigTmp/files"
+( cd "$MDLT_ORIGIN/myx" && python3 -I -B "$rigPathsReader" "${rigFiles[@]}" ) > "$rigTmp/paths" || rigRefuse "the path reader could not read every file of the packages"
+LC_ALL=C sort -u -o "$rigTmp/paths" "$rigTmp/paths"
 rigCount="$( LC_ALL=C grep -c . "$rigTmp/paths" )"
 rigAssert "control: the packages spell such paths, and the reader finds them" "$( [ "$rigCount" -ge 100 ] && printf found || printf "only $rigCount" )" found
 rigMissing=""
@@ -51,6 +55,8 @@ rigProbe="$( python3 -I -B "$rigPathsReader" "$rigTmp/probe.sh" | LC_ALL=C sed '
 rigAssert "control: the reader takes a spelled path whole, and it names no file" "$rigProbe:$( [ -e "$MDLT_ORIGIN/$rigProbe" ] && printf exists || printf missing )" "myx/myx.distro-agents/sh-lib/AgentsRigNoSuchFile.include:missing"
 printf 'for f in "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/help/Help.Rig-setup-"*.help.md ; do : ; done\n' > "$rigTmp/pattern.sh"
 rigAssert "control: a path that goes on past its quote into a glob is a pattern, not asked about" "[$( python3 -I -B "$rigPathsReader" "$rigTmp/pattern.sh" )]" "[]"
+printf 'grep -e %s\n' "'\\\$MDLT_ORIGIN/myx/myx\\.common/'" > "$rigTmp/regex.sh"
+rigAssert "control: a path cut at a backslash is regex text, not asked about" "[$( python3 -I -B "$rigPathsReader" "$rigTmp/regex.sh" )]" "[]"
 
 ## THE ONE FORM of an include of a file of a myx.distro-* package's sh-lib: a statement `. <target>` or `source
 ## <target>` in a shell file of a package (its sh-lib, sh-scripts and builders: *.sh, *.include, *.rc), outside a
@@ -62,7 +68,9 @@ rigAssert "control: a path that goes on past its quote into a glob is a pattern,
 export RIG_SHLIB_NAMES="$rigTmp/shlib-names"
 rigFormsReader="$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-origin-forms.py"
 ( cd "$MDLT_ORIGIN/myx" && find -L myx.distro-*/sh-lib myx.distro-*/sh-scripts myx.distro-*/builders -name .git -prune -o -type f \( -name '*.sh' -o -name '*.include' -o -name '*.rc' \) -print 2> /dev/null ) | LC_ALL=C sort > "$rigTmp/shells"
-( cd "$MDLT_ORIGIN/myx" && while IFS= read -r rigShell ; do python3 -I -B "$rigFormsReader" "$rigShell" 2> /dev/null ; done < "$rigTmp/shells" ) > "$rigTmp/forms"
+rigShells=()
+while IFS= read -r rigShell ; do rigShells+=( "$rigShell" ) ; done < "$rigTmp/shells"
+( cd "$MDLT_ORIGIN/myx" && python3 -I -B "$rigFormsReader" "${rigShells[@]}" ) > "$rigTmp/forms" || rigRefuse "the forms reader could not read every shell file of the packages"
 rigAssert "control: the shell files of the packages are read"  "$( LC_ALL=C grep -c . "$rigTmp/shells" | LC_ALL=C awk '{ print ( $1 >= 100 ) ? "read" : "only " $1 }' )" read
 rigAssert "every include of a package's sh-lib file spells myx/<package>/sh-lib/<file> after \$MDLT_ORIGIN: the sites in another form ($( LC_ALL=C grep -c . "$rigTmp/forms" ))" "[$( LC_ALL=C tr '\n' '|' < "$rigTmp/forms" | LC_ALL=C sed 's/|$//' )]" "[]"
 printf '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.Member.include"\n. "$rigLib/AgentsTools.Member.include"\n## . "$rigLib/AgentsTools.Member.include"\n. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-lib/member/AgentsTools.Member.include"\n. "$MYXROOT/bin/lib/parallel.Common"\n. "$( dirname $0 )/../sh-lib/member/AgentsTools.Member.include"\n' > "$rigTmp/forms-probe.sh"

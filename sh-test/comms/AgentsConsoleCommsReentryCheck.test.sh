@@ -72,7 +72,7 @@ rigAssert "the rig's console has no DistroAgentsTools command on PATH" \
 rigAssert "and no file of the rig's bin stands in for it" "$( LC_ALL=C ls "$rigTmp/bin" )" "curl"
 
 echo "-- 4. the instrument: the mark reader on logs made by hand --"
-printf 'x\n/x/sh-lib/comms/AgentsTools.MemberCommsConfluence.include: line 14: DistroAgentsTools: command not found\n' > "$rigTmp/log.plagued"
+printf 'x\n/x/sh-lib/atlassian/AgentsTools.MemberCommsConfluence.include: line 14: DistroAgentsTools: command not found\n' > "$rigTmp/log.plagued"
 printf 'x\n# page 1: nothing to read\n' > "$rigTmp/log.clean"
 rigAssert "the reader counts a planted mark" "$( LC_ALL=C grep -c -F 'command not found' "$rigTmp/log.plagued" )" 1
 rigAssert "and counts nothing on a clean log" "$( LC_ALL=C grep -c -F 'command not found' "$rigTmp/log.clean" || : )" 0
@@ -88,18 +88,18 @@ rigCase(){
 	rigAssert "$rigFile $rigOp reaches its own implementation's line" \
 		"$( LC_ALL=C grep -c -F -- "$rigWantText" "$rigTmp/call.out" )" 1
 }
-rigCase DistroAgentsAtlassian --confluence-space-list 6 "--confluence-space-list: CONFLUENCE_SITE/CONFLUENCE_USER/CONFLUENCE_API_TOKEN missing" magic-coordinator
-rigCase DistroAgentsAtlassian --confluence-page-read 6 "--confluence-page-read: CONFLUENCE_SITE/CONFLUENCE_USER/CONFLUENCE_API_TOKEN missing" magic-coordinator 12345
-rigCase DistroAgentsAtlassian --jira-board-list 6 "--jira-board-list: JIRA_SITE/JIRA_USER/JIRA_API_TOKEN missing" magic-coordinator
-rigCase DistroAgentsAtlassian --jira-board-read 6 "--jira-board-read: JIRA_SITE/JIRA_USER/JIRA_API_TOKEN missing" magic-coordinator 7
-rigCase DistroAgentsAtlassian --jira-board-issue-search 6 "--jira-board-issue-search: JIRA_SITE/JIRA_USER/JIRA_API_TOKEN missing" magic-coordinator 7
-rigCase DistroAgentsAtlassian --jira-issue-read 6 "--jira-issue-read: JIRA_SITE/JIRA_USER/JIRA_API_TOKEN missing" magic-coordinator ABC-1
-rigCase DistroAgentsAtlassian --jira-sprint-list 6 "--jira-sprint-list: JIRA_SITE/JIRA_USER/JIRA_API_TOKEN missing" magic-coordinator 7
-rigCase DistroAgentsAtlassian --jira-sprint-issue-search 6 "--jira-sprint-issue-search: JIRA_SITE/JIRA_USER/JIRA_API_TOKEN missing" magic-coordinator 7
-rigCase DistroAgentsMail --email-check 1 "--email-check: EMAIL_IMAP_HOST/EMAIL_USER/EMAIL_APP_PASSWORD not fully set" magic-coordinator
-rigCase DistroAgentsMail --email-read 1 "--email-read: EMAIL_IMAP_HOST/EMAIL_USER/EMAIL_APP_PASSWORD not fully set" magic-coordinator 5
-rigCase DistroAgentsTrello --trello-read 1 "--trello-read: TRELLO_KEY/TRELLO_TOKEN not fully set" magic-coordinator abc123
-rigCase DistroAgentsGoogle --google-whoami 1 "--google-whoami: GOOGLE_CLIENT_ID/GOOGLE_CLIENT_SECRET/GOOGLE_REFRESH_TOKEN not fully set" magic-coordinator
+rigCase DistroAgentsAtlassian --confluence-space-list 6 "--confluence-space-list: CONFLUENCE_SITE/CONFLUENCE_USER/CONFLUENCE_API_TOKEN missing"
+rigCase DistroAgentsAtlassian --confluence-page-read 6 "--confluence-page-read: CONFLUENCE_SITE/CONFLUENCE_USER/CONFLUENCE_API_TOKEN missing" 12345
+rigCase DistroAgentsAtlassian --jira-board-list 6 "--jira-board-list: JIRA_SITE/JIRA_USER/JIRA_API_TOKEN missing"
+rigCase DistroAgentsAtlassian --jira-board-read 6 "--jira-board-read: JIRA_SITE/JIRA_USER/JIRA_API_TOKEN missing" 7
+rigCase DistroAgentsAtlassian --jira-board-issue-search 6 "--jira-board-issue-search: JIRA_SITE/JIRA_USER/JIRA_API_TOKEN missing" 7
+rigCase DistroAgentsAtlassian --jira-issue-read 6 "--jira-issue-read: JIRA_SITE/JIRA_USER/JIRA_API_TOKEN missing" ABC-1
+rigCase DistroAgentsAtlassian --jira-sprint-list 6 "--jira-sprint-list: JIRA_SITE/JIRA_USER/JIRA_API_TOKEN missing" 7
+rigCase DistroAgentsAtlassian --jira-sprint-issue-search 6 "--jira-sprint-issue-search: JIRA_SITE/JIRA_USER/JIRA_API_TOKEN missing" 7
+rigCase DistroAgentsMail --email-check 1 "--email-check: EMAIL_IMAP_HOST/EMAIL_USER/EMAIL_APP_PASSWORD not fully set"
+rigCase DistroAgentsMail --email-read 1 "--email-read: EMAIL_IMAP_HOST/EMAIL_USER/EMAIL_APP_PASSWORD not fully set" 5
+rigCase DistroAgentsTrello --trello-read 1 "--trello-read: TRELLO_KEY/TRELLO_TOKEN not fully set" abc123
+rigCase DistroAgentsGoogle --google-whoami 1 "--google-whoami: GOOGLE_CLIENT_ID/GOOGLE_CLIENT_SECRET/GOOGLE_REFRESH_TOKEN not fully set"
 
 echo "-- 5. the include-level sites, driven with no dispatcher function either --"
 ## A shell that sources the include and calls the function holding the site. DistroAgentsTools is
@@ -127,12 +127,12 @@ rigAssert "and it reaches the client stub's own line" \
 
 rigAssert "MemberWaitChat's scan probe leaves no command-not-found mark" \
 	"$( rigDrive 'probe(){ local MDSC_CMD=probe
-	. "$RIG_SH/member/AgentsTools.MemberWaitChat.include" > /dev/null 2>&1
+	. "$RIG_SH/wait/AgentsTools.MemberWaitChat.include" > /dev/null 2>&1
 	AgentsWaitProbeScan magic-coordinator grooming "$RIG_TMP/temp/p.out" "$RIG_TMP/temp/p.out" ; }
 	probe' > /dev/null ; LC_ALL=C grep -c -F 'command not found' "$rigTmp/call.out" || : )" "0"
 
 rigDrive 'probe(){ local MDSC_CMD=probe ; set -- --intern-op-slack-check-scopes magic-coordinator --scope-source --slack-read --context probe
-	. "$RIG_SH/comms/AgentsTools.CommsSlack.include" ; }
+	. "$RIG_SH/slack/AgentsTools.CommsSlack.include" ; }
 	probe' > /dev/null
 rigAssert "CommsSlack reads a --scope-source's declaration, rather than finding none" \
 	"$( LC_ALL=C grep -c -F 'returned no scope declaration' "$rigTmp/call.out" || : )" 0
@@ -145,7 +145,7 @@ rigAssert "InternRootHarness's root pass leaves no command-not-found mark" "$( r
 ## The row is `<mark> <first> <family> <alias>`. Read with no override stored, then with one: a
 ## site that cannot reach the setting's own include answers its default both times.
 rigRow(){ rigDrive 'probe(){ local MDSC_CMD=probe ; set -- --get-roster
-	. "$RIG_SH/team-data/AgentsTools.Registries.include" > /dev/null 2>&1
+	. "$RIG_SH/team-data/AgentsTools.Registries.include" ; . "$RIG_SH/team-data/AgentsTools.RegistryTeamMembers.include" ; . "$RIG_SH/team-data/AgentsTools.RegistryMemberNames.include" ; . "$RIG_SH/team-data/AgentsTools.RegistrySpawnedSessions.include" ; . "$RIG_SH/team-data/AgentsTools.RegistryPendingReplies.include" > /dev/null 2>&1
 	AgentsToolsRegistryMemberNamesRead magic-coordinator ; }
 	probe' > /dev/null ; LC_ALL=C tail -1 "$rigTmp/call.out" | LC_ALL=C sed 's/^[[:space:]]*//; s/[[:space:]]*$//' ; }
 rigAssert "Registries answers the default alias when none is stored, and no mark" "$( rigRow ):$( rigMarkCount )" "- - - -:0"
@@ -171,7 +171,7 @@ rigProbeReenter='DistroAgentsTools(){ printf "%s\n" "$*" >> "$RIG_TMP/reentry.lo
 	type AgentsToolsAssertBareName > /dev/null 2>&1 || . "$RIG_SH/member/AgentsTools.BareName.include"
 	type AgentsToolsMemberInvited > /dev/null 2>&1 || . "$RIG_SH/member/AgentsTools.MemberWorkspace.include"
 	probe(){ local MDSC_CMD=probe ; set -- --client-operation-run magic-coordinator --client-comms-trello-check client-rig
-		. "$RIG_SH/magic/AgentsTools.MagicClient.include" ; }
+		. "$RIG_SH/client/AgentsTools.ClientOperationRun.include" ; }
 	probe'
 rigProbeControl='DistroAgentsTools(){ printf "%s\n" "$*" >> "$RIG_TMP/reentry.log" ; return 0 ; }
 	probe(){ local MDSC_CMD=probe ; DistroAgentsTools --context control ; }
@@ -203,10 +203,10 @@ echo "-- 7. one guard an argument, in the two arms the review names --"
 ## a planted guard would report zero for both and prove nothing.
 printf -- '\t\t--intern-op-comms-jira-issue-read)\n\t\t\tshift || { : ; }\n\t\t;;\n' > "$rigTmp/armed.sh"
 rigAssert "control: the reader counts a guard of that shape when one is there" "$( rigArmShiftGuards "$rigTmp/armed.sh" intern-op-comms-jira-issue-read )" 1
-rigAssert "--jira-issue-read carries no shift guard"  "$( rigArmShiftGuards "$rigPackage/sh-lib/comms/AgentsTools.MemberCommsJira.include" intern-op-comms-jira-issue-read )" 0
-rigAssert "--jira-sprint-issue-search carries none"   "$( rigArmShiftGuards "$rigPackage/sh-lib/comms/AgentsTools.MemberCommsJira.include" intern-op-comms-jira-sprint-issue-search )" 0
+rigAssert "--jira-issue-read carries no shift guard"  "$( rigArmShiftGuards "$rigPackage/sh-lib/atlassian/AgentsTools.MemberCommsJira.include" intern-op-comms-jira-issue-read )" 0
+rigAssert "--jira-sprint-issue-search carries none"   "$( rigArmShiftGuards "$rigPackage/sh-lib/atlassian/AgentsTools.MemberCommsJira.include" intern-op-comms-jira-sprint-issue-search )" 0
 rigAssert "and the arm already written that way, the control arm, carries none either" \
-	"$( rigArmShiftGuards "$rigPackage/sh-lib/comms/AgentsTools.MemberCommsJira.include" intern-op-comms-jira-issue-link-list )" 0
+	"$( rigArmShiftGuards "$rigPackage/sh-lib/atlassian/AgentsTools.MemberCommsJira.include" intern-op-comms-jira-issue-link-list )" 0
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ CONSOLE COMMS REENTRY CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

@@ -1,0 +1,47 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+			dispatchItemName="dispatch-$timestamp-spawn-proxy-$$-${MDAT_SPAWN_SESSION_ID:0:8}.md"
+			## The dispatch body is the board writer's own template (sh-lib/templates/board-item.dispatch.document.format.md),
+			## filled from the caller and the brief; the front matter is stamped by the move primitive below.
+			dispatchBriefBody="$( type AgentsToolsToolingTemplateFill > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.ToolingTemplate.include"
+				BDS_caller="$callerName" BDS_brief="$spawnContext" AgentsToolsToolingTemplateFill board-item.dispatch.document.format.md board/AgentsBoardItemDocumentFill.awk )" || dispatchBriefBody=""
+			## The team data directory is created on first use, and the move primitive refuses a missing state directory.
+			mkdir -p "$MDAT_DATA_ROOT/board/running" || {
+				echo "$MDSC_CMD: agent-spawn-proxy: ⛔ ERROR: can't create board state directory: $MDAT_DATA_ROOT/board/running" >&2
+				[ "$routineLockTaken" != "yes" ] || AgentsToolsRoutineLockUnlock "$routineLockDoc" "$sessionId" "the start of $routineRecorded failed" || :
+				set +e ; spawnProxyDispatchCreateEnded=1 ; return 1
+			}
+			## review-by only where the caller said one (--review-by): an item that names none is
+			## reviewed by whoever its run reports to (AgentsToolsItemReviewer), and by nobody
+			## where that is `none`.
+			type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+			printf '%s\n' "$dispatchBriefBody" | DistroAgentsTools --intern-op-board-upsert-move-edit running "$dispatchItemName" \
+				--create \
+				--acting-member:"$callerName" \
+				--context "$opContext" \
+				--upsert-from-stdin \
+				--header:upsert:owner:"$callerName" \
+				--header:upsert:status:dispatch-started \
+				--header:upsert:session-id:"$sessionId" \
+				--header:upsert:spawn-id:"$MDAT_SPAWN_SESSION_ID" \
+				--header:upsert:executing-workspace:"$executingWorkspaceName" \
+				--header:upsert:paying-workspace:"$payingWorkspaceName" \
+				--header:upsert:member-workspace:"$memberWorkspaceName" \
+				${transcriptRel:+--header:upsert:transcript:"$transcriptRel"} \
+				${trackedItemName:+--header:upsert:tracks:"${trackedItemName%.md}"} \
+				${reviewBySaid:+--header:upsert:review-by:"$reviewBySaid"} \
+				${spawnDescriptionKept:+--header:upsert:description:"$spawnDescriptionKept"} \
+				${sessionCommentKept:+--header:upsert:session-comment:"$sessionCommentKept"} \
+				--log-verb:created || {
+				echo "$MDSC_CMD: agent-spawn-proxy: ⛔ ERROR: could not create dispatch tracking item $dispatchItemName" >&2
+				[ "$routineLockTaken" != "yes" ] || AgentsToolsRoutineLockUnlock "$routineLockDoc" "$sessionId" "the start of $routineRecorded failed" || :
+				set +e ; spawnProxyDispatchCreateEnded=1 ; return 1
+			}
+			## Where a permission overrode a refusal, the item says so on its own Decisions (F6.1).
+			if [ -n "$routineOverrides" ] ; then
+				while IFS= read -r requirementHeld ; do
+					type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+					[ -z "$requirementHeld" ] || DistroAgentsTools --intern-op-decisions-append "$callerName" "$dispatchItemName" --kind resolved --text "override: $requirementHeld" > /dev/null 2>&1 || :
+				done <<< "$routineOverrides"
+			fi

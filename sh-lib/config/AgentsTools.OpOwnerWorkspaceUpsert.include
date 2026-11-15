@@ -1,0 +1,78 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+## AgentsTools.OpOwnerWorkspaceUpsert.include -- the operation `--owner-workspace-upsert`, sourced by AgentsTools.Owner.include with the operation's arguments.
+## A place no project declares, as an owner row of this workspace's own registry
+## (LocalTools.Places.include): a workspace by default, always read-write.
+		shift
+		local wsPath="$1" wsName="" wsKind="workspace" wsCeiling="read-write"
+		shift || true
+		if [ -z "$wsPath" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --owner-workspace-upsert: <path> required" >&2
+			set +e ; return 1
+		fi
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--name)
+					if [ -z "${2:-}" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --owner-workspace-upsert: --name requires a value" >&2
+						set +e ; return 1
+					fi
+					wsName="$2" ; shift 2
+				;;
+				--kind)
+					case "${2:-}" in
+						workspace|directory) wsKind="$2" ;;
+						*)
+							echo "⛔ ERROR: $MDSC_CMD --owner-workspace-upsert: --kind must be workspace or directory" >&2
+							set +e ; return 1
+						;;
+					esac
+					shift 2
+				;;
+				--ceiling)
+					case "${2:-}" in
+						read-only|ceiling-read) wsCeiling="read-only" ;;
+						read-write|ceiling-write) wsCeiling="read-write" ;;
+						*)
+							echo "⛔ ERROR: $MDSC_CMD --owner-workspace-upsert: --ceiling must be read-only or read-write" >&2
+							set +e ; return 1
+						;;
+					esac
+					shift 2
+				;;
+				--*)
+					echo "⛔ ERROR: $MDSC_CMD --owner-workspace-upsert: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+				*)
+					echo "⛔ ERROR: $MDSC_CMD --owner-workspace-upsert: takes exactly one <path>, and more followed it: $*" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		case "$wsPath" in
+			/*)
+			;;
+			*)
+				echo "⛔ ERROR: $MDSC_CMD --owner-workspace-upsert: path must be absolute: $wsPath" >&2
+				set +e ; return 1
+			;;
+		esac
+		[ "$wsPath" = "/" ] || wsPath="${wsPath%/}"
+		[ -n "$wsName" ] || wsName="${wsPath##*/}"
+		. "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/places/LocalTools.Places.include"
+		if ! LocalToolsPlacesNameValid "$wsName" ; then
+			echo "⛔ ERROR: $MDSC_CMD --owner-workspace-upsert: a place name is letters, digits and . _ + - only: $wsName" >&2
+			set +e ; return 1
+		fi
+		if [ "$wsKind" = "workspace" ] && [ "$wsCeiling" != "read-write" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --owner-workspace-upsert: a workspace is always read-write" >&2
+			set +e ; return 1
+		fi
+		if [ ! -d "${MMDAPP%/}/.local" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --owner-workspace-upsert: not a set-up workspace, no .local: $MMDAPP" >&2
+			set +e ; return 1
+		fi
+		LocalToolsPlacesOwnerUpsert "${MMDAPP%/}" "$wsName" "$wsKind" "$wsCeiling" "$wsPath" || { set +e ; return 1 ; }
+		return 0

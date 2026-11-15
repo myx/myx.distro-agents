@@ -1,0 +1,177 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+## AgentsTools.InternOpSlackCheckScopes.include -- the operation `--intern-op-slack-check-scopes`, sourced by AgentsTools.CommsSlack.include with the operation's arguments.
+		shift
+		local opContext="<no --context given>"
+		local ctxWanted="" ctxArg
+		for ctxArg in "$@" ; do
+			if [ -n "$ctxWanted" ] ; then
+				opContext="$ctxArg" ; ctxWanted="" ; continue
+			fi
+			if [ "$ctxArg" = "--context" ] ; then ctxWanted="1" ; fi
+		done
+		local callingMember="$1"
+		shift || true
+		if [ -z "$callingMember" ] ; then
+			echo "$MDSC_CMD: slack-check-scopes: ⛔ ERROR: syntax is <team-member> [--scope-source <op-name>]..." >&2
+			set +e ; return 1
+		fi
+		local scopeSources=()
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--scope-source)
+					if [ -z "${2:-}" ] ; then
+						echo "$MDSC_CMD: slack-check-scopes: ⛔ ERROR: --scope-source: value required (<op-name>)" >&2
+						set +e ; return 1
+					fi
+					scopeSources+=( "$2" )
+					shift 2
+				;;
+				--context)
+					if [ -z "${2:-}" ] ; then
+						echo "$MDSC_CMD: slack-check-scopes: ⛔ ERROR: --context: value required" >&2
+						set +e ; return 1
+					fi
+					shift 2
+				;;
+				*)
+					echo "$MDSC_CMD: slack-check-scopes: ⛔ ERROR: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		if [ ${#scopeSources[@]} -eq 0 ] ; then
+			echo "$MDSC_CMD: slack-check-scopes: ⛔ ERROR: at least one --scope-source <op-name> is required -- this op declares no scopes of its own" >&2
+			set +e ; return 1
+		fi
+		local srcOp srcScopes
+		local srcNames=() srcLists=()
+		for srcOp in ${scopeSources[@]+"${scopeSources[@]}"} ; do
+			## A source is an operation, or an in-context helper (AgentsTools*) that answers the same flag.
+			case "$srcOp" in
+				AgentsTools*) srcScopes="$( "$srcOp" --print-required-scopes 2>/dev/null )" || srcScopes="" ;;
+				*) type AgentsToolsFrontRoute > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.FrontTable.include"
+				   srcScopes="$( AgentsToolsFrontRoute "$srcOp" --print-required-scopes 2>/dev/null )" || srcScopes="" ;;
+			esac
+			if [ -z "$srcScopes" ] ; then
+				echo "$MDSC_CMD: slack-check-scopes: ⛔ ERROR: declared --scope-source '$srcOp' returned no scope declaration -- it does not implement --print-required-scopes, so its requirements cannot be verified. A declared check with nothing implementing it must never pass silently." >&2
+				set +e ; return 1
+			fi
+			srcNames+=( "$srcOp" )
+			srcLists+=( ",$( printf '%s' "$srcScopes" | tr '\n' ',' | sed 's/,,*/,/g; s/^,//; s/,$//' )," )
+		done
+		local identity token grantedRaw grantedList scopeDump
+		local anyFinding=0
+		local identLabels=() identGrants=()
+		for identity in bot user ; do
+			token=""
+			if [ "$identity" = "bot" ] ; then
+				## Reports the credential the member would actually send under.
+				local scopeTokenLine="" scopeTokenSource=""
+				scopeTokenLine="$( AgentsToolsResolveSlackBotToken "$callingMember" )" || scopeTokenLine=""
+				read -r scopeTokenSource token <<< "$scopeTokenLine"
+			else
+				type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/settings/AgentsTools.ConfigOption.include"
+				token="$( AgentsToolsCommsOwnSettingsApply "$callingMember" && AgentsToolsConfigOption "$callingMember" --select SLACK_USER_TOKEN 2>/dev/null )" || token=""
+			fi
+			if [ -z "$token" ] ; then
+				echo "slack-scopes[$identity]: could-not-check"
+				echo "  note: no token configured for this identity -- NOT the same as 'no scopes granted'"
+				identLabels+=( "$identity" )
+				identGrants+=( "" )
+				continue
+			fi
+			## Token on curl's stdin and headers on its stdout, never argv or a
+			## file -- keeps the token out of ps and the response off the disk.
+			local curlRc=0
+			scopeDump="$( curl -sS --connect-timeout 10 --max-time 120 -D - -o /dev/null https://slack.com/api/auth.test -H @- <<< "Authorization: Bearer $token" 2>&1 )" || curlRc=$?
+			if [ "$curlRc" -ne 0 ] ; then
+				echo "slack-scopes[$identity]: could-not-check"
+				echo "  note: auth.test transport failed (curl exit $curlRc) -- grants unknown, NOT empty"
+				identLabels+=( "$identity" )
+				identGrants+=( "" )
+				continue
+			fi
+			## CRLF strip: HTTP headers end CR-LF, and a trailing CR would ride
+			## into the last scope name and silently never match.
+			grantedRaw="$( LC_ALL=C awk 'BEGIN{IGNORECASE=1} /^x-oauth-scopes:/ { sub(/^[^:]*:[ \t]*/, "") ; gsub(/\r/, "") ; print ; exit }' <<< "$scopeDump" )"
+			if [ -z "$grantedRaw" ] ; then
+				echo "slack-scopes[$identity]: could-not-check"
+				echo "  note: no x-oauth-scopes header in the auth.test response -- grants unknown, NOT empty"
+				identLabels+=( "$identity" )
+				identGrants+=( "" )
+				continue
+			fi
+			grantedList=",$( printf '%s' "$grantedRaw" | tr -d ' \r' ),"
+			identLabels+=( "$identity" )
+			identGrants+=( "$grantedList" )
+		done
+		local actingIdentity=""
+		actingIdentity="$( AgentsToolsCommsSlackRun --intern-op-slack-call "$callingMember" --print-acting-identity --context "$MDSC_CMD: slack-check-scopes" 2>/dev/null )" || actingIdentity=""
+		case "$actingIdentity" in
+			bot|user) ;;
+			*) actingIdentity="" ;;
+		esac
+		local k actingGrants="" actingGrantsKnown="false"
+		if [ -n "$actingIdentity" ] ; then
+			for k in "${!identLabels[@]}" ; do
+				[ "${identLabels[$k]}" = "$actingIdentity" ] || continue
+				actingGrants="${identGrants[$k]}"
+				[ -z "$actingGrants" ] || actingGrantsKnown="true"
+			done
+		fi
+		if [ -z "$actingIdentity" ] ; then
+			echo "slack-scopes: acting-identity could-not-check"
+			echo "  note: --intern-op-slack-call did not report an acting identity for $callingMember --"
+			echo "        requirements cannot be attributed to a token, so nothing below is verified"
+		else
+			echo "slack-scopes: acting identity is '$actingIdentity' -- the identity these operations"
+			echo "  actually run under for $callingMember, per --intern-op-slack-call's own selection"
+		fi
+		local i need rest alt altRest altOk opOk missing
+		local unknowns=0
+		for i in "${!srcNames[@]}" ; do
+			if [ "$actingGrantsKnown" != "true" ] ; then
+				echo "${srcNames[$i]}: could-not-check"
+				echo "  note: the acting identity's granted scopes could not be read -- unverified, NOT clean"
+				unknowns=$(( unknowns + 1 ))
+				continue
+			fi
+			opOk="true" ; missing=""
+			rest="${srcLists[$i]#,}"
+			while [ -n "$rest" ] && [ "$rest" != "," ] ; do
+				need="${rest%%,*}"
+				rest="${rest#*,}"
+				[ -n "$need" ] || continue
+				altOk="false"
+				altRest="$need|"
+				while [ -n "$altRest" ] ; do
+					alt="${altRest%%|*}"
+					altRest="${altRest#*|}"
+					[ -n "$alt" ] || continue
+					case "$actingGrants" in
+						*",$alt,"*) altOk="true" ;;
+					esac
+				done
+				if [ "$altOk" != "true" ] ; then opOk="false" ; missing="$missing $need" ; fi
+			done
+			if [ "$opOk" = "true" ] ; then
+				echo "${srcNames[$i]}: OK"
+			else
+				echo "${srcNames[$i]}: WARN"
+				echo "  warn: acting identity '$actingIdentity' is missing:${missing}"
+				anyFinding=$(( anyFinding + 1 ))
+			fi
+		done
+		echo "slack-scopes: $anyFinding operation(s) with a missing scope, $unknowns unverified"
+		echo "  note: granted-scope check only. This answers 'may this identity ever',"
+		echo "        never 'can this identity here' -- a call can still fail on"
+		echo "        conversation membership with every scope in place."
+		if [ "$anyFinding" -gt 0 ] ; then
+			set +e ; return 4
+		fi
+		if [ "$unknowns" -gt 0 ] || [ -z "$actingIdentity" ] ; then
+			set +e ; return 3
+		fi
+		return 0

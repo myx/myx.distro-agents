@@ -72,7 +72,7 @@ echo "-- 3. the workspace rule of a spawn, with the places API stood in: the tea
 ## does not resolve is refused whoever calls. No session kind is special-cased.
 ( 
 	export MMDAPP="$rigTmp/root"
-	. "$rigHere/session/AgentsTools.CoordinatorSpawn.include" 2> /dev/null || { echo "no-include" ; exit 0 ; }
+	. "$rigHere/spawn/AgentsTools.CoordinatorSpawn.include" 2> /dev/null || { echo "no-include" ; exit 0 ; }
 	LocalToolsPlacesResolve(){ case "$2" in rig-known) printf '%s' "$rigTmp/root" ;; *) return 1 ;; esac ; }
 	rigGate(){ ## implied (yes|no), arguments... -- taken or refused
 		if [ "$1" = yes ] ; then export MDAT_MMDAPP_IMPLIED=1 ; else unset MDAT_MMDAPP_IMPLIED ; fi
@@ -85,12 +85,12 @@ echo "-- 3. the workspace rule of a spawn, with the places API stood in: the tea
 		"$( rigGate no --select-workspace rig-unknown --routine-default )"
 ) > "$rigTmp/place" 2>&1
 rigAssert "no MMDAPP and no workspace is refused; a set MMDAPP needs none; a resolved name and a directory are taken; a missing directory and an unresolved name are refused" "$( cat "$rigTmp/place" )" "none-implied=refused|none-set=taken|known=taken|path=taken|nodir=refused|unknown-set=refused"
-rigAssert "the refusal names the way to list the places" "$( ( export MMDAPP="$rigTmp/root" MDAT_MMDAPP_IMPLIED=1 ; . "$rigHere/session/AgentsTools.CoordinatorSpawn.include" ; AgentsToolsCoordinatorSpawnGate --spawn-run --routine-default 2>&1 ) | LC_ALL=C grep -c -- '--manager-place-list' )" "1"
+rigAssert "the refusal names the way to list the places" "$( ( export MMDAPP="$rigTmp/root" MDAT_MMDAPP_IMPLIED=1 ; . "$rigHere/spawn/AgentsTools.CoordinatorSpawn.include" ; AgentsToolsCoordinatorSpawnGate --spawn-run --routine-default 2>&1 ) | LC_ALL=C grep -c -- '--manager-place-list' )" "1"
 
 echo "-- 3b. the two forms of the one spawn, and who may use it --"
 ( 
 	export MMDAPP="$rigTmp/root"
-	. "$rigHere/session/AgentsTools.CoordinatorSpawn.include" 2> /dev/null || { echo "no-include" ; exit 0 ; }
+	. "$rigHere/spawn/AgentsTools.CoordinatorSpawn.include" 2> /dev/null || { echo "no-include" ; exit 0 ; }
 	printf 'routine=%s|default=%s|member=%s|none=%s|option=%s\n' \
 		"$( AgentsToolsCoordinatorSpawnForm --spawn-run --routine magic-team.discuss )" "$( AgentsToolsCoordinatorSpawnForm --spawn-run --routine-default )" \
 		"$( AgentsToolsCoordinatorSpawnForm --spawn-run keeper-x --description d )" "$( AgentsToolsCoordinatorSpawnForm --spawn-run || printf none )" "$( AgentsToolsCoordinatorSpawnForm --spawn-run --foo || printf none )"
@@ -98,7 +98,7 @@ echo "-- 3b. the two forms of the one spawn, and who may use it --"
 rigAssert "a routine first starts a coworking session, a member name first starts that member with a prompt, anything else is neither" "$( cat "$rigTmp/forms" )" "routine=session|default=session|member=prompt|none=none|option=none"
 ( 
 	export MMDAPP="$rigTmp/root"
-	. "$rigHere/session/AgentsTools.CoordinatorSpawn.include" 2> /dev/null || { echo "no-include" ; exit 0 ; }
+	. "$rigHere/spawn/AgentsTools.CoordinatorSpawn.include" 2> /dev/null || { echo "no-include" ; exit 0 ; }
 	AgentsToolsPermissionHolds(){ [ "$1" = magic-coordinator ] && printf 'standing' ; }
 	printf 'console=%s|coordinator=%s|developer=%s\n' \
 		"$( unset MDAT_SPAWN_AGENT ; AgentsToolsCoordinatorSpawnAllowed --spawn-run > /dev/null 2>&1 && printf allowed || printf refused )" \

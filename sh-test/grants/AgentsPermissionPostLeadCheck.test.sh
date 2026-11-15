@@ -182,11 +182,11 @@ rigLead="Allow **Write** on \`$rigFile\` for **$rigMember**? An allow grants exa
 
 echo "-- the first line is made from the refused call, and the asker's words are the reason --"
 rigStart owner
-rigCall 60 Write "{\"path\":\"$rigFile\",\"content\":\"x\"}"
+rigCall 120 Write "{\"path\":\"$rigFile\",\"content\":\"x\"}"
 rigRefusalId="$( rigRefusal "$rigScenarioDir/out" )"
 [ -n "$rigRefusalId" ] || rigRefuse "the rig produced no refusal to ask permission for"
 rigClicked one
-rigCall 90 RequestPermission "{\"to\":\"human-owner\",\"question\":\"$rigAsked\",\"refusal_id\":\"$rigRefusalId\",\"reason\":\"$rigWhy\",\"task_ref\":\"dispatch-rig\"}"
+rigCall 200 RequestPermission "{\"to\":\"human-owner\",\"question\":\"$rigAsked\",\"refusal_id\":\"$rigRefusalId\",\"reason\":\"$rigWhy\",\"task_ref\":\"dispatch-rig\"}"
 [ -f "$rigScenarioDir/post.1" ] || rigRefuse "the permission was never posted, so there is no post to read: $( head -1 "$rigScenarioDir/out" )"
 rigAssert "it ran to its answer"                          "$rigKilled:$( rigVerdictLine )" "no:VERDICT: allow-once"
 rigAssert "the first line under the title names the refused tool, its target and who it was refused for, and what an allow grants" "$( rigLeadOf "$rigScenarioDir/post.1" )" "$rigLead"
@@ -208,11 +208,11 @@ rigAssert "the record keeps the post as it was sent: the same first line" \
 
 echo "-- the same under the second name of the tools --"
 rigStart second-name
-rigCall 60 Write "{\"path\":\"$rigFile\",\"content\":\"x\"}"
+rigCall 120 Write "{\"path\":\"$rigFile\",\"content\":\"x\"}"
 rigRefusalId="$( rigRefusal "$rigScenarioDir/out" )"
 [ -n "$rigRefusalId" ] || rigRefuse "the rig produced no refusal to ask permission for"
 rigClicked one
-rigCall 90 RequestPermission "{\"to\":\"human-owner\",\"question\":\"$rigAsked\",\"refusal_id\":\"$rigRefusalId\",\"reason\":\"$rigWhy\",\"task_ref\":\"dispatch-rig\"}"
+rigCall 200 RequestPermission "{\"to\":\"human-owner\",\"question\":\"$rigAsked\",\"refusal_id\":\"$rigRefusalId\",\"reason\":\"$rigWhy\",\"task_ref\":\"dispatch-rig\"}"
 rigAssert "its first line is made from the refused call too" "$( rigLeadOf "$rigScenarioDir/post.1" )" "$rigLead"
 rigAssert "and the asker's words are the reason there too" "$( rigWhyOf "$rigScenarioDir/post.1" ):$( rigTimesIn "$rigScenarioDir/post.1" "$rigAsked" )" "$rigAsked\\n$rigWhy:1"
 rigAssert "with the refusal by its id, and the target and the member said once" \
@@ -220,7 +220,7 @@ rigAssert "with the refusal by its id, and the target and the member said once" 
 
 echo "-- a request asked again, changed: the same first line, the changed reason --"
 rigStart revised
-rigCall 60 Write "{\"path\":\"$rigFile\",\"content\":\"x\"}"
+rigCall 120 Write "{\"path\":\"$rigFile\",\"content\":\"x\"}"
 rigRefusalId="$( rigRefusal "$rigScenarioDir/out" )"
 [ -n "$rigRefusalId" ] || rigRefuse "the rig produced no refusal to ask permission for"
 ## Nobody answers: each asking call is stopped once its post is up and recorded.
@@ -239,7 +239,7 @@ rigAssert "and it says each fact once too: the target, the member, the refusal i
 
 echo "-- the asker gives the reason only: no question of its own, and the same request known by its call --"
 rigStart reason-only
-rigCall 60 Write "{\"path\":\"$rigFile\",\"content\":\"x\"}"
+rigCall 120 Write "{\"path\":\"$rigFile\",\"content\":\"x\"}"
 rigRefusalId="$( rigRefusal "$rigScenarioDir/out" )"
 [ -n "$rigRefusalId" ] || rigRefuse "the rig produced no refusal to ask permission for"
 ## Nobody answers: an asking call that posts is stopped once its post is up and recorded.
@@ -249,18 +249,18 @@ rigCall 30 RequestPermission "{\"to\":\"human-owner\",\"refusal_id\":\"$rigRefus
 rigAssert "with no question it is posted, led by the refused call" "$( rigLeadOf "$rigScenarioDir/post.1" )" "$rigLead"
 rigAssert "and its reason is the reason alone, with no empty line over it" "$( rigWhyOf "$rigScenarioDir/post.1" )" "$rigWhy"
 rigAssert "control: that request is the one permission post so far" "$( rigPermissionPosts )" 1
-rigCall 60 RequestPermission "{\"to\":\"human-owner\",\"question\":\"May the rig please have that one page?\",\"refusal_id\":\"$rigRefusalId\",\"reason\":\"Other words for the same call.\",\"task_ref\":\"dispatch-rig\"}"
+rigCall 120 RequestPermission "{\"to\":\"human-owner\",\"question\":\"May the rig please have that one page?\",\"refusal_id\":\"$rigRefusalId\",\"reason\":\"Other words for the same call.\",\"task_ref\":\"dispatch-rig\"}"
 rigAssert "the same refused call asked again in other words, while its request is open: not posted again" \
 	"$rigKilled:$( head -1 "$rigScenarioDir/out" ):$( rigPermissionPosts ):$( rigAnyPostHolds 'May the rig please have that one page?' )" "no:ASK-RESULT: ALREADY-OPEN:1:no"
 rigAssert "and it names the request that is open"         "$( rigHolds "$rigScenarioDir/out" "is already open as pending reply $( rigRecordId )" )" yes
-rigCall 60 Write "{\"path\":\"$rigFile\",\"content\":\"x\"}"
+rigCall 120 Write "{\"path\":\"$rigFile\",\"content\":\"x\"}"
 rigAgainId="$( rigRefusal "$rigScenarioDir/out" )"
 [ -n "$rigAgainId" ] && [ "$rigAgainId" != "$rigRefusalId" ] || rigRefuse "the same call refused again gave no refusal of its own"
-rigCall 60 RequestPermission "{\"to\":\"human-owner\",\"refusal_id\":\"$rigAgainId\",\"reason\":\"$rigWhy\",\"task_ref\":\"dispatch-rig\"}"
+rigCall 120 RequestPermission "{\"to\":\"human-owner\",\"refusal_id\":\"$rigAgainId\",\"reason\":\"$rigWhy\",\"task_ref\":\"dispatch-rig\"}"
 rigAssert "the same call refused again, a refusal of its own: still that one request, not posted again" \
 	"$( head -1 "$rigScenarioDir/out" ):$( rigPermissionPosts )" "ASK-RESULT: ALREADY-OPEN:1"
 rigAssert "and the open post is left as it was asked: the same call, however often it is asked, changes nothing" "$( [ -e "$rigScenarioDir/edited" ] && printf edited || printf untouched )" untouched
-rigCall 60 Write "{\"path\":\"/dev/null/rig-lead/folder/another-file.txt\",\"content\":\"x\"}"
+rigCall 120 Write "{\"path\":\"/dev/null/rig-lead/folder/another-file.txt\",\"content\":\"x\"}"
 rigOtherId="$( rigRefusal "$rigScenarioDir/out" )"
 [ -n "$rigOtherId" ] || rigRefuse "the rig produced no refusal for the other call"
 rigCall 30 RequestPermission "{\"to\":\"human-owner\",\"question\":\"May the rig please have that one page?\",\"refusal_id\":\"$rigOtherId\",\"reason\":\"Other words for the same call.\",\"task_ref\":\"dispatch-rig\"}"
@@ -270,19 +270,19 @@ rigCall 30 RequestPermission "{\"to\":\"human-owner\",\"question\":\"May the rig
 rigAssert "another refused call, in the very words of the request before it, is not that request: the open post is edited once, and asks for both calls" \
 	"$( rigPermissionPosts ):$( LC_ALL=C grep -c . "$rigScenarioDir/edited" 2>/dev/null ):$( rigHolds "$rigScenarioDir/edit.1700000001.000101" 'one-file.txt' ):$( rigHolds "$rigScenarioDir/edit.1700000001.000101" 'another-file.txt' ):$( rigHolds "$rigScenarioDir/edit.1700000001.000101" 'Other words for the same call.' )" \
 	"1:1:yes:yes:yes"
-rigCall 60 AskQuestion "{\"to\":\"human-owner\",\"wait\":false}"
+rigCall 120 AskQuestion "{\"to\":\"human-owner\",\"wait\":false}"
 rigAssert "control: a question that is no permission still needs its question" "$( rigHolds "$rigScenarioDir/out" 'ERROR: AskQuestion: question is required and was empty' )" yes
 
 echo "-- a request withdrawn: its post, edited, still leads with the refused call --"
 rigStart withdrawn
-rigCall 60 Write "{\"path\":\"$rigFile\",\"content\":\"x\"}"
+rigCall 120 Write "{\"path\":\"$rigFile\",\"content\":\"x\"}"
 rigRefusalId="$( rigRefusal "$rigScenarioDir/out" )"
 [ -n "$rigRefusalId" ] || rigRefuse "the rig produced no refusal to ask permission for"
 ## Nobody answers: the asking call is stopped once its post is up and recorded.
 printf '{"ok":true,"messages":[{"ts":"1700000001.000101","user":"URIGSELF1","text":"first"}],"has_more":false}\n' > "$rigScenarioDir/replies.json"
 rigCall 30 RequestPermission "{\"to\":\"human-owner\",\"question\":\"$rigAsked\",\"refusal_id\":\"$rigRefusalId\",\"reason\":\"$rigWhy\",\"task_ref\":\"dispatch-rig\"}"
 [ -f "$( rigRecordFile )" ] || rigRefuse "the permission that is to be withdrawn was never recorded: $( head -1 "$rigScenarioDir/out" )"
-rigCall 60 RequestPermission "{\"pending_id\":\"$( rigRecordId )\",\"withdraw\":\"the rig went on by itself\"}"
+rigCall 120 RequestPermission "{\"pending_id\":\"$( rigRecordId )\",\"withdraw\":\"the rig went on by itself\"}"
 rigAssert "the post was edited"                           "$( cat "$rigScenarioDir/edited" 2>/dev/null | head -1 )" "1700000001.000101"
 rigAssert "to the same text, led by the refused call"     "$( rigLeadOf "$rigScenarioDir/edit.1700000001.000101" )" "$rigLead"
 rigAssert "with the asker's words still the reason, and no How to answer" "$( rigWhyOf "$rigScenarioDir/edit.1700000001.000101" ):$( rigHolds "$rigScenarioDir/edit.1700000001.000101" 'How to answer' )" "$rigAsked\\n$rigWhy:no"

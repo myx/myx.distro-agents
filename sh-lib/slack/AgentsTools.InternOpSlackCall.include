@@ -1,0 +1,605 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+## AgentsTools.InternOpSlackCall.include -- the operation `--intern-op-slack-call`, sourced by AgentsTools.CommsSlack.include with the operation's arguments.
+		shift
+		local opContext="<no --context given>"
+		local ctxWanted="" ctxArg
+		for ctxArg in "$@" ; do
+			if [ -n "$ctxWanted" ] ; then
+				opContext="$ctxArg" ; ctxWanted="" ; continue
+			fi
+			if [ "$ctxArg" = "--context" ] ; then ctxWanted="1" ; fi
+		done
+		local callerMember="$1"
+		shift || true
+		if [ -z "$callerMember" ] ; then
+			echo "$MDSC_CMD: slack-call: ⛔ ERROR: syntax is <team-member> --api <method> [--identity bot|user] [--form <name>=<value>]... [--json-body <json>] [--upload-file <name>=<path>] [--resolve-dm <user-id>]" >&2
+			AgentsToolsInternOpSlackCallEmitFields not-yet-selected none
+			set +e ; return 1
+		fi
+		local apiMethod="" identityOverride="" jsonBody="" uploadFile="" resolveDmUser="" targetKind=""
+		local resolveTarget="" expectCounterparty="" targetClass=""
+		## RAW AUTHENTICATED GET mode -- see this file's own FETCH MODE header
+		## block for why it lives in this op rather than in the calling arm.
+		local fetchUrl="" fetchTo=""
+		local printActingIdentity="false"
+		local formArgs=()
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--api)
+					if [ -z "${2:-}" ] ; then
+						echo "$MDSC_CMD: slack-call: ⛔ ERROR: --api: value required" >&2
+						AgentsToolsInternOpSlackCallEmitFields not-yet-selected none
+						set +e ; return 1
+					fi
+					apiMethod="$2" ; shift 2
+				;;
+				--fetch-url)
+					if [ -z "${2:-}" ] ; then
+						echo "$MDSC_CMD: slack-call: ⛔ ERROR: --fetch-url: value required (a full https URL)" >&2
+						AgentsToolsInternOpSlackCallEmitFields not-yet-selected none
+						set +e ; return 1
+					fi
+					fetchUrl="$2" ; shift 2
+				;;
+				--fetch-to)
+					if [ -z "${2:-}" ] ; then
+						echo "$MDSC_CMD: slack-call: ⛔ ERROR: --fetch-to: value required (a destination file path)" >&2
+						AgentsToolsInternOpSlackCallEmitFields not-yet-selected none
+						set +e ; return 1
+					fi
+					fetchTo="$2" ; shift 2
+				;;
+				--identity)
+					case "${2:-}" in
+						bot|user) identityOverride="$2" ;;
+						*)
+							echo "$MDSC_CMD: slack-call: ⛔ ERROR: --identity must be 'bot' or 'user', got: ${2:-}" >&2
+							AgentsToolsInternOpSlackCallEmitFields not-yet-selected none
+							set +e ; return 1
+						;;
+					esac
+					shift 2
+				;;
+				--print-acting-identity)
+					printActingIdentity="true" ; shift
+				;;
+				--form)
+					if [ -z "${2:-}" ] ; then
+						echo "$MDSC_CMD: slack-call: ⛔ ERROR: --form: value required (<name>=<value>)" >&2
+						AgentsToolsInternOpSlackCallEmitFields not-yet-selected none
+						set +e ; return 1
+					fi
+					formArgs+=( "$2" ) ; shift 2
+				;;
+				--json-body)
+					if [ -z "${2:-}" ] ; then
+						echo "$MDSC_CMD: slack-call: ⛔ ERROR: --json-body: value required" >&2
+						AgentsToolsInternOpSlackCallEmitFields not-yet-selected none
+						set +e ; return 1
+					fi
+					jsonBody="$2" ; shift 2
+				;;
+				## Multipart upload: the one shape neither urlencoded GET nor JSON
+				## POST can carry, because the payload is a file part.
+				--upload-file)
+					if [ -z "${2:-}" ] ; then
+						echo "$MDSC_CMD: slack-call: ⛔ ERROR: --upload-file: value required (<name>=<path>)" >&2
+						AgentsToolsInternOpSlackCallEmitFields not-yet-selected none
+						set +e ; return 1
+					fi
+					case "$2" in
+						*=*) ;;
+						*)
+							echo "$MDSC_CMD: slack-call: ⛔ ERROR: --upload-file: value must be <name>=<path>, got '$2'" >&2
+							AgentsToolsInternOpSlackCallEmitFields not-yet-selected none
+							set +e ; return 1
+						;;
+					esac
+					if [ ! -f "${2#*=}" ] ; then
+						echo "$MDSC_CMD: slack-call: ⛔ ERROR: --upload-file: no such file: ${2#*=}" >&2
+						AgentsToolsInternOpSlackCallEmitFields not-yet-selected none
+						set +e ; return 1
+					fi
+					uploadFile="$2" ; shift 2
+				;;
+				--resolve-dm)
+					if [ -z "${2:-}" ] ; then
+						echo "$MDSC_CMD: slack-call: ⛔ ERROR: --resolve-dm: value required (<user-id>)" >&2
+						AgentsToolsInternOpSlackCallEmitFields not-yet-selected none
+						set +e ; return 1
+					fi
+					resolveDmUser="$2" ; shift 2
+				;;
+				--resolve-target)
+					if [ -z "${2:-}" ] ; then
+						echo "$MDSC_CMD: slack-call: ⛔ ERROR: --resolve-target: value required (<user-id>|<conversation-id>)" >&2
+						AgentsToolsInternOpSlackCallEmitFields not-yet-selected none
+						set +e ; return 1
+					fi
+					resolveTarget="$2" ; shift 2
+				;;
+				--expect-counterparty)
+					if [ -z "${2:-}" ] ; then
+						echo "$MDSC_CMD: slack-call: ⛔ ERROR: --expect-counterparty: value required (<user-id>)" >&2
+						AgentsToolsInternOpSlackCallEmitFields not-yet-selected none
+						set +e ; return 1
+					fi
+					expectCounterparty="$2" ; shift 2
+				;;
+				--target-kind)
+					case "${2:-}" in
+						channel|dm) targetKind="$2" ;;
+						*)
+							echo "$MDSC_CMD: slack-call: ⛔ ERROR: --target-kind must be 'channel' or 'dm', got: ${2:-}" >&2
+							AgentsToolsInternOpSlackCallEmitFields not-yet-selected none
+							set +e ; return 1
+						;;
+					esac
+					shift 2
+				;;
+				--context)
+					if [ -z "${2:-}" ] ; then
+						echo "$MDSC_CMD: slack-call: ⛔ ERROR: --context: value required" >&2
+						AgentsToolsInternOpSlackCallEmitFields not-yet-selected none
+						set +e ; return 1
+					fi
+					shift 2
+				;;
+				*)
+					echo "$MDSC_CMD: slack-call: ⛔ ERROR: invalid option: $1" >&2
+					AgentsToolsInternOpSlackCallEmitFields not-yet-selected none
+					set +e ; return 1
+				;;
+			esac
+		done
+		## A client: marker on the conversation or the person this call names puts the call on the
+		## client side, for a client-* member only. It comes off here, before the id is classified
+		## or sent, so no caller has to take it off an address it only passes on.
+		local clientMarked="false" clientIndex
+		case "$resolveTarget" in client:*) resolveTarget="${resolveTarget#client:}" ; clientMarked="true" ;; esac
+		case "$resolveDmUser" in client:*) resolveDmUser="${resolveDmUser#client:}" ; clientMarked="true" ;; esac
+		case "$expectCounterparty" in client:*) expectCounterparty="${expectCounterparty#client:}" ; clientMarked="true" ;; esac
+		for clientIndex in ${formArgs[@]+"${!formArgs[@]}"} ; do
+			case "${formArgs[$clientIndex]}" in
+				channel=client:*) formArgs[$clientIndex]="channel=${formArgs[$clientIndex]#channel=client:}" ; clientMarked="true" ;;
+			esac
+		done
+		if [ "$clientMarked" = "true" ] ; then
+			case "$callerMember" in
+				client-*) local -x MDAT_COMMS_SIDE=client ;;
+				*)
+					echo "$MDSC_CMD: slack-call: ⛔ ERROR: a client: address connects to the other organisation of a client-* member, and $callerMember is not one, so there is no other organisation for this call to reach. Nothing was called." >&2
+					AgentsToolsInternOpSlackCallEmitFields not-yet-selected none
+					set +e ; return 1
+				;;
+			esac
+		fi
+		if [ "$printActingIdentity" != "true" ] ; then
+			if [ -n "$apiMethod" ] && [ -n "$fetchUrl" ] ; then
+				echo "$MDSC_CMD: slack-call: ⛔ ERROR: --api and --fetch-url cannot be combined -- they name two different things to call ('$apiMethod' and '$fetchUrl') and there is no rule for which one wins. An API method and a raw authenticated GET are separate modes; pass exactly one." >&2
+				AgentsToolsInternOpSlackCallEmitFields not-yet-selected none
+				set +e ; return 1
+			fi
+			if [ -z "$apiMethod" ] && [ -z "$fetchUrl" ] ; then
+				echo "$MDSC_CMD: slack-call: ⛔ ERROR: one of --api <method> or --fetch-url <url> is required -- this call names nothing to fetch." >&2
+				AgentsToolsInternOpSlackCallEmitFields not-yet-selected none
+				set +e ; return 1
+			fi
+		fi
+		## FETCH-MODE PARAMETER GUARDS, at parse time, before any token is read
+		## and before anything leaves the host.
+		if [ -n "$fetchUrl" ] ; then
+			## The destination is required and never defaulted. See the header:
+			## this op picks no location, ever.
+			if [ -z "$fetchTo" ] ; then
+				echo "$MDSC_CMD: slack-call: ⛔ ERROR: --fetch-url requires --fetch-to <path> -- there is no default destination and none will be invented; the caller names where the bytes go." >&2
+				AgentsToolsInternOpSlackCallEmitFields not-yet-selected none
+				set +e ; return 1
+			fi
+			if ! printf '%s\n' "$fetchUrl" | LC_ALL=C grep -qE '^https://([a-z0-9-]+\.)*slack\.com/' ; then
+				echo "$MDSC_CMD: slack-call: ⛔ ERROR: --fetch-url refused: '$fetchUrl' is not an https URL on a slack.com host. Nothing was called and NO CREDENTIAL WAS SENT ANYWHERE. This op attaches the acting identity's Slack token to the request, so it will only ever address a host it has positively confirmed is Slack's; the URL to pass is the one --slack-file-info reports as URL_PRIVATE_DOWNLOAD or URL_PRIVATE." >&2
+				AgentsToolsInternOpSlackCallEmitFields not-yet-selected none
+				set +e ; return 1
+			fi
+			local fetchConflict=""
+			if [ "${#formArgs[@]}" -gt 0 ] ; then fetchConflict="--form" ; fi
+			if [ -n "$jsonBody" ]           ; then fetchConflict="--json-body" ; fi
+			if [ -n "$uploadFile" ]         ; then fetchConflict="--upload-file" ; fi
+			if [ -n "$resolveDmUser" ]      ; then fetchConflict="--resolve-dm" ; fi
+			if [ -n "$resolveTarget" ]      ; then fetchConflict="--resolve-target" ; fi
+			if [ -n "$expectCounterparty" ] ; then fetchConflict="--expect-counterparty" ; fi
+			if [ -n "$targetKind" ]         ; then fetchConflict="--target-kind" ; fi
+			if [ -n "$fetchConflict" ] ; then
+				echo "$MDSC_CMD: slack-call: ⛔ ERROR: $fetchConflict cannot be combined with --fetch-url -- it addresses a conversation or supplies call parameters, and a raw authenticated GET has neither. It would be accepted and then silently ignored, so it is refused instead." >&2
+				AgentsToolsInternOpSlackCallEmitFields not-yet-selected none
+				set +e ; return 1
+			fi
+		fi
+		if [ -n "$jsonBody" ] ; then
+			if [ -n "$resolveDmUser" ] ; then
+				echo "$MDSC_CMD: slack-call: ⛔ ERROR: --resolve-dm cannot be combined with --json-body -- the resolved DM channel is delivered as a form field and would be silently ignored, sending to whatever channel the JSON body names. Put the channel in the body yourself, or use --form instead of --json-body." >&2
+				AgentsToolsInternOpSlackCallEmitFields not-yet-selected none
+				set +e ; return 1
+			fi
+			if [ ${#formArgs[@]} -gt 0 ] ; then
+				echo "$MDSC_CMD: slack-call: ⛔ ERROR: --form cannot be combined with --json-body -- form fields are not merged into a JSON body and would be silently dropped. Use one or the other." >&2
+				AgentsToolsInternOpSlackCallEmitFields not-yet-selected none
+				set +e ; return 1
+			fi
+			if [ -n "$uploadFile" ] ; then
+				echo "$MDSC_CMD: slack-call: ⛔ ERROR: --upload-file cannot be combined with --json-body -- a multipart upload and a JSON body are two different request bodies and only the upload would be sent, dropping the JSON silently. Use one or the other." >&2
+				AgentsToolsInternOpSlackCallEmitFields not-yet-selected none
+				set +e ; return 1
+			fi
+			if [ -n "$resolveTarget" ] ; then
+				echo "$MDSC_CMD: slack-call: ⛔ ERROR: --resolve-target cannot be combined with --json-body -- the classified target is delivered as a form field and would be silently ignored, sending to whatever channel the JSON body names. Put the channel in the body yourself, or use --form instead of --json-body." >&2
+				AgentsToolsInternOpSlackCallEmitFields not-yet-selected none
+				set +e ; return 1
+			fi
+		fi
+		if [ -n "$resolveTarget" ] ; then
+			if [ -n "$resolveDmUser" ] ; then
+				echo "$MDSC_CMD: slack-call: ⛔ ERROR: --resolve-target cannot be combined with --resolve-dm -- both name the target of this call, and there is no rule for which one wins. Pass exactly one." >&2
+				AgentsToolsInternOpSlackCallEmitFields not-yet-selected none
+				set +e ; return 1
+			fi
+			case "$resolveTarget" in
+				U*|W*)
+					## A party id. Hand it to the ONE DM-resolution path below,
+					## rather than opening a second one here.
+					resolveDmUser="$resolveTarget"
+					targetClass="party"
+				;;
+				D*)
+					formArgs+=( "channel=$resolveTarget" )
+					targetClass="conversation-dm"
+				;;
+				C*|G*)
+					formArgs+=( "channel=$resolveTarget" )
+					targetClass="conversation-channel"
+				;;
+				*)
+					echo "$MDSC_CMD: slack-call: ⛔ ERROR: --resolve-target: '$resolveTarget' is neither a party identifier (U/W) nor a conversation identifier (C/D/G). This op does not guess -- an id whose kind cannot be read off its own first character is a configuration defect to fix at its source, not something to fall back from." >&2
+					AgentsToolsInternOpSlackCallEmitFields not-yet-selected none
+					set +e ; return 1
+				;;
+			esac
+			local classifiedKind=""
+			case "$targetClass" in
+				party|conversation-dm) classifiedKind="dm" ;;
+				conversation-channel) classifiedKind="channel" ;;
+			esac
+			if [ -n "$targetKind" ] ; then
+				classifiedKind="$targetKind"
+			fi
+			targetKind="$classifiedKind"
+		fi
+		if [ -n "$expectCounterparty" ] ; then
+			case "$resolveTarget" in
+				?*)
+					case "$resolveTarget" in
+						U*|W*)
+							echo "$MDSC_CMD: slack-call: ⛔ ERROR: counterparty control: NOT A CONVERSATION -- '$resolveTarget' is a party identifier, and a conversation identifier (C/D/G) is required here. A party id names a person, not a channel: the send endpoint resolves one to the caller's own DM, the read endpoints do not and answer channel_not_found. Resolve the DM for this party first (--resolve-target with no control, or --resolve-dm), then run the control against the conversation id that comes back." >&2
+							AgentsToolsInternOpSlackCallEmitFields not-yet-selected none
+							set +e ; return 1
+						;;
+					esac
+				;;
+				*)
+					echo "$MDSC_CMD: slack-call: ⛔ ERROR: --expect-counterparty requires --resolve-target -- the control is defined against the target this call classifies, and has nothing to check without one." >&2
+					AgentsToolsInternOpSlackCallEmitFields not-yet-selected none
+					set +e ; return 1
+				;;
+			esac
+		fi
+		## Identity selection -- one rule, applied here for every Slack op. The member's own
+		## token is read by the side of the call (AgentsToolsCommsOwnSettingsApply).
+		local memberUserToken="" sendIdentity="bot"
+		if AgentsToolsCommsClientSide "$callerMember" ; then
+			memberUserToken="${CLIENT_SLACK_USER_TOKEN:-}"
+		else
+			memberUserToken="${SLACK_USER_TOKEN:-}"
+		fi
+		type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/settings/AgentsTools.ConfigOption.include"
+		## THE MEMBER'S USER TOKEN IS READ ONCE PER PROCESS (call-path audit row 25): the config read runs in a subshell that sources the
+		## config include, so a process that makes many Slack calls for one member keeps what it read, in memory alone. One slot, by member:
+		## a process serving another member reads again. An empty read is kept too: no token is also an answer.
+		if [ -z "$memberUserToken" ] ; then
+			if [ "${agentsSlackUserTokenMemoMember:-}" = "$callerMember" ] && [ -n "${agentsSlackUserTokenMemoSet:-}" ] ; then
+				memberUserToken="$agentsSlackUserTokenMemoValue"
+			else
+				memberUserToken="$( AgentsToolsCommsOwnSettingsApply "$callerMember" && AgentsToolsConfigOption "$callerMember" --select "$( AgentsToolsCommsClientKey "$callerMember" SLACK_USER_TOKEN )" )" || memberUserToken=""
+				agentsSlackUserTokenMemoMember="$callerMember" ; agentsSlackUserTokenMemoValue="$memberUserToken" ; agentsSlackUserTokenMemoSet="yes"
+			fi
+		fi
+		local routineAuthored="false"
+		case "$callerMember" in
+			routine-*) routineAuthored="true" ;;
+		esac
+		if [ -n "$identityOverride" ] ; then
+			if [ "$identityOverride" = "user" ] && [ -z "$memberUserToken" ] ; then
+				echo "$MDSC_CMD: slack-call: ⛔ ERROR: --identity user requested for $callerMember but no $( AgentsToolsCommsClientKey "$callerMember" SLACK_USER_TOKEN ) is configured for it$( AgentsToolsSlackSideNote "$callerMember" )" >&2
+				AgentsToolsInternOpSlackCallEmitFields not-yet-selected none
+				set +e ; return 1
+			fi
+			sendIdentity="$identityOverride"
+		elif [ "$routineAuthored" = "true" ] ; then
+			sendIdentity="bot"
+		elif [ -n "$memberUserToken" ] ; then
+			sendIdentity="user"
+		fi
+		if [ "$printActingIdentity" = "true" ] ; then
+			printf '%s\n' "$sendIdentity"
+			AgentsToolsInternOpSlackCallEmitFields "$sendIdentity" none
+			return 0
+		fi
+		local token="" botTokenSource=""
+		if [ "$sendIdentity" = "user" ] ; then
+			token="$memberUserToken"
+		else
+			## Resolved here and never re-read later -- an identity that shifts
+			## between selection and send is the defect this op exists to avoid.
+			local botTokenLine=""
+			botTokenLine="$( AgentsToolsResolveSlackBotToken "$callerMember" )" || botTokenLine=""
+			read -r botTokenSource token <<< "$botTokenLine"
+		fi
+		if [ -z "$token" ] ; then
+			echo "$MDSC_CMD: slack-call: ⛔ ERROR: no usable Slack token for identity '$sendIdentity' (member SLACK_USER_TOKEN, the member's own SLACK_BOT_TOKEN, or the team's own SLACK_BOT_TOKEN in magic-team scope)$( AgentsToolsSlackSideNote "$callerMember" )" >&2
+			AgentsToolsInternOpSlackCallEmitFields "$sendIdentity" none
+			set +e ; return 1
+		fi
+		## Token on curl's stdin, never argv -- keeps it out of ps.
+		local authHeader="Authorization: Bearer $token"
+		local failMsg="" response="" dmChannel="" responseBodyState="none" joinAttempted="false"
+		## A rate-limited call is waited out and retried, never failed at once: sweeps run
+		## unattended and fan out. The response headers land here, for Retry-After; they
+		## are the server's, never the request's, so no credential reaches this file.
+		## ONE scratch name per call, `mdat-slack-call.<pid>.<random>`, prefixes the response headers,
+		## the form values and a JSON body alike, and every file of it is removed once the call is
+		## done. The name is claimed with no process: the temp folder is made once per process, and
+		## the headers file is created under noclobber, which fails on a name another call of this
+		## process holds, so a second random is drawn. mktemp cost a subshell and two processes per
+		## call, 22 of 40 call sites being inside `$( )`.
+		local rateAttempt=0 rateAttemptMax=5 rateLimitReason="" rateVerdict=0 rateHeaderFile callDir callClobber=""
+		[ -d "$MMDAPP/.local/temp" ] || mkdir -p "$MMDAPP/.local/temp" 2> /dev/null || {
+			echo "$MDSC_CMD: slack-call: ⛔ ERROR: could not create the response-header file under $MMDAPP/.local/temp -- nothing was called" >&2
+			set +e ; return 1
+		}
+		case "$-" in *C*) callClobber="set" ;; esac
+		set -C
+		callDir="$MMDAPP/.local/temp/mdat-slack-call.$$.$RANDOM$RANDOM"
+		while ! { : > "$callDir.headers" ; } 2> /dev/null ; do
+			[ -d "$MMDAPP/.local/temp" ] || break
+			callDir="$MMDAPP/.local/temp/mdat-slack-call.$$.$RANDOM$RANDOM"
+		done
+		[ -n "$callClobber" ] || set +C
+		[ -f "$callDir.headers" ] || {
+			echo "$MDSC_CMD: slack-call: ⛔ ERROR: could not create the response-header file under $MMDAPP/.local/temp -- nothing was called" >&2
+			set +e ; return 1
+		}
+		rateHeaderFile="$callDir.headers"
+		while true ; do
+			: > "$rateHeaderFile"
+			## DM resolution under THIS identity, when the caller asked for it.
+			if [ -n "$resolveDmUser" ] ; then
+				local openResp
+				openResp="$( curl -sS --connect-timeout 10 --max-time 120 -X POST https://slack.com/api/conversations.open \
+					-H @- \
+					-H "Content-type: application/x-www-form-urlencoded" \
+					--data-urlencode "users=$resolveDmUser" <<< "$authHeader" 2>&1 )" || {
+					failMsg="conversations.open transport failure for user $resolveDmUser under $sendIdentity identity: $openResp"
+					break
+				}
+				if ! printf '%s' "$openResp" | grep -q '"ok":true' ; then
+					failMsg="conversations.open refused for user $resolveDmUser under $sendIdentity identity -- this identity cannot open that DM: $openResp"
+					break
+				fi
+				local dmChannelRc=0
+				dmChannel="$( printf '%s\n' "$openResp" | LC_ALL=C awk -v path=channel.id -v dialect=slack -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" )" || dmChannelRc=$?
+				if [ "$dmChannelRc" != "0" ] || [ -z "$dmChannel" ] ; then
+					failMsg="conversations.open returned ok:true but no usable channel.id for user $resolveDmUser (field reader rc=$dmChannelRc -- 3: that path is absent from the response, 1: the body was not a parseable API response) -- refusing to send with an empty channel id: $openResp"
+					break
+				fi
+				formArgs+=( "channel=$dmChannel" )
+			fi
+			if [ -n "$expectCounterparty" ] ; then
+				local infoResp="" actualCounterparty=""
+				infoResp="$( curl -sS --connect-timeout 10 --max-time 120 -G https://slack.com/api/conversations.info \
+					-H @- \
+					--data-urlencode "channel=$resolveTarget" <<< "$authHeader" 2>&1 )" || {
+					failMsg="counterparty control: conversations.info transport failure for conversation $resolveTarget under $sendIdentity identity: $infoResp"
+					break
+				}
+				if ! printf '%s' "$infoResp" | grep -q '"ok":true' ; then
+					failMsg="counterparty control: conversations.info could not inspect conversation $resolveTarget under $sendIdentity identity -- the control reached no verdict, which is not a pass: $infoResp"
+					break
+				fi
+				actualCounterparty="$( printf '%s\n' "$infoResp" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" \
+				-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/slack/AgentsSlackConversationCounterparty.awk" )"
+				if [ "$actualCounterparty" = "$expectCounterparty" ] ; then
+					echo "COUNTERPARTY_MATCH=$actualCounterparty" >&2
+				else
+					failMsg="counterparty control: WRONG PARTY for conversation $resolveTarget under $sendIdentity identity -- expected party $expectCounterparty, actual party ${actualCounterparty:-<none: this conversation has no single counterparty>}"
+					break
+				fi
+			fi
+			if [ -n "$fetchUrl" ] ; then
+				local fetchOut="" fetchLine=""
+				fetchOut="$( curl -sS --connect-timeout 10 --max-time 900 -L --max-redirs 5 -D "$rateHeaderFile" \
+					-H @- \
+					-o "$fetchTo" \
+					-w '%{http_code} %{size_download} %{content_type}' \
+					"$fetchUrl" <<< "$authHeader" 2>&1 )" || {
+					failMsg="raw authenticated GET transport failure under $sendIdentity identity for $fetchUrl: $fetchOut"
+					break
+				}
+				## The -w line is the last line of what curl printed: taken by the shell, no tail process (call-path audit row 24).
+				fetchLine="${fetchOut##*$'\n'}"
+				local fetchStatus="" fetchBytes="" fetchType=""
+				read -r fetchStatus fetchBytes fetchType <<< "$fetchLine"
+				printf 'FETCH_HTTP_STATUS=%s\n' "$fetchStatus" >&2
+				printf 'FETCH_BYTES=%s\n' "$fetchBytes" >&2
+				printf 'FETCH_CONTENT_TYPE=%s\n' "$fetchType" >&2
+				## The body went to the destination file, so the status alone decides.
+				rateVerdict=0
+				AgentsToolsSlackRateLimitWait "" "raw authenticated GET of $fetchUrl" "$sendIdentity" || rateVerdict=$?
+				case "$rateVerdict" in
+					0) continue ;;
+					2) failMsg="$rateLimitReason -- the file was not fetched; whatever was sent is in $fetchTo and must not be treated as file content." ; break ;;
+				esac
+				if [ "$fetchStatus" != "200" ] ; then
+					failMsg="raw authenticated GET returned HTTP $fetchStatus (not 200) under $sendIdentity identity for $fetchUrl -- the server did not hand over the file. Whatever it did send has been written to $fetchTo and must not be treated as file content."
+					break
+				fi
+				break
+			fi
+			if [ -n "$uploadFile" ] ; then
+				local uploadArgs=( -sS --connect-timeout 10 --max-time 120 -D "$rateHeaderFile" -X POST "https://slack.com/api/$apiMethod" -H @- ) uploadPair
+				## Body on stdout, the -w line last on its own -- no response file.
+				uploadArgs+=( -w '\n%{http_code} %{size_upload}' )
+				uploadArgs+=( --form "${uploadFile%%=*}=@${uploadFile#*=}" )
+				for uploadPair in ${formArgs[@]+"${formArgs[@]}"} ; do
+					uploadArgs+=( --form "$uploadPair" )
+				done
+				## `||`, not `;` -- under set -e the shell leaves before an
+				## assignment on the next line is ever reached.
+				local uploadOut="" uploadRc=0
+				uploadOut="$( curl ${uploadArgs[@]+"${uploadArgs[@]}"} <<< "$authHeader" 2>&1 )" || uploadRc=$?
+				## `not-reported` is a real state: curl writes no -w line at all when
+				## it fails before the transfer, and empty could not be told from 0.
+				local uploadStatus="not-reported" uploadBytes="not-reported"
+				local uploadLine=""
+				## The -w line is the last line of what curl printed: taken by the shell, no tail process (call-path audit row 24).
+				uploadLine="${uploadOut##*$'\n'}"
+				## Digits enumerated, never a bracket range -- see MAGIC.md.
+				case "$uploadLine" in
+					[0123456789]*" "[0123456789]*)
+						read -r uploadStatus uploadBytes <<< "$uploadLine"
+					;;
+				esac
+				## Before the rc test, so they survive the failure path too.
+				printf 'UPLOAD_HTTP_STATUS=%s\n' "$uploadStatus" >&2
+				printf 'UPLOAD_BYTES=%s\n' "$uploadBytes" >&2
+				if [ "$uploadRc" -ne 0 ] ; then
+					failMsg="$apiMethod transport failure under $sendIdentity identity: $uploadOut"
+					break
+				fi
+				## Everything but that last -w line is the response body: cut by the shell, no sed process; an output of the -w line alone is an empty body.
+				case "$uploadOut" in
+					*$'\n'*) response="${uploadOut%$'\n'*}" ;;
+					*) response="" ;;
+				esac
+			elif [ -n "$jsonBody" ] ; then
+				## The body travels in a file, never argv, which a long one outgrows; stdin is the header's.
+				response="$( bodyFile="$callDir.body"
+					printf '%s' "$jsonBody" > "$bodyFile" || exit 1
+					curl -sS --connect-timeout 10 --max-time 120 -D "$rateHeaderFile" -X POST "https://slack.com/api/$apiMethod" \
+					-H @- \
+					-H "Content-type: application/json" \
+					--data-binary "@$bodyFile" <<< "$authHeader" 2>&1 )" || {
+					failMsg="$apiMethod transport failure under $sendIdentity identity: $response"
+					## A TRANSPORT FAILURE IS RETRIED, EVERY CALL ALIKE (AgentsToolsSlackTransportRetry): a connection never made, any method;
+					## a timeout or a dropped connection, a read only, since a post may have landed.
+					if AgentsToolsSlackTransportRetry "$response" "$apiMethod" ; then failMsg="" ; continue ; fi
+					break
+				}
+			else
+				## Each value travels in its own file, never argv, which a long message outgrows.
+				## Named by the argument count at that point, which no two pairs share.
+				response="$( curlArgs=( -sS --connect-timeout 10 --max-time 120 -D "$rateHeaderFile" "https://slack.com/api/$apiMethod" -H @- )
+					for formPair in ${formArgs[@]+"${formArgs[@]}"} ; do
+						printf '%s' "${formPair#*=}" > "$callDir.form.${#curlArgs[@]}" || exit 1
+						curlArgs+=( --data-urlencode "${formPair%%=*}@$callDir.form.${#curlArgs[@]}" )
+					done
+					curl ${curlArgs[@]+"${curlArgs[@]}"} <<< "$authHeader" 2>&1 )" || {
+					failMsg="$apiMethod transport failure under $sendIdentity identity: $response"
+					## A TRANSPORT FAILURE IS RETRIED, EVERY CALL ALIKE (AgentsToolsSlackTransportRetry): a connection never made, any method;
+					## a timeout or a dropped connection, a read only, since a post may have landed.
+					if AgentsToolsSlackTransportRetry "$response" "$apiMethod" ; then failMsg="" ; continue ; fi
+					break
+				}
+			fi
+			## RATE LIMIT: waited out and retried, one rule for every branch.
+			rateVerdict=0
+			AgentsToolsSlackRateLimitWait "$response" "$apiMethod" "$sendIdentity" || rateVerdict=$?
+			case "$rateVerdict" in
+				0) continue ;;
+				2) failMsg="$rateLimitReason -- nothing was read: $response" ; break ;;
+			esac
+			## Slack answers HTTP 200 with ok:false for most real failures, so the
+			## body decides the outcome, not curl's exit status.
+			if ! printf '%s' "$response" | grep -q '"ok":true' ; then
+				if [ "$sendIdentity" = "bot" ] && [ "$joinAttempted" = "false" ] && [ -z "$resolveDmUser" ] \
+					&& printf '%s' "$response" | grep -q '"error":"not_in_channel"' ; then
+					joinAttempted="true"
+					local joinChannel="" joinPair joinResp=""
+					for joinPair in ${formArgs[@]+"${formArgs[@]}"} ; do
+						case "$joinPair" in
+							channel=*) joinChannel="${joinPair#channel=}" ;;
+						esac
+					done
+					if [ -n "$joinChannel" ] ; then
+						joinResp="$( curl -sS --connect-timeout 10 --max-time 120 -X POST "https://slack.com/api/conversations.join" \
+							-H @- \
+							-H "Content-type: application/x-www-form-urlencoded" \
+							--data-urlencode "channel=$joinChannel" <<< "$authHeader" 2>&1 )" || joinResp=""
+						echo "$MDSC_CMD: slack-call: auto-join under bot identity on channel=$joinChannel -- $joinResp" >&2
+						if printf '%s' "$joinResp" | grep -q '"ok":true' ; then
+							continue
+						fi
+					fi
+				fi
+				local okFieldRc=0
+				printf '%s\n' "$response" | LC_ALL=C awk -v path=ok -v dialect=slack -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" >/dev/null || okFieldRc=$?
+				if [ "$okFieldRc" != "0" ] ; then
+					failMsg="$apiMethod: the server answered, but not with a Slack API response (field reader rc=$okFieldRc -- 3: no top-level ok in this payload, 1: not a parseable API response), under $sendIdentity identity. This is a TRANSPORT-LAYER failure, NOT an ok:false verdict: nothing is known from it about the method, its arguments, or its target, because the method never judged them. What arrived was: $response"
+					break
+				fi
+				responseBodyState="in-diagnostic"
+				failMsg="$apiMethod returned ok:false under $sendIdentity identity: $response"
+				## A conversation that is not found may simply be one of another Slack: said with
+				## the Slack this call used and the workspace that came from.
+				case "$response" in
+					*'"error":"channel_not_found"'*|*'"error":"not_in_channel"'*)
+						failMsg="$failMsg -- THIS CALL USED $( AgentsToolsSlackWhere "$callerMember" ). A conversation of another Slack does not exist there: check which Slack the target belongs to before reading this as a bot that is not in the channel."
+					;;
+				esac
+				break
+			fi
+			break
+		done
+		rm -f "$callDir".* 2> /dev/null
+		## THE single exit path -- one failure branch, no degrade.
+		if [ -n "$failMsg" ] ; then
+			echo "$MDSC_CMD: slack-call: ⛔ ERROR: $failMsg" >&2
+			AgentsToolsInternOpSlackCallEmitFields "$sendIdentity" "$responseBodyState" "$response"
+			set +e ; return 1
+		fi
+		if [ -n "$fetchUrl" ] ; then
+			AgentsToolsInternOpSlackCallEmitFields "$sendIdentity" none
+			return 0
+		fi
+		AgentsToolsInternOpSlackCallEmitFields "$sendIdentity" on-stdout
+		## EVERY SLACK RESPONSE THAT NAMES A PERSON CARRIES WHO THEY ARE (AgentsToolsMemberSlackSenderMark): this is the one call every
+		## read goes through, so each "user" in it gains its "user_record" from the contact store here, for every operation, reader and
+		## run alike, and one with no record is recorded on contact where the rules allow. Not inside the marking itself.
+		## A reaction on the team's own post is a learning signal (AgentsToolsSlackReactionSignals), read here for every read that carries one.
+		case "$response" in *'"reactions":['*)
+			if [ -z "${MDAT_SENDER_MARKING:-}" ] ; then
+				type AgentsToolsSlackReactionSignals > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/slack/AgentsTools.SlackSenderMark.include"
+				! type AgentsToolsSlackReactionSignals > /dev/null 2>&1 || MDAT_SENDER_MARKING=1 AgentsToolsSlackReactionSignals "$response" || :
+			fi
+		;; esac
+		case "$response" in
+			*'"user":"U'*)
+				if [ -z "${MDAT_SENDER_MARKING:-}" ] ; then
+					type AgentsToolsMemberSlackSenderMark > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/slack/AgentsTools.SlackSenderMark.include"
+						printf '%s\n' "$response" | MDAT_SENDER_MARKING=1 AgentsToolsMemberSlackSenderMark
+						return 0
+				fi
+			;;
+		esac
+		printf '%s\n' "$response"
+		return 0

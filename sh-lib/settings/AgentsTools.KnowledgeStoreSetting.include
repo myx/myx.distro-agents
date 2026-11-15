@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.KnowledgeStoreSetting.include -- the read of the setting MDAT_KNOWLEDGE_STORE, which turns the knowledge
+## store (LanceDB) on. Settings concern: the installer and the knowledge store read it here, and neither owns it. The
+## setting's row is in the catalogue of the changeable settings (AgentsTools.ManagerSettings.include).
+##
+
+## The setting: on or off. The first place of its row in the catalogue that holds a value it takes (`on` or `off`), the
+## environment first, then the settings of the team; else off.
+AgentsToolsKnowledgeStoreSetting(){
+	local settingValue="${MDAT_KNOWLEDGE_STORE:-}"
+	case "$settingValue" in on|off) printf '%s\n' "$settingValue" ; return 0 ;; esac
+	type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/settings/AgentsTools.ConfigOption.include"
+	settingValue="$( AgentsToolsConfigOption magic-team --select MDAT_KNOWLEDGE_STORE 2> /dev/null < /dev/null )" || settingValue=""
+	case "$settingValue" in on|off) printf '%s\n' "$settingValue" ; return 0 ;; esac
+	printf 'off\n'
+}

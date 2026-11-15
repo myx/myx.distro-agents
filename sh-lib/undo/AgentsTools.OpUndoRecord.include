@@ -1,0 +1,92 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+## AgentsTools.OpUndoRecord.include -- the operation `--undo-record`, sourced by AgentsTools.UndoRecord.include with the operation's arguments.
+## --undo-record <kind> <target> [--from-state <state>] [--to-state <state>] [--entity <id>]
+##               [--base <file>] [--result <file>] [--session-id <id>] [--actor <member>]
+## Keeps the inverse of one act, and holds the acting run's sandbox material until the owner
+## answers. Prints `RECORDED <record-id> <state>`; rc 1 where the kind is not on the list.
+		shift
+		local undoRecKind="" undoRecTarget="" undoRecFrom="" undoRecTo="" undoRecEntity="" undoRecBase="" undoRecResult="" undoRecSession="${MDAT_SPAWN_SESSION_ID:-}" undoRecActor="${MDAT_SPAWN_AGENT:-}" undoHoldDir=""
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--from-state) undoRecFrom="${2:-}" ; shift 2 ;;
+				--to-state) undoRecTo="${2:-}" ; shift 2 ;;
+				--entity) undoRecEntity="${2:-}" ; shift 2 ;;
+				--base) undoRecBase="${2:-}" ; shift 2 ;;
+				--result) undoRecResult="${2:-}" ; shift 2 ;;
+				--session-id) undoRecSession="${2:-}" ; shift 2 ;;
+				--actor) undoRecActor="${2:-}" ; shift 2 ;;
+				--*|-) echo "⛔ ERROR: $MDSC_CMD --undo-record: invalid option: $1" >&2 ; set +e ; return 1 ;;
+				*)
+					if [ -z "$undoRecKind" ] ; then undoRecKind="$1"
+					elif [ -z "$undoRecTarget" ] ; then undoRecTarget="$1"
+					else echo "⛔ ERROR: $MDSC_CMD --undo-record: takes a kind and a target, and got a third word: $1" >&2 ; set +e ; return 1
+					fi
+					shift
+				;;
+			esac
+		done
+		if [ -z "$undoRecKind" ] || [ -z "$undoRecTarget" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --undo-record: syntax is <kind> <target> [--from-state <state>] [--to-state <state>] [--entity <id>] [--base <file>] [--result <file>]" >&2
+			echo "  kinds: $( AgentsToolsUndoKinds | LC_ALL=C cut -f1 | LC_ALL=C tr '\n' ' ' )" >&2
+			set +e ; return 1
+		fi
+		undoRecRow="$( AgentsToolsUndoKindRow "$undoRecKind" )" || undoRecRow=""
+		if [ -z "$undoRecRow" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --undo-record: $undoRecKind is no inverse of this lane, so no promise of undo is made for it. The kinds are: $( AgentsToolsUndoKinds | LC_ALL=C cut -f1 | LC_ALL=C tr '\n' ' ' )" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsAssertBareName "$undoRecSession" "--session-id" undo-record || { set +e ; return 1 ; }
+		undoRecId="undo-$( uuidgen 2> /dev/null | LC_ALL=C tr 'ABCDEF' 'abcdef' )"
+		[ "${undoRecId#undo-}" != "" ] && [ "${undoRecId#undo-}" != "$undoRecId" ] || {
+			echo "⛔ ERROR: $MDSC_CMD --undo-record: no id could be generated, so nothing is promised" >&2 ; set +e ; return 1 ; }
+		undoRecDir="${MMDAPP%/}/.local/agents/sessions/$undoRecSession/undo/$undoRecId"
+		mkdir -p "$undoRecDir" || { echo "⛔ ERROR: $MDSC_CMD --undo-record: could not keep the record" >&2 ; set +e ; return 1 ; }
+		undoHoldDir=""
+		undoRecState="$( printf '%s' "$undoRecRow" | LC_ALL=C cut -f2 )"
+		undoRecWhy="$( printf '%s' "$undoRecRow" | LC_ALL=C cut -f3 )"
+		case "$undoRecState" in
+			runnable) undoRecState=open ; undoRecWhy="" ;;
+			*) undoRecState=refused ;;
+		esac
+		## The hold is the record's own, written where a cleaner would delete: the acting run's sandbox root.
+		if [ "$undoRecState" = open ] && [ -n "${MDAT_SPAWN_SANDBOX_ROOT:-}" ] ; then
+			undoHoldDir="$MDAT_SPAWN_SANDBOX_ROOT"
+			AgentsToolsUndoHoldAdd "$undoHoldDir" "$undoRecSession" "$undoRecId" \
+				|| echo "⚠️ WARNING: $MDSC_CMD --undo-record: the record is kept, but its hold could not be written in $undoHoldDir" >&2
+		fi
+		{
+			printf 'record-id: %s\n' "$undoRecId"
+			printf 'session-id: %s\n' "$undoRecSession"
+			printf 'actor: %s\n' "${undoRecActor:-none}"
+			printf 'kind: %s\n' "$undoRecKind"
+			printf 'state: %s\n' "$undoRecState"
+			printf 'at: %s\n' "$( date -u +%Y-%m-%dT%H:%M:%SZ )"
+			printf 'target: %s\n' "$undoRecTarget"
+			[ -z "$undoRecFrom" ] || printf 'from-state: %s\n' "$undoRecFrom"
+			[ -z "$undoRecTo" ] || printf 'to-state: %s\n' "$undoRecTo"
+			[ -z "$undoRecEntity" ] || printf 'entity: %s\n' "$undoRecEntity"
+			[ -z "$undoHoldDir" ] || printf 'hold-dir: %s\n' "$undoHoldDir"
+			[ -z "$undoRecWhy" ] || printf 'why: %s\n' "$undoRecWhy"
+		} > "$undoRecDir/record" || { rm -rf "$undoRecDir" ; echo "⛔ ERROR: $MDSC_CMD --undo-record: could not write the record" >&2 ; set +e ; return 1 ; }
+		[ -z "$undoRecBase" ] || cp -p "$undoRecBase" "$undoRecDir/base" || :
+		[ -z "$undoRecResult" ] || cp -p "$undoRecResult" "$undoRecDir/result" || :
+		## An open record is a promise, and a promise nobody was asked about is none: the prompt is
+		## posted and recorded as this run's ask, and a prompt that cannot be posted takes the
+		## record and its hold away again.
+		if [ "$undoRecState" = open ] ; then
+			undoRecAsk="$( AgentsToolsUndoAskOpen "$undoRecDir" "${undoRecActor:-none}" "$undoRecSession" 2> "$undoRecDir/ask.failed" )" || undoRecAsk=""
+			if [ -z "$undoRecAsk" ] ; then
+				cat "$undoRecDir/ask.failed" >&2 2> /dev/null || :
+				[ -z "$undoHoldDir" ] || AgentsToolsUndoHoldDrop "$undoHoldDir" "$undoRecSession" "$undoRecId"
+				rm -rf "$undoRecDir"
+				echo "⛔ ERROR: $MDSC_CMD --undo-record: the act is kept and nothing is promised for it" >&2
+				set +e ; return 1
+			fi
+			rm -f "$undoRecDir/ask.failed" 2> /dev/null || :
+			AgentsToolsUndoSet "$undoRecDir" ask "$undoRecAsk" || :
+		fi
+		printf 'RECORDED %s %s\n' "$undoRecId" "$undoRecState"
+		[ "$undoRecState" != refused ] || printf '  refused: %s\n' "$undoRecWhy" >&2
+		return 0

@@ -103,15 +103,16 @@ case "$1" in
 		local colThreadPid colThreadMe colThreadLine colThreadDir="" colThreadLock="" colThreadHolder="" colThreadTookOver="" colThreadLeave=""
 		colThreadPid="$( exec sh -c 'echo "$PPID"' 2> /dev/null )" || colThreadPid=""
 		case "$colThreadPid" in ''|*[!0123456789]*) colThreadPid="" ;; esac
+		type AgentsToolsRunProcessesBegan > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunProcesses.include"
 		colThreadMe=""
-		[ -z "$colThreadPid" ] || colThreadMe="$( printf '%s\n' "$colThreadPid" | AgentsToolsRegistryProcessesBegan )" || colThreadMe=""
+		[ -z "$colThreadPid" ] || colThreadMe="$( printf '%s\n' "$colThreadPid" | AgentsToolsRunProcessesBegan )" || colThreadMe=""
 		if [ -z "$colThreadMe" ] ; then
 			echo "⛔ ERROR: $MDSC_CMD --intern-source-collect: could not read which process this is and when it began, so its lock would name nobody -- nothing was started" >&2
 			return 1
 		fi
 		## IT IS NO RUN OF A SESSION. By the one rule a run is recognised by, a command line of the tooling is none, whatever it carries.
 		colThreadLine="$( LC_ALL=C ps -ww -o args= -p "$colThreadPid" 2> /dev/null )" || colThreadLine=""
-		if [ -n "$( printf '%s %s\n' "$colThreadPid" "$colThreadLine" | AgentsToolsRegistryRunWords )" ] ; then
+		if [ -n "$( printf '%s %s\n' "$colThreadPid" "$colThreadLine" | AgentsToolsRunWords )" ] ; then
 			echo "⛔ ERROR: $MDSC_CMD --intern-source-collect: the command line of this process would read as a run of a session: start it with the tooling script as the command itself, or as the first word after its interpreter -- nothing was started" >&2
 			return 1
 		fi

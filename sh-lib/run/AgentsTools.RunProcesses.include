@@ -1,0 +1,468 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.RunProcesses.include -- how a run is recognised on this host, its processes, when they began, its process group, and whether it is alive.
+## Sourced, never run. Functions only. Each function loads what it calls itself.
+##
+
+## HOW A RUN IS RECOGNISED, the one place, by a fact of the run's own and by nothing else: its
+## own word on its own command line (here), or, where its CLI is given no such word, the
+## process its launch started, kept on its record (AgentsToolsRunRecordedAlive below).
+## Prints the ids the processes of a process list run as, one per line; stdin is
+## the list, a line a process, which may start with its pid. That word is the value of the
+## process's own --session-id argument, or of its own --resume argument -- the first of the
+## two on its line, as the launcher writes them (AgentsConsoleShellScript.template.sh): a run
+## resumed carries its id in --resume, and one resumed and forked names the session it forks
+## from there and itself in the --session-id after its --fork-session. The value is matched
+## whole by whoever compares it. Everything after it on the line, the agent definition and
+## the brief, is text: an id quoted there is no run, and neither is one standing inside
+## another word, such as the session folder path every participant's line holds, which is the
+## founding spawn's id. A command line of the team tooling itself (DistroAgentsTools.fn.sh,
+## the command or its interpreter's script) is no run either: an operation names the session
+## it works for or joins, the spawn proxy among them for as long as its member runs. The text
+## reaches awk on stdin, never through `-v`, so no backslash in it is read as an escape.
+## With one spawn id given, the pids of the processes that run as it are printed instead, a
+## line that starts with no pid giving none (AgentsToolsRunPids below); the id is
+## compared as text, and reaches awk in its environment.
+AgentsToolsRunWords(){ ## optional spawn id -- stdin: process list text
+	MDAT_REGISTRY_RUN_AS="${1:-}" LC_ALL=C awk '
+		function toolingWord( word,   parts, base ) {
+			## The tooling is the dispatcher and every tool file (sh-lib/harness/AgentsContext.FrontTable.include): a process of one is no run.
+			base = word ; if ( split( word, parts, "/" ) > 1 ) { base = parts[ split( word, parts, "/" ) ] ; }
+			return ( base ~ /^(DistroAgents[A-Za-z]*|Agent[A-Za-z]*Tools)\.fn\.sh$/ ) ;
+		}
+		function runsAs( runId ) {
+			if ( runWanted == "" ) { print runId ; }
+			else if ( ( runId "" ) == runWanted && pidWord != "" ) { print pidWord ; }
+		}
+		BEGIN { runWanted = ENVIRON["MDAT_REGISTRY_RUN_AS"] "" ; }
+		{
+			wordAt = ( $1 ~ /^[0-9]+$/ ) ? 2 : 1 ;
+			pidWord = ( wordAt == 2 ) ? $1 : "" ;
+			if ( toolingWord( $wordAt ) || toolingWord( $( wordAt + 1 ) ) ) { next ; }
+			for ( ; wordAt < NF ; wordAt++ ) {
+				if ( $wordAt == "--session-id" ) { runsAs( $( wordAt + 1 ) ) ; break ; }
+				if ( $wordAt == "--resume" ) {
+					if ( $( wordAt + 2 ) == "--fork-session" && $( wordAt + 3 ) == "--session-id" && $( wordAt + 4 ) != "" ) { runsAs( $( wordAt + 4 ) ) ; }
+					else { runsAs( $( wordAt + 1 ) ) ; }
+					break ;
+				}
+			}
+		}
+	' 2>/dev/null || :
+}
+
+## The pids of the processes of a process list that run as one spawn, by that same reading
+## and no other: for a caller that acts on the run itself. The lines of the list start with
+## their pids.
+AgentsToolsRunPids(){ ## spawn id -- stdin: process list text
+	[ -n "${1:-}" ] || return 0
+	AgentsToolsRunWords "$1"
+}
+
+## When a process of this host started, as one word; nothing when there is no such process.
+AgentsToolsRunProcessStart(){ ## pid
+	LC_ALL=C ps -o lstart= -p "$1" 2>/dev/null | LC_ALL=C awk 'NF { $1 = $1 ; gsub( / /, "_" ) ; print ; exit ; }'
+}
+
+## Whether the process a spawn record names as the one its launch started is still that same
+## process: `run-process: <pid> <start>`, written by the launcher as it starts the console
+## (AgentsToolsSpawnProxyRunRecord, AgentsTools.SpawnSandbox.include), which becomes the CLI
+## or waits for it. So a run is seen alive whatever its CLI puts on its command line, for as
+## long as its process lives. The same pid started at another time is another process. A
+## record that names none, written before launches were kept, is not alive by this: it is
+## judged by the session word alone, as before. Prints that process's pid, rc 0, while it
+## lives; nothing, rc 1, otherwise.
+AgentsToolsRunRecorded(){ ## spawn record file
+	local recordedRun recordedPid recordedStart
+	recordedRun="$( LC_ALL=C awk '
+		$0 == "---" { if ( ++fenceCount > 1 ) { exit ; } next ; }
+		fenceCount == 1 && index( $0, "run-process: " ) == 1 { print substr( $0, 14 ) ; exit ; }
+	' "$1" 2>/dev/null )" || recordedRun=""
+	recordedPid="${recordedRun%% *}" ; recordedStart="${recordedRun#* }"
+	case "$recordedPid" in ''|*[!0123456789]*) return 1 ;; esac
+	[ "$recordedStart" != "$recordedRun" ] && [ -n "$recordedStart" ] || return 1
+	[ "$( AgentsToolsRunProcessStart "$recordedPid" )" = "$recordedStart" ] || return 1
+	printf '%s\n' "$recordedPid"
+}
+
+## The same as a question alone: rc 0 while the process the record names still lives.
+AgentsToolsRunRecordedAlive(){ ## spawn record file
+	AgentsToolsRunRecorded "$1" > /dev/null
+}
+
+## WHETHER THE SHELL THAT SUPERVISES A SPAWN'S RUN STILL LIVES, asked of the spawn's own record:
+## `supervisor-process: <pid> <start>`, written beside `run-process` and by the same writer
+## (AgentsToolsSpawnProxyRunRecord, AgentsTools.SpawnSandbox.include) in the shell that
+## started the console. That shell waits on the run and, once the run has ended, resumes it
+## once for a missing handback, posts the end and closes the record, some seconds to minutes
+## later. So a run whose process is gone and whose record is still open is told apart: it is
+## being closed while that shell lives, and nobody will close it once that shell is gone.
+## The same pid begun at another time is another process, and one that has ended and is not
+## yet collected by the process that started it is none (AgentsToolsRunProcessesBegan).
+## Prints one word, rc 0 for each:
+##   alive    the process the record names is still that same process;
+##   gone     it is no process of this host any more: also what a closed record reads once
+##            its shell has ended, which is no error;
+##   unknown  nothing here can tell, and it is never read as gone: the record names none
+##            (written before the line was kept, or before its launch), names it in no form
+##            this reads, is of another host or names no host, is cut short (its frontmatter
+##            not yet whole), or is no file.
+## Whether the record is open is the caller's own question.
+AgentsToolsRunRecordedSupervisor(){ ## spawn record file
+	local supervisorHost supervisorNamed supervisorPid supervisorStart
+	supervisorHost="$( hostname -s 2>/dev/null )" || supervisorHost=""
+	[ -n "$supervisorHost" ] || supervisorHost="unknown"
+	supervisorNamed="$( MDAT_REGISTRY_THIS_HOST="$supervisorHost" LC_ALL=C awk '
+		$0 == "---" { if ( ++fenceCount > 1 ) { exit ; } next ; }
+		fenceCount != 1 { next ; }
+		index( $0, "host: " ) == 1 && ! hostSeen++ { hostNamed = substr( $0, 7 ) ; next ; }
+		index( $0, "supervisor-process: " ) == 1 && ! shellSeen++ { shellNamed = substr( $0, 21 ) ; }
+		END { if ( fenceCount > 1 && hostSeen && hostNamed == ENVIRON["MDAT_REGISTRY_THIS_HOST"] ) { print shellNamed ; } }
+	' "${1:-}" 2>/dev/null )" || supervisorNamed=""
+	supervisorPid="${supervisorNamed%% *}" ; supervisorStart="${supervisorNamed#* }"
+	case "$supervisorPid" in ''|*[!0123456789]*) printf 'unknown\n' ; return 0 ;; esac
+	case "$supervisorStart" in ''|"$supervisorNamed"|*' '*) printf 'unknown\n' ; return 0 ;; esac
+	if [ "$( printf '%s\n' "$supervisorPid" | AgentsToolsRunProcessesBegan )" = "$supervisorNamed" ] ; then
+		printf 'alive\n'
+	else
+		printf 'gone\n'
+	fi
+	return 0
+}
+
+## The spawn ids of a spawned-sessions registry that run on this host, one per line between
+## newlines. A row whose record names the process its launch started (`run-process`) runs
+## while that process lives (AgentsToolsRunRecordedAlive), and only then: a word on
+## another process's command line, such as a shell whose command text quotes the id, is no
+## run of it. A row whose record names none runs where a process of the list runs as it
+## (AgentsToolsRunWords), the list read once for every row and not by a shell match
+## per row. Of the rows found by no word, only those of this host still open are asked
+## about. An empty id is never printed; the caller matches that one itself. The records of the rows asked about are read in one pass, and every
+## process they name is asked about by one ps: the same answer, without a record and a ps for
+## every row, and the same order out.
+AgentsToolsRunningSpawns(){ ## spawned-sessions registry file, process list text
+	local runningHost runningLines runningLine runningAsked="" runningAlive="" runningNamedIds="" runningRecords="" runningId runningRecord runningNamed runningPid runningStart
+	printf '\n'
+	[ -f "$1" ] || return 0
+	runningHost="$( hostname -s 2>/dev/null )" || runningHost=""
+	[ -n "$runningHost" ] || runningHost="unknown"
+	runningLines="$( printf '%s' "$2" | AgentsToolsRunWords | LC_ALL=C awk -v thisHost="$runningHost" '
+		FILENAME == ARGV[1] { runsAs[$0] = 1 ; next ; }
+		$8 == "" { next ; }
+		( $8 in runsAs ) { print "= " $8 ; next ; }
+		$8 != "-" && $4 == thisHost && $6 != "spawn-succeeded" && $6 != "spawn-failed" && $6 != "spawn-ended-without-close" { print "? " $8 ; }
+	' - "$1" 2>/dev/null )" || runningLines=""
+	## The rows to ask a record about, both kinds, and then the records themselves, read in one pass each.
+	runningAsked="$( printf '%s\n' "$runningLines" | LC_ALL=C awk '$1 == "?" || $1 == "=" { print $2 }' )" || runningAsked=""
+	if [ -n "$runningAsked" ] ; then
+		for runningId in $runningAsked ; do
+			for runningRecord in "${MMDAPP:-/nonexistent}/.local/agents/spawned"/*/"$runningId.spawn.md" ; do
+				[ -f "$runningRecord" ] || continue
+				runningRecords="$runningRecords$runningRecord
+"
+			done
+		done
+	fi
+	if [ -n "$runningRecords" ] ; then
+		## The same reading AgentsToolsRunRecorded makes of one record: the first
+		## `run-process: <pid> <start>` line of its frontmatter, and only a pid and a start
+		## that can be the form it keeps.
+		runningNamed="$( printf '%s' "$runningRecords" | LC_ALL=C awk '
+			{
+				recordPath = $0 ; if ( recordPath == "" ) next ;
+				recordName = recordPath ; sub( /.*\//, "", recordName ) ; sub( /[.]spawn[.]md$/, "", recordName ) ;
+				fence = 0 ; recordLine = "" ; runPid = "" ; runStart = "" ;
+				while ( ( getline recordLine < recordPath ) > 0 ) {
+					if ( recordLine == "---" ) { if ( ++fence > 1 ) break ; continue ; }
+					if ( fence == 1 && index( recordLine, "run-process: " ) == 1 ) {
+						recordLine = substr( recordLine, 14 ) ;
+						runPid = recordLine ; sub( / .*$/, "", runPid ) ;
+						runStart = substr( recordLine, length( runPid ) + 2 ) ;
+						break ;
+					}
+				}
+				close( recordPath ) ;
+				if ( runPid !~ /^[0123456789]+$/ || runStart == "" ) next ;
+				print recordName, runPid, runStart ;
+			}
+		' 2> /dev/null )" || runningNamed=""
+		## Each is asked when it began by the one reading of that, so the same process begun at
+		## another time is not taken for the run, and a stand-in ps that answers it answers here.
+		while read -r runningId runningPid runningStart ; do
+			[ -n "$runningId" ] || continue
+			runningNamedIds="$runningNamedIds
+$runningId
+"
+			[ "$( AgentsToolsRunProcessStart "$runningPid" )" = "$runningStart" ] || continue
+			case "$runningAlive" in *"
+$runningId
+"*) continue ;; esac
+			runningAlive="$runningAlive$runningId
+"
+		done <<< "$runningNamed"
+		[ -z "$runningAlive" ] || runningAlive="
+$runningAlive
+"
+	fi
+	## Out in the order the rows came, as the walk this replaces printed them.
+	while IFS= read -r runningLine ; do
+		case "$runningLine" in
+			'= '*) case "$runningNamedIds" in *"
+${runningLine#'= '}
+"*) case "$runningAlive" in *"
+${runningLine#'= '}
+"*) printf '%s\n' "${runningLine#'= '}" ;; esac ;;
+				*) printf '%s\n' "${runningLine#'= '}" ;; esac ;;
+			'? '*) case "$runningAlive" in *"
+${runningLine#'? '}
+"*) printf '%s\n' "${runningLine#'? '}" ;; esac ;;
+		esac
+	done <<< "$runningLines"
+	return 0
+}
+
+## Whether one spawn runs on this host, by the same rule: where its record names the process
+## its launch started, that process still lives; where it names none, a process of this host
+## runs as it. For a caller that asks about one spawn and reads no registry; it gives the
+## record where it has it, else the record is found by the id. Whether that record is open,
+## and of this host, is the caller's own question. rc 0 running.
+AgentsToolsSpawnRuns(){ ## spawn id, its record file (may be empty)
+	local runsWords runsRecord runsNamed=""
+	[ -n "${1:-}" ] || return 1
+	for runsRecord in "${2:-}" "${MMDAPP:-/nonexistent}/.local/agents/spawned"/*/"$1.spawn.md" ; do
+		[ -n "$runsRecord" ] && [ -f "$runsRecord" ] || continue
+		! AgentsToolsRunRecordedAlive "$runsRecord" || return 0
+		! LC_ALL=C awk '$0 == "---" { if ( ++fenceCount > 1 ) { exit 1 ; } next ; } fenceCount == 1 && index( $0, "run-process: " ) == 1 { exit 0 ; } END { } ' "$runsRecord" 2>/dev/null || runsNamed="named"
+	done
+	[ -z "$runsNamed" ] || return 1
+	runsWords="$( ps -A -ww -o pid=,args= 2>/dev/null | AgentsToolsRunWords )" || runsWords=""
+	case $'\n'"$runsWords"$'\n' in *$'\n'"$1"$'\n'*) return 0 ;; esac
+	return 1
+}
+
+## THE LIVENESS OF ONE SPAWN, A CACHED READING (S23.6): one word, `alive`, `gone` or `unknown`; rc 0 for alive and gone, 2 for unknown. A run is alive while a process
+## of this host runs as it (AgentsToolsSpawnRuns); gone when none does and its record, of this host, names the process its launch started (`run-process:`);
+## unknown where nothing here can tell: no record, a record of another host, one that names no process. Unknown is never read as gone, so nothing is closed or
+## restarted on it, and never as alive, so nothing shows it running; it is not cached. alive and gone are kept in .local/agents/liveness/<spawn id> as
+## `<word> <epoch>` and served as measured for AGENTS_LIVENESS_TTL seconds (30), after which the next ask measures again. The status a record carries answers
+## one question only: whether the record is open.
+AgentsToolsLivenessOf(){ ## spawn id, its record file (may be empty)
+	type AgentsToolsSpawnRecord > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunRecords.include"
+	local liveId="${1:-}" liveRecord="${2:-}" liveFile liveWord="" liveAt="" liveAge liveTtl liveNow liveHost liveNamed liveTemp
+	case "$liveId" in ''|-|*/*|.|..) printf 'unknown\n' ; return 2 ;; esac
+	liveTtl="${AGENTS_LIVENESS_TTL:-30}"
+	case "$liveTtl" in ''|*[!0123456789]*) liveTtl=30 ;; esac
+	liveNow="$( date +%s )"
+	liveFile="${MMDAPP:-/nonexistent}/.local/agents/liveness/$liveId"
+	if [ -f "$liveFile" ] ; then
+		read -r liveWord liveAt < "$liveFile" || :
+		case "$liveAt" in ''|*[!0123456789]*) liveWord="" ;; esac
+		case "$liveWord" in
+			alive|gone)
+				liveAge=$(( liveNow - liveAt ))
+				if [ "$liveAge" -ge 0 ] && [ "$liveAge" -lt "$liveTtl" ] ; then printf '%s\n' "$liveWord" ; return 0 ; fi
+			;;
+		esac
+	fi
+	if AgentsToolsSpawnRuns "$liveId" "$liveRecord" ; then
+		liveWord=alive
+	else
+		[ -n "$liveRecord" ] && [ -f "$liveRecord" ] || liveRecord="$( AgentsToolsSpawnRecord "$liveId" )"
+		liveHost="$( hostname -s 2> /dev/null )" || liveHost=""
+		[ -n "$liveHost" ] || liveHost="unknown"
+		liveNamed=""
+		[ -z "$liveRecord" ] || liveNamed="$( MDAT_LIVE_HOST="$liveHost" LC_ALL=C awk '
+			$0 == "---" { if ( ++fenceCount > 1 ) { exit ; } next ; }
+			fenceCount != 1 { next ; }
+			index( $0, "host: " ) == 1 && ! hostSeen++ { hostNamed = substr( $0, 7 ) ; next ; }
+			index( $0, "run-process: " ) == 1 && ! runSeen++ { runNamed = substr( $0, 14 ) ; }
+			END { if ( fenceCount > 1 && hostSeen && hostNamed == ENVIRON["MDAT_LIVE_HOST"] && runNamed ~ /^[0-9]+ [^ ]+$/ ) { print "named" ; } }
+		' "$liveRecord" 2> /dev/null )" || liveNamed=""
+		[ "$liveNamed" = named ] || { printf 'unknown\n' ; return 2 ; }
+		liveWord=gone
+	fi
+	if mkdir -p "${liveFile%/*}" 2> /dev/null && liveTemp="$( mktemp "$liveFile.XXXXXX" 2> /dev/null )" ; then
+		printf '%s %s\n' "$liveWord" "$liveNow" > "$liveTemp" && mv -f "$liveTemp" "$liveFile" || rm -f "$liveTemp"
+	fi
+	printf '%s\n' "$liveWord"
+	return 0
+}
+
+## THE PROCESSES OF ONE RUN on this host, for a caller that ends the run: ONE WALK, for the
+## manager's kill and for a stop alike (AgentsTools.ManagerSession.include,
+## AgentsHarnessSessionPids of AgentsUniversalHarness.sh). First the run's own processes, by
+## the one reading above and no other: those that run as the spawn by their own word; where
+## none does, the process its record names as the one its launch started, while that is still
+## the same process. Then every process those started, to any depth, as the process list
+## stands at this moment: what a run started ends with it, its helper servers, a tool command
+## and the child of that command that hangs.
+## Never among them, though they stand under the run:
+## - a process that runs as another spawn by its own word, with what that one started:
+##   a member this run brought in is a run of its own, whoever started it;
+## - the process that started such a run, with everything else under it: that is the shell
+##   that supervises the other run, and it must live to close that run's record;
+## - the asking process and every process it descends from, with what stands under them: a
+##   command line that carries the id as the argument of an operation is that operation's
+##   caller, no run. The asking process is this one unless one is named; `-` names none, for
+##   a caller that may itself stand under the run it ends.
+## The run's own supervising shell is never reached: the walk only goes down from the run's
+## own processes, and that shell is the process that started them, above them; and it is none
+## of the run's own processes, since its command line is the tooling's, which the one reading
+## never takes for a run. No process group is read or signalled: the group of a run holds its
+## supervising shell too.
+## A process that left the run's tree before this moment, its starter gone and itself handed
+## to the first process of the host, is not found: nothing on a process says that the run
+## once started it.
+## One pid a line, the run's own first; nothing when the run has no process here.
+AgentsToolsRunProcesses(){ ## spawn id, its record file (found by the id where not given), the asking process (this one where not given; `-` for none)
+	type AgentsToolsSpawnRecord > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunRecords.include"
+	local procList procOwn procRecord="${2:-}" procAsking="${3:-$$}" procOthers="" procId
+	[ -n "${1:-}" ] || return 0
+	procList="$( ps -A -ww -o pid=,args= 2>/dev/null )" || procList=""
+	procOwn="$( printf '%s\n' "$procList" | AgentsToolsRunPids "$1" )" || procOwn=""
+	if [ -z "$procOwn" ] ; then
+		[ -n "$procRecord" ] || procRecord="$( AgentsToolsSpawnRecord "$1" )"
+		[ -n "$procRecord" ] && [ -f "$procRecord" ] || return 0
+		procOwn="$( AgentsToolsRunRecorded "$procRecord" )" || return 0
+	fi
+	## The runs of other spawns among the processes of this host, by the same reading.
+	while IFS= read -r procId ; do
+		[ -n "$procId" ] && [ "$procId" != "$1" ] || continue
+		procOthers="$procOthers $( printf '%s\n' "$procList" | AgentsToolsRunPids "$procId" | LC_ALL=C tr '\n' ' ' )"
+	done <<< "$( printf '%s\n' "$procList" | AgentsToolsRunWords | LC_ALL=C sort -u )"
+	[ "$procAsking" != "-" ] || procAsking=""
+	ps -A -o pid=,ppid= 2>/dev/null | MDAT_REGISTRY_RUN_OWN="$procOwn" MDAT_REGISTRY_RUN_OTHERS="$procOthers" LC_ALL=C awk -v askingPid="$procAsking" '
+		BEGIN {
+			ownTotal = split( ENVIRON["MDAT_REGISTRY_RUN_OWN"], ownList, /[ \n]+/ ) ;
+			for ( ownAt = 1 ; ownAt <= ownTotal ; ownAt++ ) { if ( ownList[ownAt] != "" ) { ownRun[ownList[ownAt]] = 1 ; } }
+			otherTotal = split( ENVIRON["MDAT_REGISTRY_RUN_OTHERS"], otherList, /[ \n]+/ ) ;
+			for ( otherAt = 1 ; otherAt <= otherTotal ; otherAt++ ) { if ( otherList[otherAt] != "" ) { otherRun[otherList[otherAt]] = 1 ; } }
+		}
+		{ parentOf[$1] = $2 ; pidList[++pidTotal] = $1 ; }
+		END {
+			## A run of another spawn, and the process that started it, are not entered.
+			for ( otherPid in otherRun ) {
+				notEntered[otherPid] = 1 ;
+				onePid = parentOf[otherPid] "" ;
+				if ( onePid != "" && ! ( onePid in otherRun ) && ! ( onePid in ownRun ) ) { notEntered[onePid] = 1 ; }
+			}
+			## Nor is the asking process, nor any process it descends from.
+			for ( onePid = askingPid "" ; onePid != "" && ( onePid + 0 ) > 1 && ! ( onePid in askedBy ) ; onePid = parentOf[onePid] "" ) { askedBy[onePid] = 1 ; notEntered[onePid] = 1 ; }
+			for ( ownAt = 1 ; ownAt <= ownTotal ; ownAt++ ) {
+				onePid = ownList[ownAt] ;
+				if ( onePid == "" || ( onePid in askedBy ) || ( onePid in startedBy ) ) { continue ; }
+				startedBy[onePid] = 1 ; print onePid ;
+			}
+			do {
+				grew = 0 ;
+				for ( pidAt = 1 ; pidAt <= pidTotal ; pidAt++ ) {
+					onePid = pidList[pidAt] ;
+					if ( ! ( onePid in startedBy ) && ! ( onePid in notEntered ) && ( parentOf[onePid] in startedBy ) ) { startedBy[onePid] = 1 ; print onePid ; grew = 1 ; }
+				}
+			} while ( grew ) ;
+		}
+	' || :
+	return 0
+}
+
+## Which of the processes given are processes of this host now, and when each began:
+## `<pid> <start>` a line, the start as one word, as AgentsToolsRunProcessStart gives it.
+## One that has ended and is not yet collected by the process that started it is no process
+## any more. For a caller that signalled processes and must know which are still there: the
+## same pid begun at another time is another process, and is never signalled for the first.
+AgentsToolsRunProcessesBegan(){ ## -- stdin: process ids, a line each
+	local beganPids="" beganPid
+	## Joined by the shell itself, with no process: every session control thread calls this at every tick.
+	while read -r beganPid _ || [ -n "$beganPid" ] ; do
+		case "$beganPid" in ''|*[!0123456789]*) ;; *) beganPids="${beganPids:+$beganPids,}$beganPid" ;; esac
+	done
+	[ -n "$beganPids" ] || return 0
+	LC_ALL=C ps -o pid=,stat=,lstart= -p "$beganPids" 2>/dev/null | LC_ALL=C awk '
+		NF > 2 && $2 !~ /^Z/ { beganPid = $1 ; $1 = "" ; $2 = "" ; sub( /^ +/, "" ) ; gsub( / +/, "_" ) ; print beganPid, $0 ; }
+	' || :
+	return 0
+}
+
+## THE PROCESS LIST WITH ARGUMENTS, shared: `ps -A -ww` reads the arguments of every process, the costliest read of the host, and
+## every control thread, list of sessions and ask asks it. One read serves them all for 10 s, kept in .local/temp/ps-args.txt
+## (its first line the epoch of the read). Into agentsProcessArgs. Only for telling what runs: a caller that signals reads ps itself.
+## `fresh` is that caller's: the list is read now, ignoring the one kept, and this read takes its place.
+AgentsToolsRunProcessArgs(){
+	local argsFresh="${1:-}" argsFile="${MMDAPP:-}/.local/temp/ps-args.txt" argsNow argsAt="" argsTmp=""
+	agentsProcessArgs=""
+	argsNow="$( date +%s )"
+	if [ "$argsFresh" != "fresh" ] && [ -n "${MMDAPP:-}" ] && [ -f "$argsFile" ] ; then
+		## The moment is its first line, read on its own: a whole-file `read -d ''` is a byte-at-a-time walk
+		## costing nearly the ps it spares, where `cat` reaches the same text in a quarter of the time.
+		{ IFS= read -r argsAt < "$argsFile" ; } 2> /dev/null || argsAt=""
+		case "$argsAt" in
+			''|*[!0-9]*) ;;
+			*) if [ $(( argsNow - argsAt )) -ge 0 ] && [ $(( argsNow - argsAt )) -lt 10 ] ; then
+				agentsProcessArgs="$( cat "$argsFile" 2> /dev/null )" || agentsProcessArgs=""
+				agentsProcessArgs="${agentsProcessArgs#*$'\n'}"
+				[ -n "$agentsProcessArgs" ] && return 0
+			fi ;;
+		esac
+	fi
+	agentsProcessArgs="$( ps -A -ww -o pid=,args= 2> /dev/null )" || agentsProcessArgs=""
+	[ -n "$agentsProcessArgs" ] && [ -d "${argsFile%/*}" ] || return 0
+	{ argsTmp="$( mktemp "$argsFile.XXXXXX" )" && printf '%s\n%s\n' "$argsNow" "$agentsProcessArgs" > "$argsTmp" && mv -f "$argsTmp" "$argsFile" ; } 2> /dev/null || rm -f "$argsTmp" 2> /dev/null
+	return 0
+}
+
+## THE MEMBERS OF A PROCESS GROUP THAT A KEPT PROCESS LEADS, each with when it began, for a caller
+## that ends the group by its number. `kill -- -<pid>` reaches every process of whichever group
+## has that number at that moment, so the number is the caller's only while the leader is the
+## process it kept and is still itself. The leader is given as it was kept, `<pid> <start>`, as
+## AgentsToolsRunProcessesBegan gave it when it was started. The members are read from the
+## process list first and their starts after, the leader's among them: a leader that still began
+## when it was kept lived through the first reading, so every member read then is of its group.
+## Prints them `<pid> <start>` a line, the form a process is kept in, rc 0. Prints nothing, rc 1,
+## where that pid is not that process any more, or no start was kept: the group of that number
+## is then nobody's to signal.
+AgentsToolsRunGroupBegan(){ ## the leader as it was kept, `<pid> <start>`
+	local groupLeader="${1:-}" groupPid groupStart groupMembers
+	groupPid="${groupLeader%% *}" ; groupStart="${groupLeader#* }"
+	case "$groupPid" in ''|*[!0123456789]*) return 1 ;; esac
+	case "$groupStart" in ''|"$groupLeader"|*' '*) return 1 ;; esac
+	groupMembers="$( ps -A -o pid=,pgid= 2>/dev/null | LC_ALL=C awk -v groupId="$groupPid" '$2 == groupId { print $1 ; }' | AgentsToolsRunProcessesBegan )" || groupMembers=""
+	case $'\n'"$groupMembers"$'\n' in
+		*$'\n'"$groupLeader"$'\n'*) printf '%s\n' "$groupMembers" ; return 0 ;;
+	esac
+	return 1
+}
+
+## WHAT IS LEFT OF SUCH A GROUP ONCE ITS LEADER HAS ENDED, for the caller that kept its members as
+## AgentsToolsRunGroupBegan gave them while the leader lived. The number of the group is
+## then no longer the caller's: the system may give it to another process, and as a group it
+## would be every process of a stranger's. So what is left is named one process at a time: those
+## of the kept members that are still the processes they were, and every process of that group
+## those started since, to any depth, as the process list stands at this moment. A kept pid that
+## another process has taken began at another time: it is none of them, and nothing it started
+## is. One pid a line; nothing where none is left.
+AgentsToolsRunGroupLeft(){ ## the group id, the members kept as `<pid> <start>` lines
+	local leftStill
+	[ -n "${1:-}" ] && [ -n "${2:-}" ] || return 0
+	leftStill="$( { printf '%s\n' "$2" | AgentsToolsRunProcessesBegan ; printf '=\n%s\n' "$2" ; } \
+		| LC_ALL=C awk '$0 == "=" { leftKept = 1 ; next ; } ! leftKept { leftNow[$0] = 1 ; next ; } ( $0 in leftNow ) && ! leftSaid[$0]++ { print $1 ; }' )" || leftStill=""
+	[ -n "$leftStill" ] || return 0
+	ps -A -o pid=,ppid=,pgid= 2>/dev/null | MDAT_REGISTRY_GROUP_STILL="$leftStill" LC_ALL=C awk -v groupId="$1" '
+		BEGIN {
+			stillTotal = split( ENVIRON["MDAT_REGISTRY_GROUP_STILL"], stillList, /[ \n]+/ ) ;
+			for ( stillAt = 1 ; stillAt <= stillTotal ; stillAt++ ) { if ( stillList[stillAt] != "" ) { leftOf[stillList[stillAt]] = 1 ; print stillList[stillAt] ; } }
+		}
+		{ parentOf[$1] = $2 ; groupOf[$1] = $3 ; pidList[++pidTotal] = $1 ; }
+		END {
+			do {
+				grew = 0 ;
+				for ( pidAt = 1 ; pidAt <= pidTotal ; pidAt++ ) {
+					onePid = pidList[pidAt] ;
+					if ( ! ( onePid in leftOf ) && groupOf[onePid] == groupId && ( parentOf[onePid] in leftOf ) ) { leftOf[onePid] = 1 ; print onePid ; grew = 1 ; }
+				}
+			} while ( grew ) ;
+		}
+	' || :
+	return 0
+}

@@ -24,7 +24,7 @@ rigHere="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib"
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }
-[ -f "$rigHere/member/AgentsTools.MemberWait.include" ] || rigRefuse "the wait include is missing"
+[ -f "$rigHere/wait/AgentsTools.MemberWait.include" ] || rigRefuse "the wait include is missing"
 . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-processes.include.sh" || exit 1
 . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
 rigTmp="$( rigTempDir AgentsMentionsOtherLiveSessionCheck )" || exit 1
@@ -88,7 +88,7 @@ rigProcNote "$rigPidA" ; rigStarted="$rigStarted $rigPidA" ; disown "$rigPidA" 2
 sleep 600 > /dev/null 2>&1 < /dev/null & rigPidB=$!
 rigProcNote "$rigPidB" ; rigStarted="$rigStarted $rigPidB" ; disown "$rigPidB" 2> /dev/null || :
 rigBegan(){ ## pid
-	MMDAPP="$rigDir" MDLT_ORIGIN="$MDLT_ORIGIN" bash -c ". '$rigHere/team-data/AgentsTools.Registries.include' ; printf '%s\n' '$1' | AgentsToolsRegistryProcessesBegan"
+	MMDAPP="$rigDir" MDLT_ORIGIN="$MDLT_ORIGIN" bash -c ". '$rigHere/team-data/AgentsTools.Registries.include' ; . '$rigHere/run/AgentsTools.RunProcesses.include' ; . '$rigHere/run/AgentsTools.RunState.include' ; . '$rigHere/run/AgentsTools.RunLeft.include' ; . '$rigHere/run/AgentsTools.RunRecords.include' ; printf '%s\n' '$1' | AgentsToolsRunProcessesBegan"
 }
 rigBeganA="$( rigBegan "$rigPidA" )"
 rigBeganB="$( rigBegan "$rigPidB" )"
@@ -134,7 +134,7 @@ rigProbe(){ ## session id probing
 	env -u MDAT_SESSION_THREAD -u MDAT_SPAWN_SESSION_ID -u CLAUDE_CODE_SESSION_ID -u MDAT_CONVERSATION_THREADS -u MDAT_SPAWN_AGENT \
 		MMDAPP="$rigDir" MDLT_ORIGIN="$MDLT_ORIGIN" MDAT_SESSION_ID="$1" PATH="$rigPath" \
 		RIG_MATCH_TS="$rigMatchTs" RIG_MATCH_CHANNEL="$rigMatchChannel" RIG_ROOT_TS="$rigRootTs" \
-		bash -c ". '$rigHere/member/AgentsTools.MemberWaitMentions.include' ; AgentsWaitProbeMentions rig-member rig-member $(( rigNow - 300 )) '$probeFile'" > "$probeFile.log" 2>&1
+		bash -c ". '$rigHere/wait/AgentsTools.MemberWaitMentions.include' ; AgentsWaitProbeMentions rig-member rig-member $(( rigNow - 300 )) '$probeFile'" > "$probeFile.log" 2>&1
 	cat "$probeFile" 2> /dev/null
 	rm -f "$probeFile" "$probeFile.log" "$probeFile.found" "$probeFile.err" "$probeFile.permission"
 }
@@ -178,7 +178,7 @@ echo "-- 4. one read per member: what B read is not handed to A, another session
 ## B's Wait returned the mention, so it commits it as the member's read (AgentsWaitMentionsCommit), as a Wait does.
 printf '%s\n' "$rigMatchTs" > "$rigDir/commit.newest"
 env -u MDAT_SPAWN_SESSION_ID -u CLAUDE_CODE_SESSION_ID MMDAPP="$rigDir" MDLT_ORIGIN="$MDLT_ORIGIN" MDAT_SESSION_ID=rig-sess-b \
-	bash -c ". '$rigHere/member/AgentsTools.MemberWaitMentions.include' ; AgentsWaitMentionsCommit rig-member '$rigDir/commit.newest'"
+	bash -c ". '$rigHere/wait/AgentsTools.MemberWaitMentions.include' ; AgentsWaitMentionsCommit rig-member '$rigDir/commit.newest'"
 rm -f "$rigDir/commit.newest"
 ## B's live records go, so A no longer excludes B's thread, and the check stamp alone is cleared, so A searches again: only the
 ## member's mention pointer can keep the message from it. With a pointer per session, A's own would still be behind it.

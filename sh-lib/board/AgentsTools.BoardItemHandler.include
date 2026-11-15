@@ -146,13 +146,9 @@ AgentsToolsBoardItemHandler(){ ## item file, [--at-gate]
 ##   RUNNING a round on an item is one writer: the live run of the item's owner or of one of its `participants` (a spawn record with `status: spawn-started`,
 ##   no `exit-code`, in the item's `session-id` where it names one); when none is live, magic-coordinator; any other caller is refused naming the holder.
 
-AgentsToolsBoardCallerBase(){
-	type AgentsToolsActingMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.CallerCheck.include"
-}
-
 AgentsToolsBoardHandlerSetMay(){ ## -- rc 0 may; rc 4 refused, the reason on stdout
 	local setMember setSession setRecord setRoutine=""
-	AgentsToolsBoardCallerBase
+	type AgentsToolsActingMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.CallerCheck.include"
 	setMember="$( AgentsToolsActingMember )"
 	[ -n "$setMember" ] || return 0
 	[ "$setMember" != magic-coordinator ] || return 0
@@ -173,9 +169,10 @@ AgentsToolsBoardHandlerSetMay(){ ## -- rc 0 may; rc 4 refused, the reason on std
 ## cannot be told either way (the liveness reading says unknown) still holds, since a writer must not be let in where nothing says the holder has gone.
 AgentsToolsBoardItemHoldersNotGone(){ ## stdin: `member<TAB>spawn-id<TAB>session-id` rows
 	local holdMember holdSpawn holdSession
-	type AgentsToolsLivenessOf > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include" 2> /dev/null || { cat ; return 0 ; }
+	type AgentsToolsLivenessOf > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunProcesses.include"
 	while IFS=$'\t' read -r holdMember holdSpawn holdSession ; do
 		[ -n "$holdMember" ] || continue
+		type AgentsToolsLivenessOf > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunProcesses.include"
 		[ "$( AgentsToolsLivenessOf "$holdSpawn" )" != gone ] || continue
 		printf '%s\t%s\t%s\n' "$holdMember" "$holdSpawn" "$holdSession"
 	done
@@ -189,7 +186,7 @@ AgentsToolsBoardLiveHolders(){
 	[ -n "${MMDAPP:-}" ] || return 0
 	## The started records from the kept list (AgentsToolsSpawnedStartedRecords, AgentsTools.StartedRecords.include), never every record on a board write;
 	## the awk below still reads each one's own status and exit-code, so a record closed since the list was kept is no row.
-	type AgentsToolsSpawnedStartedRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include" 2> /dev/null || :
+	type AgentsToolsSpawnedStartedRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.StartedRecords.include"
 	local holdersFiles=() holdersFile
 	while IFS= read -r holdersFile ; do
 		[ -n "$holdersFile" ] && [ -f "$holdersFile" ] || continue
@@ -226,7 +223,7 @@ AgentsToolsBoardItemHolders(){ ## item file -- the live runs of the owner and th
 
 AgentsToolsBoardItemRoundMay(){ ## item file -- rc 0 may run a round on it; rc 4 refused, the reason on stdout
 	local roundHolders roundMember roundSession roundHolder roundSpawn roundHolderSession
-	AgentsToolsBoardCallerBase
+	type AgentsToolsActingMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.CallerCheck.include"
 	roundHolders="$( AgentsToolsBoardItemHolders "$1" )"
 	roundMember="$( AgentsToolsActingMember )"
 	roundSession="$( AgentsToolsActingSession )"

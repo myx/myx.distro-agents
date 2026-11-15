@@ -514,7 +514,7 @@ case "$1" in
 		local gcIndexNames="$LF" gcHeadNames="$LF" gcItemArchived="false"
 		local gcArchivedCount=0 gcRetainedCount=0 gcSandboxCount=0 gcSandboxLog=""
 		local gcSeenCount=0 trashSeenCount=0
-		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include"
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandbox.include"
 		local gcDependedNames="$LF$LF"
 		local inboxDeletedCount=0 boardDeletedCount=0 trashDeletedCount=0
 
@@ -539,7 +539,7 @@ case "$1" in
 		## only copy left and takes the ordinary retention.
 		local gcTrashMode="" gcTrashRemote=""
 		set +e
-		type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
+		type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/settings/AgentsTools.ConfigOption.include"
 		gcTrashRemote="$( AgentsToolsConfigOption magic-team --select TEAM_DATA_GIT_REMOTE 2>/dev/null )"
 		set -e
 		if [ -n "$gcTrashRemote" ] ; then gcTrashMode="immediate" ; fi

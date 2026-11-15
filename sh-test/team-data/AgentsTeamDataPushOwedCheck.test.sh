@@ -127,7 +127,7 @@ echo "-- every sync pushes: the lock-acquire resync sends a local commit out, be
 printf 'lock side commit\n' > "$rigStore/lock-side.md"
 rigRun "$rigTmp/p4" 'AgentsToolsTeamDataCommitPaths "lock side" "$MDAT_DATA_ROOT/lock-side.md"'
 rigAssert "a local commit stands ahead of origin before the resync" "$( rigAhead )" "1"
-rigRun "$rigTmp/p5" '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.RoutineLock.include" ; AgentsToolsAdvanceCloneSync "$MDAT_DATA_ROOT" "$(cat "$MMDAPP/.local/.agents/magic-team.agent.env" | sed s/TEAM_DATA_GIT_REMOTE=//)" main ; printf "rc=%s\n" "$?"'
+rigRun "$rigTmp/p5" '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/routine/AgentsTools.RoutineLock.include" ; AgentsToolsAdvanceCloneSync "$MDAT_DATA_ROOT" "$(cat "$MMDAPP/.local/.agents/magic-team.agent.env" | sed s/TEAM_DATA_GIT_REMOTE=//)" main ; printf "rc=%s\n" "$?"'
 rigAssert "the resync succeeds and leaves nothing ahead: the commit reached origin" "$( LC_ALL=C grep -c '^rc=0$' "$rigTmp/p5" ):$( rigAhead ):$( [ "$( rigRemoteHead )" = "$( git -C "$rigStore" rev-parse HEAD )" ] && printf level || printf behind )" "1:0:level"
 rigAssert "and no debt is left" "$( [ -e "$rigOwed" ] && printf owed || printf none )" "none"
 

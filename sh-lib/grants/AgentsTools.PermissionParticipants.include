@@ -1,0 +1,207 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.PermissionParticipants.include -- who takes part in a session, who holds a permission, and which asks are open for it.
+## Sourced, never run. Functions only. Loaded by AgentsTools.InternOpPermission.include,
+## which also loads AgentsTools.PermissionHolds.include and AgentsTools.Grants.include.
+##
+
+## One ask of the permission-escalation input scan, as `## permission ask <id>` and one
+## `<field>: <value>` line each: where and when it was asked, by whom, the refused call (its
+## target natural and as its place's name:relative), why and for which task, who holds it (the
+## scan's caller first when it does, then the participants, the human-owner last), and the open
+## permission-set asks of the same item or session. Read against the ask's own workspace.
+AgentsToolsPermissionEscalationAsk(){ ## caller, workspace root, pending id, asked-at
+	type AgentsSessionThread > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+	type AgentsToolsPermissionPlaceHint > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionPlaces.include"
+	type AgentsToolsPermissionField > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionHolds.include"
+	local eaBy="$1" eaRoot="${2%/}" eaId="$3" eaAt="$4" eaFile eaLine eaOwner="" eaSession="" eaRefusal="" eaItem="" eaTaskRef="" eaReason=""
+	local eaRecord="" eaTool="" eaTarget="" eaPlace="" eaHolders="" eaSets="" eaSetFile eaSetItem eaSetSession eaSetEntries
+	eaFile="$eaRoot/.local/agents/pending/$eaId.md"
+	[ -f "$eaFile" ] || return 0
+	while IFS= read -r eaLine ; do
+		case "$eaLine" in
+			'owner: '*) eaOwner="${eaLine#owner: }" ;;
+			'session-id: '*) eaSession="${eaLine#session-id: }" ;;
+			'refusal-id: '*) eaRefusal="${eaLine#refusal-id: }" ;;
+			'item: '*) eaItem="${eaLine#item: }" ;;
+			'task-ref: '*) eaTaskRef="${eaLine#task-ref: }" ;;
+			'reason: '*) eaReason="${eaLine#reason: }" ;;
+			'# '*) break ;;
+		esac
+	done < "$eaFile"
+	case "$eaSession:$eaRefusal" in
+		*/*|*:|:*) ;;
+		*) eaRecord="$eaRoot/.local/agents/sessions/$eaSession/$eaRefusal.md" ;;
+	esac
+	if [ -n "$eaRecord" ] && [ -f "$eaRecord" ] ; then
+		eaTool="$( AgentsToolsPermissionField "$eaRecord" tool )"
+		eaTarget="$( AgentsToolsPermissionRecordDecode "$( AgentsToolsPermissionField "$eaRecord" target )" )"
+		eaPlace="$( AgentsToolsPermissionPlaceHint "$eaTarget" )"
+		## Holds and holders in the ask's own workspace: its session stores and its grants index.
+		eaHolders="$( MMDAPP="$eaRoot"
+			eaLine="$( AgentsToolsPermissionHolds "$eaBy" "$eaTool" "$eaTarget" "$eaSession" 2> /dev/null )" && printf '%s %s\n' "$eaBy" "${eaLine%% *}"
+			AgentsToolsPermissionHolders "$eaTool" "$eaTarget" "$eaSession" "$eaItem" "$eaBy $eaOwner" 2> /dev/null
+		)"
+		eaHolders="$( printf '%s\n' "$eaHolders" | LC_ALL=C awk 'NF { printf "%s%s", ( n++ ? ", " : "" ), $0 ; }' )"
+	fi
+	for eaSetFile in "$eaRoot/.local/agents/pending"/*.set ; do
+		[ -f "$eaSetFile" ] && [ -f "${eaSetFile%.set}.md" ] || continue
+		[ "$( AgentsToolsPermissionField "${eaSetFile%.set}.md" status )" = "reply-pending" ] || continue
+		eaSetItem="" ; eaSetSession="" ; eaSetEntries=""
+		while IFS= read -r eaLine ; do
+			case "$eaLine" in
+				'item: '*) eaSetItem="${eaLine#item: }" ;;
+				'session-id: '*) eaSetSession="${eaLine#session-id: }" ;;
+				'entry: '*) eaSetEntries="${eaSetEntries:+$eaSetEntries, }${eaLine#entry: }" ;;
+			esac
+		done < "$eaSetFile"
+		{ [ -n "$eaItem" ] && [ "$eaSetItem" = "$eaItem" ] ; } || { [ -n "$eaSession" ] && [ "$eaSetSession" = "$eaSession" ] ; } || continue
+		eaSetFile="${eaSetFile##*/}"
+		eaSets="${eaSets:+$eaSets; }${eaSetFile%.set} ($eaSetEntries)"
+	done
+	printf '\n## permission ask %s\n\n' "$eaId"
+	printf 'workspace: %s\n' "$eaRoot"
+	printf 'asked-at: %s\n' "${eaAt:-unknown}"
+	printf 'member: %s\n' "${eaOwner:-unknown}"
+	printf 'session: %s\n' "${eaSession:-none}"
+	printf 'refusal: %s\n' "${eaRefusal:-none}"
+	if [ -n "$eaTool" ] ; then
+		printf 'tool: %s\n' "$eaTool"
+		printf 'target: %s\n' "$eaTarget"
+		printf 'place: %s\n' "${eaPlace:--}"
+	else
+		printf 'tool: unknown -- the refusal record is not in this workspace\n'
+	fi
+	printf 'reason: %s\n' "${eaReason:-none given}"
+	printf 'task-ref: %s\n' "${eaTaskRef:-none given}"
+	printf 'item: %s\n' "${eaItem:-none}"
+	printf 'holders: %s\n' "${eaHolders:-unknown}"
+	printf 'set-requests: %s\n' "${eaSets:-none}"
+}
+
+## Who holds one permission among a session's and a task's participants, one
+## `HOLDER: <member> <layer>` line each, `HOLDER: human-owner human-owner` always last.
+AgentsToolsPermissionHoldersPrint(){ ## <tool> <target> [--session-id <id>] [--task <item>] [--exclude <member>]...
+	type AgentsToolsPermissionHolders > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionHolds.include"
+	local MDSC_CMD='DistroAgentsTools permission-holders'
+	local holdersTool="${1:-}" holdersTarget="${2:-}" holdersSession="" holdersTask="" holdersExclude="" holdersLine
+	shift 2 2>/dev/null || shift $#
+	while [ $# -gt 0 ] ; do
+		case "$1" in
+			--session-id) holdersSession="${2:-}" ; shift 2 ;;
+			--task) holdersTask="${2:-}" ; shift 2 ;;
+			--exclude) holdersExclude="$holdersExclude ${2:-}" ; shift 2 ;;
+			*)
+				echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
+				set +e ; return 1
+			;;
+		esac
+	done
+	if [ -z "$holdersTool" ] ; then
+		echo "$MDSC_CMD: ⛔ ERROR: syntax is <tool> <target> [--session-id <id>] [--task <item>] [--exclude <member>]..." >&2
+		set +e ; return 1
+	fi
+	AgentsToolsAssertBareName "$holdersTool" "<tool>" permission-holders || { set +e ; return 1 ; }
+	while IFS= read -r holdersLine ; do
+		[ -z "$holdersLine" ] || printf 'HOLDER: %s\n' "$holdersLine"
+	done <<< "$( AgentsToolsPermissionHolders "$holdersTool" "$holdersTarget" "$holdersSession" "$holdersTask" "$holdersExclude" )"
+	return 0
+}
+
+## The members taking part in a coworking session NOW, one per line: the owner of every spawn
+## of it whose process is alive on this host (the spawned-sessions render, state running).
+## Who can be reached there: a member with no live run in the session sees nothing that is
+## posted in it, so nothing is sent up to it and nothing counts as held by it.
+AgentsToolsPermissionSessionRunning(){ ## session id (a spawn's own, or the coworking session's)
+	type AgentsSessionThread > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+	local runCow
+	type AgentsToolsPermissionShareStore > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionHolds.include"
+	type AgentsToolsRegistryMeasureRows > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.RegistrySpawnedSessions.include"
+	runCow="$( AgentsToolsPermissionShareStore "${1:-}" )"
+	[ -n "$runCow" ] || return 0
+	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandbox.include"
+	type AgentsToolsSpawnedRegistryFile > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.StartedRecords.include"
+	## The registry as it stands (AgentsToolsSpawnedRegistryFile), measured for this session's rows: this
+	## runs on each ask routed, so it never rebuilds the registry from every record itself. The measure is
+	## the render's own (AgentsToolsRegistryMeasureRows): one process list, live is never stored.
+	local runRegistry measuredRows="" measuredDated="" measuredAny="false"
+	runRegistry="$( AgentsToolsSpawnedRegistryFile )"
+	[ -n "$runRegistry" ] || return 0
+	AgentsToolsRegistryMeasureRows "$runRegistry" "" "$runCow"
+	## An agent-less parent runs no member: its owner is not running there by it.
+	printf '%s\n' "$measuredRows" | LC_ALL=C awk -v cow="$runCow" '
+		NF == 13 && $2 == cow && $12 == "running" { print $1 "\t" $8 "\t" $5 ; }' \
+	| while IFS=$'\t' read -r runTracking runSpawn runOwner ; do
+		[ "$( AgentsToolsSpawnSandboxRecordHeader "$MMDAPP/.local/agents/spawned/$runTracking/$runSpawn.spawn.md" agent-less )" != true ] || continue
+		printf '%s\n' "$runOwner"
+	done | LC_ALL=C awk '! seen[$0]++'
+}
+
+## The open asks that would allow one call of one member, their ids one per line: a permission
+## set still open that names the member among its participants, is for the member's coworking
+## session (or names none) and holds an entry that covers this target and speaks for this tool
+## -- its own tool, or a read where it is to Edit or Write, as the grant it becomes does
+## (AgentsToolsGrantsToolCovers, never the other way); and the member's own open permission
+## question about this very call in this session.
+AgentsToolsPermissionOpenAsks(){ ## member, session id, tool, natural target
+	type AgentsSessionThread > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+	local oaMember="$1" oaSession="$2" oaTool="$3" oaTarget="$4" oaFile oaId oaKind oaLine oaCow oaSetSession oaParts oaHit oaEntry oaRefusal oaRecord oaAskTool oaAskTarget
+	type AgentsToolsPermissionShareStore > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionHolds.include"
+	type AgentsToolsGrantsToolCovers > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.Grants.include"
+	oaCow="$( AgentsToolsPermissionShareStore "$oaSession" )"
+	while IFS= read -r oaFile ; do
+		[ -n "$oaFile" ] && [ -f "$oaFile" ] || continue
+		oaId="${oaFile##*/}" ; oaId="${oaId%.md}"
+		oaKind="$( AgentsToolsPermissionField "$oaFile" kind )"
+		case "$oaKind" in
+			permission-set)
+				[ -f "${oaFile%.md}.set" ] || continue
+				oaSetSession="" ; oaParts="" ; oaHit=""
+				while IFS= read -r oaLine ; do
+					case "$oaLine" in
+						'session-id: '*) oaSetSession="${oaLine#session-id: }" ;;
+						'participants: '*) oaParts=" ${oaLine#participants: } " ;;
+						'entry: '*)
+							oaEntry="${oaLine#entry: }"
+							AgentsToolsGrantsToolCovers "${oaEntry%%:*}" "$oaTool" || continue
+							case "$oaEntry" in *:*) oaEntry="${oaEntry#*:}" ;; *) oaEntry="" ;; esac
+							[ "$oaEntry" = "$oaTarget" ] || AgentsToolsPermissionCovers "$oaEntry" "$oaTarget" || continue
+							oaHit=1
+						;;
+					esac
+				done < "${oaFile%.md}.set"
+				[ -n "$oaHit" ] || continue
+				case "$oaParts" in *" $oaMember "*) ;; *) continue ;; esac
+				[ -z "$oaSetSession" ] || [ "$( AgentsToolsPermissionShareStore "$oaSetSession" )" = "$oaCow" ] || continue
+				printf '%s\n' "$oaId"
+			;;
+			permission)
+				[ "$( AgentsToolsPermissionField "$oaFile" owner )" = "$oaMember" ] && [ "$( AgentsToolsPermissionField "$oaFile" session-id )" = "$oaSession" ] || continue
+				oaRefusal="$( AgentsToolsPermissionField "$oaFile" refusal-id )"
+				case "$oaRefusal" in ''|*/*) continue ;; esac
+				oaRecord="$MMDAPP/.local/agents/sessions/$oaSession/$oaRefusal.md"
+				[ -f "$oaRecord" ] || continue
+				oaAskTool="$( AgentsToolsPermissionField "$oaRecord" tool )"
+				oaAskTarget="$( AgentsToolsPermissionRecordDecode "$( AgentsToolsPermissionField "$oaRecord" target )" )"
+				[ "$oaAskTool" = "$oaTool" ] && [ "$oaAskTarget" = "$oaTarget" ] || continue
+				printf '%s\n' "$oaId"
+			;;
+		esac
+	done <<< "$( LC_ALL=C grep -l -x -F 'status: reply-pending' "$MMDAPP/.local/agents/pending"/*.md 2> /dev/null )"
+}
+
+## The thread of a coworking session, `<channel>:<ts>`, or nothing: the one its starter's
+## spawn record names, else the session's own record of it (sessions/<id>/session.thread).
+AgentsToolsPermissionSessionThread(){ ## session id (a spawn's own, or the coworking session's)
+	type AgentsSessionThread > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+	type AgentsToolsPermissionSetSpawnHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionSetPost.include"
+	local threadCow threadIs=""
+	type AgentsToolsPermissionShareStore > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionHolds.include"
+	threadCow="$( AgentsToolsPermissionShareStore "${1:-}" )"
+	[ -n "$threadCow" ] || return 0
+	threadIs="$( AgentsToolsPermissionSetSpawnHeader "$threadCow" "" session-thread )"
+	[ -n "$threadIs" ] || threadIs="$( AgentsSessionThread "$threadCow" )" || threadIs=""
+	case "$threadIs" in ?*:?*) printf '%s' "$threadIs" ;; esac
+}

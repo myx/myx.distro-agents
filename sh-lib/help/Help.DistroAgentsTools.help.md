@@ -84,7 +84,7 @@
 📘 syntax: DistroAgentsTools.fn.sh --client-comms-slack-edit-message [--team-member <team-member>] <channel>:<ts> [--identity-bot] (<text...>|--from-stdin|--from-file <path>)
 📘 syntax: DistroAgentsTools.fn.sh --client-comms-slack-file-info [--team-member <team-member>] <file-id> [--identity-bot] [--raw]
 📘 syntax: DistroAgentsTools.fn.sh --client-comms-slack-file-fetch [--team-member <team-member>] <file-id> <destination-path> [--identity-bot] [--overwrite]
-📘 syntax: DistroAgentsTools.fn.sh --client-comms-slack-file-share [--team-member <team-member>] (<conversation-id>|<channel>:<ts>) (--from-file <path>|--from-stdin) [--snippet-type <v>] [--title <v>] [--comment <text>] [--identity-bot]
+📘 syntax: DistroAgentsTools.fn.sh --client-comms-slack-file-share [--team-member <team-member>] (<conversation-id>|<channel>:<ts>) (--from-stdin|--from-file <path>) [--snippet-type <v>] [--title <v>] [--comment <text>] [--identity-bot]
 📘 syntax: DistroAgentsTools.fn.sh --client-comms-slack-profile-get [--team-member <team-member>] [--raw]
 📘 syntax: DistroAgentsTools.fn.sh --client-comms-slack-profile-set [--team-member <team-member>] {--display-name <v>|--title <v>|--status-text <v>|--status-emoji <v>|--status-expiry <ts>|--email <address>|--avatar <path>|--presence (auto|away)|--snooze <minutes>|--snooze-end}
 📘 syntax: DistroAgentsTools.fn.sh --client-comms-slack-presence-keep [--team-member <team-member>] [--ttl <seconds>]
@@ -963,7 +963,7 @@
 		--client-comms-slack-edit-message [--team-member <team-member>] <channel>:<ts> [--identity-bot] (<text...>|--from-stdin|--from-file <path>)
 		--client-comms-slack-file-info [--team-member <team-member>] <file-id> [--identity-bot] [--raw]
 		--client-comms-slack-file-fetch [--team-member <team-member>] <file-id> <destination-path> [--identity-bot] [--overwrite]
-		--client-comms-slack-file-share [--team-member <team-member>] (<conversation-id>|<channel>:<ts>) (--from-file <path>|--from-stdin) [--snippet-type <v>] [--title <v>] [--comment <text>] [--identity-bot]
+		--client-comms-slack-file-share [--team-member <team-member>] (<conversation-id>|<channel>:<ts>) (--from-stdin|--from-file <path>) [--snippet-type <v>] [--title <v>] [--comment <text>] [--identity-bot]
 		--client-comms-slack-profile-get [--team-member <team-member>] [--raw]
 		--client-comms-slack-profile-set [--team-member <team-member>] {--display-name <v>|--title <v>|--status-text <v>|--status-emoji <v>|--status-expiry <ts>|--email <address>|--avatar <path>|--presence (auto|away)|--snooze <minutes>|--snooze-end}
 			Runs only as a `client-*` member, on the side of the
@@ -2529,9 +2529,12 @@
 		--upsert-vault-decision-record [--team-member <team-member>] <item-name> [--edit-patch-from-stdin|--from-file <path>|--upsert-from-stdin]
 		--upsert-vault-verbatim-record [--team-member <team-member>] <item-name> [--edit-patch-from-stdin|--from-file <path>|--upsert-from-stdin]
 		--upsert-vault-epic-blueprint [--team-member <team-member>] <item-name> [--edit-patch-from-stdin|--from-file <path>|--upsert-from-stdin]
+		--upsert-vault-planning [--team-member <team-member>] <item-name> [--edit-patch-from-stdin|--from-file <path>|--upsert-from-stdin]
+		--upsert-vault-tracking [--team-member <team-member>] <item-name> [--edit-patch-from-stdin|--from-file <path>|--upsert-from-stdin]
 			Writes a vault document of one contract: `investigation-*` (vault-item.investigation-report),
-			`adr-*` (vault-item.decision-record), `verbatim-record-*` (vault-item.verbatim-record) or
-			`epic-blueprint-*` (vault-item.epic-blueprint). The name must
+			`adr-*` (vault-item.decision-record), `verbatim-record-*` (vault-item.verbatim-record),
+			`epic-blueprint-*` (vault-item.epic-blueprint), `planning-*` (vault-item.planning) or
+			`tracking-*` (vault-item.tracking). The name must
 			start with that contract's type word. A new document gets `type`, `from`, `date` and
 			`document-contract` where it names none. The document is checked against its contract, and
 			a fault the contract refuses on stops the write.

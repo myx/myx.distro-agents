@@ -1,0 +1,66 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+## AgentsTools.InternOpAtlassianJiraIssueSearch.include -- the operation `--intern-op-atlassian-jira-issue-search`, sourced by AgentsTools.InternOpAtlassianCall.include with the operation's arguments.
+## One Jira issue search. Full impl: every flag a caller may need, none
+## hardcoded -- the coordinator's and the --client-* stubs forward their own argv here
+## unchanged, after inserting --member.
+	type AgentsToolsAtlassianCall > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/atlassian/AgentsTools.AtlassianRequest.include"
+		shift
+		local jiraSearchMember="" jiraSearchJql="" jiraSearchLimit="" jiraSearchContext="intern-op-atlassian-jira-issue-search"
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--member|--jql|--limit|--context)
+					if [ -z "${2:-}" ] ; then
+						printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraSearchContext: $1 value missing" >&2
+						set +e ; return 1
+					fi
+					case "$1" in
+						--member)  jiraSearchMember="$2" ;;
+						--jql)     jiraSearchJql="$2" ;;
+						--limit)   jiraSearchLimit="$2" ;;
+						--context) jiraSearchContext="$2" ;;
+					esac
+					shift 2
+				;;
+				*)
+					printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraSearchContext: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		if [ -z "$jiraSearchMember" ] || [ -z "$jiraSearchJql" ] ; then
+			printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraSearchContext: syntax is --member <team-member> --jql <jql> [--limit <n>] [--context <caller>] -- the acting member is required, since a search returns only what that identity can see. Jira refuses an unrestricted query, so the JQL names at least one restriction: project = DATA ORDER BY updated DESC" >&2
+			set +e ; return 1
+		fi
+		[ -n "$jiraSearchLimit" ] || jiraSearchLimit=25
+		local jiraSearchPath="/rest/api/3/search/jql?jql=$( AgentsToolsAtlassianUrlEncode "$jiraSearchJql" )&maxResults=$( AgentsToolsAtlassianUrlEncode "$jiraSearchLimit" )&fields=$( AgentsToolsAtlassianUrlEncode "summary,status,issuetype,assignee,updated" )"
+		local jiraSearchBody jiraSearchRc=0
+		jiraSearchBody="$( AgentsToolsAtlassianCall "$jiraSearchMember" jira GET "$jiraSearchPath" "$jiraSearchContext" "" )" || jiraSearchRc=$?
+		if [ "$jiraSearchRc" -ne 0 ] ; then
+			set +e ; return "$jiraSearchRc"
+		fi
+		local jiraSearchRows jiraSearchRowsRc=0
+		jiraSearchRows="$( printf '%s\n' "$jiraSearchBody" | LC_ALL=C awk -v array=issues -v want='key,fields.issuetype.name,fields.status.name,fields.assignee.displayName,fields.updated,fields.summary' -v mode=records -v dialect=atlassian -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" )" || jiraSearchRowsRc=$?
+		if [ "$jiraSearchRowsRc" -ne 0 ] ; then
+			printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraSearchContext: issues array unreadable" >&2
+			set +e ; return 3
+		fi
+		printf 'ISSUE_KEY\tTYPE\tSTATUS\tASSIGNEE\tUPDATED\tSUMMARY\n'
+		[ -z "$jiraSearchRows" ] || printf '%s\n' "$jiraSearchRows"
+		if [ -z "$jiraSearchRows" ] ; then
+			printf '%s\n' "# $jiraSearchContext: the query ran and matched nothing. Jira answers an unresolvable or malformed query with an empty page rather than an error, so this does NOT establish that no issue matches what you meant: re-check the query itself. The JQL as sent: $jiraSearchJql" >&2
+		fi
+		local jiraSearchIsLast="$( printf '%s\n' "$jiraSearchBody" | LC_ALL=C awk -v path=isLast -v optional=1 -v dialect=atlassian -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" 2>/dev/null )"
+		case "$jiraSearchIsLast" in
+			true)
+				printf '%s\n' "# $jiraSearchContext: more: no -- the site reported isLast=true, so the issues above are the complete set this query matched for $jiraSearchMember" >&2
+			;;
+			false)
+				printf '%s\n' "# $jiraSearchContext: more: yes -- MORE ISSUES MATCH beyond this page and were not read. This endpoint returns no total, so how many is unknown; raise --limit or narrow the query" >&2
+			;;
+			*)
+				printf '%s\n' "# $jiraSearchContext: more: unknown -- this response carried no isLast field, so whether more issues match cannot be told from it. That is NOT a confirmation that the page is complete" >&2
+			;;
+		esac
+		return 0

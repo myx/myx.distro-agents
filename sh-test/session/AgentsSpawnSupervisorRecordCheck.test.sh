@@ -4,7 +4,7 @@
 ## waits on the run, resumes it once for a missing handback, posts the end and closes the record. The record names
 ## that shell beside the run's own process, `supervisor-process: <pid> <start>` in the form of `run-process`,
 ## written by the one writer of both (AgentsToolsSpawnProxyRunRecord, AgentsTools.SpawnSandbox.include), and one
-## function says whether it still lives (AgentsToolsRegistryRecordedSupervisor, AgentsTools.Registries.include):
+## function says whether it still lives (AgentsToolsRunRecordedSupervisor, run/AgentsTools.RunProcesses.include):
 ## alive, gone or unknown, one word, rc 0 for each.
 ## Held:
 ##   1. A START THAT DOES NOT WAIT. The record names the process the proxy started for the run (PID= of its
@@ -182,9 +182,9 @@ rigEnv(){ ## scenario folder, command...
 rigAsk(){ ## record file
 	( cd "$rigWs" && rigEnv "$rigTmp" bash -c '
 		. "$1" 2> /dev/null
-		askWord="$( AgentsToolsRegistryRecordedSupervisor "$2" )"
+		askWord="$( AgentsToolsRunRecordedSupervisor "$2" )"
 		printf "%s rc=%s" "$askWord" "$?"
-	' rig-ask "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include" "$1" 2>> "$rigTmp/ask.err" )
+	' rig-ask "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunProcesses.include" "$1" 2>> "$rigTmp/ask.err" )
 }
 rigAskErrors(){ LC_ALL=C awk 'END { print NR + 0 }' "$rigTmp/ask.err" ; }
 rigRunKept(){ [ -n "$( rigHeader "$rigRecord" run-process )" ] ; }
@@ -368,7 +368,7 @@ rigUnit raced "host: $rigHost" > /dev/null
 		return "$awkRc"
 	}
 	MDAT_SPAWN_SANDBOX_ROOT="$RIG_TMP/unit" MDAT_SPAWN_SESSION_ID=raced AgentsToolsSpawnProxyRunRecord "$$"
-' rig-raced "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include" "$rigLib/session/AgentsTools.SpawnSandbox.include" 2>> "$rigTmp/ask.err" )
+' rig-raced "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include" "$rigLib/spawn/AgentsTools.SpawnSandbox.include" 2>> "$rigTmp/ask.err" )
 rigAssert "control: the close was put in place while the launch wrote, once" "$( [ -e "$rigTmp/unit/raced.once" ] && printf once || printf never )" "once"
 rigAssert "the record keeps that close, and names the process the launch kept" "$( rigHeader "$rigTmp/unit/raced.spawn.md" status ) $( rigNames "$rigTmp/unit/raced.spawn.md" run-process )" "spawn-ended-without-close 1"
 

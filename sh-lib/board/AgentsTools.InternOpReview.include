@@ -80,6 +80,7 @@ case "$1" in
 				[ "$reviewWho" = magic-coordinator ] || { echo "$MDSC_CMD: ⛔ ERROR: runs only as magic-coordinator, and $reviewWho is not it" >&2 ; set +e ; return 1 ; }
 			;;
 			--request-review)
+				type AgentsToolsDecisionsItemPath > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemDecisions.include"
 				if reviewPath="$( AgentsToolsDecisionsItemPath "$reviewItem" )" && ! AgentsToolsItemIsOwnerOrParent "$reviewPath" "$reviewWho" ; then
 					echo "$MDSC_CMD: ⛔ ERROR: $reviewWho is neither the owner of ${reviewItem%.md} nor the session that spawned it, so it cannot ask for its review" >&2
 					set +e ; return 1
@@ -87,7 +88,7 @@ case "$1" in
 			;;
 			--accept-review|--return-review|--reject-review|--follow-up-review)
 				if [ "$reviewWho" != magic-coordinator ] && reviewPath="$( AgentsToolsDecisionsItemPath "$reviewItem" )" && ! AgentsToolsItemIsReviewer "$reviewPath" "$reviewWho" ; then
-					type AgentsToolsItemReviewer > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include"
+					type AgentsToolsItemReviewer > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemReviewer.include"
 					reviewPath="$( AgentsToolsItemReviewer "$reviewPath" )"
 					echo "$MDSC_CMD: ⛔ ERROR: ${reviewItem%.md} is reviewed by ${reviewPath:-magic-coordinator}, and $reviewWho is not that reviewer here, so it gives no verdict on it (magic-coordinator, reviewer of last resort, gives it on any item with $reviewOp)" >&2
 					set +e ; return 1

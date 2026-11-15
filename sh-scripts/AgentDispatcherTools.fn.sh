@@ -40,12 +40,12 @@ AgentDispatcherToolsMoved(){
 	case "$1" in
 
 		--advance-sleep-run)
-			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.MagicAdvance.include"
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.BoardAdvance.include"
 			return $?
 		;;
 
 		--client-operation-run)
-			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.MagicClient.include"
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/client/AgentsTools.ClientOperationRun.include"
 			return $?
 		;;
 
@@ -60,7 +60,7 @@ AgentDispatcherToolsMoved(){
 		;;
 
 		--grooming-lock-refresh)
-			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.MagicGrooming.include"
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.BoardGrooming.include"
 			return $?
 		;;
 
@@ -75,25 +75,25 @@ AgentDispatcherToolsMoved(){
 		;;
 
 		--roster-upsert)
-			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.MagicTeamRoster.include"
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamRoster.include"
 			return $?
 		;;
 
 		## One session spawned, through DistroAgentsDispatcher --spawn-session; a root-harness session names its place (gate in AgentDispatcherTools below).
 		--spawn-run)
-			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.CoordinatorSpawn.include"
+			type AgentsToolsCoordinatorSpawn > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.CoordinatorSpawn.include"
 			AgentsToolsCoordinatorSpawn "$@"
 			return $?
 		;;
 
 		## The epic reads (S17.4): an epic vault item or a plain epic file, read by any member with no ask.
 		--epic-read|--epic-list)
-			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.MagicEpic.include"
+			type AgentsToolsMagicEpicFeatureCount > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.MagicEpic.include"
 			return $?
 		;;
 
 		--sweep-state-advance|--sweep-state-read|--sweep-state-upsert)
-			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.MagicSweep.include"
+			type AgentsMagicSweepStateWatermark > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.MagicSweep.include"
 			return $?
 		;;
 
@@ -116,7 +116,7 @@ AgentDispatcherTools(){
 	type AgentsToolsFrontKnows > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.FrontTable.include"
 	## A spawn names its place before the common options take --select-workspace out and run the call again in it.
 	if [ "${1:-}" = "--spawn-run" ] && [ -z "${agentsCommonFronted:-}" ] ; then
-		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.CoordinatorSpawn.include"
+		type AgentsToolsCoordinatorSpawnGate > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.CoordinatorSpawn.include"
 		AgentsToolsCoordinatorSpawnGate "$@" || { set +e ; return 1 ; }
 	fi
 	if AgentsToolsFrontKnows AgentDispatcherTools "$@" ; then
@@ -138,7 +138,7 @@ AgentDispatcherTools(){
 	. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.FrontDoor.include"
 	[ -z "$frontDone" ] || return "$frontRc"
 	. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.UseAgentsTools.include"
-	type AgentsToolsSurfaceStanding > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.CoordinatorSurface.include"
+	type AgentsToolsSurfaceCaller > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.CoordinatorSurface.include"
 	case "$1" in
 
 		## [--active|--waiting|--all]: the runs, the Dispatcher's rows.
@@ -179,7 +179,7 @@ AgentDispatcherTools(){
 		--supervise-scan)
 			shift
 			AgentsToolsSurfaceCaller --supervise-scan read || return 1
-			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SuperviseScan.include"
+			type AgentsToolsSuperviseScan > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/supervise/AgentsTools.SuperviseScan.include"
 			local scanFound scanRc=0
 			scanFound="$( AgentsToolsSuperviseScan "$@" )" || scanRc=$?
 			## AN EMPTY SCAN SAYS SO: no finding is a result, and a blank would read as a failure.
@@ -192,7 +192,7 @@ AgentDispatcherTools(){
 		--supervise-resume)
 			shift
 			AgentsToolsSurfaceCaller --supervise-resume write || return 1
-			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SuperviseResume.include"
+			type AgentsToolsSuperviseResume > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/supervise/AgentsTools.SuperviseResume.include"
 			AgentsToolsSuperviseResume "$@"
 			return $?
 		;;
@@ -201,7 +201,7 @@ AgentDispatcherTools(){
 		--supervise-read)
 			shift
 			AgentsToolsSurfaceCaller --supervise-read read || return 1
-			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SuperviseRead.include"
+			type AgentsToolsSuperviseRead > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/supervise/AgentsTools.SuperviseRead.include"
 			AgentsToolsSuperviseRead "$@"
 			return $?
 		;;
@@ -210,7 +210,7 @@ AgentDispatcherTools(){
 		--supervise-guide)
 			shift
 			AgentsToolsSurfaceCaller --supervise-guide write || return 1
-			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SuperviseGuide.include"
+			type AgentsToolsSuperviseGuide > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/supervise/AgentsTools.SuperviseGuide.include"
 			AgentsToolsSuperviseGuide "$@"
 			return $?
 		;;
@@ -219,7 +219,7 @@ AgentDispatcherTools(){
 		--supervise-checklist-add)
 			shift
 			AgentsToolsSurfaceCaller --supervise-checklist-add write || return 1
-			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SuperviseGuide.include"
+			type AgentsToolsSuperviseChecklistAdd > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/supervise/AgentsTools.SuperviseGuide.include"
 			AgentsToolsSuperviseChecklistAdd "$@"
 			return $?
 		;;
@@ -228,7 +228,7 @@ AgentDispatcherTools(){
 		--supervise-fault)
 			shift
 			AgentsToolsSurfaceCaller --supervise-fault write || return 1
-			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SuperviseFault.include"
+			type AgentsToolsSuperviseFault > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/supervise/AgentsTools.SuperviseFault.include"
 			AgentsToolsSuperviseFault "$@"
 			return $?
 		;;
@@ -237,7 +237,7 @@ AgentDispatcherTools(){
 		--supervise-close-orphans)
 			shift
 			AgentsToolsSurfaceCaller --supervise-close-orphans write || return 1
-			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SuperviseClose.include"
+			type AgentsToolsSuperviseCloseOrphans > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/supervise/AgentsTools.SuperviseClose.include"
 			AgentsToolsSuperviseCloseOrphans "$@"
 			return $?
 		;;
@@ -247,7 +247,7 @@ AgentDispatcherTools(){
 		--supervise-copy)
 			shift
 			AgentsToolsSurfaceCaller --supervise-copy write || return 1
-			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SuperviseCopy.include"
+			type AgentsToolsSuperviseCopy > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/supervise/AgentsTools.SuperviseCopy.include"
 			AgentsToolsSuperviseCopy "$@"
 			return $?
 		;;
@@ -256,7 +256,7 @@ AgentDispatcherTools(){
 		--supervise-commit-transcripts)
 			shift
 			AgentsToolsSurfaceCaller --supervise-commit-transcripts write || return 1
-			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SuperviseCommit.include"
+			type AgentsToolsSuperviseCommitTranscripts > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/supervise/AgentsTools.SuperviseCommit.include"
 			AgentsToolsSuperviseCommitTranscripts "$@"
 			return $?
 		;;
@@ -264,7 +264,7 @@ AgentDispatcherTools(){
 		## The epic's own edit (W1): --set-status and --add-settled, so no routine edits an epic by hand. The two reads are in the
 		## table above, and reach this same include (S17.4).
 		--epic-update)
-			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.MagicEpic.include"
+			type AgentsToolsMagicEpicFeatureCount > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.MagicEpic.include"
 			return $?
 		;;
 

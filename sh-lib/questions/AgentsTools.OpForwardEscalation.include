@@ -1,0 +1,60 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+## AgentsTools.OpForwardEscalation.include -- the operation `--forward-escalation`, sourced by AgentsTools.MemberEscalation.include with the operation's arguments.
+		shift
+		MDSC_CMD="$MDSC_CMD --forward-escalation"
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.UseAgentsTools.include"
+		local forwardBy="$1" forwardId="$2" forwardFile forwardOut forwardChannel forwardTs forwardAddressees
+		if [ -z "$forwardBy" ] || [ -z "$forwardId" ] ; then
+			echo "$MDSC_CMD: ⛔ ERROR: syntax is <coordinator> <request-id>" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsAssertBareName "$forwardBy" "<coordinator>" escalation-forward || { set +e ; return 1 ; }
+		forwardFile="$( AgentsToolsEscalationRecord "$forwardId" )" || { set +e ; return 1 ; }
+		## The addressee forwards, or an executor of the routine it is addressed to.
+		local forwardTo
+		forwardTo="$( AgentsToolsEscalationField "$forwardFile" address-to )"
+		case "$forwardTo" in
+			*.routine)
+				. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemDecisions.include"
+				! AgentsToolsRoutineIsExecutor "$forwardTo" "$forwardBy" || forwardTo="$forwardBy"
+			;;
+		esac
+		## The one it went up from may still send it to the human-owner: its own answer was not
+		## applied, and who it is addressed to now may never answer.
+		[ "$forwardBy" != "$( AgentsToolsEscalationField "$forwardFile" rerouted-from )" ] || forwardTo="$forwardBy"
+		if [ "$forwardBy" != "$forwardTo" ] ; then
+			echo "$MDSC_CMD: ⛔ ERROR: $forwardId is not addressed to $forwardBy, so $forwardBy cannot forward it" >&2
+			set +e ; return 1
+		fi
+		if [ "$( AgentsToolsEscalationField "$forwardFile" status )" != "reply-pending" ] ; then
+			echo "$MDSC_CMD: ⛔ ERROR: $forwardId is not open, so there is nothing to forward" >&2
+			set +e ; return 1
+		fi
+		## Not forwarded when it is already answered: by an earlier ask of the same session, or in its item's Decisions.
+		local forwardEarlier=""
+		forwardEarlier="$( LC_ALL=C awk 'seenBody { print ; next } /^# Question asked$/ { seenBody = 1 }' "$forwardFile" \
+			| DistroAgentsTools --intern-op-pending-reply-earlier "$forwardBy" \
+				--kind "$( AgentsToolsEscalationField "$forwardFile" kind )" \
+				--session-id "$( AgentsToolsEscalationField "$forwardFile" session-id )" \
+				--question-key "$( AgentsToolsEscalationField "$forwardFile" question-key )" \
+				--address-to "$( AgentsToolsEscalationField "$forwardFile" address-to )" \
+				--refusal-id "$( AgentsToolsEscalationField "$forwardFile" refusal-id )" \
+				--item "$( AgentsToolsEscalationField "$forwardFile" item )" 2>/dev/null \
+			| LC_ALL=C grep -m1 -E '^EARLIER-(RECORD|DECISION) ' )" || forwardEarlier=""
+		if [ -n "$forwardEarlier" ] ; then
+			printf 'ESCALATION: %s answered-earlier\n' "$forwardId"
+			printf '%s\n' "$forwardEarlier"
+			echo "⚠️ WARNING: $MDSC_CMD: $forwardId was not forwarded: the same question already has an answer, shown above; answer it with --answer-escalation" >&2
+			return 0
+		fi
+		## Posted by the team bot, its answer emoji under it, its thread kept on the record.
+		forwardOut="$( AgentsToolsEscalationForwardPost "$forwardFile" "$forwardId" "$forwardBy" "" )" || { set +e ; return 1 ; }
+		## One that went up to a member who never answered is the human-owner's from here on.
+		[ "$forwardBy" != "$( AgentsToolsEscalationField "$forwardFile" rerouted-from )" ] \
+			|| AgentsToolsEscalationUpsert "$forwardFile" address-to human-owner blocked-on "reply from human-owner" \
+			|| echo "⚠️ WARNING: $MDSC_CMD: $forwardId is forwarded to the human-owner, but its record still names who it went up to" >&2
+		printf 'ESCALATION: %s forwarded\n' "$forwardId"
+		printf '%s\n' "$forwardOut"
+		return 0

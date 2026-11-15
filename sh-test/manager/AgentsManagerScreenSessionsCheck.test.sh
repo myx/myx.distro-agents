@@ -410,6 +410,33 @@ rigAssert "the mark stands ahead of the state of that session, and of the mark o
 rigAssert "and the left pane says the two facts with the date, the one wording of the row" \
 	"$( printf '%s\n' "$rigOut" | LC_ALL=C grep -c -F -e 'stopped on the provider usage limit: reopens 2026-11-01 00:00 UTC' )" "1"
 
+echo "-- a partitioned spawn: the parent row and its member rows carry one identifying part and one short id --"
+## S7: two rows of one member told apart, and a non-agent parent row naming what its session does. The names
+## below are the ones the spawner writes (MagicSpawnSession, SpawnSandbox), and the list draws them as they are.
+rigQ1=66666666-0000-4000-8000-000000000006 ; rigQ2=77777777-0000-4000-8000-000000000007 ; rigQ3=88888888-0000-4000-8000-000000000008
+{
+	rigRow session "$rigQ1" "non-agent_parent_of_magic-team.verify.routine.md_(66666666):_task-20261113T1219Z-spawn-rewrites-live-input.md" running 2026-10-13_09:00_+0300 - 2 running=2
+	rigRow run "$rigQ1" q1q1q1q1-0000-4000-8000-0000000000f1 magic-coordinator spawn-started running waiting 2026-10-13_09:00_+0300 - rig-host ws-rig waiting
+	rigRow session "$rigQ2" "magic-developer,_verify_(66666666):_task-20261113T1219Z-spawn-rewrites-live-input.md" running 2026-10-13_09:01_+0300 - 1 running=1
+	rigRow run "$rigQ2" q2q2q2q2-0000-4000-8000-0000000000f2 magic-developer spawn-started running thinking 2026-10-13_09:01_+0300 - rig-host ws-rig working
+	rigRow session "$rigQ3" "magic-tester,_verify_(66666666):_task-20261113T1219Z-spawn-rewrites-live-input.md" running 2026-10-13_09:02_+0300 - 1 running=1
+	rigRow run "$rigQ3" q3q3q3q3-0000-4000-8000-0000000000f3 magic-tester spawn-started running thinking 2026-10-13_09:02_+0300 - rig-host ws-rig working
+	rigRow counters 3 0 2 1 0 0.10
+} > "$rigTmp/partition.rows"
+rigCase partition partition.rows
+rigScript <<'RIGSCRIPT'
+size 240 40
+keys ENTER
+wait sessions 30
+get part
+show part
+RIGSCRIPT
+rigAssert "the list draws three sessions: the parent, and the two members of one member, each of them with the same short id" \
+	"$( printf '%s\n' "$rigOut" | LC_ALL=C grep -c -F '║ non-agent parent of magic-team.verify.routine.md (66666666' ):$( printf '%s\n' "$rigOut" | LC_ALL=C grep -c -F '║ magic-developer, verify (66666666)' ):$( printf '%s\n' "$rigOut" | LC_ALL=C grep -c -F '║ magic-tester, verify (66666666)' )" \
+	"1:1:1"
+rigAssert "the parent row reads non-agent, never agent-less" \
+	"$( printf '%s\n' "$rigOut" | LC_ALL=C grep -c -F '║ agent-less' ):$( printf '%s\n' "$rigOut" | LC_ALL=C grep -c -F '║ non-agent parent of' )" "0:1"
+
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ MANAGER SCREEN SESSIONS CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1
 fi

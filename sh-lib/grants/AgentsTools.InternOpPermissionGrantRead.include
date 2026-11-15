@@ -1,0 +1,235 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+type AgentsToolsPermissionEscape > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionRecord.include"
+type AgentsToolsPermissionPlannedIgnored > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionHook.include"
+type AgentsToolsPermissionOpenAsks > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionParticipants.include"
+type AgentsToolsPermissionItemEntries > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionSetApply.include"
+type AgentsToolsPermissionField > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionHolds.include"
+type AgentsToolsGrantsToolCovers > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.Grants.include"
+
+## AgentsTools.InternOpPermissionGrantRead.include -- the operation `--intern-op-permission-grant-read`, sourced by AgentsTools.InternOpPermission.include with the operation's arguments.
+		## A CALL ABOUT TO BE REFUSED first takes an answer that is already there. With no grant
+		## found, an open ask that would allow this call -- a permission set the member is a
+		## participant of, its own permission question about this call -- has its thread read
+		## once, by the one operation that reads and applies a verdict; then the grants are read
+		## again. So an allow nobody has collected yet lets the call through by itself. Still not
+		## granted, each such ask still open is named (`OPEN-ASK: <id> <kind> <who it waits on>`,
+		## rc 1 as before), so the refusal can say an ask is open and name it.
+		if [ -z "${MDAT_GRANT_READ_INNER:-}" ] ; then
+			local outerOut="" outerRc=0 outerMember="${2:-}" outerSession="" outerTool="" outerTarget="" outerAsks="" outerAsk outerPrev="" outerArg
+			outerOut="$( export MDAT_GRANT_READ_INNER=1 ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.InternOpPermission.include" "$@" )" || outerRc=$?
+			if [ "$outerRc" = "0" ] ; then
+				[ -z "$outerOut" ] || printf '%s\n' "$outerOut"
+				return 0
+			fi
+			for outerArg in "$@" ; do
+				case "$outerPrev" in
+					--session-id) outerSession="$outerArg" ;;
+					--tool) outerTool="$outerArg" ;;
+					--target) outerTarget="$outerArg" ;;
+				esac
+				outerPrev="$outerArg"
+			done
+			case "$outerSession" in ''|*/*|.|..) outerSession="" ;; esac
+			[ -z "$outerMember" ] || [ -z "$outerSession" ] || [ -z "$outerTool" ] || [ -z "$outerTarget" ] || [ ! -d "$MMDAPP/.local/agents/pending" ] \
+				|| outerAsks="$( AgentsToolsPermissionOpenAsks "$outerMember" "$outerSession" "$outerTool" "$outerTarget" 2> /dev/null )" || outerAsks=""
+			if [ -n "$outerAsks" ] ; then
+				while IFS= read -r outerAsk ; do
+					type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+					[ -z "$outerAsk" ] || DistroAgentsTools --intern-op-escalation-read "$outerMember" "$outerAsk" > /dev/null 2>&1 || :
+				done <<< "$outerAsks"
+				outerRc=0
+				outerOut="$( export MDAT_GRANT_READ_INNER=1 ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.InternOpPermission.include" "$@" )" || outerRc=$?
+				if [ "$outerRc" = "0" ] ; then
+					[ -z "$outerOut" ] || printf '%s\n' "$outerOut"
+					return 0
+				fi
+				while IFS= read -r outerAsk ; do
+					[ -n "$outerAsk" ] && [ "$( AgentsToolsPermissionField "$MMDAPP/.local/agents/pending/$outerAsk.md" status )" = "reply-pending" ] || continue
+					printf 'OPEN-ASK: %s %s %s\n' "$outerAsk" "$( AgentsToolsPermissionField "$MMDAPP/.local/agents/pending/$outerAsk.md" kind )" "$( AgentsToolsPermissionField "$MMDAPP/.local/agents/pending/$outerAsk.md" address-to )"
+				done <<< "$outerAsks"
+			fi
+			[ -z "$outerOut" ] || printf '%s\n' "$outerOut"
+			set +e ; return "$outerRc"
+		fi
+		shift
+		MDSC_CMD="$MDSC_CMD --intern-op-permission-grant-read"
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.UseAgentsTools.include"
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/slack/AgentsTools.CommsSlack.include"
+		local readMember="$1"
+		shift || true
+		local readSession="" readTool="" readTarget=""
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--session-id) readSession="${2:-}" ; shift 2 ;;
+				--tool) readTool="${2:-}" ; shift 2 ;;
+				--target) readTarget="${2:-}" ; shift 2 ;;
+				*)
+					echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		if [ -z "$readMember" ] || [ -z "$readSession" ] || [ -z "$readTool" ] || [ -z "$readTarget" ] ; then
+			echo "$MDSC_CMD: ⛔ ERROR: syntax is <team-member> --session-id <id> --tool <tool> --target <target>" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsAssertBareName "$readSession" "--session-id" permission-grant-read || { set +e ; return 1 ; }
+		local readDir="$MMDAPP/.local/agents/sessions/$readSession"
+		local readWant readEntry readKind readRest readEntryTool readEntryTarget readBy readFound readCow
+		readWant="$( AgentsToolsPermissionEscape "$readTarget" )"
+		## A CONTACT (F7.10) holds what the `allows:` of its record names, whatever the session, and what a session grant given to it in this
+		## session's stores names. No floor and no standing row of a member is a contact's.
+		case "$readMember" in
+			contact:*)
+				AgentsToolsPermissionContactRecord "$readMember" > /dev/null || { set +e ; return 1 ; }
+				if readFound="$( AgentsToolsPermissionContactAllows "$readMember" "$readTool" "$readTarget" )" ; then
+					printf 'GRANT: %s\n' "$readFound"
+					return 0
+				fi
+				while IFS= read -r readCow ; do
+					[ -n "$readCow" ] || continue
+					readFound="$( AgentsToolsPermissionGrantScan "$MMDAPP/.local/agents/sessions/$readCow" "$readMember" "$readTool" "$readTarget" use "$readDir" )" || continue
+					printf 'GRANT: %s\n' "$readFound"
+					return 0
+				done <<< "$( AgentsToolsPermissionRelatedStores "$readSession" )"
+				set +e ; return 1
+			;;
+		esac
+		## What the member holds by the floor or standing -- a tool row such as WebFetch for
+		## a member that holds it -- admits with no grant at all: every spawn has its (a) and (b).
+		## So does the routine the session runs, for this session: `standing routine <name>`.
+		if readFound="$( AgentsToolsPermissionHolds "$readMember" "$readTool" "$readTarget" "$readSession" )" ; then
+			case "$readFound" in
+				floor|standing|'routine '*)
+					printf 'GRANT: standing %s\n' "$readFound"
+					return 0
+				;;
+			esac
+		fi
+		## Granted, passed and set grants (AgentsToolsPermissionGrantScan): this session's own
+		## store, then the store of the coworking session it joined. Each is the member's own,
+		## signed by someone else; a once is used up in this session's own store.
+		while IFS= read -r readCow ; do
+			[ -n "$readCow" ] || continue
+			readFound="$( AgentsToolsPermissionGrantScan "$MMDAPP/.local/agents/sessions/$readCow" "$readMember" "$readTool" "$readTarget" use "$readDir" )" || continue
+			printf 'GRANT: %s\n' "$readFound"
+			return 0
+		done <<< "$( AgentsToolsPermissionRelatedStores "$readSession" )"
+		## A session or task grant given to another run of this member on the same board item in the
+		## same coworking session: a review return or a resume starts the run again under a new id.
+		## What it was allowed for the session holds until the item is closed or that session ends,
+		## what it was allowed for a task while the item that grant names is open
+		## (AgentsToolsPermissionItemRunsScan). Never another member's, item's or session's.
+		if readFound="$( AgentsToolsPermissionItemRunsScan "$readMember" "$readTool" "$readTarget" "$readSession" )" ; then
+			printf 'GRANT: %s\n' "$readFound"
+			return 0
+		fi
+		## Planned allows -- the access-control rows, the approved permission set a dispatch carries: the session's
+		## dispatch item and the one item it tracks. The same self-grant rule applies; a
+		## session entry is session-wide, a task entry lives while the item carrying it is open,
+		## and an entry to Edit or Write a path reads it too (AgentsToolsGrantsToolCovers).
+		[ -n "${MDAT_DATA_ROOT:-}" ] && [ -d "$MDAT_DATA_ROOT/board" ] || { set +e ; return 1 ; }
+		local readItem readDispatch="" readTracks="" readPlanned="" readLine readState readItemSession readItemSpawn readItemOwner readItemAllows readItemTracks
+		## The session's dispatch item by name: a run's record names the dispatch it works in `spawns:` (else
+		## `spawned-by:`), and the session's records come from the kept per-session list
+		## (AgentsTools.StartedRecords.include), so an ask reads one item and never every dispatch item of the
+		## board. Where no record of the session is here, every dispatch item is read, as before.
+		local readRecord readNamed readCandidates=()
+		type AgentsToolsSpawnedSessionRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.StartedRecords.include"
+		for readRecord in "${MMDAPP:-/nonexistent}/.local/agents/spawned"/*/"$readSession.spawn.md" $( AgentsToolsSpawnedSessionRecords "$readSession" own 2> /dev/null ) ; do
+			[ -f "$readRecord" ] || continue
+			[ "$( AgentsToolsPermissionField "$readRecord" owner )" = "$readMember" ] || continue
+			readNamed="$( AgentsToolsPermissionField "$readRecord" spawns )"
+			[ -n "$readNamed" ] || readNamed="$( AgentsToolsPermissionField "$readRecord" spawned-by )"
+			readNamed="${readNamed%%,*}" ; readNamed="${readNamed%% *}" ; readNamed="${readNamed%.md}"
+			case "$readNamed" in dispatch-*) ;; *) continue ;; esac
+			case "$readNamed" in */*|.|..) continue ;; esac
+			for readItem in "$MDAT_DATA_ROOT"/board/*/"$readNamed.md" ; do
+				[ ! -f "$readItem" ] || readCandidates+=( "$readItem" )
+			done
+		done
+		[ "${#readCandidates[@]}" -gt 0 ] || readCandidates=( "$MDAT_DATA_ROOT"/board/*/dispatch-*.md )
+		for readItem in ${readCandidates[@]+"${readCandidates[@]}"} ; do
+			[ -f "$readItem" ] || continue
+			readItemSession="" ; readItemSpawn="" ; readItemOwner="" ; readItemAllows="" ; readItemTracks="" ; readState=""
+			while IFS= read -r readLine ; do
+				case "$readState:$readLine" in
+					':---') readState=front ;;
+					front:---) break ;;
+					'front:session-id: '*) readItemSession="${readLine#session-id: }" ;;
+					'front:spawn-id: '*) readItemSpawn="${readLine#spawn-id: }" ;;
+					'front:owner: '*) readItemOwner="${readLine#owner: }" ;;
+					'front:access-control: '*) readItemAllows="$( AgentsToolsPermissionItemEntries "${readLine#access-control: }" session )" ;;
+					'front:tracks: '*) readItemTracks="${readLine#tracks: }" ;;
+					:*) break ;;
+				esac
+			done < "$readItem"
+			## A spawn that joined a coworking session is found by its own spawn id.
+			[ "$readItemSession" = "$readSession" ] || [ "$readItemSpawn" = "$readSession" ] || continue
+			[ "$readItemOwner" = "$readMember" ] || continue
+			readDispatch="$readItem" ; readTracks="$readItemTracks"
+			[ -z "$readItemAllows" ] || readPlanned="${readItem##*/}"$'\t'"$readItemAllows"
+			break
+		done
+		[ -n "$readDispatch" ] || { set +e ; return 1 ; }
+		## The tracked item's own allows, found by its bare name in whichever state holds it.
+		if [ -n "$readTracks" ] && AgentsToolsAssertBareName "$readTracks" "tracks" permission-grant-read 2>/dev/null ; then
+			for readItem in "$MDAT_DATA_ROOT"/board/*/"$readTracks" "$MDAT_DATA_ROOT"/board/*/"$readTracks.md" ; do
+				[ -f "$readItem" ] || continue
+				readState=""
+				while IFS= read -r readLine ; do
+					case "$readState:$readLine" in
+						':---') readState=front ;;
+						front:---) break ;;
+						'front:access-control: '*) readPlanned="${readPlanned:+$readPlanned$'\n'}${readItem##*/}"$'\t'"$( AgentsToolsPermissionItemEntries "${readLine#access-control: }" task )" ;;
+						:*) break ;;
+					esac
+				done < "$readItem"
+				break
+			done
+		fi
+		## Comma-separated entries; a target is escaped, so it never holds a comma. An entry
+		## that can never admit anything is said once per session in its event-track thread,
+		## so a planned allow that was written wrong does not fail silently. One signed by a
+		## member who does not hold it is ignored the same way: no approving what you don't hold.
+		local readIgnored readShape readCarrier readList readNatural
+		while IFS=$'\t' read -r readCarrier readList ; do
+			[ -n "$readCarrier" ] || continue
+			while [ -n "$readList" ] ; do
+				readEntry="${readList%%,*}"
+				if [ "$readEntry" != "$readList" ] ; then readList="${readList#*,}" ; else readList="" ; fi
+				readEntry="${readEntry# }"
+				[ -n "$readEntry" ] || continue
+				readKind="${readEntry%%:*}" ; readRest="${readEntry#*:}"
+				readEntryTool="${readRest%%:*}" ; readRest="${readRest#*:}"
+				readEntryTarget="${readRest%%:*}" ; readRest="${readRest#*:}"
+				readBy="${readRest%%:*}"
+				readShape="${readEntry//[!:]/}"
+				readIgnored=""
+				if [ "${#readShape}" -lt 4 ] || [ -z "$readEntryTool" ] || [ -z "$readEntryTarget" ] ; then
+					readIgnored="it is not a row participants:<verb>:<value>:<granted-by>:<stamp> of access-control"
+				elif [ "$readKind" != "session" ] && [ "$readKind" != "task" ] ; then
+					readIgnored="its kind is $readKind, and a planned allow is session-wide or task-wide"
+				elif [ -z "$readBy" ] ; then
+					readIgnored="it names nobody who granted it"
+				elif [ "$readBy" = "$readMember" ] ; then
+					readIgnored="it is signed by the session's own member"
+				fi
+				if [ -n "$readIgnored" ] ; then
+					AgentsToolsPermissionPlannedIgnored "$readMember" "$readSession" "${readDispatch##*/}" "$readEntry" "$readIgnored"
+					continue
+				fi
+				AgentsToolsGrantsToolCovers "$readEntryTool" "$readTool" || continue
+				readNatural="$( AgentsToolsPermissionUnescape "$readEntryTarget" )"
+				[ "$readEntryTarget" = "$readWant" ] || AgentsToolsPermissionCovers "$readNatural" "$readTarget" || continue
+				[ "$readKind" != "task" ] || AgentsToolsPermissionItemOpen "$readCarrier" || continue
+				if ! AgentsToolsPermissionHolds "$readBy" "$readEntryTool" "$readNatural" > /dev/null ; then
+					AgentsToolsPermissionPlannedIgnored "$readMember" "$readSession" "${readDispatch##*/}" "$readEntry" "it is signed by $readBy, who does not hold it"
+					continue
+				fi
+				printf 'GRANT: planned %s\n' "${readDispatch##*/}"
+				return 0
+			done
+		done <<< "$readPlanned"
+		set +e ; return 1

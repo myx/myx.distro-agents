@@ -1,0 +1,72 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+##
+## AgentsTools.MemberCommsSlackProfile.include -- --slack-profile-*.
+## Sourced lazily from AgentsTools.MemberCommsSlack.include's own case; relies
+## on being dot-sourced for $1/$@/$MDSC_CMD. Rationale and mechanism:
+## myx.distro-agents/MAGIC.md.
+##
+## One field emitter for both ops. Own copy rather than the file-info one:
+## that emitter names files.info in its own failure message.
+AgentsToolsCommsSlackProfileEmitField(){
+	local profileEmitKey="$1" profileEmitPath="$2" profileEmitPayload="$3"
+	local profileEmitNewline=$'\n'
+	local profileEmitValue="" profileEmitRc=0
+	profileEmitValue="$( printf '%s\n' "$profileEmitPayload" | LC_ALL=C awk -v path="$profileEmitPath" -v optional=1 -v sentinel=1 \
+		-v dialect=slack -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" )" || profileEmitRc=$?
+	if [ "$profileEmitRc" = "0" ] ; then
+		profileEmitValue="${profileEmitValue%X}"
+	fi
+	case "$profileEmitRc" in
+		0)
+			case "$profileEmitValue" in
+				*"$profileEmitNewline"*)
+					printf '%s_STATE=present-multiline\n' "$profileEmitKey"
+				;;
+				*)
+					printf '%s_STATE=present\n' "$profileEmitKey"
+					printf '%s=%s\n' "$profileEmitKey" "$profileEmitValue"
+				;;
+			esac
+			return 0
+		;;
+		3)
+			printf '%s_STATE=absent\n' "$profileEmitKey"
+			return 0
+		;;
+	esac
+	echo "⛔ ERROR: $MDSC_CMD --slack-profile-get: the field reader could not parse the response body while reading '$profileEmitPath' (rc=$profileEmitRc -- 1: the body is not a parseable Slack API response, 2: no key path was given). Nothing about this facet is known from this call, and the fields printed before this line are NOT a complete set." >&2
+	return 1
+}
+## One call site for all four Slack methods these two ops reach. Response on
+## stdout, the op's own diagnostic passed through on stderr.
+AgentsToolsCommsSlackProfileCall(){
+	local profileCallOp="$1" profileCallFacet="$2" profileCallLabel="$3"
+	shift 3
+	## The op's own diagnostic goes straight to stderr rather than through a
+	## capture: it was only ever re-emitted there, and ACTING_IDENTITY= is
+	## already on the line the message below points the reader at.
+	echo "# $MDSC_CMD $profileCallOp: $profileCallLabel" >&2
+	local profileCallResponse="" profileCallRc=0
+	type AgentsToolsCommsSlackRun > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/slack/AgentsTools.CommsSlack.include"
+	profileCallResponse="$( AgentsToolsCommsSlackRun --intern-op-slack-call "$@" )" || profileCallRc=$?
+	if [ "$profileCallRc" != "0" ] ; then
+		local profileCallIdentityText="the identity this call ran under (named in the op's own diagnostic above)"
+		echo "⛔ ERROR: $MDSC_CMD $profileCallOp: the '$profileCallFacet' facet did NOT complete under $profileCallIdentityText (see the op's own diagnostic above, which carries Slack's own error code). This facet's state is UNKNOWN from this call, not known-unchanged. Nothing was rolled back and no retry under another identity was attempted; any other facet reported applied really was applied." >&2
+		set +e ; return 1
+	fi
+	printf '%s\n' "$profileCallResponse"
+	return 0
+}
+case "$1" in
+	--intern-op-comms-slack-profile-set)
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/slack/AgentsTools.InternOpCommsSlackProfileSet.include"
+	;;
+	--intern-op-comms-slack-profile-get)
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/slack/AgentsTools.InternOpCommsSlackProfileGet.include"
+	;;
+	*)
+		echo "⛔ ERROR: $MDSC_CMD: invalid option: $1" >&2
+		set +e ; return 1
+	;;
+esac

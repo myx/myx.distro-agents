@@ -96,7 +96,7 @@ rigRecord(){ ## sandbox, record name -- stdin: the header lines of the record, a
 rigAsk(){ ## record name, the id of the run that asked, status
 	printf -- '---\nstatus: %s\nowner: keeper-rig\nsession-id: %s\nkind: question\n---\nq\n' "$3" "$2" > "$rigPend/$1.md"
 }
-## The tooling keeps the process list it read for 10 s (AgentsToolsRegistryProcessArgs, .local/temp/ps-args.txt): a change of
+## The tooling keeps the process list it read for 10 s (AgentsToolsRunProcessArgs, .local/temp/ps-args.txt): a change of
 ## the rig's list drops the kept one, so the next call reads the list as it stands.
 rigPsChanged(){ rm -f "$rigWs/.local/temp/ps-args.txt" ; }
 rigLive(){ ## spawn id... -- the rig's process list: each a run by its own --session-id word
@@ -381,9 +381,9 @@ rigPre=( "MDAT_SPAWN_AGENT=keeper-rig" )
 rigRun "$rigOp" --session-id sess-a
 rigPre=()
 rigAssert "from inside a member's session it is refused, rc 1, nothing on stdout, in the one line of the family, and nothing was rebuilt" "$rigRc $( wc -c < "$rigTmp/out" | LC_ALL=C tr -d ' ' ) $( LC_ALL=C grep -c -F -- "a --manager-* operation is the console's own, never run from inside a member's session" "$rigTmp/err" ) $( rigPrint "$rigAgents/spawned-sessions.registry" ) $( rigPrint "$rigAgents/pending-replies.registry" )" "1 0 1 $rigRegBefore"
-rigAssert "the operation is one arm of the include of the sessions, and asks nobody who calls" "$( LC_ALL=C grep -c -x -e "	$rigOp)" "$rigHere/manager/AgentsTools.ManagerSession.include" || : ) $( LC_ALL=C grep -v '^[[:space:]]*#' "$rigHere/manager/AgentsTools.ManagerSession.include" | LC_ALL=C grep -c -e 'AgentsToolsManagerCallerCheck' -e 'AgentsToolsActingMember' || : )" "1 0"
+rigAssert "the operation is one arm of the include of the sessions, and asks nobody who calls" "$( LC_ALL=C grep -c -x -e "	$rigOp)" "$rigHere/manager/AgentsTools.ManagerSession.include" || : ) $( LC_ALL=C grep -v '^[[:space:]]*#' "$rigHere/manager/AgentsTools.ManagerSessionRows.include" | LC_ALL=C grep -c -e 'AgentsToolsManagerCallerCheck' -e 'AgentsToolsActingMember' || : )" "1 0"
 rigAssert "the rows of the one session are measured in the one place a row's live and state are derived, once, and no run is found a second way: no process list, no rule of its own, and the store is listed by its names to hold the registry to it, never walked for a run" \
-	"$( LC_ALL=C awk '/^AgentsToolsManagerSessionScope\(\)\{/ { on = 1 } on { print } on && /^\}/ { exit }' "$rigHere/manager/AgentsTools.ManagerSession.include" | LC_ALL=C grep -v '^[[:space:]]*#' | LC_ALL=C grep -c -e 'AgentsToolsRegistryMeasureRows "' || : ) $( cat "$rigHere"/*/AgentsTools.Manager*.include "$rigHere/manager/AgentsManagerSessionRows.awk" "$rigHere/manager/AgentsManagerSessionRead.awk" "$rigHere/manager/AgentsManagerSessionScope.awk" | LC_ALL=C grep -v -e '^[[:space:]]*#' -e 'checklist' | LC_ALL=C grep -c -e 'ps -' -e 'spawned"/\*' -e 'RunWords' || : ) $( LC_ALL=C awk '/^AgentsToolsManagerSessionScope\(\)\{/ { on = 1 } on { print } on && /^\}/ { exit }' "$rigHere/manager/AgentsTools.ManagerSession.include" | LC_ALL=C grep -v '^[[:space:]]*#' | LC_ALL=C grep -c -e ' -nt ' -e ' -ot ' || : )" "1 0 0"
+	"$( LC_ALL=C awk '/^AgentsToolsManagerSessionScope\(\)\{/ { on = 1 } on { print } on && /^\}/ { exit }' "$rigHere/manager/AgentsTools.ManagerSessionRows.include" | LC_ALL=C grep -v '^[[:space:]]*#' | LC_ALL=C grep -c -e 'AgentsToolsRegistryMeasureRows "' || : ) $( cat "$rigHere"/*/AgentsTools.Manager*.include "$rigHere/manager/AgentsManagerSessionRows.awk" "$rigHere/manager/AgentsManagerSessionRead.awk" "$rigHere/manager/AgentsManagerSessionScope.awk" | LC_ALL=C grep -v -e '^[[:space:]]*#' -e 'checklist' | LC_ALL=C grep -c -e 'ps -' -e 'spawned"/\*' -e 'RunWords' || : ) $( LC_ALL=C awk '/^AgentsToolsManagerSessionScope\(\)\{/ { on = 1 } on { print } on && /^\}/ { exit }' "$rigHere/manager/AgentsTools.ManagerSessionRows.include" | LC_ALL=C grep -v '^[[:space:]]*#' | LC_ALL=C grep -c -e ' -nt ' -e ' -ot ' || : )" "1 0 0"
 
 echo "-- 9. the help pair --"
 rigHelpInclude="$rigHere/help/Help.DistroAgentsTools.include"

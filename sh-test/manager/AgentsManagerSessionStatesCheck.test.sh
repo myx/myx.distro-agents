@@ -17,7 +17,7 @@
 set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 rigPkg="${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}/myx/myx.distro-agents"
-rigInclude="$rigPkg/sh-lib/manager/AgentsTools.ManagerSession.include"
+rigInclude="$rigPkg/sh-lib/manager/AgentsTools.ManagerSessionRows.include"
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }
@@ -62,7 +62,7 @@ rigCall(){ ## the function and its words -- the include read for its definitions
 	env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp" PATH="/usr/bin:/bin:/usr/sbin:/sbin" \
 		MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
 		MDAT_SPAWN_AGENT=magic-coordinator MDSC_CMD=DistroAgentsTools \
-		bash -c '. "$1" --definitions-only > /dev/null 2>&1 ; shift ; "$@"' rig "$rigInclude" "$@" 2>&1
+		bash -c '. "$1" ; shift ; "$@"' rig "$rigInclude" "$@" 2>&1
 }
 rigField(){ ## rows, kind, key, field number -- one field of the row of that kind that carries that key (a session's id, a run's spawn id)
 	printf '%s\n' "$1" | LC_ALL=C awk -F'\t' -v kind="$2" -v key="$3" -v at="$4" '( kind == "session" && $1 == "session" && $2 == key ) || ( kind == "run" && $1 == "run" && $3 == key ) { print $at ; exit }'
@@ -124,7 +124,7 @@ rigOut2="$( rigCall AgentsToolsManagerSessionRows --manager-session-list )"
 rigAssert "a retitle and a new chapter show at the next call" "$( rigField "$rigOut2" session sess-A 3 ) | $( rigField "$rigOut2" session sess-A 15 )" "Fixing_the_release_build | Reviewing_the_handback"
 
 echo "-- 6. the read of one session gives its runs the same activity --"
-rigScoped="$( rigCall bash -c '. "$0" --definitions-only > /dev/null 2>&1 ; AgentsToolsManagerSessionScope --manager-session-read sess-A > /dev/null 2>&1 ; printf "%s\n" "$scopeListed"' "$rigInclude" )"
+rigScoped="$( rigCall bash -c '. "$0" ; AgentsToolsManagerSessionScope --manager-session-read sess-A > /dev/null 2>&1 ; printf "%s\n" "$scopeListed"' "$rigInclude" )"
 rigAssert "in the read of sess-A the thinking run reads working, the run in a Wait waiting, the parked one none" \
 	"$( rigField "$rigScoped" run think-A 12 ) $( rigField "$rigScoped" run wait-A 12 ) $( rigField "$rigScoped" run park-A 12 )" "working waiting -"
 

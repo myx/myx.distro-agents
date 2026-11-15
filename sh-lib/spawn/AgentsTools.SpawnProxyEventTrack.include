@@ -1,0 +1,269 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+type AgentsSettingsScopeHas > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/settings/AgentsTools.Settings.include"
+
+##
+## AgentsTools.SpawnProxyEventTrack.include -- what a run says in its session thread and its event-track thread: the root post, a post link, the launch, the batched lines and the close.
+## Sourced, never run. Functions only. Loaded by AgentsTools.InternOpAgentSpawnProxy.include.
+##
+
+## The root post of a coworking session's thread, in the conversation that thread belongs to (the
+## team's own, or the owner's for a work-duty): the session's own line, seeded by the tooling,
+## never a member's message. Its text is its own template's
+## (sh-lib/templates/session-thread.root.format.md, filled by
+## AgentsSessionThreadRootFill.awk): the session by its name, and who started it where that
+## is known. Posted as the bot with no author line and no addressee, under the bot token
+## every opener has used (the member's own where it has one, else the team's); the bot not
+## yet in the conversation joins it once, as the member send does for a top-level post. The
+## thread under it is the participants' own. A target naming a person resolves to that
+## person's id, so its DM is opened first and the thread is the conversation id Slack gives
+## back. Prints `<channel>:<ts>`; where nothing was posted it prints nothing and says one
+## warning on stderr, and silently nothing where no bot token resolves. One line in the
+## monthly send log, in the member send's own columns.
+AgentsToolsSpawnProxySessionRootPost(){ ## member whose bot token posts it, the session's name, who started it (may be empty), the target (magic-team where none), the session's routine frames (may be empty)
+	local rootMember="$1" rootName="$2" rootBy="${3:-}" rootTarget="${4:-magic-team}" rootStack="${5:-}"
+	local rootLib="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib"
+	local rootText="" rootChannel="" rootPayload="" rootResponse="" rootErrFile="" rootError="" rootRc=0 rootTs="" rootIn="" rootJoined="false" rootDmUser=""
+	local rootOutcome="failed" rootReason="not posted: session-thread root" rootStamp=""
+	type AgentsToolsResolveSlackBotToken > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/slack/AgentsTools.CommsSlack.include"
+	AgentsToolsResolveSlackBotToken "$rootMember" > /dev/null 2>&1 || return 0
+	type AgentsToolsToolingTemplateFill > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.ToolingTemplate.include"
+	type AgentsToolsRoutineStackShown > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/routine/AgentsTools.RoutineStack.include"
+	rootText="$( STR_SESSION_NAME="$rootName" STR_STARTED_BY="$rootBy" STR_ROUTINES="$( AgentsToolsRoutineStackShown "$rootStack" )" AgentsToolsToolingTemplateFill session-thread.root.format.md session/AgentsSessionThreadRootFill.awk 2> /dev/null )" || rootText=""
+	if [ -z "$rootText" ] ; then
+		echo "⚠️ WARNING: --intern-op-agent-spawn-proxy: session thread not opened: its root post could not be filled from sh-lib/templates/session-thread.root.format.md" >&2
+		return 0
+	fi
+	rootChannel="$( DistroAgentsToolsResolveTarget "$rootTarget" 2> /dev/null | sed -n 's/^CHANNEL=//p' )" || rootChannel=""
+	if [ -z "$rootChannel" ] ; then
+		echo "⚠️ WARNING: --intern-op-agent-spawn-proxy: session thread not opened: $rootTarget names no conversation this workspace sets" >&2
+		return 0
+	fi
+	## A target that names a person is their id, never a conversation: the bot opens the direct
+	## message first and the root goes to the conversation Slack answers with.
+	case "$rootChannel" in
+		U[A-Z0-9]*|W[A-Z0-9]*)
+			rootDmUser="$rootChannel"
+			rootResponse="$( DistroAgentsTools --intern-op-slack-call "$rootMember" --api conversations.open --identity bot --form "users=$rootDmUser" \
+				--context --intern-op-agent-spawn-proxy 2> /dev/null )" || rootResponse=""
+			rootChannel="$( printf '%s\n' "$rootResponse" | LC_ALL=C awk -v path=channel.id -v optional=1 -v dialect=slack -f "$rootLib/harness/AgentsHarnessJsonField.awk" 2> /dev/null )" || rootChannel=""
+			if [ -z "$rootChannel" ] ; then
+				echo "⚠️ WARNING: --intern-op-agent-spawn-proxy: session thread not opened: the direct message of $rootDmUser could not be opened" >&2
+				return 0
+			fi
+		;;
+	esac
+	rootErrFile="$( mkdir -p "$MMDAPP/.local/temp" && mktemp "$MMDAPP/.local/temp/mdat-session-root.XXXXXX" )" || rootErrFile=""
+	if [ -z "$rootErrFile" ] ; then
+		echo "⚠️ WARNING: --intern-op-agent-spawn-proxy: session thread not opened: could not create a scratch file under $MMDAPP/.local/temp" >&2
+		return 0
+	fi
+	rootPayload="{\"channel\":\"$rootChannel\",\"text\":\"$( printf '%s' "$rootText" | LC_ALL=C awk -f "$rootLib/mcp/AgentsMcpJsonEscape.awk" )\",\"metadata\":{\"event_type\":\"magic_sender\",\"event_payload\":{\"sender\":\"magic-team\",\"tracking\":\"session-root\"${MDAT_SPAWN_SESSION_ID:+,\"session\":\"$MDAT_SPAWN_SESSION_ID\"}}}}"
+	while : ; do
+		rootRc=0
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+		rootResponse="$( DistroAgentsTools --intern-op-slack-call "$rootMember" --api chat.postMessage --identity bot --json-body "$rootPayload" \
+			--context --intern-op-agent-spawn-proxy 2> "$rootErrFile" )" || rootRc=$?
+		[ "$rootRc" != "0" ] || break
+		if [ "$rootJoined" = "false" ] && LC_ALL=C grep -q '"error":"not_in_channel"' "$rootErrFile" ; then
+			rootJoined="true"
+			type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+			if DistroAgentsTools --intern-op-slack-call "$rootMember" --api conversations.join --identity bot --form "channel=$rootChannel" \
+				--context --intern-op-agent-spawn-proxy > /dev/null 2>&1 ; then
+				continue
+			fi
+		fi
+		break
+	done
+	if [ "$rootRc" = "0" ] ; then
+		rootTs="$( printf '%s\n' "$rootResponse" | LC_ALL=C awk -v path=ts -v optional=1 -v dialect=slack -f "$rootLib/harness/AgentsHarnessJsonField.awk" 2> /dev/null )" || rootTs=""
+		rootIn="$( printf '%s\n' "$rootResponse" | LC_ALL=C awk -v path=channel -v optional=1 -v dialect=slack -f "$rootLib/harness/AgentsHarnessJsonField.awk" 2> /dev/null )" || rootIn=""
+	fi
+	rootError="$( LC_ALL=C grep -m1 'ERROR' "$rootErrFile" 2> /dev/null )" || rootError=""
+	rm -f "$rootErrFile"
+	[ -z "$rootTs" ] || { rootOutcome="ok" ; rootReason="session-thread root posted ts=$rootTs" ; }
+	rootStamp="$( date -u +%Y%m%dT%H%M%SZ )"
+	{ mkdir -p "$MMDAPP/.local/agents" && printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$rootStamp" "$rootMember" "$rootTarget" "$rootChannel" bot "$rootOutcome" "$rootReason" "${MDAT_SPAWN_SESSION_ID:--}" \
+		>> "$MMDAPP/.local/agents/comms-slack-send.${rootStamp:0:4}-${rootStamp:4:2}.log" ; } 2> /dev/null \
+		|| echo "⚠️ WARNING: --intern-op-agent-spawn-proxy: could not append the session thread root's outcome to the send log" >&2
+	if [ -z "$rootTs" ] ; then
+		echo "⚠️ WARNING: --intern-op-agent-spawn-proxy: session thread not opened ${rootError:-the Slack call failed}" >&2
+		return 0
+	fi
+	printf '%s:%s\n' "${rootIn:-$rootChannel}" "$rootTs"
+}
+
+## A Slack link to one post, from its `<channel>:<ts>`:
+## `https://<the workspace's Slack domain>/archives/<channel>/p<ts without its dot>`.
+## The domain is that of the Slack the post was sent to, the one its bot token is of: the
+## member's own where the member's own bot token posted it, else the team's. Prints nothing
+## where that domain is not known or the post is not in that shape.
+AgentsToolsSpawnProxyPostLink(){ ## member whose bot token posted it, <channel>:<ts>
+	local linkDomain="" linkScope="" linkChannel="${2%%:*}" linkTs="${2#*:}"
+	case "$linkChannel" in ''|*[!A-Za-z0-9]*) return 0 ;; esac
+	case "$linkTs" in ''|*[!0-9.]*|*.*.*|.*|*.) return 0 ;; *.*) ;; *) return 0 ;; esac
+	type AgentsToolsResolveSlackBotToken > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/slack/AgentsTools.CommsSlack.include"
+	linkScope="$( AgentsToolsResolveSlackBotToken "$1" 2> /dev/null )" || return 0
+	case "${linkScope%% *}" in
+		member-bot-token) linkScope="$1" ;;
+		*) linkScope="magic-team" ;;
+	esac
+	type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/settings/AgentsTools.ConfigOption.include"
+	linkDomain="$( AgentsToolsConfigOption "$linkScope" --select SLACK_WORKSPACE_DOMAIN 2> /dev/null )" || linkDomain=""
+	case "$linkDomain" in ''|*[!A-Za-z0-9.-]*) return 0 ;; esac
+	printf 'https://%s/archives/%s/p%s\n' "$linkDomain" "$linkChannel" "${linkTs/./}"
+}
+
+## One reply in the coworking session's event-track thread saying this participant's run
+## ended: the `end` tracking post (sh-lib/templates/event-track.post.format.md), with its
+## own outcome, exit code, tokens and CLI. The finish flag goes on this participant's own
+## start post, so another's end never flags the session's first post. Silent when the
+## session has no thread. Its fields only: the spawn output file is a session log, and
+## no log line goes to Slack (the output file argument is kept for the callers,
+## unused). Never on stdout, and never fails the spawn: one stderr warning at
+## most per Slack call.
+AgentsToolsSpawnProxyEventTrackClose(){ ## thread, member, outcome, exit code, marker, output file, timed out, timeout seconds, this participant's own start post (`<channel>:<ts>`, or empty)
+	type AgentsToolsSpawnProxySawSentinel > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnProxyLaunch.include"
+	local closeThread="$1" closeMember="$2" closeOutcome="$3" closeExit="$4" closeMarker="$5" closeLog="$6" closeTimedOut="$7" closeTimeout="$8" closeStart="${9:-}"
+	local closeArmed="unknown" closeSetup="" closeTokens="" closeArmedAt="" closeEndedAt=""
+	[ -n "$closeThread" ] || return 0
+	## A date or a time in the post is a Slack date token, so each reader sees it in their own
+	## timezone (AgentsTools.SlackDate.include); a moment the helper cannot read stays as it was.
+	type AgentsToolsSlackDateToken > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/slack/AgentsTools.SlackDate.include"
+	closeEndedAt="$( AgentsToolsSlackDateToken "$( date +%s )" date-time 2> /dev/null )" || closeEndedAt="$( date +"%Y-%m-%d %H:%M %z" )"
+	if [ -n "${MDAT_SPAWN_SANDBOX_ROOT:-}" ] && [ -s "$MDAT_SPAWN_SANDBOX_ROOT/${MDAT_SPAWN_SESSION_ID:-none}.armed" ] ; then
+		closeArmedAt="$( head -1 "$MDAT_SPAWN_SANDBOX_ROOT/$MDAT_SPAWN_SESSION_ID.armed" )"
+		closeArmed="yes, at $( AgentsToolsSlackDateToken "$closeArmedAt" date-time 2> /dev/null || printf '%s' "$closeArmedAt" )"
+	elif [ -n "${MDAT_SPAWN_SANDBOX_ROOT:-}" ] && [ -e "$MDAT_SPAWN_SANDBOX_ROOT/${MDAT_SPAWN_SESSION_ID:-none}.harness" ] ; then
+		closeArmed="no"
+	fi
+	[ "$closeExit" != "5" ] || closeSetup="cli-not-configured"
+	[ "$closeExit" != "6" ] || closeSetup="cli-not-authenticated"
+	## A START THAT NEVER GOT GOING SAYS WHY (sketch 3.6): a CLI the preset names but this machine has not configured or signed
+	## in ends the run at once, and its row would otherwise read a bare exit code. The one keeper writes the marker that a failed
+	## row already prints as its reason (AgentsHarnessMessages.include:233-260), so there is one mechanism and no second copy.
+	if [ -n "$closeSetup" ] && [ -n "${MDAT_SPAWN_SANDBOX_ROOT:-}" ] && [ -n "${MDAT_SPAWN_SESSION_ID:-}" ] \
+		&& [ ! -s "$MDAT_SPAWN_SANDBOX_ROOT/$MDAT_SPAWN_SESSION_ID.refused" ] ; then
+		type AgentsHarnessRefusalKeep > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessWait.include"
+		if [ "$closeSetup" = "cli-not-authenticated" ] ; then
+			AgentsHarnessRefusalKeep "the start never got going: the CLI this preset names is not signed in on this machine (exit $closeExit)" || :
+		else
+			AgentsHarnessRefusalKeep "the start never got going: the CLI this preset names is not configured on this machine (exit $closeExit)" || :
+		fi
+	fi
+	## Its tokens, summed over its sub-sessions as shown now (AgentsTools.SessionTranscript.include).
+	! type AgentsSessionTokensLine > /dev/null 2>&1 || closeTokens="$( AgentsSessionTokensLine "" "${MDAT_SPAWN_SESSION_ID:-}" 2>/dev/null )" || closeTokens=""
+	closeTokens="${closeTokens#tokens: }"
+	type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+	DistroAgentsTools --intern-op-event-track-post "$closeMember" "$closeThread" --kind end --session-id "${MDAT_SPAWN_SESSION_ID:-}" \
+		--field outcome="$closeOutcome" --field exit-code="$closeExit" \
+		--field launched="$( AgentsToolsSpawnProxySawSentinel "$closeMarker" && echo true || echo false )" \
+		--field cli="$( AgentsToolsSpawnProxyExecutedCli "$closeMarker" )" --field armed="$closeArmed" --field setup="$closeSetup" \
+		--field timed-out-after="$( [ "$closeTimedOut" = "0" ] || printf '%s' "$closeTimeout" )" --field tokens="$closeTokens" \
+		--field ended-at="$closeEndedAt" < /dev/null 2>&1 > /dev/null \
+	  | LC_ALL=C awk 'index( $0, "⛔" ) == 1 && ! warned { print "⚠️ WARNING: --intern-op-agent-spawn-proxy: event-track close not posted " $0 > "/dev/stderr" ; warned = 1 ; }' \
+	  || :
+	[ -n "$closeStart" ] || return 0
+	type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+	DistroAgentsTools --intern-op-comms-slack-react "$closeMember" "$closeStart" checkered_flag --identity-bot 2>&1 > /dev/null \
+	  | LC_ALL=C awk 'index( $0, "⛔" ) == 1 && ! warned { print "⚠️ WARNING: --intern-op-agent-spawn-proxy: event-track finish flag not added " $0 > "/dev/stderr" ; warned = 1 ; }' \
+	  || :
+	return 0
+}
+
+## Batched per-operation lines to the event-track thread, for the length of a
+## --wait spawn. Polls the growing OUTPUT_FILE for a real tool call, in
+## whichever of this package's two progress-line shapes the spawn's own
+## console actually wrote: the vendor CLI's JSON-stream shape ("  -> tool: "/
+## "  <- tool result", from AgentsClaudeStreamJsonFormat.awk, DAGC_CLI
+## claude-native/copilot-native/etc.) or this package's own harness-leg shape
+## (three leading spaces, then a tool icon, from AgentsHarnessAnnounceTool in
+## AgentsUniversalHarness.sh, DAGC_CLI claude/scaleway/grok/...). The two never
+## mix in one log: one spawn runs on exactly one console. The harness-leg
+## shape's own "thinking" line (same three-space lead, icon 🧠) is excluded --
+## it is model narration, not a tool call, and the vendor shape excludes its
+## own "thinking: " lines the same way already. Posts whatever is new as one
+## Slack message per interval. Silent when no thread was opened. The caller
+## kills this once the child exits, so it never outlives the spawn it reports
+## on, and never posts the same line twice because lastLineCount only moves
+## forward.
+AgentsToolsSpawnProxyEventTrackBatch(){ ## thread, member, output file
+	local batchThread="$1" batchMember="$2" batchLog="$3"
+	## One post a minute for a run, where it was one every 20 s: a post is a process of the whole tooling, a render and a Slack message, and a
+	## hundred runs made that many a minute into one channel.
+	## THE SPAWNER ONLY ADDS TO THE LOG. The comms service thread reads what is new in a run's log and posts it, one post a run each minute
+	## (AgentsToolsCommsActivityPass), so no run keeps a poller of its own. The loop below is kept for a caller that sets MDAT_SPAWN_PROXY_OWN_ACTIVITY.
+	[ -n "${MDAT_SPAWN_PROXY_OWN_ACTIVITY:-}" ] || return 0
+	local batchIntervalSeconds=60 lastLineCount=0 batchRead batchNew newLines
+	[ -n "$batchThread" ] || return 0
+	while : ; do
+		sleep "$batchIntervalSeconds"
+		[ -f "$batchLog" ] || continue
+		## Only the lines after the last one seen go through awk: `tail` skips the rest in one cheap pass, where the log was read through awk
+		## twice a tick, whole. awk counts records, not newlines -- unlike wc -l, it doesn't miss a final line that has no trailing newline yet:
+		## its last line is the count of lines read, after \037.
+		## Every line break here falls right after a binary operator and right
+		## before a real token -- never right after "(" and never right before
+		## ")" on its own line. One-true-awk 20200816 (this fleet's floor, per
+		## reference/shell.md) hard-fails to parse either of those two shapes,
+		## confirmed by running this exact program against a sample log.
+		batchRead="$( tail -n +"$(( lastLineCount + 1 ))" "$batchLog" 2>/dev/null | LC_ALL=C awk '
+			{ n++ }
+			index( $0, "  -> tool: " ) == 1 ||
+				index( $0, "  <- tool result" ) == 1 ||
+				( substr( $0, 1, 3 ) == "   " && substr( $0, 4, 1 ) != " " &&
+				  substr( $0, 4, 4 ) != "🧠" ) { print }
+			END { printf "\037%d\n", n + 0 }
+		' )"
+		batchNew="${batchRead##*$'\037'}"
+		case "$batchNew" in ''|*[!0123456789]*) continue ;; esac
+		[ "$batchNew" -gt 0 ] || continue
+		newLines="${batchRead%$'\037'*}"
+		newLines="${newLines%$'\n'}"
+		lastLineCount=$(( lastLineCount + batchNew ))
+		[ -n "$newLines" ] || continue
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+		printf '%s\n' "$newLines" | DistroAgentsTools --intern-op-event-track-post "$batchMember" "$batchThread" --kind activity --session-id "${MDAT_SPAWN_SESSION_ID:-}" --from-stdin > /dev/null 2>&1 || :
+	done
+}
+
+## A fact the start post could not know, said once as a reply in its thread: the CLI that
+## really launched, where it is not the one resolved before the start post. No post is
+## ever edited. Silent with no thread, before a launch, and when the two agree. The flag
+## beside the launch marker claims the reply, so the poller below and the close never both
+## post it. Never fails the spawn: one stderr warning at most.
+AgentsToolsSpawnProxyEventTrackLaunchedPost(){ ## thread, member, marker file, the CLI the start post names
+	type AgentsToolsSpawnProxySawSentinel > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnProxyLaunch.include"
+	local launchedThread="$1" launchedMember="$2" launchedMarker="$3" launchedResolved="$4" launchedCli
+	[ -n "$launchedThread" ] && AgentsToolsSpawnProxySawSentinel "$launchedMarker" || return 0
+	[ ! -e "$launchedMarker.noticed" ] || return 0
+	: > "$launchedMarker.noticed" 2>/dev/null || return 0
+	launchedCli="$( AgentsToolsSpawnProxyExecutedCli "$launchedMarker" )"
+	[ -n "$launchedCli" ] && [ "$launchedCli" != "$launchedResolved" ] || return 0
+	type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+	DistroAgentsTools --intern-op-event-track-post "$launchedMember" "$launchedThread" --kind notice --session-id "${MDAT_SPAWN_SESSION_ID:-}" \
+		--field what="launched on $launchedCli, not on $launchedResolved as resolved for the start post" < /dev/null 2>&1 > /dev/null \
+	  | LC_ALL=C awk 'index( $0, "⛔" ) == 1 && ! warned { print "⚠️ WARNING: --intern-op-agent-spawn-proxy: event-track launched-cli reply not posted " $0 > "/dev/stderr" ; warned = 1 ; }' \
+	  || :
+	return 0
+}
+
+## Waits for the launch, then posts what it showed (AgentsToolsSpawnProxyEventTrackLaunchedPost),
+## while the child still runs. On its own, not gated by outputFile, so a --wait spawn with no
+## output file is covered too. The caller kills it once the child ends and then posts once
+## itself, for a launch this had no time to see; once posting, it ignores that kill.
+AgentsToolsSpawnProxyEventTrackLaunched(){ ## thread, member, marker file, the CLI the start post names
+	type AgentsToolsSpawnProxySawSentinel > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnProxyLaunch.include"
+	[ -n "$1" ] || return 0
+	## Its starter, the proxy whose kill ends it, read once: once its parent is no longer that shell, it ends by itself.
+	local launchedSelf launchedStarter
+	launchedSelf="$( exec sh -c 'echo "$PPID"' )"
+	launchedStarter="$( ps -o ppid= -p "$launchedSelf" 2> /dev/null | tr -d ' ' )"
+	while ! AgentsToolsSpawnProxySawSentinel "$3" ; do
+		[ "${launchedStarter:-1}" != 1 ] && [ "$( ps -o ppid= -p "$launchedSelf" 2> /dev/null | tr -d ' ' )" = "$launchedStarter" ] || return 0
+		sleep 1 < /dev/null > /dev/null 2>&1 &
+		wait $! 2>/dev/null || :
+	done
+	trap '' TERM INT HUP
+	AgentsToolsSpawnProxyEventTrackLaunchedPost "$@"
+}

@@ -124,6 +124,10 @@ rigCall Bash "{\"cwd\":\"$rigTmp/work\",\"command\":\"echo RIG-SLOW-OUT; echo RI
 rigAssert "the lines written before the bound come back marked, one on each stream" \
 	"$( rigSaid '>RIG-SLOW-OUT' pre6 ):$( rigSaid '!RIG-SLOW-ERR' pre6 )" "1:1"
 rigAssert "and the call says the bound ended it" "$( rigSaidRe '^\.\.\. TIMED OUT after 2 seconds \.\.\.$' pre6 )" "1"
+## A command the bound ends takes every process it started with it: a pipeline stage left behind would go on under launchd.
+rigCall Bash "{\"cwd\":\"$rigTmp/work\",\"command\":\"sleep 37.31 | cat\",\"timeout\":2}" "$rigSession6" pre6b
+sleep 1
+rigAssert "no process the timed-out command started outlives the call" "$( pgrep -f 'sleep 37[.]31' | LC_ALL=C awk 'END { print NR }' )" "0"
 
 ## ---- 7. an unbounded call marks its streams too ----
 echo "-- 7. a call with no bound of its own marks its lines as the bounded one does --"

@@ -171,7 +171,7 @@ rigAssert "every line of the list gives its reason" "$( LC_ALL=C awk -F'|' 'leng
 echo "-- 3. starts by path: the tooling starts the tool script with the bash it runs in --"
 ( cd "$rigPackage" && find sh-lib sh-scripts builders -type f ! -name '*.md' ! -name '*.keep' ! -name '.DS_Store' | LC_ALL=C sort ) > "$rigTmp/tooling.files"
 rigAssert "control: the files of the tooling are read, the harness, the spawn proxy, the hooks and the console template among them" \
-	"$( [ "$( wc -l < "$rigTmp/tooling.files" | LC_ALL=C tr -d ' ' )" -ge 150 ] && echo many ) $( LC_ALL=C grep -c -x -F -e 'sh-lib/harness/AgentsUniversalHarness.sh' -e 'sh-lib/session/AgentsTools.InternOpAgentSpawnProxy.include' -e 'sh-lib/client-hooks/allow-granted-native-tool.sh' -e 'sh-lib/manager/AgentsConsoleShellScript.template.sh' "$rigTmp/tooling.files" || : )" "many 4"
+	"$( [ "$( wc -l < "$rigTmp/tooling.files" | LC_ALL=C tr -d ' ' )" -ge 150 ] && echo many ) $( LC_ALL=C grep -c -x -F -e 'sh-lib/harness/AgentsUniversalHarness.sh' -e 'sh-lib/spawn/AgentsTools.InternOpAgentSpawnProxy.include' -e 'sh-lib/client-hooks/allow-granted-native-tool.sh' -e 'sh-lib/manager/AgentsConsoleShellScript.template.sh' "$rigTmp/tooling.files" || : )" "many 4"
 rigStartList > "$rigTmp/start.list"
 rigGuardNames="$( cd "$rigPackage" && rigToolNames $( cat "$rigTmp/tooling.files" ) )"
 rigAssert "control: the variables that hold the path of the tool script are read out of the tooling, those of the harness, of the hooks and of the console among them" \

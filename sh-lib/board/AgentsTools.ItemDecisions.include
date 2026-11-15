@@ -346,10 +346,10 @@ AgentsToolsRoutineIsExecutor(){ ## routine name, member
 ## member. rc 0 the reviewer, rc 1 not.
 AgentsToolsItemIsReviewer(){ ## item path, member
 	local irBy irSession="" irMember="" irDir
-	type AgentsToolsItemReviewer > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include"
+	type AgentsToolsItemReviewer > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemReviewer.include"
 	irBy="$( AgentsToolsItemReviewer "$1" )"
 	## A member or routine of any workspace (AgentsTools.TeamRegistry.include), not this one's own index alone.
-	type AgentsToolsTeamMemberDirectoryText > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamRegistry.include"
+	type AgentsToolsTeamMemberDirectory > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamRegistry.include"
 	case "$irBy" in
 		''|magic-coordinator)
 			[ "$2" = magic-coordinator ] && return 0
@@ -552,7 +552,7 @@ AgentsToolsDecisionsAppend(){ ## who, item, kind, text, source, clear (all|empty
 	[ -n "$appText" ] || { echo "$MDSC_CMD: ⛔ ERROR: the decision text is empty, so nothing was recorded" >&2 ; return 1 ; }
 	appSource="$( AgentsToolsDecisionsOneLine "$appSource" 120 )"
 	appLine="- $( date -u +%Y-%m-%dT%H:%MZ ) ${appWho:-unknown} $appKind: $appText${appSource:+ ($appSource)}"
-	. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.LocalLock.include"
+	. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.LocalLock.include"
 	AgentsToolsLocalLockTake "decisions-${appName%.md}" 30 "the Decisions of $appName" && appLock="$agentsLocalLockPath" \
 		|| echo "⚠️ WARNING: $MDSC_CMD: the Decisions lock on $appName could not be taken; recording without it" >&2
 	## Read under the lock: the item may have moved state since it was found.

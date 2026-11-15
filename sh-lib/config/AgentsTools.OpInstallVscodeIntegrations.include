@@ -1,0 +1,313 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+## AgentsTools.OpInstallVscodeIntegrations.include -- the operation `--install-vscode-integrations`, sourced by AgentsTools.Install.include with the operation's arguments.
+		shift
+
+		local workspaceArg
+		while [ "$#" -gt 0 ] ; do
+			case "$1" in
+				--workspace)
+					workspaceArg="$2" ; shift 2
+				;;
+				*)
+					echo "⛔ ERROR: $MDSC_CMD --install-vscode-integrations: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+
+		local workspace
+		workspace="${workspaceArg:-$MMDAPP}"
+		if [ ! -d "$workspace" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --install-vscode-integrations: workspace not found: $workspace" >&2
+			set +e ; return 1
+		fi
+		workspace="$( cd "$workspace" && pwd )"
+
+		local localContextMarker="$workspace/.local/myx/myx.distro-.local/sh-lib/LocalContext.include"
+		if [ ! -f "$localContextMarker" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --install-vscode-integrations: not a set-up myx.distro workspace (missing $localContextMarker)" >&2
+			set +e ; return 1
+		fi
+
+		local failed=0
+		## Carried to the closing line: a mid-run WARNING scrolls away and the op
+		## still reports success, so a workspace left with no myx.distro MCP reads
+		## as a clean install.
+		local distroSkipped=""
+
+		echo "# workspace: $workspace" >&2
+
+		## The tooling's own myx.common, found by `myx.common which`, as AgentsHarnessMcpServersPrimary composes it.
+		local mcpRoot="" serverScript=""
+		mcpRoot="$( command -v myx.common >/dev/null 2>&1 && myx.common which lib/agentMcpServer 2>/dev/null )" || mcpRoot=""
+		mcpRoot="${mcpRoot%/bin/lib/agentMcpServer.Common}"
+		[ ! -x "$mcpRoot/bin/lib/agentMcpServer.Common" ] || serverScript="$mcpRoot/bin/lib/agentMcpServer.Common"
+
+		local vscodeMcpDir="$workspace/.vscode"
+		mkdir -p "$vscodeMcpDir"
+
+		if [ -z "$serverScript" ] ; then
+			if [ -f "$mcpRoot/bin/lib/agentMcpServer.Common" ] ; then
+				echo "⛔ ERROR: mcp-server-path found but not executable: $mcpRoot/bin/lib/agentMcpServer.Common" >&2
+				echo "   fix with: chmod +x $mcpRoot/bin/lib/agentMcpServer.Common" >&2
+			else
+				echo "⛔ ERROR: mcp-server-path unresolved (bin/lib/agentMcpServer.Common not found under $mcpRoot)" >&2
+			fi
+			failed=1
+		else
+			local mcpTarget mcpFile mcpWorkspaceReal
+			mcpWorkspaceReal="$( cd -P "$workspace" && pwd -P )"
+			for mcpTarget in "$workspace/.local/agents/mcp.servers.json:mcpServers" "$vscodeMcpDir/mcp.json:servers" "$workspace/.mcp.json:mcpServers" ; do
+				mcpFile="${mcpTarget%%:*}"
+				[ -f "$mcpFile" ] || continue
+				case "$( cd -P "${mcpFile%/*}" && pwd -P )/" in
+					"$mcpWorkspaceReal"/*) ;;
+					*) echo "🙋 WARNING: $mcpFile lies outside the workspace, left untouched" >&2 ; continue ;;
+				esac
+				if [ -r "$mcpFile" ] ; then
+					case "$( MYX_MCPVERIFY_TOPKEY="${mcpTarget#*:}" MYX_MCPVERIFY_COMMAND="$serverScript" \
+						LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/mcp/AgentsMcpServerJsonVerify.awk" "$mcpFile" )" in
+						not-a-json-object|unparsable|"${mcpTarget#*:}-not-an-object") ;;
+						*) continue ;;
+					esac
+				fi
+				if rm -f -- "$mcpFile" ; then
+					echo "# removed unusable $mcpFile, written fresh below" >&2
+				else
+					echo "⛔ ERROR: failed to remove unusable $mcpFile" >&2
+					failed=1
+				fi
+			done
+			local homeSetup="$mcpRoot/bin/setup/agentMcp.Common"
+			if [ ! -x "$homeSetup" ] ; then
+				echo "⛔ ERROR: mcp-home not present/executable, ~/.claude.json local scope NOT registered: $homeSetup" >&2
+				failed=1
+			elif ! MYXROOT="$mcpRoot" MYX_AGENTMCP_TARGET_CWD="$workspace" "$homeSetup" ; then
+				## agentMcp.Common prints its own one-line outcome
+				echo "⛔ ERROR: mcp-home ~/.claude.json local-scope registration did not complete (see above)" >&2
+				failed=1
+			fi
+
+			mkdir -p "$workspace/.local/agents" 2>/dev/null || true
+			## PRIMARY -> INDEX -> OUTPUTS. Our own harness's index of the servers this
+			## workspace registers is written FIRST, from the one composition of them
+			## (AgentsHarnessMcpServersPrimary), and every JSON below is generated from
+			## that index -- command, args and env -- so the files we publish for external
+			## tools can never disagree with what our harness runs, and nothing of ours
+			## ever reads those files back.
+			( . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessMcpConfig.include" \
+				&& AgentsHarnessMcpIndexWrite "$workspace" ) || {
+				echo "⛔ ERROR: mcp-index .local/agents/mcp.servers.index could not be written" >&2
+				set +e ; return 1
+			}
+			echo "🔌 harness MCP index written: .local/agents/mcp.servers.index" >&2
+			## One registered server's command, args JSON and env JSON, read from that index.
+			local mcpEntryCmd mcpEntryArgsJson mcpEntryEnvJson
+			AgentsToolsInstallMcpEntryFromIndex(){ ## server name
+				local entryOut
+				entryOut="$(
+					MMDAPP="$workspace" ; harnessHere="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib"
+					. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessMcpConfig.include" || exit 1
+					AgentsHarnessMcpResolve "$1"
+					[ "$harnessMcpResCmdRc" = 0 ] || exit 1
+					entryEsc(){ printf '%s' "$1" | LC_ALL=C awk -f "$mcpRoot/include/data/agentMcpJsonEscape.awk" ; }
+					entryJson="[" ; entrySep=""
+					for entryArg in ${harnessMcpResArgs[@]+"${harnessMcpResArgs[@]}"} ; do
+						entryJson="$entryJson$entrySep\"$( entryEsc "$entryArg" )\"" ; entrySep=","
+					done
+					entryEnv="{" ; entrySep="" ; entryIdx=0
+					while [ "$entryIdx" -lt "${#harnessMcpResEnvKeys[@]}" ] ; do
+						entryEnv="$entryEnv$entrySep\"$( entryEsc "${harnessMcpResEnvKeys[$entryIdx]}" )\":\"$( entryEsc "${harnessMcpResEnvVals[$entryIdx]}" )\"" ; entrySep=","
+						entryIdx=$(( entryIdx + 1 ))
+					done
+					printf '%s\n%s]\n%s}' "$harnessMcpResCmd" "$entryJson" "$entryEnv"
+				)" || return 1
+				mcpEntryCmd="${entryOut%%$'\n'*}" ; entryOut="${entryOut#*$'\n'}"
+				mcpEntryArgsJson="${entryOut%%$'\n'*}" ; mcpEntryEnvJson="${entryOut#*$'\n'}"
+			}
+			local mcpCommonCmd mcpCommonArgsJson mcpCommonEnvJson
+			if ! AgentsToolsInstallMcpEntryFromIndex "myx.common" || [ "$mcpEntryCmd" != "$serverScript" ] ; then
+				echo "⛔ ERROR: mcp-index .local/agents/mcp.servers.index does not register myx.common at $serverScript" >&2
+				set +e ; return 1
+			fi
+			mcpCommonCmd="$mcpEntryCmd" mcpCommonArgsJson="$mcpEntryArgsJson" mcpCommonEnvJson="$mcpEntryEnvJson"
+
+			## Ours first, the native two after it. All three are output we publish for
+			## external tools, generated from the index above; our own harness reads that
+			## index, never any of these.
+			local mcpTarget
+			for mcpTarget in \
+				"$workspace/.local/agents/mcp.servers.json:mcpServers" \
+				"$vscodeMcpDir/mcp.json:servers" \
+				"$workspace/.mcp.json:mcpServers" \
+			; do
+				local mcpFile="${mcpTarget%%:*}"
+				local mcpKey="${mcpTarget#*:}"
+				local mcpSource mcpTmp mcpErr mcpRc=0
+				mcpSource="$mcpFile"
+				[ -f "$mcpSource" ] || mcpSource=/dev/null
+				mcpTmp="$mcpFile.tmp.$$"
+				mcpErr="$( MYX_MCPUPSERT_TOPKEY="$mcpKey" \
+					MYX_MCPUPSERT_ENTRYKEY="myx.common" \
+					MYX_MCPUPSERT_COMMAND="$mcpCommonCmd" \
+					MYX_MCPUPSERT_ARGS="$mcpCommonArgsJson" \
+					MYX_MCPUPSERT_ENV="$mcpCommonEnvJson" \
+					LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/mcp/AgentsMcpServerJsonUpsert.awk" "$mcpSource" 2>&1 >"$mcpTmp" )" || mcpRc=$?
+				if [ "$mcpRc" -ne 0 ] ; then
+					echo "⛔ ERROR: mcp-upsert $mcpFile: $mcpErr" >&2
+					rm -f "$mcpTmp"
+					failed=1
+					continue
+				fi
+				if [ "$mcpSource" != /dev/null ] && cmp -s "$mcpTmp" "$mcpSource" ; then
+					rm -f "$mcpTmp"
+					## Unchanged content still gets the promised mode: an install is
+					## where 0644 is made true, whatever an earlier umask left.
+					if ! chmod 644 "$mcpFile" ; then
+						echo "⛔ ERROR: mcp-install $mcpFile: could not set mode 0644" >&2
+						failed=1
+						continue
+					fi
+				else
+					## The mode the help promises, set on the temp so mv carries it:
+					## the temp was created under the caller's umask.
+					if ! chmod 644 "$mcpTmp" ; then
+						echo "⛔ ERROR: mcp-install $mcpFile: could not set mode 0644" >&2
+						rm -f "$mcpTmp"
+						failed=1
+						continue
+					fi
+					if ! mv -f "$mcpTmp" "$mcpFile" ; then
+						echo "⛔ ERROR: mcp-install $mcpFile" >&2
+						rm -f "$mcpTmp"
+						failed=1
+						continue
+					fi
+				fi
+				local mcpVerdict
+				mcpVerdict="$( MYX_MCPVERIFY_TOPKEY="$mcpKey" MYX_MCPVERIFY_COMMAND="$serverScript" \
+					LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/mcp/AgentsMcpServerJsonVerify.awk" "$mcpFile" )"
+				if [ "$mcpVerdict" = "OK" ] ; then
+					echo "🔌 myx.common registered in ${mcpFile#$workspace/}" >&2
+				else
+					echo "⛔ ERROR: mcp-check ${mcpFile#$workspace/}: $mcpVerdict" >&2
+					failed=1
+				fi
+			done
+
+			## The tooling is $MDLT_ORIGIN, as AgentsHarnessMcpServersPrimary composes it.
+			local distroServerScript="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+			local distroUpsert="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/mcp/AgentsMcpServerJsonUpsert.awk"
+			if [ "$workspace" != "$MMDAPP" ] ; then
+				distroSkipped=" -- WITHOUT the myx.distro MCP server, which registers only when run from its own workspace, so $workspace has none"
+				echo "🙋 WARNING: myx.distro skipped, it registers only when run from its own workspace" >&2
+			elif [ ! -x "$distroServerScript" ] ; then
+				echo "⛔ ERROR: mcp-distro-path missing or not executable: $distroServerScript" >&2
+				failed=1
+			elif ! AgentsToolsInstallMcpEntryFromIndex "myx.distro" || [ "$mcpEntryCmd" != "$distroServerScript" ] ; then
+				echo "⛔ ERROR: mcp-index .local/agents/mcp.servers.index does not register myx.distro at $distroServerScript" >&2
+				failed=1
+			else
+				local distroArgsJson="$mcpEntryArgsJson" distroEnvJson="$mcpEntryEnvJson"
+				local distroTarget
+				for distroTarget in \
+					"$workspace/.local/agents/mcp.servers.json:mcpServers" \
+					"$vscodeMcpDir/mcp.json:servers" \
+					"$workspace/.mcp.json:mcpServers" \
+				; do
+					local distroFile="${distroTarget%%:*}"
+					local distroKey="${distroTarget#*:}"
+					local distroTmp distroErr distroRc=0
+					distroTmp="$distroFile.tmp.$$"
+					distroErr="$( MYX_MCPUPSERT_TOPKEY="$distroKey" \
+						MYX_MCPUPSERT_ENTRYKEY="myx.distro" \
+						MYX_MCPUPSERT_COMMAND="$distroServerScript" \
+						MYX_MCPUPSERT_ARGS="$distroArgsJson" \
+						MYX_MCPUPSERT_ENV="$distroEnvJson" \
+						LC_ALL=C awk -f "$distroUpsert" "$distroFile" 2>&1 >"$distroTmp" )" || distroRc=$?
+					if [ "$distroRc" -ne 0 ] ; then
+						echo "⛔ ERROR: mcp-distro-upsert $distroFile: $distroErr" >&2
+						rm -f "$distroTmp"
+						failed=1
+						continue
+					fi
+					if cmp -s "$distroTmp" "$distroFile" ; then
+						rm -f "$distroTmp"
+					else
+						if ! mv -f "$distroTmp" "$distroFile" ; then
+							echo "⛔ ERROR: mcp-distro-install $distroFile" >&2
+							rm -f "$distroTmp"
+							failed=1
+							continue
+						fi
+					fi
+					if MYX_MCPUPSERT_TOPKEY="$distroKey" \
+						MYX_MCPUPSERT_ENTRYKEY="myx.distro" \
+						MYX_MCPUPSERT_COMMAND="$distroServerScript" \
+						MYX_MCPUPSERT_ARGS="$distroArgsJson" \
+						MYX_MCPUPSERT_ENV="$distroEnvJson" \
+						LC_ALL=C awk -f "$distroUpsert" "$distroFile" 2>/dev/null \
+						| cmp -s - "$distroFile" ; then
+						echo "🔌 myx.distro registered in ${distroFile#$workspace/}" >&2
+					else
+						echo "⛔ ERROR: mcp-distro-check ${distroFile#$workspace/}" >&2
+						failed=1
+					fi
+				done
+			fi
+		fi
+
+		## DeepSeek Harness reads one home-level patch over every profile: the same MCP
+		## server this step mounts for the other harnesses on the machine, in that file.
+		## A machine with no DSH home is not an error: the writer says so and changes nothing.
+		AgentsToolsInstallDshHomePatch "$workspace" || failed=1
+
+		## Require loads by origin path -- Distro() alone resolves through PATH, which only a console session carries.
+		Require DistroSourceTools || :
+		## The generator works on $MMDAPP, so another --workspace is regenerated by its own
+		## console, non-interactively -- the way the generator itself asks a workspace for its
+		## namespace roots.
+		local wsRegenRc=0
+		if [ ! -x "$workspace/DistroSourceConsole.sh" ] ; then
+			:
+		elif [ "$workspace" = "$MMDAPP" ] ; then
+			Distro DistroSourceTools --make-code-workspace --quiet >&2 || wsRegenRc=$?
+		else
+			echo 'Distro DistroSourceTools --make-code-workspace --quiet' | MMDAPP="$workspace" "$BASH" "$workspace/DistroSourceConsole.sh" --non-interactive >&2 || wsRegenRc=$?
+		fi
+		if [ ! -x "$workspace/DistroSourceConsole.sh" ] ; then
+			echo "🙋 WARNING: code-workspace not regenerated, no executable DistroSourceConsole.sh -- chat.agentSkillsLocations stays absent" >&2
+		elif [ "$wsRegenRc" != "0" ] ; then
+			echo "⛔ ERROR: code-workspace regeneration (DistroSourceTools --make-code-workspace) failed for $workspace" >&2
+			failed=1
+		else
+			local wsFile="$workspace/${workspace##*/}.code-workspace"
+			if grep -q 'chat\.agentSkillsLocations' "$wsFile" 2>/dev/null ; then
+				echo "🧰 code-workspace regenerated: ${wsFile#$workspace/}" >&2
+			else
+				echo "⛔ ERROR: code-workspace-check: chat.agentSkillsLocations absent from ${wsFile#$workspace/} -- magic-team members will not be discoverable by the VS Code chat client" >&2
+				failed=1
+			fi
+		fi
+
+		## The Magic-Team panel, after the workspace file is regenerated, so its links follow
+		## the folders listed now.
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+		DistroAgentsTools --install-vscode-magic-team-panel "$workspace" || failed=1
+		## What VS Code reads per folder, authoritative at the workspace root, which is never a
+		## VS Code folder: linked into every listed folder by the one helper (MAGIC.md).
+		local vscodeRootItem
+		for vscodeRootItem in .agents/skills .claude/skills .vscode/mcp.json ; do
+			AgentsToolsVscodeFolderLinks "$workspace" "$workspace/$vscodeRootItem" "$vscodeRootItem" install-vscode-integrations || failed=1
+		done
+
+
+		if [ "$failed" -eq 0 ] ; then
+			echo "✅ vscode integrations installed$distroSkipped" >&2
+			return 0
+		fi
+
+		echo "⛔ ERROR: vscode integrations incomplete, see the errors above" >&2
+		set +e ; return 1

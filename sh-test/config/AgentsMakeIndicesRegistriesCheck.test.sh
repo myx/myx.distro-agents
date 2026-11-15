@@ -179,7 +179,7 @@ rigOutBytes(){ ## -- the bytes of the last run's stdout
 }
 rigRowsOf(){ ## rows function, output file -- what that function prints for the rig's stores now, called by this check itself
 	( MMDAPP="$rigWs" ; MDAT_DATA_ROOT="$rigData" ; MDAT_SKILLSET_ROOT="$rigSkills" ; export MMDAPP MDAT_DATA_ROOT MDAT_SKILLSET_ROOT
-		. "$rigRegInclude" ; "$1" ) > "$2" 2> /dev/null
+		. "$rigRegInclude" ; . "${rigRegInclude%/*}/AgentsTools.RegistryTeamMembers.include" ; . "${rigRegInclude%/*}/AgentsTools.RegistryMemberNames.include" ; . "${rigRegInclude%/*}/AgentsTools.RegistrySpawnedSessions.include" ; . "${rigRegInclude%/*}/AgentsTools.RegistryPendingReplies.include" ; "$1" ) > "$2" 2> /dev/null
 }
 rigSame(){ ## rows function, registry name -- whether that registry's file is, byte for byte, what its rows function prints now
 	rigRowsOf "$1" "$rigTmp/want.rows"
@@ -422,7 +422,7 @@ while [ "$rigAtOnceRound" -lt 3 ] ; do
 	rigAtOncePids="$rigAtOncePids $!"
 	for rigAtOnceNo in 1 2 ; do
 		( cd "$rigWs" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDAT_DATA_ROOT="$rigData" MDAT_SKILLSET_ROOT="$rigSkills" \
-			bash -c '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include" && AgentsToolsRegistrySpawnedSessionsRebuild && AgentsToolsRegistryPendingRepliesRebuild && AgentsToolsRegistrySpawnedSessionsRebuild && AgentsToolsRegistryPendingRepliesRebuild' ) \
+			bash -c '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.RegistrySpawnedSessions.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.RegistryTeamMembers.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.RegistryMemberNames.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.RegistrySpawnedSessions.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.RegistryPendingReplies.include" && AgentsToolsRegistrySpawnedSessionsRebuild && AgentsToolsRegistryPendingRepliesRebuild && AgentsToolsRegistrySpawnedSessionsRebuild && AgentsToolsRegistryPendingRepliesRebuild' ) \
 			> "$rigTmp/at-once.$rigAtOnceRound.$rigAtOnceNo.out" 2> "$rigTmp/at-once.$rigAtOnceRound.$rigAtOnceNo.err" < /dev/null &
 		rigAtOncePids="$rigAtOncePids $!"
 	done
@@ -445,7 +445,7 @@ rigWriter="$rigTmp/writer" ; mkdir -p "$rigWriter/ws/.local/agents"
 rigWriterFile="$rigWriter/ws/.local/agents/probe.registry"
 (
 	MMDAPP="$rigWriter/ws" ; export MMDAPP
-	. "$rigRegInclude"
+	. "$rigRegInclude" ; . "${rigRegInclude%/*}/AgentsTools.RegistryTeamMembers.include" ; . "${rigRegInclude%/*}/AgentsTools.RegistryMemberNames.include" ; . "${rigRegInclude%/*}/AgentsTools.RegistrySpawnedSessions.include" ; . "${rigRegInclude%/*}/AgentsTools.RegistryPendingReplies.include"
 	rigWait(){ ## file -- until it is there, for half a minute at most
 		local waitNo=0
 		while [ ! -e "$1" ] && [ "$waitNo" -lt 150 ] ; do waitNo=$(( waitNo + 1 )) ; sleep 0.2 ; done

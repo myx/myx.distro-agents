@@ -16,8 +16,8 @@ set -u
 rigOrigin="$( cd "$MDLT_ORIGIN" && pwd -P )" || exit 1
 rigPkg="$rigOrigin/myx/myx.distro-agents"
 rigTool="$rigPkg/sh-scripts/DistroAgentsTools.fn.sh"
-rigReplies="$rigPkg/sh-lib/member/AgentsTools.MemberWaitReplies.include"
-rigAwk="$rigPkg/sh-lib/member/AgentsWaitOwnPostReplies.awk"
+rigReplies="$rigPkg/sh-lib/wait/AgentsTools.MemberWaitReplies.include"
+rigAwk="$rigPkg/sh-lib/wait/AgentsWaitOwnPostReplies.awk"
 rigDismiss="$rigPkg/sh-lib/questions/AgentsDismissalMatch.awk"
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
@@ -69,7 +69,7 @@ PATH="$rigTmp/bin:$PATH"
 
 ## One call of the real tooling in this rig's own tree.
 rigRun(){ ## the tool's words...
-	( cd "$rigWs" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp/home" PATH="$PATH" TMPDIR="${TMPDIR:-/tmp}" \
+	( cd "$rigWs" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp/home" PATH="$PATH" \
 		MMDAPP="$rigWs" MDLT_ORIGIN="$rigOrigin" MDLT_OPTION="--run-from-path $rigOrigin" \
 		MDAT_SKILLSET_ROOT="$rigTmp/skills" MDAT_SPAWN_AGENT=magic-team \
 		bash "$rigTool" "$@" ) > "$rigTmp/run.out" 2> "$rigTmp/run.err" < /dev/null

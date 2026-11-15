@@ -40,15 +40,15 @@ DistroAgentsToolsResolveWorkspace(){
 }
 
 ## The pid file of a channel process, console.pid or holder.pid: one line, `<pid> <start>`, the
-## start as AgentsToolsRegistryProcessesBegan reads it as the process is started, put in place
+## start as AgentsToolsRunProcessesBegan reads it as the process is started, put in place
 ## with the pid by one rename. The file may be of any age, and a pid is a number the system gives
 ## again: the process that has the number is the channel's own only while it began when the file
 ## says. A file written before start times were kept, or for a process that had ended before its
 ## start could be read, holds the pid alone.
 DistroAgentsToolsChannelPidKeep(){ ## pid file, pid
 	local keepLine keepAside
-	type AgentsToolsRegistryProcessesBegan > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include" 2> /dev/null
-	keepLine="$( printf '%s\n' "$2" | AgentsToolsRegistryProcessesBegan 2> /dev/null )"
+	type AgentsToolsRunProcessesBegan > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunProcesses.include"
+	keepLine="$( printf '%s\n' "$2" | AgentsToolsRunProcessesBegan 2> /dev/null )"
 	keepAside="$( mktemp "$1.XXXXXX" )" || return 1
 	printf '%s\n' "${keepLine:-$2}" > "$keepAside" && mv -f "$keepAside" "$1"
 }
@@ -74,8 +74,8 @@ DistroAgentsToolsChannelSignal(){ ## signal, pid file
 		kill -0 "$signalPid" 2>/dev/null || return 1
 		return 2
 	fi
-	type AgentsToolsRegistryProcessesBegan > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include" 2> /dev/null
-	[ "$( printf '%s\n' "$signalPid" | AgentsToolsRegistryProcessesBegan 2> /dev/null )" = "$signalLine" ] && kill "-$1" "$signalPid" 2>/dev/null || return 1
+	type AgentsToolsRunProcessesBegan > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunProcesses.include"
+	[ "$( printf '%s\n' "$signalPid" | AgentsToolsRunProcessesBegan 2> /dev/null )" = "$signalLine" ] && kill "-$1" "$signalPid" 2>/dev/null || return 1
 	return 0
 }
 

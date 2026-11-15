@@ -54,7 +54,7 @@ rigContext(){ ## effective account, USER, SUDO_USER -- the team member the commo
 }
 rigAssert "the team member of the common options: user-myx under sudo from myx, user-root under sudo from root, user-mdci with no sudo" "$( rigContext mdci mdci myx ) $( rigContext mdci mdci root ) $( rigContext mdci mdci '' )" "user-myx user-root user-mdci"
 rigAssert "and none with no account: the call is refused for want of a member" "[$( rigContext '' '' '' )]" "[]"
-rigMember='set -- --x ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.ManagerSession.include" > /dev/null 2>&1 ; echo "$( AgentsToolsManagerConsoleMember ):$( AgentsToolsManagerConsoleUser ):$( AgentsToolsManagerConsoleAccount )"'
+rigMember='. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.ManagerConsoleIdentity.include" ; echo "$( AgentsToolsManagerConsoleMember ):$( AgentsToolsManagerConsoleUser ):$( AgentsToolsManagerConsoleAccount )"'
 rigAssert "what a console answer, a message and a kill are recorded under: the member, the user and the account, from the person" "$( rigLine mdci mdci myx "$rigMember" ) $( rigLine mdci mdci root "$rigMember" ) $( rigLine mdci mdci '' "$rigMember" ) $( rigLine '' '' '' "$rigMember" )" "user-myx:myx:myx  user-root:root:root  user-mdci:mdci:mdci  :unknown: "
 rigGate='. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.Authority.include" > /dev/null 2>&1 ; AgentsToolsAuthorityCaller ; echo "$agentsAuthorityCallerKind:$agentsAuthorityCallerId"'
 rigAssert "the caller of the authority gate: the person, as user-<account>" "$( rigLine mdci mdci myx "$rigGate" ) $( rigLine mdci mdci root "$rigGate" ) $( rigLine mdci mdci '' "$rigGate" )" "person:user-myx  person:user-root  person:user-mdci "
@@ -64,7 +64,7 @@ rigCount(){ ## file... -- how many lines that are no comment ask `id -un` or SUD
 	cat "$@" | LC_ALL=C grep -v '^[[:space:]]*#' | LC_ALL=C grep -c -e 'id -un' -e 'SUDO_USER' || :
 }
 rigAssert "the layer of the callers holds the one reading of the account; the console's account, its member, the authority gate and the common options hold none of their own" \
-	"$( rigCount "$rigPackage/sh-lib/member/AgentsTools.CallerCheck.include" ) $( rigCount "$rigPackage/sh-lib/manager/AgentsTools.ManagerSession.include" ) $( rigCount "$rigPackage/sh-lib/questions/AgentsTools.Authority.include" ) $( rigCount "$rigPackage/sh-lib/common/AgentsTools.CommonOptions.include" ) $( rigCount "$rigPackage/sh-lib/inbox/AgentsTools.InternOpMemberInboxUpsert.include" "$rigPackage/sh-lib/board/AgentsTools.InternOpBoardUpsertMoveEdit.include" )" "2 0 0 0 0"
+	"$( rigCount "$rigPackage/sh-lib/member/AgentsTools.CallerCheck.include" ) $( rigCount "$rigPackage/sh-lib/manager/AgentsTools.ManagerConsoleIdentity.include" ) $( rigCount "$rigPackage/sh-lib/questions/AgentsTools.Authority.include" ) $( rigCount "$rigPackage/sh-lib/common/AgentsTools.CommonOptions.include" ) $( rigCount "$rigPackage/sh-lib/inbox/AgentsTools.InternOpMemberInboxUpsert.include" "$rigPackage/sh-lib/board/AgentsTools.InternOpBoardUpsertMoveEdit.include" )" "2 0 0 0 0"
 
 if [ "$rigFails" -ne 0 ] ; then
 	echo "⛔ CONSOLE PERSON CHECK FAILED: $rigFails of $(( rigPasses + rigFails )) assertion(s)" >&2 ; exit 1

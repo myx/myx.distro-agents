@@ -121,7 +121,7 @@ AgentsToolsStrayStoreList(){ ## workspace
 	[ -d "$listStore" ] || { echo "# $listWs keeps no stray store: nothing at $listStore" >&2 ; return 0 ; }
 	## The rigs' runs, one table each, for the inbox items; made once, removed at the end.
 	if [ -n "$( find "$listStore/inboxes" -type f 2> /dev/null | head -n 1 )" ] ; then
-		listTables="$( mktemp -d "${TMPDIR:-/tmp}/stray-runs.XXXXXX" 2> /dev/null )" || listTables=""
+		mkdir -p "$listWs/.local/temp" 2> /dev/null && listTables="$( mktemp -d "$listWs/.local/temp/stray-runs.XXXXXX" 2> /dev/null )" || listTables=""
 		[ -z "$listTables" ] || while IFS=$'\t' read -r listRigName listRigRoot ; do
 			[ -n "$listRigName" ] || continue
 			AgentsToolsStrayStoreRunsTable "$listRigRoot" > "$listTables/$listRigName"

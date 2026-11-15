@@ -31,7 +31,7 @@ rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }
 [ -x "$rigTool" ] || rigRefuse "the team tooling is not at the origin this workspace resolves: $rigTool"
-[ -f "$rigHere/member/AgentsTools.MemberWaitReplies.include" ] || rigRefuse "the replies include is missing from the package"
+[ -f "$rigHere/wait/AgentsTools.MemberWaitReplies.include" ] || rigRefuse "the replies include is missing from the package"
 [ -f "$rigHere/comms/AgentsTools.SeenReaction.include" ] || rigRefuse "the seen-reaction include is missing from the package"
 . "$rigFixtures/rig-temp.include.sh" || exit 1
 rigTmp="$( rigTempDir AgentsWaitRepliesFirstLookCheck )" || exit 1

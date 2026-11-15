@@ -9,7 +9,7 @@ set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 rigHere="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib"
 rigRefuse(){ echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1 ; }
-[ -f "$rigHere/session/AgentsTools.DispatcherSchedule.include" ] || rigRefuse "the schedule's functions are not at the origin this workspace resolves: $rigHere"
+[ -f "$rigHere/schedule/AgentsTools.DispatcherSchedule.include" ] || rigRefuse "the schedule's functions are not at the origin this workspace resolves: $rigHere"
 . "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
 rigTmp="$( rigTempDir AgentsSchedulePaceAndStandingCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
@@ -24,7 +24,7 @@ rigWs="$rigTmp/ws"
 mkdir -p "$rigWs/.local/agents/spawned"
 export MMDAPP="$rigWs" MDSC_CMD=check
 set +u
-. "$rigHere/session/AgentsTools.DispatcherSchedule.include" > /dev/null 2>&1
+. "$rigHere/schedule/AgentsTools.DispatcherSchedule.include" > /dev/null 2>&1
 set -u
 type AgentsToolsSchedulePaceText > /dev/null 2>&1 || rigRefuse "the schedule's functions are not defined by sourcing them"
 

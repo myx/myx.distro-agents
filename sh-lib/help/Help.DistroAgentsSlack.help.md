@@ -5,7 +5,7 @@
 📘 syntax: DistroAgentsSlack.fn.sh --slack-edit-message [--team-member <team-member>] <channel>:<ts>|<alias>:<ts>|session-current|session-parent [--identity-bot] [<text...>|--from-stdin|--from-file <path>] [--text-group report|brief|relay]
 📘 syntax: DistroAgentsSlack.fn.sh --slack-file-fetch [--team-member <team-member>] <file-id> <destination-path> [--identity-bot] [--overwrite]
 📘 syntax: DistroAgentsSlack.fn.sh --slack-file-info [--team-member <team-member>] <file-id> [--identity-bot] [--raw]
-📘 syntax: DistroAgentsSlack.fn.sh --slack-file-share [--team-member <team-member>] <target> (--from-file <path>|--from-stdin) [--snippet-type <v>] [--title <v>] [--comment <text>] [--identity-bot]
+📘 syntax: DistroAgentsSlack.fn.sh --slack-file-share [--team-member <team-member>] <target> (--from-stdin|--from-file <path>) [--snippet-type <v>] [--title <v>] [--comment <text>] [--identity-bot]
 📘 syntax: DistroAgentsSlack.fn.sh --slack-profile-get [--team-member <team-member>] [--raw]
 📘 syntax: DistroAgentsSlack.fn.sh --slack-profile-set [--team-member <team-member>] {--display-name <v>|--title <v>|--status-text <v>|--status-emoji <v>|--status-expiry <ts>|--email <address>|--avatar <path>|--presence (auto|away)|--snooze <minutes>|--snooze-end}
 📘 syntax: DistroAgentsSlack.fn.sh --slack-presence-keep [--team-member <team-member>] [--ttl <seconds>]
@@ -55,7 +55,7 @@
 		--slack-file-info <file-id> [--raw]
 			Prints what Slack holds about one file: its name, its type and its size.
 
-		--slack-file-share <target> (--from-file <path>|--from-stdin)
+		--slack-file-share <target> (--from-stdin|--from-file <path>)
 			Shares the text given into that conversation, as a snippet where a type or a
 			title is named, with a comment where one is given.
 

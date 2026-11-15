@@ -7,7 +7,7 @@ set -u
 ## The include's own dispatcher references $1 at the top level; the resolver under test is a
 ## plain function, so the unbound-reference guard is off while it is sourced.
 set +u
-rigInc="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.MemberCommsGoogle.include"
+rigInc="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/google/AgentsTools.MemberCommsGoogle.include"
 [ -f "$rigInc" ] || { echo "⛔ ERROR: no $rigInc" >&2 ; exit 1 ; }
 
 pass=0 fail=0

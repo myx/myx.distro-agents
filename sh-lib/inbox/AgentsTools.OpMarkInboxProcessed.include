@@ -1,0 +1,59 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+## AgentsTools.OpMarkInboxProcessed.include -- the operation `--mark-inbox-processed`, sourced by AgentsTools.Member.include with the operation's arguments.
+## Any member marks its own inbox item handled: `processed-at` stamped, and the item moved
+## to processed/ of the inbox, through the same
+## primitive --librarian-inbox-to-processed uses.
+## Own inbox only -- <team-member> is both the actor and the inbox, and a spawned
+## session naming another member than itself is refused.
+		shift
+		local memberName="$1"
+		shift || true
+		local itemName="$1"
+		shift || true
+		## A ROUTINE'S LOCK NOTE IS THE TOOLING'S (AgentsToolsInboxIsLockNote, the index of the routines' own declarations): its folder is
+		## set by the routine lock, and a move by hand loses the lock, which then answers NO_LOCK_HELD.
+		type AgentsToolsInboxIsLockNote > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/inbox/AgentsTools.InboxPlace.include"
+		if AgentsToolsInboxIsLockNote "$itemName" ; then
+			echo "⛔ ERROR: $MDSC_CMD --mark-inbox-processed: $itemName is a routine's lock note, which the routine lock keeps in its own folder -- it is never marked by hand, and nothing was done" >&2
+			set +e ; return 1
+		fi
+		if [ -z "$memberName" ] || [ -z "$itemName" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --mark-inbox-processed: syntax is [--team-member <team-member>] <item-filename> [--include-processed] [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
+			set +e ; return 1
+		fi
+		local passthrough=()
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--header:*|--upsert-from-stdin|--edit-script-from-stdin:*|--edit-patch-from-stdin|--include-processed)
+					passthrough+=( "$1" ) ; shift
+				;;
+				*)
+					echo "⛔ ERROR: $MDSC_CMD --mark-inbox-processed: invalid option: $1 -- this op marks an item in <team-member>'s own inbox processed, nothing else" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		AgentsToolsAssertBareName "$memberName" "<team-member>" mark-inbox-processed || { set +e ; return 1 ; }
+		AgentsToolsAssertBareName "$itemName" "<item-filename>" mark-inbox-processed || { set +e ; return 1 ; }
+		if [ ! -d "$MDAT_SKILLSET_ROOT/$memberName" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --mark-inbox-processed: no such member skill directory: $MDAT_SKILLSET_ROOT/$memberName" >&2
+			set +e ; return 1
+		fi
+		if [ -n "${MDAT_SPAWN_AGENT:-}" ] && [ "$MDAT_SPAWN_AGENT" != "$memberName" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --mark-inbox-processed: this session acts as $MDAT_SPAWN_AGENT, and only its own inbox items are its to mark handled -- not $memberName's" >&2
+			set +e ; return 1
+		fi
+		case "$itemName" in
+			*.md) ;;
+			*)
+				echo "⛔ ERROR: $MDSC_CMD --mark-inbox-processed: <item-filename> must end in .md -- every inbox item is a markdown document: $itemName" >&2
+				set +e ; return 1
+			;;
+		esac
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+		DistroAgentsTools --intern-op-inbox-to-processed "$memberName" "$itemName" \
+			--context --mark-inbox-processed \
+			${passthrough[@]+"${passthrough[@]}"}
+		return $?

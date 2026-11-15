@@ -10,7 +10,7 @@
 ##
 ## THE KINDS. A request names its kind, and `kill` is the one kind taken now: the hard
 ## control of the console, which interrupts at once (--manager-session-kill,
-## AgentsTools.ManagerSession.include). Pause, resume and stop are to come the same way,
+## AgentsTools.ManagerSessionKill.include). Pause, resume and stop are to come the same way,
 ## and nothing of them is here: a request of any other kind is answered as refused, with
 ## the reason, and nothing is done.
 ##
@@ -43,7 +43,7 @@
 ## and makes the next tick come at once. In a process that does not hold it, it ends that
 ## process. So it is sent ONLY TO A PROCESS SHOWN TO BE THAT THREAD, at that moment: the pid
 ## file of the session names it, `<pid> <start>`; a process with that pid began at that
-## very time, by the one reading a process is kept by (AgentsToolsRegistryProcessesBegan),
+## very time, by the one reading a process is kept by (AgentsToolsRunProcessesBegan),
 ## asked again in the statement of the signal itself; its command line is the thread of
 ## that session, `--intern-session-control --run --session-id <id>`, so a call of one tick,
 ## which holds no trap, is never signalled; and `takes` names the kind, which a thread
@@ -70,7 +70,7 @@
 ## work at SESSION_CONTROL_KILL_SECONDS (default 30). The thread itself sends no signal.
 ##
 
-type AgentsToolsRegistryProcessesBegan > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
+type AgentsToolsRunProcessesBegan > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunProcesses.include"
 
 ## How many outcomes the outcome file keeps, the newest last.
 agentsSessionControlOutcomesKept=4
@@ -80,7 +80,7 @@ agentsSessionControlOutcomesKept=4
 ## thread has for its own bounds (AgentsToolsSessionControlSeconds), for a console too.
 AgentsToolsSessionControlRequestSeconds(){ ## key, default
 	local secondsValue
-	type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
+	type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/settings/AgentsTools.ConfigOption.include"
 	secondsValue="$( AgentsToolsConfigOption magic-team --select-default "$1" "$2" 2> /dev/null )" || secondsValue=""
 	case "$secondsValue" in ''|*[!0123456789]*|0|????????*) secondsValue="$2" ;; esac
 	printf '%s\n' "$secondsValue"
@@ -155,13 +155,14 @@ AgentsToolsSessionControlRequestTakes(){ ## the control folder, the kind
 ## the thread of that session, and it says that it takes the kind. rc 1 where there is none
 ## such, and requestThreadWhy says in a few words what stands in its place.
 AgentsToolsSessionControlRequestThread(){ ## session id, the kind
+	type AgentsToolsRunProcessesBegan > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunProcesses.include"
 	local threadDir="$MMDAPP/.local/agents/sessions/$1/control" threadLine="" threadPid threadArgs
 	requestThread="" ; requestThreadWhy="session $1 has no control thread alive"
 	{ IFS= read -r threadLine < "$threadDir/pid" ; } 2> /dev/null || threadLine=""
 	threadPid="${threadLine%% *}"
 	case "$threadPid" in ''|*[!0123456789]*) return 1 ;; esac
 	case "$threadLine" in "$threadPid "?*) ;; *) return 1 ;; esac
-	[ "$( printf '%s\n' "$threadPid" | AgentsToolsRegistryProcessesBegan )" = "$threadLine" ] || return 1
+	[ "$( printf '%s\n' "$threadPid" | AgentsToolsRunProcessesBegan )" = "$threadLine" ] || return 1
 	threadArgs="$( LC_ALL=C ps -ww -o args= -p "$threadPid" 2> /dev/null )" || threadArgs=""
 	case " $threadArgs " in
 		*" --intern-session-control --run --session-id $1 "*) ;;
@@ -179,9 +180,10 @@ AgentsToolsSessionControlRequestThread(){ ## session id, the kind
 ## itself, only while its pid is still the process that began when its pid file says. rc 1
 ## where nothing was sent: the request is then read at the next tick of the thread.
 AgentsToolsSessionControlRequestWake(){ ## the control folder, the kind, the thread as its pid file names it
+	type AgentsToolsRunProcessesBegan > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunProcesses.include"
 	local wakeLine="$3" wakePid="${3%% *}"
 	AgentsToolsSessionControlRequestTakes "$1" "$2" || return 1
-	[ "$( printf '%s\n' "$wakePid" | AgentsToolsRegistryProcessesBegan )" = "$wakeLine" ] && kill -USR1 "$wakePid" 2> /dev/null
+	[ "$( printf '%s\n' "$wakePid" | AgentsToolsRunProcessesBegan )" = "$wakeLine" ] && kill -USR1 "$wakePid" 2> /dev/null
 }
 
 ## Writes what became of the request the caller's request* variables hold into the outcome
@@ -230,6 +232,9 @@ AgentsToolsSessionControlRequestAnswer(){ ## the control folder, result, reason,
 ## request stands taken in the folder of that session is the kill made, by this call, under
 ## the name the request gives; else nothing is signalled.
 AgentsToolsSessionControlRequestKill(){ ## the operation as it was called, the id, "run" where the id is a run's own alone (may be empty)
+	type AgentsToolsSpawnRecord > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunRecords.include"
+	type AgentsToolsRegistryHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
+	type AgentsToolsManagerSessionKill > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.ManagerSessionKill.include"
 	local viaOp="$1" viaId="$2" viaOwn="${3:-}" viaKind="kill" viaSession="" viaRecord="" viaFor="" viaDir="" viaWhy="" viaBy="" viaMine="" viaAside="" viaBack=""
 	local viaWait=0 viaBound=0 viaFrom=0 viaTurns=0 viaPlaced="" viaTaken="" viaAnswered="" viaThreadPid=""
 	local requestId="" requestKind="" requestFor="" requestSession="" requestBy="" requestAt="" requestAsked="" requestWait=""
@@ -244,7 +249,7 @@ AgentsToolsSessionControlRequestKill(){ ## the operation as it was called, the i
 		AgentsToolsManagerSessionKill "$viaOp" "$viaId" "$viaOwn" "${requestBy:-unknown}"
 		return $?
 	fi
-	viaRecord="$( AgentsToolsRegistrySpawnRecord "$viaId" < /dev/null )" || viaRecord=""
+	viaRecord="$( AgentsToolsSpawnRecord "$viaId" < /dev/null )" || viaRecord=""
 	[ -z "$viaRecord" ] || viaSession="$( AgentsToolsRegistryHeader "$( AgentsToolsRegistryFrontmatter "$viaRecord" )" session-id )" || viaSession=""
 	case "$viaSession" in ''|-) viaSession="$viaId" ;; esac
 	case "$viaSession" in .|..|*/*|*[[:space:]]*) viaSession="" ;; esac
@@ -259,6 +264,7 @@ AgentsToolsSessionControlRequestKill(){ ## the operation as it was called, the i
 		viaThreadPid="${requestThread%% *}"
 		viaWait="$( AgentsToolsSessionControlRequestSeconds SESSION_CONTROL_REQUEST_SECONDS 5 )"
 		viaBound="$( AgentsToolsSessionControlRequestSeconds SESSION_CONTROL_KILL_SECONDS 30 )"
+		type AgentsToolsManagerConsoleUser > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.ManagerConsoleIdentity.include"
 		viaBy="$( AgentsToolsManagerConsoleUser )"
 		viaFrom="$SECONDS"
 		viaAside="$( mktemp "$viaDir/request.aside.XXXXXX" 2> /dev/null )" || viaAside=""
@@ -442,7 +448,9 @@ AgentsToolsSessionControlRequestCarry(){ ## session id, the bound of a kill in s
 ## `<pid> <start>`: while that is still that process no second call is started. Called by
 ## the thread alone: it reads and sets the thread's own variables.
 AgentsToolsSessionControlRequestStart(){
+	type AgentsToolsRunProcessesBegan > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunProcesses.include"
 	local startPid="" startBegan=""
+	type AgentsToolsSessionControlSeconds > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.InternSessionControl.include"
 	[ -n "$controlRequestBound" ] || controlRequestBound="$( AgentsToolsSessionControlSeconds SESSION_CONTROL_KILL_SECONDS 30 )"
 	(
 		exec "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-session-control --request --session-id "$controlSession"
@@ -450,12 +458,13 @@ AgentsToolsSessionControlRequestStart(){
 	startPid="$!"
 	case "$startPid" in
 		''|*[!0123456789]*)
+			type AgentsToolsSessionControlSay > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.InternSessionControl.include"
 			AgentsToolsSessionControlSay event "session $controlSession: a request of the console stands, and the process that is to carry it out could not be started -- its console carries it out itself once its wait is over"
 			return 0
 		;;
 	esac
 	disown "$startPid" 2> /dev/null || :
-	startBegan="$( printf '%s\n' "$startPid" | AgentsToolsRegistryProcessesBegan )" || startBegan=""
+	startBegan="$( printf '%s\n' "$startPid" | AgentsToolsRunProcessesBegan )" || startBegan=""
 	controlRequestCall="${startBegan:-$startPid}"
 	AgentsToolsSessionControlSay event "session $controlSession: a request of the console stands, and is carried out by pid $startPid, apart from the tick, within ${controlRequestBound}s"
 	return 0
@@ -472,6 +481,7 @@ AgentsToolsSessionControlRequestStart(){
 ##   is removed, and said;
 ## - a request that waits, with none in work, is carried out by a call apart.
 AgentsToolsSessionControlRequestStep(){
+	type AgentsToolsSessionControlHolderLives > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.InternSessionControl.include"
 	local stepRc=0 stepId=""
 	local requestId="" requestKind="" requestFor="" requestSession="" requestBy="" requestAt="" requestAsked="" requestWait=""
 	local requestResult="" requestReason="" requestStatus="" requestDoneAt="" requestProcess=""

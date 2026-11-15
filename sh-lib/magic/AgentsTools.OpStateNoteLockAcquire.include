@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+## AgentsTools.OpStateNoteLockAcquire.include -- the operation `--state-note-lock-acquire`, sourced by AgentsTools.MagicCoordinatorState.include with the operation's arguments.
+	type AgentsToolsRecheckDate > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.RecheckDate.include"
+	type AgentsToolsItemRead > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/items/AgentsTools.InternOpItem.include"
+
+		shift
+		local callingMember="$1" ; shift || true
+		local ownerLabel="$1" ; shift || true
+		if [ -z "$callingMember" ] || [ -z "$ownerLabel" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --state-note-lock-acquire: <team-member> <owner-label> required" >&2
+			set +e ; return 1
+		fi
+		if [ $# -gt 0 ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --state-note-lock-acquire: invalid option: $1" >&2
+			set +e ; return 1
+		fi
+		local recheckDate
+		recheckDate="$( AgentsToolsRecheckDate 15 )"
+		AgentsToolsItemRead "$callingMember" \
+			note-20260809T155000Z-heartbeat-state-and-lock.md \
+			--acquire-lock "$ownerLabel" \
+			--header:upsert:state:heartbeat-running \
+			--header:upsert:recheck-date:"$recheckDate" \
+			--context --state-note-lock-acquire
+		return $?

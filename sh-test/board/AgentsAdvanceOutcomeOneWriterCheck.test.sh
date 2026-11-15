@@ -5,7 +5,7 @@
 ## (S16 stage 2 item 1): `--advance-batch-outcome` records `outcome` and `execution-receipt` on an
 ## active board item, and a second write of a DIFFERENT value within the same staleness window is
 ## refused rather than overwriting what that window's round decided.
-## (AgentsTools.MagicAdvance.include, --advance-batch-outcome)
+## (AgentsTools.BoardAdvance.include, --advance-batch-outcome)
 ##   1. THE FIRST WRITE lands both fields, and the op exits 0.
 ##   2. A SECOND write of a different outcome inside the window is refused: non-zero, and the item
 ##      still carries the first outcome and the first receipt.

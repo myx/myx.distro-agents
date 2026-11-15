@@ -1,0 +1,293 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.UndoRecord.include -- the four beats of the undo protocol (S13.19): record, plan,
+## run and purge. Sourced by the dispatcher for `--undo-*`. Needs $1/$@/$MDSC_CMD from dot-sourcing.
+##
+## A record lives in the store of the session whose identity performed the act:
+##   <workspace>/.local/agents/sessions/<session>/undo/<record-id>/
+##       record   `<key>: <value>` lines: record-id, session-id, actor, kind, state, at, target, why
+##       steps    one step made: `made` TAB `<step number>`, written BEFORE the step is taken
+##       result   a file act's file as the act leaves it, so `plan` can see the act still stands
+##       base     a file act's file as it stood, which `run` puts back
+## The marker `undo.hold` in the acting run's own sandbox root is written by `record` and read by
+## every cleaner: it carries one `<session-id>/<record-id>` line per open record, and nothing
+## else. A record whose promise ends -- run, purged, refused -- takes its line out again.
+##
+## THE INVERSE LIST IS CLOSED, and it is AgentsToolsUndoKinds in AgentsTools.UndoHold.include.
+## An act outside the list is refused when recorded and the kinds are named. An act inside it
+## whose inverse no operation of this tree carries is recorded `refused` with why, and holds
+## nothing: a record that says "this inverse is refused, and why" never promises what no tool
+## can do.
+##
+
+if ! type AgentsToolsUndoKinds >/dev/null 2>&1 ; then
+
+	type AgentsToolsUndoHoldState > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/undo/AgentsTools.UndoHold.include"
+	type AgentsToolsAssertBareName > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.BareName.include"
+
+	## Every kind of act this lane answers for: `<kind>` TAB `<runnable|refused>` TAB `<why>`.
+	## One list, and the only one.
+	AgentsToolsUndoKinds(){
+		printf '%s\n' \
+			$'file-write\trunnable\t' \
+			$'item-move\trunnable\t' \
+			$'grant\trunnable\t' \
+			$'config\trunnable\t' \
+			$'file-create\trefused\tthe inverse removes a file, and no operation of this tree removes one' \
+			$'item-trash\trefused\ta git store keeps a trashed item only in its history, and --untrash refuses it' \
+			$'inbox-mark\trefused\tnothing removes processed-at from an inbox item, so the item cannot move back' \
+			$'inbox-trash\trefused\tthe restore reaches board-trash, which a git store refuses' \
+			$'copy\trefused\tthe inverse removes a file, and no operation of this tree removes one'
+	}
+
+	AgentsToolsUndoKindRow(){ ## kind
+		AgentsToolsUndoKinds | LC_ALL=C awk -F'\t' -v want="$1" '$1 == want { print ; found = 1 ; exit } END { exit ( found ? 0 : 1 ) }'
+	}
+
+	## One value of a record's own `record` file, or empty.
+	AgentsToolsUndoField(){ ## record folder, key
+		local undoFieldLine
+		[ -f "$1/record" ] || return 0
+		while IFS= read -r undoFieldLine ; do
+			case "$undoFieldLine" in "$2: "*) printf '%s' "${undoFieldLine#"$2: "}" ; return 0 ;; esac
+		done < "$1/record"
+	}
+
+	## One value of a record's `record` file set, keeping every other line. Written beside and renamed on.
+	AgentsToolsUndoSet(){ ## record folder, key, value
+		local undoSetFile="$1/record" undoSetTmp
+		[ -f "$undoSetFile" ] || : > "$undoSetFile" || return 1
+		undoSetTmp="$( mktemp "$undoSetFile.XXXXXX" 2> /dev/null )" || return 1
+		LC_ALL=C awk -v key="$2" -v value="$3" '
+			{ if ( index( $0, key ": " ) == 1 ) { if ( !wrote ) { print key ": " value ; wrote = 1 } ; next } print }
+			END { if ( !wrote ) print key ": " value }
+		' "$undoSetFile" > "$undoSetTmp" || { rm -f "$undoSetTmp" ; return 1 ; }
+		mv -f "$undoSetTmp" "$undoSetFile"
+	}
+
+	## The folder of a record this workspace holds; rc 1 with the reason where it holds none.
+	AgentsToolsUndoFind(){ ## record id, session id (may be empty)
+		local undoFindSession="$2" undoFindDir=""
+		case "$1" in ''|.|..|*/*) printf 'the record is a bare name, got: %s\n' "$1" >&2 ; return 1 ;; esac
+		if [ -n "$undoFindSession" ] ; then
+			undoFindDir="${MMDAPP%/}/.local/agents/sessions/$undoFindSession/undo/$1"
+			[ -f "$undoFindDir/record" ] || { printf 'no record of session %s is named %s\n' "$undoFindSession" "$1" >&2 ; return 1 ; }
+			printf '%s' "$undoFindDir"
+			return 0
+		fi
+		for undoFindDir in "${MMDAPP%/}/.local/agents/sessions"/*/undo/"$1" ; do
+			[ -f "$undoFindDir/record" ] || continue
+			printf '%s' "$undoFindDir"
+			return 0
+		done
+		printf 'no record of this workspace is named %s\n' "$1" >&2
+		return 1
+	}
+
+	## The board state folder holding an item, or empty where none does.
+	AgentsToolsUndoItemState(){ ## item filename
+		local undoStateName
+		for undoStateName in running pending review backlog blocked parked processed archived retained ; do
+			[ ! -f "${MDAT_DATA_ROOT:-/nonexistent}/board/$undoStateName/$1" ] || { printf '%s' "$undoStateName" ; return 0 ; }
+		done
+		return 0
+	}
+
+	## Why a record's inverse cannot be taken now, or empty where it can. A file act is taken only
+	## over the file as the act left it, and a board move only over the state the act left it in.
+	AgentsToolsUndoBlockedBy(){ ## record folder
+		local undoBlockKind undoBlockTarget undoBlockShown
+		undoBlockKind="$( AgentsToolsUndoField "$1" kind )"
+		undoBlockTarget="$( AgentsToolsUndoField "$1" target )"
+		case "$undoBlockKind" in
+			file-write)
+				[ -f "$1/result" ] || { printf 'the record keeps no copy of the file as the act left it' ; return 0 ; }
+				[ -f "$undoBlockTarget" ] || { printf 'the file the act wrote is no longer there: %s' "$undoBlockTarget" ; return 0 ; }
+				cmp -s "$undoBlockTarget" "$1/result" \
+					|| printf 'the file has changed since the act, so putting its base back would undo more than the act: %s' "$undoBlockTarget"
+			;;
+			item-move)
+				undoBlockShown="$( AgentsToolsUndoItemState "$undoBlockTarget" )"
+				[ "$undoBlockShown" = "$( AgentsToolsUndoField "$1" to-state )" ] \
+					|| printf 'the item is in %s, and the act left it in %s' "${undoBlockShown:-no board state}" "$( AgentsToolsUndoField "$1" to-state )"
+			;;
+		esac
+	}
+
+	## The steps a record's inverse takes, one a line, TAB separated: `<tool>` `<operation>` `<argument>`.
+	## Nothing here runs and nothing is written.
+	AgentsToolsUndoSteps(){ ## record folder
+		local undoStepTarget
+		undoStepTarget="$( AgentsToolsUndoField "$1" target )"
+		case "$( AgentsToolsUndoField "$1" kind )" in
+			file-write)
+				printf '%s\t%s\t%s\n' AgentsUniversalHarness --intern-tool "$undoStepTarget"
+			;;
+			item-move)
+				printf '%s\t%s\t%s\n' DistroAgentsItems "--move-to-$( AgentsToolsUndoField "$1" from-state )" "$undoStepTarget"
+			;;
+			grant)
+				printf '%s\t%s\t%s\n' DistroAgentsGrants --revoke-permission "$undoStepTarget"
+			;;
+			config)
+				printf '%s\t%s\t%s --delete %s\n' DistroAgentsTools --agents-config-option "$( AgentsToolsUndoField "$1" entity )" "$undoStepTarget"
+			;;
+		esac
+	}
+
+	## One step taken: the tool of the step, given its operation and its arguments. A file inverse
+	## goes through the harness's own Write, as the member's tool, exactly as an approved change does.
+	AgentsToolsUndoStepRun(){ ## record folder, tool, operation, argument
+		local undoRunRecord="$1" undoRunTool="$2" undoRunOp="$3" undoRunArg="$4"
+		case "$undoRunTool:$undoRunOp" in
+			AgentsUniversalHarness:--intern-tool)
+				[ -f "$undoRunRecord/base" ] || { printf 'the record keeps no base to put back\n' >&2 ; return 1 ; }
+				printf '{"path":"%s","content":"%s"}' "$undoRunArg" \
+					"$( LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/mcp/AgentsMcpJsonEscape.awk" < "$undoRunRecord/base" )" \
+					| "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsUniversalHarness.sh" --intern-tool Write
+			;;
+			*:--agents-config-option)
+				"$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" "$undoRunOp" $undoRunArg
+			;;
+			*)
+				"$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/$undoRunTool.fn.sh" "$undoRunOp" "$undoRunArg"
+			;;
+		esac
+	}
+
+	## One value of a pending reply's own record, or empty.
+	AgentsToolsUndoAskField(){ ## pending file, key
+		local undoAskLine
+		[ -f "$1" ] || return 0
+		while IFS= read -r undoAskLine ; do
+			case "$undoAskLine" in "$2: "*) printf '%s' "${undoAskLine#"$2": }" ; return 0 ;; esac
+		done < "$1"
+	}
+
+	## The pending reply a record's ask is, live first and then among the closed.
+	AgentsToolsUndoAskPath(){ ## pending id
+		local undoAskId="$1" undoAskRoot="${MMDAPP%/}/.local/agents/pending"
+		case "$undoAskId" in ''|.|..|*/*) return 1 ;; esac
+		[ ! -f "$undoAskRoot/$undoAskId.md" ] || { printf '%s' "$undoAskRoot/$undoAskId.md" ; return 0 ; }
+		[ ! -f "$undoAskRoot/closed/$undoAskId.md" ] || { printf '%s' "$undoAskRoot/closed/$undoAskId.md" ; return 0 ; }
+		return 1
+	}
+
+	## The record one ask names, by the ask's id, or empty: the lane keeps the ask's id on the
+	## record, and this is the one walk back from an answer to the act it is about.
+	AgentsToolsUndoRecordOfAsk(){ ## pending id
+		local undoOfAskDir
+		case "${1:-}" in ''|.|..|*/*) return 0 ;; esac
+		for undoOfAskDir in "${MMDAPP%/}/.local/agents/sessions"/*/undo/* ; do
+			[ -f "$undoOfAskDir/record" ] || continue
+			[ "$( AgentsToolsUndoField "$undoOfAskDir" ask )" = "$1" ] || continue
+			printf '%s' "$undoOfAskDir"
+			return 0
+		done
+		return 0
+	}
+
+	## HIS WORD, AND NO OTHER. The verdict the record's ask was answered with, where it is the
+	## human-owner's and one of the words given; rc 1 with the reason where the record names no
+	## ask, the ask has no answer, the answer is another's, or it is another verdict. This is what
+	## keeps `--undo-run` and `--undo-purge` out of a member's own reach.
+	AgentsToolsUndoOwnerWord(){ ## record folder, the words that carry out, space-separated
+		local undoWordFile undoWordStatus undoWordVerdict undoWordBy undoWordAsk
+		undoWordAsk="$( AgentsToolsUndoField "$1" ask )"
+		undoWordFile="$( AgentsToolsUndoAskPath "$undoWordAsk" )" || {
+			printf 'the record names no ask of this workspace, so no answer of the human-owner reaches it\n' >&2 ; return 1 ; }
+		undoWordStatus="$( AgentsToolsUndoAskField "$undoWordFile" status )"
+		undoWordVerdict="$( AgentsToolsUndoAskField "$undoWordFile" verdict )"
+		undoWordBy="$( AgentsToolsUndoAskField "$undoWordFile" answered-by )"
+		[ "$undoWordStatus" = "reply-received" ] || {
+			printf '%s has no answer yet, so nothing is done on a member own word\n' "$( AgentsToolsUndoField "$1" ask )" >&2 ; return 1 ; }
+		case " $2 " in
+			*" ${undoWordVerdict%% *} "*) ;;
+			*) printf '%s was answered %s, and the words that carry this out are: %s\n' "$( AgentsToolsUndoField "$1" ask )" "${undoWordVerdict:-nothing}" "$2" >&2 ; return 1 ;;
+		esac
+		type AgentsToolsPermissionIsHumanOwner > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionHolds.include"
+		AgentsToolsPermissionIsHumanOwner "$undoWordBy" || {
+			printf '%s was answered by %s, and only the answer of the human-owner is carried out\n' "$( AgentsToolsUndoField "$1" ask )" "${undoWordBy:-nobody}" >&2 ; return 1 ; }
+		printf '%s' "$undoWordVerdict"
+	}
+
+	## One part of the undo prompt, filled from its template by the filler the ask posts use: the
+	## template and the answer form the table of the asks names for `undo`. Its slots travel in the
+	## caller's environment as ASKP_F_<slot>, as they do for every ask.
+	AgentsToolsUndoAskFill(){ ## want (post|closed|reactions|block), template, answer form
+		ASKP_WANT="$1" ASKP_FORM="$3" \
+			LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsToolingTemplateFill.awk" \
+				-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsAskPostFill.awk" "$2" 2> /dev/null
+	}
+
+	## The prompt of one record: posted to the human-owner's own conversation by the team bot, as
+	## the change prompt is, and recorded as that run's ask, so his answer arrives on its Wait and
+	## is carried out in one place. Prints the pending id; rc 1, the reason on stderr, where it
+	## could not be posted or recorded, so the act is not promised.
+	AgentsToolsUndoAskOpen(){ ## record folder, acting member, session id
+		local undoAskDir="$1" undoAskBy="$2" undoAskSession="$3" undoAskBody="" undoAskOut="" undoAskChannel="" undoAskTs="" undoAskAddressees="" undoAskAsking="" undoAskFields="" undoAskPending="" undoAskTemplate
+		type AgentsToolsAskKindRow > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.AskPost.include"
+		AgentsToolsAskKindRow undo || { printf 'the prompt cannot be filled: undo is not a kind the table of asks names\n' >&2 ; return 1 ; }
+		undoAskTemplate="$( AgentsToolsToolingTemplate "$agentsAskRowTemplate" )" || undoAskTemplate="$agentsAskRowTemplate"
+		undoAskBody="$( ASKP_F_member="$undoAskBy" \
+			ASKP_F_act="$( printf '`%s` on `%s`' "$( AgentsToolsUndoField "$undoAskDir" kind )" "$( AgentsToolsUndoField "$undoAskDir" target )" )" \
+			ASKP_F_inverse="$( AgentsToolsUndoSteps "$undoAskDir" | LC_ALL=C awk -F'\t' '{ printf "  step %s %s %s\n", $1, $2, $3 ; }' )" \
+			ASKP_F_hold="$( AgentsToolsUndoField "$undoAskDir" hold-dir )" \
+			AgentsToolsUndoAskFill post "$undoAskTemplate" "$agentsAskRowForm" )" || undoAskBody=""
+		[ -n "$undoAskBody" ] || { printf 'the prompt could not be filled from its template, so nothing is promised\n' >&2 ; return 1 ; }
+		undoAskOut="$( printf '%s\n' "$undoAskBody" | "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-op-comms-slack-send-message "$undoAskBy" human-owner --identity-bot --address-to human-owner --from-stdin 2>&1 )" || {
+			printf 'the prompt could not be posted, so nothing is promised: %s\n' "$( printf '%s\n' "$undoAskOut" | LC_ALL=C grep -m1 'ERROR' )" >&2 ; return 1 ; }
+		undoAskChannel="$( printf '%s\n' "$undoAskOut" | LC_ALL=C sed -n 's/^SENT_MESSAGE_CHANNEL=//p' | head -1 )"
+		undoAskTs="$( printf '%s\n' "$undoAskOut" | LC_ALL=C sed -n 's/^SENT_MESSAGE_TS=//p' | head -1 )"
+		undoAskAddressees="$( printf '%s\n' "$undoAskOut" | LC_ALL=C sed -n 's/^SENT_MESSAGE_ADDRESSEES=//p' | head -1 )"
+		undoAskAsking="$( printf '%s\n' "$undoAskOut" | LC_ALL=C grep '^{' | LC_ALL=C awk -v path=message.user -v optional=1 -v dialect=slack -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" 2> /dev/null | LC_ALL=C sort -u | LC_ALL=C tr '\n' ' ' )" || undoAskAsking=""
+		[ -n "$undoAskChannel" ] && [ -n "$undoAskTs" ] && [ -n "$undoAskAddressees" ] || {
+			printf 'the prompt was posted but its thread could not be named, so its answer could not be read\n' >&2 ; return 1 ; }
+		undoAskFields="$( AgentsToolsAskPostFieldsPack member "$undoAskBy" act "$undoAskBody" )"
+		undoAskPending="$( printf '%s\n' "$undoAskBody" | "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-op-pending-reply-open "$undoAskBy" --to "$undoAskChannel" --session-id "$undoAskSession" \
+			--kind undo --address-to human-owner --blocked-on "reply from human-owner" --channel "$undoAskChannel" --question-ts "$undoAskTs" --thread-ts "$undoAskTs" \
+			--addressees "$undoAskAddressees" ${undoAskAsking:+--asking-accounts " $undoAskAsking"} --ask-identity bot --fields "$undoAskFields" --context undo-record 2> /dev/null )" || undoAskPending=""
+		[ -n "$undoAskPending" ] || { printf 'the prompt was posted, but its ask could not be recorded, so its answer could not be read\n' >&2 ; return 1 ; }
+		## Its click answers, the names its template gives, placed as the identity that posted it.
+		type AgentsToolsAskPostReact > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.AskPost.include"
+		AgentsToolsAskPostReact "$undoAskBy" "$undoAskChannel:$undoAskTs" bot add $( AgentsToolsUndoAskFill reactions "$undoAskTemplate" "$agentsAskRowForm" )
+		printf '%s' "$undoAskPending"
+	}
+
+fi
+
+case "$1" in
+
+	--undo-record)
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/undo/AgentsTools.OpUndoRecord.include"
+	;;
+
+	--undo-plan)
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/undo/AgentsTools.OpUndoPlan.include"
+	;;
+
+	--undo-run)
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/undo/AgentsTools.OpUndoRun.include"
+	;;
+
+	--undo-purge)
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/undo/AgentsTools.OpUndoPurge.include"
+	;;
+
+	--undo-rework)
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/undo/AgentsTools.OpUndoRework.include"
+	;;
+
+	--undo-*)
+		echo "⛔ ERROR: $MDSC_CMD: invalid operation: $1" >&2
+		set +e ; return 1
+	;;
+
+	## DEFINITIONS-ONLY SOURCE: a caller sourcing this file for its functions. Nothing to dispatch.
+	*)
+		:
+	;;
+
+esac

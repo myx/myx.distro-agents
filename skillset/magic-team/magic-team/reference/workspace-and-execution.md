@@ -1,3 +1,6 @@
+---
+maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
+---
 # Workspace and execution mechanics
 
 Read this for how workspaces, registries and settings work, and for one-off calls and console sessions. The rules every member follows are in "Workspace".

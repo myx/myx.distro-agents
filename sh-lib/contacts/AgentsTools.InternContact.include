@@ -1,0 +1,250 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.InternContact.include -- the contact family's own file: the
+## --intern-op-contact-* primitives, sourced lazily from the `--intern-op-contact-*)`
+## wildcard arm (relies on being dot-sourced for $1/$@/$MDSC_CMD), and the in-context
+## helper AgentsToolsContactAssertKnown, which has no operation of its own (MAGIC.md,
+## section 1). DUAL USE: a name not its own runs nothing, so a send op sources it for the helper:
+##   type AgentsToolsContactAssertKnown > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/contacts/AgentsTools.InternContact.include"
+## Contracts in MAGIC.md.
+##
+
+## Where an inbox item lives (F4.3).
+
+## The outbound-to-unlisted-people gate: one shared check, called from
+## each real send op (Slack, email) right before its own network call,
+## never duplicated per protocol. "Known" is deliberately narrow here --
+## the recipient must be a coordinate (a Slack id or conversation, an
+## e-mail) of a contact the acting member holds, in the contacts store
+## (DistroAgentsContacts.fn.sh, `reached-by:`): this gate is about a
+## recipient being on record at all, not about what that contact may ask
+## for, which is the permission model's. The team's own configured
+## addresses -- the human-owner's and each member's -- are known as well,
+## read from config, never listed anywhere by hand. A Slack send names
+## its team (`--team`, the sending member's identity scope), because a
+## Slack id is unique within one workspace only. Not known: refused via
+## the existing --intern-op-permission-refusal-log/grant-open flow, so
+## approval travels the one path every other refusal already does.
+AgentsToolsContactAssertKnown(){ ## <team-member> --tool <bare-op-name, no leading --> --target <recipient> [--team <slack-team>] [--named-member <team-member>] [--message <text>]
+	local MDSC_CMD='DistroAgentsTools'
+	local assertMember="$1"
+	shift || true
+	local assertTool="" assertTarget="" assertNamed="" assertMessage="" assertTeam=""
+	while [ $# -gt 0 ] ; do
+		case "$1" in
+			--tool)
+				if [ -z "${2:-}" ] ; then
+					echo "⛔ ERROR: $MDSC_CMD contact-assert-known: --tool value missing" >&2
+					set +e ; return 1
+				fi
+				assertTool="$2" ; shift 2
+			;;
+			--target)
+				if [ -z "${2:-}" ] ; then
+					echo "⛔ ERROR: $MDSC_CMD contact-assert-known: --target value missing" >&2
+					set +e ; return 1
+				fi
+				assertTarget="$2" ; shift 2
+			;;
+			--named-member)
+				assertNamed="${2:-}" ; shift 2
+			;;
+			--team)
+				assertTeam="${2:-}" ; shift 2
+			;;
+			--message)
+				assertMessage="${2:-}" ; shift 2
+			;;
+			*)
+				echo "⛔ ERROR: $MDSC_CMD contact-assert-known: invalid option: $1" >&2
+				set +e ; return 1
+			;;
+		esac
+	done
+	if [ -z "$assertMember" ] || [ -z "$assertTool" ] || [ -z "$assertTarget" ] ; then
+		echo "⛔ ERROR: $MDSC_CMD contact-assert-known: syntax is <team-member> --tool <bare-op-name, no leading --> --target <recipient> [--team <slack-team>] [--named-member <team-member>] [--message <text>]" >&2
+		set +e ; return 1
+	fi
+	AgentsToolsAssertBareName "$assertMember" "<team-member>" contact-assert-known || { set +e ; return 1 ; }
+	AgentsToolsAssertBareName "$assertTool" "--tool" contact-assert-known || { set +e ; return 1 ; }
+
+	## A recipient already addressed by our own internal member name --
+	## a partner-*/human-owner team member -- is always known: these are
+	## the "partner and human members" the human-owner named, independent
+	## of any contact record.
+	case "$assertNamed" in
+		partner-*|human-owner) return 0 ;;
+	esac
+
+	## A coordinate of a contact the acting member holds, in the contacts store: read here by the one reader of the records
+	## (AgentsContactsIndex.awk), not through a member-facing read.
+	type AgentsToolsContactsKnown > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/contacts/AgentsTools.ContactsQuery.include"
+	if AgentsToolsContactsKnown "$assertMember" "$assertTarget" "$assertTeam" ; then
+		return 0
+	fi
+
+	## The team's own configured addresses, compared regardless of case:
+	## the human-owner's own EMAIL_USER and his Slack account -- magic-team's
+	## SLACK_CHANNEL_HUMAN_OWNER, the user id every human-owner send already
+	## resolves -- and the own EMAIL_USER of every member of every workspace,
+	## from the member directory (AgentsTools.TeamRegistry.include). No member
+	## scope holds a Slack account id of its own (that is resolved from its
+	## token), so a member is matched by its address only. Each read is
+	## --agents-config-option's, so a member is read in the workspace this runs from.
+	local assertOwn assertOwnName assertOwnRest
+	type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/settings/AgentsTools.ConfigOption.include"
+	assertOwn="$( AgentsToolsConfigOption human-owner --select EMAIL_USER 2>/dev/null )"
+	assertOwn="$assertOwn"$'\n'"$( AgentsToolsConfigOption magic-team --select SLACK_CHANNEL_HUMAN_OWNER 2>/dev/null )"
+	type AgentsToolsTeamMemberDirectoryText > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamRegistry.include"
+	while IFS=$'\t' read -r assertOwnName assertOwnRest ; do
+		AgentsToolsAssertBareName "$assertOwnName" "<member-index-name>" contact-assert-known 2>/dev/null || continue
+		type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/settings/AgentsTools.ConfigOption.include"
+		assertOwn="$assertOwn"$'\n'"$( AgentsToolsConfigOption "$assertOwnName" --select EMAIL_USER 2>/dev/null )"
+	done <<< "$( AgentsToolsTeamMemberDirectoryText )"
+	if printf '%s\n' "$assertOwn" | LC_ALL=C awk -v want="$assertTarget" '
+		function trim(s) { sub(/^[ \t\r]+/, "", s) ; sub(/[ \t\r]+$/, "", s) ; return tolower(s) }
+		{ own = trim($0) ; if ( own != "" && own == trim(want) ) { found = 1 ; exit } }
+		END { exit found ? 0 : 1 }
+	' ; then
+		return 0
+	fi
+	## The team's own Slack accounts -- a member's, or a token's own, the team bot's among them -- are no outside person.
+	type AgentsSlackIdentityOwn > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/slack/AgentsTools.SlackIdentities.include"
+	! AgentsSlackIdentityOwn "$assertTarget" || return 0
+
+	## Not known: refused, bound to this exact message text so a later
+	## approval covers only what the human-owner actually saw -- a
+	## changed message to the same recipient needs its own approval.
+	local assertDigest assertBoundTarget
+	assertDigest="$( printf '%s' "$assertMessage" | LC_ALL=C cksum | LC_ALL=C awk '{ print $1 }' )"
+	assertBoundTarget="$assertTarget#msg-$assertDigest"
+	## The checks this gate made, in the order above: one wording for the
+	## recorded reason and the ERROR alike.
+	local assertChecks="not addressed as a partner-*/human-owner member, not a coordinate of a contact ${assertMember} holds (DistroAgentsContacts.fn.sh --find-contact), not one of the team's own Slack accounts, not one of the team's own configured addresses (human-owner or member)"
+	local assertRefusalId=""
+	type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+	assertRefusalId="$( DistroAgentsTools --intern-op-permission-refusal-log "$assertMember" \
+		--session-id "${MDAT_SPAWN_SESSION_ID:-no-session-$$}" \
+		--tool "$assertTool" --target "$assertBoundTarget" \
+		--reason "outbound --$assertTool to '$assertTarget' refused: $assertChecks" \
+		2>/dev/null | LC_ALL=C sed -n 's/^\(refusal-[0-9a-f-]*\)$/\1/p' | head -1 )" || assertRefusalId=""
+	## The next step first: a Slack account is looked up and, where it is an organisation contact, recorded by --contacted-by, after which
+	## the same send goes through; only a person still unknown after that is escalated.
+	local assertNext=""
+	case "$assertTarget" in U[A-Z0-9][A-Z0-9][A-Z0-9][A-Z0-9][A-Z0-9][A-Z0-9][A-Z0-9][A-Z0-9]*)
+		assertNext=" NEXT: run DistroAgentsContacts.fn.sh --contacted-by $assertTarget -- it records the person where they are an organisation contact, and then this same send goes through. Only if it says the person stays unknown:"
+	;; esac
+	echo "⛔ ERROR: $MDSC_CMD --$assertTool: REFUSED -- '$assertTarget' is not a known contact ($assertChecks). This message was NOT sent. REFUSAL-ID: ${assertRefusalId:-none}.${assertNext} To send it: show the EXACT text of this message to the human-owner and wait for his approved reply -- approval covers only this exact text to this recipient; a changed message needs fresh approval." >&2
+	set +e ; return 1
+}
+
+case "$1" in
+
+	## Sits above the send path and composes what it already accepts: which
+	## client-*/partner- the request came through is the caller's knowledge,
+	## not the shared sender's. See MAGIC.md.
+	--intern-op-contact-digest-send)
+		shift
+		## Which wrapper the caller actually invoked, so an error names the
+		## operation they typed rather than this primitive.
+		local opContext="--intern-op-contact-digest-send"
+		local ctxWanted="" ctxArg
+		for ctxArg in "$@" ; do
+			if [ -n "$ctxWanted" ] ; then
+				opContext="$ctxArg" ; ctxWanted="" ; continue
+			fi
+			if [ "$ctxArg" = "--context" ] ; then ctxWanted="1" ; fi
+		done
+		local digestMember="$1"
+		shift || true
+		local digestOrigin="$1"
+		shift || true
+		if [ -z "$digestMember" ] || [ -z "$digestOrigin" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD $opContext: syntax is <team-member> <origin team-member> (--resolved|--needs-ruling) <text...>" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsAssertBareName "$digestMember" "<team-member>" intern-op-contact-digest-send || { set +e ; return 1 ; }
+		AgentsToolsAssertBareName "$digestOrigin" "<origin>" intern-op-contact-digest-send || { set +e ; return 1 ; }
+		local digestRoute="" digestText=""
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--resolved|--needs-ruling)
+					if [ -n "$digestRoute" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD $opContext: --resolved and --needs-ruling are mutually exclusive -- one assessment, one route" >&2
+						set +e ; return 1
+					fi
+					digestRoute="$1" ; shift
+				;;
+				--context)
+					if [ -z "${2:-}" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD $opContext: --context: value required" >&2
+						set +e ; return 1
+					fi
+					shift 2
+				;;
+				--*)
+					echo "⛔ ERROR: $MDSC_CMD $opContext: invalid option: $1 -- syntax is <team-member> <origin team-member> (--resolved|--needs-ruling) <text...>" >&2
+					set +e ; return 1
+				;;
+				*)
+					digestText="$digestText $1" ; shift
+				;;
+			esac
+		done
+		if [ -z "$digestRoute" ] || [ -z "$digestText" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD $opContext: syntax is <team-member> <origin team-member> (--resolved|--needs-ruling) <text...>" >&2
+			set +e ; return 1
+		fi
+
+		## --address-to carries the origin: the header's `to` slot is the one
+		## that renders on a send, and he has ruled that arrangement in as it
+		## stands rather than have the header changed for it.
+		if [ "$digestRoute" = "--needs-ruling" ] ; then
+			## His own Slack DM, because that is where he replies: the send
+			## path's own human-owner target, under the member's own account
+			## where it has one, else as the team bot.
+			type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+			DistroAgentsTools --intern-op-comms-slack-send-message "$digestMember" human-owner \
+				--address-to "$digestOrigin" "${digestText# }"
+			return $?
+		fi
+
+		## The bot's own conversation with him. That same human-owner target
+		## cannot be it for a member with an account of its own, which posts
+		## under it -- so this route names his account and lets --identity-bot
+		## open the bot DM.
+		local ownerUserId
+		type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/settings/AgentsTools.ConfigOption.include"
+		ownerUserId="$( AgentsToolsConfigOption magic-team --select SLACK_CHANNEL_HUMAN_OWNER )" || ownerUserId=""
+		if [ -z "$ownerUserId" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD $opContext: --resolved: no SLACK_CHANNEL_HUMAN_OWNER configured -- the bot's own conversation with him cannot be addressed without his account id" >&2
+			set +e ; return 1
+		fi
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+		DistroAgentsTools --intern-op-comms-slack-send-message "$digestMember" "$ownerUserId" --identity-bot \
+			--address-to "$digestOrigin" "${digestText# }"
+		return $?
+	;;
+
+	## The action a tier ask keeps, run by the authority act once the human-owner has answered it: the write the answer allows.
+	--intern-op-contact-tier-apply)
+		shift
+		type AgentsToolsContactsTierApply > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/contacts/AgentsTools.ContactsTiers.include"
+		AgentsToolsContactsTierApply "$@"
+		return $?
+	;;
+
+	## A contact operation this file does not implement -- the retired
+	## --intern-op-contact-assert-known among them -- is reported, never swallowed.
+	--intern-op-contact-*)
+		echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
+		set +e ; return 1
+	;;
+
+	## DEFINITIONS-ONLY SOURCE: a caller sourcing this file for its helper. Nothing to dispatch.
+	*)
+		:
+	;;
+esac

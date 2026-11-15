@@ -65,7 +65,7 @@ None of its own: the Opening steps of the routine it inherits from run first (it
 
 Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate it, and never skip it silently.
 
-1. **process-own-inbox**: Run standalone (not inside an advance pass or a daily): run `magic-team.process-inbox.routine magic-coordinator` first, inline (`--routine-run-inline magic-team.process-inbox.routine`). Inside those, the caller already did.
+1. **process-own-inbox**: Run standalone (not inside an advance pass, a daily or the work-duty round): run `magic-team.process-inbox.routine magic-coordinator` first, inline (`--routine-run-inline magic-team.process-inbox.routine`). Inside those, the caller did it, or does it straight after the sweep.
 2. **check**: Read this run's input scan result (`input/input-scan.md`). Each member's part resumes from that member's own `last_swept_ts`, by the tooling. Read the result this way:
    - New messages are found by every participant's own message timestamps, diffed against what was handled — never by "after my own last post". Read the top level, then each open thread in full (`--slack-read <channel>:<ts> --thread`, `--client-operation-run --client-comms-slack-read <channel>:<ts> --thread` on a `client-*` member's source). Open threads are the open board items whose `communication-channel-id` is `slack:<channel>:<ts>`.
    - A thread this member started, was answered in or was tagged in is followed whatever its age.

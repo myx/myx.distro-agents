@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 ## Behavioural check on the options F7.6 of the refactorings epic gave the retest queue (--retest-queue and --retest-drain,
-## sh-lib/member/AgentsTools.MemberRetest.include), which stay the one queue of the machine (no second queue): --project, --wait and --no-wait.
+## sh-lib/member/AgentsTools.RetestQueue.include), which stay the one queue of the machine (no second queue): --project, --wait and --no-wait.
 ## Run rather than read, on the machine of check-fixtures/rig-retest-machine.include.sh. The older behaviour of the queue is held by
 ## AgentsRetestQueueCheck. Held:
 ##   1. PRIORITY. A request is of the priority no-wait unless it is made with --wait, and the request says so; the last of the two flags counts.
