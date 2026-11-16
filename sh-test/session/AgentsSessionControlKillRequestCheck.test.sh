@@ -47,7 +47,8 @@ rigTmp="$( rigTempDir AgentsSessionControlKillRequestCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 rigWs="$rigTmp/ws" ; rigHome="$rigTmp/home" ; rigSkills="$rigTmp/skills" ; rigData="$rigTmp/data"
 rigSp="$rigWs/.local/agents/spawned" ; rigStores="$rigWs/.local/agents/sessions"
-mkdir -p "$rigTmp/bin" "$rigTmp/bin2" "$rigWs/.local/.agents" "$rigSp" "$rigStores" "$rigHome" "$rigSkills" "$rigData/board/running" "$rigData/board/review"
+mkdir -p "$rigTmp/bin" "$rigTmp/bin2" "$rigWs/.local/.agents" "$rigSp" "$rigStores" "$rigHome" "$rigSkills"
+rigBoardStates "$rigData" running review
 rigHost="$( hostname -s 2> /dev/null )" ; [ -n "$rigHost" ] || rigHost="unknown"
 rigStarted=""
 trap 'rigControlThreadsEnd "$rigTmp" ; rigProcSignalWithChildren KILL $rigStarted ; chmod -R u+rwX -- "$rigTmp" 2> /dev/null ; rm -rf -- "$rigTmp"' EXIT
@@ -109,7 +110,7 @@ rigRec(){ ## run id, which is its sandbox too; session id; member
 	mkdir -p "$rigSp/$1"
 	printf -- '---\nsession-id: %s\nspawn-id: %s\nhost: %s\nworkspace: rigws\nowner: %s\nstatus: spawn-started\nstarted-at: 2026-10-13 09:00 +0300\nspawns: dispatch-%s\nreports-to: %s\n---\n\n# Spawn session: %s\n' \
 		"$2" "$1" "$rigHost" "$3" "$1" "${rigReportsTo:-$rigConsoleUser}" "$2" > "$rigSp/$1/$1.spawn.md"
-	printf -- '---\ntype: dispatch\nowner: %s\nstatus: dispatch-started\nspawn-id: %s\nsession-id: %s\n---\n\n# rig dispatch\n' "$3" "$1" "$2" > "$rigData/board/running/dispatch-$1.md"
+	printf -- '---\ntype: dispatch\nowner: %s\nstatus: dispatch-started\nspawn-id: %s\nsession-id: %s\n---\n\n# rig dispatch\n' "$3" "$1" "$2" | rigStoreItem "$rigData" board running dispatch-$1.md
 }
 ## What the supervising shell of a run does once the run has ended: its record is closed.
 rigClose(){ ## run id
@@ -465,7 +466,7 @@ echo ""
 if [ "$rigFails" -ne 0 ] ; then
 	echo "⛔ SESSION CONTROL KILL REQUEST CHECK FAILED: $rigFails of $(( rigPasses + rigFails )) assertion(s)" >&2
 	echo "  warn: a kill of a session does not go through its control thread as it should, or depends on it" >&2
-	echo "  fix:  the request and its outcome (sh-lib/session/AgentsTools.SessionControlRequest.include), the thread's look at a tick and its call apart (sh-lib/session/AgentsTools.InternSessionControl.include), the operation (sh-lib/manager/AgentsTools.ManagerSessionKill.include) -- never the assertion" >&2
+	echo "  fix:  the request and its outcome (sh-lib/session/AgentsTools.SessionControlRequest.include), the thread's look at a tick and its call apart (sh-lib/session/AgentsTools.InternSessionControl.include), the operation (sh-lib/run/AgentsTools.ManagerSessionKill.include) -- never the assertion" >&2
 	exit 1
 fi
 printf 'SESSION_CONTROL_KILL_REQUEST: OK (%d assertions, offline, rig tree only)\n' "$rigPasses"

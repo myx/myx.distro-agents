@@ -134,7 +134,7 @@ rigStart(){ ## scenario name
 rigMarkerTouch(){ ## [origin]
 	[ "${1:-marker}" = "no-marker" ] && return 0
 	( cd "$rigScenarioDir/ws" && MMDAPP="$rigScenarioDir/ws" bash -c '
-		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.WakeMarker.include"
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/wait/AgentsTools.WakeMarker.include"
 		AgentsToolsWakeTouch "$1" "$2"' rig-touch "$rigAsker" "$rigSender" ) || return 1
 }
 rigMarkerPath(){ printf '%s/.local/agents/wake/%s' "$rigScenarioDir/ws" "$rigAsker" ; }

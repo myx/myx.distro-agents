@@ -75,7 +75,9 @@ type AgentsToolsGrantsToolCovers > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.dis
 			set +e ; return 1
 		fi
 		AgentsToolsAssertBareName "$readSession" "--session-id" permission-grant-read || { set +e ; return 1 ; }
-		local readDir="$MMDAPP/.local/agents/sessions/$readSession"
+		type AgentsSessionFolderInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+		local readDir="" readCowDir=""
+		AgentsSessionFolderInto readDir "$MMDAPP" "$readSession" || { set +e ; return 1 ; }
 		local readWant readEntry readKind readRest readEntryTool readEntryTarget readBy readFound readCow
 		readWant="$( AgentsToolsPermissionEscape "$readTarget" )"
 		## A CONTACT (F7.10) holds what the `allows:` of its record names, whatever the session, and what a session grant given to it in this
@@ -89,7 +91,8 @@ type AgentsToolsGrantsToolCovers > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.dis
 				fi
 				while IFS= read -r readCow ; do
 					[ -n "$readCow" ] || continue
-					readFound="$( AgentsToolsPermissionGrantScan "$MMDAPP/.local/agents/sessions/$readCow" "$readMember" "$readTool" "$readTarget" use "$readDir" )" || continue
+					AgentsSessionFolderInto readCowDir "$MMDAPP" "$readCow" || continue
+					readFound="$( AgentsToolsPermissionGrantScan "$readCowDir" "$readMember" "$readTool" "$readTarget" use "$readDir" )" || continue
 					printf 'GRANT: %s\n' "$readFound"
 					return 0
 				done <<< "$( AgentsToolsPermissionRelatedStores "$readSession" )"
@@ -112,7 +115,8 @@ type AgentsToolsGrantsToolCovers > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.dis
 		## signed by someone else; a once is used up in this session's own store.
 		while IFS= read -r readCow ; do
 			[ -n "$readCow" ] || continue
-			readFound="$( AgentsToolsPermissionGrantScan "$MMDAPP/.local/agents/sessions/$readCow" "$readMember" "$readTool" "$readTarget" use "$readDir" )" || continue
+			AgentsSessionFolderInto readCowDir "$MMDAPP" "$readCow" || continue
+			readFound="$( AgentsToolsPermissionGrantScan "$readCowDir" "$readMember" "$readTool" "$readTarget" use "$readDir" )" || continue
 			printf 'GRANT: %s\n' "$readFound"
 			return 0
 		done <<< "$( AgentsToolsPermissionRelatedStores "$readSession" )"
@@ -130,14 +134,16 @@ type AgentsToolsGrantsToolCovers > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.dis
 		## session entry is session-wide, a task entry lives while the item carrying it is open,
 		## and an entry to Edit or Write a path reads it too (AgentsToolsGrantsToolCovers).
 		[ -n "${MDAT_DATA_ROOT:-}" ] && [ -d "$MDAT_DATA_ROOT/board" ] || { set +e ; return 1 ; }
-		local readItem readDispatch="" readTracks="" readPlanned="" readLine readState readItemSession readItemSpawn readItemOwner readItemAllows readItemTracks
+		local readItem readTracksItem="" readDispatch="" readTracks="" readPlanned="" readLine readState readItemSession readItemSpawn readItemOwner readItemAllows readItemTracks
 		## The session's dispatch item by name: a run's record names the dispatch it works in `spawns:` (else
 		## `spawned-by:`), and the session's records come from the kept per-session list
 		## (AgentsTools.StartedRecords.include), so an ask reads one item and never every dispatch item of the
 		## board. Where no record of the session is here, every dispatch item is read, as before.
 		local readRecord readNamed readCandidates=()
-		type AgentsToolsSpawnedSessionRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.StartedRecords.include"
-		for readRecord in "${MMDAPP:-/nonexistent}/.local/agents/spawned"/*/"$readSession.spawn.md" $( AgentsToolsSpawnedSessionRecords "$readSession" own 2> /dev/null ) ; do
+		type AgentsToolsSpawnedSessionRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include"
+		type AgentsSessionRunRecordInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+		AgentsSessionRunRecordInto readRecord "$readSession" || :
+		for readRecord in ${readRecord:+"$readRecord"} $( AgentsToolsSpawnedSessionRecords "$readSession" own 2> /dev/null ) ; do
 			[ -f "$readRecord" ] || continue
 			[ "$( AgentsToolsPermissionField "$readRecord" owner )" = "$readMember" ] || continue
 			readNamed="$( AgentsToolsPermissionField "$readRecord" spawns )"
@@ -145,11 +151,13 @@ type AgentsToolsGrantsToolCovers > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.dis
 			readNamed="${readNamed%%,*}" ; readNamed="${readNamed%% *}" ; readNamed="${readNamed%.md}"
 			case "$readNamed" in dispatch-*) ;; *) continue ;; esac
 			case "$readNamed" in */*|.|..) continue ;; esac
-			for readItem in "$MDAT_DATA_ROOT"/board/*/"$readNamed.md" ; do
-				[ ! -f "$readItem" ] || readCandidates+=( "$readItem" )
-			done
+			type AgentsToolsBoardItemInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemDecisions.include"
+			! AgentsToolsBoardItemInto readItem "$readNamed" || readCandidates+=( "$readItem" )
 		done
-		[ "${#readCandidates[@]}" -gt 0 ] || readCandidates=( "$MDAT_DATA_ROOT"/board/*/dispatch-*.md )
+		if [ "${#readCandidates[@]}" -eq 0 ] ; then
+			type AgentsToolsBoardItemsInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemDecisions.include"
+			AgentsToolsBoardItemsInto readCandidates dispatch-
+		fi
 		for readItem in ${readCandidates[@]+"${readCandidates[@]}"} ; do
 			[ -f "$readItem" ] || continue
 			readItemSession="" ; readItemSpawn="" ; readItemOwner="" ; readItemAllows="" ; readItemTracks="" ; readState=""
@@ -174,18 +182,24 @@ type AgentsToolsGrantsToolCovers > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.dis
 		done
 		[ -n "$readDispatch" ] || { set +e ; return 1 ; }
 		## The tracked item's own allows, found by its bare name in whichever state holds it.
+		## A task row is the item's, for the members it takes part in: the item's own `owner:` and
+		## `participants:` lines, and nothing else. Naming an item never widens a run's access.
 		if [ -n "$readTracks" ] && AgentsToolsAssertBareName "$readTracks" "tracks" permission-grant-read 2>/dev/null ; then
-			for readItem in "$MDAT_DATA_ROOT"/board/*/"$readTracks" "$MDAT_DATA_ROOT"/board/*/"$readTracks.md" ; do
-				[ -f "$readItem" ] || continue
+			type AgentsToolsBoardItemInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemDecisions.include"
+			AgentsToolsBoardItemInto readTracksItem "$readTracks" || :
+			for readItem in ${readTracksItem:+"$readTracksItem"} ; do
+				local readTracksTakes=" $( AgentsToolsPermissionField "$readItem" owner ) $( AgentsToolsPermissionField "$readItem" participants | LC_ALL=C tr ',' ' ' ) "
 				readState=""
-				while IFS= read -r readLine ; do
-					case "$readState:$readLine" in
-						':---') readState=front ;;
-						front:---) break ;;
-						'front:access-control: '*) readPlanned="${readPlanned:+$readPlanned$'\n'}${readItem##*/}"$'\t'"$( AgentsToolsPermissionItemEntries "${readLine#access-control: }" task )" ;;
-						:*) break ;;
-					esac
-				done < "$readItem"
+				if [ "${readTracksTakes#*" $readMember "}" != "$readTracksTakes" ] ; then
+					while IFS= read -r readLine ; do
+						case "$readState:$readLine" in
+							':---') readState=front ;;
+							front:---) break ;;
+							'front:access-control: '*) readPlanned="${readPlanned:+$readPlanned$'\n'}${readItem##*/}"$'\t'"$( AgentsToolsPermissionItemEntries "${readLine#access-control: }" task )" ;;
+							:*) break ;;
+						esac
+					done < "$readItem"
+				fi
 				break
 			done
 		fi
@@ -222,6 +236,8 @@ type AgentsToolsGrantsToolCovers > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.dis
 				fi
 				AgentsToolsGrantsToolCovers "$readEntryTool" "$readTool" || continue
 				readNatural="$( AgentsToolsPermissionUnescape "$readEntryTarget" )"
+				## `-` is a tool with no target (AgentsToolsPermissionItemRow): that tool on any target.
+				[ "$readEntryTarget" != "-" ] || readNatural=""
 				[ "$readEntryTarget" = "$readWant" ] || AgentsToolsPermissionCovers "$readNatural" "$readTarget" || continue
 				[ "$readKind" != "task" ] || AgentsToolsPermissionItemOpen "$readCarrier" || continue
 				if ! AgentsToolsPermissionHolds "$readBy" "$readEntryTool" "$readNatural" > /dev/null ; then

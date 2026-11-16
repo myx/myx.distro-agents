@@ -43,7 +43,7 @@ AgentsToolsSuperviseGuide(){ ## <run-id> [--text <text>|--from-file <path>] [--w
 		guideBody="$( cat )" || guideBody=""
 	fi
 	case "$guideBody" in *[![:space:]]*) ;; *) echo "$MDSC_CMD: ⛔ ERROR: --supervise-guide: the guidance is empty -- nothing was posted" >&2 ; return 1 ;; esac
-	## HIS WORDS ARE NEVER GUIDANCE (his ruling, 2026-11-09): what the human-owner typed to the coordinator is the coordinator's to act on, in the
+	## HIS WORDS ARE NEVER GUIDANCE: what the human-owner typed to the coordinator is the coordinator's to act on, in the
 	## tooling and the rules. A guide is a direct message in the coordinator's own words, as requirements. A quote of him, and the verbatim
 	## marker that carries a relay of his answer, are refused here, whatever the thread: a session thread is a channel others read.
 	case "$guideBody" in
@@ -53,7 +53,7 @@ AgentsToolsSuperviseGuide(){ ## <run-id> [--text <text>|--from-file <path>] [--w
 		;;
 	esac
 	type AgentsToolsSpawnRecord > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunRecords.include"
-	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandbox.include"
+	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandboxRecordHeader.include"
 	type AgentsToolsSessionChatDir > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include"
 	guideRecord="$( MMDAPP="$guideWs" AgentsToolsSpawnRecord "$guideRun" )"
 	[ -n "$guideRecord" ] || { echo "$MDSC_CMD: ⛔ ERROR: --supervise-guide: no record of this workspace carries the run $guideRun" >&2 ; return 1 ; }
@@ -100,7 +100,7 @@ AgentsToolsSuperviseChecklistAdd(){ ## <run-id> (--item <text>)... [--workspace 
 	case "$addRun" in ''|*/*|.|..) echo "$MDSC_CMD: ⛔ ERROR: --supervise-checklist-add: syntax is <run-id> (--item <text>)..." >&2 ; return 1 ;; esac
 	[ "${#addItems[@]}" -gt 0 ] || { echo "$MDSC_CMD: ⛔ ERROR: --supervise-checklist-add: give at least one --item" >&2 ; return 1 ; }
 	type AgentsToolsSpawnRecord > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunRecords.include"
-	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandbox.include"
+	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandboxRecordHeader.include"
 	addRecord="$( MMDAPP="$addWs" AgentsToolsSpawnRecord "$addRun" )"
 	[ -n "$addRecord" ] || { echo "$MDSC_CMD: ⛔ ERROR: --supervise-checklist-add: no record of this workspace carries the run $addRun" >&2 ; return 1 ; }
 	addFolder="${addRecord%/*}"
@@ -121,8 +121,8 @@ AgentsToolsSuperviseChecklistAdd(){ ## <run-id> (--item <text>)... [--workspace 
 	rmdir "$addFile.lock" 2> /dev/null || :
 	## AN ADDED ITEM WAKES ITS OWNER (S10.34): the run's wait naps on a fifo under its own workspace, and a poke there ends the nap.
 	if [ "$addCount" -gt 0 ] ; then
-		type AgentsToolsWakePoke > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.WakeMarker.include"
-		! type AgentsToolsWakePoke > /dev/null 2>&1 || MMDAPP="$addWs" AgentsToolsWakePoke "$addMember" || :
+		type AgentsHookFire > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.Hook.include"
+		MMDAPP="$addWs" AgentsHookFire store-changed wake "$addMember" || :
 	fi
 	printf 'checklist\t%s\t%s\t%s\n' "$addRun" "$addMember" "$addCount"
 	return 0

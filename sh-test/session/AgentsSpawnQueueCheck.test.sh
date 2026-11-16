@@ -20,7 +20,8 @@ rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 rigPids=""
 trap 'for rigEach in $rigPids ; do kill -9 "$rigEach" 2> /dev/null ; done ; rm -rf -- "$rigTmp"' EXIT
 rigWs="$rigTmp/ws" rigData="$rigTmp/data" rigSp="$rigTmp/ws/.local/agents/spawned/rig-duty"
-mkdir -p "$rigWs/.local/.agents" "$rigWs/.local/temp" "$rigSp" "$rigTmp/home" "$rigTmp/bin" "$rigData/inboxes/magic-coordinator/incoming"
+mkdir -p "$rigWs/.local/.agents" "$rigWs/.local/temp" "$rigSp" "$rigTmp/home" "$rigTmp/bin"
+rigInboxReady "$rigData" magic-coordinator
 rigRealPs="$( command -v ps )" || rigRefuse "no ps on PATH"
 ## The rig's process list: `ps -A` answers from ps.list, anything else is the real ps.
 printf '#!/bin/sh\ncase " $* " in\n\t*" -A "*) cat "%s/ps.list" ; exit 0 ;;\nesac\nexec "%s" "$@"\n' "$rigTmp" "$rigRealPs" > "$rigTmp/bin/ps"

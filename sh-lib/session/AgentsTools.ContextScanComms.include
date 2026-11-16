@@ -236,6 +236,7 @@ AgentsToolsContextScanComms(){
 				## is a bad trade.
 				local humanOwnerParty=""
 				if [ "$commsMemberScopeOnly" != "true" ] ; then
+					type DistroAgentsToolsResolveTarget > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsResolveTarget.include"
 					humanOwnerParty="$( DistroAgentsToolsResolveTarget human-owner | LC_ALL=C sed -n 's/^CHANNEL=//p' )" || humanOwnerParty=""
 					case "$humanOwnerParty" in
 						U*|W*)	;;
@@ -529,6 +530,7 @@ AgentsToolsContextScanComms(){
 					fetchFloor="$( AgentsSessionContextSourceFloor "$fetchKey" )"
 					[ -z "$fetchKey" ] || [ "$fetchFloor" = "$cutoffEpoch" ] || fetchOrigin="this source's own floor"
 					printf '%s\n' "$fetchKey" > "$sourcePrefetchDir/key.$1"
+					type DistroAgentsToolsResolveTarget > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsResolveTarget.include"
 					fetchResolved="$( DistroAgentsToolsResolveTarget "$fetchTarget" )" || {
 						printf 'unresolved\n' > "$sourcePrefetchDir/state.$1"
 						return 0
@@ -1365,7 +1367,7 @@ AgentsToolsContextScanComms(){
 			local sessionContextCapInboxReflectionBytes=1024
 			local sessionContextCapInboxOlderListed=64
 			local inboxSectionCap inboxSectionBytes inboxOlderCount inboxOlderListed
-			local inboxDir
+			local inboxFolder
 			local inboxScanned inboxMatched=() inboxOrdered inboxScopeLine inboxFilterText inboxHeading inboxPrefix
 			local inboxSpec inboxWanted inboxWithProcessed inboxDeclined ii
 			local inboxFilterDesc inboxCandidates=() ci inboxEmit=()
@@ -1386,7 +1388,6 @@ AgentsToolsContextScanComms(){
 					printf 'scope: inboxes/%s/ -- read-only widening. The acting identity stays %s: this scan does not act as %s, reads none of its credentials or comms sources, and writes nothing into its inbox.\n\n' \
 						"$inboxMember" "$actingMember" "$inboxMember"
 				fi
-				inboxDir="$MDAT_DATA_ROOT/inboxes/$inboxMember"
 
 				for inboxSpec in \
 					"Active Inbox Inquiry Items inquiry- $doInboxInquiryActive$doInboxInquiryAll $doInboxInquiryAll $noInboxInquiry" \
@@ -1445,12 +1446,16 @@ AgentsToolsContextScanComms(){
 
 					inboxScanned=0
 					inboxCandidates=()
-					## incoming/ holds what is not processed, processed/ the rest.
-					for f in "$inboxDir/incoming"/*.md ; do
+					## incoming/ holds what is not processed, processed/ the rest. Both folders come from the inbox's owner,
+					## resolved here so a section that reads processed/ leaves the next one its own incoming/.
+					type AgentsToolsInboxFolderInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/inbox/AgentsTools.InboxPlace.include"
+					AgentsToolsInboxFolderInto inboxFolder "$inboxMember" incoming || inboxFolder=""
+					for f in "$inboxFolder"/*.md ; do
 						[ -f "$f" ] && inboxCandidates+=( "$f" )
 					done
 					if [ "$inboxWithProcessed" = "true" ] ; then
-						for f in "$inboxDir/processed"/*.md ; do
+						AgentsToolsInboxFolderInto inboxFolder "$inboxMember" processed || inboxFolder=""
+						for f in "$inboxFolder"/*.md ; do
 							[ -f "$f" ] && inboxCandidates+=( "$f" )
 						done
 					fi

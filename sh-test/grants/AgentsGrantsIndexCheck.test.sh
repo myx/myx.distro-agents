@@ -46,6 +46,7 @@ done
 rigMyxCommon="$( command -v myx.common 2>/dev/null )"
 [ -n "$rigMyxCommon" ] || rigRefuse "myx.common is not on PATH, so no source project could be scanned for its declares"
 . "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-writes.include.sh" || exit 1
 rigTmp="$( rigTempDir AgentsGrantsIndexCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 trap 'chmod -R u+w "$rigTmp" 2>/dev/null ; rm -rf -- "$rigTmp"' EXIT
@@ -65,12 +66,18 @@ printf '#!/bin/sh\necho "rig fake curl: no request leaves this box" >&2\nexit 7\
 chmod +x "$rigTmp/bin/curl"
 
 rigHome="$rigTmp/home" rigSkills="$rigTmp/skills" rigData="$rigTmp/data"
-mkdir -p "$rigHome" "$rigData/board/running" "$rigData/board/processed" "$rigTmp/ro-dir" "$rigTmp/rw-dir/sub"
+## THE INDEX IS NAMED AFTER THE MEMBER SET ROOT (AgentsToolsGrantsSessionLocate, sh-lib/grants/AgentsTools.Grants.include):
+## plain `grants.index` only where MDAT_SKILLSET_ROOT is the workspace's own .local/agents/members, else suffixed by that
+## root with every other character as `_`. rigRun always passes the rig's own root, so the check reads the suffixed name.
+rigIndexOf(){ ## workspace -- the grants index the writer gives it under this rig's member set root
+	printf '%s/.local/agents/grants.index.%s' "${1%/}" "${rigSkills//[!A-Za-z0-9._-]/_}"
+}
+mkdir -p "$rigHome" "$rigTmp/ro-dir" "$rigTmp/rw-dir/sub"
 for rigName in magic-tester magic-librarian keeper-w keeper-d keeper-two ; do
 	mkdir -p "$rigSkills/$rigName"
 	printf '# %s\n' "$rigName" > "$rigSkills/$rigName/$rigName.basic.md"
 done
-printf -- '---\nstatus: task\nowner: magic-tester\n---\n\n# Task\n' > "$rigData/board/running/task-rig.md"
+rigOwnerBoardWrite running "task-rig.md" -- '---\nstatus: task\nowner: magic-tester\n---\n\n# Task\n'
 
 rigWsMake(){ ## workspace name, declare lines... -- a rig workspace with one source project declaring them
 	local makeWs="$rigTmp/$1" makeLine ; shift
@@ -144,7 +151,7 @@ rigRun ws-main --intern-directory-register
 rigRun ws-main --make-agents-indices
 [ "$rigRc" = 0 ] || rigRefuse "--make-agents-indices failed in the rig: $( LC_ALL=C grep -m3 -e ERROR -e WARNING "$rigTmp/err" )"
 cp "$rigTmp/err" "$rigTmp/build.err"
-rigReg="$rigMain/.local/agents/permissions.registry" rigIndex="$rigMain/.local/agents/grants.index"
+rigReg="$rigMain/.local/agents/permissions.registry" rigIndex="$( rigIndexOf "$rigMain" )"
 cp "$rigReg" "$rigTmp/build.reg" || rigRefuse "no permissions registry was written: $rigReg"
 
 echo "-- 1. the permissions registry: every selector kind unrolled --"
@@ -191,6 +198,7 @@ echo "-- 2. grants.index: fully unrolled, ceilings, floor --"
 rigIdx(){ ## member, verb, glob -- how many index rows
 	LC_ALL=C awk -F'\t' -v m="$1" -v v="$2" -v g="$3" '$1 == m && $2 == v && $3 == g { n++ } END { print n + 0 }' "$rigIndex"
 }
+rigAssert "the index is written under the name of the rig's member set root, and no plain grants.index beside it" "$( [ -f "$rigIndex" ] && printf suffixed || printf missing ):$( [ -e "$rigMain/.local/agents/grants.index" ] && printf plain || printf none )" "suffixed:none"
 rigAssert "the index carries its header"                        "$( head -1 "$rigIndex" | cut -f1 )" "myx.distro grants.index 1"
 rigAssert "a * row is one row per member"                       "$( LC_ALL=C awk -F'\t' -v g="$rigSide/any/**" '$2 == "read" && $3 == g { print $1 }' "$rigIndex" | LC_ALL=C sort | LC_ALL=C tr '\n' ' ' )" "keeper-d keeper-two keeper-w magic-architect magic-coordinator magic-librarian magic-tester "
 rigAssert "no * member row is left"                             "$( LC_ALL=C awk -F'\t' '$1 == "*" && $2 != "ceiling"' "$rigIndex" | LC_ALL=C grep -c . )" 0
@@ -320,6 +328,8 @@ rigWrite magic-tester s-life "$rigTaskTarget" > /dev/null
 rigId="$( LC_ALL=C sed -n 's/^REFUSAL-ID: \(refusal-[0-9a-f-]*\)$/\1/p' "$rigTmp/call.out" | head -1 )"
 rigRun ws-main --intern-op-permission-grant-open human-owner --session-id s-life --refusal-id "$rigId" --kind task --task task-rig
 rigAssert "a task grant admits while its item is open"          "$( rigWrite magic-tester s-life "$rigTaskTarget" )" wrote
+rigOwnerWs="$rigTmp/ws-main" rigOwnerData="$rigData" rigOwnerHome="$rigHome" rigOwnerSkills="$rigSkills" rigOwnerOrigin="$MDLT_ORIGIN" \
+	rigOwnerBoardReady || rigRefuse "the board could not be made ready to be written"
 mv "$rigData/board/running/task-rig.md" "$rigData/board/processed/task-rig.md"
 rigAssert "and not once the item is closed"                     "$( rigWrite magic-tester s-life "$rigTaskTarget" )" refused
 rigHelperScript AgentsTools.InternOpPermission.include AgentsToolsPermissionHoldersPrint Read "$rigProj/x.sh" > "$rigTmp/helper.in"
@@ -377,7 +387,7 @@ rigRun ws-main --make-agents-indices
 [ "$rigRc" = 0 ] || rigRefuse "--make-agents-indices failed in ws-main: $( LC_ALL=C grep -m3 -e ERROR -e WARNING "$rigTmp/err" )"
 rigRun ws-nosrc --make-agents-indices
 [ "$rigRc" = 0 ] || rigRefuse "--make-agents-indices failed in the workspace with no source: $( LC_ALL=C grep -m3 -e ERROR -e WARNING "$rigTmp/err" )"
-rigIndex="$rigNoSrc/.local/agents/grants.index"
+rigIndex="$( rigIndexOf "$rigNoSrc" )"
 rigAssert "no permissions registry is written there"            "$( [ -e "$rigNoSrc/.local/agents/permissions.registry" ] && printf written || printf none )" none
 rigTesterRows=""
 for rigOne in "$rigNoSrc" "$rigTestbedC" ; do
@@ -421,7 +431,7 @@ rigAssert "a package's project.inf newer than the declares index: the build says
 touch "$rigRig/.local/system-index/distro-declares.txt"
 rigRun ws-rig --make-agents-indices
 rigAssert "control: an index newer than every package's project.inf: no such warning, and the registry the same" "$( LC_ALL=C grep -c -F -- 'is newer than' "$rigTmp/err" )" 0
-rigIndex="$rigRig/.local/agents/grants.index"
+rigIndex="$( rigIndexOf "$rigRig" )"
 rigAssert "its permissions registry is written from .local/myx"   "$( LC_ALL=C grep -c '^magic-tester:ws-rig:workspace:' "$rigRig/.local/agents/permissions.registry" 2>/dev/null || : )" 9
 rigAssert "from the declares index: a row only the index holds is read, a row only the project.inf holds is not" "$( LC_ALL=C grep -c 'RigIndexOnlyTool' "$rigRig/.local/agents/permissions.registry" 2>/dev/null || : ):$( LC_ALL=C grep -c 'RigGlobOnlyTool' "$rigRig/.local/agents/permissions.registry" 2>/dev/null || : )" "1:0"
 rigTesterRows=""

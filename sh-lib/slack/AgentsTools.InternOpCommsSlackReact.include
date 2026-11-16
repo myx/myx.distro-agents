@@ -62,6 +62,7 @@ case "$1" in
 				esac
 			done
 			local resolved rc channel threadTs
+			type DistroAgentsToolsResolveTarget > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsResolveTarget.include"
 			resolved="$( DistroAgentsToolsResolveTarget "$target" "$memberName" )" && rc=0 || rc=$?
 			case "$rc" in
 				0)

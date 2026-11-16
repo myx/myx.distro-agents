@@ -21,8 +21,8 @@ rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
 rigData="$rigTmp/data" rigWs="$rigTmp/ws"
 mkdir -p "$rigWs/.local/.agents" "$rigWs/.local/agents/schedule" "$rigTmp/home" "$rigTmp/skills/keeper-rig"
-for rigState in backlog pending running review blocked parked processed ; do mkdir -p "$rigData/board/$rigState" ; done
-mkdir -p "$rigData/inboxes/magic-coordinator/incoming" "$rigData/inboxes/magic-coordinator/processed" "$rigData/inboxes/keeper-rig/incoming" "$rigData/inboxes/keeper-rig/processed"
+rigBoardStates "$rigData" backlog pending running review blocked parked processed
+rigInboxReady "$rigData" magic-coordinator keeper-rig
 rigNote="$rigData/inboxes/magic-coordinator/incoming/note-20261020T000000Z-work-duty-state-and-lock.md"
 
 rigPassCount=0
@@ -48,7 +48,7 @@ rigFn(){ ## the function and its arguments... -- run in the loop's include; prin
 	printf '%s:%s' "$( [ "$fnRc" = 0 ] && printf yes || printf no )" "$fnOut"
 }
 rigItem(){ ## state, name, extra frontmatter lines, age: old|new
-	printf -- '---\ntype: task\nowner: rig\n%s---\n\nrig item\n' "$3" > "$rigData/board/$1/$2.md"
+	printf -- '---\ntype: task\nowner: rig\n%s---\n\nrig item\n' "$3" | rigStoreItem "$rigData" board $1 $2.md
 	[ "${4:-new}" != old ] || touch -t 202610010000 "$rigData/board/$1/$2.md"
 }
 rigDemand(){ rigFn AgentsToolsScheduleDemand "$1" ; }
@@ -57,10 +57,10 @@ echo "-- 1. the inbox --"
 printf -- '---\ntype: note\nstate: work-duty-finished\n---\n' > "$rigNote"
 touch -t 202610010000 "$rigNote"
 rigAssert "a standing state-and-lock note in the coordinator's incoming/ is no work" "$( rigDemand magic-coordinator )" "no:"
-printf -- '---\ntype: note\nowner: magic-coordinator\n---\n' > "$rigData/inboxes/magic-coordinator/incoming/note-20261020T0900Z-rig-work.md"
+printf -- '---\ntype: note\nowner: magic-coordinator\n---\n' | rigStoreItem "$rigData" inbox magic-coordinator note-20261020T0900Z-rig-work.md
 rigAssert "an item that is none is" "$( rigDemand magic-coordinator )" "yes:"
 rm -f "$rigData/inboxes/magic-coordinator/incoming/note-20261020T0900Z-rig-work.md"
-printf -- '---\ntype: note\nowner: keeper-rig\n---\n' > "$rigData/inboxes/keeper-rig/incoming/note-20261020T0900Z-rig-work.md"
+printf -- '---\ntype: note\nowner: keeper-rig\n---\n' | rigStoreItem "$rigData" inbox keeper-rig note-20261020T0900Z-rig-work.md
 rigAssert "a keeper's inbox item is its work" "$( rigDemand keeper-rig )" "yes:"
 
 echo "-- 2. the board, for the coordinator --"

@@ -35,6 +35,7 @@ rigRefuse(){
 [ -f "$rigTools" ] || rigRefuse "the tooling is not found at the origin this workspace resolves: $rigTools"
 
 . "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-writes.include.sh" || exit 1
 rigTmp="$( rigTempDir AgentsHarnessReadGateCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 trap 'chmod -R u+w "$rigTmp" 2>/dev/null ; rm -rf -- "$rigTmp"' EXIT
@@ -67,7 +68,7 @@ done
 ## allow-read and an allow-write row declared for `*`.
 rigWs="$rigTmp/ws"
 rigData="$rigTmp/data"
-mkdir -p "$rigWs/.local/.agents" "$rigWs/.local/agents" "$rigData/board/running" "$rigData/board/processed" "$rigWs/source/p/docs"
+mkdir -p "$rigWs/.local/.agents" "$rigWs/.local/agents" "$rigWs/source/p/docs"
 for rigDir in source OUT DEVR ALL ALLW ; do
 	mkdir -p "$rigWs/$rigDir"
 	printf 'rig-seed %s\n' "$rigDir" > "$rigWs/$rigDir/seed.txt"
@@ -82,7 +83,7 @@ printf 'SLACK_CHANNEL_MAGIC_TEAM=CRIG00001\nSLACK_BOT_TOKEN=rig-bot-token-TEAM\n
 	printf '*:ws:workspace:Edit(/%s/ALLW/**)\n' "$rigWs"
 	printf 'magic-librarian:ws:builtin:Read(/%s/source/**)\n' "$rigWs"
 } > "$rigWs/.local/agents/permissions.registry"
-printf -- '---\nstatus: task\nowner: magic-tester\n---\n\n# Task\n' > "$rigData/board/running/task-rig.md"
+rigOwnerBoardWrite running "task-rig.md" -- '---\nstatus: task\nowner: magic-tester\n---\n\n# Task\n'
 
 rigPassCount=0
 rigFailCount=0
@@ -218,8 +219,10 @@ printf 'rig-seed task\n' > "$rigTarget"
 rigRead magic-tester rig-session "$rigTarget" > /dev/null
 rigAssert "allow-task is granted from the record"          "$( rigGrant magic-coordinator rig-session "$( rigRefusalId )" task task-rig )" task
 rigAssert "the retry is admitted while the item is open"   "$( rigRead magic-tester rig-session "$rigTarget" )" read
+rigOwnerBoardReady || rigRefuse "the board could not be made ready to be written"
 mv "$rigData/board/running/task-rig.md" "$rigData/board/processed/task-rig.md"
 rigAssert "and refused once it is processed"               "$( rigRead magic-tester rig-session "$rigTarget" )" refused
+rigOwnerBoardReady || rigRefuse "the board could not be made ready to be written"
 mv "$rigData/board/processed/task-rig.md" "$rigData/board/running/task-rig.md"
 rigAssert "the approver grants only what it holds"         "$( rigRead magic-tester rig-session "$rigWs/DEVR/seed.txt" >/dev/null ; rigGrant magic-coordinator rig-session "$( rigRefusalId )" session )" ""
 

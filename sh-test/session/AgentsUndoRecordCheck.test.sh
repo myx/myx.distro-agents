@@ -54,7 +54,9 @@ AgentsToolsUndoFieldRig(){ ## record id, key
 rigNew(){ ## name
 	rigWs="$rigTmp/$1/ws" ; rigD="$rigTmp/$1/data" ; rigSp="$rigWs/.local/agents/spawned" ; rigRun="$rigSp/rigrun" ; rigDir="$rigTmp/$1"
 	mkdir -p "$rigDir" ; : > "$rigDir/curl.log"
-	mkdir -p "$rigD/inboxes/magic-coordinator/incoming" "$rigD/board/processed" "$rigWs/.local/agents/members/magic-coordinator" "$rigWs/.local/temp" "$rigRun/input" "$rigRun/output"
+	mkdir -p "$rigWs/.local/agents/members/magic-coordinator" "$rigWs/.local/temp" "$rigRun/input" "$rigRun/output"
+	rigBoardStates "$rigD" processed
+	rigInboxReady "$rigD" magic-coordinator
 	mkdir -p "$rigWs/.local/agents/members/rig-member" "$rigWs/.local/agents/members/human-owner" "$rigWs/.local/.agents"
 	printf '# human-owner\n' > "$rigWs/.local/agents/members/human-owner/SKILL.md"
 	printf 'SLACK_BOT_TOKEN=rig-bot-token-TEAM\nSLACK_CHANNEL_HUMAN_OWNER=URIGOWNER\n' > "$rigWs/.local/.agents/magic-team.agent.env"

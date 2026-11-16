@@ -35,18 +35,19 @@ type AgentsToolsGrantsItemRuns > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distr
 		## too, for the grant's own member (AgentsToolsGrantsItemRuns).
 		local revokeStores=""
 		[ -z "$revokeSession" ] || revokeStores=$'\n'"$( AgentsToolsPermissionRelatedStores "$revokeSession" )"$'\n'
-		for revokeOne in "$MMDAPP/.local/agents/sessions"/*/"$revokeRef.md" ; do
-			[ -f "$revokeOne" ] && [ -f "${revokeOne%/*}/grants" ] || continue
-			revokeLine="${revokeOne%/*}" ; revokeLine="${revokeLine##*/}"
-			if [ -n "$revokeSession" ] && AgentsToolsGrantsItemRuns "${MMDAPP%/}" "$revokeSession" "$( AgentsToolsPermissionField "$revokeOne" owner )" ; then
-				case $'\n'"$agentsGrantsItemRunsStores"$'\n' in *$'\n'"${MMDAPP%/}/.local/agents/sessions/$revokeLine"$'\n'*) revokeStores="$revokeStores$revokeLine"$'\n' ;; esac
+		type AgentsSessionFoldersFind > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+		while IFS= read -r revokeOne ; do
+			[ -f "$revokeOne/$revokeRef.md" ] && [ -f "$revokeOne/grants" ] || continue
+			revokeLine="${revokeOne##*/}"
+			if [ -n "$revokeSession" ] && AgentsToolsGrantsItemRuns "${MMDAPP%/}" "$revokeSession" "$( AgentsToolsPermissionField "$revokeOne/$revokeRef.md" owner )" ; then
+				case $'\n'"$agentsGrantsItemRunsStores"$'\n' in *$'\n'"$revokeOne"$'\n'*) revokeStores="$revokeStores$revokeLine"$'\n' ;; esac
 			fi
 			case "${revokeSession:+$revokeStores}" in ''|*$'\n'"$revokeLine"$'\n'*) ;; *) continue ;; esac
 			while IFS= read -r revokeLine ; do
 				case "$revokeLine" in *":$revokeRef") revokeFound=1 ; break ;; esac
-			done < "${revokeOne%/*}/grants"
-			[ -z "$revokeFound" ] || { revokeStore="${revokeOne%/*}" ; break ; }
-		done
+			done < "$revokeOne/grants"
+			[ -z "$revokeFound" ] || { revokeStore="$revokeOne" ; break ; }
+		done <<< "$( AgentsSessionFoldersFind "$MMDAPP" "$revokeRef.md" )"
 		if [ -z "$revokeStore" ] ; then
 			echo "$MDSC_CMD: ⛔ ERROR: no grant $revokeRef is recorded${revokeSession:+ in session $revokeSession}, so nothing is revoked" >&2
 			set +e ; return 1

@@ -74,6 +74,7 @@ AgentsToolsSpawnProxyAnnounceCli(){
 AgentsToolsSpawnProxyConsoleRun(){ ## session id, session thread, conversation threads, full prompt, resume from (may be empty), resume prompt, member, item, console CLI args...
 	type AgentsReviewRecord > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ReviewFlow.include"
 	type AgentsToolsSpawnConsoleLaunch > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnConsoleLaunch.include"
+	type AgentsToolsSpawnProxyRunRecord > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnProxyClose.include"
 	local runSession="$1" runThread="$2" runConv="$3" runFull="$4" runFrom="$5" runResume="$6" runWho="$7" runItem="$8"
 	local runMark runPid runWatchPid runRc=0 runWatchRc=0
 	shift 8

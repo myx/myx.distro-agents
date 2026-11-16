@@ -24,8 +24,11 @@ type AgentsToolsGrantsStoreTouch > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.dis
 		AgentsToolsAssertBareName "$consumeSession" "--session-id" permission-grant-consume || { set +e ; return 1 ; }
 		AgentsToolsAssertBareName "$consumeRefusal" "--refusal-id" permission-grant-consume || { set +e ; return 1 ; }
 		## One mkdir is the whole lock: the first caller to create the marker uses the grant.
-		mkdir -p "$MMDAPP/.local/agents/sessions/$consumeSession/consumed" 2>/dev/null || { set +e ; return 1 ; }
-		mkdir "$MMDAPP/.local/agents/sessions/$consumeSession/consumed/$consumeRefusal" 2>/dev/null || { set +e ; return 1 ; }
-		AgentsToolsGrantsStoreTouch "$MMDAPP/.local/agents/sessions/$consumeSession"
+		local consumeDir=""
+		type AgentsSessionFolderInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+		AgentsSessionFolderInto consumeDir "$MMDAPP" "$consumeSession" || :
+		mkdir -p "$consumeDir/consumed" 2>/dev/null || { set +e ; return 1 ; }
+		mkdir "$consumeDir/consumed/$consumeRefusal" 2>/dev/null || { set +e ; return 1 ; }
+		AgentsToolsGrantsStoreTouch "$consumeDir"
 		printf 'CONSUMED: %s\n' "$consumeRefusal"
 		return 0

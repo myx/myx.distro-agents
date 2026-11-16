@@ -23,6 +23,7 @@
 ## Offline: a Slack-shaped fake curl answers the served calls and the accept's sends; every run is a stand-in process
 ## of this rig carrying its own spawn id, which no other process carries; each workspace is this rig's own temp tree.
 set -u
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-store.include.sh" || exit 1
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 rigHere="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib"
 rigTest="${rigHere%/sh-lib}/sh-test"
@@ -69,7 +70,8 @@ rigAssert(){ ## what is asserted, got, want
 ## default, and its handbacks entered review just now.
 rigScene(){ ## scene name, limit or deliberate
 	rigDir="$rigTmp/$1"
-	mkdir -p "$rigDir/ws/.local/.agents" "$rigDir/ws/.local/agents/pending" "$rigDir/ws/.local/agents/spawned" "$rigDir/data/board/review" "$rigDir/data/board/running" "$rigDir/data/board/processed"
+	mkdir -p "$rigDir/ws/.local/.agents" "$rigDir/ws/.local/agents/pending" "$rigDir/ws/.local/agents/spawned"
+	rigBoardStates "$rigDir/data" review running processed
 	printf 'SLACK_CHANNEL_MAGIC_TEAM=CRIG00001\nSLACK_CHANNEL_HUMAN_OWNER=URIGOWNER\nSLACK_BOT_TOKEN=rig-bot-token-TEAM\n%s' "$( [ "$2" = limit ] && printf 'REVIEW_WAIT_LIMIT=1\n' )" > "$rigDir/ws/.local/.agents/magic-team.agent.env"
 	[ "$2" = limit ] && rigSince=1000 || rigSince="$( date +%s )"
 }
@@ -97,7 +99,7 @@ rigRun(){ ## variable to set, session, member, start-context, parent-spawn-id, r
 	printf -- '---\nsession-id: %s\nspawn-id: %s\nparent-spawn-id: %s\nstart-context: %s\nreports-to: %s\ntracking-name: %s\nhost: %s\nowner: %s\nstatus: spawn-started\nstarted-at: 2026-10-18 10:%02d +0000\nsession-thread: %s\nspawns: %s\n---\n' \
 		"$2" "$runId" "$5" "$4" "$6" "$2" "$rigHost" "$3" "$rigRunNo" "$( rigThreadOf "$2" )" "$runItem" > "$rigDir/ws/.local/agents/spawned/$2/$runId.spawn.md"
 	printf -- '---\ntype: dispatch\nowner: %s\nstatus: dispatch-started\nspawn-id: %s\nreview-reason: handback\nreview-since-epoch: %s\n---\n\n# rig dispatch\n\n## Decisions\n\n' \
-		"$3" "$runId" "$rigSince" > "$rigDir/data/board/review/$runItem.md"
+		"$3" "$runId" "$rigSince" | rigStoreItem "$rigDir/data" board review $runItem.md
 	python3 -I -B -c 'import time; time.sleep(600)' -- --session-id "$runId" > /dev/null 2>&1 &
 	eval "${1}Pid=\$!"
 	rigRunPids="$rigRunPids $!" ; rigProcNote "$!" ; disown "$!" 2> /dev/null || :
@@ -115,7 +117,7 @@ rigChildRun(){ ## variable to set, session, member, parent session, reports-to, 
 	printf -- '---\nsession-id: %s\nspawn-id: %s\nparent-spawn-id: none\nparent-session-id: %s\nstart-context: spawned\nreports-to: %s\ntracking-name: %s\nhost: %s\nowner: %s\nstatus: spawn-started\nstarted-at: 2026-10-18 10:%02d +0000\nsession-thread: %s\nspawns: %s\n---\n' \
 		"$2" "$runId" "$4" "$5" "$2" "$rigHost" "$3" "$rigRunNo" "$( rigThreadOf "$2" )" "$runItem" > "$rigDir/ws/.local/agents/spawned/$2/$runId.spawn.md"
 	printf -- '---\ntype: dispatch\nowner: %s\nstatus: dispatch-started\nspawn-id: %s\nreview-by: %s\n---\n\n# rig dispatch of a child session\n\n## Decisions\n\n' \
-		"$3" "$runId" "$6" > "$rigDir/data/board/running/$runItem.md"
+		"$3" "$runId" "$6" | rigStoreItem "$rigDir/data" board running $runItem.md
 	python3 -I -B -c 'import time; time.sleep(600)' -- --session-id "$runId" > /dev/null 2>&1 &
 	eval "${1}Pid=\$!"
 	rigRunPids="$rigRunPids $!" ; rigProcNote "$!" ; disown "$!" 2> /dev/null || :

@@ -21,6 +21,7 @@ rigTest="$rigPackage/sh-test"
 rigMember="magic-tester"
 
 rigRefuse(){
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-writes.include.sh" || exit 1
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }
 [ -f "$rigHere/harness/AgentsUniversalHarness.sh" ] || rigRefuse "harness not found at the origin this workspace resolves: $rigHere/harness/AgentsUniversalHarness.sh"
@@ -262,9 +263,9 @@ rigAssert "control: a severity that is none is still refused, and nothing more i
 echo "-- a report of a session that works a task says the task in words --"
 ## The session's spawn was dispatched for a board item: a dispatch that tracks a task.
 rigStart reports-task "$MDLT_ORIGIN"
-mkdir -p "$rigScenarioDir/data/board/running" "$rigScenarioDir/ws/.local/agents/spawned/rig-report-session"
-printf -- '---\ntype: task\nowner: %s\n---\n\n# Rework the rig widget\n\nThe widget drops its last line. Make it keep it.\n' "$rigMember" > "$rigScenarioDir/data/board/running/task-20261012T0000Z-rig-widget.md"
-printf -- '---\ntype: dispatch\nowner: %s\nstatus: dispatch-started\nspawn-id: rig-report-session\ntracks: task-20261012T0000Z-rig-widget\n---\n\n# rig dispatch\n' "$rigMember" > "$rigScenarioDir/data/board/running/dispatch-20261012T0100Z-rig-widget.md"
+mkdir -p "$rigScenarioDir/ws/.local/agents/spawned/rig-report-session"
+rigOwnerData="$rigScenarioDir/data" rigOwnerBoardWrite running "task-20261012T0000Z-rig-widget.md" -- '---\ntype: task\nowner: %s\n---\n\n# Rework the rig widget\n\nThe widget drops its last line. Make it keep it.\n' "$rigMember"
+rigOwnerData="$rigScenarioDir/data" rigOwnerBoardWrite running "dispatch-20261012T0100Z-rig-widget.md" -- '---\ntype: dispatch\nowner: %s\nstatus: dispatch-started\nspawn-id: rig-report-session\ntracks: task-20261012T0000Z-rig-widget\n---\n\n# rig dispatch\n' "$rigMember"
 ## Its run reports to magic-coordinator, as a start writes it now: the item, which names no
 ## reviewer, is reviewed there, so no review prompt is posted among the posts counted below.
 rigReportsTo="$( LC_ALL=C sed -n 's/^agentsRunRouteField="\(.*\)"$/\1/p' "$rigHere/spawn/AgentsTools.SpawnSandbox.include" )"
@@ -297,7 +298,7 @@ rigTaskTool Artifact '{"to":"magic-team","url":"https://rig.invalid/doc","title"
 rigAssert "a document announced: its own title is the title of the post, then the same task" "$( rigBodyOf 4 )" \
 	"# 📘 The rig, measured\\n\\n**🗂 Task**\\n$rigTaskLine\\n\\n**🔗 Link**\\nhttps://rig.invalid/doc"
 ## An item with no words of its own: a dispatch that tracks nothing and has no heading.
-printf -- '---\ntype: dispatch\nowner: %s\nstatus: dispatch-started\nspawn-id: rig-report-session\n---\n' "$rigMember" > "$rigScenarioDir/data/board/running/dispatch-20261012T0100Z-rig-widget.md"
+rigOwnerData="$rigScenarioDir/data" rigOwnerBoardWrite running "dispatch-20261012T0100Z-rig-widget.md" -- '---\ntype: dispatch\nowner: %s\nstatus: dispatch-started\nspawn-id: rig-report-session\n---\n' "$rigMember"
 rigTaskTool PushNotification '{"to":"magic-team","severity":"info","headline":"The rig goes on."}'
 rigAssert "a task with no words to say it: no Task label, and never the name of its item alone under one" "$( rigBodyOf 5 )" '# ℹ️ Notice\n\nThe rig goes on.'
 rigTaskTool SubagentHandback '{"task":"Check the rig.","outcome":"The rig holds."}'

@@ -35,6 +35,7 @@ rigRefuse(){
 ## outlives this check: the rig ends it, before its tree is removed (the guard is in AgentsSessionControlStartCheck).
 . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-control-threads.include.sh" || rigRefuse "the rig's fixture that ends control threads is missing from the package: sh-test/check-fixtures/rig-control-threads.include.sh"
 . "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-writes.include.sh" || exit 1
 rigTmp="$( rigTempDir AgentsTaskGrantRestartCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 ## The hold file keeps a restarted run alive; without it every fake console ends at once.
@@ -43,7 +44,7 @@ rigData="$rigTmp/data"
 rigWs="$rigTmp/ws"
 rigSpawned="$rigWs/.local/agents/spawned"
 rigSessions="$rigWs/.local/agents/sessions"
-mkdir -p "$rigData/board/running" "$rigData/board/review" "$rigData/board/processed" "$rigData/board/pending" \
+mkdir -p \
 	"$rigWs/.local/.agents" "$rigSpawned" "$rigSessions" "$rigTmp/bin" "$rigWs/ELSE"
 cp "$rigFixture" "$rigTmp/bin/curl" && chmod +x "$rigTmp/bin/curl" || rigRefuse "could not install the fake curl"
 printf 'SLACK_CHANNEL_MAGIC_TEAM=CRIG00001\nSLACK_CHANNEL_HUMAN_OWNER=URIGOWNER\nSLACK_BOT_TOKEN=rig-bot-token-TEAM\n' > "$rigWs/.local/.agents/magic-team.agent.env"
@@ -92,7 +93,7 @@ rigTool(){ ## result file, tool name, arguments JSON -- one served harness tool 
 	rigRun "$1" bash -c 'exec bash "$0" --intern-tool "$1" < "$2"' "$rigHarness" "$2" "$rigTmp/tool.args"
 }
 rigItem(){ ## state, item stem, spawn-id
-	printf -- '---\ntype: dispatch\nowner: keeper-myx\nstatus: dispatch-started\nspawn-id: %s\n---\n\n# rig dispatch\n' "$3" > "$rigData/board/$1/$2.md"
+	rigOwnerBoardWrite $1 "$2.md" -- '---\ntype: dispatch\nowner: keeper-myx\nstatus: dispatch-started\nspawn-id: %s\n---\n\n# rig dispatch\n' "$3"
 }
 rigRecord(){ ## spawn-id, status, coworking session id, owner, item link line (may be empty), folder
 	mkdir -p "$rigSpawned/$6"
@@ -196,6 +197,7 @@ rigAssert "the run's call goes through"                    "$( rigWrite keeper-m
 ## ---------------------------------------------------------------- the restarted run
 echo "-- 2. the item is returned, the run restarted under a new id: the same call goes through --"
 rigStatus "$rigSpawned/trk-rig-a/rig-run-1.spawn.md" spawn-succeeded
+rigOwnerBoardReady || rigRefuse "the board could not be made ready to be written"
 mv "$rigData/board/running/$rigItemA.md" "$rigData/board/review/$rigItemA.md"
 : > "$rigTmp/hold"
 rigRun2="$( rigReturn "$rigItemA" trk-rig-a "rig-run-1" )"
@@ -266,11 +268,13 @@ rigAssert "and so is the served Write"                     "$( rigWrite keeper-m
 rigOp "$rigTmp/list-ended.out" --intern-op-permission-list keeper-myx --session-id "$rigRun3"
 rigAssert "its list shows the two task grants, and no session grant" "$( rigListed "$rigTmp/list-ended.out" task "while item $rigItemA is open" ):$( LC_ALL=C awk -F'\t' '$1 == "session" { hit++ ; } END { print hit + 0 ; }' "$rigTmp/list-ended.out" )" 2:0
 rm -f "$rigSessions/rig-cow/ended"
+rigOwnerBoardReady || rigRefuse "the board could not be made ready to be written"
 mv "$rigData/board/running/$rigItemA.md" "$rigData/board/processed/$rigItemA.md"
 rigAssert "the item closed: not let through"               "$( rigGrantRead keeper-myx "$rigRun3" "$rigFileA" ):$( rigHookWrite keeper-myx "$rigRun3" "$rigFileA" )" ":none"
 rigAssert "nor is the served Write"                        "$( rigWrite keeper-myx "$rigRun3" "$rigFileA" after-close | LC_ALL=C sed 's/ .*//' ):$( cat "$rigFileA" )" refused:after-session
 rigOp "$rigTmp/list-closed.out" --intern-op-permission-list keeper-myx --session-id "$rigRun3"
 rigAssert "and its list no longer shows it"                "$( LC_ALL=C awk -F'\t' '$1 == "task" { hit++ ; } END { print hit + 0 ; }' "$rigTmp/list-closed.out" )" 0
+rigOwnerBoardReady || rigRefuse "the board could not be made ready to be written"
 mv "$rigData/board/processed/$rigItemA.md" "$rigData/board/running/$rigItemA.md"
 rigAssert "control: the item open again, let through"      "$( rigGrantRead keeper-myx "$rigRun3" "$rigFileA" )" task
 rigOp "$rigTmp/revoke.out" --intern-op-permission-revoke "$rigIdA" --session-id "$rigRun3"
@@ -291,6 +295,7 @@ rigIdL="$( rigRefusalOf keeper-myx rig-lone-1 "$rigFileL" )"
 [ -n "$rigIdL" ] || rigRefuse "the harness gate recorded no refusal for the lone run's Write"
 rigAssert "allowed for the task"                           "$( rigGrantOpen human-owner rig-lone-1 "$rigIdL" task "$rigItemL" ):$( rigGrantRead keeper-myx rig-lone-1 "$rigFileL" )" task:task
 rigStatus "$rigSpawned/trk-rig-l/rig-lone-1.spawn.md" spawn-succeeded
+rigOwnerBoardReady || rigRefuse "the board could not be made ready to be written"
 mv "$rigData/board/running/$rigItemL.md" "$rigData/board/review/$rigItemL.md"
 : > "$rigTmp/hold"
 rigLone2="$( rigReturn "$rigItemL" trk-rig-l "rig-lone-1" )"
@@ -298,8 +303,10 @@ rigLone2="$( rigReturn "$rigItemL" trk-rig-l "rig-lone-1" )"
 rigWaitFor 20 test -s "$rigTmp/console-in.$rigLone2"
 rigAssert "the new run joined the session its first run started" "$( LC_ALL=C grep -c -x 'session-id: rig-lone-1' "$rigSpawned/trk-rig-l/$rigLone2.spawn.md" )" 1
 rigAssert "its call goes through"                          "$( rigGrantRead keeper-myx "$rigLone2" "$rigFileL" ):$( rigWrite keeper-myx "$rigLone2" "$rigFileL" lone-second )" task:written
+rigOwnerBoardReady || rigRefuse "the board could not be made ready to be written"
 mv "$rigData/board/running/$rigItemL.md" "$rigData/board/processed/$rigItemL.md"
 rigAssert "until the item is closed"                       "$( rigGrantRead keeper-myx "$rigLone2" "$rigFileL" )" ""
+rigOwnerBoardReady || rigRefuse "the board could not be made ready to be written"
 mv "$rigData/board/processed/$rigItemL.md" "$rigData/board/running/$rigItemL.md"
 rm -f "$rigTmp/hold"
 rigWaitFor 40 test -f "$rigData/board/review/$rigItemL.md"
@@ -310,7 +317,7 @@ echo "-- 8. a task grant that names another item than the run's own lives by the
 rigItemT="dispatch-20261012T1300Z-task-t"
 rigTask="task-20261012T1300Z-rig-tracked"
 rigFileT="$rigWs/ELSE/t.txt"
-printf -- '---\ntype: task\nowner: keeper-myx\nstatus: task\n---\n\n# rig task\n' > "$rigData/board/running/$rigTask.md"
+rigOwnerBoardWrite running "$rigTask.md" -- '---\ntype: task\nowner: keeper-myx\nstatus: task\n---\n\n# rig task\n'
 rigRecord rig-t-1 spawn-started rig-cow keeper-myx "spawns: $rigItemT" trk-rig-t
 rigItem running "$rigItemT" rig-t-1
 rigIdT="$( rigRefusalOf keeper-myx rig-t-1 "$rigFileT" )"
@@ -319,9 +326,12 @@ rigAssert "allowed for the tracked task"                   "$( rigGrantOpen huma
 rigStatus "$rigSpawned/trk-rig-t/rig-t-1.spawn.md" spawn-succeeded
 rigRecord rig-t-2 spawn-started rig-cow keeper-myx "spawned-by: $rigItemT" trk-rig-t
 rigAssert "the member's next run on that dispatch item is let through" "$( rigGrantRead keeper-myx rig-t-2 "$rigFileT" ):$( rigHookWrite keeper-myx rig-t-2 "$rigFileT" )" "task:allow task $rigTask"
+rigOwnerBoardReady || rigRefuse "the board could not be made ready to be written"
 mv "$rigData/board/running/$rigItemT.md" "$rigData/board/processed/$rigItemT.md"
 rigAssert "the dispatch item closed, the task open: let through, as in the run it was given to" "$( rigGrantRead keeper-myx rig-t-2 "$rigFileT" ):$( rigGrantRead keeper-myx rig-t-1 "$rigFileT" )" task:task
+rigOwnerBoardReady || rigRefuse "the board could not be made ready to be written"
 mv "$rigData/board/processed/$rigItemT.md" "$rigData/board/running/$rigItemT.md"
+rigOwnerBoardReady || rigRefuse "the board could not be made ready to be written"
 mv "$rigData/board/running/$rigTask.md" "$rigData/board/processed/$rigTask.md"
 rigAssert "the task closed: not let through"               "$( rigGrantRead keeper-myx rig-t-2 "$rigFileT" ):$( rigHookWrite keeper-myx rig-t-2 "$rigFileT" )" ":none"
 

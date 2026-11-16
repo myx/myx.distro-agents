@@ -56,9 +56,12 @@ AgentsToolsBoardRoundSections(){ ## calling member, the operation the scan is ca
 	## All three registries ride in the scan's output because the round that reads the board also needs to know who can be spawned, what is
 	## actually running and what is waiting on an answer. The rescan is what keeps each one a cache rather than a record anyone maintains by
 	## hand. The instruction to poll these and compare them with the board's own running items lives in magic-team.advance.routine.
-	type AgentsToolsRegistryRenderAll > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
+	type AgentsToolsRegistryRenderPlain > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
+	type AgentsToolsRegistryRenderSpawnedSessions > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.RegistrySpawnedSessions.include"
 	printf '\n'
-	AgentsToolsRegistryRenderAll || :
+	AgentsToolsRegistryRenderPlain "team members" team-members "member workspace link-kind skillset-path" || :
+	AgentsToolsRegistryRenderSpawnedSessions || :
+	AgentsToolsRegistryRenderPlain "pending replies" pending-replies "key source session-id owner status blocked-on communication-channel-id" || :
 	return "$roundRc"
 }
 

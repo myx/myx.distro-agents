@@ -50,18 +50,13 @@ agentsEventTrackPostLib="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib"
 
 . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.ToolingTemplate.include"
 
-## The template, from this package's own sh-lib/templates/ (AgentsToolsToolingTemplate).
-AgentsEventTrackPostTemplate(){
-	AgentsToolsToolingTemplate event-track.post.format.md
-}
-
 ## Renders the posts into a directory, each as its files (000001.blocks, its boxes;
 ## 000001.text, its short text; 000001.plain.001, ..., the same post as plain text); rc 3 for
 ## a kind the template has no block for, 1 when nothing could be rendered.
 AgentsEventTrackPostRender(){ ## kind, member, session id, out dir, lines file, name=value...
 	local renderKind="$1" renderMember="$2" renderSession="$3" renderDir="$4" renderLines="$5" renderFields="" renderField
 	shift 5
-	[ -f "$( AgentsEventTrackPostTemplate )" ] || return 1
+	[ -f "$( AgentsToolsToolingTemplate event-track.post.format.md )" ] || return 1
 	## One field per line: a newline or CR in a value is sent as %0A or %0D, so it can never open another field.
 	for renderField in "$@" ; do
 		renderField="${renderField//$'\n'/%0A}"
@@ -98,7 +93,7 @@ AgentsEventTrackPostRender(){ ## kind, member, session id, out dir, lines file, 
 		ETP_USERS="$renderUsers" ETP_WAIT_STATE="$renderWaitState" ETP_NOW="$(( agentsEventTrackPostEpoch0 + SECONDS - agentsEventTrackPostSeconds0 ))" \
 		LC_ALL=C awk -f "$agentsEventTrackPostLib/session/AgentsSessionTranscriptFormat.awk" -f "$agentsEventTrackPostLib/slack/AgentsSlackDate.awk" \
 		-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsToolingTemplateFill.awk" -f "$agentsEventTrackPostLib/event-track/AgentsEventTrackPostFill.awk" \
-		"$( AgentsEventTrackPostTemplate )" "$renderLines"
+		"$( AgentsToolsToolingTemplate event-track.post.format.md )" "$renderLines"
 }
 
 ## One line in the monthly send log, in the member send's columns: time, member, target,
@@ -112,11 +107,6 @@ AgentsEventTrackPostLog(){ ## member, target, channel, ok|failed, reason
 		>> "$logDir/comms-slack-send.${logStamp:0:4}-${logStamp:4:2}.log" ; } 2>/dev/null \
 		|| echo "⚠️ WARNING: $MDSC_CMD --intern-op-event-track-post: could not append this post's outcome to the send log" >&2
 	return 0
-}
-
-## The weight of a rendered part, Slack's way of counting a post: every block, a box's children counted too (the renderer's own blockCap, 50 to a message).
-AgentsEventTrackPostWeight(){ ## a .blocks file
-	LC_ALL=C awk '{ n += gsub( /\{"type":"(container|section|context|divider|header|actions|image|rich_text)"/, "&" ) } END { print n + 0 }' "$1"
 }
 
 ## The parts of several records packed into messages, in order: a message takes the next part while its weight stays within 50 blocks.
@@ -141,7 +131,7 @@ AgentsEventTrackPostPack(){ ## out dir, .blocks files...
 	for packPart in "$@" ; do
 		packBody="$( cat "$packPart" )"
 		packBody="${packBody#[}" ; packBody="${packBody%]}"
-		packWeightOne="$( AgentsEventTrackPostWeight "$packPart" )"
+		packWeightOne="$( LC_ALL=C awk '{ n += gsub( /\{"type":"(container|section|context|divider|header|actions|image|rich_text)"/, "&" ) } END { print n + 0 }' "$packPart" )"
 		packTextOne="$( cat "${packPart%.blocks}.text" 2> /dev/null )"
 		if [ -n "$packBlocks" ] && [ $(( packWeight + packWeightOne )) -gt 50 ] ; then AgentsEventTrackPostPackFlush ; fi
 		packBlocks="$packBlocks${packBlocks:+,}$packBody"
@@ -247,9 +237,9 @@ AgentsEventTrackPostSend(){ ## record dir
 	if [ "$postRc" != "0" ] || [ "${#postPosts[@]}" -eq 0 ] ; then
 		rm -rf "$postDir"
 		if [ "$postRc" = "3" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --intern-op-event-track-post: the template has no block for kind '$postKind': $( AgentsEventTrackPostTemplate )" >&2
+			echo "⛔ ERROR: $MDSC_CMD --intern-op-event-track-post: the template has no block for kind '$postKind': $( AgentsToolsToolingTemplate event-track.post.format.md )" >&2
 		else
-			echo "⛔ ERROR: $MDSC_CMD --intern-op-event-track-post: the post could not be rendered from $( AgentsEventTrackPostTemplate ) (rc $postRc)" >&2
+			echo "⛔ ERROR: $MDSC_CMD --intern-op-event-track-post: the post could not be rendered from $( AgentsToolsToolingTemplate event-track.post.format.md ) (rc $postRc)" >&2
 		fi
 		return 1
 	fi
@@ -416,6 +406,7 @@ case "$1" in
 
 		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/slack/AgentsTools.CommsSlack.include"
 		local etpResolved="" etpResolveRc=0 etpChannel="" etpThread=""
+		type DistroAgentsToolsResolveTarget > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsResolveTarget.include"
 		etpResolved="$( DistroAgentsToolsResolveTarget "$etpTarget" )" || etpResolveRc=$?
 		if [ "$etpResolveRc" != "0" ] ; then
 			echo "⛔ ERROR: $MDSC_CMD --intern-op-event-track-post: could not resolve a channel for target '$etpTarget'" >&2

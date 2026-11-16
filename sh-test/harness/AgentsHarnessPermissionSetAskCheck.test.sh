@@ -25,6 +25,7 @@ rigTools="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 rigMember="magic-tester"
 
 rigRefuse(){
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-writes.include.sh" || exit 1
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }
 [ -f "$rigHarness" ] || rigRefuse "harness not found at the origin this workspace resolves: $rigHarness"
@@ -173,7 +174,7 @@ rigStart(){ ## scenario directory name, optional `task`: the board holds the ite
 	rigScenarioDir="$rigTmp/$1"
 	rigSession="rig-setask-$1"
 	rigWs="$rigScenarioDir/ws"
-	mkdir -p "$rigWs/.local/.agents" "$rigWs/.local/agents" "$rigWs/IN" "$rigScenarioDir/data/board/running"
+	mkdir -p "$rigWs/.local/.agents" "$rigWs/.local/agents" "$rigWs/IN"
 	printf 'SLACK_CHANNEL_MAGIC_TEAM=CRIG00001\nSLACK_CHANNEL_HUMAN_OWNER=URIGOWNER\nSLACK_BOT_TOKEN=%s\n' "$rigBotToken" \
 		> "$rigWs/.local/.agents/magic-team.agent.env"
 	printf 'SLACK_USER_TOKEN=%s\n' "$rigOwnToken" > "$rigWs/.local/.agents/$rigMember.agent.env"
@@ -183,7 +184,7 @@ rigStart(){ ## scenario directory name, optional `task`: the board holds the ite
 	rigTaskRef="the report rework"
 	if [ "${2:-}" = "task" ] ; then
 		printf -- '---\nstatus: dispatch-started\nowner: %s\nsession-id: %s\n---\n\n# Rework the report files\n\n## Brief\n\nThe rig rewrites its report files.\n' "$rigMember" "$rigSession" \
-			> "$rigScenarioDir/data/board/running/$rigItem.md"
+			| rigOwnerData="$rigScenarioDir/data" rigOwnerBoardPut running "$rigItem.md"
 		rigTaskRef="the report rework, $rigItem"
 	fi
 	RIG_CURL_LOG="$rigScenarioDir/curl.log"
@@ -421,7 +422,7 @@ rigAssert "withdrawn by its asker: closed with no verdict, nothing granted, its 
 
 echo "-- what counts as a call asked alone and answered by the human-owner, as the operation reads it --"
 rigStart counted task
-printf -- '---\nstatus: dispatch-started\nowner: %s\n---\n\n# Another task\n' "$rigMember" > "$rigScenarioDir/data/board/running/dispatch-20261012T1300Z-other.md"
+rigOwnerData="$rigScenarioDir/data" rigOwnerBoardWrite running "dispatch-20261012T1300Z-other.md" -- '---\nstatus: dispatch-started\nowner: %s\n---\n\n# Another task\n' "$rigMember"
 mkdir -p "$rigWs/.local/agents/pending"
 rigRecord(){ ## id, status, owner, session, kind, item (or -), task ref, verdict (or -), answered by (or -)
 	{

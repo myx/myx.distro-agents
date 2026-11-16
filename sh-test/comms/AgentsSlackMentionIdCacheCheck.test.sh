@@ -50,7 +50,7 @@ rigIdle="4294967295 0"
 rigDomain="rig.example"
 rigWorld(){ ## -- a fresh workspace: tokens for three members, the human-owner id, the team domain, an empty cache
 	rm -rf "$rigWs" "$rigData"
-	mkdir -p "$rigWs/.local/.agents" "$rigData/inboxes/magic-coordinator" "$rigTmp/skills"
+	mkdir -p "$rigWs/.local/.agents" "$rigTmp/skills"
 	printf 'SLACK_CHANNEL_HUMAN_OWNER=URIGOWNER\nSLACK_WORKSPACE_DOMAIN=%s\n' "$rigDomain" > "$rigWs/.local/.agents/magic-team.agent.env"
 	printf 'SLACK_USER_TOKEN=rig-user-token-COORD\n' > "$rigWs/.local/.agents/magic-coordinator.agent.env"
 	printf 'SLACK_USER_TOKEN=rig-user-token-MVANE\n' > "$rigWs/.local/.agents/keeper-myx.agent.env"

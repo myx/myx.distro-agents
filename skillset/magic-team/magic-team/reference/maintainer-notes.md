@@ -19,7 +19,7 @@ The body of `# Maintainer Notes` in `magic-team.armed.md`. Read it when that fil
 - A member in a session never quits to wait; it waits with `Wait` and keeps obeying.
 - Consent reaches a member through the chain of command; binding questions reach a human, simple ones are settled by the session coordinator.
 - Process-flow actions run as tooling operations; members are told operation names and their own decisions, never tooling internals.
-- Only `magic-coordinator` writes the board; any member may post an inquiry into any inbox.
+- Only `magic-coordinator` writes the board; any member may post an inquiry.
 - A skillset change lands by `quorum-all-agree` of its maintainers other than the human-owner, in one coworking session, then by his propose-approve where his name is among them.
 - Each rule is stated once, in one place.
 

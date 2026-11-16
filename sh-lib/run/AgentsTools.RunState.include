@@ -37,14 +37,11 @@ AgentsToolsRunParked(){ ## run id, session id (may be empty)
 ## a word dated before the run's own record is stale too, and is no answer either. Prints one of
 ## `thinking`, `tool`, `waiting` where the word is a Wait on a named source or an ask, or `idling` where the run waits on its floor alone.
 AgentsToolsRunActivity(){ ## spawn id, live word
-	local actSpawn="$1" actLive="${2:-}" actPath actRound actAt actWord actLine=""
+	local actSpawn="$1" actLive="${2:-}" actRound="" actAt="" actWord=""
 	case "$actSpawn" in ''|-|.|..|*/*) return 1 ;; esac
 	[ "$actLive" = running ] || return 1
-	actPath="${MMDAPP:-/nonexistent}/.local/agents/sessions/$actSpawn/activity"
-	[ -f "$actPath" ] || { printf 'thinking\n' ; return 0 ; }
-	IFS= read -r actLine < "$actPath" || :
-	actRound="${actLine%% *}" ; actLine="${actLine#* }"
-	actAt="${actLine%% *}" ; actWord="${actLine#* }"
+	type AgentsSessionActivityInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+	AgentsSessionActivityInto actAt actWord "$actSpawn" "" actRound || { printf 'thinking\n' ; return 0 ; }
 	case "$actRound:$actAt" in *[!0123456789:]*|:*) printf 'thinking\n' ; return 0 ;; esac
 	case "$actWord" in
 		thinking) printf 'thinking\n' ;;

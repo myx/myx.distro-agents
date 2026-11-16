@@ -17,7 +17,8 @@
 ## and unchanged, so magic-coordinator's existing record resolves where it
 ## always did.
 AgentsToolsMagicSweepStatePath(){ ## member
-	printf '%s\n' "$MDAT_DATA_ROOT/inboxes/$1/incoming/note-20260812T231137Z-sweep-state.md"
+	type AgentsToolsInboxNotePath > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/inbox/AgentsTools.InboxPlace.include"
+	AgentsToolsInboxNotePath "$1" note-20260812T231137Z-sweep-state.md
 }
 
 ## Prints ONE source's own stored position, `<key><TAB><ts>` a line for every

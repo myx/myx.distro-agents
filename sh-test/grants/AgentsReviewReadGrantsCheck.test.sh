@@ -30,6 +30,7 @@ for rigFile in "$rigFn" "$rigHarness" "$rigHook" "$rigFixture" ; do
 	[ -f "$rigFile" ] || rigRefuse "not found at the origin this workspace resolves: $rigFile"
 done
 . "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-writes.include.sh" || exit 1
 rigTmp="$( rigTempDir AgentsReviewReadGrantsCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
@@ -37,7 +38,7 @@ rigData="$rigTmp/data"
 rigWs="$rigTmp/ws"
 rigSpawned="$rigWs/.local/agents/spawned"
 rigSessions="$rigWs/.local/agents/sessions"
-mkdir -p "$rigData/board/running" "$rigData/board/processed" "$rigTmp/bin" "$rigSpawned" "$rigSessions" "$rigWs/.local/temp" "$rigWs/.local/.agents" \
+mkdir -p "$rigTmp/bin" "$rigSpawned" "$rigSessions" "$rigWs/.local/temp" "$rigWs/.local/.agents" \
 	"$rigWs/.local/agents/members" "$rigWs/source/myx/todo-sketchpad/backlog" "$rigWs/source/myx/rig-proj" "$rigWs/ELSE"
 : > "$rigWs/.local/agents/members.registry"
 printf 'Name: rig-proj\n' > "$rigWs/source/myx/rig-proj/project.inf"
@@ -85,7 +86,7 @@ rigTool(){ ## result file, tool name, arguments JSON -- one served harness tool 
 	rigRun "$1" bash -c 'exec bash "$0" --intern-tool "$1" < "$2"' "$rigHarness" "$2" "$rigTmp/tool.args"
 }
 rigItem(){ ## item stem, owner, front matter lines after the owner
-	printf -- '---\nowner: %s\n%s\n---\n\n# rig item\n' "$2" "$3" > "$rigData/board/running/$1.md"
+	rigOwnerBoardWrite running "$1.md" -- '---\nowner: %s\n%s\n---\n\n# rig item\n' "$2" "$3"
 }
 rigRunRecord(){ ## folder, run id, owner, parent spawn id, extra front matter line (may be empty)
 	mkdir -p "$rigSpawned/$1/output" "$rigSessions/$2"

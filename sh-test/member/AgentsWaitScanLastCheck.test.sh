@@ -40,15 +40,14 @@ rigAssert(){ ## what is asserted, got, want
 }
 rigW="$rigTmp/ws" rigD="$rigTmp/data" rigH="$rigTmp/home"
 rigMember="magic-coordinator"
-mkdir -p "$rigW/.local/.agents" "$rigW/.local/agents/spawned/rig" "$rigW/.local/agents/members/$rigMember" "$rigD/inboxes/$rigMember/incoming" "$rigH"
+mkdir -p "$rigW/.local/.agents" "$rigW/.local/agents/spawned/rig" "$rigW/.local/agents/members/$rigMember" "$rigH"
 ## The rig's own workspace has a source folder: the context of the tool is detected from it.
 rigCopyTree "${rigHere%/myx/myx.distro-agents/sh-lib}" "$rigW/source" || rigRefuse "the rig's source copy could not be made"
 printf '# %s\n' "$rigMember" > "$rigW/.local/agents/members/$rigMember/SKILL.md"
 printf 'SLACK_CHANNEL_MAGIC_TEAM=CRIG00001\nSLACK_CHANNEL_HUMAN_OWNER=URIGOWNER\nSLACK_BOT_TOKEN=rig-bot-token-TEAM\nWAIT_COLLECT_SECONDS=1\n' > "$rigW/.local/.agents/magic-team.agent.env"
-for rigState in pending running blocked parked review ; do
-	mkdir -p "$rigD/board/$rigState"
-done
 rigQuiet="$rigTmp/quiet.txt"
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-writes.include.sh" || exit 1
+rigOwnerWs="${rigWs:-$rigTmp/ws}" rigOwnerData="${rigData:-${rigD:-${rigStore:-${rigOut:-$rigTmp/data}}}}" rigOwnerHome="${rigHome:-$rigTmp/home}" rigOwnerSkills="${rigSkills:-$rigTmp/skills}"
 : > "$rigQuiet"
 rigBind(){ ## session id, routine file name or empty -- the spawn record of the session
 	{
@@ -57,7 +56,9 @@ rigBind(){ ## session id, routine file name or empty -- the spawn record of the 
 		printf 'status: spawn-started\n---\n'
 	} > "$rigW/.local/agents/spawned/rig/$1.spawn.md"
 }
-rigBind rig-plain-session ""
+## Each case waits as a session of its own: a Wait keeps when it last checked a scan for the session's next Wait, so a scan read in one
+## case would stand inside its check interval in the next, and be counted read without being begun.
+for rigOne in rig-plain-session rig-plain-session-2 rig-plain-session-3 ; do rigBind "$rigOne" "" ; done
 ## One Wait, timeout 0, as a run of the session named; the rest are the sources and options.
 rigWait(){ ## result name, session id, then the options of the wait
 	local waitRc=0 waitName="$1" waitSession="$2"
@@ -84,16 +85,18 @@ rigNeverRead(){ ## result name -- the WAIT-NEVER-READ line, or none
 	printf '%s' "${neverLine:-none}"
 }
 
-printf -- '---\ntype: note\nfrom: %s\n---\n\n# Note: scan last\n' "$rigMember" > "$rigD/inboxes/$rigMember/incoming/note-20261022T1800Z-scan-last.md"
+printf -- '---\ntype: note\nfrom: %s\n---\n\n# Note: scan last\n' "$rigMember" | rigOwnerInboxPut "$rigMember" note-20261022T1800Z-scan-last.md
 echo "-- 1. a scan named first is read last --"
 rigWait w1 rig-plain-session --wait-source scan:work-duty --wait-source "file:$rigQuiet"
-rigAssert "the scan follows the file"                              "$( rigSources w1 )" "file:$rigQuiet dms:$rigMember mentions:$rigMember wake:$rigMember scan:work-duty"
+## The other sources stand in the order of their check intervals (MemberWaitRun.include, S5.7); the scan, the slowest, is the last of them.
+rigW1Sources="$( rigSources w1 )"
+rigAssert "the scan follows the file" "$( case " $rigW1Sources " in (*" file:$rigQuiet "*) printf file ;; esac ) ${rigW1Sources##* }" "file scan:work-duty"
 echo "-- 2. a scan is not begun once something has arrived --"
-rigWait w2 rig-plain-session --wait-source scan:work-duty --wait-source "inbox:$rigMember" --wait-since-utime 1
+rigWait w2 rig-plain-session-2 --wait-source scan:work-duty --wait-source "inbox:$rigMember" --wait-since-utime 1
 rigAssert "the inbox arrival is returned, the scan is not"        "$( rigResult w2 ):$( rigArrivals w2 ):$( rigNeverRead w2 )" "RECEIVED:inbox:$rigMember:[scan:work-duty]"
 echo "-- 3. control, nothing else arrived: the scan is read --"
 rm -f "$rigD/inboxes/$rigMember/incoming/note-20261022T1800Z-scan-last.md"
-rigWait w3 rig-plain-session --wait-source scan:work-duty --wait-source "inbox:$rigMember" --wait-since-utime 1
+rigWait w3 rig-plain-session-3 --wait-source scan:work-duty --wait-source "inbox:$rigMember" --wait-since-utime 1
 rigAssert "the scan arrives, nothing is named as never read"      "$( rigResult w3 ):$( rigArrivals w3 ):$( rigNeverRead w3 )" "RECEIVED:scan:work-duty:none"
 
 if [ "$rigFailCount" -ne 0 ] ; then

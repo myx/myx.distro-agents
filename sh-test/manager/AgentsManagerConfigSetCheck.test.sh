@@ -220,13 +220,22 @@ rigRun "$rigWrite" MDLT_CONSOLE_HISTORY ; [ "$( rigRefused "⛔ ERROR: DistroAge
 rigRun "$rigWrite" MDLT_CONSOLE_HISTORY bash-default more ; [ "$( rigRefused "⛔ ERROR: DistroAgentsTools $rigWrite: syntax is $rigWrite <key> <value>, got 3 argument(s) -- nothing was saved" )" = "1 0 1 1" ] || rigBad="$rigBad three"
 rigAssert "no word, a key alone and a third word are refused with the syntax" "${rigBad:- each refused}" " each refused"
 rigCallerBad=""
-for rigOne in keeper-rig magic-coordinator ; do
+## magic-coordinator is not in this loop: the --manager-* gate exempts it on the owner's ruling of 2026-11-09
+## (AgentsTools.CallerCheck.include, AgentsToolsManagerCallerCheck), so its supervision runs can manage the runs
+## they watch. The exemption covers every --manager-* operation, this writer too; its acceptance is asserted below.
+for rigOne in keeper-rig ; do
 	rigPre=( "MDAT_SPAWN_AGENT=$rigOne" )
 	rigRun "$rigWrite" SESSION_CONTROL_REQUEST_SECONDS 7
 	rigPre=()
 	[ "$rigRc" = 1 ] && [ ! -s "$rigTmp/out" ] && [ "$( LC_ALL=C grep -c -F -- "a --manager-* operation is the console's own, never run from inside a member's session" "$rigTmp/err" )" = 1 ] || rigCallerBad="$rigCallerBad [$rigOne]"
 done
-rigAssert "a change of the workspace's is the console's alone to make: from inside a member's session it is refused by the one rule of the family, magic-coordinator's too" "${rigCallerBad:-each refused}" "each refused"
+rigAssert "a change of the workspace's is the console's alone to make: from inside any other member's session it is refused by the one rule of the family" "${rigCallerBad:-each refused}" "each refused"
+rigPre=( "MDAT_SPAWN_AGENT=magic-coordinator" )
+rigRun "$rigWrite" SESSION_CONTROL_REQUEST_SECONDS 7
+rigCoordinatorSet="$rigRc [$( LC_ALL=C tr '\t' ' ' < "$rigTmp/out" )]"
+rigRun "$rigWrite" SESSION_CONTROL_REQUEST_SECONDS ""
+rigPre=()
+rigAssert "a session acting as magic-coordinator is let through the gate: its change is saved, and taking it out again leaves the settings of the team as they were" "$rigCoordinatorSet / $rigRc $( rigSum "$rigTeam" )" "0 [saved SESSION_CONTROL_REQUEST_SECONDS 7 workspace $rigTeam] / 0 $rigTeamBefore"
 rigRun --manager-config-interface-set MDLT_MANAGER_STYLE magic
 rigAssert "the earlier name of the operation is gone: it is no option, and saves nothing" "$rigRc $( rigWhole "$rigTmp/err" "DistroAgentsTools: ⛔ ERROR: invalid option: --manager-config-interface-set" )" "1 1"
 rigAssert "after every refusal the user's file and the settings of the team are as they were, and nothing that was given stands in what any call printed" "$( rigSum "$rigOwn" ) $( rigSum "$rigTeam" ) $( LC_ALL=C grep -c -F -e 'RIGSECRET' "$rigTmp/all" || : )" "$rigOwnBefore $rigTeamBefore 0"

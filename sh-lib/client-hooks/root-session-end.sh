@@ -7,7 +7,7 @@
 ## A spawned session is closed by its spawn proxy, which writes the end into its spawn record,
 ## so nothing is done for one: MDAT_SPAWN_SESSION_ID set, or a spawn record of its id here.
 ## For a root session, named by the payload session_id:
-##   end     SessionEnd: .local/agents/sessions/<id>/ended written and its store touched
+##   end     SessionEnd: the session's `ended` marker (AgentsSessionMarkerFile) written and its store touched
 ##           (AgentsToolsGrantsStoreTouch), so its session grants end and every index joining
 ##           its store rebuilds; then, detached, its open asks marked ended for the main loop
 ##           (--intern-op-pending-reply-collect --mark-ended) and its transcript, where it has
@@ -23,34 +23,16 @@ exec > /dev/null
 hookMode="${1:-end}"
 [ -z "${MDAT_SPAWN_SESSION_ID:-}" ] || exit 0
 
-## The plain string value of the first "<key>" of the payload, into hookValue; rc 1 when absent.
-hookString(){ ## key
-	local stringRest="${hookInput#*\"$1\"}"
-	hookValue=""
-	[ "$stringRest" != "$hookInput" ] || return 1
-	while : ; do
-		case "$stringRest" in
-			' '*|$'\t'*|$'\n'*|$'\r'*|:*) stringRest="${stringRest:1}" ;;
-			*) break ;;
-		esac
-	done
-	case "$stringRest" in \"*) stringRest="${stringRest:1}" ;; *) return 1 ;; esac
-	hookValue="${stringRest%%\"*}"
-	[ "$hookValue" != "$stringRest" ]
-}
-## Letters, digits, - and _ only, enumerated: a bracket range is collation-dependent.
-hookBare(){ ## text
-	case "$1" in
-		''|.|..|*[!abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-]*) return 1 ;;
-	esac
-	return 0
-}
-
 ## The workspace: MMDAPP, else the one this script is installed in (<workspace>/.claude/hooks).
 hookWs="${MMDAPP:-}"
 [ -n "$hookWs" ] || hookWs="$( cd -P "${0%/*}/../.." 2>/dev/null && pwd -P )" || hookWs=""
 hookWs="${hookWs%/}"
 [ -n "$hookWs" ] && [ -d "$hookWs/.local/agents" ] || exit 0
+
+MDLT_ORIGIN="${MDLT_ORIGIN:-$hookWs/.local}"
+hookLib="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib"
+## A failed load leaves hookString undefined, so the next hookString call exits 0: the hook never fails the client.
+type hookString > /dev/null 2>&1 || . "$hookLib/client-hooks/AgentsHookPayload.include"
 
 hookString session_id || exit 0
 hookSession="$hookValue"
@@ -58,9 +40,9 @@ hookBare "$hookSession" || exit 0
 for hookRecord in "$hookWs/.local/agents/spawned"/*/"$hookSession.spawn.md" ; do
 	[ ! -f "$hookRecord" ] || exit 0
 done
-hookStore="$hookWs/.local/agents/sessions/$hookSession"
-MDLT_ORIGIN="${MDLT_ORIGIN:-$hookWs/.local}"
-hookLib="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib"
+type AgentsSessionMarkerFileInto > /dev/null 2>&1 || . "$hookLib/session/AgentsTools.SessionStore.include"
+MMDAPP="$hookWs" AgentsSessionMarkerFileInto hookEnded "$hookSession" ended || exit 0
+hookStore="${hookEnded%/ended}"
 hookTouch(){
 	if . "$hookLib/grants/AgentsTools.Grants.include" 2> /dev/null ; then
 		AgentsToolsGrantsStoreTouch "$hookStore"

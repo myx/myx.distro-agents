@@ -23,10 +23,10 @@ rigOut="$( cd "$rigOut" && pwd -P )" || exit 1
 trap 'rm -rf -- "$rigOut"' EXIT
 rigStore="$rigOut/data"
 rigWs="$rigOut/ws"
-for rigState in backlog pending running review blocked parked processed archived retained ; do
-	mkdir -p "$rigStore/board/$rigState" || rigRefuse "could not create the rig's board"
-done
 mkdir -p "$rigWs/.local" "$rigOut/home/skills/magic-coordinator" "$rigOut/home/skills/magic-developer" || rigRefuse "could not create the rig"
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-writes.include.sh" || exit 1
+rigOwnerWs="${rigWs:-$rigTmp/ws}" rigOwnerData="${rigData:-${rigD:-${rigStore:-${rigOut:-$rigTmp/data}}}}" rigOwnerHome="${rigHome:-$rigTmp/home}" rigOwnerSkills="${rigSkills:-$rigTmp/skills}"
+rigOwnerBoardReady || rigRefuse "could not create the rig's board"
 printf -- '---\nmaintainers: rig\n---\nrig identity\n' > "$rigOut/home/skills/magic-coordinator/magic-coordinator.basic.md"
 printf -- '---\nmaintainers: rig\n---\nrig identity\n' > "$rigOut/home/skills/magic-developer/magic-developer.basic.md"
 

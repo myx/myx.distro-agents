@@ -46,7 +46,7 @@ trap 'rigParentEnd ; rm -rf -- "$rigTmp"' EXIT
 rigWs="$rigTmp/ws" rigData="$rigTmp/data" rigHome="$rigTmp/home" rigSkills="$rigTmp/skills"
 rigSpawned="$rigWs/.local/agents/spawned"
 rigHost="$( hostname -s 2> /dev/null )" || rigHost="unknown"
-mkdir -p "$rigWs/.local/.agents" "$rigWs/.local/agents" "$rigSpawned" "$rigData/board/review" "$rigData/board/running" \
+mkdir -p "$rigWs/.local/.agents" "$rigWs/.local/agents" "$rigSpawned" \
 	"$rigData/inboxes/magic-coordinator/incoming" "$rigHome" "$rigSkills/magic-coordinator" || rigRefuse "could not create the rig"
 printf 'rig\n' > "$rigSkills/magic-coordinator/magic-coordinator.basic.md"
 printf 'rig\n' > "$rigSkills/magic-coordinator/magic-coordinator.armed.md"
@@ -72,6 +72,9 @@ rigParentStart(){ ## session id the stand-in runs as
 	rigProcNote "$rigParentPid"
 	disown "$rigParentPid" 2> /dev/null || :
 	rigParentChild="$( PATH="$rigProcPath" ps -o lstart= -p "$rigParentPid" 2> /dev/null | PATH="$rigProcPath" LC_ALL=C awk 'NF { $1 = $1 ; gsub( / /, "_" ) ; print ; exit }' )"
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-writes.include.sh" || exit 1
+rigOwnerWs="${rigWs:-$rigTmp/ws}" rigOwnerData="${rigData:-${rigD:-${rigStore:-${rigOut:-$rigTmp/data}}}}" rigOwnerHome="${rigHome:-$rigTmp/home}" rigOwnerSkills="${rigSkills:-$rigTmp/skills}"
+rigOwnerBoardReady
 	[ -n "$rigParentChild" ] || rigRefuse "the live parent stand-in did not start, so nothing below would be measured"
 }
 rigParentEnd(){ rigProcSignalWithChildren TERM $rigParentPid > /dev/null 2>&1 || : ; }
@@ -89,7 +92,7 @@ rigReview(){ ## item stem, its own run's spawn id, extra header lines
 	printf -- '---\nsession-id: %s\nspawn-id: %s\nparent-spawn-id: none\nhost: %s\nowner: keeper-rig\nstatus: spawn-started\nreports-to: %s\nparent-member: magic-coordinator\n---\n\n# rig child run\n' \
 		"$2" "$2" "$rigHost" "${4:-}" > "$rigSpawned/$2/$2.spawn.md"
 	printf -- '---\ntype: dispatch\nowner: keeper-rig\nstatus: dispatch-started\nspawn-id: %s\n%s---\n\n# rig review item\n' \
-		"$2" "${3:-}" > "$rigData/board/review/$1.md"
+		"$2" "${3:-}" | rigOwnerBoardPut review "$1.md"
 }
 rigParentStart rig-parent-live
 rigParentRecord rig-parent-live "$rigParentPid $rigParentChild"
@@ -104,8 +107,7 @@ rigReview task-rig-human         rig-child-human    "review-by: human-owner
 rigReview task-rig-routine       rig-child-routine  "review-by: magic-coordinator.advance.routine
 " "rig-parent-live"
 ## A control that the section is no catch-all: an item outside review is not its business.
-mkdir -p "$rigData/board/running"
-printf -- '---\ntype: dispatch\nowner: keeper-rig\nstatus: dispatch-started\n---\n\n# rig running item\n' > "$rigData/board/running/task-rig-running.md"
+printf -- '---\ntype: dispatch\nowner: keeper-rig\nstatus: dispatch-started\n---\n\n# rig running item\n' | rigOwnerBoardPut running task-rig-running.md
 
 ## The scan itself, through its own caller, in the tooling's shell.
 rigScan(){

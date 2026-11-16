@@ -11,7 +11,9 @@
 ##   1. the include is there, and a .fn.sh that sources only it can call the three checks
 ##   2. --magic-*: the console and magic-coordinator's session pass; another member's session is refused
 ##   3. --client-*: the console and the named client's own session pass; another member's session is refused
-##   4. --manager-*: the console passes; a member's session, magic-coordinator's among them, is refused
+##   4. --manager-*: the console passes; a member's session is refused; magic-coordinator's session runs the run
+##      management its supervision routine names, and is refused every other --manager-* operation (the ruling of
+##      board task-20261114T1052Z-manager-gate-coordinator-scope: a closed list of run-management names)
 ##   5. each refusal is word for word the refusal the dispatcher gives for that call
 ##   6. AgentsToolsActingMemberCheck's and AgentsToolsManagerCallerCheck's own refusals name who owns the operation
 ##      and how to ask, or where to run it instead (S18.1).
@@ -76,6 +78,12 @@ rigRefusalOf(){ ## result name -- its first error line, the tooling's own lines 
 	refusalLine="$( LC_ALL=C grep -F '⛔' "$rigTmp/$1.err" | LC_ALL=C grep -v -e 'SetInputSpec' -e 'SystemContext' | head -1 )"
 	printf '%s' "${refusalLine:-none}"
 }
+## EVERY REFUSAL CARRIES ITS REFUSAL-ID (AgentsToolsCallerRefusalId): the line ends `. REFUSAL-ID: refusal-<uuid>`, a new id each
+## call. The line with that one id put as <id>, and only a well-formed id: `none`, or any other tail, is left as it is and so never
+## matches a line that wants <id>.
+rigIdMasked(){ ## refusal text -- the same text, its REFUSAL-ID put as <id>
+	printf '%s' "$1" | LC_ALL=C sed -E 's/ REFUSAL-ID: refusal-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/ REFUSAL-ID: <id>/'
+}
 
 echo "-- 0. guard: sourcing the include has no side effect --"
 ( cd "$rigTmp/ws" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp/home" PATH="$rigTmp/bin:/usr/bin:/bin:/usr/sbin:/sbin" MMDAPP="$rigTmp/ws" MDAT_DATA_ROOT="$rigTmp/probe-data" MDLT_ORIGIN="$MDLT_ORIGIN" \
@@ -115,6 +123,7 @@ echo "-- 4. --manager-* --"
 rigAs g1 console "$rigTmp/RigStandIn.fn.sh" AgentsToolsManagerCallerCheck manager-session-list
 rigAs g2 magic-coordinator "$rigTmp/RigStandIn.fn.sh" AgentsToolsManagerCallerCheck manager-session-list
 rigAs g3 keeper-myx "$rigTmp/RigStandIn.fn.sh" AgentsToolsManagerCallerCheck manager-session-list
+rigAs g4 magic-coordinator "$rigTmp/RigStandIn.fn.sh" AgentsToolsManagerCallerCheck manager-config-set
 rigRedirect(){ ## refusal text -> whether it says who owns the operation and how to ask: yes|no
 	case "$1" in *"ask the session's magic-coordinator, which owns it, to run it"*) printf yes ;; *) printf no ;; esac
 }
@@ -124,26 +133,31 @@ rigClientWay(){ ## refusal text -> whether it names the coordinator that can run
 	case "$1" in *"ask the session's magic-coordinator, which can run it as "*) printf yes ;; *) printf no ;; esac
 }
 rigAssert "the --client-* refusal names its own way (the coordinator that can run it as the client)" "$( rigClientWay "$( rigRefusalOf c3 )" )" "yes"
-rigAssert "the console passes; a member's session, the coordinator's among them, is refused" "$( rigRc g1 ):$( [ "$( rigRc g2 )" -ne 0 ] && printf refused || printf passed ):$( [ "$( rigRc g3 )" -ne 0 ] && printf refused || printf passed )" "0:refused:refused"
+rigAssert "the console passes, and so does magic-coordinator's session on run management; another member's session is refused" "$( rigRc g1 ):$( [ "$( rigRc g2 )" -ne 0 ] && printf refused || printf passed ):$( [ "$( rigRc g3 )" -ne 0 ] && printf refused || printf passed )" "0:passed:refused"
+rigAssert "magic-coordinator's session is refused a --manager-* operation that is no run management: a settings write" "$( [ "$( rigRc g4 )" -ne 0 ] && printf refused || printf passed ):$( rigIdMasked "$( rigRefusalOf g4 )" )" "refused:DistroAgentsTools: manager-config-set: ⛔ ERROR: this session acts as magic-coordinator, and a --manager-* operation is the console's own, never run from inside a member's session -- nothing was done: run it at the console directly, outside any member's session. REFUSAL-ID: <id>"
 rigManagerWay(){ ## refusal text -> whether it says where the operation is run instead: yes|no
 	case "$1" in *"run it at the console directly, outside any member's session"*) printf yes ;; *) printf no ;; esac
 }
 rigAssert "the --manager-* refusal says where it is run instead (S18.1)" "$( rigManagerWay "$( rigRefusalOf g3 )" )" yes
-rigManagerLine(){ ## refusal text -> whether it is that one line whole, word for word: yes|no
-	[ "$1" = "DistroAgentsTools: manager-session-list: ⛔ ERROR: this session acts as keeper-myx, and a --manager-* operation is the console's own, never run from inside a member's session -- nothing was done: run it at the console directly, outside any member's session" ] && printf yes || printf no
+rigManagerLine(){ ## refusal text -> whether it is that one line whole, word for word, its REFUSAL-ID a real one: yes|no
+	[ "$( rigIdMasked "$1" )" = "DistroAgentsTools: manager-session-list: ⛔ ERROR: this session acts as keeper-myx, and a --manager-* operation is the console's own, never run from inside a member's session -- nothing was done: run it at the console directly, outside any member's session. REFUSAL-ID: <id>" ] && printf yes || printf no
 }
 rigAssert "the --manager-* refusal is that one line whole, so a reword of any part of it is caught here" "$( rigManagerLine "$( rigRefusalOf g3 )" )" "yes"
 rigAssert "control: the same line without its tail does not pass for it" "$( rigManagerLine "DistroAgentsTools: manager-session-list: ⛔ ERROR: this session acts as keeper-myx, and a --manager-* operation is the console's own, never run from inside a member's session -- nothing was done" )" "no"
-rigAssert "control: the same line with one word rewritten mid-line does not pass for it either" "$( rigManagerLine "DistroAgentsTools: manager-session-list: ⛔ ERROR: this session acts as keeper-rig, and a --manager-* operation is the console's own, never run from inside a member's session -- nothing was done: run it at the console directly, outside any member's session" )" "no"
+rigAssert "control: the same line with one word rewritten mid-line does not pass for it either" "$( rigManagerLine "DistroAgentsTools: manager-session-list: ⛔ ERROR: this session acts as keeper-rig, and a --manager-* operation is the console's own, never run from inside a member's session -- nothing was done: run it at the console directly, outside any member's session. REFUSAL-ID: refusal-00000000-0000-4000-8000-000000000000" )" "no"
+rigAssert "control: the whole line whose REFUSAL-ID is none does not pass for it" "$( rigManagerLine "DistroAgentsTools: manager-session-list: ⛔ ERROR: this session acts as keeper-myx, and a --manager-* operation is the console's own, never run from inside a member's session -- nothing was done: run it at the console directly, outside any member's session. REFUSAL-ID: none" )" "no"
+rigAssert "control: the whole line with a well-formed REFUSAL-ID does pass for it" "$( rigManagerLine "DistroAgentsTools: manager-session-list: ⛔ ERROR: this session acts as keeper-myx, and a --manager-* operation is the console's own, never run from inside a member's session -- nothing was done: run it at the console directly, outside any member's session. REFUSAL-ID: refusal-00000000-0000-4000-8000-000000000000" )" "yes"
 
 echo "-- 5. each refusal is the dispatcher's own, word for word --"
-rigAs dm keeper-myx "$rigFn" --advance-to-running magic-coordinator
+rigAs dm keeper-myx "$rigFn" --advance-to-running --team-member magic-coordinator
 rigAs dc keeper-myx "$rigFn" --client-comms-slack-read client-ndm
-rigAs dg magic-coordinator "$rigFn" --manager-session-list
+rigAs dg keeper-myx "$rigFn" --manager-session-list
 rigAssert "control: the dispatcher refuses the three, each with a refusal" "$( [ "$( rigRc dm )" -ne 0 ] && [ "$( rigRc dc )" -ne 0 ] && [ "$( rigRc dg )" -ne 0 ] && printf refused || printf passed ):$( [ "$( rigRefusalOf dm )" != none ] && [ "$( rigRefusalOf dc )" != none ] && [ "$( rigRefusalOf dg )" != none ] && printf said || printf unsaid )" refused:said
-rigAssert "the coordinator's own operations: the same refusal, but for the name of the tool file that says it" "$( rigRefusalOf m3 )" "$( rigRefusalOf dm | LC_ALL=C sed 's/^DistroAgentsItems:/DistroAgentsTools:/' )"
-rigAssert "--client-*: the same refusal"                      "$( rigRefusalOf c3 )" "$( rigRefusalOf dc )"
-rigAssert "--manager-*: the same refusal"                     "$( rigRefusalOf g2 )" "$( rigRefusalOf dg )"
+rigAssert "the coordinator's own operations: the same refusal, but for the name of the tool file that says it" "$( rigIdMasked "$( rigRefusalOf m3 )" )" "$( rigIdMasked "$( rigRefusalOf dm | LC_ALL=C sed 's/^DistroAgentsItems:/DistroAgentsTools:/' )" )"
+rigAssert "--client-*: the same refusal"                      "$( rigIdMasked "$( rigRefusalOf c3 )" )" "$( rigIdMasked "$( rigRefusalOf dc )" )"
+rigAssert "--manager-*: the same refusal"                     "$( rigIdMasked "$( rigRefusalOf g3 )" )" "$( rigIdMasked "$( rigRefusalOf dg )" )"
+rigAssert "each of those six refusals carries a real REFUSAL-ID of its own" "$( for rigOne in m3 dm c3 dc g3 dg ; do case "$( rigIdMasked "$( rigRefusalOf "$rigOne" )" )" in ( *' REFUSAL-ID: <id>' ) printf 'id ' ;; ( * ) printf '%s:no ' "$rigOne" ;; esac ; done )" "id id id id id id "
+rigAssert "control: two refusals that differ only in their REFUSAL-ID are told apart before the id is put as <id>" "$( [ "$( rigRefusalOf c3 )" != "$( rigRefusalOf dc )" ] && printf apart || printf alike )" apart
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ CALLER CHECK SHARED CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

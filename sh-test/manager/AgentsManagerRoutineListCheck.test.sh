@@ -267,7 +267,7 @@ rigAssert "the rule is one function, which the spawner starts by and the list pr
 	"$( cat "$rigHere"/*/*.include | LC_ALL=C grep -c -E '^AgentsToolsSpawnRoutineExecutorsRoster\(\)\{' || : ) $( LC_ALL=C grep -v '^[[:space:]]*#' "$rigHere/spawn/AgentsTools.SpawnSession.include" | LC_ALL=C grep -c -e 'AgentsToolsSpawnRoutineExecutorsRoster "' || : ) $( LC_ALL=C grep -v '^[[:space:]]*#' "$rigHere/manager/AgentsTools.ManagerRoutine.include" 2> /dev/null | LC_ALL=C grep -c -e 'AgentsToolsSpawnRoutineExecutorsRoster "' || : )" "1 1 1"
 
 echo "-- 4. the caller rule, and the place in the family --"
-rigPre=( "MDAT_SPAWN_AGENT=magic-coordinator" )
+rigPre=( "MDAT_SPAWN_AGENT=keeper-rig" )
 rigRun "$rigOp"
 rigPre=()
 rigAssert "from inside a member's session it is refused, rc 1, nothing on stdout, in the one line of the family's rule" \

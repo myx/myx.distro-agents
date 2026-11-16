@@ -289,7 +289,7 @@ rigResolve(){ ## helper session (empty: the root's), spawn id, target
 		export MMDAPP="$rigWs" MDLT_ORIGIN="$rigOrigin"
 		[ -z "$1" ] || export MDAT_SESSION_ID="$1" MDAT_SPAWN_SESSION_ID="$2" MDAT_SPAWN_AGENT="$rigHelperMember"
 		[ -n "$1" ] || export MDAT_SPAWN_SESSION_ID="$rigRootSession"
-		. "$rigOrigin/myx/myx.distro-agents/sh-lib/slack/AgentsTools.CommsSlack.include"
+		. "$rigOrigin/myx/myx.distro-agents/sh-lib/slack/AgentsTools.CommsSlack.include" ; . "$rigOrigin/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsResolveTarget.include"
 		rigResolveOut="$( DistroAgentsToolsResolveTarget "$3" )" || rigResolveRc=$?
 		printf 'rc=%s %s' "$rigResolveRc" "$( printf '%s' "$rigResolveOut" | LC_ALL=C tr '\n' '|' )"
 	)

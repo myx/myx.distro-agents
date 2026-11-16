@@ -37,7 +37,9 @@ rigPayer="$rigTmp/payer"
 rigSkills="$rigTmp/skills"
 rigData="$rigTmp/data"
 [ "$rigWs" != "${MMDAPP%/}" ] || rigRefuse "the rig workspace is the real one"
-mkdir -p "$rigWs/.local/.agents" "$rigPayer/.local/.agents" "$rigTmp/bin" "$rigTmp/home/.agents/magic-team" "$rigSkills/magic-team" "$rigSkills/keeper-myx" "$rigSkills/magic-coordinator" "$rigData/board/running" "$rigData/inboxes/keeper-myx"
+mkdir -p "$rigWs/.local/.agents" "$rigPayer/.local/.agents" "$rigTmp/bin" "$rigTmp/home/.agents/magic-team" "$rigSkills/magic-team" "$rigSkills/keeper-myx" "$rigSkills/magic-coordinator"
+rigBoardStates "$rigData" running
+rigInboxReady "$rigData" keeper-myx
 cp "$rigTest/check-fixtures/slack-send-identity-check.curl.stub.sh" "$rigTmp/bin/curl" || rigRefuse "the fake curl fixture is missing from the package"
 chmod +x "$rigTmp/bin/curl"
 PATH="$rigTmp/bin:$PATH"

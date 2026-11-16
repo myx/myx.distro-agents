@@ -20,7 +20,7 @@ trap 'rm -rf -- "$rigTmp"' EXIT
 rigWs="$rigTmp/ws"
 rigBin="$rigTmp/bin"
 rigScopes="$rigWs/.local/.agents"
-mkdir -p "$rigScopes" "$rigBin" "$rigTmp/skills" "$rigWs/.local/agents/team-data-root/inboxes/magic-coordinator/incoming"
+mkdir -p "$rigScopes" "$rigBin" "$rigTmp/skills"
 
 ## THE FAKE SITE: a curl that logs its call and answers the status this run asks for. A half is
 ## proved to fail by answering a status the call refuses; 200 is an answer, and the read passes.

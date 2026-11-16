@@ -15,6 +15,7 @@ rigRefuse(){
 [ -x "$rigItems" ] || rigRefuse "items dispatcher not found: $rigItems"
 [ -f "$rigTools" ] || rigRefuse "tools dispatcher not found: $rigTools"
 . "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-store-item.include.sh" || exit 1
 rigTmp="$( rigTempDir AgentsVaultItemNameCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
@@ -31,8 +32,17 @@ rigAssert(){ ## what is asserted, got, want
 rigDir="" ; rigStore=""
 rigScenario(){ ## name
 	rigDir="$rigTmp/$1" ; rigStore="$rigDir/store"
-	mkdir -p "$rigDir/ws/.local" "$rigDir/home/skills/magic-coordinator" "$rigStore/vault" "$rigStore/board/backlog" "$rigStore/inboxes/magic-coordinator/incoming"
+	mkdir -p "$rigDir/ws/.local" "$rigDir/home/skills/magic-coordinator"
 	printf -- '---\nmaintainers: rig\n---\nrig identity\n' > "$rigDir/home/skills/magic-coordinator/magic-coordinator.basic.md"
+}
+## A fixture item is built by its store's own writer (rig-store-item.include.sh), never by hand: every folder these
+## items lie in is made by that writer too, so a change to where the code files an item shows up here.
+rigBodyCount=0
+rigItem(){ ## the store and its path (`vault epic-blueprint-x.md`, `board backlog task-x.md`), the body text
+	rigBodyCount=$(( rigBodyCount + 1 ))
+	printf '%s\n' "$2" > "$rigDir/body$rigBodyCount"
+	rigStoreItem "$rigDir" "$rigStore" "$rigDir/ws" magic-coordinator "$1" "$rigDir/body$rigBodyCount" \
+		|| rigRefuse "could not build the fixture item $1 through its store's own writer"
 }
 ## One op, guarded; stdin is the caller's. The store is $rigStore.
 rigOp(){ ## result file, dispatcher, op and its arguments...
@@ -49,9 +59,9 @@ rigOp(){ ## result file, dispatcher, op and its arguments...
 
 echo "-- the read refuses a typed name whose date is not YYYYMMDD'T'HHmm'Z', and reads one that is --"
 rigScenario read
-printf '# Sprint\n\nrig plan\n' > "$rigStore/vault/planning-20261109-sprint.md"
-printf '# Sprint\n\nrig plan\n' > "$rigStore/vault/planning-20261109T0000Z-sprint.md"
-printf '# Notes\n\nrig notes\n' > "$rigStore/vault/notes-20261109.md"
+rigItem "vault planning-20261109-sprint.md" "$( printf '# Sprint\n\nrig plan\n' )"
+rigItem "vault planning-20261109T0000Z-sprint.md" "$( printf '# Sprint\n\nrig plan\n' )"
+rigItem "vault notes-20261109.md" "$( printf '# Notes\n\nrig notes\n' )"
 rigOp "$rigDir/r1" "$rigItems" --get-vault-item --team-member magic-coordinator planning-20261109-sprint
 rigAssert "a date with no time: refused"                      "$( cat "$rigDir/r1.rc" ):$( LC_ALL=C grep -c 'is no valid planning name' "$rigDir/r1.err" )" "1:1"
 rigAssert "and nothing of it is printed"                      "$( LC_ALL=C grep -c 'rig plan' "$rigDir/r1" )" 0
@@ -64,13 +74,13 @@ echo "-- the typed write refuses a name its contract does not accept --"
 rigScenario write
 printf '# Epic\n\nrig epic\n' | rigOp "$rigDir/w1" "$rigItems" --upsert-vault-epic-blueprint --team-member magic-coordinator epic-blueprint-20261102-rig --upsert-from-stdin
 rigAssert "a typed write under a date with no time: refused"  "$( cat "$rigDir/w1.rc" ):$( LC_ALL=C grep -c 'is no valid epic-blueprint name' "$rigDir/w1.err" )" "1:1"
-rigAssert "and nothing is written"                            "$( ls "$rigStore/vault" | LC_ALL=C grep -c 'epic-blueprint-' )" 0
+rigAssert "and nothing is written"                            "$( if [ -d "$rigStore/vault" ] ; then ls "$rigStore/vault" | LC_ALL=C grep -c 'epic-blueprint-' || : ; else printf 0 ; fi )" 0
 
 echo "-- the rename moves the item and repoints what names it, whole names only --"
 rigScenario rename
-printf '# Epic\n\nrig epic\n' > "$rigStore/vault/epic-blueprint-20261102-rig.md"
-printf -- '---\ntype: task\n---\n\ntracking: vault/epic-blueprint-20261102-rig.md\nsee epic-blueprint-20261102-rig, and epic-blueprint-20261102-rig-old stays\n' > "$rigStore/board/backlog/task-20261102T0000Z-rig.md"
-printf 'nothing here\n' > "$rigStore/inboxes/magic-coordinator/incoming/note-20261102T0000Z-rig.md"
+rigItem "vault epic-blueprint-20261102-rig.md" "$( printf '# Epic\n\nrig epic\n' )"
+rigItem "board backlog task-20261102T0000Z-rig.md" "$( printf -- '---\ntype: task\n---\n\ntracking: vault/epic-blueprint-20261102-rig.md\nsee epic-blueprint-20261102-rig, and epic-blueprint-20261102-rig-old stays\n' )"
+rigItem "inbox magic-coordinator note-20261102T0000Z-rig.md" "$( printf 'nothing here\n' )"
 rigOp "$rigDir/m1" "$rigTools" --intern-op-vault-item-rename magic-coordinator epic-blueprint-20261102-rig epic-blueprint-20261102T0000Z-rig
 rigAssert "the rename succeeds and says what it did"          "$( cat "$rigDir/m1.rc" ):$( LC_ALL=C grep -c -x 'REPOINTED: 1 item(s)' "$rigDir/m1" )" "0:1"
 rigAssert "the item stands under its new name only"           "$( [ -f "$rigStore/vault/epic-blueprint-20261102T0000Z-rig.md" ] && printf new ):$( [ -e "$rigStore/vault/epic-blueprint-20261102-rig.md" ] && printf old || printf gone )" "new:gone"
@@ -82,8 +92,8 @@ echo "-- the rename refuses, changing nothing --"
 rigOp "$rigDir/m2" "$rigTools" --intern-op-vault-item-rename magic-coordinator epic-blueprint-20261102T0000Z-rig epic-blueprint-20261102-again
 rigAssert "a new name the rule refuses"                       "$( cat "$rigDir/m2.rc" ):$( [ -f "$rigStore/vault/epic-blueprint-20261102T0000Z-rig.md" ] && printf kept )" "1:kept"
 rigOp "$rigDir/m3" "$rigTools" --intern-op-vault-item-rename magic-coordinator epic-blueprint-20261103T0000Z-none epic-blueprint-20261103T0000Z-other
-rigAssert "an old item that is not there"                     "$( cat "$rigDir/m3.rc" ):$( ls "$rigStore/vault" | LC_ALL=C grep -c 'other' )" "1:0"
-printf '# Other\n' > "$rigStore/vault/epic-blueprint-20261104T0000Z-other.md"
+rigAssert "an old item that is not there"                     "$( cat "$rigDir/m3.rc" ):$( if [ -d "$rigStore/vault" ] ; then ls "$rigStore/vault" | LC_ALL=C grep -c 'other' || : ; else printf 0 ; fi )" "1:0"
+rigItem "vault epic-blueprint-20261104T0000Z-other.md" "$( printf '# Other\n' )"
 rigOp "$rigDir/m4" "$rigTools" --intern-op-vault-item-rename magic-coordinator epic-blueprint-20261104T0000Z-other epic-blueprint-20261102T0000Z-rig
 rigAssert "a new name already taken"                          "$( cat "$rigDir/m4.rc" ):$( LC_ALL=C grep -c 'rig epic' "$rigStore/vault/epic-blueprint-20261102T0000Z-rig.md" ):$( [ -f "$rigStore/vault/epic-blueprint-20261104T0000Z-other.md" ] && printf kept )" "1:1:kept"
 

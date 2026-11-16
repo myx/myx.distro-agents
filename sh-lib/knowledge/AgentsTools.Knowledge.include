@@ -69,11 +69,10 @@ AgentsToolsKnowledgeFiles(){ ## sources, -- selector words...
 			*" --add-inbox-items"*)
 				type AgentsToolsActingMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.CallerCheck.include"
 				filesMember="$( AgentsToolsActingMember )"
-				if [ -n "$filesMember" ] ; then
-					[ ! -d "$filesData/inboxes/$filesMember" ] || find "$filesData/inboxes/$filesMember" -type f -name '*.md' 2> /dev/null | LC_ALL=C sort
-				else
-					[ ! -d "$filesData/inboxes" ] || find "$filesData/inboxes" -type f -name '*.md' 2> /dev/null | LC_ALL=C sort
-				fi
+				type AgentsToolsInboxFilesInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/inbox/AgentsTools.InboxPlace.include"
+				local filesInbox=()
+				AgentsToolsInboxFilesInto filesInbox "$filesMember" yes
+				[ ${#filesInbox[@]} -eq 0 ] || printf '%s\n' "${filesInbox[@]}" | LC_ALL=C sort
 			;;
 		esac
 	} | LC_ALL=C awk '!seen[$0]++'

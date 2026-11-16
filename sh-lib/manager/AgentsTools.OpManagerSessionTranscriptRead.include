@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # ^^^ for syntax checking in the editor only
 
-type AgentsToolsManagerSessionScope > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.ManagerSessionRows.include"
+type AgentsToolsManagerSessionScope > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.ManagerSessionRows.include"
 
 ## AgentsTools.OpManagerSessionTranscriptRead.include -- the operation `--manager-session-transcript-read`, sourced by AgentsTools.ManagerSession.include with the operation's arguments.
 ## What one run, or every run of one session, did: the lines the tracking thread of the
@@ -48,6 +48,7 @@ type AgentsToolsManagerSessionScope > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.
 		fi
 		AgentsToolsManagerSessionScope "$transcriptOp" "$transcriptId" "$transcriptOwn" || { set +e ; return 1 ; }
 		type AgentsTranscriptBase > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionTranscript.include"
+		type AgentsSessionLogInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
 		while IFS="$transcriptTab" read -r runKind runSession runSpawn runMember runRest ; do
 			[ "$runKind" = "run" ] || continue
 			[ "$scopeRun" = "-" ] || [ "$runSpawn" = "$scopeRun" ] || continue
@@ -59,8 +60,8 @@ type AgentsToolsManagerSessionScope > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.
 				*)
 					if [ -z "$transcriptLog" ] && runPath="$( AgentsTranscriptBase "$runSpawn" )" ; then
 						runSource="transcript"
-					elif [ -f "$MMDAPP/.local/agents/sessions/$runSpawn/session.log" ] ; then
-						runSource="session-log" ; runPath="$MMDAPP/.local/agents/sessions/$runSpawn/session.log"
+					elif AgentsSessionLogInto runPath "$runSpawn" ; then
+						runSource="session-log"
 					else
 						runPath=""
 					fi
@@ -72,7 +73,7 @@ type AgentsToolsManagerSessionScope > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.
 			transcriptSources="${transcriptSources}source$transcriptTab$runSpawn$transcriptTab$runMember$transcriptTab$runSource$transcriptTab$runShown$transcriptNl"
 			case "$runSource" in
 				session-log)
-					runRows="$( tail -n "$transcriptTail" "$runPath" 2>/dev/null \
+					runRows="$( AgentsSessionLogTail "$runSpawn" "$transcriptTail" \
 						| MDAT_MANAGER_SPAWN="$runSpawn" MDAT_MANAGER_MEMBER="$runMember" LC_ALL=C awk -v transcriptMode=log -f "$transcriptLib/session/AgentsSessionTranscriptFormat.awk" -f "$transcriptLib/manager/AgentsManagerSessionTranscript.awk" )"
 					[ -z "$runRows" ] || transcriptLogs="$transcriptLogs$runRows$transcriptNl"
 				;;

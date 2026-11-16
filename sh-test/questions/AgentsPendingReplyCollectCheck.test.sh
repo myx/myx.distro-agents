@@ -22,6 +22,7 @@ rigReportsTo="$( LC_ALL=C sed -n 's/^agentsRunRouteField="\(.*\)"$/\1/p' "$rigHe
 rigMember="magic-tester"
 
 rigRefuse(){
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-writes.include.sh" || exit 1
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }
 . "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-copy.include.sh" || rigRefuse "the rig's copy helper is missing from the package: sh-test/check-fixtures/rig-copy.include.sh"
@@ -444,8 +445,8 @@ rigLinked(){ ## id, question ts, tag, session
 	rigRecord "$1" "$2" "$3" "$4" ""
 	LC_ALL=C awk -v item="$rigLiveItem" '{ print } $0 == "host: rig" { print "item: " item }' "$rigScenarioDir/ws/.local/agents/pending/$1.md" > "$rigScenarioDir/linked.tmp" \
 		&& mv -f "$rigScenarioDir/linked.tmp" "$rigScenarioDir/ws/.local/agents/pending/$1.md"
-	mkdir -p "$rigScenarioDir/data/board/blocked" "$rigScenarioDir/data/board/running"
-	printf -- '---\ntype: task\nowner: %s\ncondition: has the human-owner answered pending reply %s?\n---\n\n# Rig live task\n' "$rigMember" "$1" > "$rigScenarioDir/data/board/blocked/$rigLiveItem.md"
+	:  ## the store folders are made by the write that fills them
+	rigOwnerData="$rigScenarioDir/data" rigOwnerBoardWrite blocked "$rigLiveItem.md" -- '---\ntype: task\nowner: %s\ncondition: has the human-owner answered pending reply %s?\n---\n\n# Rig live task\n' "$rigMember" "$1"
 }
 rigSpawnSession(){ ## session, status, spawn id
 	mkdir -p "$rigScenarioDir/ws/.local/agents/spawned/$1"

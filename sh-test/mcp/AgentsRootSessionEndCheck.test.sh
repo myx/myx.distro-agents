@@ -49,7 +49,7 @@ rigAssert(){ ## what is asserted, got, want
 ## ---- one workspace, its team data and members ----
 rigWs="$rigTmp/ws" ; rigData="$rigTmp/data" ; rigSkills="$rigTmp/skills"
 rigSessions="$rigWs/.local/agents/sessions"
-mkdir -p "$rigWs/.local/.agents" "$rigWs/.local/agents/pending" "$rigSessions" "$rigWs/.local/agents/spawned" "$rigData/board/running" \
+mkdir -p "$rigWs/.local/.agents" "$rigWs/.local/agents/pending" "$rigSessions" "$rigWs/.local/agents/spawned" \
 	"$rigSkills/magic-tester" "$rigSkills/magic-coordinator" "$rigSkills/magic-team"
 for rigMember in magic-tester magic-coordinator ; do
 	printf -- '---\nmaintainers: rig\n---\nrig identity\n' > "$rigSkills/$rigMember/$rigMember.basic.md"

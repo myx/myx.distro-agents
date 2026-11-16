@@ -39,7 +39,9 @@ rigAssert(){ ## what is asserted, got, want
 
 rigWs="$rigTmp/ws" ; rigHome="$rigTmp/home" ; rigData="$rigTmp/data" ; rigPend="$rigWs/.local/agents/pending"
 rigSkills="$rigTmp/skills"
-mkdir -p "$rigTmp/bin" "$rigWs/.local/.agents" "$rigWs/.local/temp" "$rigTmp/home" "$rigData/board/running" "$rigPend" "$rigData/inboxes/rig-member/incoming" "$rigSkills/rig-member" "$rigSkills/human-owner"
+mkdir -p "$rigTmp/bin" "$rigWs/.local/.agents" "$rigWs/.local/temp" "$rigTmp/home" "$rigPend" "$rigSkills/rig-member" "$rigSkills/human-owner"
+rigBoardStates "$rigData" running
+rigInboxReady "$rigData" rig-member
 printf -- '---\nmaintainers: rig\n---\nrig identity\n' > "$rigSkills/rig-member/rig-member.basic.md"
 printf -- '---\nmaintainers: human-owner\n---\nthe owner of this rig\n' > "$rigSkills/human-owner/human-owner.basic.md"
 cp "$rigPackage/sh-test/check-fixtures/harness-ask-check.curl.stub.sh" "$rigTmp/bin/curl" || rigRefuse "could not install the fake curl"

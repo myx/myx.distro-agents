@@ -151,7 +151,7 @@ rigResolve(){ ## session thread (empty for none), target, who calls (default: th
 			joined) export MDAT_SPAWN_SESSION_ID=rig-child-id MDAT_SESSION_ID=rig-native-id ;;
 			*) export MDAT_SPAWN_SESSION_ID=rig-child-id ;;
 		esac
-		. "$rigHere/slack/AgentsTools.CommsSlack.include"
+		. "$rigHere/slack/AgentsTools.CommsSlack.include" ; . "$rigHere/comms/AgentsTools.CommsResolveTarget.include"
 		resolveRc=0
 		resolveOut="$( DistroAgentsToolsResolveTarget "$2" )" || resolveRc=$?
 		printf 'rc=%s %s' "$resolveRc" "$( printf '%s' "$resolveOut" | tr '\n' '|' )"

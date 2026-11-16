@@ -85,7 +85,7 @@ rigHas(){ ## file, text
 ## developer is the one every question below is addressed to, and it runs now.
 rigWs="$rigTmp/ws"
 rigData="$rigWs/DATA"
-mkdir -p "$rigWs/.local/.agents" "$rigWs/.local/agents/spawned/rig-cow" "$rigWs/.local/agents/sessions/rig-cow" "$rigWs/.local/agents/pending" "$rigData/board/running"
+mkdir -p "$rigWs/.local/.agents" "$rigWs/.local/agents/spawned/rig-cow" "$rigWs/.local/agents/sessions/rig-cow" "$rigWs/.local/agents/pending"
 printf 'SLACK_CHANNEL_MAGIC_TEAM=CRIG00001\nSLACK_BOT_TOKEN=rig-bot-token-TEAM\nSLACK_CHANNEL_HUMAN_OWNER=URIGOWNER\n' > "$rigWs/.local/.agents/magic-team.agent.env"
 printf 'magic-developer:ws:workspace:Edit(/%s/**)\n' "$rigWs" > "$rigWs/.local/agents/permissions.registry"
 rigHost="$( hostname -s 2>/dev/null || echo unknown )"

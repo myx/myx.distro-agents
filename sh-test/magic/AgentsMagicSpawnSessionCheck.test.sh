@@ -509,7 +509,7 @@ mkdir -p "$rigTmp/psbin"
 printf '#!/bin/sh\ncase " $* " in\n\t*" -A "*) cat "%s/ps.list" ; exit 0 ;;\nesac\nexec "%s" "$@"\n' "$rigTmp" "$( command -v ps )" > "$rigTmp/psbin/ps"
 chmod +x "$rigTmp/psbin/ps"
 printf '1001 claude --session-id rig-run-one\n' > "$rigTmp/ps.list"
-mkdir -p "$rigData/inboxes/magic-coordinator/incoming"
+:  ## the store folders are made by the write that fills them
 rm -f "$rigTmp/brief.rig-member-a"
 printf 'SLACK_CHANNEL_MAGIC_TEAM=CRIG00001\nSLACK_BOT_TOKEN=rig-bot-token-TEAM\nSPAWN_LIMIT=1\n' > "$rigWs/.local/.agents/magic-team.agent.env"
 rigOut="$( PATH="$rigTmp/psbin:$PATH" rigRun "RIG-QUEUED-TASK" --routine-default rig-member-a )"

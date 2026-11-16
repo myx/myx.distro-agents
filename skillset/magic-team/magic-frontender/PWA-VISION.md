@@ -26,6 +26,9 @@ magic-architect. This skill does not decide macro-architecture questions.
 - 2026-11-06 — Amendment to the Trusted Types facet: the backstop is Baseline now
 - 2026-11-09 — Facet: Step-Up and Re-Authentication on a 401 During Outbox Replay
 - 2026-11-10 — Facet: The Sanitizer Behind renderTrustedRichText()
+- 2026-11-11 — Facet: The Native-Standards-First Stack, Its Real Costs, and Where It Stops
+- 2026-11-11 — Facet: The Launch Surface — `launch_handler` and `related_applications`
+- 2026-11-12 — Facet: Resource Hints for the Shell's Own Critical Path
 
 ## 2026-07-15 — Facet: Offline-First Architecture & Service Worker Caching Strategy
 
@@ -1313,3 +1316,634 @@ stays as it was:
 - New from this pass: what the wrapper does with a large interpolated document.
   The escaping path is linear in content, and 2026-07-15's refresh sets how often
   a component re-renders it.
+---
+
+## 2026-11-11 — Facet: The Native-Standards-First Stack, Its Real Costs, and Where It Stops
+
+The last uniterated facet in this vision's own list. Every prior pass
+assumed the stack without arguing for it. 2026-07-20 built the whole Trusted
+Types argument on the absence of framework auto-escaping, and the precache
+budget treats the shell's JS as hand-written. This pass states what the
+native-first default is a bet on, what it costs, and the four places where
+hand-rolling is the wrong call.
+
+It decides no framework and no library. It gives the procedure that decides,
+and the evidence each decision needs.
+
+**What the default is a bet on.**
+
+Native-first is not minimalism for its own sake. It is a bet on three things,
+and it fails if any of them is false.
+
+- **The platform's guarantees are stronger than a library's conventions.**
+  A browser refuses to run a script that violates SRI. A Trusted Types policy
+  is enforced at the sink. A CSP is enforced by the engine. A framework's
+  escaping is enforced by the framework's own code being correct and being
+  used. This is the same soft-boundary-versus-hard-boundary distinction
+  2026-07-16's architect response drew for origins, and 2026-07-20 drew for
+  the `'default'` Trusted Types policy.
+- **The primitives already exist.** A component model, a reactive surface, a
+  router, a form control and a scoped style system all ship in the platform
+  now. Reaching for a dependency to get one of those is buying something
+  already present.
+- **The bug surface you own is smaller than the bug surface you inherit.**
+  The cost of a dependency is not its bytes. It is its update treadmill, its
+  own security advisories, and its own rendering model layered over the
+  browser's.
+
+The last two are falsifiable per feature, and the sections below falsify them
+where they fail.
+
+**The primitives, with their real floors.**
+
+These are the load-bearing native features this stack assumes. The version
+figures are reported first-shipped figures, read from caniuse and MDN
+summaries on 2026-11-11. They were not measured in a browser in this pass.
+The project's own browser floor decides, not this table.
+
+| Primitive | What it replaces | Reported first ship |
+|---|---|---|
+| Custom elements v1 | a component model | long settled, all engines |
+| Shadow DOM and slots | style encapsulation | long settled, all engines |
+| Declarative shadow DOM (`shadowrootmode`) | SSR of a shadow root, no JS | Chrome 111, Safari 16.4, Firefox 123 |
+| ES modules and import maps | a bundler's module resolution | Chrome 89, Firefox 108, Safari 16.4 |
+| `modulepreload` | a bundler's preload manifest | Firefox 115, Safari 17, Chromium figure not recorded in this pass |
+| Constructable stylesheets | per-instance `<style>` duplication | Chrome 73, Firefox 101, Safari 16.4 |
+| Form-associated custom elements | a form-control shim | Chrome 77, Firefox 98, Safari 16.4 |
+| `:has()`, container queries | class-toggling JS, resize observers | `:has()` Safari 15.4 and Firefox 121, container queries Safari 16.0 and Firefox 110, Chromium figure not recorded in this pass |
+| `structuredClone` | a deep-clone dependency | Firefox 94, Safari 15.4, Chrome 98 |
+| `AbortSignal` in `addEventListener` | `removeEventListener` bookkeeping | contested, see below |
+| `AbortSignal.timeout` | a timeout helper | Firefox 100, Safari 16, Chromium figure contested |
+
+The last two rows carry a warning worth stating rather than glossing. The
+secondary sources read on 2026-11-11 disagree on the `addEventListener`
+`signal` option's Safari floor, and on `AbortSignal.timeout`'s Chromium floor.
+One source calls the `signal` option still in development in Safari, and
+another lists it implemented in all three engines. Neither was checked in a
+browser here. So those rows are marked contested, and the shell feature-detects
+both rather than assuming a floor. A support figure two sources dispute is not
+a support figure.
+
+**The module graph is the real architectural object.**
+
+With no bundler deciding the load order, three costs appear that a bundler had
+been absorbing. All three are load-time correctness problems, not performance
+polish.
+
+**Module discovery is a fetch waterfall.** A browser cannot know a module's
+imports until it has fetched and parsed that module. A shell whose entry module
+imports three modules which each import four costs one round trip per graph
+level before any of it executes. That is the classic waterfall, and it is why
+a build step was ever wanted.
+
+The native fix is `modulepreload` on the shell's own critical edges, emitted
+from the build's module graph. Without it, the shell's cold-start cost is set
+by connection latency, not by bytes. That is also the strongest argument
+against a very deep component tree in this stack.
+
+**An import map is a hard runtime dependency of the shell, not build
+configuration.** A bare specifier the map does not resolve is an immediate,
+unrecoverable module load failure. So the map must be present before the first
+module script parses. Two consequences follow.
+
+- The import map belongs in the shell HTML, which 2026-07-17 already treats as
+  a build-time-static, hash-listed artifact. That is consistent. It also means
+  a wrong map is a blank shell until a new `CACHE_VERSION` reaches the client,
+  exactly like a stale CSP.
+- An inline `<script type="importmap">` collides with 2026-07-17's
+  no-inline-script rule. Resolve it as that pass resolved the bootstrap
+  script: a content hash in `script-src`, generated at build time. Not a
+  nonce, because the shell is cached and replayed.
+
+**Subresource integrity does not cover an imported module by default.** SRI
+applies to a `<script src>`, a stylesheet link and a preload. A module reached
+through `import` inside another module carries no integrity check unless the
+platform is told its hash. `require-sri-for` was never part of CSP3, so CSP
+cannot demand it either. Two honest options exist.
+
+- Emit `integrity` metadata in the import map and rely on the browser's
+  import-map integrity support. That support shipped in Chromium and Safari per
+  the engineering post cited below, with Firefox lagging at the time of
+  writing. Verify per project floor before relying on it.
+- Otherwise treat graph integrity as a build-time property: content-hashed
+  filenames, a checked-in lockfile, and a build that fails when a hash changes
+  without a lockfile change.
+
+Neither option is a runtime guarantee on every browser. That gap is worth
+naming, because 2026-07-20's Trusted Types argument assumed the platform
+enforces its own boundaries. On module integrity it does not do so uniformly,
+and the build has to cover the difference.
+
+**What vanilla Web Components actually cost you.**
+
+This is the honest ledger. A framework absorbs each of these. Hand-written
+components get them wrong in the same four ways, and every one is a
+correctness bug rather than a style preference.
+
+**`connectedCallback` runs more than once.** It fires on every insertion into
+the document, and a node can be moved. Setup done there runs again. Any
+listener, timer, observer or subscription registered there is duplicated, and
+the component now leaks one copy per move.
+
+The rule has two halves. Setup that must run once belongs in the constructor.
+Anything that depends on being in the document belongs in a guarded pair with
+teardown.
+
+**`disconnectedCallback` is the only teardown hook, and it must be complete.**
+Every listener, `ResizeObserver`, `IntersectionObserver`, timer,
+`AbortController`, fetch and `postMessage` channel the component opened must be
+released there. The cheapest discipline that makes this auditable is one
+`AbortController` per component instance. Every listener takes its `signal`,
+and `disconnectedCallback` calls `abort()` once. That turns teardown from a
+checklist into a single line a reviewer can check.
+
+The `signal` option's support is one of the contested rows above. So a
+component keeps one small internal `listen(target, type, fn)` helper. It takes
+the signal where the engine honours it, and falls back to `removeEventListener`
+where it does not. One helper, one call site per listener, and the teardown
+stays one line either way.
+
+**Declarative shadow DOM is a parser feature, so `innerHTML` will not create
+one.** Setting `innerHTML` to markup containing `<template shadowrootmode>`
+leaves an inert template, not a live shadow root. Only the HTML parser,
+`setHTMLUnsafe` and `parseHTMLUnsafe` honour it.
+
+This collides directly with two prior facets. The stale-while-revalidate
+re-render path (2026-07-15) patches a component from fresh data, and the `html`
+wrapper (2026-07-20) builds strings. Neither may be the mechanism that creates
+a shadow root. A shadow root is created once, by `attachShadow` or by the
+parser on first load, and then its contents are updated. Naming this prevents
+a whole class of "it renders on load and not after a refresh" bug.
+
+**An attribute is the declaration and a property is the reader.** This is this
+member's "a declaration is not a reader" rule in a third shape. A component
+that reads only its property, and never reflects to an attribute, cannot be
+serialised into the server-rendered shell. It cannot be restored from a
+form-state snapshot either, and cannot be styled with `[attr]` selectors. A
+component that reads only the attribute loses type information, and round-trips
+every value through a string.
+
+The rule has two halves. Attributes are the public, serialisable interface.
+Properties are the runtime interface. The pair is kept in sync deliberately, by
+code a reader can find.
+
+**Styling, and the two rules people get wrong.**
+
+- **Constructable stylesheets are the default over per-instance `<style>`.**
+  A `<style>` block inside each shadow root is a separate parse and a separate
+  retained ruleset per instance. One `CSSStyleSheet` adopted by every instance
+  is parsed once. At a few hundred rows in a list, that is the difference
+  between one parse and a few hundred. This is a claim about retained memory
+  per instance, so it is also easy to verify with the browser's own memory
+  tooling before believing it.
+- **The reset does not cross the shadow boundary.** Inheritable properties
+  inherit in, and nothing else does. This member's warning against a universal
+  `padding: 0` reset is therefore narrower than it looks. Inside a shadow root
+  the reset reaches only that root's own elements, which is correct and
+  harmless. Outside, the same reset still flattens nested-list indentation in
+  light DOM. A shared constructable reset is safe only when it excludes `ul`
+  and `ol`, and it must be adopted explicitly by each root.
+
+**Forms are the progressive-enhancement test that actually fails.**
+
+This vision's progressive-enhancement default has a concrete, checkable form.
+With no JavaScript, the shell's primary form still submits, as a real HTML
+form, with a real `action` and `method` and a real server response.
+2026-07-15's offline route depends on this, because the degraded path is the
+same page.
+
+A hand-written component that renders a `<div>` with a click handler breaks
+that test silently. The native answer is a form-associated custom element,
+registered with `formAssociated`. It then joins `FormData`, native validation,
+`:invalid` and the browser's own submit path. A component that skips it is
+invisible to all four. The test costs one line in review: open the shell with
+JavaScript disabled and press submit.
+
+That is the sharpest progressive-enhancement check in this whole vision, and
+it needs no browser automation to run.
+
+**Where hand-rolling is the wrong default.**
+
+Dependency minimalism applied reflexively is the failure mode on the other
+side. Four things are a trap to hand-write. For each, the reason is the same:
+the correct behaviour is a long list of cases nobody remembers.
+
+- **An HTML sanitizer.** The allowlist, the parser differentials and the mutation-XSS cases are years of adversarial work. 2026-11-10's facet already rules on this.
+- **ARIA widget behaviour (combobox, dialog, menu, focus trap).** Focus management, keyboard maps and screen-reader quirks are specified behaviour, not preference. A mistake is an accessibility defect.
+- **Large-list virtualisation.** Scroll anchoring, dynamic row heights, focus retention across recycling and accessibility-tree consistency are all load-bearing.
+- **A rich text editor.** Composition events, IME, undo history and clipboard formats across platforms is the deepest rabbit hole in frontend.
+
+The first row is settled by a prior facet. The other three are candidates, not
+rulings, and each is one dependency rather than a framework.
+
+Note what is not on that list, because the platform took it. The platform now
+covers date and number formatting (`Intl`), URL parsing, form encoding, deep
+clone and clipboard. It also covers HTML sanitising once the Sanitizer API
+reaches the whole floor. The `setHTML` gap is why the sanitizer row still
+exists today, and it is a gap with an announced end.
+
+**The procedure that decides, and the evidence it needs.**
+
+A framework needs an explicit justification against this default. It is not
+banned, and this vision calls no framework good or bad. The justification names
+which of these holds, and a proposal without one is not a proposal.
+
+- **A rendering model the team cannot build.** A deep, frequently recomputed
+  state graph whose reconciliation is the product's core difficulty. If the
+  team would write a diffing engine anyway, use one.
+- **A team-scale constraint.** Many contributors, a shared component contract,
+  and a review capacity that cannot audit every hand-rolled component's
+  teardown. The framework's convention is then worth more than the platform's
+  guarantee is.
+- **An existing investment** whose migration cost exceeds the lifetime saving.
+  Rewriting a working app to remove a framework is its own large change, and
+  this vision's `no-regress` default applies to it.
+
+Each justification needs evidence, and the evidence is the same for every stack
+question in this vision. Take one real browser run at a named viewport and a
+named network profile. Measure the four stages of the budget pass in it:
+install, cold-start, first interaction and steady state. A comparison between
+two stacks that was never run is not a comparison.
+
+This pass runs no browser. Every figure in it is a reported version or a
+reasoned claim, and it says so where it says it.
+
+**Open threads for future passes.**
+
+- `related_applications`/`prefer_related_applications` and `launch_handler`
+  client-mode. Carried since 2026-07-16, still unaddressed.
+- A concrete ARIA widget and focus-management default for this stack. New from
+  this pass, and it is the largest remaining craft gap the vision has named.
+- Whether the shell ships a shared constructable stylesheet, and the exact
+  reset it carries. New from this pass. It decides the nested-list question for
+  every component at once.
+- What the shell's own before-first-interaction component set actually is.
+  Carried from the budget facet, and it is the input both the JS ceiling and
+  the `modulepreload` manifest need.
+
+**Sources used in this pass.**
+
+- Support figures: caniuse and MDN summaries for each row of the primitives
+  table, read 2026-11-11. Reported first-ship versions, not measured here.
+- Import-map integrity shipping in Chromium and Safari, and the pre-existing gap
+  where SRI did not cover imported modules:
+  `shopify.engineering/shipping-support-for-module-script-integrity-in-chrome-safari`,
+  and the TAG review of import-map integrity at
+  `github.com/w3ctag/design-reviews/issues/944`.
+- Declarative shadow DOM honoured only by the parser, and not by `innerHTML`:
+  the WHATWG HTML parser behaviour as described in the `template-shadowroot`
+  polyfill's own feature-detection issue, and the `setHTMLUnsafe` and
+  `parseHTMLUnsafe` notes alongside it.
+- Sanitizer API shipping status:
+  `web-platform-dx.github.io/web-features-explorer/features/sanitizer/`, read
+  2026-11-11, showing Chromium and Firefox shipped and Safari blocking
+  Baseline.
+---
+
+## 2026-11-11 — Facet: The Launch Surface — `launch_handler` and `related_applications`
+
+This closes the thread carried open since 2026-07-16 and named again in every section
+after it. The 2026-07-16 architect response already unblocked it. Where the trust test
+says one origin, a launch is a single-app question. So it is decided here, and no new
+question goes to magic-architect.
+
+**A launch is not a navigation request, and 2026-07-15's resource-class table has no row
+for it.** The five classes sort requests the app itself makes. A launch is an entry into
+the app from outside its own boundary. It comes from the home screen, another app's
+link, a chat client or the OS share sheet.
+
+A launch is also the one entry where no app code is running yet. The offline question is
+therefore asked at cold start, with no page state to fall back on. That is what makes it
+a facet rather than a corner of the caching work.
+
+**Source and its limit, stated once.** The launch facts below came from search-result
+summaries of three pages. They are the Chrome for Developers launch-handler guide, the
+WICG proposal and MDN. Those pages and the compatibility tables sit outside this
+session's URL allowlist. Treat every version figure and every support claim here as a
+secondary-source finding. The 2026-11-06 amendment labelled its own findings the same
+way.
+
+**The member holds one field, and that field's value may be a list.** `launch_handler`
+currently carries a single sub-field, `client_mode`. Its value is a string or a list of
+strings. The WICG proposal's own words are that the first valid value is used. That list
+form is the whole degradation mechanism. The recommendation below uses it.
+
+**Three values, three different failure modes.** These are not three settings of one
+behaviour. They are three different contracts with the platform, and each fails
+differently.
+
+| `client_mode` | What the browser does | What the app owes | Failure when unwired |
+|---|---|---|---|
+| `navigate-new` | creates a new app window at the launch target URL | nothing | a second app window the user did not ask for |
+| `navigate-existing` | navigates the most recently used app window to the target URL | an in-progress-state guard | work in progress is destroyed with no interception |
+| `focus-existing` | focuses the most recently used app window and enqueues a `LaunchParams` carrying `targetURL` | a `launchQueue` consumer that routes it | the launch silently does nothing |
+
+**`focus-existing` creates an obligation in the app's own code, and that obligation is a
+reader.** The manifest declares the mode. Its reader is
+`window.launchQueue.setConsumer`. Nothing else in the platform supplies the navigation.
+With no consumer registered, a `focus-existing` launch focuses a window and moves
+nothing. The user clicked a link and the app did not move.
+
+That outcome is legal at every layer. It throws nothing, and it reports nothing. It is
+the exact fault the armed rule names. A declaration is not a reader, and a declared
+value with no reader is a defect rather than a default.
+
+**`auto` is the default when the member is absent, which makes this member safe to
+ship.** The Chrome guide gives `{"client_mode": "auto"}` as the unspecified default.
+`auto` is the user agent's own choice. An engine that ignores `launch_handler` therefore
+behaves as it would with no manifest member at all. This member cannot break a browser
+that does not implement it.
+
+That is a stronger degradation guarantee than `beforeinstallprompt` (2026-07-16) or
+Trusted Types (2026-07-20) had. Ship it without a support gate.
+
+**Recommendation: `focus-existing` first, `navigate-existing` second, and no
+`navigate-new` at all.** The list form makes the ladder explicit as `["focus-existing",
+"navigate-existing"]`. The first choice keeps the app's own router in charge and
+preserves the user's in-progress state. The second is the honest fallback where a
+platform will not hand the URL to script. The user then reaches the target, at the cost
+of whatever was in that window.
+
+Leaving `navigate-new` out is a judgement, and this is its criterion. The value opens a
+second app window. The vision has already settled on one install identity per origin. An
+app that opens its own second window is the one new-window case the navigation rule
+would otherwise have to argue about.
+
+Leaving the value out keeps that argument from ever being needed. It also leaves no
+ambiguity about which side of the rule this member falls on.
+
+**`navigate-new` is not itself a violation of the navigation rule, and the distinction
+matters.** That rule binds the app's own markup and handlers. It covers
+`target="_blank"`, `window.open()` and generated links. A browser's launch decision is
+not the app opening a tab. The rationale that makes the rule right also makes this
+distinction right.
+
+Opening a second window is the user's own gesture, and an operating-system launch is
+that gesture. What the app must never do is select `navigate-new` to avoid the consumer
+obligation.
+
+**The launch URL is untrusted input, because it arrives from outside the app.** Every
+path into the app so far has been the app's own fetch or its own router. A `targetURL`
+comes from a chat client, a QR code or another site's link capture. It is
+attacker-controllable in exactly the way a query string is. It also reaches the one
+moment where no state has been established to compare it against.
+
+**So the consumer parses it and never follows it.** Three controls apply, in order.
+
+- Resolve it with `new URL()` against the app's own origin, and drop a target whose
+  origin differs. A cross-origin target is not a route.
+- Apply the 2026-11-10 scheme rule here, narrowed to `https:`: a route is never a
+  `mailto:` target. Keep a separate constant, because that allowlist also admits
+  `mailto:`.
+- Route the resolved path through the app's own router. Never assign the string to
+  `location`, `location.href` or `location.assign()`.
+
+**That third control has no CSP backstop behind it, which is a third instance of one
+pattern.** A navigation assigned from data is not a Trusted Types sink. The guarded set
+is the script and markup sinks, not the location setters. It is also not a `connect-src`
+question. So the scheme check is the only control on that path.
+
+That check must live in the consumer. 2026-07-17 found the same shape for the
+`postMessage` credential handoff. Not every boundary is a CSP boundary. The boundary the
+policy does not cover is the one to review by hand.
+
+**The consumer registers once, at shell bootstrap, before the router exists.**
+`setConsumer` takes one callback for the window's whole life. So registration belongs to
+bootstrap and not to a component. The queue holds an enqueued `LaunchParams` until a
+consumer is present. That is what makes early registration safe.
+
+The callback can hand the parsed URL to the router when the router is ready. The router
+then need not exist before the launch arrives. One ordering rule follows: handle the
+launch, then drain the outbox. The user asked to be somewhere, and 2026-07-16's
+credential handoff does not require the drain first.
+
+**The offline launch is where the precache floor and the outbox meet, and it needs a
+designed fourth state.** 2026-11-06 put only the shell's render critical path inside the
+install transaction. Every other route becomes offline available only after one online
+visit. So an installed app can launch offline at a route the user has never opened
+online.
+
+The shell then has a view to mount and nothing to mount in it. The answer follows from
+two earlier findings. 2026-07-15 made the offline fallback a real route. 2026-07-16 said
+never to gate on an event that may not fire.
+
+- The shell mounts, and the requested URL is kept as the pending route.
+- The route renders an explicit state that names the destination. It says the
+  destination is not available offline yet. It is a page about that destination, not the
+  home screen.
+- Nothing redirects to the home route, because that loses where the user was going.
+  There is no way to recover it.
+- The pending route is retried on the next successful navigation or the next `online`
+  event. An explicit user dismissal drops it.
+
+**`related_applications` is a listing, and `prefer_related_applications` is its
+switch.** The switch must stay off. On Chromium the two behave very differently, and
+three independent sources agree. The install prompt offers the web app while
+`prefer_related_applications` is absent or `false`. It steers to the store listing when
+the value is `true`.
+
+That single boolean reaches back into the durability design. 2026-11-06 found that
+WebKit's ITP deletes script-writable storage after seven days of Safari use without
+interaction. An installed home-screen app is exempt. So installation is what makes a
+queued offline write survive, on that engine.
+
+Turning the switch on trades that durability for a store prompt. The engine that already
+guaranteed the least pays that trade. So the rule here is unconditional rather than
+per-project. `prefer_related_applications` is `false` or omitted, always.
+
+**A listing with no reader does nothing, and its reader is
+`getInstalledRelatedApps()`.** Populating `related_applications` carries no install
+redirection of its own. It exists so the page can ask whether a counterpart app is
+already installed. That call needs both halves of the relationship. One half is the
+manifest entry on this site. The other is a declaration on the other app pointing back.
+
+An Android counterpart declares it through Digital Asset Links. A related PWA declares
+it through its own `related_applications` entry. One point stays unchecked, and a later
+pass must not assume it. Which key does that pairing match on for a web-app counterpart?
+Read the manifest specification before relying on it. This session's allowlist did not
+permit that read.
+
+**`related_applications` also carries a product decision this facet does not make.**
+Whether the product has a native counterpart is not an architecture question and not a
+frontend one. Where there is none, both members stay out of the manifest entirely. An
+empty array is a declaration with no reader of its own.
+
+**Telemetry: the install-versus-browser signal from 2026-07-16 covers launcher starts
+only.** A captured link is invisible in it. That facet put an analytics parameter on
+`start_url`, as the only reliable marker of install-driven traffic. A launch from a
+captured link carries the link's own URL instead. The request therefore reaches the
+server with no marker, and reads as an ordinary browser visit.
+
+That is reasoned from how `start_url` is used, and not measured. The fix is in the
+reader, not the manifest. The launch consumer adds the same marker when it routes a
+captured target. Both launch paths then report through one parameter.
+
+**The check that would refute this.** The central claim is that an unwired
+`focus-existing` fails silently rather than loudly. Install the app and set
+`client_mode` to `focus-existing`. Register no consumer. Launch an in-scope link from a
+different app on the same device.
+
+If the window navigates on its own, that platform is supplying the fallback. The
+obligation paragraph above is then overstated for it. Run the check on desktop Chromium
+and on an Android device. The proposal allows a user agent to support only a subset of
+the client modes.
+
+**Open threads for future passes:**
+
+- Whether a rich-text caller may ever keep an image, and under which attribution and
+  caching rules. Carried from 2026-11-10.
+- What the wrapper does with a large interpolated document, since the escaping path is
+  linear in content. Carried from 2026-11-10.
+- Whether the launch surface should accept a share-target payload, and under the same
+  parse-and-never-follow rule or a stricter one.
+- New from this pass: which key matches a web-app counterpart in the
+  `related_applications` pairing, to be read from the manifest specification.
+---
+
+## 2026-11-12 — Facet: Resource Hints for the Shell's Own Critical Path
+
+The precache budget (2026-11-06) settled what the install transaction holds. It
+did not settle how the document announces that same set on the visit that comes
+first, before any install has happened. That visit is the only one where a
+resource hint can win anything, and it is also the one the vision had not
+described. This pass works the shell's own resource hints, from the finding note
+filed for it on 2026-11-11.
+
+**A hint is a claim made before the document knows what it needs, and two of the
+three mechanisms are unverifiable.** `rel=preload` names one URL and one
+destination. `rel=modulepreload` names one module and may or may not pull its
+imports. `rel=preconnect` names an origin and asserts nothing at all about a
+resource. Each earns a rule about what may make the claim and what a wrong claim
+costs.
+
+**The preload map's key omits mode and credentials, so the attribute is part of
+the hint's identity.** This paragraph and the next are read from Chromium source
+at tag `159.0.8151.0`, through the finding note filed for this pass. No browser
+was driven.
+
+The map holds one entry per URL-plus-type key, with the fragment stripped. A
+second preload over that URL attaches to the existing entry as an observer and
+inserts nothing. What goes out is the first inserted entry's request, never the
+consumer's. A mismatch between them is silent, because the mismatch printer sits
+past two early returns. So a different `crossorigin` on the same URL costs two
+requests at two moments, and timing decides which.
+
+**Fonts are the standing instance, and they are not a cross-origin problem.** A
+font is always fetched in anonymous-mode CORS mode. So `<link rel=preload
+as=font>` without `crossorigin` announces a request the font loader will never
+reuse. The result is a wasted preload and a second fetch of the same file. The
+same shape applies to a same-origin font, which is what makes it easy to miss.
+
+The rule follows: a hint is generated from the same build record as the element
+that consumes the asset, never hand-written beside it. A hand-written hint
+carries its own copy of the mode, and the copy can drift.
+
+**A preload is a fetch directive, so it is governed by the policy of its own
+destination.** A preload with `as=script` is checked against `script-src`,
+`as=style` against `style-src`, `as=font` against `font-src`, `as=image`
+against `img-src`. This is reasoned from the CSP model and not measured here.
+Two consequences follow whether or not the detail holds exactly.
+
+- The build's hint list and the build's CSP are one decision, not two. A
+tightened directive silently converts a preload into a blocked request.
+- This is the concrete reason 2026-11-10 keeps `link` out of the rich-text
+element list. An admitted `link rel=preload` buys a fetch its author chose,
+before any reader acts on the fragment.
+
+**`modulepreload` carries a module graph the specification only promises to
+consider.** The dependency fetch is a "may additionally choose" in the HTML
+specification's own wording, not a guaranteed behaviour. A shell that lists its own
+`type="module"` script and expects the graph to follow is relying on an option.
+The rule is one hint per module the first render needs, enumerated from the
+build's module graph. That is the difference between a hint and a hope, and the build already
+holds the graph.
+
+**The first visit is uncontrolled, and that is exactly the visit the hint list
+is for.** On a controlled page every subresource request passes through the
+service worker's fetch handler. A cache-first asset is then answered from Cache
+Storage, and the hint's network win collapses to nothing. So the shell's hint
+list is built for the uncontrolled first visit, and it is close to harmless on
+every later one. That is the opposite trade from the precache, whose bytes every
+user pays on every `CACHE_VERSION` bump (2026-11-06).
+
+**An asset in the install set may also be hinted, and the two lists overlap by
+design.** On a visit where the install runs, the file is fetched twice for one
+render: once by the document's hint, once by `cache.addAll`. The second may come
+from the HTTP cache, and this pass did not measure that. On a repeat visit the
+install does not re-run, and a cache-first asset is answered from Cache Storage,
+so the hint costs nothing.
+
+**`103 Early Hints` moves the claim from the document to the server, and that
+moves who owns it.** The hints arrive in an informational response to the
+navigation, before the HTML exists. Three things follow.
+
+- The hint list is emitted by two places, unless the build generates the header
+snippet too. So it becomes a generated artifact, like the precache manifest.
+- A CSP change must reach the early-hints set as well. Otherwise the preloaded
+request is refused while the same asset loads later without trouble.
+- The offline fallback path has no early hints at all, because the shell comes
+from Cache Storage.
+
+So the document's own `link` elements are the floor, and early hints are an
+accelerator that may never be the only place a hint appears.
+
+**`preconnect` is the hint that can only cost.** A preloaded resource that never
+arrives is a wasted request. A preconnected origin that is never used is an open
+socket and a DNS answer nobody reads. So cap it at the origins the critical path
+genuinely touches, which in this architecture is the app's own origin plus one
+API host. A preconnect to an origin no directive admits buys an idle socket and
+nothing more.
+
+**The hint list is the part of the install set the parser cannot find early, and
+it is named by membership rather than by a tier.** `PWA-VISION.md` states that set
+at its "What belongs in the install transaction" list: shell HTML, its CSS, the JS
+for the shell's first render, the offline route's own dependencies, the logo and
+the manifest. A hint for a route chunk outside that set is a claim that a lazy
+route is needed now, which contradicts the set. So the generator reads that list
+and emits one hint per member. A hint naming a file outside it fails the build.
+That gives one source and two emitters, and it means the two ceilings cannot
+drift apart.
+
+The members that pay are the ones the parser cannot find on its own. The shell's
+own `type="module"` script is found by the preload scanner, so a hint on it adds
+nothing. What follows needs a hint: the modules the shell's first render imports
+beyond that script, and one font subset only where a brand font is precached.
+
+**`fetchpriority` is a one-place claim, and two highs are no priority.** Marking
+both the largest-paint image and the shell's `type="module"` script high tells
+the browser nothing it can act on. Mark the single resource the largest paint waits for, and let the
+rest keep the default. This pass read the attribute's support from secondary
+sources and did not measure it. Treat the arithmetic as unfinished, and the
+one-place rule as the part that holds.
+
+**What would refute this facet.** The claim is that a generated hint list,
+shaped exactly like its consumers, improves the first visit and costs nearly
+nothing later. The experiment runs three visits on the named throttling profile.
+
+- A first visit with the list, and one without it.
+- A repeat visit through the service worker.
+- A visit whose font preload deliberately omits `crossorigin`.
+
+Expect the first visit's largest paint to improve, the repeat visit to stay
+flat, and the mismatched font to fetch twice. If the first visit does not move,
+the hint
+list is paying for nothing. If the repeat visit regresses, the service worker
+answers a preload differently from the consumer's own request. That is the
+silent-mismatch shape this facet warns about.
+
+**Open threads for future passes:**
+
+- How prefetching a not-yet-precached route interacts with the outbox drain,
+  carried from 2026-11-06. Both are background network work.
+- Whether `STATIC_VERSION` should also anchor the media cache's eviction
+  bookkeeping, carried from 2026-11-06.
+- Whether a rich-text caller may ever keep an image, carried from 2026-11-10. A
+  kept image needs a scheme entry and a media cache policy of its own.
+- What the wrapper does with a large interpolated document, carried from
+  2026-11-10. The escaping path is linear in content.
+- New: `prefetch` for the next navigation, which is the one hint that has no
+  budget line anywhere in this vision. It competes with the install for the same
+  connection on the same visit.
+- Two rows the finding note left to a browser rather than a source. Whether a
+  second preload fires `load` off a no-cors resource whose own CORS request would
+  have failed. Which request wins when both arrive in the same parser pass.

@@ -6,6 +6,7 @@
 ## process is gone, for as long as the record's own files are recent.
 ## Offline: the workspace, its board and its spawn records are this rig's own temp tree; no socket.
 set -u
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-store.include.sh" || exit 1
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 rigPkg="${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}/myx/myx.distro-agents"
 rigHouse="$rigPkg/sh-lib/board/AgentsTools.BoardHousekeeping.include"
@@ -21,7 +22,8 @@ trap 'rm -rf -- "$rigTmp"' EXIT
 rigWs="$rigTmp/ws"
 rigData="$rigTmp/data"
 rigSpawned="$rigWs/.local/agents/spawned"
-mkdir -p "$rigWs/.local/.agents" "$rigData/board/running" "$rigSpawned/rig-gone" "$rigSpawned/rig-live" "$rigWs/.local/agents/sessions/rig-gone" "$rigWs/.local/agents/sessions/rig-live"
+mkdir -p "$rigWs/.local/.agents" "$rigSpawned/rig-gone" "$rigSpawned/rig-live" "$rigWs/.local/agents/sessions/rig-gone" "$rigWs/.local/agents/sessions/rig-live"
+rigBoardStates "$rigData" running
 printf 'SLACK_CHANNEL_MAGIC_TEAM=CRIG00001\nSLACK_CHANNEL_HUMAN_OWNER=URIGOWNER\nSLACK_BOT_TOKEN=rig-bot-token-TEAM\n' > "$rigWs/.local/.agents/magic-team.agent.env"
 rigHost="$( hostname -s 2> /dev/null )" || rigHost="unknown"
 
@@ -45,7 +47,7 @@ rigRead(){ ## the demand read: the registry rendered, which is where the TTL che
 	env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp" PATH="/usr/bin:/bin:/usr/sbin:/sbin" \
 		MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
 		MDAT_SPAWN_AGENT=magic-coordinator \
-		bash -c '. "$1" ; . "$2" ; AgentsToolsRegistryRenderSpawnedSessions agents ; sleep 20' rig "$rigPkg/sh-lib/team-data/AgentsTools.RegistrySpawnedSessions.include" "$rigHouse" 2>&1
+		bash -c '. "$1" ; . "$2" ; AgentsToolsRegistryRenderSpawnedSessions agents ; sleep 20' rig "$rigPkg/sh-lib/session/AgentsTools.RegistrySpawnedSessions.include" "$rigHouse" 2>&1
 }
 
 echo "-- 1. a read past the TTL closes the record of a run whose process is gone (S27.0) --"

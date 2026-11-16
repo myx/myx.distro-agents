@@ -45,11 +45,12 @@ rigRefuse(){
 rigRealAwk="$( command -v awk )" || rigRefuse "no awk on PATH"
 rigRealCat="$( command -v cat )" || rigRefuse "no cat on PATH"
 . "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-writes.include.sh" || exit 1
 rigTmp="$( rigTempDir AgentsTempNamesCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
 rigWs="$rigTmp/ws" ; rigData="$rigTmp/data" ; rigSkills="$rigTmp/skills" ; rigHome="$rigTmp/home"
-mkdir -p "$rigWs/.local" "$rigHome" "$rigSkills/rig-member" "$rigSkills/rig-other" "$rigData/board/backlog" "$rigData/inboxes/rig-member/incoming" "$rigData/inboxes/rig-other/incoming" "$rigTmp/held" \
+mkdir -p "$rigWs/.local" "$rigHome" "$rigSkills/rig-member" "$rigSkills/rig-other" "$rigTmp/held" \
 	|| rigRefuse "could not create the rig"
 
 ## The tools of the rig, first on PATH for every call. awk and cat: a call that names the temp file of the scenario
@@ -138,7 +139,7 @@ rigList(){
 		'sh-lib/grants/AgentsTools.InternOpPermissionHook.include|1|mdat-permission-hook-held.$$.$RANDOM|a client hook is a process of its own for each call, and the mark is one another process makes, so it cannot be made beforehand' \
 		'sh-lib/common/AgentsTools.LocalLock.include|1|printf '\''%s'\'' "$$" > "$agentsLocalLockPath"|no file name: the holder a lock names' \
 		'sh-lib/common/AgentsTools.LocalLock.include|1|!= "$$"|no file name: the holder a lock names' \
-		'sh-lib/manager/AgentsTools.ManagerSessionKill.include|3|$1.killed.$$|beside the one spawn record a kill marks: a kill marks a record after another' \
+		'sh-lib/run/AgentsTools.ManagerSessionKill.include|3|$1.killed.$$|beside the one spawn record a kill marks: a kill marks a record after another' \
 		'sh-lib/email/AgentsTools.MemberCommsEmail.include|1|mdat-comms-email-boundary-$$-$RANDOM|no file name: the boundary inside one message' \
 		'sh-lib/questions/AgentsTools.Escalation.include|1|AgentsToolsEscalationClaimStart "$$"|no file name: a process asked about' \
 		'sh-lib/questions/AgentsTools.Escalation.include|3|$noteFile.$$.tmp|the note of one record, written by the holder of the claim on that record alone' \
@@ -276,16 +277,16 @@ rigCall(){ ## a|b, the call
 }
 
 echo "-- 3a. two header changes of board items at once --"
-printf -- '---\ntype: task\nowner: rig\n---\n\nrig item alpha\n' > "$rigData/board/backlog/task-rig-alpha.md"
-printf -- '---\ntype: task\nowner: rig\n---\n\nrig item beta\n' > "$rigData/board/backlog/task-rig-beta.md"
+rigOwnerBoardWrite backlog "task-rig-alpha.md" -- '---\ntype: task\nowner: rig\n---\n\nrig item alpha\n'
+rigOwnerBoardWrite backlog "task-rig-beta.md" -- '---\ntype: task\nowner: rig\n---\n\nrig item beta\n'
 rigPair "$rigTmp/board" mdat-intern-op-headers "$( rigCall a 'DistroAgentsTools --intern-op-board-upsert-move-edit backlog task-rig-alpha.md --from-state:backlog --header:upsert:rig-word:alpha' ; rigCall b 'DistroAgentsTools --intern-op-board-upsert-move-edit backlog task-rig-beta.md --from-state:backlog --header:upsert:rig-word:beta' ; echo wait )"
 rigAssert "control: both ran in subshells of one shell, stood at the read of their header changes together, and ended 0" "$( rigPairMet "$rigTmp/board" )" "1 2 0 0"
 rigAssert "each item carries its own change, and not the other's" "$( rigField "$rigData/board/backlog/task-rig-alpha.md" rig-word ) $( rigField "$rigData/board/backlog/task-rig-beta.md" rig-word )" "alpha beta"
 rigAssert "and no temp file is left" "$( rigLeft mdat-intern-op-headers )" "0"
 
 echo "-- 3b. two inbox items marked processed at once --"
-printf -- '---\ntype: note\n---\n\n# Rig note alpha\n' > "$rigData/inboxes/rig-member/incoming/note-rig-alpha.md"
-printf -- '---\ntype: note\n---\n\n# Rig note beta\n' > "$rigData/inboxes/rig-member/incoming/note-rig-beta.md"
+rigOwnerInboxWrite rig-member "note-rig-alpha.md" -- '---\ntype: note\n---\n\n# Rig note alpha\n'
+rigOwnerInboxWrite rig-member "note-rig-beta.md" -- '---\ntype: note\n---\n\n# Rig note beta\n'
 rigPair "$rigTmp/inbox" mdat-inbox-to-processed-headers "$( rigCall a 'DistroAgentsTools --intern-op-inbox-to-processed rig-member note-rig-alpha.md --header:upsert:rig-word:alpha' ; rigCall b 'DistroAgentsTools --intern-op-inbox-to-processed rig-member note-rig-beta.md --header:upsert:rig-word:beta' ; echo wait )"
 rigAssert "control: both ran in subshells of one shell, stood at the read of their header changes together, and ended 0" "$( rigPairMet "$rigTmp/inbox" )" "1 2 0 0"
 rigAssert "each item carries its own change and is marked" "$( rigField "$rigData/inboxes/rig-member/processed/note-rig-alpha.md" rig-word ) $( rigField "$rigData/inboxes/rig-member/processed/note-rig-beta.md" rig-word ) $( LC_ALL=C grep -l '^processed-at: ' "$rigData/inboxes/rig-member/processed/note-rig-alpha.md" "$rigData/inboxes/rig-member/processed/note-rig-beta.md" 2> /dev/null | LC_ALL=C awk 'END { print NR + 0 }' )" "alpha beta 2"
@@ -298,10 +299,10 @@ rigAssert "each new item names its own owner and its own sender" "$( rigField "$
 rigAssert "and no temp file is left" "$( rigLeft mdat-intern-op-inbox-headers )" "0"
 
 echo "-- 3d. two board renames at once: the references each rewrites --"
-printf -- '---\ntype: task\nowner: rig\n---\n\nrig item to rename, one\n' > "$rigData/board/backlog/task-rig-old-one.md"
-printf -- '---\ntype: task\nowner: rig\n---\n\nrig item to rename, two\n' > "$rigData/board/backlog/task-rig-old-two.md"
-printf -- '---\ntype: task\nowner: rig\n---\n\nthe first referrer names task-rig-old-one.md and nothing else\n' > "$rigData/board/backlog/task-rig-refers-one.md"
-printf -- '---\ntype: task\nowner: rig\n---\n\nthe second referrer names task-rig-old-two.md and nothing else\n' > "$rigData/board/backlog/task-rig-refers-two.md"
+rigOwnerBoardWrite backlog "task-rig-old-one.md" -- '---\ntype: task\nowner: rig\n---\n\nrig item to rename, one\n'
+rigOwnerBoardWrite backlog "task-rig-old-two.md" -- '---\ntype: task\nowner: rig\n---\n\nrig item to rename, two\n'
+rigOwnerBoardWrite backlog "task-rig-refers-one.md" -- '---\ntype: task\nowner: rig\n---\n\nthe first referrer names task-rig-old-one.md and nothing else\n'
+rigOwnerBoardWrite backlog "task-rig-refers-two.md" -- '---\ntype: task\nowner: rig\n---\n\nthe second referrer names task-rig-old-two.md and nothing else\n'
 rigPair "$rigTmp/rename" mdat-intern-op-rename "$( rigCall a 'DistroAgentsTools --intern-op-board-rename task-rig-old-one.md task-rig-new-one.md --do-not-track' ; rigCall b 'DistroAgentsTools --intern-op-board-rename task-rig-old-two.md task-rig-new-two.md --do-not-track' ; echo wait )"
 rigAssert "control: both ran in subshells of one shell, stood at the read of their rewritten references together, and ended 0" "$( rigPairMet "$rigTmp/rename" )" "1 2 0 0"
 rigAssert "each referrer is its own text, with the new name of the item it names" \
@@ -341,8 +342,8 @@ rigTrack="$rigTmp/track" ; mkdir -p "$rigTrack/ws/.local/agents/sessions" "$rigT
 		return 0
 	}
 	. "$rigLib/event-track/AgentsTools.EventTrackThread.include"
-	( rigTrackTs=1111.000001 ; printf '%s\n' "$$" > "$rigTrack/a.shell" ; AgentsToolsEventTrackThreadPost rig-member "$MMDAPP/.local/agents/sessions/rig-session-a" --kind start < /dev/null ; printf '%s %s\n' "$?" "$agentsEventTrackPost" > "$rigTrack/a.result" ) &
-	( rigTrackTs=2222.000002 ; printf '%s\n' "$$" > "$rigTrack/b.shell" ; AgentsToolsEventTrackThreadPost rig-other "$MMDAPP/.local/agents/sessions/rig-session-b" --kind start < /dev/null ; printf '%s %s\n' "$?" "$agentsEventTrackPost" > "$rigTrack/b.result" ) &
+	( rigTrackTs=1111.000001 ; printf '%s\n' "$$" > "$rigTrack/a.shell" ; AgentsToolsEventTrackThreadPost rig-member rig-session-a --kind start < /dev/null ; printf '%s %s\n' "$?" "$agentsEventTrackPost" > "$rigTrack/a.result" ) &
+	( rigTrackTs=2222.000002 ; printf '%s\n' "$$" > "$rigTrack/b.shell" ; AgentsToolsEventTrackThreadPost rig-other rig-session-b --kind start < /dev/null ; printf '%s %s\n' "$?" "$agentsEventTrackPost" > "$rigTrack/b.result" ) &
 	wait
 ) > "$rigTrack/run.out" 2>&1
 rigAssert "control: both posts ran in subshells of one shell and stood posted together" "$( cat "$rigTrack/a.shell" "$rigTrack/b.shell" 2> /dev/null | LC_ALL=C sort -u | LC_ALL=C awk 'END { print NR + 0 }' ) $( ls "$rigTrack" | LC_ALL=C grep -c '^posted\.' || : )" "1 2"

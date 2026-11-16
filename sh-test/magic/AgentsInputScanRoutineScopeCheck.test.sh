@@ -18,6 +18,7 @@ rigRefuse(){
 ## A scan or an iteration of the main loop starts the control thread of a session of its rig that is not finished: what was started is ended before the tree is removed.
 . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-control-threads.include.sh" || rigRefuse "the rig's fixture that ends control threads is missing from the package: sh-test/check-fixtures/rig-control-threads.include.sh"
 . "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-writes.include.sh" || exit 1
 rigTmp="$( rigTempDir AgentsInputScanRoutineScopeCheck )" || exit 1
 trap 'rigControlThreadsEnd "$rigTmp" ; rm -rf -- "$rigTmp"' EXIT
 rigSkills="$rigTmp/home/.claude/skills"
@@ -26,14 +27,14 @@ mkdir -p "$rigTmp/ws" "$rigSkills/magic-coordinator" "$rigSkills/client-rig" \
 printf '# magic-coordinator\n' > "$rigSkills/magic-coordinator/SKILL.md"
 printf '# client-rig\n' > "$rigSkills/client-rig/SKILL.md"
 for rigState in backlog pending running blocked parked ; do
-	mkdir -p "$rigTmp/data/board/$rigState"
-	printf -- '---\ntype: task\nowner: magic-coordinator\n---\n\n# Rig item in %s\n' "$rigState" > "$rigTmp/data/board/$rigState/task-rig-$rigState.md"
+	:  ## the store folders are made by the write that fills them
+	rigOwnerData="$rigTmp/data" rigOwnerBoardWrite $rigState "task-rig-$rigState.md" -- '---\ntype: task\nowner: magic-coordinator\n---\n\n# Rig item in %s\n' "$rigState"
 done
 rigInbox="$rigTmp/data/inboxes/magic-coordinator/incoming"
 printf -- '---\ntype: note\n---\n\npending-slack-reaction rig record\n' > "$rigInbox/note-20260929T1000Z-pending-slack-reaction-rig.md"
 printf -- '---\ntype: inquiry\nstatus: open\n---\n\nrig own inquiry\n' > "$rigInbox/inquiry-20260929T1000Z-rig-own.md"
 printf -- '---\ntype: reflection\n---\n\nrig own reflection\n' > "$rigInbox/reflection-20260929T1000Z-rig-own.md"
-printf -- '---\ntype: inquiry\nstatus: open\n---\n\nrig client inquiry\n' > "$rigTmp/data/inboxes/client-rig/incoming/inquiry-20260929T1000Z-rig-client.md"
+rigOwnerData="$rigTmp/data" rigOwnerInboxWrite client-rig "inquiry-20260929T1000Z-rig-client.md" -- '---\ntype: inquiry\nstatus: open\n---\n\nrig client inquiry\n'
 
 rigPassCount=0
 rigFailCount=0

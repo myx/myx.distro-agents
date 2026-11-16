@@ -727,8 +727,13 @@ case "$1" in
 					## storage: the store is made a repository -- cloned when a remote is set, else
 					## initialised -- and the configured author identity is written into it.
 					if [ "$setupDomain" = "storage" ] ; then
-						( . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataCommit.include" ; AgentsToolsTeamDataPrepareStore ) || {
+						( . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.UseAgentsTools.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataCommit.include" ; AgentsToolsTeamDataPrepareStore ) || {
 							echo "⛔ ERROR: $MDSC_CMD --owner-setup-storage --apply: stopped at the store step -- the settings above are stored, the store repository is not ready" >&2
+							exit 1
+						}
+						type AgentsToolsBoardReady > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.BoardStates.include"
+						AgentsToolsBoardReady || {
+							echo "⛔ ERROR: $MDSC_CMD --owner-setup-storage --apply: stopped at the board-ready step -- the store repository is ready, the board's state folders are not" >&2
 							exit 1
 						}
 					fi

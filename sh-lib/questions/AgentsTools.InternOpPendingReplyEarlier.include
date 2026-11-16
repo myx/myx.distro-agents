@@ -69,7 +69,7 @@
 				earlyBestEpoch="${earlyBest%%$'\t'*}" ; earlyBest="${earlyBest#*$'\t'}"
 				[ -n "$earlyBest" ] || earlyBestEpoch=-1
 			done < <( { LC_ALL=C grep -r -l -x -F --include='*.md' "session-id: $earlySession" "$MMDAPP/.local/agents/pending" 2>/dev/null
-				## WHAT WAS SETTLED ELSEWHERE IS SETTLED HERE TOO: every ask of the last 30 days, of any session, after this session's own.
+				## WHAT WAS SETTLED ELSEWHERE IS SETTLED HERE TOO: every ask of the last 30 days, of any session, after the asks of this session. No quote mark in a comment here: bash 3.2 reads one inside <( ) as an open quote.
 				find "$MMDAPP/.local/agents/pending" -maxdepth 2 -name '*.md' -mtime -30 2> /dev/null ; } | LC_ALL=C awk '!seen[$0]++' )
 		fi
 		if [ -n "$earlyBest" ] ; then

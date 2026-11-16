@@ -46,6 +46,14 @@ AgentsHarnessToolRead(){
 	fi
 	AgentsHarnessReadGate Read "$toolPath" || return 0
 	toolPath="$harnessResolvedPath"
+	## The served path's harnessImageFile was set by the core from MDAT_MCP_RESULT_IMAGE_FILE; the model path has
+	## no side file, so a read image is staged into this run's own scratch as `mime<TAB>base64`, reset on every
+	## read, and the loop below hands it to the wire as an image part -- only for a preset whose model takes images.
+	## A preset that does not keeps today's answer: the empty harnessImageFile below says the image cannot be shown.
+	if [ -z "${harnessToolOnly:-}" ] && [ "${HARNESS_MODEL_TAKES_IMAGES:-off}" = on ] ; then
+		harnessImageFile="${harnessReadImageFile:-}"
+		: > "$harnessImageFile" 2> /dev/null || harnessImageFile=""
+	fi
 	if [ -d "$toolPath" ] ; then
 		printf 'ERROR: is a directory, not a file: %s\n' "$toolPath" ; return 0
 	fi
@@ -169,7 +177,8 @@ AgentsHarnessChangeMode(){ ## tool, the gate's answer
 	local modeAsk
 	if [ -n "$harnessChangeApply" ] ; then
 		modeAsk="$( AgentsHarnessChangeKept ask )"
-		if [ "$harnessChangeApply" != "$MMDAPP/.local/agents/sessions/${harnessSessionId:-${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}}/changes/${harnessChangeApply##*/}" ] \
+		type AgentsSessionKeptChangeIs > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+		if ! AgentsSessionKeptChangeIs "${harnessSessionId:-${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}}" "$harnessChangeApply" \
 			|| [ "$( AgentsHarnessChangeKept tool )" != "$1" ] || ! AgentsHarnessBareName "$modeAsk" \
 			|| ! LC_ALL=C grep -q -x -F 'verdict: approve' "$MMDAPP/.local/agents/pending/$modeAsk.answered/verdict" 2>/dev/null ; then
 			printf 'ERROR: %s: this call names a kept change to apply, and it is not that change of this session with its approval noted, so nothing was written\n' "$1"

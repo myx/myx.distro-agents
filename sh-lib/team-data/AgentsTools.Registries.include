@@ -7,7 +7,8 @@ type AgentsSessionRunDead > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-age
 ## temp name renamed into place. A missing value is always `-`, never empty. A
 ## registry stores whatever the tooling needs to work fast, so that a display does not
 ## read through the session folders, the date a run started and the date a state was
-## recorded among it. Liveness is never stored: it is measured live.
+## recorded among it. Liveness is never stored: it is measured live. Each registry is
+## rebuilt by its owner, through the `registry-<name>` hook it declares in sh-lib/hooks.registry.
 ##   team-members        <- this workspace's own member registry, .local/agents/members.registry
 ##   team-members-names  <- those members' names, alias and mark
 ##   spawned-sessions    <- the spawn sandbox roots in this workspace
@@ -36,6 +37,21 @@ AgentsToolsRegistryWrite(){ ## registry name, rows function
 	## mode is set on the temp: mktemp makes it private, and mv carries its mode over.
 	chmod 644 "$registryTemp" && mv -f "$registryTemp" "$registryFile" || { rm -f "$registryTemp" ; return 1 ; }
 	return 0
+}
+
+## Rebuilds one registry by its owner: fires the `registry-<name>` hook, whose handler the owner declares in
+## sh-lib/hooks.registry. A name no owner declares fails loudly, since an empty fire would leave a stale file.
+AgentsToolsRegistryRebuild(){ ## registry name
+	local rebuildLine rebuildDeclared=""
+	while IFS= read -r rebuildLine ; do
+		case "$rebuildLine" in "registry-$1 "*) rebuildDeclared="true" ; break ;; esac
+	done < "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/hooks.registry"
+	if [ -z "$rebuildDeclared" ] ; then
+		echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools} registry $1: no owner declares the registry-$1 hook in sh-lib/hooks.registry" >&2
+		return 1
+	fi
+	type AgentsHookFire > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.Hook.include"
+	AgentsHookFire "registry-$1"
 }
 
 ## One header value out of already-read frontmatter text. `-` where absent, and a
@@ -70,33 +86,29 @@ AgentsToolsRegistryFrontmatter(){ ## file
 ## mark, first name, family name and alias. The one place a persona swap is made.
 registryPersonaMember="magic-coordinator"
 
-## The one list of the registries, a line each: its name, and the function that rebuilds
-## it, in the order they are built. Another registry is one more line.
+## The one list of the registries, a name a line, in the order they are built. Another registry is one more
+## line here and its owner's `registry-<name>` line in sh-lib/hooks.registry.
 AgentsToolsRegistryList(){
-	printf '%s\n' "team-members AgentsToolsRegistryTeamMembersRebuild
-team-members-names AgentsToolsRegistryTeamMembersNamesRebuild
-spawned-sessions AgentsToolsRegistrySpawnedSessionsRebuild
-pending-replies AgentsToolsRegistryPendingRepliesRebuild"
+	printf '%s\n' "team-members
+team-members-names
+spawned-sessions
+pending-replies"
 }
 
 ## The registries of that list, rebuilt in one pass: those named, in the list's order, or
 ## all of them with no name -- the two of this workspace's members, then the two of its
-## sessions, each by the rebuild function every other rebuild of it calls. A workspace
+## sessions, each by its owner's hook (AgentsToolsRegistryRebuild). A workspace
 ## with no session store yet (an install, a host no session ran on) has those two
 ## written with no rows, never a failure. Each file is noted on stderr, under the name
 ## the operation was called by, which a warning of a rebuild carries too; fails only
 ## when a file cannot be written.
 AgentsToolsRegistryAgentsIndicesBuild(){ ## the operation as it was called, registry name...
-	type AgentsToolsRegistryTeamMembersRows > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.RegistryTeamMembers.include"
-	type AgentsToolsCommsSlackMemberMarks > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.RegistryMemberNames.include"
-	type AgentsToolsRegistrySpawnedSessionsRows > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.RegistrySpawnedSessions.include"
-	type AgentsToolsRegistryPendingSessionOpen > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.RegistryPendingReplies.include"
-	local registryBuildOp="${1:---make-harness-indices}" indicesFailed="false" indicesName indicesRebuild indicesFile indicesRows
+	local registryBuildOp="${1:---make-harness-indices}" indicesFailed="false" indicesName indicesFile indicesRows
 	[ $# -eq 0 ] || shift
-	while read -r indicesName indicesRebuild ; do
+	while read -r indicesName ; do
 		[ $# -eq 0 ] || case " $* " in *" $indicesName "*) ;; *) continue ;; esac
 		indicesFile="$MMDAPP/.local/agents/$indicesName.registry"
-		if "$indicesRebuild" ; then
+		if AgentsToolsRegistryRebuild "$indicesName" ; then
 			indicesRows="$( LC_ALL=C awk 'END { print NR + 0 ; }' "$indicesFile" )"
 			echo "# $MDSC_CMD $registryBuildOp: wrote $indicesFile ($indicesRows rows)" >&2
 		else
@@ -140,38 +152,14 @@ AgentsToolsRegistryRowsEntry(){ ## kind letter, text
 	printf '%s%s\n' "$1" "$entryText"
 }
 
-## The registry is a cache with a TTL: at most every 5 minutes a read of it starts the housekeeping that closes
-## what a dead spawn left open (AgentsToolsAdvanceSpawnHousekeeping), detached, so the read never waits on it.
-AgentsToolsRegistryHousekeepingDue(){
-	[ -z "${AGENTS_REGISTRY_HOUSEKEEPING:-}" ] || return 0
-	local dueStamp="$MMDAPP/.local/agents/spawned/.housekeeping.txt" collectTmp
-	[ -d "$MMDAPP/.local/agents/spawned" ] || return 0
-	[ ! -f "$dueStamp" ] || [ -n "$( find "$dueStamp" -mmin +5 2> /dev/null )" ] || return 0
-	: > "$dueStamp" 2> /dev/null || return 0
-	( export AGENTS_REGISTRY_HOUSEKEEPING=1
-		type AgentsToolsSpawnProxyCloseSandbox > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnProxyClose.include"
-		type AgentsToolsRegistryRenderSpawnedSessions > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.RegistrySpawnedSessions.include"
-		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.BoardHousekeeping.include" && AgentsToolsAdvanceSpawnHousekeeping 24 magic-coordinator no-threads
-		## The main loop's collect, for a rig with no main loop running: an answer standing in an ask's thread
-		## closes its record within minutes, whether or not its asker's Wait names it (InternMainLoop.include).
-		collectTmp="$( mktemp "$MMDAPP/.local/agents/pending-collect.last.XXXXXX" 2> /dev/null )" || return 0
-		MDAT_PENDING_COLLECT_STALE_MINUTES="${MDAT_PENDING_COLLECT_STALE_MINUTES:-10}" \
-			"$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-op-pending-reply-collect --ended --context registry-housekeeping \
-				> "$collectTmp" 2> /dev/null \
-			&& mv -f "$collectTmp" "$MMDAPP/.local/agents/pending-collect.last" \
-			|| rm -f "$collectTmp"
-	) < /dev/null > /dev/null 2>&1 &
-	return 0
-}
-
 ## Rebuilds one registry and prints it, with its own column line. A registry that
 ## could not be rebuilt says so and never prints a stale file as though it were
 ## fresh; an empty one says it is empty, which is not the same statement.
-AgentsToolsRegistryRenderPlain(){ ## heading, registry name, columns, rebuild function
+AgentsToolsRegistryRenderPlain(){ ## heading, registry name, columns
 	local registryFile registryRow sawRow="false"
 	registryFile="$MMDAPP/.local/agents/$2.registry"
 	printf '%s\n\n' "## $1"
-	if ! "$4" ; then
+	if ! AgentsToolsRegistryRebuild "$2" ; then
 		printf '%s\n\n' "**NOTE:** no scan was made -- the registry could not be rebuilt at $registryFile"
 		return 0
 	fi
@@ -184,20 +172,5 @@ AgentsToolsRegistryRenderPlain(){ ## heading, registry name, columns, rebuild fu
 	done < "$registryFile"
 	[ "$sawRow" = "true" ] || printf '%s\n' "**NOTE:** no rows -- the registry was rebuilt and its store holds none"
 	printf '\n'
-	return 0
-}
-
-## All three, in one call, for the pass that reads them together.
-AgentsToolsRegistryRenderAll(){
-	type AgentsToolsRegistryTeamMembersRebuild > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.RegistryTeamMembers.include"
-	type AgentsToolsRegistryRenderSpawnedSessions > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.RegistrySpawnedSessions.include"
-	type AgentsToolsRegistryPendingRepliesRebuild > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.RegistryPendingReplies.include"
-	AgentsToolsRegistryRenderPlain "team members" team-members \
-		"member workspace link-kind skillset-path" \
-		AgentsToolsRegistryTeamMembersRebuild || :
-	AgentsToolsRegistryRenderSpawnedSessions || :
-	AgentsToolsRegistryRenderPlain "pending replies" pending-replies \
-		"key source session-id owner status blocked-on communication-channel-id" \
-		AgentsToolsRegistryPendingRepliesRebuild || :
 	return 0
 }

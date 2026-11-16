@@ -17,17 +17,19 @@ rigRefuse(){
 rigTmp="$( rigTempDir AgentsBoardItemMovedReadCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 trap 'chmod -R u+rwX "$rigTmp" 2> /dev/null ; rm -rf -- "$rigTmp"' EXIT
-mkdir -p "$rigTmp/ws" "$rigTmp/home/.claude/skills/magic-coordinator" "$rigTmp/data/inboxes/magic-coordinator" \
+mkdir -p "$rigTmp/ws" "$rigTmp/home/.claude/skills/magic-coordinator" \
 	"$rigTmp/data/board/review" "$rigTmp/data/board/running" "$rigTmp/data/board/backlog" "$rigTmp/data/board/blocked"
 printf '# magic-coordinator\n' > "$rigTmp/home/.claude/skills/magic-coordinator/SKILL.md"
 for rigName in task-rig-kept task-rig-gone task-rig-also ; do
-	printf -- '---\ntype: task\nowner: magic-coordinator\ndate: 2026-11-03 10:00 +0000\n---\n\n# %s\n' "$rigName" \
-		> "$rigTmp/data/board/review/$rigName.md"
+	printf -- '---\ntype: task\nowner: magic-coordinator\ndate: 2026-11-03 10:00 +0000\n---\n\n# %s\n' "$rigName" | rigOwnerBoardPut review $rigName.md
 done
-printf -- '---\ntype: task\nowner: magic-coordinator\n---\n\n# running rig item\n' > "$rigTmp/data/board/running/task-rig-running.md"
+printf -- '---\ntype: task\nowner: magic-coordinator\n---\n\n# running rig item\n' | rigOwnerBoardPut running task-rig-running.md
 
 rigPassCount=0
 rigFailCount=0
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-writes.include.sh" || exit 1
+rigOwnerWs="${rigWs:-$rigTmp/ws}" rigOwnerData="${rigData:-${rigD:-${rigStore:-${rigOut:-$rigTmp/data}}}}" rigOwnerHome="${rigHome:-$rigTmp/home}" rigOwnerSkills="${rigSkills:-$rigTmp/skills}"
+rigOwnerBoardReady
 rigAssert(){ ## what is asserted, got, want
 	if [ "$2" = "$3" ] ; then
 		printf '  PASS  %s\n' "$1" ; rigPassCount=$(( rigPassCount + 1 ))

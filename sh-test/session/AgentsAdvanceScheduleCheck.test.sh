@@ -51,8 +51,8 @@ rigNoteSet(){ ## state, recheck-date, mtime epoch
 	rigTouch "$3" "$rigAdvanceNote"
 }
 rigBoardItem(){ ## state, name, mtime epoch, recheck-date (may be empty)
-	mkdir -p "$rigData/board/$1"
-	printf -- '---\ntype: task\nowner: keeper-rig-01\n%s---\n\n# rig\n' "${4:+recheck-date: $4$'\n'}" > "$rigData/board/$1/$2"
+	rigBoardStates "$rigData" $1
+	printf -- '---\ntype: task\nowner: keeper-rig-01\n%s---\n\n# rig\n' "${4:+recheck-date: $4$'\n'}" | rigStoreItem "$rigData" board $1 $2
 	rigTouch "$3" "$rigData/board/$1/$2"
 }
 rigRun(){ ## name -- one iteration of the loop; how many advance passes it started

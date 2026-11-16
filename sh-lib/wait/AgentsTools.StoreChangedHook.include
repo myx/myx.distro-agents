@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.StoreChangedHook.include -- the one handler of the `store-changed` hook. A lower
+## layer signals a store write by firing the hook; this dispatcher wakes the wait concern's own
+## function for the kind word it is given. Sourced, never run. Functions only. Registered by the
+## wait concern at its own load.
+##
+## The kind word is a closed set owned by the wait concern: `wake`, `floor`, `mentions`. A kind it
+## does not serve is a no-op returning 0, so a later kind added by wait never breaks a store writer.
+## The lower layers know only the kind and the hook, never these functions.
+##
+
+AgentsHookStoreChanged(){ ## kind, then that kind's own arguments
+	local changedKind="$1"
+	shift
+	case "$changedKind" in
+		wake)
+			type AgentsToolsWakePoke > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/wait/AgentsTools.WakeMarker.include"
+			AgentsToolsWakePoke "${1:-}"
+		;;
+		floor)
+			type AgentsWaitFloorAdvance > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/wait/AgentsTools.MemberWaitCore.include"
+			AgentsWaitFloorAdvance "$1" "slack:$2:conversation" "$3"
+		;;
+		mentions)
+			type AgentsWaitMentionsPull > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/wait/AgentsTools.MemberWaitMentions.include"
+			AgentsWaitMentionsPull "$1" "$2" "$3"
+		;;
+		*) return 0 ;;
+	esac
+}

@@ -269,6 +269,7 @@ def cliModelFill(held, preset):
     return {"model": {"value": presetHeld(held, preset, "PRESET_MODEL_OR_MACRO")},
             "effort": cliChoiceFill(held, preset, "PRESET_EFFORT", [name for name in held["data"]["efforts"] if name != "unset"]),
             "cache": cliChoiceFill(held, preset, "PRESET_INPUT_CACHE_TIME", held["data"]["caches"]),
+            "images": cliChoiceFill(held, preset, "PRESET_MODEL_TAKES_IMAGES", ["on", "off"]),
             "context": {"value": presetHeld(held, preset, "PRESET_CONTEXT_MAX_SIZE")}}
 
 
@@ -276,6 +277,7 @@ def cliModelControls():
     return ({"name": "model", "kind": "input", "label": "Model or macro (low or easy, normal or default, high or hard, or a model name), or none"},
             {"name": "effort", "kind": "radios", "label": "Effort"},
             {"name": "cache", "kind": "radios", "label": "Input cache lifetime"},
+            {"name": "images", "kind": "radios", "label": "Takes image parts"},
             {"name": "context", "kind": "input", "label": "Restart threshold (context size), whole tokens, or none"})
 
 
@@ -283,6 +285,7 @@ def cliModelPairs(held, preset):
     return [("PRESET_MODEL_OR_MACRO", wizardAnswer(held, 0, "model").strip(), presetHeld(held, preset, "PRESET_MODEL_OR_MACRO")),
             ("PRESET_EFFORT", wizardAnswer(held, 0, "effort"), presetHeld(held, preset, "PRESET_EFFORT")),
             ("PRESET_INPUT_CACHE_TIME", wizardAnswer(held, 0, "cache"), presetHeld(held, preset, "PRESET_INPUT_CACHE_TIME")),
+            ("PRESET_MODEL_TAKES_IMAGES", wizardAnswer(held, 0, "images"), presetHeld(held, preset, "PRESET_MODEL_TAKES_IMAGES")),
             ("PRESET_CONTEXT_MAX_SIZE", wizardAnswer(held, 0, "context").strip(), presetHeld(held, preset, "PRESET_CONTEXT_MAX_SIZE"))]
 
 

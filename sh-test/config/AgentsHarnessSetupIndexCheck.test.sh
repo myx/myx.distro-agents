@@ -247,7 +247,7 @@ rigAssert "and left the children lists alone"                    "$( [ -e "$rigW
 mkdir -p "$rigWs/.local/agents/children" "$rigSpawned/bad"
 printf 'gone/sp9.md\n' > "$rigWs/.local/agents/children/stale-parent"
 printf -- '---\nparent-spawn-id: ../escape\n---\n' > "$rigSpawned/bad/sp4.spawn.md"
-( set +u ; . "$rigHere/spawn/AgentsTools.ChildrenIndex.include" && AgentsToolsChildrenIndexRepair "$rigWs" ) 2> "$rigTmp/repair.err"
+( set +u ; . "$rigHere/session/AgentsTools.ChildrenIndex.include" && AgentsToolsChildrenIndexRepair "$rigWs" ) 2> "$rigTmp/repair.err"
 rigAssert "the repair marked the children lists complete"        "$( [ -f "$rigWs/.local/agents/children/.indexed" ] && printf yes || printf no )" yes
 rigAssert "and listed rig-parent's two children"                "$( LC_ALL=C sort "$rigWs/.local/agents/children/rig-parent" 2>/dev/null | tr '\n' ' ' )" "a-linked/sp2.spawn.md b-child/sp1.spawn.md "
 rigAssert "and every list there is, none other"                 "$( ls "$rigWs/.local/agents/children" | tr '\n' ' ' )" "rig-parent someone-else "

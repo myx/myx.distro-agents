@@ -492,9 +492,9 @@ rigToolingList(){
 		'sh-lib/spawn/AgentsTools.InternOpAgentSpawnProxy.include|1|kill -KILL "$spawnPid"|@probed' \
 		'sh-lib/manager/AgentsTools.ManagerCheck.include|1|kill -TERM $endFound|the polite end of a check past its bound, at once, to what AgentsToolsRunGroupLeft gave at that moment: the check while it is still the process that began when it was started, and every process it started that stayed in its group, each by its own pid, never the group by its number' \
 		'sh-lib/manager/AgentsTools.ManagerCheck.include|1|kill -KILL $endLeft|the hard end of a check past its bound, two seconds after the polite one, at once, to what AgentsToolsRunGroupLeft gave at that moment: of the processes signalled, those that are still the processes they were, each kept with when it began, and what those started since, each by its own pid' \
-		'sh-lib/manager/AgentsTools.ManagerRunActivity.include|1|kill -TERM "$hostPid"|@probed' \
-		'sh-lib/manager/AgentsTools.ManagerSessionKill.include|2|kill -TERM "$killPid"|@walk-now' \
-		'sh-lib/manager/AgentsTools.ManagerSessionKill.include|1|kill -KILL "$killPid"|@walk-now' \
+		'sh-lib/session/AgentsTools.ManagerRunActivity.include|1|kill -TERM "$hostPid"|@probed' \
+		'sh-lib/run/AgentsTools.ManagerSessionKill.include|2|kill -TERM "$killPid"|@walk-now' \
+		'sh-lib/run/AgentsTools.ManagerSessionKill.include|1|kill -KILL "$killPid"|@walk-now' \
 		'sh-lib/slack/AgentsTools.MemberCommsSlackPresence.include|1|pkill -TERM -f "$presenceMatch"|a sweep by the command line of the tooling'"'"'s own presence holder for one key, its script and that key: no pid is kept, and whatever else carries both on its command line is reached too' \
 		'sh-lib/slack/AgentsTools.MemberCommsSlackPresence.include|1|pkill -USR1 -f "$presenceMatch"|a sweep by the command line of the tooling'"'"'s own presence holder for one key, its script and that key: no pid is kept, and whatever else carries both on its command line is reached too' \
 		'sh-lib/slack/AgentsTools.MemberCommsSlackSocket.include|1|pkill -TERM -f "$socketMatch"|a sweep by the command line of the tooling'"'"'s own socket receiver for one app: no pid is kept, and whatever else carries that on its command line is reached too' \

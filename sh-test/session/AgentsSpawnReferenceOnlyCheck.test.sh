@@ -41,7 +41,8 @@ trap 'chmod -R u+rwX -- "$rigTmp" 2> /dev/null ; rigControlThreadsEnd "$rigTmp" 
 rigWs="$rigTmp/ws-here" ; rigThere="$rigTmp/ws-there" ; rigHome="$rigTmp/home" ; rigData="$rigTmp/data" ; rigSc="$rigTmp/sc"
 rigSkills="$rigWs/.local/agents/members"
 rigThereSkills="$rigThere/.local/agents/members"
-mkdir -p "$rigTmp/bin" "$rigSc" "$rigWs/.local/.agents" "$rigSkills" "$rigThere/.local/.agents" "$rigThereSkills" "$rigHome/.agents/magic-team" "$rigData/board/running"
+mkdir -p "$rigTmp/bin" "$rigSc" "$rigWs/.local/.agents" "$rigSkills" "$rigThere/.local/.agents" "$rigThereSkills" "$rigHome/.agents/magic-team"
+rigBoardStates "$rigData" running
 cp "$rigTest/check-fixtures/slack-send-identity-check.curl.stub.sh" "$rigTmp/bin/curl" \
 	|| rigRefuse "the fake curl fixture is missing from the package: $rigTest/check-fixtures/slack-send-identity-check.curl.stub.sh"
 chmod +x "$rigTmp/bin/curl"

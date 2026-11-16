@@ -17,6 +17,7 @@ rigHarness="$rigHere/sh-lib/harness/AgentsUniversalHarness.sh"
 rigFixture="$rigHere/sh-test/check-fixtures/harness-ask-forms.curl.stub.sh"
 
 rigRefuse(){
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-writes.include.sh" || exit 1
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }
 [ -f "$rigHarness" ] || rigRefuse "harness not found at the origin this workspace resolves: $rigHarness"
@@ -56,14 +57,14 @@ rigStart(){ ## case name, the owner setting
 	rigCase="$rigTmp/$1"
 	rigWs="$rigCase/ws"
 	rigOut="$rigCase/out"
-	mkdir -p "$rigWs/.local/.agents" "$rigWs/.local/agents/sessions/rig-set-record" "$rigCase/data/board/running"
+	mkdir -p "$rigWs/.local/.agents" "$rigWs/.local/agents/sessions/rig-set-record"
 	printf 'SLACK_CHANNEL_MAGIC_TEAM=CRIG00001\nSLACK_CHANNEL_HUMAN_OWNER=%s\nSLACK_BOT_TOKEN=rig-bot-token-TEAM\n' "$2" \
 		> "$rigWs/.local/.agents/magic-team.agent.env"
 	printf 'SLACK_USER_TOKEN=rig-user-token-TESTER\n' > "$rigWs/.local/.agents/$rigMember.agent.env"
 	printf '%s\t%s\t%s\t%s\t%s\n' rig-ws workspace read-write "$rigWs" \
 		> "$rigWs/.local/agents/directories.registry"
 	printf -- '---\nstatus: dispatch-started\nowner: %s\nsession-id: rig-set-record\n---\n\n# The rig needs its report folder\n' "$rigMember" \
-		> "$rigCase/data/board/running/$rigItem.md"
+		| rigOwnerData="$rigCase/data" rigOwnerBoardPut running "$rigItem.md"
 	printf -- '---\nstatus: refused\nowner: %s\nsession-id: rig-set-record\ntool: Write\ntarget: /dev/null/rig-set-record/out/one.txt\nrefused-at: 2026-11-02 09:00 +0200\n---\n\n# Refused\n\nERROR: path not in the allowed write-root set: /dev/null/rig-set-record/out/one.txt\n' "$rigMember" \
 		> "$rigWs/.local/agents/sessions/rig-set-record/$rigRefusal.md"
 	RIG_CURL_LOG="$rigCase/curl.log"

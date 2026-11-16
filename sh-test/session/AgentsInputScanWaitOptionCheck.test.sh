@@ -10,6 +10,7 @@
 ##   4. (the line form and its refusals are AgentsSkillsetValidateRoutineCheck's; the collect window of the work-duty scan is AgentsWorkDutyInputScanCheck's)
 ## Offline: a fake curl first on PATH; every tree is this rig's own.
 set -u
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-store.include.sh" || exit 1
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigPackage="$MDLT_ORIGIN/myx/myx.distro-agents"
@@ -26,7 +27,7 @@ rigTmp="$( mktemp -d "$MMDAPP/.local/temp/AgentsInputScanWaitOptionCheck.XXXXXX"
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 trap 'chmod -R u+w -- "$rigTmp" 2>/dev/null ; rigControlThreadsEnd "$rigTmp" ; rm -rf -- "$rigTmp"' EXIT
 rigWs="$rigTmp/ws" ; rigSkills="$rigTmp/skills" ; rigData="$rigTmp/data"
-mkdir -p "$rigWs/.local/.agents" "$rigTmp/bin" "$rigSkills/magic-team" "$rigData/board"
+mkdir -p "$rigWs/.local/.agents" "$rigTmp/bin" "$rigSkills/magic-team"
 cp "$rigTest/check-fixtures/slack-send-identity-check.curl.stub.sh" "$rigTmp/bin/curl" || rigRefuse "the fake curl fixture is missing from the package"
 chmod +x "$rigTmp/bin/curl"
 PATH="$rigTmp/bin:$PATH"
@@ -94,9 +95,9 @@ rigSpawn(){ ## routine short name
 
 rigRoutine rigwaitshort 'input-scan-def: member-work-session --wait 10'
 rigRoutine rigwaitlong 'input-scan-def: member-work-session --wait 60'
-mkdir -p "$rigData/inboxes/keeper-rig/incoming"
+rigInboxReady "$rigData" keeper-rig
 rigItem(){ ## name -- an inbox item of keeper-rig not yet processed
-	printf -- '---\ntype: note\nfrom: magic-coordinator\n---\n\n# Note: %s\n\n%s\n' "$1" "$1" > "$rigData/inboxes/keeper-rig/incoming/note-20261021T0900Z-$1.md"
+	printf -- '---\ntype: note\nfrom: magic-coordinator\n---\n\n# Note: %s\n\n%s\n' "$1" "$1" | rigStoreItem "$rigData" inbox keeper-rig note-20261021T0900Z-$1.md
 }
 rigRecords(){ ## how many spawn records the rig holds
 	## The spawn records only: a run's folder also holds its CheckList files.

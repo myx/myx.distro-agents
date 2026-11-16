@@ -21,7 +21,8 @@
 
 ## Prints the path of <member>'s own morning-review cut-off record.
 AgentsToolsMorningReviewStatePath(){ ## member
-	printf '%s\n' "$MDAT_DATA_ROOT/inboxes/$1/incoming/note-20261008T000000Z-morning-review-state.md"
+	type AgentsToolsInboxNotePath > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/inbox/AgentsTools.InboxPlace.include"
+	AgentsToolsInboxNotePath "$1" note-20261008T000000Z-morning-review-state.md
 }
 
 ## Prints <member>'s own stored `last_reviewed_ts`: rc 0 found, rc 3 nothing stored yet,
@@ -98,7 +99,8 @@ case "$1" in
 		local mrState mrFile mrN mrCounts="" mrShapeFiles=()
 		for mrState in backlog pending running review blocked parked processed archived retained ; do
 			mrN=0
-			for mrFile in "$MDAT_DATA_ROOT/board/$mrState"/*.md ; do
+			type AgentsToolsBoardItemsInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemDecisions.include" ; local mrFileItems ; AgentsToolsBoardItemsInto mrFileItems "" "$mrState"
+			for mrFile in ${mrFileItems[@]+"${mrFileItems[@]}"} ; do
 				[ -f "$mrFile" ] || continue
 				mrN=$(( mrN + 1 ))
 				case "$mrState" in running|review|blocked|parked|processed) mrShapeFiles+=( "$mrFile" ) ;; esac
@@ -111,7 +113,7 @@ case "$1" in
 		mkdir -p "$MMDAPP/.local/temp" 2> /dev/null && mrEndedFile="$( mktemp "$MMDAPP/.local/temp/mdat-morning-review-ended.XXXXXX" )" || mrEndedFile=""
 		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
 		if [ -n "$mrEndedFile" ] ; then
-			type AgentsToolsRegistryRenderSpawnedSessions > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.RegistrySpawnedSessions.include"
+			type AgentsToolsRegistryRenderSpawnedSessions > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.RegistrySpawnedSessions.include"
 			mrRegistryText="$( AgentsToolsRegistryRenderSpawnedSessions agents 2>/dev/null )" || mrRegistryText=""
 			case "$mrRegistryText" in
 				*"no spawn sandbox root exists"*) : ;;
@@ -129,9 +131,11 @@ case "$1" in
 			mrPartial="$mrPartial**NOTE:** partial -- the spawned-sessions registry could not be read, so running-session-ended is not checked"$'\n'
 		fi
 		## The runs with a spawn record here: an item in review that names no reviewer falls to where its run reports to.
-		local mrRunsFile="" mrRunRecord
+		local mrRunsFile="" mrRunRecord mrRunRecords=()
+		type AgentsToolsSpawnedAllRecordsInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include"
+		AgentsToolsSpawnedAllRecordsInto mrRunRecords
 		mkdir -p "$MMDAPP/.local/temp" 2> /dev/null && mrRunsFile="$( mktemp "$MMDAPP/.local/temp/mdat-morning-review-runs.XXXXXX" )" || mrRunsFile=""
-		[ -z "$mrRunsFile" ] || for mrRunRecord in "$MMDAPP"/.local/agents/spawned/*/*.spawn.md ; do
+		[ -z "$mrRunsFile" ] || for mrRunRecord in ${mrRunRecords[@]+"${mrRunRecords[@]}"} ; do
 			[ -f "$mrRunRecord" ] || continue
 			mrRunRecord="${mrRunRecord##*/}" ; printf '%s\n' "${mrRunRecord%.spawn.md}"
 		done > "$mrRunsFile"

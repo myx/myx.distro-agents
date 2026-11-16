@@ -10,6 +10,7 @@
 ##   6. THE CONTRACT lists work-duty among the scans `input-scan-def:` may name
 ## Offline: a fake curl first on PATH; every tree is this rig's own.
 set -u
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-store.include.sh" || exit 1
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigPackage="$MDLT_ORIGIN/myx/myx.distro-agents"
@@ -29,7 +30,7 @@ rigWs="$rigTmp/ws" ; rigSkills="$rigTmp/skills" ; rigData="$rigTmp/data"
 rigCoordInbox="$rigData/inboxes/magic-coordinator/incoming"
 ## The lock note of a member other than magic-coordinator lives in its processed/, out of its work (AgentsToolsInboxNotePath).
 rigKeeperInbox="$rigData/inboxes/rig-keeper/processed"
-mkdir -p "$rigWs/.local/.agents" "$rigTmp/bin" "$rigSkills/magic-team" "$rigSkills/magic-coordinator" "$rigSkills/rig-keeper" "$rigData/board" "$rigCoordInbox"
+mkdir -p "$rigWs/.local/.agents" "$rigTmp/bin" "$rigSkills/magic-team" "$rigSkills/magic-coordinator" "$rigSkills/rig-keeper" "$rigCoordInbox"
 cp "$rigTest/check-fixtures/slack-send-identity-check.curl.stub.sh" "$rigTmp/bin/curl" || rigRefuse "the fake curl fixture is missing from the package"
 chmod +x "$rigTmp/bin/curl"
 PATH="$rigTmp/bin:$PATH"
@@ -40,7 +41,7 @@ rigAdvance="note-20261020T000000Z-work-duty-state-and-lock.md"
 printf '%s\n' '#!/usr/bin/env bash' \
 	'## --cli-configured stand-in: writes MDAT_SPAWN_LAUNCH_MARKER and records the context.' \
 	'cat > "$RIG_SCENARIO/brief.$MDAT_SPAWN_AGENT"' \
-	'cp "$RIG_DATA/inboxes/$MDAT_SPAWN_AGENT/incoming/note-20261020T000000Z-work-duty-state-and-lock.md" "$RIG_SCENARIO/seen.$MDAT_SPAWN_AGENT" 2> /dev/null || cp "$RIG_DATA/inboxes/$MDAT_SPAWN_AGENT/processed/note-20261020T000000Z-work-duty-state-and-lock.md" "$RIG_SCENARIO/seen.$MDAT_SPAWN_AGENT" 2> /dev/null || :' \
+	'cat "$RIG_DATA/inboxes/$MDAT_SPAWN_AGENT/incoming/note-20261020T000000Z-work-duty-state-and-lock.md" > "$RIG_SCENARIO/seen.$MDAT_SPAWN_AGENT" 2> /dev/null || cat "$RIG_DATA/inboxes/$MDAT_SPAWN_AGENT/processed/note-20261020T000000Z-work-duty-state-and-lock.md" > "$RIG_SCENARIO/seen.$MDAT_SPAWN_AGENT" 2> /dev/null || :' \
 	'printf "📦 SubagentHandback\n"' \
 	'printf "rig-cli\n" > "$MDAT_SPAWN_LAUNCH_MARKER"' > "$rigWs/DistroAgentsConsole.sh"
 chmod +x "$rigWs/DistroAgentsConsole.sh"
@@ -140,9 +141,9 @@ rigAssert "input-scan-def: lists work-duty among the scans" "$( LC_ALL=C grep -A
 
 echo "-- 7. a member's lock note found in incoming/ alone is moved to its place --"
 rigStray="note-20261020T000000Z-stray-state-and-lock.md"
-mkdir -p "$rigData/inboxes/rig-keeper/incoming" "$rigData/inboxes/magic-coordinator/incoming"
-printf '%s\n' "stray" > "$rigData/inboxes/rig-keeper/incoming/$rigStray"
-printf '%s\n' "own" > "$rigData/inboxes/magic-coordinator/incoming/$rigStray"
+rigInboxReady "$rigData" rig-keeper magic-coordinator
+printf '%s\n' "stray" | rigStoreItem "$rigData" inbox rig-keeper $rigStray
+printf '%s\n' "own" | rigStoreItem "$rigData" inbox magic-coordinator $rigStray
 rigPlace(){ ## member -- the path the place rule gives for the stray note, relative to the data root
 	env -i PATH="$PATH" MDAT_DATA_ROOT="$rigData" MDLT_ORIGIN="$MDLT_ORIGIN" bash -c '. "$1" ; AgentsToolsInboxNotePath "$2" "$3"' rig \
 		"$rigPackage/sh-lib/inbox/AgentsTools.InboxPlace.include" "$1" "$rigStray" 2> /dev/null | sed "s|^$rigData/||"

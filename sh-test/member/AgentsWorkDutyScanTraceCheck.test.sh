@@ -35,20 +35,19 @@ rigAssert(){ ## what is asserted, got, want
 	fi
 }
 rigW="$rigTmp/ws" rigD="$rigTmp/data" rigH="$rigTmp/home"
-mkdir -p "$rigW/.local/.agents" "$rigW/.local/agents/spawned" "$rigW/.local/agents/members/magic-coordinator" "$rigD/inboxes/magic-coordinator/incoming" "$rigH"
+mkdir -p "$rigW/.local/.agents" "$rigW/.local/agents/spawned" "$rigW/.local/agents/members/magic-coordinator" "$rigH"
 ## The rig's own workspace has a source folder: the context of the tool is detected from it.
 rigCopyTree "${rigHere%/myx/myx.distro-agents/sh-lib}" "$rigW/source" || rigRefuse "the rig's source copy could not be made"
 printf '# magic-coordinator\n' > "$rigW/.local/agents/members/magic-coordinator/SKILL.md"
 printf 'SLACK_CHANNEL_MAGIC_TEAM=CRIG00001\nSLACK_CHANNEL_HUMAN_OWNER=URIGOWNER\nSLACK_BOT_TOKEN=rig-bot-token-TEAM\nWAIT_COLLECT_SECONDS=1\n' > "$rigW/.local/.agents/magic-team.agent.env"
-for rigState in pending running blocked parked review ; do
-	mkdir -p "$rigD/board/$rigState"
-done
 rigItem="$rigD/board/running/dispatch-rig-running.md"
 rigItemWrite(){ ## the tokens line the running item holds
 	printf -- '---\ntype: dispatch\nowner: magic-coordinator\nstatus: dispatch-started\n%s\n---\n\n# Rig running item\n' "$1" > "$rigItem"
 }
 rigItemWrite "tokens: in=1 cache-read=2 cache-write=3 out=4"
 rigSession="rig-scan-trace-session" rigRun="rig-scan-trace-run"
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-writes.include.sh" || exit 1
+rigOwnerWs="${rigWs:-$rigTmp/ws}" rigOwnerData="${rigData:-${rigD:-${rigStore:-${rigOut:-$rigTmp/data}}}}" rigOwnerHome="${rigHome:-$rigTmp/home}" rigOwnerSkills="${rigSkills:-$rigTmp/skills}"
 rigScan(){ ## name, then env words
 	local scanName="$1"
 	shift

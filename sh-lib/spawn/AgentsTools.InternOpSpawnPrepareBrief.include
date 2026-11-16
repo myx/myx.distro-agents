@@ -148,12 +148,12 @@ case "$1" in
 		## open warning-* set: the currently-open board warnings only (active
 		## states, never processed/archived/retained). The agent filters these
 		## for relevance itself -- this emits the raw open set to filter from.
-		local warnState warnFile warnLines=""
-		for warnState in backlog pending running review blocked parked ; do
-			for warnFile in "$MDAT_DATA_ROOT/board/$warnState"/warning-*.md ; do
-				[ -e "$warnFile" ] || continue
-				warnLines="$warnLines- ${warnFile##*/} [$warnState]"$'\n'
-			done
+		local warnFile warnLines="" warnFiles=() warnState
+		type AgentsToolsBoardItemsInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemDecisions.include"
+		AgentsToolsBoardItemsInto warnFiles warning- backlog pending running review blocked parked
+		for warnFile in ${warnFiles[@]+"${warnFiles[@]}"} ; do
+			warnState="${warnFile%/*}" ; warnState="${warnState##*/}"
+			warnLines="$warnLines- ${warnFile##*/} [$warnState]"$'\n'
 		done
 		[ -n "$warnLines" ] || warnLines="(none open)"$'\n'
 

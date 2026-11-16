@@ -34,7 +34,6 @@ printf 'rig\n' > "$rigTmp/skills/human-owner/human-owner.basic.md"
 cp "$rigTest/check-fixtures/work-duty.curl.stub.sh" "$rigTmp/bin/curl" || rigRefuse "the fake curl fixture is missing from the package"
 chmod +x "$rigTmp/bin/curl"
 printf 'SLACK_CHANNEL_MAGIC_TEAM=CRIG00001\nSLACK_BOT_TOKEN=rig-bot-token-TEAM\nWAIT_COLLECT_SECONDS=1\n' > "$rigWs/.local/.agents/magic-team.agent.env"
-mkdir -p "$rigData/inboxes/magic-coordinator/incoming" "$rigData/board/pending"
 
 rigPassCount=0
 rigFailCount=0
@@ -60,7 +59,7 @@ rigBoardFailures(){ ## out-file, err-file
 	cat "$1" "$2" | LC_ALL=C grep -c 'could not be read' || :
 }
 rigItem(){ ## name, owner
-	printf -- '---\ntype: task\nowner: %s\n---\n\n# rig\n' "$2" > "$rigData/board/pending/$1"
+	printf -- '---\ntype: task\nowner: %s\n---\n\n# rig\n' "$2" | rigOwnerBoardPut pending "$1"
 }
 
 echo "-- 1. the control: a readable board with one item --"
@@ -72,11 +71,13 @@ rigAssert "and it reports no board read failure" "$( [ "$( rigBoardFailures "$ri
 echo "-- 2. a board state folder that cannot be listed: an empty board, not a read --"
 rm -f "$rigData/board/pending/task-20261019T0100Z-rig-one.md"
 rigItem task-20261019T0101Z-rig-two.md magic-coordinator
-mkdir -p "$rigData/board/blocked"
 chmod 000 "$rigData/board/blocked"
 rigBusyRc="$( rigScan "$rigTmp/busy.out" "$rigTmp/busy.err" )"
 chmod 755 "$rigData/board/blocked"
 rigBusyWord="nonzero"
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-writes.include.sh" || exit 1
+rigOwnerWs="${rigWs:-$rigTmp/ws}" rigOwnerData="${rigData:-${rigD:-${rigStore:-${rigOut:-$rigTmp/data}}}}" rigOwnerHome="${rigHome:-$rigTmp/home}" rigOwnerSkills="${rigSkills:-$rigTmp/skills}"
+rigOwnerBoardReady
 [ "$rigBusyRc" != "0" ] || rigBusyWord="zero"
 rigAssert "the scan exits non-zero, so its caller cannot take an empty board as a result" "$rigBusyWord" "nonzero"
 rigAssert "and it says the board could not be read" "$( [ "$( rigBoardFailures "$rigTmp/busy.out" "$rigTmp/busy.err" )" -ge 1 ] && printf said || printf silent )" "said"

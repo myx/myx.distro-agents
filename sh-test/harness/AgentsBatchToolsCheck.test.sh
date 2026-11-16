@@ -160,7 +160,7 @@ rigMcp r2 "{\"mode\":\"sequence-all-through\",\"calls\":[{\"tool\":\"execute\",\
 rigAssert "an unknown tool: refused, naming it, and no call ran" "$( LC_ALL=C grep -c -F 'NoSuchRigTool' "$rigTmp/r2.out" | LC_ALL=C awk '{ print ( $1 >= 1 ) ? "named" : "unnamed" }' ):$( [ -e "$rigFix/marks/refused.tool" ] && printf ran || printf not-run )" "named:not-run"
 
 echo "-- 11. --mdat-output-format json on the operations behind the tools --"
-mkdir -p "$rigTmp/skills/magic-tester" "$rigTmp/data/inboxes/magic-tester" "$rigTmp/.local/agents/pending"
+mkdir -p "$rigTmp/skills/magic-tester" "$rigTmp/.local/agents/pending"
 printf 'rig\n' > "$rigTmp/skills/magic-tester/magic-tester.basic.md"
 printf 'rig\n' > "$rigTmp/skills/magic-tester/magic-tester.armed.md"
 rigShell(){ ## result name, arguments... -- one shell operation of the tooling, in the rig's workspace
@@ -171,7 +171,7 @@ rigShell(){ ## result name, arguments... -- one shell operation of the tooling, 
 rigIsJson(){ ## result name -- json where its whole output is one JSON document
 	"$rigPython" -I -c 'import json,sys ; json.load(open(sys.argv[1])) ; print("json")' "$rigTmp/$1.out" 2> /dev/null || printf not-json
 }
-rigShell o1 --mdat-output-format json --wait-for-input magic-tester --wait-source inbox:magic-tester --wait-session-id rig-batch-json --wait-timeout 1 --wait-poll-interval 1
+rigShell o1 --mdat-output-format json --wait-for-input --team-member magic-tester --wait-source inbox:magic-tester --wait-session-id rig-batch-json --wait-timeout 1 --wait-poll-interval 1
 rigAssert "the operation behind Wait prints one JSON document" "$( rigIsJson o1 )" json
 rigShell o2 --mdat-output-format json --intern-op-pending-reply-collect --ended --context rig-batch-json
 rigAssert "the collect behind SubagentHandback and ProposeApprove prints one JSON document" "$( rigIsJson o2 )" json

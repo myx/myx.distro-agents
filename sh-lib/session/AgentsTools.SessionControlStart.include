@@ -230,7 +230,7 @@ AgentsToolsSessionControlStart(){ ## session id
 	startDir="$startStore/control"
 	if [ ! -d "$startStore" ] ; then
 		## The session's records from the kept per-session list (AgentsTools.StartedRecords.include), never a grep of every record at a start.
-		type AgentsToolsSpawnedSessionRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.StartedRecords.include"
+		type AgentsToolsSpawnedSessionRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include"
 		if [ ! -d "$MMDAPP/.local/agents/spawned" ] || [ -z "$( AgentsToolsSpawnedSessionRecords "$startSession" own 2> /dev/null | LC_ALL=C sed -n '1p' )" ] ; then
 			printf 'failed - %s\n' "'$startSession' names no session of this workspace: no folder of a session has that name, and no record carries it as its session-id"
 			return 1
@@ -408,7 +408,7 @@ AgentsToolsSessionControlCheck(){ ## -- stdin: measured rows
 ## ever ran in has nothing to check. rc 1, nothing started, where the registry cannot be
 ## rebuilt.
 AgentsToolsSessionControlCheckWorkspace(){
-	type AgentsToolsRegistrySpawnedSessionsRebuild > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.RegistrySpawnedSessions.include"
+	type AgentsToolsRegistrySpawnedSessionsRebuild > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.RegistrySpawnedSessions.include"
 	type AgentsToolsRegistryFile > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
 	local measuredRows="" measuredDated="" measuredAny="false"
 	[ -d "$MMDAPP/.local/agents/spawned" ] || return 0

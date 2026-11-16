@@ -47,7 +47,7 @@ AgentsToolsPermissionRefusalHint(){ ## refusal id
 
 ## One refusal's event-track post: the `refusal` tracking post, the same fields for every
 ## refusal, where it was made from the same source as its record.
-AgentsToolsPermissionRefusalPost(){ ## owner, session dir, refusal id, session id, tool, target, reason
+AgentsToolsPermissionRefusalPost(){ ## owner, session id, refusal id, refusing session id, tool, target, reason
 	type AgentsToolsPermissionMemberWorkspace > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionPlaces.include"
 	type AgentsToolsPermissionPoster > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionHolds.include"
 	local postWhere postWorkspace
@@ -62,13 +62,13 @@ AgentsToolsPermissionRefusalPost(){ ## owner, session dir, refusal id, session i
 ## Posts one event-track entry for a session, through the tooling's own tracking post, into
 ## the thread of the coworking session that session belongs to: ONE THREAD PER COWORKING
 ## SESSION, read, opened and recorded in one place (AgentsToolsEventTrackThreadPost,
-## AgentsTools.EventTrackThread.include). Never fails its caller: a post that does not
-## happen is one stderr warning.
-AgentsToolsPermissionEventTrack(){ ## member, session dir, --intern-op-event-track-post arguments...
-	local trackMember="$1" trackDir="$2" trackRc=0
+## AgentsTools.EventTrackThread.include). The session is named by its id. Never fails its
+## caller: a post that does not happen is one stderr warning.
+AgentsToolsPermissionEventTrack(){ ## member, session id, --intern-op-event-track-post arguments...
+	local trackMember="$1" trackId="$2" trackRc=0
 	shift 2
 	type AgentsToolsEventTrackThreadPost > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/event-track/AgentsTools.EventTrackThread.include"
-	AgentsToolsEventTrackThreadPost "$trackMember" "$trackDir" "$@" || trackRc=$?
+	AgentsToolsEventTrackThreadPost "$trackMember" "$trackId" "$@" || trackRc=$?
 	case "$trackRc" in
 		1) echo "⚠️ WARNING: $MDSC_CMD: the ${agentsPermissionTrackWhat:-refusal} is recorded locally but was NOT posted to event-track: $agentsEventTrackError" >&2 ;;
 		2) echo "⚠️ WARNING: $MDSC_CMD: no event-track channel is configured, so this ${agentsPermissionTrackWhat:-refusal} is recorded locally only" >&2 ;;
@@ -95,7 +95,7 @@ AgentsToolsPermissionAnswerPost(){ ## kind (grant|denial), member whose call it 
 	## Who was asked is said only where it is not who answered.
 	[ "$answerAskedName" != "$answerByName" ] || answerAskedName=""
 	answerWhere="$( AgentsToolsPermissionRefusalWhere )"
-	agentsPermissionTrackWhat="$1" AgentsToolsPermissionEventTrack "$( AgentsToolsPermissionPoster "$2" )" "$3" --kind "$1" --session-id "$4" --field refusal-id="${5:--}" \
+	agentsPermissionTrackWhat="$1" AgentsToolsPermissionEventTrack "$( AgentsToolsPermissionPoster "$2" )" "$4" --kind "$1" --session-id "$4" --field refusal-id="${5:--}" \
 		--field host="$( printf '%s\n' "$answerWhere" | LC_ALL=C sed -n 's/^host: //p' )" \
 		--field workspace="$( printf '%s\n' "$answerWhere" | LC_ALL=C sed -n 's/^workspace: //p' )" \
 		--field tool="${6:--}" --field target="$( [ -z "${7:-}" ] && printf '%s' - || AgentsToolsPermissionShownTarget "$7" )" --field caller="${2:--}" --field by="${answerByName:--}" \

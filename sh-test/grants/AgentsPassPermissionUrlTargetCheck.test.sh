@@ -45,7 +45,7 @@ rigPass(){ ## target -- the call's output
 	( cd "$rigWs" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp" PATH="/usr/bin:/bin" MMDAPP="$rigWs" \
 		MDAT_DATA_ROOT="$rigTmp/data" MDAT_SKILLSET_ROOT="$rigTmp/skills" MDLT_ORIGIN="$rigOrigin" \
 		MDLT_OPTION="--run-from-path $rigOrigin" MDAT_SPAWN_AGENT=keeper-rig MDAT_SPAWN_SESSION_ID=rig-session \
-		bash "$rigGrants" --pass-permission keeper-rig --to keeper-owner --tool WebFetch --target "$1" --kind once ) 2>&1
+		bash "$rigGrants" --pass-permission --team-member keeper-rig --to keeper-owner --tool WebFetch --target "$1" --kind once ) 2>&1
 }
 ## Whether the output says the target was read as an absolute entry glob, which is the defect.
 rigGlobRefusal(){ ## output -- prints refused|accepted

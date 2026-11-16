@@ -371,9 +371,11 @@ case "$1" in
 		local matchedFiles=() matchedStates=()
 		local inboxEmittedPaths=()
 		local boardScanned=0
-		local state f base it tp matched ownerVal
+		local state f base it tp matched ownerVal stateItems=()
+		type AgentsToolsBoardItemsInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemDecisions.include"
 		for state in ${states[@]+"${states[@]}"} ; do
-			for f in "$MDAT_DATA_ROOT/board/$state"/*.md ; do
+			AgentsToolsBoardItemsInto stateItems "" "$state"
+			for f in ${stateItems[@]+"${stateItems[@]}"} ; do
 				[ -f "$f" ] || continue
 				boardScanned=$(( boardScanned + 1 ))
 				base="${f##*/}"
@@ -580,7 +582,9 @@ case "$1" in
 		done
 
 		if [ "$itemIncludeInbox" = "true" ] && [ ${#items[@]} -gt 0 ] ; then
-			local namedInboxDir="$MDAT_DATA_ROOT/inboxes/$actingMember" namedFolders=()
+			local namedInboxDir="" namedFolders=()
+			type AgentsToolsInboxFolderInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/inbox/AgentsTools.InboxPlace.include"
+			AgentsToolsInboxFolderInto namedInboxDir "$actingMember" incoming || namedInboxDir=""
 			local namedEmit=() namedMissing=() namedFound namedPath ni namedFolder
 			## Where a read finds it (AgentsToolsInboxFolders): incoming/, and processed/ with
 			## --include-processed.
@@ -621,7 +625,7 @@ case "$1" in
 				## THE NAMED BLOCK CLOSES WITH THE SECTION'S OWN INSTRUCTION (S18.3) where it delivered an item out of incoming/:
 				## that is an unprocessed item handed to its member. An already-processed item is not one, and carries none.
 				for namedPath in ${namedEmit[@]+"${namedEmit[@]}"} ; do
-					if [ -f "$namedInboxDir/incoming/${namedPath##*/}" ] ; then
+					if [ -f "$namedInboxDir/${namedPath##*/}" ] ; then
 						printf '%s\n\n' "$( AgentsToolsInboxInstruction )"
 						break
 					fi

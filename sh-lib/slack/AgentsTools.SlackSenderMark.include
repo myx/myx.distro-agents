@@ -85,7 +85,7 @@ AgentsToolsMemberSlackSenderMark(){
 
 ## A REACTION ON THE TEAM'S OWN POST IS A LEARNING SIGNAL (the human-owner's rule): a positive or a negative reaction by a person of the
 ## standing the learning flag asks -- with learning on, tier-client and above; with it off, tier-owner and the human-owner -- marks the
-## session that posted the message (sessions/<id>/learn, one line a reaction, never twice), so the retro analyses that session
+## session that posted the message (its learn record, AgentsSessionLearnAdd: one line a reaction, never twice), so the retro analyses that session
 ## (AgentsToolsScheduleLearning). A negative one by a proper participant also tells the posting run on its floor at once, for a correction,
 ## whatever the learning flag: that rule is the correction signal's own, below. Read from any Slack response that carries reactions; the session comes from the send log by the ts.
 AgentsToolsSlackReactionSignals(){ ## the Slack response
@@ -96,7 +96,9 @@ AgentsToolsSlackReactionSignals(){ ## the Slack response
 ' ' ' )"
 	sigOwner="$( AgentsSlackIdentityOwnerId )"
 	type AgentsToolsScheduleCurrentFlags > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/schedule/AgentsTools.DispatcherSchedule.include"
-	! type AgentsToolsScheduleCurrentFlags > /dev/null 2>&1 || [ "$( AgentsToolsScheduleCurrentFlags --current-flags 2> /dev/null | LC_ALL=C sed -n 's/^learning: //p' )" != yes ] || sigLearning=yes
+	type AgentsToolsScheduleCurrentFlags > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/schedule/AgentsTools.DispatcherSchedule.include"
+	[ "$( AgentsToolsScheduleCurrentFlags --current-flags 2> /dev/null | LC_ALL=C sed -n 's/^learning: //p' )" != yes ] || sigLearning=yes
+	type AgentsSessionKnown > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
 	sigStore="${MDAT_DATA_ROOT:-${MMDAPP%/}/.local/agents/team-data-root}/contacts/persons"
 	sigLog="$MMDAPP/.local/agents/comms-slack-send.$( date -u +%Y-%m ).log"
 	while IFS=$'\t' read -r sigConv sigTs sigEmoji sigUser sigTo ; do
@@ -113,7 +115,7 @@ AgentsToolsSlackReactionSignals(){ ## the Slack response
 		esac
 		sigSession="$( LC_ALL=C awk -F '\t' -v want="ts=$sigTs" 'index( $7 " ", want " " ) { s = $NF } END { print s }' "$sigLog" 2> /dev/null )"
 		case "$sigSession" in ''|-|*/*) continue ;; esac
-		[ -d "$MMDAPP/.local/agents/sessions/$sigSession" ] || continue
+		AgentsSessionKnown "$sigSession" || continue
 		## Who reacted: the human-owner, a team member (by the mention cache), or a contact by the highest of its tiers.
 		local sigMember=""
 		sigMember="$( AgentsSlackIdentityMember "$sigUser" --not-owner )"
@@ -134,9 +136,7 @@ AgentsToolsSlackReactionSignals(){ ## the Slack response
 		[ "$sigKind" != other ] && case "$sigLearning:$sigTier" in
 			yes:tier-client|yes:tier-admin|yes:tier-owner|yes:human-owner|no:tier-owner|no:human-owner)
 				sigLine="$sigKind reaction :$sigEmoji: by $sigUser ($sigTier) on ts $sigTs"
-				if ! LC_ALL=C grep -q -F -- "$sigLine" "$MMDAPP/.local/agents/sessions/$sigSession/learn" 2> /dev/null ; then
-					printf '%s %s\n' "$( date '+%Y-%m-%d %H:%M %z' )" "$sigLine" >> "$MMDAPP/.local/agents/sessions/$sigSession/learn" 2> /dev/null || :
-				fi
+				AgentsSessionLearnAdd "$sigSession" "$sigLine"
 			;;
 		esac
 		## THE RUNTIME SIGNAL, inline, whatever the learning flag (the human-owner): a reaction by a proper participant -- negative (a correction),
@@ -145,15 +145,14 @@ AgentsToolsSlackReactionSignals(){ ## the Slack response
 		## a contact of tier-client or above (team, project or product), the human-owner, magic-coordinator, a team member taking part in the
 		## posting session, or an addressee of the message -- tells the posting run on its floor at once. Once a reaction, never twice.
 		case "$sigKind" in negative|accepted|other) ;; *) continue ;; esac
-		local sigCounts="" sigPoster="" sigMark="" sigNotice=""
+		local sigCounts="" sigPoster="" sigNotice=""
 		case "$sigTier" in tier-client|tier-admin|tier-owner|human-owner) sigCounts=yes ;; esac
 		[ "$sigMember" != "magic-coordinator" ] || sigCounts=yes
-		if [ -n "$sigMember" ] && { [ -f "$MMDAPP/.local/agents/spawned/$sigSession/$sigMember.checklist.md" ] \
-			|| LC_ALL=C grep -q -x -F "owner: $sigMember" "$MMDAPP/.local/agents/spawned/$sigSession/$sigSession.spawn.md" 2> /dev/null ; } ; then sigCounts=yes ; fi
+		type AgentsToolsSessionMemberHasRecord > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionSeats.include"
+		if [ -n "$sigMember" ] && AgentsToolsSessionMemberHasRecord "$sigSession" "$sigMember" ; then sigCounts=yes ; fi
 		case " $sigTo " in *" $sigUser "*) sigCounts=yes ;; esac
 		[ -n "$sigCounts" ] || continue
-		sigMark="$MMDAPP/.local/agents/sessions/$sigSession/corrections.told"
-		LC_ALL=C grep -q -x -F -- "$sigTs $sigEmoji $sigUser" "$sigMark" 2> /dev/null && continue
+		AgentsSessionToldHas "$sigSession" "$sigTs $sigEmoji $sigUser" && continue
 		sigPoster="$( LC_ALL=C awk -F '\t' -v want="ts=$sigTs" 'index( $7 " ", want " " ) { m = $2 } END { print m }' "$sigLog" 2> /dev/null )"
 		type AgentsToolsSessionChatAppend > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include"
 		## A REACTION ON THE QUESTION OF AN OPEN ASK IS ITS ANSWER, never a reaction of no class: the record still pending whose question-ts
@@ -173,7 +172,7 @@ AgentsToolsSlackReactionSignals(){ ## the Slack response
 				*) printf -v sigNotice 'REACTION on your post ts %s: :%s: by %s (%s), of no class the tooling knows: read it as a short reply, and decide what it means and whether it asks anything of you.' "$sigTs" "$sigEmoji" "$sigUser" "${sigTier:-addressee}" ;;
 			esac
 			printf '%s\n' "$sigNotice" \
-				| AgentsToolsSessionChatAppend "$sigSession" reaction "$sigPoster" - "printback:$sigSession" printback > /dev/null 2>&1 && printf '%s\n' "$sigTs $sigEmoji $sigUser" >> "$sigMark" 2> /dev/null || :
+				| AgentsToolsSessionChatAppend "$sigSession" reaction "$sigPoster" - "printback:$sigSession" printback > /dev/null 2>&1 && AgentsSessionToldAdd "$sigSession" "$sigTs $sigEmoji $sigUser" || :
 		fi
 	done < <( printf '%s' "$1" | python3 -I "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/slack/AgentsSlackReactionSignals.py" "$sigOwn" - 2> /dev/null )
 	return 0

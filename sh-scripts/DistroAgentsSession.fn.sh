@@ -62,7 +62,7 @@ DistroAgentsSessionMoved(){
 		;;
 
 		--wait-for-input)
-			type AgentsWaitProbedFlush > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/wait/AgentsTools.MemberWait.include"
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/wait/AgentsTools.MemberWait.include"
 			return $?
 		;;
 

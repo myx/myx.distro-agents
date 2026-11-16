@@ -39,12 +39,13 @@ rigHereStore="$rigHere/.local/agents/team-data-root"
 rigRigStore="$rigRig/store"
 rigSkills="$rigTmp/skills"
 for rigWs in "$rigHere" "$rigRig" ; do
-	mkdir -p "$rigWs/.local/agents/spawned" "$rigWs/.local/agents/sessions" "$rigWs/.local/agents/pending" "$rigWs/.local/.agents" \
-		|| rigRefuse "the tree could not be made: $rigWs"
+	mkdir -p "$rigWs/.local/agents/spawned" "$rigWs/.local/agents/sessions" "$rigWs/.local/agents/pending" "$rigWs/.local/.agents" || rigRefuse "the tree could not be made: $rigWs"
 done
-mkdir -p "$rigHereStore/board/running" "$rigHereStore/board/review" "$rigHereStore/inboxes/magic-coordinator/incoming" \
-	"$rigRigStore/board/running" "$rigRigStore/board/review" "$rigRigStore/board/processed" "$rigRigStore/inboxes/magic-coordinator/incoming" \
-	"$rigSkills/magic-coordinator" "$rigSkills/keeper-rig" || rigRefuse "the stores could not be made"
+mkdir -p "$rigSkills/magic-coordinator" "$rigSkills/keeper-rig" || rigRefuse "the stores could not be made"
+rigBoardStates "$rigHereStore" running review || rigRefuse "the stores could not be made"
+rigInboxReady "$rigHereStore" magic-coordinator || rigRefuse "the stores could not be made"
+rigBoardStates "$rigRigStore" running review processed || rigRefuse "the stores could not be made"
+rigInboxReady "$rigRigStore" magic-coordinator || rigRefuse "the stores could not be made"
 printf 'rig\n' > "$rigSkills/magic-coordinator/magic-coordinator.basic.md"
 printf 'rig\n' > "$rigSkills/keeper-rig/keeper-rig.basic.md"
 ## The rig's own store, named as the owner names one: an absolute path in its magic-coordinator scope.
@@ -83,7 +84,7 @@ rigAged(){ ## workspace, run id, seconds back
 	touch -t "$agoStamp" "$1/.local/agents/spawned/$2/$2.spawn.md" || rigRefuse "the record's date could not be set back: $2"
 }
 rigItem(){ ## store, stem, run id, state
-	printf -- '---\nstatus: dispatch-started\nspawn-id: %s\nreview-reason: ended-without-handback\n---\n\n# the task of %s\n' "$3" "$3" > "$1/board/$4/$2.md"
+	printf -- '---\nstatus: dispatch-started\nspawn-id: %s\nreview-reason: ended-without-handback\n---\n\n# the task of %s\n' "$3" "$3" | rigStoreItem "$1" board $4 $2.md
 }
 ## THE RIG'S TWO RECORDS: a dead run whose item waits in the rig's own review, and one with no process at all.
 rigRecord "$rigRig" rigdead keeper-rig spawn-succeeded item-rig

@@ -49,6 +49,7 @@ command -v git > /dev/null || rigRefuse "git is not installed"
 command -v ps > /dev/null || rigRefuse "ps is not on PATH"
 rigRealGit="$( command -v git )"
 . "$rigPkg/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
+. "$rigPkg/sh-test/check-fixtures/rig-store-item.include.sh" || exit 1
 rigTmp="$( rigTempDir AgentsTeamDataWriteUnderLockCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 trap 'rigThreadStop ; rm -rf -- "$rigTmp"' EXIT
@@ -56,7 +57,7 @@ rigWs="$rigTmp/ws"
 rigData="$rigTmp/data"
 rigBin="$rigTmp/bin"
 rigSkills="$rigWs/.local/agents/members"
-mkdir -p "$rigWs/.local/.agents" "$rigWs/.local/agents" "$rigData/board/running" "$rigData/board/backlog" "$rigData/inboxes/rig-member/incoming" \
+mkdir -p "$rigWs/.local/.agents" "$rigWs/.local/agents" "$rigData" \
 	"$rigBin" "$rigTmp/home" "$rigSkills/rig-member"
 printf 'SLACK_CHANNEL_MAGIC_TEAM=CRIG00001\nSLACK_BOT_TOKEN=rig-bot-token-TEAM\nNO_PROXY=*\n' > "$rigWs/.local/.agents/magic-team.agent.env"
 printf -- '---\nname: rig-member\nstatus: active\n---\nrig member\n' > "$rigSkills/rig-member/SKILL.md"
@@ -127,9 +128,6 @@ rigWriteTimed(){ ## result name, refusal (0|1), the operation and its words... -
 	local timedFrom="$SECONDS"
 	rigWrite "$@"
 	printf '%s' "$(( SECONDS - timedFrom ))"
-}
-rigBoardItem(){ ## item name, body word
-	printf -- '---\ntype: note\nowner: rig-member\n---\n\n%s\n' "$2" > "$rigData/board/running/$1"
 }
 rigClean(){ [ -z "$( git -C "$rigData" status --porcelain --untracked-files=all )" ] && printf clean || printf dirty ; }
 rigCommitCount(){ git -C "$rigData" rev-list --count HEAD ; }
@@ -225,9 +223,20 @@ rigThreadStop(){ ## ends a thread this rig left running, and waits for its lock 
 	return 0
 }
 
+## Every item the writers below edit is written once here, through the board's own write (rig-store-item.include.sh),
+## before any writer or committer thread runs: the fixtures cannot race the writes this check measures.
+rigSeedItem(){ ## item name, body word
+	local seedBody="$rigTmp/seed.$1"
+	printf -- '---\ntype: note\nowner: rig-member\n---\n\n%s\n' "$2" > "$seedBody"
+	rigStoreItem "$rigTmp" "$rigData" "$rigWs" rig-member "board running $1" "$seedBody" \
+		|| rigRefuse "could not build the item $1 through the board's own write"
+}
+for rigSeedName in control locked par-1 par-2 par-3 par-4 par-5 e1 e2 e5 f1a f1b ; do
+	rigSeedItem "note-rig-$rigSeedName.md" "RIG-SEED"
+done
+
 echo "-- 1. control, and the instrument's known positive: a working git, no writer's own commit, and a store that settles --"
 : > "$rigBin/git.log"
-rigBoardItem note-rig-control.md RIG-CONTROL
 rigWrite control 0 --intern-op-board-upsert-move-edit running note-rig-control.md \
 	--from-state:running --header:upsert:rig-word:control --context rig
 rigAssert "1. the board writer exits 0" "$( cat "$rigTmp/control.rc" )" 0
@@ -248,7 +257,6 @@ rigAssert "1. control: the counter does see an add whose parent names the board 
 
 echo "-- 2. a git that cannot take the lock does not fail the write (S12.4) --"
 : > "$rigBin/git.log"
-rigBoardItem note-rig-locked.md RIG-LOCKED
 rigWrite lockBoard 1 --intern-op-board-upsert-move-edit running note-rig-locked.md \
 	--from-state:running --header:upsert:rig-word:locked --context rig
 rigAssert "2. the board writer exits 0 under the lock" "$( cat "$rigTmp/lockBoard.rc" )" 0
@@ -274,11 +282,6 @@ echo "-- 4. five writers at once against a real store while another writer holds
 ## taken away once the five have run. Every item must hold its own write, every writer must exit 0,
 ## and the changes must reach the store within the bound once the lock is gone.
 : > "$rigBin/git.log"
-rigIdx=1
-while [ "$rigIdx" -le 5 ] ; do
-	rigBoardItem "note-rig-par-$rigIdx.md" "RIG-PAR-$rigIdx"
-	rigIdx=$(( rigIdx + 1 ))
-done
 printf 'another writer holds it\n' > "$rigData/.git/index.lock"
 rigIdx=1
 while [ "$rigIdx" -le 5 ] ; do
@@ -309,7 +312,6 @@ echo "-- 5. E1: a path that is gone and was never tracked does not fail the comm
 ## a trashed item names a place that is no more, and `git add -A` refuses the whole call for it.
 : > "$rigBin/git.log"
 rm -f "$rigOwedFile"
-printf 'RIG-E1-KEPT\n' > "$rigData/board/running/note-rig-e1.md"
 rigCommitPaths e1 "rig e1" "$rigData/board/running/note-rig-e1.md" "$rigData/board/running/note-rig-e1-gone.md"
 rigAssert "5. E1: the file that is there is committed" "$( rigCommitted "$rigData/board/running/note-rig-e1.md" )" 1
 rigAssert "5. E1: and nothing is left owed" "$( rigOwed )" 0
@@ -322,7 +324,6 @@ rigThreadStop
 rm -f "$rigThreadLog" "$rigThreadLock"
 rm -f "$rigData/.git/team-data-commit/"*.entry 2> /dev/null
 mkdir -p "$rigData/.git/team-data-commit"
-printf 'RIG-E2-OWED\n' > "$rigData/board/running/note-rig-e2.md"
 printf '%s\n' "$rigData/board/running/note-rig-e2.md" > "$rigOwedFile"
 rigGitRefuse=1
 rigThreadRun 2
@@ -372,7 +373,9 @@ echo "-- 8. E4: item-upsert rides out a held index.lock by running its add again
 ## the item exists to remove: a held lock must not fail the call.
 : > "$rigBin/git.log"
 rm -f "$rigBin/gitfail.count" "$rigOwedFile"
-printf -- '---\ntype: note\nowner: rig-member\n---\n\nRIG-E4-OLD\n' > "$rigData/board/backlog/note-20261102T0100Z-rig-e4.md"
+printf -- '---\ntype: note\nowner: rig-member\n---\n\nRIG-E4-OLD\n' > "$rigTmp/e4-old.md"
+rigStoreItem "$rigTmp" "$rigData" "$rigWs" rig-member "board backlog note-20261102T0100Z-rig-e4.md" "$rigTmp/e4-old.md" \
+	|| rigRefuse "could not build the E4 item through the board's own write"
 printf -- '---\ntype: note\nowner: rig-member\n---\n\nRIG-E4-NEW\n' > "$rigTmp/e4-body.md"
 rigGitFailFirst=3
 rigItemUpsert e4 note-20261102T0100Z-rig-e4.md "$rigTmp/e4-body.md"
@@ -390,7 +393,6 @@ echo "-- 9. E5: a thread that cannot be started is not silent, and the writer co
 rm -f "$rigOwedFile"
 rm -rf "$rigData/.git/team-data-commit/thread.log"
 mkdir -p "$rigData/.git/team-data-commit/thread.log"
-rigBoardItem note-rig-e5.md RIG-E5
 rigWrite e5 0 --intern-op-board-upsert-move-edit running note-rig-e5.md \
 	--from-state:running --header:upsert:rig-word:e5 --context rig
 rigAssert "9. E5: the writer exits 0" "$( cat "$rigTmp/e5.rc" )" 0
@@ -411,18 +413,18 @@ echo "-- 10. F1: a writer returns at once while a team-data thread lives (S12.4)
 rigThreadStop
 rm -f "$rigThreadLog" "$rigThreadLock" "$rigData/.git/team-data-commit/"*.entry 2> /dev/null
 rigEnvExtra=( MDAT_TEAM_DATA_COMMIT_IDLE_SECONDS=60 )
-rigBoardItem note-rig-f1a.md RIG-F1A
 rigF1First="$( rigWriteTimed f1a 0 --intern-op-board-upsert-move-edit running note-rig-f1a.md \
 	--from-state:running --header:upsert:rig-word:f1a --context rig )"
 rigAssert "10. F1: the writer that starts the thread returns within 20s" \
 	"$([ "${rigF1First:-999}" -lt 20 ] && printf at-once || printf "waited ${rigF1First}s" )" at-once
-rigBoardItem note-rig-f1b.md RIG-F1B
 rigF1Second="$( rigWriteTimed f1b 0 --intern-op-board-upsert-move-edit running note-rig-f1b.md \
 	--from-state:running --header:upsert:rig-word:f1b --context rig )"
 rigAssert "10. F1: the writer behind a thread already alive returns within 20s" \
 	"$([ "${rigF1Second:-999}" -lt 20 ] && printf at-once || printf "waited ${rigF1Second}s" )" at-once
+rigF1WrittenA="$( LC_ALL=C grep -c -x -F 'rig-word: f1a' "$rigData/board/running/note-rig-f1a.md" 2> /dev/null )"
+rigF1WrittenB="$( LC_ALL=C grep -c -x -F 'rig-word: f1b' "$rigData/board/running/note-rig-f1b.md" 2> /dev/null )"
 rigAssert "10. F1: and both items are written" \
-	"$(( $( LC_ALL=C grep -c -x -F 'rig-word: f1a' "$rigData/board/running/note-rig-f1a.md" 2> /dev/null ) + $( LC_ALL=C grep -c -x -F 'rig-word: f1b' "$rigData/board/running/note-rig-f1b.md" 2> /dev/null ) ))" 2
+	"$(( rigF1WrittenA + rigF1WrittenB ))" 2
 rigEnvExtra=()
 rigThreadStop
 

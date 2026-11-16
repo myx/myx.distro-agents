@@ -25,7 +25,6 @@ BEGIN {
 	stjApp = ENVIRON["MMDAPP"]
 	stjLib = ENVIRON["MDLT_ORIGIN"] "/myx/myx.distro-agents/sh-lib"
 	if (stjSid != "" && stjApp != "" && stjSid !~ /[\/ ]/ && ENVIRON["MDLT_ORIGIN"] != "") {
-		stjDir = stjApp "/.local/agents/sessions/" stjSid
 		stjResolve()
 		if (stjPath != "") {
 			stjOn = 1
@@ -46,11 +45,16 @@ function stjShellQuote(textValue) {
 	return "'" textValue "'"
 }
 
-# The part to append to, by the shell's own rule (rolls at 8 MB); re-read every 200 writes.
+# The session folder the transcript and its side files live in, and the part to append to, by the shell's own
+# rule (rolls at 8 MB): both asked of the session subsystem that owns them, and re-read every 200 writes.
 function stjResolve(   resolveCmd, resolveLine) {
 	stjPath = ""
-	resolveCmd = "bash -c '. \"$0/session/AgentsTools.SessionTranscript.include\" && AgentsTranscriptPath \"$1\"' " stjShellQuote(stjLib) " " stjShellQuote(stjSid) " 2>/dev/null"
+	stjDir = ""
+	stjFeed = ""
+	resolveCmd = "bash -c '. \"$0/session/AgentsTools.SessionStore.include\" && . \"$0/session/AgentsTools.SessionTranscript.include\" && . \"$0/event-track/AgentsTools.EventTrackFeed.include\" && AgentsSessionFolderInto stjFolder \"$2\" \"$1\" && printf \"%s\\n\" \"$stjFolder\" && AgentsTranscriptPath \"$1\" && printf \"\\n\" && AgentsEventTrackFeedPathInto stjFeedPath \"$1\" && printf \"%s\\n\" \"$stjFeedPath\"' " stjShellQuote(stjLib) " " stjShellQuote(stjSid) " " stjShellQuote(stjApp) " 2>/dev/null"
+	if ((resolveCmd | getline resolveLine) > 0) stjDir = resolveLine
 	if ((resolveCmd | getline resolveLine) > 0) stjPath = resolveLine
+	if ((resolveCmd | getline resolveLine) > 0) stjFeed = resolveLine
 	close(resolveCmd)
 	stjWrites = 0
 }
@@ -65,17 +69,8 @@ function stjAppend(blockText) {
 	print blockText >> stjPath
 	fflush(stjPath)
 	## The event-track feed (AgentsTools.EventTrackFeed.include): the same lines, while the
-	## session's feed is switched on -- its own marker feed.open, there even when empty, or,
-	## for a session from before that marker, the event-track file that then switched it
-	## (AgentsTools.EventTrackThread.include, AgentsToolsEventTrackFeedOn).
-	if (stjFeedChecked == 0) {
-		stjFeedChecked = 1
-		stjFeed = ""
-		if ((getline stjFeedThread < (stjDir "/feed.open")) >= 0) stjFeed = stjDir "/feed"
-		close(stjDir "/feed.open")
-		if (stjFeed == "" && (getline stjFeedThread < (stjDir "/event-track")) > 0 && stjFeedThread != "") stjFeed = stjDir "/feed"
-		close(stjDir "/event-track")
-	}
+	## session's feed is switched on. Its path is event-track's own, asked for with the rest of
+	## what this run needs and empty while the feed is off.
 	## Opened for each write: the poster takes the feed whole by renaming it, and a write
 	## through a handle kept open would land in the feed it took.
 	if (stjFeed != "") { print blockText >> stjFeed ; close(stjFeed) }

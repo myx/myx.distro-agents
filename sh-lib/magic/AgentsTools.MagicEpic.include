@@ -65,7 +65,8 @@ AgentsToolsMagicEpicVaultPath(){ ## the argument
 	local vaultNameFault=""
 	vaultNameFault="$( AgentsToolsDocValidateVaultItemName "$vaultName" )" || { echo "⛔ ERROR: $MDSC_CMD: $vaultNameFault" >&2 ; return 1 ; }
 	[ -n "${MDAT_DATA_ROOT:-}" ] || return 1
-	printf '%s/vault/%s\n' "$MDAT_DATA_ROOT" "$vaultName"
+	type AgentsToolsVaultItemPath > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/vault/AgentsTools.VaultPlace.include"
+	AgentsToolsVaultItemPath "$vaultName"
 }
 
 ## A vault epic's edited copy becomes the item through the one vault write, which checks it and commits it. A plain source
@@ -352,8 +353,13 @@ case "$1" in
 		## No folder: the epics are the vault's own items.
 		if [ $# -eq 0 ] ; then
 			[ -n "${MDAT_DATA_ROOT:-}" ] || { echo "⛔ ERROR: $MDSC_CMD --epic-list: MDAT_DATA_ROOT is not set" >&2 ; set +e ; return 1 ; }
-			for listFile in "$MDAT_DATA_ROOT"/vault/epic-blueprint-*.md ; do
-				[ -f "$listFile" ] || continue
+			type AgentsToolsVaultFilesInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/vault/AgentsTools.VaultPlace.include"
+			local listFiles=()
+			AgentsToolsVaultFilesInto listFiles epic-blueprint-
+			for listFile in ${listFiles[@]+"${listFiles[@]}"} ; do
+				## An epic is read by its bare name from the vault folder, so an item in a folder of it is no epic to list.
+				[ "${listFile%/*}" = "$MDAT_DATA_ROOT/vault" ] || continue
+				case "${listFile##*/}" in epic-blueprint-*.md) ;; *) continue ;; esac
 				listFound=yes
 				## An item under an invalid name is listed as refused, never as an epic to use.
 				if ! AgentsToolsMagicEpicVaultPath "${listFile##*/}" > /dev/null 2>&1 ; then

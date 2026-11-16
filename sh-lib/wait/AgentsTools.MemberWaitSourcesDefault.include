@@ -57,29 +57,19 @@ AgentsToolsWaitDefaultSources(){
 ## Printed bare, each `<channel>:<ts>`, space-separated, for the caller above to prefix as a
 ## slack: conversation source same as any other thread. Prints nothing and returns 1 for none.
 AgentsToolsWaitChildThreadSources(){
-	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandbox.include"
+	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandboxRecordHeader.include"
 	type AgentsToolsSessionRecordLive > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionSeats.include"
 	type AgentsToolsSpawnConversationThreadValid > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionThreads.include"
 	## The same key a spawn is filed under as a child, by the parent's own run at the moment
 	## it spawned (AgentsTools.InternOpAgentSpawnProxy.include): this run's own spawn id, or
 	## the native CLI's session id where this run was never itself spawned, the coordinator's
 	## own root console included.
-	local childKey="${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}" childIndexed childRecords childLine childRecord
+	local childKey="${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}" childRecords childRecord
 	local childSeen=" " childSession childThread childList=""
 	[ -n "$childKey" ] || return 1
 	case "$childKey" in */*|.|..) return 1 ;; esac
-	childIndexed="$MMDAPP/.local/agents/children/.indexed"
-	if [ -f "$childIndexed" ] ; then
-		childRecords=""
-		if [ -f "$MMDAPP/.local/agents/children/$childKey" ] ; then
-			while IFS= read -r childLine ; do
-				[ -n "$childLine" ] || continue
-				childRecords="$childRecords$MMDAPP/.local/agents/spawned/$childLine"$'\n'
-			done < "$MMDAPP/.local/agents/children/$childKey"
-		fi
-	else
-		childRecords="$( LC_ALL=C grep -l -x -F "parent-spawn-id: $childKey" "$MMDAPP"/.local/agents/spawned/*/*.spawn.md 2> /dev/null )"$'\n' || childRecords=""
-	fi
+	type AgentsToolsSpawnedChildRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include"
+	childRecords="$( AgentsToolsSpawnedChildRecords "$childKey" )"
 	type AgentsToolsAssertBareName > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.BareName.include"
 	while IFS= read -r childRecord ; do
 		[ -n "$childRecord" ] && [ -f "$childRecord" ] || continue

@@ -40,7 +40,10 @@ trap 'rigProcSignalWithChildren TERM $rigLivePids ; rigProcSignalKept TERM "$rig
 rigData="$rigTmp/data"
 rigWs="$rigTmp/ws"
 rigSpawned="$rigWs/.local/agents/spawned"
-mkdir -p "$rigData/board/running" "$rigData/board/review" "$rigData/board/processed" "$rigData/board/pending" \
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-writes.include.sh" || exit 1
+rigOwnerWs="${rigWs:-$rigTmp/ws}" rigOwnerData="${rigData:-${rigD:-${rigStore:-${rigOut:-$rigTmp/data}}}}" rigOwnerHome="${rigHome:-$rigTmp/home}" rigOwnerSkills="${rigSkills:-$rigTmp/skills}"
+rigOwnerBoardReady
+mkdir -p \
 	"$rigWs/.local/.agents" "$rigSpawned" "$rigTmp/bin"
 cp "$rigFixture" "$rigTmp/bin/curl" && chmod +x "$rigTmp/bin/curl" || rigRefuse "could not install the fake curl"
 ## THE RIG'S OWN PROCESS LIST. A spawn is found running by a process list read from the host
@@ -122,7 +125,7 @@ rigItem(){ ## state, item stem, spawn-id or empty, extra frontmatter lines (may 
 "
 	case "${4:-}" in *review-by:*) itemReviewer="" ;; esac
 	printf -- '---\ntype: dispatch\nowner: keeper-myx\nstatus: dispatch-started\n%s%s%s---\n\n# rig dispatch\n' "${3:+spawn-id: $3
-}" "$itemReviewer" "${4:-}" > "$rigData/board/$1/$2.md"
+}" "$itemReviewer" "${4:-}" | rigOwnerBoardPut "$1" "$2.md"
 }
 rigRecord(){ ## spawn-id, status, session-thread or empty, item stem or empty, folder (default: spawn-id), extra lines
 	local recFolder="${5:-$1}"
@@ -201,18 +204,19 @@ rigEnv=( MDAT_SPAWN_AGENT=keeper-myx MDAT_SPAWN_SESSION_ID=rig-child-ib )
 rigTool "$rigTmp/h1b" SubagentHandback '{"outcome":"inbox work done"}'
 rigEnv=()
 ## A HANDBACK GOES WHERE ITS RUN REPORTS TO, set by the tooling: the handback takes no to.
-rigAssert "the handback goes to the inbox of the member the run reports to" "$( LC_ALL=C grep -c '^Sent to the inbox of magic-coordinator as inquiry-' "$rigTmp/h1b" ):$( ls "$rigData/inboxes/magic-coordinator/incoming"/inquiry-*.md 2> /dev/null | wc -l | tr -d ' ' )" 1:1
+rigAssert "the handback goes to the inbox of the member the run reports to" "$( LC_ALL=C grep -c '^Sent to the inbox of magic-coordinator as inquiry-' "$rigTmp/h1b" ):$( ls "$rigOwnerData/inboxes/magic-coordinator/incoming"/inquiry-*.md 2> /dev/null | wc -l | tr -d ' ' )" 1:1
 rigAssert "the item moved running -> review"               "$( rigLoc dispatch-20261008T1200Z-ib )" review
 rigAssert "one Decisions handback line"                    "$( rigDecisions "$rigData/board/review/dispatch-20261008T1200Z-ib.md" 'handback: handback: inbox work done' )" 1
 rigRecord rig-child-nf spawn-started "" dispatch-20261008T1200Z-nf rig-child-nf
 rigItem running dispatch-20261008T1200Z-nf rig-child-nf
 ## The inbox refused: a file where its folder goes. The folder 1b delivered into is set aside meanwhile, and put back after.
-mkdir -p "$rigData/inboxes" && { [ ! -d "$rigData/inboxes/magic-coordinator" ] || mv "$rigData/inboxes/magic-coordinator" "$rigData/inboxes/magic-coordinator.kept" ; } && : > "$rigData/inboxes/magic-coordinator"
+rigRefusedInbox="$rigOwnerData/inboxes/magic-coordinator"
+{ [ ! -d "$rigRefusedInbox" ] || mv "$rigRefusedInbox" "$rigRefusedInbox.kept" ; } && : > "$rigRefusedInbox"
 rigEnv=( MDAT_SPAWN_AGENT=keeper-myx MDAT_SPAWN_SESSION_ID=rig-child-nf )
 rigTool "$rigTmp/h1c" SubagentHandback '{"outcome":"never delivered"}'
 rigEnv=()
-rm -f "$rigData/inboxes/magic-coordinator"
-[ ! -d "$rigData/inboxes/magic-coordinator.kept" ] || mv "$rigData/inboxes/magic-coordinator.kept" "$rigData/inboxes/magic-coordinator"
+rm -f "$rigRefusedInbox"
+[ ! -d "$rigRefusedInbox.kept" ] || mv "$rigRefusedInbox.kept" "$rigRefusedInbox"
 rigAssert "a refused inbox delivers nothing"               "$( LC_ALL=C grep -c '^ERROR: magic-coordinator has no Slack DM channel, and its inbox refused the hand-off' "$rigTmp/h1c" )" 1
 rigAssert "and moves nothing"                              "$( rigLoc dispatch-20261008T1200Z-nf ):$( rigDecisions "$rigData/board/running/dispatch-20261008T1200Z-nf.md" 'handback:' )" running:0
 ## A run that reports into its parent's session thread (as in 1), whose Slack send fails.
@@ -502,7 +506,7 @@ echo "-- 9f. a run that reports to no one: its handback is its report, in its ow
 rigRecord rig-none-9f-$$ spawn-started CNON9F001:1700000000.000920 dispatch-20261008T1200Z-9f "" "$rigReportsTo: none
 "
 ## Its item names no reviewer.
-printf -- '---\ntype: dispatch\nowner: keeper-myx\nstatus: dispatch-started\nspawn-id: rig-none-9f-%s\n---\n\n# rig dispatch\n' "$$" > "$rigData/board/running/dispatch-20261008T1200Z-9f.md"
+printf -- '---\ntype: dispatch\nowner: keeper-myx\nstatus: dispatch-started\nspawn-id: rig-none-9f-%s\n---\n\n# rig dispatch\n' "$$" | rigOwnerBoardPut running dispatch-20261008T1200Z-9f.md
 rigEnv=( MDAT_SPAWN_AGENT=keeper-myx MDAT_SPAWN_SESSION_ID=rig-none-9f-$$ MDAT_SESSION_THREAD=CNON9F001:1700000000.000920 )
 rigTool "$rigTmp/h9f" SubagentHandback '{"outcome":"the daily is done"}'
 rigEnv=()

@@ -477,8 +477,8 @@ case "$1" in
 		type AgentsToolsTeamDataCommitPaths > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataCommit.include"
 		AgentsToolsTeamDataCommitPaths "board-upsert-move-edit: $itemName $moveFrom -> $toState, $opContext" ${commitPaths[@]+"${commitPaths[@]}"}
 		## The waits of the workspace are poked, so one that naps long still reads the move at once (AgentsToolsWakePoke).
-		type AgentsToolsWakePoke > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.WakeMarker.include"
-		! type AgentsToolsWakePoke > /dev/null 2>&1 || AgentsToolsWakePoke
+		type AgentsHookFire > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.Hook.include"
+		AgentsHookFire store-changed wake
 
 		return 0
 	;;

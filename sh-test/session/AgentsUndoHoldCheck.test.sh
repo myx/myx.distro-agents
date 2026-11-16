@@ -38,7 +38,9 @@ rigNew(){ ## name
 	rigWs="$rigTmp/$1/ws"
 	rigD="$rigTmp/$1/data"
 	rigSp="$rigWs/.local/agents/spawned"
-	mkdir -p "$rigD/inboxes/magic-coordinator/incoming" "$rigD/board/processed" "$rigWs/.local/agents/members/magic-coordinator" "$rigWs/.local/temp"
+	mkdir -p "$rigWs/.local/agents/members/magic-coordinator" "$rigWs/.local/temp"
+	rigBoardStates "$rigD" processed
+	rigInboxReady "$rigD" magic-coordinator
 	printf '# magic-coordinator\n' > "$rigWs/.local/agents/members/magic-coordinator/SKILL.md"
 }
 rigNew main
@@ -66,7 +68,7 @@ rigSweep(){ ## result file -- the sweep against this rig, as a rig
 	printf '%s' "$?" > "$1.rc"
 }
 rigItem(){ ## session id, held (yes|no) -- an aged processed dispatch item naming that spawn
-	printf -- '---\ntype: dispatch\nowner: rig-member\nspawn-id: %s\n---\n\nrig item\n' "$1" > "$rigD/board/processed/dispatch-$1.md"
+	printf -- '---\ntype: dispatch\nowner: rig-member\nspawn-id: %s\n---\n\nrig item\n' "$1" | rigStoreItem "$rigD" board processed dispatch-$1.md
 	touch -t 202001010000 "$rigD/board/processed/dispatch-$1.md"
 	rigMake "$1" "$2"
 }

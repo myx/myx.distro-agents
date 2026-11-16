@@ -29,12 +29,14 @@
 ## that names no member or no session, or a session with no folder here: a folder is never made for it.
 AgentsToolsPendingReplyFloorNotice(){ ## record file, pending id, verdict (may be empty), answered by (may be empty), `amended` for a correction (may be empty)
 	local noticeOwner="" noticeSession="" noticeKind="" noticeQuestion="" noticeBody
-	noticeOwner="$( LC_ALL=C awk 'NR > 1 && $0 == "---" { exit } index($0, "owner: ") == 1 { print substr($0, 8) ; exit }' "$1" 2> /dev/null )" || noticeOwner=""
-	noticeSession="$( LC_ALL=C awk 'NR > 1 && $0 == "---" { exit } index($0, "session-id: ") == 1 { print substr($0, 13) ; exit }' "$1" 2> /dev/null )" || noticeSession=""
-	noticeKind="$( LC_ALL=C awk 'NR > 1 && $0 == "---" { exit } index($0, "kind: ") == 1 { print substr($0, 7) ; exit }' "$1" 2> /dev/null )" || noticeKind=""
+	type AgentsToolsFrontmatterKey > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.FrontmatterKey.include"
+	noticeOwner="$( AgentsToolsFrontmatterKey "$1" owner )" || noticeOwner=""
+	noticeSession="$( AgentsToolsFrontmatterKey "$1" session-id )" || noticeSession=""
+	noticeKind="$( AgentsToolsFrontmatterKey "$1" kind )" || noticeKind=""
 	case "$noticeOwner" in ''|-) return 1 ;; esac
 	case "$noticeSession" in ''|-|*/*|.|..) return 1 ;; esac
-	[ -d "${MMDAPP%/}/.local/agents/sessions/$noticeSession" ] || return 1
+	type AgentsSessionKnown > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+	AgentsSessionKnown "$noticeSession" || return 1
 	## The question: the first line of text under `# Question asked` that is no heading.
 	noticeQuestion="$( LC_ALL=C awk '
 		$0 == "---" { dashes++ ; next }

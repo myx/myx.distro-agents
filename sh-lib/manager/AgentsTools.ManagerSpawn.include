@@ -27,7 +27,7 @@
 ## basic floor of the member loads). --goal <text> is the prompt given as an option.
 ##
 
-type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandbox.include"
+type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandboxRecordHeader.include"
 type AgentsToolsTeamMemberStartCheck > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamRegistry.include"
 
 ## One member asked before anything is started: a bare name, a member of this machine (its folder, where it has one here, is left in spawnFolder of the caller), and no
@@ -203,8 +203,9 @@ case "$1" in
 				set +e ; return 1
 			fi
 			## The session's name as its record keeps it, which is what a list of sessions shows.
-			spawnKept="$( AgentsToolsSpawnSandboxRecordHeader "$MMDAPP/.local/agents/spawned/$spawnSession/$spawnSession.spawn.md" session-comment \
-				| LC_ALL=C awk '{ gsub( /^[ \t]+|[ \t]+$/, "" ) ; gsub( /[ \t]+/, "_" ) ; print ; exit ; }' )"
+			type AgentsSessionRunHeadersInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+			spawnKept="" ; AgentsSessionRunHeadersInto "$spawnSession" spawnKept=session-comment || spawnKept=""
+			spawnKept="$( printf '%s\n' "$spawnKept" | LC_ALL=C awk '{ gsub( /^[ \t]+|[ \t]+$/, "" ) ; gsub( /[ \t]+/, "_" ) ; print ; exit ; }' )"
 			printf 'spawn\t%s\t%s\t%s\t%s\n' "$spawnSession" "$spawnEach" "${spawnKept:--}" "${spawnItem:--}"
 		done
 		return 0

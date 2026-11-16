@@ -63,7 +63,8 @@ rigTmp="$( rigTempDir AgentsSpawnSupervisorHoldsCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 rigWs="$rigTmp/ws" ; rigHome="$rigTmp/home" ; rigSkills="$rigTmp/skills" ; rigData="$rigTmp/data"
 rigSp="$rigWs/.local/agents/spawned"
-mkdir -p "$rigTmp/bin" "$rigTmp/held" "$rigWs/.local/.agents" "$rigSp" "$rigHome" "$rigSkills" "$rigData/board/running" "$rigData/board/review"
+mkdir -p "$rigTmp/bin" "$rigTmp/held" "$rigWs/.local/.agents" "$rigSp" "$rigHome" "$rigSkills"
+rigBoardStates "$rigData" running review
 rigHost="$( hostname -s 2> /dev/null )" ; [ -n "$rigHost" ] || rigHost="unknown"
 rigKept=""
 ## At the end every stand-in console still waiting is let go, with a handback, so that no supervising shell of
@@ -272,7 +273,7 @@ rigResume(){ ## scenario, the status the resumed run ends with
 	mkdir -p "$rigDir"
 	printf '%s\n' "$2" > "$rigDir/exit-resume"
 	: > "$rigDir/handback-resume"
-	printf -- '---\ntype: dispatch\nowner: rig-member-a\nstatus: dispatch-started\n---\n\n# rig dispatch\n' > "$rigData/board/running/$rigItem.md"
+	printf -- '---\ntype: dispatch\nowner: rig-member-a\nstatus: dispatch-started\n---\n\n# rig dispatch\n' | rigStoreItem "$rigData" board running $rigItem.md
 	printf '{"type":"context","session":"rig-old-%s"}\n' "$1" > "$rigDir/context.jsonl"
 	( cd "$rigWs" && rigEnv "$rigDir" MDAT_SPAWN_RESUME_CONTEXT="$rigDir/context.jsonl" MDAT_SPAWN_RESUME_TEXT="redo the rig step" \
 		bash "$rigTool" --intern-op-agent-spawn-proxy rig-member-a --from-board "$rigItem.md" --board-state running --dispatch-doc:reuse --context rig-supervisor-holds > "$rigDir/proxy.out" 2>&1 < /dev/null )

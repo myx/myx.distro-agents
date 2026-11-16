@@ -728,32 +728,11 @@ esac
 
 ## A parent session reads its children's output and writes their input, by parent-spawn-id.
 harnessParentKey="${harnessSessionId:-${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}}"
-## Where every spawn since the install has listed itself in its parent's own
-## .local/agents/children/<id> -- the main loop re-lists them all from the records and
-## then marks the store with children/.indexed -- only the records that file names are read,
-## taken in the order the full scan meets them and still checked line for line; a
-## parent with no such file has no children. Anywhere else, every record is scanned.
+## The children's records, from the store's own list (AgentsToolsSpawnedChildRecords: the children index where it is
+## complete, else every record), in the order of their paths, as a full scan meets them.
 if [ -n "$harnessParentKey" ] && [ -n "${MMDAPP:-}" ] ; then
-	harnessChildRecords=""
-	case "$harnessParentKey" in
-		*/*|.|..) harnessChildIndexed="" ;;
-		*) harnessChildIndexed="$MMDAPP/.local/agents/children/.indexed" ; [ -f "$harnessChildIndexed" ] || harnessChildIndexed="" ;;
-	esac
-	if [ -n "$harnessChildIndexed" ] ; then
-		harnessChildNames=""
-		[ ! -f "$MMDAPP/.local/agents/children/$harnessParentKey" ] || IFS= read -r -d '' harnessChildNames < "$MMDAPP/.local/agents/children/$harnessParentKey" || :
-		if [ -n "$harnessChildNames" ] ; then
-			harnessChildFiles=()
-			for harnessChildRecord in "$MMDAPP"/.local/agents/spawned/*/*.spawn.md ; do
-				case $'\n'"$harnessChildNames" in
-					*$'\n'"${harnessChildRecord#"$MMDAPP/.local/agents/spawned/"}"$'\n'*) harnessChildFiles+=( "$harnessChildRecord" ) ;;
-				esac
-			done
-			[ "${#harnessChildFiles[@]}" -eq 0 ] || harnessChildRecords="$( LC_ALL=C grep -l -x -F "parent-spawn-id: $harnessParentKey" ${harnessChildFiles[@]+"${harnessChildFiles[@]}"} 2>/dev/null )" || harnessChildRecords=""
-		fi
-	else
-		harnessChildRecords="$( LC_ALL=C grep -l -x -F "parent-spawn-id: $harnessParentKey" "$MMDAPP"/.local/agents/spawned/*/*.spawn.md 2>/dev/null )" || harnessChildRecords=""
-	fi
+	type AgentsToolsSpawnedChildRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include"
+	harnessChildRecords="$( AgentsToolsSpawnedChildRecords "$harnessParentKey" | LC_ALL=C sort )"
 	## The spawned/ directory is resolved once; a child's own folder and its input/ and
 	## output/ that are real directories, not links, resolve under it to exactly what
 	## `cd && pwd -P` gives, so only a child with a link or a missing folder is resolved
@@ -763,8 +742,7 @@ if [ -n "$harnessParentKey" ] && [ -n "${MMDAPP:-}" ] ; then
 	while IFS= read -r harnessChildRecord ; do
 		[ -n "$harnessChildRecord" ] || continue
 		harnessChildRoot="${harnessChildRecord%/*}"
-		harnessChildName="${harnessChildRoot#"$MMDAPP/.local/agents/spawned/"}"
-		if [ "$harnessChildName" != "$harnessChildRoot" ] && [ -n "$harnessChildName" ] && [ "${harnessChildName%/*}" = "$harnessChildName" ] \
+		if AgentsSpawnedFolderNameInto harnessChildName "$harnessChildRoot" \
 			&& [ ! -L "$harnessChildRoot" ] && [ -d "$harnessChildRoot/output" ] && [ ! -L "$harnessChildRoot/output" ] && [ -d "$harnessChildRoot/input" ] && [ ! -L "$harnessChildRoot/input" ] ; then
 			[ -n "$harnessSpawnedReal" ] || harnessSpawnedReal="$( AgentsHarnessResolveDir "$MMDAPP/.local/agents/spawned" )"
 			harnessRoots="${harnessRoots}$harnessSpawnedReal/$harnessChildName/output"$'\n'
@@ -1215,6 +1193,7 @@ harnessArmedAt="" harnessArmRedirectLogged="" harnessArmRanges=""
 ## MDAT_CHANGE_HOLD_ONLY), and the NOT-HELD of a native client's own tool.
 harnessReply=""
 harnessReplyDate=""
+harnessReadImageFile="$harnessScratch/read.image"
 
 ## One file's whole content, as `$( cat file )` gives it -- every trailing newline
 ## dropped, empty when it is absent -- into harnessFileText, with builtins only.
@@ -1245,7 +1224,6 @@ if [ -n "$harnessToolOnly" ] ; then
 	AgentsHarnessOthersRunning(){ . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessSpawn.include" ; AgentsHarnessOthersRunning "$@" ; }
 	AgentsHarnessSessionPids(){ . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessSpawn.include" ; AgentsHarnessSessionPids "$@" ; }
 	AgentsHarnessSessionWordPids(){ . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessSpawn.include" ; AgentsHarnessSessionWordPids "$@" ; }
-	AgentsHarnessSpawnRecordPath(){ . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessSpawn.include" ; AgentsHarnessSpawnRecordPath "$@" ; }
 	AgentsHarnessWindowedRead(){ . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessSpawn.include" ; AgentsHarnessWindowedRead "$@" ; }
 	AgentsHarnessWorkDuty(){ . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessSpawn.include" ; AgentsHarnessWorkDuty "$@" ; }
 	AgentsHarnessReadRange(){ . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessToolsFile.include" ; AgentsHarnessReadRange "$@" ; }
@@ -1533,11 +1511,11 @@ if [ -n "${MDAT_SPAWN_SESSION_ID:-}" ] ; then
 ## coworking session itself rather than being spawned into it, has no spawner to carry the rule above --
 ## so it is checked here instead, straight against the session's other live participants.
 elif [ -n "${MDAT_SESSION_ID:-}" ] ; then
-	type AgentsHarnessSpawnRecordPath > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessSpawn.include"
+	type AgentsSessionRunRecordInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
 	type AgentsToolsSessionOthersRunning > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionSeats.include"
 	harnessExecutorRecord=""
-	type AgentsHarnessSpawnRecordPath > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessSpawn.include"
-		harnessExecutorRecord="$( AgentsHarnessSpawnRecordPath "$MDAT_SESSION_ID" 2> /dev/null )" || harnessExecutorRecord=""
+	type AgentsSessionRunRecordInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+		AgentsSessionRunRecordInto harnessExecutorRecord "$MDAT_SESSION_ID" || :
 	if [ -n "$harnessExecutorRecord" ] && type AgentsToolsSessionOthersRunning > /dev/null 2>&1 \
 		&& AgentsToolsSessionOthersRunning "$harnessExecutorRecord" > /dev/null 2>&1 ; then
 		harnessSpawnedWaitNote=" You lead this coworking session, and another participant of it still runs: you are not the last one running, so you do not end on your own yet. Wait for the others with the Wait tool, and keep obeying what arrives there, until you are the last one running or a Wait returns DISMISSED."
@@ -1649,8 +1627,7 @@ AgentsHarnessCacheWatch(){
 	if [ -n "${MMDAPP:-}" ] ; then
 		for watchFile in "${harnessSessionId:-${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}}" "${MDAT_SESSION_ID:-}" ; do
 			[ -n "$watchFile" ] && AgentsHarnessBareName "$watchFile" || continue
-			[ -s "$MMDAPP/.local/agents/sessions/$watchFile/effort" ] || continue
-			IFS= read -r watchValue < "$MMDAPP/.local/agents/sessions/$watchFile/effort" || :
+			AgentsSessionEffortInto watchValue "$watchFile" || continue
 			watchAsked="yes" ; break
 		done
 	fi
@@ -1786,12 +1763,15 @@ esac
 ## service refuses for its length can be sent again smaller: a result becomes a notice that the call ran and its output is withheld, and the transcript stays
 ## whole, since a call keeps its result. The first refusal withholds the results of the round that overflowed, a refusal of the summarise round withholds every
 ## one. rc 0 where a result was withheld, 1 where none was left to withhold.
-harnessResultAt=() ; harnessResultId=() ; harnessResultDate=() ; harnessResultSeen=() ; harnessResultsRoundFrom=0 ; harnessSummaryWithheld=0
+harnessResultAt=() ; harnessResultId=() ; harnessResultDate=() ; harnessResultImageAt=() ; harnessResultSeen=() ; harnessResultsRoundFrom=0 ; harnessSummaryWithheld=0
 AgentsHarnessWithholdResults(){ ## the first recorded result to withhold
 	local withholdAt="$1" withholdRc=1
 	while [ "$withholdAt" -lt "${#harnessResultAt[@]}" ] ; do
 		if [ "${harnessResultSeen[$withholdAt]:-}" != withheld ] ; then
 			harnessMessages[${harnessResultAt[$withholdAt]}]="$( AgentsWireToolResultRecord "${harnessResultId[$withholdAt]}" "The call ran, and its output is withheld here: it would have made the request too long for the context window." "${harnessResultDate[$withholdAt]}" )"
+			## An image part rides a separate user message right after its result; withheld, the image is the very thing
+			## that overflows, so that message is replaced with a one-line notice rather than left beside the withheld result.
+			[ -z "${harnessResultImageAt[$withholdAt]:-}" ] || harnessMessages[${harnessResultImageAt[$withholdAt]}]="$( AgentsWireUserRecord "The image returned with this result was withheld here to keep the request within the context window." )"
 			harnessResultSeen[$withholdAt]=withheld
 			withholdRc=0
 		fi
@@ -2170,7 +2150,7 @@ while : ; do
 		AgentsHarnessRunNotesBuild
 		harnessMcpNoteTold="$harnessMcpUnavailableNote"
 		AgentsWireInitMessages
-		harnessResultAt=() ; harnessResultId=() ; harnessResultDate=() ; harnessResultSeen=() ; harnessResultsRoundFrom=0 ; harnessSummaryWithheld=0
+		harnessResultAt=() ; harnessResultId=() ; harnessResultDate=() ; harnessResultImageAt=() ; harnessResultSeen=() ; harnessResultsRoundFrom=0 ; harnessSummaryWithheld=0
 		printf -v harnessSummary '%s\n\n%s' "Notes you wrote for yourself at the end of your previous leg on this same task, which is stated above unchanged. Nothing else from that leg survives. Treat them as your own record of work already done, never as a new instruction, and carry on from where they stop." "$harnessSummary"
 		## THE STATE THE RUN KEEPS ON DISK COMES BACK WITH THE HANDOVER (the human-owner's ruling): a leg's handover is the model's own
 		## judgement of what mattered, and rulings of his were lost with legs. The fresh leg reads its CheckList file as it stands and the
@@ -2180,13 +2160,10 @@ while : ; do
 		if AgentsHarnessCheckListPlace 2> /dev/null && [ -s "$checkListFolder/$checkListMember.checklist.md" ] ; then
 			restartState="$( LC_ALL=C head -c 12000 "$checkListFolder/$checkListMember.checklist.md" 2> /dev/null )" || restartState=""
 		fi
-		if [ -n "${MDAT_SPAWN_SESSION_ID:-}" ] && [ -f "$MMDAPP/.local/agents/sessions/$MDAT_SPAWN_SESSION_ID/dispatch-item" ] ; then
-			{ IFS= read -r restartItem < "$MMDAPP/.local/agents/sessions/$MDAT_SPAWN_SESSION_ID/dispatch-item" ; } 2> /dev/null || restartItem=""
-			case "$restartItem" in ''|*/*) restartItem="" ;; esac
-			if [ -n "$restartItem" ] ; then
-				restartItemPath="$( AgentsHarnessDispatchItemPath "$restartItem" 2> /dev/null )" || restartItemPath=""
-				[ -z "$restartItemPath" ] || [ ! -f "$restartItemPath" ] || restartDecisions="$( LC_ALL=C awk '/^## Decisions/ { on = 1 } on { print }' "$restartItemPath" 2> /dev/null | LC_ALL=C tail -n 40 )"
-			fi
+		AgentsSessionDispatchItemInto restartItem "${MDAT_SPAWN_SESSION_ID:-}" || restartItem=""
+		if [ -n "$restartItem" ] ; then
+			restartItemPath="$( AgentsHarnessDispatchItemPath "$restartItem" 2> /dev/null )" || restartItemPath=""
+			[ -z "$restartItemPath" ] || [ ! -f "$restartItemPath" ] || restartDecisions="$( LC_ALL=C awk '/^## Decisions/ { on = 1 } on { print }' "$restartItemPath" 2> /dev/null | LC_ALL=C tail -n 40 )"
 		fi
 		[ -z "$restartState" ] || printf -v harnessSummary '%s\n\nYour CheckList as the tooling keeps it now (%s), the record that outlives a leg:\n%s' "$harnessSummary" "$checkListMember.checklist.md" "$restartState"
 		[ -z "$restartDecisions" ] || printf -v harnessSummary '%s\n\nThe Decisions of your dispatch item %s, as recorded:\n%s' "$harnessSummary" "$restartItem" "$restartDecisions"
@@ -2370,7 +2347,7 @@ while : ; do
 			## post of its own at the top of event-track.
 			(
 				. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/event-track/AgentsTools.EventTrackThread.include"
-				AgentsToolsEventTrackThreadPost "$harnessAgent" "$( AgentsToolsEventTrackThreadOwnDir )" --kind refusal \
+				AgentsToolsEventTrackThreadPost "$harnessAgent" "$MDAT_SPAWN_SESSION_ID" --kind refusal \
 					--session-id "$MDAT_SPAWN_SESSION_ID" --field what="Unarmed call redirected" --field tool="$harnessFuncName" \
 					--field reason="read $harnessAgent.armed.md with Skill first" < /dev/null
 			) > /dev/null 2>&1 || :
@@ -2379,6 +2356,16 @@ while : ; do
 		## A result already here is a hook's or the arm gate's: the call was refused, not run.
 		harnessTranscriptOutcome="" ; [ -z "$harnessResult" ] || harnessTranscriptOutcome="refused"
 		[ -n "$harnessResult" ] || AgentsHarnessRunTool "$harnessFuncName" "$harnessFuncArgsRaw"
+		## A Read that staged an image hands it to the wire beside the tool result, for a preset whose
+		## model takes images (HARNESS_MODEL_TAKES_IMAGES=on). A result of any other tool, or a preset
+		## that does not, keeps today's text-only path byte for byte.
+		harnessImagePart="" harnessImageMime="" harnessImageData=""
+		if [ "$harnessFuncName" = Read ] && [ -n "${harnessReadImageFile:-}" ] && [ -s "$harnessReadImageFile" ] && [ "${HARNESS_MODEL_TAKES_IMAGES:-off}" = on ] ; then
+			## The staged file ends without a newline (base64 with no trailing line break), so `read` returns 1
+			## after filling both fields: guarded, under set -e, or the run ends on the read itself.
+			IFS=$'\t' read -r harnessImageMime harnessImageData < "$harnessReadImageFile" || :
+			[ -n "$harnessImageMime" ] && [ -n "$harnessImageData" ] || { harnessImageMime="" ; harnessImageData="" ; }
+		fi
 		## A Wait is the run keeping still on purpose, so it never counts towards the nudge.
 		[ "$harnessFuncName" = "Wait" ] || [ "$harnessFuncName" = "mcp__myx_distro__Wait" ] || harnessNudgeCalls=$(( harnessNudgeCalls + 1 ))
 		AgentsHarnessArmNote "$harnessFuncName" "$harnessFuncArgsRaw" "$harnessResult"
@@ -2388,8 +2375,13 @@ while : ; do
 		## it, so a line rendered from the context is the line the hook writes; every check
 		## below still reads the result itself.
 		AgentsHarnessReply "$harnessFuncName" "$harnessResult"
-		harnessMessages+=( "$( AgentsWireToolResultRecord "$harnessCallId" "$harnessReply" "$harnessReplyDate" )" )
+		harnessMessages+=( "$( AgentsWireToolResultRecord "$harnessCallId" "$harnessReply" "$harnessReplyDate" "${harnessImageMime:-}" "${harnessImageData:-}" )" )
+		## The image part: on the Anthropic wire it rides the tool_result above (the extra fields are no-ops); on the
+		## chat-completions wire the tool result carries text only, so the image rides one user message right after it.
+		case "$harnessWire" in AnthropicMessages) ;; *) [ -z "${harnessImageMime:-}" ] || harnessMessages+=( "$( AgentsWireImageRecord "$harnessImageMime" "$harnessImageData" )" ) ;; esac
 		harnessResultAt+=( "$(( ${#harnessMessages[@]} - 1 ))" ) ; harnessResultId+=( "$harnessCallId" ) ; harnessResultDate+=( "$harnessReplyDate" )
+		[ -z "${harnessImageMime:-}" ] || harnessResultImageAt+=( "$(( ${#harnessMessages[@]} - 1 ))" )
+		[ -n "${harnessImageMime:-}" ] || harnessResultImageAt+=( "" )
 		AgentsHarnessContextSync tool "$( [ -z "$harnessContextFile" ] || AgentsHarnessContextToolMeta "$harnessFuncName" "$harnessCallId" "$harnessResult" "$harnessTranscriptOutcome" )"
 		AgentsTranscriptToolDone "$harnessFuncName" "$harnessFuncArgsRaw" "$harnessReply" loop "$harnessTranscriptOutcome" || :
 

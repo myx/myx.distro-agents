@@ -205,7 +205,7 @@ rigStart source - -
 rigAssert "and that row starts its console in that folder"              "$( rigPtyVal rc ) [$( cat "$rigTmp/started.log" )]" "0 [Source console started in=$rigBlank tty=yes words=0]"
 
 echo "-- 6. the caller rule, and the place in the family --"
-rigPre=( "MDAT_SPAWN_AGENT=magic-coordinator" )
+rigPre=( "MDAT_SPAWN_AGENT=keeper-rig" )
 rigRun "$rigOp"
 rigPre=()
 rigAssert "from inside a member's session it is refused, rc 1, nothing on stdout, in the one line of the family's rule" \

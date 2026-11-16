@@ -59,7 +59,7 @@
 			return 0
 		fi
 		if [ -z "$readCount" ] ; then
-			type AgentsToolsRegistryPendingRepliesRebuild > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.RegistryPendingReplies.include"
+			type AgentsToolsRegistryPendingRepliesRebuild > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.RegistryPendingRepliesRows.include"
 			readRegistry="$MMDAPP/.local/agents/pending-replies.registry"
 			if AgentsToolsRegistryPendingRepliesRebuild ; then
 				## That an open ask has no live asker is found in this same call, from the rows just

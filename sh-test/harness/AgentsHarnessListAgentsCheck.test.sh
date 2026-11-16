@@ -15,6 +15,7 @@ rigRefuse(){
 }
 [ -f "$rigHarness" ] || rigRefuse "harness not found: $rigHarness"
 . "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-writes.include.sh" || exit 1
 rigTmp="$( rigTempDir AgentsHarnessListAgentsCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
@@ -55,7 +56,7 @@ rigWs="$rigTmp/ws"
 rigSpawned="$rigWs/.local/agents/spawned"
 rigThisHost="$( hostname -s 2>/dev/null || echo unknown )"
 rigSession="rig-sess-$$-live"
-mkdir -p "$rigSpawned/rig-empty/input" "$rigWs/data/board/running"
+mkdir -p "$rigSpawned/rig-empty/input"
 rigRecord(){ ## tracking name, session id, host, status (default started)
 	mkdir -p "$rigSpawned/$1/input"
 	## spawn-id, not just session-id: liveness is matched on spawn-id since the
@@ -67,7 +68,7 @@ rigRecord(){ ## tracking name, session id, host, status (default started)
 rigRecord rig-local "$rigSession" "$rigThisHost"
 rigRecord rig-remote rig-sess-remote rig-elsewhere
 ## A board item the old lister would have read; the registry lister must not need it.
-printf -- '---\nstatus: dispatch-started\n---\n' > "$rigWs/data/board/running/dispatch-rig-board-only.md"
+rigOwnerData="$rigWs/data" rigOwnerBoardWrite running "dispatch-rig-board-only.md" -- '---\nstatus: dispatch-started\n---\n'
 
 ## A waiting row: a live run in its Wait (its process here, its activity mark `tool Wait`, S27.4), with an open ask against
 ## its session. Waiting is a live run's activity: a started record with no process is no waiting run.

@@ -113,6 +113,8 @@ Read this when a value is set in a manifest, in markup, in CSS, or in an environ
 
 `PWA-VISION.md` is the running record, one facet a pass, each dated. Read the facet the task needs. These are the rules it has settled.
 
+This distillation covers the record to 2026-07-20. Four later sections settle rules it does not carry. Read the record before relying on anything here.
+
 **Caching by resource class**
 
 - Navigation requests (HTML): network-first with a short timeout, falling back to a cached app-shell page. Never cache-first for a navigation: a stale shell can reference assets no longer in cache.
@@ -124,7 +126,7 @@ Read this when a value is set in a manifest, in markup, in CSS, or in an environ
 
 **Versioning and update**
 
-- One `CACHE_VERSION` constant carries the build hash. Every cache name derives from it. On `activate`, enumerate the caches and delete anything not matching the current version.
+- One build hash is embedded in `CACHE_VERSION`, and two cache tags derive from it. `app-${CACHE_VERSION}` holds shell HTML, app JS and app CSS, and bumps every release. `static-${STATIC_VERSION}` holds fonts, vendor files and the logo, and bumps only when that set changes. On `activate`, delete any cache matching neither tag.
 - A CSP change that matters also bumps `CACHE_VERSION`. A cached navigation response carries the CSP it was cached with, so a tightened policy does not apply to a shell already in Cache Storage.
 - Require Trusted Types the same way: a policy change is a cache version change.
 - Service-worker takeover is visible, not silent. Detect `updatefound`/`controllerchange`, surface an update, and apply it on the next navigation or explicit action. Auto-apply is acceptable only for content-only sites.
@@ -171,7 +173,7 @@ Read this when a value is set in a manifest, in markup, in CSS, or in an environ
 - `require-trusted-types-for 'script'` closes the DOM-XSS gap that `script-src` alone leaves: a same-origin `innerHTML` write with attacker-controlled content is CSP-legal and still dangerous.
 - Do not register a `'default'` policy. It silently routes every unmarked string through one callback and turns the platform boundary back into a convention.
 - Use a small number of named, purpose-scoped policies. Expose one wrapper — an `html` tagged template — that escapes every interpolation into a text node. A separate, explicitly named path handles pre-sanitised rich HTML.
-- Roll out with `Content-Security-Policy-Report-Only` first. Flip to enforcing when the report stream is empty or every remaining hit is a named, deliberate exception, not on a date.
+- Roll out with `Content-Security-Policy-Report-Only` first. Flip to enforcing when the report stream is empty or every remaining hit is a named, deliberate exception, not on a date. An empty stream found before 2026-02-24 is unproven, and carries no weight toward the decision.
 - The service worker has no DOM, so the `innerHTML`-class sinks do not exist inside it. The page's sinks are the ones to review.
 
 ## Reviewing a browser-facing change

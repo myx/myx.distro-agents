@@ -71,10 +71,10 @@ AgentsToolsPendingReplyMarkEnded(){ ## pending id, record file
 ## hook writes, which that function reads), never by the age of its ask; one with neither
 ## record nor store is listed only while a process runs as it.
 AgentsToolsPendingReplySessionsRunning(){
-	type AgentsToolsRegistryRenderSpawnedSessions > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.RegistrySpawnedSessions.include"
+	type AgentsToolsRegistryRenderSpawnedSessions > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.RegistrySpawnedSessions.include"
 	type AgentsToolsRunProcessArgs > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunProcesses.include"
 	local runningIds runningLine runningRoot
-	type AgentsToolsRegistryAskersLive > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.RegistryPendingReplies.include"
+	type AgentsSessionKnown > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
 	runningIds="$( AgentsToolsRegistryRenderSpawnedSessions agents 2> /dev/null | LC_ALL=C awk '
 		NF == 13 && $2 != "-" && ( $12 == "running" || ( $12 == "remote" && $13 == "unclosed" ) ) && ! seen[$2]++ { printf "%s ", $2 ; }
 	' )"
@@ -82,7 +82,7 @@ AgentsToolsPendingReplySessionsRunning(){
 		runningRoot="${runningLine% *}"
 		case "${runningLine##* }" in
 			running) runningIds="$runningIds$runningRoot " ;;
-			no-spawn-record) [ ! -d "$MMDAPP/.local/agents/sessions/$runningRoot" ] || runningIds="$runningIds$runningRoot " ;;
+			no-spawn-record) ! AgentsSessionKnown "$runningRoot" || runningIds="$runningIds$runningRoot " ;;
 		esac
 	done <<< "$( LC_ALL=C awk 'FNR == 1 { dashes = 0 } $0 == "---" { dashes++ ; next } dashes == 1 && index( $0, "session-id: " ) == 1 { print substr( $0, 13 ) }' "$MMDAPP/.local/agents/pending"/*.md 2> /dev/null | LC_ALL=C sort -u \
 		| AgentsToolsRegistryAskersLive "$( AgentsToolsRunProcessArgs ; printf '%s' "$agentsProcessArgs" )" )"
@@ -95,13 +95,6 @@ AgentsToolsPendingReplyCollectFieldOf(){ ## record file, field
 		$0 == "---" { dashes++ ; if ( dashes == 2 ) { exit ; } next ; }
 		dashes == 1 && index($0, key ": ") == 1 { print substr($0, length(key) + 3) ; exit ; }
 	' "$1" 2>/dev/null
-}
-
-## The answers a read returned, as their writers' own words: the send header a member's reply
-## starts with is taken off (AgentsPendingReplyOwnWords.awk) on the way to the readers that
-## keep what a reply says, so it is never kept as an answer or as a clarification.
-AgentsToolsPendingReplyCollectOwnWords(){ ## stdin: the answers
-	LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsDismissalMatch.awk" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsPendingReplyOwnWords.awk" 2>/dev/null
 }
 
 ## AN ANSWER THAT ARRIVED AFTER ITS SESSION ENDED GOES TO THE ASKER'S INBOX, where whoever runs
@@ -259,7 +252,7 @@ AgentsToolsPendingReplyCollectOne(){ ## record file
 		*)
 			oneAnswerTs="${oneHead%% *}"
 			oneBy="${oneHead#* | }" ; oneBy="${oneBy%% |*}"
-			collectAnswer="$( printf '%s\n' "$oneBody" | AgentsToolsPendingReplyCollectOwnWords | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsPendingReplyAnswerText.awk" )"
+			collectAnswer="$( printf '%s\n' "$oneBody" | ( LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsDismissalMatch.awk" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsPendingReplyOwnWords.awk" 2>/dev/null ) | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsPendingReplyAnswerText.awk" )"
 		;;
 	esac
 	oneRc=0
@@ -274,7 +267,7 @@ AgentsToolsPendingReplyCollectOne(){ ## record file
 			## clarifications, kept on the record and the item's Decisions.
 			## Its thread stays watched from the newest message read here (AgentsWaitProbeAsk).
 			local oneClarify="" oneFloor=""
-			oneClarify="$( printf '%s\n' "$oneBody" | AgentsToolsPendingReplyCollectOwnWords | LC_ALL=C awk -v answerTs="${oneAnswerTs:-$oneQts}" \
+			oneClarify="$( printf '%s\n' "$oneBody" | ( LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsDismissalMatch.awk" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsPendingReplyOwnWords.awk" 2>/dev/null ) | LC_ALL=C awk -v answerTs="${oneAnswerTs:-$oneQts}" \
 				-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsPendingReplyClarifications.awk" 2>/dev/null )" || oneClarify=""
 			## And they come with the answer, under its line, worded as the record keeps them.
 			printf '%s\n' "$oneClarify" | LC_ALL=C awk -F'\t' 'NF >= 3 { saidText = $0 ; sub( /^[^\t]*\t[^\t]*\t/, "", saidText ) ; printf "  CLARIFICATION: %s %s: %s\n", $1, $2, saidText ; }'

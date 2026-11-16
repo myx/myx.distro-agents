@@ -15,8 +15,9 @@
 type AgentsToolsSessionPauseHeld > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionPause.include"
 
 AgentsToolsSessionControlRelease(){
+	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandboxRecordHeader.include"
 	local releaseTracking releaseSession releaseParent releaseHost releaseOwner releaseStatus releaseExit releaseSpawn releaseAgentLog releaseThread releaseWorkspace releaseLive releaseWord releaseRest
-	local releaseRecord releaseField releaseStem releaseItem releaseSpawnOf releaseBoard releaseFile releaseState releaseWhy releaseNow releaseSeen releaseCalled
+	local releaseRecord releaseField releaseStem releaseItem releaseSpawnOf releaseBoard releaseState releaseWhy releaseNow releaseSeen releaseCalled
 	[ -n "${MDAT_DATA_ROOT:-}" ] || return 0
 	releaseNow="$( date +%s )"
 	[ -n "$controlClosing" ] || controlClosing="$( AgentsToolsSessionControlSeconds SESSION_CONTROL_CLOSING_SECONDS 300 )"
@@ -39,9 +40,8 @@ AgentsToolsSessionControlRelease(){
 			releaseStem="$( AgentsToolsSpawnSandboxRecordHeader "$releaseRecord" "$releaseField" )"
 			[ -n "$releaseStem" ] || continue
 			releaseItem="${releaseStem%.md}.md"
-			for releaseFile in "$MDAT_DATA_ROOT"/board/*/"$releaseItem" ; do
-				[ ! -f "$releaseFile" ] || { releaseBoard="$releaseFile" ; break ; }
-			done
+			type AgentsToolsBoardItemInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemDecisions.include"
+			AgentsToolsBoardItemInto releaseBoard "$releaseItem" || :
 			[ -n "$releaseBoard" ] || continue
 			## An item that names a newer spawn belongs to that one, not to this run.
 			releaseSpawnOf="$( AgentsToolsSpawnSandboxRecordHeader "$releaseBoard" spawn-id )"

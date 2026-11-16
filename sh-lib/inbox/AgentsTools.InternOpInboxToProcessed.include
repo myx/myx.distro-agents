@@ -17,10 +17,7 @@
 
 type AgentsToolsInboxItemFind > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/inbox/AgentsTools.InboxPlace.include"
 
-## One header of an inbox item, nothing for a key it lacks.
-AgentsToolsInboxToProcessedField(){ ## file, key
-	LC_ALL=C awk -v want="$2: " 'NR == 1 { if ( $0 != "---" ) exit ; next ; } $0 == "---" { exit ; } index( $0, want ) == 1 { print substr( $0, length( want ) + 1 ) ; exit ; }' "$1" 2> /dev/null
-}
+type AgentsToolsFrontmatterKey > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.FrontmatterKey.include"
 
 ## The reply an inquiry with `reply-requested: yes` is owed when it is marked processed: one note into the requester's inbox,
 ## from the template block Inbox/inquiry-reply, by the inbox operation that writes any member's inbox. A librarian update
@@ -218,9 +215,9 @@ case "$1" in
 		## here, before the item moves; delivered after the write succeeds. A librarian update request is told by --queue-done,
 		## not here.
 		local replyWanted="" replyFrom="" replyKind=""
-		replyWanted="$( AgentsToolsInboxToProcessedField "$sourcePath" reply-requested )"
-		replyFrom="$( AgentsToolsInboxToProcessedField "$sourcePath" from )"
-		replyKind="$( AgentsToolsInboxToProcessedField "$sourcePath" update-kind )"
+		replyWanted="$( AgentsToolsFrontmatterKey "$sourcePath" reply-requested )"
+		replyFrom="$( AgentsToolsFrontmatterKey "$sourcePath" from )"
+		replyKind="$( AgentsToolsFrontmatterKey "$sourcePath" update-kind )"
 
 		## Already marked: the item keeps its original processed-at (it is the GC's
 		## retention clock), and a plain re-mark is a successful no-op -- no write,
@@ -320,10 +317,7 @@ case "$1" in
 		## in .md, so no `*.md` inbox scan can ever see it. Split, the marked item
 		## is written in processed/ first and only then taken out of incoming/, so
 		## it is never in neither.
-		mkdir -p "${targetPath%/*}" || {
-			echo "$MDSC_CMD: inbox-to-processed: ⛔ ERROR: could not create ${targetPath%/*}" >&2
-			set +e ; return 1
-		}
+		AgentsToolsInboxReady "$inboxMember" || { set +e ; return 1 ; }
 		local tempPath="${targetPath%/*}/.$itemName.inbox-to-processed.$$"
 		if ! printf '%s\n' "$body" > "$tempPath" || ! mv -f -- "$tempPath" "$targetPath" ; then
 			rm -f -- "$tempPath"

@@ -73,18 +73,10 @@ AgentsWaitRepliesLook(){ ## member, now (epoch), the post's line, the rendering 
 ## tooling launched through no marker has none, and such a post keeps the older floor its line carries. It sets the variable,
 ## never prints it: a command substitution would set it in a subshell and lose it.
 AgentsWaitRepliesStart(){
-	local startMark=""
 	[ -z "${agentsWaitRepliesStartSeen:-}" ] || return 0
 	agentsWaitRepliesStartSeen="yes"
-	for startMark in "${MDAT_SPAWN_LAUNCH_MARKER:-}" "$MMDAPP/.local/agents/sessions/${waitSessionId:-.}/launch" ; do
-		[ -n "$startMark" ] && [ -f "$startMark" ] || continue
-		agentsWaitRepliesStart="$( stat -f %m "$startMark" 2> /dev/null || stat -c %Y "$startMark" 2> /dev/null )" || agentsWaitRepliesStart=""
-		agentsWaitRepliesStart="${agentsWaitRepliesStart%%$'\n'*}"
-		case "$agentsWaitRepliesStart" in
-			''|*[!0-9]*) agentsWaitRepliesStart="" ; continue ;;
-		esac
-		return 0
-	done
+	type AgentsSessionLaunchEpochInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+	AgentsSessionLaunchEpochInto agentsWaitRepliesStart "${waitSessionId:-}" "${MDAT_SPAWN_LAUNCH_MARKER:-}"
 	return 0
 }
 

@@ -29,7 +29,8 @@ trap 'chmod -R u+wX -- "$rigTmp" 2> /dev/null ; rm -rf -- "$rigTmp"' EXIT
 trap 'exit 1' INT TERM
 rigWs="$rigTmp/ws"
 rigData="$rigTmp/data"
-mkdir -p "$rigWs/.local/.agents" "$rigData/inboxes/rig-keeper/incoming" || exit 1
+mkdir -p "$rigWs/.local/.agents" || exit 1
+rigInboxReady "$rigData" rig-keeper || exit 1
 printf 'SLACK_CHANNEL_MAGIC_TEAM=CRIG00001\nSLACK_BOT_TOKEN=rig-bot-token-TEAM\nMDAT_WORKSPACE_MODE=team-rig\n' > "$rigWs/.local/.agents/magic-team.agent.env"
 rigPassCount=0
 rigFailCount=0
@@ -45,9 +46,9 @@ rigAssert(){ ## what is asserted, got, want
 ## ONE BOARD ITEM, in the shape the board stores: frontmatter naming its type and owner, then a body line that identifies it.
 rigItem(){ ## the state, the filename, the owner, and the one word its body carries
 	local itemState="$1" itemName="$2" itemOwner="$3" itemWord="$4"
-	mkdir -p "$rigData/board/$itemState" || exit 1
+	rigBoardStates "$rigData" $itemState || exit 1
 	printf -- '---\ntype: task\nfrom: magic-coordinator\nowner: %s\ndate: 2026-11-06 10:00 +0200\n---\n\n# %s\n\n%s\n' \
-		"$itemOwner" "$itemWord" "$itemWord" > "$rigData/board/$itemState/$itemName"
+		"$itemOwner" "$itemWord" "$itemWord" | rigStoreItem "$rigData" board $itemState $itemName
 }
 rigItem pending task-rig-pending.md mine pending-item
 rigItem running task-rig-running.md mine running-item

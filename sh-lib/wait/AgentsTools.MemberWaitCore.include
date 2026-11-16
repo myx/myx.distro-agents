@@ -33,7 +33,7 @@ AgentsWaitCoveredSet(){ ## member, sources...
 			;;
 			slack:*:*) ;;
 			slack:?*)
-				type DistroAgentsToolsResolveTarget > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/slack/AgentsTools.CommsSlack.include"
+				type DistroAgentsToolsResolveTarget > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsResolveTarget.include"
 				coverResolved="$( DistroAgentsToolsResolveTarget "${coverSource#slack:}" "$coverMember" 2> /dev/null )" || continue
 				coverChannel="$( printf '%s\n' "$coverResolved" | sed -n 's/^CHANNEL=//p' )"
 				[ -z "$coverChannel" ] || coverList="$coverList $coverChannel"

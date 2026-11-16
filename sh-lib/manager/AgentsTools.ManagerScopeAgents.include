@@ -135,6 +135,7 @@ AgentsToolsManagerScopeAgentsKnown(){ ## the name of the scope of the agents
 			knownList=""
 			for knownOne in $agentsPresetCacheTimes ; do knownList="$knownList${knownList:+,}$knownOne=$knownOne" ; done
 			printf 'PRESET_INPUT_CACHE_TIME\tchoice\t%s\tHow_long_the_input_cache_of_a_spawn_lives.\n' "$knownList"
+			printf 'PRESET_MODEL_TAKES_IMAGES\tchoice\ton=on,off=off\tWhether_the_model_takes_image_parts,_on_or_off._Off,_the_default,_keeps_the_text_answer_of_a_Read.\n'
 			printf 'PRESET_CONTEXT_MAX_SIZE\tnumber\t1000..10000000\tThe_restart_threshold,_in_tokens:_a_run_that_reaches_it_summarises_and_starts_again._Unset_uses_the_service_window_less_its_output_maximum.\n'
 			printf 'PRESET_EXTRA_SPAWN_LINE\ttext\t-\tA_line_the_owner_adds_to_every_dispatch_of_this_preset.\n'
 			if [ -z "$( AgentsToolsPresetRead "$MMDAPP" "$knownName" PRESET_EXTEND )" ] ; then

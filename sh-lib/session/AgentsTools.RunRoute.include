@@ -45,7 +45,7 @@ AgentsToolsRunRouteMember(){ ## address
 	esac
 	case "$1" in *:*) printf '%s\n' "${1#*:}" ; return 0 ;; esac
 	for memberRecord in "${MMDAPP:-/nonexistent}"/.local/agents/spawned/*/"$1.spawn.md" ; do
-		type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandbox.include"
+		type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandboxRecordHeader.include"
 		[ ! -f "$memberRecord" ] || memberOwner="$( AgentsToolsSpawnSandboxRecordHeader "$memberRecord" owner )"
 	done
 	AgentsToolsAssertBareName "$memberOwner" "the owner of a session's founding record" AgentsToolsRunRouteMember 2> /dev/null || return 1
@@ -62,11 +62,11 @@ AgentsToolsRunRouteAvailable(){ ## session, member, the asking run's spawn recor
 	AgentsToolsAssertBareName "$1" "the session" AgentsToolsRunRouteAvailable 2> /dev/null && AgentsToolsAssertBareName "$2" "the member" AgentsToolsRunRouteAvailable 2> /dev/null || return 1
 	availOwn="${availRecord##*/}" ; availOwn="${availOwn%.spawn.md}"
 	type AgentsToolsSpawnRuns > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunProcesses.include"
-	type AgentsToolsSpawnedSessionRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.StartedRecords.include"
+	type AgentsToolsSpawnedSessionRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include"
 	for availCandidate in $( AgentsToolsSpawnedSessionRecords "$1" own ) ; do
 		availId="${availCandidate##*/}" ; availId="${availId%.spawn.md}"
 		[ "$availId" != "$availOwn" ] || continue
-		type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandbox.include"
+		type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandboxRecordHeader.include"
 		[ "$( AgentsToolsSpawnSandboxRecordHeader "$availCandidate" owner )" = "$2" ] || continue
 		## An agent-less parent runs no member: it stands for its caller, and takes no matter itself.
 		[ "$( AgentsToolsSpawnSandboxRecordHeader "$availCandidate" agent-less )" != true ] || continue
@@ -113,7 +113,7 @@ AgentsToolsRunRoute(){ ## spawn record path, `default` for the address it has wh
 	type AgentsToolsAssertBareName > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.BareName.include"
 	[ -n "$routeRecord" ] && [ -f "$routeRecord" ] || { AgentsToolsRunRouteDuty "" || printf 'human-owner\n' ; return 0 ; }
 	## The hop: the session named by its reports-to, else its parent session; never from a parent itself, so no cycle.
-	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandbox.include"
+	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandboxRecordHeader.include"
 	if [ -z "${agentsRunRouteHopped:-}" ] && [ "$( AgentsToolsSpawnSandboxRecordHeader "$routeRecord" agent-less )" != true ] ; then
 		routeHop=""
 		[ "${2:-}" = default ] || routeHop="$( AgentsToolsSpawnSandboxRecordHeader "$routeRecord" "$agentsRunRouteField" )"

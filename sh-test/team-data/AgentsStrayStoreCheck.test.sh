@@ -15,6 +15,7 @@ set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 rigLib="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib"
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-store-item.include.sh" || exit 1
 mkdir -p "$MMDAPP/.local/agents/scratch/sh-test" || exit 1
 rigTmp="$( mktemp -d "$MMDAPP/.local/agents/scratch/sh-test/AgentsStrayStoreCheck.XXXXXXXX" )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
@@ -25,21 +26,35 @@ rigAssert(){ ## what, got, want
 	else printf '  FAIL  %s\n        got:  %s\n        want: %s\n' "$1" "$2" "$3" ; rigFail=$(( rigFail + 1 )) ; fi
 }
 rigJust="$rigTmp/ws-just" ; rigRig="$rigTmp/ws-rig" ; rigStore="$rigJust/.local/agents/team-data-root" ; rigRoot="$rigRig/team-data"
-mkdir -p "$rigStore/board/processed" "$rigStore/board/review" "$rigStore/inboxes/magic-tester/incoming" "$rigStore/audit/2026-11" \
-	"$rigRig/.local/.agents" "$rigRoot/board/processed" "$rigJust/.local/.agents" || exit 1
+mkdir -p "$rigRig/.local/.agents" "$rigJust/.local/.agents" || exit 1
 printf 'TEAM_DATA_DIRECTORY=%s\n' "$rigRoot" > "$rigRig/.local/.agents/magic-coordinator.agent.env"
-rigItem(){ ## path, paying workspace, body word
-	printf -- '---\ntype: dispatch\nowner: magic-tester\npaying-workspace: %s\nstatus: processed\n---\n\n# Item\n\n%s\n' "$2" "$3" > "$1"
+## Every item below is built by its store's own write (rig-store-item.include.sh), and so is every folder it lies in: a
+## hand-written fixture stays green when that write's own file contract changes.
+rigBodyCount=0
+rigStoreBody(){ ## text -- the path of a body file holding it
+	rigBodyCount=$(( rigBodyCount + 1 ))
+	printf '%s\n' "$1" > "$rigTmp/body$rigBodyCount"
+	printf '%s' "$rigTmp/body$rigBodyCount"
 }
-rigItem "$rigStore/board/processed/dispatch-a.md" ws-rig alpha
-rigItem "$rigStore/board/processed/dispatch-b.md" ws-rig beta
-rigItem "$rigStore/board/processed/dispatch-c.md" ws-rig gamma
-rigItem "$rigStore/board/review/dispatch-d.md" ../ws-rig delta
-rigItem "$rigStore/board/review/dispatch-e.md" ws-just epsilon
-cp "$rigStore/board/processed/dispatch-b.md" "$rigRoot/board/processed/dispatch-b.md"
-rigItem "$rigRoot/board/processed/dispatch-c.md" ws-rig "gamma, changed on the rig"
-printf -- '---\ntype: reflection\nowner: magic-tester\n---\n\n# Reflection\n' > "$rigStore/inboxes/magic-tester/incoming/reflection-x.md"
-printf 'refusal\n' > "$rigStore/audit/2026-11/one.txt"
+rigItem(){ ## store root, selector (`board processed dispatch-a.md`, `inbox magic-tester note-x.md`), body text
+	rigBodyCount=$(( rigBodyCount + 1 ))
+	printf '%s\n' "$3" > "$rigTmp/body$rigBodyCount"
+	rigStoreItem "$rigTmp" "$1" "$rigJust" magic-tester "$2" "$rigTmp/body$rigBodyCount" \
+		|| { echo "⛔ ERROR: could not build $2 through its store's own write" >&2 ; exit 1 ; }
+}
+rigDispatch(){ ## store root, state, item name, paying workspace, body word -- one dispatch item of that store
+	rigItem "$1" "board $2 $3" "$( printf -- '---\ntype: dispatch\nowner: magic-tester\npaying-workspace: %s\nstatus: processed\n---\n\n# Item\n\n%s' "$4" "$5" )"
+}
+rigDispatch "$rigStore" processed dispatch-a.md ws-rig alpha
+rigDispatch "$rigStore" processed dispatch-b.md ws-rig beta
+rigDispatch "$rigStore" processed dispatch-c.md ws-rig gamma
+rigDispatch "$rigStore" review dispatch-d.md ../ws-rig delta
+rigDispatch "$rigStore" review dispatch-e.md ws-just epsilon
+## The rig's identical copy is written by the same write, from the same words, so the two files are one item twice.
+rigDispatch "$rigRoot" processed dispatch-b.md ws-rig beta
+rigDispatch "$rigRoot" processed dispatch-c.md ws-rig "gamma, changed on the rig"
+rigItem "$rigStore" "inbox magic-tester reflection-x.md" "$( printf -- '---\ntype: reflection\nowner: magic-tester\n---\n\n# Reflection' )"
+rigItem "$rigStore" "audit one.txt" "refusal"
 rigRun(){ ## mode (just-agents|team-rig), function, args...
 	( MDLT_ORIGIN="$MDLT_ORIGIN" MDAT_WORKSPACE_MODE="$1" ; export MDLT_ORIGIN MDAT_WORKSPACE_MODE ; unset MMDAPP ; . "$rigLib/team-data/AgentsTools.StrayStore.include" ; shift ; "$@" ) 2> "$rigTmp/err"
 }
@@ -81,23 +96,29 @@ rigAssert "refused, nothing printed"                         "$( rigRun team-rig
 echo "-- 6. an inbox item takes the rig of the session that wrote it --"
 rigTwo="$rigTmp/two" ; rigJ2="$rigTwo/ws-just" ; rigStore2="$rigJ2/.local/agents/team-data-root"
 rigRigMake(){ ## name, owner of its one run, start, end
-	mkdir -p "$rigTwo/$1/.local/.agents" "$rigTwo/$1/team-data/board/processed"
+	mkdir -p "$rigTwo/$1/.local/.agents"
 	printf 'TEAM_DATA_DIRECTORY=%s\n' "$rigTwo/$1/team-data" > "$rigTwo/$1/.local/.agents/magic-coordinator.agent.env"
 	printf 'MDAT_WORKSPACE_MODE=team-rig\n' > "$rigTwo/$1/.local/.agents/magic-team.agent.env"
-	printf -- '---\ntype: dispatch\nowner: %s\nstarted-at: %s\nresolved-at: %s\nstatus: processed\n---\n\n# Run\n' "$2" "$3" "$4" > "$rigTwo/$1/team-data/board/processed/dispatch-run.md"
+	rigStoreItem "$rigTwo/$1" "$rigTwo/$1/team-data" "$rigTwo/$1" "$2" "board processed dispatch-run.md" \
+		"$( rigStoreBody "$( printf -- '---\ntype: dispatch\nowner: %s\nstarted-at: %s\nresolved-at: %s\nstatus: processed\n---\n\n# Run\n' "$2" "$3" "$4" )" )" \
+		|| { echo "⛔ ERROR: could not build the run of $1 through the board's own write" >&2 ; exit 1 ; }
 }
 rigRigMake rig-one magic-tester '2026-11-06 10:00 +0000' '2026-11-06 12:00 +0000'
 rigRigMake rig-two magic-tester '2026-11-06 11:30 +0000' '2026-11-06 14:00 +0000'
 rigRigMake rig-three keeper-x '2026-11-06 00:00 +0000' '2026-11-07 00:00 +0000'
-mkdir -p "$rigStore2/inboxes/magic-tester/incoming" "$rigJ2/.local/.agents"
+mkdir -p "$rigJ2/.local/.agents"
 rigInbox(){ ## file, from, date
-	printf -- '---\ntype: inquiry\nfrom: %s\nowner: magic-coordinator\ndate: %s\n---\n\n# Inquiry\n' "$2" "$3" > "$rigStore2/inboxes/magic-tester/incoming/$1"
+	rigStoreItem "$rigTmp" "$rigStore2" "$rigJ2" "$2" "inbox magic-tester $1" \
+		"$( rigStoreBody "$( printf -- '---\ntype: inquiry\nfrom: %s\nowner: magic-coordinator\ndate: %s\n---\n\n# Inquiry\n' "$2" "$3" )" )" \
+		|| { echo "⛔ ERROR: could not build the inbox item $1 through the inbox's own write" >&2 ; exit 1 ; }
 }
 rigInbox inquiry-placed.md magic-tester '2026-11-06 12:30 +0200'
 rigInbox inquiry-ambiguous.md magic-tester '2026-11-06 13:45 +0200'
 rigInbox inquiry-none.md magic-tester '2026-11-06 20:00 +0200'
 ## An item the inbox write stamped with the writer's workspace: it names its rig itself, no run needed.
-printf -- '---\ntype: inquiry\nfrom: magic-tester\nowner: magic-coordinator\nfrom-workspace: rig-three\nfrom-session: rig-session-x\ndate: 2026-11-06 20:00 +0200\n---\n\n# Inquiry\n' > "$rigStore2/inboxes/magic-tester/incoming/inquiry-stamped.md"
+rigStoreItem "$rigTmp" "$rigStore2" "$rigJ2" magic-tester "inbox magic-tester inquiry-stamped.md" \
+	"$( rigStoreBody "$( printf -- '---\ntype: inquiry\nfrom: magic-tester\nowner: magic-coordinator\nfrom-workspace: rig-three\nfrom-session: rig-session-x\ndate: 2026-11-06 20:00 +0200\n---\n\n# Inquiry' )" )" \
+	|| { echo "⛔ ERROR: could not build the stamped inbox item through the inbox's own write" >&2 ; exit 1 ; }
 rigRun just-agents AgentsToolsStrayStoreList "$rigJ2" > "$rigTmp/list2"
 rigAssert "one rig covers the moment: that rig"              "$( LC_ALL=C grep -F 'inquiry-placed.md' "$rigTmp/list2" | LC_ALL=C cut -f 4 )" rig-one
 rigAssert "two rigs cover it: ambiguous"                     "$( LC_ALL=C grep -F 'inquiry-ambiguous.md' "$rigTmp/list2" | LC_ALL=C cut -f 4 )" ambiguous

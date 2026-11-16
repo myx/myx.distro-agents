@@ -28,6 +28,7 @@ for rigNeed in magic-tester magic-developer magic-coordinator ; do
 done
 
 . "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-writes.include.sh" || exit 1
 rigTmp="$( rigTempDir AgentsPermissionSetWithdrawCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 trap 'chmod -R u+w "$rigTmp" 2>/dev/null ; rm -rf -- "$rigTmp"' EXIT
@@ -87,7 +88,7 @@ rigCalls(){ ## method
 ## so one asked entry is held by a participant already.
 rigWs="$rigTmp/ws"
 rigData="$rigWs/DATA"
-mkdir -p "$rigWs/.local/.agents" "$rigWs/.local/agents/spawned/rig-set" "$rigData/board/running" "$rigData/board/processed" "$rigWs/DEV"
+mkdir -p "$rigWs/.local/.agents" "$rigWs/.local/agents/spawned/rig-set" "$rigWs/DEV"
 printf 'SLACK_CHANNEL_MAGIC_TEAM=CRIG00001\nSLACK_BOT_TOKEN=rig-bot-token-TEAM\nSLACK_CHANNEL_HUMAN_OWNER=URIGOWNER\n' > "$rigWs/.local/.agents/magic-team.agent.env"
 printf 'magic-developer:ws:workspace:Edit(/%s/DEV/**)\n' "$rigWs" > "$rigWs/.local/agents/permissions.registry"
 printf '%s\t%s\t%s\t%s\t%s\n' rig-ws workspace read-write "$rigWs" workspace > "$rigWs/.local/agents/directories.registry"
@@ -103,9 +104,9 @@ printf '900001 rig-run --session-id rig-set-dev\n' >> "$rigTmp/ps.list"
 ## A task set is for the members it names: these three, in the task requests below.
 rigSetThree=( --participant magic-coordinator --participant magic-developer --participant magic-tester )
 rigSetRecord rig-set-tester magic-tester rig-host-c 'check it against the samples'
-printf -- '---\nstatus: task\nowner: magic-developer\n---\n\n# Fix the vars loader\n\nThe loader drops a variable whose value holds an equals sign.\n' > "$rigData/board/running/task-rig-set.md"
+rigOwnerBoardWrite running "task-rig-set.md" -- '---\nstatus: task\nowner: magic-developer\n---\n\n# Fix the vars loader\n\nThe loader drops a variable whose value holds an equals sign.\n'
 printf -- '---\nstatus: dispatch-started\nowner: magic-developer\nsession-id: rig-set\ntracks: task-rig-set\n---\n\n# Spawn-proxy dispatch: magic-developer\n\n## Brief\n\nthe brief of the dispatch.\n' \
-	> "$rigData/board/running/dispatch-rig-set.md"
+	| rigOwnerBoardPut running "dispatch-rig-set.md"
 RIG_CURL_LOG="$rigTmp/curl.log"
 export RIG_CURL_LOG
 : > "$RIG_CURL_LOG"

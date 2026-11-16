@@ -34,6 +34,8 @@ rigRefuse(){
 ## A process this rig starts and signals later is noted with when it began, and is signalled only while its pid is still that process.
 . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-processes.include.sh" || rigRefuse "the rig's process helper is missing from the package: sh-test/check-fixtures/rig-processes.include.sh"
 . "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-writes.include.sh" || exit 1
+rigOwnerWs="${rigWs:-$rigTmp/ws}" rigOwnerData="${rigData:-${rigD:-${rigStore:-${rigOut:-$rigTmp/data}}}}" rigOwnerHome="${rigHome:-$rigTmp/home}" rigOwnerSkills="${rigSkills:-$rigTmp/skills}"
 ## A return of a review starts an ended run again, with the session's control thread, which outlives this check: the rig ends it.
 . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-control-threads.include.sh" || rigRefuse "the rig's fixture that ends control threads is missing from the package: sh-test/check-fixtures/rig-control-threads.include.sh"
 rigTmp="$( rigTempDir AgentsReviewPromptCheck )" || exit 1
@@ -97,8 +99,8 @@ rigStart(){ ## scenario name
 	local startMember
 	rigName="$1" ; rigDir="$rigTmp/$1" ; rigWs="$rigDir/ws" ; rigData="$rigDir/data"
 	rigSpawn="rig-child-$1" ; rigItem="dispatch-20261012T0100Z-$1"
-	mkdir -p "$rigData/board/running" "$rigData/board/review" "$rigData/board/processed" "$rigData/board/pending" \
-		"$rigWs/.local/.agents" "$rigWs/.local/agents/spawned"
+	rigOwnerBoardReady || rigRefuse "the board could not be made ready to be written"
+	mkdir -p "$rigWs/.local/.agents" "$rigWs/.local/agents/spawned"
 	printf 'SLACK_CHANNEL_MAGIC_TEAM=CRIG00001\nSLACK_CHANNEL_HUMAN_OWNER=URIGOWNER\nSLACK_BOT_TOKEN=rig-bot-token-TEAM\n' > "$rigWs/.local/.agents/magic-team.agent.env"
 	printf 'SLACK_USER_TOKEN=rig-user-token-KEEPER\n' > "$rigWs/.local/.agents/keeper-myx.agent.env"
 	for startMember in magic-coordinator keeper-myx magic-tester human-owner ; do
@@ -144,10 +146,10 @@ rigTool(){ ## result file, tool name, arguments JSON -- one served harness tool 
 ## The scenario's work: a task, the dispatch that tracks it in running with its reviewer, the
 ## spawn record of the session that works it, and a stand-in process, so that session is live.
 rigWork(){ ## review-by value (empty: none), the address its run reports to (empty: none recorded)
-	printf -- '---\ntype: task\nowner: keeper-myx\n---\n\n# Rework the rig widget\n\nThe widget drops its last line. Make it keep it.\n' > "$rigData/board/running/task-20261012T0000Z-$rigName.md"
+	printf -- '---\ntype: task\nowner: keeper-myx\n---\n\n# Rework the rig widget\n\nThe widget drops its last line. Make it keep it.\n' | rigOwnerBoardPut running "task-20261012T0000Z-$rigName.md"
 	printf -- '---\ntype: dispatch\nowner: keeper-myx\nstatus: dispatch-started\nspawn-id: %s\ntracks: task-20261012T0000Z-%s\n%s---\n\n# rig dispatch\n' \
 		"$rigSpawn" "$rigName" "${1:+review-by: $1
-}" > "$rigData/board/running/$rigItem.md"
+}" | rigOwnerBoardPut running "$rigItem.md"
 	mkdir -p "$rigWs/.local/agents/spawned/$rigSpawn" "$rigWs/.local/agents/sessions/$rigSpawn"
 	printf -- '---\nsession-id: 5e55104a-rig-%s\nspawn-id: %s\nparent-spawn-id: none\ntracking-name: %s\nhost: %s\nowner: keeper-myx\nstatus: spawn-started\nsession-thread: CSES00001:1700000000.000100\nspawns: %s\ndescription: rework the rig widget\n%s---\n' \
 		"$rigName" "$rigSpawn" "$rigSpawn" "$rigHost" "$rigItem" "${2:+$rigReportsTo: $2
@@ -430,6 +432,7 @@ echo "-- 10. an answer under the prompt of a review that is no longer open --"
 rigStart stale
 rigWork human-owner
 rigHandback "rig work done"
+rigOwnerBoardReady || rigRefuse "the board could not be made ready to be written"
 mv "$rigData/board/review/$rigItem.md" "$rigData/board/processed/$rigItem.md"
 rigThread "$( rigClick +1 URIGOWNER )" ""
 rigRead

@@ -40,7 +40,8 @@ rigAssert(){ ## what is asserted, got, want
 
 rigWs="$rigTmp/ws" ; rigHome="$rigTmp/home" ; rigSkills="$rigTmp/skills" ; rigData="$rigTmp/data"
 rigAgents="$rigWs/.local/agents" ; rigPend="$rigAgents/pending" ; rigFn="$rigTool"
-mkdir -p "$rigTmp/bin" "$rigWs/.local/.agents" "$rigWs/source/rigrepo/rigpkg" "$rigHome" "$rigSkills/rig-member" "$rigData/board/running"
+mkdir -p "$rigTmp/bin" "$rigWs/.local/.agents" "$rigWs/source/rigrepo/rigpkg" "$rigHome" "$rigSkills/rig-member"
+rigBoardStates "$rigData" running
 printf 'SLACK_BOT_TOKEN=rig-not-a-token\nSPAWN_TIER_NORMAL=rig-cli\n' > "$rigWs/.local/.agents/magic-team.agent.env"
 printf 'PRESET_CLI_SERVICE=rig-cli\n' > "$rigWs/.local/.agents/preset-rig-cli.agent.env"
 printf '# rigpkg\n' > "$rigWs/source/rigrepo/rigpkg/MAGIC.md"
@@ -74,7 +75,8 @@ rm -f "$rigSkills/rig-member/magic-team.rig.routine.md"
 mkdir -p "$rigSkills/magic-team"
 printf -- '---\ntype: routine\nexecutors: rig-member\nmaintainers: rig\nrequires-session-kind: standalone\ninput-scan-def: work-duty --session-id {{session-id}}\n---\n# rig routine with a scan\n' > "$rigSkills/magic-team/magic-team.rig.routine.md"
 printf 'SLACK_BOT_TOKEN=rig-not-a-token\nSPAWN_TIER_NORMAL=rig-cli\nWAIT_COLLECT_SECONDS=3\n' > "$rigWs/.local/.agents/magic-team.agent.env"
-mkdir -p "$rigData/inboxes/rig-member/incoming" "$rigWs/.local/agents/members/rig-member"
+mkdir -p "$rigWs/.local/agents/members/rig-member"
+rigInboxReady "$rigData" rig-member
 
 ## THE STAND-IN CONSOLE: it notes whether the clock's file reached its environment, and ends.
 cat > "$rigWs/DistroAgentsConsole.sh" <<'RIGCLI'

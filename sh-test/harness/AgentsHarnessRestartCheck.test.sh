@@ -21,6 +21,7 @@ rigRefuse(){
 }
 
 . "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-writes.include.sh" || exit 1
 rigTmp="$( rigTempDir AgentsHarnessRestartCheck )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
 
@@ -172,10 +173,10 @@ rigVerdict "each restart is kept beside the run record"
 ## a run with neither file gets the handover alone.
 rigStart state-comes-back
 rigSpawnRoot="$rigScenarioDir" rigSpawnId="rig-state-run" rigDataRoot="$rigScenarioDir/data" rigAgent=magic-coordinator
-mkdir -p "$rigScenarioDir/.local/agents/sessions/rig-state-run" "$rigDataRoot/board/running"
+mkdir -p "$rigScenarioDir/.local/agents/sessions/rig-state-run"
 printf -- '- [ ] RIG-CHECKLIST-MARKER an item still open\n' > "$rigScenarioDir/.local/agents/sessions/rig-state-run/magic-coordinator.checklist.md"
 printf 'dispatch-rig-state.md\n' > "$rigScenarioDir/.local/agents/sessions/rig-state-run/dispatch-item"
-printf -- '---\ntype: dispatch\n---\n\n# Task\n\nRIG-TASK-BODY\n\n## Decisions\n- RIG-DECISION-MARKER his ruling\n' > "$rigDataRoot/board/running/dispatch-rig-state.md"
+rigOwnerData="$rigDataRoot" rigOwnerBoardWrite running "dispatch-rig-state.md" -- '---\ntype: dispatch\n---\n\n# Task\n\nRIG-TASK-BODY\n\n## Decisions\n- RIG-DECISION-MARKER his ruling\n'
 rigToolStream "$rigScenarioDir/res.1" 5000
 rigTextStream "$rigScenarioDir/res.2" RIG-SUMMARY-MARKER stop 20
 rigTextStream "$rigScenarioDir/res.3" RIG-FINAL-MARKER stop 20

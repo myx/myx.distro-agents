@@ -93,7 +93,7 @@ AgentsHarnessFormalSend(){ ## tool name, target, as_bot, body text, optional nex
 ## Nothing, rc 1, for a session with no spawn record of its own.
 AgentsHarnessReportsTo(){
 	local reportsRecord=""
-	reportsRecord="$( AgentsHarnessSpawnRecordPath "${MDAT_SPAWN_SESSION_ID:-}" )" && [ -n "$reportsRecord" ] || return 1
+	AgentsSessionRunRecordInto reportsRecord "${MDAT_SPAWN_SESSION_ID:-}" || return 1
 	type AgentsToolsRunRoute > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.RunRoute.include" || return 1
 	AgentsToolsRunRoute "$reportsRecord" 2> /dev/null
 }
@@ -122,7 +122,7 @@ AgentsHarnessReportRoute(){ ## the to the run gave, the address_to it gave
 	## them. The coordinator's own run, the top of that ladder, still reports in its own thread.
 	if [ "$routeKind" = none ] && [ "${harnessAgent:-}" != magic-coordinator ] ; then
 		local routeLadderRecord="" routeLadder=""
-		routeLadderRecord="$( AgentsHarnessSpawnRecordPath "${MDAT_SPAWN_SESSION_ID:-}" )" || routeLadderRecord=""
+		AgentsSessionRunRecordInto routeLadderRecord "${MDAT_SPAWN_SESSION_ID:-}" || :
 		[ -z "$routeLadderRecord" ] || routeLadder="$( AgentsToolsRunRoute "$routeLadderRecord" default 2> /dev/null )" || routeLadder=""
 		if [ -n "$routeLadder" ] && [ "$routeLadder" != none ] ; then
 			routeWhere="$routeLadder" ; routeKind="$( AgentsToolsRunRouteKind "$routeWhere" 2> /dev/null )" || routeKind=""
@@ -170,8 +170,8 @@ AgentsHarnessReportRoute(){ ## the to the run gave, the address_to it gave
 ## there): rc 0 it does. Asks the record alone, no reading of who is alive, so it is cheap to ask.
 AgentsHarnessReportsNone(){
 	local noneRecord=""
-	noneRecord="$( AgentsHarnessSpawnRecordPath "${MDAT_SPAWN_SESSION_ID:-}" )" && [ -n "$noneRecord" ] || return 1
-	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandbox.include" || return 1
+	AgentsSessionRunRecordInto noneRecord "${MDAT_SPAWN_SESSION_ID:-}" || return 1
+	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandboxRecordHeader.include" || return 1
 	[ "$( AgentsToolsSpawnSandboxRecordHeader "$noneRecord" "$agentsRunRouteField" )" = none ]
 }
 

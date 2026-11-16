@@ -5731,6 +5731,11 @@
 			must be the caller's own; `board:<state>` on one
 			board state (backlog, pending, running, review,
 			blocked, parked, processed, archived or retained);
+			`board:<item name>` on one board item, wherever it
+			stands: an arrival is the item moving between states,
+			leaving the board or being rewritten. An item named
+			one of the nine state words is refused, since that
+			source is the state;
 			`checklist:<member>` on the open items of that
 			member's own CheckList, which must be the caller's
 			own -- a changed rendering is an arrival, and an

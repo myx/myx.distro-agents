@@ -483,7 +483,14 @@ case "$1" in
 					|| { echo "$MDSC_CMD: spawn-session: ⛔ ERROR: could not record the caller's thread for the agent-less parent $partitionParentId -- nothing was started" >&2 ; set +e ; return 1 ; }
 			fi
 			## Its own record, written by the tooling before the first child starts, so a child's start finds its parent there.
-			partitionRecord="$MMDAPP/.local/agents/spawned/$partitionParentId/$partitionParentId.spawn.md"
+			local partitionRecord="" partitionArgsFile="" partitionTaskFile="" partitionIdentifyFile="" partitionNotesFile="" partitionScopesFile=""
+			type AgentsSpawnRecordInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+			AgentsSpawnRecordInto partitionRecord "$MMDAPP" "$partitionParentId" "$partitionParentId" || { echo "$MDSC_CMD: spawn-session: ⛔ ERROR: could not name the record of the agent-less parent $partitionParentId -- nothing was started" >&2 ; set +e ; return 1 ; }
+			AgentsSpawnPartitionFileInto partitionArgsFile "$MMDAPP" "$partitionParentId" args || return 1
+			AgentsSpawnPartitionFileInto partitionTaskFile "$MMDAPP" "$partitionParentId" task || return 1
+			AgentsSpawnPartitionFileInto partitionIdentifyFile "$MMDAPP" "$partitionParentId" identify || return 1
+			AgentsSpawnPartitionFileInto partitionNotesFile "$MMDAPP" "$partitionParentId" notes || return 1
+			AgentsSpawnPartitionFileInto partitionScopesFile "$MMDAPP" "$partitionParentId" scopes || return 1
 			mkdir -p "${partitionRecord%/*}" && {
 				printf '%s\n' "---"
 				printf 'session-id: %s\n' "$partitionParentId"
@@ -517,11 +524,11 @@ case "$1" in
 			[ -z "$sessionCliService" ] || partitionArgs+=( --spawn-cli-service "$sessionCliService" )
 			[ -z "$sessionSettingsWorkspace" ] || partitionArgs+=( --spawn-settings-workspace "$sessionSettingsWorkspace" )
 			[ -z "${sessionParentMember:-}" ] || partitionArgs+=( --parent-member "$sessionParentMember" )
-			{ printf '%s\0' ${partitionArgs[@]+"${partitionArgs[@]}"} > "${partitionRecord%/*}/partition.args" \
-				&& printf '%s\n' "$spawnTaskText" > "${partitionRecord%/*}/partition.task" \
-				&& printf '%s\n' "$partitionLabel" > "${partitionRecord%/*}/partition.identify" \
-				&& printf '%s' "$recordNotes" > "${partitionRecord%/*}/partition.notes" \
-				&& printf '%s\n' ${partitionScopes[@]+"${partitionScopes[@]}"} > "${partitionRecord%/*}/partition.scopes" ; } \
+			{ printf '%s\0' ${partitionArgs[@]+"${partitionArgs[@]}"} > "$partitionArgsFile" \
+				&& printf '%s\n' "$spawnTaskText" > "$partitionTaskFile" \
+				&& printf '%s\n' "$partitionLabel" > "$partitionIdentifyFile" \
+				&& printf '%s' "$recordNotes" > "$partitionNotesFile" \
+				&& printf '%s\n' ${partitionScopes[@]+"${partitionScopes[@]}"} > "$partitionScopesFile" ; } \
 				|| { echo "$MDSC_CMD: spawn-session: ⛔ ERROR: could not keep what the starts of the agent-less parent $partitionParentId are given -- nothing was started" >&2 ; set +e ; return 1 ; }
 		fi
 		for spawnMember in ${spawnMembers[@]+"${spawnMembers[@]}"} ; do

@@ -24,6 +24,7 @@
 set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-writes.include.sh" || exit 1
 rigOrigin="$( cd "$MDLT_ORIGIN" && pwd -P )" || exit 1
 rigPackage="$rigOrigin/myx/myx.distro-agents"
 rigTool="$rigPackage/sh-scripts/DistroAgentsTools.fn.sh"
@@ -54,9 +55,9 @@ rigMrNote="note-20261008T000000Z-morning-review-state.md"
 ## The team data: a clone of the rig's own bare remote, holding each routine's note, each locked by its own session.
 rigGit init -q --bare "$rigTmp/remote.git" || rigRefuse "could not make the rig's bare remote"
 rigGit clone -q "$rigTmp/remote.git" "$rigData" 2> /dev/null || rigRefuse "could not clone the rig's remote"
-mkdir -p "$rigData/inboxes/magic-coordinator/incoming" "$rigData/inboxes/magic-librarian/incoming" "$rigData/board"
+mkdir -p "$rigData/board"
 rigSeedNote(){ ## member, note, state word, session id
-	printf -- '---\ntype: note\nfrom: %s\nowner: %s\nrecheck-date: 2099-01-01 00:00 +0000\nstate: %s-running\nsession-id: %s\nlast_reviewed_ts: 100\n---\n\nThe state of %s.\n' "$1" "$1" "$3" "$4" "$3" > "$rigData/inboxes/$1/incoming/$2"
+	rigOwnerInboxWrite $1 "$2" -- '---\ntype: note\nfrom: %s\nowner: %s\nrecheck-date: 2099-01-01 00:00 +0000\nstate: %s-running\nsession-id: %s\nlast_reviewed_ts: 100\n---\n\nThe state of %s.\n' "$1" "$1" "$3" "$4" "$3"
 }
 for rigPair in $rigNotes ; do rigSeedNote magic-coordinator "${rigPair#*:}" "${rigPair%%:*}" "rig-sess-${rigPair%%:*}" ; done
 rigSeedNote magic-librarian "$rigMrNote" morning-review rig-sess-mr

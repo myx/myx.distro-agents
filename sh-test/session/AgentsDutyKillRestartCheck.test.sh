@@ -26,7 +26,9 @@ rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 rigPids=""
 trap 'for rigEach in $rigPids ; do kill -9 "$rigEach" 2> /dev/null ; done ; rm -rf -- "$rigTmp"' EXIT
 rigWs="$rigTmp/ws" rigData="$rigTmp/data" rigSp="$rigTmp/ws/.local/agents/spawned/rig-sess"
-mkdir -p "$rigWs/.local/agents/schedule" "$rigSp" "$rigTmp/home" "$rigData/board/running" "$rigData/inboxes/magic-coordinator/incoming"
+mkdir -p "$rigWs/.local/agents/schedule" "$rigSp" "$rigTmp/home"
+rigBoardStates "$rigData" running
+rigInboxReady "$rigData" magic-coordinator
 rigHost="$( hostname -s 2> /dev/null )" ; [ -n "$rigHost" ] || rigHost="unknown"
 
 rigPassCount=0
@@ -151,7 +153,7 @@ rigRecord "$rigSp/holdalive.spawn.md" holdalive rig-alive spawn-started "$rigHos
 rigRecord "$rigSp/holdgone.spawn.md" holdgone rig-gone spawn-started "$rigHost" "$rigDeadRun" ""
 rigRecord "$rigSp/holdnone.spawn.md" holdnone rig-unknown spawn-started "$rigHost" "" ""
 rigKill "$rigDeadRun"
-printf -- '---\ntype: task\nowner: rig-gone\nparticipants: rig-unknown, rig-alive\n---\n\n# rig item\n' > "$rigData/board/running/task-rig-held.md"
+printf -- '---\ntype: task\nowner: rig-gone\nparticipants: rig-unknown, rig-alive\n---\n\n# rig item\n' | rigStoreItem "$rigData" board running task-rig-held.md
 rigAssert "a holder whose run is gone holds nothing; one that cannot be told, and one that lives, hold" "$( rigFn AgentsToolsBoardItemHolders "$rigData/board/running/task-rig-held.md" | LC_ALL=C tr '\t\n' ' -' | LC_ALL=C sed 's/^0://' )" "rig-alive holdalive rig-sess-rig-unknown holdnone rig-sess"
 rigKill "$rigLiveRun"
 

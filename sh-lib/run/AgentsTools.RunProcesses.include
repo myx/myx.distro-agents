@@ -158,7 +158,9 @@ AgentsToolsRunningSpawns(){ ## spawned-sessions registry file, process list text
 	runningAsked="$( printf '%s\n' "$runningLines" | LC_ALL=C awk '$1 == "?" || $1 == "=" { print $2 }' )" || runningAsked=""
 	if [ -n "$runningAsked" ] ; then
 		for runningId in $runningAsked ; do
-			for runningRecord in "${MMDAPP:-/nonexistent}/.local/agents/spawned"/*/"$runningId.spawn.md" ; do
+			type AgentsSessionRunRecordInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+			AgentsSessionRunRecordInto runningRecord "$runningId" || :
+			for runningRecord in ${runningRecord:+"$runningRecord"} ; do
 				[ -f "$runningRecord" ] || continue
 				runningRecords="$runningRecords$runningRecord
 "
@@ -229,9 +231,12 @@ ${runningLine#'? '}
 ## record where it has it, else the record is found by the id. Whether that record is open,
 ## and of this host, is the caller's own question. rc 0 running.
 AgentsToolsSpawnRuns(){ ## spawn id, its record file (may be empty)
-	local runsWords runsRecord runsNamed=""
+	local runsWords runsRecord runsNamed="" runsFound=""
 	[ -n "${1:-}" ] || return 1
-	for runsRecord in "${2:-}" "${MMDAPP:-/nonexistent}/.local/agents/spawned"/*/"$1.spawn.md" ; do
+	type AgentsSessionRunRecordInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+	AgentsSessionRunRecordInto runsFound "$1" || :
+	[ "$runsFound" != "${2:-}" ] || runsFound=""
+	for runsRecord in "${2:-}" "$runsFound" ; do
 		[ -n "$runsRecord" ] && [ -f "$runsRecord" ] || continue
 		! AgentsToolsRunRecordedAlive "$runsRecord" || return 0
 		! LC_ALL=C awk '$0 == "---" { if ( ++fenceCount > 1 ) { exit 1 ; } next ; } fenceCount == 1 && index( $0, "run-process: " ) == 1 { exit 0 ; } END { } ' "$runsRecord" 2>/dev/null || runsNamed="named"

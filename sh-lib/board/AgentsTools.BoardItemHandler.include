@@ -31,10 +31,6 @@
 ##
 
 ## The roots a routine file is looked for under: the skillset root of the run, and the package's own.
-AgentsToolsBoardItemRoutineDirs(){
-	printf '%s\n' "${MDAT_SKILLSET_ROOT:-$MMDAPP/.local/agents/members}" "$MDLT_ORIGIN/myx/myx.distro-agents/skillset/magic-team"
-}
-
 AgentsToolsRoutineFileOf(){ ## name
 	local ofWant="$1" ofRoot ofFile ofName
 	case "$ofWant" in ''|*/*|*' '*) return 1 ;; esac
@@ -47,7 +43,7 @@ AgentsToolsRoutineFileOf(){ ## name
 			if [ "$ofName" = "$ofWant" ] ; then printf '%s\n' "$ofFile" ; return 0 ; fi
 			case "$ofName" in *".$ofWant") printf '%s\n' "$ofFile" ; return 0 ;; esac
 		done
-	done <<< "$( AgentsToolsBoardItemRoutineDirs )"
+	done <<< "$( printf '%s\n' "${MDAT_SKILLSET_ROOT:-$MMDAPP/.local/agents/members}" "$MDLT_ORIGIN/myx/myx.distro-agents/skillset/magic-team" )"
 	return 1
 }
 
@@ -154,7 +150,9 @@ AgentsToolsBoardHandlerSetMay(){ ## -- rc 0 may; rc 4 refused, the reason on std
 	[ "$setMember" != magic-coordinator ] || return 0
 	setSession="$( AgentsToolsActingSession )"
 	case "$setSession" in ''|*/*|.|..) ;; *)
-		for setRecord in "${MMDAPP:-/nonexistent}/.local/agents/spawned"/*/"$setSession.spawn.md" ; do
+		type AgentsSessionRunRecordInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+		AgentsSessionRunRecordInto setRecord "$setSession" || :
+		for setRecord in ${setRecord:+"$setRecord"} ; do
 			[ -f "$setRecord" ] || continue
 			setRoutine="$( AgentsToolsBoardItemKey "$setRecord" routine )"
 			break
@@ -186,7 +184,7 @@ AgentsToolsBoardLiveHolders(){
 	[ -n "${MMDAPP:-}" ] || return 0
 	## The started records from the kept list (AgentsToolsSpawnedStartedRecords, AgentsTools.StartedRecords.include), never every record on a board write;
 	## the awk below still reads each one's own status and exit-code, so a record closed since the list was kept is no row.
-	type AgentsToolsSpawnedStartedRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.StartedRecords.include"
+	type AgentsToolsSpawnedStartedRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include"
 	local holdersFiles=() holdersFile
 	while IFS= read -r holdersFile ; do
 		[ -n "$holdersFile" ] && [ -f "$holdersFile" ] || continue

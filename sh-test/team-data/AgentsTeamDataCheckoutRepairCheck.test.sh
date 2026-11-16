@@ -19,6 +19,7 @@ rigRefuse(){
 [ -x "$rigFn" ] || rigRefuse "dispatcher not found: $rigFn"
 command -v git > /dev/null || rigRefuse "git is not installed"
 . "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-store-item.include.sh" || exit 1
 rigTmp="$( rigTempDir AgentsTeamDataCheckoutRepairCheck )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
 rigTmp="$( cd "$rigTmp" && pwd -P )"
@@ -46,16 +47,40 @@ rigCount(){ ## file, text
 ## and three not, as the pre-F4.3 flat form had them.
 rigRemote(){ ## name
 	git init -q --bare "$rigTmp/$1.git" || rigRefuse "could not init the bare remote $1"
-	rm -rf "$rigTmp/seed" ; git init -q "$rigTmp/seed" && git -C "$rigTmp/seed" symbolic-ref HEAD refs/heads/main
-	mkdir -p "$rigTmp/seed/board/processed" "$rigTmp/seed/audit/2026-10" "$rigTmp/seed/inboxes/magic-coordinator"
+	rm -rf "$rigTmp/seed" ; mkdir -p "$rigTmp/seed"
 	printf 'seed\n' > "$rigTmp/seed/README.md"
-	printf 'board item\n' > "$rigTmp/seed/board/processed/note-20261014T0100Z-board.md"
-	printf 'audit line\n' > "$rigTmp/seed/audit/2026-10/audit-20261014.md"
-	printf -- '---\ntype: note\n---\n\nflat open one\n' > "$rigTmp/seed/inboxes/magic-coordinator/note-20261014T0101Z-flat-a.md"
-	printf -- '---\ntype: note\n---\n\nflat open two\n' > "$rigTmp/seed/inboxes/magic-coordinator/note-20261014T0102Z-flat-b.md"
-	printf -- '---\ntype: note\n---\n\nflat open three\n' > "$rigTmp/seed/inboxes/magic-coordinator/note-20261014T0103Z-flat-c.md"
-	printf -- '---\ntype: note\nprocessed-at: 2026-10-14 01:04 +0000\n---\n\nflat done four\n' > "$rigTmp/seed/inboxes/magic-coordinator/note-20261014T0104Z-flat-d.md"
-	printf -- '---\ntype: note\nprocessed-at: 2026-10-14 01:05 +0000\n---\n\nflat done five\n' > "$rigTmp/seed/inboxes/magic-coordinator/note-20261014T0105Z-flat-e.md"
+	## The seed store's own items, written by its own writes (rig-store-item.include.sh) while it is no repository yet, so the
+	## seed commit below carries them exactly as before. The five flat inbox items below are the pre-migration form the repair
+	## itself is the subject of, and no writer of the tooling produces that form: they stay as the remote's old layout.
+	printf 'board item\n' > "$rigTmp/seed-body-board" ; printf 'audit line\n' > "$rigTmp/seed-body-audit"
+	rigStoreItem "$rigTmp" "$rigTmp/seed" "$rigTmp/seed" magic-coordinator "board processed note-20261014T0100Z-board.md" "$rigTmp/seed-body-board" \
+		> /dev/null || rigRefuse "could not write the seed board item through the board's own write"
+	rigStoreItem "$rigTmp" "$rigTmp/seed" "$rigTmp/seed" magic-coordinator "audit audit-20261014.md" "$rigTmp/seed-body-audit" \
+		> /dev/null || rigRefuse "could not write the seed audit item through the audit's own write"
+	## The five flat items are the pre-F4.3 inbox layout this repair migrates, and no writer of the tooling produces that
+	## layout any more. So each item's body is written by the inbox's own write into the layout it does produce, and the
+	## check moves it flat: the words are the owner's, and the position is the case.
+	git init -q "$rigTmp/seed" && git -C "$rigTmp/seed" symbolic-ref HEAD refs/heads/main
+	flatSeed(){ ## item name, body text, processed stamp or empty -- one flat item at the inbox root
+		local flatBody="$rigTmp/seed-body-$1" flatMark=""
+		printf '%s\n' "$2" > "$flatBody"
+		if [ -n "${3:-}" ] ; then
+			rigStoreItem "$rigTmp" "$rigTmp/seed" "$rigTmp/seed" magic-coordinator "inbox-processed magic-coordinator $1" \
+				"$flatBody" > /dev/null || rigRefuse "could not write the flat inbox item $1"
+			mv -f "$rigTmp/seed/inboxes/magic-coordinator/processed/$1" "$rigTmp/seed/inboxes/magic-coordinator/$1" \
+				|| rigRefuse "could not put the flat inbox item $1 back at the inbox root"
+		else
+			rigStoreItem "$rigTmp" "$rigTmp/seed" "$rigTmp/seed" magic-coordinator "inbox magic-coordinator $1" \
+				"$flatBody" > /dev/null || rigRefuse "could not write the flat inbox item $1"
+			mv -f "$rigTmp/seed/inboxes/magic-coordinator/incoming/$1" "$rigTmp/seed/inboxes/magic-coordinator/$1" \
+				|| rigRefuse "could not put the flat inbox item $1 at the inbox root"
+		fi
+	}
+	flatSeed note-20261014T0101Z-flat-a.md "$( printf -- '---\ntype: note\n---\n\nflat open one' )"
+	flatSeed note-20261014T0102Z-flat-b.md "$( printf -- '---\ntype: note\n---\n\nflat open two' )"
+	flatSeed note-20261014T0103Z-flat-c.md "$( printf -- '---\ntype: note\n---\n\nflat open three' )"
+	flatSeed note-20261014T0104Z-flat-d.md "$( printf -- '---\ntype: note\nprocessed-at: 2026-10-14 01:04 +0000\n---\n\nflat done four' )" stamped
+	flatSeed note-20261014T0105Z-flat-e.md "$( printf -- '---\ntype: note\nprocessed-at: 2026-10-14 01:05 +0000\n---\n\nflat done five' )" stamped
 	git -C "$rigTmp/seed" add -A && git -C "$rigTmp/seed" commit -q -m seed && git -C "$rigTmp/seed" push -q "$rigTmp/$1.git" main 2> /dev/null \
 		|| rigRefuse "could not seed the bare remote $1"
 }

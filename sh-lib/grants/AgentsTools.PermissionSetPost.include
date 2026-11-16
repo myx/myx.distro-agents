@@ -71,13 +71,15 @@ AgentsToolsPermissionSetSpawnHeader(){ ## coworking session id, member (empty: i
 	local spawnFile spawnFound=""
 	case "$1" in ''|*/*|.|..) return 0 ;; esac
 	if [ -z "$2" ] ; then
-		for spawnFile in "$MMDAPP/.local/agents/spawned"/*/"$1.spawn.md" ; do
+		type AgentsSessionRunRecordInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+		AgentsSessionRunRecordInto spawnFile "$1" || :
+		for spawnFile in ${spawnFile:+"$spawnFile"} ; do
 			[ -f "$spawnFile" ] || continue
 			spawnFound="$spawnFile" ; break
 		done
 	else
 		## The records of the session come from the kept per-session list (AgentsTools.StartedRecords.include), never a read of every record on a gate call.
-		type AgentsToolsSpawnedSessionRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.StartedRecords.include"
+		type AgentsToolsSpawnedSessionRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include"
 		while IFS= read -r spawnFile ; do
 			[ -n "$spawnFile" ] && [ -f "$spawnFile" ] && [ "$( AgentsToolsPermissionField "$spawnFile" owner )" = "$2" ] || continue
 			[ -n "$spawnFound" ] && [ ! "$spawnFile" -nt "$spawnFound" ] || spawnFound="$spawnFile"

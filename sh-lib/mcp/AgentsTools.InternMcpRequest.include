@@ -132,7 +132,8 @@ AgentsMcpBatchCall(){ ## tool name, arguments file, call number
 ## the JSON carries only the reference. A harness tool is finished by the harness and never here.
 AgentsMcpReplyText(){ ## tool name, result
 	local replyText="$2"
-	! type AgentsTranscriptReplyFinish > /dev/null 2>&1 || replyText="$( AgentsTranscriptReplyFinish "$1" "$2" )" || replyText="$2"
+	type AgentsTranscriptReplyFinish > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionTranscript.include"
+	replyText="$( AgentsTranscriptReplyFinish "$1" "$2" )" || replyText="$2"
 	printf '%s' "$replyText" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/mcp/AgentsMcpJsonEscape.awk"
 }
 

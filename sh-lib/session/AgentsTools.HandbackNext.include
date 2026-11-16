@@ -14,7 +14,7 @@
 ## Sourced for the functions only.
 ##
 
-type AgentsToolsSpawnRecordPath > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionSeats.include"
+type AgentsSessionRunRecordInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
 
 ## One frontmatter value of a file, trimmed, empty where absent.
 AgentsToolsHandbackNextKey(){ ## file, key
@@ -63,11 +63,11 @@ AgentsToolsHandbackNextRefuse(){ ## why, manual start command (may be empty)
 }
 
 AgentsToolsHandbackNext(){ ## member, spawn id, the outcome field of the handback
-	local nextMember="$1" nextSession="$2" nextOutcome="$3" nextRecord nextRoutine nextRoutineFile nextWant nextExecutors nextOwner nextLines nextLineCount nextLine nextNamed nextInput="" nextReal nextDir nextTop
+	local nextMember="$1" nextSession="$2" nextOutcome="$3" nextRecord nextRoutine nextRoutineFile nextWant nextExecutors nextOwner nextLines nextLineCount nextLine nextNamed nextInput="" nextReal="" nextVaultName="" nextDir nextTop
 	local nextMarker nextName nextTask nextManual nextWhy="" nextExecutorOk="no" nextAllowed nextEntry nextArgs=() nextGateRows nextGateRc=0
-	nextRecord="$( AgentsToolsSpawnRecordPath "$nextSession" )"
+	AgentsSessionRunRecordInto nextRecord "$nextSession" || :
 	[ -n "$nextRecord" ] || return 0
-	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandbox.include"
+	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandboxRecordHeader.include"
 	nextRoutine="$( AgentsToolsSpawnSandboxRecordHeader "$nextRecord" routine )"
 	nextRoutineFile="$( AgentsToolsHandbackNextRoutineFile "$nextRoutine" )"
 	[ -n "$nextRoutineFile" ] || return 0
@@ -116,7 +116,10 @@ AgentsToolsHandbackNext(){ ## member, spawn id, the outcome field of the handbac
 					*/*) nextWhy="the input is neither an absolute path of plain characters with no . or .. part, nor one bare vault epic item name: $nextInput." ;;
 					epic-blueprint-*)
 						## a name with no extension is the Markdown document of that name (the ruling in AgentsTools.InternOpVaultAudit.include)
-						case "$nextInput" in *.*) nextReal="${MDAT_DATA_ROOT:-}/vault/$nextInput" ;; *) nextReal="${MDAT_DATA_ROOT:-}/vault/$nextInput.md" ;; esac
+						nextVaultName="$nextInput"
+						case "$nextInput" in *.*) ;; *) nextVaultName="$nextInput.md" ;; esac
+						type AgentsToolsVaultItemPath > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/vault/AgentsTools.VaultPlace.include"
+						nextReal="$( AgentsToolsVaultItemPath "$nextVaultName" )" || nextReal=""
 						if [ -z "${MDAT_DATA_ROOT:-}" ] || [ ! -f "$nextReal" ] ; then
 							nextWhy="the input names no vault epic item: $nextInput."
 						fi

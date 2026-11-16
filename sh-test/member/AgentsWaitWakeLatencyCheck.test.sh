@@ -116,8 +116,12 @@ rigCurlReads(){ ## the fake Slack's own count of thread reads, or of one method 
 rigScenarioDir=""
 rigStart(){ ## scenario directory name
 	rigScenarioDir="$rigTmp/$1"
-	mkdir -p "$rigScenarioDir/ws/.local/.agents" "$rigScenarioDir/ws/.local/agents" \
-		"$rigScenarioDir/data/inboxes/$rigMember/incoming" "$rigScenarioDir/data/board/backlog" "$rigScenarioDir/slack" || exit 1
+	mkdir -p "$rigScenarioDir/ws/.local/.agents" "$rigScenarioDir/ws/.local/agents" "$rigScenarioDir/slack" || exit 1
+	. "$rigTest/check-fixtures/rig-owner-writes.include.sh" || exit 1
+	rigOwnerWs="$rigScenarioDir/ws" rigOwnerData="$rigScenarioDir/data"
+	rigOwnerHome="$rigScenarioDir/home" rigOwnerSkills="$rigScenarioDir/skills"
+	rigOwnerBoardReady || exit 1
+	rigOwnerInboxReady "$rigMember" || exit 1
 	printf 'SLACK_CHANNEL_MAGIC_TEAM=%s\nSLACK_CHANNEL_HUMAN_OWNER=URIGOWNER\nSLACK_BOT_TOKEN=rig-bot-token-TEAM\n' "$rigChannel" \
 		> "$rigScenarioDir/ws/.local/.agents/magic-team.agent.env"
 	printf 'SLACK_USER_TOKEN=rig-user-token-TESTER\n' > "$rigScenarioDir/ws/.local/.agents/$rigMember.agent.env"
@@ -138,7 +142,7 @@ rigMessageLands(){
 ## The wake marker of the member, as the send operation leaves it (AgentsTools.WakeMarker.include).
 rigMarker(){ printf '%s' "$rigScenarioDir/ws/.local/agents/wake/$rigMember" ; }
 rigWakeTest(){ ## who wrote it (the include's own touch, as the send calls it)
-	type AgentsToolsWakeTouch > /dev/null 2>&1 || . "$rigHere/comms/AgentsTools.WakeMarker.include" || return 1
+	type AgentsToolsWakeTouch > /dev/null 2>&1 || . "$rigHere/wait/AgentsTools.WakeMarker.include" || return 1
 	MMDAPP="$rigScenarioDir/ws" AgentsToolsWakeTouch "$rigMember" "${1:-$rigSender}"
 }
 ## Eight touches, a second apart: a touch lands inside every round of a one-second tick, so each one brings the
@@ -186,8 +190,8 @@ rigMeasure(){
 
 echo "-- a duty session wakes on an item arriving in its inbox --"
 rigStart inbox
-rigDropEarly(){ printf -- '---\ntype: inquiry\nfrom: %s\n---\n\nRIG-INBOX-EARLY\n' "$rigSender" > "$rigScenarioDir/data/inboxes/$rigMember/incoming/inquiry-rig-early.md" ; }
-rigDropLate(){ printf -- '---\ntype: inquiry\nfrom: %s\n---\n\nRIG-INBOX-LATE\n' "$rigSender" > "$rigScenarioDir/data/inboxes/$rigMember/incoming/inquiry-rig-late.md" ; }
+rigDropEarly(){ printf -- '---\ntype: inquiry\nfrom: %s\n---\n\nRIG-INBOX-EARLY\n' "$rigSender" | rigOwnerInboxPut "$rigMember" inquiry-rig-early.md ; }
+rigDropLate(){ printf -- '---\ntype: inquiry\nfrom: %s\n---\n\nRIG-INBOX-LATE\n' "$rigSender" | rigOwnerInboxPut "$rigMember" inquiry-rig-late.md ; }
 rigEarly="$( rigMeasure inbox-early 30 8 rigDropEarly --wait-source "inbox:$rigMember" )"
 rigTick="$( rigTickSeconds "$rigScenarioDir/inbox-early.out" )"
 printf '  measured: an inbox item dropped 8s into the wait, woken on in %ss (%s poll rounds), the waited line naming a %s tick\n' "$( rigFieldN "$rigEarly" 1 )" "$( rigFieldN "$rigEarly" 2 )" "$rigTick"
@@ -202,7 +206,7 @@ rigAssert "and the wait ticks right through it, at the tick the code names, not 
 
 echo "-- and on an item arriving in a board state it watches --"
 rigStart board
-rigBoardDrops(){ printf 'RIG-BOARD-ARRIVAL\n' > "$rigScenarioDir/data/board/backlog/task-rig-arrival.md" ; }
+rigBoardDrops(){ printf -- '---\ntype: task\nowner: %s\n---\n\nRIG-BOARD-ARRIVAL\n' "$rigMember" | rigOwnerBoardPut backlog task-rig-arrival.md ; }
 rigBoard="$( rigMeasure board-late 30 8 rigBoardDrops --wait-source "board:backlog" )"
 printf '  measured: a board item dropped 8s into the wait, woken on in %ss\n' "$( rigFieldN "$rigBoard" 1 )"
 rigAssert "a board item dropped 8s in is woken on within one tick"     "$( rigAtMost "$( rigFieldN "$rigBoard" 1 )" "$( rigDeadline "$rigTick" )" )" "at-most-$( rigDeadline "$rigTick" )"
@@ -279,7 +283,7 @@ rigScanWait(){ ## output name -- one call of the duty's wait, bounded by the ses
 }
 ## The arrival: the inbox item the work-duty report carries, and the marker the send operation writes.
 rigScanDrop(){ printf -- '---\ntype: inquiry\nfrom: %s\n---\n\nRIG-SCAN-ARRIVAL\n' "$rigSender" \
-	> "$rigScenarioDir/data/inboxes/$rigMember/incoming/inquiry-rig-scan.md" ; }
+	| rigOwnerInboxPut "$rigMember" inquiry-rig-scan.md ; }
 rigScanWait scan-first
 rigScanWait scan-measured &
 rigScanPid=$!

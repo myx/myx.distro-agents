@@ -23,6 +23,7 @@ rigRefuse(){
 ## A process this rig starts and signals later is noted with when it began, and is signalled only while its pid is still that process.
 . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-processes.include.sh" || rigRefuse "the rig's process helper is missing from the package: sh-test/check-fixtures/rig-processes.include.sh"
 . "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-writes.include.sh" || exit 1
 rigTmp="$( rigTempDir AgentsHarnessEscalationEdgeCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 trap 'chmod -R u+w "$rigTmp" 2>/dev/null ; rm -rf -- "$rigTmp"' EXIT
@@ -127,11 +128,11 @@ done
 
 echo "-- malformed planned allows are reported once and never admit --"
 rigStart planned yes
-mkdir -p "$rigScenarioDir/ws/DATA/board/running"
+:  ## the store folders are made by the write that fills them
 rigOk="$rigScenarioDir/ws/OUT/ok"
 rigBad="$rigScenarioDir/ws/OUT/bad"
 printf -- '---\nstatus: dispatch-started\nowner: %s\nsession-id: rig-plan\naccess-control: rig-garbage,participants:allow-once:%s:magic-coordinator:20260928T2200Z,participants:allow-write:%s::20260928T2200Z,participants:allow-write:%s:%s:20260928T2200Z,participants:allow-write:%s:magic-coordinator:20260928T2200Z\n---\n\n# Dispatch\n' \
-	"$rigMember" "$rigBad" "$rigBad" "$rigBad" "$rigMember" "$rigOk" > "$rigScenarioDir/ws/DATA/board/running/dispatch-rig.md"
+	"$rigMember" "$rigBad" "$rigBad" "$rigBad" "$rigMember" "$rigOk" | rigOwnerData="$rigScenarioDir/ws/DATA" rigOwnerBoardPut running "dispatch-rig.md"
 RIG_DATA_ROOT="$rigScenarioDir/ws/DATA"
 ## A home of the rig's own for the planned allows: the machine-wide grants are every workspace's registry through
 ## $HOME/.agents/magic-team, and the real ones deny magic-coordinator writes in the workspace this rig lies in, so the signer

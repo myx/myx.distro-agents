@@ -207,6 +207,14 @@ AgentsToolsInputScanDefAwait(){ ## definition lines (one a line), team member, s
 	return 0
 }
 
+## The sum a scan report is compared by, less its token counters: the board sections of a scan print the `tokens:` and
+## `tokens-total:` lines of every running item, and the harness rewrites those at every model round, so a report summed whole
+## differs at every wait and the wait never idles. Only a line of exactly the counters' own shape is left out
+## (AgentsSessionTokensRollupText). The seed below and the wait's probe (AgentsWaitProbeScan) both sum by this one rule.
+AgentsToolsInputScanReportSum(){ ## report file
+	LC_ALL=C awk '/^tokens(-total)?: in=[0-9]+ cache-read=[0-9]+ cache-write=[0-9]+ out=[0-9]+( \(incl\. [0-9]+ sub-sessions?\))?$/ { next ; } { print ; }' "$1" | LC_ALL=C cksum | LC_ALL=C awk '{ print $1 "-" $2 ; }'
+}
+
 ## THE POINTER OF A SCAN, KEPT FOR THE RUN (F10.5 gate B). The spawner runs a routine's scans and gives the run their reports (input/input-scan.md). A
 ## scan as a source of Wait (`scan:<scan>`, F3.3) wakes when its report differs from the one the session was last given, and the first time with the
 ## report it has, so a run's first `--idle-wait` on its declared scans would wake at once on the report it was just handed, and cost a model round to
@@ -227,9 +235,8 @@ AgentsToolsInputScanDefSeed(){ ## definition line, scan, team member, session id
 	## A scan called in a team session prints the reference to its kept report, and the report is that file (AgentsWaitProbeScan reads it so).
 	seedKept="$( LC_ALL=C sed -n 's/^\.\.\. KEPT: .* is in \(.*\) -- .*\.\.\.$/\1/p' "$seedFile" | head -1 )"
 	[ -z "$seedKept" ] || [ ! -f "$seedKept" ] || seedFile="$seedKept"
-	## The same sum a wait keeps of a report, less its token counters (AgentsWaitProbeScan), so the first
-	## --idle-wait compares content, not the counters the harness rewrites at every round.
-	seedSum="$( LC_ALL=C awk '/^tokens(-total)?: in=[0-9]+ cache-read=[0-9]+ cache-write=[0-9]+ out=[0-9]+( \(incl\. [0-9]+ sub-sessions?\))?$/ { next ; } { print ; }' "$seedFile" | LC_ALL=C cksum | LC_ALL=C awk '{ print $1 "-" $2 ; }' )"
+	## The same sum a wait keeps of a report (AgentsToolsInputScanReportSum), so the first --idle-wait compares content.
+	seedSum="$( AgentsToolsInputScanReportSum "$seedFile" )"
 	[ "$1" = "$2" ] || rm -f "$5.seed"
 	[ -n "$seedSum" ] && AgentsToolsSessionChatPointerSet "$4" "scan:$2:$3" "$seedSum" || :
 	return 0

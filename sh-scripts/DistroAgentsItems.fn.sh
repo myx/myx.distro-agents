@@ -69,12 +69,12 @@ DistroAgentsItems(){
 		## the mode, moves the flat inbox items by their processed stamp and pushes. Sourced,
 		## it runs on this arm's own words.
 		--repair-team-data-checkout)
-			type AgentsToolsTeamDataRepairMoveFlatItems > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataCheckoutRepair.include"
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataCheckoutRepair.include"
 			return $?
 		;;
 
 		--create-running|--move-to-backlog|--move-to-blocked|--move-to-parked|--move-to-pending|--move-to-processed)
-			type AgentsToolsBoardToProcessed > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.BoardMoves.include"
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.BoardMoves.include"
 			return $?
 		;;
 

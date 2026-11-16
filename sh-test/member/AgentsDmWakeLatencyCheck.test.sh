@@ -44,11 +44,13 @@ rigScene(){ ## name, the collect window in seconds
 	rigNow="$( date +%s )"
 	rigDir="$rigTmp/$1"
 	rigWs="$rigDir/ws" rigData="$rigDir/data"
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-writes.include.sh" || exit 1
+rigOwnerWs="${rigWs:-$rigTmp/ws}" rigOwnerData="${rigData:-${rigD:-${rigStore:-${rigOut:-$rigTmp/data}}}}" rigOwnerHome="${rigHome:-$rigTmp/home}" rigOwnerSkills="${rigSkills:-$rigTmp/skills}"
 	rm -rf "$rigDir"
-	mkdir -p "$rigWs/.local/.agents" "$rigWs/.local/temp" "$rigWs/.local/agents/sessions/$rigSession" "$rigData/inboxes/keeper-rig/incoming" "$rigData/inboxes/keeper-rig/processed" "$rigData/board"
+mkdir -p "$rigWs/.local/.agents" "$rigWs/.local/temp" "$rigWs/.local/agents/sessions/$rigSession" "$rigData/board"
 	printf 'SLACK_CHANNEL_MAGIC_TEAM=CRIG00001\nSLACK_BOT_TOKEN=rig-bot-token-TEAM\nWAIT_COLLECT_SECONDS=%s\n' "$2" > "$rigWs/.local/.agents/magic-team.agent.env"
-	printf -- '---\ntype: note\nfrom: magic-coordinator\n---\n\nRIG-INCOMING-NOTE\n' > "$rigData/inboxes/keeper-rig/incoming/note-20261019T0100Z-rig-open.md"
-	printf -- '---\ntype: note\nfrom: magic-coordinator\nprocessed-at: 2026-10-19 01:05 +0000\n---\n\nRIG-PROCESSED-NOTE\n' > "$rigData/inboxes/keeper-rig/processed/note-20261019T0000Z-rig-done.md"
+	printf -- '---\ntype: note\nfrom: magic-coordinator\n---\n\nRIG-INCOMING-NOTE\n' | rigOwnerInboxPut keeper-rig note-20261019T0100Z-rig-open.md
+	printf -- '---\ntype: note\nfrom: magic-coordinator\nprocessed-at: 2026-10-19 01:05 +0000\n---\n\nRIG-PROCESSED-NOTE\n' | rigOwnerInboxPut keeper-rig note-20261019T0000Z-rig-done.md
 	: > "$rigDir/api.log"
 	## The pointers of the session, a little behind now: what the last collect of this session had got to.
 	printf 'collect:keeper-rig:slack:magic-team\t%s.000000\ncollect:keeper-rig:tagged:keeper-rig\t%s.000000\n' "$(( rigNow - 100 ))" "$(( rigNow - 100 ))" > "$rigWs/.local/agents/sessions/$rigSession/session.chat.pointers"

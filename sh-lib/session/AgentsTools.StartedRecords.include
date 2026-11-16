@@ -170,6 +170,47 @@ AgentsToolsSpawnedStartedRecords(){ ## -- the paths of the started records, a li
 	return 0
 }
 
+## EVERY RUN RECORD OF THE WORKSPACE, into the named array, as the store keeps them: the one walk of spawned/ every reader
+## of all the records takes, so no other part names the folders. A reader that hands the array to grep or awk adds
+## /dev/null as a last file, so an empty store gives it nothing to read rather than its stdin. No process is started.
+AgentsToolsSpawnedAllRecordsInto(){ ## array variable, workspace (default MMDAPP)
+	local allWs="${2:-${MMDAPP:-/nonexistent}}" allOne
+	case "$1" in ''|*[!A-Za-z0-9_]*) return 1 ;; esac
+	eval "$1=()"
+	for allOne in "${allWs%/}/.local/agents/spawned"/*/*.spawn.md ; do
+		[ -f "$allOne" ] && eval "$1+=( \"\$allOne\" )"
+	done
+	return 0
+}
+
+## EVERY RUN RECORD'S HEADERS IN ONE READ OF THEM ALL, `<sandbox><TAB><record name><TAB><last write, epoch><TAB><value>...` a record: the
+## values of the keys asked, in order, each the first line of its key in the record's first frontmatter block, empty where it has none.
+## One stat and one awk over the records the walk above hands, never a process a record.
+AgentsToolsSpawnedRecordRows(){ ## workspace (empty: MMDAPP), key...
+	local rowsRecords=()
+	AgentsToolsSpawnedAllRecordsInto rowsRecords "${1:-}" || return 1
+	shift
+	[ ${#rowsRecords[@]} -gt 0 ] || return 0
+	{ LC_ALL=C stat -f '%m %N' "${rowsRecords[@]}" 2> /dev/null || LC_ALL=C stat -c '%Y %n' "${rowsRecords[@]}" 2> /dev/null ; printf '=\n' ; } | LC_ALL=C awk -v keys="$*" '
+		function flush( ) {
+			if ( record == "" ) return
+			recordName = record ; sub( /.*\//, "", recordName ) ; sub( /\.spawn\.md$/, "", recordName )
+			sandboxName = record ; sub( /\/[^\/]*$/, "", sandboxName ) ; sub( /.*\//, "", sandboxName )
+			line = sandboxName "\t" recordName "\t" ( record in writtenAt ? writtenAt[record] : "" )
+			for ( at = 1 ; at <= keyCount ; at++ ) line = line "\t" ( at in keyValue ? keyValue[at] : "" )
+			print line
+			split( "", keyValue ) ; record = ""
+		}
+		BEGIN { keyCount = split( keys, keyName, " " ) }
+		! statRead { if ( $0 == "=" ) statRead = 1 ; else { at = index( $0, " " ) ; writtenAt[ substr( $0, at + 1 ) ] = substr( $0, 1, at - 1 ) } ; next }
+		FNR == 1 { flush() ; record = FILENAME ; fence = 0 }
+		$0 == "---" { if ( ++fence > 1 ) { flush() ; nextfile } ; next }
+		fence != 1 { next }
+		{ for ( at = 1 ; at <= keyCount ; at++ ) if ( !( at in keyValue ) && index( $0, keyName[at] ": " ) == 1 ) keyValue[at] = substr( $0, length( keyName[at] ) + 3 ) }
+		END { flush() }
+	' - "${rowsRecords[@]}"
+}
+
 ## THE RECORDS OF THE RUNS A SPAWN STARTED, a path each: from the parent's list in
 ## `.local/agents/children/<parent-spawn-id>`, which the spawn proxy appends to as it spawns and
 ## the main loop rebuilds from the records and marks complete with `children/.indexed`
@@ -211,7 +252,7 @@ AgentsToolsSpawnedRegistryFile(){ ## workspace (default MMDAPP)
 	case "$registryStamp" in ''|*[!0123456789]*) registryStamp=0 ;; esac
 	case "$registryOwn" in ''|*[!0123456789]*) registryOwn=-1 ;; esac
 	if [ "$registryOwn" -le "$registryStamp" ] ; then
-		type AgentsToolsRegistrySpawnedSessionsRows > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.RegistrySpawnedSessions.include"
+		type AgentsToolsRegistrySpawnedSessionsRows > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.RegistrySpawnedSessions.include"
 		( MMDAPP="$registryWs" AGENTS_REGISTRY_HOUSEKEEPING=1 ; export MMDAPP AGENTS_REGISTRY_HOUSEKEEPING ; AgentsToolsRegistryWrite spawned-sessions AgentsToolsRegistrySpawnedSessionsRows ) > /dev/null 2>&1 || return 0
 	fi
 	[ ! -f "$registryFile" ] || printf '%s\n' "$registryFile"

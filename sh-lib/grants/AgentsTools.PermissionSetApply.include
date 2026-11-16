@@ -98,7 +98,11 @@ AgentsToolsPermissionSetApply(){ ## <pending-id> <approver>
 	applySetTime="$( date -u +%Y%m%dT%H%MZ )"
 	## Grants for the participants, in the session's store.
 	if [ -n "$applySetSession" ] && AgentsToolsAssertBareName "$applySetSession" "session-id" permission-set-apply 2>/dev/null ; then
-		applySetDir="$MMDAPP/.local/agents/sessions/$( AgentsToolsPermissionShareStore "$applySetSession" )"
+		type AgentsSessionFolderInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+		AgentsSessionFolderInto applySetDir "$MMDAPP" "$( AgentsToolsPermissionShareStore "$applySetSession" )" || {
+			echo "$MDSC_CMD: ⛔ ERROR: $applySetSession is no session of this workspace, so nothing is applied" >&2
+			set +e ; return 1
+		}
 		mkdir -p "$applySetDir" 2>/dev/null || { echo "$MDSC_CMD: ⛔ ERROR: can't create the session store for $applySetSession" >&2 ; set +e ; return 1 ; }
 		for applySetPart in $applySetParts ; do
 			AgentsToolsAssertBareName "$applySetPart" "participant" permission-set-apply 2>/dev/null || continue

@@ -38,7 +38,8 @@ rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 trap 'chmod -R u+rwX -- "$rigTmp" 2> /dev/null ; rigControlThreadsEnd "$rigTmp" ; rm -rf -- "$rigTmp" 2> /dev/null || { sleep 3 ; rm -rf -- "$rigTmp" 2> /dev/null ; }' EXIT
 rigWs="$rigTmp/ws-here" ; rigHome="$rigTmp/home" ; rigData="$rigTmp/data" ; rigSc="$rigTmp/sc"
 rigSkills="$rigWs/.local/agents/members"
-mkdir -p "$rigTmp/bin" "$rigSc" "$rigWs/.local/.agents" "$rigSkills" "$rigHome/.agents/magic-team" "$rigData/board/running" "$rigData/board/review"
+mkdir -p "$rigTmp/bin" "$rigSc" "$rigWs/.local/.agents" "$rigSkills" "$rigHome/.agents/magic-team"
+rigBoardStates "$rigData" running review
 cp "$rigTest/check-fixtures/slack-send-identity-check.curl.stub.sh" "$rigTmp/bin/curl" \
 	|| rigRefuse "the fake curl fixture is missing from the package: $rigTest/check-fixtures/slack-send-identity-check.curl.stub.sh"
 chmod +x "$rigTmp/bin/curl"
@@ -160,7 +161,7 @@ rigRun "$rigProxy" magic-team --dispatch-doc:create --context rig-team-not-membe
 rigAssert "the team, whose folder stands in the member set and whose SKILL.md says status: active, is refused: rc 1, nothing on stdout, one error line, which says it is the team itself and no member" \
 	"$( [ -d "$rigSkills/magic-team" ] && echo has-folder ) $( LC_ALL=C grep -c -x 'status: active' "$rigSkills/magic-team/SKILL.md" ) $rigRc $( wc -c < "$rigTmp/out" | LC_ALL=C tr -d ' ' ) $( rigRefused "$rigProxy" ) $( rigErrors )" "has-folder 1 1 0 1 1"
 rigAssert "and it leaves nothing behind: no sandbox, no record, no item, no console, no post, and no run store" "$( rigMade ) / $( rigStores )" "$rigMadeBefore / $rigStoresBefore"
-printf -- '---\ntype: dispatch\nowner: magic-team\nstatus: dispatch-started\n---\n\n# rig dispatch\n' > "$rigData/board/running/dispatch-20261013T1100Z-form.md"
+printf -- '---\ntype: dispatch\nowner: magic-team\nstatus: dispatch-started\n---\n\n# rig dispatch\n' | rigStoreItem "$rigData" board running dispatch-20261013T1100Z-form.md
 rigMadeBefore="$( rigMade )"
 rigFormsBad=""
 for rigForm in "--dispatch-doc:none" "--dispatch-doc:none --wait" "--dispatch-doc:create --wait" "--dispatch-doc:create --session-new" "--dispatch-doc:create --routine-default" "--dispatch-doc:create --routine solo" "--from-stdin --dispatch-doc:create --calling-member magic-coordinator" "--dispatch-doc:create --session-thread:event-track" "--from-board dispatch-20261013T1100Z-form.md --board-state running --dispatch-doc:reuse" ; do
@@ -216,7 +217,7 @@ rigRun --spawn-prompt keeper-myx --description rig-team-not-member
 rigAssert "control: a member the spawn relay does not start for is refused as before, as an unsupported caller" "$rigRc $( LC_ALL=C grep -c -F -- 'unsupported caller: keeper-myx' "$rigTmp/err" || : ) $( rigSaid "$rigTmp/err" )" "1 1 0"
 rigAssert "the root harness starts one member only, the coordinator, through that operation, and the main loop starts none itself: it names no other" \
 	"$( LC_ALL=C grep -v '^[[:space:]]*#' "$rigHere/harness/AgentsTools.InternRootHarness.include" | LC_ALL=C grep -c -F -- '--spawn-prompt magic-coordinator ' || : ) $( LC_ALL=C grep -v '^[[:space:]]*#' "$rigHere/magic/AgentsTools.InternMainLoop.include" | LC_ALL=C grep -c -e 'spawn-proxy "' -e 'spawn-member' -e 'spawn-session' || : )" "1 0"
-printf -- '---\ntype: dispatch\nowner: magic-team\nstatus: dispatch-started\nreview-since-epoch: 1000\n---\n\n# rig dispatch\n' > "$rigData/board/review/dispatch-20261013T1200Z-team.md"
+printf -- '---\ntype: dispatch\nowner: magic-team\nstatus: dispatch-started\nreview-since-epoch: 1000\n---\n\n# rig dispatch\n' | rigStoreItem "$rigData" board review dispatch-20261013T1200Z-team.md
 rigConsolesBefore="$( rigConsoles )"
 rigRun --return-review magic-coordinator dispatch-20261013T1200Z-team --message "redo the rig step"
 rigAssert "a review return of an item the team owns restarts nobody: it says the spawn of magic-team failed, with that line as the cause, and no console is started" \

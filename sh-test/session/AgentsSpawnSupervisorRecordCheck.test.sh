@@ -52,7 +52,8 @@ rigTmp="$( rigTempDir AgentsSpawnSupervisorRecordCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 rigWs="$rigTmp/ws" ; rigHome="$rigTmp/home" ; rigSkills="$rigTmp/skills" ; rigData="$rigTmp/data"
 rigSp="$rigWs/.local/agents/spawned"
-mkdir -p "$rigTmp/bin" "$rigTmp/held" "$rigTmp/unit" "$rigWs/.local/.agents" "$rigSp" "$rigHome" "$rigSkills" "$rigData/board/running" "$rigData/board/review"
+mkdir -p "$rigTmp/bin" "$rigTmp/held" "$rigTmp/unit" "$rigWs/.local/.agents" "$rigSp" "$rigHome" "$rigSkills"
+rigBoardStates "$rigData" running review
 rigHost="$( hostname -s 2> /dev/null )" ; [ -n "$rigHost" ] || rigHost="unknown"
 rigKept=""
 ## At the end every stand-in console still waiting is let go, with a handback, so that no supervising shell of
@@ -281,7 +282,7 @@ rigOldRecord="$rigSp/trk-rig-ret/rig-old-run.spawn.md"
 rigItem="dispatch-20261013T0900Z-rigret"
 printf -- '---\nsession-id: rig-old-run\nspawn-id: rig-old-run\nparent-spawn-id: none\ntracking-name: trk-rig-ret\nhost: %s\nowner: rig-member-a\nstatus: spawn-succeeded\nsession-thread: CEND00001:1700000000.000500\nspawns: %s\nsupervisor-process: %s\n---\n\n# Spawn session: rig-old-run\n' \
 	"$rigHost" "$rigItem" "$rigOldShell" > "$rigOldRecord"
-printf -- '---\ntype: dispatch\nowner: rig-member-a\nstatus: dispatch-started\nspawn-id: rig-old-run\n---\n\n# rig dispatch\n' > "$rigData/board/review/$rigItem.md"
+printf -- '---\ntype: dispatch\nowner: rig-member-a\nstatus: dispatch-started\nspawn-id: rig-old-run\n---\n\n# rig dispatch\n' | rigStoreItem "$rigData" board review $rigItem.md
 ( cd "$rigWs" && rigEnv "$rigDir" bash "$rigTool" --return-review magic-coordinator "$rigItem" --message "redo the rig step" > "$rigDir/return.out" 2>&1 )
 LC_ALL=C grep -q "^RETURN: restarted rig-member-a on $rigItem" "$rigDir/return.out" || rigRefuse "the return of the review restarted nothing, so no new run would be measured: $( LC_ALL=C grep -m1 -e ERROR -e '^RETURN: ' "$rigDir/return.out" )"
 rigRunStarted returned

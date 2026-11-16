@@ -43,7 +43,8 @@ rigTmp="$( rigTempDir AgentsSessionControlDeathCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 rigWs="$rigTmp/ws" ; rigHome="$rigTmp/home" ; rigSkills="$rigTmp/skills" ; rigData="$rigTmp/data" ; rigSlack="$rigTmp/slack"
 rigSp="$rigWs/.local/agents/spawned" ; rigStores="$rigWs/.local/agents/sessions" ; rigPending="$rigWs/.local/agents/pending"
-mkdir -p "$rigTmp/bin" "$rigWs/.local/.agents" "$rigSp" "$rigStores" "$rigHome" "$rigSkills" "$rigData/board/running" "$rigData/board/review" "$rigSlack"
+mkdir -p "$rigTmp/bin" "$rigWs/.local/.agents" "$rigSp" "$rigStores" "$rigHome" "$rigSkills" "$rigSlack"
+rigBoardStates "$rigData" running review
 rigHost="$( hostname -s 2> /dev/null )" ; [ -n "$rigHost" ] || rigHost="unknown"
 ## Every thread and stand-in of this check, and every post a thread of it started: at its end each is ended, with
 ## what it started, while it is still itself. The Slack of the rig is let go first, so no post waits on it.
@@ -157,7 +158,7 @@ rigClosed='resolved-at: 2026-10-13 09:30 +0300
 '
 rigItem(){ ## item stem, run id, review-by (may be empty), board state (running where not given)
 	printf -- '---\nstatus: dispatch-started\nspawn-id: %s\n%s---\n\n# the rig task of %s\n' "$2" "${3:+review-by: $3
-}" "$2" > "$rigData/board/${4:-running}/$1.md"
+}" "$2" | rigStoreItem "$rigData" board ${4:-running} $1.md
 }
 rigHeader(){ ## run id, header name -- its value in the frontmatter of that run's record
 	LC_ALL=C awk -v wantName="$2: " '

@@ -110,7 +110,9 @@ AgentsToolsPermissionCeilingRefuse(){ ## tool, natural target, session id, entry
 	case "$3" in
 		''|*/*|.|..) ;;
 		*)
-			for ceilRecord in "${MMDAPP%/}/.local/agents/spawned"/*/"$3.spawn.md" ; do
+			type AgentsSessionRunRecordInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+			AgentsSessionRunRecordInto ceilRecord "$3" || :
+			for ceilRecord in ${ceilRecord:+"$ceilRecord"} ; do
 				[ -f "$ceilRecord" ] || continue
 				ceilRoute="write to the session sandbox output/ instead, or a folder under it: ${ceilRecord%/*}/output/"
 				break
@@ -157,9 +159,9 @@ AgentsToolsPermissionFolderEntry(){ ## tool, natural target, session id
 
 ## THE PROJECT OF A REFUSED FILE, as one more answer of a single permission may grant it
 ## beside the folder: `<tool>:<project>/**`, natural -- the tool of the refused call, for the
-## project its file lies in, its project.inf with every file beside it. A project is a project
-## of a workspace's source tree: the nearest folder, at or above the file, that holds a
-## project.inf, inside the source folder of a workspace this machine knows. Printed only
+## project its file lies in, every file of that project beside it. A project is a project the
+## distro tooling names under a workspace's source tree: the nearest folder at or above the file
+## that it answers for, asked through its own operation (AgentsDistroProjectNearest). Printed only
 ## where the folder answer is offered (AgentsToolsPermissionFolderEntry), so under every limit
 ## that one has, and only where the project is wider than the folder: where it is the very
 ## folder of the file the two would grant the same, and the folder answer alone is offered.
@@ -191,12 +193,11 @@ AgentsToolsPermissionProjectEntry(){ ## tool, natural target, session id
 		done
 	done <<< "$( LocalToolsPlacesWorkspaceRoots "${MMDAPP%/}" 2> /dev/null )"
 	[ -n "$projectTree" ] || return 1
-	## The nearest folder, from the folder of the file up to the tree, that holds a project.inf.
-	projectOf="$projectFolder"
-	while [ "$projectOf" != "$projectTree" ] && [ ! -f "$projectOf/project.inf" ] ; do
-		projectOf="${projectOf%/*}"
-	done
-	[ "$projectOf" != "$projectTree" ] && [ "$projectOf" != "$projectFolder" ] || return 1
+	## The nearest project at or above the folder: the distro tooling's own answer (AgentsDistroProjectNearest), never a test of
+	## its project.inf. No project, or the project is the very folder of the file, offers the folder answer alone.
+	type AgentsDistroProjectNearest > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/distro/AgentsTools.DistroDoor.include" || return 1
+	projectOf="$( AgentsDistroProjectNearest "$projectTree" "$projectFolder" )" || return 1
+	[ "$projectOf" != "$projectFolder" ] || return 1
 	## What is printed is the folder answer of the project folder, so under its every limit.
 	AgentsToolsPermissionFolderEntry "$1" "$projectOf" "$3"
 }

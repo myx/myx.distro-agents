@@ -82,6 +82,7 @@ AgentsToolsSpawnSandboxFillInput(){ ## this run's input folder, brief text, boar
 			done <<< "$fillMembers"
 		done
 	} > "$fillInput/pointers.md" 2>/dev/null
+	type AgentsToolsSpawnConversationHistory > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionThreads.include"
 	[ -z "$fillConversations" ] || AgentsToolsSpawnConversationHistory "$fillInput/conversation.md" "$fillMember" "$fillConversations" "$fillItem"
 	## The result of the routine's own input scan, which the spawner ran (F6.3), beside the brief and the pointers. The
 	## brief names this file only when this start ran a scan, so the name always holds this start's report.

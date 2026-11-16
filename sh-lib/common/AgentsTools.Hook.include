@@ -1,0 +1,76 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.Hook.include -- the event hook between layers: a lower layer signals upward only
+## through a hook it exposes, which the upper layer registers. A store writer and a run closer call
+## only AgentsHookFire; they never name the upper layer's function or file. Sourced, never run.
+## Functions only. It calls nothing else in the package, so every layer may call it without a reach.
+##
+## Two registries, read in this order, one handler a line. The package's own, sh-lib/hooks.registry: each
+## upper layer declares its handler there, as a line it owns, so a fire finds it in every process and every
+## workspace, with no registration first. Then the workspace's, $MMDAPP/.local/agents/hooks.registry, for
+## a handler registered at run time (AgentsHookRegister). A line already read from the package's is not run
+## twice. Three whitespace columns, in registration order:
+##
+##   <hook> <function> <file>
+##
+## <file> is the handler's include path relative to $MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/.
+## Registration order is the order handlers run in, never sorted. It is a signal between this
+## host's own processes, like the wake marker; never team data.
+##
+
+## Appends one handler row when the exact line is absent, the grants.joined shape (idempotent append). Fork-free:
+## a while-read over the rows and a builtin printf, no grep process. Never fails its caller. The upper layer runs it
+## once at its own load.
+AgentsHookRegister(){ ## hook, function, file
+	local registerHook="$1" registerFunction="$2" registerFile="$3" registerPath registerLine=""
+	[ -n "${MMDAPP:-}" ] || return 0
+	registerPath="$MMDAPP/.local/agents/hooks.registry"
+	[ -d "${registerPath%/*}" ] || mkdir -p "${registerPath%/*}" 2> /dev/null || return 0
+	while IFS= read -r registerLine ; do
+		[ "$registerLine" != "$registerHook $registerFunction $registerFile" ] || return 0
+	done 2> /dev/null < "$registerPath"
+	printf '%s\n' "$registerHook $registerFunction $registerFile" >> "$registerPath" 2> /dev/null || :
+	return 0
+}
+
+## Fires one hook: reads the registry once, keeps the rows whose first column is the hook, and runs
+## each handler in order. One handler's failure never stops the rest: each one that answers non-zero
+## prints one error line, and the fire returns the first non-zero status it saw. A handler whose file
+## cannot load is the same loud path. A hook with no handler returns 0, prints nothing, and forks
+## nothing: one test on the registry file, then a read into a variable, then builtins only.
+AgentsHookFire(){ ## hook, then the handler's arguments
+	local fireHook="$1" fireRegistry="" fireLine="" fireFunction="" fireFile="" fireRc=0 fireFirst=0
+	[ -n "${MMDAPP:-}" ] || return 0
+	shift
+	local fireSeen=$'\n'
+	for fireRegistry in "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/hooks.registry" "$MMDAPP/.local/agents/hooks.registry" ; do
+	[ -f "$fireRegistry" ] || continue
+	while IFS= read -r fireLine ; do
+		case "$fireLine" in "$fireHook "*) ;; *) continue ;; esac
+		case "$fireSeen" in *$'\n'"$fireLine"$'\n'*) continue ;; esac
+		fireSeen="$fireSeen$fireLine"$'\n'
+		fireFunction="${fireLine#* }"
+		fireFile="${fireFunction#* }"
+		fireFunction="${fireFunction%% *}"
+		if type "$fireFunction" > /dev/null 2>&1 ; then
+			:
+		elif . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/$fireFile" ; then
+			:
+		else
+			echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools} hook $fireHook: handler $fireFunction could not load" >&2
+			[ "$fireFirst" -eq 0 ] && fireFirst=1
+			continue
+		fi
+		if "$fireFunction" "$@" ; then
+			:
+		else
+			fireRc=$?
+			[ "$fireFirst" -eq 0 ] && fireFirst="$fireRc"
+			echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools} hook $fireHook: handler $fireFunction answered $fireRc" >&2
+		fi
+	done < "$fireRegistry"
+	done
+	return "$fireFirst"
+}

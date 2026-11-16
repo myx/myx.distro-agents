@@ -119,6 +119,8 @@ AgentsToolsCommsActivityPass(){ ## now
 	actStore="$MMDAPP/.local/agents/comms/activity"
 	mkdir -p "$actStore" 2> /dev/null || return 0
 	type AgentsEventTrackPostQueueLines > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/event-track/AgentsTools.InternOpEventTrackPost.include" dummy-arg
+	type AgentsToolsEventTrackThreadOfInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/event-track/AgentsTools.EventTrackThread.include"
+	type AgentsEventTrackFeedPathInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/event-track/AgentsTools.EventTrackThread.include"
 	type AgentsToolsSessionRecordLive > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionSeats.include"
 	while IFS= read -r actRecord ; do
 		[ -f "$actRecord" ] || continue
@@ -139,16 +141,17 @@ AgentsToolsCommsActivityPass(){ ## now
 		## A run with no thread of its own is not tracked: its window is noted, so it is not looked at again for a minute.
 		## The thread a run's tracking goes to is the session's own record of it, the record's `agent-log-thread` where there is none.
 		actTrack=""
-		{ IFS= read -r actTrack < "$MMDAPP/.local/agents/sessions/$actSpawn/event-track.thread" ; } 2> /dev/null || actTrack=""
+		AgentsToolsEventTrackThreadOfInto actTrack "$actSpawn"
 		[ -z "$actTrack" ] || actThread="$actTrack"
 		case "$actThread" in ?*:?*) ;; *) printf '%s %s\n' "$actNow" "$actLines" > "$actStore/$actSpawn" 2> /dev/null ; continue ;; esac
 		[ -n "$actMember" ] || continue
 		AgentsToolsSessionRecordLive "$actRecord" || continue
 		## A RUN WHOSE FEED IS ON posts its feed and never its log: the feed carries the same tool calls, so both would post each call twice. The feed is the
-		## session's buffer (sessions/<id>/feed, written by every transcript event and tool line): this thread posts what it took a window ago as ONE post, and
-		## takes what has come since, so a writer that opened the feed just before it was taken has landed by the next window. The last 400 lines go in a post.
-		if [ -f "$MMDAPP/.local/agents/sessions/$actSpawn/feed.open" ] ; then
-			actFeed="$MMDAPP/.local/agents/sessions/$actSpawn/feed"
+		## session's buffer, written by every transcript event and tool line: this thread posts what it took a window ago as ONE post, and takes what has come
+		## since, so a writer that opened the feed just before it was taken has landed by the next window. The last 400 lines go in a post.
+		actFeed=""
+		AgentsEventTrackFeedPathInto actFeed "$actSpawn"
+		if [ -n "$actFeed" ] ; then
 			actTaken="$actFeed.posting"
 			printf '%s %s\n' "$actNow" "$actLines" > "$actStore/$actSpawn" 2> /dev/null || continue
 			if [ -s "$actTaken" ] ; then
@@ -190,7 +193,7 @@ AgentsToolsCommsActivityPass(){ ## now
 		fi
 		rm -f "$actTmp"
 		actDone=$(( actDone + 1 ))
-	done <<< "$( type AgentsToolsSpawnedStartedRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.StartedRecords.include"; AgentsToolsSpawnedStartedRecords )"
+	done <<< "$( type AgentsToolsSpawnedStartedRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include"; AgentsToolsSpawnedStartedRecords )"
 	return 0
 }
 
@@ -509,13 +512,8 @@ AgentsToolsSessionCommsSessions(){
 		sessionId="${sessionPidFile%/control/pid}" ; sessionId="${sessionId##*/}"
 		printf '%s\n' "$sessionId"
 	done | AgentsToolsSessionControlLive | while read -r liveId livePid ; do
-		sessionThread=""
-		{ IFS= read -r sessionThread < "$MMDAPP/.local/agents/sessions/$liveId/session.thread" ; } 2> /dev/null || :
-		## A session whose thread is named only in the record of its founding run: read there once, and kept in session.thread.
-		if [ -z "$sessionThread" ] ; then
-			sessionThread="$( LC_ALL=C awk '$0 == "---" { if ( ++fence > 1 ) exit ; next } fence == 1 && index( $0, "session-thread: " ) == 1 { print substr( $0, 17 ) ; exit }' "$MMDAPP/.local/agents/spawned/$liveId/$liveId.spawn.md" 2> /dev/null )"
-			case "$sessionThread" in [A-Z]*:[0-9]*.[0-9]*) printf '%s\n' "$sessionThread" > "$MMDAPP/.local/agents/sessions/$liveId/session.thread" 2> /dev/null || : ;; *) sessionThread="" ;; esac
-		fi
+		## The session's thread, from its own store (its founding run's record where the session names none).
+		sessionThread="$( AgentsSessionThread "$liveId" )"
 		[ -z "$sessionThread" ] || printf '%s %s\n' "$liveId" "$sessionThread"
 	done
 	return 0
@@ -668,7 +666,7 @@ AgentsToolsSessionCommsPauseSet(){ ## epoch
 ## record that carries the id as its session-id. Nothing for none.
 AgentsToolsSessionCommsMember(){ ## session
 	local memberRecord="" memberFile
-	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandbox.include"
+	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandboxRecordHeader.include"
 	for memberFile in "$MMDAPP/.local/agents/spawned"/*/"$1.spawn.md" ; do
 		[ -f "$memberFile" ] || continue
 		memberRecord="$memberFile"
@@ -676,7 +674,7 @@ AgentsToolsSessionCommsMember(){ ## session
 	done
 	if [ -z "$memberRecord" ] && [ -d "$MMDAPP/.local/agents/spawned" ] ; then
 		## The session's first record from the kept per-session list (AgentsTools.StartedRecords.include), never a grep of every record on a comms pass.
-		type AgentsToolsSpawnedSessionRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.StartedRecords.include"
+		type AgentsToolsSpawnedSessionRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include"
 		memberRecord="$( AgentsToolsSpawnedSessionRecords "$1" own 2> /dev/null | LC_ALL=C sed -n '1p' )" || memberRecord=""
 	fi
 	[ -n "$memberRecord" ] || return 0
@@ -792,8 +790,8 @@ AgentsToolsSessionCommsPost(){ ## session, outbox file `<n>.retry`
 		-H @- \
 		-H "Content-type: application/json" \
 		--data-binary "@$postWork/body" <<< "Authorization: Bearer $postToken" 2>&1 )" || postRc=$?
-	postStatus="$( LC_ALL=C awk '/^HTTP\// { s = $2 ; sub(/\r$/, "", s) ; } END { print s ; }' "$postWork/headers" 2> /dev/null )"
-	postWait="$( LC_ALL=C awk 'tolower($1) == "retry-after:" { v = $2 ; sub(/\r$/, "", v) ; } END { print v ; }' "$postWork/headers" 2> /dev/null )"
+	## The status and the Retry-After, in one read of the headers; `|` keeps an empty status in its own field.
+	IFS='|' read -r postStatus postWait <<< "$( LC_ALL=C awk '/^HTTP\// { s = $2 ; sub(/\r$/, "", s) ; } tolower($1) == "retry-after:" { v = $2 ; sub(/\r$/, "", v) ; } END { print s "|" v ; }' "$postWork/headers" 2> /dev/null )"
 	rm -rf "$postWork"
 	postNow="$( date +%s )"
 	if [ "$postRc" != 0 ] ; then

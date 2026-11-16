@@ -269,6 +269,7 @@ AgentsToolsCommsSlackResolveIds(){ ## <team-member> [--user-name <name>]... [--c
 	local alias aliasTarget aliasResolved aliasRc aliasChannel aliasInfo aliasInfoOk aliasInfoErr aliasName aliasNamePath
 	for alias in magic-team human-owner event-track event-alert ; do
 		aliasTarget="$alias"
+		type DistroAgentsToolsResolveTarget > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsResolveTarget.include"
 		aliasResolved="$( DistroAgentsToolsResolveTarget "$aliasTarget" )" && aliasRc=0 || aliasRc=$?
 		if [ "$aliasRc" != "0" ] ; then
 			echo "ALIAS|$alias|configured=false|reachable=false|error=unresolved"

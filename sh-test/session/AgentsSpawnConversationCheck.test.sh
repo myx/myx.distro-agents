@@ -28,7 +28,8 @@ trap 'chmod -R u+w -- "$rigTmp" 2>/dev/null ; rigControlThreadsEnd "$rigTmp" ; r
 rigWs="$rigTmp/ws"
 rigSkills="$rigTmp/skills"
 rigData="$rigTmp/data"
-mkdir -p "$rigWs/.local/.agents" "$rigTmp/bin" "$rigSkills/keeper-myx" "$rigSkills/magic-coordinator" "$rigSkills/magic-team" "$rigData/board/running"
+mkdir -p "$rigWs/.local/.agents" "$rigTmp/bin" "$rigSkills/keeper-myx" "$rigSkills/magic-coordinator" "$rigSkills/magic-team"
+rigBoardStates "$rigData" running
 
 ## Fake Slack: auth.test, chat.postMessage, and conversations.replies -- 60 messages in
 ## thread DRIGCONV:100.000001 (the last two tagged as team posts), 2 in any other thread.

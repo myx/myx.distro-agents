@@ -24,7 +24,7 @@ rigMachineSetup(){
 	rigScript=DistroAgentsTools ; rigAs=""
 	mkdir -p "$rigHome" "$rigWs/.local/.agents" "$rigWs/.local/temp" "$rigLive/myx/myx.distro-agents" "$rigLive/myx/myx.common/os-myx.common/host/tarball/share" "$rigData/inboxes" "$rigSkills/magic-team"
 	for rigSkill in magic-tester rig-member rig-other ; do
-		mkdir -p "$rigSkills/$rigSkill" "$rigData/inboxes/$rigSkill/incoming"
+		mkdir -p "$rigSkills/$rigSkill"
 		printf -- '---\nmaintainers: rig\n---\nrig identity\n' > "$rigSkills/$rigSkill/$rigSkill.basic.md" ; printf '# rig armed\n' > "$rigSkills/$rigSkill/$rigSkill.armed.md"
 		printf '# %s\n' "$rigSkill" > "$rigSkills/$rigSkill/SKILL.md"
 	done

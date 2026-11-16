@@ -42,26 +42,25 @@ rigAssert(){ ## what is asserted, got, want
 	fi
 }
 rigW="$rigTmp/ws" rigD="$rigTmp/data" rigH="$rigTmp/home"
-mkdir -p "$rigW/.local/.agents" "$rigW/.local/agents/spawned" "$rigW/.local/agents/members/magic-coordinator" "$rigD/inboxes/magic-coordinator/incoming" "$rigH"
+mkdir -p "$rigW/.local/.agents" "$rigW/.local/agents/spawned" "$rigW/.local/agents/members/magic-coordinator" "$rigH"
 ## The rig's own workspace has a source folder: the context of the tool is detected from it.
 rigCopyTree "${rigHere%/myx/myx.distro-agents/sh-lib}" "$rigW/source" || rigRefuse "the rig's source copy could not be made"
 printf '# magic-coordinator\n' > "$rigW/.local/agents/members/magic-coordinator/SKILL.md"
 printf 'SLACK_CHANNEL_MAGIC_TEAM=CRIG00001\nSLACK_CHANNEL_HUMAN_OWNER=URIGOWNER\nSLACK_BOT_TOKEN=rig-bot-token-TEAM\nWAIT_COLLECT_SECONDS=1\n' > "$rigW/.local/.agents/magic-team.agent.env"
-for rigState in pending running blocked parked review ; do
-	mkdir -p "$rigD/board/$rigState"
-done
 rigItem="$rigD/board/running/dispatch-rig-running.md"
 rigItemWrite(){ ## the tokens line the running item holds
 	printf -- '---\ntype: dispatch\nowner: magic-coordinator\nstatus: dispatch-started\n%s\n---\n\n# Rig running item\n' "$1" > "$rigItem"
 }
 rigItemWrite "tokens: in=1 cache-read=2 cache-write=3 out=4"
 rigSession="rig-scan-tokens-session" rigRun="rig-scan-tokens-run"
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-writes.include.sh" || exit 1
+rigOwnerWs="${rigWs:-$rigTmp/ws}" rigOwnerData="${rigData:-${rigD:-${rigStore:-${rigOut:-$rigTmp/data}}}}" rigOwnerHome="${rigHome:-$rigTmp/home}" rigOwnerSkills="${rigSkills:-$rigTmp/skills}"
 ## One Wait on the scan source, timeout 0, as a run of the team session.
 rigWait(){ ## result name
 	local waitRc=0
 	( cd "$rigW" && env -u MDAT_SKILLSET_ROOT -u CLAUDE_CODE_SESSION_ID HOME="$rigH" MMDAPP="$rigW" MDLT_ORIGIN="$rigW/source" MDAT_DATA_ROOT="$rigD" RIG_SCENARIO="$rigTmp" \
 		MDAT_SESSION_ID="$rigSession" MDAT_SPAWN_SESSION_ID="$rigRun" MDAT_SPAWN_AGENT=magic-coordinator MDAT_WAIT_REMIND=off \
-		python3 -I -B "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-exec.py" --alarm 120 -- bash "$rigW/source/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --wait-for-input magic-coordinator --wait-source scan:work-duty --wait-timeout 0 ) > "$rigTmp/$1.out" 2> "$rigTmp/$1.err" < /dev/null 4> /dev/null || waitRc=$?
+		python3 -I -B "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-exec.py" --alarm 120 -- bash "$rigW/source/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --wait-for-input --team-member magic-coordinator --wait-source scan:work-duty --wait-timeout 0 ) > "$rigTmp/$1.out" 2> "$rigTmp/$1.err" < /dev/null 4> /dev/null || waitRc=$?
 	printf '%s' "$waitRc" > "$rigTmp/$1.rc"
 }
 rigResult(){ ## result name -- the outcome word of its WAIT-RESULT line, or none
@@ -89,7 +88,7 @@ rigItemWrite "tokens: unknown"
 rigWait w4
 rigAssert "RECEIVED, with the line"                               "$( rigResult w4 ):$( rigHolds w4 'tokens: unknown' )" "RECEIVED:yes"
 echo "-- 5. a note added to the inbox wakes the wait --"
-printf -- '---\ntype: note\nfrom: magic-coordinator\n---\n\n# Note: scan tokens quiet\n' > "$rigD/inboxes/magic-coordinator/incoming/note-20261022T1700Z-scan-tokens-quiet.md"
+printf -- '---\ntype: note\nfrom: magic-coordinator\n---\n\n# Note: scan tokens quiet\n' | rigOwnerInboxPut magic-coordinator note-20261022T1700Z-scan-tokens-quiet.md
 rigWait w5
 rigAssert "RECEIVED, with the note added"                         "$( rigResult w5 ):$( rigHolds w5 'note-20261022T1700Z-scan-tokens-quiet' )" "RECEIVED:yes"
 

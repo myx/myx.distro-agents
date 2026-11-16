@@ -18,6 +18,7 @@ managing blast radius when the run itself has real consequences.
 - Read the instrument before trusting the measurement
 - A system's enforcement path and its reporting path are different surfaces
 - A refusal for want of privilege reads exactly like an empty result
+- A limit and its cause are two measurements
 - One store's operations do not share a name grammar
 - A probe answers its own predicate, not the question it was asked
 - A check over a cumulative source measures a window it never named
@@ -107,10 +108,14 @@ broken when the arm agrees under a flip it must respond to. Name that flip
 before the probe runs, hold every other input, and keep one arm that must move
 beside it.
 
+**A two-sided contract is checked with the real reader and the real writer.** A stand-in that hard-codes one end proves that end alone. Where either end is fixed by hand, the pair is untested.
+
 **A rule drawn from an evidence table is quoted against every row of that
 table.** A row where the subject passes is a subject behaving correctly, not an
 instrument failing to fire. A generalisation that the table's own passing row
 refutes is the draft being wrong, and the row is the evidence.
+
+**A criterion written in a comment is not a check.** The line the script runs is all that reads it. A clause no case can fail is a sentence, not a check.
 
 ## Verify what stores, not what sends
 
@@ -250,6 +255,14 @@ measurement wearing the claim's words. Name the population the instrument
 actually covered, in the sentence stating the result, and widen the run rather
 than the wording.
 
+**A rig whose subject reads a stored record asserts the subject read the record the rig wrote.** Read the subject's own state file. Check the source is in it before measuring any figure from it.
+
+**A listing's column names its own subject.** A value is about that subject. A column headed `from` answers who wrote the row, never which store holds it. Read the heading as the subject of its values. Take the folder the question is about from the call's own filter.
+
+**A check that needs an identity the run lacks gives a red-looking refusal.** Read the check's own header for the identity it needs. Name in the round every check that cannot run under the run's own identity. Neither is a finding about the code.
+
+**An agreed conclusion is re-read least.** Restating it in other words is not checking it. A restatement taken as confirmation closes the question unchecked.
+
 ## A system's enforcement path and its reporting path are different surfaces
 
 Neither one's silence describes the other. Reading the code that enforces a rule
@@ -291,6 +304,10 @@ A refusal line describes the call, not the store. One known-good item through
 the same call, with its full name and its processed flag, settles what "not
 found" means here.
 
+## A limit and its cause are two measurements
+
+**A guard or limit is measured on both sides.** A set of refusals shows what it stops, never what it allows. A true limit does not prove which mechanism imposed it. Run accept cases beside the refuse cases. Name the mechanism only where an accept case and a refuse case separate the two.
+
 ## One store's operations do not share a name grammar
 
 One store's operations do not share a name grammar. A refusal from one says
@@ -317,7 +334,7 @@ answer for the closers alone. Neither result describes the store.
 
 A check that runs cleanly reports on the condition it actually evaluates. A
 false positive lives in the distance between that condition and the claim it
-gets quoted for. Four shapes it takes, each producing a wrong
+gets quoted for. Five shapes it takes, each producing a wrong
 report to the owner:
 
 - **Existence is not configuration.** `[ -f ]` passes on a zero-byte file. Where most files of a kind are empty, a `[ -f ]` probe
@@ -346,6 +363,7 @@ requires nothing. A console
   fact about one list. Reach that name by a second route before reporting it absent. That route is a
   known install location, a framework bundle, or a package that ships it. Re-running the same lookup does
   not widen it.
+- **A probe that scans places in a fixed order answers its own order.** A subject in two of them is reported from the first. Read the probe's predicate before trusting its answer. Read the subject by a path that cannot be ambiguous.
 
 So state the claim, read the predicate the probe evaluates, and check the two
 are the same sentence. Where they differ, the fix is the stronger probe rather
@@ -401,6 +419,8 @@ times on a machine holding 18 to 24 other runs, saying in its own last line that
 the death it measures was never asked. It then passed whole on the same code at a
 quiet moment. So read the check's own last line, which names which of the two
 happened, and never count a refusal as a red.
+
+**A check killed at its own bound leaves no row.** It reads as a check that does not exist. A killed run reports nothing about its subject. Where a run folder holds no row for a check, read the call's own bound beside the runner's last line. Do that before reporting the subject unmeasured.
 
 ## A guard that fires is evidence. A guard that stays silent carries none
 
@@ -518,6 +538,8 @@ literally. Build these into the corpus as a transformation or path-handling rout
 written. Assert the intended behavior for each. That is a stronger statement
 than the absence of a crash.
 
+**An inherited acceptance figure is a floor.** It is never the whole measure. Where a fix removes what a count names, enumerate the other decisions its predicate makes. Report each one.
+
 ## A sanitised environment manufactures the failure it then reports
 
 `env -i` strips `PATH` and `HOME` along with everything else. A probe run
@@ -611,3 +633,4 @@ per behaviour.
   `MDLT_ORIGIN` names, and say which tree that was. Meant for
   `ws-myx-devops/source/myx`, it is 7. Meant for `ws-myx.prv-farm/.local/myx`,
   it is 6.
+- **Re-derive the route from a check to its guarded line.** A gate that landed since can outgrow a task's own recipe. Read the path the code takes now. Prove the row on a reverted copy, with a clean copy beside it.

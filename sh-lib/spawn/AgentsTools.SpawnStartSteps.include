@@ -9,14 +9,17 @@ AgentsToolsStartStepBegin(){
 	agentsStartStepFirst="$( date +%s )" ; agentsStartStepAt="$agentsStartStepFirst" ; agentsStartSteps=""
 }
 AgentsToolsStartStepMark(){ ## step name
-	local markNow markSteps
+	local markNow markSteps markFile
 	markNow="$( date +%s )"
 	[ -n "${agentsStartStepAt:-}" ] || return 0
 	markSteps="$(( markNow - agentsStartStepAt ))s"
 	agentsStartSteps="${agentsStartSteps:+$agentsStartSteps }$1=$markSteps"
 	if [ -n "${MDAT_SPAWN_SESSION_ID:-}" ] && [ -n "${MMDAPP:-}" ] ; then
-		mkdir -p "$MMDAPP/.local/agents/sessions/$MDAT_SPAWN_SESSION_ID" 2> /dev/null || :
-		printf '%s=%s\n' "$1" "$markSteps" >> "$MMDAPP/.local/agents/sessions/$MDAT_SPAWN_SESSION_ID/launch.steps" 2> /dev/null || :
+		type AgentsSessionPartInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+		AgentsSessionPartInto markFile "$MMDAPP" "$MDAT_SPAWN_SESSION_ID" launch.steps && {
+			mkdir -p "${markFile%/*}" 2> /dev/null || :
+			printf '%s=%s\n' "$1" "$markSteps" >> "$markFile" 2> /dev/null || :
+		}
 	fi
 	agentsStartStepAt="$markNow"
 }

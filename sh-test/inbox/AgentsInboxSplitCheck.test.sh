@@ -50,6 +50,8 @@ printf 'rig\n' > "$rigSkills/magic-coordinator/magic-coordinator.basic.md"
 
 rigPassCount=0
 rigFailCount=0
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-writes.include.sh" || exit 1
+rigOwnerWs="${rigWs:-$rigTmp/ws}" rigOwnerData="${rigData:-${rigD:-${rigStore:-${rigOut:-$rigTmp/data}}}}" rigOwnerHome="${rigHome:-$rigTmp/home}" rigOwnerSkills="${rigSkills:-$rigTmp/skills}"
 rigAssert(){ ## what is asserted, got, want
 	if [ "$2" = "$3" ] ; then
 		printf '  PASS  %s\n' "$1" ; rigPassCount=$(( rigPassCount + 1 ))
@@ -180,7 +182,6 @@ rigOp "$rigTmp/t5" --trash-inbox-item --team-member rig-member note-20261018T099
 rigAssert "a name in neither folder: not found, non-zero, naming it" "$( [ "$( cat "$rigTmp/t5.rc" )" -ne 0 ] && printf non-zero || printf 0 ):$( rigHolds "$rigTmp/t5" 'not found' ):$( rigHolds "$rigTmp/t5" note-20261018T0999Z-nowhere.md )" "non-zero:yes:yes"
 
 echo "-- 11. a routine's standing state and lock note lives in incoming/ of a split inbox --"
-mkdir -p "$rigData/inboxes/magic-coordinator/incoming"
 rigLockNote=note-20260809T155000Z-heartbeat-state-and-lock.md
 rigOp "$rigTmp/k1" --state-note-lock-acquire --team-member magic-coordinator rig-inbox-split
 rigAssert "the lock is taken"                                 "$( cat "$rigTmp/k1.rc" ):$( rigHolds "$rigTmp/k1" ACQUIRED )" "0:yes"

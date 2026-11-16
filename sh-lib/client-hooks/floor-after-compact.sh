@@ -28,6 +28,7 @@ floorText(){ ## the pointer, one line a sentence, or nothing where there is no m
 	floorNameOk "$floorMember" || return 1
 	printf 'Your conversation was just compacted, and what you loaded before it may be gone. Load your floor again before you act, with the Skill tool: magic-team (file magic-team.armed.md), then %s (file %s.armed.md). Then carry on with your task.' "$floorMember" "$floorMember"
 }
+## Mirrors AgentsSessionMarkerFile <session> floor-dropped: its rig runs with no MDLT_ORIGIN, so the package never loads here.
 floorMarker(){ ## the marker file, or nothing
 	floorNameOk "$floorSession" && [ -n "${MMDAPP:-}" ] || return 1
 	printf '%s' "$MMDAPP/.local/agents/sessions/$floorSession/floor-dropped"

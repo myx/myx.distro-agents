@@ -30,19 +30,28 @@ set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigOrigin="$( cd "$MDLT_ORIGIN" && pwd -P )" || exit 1
 rigKnowledge="$rigOrigin/myx/myx.distro-agents/sh-scripts/DistroAgentsKnowledge.fn.sh"
+rigRefuse(){
+	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
+}
 mkdir -p "$MMDAPP/.local/temp" || exit 1
 rigTmp="$( mktemp -d "$MMDAPP/.local/temp/AgentsKnowledgeQueryCheck.XXXXXX" )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
 rigWs="$rigTmp/ws" rigData="$rigTmp/data"
-mkdir -p "$rigWs/.local/.agents" "$rigWs/.local/agents" "$rigTmp/home" "$rigTmp/skills" "$rigData/board/backlog" "$rigData/inboxes/keeper-rig/incoming"
-printf -- '---\ntype: task\nowner: keeper-rig\n---\n\n# Rig task alpha\n\nThe RIGWORDONE and the RIGWORDTWO stand here together.\n' > "$rigData/board/backlog/task-20261019T0100Z-rig-alpha.md"
-printf -- '---\ntype: task\nowner: keeper-rig\n---\n\n# Rig task beta\n\nOnly the RIGWORDONE stands here.\n' > "$rigData/board/backlog/task-20261019T0101Z-rig-beta.md"
-printf -- '---\ntype: task\nowner: keeper-rig\n---\n\n# Rig task gamma\n\nNothing of the words here.\n' > "$rigData/board/backlog/task-20261019T0102Z-rig-gamma.md"
-printf -- '---\ntype: note\nfrom: magic-coordinator\n---\n\nThe RIGINBOXWORD of a note.\n' > "$rigData/inboxes/keeper-rig/incoming/note-20261019T0103Z-rig-note.md"
-mkdir -p "$rigData/inboxes/keeper-rig/processed" "$rigData/inboxes/keeper-other/incoming"
-printf -- '---\ntype: note\nfrom: magic-coordinator\n---\n\nThe RIGPROCWORD of a note done.\n' > "$rigData/inboxes/keeper-rig/processed/note-20261019T0104Z-rig-done.md"
-printf -- '---\ntype: note\nfrom: magic-coordinator\n---\n\nThe RIGOTHERWORD of another member.\n' > "$rigData/inboxes/keeper-other/incoming/note-20261019T0105Z-rig-other.md"
+mkdir -p "$rigWs/.local/.agents" "$rigWs/.local/agents" "$rigTmp/home" "$rigTmp/skills"
+. "$rigOrigin/myx/myx.distro-agents/sh-test/check-fixtures/rig-store-item.include.sh" || exit 1
+## Every item the query reads is written by its store's own writer (rig-store-item.include.sh), and so is every folder
+## it lies in: a hand-written fixture stays green when that writer's own path changes.
+rigBodyCount=0
+rigStoreBody(){ ## text -- the path of a body file holding it
+	rigBodyCount=$(( rigBodyCount + 1 ))
+	printf '%s\n' "$1" > "$rigTmp/body$rigBodyCount"
+	printf '%s' "$rigTmp/body$rigBodyCount"
+}
+rigItem(){ ## selector (`board backlog task-x.md`, `inbox keeper-rig note-x.md`), body text
+	rigStoreItem "$rigTmp" "$rigData" "$rigWs" keeper-rig "$1" "$( rigStoreBody "$2" )" \
+		|| rigRefuse "could not build the fixture item $1 through its store's own writer"
+}
 
 rigPassCount=0
 rigFailCount=0
@@ -74,6 +83,10 @@ rigHolds(){ ## result name, text -- yes or no
 }
 
 echo "-- 1. board items: the snippet holding the word, with its item named --"
+rigItem "board backlog task-20261019T0100Z-rig-alpha.md" "$( printf -- '---\ntype: task\nowner: keeper-rig\n---\n\n# Rig task alpha\n\nThe RIGWORDONE and the RIGWORDTWO stand here together.\n' )"
+rigItem "board backlog task-20261019T0101Z-rig-beta.md" "$( printf -- '---\ntype: task\nowner: keeper-rig\n---\n\n# Rig task beta\n\nOnly the RIGWORDONE stands here.\n' )"
+rigItem "board backlog task-20261019T0102Z-rig-gamma.md" "$( printf -- '---\ntype: task\nowner: keeper-rig\n---\n\n# Rig task gamma\n\nNothing of the words here.\n' )"
+rigItem "inbox keeper-rig note-20261019T0103Z-rig-note.md" "$( printf -- '---\ntype: note\nfrom: magic-coordinator\n---\n\nThe RIGINBOXWORD of a note.\n' )"
 rigQuery one --add-board-items --query-keyword RIGWORDONE
 rigAssert "exit 0; alpha and beta shown, each named, gamma not" "$( cat "$rigTmp/one.rc" ):$( rigHolds one task-20261019T0100Z-rig-alpha ):$( rigHolds one task-20261019T0101Z-rig-beta ):$( rigHolds one task-20261019T0102Z-rig-gamma )" "0:yes:yes:no"
 rigAssert "the snippet is the text that holds the word"         "$( rigHolds one 'Only the RIGWORDONE stands here.' )" "yes"
@@ -95,8 +108,7 @@ print( "json" if "task-20261019T0100Z-rig-alpha" in text else "json-without-sour
 echo "-- 5. the vault is kept: taken as a source, and read once it has content --"
 rigQuery vault --add-vault-items --query-keyword RIGWORDONE
 rigAssert "no vault/ yet: accepted, rc 0, nothing shown"                 "$( cat "$rigTmp/vault.rc" ):$( rigHolds vault RIGWORDONE ):$( LC_ALL=C grep -c . "$rigTmp/vault.out" || : )" "0:no:0"
-mkdir -p "$rigData/vault"
-printf -- '---\ntype: verbatim-note\n---\n\n# Rig vault item\n\nThe RIGVAULTWORD of a document.\n' > "$rigData/vault/verbatim-20261019T0200Z-rig-vault.md"
+rigItem "vault verbatim-20261019T0200Z-rig-vault.md" "$( printf -- '---\ntype: verbatim-note\n---\n\n# Rig vault item\n\nThe RIGVAULTWORD of a document.\n' )"
 rigQuery vault2 --add-vault-items --query-keyword RIGVAULTWORD
 rigAssert "a text file under vault/: shown, named"                       "$( cat "$rigTmp/vault2.rc" ):$( rigHolds vault2 verbatim-20261019T0200Z-rig-vault ):$( rigHolds vault2 'The RIGVAULTWORD of a document.' )" "0:yes:yes"
 
@@ -115,6 +127,10 @@ rigQuery glob --add-board-items --query-glob '*stand here together*'
 rigAssert "a glob is shell-style on a whole line"                        "$( rigHolds glob task-20261019T0100Z-rig-alpha ):$( rigHolds glob task-20261019T0101Z-rig-beta )" "yes:no"
 
 echo "-- 7. the inbox is the acting member's own; the console reads every member's --"
+rigStoreItem "$rigTmp" "$rigData" "$rigWs" magic-coordinator "inbox-processed keeper-rig note-20261019T0104Z-rig-done.md" "$( rigStoreBody "$( printf -- '---\ntype: note\nfrom: magic-coordinator\n---\n\nThe RIGPROCWORD of a note done.\n' )" )" \
+	|| rigRefuse "could not build the processed inbox item note-20261019T0104Z-rig-done.md"
+rigStoreItem "$rigTmp" "$rigData" "$rigWs" magic-coordinator "inbox keeper-other note-20261019T0105Z-rig-other.md" "$( rigStoreBody "$( printf -- '---\ntype: note\nfrom: magic-coordinator\n---\n\nThe RIGOTHERWORD of another member.\n' )" )" \
+	|| rigRefuse "could not build the inbox item note-20261019T0105Z-rig-other.md"
 rigQuery own --add-inbox-items --query-keyword RIGPROCWORD
 rigQuery other --add-inbox-items --query-keyword RIGOTHERWORD
 rigAssert "keeper-rig: its processed/ note shown, another member's note not" "$( rigHolds own note-20261019T0104Z-rig-done ):$( rigHolds other note-20261019T0105Z-rig-other )" "yes:no"
@@ -178,15 +194,18 @@ rigIx="$rigTmp/ix" rigIxData="$rigTmp/ixdata"
 rigPythonDir="$( dirname "$( command -v python3 )" )"
 rigIxPackage="$rigOrigin/myx/myx.distro-agents"
 rigIxLib="$rigTmp/ixlib"
-mkdir -p "$rigIx/.local/lancedb/venv/bin" "$rigIx/.local/lancedb/model/potion-base-8M" "$rigIx/.local/agents" "$rigIxData/vault" "$rigIxLib"
+mkdir -p "$rigIx/.local/lancedb/venv/bin" "$rigIx/.local/lancedb/model/potion-base-8M" "$rigIx/.local/agents" "$rigIxLib"
 cp "$rigIxPackage/sh-test/check-fixtures/knowledge-store.python.stub.sh" "$rigIx/.local/lancedb/venv/bin/python" || rigRefuse "the Python stand-in is missing"
 chmod +x "$rigIx/.local/lancedb/venv/bin/python"
 printf 'LANCEDB_MODEL_NAME=potion-base-8M\nLANCEDB_MODEL_REVISION=rig111\nLANCEDB_MODEL_DIM=2\n' > "$rigIx/.local/lancedb/lancedb.env"
 cp -R "$rigIxPackage/sh-test/check-fixtures/knowledge-store-lancedb.stub/lancedb" "$rigIxLib/lancedb" || rigRefuse "cannot stage the lancedb stand-in"
 cp -R "$rigIxPackage/sh-test/check-fixtures/knowledge-store-model2vec.stub/model2vec" "$rigIxLib/model2vec" || rigRefuse "cannot stage the model2vec stand-in"
-printf -- '---\ntype: note\n---\n\n# A deployment\n\nA failed deployment goes back to the earlier build.\n' > "$rigIxData/vault/note-20260101T0000Z-deploy.md"
-printf -- '---\ntype: note\n---\n\n# An exact term\n\nThe RIGIXEXACTWORD stands here.\n' > "$rigIxData/vault/note-20260101T0001Z-exact.md"
-printf -- '---\ntype: note\n---\n\n# A secret\n\nA failed release returns to the previous build.\n' > "$rigIxData/vault/note-20260101T0002Z-secret.md"
+rigStoreItem "$rigTmp" "$rigIxData" "$rigWs" keeper-rig "vault note-20260101T0000Z-deploy.md" "$( rigStoreBody "$( printf -- '---\ntype: note\n---\n\n# A deployment\n\nA failed deployment goes back to the earlier build.\n' )" )" \
+	|| rigRefuse "could not build the index fixture note-20260101T0000Z-deploy.md"
+rigStoreItem "$rigTmp" "$rigIxData" "$rigWs" keeper-rig "vault note-20260101T0001Z-exact.md" "$( rigStoreBody "$( printf -- '---\ntype: note\n---\n\n# An exact term\n\nThe RIGIXEXACTWORD stands here.\n' )" )" \
+	|| rigRefuse "could not build the index fixture note-20260101T0001Z-exact.md"
+rigStoreItem "$rigTmp" "$rigIxData" "$rigWs" keeper-rig "vault note-20260101T0002Z-secret.md" "$( rigStoreBody "$( printf -- '---\ntype: note\n---\n\n# A secret\n\nA failed release returns to the previous build.\n' )" )" \
+	|| rigRefuse "could not build the index fixture note-20260101T0002Z-secret.md"
 printf 'keeper-rig:ix:workspace:Read(/%s/vault/note-20260101T0000Z-deploy.md)\nkeeper-rig:ix:workspace:Read(/%s/vault/note-20260101T0001Z-exact.md)\n' "$rigIxData" "$rigIxData" > "$rigIx/.local/agents/permissions.registry"
 rigIxSections="$( printf '%s\n' "$rigIxData/vault/note-20260101T0000Z-deploy.md" "$rigIxData/vault/note-20260101T0001Z-exact.md" "$rigIxData/vault/note-20260101T0002Z-secret.md" | LC_ALL=C awk -v format=index -v dataRoot="${rigIxData%/}/" -f "$rigIxPackage/sh-lib/knowledge/AgentsKnowledgeScan.awk" )"
 if printf '%s' "$rigIxSections" | env -i HOME="$rigTmp/home" PATH="/usr/bin:/bin:/usr/sbin:/sbin:$rigPythonDir" RIG_LANCEDB_STUB="$rigIxLib" \

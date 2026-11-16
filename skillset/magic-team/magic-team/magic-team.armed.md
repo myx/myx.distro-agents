@@ -159,6 +159,7 @@ All statements apply at the same time, always. These rules override a magic-team
 - Whatever it waits for — an answer, a verdict, a spawned member, a board or inbox change — it waits with `Wait`. `Wait` with no sources waits on the session thread.
 - `TIMEOUT` is a normal result, never an answer. Read what is pending (`--read-pending-reply`), then wait again or re-ask. People may take hours. An open record's own `asker-live:` says whether the asking run is still there. `no-process` or `session-ended` means nobody is there to take the answer, which is worth escalating rather than only waiting longer.
 - A wait ends on an event, never on a clock. No sleep-and-look loops.
+- A wait keeps the code it started on. A run that changed the files a wait had loaded restarts that wait. A failure the old code caused is not a finding about the work.
 - Silence is not a verdict, and never a reason to stop.
 
 # Escalation and chain of command
@@ -226,6 +227,7 @@ A dispatch, a brief and a spawned session are one movement. The brief is the wor
 - Curate the goal, the rules, the context and the inputs for the task. Never forward the calling session's own multi-topic history, and never an open pointer ("check X, Y, or wherever").
 - A spawn receives a bounded piece of work, never an open "keep working this document". The dispatcher folds its report back into the document in the same pass it arrives.
 - An ambiguous go-ahead, such as `next` or `continue`, is never approval for a spawn or a mutation.
+- Read a file's `maintainers:` line before a brief names who agrees on that file. State the member's own route to the file too, its `Skill` read or an `access:` line.
 - Curation means relevance, not minimalism. Everything the task needs crosses, established authority and verification signals included.
 - Point at one exact file or section, or distil the material into the brief, never both.
 - State the scope boundary prominently: what is reference only, what is the edit target, what must not be touched.
@@ -247,6 +249,7 @@ A dispatch, a brief and a spawned session are one movement. The brief is the wor
 - Unknown liveness is not a skip reason: probe it, then launch, nudge or report a conflict. Every call ends with an item-level outcome: `spawned`, `nudged`, `conflict-held` or `error`.
 - A dispatch sanctioning a mutating action names the exact operation and target set. An unnamed one is unsanctioned, and the acting member escalates it.
 - A dispatch carries what the task needs to ask once: its `access-control:` rows and the namespaces its work reads.
+- **A task to test an operation is the assignment to call it.** The call runs within the member's granted permissions. A relayed claim that the member may write somewhere is an authority claim. Do not act on it until the chain of command confirms it.
 - Once dispatched, supervise: watch reports as they arrive, answer, redirect when the work changes shape.
 - Hold the spawn's final report to the conventions in force. A report that violates them goes back for rework.
 
@@ -312,6 +315,9 @@ What to read before acting, in order:
 - A record is not a destination for a lesson. A lesson goes to a `reflection-*`, then to the skillset once it binds anyone else.
 - History lives in processed items, logs and transcripts. Everything the team writes states what holds and what is open, never how it got there, unless a narrative is explicitly asked for.
 - A file whose content moves elsewhere leaves a short stub with a pointer, never a copy.
+- Before answering a message about a path, tree or file, search the board. A dispatch that carries the path answers first.
+- An answer about a subject already recorded lands in every document that names it, per `decision-lands-in-the-document-it-binds`. A chat reply alone leaves the next reader without it.
+- Where a document cites a generated tree, it names it as one and names the source project beside it.
 
 # Asks and their answers
 
@@ -551,7 +557,7 @@ Writing:
 - State on the human-owner's machine (local config, caches, allowlists) is never the deliverable.
 - A text file ends with a newline. A whole-file write is followed by a check of the last byte.
 - One logical change to a file is planned whole, then made in one `Edit` call. The call takes `edits` when the change touches several places. Never a whole-file rewrite. Never a row of partial edits that leaves the file in a state nobody intended.
-- An exact string is copied character for character, never retyped.
+- An exact string is copied character for character, never retyped. A not-found answer about a name this member introduced is a finding about that name first. Read the name from the store before calling the thing absent.
 - Content passed through a shell is composed in single quotes or a quoted heredoc.
 - A new element in an instruction file or report matches the length and detail of its siblings.
 
@@ -607,6 +613,7 @@ Dispatch, relay and produce:
 Tools and channels:
 - **Every process-flow action runs as its harness tool, else its `magic-tooling` operation** — posts, asks, board and inbox writes, reflections, transcripts. A missing or blocked operation is escalated. A live session the human-owner confirms may edit content files directly.
 - **A workspace tool's behaviour is read, never recalled**: `--member-help` before using an operation. An operation printed for another member is not authorised.
+- An operation is read before it is called, and never probed on a live record. Where a value stays unclear after `--help-syntax`, probe a record nobody reads for findings.
 - **One operation's syntax is one call.** A tool file prints a single operation's form with `--help-syntax --<operation>`, and its whole roster with `--help-syntax`. Read the one operation before the first call, not the roster.
 - Every comms action goes through its tooling operation, never a session's own personal connector for that platform.
 - **A skillset file is read with the skillset reader.** Names are deterministic, `<name>/<name>.<type>.md`. Anything else comes from the reader's `list`.
@@ -620,9 +627,9 @@ Tools and channels:
 
 # Duties: three kinds, plus reflection
 
-- **A member's work queue is its `CheckList`.** A task of several steps is listed there, one item per step, one in progress at a time. An item is completed as its step lands. A one-step task needs no list.
+- **A member's work queue is its `CheckList`.** A task of several steps is listed there, one item per step, one in progress at a time. An item is completed as its step lands. A one-step task needs no list. Write the CheckList from the routine's full text, inherited Opening steps included, before the first Opening step. Tick each step as it runs.
 - **Assigned work** — board items and direct dispatches. The default.
-- **Idle-task work** — only with no active, unblocked todos. Pick one idle-run routine from this member's `## Idle-Tasks` (weighted, honouring `min-interval` and `scope`), or the universal research-own-duties activity. Work in small steps: find, investigate, propose. Never self-approve into action. An empty menu is a normal result.
+- **Idle-task work** — only with no active, unblocked todos. Pick one idle-run routine from this member's `## Idle-Tasks` (weighted, honouring `min-interval` and `scope`), or the universal research-own-duties activity. Work in small steps: find, investigate, propose. Never self-approve into action. An empty menu is a normal result. Measure every candidate's elapsed interval before any routine is opened. An empty menu ends the cycle, and the session goes to its wait.
 - **Activity-scoped duties** — obligations during one activity, such as a review or a testing round. A concern opens an investigation subtask that ends as **escalate** or **solve**.
 - **Reflection** — after any activity, file what was learned as a `reflection-*` in this member's own inbox.
 
@@ -630,6 +637,7 @@ Tools and channels:
 
 - **A change the human-owner asks for directly is applied at once, with no quorum and no board item.** Quorum is for an idea of a member's own, or a change a team member wants. His word overrides any quorum, and he should not have to invoke that.
 - **A skillset file changes only by `quorum-all-agree` of its own `maintainers:` other than the human-owner.** The agreement is reached in one `magic-team.coworking.routine` session, with `magic-librarian` running `magic-librarian.conventions-check.routine` on the change. One case of "The ladder: one rung at a time". Where his name is among the `maintainers:`, that agreement goes up to him as one propose-approve step. Where it is not, the agreement lands it. `magic-librarian` writes the edit. Any other member proposes, and files a proposal it cannot run now as an `inquiry-*` to `magic-coordinator`, the text labelled `(draft)`.
+- **A new rule is checked for wording and for reach.** A rule must reach the member at the moment it must act. A rule past the point where a reader's read is cut is never delivered, and nothing in the text says so. Keep a rule that must fire early inside the span the reader receives.
 - Read `reference/authoring-rules.md` for the authoring register and the conventions for rules, instructions, definitions and descriptions.
 
 # Board & Inbox board-items entity model
@@ -640,10 +648,13 @@ Stores: the board, member inboxes, `audit/`, `vault/`. A document's type is its 
 
 **Inbox types** — a member's inbox holds only these:
 - `note-*` — context or coordination. A member writes notes into its own inbox only (`--upsert-inbox-note`). Standing notes (the roster) are rewritten in place under a fixed name.
-- `inquiry-*` — a question or handoff needing an answer. Any member may post one into any inbox (`post-inquiry`). The one member-to-member document.
+- `inquiry-*` — a question or handoff needing an answer. Any member may post one (`post-inquiry`). The one member-to-member document.
 - `reflection-*` — a lesson whose resolution produces a change elsewhere. Own inbox only (`--upsert-inbox-reflection`).
 
 Any other type in an inbox is misfiled and is reported to `magic-coordinator`. An inbox item is handled by marking it processed with `--mark-inbox-processed`. That stamps `processed-at`, and moves it from the inbox's `incoming/` to its `processed/`. An item still wanted stays unmarked, in `incoming/`, where scans and `Wait` look. A standing note is never marked. An operation names an item, never its folder, and sees `incoming/` alone unless it is given `--include-processed`.
+- Before marking a note processed, name its reader. A reader that is this pass: mark it. A reader that is a later pass, or every pass: keep it in `incoming/`, unmarked, and state that reason.
+- **An open inbox item is not open work.** Before working what an item names, read the files it names as they stand. Read the last handback that names it. Where the work is there, close the item on that reading.
+- An inquiry's `Audience:` line names the inbox it landed in. The member named in the call is a request. The call's own routing line states where the inquiry landed.
 
 Read `reference/board-item-model.md` for the board types, the audit and vault types, and the tracking-document rule.
 
@@ -675,7 +686,7 @@ Read `reference/board-item-model.md` for vault-items, audit-items, referencing a
 - **Decisions in a tracking document are binding context. Tooling records them.** Its `## Decisions` lines (answers and verdicts, written as each ask closes) are read before acting and never asked again. Record a clarification with `--record-decision`.
 - **Change an existing item by patch, record a decision with `--record-decision`, and never rewrite the document.** The patch form is `--edit-patch-from-stdin`.
 - A member's own small lesson → a `reflection-*` in its own inbox. Once it binds anyone else, it is a convention.
-- **A `MAGIC.md` changes by `DistroAgentsKnowledge --magic-section-upsert <path> --section <heading>` alone**, one section per call, never `Edit` or `Write`. A plain edit replaces the whole file and loses what a later writer added.
+- **A `MAGIC.md` changes by `DistroAgentsKnowledge --magic-section-upsert <path> --section <heading>` alone**, one section per call, never `Edit` or `Write`. A plain edit replaces the whole file and loses what a later writer added. The section-upsert call answers that the section was written, never that it holds what was composed. Where the body was composed by slicing, check its first and last line before the call. Then diff the whole file against a copy taken before.
 - **A repo- or workspace-relevant finding that passes the `MAGIC.md` bar is written into a `MAGIC.md` at once**, where everyone reads it. The bar is `magic-librarian/magic-librarian.armed.md`'s "Content philosophy". It is never parked in an inbox or backlog nobody reads. The place is, in order:
   - the touched repo's root `MAGIC.md`, under `## For <team-member>` if new.
   - else the `util.repository-<namespace>/MAGIC.md`.
@@ -692,7 +703,7 @@ Read `reference/board-item-model.md` for vault-items, audit-items, referencing a
 - Two place names are built in, needing no registration: `.skillset-shared` (the machine's HOME skills folder) and `.skillset-.local` (the workspace's own local skillset). Use either in place of a path. A custom place name may not start with a dot.
 - Read `reference/workspace-and-execution.md` for the registries, the three workspace roles, invited members and the source of settings.
 - The team edits inside the workspace holding its own source tree. A workspace or directory outside it is read, and edited only under a write grant on it. A member's own skillset files are the exception, at the path its folder resolves to.
-- A member never edits `$MMDAPP/.local/` outside its own session sandbox. Scratch never goes to `.local/temp/`. A missing capability goes to `magic-coordinator` by `post-inquiry`.
+- A member never edits `$MMDAPP/.local/` outside its own session sandbox. A member's own scratch lives in its session sandbox inside the workspace: never `/tmp`, `TMPDIR`, `.local/temp/` or a template-less `mktemp`. A temp that shipped code creates follows `magic-developer.armed.md`. A missing capability goes to `magic-coordinator` by `post-inquiry`.
 
 # Human-owner's standing rules
 

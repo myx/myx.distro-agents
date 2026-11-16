@@ -12,7 +12,9 @@ AgentsToolsSpawnRecord(){ ## spawn id
 	type AgentsToolsRegistryHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
 	local spawnRecord
 	case "${1:-}" in ''|-|*/*|.|..) return 0 ;; esac
-	for spawnRecord in "${MMDAPP:-/nonexistent}/.local/agents/spawned"/*/"$1.spawn.md" ; do
+	type AgentsSessionRunRecordInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+	AgentsSessionRunRecordInto spawnRecord "$1" || :
+	for spawnRecord in ${spawnRecord:+"$spawnRecord"} ; do
 		[ -f "$spawnRecord" ] || continue
 		[ "$( AgentsToolsRegistryHeader "$( AgentsToolsRegistryFrontmatter "$spawnRecord" )" spawn-id )" = "$1" ] || continue
 		printf '%s\n' "$spawnRecord"
@@ -27,7 +29,9 @@ AgentsToolsRunOwnRecord(){ ## session id
 	type AgentsToolsRegistryHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
 	local ownFile
 	case "${1:-}" in ''|-|*/*|.|..) return 0 ;; esac
-	for ownFile in "$MMDAPP/.local/agents/spawned"/*/"$1.spawn.md" ; do
+	type AgentsSessionRunRecordInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+	AgentsSessionRunRecordInto ownFile "$1" || :
+	for ownFile in ${ownFile:+"$ownFile"} ; do
 		[ -f "$ownFile" ] || continue
 		[ "$( AgentsToolsRegistryHeader "$( AgentsToolsRegistryFrontmatter "$ownFile" )" session-id )" = "$1" ] || continue
 		printf '%s\n' "$ownFile"

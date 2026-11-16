@@ -90,11 +90,6 @@ AgentsToolsRoutineWaitWords(){ ## routine file path, team member
 	done <<< "$( AgentsToolsRoutineKeyLines "$1" wait-sources )"
 }
 
-## The body of one root section of a routine file, by its heading text without the `# `.
-AgentsToolsRoutineSectionText(){ ## routine file path, heading text
-	LC_ALL=C awk -v SECTION="$2" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/routine/AgentsRoutineHeadings.awk" "$1"
-}
-
 ## The tooling list `operations:` is read against, one operation word a line: the operations of the help, and every
 ## word the dispatcher routes (a pattern's trailing `*` taken off), so a tooling-internal operation exists too.
 AgentsToolsRoutineOperationWords(){
@@ -227,7 +222,7 @@ AgentsToolsRoutineRequirement(){ ## requirement, site (save|spawn|start), routin
 			local opsPrefix opsOps opsExecutors opsExecutor opsHolds opsWho opsTooling opsRc=0 opsAnnotated opsFound=""
 			opsOps="$( printf '%s\n' "$reqValue" | LC_ALL=C tr ',' ' ' )"
 			opsExecutors="$( AgentsToolsRoutineKey "$reqFile" executors | LC_ALL=C tr ',' ' ' )"
-			opsTooling="$( AgentsToolsRoutineSectionText "$reqFile" "Routine-specific tooling" )"
+			opsTooling="$( ( LC_ALL=C awk -v SECTION="Routine-specific tooling" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/routine/AgentsRoutineHeadings.awk" "$reqFile" ) )"
 			for opsPrefix in $opsOps ; do
 				case "$opsPrefix" in
 					--?*) ;;
@@ -304,7 +299,7 @@ AgentsToolsRoutineRequirement(){ ## requirement, site (save|spawn|start), routin
 						return 0
 					fi
 					local closureText closureLine
-					closureText="$( AgentsToolsRoutineSectionText "$reqFile" "Closure steps" )"
+					closureText="$( ( LC_ALL=C awk -v SECTION="Closure steps" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/routine/AgentsRoutineHeadings.awk" "$reqFile" ) )"
 					while IFS= read -r closureLine ; do
 						[ -n "$closureLine" ] || continue
 						case "$closureText" in *"$closureLine"*) ;; *) reqMissing="$reqMissing${reqMissing:+ }$closureLine" ;; esac

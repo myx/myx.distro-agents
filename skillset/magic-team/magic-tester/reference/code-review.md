@@ -20,6 +20,7 @@ works is not rewritten".
 - An unnecessary function
 - A variable derived from another
 - A store path behind a name
+- A store read past its owner
 - A name without its prefix
 - An operation in a file of many operations
 - A load that serves a path the file never takes
@@ -29,6 +30,8 @@ works is not rewritten".
 - A check run outside the test runner
 - A check that names its subject by its folder
 - An analytical SOLID scan left unrun
+- A guarded load whose name or file is wrong
+- A refactor review that skips the breach scan counts
 - A review that reads only what the diff adds
 
 ## An unnecessary function
@@ -79,6 +82,24 @@ Look for:
 A finding is any indirection between a system-wide convention and the site that
 uses it. The convention is written literally where it is used. The finding quotes
 the wrapped path and the wrapper, and states the literal form the site takes.
+
+## A store read past its owner
+
+Rule: `code-craft.md`, "Loads and contracts", the three bullets on an include of
+another concern, an internal data file, and the breach scan.
+
+Look for:
+
+- a file naming a store its own concern does not own: `.local/agents/sessions/<id>/...`,
+  `.local/agents/spawned/...`, the board, the inboxes, the vault.
+- a path the owning concern hands out, for a caller to build on.
+
+A finding is any read or write of another concern's store, and any path passed
+out to be built on. A store no concern in the package owns belongs to the distro
+tooling, and it takes the same finding. Not a finding: an include of another
+concern, `sh-lib/<concern>/*.include` or a shared awk file, loaded to call its
+functions. That include is the concern's contract. The finding names the store,
+its owner, and the function that returns the data instead.
 
 ## A name without its prefix
 
@@ -214,6 +235,30 @@ the change touched.
 A finding is a new row the scan prints, P0 first. Its P0 classes come from
 `sh-test/solid/AgentsSolidContracts.py`: `unreached`, `silent-load`,
 `optional-call`, `dual-use`, `undefined-call`; `P6` is dead.
+
+## A guarded load whose name or file is wrong
+
+Rule: `code-craft.md`, "Loads and contracts", the guarded-load bullets.
+
+Look for:
+
+- a guard whose named function its file does not define.
+- a guard whose named function the code it guards does not call.
+- a load pointing at a file that only pulls the function in as a side effect.
+
+A finding is a guard read by its name and its file. The named function is
+defined in that file, and the guarded code calls it. The code ends at the end
+of its function, or of its case arm (`;;`). The load's file is the file that
+defines the called function.
+
+## A refactor review that skips the breach scan counts
+
+Rule: the SOLID scan's class counts. Run
+`sh-test/solid/AgentsSolidBreachScan.sh` with its root given, and quote the
+class counts on the result.
+
+A finding is a review of a refactor that quotes no class counts from a scan run
+with its root given. A default run reads live, not the copy.
 
 ## A review that reads only what the diff adds
 

@@ -72,6 +72,9 @@ PATH="$rigTmp/bin:$PATH"
 [ "$( command -v curl )" = "$rigTmp/bin/curl" ] || rigRefuse "the fake curl is not first on PATH, so this check would issue real requests"
 
 rigFails=0 rigPasses=0
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-writes.include.sh" || exit 1
+rigOwnerWs="${rigWs:-$rigTmp/ws}" rigOwnerData="${rigData:-${rigD:-${rigStore:-${rigOut:-$rigTmp/data}}}}" rigOwnerHome="${rigHome:-$rigTmp/home}" rigOwnerSkills="${rigSkills:-$rigTmp/skills}"
+rigOwnerBoardReady
 rigAssert(){ ## what is asserted, got, want
 	if [ "$2" = "$3" ] ; then
 		printf '  PASS  %s\n' "$1" ; rigPasses=$(( rigPasses + 1 ))
@@ -413,7 +416,7 @@ rigRunIn ws-here --agents-config-option keeper-both --select WHERE
 rigAssert "present in both: the current workspace's scope"                 "$rigRc $( cat "$rigTmp/out" )" "0 ws-here"
 rigRunIn ws-rig --agents-config-option client-ndm --select WHERE
 rigAssert "from a rig workspace the index has no row for: its own scope, whoever the member" "$rigRc $( cat "$rigTmp/out" )" "0 ws-rig"
-rigRunIn ws-here --member-help keeper-here
+rigRunIn ws-here --member-help --team-member keeper-here
 rigAssert "its skillset is read from this workspace's own view: the help names its armed file there" "$rigRc $( rigHelpNames "$( rigView ws-here )/keeper-here/keeper-here.armed.md" )" "0 1"
 rigRunIn ws-here --agents-config-option keeper-unknown --select WHERE
 rigUnknownWith="$rigRc $( cat "$rigTmp/out" ) $( cat "$rigTmp/err" )"
@@ -434,10 +437,10 @@ rigAssert "magic-team as the member argument: the current workspace's channel" "
 rigRunIn ws-here --slack-send-message --team-member keeper-here magic-team RIG-BODY
 rigAssert "its send: its own token, channel and header"                      "$( rigTokens )$( rigChannel ) $( rigText )" 'rig-user-token-KHERE CHERE0001 🔧 *_keeper-here_* @herakeep → @here.\nRIG-BODY'
 rm -f "$( rigView ws-here )/magic-team"
-rigRunIn ws-here --member-help keeper-here
+rigRunIn ws-here --member-help --team-member keeper-here
 rigAssert "a file its help needs that this view cannot give stops the help: rc 1, the file and the view it looked in named, no help printed, never an empty floor with rc 0" "$rigRc $( rigN "$rigTmp/err" "⛔ ERROR: DistroAgentsKnowledge --member-help: the team's own operations cannot be read for keeper-here: $( rigView ws-here )/magic-team/magic-team.armed.md not found in the member set view $( rigView ws-here ) -- the help was not completed" ) $( rigN "$rigTmp/err" '# Tooling help output' ) $( rigN "$rigTmp/err" "can't open file" )" "1 1 0 0"
 rigMemberAt ws-here magic-team
-rigRunIn ws-here --member-help keeper-here
+rigRunIn ws-here --member-help --team-member keeper-here
 rigAssert "accepted sibling: with the team's folder in the view again, the same help is printed" "$rigRc $( rigN "$rigTmp/err" '# Tooling help output' ) $( rigHelpNames "$( rigView ws-here )/keeper-here/keeper-here.armed.md" )" "0 1 1"
 
 echo "-- 5. the dispatcher: an operation naming an invited member runs in the workspace it was called from --"
@@ -452,12 +455,12 @@ rigRunIn ws-here --agents-config-option keeper-multi --select WHERE
 rigAssert "set up in two others, each holding a setting for it: neither is read"   "$rigRc [$( cat "$rigTmp/out" )]" "0 []"
 rigRunIn ws-there --agents-config-option keeper-here --select WHERE
 rigAssert "and the other way: called from ws-there, a member set up only in ws-here reads ws-there's, which holds none" "$rigRc [$( cat "$rigTmp/out" )]" "0 []"
-rigRunIn ws-here --member-help keeper-there
+rigRunIn ws-here --member-help --team-member keeper-there
 rigAssert "its skillset is read from the workspace it is set up in: the help names its armed file in that workspace's view, and nothing of it under the caller's" "$rigRc $( rigHelpNames "$( rigView ws-there )/keeper-there/keeper-there.armed.md" ) $( rigN "$rigTmp/err" "$( rigView ws-here )/keeper-there" )" "0 1 0"
-rigRunIn ws-here --member-help keeper-multi
+rigRunIn ws-here --member-help --team-member keeper-multi
 rigAssert "set up in two others: read from the view of its source link's workspace" "$rigRc $( rigHelpNames "$( rigView ws-third )/keeper-multi/keeper-multi.armed.md" )" "0 1"
 rigPre=( "MDAT_SKILLSET_ROOT=$rigElsewhere" )
-rigRunIn ws-here --member-help keeper-there
+rigRunIn ws-here --member-help --team-member keeper-there
 rigAssert "accepted sibling: a member set root the caller set somewhere else is kept, and read"   "$rigRc $( rigHelpNames "$rigElsewhere/keeper-there/keeper-there.armed.md" )" "0 1"
 rigPre=()
 rigSumThere="$( rigTreeSum ws-there )"
@@ -481,10 +484,10 @@ rigMemberAt ws-there keeper-there
 rigRunIn ws-here --agents-config-option keeper-there --select WHERE
 rigAssert "(c) accepted sibling: set up there again, the operation runs, here"     "$rigRc [$( cat "$rigTmp/out" )]" "0 []"
 rm -f "$( rigView ws-there )/magic-team"
-rigRunIn ws-here --member-help keeper-there
+rigRunIn ws-here --member-help --team-member keeper-there
 rigAssert "(d) the view of its workspace lacks the team's own folder: stopped at the bring, by name, rc 1, so no reader meets a half view: no help is begun and no file is reported as one that could not be opened" "$rigRc $( rigN "$rigTmp/err" "⛔ ERROR: DistroAgentsKnowledge --member-help: member 'keeper-there' cannot be brought into the workspace this operation runs from, $rigWork/ws-here: the team's own folder cannot be read where its skillset is -- nothing was done. Looked for the team's directory at $( rigView ws-there )/magic-team, in $rigWork/ws-there, the workspace" ) $( rigN "$rigTmp/err" '# Duty instructions' ) $( rigN "$rigTmp/err" "can't open file" )" "1 1 0 0"
 rigMemberAt ws-there magic-team
-rigRunIn ws-here --member-help keeper-there
+rigRunIn ws-here --member-help --team-member keeper-there
 rigAssert "(d) accepted sibling: with the team's folder there again, the help is printed, read from that view" "$rigRc $( rigN "$rigTmp/err" '# Tooling help output' ) $( rigHelpNames "$( rigView ws-there )/keeper-there/keeper-there.armed.md" )" "0 1 1"
 rigMemberAt gone/ws-gone magic-team ; rigMemberAt gone/ws-gone keeper-gone ; mkdir -p "$rigWork/gone/ws-gone/.local/.agents" ; printf 'WHERE=ws-gone\n' > "$rigWork/gone/ws-gone/.local/.agents/keeper-gone.agent.env"
 mkdir -p "$rigWork/ws-nolist/.local/.agents" ; rigListAdd "$rigWork/ws-nolist" ; rigMemberAt ws-nolist magic-team ; rigMemberAt ws-nolist keeper-nowhere ; printf 'WHERE=ws-nolist\n' > "$rigWork/ws-nolist/.local/.agents/keeper-nowhere.agent.env"
@@ -882,8 +885,7 @@ rigAssert "and the other way: called from ws-there, a member set up only in ws-h
 rigSpawnDocIn ws-here keeper-there --dispatch-doc:create
 rigDispatchItem="$( find "$rigWork/ws-here/.local/agents/team-data-root/board" -name 'dispatch-*.md' 2> /dev/null | LC_ALL=C tail -n 1 )"
 rigAssert "the dispatch item a spawn creates carries the same three" "$rigRc $( rigThree "$rigDispatchItem" )" "0 ws-here/ws-here/ws-there 1/1/1"
-mkdir -p "$rigWork/ws-here/.local/agents/team-data-root/board/backlog"
-printf -- '---\ntype: task\n---\n\nRIG-BOARD-ITEM-TEXT\n' > "$rigWork/ws-here/.local/agents/team-data-root/board/backlog/task-rig-three.md"
+printf -- '---\ntype: task\n---\n\nRIG-BOARD-ITEM-TEXT\n' | rigOwnerBoardPut backlog task-rig-three.md
 rigSpawnDocIn ws-here keeper-there --from-board task-rig-three.md --dispatch-doc:reuse
 rigAssert "a tracking item a spawn reuses is given them at its start mark, its own text kept" "$rigRc $( rigThree "$rigWork/ws-here/.local/agents/team-data-root/board/backlog/task-rig-three.md" ) $( rigN "$rigWork/ws-here/.local/agents/team-data-root/board/backlog/task-rig-three.md" 'RIG-BOARD-ITEM-TEXT' )" "0 ws-here/ws-here/ws-there 1/1/1 1"
 rigSpawnDocIn ws-here keeper-there --from-board task-rig-three.md --dispatch-doc:reuse
@@ -1057,8 +1059,7 @@ rigAssert "control: a member set up here is launched here"                 "$rig
 ## A note of the team data of each workspace, in the inbox of each member that is read from it, saying whose workspace it is.
 for rigW in there here ; do
 	for rigM in keeper-there keeper-here keeper-pre ; do
-		mkdir -p "$rigWork/ws-$rigW/.local/agents/team-data-root/inboxes/$rigM/incoming"
-		printf -- '---\nstate: working\nsession-id: RIG-%s-SESSION\n---\nbody\n' "$rigW" > "$rigWork/ws-$rigW/.local/agents/team-data-root/inboxes/$rigM/incoming/note-20260809T155000Z-rig-read.md"
+		printf -- '---\nstate: working\nsession-id: RIG-%s-SESSION\n---\nbody\n' "$rigW" | rigOwnerInboxPut "$rigM" note-20260809T155000Z-rig-read.md
 	done
 done
 rigNoteOwner(){ ## -- whose workspace the note read last is: the RIG-<w>-SESSION it holds
@@ -1215,8 +1216,7 @@ rigAssert "an option given no value is refused by name, before any spawn" "$rigR
 ## A review return to an ended session: the run that replaces it is given nothing; it reads what the first was started with.
 rigPayWorld
 rigReturnItem(){ ## item stem -- that task on ws-here's board, running
-	mkdir -p "$rigWork/ws-here/.local/agents/team-data-root/board/running"
-	printf -- '---\ntype: task\n---\n\nRIG-RETURN-ITEM-TEXT\n' > "$rigWork/ws-here/.local/agents/team-data-root/board/running/$1.md"
+	printf -- '---\ntype: task\n---\n\nRIG-RETURN-ITEM-TEXT\n' | rigOwnerBoardPut running "$1.md"
 }
 rigReturn(){ ## item stem -- the coordinator returns that item for corrections; the restart it makes is waited for
 	rigPayClear

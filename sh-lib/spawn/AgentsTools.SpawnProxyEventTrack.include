@@ -34,6 +34,7 @@ AgentsToolsSpawnProxySessionRootPost(){ ## member whose bot token posts it, the 
 		echo "⚠️ WARNING: --intern-op-agent-spawn-proxy: session thread not opened: its root post could not be filled from sh-lib/templates/session-thread.root.format.md" >&2
 		return 0
 	fi
+	type DistroAgentsToolsResolveTarget > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsResolveTarget.include"
 	rootChannel="$( DistroAgentsToolsResolveTarget "$rootTarget" 2> /dev/null | sed -n 's/^CHANNEL=//p' )" || rootChannel=""
 	if [ -z "$rootChannel" ] ; then
 		echo "⚠️ WARNING: --intern-op-agent-spawn-proxy: session thread not opened: $rootTarget names no conversation this workspace sets" >&2
@@ -152,7 +153,8 @@ AgentsToolsSpawnProxyEventTrackClose(){ ## thread, member, outcome, exit code, m
 		fi
 	fi
 	## Its tokens, summed over its sub-sessions as shown now (AgentsTools.SessionTranscript.include).
-	! type AgentsSessionTokensLine > /dev/null 2>&1 || closeTokens="$( AgentsSessionTokensLine "" "${MDAT_SPAWN_SESSION_ID:-}" 2>/dev/null )" || closeTokens=""
+	type AgentsSessionTokensLine > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionTranscript.include"
+	closeTokens="$( AgentsSessionTokensLine "" "${MDAT_SPAWN_SESSION_ID:-}" 2>/dev/null )" || closeTokens=""
 	closeTokens="${closeTokens#tokens: }"
 	type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 	DistroAgentsTools --intern-op-event-track-post "$closeMember" "$closeThread" --kind end --session-id "${MDAT_SPAWN_SESSION_ID:-}" \

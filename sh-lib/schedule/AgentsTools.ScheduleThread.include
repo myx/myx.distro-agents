@@ -119,7 +119,7 @@ AgentsToolsScheduleThreadChildrenKeep(){
 	case "$keepAt" in ''|*[!0123456789]*) keepAt=0 ;; esac
 	keepNow="$( date +%s )" || return 0
 	[ $(( keepNow - keepAt )) -ge "$keepEvery" ] || return 0
-	type AgentsToolsChildrenIndexRepair > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.ChildrenIndex.include"
+	type AgentsToolsChildrenIndexRepair > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.ChildrenIndex.include"
 	AgentsToolsChildrenIndexRepair "$MMDAPP" > /dev/null 2>&1 || :
 	return 0
 }

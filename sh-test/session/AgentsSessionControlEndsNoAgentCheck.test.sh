@@ -45,7 +45,8 @@ rigStopAll(){ rigLoops="$( PATH="$rigProcPath" LC_ALL=C awk 'NF == 2 && $1 ~ /^[
 trap rigStopAll EXIT
 rigWs="$rigTmp/ws"
 rigData="$rigTmp/data"
-mkdir -p "$rigWs/.local/.agents" "$rigData/board/running" "$rigData/board/review" "$rigData/board/processed" "$rigTmp/bin" "$rigTmp/home"
+mkdir -p "$rigWs/.local/.agents" "$rigTmp/bin" "$rigTmp/home"
+rigBoardStates "$rigData" running review processed
 printf 'SLACK_CHANNEL_MAGIC_TEAM=CRIG00001\nSLACK_CHANNEL_HUMAN_OWNER=URIGOWNER\nSLACK_BOT_TOKEN=rig-bot-token-TEAM\nSESSION_CONTROL_TICK_SECONDS=1\nSESSION_CONTROL_CLOSING_SECONDS=2\nREVIEW_WAIT_LIMIT=2\nNO_PROXY=*\n' \
 	> "$rigWs/.local/.agents/magic-team.agent.env"
 ## The rig's skillset root, holding the members the death notices are posted as and to. A notice is
@@ -148,8 +149,7 @@ rigRecord rig-handback rig-handback-run spawn-started "run-process: $rigRun3 $( 
 spawns: dispatch-rig-handback"
 mkdir -p "$rigWs/.local/agents/sessions/rig-handback"
 printf '1700000000 handback\n' > "$rigWs/.local/agents/sessions/rig-handback/milestones"
-printf -- '---\ntype: dispatch\nowner: keeper-myx\nstatus: dispatch-review\nspawn-id: rig-handback-run\nreview-by: magic-coordinator\nreview-since-epoch: 1000\n---\n\n# rig dispatch\n\n## Decisions\n\n' \
-	> "$rigData/board/review/dispatch-rig-handback.md"
+printf -- '---\ntype: dispatch\nowner: keeper-myx\nstatus: dispatch-review\nspawn-id: rig-handback-run\nreview-by: magic-coordinator\nreview-since-epoch: 1000\n---\n\n# rig dispatch\n\n## Decisions\n\n' | rigStoreItem "$rigData" board review dispatch-rig-handback.md
 rigAssert "3. the loop ends" "$( rigLoop rig-handback 30 )" ended
 rigAssert "3. the run it waited on is ended" "$( rigAlive "$rigRun3" )" gone
 rigAssert "3. and its record is closed" "$( rigOpenWord "$( rigRecordStatus rig-handback-run )" )" closed
@@ -158,8 +158,7 @@ echo "-- 4. an accepted item ends its runs, and then the loop --"
 rigStandIn rig-accepted-run ; rigRun4="$rigStandPid"
 rigRecord rig-accepted rig-accepted-run spawn-started "run-process: $rigRun4 $( rigStarted "$rigRun4" )
 spawns: dispatch-rig-accepted"
-printf -- '---\ntype: dispatch\nowner: keeper-myx\nstatus: dispatch-processed\nspawn-id: rig-accepted-run\n---\n\n# rig dispatch\n\n## Decisions\n\n- 2026-11-02T00:00:00Z verdict: accepted: rig work\n' \
-	> "$rigData/board/processed/dispatch-rig-accepted.md"
+printf -- '---\ntype: dispatch\nowner: keeper-myx\nstatus: dispatch-processed\nspawn-id: rig-accepted-run\n---\n\n# rig dispatch\n\n## Decisions\n\n- 2026-11-02T00:00:00Z verdict: accepted: rig work\n' | rigStoreItem "$rigData" board processed dispatch-rig-accepted.md
 rigAssert "4. the loop ends" "$( rigLoop rig-accepted 30 )" ended
 rigAssert "4. the accepted item's run is ended" "$( rigAlive "$rigRun4" )" gone
 rigAssert "4. and its record is closed" "$( rigOpenWord "$( rigRecordStatus rig-accepted-run )" )" closed
@@ -168,8 +167,7 @@ echo "-- 5. control: a live run with no handback, its item open, leaves the loop
 rigStandIn rig-live-run ; rigRun5="$rigStandPid"
 rigRecord rig-live rig-live-run spawn-started "run-process: $rigRun5 $( rigStarted "$rigRun5" )
 spawns: dispatch-rig-live"
-printf -- '---\ntype: dispatch\nowner: keeper-myx\nstatus: dispatch-started\nspawn-id: rig-live-run\n---\n\n# rig dispatch\n\n## Decisions\n\n' \
-	> "$rigData/board/running/dispatch-rig-live.md"
+printf -- '---\ntype: dispatch\nowner: keeper-myx\nstatus: dispatch-started\nspawn-id: rig-live-run\n---\n\n# rig dispatch\n\n## Decisions\n\n' | rigStoreItem "$rigData" board running dispatch-rig-live.md
 rigAssert "5. the loop stays" "$( rigLoop rig-live 12 )" reached
 rigAssert "5. and the run is left alive" "$( rigAlive "$rigRun5" )" alive
 rigAssert "5. with its record still open" "$( rigOpenWord "$( rigRecordStatus rig-live-run )" )" open

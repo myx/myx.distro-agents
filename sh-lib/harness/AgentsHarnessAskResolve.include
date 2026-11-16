@@ -53,7 +53,8 @@ AgentsHarnessAskWaitItem(){ ## add|drop, pending reply id, and `chat` for the se
 	itemSession="${harnessSessionId:-${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}}"
 	AgentsHarnessBareName "$itemSession" || return 1
 	if [ "$1" = "drop" ] ; then
-		itemLine="$( LC_ALL=C sed -n 's/^sources: //p' "$MMDAPP/.local/agents/sessions/$itemSession/wait/state" 2>/dev/null | head -1 )"
+		type AgentsSessionWaitSourcesLineInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+		AgentsSessionWaitSourcesLineInto itemLine "$itemSession"
 		case " $itemLine" in
 			*" ask:$2 "*) ;;
 			*) return 0 ;;

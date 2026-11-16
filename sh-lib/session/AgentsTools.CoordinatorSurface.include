@@ -22,7 +22,8 @@ agentsSurfaceNote="note-20260809T155000Z-heartbeat-state-and-lock.md"
 agentsSurfaceHeading="# Standing directives"
 
 AgentsToolsSurfaceNotePath(){
-	printf '%s/%s\n' "$MDAT_DATA_ROOT/inboxes/magic-coordinator/incoming" "$agentsSurfaceNote"
+	type AgentsToolsInboxNotePath > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/inbox/AgentsTools.InboxPlace.include"
+	AgentsToolsInboxNotePath magic-coordinator "$agentsSurfaceNote"
 }
 
 AgentsToolsSurfaceTool(){ ## the script, its arguments...
@@ -116,9 +117,6 @@ AgentsToolsSurfaceOrders(){
 }
 
 ## Whether an order is in force: its expires-at is none, or later than now.
-AgentsToolsSurfaceInForce(){ ## expires-at
-	[ "$1" = none ] || [ "$1" \> "$( date '+%Y-%m-%d %H:%M' )" ]
-}
 
 ## --standing-directives [--all]: the standing directives in force, a row each: `warning <item> <state>`, `note <item> <heading>`, `order <id> <set> <expires-at> <text>`.
 ## --all shows the expired orders too, marked `expired`. Reads only.
@@ -128,21 +126,26 @@ AgentsToolsSurfaceStanding(){ ## the operation, its arguments...
 	case "${1:-}" in --all) standingAll=yes ; shift ;; esac
 	[ $# -eq 0 ] || { echo "$MDSC_CMD: ⛔ ERROR: $standingOp: syntax is [--all] -- got: $1" >&2 ; return 1 ; }
 	[ -n "${MDAT_DATA_ROOT:-}" ] || { echo "$MDSC_CMD: ⛔ ERROR: $standingOp: MDAT_DATA_ROOT is not set" >&2 ; return 1 ; }
+	local standingItems=()
+	type AgentsToolsBoardItemsInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemDecisions.include"
 	for standingState in backlog pending running review blocked parked ; do
-		for standingFile in "$MDAT_DATA_ROOT/board/$standingState"/warning-*.md ; do
-			[ -e "$standingFile" ] || continue
+		AgentsToolsBoardItemsInto standingItems warning- "$standingState"
+		for standingFile in ${standingItems[@]+"${standingItems[@]}"} ; do
 			printf 'warning\t%s\t%s\n' "${standingFile##*/}" "$standingState"
 		done
 	done
-	for standingFile in "$MDAT_DATA_ROOT/inboxes/magic-coordinator/incoming"/note-*.md ; do
-		[ -f "$standingFile" ] || continue
+	type AgentsToolsInboxFilesInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/inbox/AgentsTools.InboxPlace.include"
+	local standingFiles=()
+	AgentsToolsInboxFilesInto standingFiles magic-coordinator no
+	for standingFile in ${standingFiles[@]+"${standingFiles[@]}"} ; do
+		case "${standingFile##*/}" in note-*.md) ;; *) continue ;; esac
 		[ "$( LC_ALL=C awk 'NR == 1 { if ( $0 != "---" ) exit ; next ; } $0 == "---" { exit ; } $0 == "standing: yes" { print "yes" ; exit ; }' "$standingFile" )" = yes ] || continue
 		standingHead="$( LC_ALL=C awk 'dashes >= 2 && /^# / { print substr( $0, 3 ) ; exit ; } $0 == "---" { dashes++ }' "$standingFile" )"
 		printf 'note\t%s\t%s\n' "${standingFile##*/}" "${standingHead:-$standingFile}"
 	done
 	while IFS=$'\t' read -r standingId standingSet standingExpires standingText ; do
 		[ -n "$standingId" ] || continue
-		if AgentsToolsSurfaceInForce "$standingExpires" ; then
+		if [ "$standingExpires" = none ] || [ "$standingExpires" \> "$( date '+%Y-%m-%d %H:%M' )" ] ; then
 			printf 'order\t%s\t%s\t%s\t%s\n' "$standingId" "$standingSet" "$standingExpires" "$standingText"
 		elif [ -n "$standingAll" ] ; then
 			printf 'order\t%s\t%s\t%s (expired)\t%s\n' "$standingId" "$standingSet" "$standingExpires" "$standingText"

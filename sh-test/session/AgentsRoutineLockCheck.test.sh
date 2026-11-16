@@ -16,6 +16,7 @@
 ## Red before F6.2: no routine-lock-document: is read (1's brief and 2 fail).
 ## Offline: a fake curl first on PATH; the team data of the rig is a plain folder, with no git remote.
 set -u
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-store.include.sh" || exit 1
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigPackage="$MDLT_ORIGIN/myx/myx.distro-agents"
@@ -34,7 +35,8 @@ rigRelease(){ : > "$rigTmp/release.all" ; wait 2> /dev/null ; }
 trap 'rigRelease ; chmod -R u+w -- "$rigTmp" 2>/dev/null ; rigControlThreadsEnd "$rigTmp" ; rm -rf -- "$rigTmp"' EXIT
 rigWs="$rigTmp/ws" ; rigSkills="$rigTmp/skills" ; rigData="$rigTmp/data"
 ## The state and lock note of a member other than magic-coordinator lives in the member's processed/, out of its work (AgentsToolsInboxNotePath).
-mkdir -p "$rigWs/.local/.agents" "$rigTmp/bin" "$rigSkills/magic-team" "$rigData/board" "$rigData/inboxes/keeper-rig/processed" "$rigData/inboxes/keeper-other/processed"
+mkdir -p "$rigWs/.local/.agents" "$rigTmp/bin" "$rigSkills/magic-team"
+rigInboxReady "$rigData" keeper-rig keeper-other
 cp "$rigTest/check-fixtures/slack-send-identity-check.curl.stub.sh" "$rigTmp/bin/curl" || rigRefuse "the fake curl fixture is missing from the package"
 chmod +x "$rigTmp/bin/curl"
 PATH="$rigTmp/bin:$PATH"
@@ -57,7 +59,7 @@ printf 'SLACK_CHANNEL_MAGIC_TEAM=CRIG00001\nSLACK_BOT_TOKEN=rig-bot-token-TEAM\n
 ## Each member's lock note, as the advance's own is written, and a routine that names it.
 rigLocking(){ ## member, short name
 	local lockNote="note-20261019T0000Z-$2-state-and-lock.md"
-	printf -- '---\ntype: note\nfrom: %s\nowner: %s\nstate: idle\n---\n\nThe state of %s.\n' "$1" "$1" "$2" > "$rigData/inboxes/$1/processed/$lockNote"
+	printf -- '---\ntype: note\nfrom: %s\nowner: %s\nstate: idle\n---\n\nThe state of %s.\n' "$1" "$1" "$2" | rigStoreItem "$rigData" inbox $1 $lockNote
 	printf -- '---\ntype: routine\nexecutors: %s\nmaintainers: magic-coordinator\nrequires-session-kind: standalone\nroutine-lock-document: inbox:%s:%s\n---\n# magic-team.%s.routine — the actual procedure\n\n# Summary\n\nA rig routine that locks its note.\n\n# Opening steps\n\n1. **open**: open.\n\n# Steps\n\n1. **work**: work.\n\n# Closure steps\n\n1. **close**: close.\n\n' "$1" "$1" "$lockNote" "$2" > "$rigSkills/magic-team/magic-team.$2.routine.md"
 	printf "# Routine's local procedures\n\nNone.\n\n# Routine's local rules\n\nNone.\n\n# Routine-specific tooling\n\nNone.\n\n# Maintainer Notes\n\nNone.\n" >> "$rigSkills/magic-team/magic-team.$2.routine.md"
 }

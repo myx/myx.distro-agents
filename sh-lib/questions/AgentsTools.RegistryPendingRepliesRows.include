@@ -1,0 +1,47 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.RegistryPendingRepliesRows.include -- the pending-replies registry's rows and its rebuild, by the asks concern that owns it.
+## Sourced, never run. Functions only. Each function loads what it calls itself. The registry mechanics are
+## team-data/AgentsTools.Registries.include, and its readers team-data/AgentsTools.RegistryPendingReplies.include.
+##
+
+##
+## pending-replies -- every question waiting on an answer, kept non-purged so a saved
+## reply can resume the work and an unanswered one can be asked again.
+## Columns: key source session-id owner status blocked-on communication-channel-id
+##
+## TWO stores feed it, and the first is by far the larger. `AskQuestion` -- our
+## universal harness tool, its stub in the myx.distro MCP, and a `*-native` client's
+## own AskUserQuestion that the hook reroutes into it -- is where nearly every pending
+## reply comes from, and each posted question writes a record of its own. Only SOME of
+## them ever become board items; those are the second store, recognised by carrying
+## `blocked-on`, and the board gives their entries (AgentsToolsBoardPendingRepliesEntries).
+## The `source` column says which store a row came from, because what resumes an ask and
+## what resumes a board item are not the same act.
+##
+AgentsToolsRegistryPendingRepliesRows(){
+	type AgentsToolsRegistryRowsEntry > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
+	type AgentsToolsBoardPendingRepliesEntries > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.BoardPendingRepliesEntries.include"
+	local askFile
+	{
+		## The ask store first: the commonest source, and the one nothing else records.
+		## Closed records stay listed rather than being dropped: a received reply is
+		## what resumes the work and a timed-out one is what a re-ask is posted from,
+		## so both are still wanted here. The status column is what tells them apart.
+		## Closed records live in pending/closed/ (retention, T9) and stay listed: both stores feed the rows.
+		for askFile in "$MMDAPP/.local/agents/pending"/*.md "$MMDAPP/.local/agents/pending/closed"/*.md ; do
+			[ -f "$askFile" ] || continue
+			AgentsToolsRegistryRowsEntry A "$askFile"
+		done
+		## Then the board items that became items.
+		AgentsToolsBoardPendingRepliesEntries
+	} | LC_ALL=C awk -v registryRows=pending -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsRegistryHeaderRows.awk"
+	return 0
+}
+
+AgentsToolsRegistryPendingRepliesRebuild(){
+	type AgentsToolsRegistryWrite > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
+	AgentsToolsRegistryWrite pending-replies AgentsToolsRegistryPendingRepliesRows
+}

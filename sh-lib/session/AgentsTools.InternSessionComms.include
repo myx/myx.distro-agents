@@ -230,7 +230,8 @@ case "$1" in
 				rm -f "$MMDAPP/.local/cache/comms/.wanted" 2> /dev/null
 				commsPullAt="$SECONDS"
 				type AgentsToolsCommsCachePullWatched > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsCache.include"
-				! type AgentsToolsCommsCachePullWatched > /dev/null 2>&1 || AgentsToolsCommsCachePullWatched "$commsNow" "$agentsSessionCommsPullsPerPass"
+				type AgentsToolsCommsCachePullWatched > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsCache.include"
+				AgentsToolsCommsCachePullWatched "$commsNow" "$agentsSessionCommsPullsPerPass"
 			fi
 			## THE BEAT of this pass, written by the shell's own redirection and by nothing else: a ring of 61 empty files, one a pass,
 			## so the beat of fifteen passes ago and the one of sixty are the two moments a session's activity is measured against,
@@ -317,7 +318,8 @@ case "$1" in
 			## over passes, so the pass that drains it still takes the console's messages and reads the threads (AgentsToolsCommsCachePushAll).
 			if [ -z "$commsEnd" ] ; then
 				type AgentsToolsCommsCachePushAll > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsCache.include"
-				! type AgentsToolsCommsCachePushAll > /dev/null 2>&1 || AgentsToolsCommsCachePushAll "$commsPassNow" "$agentsSessionCommsPostsPerPass"
+				type AgentsToolsCommsCachePushAll > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsCache.include"
+				AgentsToolsCommsCachePushAll "$commsPassNow" "$agentsSessionCommsPostsPerPass"
 				## A pass that posted is work: the thread does not end in the middle of draining a backlog (it ended with 18,884 posts waiting, after ten minutes
 				## in which it had only posted them). A backlog that posts nothing -- Slack down, a record refused -- is no work, and the thread ends as it did.
 				[ "${agentsCommsCachePushAllMade:-0}" -le 0 ] || commsIdleFrom="$SECONDS"
@@ -337,7 +339,8 @@ case "$1" in
 				rm -f "$MMDAPP/.local/cache/comms/.wanted" 2> /dev/null
 				commsPullAt="$SECONDS"
 				type AgentsToolsCommsCachePullWatched > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsCache.include"
-				! type AgentsToolsCommsCachePullWatched > /dev/null 2>&1 || AgentsToolsCommsCachePullWatched "$commsNow" "$agentsSessionCommsPullsPerPass"
+				type AgentsToolsCommsCachePullWatched > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsCache.include"
+				AgentsToolsCommsCachePullWatched "$commsNow" "$agentsSessionCommsPullsPerPass"
 			fi
 			commsLoops=$(( commsLoops + 1 ))
 			## The log is bounded on every pass: a pass that holds it to its size cannot be the long one, and a log grown past the bound is cut
@@ -358,7 +361,8 @@ case "$1" in
 			## THE SCHEDULE THREAD IS ASKED FOR where it is wanted: this reader lives while any session of the host does, which at the hour of worktime is the
 			## owner's console, so it finds a thread that ended on its idle bound at night and starts it (AgentsToolsScheduleThreadAskDue, once a minute).
 			type AgentsToolsScheduleThreadAskDue > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/schedule/AgentsTools.ScheduleThread.include"
-			! type AgentsToolsScheduleThreadAskDue > /dev/null 2>&1 || AgentsToolsScheduleThreadAskDue
+			type AgentsToolsScheduleThreadAskDue > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/schedule/AgentsTools.ScheduleThread.include"
+			AgentsToolsScheduleThreadAskDue
 			## The ends of its own: nothing to do for the time set; its folder, or its lock, gone.
 			if [ "$(( SECONDS - commsIdleFrom ))" -ge "$commsIdleLimit" ] ; then
 				commsLeave="no live session had anything for it to do for ${commsIdleLimit}s"

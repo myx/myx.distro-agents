@@ -49,7 +49,7 @@ DistroAgentsGoogle(){
 	case "$1" in
 
 		--google-comment-post|--google-comment-read|--google-doc-read|--google-doc-write|--google-file-find|--google-sheet-clear|--google-sheet-info|--google-sheet-read|--google-sheet-write|--google-whoami)
-			type AgentsToolsGoogleResolveMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/google/AgentsTools.MemberCommsGoogle.include"
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/google/AgentsTools.MemberCommsGoogle.include"
 			return $?
 		;;
 

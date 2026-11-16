@@ -6,6 +6,7 @@
 ## Offline: a Slack-shaped fake curl answers the accept's sends and opens no socket; the run is a
 ## stand-in process carrying its own spawn id; the workspace and board are this rig's own temp tree.
 set -u
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-store.include.sh" || exit 1
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 rigPkg="${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}/myx/myx.distro-agents"
 rigFn="$rigPkg/sh-scripts/DistroAgentsTools.fn.sh"
@@ -24,7 +25,8 @@ trap 'for rigOne in $rigPids ; do kill -KILL "$rigOne" 2> /dev/null ; done ; rm 
 rigWs="$rigTmp/ws"
 rigData="$rigTmp/data"
 rigSpawned="$rigWs/.local/agents/spawned"
-mkdir -p "$rigData/board/review" "$rigData/board/processed" "$rigData/board/running" "$rigWs/.local/.agents" "$rigWs/.local/agents/sessions" "$rigSpawned" "$rigTmp/bin"
+mkdir -p "$rigWs/.local/.agents" "$rigWs/.local/agents/sessions" "$rigSpawned" "$rigTmp/bin"
+rigBoardStates "$rigData" review processed running
 cp "$rigFixture" "$rigTmp/bin/curl" && chmod +x "$rigTmp/bin/curl" || rigRefuse "could not install the fake curl"
 printf 'SLACK_CHANNEL_MAGIC_TEAM=CRIG00001\nSLACK_CHANNEL_HUMAN_OWNER=URIGOWNER\nSLACK_BOT_TOKEN=rig-bot-token-TEAM\n' > "$rigWs/.local/.agents/magic-team.agent.env"
 printf '{"ok":true,"messages":[{"ts":"1700000002.000100","user":"URIGBOT01","text":"session opened"}],"has_more":false}\n' > "$rigTmp/replies.json"
@@ -61,7 +63,7 @@ mkdir -p "$rigSpawned/$rigSpawn"
 printf -- '---\nsession-id: %s\nspawn-id: %s\nparent-spawn-id: none\ntracking-name: %s\nhost: %s\nowner: keeper-myx\nstatus: spawn-started\nsession-thread: CACC00001:1700000000.000300\nspawns: dispatch-20261101T2300Z-acc\n---\n' \
 	"$rigSpawn" "$rigSpawn" "$rigSpawn" "$rigHost" > "$rigSpawned/$rigSpawn/$rigSpawn.spawn.md"
 printf -- '---\ntype: dispatch\nowner: keeper-myx\nstatus: dispatch-started\nspawn-id: %s\nreview-by: magic-coordinator\nreview-reason: handback\nreview-since-epoch: %s\n---\n\n# rig dispatch\n\n## Decisions\n\n' \
-	"$rigSpawn" "$( date +%s )" > "$rigData/board/review/dispatch-20261101T2300Z-acc.md"
+	"$rigSpawn" "$( date +%s )" | rigStoreItem "$rigData" board review dispatch-20261101T2300Z-acc.md
 mkdir -p "$rigWs/.local/agents/sessions/$rigSpawn"
 : > "$rigTmp/tr-$rigSpawn.log"
 printf '%s\n' "$rigTmp/tr-$rigSpawn.log" > "$rigWs/.local/agents/sessions/$rigSpawn/transcript"
@@ -82,7 +84,7 @@ mkdir -p "$rigSpawned/$rigSpawn2"
 printf -- '---\nsession-id: %s\nspawn-id: %s\nparent-spawn-id: none\ntracking-name: %s\nhost: %s\nowner: keeper-myx\nstatus: spawn-succeeded\nexit-code: 0\nsession-thread: CACC00002:1700000000.000400\nspawns: dispatch-20261101T2301Z-acc\n---\n' \
 	"$rigSpawn2" "$rigSpawn2" "$rigSpawn2" "$rigHost" > "$rigSpawned/$rigSpawn2/$rigSpawn2.spawn.md"
 printf -- '---\ntype: dispatch\nowner: keeper-myx\nstatus: dispatch-started\nspawn-id: %s\nreview-by: magic-coordinator\n---\n\n# rig dispatch\n\n## Decisions\n\n' \
-	"$rigSpawn2" > "$rigData/board/review/dispatch-20261101T2301Z-acc.md"
+	"$rigSpawn2" | rigStoreItem "$rigData" board review dispatch-20261101T2301Z-acc.md
 rigRun "$rigTmp/acc2" bash "$rigFn" --accept-review --team-member magic-coordinator dispatch-20261101T2301Z-acc --summary "also good"
 rigAssert "the accept of an ended run's item succeeds" "$( cat "$rigTmp/acc2.rc" )" 0
 rigAssert "its record keeps the status it had"         "$( rigStatus "$rigSpawned/$rigSpawn2/$rigSpawn2.spawn.md" )" "spawn-succeeded"

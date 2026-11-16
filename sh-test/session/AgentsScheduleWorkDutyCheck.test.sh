@@ -26,7 +26,8 @@ trap 'chmod -R u+rwX -- "$rigTmp" 2> /dev/null ; rm -rf -- "$rigTmp"' EXIT
 trap 'exit 1' INT TERM
 rigData="$rigTmp/data" rigMembers="$rigTmp/members" rigSpawned="$rigTmp/spawned"
 for m in keeper-rig-one keeper-rig-two magic-coordinator ; do mkdir -p "$rigMembers/$m" ; printf "status: active\n" > "$rigMembers/$m/SKILL.md" ; printf '# armed\n' > "$rigMembers/$m/$m.armed.md" ; done
-mkdir -p "$rigData/board/pending" "$rigData/inboxes" "$rigMembers/keeper-rig-one" "$rigMembers/keeper-rig-two" "$rigSpawned" "$rigTmp/home" || exit 1
+mkdir -p "$rigMembers/keeper-rig-one" "$rigMembers/keeper-rig-two" "$rigSpawned" "$rigTmp/home" || exit 1
+rigBoardStates "$rigData" pending || exit 1
 
 rigPassCount=0
 rigFailCount=0
@@ -44,7 +45,7 @@ rigPending(){ ## stem, owner, mark
 		printf -- '---\ntype: task\nowner: %s\n' "$2"
 		[ -z "${3:-}" ] || printf 'mark: %s\n' "$3"
 		printf -- '---\n\nrig item\n'
-	} > "$rigData/board/pending/$1.md"
+	} | rigStoreItem "$rigData" board pending $1.md
 }
 rigNoPending(){ rm -f "$rigData/board/pending"/*.md ; }
 ## THE STAND-INS. Every one is inherited by the include's `type ... || . ` guards, so no real one is sourced over it.
@@ -96,7 +97,10 @@ rigEmergency(){ rigFlags "worktime: no" "weekend: no" "holidays: no" "emergency:
 rigDuty(){ printf '%s\n' "$1" > "$rigTmp/duty" ; }
 rm -f "$rigTmp/duty"
 ## Every member has an inbox item, so demand is never the thing that varies below.
-for m in keeper-rig-one keeper-rig-two magic-coordinator ; do mkdir -p "$rigData/inboxes/$m/incoming" ; printf -- '---\ntype: note\n---\n' > "$rigData/inboxes/$m/incoming/note-20261106T000000Z-rig.md" ; done
+for m in keeper-rig-one keeper-rig-two magic-coordinator ; do
+	rigInboxReady "$rigData" "$m" || exit 1
+	printf -- '---\ntype: note\n---\n\nrig work\n' | rigStoreItem "$rigData" inbox "$m" note-20261106T000000Z-rig.md || exit 1
+done
 
 echo "-- 1. worktime --"
 rigInWorktime ; rigNoPending

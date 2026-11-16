@@ -134,13 +134,11 @@ case "$1" in
 			## hands an unlistable state folder back as an empty one, so each folder that exists is tested here; the scan then
 			## exits non-zero, and the spawner writes that failure into input/input-scan.md in place of a digest. A folder the
 			## board does not have is no failure: a fresh board holds only the states it uses.
-			for workState in pending running review blocked parked ; do
-				[ -e "$MDAT_DATA_ROOT/board/$workState" ] || continue
-				if [ -d "$MDAT_DATA_ROOT/board/$workState" ] && [ -r "$MDAT_DATA_ROOT/board/$workState" ] ; then continue ; fi
+			type AgentsToolsBoardStateUnreadable > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemDecisions.include"
+			if workState="$( AgentsToolsBoardStateUnreadable pending running review blocked parked )" ; then
 				printf '\n(the board could not be read: board/%s is not a readable folder)\n' "$workState" >&2
 				workBoardRc=1
-				break
-			done
+			fi
 			if [ "$workBoardRc" != "0" ] ; then
 				printf '\n(the board could not be read)\n'
 			else

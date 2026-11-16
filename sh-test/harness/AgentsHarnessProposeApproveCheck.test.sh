@@ -27,6 +27,7 @@ rigMember="magic-coordinator"
 rigOther="magic-tester"
 
 rigRefuse(){
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-writes.include.sh" || exit 1
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }
 [ -f "$rigHarness" ] || rigRefuse "harness not found at the origin this workspace resolves: $rigHarness"
@@ -469,8 +470,8 @@ rigAssert "the root is not marked, edited or removed: the tooling's two are take
 echo "-- the verdict on the tracking item, with the link to the document --"
 rigStart decisions
 rigItem="proposal-20300101T0000Z-retire-old-sync"
-mkdir -p "$rigScenarioDir/data/board/running"
-printf -- '---\ntype: proposal\nowner: %s\n---\n\n# Retire the old sync\n' "$rigMember" > "$rigScenarioDir/data/board/running/$rigItem.md"
+:  ## the store folders are made by the write that fills them
+rigOwnerData="$rigScenarioDir/data" rigOwnerBoardWrite running "$rigItem.md" -- '---\ntype: proposal\nowner: %s\n---\n\n# Retire the old sync\n' "$rigMember"
 rigThread 000101 "$( rigReactions "$rigOwner" white_check_mark )" "$( rigMessage 000101 000201 URIGSELF1 'the proposal' )"
 rigCall 60 ProposeApprove "{$rigPropose,\"task_ref\":\"$rigItem\"}"
 rigAssert "approved, and the record names its item"    "$rigKilled:$( rigVerdictLine ):$( rigRecordField item )" "no:VERDICT: approved:$rigItem"

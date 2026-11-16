@@ -346,7 +346,7 @@ AgentsToolsTestbedRun(){ ## the operation, its arguments...
 		BEGIN { n = split( ENVIRON["AGENTS_TESTBED_ELIGIBLE"], eligibleLines, "\n" ) ; for ( i = 1; i <= n; i++ ) if ( eligibleLines[i] != "" ) eligible[eligibleLines[i]] = 1 ; }
 		$1 in eligible' )"
 	if [ -z "$runRows" ] ; then
-		echo "# $MDSC_CMD $runOp: no registered test is in a sh-test folder that a testing directive names (magic-team:testing:<project-glob>:<sh-test-path>:<host-glob> in a project.inf) -- nothing is put in the queue" >&2
+		echo "# $MDSC_CMD $runOp: no registered test is in a sh-test folder that a testing directive names (the project declare magic-team:testing:<project-glob>:<sh-test-path>:<host-glob>) -- nothing is put in the queue" >&2
 		return 0
 	fi
 	case "$runOp" in

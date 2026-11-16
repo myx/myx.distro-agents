@@ -502,7 +502,7 @@ rigAssert "and nothing is a top-level message"             "$( LC_ALL=C grep -L 
 
 echo "-- the other side: an ask on a client's side is reminded on that side, in its thread --"
 rigStart client-side
-mkdir -p "$rigScenarioDir/skills/magic-team" "$rigScenarioDir/skills/human-owner" "$rigScenarioDir/skills/client-rig" "$rigScenarioDir/data/inboxes/client-rig/incoming"
+mkdir -p "$rigScenarioDir/skills/magic-team" "$rigScenarioDir/skills/human-owner" "$rigScenarioDir/skills/client-rig"
 printf -- '---\nmaintainers: rig\n---\nrig identity\n' > "$rigScenarioDir/skills/client-rig/client-rig.basic.md"
 printf '# rig armed\n' > "$rigScenarioDir/skills/client-rig/client-rig.armed.md"
 printf -- '---\nname: client-rig\n---\n\n# client-rig\n' > "$rigScenarioDir/skills/client-rig/SKILL.md"

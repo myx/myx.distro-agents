@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.BoardPendingRepliesEntries.include -- the board's part of the pending-replies registry: one entry line a board
+## item that may be waiting on a reply. Sourced, never run. Functions only. The registry is built in
+## questions/AgentsTools.RegistryPendingRepliesRows.include.
+##
+
+## Both `running` and `blocked` are walked, because an item may be waiting without having been moved. The rows awk drops an
+## item not waiting on a reply, so the registry lists what is actually blocked, never every running item. No data root: none.
+AgentsToolsBoardPendingRepliesEntries(){
+	type AgentsToolsRegistryRowsEntry > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
+	local boardState boardFile
+	[ -n "${MDAT_DATA_ROOT:-}" ] || return 0
+	for boardState in running blocked ; do
+		[ -d "$MDAT_DATA_ROOT/board/$boardState" ] || continue
+		for boardFile in "$MDAT_DATA_ROOT/board/$boardState"/*.md ; do
+			[ -f "$boardFile" ] || continue
+			AgentsToolsRegistryRowsEntry B "$boardFile"
+		done
+	done
+	return 0
+}

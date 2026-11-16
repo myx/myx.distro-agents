@@ -26,7 +26,7 @@ rigTmp="$( rigTempDir AgentsCollectedScanCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
 rigWs="$rigTmp/ws" rigData="$rigTmp/data" rigSkills="$rigTmp/skills" rigFix="$rigTmp/fix"
-mkdir -p "$rigWs/.local/.agents" "$rigWs/.local/temp" "$rigData/inboxes" "$rigData/board/running" "$rigTmp/bin" "$rigTmp/py" "$rigFix" \
+mkdir -p "$rigWs/.local/.agents" "$rigWs/.local/temp" "$rigData/inboxes" "$rigTmp/bin" "$rigTmp/py" "$rigFix" \
 	"$rigSkills/rig-member" "$rigSkills/rig-plain"
 for rigName in rig-member rig-plain ; do printf -- '---\nmaintainers: rig\n---\nrig identity\n' > "$rigSkills/$rigName/$rigName.basic.md" ; done
 cp "$rigPackage/sh-test/check-fixtures/collect-sources.imaplib.stub.py" "$rigTmp/py/imaplib.py"
@@ -71,6 +71,8 @@ rigScan(){
 }
 rigIncoming="$rigData/inboxes/rig-member/incoming"
 rigState="$rigWs/.local/agents/collect"
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-writes.include.sh" || exit 1
+rigOwnerWs="${rigWs:-$rigTmp/ws}" rigOwnerData="${rigData:-${rigD:-${rigStore:-${rigOut:-$rigTmp/data}}}}" rigOwnerHome="${rigHome:-$rigTmp/home}" rigOwnerSkills="${rigSkills:-$rigTmp/skills}"
 rigAge(){ ## state name, seconds -- the check time of a source moved back
 	LC_ALL=C awk -v old="$(( $(date +%s) - $2 ))" '$1 == "checked-at" { print "checked-at " old ; next ; } { print ; }' "$rigState/$1.state" > "$rigState/$1.state.new" && mv "$rigState/$1.state.new" "$rigState/$1.state"
 }

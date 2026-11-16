@@ -32,7 +32,8 @@ trap 'chmod -R u+w -- "$rigTmp" 2>/dev/null ; rigControlThreadsEnd "$rigTmp" ; r
 rigWs="$rigTmp/ws"
 rigSkills="$rigTmp/skills"
 rigData="$rigTmp/data"
-mkdir -p "$rigWs/.local/.agents" "$rigTmp/bin" "$rigSkills/magic-team" "$rigSkills/keeper-myx" "$rigSkills/magic-coordinator" "$rigData/board/backlog"
+mkdir -p "$rigWs/.local/.agents" "$rigTmp/bin" "$rigSkills/magic-team" "$rigSkills/keeper-myx" "$rigSkills/magic-coordinator"
+rigBoardStates "$rigData" backlog
 
 cp "$rigTest/check-fixtures/slack-send-identity-check.curl.stub.sh" "$rigTmp/bin/curl" \
 	|| rigRefuse "the fake curl fixture is missing from the package: $rigTest/check-fixtures/slack-send-identity-check.curl.stub.sh"
@@ -61,7 +62,7 @@ printf '# rig armed\n' > "$rigSkills/magic-coordinator/magic-coordinator.armed.m
 printf -- '---\nexecutors: magic-coordinator\nmaintainers: magic-coordinator, magic-librarian\ninvitees: magic-team\nrequires-session-kind: coworking\n---\n# rig coworking routine fixture\n' \
 	> "$rigSkills/magic-team/magic-team.coworking.routine.md"
 ## A board item for the --from-board source mode.
-printf -- '---\ntype: task\n---\n\nRIG-BOARD-MARKER-TEXT\n' > "$rigData/board/backlog/task-rig-routine.md"
+printf -- '---\ntype: task\n---\n\nRIG-BOARD-MARKER-TEXT\n' | rigStoreItem "$rigData" board backlog task-rig-routine.md
 ## A plain file for the --from-file source mode.
 printf 'RIG-FILE-MARKER-TEXT\n' > "$rigTmp/task-file.txt"
 

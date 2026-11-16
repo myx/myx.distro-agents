@@ -556,8 +556,8 @@ AgentsToolsItemUpsert(){ ## <team-member> [<selector>|<item-filename>] [--header
 		set +e ; return 1
 	fi
 	## An item is written: the waits of the workspace are poked, so one that naps long still reads it at once (AgentsToolsWakePoke).
-	type AgentsToolsWakePoke > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.WakeMarker.include"
-	! type AgentsToolsWakePoke > /dev/null 2>&1 || AgentsToolsWakePoke
+	type AgentsHookFire > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.Hook.include"
+	AgentsHookFire store-changed wake
 	if [ "$unlockLock" = "true" ] && ! unlockVerifyOut="$( AgentsToolsItemUnlockVerify "$target" "$headerOps" )" ; then
 		AgentsToolsItemUnlockKeep restore "the written note does not read back the close: $unlockVerifyOut" ; set +e ; return 1
 	fi

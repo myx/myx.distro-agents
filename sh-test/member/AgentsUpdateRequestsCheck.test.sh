@@ -56,7 +56,7 @@ rigSrc="$rigWs/source/rig/rig-proj/skillset"
 mkdir -p "$rigWs/.local/temp" "$rigWs/docs" "$rigHome/.agents/magic-team" "$rigTmp/bin" "$rigData/spawned"
 : > "$rigHome/.agents/magic-team/members.registry"
 for rigMember in magic-librarian rig-member rig-other ; do
-	mkdir -p "$rigSkills/$rigMember" "$rigData/inboxes/$rigMember/incoming" "$rigData/inboxes/$rigMember/processed"
+mkdir -p "$rigSkills/$rigMember"
 	printf -- '---\nmaintainers: rig\n---\nrig identity\n' > "$rigSkills/$rigMember/$rigMember.basic.md" ; printf '# rig armed\n' > "$rigSkills/$rigMember/$rigMember.armed.md"
 	printf '# %s\n' "$rigMember" > "$rigSkills/$rigMember/SKILL.md"
 done
@@ -72,6 +72,8 @@ printf 'keeper-here\t%s\tsource-symlink\trig/rig-proj/skillset/keeper-here\t%s\n
 printf 'keeper-install\t%s\t.local-symlink\trig/skillset/keeper-install\t%s\n' "$rigWs" "$rigWs/.local/myx/rig/skillset/keeper-install" >> "$rigWs/.local/agents/members.registry"
 printf 'The guide of the rig.\n' > "$rigWs/docs/guide.md"
 rigHereOrig="$( cat "$rigHere" ; printf x )" ; rigHereOrig="${rigHereOrig%x}"
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-writes.include.sh" || exit 1
+rigOwnerWs="${rigWs:-$rigTmp/ws}" rigOwnerData="${rigData:-${rigD:-${rigStore:-${rigOut:-$rigTmp/data}}}}" rigOwnerHome="${rigHome:-$rigTmp/home}" rigOwnerSkills="${rigSkills:-$rigTmp/skills}"
 ## the rig's own process list: a session runs while a stand-in process is listed under its id
 rigRealTool ps "$rigTmp/bin/ps.real" ; : > "$rigTmp/ps.list"
 cat > "$rigTmp/bin/ps" <<'RIGPS'

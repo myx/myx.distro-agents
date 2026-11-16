@@ -14,6 +14,7 @@ rigRefuse(){
 }
 [ -x "$rigFn" ] || rigRefuse "dispatcher not found: $rigFn"
 . "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-writes.include.sh" || exit 1
 rigTmp="$( rigTempDir AgentsCoordinatorStateNoteCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 ## A take of a routine's lock may start the control threads of the sessions of the workspace, which outlive this check: the rig ends them.
@@ -27,7 +28,7 @@ rigGroomNote="$rigInbox/note-20260809T154332Z-grooming-state-and-lock.md"
 rigDailyNote="$rigInbox/note-20260811T120000Z-daily-state-and-lock.md"
 ## audit/ is where the report's --text-group declaration is recorded.
 mkdir -p "$rigTmp/ws/.local/.agents" "$rigTmp/home" "$rigTmp/bin" "$rigSkills/magic-coordinator" "$rigInbox" "$rigData/audit"
-for rigState in backlog pending running review blocked parked ; do mkdir -p "$rigData/board/$rigState" ; done
+## the board's folders are made by the owner's own write, below
 
 ## A fake curl whose only job is to prove it was never reached.
 printf '#!/bin/sh\nprintf "curl invoked\\n" >> "%s/curl.log"\nexit 7\n' "$rigTmp" > "$rigTmp/bin/curl"
@@ -76,12 +77,12 @@ rigBoardFn(){ ## function name -- one of the board readers of the state-note inc
 
 echo "-- board counts and active items --"
 for rigState in backlog pending running review blocked parked ; do
-	printf -- '---\ntype: task\n---\n\nx\n' > "$rigData/board/$rigState/task-rig-$rigState.md"
+	rigOwnerBoardWrite $rigState "task-rig-$rigState.md" -- '---\ntype: task\n---\n\nx\n'
 done
 rigAssert "one count line for each state, live"           "$( rigBoardFn AgentsToolsBoardCounts | tr '\n' ' ' )" "backlog: 1 pending: 1 running: 1 review: 1 blocked: 1 parked: 1 processed: 0 archived: 0 retained: 0 "
 rigAssert "active and blocked items, by state, nothing else" "$( rigBoardFn AgentsToolsBoardActiveItems | tr '\n' ' ' )" "running/task-rig-running.md review/task-rig-review.md pending/task-rig-pending.md blocked/task-rig-blocked.md "
 rigN=1
-while [ "$rigN" -le 44 ] ; do printf -- '---\ntype: task\n---\n\nx\n' > "$rigData/board/running/task-rig-cap-$rigN.md" ; rigN=$(( rigN + 1 )) ; done
+while [ "$rigN" -le 44 ] ; do rigOwnerBoardWrite running "task-rig-cap-$rigN.md" -- '---\ntype: task\n---\n\nx\n' ; rigN=$(( rigN + 1 )) ; done
 rigAssert "the list is capped at 40, the rest counted"    "$( rigBoardFn AgentsToolsBoardActiveItems | LC_ALL=C awk 'NF { n++ ; last = $0 ; } END { print n " " last ; }' )" "41 (+8 more)"
 rm -f "$rigData/board/running"/task-rig-cap-*.md
 

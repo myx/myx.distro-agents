@@ -15,11 +15,11 @@
 ## A `timeout_action` of `kill` ends the task at the caller's timeout instead, and returns what it wrote. A task that returned early and
 ## still runs is ended after the ceiling (3600 s, MDAT_TOOL_TASK_CEILING).
 ##
-## A returned task is a session process of the Bash tool's model (AgentsHarnessToolsBash.include): `process-N.{out,err,pid,began,status,cmd}`
-## in sessions/<session>/processes/, so `Wait sources=process:process-N` (output and end), the Bash tool read by handle, TaskOutput and TaskStop
-## work on it as they do on a detached Bash. Until it returns early a call has only a hidden folder `.run.*` there, so a call that ends in
-## time leaves nothing behind. The files of a returned task are links into that folder, and the early return names the task's
-## output so far in the reply layer's own form (AgentsTranscriptReplyRef, epic F2.4): its file, its size, a preview, how to read the rest.
+## A returned task is a session process of the Bash tool's model (AgentsHarnessToolsBash.include): the harness publishes it as `process-N.{out,err,pid,began,status,cmd}`
+## in the session's own processes folder, so `Wait sources=process:process-N` (output and end), the Bash tool read by handle, TaskOutput and TaskStop work on it as
+## they do on a detached Bash. Until it returns early a call has only a hidden run folder there, which the harness opens and this file removes, so a call that ends in
+## time leaves nothing behind. The files of a returned task are links the harness makes into that folder, and the early return names the task's output so far in the
+## reply layer's own form (AgentsTranscriptReplyRef, epic F2.4): its file, its size, a preview, how to read the rest.
 ##
 ##   AgentsToolsTaskCall <label> <background true|empty> <timeout seconds|empty> <action kill|return|empty> <function> [args...]
 ##     sets  agentsTaskOut       the text for the caller: the function's stdout, or the early-return text
@@ -66,24 +66,12 @@ AgentsToolsTaskMessagePending(){ ## session, member
 	[ -n "$pendingText" ]
 }
 
-## The handle a returned task owns: a file named for it, made exclusively, so no start can take a name a Bash detach holds.
-AgentsToolsTaskClaim(){ ## processes dir, hidden folder name
-	local claimNumber=1
-	while [ "$claimNumber" -le 9999 ] ; do
-		if ( set -C ; printf '%s' "$2/out" > "$1/process-$claimNumber.out" ) 2> /dev/null ; then
-			printf 'process-%s' "$claimNumber"
-			return 0
-		fi
-		claimNumber=$(( claimNumber + 1 ))
-	done
-	return 1
-}
-
+## The handle a returned task owns is the harness's to claim, so no start can take a name a Bash detach holds (AgentsHarnessProcessTaskPublish).
 AgentsToolsTaskCall(){ ## label, background, timeout, action, function, args...
 	local callLabel="$1" callBackground="$2" callTimeout="$3" callAction="$4" callFn="$5"
 	shift 5
-	local callSession callMember callDir="" callRun="" callPid callSelf callTimer="" callMessenger="" callGiven="" callEffective callReason="" callElapsed callStart
-	local callDefault="${MDAT_TOOL_TASK_SECONDS:-}" callCeiling="${MDAT_TOOL_TASK_CEILING:-3600}" callPoll="${MDAT_TOOL_TASK_POLL:-2}" callRemaining callBegan callHandle callName
+	local callSession callMember callRun="" callPid callSelf callTimer="" callMessenger="" callGiven="" callEffective callReason="" callElapsed callStart callHandleOut=""
+	local callDefault="${MDAT_TOOL_TASK_SECONDS:-}" callCeiling="${MDAT_TOOL_TASK_CEILING:-3600}" callPoll="${MDAT_TOOL_TASK_POLL:-2}" callRemaining callHandle
 	## The window is the number this tool carries: a call reads it here, and MDAT_TOOL_TASK_SECONDS replaces every row with one value.
 	if [ -z "$callDefault" ] ; then
 		type AgentsHarnessToolWindowSeconds > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessToolWindow.include"
@@ -105,12 +93,12 @@ AgentsToolsTaskCall(){ ## label, background, timeout, action, function, args...
 		agentsTaskOut="$( "$callFn" "$@" )" || agentsTaskRc=$?
 		return 0
 	fi
-	callDir="$MMDAPP/.local/agents/sessions/$callSession/processes"
-	if ! mkdir -p "$callDir" 2> /dev/null || ! callRun="$( mktemp -d "$callDir/.run.XXXXXX" 2> /dev/null )" || [ -z "$callRun" ] ; then
+	## The folder this call works in is the harness's to make: a session's processes folder is its own part, so it opens the run and publishes the handle below.
+	type AgentsHarnessProcessRunOpen > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessToolsBash.include"
+	if ! AgentsHarnessProcessRunOpen callRun "$callSession" || [ -z "$callRun" ] ; then
 		agentsTaskOut="$( "$callFn" "$@" )" || agentsTaskRc=$?
 		return 0
 	fi
-	callName="${callRun##*/}"
 	: > "$callRun/out" ; : > "$callRun/err"
 	printf '%s' "$callLabel" > "$callRun/cmd"
 	callMember="${harnessAgent:-${MDAT_SPAWN_AGENT:-}}"
@@ -182,26 +170,17 @@ AgentsToolsTaskCall(){ ## label, background, timeout, action, function, args...
 		rm -rf "$callRun"
 		return 0
 	fi
-	## Returned early, and the task goes on: it becomes a session process the caller can wait on, read and stop.
-	if ! callHandle="$( AgentsToolsTaskClaim "$callDir" "$callName" )" || [ -z "$callHandle" ] ; then
+	## Returned early, and the task goes on: the harness publishes it as a process of this session, which the caller can wait on, read and stop.
+	callHandle="$( AgentsHarnessProcessTaskPublish "$callSession" "$callRun" "$callPid" )" || callHandle=""
+	callHandleOut="${callHandle#*$'\n'}"
+	callHandle="${callHandle%%$'\n'*}"
+	if [ -z "$callHandle" ] || [ "$callHandle" = "$callHandleOut" ] ; then
 		agentsTaskOut="ERROR: $callLabel is still running and no handle could be claimed for it, so it is ended. Nothing more is known of what it changed."
 		agentsTaskRc=1
 		kill -TERM -- "-$callPid" 2> /dev/null || kill -TERM "$callPid" 2> /dev/null || :
 		rm -rf "$callRun"
 		return 0
 	fi
-	ln -sf "$callName/out" "$callDir/$callHandle.out"
-	ln -sf "$callName/err" "$callDir/$callHandle.err"
-	ln -sf "$callName/status" "$callDir/$callHandle.status"
-	ln -sf "$callName/cmd" "$callDir/$callHandle.cmd"
-	## The ceiling's marker goes on the handle too (S6.47): a task it ended keeps its status 137 for ever, and 137 alone
-	## does not tell a reader that a limit ended it, nor which limit. The file is written after this point, so the link
-	## stands to a name that appears later, exactly as the status link does.
-	ln -sf "$callName/ceiling" "$callDir/$callHandle.ceiling"
-	type AgentsToolsRunProcessesBegan > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunProcesses.include"
-	callBegan="$( printf '%s\n' "$callPid" | AgentsToolsRunProcessesBegan 2> /dev/null )" || callBegan=""
-	[ -z "$callBegan" ] || printf '%s\n' "$callBegan" > "$callDir/$callHandle.began"
-	printf '%s\n' "$callPid" > "$callDir/$callHandle.pid"
 	disown "$callPid" 2> /dev/null || :
 	## A task that returned early is ended after the ceiling, counted from its start: a runaway cannot outlive it.
 	callRemaining=$(( callCeiling - callElapsed ))
@@ -227,6 +206,6 @@ AgentsToolsTaskCall(){ ## label, background, timeout, action, function, args...
 	agentsTaskHandle="$callHandle"
 	agentsTaskDetached="yes"
 	agentsTaskRc=0
-	agentsTaskOut="TASK-ID=$callHandle"$'\n'"$callLabel is still running as task $callHandle, and this call returned early because $callReason. Nothing has been lost: the task goes on."$'\n'"$( AgentsTranscriptReplyRef "$callDir/$callHandle.out" )"$'\n'"- Wait sources=process:$callHandle returns when its output grows and when it ends."$'\n'"- TaskOutput handle=$callHandle reads what it wrote so far, or takes the result once it ended."$'\n'"- TaskStop handle=$callHandle cancels it."$'\n'"- Call again with timeout=<seconds> and timeout_action=kill (ends it) or return (this answer) to bound a call."$'\n'"- A task that is still running after ${callCeiling}s is ended."
+	agentsTaskOut="TASK-ID=$callHandle"$'\n'"$callLabel is still running as task $callHandle, and this call returned early because $callReason. Nothing has been lost: the task goes on."$'\n'"$( AgentsTranscriptReplyRef "$callHandleOut" )"$'\n'"- Wait sources=process:$callHandle returns when its output grows and when it ends."$'\n'"- TaskOutput handle=$callHandle reads what it wrote so far, or takes the result once it ended."$'\n'"- TaskStop handle=$callHandle cancels it."$'\n'"- Call again with timeout=<seconds> and timeout_action=kill (ends it) or return (this answer) to bound a call."$'\n'"- A task that is still running after ${callCeiling}s is ended."
 	return 0
 }

@@ -47,9 +47,8 @@ rigSkills="$rigTmp/skills"
 rigHome="$rigTmp/home"
 rigAgents="$rigWs/.local/agents"
 rigSp="$rigAgents/spawned"
-mkdir -p "$rigSp" "$rigAgents/sessions" "$rigAgents/pending" "$rigAgents/schedule/dismissed" "$rigWs/.local/.agents" \
-	"$rigData/board/running" "$rigData/board/review" "$rigData/board/processed" "$rigData/audit/2026-11" "$rigHome" \
-	"$rigSkills/magic-coordinator" "$rigSkills/keeper-rig" || rigRefuse "the rig could not be made: $rigTmp"
+mkdir -p "$rigSp" "$rigAgents/sessions" "$rigAgents/pending" "$rigAgents/schedule/dismissed" "$rigWs/.local/.agents" "$rigData/audit/2026-11" "$rigHome" "$rigSkills/magic-coordinator" "$rigSkills/keeper-rig" || rigRefuse "the rig could not be made: $rigTmp"
+rigBoardStates "$rigData" running review processed || rigRefuse "the rig could not be made: $rigTmp"
 printf 'rig\n' > "$rigSkills/magic-coordinator/magic-coordinator.basic.md"
 printf 'rig\n' > "$rigSkills/keeper-rig/keeper-rig.basic.md"
 rigHost="$( hostname -s 2> /dev/null )" ; [ -n "$rigHost" ] || rigHost=unknown
@@ -97,7 +96,7 @@ rigEndedAgo(){ ## run id, seconds ago -- the record's own mtime, which is the cl
 }
 rigItem(){ ## item stem, run id, state, review-reason (empty for none)
 	printf -- '---\nstatus: dispatch-started\nspawn-id: %s\n%s---\n\n# the rig task of %s\n' "$2" "${4:+review-reason: $4
-}" "$2" > "$rigData/board/$3/$1.md"
+}" "$2" | rigStoreItem "$rigData" board $3 $1.md
 }
 rigItemIn(){ ## item stem -- the state that holds it, or `nowhere`
 	local inState
@@ -168,8 +167,8 @@ rigRecord rignewer keeper-rig spawn-started "run-process: $rigNewerPid $rigNewer
 cli: deepseek
 cli-setting: mel-deepseek-flash+-"
 ## The item is the dead run's, and its own `spawn-id` now names the newer run: the case the guard is for.
-LC_ALL=C awk '{ if ( $0 == "spawn-id: rigdead2" ) { print "spawn-id: rignewer" ; next ; } ; print }' "$rigData/board/review/item-held.md" > "$rigData/board/review/item-held.md.new" \
-	&& mv -f "$rigData/board/review/item-held.md.new" "$rigData/board/review/item-held.md" || rigRefuse "the item of the newer run could not be written"
+LC_ALL=C awk '{ if ( $0 == "spawn-id: rigdead2" ) { print "spawn-id: rignewer" ; next ; } ; print }' "$rigData/board/review/item-held.md" \
+	| rigStoreItem "$rigData" board review item-held.md || rigRefuse "the item of the newer run could not be written"
 sleep 1
 
 echo "-- 1. a run that ended with no handback, past the sleep, is resumed --"

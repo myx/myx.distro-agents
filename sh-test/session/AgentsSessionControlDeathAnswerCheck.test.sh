@@ -34,6 +34,7 @@
 ## no socket; a ps beside it lists the rig's runs only; the console is a stand-in, never a real CLI. Every thread,
 ## call and stand-in this check starts is ended by it, through the rig's helpers.
 set -u
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-store.include.sh" || exit 1
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigPackage="$MDLT_ORIGIN/myx/myx.distro-agents"
 rigTool="$rigPackage/sh-scripts/DistroAgentsTools.fn.sh"
@@ -46,12 +47,14 @@ rigRefuse(){
 . "$rigPackage/sh-test/check-fixtures/rig-processes.include.sh" || rigRefuse "the rig's process helper is missing from the package: sh-test/check-fixtures/rig-processes.include.sh"
 . "$rigPackage/sh-test/check-fixtures/rig-control-threads.include.sh" || rigRefuse "the rig's helper for control threads is missing from the package: sh-test/check-fixtures/rig-control-threads.include.sh"
 . "$rigPackage/sh-test/check-fixtures/rig-copy.include.sh" || rigRefuse "the rig's copy helper is missing from the package: sh-test/check-fixtures/rig-copy.include.sh"
+. "$rigPackage/sh-test/check-fixtures/rig-owner-writes.include.sh" || rigRefuse "the rig's owner-write helper is missing from the package: sh-test/check-fixtures/rig-owner-writes.include.sh"
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set, so the rig has no workspace temp folder}"
 rigTmp="$( mkdir -p "$MMDAPP/.local/temp" && mktemp -d "$MMDAPP/.local/temp/AgentsSessionControlDeathAnswerCheck-XXXXXXXX" )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 rigWs="$rigTmp/ws" ; rigHome="$rigTmp/home" ; rigSkills="$rigTmp/skills" ; rigData="$rigTmp/data" ; rigSlack="$rigTmp/slack"
 rigSp="$rigWs/.local/agents/spawned" ; rigStores="$rigWs/.local/agents/sessions" ; rigPending="$rigWs/.local/agents/pending"
-mkdir -p "$rigTmp/bin" "$rigWs/.local/.agents" "$rigSp" "$rigStores" "$rigHome" "$rigSkills" "$rigData/board/running" "$rigData/board/review" "$rigSlack"
+mkdir -p "$rigTmp/bin" "$rigWs/.local/.agents" "$rigSp" "$rigStores" "$rigHome" "$rigSkills" "$rigSlack"
+rigBoardStates "$rigData" running review
 rigHost="$( hostname -s 2> /dev/null )" ; [ -n "$rigHost" ] || rigHost="unknown"
 ## Every thread and stand-in of this check, and every post a thread of it started: at its end each is ended, with
 ## what it started, while it is still itself. The Slack of the rig is let go first, so no post waits on it.
@@ -202,7 +205,7 @@ rigClosed='resolved-at: 2026-10-13 09:30 +0300
 '
 rigItem(){ ## item stem, run id, review-by (may be empty), board state (running where not given)
 	printf -- '---\nstatus: dispatch-started\nspawn-id: %s\n%s---\n\n# the rig task of %s\n' "$2" "${3:+review-by: $3
-}" "$2" > "$rigData/board/${4:-running}/$1.md"
+}" "$2" | rigStoreItem "$rigData" board ${4:-running} $1.md
 }
 rigHeader(){ ## run id, header name -- its value in the frontmatter of that run's record
 	LC_ALL=C awk -v wantName="$2: " '
@@ -412,7 +415,7 @@ rigNowEpoch="$( date +%s )"
 rigWaiter(){ ## run id, session id, seconds its item has been in review
 	rigRec "$1" "$2" keeper-myx spawn-started "spawns: item-$1
 "
-	printf -- '---\nstatus: dispatch-started\nspawn-id: %s\nreview-by: human-owner\nreview-since-epoch: %s\n---\n\n# the rig task of %s\n' "$1" "$(( rigNowEpoch - $3 ))" "$1" > "$rigData/board/review/item-$1.md"
+	printf -- '---\nstatus: dispatch-started\nspawn-id: %s\nreview-by: human-owner\nreview-since-epoch: %s\n---\n\n# the rig task of %s\n' "$1" "$(( rigNowEpoch - $3 ))" "$1" | rigStoreItem "$rigData" board review item-$1.md
 }
 rigQuestion(){ ## session id, run id of the death, pending id, status, resolved seconds ago (may be empty) -- a line of control/dead that names a question, and its record
 	mkdir -p "$rigStores/$1/control" "$rigPending"
@@ -589,7 +592,7 @@ rigAssert "close on the last run of a session ends it: its record is closed, its
 	"$( rigHeader d-last status ):$( rigItemIn item-d-last ):$( rigState d-last )" "spawn-ended-without-close:processed:finished"
 ## An item already accepted before the question was answered: close settles the death where the item sits.
 rigDeath d-done d-done keeper-rig human-owner
-mkdir -p "$rigData/board/processed"
+rigOwnerBoardReady || rigRefuse "the board could not be made ready to be written"
 mv "$rigData/board/running/item-d-done.md" "$rigData/board/processed/item-d-done.md"
 rigAnswer d-done d-done close ; rigCarry d-done d-done
 rigAssert "close on a death whose item already sits in processed settles the death, leaves the item in processed, and names it as accepted" \
@@ -597,6 +600,7 @@ rigAssert "close on a death whose item already sits in processed settles the dea
 ## A verdict that starts the member again on an item already accepted: the item goes back to review
 ## with its reason, and the answer goes on as for review -- the return of an item in review.
 rigDeath d-proc d-proc keeper-rig human-owner
+rigOwnerBoardReady || rigRefuse "the board could not be made ready to be written"
 mv "$rigData/board/running/item-d-proc.md" "$rigData/board/processed/item-d-proc.md"
 rigAnswer d-proc d-proc fresh ; rigCarry d-proc d-proc
 rigProcNew="$( LC_ALL=C sed -n 's/^spawn-id: //p' "$rigData/board/running/item-d-proc.md" 2> /dev/null | LC_ALL=C sed -n '1p' )"

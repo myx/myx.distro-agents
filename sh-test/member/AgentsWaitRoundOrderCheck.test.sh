@@ -58,7 +58,7 @@ PATH="$rigTmp/bin:$PATH" ; export PATH
 printf 'SLACK_CHANNEL_MAGIC_TEAM=CRIG00001\nSLACK_CHANNEL_HUMAN_OWNER=URIGOWNER\nSLACK_BOT_TOKEN=rig-bot-token-TEAM\n' > "$rigWs/.local/.agents/magic-team.agent.env"
 printf 'SLACK_USER_TOKEN=rig-user-token-MEMBER\n' > "$rigWs/.local/.agents/$rigMember.agent.env"
 printf '%s=URIGSELF1=rig-self=Rig Self=rig-self\n' "$rigMember" > "$rigWs/.local/.agents/slack-mention-ids.cache"
-mkdir -p "$rigTmp/data/inboxes/$rigMember/incoming" "$rigTmp/data/board"
+mkdir -p "$rigTmp/data/board"
 
 rigPassCount=0
 rigFailCount=0
@@ -71,6 +71,8 @@ rigAssert(){ ## what is asserted, got, want
 	fi
 }
 rigRc=0
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-writes.include.sh" || exit 1
+rigOwnerWs="${rigWs:-$rigTmp/ws}" rigOwnerData="${rigData:-${rigD:-${rigStore:-${rigOut:-$rigTmp/data}}}}" rigOwnerHome="${rigHome:-$rigTmp/home}" rigOwnerSkills="${rigSkills:-$rigTmp/skills}"
 rigCall(){ ## name, bound, sources... -- one Wait of a session of its own
 	local callName="$1" callBound="$2"
 	shift 2

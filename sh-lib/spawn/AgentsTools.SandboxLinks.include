@@ -28,15 +28,19 @@
 ##     stays in its own folder, so it is not followed: one that reaches a root through a folder link is found by that folder link.
 ##
 
+## The store owner's answer to what lies in a sessions or a spawn store, loaded once here: the tree test below asks it and never
+## builds a store path itself. AgentsTools.SessionStore.include is definitions only, so nothing runs at its load.
+type AgentsSessionStoreTreeIs > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+
 AgentsToolsSandboxTree(){ ## path
 	local treeDir="$1"
 	case "$treeDir" in /*) ;; *) treeDir="$PWD/$treeDir" ;; esac
 	while [ ! -d "$treeDir" ] && [ -n "$treeDir" ] ; do treeDir="${treeDir%/*}" ; done
 	treeDir="$( cd -P "${treeDir:-/}" && pwd -P )" || return 1
 	case "$treeDir/" in
-		*/.local/agents/spawned/*|*/.local/agents/sessions/*|*/.local/agents/scratch/*|*/.local/temp/*) return 0 ;;
+		*/.local/agents/scratch/*|*/.local/temp/*) return 0 ;;
 	esac
-	return 1
+	AgentsSessionStoreTreeIs "$treeDir/"
 }
 
 AgentsToolsSourceRoots(){

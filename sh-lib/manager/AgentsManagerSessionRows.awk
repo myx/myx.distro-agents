@@ -2,8 +2,9 @@
 ##
 ## AgentsManagerSessionRows.awk -- the rows of --manager-session-list: the measured rows of
 ## the spawned-sessions registry grouped into coworking sessions, each session with its
-## runs, and one row of counters. Called by AgentsTools.ManagerSession.include with two
-## inputs, in this order: the pending-replies registry file, then the measured rows
+## runs, and one row of counters. Called by AgentsTools.ManagerSession.include with three
+## inputs, in this order: the store's facts of the runs and sessions given (AgentsSessionRunFacts
+## tokens usage-limit chapter), the pending-replies registry file, then the measured rows
 ## (measuredDated of AgentsToolsRegistryMeasureRows: eleven stored columns, live, state,
 ## started-at, resolved-at, session-comment, session-state, session-state-at). -v activeOnly=1
 ## keeps the sessions that are not finished and can be acted on from this host, those that
@@ -11,11 +12,10 @@
 ## -v hostName the name of this host, which stands last in that row, `-` where none is given. In
 ## the environment, MDAT_MANAGER_CONTROL is a line `<session-id> <alive|gone> <pid>` for
 ## each session whose control thread left a pid file or a lock, as it was measured for this
-## call (AgentsToolsManagerSessionControls): a session with no line there has none. And
-## MDAT_MANAGER_AGENTS is the workspace's agents folder, $MMDAPP/.local/agents, where the
-## store of each run lies: its tokens are read there, by the one reading the read of a session
-## has too (tokensOfRun, AgentsManagerSessionTokens.awk, loaded with -f before this file), and its
-## chapter, the one line of sessions/<session-id>/chapter. The
+## call (AgentsToolsManagerSessionControls): a session with no line there has none. The
+## tokens of each run are taken from the store's facts, by the one reading the read of a
+## session has too (tokensOfRun, AgentsManagerSessionTokens.awk, loaded with -f before this file),
+## and so are the usage-limit flag of a run and the chapter of a session. The
 ## minutes of a date are dateMinutes of AgentsManagerDateMinutes.awk, loaded with -f before this file too.
 ##
 ## A session is the rows that carry one session-id; a row with none (an empty sandbox, a
@@ -30,8 +30,7 @@
 ## THE TOKENS OF A SESSION are the last field but one of its row, one number: the four figures
 ## of each of its runs, in, cache read, cache write and out, all added. A run whose figures
 ## are not known is left out, and the number then ends with `+`: it is not the whole. `-` where
-## no run of the session has known figures. One small file of a run's store is read for it,
-## where the run has one; a spawn id that two records carry is one run.
+## no run of the session has known figures. A spawn id that two records carry is one run.
 ## THE USAGE-LIMIT FLAG of a session, the third-last field of its row, is the one wording
 ## the run's own store keeps when the provider refused it for its API usage limit -- that it
 ## stopped on the provider usage limit and the date it reopens (usageLimitOfRun, one more
@@ -69,35 +68,22 @@ function activeState(stateWord) {
 	return ( stateWord == "running" || stateWord == "starting" || stateWord == "waiting" || stateWord == "paused" || stateWord == "awaiting-review" || stateWord == "unclosed" || stateWord == "failed" ) ;
 }
 
-## The usage-limit flag of one run, from its store: the first line of
-## sessions/<spawn id>/usage-limit, the one wording the close keeps there when the provider
-## refused the run because its API usage limit was reached -- that it stopped on the
-## provider usage limit, and the date the provider said it reopens
-## (AgentsTools.UsageLimit.include). One small file a run is opened for it, where the run has
-## one; empty where it has none. A run with no bare id opens nothing. THE ACCEPT'S OWN WORDS ARE
+## The usage-limit flag of one run, from the store's facts: the `usage-limit` fact, the one wording
+## the close keeps there when the provider refused the run because its API usage limit was reached --
+## that it stopped on the provider usage limit, and the date the provider said it reopens
+## (AgentsTools.UsageLimit.include). Empty where the run has none. THE ACCEPT'S OWN WORDS ARE
 ## NO REFUSAL (S6.14): a record the accept of a review settled used to have the accept written here
 ## from its end-reason, and that line is a leftover of that writer, so it is not a flag.
-function usageLimitOfRun(agentsDir, spawnId,    limitPath, limitText) {
-	limitText = "" ;
-	if (spawnId != "" && spawnId != "-" && spawnId != "." && spawnId != ".." && index(spawnId, "/") == 0) {
-		limitPath = agentsDir "/sessions/" spawnId "/usage-limit" ;
-		if (( getline limitText < limitPath ) < 1) limitText = "" ;
-		close(limitPath) ;
-		if (substr( limitText, 1, 45 ) == "stopped by a provider refusal: the accept of ") limitText = "" ;
-	}
+function usageLimitOfRun(spawnId,    limitText) {
+	limitText = storeFact(spawnId, "usage-limit") ;
+	if (substr( limitText, 1, 45 ) == "stopped by a provider refusal: the accept of ") limitText = "" ;
 	return limitText ;
 }
 
-## The chapter of one session, from its store: the one line of sessions/<session id>/chapter that the executor sets
-## (--set-session-chapter), its whitespace written as `_` as the registry writes a name; `-` where it has none. A session
-## with no id of its own opens nothing.
-function chapterOfSession(agentsDir, sessionId,    chapterPath, chapterText) {
-	chapterText = "" ;
-	if (sessionId != "" && sessionId != "-" && sessionId != "." && sessionId != ".." && index(sessionId, "/") == 0) {
-		chapterPath = agentsDir "/sessions/" sessionId "/chapter" ;
-		if (( getline chapterText < chapterPath ) < 1) chapterText = "" ;
-		close(chapterPath) ;
-	}
+## The chapter of one session, from the store's facts: the `chapter` fact that the executor sets
+## (--set-session-chapter), its whitespace written as `_` as the registry writes a name; `-` where it has none.
+function chapterOfSession(sessionId,    chapterText) {
+	chapterText = storeFact(sessionId, "chapter") ;
 	gsub(/[ \t]+/, "_", chapterText) ;
 	sub(/^_+/, "", chapterText) ; sub(/_+$/, "", chapterText) ;
 	return ( chapterText == "" ? "-" : chapterText ) ;
@@ -105,7 +91,6 @@ function chapterOfSession(agentsDir, sessionId,    chapterPath, chapterText) {
 
 BEGIN {
 	OFS = "\t" ;
-	agentsDir = ENVIRON["MDAT_MANAGER_AGENTS"] ;
 	## The states a run is in, as the registry derives them, in the order a tally names them: those of a live run first.
 ## `paused` sits among the live ones (S19.1): a run a pause holds is alive and held, never busy and never ended.
 	stateTotal = split("thinking tool idling busy starting waiting paused parked unclosed failed finished", stateOrder, " ") ;
@@ -115,11 +100,13 @@ BEGIN {
 	}
 }
 
-## The pending-replies registry: key source session-id owner status blocked-on channel. Read
-## for the counter of open asks, and for the asking id of each of them: that id is the session
+## The store's facts of the rows' runs and sessions, then the pending-replies registry: its rows are
+## key source session-id owner status blocked-on channel. Read for the counter of open asks, and for the asking id of each of them: that id is the session
 ## itself or the run that asked, so an ask still open is a row's own fact wherever the row
 ## stands, and the state of the session below counts it.
-FILENAME == ARGV[1] {
+FILENAME == ARGV[1] { storeFactTake($0) ; next ; }
+
+FILENAME == ARGV[2] {
 	if ($2 == "ask" && $5 == "reply-pending") { pendingAnswers++ ; openAsker[$3] = 1 ; }
 	next ;
 }
@@ -175,16 +162,16 @@ NF != 16 && NF != 18 && NF != 19 { next ; }
 	if (($2 != "-" && ($2 in openAsker)) || ($8 != "-" && ($8 in openAsker))) sessionAsked[sessionKey] = 1 ;
 	sessionRuns[sessionKey]++ ;
 	## The tokens of the run, added to those of its session; a run with no known figures is counted apart.
-	if (agentsDir != "" && !( ( sessionKey, $8 ) in tokenTaken )) {
+	if (!( ( sessionKey, $8 ) in tokenTaken )) {
 		if ($8 != "-") tokenTaken[sessionKey, $8] = 1 ;
-		if (tokensOfRun(agentsDir, $8, tokenWords)) { sessionTokens[sessionKey] += tokenWords[1] + tokenWords[2] + tokenWords[3] + tokenWords[4] ; sessionTokenRuns[sessionKey]++ ; }
+		if (tokensOfRun($8, tokenWords)) { sessionTokens[sessionKey] += tokenWords[1] + tokenWords[2] + tokenWords[3] + tokenWords[4] ; sessionTokenRuns[sessionKey]++ ; }
 		else sessionTokenUnknown[sessionKey]++ ;
 	}
 	## A run stopped on the provider's usage limit flags its session, with the date it reopens:
 	## the last of its runs that says so wins, since a later refusal is the one that still holds.
-	if (agentsDir != "" && !( ( sessionKey, $8 ) in limitTaken )) {
+	if (!( ( sessionKey, $8 ) in limitTaken )) {
 		if ($8 != "-") limitTaken[sessionKey, $8] = 1 ;
-		limitText = usageLimitOfRun(agentsDir, $8) ;
+		limitText = usageLimitOfRun($8) ;
 		if (limitText != "" && ( !( sessionKey in sessionUsageLimit ) || limitText > sessionUsageLimit[sessionKey] )) sessionUsageLimit[sessionKey] = limitText ;
 	}
 	## EVERY REFUSAL IS FLAGGED, NOT ONLY THE USAGE LIMIT (sketch 3.6): the session's own total,
@@ -218,6 +205,7 @@ END {
 		}
 		else if (sessionKey in sessionStarting) sessionState[sessionKey] = "starting" ;
 		else if ((sessionKey, "waiting") in sessionStates) sessionState[sessionKey] = "waiting" ;
+		else if (sessionKey in sessionOpen && sessionKey in sessionAsked) sessionState[sessionKey] = "waiting" ;
 		else if (sessionKey in sessionForeign) sessionState[sessionKey] = "unknown-foreign" ;
 		else if (sessionKey in sessionOpen) sessionState[sessionKey] = "unclosed" ;
 		else if (sessionKey in sessionAwaiting) sessionState[sessionKey] = "awaiting-review" ;
@@ -238,7 +226,7 @@ END {
 			( ( sessionKey in sessionTokenRuns ) ? tokensFigure(sessionTokens[sessionKey]) ( ( sessionKey in sessionTokenUnknown ) ? "+" : "" ) : "-" ), \
 			( ( sessionKey in sessionUsageLimit ) ? sessionUsageLimit[sessionKey] : "-" ), \
 			( ( sessionKey in sessionRefused ) && sessionRefused[sessionKey] > 0 ? sessionRefused[sessionKey] : "-" ), \
-			( ( sessionKey in sessionById ) ? chapterOfSession(agentsDir, sessionKey) : "-" ) ;
+			( ( sessionKey in sessionById ) ? chapterOfSession(sessionKey) : "-" ) ;
 	}
 	for (runAt = 1 ; runAt <= runTotal ; runAt++) {
 		sessionKey = runSession[runAt] ;

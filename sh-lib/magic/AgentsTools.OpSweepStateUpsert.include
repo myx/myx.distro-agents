@@ -20,7 +20,9 @@
 		## nowhere to record how far its own sources had been swept. The filename
 		## is deliberately unchanged, so magic-coordinator's own existing note
 		## resolves to exactly the same path it always did.
-		local stateDir="$MDAT_DATA_ROOT/inboxes/$callingMember/incoming"
+		local stateDir=""
+		type AgentsToolsInboxFolderInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/inbox/AgentsTools.InboxPlace.include"
+		AgentsToolsInboxFolderInto stateDir "$callingMember" incoming || stateDir=""
 		mkdir -p "$stateDir" || {
 			echo "⛔ ERROR: $MDSC_CMD --sweep-state-upsert: can't create inbox directory: $stateDir" >&2
 			set +e ; return 1

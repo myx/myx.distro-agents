@@ -161,7 +161,8 @@ AgentsHarnessToolCheckList(){ ## raw arguments
 }
 
 AgentsHarnessCheckListPlace(){
-	type AgentsHarnessSpawnRecordPath > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessSpawn.include"
+	type AgentsSessionRunRecordInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+	type AgentsHarnessDispatchField > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessSpawn.include"
 	local placeRecord=""
 	checkListMember="" checkListSession="" checkListFolder="" checkListWhy=""
 	if [ -z "$harnessAgent" ] ; then
@@ -172,7 +173,7 @@ AgentsHarnessCheckListPlace(){
 	fi
 	checkListSession="${MDAT_SESSION_ID:-}"
 	if [ -z "$checkListSession" ] && [ -n "${MDAT_SPAWN_SESSION_ID:-}" ] ; then
-		placeRecord="$( AgentsHarnessSpawnRecordPath "$MDAT_SPAWN_SESSION_ID" )"
+		AgentsSessionRunRecordInto placeRecord "$MDAT_SPAWN_SESSION_ID" || :
 		[ -z "$placeRecord" ] || checkListSession="$( AgentsHarnessDispatchField "$placeRecord" session-id )"
 	fi
 	[ -n "$checkListSession" ] || checkListSession="${harnessSessionId:-${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}}"
@@ -183,11 +184,11 @@ AgentsHarnessCheckListPlace(){
 		checkListWhy='the session id of this call is no bare name, so it names no place for a checklist: call RootSession operation=mint to make a session, or operation=adopt with the id and token mint printed.'
 		checkListSession="" ; return 1
 	fi
-	placeRecord="$( AgentsHarnessSpawnRecordPath "$checkListSession" )"
+	AgentsSessionRunRecordInto placeRecord "$checkListSession" || :
 	if [ -n "$placeRecord" ] ; then
 		checkListFolder="${placeRecord%/*}"
 	else
-		checkListFolder="$MMDAPP/.local/agents/sessions/$checkListSession"
+		AgentsSessionFolderInto checkListFolder "$MMDAPP" "$checkListSession" || checkListFolder=""
 	fi
 	checkListMember="$harnessAgent"
 	return 0
@@ -202,7 +203,7 @@ AgentsHarnessCheckListMembers(){
 	local membersFile membersName
 	{
 		printf '%s\n' "$checkListMember"
-		( . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.StartedRecords.include" && AgentsToolsSpawnedSessionRecords "$checkListSession" own 2> /dev/null ) \
+		( . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include" && AgentsToolsSpawnedSessionRecords "$checkListSession" own 2> /dev/null ) \
 			| while IFS= read -r membersFile ; do [ -n "$membersFile" ] && [ -f "$membersFile" ] && printf '%s\n' "$membersFile" ; done \
 			| LC_ALL=C xargs -n 200 awk 'FNR == 1 { fence = 0 } $0 == "---" { fence++ ; if ( fence > 1 ) nextfile ; next } fence == 1 && index( $0, "owner: " ) == 1 { owner = substr( $0, 8 ) ; if ( owner != "" && owner != "-" ) print owner ; nextfile }' 2> /dev/null
 		for membersFile in "$checkListFolder"/*.checklist.md ; do
@@ -408,8 +409,8 @@ AgentsHarnessCheckListAppendLines(){ ## folder, member -- stdin: the item texts,
 	AgentsHarnessCheckListUnlock "$appendFile"
 	## AN ADDED ITEM WAKES ITS OWNER (S10.34): the owner's wait naps on a fifo, and a poke ends the nap, so the item is read now and not at the nap's end.
 	if [ "$appendCount" -gt 0 ] ; then
-		type AgentsToolsWakePoke > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.WakeMarker.include"
-		! type AgentsToolsWakePoke > /dev/null 2>&1 || AgentsToolsWakePoke "$2" || :
+		type AgentsHookFire > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.Hook.include"
+		AgentsHookFire store-changed wake "$2" || :
 	fi
 	printf '%s\n' "$appendCount"
 }
@@ -456,7 +457,7 @@ AgentsHarnessCheckListAppend(){
 		appendFolder="$checkListFolder"
 	else
 		AgentsHarnessBareName "$appendSession" || { printf 'ERROR: session is no bare session id. Nothing was written.\n' ; return 0 ; }
-		appendRecord="$( AgentsHarnessSpawnRecordPath "$appendSession" )"
+		AgentsSessionRunRecordInto appendRecord "$appendSession" || :
 		if [ -z "$appendRecord" ] ; then
 			printf 'ERROR: no session %s is known here. Nothing was written.\n' "$( AgentsHarnessTruncateArg "$appendSession" )" ; return 0
 		fi

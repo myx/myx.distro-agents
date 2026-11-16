@@ -157,7 +157,7 @@ AgentsHarnessPrefetchBuild(){
 	type AgentsHarnessArmNote > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessRun.include"
 	local pfRoot="${MDAT_SKILLSET_ROOT:-}" pfMember="$harnessAgent" pfCacheDir pfStamp pfHow pfBody="$harnessScratch/prefetch.body" pfRoutineBody="$harnessScratch/prefetch.routine"
 	local pfPlus pfRecord pfPolicy="" pfRoutine="" pfKindFile pfText="" pfReads="" pfWhat pfHits=0 pfBuilt=0 pfCount=0 pfArmed="" pfName pfFile pfSections pfWanted pfPath pfTask=0 pfBlank=$'\n\n'
-	local pfMemberText="" pfSessionReads="" pfRead pfRoutineText=""
+	local pfMemberText="" pfSessionReads="" pfRead pfRoutineText="" pfBoardAwk=""
 	[ "${MDAT_HARNESS_PREFETCH:-on}" != "off" ] || return 0
 	[ -z "$harnessToolOnly" ] && [ -n "$pfMember" ] && [ -n "$harnessSystemShared" ] && [ -n "${MDAT_SPAWN_SESSION_ID:-}" ] && [ -z "${MDAT_HARNESS_RESUME_CONTEXT:-}" ] || return 0
 	[ -n "${MMDAPP:-}" ] && [ -n "$pfRoot" ] && [ -f "$pfRoot/$pfMember/$pfMember.armed.md" ] || return 0
@@ -221,9 +221,11 @@ AgentsHarnessPrefetchBuild(){
 		agentsPrefetchRoutineFile="$( AgentsToolsSpawnRoutineResolve "$pfRoutine" 2> /dev/null )" || agentsPrefetchRoutineFile=""
 		if [ -f "$agentsPrefetchRoutineFile" ] ; then
 			pfKindFile="$( AgentsToolsSpawnRoutineKindPath "$agentsPrefetchRoutineFile" 2> /dev/null )" || pfKindFile=""
+			type AgentsToolsBoardFrontmatterAwkInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemDecisions.include"
+			AgentsToolsBoardFrontmatterAwkInto pfBoardAwk
 			## No further condition: the policy names the routine, and the routine's own text is the session's first item.
 			pfStamp="$( AgentsHarnessPrefetchStamp "$agentsPrefetchRoutineFile" "${pfKindFile:-$agentsPrefetchRoutineFile}" "$harnessHere/spawn/AgentsTools.SpawnRoutine.include" \
-				"$harnessHere/harness/AgentsTools.InternMergeMdFiles.include" "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/markdown/LocalMergeMdFiles.awk" "$harnessHere/board/AgentsBoardItemFrontmatterPrintSelected.awk" \
+				"$harnessHere/harness/AgentsTools.InternMergeMdFiles.include" "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/markdown/LocalMergeMdFiles.awk" "$pfBoardAwk" \
 				$( AgentsToolsSpawnRoutineIncludePaths "$agentsPrefetchRoutineFile" 2> /dev/null ) )"
 			if pfHow="$( AgentsHarnessPrefetchEntry "$pfCacheDir/routine.$pfRoutine" "$pfRoutineBody" "$pfStamp" AgentsHarnessPrefetchRoutineText )" ; then
 				case "$pfHow" in cache) pfHits=$(( pfHits + 1 )) ;; *) pfBuilt=$(( pfBuilt + 1 )) ;; esac

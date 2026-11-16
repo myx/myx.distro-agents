@@ -92,6 +92,12 @@ rigSettings(){ ## whose, system... -- the settings of those systems, each value 
 		esac
 	done
 }
+## A client-* member's own settings, under the names the client side reads (AgentsToolsCommsClientKey, AgentsToolsAtlassianCall,
+## AgentsTools.MemberCommsGoogle.include): the Slack tokens and workspace, Google, Jira and Confluence take the CLIENT_ prefix there,
+## and only that name. Mail, Trello and SLACK_CONVERSATIONS keep their plain names on that side, as AgentsClientSystemsCheck gives them.
+rigClientSide(){ ## -- the settings on stdin, each as the client side names it
+	LC_ALL=C sed -E 's/^(SLACK_USER_TOKEN|SLACK_BOT_TOKEN|SLACK_APP_TOKEN|SLACK_WORKSPACE_DOMAIN|GOOGLE_[A-Z_]+|JIRA_[A-Z_]+|CONFLUENCE_[A-Z_]+)=/CLIENT_\1=/'
+}
 rigScopeOf(){ ## workspace, member -- that member's scope file in that workspace, its lines on stdin
 	mkdir -p "$rigWork/$1/.local/.agents"
 	cat > "$rigWork/$1/.local/.agents/$2.agent.env"
@@ -106,14 +112,17 @@ rigWorld(){ ## -- a fresh machine: this workspace holds the client's settings of
 	printf '%s\n' "$rigWork/ws-here" "$rigWork/ws-there" > "$rigListFile"
 	rigSettings TEAMHERE SLACKTEAM EMAIL TRELLO GOOGLE JIRA CONFLUENCE | rigScopeOf ws-here magic-team
 	rigSettings TEAMTHERE SLACKTEAM EMAIL TRELLO GOOGLE JIRA CONFLUENCE | rigScopeOf ws-there magic-team
-	rigSettings NDMTHERE SLACK EMAIL TRELLO GOOGLE JIRA CONFLUENCE | rigScopeOf ws-there client-ndm
+	rigSettings NDMTHERE SLACK EMAIL TRELLO GOOGLE JIRA CONFLUENCE | rigClientSide | rigScopeOf ws-there client-ndm
 	## a member that is no client, set up in the other workspace too: the fallback is any invited member's
 	rigSettings KTHERE SLACK | rigScopeOf ws-there keeper-there
-	rigSettings NDMHERE SLACK EMAIL TRELLO GOOGLE JIRA CONFLUENCE | rigScopeOf ws-here client-ndm
+	rigSettings NDMHERE SLACK EMAIL TRELLO GOOGLE JIRA CONFLUENCE | rigClientSide | rigScopeOf ws-here client-ndm
 	rigClean
 }
-rigClean(){ ## -- the logs of the calls made so far, emptied
+rigClean(){ ## -- the logs of the calls made so far, emptied, and the comms cache of the workspace everything is run from
 	: > "$rigTmp/calls" ; : > "$rigTmp/envs"
+	## A Slack read is served from the comms cache for its TTL (AgentsTools.CommsCache.include), so a second read of one
+	## conversation would call nothing. Each row here measures one call of its own, so none starts on another's cache.
+	rm -rf -- "$rigWork/ws-here/.local/cache/comms"
 }
 rigPre=()
 rigStdin=/dev/null
@@ -142,16 +151,27 @@ rigErrors(){ ## -- how many lines of the last run are an error or a warning
 rigWhole(){ ## file, text -- how many lines of the file are that text, whole
 	LC_ALL=C grep -c -x -F -- "$2" "$1" 2> /dev/null || :
 }
+## EVERY CALLER REFUSAL CARRIES ITS REFUSAL-ID (AgentsToolsCallerRefusalId): the line ends `. REFUSAL-ID: refusal-<uuid>`, a new
+## id each call. How many lines of the file are that text whole, then that tail with a well-formed id: `none`, or any other
+## tail, does not count.
+rigWholeRefusal(){ ## file, text
+	LC_ALL=C sed -E 's/ REFUSAL-ID: refusal-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/ REFUSAL-ID: <id>/' "$1" 2> /dev/null | LC_ALL=C grep -c -x -F -- "$2. REFUSAL-ID: <id>" || :
+}
+## A refusal is posted to event-track by the team's own bot (MAGIC.md, "A refusal is a recorded fact": the record, then the
+## post). How many calls of the last run are anything but that post: a call to the other organisation, or any other call.
+rigCallsBesideTracking(){ ## --
+	LC_ALL=C grep -c -v -x -F -- 'slack chat.postMessage rig-bot-token-TEAMHERE' "$rigTmp/calls" || :
+}
 ## The rule in its own words, as every refused session is told it.
 rigOwnOnly="a --client-* operation in the name of client-ndm is for client-ndm's own session only -- nothing was done"
 rigRefusedLine(){ ## operation with no leading --, the member the session acts as -- how many lines of the last run are the one plain line of the rule, whole: the rule, then whom to ask
-	rigWhole "$rigTmp/err" "DistroAgentsTools: $1: ⛔ ERROR: this session acts as $2, and $rigOwnOnly: ask the session's magic-coordinator, which can run it as client-ndm"
+	rigWholeRefusal "$rigTmp/err" "DistroAgentsTools: $1: ⛔ ERROR: this session acts as $2, and $rigOwnOnly: ask the session's magic-coordinator, which can run it as client-ndm"
 }
 rigPointedLine(){ ## operation with no leading -- -- how many lines of the last run are the line magic-coordinator's session is told, whole: the rule, then the operation that is its own
-	rigWhole "$rigTmp/err" "DistroAgentsTools: $1: ⛔ ERROR: this session acts as magic-coordinator, and $rigOwnOnly: magic-coordinator runs it with --client-operation-run magic-coordinator --$1 client-ndm"
+	rigWholeRefusal "$rigTmp/err" "DistroAgentsTools: $1: ⛔ ERROR: this session acts as magic-coordinator, and $rigOwnOnly: magic-coordinator runs it with --client-operation-run magic-coordinator --$1 client-ndm"
 }
 rigMagicOnlyLine(){ ## the member the session acts as -- how many lines of the last run are the refusal every --magic-* operation gives that session, whole
-	rigWhole "$rigTmp/err" "AgentDispatcherTools: client-operation-run: ⛔ ERROR: this session acts as $1, and client-operation-run is magic-coordinator's only -- nothing was done: ask the session's magic-coordinator, which owns it, to run it"
+	rigWholeRefusal "$rigTmp/err" "AgentDispatcherTools: client-operation-run: ⛔ ERROR: this session acts as $1, and client-operation-run is magic-coordinator's only -- nothing was done: ask the session's magic-coordinator, which owns it, to run it"
 }
 rigKeep(){ ## label -- the last run kept under that label: its exit status, what it printed on each stream, and its calls
 	printf '%s\n' "$rigRc" > "$rigTmp/kept.$1.rc"
@@ -229,7 +249,7 @@ rigThroughRefused(){ ## the member the session rigPre says acts as -- every fami
 	for refusedOp in "${rigOps[@]}" ; do
 		refusedCmd="${refusedOp#*|}" ; refusedName="${refusedCmd%% *}"
 		rigRun --client-operation-run magic-coordinator $refusedCmd
-		rigAssert "${refusedOp%%|*}: --client-operation-run of $refusedName called by a session of $1 is refused, as every --magic-* operation is to it, and nothing is called" "$rigRc $( rigLines "$rigTmp/calls" ) $( rigErrors ) $( rigMagicOnlyLine "$1" )" "1 0 1 1"
+		rigAssert "${refusedOp%%|*}: --client-operation-run of $refusedName called by a session of $1 is refused, as every --magic-* operation is to it, and nothing is called but the refusal's own tracking post" "$rigRc $( rigCallsBesideTracking ) $( rigFrom NDMHERE ) $( rigErrors ) $( rigMagicOnlyLine "$1" )" "1 0 0 1 1"
 	done
 }
 
@@ -302,7 +322,8 @@ rigPre=( MDAT_SPAWN_AGENT=keeper-here )
 rigThroughRefused keeper-here
 rigPre=( MDAT_SPAWN_AGENT=client-ndm )
 rigRun --client-operation-run magic-coordinator --client-comms-trello-whoami client-ndm
-rigAssert "the client's own session is refused too: its own way is the --client-* operation itself" "$rigRc $( rigLines "$rigTmp/calls" ) $( rigErrors ) $( rigMagicOnlyLine client-ndm )" "1 0 1 1"
+rigAssert "the client's own session is refused too: its own way is the --client-* operation itself" "$rigRc $( rigCallsBesideTracking ) $( rigFrom NDMHERE ) $( rigErrors ) $( rigMagicOnlyLine client-ndm )" "1 0 0 1 1"
+rigAssert "control: a call to the other organisation is not taken for the tracking post" "$( printf 'slack chat.postMessage rig-user-token-NDMHERE\nslack chat.postMessage rig-bot-token-TEAMHERE\n' > "$rigTmp/calls" ; rigCallsBesideTracking ) $( rigFrom NDMHERE )" "1 1"
 
 echo "-- 8. what the operation refuses itself, each in one plain line --"
 rigPre=( MDAT_SPAWN_AGENT=magic-coordinator )
@@ -332,9 +353,10 @@ rigSideLine="client-ndm has no mail settings on our own organisation's side: wha
 rigRun --email-mark-seen --team-member client-ndm 41
 rigAssert "mail, where our side holds nothing for a client: the one plain line of the client's own --member-* operation, and it names --client-operation-run with the --client-* operation; no call" "$rigRc $( rigLines "$rigTmp/calls" ) $( rigErrors ) $( rigWhole "$rigTmp/err" "⛔ ERROR: DistroAgentsTools --email-mark-seen: $rigSideLine --client-operation-run magic-coordinator --client-comms-email-mark-seen client-ndm." )" "1 0 1 1"
 rigRun --email-send --team-member client-ndm person@ndm.invalid -- Subject -- Body.
-rigAssert "the same for a mail it would send: the line, and nothing is sent" "$rigRc $( rigLines "$rigTmp/calls" ) $( rigErrors ) $( rigWhole "$rigTmp/err" "⛔ ERROR: DistroAgentsTools --email-send: $rigSideLine --client-operation-run magic-coordinator --client-comms-email-send client-ndm." )" "1 0 1 1"
+## --email-send and --trello-post-comment are the operations of their own tool files (AgentsContext.FrontTable.include), and the line names the tool file that says it.
+rigAssert "the same for a mail it would send: the line, and nothing is sent" "$rigRc $( rigLines "$rigTmp/calls" ) $( rigErrors ) $( rigWhole "$rigTmp/err" "⛔ ERROR: DistroAgentsMail --email-send: $rigSideLine --client-operation-run magic-coordinator --client-comms-email-send client-ndm." )" "1 0 1 1"
 rigRun --trello-post-comment --team-member client-ndm 5f0000000000000000000c01 Rig-comment.
-rigAssert "Trello, where our side holds nothing for a client either: the same line for the comment, naming --client-operation-run with its --client-* operation, and nothing is posted" "$rigRc $( rigLines "$rigTmp/calls" ) $( rigErrors ) $( rigWhole "$rigTmp/err" "⛔ ERROR: DistroAgentsTools --trello-post-comment: client-ndm has no Trello settings on our own organisation's side: what it holds is the other organisation's. For the other organisation use --client-operation-run magic-coordinator --client-comms-trello-post-comment client-ndm." )" "1 0 1 1"
+rigAssert "Trello, where our side holds nothing for a client either: the same line for the comment, naming --client-operation-run with its --client-* operation, and nothing is posted" "$rigRc $( rigLines "$rigTmp/calls" ) $( rigErrors ) $( rigWhole "$rigTmp/err" "⛔ ERROR: DistroAgentsTrello --trello-post-comment: client-ndm has no Trello settings on our own organisation's side: what it holds is the other organisation's. For the other organisation use --client-operation-run magic-coordinator --client-comms-trello-post-comment client-ndm." )" "1 0 1 1"
 rigRun --client-operation-run magic-coordinator --client-comms-email-mark-seen client-ndm 41
 rigAssert "and what the line names does mark the message in the mailbox the client holds" "$rigRc $( LC_ALL=C awk '{ print $1, $2, $3, $4, $5 }' "$rigTmp/calls" )" "0 imap imap-ndmhere.invalid us@ndmhere.invalid UID STORE"
 rigPre=( MDAT_SPAWN_AGENT=client-ndm )
@@ -363,7 +385,8 @@ rigAssert "control: the manual does say who a --client-* operation is called by"
 echo "-- 12. static: the rule is asked in one place, and the new operation has no check of its own --"
 rigAssert "where a --client-* operation is dispatched, once, and defined once" "$( LC_ALL=C grep -c -F -e '--client-*) AgentsToolsClientCallerCheck "${2:-}" "${1#--}" || { set +e ; return 1 ; } ;;' "$rigTool" || : ) $( cat "$rigHere"/*/*.include "$rigHere"/*/*.sh | LC_ALL=C grep -c -E '^[[:space:]]*AgentsToolsClientCallerCheck\(\)\{' || : )" "1 1"
 rigAssert "and in no stub: no --client-* arm of the package carries a check of its own on who calls" "$( for rigFile in "$rigHere"/*/AgentsTools.*.include ; do LC_ALL=C awk '/^[[:space:]]*--client-[a-z|*-]*\)/ { on = 1 } on && /^[[:space:]]*--(member|intern|magic)-[a-z|*-]*\)/ { on = 0 } on && /AgentsToolsActingMemberCheck|AgentsToolsMagicCallerCheck/ { n++ } END { if ( n ) print FILENAME ": " n }' "$rigFile" ; done | LC_ALL=C sed 's|.*/||' | LC_ALL=C tr '\n' ' ' )" ""
-rigAssert "control: the same search does find the arms of the client stubs" "$( for rigFile in "$rigHere"/*/AgentsTools.*.include ; do LC_ALL=C grep -c -E '^[[:space:]]*--client-[a-z|*-]*\)' "$rigFile" || : ; done | LC_ALL=C awk '{ n += $1 } END { print ( n >= 25 ) ? "found" : "blind " n }' )" found
+## The control counts the --client-* operations those arms name, not the arm lines: one arm may name many of them (AgentsTools.ClientComms.include).
+rigAssert "control: the same search does find the arms of the client stubs" "$( for rigFile in "$rigHere"/*/AgentsTools.*.include ; do LC_ALL=C grep -E '^[[:space:]]*--client-[a-z|*-]*\)' "$rigFile" | LC_ALL=C grep -o -E -- '--client-[a-z*-]+' ; done | LC_ALL=C awk '{ n++ } END { print ( n >= 25 ) ? "found" : "blind " n + 0 }' )" found
 rigAssert "the rule passes the named client's own session and the console, and no other member by name" "$( LC_ALL=C grep -c -F -e "case \"\$checkActing\" in ''|\"\$1\") return 0 ;; esac" "$rigHere/member/AgentsTools.CallerCheck.include" || : ) $( LC_ALL=C grep -c -F -e '|magic-coordinator) return 0' "$rigHere/member/AgentsTools.CallerCheck.include" || : )" "1 0"
 rigAssert "--client-operation-run asks nothing of its own about who calls: it is an operation of the coordinator's own, asked in the door of the tool files, once" "$( LC_ALL=C grep -c -E 'AgentsTools(ActingMember|MagicCaller|ClientCaller)Check[^A-Za-z]*\"' "$rigHere/client/AgentsTools.ClientOperationRun.include" || : ) $( LC_ALL=C grep -c -F -e 'AgentsToolsMagicCallerCheck "${1#--}" || { set +e ; frontDone=yes ; frontRc=1 ; return 0 ; }' "$rigHere/harness/AgentsContext.FrontDoor.include" || : )" "0 1"
 rigAssert "no coordinator comms operation takes the client side from the member it is given: the family says our own side itself, once" "$( LC_ALL=C grep -c -F -e 'local -x MDAT_COMMS_SIDE=client' "$rigHere/comms/AgentsTools.CoordinatorComms.include" || : ) $( LC_ALL=C grep -c -F -e '--*) local -x MDAT_COMMS_SIDE=own MDAT_COMMS_OP="$1" ;;' "$rigHere/comms/AgentsTools.CoordinatorComms.include" || : )" "0 1"

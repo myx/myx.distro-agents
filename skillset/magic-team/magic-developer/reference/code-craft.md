@@ -10,6 +10,7 @@ Read this before writing code in any language. It is not a per-language module, 
 - The style
 - Loads and contracts
 - Inlining and removal
+- Batch changes
 - Simplicity is a requirement
 - A check is code, and it is proven by its red
 - Bounds, reserves, and the guard that repairs
@@ -68,12 +69,24 @@ Read this before writing code in any language. It is not a per-language module, 
 - A load inside a function is guarded by `type`, so it parses once a process. A load stays unguarded only where re-loading resets per-call state on purpose, and then a comment says so.
 - A load is placed where the call is reached: never before a loop body that runs it each turn, never at a file's top for a function of a rare branch.
 - A file that runs a side effect at load — spawning servers, an enumeration — is never loaded from a guard.
+- A guarded load names a function that its file defines, and that the code it guards calls. That code ends at the end of its function, or of its case arm (`;;`).
+- A load's file is the file that defines the called function, never a file that pulls it in as a side effect.
+- An include of another concern is that concern's contract, whether `sh-lib/<concern>/*.include` or a shared awk file. Loading it to call its functions is right, never a breach: the package is one subsystem, as the shared awk files and the distro index helpers show. The breach scan carries no class for it.
+- An internal data file is owned strictly. Only its owner concern's functions read or write a store: `.local/agents/sessions/<id>/...`, `.local/agents/spawned/...`, the board, the inboxes, the vault. Every other concern asks the owner and gets data back, never a path to build on.
+- The breach scan reports a store read past its owner as `foreign-store`. A store the package does not own belongs to the distro tooling.
 
 ## Inlining and removal
 
 - Before inlining or removing a function, every caller in `sh-lib`, `sh-scripts` and `sh-test` is found by name. A function named from another file is API: it stays, or every caller is changed in the same change.
 - A function defined twice: the first copy is dead and goes. One name with two implementations in two files is fixed to one implementation.
 - A function named nowhere else is dead and goes.
+
+## Batch changes
+
+- A batch change is gated on the changed copy, with the copy's root given to the scanner explicitly. `sh-test/solid/AgentsSolidBreachScan.sh` reads `$MDLT_ORIGIN` when no root is given, so a default run reads live, not the copy.
+- Read the gate's result before the landing command runs. Never chain landing after the gate in one call.
+- A mechanical rewrite of a line judges it by the code the line belongs to: its function, or its case arm.
+- A stage built from an older copy is merged onto live hunk by hunk: take only the hunks that carry its own change, keep every other line as live has it, and check that no function now on live is dropped from any staged file before landing.
 
 ## Simplicity is a requirement
 
@@ -167,6 +180,7 @@ A checker reports green on its own counterexample as readily as on a clean subje
 - Inside tooling code, a tool is reached through its loaded functions: `Require ListDistroProjects ; Distro ListDistroProjects --select-all`. This is how tooling is written, never how it is operated. An operator, and a member at work, calls the command, `<Tool>.fn.sh --<operation>`, as `magic-team.armed.md`, 'Execution mechanisms', states.
 - A call path takes a kept measure or an index, never a walk of a store. A call path is a schedule pass, a Wait round, a permission gate, an ask or a start. It reads a kept list or the registry as it stands. A new walk is listed in `AgentsHotPathWalksCheck` with its reason, or it does not land. See `magic-team/reference/engineering-discipline.md`, "Call paths and walks".
 - An include the MCP server sources on every request, such as `sh-lib/mcp/AgentsTools.InternMcpRequest.include`, holds its tool list in one single-quoted string. No apostrophe goes into that string. An edit to such an include is followed by `bash -n` before the next tool call.
+- A quote mark in a comment inside `$( )` or `<( )` is read as an open quote when the substitution runs, so `bash -n` and the breach scan both pass it while the operation fails. Write such a comment with no quote mark, or put it above the substitution.
 - A guard is one builtin; a load is a parse. No operation does parser or interpreter work it does not need: no load on a path that does not call into the file, no fork a builtin can do, no subshell per record where one awk pass reads them all.
 - A review requires all of this. Code that breaks it is sent back, whatever else it fixes.
 

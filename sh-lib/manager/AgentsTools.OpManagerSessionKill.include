@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # ^^^ for syntax checking in the editor only
 
-type AgentsToolsManagerSessionFinish > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.ManagerSessionKill.include"
+type AgentsToolsManagerSessionFinish > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.ManagerSessionKill.include"
 
 ## AgentsTools.OpManagerSessionKill.include -- the operation `--manager-session-kill`, sourced by AgentsTools.ManagerSession.include with the operation's arguments.
 ## One run, or every live run of one session, ended the hard way, and one row a run saying
@@ -51,13 +51,17 @@ type AgentsToolsManagerSessionFinish > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx
 		## THE AUTHORITY to end it (F6.10): over one run, whoever it reports to; over a whole session,
 		## whoever its founding run reports to; the owners role; or a grant of it. A plan ends nothing,
 		## and an id no record here carries is refused as it was, below.
-		if [ -z "$killPlan" ] && [ -n "$( LC_ALL=C grep -l -x -F -e "session-id: $killId" -e "spawn-id: $killId" "$MMDAPP"/.local/agents/spawned/*/*.spawn.md 2> /dev/null | head -1 )" ] ; then
-			local killRecord=""
-			type AgentsToolsSessionRunRecord > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionSeats.include"
+		## An id a record carries: a run's own (its record, AgentsSessionRunRecordInto) or a session's (its runs' records).
+		local killRecord=""
+		type AgentsSessionRunRecordInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+		type AgentsToolsSpawnedSessionRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include"
+		if [ -z "$killPlan" ] && { AgentsSessionRunRecordInto killRecord "$killId" || [ -n "$( AgentsToolsSpawnedSessionRecords "$killId" own | LC_ALL=C sed -n 1p )" ] ; } ; then
+			killRecord=""
+			type AgentsSessionRunRecordInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
 			if [ -n "$killOwn" ] ; then
-				killRecord="$( AgentsToolsSessionRunRecord "$killId" )" || killRecord=""
+				AgentsSessionRunRecordInto killRecord "$killId" || :
 			else
-				killRecord="$( AgentsToolsAuthoritySessionRecord "$killId" )" || killRecord="$( AgentsToolsSessionRunRecord "$killId" )" || killRecord=""
+				killRecord="$( AgentsToolsAuthoritySessionRecord "$killId" )" || AgentsSessionRunRecordInto killRecord "$killId" || :
 			fi
 			## ANY OPERATOR AT A CONSOLE, AND THE COORDINATOR, CAN KILL (sketch 5.4: a kill ends a running session at the first try; the screen asked
 			## for the word before it called). No mapping of the console to the owner is needed for it. A member other than the coordinator

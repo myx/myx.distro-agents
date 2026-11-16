@@ -8,7 +8,7 @@ set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 rigHere="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib"
 rigRefuse(){ echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1 ; }
-[ -f "$rigHere/comms/AgentsTools.WakeMarker.include" ] || rigRefuse "the wake marker's functions are not at the origin this workspace resolves: $rigHere"
+[ -f "$rigHere/wait/AgentsTools.WakeMarker.include" ] || rigRefuse "the wake marker's functions are not at the origin this workspace resolves: $rigHere"
 . "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
 rigTmp="$( rigTempDir AgentsWakePokeCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
@@ -22,7 +22,7 @@ rigReal="$MMDAPP"
 rigWs="$rigTmp/ws"
 export MMDAPP="$rigWs"
 mkdir -p "$rigWs/.local/temp" "$rigWs/.local/agents"
-. "$rigHere/comms/AgentsTools.WakeMarker.include"
+. "$rigHere/wait/AgentsTools.WakeMarker.include"
 type AgentsToolsWakePoke > /dev/null 2>&1 || rigRefuse "AgentsToolsWakePoke is not defined by sourcing the wake marker's functions"
 
 rigNap(){ ## member, tag -- a wait's nap: holds both ends of its fifo, reads up to 20 s, and writes how long it napped into <tag>.napped

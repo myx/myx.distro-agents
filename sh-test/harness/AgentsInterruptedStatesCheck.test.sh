@@ -40,6 +40,7 @@ done
 [ -x "$rigKnowledge" ] || rigRefuse "the knowledge tool is not executable: $rigKnowledge"
 [ -f "${MYXROOT:-/usr/local/share/myx.common}/bin/lib/parallel.Common" ] || rigRefuse "myx.common lib/parallel, which the runner runs its tests with, is not at ${MYXROOT:-/usr/local/share/myx.common}"
 . "$rigPackage/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-writes.include.sh" || exit 1
 rigTmp="$( rigTempDir AgentsInterruptedStatesCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 rigPath="/usr/bin:/bin:/usr/sbin:/sbin"
@@ -180,9 +181,9 @@ rigAssert "the summary names it too"                             "$( rigHas "$ri
 rigAssert "control: the run itself says nothing of standing still" "$( rigHas "$rigTmp/run.err" "stood still and was ended as stalled" )" no
 
 echo "-- 6. a Knowledge source that cannot be read --"
-mkdir -p "$rigTmp/data/board/backlog" || exit 1
-printf -- '---\ntype: task\nowner: rig-a\n---\n\n# Rig read\n\nThe RIGKNOWNWORD stands here.\n' > "$rigTmp/data/board/backlog/task-20261019T0100Z-rig-read.md"
-printf -- '---\ntype: task\nowner: rig-a\n---\n\n# Rig lost\n\nThe RIGLOSTWORD stands here.\n' > "$rigTmp/data/board/backlog/task-20261019T0101Z-rig-lost.md"
+: || exit 1  ## the store folders are made by the write that fills them
+rigOwnerData="$rigTmp/data" rigOwnerBoardWrite backlog "task-20261019T0100Z-rig-read.md" -- '---\ntype: task\nowner: rig-a\n---\n\n# Rig read\n\nThe RIGKNOWNWORD stands here.\n'
+rigOwnerData="$rigTmp/data" rigOwnerBoardWrite backlog "task-20261019T0101Z-rig-lost.md" -- '---\ntype: task\nowner: rig-a\n---\n\n# Rig lost\n\nThe RIGLOSTWORD stands here.\n'
 chmod 000 "$rigTmp/data/board/backlog/task-20261019T0101Z-rig-lost.md"
 rigQuery(){ ## name, words...
 	local rigQueryName="$1" rigQueryRc=0

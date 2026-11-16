@@ -90,6 +90,7 @@ AgentsToolsManagerWizardKey(){ ## key
 		PRESET_MODEL_OR_MACRO) wizardScope=preset ; wizardRank=2 ;;
 		PRESET_EFFORT) wizardScope=preset ; wizardRank=3 ;;
 		PRESET_INPUT_CACHE_TIME) wizardScope=preset ; wizardRank=4 ;;
+		PRESET_MODEL_TAKES_IMAGES) wizardScope=preset ; wizardRank=4 ;;
 		PRESET_CONTEXT_MAX_SIZE) wizardScope=preset ; wizardRank=4 ;;
 		SPAWN_TIER_LOW) wizardScope=team ; wizardRank=5 ;;
 		SPAWN_TIER_NORMAL) wizardScope=team ; wizardRank=6 ;;
@@ -185,7 +186,7 @@ case "$1" in
 					[ -n "$readPreset" ] || continue
 					printf 'option\tpreset\t%s\t%s\n' "$readPreset" "$readPreset"
 					for readKey in $agentsPresetKeys ; do
-						case "$readKey" in PRESET_EXTEND|PRESET_ENDPOINT_URL|PRESET_CLI_SERVICE|PRESET_MODEL_OR_MACRO|PRESET_EFFORT|PRESET_INPUT_CACHE_TIME|PRESET_CONTEXT_MAX_SIZE) ;; *) continue ;; esac
+						case "$readKey" in PRESET_EXTEND|PRESET_ENDPOINT_URL|PRESET_CLI_SERVICE|PRESET_MODEL_OR_MACRO|PRESET_EFFORT|PRESET_INPUT_CACHE_TIME|PRESET_MODEL_TAKES_IMAGES|PRESET_CONTEXT_MAX_SIZE) ;; *) continue ;; esac
 						AgentsToolsManagerWizardRow preset "preset-$readPreset" "$readKey" | LC_ALL=C awk -F'\t' -v presetName="$readPreset" '$3 != "missing" { print $1 "\t" presetName "\t" $2 "\t" $3 "\t" $4 }'
 					done
 					AgentsToolsManagerWizardCredentials | while IFS=$'\t' read -r readRow readService readKey ; do

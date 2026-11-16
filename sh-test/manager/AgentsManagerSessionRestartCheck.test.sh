@@ -19,12 +19,13 @@ rigTool="$rigPackage/sh-scripts/DistroAgentsTools.fn.sh"
 rigRefuse(){ echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1 ; }
 [ -f "$rigTool" ] || rigRefuse "the tool is not at the origin: $rigTool"
 . "$rigPackage/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-writes.include.sh" || exit 1
 . "$rigPackage/sh-test/check-fixtures/rig-processes.include.sh" || exit 1
 rigTmp="$( rigTempDir AgentsManagerSessionRestartCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 rigWs="$rigTmp/ws" rigHome="$rigTmp/home" rigData="$rigTmp/data" rigSkills="$rigTmp/skills"
 rigSp="$rigWs/.local/agents/spawned"
-mkdir -p "$rigSp" "$rigWs/.local/agents/sessions" "$rigWs/.local/.agents" "$rigHome" "$rigData/board/running" "$rigSkills/magic-coordinator" "$rigTmp/bin" || exit 1
+mkdir -p "$rigSp" "$rigWs/.local/agents/sessions" "$rigWs/.local/.agents" "$rigHome" "$rigSkills/magic-coordinator" "$rigTmp/bin" || exit 1
 printf 'rig\n' > "$rigSkills/magic-coordinator/magic-coordinator.basic.md"
 [ "$rigWs" != "${MMDAPP%/}" ] || rigRefuse "the rig workspace is the real one"
 ## A fake curl first on PATH logs any request made: none may be.
@@ -60,7 +61,7 @@ rigRec(){ ## session id, spawn id, member, status, the dispatch item it spawns (
 	} > "$rigSp/$2/$2.spawn.md"
 }
 rigItem(){ ## item name, member, spawn id, session id -- a running dispatch item of the rig's board
-	printf -- '---\ntype: dispatch\nowner: %s\nstatus: running\nspawn-id: %s\nsession-id: %s\n---\n\n# Dispatch: %s\n\nThe rig brief.\n' "$2" "$3" "$4" "$1" > "$rigData/board/running/$1.md"
+	rigOwnerBoardWrite running "$1.md" -- '---\ntype: dispatch\nowner: %s\nstatus: running\nspawn-id: %s\nsession-id: %s\n---\n\n# Dispatch: %s\n\nThe rig brief.\n' "$2" "$3" "$4" "$1"
 }
 rigHost="$( hostname -s 2> /dev/null )" ; [ -n "$rigHost" ] || rigHost="unknown"
 rigAlive

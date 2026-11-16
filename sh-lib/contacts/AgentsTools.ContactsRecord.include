@@ -30,10 +30,7 @@ AgentsToolsContactsOneLine(){ ## text
 	printf '%s' "$1" | LC_ALL=C tr '\n\r\t' '   ' | LC_ALL=C tr -s ' ' | LC_ALL=C sed -e 's/^ //' -e 's/ $//'
 }
 
-## The value of a front matter key of a record; nothing for a key it lacks.
-AgentsToolsContactsKey(){ ## file, key
-	LC_ALL=C awk -v want="$2: " 'NR == 1 { if ( $0 != "---" ) exit ; next ; } $0 == "---" { exit ; } index( $0, want ) == 1 { print substr( $0, length( want ) + 1 ) ; exit ; }' "$1" 2> /dev/null
-}
+type AgentsToolsFrontmatterKey > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.FrontmatterKey.include"
 
 ## A list `a, b` with one more item, unless it holds it already (compared without regard to case).
 AgentsToolsContactsListAdd(){ ## list, item

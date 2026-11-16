@@ -17,7 +17,7 @@
 			## A work-duty's root is posted in the owner's conversation and every other session's in the team's.
 			local rootTitle="$sessionCommentKept"
 			if [ -z "$rootTitle" ] ; then
-				type AgentsToolsSpawnedSessionRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.StartedRecords.include"
+				type AgentsToolsSpawnedSessionRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include"
 				rootTitle="$( AgentsToolsSpawnedSessionRecords "$sessionId" own 2> /dev/null | head -1 )" || rootTitle=""
 				[ -z "$rootTitle" ] || rootTitle="$( AgentsToolsSpawnSandboxRecordHeader "$rootTitle" session-comment )"
 			fi
@@ -38,6 +38,7 @@
 			## session that brought this one in does (session-current, AgentsToolsSessionCurrentThreadFind).
 			## A duty records it for its own session too, which it starts alone and restarts into.
 			if [ -n "$sessionThread" ] && { [ -n "$sessionJoined" ] || [ -n "$workDutyStart" ] ; } ; then
-				{ mkdir -p "${sessionThreadRecord%/*}" && printf '%s\n' "$sessionThread" > "$sessionThreadRecord.$$.tmp" && mv -f "$sessionThreadRecord.$$.tmp" "$sessionThreadRecord" ; } 2> /dev/null \
+				type AgentsSessionThreadSet > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+				AgentsSessionThreadSet "$sessionId" "$sessionThread" 2> /dev/null \
 					|| echo "$MDSC_CMD: agent-spawn-proxy: ⚠️ WARNING: the session thread $sessionThread of $sessionId could not be recorded, so a member brought in before this spawn is recorded may open another" >&2
 			fi

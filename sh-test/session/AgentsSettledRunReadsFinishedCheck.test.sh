@@ -13,6 +13,7 @@
 ## every mark, sweeps every mark, or hides every flag fails here.
 ## Offline: the workspace, its records, its stores and its board are this rig's own temp tree. No socket.
 set -u
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-store.include.sh" || exit 1
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 rigPkg="${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}/myx/myx.distro-agents"
 rigRegistries="$rigPkg/sh-lib/team-data/AgentsTools.Registries.include"
@@ -21,13 +22,14 @@ rigControl="$rigPkg/sh-lib/session/AgentsTools.InternSessionControl.include"
 rigHousekeeping="$rigPkg/sh-lib/spawn/AgentsTools.SpawnSandbox.include"
 rigRowsAwk="$rigPkg/sh-lib/manager/AgentsManagerSessionRows.awk"
 rigTokensAwk="$rigPkg/sh-lib/manager/AgentsManagerSessionTokens.awk"
+rigStoreInclude="$rigPkg/sh-lib/session/AgentsTools.SessionStore.include"
 rigMinutesAwk="$rigPkg/sh-lib/manager/AgentsManagerDateMinutes.awk"
 rigTools="$rigPkg/sh-scripts/DistroAgentsTools.fn.sh"
 
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }
-for rigNeeded in "$rigRegistries" "$rigSandbox" "$rigControl" "$rigRowsAwk" "$rigTokensAwk" "$rigMinutesAwk" "$rigTools" ; do
+for rigNeeded in "$rigRegistries" "$rigSandbox" "$rigControl" "$rigRowsAwk" "$rigTokensAwk" "$rigMinutesAwk" "$rigTools" "$rigStoreInclude" ; do
 	[ -f "$rigNeeded" ] || rigRefuse "the package is not at the origin this workspace resolves: $rigNeeded"
 done
 mkdir -p "$MMDAPP/.local/temp"
@@ -39,7 +41,8 @@ rigData="$rigTmp/data"
 rigAgents="$rigWs/.local/agents"
 rigSpawned="$rigAgents/spawned"
 rigStores="$rigAgents/sessions"
-mkdir -p "$rigWs/.local/.agents" "$rigData/board/processed" "$rigSpawned" "$rigStores" "$rigAgents/pending"
+mkdir -p "$rigWs/.local/.agents" "$rigSpawned" "$rigStores" "$rigAgents/pending"
+rigBoardStates "$rigData" processed
 printf 'SLACK_CHANNEL_MAGIC_TEAM=CRIG00001\nSLACK_CHANNEL_HUMAN_OWNER=URIGOWNER\nSLACK_BOT_TOKEN=rig-bot-token-TEAM\n' > "$rigWs/.local/.agents/magic-team.agent.env"
 : > "$rigAgents/pending-replies.registry"
 rigHost="$( hostname -s 2> /dev/null )" || rigHost="unknown"
@@ -65,9 +68,13 @@ rigA1="$1" ; set --
 . "$RIG_INCLUDE" || exit 1
 AgentsToolsRegistrySpawnedSessionsRows > "$RIG_ROWS" || exit 1
 AgentsToolsRegistryMeasureRows "$RIG_ROWS" '' '' 17 '' > /dev/null || exit 1
+## The store's facts, as its owner hands them: the store this rig wrote is read by the owner, never by the reader under test.
+. "$RIG_STORE" || exit 1
 printf '%s\n' "$measuredDated" \
-	| MDAT_MANAGER_CONTROL='' MDAT_MANAGER_AGENTS="$RIG_AGENTS" LC_ALL=C awk -v loadAverage=- \
-		-f "$RIG_TOKENS" -f "$RIG_MINUTES" -f "$RIG_ROWSAWK" "$RIG_AGENTS/pending-replies.registry" - \
+	| MDAT_MANAGER_CONTROL='' LC_ALL=C awk -v loadAverage=- \
+		-f "$RIG_TOKENS" -f "$RIG_MINUTES" -f "$RIG_ROWSAWK" \
+		<( printf '%s\n' "$measuredDated" | LC_ALL=C awk '{ print $8 ; print $2 }' | AgentsSessionRunFacts tokens usage-limit chapter ) \
+		"$RIG_AGENTS/pending-replies.registry" - \
 	| LC_ALL=C cut -f6- \
 	| LC_ALL=C awk -F'\t' -v want="$rigA1" '$1 == "session" && $2 == want { print $4 "|" $13 }'
 RIGROW
@@ -107,7 +114,7 @@ rigInRig(){ ## the include, the program, then its arguments -- run in the rig's 
 		MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
 		MDAT_SPAWN_AGENT=magic-coordinator MDAT_SEND_FLOOR=none \
 		RIG_INCLUDE="$rigInclude" RIG_ROWS="$rigTmp/rows.txt" RIG_AGENTS="$rigAgents" \
-		RIG_ROWSAWK="$rigRowsAwk" RIG_TOKENS="$rigTokensAwk" RIG_MINUTES="$rigMinutesAwk" \
+		RIG_ROWSAWK="$rigRowsAwk" RIG_TOKENS="$rigTokensAwk" RIG_MINUTES="$rigMinutesAwk" RIG_STORE="$rigStoreInclude" \
 		RIG_BASH="$BASH" RIG_TOOLS="$rigTools" RIG_POST_LOG="$rigTmp/post.log" \
 		bash "$rigProgram" "$@" 2>&1 )
 }

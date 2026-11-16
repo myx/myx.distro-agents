@@ -64,6 +64,7 @@ rigRefuse(){
 ## A process this rig starts and signals later is noted with when it began, and is signalled only while its pid is still that process.
 . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-processes.include.sh" || rigRefuse "the rig's process helper is missing from the package: sh-test/check-fixtures/rig-processes.include.sh"
 . "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-writes.include.sh" || exit 1
 rigTmp="$( rigTempDir AgentsChangeApprovalCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 rigLivePids=""
@@ -124,7 +125,7 @@ rigStart(){ ## scenario name
 	local startMember
 	rigName="$1" ; rigDir="$rigTmp/$1" ; rigWs="$rigDir/ws" ; rigData="$rigDir/data" ; rigMember="keeper-myx"
 	rigSpawn="rig-run-$1" ; rigItem="dispatch-20261012T0100Z-$1"
-	mkdir -p "$rigData/board/running" "$rigData/board/processed" "$rigWs/.local/.agents" "$rigWs/.local/agents/spawned" \
+	mkdir -p "$rigWs/.local/.agents" "$rigWs/.local/agents/spawned" \
 		"$rigWs/held" "$rigWs/other" "$rigWs/.local/temp/held"
 	printf 'SLACK_CHANNEL_MAGIC_TEAM=CRIG00001\nSLACK_CHANNEL_HUMAN_OWNER=URIGOWNER\nSLACK_BOT_TOKEN=rig-bot-token-TEAM\n' > "$rigWs/.local/.agents/magic-team.agent.env"
 	printf 'SLACK_USER_TOKEN=rig-user-token-KEEPER\n' > "$rigWs/.local/.agents/keeper-myx.agent.env"
@@ -143,9 +144,9 @@ rigStart(){ ## scenario name
 	: > "$rigDir/curl.log"
 	## The work of the session: a task, the dispatch that tracks it, its spawn record, and a
 	## stand-in process, so that session is live.
-	printf -- '---\ntype: task\nowner: keeper-myx\n---\n\n# Rework the rig widget\n\nThe widget drops its last line. Make it keep it.\n' > "$rigData/board/running/task-20261012T0000Z-$rigName.md"
+	rigOwnerBoardWrite running "task-20261012T0000Z-$rigName.md" -- '---\ntype: task\nowner: keeper-myx\n---\n\n# Rework the rig widget\n\nThe widget drops its last line. Make it keep it.\n'
 	printf -- '---\ntype: dispatch\nowner: keeper-myx\nstatus: dispatch-started\nspawn-id: %s\ntracks: task-20261012T0000Z-%s\n---\n\n# rig dispatch\n' \
-		"$rigSpawn" "$rigName" > "$rigData/board/running/$rigItem.md"
+		"$rigSpawn" "$rigName" | rigOwnerBoardPut running "$rigItem.md"
 	mkdir -p "$rigWs/.local/agents/spawned/$rigSpawn" "$rigWs/.local/agents/sessions/$rigSpawn"
 	printf -- '---\nsession-id: 5e55104a-rig-%s\nspawn-id: %s\nparent-spawn-id: none\ntracking-name: %s\nhost: %s\nowner: keeper-myx\nstatus: spawn-started\nsession-thread: CSES00001:1700000000.000100\nspawns: %s\ndescription: rework the rig widget\n---\n' \
 		"$rigName" "$rigSpawn" "$rigSpawn" "$rigHost" "$rigItem" > "$rigWs/.local/agents/spawned/$rigSpawn/$rigSpawn.spawn.md"
@@ -679,6 +680,7 @@ rigEdit task "$rigWs/held/notes.md" beta BETA
 rigAssert "a grant given for the task does: the call is applied at once, with no prompt" "$( rigFirst task ):$( rigBytes "$rigWs/held/notes.md" ):$( rigRecordCount ):$( rigPosts )" "OK: replaced one occurrence in $rigWs/held/notes.md:alpha\\nBETA\\ngamma\\ndelta\\n:2:4"
 rigHook hook-task Edit '{"file_path":"'"$rigWs/held/notes.md"'","old_string":"gamma","new_string":"GAMMA"}'
 rigAssert "and a native client's own call under it is allowed, not held" "$( rigHookSays hook-task ):$( rigRecordCount )" "allow:2"
+rigOwnerBoardReady || rigRefuse "the board could not be made ready to be written"
 mv "$rigData/board/running/$rigItem.md" "$rigData/board/processed/$rigItem.md"
 rigEdit closed "$rigWs/held/notes.md" delta DELTA
 rigAssert "once that task is closed its grant is gone, and the call is held again" "$( rigFirst closed ):$( rigBytes "$rigWs/held/notes.md" )" "$( rigHeldLine "$rigWs/held/notes.md" ):alpha\\nBETA\\ngamma\\ndelta\\n"

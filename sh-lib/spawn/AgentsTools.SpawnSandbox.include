@@ -17,6 +17,7 @@
 type DistroAgentsTools > /dev/null 2>&1 || DistroAgentsTools(){ unset -f DistroAgentsTools ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"&& DistroAgentsTools "$@" ; }
 
 ## THE PARTS, each one concern, split by concern; sourced here so every caller of this include keeps every function.
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandboxRecordHeader.include"
 . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnStartSteps.include"
 . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandboxInput.include"
 . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionThreads.include"
@@ -45,19 +46,12 @@ AgentsToolsHousekeepingReport(){ ## member, lines
 	while IFS= read -r reportLine ; do
 		AgentsToolsDaemonLine "$reportLine"
 	done <<< "$2"
-	type AgentsToolsEventTrackThreadRead > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/event-track/AgentsTools.EventTrackThread.include"
-	reportThread="$( AgentsToolsEventTrackThreadRead "$( AgentsToolsEventTrackThreadOwnDir )" )"
+	type AgentsToolsEventTrackThreadOfInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/event-track/AgentsTools.EventTrackThread.include"
+	reportThread=""
+	AgentsToolsEventTrackThreadOfInto reportThread "${MDAT_SPAWN_SESSION_ID:-}"
 	[ -n "$reportThread" ] || return 0
 	type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 	printf '%s\n' "$2" | DistroAgentsTools --intern-op-event-track-post "$1" "$reportThread" --kind activity --session-id "${MDAT_SPAWN_SESSION_ID:-}" \
 		--field what="board housekeeping" --from-stdin > /dev/null 2>&1 || :
 	return 0
-}
-
-## First value of one frontmatter header of a file, empty when absent. Bounded to the frontmatter block, so a body line cannot spoof it.
-AgentsToolsSpawnSandboxRecordHeader(){ ## file, header
-	LC_ALL=C awk -v wantHeader="$2" '
-		$0 == "---" { fmCount++ ; if ( fmCount > 1 ) { exit ; } next ; }
-		fmCount == 1 && index( $0, wantHeader ": " ) == 1 { print substr( $0, length( wantHeader ) + 3 ) ; exit ; }
-	' "$1" 2> /dev/null || :
 }

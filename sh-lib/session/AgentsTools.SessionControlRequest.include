@@ -234,7 +234,7 @@ AgentsToolsSessionControlRequestAnswer(){ ## the control folder, result, reason,
 AgentsToolsSessionControlRequestKill(){ ## the operation as it was called, the id, "run" where the id is a run's own alone (may be empty)
 	type AgentsToolsSpawnRecord > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunRecords.include"
 	type AgentsToolsRegistryHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
-	type AgentsToolsManagerSessionKill > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.ManagerSessionKill.include"
+	type AgentsToolsManagerSessionKill > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.ManagerSessionKill.include"
 	local viaOp="$1" viaId="$2" viaOwn="${3:-}" viaKind="kill" viaSession="" viaRecord="" viaFor="" viaDir="" viaWhy="" viaBy="" viaMine="" viaAside="" viaBack=""
 	local viaWait=0 viaBound=0 viaFrom=0 viaTurns=0 viaPlaced="" viaTaken="" viaAnswered="" viaThreadPid=""
 	local requestId="" requestKind="" requestFor="" requestSession="" requestBy="" requestAt="" requestAsked="" requestWait=""

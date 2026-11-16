@@ -67,14 +67,15 @@ case "$1" in
 		## The client stub's own include, never the dispatcher, which is no command on a console and
 		## would be re-entered from here (S6.24). The client, and its own settings, are brought from
 		## the workspace it is set up in, as the tool files' own front door brings them.
-		local MDSC_CMD='DistroAgentsTools' clientOpInclude
+		local MDSC_CMD='DistroAgentsTools' clientOpInclude clientOpRunner=""
 		type AgentsToolsMemberSkillsetBring > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWorkspace.include"
 		local clientBrought clientBroughtRoot clientBroughtFrom
 		clientBrought="$( AgentsToolsMemberSkillsetBring "$clientMember" "$clientOperation" )" || { set +e ; return 1 ; }
 		clientBroughtRoot="${clientBrought%%$'\t'*}"
 		clientBroughtFrom="${clientBrought#*$'\t'}"
 		case "$clientOperation" in
-			--client-comms-slack-*) clientOpInclude=slack/AgentsTools.MemberCommsSlack.include ;;
+			## The Slack include is a library: sourcing it runs nothing, and its operations run through its runner, as the dispatcher's own arm runs them.
+			--client-comms-slack-*) clientOpInclude=slack/AgentsTools.MemberCommsSlack.include clientOpRunner=AgentsToolsMemberCommsSlackRun ;;
 			--client-comms-email-*) clientOpInclude=email/AgentsTools.MemberCommsEmail.include ;;
 			--client-comms-trello-*) clientOpInclude=trello/AgentsTools.MemberCommsTrello.include ;;
 			--client-comms-google-*) clientOpInclude=google/AgentsTools.MemberCommsGoogle.include ;;
@@ -85,10 +86,11 @@ case "$1" in
 		set -- "$clientOperation" "$clientMember" "${@:4}"
 		if [ -n "$clientBroughtRoot" ] && [ "$clientBroughtRoot" != "${MDAT_SKILLSET_ROOT:-}" ] ; then
 			AgentsToolsMemberSettingsBorrowedSay "$clientMember" "$clientOperation" "$clientBroughtFrom"
-			( export MDAT_SKILLSET_ROOT="$clientBroughtRoot" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/$clientOpInclude" "$@" )
+			( export MDAT_SKILLSET_ROOT="$clientBroughtRoot" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/$clientOpInclude" "$@" || exit $? ; [ -z "$clientOpRunner" ] || "$clientOpRunner" "$@" )
 			return $?
 		fi
-		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/$clientOpInclude" "$@"
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/$clientOpInclude" "$@" || return $?
+		[ -z "$clientOpRunner" ] || "$clientOpRunner" "$@"
 		return $?
 	;;
 

@@ -76,6 +76,8 @@ rigRunTool(){ ## name, args...
 	local runName="$1"
 	shift
 	rigRc=0
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-writes.include.sh" || exit 1
+rigOwnerWs="${rigWs:-$rigTmp/ws}" rigOwnerData="${rigData:-${rigD:-${rigStore:-${rigOut:-$rigTmp/data}}}}" rigOwnerHome="${rigHome:-$rigTmp/home}" rigOwnerSkills="${rigSkills:-$rigTmp/skills}"
 	: > "$rigFix/imap.log"
 	( cd "$rigDir/ws" && env -i MDAT_TEAM_DATA_COMMIT_THREAD=off MDAT_WORKSPACE_MODE=team-rig HOME="$rigDir/home" PATH="$rigPath" MMDAPP="$rigDir/ws" MDAT_DATA_ROOT="$rigDir/data" MDAT_SKILLSET_ROOT="$rigDir/skills" \
 		MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" PYTHONPATH="$rigTmp/py" PYTHONDONTWRITEBYTECODE=1 FIX_DIR="$rigFix" MDAT_COLLECT_LOCK_TRIES=1 \
@@ -162,8 +164,7 @@ rigWaitFor 30 rigLockGone
 echo "-- 3. the process --"
 rigScene p-proc conf
 ## The member has swept up to 2026-10-09 12:00 UTC: the scan bounds the search of its mailbox by the day before, and so does the thread.
-mkdir -p "$rigDir/data/inboxes/rig-member/incoming"
-printf -- '---\nlast_swept_ts: 1791547200.000000\n---\n\n# sweep-state-note\n' > "$rigDir/data/inboxes/rig-member/incoming/note-20260812T231137Z-sweep-state.md"
+printf -- '---\nlast_swept_ts: 1791547200.000000\n---\n\n# sweep-state-note\n' | rigOwnerInboxPut rig-member note-20260812T231137Z-sweep-state.md
 rigOpEnv="MDAT_COLLECT_PASS_SECONDS=1"
 rigOp proc-start --start
 rigOpEnv=""

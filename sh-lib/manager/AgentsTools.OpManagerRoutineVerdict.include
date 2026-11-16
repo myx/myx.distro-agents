@@ -18,7 +18,8 @@
 		fi
 		[ -n "$verdictPath" ] && [ -f "$verdictPath" ] || { echo "⛔ ERROR: $MDSC_CMD $verdictOp: no such routine: $1" >&2 ; set +e ; return 1 ; }
 		local verdictFault verdictContract verdictStart
-		verdictFault="$( set -- --intern-doc-validate routine "$verdictPath" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.InternDocValidate.include"| LC_ALL=C grep -v -e '^[^ ]*:[0-9]*: report-' | LC_ALL=C sed -n '1s/^[^ ]*:[0-9]*: [^ ]*: //p' )" || verdictFault=""
+		type AgentsToolsDocValidateRoutineFault > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.DocValidateRuleSets.include"
+		verdictFault="$( AgentsToolsDocValidateRoutineFault "$verdictPath" )" || verdictFault=""
 		if verdictContract="$( AgentsToolsSpawnRoutineContractCheck "$verdictPath" 2>&1 )" ; then
 			verdictStart="startable"
 		else

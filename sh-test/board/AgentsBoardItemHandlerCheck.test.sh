@@ -24,6 +24,9 @@ trap 'rm -rf -- "$rigTmp"' EXIT
 rigSkills="$rigTmp/skills" rigWs="$rigTmp/ws" rigD="$rigTmp/items"
 mkdir -p "$rigSkills/magic-team" "$rigWs/.local/agents" "$rigTmp/home" "$rigD"
 rigPassCount=0 rigFailCount=0
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-writes.include.sh" || exit 1
+rigOwnerWs="${rigWs:-$rigTmp/ws}" rigOwnerData="${rigData:-${rigD:-${rigStore:-${rigOut:-$rigTmp/data}}}}" rigOwnerHome="${rigHome:-$rigTmp/home}" rigOwnerSkills="${rigSkills:-$rigTmp/skills}"
+rigOwnerBoardReady
 rigAssert(){ ## what is asserted, got, want
 	if [ "$2" = "$3" ] ; then
 		printf '  PASS  %s\n' "$1" ; rigPassCount=$(( rigPassCount + 1 ))
@@ -102,10 +105,9 @@ rigAssert "an item with no type cannot be decided" "$( rigAsk AgentsToolsBoardIt
 
 echo "-- 7. the board digest prints the routine that runs each item next --"
 rigStore="$rigTmp/store" rigFn="$rigPackage/sh-scripts/DistroAgentsTools.fn.sh"
-mkdir -p "$rigStore/board/pending" "$rigStore/inboxes/magic-coordinator/incoming"
-printf '%s\n' '---' 'type: proposal' 'owner: keeper-rig' '---' '# a proposal' > "$rigStore/board/pending/proposal-20261028T0100Z-rig-plain.md"
-printf '%s\n' '---' 'type: task' 'owner: keeper-rig' 'handler-routine: investigate.routine' '---' '# a task' > "$rigStore/board/pending/task-20261028T0101Z-rig-chosen.md"
-printf '%s\n' '---' 'type: task' 'owner: keeper-rig' 'handler-routine: magic-team.nowhere.routine' '---' '# a task' > "$rigStore/board/pending/task-20261028T0102Z-rig-bad.md"
+printf '%s\n' '---' 'type: proposal' 'owner: keeper-rig' '---' '# a proposal' | rigOwnerBoardPut pending proposal-20261028T0100Z-rig-plain.md
+printf '%s\n' '---' 'type: task' 'owner: keeper-rig' 'handler-routine: investigate.routine' '---' '# a task' | rigOwnerBoardPut pending task-20261028T0101Z-rig-chosen.md
+printf '%s\n' '---' 'type: task' 'owner: keeper-rig' 'handler-routine: magic-team.nowhere.routine' '---' '# a task' | rigOwnerBoardPut pending task-20261028T0102Z-rig-bad.md
 rigDigest(){ ## -- the digest of the rig board, with the rig skillset
 	env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp/home" PATH="/usr/bin:/bin" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigStore" MDLT_ORIGIN="$MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rigSkills" \
 		MDLT_OPTION="--run-from-path $MDLT_ORIGIN" bash "$rigFn" --intern-op-session-context-scan magic-coordinator --state pending --all-types --context rig 2> /dev/null < /dev/null || :
@@ -136,13 +138,14 @@ rigSetAs(){ ## session id or - , item -- an edit of handler-routine as that call
 	printf '%s:%s' "$setRc" "$( LC_ALL=C grep -c '^handler-routine: discuss.routine$' "$rigStore/board/pending/$setItem" || : )"
 }
 rigSetItem(){ ## name -- a fresh proposal item
-	printf '%s\n' '---' 'type: proposal' 'owner: keeper-rig' '---' '# a proposal' '' '## Decisions' '<!-- decisions-of: x -->' > "$rigStore/board/pending/$1"
+	printf '%s\n' '---' 'type: proposal' 'owner: keeper-rig' '---' '# a proposal' '' '## Decisions' '<!-- decisions-of: x -->' | rigOwnerBoardPut pending "$1"
 }
 rigSetItem proposal-20261028T0110Z-rig-a.md ; rigSetItem proposal-20261028T0111Z-rig-b.md ; rigSetItem proposal-20261028T0112Z-rig-c.md ; rigSetItem proposal-20261028T0113Z-rig-d.md
 rigAssert "a member that is neither the coordinator nor a grooming run cannot set it: refused, the item unchanged" "$( rigSetAs rig-sess-other proposal-20261028T0110Z-rig-a.md )" "1:0"
 rigAssert "the owner's own run cannot either" "$( rigSetAs rig-sess-owner proposal-20261028T0110Z-rig-a.md )" "1:0"
 rigAssert "magic-coordinator sets it" "$( rigSetAs rig-sess-coord proposal-20261028T0111Z-rig-b.md )" "0:1"
-rigAssert "and the item's Decisions record the change" "$( LC_ALL=C grep -c 'handler: handler-routine: - -> discuss.routine' "$rigStore/board/pending/proposal-20261028T0111Z-rig-b.md" || : )" "1"
+rigDecisionsLine='handler: handler-routine: - -> discuss.routine'
+rigAssert "and the item's Decisions record the change" "$( LC_ALL=C grep -c -F -- "$rigDecisionsLine" "$rigStore/board/pending/proposal-20261028T0111Z-rig-b.md" || : )" "1"
 rigAssert "a run of a grooming routine sets it" "$( rigSetAs rig-sess-groom proposal-20261028T0112Z-rig-c.md )" "0:1"
 rigAssert "a call from no spawned session (a human at the console) sets it" "$( rigSetAs - proposal-20261028T0113Z-rig-d.md )" "0:1"
 rigAssert "writing the value the item already holds is no change: any caller" "$( rigSetAs rig-sess-other proposal-20261028T0112Z-rig-c.md )" "0:1"
@@ -152,7 +155,7 @@ rigRoundAs(){ ## session id, item -- the round check as that caller, rc and the 
 		bash -c '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.BoardItemHandler.include" ; AgentsToolsBoardItemHandler "$@"' rig "$2" --for-round 2> /dev/null )" || roundRc=$?
 	printf '%s:%s' "$roundRc" "$( printf '%s' "$roundOut" | LC_ALL=C awk -F'\t' '{ printf "%s%s", sep, $1 ":" $2 ; sep = "," }' )"
 }
-printf '%s\n' '---' 'type: proposal' 'owner: keeper-rig' '---' '# held' > "$rigStore/board/pending/proposal-20261028T0120Z-rig-held.md"
+printf '%s\n' '---' 'type: proposal' 'owner: keeper-rig' '---' '# held' | rigOwnerBoardPut pending proposal-20261028T0120Z-rig-held.md
 rigAssert "a live owner run is the writer: its round runs" "$( rigRoundAs rig-sess-owner "$rigStore/board/pending/proposal-20261028T0120Z-rig-held.md" )" "0:routine:magic-team.discuss.routine.md"
 rigAssert "the coordinator is refused while a live run holds the item" "$( rigRoundAs rig-sess-coord "$rigStore/board/pending/proposal-20261028T0120Z-rig-held.md" )" "3:flag:held"
 rigAssert "so is another member" "$( rigRoundAs rig-sess-other "$rigStore/board/pending/proposal-20261028T0120Z-rig-held.md" )" "3:flag:held"
@@ -167,13 +170,13 @@ rigReal(){ ## fn and arguments -- the function against the package skillset alon
 		bash -c '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.BoardItemHandler.include" ; "$@"' rig "$@" 2> /dev/null | LC_ALL=C tr '\t\n' '| '
 }
 rigAssert "the real table lists every running board type, each with a gate column" "$( rigReal AgentsToolsBoardTypeTable | LC_ALL=C tr ' ' '\n' | LC_ALL=C awk -F'|' 'NF == 3 && ($3 == "yes" || $3 == "no") { n++ } END { print (n >= 9) ? "ok" : "short:" n + 0 }' )" "ok"
-printf '%s\n' '---' 'type: task' 'owner: keeper-rig' '---' '# a task' > "$rigStore/board/pending/task-20261028T0130Z-rig-real.md"
+printf '%s\n' '---' 'type: task' 'owner: keeper-rig' '---' '# a task' | rigOwnerBoardPut pending task-20261028T0130Z-rig-real.md
 rigAssert "a task of the real package runs the verify routine at its default" "$( rigReal AgentsToolsBoardItemHandler "$rigStore/board/pending/task-20261028T0130Z-rig-real.md" )" "routine|magic-team.verify.routine.md|default "
 rigAssert "the real skillset knows the routines of the table" "$( for rigName in magic-team.verify.routine magic-team.discuss.routine magic-team.proposal.routine magic-team.interview.routine ; do rigReal AgentsToolsRoutineFileOf "$rigName" ; done | LC_ALL=C tr ' ' '\n' | LC_ALL=C grep -c 'skillset/magic-team/magic-team/magic-team\.' )" "4"
 
 echo "-- 10. the digest shows who holds an item, beside its handler line --"
 rigRecord rig-sess-owner keeper-rig - live
-printf '%s\n' '---' 'type: proposal' 'owner: keeper-free' '---' '# free' > "$rigStore/board/pending/proposal-20261028T0121Z-rig-free.md"
+printf '%s\n' '---' 'type: proposal' 'owner: keeper-free' '---' '# free' | rigOwnerBoardPut pending proposal-20261028T0121Z-rig-free.md
 rigDigestAs(){ ## session id -- the digest of the rig board, as that caller
 	env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp/home" PATH="/usr/bin:/bin" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigStore" MDLT_ORIGIN="$MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rigSkills" MDAT_SPAWN_SESSION_ID="$1" \
 		MDLT_OPTION="--run-from-path $MDLT_ORIGIN" bash "$rigFn" --intern-op-session-context-scan magic-coordinator --state pending --all-types --context rig 2> /dev/null < /dev/null || :

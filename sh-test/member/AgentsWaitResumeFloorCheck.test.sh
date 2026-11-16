@@ -78,6 +78,8 @@ printf 'rig\n' > "$rigWs/.local/agents/members/$rigMember"
 printf '%s=URIGSELF1=rig-self=Rig Self=rig-self\n' "$rigMember" > "$rigWs/.local/.agents/slack-mention-ids.cache"
 printf '[{"id":"D0RIGOWNER1","is_im":true,"user":"URIGOWNER"}]\n' > "$rigScenario/dms.json"
 rigSession="rig-resume-floor"
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-writes.include.sh" || exit 1
+rigOwnerWs="${rigWs:-$rigTmp/ws}" rigOwnerData="${rigData:-${rigD:-${rigStore:-${rigOut:-$rigTmp/data}}}}" rigOwnerHome="${rigHome:-$rigTmp/home}" rigOwnerSkills="${rigSkills:-$rigTmp/skills}"
 mkdir -p "$rigWs/.local/agents/sessions/$rigSession/wait"
 ## THE SESSION HAS ITS OWN THREAD, as the duty on MDV had: the team channel is then no default source of the wait, so
 ## nothing but the tags can read it. That is the shape in which the tag was lost.
@@ -134,7 +136,7 @@ rigHas(){ LC_ALL=C grep -c -F -- "$2" "$rigTmp/$1.out" || : ; }
 rigFloors(){ LC_ALL=C grep -c "^floor $2 " "$rigWs/.local/agents/sessions/$rigSession/wait/state" 2> /dev/null || : ; }
 
 rigData="$rigTmp/data"
-mkdir -p "$rigData/inboxes/$rigMember/incoming" "$rigData/board"
+mkdir -p "$rigData/board"
 rigNow="$( date +%s )"
 echo "-- 1. a tag posted between two Waits of one session is returned by the second --"
 ## Two messages of the channel stand before the run: the first call reads the channel from its own start, so it

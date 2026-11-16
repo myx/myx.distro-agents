@@ -37,7 +37,7 @@ rigAssert(){ ## what is asserted, got, want
 
 rigSkills="$rigTmp/skills"
 rigData="$rigTmp/data"
-mkdir -p "$rigSkills/magic-team" "$rigSkills/rig-member" "$rigData/board" "$rigTmp/ws/.local"
+mkdir -p "$rigSkills/magic-team" "$rigSkills/rig-member" "$rigTmp/ws/.local"
 printf '# rig armed\n' > "$rigSkills/rig-member/rig-member.armed.md"
 
 ## The default routine, carrying the key --routine-default now resolves through.
@@ -113,8 +113,8 @@ rigAssert "both briefs end with the handback line"      "$( tail -1 "$rigTmp/b1"
 
 echo "-- open warnings --"
 for rigState in backlog pending running blocked parked processed ; do
-	mkdir -p "$rigData/board/$rigState"
-	printf -- '---\ntype: warning\n---\n' > "$rigData/board/$rigState/warning-rig-$rigState.md"
+	rigBoardStates "$rigData" $rigState
+	printf -- '---\ntype: warning\n---\n' | rigStoreItem "$rigData" board $rigState warning-rig-$rigState.md
 done
 rigBrief "$rigTmp/b4" --routine-default
 rigAssert "each active state's warning is listed"     "$( LC_ALL=C grep -c -E '^- warning-rig-(backlog|pending|running|blocked|parked)\.md \[(backlog|pending|running|blocked|parked)\]$' "$rigTmp/b4" || : )" 5

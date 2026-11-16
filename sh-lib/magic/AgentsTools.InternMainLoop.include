@@ -275,7 +275,7 @@ case "$1" in
 			## Each parent session's list of its children, rebuilt from the spawn records in
 			## one pass, before anything is spawned. Logged, never fatal: lists that could not
 			## be rebuilt stay unmarked, and every harness then scans every record.
-			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.ChildrenIndex.include" \
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.ChildrenIndex.include" \
 				&& AgentsToolsChildrenIndexRepair "$MMDAPP" \
 				&& echo "# $MDSC_CMD --intern-main-loop: children lists rebuilt under .local/agents/children" >&2 \
 				|| echo "# $MDSC_CMD --intern-main-loop: the children lists could not be rebuilt -- every harness scans every spawn record until an iteration rebuilds them" >&2

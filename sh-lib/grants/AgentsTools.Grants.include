@@ -699,8 +699,10 @@ AgentsToolsGrantsRegistryWrite(){ ## workspace, op name for messages
 ## its own, the coworking session's it joined, the parent session's that spawned it, by its
 ## spawn record (AgentsToolsPermissionRelatedStores), read with builtins.
 AgentsToolsGrantsSessionStores(){ ## workspace, session id
-	local storesWs="${1%/}" storesRecord storesLine storesFront storesCow="" storesParent="" storesSeen=$'\n' storesOne
-	for storesRecord in "$storesWs/.local/agents/spawned"/*/"$2.spawn.md" ; do
+	local storesWs="${1%/}" storesRecord storesLine storesFront storesCow="" storesParent="" storesSeen=$'\n' storesOne storesFolder
+	type AgentsSessionRunRecordInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+	AgentsSessionRunRecordInto storesRecord "$2" "$storesWs" || :
+	for storesRecord in ${storesRecord:+"$storesRecord"} ; do
 		[ -f "$storesRecord" ] || continue
 		storesFront=""
 		while IFS= read -r storesLine ; do
@@ -718,7 +720,8 @@ AgentsToolsGrantsSessionStores(){ ## workspace, session id
 		case "$storesOne" in ''|*/*|.|..) continue ;; esac
 		case "$storesSeen" in *$'\n'"$storesOne"$'\n'*) continue ;; esac
 		storesSeen="$storesSeen$storesOne"$'\n'
-		printf '%s\n' "$storesWs/.local/agents/sessions/$storesOne"
+		AgentsSessionFolderInto storesFolder "$storesWs" "$storesOne" || continue
+		printf '%s\n' "$storesFolder"
 	done
 }
 
@@ -730,10 +733,13 @@ AgentsToolsGrantsSessionStores(){ ## workspace, session id
 ## rc 1, nothing printed, when the session has no record of its own or works no dispatch item.
 AgentsToolsGrantsRunSeats(){ ## workspace, session id
 	local seatsWs="${1%/}" seatsSession="$2" seatsRecord seatsFront seatsLine seatsOwn="" seatsRefs=""
-	local seatsReviewId seatsCited seatsPath seatsSeen=$'\n' seatsRef
+	local seatsReviewId seatsPath seatsSeen=$'\n' seatsRef seatsFolder seatsState
 	case "$seatsSession" in ''|*/*|.|..) return 1 ;; esac
+	type AgentsToolsBoardItemHeadersInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemDecisions.include"
 	[ -n "$seatsWs" ] || return 1
-	for seatsRecord in "$seatsWs/.local/agents/spawned"/*/"$seatsSession.spawn.md" ; do
+	type AgentsSessionRunRecordInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+	AgentsSessionRunRecordInto seatsRecord "$seatsSession" "$seatsWs" || :
+	for seatsRecord in ${seatsRecord:+"$seatsRecord"} ; do
 		[ -f "$seatsRecord" ] || continue
 		seatsFront=""
 		while IFS= read -r seatsLine ; do
@@ -750,50 +756,30 @@ AgentsToolsGrantsRunSeats(){ ## workspace, session id
 	## The runs it spawned: each of their records names this run as its parent. From the parent's
 	## children list where the lists are marked complete, else one grep over all the records
 	## (AgentsToolsSpawnedChildRecords): this runs on every gate call, so it never forks once per record.
-	type AgentsToolsSpawnedChildRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.StartedRecords.include"
+	type AgentsToolsSpawnedChildRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include"
 	while IFS= read -r seatsRecord ; do
 		[ -f "$seatsRecord" ] || continue
 		seatsReviewId="${seatsRecord##*/}" ; seatsReviewId="${seatsReviewId%.spawn.md}"
 		case "$seatsSeen" in *$'\n'"$seatsReviewId"$'\n'*) continue ;; esac
 		seatsSeen="$seatsSeen$seatsReviewId"$'\n'
-		printf '%s\n%s/output\n' "$seatsWs/.local/agents/sessions/$seatsReviewId" "${seatsRecord%/*}"
+		AgentsSessionFolderInto seatsFolder "$seatsWs" "$seatsReviewId" || continue
+		printf '%s\n%s/output\n' "$seatsFolder" "${seatsRecord%/*}"
 	done < <( AgentsToolsSpawnedChildRecords "$seatsSession" "$seatsWs" )
 	## The peers its own dispatch item cites, `references:` naming them in item-names form.
-	for seatsRecord in "${MDAT_DATA_ROOT:-}/board"/*/"$seatsOwn.md" ; do
-		[ -f "$seatsRecord" ] || continue
-		seatsFront=""
-		while IFS= read -r seatsLine ; do
-			case "$seatsFront:$seatsLine" in
-				':---') seatsFront=1 ;;
-				'1:---'|'1:# '*) break ;;
-				'1:references: '*) seatsRefs="${seatsLine#references: }" ;;
-				':'*) break ;;
-			esac
-		done < "$seatsRecord"
-		break
-	done
+	AgentsToolsBoardItemHeadersInto "$seatsOwn" seatsState seatsRefs=references || :
 	for seatsRef in ${seatsRefs//,/ } ; do
 		seatsRef="${seatsRef%.md}"
 		case "$seatsRef" in ''|*/*|.|..) continue ;; esac
 		seatsReviewId=""
-		for seatsCited in "${MDAT_DATA_ROOT:-}/board"/*/"$seatsRef.md" ; do
-			[ -f "$seatsCited" ] || continue
-			seatsFront=""
-			while IFS= read -r seatsLine ; do
-				case "$seatsFront:$seatsLine" in
-					':---') seatsFront=1 ;;
-					'1:---'|'1:# '*) break ;;
-					'1:session-id: '*) seatsReviewId="${seatsLine#session-id: }" ;;
-					':'*) break ;;
-				esac
-			done < "$seatsCited"
-			break
-		done
+		AgentsToolsBoardItemHeadersInto "$seatsRef" seatsState seatsReviewId=session-id || :
 		case "$seatsReviewId" in ''|*/*|.|..) continue ;; esac
 		case "$seatsSeen" in *$'\n'"$seatsReviewId"$'\n'*) continue ;; esac
 		seatsSeen="$seatsSeen$seatsReviewId"$'\n'
-		printf '%s\n' "$seatsWs/.local/agents/sessions/$seatsReviewId"
-		for seatsPath in "$seatsWs/.local/agents/spawned"/*/"$seatsReviewId.spawn.md" ; do
+		AgentsSessionFolderInto seatsFolder "$seatsWs" "$seatsReviewId" || continue
+		printf '%s\n' "$seatsFolder"
+		type AgentsSessionRunRecordInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+		AgentsSessionRunRecordInto seatsPath "$seatsReviewId" "$seatsWs" || :
+		for seatsPath in ${seatsPath:+"$seatsPath"} ; do
 			[ -f "$seatsPath" ] || continue
 			printf '%s/output\n' "${seatsPath%/*}"
 			break
@@ -853,12 +839,14 @@ AgentsToolsGrantsSessionEnded(){ ## session store directory
 ## A task grant given to one run is read from those same stores, and lives as ever while the
 ## item it names is open, whatever became of that session.
 AgentsToolsGrantsItemRuns(){ ## workspace, session id, member
-	local runsWs="${1%/}" runsRecord runsFound="" runsKind runsValue runsItem="" runsSession="" runsStores="" runsCow="" runsCandidate runsFiles=()
+	local runsWs="${1%/}" runsRecord runsFound="" runsKind runsValue runsItem="" runsSession="" runsStores="" runsCow="" runsCandidate runsFiles=() runsFolder
 	agentsGrantsItemRunsItem="" ; agentsGrantsItemRunsSession="" ; agentsGrantsItemRunsStores=""
 	case "$2" in ''|*/*|.|..) return 1 ;; esac
 	[ -n "$runsWs" ] && [ -n "$3" ] || return 1
 	## No record, no awk: a root session has none.
-	for runsRecord in "$runsWs/.local/agents/spawned"/*/"$2.spawn.md" ; do
+	type AgentsSessionRunRecordInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+	AgentsSessionRunRecordInto runsRecord "$2" "$runsWs" || :
+	for runsRecord in ${runsRecord:+"$runsRecord"} ; do
 		[ ! -f "$runsRecord" ] || { runsFound=1 ; break ; }
 	done
 	[ -n "$runsFound" ] || return 1
@@ -867,7 +855,7 @@ AgentsToolsGrantsItemRuns(){ ## workspace, session id, member
 	## on a gate call. The session that one of these runs started is in the list too: its id is that run's.
 	runsCow="$( LC_ALL=C awk '$0 == "---" { if ( ++fence > 1 ) exit ; next } fence == 1 && index( $0, "session-id: " ) == 1 { print substr( $0, 13 ) ; exit }' "$runsRecord" 2> /dev/null )" || runsCow=""
 	case "$runsCow" in ''|*/*|.|..) return 1 ;; esac
-	type AgentsToolsSpawnedSessionRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.StartedRecords.include"
+	type AgentsToolsSpawnedSessionRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include"
 	while IFS= read -r runsCandidate ; do
 		[ -n "$runsCandidate" ] && [ -f "$runsCandidate" ] || continue
 		runsFiles+=( "$runsCandidate" )
@@ -876,8 +864,8 @@ AgentsToolsGrantsItemRuns(){ ## workspace, session id, member
 	while IFS=$'\t' read -r runsKind runsValue ; do
 		case "$runsKind" in
 			item) runsItem="$runsValue" ;;
-			session) [ "$runsValue" = "-" ] || runsSession="$runsWs/.local/agents/sessions/$runsValue" ;;
-			store) runsStores="$runsStores$runsWs/.local/agents/sessions/$runsValue"$'\n' ;;
+			session) [ "$runsValue" = "-" ] || { AgentsSessionFolderInto runsFolder "$runsWs" "$runsValue" && runsSession="$runsFolder" ; } ;;
+			store) AgentsSessionFolderInto runsFolder "$runsWs" "$runsValue" || continue ; runsStores="$runsStores$runsFolder"$'\n' ;;
 		esac
 	done < <( agentsGrantsItemRunsMember="$3" agentsGrantsItemRunsOwn="$2" LC_ALL=C awk -f "$agentsGrantsHere/grants/AgentsGrantsItemRuns.awk" ${runsFiles[@]+"${runsFiles[@]}"} 2> /dev/null )
 	[ -n "$runsItem" ] && [ -n "$runsStores" ] || return 1
@@ -889,13 +877,10 @@ AgentsToolsGrantsItemRuns(){ ## workspace, session id, member
 ## on the board in an open state, and the coworking session has not ended. Without the team
 ## data root the item cannot be read, and nothing is live.
 AgentsToolsGrantsItemRunsLive(){ ## item, coworking session store (may be empty)
-	local liveState
 	[ -n "$1" ] && [ -n "${MDAT_DATA_ROOT:-}" ] || return 1
 	[ -z "$2" ] || ! AgentsToolsGrantsSessionEnded "$2" || return 1
-	for liveState in ${agentsPermissionOpenStates:-running review blocked pending backlog parked} ; do
-		[ ! -f "$MDAT_DATA_ROOT/board/$liveState/$1.md" ] || return 0
-	done
-	return 1
+	type AgentsToolsBoardItemInStates > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemDecisions.include"
+	AgentsToolsBoardItemInStates "$1" ${agentsPermissionOpenStates:-running review blocked pending backlog parked}
 }
 
 ## The lines AgentsGrantsSessionIndex.awk reads those stores by (ENVIRON
@@ -929,7 +914,9 @@ AgentsToolsGrantsSessionHeader(){ ## member, sandbox input, sandbox output, orig
 ## resolved here, at the rebuild only.
 AgentsToolsGrantsSessionText(){ ## workspace, member, session id, sandbox input, sandbox output, origin skillset
 	local textStore textRest textFiles=() agentsGrantsEnded="" agentsGrantsStores agentsGrantsItemRuns="" agentsGrantsRunSeats=""
-	local textOwn="${1%/}/.local/agents/sessions/$3"
+	local textOwn=""
+	type AgentsSessionFolderInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+	AgentsSessionFolderInto textOwn "$1" "$3" || :
 	local agentsGrantsSessionHeader agentsGrantsSandboxIn="$4" agentsGrantsSandboxOut="$5" agentsGrantsOrigin=""
 	[ -z "$6" ] || agentsGrantsOrigin="$( cd "$6" 2> /dev/null && pwd -P )" || agentsGrantsOrigin=""
 	agentsGrantsStores="$( AgentsToolsGrantsSessionStores "$1" "$3" )"
@@ -999,7 +986,7 @@ AgentsToolsGrantsSessionEnsure(){ ## workspace, member, session id (may be empty
 ## agentsGrantsCheckFrom the origin of that row, for its caller to keep the change and show
 ## it, never to apply it (AgentsHarnessFileGate, AgentsUniversalHarness.sh).
 AgentsToolsGrantsSessionCheckRows(){ ## tool, resolved path, own session store
-	local checkKind checkA checkB checkC checkD checkE checkWrite="" checkCeiling="" checkState checkNow checkTtl checkApprove="${agentsGrantsCommonApprove:-}" checkApproveFrom="${agentsGrantsCommonApproveFrom:-}"
+	local checkKind checkA checkB checkC checkD checkE checkWrite="" checkCeiling="" checkNow checkTtl checkApprove="${agentsGrantsCommonApprove:-}" checkApproveFrom="${agentsGrantsCommonApproveFrom:-}"
 	agentsGrantsCheckLayer="" ; agentsGrantsCheckOnce="" ; agentsGrantsCheckPlace="" ; agentsGrantsCheckFrom=""
 	case " Edit Write Execute " in *" $1 "*) checkWrite=1 ;; esac
 	while IFS=$'\t' read -r checkKind checkA checkB checkC checkD checkE ; do
@@ -1044,9 +1031,8 @@ AgentsToolsGrantsSessionCheckRows(){ ## tool, resolved path, own session store
 			task)
 				AgentsToolsGrantsToolCovers "$checkA" "$1" && [[ $2 == $checkB ]] || continue
 				[ -n "${MDAT_DATA_ROOT:-}" ] || continue
-				for checkState in ${agentsPermissionOpenStates:-running review blocked pending backlog parked} ; do
-					[ ! -f "$MDAT_DATA_ROOT/board/$checkState/$checkC.md" ] || { agentsGrantsCheckLayer="task $checkC" ; return 0 ; }
-				done
+				type AgentsToolsBoardItemInStates > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemDecisions.include"
+				! AgentsToolsBoardItemInStates "$checkC" ${agentsPermissionOpenStates:-running review blocked pending backlog parked} || { agentsGrantsCheckLayer="task $checkC" ; return 0 ; }
 			;;
 			once)
 				[ "$checkA" = "$1" ] && [[ $2 == $checkB ]] || continue
@@ -1141,15 +1127,17 @@ AgentsToolsGrantsSessionWrite(){ ## workspace, member, session id, sandbox input
 
 ## Writes one session file again, from the fields of its own header.
 AgentsToolsGrantsSessionRewrite(){ ## session permission file
-	local rewriteLine="" rewriteMember rewriteIn rewriteOut rewriteOrigin rewriteDir="${1%/*}"
+	local rewriteLine="" rewriteMember rewriteIn rewriteOut rewriteOrigin rewriteDir="${1%/*}" rewriteWs="" rewriteSession=""
 	[ -f "$1" ] || return 0
+	type AgentsSessionStorePartsInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
 	IFS= read -r rewriteLine < "$1" || return 0
 	rewriteLine="${rewriteLine#*$'\t'}"
 	rewriteMember="${rewriteLine%%$'\t'*}" ; rewriteLine="${rewriteLine#*$'\t'}"
 	rewriteIn="${rewriteLine%%$'\t'*}" ; rewriteLine="${rewriteLine#*$'\t'}"
 	rewriteOut="${rewriteLine%%$'\t'*}" ; rewriteLine="${rewriteLine#*$'\t'}"
 	rewriteOrigin="${rewriteLine%%$'\t'*}"
-	AgentsToolsGrantsSessionWrite "${rewriteDir%/.local/agents/sessions/*}" "$rewriteMember" "${rewriteDir##*/}" "$rewriteIn" "$rewriteOut" "$rewriteOrigin"
+	AgentsSessionStorePartsInto rewriteWs rewriteSession "$rewriteDir" || return 1
+	AgentsToolsGrantsSessionWrite "$rewriteWs" "$rewriteMember" "$rewriteSession" "$rewriteIn" "$rewriteOut" "$rewriteOrigin"
 }
 
 ## A store whose grants another session's file joins records that session, so a change of its
@@ -1214,9 +1202,10 @@ AgentsToolsGrantsStoreTouch(){ ## session store directory
 ## session, those of its other runs, and those runs' task grants, live or not; with none, those
 ## of every ended run of the member.
 AgentsToolsGrantsMemberList(){ ## workspace, member, session id (may be empty)
-	local listWs="${1%/}" listStores listStore listUsed listFiles=() listTtl listRest listKind listRun listItem listCow listShared=""
+	local listWs="${1%/}" listStores listStore listUsed listFiles=() listTtl listRest listKind listRun listItem listCow listShared="" listRecords=()
 	local agentsGrantsEnded="" agentsGrantsUsed="" agentsGrantsBoard="${MDAT_DATA_ROOT:+$MDAT_DATA_ROOT/board}" agentsGrantsItemRuns=""
 	local agentsGrantsOpenStates="${agentsPermissionOpenStates:-running review blocked pending backlog parked}"
+	type AgentsSessionFolderInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
 	AgentsToolsGrantsIndexEnsure "$listWs" || return 1
 	if [ -n "$3" ] ; then
 		listStores="$( AgentsToolsGrantsSessionStores "$listWs" "$3" )"
@@ -1228,16 +1217,19 @@ AgentsToolsGrantsMemberList(){ ## workspace, member, session id (may be empty)
 			done <<< "$agentsGrantsItemRuns"
 		fi
 	else
-		listStores="$( for listStore in "$listWs/.local/agents/sessions"/*/grants ; do [ ! -f "$listStore" ] || printf '%s\n' "${listStore%/grants}" ; done )"
-		if [ -d "$listWs/.local/agents/spawned" ] ; then
+		type AgentsSessionFoldersFind > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+		listStores="$( AgentsSessionFoldersFind "$listWs" grants )"
+		type AgentsToolsSpawnedAllRecordsInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include"
+		AgentsToolsSpawnedAllRecordsInto listRecords "$listWs"
+		if [ "${#listRecords[@]}" -gt 0 ] ; then
 			while IFS=$'\t' read -r listKind listRun listItem listCow ; do
 				[ "$listKind" = run ] || continue
-				listStore="$listWs/.local/agents/sessions/$listRun"
+				AgentsSessionFolderInto listStore "$listWs" "$listRun" || continue
 				[ -f "$listStore/grants" ] && AgentsToolsGrantsSessionEnded "$listStore" || continue
-				if [ "$listCow" = "-" ] ; then listCow="" ; else listCow="$listWs/.local/agents/sessions/$listCow" ; fi
+				if [ "$listCow" = "-" ] ; then listCow="" ; else AgentsSessionFolderInto listCow "$listWs" "$listCow" || continue ; fi
 				AgentsToolsGrantsItemRunsLive "$listItem" "$listCow" || continue
 				agentsGrantsItemRuns="$agentsGrantsItemRuns$listStore"$'\t'"$listItem"$'\t'"${listCow:--}"$'\t\n'
-			done < <( agentsGrantsItemRunsMember="$2" agentsGrantsItemRunsOwn="" LC_ALL=C awk -f "$agentsGrantsHere/grants/AgentsGrantsItemRuns.awk" "$listWs/.local/agents/spawned"/*/*.spawn.md 2> /dev/null )
+			done < <( agentsGrantsItemRunsMember="$2" agentsGrantsItemRunsOwn="" LC_ALL=C awk -f "$agentsGrantsHere/grants/AgentsGrantsItemRuns.awk" ${listRecords[@]+"${listRecords[@]}"} 2> /dev/null )
 		fi
 	fi
 	while IFS= read -r listStore ; do

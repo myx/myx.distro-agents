@@ -19,7 +19,7 @@ rigTmp="$( rigTempDir AgentsSlackPointerTargetCheck )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
 . "$rigPackage/sh-lib/comms/AgentsTools.CommsChannel.include"
 ## The include ends by dispatching its own arguments, and a source with none reads an unset $1.
-set +u ; . "$rigPackage/sh-lib/slack/AgentsTools.CommsSlack.include" ; set -u
+set +u ; . "$rigPackage/sh-lib/slack/AgentsTools.CommsSlack.include" ; . "$rigPackage/sh-lib/comms/AgentsTools.CommsResolveTarget.include" ; set -u
 
 rigFails=0 rigPasses=0
 rigAssert(){ ## what is asserted, got, want

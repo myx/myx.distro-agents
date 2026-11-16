@@ -42,8 +42,9 @@ rigAssert(){ ## what is asserted, got, want
 }
 rigWs="$rigTmp/ws" rigHome="$rigTmp/home" rigData="$rigTmp/data" rigSkills="$rigTmp/skills"
 rigNote="$rigData/inboxes/magic-coordinator/incoming/note-20260809T155000Z-heartbeat-state-and-lock.md"
-mkdir -p "$rigWs/.local/temp" "$rigHome" "$rigData/inboxes/magic-coordinator/incoming" "$rigData/inboxes/magic-coordinator/processed" "$rigSkills/magic-team" "$rigSkills/rig-member" "$rigSkills/magic-coordinator"
-for rigState in backlog pending running review blocked parked processed archived retained ; do mkdir -p "$rigData/board/$rigState" ; done
+mkdir -p "$rigWs/.local/temp" "$rigHome" "$rigSkills/magic-team" "$rigSkills/rig-member" "$rigSkills/magic-coordinator"
+rigInboxReady "$rigData" magic-coordinator
+rigBoardStates "$rigData" backlog pending running review blocked parked processed archived retained
 printf '# rig armed\n' > "$rigSkills/rig-member/rig-member.armed.md"
 printf -- '---\nexecutors: magic-coordinator\nmaintainers: magic-coordinator, magic-librarian\ninvitees: magic-team\nrequires-session-kind: coworking\n---\n# rig coworking routine fixture\n' > "$rigSkills/magic-team/magic-team.coworking.routine.md"
 rigAs=""
@@ -93,8 +94,8 @@ rigSurface "$rigTmp/w4" --standing-directives
 rigAssert "another member: refused for a read and for a write; from no member's session a read is fine and a write is refused; the note is untouched" "$( rigHas 'runs only as magic-coordinator, and this call comes from keeper-x' "$rigTmp/w1.err" ) $( rigHas 'runs only as magic-coordinator, and this call comes from keeper-x' "$rigTmp/w2.err" ) $( rigHas 'a directive is written by magic-coordinator' "$rigTmp/w3.err" ) $rigRc $( rigHas 'runs only as magic-coordinator' "$rigTmp/w4.err" ) $( LC_ALL=C grep -c 'Standing directives' "$rigNote" )" "1 1 1 0 0 0"
 
 echo "-- 3. standing directives, three together --"
-printf -- '---\ntype: warning\n---\n\n# a risk\n' > "$rigData/board/running/warning-20261020-rig-risk.md"
-printf -- '---\ntype: warning\n---\n\n# a mitigated risk\n' > "$rigData/board/processed/warning-20261001-done.md"
+printf -- '---\ntype: warning\n---\n\n# a risk\n' | rigStoreItem "$rigData" board running warning-20261020-rig-risk.md
+printf -- '---\ntype: warning\n---\n\n# a mitigated risk\n' | rigStoreItem "$rigData" board processed warning-20261001-done.md
 printf '# Keep the rig quiet on weekends\n\nx\n' > "$rigTmp/in1" ; printf '# A plain note\n\nx\n' > "$rigTmp/in2"
 rigWriter "$rigTmp/n1" "$rigTmp/in1" --upsert-inbox-note --team-member magic-coordinator note-20261020T1000Z-rig-standing.md --standing yes
 rigWriter "$rigTmp/n2" "$rigTmp/in2" --upsert-inbox-note --team-member magic-coordinator note-20261020T1000Z-rig-plain.md

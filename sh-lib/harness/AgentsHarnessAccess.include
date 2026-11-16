@@ -164,7 +164,7 @@ AgentsHarnessSessionKey(){
 	printf '%s' "${harnessSessionId:-${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}}"
 }
 
-## Records the session's own posts from a send's reported fields: sessions/<id>/last-own-post, a line
+## Records the session's own posts from a send's reported fields, through their owner (AgentsOwnPostsAdd): a line
 ## for each post and the latest first, `<channel>:<thread> <ts> <addressees> <thread floor>
 ## <conversation floor> <siblings> <reactions> <checked>`. Its first two words are what the Wait floor
 ## fallback reads of the latest post, and every line is a post whose replies the floor of a plain Wait
@@ -283,6 +283,8 @@ AgentsHarnessStaleTree(){ ## tool, path
 AgentsHarnessDeniedPath(){ ## tool, path
 	local deniedPath deniedRoot deniedText deniedSession
 	[ -n "$harnessAgent" ] || return 1
+	## A served call with no MDAT_SPAWN_AGENT is the human-owner's own session under the default identity (AgentsUniversalHarness.sh): no member's deny row is its.
+	[ -z "${harnessToolOnly:-}" ] || [ -n "${MDAT_SPAWN_AGENT:-}" ] || return 1
 	AgentsHarnessPathAllowed "$2" "$harnessRoots" > /dev/null 2>&1 || :
 	deniedPath="${harnessResolvedPath:-$2}"
 	for deniedRoot in "$harnessSandboxInReal" "$harnessSandboxOutReal" ; do
@@ -297,6 +299,7 @@ AgentsHarnessDeniedPath(){ ## tool, path
 
 AgentsHarnessFileGate(){ ## tool, path, read|write
 	type AgentsToolsGrantsSessionCheck > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.Grants.include"
+	type AgentsSessionFolderInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
 	local gateRoots gateRootsOk=1 gateRc=0 gateSession gateOwn
 	if AgentsHarnessStaleTree "$1" "$2" ; then
 		return 1
@@ -313,7 +316,7 @@ AgentsHarnessFileGate(){ ## tool, path, read|write
 		AgentsHarnessPathAllowed "$2" "${gateRoots:-$'\n'}" && gateRootsOk=0
 		if [ -n "$harnessResolvedPath" ] && [ -n "${MMDAPP:-}" ] ; then
 			gateSession="${harnessSessionId:-${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}}"
-			gateOwn="$MMDAPP/.local/agents/sessions/$gateSession"
+			AgentsSessionFolderInto gateOwn "$MMDAPP" "$gateSession" || gateOwn=""
 			if AgentsToolsGrantsSessionEnsure "$MMDAPP" "$harnessGrantMember" "$gateSession" "$harnessSandboxInReal" "$harnessSandboxOutReal" "$harnessGateOrigin" ; then
 				AgentsToolsGrantsSessionCheck "$1" "$harnessResolvedPath" "$gateOwn" || gateRc=$?
 				case "$gateRc" in

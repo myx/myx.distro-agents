@@ -295,7 +295,7 @@ rigScene message rigquiet
 ## Two seconds after the wait's reader is set up, a member posts to the run in its session thread and writes its wake marker, as the send operation does.
 ( rigTries=0 ; until [ -s "$rigStore/session.chat.pointers" ] || [ "$rigTries" -ge 120 ] ; do sleep 1 ; rigTries=$(( rigTries + 1 )) ; done ; sleep 2 ; cd "$rigWs" && env -i HOME="$rigTmp/home" PATH="/usr/bin:/bin" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" bash -c '
 	. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include"
-	. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.WakeMarker.include"
+	. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/wait/AgentsTools.WakeMarker.include"
 	printf "RIG-WATCHED-MESSAGE for rig-a" | AgentsToolsSessionChatAppend "$1" magic-coordinator rig-a "$( date +%s ).000100" local slack > /dev/null
 	AgentsToolsWakeTouch rig-a magic-coordinator
 	date +%s > "$2/posted"' rig-post "$rigSpawn" "$rigDir" ) &

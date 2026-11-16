@@ -20,6 +20,7 @@ rigRefuse(){
 [ -r "${MDAT_SKILLSET_ROOT:-}/$rigMember/$rigMember.basic.md" ] || rigRefuse "MDAT_SKILLSET_ROOT does not hold $rigMember, so the tool would have no identity to record under"
 
 . "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-writes.include.sh" || exit 1
 rigTmp="$( rigTempDir AgentsHarnessPermissionCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 trap 'chmod -R u+w "$rigTmp" 2>/dev/null ; rm -rf -- "$rigTmp"' EXIT
@@ -863,14 +864,14 @@ rigVerdict "forward -- the reason read out belongs to the forward thread"
 ##     tracks, at planning time; honoured with no refusal and no escalation.
 ## ---------------------------------------------------------------------------
 rigStart planned no
-mkdir -p "$rigScenarioDir/ws/DATA/board/running" "$rigScenarioDir/ws/DATA/board/pending"
+:  ## the store folders are made by the write that fills them
 rigPlanA="$rigScenarioDir/ws/OUT/planned-a.txt"
 rigPlanB="$rigScenarioDir/ws/OUT/planned-b.txt"
 rigPlanSelf="$rigScenarioDir/ws/OUT/planned-self.txt"
 rigPlanOnce="$rigScenarioDir/ws/OUT/planned-once.txt"
 printf -- '---\nstatus: dispatch-started\nowner: %s\nsession-id: rig-session\ntracks: task-rig.md\naccess-control: participants:allow-write:%s:magic-coordinator:20260928T2200Z,participants:allow-write:%s:%s:20260928T2200Z,participants:allow-once:%s:magic-coordinator:20260928T2200Z\n---\n\n# Dispatch\n' \
-	"$rigMember" "$rigPlanA" "$rigPlanSelf" "$rigMember" "$rigPlanOnce" > "$rigScenarioDir/ws/DATA/board/running/dispatch-rig.md"
-printf -- '---\nstatus: task\naccess-control: participants:allow-write:%s:magic-coordinator:20260928T2200Z\n---\n\n# Task\n' "$rigPlanB" > "$rigScenarioDir/ws/DATA/board/pending/task-rig.md"
+	"$rigMember" "$rigPlanA" "$rigPlanSelf" "$rigMember" "$rigPlanOnce" | rigOwnerData="$rigScenarioDir/ws/DATA" rigOwnerBoardPut running "dispatch-rig.md"
+rigOwnerData="$rigScenarioDir/ws/DATA" rigOwnerBoardWrite pending "task-rig.md" -- '---\nstatus: task\nowner: %s\naccess-control: participants:allow-write:%s:magic-coordinator:20260928T2200Z\n---\n\n# Task\n' "$rigMember" "$rigPlanB"
 RIG_DATA_ROOT="$rigScenarioDir/ws/DATA"
 rigAssert "a planned allow on the dispatch admits its exact call" "$( rigWriteCall rig-session "$rigPlanA" )" "$( rigOkLine "$rigPlanA" )"
 rigAssert "a planned allow on the tracked item admits too" "$( rigWriteCall rig-session "$rigPlanB" )" "$( rigOkLine "$rigPlanB" )"

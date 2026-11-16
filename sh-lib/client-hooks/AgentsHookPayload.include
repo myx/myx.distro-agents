@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+## AgentsHookPayload.include -- the plain payload readers of a session hook: hookString (the
+## string value of the first "<key>" of the payload, into hookValue; rc 1 when absent) and
+## hookBare (letters, digits, - and _ only, enumerated). Loaded by root-session-end.sh through
+## $hookLib, the package's sh-lib, since a hook is installed by copying and runs as it stands
+## but may load one package file. A hook never blocks or fails the client, so it keeps its own
+## exit-0 rule: a failed load leaves hookString undefined, and the next `hookString … || exit 0`
+## keeps its exit at 0.
+
+## The plain string value of the first "<key>" of the payload, into hookValue; rc 1 when absent.
+hookString(){ ## key
+	local stringRest="${hookInput#*\"$1\"}"
+	hookValue=""
+	[ "$stringRest" != "$hookInput" ] || return 1
+	while : ; do
+		case "$stringRest" in
+			' '*|$'\t'*|$'\n'*|$'\r'*|:*) stringRest="${stringRest:1}" ;;
+			*) break ;;
+		esac
+	done
+	case "$stringRest" in \"*) stringRest="${stringRest:1}" ;; *) return 1 ;; esac
+	hookValue="${stringRest%%\"*}"
+	[ "$hookValue" != "$stringRest" ]
+}
+## Letters, digits, - and _ only, enumerated: a bracket range is collation-dependent.
+hookBare(){ ## text
+	case "$1" in
+		''|.|..|*[!abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-]*) return 1 ;;
+	esac
+	return 0
+}

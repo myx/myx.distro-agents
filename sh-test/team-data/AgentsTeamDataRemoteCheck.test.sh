@@ -22,6 +22,7 @@ rigRefuse(){
 [ -x "$rigFn" ] || rigRefuse "dispatcher not found: $rigFn"
 command -v git > /dev/null || rigRefuse "git is not installed"
 . "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-store-item.include.sh" || exit 1
 rigTmp="$( rigTempDir AgentsTeamDataRemoteCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 ## A take of a routine's lock may start the control threads of the sessions of the workspace, which outlive this check: the rig ends them.
@@ -47,13 +48,27 @@ rigCount(){ ## file, text
 rigRemote(){ ## name
 	git init -q --bare "$rigTmp/$1.git" || rigRefuse "could not init the bare remote $1"
 	git -C "$rigTmp/$1.git" symbolic-ref HEAD refs/heads/main
-	rm -rf "$rigTmp/seed" ; git init -q "$rigTmp/seed" && git -C "$rigTmp/seed" symbolic-ref HEAD refs/heads/main
-	mkdir -p "$rigTmp/seed/board/processed"
-	printf 'seed\n' > "$rigTmp/seed/README.md" ; printf 'remote item\n' > "$rigTmp/seed/board/processed/note-20260101T0000Z-remote.md"
+	rm -rf "$rigTmp/seed" ; mkdir -p "$rigTmp/seed"
+	printf 'seed\n' > "$rigTmp/seed/README.md"
+	## The seed item is written by the seed store's own write (rig-store-item.include.sh) while it is no repository yet, so
+	## the seed commit below carries it exactly as before.
+	printf 'remote item\n' > "$rigTmp/seed-body"
+	rigStoreItem "$rigTmp" "$rigTmp/seed" "$rigTmp/seed" magic-coordinator "board processed note-20260101T0000Z-remote.md" "$rigTmp/seed-body" \
+		> /dev/null || rigRefuse "could not write the seed item through the board's own write"
+	git init -q "$rigTmp/seed" && git -C "$rigTmp/seed" symbolic-ref HEAD refs/heads/main
 	git -C "$rigTmp/seed" add -A && git -C "$rigTmp/seed" commit -q -m seed && git -C "$rigTmp/seed" push -q "$rigTmp/$1.git" main 2> /dev/null \
 		|| rigRefuse "could not seed the bare remote $1"
 }
-## One more commit on a remote's main, made from a clone of the rig's own.
+## A local item of the rig's own store, written by the store's own write (rig-store-item.include.sh): it commits into the
+## store where the store is a repository, as every writer of the tooling does, and writes the file alone where it is not.
+rigLocalItem(){ ## selector (`board running note-x.md`, `inbox magic-tester note-x.md`), body text
+	rigBodyCount=$(( rigBodyCount + 1 ))
+	printf '%s\n' "$2" > "$rigTmp/local-body$rigBodyCount"
+	rigStoreItem "$rigTmp" "$rigStore" "$rigDir/ws" magic-coordinator "$1" "$rigTmp/local-body$rigBodyCount" \
+		> /dev/null || rigRefuse "could not write $1 through its store's own write"
+}
+rigBodyCount=0
+## A remote's own next commit, made from a clone of the rig's own.
 rigRemoteAdvance(){ ## remote name, file name
 	rm -rf "$rigTmp/adv" ; git clone -q "$rigTmp/$1.git" "$rigTmp/adv" 2> /dev/null || rigRefuse "could not clone $1 to advance it"
 	printf 'from elsewhere\n' > "$rigTmp/adv/$2"
@@ -74,8 +89,12 @@ rigScenario(){ ## name, TEAM_DATA_GIT_REMOTE value (may be empty)
 }
 ## A store that is a repository of its own with one commit, on the branch named, and no remote.
 rigInitStore(){ ## branch
-	mkdir -p "$rigStore/board/running" && git init -q "$rigStore" && git -C "$rigStore" symbolic-ref HEAD "refs/heads/$1" || rigRefuse "could not init the store"
-	printf 'local item\n' > "$rigStore/board/running/note-20261014T0101Z-local.md"
+	printf 'local item\n' > "$rigTmp/local-item-body"
+	## The item is written by the store's own write (rig-store-item.include.sh) before the store is a repository, so the one
+	## local commit below carries it: a hand-written fixture stays green when that write's own path changes.
+	rigStoreItem "$rigTmp" "$rigStore" "$rigDir/ws" magic-coordinator "board running note-20261014T0101Z-local.md" "$rigTmp/local-item-body" \
+		> /dev/null || rigRefuse "could not write the local item through the board's own write"
+	git init -q "$rigStore" && git -C "$rigStore" symbolic-ref HEAD "refs/heads/$1" || rigRefuse "could not init the store"
 	git -C "$rigStore" add -A && git -C "$rigStore" commit -q -m "local work" || rigRefuse "could not commit into the store"
 }
 ## Runs a piece of shell with the team-data functions at hand, as the tooling has them,
@@ -140,8 +159,7 @@ rigSetup "$rigDir/a1"
 rigStore="$rigDir/ws/.local/agents/team-data-root"
 rigAssert "with no remote the store is initialised, nothing more" "$( [ -d "$rigStore/.git" ] && printf repo || printf none ):$( git -C "$rigStore" remote 2> /dev/null | wc -l | LC_ALL=C tr -d ' ' )" "repo:0"
 rigSetupBranch="$( git -C "$rigStore" symbolic-ref --short HEAD 2> /dev/null )"
-mkdir -p "$rigStore/board/running" && printf 'local item\n' > "$rigStore/board/running/note-20261014T0101Z-local.md"
-git -C "$rigStore" add -A && git -C "$rigStore" commit -q -m "local work" || rigRefuse "could not commit into the set-up store"
+rigLocalItem "board running note-20261014T0101Z-local.md" "local item"
 printf 'TEAM_DATA_GIT_REMOTE=%s\n' "$rigTmp/setup.git" > "$rigDir/ws/.local/.agents/magic-team.agent.env"
 rigSetup "$rigDir/a2"
 rigAssert "the remote set afterwards becomes its origin"         "$( git -C "$rigStore" remote get-url origin 2> /dev/null )" "$rigTmp/setup.git"
@@ -157,10 +175,10 @@ echo "-- a folder with content and a filled remote: the storage step hands it to
 rigRemote filled
 rigScenario plain "$rigTmp/filled.git"
 rigStore="$rigDir/ws/.local/agents/team-data-root"
-mkdir -p "$rigStore/board/running" "$rigStore/inboxes/magic-tester/incoming"
+mkdir -p "$rigStore"
 printf 'local readme\n' > "$rigStore/README.md"
-printf 'local item\n' > "$rigStore/board/running/note-20261014T0101Z-local.md"
-printf 'local note\n' > "$rigStore/inboxes/magic-tester/incoming/note-rig.md"
+rigLocalItem "board running note-20261014T0101Z-local.md" "local item"
+rigLocalItem "inbox magic-tester note-rig.md" "local note"
 rigSetup "$rigDir/a"
 rigAssert "the folder is a clone of the remote now"              "$( git -C "$rigStore" rev-parse HEAD 2> /dev/null ):$( git -C "$rigStore" remote get-url origin 2> /dev/null )" "$( rigRemoteHead filled ):$rigTmp/filled.git"
 rigAssert "no file of it was changed"                            "$( cat "$rigStore/README.md" "$rigStore/board/running/note-20261014T0101Z-local.md" "$rigStore/inboxes/magic-tester/incoming/note-rig.md" 2> /dev/null | LC_ALL=C tr '\n' '/' )" "local readme/local item/local note/"
@@ -172,7 +190,7 @@ echo "-- a folder with content and an empty remote: handed to git/cloneSync, whi
 git init -q --bare "$rigTmp/unborn.git" || rigRefuse "could not init the empty remote"
 rigScenario unborn "$rigTmp/unborn.git"
 rigStore="$rigDir/ws/.local/agents/team-data-root"
-mkdir -p "$rigStore/board/running" && printf 'local item\n' > "$rigStore/board/running/note-20261014T0101Z-local.md"
+rigLocalItem "board running note-20261014T0101Z-local.md" "local item"
 rigSetup "$rigDir/a"
 rigAssert "git/cloneSync adopted it: a clone of the remote, its file stands and is in the remote" "$( [ -e "$rigStore/.git" ] && printf repo || printf folder ):$( cat "$rigStore/board/running/note-20261014T0101Z-local.md" 2> /dev/null ):$( git -C "$rigStore" remote get-url origin 2> /dev/null ):$( git --git-dir="$rigTmp/unborn.git" log --all --format= --name-only 2> /dev/null | LC_ALL=C grep -c -x -F 'board/running/note-20261014T0101Z-local.md' )" "repo:local item:$rigTmp/unborn.git:1"
 rigAssert "and the step says git/cloneSync made it a clone"      "$( rigCount "$rigDir/a.err" "git/cloneSync made $rigStore a clone of TEAM_DATA_GIT_REMOTE" ):$( rigCount "$rigDir/a.err" "is not a clone of TEAM_DATA_GIT_REMOTE yet" ):$( rigCount "$rigDir/a.err" "fatal: not a git repository" )" "1:0:0"
@@ -180,7 +198,7 @@ rigAssert "and the step says git/cloneSync made it a clone"      "$( rigCount "$
 echo "-- a folder with content whose remote cannot be reached is left as it was --"
 rigScenario unreach "$rigTmp/missing.git"
 rigStore="$rigDir/ws/.local/agents/team-data-root"
-mkdir -p "$rigStore/board/running" && printf 'local item\n' > "$rigStore/board/running/note-20261014T0101Z-local.md"
+rigLocalItem "board running note-20261014T0101Z-local.md" "local item"
 rigSetup "$rigDir/a"
 rigAssert "it is no repository, and its file stands"             "$( [ -e "$rigStore/.git" ] && printf repo || printf plain ):$( cat "$rigStore/board/running/note-20261014T0101Z-local.md" )" "plain:local item"
 rigAssert "one warning says it is no clone of the remote yet"    "$( rigCount "$rigDir/a.err" "is not a clone of TEAM_DATA_GIT_REMOTE yet" )" 1
@@ -190,7 +208,7 @@ rigRemote movedfrom
 git clone -q --bare "$rigTmp/movedfrom.git" "$rigTmp/moved.git" || rigRefuse "could not copy the remote"
 rigScenario moved "$rigTmp/moved.git"
 git clone -q "$rigTmp/movedfrom.git" "$rigStore" 2> /dev/null || rigRefuse "could not make the clone"
-mkdir -p "$rigStore/board/running" && printf 'local item\n' > "$rigStore/board/running/note-20261014T0101Z-local.md"
+rigLocalItem "board running note-20261014T0101Z-local.md" "local item"
 rigRun "$rigDir/p" 'AgentsToolsTeamDataCommitPaths "rig write" "$MDAT_DATA_ROOT/board/running/note-20261014T0101Z-local.md" ; AgentsToolsTeamDataPushIfAhead "rig close"'
 rigAssert "the origin is the setting's, said in one line"        "$( git -C "$rigStore" remote get-url origin ):$( rigCount "$rigDir/p.err" "its origin is now TEAM_DATA_GIT_REMOTE $rigTmp/moved.git" )" "$rigTmp/moved.git:1"
 rigAssert "the commit went to it, and not to the old address"    "$( [ "$( git -C "$rigTmp/moved.git" rev-parse refs/heads/main )" = "$( git -C "$rigStore" rev-parse HEAD )" ] && printf new || printf not ):$( [ "$( rigRemoteHead movedfrom )" = "$( git -C "$rigStore" rev-parse HEAD )" ] && printf old || printf untouched )" "new:untouched"
@@ -199,13 +217,13 @@ echo "-- a commit is followed by a push at the close --"
 rigRemote pushed
 rigScenario pushed "$rigTmp/pushed.git"
 git clone -q "$rigTmp/pushed.git" "$rigStore" 2> /dev/null || rigRefuse "could not make the clone"
-mkdir -p "$rigStore/board/running" && printf 'local item\n' > "$rigStore/board/running/note-20261014T0101Z-local.md"
+rigLocalItem "board running note-20261014T0101Z-local.md" "local item"
 rigRun "$rigDir/p" 'AgentsToolsTeamDataCommitPaths "rig write" "$MDAT_DATA_ROOT/board/running/note-20261014T0101Z-local.md" ; AgentsToolsTeamDataPushIfAhead "rig close"'
 rigAssert "the remote has the commit"                            "$( rigRemoteHead pushed )" "$( git -C "$rigStore" rev-parse HEAD )"
 
 echo "-- both sides moved from one commit: git/cloneSync integrates, both kept, pushed --"
 rigRemoteAdvance pushed elsewhere-2.md
-printf 'local two\n' > "$rigStore/board/running/note-20261014T0102Z-local.md"
+rigLocalItem "board running note-20261014T0102Z-local.md" "local two"
 rigRun "$rigDir/m" 'AgentsToolsTeamDataCommitPaths "rig write" "$MDAT_DATA_ROOT/board/running/note-20261014T0102Z-local.md" ; AgentsToolsTeamDataPushIfAhead "rig close"'
 rigAssert "both sides' files are in the store and on the remote" "$( cat "$rigStore/elsewhere-2.md" "$rigStore/board/running/note-20261014T0102Z-local.md" 2> /dev/null | LC_ALL=C tr '\n' '/' ):$( [ "$( rigRemoteHead pushed )" = "$( git -C "$rigStore" rev-parse HEAD )" ] && printf pushed || printf not )" "from elsewhere/local two/:pushed"
 

@@ -17,6 +17,7 @@ rigRefuse(){
 }
 [ -f "$rigTool" ] || rigRefuse "the tooling is not at the origin this workspace resolves: $rigTool"
 . "$rigPackage/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-writes.include.sh" || exit 1
 rigTmp="$( rigTempDir AgentsOwnerClearJustAgentsCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
@@ -31,7 +32,7 @@ rigAssert(){ ## what is asserted, got, want
 	fi
 }
 rigWs="$rigTmp/ws" rigHome="$rigTmp/home" rigScopes="$rigWs/.local/.agents"
-mkdir -p "$rigScopes" "$rigHome" "$rigWs/.local/temp" "$rigWs/.local/agents/team-data-root/board/running" "$rigWs/.local/agents/spawned"
+mkdir -p "$rigScopes" "$rigHome" "$rigWs/.local/temp" "$rigWs/.local/agents/spawned"
 ## The settings: the six, with a marker in each value, and others that stay.
 rigSix="TEAM_DATA_GIT_REMOTE TEAM_DATA_BRANCH TEAM_DATA_GIT_USER_NAME TEAM_DATA_GIT_USER_EMAIL MDAT_WORKSPACE_MODE"
 rigSettings(){ ## write the scopes as the rig starts
@@ -39,7 +40,7 @@ rigSettings(){ ## write the scopes as the rig starts
 	printf 'SPAWN_CLI_SERVICE=claude-native\nTEAM_DATA_GIT_REMOTE=git@rig.invalid:MARKER-remote.git\nTEAM_DATA_BRANCH=MARKER-branch\nSLACK_CHANNEL_MAGIC_TEAM=CRIG00001\nTEAM_DATA_GIT_USER_NAME=MARKER name\nTEAM_DATA_GIT_USER_EMAIL=marker@rig.invalid\nMDAT_WORKSPACE_MODE=team-rig\n' > "$rigScopes/magic-team.agent.env"
 }
 rigSettings
-printf 'board item\n' > "$rigWs/.local/agents/team-data-root/board/running/task-rig.md"
+rigOwnerData="$rigWs/.local/agents/team-data-root" rigOwnerBoardWrite running "task-rig.md" -- 'board item\n'
 printf 'stale\n' > "$rigWs/.local/temp/stale.txt"
 printf 'record\n' > "$rigWs/.local/agents/spawned/rec"
 rigRun(){ ## the words after the operation -- stdout in out, stderr in err, rc in rigRc

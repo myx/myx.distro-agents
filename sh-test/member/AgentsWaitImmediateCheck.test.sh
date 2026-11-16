@@ -68,7 +68,7 @@ rigScene(){ ## name, duty (yes|no), the age in seconds of the last check of the 
 	rigNow="$( date +%s )"
 	rigDir="$rigTmp/$1"
 	rigWs="$rigDir/ws" rigData="$rigDir/data"
-	mkdir -p "$rigWs/.local/.agents" "$rigWs/.local/temp" "$rigWs/.local/agents/sessions/$rigSession/wait" "$rigData/inboxes/keeper-rig/incoming" "$rigData/board"
+mkdir -p "$rigWs/.local/.agents" "$rigWs/.local/temp" "$rigWs/.local/agents/sessions/$rigSession/wait" "$rigData/board"
 	printf 'SLACK_CHANNEL_MAGIC_TEAM=CRIG00001\nSLACK_BOT_TOKEN=rig-bot-token-TEAM\nSLACK_USER_TOKEN=rig-user-KEEPER\n' > "$rigWs/.local/.agents/magic-team.agent.env"
 	printf 'SLACK_USER_TOKEN=rig-user-KEEPER\n' > "$rigWs/.local/.agents/keeper-rig.agent.env"
 	printf 'keeper-rig=URIGKEEP1=k=K=K=d\n' > "$rigWs/.local/.agents/slack-mention-ids.cache"
@@ -76,6 +76,8 @@ rigScene(){ ## name, duty (yes|no), the age in seconds of the last check of the 
 	printf 'mentions:keeper-rig\t%s.000000\n' "$(( rigNow - 100 ))" > "$rigWs/.local/agents/sessions/$rigSession/session.chat.pointers"
 	[ "$3" = "none" ] || printf 'mentions:keeper-rig\t%s\ndms:keeper-rig\t%s\n' "$(( rigNow - $3 ))" "$(( rigNow - $3 ))" > "$rigWs/.local/agents/sessions/$rigSession/wait/probed"
 	rigDutyRoot=""
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-writes.include.sh" || exit 1
+rigOwnerWs="${rigWs:-$rigTmp/ws}" rigOwnerData="${rigData:-${rigD:-${rigStore:-${rigOut:-$rigTmp/data}}}}" rigOwnerHome="${rigHome:-$rigTmp/home}" rigOwnerSkills="${rigSkills:-$rigTmp/skills}"
 	if [ "$2" = "yes" ] ; then
 		## The run's own sandbox, as a real run has it: the record is read at its exact path.
 		mkdir -p "$rigWs/.local/agents/spawned/rig"

@@ -2,27 +2,9 @@
 # ^^^ for syntax checking in the editor only
 
 ##
-## AgentsTools.SpawnProxyClose.include -- closing a run: its board state, its dispatch, its sandbox, its asks, its park, its children, its dismissal. Split out of AgentsTools.SpawnSandbox.include by concern, its functions unchanged. Sourced, never
+## AgentsTools.SpawnProxyClose.include -- closing a run: its dispatch, its sandbox, its asks, its park, its children, its dismissal. Split out of AgentsTools.SpawnSandbox.include by concern, its functions unchanged. Sourced, never
 ## run; it relies on what AgentsTools.SpawnSandbox.include sources for it.
 ##
-## Which board state folder actually holds an item, or empty when none does.
-## AgentsToolsDataRead searches several lookup folders and does not report which
-## one matched, and the board upsert has to be told the state -- so it is
-## established here rather than assumed to be `running`, which is true only of a
-## document this op created itself. A reused tracking document belongs to a caller
-## and may sit in any state; moving it would relocate that caller's own work item
-## as a side effect of spawning.
-AgentsToolsSpawnProxyBoardStateOf(){ ## item-filename
-	local stateName
-	for stateName in running pending review backlog blocked parked processed archived retained ; do
-		if [ -f "$MDAT_DATA_ROOT/board/$stateName/$1" ] ; then
-			printf '%s' "$stateName"
-			return 0
-		fi
-	done
-	return 0
-}
-
 AgentsToolsSpawnProxyCloseDispatch(){
 	local itemName="$1" briefBody="$2" childExit="$3" childOutputFile="$4" outcome="$5"
 	## Defaulted rather than required, so the create path calls this exactly as it
@@ -48,7 +30,10 @@ AgentsToolsSpawnProxyCloseDispatch(){
 	## is running -> review. An item a handback, a verdict or an ending already moved is never
 	## moved out of review, processed or pending by a close: one in review gets its Result in
 	## place, any other is left as it is (AgentsTools.ReviewFlow.include).
-	actualState="$( AgentsToolsSpawnProxyBoardStateOf "$itemName" )"
+	## The state is read, never assumed to be running: a reused tracking document belongs to a caller and may sit
+	## in any state, and moving it would move that caller's own work item as a side effect of spawning.
+	type AgentsToolsBoardItemHeadersInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemDecisions.include"
+	AgentsToolsBoardItemHeadersInto "$itemName" actualState || :
 	if [ "$actualState" != "$itemState" ] ; then
 		if [ "$actualState" != review ] ; then
 			echo "# --intern-op-agent-spawn-proxy: $itemName is in ${actualState:-no board state}, not $itemState, so the close leaves it as it is" >&2
@@ -58,9 +43,11 @@ AgentsToolsSpawnProxyCloseDispatch(){
 	fi
 	## An item nobody reviews (AgentsToolsItemReviewer says `none`: its review-by, else where its run
 	## reports to) does not enter review: it closes straight to processed, and says so in its Decisions.
-	local reviewNone=""
+	local reviewNone="" reviewItemFile=""
 	type AgentsToolsItemReviewer > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemReviewer.include"
-	if [ "$itemState" = running ] && [ "$itemTargetState" = review ] && [ "$( AgentsToolsItemReviewer "$MDAT_DATA_ROOT/board/$itemState/$itemName" )" = none ] ; then
+	type AgentsToolsBoardItemInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemDecisions.include"
+	AgentsToolsBoardItemInto reviewItemFile "$itemName" || :
+	if [ "$itemState" = running ] && [ "$itemTargetState" = review ] && [ -n "$reviewItemFile" ] && [ "$( AgentsToolsItemReviewer "$reviewItemFile" )" = none ] ; then
 		reviewNone="$( date +"%Y-%m-%d %H:%M %z" )" ; itemTargetState="processed"
 		reviewHeaders=( --header:upsert:processed-at:"$reviewNone" --header:upsert:execution-receipt:processed:"$reviewNone" )
 	fi
@@ -74,9 +61,13 @@ AgentsToolsSpawnProxyCloseDispatch(){
 	type AgentsToolsLocalLockTake > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.LocalLock.include"
 	AgentsToolsLocalLockTake "decisions-${itemName%.md}" 30 "the Decisions of $itemName" && closeItemLock="$agentsLocalLockPath" \
 		|| echo "⚠️ WARNING: --intern-op-agent-spawn-proxy: the Decisions lock on $itemName could not be taken; closing without it" >&2
-	currentBody="$( AgentsToolsDataRead "$itemName" \
-		--lookup-folder "$MDAT_DATA_ROOT/board/$itemState" \
-		--context --intern-op-agent-spawn-proxy )" || currentBody="$briefBody"
+	if [ -n "$reviewItemFile" ] ; then
+		currentBody="$( AgentsToolsDataRead "$itemName" \
+			--lookup-folder "${reviewItemFile%/*}" \
+			--context --intern-op-agent-spawn-proxy )" || currentBody="$briefBody"
+	else
+		currentBody="$briefBody"
+	fi
 	resultBody="$( printf '%s\n' \
 		"$currentBody" \
 		"" \
@@ -87,8 +78,9 @@ AgentsToolsSpawnProxyCloseDispatch(){
 		"output-file: $childOutputFile" \
 		${childEndReason:+"reason: $childEndReason"} \
 		"completed-at: $( date -u +%Y-%m-%dT%H:%M:%SZ )" )"
-	mkdir -p "$MDAT_DATA_ROOT/board/$itemTargetState" || {
-		echo "⚠️ WARNING: --intern-op-agent-spawn-proxy: can't create board state directory $MDAT_DATA_ROOT/board/$itemTargetState, so dispatch item $itemName was not closed" >&2
+	type AgentsToolsBoardReady > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.BoardStates.include"
+	AgentsToolsBoardReady || {
+		echo "⚠️ WARNING: --intern-op-agent-spawn-proxy: the board's state folders could not be made, so dispatch item $itemName was not closed" >&2
 		return 0
 	}
 	type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
@@ -114,7 +106,7 @@ AgentsToolsSpawnProxyCloseDispatch(){
 }
 
 ## A RUN IS DISMISSED BY THE TOOLING'S OWN STATE, NOT BY A MESSAGE (S6.25). The dismissal is kept in the run's
-## own store, `sessions/<spawn id>/dismissed`, which its harness reads first thing and returns as DISMISSED
+## own `dismissed` marker in the session store (AgentsSessionMarkerFile), which its harness reads first thing and returns as DISMISSED
 ## every time it is asked. The same act is written into the session's chat file, as a block addressed to that
 ## run's member, which its Wait reads at its own tick: so a run already waiting is reached with no message
 ## posted to it, and one that asks again is answered from its mark. The block's ts is `-` because nothing was
@@ -122,37 +114,27 @@ AgentsToolsSpawnProxyCloseDispatch(){
 ## (AgentsDismissalMatch.awk) reads it exactly as it reads a posted message. Kept once; rc 1 where the mark
 ## cannot be kept. Prints one DISMISS line.
 AgentsToolsRunDismiss(){ ## spawn id, who dismissed it
-	local disSpawn="$1" disBy="$2" disFile disTemp disRecord="" disSession="" disMember="" disThread=""
+	local disSpawn="$1" disBy="$2" disFile disTemp disSession="" disMember="" disThread=""
 	type AgentsToolsAssertBareName > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.BareName.include"
 	AgentsToolsAssertBareName "$disSpawn" "the run" AgentsToolsRunDismiss 2> /dev/null || return 1
 	[ -n "${MMDAPP:-}" ] || return 1
-	disFile="$MMDAPP/.local/agents/sessions/$disSpawn/dismissed"
+	type AgentsSessionMarkerFileInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include" || return 1
+	AgentsSessionMarkerFileInto disFile "$disSpawn" dismissed || return 1
 	if [ ! -f "$disFile" ] ; then
 		mkdir -p "${disFile%/*}" 2> /dev/null || return 1
 		disTemp="$( mktemp "$disFile.tmp.XXXXXX" 2> /dev/null )" || return 1
 		{ printf '%s\n' "$disBy" > "$disTemp" 2> /dev/null && chmod 644 "$disTemp" && mv -f "$disTemp" "$disFile" ; } 2> /dev/null \
 			|| { rm -f "$disTemp" ; return 1 ; }
 	fi
-	for disRecord in "$MMDAPP"/.local/agents/spawned/*/"$disSpawn.spawn.md" ; do
-		[ ! -f "$disRecord" ] || break
-	done
-	if [ -f "$disRecord" ] ; then
-		type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandbox.include"
-		disSession="$( AgentsToolsSpawnSandboxRecordHeader "$disRecord" session-id )"
-		disMember="$( AgentsToolsSpawnSandboxRecordHeader "$disRecord" owner )"
-	fi
+	type AgentsSessionRunHeadersInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+	AgentsSessionRunHeadersInto "$disSpawn" disSession=session-id disMember=owner || :
 	case "$disSession" in ''|-|.|..|*/*) disSession="" ;; esac
 	printf 'DISMISS: %s dismissed by %s\n' "$disSpawn" "$disBy"
 	[ -n "$disSession" ] || return 0
 	## The block is recorded under the session's own thread, never the run's: that is the thread its floor reads.
 	type AgentsSessionThread > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
 	disThread="$( AgentsSessionThread "$disSession" )"
-	if [ -z "$disThread" ] ; then
-		for disRecord in "$MMDAPP"/.local/agents/spawned/*/"$disSession.spawn.md" ; do
-			[ ! -f "$disRecord" ] || break
-		done
-		[ ! -f "$disRecord" ] || disThread="$( AgentsToolsSpawnSandboxRecordHeader "$disRecord" session-thread )"
-	fi
+	[ -n "$disThread" ] || AgentsSessionRunHeadersInto "$disSession" disThread=session-thread || :
 	case "$disThread" in ''|-) disThread="local" ;; esac
 	type AgentsToolsSessionChatAppend > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include"
 	## THE MARK IS THE STATE AND THE BLOCK IS THE DELIVERY (S6.25): the mark is written first, so it is the answer
@@ -171,19 +153,22 @@ AgentsToolsRunDismiss(){ ## spawn id, who dismissed it
 ## with none, the one live record whose spawns/spawned-by links the item. Never fails the move it follows: prints
 ## one ACCEPT-DISMISS line, saying what was done or why nothing was.
 AgentsToolsBoardAcceptDismissChild(){ ## sending member, item path
-	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandbox.include"
+	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandboxRecordHeader.include"
 	type AgentsToolsSpawnSandboxFoldersOfItem > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandboxSweep.include"
 	type AgentsToolsSessionDismissHeld > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionSeats.include"
 	local sendBy="$1" itemPath="$2" itemSpawn recordPath="" recordCandidate folderName
 	local childStatus childMember childHost thisHost sendOut
 	itemSpawn="$( AgentsToolsSpawnSandboxRecordHeader "$itemPath" spawn-id )"
 	if [ -n "$itemSpawn" ] && [ "$itemSpawn" != "-" ] ; then
-		for recordCandidate in "$MMDAPP/.local/agents/spawned"/*/"$itemSpawn.spawn.md" ; do
+		type AgentsSessionRunRecordInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+		AgentsSessionRunRecordInto recordCandidate "$itemSpawn" || :
+		for recordCandidate in ${recordCandidate:+"$recordCandidate"} ; do
 			[ ! -f "$recordCandidate" ] || { recordPath="$recordCandidate" ; break ; }
 		done
 	else
+		type AgentsSpawnedFolderRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
 		for folderName in $( AgentsToolsSpawnSandboxFoldersOfItem "$itemPath" ) ; do
-			for recordCandidate in "$MMDAPP/.local/agents/spawned/$folderName"/*.spawn.md ; do
+			for recordCandidate in $( AgentsSpawnedFolderRecords "$folderName" ) ; do
 				[ -f "$recordCandidate" ] || continue
 				[ "$( AgentsToolsSpawnSandboxRecordHeader "$recordCandidate" status )" = spawn-started ] || continue
 				[ -z "$recordPath" ] || { printf 'ACCEPT-DISMISS: not done: more than one live spawn links %s, so which child to dismiss is not decided here\n' "${itemPath##*/}" ; return 0 ; }
@@ -387,7 +372,7 @@ AgentsToolsSpawnProxyCloseSandboxOnce(){ ## tracking file, outcome, exit code, e
 	## fails the close.
 	if [ -s "${sandboxFile%.spawn.md}.refused" ] && [ "$sandboxOutcome" = failed ] ; then
 		type AgentsToolsUsageLimitMark > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.UsageLimit.include"
-		type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandbox.include"
+		type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandboxRecordHeader.include"
 		AgentsToolsUsageLimitMark "$( AgentsToolsSpawnSandboxRecordHeader "$sandboxFile" spawn-id )" "$( head -1 "${sandboxFile%.spawn.md}.refused" )" 2> /dev/null || :
 	fi
 	return 0
@@ -416,7 +401,7 @@ AgentsToolsSpawnProxyWithdrawAsks(){ ## tracking file
 	## (AgentsTools.PendingReplyCollect.include): the run that asked is gone either way.
 	local collectTyped=1
 	[ -f "${1:-}" ] || return 0
-	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandbox.include"
+	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandboxRecordHeader.include"
 	[ "$( AgentsToolsSpawnSandboxRecordHeader "$1" status )" = "spawn-started" ] || return 0
 	## The run's own id: its spawn-id, and for a record written without one the session it names,
 	## which is the same id for a run that founded its session.
@@ -510,7 +495,7 @@ AgentsToolsSpawnProxyStaleHandbackTell(){ ## the member the scan acts as, the re
 AgentsToolsSpawnProxyChildrenDismiss(){ ## tracking file of the closing run
 	local cdRecord="$1" cdBy
 	[ -f "$cdRecord" ] || return 0
-	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandbox.include"
+	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandboxRecordHeader.include"
 	cdBy="$( AgentsToolsSpawnSandboxRecordHeader "$cdRecord" owner )"
 	[ -n "$cdBy" ] || return 0
 	type AgentsReviewChildrenDismiss > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ReviewFlow.include"
@@ -526,19 +511,23 @@ AgentsToolsSpawnProxyChildrenDismiss(){ ## tracking file of the closing run
 ## a dead spawn left open, so no store is edited by hand. Nothing else is swept: a record settled another way, and
 ## one still open, keeps its mark, which is the state a run waiting for a verdict reads by.
 AgentsToolsSpawnProxyStaleParkClear(){
-	local staleMark staleRun staleRecord staleCleared=0
-	[ -d "$MMDAPP/.local/agents/sessions" ] || return 0
-	for staleMark in "$MMDAPP/.local/agents/sessions"/*/parked ; do
+	local staleMark staleRun staleRecord staleCleared=0 staleStore=""
+	type AgentsSessionsMarked > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+	AgentsSessionStoreDirInto staleStore "$MMDAPP" || return 0
+	[ -d "$staleStore" ] || return 0
+	for staleRun in $( AgentsSessionsMarked parked ) ; do
+		staleMark=""
+		AgentsSessionMarkerFileInto staleMark "$staleRun" parked || continue
 		[ -f "$staleMark" ] || continue
-		staleRun="${staleMark%/parked}" ; staleRun="${staleRun##*/}"
-		case "$staleRun" in ''|-|.|..|*/*) continue ;; esac
 		staleRecord=""
-		for staleRecord in "$MMDAPP/.local/agents/spawned"/*/"$staleRun.spawn.md" ; do
+		type AgentsSessionRunRecordInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+		AgentsSessionRunRecordInto staleRecord "$staleRun" || :
+		for staleRecord in ${staleRecord:+"$staleRecord"} ; do
 			[ -f "$staleRecord" ] || { staleRecord="" ; continue ; }
 			break
 		done
 		[ -n "$staleRecord" ] || continue
-		type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandbox.include"
+		type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandboxRecordHeader.include"
 		case "$( AgentsToolsSpawnSandboxRecordHeader "$staleRecord" end-reason )" in
 			"the accept of "*) ;;
 			*) continue ;;
@@ -553,21 +542,22 @@ AgentsToolsSpawnProxyStaleParkClear(){
 ## The park mark of a run is taken away where its record closes (S27.2). The mark is written under
 ## the id the harness holds, and a run's record carries both that one and its session-id.
 AgentsToolsSpawnProxyParkClear(){ ## tracking file of the closing run
-	local pcRecord="$1" pcSpawn pcSession
+	local pcRecord="$1" pcSpawn pcSession pcParked
 	[ -f "$pcRecord" ] || return 0
-	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandbox.include"
+	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandboxRecordHeader.include"
 	pcSpawn="$( AgentsToolsSpawnSandboxRecordHeader "$pcRecord" spawn-id )"
 	pcSession="$( AgentsToolsSpawnSandboxRecordHeader "$pcRecord" session-id )"
 	case "$pcSpawn" in ''|-|.|..|*/*) pcSpawn="" ;; esac
 	case "$pcSession" in ''|-|.|..|*/*) pcSession="" ;; esac
-	[ -z "$pcSpawn" ] || rm -f "$MMDAPP/.local/agents/sessions/$pcSpawn/parked" 2> /dev/null || :
-	[ -z "$pcSession" ] || [ "$pcSession" = "$pcSpawn" ] || rm -f "$MMDAPP/.local/agents/sessions/$pcSession/parked" 2> /dev/null || :
+	type AgentsSessionMarkerFileInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include" || return 1
+	[ -z "$pcSpawn" ] || ! AgentsSessionMarkerFileInto pcParked "$pcSpawn" parked || rm -f "$pcParked" 2> /dev/null || :
+	[ -z "$pcSession" ] || [ "$pcSession" = "$pcSpawn" ] || ! AgentsSessionMarkerFileInto pcParked "$pcSession" parked || rm -f "$pcParked" 2> /dev/null || :
 	return 0
 }
 
 ## Whether a record has settled, printed as one line and rc 0 where it has. A close ends a run that still runs.
 AgentsToolsSpawnProxyCloseSettled(){ ## tracking file
-	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandbox.include"
+	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandboxRecordHeader.include"
 	case "$( AgentsToolsSpawnSandboxRecordHeader "$1" status )" in
 		''|spawn-started) return 1 ;;
 	esac
@@ -576,7 +566,7 @@ AgentsToolsSpawnProxyCloseSettled(){ ## tracking file
 }
 
 AgentsToolsSpawnProxyCloseSandbox(){ ## tracking file, outcome, exit code, end reason (optional)
-	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandbox.include"
+	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandboxRecordHeader.include"
 	type AgentsToolsSessionSeatRelease > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionSeats.include"
 	type AgentsToolsSpawnProxyRootMarks > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnProxyRootMarks.include"
 	[ -f "$1" ] || return 0

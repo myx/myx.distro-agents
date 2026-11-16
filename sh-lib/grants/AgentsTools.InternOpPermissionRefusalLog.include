@@ -71,6 +71,6 @@ type AgentsToolsPermissionGranteeAssert > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/
 		printf '%s\n' "$refusalId"
 		## And how to ask for the call, each line as `HINT: <text>`, for whoever refused it to print.
 		AgentsToolsPermissionRefusalHint "$refusalId" | LC_ALL=C sed 's/^/HINT: /'
-		AgentsToolsPermissionRefusalPost "$refusalOwner" "$refusalDir" "$refusalId" \
+		AgentsToolsPermissionRefusalPost "$refusalOwner" "$refusalSession" "$refusalId" \
 			"$refusalSession" "$refusalTool" "$refusalTarget" "$refusalReason"
 		return 0

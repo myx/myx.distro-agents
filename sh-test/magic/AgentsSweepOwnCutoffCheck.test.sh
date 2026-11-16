@@ -16,6 +16,7 @@ rigRefuse(){
 }
 [ -f "$rigPackage/sh-test/check-fixtures/sweep-concurrency.curl.stub.sh" ] || rigRefuse "the sweep fixture is missing from the package"
 . "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-writes.include.sh" || exit 1
 rigTmp="$( rigTempDir AgentsSweepOwnCutoffCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
@@ -42,13 +43,13 @@ printf '# fixture\n' > "$rigDir/ws/.local/agents/members/magic-coordinator/SKILL
 printf 'SLACK_BOT_TOKEN=xoxb-fixture\nSLACK_CHANNEL_MAGIC_TEAM=CFIXTEAM001\nSLACK_CHANNEL_HUMAN_OWNER=UFIXOWNER01\n' > "$rigDir/ws/.local/.agents/magic-team.agent.env"
 printf 'SLACK_USER_TOKEN=xoxp-fixture-coordinator\n' > "$rigDir/ws/.local/.agents/magic-coordinator.agent.env"
 for rigClient in 1 2 ; do
-	mkdir -p "$rigDir/ws/.local/agents/members/client-fix$rigClient" "$rigDir/data/inboxes/client-fix$rigClient/incoming"
+	mkdir -p "$rigDir/ws/.local/agents/members/client-fix$rigClient"
 	printf '# fixture\n' > "$rigDir/ws/.local/agents/members/client-fix$rigClient/SKILL.md"
 	printf 'SLACK_USER_TOKEN=xoxp-fixture-client%s\nSLACK_CONVERSATIONS=CFIXAAAA00%s\n' "$rigClient" "$rigClient" > "$rigDir/ws/.local/.agents/client-fix$rigClient.agent.env"
 done
 rigNote="note-20260812T231137Z-sweep-state.md"
-printf -- '---\nlast_swept_ts: %s\n---\n\n# sweep-state-note\n\nteam body line\n' "$rigTeamTs" > "$rigDir/data/inboxes/magic-coordinator/incoming/$rigNote"
-printf -- '---\nlast_swept_ts: %s\n---\n\n# sweep-state-note\n' "$rigClientTs" > "$rigDir/data/inboxes/client-fix1/incoming/$rigNote"
+rigOwnerData="$rigDir/data" rigOwnerInboxWrite magic-coordinator "$rigNote" -- '---\nlast_swept_ts: %s\n---\n\n# sweep-state-note\n\nteam body line\n' "$rigTeamTs"
+rigOwnerData="$rigDir/data" rigOwnerInboxWrite client-fix1 "$rigNote" -- '---\nlast_swept_ts: %s\n---\n\n# sweep-state-note\n' "$rigClientTs"
 
 ## One tooling call in the fixture tree, guarded. rigSession names the member whose session the call comes from;
 ## empty, the call comes from no session: the console. rigLatency is the fake Slack's own wait per call, rigDms how
@@ -118,7 +119,7 @@ rigAssert "each client part is what the same sweep from the console gives it, bu
 rigAssert "and no session is refused on the way" "$( rigHas "$( cat "$rigTmp/session.err" )" "this session acts as" )" no
 
 echo "-- a client record that cannot be read is not a fallback --"
-printf 'no frontmatter here\n' > "$rigDir/data/inboxes/client-fix2/incoming/$rigNote"
+rigOwnerData="$rigDir/data" rigOwnerInboxWrite client-fix2 "$rigNote" -- 'no frontmatter here\n'
 rigRun broken --intern-op-client-sweep-input-scan client-fix2
 rigAssert "the scan refuses"                                "$( cat "$rigTmp/broken.rc" )" 1
 rigAssert "and says why"                                    "$( rigHas "$( cat "$rigTmp/broken.err" )" "no frontmatter block" )" yes
@@ -130,7 +131,7 @@ rigWm(){ LC_ALL=C awk -f "$rigPackage/sh-lib/magic/AgentsMagicSweepStateWatermar
 ## The member is the operation's own --team-member option: a bare first argument is its own, never the
 ## member, since the old positional was retired (AgentsContext.FrontDoor.include, S21.3).
 rigNewTeam="$(( rigNow - 500 )).000001"
-printf -- '---\nlast_swept_ts: %s\nsource-UA-DB-last-swept-ts: 1.0\n---\n\n# sweep-state-note\n\nteam body line\n' "$rigTeamTs" > "$rigDir/data/inboxes/magic-coordinator/incoming/$rigNote"
+rigOwnerData="$rigDir/data" rigOwnerInboxWrite magic-coordinator "$rigNote" -- '---\nlast_swept_ts: %s\nsource-UA-DB-last-swept-ts: 1.0\n---\n\n# sweep-state-note\n\nteam body line\n' "$rigTeamTs"
 rigRun adv1 --sweep-state-advance --team-member magic-coordinator "$rigNewTeam"
 rigAssert "advance succeeds"                                "$( cat "$rigTmp/adv1.rc" )" 0
 rigAssert "the pointer moved"                               "$( rigWm magic-coordinator )" "$rigNewTeam"

@@ -113,7 +113,7 @@ AgentsToolsCommsActivityPass $(( rigAt + 2240 ))
 rigAssert "a feed run with an event-track.thread of its own posts there, not in its record's thread" "$( rigOutbox CRIGFEED2-1793000000.000700 ):$( rigOutbox CRIGFEED-1793000000.000600 )" "1:1"
 
 ## The started records are read from the tree once in the TTL, and kept.
-. "$rigHere/spawn/AgentsTools.StartedRecords.include" || rigRefuse "the started records' include could not be sourced"
+. "$rigHere/session/AgentsTools.StartedRecords.include" || rigRefuse "the started records' include could not be sourced"
 rm -f "$rigWs/.local/agents/schedule/started.records"
 rigListA="$( MDAT_STARTED_RECORDS_SECONDS=60 AgentsToolsSpawnedStartedRecords | wc -l | tr -d ' ' )"
 rigG=gggg7777-0000-0000-0000-000000000007

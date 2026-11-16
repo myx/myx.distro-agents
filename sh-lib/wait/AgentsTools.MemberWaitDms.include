@@ -21,7 +21,8 @@ AgentsWaitProbeDms(){
 	[ "$probeTarget" = "$probeMember" ] || return 2
 	type AgentsToolsSessionChatKeyInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include" || return 2
 	AgentsToolsSessionChatKeyInto ; probeKey="$agentsSessionChatKey"
-	[ -n "$probeKey" ] && [ -d "$MMDAPP/.local/agents/sessions/$probeKey" ] || probeKey=""
+	type AgentsSessionKnown > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+	AgentsSessionKnown "$probeKey" || probeKey=""
 	if [ -n "$probeKey" ] ; then
 		probePointer="$( AgentsToolsSessionChatPointer "$probeKey" "dms:$probeMember" 2> /dev/null )" || probePointer=""
 		probeRosterFile="$MMDAPP/.local/agents/sessions/$probeKey/dms-roster.$probeMember"
@@ -143,7 +144,8 @@ AgentsWaitDmsCommit(){ ## member, the file holding the newest ts
 	[ -n "$commitTs" ] || return 0
 	type AgentsToolsSessionChatKeyInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include"
 	AgentsToolsSessionChatKeyInto ; commitKey="$agentsSessionChatKey"
-	if [ -n "$commitKey" ] && [ -d "$MMDAPP/.local/agents/sessions/$commitKey" ] ; then
+	type AgentsSessionKnown > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+	if AgentsSessionKnown "$commitKey" ; then
 		AgentsToolsSessionChatPointerSet "$commitKey" "dms:$1" "$commitTs"
 	else
 		printf '%s\n' "$commitTs" > "${2%.newest}.pointer" 2> /dev/null || :

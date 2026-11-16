@@ -24,7 +24,8 @@ AgentsToolsBoardCounts(){
 	local countState countFile countN
 	for countState in backlog pending running review blocked parked processed archived retained ; do
 		countN=0
-		for countFile in "$MDAT_DATA_ROOT/board/$countState"/*.md ; do
+		type AgentsToolsBoardItemsInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemDecisions.include" ; local countFileItems ; AgentsToolsBoardItemsInto countFileItems "" "$countState"
+		for countFile in ${countFileItems[@]+"${countFileItems[@]}"} ; do
 			[ -f "$countFile" ] && countN=$(( countN + 1 ))
 		done
 		printf '%s: %s\n' "$countState" "$countN"
@@ -35,18 +36,22 @@ AgentsToolsBoardCounts(){
 ## most 40, then one `(+<n> more)` line for the rest; `(none)` when empty.
 AgentsToolsBoardActiveItems(){
 type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
-	local activeState activeFile activeN=0 activeCap=40 activeRows="" activeTokens
+	local activeN=0 activeCap=40 activeRows="" activeTokens
 	## Token totals, summed now over what sits under each item (AgentsTools.SessionTranscript.include).
 	. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionTranscript.include"
-	activeRows="$( cd "$MDAT_DATA_ROOT/board" 2>/dev/null && AgentsSessionTokensRollupRows running/*.md review/*.md pending/*.md blocked/*.md 2>/dev/null )"
-	for activeState in running review pending blocked ; do
-		for activeFile in "$MDAT_DATA_ROOT/board/$activeState"/*.md ; do
-			[ -f "$activeFile" ] || continue
-			activeN=$(( activeN + 1 ))
-			activeTokens=""
-			[ -z "$activeRows" ] || activeTokens="$( AgentsSessionTokensRollupText "$( AgentsSessionTokensRollupRowOf "$activeRows" "${activeFile##*/}" )" )"
-			[ "$activeN" -gt "$activeCap" ] || printf '%s/%s%s\n' "$activeState" "${activeFile##*/}" "${activeTokens:+ -- $activeTokens}"
-		done
+	## The items by `<state>/<name>`, as the roll-up keys them, from the board's one walk, in state order. Only the
+	## items shown get their token text: the rest are counted.
+	local activeItems activeKeys=() activeOne activeKey
+	type AgentsToolsBoardItemsInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemDecisions.include"
+	AgentsToolsBoardItemsInto activeItems "" running review pending blocked
+	for activeOne in ${activeItems[@]+"${activeItems[@]}"} ; do activeKey="${activeOne%/*}" ; activeKeys+=( "${activeKey##*/}/${activeOne##*/}" ) ; done
+	activeRows="$( AgentsSessionTokensRollupRows ${activeKeys[@]+"${activeKeys[@]}"} 2>/dev/null )"
+	for activeKey in ${activeKeys[@]+"${activeKeys[@]}"} ; do
+		activeN=$(( activeN + 1 ))
+		[ "$activeN" -le "$activeCap" ] || continue
+		activeTokens=""
+		[ -z "$activeRows" ] || activeTokens="$( AgentsSessionTokensRollupText "$( AgentsSessionTokensRollupRowOf "$activeRows" "${activeKey##*/}" )" )"
+		printf '%s%s\n' "$activeKey" "${activeTokens:+ -- $activeTokens}"
 	done
 	[ "$activeN" -le "$activeCap" ] || printf '(+%s more)\n' "$(( activeN - activeCap ))"
 	[ "$activeN" -gt 0 ] || printf '(none)\n'

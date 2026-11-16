@@ -68,10 +68,12 @@ AgentsToolsRoutineStackShown(){ ## the `routine-stack:` lines
 ## answers: 11 sessions of the estate hold records that name them and no record named by their id. Printed; rc 1 where
 ## no record here names the session.
 AgentsToolsSessionRoutineStackRecord(){ ## session id
-	local stackRecord="" stackNamed="" stackFrames=""
+	local stackRecord="" stackNamed="" stackFrames="" stackOwn=""
 	## The session's own record first, then the records that name it, from the kept per-session list (AgentsTools.StartedRecords.include), never every record on a move.
-	type AgentsToolsSpawnedSessionRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.StartedRecords.include"
-	for stackRecord in "${MMDAPP:-/nonexistent}/.local/agents/spawned/$1/$1.spawn.md" $( AgentsToolsSpawnedSessionRecords "$1" own 2> /dev/null ) ; do
+	type AgentsToolsSpawnedSessionRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include"
+	type AgentsSessionRunOwnRecordInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+	AgentsSessionRunOwnRecordInto stackOwn "$1" || :
+	for stackRecord in ${stackOwn:+"$stackOwn"} $( AgentsToolsSpawnedSessionRecords "$1" own 2> /dev/null ) ; do
 		[ -f "$stackRecord" ] || continue
 		stackFrames="$( LC_ALL=C anchor="$1" awk '
 			NR == 1 { if ( $0 != "---" ) exit 1 ; next ; }
@@ -99,14 +101,10 @@ AgentsToolsSessionRoutineStackLines(){ ## session id
 ## (AgentsHarnessCheckListPlace): the folder of the record the session id names, else the session's own folder. A move that
 ## acts on the list asks here, so it never reads a folder the tool does not write.
 AgentsToolsSessionCheckListFile(){ ## session id, member name
-	local listRecord
-	type AgentsToolsSpawnRecordPath > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionSeats.include"
-	listRecord="$( AgentsToolsSpawnRecordPath "$1" )"
-	if [ -n "$listRecord" ] ; then
-		printf '%s/%s.checklist.md\n' "${listRecord%/*}" "$2"
-	else
-		printf '%s/.local/agents/sessions/%s/%s.checklist.md\n' "$MMDAPP" "$1" "$2"
-	fi
+	local listFile=""
+	type AgentsSessionChecklistFileInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+	AgentsSessionChecklistFileInto listFile "$1" "$2" || return 1
+	printf '%s\n' "$listFile"
 }
 
 ## The frames changed by one move, from the frames on standard input to the frames on standard output, one
@@ -181,10 +179,12 @@ AgentsToolsRoutineStackFrameClosed(){ ## session id, the item whose accept close
 ## it is closed whatever the record's state was before the accept. The record's stack is read from the item's own child.
 AgentsToolsBoardAcceptFrameClosed(){ ## item path, the item file name
 	local frameItem="$2" frameRecordPath="" frameRecordCandidate frameSpawn frameSession frameLive
-	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandbox.include"
+	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandboxRecordHeader.include"
 	frameSpawn="$( AgentsToolsSpawnSandboxRecordHeader "$1" spawn-id )"
 	[ -n "$frameSpawn" ] && [ "$frameSpawn" != "-" ] || return 0
-	for frameRecordCandidate in "$MMDAPP/.local/agents/spawned"/*/"$frameSpawn.spawn.md" ; do
+	type AgentsSessionRunRecordInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+	AgentsSessionRunRecordInto frameRecordCandidate "$frameSpawn" || :
+	for frameRecordCandidate in ${frameRecordCandidate:+"$frameRecordCandidate"} ; do
 		[ ! -f "$frameRecordCandidate" ] || { frameRecordPath="$frameRecordCandidate" ; break ; }
 	done
 	[ -n "$frameRecordPath" ] || return 0
@@ -324,9 +324,14 @@ AgentsToolsRoutineStackMove(){ ## the verb, the routine file a push, replace or 
 	fi
 	## The move goes into the event-track thread of the session too; a post that fails leaves the move recorded.
 	type AgentsToolsEventTrackThreadPost > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/event-track/AgentsTools.EventTrackThread.include"
-		AgentsToolsEventTrackThreadPost "$moveMember" "$MMDAPP/.local/agents/sessions/$moveSession" --kind activity \
+	type AgentsSessionFolderInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+	AgentsSessionFolderInto moveStore "$MMDAPP" "$moveSession" || moveStore=""
+	[ -n "$moveStore" ] || echo "$MDSC_CMD: ⚠️ WARNING: --routine-stack $moveVerb: the move is recorded, and it could not be posted into the session's event-track thread" >&2
+	if [ -n "$moveStore" ] ; then
+		AgentsToolsEventTrackThreadPost "$moveMember" "$moveStore" --kind activity \
 			--session-id "$moveSession" --field what="the routine stack moved" --from-stdin > /dev/null 2>&1 <<< "$moveLine" \
 			|| echo "$MDSC_CMD: ⚠️ WARNING: --routine-stack $moveVerb: the move is recorded, and it could not be posted into the session's event-track thread" >&2
+	fi
 	printf 'OK: --routine-stack %s: %s is in force in session %s (%s frame(s)).\n' \
 		"$moveVerb" "$moveTopName" "$moveSession" "$( printf '%s\n' "$moveNew" | LC_ALL=C awk 'END { print NR + 0 }' )"
 	[ -z "$moveSteps" ] || printf '  steps: %s\n' "$moveSteps"

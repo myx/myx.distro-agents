@@ -719,10 +719,12 @@ DagcHarnessModelExport(){
 ## PRESET_INPUT_CACHE_TIME, 5m or 1h: read as the models are, answered from the preset (AgentsToolsPresetOverlay) and exported for the leg, a parent's
 ## dropped. Nothing exported is the provider's own lifetime, 5m, and the markers say nothing of it.
 DagcHarnessCacheTimeExport(){
-	local DAGC_CACHE_TIME
-	unset HARNESS_INPUT_CACHE_TIME
+	local DAGC_CACHE_TIME DAGC_IMAGES
+	unset HARNESS_INPUT_CACHE_TIME HARNESS_MODEL_TAKES_IMAGES
 	DAGC_CACHE_TIME="$( "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --agents-config-option magic-team --select HARNESS_INPUT_CACHE_TIME 2>/dev/null )" || DAGC_CACHE_TIME=""
 	[ -z "$DAGC_CACHE_TIME" ] || export "HARNESS_INPUT_CACHE_TIME=$DAGC_CACHE_TIME"
+	DAGC_IMAGES="$( "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --agents-config-option magic-team --select HARNESS_MODEL_TAKES_IMAGES 2>/dev/null )" || DAGC_IMAGES=""
+	[ -z "$DAGC_IMAGES" ] || export "HARNESS_MODEL_TAKES_IMAGES=$DAGC_IMAGES"
 	return 0
 }
 ## THE RESTART THRESHOLD (F10.2). The context size the preset of this spawn names, PRESET_CONTEXT_MAX_SIZE,
@@ -810,8 +812,10 @@ if [ -n "$MDAT_SPAWN_SESSION_ID" ] ; then
 				DAGC_SESSION_ID_ARGS=( --resume "$MDAT_SPAWN_SESSION_ID" )
 			;;
 			*)
-				## A harness CLI resumes from the context its session kept (context.jsonl in its sandbox), the same transcript, not a new one.
-				DAGC_RESUME_CONTEXT="${MMDAPP:-}/.local/agents/spawned/$MDAT_SPAWN_SESSION_ID/context.jsonl"
+				## A harness CLI resumes from the context its session kept (context.jsonl in the sandbox the proxy exported, else in the one the store names), the same transcript, not a new one.
+				type AgentsSpawnedStoreDirInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+				AgentsSpawnedStoreDirInto DAGC_SPAWNED_STORE "${MMDAPP:-}"
+				DAGC_RESUME_CONTEXT="${MDAT_SPAWN_SANDBOX_ROOT:-$DAGC_SPAWNED_STORE/$MDAT_SPAWN_SESSION_ID}/context.jsonl"
 				if [ -n "${MMDAPP:-}" ] && [ -s "$DAGC_RESUME_CONTEXT" ] ; then
 					export MDAT_HARNESS_RESUME_CONTEXT="$DAGC_RESUME_CONTEXT"
 				else

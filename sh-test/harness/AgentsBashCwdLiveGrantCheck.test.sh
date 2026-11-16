@@ -34,7 +34,7 @@ rigWs="$rigTmp/ws"
 rigData="$rigTmp/data"
 rigHome="$rigTmp/home"
 rigSkills="$rigTmp/skills"
-mkdir -p "$rigWs/.local/.agents" "$rigWs/.local/agents" "$rigData/board/running" "$rigData/board/processed" "$rigHome" \
+mkdir -p "$rigWs/.local/.agents" "$rigWs/.local/agents" "$rigHome" \
 	"$rigSkills/$rigMember" "$rigWs/HOLD" "$rigWs/PATTERN" "$rigWs/OUT" "$rigWs/OTHER" || exit 1
 printf -- '---\nmaintainers: rig\n---\nRIG-A own words\n' > "$rigSkills/$rigMember/$rigMember.basic.md"
 : > "$rigWs/.local/agents/members.registry"

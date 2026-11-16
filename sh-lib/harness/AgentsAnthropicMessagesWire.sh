@@ -171,7 +171,11 @@ AgentsWireToolCallEntry(){ ## id, name, input JSON
 ## One user turn per result; consecutive user turns are joined into one by the API, so
 ## several results still reach it as one turn with every tool_result first. With a date (the reply
 ## layer's, AgentsTranscriptReplyDate) the tool_result's content is two text parts, the result and the date.
-AgentsWireToolResultRecord(){ ## call id, result text, date line (optional)
+AgentsWireToolResultRecord(){ ## call id, result text, date line (optional), image mime (optional), image data (optional)
+	if [ -n "${4:-}" ] && [ -n "${5:-}" ] ; then
+		printf '%s' '{"role":"user","content":[{"type":"tool_result","tool_use_id":"'"$( AgentsWireJsonEscape "$1" )"'","content":[{"type":"text","text":"'"$( AgentsWireJsonEscape "$2" )"'"},{"type":"image","source":{"type":"base64","media_type":"'"$4"'","data":"'"$5"'"}}]}]}'
+		return 0
+	fi
 	if [ -n "${3:-}" ] ; then
 		printf '%s' '{"role":"user","content":[{"type":"tool_result","tool_use_id":"'"$( AgentsWireJsonEscape "$1" )"'","content":[{"type":"text","text":"'"$( AgentsWireJsonEscape "$2" )"'"},{"type":"text","text":"'"$( AgentsWireJsonEscape "$3" )"'"}]}]}'
 		return 0

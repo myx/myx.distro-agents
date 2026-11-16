@@ -2,7 +2,8 @@
 # ^^^ for syntax checking in the editor only
 
 ##
-## AgentsTools.SpawnSandboxSweep.include -- the sweep of the spawn sandboxes: the folders of an item and the state of a folder. Split out of AgentsTools.SpawnSandbox.include by concern, its functions unchanged. Sourced, never
+## AgentsTools.SpawnSandboxSweep.include -- the sweep of the spawn sandboxes: the folders of an item, the state of a folder and
+## the removal of one. Split out of AgentsTools.SpawnSandbox.include by concern, its functions unchanged. Sourced, never
 ## run; it relies on what AgentsTools.SpawnSandbox.include sources for it.
 ##
 ## Empties input/ of every sandbox on this host with no live session, and says which; and
@@ -14,7 +15,10 @@
 ## command line that only carries a spawn's id holds no sandbox: a process of the tooling
 ## that waits on its session, or another run whose line holds this sandbox's path.
 AgentsToolsSpawnSandboxSweep(){ ## where
-	local sweepRoot="$MMDAPP/.local/agents/spawned" sweepDir sweepRecord sweepSession sweepHost sweepLive sweepHold thisHost
+	local sweepRoot="" sweepDir sweepRecord sweepSession sweepHost sweepLive sweepHold thisHost
+	type AgentsSpawnedStoreDirInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+	AgentsSpawnedStoreDirInto sweepRoot "$MMDAPP" || return 0
+	type AgentsToolsSpawnSandboxCleanInput > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandboxInput.include"
 	[ -d "$sweepRoot" ] || return 0
 	thisHost="$( hostname -s 2>/dev/null )" || thisHost="unknown"
 	type AgentsToolsUndoHoldState > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/undo/AgentsTools.UndoHold.include"
@@ -70,10 +74,13 @@ AgentsToolsSpawnSandboxSweep(){ ## where
 ## Sandbox folder names linked to one board item, one per line, sorted, empty when none. Two links, either one is enough:
 ## the item's own spawn-id naming a record, and a record's spawns/spawned-by naming the item. An empty or `-` spawn-id matches nothing.
 AgentsToolsSpawnSandboxFoldersOfItem(){ ## item path
-	local itemStem="${1##*/}" itemSpawn
+	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandboxRecordHeader.include"
+	local itemStem="${1##*/}" itemSpawn itemRecords=()
 	itemStem="${itemStem%.md}"
 	itemSpawn="$( AgentsToolsSpawnSandboxRecordHeader "$1" spawn-id )"
-	[ -d "$MMDAPP/.local/agents/spawned" ] || return 0
+	type AgentsToolsSpawnedAllRecordsInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include"
+	AgentsToolsSpawnedAllRecordsInto itemRecords "$MMDAPP"
+	[ ${#itemRecords[@]} -gt 0 ] || return 0
 	LC_ALL=C awk -v wantStem="$itemStem" -v wantSpawn="$itemSpawn" '
 		FNR == 1 {
 			fmCount = 0 ;
@@ -90,32 +97,36 @@ AgentsToolsSpawnSandboxFoldersOfItem(){ ## item path
 				if ( linkStem == wantStem ) { print folderName ; break ; }
 			}
 		}
-	' "$MMDAPP/.local/agents/spawned"/*/*.spawn.md 2> /dev/null | LC_ALL=C sort -u || :
+	' ${itemRecords[@]+"${itemRecords[@]}"} 2> /dev/null | LC_ALL=C sort -u || :
 }
 
 ## Whether a sandbox folder may be removed for one item that is going: `open` (a record still started or without a status),
 ## `shared` (another board item still links to it, or the folder is not a plain directory under the spawned root),
 ## `held` (its root carries the marker a promise of undo writes, so no cleaner may remove it), else `removable`.
 AgentsToolsSpawnSandboxFolderState(){ ## folder name, item stem going away
-	local folderName="$1" skipStem="$2" spawnRoot="$MMDAPP/.local/agents/spawned"
-	local recordPath recordStatus recordSpawn linkField linkText linkStem boardPath spawnIds="" sharedHold
+	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandboxRecordHeader.include"
+	local folderName="$1" skipStem="$2" spawnFolder=""
+	local recordPath recordStatus recordSpawn linkField linkText linkStem boardPath boardFiles=() spawnIds="" sharedHold
 	type AgentsToolsUndoHoldState > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/undo/AgentsTools.UndoHold.include"
 	case "$folderName" in ''|.|..|*/*) echo shared ; return 0 ;; esac
-	[ -d "$spawnRoot/$folderName" ] && [ ! -L "$spawnRoot/$folderName" ] || { echo shared ; return 0 ; }
+	type AgentsSpawnRecordInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+	AgentsSpawnRecordInto recordPath "$MMDAPP" "$folderName" "$folderName" || { echo shared ; return 0 ; }
+	spawnFolder="${recordPath%/*}"
+	[ -d "$spawnFolder" ] && [ ! -L "$spawnFolder" ] || { echo shared ; return 0 ; }
 	## A marker naming no open record keeps the folder as a marker naming one does: the
 	## cleaner cannot tell a promise it cannot see from no promise, so it deletes nothing.
-	sharedHold="$( AgentsToolsUndoHoldState "$spawnRoot/$folderName/undo.hold" )"
+	sharedHold="$( AgentsToolsUndoHoldState "$spawnFolder/undo.hold" )"
 	case "$sharedHold" in
 		absent) ;;
-		missing) echo "# $MDSC_CMD: kept sandbox $folderName, whose undo.hold names no open record: $( AgentsToolsUndoHoldUnresolved "$spawnRoot/$folderName/undo.hold" | LC_ALL=C tr '\n' ' ' )" >&2 ; echo held ; return 0 ;;
+		missing) echo "# $MDSC_CMD: kept sandbox $folderName, whose undo.hold names no open record: $( AgentsToolsUndoHoldUnresolved "$spawnFolder/undo.hold" | LC_ALL=C tr '\n' ' ' )" >&2 ; echo held ; return 0 ;;
 		*) echo held ; return 0 ;;
 	esac
-	for recordPath in "$spawnRoot/$folderName"/*.spawn.md ; do
+	for recordPath in "$spawnFolder"/*.spawn.md ; do
 		[ -f "$recordPath" ] || continue
 		recordStatus="$( AgentsToolsSpawnSandboxRecordHeader "$recordPath" status )"
 		case "$recordStatus" in ''|spawn-started) echo open ; return 0 ;; esac
 	done
-	for recordPath in "$spawnRoot/$folderName"/*.spawn.md ; do
+	for recordPath in "$spawnFolder"/*.spawn.md ; do
 		[ -f "$recordPath" ] || continue
 		recordSpawn="${recordPath##*/}"
 		spawnIds="$spawnIds ${recordSpawn%.spawn.md}"
@@ -124,12 +135,14 @@ AgentsToolsSpawnSandboxFolderState(){ ## folder name, item stem going away
 			for linkStem in ${linkText//,/ } ; do
 				linkStem="${linkStem%.md}"
 				[ "$linkStem" != "$skipStem" ] || continue
-				for boardPath in "$MDAT_DATA_ROOT"/board/*/"$linkStem.md" ; do
-					[ ! -f "$boardPath" ] || { echo shared ; return 0 ; }
-				done
+				type AgentsToolsBoardItemInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemDecisions.include"
+				AgentsToolsBoardItemInto boardPath "$linkStem" && { echo shared ; return 0 ; }
 			done
 		done
 	done
+	type AgentsToolsBoardItemsInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemDecisions.include"
+	AgentsToolsBoardItemsInto boardFiles
+	[ ${#boardFiles[@]} -gt 0 ] || { echo removable ; return 0 ; }
 	if LC_ALL=C awk -v wantIds="$spawnIds" -v skipStem="$skipStem" '
 		BEGIN { idCount = split( wantIds, idParts, " " ) ; for ( idIndex = 1 ; idIndex <= idCount ; idIndex++ ) { idSet[idParts[idIndex]] = 1 ; } }
 		FNR == 1 { fmCount = 0 ; fileBase = FILENAME ; sub( /^.*\//, "", fileBase ) ; skipFile = ( fileBase == skipStem ".md" ) ; }
@@ -137,9 +150,27 @@ AgentsToolsSpawnSandboxFolderState(){ ## folder name, item stem going away
 		$0 == "---" { fmCount++ ; next ; }
 		fmCount == 1 && index( $0, "spawn-id: " ) == 1 && ( substr( $0, 11 ) in idSet ) { found = 1 ; exit ; }
 		END { exit ( found ? 0 : 1 ) ; }
-	' "$MDAT_DATA_ROOT"/board/*/*.md 2> /dev/null ; then
+	' ${boardFiles[@]+"${boardFiles[@]}"} 2> /dev/null ; then
 		echo shared ; return 0
 	fi
 	echo removable
+	return 0
+}
+
+## Removes one sandbox folder of this host: the write permission a record may have lost, then the folder itself. The folder is
+## named, never pathed: the spawned store is this concern's own, and no caller builds a path into it.
+## Prints the folder that stayed and rc 1 where it did not go; prints nothing and rc 0 where it is gone, or was never there.
+AgentsToolsSpawnSandboxRemove(){ ## folder name
+	local removeName="$1" removeFolder=""
+	case "$removeName" in ''|.|..|-*|*/*|*[[:space:]]*) printf '%s\n' "${removeName:--}" ; return 1 ;; esac
+	type AgentsSpawnedStoreDirInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+	AgentsSpawnedStoreDirInto removeFolder "$MMDAPP" || { printf '%s\n' "$removeName" ; return 1 ; }
+	removeFolder="$removeFolder/$removeName"
+	chmod -R u+w "$removeFolder" 2> /dev/null || :
+	rm -rf -- "$removeFolder" 2> /dev/null || :
+	if [ -e "$removeFolder" ] ; then
+		printf '%s\n' "$removeFolder"
+		return 1
+	fi
 	return 0
 }

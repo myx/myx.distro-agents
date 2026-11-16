@@ -5,6 +5,9 @@
 ## AgentsTools.SessionSeats.include -- who sits in a session: its seats and their lock, the run records, presence, the executor, the names a run goes by, and the dismiss and limit holds. Split out of AgentsTools.SpawnSandbox.include by concern, its functions unchanged. Sourced, never
 ## run; it relies on what AgentsTools.SpawnSandbox.include sources for it.
 ##
+
+type AgentsSessionRunRecordInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+
 ## The seat's file, printed. rc 1 for a session or member that is no bare name.
 ## Sets the variable named and prints nothing: the form a seat take or release takes on a call path (call-path audit row 50).
 AgentsToolsSessionSeatFileInto(){ ## variable name, session, member
@@ -17,40 +20,6 @@ AgentsToolsSessionSeatFile(){ ## session, member
 	local seatPath
 	AgentsToolsSessionSeatFileInto seatPath "$1" "$2" || return 1
 	printf '%s' "$seatPath"
-}
-
-## The spawn record of a run, by its spawn id: printed, rc 0; rc 1 where none is found here.
-## THE RECORD FILE OF A SPAWN, found the one way: a file named <spawn-id>.spawn.md in whatever
-## folder of spawned/ holds it -- the folder's own name is NOT the id (a relocated or renamed
-## sandbox keeps its record's name). Nothing where no such file is there, or where the record's
-## own spawn-id says otherwise. Both readers use it: the harness that writes a run's files, and
-## the manager that reads them, so the two cannot look in different places.
-AgentsToolsSpawnRecordPath(){ ## spawn id
-	local recordPath
-	case "$1" in
-		''|*/*|*..*) return 0 ;;
-	esac
-	[ -n "${MMDAPP:-}" ] || return 0
-	for recordPath in "$MMDAPP/.local/agents/spawned"/*/"$1.spawn.md" ; do
-		[ -f "$recordPath" ] || continue
-		case "$( LC_ALL=C sed -n 's/^spawn-id: //p' "$recordPath" 2> /dev/null | head -1 )" in
-			''|"$1") ;;
-			*) continue ;;
-		esac
-		printf '%s' "$recordPath"
-		return 0
-	done
-	return 0
-}
-
-AgentsToolsSessionRunRecord(){ ## spawn id
-	local runRecord
-	type AgentsToolsAssertBareName > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.BareName.include"
-	AgentsToolsAssertBareName "$1" "the run" AgentsToolsSessionRunRecord 2> /dev/null || return 1
-	for runRecord in "${MMDAPP:-/nonexistent}"/.local/agents/spawned/*/"$1.spawn.md" ; do
-		[ ! -f "$runRecord" ] || { printf '%s' "$runRecord" ; return 0 ; }
-	done
-	return 1
 }
 
 ## Whether the run of a spawn record still runs, by the one rule a run is alive by
@@ -67,7 +36,7 @@ AgentsToolsSessionSeatHolder(){ ## session, member
 	AgentsToolsSessionSeatFileInto holderFile "$1" "$2" || return 1
 	[ -f "$holderFile" ] || return 1
 	IFS= read -r holderId < "$holderFile" || :
-	holderRecord="$( AgentsToolsSessionRunRecord "$holderId" )" || return 1
+	AgentsSessionRunRecordInto holderRecord "$holderId" || return 1
 	AgentsToolsSessionRecordLive "$holderRecord" || return 1
 	printf '%s\n' "$holderId"
 }
@@ -80,12 +49,12 @@ AgentsToolsSessionSeatHolder(){ ## session, member
 ## rc 1 it is not, and nothing is printed.
 AgentsToolsSessionMemberPresent(){ ## session, member
 	local presentRecord presentRecords
-	type AgentsToolsSpawnedSessionRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.StartedRecords.include"
+	type AgentsToolsSpawnedSessionRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include"
 	presentRecords="$( AgentsToolsSpawnedSessionRecords "$1" own )"
 	[ -n "$presentRecords" ] || return 1
 	while IFS= read -r presentRecord ; do
 		[ -n "$presentRecord" ] && [ -f "$presentRecord" ] || continue
-		type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandbox.include"
+		type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandboxRecordHeader.include"
 		[ "$( AgentsToolsSpawnSandboxRecordHeader "$presentRecord" owner )" = "$2" ] || continue
 		[ "$( AgentsToolsSpawnSandboxRecordHeader "$presentRecord" status )" = spawn-started ] || continue
 		return 0
@@ -98,11 +67,11 @@ AgentsToolsSessionMemberPresent(){ ## session, member
 ## first time. rc 0 it has a record there; rc 1 it has none.
 AgentsToolsSessionMemberHasRecord(){ ## session, member
 	local hadRecord hadRecords
-	type AgentsToolsSpawnedSessionRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.StartedRecords.include"
+	type AgentsToolsSpawnedSessionRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include"
 	hadRecords="$( AgentsToolsSpawnedSessionRecords "$1" own )"
 	while IFS= read -r hadRecord ; do
 		[ -n "$hadRecord" ] && [ -f "$hadRecord" ] || continue
-		type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandbox.include"
+		type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandboxRecordHeader.include"
 		[ "$( AgentsToolsSpawnSandboxRecordHeader "$hadRecord" owner )" = "$2" ] && return 0
 	done <<< "$hadRecords"
 	return 1
@@ -150,9 +119,9 @@ AgentsToolsSessionSeatTake(){ ## session, member, the run's spawn record
 	takeRun="${3##*/}" ; takeRun="${takeRun%.spawn.md}"
 	AgentsToolsSessionSeatLock "$takeFile" || return 2
 	[ ! -f "$takeFile" ] || IFS= read -r takeHolder < "$takeFile" || :
-	if [ -n "$takeHolder" ] && [ "$takeHolder" != "$takeRun" ] && takeHolderRecord="$( AgentsToolsSessionRunRecord "$takeHolder" )" \
+	if [ -n "$takeHolder" ] && [ "$takeHolder" != "$takeRun" ] && AgentsSessionRunRecordInto takeHolderRecord "$takeHolder" \
 		&& AgentsToolsSessionRecordLive "$takeHolderRecord" ; then
-		type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandbox.include"
+		type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandboxRecordHeader.include"
 		[ "$( AgentsToolsSpawnSandboxRecordHeader "$3" restarted-from )" = "$takeHolder" ] || takeRc=1
 	fi
 	if [ "$takeRc" = 0 ] && [ "$takeHolder" != "$takeRun" ] ; then
@@ -180,7 +149,7 @@ AgentsToolsSessionSeatRelease(){ ## session, member, spawn id
 AgentsToolsSessionRunSeatless(){ ## spawn record
 	local lessRun lessHolder
 	lessRun="${1##*/}" ; lessRun="${lessRun%.spawn.md}"
-	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandbox.include"
+	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandboxRecordHeader.include"
 	lessHolder="$( AgentsToolsSessionSeatHolder "$( AgentsToolsSpawnSandboxRecordHeader "$1" session-id )" "$( AgentsToolsSpawnSandboxRecordHeader "$1" owner )" )" || return 1
 	[ "$lessHolder" != "$lessRun" ]
 }
@@ -198,12 +167,12 @@ AgentsToolsSessionRunSeatless(){ ## spawn record
 ## line, rc 0; rc 1, nothing printed, where none does.
 AgentsToolsSessionOthersRunning(){ ## spawn record
 	local othersSession othersOwn othersCandidate othersId othersFound=1
-	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandbox.include"
+	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandboxRecordHeader.include"
 	othersSession="$( AgentsToolsSpawnSandboxRecordHeader "$1" session-id )"
 	type AgentsToolsAssertBareName > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.BareName.include"
 	AgentsToolsAssertBareName "$othersSession" "the session" AgentsToolsSessionOthersRunning 2> /dev/null || return 1
 	othersOwn="${1##*/}" ; othersOwn="${othersOwn%.spawn.md}"
-	type AgentsToolsSpawnedSessionRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.StartedRecords.include"
+	type AgentsToolsSpawnedSessionRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include"
 	for othersCandidate in $( AgentsToolsSpawnedSessionRecords "$othersSession" own ) ; do
 		othersId="${othersCandidate##*/}" ; othersId="${othersId%.spawn.md}"
 		[ "$othersId" != "$othersOwn" ] || continue
@@ -218,7 +187,7 @@ AgentsToolsSessionOthersRunning(){ ## spawn record
 ## Whether a run founded its session, its executor: rc 0 it did.
 AgentsToolsSessionRunExecutor(){ ## spawn record
 	local execContext execRun
-	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandbox.include"
+	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandboxRecordHeader.include"
 	execContext="$( AgentsToolsSpawnSandboxRecordHeader "$1" start-context )"
 	if [ -n "$execContext" ] ; then
 		[ "$execContext" = spawned ]
@@ -244,7 +213,7 @@ AgentsToolsSessionAddressNames(){ ## address, session, member, `executor` where 
 ## the item it works (its `spawns:`). Their spawn ids, one a line, rc 0; rc 1 where none does.
 AgentsToolsSessionRunNamedBy(){ ## spawn record
 	local namedSession namedMember namedOwn namedExecutor="" namedCandidate namedId namedFound=1 namedItem namedItemPath
-	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandbox.include"
+	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandboxRecordHeader.include"
 	namedSession="$( AgentsToolsSpawnSandboxRecordHeader "$1" session-id )"
 	namedMember="$( AgentsToolsSpawnSandboxRecordHeader "$1" owner )"
 	type AgentsToolsAssertBareName > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.BareName.include"
@@ -252,7 +221,7 @@ AgentsToolsSessionRunNamedBy(){ ## spawn record
 	namedOwn="${1##*/}" ; namedOwn="${namedOwn%.spawn.md}"
 	! AgentsToolsSessionRunExecutor "$1" || namedExecutor="executor"
 	type AgentsToolsDecisionsItemPath > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemDecisions.include"
-	type AgentsToolsSpawnedSessionRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.StartedRecords.include"
+	type AgentsToolsSpawnedSessionRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include"
 	for namedCandidate in $( AgentsToolsSpawnedSessionRecords "$namedSession" any ) ; do
 		namedId="${namedCandidate##*/}" ; namedId="${namedId%.spawn.md}"
 		[ "$namedId" != "$namedOwn" ] || continue
@@ -273,7 +242,7 @@ AgentsToolsSessionRunNamedBy(){ ## spawn record
 ## (AgentsToolsSessionRunNamedBy). rc 0 it waits, those runs printed, one a line; rc 1 it does not.
 AgentsToolsSessionDismissHeld(){ ## spawn record
 	local heldOthers="" heldNamed=""
-	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandbox.include"
+	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandboxRecordHeader.include"
 	if AgentsToolsSessionRunExecutor "$1" || [ "$( AgentsToolsSpawnSandboxRecordHeader "$1" owner )" = magic-coordinator ] ; then
 		heldOthers="$( AgentsToolsSessionOthersRunning "$1" )" || heldOthers=""
 	fi
@@ -317,12 +286,12 @@ AgentsToolsSessionParticipantsUninvited(){ ## session id
 	done
 	[ -n "$uninvitedRecord" ] || return 1
 	LC_ALL=C awk '$0 == "---" { n++ ; if ( n > 1 ) exit ; next } n == 1 && /^participants: / { found = 1 } END { exit !found }' "$uninvitedRecord" 2> /dev/null || return 1
-	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandbox.include"
+	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandboxRecordHeader.include"
 	uninvitedLine="$( AgentsToolsSpawnSandboxRecordHeader "$uninvitedRecord" participants )"
 	for uninvitedOne in $uninvitedLine ; do
 		[ "$uninvitedOne" != none ] || continue
 		uninvitedHas=""
-		type AgentsToolsSpawnedSessionRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.StartedRecords.include"
+		type AgentsToolsSpawnedSessionRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include"
 		for uninvitedRun in $( AgentsToolsSpawnedSessionRecords "$1" own ) ; do
 			[ "$( AgentsToolsSpawnSandboxRecordHeader "$uninvitedRun" agent-less )" != true ] || continue
 			[ "$( AgentsToolsSpawnSandboxRecordHeader "$uninvitedRun" owner )" = "$uninvitedOne" ] || continue

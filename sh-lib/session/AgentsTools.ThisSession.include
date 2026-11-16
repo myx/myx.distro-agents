@@ -414,7 +414,7 @@ AgentsToolsThisSessionSingleParticipant(){ ## routine file path
 
 AgentsToolsThisSessionIdleWait(){ ## the operation's arguments
 	local idleBound="" idleRoutine idleFile="" idleLine idleScan idleWord idleSources="" idleStore idleHeld idleTarget="" idleShown idleTail idleQuiet=""
-	local idleRecord idleListSession idleListFolder idleBusy="" idleBusyCount idleMark idleSignal=""
+	local idleBusy="" idleBusyCount idleMark idleSignal=""
 	while [ $# -gt 0 ] ; do
 		case "$1" in
 			--wait-timeout)
@@ -439,36 +439,11 @@ AgentsToolsThisSessionIdleWait(){ ## the operation's arguments
 	fi
 	## THE GATE: what the run's own list still holds is work, and it is given back at once, so a list is the queue here as it is at a Wait.
 	## The item naming --idle-wait is the recurring wait-for-more one and is done by this call, so it passes.
-	type AgentsToolsSpawnRecordPath > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionSeats.include"
-	idleRecord="$( AgentsToolsSpawnRecordPath "$MDAT_SPAWN_SESSION_ID" )"
-	idleListSession="$MDAT_SPAWN_SESSION_ID"
-	[ -z "$idleRecord" ] || idleListSession="$( LC_ALL=C sed -n 's/^session-id: //p' "$idleRecord" 2> /dev/null | head -1 )"
-	[ -n "$idleListSession" ] || idleListSession="$MDAT_SPAWN_SESSION_ID"
-	## The list is kept where the CheckList tool keeps it: the folder of the session's own record, else the session's store.
-	idleRecord="$( AgentsToolsSpawnRecordPath "$idleListSession" )"
-	idleListFolder="${idleRecord%/*}"
-	[ -n "$idleListFolder" ] || idleListFolder="$MMDAPP/.local/agents/sessions/$idleListSession"
-	if [ -f "$idleListFolder/$MDAT_SPAWN_AGENT.checklist.md" ] ; then
-		while IFS= read -r idleLine || [ -n "$idleLine" ] ; do
-			case "$idleLine" in
-				'- [ ] '*|'- [~] '*) ;;
-				*) continue ;;
-			esac
-			## The item that means this very call, by its text alone. Three forms are in use: the duty's own list item,
-			## `wait for more: run --idle-wait`; a seeded routine step, which the seed keeps as the bare `wait-for-more`;
-			## and the words a run puts on the item itself, measured on two live duties as "Wait for the next arrival".
-			## A run also writes the first form in its own words, with a capital and the operation with no dashes ("Wait for more:
-			## idle-wait"). Taken for open work, that item turned every idle wait back, so the run never returned to its checkpoint.
-			case "$idleLine" in
-				*--idle-wait*|*[Ww]ait-for-more*|*[Ww]ait\ for\ more*) continue ;;
-				*[Ww]ait\ for\ the\ next\ arrival*) continue ;;
-			esac
-			idleBusy="$idleBusy$idleLine"$'\n'
-		done < "$idleListFolder/$MDAT_SPAWN_AGENT.checklist.md"
-	fi
+	type AgentsSessionChecklistOpenInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+	AgentsSessionChecklistOpenInto idleBusy "$MDAT_SPAWN_SESSION_ID" "$MDAT_SPAWN_AGENT"
 	if [ -n "$idleBusy" ] ; then
-		idleBusyCount="$( LC_ALL=C awk 'END { print NR }' <<< "${idleBusy%$'\n'}" )"
-		printf 'CHECKLIST: %s pending. Work or close them, then run --idle-wait again -- it returns at once while an item is pending.\n%s\n' "$idleBusyCount" "${idleBusy%$'\n'}"
+		idleBusyCount="$( LC_ALL=C awk 'END { print NR }' <<< "$idleBusy" )"
+		printf 'CHECKLIST: %s pending. Work or close them, then run --idle-wait again -- it returns at once while an item is pending.\n%s\n' "$idleBusyCount" "$idleBusy"
 		return 0
 	fi
 	type AgentsToolsSessionRoutineFile > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/routine/AgentsTools.RoutineRequirements.include"
@@ -607,7 +582,7 @@ AgentsToolsThisSessionTopicSet(){ ## --session-id <id> <text>
 	done
 	[ -n "$topicSession" ] && [ -n "$topicText" ] || { echo "$MDSC_CMD: ⛔ ERROR: --intern-op-set-session-topic: syntax is --session-id <id> <text>. Nothing was set." >&2 ; return 1 ; }
 	type AgentsToolsAuthorityFieldSet > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.Authority.include"
-	type AgentsToolsSpawnedSessionRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.StartedRecords.include"
+	type AgentsToolsSpawnedSessionRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include"
 	for topicFile in $( AgentsToolsSpawnedSessionRecords "$topicSession" own 2> /dev/null ) ; do
 		AgentsToolsAuthorityFieldSet "$topicFile" session-comment "$topicText" 2> /dev/null && topicWritten="yes" || topicRc=1
 	done
@@ -730,7 +705,7 @@ AgentsToolsThisSessionRuns(){ ## the operation's arguments (none)
 	local runsSession="$thisSessionKey" runsMember="$thisSessionMember" runsRows runsKinds runsBound runsPublic runsOwn runsKept
 	type AgentsToolsDispatcherManager > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/schedule/AgentsTools.Dispatcher.include"
 	AgentsToolsDispatcherManager || return 1
-	type AgentsToolsManagerSessionRows > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.ManagerSessionRows.include"
+	type AgentsToolsManagerSessionRows > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.ManagerSessionRows.include"
 	runsRows="$( AgentsToolsManagerSessionRows --all-sessions "" )" || return 1
 	runsKinds="$( AgentsToolsDispatcherKinds "$runsRows" )"
 	runsBound="$( AgentsToolsDispatcherSubSessions "$runsSession" | LC_ALL=C sort -u )"

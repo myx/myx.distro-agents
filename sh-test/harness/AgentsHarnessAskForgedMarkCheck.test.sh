@@ -46,6 +46,7 @@ done
 ## A process this rig starts and signals later is noted with when it began, and is signalled only while its pid is still that process.
 . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-processes.include.sh" || rigRefuse "the rig's process helper is missing from the package: sh-test/check-fixtures/rig-processes.include.sh"
 . "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-writes.include.sh" || exit 1
 rigTmp="$( rigTempDir AgentsHarnessAskForgedMarkCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 rigLivePids=""
@@ -201,7 +202,7 @@ export PATH
 ## participants, a dispatch that tracks a task, the workspace registered as the place rig-ws.
 rigWs="$rigTmp/ws"
 rigData="$rigWs/DATA"
-mkdir -p "$rigWs/.local/.agents" "$rigWs/.local/agents/spawned/rig-set" "$rigData/board/running" "$rigData/board/processed" "$rigWs/DEV" "$rigWs/ELSE"
+mkdir -p "$rigWs/.local/.agents" "$rigWs/.local/agents/spawned/rig-set" "$rigWs/DEV" "$rigWs/ELSE"
 printf 'SLACK_CHANNEL_MAGIC_TEAM=CRIG00001\nSLACK_BOT_TOKEN=rig-bot-token-TEAM\nSLACK_CHANNEL_HUMAN_OWNER=URIGOWNER\n' > "$rigWs/.local/.agents/magic-team.agent.env"
 printf 'magic-developer:ws:workspace:Edit(/%s/DEV/**)\n' "$rigWs" > "$rigWs/.local/agents/permissions.registry"
 printf '%s\t%s\t%s\t%s\t%s\n' rig-ws workspace read-write "$rigWs" workspace > "$rigWs/.local/agents/directories.registry"
@@ -215,9 +216,9 @@ rigSetRecord rig-set-dev magic-developer
 rigSetRecord rig-set-tester magic-tester
 printf '900001 rig-run --session-id rig-set-dev\n900002 rig-run --session-id rig-set-tester\n900003 rig-run --session-id rig-set\n' >> "$RIG_PS_LIST"
 rigSetThree=( --participant magic-coordinator --participant magic-developer --participant magic-tester )
-printf -- '---\nstatus: task\nowner: magic-developer\n---\n\n# Fix the vars loader\n\nThe loader drops a variable.\n' > "$rigData/board/running/task-rig-set.md"
+rigOwnerBoardWrite running "task-rig-set.md" -- '---\nstatus: task\nowner: magic-developer\n---\n\n# Fix the vars loader\n\nThe loader drops a variable.\n'
 printf -- '---\nstatus: dispatch-started\nowner: magic-developer\nsession-id: rig-set\ntracks: task-rig-set\n---\n\n# Spawn-proxy dispatch: magic-developer\n\n## Brief\n\nthe brief.\n' \
-	> "$rigData/board/running/dispatch-rig-set.md"
+	| rigOwnerBoardPut running "dispatch-rig-set.md"
 RIG_CURL_LOG="$rigTmp/curl.log"
 export RIG_CURL_LOG
 : > "$RIG_CURL_LOG"
@@ -398,7 +399,7 @@ revStart(){ ## scenario name
 	local startMember
 	revDir="$rigTmp/review-$1" ; revWs="$revDir/ws" ; revData="$revDir/data"
 	revSpawn="rig-child-$1" ; revItem="dispatch-20261012T0100Z-$1"
-	mkdir -p "$revData/board/running" "$revData/board/review" "$revData/board/processed" "$revData/board/pending" \
+	mkdir -p \
 		"$revWs/.local/.agents" "$revWs/.local/agents/spawned/$revSpawn" "$revWs/.local/agents/sessions/$revSpawn"
 	printf 'SLACK_CHANNEL_MAGIC_TEAM=CRIG00001\nSLACK_CHANNEL_HUMAN_OWNER=URIGOWNER\nSLACK_BOT_TOKEN=rig-bot-token-TEAM\n' > "$revWs/.local/.agents/magic-team.agent.env"
 	printf 'SLACK_USER_TOKEN=rig-user-token-KEEPER\n' > "$revWs/.local/.agents/keeper-myx.agent.env"
@@ -410,9 +411,9 @@ revStart(){ ## scenario name
 	printf '#!/bin/sh\n## cli-configured MDAT_SPAWN_LAUNCH_MARKER --cli)\ncat >> "$RIG_TMP/console-in.$MDAT_SPAWN_SESSION_ID"\necho rig-child-output\nexit 0\n' > "$revWs/DistroAgentsConsole.sh"
 	chmod +x "$revWs/DistroAgentsConsole.sh"
 	: > "$revDir/curl.log"
-	printf -- '---\ntype: task\nowner: keeper-myx\n---\n\n# Rework the rig widget\n\nThe widget drops its last line.\n' > "$revData/board/running/task-20261012T0000Z-$1.md"
+	rigOwnerData="$revData" rigOwnerBoardWrite running "task-20261012T0000Z-$1.md" -- '---\ntype: task\nowner: keeper-myx\n---\n\n# Rework the rig widget\n\nThe widget drops its last line.\n'
 	printf -- '---\ntype: dispatch\nowner: keeper-myx\nstatus: dispatch-started\nspawn-id: %s\ntracks: task-20261012T0000Z-%s\nreview-by: human-owner\n---\n\n# rig dispatch\n' \
-		"$revSpawn" "$1" > "$revData/board/running/$revItem.md"
+		"$revSpawn" "$1" | rigOwnerData="$revData" rigOwnerBoardPut running "$revItem.md"
 	printf -- '---\nsession-id: 5e55104a-rig-%s\nspawn-id: %s\nparent-spawn-id: none\ntracking-name: %s\nhost: %s\nowner: keeper-myx\nstatus: spawn-started\nsession-thread: CSES00001:1700000000.000100\nspawns: %s\ndescription: rework the rig widget\n---\n' \
 		"$1" "$revSpawn" "$revSpawn" "$rigHost" "$revItem" > "$revWs/.local/agents/spawned/$revSpawn/$revSpawn.spawn.md"
 	: > "$revDir/transcript.log"

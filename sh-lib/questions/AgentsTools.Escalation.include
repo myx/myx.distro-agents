@@ -66,23 +66,15 @@ AgentsToolsEscalationRecorded(){ ## record file, request id
 ## The permission an allow on this record would approve, as "<tool>\t<natural target>"
 ## lines: the refused call of a permission, every extra of a permission set.
 AgentsToolsEscalationAsked(){ ## record file
-	local askedKind askedSession askedRefusal askedRecord askedLine askedTool="" askedTarget=""
+	local askedKind askedSession askedRefusal askedLine askedTool="" askedTarget=""
 	type AgentsToolsPermissionRecordDecode > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionHolds.include"
+	type AgentsSessionRefusalHeadersInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
 	askedKind="$( AgentsToolsEscalationField "$1" kind )"
 	case "$askedKind" in
 		permission)
 			askedSession="$( AgentsToolsEscalationField "$1" session-id )"
 			askedRefusal="$( AgentsToolsEscalationField "$1" refusal-id )"
-			case "$askedSession:$askedRefusal" in */*|*:|:*) return 0 ;; esac
-			askedRecord="$MMDAPP/.local/agents/sessions/$askedSession/$askedRefusal.md"
-			[ -f "$askedRecord" ] || return 0
-			while IFS= read -r askedLine ; do
-				case "$askedLine" in
-					'tool: '*) askedTool="${askedLine#tool: }" ;;
-					'target: '*) askedTarget="${askedLine#target: }" ;;
-					'# '*) break ;;
-				esac
-			done < "$askedRecord"
+			AgentsSessionRefusalHeadersInto "$askedSession" "$askedRefusal" askedTool=tool askedTarget=target || return 0
 			[ -n "$askedTool" ] || return 0
 			printf '%s\t%s\n' "$askedTool" "$( AgentsToolsPermissionRecordDecode "$askedTarget" )"
 		;;
@@ -114,18 +106,16 @@ AgentsToolsEscalationFolderOffered(){ ## record file, optional: project (default
 ## printed, where the request offered no folder, or none can be granted now. Named `project`,
 ## the same of its project answer, `<tool>:<project>/**` (AgentsToolsPermissionProjectEntry).
 AgentsToolsEscalationFolder(){ ## record file, optional: project (default: folder)
-	type AgentsToolsPermissionField > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionHolds.include"
-	local folderSession folderRefusal folderRecord folderEntry=AgentsToolsPermissionFolderEntry
+	type AgentsToolsPermissionRecordDecode > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionHolds.include"
+	type AgentsSessionRefusalHeadersInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+	local folderSession folderRefusal folderTool folderTarget folderEntry=AgentsToolsPermissionFolderEntry
 	[ "${2:-folder}" != "project" ] || folderEntry=AgentsToolsPermissionProjectEntry
 	[ -n "$( AgentsToolsEscalationFolderOffered "$1" "${2:-folder}" )" ] || return 1
 	folderSession="$( AgentsToolsEscalationField "$1" session-id )"
 	folderRefusal="$( AgentsToolsEscalationField "$1" refusal-id )"
-	case "$folderSession:$folderRefusal" in */*|*:|:*) return 1 ;; esac
-	folderRecord="$MMDAPP/.local/agents/sessions/$folderSession/$folderRefusal.md"
-	[ -f "$folderRecord" ] || return 1
+	AgentsSessionRefusalHeadersInto "$folderSession" "$folderRefusal" folderTool=tool folderTarget=target || return 1
 	type "$folderEntry" > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionPlaces.include"
-	"$folderEntry" "$( AgentsToolsPermissionField "$folderRecord" tool )" \
-		"$( AgentsToolsPermissionRecordDecode "$( AgentsToolsPermissionField "$folderRecord" target )" )" "$folderSession"
+	"$folderEntry" "$folderTool" "$( AgentsToolsPermissionRecordDecode "$folderTarget" )" "$folderSession"
 }
 
 ## One block of the template of a record's kind, filled: `<Section>/<heading>`, its slots in
@@ -182,7 +172,8 @@ AgentsToolsEscalationConfirm(){ ## record file, request id, block (granted|denie
 			cfAsked="$( AgentsToolsEscalationAsked "$cfFile" | head -1 )"
 			cfTool="${cfAsked%%$'\t'*}" ; cfTarget="${cfAsked#*$'\t'}"
 			## A call refused for a contact (F7.10) is granted to the contact, not to the member that asked.
-			cfLine="$( AgentsToolsEscalationField "$MMDAPP/.local/agents/sessions/$( AgentsToolsEscalationField "$cfFile" session-id )/$( AgentsToolsEscalationField "$cfFile" refusal-id ).md" owner 2> /dev/null )" || cfLine=""
+			type AgentsSessionRefusalHeadersInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+			AgentsSessionRefusalHeadersInto "$( AgentsToolsEscalationField "$cfFile" session-id )" "$( AgentsToolsEscalationField "$cfFile" refusal-id )" cfLine=owner || :
 			case "$cfLine" in contact:?*) cfWho="$cfLine" ;; esac
 			case "$cfVerdict" in
 				## The folder answer, and the project answer: what was granted is the folder, or the
@@ -224,7 +215,7 @@ AgentsToolsEscalationConfirm(){ ## record file, request id, block (granted|denie
 	local cfTo
 	cfTo="$( AgentsToolsEscalationField "$cfFile" address-to )"
 	[ -z "$cfForward" ] || cfTo="human-owner"
-	## THE READ CONFIRMATION NAMES NOBODY (the owner's ruling, 2026-11-09): `Read: yes by human-owner. It is recorded` is the
+	## THE READ CONFIRMATION NAMES NOBODY: `Read: yes by human-owner. It is recorded` is the
 	## tooling closing the exchange, not a message for the person who just answered. Every other confirmation keeps its addressee.
 	[ "$cfBlock" = "taken" ] || [ -z "$cfTo" ] || cfArgs=( ${cfArgs[@]+"${cfArgs[@]}"} --address-to "$cfTo" )
 	type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
@@ -404,12 +395,6 @@ AgentsToolsEscalationClaimOpen(){ ## record file, finish (non-empty|empty)
 	fi
 }
 
-## The holder a claim names: the holder file's own text, or the target of the link an older
-## release made. Empty where it names nobody.
-AgentsToolsEscalationClaimHolder(){ ## holder path
-	if [ -L "$1" ] ; then readlink "$1" 2>/dev/null ; else cat "$1" 2>/dev/null ; fi
-}
-
 ## Takes the claim on one open record for the process that will apply an answer to it. rc 0:
 ## held by this process, agentsEscalationClaimHolder naming its own holder file. rc 3: not
 ## taken -- the record is answered, or a live holder kept it for the 10 seconds it is given
@@ -432,7 +417,7 @@ AgentsToolsEscalationClaim(){ ## record file, finish (non-empty|empty)
 			[ "${claimName##*.}" -le "$claimGen" ] || claimGen="${claimName##*.}"
 		done
 		if [ "$claimGen" != "0" ] ; then
-			claimHolder="$( AgentsToolsEscalationClaimHolder "$claimDir/holder.$claimGen" )"
+			claimHolder="$( ( if [ -L "$claimDir/holder.$claimGen" ] ; then readlink "$claimDir/holder.$claimGen" 2>/dev/null ; else cat "$claimDir/holder.$claimGen" 2>/dev/null ; fi ) )"
 			! AgentsToolsEscalationClaimAlive "$claimHolder" || claimKept=1
 		elif [ -z "$claimMade" ] ; then
 			## No holder named, and not this process's own: respected while it is new.
@@ -476,11 +461,6 @@ AgentsToolsEscalationClaimGive(){
 ## verdict.applied once all of it is done. It is what makes an apply that stopped half way
 ## recoverable: the next holder of the claim completes the verdict noted, never another one.
 
-## One value of a note, or empty.
-AgentsToolsEscalationNoteField(){ ## note file, key
-	LC_ALL=C awk -v key="$2" 'index( $0, key ": " ) == 1 { print substr( $0, length( key ) + 3 ) ; exit ; }' "$1" 2>/dev/null
-}
-
 ## Sets keys of a note, keeping its other lines. Pairs of key, value.
 AgentsToolsEscalationNoteSet(){ ## note file, key, value, ...
 	local noteFile="$1" noteKeys="" noteNew=""
@@ -507,19 +487,19 @@ AgentsToolsEscalationApplyFinish(){ ## record file, request id
 	[ -f "$finishNote" ] || return 0
 	## Kept on the record, so a later read reports the same result the answer did.
 	set --
-	finishValue="$( AgentsToolsEscalationNoteField "$finishNote" text )"
+	finishValue="$( ( LC_ALL=C awk -v key="text" 'index( $0, key ": " ) == 1 { print substr( $0, length( key ) + 3 ) ; exit ; }' "$finishNote" 2>/dev/null ) )"
 	[ -z "$finishValue" ] || set -- "$@" verdict-text "$finishValue"
-	finishValue="$( AgentsToolsEscalationNoteField "$finishNote" session )"
+	finishValue="$( ( LC_ALL=C awk -v key="session" 'index( $0, key ": " ) == 1 { print substr( $0, length( key ) + 3 ) ; exit ; }' "$finishNote" 2>/dev/null ) )"
 	[ -z "$finishValue" ] || set -- "$@" answered-session "$finishValue"
-	finishValue="$( AgentsToolsEscalationNoteField "$finishNote" closed-by )"
+	finishValue="$( ( LC_ALL=C awk -v key="closed-by" 'index( $0, key ": " ) == 1 { print substr( $0, length( key ) + 3 ) ; exit ; }' "$finishNote" 2>/dev/null ) )"
 	[ -z "$finishValue" ] || set -- "$@" closed-by "$finishValue"
-	finishValue="$( AgentsToolsEscalationNoteField "$finishNote" grant )"
+	finishValue="$( ( LC_ALL=C awk -v key="grant" 'index( $0, key ": " ) == 1 { print substr( $0, length( key ) + 3 ) ; exit ; }' "$finishNote" 2>/dev/null ) )"
 	[ -z "$finishValue" ] || set -- "$@" grant "$finishValue"
-	finishValue="$( AgentsToolsEscalationNoteField "$finishNote" change )"
+	finishValue="$( ( LC_ALL=C awk -v key="change" 'index( $0, key ": " ) == 1 { print substr( $0, length( key ) + 3 ) ; exit ; }' "$finishNote" 2>/dev/null ) )"
 	[ -z "$finishValue" ] || set -- "$@" change-outcome "$finishValue"
 	## Answered, its thread is still watched from here on: every later message there is a
 	## clarification, which the asking session's Wait keeps (AgentsWaitProbeAsk).
-	finishValue="$( AgentsToolsEscalationNoteField "$finishNote" floor )"
+	finishValue="$( ( LC_ALL=C awk -v key="floor" 'index( $0, key ": " ) == 1 { print substr( $0, length( key ) + 3 ) ; exit ; }' "$finishNote" 2>/dev/null ) )"
 	[ -z "$( AgentsToolsEscalationField "$finishFile" channel )" ] \
 		|| set -- "$@" follow-floor "${finishValue:-$( AgentsToolsEscalationField "$finishFile" question-ts )}"
 	[ $# -eq 0 ] || AgentsToolsEscalationUpsert "$finishFile" "$@" \
@@ -527,7 +507,7 @@ AgentsToolsEscalationApplyFinish(){ ## record file, request id
 	## The verdict, with its text, on the ask's item, where a reopened task reads it: once.
 	type AgentsToolsDecisionsItemPath > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemDecisions.include"
 	finishItem="$( AgentsToolsEscalationField "$finishFile" item )"
-	finishValue="$( AgentsToolsEscalationNoteField "$finishNote" verdict )"
+	finishValue="$( ( LC_ALL=C awk -v key="verdict" 'index( $0, key ": " ) == 1 { print substr( $0, length( key ) + 3 ) ; exit ; }' "$finishNote" 2>/dev/null ) )"
 	if [ -n "$finishItem" ] && finishPath="$( AgentsToolsDecisionsItemPath "$finishItem" 2>/dev/null )" \
 		&& LC_ALL=C grep -F -- "($finishId" "$finishPath" 2>/dev/null | LC_ALL=C grep -q -F -- " -> $finishValue" ; then
 		:
@@ -555,7 +535,7 @@ AgentsToolsEscalationApplyResume(){ ## record file, request id
 ## no verdict it only completes a noted one, rc 4 when none is. Prints the result lines.
 AgentsToolsEscalationApply(){ ## record file, request id, verdict, verdict text, answered by, optional answering session, optional closed-by (readback), optional follow floor, optional: read in the forward's thread (non-empty), optional: ts of the answer message in the question's own thread
 	type AgentsToolsPermissionSessionDir > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionRecord.include"
-	local applyFile="$1" applyId="$2" applyVerdict="$3" applyText="$4" applyBy="$5" applyAnswerSession="${6:-}" applyClosedBy="${7:-}" applyFloor="${8:-}" applyFromForward="${9:-}" applyAnswerTs="${10:-}" applyKind applySession applyRefusal applyGrant=""
+	local applyFile="$1" applyId="$2" applyVerdict="$3" applyText="$4" applyBy="$5" applyAnswerSession="${6:-}" applyClosedBy="${7:-}" applyFloor="${8:-}" applyFromForward="${9:-}" applyAnswerTs="${10:-}" applyKind applySession applyDir applyRefusal applyGrant=""
 	## The folder answer of a single permission (allow-folder): what it grants is the folder of
 	## the refused file, worked out now from the refusal record. Where the request offered no
 	## folder, or none can be granted, the answer is not applied and the request stays open.
@@ -616,12 +596,12 @@ AgentsToolsEscalationApply(){ ## record file, request id, verdict, verdict text,
 	## and it is completed as it stands, in place of the answer this call brought.
 	local applyNote="$( AgentsToolsEscalationClaimDir "$applyFile" )/verdict" applyOwn="$applyVerdict"$'\t'"$applyBy" applyStamp="" applyWhy=""
 	if [ -f "$applyNote" ] ; then
-		applyVerdict="$( AgentsToolsEscalationNoteField "$applyNote" verdict )"
-		applyBy="$( AgentsToolsEscalationNoteField "$applyNote" by )"
-		applyText="$( AgentsToolsEscalationNoteField "$applyNote" text )"
-		applyAnswerSession="$( AgentsToolsEscalationNoteField "$applyNote" session )"
-		applyClosedBy="$( AgentsToolsEscalationNoteField "$applyNote" closed-by )"
-		applyFloor="$( AgentsToolsEscalationNoteField "$applyNote" floor )"
+		applyVerdict="$( ( LC_ALL=C awk -v key="verdict" 'index( $0, key ": " ) == 1 { print substr( $0, length( key ) + 3 ) ; exit ; }' "$applyNote" 2>/dev/null ) )"
+		applyBy="$( ( LC_ALL=C awk -v key="by" 'index( $0, key ": " ) == 1 { print substr( $0, length( key ) + 3 ) ; exit ; }' "$applyNote" 2>/dev/null ) )"
+		applyText="$( ( LC_ALL=C awk -v key="text" 'index( $0, key ": " ) == 1 { print substr( $0, length( key ) + 3 ) ; exit ; }' "$applyNote" 2>/dev/null ) )"
+		applyAnswerSession="$( ( LC_ALL=C awk -v key="session" 'index( $0, key ": " ) == 1 { print substr( $0, length( key ) + 3 ) ; exit ; }' "$applyNote" 2>/dev/null ) )"
+		applyClosedBy="$( ( LC_ALL=C awk -v key="closed-by" 'index( $0, key ": " ) == 1 { print substr( $0, length( key ) + 3 ) ; exit ; }' "$applyNote" 2>/dev/null ) )"
+		applyFloor="$( ( LC_ALL=C awk -v key="floor" 'index( $0, key ": " ) == 1 { print substr( $0, length( key ) + 3 ) ; exit ; }' "$applyNote" 2>/dev/null ) )"
 		echo "⚠️ WARNING: $MDSC_CMD: the answer $applyVerdict by $applyBy for $applyId was being applied when its process went, and is completed now" >&2
 	elif [ -z "$applyVerdict" ] ; then
 		## Called only to complete a noted one, and none is.
@@ -639,8 +619,11 @@ AgentsToolsEscalationApply(){ ## record file, request id, verdict, verdict text,
 		permission:allow-once|permission:allow-session|permission:allow-task|permission:allow-contact)
 			applySession="$( AgentsToolsEscalationField "$applyFile" session-id )"
 			applyRefusal="$( AgentsToolsEscalationField "$applyFile" refusal-id )"
-			applyStamp="$( AgentsToolsEscalationNoteField "$applyNote" grant-stamp )"
-			if [ -z "$applyStamp" ] || ! LC_ALL=C grep -q -F -- ":$applyStamp:$applyRefusal" "$MMDAPP/.local/agents/sessions/$applySession/grants" 2>/dev/null ; then
+			applyStamp="$( ( LC_ALL=C awk -v key="grant-stamp" 'index( $0, key ": " ) == 1 { print substr( $0, length( key ) + 3 ) ; exit ; }' "$applyNote" 2>/dev/null ) )"
+			local applyGrants=""
+			type AgentsSessionGrantLinesInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+			[ -z "$applyStamp" ] || AgentsSessionGrantLinesInto applyGrants "$applySession"
+			if [ -z "$applyStamp" ] || [[ "$applyGrants" != *":$applyStamp:$applyRefusal"* ]] ; then
 				applyStamp="$( date -u +%Y%m%dT%H%M%SZ )"
 				AgentsToolsEscalationNoteSet "$applyNote" grant-stamp "$applyStamp" || applyStamp=""
 			fi
@@ -712,7 +695,7 @@ AgentsToolsEscalationApply(){ ## record file, request id, verdict, verdict text,
 	## given it is noted, and the holder that completes this apply gives it no second time. One
 	## that is not given is not applied: said as RETURNED with the reason, the request open
 	## unless the review itself is no longer, rc 5.
-	if [ "$applyKind" = "review" ] && [ -z "$( AgentsToolsEscalationNoteField "$applyNote" review-given )" ] ; then
+	if [ "$applyKind" = "review" ] && [ -z "$( ( LC_ALL=C awk -v key="review-given" 'index( $0, key ": " ) == 1 { print substr( $0, length( key ) + 3 ) ; exit ; }' "$applyNote" 2>/dev/null ) )" ] ; then
 		type AgentsReviewPromptVerdict > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ReviewFlow.include"
 		if applyWhy="$( AgentsReviewPromptVerdict "$applyFile" "$applyId" "$applyVerdict" "$applyText" "$applyBy" )" ; then
 			AgentsToolsEscalationNoteSet "$applyNote" review-given "$applyVerdict" || :
@@ -738,7 +721,7 @@ AgentsToolsEscalationApply(){ ## record file, request id, verdict, verdict text,
 	## applied: said as RETURNED with the reason, the change still held and the request open, rc 5.
 	local applyChange=""
 	if [ "$applyKind" = "change" ] ; then
-		applyChange="$( AgentsToolsEscalationNoteField "$applyNote" change )"
+		applyChange="$( ( LC_ALL=C awk -v key="change" 'index( $0, key ": " ) == 1 { print substr( $0, length( key ) + 3 ) ; exit ; }' "$applyNote" 2>/dev/null ) )"
 		if [ -z "$applyChange" ] ; then
 			type AgentsChangeVerdict > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.InternOpChange.include"
 			if applyChange="$( AgentsChangeVerdict "$applyFile" "$applyId" "$applyVerdict" "$applyText" "$applyBy" )" ; then
@@ -810,13 +793,11 @@ AgentsToolsEscalationApply(){ ## record file, request id, verdict, verdict text,
 				applySession="$( AgentsToolsEscalationField "$applyFile" session-id )"
 				applyDenied="$( AgentsToolsEscalationAsked "$applyFile" | head -1 )"
 				type AgentsToolsPermissionAnswerPost > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionPosts.include"
-				case "$applySession" in
-					''|*/*) ;;
-					*)
-						AgentsToolsPermissionAnswerPost denial "$( AgentsToolsEscalationField "$applyFile" owner )" "$MMDAPP/.local/agents/sessions/$applySession" "$applySession" \
-							"$( AgentsToolsEscalationField "$applyFile" refusal-id )" "${applyDenied%%$'\t'*}" "${applyDenied#*$'\t'}" "$applyBy" "" "$( AgentsToolsEscalationField "$applyFile" address-to )" || :
-					;;
-				esac
+				type AgentsSessionFolderInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+				applyDir=""
+				case "$applySession" in ''|*/*) ;; *) AgentsSessionFolderInto applyDir "$MMDAPP" "$applySession" || applyDir="" ;; esac
+				[ -z "$applyDir" ] || AgentsToolsPermissionAnswerPost denial "$( AgentsToolsEscalationField "$applyFile" owner )" "$applyDir" "$applySession" \
+					"$( AgentsToolsEscalationField "$applyFile" refusal-id )" "${applyDenied%%$'\t'*}" "${applyDenied#*$'\t'}" "$applyBy" "" "$( AgentsToolsEscalationField "$applyFile" address-to )" || :
 			;;
 		esac
 	fi
@@ -841,7 +822,8 @@ AgentsToolsEscalationApply(){ ## record file, request id, verdict, verdict text,
 		case "$applyVerdict" in
 			allow-set|deny)
 				type AgentsToolsPermissionSetTold > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionSetPost.include"
-				! type AgentsToolsPermissionSetTold > /dev/null 2>&1 || AgentsToolsPermissionSetTold "$applyId" "$( [ "$applyVerdict" = "deny" ] && printf 'denied' || printf 'allowed' )" "$applyBy" || :
+				type AgentsToolsPermissionSetTold > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionSetPost.include"
+				AgentsToolsPermissionSetTold "$applyId" "$( [ "$applyVerdict" = "deny" ] && printf 'denied' || printf 'allowed' )" "$applyBy" || :
 			;;
 		esac
 	fi
@@ -880,7 +862,7 @@ AgentsToolsEscalationApply(){ ## record file, request id, verdict, verdict text,
 		;;
 		*)
 			AgentsToolsEscalationConfirm "$applyFile" "$applyId" taken "$applyVerdict" "$applyBy" "$applyFromForward" "$applyText"
-			## THE ANSWERED POST LOSES ITS `How to answer` GROUP (the owner's ruling, 2026-11-09, and the template's own rule: a post that no
+			## THE ANSWERED POST LOSES ITS `How to answer` GROUP (the template's own rule: a post that no
 			## longer takes an answer is the same text without that group): edited in place once the answer is read, as a superseded
 			## version already is. Best effort, said on stderr where the edit does not land.
 			type AgentsToolsAskPostClose > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.AskPost.include"
@@ -1076,17 +1058,18 @@ AgentsToolsEscalationClarify(){ ## request id, thread verdict output, optional f
 ## printed, for a record that names no tool; a target a set reads as a pattern, or one with a
 ## `..` segment, a line break or a tab, which the set's record cannot keep on one line; and a
 ## write in a read-only place, which nothing grants.
-AgentsToolsEscalationSetEntry(){ ## refusal record file, session id
-	type AgentsToolsPermissionField > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionHolds.include"
+AgentsToolsEscalationSetEntry(){ ## session id, refusal id
+	type AgentsToolsPermissionRecordDecode > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionHolds.include"
 	type AgentsToolsPermissionCeilingRefuse > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionPlaces.include"
+	type AgentsSessionRefusalHeadersInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
 	local entryTool entryTarget
-	entryTool="$( AgentsToolsPermissionField "$1" tool )"
-	entryTarget="$( AgentsToolsPermissionRecordDecode "$( AgentsToolsPermissionField "$1" target )" )"
+	AgentsSessionRefusalHeadersInto "$1" "$2" entryTool=tool entryTarget=target || :
+	entryTarget="$( AgentsToolsPermissionRecordDecode "$entryTarget" )"
 	[ -n "$entryTool" ] && AgentsToolsAssertBareName "$entryTool" "tool" escalation-permission-add 2> /dev/null || return 1
 	case "$entryTarget" in
 		''|'*'|'**'|*/'**'|*://*'*'|*/../*|*/..|*$'\n'*|*$'\r'*|*$'\t'*) return 1 ;;
 	esac
-	AgentsToolsPermissionCeilingRefuse "$entryTool" "$entryTarget" "$2" "$entryTool:$entryTarget" 2> /dev/null || return 1
+	AgentsToolsPermissionCeilingRefuse "$entryTool" "$entryTarget" "$1" "$entryTool:$entryTarget" 2> /dev/null || return 1
 	printf '%s:%s' "$entryTool" "$entryTarget"
 }
 

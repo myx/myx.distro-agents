@@ -25,7 +25,7 @@ rigTmp="$( rigTempDir AgentsPendingReplyWaitJoinCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
 rigWs="$rigTmp/ws" rigSkills="$rigTmp/skills" rigData="$rigTmp/data"
-mkdir -p "$rigWs/.local/agents/sessions/rig-sess-a" "$rigWs/.local/agents/sessions/rig-sess-b" "$rigSkills/rig-member" "$rigData/board/running" "$rigTmp/home"
+mkdir -p "$rigWs/.local/agents/sessions/rig-sess-a" "$rigWs/.local/agents/sessions/rig-sess-b" "$rigSkills/rig-member" "$rigTmp/home"
 printf -- '---\nmaintainers: rig\n---\nrig identity\n' > "$rigSkills/rig-member/rig-member.basic.md"
 
 rigPassCount=0

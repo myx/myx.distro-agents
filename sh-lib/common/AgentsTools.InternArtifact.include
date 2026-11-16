@@ -31,12 +31,6 @@ AgentsToolsArtifactTypes(){
 agentsArtifactUntyped="Documents"
 agentsArtifactGoogleRoot="magic-team"
 
-## The row of a kind given as its code or its name, in any case, or nothing.
-AgentsToolsArtifactType(){ ## kind
-	[ -n "$1" ] || return 0
-	AgentsToolsArtifactTypes | LC_ALL=C awk -F'\t' -v want="$1" 'tolower($1) == tolower(want) || tolower($2) == tolower(want) { print ; exit ; }'
-}
-
 ## One value of a scope, or empty.
 AgentsToolsArtifactOption(){ ## scope, key
 	type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/settings/AgentsTools.ConfigOption.include"
@@ -570,7 +564,7 @@ case "$1" in
 			echo "⛔ ERROR: $artCmd: --title is required: a published document needs a name. Nothing was published" >&2
 			set +e ; return 1
 		fi
-		artType="$( AgentsToolsArtifactType "$artKind" )"
+		artType="$( [ -n "$artKind" ] || return 0 ; AgentsToolsArtifactTypes | LC_ALL=C awk -F'\t' -v want="$artKind" 'tolower($1) == tolower(want) || tolower($2) == tolower(want) { print ; exit ; }' )"
 		if [ -n "$artType" ] ; then
 			artCode="${artType%%$'\t'*}" ; artTypeName="${artType#*$'\t'}"
 			case "$artTitle" in

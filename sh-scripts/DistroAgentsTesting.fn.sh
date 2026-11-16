@@ -187,19 +187,6 @@ DistroAgentsTesting(){
 ## whose change equals this work's), compares live with its snapshot again right before each rename, puts the work in place, and gives the lock
 ## back leaving no temp behind. A repository outside the workspace applies the same, one repository per call. The self-test
 ## sh-test/common/AgentsApplyToolCheck.test.sh is its test; MDAT_APPLY_BEFORE_PUT and MDAT_APPLY_BEFORE_CHECK are that test's alone.
-DistroAgentsTestingApplyChange(){ ## from, to -- the +/- lines of a diff, as one comparison text (nothing of the hunk headers)
-	diff -u "$1" "$2" 2> /dev/null | LC_ALL=C grep -e '^[+-]' | LC_ALL=C grep -v -e '^+++' -e '^---' || :
-}
-DistroAgentsTestingApplyCount(){ ## from, to -- "N removed, M added"
-	diff "$1" "$2" 2> /dev/null | LC_ALL=C awk '/^</ { r++ } /^>/ { a++ } END { printf "%d removed, %d added\n", r + 0, a + 0 }'
-}
-DistroAgentsTestingApplyParses(){ ## file, candidate -- rc 0 where the candidate parses (shell files only)
-	case "$1" in *.sh|*.include) "$BASH" -n "$2" 2> /dev/null ;; *) return 0 ;; esac
-}
-DistroAgentsTestingApplySum(){ ## file -- the checksum level keeps
-	LC_ALL=C cksum < "$1" 2> /dev/null | LC_ALL=C awk '{ print $1 "-" $2 }'
-}
-
 DistroAgentsTestingApply(){
 	local applyVerb="${1:-}" applyRepo="$MMDAPP" applyScratch="$MMDAPP/.local/temp/agents-scratch"
 	shift
@@ -278,13 +265,13 @@ DistroAgentsTestingApplyLevel(){ ## repository, scratch
 			fi
 			if [ -f "$levelP/$levelF" ] ; then
 				levelKept="$( LC_ALL=C awk -v key="$levelPkg/$levelF" '$1 == key { print $2 }' "$levelScratch/levelled.sums" | LC_ALL=C tail -1 )"
-				if [ -n "$levelKept" ] && [ "$levelKept" != "$( DistroAgentsTestingApplySum "$levelP/$levelF" )" ] ; then
+				if [ -n "$levelKept" ] && [ "$levelKept" != "$( LC_ALL=C cksum < "$levelP/$levelF" 2> /dev/null | LC_ALL=C awk '{ print $1 "-" $2 }' )" ] ; then
 					echo "🙋 WARNING: EDITED UNMARKED: $levelPkg/$levelF -- not overwritten from live" ; levelConflict=1 ; continue
 				fi
 			fi
 			mkdir -p "$levelP/$( dirname "$levelF" )" 2> /dev/null || { echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTesting} --apply-tool level: could not make the scratch folder of $levelPkg/$levelF" >&2 ; return 1 ; }
 			cp -p "$levelL/$levelF" "$levelP/$levelF" 2> /dev/null || { echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTesting} --apply-tool level: could not copy $levelPkg/$levelF" >&2 ; return 1 ; }
-			levelSum="$( DistroAgentsTestingApplySum "$levelP/$levelF" )"
+			levelSum="$( LC_ALL=C cksum < "$levelP/$levelF" 2> /dev/null | LC_ALL=C awk '{ print $1 "-" $2 }' )"
 			{ LC_ALL=C awk -v key="$levelPkg/$levelF" '$1 != key' "$levelScratch/levelled.sums" ; printf '%s %s\n' "$levelPkg/$levelF" "$levelSum" ; } > "$levelScratch/levelled.sums.new" 2> /dev/null && mv -f "$levelScratch/levelled.sums.new" "$levelScratch/levelled.sums" 2> /dev/null || { echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTesting} --apply-tool level: could not keep the checksum of $levelPkg/$levelF" >&2 ; return 1 ; }
 			echo "levelled from live: $levelPkg/$levelF"
 		done < <( cd "$levelL" && find . -type f ! -path './.git/*' | LC_ALL=C sort )
@@ -301,7 +288,7 @@ DistroAgentsTestingApplyLevel(){ ## repository, scratch
 			if LC_ALL=C grep -Fxq -- "$levelPkg/$levelF" "$levelScratch/changed-files.txt" ; then
 				[ -f "$levelScratch/base/$levelPkg/$levelF" ] || echo "mine, new in the scratch: $levelPkg/$levelF"
 			## Removed only where a level put it there and it is still what that level left: else it is a builder's new file, and is kept.
-			elif [ "$( LC_ALL=C awk -v key="$levelPkg/$levelF" '$1 == key { print $2 }' "$levelScratch/levelled.sums" | LC_ALL=C tail -1 )" = "$( DistroAgentsTestingApplySum "$levelP/$levelF" )" ] ; then
+			elif [ "$( LC_ALL=C awk -v key="$levelPkg/$levelF" '$1 == key { print $2 }' "$levelScratch/levelled.sums" | LC_ALL=C tail -1 )" = "$( LC_ALL=C cksum < "$levelP/$levelF" 2> /dev/null | LC_ALL=C awk '{ print $1 "-" $2 }' )" ] ; then
 				rm -f -- "$levelP/$levelF" 2> /dev/null && echo "gone from live, removed from the scratch (not mine): $levelPkg/$levelF"
 			else
 				echo "new, unmarked: $levelPkg/$levelF -- kept; mark it before it is applied"
@@ -391,17 +378,17 @@ DistroAgentsTestingApplyPlan(){ ## repository, scratch
 		if [ ! -f "$planBase" ] ; then
 			if [ -e "$planLive" ] ; then echo "EXISTS on live, though new in this work: $planF" ; planBad=1
 			elif [ ! -f "$planMine" ] ; then echo "🙋 WARNING: NOT IN THE SCRATCH: $planF" ; planBad=1 ; continue
-			elif [ -n "$planRole" ] ; then echo "rename: ${planRole#to?} -> $planF (this work: $( DistroAgentsTestingApplyCount "$planScratch/base/${planRole#to?}" "$planMine" ))"
+			elif [ -n "$planRole" ] ; then echo "rename: ${planRole#to?} -> $planF (this work: $( diff "$planScratch/base/${planRole#to?}" "$planMine" 2> /dev/null | LC_ALL=C awk '/^</ { r++ } /^>/ { a++ } END { printf "%d removed, %d added\n", r + 0, a + 0 }' ))"
 			else echo "new: $planF" ; fi
 		elif [ ! -e "$planLive" ] ; then
 			echo "🙋 WARNING: GONE on live: $planF" ; planBad=1 ; continue
 		else
-			planChanged="$( DistroAgentsTestingApplyCount "$planBase" "$planMine" )"
+			planChanged="$( diff "$planBase" "$planMine" 2> /dev/null | LC_ALL=C awk '/^</ { r++ } /^>/ { a++ } END { printf "%d removed, %d added\n", r + 0, a + 0 }' )"
 			if cmp -s "$planLive" "$planBase" ; then
 				echo "at base: $planF (this work: $planChanged)"
 			else
 				planMerged="$( mktemp "$planScratch/stage.plan.XXXXXX" 2> /dev/null )"
-				if [ -n "$planMerged" ] && diff3 -m "$planMine" "$planBase" "$planLive" > "$planMerged" 2> /dev/null && [ "$( DistroAgentsTestingApplyChange "$planBase" "$planMine" )" = "$( DistroAgentsTestingApplyChange "$planLive" "$planMerged" )" ] ; then
+				if [ -n "$planMerged" ] && diff3 -m "$planMine" "$planBase" "$planLive" > "$planMerged" 2> /dev/null && [ "$( diff -u "$planBase" "$planMine" 2> /dev/null | LC_ALL=C grep -e '^[+-]' | LC_ALL=C grep -v -e '^+++' -e '^---' || : )" = "$( diff -u "$planLive" "$planMerged" 2> /dev/null | LC_ALL=C grep -e '^[+-]' | LC_ALL=C grep -v -e '^+++' -e '^---' || : )" ] ; then
 					echo "MOVED, merges clean and exact now: $planF (this work: $planChanged)"
 				else
 					echo "🙋 WARNING: MOVED, DOES NOT MERGE: $planF" ; planBad=1
@@ -409,7 +396,7 @@ DistroAgentsTestingApplyPlan(){ ## repository, scratch
 				[ -z "$planMerged" ] || rm -f "$planMerged"
 			fi
 		fi
-		DistroAgentsTestingApplyParses "$planF" "$planMine" || { echo "SYNTAX: $planF" ; planBad=1 ; }
+		case "$planF" in *.sh|*.include) "$BASH" -n "$planMine" 2> /dev/null ;; *) : ;; esac || { echo "SYNTAX: $planF" ; planBad=1 ; }
 	done < "$planOrder"
 	if [ "$planBad" != 0 ] ; then echo "plan: not ready" ; return 4 ; fi
 	printf 'plan ok: %s files\n' "$( LC_ALL=C wc -l < "$planOrder" | LC_ALL=C tr -d ' ' )"
@@ -491,7 +478,7 @@ DistroAgentsTestingApplyDo(){ ## repository, scratch
 				printf 'base\n' > "$applyStageDir/kind.$applyN"
 				cp -p "$applyMine" "$applyCand" 2> /dev/null || { echo "cannot copy $applyF" ; applyBad=1 ; break 2 ; }
 			else
-				if diff3 -m "$applyMine" "$applyBase" "$applyLive" > "$applyCand.merge" 2> /dev/null && [ "$( DistroAgentsTestingApplyChange "$applyBase" "$applyMine" )" = "$( DistroAgentsTestingApplyChange "$applyLive" "$applyCand.merge" )" ] ; then
+				if diff3 -m "$applyMine" "$applyBase" "$applyLive" > "$applyCand.merge" 2> /dev/null && [ "$( diff -u "$applyBase" "$applyMine" 2> /dev/null | LC_ALL=C grep -e '^[+-]' | LC_ALL=C grep -v -e '^+++' -e '^---' || : )" = "$( diff -u "$applyLive" "$applyCand.merge" 2> /dev/null | LC_ALL=C grep -e '^[+-]' | LC_ALL=C grep -v -e '^+++' -e '^---' || : )" ] ; then
 					printf 'merged\n' > "$applyStageDir/kind.$applyN"
 					cat "$applyCand.merge" > "$applyCand" ; rm -f "$applyCand.merge"
 					chmod --reference="$applyLive" "$applyCand" 2> /dev/null || chmod "$( stat -f '%Lp' "$applyLive" 2> /dev/null )" "$applyCand" 2> /dev/null
@@ -501,7 +488,7 @@ DistroAgentsTestingApplyDo(){ ## repository, scratch
 				fi
 			fi
 		fi
-		DistroAgentsTestingApplyParses "$applyF" "$applyCand" || { echo "SYNTAX of what would be put in place: $applyF" ; applyBad=1 ; break 2 ; }
+		case "$applyF" in *.sh|*.include) "$BASH" -n "$applyCand" 2> /dev/null ;; *) : ;; esac || { echo "SYNTAX of what would be put in place: $applyF" ; applyBad=1 ; break 2 ; }
 	done < "$applyOrder"
 	done
 	if [ "$applyBad" != 0 ] ; then echo "ABORT: nothing put in place" ; exit 4 ; fi
@@ -555,7 +542,7 @@ DistroAgentsTestingApplyDo(){ ## repository, scratch
 			remove) if [ -e "$applyLive" ] ; then echo "STILL ON LIVE: $applyF" ; applyStill=1 ; else echo "live no longer holds: $applyF" ; fi ; continue ;;
 			done) [ -e "$applyMine" ] || continue ;;
 		esac
-		DistroAgentsTestingApplyParses "$applyF" "$applyLive" || { echo "SYNTAX AFTER APPLY: $applyF" ; applySyntax=1 ; }
+		case "$applyF" in *.sh|*.include) "$BASH" -n "$applyLive" 2> /dev/null ;; *) : ;; esac || { echo "SYNTAX AFTER APPLY: $applyF" ; applySyntax=1 ; }
 		if cmp -s "$applyLive" "$applyMine" ; then echo "live == this work's file: $applyF" ; else echo "live holds this work's file with another's hunks merged in: $applyF" ; fi
 	done < "$applyStageDir/order"
 	[ -z "$applyStill" ] || exit 6

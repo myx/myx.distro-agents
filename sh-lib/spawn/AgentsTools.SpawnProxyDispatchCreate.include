@@ -7,8 +7,9 @@
 			dispatchBriefBody="$( type AgentsToolsToolingTemplateFill > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.ToolingTemplate.include"
 				BDS_caller="$callerName" BDS_brief="$spawnContext" AgentsToolsToolingTemplateFill board-item.dispatch.document.format.md board/AgentsBoardItemDocumentFill.awk )" || dispatchBriefBody=""
 			## The team data directory is created on first use, and the move primitive refuses a missing state directory.
-			mkdir -p "$MDAT_DATA_ROOT/board/running" || {
-				echo "$MDSC_CMD: agent-spawn-proxy: ⛔ ERROR: can't create board state directory: $MDAT_DATA_ROOT/board/running" >&2
+			type AgentsToolsBoardReady > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.BoardStates.include"
+			AgentsToolsBoardReady || {
+				echo "$MDSC_CMD: agent-spawn-proxy: ⛔ ERROR: can't create the board's state directories under $MDAT_DATA_ROOT/board" >&2
 				[ "$routineLockTaken" != "yes" ] || AgentsToolsRoutineLockUnlock "$routineLockDoc" "$sessionId" "the start of $routineRecorded failed" || :
 				set +e ; spawnProxyDispatchCreateEnded=1 ; return 1
 			}

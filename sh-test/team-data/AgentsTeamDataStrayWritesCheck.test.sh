@@ -27,20 +27,24 @@ rigRefuse(){
 [ -d "$rigLib/team-data" ] || rigRefuse "the tooling is not at the origin this workspace resolves: $rigLib"
 command -v git > /dev/null || rigRefuse "git is not installed"
 . "$rigPkg/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
+. "$rigPkg/sh-test/check-fixtures/rig-store-item.include.sh" || exit 1
 rigTmp="$( rigTempDir AgentsTeamDataStrayWritesCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
 rigWs="$rigTmp/ws"
 rigData="$rigTmp/data"
-mkdir -p "$rigWs/.local/.agents" "$rigData/board/review" "$rigData/audit/2026-11" "$rigTmp/home"
+mkdir -p "$rigWs/.local/.agents" "$rigTmp/home"
 printf 'SLACK_CHANNEL_MAGIC_TEAM=CRIG00001\nSLACK_BOT_TOKEN=rig-bot-token-TEAM\nNO_PROXY=*\n' > "$rigWs/.local/.agents/magic-team.agent.env"
+## The review item is built by the board's own write (rig-store-item.include.sh), before the store is a repository, so the
+## seed commit below carries it exactly as before: a hand-written fixture stays green when that write's own path changes.
+printf -- '---\ntype: dispatch\nowner: rig-member\nspawn-id: rigspawn1\nreview-by: magic-coordinator\nreview-since-epoch: 1000\n---\n\nrig item\n' > "$rigTmp/body-review"
+rigStoreItem "$rigTmp" "$rigData" "$rigWs" rig-member "board review dispatch-rig-unseen.md" "$rigTmp/body-review" \
+	|| rigRefuse "could not build the review item through the board's own write"
+mkdir -p "$rigData/audit/2026-11"
+printf '2026-11-03T00:00:00Z START session rigspawn1\n' > "$rigData/audit/2026-11/session-rig-rigspawn1.log"
 git -C "$rigData" init -q || rigRefuse "could not init the rig store"
 git -C "$rigData" config user.email rig@example.invalid
 git -C "$rigData" config user.name rig
-## A review item past its wait limit, and the transcript of the run it belongs to.
-printf -- '---\ntype: dispatch\nowner: rig-member\nspawn-id: rigspawn1\nreview-by: magic-coordinator\nreview-since-epoch: 1000\n---\n\nrig item\n' \
-	> "$rigData/board/review/dispatch-rig-unseen.md"
-printf '2026-11-03T00:00:00Z START session rigspawn1\n' > "$rigData/audit/2026-11/session-rig-rigspawn1.log"
 printf 'seed\n' > "$rigData/README.md"
 git -C "$rigData" add -A && git -C "$rigData" commit -q -m seed || rigRefuse "could not seed the rig store"
 mkdir -p "$rigWs/.local/agents/sessions/rigspawn1"

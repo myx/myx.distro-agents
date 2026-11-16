@@ -95,16 +95,16 @@ AgentsToolsCommsSlackMentionRowBackfill(){ ## member, user id
 ## "A member name renders as a real Slack mention".
 AgentsToolsCommsSlackMentionUserId(){
 	type AgentsToolsCommsOwnSettingsApply > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsSide.include"
-	type DistroAgentsToolsResolveTarget > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/slack/AgentsTools.CommsSlack.include"
+	type DistroAgentsToolsResolveTarget > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsResolveTarget.include"
 	## A client-* member's only account is the other organisation's: on our own side it has
 	## none, and nothing is read or cached for it (AgentsToolsCommsOwnSettingsApply).
 	AgentsToolsCommsOwnSettingsApply "$1" || return 0
 	local cacheFile ; AgentsSlackIdentitiesFileInto cacheFile
-	local lockGen
-	lockGen="$( LC_ALL=C cat \
-		"$MDAT_DATA_ROOT/inboxes/magic-coordinator/incoming/note-20260809T154715Z-advance-state-and-lock.md" \
-		"$MDAT_DATA_ROOT/inboxes/magic-coordinator/incoming/note-20260809T155000Z-heartbeat-state-and-lock.md" \
-		2>/dev/null | cksum )"
+	local lockGen lockAdvanceNote lockHeartbeatNote
+	type AgentsToolsInboxNotePath > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/inbox/AgentsTools.InboxPlace.include"
+	lockAdvanceNote="$( AgentsToolsInboxNotePath magic-coordinator note-20260809T154715Z-advance-state-and-lock.md )"
+	lockHeartbeatNote="$( AgentsToolsInboxNotePath magic-coordinator note-20260809T155000Z-heartbeat-state-and-lock.md )"
+	lockGen="$( LC_ALL=C cat "$lockAdvanceNote" "$lockHeartbeatNote" 2>/dev/null | cksum )"
 	if [ "$lockGen" != "$( head -n 1 "$cacheFile" 2>/dev/null )" ] ; then
 		printf '%s\n' "$lockGen" > "$cacheFile" 2>/dev/null || true
 		## A cache, not a config scope, so it does not take the scope mode; a plain redirect would leave it at the umask.

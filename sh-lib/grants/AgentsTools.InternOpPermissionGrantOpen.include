@@ -65,8 +65,10 @@ type AgentsToolsGrantsStoreTouch > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.dis
 				set +e ; return 1
 			;;
 		esac
-		local grantDir="$MMDAPP/.local/agents/sessions/$grantSession"
-		local grantRecord="$grantDir/$grantRefusal.md"
+		local grantDir="" grantRecord
+		type AgentsSessionFolderInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+		AgentsSessionFolderInto grantDir "$MMDAPP" "$grantSession" || { echo "$MDSC_CMD: ⛔ ERROR: $grantSession is no session of this workspace, so nothing is granted" >&2 ; set +e ; return 1 ; }
+		grantRecord="$grantDir/$grantRefusal.md"
 		if [ ! -f "$grantRecord" ] ; then
 			echo "$MDSC_CMD: ⛔ ERROR: no refusal $grantRefusal is recorded for session $grantSession, so nothing is granted" >&2
 			set +e ; return 1

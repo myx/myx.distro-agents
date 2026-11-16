@@ -75,7 +75,7 @@ AgentDispatcherToolsMoved(){
 		;;
 
 		--roster-upsert)
-			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamRoster.include"
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/inbox/AgentsTools.TeamRoster.include"
 			return $?
 		;;
 
@@ -88,12 +88,12 @@ AgentDispatcherToolsMoved(){
 
 		## The epic reads (S17.4): an epic vault item or a plain epic file, read by any member with no ask.
 		--epic-read|--epic-list)
-			type AgentsToolsMagicEpicFeatureCount > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.MagicEpic.include"
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.MagicEpic.include"
 			return $?
 		;;
 
 		--sweep-state-advance|--sweep-state-read|--sweep-state-upsert)
-			type AgentsMagicSweepStateWatermark > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.MagicSweep.include"
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.MagicSweep.include"
 			return $?
 		;;
 
@@ -264,7 +264,7 @@ AgentDispatcherTools(){
 		## The epic's own edit (W1): --set-status and --add-settled, so no routine edits an epic by hand. The two reads are in the
 		## table above, and reach this same include (S17.4).
 		--epic-update)
-			type AgentsToolsMagicEpicFeatureCount > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.MagicEpic.include"
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.MagicEpic.include"
 			return $?
 		;;
 

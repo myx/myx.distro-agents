@@ -29,7 +29,8 @@ rigTmp="$( cd "$rigTmp" && pwd -P )"
 export GIT_AUTHOR_NAME=rig GIT_AUTHOR_EMAIL=rig@example.invalid GIT_COMMITTER_NAME=rig GIT_COMMITTER_EMAIL=rig@example.invalid
 rigWs="$rigTmp/ws"
 rigStore="$rigTmp/store"
-mkdir -p "$rigWs/.local/.agents" "$rigWs/.local/agents" "$rigTmp/home" "$rigStore/board/running" "$rigStore/board/review" "$rigStore/board/backlog"
+mkdir -p "$rigWs/.local/.agents" "$rigWs/.local/agents" "$rigTmp/home"
+rigBoardStates "$rigStore" running review backlog
 git -C "$rigStore" init -q || rigRefuse "could not init the temp store"
 printf 'seed\n' > "$rigStore/README.md"
 git -C "$rigStore" add -A && git -C "$rigStore" commit -q -m seed || rigRefuse "could not seed the temp store"
@@ -52,7 +53,7 @@ rigHeader(){ ## item path, header name
 rigItem(){ ## state, name, header lines...
 	local itemState="$1" itemName="$2"
 	shift 2
-	{ printf -- '---\n' ; printf '%s\n' "$@" ; printf -- '---\n\nbody\n' ; } > "$rigStore/board/$itemState/$itemName"
+	{ printf -- '---\n' ; printf '%s\n' "$@" ; printf -- '---\n\nbody\n' ; } | rigStoreItem "$rigStore" board $itemState $itemName
 }
 rigSession(){ ## session id, tokens line, model, item
 	mkdir -p "$rigWs/.local/agents/sessions/$1"

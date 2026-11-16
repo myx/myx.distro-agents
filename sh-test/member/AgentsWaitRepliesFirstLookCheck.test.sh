@@ -67,7 +67,9 @@ rigScene(){ ## scenario name
 	rigSession="rig-sess-$1"
 	rm -rf "$rigDir"
 	rigChat="$rigDir/ws/.local/agents/sessions/$rigSession"
-	mkdir -p "$rigDir/ws/.local/.agents" "$rigDir/ws/.local/temp" "$rigChat" "$rigDir/data/inboxes/$rigMember/incoming" "$rigDir/data/board/pending"
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-writes.include.sh" || exit 1
+rigOwnerWs="${rigWs:-$rigTmp/ws}" rigOwnerData="${rigData:-${rigD:-${rigStore:-${rigOut:-$rigTmp/data}}}}" rigOwnerHome="${rigHome:-$rigTmp/home}" rigOwnerSkills="${rigSkills:-$rigTmp/skills}"
+mkdir -p "$rigDir/ws/.local/.agents" "$rigDir/ws/.local/temp" "$rigChat"
 	printf 'SLACK_CHANNEL_MAGIC_TEAM=CRIG00001\nSLACK_CHANNEL_HUMAN_OWNER=DRIGOWN01\nSLACK_BOT_TOKEN=rig-bot-token-TEAM\n' > "$rigDir/ws/.local/.agents/magic-team.agent.env"
 	printf 'SLACK_USER_TOKEN=rig-user-token-RIGMEMBER\n' > "$rigDir/ws/.local/.agents/$rigMember.agent.env"
 	: > "$rigDir/api.log"

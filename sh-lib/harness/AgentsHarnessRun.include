@@ -166,7 +166,7 @@ AgentsHarnessTruncateArg(){
 ## tell it from one it wrote itself. The chat source of a Wait is read every second, so the dismissal
 ## lands within the wait's own check interval. Never fails the send.
 AgentsHarnessDismissalChatRecord(){
-	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandbox.include"
+	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandboxRecordHeader.include"
 	local chatTo chatSession chatName chatMine chatTheirs chatRecord chatWhere
 	chatSession="${MDAT_SESSION_ID:-}"
 	chatTo="${harnessArgV_address_to:-}"
@@ -176,7 +176,7 @@ AgentsHarnessDismissalChatRecord(){
 		[ "$chatName" = "$harnessAgent" ] || continue
 		chatTheirs="none"
 		## The session's records from the kept per-session list (AgentsTools.StartedRecords.include), never every record on a dismissal.
-		type AgentsToolsSpawnedSessionRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.StartedRecords.include"
+		type AgentsToolsSpawnedSessionRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include"
 		for chatRecord in $( AgentsToolsSpawnedSessionRecords "$chatSession" own 2> /dev/null ) ; do
 			[ -f "$chatRecord" ] || continue
 			[ "$( AgentsToolsSpawnSandboxRecordHeader "$chatRecord" owner )" = "$chatName" ] || continue
@@ -594,7 +594,7 @@ AgentsHarnessRunToolNow(){ ## tool name, arguments JSON -- sets harnessResult
 		ReadMcpResourceDirTool) harnessResult="$( AgentsHarnessToolReadMcpResourceDirTool "${harnessArgV_server}" "${harnessArgV_uri_prefix}" "${harnessArgV_limit}" )" ;;
 		Skill)     harnessResult="$( AgentsHarnessToolSkill "${harnessArgV_name}" "${harnessArgV_file}" "${harnessArgV_list}" "${harnessArgV_offset}" "${harnessArgV_limit}" "${harnessArgV_skill}" "${harnessArgV_args}" "${harnessArgV_section}" )" ;;
 		## Agent has moved to AgentDispatcherTools operation=--spawn-run; this tool is a stub that makes the same spawn and says where it went.
-		Agent)     harnessResult="$( AgentsHarnessToolAgent "${harnessArgV_agent}" "${harnessArgV_prompt}" "${harnessArgV_cli_service}" "${harnessArgV_session_name_or_comment}" "${harnessArgV_session_id}" "${harnessArgV_conversation}" "${harnessArgV_description}" "${harnessArgV_new_session:-}" "${harnessArgV_settings_workspace:-}" )"$'\n'"MOVED: Agent is replaced by AgentDispatcherTools operation=--spawn-run (a member name and the prompt on stdin, or --routine <selector>); this tool is kept as a stub until its callers move."
+		Agent)     harnessResult="$( AgentsHarnessToolAgent "${harnessArgV_agent}" "${harnessArgV_prompt}" "${harnessArgV_cli_service}" "${harnessArgV_session_name_or_comment}" "${harnessArgV_session_id}" "${harnessArgV_conversation}" "${harnessArgV_description}" "${harnessArgV_new_session:-}" "${harnessArgV_settings_workspace:-}" "${harnessArgV_tracked_item:-}" )"$'\n'"MOVED: Agent is replaced by AgentDispatcherTools operation=--spawn-run (a member name and the prompt on stdin, or --routine <selector>); this tool is kept as a stub until its callers move."
 		;;
 		TaskStop)  harnessResult="$( AgentsHarnessToolTaskStop "${harnessArgV_handle}" "${harnessArgV_force}" "${harnessArgV_task_id}" "${harnessArgV_shell_id}" )" ;;
 		TaskOutput) harnessResult="$( AgentsHarnessToolTaskOutput "${harnessArgV_handle}" "${harnessArgV_offset}" "${harnessArgV_limit}" "${harnessArgV_output_file}" )" ;;

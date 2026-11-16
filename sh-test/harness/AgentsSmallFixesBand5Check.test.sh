@@ -17,6 +17,7 @@ rigRefuse(){
 [ -d "$rigBundle/magic-tester" ] || rigRefuse "the bundled skillset has no magic-tester folder: $rigBundle"
 command -v git > /dev/null || rigRefuse "git is not installed"
 . "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-writes.include.sh" || exit 1
 rigTmp="$( rigTempDir AgentsSmallFixesBand5Check )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
@@ -51,7 +52,7 @@ rigOp(){ ## result file, data root, op and arguments...
 
 echo "-- 5691: item names --"
 rigData="$rigTmp/data"
-mkdir -p "$rigData/board/pending"
+:  ## the store folders are made by the write that fills them
 rigCreate(){ ## result file, item name
 	printf -- '---\n---\n' | rigOp "$1" "$rigData" --intern-op-board-upsert-move-edit pending "$2" --create --acting-member:rig-member --upsert-from-stdin --context rig
 }
@@ -65,9 +66,9 @@ rigAssert "the proxy's seconds form gives no warning"  "$( rigHolds "$rigTmp/n3"
 
 ## The dispatch receipt, read from each name form: TaskOutput finds the audit log by it.
 mkdir -p "$rigData/audit/2026-09"
-printf -- '---\nstatus: dispatch-succeeded\n---\n' > "$rigData/board/pending/dispatch-20260929T015541-spawn-proxy-15463.md"
+rigOwnerBoardWrite pending "dispatch-20260929T015541-spawn-proxy-15463.md" -- '---\nstatus: dispatch-succeeded\n---\n'
 printf 'rig old-form log\n' > "$rigData/audit/2026-09/spawn-proxy-20260929T015541-15463.output.log"
-printf -- '---\nstatus: dispatch-succeeded\n---\n' > "$rigData/board/pending/dispatch-20260929T015542Z-spawn-proxy-15464.md"
+rigOwnerBoardWrite pending "dispatch-20260929T015542Z-spawn-proxy-15464.md" -- '---\nstatus: dispatch-succeeded\n---\n'
 printf 'rig new-form log\n' > "$rigData/audit/2026-09/spawn-proxy-20260929T015542Z-15464.output.log"
 rigTaskOutput(){ ## result file, handle
 	printf '{"handle":"%s"}' "$2" | env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp/home" PATH="/usr/bin:/bin" MMDAPP="$rigTmp/ws" MDAT_DATA_ROOT="$rigData" MDLT_ORIGIN="$MDLT_ORIGIN" \
@@ -84,7 +85,7 @@ rigAssert "a new-form receipt finds its log"           "$( rigHolds "$rigTmp/r2"
 
 echo "-- 1383: --untrash --"
 rigPlain="$rigTmp/plain"
-mkdir -p "$rigPlain/trash" "$rigPlain/board/pending"
+mkdir -p "$rigPlain/trash"
 printf 'rig trashed\n' > "$rigPlain/trash/task-20260929T0931Z-t.md"
 rigOp "$rigTmp/u1" "$rigPlain" --intern-op-board-trash magic-coordinator pending task-20260929T0931Z-t.md --untrash
 rigAssert "a non-git store restores the item"          "$( cat "$rigTmp/u1.rc" ):$( cat "$rigPlain/board/pending/task-20260929T0931Z-t.md" 2>/dev/null )" "0:rig trashed"
@@ -94,7 +95,7 @@ rigOp "$rigTmp/u2" "$rigPlain" --intern-op-board-trash magic-coordinator pending
 rigAssert "a name clash is refused"                    "$( cat "$rigTmp/u2.rc" ):$( rigHolds "$rigTmp/u2" 'the board already holds that name, refusing to overwrite it' )" "1:yes"
 rigAssert "and the board copy is untouched"            "$( cat "$rigPlain/board/pending/task-20260929T0931Z-t.md" )" "rig trashed"
 rigGitStore="$rigTmp/gitstore"
-mkdir -p "$rigGitStore/board/pending" "$rigGitStore/trash"
+mkdir -p "$rigGitStore/trash"
 git -C "$rigGitStore" init -q || rigRefuse "could not init the temp git store"
 printf 'rig\n' > "$rigGitStore/trash/task-20260929T0932Z-g.md"
 rigOp "$rigTmp/u3" "$rigGitStore" --intern-op-board-trash magic-coordinator pending task-20260929T0932Z-g.md --untrash

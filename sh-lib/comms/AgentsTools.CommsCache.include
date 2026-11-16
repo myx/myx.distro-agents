@@ -100,7 +100,8 @@ AgentsToolsCommsCacheInterest(){ ## cache folder, now, the reader's TTL (optiona
 	case "$agentsCommsRigMode" in
 		team-rig*)
 			type AgentsToolsSessionCommsStart > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionComms.include"
-			! type AgentsToolsSessionCommsStart > /dev/null 2>&1 || AgentsToolsSessionCommsStart > /dev/null 2>&1 || :
+			type AgentsToolsSessionCommsStart > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionComms.include"
+			AgentsToolsSessionCommsStart > /dev/null 2>&1 || :
 		;;
 	esac
 	return 0
@@ -189,7 +190,8 @@ AgentsToolsCommsCacheWanted(){ ## cache folder, the recipe line
 	## rig, a check's included, waits on the thread and not on luck.
 	type AgentsToolsSessionCommsStart > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionComms.include"
 	local wantSaid="" wantPid=""
-	! type AgentsToolsSessionCommsStart > /dev/null 2>&1 || wantSaid="$( AgentsToolsSessionCommsStart 2> /dev/null )" || wantSaid=""
+	type AgentsToolsSessionCommsStart > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionComms.include"
+	wantSaid="$( AgentsToolsSessionCommsStart 2> /dev/null )" || wantSaid=""
 	## AND WAKES IT: the thread sleeps between passes and wakes on USR1 (its own trap), so the pull comes now and not at its next
 	## second. The pid is the one its lock proves live, pid and start together (AgentsToolsSessionCommsLive), read a moment ago.
 	## `starting`: another want of this second is starting the reader, which pulls every want first on its first loop; nothing to wake yet.
@@ -495,9 +497,9 @@ AgentsToolsCommsCachePullWatched(){ ## now, most (optional; the channels one cal
 			;;
 			slack-mentions)
 				## A member's mentions, searched by the thread for the Wait that reads the cache alone (AgentsWaitMentionsPull).
-				type AgentsWaitMentionsPull > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/wait/AgentsTools.MemberWaitMentions.include"
+				type AgentsHookFire > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.Hook.include"
 				## Its stderr is the thread's log: the one line that says why a member's mentions cannot be searched lands there.
-				! type AgentsWaitMentionsPull > /dev/null 2>&1 || MDAT_COMMS_CACHE_ONLY="" MDAT_COMMS_CACHE_PULLER=true AgentsWaitMentionsPull "$watchTarget" "$watchDir" "$1" > /dev/null || :
+				MDAT_COMMS_CACHE_ONLY="" MDAT_COMMS_CACHE_PULLER=true AgentsHookFire store-changed mentions "$watchTarget" "$watchDir" "$1" > /dev/null || :
 			;;
 			slack-conversation)
 				## From what the cache covers, so the read finds it stale and pulls only after its newest.

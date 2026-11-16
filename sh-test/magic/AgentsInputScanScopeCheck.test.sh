@@ -14,11 +14,12 @@ rigRefuse(){
 }
 [ -f "$rigTool" ] || rigRefuse "the tool is not at the origin this workspace resolves: $rigTool"
 . "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-writes.include.sh" || exit 1
 rigTmp="$( rigTempDir AgentsInputScanScopeCheck )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
-mkdir -p "$rigTmp/ws" "$rigTmp/home/.claude/skills/magic-coordinator" "$rigTmp/data/inboxes/magic-coordinator" "$rigTmp/data/board/running"
+mkdir -p "$rigTmp/ws" "$rigTmp/home/.claude/skills/magic-coordinator"
 printf '# magic-coordinator\n' > "$rigTmp/home/.claude/skills/magic-coordinator/SKILL.md"
-printf -- '---\ntype: task\nowner: magic-coordinator\n---\n\n# Rig item\n' > "$rigTmp/data/board/running/task-rig.md"
+rigOwnerData="$rigTmp/data" rigOwnerBoardWrite running "task-rig.md" -- '---\ntype: task\nowner: magic-coordinator\n---\n\n# Rig item\n'
 
 rigPassCount=0
 rigFailCount=0

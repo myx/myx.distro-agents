@@ -70,6 +70,38 @@ AgentsTranscriptParts(){ ## session id
 	done
 }
 
+## The last tool line of a session's transcript over all its parts, `<stamp> <tool name>`; nothing where it has none.
+AgentsTranscriptLastTool(){ ## session id
+	local lastParts=() lastPart
+	while IFS= read -r lastPart ; do
+		[ -z "$lastPart" ] || lastParts+=( "$lastPart" )
+	done <<< "$( AgentsTranscriptParts "$1" )"
+	[ ${#lastParts[@]} -gt 0 ] || return 0
+	LC_ALL=C awk '$2 == "TOOL" { at = $1 ; name = $3 } END { if ( at != "" ) print at " " name }' "${lastParts[@]}"
+}
+
+## The last lines of a run's transcript over all its parts: first its base file, then the lines. rc 1 where the run keeps none.
+## The run's own `transcript:` header under the data root first, then the pointer in its sandbox, then its session's.
+AgentsTranscriptRunTail(){ ## run, sandbox, session (may be empty), lines
+	type AgentsSessionRunHeadersInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+	local tailOwn="" tailPointer tailBase tailParts=()
+	AgentsSessionRunHeadersInto "${1:-}" tailOwn=transcript || tailOwn=""
+	case "$tailOwn" in ''|-|/*) tailOwn="" ;; *) [ -n "${MDAT_DATA_ROOT:-}" ] && tailOwn="$MDAT_DATA_ROOT/$tailOwn" || tailOwn="" ;; esac
+	for tailPointer in "$tailOwn" "${MMDAPP:-/nonexistent}/.local/agents/spawned/${2:-}/transcript" "${MMDAPP:-/nonexistent}/.local/agents/sessions/${3:-$1}/transcript" ; do
+		[ -n "$tailPointer" ] && [ -s "$tailPointer" ] || continue
+		if [ "$tailPointer" = "$tailOwn" ] ; then tailBase="$tailPointer" ; else IFS= read -r tailBase < "$tailPointer" || tailBase="" ; fi
+		[ -n "$tailBase" ] && [ -f "$tailBase" ] || continue
+		tailParts=( "$tailBase" )
+		while [ -f "${tailBase%.log}-part$(( ${#tailParts[@]} + 1 )).log" ] ; do
+			tailParts+=( "${tailBase%.log}-part$(( ${#tailParts[@]} + 1 )).log" )
+		done
+		printf '%s\n' "$tailBase"
+		cat "${tailParts[@]}" 2> /dev/null | tail -n "$4"
+		return 0
+	done
+	return 1
+}
+
 ## The part to append to now. A part at or over the roll size starts the next one,
 ## created exclusively, so of two writers rolling at once only one writes its header.
 AgentsTranscriptPath(){ ## session id
@@ -148,16 +180,13 @@ AgentsTranscriptEvent(){ ## session id, kind, body ('' for none), body cap, then
 	return 0
 }
 
-## The event-track feed: the same lines, to $MMDAPP/.local/agents/sessions/<sid>/feed, only
-## for a session whose feed is switched on (AgentsToolsEventTrackFeedOn,
-## AgentsTools.EventTrackThread.include: the spawn proxy switches it on with its poster).
-## AgentsTools.EventTrackFeed.include posts it. Never team data.
+## The event-track feed: the same lines, kept for this session's poster while its feed is
+## switched on (AgentsEventTrackFeedOn). Where the feed is, and whether it is on, is
+## event-track's own (AgentsTools.EventTrackFeed.include). Never team data.
 AgentsTranscriptFeed(){ ## session id, block
-	local feedDir
-	feedDir="$( AgentsTranscriptSessionDir "$1" )" || return 0
-	type AgentsToolsEventTrackFeedOn > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/event-track/AgentsTools.EventTrackThread.include"
-	AgentsToolsEventTrackFeedOn "$feedDir" || return 0
-	printf '%s\n' "$2" >> "$feedDir/feed" 2>/dev/null || :
+	[ -n "${2:-}" ] || return 0
+	type AgentsEventTrackFeedAppend > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/event-track/AgentsTools.EventTrackFeed.include"
+	printf '%s\n' "$2" | AgentsEventTrackFeedAppend "$1"
 	return 0
 }
 
@@ -512,10 +541,8 @@ AgentsSessionTokensHeaderUpdate(){ ## session id
 	[ -s "$updateItemPath/dispatch-item" ] || return 0
 	IFS= read -r updateItem < "$updateItemPath/dispatch-item" || :
 	[ -n "$updateItem" ] && [ -n "${MDAT_DATA_ROOT:-}" ] || return 0
-	updatePath=""
-	for updateState in running review pending blocked backlog parked processed archived retained ; do
-		[ ! -f "$MDAT_DATA_ROOT/board/$updateState/$updateItem" ] || { updatePath="$MDAT_DATA_ROOT/board/$updateState/$updateItem" ; break ; }
-	done
+	type AgentsToolsBoardItemInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemDecisions.include"
+	AgentsToolsBoardItemInto updatePath "$updateItem" || :
 	[ -n "$updatePath" ] || return 0
 	updateNow="$( LC_ALL=C awk 'NR == 1 && $0 != "---" { exit } NR > 1 && $0 == "---" { exit } NR > 1 && index( $0, "tokens: " ) == 1 { print substr( $0, 9 ) ; exit }' "$updatePath" 2>/dev/null )"
 	[ "$updateNow" != "$updateValue" ] || return 0
@@ -534,15 +561,15 @@ AgentsSessionTokensRollupRows(){ ## item name...
 	[ $# -gt 0 ] && [ -n "${MDAT_DATA_ROOT:-}" ] || return 0
 	## EVERY BOARD ITEM AND EVERY RUN RECORD, BY GLOB (call-path audit row 31): the sum of an item takes in the items that track it
 	## or follow it up and the records whose parent is its session, relations only the files carry, so a read of the named items alone
-	## sums an item on its own. Two globs, no find: no process, one read per file; the record count paid per call is S10.37's debt.
-	local rollupPath
+	## sums an item on its own. The two walks of their owners, no find: no process, one read per file; the record count paid per call is S10.37's debt.
+	local rollupItems=() rollupRecords=()
+	type AgentsToolsBoardItemsInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemDecisions.include"
+	type AgentsToolsSpawnedAllRecordsInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include"
+	AgentsToolsBoardItemsInto rollupItems ""
+	[ -z "${MMDAPP:-}" ] || AgentsToolsSpawnedAllRecordsInto rollupRecords
 	{
-		for rollupPath in "$MDAT_DATA_ROOT"/board/*/*.md ; do
-			[ ! -f "$rollupPath" ] || printf '%s\n' "$rollupPath"
-		done
-		[ -z "${MMDAPP:-}" ] || for rollupPath in "$MMDAPP"/.local/agents/spawned/*/*.spawn.md ; do
-			[ ! -f "$rollupPath" ] || printf '%s\n' "$rollupPath"
-		done
+		[ ${#rollupItems[@]} -eq 0 ] || printf '%s\n' "${rollupItems[@]}"
+		[ ${#rollupRecords[@]} -eq 0 ] || printf '%s\n' "${rollupRecords[@]}"
 	} | LC_ALL=C awk -v want="$*" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsSessionTokensRollup.awk" 2>/dev/null
 	return 0
 }

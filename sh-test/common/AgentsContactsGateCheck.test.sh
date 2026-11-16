@@ -22,6 +22,7 @@ rigRefuse(){
 [ -f "$rigContacts" ] || rigRefuse "the tool is not at the origin this workspace resolves: $rigContacts"
 [ -f "$rigPackage/sh-test/check-fixtures/harness-ask-check.curl.stub.sh" ] || rigRefuse "the fake curl fixture is missing from the package"
 . "$rigPackage/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-writes.include.sh" || exit 1
 rigTmp="$( rigTempDir AgentsContactsGateCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
@@ -106,8 +107,8 @@ rigGate "$rigTmp/p3" --tool email-send --target owner@RIG.example --message hell
 rigAssert "a partner-* member and the human-owner named by the sender, the human-owner's address in any case: known, nothing recorded" "$rigP $( rigRefusals )" "000 7"
 
 echo "-- 4. the old note is not read --"
-mkdir -p "$rigData/inboxes/client-ndm/incoming"
-printf '%s\n' '| slack-id | contact | handle | email | organisation | permission level |' '| --- | --- | --- | --- | --- | --- |' '| UOLDNOTE1 | rig-old | @rig-old | old@example.com | rig | unset |' > "$rigData/inboxes/client-ndm/incoming/note-20260904T190756Z-contacts.md"
+:  ## the store folders are made by the write that fills them
+rigOwnerInboxWrite client-ndm "note-20260904T190756Z-contacts.md" -- '%s\n' '| slack-id | contact | handle | email | organisation | permission level |' '| --- | --- | --- | --- | --- | --- |' '| UOLDNOTE1 | rig-old | @rig-old | old@example.com | rig | unset |'
 rigGate "$rigTmp/o1" --tool slack-send-message --target UOLDNOTE1 --team client-ndm --message hello
 rigGate "$rigTmp/o2" --tool email-send --target old@example.com --message hello
 rigAssert "a recipient listed only in a contacts note of the retired format: refused" "$( cat "$rigTmp/o1.err" "$rigTmp/o2.err" | LC_ALL=C grep -c 'REFUSED' )" "2"

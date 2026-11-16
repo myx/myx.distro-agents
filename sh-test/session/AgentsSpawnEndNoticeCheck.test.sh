@@ -66,7 +66,8 @@ rigTmp="$( rigTempDir AgentsSpawnEndNoticeCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 rigWs="$rigTmp/ws" ; rigHome="$rigTmp/home" ; rigSkills="$rigTmp/skills" ; rigData="$rigTmp/data"
 rigSp="$rigWs/.local/agents/spawned"
-mkdir -p "$rigTmp/bin" "$rigWs/.local/.agents" "$rigSp" "$rigHome" "$rigSkills" "$rigData/board/running" "$rigData/board/review"
+mkdir -p "$rigTmp/bin" "$rigWs/.local/.agents" "$rigSp" "$rigHome" "$rigSkills"
+rigBoardStates "$rigData" running review
 rigHost="$( hostname -s 2> /dev/null )" ; [ -n "$rigHost" ] || rigHost="unknown"
 rigKept=""
 ## At the end every stand-in console still waiting is let go, so that no supervising shell of this rig waits on
@@ -436,8 +437,12 @@ printf -- '---\nsession-id: %s\nspawn-id: %s\nparent-spawn-id: none\n%s: rig-mem
 printf '%s\n' 'anthropic refused the request -- rate_limit_error: slow down' > "$rigSp/$rigRefusedRun/$rigRefusedRun.refused"
 printf '%s\n' ". \"\$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandbox.include\" ; AgentsToolsSpawnProxyCloseSandbox '$rigSp/$rigRefusedRun/$rigRefusedRun.spawn.md' failed 1 ; AgentsToolsSpawnProxyEndNotice '$rigSp/$rigRefusedRun/$rigRefusedRun.spawn.md' missing ; printf 'SAID=%s\\n' \"\$agentsSpawnProxyEndNoticeSaid\"" \
 	| rigEnv "$rigTmp/s4f" bash "$rigTool" --intern-mcp-execute > "$rigTmp/s4f/out" 2>&1
+rigLimitWord="$( cat "$rigWs/.local/agents/sessions/$rigRefusedRun/usage-limit" 2> /dev/null )"
+rigSaidCount="$( LC_ALL=C grep -c -x 'SAID=posted' "$rigTmp/s4f/out" )"
+rigTold=( "$rigData/inboxes/rig-member-b/incoming"/inquiry-*.md )
+rigToldLine="$( LC_ALL=C grep -h -F -- "The run \`${rigRefusedRun:0:8}\` of rig-member-a $rigRefusedText." ${rigTold[@]+"${rigTold[@]}"} 2> /dev/null | head -1 )"
 rigAssert "the run's store keeps the flag, and the end is told once with the reason, as the template's line" \
-	"$( cat "$rigWs/.local/agents/sessions/$rigRefusedRun/usage-limit" 2> /dev/null ):$( LC_ALL=C grep -c -x 'SAID=posted' "$rigTmp/s4f/out" ):$( LC_ALL=C grep -h -F -- "The run \`${rigRefusedRun:0:8}\` of rig-member-a $rigRefusedText." "$rigData/inboxes/rig-member-b/incoming"/inquiry-*.md 2> /dev/null | head -1 )" \
+	"$rigLimitWord:$rigSaidCount:$rigToldLine" \
 	"$rigRefusedText:1:⏳ The run \`${rigRefusedRun:0:8}\` of rig-member-a $rigRefusedText."
 
 echo "-- 5. a killed run is told as killed, and by whom --"
@@ -515,7 +520,7 @@ mkdir -p "$rigDir" "$rigSp/$rigDead/input" "$rigSp/$rigDead/output"
 rigRecord="$rigSp/$rigDead/$rigDead.spawn.md"
 printf -- '---\nsession-id: %s\nspawn-id: %s\nparent-spawn-id: %s\nparent-session-id: %s\nparent-member: rig-member-b\nparent-thread: %s\ntracking-name: %s\nhost: %s\nworkspace: ws\nowner: rig-member-a\nstatus: spawn-started\nstarted-at: 2026-10-13 09:10 +0300\nsession-thread: CRIGDEAD:1700000001.000100\nspawns: %s\n---\n\n# Spawn session: %s\n' \
 	"$rigDead" "$rigDead" "$rigParent" "$rigParent" "$rigParentThread" "$rigDead" "$rigHost" "$rigDeadItem" "$rigDead" > "$rigRecord"
-printf -- '---\ntype: dispatch\nowner: rig-member-a\nstatus: dispatch-started\nsession-id: %s\nspawn-id: %s\nreview-by: %s\n---\n\n# rig dispatch\n\n## Brief\n\nRIG-BRIEF\n' "$rigDead" "$rigDead" "$rigParent" > "$rigData/board/running/$rigDeadItem.md"
+printf -- '---\ntype: dispatch\nowner: rig-member-a\nstatus: dispatch-started\nsession-id: %s\nspawn-id: %s\nreview-by: %s\n---\n\n# rig dispatch\n\n## Brief\n\nRIG-BRIEF\n' "$rigDead" "$rigDead" "$rigParent" | rigStoreItem "$rigData" board running $rigDeadItem.md
 rigStampText="$( rigStampEpoch=$(( $( date +%s ) - 1800 )) ; date -r "$rigStampEpoch" +%Y%m%d%H%M.%S 2> /dev/null || date -d "@$rigStampEpoch" +%Y%m%d%H%M.%S )"
 find "$rigSp/$rigDead" -exec touch -t "$rigStampText" {} +
 ## And one more, the same but for its supervising shell, which its record names and which lives: a stand-in.

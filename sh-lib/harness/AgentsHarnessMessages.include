@@ -25,7 +25,7 @@ AgentsHarnessMessageLiveSessionThread(){ ## team member
 	## SendMessage never clobbers whatever the real caller already had in them for its own, unrelated reason.
 	local measuredRows="" measuredDated="" measuredAny=""
 	[ -n "$liveMember" ] && [ -d "$liveStore" ] || return 0
-	type AgentsToolsRegistryMeasureRows > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.RegistrySpawnedSessions.include"
+	type AgentsToolsRegistryMeasureRows > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.RegistrySpawnedSessions.include"
 	type AgentsToolsRegistryRowsEntry > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
 	liveNames="$( printf '%s\0' "$liveStore"/*/*.spawn.md | LC_ALL=C xargs -0 grep -l -x -F -- "owner: $liveMember" 2> /dev/null )" || :
 	[ -n "$liveNames" ] || return 0
@@ -54,7 +54,7 @@ AgentsHarnessMessageLiveSessionThread(){ ## team member
 
 AgentsHarnessSessionThread(){ ## the session address as given, what did not happen (default: Nothing was sent.)
 	local sessionResolved="" sessionRc=0 sessionLine sessionChannel="" sessionTs="" sessionWhat="the thread of this session"
-	type DistroAgentsToolsResolveTarget > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/slack/AgentsTools.CommsSlack.include"
+	type DistroAgentsToolsResolveTarget > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsResolveTarget.include"
 	sessionResolved="$( DistroAgentsToolsResolveTarget "$1" 2> /dev/null )" || sessionRc=$?
 	if [ "$sessionRc" = "3" ] ; then
 		printf 'ERROR: %s %s\n' "$sessionResolved" "${2:-Nothing was sent.}" ; return 1
@@ -155,8 +155,8 @@ AgentsHarnessToolSendMessageRun(){ ## target, message, as bot, address to, broad
 				toolShown="$toolTarget (${toolSession#* })"
 				toolTarget="${toolSession%% *}"
 			else
-				## A MEMBER'S MESSAGE TO A MEMBER NEVER GOES TO A DM (the human-owner's ruling, 2026-11-10): a member's DM is the owner's own channel with
-				## that persona, so a handback or a note sent there landed in his personal conversation. With no live session of the member to
+				## A MEMBER'S MESSAGE TO A MEMBER NEVER GOES TO A DM: a member's DM is the owner's own channel with
+				## that persona, so a handback or a note sent there would land in his personal conversation. With no live session of the member to
 				## reach, the message goes to its inbox. A question that waits for its answer (toolNoInbox) is not this: it keeps the DM.
 				[ "$toolNoInbox" = "true" ] || toolInboxOnly="true"
 			fi
@@ -304,7 +304,7 @@ AgentsHarnessToolSendMessage(){ ## target, message, as bot, address to, broadcas
 ## view/session_id/state are optional filters onto that same registry -- see
 ## AgentsToolsRegistryRenderSpawnedSessions's own header for what each composes with.
 AgentsHarnessToolListAgents(){
-	type AgentsToolsRegistryRenderSpawnedSessions > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.RegistrySpawnedSessions.include"
+	type AgentsToolsRegistryRenderSpawnedSessions > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.RegistrySpawnedSessions.include"
 	local toolView="${1:-agents}" toolSessionId="$2" toolState="$3"
 	local listRegistries="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
 	if [ -z "${MMDAPP:-}" ] ; then
@@ -326,34 +326,19 @@ AgentsHarnessToolListAgents(){
 	## A dead run closed by the advance pass (S21.4, spawn-ended-without-close) keeps no such
 	## marker: its reason comes from control/dead of the session instead, the found= moment of
 	## its own line there.
+	type AgentsSessionRunDeathFound > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
 	( . "$listRegistries" ; AgentsToolsRegistryRenderSpawnedSessions "$toolView" "$toolSessionId" "$toolState" ) 2>&1 \
-		| LC_ALL=C awk '
-			NF == 13 && $13 == "failed" {
-				print
-				if ( $6 == "spawn-ended-without-close" ) {
-					deadFile = ENVIRON["MMDAPP"] "/.local/agents/sessions/" $2 "/control/dead"
-					foundAt = ""
-					if ( $8 != "-" ) {
-						while ( ( getline deadLine < deadFile ) > 0 ) {
-							if ( index( deadLine, $8 " " ) == 1 ) {
-								deadWordN = split( deadLine, deadWord, " " )
-								for ( deadIdx = 1 ; deadIdx <= deadWordN ; deadIdx++ ) {
-									if ( index( deadWord[deadIdx], "found=" ) == 1 ) { foundAt = substr( deadWord[deadIdx], 7 ) }
-								}
-								break
-							}
-						}
-						close( deadFile )
-					}
-					if ( foundAt != "" ) { print "reason: the process died, found " foundAt }
-					next
-				}
-				reasonFile = ENVIRON["MMDAPP"] "/.local/agents/spawned/" $1 "/" $8 ".refused"
-				if ( $8 != "-" && ( getline reasonLine < reasonFile ) > 0 ) { print "reason: " reasonLine ; close( reasonFile ) ; }
-				next
-			}
-			{ print }
-		'
+		| while IFS= read -r listRow || [ -n "$listRow" ] ; do
+			printf '%s\n' "$listRow"
+			read -r -a listWords <<< "$listRow"
+			[ "${#listWords[@]}" = 13 ] && [ "${listWords[12]}" = failed ] && [ "${listWords[7]}" != - ] || continue
+			if [ "${listWords[5]}" = spawn-ended-without-close ] ; then
+				listReason="$( AgentsSessionRunDeathFound "${listWords[1]}" "${listWords[7]}" )" && printf 'reason: the process died, found %s\n' "$listReason"
+			else
+				listReason="$( AgentsSpawnedRunRefusedReason "${listWords[0]}" "${listWords[7]}" )" && printf 'reason: %s\n' "$listReason"
+			fi
+		done
+	return 0
 }
 
 ## The served SendMessage (AgentsHarnessToolSendMessage, `reply`): a post to this run's own session
@@ -382,12 +367,12 @@ AgentsHarnessSendSeatRefused(){ ## target as given
 ## `timeout` with a wait); what the gate said is this call's result. rc 0 the call goes on and
 ## acts; rc 1 it ends here, what became of it said.
 AgentsHarnessAuthorityAsk(){ ## what (words), the run's spawn id, tool, the call's arguments JSON
-	type AgentsHarnessSpawnRecordPath > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessSpawn.include"
+	type AgentsSessionRunRecordInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
 	type AgentsHarnessWholeNumber > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessToolsFile.include"
 	local askRecord=""
 	type AgentsToolsAuthorityGate > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.Authority.include"
 	type AgentsToolsRunRoute > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.RunRoute.include"
-	askRecord="$( AgentsHarnessSpawnRecordPath "$2" )"
+	AgentsSessionRunRecordInto askRecord "$2" || :
 	agentsAuthorityMode="" agentsAuthorityTimeout=""
 	case "${harnessArgV_escalate:-}" in
 		enqueue|wait) agentsAuthorityMode="$harnessArgV_escalate" ;;
@@ -416,13 +401,13 @@ AgentsHarnessSendDismissRefused(){ ## target as given, message, address to
 	AgentsHarnessBareName "$dismissMember" || return 1
 	type AgentsToolsSessionSeatHolder > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionSeats.include" || return 1
 	dismissSession="${MDAT_SESSION_ID:-}"
-	[ -n "$dismissSession" ] || dismissSession="$( AgentsToolsAuthorityField "$( AgentsHarnessSpawnRecordPath "${MDAT_SPAWN_SESSION_ID:-}" )" session-id 2> /dev/null )"
+	[ -n "$dismissSession" ] || { local dismissRecord="" ; AgentsSessionRunRecordInto dismissRecord "${MDAT_SPAWN_SESSION_ID:-}" && dismissSession="$( AgentsToolsAuthorityField "$dismissRecord" session-id 2> /dev/null )" ; } || :
 	[ -n "$dismissSession" ] || return 1
 	dismissRun="$( AgentsToolsSessionSeatHolder "$dismissSession" "$dismissMember" )" || dismissRun=""
 	if [ -z "$dismissRun" ] ; then
-		type AgentsToolsSpawnedSessionRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.StartedRecords.include"
+		type AgentsToolsSpawnedSessionRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include"
 		for dismissCandidate in $( AgentsToolsSpawnedSessionRecords "$dismissSession" own 2> /dev/null ) ; do
-			type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandbox.include"
+			type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandboxRecordHeader.include"
 			[ "$( AgentsToolsSpawnSandboxRecordHeader "$dismissCandidate" owner )" = "$dismissMember" ] || continue
 			AgentsToolsSessionRecordLive "$dismissCandidate" || continue
 			dismissRun="${dismissCandidate##*/}" ; dismissRun="${dismissRun%.spawn.md}"

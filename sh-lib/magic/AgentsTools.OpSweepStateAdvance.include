@@ -68,7 +68,9 @@
 			set +e ; return 1
 		fi
 		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.MagicSweepState.include"
-		local stateDir="$MDAT_DATA_ROOT/inboxes/$callingMember/incoming" target=""
+		local stateDir="" target=""
+		type AgentsToolsInboxFolderInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/inbox/AgentsTools.InboxPlace.include"
+		AgentsToolsInboxFolderInto stateDir "$callingMember" incoming || stateDir=""
 		target="$( AgentsToolsMagicSweepStatePath "$callingMember" )"
 		mkdir -p "$stateDir" || {
 			echo "⛔ ERROR: $MDSC_CMD --sweep-state-advance: can't create inbox directory: $stateDir" >&2

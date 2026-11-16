@@ -21,9 +21,13 @@ AgentsToolsExternalOwnerRows(){ ## due|all
 	local extWhich="${1:-due}" extMarker="${MMDAPP%/}/.local/agents/schedule/duty/magic-coordinator" extMembers extFiles extState extFile extRow extOwner extRecheck extEpoch extNow extWhy extChanged=""
 	extMembers="$( AgentsToolsTeamMemberDirectoryText 2> /dev/null | LC_ALL=C awk -F'\t' '$1 != "human-owner" { print $1 }' )"
 	extFiles=()
-	for extFile in "$MDAT_DATA_ROOT/inboxes/magic-coordinator/incoming"/*.md ; do [ -f "$extFile" ] && extFiles+=( "$extFile" ) ; done
+	type AgentsToolsInboxFilesInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/inbox/AgentsTools.InboxPlace.include"
+	local extInbox=() extOne
+	AgentsToolsInboxFilesInto extInbox magic-coordinator no
+	for extOne in ${extInbox[@]+"${extInbox[@]}"} ; do extFiles+=( "$extOne" ) ; done
 	for extState in backlog pending running review blocked parked ; do
-		for extFile in "$MDAT_DATA_ROOT/board/$extState"/*.md ; do [ -f "$extFile" ] && extFiles+=( "$extFile" ) ; done
+		type AgentsToolsBoardItemsInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemDecisions.include" ; local extFileItems ; AgentsToolsBoardItemsInto extFileItems "" "$extState"
+		for extFile in ${extFileItems[@]+"${extFileItems[@]}"} ; do [ -f "$extFile" ] && extFiles+=( "$extFile" ) ; done
 	done
 	[ "${#extFiles[@]}" -gt 0 ] || return 0
 	if [ -f "$extMarker" ] ; then

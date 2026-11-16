@@ -78,6 +78,8 @@ rigFailCount=0
 rigAssert(){ ## what is asserted, got, want
 	if [ "$2" = "$3" ] ; then
 		rigPassCount=$(( rigPassCount + 1 ))
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-writes.include.sh" || exit 1
+rigOwnerWs="${rigWs:-$rigTmp/ws}" rigOwnerData="${rigData:-${rigD:-${rigStore:-${rigOut:-$rigTmp/data}}}}" rigOwnerHome="${rigHome:-$rigTmp/home}" rigOwnerSkills="${rigSkills:-$rigTmp/skills}"
 	else
 		rigFailCount=$(( rigFailCount + 1 ))
 		printf '  FAIL  %s\n        got:  %s\n        want: %s\n' "$1" "$2" "$3"
@@ -98,7 +100,7 @@ rigTimedWait(){ ## name, bound, sources... -- one Wait, and how many seconds it 
 }
 rigFirst(){ head -1 "$rigTmp/$1.out" ; }
 rigHas(){ LC_ALL=C grep -c -F -- "$2" "$rigTmp/$1.out" || : ; }
-mkdir -p "$rigTmp/data/inboxes/$rigMember/incoming" "$rigTmp/data/board"
+mkdir -p "$rigTmp/data/board"
 
 echo "-- 1. a slow source does not overrun the bound --"
 rigTimedWait slo1 2 --wait-source slack:CBTSLOW01

@@ -145,7 +145,7 @@ rigAssert "InternRootHarness's root pass leaves no command-not-found mark" "$( r
 ## The row is `<mark> <first> <family> <alias>`. Read with no override stored, then with one: a
 ## site that cannot reach the setting's own include answers its default both times.
 rigRow(){ rigDrive 'probe(){ local MDSC_CMD=probe ; set -- --get-roster
-	. "$RIG_SH/team-data/AgentsTools.Registries.include" ; . "$RIG_SH/team-data/AgentsTools.RegistryTeamMembers.include" ; . "$RIG_SH/team-data/AgentsTools.RegistryMemberNames.include" ; . "$RIG_SH/team-data/AgentsTools.RegistrySpawnedSessions.include" ; . "$RIG_SH/team-data/AgentsTools.RegistryPendingReplies.include" > /dev/null 2>&1
+	. "$RIG_SH/team-data/AgentsTools.Registries.include" ; . "$RIG_SH/team-data/AgentsTools.RegistryTeamMembers.include" ; . "$RIG_SH/team-data/AgentsTools.RegistryMemberNames.include" ; . "$RIG_SH/session/AgentsTools.RegistrySpawnedSessions.include" ; . "$RIG_SH/team-data/AgentsTools.RegistryPendingReplies.include"; . "$RIG_SH/questions/AgentsTools.RegistryPendingRepliesRows.include" > /dev/null 2>&1
 	AgentsToolsRegistryMemberNamesRead magic-coordinator ; }
 	probe' > /dev/null ; LC_ALL=C tail -1 "$rigTmp/call.out" | LC_ALL=C sed 's/^[[:space:]]*//; s/[[:space:]]*$//' ; }
 rigAssert "Registries answers the default alias when none is stored, and no mark" "$( rigRow ):$( rigMarkCount )" "- - - -:0"

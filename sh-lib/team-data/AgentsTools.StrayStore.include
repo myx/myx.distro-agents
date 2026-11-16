@@ -19,8 +19,9 @@
 ## the same path under the rig's root: `board/<state>/<file>`, `inboxes/<member>/<state>/<file>`.
 ##
 ## THE RIGS are the sibling workspaces of the stray one, under the same parent, whose mode is `team-rig`, read by
-## AgentsToolsWorkspaceMode as the gate reads it. A rig's runs are read once per call, one awk over its dispatch items, into a
-## table `owner <tab> start <tab> end` in seconds. This is an owner's tool, run once: its reads are no call path.
+## AgentsToolsWorkspaceMode as the gate reads it. A rig's runs are the board's own table of its dispatch items,
+## `owner <tab> start <tab> end` in seconds (AgentsToolsBoardDispatchRunsTableInto), read once per call. This is an owner's tool,
+## run once: its reads are no call path.
 ##
 ## THE RETURN IS A PLAN FIRST. Without `--apply` nothing moves: each row says what would happen. With it, a file absent at its
 ## destination is moved there, one identical to the file there is removed here, and one that differs is left and said, for a
@@ -45,10 +46,7 @@ AgentsToolsStrayStoreOf(){ ## workspace
 	printf '%s\n' "$strayWs/.local/agents/team-data-root"
 }
 
-## One header value of an item, the first line `<key>: <value>` of its frontmatter; empty where none.
-AgentsToolsStrayStoreHeader(){ ## file, key
-	LC_ALL=C awk -v key="$2" 'NR == 1 && $0 != "---" { exit } NR > 1 && $0 == "---" { exit } NR > 1 && index($0, key ": ") == 1 { print substr($0, length(key) + 3) ; exit }' "$1" 2> /dev/null
-}
+type AgentsToolsFrontmatterKey > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.FrontmatterKey.include"
 
 ## THE RIGS BESIDE A WORKSPACE: `<name> <tab> <team data root>`, one a line, for every sibling whose mode is team-rig and whose
 ## root is not the stray store itself.
@@ -67,43 +65,15 @@ AgentsToolsStrayStoreRigs(){ ## workspace
 	done
 }
 
-## A moment `YYYY-MM-DD HH:MM +ZZZZ` in seconds since 1970, by arithmetic: the system awk has no mktime. -1 for no moment.
-agentsStrayStoreEpochAwk='
-function epochOf(s,  y, m, d, H, M, z, sign, zh, zm, yy, era, yoe, doy, doe, days) {
-	if (s !~ /^[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9] [0-9][0-9]:[0-9][0-9]/) return -1
-	y = substr(s, 1, 4) + 0 ; m = substr(s, 6, 2) + 0 ; d = substr(s, 9, 2) + 0 ; H = substr(s, 12, 2) + 0 ; M = substr(s, 15, 2) + 0
-	z = substr(s, 18, 5) ; sign = ( substr(z, 1, 1) == "-" ) ? -1 : 1 ; zh = substr(z, 2, 2) + 0 ; zm = substr(z, 4, 2) + 0
-	yy = y - ( m <= 2 ? 1 : 0 ) ; era = int(yy / 400) ; yoe = yy - era * 400
-	doy = int((153 * (m + ( m > 2 ? -3 : 9 )) + 2) / 5) + d - 1
-	doe = yoe * 365 + int(yoe / 4) - int(yoe / 100) + doy
-	days = era * 146097 + doe - 719468
-	return days * 86400 + H * 3600 + M * 60 - sign * (zh * 3600 + zm * 60)
-}'
-
-## THE RUNS OF A RIG: `owner <tab> start <tab> end`, one a dispatch item, in seconds; an open run ends at the far future.
-AgentsToolsStrayStoreRunsTable(){ ## team data root
-	local tableFiles=() tableFile
-	for tableFile in "$1"/board/*/dispatch-*.md ; do [ -f "$tableFile" ] && tableFiles+=( "$tableFile" ) ; done
-	[ "${#tableFiles[@]}" -gt 0 ] || return 0
-	LC_ALL=C awk "$agentsStrayStoreEpochAwk"'
-		function flush() { if ( owner != "" && start >= 0 ) { print owner "\t" start "\t" ( end >= 0 ? end : 9999999999 ) } owner = "" ; start = -1 ; end = -1 ; inHead = 0 }
-		FNR == 1 { flush() ; if ( $0 == "---" ) inHead = 1 ; next }
-		inHead && $0 == "---" { inHead = 0 ; next }
-		inHead && index($0, "owner: ") == 1 { owner = substr($0, 8) }
-		inHead && index($0, "started-at: ") == 1 { start = epochOf(substr($0, 13)) }
-		inHead && index($0, "resolved-at: ") == 1 { end = epochOf(substr($0, 14)) }
-		inHead && index($0, "processed-at: ") == 1 && end < 0 { end = epochOf(substr($0, 15)) }
-		END { flush() }' ${tableFiles[@]+"${tableFiles[@]}"}
-}
-
 ## THE RIG OF AN INBOX ITEM: the one rig whose table holds a run of the writer covering the moment; `ambiguous` for several, `-` for none.
 AgentsToolsStrayStoreInboxRig(){ ## from, date, the tables folder
 	local inboxFrom="$1" inboxDate="$2" inboxTables="$3" inboxTable inboxFound=""
 	[ -n "$inboxFrom" ] && [ -n "$inboxDate" ] && [ -d "$inboxTables" ] || { printf -- '-\n' ; return 0 ; }
+	type AgentsToolsBoardDispatchRunsTableInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.BoardDispatchRuns.include"
 	for inboxTable in "$inboxTables"/* ; do
 		[ -f "$inboxTable" ] || continue
 		## The two values go in with -v, so BEGIN has them: an assignment after the program is made only when the file is reached.
-		if LC_ALL=C awk -F'\t' -v who="$inboxFrom" -v when="$inboxDate" "$agentsStrayStoreEpochAwk"'
+		if LC_ALL=C awk -F'\t' -v who="$inboxFrom" -v when="$inboxDate" "$agentsBoardDispatchEpochAwk"'
 			BEGIN { at = epochOf(when) ; if ( at < 0 ) exit 1 }
 			$1 == who && $2 + 0 <= at && at <= $3 + 0 { hit = 1 ; exit }
 			END { exit ( hit ? 0 : 1 ) }' "$inboxTable" ; then
@@ -116,16 +86,20 @@ AgentsToolsStrayStoreInboxRig(){ ## from, date, the tables folder
 
 ## THE LIST: every file of the stray store, one row each, then a summary line on stderr. rc 1 where there is no stray store.
 AgentsToolsStrayStoreList(){ ## workspace
-	local listWs="${1%/}" listStore listFile listRel listKind listState listOwner listRig listCount=0 listTables="" listRigName listRigRoot
+	local listWs="${1%/}" listStore listFile listRel listKind listState listOwner listRig listCount=0 listTables="" listRigName listRigRoot listRuns
 	listStore="$( AgentsToolsStrayStoreOf "$listWs" )" || return 1
 	[ -d "$listStore" ] || { echo "# $listWs keeps no stray store: nothing at $listStore" >&2 ; return 0 ; }
 	## The rigs' runs, one table each, for the inbox items; made once, removed at the end.
 	if [ -n "$( find "$listStore/inboxes" -type f 2> /dev/null | head -n 1 )" ] ; then
 		mkdir -p "$listWs/.local/temp" 2> /dev/null && listTables="$( mktemp -d "$listWs/.local/temp/stray-runs.XXXXXX" 2> /dev/null )" || listTables=""
-		[ -z "$listTables" ] || while IFS=$'\t' read -r listRigName listRigRoot ; do
-			[ -n "$listRigName" ] || continue
-			AgentsToolsStrayStoreRunsTable "$listRigRoot" > "$listTables/$listRigName"
-		done < <( AgentsToolsStrayStoreRigs "$listWs" )
+		if [ -n "$listTables" ] ; then
+			type AgentsToolsBoardDispatchRunsTableInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.BoardDispatchRuns.include"
+			while IFS=$'\t' read -r listRigName listRigRoot ; do
+				[ -n "$listRigName" ] || continue
+				AgentsToolsBoardDispatchRunsTableInto listRuns "$listRigRoot"
+				[ -z "$listRuns" ] || printf '%s\n' "$listRuns" > "$listTables/$listRigName"
+			done < <( AgentsToolsStrayStoreRigs "$listWs" )
+		fi
 	fi
 	while IFS= read -r listFile ; do
 		listRel="${listFile#"$listStore"/}"
@@ -133,16 +107,16 @@ AgentsToolsStrayStoreList(){ ## workspace
 		case "$listRel" in
 			board/*/*)
 				listKind=board ; listState="${listRel#board/}" ; listState="${listState%%/*}"
-				listOwner="$( AgentsToolsStrayStoreHeader "$listFile" owner )"
-				listRig="$( AgentsToolsStrayStoreHeader "$listFile" paying-workspace )"
+				listOwner="$( AgentsToolsFrontmatterKey "$listFile" owner )"
+				listRig="$( AgentsToolsFrontmatterKey "$listFile" paying-workspace )"
 			;;
 			inboxes/*/*/*)
 				listKind=inbox ; listState="${listRel#inboxes/*/}" ; listState="${listState%%/*}"
-				listOwner="$( AgentsToolsStrayStoreHeader "$listFile" owner )"
+				listOwner="$( AgentsToolsFrontmatterKey "$listFile" owner )"
 				## An item stamped with the writer's workspace names its rig itself; one without is matched by the writer's run.
-				listRig="$( AgentsToolsStrayStoreHeader "$listFile" from-workspace )"
+				listRig="$( AgentsToolsFrontmatterKey "$listFile" from-workspace )"
 				case "$listRig" in ''|*/*|.|..|*[[:space:]]*) listRig="-" ;; esac
-				[ "$listRig" != "-" ] || [ -z "$listTables" ] || listRig="$( AgentsToolsStrayStoreInboxRig "$( AgentsToolsStrayStoreHeader "$listFile" from )" "$( AgentsToolsStrayStoreHeader "$listFile" date )" "$listTables" )"
+				[ "$listRig" != "-" ] || [ -z "$listTables" ] || listRig="$( AgentsToolsStrayStoreInboxRig "$( AgentsToolsFrontmatterKey "$listFile" from )" "$( AgentsToolsFrontmatterKey "$listFile" date )" "$listTables" )"
 			;;
 			audit/*) listKind=audit ;;
 			*) listKind=other ;;

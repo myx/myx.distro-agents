@@ -27,6 +27,7 @@ set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigHere="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib"
 rigTest="${rigHere%/sh-lib}/sh-test"
+. "$rigTest/check-fixtures/rig-store-item.include.sh" || exit 1
 rigLiveFrom=""
 [ "${1:-}" != "--live-copy-from" ] || rigLiveFrom="${2:?⛔ ERROR: --live-copy-from needs a workspace}"
 
@@ -96,7 +97,7 @@ rigRun(){ ## function, workspace, data root ("" for unset), output file
 	(
 		MMDAPP="$2"
 		if [ -n "$3" ] ; then MDAT_DATA_ROOT="$3" ; else unset MDAT_DATA_ROOT ; fi
-		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.RegistryTeamMembers.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.RegistryMemberNames.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.RegistrySpawnedSessions.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.RegistryPendingReplies.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunProcesses.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunState.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunLeft.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunRecords.include"
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.RegistryTeamMembers.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.RegistryMemberNames.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.RegistrySpawnedSessions.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.RegistryPendingReplies.include"; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.RegistryPendingRepliesRows.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunProcesses.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunState.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunLeft.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunRecords.include"
 		. "$rigTest/check-fixtures/AgentsToolsRegistriesRows.legacy.sh"
 		rigStart="$SECONDS"
 		"$1" > "$4" 2>"$4.err"
@@ -119,6 +120,25 @@ rigCompare(){ ## label, workspace, data root
 	done
 }
 
+## The board's state folders, made by the board's own ready step (AgentsToolsBoardReady, the one call every board write
+## and the workspace set-up make): data root, workspace.
+rigBoardReady(){ ## data root, workspace
+	local readyOut=""
+	readyOut="$( cd "$2" || exit 1
+	  env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp/home" PATH="/usr/bin:/bin" MMDAPP="$2" MDAT_DATA_ROOT="$1" \
+		MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
+		bash "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-mcp-execute 2>&1 <<< \
+			". \"$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.BoardStates.include\" && AgentsToolsBoardReady"
+	)" || rigRefuse "could not make the board's state folders: $readyOut"
+}
+## One board item, written by the board's own write: data root, the state and name, the body text.
+rigBoardItemCount=0
+rigBoardItem(){ ## `<state> <item name>`, body text
+	rigBoardItemCount=$(( rigBoardItemCount + 1 ))
+	printf '%s\n' "$2" > "$rigTmp/board-body$rigBoardItemCount"
+	rigStoreItem "$rigTmp" "${rigBoardItemData:-$rigData}" "$rigWs" magic-coordinator "board $1" "$rigTmp/board-body$rigBoardItemCount" \
+		> /dev/null || rigRefuse "could not write board $1 through the board's own write"
+}
 ## The whole spawned-sessions render, old (per-row state forks) against new (one open-ask
 ## set), for every view and filter shape: identical bytes, stderr included. Both sides
 ## rebuild the rig's own registries, never a live one.
@@ -140,7 +160,7 @@ rigRender(){ ## function, workspace, data root ("" for unset), output file, view
 	(
 		MMDAPP="$2"
 		if [ -n "$3" ] ; then MDAT_DATA_ROOT="$3" ; else unset MDAT_DATA_ROOT ; fi
-		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.RegistryTeamMembers.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.RegistryMemberNames.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.RegistrySpawnedSessions.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.RegistryPendingReplies.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunProcesses.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunState.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunLeft.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunRecords.include"
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.RegistryTeamMembers.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.RegistryMemberNames.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.RegistrySpawnedSessions.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.RegistryPendingReplies.include"; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.RegistryPendingRepliesRows.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunProcesses.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunState.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunLeft.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunRecords.include"
 		. "$rigTest/check-fixtures/AgentsToolsRegistriesRows.legacy.sh"
 		rigStart="$SECONDS"
 		"$1" "$5" "$6" "$7" > "$4" 2>"$4.err"
@@ -154,7 +174,8 @@ rigData="$rigTmp/crafted/data"
 rigSp="$rigWs/.local/agents/spawned"
 rigPend="$rigWs/.local/agents/pending"
 rigNl=$'\n'
-mkdir -p "$rigSp" "$rigPend" "$rigData/board/running" "$rigData/board/blocked"
+mkdir -p "$rigSp" "$rigPend"
+rigBoardReady "$rigData" "$rigWs"
 
 rigCompare "no store at all" "$rigTmp/none" ""
 
@@ -210,12 +231,30 @@ printf -- '---\nstatus: z\n---\n' > "$rigPend/ask-8-unread.md"
 chmod 000 "$rigPend/ask-8-unread.md"
 mkdir -p "$rigPend/dir.md"
 printf 'n\n' > "$rigPend/ignored.txt"
-printf -- '---\nblocked-on: human\nstatus: waiting\nsession-id: b1\nowner: magic-devops\n---\n' > "$rigData/board/running/task-1.md"
-printf -- '---\nstatus: running\nsession-id: b2\n---\n' > "$rigData/board/running/task-2-not-blocked.md"
-printf -- '---\nblocked-on:\nblocked-on: later value\n---\n' > "$rigData/board/running/task-3.md"
-printf -- '---\nblocked-on:   \n---\n' > "$rigData/board/running/task-4-empty.md"
-printf -- 'blocked-on: outside\n---\n---\n' > "$rigData/board/blocked/task-5-outside.md"
-printf -- '---\nblocked-on: q\n' > "$rigData/board/blocked/task-6-noclose.md"
+## The board items are written by the board's own write (rig-store-item.include.sh), faulty frontmatter and all: the owner
+## writes an item's body as given, so the crafted shapes below reach the readers exactly as the cases intend.
+rigBoardItem "running task-1.md" '---
+blocked-on: human
+status: waiting
+session-id: b1
+owner: magic-devops
+---'
+rigBoardItem "running task-2-not-blocked.md" '---
+status: running
+session-id: b2
+---'
+rigBoardItem "running task-3.md" '---
+blocked-on:
+blocked-on: later value
+---'
+rigBoardItem "running task-4-empty.md" '---
+blocked-on:   
+---'
+rigBoardItem "blocked task-5-outside.md" 'blocked-on: outside
+---
+---'
+rigBoardItem "blocked task-6-noclose.md" '---
+blocked-on: q' 
 
 rigCompare "crafted stores" "$rigWs" "$rigData"
 rigCompare "crafted stores, MDAT_DATA_ROOT unset" "$rigWs" ""
@@ -239,7 +278,8 @@ rigHost="$( hostname -s 2>/dev/null )" ; [ -n "$rigHost" ] || rigHost="unknown"
 rigRWs="$rigTmp/render/ws"
 rigRData="$rigTmp/render/data"
 rigRSp="$rigRWs/.local/agents/spawned"
-mkdir -p "$rigRSp" "$rigRWs/.local/agents/pending" "$rigRData/board/running" "$rigRData/board/blocked"
+mkdir -p "$rigRSp" "$rigRWs/.local/agents/pending"
+rigBoardReady "$rigRData" "$rigRWs"
 rigRunSpawn="rig-spawn-running-$$"
 ## THE RUNS OF THIS STORE, as the command lines of the rig's process list. A run is its own
 ## --session-id word, or its own --resume word; nothing else on a line is one.
@@ -328,8 +368,13 @@ rigAsk ask-backslash 'bs\x' reply-pending
 rigAsk ask-backslash-n 'bs\n' reply-pending
 rigAsk ask-dash - reply-pending
 rigAsk ask-cow-joined "$rigNo-cow-joined" reply-pending
-printf -- '---\nblocked-on: human\nsession-id: s-board\n---\n' > "$rigRData/board/running/task-b.md"
-printf -- '---\nsession-id: s-board-cleared\n---\n' > "$rigRData/board/blocked/task-c.md"
+rigBoardItemData="$rigRData" rigBoardItem "running task-b.md" '---
+blocked-on: human
+session-id: s-board
+---'
+rigBoardItemData="$rigRData" rigBoardItem "blocked task-c.md" '---
+session-id: s-board-cleared
+---' 
 rigRenderCompare "state-derivation store" "$rigRWs" "$rigRData" s-open
 rigRenderCompare "state-derivation store, MDAT_DATA_ROOT unset" "$rigRWs" "" 100
 ## The store is only a proof when its rows reach the states it names.
@@ -362,14 +407,14 @@ rigAssert "a ? in a spawn id matches only itself" "$( rigLiveOf r-run-meta-miss 
 rigAssert "an open ask leaves the run unclosed: a run with no live process never reads waiting (sketch 5.4)" "$( rigStateOf r-open-ask )" unclosed
 rigAssert "a received ask is unclosed" "$( rigStateOf r-closed-ask )" unclosed
 rigAssert "a blocked board item leaves it unclosed too" "$( rigStateOf r-board )" unclosed
-rigAssert "the open-ask set is still answered for a caller that asks it: awk's numeric == holds, the session 100 against an ask for session 1e2" "$( ( MMDAPP="$rigRWs" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.RegistryTeamMembers.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.RegistryMemberNames.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.RegistrySpawnedSessions.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.RegistryPendingReplies.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunProcesses.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunState.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunLeft.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunRecords.include" ; AgentsToolsRegistryPendingOpenSessions "$( AgentsToolsRegistryFile spawned-sessions )" ) | LC_ALL=C grep -c -x -F -e 100 )" 1
-rigAssert "a backslash id goes through the function itself" "$( rigStateOf r-backslash )" "$( ( MMDAPP="$rigRWs" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.RegistryTeamMembers.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.RegistryMemberNames.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.RegistrySpawnedSessions.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.RegistryPendingReplies.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunProcesses.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunState.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunLeft.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunRecords.include" ; AgentsToolsRunDeriveState started no-process 'bs\x' ) )"
+rigAssert "the open-ask set is still answered for a caller that asks it: awk's numeric == holds, the session 100 against an ask for session 1e2" "$( ( MMDAPP="$rigRWs" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.RegistryTeamMembers.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.RegistryMemberNames.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.RegistrySpawnedSessions.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.RegistryPendingReplies.include"; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.RegistryPendingRepliesRows.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunProcesses.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunState.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunLeft.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunRecords.include" ; AgentsToolsRegistryPendingOpenSessions "$( AgentsToolsRegistryFile spawned-sessions )" ) | LC_ALL=C grep -c -x -F -e 100 )" 1
+rigAssert "a backslash id goes through the function itself" "$( rigStateOf r-backslash )" "$( ( MMDAPP="$rigRWs" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.RegistryTeamMembers.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.RegistryMemberNames.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.RegistrySpawnedSessions.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.RegistryPendingReplies.include"; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.RegistryPendingRepliesRows.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunProcesses.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunState.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunLeft.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunRecords.include" ; AgentsToolsRunDeriveState started no-process 'bs\x' ) )"
 rigAssert "a prefix of an open id is not open" "$( rigStateOf r-prefix )" unclosed
 rigAssert "the ask of a run that joined a session is an ask of that session, and that run is unclosed like any other with no live process" "$( rigStateOf r-cow-joined )" unclosed
 rigAssert "and the session's other runs are unclosed too" "$( rigStateOf r-cow-founder ):$( rigStateOf r-cow-mate )" "unclosed:unclosed"
 rigAssert "a session of which nobody asked is not" "$( rigStateOf r-cow-other )" unclosed
 rigAssert "a row with no spawn id is not matched by an ask with no session id" "$( rigStateOf r-nospawn-quiet ):$( LC_ALL=C awk '$3 == "-" && $5 == "reply-pending" { openDash++ ; } END { print openDash + 0 ; }' "$rigRWs/.local/agents/pending-replies.registry" )" "unclosed:1"
-rigAssert "asked of one session alone, the function answers the same" "$( ( MMDAPP="$rigRWs" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.RegistryTeamMembers.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.RegistryMemberNames.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.RegistrySpawnedSessions.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.RegistryPendingReplies.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunProcesses.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunState.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunLeft.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunRecords.include" ; AgentsToolsRegistryPendingSessionOpen "s-cow-$$" && printf open || printf none ; AgentsToolsRegistryPendingSessionOpen "s-cow-other-$$" && printf :open || printf :none ; AgentsToolsRegistryPendingSessionOpen s-quiet && printf :open || printf :none ) )" "open:none:none"
+rigAssert "asked of one session alone, the function answers the same" "$( ( MMDAPP="$rigRWs" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.RegistryTeamMembers.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.RegistryMemberNames.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.RegistrySpawnedSessions.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.RegistryPendingReplies.include"; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.RegistryPendingRepliesRows.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunProcesses.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunState.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunLeft.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunRecords.include" ; AgentsToolsRegistryPendingSessionOpen "s-cow-$$" && printf open || printf none ; AgentsToolsRegistryPendingSessionOpen "s-cow-other-$$" && printf :open || printf :none ; AgentsToolsRegistryPendingSessionOpen s-quiet && printf :open || printf :none ) )" "open:none:none"
 : > "$rigTmp/ps.list" ; : > "$rigTmp/ps.started"
 
 ## --- the dates of a run and the name of its session: three columns appended after workspace ---
@@ -419,7 +464,7 @@ rigStatedRow(){ ## tracking name -- its row of the rows function, whole
 	LC_ALL=C awk -v wantTracking="$1" '$1 == wantTracking { print ; exit ; }' "$rigTmp/stated.rows"
 }
 rigStatedRebuild(){ ## -- the rebuild of the registry file of this store; prints its rc and how many lines it said on stderr
-	( MMDAPP="$rigSWs" ; unset MDAT_DATA_ROOT ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.RegistryTeamMembers.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.RegistryMemberNames.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.RegistrySpawnedSessions.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.RegistryPendingReplies.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunProcesses.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunState.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunLeft.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunRecords.include" ; AgentsToolsRegistrySpawnedSessionsRebuild ) > /dev/null 2> "$rigTmp/stated.rebuild.err"
+	( MMDAPP="$rigSWs" ; unset MDAT_DATA_ROOT ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.RegistryTeamMembers.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.RegistryMemberNames.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.RegistrySpawnedSessions.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.RegistryPendingReplies.include"; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.RegistryPendingRepliesRows.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunProcesses.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunState.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunLeft.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunRecords.include" ; AgentsToolsRegistrySpawnedSessionsRebuild ) > /dev/null 2> "$rigTmp/stated.rebuild.err"
 	printf '%s:%s\n' "$?" "$( LC_ALL=C awk 'END { print NR + 0 }' "$rigTmp/stated.rebuild.err" )"
 }
 rigStatedOf(){ ## session id -- the two last columns of each of its rows in the registry file as it lies, a row a word pair
@@ -471,7 +516,7 @@ rigAssert "and one that asks for sixteen gets the state last" "$( rigStatedAwk 1
 ## and eighteen, the state last, for the one that names sixteen.
 printf '900021 claude --verbose --session-id %s --agent rig-member the brief\n' "$rigSLive" > "$rigTmp/ps.list"
 rigStatedMeasured(){ ## the stored columns the caller counts ("" for none) -- the words of each measured row of the session, and the two last of the first
-	( MMDAPP="$rigSWs" ; unset MDAT_DATA_ROOT ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.RegistryTeamMembers.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.RegistryMemberNames.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.RegistrySpawnedSessions.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.RegistryPendingReplies.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunProcesses.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunState.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunLeft.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunRecords.include" ; measuredRows="" ; measuredDated="" ; measuredAny=""
+	( MMDAPP="$rigSWs" ; unset MDAT_DATA_ROOT ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.RegistryTeamMembers.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.RegistryMemberNames.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.RegistrySpawnedSessions.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.RegistryPendingReplies.include"; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.RegistryPendingRepliesRows.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunProcesses.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunState.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunLeft.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunRecords.include" ; measuredRows="" ; measuredDated="" ; measuredAny=""
 		AgentsToolsRegistryMeasureRows "$rigSReg" "$rigHost" st-run ${1:+"$1"} ; printf '%s' "$measuredDated" ) 2> /dev/null \
 		| LC_ALL=C awk '{ printf "%s ", NF } NR == 1 { last = $( NF - 1 ) " " $NF } END { print last }'
 }
@@ -506,12 +551,16 @@ if [ -n "$rigLiveFrom" ] ; then
 		rigCopyHead "$rigFile" "$rigLiveWs/.local/agents/pending/${rigFile##*/}"
 	done
 	if [ -n "${MDAT_DATA_ROOT:-}" ] ; then
+		rigBoardReady "$rigLiveData" "$rigLiveWs"
+		## A live board item is copied whole into the rig's own store through that store's own write, so the copy is a
+		## store written by its owner, never a file put in place by hand.
 		for rigState in running blocked ; do
 			[ -d "$MDAT_DATA_ROOT/board/$rigState" ] || continue
-			mkdir -p "$rigLiveData/board/$rigState"
 			for rigFile in "$MDAT_DATA_ROOT/board/$rigState"/*.md ; do
 				[ -f "$rigFile" ] || continue
-				rigCopyHead "$rigFile" "$rigLiveData/board/$rigState/${rigFile##*/}"
+				rigStoreItem "$rigTmp" "$rigLiveData" "$rigLiveWs" magic-coordinator \
+					"board $rigState ${rigFile##*/}" "$rigFile" > /dev/null \
+					|| rigRefuse "could not copy the live board item ${rigFile##*/} through the board's own write"
 			done
 		done
 	fi

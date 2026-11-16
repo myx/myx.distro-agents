@@ -23,7 +23,7 @@ rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
 rigWs="$rigTmp/ws" rigHome="$rigTmp/home" rigData="$rigTmp/data" rigSkills="$rigTmp/skills"
 rigSp="$rigWs/.local/agents/spawned"
-mkdir -p "$rigSp" "$rigWs/.local/agents/sessions" "$rigHome" "$rigData/board/pending" "$rigSkills/magic-coordinator" || exit 1
+mkdir -p "$rigSp" "$rigWs/.local/agents/sessions" "$rigHome" "$rigSkills/magic-coordinator" || exit 1
 printf 'rig\n' > "$rigSkills/magic-coordinator/magic-coordinator.basic.md"
 [ "$rigWs" != "${MMDAPP%/}" ] || rigRefuse "the rig workspace is the real one"
 rigPassCount=0

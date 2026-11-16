@@ -57,13 +57,13 @@
 		type AgentsToolsDecisionsItemPath > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemDecisions.include"
 		type AgentsToolsLocalLockTake > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.LocalLock.include"
 		## The call asked for, from its refusal record: never from the asker's words.
-		local addStore="$MMDAPP/.local/agents/sessions/$addSession" addEntry=""
-		type AgentsToolsPermissionField > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionHolds.include"
-		if [ ! -f "$addStore/$addRefusal.md" ] || [ "$( AgentsToolsPermissionField "$addStore/$addRefusal.md" owner )" != "$addMember" ] ; then
+		local addEntry="" addOwner=""
+		type AgentsSessionRefusalHeadersInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+		if ! AgentsSessionRefusalHeadersInto "$addSession" "$addRefusal" addOwner=owner || [ "$addOwner" != "$addMember" ] ; then
 			printf 'NOT-ADDED: no refusal %s of %s is recorded for session %s\n' "$addRefusal" "$addMember" "$addSession"
 			return 0
 		fi
-		addEntry="$( AgentsToolsEscalationSetEntry "$addStore/$addRefusal.md" "$addSession" )" || {
+		addEntry="$( AgentsToolsEscalationSetEntry "$addSession" "$addRefusal" )" || {
 			printf 'NOT-ADDED: the call of %s is one a permission set cannot grant exactly, so it is asked on its own\n' "$addRefusal"
 			return 0
 		}
@@ -88,7 +88,7 @@
 				permission)
 					addLine="$( AgentsToolsEscalationField "$addFile" refusal-id )"
 					case "$addLine" in ''|*/*|.|..) continue ;; esac
-					[ -f "$addStore/$addLine.md" ] || continue
+					AgentsSessionRefusalHeadersInto "$addSession" "$addLine" || continue
 				;;
 				permission-set)
 					[ -f "${addFile%.md}.set" ] || continue
@@ -122,7 +122,7 @@
 		local addHave="" addPlaces="" addPurposes="" addRefusals="" addHeld="" addText addWhole=""
 		if [ "$addOpenKind" = "permission" ] ; then
 			addLine="$( AgentsToolsEscalationField "$addOpen" refusal-id )"
-			addHave="$( AgentsToolsEscalationSetEntry "$addStore/$addLine.md" "$addSession" )" || addHave=""
+			addHave="$( AgentsToolsEscalationSetEntry "$addSession" "$addLine" )" || addHave=""
 			if [ -z "$addHave" ] ; then
 				AgentsToolsLocalLockGive "$addGate"
 				printf 'NOT-ADDED: the open prompt %s asks for a call a permission set cannot grant exactly, so it takes no further one\n' "$addId"

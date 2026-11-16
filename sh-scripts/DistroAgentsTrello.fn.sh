@@ -49,7 +49,7 @@ DistroAgentsTrello(){
 	case "$1" in
 
 		--trello-check|--trello-read|--trello-whoami)
-			type AgentsToolsCommsTrelloCheck > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/trello/AgentsTools.MemberCommsTrello.include"
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/trello/AgentsTools.MemberCommsTrello.include"
 			return $?
 		;;
 

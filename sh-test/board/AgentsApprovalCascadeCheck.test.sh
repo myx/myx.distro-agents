@@ -21,9 +21,6 @@ rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
 rigData="$rigTmp/data"
 mkdir -p "$rigTmp/ws"
-for rigState in backlog pending running review blocked parked processed archived retained ; do
-	mkdir -p "$rigData/board/$rigState"
-done
 rigGit(){ env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp" PATH="/usr/bin:/bin" GIT_CONFIG_NOSYSTEM=1 git -C "$rigData" "$@" ; }
 rigGit init -q || rigRefuse "git init failed"
 rigGit config user.email rig@example.invalid
@@ -51,7 +48,7 @@ rigOp(){ ## result file, extra DistroAgentsTools.fn.sh arguments...
 	printf '%s' "$?" > "$opOut.rc"
 }
 rigItem(){ ## state, bare name, type, extra frontmatter lines -- written and committed
-	printf -- '---\ntype: %s\nowner: rig\n%s---\n\nrig item\n' "$3" "$4" > "$rigData/board/$1/$2.md"
+	printf -- '---\ntype: %s\nowner: rig\n%s---\n\nrig item\n' "$3" "$4" | rigOwnerBoardPut "$1" "$2.md"
 	rigGit add -- "board/$1/$2.md" && rigGit commit -q -m "rig: $2" -- "board/$1/$2.md"
 }
 rigLoc(){ ## bare name -- which board/<state>/ holds it, or not-found
@@ -71,6 +68,9 @@ rigCascadeLines(){ LC_ALL=C grep -c 'approval cascade:' "$1" || : ; }
 rigApproved=$'approved-by: human-owner (rig-session, 2026-10-07T10:00:00Z)\napproved-at: 2026-10-07 10:00 +0000\n'
 rigBy='approved-by: human-owner (rig-session, 2026-10-07T10:00:00Z)'
 rigAt='approved-at: 2026-10-07 10:00 +0000'
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-writes.include.sh" || exit 1
+rigOwnerWs="${rigWs:-$rigTmp/ws}" rigOwnerData="${rigData:-${rigD:-${rigStore:-${rigOut:-$rigTmp/data}}}}" rigOwnerHome="${rigHome:-$rigTmp/home}" rigOwnerSkills="${rigSkills:-$rigTmp/skills}"
+rigOwnerBoardReady
 
 echo "-- final approve: the approval moves to processed and cascades, in one commit --"
 rigItem blocked task-rig-a task $'blocked-by: approval-rig-a\n'
@@ -178,6 +178,8 @@ rigAssert "the gated item moved to board/pending"          "$( rigLoc task-rig-f
 
 echo "-- malformed, missing, frontmatter-less blocks targets: reported, the move stands --"
 rigItem blocked task-rig-g task $'blocked-by: approval-rig-g\n'
+## Hand-made on purpose: the owner's write always gives an item a front matter, and this item exists to have
+## none, so the reader's own answer to that can be seen.
 printf 'no frontmatter here\n' > "$rigData/board/backlog/task-rig-nofm.md"
 rigItem running approval-rig-g approval "${rigApproved}blocks: bad/name, task-rig-missing, task-rig-nofm, task-rig-g.md, task-rig-g"$'\n'
 rigOp "$rigTmp/o8" --move-to-processed --team-member magic-coordinator approval-rig-g.md --from-state:running

@@ -8,7 +8,8 @@
 ##      document with no row, refuses nothing where it reports, and is read-only
 ##   2. a citation that resolves to nothing: a file (absolute, or relative from the document's tree, the package or the
 ##      skillset), a board item, a workspace or a place name. What is no citation is not read: a name in a code fence, a
-##      sandbox path, a placeholder, a glob, a bare name
+##      sandbox path, a placeholder, a glob, a bare name. A board citation is the caller's answer (agentsDocValidateBoardAsk):
+##      with none set, or with no store to ask, it is a row saying it is unchecked, never a dropped line
 ##   3. a cited rule name that does not resolve in the file it names: the NAME is checked, never the line number; `:N` alone
 ##      keeps the file of the citation before it; a file that is not there is a citation row, not a rule row
 ##   4. a stated count against the real one: a count that introduces a list against the items of that list; `all N stages`
@@ -33,11 +34,17 @@ rigRefuse(){
 }
 [ -f "$rigTool" ] || rigRefuse "the dispatcher is not at the origin this workspace resolves: $rigTool"
 . "$rigPackage/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
+. "$rigPackage/sh-test/check-fixtures/rig-store-item.include.sh" || exit 1
 rigTmp="$( rigTempDir AgentsDocSelfCheckCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
 rigWs="$rigTmp/ws" rigData="$rigTmp/data" rigSkills="$rigTmp/skills" rigD="$rigTmp/docs"
-mkdir -p "$rigWs/.local/agents" "$rigTmp/home" "$rigSkills/magic-team" "$rigData/board/running" "$rigD/sub"
+mkdir -p "$rigWs/.local/agents" "$rigTmp/home" "$rigSkills/magic-team" "$rigD/sub"
+## The one board item the citations are checked against is written by the board's own write (rig-store-item.include.sh):
+## a hand-written fixture stays green when that write's own file contract changes.
+rigStoreItem "$rigTmp" "$rigData" "$rigWs" magic-team "board running task-20261001T1000Z-real-item.md" \
+	"$( printf -- '---\ntype: task\n---\n# Task: real\n' > "$rigTmp/body1" ; printf '%s' "$rigTmp/body1" )" \
+	|| rigRefuse "could not build the board item the citations are checked against"
 
 rigPassCount=0
 rigFailCount=0
@@ -53,7 +60,6 @@ rigAssert(){ ## what is asserted, got, want
 printf 'real\n' > "$rigD/real.txt" ; printf '# real\n' > "$rigD/real.md"
 printf -- '- **The root is posted once** and nothing else.\n- **`AgentsToolsFoo`** is a function.\n' > "$rigD/cited.md"
 printf '#!/usr/bin/env bash\nAgentsToolsFoo(){ :; }\n' > "$rigD/cited.sh"
-printf -- '---\ntype: task\n---\n# Task: real\n' > "$rigData/board/running/task-20261001T1000Z-real-item.md"
 printf 'ws-rig-known\tworkspace\tread-write\t%s\towner\n' "$rigWs" > "$rigWs/.local/agents/directories.registry"
 
 rigDataEnv=( "MDAT_DATA_ROOT=$rigData" )
@@ -284,7 +290,7 @@ LC_ALL=C sed 's#^[^ ]*:\([0-9]*\): #\1: #' "$rigTmp/first.out" > "$rigTmp/file.r
 rigAssert "--from-stdin gives the same rows for the same text, shown as <stdin>" "$( cmp -s "$rigTmp/stdin.rows" "$rigTmp/file.rows" && echo same || echo differ ):$( LC_ALL=C grep -c '^<stdin>:' "$rigTmp/said.out" )" "same:4"
 rigDataEnv=()
 rigCheck cites
-rigAssert "with no store at all, the board names are not read, and nothing else is lost" "$( rigRowsAt report-citation )" "3,4,5,9,9,10"
+rigAssert "with no store at all, each of the three board citations is still a row, saying it is unchecked, and nothing else is lost" "$( rigRowsAt report-citation ):$( LC_ALL=C grep -c 'could not ask the board, so it is unchecked' "$rigTmp/said.out" )" "3,4,5,8,8,8,9,9,10:3"
 rigDataEnv=( "MDAT_DATA_ROOT=$rigData" )
 
 echo "-- 11. the controls --"

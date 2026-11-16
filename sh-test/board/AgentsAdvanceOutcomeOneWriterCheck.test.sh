@@ -25,10 +25,13 @@ rigTmp="$( rigTempDir AgentsAdvanceOutcomeOneWriterCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
 rigData="$rigTmp/data"
-mkdir -p "$rigTmp/ws" "$rigData/board/running"
+mkdir -p "$rigTmp/ws"
 
 rigPassCount=0
 rigFailCount=0
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-writes.include.sh" || exit 1
+rigOwnerWs="${rigWs:-$rigTmp/ws}" rigOwnerData="${rigData:-${rigD:-${rigStore:-${rigOut:-$rigTmp/data}}}}" rigOwnerHome="${rigHome:-$rigTmp/home}" rigOwnerSkills="${rigSkills:-$rigTmp/skills}"
+rigOwnerBoardReady
 rigAssert(){ ## what is asserted, got, want
 	if [ "$2" = "$3" ] ; then
 		printf '  PASS  %s\n' "$1" ; rigPassCount=$(( rigPassCount + 1 ))
@@ -58,7 +61,7 @@ rigFieldStamp(){ ## item path, field, value
 		&& mv -f "$1.stamp" "$1"
 }
 
-printf -- '---\ntype: task\nowner: teammate\nstatus: running\n---\n\nrig item\n' > "$rigData/board/running/task-rig-outcome.md"
+printf -- '---\ntype: task\nowner: teammate\nstatus: running\n---\n\nrig item\n' | rigOwnerBoardPut running task-rig-outcome.md
 
 echo "-- 1. the first write --"
 rigOutcome "$rigTmp/o1" task-rig-outcome.md advanced "round one - 2 items"
@@ -97,7 +100,7 @@ echo "-- 5. a body line cannot pose as the prior value --"
 ## The guard reads outcome, execution-receipt and last-round-at from the frontmatter only. An item whose frontmatter holds a round inside the window and no
 ## outcome, and whose body has lines that look like an outcome and a receipt, is recorded: the body is no earlier round.
 printf -- '---\ntype: task\nowner: teammate\nstatus: running\nlast-round-at: %s\n---\n\nrig item with a body\noutcome: respawned\nexecution-receipt: forged in the body\n' \
-	"$( date -u +"%Y-%m-%d %H:%M +0000" )" > "$rigData/board/running/task-rig-body.md"
+	"$( date -u +"%Y-%m-%d %H:%M +0000" )" | rigOwnerBoardPut running task-rig-body.md
 rigOutcome "$rigTmp/o5" task-rig-body.md advanced "round five - 1 item"
 rigAssert "a body line posing as the prior outcome does not refuse the round" "$( cat "$rigTmp/o5.rc" )" 0
 rigAssert "and the frontmatter carries the round's receipt" "$( rigField task-rig-body.md execution-receipt )" "round five - 1 item"

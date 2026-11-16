@@ -51,10 +51,11 @@ AgentsWaitProbedFlush(){
 
 ## A wait on its floor alone is idle: the mark of its run is rewritten as idle in the round it holds.
 AgentsWaitActivityIdle(){ ## the sources of the wait, as they stand after the floor is added
-	local idleFile="${MMDAPP:-/nonexistent}/.local/agents/sessions/${MDAT_SPAWN_SESSION_ID:-/}/activity" idleLine="" idleDefaults idleOne
-	[ -n "${MDAT_SPAWN_SESSION_ID:-}" ] && [ -f "$idleFile" ] || return 0
-	IFS= read -r idleLine < "$idleFile" || :
-	[ "${idleLine#* * }" = "tool Wait" ] || return 0
+	local idleRound="" idleEpoch="" idleWord="" idleDefaults idleOne idleBusy
+	[ -n "${MDAT_SPAWN_SESSION_ID:-}" ] || return 0
+	type AgentsSessionChecklistOpenInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+	AgentsSessionActivityInto idleEpoch idleWord "$MDAT_SPAWN_SESSION_ID" "" idleRound || return 0
+	[ "$idleWord" = "tool Wait" ] || return 0
 	type AgentsToolsWaitDefaultSources > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/wait/AgentsTools.MemberWaitSourcesDefault.include"
 	idleDefaults=" slack:magic-team slack:human-owner $( AgentsToolsWaitDefaultSources 2> /dev/null | LC_ALL=C tr '\n' ' ' ) "
 	for idleOne in $1 ; do
@@ -65,29 +66,9 @@ AgentsWaitActivityIdle(){ ## the sources of the wait, as they stand after the fl
 	## A run whose own list still holds open work is waiting on that work, never idle: an executor collecting its
 	## participants' reports waits on the floor too. The list is found as --idle-wait finds it, and its recurring
 	## wait-for-more item is no open work, by the same words.
-	local idleRecord idleListSession idleList idleItem
-	type AgentsToolsSpawnRecordPath > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionSeats.include"
-	idleRecord="$( AgentsToolsSpawnRecordPath "$MDAT_SPAWN_SESSION_ID" 2> /dev/null )" || idleRecord=""
-	idleListSession=""
-	[ -z "$idleRecord" ] || idleListSession="$( LC_ALL=C sed -n 's/^session-id: //p' "$idleRecord" 2> /dev/null | head -1 )"
-	[ -n "$idleListSession" ] || idleListSession="$MDAT_SPAWN_SESSION_ID"
-	idleRecord="$( AgentsToolsSpawnRecordPath "$idleListSession" 2> /dev/null )" || idleRecord=""
-	idleList="${idleRecord%/*}"
-	[ -n "$idleList" ] || idleList="$MMDAPP/.local/agents/sessions/$idleListSession"
-	idleList="$idleList/${MDAT_SPAWN_AGENT:-/}.checklist.md"
-	if [ -f "$idleList" ] ; then
-		while IFS= read -r idleItem || [ -n "$idleItem" ] ; do
-			case "$idleItem" in
-				'- [ ] '*|'- [~] '*) ;;
-				*) continue ;;
-			esac
-			case "$idleItem" in
-				*--idle-wait*|*[Ww]ait-for-more*|*[Ww]ait\ for\ more*|*[Ww]ait\ for\ the\ next\ arrival*) continue ;;
-			esac
-			return 0
-		done < "$idleList"
-	fi
-	printf '%s %s idle\n' "${idleLine%% *}" "$( date +%s 2> /dev/null )" > "$idleFile.$$" 2> /dev/null && mv -f "$idleFile.$$" "$idleFile" 2> /dev/null || rm -f "$idleFile.$$" 2> /dev/null
+	AgentsSessionChecklistOpenInto idleBusy "$MDAT_SPAWN_SESSION_ID" "${MDAT_SPAWN_AGENT:-}"
+	[ -z "$idleBusy" ] || return 0
+	AgentsSessionActivityWrite "$MDAT_SPAWN_SESSION_ID" "$idleRound $( date +%s 2> /dev/null ) idle"
 	return 0
 }
 
@@ -172,7 +153,7 @@ AgentsWaitAddressConv(){ ## member, source
 		[CDG][A-Z0-9]*:*|[CDG][A-Z0-9]*) printf '%s' "${addrTarget%%:*}" ; return 0 ;;
 		client:*) return 0 ;;
 	esac
-	type DistroAgentsToolsResolveTarget > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/slack/AgentsTools.CommsSlack.include"
+	type DistroAgentsToolsResolveTarget > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsResolveTarget.include"
 	DistroAgentsToolsResolveTarget "$addrTarget" "$1" 2> /dev/null | LC_ALL=C sed -n 's/^CHANNEL=//p' | head -1
 }
 
@@ -183,7 +164,7 @@ AgentsWaitSeenIds(){ ## member, source, the rendering file, the member's own Sla
 	case "$2" in chat:*) LC_ALL=C sed -n 's/^eye //p' "$3.newest" 2> /dev/null ; return 0 ;; esac
 	case "${2/#slack:client:/slack:}" in
 		slack:[CDG][A-Z0-9]*) seenChannel="${2#slack:}" ; seenChannel="${seenChannel%%:*}" ;;
-		slack:*) type DistroAgentsToolsResolveTarget > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/slack/AgentsTools.CommsSlack.include"
+		slack:*) type DistroAgentsToolsResolveTarget > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsResolveTarget.include"
 			seenChannel="$( DistroAgentsToolsResolveTarget "${2#slack:}" "$1" 2> /dev/null | LC_ALL=C sed -n 's/^CHANNEL=//p' | head -1 )" ;;
 		ask:*)
 			local seenRecord
@@ -459,11 +440,12 @@ case "$1" in
 		local waitLockRecord=""
 		case "${MDAT_SPAWN_SESSION_ID:-}" in ''|*/*|.|..) ;; *)
 			waitLockRecord="${MDAT_SPAWN_SANDBOX_ROOT:-}/$MDAT_SPAWN_SESSION_ID.spawn.md"
-			[ -f "$waitLockRecord" ] || waitLockRecord="${MMDAPP%/}/.local/agents/spawned/$MDAT_SPAWN_SESSION_ID/$MDAT_SPAWN_SESSION_ID.spawn.md"
+			[ -f "$waitLockRecord" ] || { type AgentsSessionRunRecordInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include" ; AgentsSessionRunRecordInto waitLockRecord "$MDAT_SPAWN_SESSION_ID" ; } || :
 		esac
 		if [ -n "$waitLockRecord" ] && LC_ALL=C grep -q -s '^routine-lock: ' "$waitLockRecord" 2> /dev/null ; then
 			type AgentsToolsRoutineLockRefreshOwn > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/routine/AgentsTools.RoutineLock.include"
-			! type AgentsToolsRoutineLockRefreshOwn > /dev/null 2>&1 || AgentsToolsRoutineLockRefreshOwn "$MDAT_SPAWN_SESSION_ID" || :
+			type AgentsToolsRoutineLockRefreshOwn > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/routine/AgentsTools.RoutineLock.include"
+			AgentsToolsRoutineLockRefreshOwn "$MDAT_SPAWN_SESSION_ID" || :
 		fi
 		local waitSources="" waitTimeout="" waitPoll="" waitSince="" waitListOnly="false" waitAddressee="" waitIncludeOwn="false" waitCollect="" waitModes=" " waitTtls=" " waitTtlNext=""
 		local waitMode="" waitSessionId="" waitReactions="" waitFloors="" reactWord

@@ -40,6 +40,7 @@ rigRefuse(){
 [ -f "$rigTool" ] || rigRefuse "the tool is not at the origin this workspace resolves: $rigTool"
 rigRealDate="$( command -v date )" || rigRefuse "no date on PATH"
 . "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-writes.include.sh" || exit 1
 rigTmp="$( rigTempDir AgentsManagerDashboardCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
@@ -89,7 +90,7 @@ printf 'sp-old member=keeper-rig role=executor found=2026-10-01T08:30:00Z told=2
 	printf '4242 /usr/local/bin/fake-cli --session-id sp-run --agent keeper-rig\n'
 	printf '4243 /usr/local/bin/fake-cli --session-id sp-run2 --agent magic-rig\n'
 	printf '4244 /usr/local/bin/fake-cli --resume sp-linger\n'
-	printf '4245 bash /rig/DistroAgentsKnowledge.fn.sh --member-help keeper-rig --session-id sp-open\n'
+	printf '4245 bash /rig/DistroAgentsKnowledge.fn.sh --member-help --team-member keeper-rig --session-id sp-open\n'
 } > "$rigTmp/ps.list"
 
 ## THE QUESTIONS: three open, one answered. ask-1 is for the human-owner and its asker has an open record and no
@@ -117,8 +118,11 @@ printf -- '---\nname: human-owner\nstatus: reference-only\n---\n# human-owner\n'
 
 ## THE TEAM DATA: a board with two running items and a file that is none, one in review, none blocked, and a
 ## state of no known name. THE MAIN LOOP: the state its last iteration left.
-: > "$rigData/board/running/one.md" ; : > "$rigData/board/running/two.md" ; : > "$rigData/board/running/notes.txt"
-: > "$rigData/board/review/three.md" ; : > "$rigData/board/odd-state/four.md"
+rigOwnerBoardWrite running "one.md" -- 'x\n' ; rigOwnerBoardWrite running "two.md" -- 'x\n' ; rigOwnerBoardWrite running "notes.txt" -- 'a file of the board folder that is no item\n'
+rigOwnerBoardWrite review "three.md" -- 'x\n'
+## A folder of a state the board's own list does not hold, which the one board reader must still count as no state of its
+own: the owner refuses such a state, so this one folder is made here, and nothing writes an item into it.
+printf 'four\n' > "$rigData/board/odd-state/four.md"
 printf 'MAIN_LOOP_LAST_OUTCOME=ok\nMAIN_LOOP_LAST_ITERATION_UTC=2026-10-13T11:59:00Z\nMAIN_LOOP_CONSECUTIVE_FAILURES=0\n' > "$rigAgents/main-loop.state"
 
 ## THE RETESTS that wait, and one that is done.
@@ -327,10 +331,10 @@ rigAssert "every file of the rig but the kept ones is as it was: no registry reb
 rigAssert "no git command and nothing remote was run" "$( [ -f "$rigTmp/forbidden.calls" ] && cat "$rigTmp/forbidden.calls" || echo none )" "none"
 
 echo "-- 6b. the audit and the vault of the team data, and its git state, named alone --"
-mkdir -p "$rigData/audit/2026-10" "$rigData/audit/2026-09" "$rigData/vault/notes"
+mkdir -p "$rigData/audit/2026-10" "$rigData/audit/2026-09"
 : > "$rigData/audit/artifact-20261013T1100Z-one.md" ; : > "$rigData/audit/2026-10/transcript-20261012T0900Z-two.md" ; : > "$rigData/audit/2026-09/transcript-20260930T0900Z-three.md"
-: > "$rigData/vault/fact-one.md" ; : > "$rigData/vault/notes/fact-two" ; : > "$rigData/audit/2026-10/session-20261013T0800Z-four.log"
-touch -t 202610010000 "$rigData/vault/fact-one.md" "$rigData/vault/notes/fact-two"
+rigOwnerVaultWrite "fact-one.md" -- '---\ntype: note\n---\n\nfact one\n' ; rigOwnerVaultWrite "fact-two.md" -- '---\ntype: note\n---\n\nfact two\n' ; : > "$rigData/audit/2026-10/session-20261013T0800Z-four.log"
+touch -t 202610010000 "$rigData/vault/fact-one.md" "$rigData/vault/fact-two.md"
 rigRun "$rigRead" team-data
 rigAssert "the audit by its items, those of this month, and the age of its newest by the stamp of its name; the vault by its files" "$( rigBlock team-data | LC_ALL=C tr '/' '\n' | LC_ALL=C grep -e audit -e vault | LC_ALL=C sed 's/vault-newest Vault_Newest_Item [0-9]* /vault-newest Vault_Newest_Item N /' | LC_ALL=C tr '\n' '/' )" "figure team-data audit-items Audit_Items 4 count - -/figure team-data audit-month Audit_Items_This_Month 3 count - -/figure team-data audit-newest Audit_Newest_Item 3600 seconds - -/figure team-data vault-items Vault_Items 2 count - -/figure team-data vault-newest Vault_Newest_Item N seconds - -/"
 rigRun "$rigRead" team-data-git

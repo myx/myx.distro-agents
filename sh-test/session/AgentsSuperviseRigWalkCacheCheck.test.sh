@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-## Behavioural check on the kept list of a rig's control pid files (`AgentsToolsSuperviseRigPidFiles`, sh-lib/supervise/AgentsTools.SuperviseScan.include).
+## Behavioural check on the kept list of a rig's control pid files (`AgentsSessionRigControlRows`, sh-lib/session/AgentsTools.SessionStore.include).
 ## The walk over spawned/ to depth 14 ran minutes under load, twice a supervision tick; it now runs once in MDAT_SUPERVISE_RIG_WALK_SECONDS. Held:
 ##   1. THE FIRST CALL WALKS and lists a control pid file inside a run's output folder.
 ##   2. A SECOND CALL WITHIN THE TTL READS THE KEPT LIST: a pid file made in between is not listed yet, and the list file is not rewritten.
@@ -12,13 +12,14 @@ rigPackage="$MDLT_ORIGIN/myx/myx.distro-agents"
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }
-[ -f "$rigPackage/sh-lib/supervise/AgentsTools.SuperviseScan.include" ] || rigRefuse "the supervise scan include is not in the package"
+[ -f "$rigPackage/sh-lib/session/AgentsTools.SessionStore.include" ] || rigRefuse "the session store include is not in the package"
 . "$rigPackage/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
 rigTmp="$( rigTempDir AgentsSuperviseRigWalkCacheCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 trap 'chmod -R u+rwX -- "$rigTmp" 2> /dev/null ; rm -rf -- "$rigTmp"' EXIT
 trap 'exit 1' INT TERM
-rigAgents="$rigTmp/agents"
+rigWs="$rigTmp/ws"
+rigAgents="$rigWs/.local/agents"
 rigPassCount=0
 rigFailCount=0
 rigAssert(){ ## what is asserted, got, want
@@ -38,11 +39,11 @@ rigPidFile rig-spawn-one rig-sess-one
 ## One outside any output folder: spawned/<spawn>/control/pid, the run's own, never a rig's.
 mkdir -p "$rigAgents/spawned/rig-spawn-one/control" && printf '%s own\n' "$$" > "$rigAgents/spawned/rig-spawn-one/control/pid"
 rigWalk(){ ## ttl
-	MDLT_ORIGIN="$MDLT_ORIGIN" MDAT_SUPERVISE_RIG_WALK_SECONDS="$1" RIG_AGENTS="$rigAgents" bash -c '
+	MDLT_ORIGIN="$MDLT_ORIGIN" MDAT_SUPERVISE_RIG_WALK_SECONDS="$1" MMDAPP="$rigWs" bash -c '
 		set +e +u
-		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/supervise/AgentsTools.SuperviseScan.include" > /dev/null 2>&1
-		AgentsToolsSuperviseRigPidFiles "$RIG_AGENTS"
-	' 2> /dev/null | sed "s|^$rigAgents/spawned/||"
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include" > /dev/null 2>&1
+		AgentsSessionRigControlRows
+	' 2> /dev/null | LC_ALL=C awk -F'\t' '{ print $1 "/" $4 }'
 }
 rigOut="$( rigWalk 900 )"
 rigAssert "the first call walks and lists the rig's control pid inside the output folder" "$rigOut" "rig-spawn-one/output/magic-tester/rig/.local/agents/sessions/rig-sess-one/control/pid"

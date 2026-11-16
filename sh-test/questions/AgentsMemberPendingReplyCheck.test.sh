@@ -24,6 +24,7 @@ set -u
 rigTool="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 
 rigRefuse(){
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-writes.include.sh" || exit 1
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }
 [ -f "$rigTool" ] || rigRefuse "the tool is not at the origin this workspace resolves: $rigTool"
@@ -284,7 +285,7 @@ rigStore2="$rigAgents2/pending"
 rigReg2="$rigAgents2/pending-replies.registry"
 rigRegInclude="${MDLT_ORIGIN}/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
 rigReadInclude="${MDLT_ORIGIN}/myx/myx.distro-agents/sh-lib/questions/AgentsTools.OpReadPendingReply.include"
-mkdir -p "$rigStore2" "$rigAgents2/spawned" "$rigAgents2/sessions" "$rigTmp/data2/board/running" "$rigWs2/.local"
+mkdir -p "$rigStore2" "$rigAgents2/spawned" "$rigAgents2/sessions" "$rigWs2/.local"
 cp -R "$rigTmp/ws/.local/.agents" "$rigWs2/.local/.agents" || rigRefuse "the second workspace got no settings"
 rigAsk2(){ ## id, status, host ("" for none), session-id ("" for none), question line
 	{
@@ -304,7 +305,7 @@ rigOp2(){ ## output name, op, arguments... -- rigOp, in that workspace
 }
 ## The rows of that workspace's registry as the one rows function gives them now.
 rigRows2(){
-	( MMDAPP="$rigWs2" ; MDAT_DATA_ROOT="$rigTmp/data2" ; . "$rigRegInclude" ; . "${rigRegInclude%/*}/AgentsTools.RegistryTeamMembers.include" ; . "${rigRegInclude%/*}/AgentsTools.RegistryMemberNames.include" ; . "${rigRegInclude%/*}/AgentsTools.RegistrySpawnedSessions.include" ; . "${rigRegInclude%/*}/AgentsTools.RegistryPendingReplies.include" ; AgentsToolsRegistryPendingRepliesRows ) 2> /dev/null
+	( MMDAPP="$rigWs2" ; MDAT_DATA_ROOT="$rigTmp/data2" ; . "$rigRegInclude" ; . "${rigRegInclude%/*}/AgentsTools.RegistryTeamMembers.include" ; . "${rigRegInclude%/*}/AgentsTools.RegistryMemberNames.include" ; . "${rigRegInclude%/*}/../session/AgentsTools.RegistrySpawnedSessions.include" ; . "${rigRegInclude%/*}/AgentsTools.RegistryPendingReplies.include" ; . "${rigRegInclude%/*}/../questions/AgentsTools.RegistryPendingRepliesRows.include" ; AgentsToolsRegistryPendingRepliesRows ) 2> /dev/null
 }
 rigRegRow2(){ ## key -- its row of the registry file
 	LC_ALL=C awk -v wantKey="$1" '$1 == wantKey { print ; }' "$rigReg2" 2> /dev/null
@@ -313,7 +314,7 @@ rigA1=22222222-0000-0000-0000-000000000001 ; rigA2=22222222-0000-0000-0000-00000
 rigAsk2 "$rigA1" reply-pending "$rigHost" "rig-asker-one-$$" "May the rig keep list one?"
 rigAsk2 "$rigA2" reply-pending "$rigHost" "rig-asker-two-$$" "May the rig keep list two?"
 rigAsk2 "$rigA3" reply-received "$rigHost" "rig-asker-one-$$" "May the rig keep list three?"
-printf -- '---\nblocked-on: human\nsession-id: s-rig-board\nowner: magic-tester\n---\n' > "$rigTmp/data2/board/running/task-rig-blocked.md"
+rigOwnerData="$rigTmp/data2" rigOwnerBoardWrite running "task-rig-blocked.md" -- '---\nblocked-on: human\nsession-id: s-rig-board\nowner: magic-tester\n---\n'
 ## The file as an earlier rebuild left it: it still calls the third ask open, holds a row of a
 ## record the store no longer has, and knows nothing of the board item.
 rigStale2(){

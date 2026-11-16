@@ -62,7 +62,8 @@ rigTag="${rigTmp##*.}" ; rigTag="$( printf '%s' "$rigTag" | LC_ALL=C tr -c -d 'A
 rigWs="$rigTmp/ws" ; rigHome="$rigTmp/home" ; rigSkills="$rigTmp/skills" ; rigData="$rigTmp/data"
 rigAgents="$rigWs/.local/agents"
 rigSp="$rigAgents/spawned" ; rigStores="$rigAgents/sessions"
-mkdir -p "$rigTmp/bin" "$rigWs/.local/.agents" "$rigSp" "$rigStores" "$rigHome" "$rigSkills" "$rigData/board/running" "$rigData/audit"
+mkdir -p "$rigTmp/bin" "$rigWs/.local/.agents" "$rigSp" "$rigStores" "$rigHome" "$rigSkills" "$rigData/audit"
+rigBoardStates "$rigData" running
 rigHost="$( hostname -s 2> /dev/null )" ; [ -n "$rigHost" ] || rigHost="unknown"
 printf 'SESSION_CONTROL_TICK_SECONDS=1\n' > "$rigWs/.local/.agents/magic-team.agent.env"
 
@@ -420,7 +421,7 @@ rigCall(){ ## short name of a session -- the function alone, called as a starter
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include" || exit 90
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionControlStart.include" || exit 91
 			## The start reads a session'\''s records through the per-session list; it is loaded before the origin becomes the stand-in.
-			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.StartedRecords.include" || exit 92
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include" || exit 92
 			MDLT_ORIGIN="$RIG_FAKE"
 			exec 5> "$RIG_TMP/fn.fd5" 9> "$RIG_TMP/fn.fd9"
 			fnFrom="$SECONDS"

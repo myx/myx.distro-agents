@@ -105,13 +105,13 @@ AgentsToolsCommsPrintbackSessionInUse(){ ## session
 ## recorded yet. A tracking thread is never a session thread; here it is the session's external channel, and the
 ## session still keeps no session thread of its own.
 AgentsToolsCommsPrintbackTrackThread(){ ## session
-	local trackName="${1:-}" trackDir="" trackThread=""
+	local trackName="${1:-}" trackThread=""
 	type AgentsToolsRootHarnessKindRead > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.RootHarnessKind.include" || return 1
 	[ "$( AgentsToolsRootHarnessKindRead "$trackName" 2> /dev/null )" = "track" ] || return 1
 	type AgentsToolsSessionChatDir > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include" || return 1
-	trackDir="$( AgentsToolsSessionChatDir "$trackName" 2> /dev/null )" || return 1
-	type AgentsToolsEventTrackThreadRead > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/event-track/AgentsTools.EventTrackThread.include" || return 1
-	trackThread="$( AgentsToolsEventTrackThreadRead "$trackDir" 2> /dev/null )" || trackThread=""
+	AgentsToolsSessionChatDir "$trackName" > /dev/null 2>&1 || return 1
+	type AgentsToolsEventTrackThreadOfInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/event-track/AgentsTools.EventTrackThread.include" || return 1
+	AgentsToolsEventTrackThreadOfInto trackThread "$trackName" 2> /dev/null || trackThread=""
 	[ -n "$trackThread" ] || return 1
 	printf '%s' "$trackThread"
 }

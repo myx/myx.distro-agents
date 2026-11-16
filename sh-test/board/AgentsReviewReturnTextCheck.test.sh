@@ -46,7 +46,10 @@ rigWs="$rigTmp/ws"
 rigData="$rigTmp/data"
 rigScn="$rigTmp/scn"
 rigSpawned="$rigWs/.local/agents/spawned"
-mkdir -p "$rigData/board/running" "$rigData/board/review" "$rigWs/.local/.agents" "$rigWs/.local/temp" \
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-writes.include.sh" || exit 1
+rigOwnerWs="${rigWs:-$rigTmp/ws}" rigOwnerData="${rigData:-${rigD:-${rigStore:-${rigOut:-$rigTmp/data}}}}" rigOwnerHome="${rigHome:-$rigTmp/home}" rigOwnerSkills="${rigSkills:-$rigTmp/skills}"
+rigOwnerBoardReady
+mkdir -p "$rigWs/.local/.agents" "$rigWs/.local/temp" \
 	"$rigSpawned" "$rigTmp/bin" "$rigScn"
 cp "$rigFixtures/slack-send-identity-check.curl.stub.sh" "$rigTmp/bin/curl" || rigRefuse "the fake curl fixture is missing"
 chmod +x "$rigTmp/bin/curl"
@@ -104,8 +107,7 @@ rigRun(){ ## result file, tooling arguments...
 	printf '%s' "$?" > "$runOut.rc"
 }
 rigItem(){ ## state, item stem, spawn id
-	printf -- '---\ntype: dispatch\nowner: keeper-rig\nstatus: dispatch-started\nspawn-id: %s\nreview-by: magic-coordinator\nreview-since-epoch: 1000\n---\n\n# rig dispatch\n' "$3" \
-		> "$rigData/board/$1/$2.md"
+	printf -- '---\ntype: dispatch\nowner: keeper-rig\nstatus: dispatch-started\nspawn-id: %s\nreview-by: magic-coordinator\nreview-since-epoch: 1000\n---\n\n# rig dispatch\n' "$3" | rigOwnerBoardPut "$1" "$2.md"
 }
 rigRecord(){ ## spawn id, session thread
 	mkdir -p "$rigSpawned/$1"

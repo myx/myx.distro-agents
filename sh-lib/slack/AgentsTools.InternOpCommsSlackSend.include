@@ -129,6 +129,9 @@ AgentsToolsCommsSlackUnreachableReport(){ ## the addressees, the sending member
 	[ "$reportHost" != " " ] || return 0
 	## ONE READ OF EVERY RECORD FOR EVERY ADDRESSEE: the records that are still open, a row `<owner> TAB <record>` each. A
 	## record that has closed is no run of anybody's, and its status is the record's own word, read here and nowhere else.
+	local reportAll=()
+	type AgentsToolsSpawnedAllRecordsInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include"
+	AgentsToolsSpawnedAllRecordsInto reportAll
 	reportRecords="$( LC_ALL=C awk -v wanted="$reportHost" '
 		function flush( ) {
 			if ( owner != "" && status == "spawn-started" && index( wanted, " " owner " " ) ) { print owner "\t" record ; }
@@ -140,7 +143,7 @@ AgentsToolsCommsSlackUnreachableReport(){ ## the addressees, the sending member
 		index( $0, "owner: " ) == 1 && owner == "" { owner = substr( $0, 8 ) ; next ; }
 		index( $0, "status: " ) == 1 && status == "" { status = substr( $0, 9 ) ; next ; }
 		END { flush() ; }
-	' "${MMDAPP:-/nonexistent}"/.local/agents/spawned/*/*.spawn.md 2> /dev/null )" || reportRecords=""
+	' ${reportAll[@]+"${reportAll[@]}"} /dev/null 2> /dev/null )" || reportRecords=""
 	## Its own tree, the tooling's one reading of a run's liveness, asked of the records that may still be live: a member
 	## with one is not named, and the rest of its records are never read. The list keeps a blank at each end, so the same
 	## whole-word test finds the first member as the last.
@@ -288,6 +291,7 @@ case "$1" in
 				case "$runDutyThread" in [CDG][A-Z0-9]*:[0-9]*.[0-9]*) ;; *) runDutyThread="" ;; esac
 				local runWhere=""
 				for runWhere in session-current session-parent $runDutyThread human-owner ; do
+					type DistroAgentsToolsResolveTarget > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsResolveTarget.include"
 					DistroAgentsToolsResolveTarget "$runWhere" "$memberName" > /dev/null 2>&1 && break
 					runWhere=""
 				done
@@ -301,6 +305,7 @@ case "$1" in
 		## A SESSION ADDRESS THAT CANNOT BE RESOLVED (session-current or session-parent: an opener that failed, a session with no thread)
 		## falls through to the parent session's thread, the coordinator's duty-session thread, and only then the human-owner's
 		## conversation with the bot, addressed to magic-coordinator: never nowhere, never the channel root.
+		type DistroAgentsToolsResolveTarget > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsResolveTarget.include"
 		if { [ "$target" = "session-current" ] || [ "$target" = "session-parent" ] ; } && ! DistroAgentsToolsResolveTarget "$target" "$memberName" > /dev/null 2>&1 ; then
 			## The coordinator's duty-session thread comes before the human-owner's conversation: that is where it reads its runs.
 			local runDuty="" runDutyThread=""
@@ -651,8 +656,7 @@ blocks|verbatim|caller|stdin file"
 		elif [ -n "$memberUserToken" ] ; then
 			sendIdentity="user"
 		fi
-		## HIS CONVERSATION IS THE BOT'S, NEVER A PERSONA'S (his ruling, 2026-11-10 11:54: three coordinator posts sat unthreaded in the
-		## persona account's own direct message with him): a post under a member's user identity to his account, or into a direct
+		## HIS CONVERSATION IS THE BOT'S, NEVER A PERSONA'S: a post under a member's user identity to his account, or into a direct
 		## conversation whose other party is he, is refused; the same message under --identity-bot reaches his conversation with the team bot.
 		## The send takes the bot itself, so no caller has to know: the line below says what was done. A REPLY IS NOT THIS CASE: a reply goes
 		## into the thread of the message it answers (the team rule), under the identity that is in that conversation, so a send naming a
@@ -1240,8 +1244,7 @@ blocks|verbatim|caller|stdin file"
 			fi
 		fi
 		local escapedText
-		type AgentsToolsMyRoot > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.MyRoot.include"
-		escapedText="$( printf '%s' "$rawText" | LC_ALL=C awk -f "$MYXROOT/include/data/agentMcpJsonEscape.awk" )"
+		escapedText="$( printf '%s' "$rawText" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/mcp/AgentsMcpJsonEscape.awk" )"
 		local payload="{\"channel\":\"$channel\",\"text\":\"$escapedText\""
 		## A new post goes to chat.postMessage. An update (--update-ts) names the message it
 		## edits and goes to chat.update, with none of what only a new post takes.
@@ -1279,7 +1282,7 @@ blocks|verbatim|caller|stdin file"
 			echo "⛔ ERROR: $MDSC_CMD --slack-send-message: no usable Slack token configured for $memberName (member SLACK_USER_TOKEN, the member's own SLACK_BOT_TOKEN, or the team's own SLACK_BOT_TOKEN in magic-team scope)$( AgentsToolsSlackSideNote "$memberName" ) NEXT: this is the setup, not the message -- do not retry; file this line to magic-coordinator with post-inquiry, and carry on with work that needs no Slack." >&2
 			set +e ; return 1
 		fi
-		## HIS WORDS NEVER GO TO A CHANNEL (his ruling, 2026-11-09): a body that carries the human-owner's quoted words, the verbatim marker a
+		## HIS WORDS NEVER GO TO A CHANNEL: a body that carries the human-owner's quoted words, the verbatim marker a
 		## relay of his answer wears, is sent to a direct conversation alone (a D… id: the asker's DM, his own). A channel, public or private, is
 		## read by people his words were not typed for. There is no override: a ruling goes to a channel in the sender's own words.
 		case "${messageText:-$sourceText}" in
@@ -1293,7 +1296,7 @@ blocks|verbatim|caller|stdin file"
 				esac
 			;;
 		esac
-		## NO TALK OF HIM IN A CHANNEL (his ruling, 2026-11-10): a member's own message that names the human-owner, what he said, wrote or asked,
+		## NO TALK OF HIM IN A CHANNEL: a member's own message that names the human-owner, what he said, wrote or asked,
 		## goes to a direct conversation alone (a D… id). A channel is for the work's state and decision, never for who said what and how. There is
 		## no override: the message is said again without him. A send of the tooling's own (MDAT_SEND_FLOOR not `hold`) is not looked at.
 		if [ "${MDAT_SEND_FLOOR:-}" = "hold" ] ; then
@@ -1335,14 +1338,16 @@ blocks|verbatim|caller|stdin file"
 		## A REPEATED MESSAGE IS A LOOP, NOT A CORRECTION (his ruling): the same body to the same place within the half hour is refused unless
 		## --again says the repeat is meant. It is judged after the floor, so a body the floor holds back comes back as its CORRECTION, never as
 		## a repeat; and on the whole body, not its first line, so two asks under one caption are two messages. The last fifty sends of the
-		## run are kept in sessions/<id>/sent.recent as `<epoch>\t<place>\t<cksum of the body>`.
+		## run are kept by the session store (AgentsSessionSentRecentAdd) as `<epoch>\t<place>\t<cksum of the body>`.
 		local sentBody="${messageText:-$sourceText}"
 		if [ -z "$sendAgain" ] && [ -n "${MDAT_SPAWN_SESSION_ID:-}" ] && [ -n "$sentBody" ] ; then
-			local sentRecent="$MMDAPP/.local/agents/sessions/$MDAT_SPAWN_SESSION_ID/sent.recent" sentKey sentAt sentTo sentText sentSum sentNow
+			local sentRecent="" sentKey sentAt sentTo sentText sentSum sentNow
+			type AgentsSessionSentRecentInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+			AgentsSessionSentRecentInto sentRecent "$MDAT_SPAWN_SESSION_ID"
 			sentSum="$( printf '%s' "$sentBody" | LC_ALL=C cksum )" ; sentSum="${sentSum%% *}"
 			sentKey="${channel}:${threadTs}"
 			sentNow="${ownerNow:-$( date +%s )}"
-			if [ -f "$sentRecent" ] ; then
+			if [ -n "$sentRecent" ] ; then
 				while IFS=$'\t' read -r sentAt sentTo sentText ; do
 					[ "$sentTo" = "$sentKey" ] && [ "$sentText" = "$sentSum" ] || continue
 					case "$sentAt" in ''|*[!0-9]*) continue ;; esac
@@ -1350,9 +1355,9 @@ blocks|verbatim|caller|stdin file"
 						echo "⛔ ERROR: $MDSC_CMD --slack-send-message: the same message was sent to $sentKey $(( ( sentNow - sentAt ) / 60 )) minutes ago: a repeat is a loop, not a correction. Say the new thing, or pass --again where the repeat is meant. Nothing was posted." >&2
 						set +e ; return 1
 					fi
-				done < "$sentRecent"
+				done <<< "$sentRecent"
 			fi
-			{ [ ! -f "$sentRecent" ] || tail -n 49 "$sentRecent" ; printf '%s\t%s\t%s\n' "$sentNow" "$sentKey" "$sentSum" ; } > "$sentRecent.tmp" 2> /dev/null && mv -f "$sentRecent.tmp" "$sentRecent" 2> /dev/null || :
+			AgentsSessionSentRecentAdd "$MDAT_SPAWN_SESSION_ID" "$sentNow" "$sentKey" "$sentSum"
 		fi
 		## Token on curl's stdin, never argv -- keeps it out of ps. Reassigned
 		## in place at the identity swap below, as the header file was rewritten.
@@ -1503,7 +1508,8 @@ blocks|verbatim|caller|stdin file"
 				echo "SENT_MESSAGE_THREAD_TS=$threadTs" >&2
 				## The reply the member owed here is answered (AgentsTools.OwedReplies.include).
 				type AgentsToolsOwedRepliesClear > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.OwedReplies.include"
-				! type AgentsToolsOwedRepliesClear > /dev/null 2>&1 || AgentsToolsOwedRepliesClear "$memberName" slack "$channel" "$threadTs"
+				type AgentsToolsOwedRepliesClear > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.OwedReplies.include"
+				AgentsToolsOwedRepliesClear "$memberName" slack "$channel" "$threadTs"
 				echo "SENT_MESSAGE_LOCAL=$chatKey:$chatNo" >&2
 				echo "SENT_MESSAGE_ADDRESSEES=${addressedIds% }" >&2
 				[ -z "$addressedMembers" ] || echo "SENT_MESSAGE_ADDRESSEE_MEMBERS=${addressedMembers% }" >&2
@@ -1511,7 +1517,7 @@ blocks|verbatim|caller|stdin file"
 				echo "# $MDSC_CMD --slack-send-message: queued as block $chatNo of session $chatKey; the comms reader posts it to $channel:$threadTs" >&2
 				AgentsToolsSlackSendLogLine ok "queued block $chatNo for the comms reader"
 				if [ -n "$wakeMember$addressedMembers" ] ; then
-					type AgentsToolsWakeTouch > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.WakeMarker.include"
+					type AgentsToolsWakeTouch > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/wait/AgentsTools.WakeMarker.include"
 					[ -z "$wakeMember" ] || AgentsToolsWakeTouch "$wakeMember" "$memberName" || :
 					## A post into a thread, addressed to a member there, wakes it within a tick, the same as its own DM
 					## does (load incident: a coordinator post addressed to magic-tester in its thread never woke a
@@ -1706,7 +1712,8 @@ blocks|verbatim|caller|stdin file"
 				echo "SENT_MESSAGE_THREAD_TS=$sentThreadTs" >&2
 				## The reply the member owed here is answered (AgentsTools.OwedReplies.include).
 				type AgentsToolsOwedRepliesClear > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.OwedReplies.include"
-				! type AgentsToolsOwedRepliesClear > /dev/null 2>&1 || AgentsToolsOwedRepliesClear "$memberName" slack "$channel" "${sentThreadTs:-$threadTs}"
+				type AgentsToolsOwedRepliesClear > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.OwedReplies.include"
+				AgentsToolsOwedRepliesClear "$memberName" slack "$channel" "${sentThreadTs:-$threadTs}"
 			else
 				echo "SENT_MESSAGE_CHANNEL=" >&2
 				echo "SENT_MESSAGE_TS=" >&2
@@ -1731,7 +1738,7 @@ blocks|verbatim|caller|stdin file"
 			## arrival, and a post naming no member at all has none to wake. Quiet and best effort: the message is
 			## posted, and the marker only shortens the wait for it.
 			if [ -n "$wakeMember$addressedMembers" ] && [ -z "$updateTs" ] ; then
-				type AgentsToolsWakeTouch > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.WakeMarker.include"
+				type AgentsToolsWakeTouch > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/wait/AgentsTools.WakeMarker.include"
 				[ -z "$wakeMember" ] || AgentsToolsWakeTouch "$wakeMember" "$memberName" || :
 				for wakeAddressed in $addressedMembers ; do [ "$wakeAddressed" = "$wakeMember" ] || AgentsToolsWakeTouch "$wakeAddressed" "$memberName" || : ; done
 			fi

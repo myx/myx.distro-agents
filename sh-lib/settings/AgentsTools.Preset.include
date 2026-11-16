@@ -44,7 +44,7 @@ type AgentsSettingsScopeHas > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-a
 type AgentsToolsAssertBareName > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.BareName.include"
 
 ## The keys of a preset's block that are not credentials, in the order they are listed.
-agentsPresetKeys="PRESET_EXTEND PRESET_CLI_SERVICE PRESET_ENDPOINT_URL PRESET_MODEL_OR_MACRO PRESET_EFFORT PRESET_INPUT_CACHE_TIME PRESET_CONTEXT_MAX_SIZE PRESET_EXTRA_SPAWN_LINE"
+agentsPresetKeys="PRESET_EXTEND PRESET_CLI_SERVICE PRESET_ENDPOINT_URL PRESET_MODEL_OR_MACRO PRESET_EFFORT PRESET_INPUT_CACHE_TIME PRESET_MODEL_TAKES_IMAGES PRESET_CONTEXT_MAX_SIZE PRESET_EXTRA_SPAWN_LINE"
 ## The CLI services a preset may name, the owner's list.
 agentsPresetCliServices="claude copilot grok gemini scaleway standard-v1 deepseek local claude-native copilot-native grok-native"
 ## The macros of the model, and the ONE list of the values of the effort: `unset` is the service's own default, and it is
@@ -344,6 +344,9 @@ AgentsToolsPresetWriteCheck(){ ## workspace root, scope, operation, key, value (
 		PRESET_INPUT_CACHE_TIME)
 			AgentsToolsPresetIsOneOf "$checkValue" "$agentsPresetCacheTimes" || { AgentsToolsPresetRefuse "PRESET_INPUT_CACHE_TIME is one of: ${agentsPresetCacheTimes// /, }" ; return 1 ; }
 		;;
+		PRESET_MODEL_TAKES_IMAGES)
+			AgentsToolsPresetIsOneOf "$checkValue" "on off" || { AgentsToolsPresetRefuse "PRESET_MODEL_TAKES_IMAGES is on or off, nothing else" ; return 1 ; }
+		;;
 		PRESET_CONTEXT_MAX_SIZE)
 			case "$checkValue" in ''|0*|*[!0123456789]*|??????????*) AgentsToolsPresetRefuse "$checkKey is a whole number from 1, in digits alone" ; return 1 ;; esac
 		;;
@@ -636,6 +639,11 @@ AgentsToolsPresetOverlay(){ ## spawn setting key
 		HARNESS_INPUT_CACHE_TIME)
 			## The lifetime the cache markers of the run ask for, the preset's own or the one it inherits: nothing printed is the provider's.
 			ovValue="$( AgentsToolsPresetEffective "$ovRoot" "$ovName" PRESET_INPUT_CACHE_TIME 2> /dev/null )" || ovValue=""
+			[ -z "$ovValue" ] || printf '%s\n' "$ovValue"
+		;;
+		HARNESS_MODEL_TAKES_IMAGES)
+			## Whether the model of the preset takes image parts, on or off: nothing printed is off (Read keeps its text answer).
+			ovValue="$( AgentsToolsPresetEffective "$ovRoot" "$ovName" PRESET_MODEL_TAKES_IMAGES 2> /dev/null )" || ovValue=""
 			[ -z "$ovValue" ] || printf '%s\n' "$ovValue"
 		;;
 		PRESET_CONTEXT_MAX_SIZE)

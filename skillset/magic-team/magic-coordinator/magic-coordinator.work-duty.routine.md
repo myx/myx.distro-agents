@@ -55,6 +55,7 @@ The Opening steps of its session kind run first. Then:
    - a check that times out on both the old and the new tree compares nothing: drop it from the gate as not measurable under load.
    - a defect: return the item with the exact files, lines and change, and the instruction to land it without stopping. Code that re-enters a command script for an internal step that has its own include is always a defect.
    - sound work: accept the item. Then move each proven epic item to Done at once, with its evidence in one line (`--epic-update <epic-file> --set-status <feature-id> done`), and validate the epic (`--intern-doc-validate`).
+   - a handback whose deliverable is staged source: leave it in `board-review` for the run that lands it. That run accepts it after the landing, naming the landing.
    - a handback that closes one round of an item still open: accept the round in the session thread. Then send the session on to the next round.
 5. **check-process-board**: run `check-process-board` against this round's read.
 6. **start-pending**: start decided `board-pending` work, steps:

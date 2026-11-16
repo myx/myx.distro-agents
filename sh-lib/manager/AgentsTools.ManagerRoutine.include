@@ -289,7 +289,8 @@ AgentsToolsManagerRoutineRows(){ ## the operation as it was called
 			rowsAuto="no"
 			case "$rowsRunsAt" in ''|none) ;; *) rowsAuto="yes" ;; esac
 			## Valid: the words of the first row of the validator that refuses (a row of a report- rule refuses nothing; its rule and its place stand ahead of them).
-			rowsFault="$( set -- --intern-doc-validate routine "$rowsFile" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.InternDocValidate.include"| LC_ALL=C grep -v -e '^[^ ]*:[0-9]*: report-' | LC_ALL=C sed -n '1s/^[^ ]*:[0-9]*: [^ ]*: //p' )" || rowsFault=""
+			type AgentsToolsDocValidateRoutineFault > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.DocValidateRuleSets.include"
+			rowsFault="$( AgentsToolsDocValidateRoutineFault "$rowsFile" )" || rowsFault=""
 			rowsValid="yes" ; [ -z "$rowsFault" ] || rowsValid="no:$rowsFault"
 			## Would start now: what the spawner would not start, then the evaluator against a fresh spawn (no item attached, a spawned start), then the window of the autorun.
 			rowsWould="yes"

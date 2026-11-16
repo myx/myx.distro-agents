@@ -43,6 +43,16 @@ done
 for rigEntry in "$MDLT_ORIGIN/myx"/* ; do
 	[ "${rigEntry##*/}" = mdci-packages-myx ] || rigCopyTree "$rigEntry" "$rigOrigin/myx/${rigEntry##*/}"
 done
+## The distro tooling's own command for the declares, stood in for: the rig owns the declares it plants ($RIG_STATE/declares,
+## `<project> <declaration>` a row) and never writes the tooling's index. The rig's origin is a copy, so the real command stays as it is.
+cat > "$rigOrigin/myx/myx.distro-system/sh-scripts/ListDistroDeclares.fn.sh" <<'SH'
+#!/usr/bin/env bash
+ListDistroDeclares(){
+	[ "$1" = --all-filter-and-cut ] && [ -f "$RIG_STATE/declares" ] || return 0
+	LC_ALL=C awk -v f="${2%:}:" 'index( $2, f ) == 1 { print $1 " " substr( $2, length( f ) + 1 ) }' "$RIG_STATE/declares"
+}
+case "$0" in */ListDistroDeclares.fn.sh) ListDistroDeclares "$@" ;; esac
+SH
 rigMake(){ ## file, text... -- an executable stand-in
 	local makeFile="$1" ; shift
 	printf '%s\n' "$@" > "$makeFile" ; chmod +x "$makeFile"
@@ -116,17 +126,17 @@ rigToolKept="$rigTool" ; rigTool="$rigLocalTool" ; rigRun "" --manager-feature-l
 rigAssert "DistroLocalTools --manager-feature-list ends 0 and prints the rows the agents tool printed (S7.25)" "$rigRc $( cmp -s "$rigTmp/out" "$rigTmp/out.agents" && printf same || printf differ )" "0 same"
 ## The rows and the calls of the agents run stand again, so what follows reads that run alone.
 cp "$rigTmp/out.agents" "$rigTmp/out" ; cp "$rigTmp/calls.agents" "$rigState/calls"
-## S7.1: a feature that declares itself, in a folder that is no setup.feature-*, is listed through the declares index of the workspace, from its own folder,
-## and is not listed where the workspace has no index. The index is planted as the system build writes it, `<project> <declaration>` a row.
+## S7.1: a feature that declares itself, in a folder that is no setup.feature-*, is listed through the distro tooling's declares,
+## from its own folder, and is not listed where the distro declares none.
 rigExtra="$rigOrigin/myx/mdci-packages-myx/feature.extra"
-mkdir -p "$rigExtra/host/install" "$rigExtra/data" "$rigWs/.local/system-index"
+mkdir -p "$rigExtra/host/install" "$rigExtra/data"
 rigMake "$rigExtra/host/install/feature-extra.check.txt" '#!/bin/sh' 'echo "CHECK extra FILES=${MDCI_FILES_PATH:-}" >> "$RIG_STATE/calls"' 'printf "extra: installed\nplatform: rig\n"' 'exit 0'
-printf 'myx/mdci-packages-myx/feature.extra mdci-installable:feature:feature.extra\nmyx/mdci-packages-myx/setup.feature-lancedb mdci-installable:feature:setup.feature-lancedb\n' > "$rigWs/.local/system-index/distro-declares.txt"
+printf 'myx/mdci-packages-myx/feature.extra mdci-installable:feature:feature.extra\nmyx/mdci-packages-myx/setup.feature-lancedb mdci-installable:feature:setup.feature-lancedb\n' > "$rigState/declares"
 rigRun "" --manager-feature-list
 rigAssert "a declared feature is listed, from its own folder, and the declared lancedb once" "$rigRc $( LC_ALL=C awk -F'\t' '$1 == "feature" { print $2 }' "$rigTmp/out" | LC_ALL=C sort | LC_ALL=C tr '\n' ' ' ) $( LC_ALL=C grep -c 'CHECK extra FILES=.*/feature.extra/data' "$rigState/calls" )" "0 feature.extra setup.feature-lancedb setup.feature-local-ai  1"
-rm -f "$rigWs/.local/system-index/distro-declares.txt"
+rm -f "$rigState/declares"
 rigRun "" --manager-feature-list
-rigAssert "with no index the folders alone are listed: the extra feature is not among them" "$rigRc $( LC_ALL=C awk -F'\t' '$1 == "feature" { print $2 }' "$rigTmp/out" | LC_ALL=C sort | LC_ALL=C tr '\n' ' ' )" "0 setup.feature-lancedb setup.feature-local-ai "
+rigAssert "with no declares the folders alone are listed: the extra feature is not among them" "$rigRc $( LC_ALL=C awk -F'\t' '$1 == "feature" { print $2 }' "$rigTmp/out" | LC_ALL=C sort | LC_ALL=C tr '\n' ' ' )" "0 setup.feature-lancedb setup.feature-local-ai "
 rm -rf "$rigExtra"
 rigReset
 rigRun "" --manager-feature-list
@@ -279,10 +289,10 @@ rigAssert "https is taken as before, and ftp is not" "$( rigEndpointRc https://a
 
 echo "-- 6. the caller rule, the place in the family, the help --"
 rigReset
-rigPre=( "MDAT_SPAWN_AGENT=magic-coordinator" )
+rigPre=( "MDAT_SPAWN_AGENT=keeper-rig" )
 for rigOp in --manager-feature-list "--manager-feature-part install $rigAi_ stt-a --yes" ; do
 	rigRun "" $rigOp
-	rigAssert "from inside a member's session it is refused in the one line of the family, and nothing is called: ${rigOp%% *}" "$rigRc $( wc -c < "$rigTmp/out" | LC_ALL=C tr -d ' ' ) $( rigErr "this session acts as magic-coordinator, and a --manager-* operation is the console's own, never run from inside a member's session" ) [$( rigCalls )]" "1 0 1 []"
+	rigAssert "from inside a member's session it is refused in the one line of the family, and nothing is called: ${rigOp%% *}" "$rigRc $( wc -c < "$rigTmp/out" | LC_ALL=C tr -d ' ' ) $( rigErr "this session acts as keeper-rig, and a --manager-* operation is the console's own, never run from inside a member's session" ) [$( rigCalls )]" "1 0 1 []"
 done
 rigPre=()
 rigRun "" --manager-feature-nothing

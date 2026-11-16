@@ -88,11 +88,11 @@ if ! type AgentsToolsUndoKinds >/dev/null 2>&1 ; then
 
 	## The board state folder holding an item, or empty where none does.
 	AgentsToolsUndoItemState(){ ## item filename
-		local undoStateName
-		for undoStateName in running pending review backlog blocked parked processed archived retained ; do
-			[ ! -f "${MDAT_DATA_ROOT:-/nonexistent}/board/$undoStateName/$1" ] || { printf '%s' "$undoStateName" ; return 0 ; }
-		done
-		return 0
+		local undoItemPath
+		type AgentsToolsBoardItemInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemDecisions.include"
+		AgentsToolsBoardItemInto undoItemPath "$1" || return 0
+		undoItemPath="${undoItemPath%/*}"
+		printf '%s' "${undoItemPath##*/}"
 	}
 
 	## Why a record's inverse cannot be taken now, or empty where it can. A file act is taken only

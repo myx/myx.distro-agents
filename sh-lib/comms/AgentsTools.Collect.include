@@ -128,7 +128,9 @@ AgentsToolsCollectItemWrite(){ ## member, item name, channel id, block file
 	} | DistroAgentsTools --intern-op-member-inbox-upsert "$itemMember" "$itemName" --no-commit --context --intern-op-collect-sources > /dev/null 2> "$itemErr" || itemRc=$?
 	LC_ALL=C grep -e 'WARNING' -e 'ERROR' -e 'nothing was written' -e 'contract-' "$itemErr" >&2 || :
 	rm -f "$itemErr"
-	[ "$itemRc" -ne 0 ] || agentsCollectWritten+=( "$MDAT_DATA_ROOT/inboxes/$itemMember/incoming/$itemName" )
+	local itemPath=""
+	type AgentsToolsInboxItemInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/inbox/AgentsTools.InboxPlace.include"
+	[ "$itemRc" -ne 0 ] || { AgentsToolsInboxItemInto itemPath "$itemMember" "$itemName" && agentsCollectWritten+=( "$itemPath" ) ; }
 	return "$itemRc"
 }
 
@@ -151,8 +153,11 @@ AgentsToolsCollectCommit(){ ## what, push (yes|no)
 AgentsToolsCollectKnown(){ ## kind, member
 	local knownKind="$1" knownMember="$2" knownFile knownId knownOut="" knownMark="-email-u"
 	[ "$knownKind" = "trello" ] && knownMark="-trello-"
-	for knownFile in "$MDAT_DATA_ROOT/inboxes/$knownMember/incoming"/note-*"$knownMark"*.md "$MDAT_DATA_ROOT/inboxes/$knownMember/processed"/note-*"$knownMark"*.md ; do
-		[ -e "$knownFile" ] || continue
+	type AgentsToolsInboxFilesInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/inbox/AgentsTools.InboxPlace.include"
+	local knownFiles=()
+	AgentsToolsInboxFilesInto knownFiles "$knownMember" yes
+	for knownFile in ${knownFiles[@]+"${knownFiles[@]}"} ; do
+		case "${knownFile##*/}" in note-*"$knownMark"*.md) ;; *) continue ;; esac
 		knownId="${knownFile##*"$knownMark"}" ; knownId="${knownId%.md}"
 		knownOut="$knownOut $knownId"
 	done
@@ -168,8 +173,11 @@ AgentsToolsCollectBlocks(){ ## kind, member, since, cap, blocks variable, total 
 	[ "$blkKind" = "trello" ] && blkMark="-trello-"
 	## The notes by the shell's own glob, sorted in the byte order a sort of the names gave: no ls and no sort, no process a collect.
 	local LC_COLLATE=C
-	for blkFile in "$MDAT_DATA_ROOT/inboxes/$blkMember/incoming"/note-*"$blkMark"*.md ; do
-		[ -f "$blkFile" ] || continue
+	type AgentsToolsInboxFilesInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/inbox/AgentsTools.InboxPlace.include"
+	local blkFiles=()
+	AgentsToolsInboxFilesInto blkFiles "$blkMember" no
+	for blkFile in ${blkFiles[@]+"${blkFiles[@]}"} ; do
+		case "${blkFile##*/}" in note-*"$blkMark"*.md) ;; *) continue ;; esac
 		blkName="${blkFile##*/}" ; blkDate="${blkName#note-}" ; blkDate="${blkDate%%T*}"
 		if [ -n "$blkSince" ] && [ "$blkDate" \< "$blkSince" ] ; then continue ; fi
 		blkTotal=$(( blkTotal + 1 ))
@@ -388,7 +396,8 @@ AgentsToolsCollectEnsure(){ ## member, kind, since (dd-Mon-yyyy, or empty)
 	## What the check says is of no use to the scan, and its failure no fault of it.
 	local ensureLine="$agentsCollectLine" ensureNew="$agentsCollectNew" ensureWhy="$agentsCollectWhy"
 	type AgentsToolsCollectThreadCheck > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CollectThread.include"
-	! type AgentsToolsCollectThreadCheck > /dev/null 2>&1 || AgentsToolsCollectThreadCheck scan "$1" > /dev/null 2>&1 || :
+	type AgentsToolsCollectThreadCheck > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CollectThread.include"
+	AgentsToolsCollectThreadCheck scan "$1" > /dev/null 2>&1 || :
 	agentsCollectLine="$ensureLine" ; agentsCollectNew="$ensureNew" ; agentsCollectWhy="$ensureWhy"
 	return "$ensureRc"
 }

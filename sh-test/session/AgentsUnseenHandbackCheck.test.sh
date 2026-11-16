@@ -6,6 +6,7 @@
 ## Offline: a Slack-shaped fake curl logs each post and opens no socket; the workspace and board are
 ## this rig's own temp tree.
 set -u
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-store.include.sh" || exit 1
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 rigPkg="${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}/myx/myx.distro-agents"
 rigHouse="$rigPkg/sh-lib/board/AgentsTools.BoardHousekeeping.include"
@@ -22,7 +23,8 @@ rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
 rigWs="$rigTmp/ws"
 rigData="$rigTmp/data"
-mkdir -p "$rigWs/.local/.agents" "$rigData/board/review" "$rigData/board/running" "$rigData/board/processed" "$rigTmp/bin"
+mkdir -p "$rigWs/.local/.agents" "$rigTmp/bin"
+rigBoardStates "$rigData" review running processed
 cp "$rigFixture" "$rigTmp/bin/curl" && chmod +x "$rigTmp/bin/curl" || rigRefuse "could not install the fake curl"
 printf 'SLACK_CHANNEL_MAGIC_TEAM=CRIG00001\nSLACK_CHANNEL_HUMAN_OWNER=URIGOWNER\nSLACK_BOT_TOKEN=rig-bot-token-TEAM\nREVIEW_WAIT_LIMIT=60\n' > "$rigWs/.local/.agents/magic-team.agent.env"
 printf '{"ok":true,"messages":[{"ts":"1700000002.000100","user":"URIGBOT01","text":"opened"}],"has_more":false}\n' > "$rigTmp/replies.json"
@@ -48,7 +50,7 @@ rigAssert(){ ## what is asserted, got, want
 }
 rigItem(){ ## item stem, review-by, review-since-epoch
 	printf -- '---\ntype: dispatch\nowner: keeper-myx\nstatus: dispatch-review\nreview-by: %s\nreview-since-epoch: %s\n---\n\n# rig dispatch\n\n## Decisions\n\n' \
-		"$2" "$3" > "$rigData/board/review/$1.md"
+		"$2" "$3" | rigStoreItem "$rigData" board review $1.md
 }
 rigScan(){ ## the scan the advance pass runs, as one call
 	env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp" PATH="$rigTmp/bin:/usr/bin:/bin:/usr/sbin:/sbin" \

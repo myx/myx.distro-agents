@@ -27,7 +27,7 @@ trap '[ -n "${KEEP_RIG:-}" ] || rm -rf -- "$rigTmp"' EXIT
 rigData="$rigTmp/data"
 rigWs="$rigTmp/ws"
 rigSpawned="$rigWs/.local/agents/spawned"
-mkdir -p "$rigData/board/review" "$rigData/board/processed" "$rigWs/.local/.agents" "$rigSpawned" "$rigTmp/bin"
+mkdir -p "$rigWs/.local/.agents" "$rigSpawned" "$rigTmp/bin"
 cp "$rigFixture" "$rigTmp/bin/curl" && chmod +x "$rigTmp/bin/curl" || rigRefuse "could not install the fake curl"
 ## THE RIG'S OWN PROCESS LIST. A spawn is found running by a process list read from the host
 ## (ps -A). A rig that read the real one would take whatever command line of this host holds
@@ -60,6 +60,9 @@ rigHost="$( hostname -s 2>/dev/null )" || rigHost="unknown"
 
 rigPassCount=0
 rigFailCount=0
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-writes.include.sh" || exit 1
+rigOwnerWs="${rigWs:-$rigTmp/ws}" rigOwnerData="${rigData:-${rigD:-${rigStore:-${rigOut:-$rigTmp/data}}}}" rigOwnerHome="${rigHome:-$rigTmp/home}" rigOwnerSkills="${rigSkills:-$rigTmp/skills}"
+rigOwnerBoardReady
 rigAssert(){ ## what is asserted, got, want
 	if [ "$2" = "$3" ] ; then
 		printf '  PASS  %s\n' "$1" ; rigPassCount=$(( rigPassCount + 1 ))
@@ -101,7 +104,7 @@ rigAcceptHelper(){ ## result file, item filename, from state, member
 }
 rigItem(){ ## state, item filename, spawn-id or empty
 	printf -- '---\ntype: dispatch\nowner: keeper-myx\nstatus: dispatch-succeeded\n%s---\n\n# rig dispatch\n' "${3:+spawn-id: $3
-}" > "$rigData/board/$1/$2"
+}" | rigOwnerBoardPut "$1" "$2"
 }
 rigRecord(){ ## spawn-id, status, host, session-thread or empty
 	mkdir -p "$rigSpawned/$1" "$rigWs/.local/agents/sessions/$1"

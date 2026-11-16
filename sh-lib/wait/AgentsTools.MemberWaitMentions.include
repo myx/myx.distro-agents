@@ -22,7 +22,7 @@ AgentsWaitOtherLiveThreads(){ ## member, session to exclude
 	local rowTracking rowSession rowParent rowHost rowOwner rowStatus rowExit rowSpawn rowAgentLog rowThread rowWorkspace rowLive rowState rowRest
 	local measuredRows="" measuredDated="" measuredAny=""
 	[ -n "$otherMember" ] && [ -d "$otherStore" ] || return 0
-	type AgentsToolsRegistryMeasureRows > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.RegistrySpawnedSessions.include"
+	type AgentsToolsRegistryMeasureRows > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.RegistrySpawnedSessions.include"
 	type AgentsToolsRegistryRowsEntry > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
 	## THE EXCLUDED SESSION'S OWN THREAD, whatever session-id names it: a session the exclusion's own id does not
 	## match (a child spawned into the same thread, a resumed run under a second record) still carries the SAME
@@ -33,7 +33,7 @@ AgentsWaitOtherLiveThreads(){ ## member, session to exclude
 	## THE MEMBER'S RECORDS AMONG THE STARTED ONES (call-path audit row 33): a run that is alive has a record in status spawn-started,
 	## so the kept list of those (AgentsTools.StartedRecords.include) is the whole population; each header is read by the shell up
 	## to its owner line or its closing fence. No grep over every record of the store on a round.
-	type AgentsToolsSpawnedStartedRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.StartedRecords.include"
+	type AgentsToolsSpawnedStartedRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include"
 	local otherLine otherFence otherOwnerIs
 	otherNames=""
 	while IFS= read -r otherFile ; do
@@ -138,7 +138,8 @@ AgentsWaitProbeMentions(){
 	[ ! -e "$probeOut.newest" ] || rm -f "$probeOut.newest"
 	type AgentsToolsSessionChatKeyInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include" || return 2
 	AgentsToolsSessionChatKeyInto ; probeKey="$agentsSessionChatKey"
-	[ -n "$probeKey" ] && [ -d "$MMDAPP/.local/agents/sessions/$probeKey" ] || probeKey=""
+	type AgentsSessionKnown > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+	AgentsSessionKnown "$probeKey" || probeKey=""
 	probeNow="${agentsWaitRoundNow:-$( date +%s )}"
 	probeTtl="$( AgentsWaitTtlOf "mentions:$probeMember" )"
 	## The TTL across calls: a check inside it is no check now.
@@ -297,7 +298,8 @@ AgentsWaitMentionsCommit(){ ## member, the file holding the newest ts
 	[ -n "$commitTs" ] || return 0
 	type AgentsToolsSessionChatKeyInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include"
 	AgentsToolsSessionChatKeyInto ; commitKey="$agentsSessionChatKey"
-	if [ -n "$commitKey" ] && [ -d "$MMDAPP/.local/agents/sessions/$commitKey" ] ; then
+	type AgentsSessionKnown > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+	if AgentsSessionKnown "$commitKey" ; then
 		AgentsToolsSessionChatPointerSet "$commitKey" "mentions:$1" "$commitTs"
 	else
 		printf '%s\n' "$commitTs" > "${2%.newest}.pointer" 2> /dev/null || :
@@ -352,7 +354,7 @@ AgentsWaitProbeTagged(){
 	if [ "${agentsWaitTeamChannelFor:-}" = "$probeMember" ] ; then
 		probeTeamChannel="${agentsWaitTeamChannel:-}"
 	else
-		type DistroAgentsToolsResolveTarget > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/slack/AgentsTools.CommsSlack.include"
+		type DistroAgentsToolsResolveTarget > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsResolveTarget.include"
 		probeTeamChannel="$( DistroAgentsToolsResolveTarget magic-team "$probeMember" 2> /dev/null | LC_ALL=C sed -n 's/^CHANNEL=//p' )" || probeTeamChannel=""
 		agentsWaitTeamChannel="$probeTeamChannel" agentsWaitTeamChannelFor="$probeMember"
 	fi

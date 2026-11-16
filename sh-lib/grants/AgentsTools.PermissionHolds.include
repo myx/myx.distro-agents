@@ -236,7 +236,9 @@ AgentsToolsPermissionFloorRoots(){ ## workspace, member, read|write, session id 
 	case "$floorSession" in
 		''|*/*|.|..) ;;
 		*)
-			for floorRecord in "$floorWs/.local/agents/spawned"/*/"$floorSession.spawn.md" ; do
+			type AgentsSessionRunRecordInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+			AgentsSessionRunRecordInto floorRecord "$floorSession" "$floorWs" || :
+			for floorRecord in ${floorRecord:+"$floorRecord"} ; do
 				[ -f "$floorRecord" ] || continue
 				[ "$( AgentsToolsPermissionField "$floorRecord" owner )" = "$floorMember" ] || continue
 				floorDir="${floorRecord%/*}"
@@ -339,7 +341,9 @@ AgentsToolsPermissionField(){ ## file, field
 AgentsToolsPermissionShareStore(){ ## session id
 	local shareRecord shareSession=""
 	case "$1" in ''|*/*|.|..) return 0 ;; esac
-	for shareRecord in "${MMDAPP:-}/.local/agents/spawned"/*/"$1.spawn.md" ; do
+	type AgentsSessionRunRecordInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+	AgentsSessionRunRecordInto shareRecord "$1" || :
+	for shareRecord in ${shareRecord:+"$shareRecord"} ; do
 		[ -f "$shareRecord" ] || continue
 		shareSession="$( AgentsToolsPermissionField "$shareRecord" session-id )"
 		break
@@ -355,7 +359,9 @@ AgentsToolsPermissionShareStore(){ ## session id
 AgentsToolsPermissionRelatedStores(){ ## session id
 	local relRecord relCow="" relParent=""
 	case "$1" in ''|*/*|.|..) return 0 ;; esac
-	for relRecord in "${MMDAPP:-}/.local/agents/spawned"/*/"$1.spawn.md" ; do
+	type AgentsSessionRunRecordInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+	AgentsSessionRunRecordInto relRecord "$1" || :
+	for relRecord in ${relRecord:+"$relRecord"} ; do
 		[ -f "$relRecord" ] || continue
 		relCow="$( AgentsToolsPermissionField "$relRecord" session-id )"
 		relParent="$( AgentsToolsPermissionField "$relRecord" parent-spawn-id )"
@@ -486,7 +492,9 @@ AgentsToolsPermissionGrantLayer(){ ## ref
 AgentsToolsPermissionSessionRoutine(){ ## session id
 	local srSession="$1" srRecord srCow="" srRoutine=""
 	case "$srSession" in ''|*/*|.|..) return 0 ;; esac
-	for srRecord in "${MMDAPP:-}/.local/agents/spawned"/*/"$srSession.spawn.md" ; do
+	type AgentsSessionRunRecordInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+	AgentsSessionRunRecordInto srRecord "$srSession" || :
+	for srRecord in ${srRecord:+"$srRecord"} ; do
 		[ -f "$srRecord" ] || continue
 		srRoutine="$( AgentsToolsPermissionField "$srRecord" routine )"
 		srCow="$( AgentsToolsPermissionField "$srRecord" session-id )"
@@ -501,7 +509,9 @@ AgentsToolsPermissionSessionRoutine(){ ## session id
 		case "$srCow" in
 			*/*|.|..) ;;
 			*)
-				for srRecord in "${MMDAPP:-}/.local/agents/spawned"/*/"$srCow.spawn.md" ; do
+				type AgentsSessionRunRecordInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+				AgentsSessionRunRecordInto srRecord "$srCow" || :
+				for srRecord in ${srRecord:+"$srRecord"} ; do
 					[ -f "$srRecord" ] || continue
 					srRoutine="$( AgentsToolsPermissionField "$srRecord" routine )"
 					break
@@ -974,7 +984,9 @@ AgentsToolsPermissionParticipants(){ ## session id (may be empty), task item (ma
 			case "$partSession" in */*|.|..) partSession="" ;; esac
 		fi
 		if [ -n "$partSession" ] && [ -n "${MMDAPP:-}" ] ; then
-			for partRecord in "$MMDAPP/.local/agents/spawned"/*/"$partSession.spawn.md" ; do
+			type AgentsSessionRunRecordInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+			AgentsSessionRunRecordInto partRecord "$partSession" || :
+			for partRecord in ${partRecord:+"$partRecord"} ; do
 				[ -f "$partRecord" ] || continue
 				partCow="$( AgentsToolsPermissionField "$partRecord" session-id )"
 				partParent="$( AgentsToolsPermissionField "$partRecord" parent-spawn-id )"
@@ -984,7 +996,7 @@ AgentsToolsPermissionParticipants(){ ## session id (may be empty), task item (ma
 			## record on a gate call (AgentsTools.StartedRecords.include): the coworking session's and this
 			## session's own records, this run's record, the runs it spawned, and its parent's record. The
 			## selection below then runs over those files alone, and decides as it always did.
-			type AgentsToolsSpawnedSessionRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.StartedRecords.include"
+			type AgentsToolsSpawnedSessionRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include"
 			while IFS= read -r partRecord ; do
 				[ -n "$partRecord" ] && [ -f "$partRecord" ] || continue
 				partFiles+=( "$partRecord" )

@@ -18,9 +18,9 @@ AgentsToolsSpawnProxyRootMarkTarget(){ ## session id
 	local markSession="$1" markTarget=""
 	case "$markSession" in ''|-|.|..|*/*) return 1 ;; esac
 	[ -n "${MMDAPP:-}" ] || return 1
-	if [ -s "$MMDAPP/.local/agents/sessions/$markSession/session.thread" ] ; then
-		IFS= read -r markTarget < "$MMDAPP/.local/agents/sessions/$markSession/session.thread" || :
-	fi
+	type AgentsSessionThread > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include" || return 1
+	markTarget="$( AgentsSessionThread "$markSession" )"
+	type AgentsToolsSpawnConversationThreadValid > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionThreads.include" || return 1
 	AgentsToolsSpawnConversationThreadValid "$markTarget" || return 1
 	type AgentsToolsEventTrackThreadIs > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/event-track/AgentsTools.EventTrackThread.include" || return 1
 	AgentsToolsEventTrackThreadIs "$markTarget" && return 1
@@ -31,34 +31,38 @@ AgentsToolsSpawnProxyRootMarkTarget(){ ## session id
 ## `root.end`. A reaction that does not land leaves the want as it is, whole, so the next pass places the set again
 ## rather than half of it. Never fails its caller.
 AgentsToolsSpawnProxyRootMarkPlace(){ ## session id
-	local placeSession="$1" placeDir placeTarget placeEmoji placeRc=0
-	case "$placeSession" in ''|-|.|..|*/*) return 0 ;; esac
-	placeDir="$MMDAPP/.local/agents/sessions/$placeSession"
-	[ -f "$placeDir/root.want" ] || return 0
-	placeTarget="$( AgentsToolsSpawnProxyRootMarkTarget "$placeSession" )" || { rm -f "$placeDir/root.want" ; return 0 ; }
+	local placeSession="$1" placeWant placeEnd placeTarget placeEmoji placeRc=0
+	type AgentsSessionMarkerFileInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include" || return 1
+	AgentsSessionMarkerFileInto placeWant "$placeSession" root.want || return 0
+	AgentsSessionMarkerFileInto placeEnd "$placeSession" root.end || return 0
+	[ -f "$placeWant" ] || return 0
+	placeTarget="$( AgentsToolsSpawnProxyRootMarkTarget "$placeSession" )" || { rm -f "$placeWant" ; return 0 ; }
 	type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 	while IFS= read -r placeEmoji ; do
 		[ -n "$placeEmoji" ] || continue
 		DistroAgentsTools --intern-op-comms-slack-react magic-team "$placeTarget" "$placeEmoji" --identity-bot > /dev/null 2>&1 || placeRc=1
-	done < "$placeDir/root.want"
+	done < "$placeWant"
 	if [ "$placeRc" = 0 ] ; then
-		mv -f "$placeDir/root.want" "$placeDir/root.end" 2> /dev/null || rm -f "$placeDir/root.want"
+		mv -f "$placeWant" "$placeEnd" 2> /dev/null || rm -f "$placeWant"
 		return 0
 	fi
-	echo "⚠️ WARNING: ${MDSC_CMD:-DistroAgentsTools}: the end marks of session $placeSession are not all on its root message $placeTarget, so $placeDir/root.want is kept, and the next pass over dead records places it again" >&2 || :
+	echo "⚠️ WARNING: ${MDSC_CMD:-DistroAgentsTools}: the end marks of session $placeSession are not all on its root message $placeTarget, so $placeWant is kept, and the next pass over dead records places it again" >&2 || :
 	return 0
 }
 
 ## The end marks a session is owed, once no run of it is left: written to `root.want` and placed. Nothing while a run
 ## of the session still runs, and nothing for a session with no session thread. Never fails its caller.
 AgentsToolsSpawnProxyRootMarks(){ ## tracking file of the run that just closed
-	local markRecord="$1" markSession markCandidate markStatus markGood="white_check_mark"
+	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandboxRecordHeader.include"
+	local markRecord="$1" markSession markCandidate markStatus markGood="white_check_mark" markWant
 	[ -f "$markRecord" ] || return 0
 	markSession="$( AgentsToolsSpawnSandboxRecordHeader "$markRecord" session-id )"
 	case "$markSession" in ''|-|.|..|*/*) return 0 ;; esac
 	AgentsToolsSpawnProxyRootMarkTarget "$markSession" > /dev/null || return 0
-	[ ! -f "$MMDAPP/.local/agents/sessions/$markSession/root.end" ] || return 0
-	type AgentsToolsSpawnedSessionRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.StartedRecords.include"
+	type AgentsSessionMarkerFileInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include" || return 1
+	! AgentsSessionMarked "$markSession" root.end || return 0
+	AgentsSessionMarkerFileInto markWant "$markSession" root.want || return 0
+	type AgentsToolsSpawnedSessionRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include"
 	for markCandidate in $( AgentsToolsSpawnedSessionRecords "$markSession" own 2> /dev/null ) ; do
 		markStatus="$( AgentsToolsSpawnSandboxRecordHeader "$markCandidate" status )"
 		case "$markStatus" in
@@ -70,9 +74,9 @@ AgentsToolsSpawnProxyRootMarks(){ ## tracking file of the run that just closed
 	{
 		printf 'checkered_flag\n'
 		printf '%s\n' "$markGood"
-	} > "$MMDAPP/.local/agents/sessions/$markSession/root.want.aside" \
-		&& mv -f "$MMDAPP/.local/agents/sessions/$markSession/root.want.aside" "$MMDAPP/.local/agents/sessions/$markSession/root.want" \
-		|| { rm -f "$MMDAPP/.local/agents/sessions/$markSession/root.want.aside" ; return 0 ; }
+	} > "$markWant.aside" \
+		&& mv -f "$markWant.aside" "$markWant" \
+		|| { rm -f "$markWant.aside" ; return 0 ; }
 	AgentsToolsSpawnProxyRootMarkPlace "$markSession"
 }
 
@@ -80,18 +84,19 @@ AgentsToolsSpawnProxyRootMarks(){ ## tracking file of the run that just closed
 ## cancels a want Slack has not taken yet. Costless where the session carries neither, which every start that is no
 ## restart finds. A removal that does not land keeps `root.end`, so the next clear takes it off. Never fails its caller.
 AgentsToolsSpawnProxyRootMarkClear(){ ## session id
-	local clearSession="$1" clearDir clearTarget clearEmoji clearRc=0
-	case "$clearSession" in ''|-|.|..|*/*) return 0 ;; esac
-	clearDir="$MMDAPP/.local/agents/sessions/$clearSession"
-	rm -f "$clearDir/root.want" 2> /dev/null
-	[ -f "$clearDir/root.end" ] || return 0
-	clearTarget="$( AgentsToolsSpawnProxyRootMarkTarget "$clearSession" )" || { rm -f "$clearDir/root.end" ; return 0 ; }
+	local clearSession="$1" clearWant clearEnd clearTarget clearEmoji clearRc=0
+	type AgentsSessionMarkerFileInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include" || return 1
+	AgentsSessionMarkerFileInto clearWant "$clearSession" root.want || return 0
+	AgentsSessionMarkerFileInto clearEnd "$clearSession" root.end || return 0
+	rm -f "$clearWant" 2> /dev/null
+	[ -f "$clearEnd" ] || return 0
+	clearTarget="$( AgentsToolsSpawnProxyRootMarkTarget "$clearSession" )" || { rm -f "$clearEnd" ; return 0 ; }
 	type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 	while IFS= read -r clearEmoji ; do
 		[ -n "$clearEmoji" ] || continue
 		DistroAgentsTools --intern-op-comms-slack-react magic-team "$clearTarget" "$clearEmoji" --identity-bot --remove > /dev/null 2>&1 || clearRc=1
-	done < "$clearDir/root.end"
-	if [ "$clearRc" = 0 ] ; then rm -f "$clearDir/root.end" 2> /dev/null ; fi
+	done < "$clearEnd"
+	if [ "$clearRc" = 0 ] ; then rm -f "$clearEnd" 2> /dev/null ; fi
 	return 0
 }
 
@@ -102,33 +107,32 @@ AgentsToolsSpawnProxyRootMarkClear(){ ## session id
 ## out by the shared call's own rule. A session with no session thread, or one whose thread is a tracking thread, is
 ## left alone. Never fails its caller.
 AgentsToolsSpawnProxyRootPauseMarks(){ ## session id
-	local pauseSession="$1" pauseDir pauseTarget pauseWant="" pauseHeld="" pauseRc=0
-	case "$pauseSession" in ''|-|.|..|*/*) return 0 ;; esac
-	pauseDir="$MMDAPP/.local/agents/sessions/$pauseSession"
-	[ -f "$pauseDir/paused" ] && pauseWant="double_vertical_bar"
-	[ ! -f "$pauseDir/root.pause" ] || IFS= read -r pauseHeld < "$pauseDir/root.pause" || :
+	local pauseSession="$1" pauseMark pauseTarget pauseWant="" pauseHeld="" pauseRc=0
+	type AgentsSessionMarkerFileInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include" || return 1
+	AgentsSessionMarkerFileInto pauseMark "$pauseSession" root.pause || return 0
+	AgentsSessionMarked "$pauseSession" paused && pauseWant="double_vertical_bar"
+	[ ! -f "$pauseMark" ] || IFS= read -r pauseHeld < "$pauseMark" || :
 	[ "$pauseWant" != "$pauseHeld" ] || return 0
 	pauseTarget="$( AgentsToolsSpawnProxyRootMarkTarget "$pauseSession" )" || return 0
 	type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 	if [ -n "$pauseWant" ] ; then
 		DistroAgentsTools --intern-op-comms-slack-react magic-team "$pauseTarget" "$pauseWant" --identity-bot > /dev/null 2>&1 || pauseRc=1
 		[ "$pauseRc" = 0 ] || return 0
-		printf '%s\n' "$pauseWant" > "$pauseDir/root.pause.aside" 2> /dev/null \
-			&& mv -f "$pauseDir/root.pause.aside" "$pauseDir/root.pause" 2> /dev/null || rm -f "$pauseDir/root.pause.aside" 2> /dev/null
+		printf '%s\n' "$pauseWant" > "$pauseMark.aside" 2> /dev/null \
+			&& mv -f "$pauseMark.aside" "$pauseMark" 2> /dev/null || rm -f "$pauseMark.aside" 2> /dev/null
 		return 0
 	fi
 	DistroAgentsTools --intern-op-comms-slack-react magic-team "$pauseTarget" "$pauseHeld" --identity-bot --remove > /dev/null 2>&1 || return 0
-	rm -f "$pauseDir/root.pause" 2> /dev/null
+	rm -f "$pauseMark" 2> /dev/null
 	return 0
 }
 
 ## A WANT A REFUSAL OR A RATE LIMIT LEFT: placed again, for every session that holds one, by the pass over dead
 ## records. Nothing where no session holds one. Never fails its caller.
 AgentsToolsSpawnProxyRootMarkRetry(){
-	local retryWant retrySession
-	for retryWant in "${MMDAPP:-/nonexistent}"/.local/agents/sessions/*/root.want ; do
-		[ -f "$retryWant" ] || continue
-		retrySession="${retryWant%/root.want}" ; retrySession="${retrySession##*/}"
+	local retrySession
+	type AgentsSessionsMarked > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include" || return 1
+	for retrySession in $( AgentsSessionsMarked root.want ) ; do
 		AgentsToolsSpawnProxyRootMarkPlace "$retrySession"
 	done
 	return 0

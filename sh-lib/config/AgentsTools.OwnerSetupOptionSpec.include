@@ -71,6 +71,9 @@ AgentsToolsOwnerSetupOptionSpec(){
 		PRESET_INPUT_CACHE_TIME)
 			printf '%s\n' '-|<5m-or-1h>|plain|how long the provider keeps the input cache that the cache markers of a harness run on the Anthropic wire ask for, optional: 5m, which is the provider default and puts nothing in a marker, or 1h, which a work-duty loop uses to keep its prefix over its idle waits. A native CLI keeps its own.'
 		;;
+		PRESET_MODEL_TAKES_IMAGES)
+			printf '%s\n' '-|<on-or-off>|plain|whether the model of the preset takes image parts, on or off, optional: on lets a Read of an image send it to the model as an image part on both wires, and off, the default, keeps the text answer of the Read. Set on only where the service is known to accept image parts.'
+		;;
 		PRESET_CONTEXT_MAX_SIZE)
 			printf '%s\n' '-|<tokens>|plain|the context at which a harness run summarises its work and restarts, in whole tokens, optional: the largest context this service really gives, less the room the reply needs. A number far below the service account'"'"'s own window restarts the run early and pays its whole prompt again, and the harness says so at start. Left unset the service'"'"'s own window less its output maximum governs.'
 		;;

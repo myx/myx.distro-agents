@@ -21,7 +21,7 @@ rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
 rigData="$rigTmp/data"
 rigSkills="$rigTmp/skills"
-mkdir -p "$rigTmp/ws/.local" "$rigTmp/home" "$rigSkills/rig-member" "$rigSkills/rig-other" "$rigSkills/magic-coordinator" "$rigData/board/running" "$rigData/board/pending" "$rigData/board/backlog"
+mkdir -p "$rigTmp/ws/.local" "$rigTmp/home" "$rigSkills/rig-member" "$rigSkills/rig-other" "$rigSkills/magic-coordinator"
 
 rigPassCount=0
 rigFailCount=0
@@ -60,6 +60,8 @@ rigOp(){ ## result file, op and arguments...
 
 echo "-- board create: names --"
 rigB1=approval-20261006T0930Z-rig-matter.md
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-writes.include.sh" || exit 1
+rigOwnerWs="${rigWs:-$rigTmp/ws}" rigOwnerData="${rigData:-${rigD:-${rigStore:-${rigOut:-$rigTmp/data}}}}" rigOwnerHome="${rigHome:-$rigTmp/home}" rigOwnerSkills="${rigSkills:-$rigTmp/skills}"
 printf 'body one\n' | rigOp "$rigTmp/b1" --create-running --team-member rig-member "$rigB1" --upsert-from-stdin --header:upsert:blocks:task-20261006T0900Z-rig-gated
 rigAssert "a well-formed name is created as given, rc 0"    "$( cat "$rigTmp/b1.rc" ):$( [ -f "$rigData/board/running/$rigB1" ] && echo yes || echo no ):$( rigHolds "$rigTmp/b1" 'naming Rule' )" "0:yes:no"
 rigAssert "type from the prefix"                            "$( rigField "$rigData/board/running/$rigB1" type )" approval
@@ -81,7 +83,8 @@ rigAssert "with the warning quoting the naming Rule"        "$( rigHolds "$rigTm
 rigAssert "from and owner are the acting member"            "$( rigField "$rigData/board/pending/task-2026-09-29-legacy.md" from ):$( rigField "$rigData/board/pending/task-2026-09-29-legacy.md" owner )" "rig-member:rig-member"
 ## A person at a console with no spawned session is user-<account> (the account is the one `id -un` names): the create is made as that person.
 printf -- '---\n---\nbody person\n' | rigOp "$rigTmp/b3p" --intern-op-board-upsert-move-edit pending task-20261006T0930Z-person.md --create --upsert-from-stdin --context rig
-rigAssert "with no acting member and an account, the create is made as user-<account>" "$( cat "$rigTmp/b3p.rc" ):$( rigField "$rigData/board/pending/task-20261006T0930Z-person.md" from ):$( rigField "$rigData/board/pending/task-20261006T0930Z-person.md" owner )" "0:user-$( id -un ):user-$( id -un )"
+rigPersonItem="$rigData/board/pending/task-20261006T0930Z-person.md"
+rigAssert "with no acting member and an account, the create is made as user-<account>" "$( cat "$rigTmp/b3p.rc" ):$( rigField "$rigPersonItem" from ):$( rigField "$rigPersonItem" owner )" "0:user-$( id -un ):user-$( id -un )"
 ## With not even an account (the rig's `id` fails and no USER, LOGNAME or SUDO_USER is set) there is no acting member, and the create is refused.
 mkdir -p "$rigTmp/noid" ; printf '#!/bin/sh\nexit 1\n' > "$rigTmp/noid/id" ; chmod +x "$rigTmp/noid/id"
 printf -- '---\n---\nbody none\n' | RIG_PATH="$rigTmp/noid:/usr/bin:/bin" rigOp "$rigTmp/b3n" --intern-op-board-upsert-move-edit pending task-20261006T0930Z-noactor.md --create --upsert-from-stdin --context rig
@@ -154,11 +157,11 @@ rigOp "$rigTmp/p4" --librarian-inbox-to-processed --team-member rig-member 2026-
 rigAssert "the librarian op still works"                    "$( cat "$rigTmp/p4.rc" ):$( rigFieldCount "$rigData/inboxes/rig-member/processed/2026-07-22-note-legacy.md" processed-at )" "0:1"
 
 echo "-- a --magic-* op is magic-coordinator's, or the console's --"
-RIG_AGENT=rig-other rigOp "$rigTmp/m1" --state-note-read magic-coordinator
+RIG_AGENT=rig-other rigOp "$rigTmp/m1" --state-note-read --team-member magic-coordinator
 rigAssert "another member's session is refused"            "$( cat "$rigTmp/m1.rc" ):$( rigHolds "$rigTmp/m1" "this session acts as rig-other, and state-note-read is magic-coordinator's only" )" "1:yes"
-RIG_AGENT=magic-coordinator rigOp "$rigTmp/m2" --state-note-read magic-coordinator
+RIG_AGENT=magic-coordinator rigOp "$rigTmp/m2" --state-note-read --team-member magic-coordinator
 rigAssert "the coordinator's own session is not"           "$( rigHolds "$rigTmp/m2" "is magic-coordinator's only" )" no
-rigOp "$rigTmp/m3" --state-note-read magic-coordinator
+rigOp "$rigTmp/m3" --state-note-read --team-member magic-coordinator
 rigAssert "nor the console"                                "$( rigHolds "$rigTmp/m3" "is magic-coordinator's only" )" no
 RIG_AGENT=rig-other rigOp "$rigTmp/m5" --send-contact-digest --team-member rig-member --resolved rig digest
 rigAssert "--send-contact-digest is refused to another member's session too: it cannot send as the member it names" "$( cat "$rigTmp/m5.rc" ):$( rigHolds "$rigTmp/m5" "this session acts as rig-other, so it cannot act as rig-member" )" "1:yes"

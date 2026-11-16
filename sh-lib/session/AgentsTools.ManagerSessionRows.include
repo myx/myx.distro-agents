@@ -14,7 +14,7 @@ type AgentsSessionMarkerFile > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-
 ## measures which runs are alive by the one rule the render uses
 ## (AgentsToolsRegistryMeasureRows, AgentsTools.Registries.include).
 
-type AgentsToolsRegistryMeasureRows > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.RegistrySpawnedSessions.include"
+type AgentsToolsRegistryMeasureRows > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.RegistrySpawnedSessions.include"
 
 
 ## THE CONTROL THREAD OF A SESSION, WHETHER IT LIVES: measured now, at every call, and never
@@ -87,26 +87,28 @@ AgentsToolsManagerSessionControls(){ ## session id (every session of the workspa
 ## measured, then grouped, sorted and counted. Fails, printing nothing, where a registry
 ## cannot be rebuilt: a stale file is never listed as though it were fresh.
 AgentsToolsManagerSessionRows(){ ## the operation as it was called, "active" for the active sessions only (may be empty)
-	type AgentsToolsRegistrySpawnedSessionsRebuild > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.RegistrySpawnedSessions.include"
-	type AgentsToolsRegistryPendingRepliesRebuild > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.RegistryPendingReplies.include"
-	type AgentsToolsRegistryFile > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
+	type AgentsToolsRegistrySpawnedSessionsRebuild > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.RegistrySpawnedSessions.include"
+	type AgentsToolsRegistryRebuild > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
 	local rowsOp="$1" rowsActive="${2:-}" rowsLearn="" rowsFile rowsPending rowsTab=$'\t'
 	[ "$rowsOp" != --schedule-learning ] || rowsLearn=1
 	local measuredRows="" measuredDated="" measuredAny="false"
 	rowsFile="$MMDAPP/.local/agents/spawned-sessions.registry"
 	rowsPending="$MMDAPP/.local/agents/pending-replies.registry"
-	if ! AgentsToolsRegistrySpawnedSessionsRebuild || ! AgentsToolsRegistryPendingRepliesRebuild ; then
+	if ! AgentsToolsRegistrySpawnedSessionsRebuild || ! AgentsToolsRegistryRebuild pending-replies ; then
 		echo "⛔ ERROR: $MDSC_CMD $rowsOp: the session registries could not be rebuilt in ${rowsFile%/*} -- nothing is listed" >&2
 		return 1
 	fi
 	[ -d "$MMDAPP/.local/agents/spawned" ] || echo "# $MDSC_CMD $rowsOp: no spawn sandbox root exists yet, so no session has run in this workspace" >&2
 	AgentsToolsRegistryMeasureRows "$rowsFile" "" "" 17
 	## What each run is doing is the state the registry derived for it, in `measuredDated`: no store of a run is read for
-	## that a second time. Of a run's store the awk reads two small files alone: its tokens, which it adds for the total of
-	## a session (AgentsManagerSessionTokens.awk), and the chapter of a session. No transcript and no record is opened.
-	type AgentsToolsManagerHostName > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.ManagerRunActivity.include"
+	## that a second time. The store's owner hands the three facts the awk takes of it in one walk: the tokens of each run,
+	## which it adds for the total of a session (AgentsManagerSessionTokens.awk), its usage-limit flag, and the chapter of
+	## a session.
+	type AgentsToolsManagerHostName > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.ManagerRunActivity.include"
+	type AgentsSessionRunFacts > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
 	printf '%s' "$measuredDated" \
-		| MDAT_MANAGER_CONTROL="$( AgentsToolsManagerSessionControls )" MDAT_MANAGER_AGENTS="$MMDAPP/.local/agents" LC_ALL=C awk -v activeOnly="${rowsActive:+1}" -v learnOnly="$rowsLearn" -v loadAverage="$( AgentsToolsManagerLoadAverage )" -v hostName="$( AgentsToolsManagerHostName )" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerSessionTokens.awk" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerDateMinutes.awk" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerSessionRows.awk" "$rowsPending" - \
+		| MDAT_MANAGER_CONTROL="$( AgentsToolsManagerSessionControls )" LC_ALL=C awk -v activeOnly="${rowsActive:+1}" -v learnOnly="$rowsLearn" -v loadAverage="$( AgentsToolsManagerLoadAverage )" -v hostName="$( AgentsToolsManagerHostName )" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerSessionTokens.awk" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerDateMinutes.awk" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerSessionRows.awk" \
+			<( printf '%s\n' "$measuredDated" | LC_ALL=C awk '{ print $8 ; print $2 }' | AgentsSessionRunFacts tokens usage-limit chapter ) "$rowsPending" - \
 		| LC_ALL=C sort -t "$rowsTab" -k1,1nr -k2,2n -k3,3n -k4,4n -k5,5n \
 		| LC_ALL=C cut -f6-
 }
@@ -169,9 +171,8 @@ AgentsToolsManagerSessionRecordEntries(){ ## the store, spawned; entries or kept
 ## rc 1 and one line, where no record carries the id, or a registry cannot be rebuilt: the
 ## line ends with what its caller then did not do, `nothing is shown` where it names none.
 AgentsToolsManagerSessionScope(){ ## the operation as it was called, the id, "run" where the id is a run's own alone (may be empty), what is not done on a failure (may be empty), "fresh" where the caller signals and so must read the process list now
-	type AgentsToolsRegistrySpawnedSessionsRebuild > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.RegistrySpawnedSessions.include"
-	type AgentsToolsRegistryPendingRepliesRebuild > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.RegistryPendingReplies.include"
-	type AgentsToolsRegistryRowsEntry > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
+	type AgentsToolsRegistrySpawnedSessionsRebuild > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.RegistrySpawnedSessions.include"
+	type AgentsToolsRegistryRebuild > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
 	local scopeOp="$1" scopeId="$2" scopeOwn="${3:-}" scopeNot="${4:-nothing is shown}" scopeNow="${5:-}" scopeFile scopePending scopeStore scopePicked="" scopeRows="" scopeAge="" scopeFresh=""
 	local scopeLib="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib" scopeIds scopeReread
 	local scopeTracking scopeSkip scopeSpawn scopeRest scopeTemp scopeState="" scopeTab=$'\t' scopeNl=$'\n'
@@ -212,7 +213,7 @@ AgentsToolsManagerSessionScope(){ ## the operation as it was called, the id, "ru
 		if [ ! -f "$scopePending" ] || [ "$( printf '%s\n' "$MMDAPP/.local/agents/pending"/*.md \
 				| MDAT_MANAGER_IDS="$scopeIds" MDAT_MANAGER_STORE="$MMDAPP/.local/agents/pending/" LC_ALL=C awk -v scopeMode=asks \
 					-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsRegistryHeaderRows.awk" -f "$scopeLib/manager/AgentsManagerSessionScope.awk" "$scopePending" - 2>/dev/null )" != "fresh" ] ; then
-			AgentsToolsRegistryPendingRepliesRebuild || scopeFresh="failed"
+			AgentsToolsRegistryRebuild pending-replies || scopeFresh="failed"
 		fi
 	fi
 	if [ "$scopeFresh" = "failed" ] ; then
@@ -250,8 +251,10 @@ AgentsToolsManagerSessionScope(){ ## the operation as it was called, the id, "ru
 	## Grouped, ordered and named as the list does it, by the list's own awk; its counters row,
 	## the last, counts this session alone and is no row of a read.
 	scopeControl="$( AgentsToolsManagerSessionControls "$scopeSession" )"
+	type AgentsSessionRunFacts > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
 	scopeListed="$( printf '%s' "$scopeMeasured" \
-		| MDAT_MANAGER_CONTROL="$scopeControl" MDAT_MANAGER_AGENTS="$MMDAPP/.local/agents" LC_ALL=C awk -v loadAverage="-" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerSessionTokens.awk" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerDateMinutes.awk" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerSessionRows.awk" "$scopePending" - \
+		| MDAT_MANAGER_CONTROL="$scopeControl" LC_ALL=C awk -v loadAverage="-" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerSessionTokens.awk" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerDateMinutes.awk" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerSessionRows.awk" \
+			<( printf '%s\n' "$scopeMeasured" | LC_ALL=C awk '{ print $8 ; print $2 }' | AgentsSessionRunFacts tokens usage-limit chapter ) "$scopePending" - \
 		| LC_ALL=C sort -t "$scopeTab" -k1,1nr -k2,2n -k3,3n -k4,4n -k5,5n \
 		| LC_ALL=C cut -f6- )"
 	scopeListed=${scopeListed%counters"$scopeTab"*}
@@ -300,18 +303,24 @@ AgentsToolsManagerSessionChecklistRows(){ ## session id
 }
 
 AgentsToolsManagerSessionReadRows(){ ## the operation as it was called, the id, "run" where the id is a run's own alone (may be empty)
-	local readOp="$1" readId="$2" readOwn="${3:-}" readStores="" readSkip readSpawn readRest
+	local readOp="$1" readId="$2" readOwn="${3:-}" readStores="" readSpawns="" readSkip readSpawn readRest
 	local scopeSession="" scopeRun="" scopeMeasured="" scopeListed="" scopeControl=""
 	AgentsToolsManagerSessionScope "$readOp" "$readId" "$readOwn" || return 1
+	type AgentsSessionRunFacts > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
 	## Which runs have a store of their own: a folder is asked of the shell, not of awk.
 	while read -r readSkip readSkip readSkip readSkip readSkip readSkip readSkip readSpawn readRest ; do
 		case "$readSpawn" in ''|-|.|..|*/*) continue ;; esac
+		readSpawns="$readSpawns$readSpawn"$'\n'
 		[ ! -d "$MMDAPP/.local/agents/sessions/$readSpawn" ] || readStores="$readStores$readSpawn"$'\n'
 	done <<< "$scopeMeasured"
 	[ "$scopeRun" != "-" ] || scopeRun=""
+	## The store's facts of every run, for the session's total; the record headers of the founder and of the run shown.
 	printf '%s\n' "$scopeListed" \
-		| MDAT_MANAGER_AGENTS="$MMDAPP/.local/agents" MDAT_MANAGER_ROWS="$scopeMeasured" MDAT_MANAGER_STORES="$readStores" MDAT_MANAGER_RUN="$scopeRun" MDAT_MANAGER_CONTROL="$scopeControl" \
-			LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerSessionTokens.awk" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerSessionRead.awk" "$MMDAPP/.local/agents/pending-replies.registry" -
+		| MDAT_MANAGER_ROWS="$scopeMeasured" MDAT_MANAGER_STORES="$readStores" MDAT_MANAGER_RUN="$scopeRun" MDAT_MANAGER_CONTROL="$scopeControl" MDAT_MANAGER_DEATHS="$( AgentsSessionDeathLines "$scopeSession" )" \
+			LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerSessionTokens.awk" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerSessionRead.awk" \
+			<( printf '%s' "$readSpawns" | AgentsSessionRunFacts tokens model milestone wait mark log transcript ) \
+			<( { printf '%s\n' "$scopeSession" ; if [ -n "$scopeRun" ] ; then printf '%s\n' "$scopeRun" ; else printf '%s' "$readSpawns" ; fi ; } | AgentsSessionRunHeaderRows ) \
+			"$MMDAPP/.local/agents/pending-replies.registry" -
 	return 0
 }
 

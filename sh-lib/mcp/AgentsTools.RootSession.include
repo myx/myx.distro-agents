@@ -81,17 +81,6 @@ AgentsToolsRootSessionStoreSet(){ ## store, id, token
 	return 1
 }
 
-## A folder this very call made, removed again where the session could not be finished. Only a
-## folder under the session records of this workspace: nothing else is ever removed.
-AgentsToolsRootSessionDiscard(){ ## folder
-	case "$1" in
-		''|/|.|..) return 1 ;;
-		"${MMDAPP%/}/.local/agents/sessions/"*) [ -d "$1" ] && rm -rf -- "$1" || : ;;
-		*) return 1 ;;
-	esac
-	return 0
-}
-
 ## The facts of one session: its id, its token where this call minted or re-served it, and the
 ## instruction. No other value, and never a path.
 AgentsToolsRootSessionFacts(){ ## id, token (empty: omit it)
@@ -107,17 +96,16 @@ AgentsToolsRootSessionFacts(){ ## id, token (empty: omit it)
 ## client's own, carried by this server, so the record names the server as its process: alive while the server lives. Written at a
 ## mint and at an adopt, one rename. Quiet, and never a reason for the call to fail.
 AgentsToolsRootSessionRecord(){ ## id, server pid
-	local recordDir="$MMDAPP/.local/agents/spawned/$1" recordStart recordTemp
+	local recordStart
 	type AgentsToolsRunProcessStart > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunProcesses.include"
+	type AgentsSpawnRecordWrite > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
 	recordStart="$( AgentsToolsRunProcessStart "$2" )" || recordStart=""
 	[ -n "$recordStart" ] || return 0
-	mkdir -p "$recordDir" 2> /dev/null || return 0
-	recordTemp="$( mktemp "$recordDir/$1.spawn.md.XXXXXX" 2> /dev/null )" || return 0
 	{
 		printf -- '---\nsession-id: %s\nspawn-id: %s\nstart-context: root-harness\ntracking-name: %s\n' "$1" "$1" "$1"
 		printf 'host: %s\nworkspace: %s\nowner: magic-coordinator\nstatus: spawn-started\n' "$( hostname -s 2> /dev/null || printf unknown )" "${MMDAPP##*/}"
 		printf 'started-at: %s\ndescription: Root harness session\nrun-process: %s %s\n---\n' "$( date '+%Y-%m-%d %H:%M %z' )" "$2" "$recordStart"
-	} > "$recordTemp" 2> /dev/null && mv -f "$recordTemp" "$recordDir/$1.spawn.md" 2> /dev/null || rm -f "$recordTemp" 2> /dev/null
+	} | AgentsSpawnRecordWrite "$1" || :
 	return 0
 }
 
@@ -135,6 +123,7 @@ AgentsToolsRootSessionServe(){ ## scratch root, server pid, operation, id given,
 		return 1
 	}
 	## The one folder convention of a session, and the gate every id is held to.
+	type AgentsSessionDiscard > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
 	type AgentsToolsSessionChatDir > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include"
 	if ! type AgentsToolsSessionChatDir > /dev/null 2>&1 ; then
 		AgentsToolsRootSessionLockGive "$rootLock"
@@ -184,33 +173,33 @@ AgentsToolsRootSessionServe(){ ## scratch root, server pid, operation, id given,
 			## choice the workspace made. The value names a channel, never a path.
 			type AgentsToolsRootHarnessKindSetting > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.RootHarnessKind.include"
 			if ! type AgentsToolsRootHarnessKindSetting > /dev/null 2>&1 ; then
-				AgentsToolsRootSessionDiscard "$rootDir" || :
+				AgentsSessionDiscard "$rootId" || :
 				AgentsToolsRootSessionLockGive "$rootLock"
 				printf 'ERROR: RootSession: the session kind of this package is missing, so no session was made.\n'
 				return 1
 			fi
 			rootKind="$( AgentsToolsRootHarnessKindSetting )" || rootKind="none"
 			if ! AgentsToolsRootHarnessKindWrite "$rootDir" "${rootKind:-none}" ; then
-				AgentsToolsRootSessionDiscard "$rootDir" || :
+				AgentsSessionDiscard "$rootId" || :
 				AgentsToolsRootSessionLockGive "$rootLock"
 				printf 'ERROR: RootSession: the channel kind of the session could not be kept, so no session was made.\n'
 				return 1
 			fi
 			## The routine the session runs is kept before the token: a session whose routine could not be recorded is not made, since it would run with none of the routine's denies.
 			if ! AgentsToolsRootHarnessRoutineWrite "$rootDir" ; then
-				AgentsToolsRootSessionDiscard "$rootDir" || :
+				AgentsSessionDiscard "$rootId" || :
 				AgentsToolsRootSessionLockGive "$rootLock"
 				printf 'ERROR: RootSession: the routine of the session could not be kept, so no session was made.\n'
 				return 1
 			fi
 			if ! ( umask 077 ; printf '%s\n' "$rootToken" > "$rootDir/root-session.token" ) 2> /dev/null ; then
-				AgentsToolsRootSessionDiscard "$rootDir" || :
+				AgentsSessionDiscard "$rootId" || :
 				AgentsToolsRootSessionLockGive "$rootLock"
 				printf 'ERROR: RootSession: the session token could not be kept, so no session was made.\n'
 				return 1
 			fi
 			if ! AgentsToolsRootSessionStoreSet "$rootScratch/root-session" "$rootId" "$rootToken" ; then
-				AgentsToolsRootSessionDiscard "$rootDir" || :
+				AgentsSessionDiscard "$rootId" || :
 				AgentsToolsRootSessionLockGive "$rootLock"
 				printf 'ERROR: RootSession: the new session could not be kept for this server, so no session was made.\n'
 				return 1

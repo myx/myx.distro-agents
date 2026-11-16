@@ -115,18 +115,18 @@ AgentsToolsPermissionHoldersPrint(){ ## <tool> <target> [--session-id <id>] [--t
 ## Who can be reached there: a member with no live run in the session sees nothing that is
 ## posted in it, so nothing is sent up to it and nothing counts as held by it.
 AgentsToolsPermissionSessionRunning(){ ## session id (a spawn's own, or the coworking session's)
-	type AgentsSessionThread > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+	type AgentsSpawnRecordInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
 	local runCow
 	type AgentsToolsPermissionShareStore > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionHolds.include"
-	type AgentsToolsRegistryMeasureRows > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.RegistrySpawnedSessions.include"
+	type AgentsToolsRegistryMeasureRows > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.RegistrySpawnedSessions.include"
 	runCow="$( AgentsToolsPermissionShareStore "${1:-}" )"
 	[ -n "$runCow" ] || return 0
-	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandbox.include"
-	type AgentsToolsSpawnedRegistryFile > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.StartedRecords.include"
+	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandboxRecordHeader.include"
+	type AgentsToolsSpawnedRegistryFile > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include"
 	## The registry as it stands (AgentsToolsSpawnedRegistryFile), measured for this session's rows: this
 	## runs on each ask routed, so it never rebuilds the registry from every record itself. The measure is
 	## the render's own (AgentsToolsRegistryMeasureRows): one process list, live is never stored.
-	local runRegistry measuredRows="" measuredDated="" measuredAny="false"
+	local runRegistry measuredRows="" measuredDated="" measuredAny="false" runRecord=""
 	runRegistry="$( AgentsToolsSpawnedRegistryFile )"
 	[ -n "$runRegistry" ] || return 0
 	AgentsToolsRegistryMeasureRows "$runRegistry" "" "$runCow"
@@ -134,7 +134,8 @@ AgentsToolsPermissionSessionRunning(){ ## session id (a spawn's own, or the cowo
 	printf '%s\n' "$measuredRows" | LC_ALL=C awk -v cow="$runCow" '
 		NF == 13 && $2 == cow && $12 == "running" { print $1 "\t" $8 "\t" $5 ; }' \
 	| while IFS=$'\t' read -r runTracking runSpawn runOwner ; do
-		[ "$( AgentsToolsSpawnSandboxRecordHeader "$MMDAPP/.local/agents/spawned/$runTracking/$runSpawn.spawn.md" agent-less )" != true ] || continue
+		AgentsSpawnRecordInto runRecord "$MMDAPP" "$runTracking" "$runSpawn" || continue
+		[ "$( AgentsToolsSpawnSandboxRecordHeader "$runRecord" agent-less )" != true ] || continue
 		printf '%s\n' "$runOwner"
 	done | LC_ALL=C awk '! seen[$0]++'
 }

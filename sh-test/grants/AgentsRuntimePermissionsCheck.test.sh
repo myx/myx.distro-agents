@@ -38,6 +38,7 @@ done
 rigMyxCommon="$( command -v myx.common 2>/dev/null )"
 [ -n "$rigMyxCommon" ] || rigRefuse "myx.common is not on PATH, so no source project could be scanned for its declares"
 . "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-writes.include.sh" || exit 1
 rigTmp="$( rigTempDir AgentsRuntimePermissionsCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 trap 'chmod -R u+w "$rigTmp" 2>/dev/null ; rm -rf -- "$rigTmp"' EXIT
@@ -57,12 +58,12 @@ printf '#!/bin/sh\necho "rig fake curl: no request leaves this box" >&2\nexit 7\
 chmod +x "$rigTmp/bin/curl"
 
 rigHome="$rigTmp/home" rigSkills="$rigTmp/skills" rigData="$rigTmp/data" rigMain="$rigTmp/ws-main"
-mkdir -p "$rigHome" "$rigData/board/running" "$rigData/board/processed" "$rigTmp/ro-dir" "$rigTmp/rw-dir/sub"
+mkdir -p "$rigHome" "$rigTmp/ro-dir" "$rigTmp/rw-dir/sub"
 for rigName in magic-coordinator magic-tester keeper-d ; do
 	mkdir -p "$rigSkills/$rigName"
 	printf '# %s\n' "$rigName" > "$rigSkills/$rigName/$rigName.basic.md"
 done
-printf -- '---\nstatus: task\nowner: keeper-d\n---\n\n# Task\n' > "$rigData/board/running/task-rig.md"
+rigOwnerBoardWrite running "task-rig.md" -- '---\nstatus: task\nowner: keeper-d\n---\n\n# Task\n'
 for rigName in ro-dir/x.txt rw-dir/sub/a.md rw-dir/sub/b.md rw-dir/sub/c.md rw-dir/sub/o.md ; do printf 'rig-seed %s\n' "$rigName" > "$rigTmp/$rigName" ; done
 
 ## ws-main: one source project declaring two places and keeper-d's standing write in one.
@@ -235,6 +236,7 @@ rigAssert "the task row"                                       "$( rigRow task W
 rigAssert "the once row, lapsing"                              "$( rigRow once Read "$rigTmp/rw-dir/sub/o.md" | LC_ALL=C sed 's/lapses in [0-9]*s unless used$/lapses in Ns unless used/' )" "rw-dir:sub/o.md|$rigIdO by human-owner|lapses in Ns unless used"
 rigAssert "revoked and ended grants are not listed"           "$( rigN "$rigTmp/list" "$rigIdR" ):$( rigN "$rigTmp/list" "$rigIdD" )" "0:0"
 rigAssert "control: the once grant admits once"               "$( rigRead keeper-d s-k "$rigTmp/rw-dir/sub/o.md" )" read
+rigOwnerBoardReady || rigRefuse "the board could not be made ready to be written"
 mv "$rigData/board/running/task-rig.md" "$rigData/board/processed/task-rig.md"
 rigAssert "the closed item: the write is refused"              "$( rigWrite keeper-d s-k "$rigTmp/rw-dir/sub/t.txt" ):$( rigGrantRead keeper-d s-k Write "$rigTmp/rw-dir/sub/t.txt" )" "refused:none"
 RIG_AGENT=keeper-d RIG_SESSION=s-k rigRun --list-permissions --team-member keeper-d
@@ -286,7 +288,7 @@ rigHelperScript AgentsTools.InternOpPermission.include AgentsToolsPermissionSetA
 RIG_STDIN="$rigTmp/helper.in" rigRun --intern-mcp-execute
 rigSetRef="$( LC_ALL=C sed -n 's/^task:Write:[^:]*:human-owner:[^:]*:\(set-[0-9a-f-]*\)$/\1/p' "$rigMain/.local/agents/sessions/s-set/grants" 2>/dev/null | head -1 )"
 rigAssert "control: the set is granted and is the item's access-control row" "$rigRc:$( [ -n "$rigSetRef" ] && printf ref || printf none ):$( rigN "$rigSetItem" "access-control: participants:allow-write:$rigTmp/rw-dir/sub/s.txt:human-owner:" )" "0:ref:1"
-printf -- '---\nstatus: dispatch-started\nowner: keeper-d\nsession-id: s-later\ntracks: task-set\n---\n\n# Dispatch\n' > "$rigData/board/running/dispatch-20261009T1200Z-later.md"
+rigOwnerBoardWrite running "dispatch-20261009T1200Z-later.md" -- '---\nstatus: dispatch-started\nowner: keeper-d\nsession-id: s-later\ntracks: task-set\n---\n\n# Dispatch\n'
 rigAssert "control: a later dispatch tracking the item gets it" "$( rigGrantRead keeper-d s-later Write "$rigTmp/rw-dir/sub/s.txt" )" planned
 RIG_AGENT=magic-coordinator RIG_SESSION=s-coord rigRun --revoke-permission "$rigSetRef"
 rigAssert "revoked, and taken off the item"                    "$rigRc:$( LC_ALL=C tr '\n' '|' < "$rigTmp/out" )" "0:REVOKED: $rigSetRef|ALLOWS-REMOVED: task-set|"

@@ -29,25 +29,27 @@ rigAssert(){ ## what is asserted, got, want
 }
 
 rigWs="$rigTmp/ws" rigHome="$rigTmp/home" rigData="$rigTmp/data" rigSkills="$rigTmp/skills"
-mkdir -p "$rigWs/.local/temp" "$rigWs/.local/.agents" "$rigHome" "$rigData/board/pending" "$rigData/board/running" "$rigData/board/processed" \
+mkdir -p "$rigWs/.local/temp" "$rigWs/.local/.agents" "$rigHome" \
 	"$rigData/inboxes/rig-dev/incoming" "$rigSkills/rig-dev" "$rigSkills/rig-other"
 for rigMember in rig-dev rig-other ; do
 	printf -- '---\nmaintainers: rig\n---\nrig identity\n' > "$rigSkills/$rigMember/$rigMember.basic.md"
 done
 rigItem(){ ## state, item name, owner
-	printf -- '---\ntype: task\nfrom: rig\ndate: 2026-11-13 09:00 +0200\nowner: %s\ndocument-contract: board-item.task\n---\n\n# %s\n\nbody\n' "$3" "$2" > "$rigData/board/$1/$2.md"
+	printf -- '---\ntype: task\nfrom: rig\ndate: 2026-11-13 09:00 +0200\nowner: %s\ndocument-contract: board-item.task\n---\n\n# %s\n\nbody\n' "$3" "$2" | rigOwnerBoardPut "$1" "$2.md"
 }
 rigItem pending task-20261113T0900Z-rig-mine-pending rig-dev
 rigItem running task-20261113T0901Z-rig-mine-running rig-dev
 rigItem pending task-20261113T0902Z-rig-theirs rig-other
 rigItem processed task-20261113T0903Z-rig-mine-done rig-dev
-printf -- '---\ntype: inquiry\nfrom: rig-other\ndate: 2026-11-13 09:04 +0200\nowner: rig-dev\ndocument-contract: inbox-item.inquiry\n---\n\nrig-inbox-marker\n' \
-	> "$rigData/inboxes/rig-dev/incoming/inquiry-20261113T0904Z-rig-inbox-marker.md"
+printf -- '---\ntype: inquiry\nfrom: rig-other\ndate: 2026-11-13 09:04 +0200\nowner: rig-dev\ndocument-contract: inbox-item.inquiry\n---\n\nrig-inbox-marker\n' | rigOwnerInboxPut rig-dev inquiry-20261113T0904Z-rig-inbox-marker.md
 
 ( cd "$rigWs" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
 	MDAT_DATA_ROOT="$rigData" MDAT_SKILLSET_ROOT="$rigSkills" MDAT_SPAWN_AGENT=rig-dev RIG_TMP="$rigTmp" RIG_TOOL="$rigTool" \
 	bash -c 'case "$MMDAPP" in "$RIG_TMP"/*) ;; *) exit 99 ;; esac ; case "$MDAT_DATA_ROOT" in "$RIG_TMP"/*) ;; *) exit 99 ;; esac ; exec bash "$RIG_TOOL" --get-my-board-items rig-dev' rig ) > "$rigTmp/out" 2> "$rigTmp/err" < /dev/null
 rigRc=$?
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-writes.include.sh" || exit 1
+rigOwnerWs="${rigWs:-$rigTmp/ws}" rigOwnerData="${rigData:-${rigD:-${rigStore:-${rigOut:-$rigTmp/data}}}}" rigOwnerHome="${rigHome:-$rigTmp/home}" rigOwnerSkills="${rigSkills:-$rigTmp/skills}"
+rigOwnerBoardReady
 rigCount(){ LC_ALL=C grep -c -F -- "$1" "$rigTmp/out" || : ; }
 
 echo "-- 1. the member's own active items are listed --"

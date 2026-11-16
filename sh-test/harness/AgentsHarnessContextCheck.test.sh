@@ -33,7 +33,7 @@ rigTmp="$( cd "$rigTmp" && pwd -P )"
 export GIT_AUTHOR_NAME=rig GIT_AUTHOR_EMAIL=rig@example.invalid GIT_COMMITTER_NAME=rig GIT_COMMITTER_EMAIL=rig@example.invalid
 rigWs="$rigTmp/ws"
 rigStore="$rigTmp/store"
-mkdir -p "$rigWs/.local/.agents" "$rigWs/.local/agents" "$rigStore/board/running" "$rigTmp/home" "$rigTmp/bin"
+mkdir -p "$rigWs/.local/.agents" "$rigWs/.local/agents" "$rigTmp/home" "$rigTmp/bin"
 git -C "$rigStore" init -q && printf 'seed\n' > "$rigStore/README.md" && git -C "$rigStore" add -A && git -C "$rigStore" commit -q -m seed || rigRefuse "could not seed the temp store"
 ## Nothing live is inherited: no session id, no data root, no calls log, no sandbox.
 unset CLAUDE_CODE_SESSION_ID MDAT_SPAWN_SESSION_ID MDAT_SPAWN_AGENT MDAT_MCP_SERVED_MARKER MDAT_MCP_CALLS_LOG MDAT_SESSION_ID MDAT_SESSION_THREAD \

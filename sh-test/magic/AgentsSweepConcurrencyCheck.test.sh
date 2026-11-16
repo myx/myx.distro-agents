@@ -82,7 +82,7 @@ rigSweep(){ ## name, origin
 	printf 'SLACK_BOT_TOKEN=xoxb-fixture\nSLACK_CHANNEL_MAGIC_TEAM=CFIXTEAM001\nSLACK_CHANNEL_HUMAN_OWNER=UFIXOWNER01\n' > "$sweepDir/ws/.local/.agents/magic-team.agent.env"
 	printf 'SLACK_USER_TOKEN=xoxp-fixture-coordinator\n' > "$sweepDir/ws/.local/.agents/magic-coordinator.agent.env"
 	for sweepClient in 1 2 ; do
-		mkdir -p "$sweepDir/ws/.local/agents/members/client-fix$sweepClient" "$sweepDir/data/inboxes/client-fix$sweepClient"
+		mkdir -p "$sweepDir/ws/.local/agents/members/client-fix$sweepClient"
 		printf '# fixture\n' > "$sweepDir/ws/.local/agents/members/client-fix$sweepClient/SKILL.md"
 		printf 'SLACK_USER_TOKEN=xoxp-fixture-client%s\nSLACK_CONVERSATIONS=CFIXAAAA00%s,CFIXBBBB00%s,CFIXCCCC00%s\n' \
 			"$sweepClient" "$sweepClient" "$sweepClient" "$sweepClient" > "$sweepDir/ws/.local/.agents/client-fix$sweepClient.agent.env"

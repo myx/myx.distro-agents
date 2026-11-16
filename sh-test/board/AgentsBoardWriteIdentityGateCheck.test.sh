@@ -29,14 +29,17 @@ rigAssert(){ ## what is asserted, got, want
 		rigPassCount=$(( rigPassCount + 1 ))
 	else
 		rigFailCount=$(( rigFailCount + 1 ))
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-writes.include.sh" || exit 1
+rigOwnerWs="${rigWs:-$rigTmp/ws}" rigOwnerData="${rigData:-${rigD:-${rigStore:-${rigOut:-$rigTmp/data}}}}" rigOwnerHome="${rigHome:-$rigTmp/home}" rigOwnerSkills="${rigSkills:-$rigTmp/skills}"
+rigOwnerBoardReady
 		printf '  FAIL  %s\n        got:  %s\n        want: %s\n' "$1" "$2" "$3"
 	fi
 }
 rigScene(){ ## scenario name
 	rm -rf "$rigWs" "$rigData"
-	mkdir -p "$rigWs/.local/.agents" "$rigData/board/backlog" "$rigData/board/processed" "$rigData/inboxes/rig-member/incoming"
-	printf -- '---\ndocument-contract: board-item.task\ntype: task\nfrom: rig-member\nowner: rig-member\ndate: 2026-10-20 04:00 +0300\n---\n\n# task: the thing\n\nbody of it\n' > "$rigData/board/backlog/task-20261020T0100Z-rig-old.md"
-	printf 'RIG-INBOX-BODY' > "$rigData/inboxes/rig-member/incoming/note-20261020T0100Z-rig.md"
+mkdir -p "$rigWs/.local/.agents"
+	printf -- '---\ndocument-contract: board-item.task\ntype: task\nfrom: rig-member\nowner: rig-member\ndate: 2026-10-20 04:00 +0300\n---\n\n# task: the thing\n\nbody of it\n' | rigOwnerBoardPut backlog task-20261020T0100Z-rig-old.md
+	printf 'RIG-INBOX-BODY' | rigOwnerInboxPut rig-member note-20261020T0100Z-rig.md
 }
 rigGate(){ ## team-member (empty for none), op...
 	( env -u MDAT_TEAM_MEMBER -u MDAT_SPAWN_AGENT -u MDAT_SPAWN_SESSION_ID -u CLAUDE_CODE_SESSION_ID -u MDAT_SESSION_ID \

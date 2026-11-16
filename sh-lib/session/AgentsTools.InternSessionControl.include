@@ -275,7 +275,8 @@ AgentsToolsSessionControlLeave(){
 	[ "$( AgentsToolsSessionControlLockHolder "$controlLock" )" != "$controlMe" ] || rm -f "$controlLock" 2> /dev/null
 	if [ "${controlMode:-}" = "--run" ] && [ -n "${controlSession:-}" ] ; then
 		type AgentsToolsSessionCommsListRemove > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionComms.include"
-		! type AgentsToolsSessionCommsListRemove > /dev/null 2>&1 || AgentsToolsSessionCommsListRemove "$controlSession" || :
+		type AgentsToolsSessionCommsListRemove > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionComms.include"
+		AgentsToolsSessionCommsListRemove "$controlSession" || :
 	fi
 	rm -f "$controlRowsFile" 2> /dev/null
 	return 0
@@ -298,7 +299,7 @@ AgentsToolsSessionControlPidWrite(){
 ## controlRowsNames, the record files they were read from; rc 1 where the rows could not
 ## be made.
 AgentsToolsSessionControlRows(){ ## session id
-	type AgentsToolsRegistryMeasureRows > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.RegistrySpawnedSessions.include"
+	type AgentsToolsRegistryMeasureRows > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.RegistrySpawnedSessions.include"
 	type AgentsToolsRegistryRowsEntry > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
 	local rowsFile rowsTracking
 	local measuredRows="" measuredDated="" measuredAny="false"
@@ -541,6 +542,7 @@ $startRun $(( SECONDS + controlPostBound ))"
 ##   question is due, and a call apart asks it;
 ## - else a call about it is started.
 AgentsToolsSessionControlDeathStep(){
+	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandboxRecordHeader.include"
 	local stepRun="${deathsLine%% *}" stepMarker stepHolder="" stepOne stepKey stepValue stepRead="" stepFailed="" stepError="" stepStamp stepRecord="" stepKeep="" stepUntil="" stepQuiet="" stepWait="" stepAsked stepStatus stepAnswer stepNot="" stepBack="" stepTries
 	stepMarker="$controlDir/post.$stepRun"
 	stepStamp="$( date -u +%Y-%m-%dT%H:%M:%SZ )"
@@ -693,6 +695,7 @@ AgentsToolsSessionControlDeathStep(){
 ## Then each death that is not settled is taken one step further
 ## (AgentsToolsSessionControlDeathStep). controlDeadOpen: how many are not settled.
 AgentsToolsSessionControlDeaths(){
+	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandboxRecordHeader.include"
 	type AgentsToolsSessionPauseHeld > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionPause.include"
 	type AgentsToolsRunWords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunProcesses.include"
 	local deathsWas="" deathsNow="" deathsGoneWas="" deathsGoneNow="" deathsOut="" deathsAt deathsNoted deathsRecord deathsShell deathsRole deathsLine deathsOne
@@ -890,7 +893,8 @@ AgentsToolsSessionControlTick(){
 	## it reads two files and posts nothing. A reaction that does not land leaves its mark as it was, and the next tick asks again.
 	if [ "$controlMode" = "--run" ] ; then
 		type AgentsToolsSpawnProxyRootPauseMarks > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnProxyRootMarks.include"
-		! type AgentsToolsSpawnProxyRootPauseMarks > /dev/null 2>&1 || AgentsToolsSpawnProxyRootPauseMarks "$controlSession" || :
+		type AgentsToolsSpawnProxyRootPauseMarks > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnProxyRootMarks.include"
+		AgentsToolsSpawnProxyRootPauseMarks "$controlSession" || :
 	fi
 	## NOTHING HAS RUN FOR A LONG TIME: the thread ends itself (S5.6, item 6). A session with no run alive on this host, no death left
 	## to settle and no request of the console taken has nothing left to watch, and a thread that stayed would hold a process for
@@ -1060,7 +1064,7 @@ case "$1" in
 			[ -z "${!controlDrop+set}" ] || local -x "$controlDrop="
 		done
 
-		type AgentsToolsRegistryMeasureRows > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.RegistrySpawnedSessions.include"
+		type AgentsToolsRegistryMeasureRows > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.RegistrySpawnedSessions.include"
 		type AgentsToolsSessionControlDeathPost > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionControlDeath.include"
 		type AgentsToolsSessionControlRequestCarry > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionControlRequest.include"
 
@@ -1106,7 +1110,7 @@ case "$1" in
 					return 1
 				;;
 			esac
-			type AgentsToolsManagerSessionKill > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.ManagerSessionKill.include"
+			type AgentsToolsManagerSessionKill > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.ManagerSessionKill.include"
 			AgentsToolsManagerSessionKill "--intern-session-control --release" "$controlDeathRun" run session-control
 			return 0
 		fi
@@ -1228,7 +1232,8 @@ case "$1" in
 		## so a session that starts is looked after at once and a session that has closed costs it nothing.
 		if [ "$controlMode" = "--run" ] ; then
 			type AgentsToolsSessionCommsListAdd > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionComms.include"
-			! type AgentsToolsSessionCommsListAdd > /dev/null 2>&1 || AgentsToolsSessionCommsListAdd "$controlSession" || :
+			type AgentsToolsSessionCommsListAdd > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionComms.include"
+			AgentsToolsSessionCommsListAdd "$controlSession" || :
 		fi
 
 		if [ "$controlMode" = "--run" ] ; then

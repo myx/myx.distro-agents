@@ -21,12 +21,13 @@ rigRefuse(){
 }
 [ -x "$rigFn" ] || rigRefuse "dispatcher not found: $rigFn"
 . "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-store-item.include.sh" || exit 1
 rigTmp="$( rigTempDir AgentsReflectionSweepCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
 rigData="$rigTmp/data"
 rigSkills="$rigTmp/skills"
-mkdir -p "$rigTmp/ws/.local" "$rigTmp/home" "$rigSkills/rig-member" "$rigSkills/rig-other" "$rigSkills/magic-coordinator" "$rigData/board/running" "$rigData/board/pending" "$rigData/board/backlog"
+mkdir -p "$rigTmp/ws/.local" "$rigTmp/home" "$rigSkills/rig-member" "$rigSkills/rig-other" "$rigSkills/magic-coordinator"
 
 rigPassCount=0
 rigFailCount=0
@@ -67,8 +68,14 @@ rigOp(){ ## result file, op and arguments...
 rigInc(){ printf '%s/inboxes/%s/incoming/%s' "$rigData" "$1" "$2" ; }
 rigProc(){ printf '%s/inboxes/%s/processed/%s' "$rigData" "$1" "$2" ; }
 rigNow="$( date -u +%Y%m%dT%H%MZ )"
+## Every inbox item is written by the store's own write (rig-store-item.include.sh), and so is the folder it lies in:
+## a hand-written fixture stays green when that write's own path changes, which is what this check is here to catch.
+rigBodyCount=0
 rigPut(){ ## member, file name, text -- an item of that inbox's incoming/
-	mkdir -p "$rigData/inboxes/$1/incoming" && printf '%s' "$3" > "$rigData/inboxes/$1/incoming/$2"
+	rigBodyCount=$(( rigBodyCount + 1 ))
+	printf '%s' "$3" > "$rigTmp/body$rigBodyCount"
+	rigStoreItem "$rigTmp" "$rigData" "$rigTmp/ws" "$1" "inbox $1 $2" "$rigTmp/body$rigBodyCount" \
+		|| rigRefuse "could not build the inbox item $2 of $1 through the store's own write"
 }
 rigSweep(){ ## result file, extra options
 	local rigOut="$1" ; shift
@@ -95,7 +102,8 @@ rigPut rig-member "$rigNoDateOld" "$( printf -- '---\ntype: reflection\ndate: 20
 rigPut rig-member "$rigNoDateNoHdr" "$( printf -- '---\ntype: reflection\nfrom: rig-member\n---\nundated name, no header\n' )"$'\n'
 rigPut rig-other "$rigOldNewHdr" "$( printf -- '---\ntype: reflection\ndate: %s 08:00 +0000\n---\nname old, header new\n' "$rigToday" )"$'\n'
 rigPut rig-member "$rigNote" "$( printf -- '---\ntype: note\n---\nan old note\n' )"$'\n'
-mkdir -p "$rigData/inboxes/rig-member/processed" && printf -- '---\nprocessed-at: 2026-01-01 00:00 +0000\n---\nalready\n' > "$rigData/inboxes/rig-member/processed/reflection-20260101T0100Z-rig-done.md"
+rigStoreItem "$rigTmp" "$rigData" "$rigTmp/ws" rig-member "inbox-processed rig-member reflection-20260101T0100Z-rig-done.md" "$( printf -- '---\nprocessed-at: 2026-01-01 00:00 +0000\n---\nalready\n' > "$rigTmp/body-done" ; printf '%s' "$rigTmp/body-done" )" \
+	|| rigRefuse "could not build the already-processed reflection through the store's own writes"
 
 echo "-- 1. what is swept --"
 rigSweep "$rigTmp/s1"

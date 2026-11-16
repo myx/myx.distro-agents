@@ -6,6 +6,7 @@
 ## neither the record nor itself, and kept ticking.
 ## Offline: the workspace, its board and its spawn records are this rig's own temp tree. No socket.
 set -u
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-store.include.sh" || exit 1
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 rigPkg="${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}/myx/myx.distro-agents"
 rigFn="$rigPkg/sh-scripts/DistroAgentsTools.fn.sh"
@@ -22,7 +23,8 @@ trap 'for rigOne in $rigPids ; do kill -KILL "$rigOne" 2> /dev/null ; done ; rm 
 rigWs="$rigTmp/ws"
 rigData="$rigTmp/data"
 rigSpawned="$rigWs/.local/agents/spawned"
-mkdir -p "$rigWs/.local/.agents" "$rigData/board/running" "$rigSpawned/rig-end" "$rigWs/.local/agents/sessions/rig-session/control"
+mkdir -p "$rigWs/.local/.agents" "$rigSpawned/rig-end" "$rigWs/.local/agents/sessions/rig-session/control"
+rigBoardStates "$rigData" running
 printf 'SLACK_CHANNEL_MAGIC_TEAM=CRIG00001\nSLACK_CHANNEL_HUMAN_OWNER=URIGOWNER\nSLACK_BOT_TOKEN=rig-bot-token-TEAM\nSESSION_CONTROL_TICK_SECONDS=1\nSESSION_CONTROL_CLOSING_SECONDS=2\nNO_PROXY=*\n' > "$rigWs/.local/.agents/magic-team.agent.env"
 mkdir -p "$rigTmp/bin" && printf '#!/bin/sh\ncat > /dev/null\nexit 7\n' > "$rigTmp/bin/curl" && chmod +x "$rigTmp/bin/curl"
 rigHost="$( hostname -s 2> /dev/null )" || rigHost="unknown"

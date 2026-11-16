@@ -71,6 +71,7 @@ case "$1" in
 			## under the bot as well. The read goes once as asked; where Slack says channel_not_found, not_in_channel or thread_not_found (a thread the bot started in its own DM) it goes once more under the bot, in the same call
 			## (no second process). --identity-bot asked is final.
 			local resolved rc channel threadTs
+			type DistroAgentsToolsResolveTarget > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsResolveTarget.include"
 			resolved="$( DistroAgentsToolsResolveTarget "$target" "$memberName" )" && rc=0 || rc=$?
 			case "$rc" in
 				0)

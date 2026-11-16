@@ -17,7 +17,7 @@ AgentsToolsPermissionPlannedIgnored(){ ## member, session id, dispatch item, ent
 	ignoredDir="$( AgentsToolsPermissionSessionDir "$2" )" || return 0
 	ignoredKey="$( printf '%s' "$4" | LC_ALL=C cksum | LC_ALL=C tr ' ' '-' )" || return 0
 	mkdir "$ignoredDir/planned-ignored-$ignoredKey" 2>/dev/null || return 0
-	AgentsToolsPermissionEventTrack "$1" "$ignoredDir" --kind refusal --session-id "$2" --field what="Planned allow ignored" \
+	AgentsToolsPermissionEventTrack "$1" "$2" --kind refusal --session-id "$2" --field what="Planned allow ignored" \
 		--field dispatch="$3" --field entry="$4" --field reason="$5" --field caller="$1"
 	return 0
 }

@@ -78,7 +78,8 @@ rigAcct="$( printf '%s' "$rigAcct" | LC_ALL=C tr -s ' \t\r\n' '_' )"
 [ -n "$rigAcct" ] || rigAcct="unknown"
 rigWs="$rigTmp/ws"
 rigData="$rigWs/DATA"
-mkdir -p "$rigWs/.local/.agents" "$rigWs/.local/agents/spawned" "$rigWs/.local/agents/sessions" "$rigData/board/running"
+mkdir -p "$rigWs/.local/.agents" "$rigWs/.local/agents/spawned" "$rigWs/.local/agents/sessions"
+rigBoardStates "$rigData" running
 rigHost="$( hostname -s 2>/dev/null || echo unknown )"
 rigTag="${rigTmp##*.}"
 rigMapOwnerTo(){ ## account -- the console account an owner is mapped to

@@ -59,7 +59,7 @@ rigConfirmPosts(){ ## -- how many posted bodies hold the emergency-confirmation 
 	LC_ALL=C grep -l -F 'Confirm the emergency to set the emergency flag' "$rigScn"/post.* 2> /dev/null | wc -l | LC_ALL=C tr -d ' '
 }
 rigMarkedItem(){ ## file name, mark -- one inbox item of magic-coordinator, marked
-	printf -- '---\ntype: note\nfrom: rig\nowner: magic-coordinator\nmark: %s\n---\n# Note: %s work\n\nwork\n' "$2" "$2" > "$rigData/inboxes/magic-coordinator/incoming/$1"
+	printf -- '---\ntype: note\nfrom: rig\nowner: magic-coordinator\nmark: %s\n---\n# Note: %s work\n\nwork\n' "$2" "$2" | rigStoreItem "$rigData" inbox magic-coordinator $1
 }
 
 echo "-- 1. out of worktime, an important item starts the advance one-shot --"

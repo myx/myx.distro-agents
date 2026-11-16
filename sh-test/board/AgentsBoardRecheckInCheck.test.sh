@@ -19,10 +19,13 @@ rigTmp="$( rigTempDir AgentsBoardRecheckInCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
 rigData="$rigTmp/data"
-mkdir -p "$rigTmp/ws" "$rigData/board/backlog" "$rigData/board/pending" "$rigData/board/running" "$rigData/board/blocked" "$rigData/board/parked"
+mkdir -p "$rigTmp/ws"
 
 rigPassCount=0
 rigFailCount=0
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-writes.include.sh" || exit 1
+rigOwnerWs="${rigWs:-$rigTmp/ws}" rigOwnerData="${rigData:-${rigD:-${rigStore:-${rigOut:-$rigTmp/data}}}}" rigOwnerHome="${rigHome:-$rigTmp/home}" rigOwnerSkills="${rigSkills:-$rigTmp/skills}"
+rigOwnerBoardReady
 rigAssert(){ ## what is asserted, got, want
 	if [ "$2" = "$3" ] ; then
 		printf '  PASS  %s\n' "$1" ; rigPassCount=$(( rigPassCount + 1 ))
@@ -42,7 +45,7 @@ rigOp(){ ## result file, extra DistroAgentsTools.fn.sh arguments... (stdin passe
 	printf '%s' "$?" > "$opOut.rc"
 }
 rigItem(){ ## state, item filename, extra frontmatter lines
-	printf -- '---\ntype: task\nowner: rig\n%s---\n\nrig item\n' "$3" > "$rigData/board/$1/$2"
+	printf -- '---\ntype: task\nowner: rig\n%s---\n\nrig item\n' "$3" | rigOwnerBoardPut "$1" "$2"
 }
 rigField(){ ## state, item filename, field -- every value of that frontmatter field, one per line
 	LC_ALL=C sed -n "s/^$3: //p" "$rigData/board/$1/$2" 2>/dev/null

@@ -40,6 +40,8 @@ rigAssert(){ ## what is asserted, got, want
 ## The whole rig, made fresh: a workspace, a team data root, a skillset with three members in it.
 rigScene(){ ## name
 	rigDir="$rigTmp/$1" ; rigWs="$rigDir/ws" ; rigData="$rigDir/data" ; rigSkills="$rigDir/skills" ; rigHome="$rigDir/home"
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-writes.include.sh" || exit 1
+rigOwnerWs="${rigWs:-$rigTmp/ws}" rigOwnerData="${rigData:-${rigD:-${rigStore:-${rigOut:-$rigTmp/data}}}}" rigOwnerHome="${rigHome:-$rigTmp/home}" rigOwnerSkills="${rigSkills:-$rigTmp/skills}"
 	rm -rf "$rigDir"
 	mkdir -p "$rigWs/.local/.agents" "$rigWs/.local/temp" "$rigHome" \
 		"$rigData/inboxes/rig-member/incoming" "$rigData/inboxes/rig-other/incoming" "$rigData/board" \
@@ -49,7 +51,7 @@ rigScene(){ ## name
 	printf 'SLACK_CHANNEL_MAGIC_TEAM=CRIG00001\nSLACK_BOT_TOKEN=rig-bot-token-TEAM\n' > "$rigWs/.local/.agents/magic-team.agent.env"
 }
 rigItem(){ ## member, item name, title
-	printf -- '---\ntype: %s\nfrom: rig-other\n---\n\n# %s\n\nA rig body.\n' "${2%%-*}" "$3" > "$rigData/inboxes/$1/incoming/$2"
+	printf -- '---\ntype: %s\nfrom: rig-other\n---\n\n# %s\n\nA rig body.\n' "${2%%-*}" "$3" | rigOwnerInboxPut "$1" "$2"
 }
 ## One call of the tool, in the rig's own workspace and team data, guarded to stay inside the rig.
 rigCall(){ ## result name, the operation's words...
@@ -143,8 +145,7 @@ rigAssert "control: it delivered the named item as its own block"   "$( LC_ALL=C
 rigAssert "the named item's block ends with the instruction"        "$( rigLastLineIs named1 )" 1
 
 movedOne="inquiry-20261001T0100Z-rig-done.md"
-mkdir -p "$rigData/inboxes/rig-member/processed"
-printf -- '---\ntype: inquiry\nfrom: rig-other\nprocessed-at: 2026-10-01 10:00 +0200\n---\n\nA rig body.\n' > "$rigData/inboxes/rig-member/processed/$movedOne"
+printf -- '---\ntype: inquiry\nfrom: rig-other\nprocessed-at: 2026-10-01 10:00 +0200\n---\n\nA rig body.\n' | rigOwnerInboxPut rig-member "$movedOne"
 rigCall named2 --intern-op-session-context-scan rig-member --state backlog --item "$movedOne" --item-include-inbox --include-processed \
 	--all-types --no-slack --no-email --no-trello --no-board-related --no-inbox-inquiry --no-inbox-reflections --no-inbox-notes --no-inbox-other --context rig
 rigAssert "control: the already-processed named item was delivered"  "$( LC_ALL=C grep -c -x "## inbox/$movedOne" "$rigDir/named2.out" )" 1

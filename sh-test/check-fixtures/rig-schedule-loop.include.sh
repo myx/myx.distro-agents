@@ -6,6 +6,7 @@
 ## work-duty routine, routines that declare an autorun, the settings of a schedule (Etc/GMT-3, weekend sat,sun, worktime 09:00 to 17:00 on
 ## workdays), a console that ends at once, a Slack-shaped curl that logs every call, a process list of its own, and a clock of its own (now.epoch).
 ## Sourced by the check, after rig-processes.include.sh, rig-control-threads.include.sh and rig-temp.include.sh, with rigTmp made, rigRefuse and
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-writes.include.sh" || exit 1
 ## rigAssert defined:
 ##   . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-schedule-loop.include.sh"
 ##   rigScheduleSetup <number of keepers>    builds the rig under $rigTmp/loop
@@ -32,12 +33,12 @@ rigScheduleSetup(){ ## number of keepers (01 up)
 	rigNames=""
 	for rigNo in $( seq 1 "$rigKeepers" ) ; do
 		rigNo="$( printf '%02d' "$rigNo" )"
-		mkdir -p "$rigSkills/keeper-rig-$rigNo" "$rigData/inboxes/keeper-rig-$rigNo/incoming"
+		mkdir -p "$rigSkills/keeper-rig-$rigNo"
 		printf -- '---\nmaintainers: rig\n---\nrig identity\n' > "$rigSkills/keeper-rig-$rigNo/keeper-rig-$rigNo.basic.md" ; printf '# rig armed\n' > "$rigSkills/keeper-rig-$rigNo/keeper-rig-$rigNo.armed.md"
 		printf '# keeper-rig-%s\n' "$rigNo" > "$rigSkills/keeper-rig-$rigNo/SKILL.md"
 		rigNames="$rigNames keeper-rig-$rigNo"
 	done
-	mkdir -p "$rigData/inboxes/magic-coordinator/incoming" "$rigData/inboxes/magic-librarian/incoming" "$rigData/inboxes/oncall-rig/incoming" "$rigData/inboxes/human-owner/incoming"
+	:  ## the store folders are made by the write that fills them
 	## The real work-duty routine, but for its scan: the scan collects over a window and reads the Slack of the rig, which a check of the loop does
 	## not need (the routine's own text is held by AgentsScheduleLoopCheck, section 0).
 	LC_ALL=C sed -e 's/^input-scan-def: .*$/input-scan-def: none/' "$rigPackage/skillset/magic-team/magic-team/magic-team.work-duty.routine.md" > "$rigSkills/magic-team/magic-team.work-duty.routine.md" \
@@ -122,8 +123,8 @@ rigLive(){ ## member, idle|working -- the run of that member's duty in the rig: 
 		[ -n "$liveStem" ] || continue
 		for liveItem in "$rigData"/board/processed/"${liveStem%.md}.md" "$rigData"/board/archived/"${liveStem%.md}.md" ; do
 			[ -f "$liveItem" ] || continue
-			mkdir -p "$rigData/board/running"
-			LC_ALL=C sed -e 's/^status: .*/status: dispatch-started/' -e '/^resolved-at: /d' -e '/^processed-at: /d' -e '/^execution-receipt: /d' "$liveItem" > "$rigData/board/running/${liveItem##*/}" && rm -f "$liveItem"
+			rigOwnerBoardMove "${liveItem%/*}" running "${liveItem##*/}" "upsert:status:dispatch-started" "remove:resolved-at" "remove:processed-at" "remove:execution-receipt" \
+				|| rigRefuse "the owner could not move ${liveItem##*/} back to running"
 		done
 	done
 	if ! LC_ALL=C grep -q '^session-thread: ' "$liveRecord" ; then
@@ -211,5 +212,5 @@ rigDutyCount(){ ## member -- how many records of the work-duty routine that memb
 	printf '%s\n' "$dutyN"
 }
 rigItem(){ ## member -- one inbox item not yet processed, for that member to work on
-	printf -- '---\ntype: note\nfrom: rig\nowner: %s\n---\n# Note: work\n\nwork\n' "$1" > "$rigData/inboxes/$1/incoming/note-20261019T0900Z-rig-work.md"
+	rigOwnerInboxWrite $1 "note-20261019T0900Z-rig-work.md" -- '---\ntype: note\nfrom: rig\nowner: %s\n---\n# Note: work\n\nwork\n' "$1"
 }

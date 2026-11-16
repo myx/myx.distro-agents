@@ -36,7 +36,8 @@ rigTmp="$( cd "$rigTmp" && pwd -P )"
 export GIT_AUTHOR_NAME=rig GIT_AUTHOR_EMAIL=rig@example.invalid GIT_COMMITTER_NAME=rig GIT_COMMITTER_EMAIL=rig@example.invalid
 rigWs="$rigTmp/ws"
 rigStore="$rigTmp/store"
-mkdir -p "$rigWs/.local/.agents" "$rigWs/.local/agents" "$rigStore/board/running" "$rigTmp/home" "$rigTmp/bin" "$rigTmp/skills/magic-tester"
+mkdir -p "$rigWs/.local/.agents" "$rigWs/.local/agents" "$rigTmp/home" "$rigTmp/bin" "$rigTmp/skills/magic-tester"
+rigBoardStates "$rigStore" running
 printf 'rig-tester\n' > "$rigTmp/skills/magic-tester/magic-tester.basic.md"
 git -C "$rigStore" init -q || rigRefuse "could not init the temp store"
 printf 'seed\n' > "$rigStore/README.md"

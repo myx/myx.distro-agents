@@ -32,7 +32,7 @@ trap ': > "$rigTmp/release" ; chmod -R u+w -- "$rigTmp" 2>/dev/null ; rigControl
 rigWs="$rigTmp/ws" rigSkills="$rigTmp/skills" rigData="$rigTmp/data"
 rigNoteName="note-20261020T000000Z-work-duty-state-and-lock.md"
 rigKeeperIncoming="$rigData/inboxes/rig-keeper/incoming" rigKeeperProcessed="$rigData/inboxes/rig-keeper/processed"
-mkdir -p "$rigWs/.local/.agents" "$rigTmp/bin" "$rigSkills/magic-team" "$rigSkills/rig-keeper" "$rigSkills/rig-other" "$rigData/board"
+mkdir -p "$rigWs/.local/.agents" "$rigTmp/bin" "$rigSkills/magic-team" "$rigSkills/rig-keeper" "$rigSkills/rig-other"
 cp "$rigTest/check-fixtures/slack-send-identity-check.curl.stub.sh" "$rigTmp/bin/curl" || rigRefuse "the fake curl fixture is missing from the package"
 chmod +x "$rigTmp/bin/curl"
 PATH="$rigTmp/bin:$PATH"
@@ -43,7 +43,7 @@ printf '%s\n' '#!/usr/bin/env bash' \
 	'## --cli-configured stand-in: writes MDAT_SPAWN_LAUNCH_MARKER and records the context.' \
 	'rigN="$( ls "$RIG_SCENARIO"/brief.* 2> /dev/null | wc -l | tr -d " " )"' \
 	'cat > "$RIG_SCENARIO/brief.$MDAT_SPAWN_AGENT.$rigN"' \
-	'cp "$RIG_DATA/inboxes/$MDAT_SPAWN_AGENT/processed/note-20261020T000000Z-work-duty-state-and-lock.md" "$RIG_SCENARIO/seen.$MDAT_SPAWN_AGENT.$rigN" 2> /dev/null || :' \
+	'cat "$RIG_DATA/inboxes/$MDAT_SPAWN_AGENT/processed/note-20261020T000000Z-work-duty-state-and-lock.md" > "$RIG_SCENARIO/seen.$MDAT_SPAWN_AGENT.$rigN" 2> /dev/null || :' \
 	'printf "rig-cli\n" > "$MDAT_SPAWN_LAUNCH_MARKER"' \
 	': > "$RIG_SCENARIO/live.$MDAT_SPAWN_AGENT.$rigN"' \
 	'rigWaited=0 ; while [ ! -e "$RIG_SCENARIO/release" ] && [ "$rigWaited" -lt 120 ] ; do sleep 1 ; rigWaited=$(( rigWaited + 1 )) ; done' \

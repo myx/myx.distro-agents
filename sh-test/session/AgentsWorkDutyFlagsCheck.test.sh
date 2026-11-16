@@ -25,7 +25,8 @@ rigAssert(){ ## what is asserted, got, want
 rigReal="$MMDAPP"
 rigWs="$rigTmp/ws"
 rigData="$rigWs/data"
-mkdir -p "$rigWs/.local/agents/spawned" "$rigData/board/pending" "$rigWs/.local/agents/schedule"
+mkdir -p "$rigWs/.local/agents/spawned" "$rigWs/.local/agents/schedule"
+rigBoardStates "$rigData" pending
 export MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDSC_CMD=check
 set +u
 . "$rigHere/schedule/AgentsTools.DispatcherSchedule.include" > /dev/null 2>&1
@@ -146,8 +147,8 @@ rigReset
 rigFlags="worktime: no
 overtime: no
 emergency: yes (3000 seconds left)" rigDemand="magic-coordinator"
-printf '%s\n' '---' 'owner: keeper-myx' 'mark: urgent' '---' > "$rigData/board/pending/task-a.md"
-printf '%s\n' '---' 'owner: keeper-ae3' 'mark: normal' '---' > "$rigData/board/pending/task-b.md"
+printf '%s\n' '---' 'owner: keeper-myx' 'mark: urgent' '---' | rigStoreItem "$rigData" board pending task-a.md
+printf '%s\n' '---' 'owner: keeper-ae3' 'mark: normal' '---' | rigStoreItem "$rigData" board pending task-b.md
 rigRunLoop
 rigAssert "emergency out of hours: a member is started for its own urgent pending task, the coordinator by the flag, and no member with only an ordinary task" "$( rigStarted )" "keeper-myx magic-coordinator"
 

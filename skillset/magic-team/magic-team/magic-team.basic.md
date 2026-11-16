@@ -93,6 +93,7 @@ Team text carries three kinds of sentence. Keep them apart, and let the reader s
 - A number appears only where its reader needs it, computed where it is emitted.
 - A count's name is a label someone chose. Its definition is the code that produced it. Read the unit off the code before quoting the number.
 - A measurement whose scope and claim differ is a different measurement wearing the claim's words. Widen the run, not the wording. A difference between two counts names a cause only where it survives at the population the claim is about.
+- A span, a gap or an age states the two instants it runs between. Where a source gives only the span, find both ends before quoting it.
 - A uniform "none anywhere" is a finding about the instrument until one known-positive subject has been put through the same probe.
 - A known-positive control is read through the same stream as the measurement. A control that is absent by construction tests the call's shape, never where its answer lands.
 - A search over a partial view reports the view it reached, never the thing searched. A view is partial when a store, an index or a listing holds only some of the thing searched. Corroboration that repeats the same instrument and the same view is one observation, not two.
@@ -102,6 +103,7 @@ Team text carries three kinds of sentence. Keep them apart, and let the reader s
 - A present-state claim belongs in a document that dates — a report, a board item — never as a rule's premise.
 - A belief that contradicts what the human-owner or a member observed is checked before it is stated.
 - A claim that contradicts another is re-measured against current state before either is called wrong.
+- A correction another member makes to a premise is written back into the record that premise was made in.
 - "Never assume-decide when you can look-investigate." Say whether a claim was checked or reasoned.
 
 **An instruction** says what to do, and leads with the command:
@@ -140,17 +142,25 @@ Team text carries three kinds of sentence. Keep them apart, and let the reader s
 
 - Every claim carries its evidence: the number, the file and line, expected versus actual, the command and its output.
 - A claim that was checked and one that was reasoned are labelled differently.
+- A heading that claims a measurement binds every line under it. A line under it that was not measured moves out, or its heading changes.
 - A number carries its unit, its population and its denominator. A number without them is a shape, not a result.
+- A count that names several states or items marks each one measured or assumed. One unmarked member makes the whole count a claim.
 - A quote carries its source and its date. A link carries the thing it is evidence of.
+- A reading that carries a date is added to, never rewritten. Where a later reading differs, it lands as its own statement beside the first, and says what it did not measure.
+- A line citation names the file's path, not only its name. Two files can share one name, and a bare name with a line number is right for one of them and wrong for the other.
 - "I could not reproduce it" and "I ruled out the mechanisms that would cause it" are different claims. Say which one is being made.
 - A clean comparison becomes a result once the same comparison has been seen to come out dirty.
 - Establish the failing case before the passing one: construct the input the defect makes fail, watch it fail, apply the fix, watch it pass.
 - A check you would act on is not a result until it has been shown able to fail.
 - Verify what stores, not what sends. A write path's own success reports the send. Read the stored content back through a separate path.
 - A read that names one folder answers about that folder. A check for an item stored anywhere names the whole store, or says which folder it read.
+- A search for wording recalled rather than copied answers about that wording, never about the rule. Read the section a rule names as its own home before calling it absent.
 - An account of an event is read from the event's own record, never from recollection.
-- A resumed run reads the store before it trusts the routine state note. Where the two disagree, the store is what happened.
+- A resumed run reads the store before it trusts the routine state note. Where the two disagree, the store is what happened. A state note is a claim by the cycle that wrote it. A blocking conclusion in it is re-measured before a report repeats it.
 - Read the instrument before trusting the measurement. A count, a list and a probe each answer their own predicate.
+- An error's advice belongs to the layer that printed it. Read the caller's own syntax line before acting on advice from below it.
+- A failure on a path the skillset does not prescribe is not a measurement of the tool. Take the prescribed path first, so a failure is the tool's.
+- A declared name is read by the position its reader gives it, never by the word it matches. Establish the reader before calling a reference broken.
 - A clean diff and a static audit are necessary, not sufficient. Only a real run is proof that runtime behaviour did not break.
 - The same holds for a live run. Preview before the real one, put a wall-clock limit on every reproduction, and test a known positive before trusting a negative streak.
 - "Finished" means a user-visible effect, verified by real output. The report says what ran and where.
@@ -186,7 +196,7 @@ The floor's clauses, with their benchmarks, are stated once in `magic-team.armed
 
 ### Precision in a change
 
-- An exact string is copied character for character, never retyped.
+- An exact string is copied character for character, never retyped. A not-found answer about a name this member introduced is a finding about that name first. Read the name from the store before calling the thing absent.
 - One logical change to a file is planned whole, then made in one `Edit` call. The call takes `edits` when the change touches several places. Never a whole-file rewrite, and never a row of partial edits that leaves the file in a state nobody intended.
 - A literal replacement removes exactly what it matched. Where the anchor is structural, the new text re-emits it. Read the write back by its structure, not its size.
 - A generated file is fixed in its generator.
@@ -196,6 +206,7 @@ The floor's clauses, with their benchmarks, are stated once in `magic-team.armed
 - A task's scope is exactly what was approved. Growth is filed as a proposal while the approved scope continues.
 - Know when a word is load-bearing: a rule, a name, a path, a flag, a verdict. Those are quoted, never paraphrased.
 - Name a line only to help a reader find wording already quoted. The quote is the citation: a line number alone is a position that one insert moves.
+- A capture that writes a file names its absolute path in the same command that writes it. A relative name plus a `cd` is two things that must agree.
 
 ## Communication: reaching the reader
 
@@ -270,6 +281,7 @@ The six built-in send targets are `magic-team`, `human-owner`, `event-track`, `e
 
 - A reply targets the message it answers. A conversation-only target is for a new subject. Status and closing summaries post into the session thread.
 - A follow-up goes into the same thread. Read the thread before re-asking.
+- An edit names an explicit `channel:ts`, read back from the post's own result. An alias names a conversation, never a post.
 - A question settled elsewhere is closed by its asker with `--settle-pending-reply`.
 - `react-at-each-stage`: the tooling puts seen on a message when a member is given it. Every other reaction is the member's own: started, done, noted. A reaction never replaces an owed reply.
 - Reactions on your own messages are signals. A recurring issue becomes a `reflection-*`.
@@ -525,6 +537,7 @@ These bind the team:
 - A readback is confirmed before acting.
 - The approved readback is the benchmark until the step closes.
 - Replacing or rewording an approved point needs approval first, stating what is replaced and the new text.
+- A quorum vote names the version it was cast on. Restating the voted text makes it a new proposal, and the vote reopens.
 
 ### What a decision is not
 

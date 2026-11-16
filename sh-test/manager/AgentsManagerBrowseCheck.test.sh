@@ -27,19 +27,20 @@ rigRefuse(){
 }
 [ -f "$rigTool" ] || rigRefuse "the tool is not at the origin this workspace resolves: $rigTool"
 . "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-writes.include.sh" || exit 1
 rigTmp="$( rigTempDir AgentsManagerBrowseCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
 rigWs="$rigTmp/ws" ; rigBare="$rigTmp/ws-bare" ; rigHome="$rigTmp/home" ; rigSkills="$rigTmp/skills"
 rigRoot="$rigWs/.local/agents/team-data-root"
-mkdir -p "$rigWs/.local/.agents" "$rigBare/.local/.agents" "$rigHome" "$rigRoot/board/running" "$rigRoot/board/review" "$rigRoot/board/odd-state" \
+mkdir -p "$rigWs/.local/.agents" "$rigBare/.local/.agents" "$rigHome" \
 	"$rigRoot/board/backlog" "$rigRoot/audit/2026-09" "$rigRoot/audit/2026-10" "$rigRoot/audit/2026-10/deeper" "$rigRoot/vault" \
 	"$rigSkills/keeper-rig/resources" "$rigSkills/keeper-rig/.hidden" "$rigTmp/outside"
-printf -- '---\ntype: task\nstatus: in progress\nowner: keeper-rig\ndate: 2026-10-01 09:00 +0000\ntitle: Alpha\n---\nrunning a\nstatus: not this\n' > "$rigRoot/board/running/task-alpha.md"
-printf 'running b\n' > "$rigRoot/board/running/task-20261001T0900Z-beta.md"
-printf 'running c, with no stamp and no suffix\n' > "$rigRoot/board/running/epic-gamma"
-printf 'review\n' > "$rigRoot/board/review/proposal-delta.md"
-printf 'odd\n' > "$rigRoot/board/odd-state/task-odd.md"
+rigOwnerData="$rigRoot" rigOwnerBoardWrite running "task-alpha.md" -- '---\ntype: task\nstatus: in progress\nowner: keeper-rig\ndate: 2026-10-01 09:00 +0000\ntitle: Alpha\n---\nrunning a\nstatus: not this\n'
+rigOwnerData="$rigRoot" rigOwnerBoardWrite running "task-20261001T0900Z-beta.md" -- 'running b\n'
+rigOwnerData="$rigRoot" rigOwnerBoardWrite running "epic-gamma" -- 'running c, with no stamp and no suffix\n'
+rigOwnerData="$rigRoot" rigOwnerBoardWrite review "proposal-delta.md" -- 'review\n'
+rigOwnerData="$rigRoot" rigOwnerBoardWrite odd-state "task-odd.md" -- 'odd\n'
 printf 'old\n' > "$rigRoot/audit/2026-09/session-20260930T2300Z-keeper-rig-1.log"
 printf 'new one\nits second line\n' > "$rigRoot/audit/2026-10/session-20261013T0100Z-keeper-rig-2.log"
 printf 'newer\n' > "$rigRoot/audit/2026-10/transcript-20261014T0200Z-a talk.md"

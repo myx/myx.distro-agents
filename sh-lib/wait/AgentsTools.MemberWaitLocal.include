@@ -46,61 +46,16 @@ AgentsWaitProbeFile(){
 ## A detached Bash process's output, owned by the session: its stdout and stderr so far,
 ## each line prefixed with > for stdout and ! for stderr, under a State line so a wait
 ## wakes on new output AND on the process ending. The target is the handle the Bash
-## start returned; the session folder it lives in is this wait's own session's.
-## A STOPPED handle is read only as far as it stood when the stop took effect: its `.closed`
-## marker keeps the byte counts (out <n>, err <n>), and the rendering stops there. So a child
-## that outlived the stop cannot make a closed handle look like it wrote something new, and a
-## wait that has returned CLOSED never returns that source again on what came after it. A marker
-## with no counts in it was written by an older build, and its output is read whole, as it was.
+## start returned, and the rendering is the harness's own, read through the owner of the session's
+## processes folder: this probe names a session and a handle, never a path.
+## A STOPPED handle is rendered only as far as it stood when the stop took effect, so a child
+## that outlived the stop cannot make a closed handle look like it wrote something new.
 AgentsWaitProbeProcess(){
-	local probeTarget="$2" probeOut="$4" probeDir probePid probeStatus probeCaps="" probeClosedLine probeOutCap="" probeErrCap=""
+	local probeTarget="$2" probeOut="$4" probeRendered=""
 	[ -n "${waitSessionId:-}" ] || return 2
 	[ -n "$probeTarget" ] || return 2
-	probeDir="$MMDAPP/.local/agents/sessions/$waitSessionId/processes"
-	[ -d "$probeDir" ] || return 2
-	[ -f "$probeDir/$probeTarget.out" ] || [ -f "$probeDir/$probeTarget.err" ] || return 2
-	probePid=""
-	read -r probePid < "$probeDir/$probeTarget.pid" 2>/dev/null || probePid=""
-	if [ -f "$probeDir/$probeTarget.closed" ] ; then
-		while IFS= read -r probeClosedLine ; do
-			case "$probeClosedLine" in
-				'out '*) probeOutCap="${probeClosedLine#out }" ; probeCaps="yes" ;;
-				'err '*) probeErrCap="${probeClosedLine#err }" ; probeCaps="yes" ;;
-			esac
-		done < "$probeDir/$probeTarget.closed"
-		if [ -n "$probeCaps" ] ; then
-			case "$probeOutCap" in ''|*[!0-9]*) probeOutCap=0 ;; esac
-			case "$probeErrCap" in ''|*[!0-9]*) probeErrCap=0 ;; esac
-		fi
-	fi
-	local probeRendered=""
-	probeRendered="$( {
-		if [ -f "$probeDir/$probeTarget.closed" ] ; then
-			printf 'State: CLOSED\n'
-		## A finished process is read from its own status before its pid is asked: the number may since have been given to another
-		## process, and a handle that ended would then be reported RUNNING for as long as that one lived.
-		elif [ -f "$probeDir/$probeTarget.status" ] ; then
-			printf 'State: FINISHED, exit status %s\n' "$( cat "$probeDir/$probeTarget.status" 2>/dev/null )"
-			## A STATUS OF 128 OR MORE IS A SIGNAL DEATH (S6.47), said here in the same words the read of a handle
-			## in the Bash tool uses. No apostrophe in a comment here: bash 3.2 ends a command substitution at one.
-			probeStatus="$( cat "$probeDir/$probeTarget.status" 2>/dev/null )"
-			if [ "$probeStatus" -ge 128 ] 2>/dev/null ; then
-				printf 'End: ENDED BY A SIGNAL (exit status %s), so its output stops where that signal caught it and may be incomplete.\n' "$probeStatus"
-				[ ! -s "$probeDir/$probeTarget.ceiling" ] || printf 'End: %s.\n' "$( cat "$probeDir/$probeTarget.ceiling" 2>/dev/null )"
-			fi
-		elif [ -n "$probePid" ] && kill -0 "$probePid" 2>/dev/null ; then
-			printf 'State: RUNNING\n'
-		else
-			printf 'State: UNKNOWN\n'
-		fi
-		if [ -n "$probeCaps" ] ; then
-			head -c "$probeOutCap" "$probeDir/$probeTarget.out" 2>/dev/null | LC_ALL=C awk '{ print ">" $0 }'
-			head -c "$probeErrCap" "$probeDir/$probeTarget.err" 2>/dev/null | LC_ALL=C awk '{ print "!" $0 }'
-		else
-			LC_ALL=C awk '{ print ">" $0 }' "$probeDir/$probeTarget.out" 2>/dev/null
-			LC_ALL=C awk '{ print "!" $0 }' "$probeDir/$probeTarget.err" 2>/dev/null
-		fi
-	} 2> /dev/null )" || return 2
+	type AgentsHarnessProcessProbeInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessToolsBash.include"
+	AgentsHarnessProcessProbeInto probeRendered "$waitSessionId" "$probeTarget" || return 2
 	## Written only where it differs (AgentsWaitPut): a quiet tick writes no file.
 	AgentsWaitPut "$probeOut" "${probeRendered:+$probeRendered$'\n'}" || return 2
 	return 0
@@ -115,9 +70,11 @@ AgentsWaitProbeProcess(){
 ## never new input for it. No date process per item.
 AgentsWaitProbeInbox(){
 	[ -n "${MDAT_DATA_ROOT:-}" ] || return 2
-	local probeFile probeList=""
-	[ -d "$MDAT_DATA_ROOT/inboxes/$2/incoming" ] || { AgentsWaitPut "$4" "" || return 2 ; return 0 ; }
-	for probeFile in "$MDAT_DATA_ROOT/inboxes/$2/incoming"/*.md ; do
+	local probeFile probeList="" probeFolder=""
+	type AgentsToolsInboxFolderInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/inbox/AgentsTools.InboxPlace.include"
+	AgentsToolsInboxFolderInto probeFolder "$2" incoming || probeFolder=""
+	[ -n "$probeFolder" ] && [ -d "$probeFolder" ] || { AgentsWaitPut "$4" "" || return 2 ; return 0 ; }
+	for probeFile in "$probeFolder"/*.md ; do
 		[ -f "$probeFile" ] || continue
 		probeList="$probeList${probeFile##*/}"$'\n'
 	done
@@ -125,9 +82,22 @@ AgentsWaitProbeInbox(){
 	return 0
 }
 
+## One board state by its folder, and one item by the board's own signature: an item that moves, leaves or is rewritten arrives.
 AgentsWaitProbeBoard(){
+	local probeSignature="" probeFolders=()
 	[ -n "${MDAT_DATA_ROOT:-}" ] || return 2
-	AgentsWaitProbeFile "$1" "$MDAT_DATA_ROOT/board/$2" "$3" "$4"
+	case "$2" in ''|.|..|*/*|*[[:space:]]*) return 2 ;; esac
+	type AgentsToolsBoardStateFoldersInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemDecisions.include"
+	case "$2" in
+		backlog|pending|running|review|blocked|parked|processed|archived|retained)
+			AgentsToolsBoardStateFoldersInto probeFolders "$2"
+			AgentsWaitProbeFile "$1" "${probeFolders[0]:-/nonexistent}" "$3" "$4"
+			return $?
+		;;
+	esac
+	AgentsToolsBoardItemSignatureInto probeSignature "$2" || return 2
+	AgentsWaitPut "$4" "$probeSignature" || return 2
+	return 0
 }
 
 ## THE CALLER'S OWN CHECKLIST (S13.9): the open items of its list, as the CheckList tool keeps them, so a member may
@@ -137,28 +107,18 @@ AgentsWaitProbeBoard(){
 ## said once, as an open item. The list is placed where the CheckList tool places it: the sandbox of the session's own
 ## spawn record, else the session's folder.
 AgentsWaitProbeChecklist(){
-	local probeOut="$4" probeSpawn="${waitSessionId:-${MDAT_SPAWN_SESSION_ID:-}}" probeFolder="" probeFile="" probeLine probeDue="" probeOpen="" probeNow="" probeDueText="" probeDueAt=""
+	local probeOut="$4" probeSpawn="${waitSessionId:-${MDAT_SPAWN_SESSION_ID:-}}" probeFile="" probeLine probeDue="" probeOpen="" probeNow="" probeDueText="" probeDueAt=""
 	[ "$2" = "$1" ] || return 2
 	case "$probeSpawn" in ''|*/*|.|..) return 2 ;; esac
-	## The folder is found once for the wait, and by the places a run's own record lies before any glob: this probe runs once a tick in every wait, and a
-	## glob over every spawn folder of the workspace, hundreds of them, made a tick cost as many directories as the workspace had sessions, in every wait.
-	if [ "${agentsWaitChecklistSpawn:-}" = "$probeSpawn" ] && [ -n "${agentsWaitChecklistFolder:-}" ] ; then
-		probeFolder="$agentsWaitChecklistFolder"
+	## The list is found once for the wait, by the session owner's locator, and kept once it exists: this probe runs once a tick
+	## in every wait, and a record lookup that globs every spawn folder of the workspace, hundreds of them, must not run a tick.
+	if [ "${agentsWaitChecklistKey:-}" = "$probeSpawn:$1" ] && [ -n "${agentsWaitChecklistFile:-}" ] ; then
+		probeFile="$agentsWaitChecklistFile"
 	else
-		if [ -f "${MDAT_SPAWN_SANDBOX_ROOT:-/nonexistent}/$probeSpawn.spawn.md" ] ; then
-			probeFolder="$MDAT_SPAWN_SANDBOX_ROOT"
-		elif [ -f "$MMDAPP/.local/agents/spawned/$probeSpawn/$probeSpawn.spawn.md" ] ; then
-			probeFolder="$MMDAPP/.local/agents/spawned/$probeSpawn"
-		else
-			for probeFile in "$MMDAPP/.local/agents/spawned"/*/"$probeSpawn.spawn.md" ; do
-				[ -f "$probeFile" ] || continue
-				probeFolder="${probeFile%/*}" ; break
-			done
-		fi
-		[ -z "$probeFolder" ] || { agentsWaitChecklistSpawn="$probeSpawn" ; agentsWaitChecklistFolder="$probeFolder" ; }
+		type AgentsSessionChecklistFileInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+		AgentsSessionChecklistFileInto probeFile "$probeSpawn" "$1" || return 2
+		[ ! -f "$probeFile" ] || { agentsWaitChecklistKey="$probeSpawn:$1" ; agentsWaitChecklistFile="$probeFile" ; }
 	fi
-	[ -n "$probeFolder" ] || probeFolder="$MMDAPP/.local/agents/sessions/$probeSpawn"
-	probeFile="$probeFolder/$1.checklist.md"
 	if [ ! -f "$probeFile" ] ; then
 		AgentsWaitPut "$probeOut" "" || return 2
 		return 0

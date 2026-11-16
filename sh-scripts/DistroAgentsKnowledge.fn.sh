@@ -50,7 +50,7 @@ DistroAgentsKnowledgeMoved(){
 		;;
 
 		--get-roster)
-			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamRoster.include"
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/inbox/AgentsTools.TeamRoster.include"
 			return $?
 		;;
 
@@ -66,7 +66,7 @@ DistroAgentsKnowledgeMoved(){
 
 		## The one write a member makes to a MAGIC.md: one section, by its heading (S10.23).
 		--magic-section-upsert)
-			type AgentsToolsMagicSectionUpsert > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/knowledge/AgentsTools.InternOpMagicSection.include"
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/knowledge/AgentsTools.InternOpMagicSection.include"
 			return $?
 		;;
 

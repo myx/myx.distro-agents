@@ -22,7 +22,7 @@ rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
 rigData="$rigTmp/data"
 rigSkills="$rigTmp/skills"
-mkdir -p "$rigTmp/ws/.local" "$rigTmp/home" "$rigSkills/rig-member" "$rigSkills/magic-coordinator" "$rigSkills/magic-coordinator" "$rigData/board/running" "$rigData/board/pending" "$rigData/board/backlog"
+mkdir -p "$rigTmp/ws/.local" "$rigTmp/home" "$rigSkills/rig-member" "$rigSkills/magic-coordinator" "$rigSkills/magic-coordinator"
 
 rigPassCount=0
 rigFailCount=0
@@ -76,6 +76,8 @@ rigAssert "the inquiry carries no from-reflection option text" "$( rigHolds "$( 
 
 echo "-- 2. nothing half done --"
 rigQ2=inquiry-20261006T0932Z-rig-lesson-two.md
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-writes.include.sh" || exit 1
+rigOwnerWs="${rigWs:-$rigTmp/ws}" rigOwnerData="${rigData:-${rigD:-${rigStore:-${rigOut:-$rigTmp/data}}}}" rigOwnerHome="${rigHome:-$rigTmp/home}" rigOwnerSkills="${rigSkills:-$rigTmp/skills}"
 printf 'x\n' | RIG_AGENT=rig-member rigOp "$rigTmp/n1" --upsert-inbox-inquiry magic-coordinator "$rigQ2" --from-reflection reflection-20261006T0999Z-rig-absent.md
 rigAssert "a reflection not there: refused, no inquiry" "$( cat "$rigTmp/n1.rc" ):$( [ -f "$( rigInc magic-coordinator "$rigQ2" )" ] && echo written || echo absent ):$( rigHolds "$rigTmp/n1" 'not an unprocessed reflection' )" "1:absent:yes"
 printf 'x\n' | RIG_AGENT=rig-member rigOp "$rigTmp/n2" --upsert-inbox-inquiry magic-coordinator "$rigQ2" --from-reflection "$rigR1"

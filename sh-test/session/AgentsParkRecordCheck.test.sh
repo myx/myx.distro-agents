@@ -6,6 +6,7 @@
 ## parked record rendered `unclosed`, and nothing read the mark at all.
 ## Offline: the workspace, its board and its spawn records are this rig's own temp tree. No socket.
 set -u
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-store.include.sh" || exit 1
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 rigPkg="${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}/myx/myx.distro-agents"
 
@@ -20,7 +21,8 @@ trap 'rm -rf -- "$rigTmp"' EXIT
 rigWs="$rigTmp/ws"
 rigData="$rigTmp/data"
 rigSpawned="$rigWs/.local/agents/spawned"
-mkdir -p "$rigWs/.local/.agents" "$rigData/board/running" "$rigSpawned/rig-parked" "$rigSpawned/rig-done" "$rigWs/.local/agents/sessions/rig-parked-$$" "$rigWs/.local/agents/sessions/rig-done-$$"
+mkdir -p "$rigWs/.local/.agents" "$rigSpawned/rig-parked" "$rigSpawned/rig-done" "$rigWs/.local/agents/sessions/rig-parked-$$" "$rigWs/.local/agents/sessions/rig-done-$$"
+rigBoardStates "$rigData" running
 printf 'SLACK_CHANNEL_MAGIC_TEAM=CRIG00001\nSLACK_CHANNEL_HUMAN_OWNER=URIGOWNER\nSLACK_BOT_TOKEN=rig-bot-token-TEAM\n' > "$rigWs/.local/.agents/magic-team.agent.env"
 rigHost="$( hostname -s 2> /dev/null )" || rigHost="unknown"
 
@@ -43,7 +45,7 @@ rigView(){ ## the registry's agent view, and its session view
 	env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp" PATH="/usr/bin:/bin:/usr/sbin:/sbin" \
 		MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
 		MDAT_SPAWN_AGENT=magic-coordinator \
-		bash -c '. "$1" ; AgentsToolsRegistryRenderSpawnedSessions "$2"' rig "$rigPkg/sh-lib/team-data/AgentsTools.RegistrySpawnedSessions.include" "$1" 2>&1
+		bash -c '. "$1" ; AgentsToolsRegistryRenderSpawnedSessions "$2"' rig "$rigPkg/sh-lib/session/AgentsTools.RegistrySpawnedSessions.include" "$1" 2>&1
 }
 rigStateOf(){ ## view output, spawn id -- the state column of that row
 	printf '%s\n' "$1" | LC_ALL=C awk -v want="$2" '$8 == want { print $13 }' | head -1

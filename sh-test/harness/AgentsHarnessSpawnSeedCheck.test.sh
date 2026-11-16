@@ -29,6 +29,7 @@ rigRefuse(){
 [ -f "$rigTool" ] || rigRefuse "the tool is not at the origin this workspace resolves: $rigTool"
 . "$rigTest/check-fixtures/rig-control-threads.include.sh" || rigRefuse "the rig's fixture that ends control threads is missing from the package"
 . "$rigTest/check-fixtures/rig-temp.include.sh" || rigRefuse "the rig's temp fixture is missing from the package"
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-writes.include.sh" || exit 1
 rigTmp="$( rigTempDir AgentsHarnessSpawnSeedCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 trap 'chmod -R u+w -- "$rigTmp" 2>/dev/null ; rigControlThreadsEnd "$rigTmp" ; rm -rf -- "$rigTmp"' EXIT
@@ -36,7 +37,7 @@ rigWs="$rigTmp/ws"
 rigSkills="$rigTmp/skills"
 rigData="$rigTmp/data"
 [ "$rigWs" != "${MMDAPP%/}" ] || rigRefuse "the rig workspace is the real one"
-mkdir -p "$rigWs/.local/.agents" "$rigTmp/bin" "$rigTmp/home/.agents/magic-team" "$rigSkills/magic-team" "$rigSkills/keeper-myx" "$rigSkills/magic-coordinator" "$rigData/board/running" "$rigData/inboxes/keeper-myx"
+mkdir -p "$rigWs/.local/.agents" "$rigTmp/bin" "$rigTmp/home/.agents/magic-team" "$rigSkills/magic-team" "$rigSkills/keeper-myx" "$rigSkills/magic-coordinator"
 cp "$rigTest/check-fixtures/slack-send-identity-check.curl.stub.sh" "$rigTmp/bin/curl" || rigRefuse "the fake curl fixture is missing from the package"
 chmod +x "$rigTmp/bin/curl"
 PATH="$rigTmp/bin:$PATH"
@@ -64,7 +65,7 @@ rigRoutine(){ ## short name -- a routine with one step in its Opening steps, two
 }
 rigRoutine rigsteps
 rigRoutine work-duty
-printf -- '---\ntype: task\nfrom: keeper-myx\nowner: keeper-myx\n---\n\n# A tracked task\n\n## Formal task\n\n- RIG-TRACKED-ONE\n- RIG-TRACKED-TWO\n\n## Decisions\n\n- RIG-NOT-A-STEP\n' > "$rigData/board/running/task-rig-seed.md"
+rigOwnerBoardWrite running "task-rig-seed.md" -- '---\ntype: task\nfrom: keeper-myx\nowner: keeper-myx\n---\n\n# A tracked task\n\n## Formal task\n\n- RIG-TRACKED-ONE\n- RIG-TRACKED-TWO\n\n## Decisions\n\n- RIG-NOT-A-STEP\n'
 ## An epic for the feature-open-work source, at a path under a `todo-sketchpad` folder, named by the brief as a builder's is.
 rigEpicRoot="$rigWs/source/myx/todo-sketchpad/backlog"
 mkdir -p "$rigEpicRoot"

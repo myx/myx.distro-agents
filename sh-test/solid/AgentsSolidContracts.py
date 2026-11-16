@@ -8,7 +8,11 @@
 ##                   branch counts for that branch only. Text inside quotes and heredocs is no call.
 ##   silent-load     a load of a package file that discards its stderr or falls back silently (`|| :`, `|| true`,
 ##                   `|| return 0`, `|| exit 0`, `|| continue`): a missing or broken library reads as stale data.
-##   optional-call   a package function called only if it happens to be loaded (`type F ... && F`, `if type F`).
+##   optional-call   a package function called only if it happens to be loaded (`type F ... && F`, `if type F`,
+##                   `! type F ... || F`).
+##   load-missing    a load of a package file, by a literal path, that no file answers: the call fails at run time.
+##   guarded-op      a dispatcher arm whose result is a sourced file's (`. file` then `return $?`) behind a guard: the
+##                   file runs its operation when sourced, so a guard makes a second call in one process do nothing.
 ##   dual-use        a library that runs a command at its load, or a file sourced with a dummy word to reach its functions.
 ##   duplicate-def   one function name defined twice: the first copy is dead, or two files race on load order.
 ##   dead            a function defined and named nowhere else in the package.
@@ -131,8 +135,8 @@ for r in code:
         if re.search(r'\.\s+"\$MDLT_ORIGIN/myx/myx\.distro-agents/[^"]+"\s*(?:[^|;&]*\s)?(?:2>\s?/dev/null|>\s?/dev/null 2>&1)', line) \
            or re.search(r'\.\s+"\$MDLT_ORIGIN/myx/myx\.distro-agents/[^"]+"[^|;&]*\|\|\s*(?::|true|return 0|exit 0|continue)(?:\s|;|$|\))', line):
             row('silent-load', r, n, 'a package load that hides its failure')
-        for m in re.finditer(r'(?:\bif !? ?type|type) ([A-Za-z_][A-Za-z0-9_]*) ?> ?/dev/null 2>&1( &&|\s*;\s*then)', line):
-            f = m.group(1)
+        for m in re.finditer(r'(?:\bif !? ?type|type) ([A-Za-z_][A-Za-z0-9_]*) ?> ?/dev/null 2>&1( &&|\s*;\s*then)|! type ([A-Za-z_][A-Za-z0-9_]*) ?> ?/dev/null 2>&1 \|\|', line):
+            f = m.group(1) or m.group(3)
             ## The family's entry functions are optional by design: the bootstrap asks for its context function the way
             ## myx.distro-source does (`! type DistroSystemContext`, sh-scripts/CleanSourceToCached.fn.sh:30), and a lazy tool
             ## entry falls back to running the same tool script, so neither reads stale data.
@@ -212,4 +216,18 @@ for r in code:
         calls = {k for k in fileDefs[target] if re.search(r'(?<![A-Za-z0-9_])' + re.escape(k) + r'(?![A-Za-z0-9_])', guarded)}
         if calls and fn not in calls and not re.search(r'(?<![A-Za-z0-9_])' + re.escape(fn) + r'(?![A-Za-z0-9_])', guarded):
             row('guard-name', r, i + 1, f'{fn} guards a load whose code calls {sorted(calls)[0]} of {target}')
+# --- a guard on an op arm: the arm's result is the sourced file's, so the file must run every time
+for r in code:
+    if not r.startswith('sh-scripts/'): continue
+    lines = text[r].split('\n')
+    for i in range(1, len(lines) - 1):
+        if re.match(r'^\s*--[a-z0-9-]+\)\s*$', lines[i - 1]) and lines[i + 1].strip() == 'return $?' and guardRe.search(lines[i]):
+            row('guarded-op', r, i + 1, 'an op arm sources its file behind a guard: a second call in one process runs nothing')
+# --- a load whose literal path names no file
+anyLoadRe = re.compile(r'\.\s+"\$MDLT_ORIGIN/myx/myx\.distro-agents/((?:sh-lib|sh-scripts)/[A-Za-z0-9._/-]+)"')
+for r in code:
+    for n, line in enumerate(text[r].split('\n'), 1):
+        if line.lstrip().startswith('#'): continue
+        for m in anyLoadRe.finditer(line):
+            if not os.path.isfile(m.group(1)): row('load-missing', r, n, f'{m.group(1)} is no file')
 if rows: print('\n'.join(sorted(rows)))

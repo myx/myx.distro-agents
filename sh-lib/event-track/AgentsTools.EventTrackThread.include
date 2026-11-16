@@ -4,63 +4,53 @@
 ##
 ## AgentsTools.EventTrackThread.include -- the one record of a coworking session's
 ## event-track thread, the one way a post opens it, and the switch of a participant's feed.
-## Function-only. Sourced by whatever opens, reads or posts into a session's thread: the
-## spawn proxy (the start post), the feed (AgentsTools.EventTrackFeed.include), the
-## permission posts (AgentsTools.InternOpPermission.include), the housekeeping report
-## (AgentsTools.SpawnSandbox.include), the transcript and the harness context.
+## Function-only.
 ##
-## THE THREAD belongs to the coworking session, and every participant's tracking posts go
-## into it, and nowhere else: its start, its feed, a refusal, a grant, a denial, a notice,
-## the box that says its handback is missing, its end, its housekeeping. A participant's
-## handback itself is a member's message, and goes to the session thread, as what a
-## participant must be told does. ONE THREAD PER COWORKING SESSION, in one record:
-## $MMDAPP/.local/agents/sessions/<session-id>/event-track.thread, one line `<channel>:<ts>`,
-## keyed by the coworking session id -- the `session-id` the spawn proxy settles: a spawn's
-## own id where it starts a session, the joined session's where it joins. The spawn that
-## starts a session opens the thread with its start post; a session with no start post has
-## it opened by its first tracking post. Whoever opens it records it here, under the
-## session's lock (AgentsToolsEventTrackThreadPost), the first record stands, and everything
-## after is a reply there, a joining spawn's start post too. A spawn that starts a session
-## of its own, a sub-spawn that does not join its parent's included, has a thread of its own.
+## A CALLER NAMES A SESSION BY ITS ID, with the workspace that keeps its store where that is
+## not MMDAPP, and never by a store folder: the session store answers where a session's folder
+## is (AgentsSessionFolderInto, AgentsSessionRunRecordInto). The record is the file
+## event-track.thread in that folder, one line `<channel>:<ts>`, keyed by the session a run
+## belongs to: its own `session-id` where it starts one, the joined session's where it joins.
+## The first record stands, and every post after it is a reply there.
 ##
-## A caller names a session by the store directory of an id, sessions/<id>: the session's
-## own, or the id of one spawn of it, whose session is found through its spawn record
-## (spawned/<sandbox>/<id>.md, `session-id`). No spawn has a thread or a record of its own.
-##
-## THE FEED SWITCH is each participant's own: sessions/<its own id>/feed.open, an empty
-## marker. While it is there that participant's lines are kept in sessions/<its own id>/feed
-## for its poster, which posts them into the session's thread. Only what starts a poster
-## switches it on, so a thread recorded for a session with no poster buffers nothing.
-##
-## BEFORE THIS RULE every spawn had a thread of its own, recorded in its own store. A
-## session still running from then keeps posting to its own thread until it ends, and
-## nothing it holds is rewritten: a store that holds a thread by itself is read as it is --
-## its file event-track (then both its thread and its feed switch, the thread of its start
-## post, over one a refusal opened beside it), else its event-track.thread. A spawn from
-## then that had no feed holds neither: its thread is in its spawn record alone
+## A session's own folder holds the thread. A run's folder holds none, and the run's record
+## names its session. A run from before that rule carries its thread in its record alone
 ## (`agent-log-thread`), read from there where nothing else names one. Nothing writes
-## event-track any more.
+## `event-track` any more: a store still holding one is read as it is.
+##
+## THE FEED SWITCH is each participant's own: the file feed.open in its own session's folder,
+## an empty marker, which only what starts its poster switches on.
 ##
 
 ## The dispatcher is loaded on its first call, never at load: most loads of this file never call it.
 type DistroAgentsTools > /dev/null 2>&1 || DistroAgentsTools(){ unset -f DistroAgentsTools ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" && DistroAgentsTools "$@" ; }
-if ! type AgentsToolsEventTrackThreadRead > /dev/null 2>&1 ; then
 
-	## The record written whole or not at all, by a rename: a write cut short must never read
-	## as a session with no thread, or its next post would open a second one. A record that
-	## could not be written is said on stderr.
-	AgentsToolsEventTrackThreadWrite(){ ## session dir, thread
-		## stderr first: a redirection that cannot be opened is reported before a later one applies.
-		mkdir -p "$1" 2>/dev/null && printf '%s\n' "$2" 2>/dev/null > "$1/event-track.thread.$$" \
-			&& mv -f "$1/event-track.thread.$$" "$1/event-track.thread" 2>/dev/null && return 0
-		rm -f "$1/event-track.thread.$$" 2>/dev/null
-		echo "⚠️ WARNING: the event-track thread $2 of session ${1##*/} could not be recorded, so a later post of it may open another thread" >&2
-		return 1
+## The folder of a session's own record files, in the workspace that keeps its store, MMDAPP
+## where none is named. A caller that reads another workspace's session names that one.
+AgentsToolsEventTrackSessionFolderInto(){ ## variable, session id, workspace (optional)
+	local folderWs="${3:-${MMDAPP:-}}"
+	printf -v "$1" '%s' ""
+	[ -n "$folderWs" ] || return 1
+	type AgentsSessionFolderInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+	AgentsSessionFolderInto "$1" "$folderWs" "$2"
+}
+
+if ! type AgentsToolsEventTrackThreadOfInto > /dev/null 2>&1 ; then
+
+	## One header of the record of the run an id names, through the session store.
+	AgentsToolsEventTrackThreadRunHeaderInto(){ ## variable, run id, workspace, header
+		local headerRecord="" headerValue=""
+		printf -v "$1" '%s' ""
+		type AgentsSessionRunRecordInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+		type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandboxRecordHeader.include"
+		AgentsSessionRunRecordInto headerRecord "${2:-}" "${3:-}" || return 0
+		headerValue="$( AgentsToolsSpawnSandboxRecordHeader "$headerRecord" "${4:-}" 2> /dev/null )"
+		printf -v "$1" '%s' "$headerValue"
 	}
 
-	## The thread one store holds by itself, or nothing: never written here, so a store from
-	## before the rule is read exactly as it was left.
-	AgentsToolsEventTrackThreadHeld(){ ## session dir
+	## The thread one session folder holds by itself, or nothing: never written here, so a store
+	## from before the rule is read exactly as it was left.
+	AgentsToolsEventTrackThreadHeld(){ ## session folder
 		local heldThread=""
 		[ -n "${1:-}" ] || return 0
 		## From before the rule: event-track was the thread of the start post, which stands over
@@ -70,118 +60,105 @@ if ! type AgentsToolsEventTrackThreadRead > /dev/null 2>&1 ; then
 		printf '%s' "$heldThread"
 	}
 
-	## One header of the spawn record of the id a store directory is named by, or nothing:
-	## the record is spawned/<sandbox>/<id>.md, beside the store.
-	AgentsToolsEventTrackThreadSpawnHeader(){ ## session dir, header
-		local spawnRecord spawnLine
-		[ -n "${1:-}" ] || return 0
-		for spawnRecord in "${1%/sessions/*}/spawned"/*/"${1##*/}.spawn.md" ; do
-			[ -f "$spawnRecord" ] || continue
-			while IFS= read -r spawnLine ; do
-				case "$spawnLine" in
-					"$2: "*) printf '%s' "${spawnLine#"$2: "}" ; return 0 ;;
-					'# '*) return 0 ;;
-				esac
-			done < "$spawnRecord"
-			return 0
-		done
+	## The record written whole or not at all, by a rename: a write cut short must never read
+	## as a session with no thread, or its next post would open a second one.
+	AgentsToolsEventTrackThreadWrite(){ ## session folder, thread
+		## stderr first: a redirection that cannot be opened is reported before a later one applies.
+		mkdir -p "$1" 2> /dev/null && printf '%s\n' "$2" 2> /dev/null > "$1/event-track.thread.$$" \
+			&& mv -f "$1/event-track.thread.$$" "$1/event-track.thread" 2> /dev/null && return 0
+		rm -f "$1/event-track.thread.$$" 2> /dev/null
+		echo "⚠️ WARNING: the event-track thread $2 of session ${1##*/} could not be recorded, so a later post of it may open another thread" >&2
+		return 1
 	}
 
-	## The store directory that holds the thread record for the id a store directory is named
-	## by: the store of the coworking session a spawn belongs to, by its spawn record. A store
-	## that holds a thread by itself is its own: a session's own store, or a spawn from before
-	## the rule, which keeps the thread it has. With no spawn record it is its own too: a
-	## session that was not spawned, or a spawn whose record is not written yet.
-	AgentsToolsEventTrackThreadDir(){ ## session dir
-		local dirSession=""
-		[ -n "${1:-}" ] || return 0
-		if [ -z "$( AgentsToolsEventTrackThreadHeld "$1" )" ] ; then
-			dirSession="$( AgentsToolsEventTrackThreadSpawnHeader "$1" session-id )"
-			case "$dirSession" in ''|*/*|.|..|*' '*) dirSession="" ;; esac
-		fi
-		printf '%s' "${1%/*}/${dirSession:-${1##*/}}"
+	## The session folder a session's thread is recorded in: its own where it holds one, else
+	## the coworking session the run's record names. An id that names neither is its own.
+	AgentsToolsEventTrackThreadHolderInto(){ ## variable, session id, workspace (optional)
+		local holderDir="" holderRun=""
+		printf -v "$1" '%s' ""
+		AgentsToolsEventTrackSessionFolderInto holderDir "${2:-}" "${3:-}" || return 0
+		[ -n "$( AgentsToolsEventTrackThreadHeld "$holderDir" )" ] && { printf -v "$1" '%s' "$holderDir" ; return 0 ; }
+		AgentsToolsEventTrackThreadRunHeaderInto holderRun "${2:-}" "${3:-}" session-id
+		case "$holderRun" in ''|*/*|.|..|*' '*) holderRun="" ;; esac
+		[ -z "$holderRun" ] || [ "$holderRun" = "${2:-}" ] || AgentsToolsEventTrackSessionFolderInto holderDir "$holderRun" "${3:-}" || :
+		printf -v "$1" '%s' "$holderDir"
 	}
 
-	## The store directory of this process's own session, for a post it makes about itself:
-	## by its own id (MDAT_SPAWN_SESSION_ID), in the store beside the sandbox it was given
-	## (MDAT_SPAWN_SANDBOX_ROOT), where its spawn was recorded even when it runs in another
-	## workspace; with no sandbox, in this workspace's store. Prints nothing with no id.
-	AgentsToolsEventTrackThreadOwnDir(){
-		local ownBase="${MMDAPP:-}/.local/agents"
-		case "${MDAT_SPAWN_SESSION_ID:-}" in ''|*/*|.|..|*' '*) return 0 ;; esac
-		case "${MDAT_SPAWN_SANDBOX_ROOT:-}" in ?*/spawned/?*) ownBase="${MDAT_SPAWN_SANDBOX_ROOT%/spawned/*}" ;; esac
-		printf '%s' "$ownBase/sessions/$MDAT_SPAWN_SESSION_ID"
-	}
-
-	## The thread of the session a store directory names, or nothing where it has none yet.
-	AgentsToolsEventTrackThreadRead(){ ## session dir
-		local readThread=""
-		[ -n "${1:-}" ] || return 0
-		readThread="$( AgentsToolsEventTrackThreadHeld "$( AgentsToolsEventTrackThreadDir "$1" )" )"
-		## Nothing recorded: a spawn from before the rule that had no feed has its thread in its
-		## spawn record alone.
-		[ -n "$readThread" ] || readThread="$( AgentsToolsEventTrackThreadSpawnHeader "$1" agent-log-thread )"
-		printf '%s' "$readThread"
+	## The thread of the session an id names: nothing where it has none yet.
+	AgentsToolsEventTrackThreadOfInto(){ ## variable, session id, workspace (optional)
+		local ofDir="" ofThread=""
+		printf -v "$1" '%s' ""
+		AgentsToolsEventTrackThreadHolderInto ofDir "${2:-}" "${3:-}" || return 0
+		ofThread="$( AgentsToolsEventTrackThreadHeld "$ofDir" )"
+		## Nothing recorded: a run from before the rule that had no feed has its thread in its own record alone.
+		[ -n "$ofThread" ] || AgentsToolsEventTrackThreadRunHeaderInto ofThread "${2:-}" "${3:-}" agent-log-thread
+		printf -v "$1" '%s' "$ofThread"
 	}
 
 	## Records the thread a post just opened as the session's, unless the session already has
-	## one: the first record stands. Prints the session's thread, which every later post goes
-	## into. The caller holds the lock that orders two first posts (AgentsToolsEventTrackThreadPost).
-	AgentsToolsEventTrackThreadRecord(){ ## session dir, thread
-		local recordHeld=""
-		[ -n "${1:-}" ] && [ -n "${2:-}" ] || return 0
-		recordHeld="$( AgentsToolsEventTrackThreadRead "$1" )"
+	## one: the first record stands. Into the named variable, which every later post goes to.
+	## The caller holds the lock that orders two first posts (AgentsToolsEventTrackThreadPost).
+	AgentsToolsEventTrackThreadRecord(){ ## variable, session id, workspace, thread
+		local recordDir="" recordHeld=""
+		printf -v "$1" '%s' ""
+		[ -n "${2:-}" ] && [ -n "${4:-}" ] || return 0
+		AgentsToolsEventTrackThreadOfInto recordHeld "$2" "${3:-}"
 		if [ -z "$recordHeld" ] ; then
-			AgentsToolsEventTrackThreadWrite "$( AgentsToolsEventTrackThreadDir "$1" )" "$2" || :
-			recordHeld="$2"
+			AgentsToolsEventTrackThreadHolderInto recordDir "$2" "${3:-}"
+			[ -n "$recordDir" ] || return 0
+			AgentsToolsEventTrackThreadWrite "$recordDir" "$4" || :
+			recordHeld="$4"
 		fi
-		printf '%s' "$recordHeld"
+		printf -v "$1" '%s' "$recordHeld"
 	}
 
-	## One tracking post of a session, into its thread: a reply where the session has one,
-	## else the post that opens it, recorded at once as the session's. Reading the record,
-	## posting and recording are one step under the session's own lock, so of two first posts
-	## at once -- two participants', or a start post and a refusal -- one opens the thread and
-	## the other is a reply in it. Leaves agentsEventTrackThread (the session's thread after
-	## the call, also where this post failed), agentsEventTrackPost (this post, as
-	## `<channel>:<ts>`) and agentsEventTrackError (what the post operation said when it
-	## failed). rc 0 posted; rc 1 not posted; rc 2 no event-track channel is configured, so
-	## nothing was tried. Prints nothing: each caller words its own warning. The post's lines,
-	## where it takes them from stdin, are the caller's stdin.
-	## The post itself is not sent here: it is queued in the outbox of its channel and goes in
-	## its turn, in order with every other post there, at most one message every 7 seconds
-	## (AgentsTools.EventTrackSend.include). This call returns once that post went, so an
-	## immediate post is still reported at once -- it just never jumps the queue.
-	AgentsToolsEventTrackThreadPost(){ ## member, session dir, --intern-op-event-track-post arguments...
-		local postMember="$1" postDir="$2" postStore postLock="" postOut postRc=0
+	## One tracking post of a session, into its thread: a reply where the session has one, else
+	## the post that opens it, recorded at once as the session's. Reading the record, posting and
+	## recording are one step under the session's lock, so of two first posts at once one opens
+	## the thread and the other is a reply in it. Leaves agentsEventTrackThread (the session's
+	## thread after the call, also where this post failed), agentsEventTrackPost (this post, as
+	## `<channel>:<ts>`) and agentsEventTrackError (what the post operation said when it failed).
+	## rc 0 posted; rc 1 not posted; rc 2 no event-track channel is configured, so nothing was
+	## tried. Prints nothing: each caller words its own warning. The post's lines, where it takes
+	## them from stdin, are the caller's stdin.
+	## The post is queued in the outbox of its channel and goes in its turn, in order with every
+	## other post there, at most one message every 7 seconds
+	## (AgentsTools.EventTrackSend.include). This call returns once that post went.
+	AgentsToolsEventTrackThreadPost(){ ## member, session id, [workspace,] --intern-op-event-track-post arguments...
+		local postMember="$1" postId="$2" postWs="" postHolder="" postThread="" postLock="" postOut postRc=0
 		shift 2
+		## The workspace is the one argument that is not a flag, and it comes before them.
+		case "${1:-}" in --*) ;; *) postWs="${1:-}" ; shift ;; esac
 		agentsEventTrackThread="" ; agentsEventTrackPost="" ; agentsEventTrackError=""
 		type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/settings/AgentsTools.ConfigOption.include"
-		[ -n "$( AgentsToolsConfigOption magic-team --select SLACK_CHANNEL_EVENT_TRACK 2>/dev/null < /dev/null )" ] || return 2
-		postStore="$( AgentsToolsEventTrackThreadDir "$postDir" )"
+		[ -n "$( AgentsToolsConfigOption magic-team --select SLACK_CHANNEL_EVENT_TRACK 2> /dev/null < /dev/null )" ] || return 2
+		AgentsToolsEventTrackThreadHolderInto postHolder "$postId" "$postWs"
+		[ -n "$postHolder" ] || return 1
 		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.LocalLock.include"
-		if AgentsToolsLocalLockTake "event-track-${postStore##*/}" 30 "the event-track thread of ${postStore##*/}" ; then
+		if AgentsToolsLocalLockTake "event-track-${postHolder##*/}" 30 "the event-track thread of ${postHolder##*/}" ; then
 			postLock="$agentsLocalLockPath"
 		else
-			echo "⚠️ WARNING: ${MDSC_CMD:-event-track}: the event-track thread lock of ${postStore##*/} could not be taken, so this post may open a second thread" >&2
+			echo "⚠️ WARNING: ${MDSC_CMD:-event-track}: the event-track thread lock of ${postHolder##*/} could not be taken, so this post may open a second thread" >&2
 		fi
-		agentsEventTrackThread="$( AgentsToolsEventTrackThreadRead "$postDir" )"
+		AgentsToolsEventTrackThreadOfInto postThread "$postId" "$postWs"
+		agentsEventTrackThread="$postThread"
 		## A file of this post's own, by mktemp and never by $$: the posts of two sessions from
 		## subshells of one shell (the members one call started) have one $$, so they met on one
 		## name and one took the other's post for its own.
 		postOut=""
-		if mkdir -p "$MMDAPP/.local/temp" 2>/dev/null && postOut="$( mktemp "$MMDAPP/.local/temp/mdat-event-track-post.XXXXXX" 2>/dev/null )" \
-			&& DistroAgentsTools --intern-op-event-track-post "$postMember" "${agentsEventTrackThread:-event-track}" "$@" > /dev/null 2> "$postOut" ; then
+		if mkdir -p "$MMDAPP/.local/temp" 2> /dev/null && postOut="$( mktemp "$MMDAPP/.local/temp/mdat-event-track-post.XXXXXX" 2> /dev/null )" \
+			&& DistroAgentsTools --intern-op-event-track-post "$postMember" "${postThread:-event-track}" "$@" > /dev/null 2> "$postOut" ; then
 			agentsEventTrackPost="$( LC_ALL=C awk -F= '
 				$1 == "SENT_MESSAGE_CHANNEL" { sentChannel = $2 ; }
 				$1 == "SENT_MESSAGE_TS" { sentTs = $2 ; }
 				END { if ( sentChannel != "" && sentTs != "" ) { print sentChannel ":" sentTs ; } }
-			' "$postOut" 2>/dev/null )"
-			[ -n "$agentsEventTrackThread" ] || [ -z "$agentsEventTrackPost" ] \
-				|| agentsEventTrackThread="$( AgentsToolsEventTrackThreadRecord "$postDir" "$agentsEventTrackPost" )"
+			' "$postOut" 2> /dev/null )"
+			if [ -z "$postThread" ] && [ -n "$agentsEventTrackPost" ] ; then
+				AgentsToolsEventTrackThreadRecord agentsEventTrackThread "$postId" "$postWs" "$agentsEventTrackPost"
+			fi
 		else
 			postRc=1
-			agentsEventTrackError="$( LC_ALL=C grep -m1 '⛔' "$postOut" 2>/dev/null )"
+			agentsEventTrackError="$( LC_ALL=C grep -m1 '⛔' "$postOut" 2> /dev/null )"
 		fi
 		[ -z "$postOut" ] || rm -f "$postOut"
 		AgentsToolsLocalLockGive "$postLock"
@@ -189,34 +166,49 @@ if ! type AgentsToolsEventTrackThreadRead > /dev/null 2>&1 ; then
 	}
 
 	## rc 0 while a participant's feed is switched on.
-	AgentsToolsEventTrackFeedOn(){ ## the participant's own session dir
-		[ -n "${1:-}" ] && { [ -e "$1/feed.open" ] || [ -s "$1/event-track" ] ; }
+	AgentsEventTrackFeedOn(){ ## session id, workspace (optional)
+		local onDir=""
+		AgentsToolsEventTrackSessionFolderInto onDir "${1:-}" "${2:-}" || return 1
+		[ -e "$onDir/feed.open" ] || [ -s "$onDir/event-track" ]
+	}
+
+	## The feed a session's poster takes, when that session's feed is switched on; nothing while it is off.
+	AgentsEventTrackFeedPathInto(){ ## variable, session id, workspace (optional)
+		local pathDir=""
+		printf -v "$1" '%s' ""
+		AgentsEventTrackFeedOn "${2:-}" "${3:-}" || return 0
+		AgentsToolsEventTrackSessionFolderInto pathDir "${2:-}" "${3:-}" || return 0
+		printf -v "$1" '%s/feed' "$pathDir"
 	}
 
 	## Switches a participant's feed on: only what starts its poster does.
-	AgentsToolsEventTrackFeedSwitchOn(){ ## the participant's own session dir
-		[ -n "${1:-}" ] || return 0
-		mkdir -p "$1" 2>/dev/null && : > "$1/feed.open" 2>/dev/null || :
+	AgentsToolsEventTrackFeedSwitchOn(){ ## session id, workspace (optional)
+		local switchDir=""
+		AgentsToolsEventTrackSessionFolderInto switchDir "${1:-}" "${2:-}" || return 0
+		mkdir -p "$switchDir" 2> /dev/null && : > "$switchDir/feed.open" 2> /dev/null || :
 		return 0
 	}
 
 fi
 
 ## A TRACKING THREAD IS NEVER A SESSION THREAD. A thread of the event-track conversation is the
-## tooling's own, for its tracking posts: no member's message, handback or question goes
-## there, so no session's thread is one, and whatever settles a session thread asks here
-## first. rc 0 when <channel>:<ts> lies in the event-track conversation; rc 1 when it does
-## not, or when no such conversation is configured. A caller that asks for many threads reads
-## the conversation once and passes it. Defined by its own name, outside the block above, so
-## a process that read this file before the rule still gets it.
+## tooling's own, for its tracking posts: no member's message, handback or question goes there,
+## so whatever settles a session thread asks here first. Defined outside the block above, so a
+## process that read this file before the rule still gets it.
 if ! type AgentsToolsEventTrackThreadIs > /dev/null 2>&1 ; then
 
 	## The event-track conversation's id, or nothing where none is configured.
 	AgentsToolsEventTrackChannel(){
 		type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/settings/AgentsTools.ConfigOption.include"
-		AgentsToolsConfigOption magic-team --select SLACK_CHANNEL_EVENT_TRACK 2>/dev/null < /dev/null || :
+		AgentsToolsConfigOption magic-team --select SLACK_CHANNEL_EVENT_TRACK 2> /dev/null < /dev/null || :
 	}
 
+	## rc 0 when `<channel>:<ts>` lies in the event-track conversation; rc 1 when it does not, or
+	## when no such conversation is configured. A caller that asks for many threads reads the
+	## conversation once and passes it, so no configuration is read per thread.
+	## OPEN: the S2 ruling gives this position a session id instead, and six live callers pass the
+	## conversation. Which it takes is the human-owner's to settle, asked 2026-11-15 22:12 +0200, so
+	## it keeps the conversation until that verdict.
 	AgentsToolsEventTrackThreadIs(){ ## <channel>:<ts>, the event-track conversation where the caller has read it (optional)
 		local isChannel="${2:-}"
 		case "${1:-}" in ?*:?*) ;; *) return 1 ;; esac

@@ -13,11 +13,12 @@ rigRefuse(){
 }
 [ -x "$rigFn" ] || rigRefuse "dispatcher not found: $rigFn"
 . "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-writes.include.sh" || exit 1
 rigTmp="$( rigTempDir AgentsGroomingToBacklogApprovalClearCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
 rigData="$rigTmp/data"
-mkdir -p "$rigTmp/ws" "$rigData/board/parked" "$rigData/board/pending"
+mkdir -p "$rigTmp/ws"
 
 rigPassCount=0
 rigFailCount=0
@@ -43,7 +44,7 @@ rigCount(){ ## item filename in backlog, header name -- how many frontmatter lin
 	LC_ALL=C grep -c "^$2:" "$rigData/board/backlog/$1" 2>/dev/null || :
 }
 rigItem(){ ## state, item filename, extra frontmatter lines
-	printf -- '---\ntype: task\nowner: rig\n%s---\n\nrig item\n' "$3" > "$rigData/board/$1/$2"
+	rigOwnerBoardWrite $1 "$2" -- '---\ntype: task\nowner: rig\n%s---\n\nrig item\n' "$3"
 }
 
 echo "-- an approved item returns to backlog: its approval is cleared --"

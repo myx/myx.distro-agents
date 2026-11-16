@@ -162,7 +162,7 @@ echo "-- 5. control: the site answered, and the coordinator path passed --assign
 rigAssert "the site logged a create per resolved create" "$( rigCalls | LC_ALL=C grep -c 'POST /rest/api/3/issue' )" 2
 rigAssert "every call stayed on the fake site"           "$( rigForeign )" 0
 
-echo "-- 6. a human assignee below partner, while learning is on, asks the human-owner once per assignment (S20.8) --"
+echo "-- 6. a human assignee below tier-client, while learning is on, asks the human-owner once per assignment (S20.8) --"
 ## A person of the other side, with no tier of its own: nobody may be assigned it while learning is on without his word.
 rigContactsRecord dave --name "Dave" --email alice@rig.invalid
 rigAssert "the contact was recorded"             "$rigRc" 0
@@ -183,16 +183,16 @@ rigAssert "the ask is posted in his own conversation, names the contact and the 
 rigCreate "$rigTmp/l3" --assignee dave
 rigAssert "asking again the same assignment joins the one ask, and asks him nothing new" \
 	"$rigRc:$( rigPendings )" "1:1"
-## A PARTNER, ITS TIER SET AS THE HUMAN-OWNER SETS IT: his act is the record's own `tier:` line, and this check stands in
+## A TIER-CLIENT CONTACT, ITS TIER SET AS THE HUMAN-OWNER SETS IT: his act is the record's own `tier:` line, and this check stands in
 ## for it by writing that line, since no other account may set a tier.
 rigContactsRecord erin --name "Erin" --email alice@rig.invalid
-LC_ALL=C awk '{ print ; if ( $0 == "display-name: Erin" ) { print "tier: partner" } }' "$rigData/contacts/persons/erin.md" > "$rigData/contacts/persons/erin.md.new" \
-	&& mv -f "$rigData/contacts/persons/erin.md.new" "$rigData/contacts/persons/erin.md" || rigRefuse "the partner tier line could not be written"
+LC_ALL=C awk '{ print ; if ( $0 == "display-name: Erin" ) { print "tier: tier-client" } }' "$rigData/contacts/persons/erin.md" > "$rigData/contacts/persons/erin.md.new" \
+	&& mv -f "$rigData/contacts/persons/erin.md.new" "$rigData/contacts/persons/erin.md" || rigRefuse "the tier-client tier line could not be written"
 rigCreate "$rigTmp/l5" --assignee erin
-rigAssert "a partner goes through, whatever learning says, and asks him nothing" \
+rigAssert "a tier-client contact goes through, whatever learning says, and asks him nothing" \
 	"$rigRc:$( rigAssigneeOf ):$( rigPendings )" "0:RIGALICE:1"
 rigCreate "$rigTmp/l4" --assignee alice
-rigAssert "and a contact below partner beside it still asks, joining no other ask" \
+rigAssert "and a contact below tier-client beside it still asks, joining no other ask" \
 	"$rigRc:$( rigPendings )" "1:2"
 
 ## 6b. HIS ANSWER PERFORMS THE CREATE, ONCE (S20.8, the defect keeper-myx's review found). The ask keeps the refused call

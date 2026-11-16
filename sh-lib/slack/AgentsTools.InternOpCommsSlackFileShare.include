@@ -96,6 +96,7 @@ case "$1" in
 			## TARGET FIRST, UPLOAD SECOND. An unresolvable target costs no upload,
 			## so a failed target never leaves a file behind.
 			local shareResolved="" shareResolveRc=0 shareChannel="" shareThreadTs=""
+			type DistroAgentsToolsResolveTarget > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsResolveTarget.include"
 			shareResolved="$( DistroAgentsToolsResolveTarget "$shareTarget" "$memberName" )" || shareResolveRc=$?
 			case "$shareResolveRc" in
 				0)
@@ -228,8 +229,7 @@ case "$1" in
 			local shareTitleForJson="$shareFilename"
 			[ -z "$shareTitle" ] || shareTitleForJson="$shareTitle"
 			local shareEscapedTitle=""
-			type AgentsToolsMyRoot > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.MyRoot.include"
-			shareEscapedTitle="$( printf '%s' "$shareTitleForJson" | LC_ALL=C awk -f "$MYXROOT/include/data/agentMcpJsonEscape.awk" )"
+			shareEscapedTitle="$( printf '%s' "$shareTitleForJson" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/mcp/AgentsMcpJsonEscape.awk" )"
 			local shareStep3Args=( "$memberName" --api files.completeUploadExternal --form "files=[{\"id\":\"$shareFileId\",\"title\":\"$shareEscapedTitle\"}]" --form "channel_id=$shareConversation" )
 			[ -z "$shareParentTs" ] || shareStep3Args+=( --form "thread_ts=$shareParentTs" )
 			[ "$shareAsBot" = "false" ] || shareStep3Args+=( --identity bot )

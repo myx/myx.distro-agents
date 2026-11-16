@@ -29,7 +29,8 @@ rigStopAll(){ rigBlockingStandInEnd $rigStandPids ; rigProcSignalWithChildren KI
 trap rigStopAll EXIT
 rigWs="$rigTmp/ws"
 rigData="$rigTmp/data"
-mkdir -p "$rigWs/.local/.agents" "$rigData/board/running" "$rigData/board/review" "$rigData/board/processed" "$rigTmp/bin" "$rigTmp/home"
+mkdir -p "$rigWs/.local/.agents" "$rigTmp/bin" "$rigTmp/home"
+rigBoardStates "$rigData" running review processed
 printf 'SLACK_CHANNEL_MAGIC_TEAM=CRIG00001\nSLACK_CHANNEL_HUMAN_OWNER=URIGOWNER\nSLACK_BOT_TOKEN=rig-bot-token-TEAM\n' > "$rigWs/.local/.agents/magic-team.agent.env"
 cat > "$rigTmp/bin/curl" <<'RIGCURL'
 #!/bin/sh

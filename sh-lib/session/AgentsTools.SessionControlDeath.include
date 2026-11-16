@@ -62,7 +62,12 @@
 ## the note template (`# Death`), never a text written here.
 ##
 
-type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandbox.include"
+type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandboxRecordHeader.include"
+type AgentsToolsRunRoute > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.RunRoute.include"
+type AgentsToolsSessionParentThreadFind > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionThreads.include"
+type AgentsToolsSpawnProxyCloseSandbox > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnProxyClose.include"
+type AgentsToolsBoardItemHeadersInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemDecisions.include"
+type AgentsToolsSpawnProxyEndNotice > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnProxyNotices.include"
 type AgentsToolsSpawnRecord > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunRecords.include"
 
 ## The outcome word a record is closed with here: the advance pass's own, for a run that
@@ -163,9 +168,9 @@ AgentsToolsSessionControlDeathClose(){ ## record file
 		closeStem="$( AgentsToolsSpawnSandboxRecordHeader "$closeRecord" "$closeField" )"
 		[ -n "$closeStem" ] || continue
 		closeItem="${closeStem%.md}.md"
-		closeState="$( AgentsToolsSpawnProxyBoardStateOf "$closeItem" )"
-		[ -n "$closeState" ] || continue
-		closePath="$MDAT_DATA_ROOT/board/$closeState/$closeItem"
+		type AgentsToolsBoardItemInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemDecisions.include"
+		AgentsToolsBoardItemInto closePath "$closeItem" || continue
+		closeState="${closePath%/*}" ; closeState="${closeState##*/}"
 		[ "$( AgentsToolsSpawnSandboxRecordHeader "$closePath" status )" = dispatch-started ] || continue
 		## An item that names a newer spawn belongs to that one, not to this dead record.
 		closeSpawn="$( AgentsToolsSpawnSandboxRecordHeader "$closePath" spawn-id )"
@@ -401,7 +406,7 @@ AgentsToolsSessionControlDeathWork(){ ## session id, run id, the file its result
 		workItem="$( AgentsToolsSpawnSandboxRecordHeader "$workRecord" "$workField" )"
 		workItem="${workItem%%,*}" ; workItem="${workItem%% *}" ; workItem="${workItem%.md}"
 		workState=""
-		[ -z "$workItem" ] || [ -z "${MDAT_DATA_ROOT:-}" ] || workState="$( AgentsToolsSpawnProxyBoardStateOf "$workItem.md" )"
+		[ -z "$workItem" ] || [ -z "${MDAT_DATA_ROOT:-}" ] || AgentsToolsBoardItemHeadersInto "$workItem.md" workState || :
 		[ -n "$workState" ] || { workItem="" ; continue ; }
 		break
 	done
@@ -578,7 +583,7 @@ AgentsToolsSessionControlDeathSay(){ ## thread, member, whom it is told, line, r
 AgentsToolsSessionControlDeathAct(){ ## session id, record file, the line of the death, the file its result goes to
 	type AgentsToolsSpawnRuns > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunProcesses.include"
 	local actSession="$1" actRecord="$2" actLine="$3" actResult="$4"
-	local actRun actAnswer actId actPending actBy actMember actField actItem="" actState="" actNow actOut="" actWhy="" actSaid="" actReason="" actThread actParent actParentMember actBack="" actShown
+	local actRun actAnswer actId actPending actBy actMember actField actItem="" actState="" actPath="" actNow actOut="" actWhy="" actSaid="" actReason="" actThread actParent actParentMember actBack="" actShown
 	actRun="${actRecord##*/}" ; actRun="${actRun%.spawn.md}"
 	actAnswer="$( AgentsToolsSessionControlDeathMark "$actLine" answer )" || actAnswer=""
 	actId="$( AgentsToolsSessionControlDeathMark "$actLine" asked )" || actId=""
@@ -590,13 +595,13 @@ AgentsToolsSessionControlDeathAct(){ ## session id, record file, the line of the
 		actItem="$( AgentsToolsSpawnSandboxRecordHeader "$actRecord" "$actField" )"
 		actItem="${actItem%%,*}" ; actItem="${actItem%% *}" ; actItem="${actItem%.md}"
 		actState=""
-		[ -z "$actItem" ] || [ -z "${MDAT_DATA_ROOT:-}" ] || actState="$( AgentsToolsSpawnProxyBoardStateOf "$actItem.md" )"
+		[ -z "$actItem" ] || [ -z "${MDAT_DATA_ROOT:-}" ] || AgentsToolsBoardItemHeadersInto "$actItem.md" actState || :
 		[ -z "$actState" ] || break
 		actItem=""
 	done
 	case "$actAnswer" in
 		resume|fresh)
-			actNow="$( [ -z "$actItem" ] || AgentsToolsSpawnSandboxRecordHeader "$MDAT_DATA_ROOT/board/$actState/$actItem.md" spawn-id )"
+			actNow="" ; [ -z "$actItem" ] || { type AgentsToolsBoardItemInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemDecisions.include" ; AgentsToolsBoardItemInto actPath "$actItem" && actNow="$( AgentsToolsSpawnSandboxRecordHeader "$actPath" spawn-id )" ; } || :
 			if AgentsToolsSpawnRuns "$actRun" "$actRecord" || [ -n "$( AgentsToolsRunProcesses "$actRun" "$actRecord" - 2> /dev/null )" ] ; then
 				actWhy="a process still runs as the run it would replace, so nothing was started"
 			elif [ -z "$actItem" ] ; then
@@ -606,7 +611,7 @@ AgentsToolsSessionControlDeathAct(){ ## session id, record file, the line of the
 			else
 				[ "$( AgentsToolsSpawnSandboxRecordHeader "$actRecord" status )" != "spawn-started" ] || AgentsToolsSessionControlDeathClose "$actRecord" \
 					|| actWhy="its record could not be closed as $agentsSessionControlDeathOutcome"
-				actState="$( AgentsToolsSpawnProxyBoardStateOf "$actItem.md" )"
+				AgentsToolsBoardItemHeadersInto "$actItem.md" actState || :
 				## The close above is what moves a dead run's item, and an item nobody reviews reaches
 				## processed there: the verdict puts it into review from wherever it stands, before the
 				## return that starts the member again. A move that fails says what it said.
@@ -620,7 +625,7 @@ AgentsToolsSessionControlDeathAct(){ ## session id, record file, the line of the
 								. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.InternOpBoardUpsertMoveEdit.include"
 							 2>&1 )" || actWhy="its item could not be put into review from $actState"
 							[ -n "$actWhy" ] || actWhy="$( printf '%s\n' "$actOut" | LC_ALL=C grep -m1 -e 'ERROR' -e 'WARNING' )"
-							actState="$( AgentsToolsSpawnProxyBoardStateOf "$actItem.md" )"
+							AgentsToolsBoardItemHeadersInto "$actItem.md" actState || :
 						;;
 					esac
 				fi
@@ -643,10 +648,10 @@ AgentsToolsSessionControlDeathAct(){ ## session id, record file, the line of the
 						;;
 						*) actWhy="${actWhy:-the return of its item did not start it again}${actOut:+: ${actOut#RETURN: not restarted: }}" ;;
 					esac
-					if [ -n "$actWhy" ] && [ "$( AgentsToolsSpawnProxyBoardStateOf "$actItem.md" )" = "running" ] ; then
+					if [ -n "$actWhy" ] && AgentsToolsBoardItemHeadersInto "$actItem" actState && [ "$actState" = "running" ] ; then
 						type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 						( DistroAgentsTools --intern-op-review-request "$actBy" "$actItem" --reason "its run died and the start that was to replace it failed" --context "${MDSC_CMD:-session-control}" ) > /dev/null 2>&1 || :
-						[ "$( AgentsToolsSpawnProxyBoardStateOf "$actItem.md" )" != "review" ] || actBack="$actItem"
+						AgentsToolsBoardItemHeadersInto "$actItem" actState || : ; [ "$actState" != "review" ] || actBack="$actItem"
 					fi
 				fi
 			fi
@@ -654,7 +659,7 @@ AgentsToolsSessionControlDeathAct(){ ## session id, record file, the line of the
 		close)
 			[ "$( AgentsToolsSpawnSandboxRecordHeader "$actRecord" status )" != "spawn-started" ] || AgentsToolsSessionControlDeathClose "$actRecord" \
 				|| actWhy="its record could not be closed as $agentsSessionControlDeathOutcome"
-			[ -z "$actItem" ] || actState="$( AgentsToolsSpawnProxyBoardStateOf "$actItem.md" )"
+			[ -z "$actItem" ] || AgentsToolsBoardItemHeadersInto "$actItem.md" actState || :
 			case "$actWhy:$actItem:$actState" in
 				:?*:review|:?*:running)
 					type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"

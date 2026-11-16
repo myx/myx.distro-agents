@@ -20,3 +20,46 @@ AgentsDistroDeclaresCut(){ ## workspace, prefix
 		Distro ListDistroDeclares --all-filter-and-cut "$doorPrefix"
 	)
 }
+
+## AgentsDistroProjectNearest <source tree> <folder under it>: the nearest folder at or above it that the distro names a project,
+## printed, and nothing where there is none (ListDistroProjects --one-project, its answer taken only where it names that very
+## folder). The source tree itself is never a project, a folder inside one is not that project, and a project nested in another
+## still answers for its own folder. rc 1 where there is none, the tool's own rc where the list could not be read.
+## The distro is entered once, so every folder between the target and the tree costs one call and no new context.
+AgentsDistroProjectNearest(){ ## source tree of a workspace, folder under it
+	local doorSource="${1%/}" doorFolder="${2%/}" doorFound="" doorLevel=""
+	case "$doorSource" in ?*/source) ;; *) return 1 ;; esac
+	case "$doorFolder" in "$doorSource"/?*) ;; *) return 1 ;; esac
+	case "$doorFolder/" in *'/./'*|*'/../'*|*'//'*) return 1 ;; esac
+	(
+		export MMDAPP="${doorSource%/source}"
+		type DistroAgentsContext > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.include"
+		DistroAgentsContext --distro-from-source > /dev/null || exit 2
+		Require ListDistroProjects > /dev/null 2>&1 || :
+		doorLevel="$doorFolder"
+		while [ "$doorLevel" != "$doorSource" ] ; do
+			doorFound="$( Distro ListDistroProjects --one-project "${doorLevel#"$doorSource"/}" 2> /dev/null )" || doorFound=""
+			[ "$doorFound" != "${doorLevel#"$doorSource"/}" ] || { printf '%s' "$doorLevel" ; exit 0 ; }
+			doorLevel="${doorLevel%/*}"
+		done
+		exit 1
+	)
+}
+
+## AgentsDistroProjectsUnder <variable> <source tree>: every project of that tree, into the named variable, one source-relative
+## folder a line as the distro names it (ListDistroProjects --select-all). The source tree itself is never a project. rc 1 where
+## the list could not be read, the variable then empty. The distro is entered once, in a subshell, so its context never leaks out.
+AgentsDistroProjectsUnder(){ ## variable, source tree of a workspace
+	local underSource="${2%/}" underList=""
+	case "${1:-}" in ''|*[!A-Za-z0-9_]*) return 1 ;; esac
+	printf -v "$1" '%s' ""
+	case "$underSource" in ?*/source) ;; *) return 1 ;; esac
+	underList="$(
+		export MMDAPP="${underSource%/source}"
+		type DistroAgentsContext > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.include"
+		DistroAgentsContext --distro-from-source > /dev/null || exit 2
+		Require ListDistroProjects > /dev/null 2>&1 || :
+		Distro ListDistroProjects --select-all
+	)" || return 1
+	printf -v "$1" '%s' "$underList"
+}

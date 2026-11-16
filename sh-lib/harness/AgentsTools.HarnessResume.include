@@ -29,6 +29,7 @@ AgentsHarnessContextCheck(){ ## context file
 ## it loads the file, and a mismatch there falls back the same way. rc 0 and the context
 ## file; rc 1 and the reason.
 AgentsReviewContextResumeEligible(){ ## record path (may be empty)
+	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandboxRecordHeader.include"
 	local ctxRecord="$1" ctxSpawn ctxCli ctxNow ctxNowBoth ctxHost thisHost ctxFile ctxWhy ctxSession
 	[ -n "$ctxRecord" ] && [ -f "$ctxRecord" ] || { printf 'no spawn record of the old session' ; return 1 ; }
 	ctxSpawn="${ctxRecord##*/}" ; ctxSpawn="${ctxSpawn%.spawn.md}"
@@ -66,6 +67,7 @@ AgentsReviewContextResumeEligible(){ ## record path (may be empty)
 AgentsToolsSpawnProxyHarnessResumeRun(){ ## session id, session thread, conversation threads, full prompt, context file, resume prompt, member, item, console CLI args...
 	local runSession="$1" runThread="$2" runConv="$3" runFull="$4" runContext="$5" runResume="$6" runWho="$7" runItem="$8"
 	local runMark runRc=0 runFrom="" runPid runSeen=""
+	type AgentsToolsSpawnProxyRunRecord > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnProxyClose.include"
 	shift 8
 	runFrom="$( head -1 "$runContext" 2>/dev/null | LC_ALL=C awk -v path=session -v optional=1 -f "$agentsHarnessResumeLib/harness/AgentsHarnessJsonField.awk" 2>/dev/null )" || runFrom=""
 	runMark="${MDAT_SPAWN_LAUNCH_MARKER:-$MMDAPP/.local/temp/mdat-$MDAT_SPAWN_SESSION_ID.launch}.resume-context"

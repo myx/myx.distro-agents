@@ -81,7 +81,7 @@ agentsRunRouteMemberFirst="parent-member"
 ## (AgentsToolsSpawnParentThread, which finds magic-coordinator's where the session has none).
 ## The sandbox folder is named by tracking name or session id, so records are found by file name.
 AgentsToolsSessionParentThreadFind(){
-	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandbox.include"
+	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandboxRecordHeader.include"
 	type AgentsToolsRunRouteValid > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.RunRoute.include"
 	local parentRecord="" parentCandidate parentRoute parentSession parentThread=""
 	for parentCandidate in "${MMDAPP:-/nonexistent}"/.local/agents/spawned/*/"${MDAT_SPAWN_SESSION_ID:-none}.spawn.md" ; do

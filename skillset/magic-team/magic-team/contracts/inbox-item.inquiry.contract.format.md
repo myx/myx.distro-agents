@@ -16,7 +16,7 @@ Normative contract: this file's own `# Contract` section, at its end. The docume
 
 # Summary
 
-A question or hand-off that needs an answer. The one member-to-member document: any member may post one into any inbox.
+A question or hand-off that needs an answer. The one member-to-member document.
 
 # Contract
 

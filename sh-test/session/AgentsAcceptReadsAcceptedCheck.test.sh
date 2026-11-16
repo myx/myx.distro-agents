@@ -9,6 +9,7 @@
 ## Offline: a Slack-shaped fake curl logs each post and opens no socket; the workspace and the board are
 ## this rig's own temp tree.
 set -u
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-store.include.sh" || exit 1
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 rigPkg="${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}/myx/myx.distro-agents"
 rigSandbox="$rigPkg/sh-lib/spawn/AgentsTools.SpawnSandbox.include"
@@ -26,7 +27,8 @@ trap 'rm -rf -- "$rigTmp"' EXIT
 rigWs="$rigTmp/ws"
 rigSpawned="$rigWs/.local/agents/spawned"
 rigSessions="$rigWs/.local/agents/sessions"
-mkdir -p "$rigWs/.local/.agents" "$rigSessions" "$rigSpawned" "$rigTmp/bin" "$rigTmp/data/board/processed"
+mkdir -p "$rigWs/.local/.agents" "$rigSessions" "$rigSpawned" "$rigTmp/bin"
+rigBoardStates "$rigTmp/data" processed
 cp "$rigFixture" "$rigTmp/bin/curl" && chmod +x "$rigTmp/bin/curl" || rigRefuse "could not install the fake curl"
 printf 'SLACK_CHANNEL_MAGIC_TEAM=CRIG00001\nSLACK_CHANNEL_HUMAN_OWNER=URIGOWNER\nSLACK_BOT_TOKEN=rig-bot-token-TEAM\n' > "$rigWs/.local/.agents/magic-team.agent.env"
 printf '{"ok":true,"messages":[],"has_more":false}\n' > "$rigTmp/replies.json"
@@ -80,7 +82,7 @@ rigItem="dispatch-20261103T0900Z-acc"
 rigRun="rig-acc-$$"
 rigRunRecord "$rigRun" "$rigThread" "$rigThread" "$rigItem"
 printf -- '---\ntype: dispatch\nowner: keeper-myx\nstatus: dispatch-started\nspawn-id: %s\n---\n\n# rig dispatch\n\n## Decisions\n\n' \
-	"$rigRun" > "$rigTmp/data/board/processed/$rigItem.md"
+	"$rigRun" | rigStoreItem "$rigTmp/data" board processed $rigItem.md
 : > "$rigTmp/curl.log" ; rm -f "$rigTmp"/post.*
 rigOut="$( rigClose "$rigSpawned/$rigRun/$rigRun.spawn.md" succeeded unknown "the accept of $rigItem by magic-coordinator" )"
 rigAssert "the accept's close settles the record"      "$( rigState "$rigSpawned/$rigRun/$rigRun.spawn.md" status )" "spawn-succeeded"

@@ -48,9 +48,9 @@ rigAgents="$rigWs/.local/agents"
 rigRun="rigrun1"
 rigRunBare="rigrun2"
 rigThread="C0RIG:1793000000.000100"
-mkdir -p "$rigAgents/spawned" "$rigAgents/sessions" "$rigData/audit/2026-11" "$rigData/board/review" \
-	"$rigData/inboxes/magic-tester/incoming" "$rigHome" "$rigSkills/magic-coordinator" "$rigSkills/magic-tester" "$rigSkills/magic-developer" \
-	|| rigRefuse "the rig could not be made: $rigTmp"
+mkdir -p "$rigAgents/spawned" "$rigAgents/sessions" "$rigData/audit/2026-11" "$rigHome" "$rigSkills/magic-coordinator" "$rigSkills/magic-tester" "$rigSkills/magic-developer" || rigRefuse "the rig could not be made: $rigTmp"
+rigBoardStates "$rigData" review || rigRefuse "the rig could not be made: $rigTmp"
+rigInboxReady "$rigData" magic-tester || rigRefuse "the rig could not be made: $rigTmp"
 printf 'rig\n' > "$rigSkills/magic-coordinator/magic-coordinator.basic.md"
 printf 'rig\n' > "$rigSkills/magic-tester/magic-tester.basic.md"
 printf 'rig\n' > "$rigSkills/magic-developer/magic-developer.basic.md"
@@ -117,7 +117,7 @@ rigRunRecord "$rigRunBare" -
 printf '2026-11-04T05:00:00Z START session %s\n' "$rigRunBare" > "$rigData/audit/2026-11/session-rig-$rigRunBare.log"
 
 printf -- '---\ntype: dispatch\nstatus: dispatch-started\nspawn-id: %s\nowner: magic-developer\ndate: 2026-11-04 05:00 +0200\n---\n\n# dispatch: the rig item\n' \
-	"$rigRun" > "$rigData/board/review/dispatch-rig-item.md"
+	"$rigRun" | rigStoreItem "$rigData" board review dispatch-rig-item.md
 printf 'seed\n' > "$rigData/README.md"
 git -C "$rigData" init -q || rigRefuse "the rig store could not be made"
 git -C "$rigData" config user.email rig@example.invalid

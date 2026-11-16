@@ -44,6 +44,7 @@ rigRefuse(){
 [ -f "$rigMakeInclude" ] || rigRefuse "the make include is not at: $rigMakeInclude"
 [ -d "$rigBuilders" ] || rigRefuse "the source-prepare builders are not at: $rigBuilders"
 . "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-writes.include.sh" || exit 1
 rigTmp="$( rigTempDir AgentsMakeIndicesRegistriesCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 trap 'chmod -R u+rwX -- "$rigTmp" 2> /dev/null ; rm -rf -- "$rigTmp"' EXIT
@@ -83,8 +84,8 @@ rigAsk(){ ## record name -- one open ask
 	printf -- '---\nstatus: reply-pending\nsession-id: sess-of-%s\nowner: keeper-rig\ncommunication-channel-id: CRIG00001\n---\nq\n' "$1" > "$rigAgents/pending/$1.md"
 }
 rigBoard(){ ## item name -- one board item that waits on a reply
-	mkdir -p "$rigData/board/running"
-	printf -- '---\nblocked-on: human\nstatus: waiting\nsession-id: sess-of-%s\nowner: keeper-rig\n---\n' "$1" > "$rigData/board/running/$1.md"
+	:  ## the store folders are made by the write that fills them
+	rigOwnerBoardWrite running "$1.md" -- '---\nblocked-on: human\nstatus: waiting\nsession-id: sess-of-%s\nowner: keeper-rig\n---\n' "$1"
 }
 rigRound(){ ## round word -- one more record in every store
 	rigMember "keeper-$1" "Rig ${1}keeper." "alias$1" 🔧
@@ -179,7 +180,7 @@ rigOutBytes(){ ## -- the bytes of the last run's stdout
 }
 rigRowsOf(){ ## rows function, output file -- what that function prints for the rig's stores now, called by this check itself
 	( MMDAPP="$rigWs" ; MDAT_DATA_ROOT="$rigData" ; MDAT_SKILLSET_ROOT="$rigSkills" ; export MMDAPP MDAT_DATA_ROOT MDAT_SKILLSET_ROOT
-		. "$rigRegInclude" ; . "${rigRegInclude%/*}/AgentsTools.RegistryTeamMembers.include" ; . "${rigRegInclude%/*}/AgentsTools.RegistryMemberNames.include" ; . "${rigRegInclude%/*}/AgentsTools.RegistrySpawnedSessions.include" ; . "${rigRegInclude%/*}/AgentsTools.RegistryPendingReplies.include" ; "$1" ) > "$2" 2> /dev/null
+		. "$rigRegInclude" ; . "${rigRegInclude%/*}/AgentsTools.RegistryTeamMembers.include" ; . "${rigRegInclude%/*}/AgentsTools.RegistryMemberNames.include" ; . "${rigRegInclude%/*}/../session/AgentsTools.RegistrySpawnedSessions.include" ; . "${rigRegInclude%/*}/AgentsTools.RegistryPendingReplies.include" ; . "${rigRegInclude%/*}/../questions/AgentsTools.RegistryPendingRepliesRows.include" ; "$1" ) > "$2" 2> /dev/null
 }
 rigSame(){ ## rows function, registry name -- whether that registry's file is, byte for byte, what its rows function prints now
 	rigRowsOf "$1" "$rigTmp/want.rows"
@@ -422,7 +423,7 @@ while [ "$rigAtOnceRound" -lt 3 ] ; do
 	rigAtOncePids="$rigAtOncePids $!"
 	for rigAtOnceNo in 1 2 ; do
 		( cd "$rigWs" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDAT_DATA_ROOT="$rigData" MDAT_SKILLSET_ROOT="$rigSkills" \
-			bash -c '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.RegistrySpawnedSessions.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.RegistryTeamMembers.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.RegistryMemberNames.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.RegistrySpawnedSessions.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.RegistryPendingReplies.include" && AgentsToolsRegistrySpawnedSessionsRebuild && AgentsToolsRegistryPendingRepliesRebuild && AgentsToolsRegistrySpawnedSessionsRebuild && AgentsToolsRegistryPendingRepliesRebuild' ) \
+			bash -c '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.RegistrySpawnedSessions.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.RegistryTeamMembers.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.RegistryMemberNames.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.RegistrySpawnedSessions.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.RegistryPendingReplies.include"; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.RegistryPendingRepliesRows.include" && AgentsToolsRegistrySpawnedSessionsRebuild && AgentsToolsRegistryPendingRepliesRebuild && AgentsToolsRegistrySpawnedSessionsRebuild && AgentsToolsRegistryPendingRepliesRebuild' ) \
 			> "$rigTmp/at-once.$rigAtOnceRound.$rigAtOnceNo.out" 2> "$rigTmp/at-once.$rigAtOnceRound.$rigAtOnceNo.err" < /dev/null &
 		rigAtOncePids="$rigAtOncePids $!"
 	done
@@ -445,7 +446,7 @@ rigWriter="$rigTmp/writer" ; mkdir -p "$rigWriter/ws/.local/agents"
 rigWriterFile="$rigWriter/ws/.local/agents/probe.registry"
 (
 	MMDAPP="$rigWriter/ws" ; export MMDAPP
-	. "$rigRegInclude" ; . "${rigRegInclude%/*}/AgentsTools.RegistryTeamMembers.include" ; . "${rigRegInclude%/*}/AgentsTools.RegistryMemberNames.include" ; . "${rigRegInclude%/*}/AgentsTools.RegistrySpawnedSessions.include" ; . "${rigRegInclude%/*}/AgentsTools.RegistryPendingReplies.include"
+	. "$rigRegInclude" ; . "${rigRegInclude%/*}/AgentsTools.RegistryTeamMembers.include" ; . "${rigRegInclude%/*}/AgentsTools.RegistryMemberNames.include" ; . "${rigRegInclude%/*}/../session/AgentsTools.RegistrySpawnedSessions.include" ; . "${rigRegInclude%/*}/AgentsTools.RegistryPendingReplies.include" ; . "${rigRegInclude%/*}/../questions/AgentsTools.RegistryPendingRepliesRows.include"
 	rigWait(){ ## file -- until it is there, for half a minute at most
 		local waitNo=0
 		while [ ! -e "$1" ] && [ "$waitNo" -lt 150 ] ; do waitNo=$(( waitNo + 1 )) ; sleep 0.2 ; done
@@ -479,8 +480,11 @@ rigAssert "and so does the one operation's own arm, for the harness's two indexe
 rigAssert "control: a writer that does hold a lock is found by the same reader, with its temp name as it was" "$( rigWriterBody LocalTools.Places.include LocalToolsPlacesSharedUpdate | LC_ALL=C grep -c -F -- 'LocalToolsPlacesLockTake' || : ) $( rigWriterBody LocalTools.Places.include LocalToolsPlacesSharedUpdate | LC_ALL=C grep -c -F -- '.tmp.$$' || : )" "1 2"
 
 echo "-- 9. one list of what to build --"
-rigAssert "the registries are one list, a line each with the rebuild function of its name, in the order they are built" \
-	"$( rigWriterBody AgentsTools.Registries.include AgentsToolsRegistryList | LC_ALL=C grep -E -- '^([[:space:]]*printf .* ")?[a-z-]+ AgentsToolsRegistry[A-Za-z]+Rebuild"?$' | LC_ALL=C sed -e 's/^.* "//' -e 's/"$//' | LC_ALL=C tr '\n' ' ' )" \
+rigAssert "the registries are one list, a name a line, in the order they are built" \
+	"$( rigWriterBody AgentsTools.Registries.include AgentsToolsRegistryList | LC_ALL=C grep -E -- '^([[:space:]]*printf .* ")?[a-z-]+"?$' | LC_ALL=C sed -e 's/^.* "//' -e 's/"$//' | LC_ALL=C tr '\n' ' ' )" \
+	"team-members team-members-names spawned-sessions pending-replies "
+rigAssert "each is rebuilt by its owner's hook, declared in the package's hook registry with the rebuild function of its name" \
+	"$( LC_ALL=C awk '$1 ~ /^registry-/ { sub( /^registry-/, "", $1 ) ; printf "%s %s ", $1, $2 }' "$rigHere/hooks.registry" )" \
 	"team-members AgentsToolsRegistryTeamMembersRebuild team-members-names AgentsToolsRegistryTeamMembersNamesRebuild spawned-sessions AgentsToolsRegistrySpawnedSessionsRebuild pending-replies AgentsToolsRegistryPendingRepliesRebuild "
 rigAssert "the include has one writer call a registry, four in all, each from the rebuild function of that registry" \
 	"$( LC_ALL=C grep -c -E -- '^[[:space:]]+AgentsToolsRegistryWrite [a-z-]+ AgentsToolsRegistry[A-Za-z]+Rows$' "$rigRegInclude" || : ) $( LC_ALL=C grep -c -F -- 'AgentsToolsRegistryWrite ' "$rigRegInclude" || : ) $( LC_ALL=C grep -c -E -- '^AgentsToolsRegistry(TeamMembers|TeamMembersNames|SpawnedSessions|PendingReplies)Rebuild\(\)\{$' "$rigRegInclude" || : )" "4 4 4"

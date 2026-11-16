@@ -31,12 +31,6 @@ AgentsReviewTools(){
 	fi
 }
 
-## The board state folder of a board item path.
-AgentsReviewStateOfPath(){ ## item path
-	local statePath="${1%/*}"
-	printf '%s' "${statePath##*/}"
-}
-
 ## REVIEW_WAIT_LIMIT from the team config: how long a child waits in review for its verdict.
 AgentsReviewWaitLimit(){
 	local limitValue
@@ -68,12 +62,14 @@ AgentsReviewRecord(){ ## who, item name, decisions kind, text, transcript event,
 ## The board item a session works: its spawn record's `spawns:` dispatch item, else its
 ## `spawned-by:` item. Prints the file name; rc 1 when it works none on the board.
 AgentsReviewItemOfSession(){ ## spawn id
-	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandbox.include"
+	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandboxRecordHeader.include"
 	type AgentsToolsDecisionsItemPath > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemDecisions.include"
 	local sesRecord sesField sesLink
 	case "$1" in ''|*/*|.|..) return 1 ;; esac
 	[ -n "${MMDAPP:-}" ] || return 1
-	for sesRecord in "$MMDAPP/.local/agents/spawned"/*/"$1.spawn.md" ; do
+	type AgentsSessionRunRecordInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+	AgentsSessionRunRecordInto sesRecord "$1" || :
+	for sesRecord in ${sesRecord:+"$sesRecord"} ; do
 		[ -f "$sesRecord" ] || continue
 		for sesField in spawns spawned-by ; do
 			sesLink="$( AgentsToolsSpawnSandboxRecordHeader "$sesRecord" "$sesField" )"
@@ -89,22 +85,25 @@ AgentsReviewItemOfSession(){ ## spawn id
 ## The spawn record of an item's child: the one its spawn-id names, else the one live record
 ## linking it. Prints the path; rc 1 when there is none, or more than one live candidate.
 AgentsReviewChildRecord(){ ## item path
-	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandbox.include"
+	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandboxRecordHeader.include"
+	type AgentsToolsSpawnSandboxFoldersOfItem > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandboxSweep.include"
 	local childSpawn childCandidate childFolder childFound=""
 	childSpawn="$( AgentsToolsSpawnSandboxRecordHeader "$1" spawn-id )"
 	if [ -n "$childSpawn" ] && [ "$childSpawn" != "-" ] ; then
-		for childCandidate in "$MMDAPP/.local/agents/spawned"/*/"$childSpawn.spawn.md" ; do
+		type AgentsSessionRunRecordInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+		AgentsSessionRunRecordInto childCandidate "$childSpawn" || :
+		for childCandidate in ${childCandidate:+"$childCandidate"} ; do
 			[ ! -f "$childCandidate" ] || { printf '%s\n' "$childCandidate" ; return 0 ; }
 		done
 		return 1
 	fi
+	type AgentsSessionFolderStartedRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
 	for childFolder in $( AgentsToolsSpawnSandboxFoldersOfItem "$1" ) ; do
-		for childCandidate in "$MMDAPP/.local/agents/spawned/$childFolder"/*.spawn.md ; do
-			[ -f "$childCandidate" ] || continue
-			[ "$( AgentsToolsSpawnSandboxRecordHeader "$childCandidate" status )" = spawn-started ] || continue
+		while IFS= read -r childCandidate ; do
+			[ -n "$childCandidate" ] || continue
 			[ -z "$childFound" ] || return 1
 			childFound="$childCandidate"
-		done
+		done < <( AgentsSessionFolderStartedRecords "$childFolder" )
 	done
 	[ -n "$childFound" ] || return 1
 	printf '%s\n' "$childFound"
@@ -115,7 +114,7 @@ AgentsReviewChildRecord(){ ## item path
 ## (AgentsToolsSpawnRuns, run/AgentsTools.RunProcesses.include). rc 0 live; rc 1 ended,
 ## with the reason printed.
 AgentsReviewChildLive(){ ## record path
-	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandbox.include"
+	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandboxRecordHeader.include"
 	local liveSpawn="${1##*/}" liveStatus liveHost thisHost
 	liveSpawn="${liveSpawn%.spawn.md}"
 	liveStatus="$( AgentsToolsSpawnSandboxRecordHeader "$1" status )"
@@ -132,7 +131,8 @@ AgentsReviewChildLive(){ ## record path
 ## A message to a live child in its own session thread, addressed to its member -- the
 ## same send an accept's DISMISSED uses. Prints `sent <member> <thread>`, or `not sent: <why>`.
 AgentsReviewSendToChild(){ ## sending member, record path, body
-	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandbox.include"
+	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandboxRecordHeader.include"
+	type AgentsToolsSpawnConversationThreadValid > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionThreads.include"
 	local sendBy="$1" sendRecord="$2" sendBody="$3" sendSpawn="${2##*/}" sendMember sendThread="" sendOut
 	sendSpawn="${sendSpawn%.spawn.md}"
 	sendMember="$( AgentsToolsSpawnSandboxRecordHeader "$sendRecord" owner )"
@@ -159,7 +159,7 @@ AgentsReviewToReview(){ ## who, item file name, kind (handback|review), reason w
 	type AgentsToolsDecisionsItemPath > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemDecisions.include"
 	local toWho="$1" toItem="${2%.md}.md" toKind="$3" toReason="$4" toSpawn="${5:-}" toDetail="${6:-}" toPath toState toItemSpawn
 	toPath="$( AgentsToolsDecisionsItemPath "$toItem" )" || { printf 'REVIEW: not moved: no board item %s\n' "${toItem%.md}" ; return 1 ; }
-	toState="$( AgentsReviewStateOfPath "$toPath" )"
+	toState="$( statePath="${toPath%/*}" ; printf '%s' "${statePath##*/}" )"
 	toItemSpawn="$( AgentsToolsDecisionsField "$toPath" spawn-id )"
 	if [ -n "$toSpawn" ] && [ -n "$toItemSpawn" ] && [ "$toItemSpawn" != "-" ] && [ "$toItemSpawn" != "$toSpawn" ] ; then
 		printf 'REVIEW: not moved: %s belongs to spawn %s, not %s\n' "${toItem%.md}" "$toItemSpawn" "$toSpawn"
@@ -207,7 +207,7 @@ AgentsReviewVerdictPath(){ ## item name, allowed states (space-separated)
 	type AgentsToolsDecisionsItemPath > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemDecisions.include"
 	local vPath vState
 	vPath="$( AgentsToolsDecisionsItemPath "$1" )" || { echo "$MDSC_CMD: ⛔ ERROR: no board item ${1%.md} in any board state" >&2 ; return 1 ; }
-	vState="$( AgentsReviewStateOfPath "$vPath" )"
+	vState="$( statePath="${vPath%/*}" ; printf '%s' "${statePath##*/}" )"
 	case " $2 " in
 		*" $vState "*) printf '%s\n' "$vPath" ; return 0 ;;
 	esac
@@ -265,14 +265,14 @@ AgentsReviewCliSetting(){ ## resolved cli
 ## follows the configuration as it is now. The workspace that paid for it is its
 ## `paying-workspace`, always. A record written before either was kept names none.
 AgentsReviewRecordCliAsked(){ ## record path -- the service that session was started on by name, or nothing
-	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandbox.include"
+	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandboxRecordHeader.include"
 	local askedCli
 	askedCli="$( AgentsToolsSpawnSandboxRecordHeader "$1" cli-asked )"
 	case "$askedCli" in ''|none|-) return 0 ;; esac
 	printf '%s' "$askedCli"
 }
 AgentsReviewRecordPaying(){ ## record path -- the name of the workspace that paid for that session, or nothing
-	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandbox.include"
+	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandboxRecordHeader.include"
 	local payingName
 	payingName="$( AgentsToolsSpawnSandboxRecordHeader "$1" paying-workspace )"
 	case "$payingName" in ''|unknown|-) return 0 ;; esac
@@ -283,7 +283,7 @@ AgentsReviewRecordPaying(){ ## record path -- the name of the workspace that pai
 ## service it was started on by name. A paying workspace this machine no longer knows
 ## reads as none named: the restart's own spawn is what refuses it, by name.
 AgentsReviewRecordCliNow(){ ## record path
-	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandbox.include"
+	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandboxRecordHeader.include"
 	local nowName nowPaid="" nowCli nowPreset
 	nowName="$( AgentsReviewRecordPaying "$1" )"
 	nowPreset="$( AgentsToolsSpawnSandboxRecordHeader "$1" preset )"
@@ -302,7 +302,7 @@ AgentsReviewRecordCliNow(){ ## record path
 ## Whether a returned item's ended session can be resumed in its own native transcript
 ## rather than started anew. rc 0 eligible; rc 1 with the reason printed.
 AgentsReviewResumeEligible(){ ## record path (may be empty)
-	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandbox.include"
+	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandboxRecordHeader.include"
 	local elRecord="$1" elSpawn elCli elNow elNowBoth elHost thisHost elJsonl elFound=""
 	[ -n "$elRecord" ] && [ -f "$elRecord" ] || { printf 'no spawn record of the old session' ; return 1 ; }
 	elSpawn="${elRecord##*/}" ; elSpawn="${elSpawn%.spawn.md}"
@@ -337,7 +337,7 @@ AgentsReviewResumeEligible(){ ## record path (may be empty)
 ## (AgentsToolsSessionControlDeathAct, AgentsTools.SessionControlDeath.include).
 AgentsReviewRestart(){ ## item name, record path (may be empty), corrections text, who
 	type AgentsToolsDecisionsItemPath > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemDecisions.include"
-	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandbox.include"
+	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandboxRecordHeader.include"
 	local rsItem="${1%.md}.md" rsRecord="$2" rsText="${3:-}" rsWho="${4:-unknown}" rsMember="" rsTracking="" rsSession="" rsThread="" rsPath rsOut rsRc=0
 	local rsFrom="" rsWhy="" rsPaying="" rsAsked="" rsParent="" rsStart="" rsReports="" rsInitiator="" rsReplaced=""
 	rsPath="$( AgentsToolsDecisionsItemPath "$rsItem" )" || return 1
@@ -435,8 +435,8 @@ AgentsReviewRestart(){ ## item name, record path (may be empty), corrections tex
 ## `review-by` names it, and one that names no reviewer whose parent no longer runs. A live parent
 ## keeps its item, and the person's items and another routine's stay as they were.
 AgentsReviewItemsForRoutine(){ ## routine short name, e.g. advance; the member whose duty reviews, where one is
-	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandbox.include"
-	local rfPath rfName rfBy rfMine rfSpawn rfRecord rfWhere rfParent rfMember rfLive=" " rfGone=" " rfCount=0
+	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandboxRecordHeader.include"
+	local rfPath rfName rfBy rfMine rfSpawn rfRecord rfParent rfMember rfLive=" " rfGone=" " rfCount=0
 	for rfPath in "$MDAT_DATA_ROOT"/board/review/*.md ; do
 		[ -f "$rfPath" ] || continue
 		rfName="${rfPath##*/}" ; rfName="${rfName%.md}"
@@ -454,10 +454,8 @@ AgentsReviewItemsForRoutine(){ ## routine short name, e.g. advance; the member w
 			esac
 			[ "$rfMine" = no ] && [ -n "$rfBy" ] && continue
 			rfSpawn="$( AgentsToolsSpawnSandboxRecordHeader "$rfPath" spawn-id )"
-			rfRecord=""
-			for rfWhere in "${MMDAPP:-/nonexistent}"/.local/agents/spawned/*/"$rfSpawn.spawn.md" ; do
-				[ ! -f "$rfWhere" ] || { rfRecord="$rfWhere" ; break ; }
-			done
+			type AgentsSessionRunRecordInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+			AgentsSessionRunRecordInto rfRecord "$rfSpawn" || :
 			rfParent="$( AgentsToolsSpawnSandboxRecordHeader "$rfPath" "$agentsRunRouteField" )"
 			[ -n "$rfParent" ] || [ -z "$rfRecord" ] || rfParent="$( AgentsToolsSpawnSandboxRecordHeader "$rfRecord" "$agentsRunRouteField" )"
 			rfMember=""
@@ -550,13 +548,16 @@ AgentsPendingAsksForRoutine(){ ## routine short name, e.g. permission-escalation
 ## handback is a member's message (AgentsToolsEventTrackThreadIs).
 ## Only for a spawn that has a parent. Prints `<channel>:<ts>`; rc 1 for none.
 AgentsToolsSpawnParentThread(){ ## parent session id, this spawn's own id
-	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandbox.include"
+	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandboxRecordHeader.include"
+	type AgentsToolsSpawnConversationThreadValid > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionThreads.include"
 	local ptParent="$1" ptOwn="$2" ptRecord ptThread="" ptBest="" ptBestRecord="" ptTrack="" ptSession="" ptOne
 	case "$ptParent" in ''|none|*/*|.|..) return 1 ;; esac
 	[ -n "${MMDAPP:-}" ] || return 1
 	type AgentsToolsEventTrackThreadIs > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/event-track/AgentsTools.EventTrackThread.include"
 	ptTrack="$( AgentsToolsEventTrackChannel )"
-	for ptRecord in "$MMDAPP/.local/agents/spawned"/*/"$ptParent.spawn.md" ; do
+	type AgentsSessionRunRecordInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+	AgentsSessionRunRecordInto ptRecord "$ptParent" || :
+	for ptRecord in ${ptRecord:+"$ptRecord"} ; do
 		[ -f "$ptRecord" ] || continue
 		ptThread="$( AgentsToolsSpawnSandboxRecordHeader "$ptRecord" session-thread )"
 		AgentsToolsSpawnConversationThreadValid "$ptThread" && ! AgentsToolsEventTrackThreadIs "$ptThread" "$ptTrack" && { printf '%s\n' "$ptThread" ; return 0 ; }
@@ -569,7 +570,7 @@ AgentsToolsSpawnParentThread(){ ## parent session id, this spawn's own id
 		AgentsToolsSpawnConversationThreadValid "$ptThread" && ! AgentsToolsEventTrackThreadIs "$ptThread" "$ptTrack" && { printf '%s\n' "$ptThread" ; return 0 ; }
 	done
 	## The coordinator's started runs from the kept started list (AgentsTools.StartedRecords.include), never every record on a post; status is read off each record as it is.
-	type AgentsToolsSpawnedStartedRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.StartedRecords.include"
+	type AgentsToolsSpawnedStartedRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include"
 	for ptRecord in $( AgentsToolsSpawnedStartedRecords 2> /dev/null ) ; do
 		[ -f "$ptRecord" ] || continue
 		case "${ptRecord##*/}" in "$ptOwn.spawn.md") continue ;; esac
@@ -601,15 +602,17 @@ AgentsToolsSpawnParentThread(){ ## parent session id, this spawn's own id
 ## from the moment it was closed where that is later than the moment the item entered review.
 AgentsReviewWaitLeft(){ ## spawn id
 	type AgentsToolsDecisionsItemPath > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemDecisions.include"
-	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandbox.include"
+	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandboxRecordHeader.include"
 	local leftItem leftPath leftSince leftLimit leftNow leftRecord leftSession="" leftHold=""
 	leftItem="$( AgentsReviewItemOfSession "$1" )" || return 1
 	leftPath="$( AgentsToolsDecisionsItemPath "$leftItem" )" || return 1
-	[ "$( AgentsReviewStateOfPath "$leftPath" )" = review ] || return 1
+	[ "$( statePath="${leftPath%/*}" ; printf '%s' "${statePath##*/}" )" = review ] || return 1
 	[ "$( AgentsToolsDecisionsField "$leftPath" spawn-id )" = "$1" ] || return 1
 	leftSince="$( AgentsToolsDecisionsField "$leftPath" review-since-epoch )"
 	case "$leftSince" in ''|*[!0123456789]*) return 1 ;; esac
-	for leftRecord in "${MMDAPP:-/nonexistent}/.local/agents/spawned"/*/"$1.spawn.md" ; do
+	type AgentsSessionRunRecordInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+	AgentsSessionRunRecordInto leftRecord "$1" || :
+	for leftRecord in ${leftRecord:+"$leftRecord"} ; do
 		[ ! -f "$leftRecord" ] || leftSession="$( AgentsToolsSpawnSandboxRecordHeader "$leftRecord" session-id )"
 	done
 	case "$leftSession" in ''|-|*/*|.|..) leftSession="" ;; esac
@@ -655,9 +658,11 @@ AgentsReviewWaitExpire(){ ## who, spawn id
 ## ending recorded on the item it works. One SHUTDOWN line per spawn, then a count. The bare form is a readout: one
 ## SHUTDOWN-PLAN line per spawn it would end, and nothing is ended. Ending needs --execute (agentsReviewExecute).
 AgentsReviewShutdown(){ ## sending member
-	local sdBy="$1" sdRecord sdSpawn sdItem sdWhy sdSent=0 sdSeen=0
+	local sdBy="$1" sdRecord sdSpawn sdItem sdWhy sdSent=0 sdSeen=0 sdRecords=()
+	type AgentsToolsSpawnedAllRecordsInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include"
+	AgentsToolsSpawnedAllRecordsInto sdRecords
 	if [ -z "${agentsReviewExecute:-}" ] ; then
-		for sdRecord in "$MMDAPP/.local/agents/spawned"/*/*.spawn.md ; do
+		for sdRecord in ${sdRecords[@]+"${sdRecords[@]}"} ; do
 			[ -f "$sdRecord" ] || continue
 			AgentsReviewChildLive "$sdRecord" > /dev/null || continue
 			sdSpawn="${sdRecord##*/}" ; sdSpawn="${sdSpawn%.spawn.md}"
@@ -667,7 +672,7 @@ AgentsReviewShutdown(){ ## sending member
 		printf 'SHUTDOWN-PLAN: %s live spawn(s) would be ended, and none was. Pass --execute to end them all now.\n' "$sdSeen"
 		return 0
 	fi
-	for sdRecord in "$MMDAPP/.local/agents/spawned"/*/*.spawn.md ; do
+	for sdRecord in ${sdRecords[@]+"${sdRecords[@]}"} ; do
 		[ -f "$sdRecord" ] || continue
 		sdWhy="$( AgentsReviewChildLive "$sdRecord" )" || continue
 		sdSpawn="${sdRecord##*/}" ; sdSpawn="${sdSpawn%.spawn.md}"
@@ -709,7 +714,8 @@ AgentsReviewPromptFill(){ ## want (post|reactions|block), block `<Section>/<head
 ## session's Wait, which the prompt joins as a wait item; its click answers are placed under
 ## it. Never fails the handback: prints one REVIEW-PROMPT line, or nothing where none is due.
 AgentsReviewPromptPost(){ ## who handed back, item file name, its spawn id, outcome line (may be empty)
-	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandbox.include"
+	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandboxRecordHeader.include"
+	type AgentsToolsItemReviewer > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemReviewer.include"
 	local rpWho="$1" rpItem="${2%.md}" rpSpawn="${3:-}" rpOutcome="${4:-}" rpPath rpRecord="" rpCandidate rpTask rpName rpNames="" rpTaskText rpCow rpThread rpSessionText=""
 	local rpBody rpOut rpChannel rpTs rpAddressees rpAsking rpId
 	type AgentsToolsDecisionsItemPath > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemDecisions.include"
@@ -729,7 +735,9 @@ AgentsReviewPromptPost(){ ## who handed back, item file name, its spawn id, outc
 	rpTaskText="$( ASKP_F_task_title="$( AgentsToolsTaskTextValue "$rpTask" title )" ASKP_F_task_names="$rpNames" \
 		ASKP_F_task_text="$( AgentsToolsTaskTextValue "$rpTask" text )" AgentsReviewPromptFill block "Lines/task" 2> /dev/null )" || rpTaskText=""
 	## The session that handed back: its short id, its thread, and what its spawn said it is for.
-	for rpCandidate in "$MMDAPP/.local/agents/spawned"/*/"${rpSpawn:-none}.spawn.md" ; do
+	type AgentsSessionRunRecordInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+	AgentsSessionRunRecordInto rpCandidate "${rpSpawn:-none}" || :
+	for rpCandidate in ${rpCandidate:+"$rpCandidate"} ; do
 		[ ! -f "$rpCandidate" ] || { rpRecord="$rpCandidate" ; break ; }
 	done
 	rpCow="$( [ -z "$rpRecord" ] || AgentsToolsSpawnSandboxRecordHeader "$rpRecord" session-id )"
@@ -856,7 +864,7 @@ AgentsReviewPromptVerdict(){ ## record file, pending id, verdict (accept|return|
 		return 1
 	fi
 	pvBy="human-owner"
-	pvPath="$( AgentsToolsDecisionsItemPath "$pvItem" )" && pvState="$( AgentsReviewStateOfPath "$pvPath" )"
+	pvPath="$( AgentsToolsDecisionsItemPath "$pvItem" )" && pvState="$( statePath="${pvPath%/*}" ; printf '%s' "${statePath##*/}" )"
 	if [ "$pvState" != "review" ] ; then
 		pvWhy="the item is in ${pvState:-no board state}"
 		AgentsReviewPromptClose "$pvFile" "$pvId" tooling "$pvItem is no longer in review"
@@ -879,7 +887,7 @@ AgentsReviewPromptVerdict(){ ## record file, pending id, verdict (accept|return|
 	[ -n "$pvWhy" ] || pvWhy="$( printf '%s\n' "$pvOut" | LC_ALL=C grep . | tail -1 )" || pvWhy=""
 	## A verdict the flow gave and could not finish -- a return it could not deliver -- has
 	## moved the item: it is given, and what was left undone is said.
-	if pvPath="$( AgentsToolsDecisionsItemPath "$pvItem" )" && [ "$( AgentsReviewStateOfPath "$pvPath" )" != "review" ] ; then
+	if pvPath="$( AgentsToolsDecisionsItemPath "$pvItem" )" && [ "$( statePath="${pvPath%/*}" ; printf '%s' "${statePath##*/}" )" != "review" ] ; then
 		echo "⚠️ WARNING: ${MDSC_CMD:-review}: the $pvVerdict of $pvItem by $pvBy is given, but not finished: ${pvWhy:-the review operation failed (rc $pvRc)}" >&2
 		return 0
 	fi
@@ -893,7 +901,8 @@ AgentsReviewPromptVerdict(){ ## record file, pending id, verdict (accept|return|
 ## one that runs still, keeps its record open: it has not ended. Prints one ACCEPT-CLOSE line.
 AgentsReviewCloseAccepted(){ ## who, item file name, the ACCEPT-DISMISS line the move printed
 	type AgentsToolsDecisionsItemPath > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemDecisions.include"
-	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandbox.include"
+	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandboxRecordHeader.include"
+	type AgentsToolsSpawnProxyCloseSandbox > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnProxyClose.include"
 	local acWho="$1" acItem="${2%.md}.md" acDismiss="${3:-}" acPath acRecord acSpawn
 	acPath="$( AgentsToolsDecisionsItemPath "$acItem" )" || { printf 'ACCEPT-CLOSE: %s is on no board\n' "${acItem%.md}" ; return 0 ; }
 	acRecord="$( AgentsReviewChildRecord "$acPath" )" || acRecord=""
@@ -920,7 +929,10 @@ AgentsReviewCloseAccepted(){ ## who, item file name, the ACCEPT-DISMISS line the
 ## left as it is. The executor then says once, in the session thread and to nobody in particular, what it
 ## ended. Prints one CHILDREN-CLOSE line per run, then a count.
 AgentsReviewChildrenDismiss(){ ## the closing run's record path, the member closing
-	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandbox.include"
+	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandboxRecordHeader.include"
+	type AgentsToolsSessionRunExecutor > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionSeats.include"
+	type AgentsToolsSpawnConversationThreadValid > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionThreads.include"
+	type AgentsToolsRunDismiss > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnProxyClose.include"
 	local chRecord="$1" chBy="$2" chParent chChilds="" chChild chOwn chSeen=0 chKept=0 chThread=""
 	[ -n "$chRecord" ] && [ -f "$chRecord" ] || return 0
 	chParent="$( AgentsToolsSpawnSandboxRecordHeader "$chRecord" spawn-id )"
@@ -930,7 +942,7 @@ AgentsReviewChildrenDismiss(){ ## the closing run's record path, the member clos
 		return 0
 	fi
 	## The children from the parent's list where the lists are marked complete, else one grep over all the records (AgentsToolsSpawnedChildRecords).
-	type AgentsToolsSpawnedChildRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.StartedRecords.include"
+	type AgentsToolsSpawnedChildRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include"
 	chChilds="$( AgentsToolsSpawnedChildRecords "$chParent" )" || chChilds=""
 	while IFS= read -r chChild ; do
 		[ -n "$chChild" ] && [ -f "$chChild" ] || continue
@@ -1008,7 +1020,7 @@ AgentsReviewOp(){ ## verb, who, item, new item, text, reason, session id, dismis
 		;;
 		accept)
 			opPath="$( AgentsReviewVerdictPath "$opItem" "review running" )" || return 1
-			opState="$( AgentsReviewStateOfPath "$opPath" )"
+			opState="$( statePath="${opPath%/*}" ; printf '%s' "${statePath##*/}" )"
 			## In this context, never the reviewer's workspace: the item is on the spawner's board.
 			type AgentsToolsBoardToProcessed > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.BoardMoves.include"
 			opOut="$( AgentsToolsBoardToProcessed "$opWho" "$opItem" --from-state:"$opState" 2>&1 )" || {
@@ -1050,7 +1062,7 @@ AgentsReviewOp(){ ## verb, who, item, new item, text, reason, session id, dismis
 		reject)
 			[ -n "$opText" ] || { echo "$MDSC_CMD: ⛔ ERROR: the corrections are required, with --message <text> or --from-stdin" >&2 ; return 1 ; }
 			opPath="$( AgentsReviewVerdictPath "$opItem" "review running" )" || return 1
-			opState="$( AgentsReviewStateOfPath "$opPath" )"
+			opState="$( statePath="${opPath%/*}" ; printf '%s' "${statePath##*/}" )"
 			AgentsReviewMoveWithSection "$opItem" "$opState" pending "## Review: rejected ($( date -u +%Y-%m-%dT%H:%MZ ), $opWho)" "$opText" \
 				--header:upsert:status:review-rejected --header:remove:review-since-epoch --header:remove:review-reason > /dev/null 2>&1 || {
 				echo "$MDSC_CMD: ⛔ ERROR: the move of ${opItem%.md} to pending failed, so nothing was rejected" >&2

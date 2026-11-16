@@ -43,14 +43,17 @@ rigAssert(){ ## what is asserted, got, want
 	fi
 }
 rigW="$rigTmp/ws" rigD="$rigTmp/data" rigH="$rigTmp/home"
-mkdir -p "$rigW/.local/.agents" "$rigW/.local/agents/spawned" "$rigW/.local/agents/members/magic-coordinator" "$rigD/inboxes/magic-coordinator/incoming" "$rigD/board/pending" "$rigH"
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-writes.include.sh" || exit 1
+rigOwnerWs="${rigWs:-$rigTmp/ws}" rigOwnerData="${rigData:-${rigD:-${rigStore:-${rigOut:-$rigTmp/data}}}}" rigOwnerHome="${rigHome:-$rigTmp/home}" rigOwnerSkills="${rigSkills:-$rigTmp/skills}"
+rigOwnerBoardReady
+mkdir -p "$rigW/.local/.agents" "$rigW/.local/agents/spawned" "$rigW/.local/agents/members/magic-coordinator" "$rigH"
 ## The rig's own workspace has a source folder: the context of the tool is detected from it.
 rigCopyTree "${rigHere%/myx/myx.distro-agents/sh-lib}" "$rigW/source" || rigRefuse "the rig's source copy could not be made"
 printf '# magic-coordinator\n' > "$rigW/.local/agents/members/magic-coordinator/SKILL.md"
 printf 'SLACK_CHANNEL_MAGIC_TEAM=CRIG00001\nSLACK_CHANNEL_HUMAN_OWNER=URIGOWNER\nSLACK_BOT_TOKEN=rig-bot-token-TEAM\n' > "$rigW/.local/.agents/magic-team.agent.env"
 ## One item in the inbox, so the inbox probe asks for a file's time.
-printf -- '---\ntype: note\nfrom: magic-coordinator\n---\n\n# Note: bound between sources\n' > "$rigD/inboxes/magic-coordinator/incoming/note-20261022T1700Z-bound-between-sources.md"
-printf -- '---\ntype: task\nowner: magic-coordinator\n---\n\n# Rig item pending\n' > "$rigD/board/pending/task-rig-pending.md"
+printf -- '---\ntype: note\nfrom: magic-coordinator\n---\n\n# Note: bound between sources\n' | rigOwnerInboxPut magic-coordinator note-20261022T1700Z-bound-between-sources.md
+printf -- '---\ntype: task\nowner: magic-coordinator\n---\n\n# Rig item pending\n' | rigOwnerBoardPut pending task-rig-pending.md
 ## One Wait on the inbox, then a board state, from a floor of 1 (what is there counts); the slow date is on where the flag is.
 rigWait(){ ## result name, bound seconds, slow (yes or no), floor (a number, or none)
 	local waitRc=0

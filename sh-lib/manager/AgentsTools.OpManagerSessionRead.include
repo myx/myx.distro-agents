@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # ^^^ for syntax checking in the editor only
 
-type AgentsToolsManagerSessionReadRows > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.ManagerSessionRows.include"
+type AgentsToolsManagerSessionReadRows > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.ManagerSessionRows.include"
 
 ## AgentsTools.OpManagerSessionRead.include -- the operation `--manager-session-read`, sourced by AgentsTools.ManagerSession.include with the operation's arguments.
 ## One session, or one run of it, in full: its rows as the list prints them, what it was

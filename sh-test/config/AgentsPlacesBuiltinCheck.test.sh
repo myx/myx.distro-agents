@@ -29,6 +29,7 @@ done
 rigMyxCommon="$( command -v myx.common 2>/dev/null )"
 [ -n "$rigMyxCommon" ] || rigRefuse "myx.common is not on PATH, so no source project could be scanned for its declares"
 . "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-writes.include.sh" || exit 1
 rigTmp="$( rigTempDir AgentsPlacesBuiltinCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
@@ -56,7 +57,7 @@ rigHome="$rigTmp/home" rigData="$rigTmp/data" rigMain="$rigTmp/ws-main" rigTwo="
 rigSkills="$rigHome/.claude/skills"
 rigMembers="$rigMain/.local/agents/members"
 rigSource="$rigMain/source/rig/rig-proj/skillset"
-mkdir -p "$rigSkills/keeper-local" "$rigSource/keeper-linked/reference" "$rigMembers/keeper-real" "$rigData/board/running" \
+mkdir -p "$rigSkills/keeper-local" "$rigSource/keeper-linked/reference" "$rigMembers/keeper-real" \
 	"$rigTmp/plain" "$rigTmp/elsewhere" "$rigTmp/mine" "$rigTmp/dots" "$rigTmp/ws-dot" "$rigTmp/.hidden" "$rigTwo/.local" "$rigTwo/source/rig/rig-proj"
 printf 'Name: rig\n' > "$rigMain/source/rig/repository.inf"
 printf 'Name: rig-proj\n\nDeclares: \\\n\t%s \\\n\t%s \\\n\t%s \\\n\t%s \\\n\t%s \\\n\n' \
@@ -76,7 +77,7 @@ for rigName in magic-coordinator keeper-linked ; do
 done
 printf 'rig\n' > "$rigMembers/keeper-real/keeper-real.basic.md"
 for rigOne in "$rigSkills/keeper-local/a.md" "$rigSource/keeper-linked/a.md" "$rigSource/keeper-linked/reference/n.md" "$rigMembers/keeper-real/b.md" ; do printf 'rig-seed\n' > "$rigOne" ; done
-printf -- '---\nstatus: task\nowner: magic-coordinator\n---\n\n# Task\n' > "$rigData/board/running/task-rig.md"
+rigOwnerBoardWrite running "task-rig.md" -- '---\nstatus: task\nowner: magic-coordinator\n---\n\n# Task\n'
 mkdir -p "$rigMain/.local/agents/spawned/sb-c/output"
 printf -- '---\nsession-id: s-coord\nspawn-id: s-coord\nowner: magic-coordinator\nstatus: spawn-started\n---\n\n# Spawn session\n' > "$rigMain/.local/agents/spawned/sb-c/s-coord.spawn.md"
 

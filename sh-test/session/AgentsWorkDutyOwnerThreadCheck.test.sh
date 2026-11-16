@@ -49,8 +49,8 @@ rigEndRigStarted(){
 trap 'chmod -R u+rwX -- "$rigTmp" 2> /dev/null ; rigControlThreadsEnd "$rigTmp" ; rigEndRigStarted ; rigProcSignalWithChildren KILL $rigStarted ; rm -rf -- "$rigTmp"' EXIT
 trap 'exit 1' INT TERM
 rigWs="$rigTmp/ws" rigData="$rigTmp/data" rigSkills="$rigTmp/skills" rigBin="$rigTmp/bin"
-mkdir -p "$rigWs/.local/.agents" "$rigWs/.local/agents/spawned" "$rigBin" "$rigData/board/pending" \
-	"$rigSkills/magic-coordinator" "$rigSkills/keeper-rig-01" "$rigSkills/keeper-rig-02"
+mkdir -p "$rigWs/.local/.agents" "$rigWs/.local/agents/spawned" "$rigBin" "$rigSkills/magic-coordinator" "$rigSkills/keeper-rig-01" "$rigSkills/keeper-rig-02"
+rigBoardStates "$rigData" pending
 cp "$rigPackage/sh-test/check-fixtures/work-duty-owner-thread.curl.stub.sh" "$rigBin/curl" \
 	|| rigRefuse "the check's fake curl is missing from the package: sh-test/check-fixtures/work-duty-owner-thread.curl.stub.sh"
 chmod +x "$rigBin/curl"
@@ -112,7 +112,8 @@ printf '%s\n' '#!/usr/bin/env bash' '## --cli-configured stand-in: it keeps the 
 	'printf "📦 SubagentHandback\n"' 'printf "rig-cli\n" > "$MDAT_SPAWN_LAUNCH_MARKER"' > "$rigWs/DistroAgentsConsole.sh"
 chmod +x "$rigWs/DistroAgentsConsole.sh"
 for rigMember in magic-coordinator keeper-rig-01 keeper-rig-02 ; do
-	mkdir -p "$rigSkills/$rigMember" "$rigData/inboxes/$rigMember/incoming"
+	mkdir -p "$rigSkills/$rigMember"
+	rigInboxReady "$rigData" $rigMember
 	printf -- '---\nmaintainers: rig\n---\nrig identity\n' > "$rigSkills/$rigMember/$rigMember.basic.md"
 	printf '# rig armed\n' > "$rigSkills/$rigMember/$rigMember.armed.md"
 	printf '# %s\n' "$rigMember" > "$rigSkills/$rigMember/SKILL.md"
@@ -122,8 +123,8 @@ done
 ## The real duty routine under the team member's own name for it: its first step is what assertion 5 reads.
 cp "$rigRoutine" "$rigSkills/magic-coordinator/magic-team.work-duty.routine.md" || rigRefuse "the work-duty routine could not be copied into the rig"
 ## Each member has something to work on, and worktime covers every hour: the flags and the inboxes decide the start, never the clock.
-printf '# Note: rig work\n\nwork\n' > "$rigData/inboxes/keeper-rig-01/incoming/note-20261103T0900Z-rig-work.md"
-printf '# Note: rig work\n\nwork\n' > "$rigData/inboxes/keeper-rig-02/incoming/note-20261103T0900Z-rig-work.md"
+printf '# Note: rig work\n\nwork\n' | rigStoreItem "$rigData" inbox keeper-rig-01 note-20261103T0900Z-rig-work.md
+printf '# Note: rig work\n\nwork\n' | rigStoreItem "$rigData" inbox keeper-rig-02 note-20261103T0900Z-rig-work.md
 printf 'SLACK_CHANNEL_MAGIC_TEAM=CRIG00001\nSLACK_CHANNEL_EVENT_TRACK=CRIGTRACK\nSLACK_CHANNEL_HUMAN_OWNER=URIGOWNER01\nSLACK_BOT_TOKEN=rig-bot-token-TEAM\nMDAT_SCHEDULE_WORKTIME=00:00 23:59 daily\n' \
 	> "$rigWs/.local/.agents/magic-team.agent.env"
 

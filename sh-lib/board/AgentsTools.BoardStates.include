@@ -37,13 +37,55 @@ agentsBoardStaleWindowSeconds=3600
 ## Makes folders only, never a file, so it adds nothing a commit of the team data would
 ## carry. rc 1, saying which, where a folder cannot be made.
 AgentsToolsBoardReady(){
+	AgentsToolsBoardStateReady $agentsBoardStates
+}
+
+## Makes the folders of the states named, and of no other: the narrower form a caller takes when the board it writes
+## holds a state or two, a check's rig among them. A name outside the one list is refused: a folder the vocabulary does
+## not know is a state no reader would ever read. rc 1, saying which, where a folder cannot be made.
+AgentsToolsBoardStateReady(){ ## state...
 	local readyState
 	[ -n "${MDAT_DATA_ROOT:-}" ] || return 0
-	for readyState in $agentsBoardStates ; do
+	for readyState in "$@" ; do
+		case " $agentsBoardStates " in
+			*" $readyState "*) ;;
+			*) echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools}: no such board state: $readyState" >&2 ; return 1 ;;
+		esac
 		[ -d "$MDAT_DATA_ROOT/board/$readyState" ] || mkdir -p "$MDAT_DATA_ROOT/board/$readyState" 2> /dev/null || {
 			echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools}: can't create board state directory: $MDAT_DATA_ROOT/board/$readyState" >&2
 			return 1
 		}
+	done
+	return 0
+}
+
+## THE ITEMS OF THE BOARD COUNTED BY STATE, one `<state> <count>` line each: the states named, in that order, then each other
+## folder of the board they leave out, by its name. A state whose folder is not there is not printed at all, and a state of no
+## item counts none, since git keeps no empty folder. Nothing where the board is not there. The one reader of a count by state;
+## the manager screen's team data panel takes it, so no other part lists the board's folders.
+AgentsToolsBoardStateCounts(){ ## state...
+	local countState countSeen=" " countFolder countItem countCount
+	[ -n "${MDAT_DATA_ROOT:-}" ] || return 0
+	[ $# -gt 0 ] || set -- $agentsBoardStates
+	for countState in "$@" ; do
+		case "$countState" in ''|.|..|*/*) continue ;; esac
+		countSeen="$countSeen$countState "
+		[ -d "$MDAT_DATA_ROOT/board/$countState" ] || continue
+		countCount=0
+		for countItem in "$MDAT_DATA_ROOT/board/$countState"/*.md ; do
+			[ -f "$countItem" ] && countCount=$(( countCount + 1 ))
+		done
+		printf '%s %s\n' "$countState" "$countCount"
+	done
+	for countFolder in "$MDAT_DATA_ROOT/board"/*/ ; do
+		[ -d "$countFolder" ] || continue
+		countState="${countFolder%/}" ; countState="${countState##*/}"
+		case "$countSeen" in *" $countState "*) continue ;; esac
+		countCount=0
+		for countItem in "$MDAT_DATA_ROOT/board/$countState"/*.md ; do
+			[ -f "$countItem" ] && countCount=$(( countCount + 1 ))
+		done
+		printf '%s %s\n' "$countState" "$countCount"
 	done
 	return 0
 }

@@ -320,15 +320,12 @@ case "$1" in
 		local gateMode="change" gateLabel="$itemName"
 		[ -n "$existingPath" ] || { gateMode="create" ; gateLabel="new item" ; }
 		printf '%s\n' "$content" | AgentsToolsDocValidateGate member-inbox-upsert "$gateLabel" inbox "$itemName" "$existingPath" "$gateMode" || { set +e ; return 1 ; }
-		mkdir -p "${target%/*}" || {
-			echo "$MDSC_CMD: member-inbox-upsert: ⛔ ERROR: can't create inbox directory: ${target%/*}" >&2
-			set +e ; return 1
-		}
+		AgentsToolsInboxReady "$memberName" || { set +e ; return 1 ; }
 		printf '%s\n' "$content" > "$target"
 		[ -z "$movedFrom" ] || rm -f -- "$movedFrom"
 		## The waits of the member are poked, so one that naps long still reads the new item at once (AgentsToolsWakePoke).
-		type AgentsToolsWakePoke > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.WakeMarker.include"
-		! type AgentsToolsWakePoke > /dev/null 2>&1 || AgentsToolsWakePoke "$memberName"
+		type AgentsHookFire > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.Hook.include"
+		AgentsHookFire store-changed wake "$memberName"
 		echo "# $MDSC_CMD: member-inbox-upsert: wrote $itemName ($( printf '%s\n' "$content" | wc -l | tr -d '[:space:]' ) lines)" >&2
 
 		## The commit and the push are the team-data thread's (AgentsToolsTeamDataCommitPaths): this op writes files.

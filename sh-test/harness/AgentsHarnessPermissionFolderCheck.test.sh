@@ -24,6 +24,7 @@ rigTools="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 rigMember="magic-tester"
 
 rigRefuse(){
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-writes.include.sh" || exit 1
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }
 [ -f "$rigHarness" ] || rigRefuse "harness not found at the origin this workspace resolves: $rigHarness"
@@ -174,7 +175,7 @@ rigStart(){ ## scenario directory name, optional `task`: the board holds the ite
 	rigScenarioDir="$rigTmp/$1"
 	rigSession="rig-folder-$1"
 	rigWs="$rigScenarioDir/ws"
-	mkdir -p "$rigWs/.local/.agents" "$rigWs/.local/agents" "$rigWs/IN" "$rigScenarioDir/data/board/running"
+	mkdir -p "$rigWs/.local/.agents" "$rigWs/.local/agents" "$rigWs/IN"
 	printf 'SLACK_CHANNEL_MAGIC_TEAM=CRIG00001\nSLACK_CHANNEL_HUMAN_OWNER=URIGOWNER\nSLACK_BOT_TOKEN=%s\n' "$rigBotToken" \
 		> "$rigWs/.local/.agents/magic-team.agent.env"
 	printf 'SLACK_USER_TOKEN=%s\n' "$rigOwnToken" > "$rigWs/.local/.agents/$rigMember.agent.env"
@@ -184,7 +185,7 @@ rigStart(){ ## scenario directory name, optional `task`: the board holds the ite
 	rigTaskRef="the report rework"
 	if [ "${2:-}" = "task" ] ; then
 		printf -- '---\nstatus: dispatch-started\nowner: %s\nsession-id: %s\n---\n\n# Rework the report files\n\n## Brief\n\nThe rig rewrites its report files.\n' "$rigMember" "$rigSession" \
-			> "$rigScenarioDir/data/board/running/$rigItem.md"
+			| rigOwnerData="$rigScenarioDir/data" rigOwnerBoardPut running "$rigItem.md"
 		rigTaskRef="the report rework, $rigItem"
 	fi
 	RIG_CURL_LOG="$rigScenarioDir/curl.log"
@@ -372,7 +373,7 @@ rigAssert "typed all the same, it is no answer: the request comes back, stays op
 	"no:VERDICT: RETURNED:reply-pending:no-set:1"
 ## The coordinator's answer on behalf, from a session of its own.
 ( cd "$rigWs" && env -u CLAUDE_CODE_SESSION_ID -u CLAUDE_CODE_ENTRYPOINT -u MDAT_SESSION_THREAD MDAT_SPAWN_SESSION_ID=rig-folder-coordinator MDAT_SPAWN_AGENT=magic-coordinator \
-	MDAT_DATA_ROOT="$rigScenarioDir/data" RIG_SCENARIO="$rigScenarioDir" MMDAPP="$rigWs" bash "$rigTools" --answer-escalation magic-coordinator "$( rigRecordId )" allow-folder ) \
+	MDAT_DATA_ROOT="$rigScenarioDir/data" RIG_SCENARIO="$rigScenarioDir" MMDAPP="$rigWs" bash "$rigTools" --answer-escalation --team-member magic-coordinator "$( rigRecordId )" allow-folder ) \
 	> "$rigScenarioDir/op.out" 2> "$rigScenarioDir/op.err" ; rigOpRc=$?
 rigAssert "given through the team operation it is refused too: no verdict of this request" \
 	"$( [ "$rigOpRc" != 0 ] && printf refused || printf taken ):$( rigHolds "$rigScenarioDir/op.err" 'allow-folder is not a verdict of this permission' ):$( rigRecordField status )" "refused:yes:reply-pending"

@@ -108,8 +108,8 @@ rigAssert "a created dispatch item closes into board/review" \
 	"$( rigItemBoardState "$( rigDispatchItem "$rigTmp/f" )" )" review
 
 echo "-- a reused tracking item: the close never moves it --"
-mkdir -p "$rigStore/board/blocked"
-printf -- '---\ntype: task\nowner: rig\n---\n\nreuse me\n' > "$rigStore/board/blocked/task-rig-reuse.md"
+rigBoardStates "$rigStore" blocked
+printf -- '---\ntype: task\nowner: rig\n---\n\nreuse me\n' | rigStoreItem "$rigStore" board blocked task-rig-reuse.md
 git -C "$rigStore" add -A && git -C "$rigStore" commit -q -m "seed reused item"
 rigProxyReuse "$rigTmp/r" task-rig-reuse.md --wait
 rigAssert "the reuse close reports no error"           "$( LC_ALL=C grep -c '^TRACKING_ITEM=task-rig-reuse\.md$' "$rigTmp/r" )" 1

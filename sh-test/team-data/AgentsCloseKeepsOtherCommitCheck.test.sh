@@ -25,20 +25,40 @@ rigRefuse(){ echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1 ; 
 [ -f "$rigItem" ] || rigRefuse "the item include is not at the origin this workspace resolves: $rigItem"
 command -v git > /dev/null || rigRefuse "git is not installed"
 . "$rigPkg/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
+. "$rigPkg/sh-test/check-fixtures/rig-store-item.include.sh" || exit 1
 rigTmp="$( rigTempDir AgentsCloseKeepsOtherCommitCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
 rigStore="$rigTmp/store"
 rigHome="$rigTmp/home"
-mkdir -p "$rigStore/board/running" "$rigHome" || rigRefuse "could not make the rig's own tree"
+rigWs="$rigTmp/ws"
+mkdir -p "$rigStore" "$rigHome" "$rigWs/.local/agents" || rigRefuse "could not make the rig's own tree"
+rigTarget="$rigStore/board/running/dispatch-rig-close.md"
+## Every item is built by the board's own write (rig-store-item.include.sh), which also makes the folder it lies in: a
+## hand-written fixture stays green when that write's own file contract changes. The store is a repository after the note
+## is written, and the seed commit takes only the README, so the note stands in the working tree uncommitted as before.
+rigBodyCount=0
+rigStoreBody(){ ## text -- the path of a body file holding it
+	rigBodyCount=$(( rigBodyCount + 1 ))
+	printf '%s\n' "$1" > "$rigTmp/body$rigBodyCount"
+	printf '%s' "$rigTmp/body$rigBodyCount"
+}
+rigPutItem(){ ## item name, body text -- one item of the board's running state, through the board's own write
+	rigStoreItem "$rigTmp" "$rigStore" "$rigWs" rig-member "board running $1" "$( rigStoreBody "$2" )" \
+		|| rigRefuse "could not build the item $1 through the board's own write"
+}
+rigPutItem dispatch-rig-close.md "---
+type: dispatch
+owner: rig-member
+session-id: rig-session
+---
+
+rig item"
 git -C "$rigStore" init -q || rigRefuse "could not init the rig store"
 git -C "$rigStore" config user.email rig@example.invalid
 git -C "$rigStore" config user.name rig
 printf 'seed\n' > "$rigStore/README.md"
-git -C "$rigStore" add -A && git -C "$rigStore" commit -q -m seed || rigRefuse "could not seed the rig store"
-rigTarget="$rigStore/board/running/dispatch-rig-close.md"
-printf -- '---\ntype: dispatch\nowner: rig-member\nsession-id: rig-session\n---\n\nrig item\n' > "$rigTarget"
-
+git -C "$rigStore" add -- README.md && git -C "$rigStore" commit -q -m seed || rigRefuse "could not seed the rig store"
 rigPass=0 ; rigFail=0
 rigAssert(){ ## what is asserted, got, want
 	if [ "$2" = "$3" ] ; then
@@ -56,23 +76,32 @@ rigClose(){ ## result name, committed (true|false)
 		env -i HOME="$rigHome" PATH="/usr/bin:/bin:/usr/sbin:/sbin" GIT_CONFIG_NOSYSTEM=1 \
 			MDLT_ORIGIN="$rigOrigin" MMDAPP="$rigTmp" MDAT_DATA_ROOT="$rigStore" MDSC_CMD=rig \
 			bash -c '. "$1" ; target="$2" ; repoRoot="$3" ; priorExisted=true ; priorContent="$4" ;
-				unlockCommitted="$5" ; commitMessage="DistroAgentsTools: item-upsert: dispatch-rig-close.md" ;
-				AgentsToolsItemUnlockKeep restore "the push was refused"' rigclose "$rigItem" "$rigTarget" "$rigStore" "$rigPriorBody" "$2"
+				unlockCommitted="$5" ; commitMessage="$6" ;
+				AgentsToolsItemUnlockKeep restore "the push was refused"' rigclose "$rigItem" "$rigTarget" "$rigStore" "$rigPriorBody" "$2" "$rigOwnSubject"
 	) > "$rigTmp/close.$1.out" 2>&1 < /dev/null
 	printf '%s' "$?" > "$rigTmp/close.$1.rc"
 }
 
-## This call's own commit, made as the upsert makes it: the note, then the commit that names it.
+## This call's own commit, made as the upsert makes it: the note, then the commit that names it. The board's own
+## write makes exactly that commit, so the upsert is what stands this case up.
 rigOwnCommit(){
-	printf -- '---\ntype: dispatch\nowner: rig-member\nsession-id: rig-session\n---\n\nrig item, the close\n' > "$rigTarget"
-	git -C "$rigStore" add -A -- "$rigTarget" && git -C "$rigStore" commit -q --allow-empty -m "DistroAgentsTools: item-upsert: dispatch-rig-close.md" -- "$rigTarget" \
-		|| rigRefuse "could not make this call's own commit"
+	rigPutItem dispatch-rig-close.md "---
+type: dispatch
+owner: rig-member
+session-id: rig-session
+---
+
+rig item, the close"
+	rigOwnSubject="$( git -C "$rigStore" log -1 --format=%s HEAD 2> /dev/null )"
 }
 ## Another writer's commit, arrived after it: a different file, a subject of its own.
 rigOtherCommit(){
-	printf 'the other writer\n' > "$rigStore/board/running/dispatch-rig-other.md"
-	git -C "$rigStore" add -A -- "$rigStore/board/running/dispatch-rig-other.md" && git -C "$rigStore" commit -q -m "review-unseen mark, dispatch-rig-other" \
-		|| rigRefuse "could not make the other writer's commit"
+	rigPutItem dispatch-rig-other.md "---
+type: dispatch
+owner: rig-member
+---
+
+the other writer"
 }
 rigHead(){ git -C "$rigStore" log -1 --format=%s HEAD 2> /dev/null ; }
 rigOnBranch(){ git -C "$rigStore" cat-file -e "HEAD:$1" 2> /dev/null && printf here || printf gone ; }
@@ -80,17 +109,22 @@ rigOnBranch(){ git -C "$rigStore" cat-file -e "HEAD:$1" 2> /dev/null && printf h
 rigPriorBody="$( cat "$rigTarget" )"
 
 echo "-- 1. control: HEAD is this call's own commit, and the drop takes it away --"
+rigBelow="$( rigHead )"
 rigOwnCommit
-rigOwn="$( rigHead )"
 rigClose own true
 rigAssert "1. the close reported itself as not recorded"                     "$( cat "$rigTmp/close.own.rc" )" 0
 rigAssert "1. this call's own commit is gone from the branch, as the discarding intends" \
 	"$( rigOnBranch board/running/dispatch-rig-close.md )" gone
-rigAssert "1. control: the commit below it is what HEAD is now"              "$( rigHead )" seed
+rigAssert "1. control: the commit this call's own sat on is what HEAD is now" "$( rigHead )" "$rigBelow"
 
 echo "-- 2. the subject: another writer's commit is not this call's to drop --"
-printf -- '---\ntype: dispatch\nowner: rig-member\nsession-id: rig-session\n---\n\nrig item\n' > "$rigTarget"
-git -C "$rigStore" add -A -- "$rigTarget" && git -C "$rigStore" commit -q -m "seed again" -- "$rigTarget" || rigRefuse "could not reset the note for case 2"
+rigPutItem dispatch-rig-close.md "---
+type: dispatch
+owner: rig-member
+session-id: rig-session
+---
+
+rig item"
 rigOwnCommit
 rigOtherCommit
 rigOther="$( rigHead )"
@@ -102,9 +136,7 @@ rigAssert "2. this call's own commit stays below it, undropped: the fix drops no
 rigAssert "2. the note is put back as the close found it"                   "$( cat "$rigTarget" )" "$rigPriorBody"
 
 echo "-- 3. no commit of this call's own: nothing is dropped --"
-printf 'third\n' > "$rigStore/board/running/dispatch-rig-third.md"
-git -C "$rigStore" add -A -- "$rigStore/board/running/dispatch-rig-third.md" && git -C "$rigStore" commit -q -m "a third writer" \
-	|| rigRefuse "could not make the third commit"
+rigPutItem dispatch-rig-third.md "third"
 rigThird="$( rigHead )"
 rigClose nocommit false
 rigAssert "3. HEAD is where it was"                                         "$( rigHead )" "$rigThird"

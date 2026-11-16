@@ -59,7 +59,7 @@ if ! type AgentsChangeFill > /dev/null 2>&1 ; then
 		type AgentsToolsPermissionIsHumanOwner > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionHolds.include"
 		type AgentsToolsDecisionsItemPath > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemDecisions.include"
 		type AgentsToolsTaskText > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.TaskText.include"
-		type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandbox.include"
+		type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandboxRecordHeader.include"
 	}
 
 	## One part of the prompt filled from its own template, by the filler the ask posts use: the
@@ -116,13 +116,17 @@ if ! type AgentsChangeFill > /dev/null 2>&1 ; then
 	## while it has a store that does not say it ended. A record that names no session has
 	## none to carry a verdict out for.
 	AgentsChangeSessionGone(){ ## record file
-		local goneSession goneRecord goneHost
+		local goneSession goneStore goneRecord goneHost
 		type AgentsToolsAskPostField > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.AskPost.include"
 		goneSession="$( AgentsToolsAskPostField "$1" session-id )"
 		case "$goneSession" in ''|*/*|.|..) return 0 ;; esac
+		type AgentsSessionFolderInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+		AgentsSessionFolderInto goneStore "$MMDAPP" "$goneSession" || return 0
 		type AgentsToolsGrantsSessionEnded > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.Grants.include"
-		! AgentsToolsGrantsSessionEnded "$MMDAPP/.local/agents/sessions/$goneSession" || return 0
-		for goneRecord in "$MMDAPP/.local/agents/spawned"/*/"$goneSession.spawn.md" ; do
+		! AgentsToolsGrantsSessionEnded "$goneStore" || return 0
+		type AgentsSessionRunRecordInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+		AgentsSessionRunRecordInto goneRecord "$goneSession" || :
+		for goneRecord in ${goneRecord:+"$goneRecord"} ; do
 			[ -f "$goneRecord" ] || continue
 			goneHost="$( AgentsToolsAskPostField "$goneRecord" host )"
 			case "$goneHost" in
@@ -133,7 +137,7 @@ if ! type AgentsChangeFill > /dev/null 2>&1 ; then
 			! AgentsToolsSpawnRuns "$goneSession" "$goneRecord" || return 1
 			return 0
 		done
-		[ ! -d "$MMDAPP/.local/agents/sessions/$goneSession" ] || return 1
+		[ ! -d "$goneStore" ] || return 1
 		return 0
 	}
 
@@ -344,7 +348,9 @@ case "$1" in
 				ASKP_F_task_text="$( AgentsToolsTaskTextValue "$holdTask" text )" AgentsChangeFill block "Lines/task" 2> /dev/null )" || holdTaskText=""
 		fi
 		## The session that made the call: its short id, its thread, and what its spawn said it is for.
-		for holdCandidate in "$MMDAPP/.local/agents/spawned"/*/"$holdSession.spawn.md" ; do
+		type AgentsSessionRunRecordInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+		AgentsSessionRunRecordInto holdCandidate "$holdSession" || :
+		for holdCandidate in ${holdCandidate:+"$holdCandidate"} ; do
 			[ ! -f "$holdCandidate" ] || { holdRecord="$holdCandidate" ; break ; }
 		done
 		holdCow="$( [ -z "$holdRecord" ] || AgentsToolsSpawnSandboxRecordHeader "$holdRecord" session-id )"

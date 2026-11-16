@@ -27,16 +27,17 @@
 			echo "⛔ ERROR: $MDSC_CMD --intern-op-state-note-upsert: MDAT_DATA_ROOT is not set" >&2
 			set +e ; return 1
 		}
-		local stateDir="$MDAT_DATA_ROOT/inboxes/magic-coordinator/incoming"
-		mkdir -p "$stateDir" || {
-			echo "⛔ ERROR: $MDSC_CMD --intern-op-state-note-upsert: can't create inbox directory: $stateDir" >&2
+		type AgentsToolsInboxNotePath > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/inbox/AgentsTools.InboxPlace.include"
+		local target=""
+		target="$( AgentsToolsInboxNotePath magic-coordinator note-20260809T155000Z-heartbeat-state-and-lock.md )"
+		mkdir -p "${target%/*}" || {
+			echo "⛔ ERROR: $MDSC_CMD --intern-op-state-note-upsert: can't create inbox directory: ${target%/*}" >&2
 			set +e ; return 1
 		}
 		## Same document --state-note-lock-acquire writes, not a separate
 		## file -- state and lock used to be two documents, and the state one never carried a session-id, so
 		## nothing here could ever detect a stolen/expired lock. Merged
 		## 2026-09-09; see MAGIC.md.
-		local target="$stateDir/note-20260809T155000Z-heartbeat-state-and-lock.md"
 		if [ ! -f "$target" ] ; then
 			echo "⛔ ERROR: $MDSC_CMD --intern-op-state-note-upsert: $target does not exist -- acquire the lock first (--state-note-lock-acquire)" >&2
 			set +e ; return 1

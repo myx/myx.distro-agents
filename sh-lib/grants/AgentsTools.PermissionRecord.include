@@ -57,9 +57,38 @@ AgentsToolsPermissionEscape(){ ## value
 
 ## The session's own directory in the store, created on first use. Prints it.
 AgentsToolsPermissionSessionDir(){ ## session id
-	local sessionDir="$MMDAPP/.local/agents/sessions/$1"
+	local sessionDir=""
+	type AgentsSessionFolderInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+	AgentsSessionFolderInto sessionDir "$MMDAPP" "${1:-}" || return 1
 	mkdir -p "$sessionDir" 2>/dev/null || return 1
 	printf '%s' "$sessionDir"
+}
+
+## The record of one refusal, into the named variable: the file the named session keeps for that refusal id, else the file the
+## one session that keeps it holds. rc 1, the variable empty, where no session here keeps a record of that id. The session is
+## the one the ask names, and a session this workspace does not name is looked for by the session concern's own walk
+## (AgentsSessionFoldersFind).
+AgentsToolsPermissionRefusalRecordInto(){ ## variable, refusal id, session id (may be empty)
+	local recordFolder="" recordSession="${3:-}"
+	case "${1:-}" in ''|*[!A-Za-z0-9_]*) return 1 ;; esac
+	printf -v "$1" '%s' ""
+	case "${2:-}" in ''|-|.|..|*/*|*[[:space:]]*) return 1 ;; esac
+	type AgentsSessionFolderInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+	case "$recordSession" in
+		''|-|.|..|*/*) recordSession="" ;;
+		*)
+			AgentsSessionFolderInto recordFolder "$MMDAPP" "$recordSession" || recordFolder=""
+			[ -z "$recordFolder" ] || [ -f "$recordFolder/${2}.md" ] || recordFolder=""
+			[ -z "$recordFolder" ] || { printf -v "$1" '%s' "$recordFolder/${2}.md" ; return 0 ; }
+		;;
+	esac
+	## The store of this workspace alone: a refusal another workspace keeps is not this one's to read.
+	while IFS= read -r recordFolder ; do
+		[ -f "$recordFolder/${2}.md" ] || continue
+		printf -v "$1" '%s' "$recordFolder/${2}.md"
+		return 0
+	done <<< "$( AgentsSessionFoldersFind "${MMDAPP:-}" "${2}.md" )"
+	return 1
 }
 
 ## A new reference id with a prefix (pass-, set-), or rc 1.

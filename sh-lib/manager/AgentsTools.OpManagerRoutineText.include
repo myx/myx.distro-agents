@@ -18,7 +18,8 @@
 		## R15: the verdicts come WITH the routine the operator selected, in one read, after a
 		## marker the console splits off -- the file's own text stays the file's own text.
 		if [ "$textVerdicts" = "yes" ] ; then
-			textFault="$( set -- --intern-doc-validate routine "$textFile" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.InternDocValidate.include"| LC_ALL=C grep -v -e '^[^ ]*:[0-9]*: report-' | LC_ALL=C sed -n '1s/^[^ ]*:[0-9]*: [^ ]*: //p' )" || textFault=""
+			type AgentsToolsDocValidateRoutineFault > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.DocValidateRuleSets.include"
+			textFault="$( AgentsToolsDocValidateRoutineFault "$textFile" )" || textFault=""
 			if textContract="$( AgentsToolsSpawnRoutineContractCheck "$textFile" 2>&1 )" ; then textContract="startable" ; else textContract="broken" ; fi
 			printf '\n%s\n' "$MDAT_ROUTINE_VERDICT_MARK"
 			printf 'valid\t%s\n' "$( [ -z "$textFault" ] && printf 'yes' || printf 'no: %s' "$textFault" )"

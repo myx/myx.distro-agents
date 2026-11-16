@@ -32,6 +32,7 @@ rigRefuse(){
 ## A scan starts the control thread of a session of its rig that is not finished: what was started is ended before the tree is removed.
 . "$rigTest/check-fixtures/rig-control-threads.include.sh" || rigRefuse "the rig's fixture that ends control threads is missing from the package: sh-test/check-fixtures/rig-control-threads.include.sh"
 . "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-writes.include.sh" || exit 1
 rigTmp="$( rigTempDir AgentsInputScanPureReadCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 trap 'rigControlThreadsEnd "$rigTmp" ; rm -rf -- "$rigTmp"' EXIT
@@ -58,7 +59,7 @@ rigAssert(){ ## what is asserted, got, want
 ## ---------------------------------------------------------------- the rig
 rigHost="$( hostname -s 2>/dev/null || echo unknown )"
 rigW="$rigTmp/ws" rigD="$rigTmp/data" rigH="$rigTmp/home"
-mkdir -p "$rigW/.local/.agents" "$rigW/.local/agents/spawned" "$rigW/.local/agents/members/magic-coordinator" "$rigD/inboxes/magic-coordinator" "$rigH" "$rigD/board/running" "$rigD/board/review" "$rigD/board/processed"
+mkdir -p "$rigW/.local/.agents" "$rigW/.local/agents/spawned" "$rigW/.local/agents/members/magic-coordinator" "$rigH"
 printf '# magic-coordinator\n' > "$rigW/.local/agents/members/magic-coordinator/SKILL.md"
 printf 'SLACK_CHANNEL_MAGIC_TEAM=CRIG00001\nSLACK_CHANNEL_EVENT_TRACK=CRIG00002\nSLACK_BOT_TOKEN=rig-bot-token-TEAM\n' > "$rigW/.local/.agents/magic-team.agent.env"
 rigStamp(){ ## hours ago -- a touch -t stamp, BSD or GNU date
@@ -73,7 +74,7 @@ rigItem(){ ## board state, item filename, type, status, review-by or none, sessi
 	local itemReview="" itemSession=""
 	[ "$5" = none ] || itemReview="review-by: $5"$'\n'
 	[ "$6" = none ] || itemSession="session-id: $6"$'\n'"spawn-id: $6"$'\n'
-	printf -- '---\ntype: %s\nowner: rig-member\nstatus: %s\n%s%s---\n\nrig item\n' "$3" "$4" "$itemReview" "$itemSession" > "$rigD/board/$1/$2"
+	rigOwnerData="$rigD" rigOwnerBoardWrite $1 "$2" -- '---\ntype: %s\nowner: rig-member\nstatus: %s\n%s%s---\n\nrig item\n' "$3" "$4" "$itemReview" "$itemSession"
 }
 ## A dead spawn and its running item; a review item whose reviewer session has ended; a live session with no thread.
 rigSandbox rig-ldead spawn-started ; rigItem running dispatch-rig-ldead.md dispatch dispatch-started none rig-ldead
@@ -152,7 +153,7 @@ rigItem review task-rig-rv-ended3.md task dispatch-succeeded rig-ended none
 rigSandbox rig-live3 spawn-started
 printf '900003 rig-run --session-id rig-live3\n' >> "$rigTmp/ps.list"
 rigItem running task-rig-dep-a.md task running none none
-printf -- '---\ntype: task\nowner: rig-member\nstatus: running\nblocks: task-rig-dep-b\n---\n\nrig item\n' > "$rigD/board/running/task-rig-dep-a.md"
+rigOwnerData="$rigD" rigOwnerBoardWrite running "task-rig-dep-a.md" -- '---\ntype: task\nowner: rig-member\nstatus: running\nblocks: task-rig-dep-b\n---\n\nrig item\n'
 rigItem pending task-rig-dep-b.md task pending none none
 : > "$rigTmp/tooling.log"
 rigRun "$rigTmp/loop" --intern-main-loop --one

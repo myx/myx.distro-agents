@@ -24,8 +24,75 @@
 ## The folders a read of that inbox looks in, one a line, in their order: incoming/, and
 ## processed/ after it where `yes` includes the processed.
 AgentsToolsInboxFolders(){ ## member, include processed (yes|no)
-	printf '%s/inboxes/%s/incoming\n' "$MDAT_DATA_ROOT" "$1"
-	[ "${2:-no}" != "yes" ] || printf '%s/inboxes/%s/processed\n' "$MDAT_DATA_ROOT" "$1"
+	local folders=()
+	AgentsToolsInboxFoldersInto folders "$1" "${2:-no}"
+	[ ${#folders[@]} -eq 0 ] || printf '%s\n' "${folders[@]}"
+}
+
+## The same folders into the named array. The form a caller on a Wait tick or a tool call takes, since it runs no
+## subshell. Empty where the store root is not set.
+AgentsToolsInboxFoldersInto(){ ## array variable, member, include processed (yes|no)
+	local foldersVar="$1" foldersRoot="" foldersIncoming="" foldersProcessed=""
+	case "$foldersVar" in ''|*[!A-Za-z0-9_]*) return 1 ;; esac
+	eval "$foldersVar=()"
+	AgentsToolsInboxRootInto foldersRoot || return 0
+	printf -v foldersIncoming '%s/%s/incoming' "$foldersRoot" "$2"
+	eval "$foldersVar+=( \"\$foldersIncoming\" )"
+	if [ "${3:-no}" = "yes" ] ; then
+		printf -v foldersProcessed '%s/%s/processed' "$foldersRoot" "$2"
+		eval "$foldersVar+=( \"\$foldersProcessed\" )"
+	fi
+	return 0
+}
+
+## The folder the inboxes stand in, into the named variable: what a caller checks a resolved folder against. rc 1,
+## the variable empty, where the store root is not set.
+AgentsToolsInboxRootInto(){ ## variable
+	[ -n "${MDAT_DATA_ROOT:-}" ] || return 1
+	printf -v "$1" '%s' "$MDAT_DATA_ROOT/inboxes"
+}
+
+## One of those two folders into the named variable: the form a caller needing a single folder takes. rc 1, the
+## variable empty, where the folder name is neither or the store root is not set.
+AgentsToolsInboxFolderInto(){ ## variable, member, incoming|processed
+	local folderWanted=""
+	[ -n "$2" ] || return 1
+	[ -n "${MDAT_DATA_ROOT:-}" ] || return 1
+	case "$3" in incoming|processed) ;; *) return 1 ;; esac
+	printf -v folderWanted '%s/inboxes/%s/%s' "$MDAT_DATA_ROOT" "$2" "$3"
+	printf -v "$1" '%s' "$folderWanted"
+}
+
+## The path of the item of that name in that inbox's incoming/, there or not yet: the form a caller that names one
+## item takes. rc 1, the variable empty, where the store root is not set or the name is no bare file name.
+AgentsToolsInboxItemInto(){ ## variable, member, item name
+	local itemFolder=""
+	case "$3" in ''|./*|../*|*/*|.|..) return 1 ;; esac
+	AgentsToolsInboxFolderInto itemFolder "$2" incoming || return 1
+	printf -v "$1" '%s/%s' "$itemFolder" "$3"
+}
+
+## THE ITEMS of that inbox into the named array, a path each: that member's, or every inbox's where no member is
+## named. The one walk of the inboxes, so a reader of many items takes this and names no folder. No process. Empty
+## where no inbox is there or holds none.
+AgentsToolsInboxFilesInto(){ ## array variable, member (empty for every inbox), include processed (yes|no)
+	local filesVar="$1" filesMember="${2:-}" filesFolders=() filesFolder filesOne
+	case "$filesVar" in ''|*[!A-Za-z0-9_]*) return 1 ;; esac
+	eval "$filesVar=()"
+	[ -n "${MDAT_DATA_ROOT:-}" ] || return 0
+	if [ -n "$filesMember" ] ; then
+		AgentsToolsInboxFoldersInto filesFolders "$filesMember" "${3:-no}"
+	else
+		for filesFolder in "$MDAT_DATA_ROOT/inboxes"/*/incoming "$MDAT_DATA_ROOT/inboxes"/*/processed ; do
+			[ -d "$filesFolder" ] && filesFolders+=( "$filesFolder" )
+		done
+	fi
+	for filesFolder in ${filesFolders[@]+"${filesFolders[@]}"} ; do
+		for filesOne in "$filesFolder"/*.md ; do
+			[ -f "$filesOne" ] && eval "$filesVar+=( \"\$filesOne\" )"
+		done
+	done
+	return 0
 }
 
 ## The path of the item of that name in that inbox, where a read finds it: rc 1, and nothing
@@ -41,6 +108,24 @@ AgentsToolsInboxItemFind(){ ## member, item name, include processed (yes|no)
 ## Whether the item of that name lies in that inbox's processed/: rc 0 where it does.
 AgentsToolsInboxItemProcessed(){ ## member, item name
 	[ -f "$MDAT_DATA_ROOT/inboxes/$1/processed/$2" ]
+}
+
+## Makes an inbox ready to be written: its folder, and its incoming/ and processed/. The one function a writer that
+## puts an item into an inbox calls before it writes, and the one a check calls before it hands an inbox to the code
+## under test. Makes folders only, never a file, so it adds nothing a commit of the team data would carry, like
+## AgentsToolsBoardReady's own (sh-lib/board/AgentsTools.BoardStates.include). rc 1, saying which, where a folder
+## cannot be made.
+AgentsToolsInboxReady(){ ## member
+	local readyFolder readyMade=""
+	[ -n "${MDAT_DATA_ROOT:-}" ] || return 0
+	case "$1" in ''|.|..|*/*) return 1 ;; esac
+	for readyFolder in "$MDAT_DATA_ROOT/inboxes/$1/incoming" "$MDAT_DATA_ROOT/inboxes/$1/processed" ; do
+		[ -d "$readyFolder" ] || mkdir -p "$readyFolder" 2> /dev/null || {
+			echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools}: can't create inbox directory: $readyFolder" >&2
+			return 1
+		}
+	done
+	return 0
 }
 
 ## The path of a standing note of that inbox, the state and lock notes of the routines among

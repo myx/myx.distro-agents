@@ -589,7 +589,8 @@
 		case "$response" in *'"reactions":['*)
 			if [ -z "${MDAT_SENDER_MARKING:-}" ] ; then
 				type AgentsToolsSlackReactionSignals > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/slack/AgentsTools.SlackSenderMark.include"
-				! type AgentsToolsSlackReactionSignals > /dev/null 2>&1 || MDAT_SENDER_MARKING=1 AgentsToolsSlackReactionSignals "$response" || :
+				type AgentsToolsSlackReactionSignals > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/slack/AgentsTools.SlackSenderMark.include"
+				MDAT_SENDER_MARKING=1 AgentsToolsSlackReactionSignals "$response" || :
 			fi
 		;; esac
 		case "$response" in

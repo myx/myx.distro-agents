@@ -80,7 +80,7 @@ rigHas(){ ## file, text
 ## coordinator holds nothing, so an allow given in its name goes up the chain.
 rigWs="$rigTmp/ws"
 rigData="$rigWs/DATA"
-mkdir -p "$rigWs/.local/.agents" "$rigWs/.local/agents/spawned/rig-cow" "$rigWs/.local/agents/sessions/rig-cow" "$rigData/board/running" "$rigWs/ELSE"
+mkdir -p "$rigWs/.local/.agents" "$rigWs/.local/agents/spawned/rig-cow" "$rigWs/.local/agents/sessions/rig-cow" "$rigWs/ELSE"
 printf 'SLACK_CHANNEL_MAGIC_TEAM=CRIG00001\nSLACK_BOT_TOKEN=rig-bot-token-TEAM\nSLACK_CHANNEL_HUMAN_OWNER=URIGOWNER\nSLACK_WORKSPACE_DOMAIN=rig.slack.example\n' > "$rigWs/.local/.agents/magic-team.agent.env"
 : > "$rigWs/.local/agents/permissions.registry"
 rigHost="$( hostname -s 2>/dev/null || echo unknown )"

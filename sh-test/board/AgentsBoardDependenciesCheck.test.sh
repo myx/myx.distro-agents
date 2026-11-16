@@ -25,9 +25,6 @@ rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
 rigData="$rigTmp/data"
 mkdir -p "$rigTmp/ws/.local/agents"
-for rigState in backlog pending running review blocked parked processed archived retained ; do
-	mkdir -p "$rigData/board/$rigState"
-done
 rigGit(){ env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp" PATH="/usr/bin:/bin" GIT_CONFIG_NOSYSTEM=1 git -C "$rigData" "$@" ; }
 rigGit init -q || rigRefuse "git init failed"
 rigGit config user.email rig@example.invalid
@@ -44,7 +41,7 @@ rigAssert(){ ## what is asserted, got, want
 	fi
 }
 rigItem(){ ## state, bare name, extra frontmatter lines -- written and committed
-	printf -- '---\ntype: task\nowner: rig\n%s---\n\nrig item\n' "$3" > "$rigData/board/$1/$2.md"
+	printf -- '---\ntype: task\nowner: rig\n%s---\n\nrig item\n' "$3" | rigOwnerBoardPut "$1" "$2.md"
 	rigGit add -- "board/$1/$2.md" && rigGit commit -q -m "rig: $2" -- "board/$1/$2.md"
 }
 rigField(){ ## bare name, field -- its value, wherever the item lies
@@ -70,6 +67,9 @@ rigRun(){ ## result file, function and arguments...
 	printf '%s' "$?" > "$runOut.rc"
 }
 rigReport="$rigTmp/ws/.local/agents/board-dependencies.last"
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-writes.include.sh" || exit 1
+rigOwnerWs="${rigWs:-$rigTmp/ws}" rigOwnerData="${rigData:-${rigD:-${rigStore:-${rigOut:-$rigTmp/data}}}}" rigOwnerHome="${rigHome:-$rigTmp/home}" rigOwnerSkills="${rigSkills:-$rigTmp/skills}"
+rigOwnerBoardReady
 
 echo "-- 5. before any recompute the section says so --"
 rigRun "$rigTmp/s0" AgentsToolsBoardDependenciesSection
@@ -127,7 +127,7 @@ rigSumBefore="$( cksum < "$rigReport" )"
 rigRun "$rigTmp/r4" AgentsToolsBoardDependencies
 rigAssert "a call with no change prints nothing and leaves the report as it was" "$( wc -c < "$rigTmp/r4" | tr -d ' ' ):$( [ "$( cksum < "$rigReport" )" = "$rigSumBefore" ] && printf same )" "0:same"
 sleep 1
-printf -- '---\ntype: task\nowner: rig\nblocks: task-rig-solo\n---\n\nrig item\n' > "$rigData/board/running/task-rig-new.md"
+printf -- '---\ntype: task\nowner: rig\nblocks: task-rig-solo\n---\n\nrig item\n' | rigOwnerBoardPut running task-rig-new.md
 rigGit add -- board/running/task-rig-new.md && rigGit commit -q -m "rig: new"
 rigRun "$rigTmp/r5" AgentsToolsBoardDependencies
 rigAssert "an item that came makes the next call recompute" "$( rigField task-rig-solo blocked-by ):$( LC_ALL=C grep -c '^dependencies: task-rig-solo' "$rigTmp/r5" )" "task-rig-new:1"

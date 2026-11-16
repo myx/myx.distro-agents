@@ -29,6 +29,7 @@ rigRefuse(){
 ## A process this rig starts and signals later is noted with when it began, and is signalled only while its pid is still that process.
 . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-processes.include.sh" || rigRefuse "the rig's process helper is missing from the package: sh-test/check-fixtures/rig-processes.include.sh"
 . "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-writes.include.sh" || exit 1
 rigTmp="$( rigTempDir AgentsRunRuleReadersCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 rigLivePids=""
@@ -36,7 +37,7 @@ trap 'rigProcSignal TERM $rigLivePids ; rm -rf -- "$rigTmp"' EXIT
 rigData="$rigTmp/data"
 rigWs="$rigTmp/ws"
 rigSpawned="$rigWs/.local/agents/spawned"
-mkdir -p "$rigData/board/running" "$rigWs/.local/.agents" "$rigSpawned" "$rigTmp/bin" "$rigTmp/nops"
+mkdir -p "$rigWs/.local/.agents" "$rigSpawned" "$rigTmp/bin" "$rigTmp/nops"
 ## THE RIG'S OWN PROCESS LIST, as AgentsReviewFlowCheck keeps it: the ps first on PATH answers
 ## the whole-host listing from the rig's own list, beside it, one `<pid> <command line>` line
 ## a process, each a stand-in under its own pid and listed only while it lives; every other
@@ -95,7 +96,7 @@ rigRecord(){ ## spawn-id, status, sandbox folder (default: the spawn-id), extra 
 		"$recFolder" "$1" "$recFolder" "$rigHost" "$2" "${4:-}" > "$rigSpawned/$recFolder/$1.spawn.md"
 }
 rigItem(){ ## item stem, spawn-id -- the dispatch item TaskOutput reaches the run by
-	printf -- '---\ntype: dispatch\nowner: keeper-myx\nstatus: dispatch-started\nspawn-id: %s\n---\n\n# rig dispatch\n' "$2" > "$rigData/board/running/dispatch-20261013T0000Z-$1.md"
+	rigOwnerBoardWrite running "dispatch-20261013T0000Z-$1.md" -- '---\ntype: dispatch\nowner: keeper-myx\nstatus: dispatch-started\nspawn-id: %s\n---\n\n# rig dispatch\n' "$2"
 }
 rigLog(){ ## spawn-id, text (may be empty) -- the session log TaskOutput reads
 	mkdir -p "$rigWs/.local/agents/sessions/$1"

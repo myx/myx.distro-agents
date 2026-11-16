@@ -14,7 +14,7 @@
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigPackage="${RIG_PACKAGE:-$MDLT_ORIGIN/myx/myx.distro-agents}"
-rigInclude="$rigPackage/sh-lib/manager/AgentsTools.ManagerSessionRows.include"
+rigInclude="$rigPackage/sh-lib/session/AgentsTools.ManagerSessionRows.include"
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }
@@ -28,7 +28,7 @@ rigWs="$rigTmp/ws"
 rigData="$rigTmp/data"
 rigSpawned="$rigWs/.local/agents/spawned"
 rigStores="$rigWs/.local/agents/sessions"
-mkdir -p "$rigWs/.local/.agents" "$rigData/board/running" "$rigSpawned" "$rigStores" || exit 1
+mkdir -p "$rigWs/.local/.agents" "$rigSpawned" "$rigStores" || exit 1
 printf 'SLACK_CHANNEL_MAGIC_TEAM=CRIG00001\nSLACK_BOT_TOKEN=rig-bot-token-TEAM\n' > "$rigWs/.local/.agents/magic-team.agent.env"
 rigHost="$( hostname -s 2> /dev/null )" || rigHost="unknown"
 rigPassCount=0

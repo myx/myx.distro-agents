@@ -50,8 +50,9 @@ fi
 
 rigWs="$rigTmp/ws" rigOther="$rigTmp/other-ws" rigSkills="$rigTmp/skills" rigCfg="$rigTmp/configured-team-data" rigOtherCfg="$rigTmp/other-configured-team-data"
 rigOwnStore="$rigWs/.local/agents/team-data-root" rigOtherStore="$rigOther/.local/agents/team-data-root"
-mkdir -p "$rigWs/.local/.agents" "$rigTmp/bin" "$rigSkills/magic-team" "$rigSkills/rig-keeper" \
-	"$rigOwnStore/board/running" "$rigOtherStore/board/running" || rigRefuse "the rig could not be made"
+mkdir -p "$rigWs/.local/.agents" "$rigTmp/bin" "$rigSkills/magic-team" "$rigSkills/rig-keeper" || rigRefuse "the rig could not be made"
+rigBoardStates "$rigOwnStore" running || rigRefuse "the rig could not be made"
+rigBoardStates "$rigOtherStore" running || rigRefuse "the rig could not be made"
 ## A member of a rig, with a routine that locks nothing: this check is about the store, and a lock would hold the second start.
 printf -- '---\nmaintainers: rig\n---\nrig identity\n' > "$rigSkills/rig-keeper/rig-keeper.basic.md" || rigRefuse "the member's identity could not be written"
 printf '# rig armed\n' > "$rigSkills/rig-keeper/rig-keeper.armed.md"
@@ -66,7 +67,7 @@ chmod +x "$rigTmp/bin/curl"
 printf 'SLACK_CHANNEL_MAGIC_TEAM=CRIG00001\nSLACK_BOT_TOKEN=rig-bot-token-TEAM\nWAIT_COLLECT_SECONDS=1\nMDAT_WORKSPACE_MODE=team-rig\n' > "$rigWs/.local/.agents/magic-team.agent.env"
 ## THE OTHER WORKSPACE'S STORE holds one item of its own, so a write of this start's into it is visible as a new path and the
 ## state it was found in is a thing this check can compare against.
-printf -- '---\ntype: task\nowner: keeper-other\n---\n\n# the other rig own item\n' > "$rigOtherStore/board/running/task-20261112T0000Z-other-rig-only.md" || rigRefuse "the other store's item could not be written"
+printf -- '---\ntype: task\nowner: keeper-other\n---\n\n# the other rig own item\n' | rigStoreItem "$rigOtherStore" board running task-20261112T0000Z-other-rig-only.md || rigRefuse "the other store's item could not be written"
 
 rigPassCount=0
 rigFailCount=0
@@ -130,7 +131,8 @@ rigAssert "and holds no dispatch item"                  "$( find "$rigOtherStore
 rigAssert "and the other workspace's store holds no audit of this start" "$( printf '%s\n' "$( rigStoreTree "$rigOtherStore" )" | LC_ALL=C grep -c -F 'audit/' || : )" 0
 
 echo "-- 3. a rig configured with its own team data directory keeps it --"
-mkdir -p "$rigCfg/board/running" "$rigWs/.local/.agents" || rigRefuse "the configured directory could not be made"
+mkdir -p "$rigWs/.local/.agents" || rigRefuse "the configured directory could not be made"
+rigBoardStates "$rigCfg" running || rigRefuse "the configured directory could not be made"
 printf 'TEAM_DATA_DIRECTORY=%s\n' "$rigCfg" > "$rigWs/.local/.agents/magic-coordinator.agent.env"
 rigCfgBefore="$( rigStoreTree "$rigCfg" )"
 rigOwnBefore="$( rigStoreTree "$rigOwnStore" )"
@@ -152,7 +154,8 @@ echo "-- 4. another rig's configured directory, reached with a mark that does no
 ## root it resolved for that same workspace (AgentsContext.UseAgentsTools.include:41, :59, :83;
 ## AgentsTools.InternOpAgentSpawnProxy.include:1115; AgentsTools.InternSchedule.include:70). A row built on a pair nothing
 ## produces is a false alarm, so it is not written.
-mkdir -p "$rigOtherCfg/board/running" "$rigOther/.local/.agents" || rigRefuse "the other rig's configured directory could not be made"
+mkdir -p "$rigOther/.local/.agents" || rigRefuse "the other rig's configured directory could not be made"
+rigBoardStates "$rigOtherCfg" running || rigRefuse "the other rig's configured directory could not be made"
 printf 'TEAM_DATA_DIRECTORY=%s\n' "$rigOtherCfg" > "$rigOther/.local/.agents/magic-coordinator.agent.env"
 rigOtherCfgBefore="$( rigStoreTree "$rigOtherCfg" )"
 rigOne "$rigOtherCfg" mismarked "$rigWs" "$rigOwnStore"

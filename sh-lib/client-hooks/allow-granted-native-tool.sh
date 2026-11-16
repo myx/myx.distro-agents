@@ -140,6 +140,7 @@ fi
 . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.Grants.include" || exit 0
 AgentsToolsGrantsSessionEnsure "$hookWs" "$hookMember" "$hookSession" "$hookIn" "$hookOut" "$MDLT_ORIGIN/myx/myx.distro-agents/skillset" 2>/dev/null || exit 0
 hookRc=0
+## The session's store folder, built as AgentsHarnessFileGate (harness/AgentsHarnessAccess.include) builds gateOwn for the same check.
 AgentsToolsGrantsSessionCheck "$hookTool" "$hookReal" "$hookWs/.local/agents/sessions/$hookSession" || hookRc=$?
 
 ## One JSON string, escaped for a document: backslash, quote, and the control characters a path may hold.

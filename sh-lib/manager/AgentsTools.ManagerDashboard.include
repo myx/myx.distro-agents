@@ -37,7 +37,7 @@ type AgentsSessionDeathSessions > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.dist
 ## secret is a figure.
 ##
 
-type AgentsToolsRegistryMeasureRows > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.RegistrySpawnedSessions.include"
+type AgentsToolsRegistryMeasureRows > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.RegistrySpawnedSessions.include"
 type AgentsToolsTeamMemberDirectoryText > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamRegistry.include"
 type AgentsToolsWorkspaceMode > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataGate.include"
 
@@ -84,7 +84,7 @@ agentsManagerDashboardBoardStates="running review blocked pending backlog parked
 ## row's live is derived and nowhere in this family, and that place gives the runs of a
 ## registry file only together with the walk of every row.
 AgentsToolsManagerDashboardSessionMeasured(){
-	type AgentsToolsRegistryMeasureRows > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.RegistrySpawnedSessions.include"
+	type AgentsToolsRegistryMeasureRows > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.RegistrySpawnedSessions.include"
 	type AgentsToolsRegistryFile > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
 	local rowsFile rowsPending rowsControl="" rowsNarrow="" rowsMeasure
 	local measuredRows="" measuredDated="" measuredAny="false"
@@ -93,7 +93,7 @@ AgentsToolsManagerDashboardSessionMeasured(){
 	rowsPending="$MMDAPP/.local/agents/pending-replies.registry"
 	[ -f "$rowsPending" ] || rowsPending="/dev/null"
 	rowsMeasure="$rowsFile"
-	type AgentsToolsManagerSessionControls > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.ManagerSessionRows.include"
+	type AgentsToolsManagerSessionControls > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.ManagerSessionRows.include"
 	rowsControl="$( AgentsToolsManagerSessionControls )" || rowsControl=""
 	if mkdir -p "${MMDAPP%/}/.local/temp" 2> /dev/null && rowsNarrow="$( mktemp "${MMDAPP%/}/.local/temp/mdat-manager-dashboard.sessions.XXXXXX" 2> /dev/null )" ; then
 		if MDAT_DASHBOARD_CONTROL="$rowsControl" MDAT_DASHBOARD_PENDING="$rowsPending" LC_ALL=C awk -v todayDate="$dashboardToday" '
@@ -119,8 +119,10 @@ AgentsToolsManagerDashboardSessionMeasured(){
 	fi
 	AgentsToolsRegistryMeasureRows "$rowsMeasure" "" "" 17
 	[ -z "$rowsNarrow" ] || rm -f "$rowsNarrow" 2> /dev/null || :
+	type AgentsSessionRunFacts > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
 	printf '%s' "$measuredDated" \
-		| MDAT_MANAGER_CONTROL="$rowsControl" MDAT_MANAGER_AGENTS="$MMDAPP/.local/agents" LC_ALL=C awk -v loadAverage="-" -v hostName="-" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerSessionTokens.awk" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerDateMinutes.awk" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerSessionRows.awk" "$rowsPending" - \
+		| MDAT_MANAGER_CONTROL="$rowsControl" LC_ALL=C awk -v loadAverage="-" -v hostName="-" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerSessionTokens.awk" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerDateMinutes.awk" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerSessionRows.awk" \
+			<( printf '%s\n' "$measuredDated" | LC_ALL=C awk '{ print $8 ; print $2 }' | AgentsSessionRunFacts tokens usage-limit chapter ) "$rowsPending" - \
 		| LC_ALL=C cut -f6-
 	return 0
 }
@@ -135,7 +137,7 @@ AgentsToolsManagerDashboardSessionCounts(){
 	local countsRows
 	[ -z "$dashboardSessions" ] || return 0
 	dashboardSessions="none"
-	countsRows="$( type AgentsToolsManagerSessionControls > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.ManagerSessionRows.include"
+	countsRows="$( type AgentsToolsManagerSessionControls > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.ManagerSessionRows.include"
 		AgentsToolsManagerDashboardSessionMeasured 2> /dev/null )" || countsRows=""
 	[ -n "$countsRows" ] || return 0
 	dashboardSessionRows="$countsRows"
@@ -457,12 +459,12 @@ AgentsToolsManagerDashboardSize(){ ## folder
 
 ## TEAM DATA: where its root is, as the context resolved it, the mode of the workspace as the
 ## gate's one reader says it (AgentsToolsWorkspaceMode: a screen shows the team data of a team rig
-## alone), and whether it is there; its size, kept; and the items of its board by state, a folder of the board a state and a
-## `.md` file of it an item, counted by the shell's own listing. NO git command is run: what
-## only git knows of the team data, what is not committed and what is not pushed, is no
-## figure here.
+## alone), and whether it is there; its size, kept; and the items of its board by state, which the
+## board's own count reader (AgentsToolsBoardStateCounts) takes, so no folder of the board is listed
+## here. NO git command is run: what only git knows of the team data, what is not committed and what
+## is not pushed, is no figure here.
 AgentsToolsManagerDashboardTeamData(){
-	local dataRoot="${MDAT_DATA_ROOT:-}" dataState dataDir dataCounts="" dataCount dataLabel dataSeen=" " dataMode="" dataModeSource=""
+	local dataRoot="${MDAT_DATA_ROOT:-}" dataCounts="" dataCount dataLabel dataMode="" dataModeSource=""
 	[ -n "$dataRoot" ] || return 0
 	dataRoot="${dataRoot%/}"
 	LocalToolsManagerDashboardFigure team-data root "Team Data Root" "$dataRoot" - - ""
@@ -477,28 +479,14 @@ AgentsToolsManagerDashboardTeamData(){
 	[ -z "$dashboardSize" ] || LocalToolsManagerDashboardFigure team-data size "Team Data Size" "$dashboardSize" bytes - ""
 	AgentsToolsManagerDashboardStores "$dataRoot"
 	[ -d "$dataRoot/board" ] || return 0
-	for dataState in $agentsManagerDashboardBoardStates ; do
-		dataSeen="$dataSeen$dataState "
-		[ -d "$dataRoot/board/$dataState" ] || continue
-		set -- "$dataRoot/board/$dataState"/*.md
-		[ -f "$1" ] || set --
-		dataCounts="$dataCounts$dataState $#"$'\n'
-	done
-	for dataDir in "$dataRoot/board"/*/ ; do
-		[ -d "$dataDir" ] || continue
-		dataState="${dataDir%/}" ; dataState="${dataState##*/}"
-		case "$dataState" in *[!abcdefghijklmnopqrstuvwxyz0123456789-]*|'') continue ;; esac
-		case "$dataSeen" in *" $dataState "*) continue ;; esac
-		set -- "$dataDir"*.md
-		[ -f "$1" ] || set --
-		dataCounts="$dataCounts$dataState $#"$'\n'
-	done
+	type AgentsToolsBoardStateCounts > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.BoardStates.include"
+	dataCounts="$( AgentsToolsBoardStateCounts $agentsManagerDashboardBoardStates )"
 	[ -n "$dataCounts" ] || return 0
 	## The label of a state is its words, capitalised, after `Board Items`.
 	while read -r dataState dataCount dataLabel ; do
 		[ -n "$dataState" ] || continue
 		LocalToolsManagerDashboardFigure team-data "board-$dataState" "Board Items $dataLabel" "$dataCount" count - ""
-	done <<< "$( printf '%s' "$dataCounts" | LC_ALL=C awk '{
+	done <<< "$( printf '%s\n' "$dataCounts" | LC_ALL=C awk '{
 		stateWords = split($1, stateWord, "-") ; stateLabel = "" ;
 		for (stateAt = 1 ; stateAt <= stateWords ; stateAt++) stateLabel = stateLabel ( stateAt > 1 ? "_" : "" ) toupper(substr(stateWord[stateAt], 1, 1)) substr(stateWord[stateAt], 2) ;
 		print $1, $2, stateLabel ;
@@ -512,10 +500,11 @@ AgentsToolsManagerDashboardTeamData(){
 ## `audit/` or of a month folder of it, a record or a session's log, dated by the stamp of its
 ## name, `<YYYYMMDD>T<HHMM>`,
 ## which a checkout keeps; a vault item is any file of `vault/` or of a folder of it, whose
-## names are open, dated by the file. No item is opened. Kept as the size is.
+## names are open, dated by the file, which the vault's own item walk counts (AgentsToolsVaultFilesInto).
+## No item is opened. Kept as the size is.
 AgentsToolsManagerDashboardStores(){ ## team data root
-	local storesRoot="$1" storesWords="" storesMonth storesStat="" storesAudit="- - -" storesVault="- -"
-	local storesItems storesThisMonth storesStamp storesCount storesNewest
+	local storesRoot="$1" storesWords="" storesMonth storesAudit="- - -" storesVault="- -"
+	local storesItems storesThisMonth storesStamp storesCount storesNewest storesVaultFiles=()
 	storesMonth="$( date -u '+%Y-%m' 2> /dev/null )" || storesMonth=""
 	if LocalToolsManagerDashboardKept team-data-stores "$agentsManagerDashboardSizeSeconds" "$storesRoot" ; then
 		storesWords="$dashboardKept"
@@ -528,19 +517,9 @@ AgentsToolsManagerDashboardStores(){ ## team data root
 				  if ( folder == month || ( folder == "" && stamp != "" && substr( stamp, 1, 4 ) "-" substr( stamp, 5, 2 ) == month ) ) inMonth++ }
 				END { printf "%d %d %s\n", items, inMonth, ( newest == "" ? "-" : newest ) }' )" || storesAudit="- - -"
 		fi
-		if [ -d "$storesRoot/vault" ] ; then
-			if stat -f '%m' / > /dev/null 2>&1 ; then storesStat="-f %m" ; elif stat -c '%Y' / > /dev/null 2>&1 ; then storesStat="-c %Y" ; fi
-			storesCount=0 ; storesNewest="-"
-			for storesItems in "$storesRoot/vault"/* "$storesRoot/vault"/*/* ; do
-				[ -f "$storesItems" ] || continue
-				storesCount=$(( storesCount + 1 ))
-				[ -n "$storesStat" ] || continue
-				storesStamp="$( stat $storesStat "$storesItems" 2> /dev/null )" || continue
-				case "$storesStamp" in ''|*[!0123456789]*) continue ;; esac
-				[ "$storesNewest" != "-" ] && [ "$storesNewest" -ge "$storesStamp" ] || storesNewest="$storesStamp"
-			done
-			storesVault="$storesCount $storesNewest"
-		fi
+		type AgentsToolsVaultFilesInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/vault/AgentsTools.VaultPlace.include"
+		AgentsToolsVaultFilesInto storesVaultFiles "" storesNewest
+		[ -z "$storesNewest" ] || storesVault="${#storesVaultFiles[@]} $storesNewest"
 		storesWords="$storesAudit $storesVault"
 		[ "$storesWords" = "- - - - -" ] || LocalToolsManagerDashboardKeep team-data-stores "$storesRoot" "$storesWords" || :
 	fi

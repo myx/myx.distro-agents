@@ -24,6 +24,7 @@ for rigNeed in magic-tester magic-developer magic-coordinator ; do
 done
 
 . "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-writes.include.sh" || exit 1
 rigTmp="$( rigTempDir AgentsPermissionHoldsCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 ## The check is bounded: an operation that never returns fails here, said on stderr, instead of
@@ -33,7 +34,8 @@ rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 ## whole bound outlived the check, held the pipe of whatever ran it until the bound ran out, and
 ## would signal a pid the check no longer owned.
 rigDeadline="${RIG_DEADLINE_SECONDS:-1800}"
-( rigLeft="$rigDeadline" ; while [ "$rigLeft" -gt 0 ] ; do kill -0 $$ 2> /dev/null || exit 0 ; sleep 1 ; rigLeft=$(( rigLeft - 1 )) ; done
+## Its tick is waited for apart, so the kill at the end takes the tick with it: a tick left behind is a process the runner fails the check for.
+( trap 'kill "${rigTick:-}" 2> /dev/null ; exit 0' TERM ; rigLeft="$rigDeadline" ; while [ "$rigLeft" -gt 0 ] ; do kill -0 $$ 2> /dev/null || exit 0 ; sleep 1 & rigTick=$! ; wait "$rigTick" ; rigLeft=$(( rigLeft - 1 )) ; done
   printf '%s: no result within %ss, so an operation never returned\n' "PERMISSION_HOLDS" "$rigDeadline" >&2 ; kill -TERM $$ 2> /dev/null ; sleep 5 ; kill -KILL $$ 2> /dev/null ) &
 rigWatchdog=$!
 trap 'kill "${rigWatchdog:-}" 2> /dev/null || : ; wait "${rigWatchdog:-}" 2> /dev/null || : ; chmod -R u+w "$rigTmp" 2>/dev/null ; rm -rf -- "$rigTmp"' EXIT
@@ -87,7 +89,7 @@ rigHas(){ ## file, text
 ## (spawned by the coordinator) and the tester; a task item; standing rows.
 rigWs="$rigTmp/ws"
 rigData="$rigWs/DATA"
-mkdir -p "$rigWs/.local/.agents" "$rigWs/.local/agents/spawned/rig-cow" "$rigData/board/running" "$rigData/board/processed" \
+mkdir -p "$rigWs/.local/.agents" "$rigWs/.local/agents/spawned/rig-cow" \
 	"$rigWs/DEV" "$rigWs/ELSE" "$rigWs/KEEP"
 printf 'SLACK_CHANNEL_MAGIC_TEAM=CRIG00001\nSLACK_BOT_TOKEN=rig-bot-token-TEAM\nSLACK_CHANNEL_HUMAN_OWNER=URIGOWNER\n' > "$rigWs/.local/.agents/magic-team.agent.env"
 {
@@ -98,6 +100,17 @@ printf 'SLACK_CHANNEL_MAGIC_TEAM=CRIG00001\nSLACK_BOT_TOKEN=rig-bot-token-TEAM\n
 	printf 'magic-architect:ws:tool:WebFetch\n'
 	printf 'magic-architect:ws:tool:WebSearch\n'
 } > "$rigWs/.local/agents/permissions.registry"
+## The rig workspace's floor rows (its own .local/temp, the member directories it can read, the
+## source docs where it would have agents) live in its grants index and its per-member slice,
+## written by the index builder the code uses (AgentsToolsGrantsIndexWrite), never by hand:
+## the harness's per-member file gate reads the slice, so a rig that skips this build reads no
+## floor at all. An empty members registry makes it a tooling workspace with no agents, which
+## the builder still gives the temp floor and the machine member directories. Built after the
+## registry above, so the keeper rows are unrolled with the floor; a later registry append is
+## picked up by the index-ensure the readers run on a stale index.
+: > "$rigWs/.local/agents/members.registry"
+( cd "$rigWs" && env HOME="$rigTmp/home" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDLT_ORIGIN="$MDLT_ORIGIN" MDAT_WORKSPACE_MODE=team-rig \
+	bash "$rigTools" --make-agents-indices grants 2> "$rigTmp/index-build.err" ) || rigRefuse "the rig's grants index could not be built: $( LC_ALL=C grep -m1 -e ERROR -e 'could not write' "$rigTmp/index-build.err" 2>/dev/null )"
 ## Running sessions: a session grant ends when its session closes (AgentsToolsGrantsSessionEnded).
 ## Each record names this host, so its run can be measured here.
 rigHost="$( hostname -s 2>/dev/null || echo unknown )"
@@ -125,7 +138,7 @@ rigSpawnRecord rig-tester magic-tester rig-coord
 rigLive rig-dev
 mkdir -p "$rigWs/.local/agents/sessions/rig-cow"
 printf 'CRIG00001:1700000000.000900\n' > "$rigWs/.local/agents/sessions/rig-cow/session.thread"
-printf -- '---\nstatus: task\nowner: magic-tester\n---\n\n# Task\n' > "$rigData/board/running/task-rig.md"
+rigOwnerBoardWrite running "task-rig.md" -- '---\nstatus: task\nowner: magic-tester\nparticipants: magic-frontender\n---\n\n# Task\n'
 RIG_CURL_LOG="$rigTmp/curl.log"
 export RIG_CURL_LOG
 : > "$RIG_CURL_LOG"
@@ -173,6 +186,7 @@ rigField(){ ## file, field
 }
 rigSaid(){ ## fixed text... -> how many posts hold every one of them
 	local saidFile saidText saidCount=0 saidAll
+	rigTrackSettle
 	for saidFile in "$rigTmp"/post.[0-9]* ; do
 		[ -f "$saidFile" ] || continue
 		saidAll=1
@@ -181,7 +195,24 @@ rigSaid(){ ## fixed text... -> how many posts hold every one of them
 	done
 	printf '%s' "$saidCount"
 }
+## THE OUTBOX DRAINS APART (AgentsTools.InternOpEventTrackPost.include): "A caller never waits for a post
+## into a thread: it is queued, a drain is started apart, and the call returns." So once event-track is
+## configured, every count of the posts first waits until the outbox holds no post: what the operations
+## before it queued has then gone, and nothing lands after a count is taken.
+rigTrackOn=""
+rigTrackSettle(){
+	[ -n "$rigTrackOn" ] || return 0
+	local settleLeft=600
+	while [ "$settleLeft" -gt 0 ] ; do
+		set -- "$rigWs"/.local/agents/event-track-send/*/[0-9]*
+		[ -e "$1" ] || return 0
+		settleLeft=$(( settleLeft - 1 ))
+		command sleep 0.2
+	done
+	printf '  NOTE  the event-track outbox still holds a post after 120 s: %s\n' "$1" >&2
+}
 rigCalls(){ ## method
+	rigTrackSettle
 	LC_ALL=C awk -v wantMethod="$1" '$0 == wantMethod { hitCount++ ; } END { print hitCount + 0 ; }' "$RIG_CURL_LOG"
 }
 ## A permission escalation record for one refusal, addressed to the coordinator, as AskUserQuestion leaves it.
@@ -335,9 +366,11 @@ rigAssert "the task pass admits while the item is open"    "$( rigGrantRead magi
 rigIdT="$( rigRefusal magic-tester rig-tester Write "$rigWs/DEV/task.txt" )"
 rigAssert "a task grant from a refusal"                    "$( rigGrantOpen magic-developer rig-tester "$rigIdT" task task-rig )" "0 GRANT:"
 rigAssert "admits while the item is open"                  "$( rigGrantRead magic-tester rig-tester Write "$rigWs/DEV/task.txt" )" task
+rigOwnerBoardReady || rigRefuse "the board could not be made ready to be written"
 mv "$rigData/board/running/task-rig.md" "$rigData/board/processed/task-rig.md"
 rigAssert "and neither admits once it is processed"        "$( rigGrantRead magic-tester rig-tester Write "$rigWs/DEV/task.txt" ):$( rigGrantRead magic-tester rig-tester Write "$rigWs/DEV/t/a.txt" )" ":"
 rigAssert "nor can one be opened for a closed item"        "$( rigGrantOpen magic-developer rig-tester "$rigIdT" task task-rig )" "1 "
+rigOwnerBoardReady || rigRefuse "the board could not be made ready to be written"
 mv "$rigData/board/processed/task-rig.md" "$rigData/board/running/task-rig.md"
 
 echo "-- the permission set: held entries, ONE ask for the extras, Decisions and grants --"
@@ -365,7 +398,7 @@ rigAssert "the held entry was not granted to others"       "$( rigGrantRead magi
 
 echo "-- a spawn gets its defaults and the dispatch's approved extras; a planned allow by a non-holder is ignored --"
 printf -- '---\nstatus: dispatch-started\nowner: magic-frontender\nsession-id: rig-new\ntracks: task-rig\naccess-control: participants:allow-write:%s:magic-coordinator:20261009T0000Z,participants:allow-write:%s:magic-developer:20261009T0000Z\n---\n\n# Dispatch\n' \
-	"$rigWs/ELSE/p.txt" "$rigWs/DEV/p.txt" > "$rigData/board/running/dispatch-rig-new.md"
+	"$rigWs/ELSE/p.txt" "$rigWs/DEV/p.txt" | rigOwnerBoardPut running "dispatch-rig-new.md"
 rigAssert "the tracked item's approved set reaches the spawn" "$( rigGrantRead magic-frontender rig-new WebFetch https://api.rig.example/v2 )" planned
 rigAssert "a planned allow signed by a holder admits"      "$( rigGrantRead magic-frontender rig-new Write "$rigWs/DEV/p.txt" )" planned
 rigAssert "one signed by a non-holder is ignored"          "$( rigGrantRead magic-frontender rig-new Write "$rigWs/ELSE/p.txt" )" ""
@@ -533,6 +566,11 @@ rigAssert "and nothing was written"                        "$( [ -e "$rigWs/RONL
 export MDAT_SKILLSET_ROOT="$rigSkills"
 
 echo "-- harness read roots are per member: the floor, its own Read and Edit rows, nobody else's --"
+## The harness serves a member only where its identity file is in the skillset (AgentsUniversalHarness.sh, the served identity);
+## without one the call is no member's. The fixture holds the two members this section acts as.
+for rigHarnessMember in magic-tester magic-developer ; do
+	[ -e "$rigSkills/$rigHarnessMember/$rigHarnessMember.basic.md" ] || printf -- '---\nmaintainers: rig\n---\nrig identity\n' > "$rigSkills/$rigHarnessMember/$rigHarnessMember.basic.md"
+done
 mkdir -p "$rigWs/source" "$rigWs/.local/temp/member/magic-tester"
 printf 'rig-ronly-seed\n' > "$rigWs/source/f.txt"
 printf 'rig-ronly-seed\n' > "$rigWs/.local/temp/member/magic-tester/f.txt"
@@ -547,24 +585,66 @@ rigReadRefusal="$( LC_ALL=C grep -l -x -F "target: $rigWs/DEV/r.txt" "$rigWs/.lo
 rigAssert "a refused read is recorded in the session's store, as a write is" "$( rigField "$rigReadRefusal" tool ):$( rigField "$rigReadRefusal" owner )" "Read:magic-tester"
 
 echo "-- what became of a permission is said in the session's tracking-thread: a pass, a set applied, a set denied --"
-## Event-track is configured from here on, so nothing above posts to it. The posts since a
-## mark that hold every text given, counted.
+## Event-track is configured from here on, so nothing above posts to it. A tracking post into a thread is queued in
+## that thread's comms-cache outbox for the comms loop to push (AgentsTools.InternOpEventTrackPost.include), and the
+## rig runs no comms loop, so the posts since a mark are those sent and those queued. One message can carry several
+## reports (AgentsTools.EventTrackSend.include), so a report is counted where it stands, not by message.
 printf 'SLACK_CHANNEL_EVENT_TRACK=CRIGTRACK\n' >> "$rigWs/.local/.agents/magic-team.agent.env"
+## THE OUTBOX'S CLOCK (AgentsTools.EventTrackSend.include): every tracking post waits its 7 s
+## window through `date +%s` and `sleep`, so each count below, which waits for the outbox to
+## drain (rigTrackSettle), would spend 7 s a window. From here on the window runs on a clock of
+## the rig's own, exported into every operation it runs: `date +%s` answers the file, and `sleep`
+## advances it by the whole seconds asked and really sleeps a tenth of a second. Every other
+## `date` is the real one, so a stamp a grant or a record carries stays a real stamp. A lock's
+## one-second retry still yields, so a lock held a moment by a drain apart is waited for.
+## The watch dog at the top started before these, and keeps the real sleep.
+rigTrackClock="$rigTmp/track.clock"
+printf '1000000\n' > "$rigTrackClock"
+date(){
+	if [ "$#" -eq 1 ] && [ "$1" = '+%s' ] ; then cat "$rigTrackClock" ; else command date "$@" ; fi
+}
+sleep(){
+	local sleepWhole="${1:-0}" sleepNext
+	sleepWhole="${sleepWhole%%.*}"
+	case "$sleepWhole" in ''|*[!0-9]*) sleepWhole=0 ;; esac
+	sleepNext="$( mktemp "$rigTrackClock.XXXXXX" )" && printf '%s\n' "$(( $( cat "$rigTrackClock" ) + sleepWhole ))" > "$sleepNext" && mv -f "$sleepNext" "$rigTrackClock"
+	command sleep 0.1
+}
+export rigTrackClock
+export -f date sleep
+rigTrackOn=1
 rigTrackFrom=0
 rigTrackMark(){
+	rigTrackSettle
 	rigTrackFrom="$( cat "$rigTmp/posts" 2>/dev/null || echo 0 )"
-}
-rigTrackPosts(){ ## fixed text...
-	local trackNo=$(( rigTrackFrom + 1 )) trackText trackHit trackCount=0
-	while [ -f "$rigTmp/post.$trackNo" ] ; do
-		trackHit=1
-		for trackText in "$@" ; do
-			LC_ALL=C grep -q -F -- "$trackText" "$rigTmp/post.$trackNo" || { trackHit=0 ; break ; }
-		done
-		trackCount=$(( trackCount + trackHit ))
-		trackNo=$(( trackNo + 1 ))
+	local markFile
+	: > "$rigTmp/track.mark"
+	for markFile in "$rigWs"/.local/cache/comms/slack/*/outbox.messages.txt ; do
+		[ ! -f "$markFile" ] || printf '%s\t%s\n' "$( LC_ALL=C awk 'END { print NR + 0 ; }' "$markFile" )" "$markFile" >> "$rigTmp/track.mark"
 	done
-	printf '%s' "$trackCount"
+}
+rigTrackPosts(){ ## fixed text... -> how often the first stands in the posts since the mark, sent or queued, that hold every one
+	local trackNo=$(( rigTrackFrom + 1 )) trackText trackFile trackFrom trackTexts=()
+	rigTrackSettle
+	{
+		while [ -f "$rigTmp/post.$trackNo" ] ; do
+			LC_ALL=C tr '\n' ' ' < "$rigTmp/post.$trackNo" ; printf '\n'
+			trackNo=$(( trackNo + 1 ))
+		done
+		for trackFile in "$rigWs"/.local/cache/comms/slack/*/outbox.messages.txt ; do
+			[ -f "$trackFile" ] || continue
+			trackFrom="$( LC_ALL=C awk -F'\t' -v want="$trackFile" '$2 == want { print $1 ; exit ; }' "$rigTmp/track.mark" 2>/dev/null )"
+			LC_ALL=C tail -n "+$(( ${trackFrom:-0} + 1 ))" "$trackFile"
+		done
+	} > "$rigTmp/track.posts"
+	for trackText in "$@" ; do trackTexts+=( "RIG_TRACK_TEXT_$(( ${#trackTexts[@]} + 1 ))=$trackText" ) ; done
+	env ${trackTexts[@]+"${trackTexts[@]}"} RIG_TRACK_TEXTS="$#" LC_ALL=C awk '
+		{
+			for ( textAt = 1 ; textAt <= ENVIRON["RIG_TRACK_TEXTS"] + 0 ; textAt++ ) if ( ! index( $0, ENVIRON["RIG_TRACK_TEXT_" textAt] ) ) next ;
+			postRest = $0 ; firstText = ENVIRON["RIG_TRACK_TEXT_1"] ;
+			while ( ( textPos = index( postRest, firstText ) ) > 0 ) { hitCount++ ; postRest = substr( postRest, textPos + length( firstText ) ) ; }
+		}
+		END { print hitCount + 0 ; }' "$rigTmp/track.posts" | LC_ALL=C tr -d '\n'
 }
 rigTrackMark
 RIG_OP_AGENT=magic-developer RIG_OP_SESSION=rig-dev
@@ -650,10 +730,15 @@ rigLive rig-set-dev
 ## A task set is for the members it names: these three, in the requests below that say so.
 rigSetThree=( --participant magic-coordinator --participant magic-developer --participant magic-tester )
 rigSetRecord rig-set-tester magic-tester rig-host-c 'check it against the samples'
-printf -- '---\nstatus: task\nowner: magic-developer\n---\n\n# Fix the vars loader\n\nThe loader drops a variable whose value holds an equals sign. It must keep the whole value! Add a check for it. Then run the suite? A fifth sentence that must not show.\n' \
-	> "$rigData/board/running/task-rig-set.md"
+## A run of a session that is no spawn of rig-set, for the sibling that must not wait on rig-set's own ask:
+## a run of the asking session's own, at spawned/rig-set/rig-set-dev.spawn.md, is inside it and may wait.
+mkdir -p "$rigWs/.local/agents/spawned/rig-else"
+printf -- '---\nsession-id: rig-else\nspawn-id: rig-else-dev\nhost: %s\nowner: magic-developer\nstatus: spawn-started\n---\n\n# Spawn session\n' \
+	"$rigHost" > "$rigWs/.local/agents/spawned/rig-else/rig-else-dev.spawn.md"
+printf -- '---\nstatus: task\nowner: magic-developer\nparticipants: magic-developer\n---\n\n# Fix the vars loader\n\nThe loader drops a variable whose value holds an equals sign. It must keep the whole value! Add a check for it. Then run the suite? A fifth sentence that must not show.\n' \
+	| rigOwnerBoardPut running "task-rig-set.md"
 printf -- '---\nstatus: dispatch-started\nowner: magic-developer\nsession-id: rig-set\ntracks: task-rig-set\n---\n\n# Spawn-proxy dispatch: magic-developer\n\n## Brief\n\nthe brief of the dispatch.\n' \
-	> "$rigData/board/running/dispatch-rig-set.md"
+	| rigOwnerBoardPut running "dispatch-rig-set.md"
 ## The body as posted: the request's record keeps it, under its own heading.
 rigSetBody(){ ## pending id
 	LC_ALL=C awk 'inBody { print ; } $0 == "# Question asked" { inBody = 1 ; }' "$rigWs/.local/agents/pending/$1.md" 2>/dev/null | LC_ALL=C awk 'NF || seen { seen = 1 ; print ; }'
@@ -711,14 +796,14 @@ rigAssert "and it still says the session, the participants with their hosts, who
 	"$( LC_ALL=C grep -c -e '`rig-set` · ' -e ' · host rig-host-c' -e "^magic-coordinator · $rigSetHost / " -e 'for this task only' "$rigTmp/set.body" )" 4
 ## A description the spawner gave for the dispatch leads that longer text.
 printf -- '---\nstatus: dispatch-started\nowner: magic-developer\nsession-id: rig-set\ntracks: task-rig-set\ndescription: bring the loader in line with the vars file\n---\n\n# Spawn-proxy dispatch: magic-developer\n\n## Brief\n\nthe brief of the dispatch.\n' \
-	> "$rigData/board/running/dispatch-rig-set.md"
+	| rigOwnerBoardPut running "dispatch-rig-set.md"
 rigSetId="$( rigSetAsk dispatch-rig-set --entry "Read:$rigWs/SETS/**" --scope session --session-id rig-set )"
 rigSetBody "$rigSetId" > "$rigTmp/set.body"
 rigAssert "the spawner's own description of the dispatch is that text where one was stored, and a session scope is said in its own words" \
 	"$( LC_ALL=C awk '$0 == "**🗂 Task**" { on = 1 ; next ; } on && /^$/ { exit ; } on { print ; }' "$rigTmp/set.body" | LC_ALL=C tail -n 1 ):$( sed -n 3p "$rigTmp/set.body" )" \
 	'bring the loader in line with the vars file:May the participants have these, for this session only?'
 ## An item with no title, a request with no session: what there is, and no empty heading.
-printf -- '---\nstatus: task\nowner: magic-tester\n---\n\nno heading here.\n' > "$rigData/board/running/task-rig-bare.md"
+rigOwnerBoardWrite running "task-rig-bare.md" -- '---\nstatus: task\nowner: magic-tester\n---\n\nno heading here.\n'
 RIG_OP_AGENT=magic-coordinator RIG_OP_SESSION=""
 rigOp --request-permission-set --team-member magic-coordinator task-rig-bare --entry "Read:/nowhere/rig-bare/**" --scope task --session-id ''
 RIG_OP_AGENT=""
@@ -743,7 +828,8 @@ echo "-- the permission set by click: the cross denies, the unlock allows the se
 rigSetThread(){ ## pending id, reactions (a JSON list body, may be empty)
 	local threadTs
 	threadTs="$( rigField "$rigWs/.local/agents/pending/$1.md" question-ts )"
-	printf '{"ok":true,"messages":[{"ts":"%s","user":"URIGBOT9","text":"the set"%s}],"has_more":false}\n' "$threadTs" "${2:+,\"reactions\":[$2]}" > "$rigTmp/replies.$threadTs.json"
+	## The prompt is the team's own post: the rig's own account (URIGSELF1, the fake Slack's auth.test) posted it and placed its answer emoji.
+	printf '{"ok":true,"messages":[{"ts":"%s","user":"URIGSELF1","text":"the set"%s}],"has_more":false}\n' "$threadTs" "${2:+,\"reactions\":[$2]}" > "$rigTmp/replies.$threadTs.json"
 }
 rigSetClick(){ ## emoji name, users (a JSON list body)
 	printf '{"name":"%s","count":1,"users":[%s]}' "$1" "$2"
@@ -760,11 +846,11 @@ rigAssert "the two click answers are placed under the prompt, the cross then the
 	"$( LC_ALL=C awk -v want="$( rigField "$rigSetFileC" question-ts )" -v before="${rigSetReacted:-0}" 'NR > before && $1 == want { printf "%s ", $2 ; }' "$rigTmp/reactions" 2>/dev/null )" "x unlock "
 rigAssert "and the post names them, with the typed answers" \
 	"$( rigSetBody "$rigSetIdC" | LC_ALL=C grep -c -x -F -e '- click ❌ to deny, or 🔓 to allow the set: an allow gives these to every participant listed' -e '- or reply `allow-set`, `deny`, or `edit:` followed by the change' )" 2
-rigSetThread "$rigSetIdC" "$( rigSetClick x '"URIGBOT9"' ),$( rigSetClick unlock '"URIGBOT9"' ),$( rigSetClick +1 '"URIGOWNER"' ),$( rigSetClick ok '"URIGOWNER"' )"
+rigSetThread "$rigSetIdC" "$( rigSetClick x '"URIGSELF1"' ),$( rigSetClick unlock '"URIGSELF1"' ),$( rigSetClick +1 '"URIGOWNER"' ),$( rigSetClick ok '"URIGOWNER"' )"
 rigSetRead "$rigSetIdC"
 rigAssert "the emoji the tooling placed, a thumbs up and an ok grant nothing: the set stays open" \
 	"$( rigHas "$rigTmp/op.out" "ESCALATION: $rigSetIdC open" ):$( rigField "$rigSetFileC" status ):$( rigGrantRead magic-tester rig-set-tester Read "$rigWs/SETC/a.txt" )" "yes:reply-pending:"
-rigSetThread "$rigSetIdC" "$( rigSetClick x '"URIGBOT9"' ),$( rigSetClick unlock '"URIGBOT9","URIGOWNER"' )"
+rigSetThread "$rigSetIdC" "$( rigSetClick x '"URIGSELF1"' ),$( rigSetClick unlock '"URIGSELF1","URIGOWNER"' )"
 rigSetRead "$rigSetIdC"
 rigAssert "the owner's click on the unlock allows the set, and its grants are written" \
 	"$( rigHas "$rigTmp/op.out" "ESCALATION: $rigSetIdC answered" ):$( rigHas "$rigTmp/op.out" 'VERDICT: allow-set' ):$( rigGrantRead magic-tester rig-set-tester Read "$rigWs/SETC/a.txt" )" "yes:yes:task"
@@ -864,6 +950,11 @@ rigSetPosts="$( rigCalls chat.postMessage )" ; rigSetRc=0
 rigOp --request-permission-set --team-member magic-coordinator dispatch-rig-set --entry "Read,Everything:$rigWs/SETZ2/**" --scope task --session-id rig-set --participant magic-tester || rigSetRc=$?
 rigAssert "a list naming a tool the permission model does not know is a correction, never a refusal: nothing is asked, and no word means every tool" \
 	"$rigSetRc:$( LC_ALL=C grep -c "^CORRECTION: .*nothing was asked. The entry 'Read,Everything:$rigWs/SETZ2/\*\*' names a tool the permission model does not know: 'Everything'" "$rigTmp/op.err" ):$( LC_ALL=C grep -c -i -e 'refused' -e 'denied' "$rigTmp/op.err" ):$(( $( rigCalls chat.postMessage ) - rigSetPosts )):$( LC_ALL=C grep -c '^PERMISSION-SET: ' "$rigTmp/op.out" )" "6:1:0:0:0"
+rigSetPosts="$( rigCalls chat.postMessage )"
+## The team scratch is every member's floor (section (a) above), so every participant holds a write there.
+rigOp --request-permission-set --team-member magic-coordinator dispatch-rig-set --entry "Write:$rigWs/.local/temp/team/held-all.txt" --scope task --session-id rig-set "${rigSetThree[@]}"
+rigAssert "an entry every participant already holds is left out: said held for all, nothing asked, nothing posted" \
+	"$( rigHas "$rigTmp/op.out" "HELD: Write:$rigWs/.local/temp/team/held-all.txt by every participant already" ):$( rigHas "$rigTmp/op.out" 'PERMISSION-SET: held -- every participant holds every entry already' ):$(( $( rigCalls chat.postMessage ) - rigSetPosts ))" "yes:yes:0"
 rigOp --request-permission-set --team-member magic-coordinator dispatch-rig-set --entry "Edit:$rigWs/DEV/held2/**" --scope task --session-id rig-set "${rigSetThree[@]}"
 rigAssert "control: an entry a participant with a live run holds is held, and nothing is asked" \
 	"$( rigHas "$rigTmp/op.out" "HELD: Edit:$rigWs/DEV/held2/** by magic-developer standing" ):$( rigHas "$rigTmp/op.out" 'PERMISSION-SET: held' )" "yes:yes"
@@ -879,8 +970,8 @@ rigSetThread "$rigSetIdZ" ""
 RIG_OP_AGENT=magic-tester RIG_OP_SESSION=rig-set-tester rigOp --intern-op-wait-for-input magic-tester --wait-session-id rig-set-tester --wait-source "ask:$rigSetIdZ" --wait-timeout 0
 rigAssert "a participant of the set waits on it: read, with the bot that posted it, and nothing there yet" \
 	"$( LC_ALL=C grep -c 'may not wait on it' "$rigTmp/op.err" ):$( LC_ALL=C grep -c -x 'WAIT-RESULT: TIMEOUT' "$rigTmp/op.out" ):$( LC_ALL=C grep -c '^WAIT-NEVER-READ' "$rigTmp/op.out" )" "0:1:0"
-RIG_OP_AGENT=magic-developer RIG_OP_SESSION=rig-set-dev rigOp --intern-op-wait-for-input magic-developer --wait-session-id rig-set-dev --wait-source "ask:$rigSetIdZ" --wait-timeout 0
-rigAssert "accepted sibling: a member the set does not name may not" "$( LC_ALL=C grep -c "is a question asked by session rig-set, not rig-set-dev, so this session may not wait on it" "$rigTmp/op.err" )" 1
+RIG_OP_AGENT=magic-developer RIG_OP_SESSION=rig-else-dev rigOp --intern-op-wait-for-input magic-developer --wait-session-id rig-else-dev --wait-source "ask:$rigSetIdZ" --wait-timeout 0
+rigAssert "accepted sibling: a run of another session, which the set does not name, may not" "$( LC_ALL=C grep -c "is a question asked by session rig-set, not rig-else-dev, so this session may not wait on it" "$rigTmp/op.err" )" 1
 RIG_OP_AGENT="" RIG_OP_SESSION=""
 
 echo "-- a call about to be refused first takes an answer that is already there on an open ask --"

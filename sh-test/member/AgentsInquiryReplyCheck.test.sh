@@ -22,7 +22,7 @@ rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
 rigData="$rigTmp/data"
 rigSkills="$rigTmp/skills"
-mkdir -p "$rigTmp/ws/.local" "$rigTmp/home" "$rigSkills/rig-member" "$rigSkills/magic-coordinator" "$rigSkills/magic-coordinator" "$rigData/inboxes/rig-member/incoming" "$rigData/inboxes/rig-member/processed" "$rigData/inboxes/magic-coordinator/incoming" "$rigData/inboxes/magic-coordinator/processed"
+mkdir -p "$rigTmp/ws/.local" "$rigTmp/home" "$rigSkills/rig-member" "$rigSkills/magic-coordinator" "$rigSkills/magic-coordinator"
 
 rigPassCount=0
 rigFailCount=0
@@ -76,6 +76,8 @@ rigAssert "--reply is for an inquiry: a note is refused, nothing written" "$( ca
 echo "-- 3. the reply --"
 RIG_AGENT=magic-coordinator rigOp "$rigTmp/m1" --mark-inbox-processed --team-member magic-coordinator "$rigQ1"
 rigNote="$( rigNoteName rig-member )"
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-writes.include.sh" || exit 1
+rigOwnerWs="${rigWs:-$rigTmp/ws}" rigOwnerData="${rigData:-${rigD:-${rigStore:-${rigOut:-$rigTmp/data}}}}" rigOwnerHome="${rigHome:-$rigTmp/home}" rigOwnerSkills="${rigSkills:-$rigTmp/skills}"
 rigAssert "marking the reply-requested inquiry processed sends one note to the requester" "$( cat "$rigTmp/m1.rc" ):$( rigNotes rig-member ):$( [ -n "$rigNote" ] && echo one )" "0:1:one"
 rigAssert "the note: from the member that processed it, to the requester, saying it is processed" "$( rigField "$( rigInc rig-member )/$rigNote" type ):$( rigField "$( rigInc rig-member )/$rigNote" from ):$( rigField "$( rigInc rig-member )/$rigNote" owner ):$( rigHolds "$( rigInc rig-member )/$rigNote" "# Note: your inquiry $rigQ1 is processed" )" "note:magic-coordinator:rig-member:yes"
 rigAssert "the note meets the note contract: the validator finds no row" "$( rigValidateNote "$( rigInc rig-member )/$rigNote" )" "0"

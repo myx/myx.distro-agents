@@ -61,7 +61,7 @@ AgentsToolsDocGuardContractFile(){ ## contract name
 
 ## The rule rows of one document text against its kind, one pretty row a line. The text goes to a scratch
 ## file, since the rule sets read a file path. The whole call runs in a subshell with nounset off, so the
-## rule sets' empty-array reads and the dispatcher tail of the sourced include do not fault; a scratch that
+## rule sets' empty-array reads do not fault; a scratch that
 ## cannot be made yields no rows, nothing is guessed, and the write is then allowed by the default above.
 AgentsToolsDocGuardValidateText(){ ## kind, shown path, text
 	local vKind="$1" vShown="$2" vText="$3"
@@ -69,7 +69,7 @@ AgentsToolsDocGuardValidateText(){ ## kind, shown path, text
 	(
 		set +e
 		set +u
-		type AgentsToolsDocValidateRoutine > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.InternDocValidate.include" > /dev/null
+		type AgentsToolsDocValidateRoutine > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.DocValidateRuleSets.include"
 		local vTemp="" vRows="" vRc=0
 		mkdir -p "$MMDAPP/.local/temp" 2>/dev/null || exit 0
 		vTemp="$( mktemp "$MMDAPP/.local/temp/AgentsDocGuard.XXXXXX" )" 2>/dev/null || exit 0

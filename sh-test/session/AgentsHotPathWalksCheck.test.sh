@@ -43,25 +43,22 @@ rigList(){
 		'sh-lib/board/AgentsTools.BoardHousekeeping.include|AgentsToolsAdvanceSpawnHousekeeping|4|@housekeeping' \
 		'sh-lib/board/AgentsTools.BoardHousekeeping.include|AgentsToolsReviewUnseenEscalate|1|@housekeeping' \
 		'sh-lib/board/AgentsTools.BoardRoundScan.include|AgentsToolsBoardRecheckDueSection|1|@call-path' \
+		'sh-lib/board/AgentsTools.BoardStates.include|AgentsToolsBoardStateCounts|2|@one-off' \
 		'sh-lib/board/AgentsTools.ItemDecisions.include|AgentsToolsItemIsParty|1|@call-path' \
 		'sh-lib/board/AgentsTools.ReviewFlow.include|AgentsReviewItemsForRoutine|1|@call-path' \
 		'sh-lib/board/AgentsTools.ReviewFlow.include|AgentsReviewShutdown|2|@one-off' \
-		'sh-lib/grants/AgentsTools.Grants.include|AgentsToolsGrantsMemberList|2|@one-off' \
 		'sh-lib/grants/AgentsTools.InternOpPermissionGrantRead.include||1|@call-path' \
 		'sh-lib/grants/AgentsTools.PermissionHolds.include|AgentsToolsPermissionParticipants|1|@call-path' \
 		'sh-lib/harness/AgentsHarnessMessages.include|AgentsHarnessToolListAgents|1|@call-path' \
-		'sh-lib/harness/AgentsHarnessSpawn.include|AgentsHarnessDispatchItemPath|1|@fallback' \
 		'sh-lib/harness/AgentsUniversalHarness.sh||2|@fallback' \
-		'sh-lib/magic/AgentsTools.MagicCoordinatorState.include|AgentsToolsBoardActiveItems|1|@one-off' \
-		'sh-lib/magic/AgentsTools.MagicCoordinatorState.include|AgentsToolsBoardCounts|1|@one-off' \
-		'sh-lib/manager/AgentsTools.ManagerDashboard.include|AgentsToolsManagerDashboardTeamData|1|@one-off' \
-		'sh-lib/manager/AgentsTools.ManagerSessionKill.include|AgentsToolsManagerSessionKill|1|@one-off' \
-		'sh-lib/manager/AgentsTools.ManagerSessionRows.include|AgentsToolsManagerSessionRows|1|@one-off' \
-		'sh-lib/manager/AgentsTools.ManagerSessionRows.include|AgentsToolsManagerSessionScope|2|@one-off' \
+		'sh-lib/magic/AgentsTools.CoordinatorReads.include|AgentsToolsBoardActiveItems|1|@one-off' \
+		'sh-lib/magic/AgentsTools.CoordinatorReads.include|AgentsToolsBoardCounts|1|@one-off' \
+		'sh-lib/run/AgentsTools.ManagerSessionKill.include|AgentsToolsManagerSessionKill|1|@one-off' \
+		'sh-lib/session/AgentsTools.ManagerSessionRows.include|AgentsToolsManagerSessionRows|1|@one-off' \
+		'sh-lib/session/AgentsTools.ManagerSessionRows.include|AgentsToolsManagerSessionScope|2|@one-off' \
 		'sh-lib/manager/AgentsTools.OpManagerSessionControlStart.include||1|@rebuild' \
 		'sh-lib/manager/AgentsTools.OpManagerSessionKill.include||1|@one-off' \
 		'sh-lib/manager/AgentsTools.OpManagerSessionStop.include||1|@one-off' \
-		'sh-lib/member/AgentsTools.ExternalOwnerItems.include|AgentsToolsExternalOwnerRows|2|@one-off' \
 		'sh-lib/member/AgentsTools.InternOpMorningReview.include||3|@one-off' \
 		'sh-lib/wait/AgentsTools.MemberWaitSources.include||1|@call-path' \
 		'sh-lib/wait/AgentsTools.MemberWaitSourcesDefault.include|AgentsToolsWaitChildThreadSources|1|@fallback' \
@@ -70,7 +67,6 @@ rigList(){
 		'sh-lib/questions/AgentsTools.PendingReplyCollect.include|AgentsToolsPendingReplySessionsRunning|1|@rebuild' \
 		'sh-lib/schedule/AgentsTools.Dispatcher.include|AgentsToolsDispatcherHistory|1|@one-off' \
 		'sh-lib/schedule/AgentsTools.DispatcherSchedule.include|AgentsToolsScheduleBoardDemand|1|@call-path' \
-		'sh-lib/schedule/AgentsTools.DispatcherSchedule.include|AgentsToolsScheduleImportantEmergency|1|@call-path' \
 		'sh-lib/schedule/AgentsTools.DispatcherSchedule.include|AgentsToolsSchedulePaceText|1|@kept' \
 		'sh-lib/schedule/AgentsTools.DispatcherSchedule.include|AgentsToolsScheduleVerifyStale|1|@call-path' \
 		'sh-lib/schedule/AgentsTools.DispatcherStats.include|AgentsToolsStatsDerive|4|@one-off' \
@@ -85,30 +81,30 @@ rigList(){
 		'sh-lib/session/AgentsTools.SessionControlStart.include|AgentsToolsSessionControlCheckWorkspace|1|@rebuild' \
 		'sh-lib/session/AgentsTools.SessionTranscript.include|AgentsSessionTokensRollupRows|2|@call-path' \
 		'sh-lib/slack/AgentsTools.InternOpCommsSlackSend.include|AgentsToolsCommsSlackUnreachableReport|1|@one-off' \
-		'sh-lib/spawn/AgentsTools.ChildrenIndex.include|AgentsToolsChildrenIndexRepair|1|@housekeeping' \
+		'sh-lib/session/AgentsTools.ChildrenIndex.include|AgentsToolsChildrenIndexRepair|1|@housekeeping' \
 		'sh-lib/spawn/AgentsTools.InternOpAgentSpawnProxy.include||3|@rebuild' \
-		'sh-lib/spawn/AgentsTools.InternOpSpawnPrepareBrief.include||1|@call-path' \
-		'sh-lib/spawn/AgentsTools.SpawnProxyClose.include|AgentsToolsSpawnProxyStaleParkClear|1|@housekeeping' \
 		'sh-lib/spawn/AgentsTools.SpawnProxyRootMarks.include|AgentsToolsSpawnProxyRootMarkRetry|1|@housekeeping' \
-		'sh-lib/spawn/AgentsTools.SpawnSandboxSweep.include|AgentsToolsSpawnSandboxFolderState|1|@housekeeping' \
-		'sh-lib/spawn/AgentsTools.SpawnSandboxSweep.include|AgentsToolsSpawnSandboxFoldersOfItem|1|@call-path' \
-		'sh-lib/spawn/AgentsTools.StartedRecords.include|AgentsToolsSpawnedChildRecords|1|@fallback' \
-		'sh-lib/spawn/AgentsTools.StartedRecords.include|AgentsToolsSpawnedDutyRecords|1|@kept' \
-		'sh-lib/spawn/AgentsTools.StartedRecords.include|AgentsToolsSpawnedRecordsOfRoutine|1|@kept' \
-		'sh-lib/spawn/AgentsTools.StartedRecords.include|AgentsToolsSpawnedRegistryFile|1|@kept' \
-		'sh-lib/spawn/AgentsTools.StartedRecords.include|AgentsToolsSpawnedStartedRecords|1|@kept' \
-		'sh-lib/supervise/AgentsTools.SuperviseResume.include|AgentsToolsSuperviseResume|1|@one-off' \
-		'sh-lib/supervise/AgentsTools.SuperviseScan.include|AgentsToolsSuperviseScan|1|@one-off' \
-		'sh-lib/team-data/AgentsTools.InternTeamDataReflectionSweep.include||1|@one-off' \
-		'sh-lib/team-data/AgentsTools.Registries.include|AgentsToolsRegistryList|1|@one-off' \
-		'sh-lib/team-data/AgentsTools.RegistrySpawnedSessions.include|AgentsToolsRegistryMeasureRows|1|@one-off' \
-		'sh-lib/team-data/AgentsTools.RegistryPendingReplies.include|AgentsToolsRegistryPendingRepliesRows|1|@rebuild' \
-		'sh-lib/team-data/AgentsTools.Registries.include|AgentsToolsRegistryRenderAll|1|@one-off' \
-		'sh-lib/team-data/AgentsTools.RegistrySpawnedSessions.include|AgentsToolsRegistryRenderSpawnedSessions|1|@rebuild' \
-		'sh-lib/team-data/AgentsTools.RegistrySpawnedSessions.include|AgentsToolsRegistrySpawnedSessionsRebuild|1|@rebuild' \
-		'sh-lib/team-data/AgentsTools.RegistrySpawnedSessions.include|AgentsToolsRegistrySpawnedSessionsRows|2|@rebuild' \
+		'sh-lib/session/AgentsTools.StartedRecords.include|AgentsToolsSpawnedAllRecordsInto|1|@call-path' \
+		'sh-lib/session/AgentsTools.StartedRecords.include|AgentsToolsSpawnedChildRecords|1|@fallback' \
+		'sh-lib/session/AgentsTools.StartedRecords.include|AgentsToolsSpawnedDutyRecords|1|@kept' \
+		'sh-lib/session/AgentsTools.StartedRecords.include|AgentsToolsSpawnedRecordsOfRoutine|1|@kept' \
+		'sh-lib/session/AgentsTools.StartedRecords.include|AgentsToolsSpawnedRegistryFile|1|@kept' \
+		'sh-lib/session/AgentsTools.StartedRecords.include|AgentsToolsSpawnedStartedRecords|1|@kept' \
+		'sh-lib/session/AgentsTools.SessionStore.include|AgentsSessionFoldersFind|1|@one-off' \
+		'sh-lib/session/AgentsTools.SessionStore.include|AgentsSessionFeedLinesSince|1|@one-off' \
+		'sh-lib/session/AgentsTools.SessionStore.include|AgentsSessionControlPidRows|1|@one-off' \
+		'sh-lib/session/AgentsTools.SessionStore.include|AgentsSessionRigControlRows|1|@kept' \
+		'sh-lib/session/AgentsTools.SessionChat.include|AgentsToolsSessionChatMessagesToSince|1|@one-off' \
+		'sh-lib/inbox/AgentsTools.InternTeamDataReflectionSweep.include||1|@one-off' \
+		'sh-lib/inbox/AgentsTools.InboxPlace.include|AgentsToolsInboxFilesInto|1|@call-path' \
+		'sh-lib/session/AgentsTools.RegistrySpawnedSessions.include|AgentsToolsRegistryMeasureRows|1|@one-off' \
+		'sh-lib/board/AgentsTools.BoardPendingRepliesEntries.include|AgentsToolsBoardPendingRepliesEntries|1|@rebuild' \
+		'sh-lib/board/AgentsTools.BoardRoundScan.include|AgentsToolsBoardRoundSections|1|@one-off' \
+		'sh-lib/session/AgentsTools.RegistrySpawnedSessions.include|AgentsToolsRegistryRenderSpawnedSessions|1|@rebuild' \
+		'sh-lib/session/AgentsTools.RegistrySpawnedSessions.include|AgentsToolsRegistrySpawnedSessionsRebuild|1|@rebuild' \
+		'sh-lib/session/AgentsTools.RegistrySpawnedSessions.include|AgentsToolsRegistrySpawnedSessionsRows|2|@rebuild' \
 		'sh-lib/team-data/AgentsTools.StrayStore.include|AgentsToolsStrayStoreList|1|@one-off' \
-		'sh-lib/team-data/AgentsTools.StrayStore.include|AgentsToolsStrayStoreRunsTable|1|@one-off' \
+		'sh-lib/board/AgentsTools.BoardDispatchRuns.include|AgentsToolsBoardDispatchRunsTableInto|1|@one-off' \
 		'sh-lib/undo/AgentsTools.UndoRecord.include||1|@one-off'
 }
 

@@ -27,13 +27,11 @@ agentsManagerTeamDataStores="board audit vault inboxes"
 ## The `item` rows of one member's inbox, in itemRows of the caller: the items that are not
 ## processed, and the processed too where `yes` asks for them: its incoming/ and its processed/.
 AgentsToolsManagerTeamDataInbox(){ ## member, include processed (yes|no)
-	local inboxRows=""
-	AgentsToolsManagerTeamDataItems inboxes "$1" "$MDAT_DATA_ROOT/inboxes/$1/incoming"
-	inboxRows="$itemRows"
-	if [ "$2" = "yes" ] ; then
-		AgentsToolsManagerTeamDataItems inboxes "$1" "$MDAT_DATA_ROOT/inboxes/$1/processed"
+	local inboxRows="" inboxFolder
+	while IFS= read -r inboxFolder ; do
+		AgentsToolsManagerTeamDataItems inboxes "$1" "$inboxFolder"
 		inboxRows="$inboxRows${inboxRows:+${itemRows:+$'\n'}}$itemRows"
-	fi
+	done < <( AgentsToolsInboxFolders "$1" "$2" )
 	itemRows="$inboxRows"
 	return 0
 }

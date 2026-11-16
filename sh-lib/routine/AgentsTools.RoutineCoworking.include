@@ -40,7 +40,9 @@ case "$1" in
 		## (`spawns:`) and the item it was started from (`spawned-by:`) -- which is context, not a value to write in a definition.
 		if [ ${#names[@]} -eq 0 ] && [ -n "${MDAT_SPAWN_SESSION_ID:-}" ] && [ -n "${MMDAPP:-}" ] ; then
 			local ownRecord ownName
-			for ownRecord in "$MMDAPP/.local/agents/spawned"/*/"$MDAT_SPAWN_SESSION_ID.spawn.md" ; do
+			type AgentsSessionRunRecordInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+			AgentsSessionRunRecordInto ownRecord "$MDAT_SPAWN_SESSION_ID" || :
+			for ownRecord in ${ownRecord:+"$ownRecord"} ; do
 				[ -f "$ownRecord" ] || continue
 				while IFS= read -r ownName ; do
 					[ -n "$ownName" ] || continue

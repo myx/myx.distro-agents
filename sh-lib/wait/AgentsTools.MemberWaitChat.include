@@ -32,7 +32,7 @@ AgentsWaitChatTopUp(){ ## member, session, thread (channel:ts), a name for the r
 	case "$topNow" in ''|*[!0-9]*) topNow="$( date +%s )" ;; esac
 	topLast="$( AgentsToolsSessionChatPointer "$2" "topup:$3" )" || topLast=0
 	case "$topLast" in ''|*[!0123456789]*) topLast=0 ;; esac
-	topNewest="$( LC_ALL=C awk -F'\t' -v where="$3" '$3 == where { split($2, part, ".") ; if ( ( part[1] + 0 ) > newest ) { newest = part[1] + 0 ; } } END { print newest + 0 ; }' "$MMDAPP/.local/agents/sessions/$2/session.chat.index" 2> /dev/null )" || topNewest=0
+	AgentsToolsSessionChatNewestInto topNewest "$2" "$3"
 	[ "$topNewest" -le 0 ] || [ "$topNow" -le "$topNewest" ] || topQuiet=$(( topNow - topNewest ))
 	topTtl=$(( 5 + topQuiet / 20 ))
 	[ "$topTtl" -le 300 ] || topTtl=300
@@ -50,7 +50,7 @@ AgentsWaitChatTopUp(){ ## member, session, thread (channel:ts), a name for the r
 }
 
 AgentsWaitProbeChat(){
-	local probeMember="$1" probeSession="$2" probeOut="$4" probeThread="" probeSeen probeNewestText probeChatDir
+	local probeMember="$1" probeSession="$2" probeOut="$4" probeThread="" probeSeen probeNewestText
 	AgentsToolsAssertBareName "$probeSession" "<session-id>" chat > /dev/null 2>&1 || return 2
 	type AgentsToolsSessionChatFloor > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include" || return 2
 	[ "$agentsWaitCovered" != "?" ] || agentsWaitCovered="$( AgentsWaitCoveredSet "$probeMember" $agentsWaitCoverSources )"
@@ -72,8 +72,7 @@ AgentsWaitProbeChat(){
 	fi
 	## The floor is read again only where the chat file's index or its pointers changed since its last read (`$probeOut.seen` strictly
 	## newer than both): an idle tick then reads and writes nothing. Equal times read it again, so nothing written in that second is missed.
-	probeChatDir="$MMDAPP/.local/agents/sessions/$probeSession"
-	if [ -f "$probeOut" ] && [ "$probeOut.seen" -nt "$probeChatDir/session.chat.index" ] && [ "$probeOut.seen" -nt "$probeChatDir/session.chat.pointers" ] ; then
+	if [ -f "$probeOut" ] && AgentsToolsSessionChatUnchangedSince "$probeSession" "$probeOut.seen" ; then
 		return 0
 	fi
 	AgentsWaitClear "$probeOut" || return 2
@@ -144,11 +143,8 @@ AgentsWaitProbeScan(){
 	else
 		cp "$probeOut.reply" "$probeOut.report" 2> /dev/null || return 2
 	fi
-	## THE SUM IS OF THE REPORT LESS ITS TOKEN COUNTERS. The board sections of a scan print the `tokens:` and `tokens-total:` lines of
-	## every running item, the session's own dispatch item among them, and the harness rewrites those at every model round: summed whole,
-	## the report differed at every wait and the wait never idled. Only a line of exactly the counters' own shape is left out
-	## (AgentsSessionTokensRollupText); the report returned is whole.
-	probeSum="$( LC_ALL=C awk '/^tokens(-total)?: in=[0-9]+ cache-read=[0-9]+ cache-write=[0-9]+ out=[0-9]+( \(incl\. [0-9]+ sub-sessions?\))?$/ { next ; } { print ; }' "$probeOut.report" | LC_ALL=C cksum | LC_ALL=C awk '{ print $1 "-" $2 ; }' )"
+	## The sum of the report less its token counters, by the scan's own rule (AgentsToolsInputScanReportSum); the report returned is whole.
+	probeSum="$( AgentsToolsInputScanReportSum "$probeOut.report" )"
 	type AgentsToolsSessionChatKeyInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include"
 	AgentsToolsSessionChatKeyInto ; probeKey="$agentsSessionChatKey"
 	if [ -n "$probeKey" ] ; then

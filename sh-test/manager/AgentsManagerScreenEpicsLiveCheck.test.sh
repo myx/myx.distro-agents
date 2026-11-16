@@ -21,8 +21,10 @@ rigTmp="$( rigTempDir AgentsManagerScreenEpicsLiveCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
 export TZ=UTC
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-writes.include.sh" || exit 1
 . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/manager-screen.live-rig.include.sh" || exit 1
 rigLiveSetup
+rigOwnerWs="$rigWs" rigOwnerData="$rigStore" rigOwnerHome="$rigHome" rigOwnerOrigin="$MDLT_ORIGIN"
 trap 'rigLiveEnd ; rm -rf -- "$rigTmp"' EXIT
 
 rigPassCount=0
@@ -35,8 +37,8 @@ rigAssert(){ ## what is asserted, got, want
 	fi
 }
 
-## The fixture: two epic items of the rig's own vault, each with sections of its own.
-cat > "$rigStore/vault/epic-blueprint-20261001T0000Z-rig-one.md" <<'EOF' || rigRefuse "the rig's first epic could not be written"
+## The fixture: two epic items of the rig's own vault, each with sections of its own, written by the vault's owner.
+rigOwnerVaultPut epic-blueprint-20261001T0000Z-rig-one.md <<'EOF' || rigRefuse "the rig's first epic could not be written"
 ---
 type: epic-blueprint
 document-contract: vault-item.epic-blueprint
@@ -54,7 +56,7 @@ A goal the check reads back.
 
 In: the rig.
 EOF
-cat > "$rigStore/vault/epic-blueprint-20261002T0000Z-rig-two.md" <<'EOF' || rigRefuse "the rig's second epic could not be written"
+rigOwnerVaultPut epic-blueprint-20261002T0000Z-rig-two.md <<'EOF' || rigRefuse "the rig's second epic could not be written"
 ---
 type: epic-blueprint
 document-contract: vault-item.epic-blueprint

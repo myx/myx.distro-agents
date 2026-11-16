@@ -26,7 +26,7 @@ type AgentsSessionThread > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agen
 					case "$sessionAddress" in *:conversation) sessionForm=":conversation" ; sessionAddress="${sessionAddress%:conversation}" ;; esac
 					## The name alone is the thread itself: any new post there.
 					case "$sessionAddress" in *:*) ;; *) sessionForm=":conversation" ;; esac
-					type DistroAgentsToolsResolveTarget > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/slack/AgentsTools.CommsSlack.include"
+					type DistroAgentsToolsResolveTarget > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsResolveTarget.include"
 					sessionRc=0
 					sessionResolved="$( DistroAgentsToolsResolveTarget "$sessionAddress" "$memberName" )" || sessionRc=$?
 					if [ "$sessionRc" != "0" ] ; then
@@ -203,7 +203,7 @@ type AgentsSessionThread > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agen
 					floorOwnElsewhere="true" ; break
 				done <<< "$( AgentsOwnPostsLines "$waitSessionId" )"
 			fi
-			if [ -n "$floorChatKey" ] && AgentsToolsSessionChatDir "$floorChatKey" > /dev/null 2>&1 && [ -d "$MMDAPP/.local/agents/sessions/$floorChatKey" ] ; then
+			if [ -n "$floorChatKey" ] && AgentsToolsSessionChatDir "$floorChatKey" > /dev/null 2>&1 && { type AgentsSessionKnown > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include" ; AgentsSessionKnown "$floorChatKey" ; } ; then
 				case " $waitSources " in
 					*" chat:$floorChatKey "*) ;;
 					*) waitSources="chat:$floorChatKey $waitSources" ;;
@@ -221,7 +221,7 @@ type AgentsSessionThread > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agen
 			local floorWays="dms:$memberName" floorWay waitDutyRun="" waitDutyRecord=""
 			case "$waitSessionId" in ''|*/*|.|..) ;; *)
 				waitDutyRecord="${MDAT_SPAWN_SANDBOX_ROOT:-}/$waitSessionId.spawn.md"
-				[ -f "$waitDutyRecord" ] || waitDutyRecord="$MMDAPP/.local/agents/spawned/$waitSessionId/$waitSessionId.spawn.md"
+				[ -f "$waitDutyRecord" ] || { type AgentsSessionRunRecordInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include" ; AgentsSessionRunRecordInto waitDutyRecord "$waitSessionId" ; } || :
 				case "$( LC_ALL=C grep -m1 -E '^routine: [A-Za-z0-9-]+\.work-duty\.routine\.md$' "$waitDutyRecord" 2> /dev/null )" in
 					## A duty's own inbox is its input (the work-duty routine's wait-sources): every Wait of it reads the inbox, whatever sources
 					## the run named, so an item left there for the duty is never left unread by a Wait that named others.
@@ -338,12 +338,27 @@ type AgentsSessionThread > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agen
 				echo "⛔ ERROR: $MDSC_CMD --wait-for-input: no input source of kind '$checkKind' exists in this build, so nothing was waited on -- this is NOT a wait that found nothing. Kinds this build carries: $agentsWaitSourceKinds" >&2
 				set +e ; return 1
 			fi
-			## A member waits on its own inbox only, and a board state is one of the nine directories.
+			## A board source is one of the nine states, or one item by its own name; inbox:<member> is the own inbox only.
 			case "$checkKind:$checkTarget" in
 				inbox:"$memberName"|board:backlog|board:pending|board:running|board:review|board:blocked|board:parked|board:processed|board:archived|board:retained) ;;
-				inbox:*|board:*)
+				board:*)
+					## An item named one of the nine state words is refused here: the two forms would be the one source.
+					type AgentsToolsAssertBareName > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.BareName.include"
+					if ! AgentsToolsAssertBareName "$checkTarget" "<item name>" wait-for-input ; then
+						echo "WAIT-RESULT: ERROR"
+						set +e ; return 1
+					fi
+					case "$checkTarget" in
+						backlog|pending|running|review|blocked|parked|processed|archived|retained)
+							echo "WAIT-RESULT: ERROR"
+							echo "⛔ ERROR: $MDSC_CMD --wait-for-input: --wait-source '$checkSource' names a board state and no item, and a state is the source board:<state>. An item takes its own name, and an item named one of the nine states is no source. Nothing was waited on." >&2
+							set +e ; return 1
+						;;
+					esac
+				;;
+				inbox:*)
 					echo "WAIT-RESULT: ERROR"
-					echo "⛔ ERROR: $MDSC_CMD --wait-for-input: --wait-source '$checkSource' names nothing this build can wait on: inbox:<own member name> is the own inbox only, and board:<state> is one of backlog pending running review blocked parked processed archived retained. Nothing was waited on." >&2
+					echo "⛔ ERROR: $MDSC_CMD --wait-for-input: --wait-source '$checkSource' names nothing this build can wait on: inbox:<own member name> is the own inbox only. Nothing was waited on." >&2
 					set +e ; return 1
 				;;
 				## A scan is one of the tooling's own scans (AgentsToolsInputScanNames); the tags are the member's own; the session chat is a session's.
@@ -416,7 +431,7 @@ type AgentsSessionThread > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agen
 					## Its own record, at its exact path: a participant's record names its session, and no folder is scanned.
 					case "$waitSessionId" in ''|*/*|.|..) ;; *)
 						checkAskOwn="${MDAT_SPAWN_SANDBOX_ROOT:-}/$waitSessionId.spawn.md"
-						[ -f "$checkAskOwn" ] || checkAskOwn="$MMDAPP/.local/agents/spawned/$waitSessionId/$waitSessionId.spawn.md"
+						[ -f "$checkAskOwn" ] || { type AgentsSessionRunRecordInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include" ; AgentsSessionRunRecordInto checkAskOwn "$waitSessionId" ; } || :
 					esac
 					if [ -n "$checkAskSession" ] && [ -n "$waitSessionId" ] && [ "$checkAskSession" != "$waitSessionId" ] \
 						&& LC_ALL=C grep -q -x -F -- "session-id: $checkAskSession" "$checkAskOwn" 2> /dev/null ; then

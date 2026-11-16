@@ -26,7 +26,7 @@ trap 'rm -rf -- "$rigTmp"' EXIT
 rigData="$rigTmp/data"
 rigSkills="$rigTmp/skills"
 rigInbox="$rigData/inboxes/rig-member"
-mkdir -p "$rigTmp/ws/.local" "$rigTmp/home" "$rigSkills/rig-member" "$rigSkills/magic-librarian" "$rigInbox/incoming" "$rigData/inboxes/magic-librarian/incoming" \
+mkdir -p "$rigTmp/ws/.local" "$rigTmp/home" "$rigSkills/rig-member" "$rigSkills/magic-librarian" "$rigInbox/incoming" \
 	|| rigRefuse "could not create the scratch team data store"
 
 rigPassCount=0
@@ -72,6 +72,8 @@ rigDaysAgo(){ ## days
 
 echo "-- mark: stamped, and moved from incoming/ to processed/ --"
 rigLib1="$rigData/inboxes/magic-librarian"
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-writes.include.sh" || exit 1
+rigOwnerWs="${rigWs:-$rigTmp/ws}" rigOwnerData="${rigData:-${rigD:-${rigStore:-${rigOut:-$rigTmp/data}}}}" rigOwnerHome="${rigHome:-$rigTmp/home}" rigOwnerSkills="${rigSkills:-$rigTmp/skills}"
 printf -- '---\ntype: note\n---\n\n# Rig note\n' > "$rigLib1/incoming/note-rig.md"
 rigOp "$rigTmp/m1" --librarian-inbox-to-processed --team-member magic-librarian note-rig.md
 rigAssert "the mark succeeds"                          "$( cat "$rigTmp/m1.rc" )" 0
@@ -142,7 +144,7 @@ rigAssert "an incoming item is read by name"           "$( cat "$rigTmp/r4.rc" )
 
 echo "-- GC: marked items by their stamp's age, never an unmarked one --"
 rigG="$rigTmp/gc"
-mkdir -p "$rigG/inboxes/rig-member/processed" "$rigG/inboxes/rig-member/incoming" "$rigG/board"
+mkdir -p "$rigG/board"
 rigGi="$rigG/inboxes/rig-member"
 printf -- '---\ntype: note\nprocessed-at: 2020-01-01 00:00 +0000\n---\nold marked\n' > "$rigGi/processed/note-20200101T0000Z-old.md"
 printf -- '---\ntype: note\n---\nold standing note\n' > "$rigGi/incoming/note-20200101T0000Z-standing.md"
@@ -176,9 +178,8 @@ rigAssert "a second pass deletes nothing (rc 2)"       "$( cat "$rigTmp/g2.rc" )
 echo "-- git-tracked root: the mark and the collection are committed --"
 if command -v git > /dev/null 2>&1 ; then
 	rigT="$rigTmp/tracked"
-	mkdir -p "$rigT/inboxes/rig-member/incoming" "$rigT/inboxes/rig-member/processed"
-	printf -- '---\ntype: note\n---\ntracked\n' > "$rigT/inboxes/rig-member/incoming/note-20261006T0930Z-tracked.md"
-	printf -- '---\ntype: note\nprocessed-at: 2020-01-01 00:00 +0000\n---\ntracked old\n' > "$rigT/inboxes/rig-member/processed/note-20200101T0000Z-tracked-old.md"
+	printf -- '---\ntype: note\n---\ntracked\n' | rigOwnerInboxPut rig-member note-20261006T0930Z-tracked.md
+	printf -- '---\ntype: note\nprocessed-at: 2020-01-01 00:00 +0000\n---\ntracked old\n' | rigOwnerInboxPut rig-member note-20200101T0000Z-tracked-old.md
 	rigGit(){ env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp/home" PATH="/usr/bin:/bin" git -C "$rigT" "$@" ; }
 	rigGit init -q && rigGit config user.email rig@example.invalid && rigGit config user.name rig \
 		&& rigGit add -A && rigGit commit -q -m seed || rigRefuse "could not seed the tracked root"

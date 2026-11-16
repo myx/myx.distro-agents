@@ -105,6 +105,21 @@ AgentsToolsRootHarnessRoutineWrite(){ ## session dir
 	return 0
 }
 
+## The routine recorded for one session, into the named variable: a routine file's name; rc 1, nothing set, where there is none.
+## The workspace is this one unless one is named. No process: a caller that reads another workspace's store asks here.
+AgentsToolsRootHarnessRoutineInto(){ ## variable, session, workspace (default MMDAPP)
+	local routineFolder="" routineLine=""
+	printf -v "$1" '%s' ""
+	type AgentsSessionFolderInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include" || return 1
+	AgentsSessionFolderInto routineFolder "${3:-${MMDAPP:-}}" "${2:-}" || return 1
+	[ -f "$routineFolder/$agentsRootHarnessRoutineName" ] || return 1
+	IFS= read -r routineLine < "$routineFolder/$agentsRootHarnessRoutineName" || :
+	case "$routineLine" in
+		*.routine.md) case "$routineLine" in */*|*[[:space:]]*) return 1 ;; esac ; printf -v "$1" '%s' "$routineLine" ; return 0 ;;
+	esac
+	return 1
+}
+
 ## The routine recorded for one session, a routine file's name; rc 1, nothing printed, where there is none. Never a path.
 AgentsToolsRootHarnessRoutineRead(){ ## session
 	local routineDir="" routineLine=""

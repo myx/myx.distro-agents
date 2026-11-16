@@ -31,7 +31,9 @@
 		}
 		## Same document --state-note-lock-acquire/-refresh/-close-unlock
 		## and --intern-op-state-note-upsert all write -- must match exactly.
-		local target="$MDAT_DATA_ROOT/inboxes/magic-coordinator/incoming/note-20260809T155000Z-heartbeat-state-and-lock.md"
+		local target=""
+		type AgentsToolsInboxNotePath > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/inbox/AgentsTools.InboxPlace.include"
+		target="$( AgentsToolsInboxNotePath magic-coordinator note-20260809T155000Z-heartbeat-state-and-lock.md )"
 		if [ -f "$target" ] ; then
 			cat "$target"
 		else

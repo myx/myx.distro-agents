@@ -38,6 +38,7 @@ rigRefuse(){
 [ -f "$rigHarness" ] || rigRefuse "harness not found at the origin this workspace resolves: $rigHarness"
 
 . "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-writes.include.sh" || exit 1
 rigTmp="$( rigTempDir AgentsHarnessWriteSplitCheck )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
 
@@ -286,8 +287,8 @@ rigAssert "Write via temp plus mv: the cyclic link is now a regular file" "$( [ 
 echo "-- an unattended session never writes the team stores, whatever its roots grant --"
 rigStoreData="$rigTmp/STORE-DATA"
 rigStoreSessions="$rigTmp/.local/agents/sessions"
-mkdir -p "$rigStoreData/board/running" "$rigStoreSessions/rig-session" "$rigTmp/STORE-PLAIN"
-printf 'orig' > "$rigStoreData/board/running/dispatch-rig.md"
+mkdir -p "$rigStoreSessions/rig-session" "$rigTmp/STORE-PLAIN"
+rigOwnerData="$rigStoreData" rigOwnerBoardWrite running "dispatch-rig.md" -- 'orig'
 rigWide=( --access-read-root "$rigTmp" --access-write-root "$rigTmp" )
 
 ## One call with the three launch values stated outright, so nothing ambient decides it.
@@ -332,7 +333,7 @@ rigAssert "and the board item is still unchanged" "$( rigBytes "$rigStoreData/bo
 rigAssert "marker set: an ordinary path under the same root is written" \
 	"$( rigStoreVerdict "$( rigStoreCall true "" write "$rigTmp/STORE-PLAIN/x.txt" )" )" "wrote"
 ## Attended only from an interactive Claude Code client with neither marker nor spawn id.
-printf 'orig' > "$rigStoreData/board/running/dispatch-attended.md"
+rigOwnerData="$rigStoreData" rigOwnerBoardWrite running "dispatch-attended.md" -- 'orig'
 rigAssert "an interactive cli session writes the board" \
 	"$( RIG_ENTRYPOINT=cli rigStoreVerdict "$( RIG_ENTRYPOINT=cli rigStoreCall "" "" edit "$rigStoreData/board/running/dispatch-attended.md" )" )" "wrote"
 rigAssert "and the edit landed" "$( rigBytes "$rigStoreData/board/running/dispatch-attended.md" )" "rig-edited"

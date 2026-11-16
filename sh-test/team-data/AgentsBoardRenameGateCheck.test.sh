@@ -19,6 +19,7 @@ rigRefuse(){
 }
 [ -f "$rigTool" ] || rigRefuse "the team tooling is not at the origin this workspace resolves: $rigTool"
 . "$rigPackage/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
+. "$rigPackage/sh-test/check-fixtures/rig-store-item.include.sh" || exit 1
 rigTmp="$( rigTempDir AgentsBoardRenameGateCheck )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
 rigPassCount=0
@@ -32,10 +33,16 @@ rigAssert(){ ## what is asserted, got, want
 	fi
 }
 rigData="$rigTmp/data" rigWs="$rigTmp/ws"
-mkdir -p "$rigWs/.local/.agents" "$rigWs/.local/temp" "$rigTmp/skills/rig-member" "$rigData/board/backlog" "$rigData/board/processed" "$rigData/board/review"
+mkdir -p "$rigWs/.local/.agents" "$rigWs/.local/temp" "$rigTmp/skills/rig-member"
 printf 'rig\n' > "$rigTmp/skills/rig-member/rig-member.basic.md"
+## The item is built by the board's own write (rig-store-item.include.sh), and so is the folder it lies in: a hand-made
+## fixture stays green when that write's own file contract changes, which is what this check is here to catch.
+rigBodyCount=0
 rigItem(){ ## state, name, type word -- an item of that type, as the contract's skeleton has it
-	printf -- '---\ndocument-contract: board-item.%s\ntype: %s\nfrom: rig-member\nowner: rig-member\ndate: 2026-10-20 04:00 +0300\n---\n\n# %s: the thing\n\nbody of it\n' "$3" "$3" "$3" > "$rigData/board/$1/$2"
+	rigBodyCount=$(( rigBodyCount + 1 ))
+	printf -- '---\ndocument-contract: board-item.%s\ntype: %s\nfrom: rig-member\nowner: rig-member\ndate: 2026-10-20 04:00 +0300\n---\n\n# %s: the thing\n\nbody of it\n' "$3" "$3" "$3" > "$rigTmp/body$rigBodyCount"
+	rigStoreItem "$rigTmp" "$rigData" "$rigWs" rig-member "board $1 $2" "$rigTmp/body$rigBodyCount" \
+		|| rigRefuse "could not build the fixture item $2 through the board's own write"
 }
 rigRename(){ ## old, new, options...
 	local renameOld="$1" renameNew="$2"

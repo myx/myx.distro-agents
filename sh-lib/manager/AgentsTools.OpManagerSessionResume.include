@@ -40,10 +40,11 @@ type AgentsToolsManagerConsoleMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx
 			;;
 		esac
 		pauseFile="$( AgentsSessionMarkerFile "$pauseId" paused )"
-		if [ ! -d "$MMDAPP/.local/agents/sessions/$pauseId" ] ; then
+		type AgentsSessionKnown > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+		AgentsSessionKnown "$pauseId" || {
 			echo "⛔ ERROR: $MDSC_CMD $pauseOp: no store of a session or of a run is named by that id in this workspace -- nothing was removed" >&2
 			set +e ; return 1
-		fi
+		}
 		[ ! -f "$pauseFile" ] || pauseHeld="resumed"
 		AgentsToolsSessionPauseClear "$pauseId" || {
 			echo "⛔ ERROR: $MDSC_CMD $pauseOp: $pauseFile could not be removed" >&2

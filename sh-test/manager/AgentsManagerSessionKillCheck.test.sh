@@ -45,12 +45,13 @@ rigRefuse(){
 ## outlives this check: the rig ends it, before its tree is removed (the guard is in AgentsSessionControlStartCheck).
 . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-control-threads.include.sh" || rigRefuse "the rig's fixture that ends control threads is missing from the package: sh-test/check-fixtures/rig-control-threads.include.sh"
 . "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-writes.include.sh" || exit 1
 rigTmp="$( rigTempDir AgentsManagerSessionKillCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 rigWs="$rigTmp/ws" ; rigHome="$rigTmp/home" ; rigSkills="$rigTmp/skills" ; rigData="$rigTmp/data"
 rigAgents="$rigWs/.local/agents"
 rigSp="$rigAgents/spawned" ; rigStores="$rigAgents/sessions"
-mkdir -p "$rigTmp/bin" "$rigTmp/pids" "$rigWs/.local/.agents" "$rigSp" "$rigStores" "$rigHome" "$rigSkills" "$rigData/board/running" "$rigData/board/review"
+mkdir -p "$rigTmp/bin" "$rigTmp/pids" "$rigWs/.local/.agents" "$rigSp" "$rigStores" "$rigHome" "$rigSkills"
 rigHost="$( hostname -s 2>/dev/null )" ; [ -n "$rigHost" ] || rigHost="unknown"
 ## HOW LONG A STAND-IN LIVES. The check takes about 74 minutes on an unmodified machine, so a stand-in that slept five
 ## minutes was gone by the section that measured it: sections 6, 9c, 10, 11 and 13 read processes that no longer existed
@@ -142,7 +143,7 @@ rigRec(){ ## sandbox folder, spawn id, session id, host, owner, status, started-
 	} > "$rigSp/$1/$2.spawn.md"
 }
 rigItem(){ ## item stem, spawn id, session id -- the run's own dispatch item, in running
-	printf -- '---\ntype: dispatch\nowner: keeper-rig\nstatus: dispatch-started\nsession-id: %s\nspawn-id: %s\n---\n\n# rig dispatch\n' "$3" "$2" > "$rigData/board/running/$1.md"
+	rigOwnerBoardWrite running "$1.md" -- '---\ntype: dispatch\nowner: keeper-rig\nstatus: dispatch-started\nsession-id: %s\nspawn-id: %s\n---\n\n# rig dispatch\n' "$3" "$2"
 }
 rigTranscript(){ ## spawn id -- the transcript pointer every writer resolves
 	mkdir -p "$rigStores/$1"
@@ -492,7 +493,7 @@ echo "-- 13. the caller rule of the family: never from inside a member's session
 rigPre=( "MDAT_SPAWN_AGENT=magic-coordinator" )
 rigRun "$rigOp" --session-id sess-three
 rigPre=()
-## THE COORDINATOR MANAGES (the owner's ruling, 2026-11-09): AgentsToolsManagerCallerCheck returns 0 for it
+## THE COORDINATOR MANAGES: AgentsToolsManagerCallerCheck returns 0 for it
 ## before the family's refusal, so a supervision session kills the runs it watches. The exemption and the
 ## refusal are neighbours in one include, and only a session acting as another member meets the refusal.
 ## The row reads the kill row's own outcome word, never the byte count of stdout: a byte count moves with

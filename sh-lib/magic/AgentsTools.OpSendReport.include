@@ -27,7 +27,9 @@
 			echo "⛔ ERROR: $MDSC_CMD --send-report: MDAT_DATA_ROOT is not set" >&2
 			set +e ; return 1
 		}
-		local reportNote="$MDAT_DATA_ROOT/inboxes/magic-coordinator/incoming/note-20260809T155000Z-heartbeat-state-and-lock.md"
+		local reportNote=""
+		type AgentsToolsInboxNotePath > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/inbox/AgentsTools.InboxPlace.include"
+		reportNote="$( AgentsToolsInboxNotePath magic-coordinator note-20260809T155000Z-heartbeat-state-and-lock.md )"
 		if [ ! -f "$reportNote" ] ; then
 			echo "⛔ ERROR: $MDSC_CMD --send-report: $reportNote does not exist -- acquire the lock first (--state-note-lock-acquire)" >&2
 			set +e ; return 1

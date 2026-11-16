@@ -51,7 +51,7 @@ AgentsWaitProbeSlackPerson(){ ## member, target, since, the probe's out file
 	fi
 	case "$personId" in U*|W*) ;; *) personId="" ;; esac
 	if [ -z "$personId" ] ; then
-		type DistroAgentsToolsResolveTarget > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/slack/AgentsTools.CommsSlack.include" || return 1
+		type DistroAgentsToolsResolveTarget > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsResolveTarget.include" || return 1
 		personId="$( DistroAgentsToolsResolveTarget "$personTarget" "$personMember" 2> /dev/null | LC_ALL=C sed -n 's/^CHANNEL=//p' | head -1 )" || personId=""
 		case "$personId" in U*|W*) ;; *) return 1 ;; esac
 		{ mkdir -p "${personDmFile%/*}" && personTmp="$( mktemp "$personDmFile.XXXXXX" )" && { [ ! -f "$personDmFile" ] || LC_ALL=C awk -v t="$personTarget" '!( $1 == "target" && $2 == t )' "$personDmFile" ; printf '%s %s %s %s\n' target "$personTarget" "$personId" "$personNow" ; } > "$personTmp" && mv -f "$personTmp" "$personDmFile" ; } 2> /dev/null || rm -f "${personTmp:-}" 2> /dev/null

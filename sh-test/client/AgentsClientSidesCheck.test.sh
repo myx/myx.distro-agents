@@ -157,7 +157,7 @@ rigFn(){ ## function and arguments... -- one function of the Slack include on it
 			. "$RIG_TOOL"
 			MDSC_CMD=rig
 			rigArgs=( "$@" )
-			set -- --rig-none ; . "$RIG_INCLUDE" > /dev/null 2>&1
+			set -- --rig-none ; . "$RIG_INCLUDE" > /dev/null 2>&1 ; . "${RIG_INCLUDE%/slack/AgentsTools.CommsSlack.include}/comms/AgentsTools.CommsResolveTarget.include" > /dev/null 2>&1
 			"${rigArgs[@]}"
 		' rig "$@" 2> "$rigTmp/fnErr" < /dev/null )" || fnRc=$?
 }

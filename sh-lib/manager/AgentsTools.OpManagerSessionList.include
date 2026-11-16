@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # ^^^ for syntax checking in the editor only
 
-type AgentsToolsManagerSessionRows > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.ManagerSessionRows.include"
+type AgentsToolsManagerSessionRows > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.ManagerSessionRows.include"
 
 ## AgentsTools.OpManagerSessionList.include -- the operation `--manager-session-list`, sourced by AgentsTools.ManagerSession.include with the operation's arguments.
 ## The sessions of this workspace, each with its runs, then one row of counters: TAB-separated
@@ -21,5 +21,6 @@ type AgentsToolsManagerSessionRows > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.d
 		## THE CONSOLE THAT LOOKS ASKS FOR THE SCHEDULE: the owner's manager screen reads this list on every refresh, a live asker with no session, so a schedule
 		## thread that ended at night is started once the hour wants it (AgentsToolsScheduleThreadAskDue: a live thread costs one read of its lock).
 		type AgentsToolsScheduleThreadAskDue > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/schedule/AgentsTools.ScheduleThread.include"
-		! type AgentsToolsScheduleThreadAskDue > /dev/null 2>&1 || AgentsToolsScheduleThreadAskDue > /dev/null 2>&1 || :
+		type AgentsToolsScheduleThreadAskDue > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/schedule/AgentsTools.ScheduleThread.include"
+		AgentsToolsScheduleThreadAskDue > /dev/null 2>&1 || :
 		return 0

@@ -29,6 +29,7 @@ rigRefuse(){
 [ -f "$rigFn" ] || rigRefuse "the tooling is not at the origin this workspace resolves: $rigFn"
 command -v git > /dev/null || rigRefuse "git is not installed"
 . "$rigPkg/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-writes.include.sh" || exit 1
 . "$rigPkg/sh-test/check-fixtures/rig-processes.include.sh" || exit 1
 rigTmp="$( rigTempDir AgentsOnDemandThreadCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
@@ -232,7 +233,7 @@ echo "-- 9. the team data's first use: a request fifo and the commit reaching th
 rigWs="$rigTmp/ws"
 rigData="$rigTmp/data"
 rigSkills="$rigWs/.local/agents/members"
-mkdir -p "$rigWs/.local/.agents" "$rigWs/.local/agents" "$rigData/board/running" "$rigTmp/home" "$rigSkills/rig-member"
+mkdir -p "$rigWs/.local/.agents" "$rigWs/.local/agents" "$rigTmp/home" "$rigSkills/rig-member" "$rigData"
 printf 'SLACK_CHANNEL_MAGIC_TEAM=CRIG00001\nSLACK_BOT_TOKEN=rig-bot-token-TEAM\nNO_PROXY=*\n' > "$rigWs/.local/.agents/magic-team.agent.env"
 printf -- '---\nname: rig-member\nstatus: active\n---\nrig member\n' > "$rigSkills/rig-member/SKILL.md"
 printf -- '---\nmaintainers: rig\n---\nrig identity\n' > "$rigSkills/rig-member/rig-member.basic.md"
@@ -242,7 +243,7 @@ git -C "$rigData" config user.name rig
 printf 'seed\n' > "$rigData/README.md"
 git -C "$rigData" add -A && git -C "$rigData" commit -q -m seed || rigRefuse "could not seed the rig store"
 rigThreadFolder="$rigData/.git/team-data-commit"
-printf -- '---\ntype: note\nowner: rig-member\n---\n\nRIG-S12\n' > "$rigData/board/running/note-rig-s12.md"
+rigOwnerBoardWrite running "note-rig-s12.md" -- '---\ntype: note\nowner: rig-member\n---\n\nRIG-S12\n'
 (
 	cd "$rigWs" || exit 1
 	printf 'rig body\n' | env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp/home" PATH="/usr/bin:/bin:/usr/sbin:/sbin" \
@@ -276,7 +277,7 @@ rigAssert "9. the rig's own thread is ended, with no lock left" "$([ -f "$rigThr
 ## line waits for the thread instead of going with the last descriptor. Three starts of the real team-data thread, each asked at once.
 echo "-- 10. a request written the moment a thread is started is answered --"
 rigData10="$rigTmp/store10"
-mkdir -p "$rigData10/board/running" "$rigTmp/ws10/.local/agents"
+mkdir -p "$rigTmp/ws10/.local/agents" "$rigData10"
 git -C "$rigData10" init -q || rigRefuse "could not init the store for case 10"
 git -C "$rigData10" config user.email rig@example.invalid
 git -C "$rigData10" config user.name rig

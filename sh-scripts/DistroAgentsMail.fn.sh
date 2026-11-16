@@ -49,7 +49,7 @@ DistroAgentsMail(){
 	case "$1" in
 
 		--email-check|--email-mark-seen|--email-read|--email-send)
-			type AgentsToolsCommsEmailMarkSeen > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/email/AgentsTools.MemberCommsEmail.include"
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/email/AgentsTools.MemberCommsEmail.include"
 			return $?
 		;;
 

@@ -45,7 +45,8 @@
 		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.LocalLock.include"
 		AgentsToolsLocalLockTake "pending-reply-$revId" 30 || { echo "$MDSC_CMD: ⛔ ERROR: the lock on $revId could not be taken, so the record was left unchanged" >&2 ; set +e ; return 1 ; }
 		revLock="$agentsLocalLockPath"
-		revNow="$( LC_ALL=C awk -F': ' 'NR > 1 && $0 == "---" { exit ; } $1 == "status" { print substr($0, 9) ; exit ; }' "$revFile" )"
+		type AgentsToolsFrontmatterKey > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.FrontmatterKey.include"
+		revNow="$( AgentsToolsFrontmatterKey "$revFile" status )"
 		if [ "$revNow" != "reply-pending" ] ; then
 			AgentsToolsLocalLockGive "$revLock"
 			printf 'ALREADY-CLOSED %s %s\n' "$revId" "${revNow:-unknown}"

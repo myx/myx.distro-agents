@@ -12,7 +12,7 @@
 ##
 ## WHAT IT LEAVES ALONE, and why:
 ##   - a live run (a record still open, or a process of this host that answers for the run as its own): nothing ended.
-##   - a run the owner dismissed, by `sessions/<id>/dismissed` or `schedule/dismissed/<id>`: a dismissal is the owner's own word,
+##   - a run the owner dismissed, by the session store's `dismissed` mark or `schedule/dismissed/<id>`: a dismissal is the owner's own word,
 ##     and it is never undone by a rule.
 ##   - a run that ended inside the fixed sleep: a run that died a moment ago may still be writing its record, and the sleep is the
 ##     same one a duty's restart waits (DUTY_RESTART_SECONDS, 300 by default; SUPERVISE_RESUME_SECONDS replaces both).
@@ -32,9 +32,9 @@
 
 ## --supervise-resume [--workspace <path>]...: the runs above, resumed or held, for each workspace named, else this one.
 AgentsToolsSuperviseResume(){ ## [--workspace <path>]...
-	local resumeWorkspaces=() resumeWs resumeAgents resumeRecord resumeRun resumeMember resumeStatus resumeRoutine resumeDismissed
+	local resumeWorkspaces=() resumeWs resumeAgents resumeRun resumeMember resumeStatus resumeRoutine resumeDismissed
 	local resumeWait resumeNow resumeEnded resumeAge resumeItem resumeState resumeReason resumeHolder resumeItemSpawn resumeOut resumeSaid
-	local resumeWho resumeRc=0 resumeRoot="" resumeSavedRoot=""
+	local resumeWho resumeRc=0 resumeRoot="" resumeSavedRoot="" resumeRow resumeSpawns resumeSpawnedBy resumeTab=$'\t'
 	while [ $# -gt 0 ] ; do
 		case "$1" in
 			--workspace) [ $# -ge 2 ] || { echo "$MDSC_CMD: ⛔ ERROR: --workspace requires a path" >&2 ; return 1 ; } ; resumeWorkspaces+=( "${2%/}" ) ; shift 2 ;;
@@ -42,7 +42,9 @@ AgentsToolsSuperviseResume(){ ## [--workspace <path>]...
 		esac
 	done
 	[ ${#resumeWorkspaces[@]} -gt 0 ] || resumeWorkspaces=( "${MMDAPP%/}" )
-	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandbox.include"
+	type AgentsToolsBoardItemHeadersInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemDecisions.include"
+	type AgentsToolsSpawnedRecordRows > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include"
+	type AgentsSessionMarked > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
 	type AgentsToolsSpawnRuns > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunProcesses.include"
 	type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 	resumeWait="${SUPERVISE_RESUME_SECONDS:-${DUTY_RESTART_SECONDS:-300}}"
@@ -63,23 +65,26 @@ AgentsToolsSuperviseResume(){ ## [--workspace <path>]...
 			resumeRoot="$( AgentsToolsTeamDataRootOf "$resumeWs" )" || resumeRoot=""
 			[ -n "$resumeRoot" ] || resumeRoot="$resumeSavedRoot"
 		fi
-		for resumeRecord in "$resumeAgents"/spawned/*/*.spawn.md ; do
-			[ -f "$resumeRecord" ] || continue
-			resumeRun="${resumeRecord##*/}" ; resumeRun="${resumeRun%.spawn.md}"
-			resumeStatus="$( AgentsToolsSpawnSandboxRecordHeader "$resumeRecord" status )"
+		## Every record's fields in one read of them all, from the session store's owner:
+		## `<sandbox> <name> <written> <status> <routine> <owner> <spawns> <spawned-by>`, TAB-separated.
+		while IFS= read -r resumeRow <&3 ; do
+			[ -n "$resumeRow" ] || continue
+			resumeRow="${resumeRow#*"$resumeTab"}"
+			resumeRun="${resumeRow%%"$resumeTab"*}" ; resumeRow="${resumeRow#*"$resumeTab"}"
+			resumeEnded="${resumeRow%%"$resumeTab"*}" ; resumeRow="${resumeRow#*"$resumeTab"}"
+			resumeStatus="${resumeRow%%"$resumeTab"*}" ; resumeRow="${resumeRow#*"$resumeTab"}"
+			resumeRoutine="${resumeRow%%"$resumeTab"*}" ; resumeRow="${resumeRow#*"$resumeTab"}"
+			resumeMember="${resumeRow%%"$resumeTab"*}" ; resumeRow="${resumeRow#*"$resumeTab"}"
+			resumeSpawns="${resumeRow%%"$resumeTab"*}" ; resumeSpawnedBy="${resumeRow#*"$resumeTab"}"
 			## A run whose record is open has not ended, and one that handed back is not this operation's either.
 			[ "$resumeStatus" != spawn-started ] || continue
-			resumeRoutine="$( AgentsToolsSpawnSandboxRecordHeader "$resumeRecord" routine )"
 			case "$resumeRoutine" in *.work-duty.routine.md) continue ;; esac
 			resumeDismissed=no
-			for resumeSaid in "$resumeAgents/sessions/$resumeRun/dismissed" "$resumeAgents/schedule/dismissed/$resumeRun" ; do
-				[ ! -e "$resumeSaid" ] || resumeDismissed=yes
-			done
+			! MMDAPP="$resumeWs" AgentsSessionMarked "$resumeRun" dismissed || resumeDismissed=yes
+			[ ! -e "$resumeAgents/schedule/dismissed/$resumeRun" ] || resumeDismissed=yes
 			[ "$resumeDismissed" = no ] || continue
-			resumeMember="$( AgentsToolsSpawnSandboxRecordHeader "$resumeRecord" owner )"
 			case "$resumeMember" in ''|-) continue ;; esac
 			## The moment it ended is the record's own last write, as the duty's restart reads it: its mtime.
-			resumeEnded="$( stat -f '%m' "$resumeRecord" 2> /dev/null || stat -c '%Y' "$resumeRecord" 2> /dev/null )" || resumeEnded=""
 			case "$resumeEnded" in ''|*[!0123456789]*) continue ;; esac
 			resumeAge=$(( resumeNow - resumeEnded ))
 			[ "$resumeAge" -lt 0 ] && resumeAge=0
@@ -87,22 +92,19 @@ AgentsToolsSuperviseResume(){ ## [--workspace <path>]...
 				"$( printf '%s' "$resumeRun" | cut -c1-8 )" "$resumeMember" "$resumeAge" "$resumeWait" ; continue ; }
 			## The item the run works: the close leaves it in review, and it is the seat a return starts the member again on.
 			resumeItem=""
-			for resumeSaid in spawns spawned-by ; do
-				resumeItem="$( AgentsToolsSpawnSandboxRecordHeader "$resumeRecord" "$resumeSaid" )"
-				resumeItem="${resumeItem%%,*}" ; resumeItem="${resumeItem%% *}" ; resumeItem="${resumeItem%.md}"
+			for resumeSaid in "$resumeSpawns" "$resumeSpawnedBy" ; do
+				resumeItem="${resumeSaid%%,*}" ; resumeItem="${resumeItem%% *}" ; resumeItem="${resumeItem%.md}"
 				[ -n "$resumeItem" ] && [ "$resumeItem" != "-" ] && break
 				resumeItem=""
 			done
 			[ -n "$resumeItem" ] || { printf 'held %s %s %s its record links no board item\n' "${resumeWs##*/}" \
 				"$( printf '%s' "$resumeRun" | cut -c1-8 )" "$resumeMember" ; continue ; }
-			resumeState="$( MDAT_DATA_ROOT="$resumeRoot" AgentsToolsSpawnProxyBoardStateOf "$resumeItem.md" )"
+			MDAT_DATA_ROOT="$resumeRoot" AgentsToolsBoardItemHeadersInto "$resumeItem" resumeState resumeReason=review-reason resumeItemSpawn=spawn-id
 			[ "$resumeState" = review ] || { printf 'held %s %s %s its item is in %s, not in review\n' "${resumeWs##*/}" \
 				"$( printf '%s' "$resumeRun" | cut -c1-8 )" "$resumeMember" "${resumeState:-no board state}" ; continue ; }
-			resumeReason="$( AgentsToolsSpawnSandboxRecordHeader "$resumeRoot/board/review/$resumeItem.md" review-reason )"
 			[ "$resumeReason" = ended-without-handback ] || { printf 'held %s %s %s its item waits for review: %s\n' "${resumeWs##*/}" \
 				"$( printf '%s' "$resumeRun" | cut -c1-8 )" "$resumeMember" "${resumeReason:-no reason recorded}" ; continue ; }
 			## A newer run already holds the item: the answer is being carried out, and a second start is a second run of one task.
-			resumeItemSpawn="$( AgentsToolsSpawnSandboxRecordHeader "$resumeRoot/board/review/$resumeItem.md" spawn-id )"
 			case "$resumeItemSpawn" in ''|-|"$resumeRun") ;; *)
 				## THE GUARD REFUSES WHEN IT CANNOT ANSWER: rc 1 is the one answer that starts the run again. A read that
 				## could not be made at all, a missing name among them, is no "ended", and holding the item is the safe side.
@@ -131,7 +133,7 @@ AgentsToolsSuperviseResume(){ ## [--workspace <path>]...
 					"$( printf '%s' "$resumeOut" | LC_ALL=C grep -m1 -e 'ERROR' -e 'RETURN: ' | cut -c1-200 )" ;;
 			esac
 			resumeRc=0
-		done
+		done 3<<< "$( AgentsToolsSpawnedRecordRows "$resumeWs" status routine owner spawns spawned-by 2> /dev/null )"
 	done
 	return 0
 }

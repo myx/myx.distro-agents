@@ -100,8 +100,8 @@
 				permission|permission-set) ! AgentsToolsAuthorityRefusing "${answerWord%% -- *}" || agentsAuthorityRefusing="yes" ;;
 			esac
 			answerAsker="$( AgentsToolsEscalationField "$managerPendingFile" session-id )"
-			type AgentsToolsSessionRunRecord > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionSeats.include"
-			answerAskerRecord="$( AgentsToolsSessionRunRecord "$answerAsker" )" || answerAskerRecord=""
+			type AgentsSessionRunRecordInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+			AgentsSessionRunRecordInto answerAskerRecord "$answerAsker" || :
 			AgentsToolsAuthorityGate "answer question $managerPendingId with $( [ -n "$answerMode" ] && printf 'its reject' || printf '%s' "$answerTyped" )" "$managerPendingId" "$answerAskerRecord" "$managerPendingFile" console \
 				"$answerOp" --id "$managerPendingId" $( [ -n "$answerMode" ] && printf -- '--reject' ) ${answerTyped:+--answer "$answerTyped"} ${answerWords:+--text "$answerWords"} || :
 			AgentsToolsAuthorityExit || { set +e ; return "$agentsAuthorityExit" ; }

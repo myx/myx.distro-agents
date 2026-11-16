@@ -42,9 +42,9 @@ AgentsToolsContactsAllowAdd(){ ## id, entry, the natural target (for the log lin
 AgentsToolsContactsAccessText(){ ## id
 	local accessRows accessTiers="Moot and Contact only"
 	accessRows="$( AgentsToolsContactsChain --intern-op-permission-contact-holds "contact:$1" 2> /dev/null | LC_ALL=C awk -F'\t' 'NF >= 5 { printf "%s%s on %s (allowed by %s)", sep, $2, $3, $4 ; sep = ", " ; }' )" || accessRows=""
-	type AgentsToolsContactsKey > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/contacts/AgentsTools.ContactsRecord.include"
+	type AgentsToolsFrontmatterKey > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.FrontmatterKey.include"
 	type AgentsToolsContactsTierName > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/contacts/AgentsTools.ContactsTiers.include"
-	case "${contactsEffectiveTier:-$( AgentsToolsContactsTierName "$( AgentsToolsContactsKey "$contactsPersons/$1.md" tier )" )}" in
+	case "${contactsEffectiveTier:-$( AgentsToolsContactsTierName "$( AgentsToolsFrontmatterKey "$contactsPersons/$1.md" tier )" )}" in
 		tier-moot) accessTiers="Moot only" ;;
 		tier-contact) accessTiers="Moot and Contact only" ;;
 		tier-client) accessTiers="Moot, Contact and Client only" ;;
@@ -171,11 +171,11 @@ AgentsToolsContactsAllow(){ ## the operation, its arguments...
 	AgentsToolsContactsStore "$allowOp" || return 1
 	[ -f "$contactsPersons/$allowId.md" ] || { echo "$MDSC_CMD: ⛔ ERROR: $allowOp: no contact $allowId is recorded -- find one with --find-contact <value>" >&2 ; return 1 ; }
 	allowRecord="$MMDAPP/.local/agents/sessions/$allowSession/$allowRefusal.md"
-	if [ ! -f "$allowRecord" ] || [ "$( AgentsToolsContactsKey "$allowRecord" owner )" != "contact:$allowId" ] ; then
+	if [ ! -f "$allowRecord" ] || [ "$( AgentsToolsFrontmatterKey "$allowRecord" owner )" != "contact:$allowId" ] ; then
 		echo "$MDSC_CMD: ⛔ ERROR: $allowOp: the refusal $allowRefusal of session $allowSession is not one recorded for contact:$allowId (--escalate-contact records it) -- nothing is granted" >&2
 		return 1
 	fi
-	allowTool="$( AgentsToolsContactsKey "$allowRecord" tool )" ; allowTarget="$( AgentsToolsContactsKey "$allowRecord" target )"
+	allowTool="$( AgentsToolsFrontmatterKey "$allowRecord" tool )" ; allowTarget="$( AgentsToolsFrontmatterKey "$allowRecord" target )"
 	allowOut="$( AgentsToolsContactsChain --intern-op-permission-grant-open "$allowBy" --session-id "$allowSession" --refusal-id "$allowRefusal" --kind "$allowKind" )" || allowRc=$?
 	[ -z "$allowOut" ] || printf '%s\n' "$allowOut"
 	[ "$allowRc" = 0 ] || return "$allowRc"

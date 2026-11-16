@@ -142,7 +142,7 @@ case "$1" in
 				}
 			done
 			sweepOut="$( LC_ALL=C awk -v cutoff="$sweepCutoff" -v stamp="$sweepStamp" -v reason="reflection-sweep-${sweepDays}d" \
-				-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsReflectionSweep.awk" ${sweepCandidates[@]+"${sweepCandidates[@]}"} )" || {
+				-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/inbox/AgentsReflectionSweep.awk" ${sweepCandidates[@]+"${sweepCandidates[@]}"} )" || {
 				echo "$MDSC_CMD: team-data-reflection-sweep: ⛔ ERROR: the sweep pass failed -- the copies it made are overwritten by the next run, nothing was removed" >&2
 				set +e ; return 1
 			}

@@ -175,9 +175,9 @@ rigAssert "its successor, which follows it, waits quietly: not started, and no l
 rigWaitStarts
 
 echo "-- 3. the pass is the board's dependencies too --"
-mkdir -p "$rigData/board/backlog" "$rigData/board/pending" "$rigData/board/running" "$rigData/board/review" "$rigData/board/blocked" "$rigData/board/parked"
-printf -- '---\ntype: task\nblocks: task-20261019T0900Z-rig-a.md\n---\n\n# rig B\n' > "$rigData/board/backlog/task-20261019T0900Z-rig-b.md"
-printf -- '---\ntype: task\n---\n\n# rig A\n' > "$rigData/board/backlog/task-20261019T0900Z-rig-a.md"
+rigBoardStates "$rigData" backlog pending running review blocked parked
+printf -- '---\ntype: task\nblocks: task-20261019T0900Z-rig-a.md\n---\n\n# rig B\n' | rigStoreItem "$rigData" board backlog task-20261019T0900Z-rig-b.md
+printf -- '---\ntype: task\n---\n\n# rig A\n' | rigStoreItem "$rigData" board backlog task-20261019T0900Z-rig-a.md
 rm -f "$rigWs/.local/agents/board-dependencies.last"
 rigPass deps
 rigAssert "the board's dependencies are recomputed by the pass, and its report names the edge it found" "$( [ -s "$rigWs/.local/agents/board-dependencies.last" ] && printf report ):$( LC_ALL=C grep -q -F 'rig-a <- task-20261019T0900Z-rig-b' "$rigWs/.local/agents/board-dependencies.last" && printf waiting )" "report:waiting"

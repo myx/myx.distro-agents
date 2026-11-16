@@ -20,10 +20,13 @@ rigTmp="$( rigTempDir AgentsBoardReviewMoveCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
 rigData="$rigTmp/data"
-mkdir -p "$rigTmp/ws" "$rigData/board/running"
+mkdir -p "$rigTmp/ws"
 
 rigPassCount=0
 rigFailCount=0
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-writes.include.sh" || exit 1
+rigOwnerWs="${rigWs:-$rigTmp/ws}" rigOwnerData="${rigData:-${rigD:-${rigStore:-${rigOut:-$rigTmp/data}}}}" rigOwnerHome="${rigHome:-$rigTmp/home}" rigOwnerSkills="${rigSkills:-$rigTmp/skills}"
+rigOwnerBoardReady
 rigAssert(){ ## what is asserted, got, want
 	if [ "$2" = "$3" ] ; then
 		printf '  PASS  %s\n' "$1" ; rigPassCount=$(( rigPassCount + 1 ))
@@ -52,8 +55,7 @@ rigLoc(){ ## item filename -- which board/<state>/ actually holds it, or not-fou
 }
 
 echo "-- entry: running -> review, via the move primitive directly, review-by set --"
-mkdir -p "$rigData/board/review"
-printf -- '---\ntype: task\nowner: rig\n---\n\nrig item\n' > "$rigData/board/running/task-rig-entry.md"
+printf -- '---\ntype: task\nowner: rig\n---\n\nrig item\n' | rigOwnerBoardPut running task-rig-entry.md
 rigOp "$rigTmp/o1" --intern-op-board-upsert-move-edit review task-rig-entry.md --from-state:running \
 	--header:upsert:review-by:magic-tester --context rig
 rigAssert "the move succeeds"                          "$( cat "$rigTmp/o1.rc" )" 0
@@ -62,15 +64,14 @@ rigAssert "review-by is set on the moved item"         "$( LC_ALL=C grep -c -x -
 echo "-- the spawn proxy's own close path into review is covered by AgentsSpawnProxyCloseCommitCheck.test.sh, not duplicated here --"
 
 echo "-- reject: review -> running, review as an existing op's --from-state --"
-mkdir -p "$rigData/board/review"
-printf -- '---\ntype: task\nowner: rig\n---\n\nrig item\n' > "$rigData/board/review/task-rig-reject.md"
+printf -- '---\ntype: task\nowner: rig\n---\n\nrig item\n' | rigOwnerBoardPut review task-rig-reject.md
 printf -- '---\ntype: task\nowner: rig\n---\n\nrig item, reviewer comments appended\n' \
 	| rigOp "$rigTmp/o2" --intern-op-board-upsert-move-edit running task-rig-reject.md --from-state:review --upsert-from-stdin --context rig
 rigAssert "the move succeeds"                          "$( cat "$rigTmp/o2.rc" )" 0
 rigAssert "the item lands back in board/running"       "$( rigLoc task-rig-reject.md )" running
 
 echo "-- accept: review -> processed, via the existing --move-to-processed --"
-printf -- '---\ntype: task\nowner: rig\n---\n\nrig item\n' > "$rigData/board/review/task-rig-accept.md"
+printf -- '---\ntype: task\nowner: rig\n---\n\nrig item\n' | rigOwnerBoardPut review task-rig-accept.md
 rigOp "$rigTmp/o3" --move-to-processed --team-member magic-tester task-rig-accept.md --from-state:review
 rigAssert "the move succeeds"                          "$( cat "$rigTmp/o3.rc" )" 0
 rigAssert "the item lands in board/processed"          "$( rigLoc task-rig-accept.md )" processed

@@ -1,0 +1,63 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.VaultPlace.include -- where an item of the vault lives, and the items it holds: the one answer every
+## reader and writer of the vault takes, beside the inbox's own (sh-lib/inbox/AgentsTools.InboxPlace.include).
+## In-context helpers with no operation of their own. Sourced for its functions only:
+##   type AgentsToolsVaultItemPath > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/vault/AgentsTools.VaultPlace.include"
+##
+## THE VAULT IS ONE STORE. An item is any file of $MDAT_DATA_ROOT/vault or of a folder of it, under any name, which
+## is what the panel counts. A caller that names one item names a bare file name, and no path: that file is directly
+## in the vault folder, and a name given with no extension names the Markdown document of that name (the ruling in
+## AgentsTools.InternOpVaultAudit.include).
+##
+
+if ! type AgentsToolsVaultItemPath > /dev/null 2>&1 ; then
+
+	## The vault folder into the named variable: rc 1, the variable empty, where the store root is not set.
+	AgentsToolsVaultFolderInto(){ ## variable
+		case "$1" in ''|*[!A-Za-z0-9_]*) return 1 ;; esac
+		eval "$1=''"
+		[ -n "${MDAT_DATA_ROOT:-}" ] || return 1
+		printf -v "$1" '%s' "$MDAT_DATA_ROOT/vault"
+	}
+
+	## The path of the vault item of that name, there or not yet: rc 1, nothing printed, where the store root is
+	## not set or the name is no bare file name.
+	AgentsToolsVaultItemPath(){ ## item name
+		local itemFolder=""
+		case "$1" in ''|./*|../*|*/*|.|..) return 1 ;; esac
+		AgentsToolsVaultFolderInto itemFolder || return 1
+		printf '%s/%s\n' "$itemFolder" "$1"
+	}
+
+	## THE ITEMS of the vault into the named array, a path each: those whose file name starts with the prefix
+	## (empty for every item), in the vault folder and in a folder of it. The one walk of the vault store, so a
+	## reader of many items takes this and names no folder. The newest variable, where one is named, takes the
+	## epoch second of the last change of the newest item: `-` where none could be stamped, empty where the store
+	## is not there.
+	AgentsToolsVaultFilesInto(){ ## array variable, name prefix, newest variable (empty for none)
+		local filesVar="$1" filesPrefix="${2:-}" filesNewestVar="${3:-}"
+		local filesFolder="" filesOne filesStat="" filesStamp filesNewest="-"
+		case "$filesVar" in ''|*[!A-Za-z0-9_]*) return 1 ;; esac
+		eval "$filesVar=()"
+		[ -z "$filesNewestVar" ] || printf -v "$filesNewestVar" '%s' ""
+		AgentsToolsVaultFolderInto filesFolder || return 0
+		[ -d "$filesFolder" ] || return 0
+		if [ -n "$filesNewestVar" ] ; then
+			if stat -f '%m' / > /dev/null 2>&1 ; then filesStat="-f %m" ; elif stat -c '%Y' / > /dev/null 2>&1 ; then filesStat="-c %Y" ; fi
+		fi
+		for filesOne in "$filesFolder"/"$filesPrefix"* "$filesFolder"/*/"$filesPrefix"* ; do
+			[ -f "$filesOne" ] || continue
+			eval "$filesVar+=( \"\$filesOne\" )"
+			[ -n "$filesStat" ] || continue
+			filesStamp="$( stat $filesStat "$filesOne" 2> /dev/null )" || continue
+			case "$filesStamp" in ''|*[!0123456789]*) continue ;; esac
+			[ "$filesNewest" != "-" ] && [ "$filesNewest" -ge "$filesStamp" ] || filesNewest="$filesStamp"
+		done
+		[ -z "$filesNewestVar" ] || printf -v "$filesNewestVar" '%s' "$filesNewest"
+		return 0
+	}
+
+fi

@@ -66,11 +66,12 @@ chmod +x "$rigTmp/ps-bin/ps"
 PATH="$rigTmp/ps-bin:$PATH"
 export PATH
 [ "$( command -v ps )" = "$rigTmp/ps-bin/ps" ] || rigRefuse "the rig's own ps is not first on PATH, so this check would read the host's process list"
-mkdir -p "$rigTmp/ws" "$rigTmp/ws/.local/agents/members/magic-coordinator" "$rigTmp/data/inboxes/magic-coordinator/incoming"
+mkdir -p "$rigTmp/ws" "$rigTmp/ws/.local/agents/members/magic-coordinator"
+rigInboxReady "$rigTmp/data" magic-coordinator
 printf '# magic-coordinator\n' > "$rigTmp/ws/.local/agents/members/magic-coordinator/SKILL.md"
 for rigState in backlog pending running blocked parked ; do
-	mkdir -p "$rigTmp/data/board/$rigState"
-	printf -- '---\ntype: task\nowner: magic-coordinator\n---\n\n# Rig item in %s\n' "$rigState" > "$rigTmp/data/board/$rigState/task-rig-$rigState.md"
+	rigBoardStates "$rigTmp/data" $rigState
+	printf -- '---\ntype: task\nowner: magic-coordinator\n---\n\n# Rig item in %s\n' "$rigState" | rigStoreItem "$rigTmp/data" board $rigState task-rig-$rigState.md
 done
 
 rigOut="$( cd "$rigTmp/ws" && env -u MDAT_SKILLSET_ROOT HOME="$rigTmp/home" MMDAPP="$rigTmp/ws" MDLT_ORIGIN="$MDLT_ORIGIN" MDAT_DATA_ROOT="$rigTmp/data" \
@@ -107,7 +108,9 @@ rigCheck(){ ## what is asserted, got, want
 }
 rigNew(){ ## rig name -- a fresh fake workspace, data root and home of this rig's own; sets rigW rigD rigH
 	rigW="$rigTmp/$1/ws" rigD="$rigTmp/$1/data" rigH="$rigTmp/$1/home"
-	mkdir -p "$rigW/.local/agents/spawned" "$rigD/inboxes/magic-coordinator/incoming" "$rigD/board/running" "$rigD/board/review" "$rigD/board/processed" "$rigW/.local/agents/members/magic-coordinator"
+	mkdir -p "$rigW/.local/agents/spawned" "$rigW/.local/agents/members/magic-coordinator"
+	rigBoardStates "$rigD" running review processed
+	rigInboxReady "$rigD" magic-coordinator
 	printf '# magic-coordinator\n' > "$rigW/.local/agents/members/magic-coordinator/SKILL.md"
 }
 rigExtraEnv=()
@@ -211,7 +214,7 @@ rigItem(){ ## board state, item filename, type, status or none, review-by or non
 		[ "$5" = none ] || printf 'review-by: %s\n' "$5"
 		[ "$6" = none ] || printf 'session-id: %s\nspawn-id: %s\n' "$6" "$6"
 		printf -- '---\n\nrig item\n'
-	} > "$rigD/board/$1/$2"
+	} | rigStoreItem "$rigD" board $1 $2
 }
 rigDispatch(){ ## session id, status -- a running dispatch item for that session
 	rigItem running "dispatch-$1.md" dispatch "$2" none "$1"
@@ -867,8 +870,11 @@ rigGc(){ ## run number
 	rigRun "$rigTmp/b4.g$1" --intern-team-data-final-gc-deletion magic-coordinator
 }
 rigProcessed(){ ## session id, spawn-id or none -- an aged processed dispatch item
-	rigItem processed "dispatch-$1.md" dispatch dispatch-succeeded none none
-	[ "$2" = none ] || printf 'spawn-id: %s\n' "$2" >> "$rigD/board/processed/dispatch-$1.md"
+	{
+		printf -- '---\ntype: dispatch\nowner: rig-member\nstatus: dispatch-succeeded\n'
+		[ "$2" = none ] || printf 'spawn-id: %s\n' "$2"
+		printf -- '---\n\nrig item\n'
+	} | rigStoreItem "$rigD" board processed "dispatch-$1.md"
 	touch -t 202001010000 "$rigD/board/processed/dispatch-$1.md"
 }
 rigPresent(){ ## path -- present or gone
@@ -877,8 +883,8 @@ rigPresent(){ ## path -- present or gone
 rigSp="$rigW/.local/agents/spawned"
 rigSandbox rig-orphan "$rigHost" spawn-succeeded "exit-code: 0"
 rigItem processed dispatch-rig-young.md dispatch dispatch-succeeded none rig-young ; rigDone rig-young 0 yes
-mkdir -p "$rigD/inboxes/rig-member/processed"
-printf -- '---\ntype: note\nowner: rig-member\nspawn-id: rig-inbox\nprocessed-at: 2020-01-01 00:00 +0000\n---\n\nrig inbox item\n' > "$rigD/inboxes/rig-member/processed/note-rig-inbox.md"
+rigInboxReady "$rigD" rig-member
+printf -- '---\ntype: note\nowner: rig-member\nspawn-id: rig-inbox\nprocessed-at: 2020-01-01 00:00 +0000\n---\n\nrig inbox item\n' | rigStoreItem "$rigD" inbox rig-member note-rig-inbox.md
 touch -t 202001010000 "$rigD/inboxes/rig-member/processed/note-rig-inbox.md" ; rigDone rig-inbox 0 yes
 mkdir -p "$rigD/trash"
 printf -- '---\ntype: dispatch\nowner: rig-member\nspawn-id: rig-trash\n---\n\nrig trash item\n' > "$rigD/trash/dispatch-rig-trash.md"

@@ -26,38 +26,165 @@ agentsDecisionsKinds=" answer verdict resolved dismissed clarification handback 
 ## The board path of an item, by name (with or without .md, a board/<state>/ prefix dropped).
 ## Prints nothing and rc 1 when no board state holds it.
 AgentsToolsDecisionsItemPath(){ ## item name
-	local pathName="${1##*/}" pathState
-	pathName="${pathName%.md}"
-	[ -n "$pathName" ] && [ -n "${MDAT_DATA_ROOT:-}" ] || return 1
-	case "$pathName" in .|..|-*) return 1 ;; esac
-	for pathState in running review blocked pending backlog parked processed archived retained ; do
-		[ -f "$MDAT_DATA_ROOT/board/$pathState/$pathName.md" ] || continue
-		printf '%s\n' "$MDAT_DATA_ROOT/board/$pathState/$pathName.md"
+	local pathFound
+	AgentsToolsBoardItemInto pathFound "$1" || return 1
+	printf '%s\n' "$pathFound"
+}
+
+## The board path of an item in one named state, into the named variable, rc 1 where the state or the name is none:
+## no process, and no caller builds a board state's path of its own.
+AgentsToolsBoardStatePathInto(){ ## variable, state, item file name
+	printf -v "$1" '%s' ""
+	case "${2:-}" in ''|*/*|.|..) return 1 ;; esac
+	case "${3:-}" in ''|*/*|.|..) return 1 ;; esac
+	[ -n "${MDAT_DATA_ROOT:-}" ] || return 1
+	printf -v "$1" '%s/board/%s/%s' "$MDAT_DATA_ROOT" "$2" "$3"
+}
+
+## The awk that prints an item's frontmatter fields, into the named variable: the board reader a cache stamp names,
+## so no caller builds this concern's own path. No process.
+AgentsToolsBoardFrontmatterAwkInto(){ ## variable
+	printf -v "$1" '%s/myx/myx.distro-agents/sh-lib/board/AgentsBoardItemFrontmatterPrintSelected.awk' "${MDLT_ORIGIN:-}"
+}
+
+## THE BOARD'S ITEMS, into the named array, a path each: those whose file name starts with the prefix (empty for every item),
+## in the states named, else in every state folder the board holds. The one walk of the board's folders; a reader of many
+## items takes it and never names the folders. No process. Empty where there are none.
+AgentsToolsBoardItemsInto(){ ## array variable, name prefix, state...
+	local itemsVar="$1" itemsPrefix="${2:-}" itemsOne itemsState
+	case "$itemsVar" in ''|*[!A-Za-z0-9_]*) return 1 ;; esac
+	eval "$itemsVar=()"
+	[ -n "${MDAT_DATA_ROOT:-}" ] || return 0
+	case "$itemsPrefix" in */*) return 1 ;; esac
+	shift 2 2> /dev/null || shift $#
+	if [ $# -eq 0 ] ; then
+		for itemsOne in "$MDAT_DATA_ROOT/board"/*/"$itemsPrefix"*.md ; do
+			[ -f "$itemsOne" ] && eval "$itemsVar+=( \"\$itemsOne\" )"
+		done
+		return 0
+	fi
+	for itemsState in "$@" ; do
+		case "$itemsState" in ''|*/*|.|..) continue ;; esac
+		for itemsOne in "$MDAT_DATA_ROOT/board/$itemsState/$itemsPrefix"*.md ; do
+			[ -f "$itemsOne" ] && eval "$itemsVar+=( \"\$itemsOne\" )"
+		done
+	done
+	return 0
+}
+
+## THE BOARD'S STATE FOLDERS, into the named array, a path each: those of the states named, else of every state of the one list
+## (AgentsTools.BoardStates.include). A folder the board does not hold yet is named all the same: an empty state is no fault, and a
+## writer makes it. The lookup folders a reader of one item takes, so no other part builds one. No process.
+AgentsToolsBoardStateFoldersInto(){ ## array variable, state...
+	local foldersVar="$1" foldersState
+	case "$foldersVar" in ''|*[!A-Za-z0-9_]*) return 1 ;; esac
+	eval "$foldersVar=()"
+	[ -n "${MDAT_DATA_ROOT:-}" ] || return 0
+	type AgentsToolsBoardReady > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.BoardStates.include"
+	shift
+	[ $# -gt 0 ] || set -- $agentsBoardStates
+	[ $# -gt 0 ] || return 1
+	for foldersState in "$@" ; do
+		case "$foldersState" in ''|*/*|.|..) continue ;; esac
+		eval "$foldersVar+=( \"\$MDAT_DATA_ROOT/board/\$foldersState\" )"
+	done
+	return 0
+}
+
+## Whether a board item of that name stands in one of the states named: rc 0 it does. No process: a permission check
+## on every tool call asks it.
+AgentsToolsBoardItemInStates(){ ## item name (with or without .md), state...
+	local inName="${1##*/}" inState
+	inName="${inName%.md}"
+	[ -n "$inName" ] && [ -n "${MDAT_DATA_ROOT:-}" ] || return 1
+	case "$inName" in .|..|-*) return 1 ;; esac
+	shift
+	for inState in "$@" ; do
+		[ ! -f "$MDAT_DATA_ROOT/board/$inState/$inName.md" ] || return 0
+	done
+	return 1
+}
+
+## The first of the states named whose folder the board holds but cannot list, printed; rc 1 where every one that exists
+## reads. A state the board does not have is no failure: a fresh board holds only the states it uses.
+AgentsToolsBoardStateUnreadable(){ ## state...
+	local badState
+	[ -n "${MDAT_DATA_ROOT:-}" ] || return 1
+	for badState in "$@" ; do
+		[ -e "$MDAT_DATA_ROOT/board/$badState" ] || continue
+		[ -d "$MDAT_DATA_ROOT/board/$badState" ] && [ -r "$MDAT_DATA_ROOT/board/$badState" ] && continue
+		printf '%s' "$badState"
 		return 0
 	done
 	return 1
+}
+
+## The board item of that name into the named variable, in whichever state holds it, as the item handle the board's own
+## readers take: running first, then review, blocked, pending, backlog, parked, processed, archived and retained. rc 1, the
+## variable empty, where no state holds it. No process: the form a control-thread tick and a Wait round take.
+AgentsToolsBoardItemInto(){ ## variable, item name (with or without .md)
+	local itemName="${2##*/}" itemState
+	printf -v "$1" '%s' ""
+	itemName="${itemName%.md}"
+	[ -n "$itemName" ] && [ -n "${MDAT_DATA_ROOT:-}" ] || return 1
+	case "$itemName" in .|..|-*) return 1 ;; esac
+	for itemState in running review blocked pending backlog parked processed archived retained ; do
+		[ -f "$MDAT_DATA_ROOT/board/$itemState/$itemName.md" ] || continue
+		printf -v "$1" '%s' "$MDAT_DATA_ROOT/board/$itemState/$itemName.md"
+		return 0
+	done
+	return 1
+}
+
+## The state and the headers of the board item of that name, in one read: the state into the state variable, then each
+## `<variable>=<key>` pair, the first line of its key in the item's first frontmatter block. rc 1, every variable empty,
+## where no state holds the item. One awk and no other process: a supervise round reads every held run's item with it.
+AgentsToolsBoardItemHeadersInto(){ ## item name, state variable, variable=key...
+	local headItem="" headPair headOne headKeys="" headValues=""
+	printf -v "$2" '%s' ""
+	for headPair in "${@:3}" ; do printf -v "${headPair%%=*}" '%s' "" ; headKeys="$headKeys ${headPair#*=}" ; done
+	AgentsToolsBoardItemInto headItem "$1" || return 1
+	headOne="${headItem%/*}" ; printf -v "$2" '%s' "${headOne##*/}"
+	[ $# -gt 2 ] || return 0
+	headValues="$( LC_ALL=C awk -v keys="$headKeys" '
+		BEGIN { n = split( keys, k, " " ) }
+		$0 == "---" { if ( ++fence > 1 ) exit ; next }
+		fence == 1 { for ( i = 1 ; i <= n ; i++ ) if ( !( i in v ) && index( $0, k[i] ": " ) == 1 ) v[i] = substr( $0, length( k[i] ) + 3 ) }
+		END { for ( i = 1 ; i <= n ; i++ ) print v[i] }
+	' "$headItem" 2> /dev/null )"
+	{ for headPair in "${@:3}" ; do IFS= read -r headOne || headOne="" ; printf -v "${headPair%%=*}" '%s' "$headOne" ; done ; } <<< "$headValues"
+	return 0
+}
+
+## ONE STRING THAT CHANGES WHEN ONE BOARD ITEM DOES: its state, and its whole file. A Wait on `board:<item name>` keeps it as
+## the source's rendering, so an item that moves between two states, leaves the board or is rewritten is an arrival, and an item
+## the board does not hold renders `absent`. No process: the lookup and the read are the board's own, and a tick may call it.
+AgentsToolsBoardItemSignatureInto(){ ## variable, item name (with or without .md)
+	local sigName="${2##*/}" sigItem="" sigText=""
+	printf -v "$1" '%s' "absent"
+	sigName="${sigName%.md}"
+	case "$sigName" in ''|.|..|-*) return 0 ;; esac
+	AgentsToolsBoardItemInto sigItem "$sigName" || return 0
+	IFS= read -r -d '' sigText < "$sigItem" 2> /dev/null || :
+	sigItem="${sigItem%/*}"
+	printf -v "$1" '%s' "${sigItem##*/}"$'\n'"$sigText"
+	return 0
 }
 
 ## The item an ask belongs to, as its name without .md: the first item name in <task ref>
 ## that a board state holds, else the `spawns:` dispatch item of the session's own spawn
 ## record, else nothing (rc 1).
 AgentsToolsDecisionsItemFromRef(){ ## task ref text, session id
-	local refText="$1" refSession="$2" refName refRecord refSpawns
+	local refText="$1" refSession="$2" refName refSpawns
 	while IFS= read -r refName ; do
 		[ -n "$refName" ] || continue
 		AgentsToolsDecisionsItemPath "$refName" > /dev/null && { printf '%s\n' "${refName%.md}" ; return 0 ; }
 	done < <( printf '%s\n' "$refText" | LC_ALL=C grep -oE '[a-z][a-z0-9]*-[0-9]{8}T[0-9]{4}([0-9]{2})?Z(-[A-Za-z0-9_.-]*[A-Za-z0-9_-])?' )
-	[ -n "$refSession" ] && [ -n "${MMDAPP:-}" ] || return 1
-	case "$refSession" in */*|.|..) return 1 ;; esac
-	for refRecord in "$MMDAPP/.local/agents/spawned/$refSession/$refSession.spawn.md" "$MMDAPP/.local/agents/spawned"/*/"$refSession.spawn.md" ; do
-		[ -f "$refRecord" ] || continue
-		refSpawns="$( LC_ALL=C awk '$0 == "---" { if ( ++fm == 2 ) exit ; next ; } fm == 1 && index( $0, "spawns: " ) == 1 { print substr( $0, 9 ) ; exit ; }' "$refRecord" 2> /dev/null )"
-		refSpawns="${refSpawns%%,*}" ; refSpawns="${refSpawns%% *}"
-		[ -n "$refSpawns" ] && AgentsToolsDecisionsItemPath "$refSpawns" > /dev/null || continue
-		printf '%s\n' "${refSpawns%.md}"
-		return 0
-	done
-	return 1
+	type AgentsSessionRunHeadersInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+	AgentsSessionRunHeadersInto "$refSession" refSpawns=spawns || return 1
+	refSpawns="${refSpawns%%,*}" ; refSpawns="${refSpawns%% *}"
+	[ -n "$refSpawns" ] && AgentsToolsDecisionsItemPath "$refSpawns" > /dev/null || return 1
+	printf '%s\n' "${refSpawns%.md}"
 }
 
 ## Text as one line: whitespace runs to one space, trimmed, cut at <max> bytes (default 300) on a UTF-8 boundary.
@@ -79,11 +206,6 @@ AgentsToolsDecisionsNorm(){ ## text
 }
 
 ## The marker line that makes a `## Decisions` heading the item's own.
-AgentsToolsDecisionsMarker(){ ## item name (with or without .md)
-	local markerName="${1##*/}"
-	printf '<!-- decisions-of: %s -->\n' "${markerName%.md}"
-}
-
 ## awk functions over line[1..n], shared by the reader and the board edit, so both take the
 ## same section: decisionsOwn() is the own heading's line number (0 when none), and
 ## decisionsEnd() the section's last non-blank line before the next heading.
@@ -182,14 +304,14 @@ AgentsToolsDecisionsKeep(){ ## stored item path, mode (keep|edit), label
 	local keepPath="$1" keepMode="$2" keepLabel="${3:-decision-keep}"
 	if [ ! -f "$keepPath" ] ; then cat ; return 0 ; fi
 	LC_ALL=C MDAT_KEEP_STORED="$keepPath" awk -v keepMode="$keepMode" -v keepLabel="$keepLabel" \
-		-v cmdName="${MDSC_CMD:-board-upsert-move-edit}" -v marker="$( AgentsToolsDecisionsMarker "$keepPath" )" \
+		-v cmdName="${MDSC_CMD:-board-upsert-move-edit}" -v marker="$( markerName="${keepPath##*/}" ; printf '<!-- decisions-of: %s -->\n' "${markerName%.md}" )" \
 		"$agentsDecisionsKeepAwk" "$keepPath" -
 }
 
 ## The section's lines, newest first, at most <cap> (default 30).
 AgentsToolsDecisionsLines(){ ## item path, cap
 	[ -f "$1" ] || return 0
-	LC_ALL=C awk -v cap="${2:-30}" -v marker="$( AgentsToolsDecisionsMarker "$1" )" "$agentsDecisionsOwnAwk"'
+	LC_ALL=C awk -v cap="${2:-30}" -v marker="$( markerName="${1##*/}" ; printf '<!-- decisions-of: %s -->\n' "${markerName%.md}" )" "$agentsDecisionsOwnAwk"'
 		{ line[NR] = $0 ; }
 		END {
 			start = decisionsOwn( NR, marker ) ;
@@ -303,7 +425,9 @@ AgentsToolsSessionMember(){ ## session id
 	local smRecord
 	case "$1" in ''|-|none|*/*|.|..) return 0 ;; esac
 	[ -n "${MMDAPP:-}" ] || return 0
-	for smRecord in "$MMDAPP/.local/agents/spawned"/*/"$1.spawn.md" ; do
+	type AgentsSessionRunRecordInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+	AgentsSessionRunRecordInto smRecord "$1" || :
+	for smRecord in ${smRecord:+"$smRecord"} ; do
 		[ -f "$smRecord" ] || continue
 		AgentsToolsDecisionsField "$smRecord" owner
 		return 0
@@ -389,7 +513,9 @@ AgentsToolsItemIsOwnerOrParent(){ ## item path, member
 	AgentsToolsMemberListHas "$( AgentsToolsDecisionsField "$1" owner )" "$2" && return 0
 	opSpawn="$( AgentsToolsDecisionsField "$1" spawn-id )"
 	case "$opSpawn" in ''|-|*/*|.|..) return 1 ;; esac
-	for opParent in "$MMDAPP/.local/agents/spawned"/*/"$opSpawn.spawn.md" ; do
+	type AgentsSessionRunRecordInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+	AgentsSessionRunRecordInto opParent "$opSpawn" || :
+	for opParent in ${opParent:+"$opParent"} ; do
 		[ -f "$opParent" ] || continue
 		opParent="$( AgentsToolsDecisionsField "$opParent" parent-spawn-id )"
 		case "$opParent" in ''|-|none) return 1 ;; esac
@@ -415,6 +541,9 @@ AgentsToolsItemIsParty(){ ## item path, member
 	esac
 	[ -n "${MMDAPP:-}" ] && [ -n "$2" ] || return 1
 	## Every spawn record in one pass: one of <member>'s whose spawns/spawned-by names the item.
+	local ipRecords=()
+	type AgentsToolsSpawnedAllRecordsInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include"
+	AgentsToolsSpawnedAllRecordsInto ipRecords
 	LC_ALL=C awk -v who="$2" -v item="$ipName" '
 		FNR == 1 { fm = 0 ; owner = "" ; linked = 0 ; }
 		$0 == "---" { if ( ++fm == 2 && owner == who && linked ) { found = 1 ; exit ; } next ; }
@@ -425,7 +554,7 @@ AgentsToolsItemIsParty(){ ## item path, member
 			for ( i = 1 ; i <= n ; i++ ) { one = part[i] ; sub( /\.md$/, "", one ) ; if ( one == item ) { linked = 1 ; } }
 		}
 		END { exit ( found ? 0 : 1 ) ; }
-	' "$MMDAPP/.local/agents/spawned"/*/*.spawn.md 2> /dev/null && return 0
+	' ${ipRecords[@]+"${ipRecords[@]}"} /dev/null 2> /dev/null && return 0
 	return 1
 }
 
@@ -484,7 +613,7 @@ AgentsToolsDecisionsFromPending(){ ## pending id, record file, status, amend (1 
 	if [ -n "$decAmend" ] ; then
 		decLineKind="answer" ; decWho="${decAmendBy:-$decWho}" ; decVerdict="amended: $decVerdict"
 	fi
-	decText="${decTag:+$decTag }$( AgentsToolsDecisionsQuestionFirst "$decFirst" ) -> ${decVerdict:-(answered; the answer text was not recorded)}"
+	decText="${decTag:+$decTag }$( AgentsToolsDecisionsOneLine "$( printf '%s\n' "$decFirst" | LC_ALL=C awk '$0 !~ /^#/ && $0 !~ /^[ \t]*$/ { print ; exit ; }' )" 160 ) -> ${decVerdict:-(answered; the answer text was not recorded)}"
 	[ "$decStatus" != "reply-received" ] || [ -n "$decAmend" ] || decMentions="$decId $decQts $decTts"
 	type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 	DistroAgentsTools --intern-op-decisions-append "$decWho" "$decItem" --kind "$decLineKind" --text "$decText" \
@@ -572,7 +701,7 @@ AgentsToolsDecisionsAppend(){ ## who, item, kind, text, source, clear (all|empty
 		done
 	done
 	type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
-	printf '%s' "$agentsDecisionsAppendAwk" | MDAT_DECISIONS_LINE="$appLine" MDAT_DECISIONS_MARKER="$( AgentsToolsDecisionsMarker "$appName" )" DistroAgentsTools --intern-op-board-upsert-move-edit "$appState" "$appName" \
+	printf '%s' "$agentsDecisionsAppendAwk" | MDAT_DECISIONS_LINE="$appLine" MDAT_DECISIONS_MARKER="$( markerName="${appName##*/}" ; printf '<!-- decisions-of: %s -->\n' "${markerName%.md}" )" DistroAgentsTools --intern-op-board-upsert-move-edit "$appState" "$appName" \
 		--from-state:"$appState" --edit-script-from-stdin:awk "${appHeaders[@]+"${appHeaders[@]}"}" \
 		--context "${MDSC_CMD:-decisions-append}" --log-verb:updated || appRc=$?
 	[ -z "$appLock" ] || AgentsToolsLocalLockGive "$appLock"

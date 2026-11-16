@@ -35,6 +35,7 @@ rigRefuse(){
 [ -x "$rigTool" ] || rigRefuse "the team tooling is not on the path the Wait tool itself resolves: $rigTool"
 
 . "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-writes.include.sh" || exit 1
 rigTmp="$( rigTempDir AgentsHarnessWaitCheck )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
 
@@ -729,7 +730,7 @@ rigNewStart(){ ## scenario name
 	rigNewSession="rig-sess-$1"
 	rigNewPoll="1"
 	rigNewOrigin=""
-	mkdir -p "$rigNewDir/ws/.local/.agents" "$rigNewDir/ws/.local/temp" "$rigNewDir/data/inboxes/$rigMember/incoming" "$rigNewDir/data/board/pending"
+	mkdir -p "$rigNewDir/ws/.local/.agents" "$rigNewDir/ws/.local/temp"
 	printf 'SLACK_CHANNEL_MAGIC_TEAM=CRIG00001\nSLACK_CHANNEL_HUMAN_OWNER=URIGOWNER\nSLACK_BOT_TOKEN=rig-bot-token-TEAM\n' > "$rigNewDir/ws/.local/.agents/magic-team.agent.env"
 	printf 'SLACK_USER_TOKEN=rig-user-token-TESTER\n' > "$rigNewDir/ws/.local/.agents/$rigMember.agent.env"
 	: > "$rigNewDir/curl.log"
@@ -999,7 +1000,7 @@ rigAssert "control: it really waited"                          "$( rigAtLeast "$
 rigNewSession="rig-sess-inbox"
 rigNewIn inbox-default --wait-default --wait-source "inbox:$rigMember" --wait-timeout 2
 rigAssert "the first call times out"                           "$( rigNth "$rigNewOut" 1 )" "WAIT-RESULT: TIMEOUT"
-printf 'RIG-INBOX-NOTE\n' > "$rigNewDir/data/inboxes/$rigMember/incoming/note-rig-arrival.md"
+rigOwnerData="$rigNewDir/data" rigOwnerInboxWrite $rigMember "note-rig-arrival.md" -- 'RIG-INBOX-NOTE\n'
 rigNewIn inbox-continue --wait-continue --wait-timeout 30
 rigAssert "a file added between two calls: RECEIVED"           "$( rigNth "$rigNewOut" 1 )" "WAIT-RESULT: RECEIVED"
 rigAssert "it returned at once, not at the bound"              "$( rigWithin "$rigNewElapsed" 10 )" "within-10"
@@ -1012,7 +1013,7 @@ rigAssert "it refused at second zero"                          "$( rigWithin "$r
 rigNewSession="rig-sess-board"
 rigNewIn board-default --wait-default --wait-source "board:pending" --wait-timeout 2
 rigAssert "an unchanged board state is a TIMEOUT"              "$( rigNth "$rigNewOut" 1 )" "WAIT-RESULT: TIMEOUT"
-printf 'RIG-BOARD-ITEM\n' > "$rigNewDir/data/board/pending/task-rig-arrival.md"
+rigOwnerData="$rigNewDir/data" rigOwnerBoardWrite pending "task-rig-arrival.md" -- 'RIG-BOARD-ITEM\n'
 rigNewIn board-continue --wait-continue --wait-timeout 30
 rigAssert "an item added to the board state: RECEIVED"         "$( rigNth "$rigNewOut" 1 )" "WAIT-RESULT: RECEIVED"
 rigAssert "it returned at once"                                "$( rigWithin "$rigNewElapsed" 10 )" "within-10"

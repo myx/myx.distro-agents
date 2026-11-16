@@ -73,7 +73,8 @@ AgentsToolsAdvanceCloneSync(){
 	set -e
 	if [ "$syncRc" -eq 0 ] ; then
 		type AgentsToolsTeamDataAuditUntrack > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataCommit.include"
-		! type AgentsToolsTeamDataAuditUntrack > /dev/null 2>&1 || AgentsToolsTeamDataAuditUntrack "the advance-lock resync" || :
+		type AgentsToolsTeamDataAuditUntrack > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataCommit.include"
+		AgentsToolsTeamDataAuditUntrack "the advance-lock resync" || :
 	fi
 	## Every sync pushes: what the resync left ahead of origin goes out now, best effort, with the owed marker of every team-data push.
 	if [ "$syncRc" -eq 0 ] ; then
@@ -155,10 +156,6 @@ type AgentsToolsRecheckDate > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-a
 
 ## How long a taken lock reads as held without a write: the spawner's lock, and every state write that refreshes
 ## it. A session's own end gives the lock back; this bounds only a holder that died without being closed.
-AgentsToolsRoutineLockMinutes(){
-	printf '%s\n' 120
-}
-
 ## A LOCK THAT FAILED TO LAND IS DISCARDED LOCALLY, NOT KEPT. A lock is only a lock once the
 ## remote carries it: kept here after a failed or unverifiable publish, it would block this host
 ## for a session that never started, and leave the very commit the owner found stranded (the
@@ -218,14 +215,12 @@ AgentsToolsRoutineLockHolderHeaders(){ ## session id -- one --header:upsert word
 	printf -- '--header:upsert:held-on:%s %s\n' "$( hostname -s 2> /dev/null || printf unknown )" "${MMDAPP##*/}"
 	printf -- '--header:upsert:held-at:%s\n' "$( date +"%Y-%m-%d %H:%M %z" )"
 	case "${1:-}" in ''|*/*|.|..) return 0 ;; esac
-	holderMember="$( LC_ALL=C awk '$0 == "---" { if ( ++fm == 2 ) exit ; next ; } fm == 1 && index( $0, "owner: " ) == 1 { print substr( $0, 8 ) ; exit ; }' "$MMDAPP/.local/agents/spawned/$1/$1.spawn.md" 2> /dev/null )" || holderMember=""
+	type AgentsSessionRunHeadersInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+	AgentsSessionRunHeadersInto "$1" holderMember=owner || :
 	[ -z "$holderMember" ] || printf -- '--header:upsert:held-by:%s\n' "$holderMember"
 }
 
-## A frontmatter field of a note, its first value.
-AgentsToolsRoutineLockField(){ ## note path, field
-	LC_ALL=C awk -v want="$2: " 'NR == 1 { if ( $0 != "---" ) exit ; next ; } $0 == "---" { exit ; } index( $0, want ) == 1 { print substr( $0, length( want ) + 1 ) ; exit ; }' "$1" 2> /dev/null
-}
+type AgentsToolsFrontmatterKey > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.FrontmatterKey.include"
 
 ## THE SPAWNER'S LOCK: takes the locking document for a session while a routine starts, or fails. rc 0 when this
 ## session holds it afterwards (taken now, or already held by this very session: another member joining it), rc 1
@@ -268,7 +263,7 @@ AgentsToolsRoutineLockAcquireOne(){ ## one routine-lock-document value, the sess
 	if [ "$itemHeld" = "true" ] ; then
 		[ "$itemSession" != "$lockSession" ] || return 0
 		local heldBy heldOn heldAt
-		heldBy="$( AgentsToolsRoutineLockField "$lockPath" held-by )" ; heldOn="$( AgentsToolsRoutineLockField "$lockPath" held-on )" ; heldAt="$( AgentsToolsRoutineLockField "$lockPath" held-at )"
+		heldBy="$( AgentsToolsFrontmatterKey "$lockPath" held-by )" ; heldOn="$( AgentsToolsFrontmatterKey "$lockPath" held-on )" ; heldAt="$( AgentsToolsFrontmatterKey "$lockPath" held-at )"
 		echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools}: the routine is already running: its locking document $lockNote ($lockMember) is held by session ${itemSession:-<none>}${heldBy:+ of $heldBy}${heldOn:+ on $heldOn}${heldAt:+, taken $heldAt} (state ${itemState:-<none>}, recheck-date ${itemRecheck:-<none>}) -- nothing was started" >&2
 		return 1
 	fi
@@ -310,7 +305,7 @@ AgentsToolsRoutineLockAcquireOne(){ ## one routine-lock-document value, the sess
 		}
 		agentsRoutineLockOutput="${agentsRoutineLockOutput}$( printf '%s\n' "$lockOut" | LC_ALL=C grep -v -x -e 'ACQUIRED' -e 'RECLAIMED_STALE:.*' || : )"$'\n'
 	else
-		lockRecheck="$( AgentsToolsRecheckDate "$( AgentsToolsRoutineLockMinutes )" )" || lockRecheck=""
+		lockRecheck="$( AgentsToolsRecheckDate "$( ( printf '%s\n' 120 ) )" )" || lockRecheck=""
 		local lockHolder=()
 		while IFS= read -r lockStamp ; do [ -z "$lockStamp" ] || lockHolder+=( "$lockStamp" ) ; done <<< "$( AgentsToolsRoutineLockHolderHeaders "$lockSession" )"
 		if ! AgentsToolsItemUpsert "$lockMember" --from-inbox "$lockMember" "$lockNote" \
@@ -384,9 +379,9 @@ AgentsToolsRoutineLockUnlockOne(){ ## one routine-lock-document value, the sessi
 	local unlockValue="$1" unlockSession="$2" unlockEnded="$3" unlockPath unlockState unlockParsed unlockOwn unlockOut
 	unlockPath="$( AgentsToolsRoutineLockPath "$unlockValue" )" || return 0
 	[ -f "$unlockPath" ] || return 0
-	unlockState="$( AgentsToolsRoutineLockField "$unlockPath" state )"
+	unlockState="$( AgentsToolsFrontmatterKey "$unlockPath" state )"
 	case "$unlockState" in *-finished|'') return 0 ;; esac
-	[ "$( AgentsToolsRoutineLockField "$unlockPath" session-id )" = "$unlockSession" ] || return 0
+	[ "$( AgentsToolsFrontmatterKey "$unlockPath" session-id )" = "$unlockSession" ] || return 0
 	unlockParsed="$( AgentsToolsRoutineLockParse "$unlockValue" )" || return 0
 	unlockOwn="$( AgentsToolsRoutineLockOwnWord "${unlockParsed#*$'\t'}" )"
 	if [ -n "$unlockOwn" ] ; then
@@ -434,13 +429,13 @@ AgentsToolsRoutineLockUnlock(){ ## the routine-lock-document value (a list), the
 AgentsToolsRoutineLockRelease(){ ## spawn record, outcome, exit code
 	local releaseRecord="$1" releaseOutcome="${2:-unknown}" releaseExit="${3:-unknown}" releaseValue releaseSession releaseThis releaseOther
 	[ -f "$releaseRecord" ] || return 0
-	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandbox.include"
+	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandboxRecordHeader.include"
 	releaseValue="$( AgentsToolsSpawnSandboxRecordHeader "$releaseRecord" routine-lock )"
 	[ -n "$releaseValue" ] || return 0
 	releaseSession="$( AgentsToolsSpawnSandboxRecordHeader "$releaseRecord" session-id )"
 	releaseThis="${releaseRecord##*/}"
 	## The session's other records from the kept per-session list (AgentsTools.StartedRecords.include), never a read of every record at a run's end.
-	type AgentsToolsSpawnedSessionRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.StartedRecords.include"
+	type AgentsToolsSpawnedSessionRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include"
 	for releaseOther in $( AgentsToolsSpawnedSessionRecords "$releaseSession" own 2> /dev/null ) ; do
 		[ -f "$releaseOther" ] && [ "${releaseOther##*/}" != "$releaseThis" ] || continue
 		[ "$( AgentsToolsSpawnSandboxRecordHeader "$releaseOther" routine-lock )" = "$releaseValue" ] || continue
@@ -465,8 +460,8 @@ AgentsToolsRoutineLockReleaseConsole(){ ## the routine-lock-document value, the 
 		echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools} --intern-op-routine-lock-release: the locking document ${relValue#inbox:} does not exist: $relPath" >&2
 		return 1
 	}
-	relState="$( AgentsToolsRoutineLockField "$relPath" state )"
-	relSession="$( AgentsToolsRoutineLockField "$relPath" session-id )"
+	relState="$( AgentsToolsFrontmatterKey "$relPath" state )"
+	relSession="$( AgentsToolsFrontmatterKey "$relPath" session-id )"
 	case "$relState" in *-finished|'')
 		echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools} --intern-op-routine-lock-release: the lock on ${relValue#inbox:} is not held (state ${relState:-<none>}) -- nothing was released" >&2
 		return 1
@@ -476,8 +471,8 @@ AgentsToolsRoutineLockReleaseConsole(){ ## the routine-lock-document value, the 
 		echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools} --intern-op-routine-lock-release: the lock on ${relValue#inbox:} holds no session-id -- nothing was released" >&2
 		return 1
 	}
-	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandbox.include"
-	type AgentsToolsSpawnedSessionRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.StartedRecords.include"
+	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandboxRecordHeader.include"
+	type AgentsToolsSpawnedSessionRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include"
 	for relOther in $( AgentsToolsSpawnedSessionRecords "$relSession" own 2> /dev/null ) ; do
 		[ -f "$relOther" ] || continue
 		## A closed record holds nothing: its run has ended, so only a record still started keeps the lock.
@@ -506,14 +501,16 @@ AgentsToolsRoutineLockReleaseConsole(){ ## the routine-lock-document value, the 
 AgentsToolsRoutineSessionLockValue(){ ## the calling run's spawn id
 	local sessionRecord sessionId="" sessionOther sessionValue
 	[ -n "${1:-}" ] && [ -n "${MMDAPP:-}" ] || return 1
-	for sessionRecord in "$MMDAPP"/.local/agents/spawned/*/"$1.spawn.md" ; do
+	type AgentsSessionRunRecordInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+	AgentsSessionRunRecordInto sessionRecord "$1" || :
+	for sessionRecord in ${sessionRecord:+"$sessionRecord"} ; do
 		[ -f "$sessionRecord" ] || continue
-		type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandbox.include"
+		type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandboxRecordHeader.include"
 		sessionId="$( AgentsToolsSpawnSandboxRecordHeader "$sessionRecord" session-id )"
 		break
 	done
 	[ -n "$sessionId" ] || return 1
-	type AgentsToolsSpawnedSessionRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.StartedRecords.include"
+	type AgentsToolsSpawnedSessionRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include"
 	for sessionOther in $( AgentsToolsSpawnedSessionRecords "$sessionId" own 2> /dev/null ) ; do
 		[ -f "$sessionOther" ] || continue
 		sessionValue="$( AgentsToolsSpawnSandboxRecordHeader "$sessionOther" routine-lock )"
@@ -523,30 +520,30 @@ AgentsToolsRoutineSessionLockValue(){ ## the calling run's spawn id
 }
 
 ## THE LOCK OF A LIVE SESSION, KEPT HELD (no agent): a run that works for hours writes nothing to its locking document, and a lock reads as held for
-## AgentsToolsRoutineLockMinutes after its last write. The wait of the run (AgentsTools.MemberWait.include) calls this at each round, and the lock
+## ( printf '%s\n' 120 ) after its last write. The wait of the run (AgentsTools.MemberWait.include) calls this at each round, and the lock
 ## documents of the session that are held by it, `<word>-running`, whose last write is older than half the hold have their recheck-date put ahead again:
 ## one commit, with its push where a remote is set, in half a hold, for each live run. A document another session holds, or one that is finished, is left.
 ## Never fails its caller.
 AgentsToolsRoutineLockRefreshOwn(){ ## the calling run's spawn id
 	local refreshRow refreshSession refreshValue refreshOne refreshPath refreshParsed refreshState refreshRecheck refreshEpoch refreshHalf refreshShort
-	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandbox.include"
+	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandboxRecordHeader.include"
 	refreshRow="$( AgentsToolsRoutineSessionLockValue "$1" )" || return 0
 	refreshSession="${refreshRow%%$'\t'*}" ; refreshValue="${refreshRow#*$'\t'}"
-	refreshHalf=$(( $( AgentsToolsRoutineLockMinutes ) * 30 ))
+	refreshHalf=$(( $( ( printf '%s\n' 120 ) ) * 30 ))
 	for refreshOne in $( printf '%s' "$refreshValue" | LC_ALL=C tr ',' ' ' ) ; do
 		refreshPath="$( AgentsToolsRoutineLockPath "$refreshOne" )" || continue
 		[ -f "$refreshPath" ] || continue
-		refreshState="$( AgentsToolsRoutineLockField "$refreshPath" state )"
+		refreshState="$( AgentsToolsFrontmatterKey "$refreshPath" state )"
 		case "$refreshState" in *-running) ;; *) continue ;; esac
-		[ "$( AgentsToolsRoutineLockField "$refreshPath" session-id )" = "$refreshSession" ] || continue
-		refreshRecheck="$( AgentsToolsRoutineLockField "$refreshPath" recheck-date )"
+		[ "$( AgentsToolsFrontmatterKey "$refreshPath" session-id )" = "$refreshSession" ] || continue
+		refreshRecheck="$( AgentsToolsFrontmatterKey "$refreshPath" recheck-date )"
 		refreshEpoch="$( printf '%s\n' "$refreshRecheck" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/output/LocalIsoToEpoch.awk" 2> /dev/null )" || refreshEpoch=""
 		[ -n "$refreshEpoch" ] || continue
 		[ "$(( refreshEpoch - $( date +%s ) ))" -lt "$refreshHalf" ] || continue
 		refreshParsed="$( AgentsToolsRoutineLockParse "$refreshOne" )" || continue
 		refreshShort="${refreshState%-running}"
 		AgentsToolsItemUpsert "${refreshParsed%%$'\t'*}" --from-inbox "${refreshParsed%%$'\t'*}" "${refreshParsed#*$'\t'}" \
-			--header:upsert:recheck-date:"$( AgentsToolsRecheckDate "$( AgentsToolsRoutineLockMinutes )" )" \
+			--header:upsert:recheck-date:"$( AgentsToolsRecheckDate "$( ( printf '%s\n' 120 ) )" )" \
 			--commit-message "* $refreshShort.routine: spawner lock refreshed" \
 			--context --intern-op-wait-for-input > /dev/null 2>&1 || :
 	done
@@ -586,7 +583,7 @@ AgentsToolsRoutineStateWrite(){ ## the inbox member, the note, the operation (fo
 	writeWord="$( printf '%s\n' "$lockFields" | LC_ALL=C sed -n 's/^state: \(.*\)-running$/\1/p' | head -n 1 )"
 	if [ -n "$writeWord" ] ; then
 		local refreshDate
-		refreshDate="$( AgentsToolsRecheckDate "$( AgentsToolsRoutineLockMinutes )" )"
+		refreshDate="$( AgentsToolsRecheckDate "$( ( printf '%s\n' 120 ) )" )"
 		lockFields="$( printf '%s\n' "$lockFields" | LC_ALL=C awk -v recheck="recheck-date: $refreshDate" '
 			/^recheck-date: / { print recheck ; done = 1 ; next ; }
 			{ print ; }
@@ -633,7 +630,7 @@ AgentsToolsRoutineStateWrite(){ ## the inbox member, the note, the operation (fo
 ## so a participant can update the state as often as it has updates, and can neither take the lock nor give it back.
 AgentsToolsRoutineSessionStateUpdate(){ ## the operation's arguments
 	local updOp="--update-routine-state" updDocument="" updHeaders="" updModes=0 updMode="" updFile="" updArg
-	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandbox.include"
+	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandboxRecordHeader.include"
 	type AgentsToolsInboxNotePath > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/inbox/AgentsTools.InboxPlace.include"
 	type AgentsToolsRecheckDate > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.RecheckDate.include"
 	type AgentsToolsItemUpsert > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/items/AgentsTools.InternOpItem.include"
@@ -710,7 +707,7 @@ AgentsToolsRoutineSessionStateUpdate(){ ## the operation's arguments
 		echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools} $updOp: the locked document $updNote of $updMember does not exist: $updPath" >&2
 		return 1
 	fi
-	updState="$( AgentsToolsRoutineLockField "$updPath" state )" ; updHeld="$( AgentsToolsRoutineLockField "$updPath" session-id )"
+	updState="$( AgentsToolsFrontmatterKey "$updPath" state )" ; updHeld="$( AgentsToolsFrontmatterKey "$updPath" session-id )"
 	case "$updState" in
 		*-finished|'')
 			echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools} $updOp: the lock on $updNote has been given back (state ${updState:-<none>}) -- nothing was written" >&2
@@ -832,12 +829,15 @@ AgentsToolsRoutineLockTakeOwn(){ ## routine word, member, owner label
 	## Read before the acquire writes: the first daily of the day is one whose note does not carry today's local date as its last-close-date.
 	if [ "$takeWord" = daily ] ; then
 		takeFirst="yes"
-		if [ -n "${MDAT_DATA_ROOT:-}" ] && [ -f "$MDAT_DATA_ROOT/inboxes/magic-coordinator/incoming/$takeNote" ] ; then
+		local takeNotePath=""
+		type AgentsToolsInboxNotePath > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/inbox/AgentsTools.InboxPlace.include"
+		[ -z "${MDAT_DATA_ROOT:-}" ] || takeNotePath="$( AgentsToolsInboxNotePath magic-coordinator "$takeNote" )"
+		if [ -n "$takeNotePath" ] && [ -f "$takeNotePath" ] ; then
 			takeLastClose="$( LC_ALL=C awk '
 				{ sub(/\r$/, "") ; }
 				$0 == "---" { fmDepth++ ; if (fmDepth >= 2) exit ; next ; }
 				fmDepth == 1 && /^last-close-date: / { print substr($0, 18) ; exit ; }
-			' "$MDAT_DATA_ROOT/inboxes/magic-coordinator/incoming/$takeNote" )"
+			' "$takeNotePath" )"
 		fi
 		[ "$takeLastClose" != "$( date +%Y-%m-%d )" ] || takeFirst="no"
 	fi

@@ -214,7 +214,7 @@ AgentsToolsContactsCollectContact(){ ## the operation, its arguments...
 			collectChanged="${collectChanged:+$collectChanged, }scope-tier ${colScopeEntry%%=*}$( [ -z "$colScopeOld" ] || printf ' (was: %s)' "$colScopeOld" )"
 		done <<< "$( printf '%s' "$colScopeTier" | LC_ALL=C tr ',' '\n' )"
 	fi
-	## EVERY MEMBER OF A CONTACT'S ORGANISATION HOLDS tier-contact WITHOUT AN ASK (the human-owner's ruling, 2026-11-09): a record with an organisation and no tier is given it.
+	## EVERY MEMBER OF A CONTACT'S ORGANISATION HOLDS tier-contact WITHOUT AN ASK: a record with an organisation and no tier is given it.
 	if [ -z "$crTier" ] && [ -n "$crOrg" ] ; then
 		crTier=tier-contact ; collectChanged="${collectChanged:+$collectChanged, }tier tier-contact (organisation member)"
 	fi

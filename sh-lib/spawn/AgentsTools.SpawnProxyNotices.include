@@ -178,6 +178,9 @@ AgentsToolsSpawnProxyHandbacks(){ ## the run, by its own spawn id; its output fi
 ## Never fails its caller: a post that cannot be made is that function's one warning on
 ## stderr, which is the run's log for a run that is not waited for.
 AgentsToolsSpawnProxyEndNotice(){ ## the run's record, what its closer saw of a handback (`missing` or `seen`; read from the run's log where not given; `died` for a death, which the control thread of its session tells), the bound in seconds where the tooling's bound ended it (may be empty), `caller-waits` for a start its caller waits on (may be empty)
+	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandboxRecordHeader.include"
+	type AgentsToolsSpawnConversationThreadValid > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionThreads.include"
+	type AgentsToolsRunRoute > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.RunRoute.include"
 	local endRecord="${1:-}" endSeen="${2:-}" endBound="${3:-}" endWaits="${4:-}"
 	local endRun endMember endOwn endRoute endRouted="" endTo="" endTell="" endLine="" endBy="" endAt="" endUnrequested="" endSession="" endLimit=""
 	local endParts endPart endEvents="" endStop endWent endHeld="" endGave=""

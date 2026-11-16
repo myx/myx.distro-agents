@@ -88,9 +88,9 @@ AgentsToolsAuthorityCaller(){
 	agentsAuthorityCallerId="user-$( AgentsToolsConsoleAccount || printf 'unknown\n' )"
 	agentsAuthorityCallerRun="" agentsAuthorityCallerSession="" agentsAuthorityCallerRecord=""
 	[ -n "${MDAT_SPAWN_AGENT:-}" ] || return 0
-	type AgentsToolsSessionRunRecord > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionSeats.include"
+	type AgentsSessionRunRecordInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
 	agentsAuthorityCallerKind="member" agentsAuthorityCallerId="$MDAT_SPAWN_AGENT" agentsAuthorityCallerRun="${MDAT_SPAWN_SESSION_ID:-}"
-	agentsAuthorityCallerRecord="$( AgentsToolsSessionRunRecord "$agentsAuthorityCallerRun" )" || agentsAuthorityCallerRecord=""
+	AgentsSessionRunRecordInto agentsAuthorityCallerRecord "$agentsAuthorityCallerRun" || :
 	[ -z "$agentsAuthorityCallerRecord" ] || agentsAuthorityCallerSession="$( AgentsToolsAuthorityField "$agentsAuthorityCallerRecord" session-id )"
 	[ -n "$agentsAuthorityCallerSession" ] || agentsAuthorityCallerSession="${MDAT_SESSION_ID:-$agentsAuthorityCallerRun}"
 }
@@ -100,7 +100,7 @@ AgentsToolsAuthorityFounder(){ ## session
 	local founderRecord
 	type AgentsToolsSessionRunExecutor > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionSeats.include"
 	## The session's records from the kept per-session list (AgentsTools.StartedRecords.include), never a grep of every record on an ask.
-	type AgentsToolsSpawnedSessionRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.StartedRecords.include"
+	type AgentsToolsSpawnedSessionRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include"
 	for founderRecord in $( AgentsToolsSpawnedSessionRecords "$1" own 2> /dev/null ) ; do
 		! AgentsToolsSessionRunExecutor "$founderRecord" || { printf '%s' "$founderRecord" ; return 0 ; }
 	done
@@ -115,7 +115,7 @@ AgentsToolsAuthoritySessionRecord(){ ## session
 	local sessionRecord="" sessionCandidate sessionAny=""
 	sessionRecord="$( AgentsToolsAuthorityFounder "$1" )" && { printf '%s' "$sessionRecord" ; return 0 ; }
 	AgentsToolsAuthorityCaller
-	type AgentsToolsSpawnedSessionRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.StartedRecords.include"
+	type AgentsToolsSpawnedSessionRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include"
 	for sessionCandidate in $( AgentsToolsSpawnedSessionRecords "$1" own 2> /dev/null ) ; do
 		[ -n "$sessionAny" ] || sessionAny="$sessionCandidate"
 		type AgentsToolsRunRoute > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.RunRoute.include"
@@ -129,7 +129,7 @@ AgentsToolsAuthoritySessionRecord(){ ## session
 ## where it has one; the routine is the founding run's; the members are those that have a run in it.
 AgentsToolsAuthoritySessionWords(){ ## session
 	local wordsFile wordsName="" wordsRoutine="" wordsMembers="" wordsOwner
-	type AgentsToolsSpawnedSessionRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.StartedRecords.include"
+	type AgentsToolsSpawnedSessionRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include"
 	for wordsFile in $( AgentsToolsSpawnedSessionRecords "$1" own 2> /dev/null ) ; do
 		[ -n "$wordsName" ] || wordsName="$( AgentsToolsAuthorityField "$wordsFile" session-comment )"
 		[ -n "$wordsRoutine" ] || wordsRoutine="$( AgentsToolsAuthorityField "$wordsFile" routine )"
@@ -160,15 +160,17 @@ AgentsToolsAuthorityAddressHeld(){ ## address
 ## Whether the owners role granted the caller the authority in a session, by a recorded
 ## permission: a grant of a refusal of this rule whose record names the caller. rc 0 it did.
 AgentsToolsAuthorityGranted(){ ## session
-	local grantedFile grantedKind grantedTool grantedTarget grantedBy grantedStamp grantedRefusal
+	local grantedLines grantedKind grantedTool grantedTarget grantedBy grantedStamp grantedRefusal grantedOwner
 	[ -n "$1" ] || return 1
-	grantedFile="${MMDAPP:-/nonexistent}/.local/agents/sessions/$1/grants"
-	[ -f "$grantedFile" ] || return 1
+	type AgentsSessionGrantLinesInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+	AgentsSessionGrantLinesInto grantedLines "$1"
+	[ -n "$grantedLines" ] || return 1
 	while IFS=: read -r grantedKind grantedTool grantedTarget grantedBy grantedStamp grantedRefusal ; do
 		[ "$grantedTool" = authority ] || continue
-		[ "$( AgentsToolsAuthorityField "${MMDAPP:-/nonexistent}/.local/agents/sessions/$1/$grantedRefusal.md" owner )" = "$agentsAuthorityCallerId" ] || continue
+		AgentsSessionRefusalHeadersInto "$1" "$grantedRefusal" grantedOwner=owner || :
+		[ "$grantedOwner" = "$agentsAuthorityCallerId" ] || continue
 		return 0
-	done < "$grantedFile"
+	done <<< "$grantedLines"
 	return 1
 }
 
@@ -178,7 +180,7 @@ AgentsToolsAuthorityLadderUp(){ ## spawn record of the run whose authority is as
 	local ladderParent ladderRun ladderSeen=0
 	ladderParent="$( AgentsToolsAuthorityField "$1" parent-session-id )"
 	case "$ladderParent" in ''|-|.|..|*/*) return 1 ;; esac
-	type AgentsToolsSpawnedSessionRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.StartedRecords.include"
+	type AgentsToolsSpawnedSessionRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include"
 	for ladderRun in $( AgentsToolsSpawnedSessionRecords "$ladderParent" own 2> /dev/null ) ; do
 		ladderSeen=1
 		[ "$( AgentsToolsAuthorityField "$ladderRun" status )" = spawn-started ] || continue
@@ -327,7 +329,7 @@ AgentsToolsOwnerQuorumDecide(){ ## rule, members (one a line), votes (one a line
 		[ -n "$decVote" ] || continue
 		decMember="${decVote%%=*}" ; decVerdict="${decVote#*=}"
 		decWord="$( printf '%s' "$decVerdict" | LC_ALL=C tr 'ABCDEFGHIJKLMNOPQRSTUVWXYZ' 'abcdefghijklmnopqrstuvwxyz' )"
-		if AgentsToolsAuthorityApproving "$decWord" ; then
+		if case "$decWord" in allow|allow-once|allow-session|allow-task|allow-contact|yes|correct) : ;; *) false ;; esac ; then
 			decApproves=$(( decApproves + 1 ))
 			[ -n "$decFirstApprove" ] || decFirstApprove="$decVerdict $decMember"
 		elif AgentsToolsAuthorityRefusing "$decWord" ; then
@@ -647,7 +649,7 @@ AgentsToolsAuthorityRequestSettle(){ ## request record, verdict, answered by
 	settleVerdict="$( printf '%s' "$2" | LC_ALL=C tr 'ABCDEFGHIJKLMNOPQRSTUVWXYZ' 'abcdefghijklmnopqrstuvwxyz' )"
 	## The word is the answer; a comment after it (`yes, go on` is read as `yes -- go on`) is not part of it.
 	settleVerdict="${settleVerdict%% -- *}"
-	if ! AgentsToolsAuthorityApproving "$settleVerdict" ; then
+	if ! case "$settleVerdict" in allow|allow-once|allow-session|allow-task|allow-contact|yes|correct) : ;; *) false ;; esac ; then
 		case "$settleVerdict" in
 			deny|no) ;;
 			*)
@@ -674,7 +676,7 @@ AgentsToolsAuthorityRequestSettle(){ ## request record, verdict, answered by
 		}
 	fi
 	AgentsToolsAuthorityFieldSet "$settleFile" status reply-received verdict "$settleVerdict" answered-by "$settleBy" answered-at "$( date +"%Y-%m-%d %H:%M %z" )" ${settleChosen:+chosen "$settleChosen"} || return 1
-	if ! AgentsToolsAuthorityApproving "$settleVerdict" && [ -z "$settleChosen" ] ; then
+	if ! case "$settleVerdict" in allow|allow-once|allow-session|allow-task|allow-contact|yes|correct) : ;; *) false ;; esac && [ -z "$settleChosen" ] ; then
 		printf 'DENIED %s\n' "$( basename "$settleFile" .md )"
 		return 0
 	fi
@@ -688,7 +690,8 @@ AgentsToolsAuthorityRequestSettle(){ ## request record, verdict, answered by
 	## without this an answer given and applied reached nobody and the asker went on as if he had not answered.
 	if [ "$settleActRc" = 0 ] ; then
 		type AgentsToolsEscalationConfirm > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.Escalation.include"
-		! type AgentsToolsEscalationConfirm > /dev/null 2>&1 || AgentsToolsEscalationConfirm "$settleFile" "$( basename "$settleFile" .md )" taken "${settleChosen:-$settleVerdict}" "$settleBy" "" "" || :
+		type AgentsToolsEscalationConfirm > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.Escalation.include"
+		AgentsToolsEscalationConfirm "$settleFile" "$( basename "$settleFile" .md )" taken "${settleChosen:-$settleVerdict}" "$settleBy" "" "" || :
 	fi
 	AgentsToolsAuthorityRequesterTell "$settleFile" "${settleChosen:-$settleVerdict}" "$settleBy" "$settleActRc"
 	return "$settleActRc"
@@ -698,18 +701,17 @@ AgentsToolsAuthorityRequestSettle(){ ## request record, verdict, answered by
 ## addressed to the member that asked, which its Wait reads at its next tick. Never fails its caller: a request with no run, or a
 ## session with no folder, is told nothing.
 AgentsToolsAuthorityRequesterTell(){ ## request record, the answer, answered by, the action's exit status
-	local tellFile="$1" tellRun tellBy tellSession="" tellRecord="" tellThread="" tellWhat tellId
+	local tellFile="$1" tellRun tellBy tellSession="" tellThread="" tellWhat tellId
 	tellRun="$( AgentsToolsAuthorityField "$tellFile" requester-run )"
 	tellBy="$( AgentsToolsAuthorityField "$tellFile" requester )"
 	case "$tellRun" in ''|none|-|.|..|*/*) return 0 ;; esac
 	[ -n "$tellBy" ] && [ -n "${MMDAPP:-}" ] || return 0
 	tellId="$( basename "$tellFile" .md )"
 	tellWhat="$( AgentsToolsAuthorityField "$tellFile" request-what )"
-	for tellRecord in "$MMDAPP"/.local/agents/spawned/*/"$tellRun.spawn.md" ; do [ ! -f "$tellRecord" ] || break ; done
-	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandbox.include"
-	[ ! -f "$tellRecord" ] || tellSession="$( AgentsToolsSpawnSandboxRecordHeader "$tellRecord" session-id 2> /dev/null )"
+	type AgentsSessionRunHeadersInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+	AgentsSessionRunHeadersInto "$tellRun" tellSession=session-id || :
 	case "$tellSession" in ''|-|.|..|*/*) tellSession="$tellRun" ;; esac
-	[ -d "$MMDAPP/.local/agents/sessions/$tellSession" ] || return 0
+	AgentsSessionKnown "$tellSession" || return 0
 	tellThread="$( AgentsSessionThread "$tellSession" )"
 	case "$tellThread" in ''|-) tellThread="local" ;; esac
 	type AgentsToolsSessionChatAppend > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include"

@@ -1596,13 +1596,11 @@ rigAssert "with no description and no task text there is no such line, and no em
 ## The one reader of a task in words (AgentsTools.TaskText.include), which the permission set
 ## post uses too: the tracked item's title and first paragraph, else the dispatch's own brief.
 . "$rigLib/session/AgentsTools.TaskText.include"
-mkdir -p "$rigTmp/data/board/running" "$rigTmp/data/board/backlog"
-printf -- '---\nstatus: task\nowner: magic-tester\n---\n\n# Fix the vars loader\n\nThe loader drops a variable whose value holds an equals sign. It must keep the whole value! Add a check for it. Then run the suite? A fifth sentence that must not show.\n\n## Notes\n\nnot the first paragraph\n' \
-	> "$rigTmp/data/board/backlog/task-rig-start.md"
-printf -- '---\nowner: magic-tester\ntracks: task-rig-start\n---\n\n# Spawn-proxy dispatch: magic-tester\n\n## Brief\n\nbrief text of the dispatch.\n' > "$rigTmp/data/board/running/dispatch-rig-tracks.md"
-printf -- '---\nowner: magic-tester\n---\n\n# Spawn-proxy dispatch: magic-tester\n\n## Brief\n\nSPAWN-PREPARE-BRIEF: magic-tester\ntool-routing: rig\nWhen done, hand back and Wait until dismissed.\n\nPlease fix the loader with the token sk-ant-api03-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA. Keep the tests green.\n\n## Your sandbox\n\nout\n' \
-	> "$rigTmp/data/board/running/dispatch-rig-own.md"
-printf -- '---\nowner: magic-tester\n---\n\n# Spawn-proxy dispatch: magic-tester\n\n## Brief\n\n' > "$rigTmp/data/board/running/dispatch-rig-empty.md"
+rigBoardStates "$rigTmp/data" running backlog
+printf -- '---\nstatus: task\nowner: magic-tester\n---\n\n# Fix the vars loader\n\nThe loader drops a variable whose value holds an equals sign. It must keep the whole value! Add a check for it. Then run the suite? A fifth sentence that must not show.\n\n## Notes\n\nnot the first paragraph\n' | rigStoreItem "$rigTmp/data" board backlog task-rig-start.md
+printf -- '---\nowner: magic-tester\ntracks: task-rig-start\n---\n\n# Spawn-proxy dispatch: magic-tester\n\n## Brief\n\nbrief text of the dispatch.\n' | rigStoreItem "$rigTmp/data" board running dispatch-rig-tracks.md
+printf -- '---\nowner: magic-tester\n---\n\n# Spawn-proxy dispatch: magic-tester\n\n## Brief\n\nSPAWN-PREPARE-BRIEF: magic-tester\ntool-routing: rig\nWhen done, hand back and Wait until dismissed.\n\nPlease fix the loader with the token sk-ant-api03-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA. Keep the tests green.\n\n## Your sandbox\n\nout\n' | rigStoreItem "$rigTmp/data" board running dispatch-rig-own.md
+printf -- '---\nowner: magic-tester\n---\n\n# Spawn-proxy dispatch: magic-tester\n\n## Brief\n\n' | rigStoreItem "$rigTmp/data" board running dispatch-rig-empty.md
 rigAssert "a dispatch that tracks a task: the task's title, both names, and its first paragraph cut at a sentence end, four sentences at most" \
 	"$( AgentsToolsTaskText "$rigTmp/data/board/running/dispatch-rig-tracks.md" | LC_ALL=C tr '\t\n' '=|' )" \
 	'title=Fix the vars loader|item=task-rig-start|dispatch=dispatch-rig-tracks|text=The loader drops a variable whose value holds an equals sign. It must keep the whole value! Add a check for it. Then run the suite?|'
@@ -1612,7 +1610,7 @@ rigAssert "a dispatch that tracks none: its own heading, and the first paragraph
 rigAssert "no task text: no text line, and no name with nothing beside it" \
 	"$( AgentsToolsTaskText "$rigTmp/data/board/running/dispatch-rig-empty.md" | LC_ALL=C tr '\t\n' '=|' )" 'title=Spawn-proxy dispatch: magic-tester|dispatch=dispatch-rig-empty|'
 rigAssert "a first sentence longer than the limit is cut at 480 bytes, with an ellipsis" \
-	"$( printf -- '---\n---\n\n# T\n\n%0600d no sentence end\n' 0 > "$rigTmp/data/board/backlog/task-rig-long.md" ; AgentsToolsTaskText "$rigTmp/data/board/backlog/task-rig-long.md" | LC_ALL=C sed -n 's/^text\t//p' | LC_ALL=C awk '{ print length( $0 ) ":" ( substr( $0, length( $0 ) - 2 ) == "\342\200\246" ? "ellipsis" : "none" ) }' )" "483:ellipsis"
+	"$( printf -- '---\n---\n\n# T\n\n%0600d no sentence end\n' 0 | rigStoreItem "$rigTmp/data" board backlog task-rig-long.md ; AgentsToolsTaskText "$rigTmp/data/board/backlog/task-rig-long.md" | LC_ALL=C sed -n 's/^text\t//p' | LC_ALL=C awk '{ print length( $0 ) ":" ( substr( $0, length( $0 ) - 2 ) == "\342\200\246" ? "ellipsis" : "none" ) }' )" "483:ellipsis"
 rigAssert "a description somebody gave is one line, redacted, cut as a message is" \
 	"$( AgentsToolsTaskTextLine "$( printf 'first line\nsecond line %0130d' 0 )" | LC_ALL=C awk '{ print substr( $0, 1, 22 ) ":" length( $0 ) }' )" "first line second line:123"
 ## Through the spawn proxy: a spawn made for a tracked task, with the spawner's description.

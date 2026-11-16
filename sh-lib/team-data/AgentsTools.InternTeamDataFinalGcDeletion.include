@@ -152,22 +152,24 @@ AgentsToolsFinalGcReadArchiveFlag(){
 ## the time this returns the source is gone from the index and the destination
 ## is in HEAD, so handing either to this op's own `git add` would be a pathspec
 ## matching nothing -- the failure that destroys an item and then reports it.
-## The destination directory is created if missing: the primitive errors out on
-## a missing one, and an automatic diversion cannot be allowed to fail for that.
+## The destination state's folders are made by the board's own ready step, and each path a failure line prints is built by
+## the board's own answer, so this front names no board folder.
 ## Sets: nothing on success; on failure gcScanFailedPath and gcScanFailedWhat.
 AgentsToolsFinalGcDivertBoardItem(){
 	local itemName="$1" toState="$2"
-	mkdir -p "$MDAT_DATA_ROOT/board/$toState" || {
-		gcScanFailedPath="$MDAT_DATA_ROOT/board/$toState"
-		gcScanFailedWhat="create the board/$toState directory the move needs for"
+	type AgentsToolsBoardReady > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.BoardStates.include"
+	type AgentsToolsBoardStatePathInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemDecisions.include"
+	if ! AgentsToolsBoardReady ; then
+		AgentsToolsBoardStatePathInto gcScanFailedPath processed "$itemName" || gcScanFailedPath=""
+		gcScanFailedWhat="create the board state directories the diversion needs, to divert"
 		return 1
-	}
+	fi
 	type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 	if ! DistroAgentsTools --intern-op-board-upsert-move-edit "$toState" "$itemName" \
 		--from-state:processed \
 		--context --intern-team-data-final-gc-deletion
 	then
-		gcScanFailedPath="$MDAT_DATA_ROOT/board/processed/$itemName"
+		AgentsToolsBoardStatePathInto gcScanFailedPath processed "$itemName" || :
 		gcScanFailedWhat="divert to board/$toState"
 		return 1
 	fi
@@ -433,10 +435,9 @@ AgentsToolsFinalGcScanDir(){
 			done
 			[ "$gcSandboxOpen" = "false" ] || continue
 			for gcFolderName in $gcSandboxRemovable ; do
-				chmod -R u+w "$MMDAPP/.local/agents/spawned/$gcFolderName" 2> /dev/null || :
-				if ! rm -rf -- "$MMDAPP/.local/agents/spawned/$gcFolderName" ; then
-					gcScanFailedPath="$MMDAPP/.local/agents/spawned/$gcFolderName"
-					gcScanFailedWhat="delete"
+				if ! AgentsToolsSpawnSandboxRemove "$gcFolderName" ; then
+					gcScanFailedPath="$gcFolderName"
+					gcScanFailedWhat="delete the sandbox folder"
 					return 1
 				fi
 				gcSandboxCount=$(( gcSandboxCount + 1 ))
@@ -571,15 +572,18 @@ case "$1" in
 			done
 		fi
 
-		## Board source: one fixed folder, no per-member fan-out.
-		local boardProcessed=""
-		boardProcessed="$( cd "$MDAT_DATA_ROOT/board/processed" 2>/dev/null && pwd -P )" || boardProcessed=""
-		if [ -n "$boardProcessed" ] ; then
+		## Board source: the processed population is the board's own answer, and the folder its git clock reads is the
+		## board's too. An empty population is no fault: a board with nothing processed has nothing to collect.
+		local boardItems=() boardFolders=()
+		type AgentsToolsBoardItemsInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemDecisions.include"
+		AgentsToolsBoardItemsInto boardItems "" processed
+		if [ "${#boardItems[@]}" -gt 0 ] ; then
+			AgentsToolsBoardStateFoldersInto boardFolders processed
 			## Built once, before the scan: this op only moves items OUT of
 			## board/processed/, so no candidate's answer changes under it.
 			AgentsToolsFinalGcDependedNames "$MDAT_DATA_ROOT/board"
 			gcDeletedCount=0 ; gcSeenCount=0
-			if ! AgentsToolsFinalGcScanDir "$boardProcessed" "$nowEpoch" "" board ; then
+			if ! AgentsToolsFinalGcScanDir "${boardFolders[0]}" "$nowEpoch" "" board ; then
 				echo "$MDSC_CMD: team-data-final-gc-deletion: ⛔ ERROR: could not $gcScanFailedWhat $gcScanFailedPath" >&2
 				set +e ; return 1
 			fi

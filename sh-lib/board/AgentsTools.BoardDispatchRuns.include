@@ -1,0 +1,46 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.BoardDispatchRuns.include -- the runs a board's dispatch items record, as one table for a reader that places a
+## file by whose run covers its moment (the stray store's inbox items). The reading of dispatch items is the board's own: a
+## caller names the team data root it enumerates and gets `owner<TAB>start<TAB>end` back, and builds no path into the board.
+## Sourced, never run. Functions only.
+##
+
+## A moment `YYYY-MM-DD HH:MM +ZZZZ` in seconds since 1970, by arithmetic: the system awk has no mktime. -1 for no moment.
+agentsBoardDispatchEpochAwk='
+function epochOf(s,  y, m, d, H, M, z, sign, zh, zm, yy, era, yoe, doy, doe, days) {
+	if (s !~ /^[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9] [0-9][0-9]:[0-9][0-9]/) return -1
+	y = substr(s, 1, 4) + 0 ; m = substr(s, 6, 2) + 0 ; d = substr(s, 9, 2) + 0 ; H = substr(s, 12, 2) + 0 ; M = substr(s, 15, 2) + 0
+	z = substr(s, 18, 5) ; sign = ( substr(z, 1, 1) == "-" ) ? -1 : 1 ; zh = substr(z, 2, 2) + 0 ; zm = substr(z, 4, 2) + 0
+	yy = y - ( m <= 2 ? 1 : 0 ) ; era = int(yy / 400) ; yoe = yy - era * 400
+	doy = int((153 * (m + ( m > 2 ? -3 : 9 )) + 2) / 5) + d - 1
+	doe = yoe * 365 + int(yoe / 4) - int(yoe / 100) + doy
+	days = era * 146097 + doe - 719468
+	return days * 86400 + H * 3600 + M * 60 - sign * (zh * 3600 + zm * 60)
+}'
+
+## THE RUNS OF ONE BOARD, into the named variable: `owner<TAB>start<TAB>end`, one a dispatch item, in seconds since 1970, an
+## open run ending at the far future. The team data root is the caller's input, because a reader of the stray store enumerates
+## other rigs. One awk pass, no file: a caller that reads several rigs keeps the tables it needs and writes none.
+AgentsToolsBoardDispatchRunsTableInto(){ ## variable, team data root
+	local runsVar="$1" runsRoot="${2%/}" runsFiles=() runsFile
+	case "$runsVar" in ''|*[!A-Za-z0-9_]*) return 1 ;; esac
+	printf -v "$runsVar" '%s' ""
+	[ -n "$runsRoot" ] || return 0
+	for runsFile in "$runsRoot"/board/*/dispatch-*.md ; do
+		[ -f "$runsFile" ] && runsFiles+=( "$runsFile" )
+	done
+	[ "${#runsFiles[@]}" -gt 0 ] || return 0
+	printf -v "$runsVar" '%s' "$( LC_ALL=C awk "$agentsBoardDispatchEpochAwk"'
+		function flush() { if ( owner != "" && start >= 0 ) { print owner "\t" start "\t" ( end >= 0 ? end : 9999999999 ) } owner = "" ; start = -1 ; end = -1 ; inHead = 0 }
+		FNR == 1 { flush() ; if ( $0 == "---" ) inHead = 1 ; next }
+		inHead && $0 == "---" { inHead = 0 ; next }
+		inHead && index($0, "owner: ") == 1 { owner = substr($0, 8) }
+		inHead && index($0, "started-at: ") == 1 { start = epochOf(substr($0, 13)) }
+		inHead && index($0, "resolved-at: ") == 1 { end = epochOf(substr($0, 14)) }
+		inHead && index($0, "processed-at: ") == 1 && end < 0 { end = epochOf(substr($0, 15)) }
+		END { flush() }' ${runsFiles[@]+"${runsFiles[@]}"} )"
+	return 0
+}

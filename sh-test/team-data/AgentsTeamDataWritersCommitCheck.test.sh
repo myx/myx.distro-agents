@@ -22,17 +22,18 @@ command -v git > /dev/null || rigRefuse "git is not installed"
 
 . "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
 . "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-control-threads.include.sh" || exit 1
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-store-item.include.sh" || exit 1
 rigTmp="$( rigTempDir AgentsTeamDataWritersCommitCheck )" || exit 1
 ## The store's commit thread, and every other thread a scene started, ends before the rig goes (rigControlThreadsEnd, T1905Z).
 trap 'rigControlThreadsEnd "$rigTmp" ; rm -rf -- "$rigTmp"' EXIT
 rigWs="$rigTmp/ws"
 rigStore="$rigTmp/store"
-mkdir -p "$rigWs/.local" "$rigStore/audit" "$rigStore/inboxes/magic-coordinator" "$rigStore/inboxes/magic-tester"
+mkdir -p "$rigWs/.local" "$rigStore/audit"
 git -C "$rigStore" init -q || rigRefuse "could not init the temp store"
 git -C "$rigStore" config user.email rig@example.invalid
 git -C "$rigStore" config user.name rig
 printf 'seed\n' > "$rigStore/README.md"
-git -C "$rigStore" add -A && git -C "$rigStore" commit -q -m seed || rigRefuse "could not seed the temp store"
+git -C "$rigStore" add -- README.md && git -C "$rigStore" commit -q -m seed || rigRefuse "could not seed the temp store"
 
 export MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigStore" MDLT_ORIGIN
 [ "$MDAT_DATA_ROOT" = "$rigStore" ] || rigRefuse "MDAT_DATA_ROOT is not the temp store"
@@ -72,6 +73,18 @@ rigAfter(){ ## writer name
 }
 ## What a writer printed, and what the store's commit thread logged for it: the commit, and its warnings, are the thread's.
 rigSaid(){ cat "$rigTmp/out" "$rigStore"/.git/team-data-commit/thread.log 2> /dev/null ; }
+## A fixture item is built by its store's own write (rig-store-item.include.sh), never by hand: a hand-written item stays
+## green when that write's own file contract changes, which is what this check is here to catch.
+rigBodyCount=0
+rigPut(){ ## selector ((`board backlog rig-old.md`), body text
+	rigBodyCount=$(( rigBodyCount + 1 ))
+	printf '%s\n' "$2" > "$rigTmp/body$rigBodyCount"
+	rigStoreItem "$rigTmp" "$rigStore" "$rigWs" magic-coordinator "$1" "$rigTmp/body$rigBodyCount" \
+		|| rigRefuse "could not write $1 through its store's own write"
+}
+## The item git never knew is written before the store becomes a repository, and the seed commit takes only the README, so
+## it stands untracked: an item written through the store's own write into a repository is committed by that write.
+rigPut "board backlog rig-untracked.md" "$( printf -- '---\nowner: rig\n---\nuntracked\n' )"
 
 echo "-- writer: --sweep-state-upsert --"
 rigStep
@@ -122,24 +135,24 @@ rigAssert "dirty store: the warning names the path"   "$( grep -q 'audit/stray.m
 rm -f "$rigStore/audit/stray.md"
 
 echo "-- board-rename: the old name's removal is committed too --"
-mkdir -p "$rigStore/board/backlog"
-printf -- '---\nowner: rig\n---\nbody\n' > "$rigStore/board/backlog/rig-old.md"
-git -C "$rigStore" add -A && git -C "$rigStore" commit -q -m "seed rig-old"
+rigPut "board backlog rig-old.md" "$( printf -- '---\nowner: rig\n---\nbody\n' )"
 "$rigFn" --intern-op-board-rename rig-old.md rig-new.md --do-not-track > "$rigTmp/out" 2>&1
 rigAssert "board-rename: the item moved"              "$( [ -f "$rigStore/board/backlog/rig-new.md" ] && [ ! -e "$rigStore/board/backlog/rig-old.md" ] && printf yes || printf no )" yes
 rigAssert "board-rename: the store is clean afterwards" "$( rigClean )" clean
 rigAssert "board-rename: git no longer holds the old name" "$( [ -z "$( rigHistory ls-files -- board/backlog/rig-old.md )" ] && printf yes || printf no )" yes
 
 echo "-- board-trash: an item git never knew is deleted without an error --"
-printf -- '---\nowner: rig\n---\nuntracked\n' > "$rigStore/board/backlog/rig-untracked.md"
+## rig-untracked.md was written before the store became a repository, and no commit of the store's ever added it.
 "$rigFn" --intern-op-board-trash magic-coordinator backlog rig-untracked.md > "$rigTmp/out" 2>&1
 rigTrashRc=$?
 rigAssert "board-trash untracked: exit 0"             "$rigTrashRc" 0
 rigAssert "board-trash untracked: the item is gone"   "$( [ -e "$rigStore/board/backlog/rig-untracked.md" ] && printf present || printf gone )" gone
 rigAssert "board-trash untracked: the store is clean" "$( rigClean )" clean
 rigAssert "board-trash untracked: history keeps the item" "$( rigHistory log --all --format=%H -- board/backlog/rig-untracked.md | LC_ALL=C awk 'END { print NR ; }' )" 2
-## The keep-commit fails after its add succeeds: the item must stay, with no deletion.
-printf -- '---\nowner: rig\n---\nkeep me\n' > "$rigStore/board/backlog/rig-keep.md"
+## The keep-commit fails after its add succeeds: the item must stay, with no deletion. The item is the store's own write,
+## and it is put back to untracked here, because this case is about a delete whose commit fails, not about a tracked item.
+rigPut "board backlog rig-keep.md" "$( printf -- '---\nowner: rig\n---\nkeep me\n' )"
+git -C "$rigStore" rm --cached -q -- board/backlog/rig-keep.md && git -C "$rigStore" commit -q -m "rig: keep-commit case, the item untracked"
 printf '#!/bin/sh\nexit 1\n' > "$rigStore/.git/hooks/pre-commit" && chmod +x "$rigStore/.git/hooks/pre-commit"
 rigKeepBefore="$( rigCommits )"
 "$rigFn" --intern-op-board-trash magic-coordinator backlog rig-keep.md > "$rigTmp/out" 2>&1
@@ -147,8 +160,7 @@ rigKeepRc=$?
 rm -f "$rigStore/.git/hooks/pre-commit"
 rigAssert "board-trash, keep-commit fails: rc 1, item kept, no new commit" "$rigKeepRc:$( [ -f "$rigStore/board/backlog/rig-keep.md" ] && printf kept || printf lost ):$(( $( rigCommits ) - rigKeepBefore ))" "1:kept:0"
 git -C "$rigStore" add -A && git -C "$rigStore" commit -q -m "rig: settle rig-keep"
-printf -- '---\nowner: rig\n---\ntracked\n' > "$rigStore/board/backlog/rig-tracked.md"
-git -C "$rigStore" add -A && git -C "$rigStore" commit -q -m "seed rig-tracked"
+rigPut "board backlog rig-tracked.md" "$( printf -- '---\nowner: rig\n---\ntracked\n' )"
 "$rigFn" --intern-op-board-trash magic-coordinator backlog rig-tracked.md > "$rigTmp/out" 2>&1
 rigAssert "board-trash tracked (control): exit 0, gone, clean" "$?:$( [ -e "$rigStore/board/backlog/rig-tracked.md" ] && printf present || printf gone ):$( rigClean )" "0:gone:clean"
 rigAssert "board-trash tracked (control): add plus delete in history" "$( rigHistory log --all --format=%H -- board/backlog/rig-tracked.md | LC_ALL=C awk 'END { print NR ; }' )" 2

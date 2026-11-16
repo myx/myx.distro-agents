@@ -74,6 +74,81 @@ AgentsToolsSessionChatDir(){ ## session
 	printf '%s' "$MMDAPP/.local/agents/sessions/$1"
 }
 
+## The newest message of one thread of a session's chat, its time in whole epoch seconds, into the named variable: 0 where the
+## thread has none. One awk over the chat's index.
+AgentsToolsSessionChatNewestInto(){ ## variable, session, conversation:thread
+	local newestValue=""
+	printf -v "$1" '%s' 0
+	case "${2:-}" in ''|.|..|*/*|*[[:space:]]*) return 0 ;; esac
+	newestValue="$( LC_ALL=C awk -F'\t' -v where="${3:-}" '$3 == where { split($2, part, ".") ; if ( ( part[1] + 0 ) > newest ) { newest = part[1] + 0 ; } } END { print newest + 0 ; }' "${MMDAPP:-/nonexistent}/.local/agents/sessions/$2/$agentsSessionChatName.index" 2> /dev/null )" || newestValue=0
+	printf -v "$1" '%s' "${newestValue:-0}"
+	return 0
+}
+
+## Whether a session's chat is unchanged since a mark was touched: rc 0 where the mark is newer than both its index and its
+## pointers, so a reader need not read it again. Equal times count as a change, so nothing written in the mark's own second is
+## missed. No process: an idle Wait tick asks it.
+AgentsToolsSessionChatUnchangedSince(){ ## session, mark file
+	case "${1:-}" in ''|.|..|*/*|*[[:space:]]*) return 1 ;; esac
+	[ "${2:-}" -nt "${MMDAPP:-/nonexistent}/.local/agents/sessions/$1/$agentsSessionChatName.index" ] \
+		&& [ "${2:-}" -nt "${MMDAPP:-/nonexistent}/.local/agents/sessions/$1/$agentsSessionChatName.pointers" ]
+}
+
+## THE MESSAGES OTHERS ADDRESSED TO A MEMBER SINCE A MOMENT, over every chat written since it, in one read of them all:
+## `<session><TAB><speaker><TAB><the first line of the body>` a message.
+AgentsToolsSessionChatMessagesToSince(){ ## member, since epoch, since ISO stamp
+	local toStat toChats=()
+	while IFS= read -r toStat ; do
+		case "${toStat%% *}" in ''|*[!0123456789]*) continue ;; esac
+		[ "${toStat%% *}" -lt "$2" ] || toChats+=( "${toStat#* }" )
+	done <<< "$( stat -f '%m %N' "${MMDAPP:-/nonexistent}/.local/agents/sessions"/*/session.chat 2> /dev/null || stat -c '%Y %n' "${MMDAPP:-/nonexistent}/.local/agents/sessions"/*/session.chat 2> /dev/null )"
+	[ ${#toChats[@]} -gt 0 ] || return 0
+	LC_ALL=C awk -v since="$3" -v member="$1" '
+		FNR == 1 { chatSession = FILENAME ; sub( /\/[^\/]*$/, "", chatSession ) ; sub( /.*\//, "", chatSession ) }
+		/^20[0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9:]+Z [a-z-]+ -> / {
+			chatTo = $0 ; sub( /^[^ ]+ [^ ]+ -> /, "", chatTo )
+			if ( index( chatTo, ":" ) == 0 ) next
+			chatTo = substr( chatTo, 1, index( chatTo, ":" ) - 1 )
+			if ( index( chatTo, member ) == 0 || $2 == member || $1 < since ) next
+			chatSpeaker = $2
+			if ( ( getline chatBody ) <= 0 ) chatBody = ""
+			print chatSession "\t" chatSpeaker "\t" chatBody
+		}
+	' "${toChats[@]}"
+}
+
+## The latest message of a session's chat, `<speaker>: <text>`, read from its tail; nothing where it has none.
+AgentsToolsSessionChatLastMessage(){ ## session
+	local lastChat
+	lastChat="$( AgentsToolsSessionChatDir "${1:-}" )" || return 0
+	[ -f "$lastChat/$agentsSessionChatName" ] || return 0
+	tail -n 40 "$lastChat/$agentsSessionChatName" 2> /dev/null | LC_ALL=C awk '
+		/^20[0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9:]+Z / { who = $2 ; text = $0 ; sub(/^.*-> [^ ]*: */, "", text) ; seen = 1 ; next }
+		seen && text == "" && $0 != "" { text = $0 }
+		END { if (seen) print who ": " text }
+	'
+}
+
+## The last messages of one thread of a session's chat, `<speaker><TAB><text>` a message, by the one reader of the chat; nothing for none.
+AgentsToolsSessionChatThreadMessages(){ ## session, conversation:thread, member, member's Slack id (may be empty), messages
+	local threadChat
+	threadChat="$( AgentsToolsSessionChatDir "${1:-}" )" || return 0
+	[ -n "${2:-}" ] && [ -s "$threadChat/$agentsSessionChatName.index" ] && [ -f "$threadChat/$agentsSessionChatName" ] || return 0
+	LC_ALL=C awk -v thread="$2" -v own=no -v member="${3:--}" -v memberId="${4:-}" \
+		-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsSessionThreadRead.awk" \
+		"$threadChat/$agentsSessionChatName.index" "$threadChat/$agentsSessionChatName" 2> /dev/null \
+		| LC_ALL=C awk -v wantLines="$5" '
+			/^20[0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9:]+Z [^ ]+ -> / {
+				heldNo++ ; heldSpeaker[heldNo] = $2 ; heldText[heldNo] = "" ; next ;
+			}
+			NF && heldNo > 0 { heldText[heldNo] = ( heldText[heldNo] == "" ? $0 : heldText[heldNo] " " $0 ) ; }
+			END {
+				first = heldNo - wantLines + 1 ; if ( first < 1 ) { first = 1 ; }
+				for ( at = first ; at <= heldNo ; at++ ) { print heldSpeaker[at] "\t" heldText[at] ; }
+			}
+		' || :
+}
+
 ## The session this call belongs to, empty for none: the team session of a run, else the run's own, else the
 ## client's. The same chain the session's thread is found by (AgentsToolsSessionCurrentThreadFind).
 ## Sets agentsSessionChatKey and prints nothing: the form a call path takes, since printing makes every caller a subshell for a parameter expansion.
@@ -174,8 +249,8 @@ AgentsToolsSessionChatAppendDirect(){ ## session, from, to, ts, where, origin, t
 		|| { AgentsToolsSessionChatLockGive ; return 1 ; }
 	AgentsToolsSessionChatLockGive
 	## The waits of the workspace are poked, so a wait naps long and still reads this block at once (AgentsToolsWakePoke).
-	type AgentsToolsWakePoke > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.WakeMarker.include"
-	! type AgentsToolsWakePoke > /dev/null 2>&1 || AgentsToolsWakePoke
+	type AgentsHookFire > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.Hook.include"
+	AgentsHookFire store-changed wake
 	printf '%s\n' "$appendNo"
 }
 
@@ -553,8 +628,8 @@ AgentsToolsSessionChatFloor(){ ## session, member, covered (optional), `deliver`
 	if [ "${4:-}" = "deliver" ] && [ -n "$floorThreadTs" ] ; then
 		case "$floorThread" in
 			*:*)
-				type AgentsWaitFloorAdvance > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/wait/AgentsTools.MemberWaitCore.include"
-				AgentsWaitFloorAdvance "$1" "slack:$floorThread:conversation" "$floorThreadTs"
+				type AgentsHookFire > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.Hook.include"
+				AgentsHookFire store-changed floor "$1" "$floorThread" "$floorThreadTs"
 			;;
 		esac
 	fi

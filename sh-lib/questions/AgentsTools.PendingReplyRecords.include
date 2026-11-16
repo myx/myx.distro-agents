@@ -89,19 +89,19 @@ AgentsToolsPendingReplyAskers(){ ## stdin: the asking ids, a line each
 	local askersIds
 	askersIds="$( cat )"
 	[ -n "$askersIds" ] || return 0
-	type AgentsToolsRegistryAskersLive > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.RegistryPendingReplies.include"
+	type AgentsToolsRegistryAskersLive > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.RegistrySpawnedSessions.include"
 	printf '%s\n' "$askersIds" | AgentsToolsRegistryAskersLive "$( AgentsToolsRunProcessArgs ; printf '%s' "$agentsProcessArgs" )"
 }
 
 ## Where the stores keep more of one ask than its record, for the read of that one record,
 ## which prints it whole (AgentsToolsPendingReplyScan.awk, MDAT_PENDING_WHOLE). Sets
 ## replyWholeBeside, the names of what lies beside the record, its id taken off;
-## replyWholeRefusal, the refusal record a permission names, in the store of the session that
-## asked, else of whichever session keeps it; and replyWholeChange, the folder of the held
-## change whose own record names this ask, in the store of the session that made it. Each is
+## replyWholeRefusal, the refusal record a permission names, as grants answers it
+## (AgentsToolsPermissionRefusalRecordInto); and replyWholeChange, the folder of the held
+## change whose own record names this ask, as grants answers it (AgentsChangeDir). Each is
 ## empty where there is none. Only what a store of this workspace holds: no thread is read.
 AgentsToolsPendingReplyWholeFind(){ ## record file, pending id
-	local wholeEntry wholeName wholeSession wholeRefusal wholeAgents="$MMDAPP/.local/agents"
+	local wholeEntry wholeName wholeSession wholeRefusal
 	replyWholeBeside="" ; replyWholeRefusal="" ; replyWholeChange=""
 	for wholeEntry in "${1%.md}".* ; do
 		[ -e "$wholeEntry" ] || continue
@@ -114,18 +114,17 @@ AgentsToolsPendingReplyWholeFind(){ ## record file, pending id
 	case "$wholeRefusal" in
 		''|.|..|*/*) ;;
 		*)
-			for wholeEntry in "$wholeAgents/sessions/${wholeSession:-.}/$wholeRefusal.md" "$wholeAgents/sessions"/*/"$wholeRefusal.md" ; do
-				[ ! -f "$wholeEntry" ] || { replyWholeRefusal="$wholeEntry" ; break ; }
-			done
+			type AgentsToolsPermissionRefusalRecordInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionRecord.include"
+			AgentsToolsPermissionRefusalRecordInto replyWholeRefusal "$wholeRefusal" "$wholeSession" || replyWholeRefusal=""
 		;;
 	esac
 	case "$wholeSession" in
 		''|.|..|*/*) ;;
 		*)
-			[ "$( AgentsToolsPendingReplyField "$1" kind )" != "change" ] || for wholeEntry in "$wholeAgents/sessions/$wholeSession/changes"/*/change ; do
-				[ -f "$wholeEntry" ] && LC_ALL=C grep -q -x -F "ask: $2" "$wholeEntry" || continue
-				replyWholeChange="${wholeEntry%/change}" ; break
-			done
+			[ "$( AgentsToolsPendingReplyField "$1" kind )" != "change" ] || {
+				type AgentsChangeDir > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.InternOpChange.include"
+				replyWholeChange="$( AgentsChangeDir "$1" "$2" )" || replyWholeChange=""
+			}
 		;;
 	esac
 	return 0

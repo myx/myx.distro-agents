@@ -30,8 +30,8 @@
 		## an authorised kill of it finishes by dismissing its questions (AgentsToolsManagerSessionFinish).
 		local dismissAsker="" dismissAskerRecord=""
 		dismissAsker="$( AgentsToolsEscalationField "$managerPendingFile" session-id )"
-		type AgentsToolsSessionRunRecord > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionSeats.include"
-		dismissAskerRecord="$( AgentsToolsSessionRunRecord "$dismissAsker" )" || dismissAskerRecord=""
+		type AgentsSessionRunRecordInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+		AgentsSessionRunRecordInto dismissAskerRecord "$dismissAsker" || :
 		if [ -z "$dismissAskerRecord" ] || [ -z "$( AgentsToolsEscalationField "$dismissAskerRecord" killed-by )" ] ; then
 			## A dismissal grants nothing: it is never gated, whoever the question is asked of.
 			agentsAuthorityRefusing="yes"

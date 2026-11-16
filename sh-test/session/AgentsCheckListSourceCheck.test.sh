@@ -43,8 +43,9 @@ rigWs="$rigTmp/ws"
 rigSkills="$rigTmp/skills"
 rigData="$rigTmp/data"
 rigMember="rig-member"
-mkdir -p "$rigWs/.local/.agents" "$rigWs/.local/temp" "$rigTmp/bin" "$rigTmp/home" "$rigData/board/running" "$rigData/inboxes/$rigMember" \
-	"$rigSkills/magic-team" "$rigSkills/$rigMember" || exit 1
+mkdir -p "$rigWs/.local/.agents" "$rigWs/.local/temp" "$rigTmp/bin" "$rigTmp/home" "$rigSkills/magic-team" "$rigSkills/$rigMember" || exit 1
+rigBoardStates "$rigData" running || exit 1
+rigInboxReady "$rigData" $rigMember || exit 1
 printf 'rig member\n' > "$rigSkills/$rigMember/$rigMember.basic.md"
 printf '# rig armed\n' > "$rigSkills/$rigMember/$rigMember.armed.md"
 printf 'SLACK_CHANNEL_MAGIC_TEAM=CRIG00001\nSLACK_CHANNEL_EVENT_TRACK=CRIGTRACK\nSLACK_BOT_TOKEN=rig-bot-token-TEAM\nSLACK_WORKSPACE_DOMAIN=rig.slack.com\n' > "$rigWs/.local/.agents/magic-team.agent.env"

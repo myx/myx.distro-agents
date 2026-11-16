@@ -39,6 +39,7 @@ rigRefuse(){
 [ -f "$rigContacts" ] || rigRefuse "the tool is not at the origin this workspace resolves: $rigContacts"
 [ -f "$rigPackage/sh-test/check-fixtures/change-approval.curl.stub.sh" ] || rigRefuse "the fake curl fixture is missing from the package"
 . "$rigPackage/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-writes.include.sh" || exit 1
 rigTmp="$( rigTempDir AgentsContactsAccessCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
@@ -150,7 +151,7 @@ echo "-- 4. what grant-open refuses --"
 rigOp "$rigTmp/k1" --intern-op-permission-refusal-log contact:alice-one --session-id sess-a --tool dispatch --target job-20
 rigRefD="$( rigRefusalId "$rigTmp/k1" )"
 rigOp "$rigTmp/k2" --intern-op-permission-grant-open human-owner --session-id sess-a --refusal-id "$rigRefD" --kind once
-mkdir -p "$rigData/board/running" && printf -- '---\ntype: task\n---\n\nx\n' > "$rigData/board/running/task-rig-item.md"
+printf -- '---\ntype: task\n---\n\nx\n' | rigOwnerBoardPut running "task-rig-item.md"
 rigOp "$rigTmp/k3" --intern-op-permission-grant-open human-owner --session-id sess-a --refusal-id "$rigRefD" --kind task --task task-rig-item
 rigAssert "a contact is granted for a session or for the contact, not once and not for a task: refused, no grant" "$( LC_ALL=C grep -c 'is a contact, granted for a session' "$rigTmp/k2.err" ) $( LC_ALL=C grep -c 'is a contact, granted for a session' "$rigTmp/k3.err" ) $( LC_ALL=C grep -c ":$rigRefD\$" "$rigWs/.local/agents/sessions/sess-a/grants" )" "1 1 0"
 rigOp "$rigTmp/k4" --intern-op-permission-refusal-log keeper-x --session-id sess-a --tool dispatch --target job-21
@@ -256,15 +257,19 @@ printf 'HUMAN_OWNER_CONSOLE_ACCOUNT=%s\n' "$rigAcct" >> "$rigWs/.local/.agents/m
 rigAs="" ; rigSid=""
 rigTool "$rigTmp/t1" --contacted-by bare@ndm.example
 ## The tier words are the human-owner's of 2026-11-09 (epic S6.36): tier-moot, tier-contact, tier-client, tier-admin, tier-owner, each including
-## the ones below it; the old words ingest, basic, partner and recorded are read as aliases of the first four.
+## the ones below it. The old words ingest, basic, partner and recorded are retired: no tier is named by them, and a call giving one is refused.
 rigAssert "no tier on the record: the five tiers, each including the ones before it, and no word of a tier the record does not give" "$( rigHas 'A request is in one of five tiers, each including the ones before it. Moot, always: read and understand it. Contact, no record needed: conversation, public information, consultation, expertise, nothing long-running or costly committed.' "$rigTmp/t1.out" ) $( rigHas 'This contact is a client.' "$rigTmp/t1.out" ) $( rigHas 'nothing standing, so Moot and Contact only' "$rigTmp/t1.out" )" "1 0 1"
-rigTool "$rigTmp/t2" --collect-contact --id bare-one --tier partner --reached-by client-ndm
-rigAssert "the owner sets partner, the old word of tier-client, on a contact recorded already: tier-client is stored" "$rigRc $( LC_ALL=C sed -n 's/^tier: //p' "$rigPerson/bare-one.md" )" "0 tier-client"
+rigTool "$rigTmp/t2r" --collect-contact --id bare-one --tier partner --reached-by client-ndm
+rigAssert "partner, a retired word: refused with the five words, and no tier is stored" "$rigRc $( rigHas '--tier is tier-moot, tier-contact, tier-client, tier-admin and tier-owner: partner' "$rigTmp/t2r.err" ) $( LC_ALL=C sed -n 's/^tier: //p' "$rigPerson/bare-one.md" )" "1 1 "
+rigTool "$rigTmp/t2" --collect-contact --id bare-one --tier tier-client --reached-by client-ndm
+rigAssert "the owner sets tier-client on a contact recorded already: tier-client is stored" "$rigRc $( LC_ALL=C sed -n 's/^tier: //p' "$rigPerson/bare-one.md" )" "0 tier-client"
 rigTool "$rigTmp/t3" --contacted-by bare@ndm.example
 rigAssert "client: the tier's whole rules, every tier below it named, and what client never covers" "$( rigHas 'This contact is a client. Every tier below is open to it, and Client besides.' "$rigTmp/t3.out" ) $( rigHas '- Moot, always: read and understand it.' "$rigTmp/t3.out" ) $( rigHas '- Contact, no record needed: conversation, public information, consultation, expertise, nothing long-running or costly committed.' "$rigTmp/t3.out" ) $( rigHas '- Client: talk about what the team does, politely and in a friendly way, and give a little help. Do small research or investigation for it.' "$rigTmp/t3.out" ) $( rigHas 'Client never covers credentials or client-confidential material. A client changes a project, the board or the team'"'"'s work only through escalation to the human-owner.' "$rigTmp/t3.out" ) $( rigHas 'A request is in one of five tiers.' "$rigTmp/t3.out" ) $( rigHas 'nothing standing, so Moot, Contact and Client only' "$rigTmp/t3.out" )" "1 1 1 1 1 0 1"
-rigTool "$rigTmp/t4" --collect-contact --id bare-one --tier recorded --correct --reached-by client-ndm
+rigTool "$rigTmp/t4r" --collect-contact --id bare-one --tier recorded --correct --reached-by client-ndm
+rigAssert "recorded, a retired word: refused with the five words, and the tier it has stays" "$rigRc $( rigHas '--tier is tier-moot, tier-contact, tier-client, tier-admin and tier-owner: recorded' "$rigTmp/t4r.err" ) $( LC_ALL=C sed -n 's/^tier: //p' "$rigPerson/bare-one.md" )" "1 1 tier-client"
+rigTool "$rigTmp/t4" --collect-contact --id bare-one --tier tier-admin --correct --reached-by client-ndm
 rigTool "$rigTmp/t5" --contacted-by bare@ndm.example
-rigAssert "recorded, the old word of tier-admin: the tiers below it, and what admin adds" "$( rigHas 'This contact is an admin. Every tier below is open to it, and Admin besides.' "$rigTmp/t5.out" ) $( rigHas '- Admin: what affects the board, dispatches jobs or asks for internal information, and only what the access above names.' "$rigTmp/t5.out" ) $( rigHas 'nothing standing, so Moot, Contact, Client and Admin only' "$rigTmp/t5.out" ) $( rigHas 'This contact is a client.' "$rigTmp/t5.out" )" "1 1 1 0"
+rigAssert "tier-admin: the tiers below it, and what admin adds" "$( rigHas 'This contact is an admin. Every tier below is open to it, and Admin besides.' "$rigTmp/t5.out" ) $( rigHas '- Admin: what affects the board, dispatches jobs or asks for internal information, and only what the access above names.' "$rigTmp/t5.out" ) $( rigHas 'nothing standing, so Moot, Contact, Client and Admin only' "$rigTmp/t5.out" ) $( rigHas 'This contact is a client.' "$rigTmp/t5.out" )" "1 1 1 0"
 rigTool "$rigTmp/t6" --collect-contact --id bare-one --tier gold --reached-by client-ndm
 rigAssert "a value that is neither: refused, and the tier it has stays" "$rigRc $( LC_ALL=C sed -n 's/^tier: //p' "$rigPerson/bare-one.md" )" "1 tier-admin"
 

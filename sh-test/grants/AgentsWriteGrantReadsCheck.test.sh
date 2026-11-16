@@ -38,6 +38,7 @@ rigRefuse(){
 [ -f "$rigHook" ] || rigRefuse "the native client's hook is missing: $rigHook"
 [ -f "$rigFixture" ] || rigRefuse "the fake curl fixture is missing: $rigFixture"
 . "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-writes.include.sh" || exit 1
 rigTmp="$( rigTempDir AgentsWriteGrantReadsCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
@@ -45,7 +46,7 @@ rigData="$rigTmp/data"
 rigWs="$rigTmp/ws"
 rigSpawned="$rigWs/.local/agents/spawned"
 rigSessions="$rigWs/.local/agents/sessions"
-mkdir -p "$rigData/board/running" "$rigData/board/processed" "$rigWs/.local/.agents" "$rigWs/.local/agents/pending" "$rigSpawned" "$rigSessions" "$rigTmp/bin" \
+mkdir -p "$rigWs/.local/.agents" "$rigWs/.local/agents/pending" "$rigSpawned" "$rigSessions" "$rigTmp/bin" \
 	"$rigWs/WORK/in/sub" "$rigWs/WORK/out" "$rigWs/PASS/in" "$rigWs/PASS/out" "$rigWs/ONE" "$rigWs/RO" "$rigWs/ONCE" "$rigWs/ROUT" "$rigWs/ELSE"
 cp "$rigFixture" "$rigTmp/bin/curl" && chmod +x "$rigTmp/bin/curl" || rigRefuse "could not install the fake curl"
 printf 'SLACK_CHANNEL_MAGIC_TEAM=CRIG00001\nSLACK_CHANNEL_HUMAN_OWNER=URIGOWNER\nSLACK_BOT_TOKEN=rig-bot-token-TEAM\n' > "$rigWs/.local/.agents/magic-team.agent.env"
@@ -95,7 +96,7 @@ rigTool(){ ## result file, tool name, arguments JSON -- one served harness tool 
 	rigRun "$1" bash -c 'exec bash "$0" --intern-tool "$1" < "$2"' "$rigHarness" "$2" "$rigTmp/tool.args"
 }
 rigItem(){ ## item stem, front matter lines after its owner
-	printf -- '---\nowner: keeper-myx\n%s\n---\n\n# rig item\n' "$2" > "$rigData/board/running/$1.md"
+	rigOwnerBoardWrite running "$1.md" -- '---\nowner: keeper-myx\n%s\n---\n\n# rig item\n' "$2"
 }
 rigRecord(){ ## spawn-id, coworking session id, owner, extra front matter line (may be empty)
 	mkdir -p "$rigSpawned/trk-$1"
@@ -204,8 +205,10 @@ rigAssert "and nothing outside it"                         "$( rigGrantRead keep
 
 ## ---------------------------------------------------------------- for as long as the grant holds
 echo "-- 2. for as long as that grant holds: its item closed, and revoked --"
+rigOwnerBoardReady || rigRefuse "the board could not be made ready to be written"
 mv "$rigData/board/running/$rigTask.md" "$rigData/board/processed/$rigTask.md"
 rigAssert "the item closed: the Read, the Grep and the Glob are refused" "$( rigRead keeper-myx rig-run-1 "$rigIn/a.txt" ):$( rigGrep keeper-myx rig-run-1 "$rigIn" ):$( rigGlob keeper-myx rig-run-1 "$rigIn" ):$( rigHook keeper-myx rig-run-1 Read "$rigIn/a.txt" )" refused:refused:refused:none
+rigOwnerBoardReady || rigRefuse "the board could not be made ready to be written"
 mv "$rigData/board/processed/$rigTask.md" "$rigData/board/running/$rigTask.md"
 rigAssert "control: the item open again, read"             "$( rigRead keeper-myx rig-run-1 "$rigIn/a.txt" )" read
 rigOp "$rigTmp/revoke.out" --intern-op-permission-revoke "$rigSet"

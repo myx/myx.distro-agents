@@ -68,7 +68,8 @@ AgentsHarnessAskAnnounce(){
 
 AgentsHarnessAsk(){
 	type AgentsHarnessSessionThread > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessMessages.include"
-	type AgentsHarnessSpawnRecordPath > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessSpawn.include"
+	type AgentsSessionRunRecordInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+	type AgentsHarnessBareName > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessSpawn.include"
 	type AgentsHarnessWholeNumber > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessToolsFile.include"
 	type AgentsHarnessToolWait > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessWait.include"
 	type AgentsToolsPermissionShownTarget > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionPlaces.include"
@@ -97,7 +98,7 @@ AgentsHarnessAsk(){
 	local askChannel="" askTs="" askThreadTs="" askAddressees=""
 	local askRounds=0
 	local askSelfIds=" " askRecordOnly="" askSessionWait="" askOthers="" askOwnRead="" askUnreadRetry=""
-	local askSession="" askRecord="" askRecordLine askRefusedTool="" askRefusedTarget="" askRefusedOwner="" askRefusedCall="" askRefusedFolder="" askRefusedProject=""
+	local askSession="" askRefusedTool="" askRefusedTarget="" askRefusedOwner="" askRefusedCall="" askRefusedFolder="" askRefusedProject=""
 	local askTag="" askKey="" askWhere="" askDupId="" askDupOwner="" askDupSession="" askLock="" askRoutine=""
 	## A re-wait: the question is already posted and recorded, so everything it is judged
 	## against comes from its open record, and nothing is posted again.
@@ -191,7 +192,7 @@ AgentsHarnessAsk(){
 	## spawn record of its own keeps the default below.
 	if [ -z "$toolTo" ] && [ -z "$toolAddressTo" ] ; then
 		local askRouteRecord="" askRouteTo=""
-		if askRouteRecord="$( AgentsHarnessSpawnRecordPath "${MDAT_SPAWN_SESSION_ID:-}" )" && [ -n "$askRouteRecord" ] ; then
+		if AgentsSessionRunRecordInto askRouteRecord "${MDAT_SPAWN_SESSION_ID:-}" ; then
 			type AgentsToolsRunRoute > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.RunRoute.include"
 			askRouteTo="$( AgentsToolsRunRoute "$askRouteRecord" 2> /dev/null )" || askRouteTo=""
 			## A run that reports to no one asks where it would report to if it named nobody.
@@ -368,12 +369,12 @@ AgentsHarnessAsk(){
 	## asker holds already is not asked either, the refusal standing only where the call was refused.
 	## The same rule a Permission set keeps (--intern-op-permission-set-ask), for one call asked alone.
 	if [ -n "$askOwnerBot" ] && [ "$toolKind" = "permission" ] && [ -z "$toolEntries" ] && [ -n "$toolRefusalId" ] && [ -n "$harnessAgent" ] ; then
-		local askHolderRecord="$MMDAPP/.local/agents/sessions/$askSession/$toolRefusalId.md" askHeldTool="" askHeldTarget="" askHolder=""
-		if [ -f "$askHolderRecord" ] ; then
+		local askHeldOwner="" askHeldTool="" askHeldTarget="" askHolder=""
+		type AgentsSessionRefusalHeadersInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+		if AgentsSessionRefusalHeadersInto "$askSession" "$toolRefusalId" askHeldOwner=owner askHeldTool=tool askHeldTarget=target ; then
 			type AgentsToolsPermissionHolders > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionHolds.include"
 			type AgentsToolsPermissionSessionRunning > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionParticipants.include"
-			askHeldTool="$( AgentsToolsPermissionField "$askHolderRecord" tool 2> /dev/null )"
-			askHeldTarget="$( AgentsToolsPermissionRecordDecode "$( AgentsToolsPermissionField "$askHolderRecord" target 2> /dev/null )" 2> /dev/null )"
+			askHeldTarget="$( AgentsToolsPermissionRecordDecode "$askHeldTarget" 2> /dev/null )"
 		fi
 		if [ -n "$askHeldTool" ] && [ -n "$askHeldTarget" ] ; then
 			if AgentsToolsPermissionHolds "$harnessAgent" "$askHeldTool" "$askHeldTarget" "$askSession" > /dev/null 2>&1 ; then
@@ -764,7 +765,8 @@ AgentsHarnessAsk(){
 	askStarted="$( date +%s )"
 	if [ -n "$askSessionWait" ] ; then
 		type AgentsToolsCliServiceWaitRound > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsTools.CliService.include"
-		! type AgentsToolsCliServiceWaitRound > /dev/null 2>&1 || askRound="$( AgentsToolsCliServiceWaitRound "$( AgentsToolsCliServiceOfSession "${harnessSessionId:-${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}}" )" )"
+		type AgentsToolsCliServiceWaitRound > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsTools.CliService.include"
+		askRound="$( AgentsToolsCliServiceWaitRound "$( AgentsToolsCliServiceOfSession "${harnessSessionId:-${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}}" )" )"
 		AgentsHarnessWholeNumber "$askRound" || askRound=""
 		## A served call comes back by its own bound too, where that is the shorter.
 		[ -z "$askRound" ] || [ -z "$harnessServedWaitBound" ] || [ "$askRound" -le "$harnessServedWaitBound" ] || askRound="$harnessServedWaitBound"

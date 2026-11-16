@@ -3,7 +3,8 @@
 
 			case "$sourceMode" in
 				board)
-					trackedItemState="$( AgentsToolsSpawnProxyBoardStateOf "$trackedItemName" )"
+					type AgentsToolsBoardItemHeadersInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemDecisions.include"
+					AgentsToolsBoardItemHeadersInto "$trackedItemName" trackedItemState || :
 					if [ -z "$trackedItemState" ] ; then
 						## Read from somewhere this op cannot write back to. Said, and said
 						## on stdout too, rather than leaving the caller to assume a record.

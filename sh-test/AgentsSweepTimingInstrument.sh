@@ -37,7 +37,7 @@ printf 'SLACK_BOT_TOKEN=xoxb-fixture\nSLACK_CHANNEL_MAGIC_TEAM=CFIXTEAM001\nSLAC
 printf 'SLACK_USER_TOKEN=xoxp-fixture-coordinator\n' > "$instTmp/ws/.local/.agents/magic-coordinator.agent.env"
 instClient=1
 while [ "$instClient" -le "$instClients" ] ; do
-	mkdir -p "$instTmp/ws/.local/agents/members/client-fix$instClient" "$instTmp/data/inboxes/client-fix$instClient"
+	mkdir -p "$instTmp/ws/.local/agents/members/client-fix$instClient"
 	printf '# fixture\n' > "$instTmp/ws/.local/agents/members/client-fix$instClient/SKILL.md"
 	printf 'SLACK_USER_TOKEN=xoxp-fixture-client%s\nSLACK_CONVERSATIONS=CFIXAAAA00%s,CFIXBBBB00%s,CFIXCCCC00%s\n' \
 		"$instClient" "$instClient" "$instClient" "$instClient" > "$instTmp/ws/.local/.agents/client-fix$instClient.agent.env"

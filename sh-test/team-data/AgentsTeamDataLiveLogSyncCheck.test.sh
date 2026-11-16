@@ -27,6 +27,7 @@ rigRefuse(){
 [ -f "$rigMyx/bin/git/cloneSync.Common" ] || rigRefuse "myx.common git/cloneSync is missing: $rigMyx"
 command -v git > /dev/null || rigRefuse "git is not installed"
 . "$rigPkg/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
+. "$rigPkg/sh-test/check-fixtures/rig-store-item.include.sh" || exit 1
 rigTmp="$( rigTempDir AgentsTeamDataLiveLogSyncCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 export GIT_AUTHOR_NAME=rig GIT_AUTHOR_EMAIL=rig@example.invalid
@@ -62,10 +63,16 @@ rigSeed(){
 	git init -q --bare "$rigRemoteGit" || rigRefuse "could not init the bare remote"
 	git -C "$rigRemoteGit" symbolic-ref HEAD refs/heads/main
 	git init -q "$rigTmp/seed" && git -C "$rigTmp/seed" symbolic-ref HEAD refs/heads/main
-	mkdir -p "$rigTmp/seed/board/running" "$rigTmp/seed/inboxes/keeper-myx/incoming" "$rigTmp/seed/audit/2026-01"
+	mkdir -p "$rigTmp/seed"
 	printf 'seed\n' > "$rigTmp/seed/README.md"
-	printf 'the foreign item, as it stands\n' > "$rigTmp/seed/$rigForeign"
-	printf '2026-01-01T00:00:00Z START the other host session\n' > "$rigTmp/seed/$rigLiveLog"
+	printf '2026-01-01T00:00:00Z START the other host session\n' > "$rigTmp/seed-body-log"
+	printf 'the foreign item, as it stands\n' > "$rigTmp/seed-body-note"
+	## The seed's items are written by the seed store's own writes (rig-store-item.include.sh) while that store is no
+	## repository yet; the audit line is the one an audit item is not, so the log is written where its writer puts it.
+	rigStoreBody="$rigTmp/seed-body-note" rigStoreItem "$rigTmp" "$rigTmp/seed" "$rigWs" keeper-myx "inbox keeper-myx note-20260101T0001Z-foreign.md" "$rigTmp/seed-body-note" \
+		> /dev/null || rigRefuse "could not write the foreign inbox item through the inbox's own write"
+	mkdir -p "$rigTmp/seed/audit/2026-01"
+	cp "$rigTmp/seed-body-log" "$rigTmp/seed/$rigLiveLog"
 	git -C "$rigTmp/seed" add -A && git -C "$rigTmp/seed" commit -q -m seed || rigRefuse "could not seed the remote"
 	git -C "$rigTmp/seed" push -q "$rigRemoteGit" main 2> /dev/null || rigRefuse "could not push the seed"
 	git clone -q "$rigRemoteGit" "$rigStore" 2> /dev/null || rigRefuse "could not clone the store"

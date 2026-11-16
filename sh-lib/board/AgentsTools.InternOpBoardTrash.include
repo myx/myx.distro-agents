@@ -90,8 +90,10 @@ case "$1" in
 			## honouring it could only mean refusing -- and a refusal on a header
 			## is the deadlock this arm exists to break, since no tooling edits
 			## frontmatter in place once an item sits in the legacy processed/.
-			local inboxBase="" inboxDirResolved=""
-			inboxBase="$( cd "$MDAT_DATA_ROOT/inboxes" 2>/dev/null && pwd -P )" || inboxBase=""
+			local inboxBase="" inboxRoot="" inboxDirResolved=""
+			type AgentsToolsInboxRootInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/inbox/AgentsTools.InboxPlace.include"
+			AgentsToolsInboxRootInto inboxRoot || inboxRoot=""
+			inboxBase="$( cd "$inboxRoot" 2>/dev/null && pwd -P )" || inboxBase=""
 			if [ -z "$inboxBase" ] ; then
 				echo "$MDSC_CMD: board-trash: ⛔ ERROR: no such inbox root: $MDAT_DATA_ROOT/inboxes" >&2
 				set +e ; return 1
@@ -99,8 +101,10 @@ case "$1" in
 			## The item by its name alone, in incoming/ or in processed/
 			## (AgentsTools.InboxPlace.include), no state change first; with
 			## --exclude-incoming in processed/ alone.
-			local inboxRootDir="$MDAT_DATA_ROOT/inboxes/$inboxMember/incoming"
-			local inboxProcessedDir="$MDAT_DATA_ROOT/inboxes/$inboxMember/processed"
+			local inboxRootDir="" inboxProcessedDir=""
+			type AgentsToolsInboxFolderInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/inbox/AgentsTools.InboxPlace.include"
+			AgentsToolsInboxFolderInto inboxRootDir "$inboxMember" incoming || inboxRootDir=""
+			AgentsToolsInboxFolderInto inboxProcessedDir "$inboxMember" processed || inboxProcessedDir=""
 			local inboxSourcePath="" inboxCandidateDir="" inboxCandidates=( "$inboxRootDir" "$inboxProcessedDir" )
 			[ -z "$inboxExcludeIncoming" ] || inboxCandidates=( "$inboxProcessedDir" )
 			for inboxCandidateDir in ${inboxCandidates[@]+"${inboxCandidates[@]}"} ; do
@@ -254,6 +258,7 @@ case "$1" in
 			type AgentsToolsDecisionsField > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemDecisions.include"
 			type AgentsTranscriptEventAfterEnd > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionTranscript.include"
 			local endOut="" endSpawn=""
+			type AgentsToolsBoardAcceptDismissChild > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnProxyClose.include"
 			endOut="$( AgentsToolsBoardAcceptDismissChild "$callingMember" "$sourcePath" )" || :
 			endOut="${endOut#ACCEPT-DISMISS: }"
 			echo "END-DISMISS (trashed): $endOut" >&2

@@ -18,7 +18,7 @@
 ## or a hand edit. Per workspace: it covers the runs recorded in this workspace, of every member, with the workspace each executed and was paid in.
 ##
 
-agentsStatsHere="${agentsStatsHere:-$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session}"
+agentsStatsHere="${agentsStatsHere:-$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/schedule}"
 agentsStatsFormat="myx.distro stats"
 
 ## The runs of the workspace, as paths of run records, one a line; and the token file of a run when it has one.

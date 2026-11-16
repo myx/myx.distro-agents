@@ -38,7 +38,7 @@ type AgentsToolsManagerConsoleMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx
 		fi
 		AgentsToolsAssertBareName "$restartId" "the session id" "$restartOp" || { set +e ; return 1 ; }
 		restartBy="$( AgentsToolsManagerConsoleMember 2> /dev/null )" || restartBy="console"
-		type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandbox.include"
+		type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandboxRecordHeader.include"
 		## The record: the run's own, which for a session's id is its founding run's, whose spawn id is the session's; else the older
 		## record that names the session alone (AgentsToolsRunOwnRecord). With --run only a run's own record is taken.
 		restartRecord="$( AgentsToolsSpawnRecord "$restartId" < /dev/null )" || restartRecord=""
@@ -61,6 +61,16 @@ type AgentsToolsManagerConsoleMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx
 		if [ -z "$restartItem" ] ; then
 			printf 'restart\t%s\t%s\t%s\tno-item\t%s\n' "$restartSession" "$restartSpawn" "${restartMember:--}" "no board item names this run, so nothing can start it again"
 			return 0
+		fi
+		## A RESTART IS A RETURN WITH NO CORRECTIONS: an item in review goes back to running first, moved as the return verdict moves it
+		## (AgentsReviewVerdict, `return`). Left in review, the session's control thread ends the run this starts as soon as its closing
+		## time passes, as one whose handback waited past the review limit (AgentsToolsSessionControlRelease).
+		if AgentsReviewVerdictPath "$restartItem" review > /dev/null 2>&1 ; then
+			AgentsReviewMoveWithSection "$restartItem" review running "## Review: restarted ($( date -u +%Y-%m-%dT%H:%MZ ), $restartBy)" "Started again by $restartBy, with no corrections." \
+				--header:remove:review-since-epoch --header:remove:review-reason > /dev/null 2>&1 || {
+				printf 'restart\t%s\t%s\t%s\tfailed\t%s\n' "$restartSession" "$restartSpawn" "${restartMember:--}" "${restartItem%.md}: the move back to running failed, so nothing was started"
+				return 0
+			}
 		fi
 		## The restart itself, in a subshell of its own: the tooling it calls leaves set -e behind. Its RETURN line is the detail.
 		restartOut="$( AgentsReviewRestart "$restartItem" "$restartRecord" "" "$restartBy" 2>&1 )" && restartOutcome="restarted" || restartOutcome="failed"

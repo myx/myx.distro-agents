@@ -316,6 +316,13 @@ rigRun "$rigDispatcher" --override-flag bogus
 rigAssert "an unknown flag is refused, rc 1, and the message names all nine flags" \
 	"$rigRc:$( printf '%s\n' "$rigOut" | LC_ALL=C sed -n 's/.*no flag bogus -- the flags are \(.*\), and all but.*/\1/p' | LC_ALL=C tr ', ' '\n\n' \
 		| LC_ALL=C grep -c -x -e worktime -e weekend -e holidays -e holding -e emergency -e overtime -e learning -e supervised -e planned-maintenance )" "1:9"
+## THE SYNTAX MESSAGE IS THE OTHER HALF OF THE SAME PAIR (task 20261113T0155Z, fix 4): a call with no flag is told the overridable flags
+## in the syntax line (AgentsTools.DispatcherSchedule.include, the `syntax is [--no] <flag>` echo), and it must name the same seven the
+## override takes. Red on the tree of 2026-11-15 12:56: that line names six and omits planned-maintenance.
+rigRun "$rigDispatcher" --override-flag
+rigAssert "a call with no flag is refused, rc 1, and the syntax message names all seven overridable flags, planned-maintenance among them" \
+	"$rigRc:$( printf '%s\n' "$rigOut" | LC_ALL=C sed -n 's/.*syntax is .*, the flag \(.*\), or vacation or overtime with.*/\1/p' | LC_ALL=C sed 's/ or /, /g' | LC_ALL=C tr ', ' '\n\n' \
+		| LC_ALL=C grep -c -x -e holidays -e holding -e emergency -e overtime -e learning -e supervised -e planned-maintenance )" "1:7"
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ SCHEDULER FLAGS CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

@@ -59,14 +59,16 @@ rigAt 1792404000
 ## so the report names both rather than only counting them. Their owner is no member of the rig's roster, so the pass starts no
 ## work-duty either: this check measures the store and nothing else.
 rigNearData="$rigWs/.local/agents/team-data-root"
-mkdir -p "$rigNearData/board/running" "$rigNearData/board/pending" "$rigNearData/inboxes/magic-coordinator/incoming" || exit 1
-printf -- '---\ntype: task\nowner: keeper-boardonly\nblocks: task-20261019T0900Z-near-child\n---\n\n# this board'"'"'s own blocker\n' > "$rigNearData/board/running/task-20261019T0900Z-near-parent.md"
-printf -- '---\ntype: task\nowner: keeper-boardonly\n---\n\n# this board'"'"'s own waiting item\n' > "$rigNearData/board/pending/task-20261019T0900Z-near-child.md"
+rigBoardStates "$rigNearData" running pending || exit 1
+rigInboxReady "$rigNearData" magic-coordinator || exit 1
+printf -- '---\ntype: task\nowner: keeper-boardonly\nblocks: task-20261019T0900Z-near-child\n---\n\n# this board'"'"'s own blocker\n' | rigStoreItem "$rigNearData" board running task-20261019T0900Z-near-parent.md
+printf -- '---\ntype: task\nowner: keeper-boardonly\n---\n\n# this board'"'"'s own waiting item\n' | rigStoreItem "$rigNearData" board pending task-20261019T0900Z-near-child.md
 ## THE OTHER WORKSPACE'S BOARD, inherited as `MDAT_DATA_ROOT`: one item of its own, no edge, which no report about this workspace may name.
 rigFarWs="$rigTmp/loop/far-ws"
 rigFarData="$rigFarWs/.local/agents/team-data-root"
-mkdir -p "$rigFarData/board/running" "$rigFarData/inboxes/magic-coordinator/incoming" || exit 1
-printf -- '---\ntype: task\nowner: keeper-far\n---\n\n# the other board'"'"'s own item\n' > "$rigFarData/board/running/task-20261019T0900Z-far-only.md"
+rigBoardStates "$rigFarData" running || exit 1
+rigInboxReady "$rigFarData" magic-coordinator || exit 1
+printf -- '---\ntype: task\nowner: keeper-far\n---\n\n# the other board'"'"'s own item\n' | rigStoreItem "$rigFarData" board running task-20261019T0900Z-far-only.md
 
 ## THE PASS STARTS NOTHING. `holding` is set in the rig's own settings, so the loop starts no routine and no duty. That is not
 ## a convenience: a start's subshell outlives an `--intern-schedule --one` pass and holds the runner's pipe, and this check is

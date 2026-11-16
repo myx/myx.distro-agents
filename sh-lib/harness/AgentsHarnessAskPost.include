@@ -111,20 +111,13 @@ AgentsHarnessAskCheck(){ ## -- reads the caller's tool* fields
 				printf 'ERROR: %s: kind permission needs refusal_id, reason and task_ref, and one was empty. Nothing was sent.\n' "$harnessAskName" ; return 1
 			}
 			askSession="${harnessSessionId:-${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}}"
-			askRecord=""
-			AgentsHarnessBareName "$toolRefusalId" && [ -n "$askSession" ] && askRecord="$MMDAPP/.local/agents/sessions/$askSession/$toolRefusalId.md"
-			if [ -z "$askRecord" ] || [ ! -f "$askRecord" ] ; then
+			## The refused call is shown from the record, never from the asker's words.
+			type AgentsSessionRefusalHeadersInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+			if ! { AgentsHarnessBareName "$toolRefusalId" && [ -n "$askSession" ] \
+				&& AgentsSessionRefusalHeadersInto "$askSession" "$toolRefusalId" askRefusedOwner=owner askRefusedTool=tool askRefusedTarget=target ; } ; then
 				printf 'ERROR: %s: no refusal %s is recorded for this session, so there is nothing to ask permission for. Nothing was sent.\n' "$harnessAskName" "$toolRefusalId" ; return 1
 			fi
-			## The refused call is shown from the record, never from the asker's words.
-			while IFS= read -r askRecordLine ; do
-				case "$askRecordLine" in
-					'owner: '*) askRefusedOwner="${askRecordLine#owner: }" ;;
-					'tool: '*) askRefusedTool="${askRecordLine#tool: }" ;;
-					'target: '*) askRefusedTarget="$( AgentsHarnessRefusedTargetDecode "${askRecordLine#target: }" )" ;;
-					'# '*) break ;;
-				esac
-			done < "$askRecord"
+			[ -z "$askRefusedTarget" ] || askRefusedTarget="$( AgentsHarnessRefusedTargetDecode "$askRefusedTarget" )"
 			## What makes two requests the same one: the refused call itself -- its tool, its exact
 			## target, whose call it was and in which session -- never the words the asker puts
 			## beside it. The check for a request already open is keyed on it (AgentsHarnessAsk).

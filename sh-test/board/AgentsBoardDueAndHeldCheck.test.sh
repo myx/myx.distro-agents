@@ -52,6 +52,9 @@ rigThreadsOff="MDAT_TEAM_DATA_COMMIT_THREAD=off MDAT_COMMS_READER=off MDAT_COLLE
 
 rigPassCount=0
 rigFailCount=0
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-writes.include.sh" || exit 1
+rigOwnerWs="${rigWs:-$rigTmp/ws}" rigOwnerData="${rigData:-${rigD:-${rigStore:-${rigOut:-$rigTmp/data}}}}" rigOwnerHome="${rigHome:-$rigTmp/home}" rigOwnerSkills="${rigSkills:-$rigTmp/skills}"
+rigOwnerBoardReady
 rigAssert(){ ## what is asserted, got, want
 	if [ "$2" = "$3" ] ; then
 		printf '  PASS  %s\n' "$1" ; rigPassCount=$(( rigPassCount + 1 ))
@@ -64,8 +67,7 @@ rigAssert(){ ## what is asserted, got, want
 ## frontmatter after `type:`, so an item states its own owner and never inherits a second one.
 rigItem(){ ## state, name, frontmatter lines...
 	local itemState="$1" itemName="$2" ; shift 2
-	mkdir -p "$rigData/board/$itemState"
-	{ printf -- '---\ntype: task\n' ; printf '%s\n' "$@" ; printf -- '---\n\nrig item\n' ; } > "$rigData/board/$itemState/$itemName"
+	{ printf -- '---\ntype: task\n' ; printf '%s\n' "$@" ; printf -- '---\n\nrig item\n' ; } | rigOwnerBoardPut "$itemState" "$itemName"
 }
 ## One date-time, shaped as the tooling's own stamp writes it, `n` seconds from now.
 rigStamp(){ ## seconds from now (may be negative)
@@ -212,7 +214,7 @@ echo "-- 3. last-round-at has one writer: the round's own proof --"
 ## A round's own outcome is `advanced`. It is the one word that stamps the field, so the round's
 ## proof and the field cannot drift apart.
 rigItem running task-20261104T1010Z-rig-proof.md "owner: keeper-rig"
-rigOp "$rigTmp/proof" rig-session --advance-batch-outcome magic-coordinator --items:task-20261104T1010Z-rig-proof.md:advanced:round-one
+rigOp "$rigTmp/proof" rig-session --advance-batch-outcome --team-member magic-coordinator --items:task-20261104T1010Z-rig-proof.md:advanced:round-one
 rigAssert "the round's proof is recorded" "$( cat "$rigTmp/proof.rc" )" 0
 rigAssert "and it stamps last-round-at with a date-time the one ISO reader reads" \
 	"$( LC_ALL=C awk '/^last-round-at: /{ print substr($0, 16) ; exit }' "$rigData/board/running/task-20261104T1010Z-rig-proof.md" | LC_ALL=C awk -f "$rigOrigin/myx/myx.distro-.local/sh-lib/output/LocalIsoToEpoch.awk" 2> /dev/null | LC_ALL=C awk '{ print ( $1 ~ /^[0-9]+$/ ) ? "read" : "unread" }' )" read
@@ -230,12 +232,12 @@ echo "-- 3b. every outcome word the routines name is one the writer takes --"
 ## them stamps nothing at all, so the round's own proof never lands.
 ## One running item per word, then the two states a round is also given to.
 rigItem running task-20261104T1040Z-rig-advanced.md "owner: keeper-rig"
-rigOp "$rigTmp/advanced" rig-session --advance-batch-outcome magic-coordinator --items:task-20261104T1040Z-rig-advanced.md:advanced:inline:round-two
+rigOp "$rigTmp/advanced" rig-session --advance-batch-outcome --team-member magic-coordinator --items:task-20261104T1040Z-rig-advanced.md:advanced:inline:round-two
 rigAssert "a completed round's own outcome, advanced, is recorded" "$( cat "$rigTmp/advanced.rc" )" 0
 rigAssert "and it stamps last-round-at, so that round counts as the document's visit" \
 	"$( LC_ALL=C grep -c '^last-round-at: ' "$rigData/board/running/task-20261104T1040Z-rig-advanced.md" || : )" 1
 rigItem running task-20261104T1041Z-rig-parkfail.md "owner: keeper-rig"
-rigOp "$rigTmp/parkfail" rig-session --advance-batch-outcome magic-coordinator --items:task-20261104T1041Z-rig-parkfail.md:parked-spawn-failed:inline:park-one
+rigOp "$rigTmp/parkfail" rig-session --advance-batch-outcome --team-member magic-coordinator --items:task-20261104T1041Z-rig-parkfail.md:parked-spawn-failed:inline:park-one
 rigAssert "the spawn-failure park outcome, parked-spawn-failed, is recorded too" "$( cat "$rigTmp/parkfail.rc" )" 0
 
 echo "-- 3c. a round in any state it is given to carries its proof --"
@@ -243,7 +245,7 @@ echo "-- 3c. a round in any state it is given to carries its proof --"
 ## A proof written for `running` alone leaves the review round with no visit, so the review
 ## document is due on every sweep. `blocked` and `parked` get a recheck, which is no round.
 rigItem review task-20261104T1050Z-rig-in-review.md "owner: keeper-rig"
-rigOp "$rigTmp/in-review" rig-session --advance-batch-outcome magic-coordinator \
+rigOp "$rigTmp/in-review" rig-session --advance-batch-outcome --team-member magic-coordinator \
 	--items:task-20261104T1050Z-rig-in-review.md:advanced:inline:review-round
 rigAssert "a round recorded for a review document succeeds" "$( cat "$rigTmp/in-review.rc" )" 0
 rigAssert "and the review document carries last-round-at afterwards" \
@@ -254,18 +256,18 @@ rigAssert "so the review document is no longer due inside the window" \
 ## `blocked` and `parked` too, and neither refuses for want of a `running/` path.
 for rigState in pending blocked parked ; do
 	rigItem "$rigState" "task-20261104T1055Z-rig-in-$rigState.md" "owner: keeper-rig"
-	rigOp "$rigTmp/in-$rigState" rig-session --advance-batch-outcome magic-coordinator \
+	rigOp "$rigTmp/in-$rigState" rig-session --advance-batch-outcome --team-member magic-coordinator \
 		--items:"task-20261104T1055Z-rig-in-$rigState.md:flagged-once:inline:state-$rigState"
 	rigAssert "a record written for a document in $rigState succeeds, and not with rc 2" "$( cat "$rigTmp/in-$rigState.rc" )" 0
 done
 rigItem running task-20261104T1051Z-rig-unknown.md "owner: keeper-rig"
-rigOp "$rigTmp/unknown" rig-session --advance-batch-outcome magic-coordinator --items:task-20261104T1051Z-rig-unknown.md:not-an-outcome:inline:x
+rigOp "$rigTmp/unknown" rig-session --advance-batch-outcome --team-member magic-coordinator --items:task-20261104T1051Z-rig-unknown.md:not-an-outcome:inline:x
 rigAssert "an outcome word nobody names is still refused" "$( cat "$rigTmp/unknown.rc" )" 1
 rigAssert "and nothing was stamped on it" \
 	"$( LC_ALL=C grep -c '^last-round-at: ' "$rigData/board/running/task-20261104T1051Z-rig-unknown.md" || : )" 0
 rigItem review task-20261104T1052Z-rig-behind.md "owner: keeper-rig"
 rigItem running task-20261104T1053Z-rig-after.md "owner: keeper-rig"
-rigOp "$rigTmp/batch" rig-session --advance-batch-outcome magic-coordinator \
+rigOp "$rigTmp/batch" rig-session --advance-batch-outcome --team-member magic-coordinator \
 	--items:task-20261104T1052Z-rig-behind.md:advanced:inline:a,task-20261104T1053Z-rig-after.md:advanced:inline:b
 rigAssert "a batch succeeds across two states" "$( cat "$rigTmp/batch.rc" )" 0
 rigAssert "and one item's state stops none of the batch behind it" \
@@ -278,9 +280,9 @@ echo "-- 3d. a document gets its next round: the guard holds one window, not for
 ## on that document for ever. A document already carrying an outcome, or moved on by a plain
 ## move, is the case that matters, and 69 active documents carry one today.
 rigItem running task-20261104T1070Z-rig-r1.md "owner: keeper-rig"
-rigOp "$rigTmp/r1" rig-session --advance-batch-outcome magic-coordinator --items:task-20261104T1070Z-rig-r1.md:advanced:inline:r1
+rigOp "$rigTmp/r1" rig-session --advance-batch-outcome --team-member magic-coordinator --items:task-20261104T1070Z-rig-r1.md:advanced:inline:r1
 rigAssert "the first round's proof lands" "$( cat "$rigTmp/r1.rc" )" 0
-rigOp "$rigTmp/r2" rig-session --advance-batch-outcome magic-coordinator --items:task-20261104T1070Z-rig-r1.md:advanced:inline:r2
+rigOp "$rigTmp/r2" rig-session --advance-batch-outcome --team-member magic-coordinator --items:task-20261104T1070Z-rig-r1.md:advanced:inline:r2
 rigAssert "a second, different proof inside the same window is refused" "$( cat "$rigTmp/r2.rc" )" 1
 rigAssert "and the refusal says the window is what holds it" \
 	"$( LC_ALL=C grep -c -F 'this window' "$rigTmp/r2" || : )" 1
@@ -289,18 +291,18 @@ mv -f "$rigTmp/r1.aged" "$rigData/board/running/task-20261104T1070Z-rig-r1.md"
 rigAssert "the window has passed over that document, whose receipt still says r1" \
 	"$( LC_ALL=C awk '/^execution-receipt: /{ print substr($0, 20) ; exit }' "$rigData/board/running/task-20261104T1070Z-rig-r1.md" )" "inline:r1"
 rigAssert "the document is due again once the window has passed" "$( rigDue "$rigData/board/running/task-20261104T1070Z-rig-r1.md" )" due
-rigOp "$rigTmp/r3" rig-session --advance-batch-outcome magic-coordinator --items:task-20261104T1070Z-rig-r1.md:advanced:inline:r3
+rigOp "$rigTmp/r3" rig-session --advance-batch-outcome --team-member magic-coordinator --items:task-20261104T1070Z-rig-r1.md:advanced:inline:r3
 rigAssert "so the next round's proof lands, with its own receipt" "$( cat "$rigTmp/r3.rc" )" 0
 rigAssert "and the item now carries that round's receipt" \
 	"$( LC_ALL=C awk '/^execution-receipt: /{ print substr($0, 20) ; exit }' "$rigData/board/running/task-20261104T1070Z-rig-r1.md" )" "inline:r3"
 rigItem blocked task-20261104T1071Z-rig-moved.md "owner: keeper-rig"
-rigOp "$rigTmp/moved1" rig-session --advance-batch-outcome magic-coordinator --items:task-20261104T1071Z-rig-moved.md:advanced:inline:m1
+rigOp "$rigTmp/moved1" rig-session --advance-batch-outcome --team-member magic-coordinator --items:task-20261104T1071Z-rig-moved.md:advanced:inline:m1
 rigAssert "a document records one round, then a plain move carries its headers with it" "$( cat "$rigTmp/moved1.rc" )" 0
 rigOp "$rigTmp/moved2" rig-session --intern-op-board-upsert-move-edit running task-20261104T1071Z-rig-moved.md --from-state:blocked --context rig-move
 rigAssert "the move runs" "$( cat "$rigTmp/moved2.rc" )" 0
 rigAssert "and the outcome travels with the document" \
 	"$( LC_ALL=C grep -c '^outcome: advanced$' "$rigData/board/running/task-20261104T1071Z-rig-moved.md" || : )" 1
-rigOp "$rigTmp/moved3" rig-session --advance-batch-outcome magic-coordinator --items:task-20261104T1071Z-rig-moved.md:advanced:inline:m2
+rigOp "$rigTmp/moved3" rig-session --advance-batch-outcome --team-member magic-coordinator --items:task-20261104T1071Z-rig-moved.md:advanced:inline:m2
 rigAssert "inside the window the moved document is still held to its round" "$( cat "$rigTmp/moved3.rc" )" 1
 
 echo "-- 3e. only a round stamps last-round-at --"
@@ -309,14 +311,14 @@ echo "-- 3e. only a round stamps last-round-at --"
 for rigPair in "advanced:1" "no-action:0" "parked-spawn-failed:0" "nudged:0" "flagged-once:0" ; do
 	rigOutcomeWord="${rigPair%:*}" rigWanted="${rigPair#*:}"
 	rigItem running "task-20261104T1080Z-rig-stamp-$rigOutcomeWord.md" "owner: keeper-rig"
-	rigOp "$rigTmp/stamp-$rigOutcomeWord" rig-session --advance-batch-outcome magic-coordinator \
+	rigOp "$rigTmp/stamp-$rigOutcomeWord" rig-session --advance-batch-outcome --team-member magic-coordinator \
 		--items:"task-20261104T1080Z-rig-stamp-$rigOutcomeWord.md:$rigOutcomeWord:inline:stamp"
 	rigAssert "a $rigOutcomeWord record is accepted" "$( cat "$rigTmp/stamp-$rigOutcomeWord.rc" )" 0
 	rigAssert "and for $rigOutcomeWord the field is stamped $rigWanted time(s)" \
 		"$( LC_ALL=C grep -c '^last-round-at: ' "$rigData/board/running/task-20261104T1080Z-rig-stamp-$rigOutcomeWord.md" || : )" "$rigWanted"
 done
 rigItem blocked task-20261104T1081Z-rig-recheck.md "owner: keeper-rig"
-rigOp "$rigTmp/recheck" rig-session --advance-batch-outcome magic-coordinator --items:task-20261104T1081Z-rig-recheck.md:no-action:inline:recheck
+rigOp "$rigTmp/recheck" rig-session --advance-batch-outcome --team-member magic-coordinator --items:task-20261104T1081Z-rig-recheck.md:no-action:inline:recheck
 rigAssert "a recheck on a blocked document leaves it due, since it was given no round" \
 	"$( rigDue "$rigData/board/blocked/task-20261104T1081Z-rig-recheck.md" )" due
 
@@ -325,7 +327,7 @@ echo "-- 3f. only the five active states take a record --"
 ## is no round, and the op refuses it rather than stamping a document nobody sweeps.
 for rigState in processed backlog ; do
 	rigItem "$rigState" "task-20261104T1090Z-rig-out-$rigState.md" "owner: keeper-rig"
-	rigOp "$rigTmp/out-$rigState" rig-session --advance-batch-outcome magic-coordinator \
+	rigOp "$rigTmp/out-$rigState" rig-session --advance-batch-outcome --team-member magic-coordinator \
 		--items:"task-20261104T1090Z-rig-out-$rigState.md:advanced:inline:out-$rigState"
 	rigAssert "a record for a $rigState document is refused, and says why" \
 		"$( cat "$rigTmp/out-$rigState.rc" ):$( LC_ALL=C grep -c -F 'no active state holds' "$rigTmp/out-$rigState" || : )" "1:1"

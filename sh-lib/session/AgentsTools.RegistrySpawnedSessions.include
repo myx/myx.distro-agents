@@ -45,8 +45,32 @@ AgentsToolsRegistrySpawnedSessionsRows(){
 	return 0
 }
 
+## The registry is a cache with a TTL: at most every 5 minutes a read of it starts the housekeeping that closes
+## what a dead spawn left open, detached, so the read never waits on it. The board runs it, by the
+## `spawned-housekeeping` hook it declares in sh-lib/hooks.registry.
+AgentsToolsRegistryHousekeepingDue(){
+	[ -z "${AGENTS_REGISTRY_HOUSEKEEPING:-}" ] || return 0
+	local dueStamp="$MMDAPP/.local/agents/spawned/.housekeeping.txt" collectTmp
+	[ -d "$MMDAPP/.local/agents/spawned" ] || return 0
+	[ ! -f "$dueStamp" ] || [ -n "$( find "$dueStamp" -mmin +5 2> /dev/null )" ] || return 0
+	: > "$dueStamp" 2> /dev/null || return 0
+	( export AGENTS_REGISTRY_HOUSEKEEPING=1
+		type AgentsHookFire > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.Hook.include"
+		AgentsHookFire spawned-housekeeping 24 magic-coordinator no-threads
+		## The main loop's collect, for a rig with no main loop running: an answer standing in an ask's thread
+		## closes its record within minutes, whether or not its asker's Wait names it (InternMainLoop.include).
+		collectTmp="$( mktemp "$MMDAPP/.local/agents/pending-collect.last.XXXXXX" 2> /dev/null )" || return 0
+		MDAT_PENDING_COLLECT_STALE_MINUTES="${MDAT_PENDING_COLLECT_STALE_MINUTES:-10}" \
+			"$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-op-pending-reply-collect --ended --context registry-housekeeping \
+				> "$collectTmp" 2> /dev/null \
+			&& mv -f "$collectTmp" "$MMDAPP/.local/agents/pending-collect.last" \
+			|| rm -f "$collectTmp"
+	) < /dev/null > /dev/null 2>&1 &
+	return 0
+}
+
 AgentsToolsRegistrySpawnedSessionsRebuild(){
-	type AgentsToolsRegistryHousekeepingDue > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
+	type AgentsToolsRegistryWrite > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
 	AgentsToolsRegistryHousekeepingDue
 	AgentsToolsRegistryWrite spawned-sessions AgentsToolsRegistrySpawnedSessionsRows
 }
@@ -58,7 +82,7 @@ AgentsToolsRegistryRenderSpawnedSessionsGrouped(){ ## extended rows text, state 
 	local sourceRows="$1" filterState="${2:-}"
 	printf '%s\n' "columns: session-id workspace host owner agent-count session-thread state-tally"
 	printf '%s\n\n' "state-tally: state=count pairs for every agent row in this session, comma-joined -- a session has no single state of its own, its agents do. workspace/host read \"mixed\" where a session's own rows disagree."
-	printf '%s\n' "$sourceRows" | LC_ALL=C awk -v filterState="$filterState" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsRegistrySessionsGrouped.awk"
+	printf '%s\n' "$sourceRows" | LC_ALL=C awk -v filterState="$filterState" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsRegistrySessionsGrouped.awk"
 	printf '\n'
 	return 0
 }
@@ -107,7 +131,12 @@ $( LC_ALL=C awk '$2 ~ /\\/ { print $2 }' "$measuredFile" 2> /dev/null | LC_ALL=C
 		case "$startingMark" in *.rc|*.out) continue ;; esac
 		[ -e "$startingMark.rc" ] || startingKeys="$startingKeys${startingMark##*/} "
 	done
-	[ "$startingKeys" = " " ] || startingRecords="$( printf '%s\n' "${MMDAPP:-/nonexistent}/.local/agents/spawned"/*/*.spawn.md )"
+	if [ "$startingKeys" != " " ] ; then
+		local startingAll=()
+		type AgentsToolsSpawnedAllRecordsInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include"
+		AgentsToolsSpawnedAllRecordsInto startingAll
+		startingRecords="$( printf '%s\n' ${startingAll[@]+"${startingAll[@]}"} )"
+	fi
 	## ONE awk for every row: the rows of thirteen words and the wider rows the manager list
 	## reads, each line tagged with the block it belongs to, and the three variables split below.
 	measuredAll="$( MDAT_REGISTRY_RUNNING="$runningSet" MDAT_REGISTRY_OPEN="$openSet" \
@@ -318,7 +347,7 @@ $( LC_ALL=C awk '$2 ~ /\\/ { print $2 }' "$measuredFile" 2> /dev/null | LC_ALL=C
 ## state, keeping each matching session's own full state-tally rather than trimming
 ## it to the filtered state alone.
 AgentsToolsRegistryRenderSpawnedSessions(){ ## view, session-id filter, state filter
-	type AgentsToolsRegistryPendingRepliesRebuild > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.RegistryPendingReplies.include"
+	type AgentsToolsRegistryRebuild > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
 	local viewWanted="${1:-agents}" filterSession="${2:-}" filterState="${3:-}"
 	local registryFile thisHost thisWorkspace rowState rowLive
 	local extendedRows="" registryRow sawRow="false" sawAny="false" measuredRows="" measuredDated="" measuredAny="false"
@@ -332,7 +361,7 @@ AgentsToolsRegistryRenderSpawnedSessions(){ ## view, session-id filter, state fi
 		printf '%s\n\n' "**NOTE:** no scan was made -- the registry could not be rebuilt at $registryFile"
 		return 0
 	fi
-	AgentsToolsRegistryPendingRepliesRebuild || :
+	AgentsToolsRegistryRebuild pending-replies || :
 	thisHost="$( hostname -s 2>/dev/null )" || thisHost=""
 	[ -n "$thisHost" ] || thisHost="unknown"
 	thisWorkspace="$( basename "$MMDAPP" 2>/dev/null )" || thisWorkspace=""
@@ -372,5 +401,65 @@ AgentsToolsRegistryRenderSpawnedSessions(){ ## view, session-id filter, state fi
 	## Stated for the pass that reads this, because a row alone does not say what to
 	## do with it.
 	printf '%s\n\n' "Compare these rows against the board \`running/\` items before acting on either: a row whose status is still started with no live process and no open ask is state unclosed, a row whose live is running is busy, a row on another host reads live remote, and a \`running/\` item whose session appears in no row has no spawn record behind it at all."
+	return 0
+}
+
+## Whether the run that asked is alive, for each asking id given: measured now and never
+## stored, since a file an hour old would call a dead asker alive. An ask's session-id is
+## the id of the run that asked -- its spawn id, or the client's own id of a session no
+## spawn started -- never the coworking session that run joined. So each id is matched to
+## the run that has it as its own, by the one rule a run is recognised by, and to nothing
+## else. stdin is the asking ids, a line each; the process list is read once for them all.
+## Prints `<id> <live>` a line, what this host says of that id:
+##   running          a process of this host runs as it (AgentsToolsRunWords), or the
+##                    process its record names still lives, that record being of this host
+##                    and still open (AgentsToolsRunRecordedAlive), as a row is read
+##   no-process       a spawn record names it and nothing runs as it: no live asker
+##   session-ended    no spawn record names it, and its own store carries the end marker of
+##                    a root session (AgentsToolsGrantsSessionEnded): no live asker
+##   no-spawn-record  no spawn record names it and nothing says it ended: a root session,
+##                    which a rule for runs cannot measure, or an id nothing here knows
+## On which host an ask was asked is its record's own `host`, which the caller holds: the
+## ask of another host is not for this to measure.
+AgentsToolsRegistryAskersLive(){ ## process list text -- stdin: the asking ids, a line each
+	type AgentsToolsRunWords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunProcesses.include"
+	local askersWords askersHost askerId askerRecord askerLine askerFront askerStatus askerHost askerSeen askerLive
+	askersWords="
+$( printf '%s' "$1" | AgentsToolsRunWords )
+"
+	askersHost="$( hostname -s 2>/dev/null )" || askersHost=""
+	[ -n "$askersHost" ] || askersHost="unknown"
+	while IFS= read -r askerId ; do
+		case "$askerId" in ''|-|.|..|*/*) continue ;; esac
+		case "$askersWords" in *"
+$askerId
+"*) printf '%s running\n' "$askerId" ; continue ;; esac
+		askerSeen="" ; askerLive="no-process"
+		type AgentsSessionRunRecordInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+		AgentsSessionRunRecordInto askerRecord "$askerId" || :
+		for askerRecord in ${askerRecord:+"$askerRecord"} ; do
+			[ -f "$askerRecord" ] || continue
+			askerSeen=1
+			## Only a record of this host that is still open can name a living process.
+			askerFront="" ; askerStatus="" ; askerHost=""
+			while IFS= read -r askerLine ; do
+				case "$askerFront:$askerLine" in
+					':---') askerFront=1 ;;
+					'1:---') break ;;
+					'1:status: '*) [ -n "$askerStatus" ] || askerStatus="${askerLine#status: }" ;;
+					'1:host: '*) [ -n "$askerHost" ] || askerHost="${askerLine#host: }" ;;
+				esac
+			done < "$askerRecord"
+			case "$askerStatus" in spawn-succeeded|spawn-failed|spawn-ended-without-close) continue ;; esac
+			[ "$askerHost" = "$askersHost" ] || continue
+			! AgentsToolsRunRecordedAlive "$askerRecord" || { askerLive="running" ; break ; }
+		done
+		if [ -z "$askerSeen" ] ; then
+			askerLive="no-spawn-record"
+			type AgentsToolsGrantsSessionEnded > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.Grants.include"
+			! AgentsToolsGrantsSessionEnded "${MMDAPP:-/nonexistent}/.local/agents/sessions/$askerId" || askerLive="session-ended"
+		fi
+		printf '%s %s\n' "$askerId" "$askerLive"
+	done
 	return 0
 }

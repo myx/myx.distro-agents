@@ -59,6 +59,7 @@ hookRoot="${MDAT_SPAWN_SANDBOX_ROOT%/}"
 hookCopy="$hookRoot/$hookId.native.jsonl"
 
 ## The workspace: MMDAPP, else the one this script is installed in (<workspace>/.claude/hooks).
+## Its session-store paths mirror AgentsSessionTokensAdd's tokens line, and native-log has no owner function: its rig sets neither MMDAPP nor MDLT_ORIGIN.
 hookWs="${MMDAPP:-}"
 [ -n "$hookWs" ] || hookWs="$( cd -P "${0%/*}/../.." 2>/dev/null && pwd -P )" || hookWs=""
 hookWs="${hookWs%/}"

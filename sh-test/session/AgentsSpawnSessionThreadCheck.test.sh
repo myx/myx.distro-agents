@@ -290,7 +290,7 @@ rigAssert "a calling member that is no bare name is refused, and nothing is spaw
 echo "-- a helper a native session brings in with the Agent tool hands back to the member that call was made as --"
 ## The native session: a session of its own, no record of its own, and no member in its
 ## environment. Each call it makes is served as a member, and the Agent tool says which.
-mkdir -p "$rigTmp/data/board/running"
+rigBoardStates "$rigTmp/data" running
 : > "$rigTmp/calls" ; : > "$rigTmp/bodies" ; : > "$rigTmp/brief"
 ## Nobody waits on this spawn, so its proxy runs on behind the call and asks a run that ended
 ## with no handback for one: the console keeps the first context it is given, never that retry.

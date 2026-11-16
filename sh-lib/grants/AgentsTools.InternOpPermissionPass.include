@@ -115,8 +115,12 @@ type AgentsToolsGrantsItemRuns > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distr
 			set +e ; return 1
 		fi
 		## Kept where the receiver reads it: the coworking session's store, or the passer's own.
-		local passRef passDir
-		passDir="$MMDAPP/.local/agents/sessions/$( AgentsToolsPermissionShareStore "$passSession" )"
+		local passRef passDir=""
+		type AgentsSessionFolderInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+		AgentsSessionFolderInto passDir "$MMDAPP" "$( AgentsToolsPermissionShareStore "$passSession" )" || {
+			echo "$MDSC_CMD: ⛔ ERROR: $passSession is no session of this workspace, so nothing is passed" >&2
+			set +e ; return 1
+		}
 		passRef="$( AgentsToolsPermissionNewRef pass- )" || {
 			echo "$MDSC_CMD: ⛔ ERROR: no id could be generated, so nothing is passed" >&2
 			set +e ; return 1

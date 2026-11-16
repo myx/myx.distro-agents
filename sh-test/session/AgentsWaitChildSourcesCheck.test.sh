@@ -118,7 +118,7 @@ rigChildRecord rigchild0004 rig-kid-session-4 CRIGKID04:200.000004 spawn-started
 rigChildRun rigchild0001
 rigChildRun rigchild0001b
 rigChildRun rigchild0002
-( . "$rigHere/spawn/AgentsTools.ChildrenIndex.include" ; . "$rigSpawn" ; AgentsToolsChildrenIndexRepair "$rigKidsWs" ) > /dev/null 2>&1 \
+( . "$rigHere/session/AgentsTools.ChildrenIndex.include" ; . "$rigSpawn" ; AgentsToolsChildrenIndexRepair "$rigKidsWs" ) > /dev/null 2>&1 \
 	|| rigRefuse "the rig could not list the children it made"
 rigAssert "the parent's index lists one record a line"  "$( wc -l < "$rigKidsWs/.local/agents/children/$rigParent" | tr -d ' ' )" 5
 rigAssert "a plain Wait watches the session and each running child once" "$( rigDefaults )" \

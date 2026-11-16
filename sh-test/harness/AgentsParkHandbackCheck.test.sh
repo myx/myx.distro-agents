@@ -13,6 +13,7 @@ rigExec="$rigPkg/sh-test/check-fixtures/rig-exec.py"
 rigRoutine="$rigPkg/skillset/magic-team/magic-team/magic-team.standalone.routine.md"
 
 rigRefuse(){
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-writes.include.sh" || exit 1
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }
 [ -f "$rigHarness" ] || rigRefuse "the harness is not at the origin: $rigHarness"
@@ -114,7 +115,7 @@ rigScene(){ ## scene name
 	rigWs="$rigTmp/ws-$1"
 	rigSandbox="$rigDir/sandbox"
 	rigStore="$rigWs/.local/agents/sessions/$rigSpawn"
-	mkdir -p "$rigDir" "$rigWs/.local/.agents" "$rigWs/.local/agents/spawned/rig" "$rigWs/.local/agents/members/magic-coordinator" "$rigDir/data/board/running" "$rigSandbox/input" "$rigSandbox/output"
+	mkdir -p "$rigDir" "$rigWs/.local/.agents" "$rigWs/.local/agents/spawned/rig" "$rigWs/.local/agents/members/magic-coordinator" "$rigSandbox/input" "$rigSandbox/output"
 	printf '0' > "$rigDir/round"
 	: > "$rigDir/slack.calls"
 	printf 'SLACK_CHANNEL_MAGIC_TEAM=CRIG00001\nSLACK_CHANNEL_HUMAN_OWNER=URIGOWNER\nSLACK_BOT_TOKEN=rig-bot-token-TEAM\n' > "$rigWs/.local/.agents/magic-team.agent.env"
@@ -128,7 +129,7 @@ rigScene(){ ## scene name
 	done
 	## The item this run works: its reviewer is who could give the verdict, so a park is possible.
 	printf -- '---\ntype: dispatch\nowner: rig-a\nstatus: dispatch-started\nspawn-id: %s\nreview-by: magic-coordinator\n---\n\n# rig dispatch\n\n## Decisions\n\n' \
-		"$rigSpawn" > "$rigDir/data/board/running/dispatch-20261102T0200Z-park.md"
+		"$rigSpawn" | rigOwnerData="$rigDir/data" rigOwnerBoardPut running "dispatch-20261102T0200Z-park.md"
 	printf -- '---\nspawn-id: %s\nsession-id: %s\nparent-spawn-id: none\nhost: %s\nowner: rig-a\nstatus: spawn-started\nroutine: magic-team.standalone.routine.md\nspawns: dispatch-20261102T0200Z-park\nsession-thread: CPARK0001:1700000000.000800\n---\n\n# Spawn session: %s\n' \
 		"$rigSpawn" "$rigSpawn" "$( hostname -s 2> /dev/null || printf unknown )" "$rigSpawn" > "$rigWs/.local/agents/spawned/rig/$rigSpawn.spawn.md"
 	cp "$rigWs/.local/agents/spawned/rig/$rigSpawn.spawn.md" "$rigSandbox/$rigSpawn.spawn.md"

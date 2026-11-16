@@ -95,7 +95,7 @@ Every harness tool and `magic-tooling` operation this routine uses. A harness to
 
 ## Tooling operations
 
-- `--get-inbox-item <member> <item-filename> [--include-processed] [--start-line <N> --end-line <N>]` (`DistroAgentsItems`)
+- `--get-inbox-item [--team-member <member>] <item-filename> [--include-processed] [--start-line <N> --end-line <N>]` (`DistroAgentsItems`)
 - `--upsert-inbox-inquiry <member> <item-filename> [--include-processed] [--from-file <path>]` (`DistroAgentsItems`)
 - `--slack-send-message <target> [text...]` (`DistroAgentsSlack`)
 - `--mark-inbox-processed <item-filename> [--include-processed] [--header:<upsert|append|remove>:name[:value]]...` (`DistroAgentsItems`)
@@ -110,7 +110,7 @@ Used to check this file's own definitions against its own goals when it is updat
 
 ## Verbatim-tests (benchmarks)
 
-- Any member can deliver into another member's inbox through `post-inquiry` (`--upsert-inbox-inquiry`), but only that inbox's own owner processes what's inside it — same as real email.
+- A member has an inquiry of its own waiting in another member's inbox. It cannot mark that item processed, and asks its owner.
 
 ## Librarian Comments
 

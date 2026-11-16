@@ -39,8 +39,8 @@ rigData="$rigTmp/data"
 rigSlack="$rigTmp/slack"
 rigSp="$rigWs/.local/agents/spawned"
 rigStores="$rigWs/.local/agents/sessions"
-mkdir -p "$rigTmp/bin" "$rigWs/.local/.agents" "$rigHome" "$rigSkills/magic-team" "$rigSp" "$rigStores" \
-	"$rigData/board/running" "$rigSlack" || rigRefuse "the rig could not be made: $rigTmp"
+mkdir -p "$rigTmp/bin" "$rigWs/.local/.agents" "$rigHome" "$rigSkills/magic-team" "$rigSp" "$rigStores" "$rigSlack" || rigRefuse "the rig could not be made: $rigTmp"
+rigBoardStates "$rigData" running || rigRefuse "the rig could not be made: $rigTmp"
 printf -- '---\nmaintainers: rig\n---\nrig identity\n' > "$rigSkills/magic-team/magic-team.basic.md"
 mkdir -p "$rigSkills/magic-developer"
 printf -- '---\nmaintainers: rig\n---\nrig identity\n' > "$rigSkills/magic-developer/magic-developer.basic.md"
@@ -138,14 +138,14 @@ rigDerived(){ ## run id -- the registry's own word for it
 	rigWantRun="$1"
 	( cd "$rigWs" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" PATH="$rigTmp/bin:/usr/bin:/bin:/usr/sbin:/sbin" \
 		MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
-		bash -c '. "$1" ; AgentsToolsRegistryRenderSpawnedSessions agents' rig "$rigPkg/sh-lib/team-data/AgentsTools.RegistrySpawnedSessions.include" ) 2>&1 \
+		bash -c '. "$1" ; AgentsToolsRegistryRenderSpawnedSessions agents' rig "$rigPkg/sh-lib/session/AgentsTools.RegistrySpawnedSessions.include" ) 2>&1 \
 		| LC_ALL=C awk -v want="$rigWantRun" 'NF == 13 && $8 == want { print $13 }' | head -1
 }
 rigJudged(){ ## session id -- what the control thread's own judging says of it
 	( cd "$rigWs" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" PATH="$rigTmp/bin:/usr/bin:/bin:/usr/sbin:/sbin" \
 		MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
 		bash -c '. "$1" ; . "$2" ; AgentsToolsRegistryRenderSpawnedSessions agents | LC_ALL=C awk "NF == 13 && \$2 != \"-\"" | AgentsToolsSessionControlJudged' \
-			rig "$rigPkg/sh-lib/team-data/AgentsTools.RegistrySpawnedSessions.include" "$rigPkg/sh-lib/session/AgentsTools.SessionControlStart.include" ) 2>&1 \
+			rig "$rigPkg/sh-lib/session/AgentsTools.RegistrySpawnedSessions.include" "$rigPkg/sh-lib/session/AgentsTools.SessionControlStart.include" ) 2>&1 \
 		| LC_ALL=C awk -v want="$1" '$1 == want { print $2 }' | head -1
 }
 rigReacted(){ LC_ALL=C tr '\n' ' ' < "$rigSlack/react" 2> /dev/null || : ; }
@@ -201,8 +201,9 @@ rigPauseHeld(){ ## run id, session id -- the question the release step asks, as 
 }
 rigAssert "the release step's own guard says held while the flag stands" "$( rigPauseHeld pausrun pause-sess )" "held"
 ## A run whose dispatch item is processed, with the flag standing: the release step reaches it and turns away.
-mkdir -p "$rigStores/pause-sess/control" "$rigData/board/processed"
-printf -- '---\ntype: dispatch\nowner: magic-developer\nstatus: dispatch-processed\nspawn-id: pausrun\nsession-id: pause-sess\n---\n' > "$rigData/board/processed/dispatch-pausrun.md"
+mkdir -p "$rigStores/pause-sess/control"
+rigBoardStates "$rigData" processed
+printf -- '---\ntype: dispatch\nowner: magic-developer\nstatus: dispatch-processed\nspawn-id: pausrun\nsession-id: pause-sess\n---\n' | rigStoreItem "$rigData" board processed dispatch-pausrun.md
 rigRelease(){ ## -- one pass of the release step over the paused run, as the control thread makes it
 	( cd "$rigWs" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" PATH="$rigTmp/bin:/usr/bin:/bin:/usr/sbin:/sbin" \
 		MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \

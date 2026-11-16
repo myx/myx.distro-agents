@@ -682,21 +682,18 @@ AgentsToolsTeamDataEnsureCloneLocked(){ ## where, remote
 	return 0
 }
 
-## The store step of --owner-setup-storage --apply. MDAT_DATA_ROOT is resolved the
-## dispatcher's way, which also clones a missing or empty store when a remote is set.
-## With no remote the store is initialised. With a remote set, a store holding content
-## that is not a clone is handed to myx.common git/cloneSync, as the main loop's pass hands
-## it; a store that is a repository is given the remote as its origin where it has none or
-## another (AgentsToolsTeamDataRemoteAlign) and pushed (AgentsToolsTeamDataPushIfAhead,
-## which integrates a remote that moved with git/cloneSync). The configured author identity
-## is written into the store repository's own config, and the board is made ready
-## (AgentsToolsBoardReady). Non-zero only on a failure.
+## The store step of --owner-setup-storage --apply. MDAT_DATA_ROOT is an explicit input: the set-up
+## front resolves it (AgentsContext.UseAgentsTools.include), which also clones a missing or empty store
+## when a remote is set. With no remote the store is initialised. With a remote set, a store holding
+## content that is not a clone is handed to myx.common git/cloneSync, as the main loop's pass hands it; a
+## store that is a repository is given the remote as its origin where it has none or another
+## (AgentsToolsTeamDataRemoteAlign) and pushed (AgentsToolsTeamDataPushIfAhead, which integrates a remote
+## that moved with git/cloneSync). The configured author identity is written into the store repository's
+## own config. The board is made ready by the set-up front after this returns, never here. Non-zero only
+## on a failure.
 AgentsToolsTeamDataPrepareStore(){
 	local MDSC_CMD="${MDSC_CMD:-DistroAgentsTools}" prepareRemote="" prepareName="" prepareEmail=""
-	set -- --owner-setup-storage
-	. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.UseAgentsTools.include"
 	[ -n "${MDAT_DATA_ROOT:-}" ] || { echo "⛔ ERROR: $MDSC_CMD --owner-setup-storage: the team-data store could not be resolved" >&2 ; return 1 ; }
-	type AgentsToolsBoardReady > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.BoardStates.include"
 	type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/settings/AgentsTools.ConfigOption.include"
 	prepareRemote="$( AgentsToolsConfigOption magic-team --select TEAM_DATA_GIT_REMOTE 2>/dev/null )" || prepareRemote=""
 	## A store inside a larger repository is never given a nested one, nor an identity of the outer one's.
@@ -707,7 +704,6 @@ AgentsToolsTeamDataPrepareStore(){
 	done
 	if [ ! -e "$MDAT_DATA_ROOT/.git" ] && [ -n "$prepareProbe" ] && git -C "$prepareProbe" rev-parse --show-toplevel > /dev/null 2>&1 ; then
 		echo "⚠️ WARNING: $MDSC_CMD --owner-setup-storage: $MDAT_DATA_ROOT sits inside the larger repository $( git -C "$prepareProbe" rev-parse --show-toplevel ), so no repository is made for it and no identity is written" >&2
-		AgentsToolsBoardReady || return 1
 		return 0
 	fi
 	if [ ! -e "$MDAT_DATA_ROOT/.git" ] ; then
@@ -723,7 +719,6 @@ AgentsToolsTeamDataPrepareStore(){
 			fi
 			if [ ! -e "$MDAT_DATA_ROOT/.git" ] ; then
 				echo "⚠️ WARNING: $MDSC_CMD --owner-setup-storage: $MDAT_DATA_ROOT is not a clone of TEAM_DATA_GIT_REMOTE yet, for the reason above; the main loop's pass makes it one once the remote answers" >&2
-				AgentsToolsBoardReady || return 1
 				return 0
 			fi
 			echo "# $MDSC_CMD --owner-setup-storage: git/cloneSync made $MDAT_DATA_ROOT a clone of TEAM_DATA_GIT_REMOTE" >&2
@@ -739,7 +734,6 @@ AgentsToolsTeamDataPrepareStore(){
 	[ -z "$prepareName" ] || git -C "$MDAT_DATA_ROOT" config user.name "$prepareName" || return 1
 	[ -z "$prepareEmail" ] || git -C "$MDAT_DATA_ROOT" config user.email "$prepareEmail" || return 1
 	[ -z "$prepareName$prepareEmail" ] || echo "# $MDSC_CMD --owner-setup-storage: the configured author identity is written into $MDAT_DATA_ROOT's own config" >&2
-	AgentsToolsBoardReady || return 1
 	[ -z "$prepareRemote" ] || AgentsToolsTeamDataPushIfAhead "--owner-setup-storage"
 	return 0
 }

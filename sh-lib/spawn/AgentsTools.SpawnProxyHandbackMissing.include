@@ -18,6 +18,7 @@ type AgentsSettingsScopeHas > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-a
 ## run that has no item and no transcript to record an ending in. rc 0 closed, the reason
 ## printed; rc 1 open, or nothing to tell it by.
 AgentsToolsSpawnProxyRetryClosed(){ ## record file (may be empty), spawn id (may be empty)
+	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandboxRecordHeader.include"
 	local closedStatus="" closedPart closedKilled=""
 	if [ -n "$1" ] && [ -f "$1" ] ; then
 		closedStatus="$( AgentsToolsSpawnSandboxRecordHeader "$1" status )"
@@ -71,6 +72,8 @@ AgentsToolsSpawnProxyRetryClosed(){ ## record file (may be empty), spawn id (may
 ## "its final answer") stop this. Leaves the last round's exit code in spawnProxyContinueExitCode, so what runs
 ## after it sees that round, never the first.
 AgentsToolsSpawnProxyWorkDutyContinue(){ ## session thread, session id, the sandbox tracking record, the output file (may be empty), the exit code so far, cli args...
+	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandboxRecordHeader.include"
+	type AgentsSessionMarked > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include" || return 1
 	local contThread="$1" contSessionId="$2" contTracking="$3" contLog="$4" contRounds=0 contPid
 	spawnProxyContinueExitCode="${5:-0}"
 	shift 5 2>/dev/null || shift $#
@@ -79,7 +82,7 @@ AgentsToolsSpawnProxyWorkDutyContinue(){ ## session thread, session id, the sand
 	[ -n "$contLog" ] && [ -f "$contLog" ] || return 0
 	while [ "$spawnProxyContinueExitCode" = 0 ] && [ "$contRounds" -lt 1000 ] ; do
 		case "$( AgentsToolsSpawnSandboxRecordHeader "$contTracking" routine 2>/dev/null )" in *.work-duty.routine.md) ;; *) return 0 ;; esac
-		[ ! -e "$MMDAPP/.local/agents/sessions/$contSessionId/dismissed" ] || return 0
+		! AgentsSessionMarked "$contSessionId" dismissed || return 0
 		contRounds=$(( contRounds + 1 ))
 		( trap - PIPE ; AgentsToolsSpawnConsoleLaunch MDAT_SKILLSET_ROOT="$( AgentsToolsWorkspaceSkillsetRoot "$MMDAPP" )" MDAT_SESSION_ID="$contSessionId" MDAT_SESSION_THREAD="$contThread" MDAT_SPAWN_RESUME=true -- ${contCliArgs[@]+"${contCliArgs[@]}"} \
 			<<< "$( printf '%s\n%s\n' \

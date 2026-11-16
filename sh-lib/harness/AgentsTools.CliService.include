@@ -68,12 +68,13 @@ AgentsToolsCliServiceWorks(){ ## cli service
 ## service is not known, so nothing is printed.
 AgentsToolsCliServiceOfSession(){ ## session id
 	local serviceLine=""
+	type AgentsSessionLaunchWordInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
 	case "$1" in ''|*/*|.|..) return 0 ;; esac
-	if [ ! -s "$MMDAPP/.local/agents/sessions/$1/launch" ] ; then
+	AgentsSessionLaunchWordInto serviceLine "$1"
+	if [ -z "$serviceLine" ] ; then
 		[ "${CLAUDE_CODE_SESSION_ID:-}" != "$1" ] || printf 'claude-native'
 		return 0
 	fi
-	IFS= read -r serviceLine < "$MMDAPP/.local/agents/sessions/$1/launch" || :
 	case "$serviceLine" in *[!abcdefghijklmnopqrstuvwxyz0123456789-]*) return 0 ;; esac
 	printf '%s' "$serviceLine"
 }

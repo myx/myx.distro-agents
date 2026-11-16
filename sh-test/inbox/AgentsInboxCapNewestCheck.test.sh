@@ -20,7 +20,7 @@ rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
 rigWs="$rigTmp/ws" rigData="$rigTmp/data" rigSkills="$rigTmp/skills"
 rigIncoming="$rigData/inboxes/rig-member/incoming"
-mkdir -p "$rigWs/.local/.agents" "$rigWs/.local/temp" "$rigIncoming" "$rigData/board/running" "$rigTmp/bin" "$rigSkills/rig-member"
+mkdir -p "$rigWs/.local/.agents" "$rigWs/.local/temp" "$rigIncoming" "$rigTmp/bin" "$rigSkills/rig-member"
 printf -- '---\nmaintainers: rig\n---\nrig identity\n' > "$rigSkills/rig-member/rig-member.basic.md"
 printf 'SLACK_CHANNEL_MAGIC_TEAM=CRIG00001\nSLACK_BOT_TOKEN=rig-bot-token-TEAM\n' > "$rigWs/.local/.agents/magic-team.agent.env"
 printf '#!/bin/sh\nexit 7\n' > "$rigTmp/bin/curl" && chmod +x "$rigTmp/bin/curl"
@@ -49,6 +49,8 @@ rigFill(){
 }
 rigScan(){ ## the scan's options
 	rigRc=0
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-writes.include.sh" || exit 1
+rigOwnerWs="${rigWs:-$rigTmp/ws}" rigOwnerData="${rigData:-${rigD:-${rigStore:-${rigOut:-$rigTmp/data}}}}" rigOwnerHome="${rigHome:-$rigTmp/home}" rigOwnerSkills="${rigSkills:-$rigTmp/skills}"
 	env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp/home" PATH="$rigTmp/bin:/usr/bin:/bin" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDAT_SKILLSET_ROOT="$rigSkills" \
 		MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" RIG_TMP="$rigTmp" \
 		bash -c '

@@ -31,7 +31,9 @@ rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 trap 'chmod -R u+w -- "$rigTmp" 2>/dev/null ; rigControlThreadsEnd "$rigTmp" ; rm -rf -- "$rigTmp"' EXIT
 rigWs="$rigTmp/ws" ; rigSkills="$rigTmp/skills" ; rigData="$rigTmp/data" ; rigAgents="$rigWs/.local/.agents"
 [ "$rigWs" != "${MMDAPP%/}" ] || rigRefuse "the rig workspace is the real one"
-mkdir -p "$rigAgents" "$rigTmp/bin" "$rigTmp/home" "$rigSkills/magic-team" "$rigSkills/keeper-myx" "$rigSkills/rig-member" "$rigSkills/magic-coordinator" "$rigData/board/running" "$rigData/inboxes/keeper-myx"
+mkdir -p "$rigAgents" "$rigTmp/bin" "$rigTmp/home" "$rigSkills/magic-team" "$rigSkills/keeper-myx" "$rigSkills/rig-member" "$rigSkills/magic-coordinator"
+rigBoardStates "$rigData" running
+rigInboxReady "$rigData" keeper-myx
 cp "$rigTest/check-fixtures/slack-send-identity-check.curl.stub.sh" "$rigTmp/bin/curl" || rigRefuse "the fake curl fixture is missing from the package"
 chmod +x "$rigTmp/bin/curl"
 PATH="$rigTmp/bin:$PATH"

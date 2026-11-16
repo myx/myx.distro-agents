@@ -69,7 +69,9 @@ rigData="$rigTmp/data"
 rigSkills="$rigHome/.claude/skills"
 rigHere="$rigMain/source/rig/rig-proj/skillset"
 rigThere="$rigOther/source/rig/rig-proj/skillset"
-mkdir -p "$rigSkills" "$rigHere" "$rigThere" "$rigMain/.local/agents/members" "$rigMain/.local/.agents" "$rigData/board/running" "$rigMain/source/rig/rig-proj/not-a-skillset/keeper-here"
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-writes.include.sh" || exit 1
+rigOwnerWs="${rigWs:-$rigTmp/ws}" rigOwnerData="${rigData:-${rigD:-${rigStore:-${rigOut:-$rigTmp/data}}}}" rigOwnerHome="${rigHome:-$rigTmp/home}" rigOwnerSkills="${rigSkills:-$rigTmp/skills}"
+mkdir -p "$rigSkills" "$rigHere" "$rigThere" "$rigMain/.local/agents/members" "$rigMain/.local/.agents" "$rigMain/source/rig/rig-proj/not-a-skillset/keeper-here"
 ## The team bot and the human-owner's account: who shows a held change, and to whom.
 printf 'SLACK_CHANNEL_MAGIC_TEAM=CRIG00001\nSLACK_CHANNEL_HUMAN_OWNER=URIGOWNER\nSLACK_BOT_TOKEN=rig-bot-token-TEAM\n' > "$rigMain/.local/.agents/magic-team.agent.env"
 ## A member's skill: its SKILL.md, its own <name>.basic.md, an .md file at its top and one deeper, and a file that is no .md.

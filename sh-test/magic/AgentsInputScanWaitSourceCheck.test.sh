@@ -25,6 +25,7 @@ rigRefuse(){
 ## A scan may start the control thread of a session of its rig that is not finished: the rig ends it.
 . "$rigTest/check-fixtures/rig-control-threads.include.sh" || rigRefuse "the rig's fixture that ends control threads is missing from the package: sh-test/check-fixtures/rig-control-threads.include.sh"
 . "$rigTest/check-fixtures/rig-temp.include.sh" || exit 1
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-writes.include.sh" || exit 1
 rigTmp="$( rigTempDir AgentsInputScanWaitSourceCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 trap 'rigControlThreadsEnd "$rigTmp" ; rm -rf -- "$rigTmp"' EXIT
@@ -47,12 +48,12 @@ rigAssert(){ ## what is asserted, got, want
 	fi
 }
 rigW="$rigTmp/ws" rigD="$rigTmp/data" rigH="$rigTmp/home"
-mkdir -p "$rigW/.local/.agents" "$rigW/.local/agents/spawned" "$rigW/.local/agents/members/magic-coordinator" "$rigD/inboxes/magic-coordinator/incoming" "$rigH"
+mkdir -p "$rigW/.local/.agents" "$rigW/.local/agents/spawned" "$rigW/.local/agents/members/magic-coordinator" "$rigH"
 printf '# magic-coordinator\n' > "$rigW/.local/agents/members/magic-coordinator/SKILL.md"
 printf 'SLACK_CHANNEL_MAGIC_TEAM=CRIG00001\nSLACK_CHANNEL_HUMAN_OWNER=URIGOWNER\nSLACK_BOT_TOKEN=rig-bot-token-TEAM\n' > "$rigW/.local/.agents/magic-team.agent.env"
 for rigState in pending running blocked parked review ; do
-	mkdir -p "$rigD/board/$rigState"
-	printf -- '---\ntype: task\nowner: magic-coordinator\n---\n\n# Rig item in %s\n' "$rigState" > "$rigD/board/$rigState/task-rig-$rigState.md"
+	:  ## the store folders are made by the write that fills them
+	rigOwnerData="$rigD" rigOwnerBoardWrite $rigState "task-rig-$rigState.md" -- '---\ntype: task\nowner: magic-coordinator\n---\n\n# Rig item in %s\n' "$rigState"
 done
 rigSession="rig-scan-wait-session" rigRun="rig-scan-wait-run"
 rigSource="scan:member-work-session"
@@ -62,7 +63,7 @@ rigWait(){ ## result name
 	waitStart="$( date +%s )"
 	( cd "$rigW" && env -u MDAT_SKILLSET_ROOT -u CLAUDE_CODE_SESSION_ID HOME="$rigH" MMDAPP="$rigW" MDLT_ORIGIN="$MDLT_ORIGIN" MDAT_DATA_ROOT="$rigD" RIG_SCENARIO="$rigTmp" \
 		MDAT_SESSION_ID="$rigSession" MDAT_SPAWN_SESSION_ID="$rigRun" MDAT_SPAWN_AGENT=magic-coordinator \
-		python3 -I -B "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-exec.py" --alarm 120 -- bash "$rigTool" --wait-for-input magic-coordinator --wait-source "$rigSource" --wait-timeout 0 ) > "$rigTmp/$1.out" 2> "$rigTmp/$1.err" < /dev/null 4> /dev/null || waitRc=$?
+		python3 -I -B "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-exec.py" --alarm 120 -- bash "$rigTool" --wait-for-input --team-member magic-coordinator --wait-source "$rigSource" --wait-timeout 0 ) > "$rigTmp/$1.out" 2> "$rigTmp/$1.err" < /dev/null 4> /dev/null || waitRc=$?
 	printf '%s' "$waitRc" > "$rigTmp/$1.rc"
 	printf '%s' "$(( $( date +%s ) - waitStart ))" > "$rigTmp/$1.took"
 }
@@ -93,7 +94,7 @@ echo "-- 4. nothing changed: TIMEOUT --"
 rigWait w2
 rigAssert "the second read finds the report as it was"           "$( rigResult w2 )" "TIMEOUT"
 echo "-- 5. a note added to the inbox: the report differs, and the Wait wakes --"
-printf -- '---\ntype: note\nfrom: magic-coordinator\n---\n\n# Note: scan wait added\n' > "$rigD/inboxes/magic-coordinator/incoming/note-20261021T0900Z-scan-wait-added.md"
+rigOwnerData="$rigD" rigOwnerInboxWrite magic-coordinator "note-20261021T0900Z-scan-wait-added.md" -- '---\ntype: note\nfrom: magic-coordinator\n---\n\n# Note: scan wait added\n'
 rigWait w3
 rigAssert "RECEIVED, with the note added" "$( rigResult w3 ):$( LC_ALL=C grep -c -F 'note-20261021T0900Z-scan-wait-added' "$rigTmp/w3.out" | LC_ALL=C sed -e 's/^[1-9][0-9]*$/shown/' )" "RECEIVED:shown"
 

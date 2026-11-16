@@ -27,7 +27,7 @@ rigAssert(){ ## what is asserted, got, want
 	fi
 }
 rigWs="$rigTmp/ws" rigHome="$rigTmp/home" rigData="$rigTmp/data" rigSkills="$rigTmp/skills"
-mkdir -p "$rigWs/.local/temp" "$rigHome" "$rigData/inboxes/magic-coordinator/incoming" "$rigSkills/magic-coordinator" "$rigWs/todo-sketchpad/backlog" "$rigWs/todo-sketchpad/empty"
+mkdir -p "$rigWs/.local/temp" "$rigHome" "$rigSkills/magic-coordinator" "$rigWs/todo-sketchpad/backlog" "$rigWs/todo-sketchpad/empty"
 rigEpic="$rigWs/todo-sketchpad/backlog/20990101-rig.epic.md"
 rigAs="" rigRc=""
 rigRun(){ ## result prefix, words... -- rc in rigRc

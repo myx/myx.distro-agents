@@ -89,7 +89,7 @@ rigAcct="$( printf '%s' "$rigAcct" | LC_ALL=C tr -s ' \t\r\n' '_' )"
 [ -n "$rigAcct" ] || rigAcct="unknown"
 rigWs="$rigTmp/ws"
 rigData="$rigWs/DATA"
-mkdir -p "$rigWs/.local/.agents" "$rigWs/.local/agents/spawned" "$rigWs/.local/agents/sessions" "$rigData/board/running" "$rigData/board/review"
+mkdir -p "$rigWs/.local/.agents" "$rigWs/.local/agents/spawned" "$rigWs/.local/agents/sessions"
 : > "$rigWs/.local/agents/permissions.registry"
 rigHost="$( hostname -s 2>/dev/null || echo unknown )"
 ## The console account an owner is mapped to: another account, or this one.

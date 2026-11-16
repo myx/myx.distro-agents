@@ -21,15 +21,17 @@ AgentsHarnessBareName(){ ## candidate
 ## `shared <path>`: the id is its session-id and its spawn-id is another, a participant of
 ## that session.
 AgentsHarnessDispatchItemPath(){ ## handle, optional `every`
-	local handleText="$1" dispatchState dispatchFile
+	local handleText="$1" dispatchState dispatchPath
 	local dispatchFiles=()
 	case "$handleText" in
 		''|*/*|*..*) return 0 ;;
 	esac
+	type AgentsToolsBoardStatePathInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemDecisions.include"
 	for dispatchState in running pending review blocked parked processed archived retained backlog ; do
-		[ -f "$MDAT_DATA_ROOT/board/$dispatchState/$handleText" ] || continue
+		AgentsToolsBoardStatePathInto dispatchPath "$dispatchState" "$handleText" || continue
+		[ -f "$dispatchPath" ] || continue
 		[ "${2:-}" != "every" ] || printf 'file '
-		printf '%s' "$MDAT_DATA_ROOT/board/$dispatchState/$handleText"
+		printf '%s' "$dispatchPath"
 		return 0
 	done
 	## The dispatch items of the handle's runs by name: a run's record names the dispatch it works in `spawns:`
@@ -38,8 +40,10 @@ AgentsHarnessDispatchItemPath(){ ## handle, optional `every`
 	## every dispatch item of the board on a tool call. Where no record names the handle here, every dispatch
 	## item is read, as before.
 	local dispatchRecord dispatchNamed dispatchNames=" "
-	type AgentsToolsSpawnedSessionRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.StartedRecords.include"
-	for dispatchRecord in "${MMDAPP:-/nonexistent}/.local/agents/spawned"/*/"$handleText.spawn.md" $( AgentsToolsSpawnedSessionRecords "$handleText" own 2> /dev/null ) ; do
+	type AgentsToolsSpawnedSessionRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include"
+	type AgentsSessionRunRecordInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+	AgentsSessionRunRecordInto dispatchRecord "$handleText" || :
+	for dispatchRecord in ${dispatchRecord:+"$dispatchRecord"} $( AgentsToolsSpawnedSessionRecords "$handleText" own 2> /dev/null ) ; do
 		[ -f "$dispatchRecord" ] || continue
 		dispatchNamed="$( AgentsHarnessDispatchField "$dispatchRecord" spawns )"
 		[ -n "$dispatchNamed" ] || dispatchNamed="$( AgentsHarnessDispatchField "$dispatchRecord" spawned-by )"
@@ -50,16 +54,12 @@ AgentsHarnessDispatchItemPath(){ ## handle, optional `every`
 	done
 	for dispatchState in running pending review blocked parked processed archived retained backlog ; do
 		for dispatchNamed in $dispatchNames ; do
-			[ ! -f "$MDAT_DATA_ROOT/board/$dispatchState/$dispatchNamed.md" ] || dispatchFiles+=( "$MDAT_DATA_ROOT/board/$dispatchState/$dispatchNamed.md" )
+			AgentsToolsBoardStatePathInto dispatchPath "$dispatchState" "$dispatchNamed.md" || continue
+			[ ! -f "$dispatchPath" ] || dispatchFiles+=( "$dispatchPath" )
 		done
 	done
 	if [ "${#dispatchFiles[@]}" -eq 0 ] ; then
-		for dispatchState in running pending review blocked parked processed archived retained backlog ; do
-			for dispatchFile in "$MDAT_DATA_ROOT"/board/"$dispatchState"/dispatch-*.md ; do
-				[ -f "$dispatchFile" ] || continue
-				dispatchFiles+=( "$dispatchFile" )
-			done
-		done
+		AgentsToolsBoardItemsInto dispatchFiles dispatch- running pending review blocked parked processed archived retained backlog
 	fi
 	[ "${#dispatchFiles[@]}" -gt 0 ] || return 0
 	if [ "${2:-}" = "every" ] ; then
@@ -125,16 +125,6 @@ AgentsHarnessDispatchItemsSaid(){ ## -- stdin: item paths, a line each
 		saidText="$saidText${saidText:+, }${saidPath##*/} (${saidOwner:-<no owner>}, spawn-id ${saidSpawn:-<none>})"
 	done
 	printf '%s' "$saidText"
-}
-
-## The record of one spawn in this workspace's sandbox roots, by the spawn's own id: the file
-## of that name that names the id as its spawn-id. Every spawn has one, with or without a
-## dispatch item, and it is what ListAgents lists. Prints its path, or nothing.
-AgentsHarnessSpawnRecordPath(){ ## spawn id
-	## One resolver for the manager too: the record of a spawn is found by its file name, in
-	## whatever folder of spawned/ holds it (AgentsToolsSpawnRecordPath).
-	type AgentsToolsSpawnRecordPath > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionSeats.include"
-	AgentsToolsSpawnRecordPath "$1"
 }
 
 ## The output path the spawn proxy writes into a dispatch item when it CLOSES one.
@@ -253,9 +243,9 @@ AgentsHarnessStopLeft(){ ## session id, the processes signalled as `<pid> <start
 ## The brief goes in on stdin, never argv, so no shell parses it. Output to a file
 ## rather than a capture: the operation backgrounds a child, and a capture returns on
 ## pipe EOF rather than on the command it ran.
-AgentsHarnessToolAgent(){ ## agent name, prompt, cli service, session name or comment, session id to join, conversation threads, description (why this spawn is made), new session (true: a session of its own), settings workspace (the one named to pay for this spawn)
+AgentsHarnessToolAgent(){ ## agent name, prompt, cli service, session name or comment, session id to join, conversation threads, description (why this spawn is made), new session (true: a session of its own), settings workspace (the one named to pay for this spawn), tracked item (the board item the run works on)
 	type AgentsHarnessPrefetchRecordKey > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessSkills.include"
-	local toolAgentName="$1" toolPrompt="$2" toolCliService="$3" toolSessionNameOrComment="$4" toolSessionId="$5" toolConversation="${6:-}" toolDescription="${7:-}" toolNewSession="${8:-}" toolSettingsWorkspace="${9:-}" toolConversationThread spawnRc=0
+	local toolAgentName="$1" toolPrompt="$2" toolCliService="$3" toolSessionNameOrComment="$4" toolSessionId="$5" toolConversation="${6:-}" toolDescription="${7:-}" toolNewSession="${8:-}" toolSettingsWorkspace="${9:-}" toolTrackedItem="${10:-}" toolConversationThread spawnRc=0
 	if [ -z "$harnessAgent" ] ; then
 		printf 'ERROR: this harness was started without --agent, so it has no team identity to spawn under, and one is never guessed here. Nothing was spawned. Report this rather than working around it.%s\n' "${harnessAgentMissing:+ ($harnessAgentMissing)}" ; return 0
 	fi
@@ -295,6 +285,8 @@ AgentsHarnessToolAgent(){ ## agent name, prompt, cli service, session name or co
 	[ -z "$toolCliService" ] || set -- "$@" --spawn-cli-service "$toolCliService"
 	## The workspace named to pay for this one spawn: looked up by the spawn itself, which refuses a name this machine does not know.
 	[ -z "$toolSettingsWorkspace" ] || set -- "$@" --spawn-settings-workspace "$toolSettingsWorkspace"
+	## The board item this run works on, where the caller named one: the proxy writes `tracks:` from it.
+	[ -z "$toolTrackedItem" ] || set -- "$@" --tracked-item "$toolTrackedItem"
 	## The session that spawns is the coworking session, and the proxy decides which: the
 	## one this caller is in, else this caller's own, whose thread the first helper opens
 	## and every later one joins. This text titles that thread for the spawn that opens
@@ -401,15 +393,16 @@ AgentsHarnessWindowedRead(){ ## path, byte offset, byte limit
 ## session's newest run chosen by the start time stored there. Prints `log`, `state` and `how`
 ## lines, an `error` line where the registry cannot be read, and nothing where no row names it.
 AgentsHarnessRegistryRunLog(){ ## handle
-	type AgentsToolsRegistryMeasureRows > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.RegistrySpawnedSessions.include"
+	type AgentsToolsRegistryMeasureRows > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.RegistrySpawnedSessions.include"
 	type AgentsToolsRegistryFile > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
+	type AgentsSessionLogInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
 	local registryInclude="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
 	local registryRun registrySpawn logPath
 	[ -f "$registryInclude" ] || { printf 'error the spawned-sessions registry reader is missing at %s, so this handle cannot be resolved through it\n' "$registryInclude" ; return 0 ; }
 	registryRun="$( { . "$registryInclude"
 		## The registry as it stands (AgentsToolsSpawnedRegistryFile, AgentsTools.StartedRecords.include): a tool
 		## call never rebuilds it from every record; it is rebuilt once only where a record landed since.
-		type AgentsToolsSpawnedRegistryFile > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.StartedRecords.include"
+		type AgentsToolsSpawnedRegistryFile > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include"
 		registryStanding="$( AgentsToolsSpawnedRegistryFile 2> /dev/null )" || registryStanding=""
 		[ -n "$registryStanding" ] || { printf 'error the spawned-sessions registry at %s could not be read, so this handle was not looked up in it\n' "$( AgentsToolsRegistryFile spawned-sessions )" ; exit 0 ; }
 		AgentsToolsRegistryMeasureRows "$registryStanding" "" "" 14
@@ -440,9 +433,9 @@ AgentsHarnessRegistryRunLog(){ ## handle
 		error*) printf '%s\n' "$registryRun" ; return 0 ;;
 	esac
 	registrySpawn="$( printf '%s\n' "$registryRun" | LC_ALL=C sed -n 's/^run //p' )"
-	logPath="$( AgentsHarnessDispatchField "$( AgentsHarnessSpawnRecordPath "$registrySpawn" )" output-file )"
+	local logRecord="" ; AgentsSessionRunRecordInto logRecord "$registrySpawn" || : ; logPath="$( AgentsHarnessDispatchField "$logRecord" output-file )"
 	if [ ! -f "$logPath" ] ; then
-		logPath="${MMDAPP:-/nonexistent}/.local/agents/sessions/$registrySpawn/session.log"
+		AgentsSessionLogInto logPath "$registrySpawn" || logPath=""
 	fi
 	[ -f "$logPath" ] || logPath=""
 	printf '%s\n' "$registryRun"
@@ -459,6 +452,7 @@ AgentsHarnessToolTaskOutput(){ ## handle, byte offset, byte limit, output file
 		printf 'ERROR: MDAT_DATA_ROOT is not set in this process, so the dispatch records naming a helper session cannot be located. Nothing was read, and no output is implied to be absent.\n' ; return 0
 	fi
 	type AgentsHarnessWholeNumber > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessToolsFile.include"
+	type AgentsSessionLogInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
 	if [ -n "$toolOffset" ] && ! AgentsHarnessWholeNumber "$toolOffset" ; then
 		printf 'ERROR: offset must be a whole number of bytes, got: %s\n' "$toolOffset" ; return 0
 	fi
@@ -473,9 +467,10 @@ AgentsHarnessToolTaskOutput(){ ## handle, byte offset, byte limit, output file
 		## any path at all, around the access roots that bound Read, Glob and Grep.
 		case "$toolOutputFile" in
 			"$MDAT_DATA_ROOT"/*) ;;
-			"${MMDAPP:-/nonexistent}"/.local/agents/sessions/*/session.log) ;;
 			*)
-				printf 'ERROR: output_file is accepted only inside the team data store at %s, or as a session log at %s/.local/agents/sessions/<session id>/session.log, and this one is neither: %s. Give the dispatch item name or the session id as handle instead.\n' "$MDAT_DATA_ROOT" "${MMDAPP:-<no MMDAPP>}" "$toolOutputFile" ; return 0
+				if ! AgentsSessionLogPathOk "$toolOutputFile" ; then
+					printf 'ERROR: output_file is accepted only inside the team data store at %s, or as the session log of a session this workspace keeps, and this one is neither: %s. Give the dispatch item name or the session id as handle instead.\n' "$MDAT_DATA_ROOT" "$toolOutputFile" ; return 0
+				fi
 			;;
 		esac
 		case "$toolOutputFile" in
@@ -524,10 +519,10 @@ AgentsHarnessToolTaskOutput(){ ## handle, byte offset, byte limit, output file
 			fi
 			logPath="$( AgentsHarnessDispatchOutputFile "$itemPath" )"
 			[ -z "$logPath" ] || logHow="the output-file the dispatch item records, which it writes only once the session closes"
-			## While it runs: its session log, named by the spawn id the item records.
-			if [ -z "$logPath" ] && [ -n "$sessionId" ] && [ -n "${MMDAPP:-}" ] && AgentsHarnessBareName "$sessionId" \
-				&& [ -f "$MMDAPP/.local/agents/sessions/$sessionId/session.log" ] ; then
-				logPath="$MMDAPP/.local/agents/sessions/$sessionId/session.log" ; logHow="the session log of spawn $sessionId"
+			## While it runs: its session log, asked of the store that owns it.
+			if [ -z "$logPath" ] && [ -n "$sessionId" ] && AgentsHarnessBareName "$sessionId" \
+				&& AgentsSessionLogInto logPath "$sessionId" ; then
+				logHow="the session log of spawn $sessionId"
 			fi
 			if [ -z "$logPath" ] ; then
 				receiptId="$( AgentsHarnessDispatchReceipt "$itemName" )"
@@ -645,7 +640,7 @@ AgentsHarnessToolTaskStop(){ ## handle, force, task_id, shell_id
 	if [ -z "$itemPath" ] ; then
 		## No dispatch item of its own: the handle is a spawn's own id where a spawn record of
 		## this workspace names it.
-		stopRecord="$( AgentsHarnessSpawnRecordPath "$toolHandle" )"
+		AgentsSessionRunRecordInto stopRecord "$toolHandle" || :
 		if [ -z "$stopRecord" ] ; then
 			## Items that name it only as the session they joined: no run of its own.
 			stopNamed="$( printf '%s\n' "$stopItems" | LC_ALL=C sed -n 's/^shared //p' )"
@@ -717,8 +712,8 @@ AgentsHarnessToolTaskStop(){ ## handle, force, task_id, shell_id
 ## Whether this run is a work duty, as its own spawn record names its routine (`<member>.work-duty.routine.md`): rc 0 it is.
 AgentsHarnessWorkDuty(){
 	local dutyRecord=""
-	dutyRecord="$( AgentsHarnessSpawnRecordPath "${MDAT_SPAWN_SESSION_ID:-}" )" && [ -n "$dutyRecord" ] || return 1
-	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandbox.include" || return 1
+	AgentsSessionRunRecordInto dutyRecord "${MDAT_SPAWN_SESSION_ID:-}" || return 1
+	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandboxRecordHeader.include" || return 1
 	case "$( AgentsToolsSpawnSandboxRecordHeader "$dutyRecord" routine )" in *.work-duty.routine.md) return 0 ;; esac
 	return 1
 }
@@ -732,15 +727,15 @@ AgentsHarnessWorkDuty(){
 AgentsHarnessOthersRunning(){
 	local othersRecord othersSession othersRecords othersFile
 	if [ -n "${MDAT_SPAWN_SESSION_ID:-}" ] ; then
-		othersRecord="$( AgentsHarnessSpawnRecordPath "$MDAT_SPAWN_SESSION_ID" )" && [ -n "$othersRecord" ] || return 1
-		type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandbox.include" || return 1
+		AgentsSessionRunRecordInto othersRecord "$MDAT_SPAWN_SESSION_ID" || return 1
+		type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandboxRecordHeader.include" || return 1
 		## An executor is a member spawned or joined into a session; a helper brought in under its caller (`inline`) hands back and may end.
 		case "$( AgentsToolsSpawnSandboxRecordHeader "$othersRecord" start-context )" in spawned|joined) ;; *) return 1 ;; esac
 		othersSession="$( AgentsToolsSpawnSandboxRecordHeader "$othersRecord" session-id )"
 		[ -n "$othersSession" ] || return 1
 		type AgentsReviewChildLive > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ReviewFlow.include"|| return 1
 		## The session's records from the kept per-session list (AgentsTools.StartedRecords.include), never a grep of every record on a harness call.
-		type AgentsToolsSpawnedSessionRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.StartedRecords.include" || return 1
+		type AgentsToolsSpawnedSessionRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include" || return 1
 		othersRecords="$( AgentsToolsSpawnedSessionRecords "$othersSession" own 2> /dev/null )" || return 1
 		[ -n "$othersRecords" ] || return 1
 		while IFS= read -r othersFile ; do
@@ -751,7 +746,7 @@ AgentsHarnessOthersRunning(){
 		return 1
 	fi
 	[ -n "${MDAT_SESSION_ID:-}" ] || return 1
-	othersRecord="$( AgentsHarnessSpawnRecordPath "$MDAT_SESSION_ID" )" && [ -n "$othersRecord" ] || return 1
+	AgentsSessionRunRecordInto othersRecord "$MDAT_SESSION_ID" || return 1
 	type AgentsToolsSessionOthersRunning > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionSeats.include" || return 1
 	AgentsToolsSessionOthersRunning "$othersRecord" > /dev/null 2>&1
 }
