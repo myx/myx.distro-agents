@@ -55,7 +55,9 @@ whatever its content, or it carries non-obvious knowledge that needs its gotcha
 comments. An API needs the function called by name from another file, through a
 variable, from a dispatch table, or stubbed by a check. A function whose only
 claim is that a fragment is easier to name is a finding. The finding names the
-lines that belong at the call site.
+lines that belong at the call site. A finding is a function inlined while a call
+site sits in another file. It is also a body inlined at one site where two or
+more places need it.
 
 ## A variable derived from another
 
@@ -98,12 +100,11 @@ Look for:
   `.local/agents/spawned/...`, the board, the inboxes, the vault.
 - a path the owning concern hands out, for a caller to build on.
 
-A finding is any read or write of another concern's store, and any path passed
-out to be built on. A store no concern in the package owns belongs to the distro
-tooling, and it takes the same finding. Not a finding: an include of another
-concern, `sh-lib/<concern>/*.include` or a shared awk file, loaded to call its
-functions. That include is the concern's contract. The finding names the store,
-its owner, and the function that returns the data instead.
+A P2 row is a matching line, not a confirmed breach. The scan's `foreign-store`
+class reads each line's code with its comments stripped. It prints one row for
+each foreign store the code names. So a store named in a path string that reads
+nothing prints a row. Read the line before reporting it. A row for a store only
+named in a message, and never read or written, is no finding.
 
 ## A store path the caller builds
 
@@ -279,11 +280,14 @@ Look for:
 - a guard whose named function its file does not define.
 - a guard whose named function the code it guards does not call.
 - a load pointing at a file that only pulls the function in as a side effect.
+- a dispatcher arm whose load of its operation file sits behind a guard.
 
 A finding is a guard read by its name and its file. The named function is
 defined in that file, and the guarded code calls it. The code ends at the end
 of its function, or of its case arm (`;;`). The load's file is the file that
-defines the called function.
+defines the called function. A finding is also an arm whose load of its
+operation file sits behind a guard. The arm loads its operation file with a
+plain `. file`.
 
 ## A refactor review that skips the breach scan counts
 

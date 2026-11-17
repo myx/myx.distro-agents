@@ -113,7 +113,7 @@ Read this when a value is set in a manifest, in markup, in CSS, or in an environ
 
 `PWA-VISION.md` is the running record, one facet a pass, each dated. Read the facet the task needs. These are the rules it has settled.
 
-This distillation covers the record to 2026-07-20. Four later sections settle rules it does not carry. Read the record before relying on anything here.
+This distillation covers the record to 2026-07-20. Seven later sections settle rules it does not carry. Read the record before relying on anything here.
 
 **Caching by resource class**
 

@@ -96,7 +96,7 @@ Every harness tool and `magic-tooling` operation this routine uses. A harness to
 ## Tooling operations
 
 - `--get-inbox-item [--team-member <member>] <item-filename> [--include-processed] [--start-line <N> --end-line <N>]` (`DistroAgentsItems`)
-- `--upsert-inbox-inquiry <member> <item-filename> [--include-processed] [--from-file <path>]` (`DistroAgentsItems`)
+- `--upsert-inbox-inquiry <member> <item-filename> [--from-member <member>] [--include-processed] [--from-reflection <reflection-file>] [--reply] [--from-file <path>|--upsert-from-slots]` (`DistroAgentsItems`)
 - `--slack-send-message <target> [text...]` (`DistroAgentsSlack`)
 - `--mark-inbox-processed <item-filename> [--include-processed] [--header:<upsert|append|remove>:name[:value]]...` (`DistroAgentsItems`)
 

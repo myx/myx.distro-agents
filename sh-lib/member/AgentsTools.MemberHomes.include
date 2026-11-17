@@ -62,50 +62,6 @@ AgentsToolsMemberHomesWeights(){
 	'
 }
 
-## Rewrites one workspace's source-declared rows in the machine-wide member registry, under
-## that registry's lock: its old ones go, the rows on stdin come in. Every other row stays.
-AgentsToolsMemberHomesDeclaredWrite(){ ## workspace -- rows on stdin
-	local writeWs="${1%/}" writeFile writeNew writeTry=0 writeRc=0
-	writeFile="${HOME:-}/.agents/magic-team/members.registry"
-	writeNew="$( LC_ALL=C awk -F'\t' 'NF >= 5' )"
-	[ -f "$writeFile" ] || [ -n "$writeNew" ] || return 0
-	mkdir -p "${writeFile%/*}" || return 1
-	until mkdir "$writeFile.lock" 2> /dev/null ; do
-		writeTry=$(( writeTry + 1 ))
-		if [ "$writeTry" -ge 10 ] ; then
-			echo "⛔ ERROR: member homes: $writeFile is busy, lock not acquired after 10 attempts: $writeFile.lock" >&2
-			return 1
-		fi
-		sleep 1
-	done
-	{
-		[ ! -f "$writeFile" ] || LC_ALL=C awk -F'\t' -v ws="$writeWs" '!( $2 == ws && $3 == "source-declared" )' "$writeFile"
-		[ -z "$writeNew" ] || printf '%s\n' "$writeNew"
-	} > "$writeFile.tmp.$$" || writeRc=1
-	if [ "$writeRc" = 0 ] && ! cmp -s "$writeFile.tmp.$$" "$writeFile" ; then
-		mv -f "$writeFile.tmp.$$" "$writeFile" || writeRc=1
-	fi
-	rm -f "$writeFile.tmp.$$" 2> /dev/null
-	rmdir "$writeFile.lock" 2> /dev/null || :
-	[ "$writeRc" = 0 ] || echo "⛔ ERROR: member homes: could not rewrite $writeFile" >&2
-	return "$writeRc"
-}
-
-## The member rows one workspace without agents declares, as source-declared registry rows,
-## from a member scan's `<member> <folder>` lines on stdin: the first folder of each member.
-AgentsToolsMemberHomesDeclaredRows(){ ## workspace
-	LC_ALL=C awk -v ws="${1%/}" '
-		NF < 2 { next ; }
-		{ member = $1 ; dir = $0 ; sub( /^[^ ]+ /, "", dir ) ; }
-		( member in seen ) { printf( "🙋 WARNING: member homes: %s declares %s from more than one project, and a workspace without agents is not merged: %s registered, %s not\n", ws, member, seen[member], dir ) > "/dev/stderr" ; next ; }
-		{
-			seen[member] = dir ; rel = dir
-			if ( index( rel, ws "/source/" ) == 1 ) rel = substr( rel, length( ws ) + 9 )
-			print member "\t" ws "\tsource-declared\t" rel "\t" dir
-		}
-	'
-}
-
 ## What the copies of one member are, from its candidate rows on stdin (workspace, link
 ## kind, member directory). A copy is one folder, compared physically, however many rows
 ## name it: a source copy where a source-symlink or source-declared row names it, else a

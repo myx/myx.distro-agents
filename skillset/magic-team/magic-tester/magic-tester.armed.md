@@ -78,7 +78,7 @@ All statements apply at the same time, always. These rules override a magic-team
 Methodology modules:
   - `reference/evidence-discipline.md`: what makes a check able to fail, and a result mean what it says.
   - `reference/live-side-effect-verification.md`: verification where the real run has real consequences.
-  - `reference/code-review.md`: the eleven checks a changed line must pass, each with what to look for and what is a finding.
+  - `reference/code-review.md`: the twenty checks a changed line must pass, each naming its rule and what is a finding.
 
 ## Running the real test suite
 

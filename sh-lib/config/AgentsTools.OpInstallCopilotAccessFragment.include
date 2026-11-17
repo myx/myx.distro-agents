@@ -104,31 +104,12 @@
 				;;
 			esac
 			case "$fragmentTag" in
-				own)
+				own|explicit)
+					## AN INSTALL CREATES NO FOLDER (the human-owner): a root that is not there is recorded as wildcard,
+					## live-checked at spawn time, and never made here.
 					if [ -d "$fragmentRoot" ] ; then
-						ownCount=$(( ownCount + 1 ))
-					elif mkdir -p "$fragmentRoot" 2>/dev/null ; then
-						createdCount=$(( createdCount + 1 ))
-						## Only ever written into a directory this run just created --
-						## never into one that already existed, whatever it holds.
-						printf '%s\n' \
-							"# $( basename "$fragmentRoot" )" \
-							"" \
-							"Auto-created access-grant directory. Standing, not scratch." \
-							> "$fragmentRoot/MAGIC.md" 2>/dev/null || true
-						ownCount=$(( ownCount + 1 ))
+						if [ "$fragmentTag" = own ] ; then ownCount=$(( ownCount + 1 )) ; else explicitCount=$(( explicitCount + 1 )) ; fi
 					else
-						echo "🙋 WARNING: $MDSC_CMD --install-copilot-access-fragment: could not create own-workspace root $fragmentRoot -- recorded as wildcard (live-checked at spawn time) instead of install-guaranteed" >&2
-						fragmentTag="wildcard"
-						wildcardCount=$(( wildcardCount + 1 ))
-					fi
-				;;
-				explicit)
-					[ -d "$fragmentRoot" ] || createdCount=$(( createdCount + 1 ))
-					if mkdir -p "$fragmentRoot" 2>/dev/null ; then
-						explicitCount=$(( explicitCount + 1 ))
-					else
-						echo "🙋 WARNING: $MDSC_CMD --install-copilot-access-fragment: could not create explicit-name root $fragmentRoot -- recorded as wildcard (live-checked at spawn time) instead of install-guaranteed" >&2
 						fragmentTag="wildcard"
 						wildcardCount=$(( wildcardCount + 1 ))
 					fi

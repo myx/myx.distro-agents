@@ -47,6 +47,7 @@
 			fi
 			if [ -n "$workDutyDispatchFile" ] ; then
 				local workDutyDispatchHead
+				type AgentsToolsWorkDutyDispatchHead > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/schedule/AgentsTools.WorkDutyDispatch.include"
 				workDutyDispatchHead="$( AgentsToolsWorkDutyDispatchHead "$workDutyDispatchFile" "$spawnSkillsetRoot" "$callerName" )" || workDutyDispatchHead=""
 				[ -z "$workDutyDispatchHead" ] || spawnContext="$( printf '%s\n\n%s\n' "$workDutyDispatchHead" "$spawnContext" )"
 			fi

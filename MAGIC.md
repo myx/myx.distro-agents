@@ -4362,8 +4362,10 @@ op's own option arm.
   per-item lock. A dispatch item's line also goes to its `tracks:` task. A received answer clears matching `blocked-on`/`condition`.
   `--intern-op-pending-reply-earlier` stops asking the same thing twice (`NOT ASKED AGAIN`). Decisions are
   shown first (30 lines) in briefs, `conversation.md` and scans.
-- **Review** (`AgentsTools.ReviewFlow.include`): only a `running` item enters `review` (handback, child
-  ended without handback, `--wait` pass ended, `--request-review`). The review limit
+- **Review** (`AgentsTools.ReviewFlow.include`): only a `running` item enters `review` of itself (handback,
+  child ended without handback, `--wait` pass ended, `--request-review`). A verdict that starts its run again,
+  a dead run's answer or a review return, first puts the item into `review` from whatever state it stands in
+  (`AgentsReviewPutIntoReview`). The review limit
   (`REVIEW_WAIT_LIMIT`, default 3600 s) is enforced by `Wait` itself, returning `DISMISSED`, so it needs
   no main loop. It dismisses no run while another participant of its session runs (section 11). It does not run while a question about the death of a run stands open in the
   waiting run's session (`AgentsReviewWaitLeft` asks

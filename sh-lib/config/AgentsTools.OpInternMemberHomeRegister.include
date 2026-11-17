@@ -2,9 +2,7 @@
 # ^^^ for syntax checking in the editor only
 
 ## AgentsTools.OpInternMemberHomeRegister.include -- the operation `--intern-member-home-register`, sourced by AgentsTools.Install.include with the operation's arguments.
-## Each registered workspace without agents: its declared members, found by the member scan
-## above and registered under its own root, nothing installed there; a workspace with agents
-## loses any such row, its own install registering it. Then every member's home
+## Every member's home of this workspace
 ## (AgentsTools.MemberHomes.include). Run by --make-workspace-integrations.
 		shift
 		if [ $# -gt 0 ] ; then
@@ -12,34 +10,9 @@
 			set +e ; return 1
 		fi
 		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamRegistry.include"
-		. "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/places/LocalTools.Places.include"
 		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberHomes.include"
-		local homesHere homesRoot homesStatus=0 homesScanErr homesRows
-		local scanMemberNames scanMemberSources scanDiscoveryTrusted scanDiscoveryError
-		homesHere="$( cd "${MMDAPP%/}" 2> /dev/null && pwd )" || { set +e ; return 1 ; }
-		homesScanErr="$homesHere/.local/temp/mdat-member-home-scan.$$"
-		mkdir -p "$homesHere/.local/temp" || { set +e ; return 1 ; }
-		while IFS= read -r homesRoot ; do
-			[ -n "$homesRoot" ] && [ "$homesRoot" != "$homesHere" ] || continue
-			## not mounted: its rows stay as they stood
-			[ -d "$homesRoot" ] || continue
-			if [ -f "${homesRoot%/}/.local/agents/members.registry" ] ; then
-				AgentsToolsMemberHomesDeclaredWrite "$homesRoot" < /dev/null || homesStatus=1
-				continue
-			fi
-			## no source/: no project there to declare a member
-			[ -d "$homesRoot/source" ] || continue
-			AgentsToolsInstallScanMembers "$homesRoot" "false" "$MDLT_ORIGIN/myx/myx.distro-agents/skillset/magic-team" 2> "$homesScanErr"
-			if [ "$scanDiscoveryTrusted" != "true" ] || [ "$scanDiscoveryError" = "true" ] ; then
-				echo "🙋 WARNING: $MDSC_CMD --intern-member-home-register: the members $homesRoot declares could not all be read, its rows are kept as they stood" >&2
-				LC_ALL=C grep -F '⛔' "$homesScanErr" >&2 || :
-				continue
-			fi
-			homesRows="$( printf '%s' "$scanMemberSources" | AgentsToolsMemberHomesDeclaredRows "$homesRoot" )"
-			printf '%s\n' "$homesRows" | AgentsToolsMemberHomesDeclaredWrite "$homesRoot" || homesStatus=1
-			echo "# $MDSC_CMD --intern-member-home-register: $homesRoot has no agents installed: $( printf '%s' "$homesRows" | LC_ALL=C grep -c . ) declared member(s) registered, nothing installed there" >&2
-		done <<< "$( LocalToolsPlacesWorkspaceRoots "$homesHere" )"
-		rm -f "$homesScanErr"
+		## AN INSTALL IS OF ITS OWN WORKSPACE ALONE (the human-owner): no other workspace is walked, read or written here.
+		local homesStatus=0
 		AgentsToolsMemberHomesWrite || homesStatus=1
 		[ "$homesStatus" = "0" ] || { set +e ; return 1 ; }
 		return 0

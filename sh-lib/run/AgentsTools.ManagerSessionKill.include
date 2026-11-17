@@ -170,6 +170,7 @@ AgentsToolsManagerSessionKill(){ ## the operation as it was called, the id, "run
 		local killOwnLive="no-process"
 		AgentsToolsRunRecorded "$killOwnRecord" > /dev/null 2>&1 && killOwnLive="running" || killOwnLive="gone"
 		[ "$killOwnLive" = "running" ] || killOwnLive="gone"
+		type AgentsToolsRunLeftKept > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunLeft.include"
 		killFound="$( { AgentsToolsRunProcesses "$killOwnSpawn" "$killOwnRecord" < /dev/null ; AgentsToolsRunLeftKept "$killOwnSpawn" < /dev/null ; } | AgentsToolsManagerKillPids )"
 		if [ -n "$killFound" ] ; then
 			killUser="${4:-}"

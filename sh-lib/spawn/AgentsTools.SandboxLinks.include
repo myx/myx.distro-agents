@@ -132,19 +132,31 @@ AgentsToolsLnGuardMake(){ ## folder -- writes the guard `ln` there, for a run to
 }
 
 ## The guard `grep` (epic S10.26): a shell `grep -r` over a `.local` tree blocks for ever on a session's request fifo. The
-## guard puts `-D skip` before the arguments, which BSD and GNU grep both take and which skips a fifo, a socket and a device
-## and reads stdin as before, then runs the first `grep` on PATH outside the guard folder. One `sh`, no include read: a grep
-## stands in many a member's pipeline. A guard already there is kept.
+## guard puts `-D skip` before the arguments of a RECURSIVE grep only (-r, -R, --recursive, -d recurse), which BSD and GNU
+## grep both take and which skips a fifo, a socket and a device; an explicit operand is read as given, because a process
+## substitution `<( ... )` is a fifo, and skipping it made every such grep of every tool answer no match. Then it runs the first
+## `grep` on PATH outside the guard folder. One `sh`, no include read: a grep stands in many a member's pipeline. A guard
+## already there is kept while its text is the same.
 AgentsToolsGrepGuardMake(){ ## folder -- writes the guard `grep` there, for a run to put first on its PATH
 	local guardText guardTemp
 	guardText='#!/bin/sh
-## The guard grep of the served Bash tool (AgentsTools.SandboxLinks.include, AgentsToolsGrepGuardMake): -D skip, then the real grep.
+## The guard grep of the served Bash tool (AgentsTools.SandboxLinks.include, AgentsToolsGrepGuardMake): -D skip on a recursive grep only, then the real grep.
+guardPrev=""
+for guardArg in "$@" ; do
+	case "$guardPrev:$guardArg" in
+		*:--) break ;;
+		*:--recursive|*:--dereference-recursive|*:--directories=recurse|-d:recurse) set -- -D skip "$@" ; break ;;
+		*:--*) ;;
+		*:-*[rR]*) case "$guardArg" in -*[!a-zA-Z0-9]*) ;; *) set -- -D skip "$@" ; break ;; esac ;;
+	esac
+	guardPrev="$guardArg"
+done
 IFS=:
 for guardDir in $PATH ; do
 	case "$guardDir" in */.local/agents/guard-bin) continue ;; esac
-	[ -x "$guardDir/grep" ] && exec "$guardDir/grep" -D skip "$@"
+	[ -x "$guardDir/grep" ] && exec "$guardDir/grep" "$@"
 done
-exec /usr/bin/grep -D skip "$@"'
+exec /usr/bin/grep "$@"'
 	[ "$( cat "$1/grep" 2> /dev/null )" = "$guardText" ] && [ -x "$1/grep" ] && return 0
 	mkdir -p "$1" && guardTemp="$( mktemp "$1/grep.XXXXXX" )" && printf '%s\n' "$guardText" > "$guardTemp" && chmod +x "$guardTemp" && mv -f "$guardTemp" "$1/grep"
 }

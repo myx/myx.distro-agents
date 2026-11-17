@@ -228,7 +228,7 @@ A dispatch, a brief and a spawned session are one movement. The brief is the wor
 - Curate the goal, the rules, the context and the inputs for the task. Never forward the calling session's own multi-topic history, and never an open pointer ("check X, Y, or wherever").
 - A spawn receives a bounded piece of work, never an open "keep working this document". The dispatcher folds its report back into the document in the same pass it arrives.
 - An ambiguous go-ahead, such as `next` or `continue`, is never approval for a spawn or a mutation.
-- Read a file's `maintainers:` line before a brief names who agrees on that file. State the member's own route to the file too, its `Skill` read or an `access:` line.
+- Read a file's `maintainers:` line before a brief names who agrees on that file. State the member's own route to the file too, its `Skill` read or an `access:` line. It tests the read route it relies on, with the invited member, before it relies on that route.
 - Curation means relevance, not minimalism. Everything the task needs crosses, established authority and verification signals included.
 - Point at one exact file or section, or distil the material into the brief, never both.
 - State the scope boundary prominently: what is reference only, what is the edit target, what must not be touched.
@@ -549,7 +549,7 @@ Writing:
 - English, UK spelling, simple language, in every team-authored write. US spelling already landed is not rewritten for.
 - **A member about to write or edit code invokes `magic-developer` first** — every language, every size. A landed change names its session and that consult.
 - A member writing or editing code, in any language, reads `magic-developer/reference/code-craft.md` first, and `magic-developer/reference/shell.md` for shell and awk. A member running a shell probe it will act on reads `shell.md` too. `magic-developer` maintains both.
-- A reviewer of changed code reads `magic-tester/reference/code-review.md`, whose eleven checks each name what to look for and what is a finding. `magic-tester` maintains it.
+- A reviewer of changed code reads `magic-tester/reference/code-review.md`, whose twenty checks each name their rule and what is a finding. `magic-tester` maintains it.
 - **A comment is short, or it is not a comment.** An internal comment is one line. A header comment a few lines. Anything longer belongs in the package's `MAGIC.md`.
 - A long-proven legacy file is never edited for a new or unverified feature. The feature waits and is escalated.
 - No external library by default. Standard library and the codebase's own conventions come first.
@@ -663,13 +663,14 @@ Read `reference/board-item-model.md` for the board types, the audit and vault ty
 
 **Frontmatter fields:**
 - `type` — required. The filename's type word (`task`, `note`, …). Never a genre.
+- A whole-item write replaces the file's headers, stamped ones included. Change a body with `--edit-patch-from-stdin`, and read the header block back after any whole-item write. `magic-team.armed.md:687` states the patch rule.
 - `from`, `date`, `owner` — author, creation `date-time`, current assignee. `owner` may be a non-acting owner, such as the human-owner or an external contact. That owner's inbox content lives in `magic-coordinator`'s inbox and is handled by `magic-coordinator.external-inbox-handle-loop.routine`.
 - `communication-channel-id` — the one external message the item traces to: `slack:<channel>`, `slack:<channel>:<ts>` or `email:<…>`.
 - `processed-at`, `resolved-at`, `started-at`, `groomed-at`, `groomed-from`, `track` — stamped by the tooling. A member never writes them.
 - `type`, `date`, `from` (and an inbox item's `owner`) — filled by inbox upsert and board create where missing. A member writes them only to set another value. `--from-member` only on another member's behalf.
 - Read `reference/board-item-model.md` for the other frontmatter fields.
 
-A board item is cited in prose as `board://<state>/<item-filename>`. A tool takes the bare name.
+A board item is cited in prose as `board://<state>/<item-filename>`. A tool takes the item's own filename without its folder, `.md` included.
 
 ## Who actually reads/writes the board
 
@@ -738,7 +739,7 @@ Moving content inside a file goes one block per edit, removal and insertion in t
 
 Content he confirmed is never touched as a side effect of unrelated work. Scope every diff to the implicated lines. Where a fix must touch approved content, say so first.
 
-- A `MAGIC.md` bullet the human-owner committed is approved content. A sentence added to it is a change that goes to him first, whoever asked for the sentence.
+- `MAGIC.md` and the knowledge store's rows are the team's dynamic knowledge tool. A member writes them as its work needs and never asks any person to approve a change to them. A question goes to a person only when it is a real question.
 
 ## Corrections go forward, never by reverting
 

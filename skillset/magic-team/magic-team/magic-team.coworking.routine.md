@@ -202,7 +202,7 @@ Contacts, the people you meet and reach, are kept by tooling, not by hand, with 
 - `--append-transcript --speaker <speaker-name> --timestamp <ISO-UTC-date-time> (--message <text>|--from-stdin|--from-file <path>) --transcript-name <transcript-file-name> [--create]` — the named `transcript-*` this routine keeps. `SessionTranscriptAppend` takes a note line.
 - `--upsert-inbox-note <member> <item-filename> [--include-processed] [--from-file <path>|--edit-patch-from-stdin]` (`DistroAgentsItems`)
 - `--upsert-inbox-reflection <member> <item-filename> [--include-processed] [--from-file <path>|--edit-patch-from-stdin]` (`DistroAgentsItems`)
-- `--upsert-inbox-inquiry <member> <item-filename> [--include-processed] [--from-file <path>]` (`DistroAgentsItems`)
+- `--upsert-inbox-inquiry <member> <item-filename> [--from-member <member>] [--include-processed] [--from-reflection <reflection-file>] [--reply] [--from-file <path>|--upsert-from-slots]` (`DistroAgentsItems`)
 - `--routine-run-inline <routine>` (`ThisSession`)
 - `--get-session-thread [--own]`
 - `--get-uninvited-participants` (`ThisSession`)

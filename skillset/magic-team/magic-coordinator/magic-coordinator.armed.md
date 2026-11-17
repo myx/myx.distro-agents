@@ -97,7 +97,7 @@ Steps:
 3. **spawn-ask-access-once**: Ask what this work needs as one Permission set, before the first spawn, steps:
    - work out every place, in every workspace, and every tool, for every member the work involves. Take them from the brief's `access:` line and its targets.
    - ask it once with `--request-permission-set`, on the item this dispatch is for. Give one `--entry` for each place, and `--participant` for each member planned.
-   - read what those members already hold with `--list-permissions --member <member>`, and ask only for what that lacks.
+   - read what those members already hold with `--list-permissions --member <member>` (`DistroAgentsGrants`), and ask only for what that lacks.
 4. **spawn-launch**: Spawn with the team `Agent` tool (`mcp__myx_distro__Agent` in a native client), never a client's in-process subagent. Further members join by the session id the first spawn printed. To start a routine's own session with its executors in one call, use `--spawn-session`. Name the likely members, permissions and tools on it with `--participants`, `--likely-permission` and `--likely-tool`.
 5. **spawn-record-dispatch**: Board-tracked work: move the tracked item to `board-running` if it is not there, and record the spawn's receipt as its `execution-receipt`.
 6. **spawn-dismiss**: A spawned member never ends on its own: it hands back, then waits (**wait-never-quit**). Its handback puts its item into `board-review`. Settle it with `magic-team.handback-review.routine`, whose verdicts end or continue the session. A session spawned with `--wait` ends on its own when its pass is done. `TaskStop` only for one that does not respond. The routine that spawned it names when. By hand: `SendMessage` the session thread its own spawn receipt names, `address_to` naming it, message `DISMISSED`. Where the receipt names no thread, the dismissal goes where the brief states the member's report travels. With no `address_to` it dismisses no one. The tooling also posts, in that same thread, a fact-only note of how the run ended, death included. A `TaskStop` or a console kill of a member's run is told there too, naming who did it. For a death, the control thread asks the item's reviewer a decision instead (`resume`, `fresh`, `close`, `kill`). No reviewer, no question. `kill` ends every live run of that session. `resume`/`fresh` start the member again in the same session. An answer that fails asks the reviewer again, once per failure. An item a failed restart left running with no run goes back to review.
@@ -271,6 +271,9 @@ What to hand off — binds the first brief and every later message into a runnin
 - A file move is followed by a search for every reference to the old path in every form: a literal path, a path built from a variable, a sourcing in a check. A long-running process keeps the old function bodies after a move until it is restarted.
 - Every landing is followed by a smoke run of the operations it touched, from a fresh process, read for `command not found`, `No such file` and unbound variables.
 - A reviewer leaves a handback whose deliverable is staged source in `board-review` for the run that lands it. That run accepts it after the landing, naming the landing. Accepting it earlier loses the change, because a stage folder is not live source.
+- A sandbox dispatch brief names a rebase step before staging. It is a fresh `cp -RL` of live, the change laid onto that copy, and a patch taken against it.
+- A sandbox dispatch brief names a detached check run, and allows the handback before the results arrive.
+- A change round is convened once its agreement is asked and answered, never before. A round whose every line needs one member's reading carries no bound of its own.
 
 ## Spawn & authority structure
 
@@ -344,7 +347,7 @@ Every `magic-tooling` operation this member's own procedures and rules use. Beha
 - `--answer-escalation <request-id> <verdict> [text]` (`DistroAgentsQuestions`)
 - `--forward-escalation <request-id>` (`DistroAgentsQuestions`)
 - `--request-permission-set <item> (--entry <tool[,tool...]:target>... [--purpose <text>])... [--scope task|session] [--session-id <id>] [--participant <member>]...` (`AgentDispatcherTools`) — one `--entry` may name several tools for one target. After a place's entries, the asker may state what that access will be used for, which helps the person decide. With no `--participant`, the set is for the item's own members. A target may name a place, built in (`.skillset-shared`, `.skillset-.local`) or registered. A custom place name may not start with a dot. A permission is decided on the real file, so a link and its target get the same answer.
-- `--list-permissions --member <member>`
+- `--list-permissions --member <member>` (`DistroAgentsGrants`)
 - `--revoke-permission <ref>`
 - `--owner-workspace-list`
 

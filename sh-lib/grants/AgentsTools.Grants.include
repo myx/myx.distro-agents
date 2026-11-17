@@ -174,7 +174,6 @@ AgentsToolsGrantsIndexText(){ ## workspace
 		while IFS= read -r textRoot ; do
 			[ -n "$textRoot" ] || continue
 			printf 'floor\twrite\t%s/.local/temp/**\n' "$textRoot"
-			[ -f "$textRoot/.local/agents/members.registry" ] || continue
 			printf 'floor\tread\t%s/source/**/%s\n' "$textRoot" MAGIC.md "$textRoot" README.md "$textRoot" 'docs/**.md'
 			## Every member reads an epic with no ask -- S6.41 and S17.4 -- wherever in source/ it sits.
 			printf 'floor\tread\t%s/source/**.epic.md\n' "$textRoot"
@@ -622,7 +621,7 @@ AgentsToolsGrantsRegistryWrite(){ ## workspace, op name for messages
 	type LocalToolsPlacesMergedText > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/places/LocalTools.Places.include" || return 1
 	type AgentsToolsTeamGrantPointerUpsert > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamRegistry.include" || return 1
 	type AgentsToolsClientAccessRootsMembers > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/client/AgentsTools.ClientAccessRoots.include" || return 1
-	type AgentsToolsWorkspaceSwitch > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWorkspace.include" || return 1
+	type AgentsToolsSkillsetRootInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWorkspace.include" || return 1
 	agentsGrantsPlaces="$( LocalToolsPlacesMergedText "$regWs" quiet )"
 	agentsGrantsRoots="$( LocalToolsPlacesWorkspaceRoots "$regWs" )"
 	regText="$( AgentsToolsGrantsDeclaredText "$regWs" "$regOp" )" || regRc=$?
@@ -642,20 +641,7 @@ AgentsToolsGrantsRegistryWrite(){ ## workspace, op name for messages
 		regRows="$regRows"$'\n'"${regRoot##*/}:$regName:member:Edit(/$regRoot/**)"
 	done <<< "$( MDAT_SKILLSET_ROOT="$regSkillsetRoot" AgentsToolsClientAccessRootsMembers acting )"
 	regRows="$regRows"$'\n'"magic-librarian:$regName:builtin:Read(/$regWs/source/**)"
-	## Registered tooling workspaces without agents: their own declares, `.` their own root.
-	while IFS= read -r regRoot ; do
-		[ -n "$regRoot" ] && [ "$regRoot" != "$regWs" ] && [ -d "$regRoot/source" ] || continue
-		[ ! -f "$regRoot/.local/agents/members.registry" ] || continue
-		regOtherName="${regRoot##*/}" ; regOtherRc=0
-		regOtherText="$( AgentsToolsWorkspaceSwitch "$regRoot" ; AgentsToolsGrantsDeclaredText "$regRoot" "$regOp" )" || regOtherRc=$?
-		if [ "$regOtherRc" = 0 ] ; then
-			regRows="$regRows"$'\n'"$( printf '%s\n' "$regOtherText" | LC_ALL=C sed -n 's/^row	//p' )"
-			regTags="$regTags"$'\n'"$( printf '%s\n' "$regOtherText" | LC_ALL=C sed -n 's/^tag	//p' )"
-		else
-			[ "$regOtherRc" = 3 ] || echo "🙋 WARNING: $regOp: the grants $regRoot declares were not all read, its rows are kept as they stood" >&2
-			regRows="$regRows"$'\n'"$( printf '%s\n' "$regOld" | LC_ALL=C awk -F: -v ws="$regOtherName" 'NF >= 4 && $2 == ws' )"
-		fi
-	done <<< "$agentsGrantsRoots"
+	## AN INSTALL IS OF ITS OWN WORKSPACE ALONE (the human-owner): no other workspace's declares are read or carried here.
 	## Each workspace's rows are its own data, rewritten whole under its lock, and only when
 	## they change; every other workspace's are theirs and never touched.
 	mkdir -p "${regFile%/*}" || { echo "⛔ ERROR: $regOp: cannot create ${regFile%/*}" >&2 ; return 1 ; }
