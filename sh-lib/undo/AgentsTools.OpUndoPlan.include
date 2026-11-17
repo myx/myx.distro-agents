@@ -3,9 +3,12 @@
 
 ## AgentsTools.OpUndoPlan.include -- the operation `--undo-plan`, sourced by AgentsTools.UndoRecord.include with the operation's arguments.
 ## --undo-plan <record-id> [--session-id <id>]: the dry run, read-only. Says what the inverse
-## would take, or `not ready` and why the operands have moved since the act.
+## would take, or `not ready` and why the operands have moved since the act. A change of several
+## parts is ready where any of them can be taken, and names each part that cannot. Its step lines
+## are `  step <tool> <operation> <argument>` as they always were, and a part of a change of many
+## carries its own key after them: `  step <tool> <operation> <argument>  [part <n>.<n>]`.
 		shift
-		local undoPlanId="" undoPlanSession="" undoPlanDir="" undoPlanWhy="" undoPlanStep
+		local undoPlanId="" undoPlanSession="" undoPlanDir="" undoPlanWhy="" undoPlanStep undoPlanSteps undoPlanOp undoPlanArg undoPlanKey
 		while [ $# -gt 0 ] ; do
 			case "$1" in
 				--session-id) undoPlanSession="${2:-}" ; shift 2 ;;
@@ -19,12 +22,19 @@
 			*) printf 'not ready: the record is %s, so it promises nothing to run\n' "$( AgentsToolsUndoField "$undoPlanDir" state )" ; return 1 ;;
 		esac
 		undoPlanWhy="$( AgentsToolsUndoBlockedBy "$undoPlanDir" )"
-		if [ -n "$undoPlanWhy" ] ; then
-			printf 'not ready: %s\n' "$undoPlanWhy"
+		undoPlanSteps="$( AgentsToolsUndoSteps "$undoPlanDir" )"
+		if [ -z "$undoPlanSteps" ] ; then
+			[ -z "$undoPlanWhy" ] || printf 'not ready: %s\n' "$( printf '%s' "$undoPlanWhy" | LC_ALL=C tr '\n' ';' | LC_ALL=C sed 's/;*$//' )"
+			[ -n "$undoPlanWhy" ] || printf 'not ready: every part of the change carries a settled verdict, so nothing is left to undo\n'
 			return 1
 		fi
 		printf 'ready %s\n' "$undoPlanId"
-		AgentsToolsUndoSteps "$undoPlanDir" | while IFS=$'\t' read -r undoPlanStep undoPlanOp undoPlanArg ; do
-			printf '  step %s %s %s\n' "$undoPlanStep" "$undoPlanOp" "$undoPlanArg"
-		done
+		while IFS=$'\t' read -r undoPlanStep undoPlanOp undoPlanArg undoPlanKey ; do
+			[ -n "$undoPlanKey" ] || continue
+			case "$undoPlanKey" in
+				*.*) printf '  step %s %s %s  [part %s]\n' "$undoPlanStep" "$undoPlanOp" "$undoPlanArg" "$undoPlanKey" ;;
+				*) printf '  step %s %s %s\n' "$undoPlanStep" "$undoPlanOp" "$undoPlanArg" ;;
+			esac
+		done <<< "$undoPlanSteps"
+		[ -z "$undoPlanWhy" ] || printf '%s\n' "$undoPlanWhy" | LC_ALL=C sed 's/^/  not ready: /'
 		return 0

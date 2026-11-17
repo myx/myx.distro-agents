@@ -919,6 +919,7 @@ AgentsToolsPermissionHolds(){ ## member, tool, natural target, session id (optio
 			## (b) standing rows, then (a) the floor's files, as the grants index unrolled them
 			## for this member: a write row speaks for every file tool, a read row (allow-read)
 			## for the read tools only, a tool row for <tool>[:<target>].
+			type AgentsToolsGrantsCovers > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.Grants.include"
 			while IFS=$'\t' read -r holdVerb holdGlob holdPattern holdLayer ; do
 				[ -n "$holdGlob" ] || continue
 				case "$holdVerb" in

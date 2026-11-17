@@ -329,7 +329,7 @@
 📘 syntax: DistroAgentsTools.fn.sh --knowledge-index-build
 📘 syntax: DistroAgentsTools.fn.sh --knowledge-store-retire <path> --section <glob>...
 📘 syntax: DistroAgentsTools.fn.sh --owner-setup-<domain> [<config-option>...] [--all-workspaces] [--set-as-default] [--check|--apply|--print-apply-command|--wizard]
-📘 syntax: DistroAgentsTools.fn.sh --undo-record <kind> <target> [--from-state <state>] [--to-state <state>] [--entity <id>] [--base <path>] [--result <path>] [--session-id <id>] [--actor <member>]
+📘 syntax: DistroAgentsTools.fn.sh --undo-record <kind> <target> [--from-state <state>] [--to-state <state>] [--entity <id>] [--base <path>] [--result <path>] [--session-id <id>] [--actor <member>] [--change <record-id>]
 📘 syntax: DistroAgentsTools.fn.sh --undo-plan <record-id> [--session-id <id>]
 📘 syntax: DistroAgentsTools.fn.sh --undo-run <record-id> [--session-id <id>]
 📘 syntax: DistroAgentsTools.fn.sh --undo-purge <record-id> [--session-id <id>]
@@ -7823,21 +7823,28 @@
 			and gives the lock back. Prints `DIRECTIVE: <id> set` or `DIRECTIVE: <id> ended`;
 			an id that is not there is refused (rc 1).
 
-		--undo-record <kind> <target> [--from-state <state>] [--to-state <state>] [--entity <id>] [--base <path>] [--result <path>] [--session-id <id>] [--actor <member>]
+		--undo-record <kind> <target> [--from-state <state>] [--to-state <state>] [--entity <id>] [--base <path>] [--result <path>] [--session-id <id>] [--actor <member>] [--change <record-id>]
 		--undo-plan <record-id> [--session-id <id>]
 		--undo-run <record-id> [--session-id <id>]
 		--undo-purge <record-id> [--session-id <id>]
 		--undo-rework <record-id> [--session-id <id>]
-			The undo protocol (S13.19): one record per act, holding the operation that
+		--undo-settle <record-id> [--part <n>[,<n>]] [--by <member>] [--text <words>] [--session-id <id>]
+			The undo protocol (S13.19): one record per logical change, holding the operation that
 			undoes it, a hold that keeps the acting run's material from every cleaner
-			until the human-owner answers, and one ask of kind `undo` that puts the act
+			until the human-owner answers, and one ask of kind `undo` that puts the change
 			to him. `record` keeps the inverse, refuses a kind that is not on its
 			closed list and names the kinds, writes `undo.hold` in the acting run's
-			sandbox root, one `<session-id>/<record-id>` line per open record, and posts
+			sandbox root, one `<session-id>/<record-id>` line per open change, and posts
 			his prompt; a prompt that cannot be posted takes the record and the hold away
-			again, so nothing is promised that he was not asked about. `plan` is the dry
-			run, read-only: it says `ready` and the steps, or `not ready` and why the
-			operands have moved since the act.
+			again, so nothing is promised that he was not asked about. `--change` appends
+			one more act to an open change as its next part, under `parts/<n>/`, and asks
+			him again in the same thread: one change is one hold line, one record and one
+			prompt however many parts it holds. The first part appended moves what the
+			record itself held into `parts/1/`, and a record with no `parts/` folder reads
+			as one part, so a record made before parts existed reads as it always did.
+			`plan` is the dry run, read-only: it says `ready` and the steps, or `not ready`
+			and why the operands have moved since the act; a part whose own operands moved
+			is named and its siblings still run.
 			`run` takes the steps on HIS reject, each recorded before it is made, so a
 			stopped run resumes; a file inverse goes through the harness's own Write, as
 			an approved change does, and a store inverse through the operation that owns
@@ -7846,7 +7853,11 @@
 			the promise and the hold stand while the act is done differently; a rework
 			with no words names no verdict and writes nothing. `run`, `purge` and `rework`
 			carry his own answer and no member's, and each refuses where the record's ask
-			is unanswered or was answered by anyone else. The record lives in
+			is unanswered or was answered by anyone else. `settle` is an epic's judgement
+			rather than his: it writes `settled` on each part it names, opens no ask, and
+			closes a change every part of which carries a verdict, with the hold it made
+			released. Only magic-coordinator settles, and only a change whose own record
+			names an epic item and a feature id. The record lives in
 			`sessions/<session-id>/undo/<record-id>/`.
 
 		--owner-cleanup-purge

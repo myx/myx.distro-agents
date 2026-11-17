@@ -240,6 +240,7 @@ DistroAgentsSession(){
 		--update-routine-state)
 			shift
 			DistroAgentsSessionTools
+			type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 			DistroAgentsTools --intern-op-update-routine-state "$@"
 			return $?
 		;;

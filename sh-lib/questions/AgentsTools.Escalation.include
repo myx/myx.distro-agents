@@ -777,7 +777,7 @@ AgentsToolsEscalationApply(){ ## record file, request id, verdict, verdict text,
 			else
 				applyUndoOut="$( "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" "$applyUndoOp" "$( AgentsToolsUndoField "$applyUndoDir" record-id )" --session-id "$( AgentsToolsUndoField "$applyUndoDir" session-id )" 2>&1 )" || applyUndoRc=$?
 				if [ "$applyUndoRc" -eq 0 ] ; then
-					applyUndo="done -- $( printf '%s\n' "$applyUndoOut" | LC_ALL=C grep -m1 -E '^(PURGED|RAN|REWORK) ' )"
+					applyUndo="done -- $( printf '%s\n' "$applyUndoOut" | LC_ALL=C grep -m1 -E '^(PURGED|RAN|REWORK|SETTLED|CLOSED) ' )"
 				else
 					applyUndo="not-applied -- $( printf '%s\n' "$applyUndoOut" | LC_ALL=C grep -m1 -v '^$' )"
 				fi

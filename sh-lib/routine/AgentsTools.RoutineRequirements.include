@@ -307,6 +307,31 @@ AgentsToolsRoutineRequirement(){ ## requirement, site (save|spawn|start), routin
 			return 1
 		;;
 
+		deliverables)
+			## ONE ITEM A LINE, AND NO ITEM HOLDS THE LIST'S SEPARATOR (S6.31): the item a review judges keeps
+			## them joined by `;` on one header line (AgentsReviewToReview), and reads them back by that same
+			## character (AgentsReviewPromptPost), so an item holding one would reach the judge as two.
+			## The routine's own lines are read here, builtins only: a start is a call path, and the shared
+			## reader would fork. A kind routine's lines need no second read, because that file is a routine
+			## itself and this same requirement is asked of it where it is saved.
+			local dlBad="" dlLine dlScope=0
+			while IFS= read -r dlLine ; do
+				case "$dlLine" in
+					'---') dlScope=$(( dlScope + 1 )) ; [ "$dlScope" -lt 2 ] || break ; continue ;;
+				esac
+				[ "$dlScope" -eq 1 ] || continue
+				case "$dlLine" in
+					'deliverables: '*) case "${dlLine#deliverables: }" in *';'*) dlBad="${dlLine#deliverables: }" ;; esac ;;
+				esac
+			done < "$reqFile"
+			if [ -n "$dlBad" ] ; then
+				printf 'reject\t%s\n' "deliverables: an item holds a semicolon, which separates the items a review judges: write it without one -- $dlBad"
+				return 1
+			fi
+			printf 'validate\t%s\n' "deliverables: one item a line, and no item holds the separator"
+			return 0
+		;;
+
 		start-context)
 			case "$reqValue" in
 				''|any|inline|spawned) ;;

@@ -1,0 +1,56 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+## AgentsTools.OpUndoSettle.include -- the operation `--undo-settle`, sourced by AgentsTools.UndoRecord.include with the operation's arguments.
+## --undo-settle <record-id> [--part <n>[,<n>]] [--by <member>] [--text <words>] [--session-id <id>]
+## An epic's judgement lands on a change: each part it names carries `settled`, no ask to the
+## human-owner is opened, and a change every part of which carries a verdict closes `settled` with
+## its hold released. The epic item and feature id are the change's own, kept on its record by the
+## path that lands the judgement. This lane is a call path, so it carries the one authority it
+## needs in one place: magic-coordinator's, and no other member's.
+## Prints what the settle core prints; rc 1 on the branch of the gate that refused.
+		shift
+		MDSC_CMD="$MDSC_CMD --undo-settle"
+		local settleId="" settleSession="" settleParts="" settleText="" settleBy="" settleDir="" settleMember=""
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--session-id) settleSession="${2:-}" ; shift 2 ;;
+				--part) settleParts="${2:-}" ; shift 2 ;;
+				--by) settleBy="${2:-}" ; shift 2 ;;
+				--text) settleText="${2:-}" ; shift 2 ;;
+				--*) echo "⛔ ERROR: $MDSC_CMD: invalid option: $1" >&2 ; set +e ; return 1 ;;
+				*) settleId="$1" ; shift ;;
+			esac
+		done
+		if [ -z "$settleId" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD: syntax is <record-id> [--part <n>[,<n>]] [--by <member>] [--text <words>] [--session-id <id>]" >&2
+			set +e ; return 1
+		fi
+		## THE GATE, and its last branch refuses. An epic's judgement is magic-coordinator's alone: a
+		## call from any other member, or from no member's session at all, settles nothing, and no
+		## branch reads silence as a settle.
+		type AgentsToolsActingMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.CallerCheck.include"
+		settleMember="$( AgentsToolsActingMember )"
+		case "$settleMember:${settleBy:-magic-coordinator}" in
+			magic-coordinator:magic-coordinator) ;;
+			:magic-coordinator)
+				echo "⛔ ERROR: $MDSC_CMD: no member's session made this call, and an epic's judgement is magic-coordinator's alone -- nothing was settled" >&2
+				set +e ; return 1
+			;;
+			*)
+				echo "⛔ ERROR: $MDSC_CMD: an epic's judgement is magic-coordinator's alone, and this call is ${settleMember:-no member}'s${settleBy:+ naming $settleBy} -- nothing was settled" >&2
+				set +e ; return 1
+			;;
+		esac
+		settleDir="$( AgentsToolsUndoFind "$settleId" "$settleSession" )" || { set +e ; return 1 ; }
+		case "$( AgentsToolsUndoField "$settleDir" state )" in
+			open) ;;
+			settled) printf 'nothing to do: the change is settled already\n' ; return 0 ;;
+			*) echo "⛔ ERROR: $MDSC_CMD: $settleId is $( AgentsToolsUndoField "$settleDir" state ), so an epic's judgement does not land on it" >&2 ; set +e ; return 1 ;;
+		esac
+		## The change's own epic item and feature id, as the path that landed the judgement kept them.
+		## A change that names no pair is one no epic has landed on, and an absent pair refuses.
+		[ -n "$( AgentsToolsUndoField "$settleDir" epic )" ] && [ -n "$( AgentsToolsUndoField "$settleDir" feature )" ] || {
+			echo "⛔ ERROR: $MDSC_CMD: $settleId names no epic item and feature id, so no epic's judgement lands on it -- nothing was settled" >&2
+			set +e ; return 1 ; }
+		AgentsToolsUndoSettleCore "$settleDir" magic-coordinator "$settleParts" "$settleText"

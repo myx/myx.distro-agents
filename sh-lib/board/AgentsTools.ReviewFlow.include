@@ -11,8 +11,9 @@ type AgentsSpawnedThreadOfRecord > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.dis
 ##
 ## States: `running` (in progress, asks included), `review` (a handback arrived, or the
 ## child ended with no verdict), `processed` (accepted), `pending` (rejected, for a fresh
-## session). Only an item in `running` enters `review`, and a `processed` one on a dead run's
-## verdict, which moves it back there with its reason first.
+## session). Only an item in `running` enters `review` of itself. A verdict that starts its run
+## again -- a dead run's answer, or a review return -- puts the item into `review` first, from
+## whatever state it stands in (AgentsReviewPutIntoReview), with the reason it went there.
 ## Every entry, verdict and ending is one line in the item's `## Decisions`
 ## (AgentsTools.ItemDecisions.include) and one line in its session transcript
 ## (AgentsTools.SessionTranscript.include): REVIEW, VERDICT or ENDING.
@@ -222,6 +223,27 @@ AgentsReviewVerdictPath(){ ## item name, allowed states (space-separated)
 		*" $vState "*) printf '%s\n' "$vPath" ; return 0 ;;
 	esac
 	echo "$MDSC_CMD: ⛔ ERROR: ${1%.md} is in $vState; this verdict applies to an item in: $2" >&2
+	return 1
+}
+
+## AN ITEM IS PUT INTO REVIEW FROM WHATEVER STATE IT STANDS IN (S6.34): a verdict on the run behind
+## an item is a verdict on the item, wherever another closer, a grooming pass or an accept left it
+## standing. The states are the board's own list, a state added to it included. Review is no move,
+## and returns at once. The mover's own word on a fault goes to stderr, and rc 1 is returned, so a
+## caller says the move failed and none of what it gates was done.
+AgentsReviewPutIntoReview(){ ## item file name, the state it stands in, the review reason
+	local putItem="${1%.md}.md" putFrom="${2:-}" putWhy="${3:-}" putOut putFault putRc=0
+	case "$putFrom" in
+		review) return 0 ;;
+		''|.|..|*/*) echo "${MDSC_CMD:-review}: ⛔ ERROR: ${putItem%.md} is in no board state, so it cannot be put into review" >&2 ; return 1 ;;
+	esac
+	mkdir -p "$MDAT_DATA_ROOT/board/review" 2> /dev/null || :
+	putOut="$( AgentsReviewTools --intern-op-board-upsert-move-edit review "$putItem" --from-state:"$putFrom" \
+		--header:upsert:review-since-epoch:"$( date +%s )" --header:upsert:review-reason:"$putWhy" \
+		--context "${MDSC_CMD:-review}" --log-verb:updated 2>&1 )" || putRc=$?
+	putFault="$( printf '%s\n' "$putOut" | LC_ALL=C grep -m1 -e 'ERROR' -e 'WARNING' )" || putFault=""
+	[ "$putRc" = 0 ] && [ -z "$putFault" ] && return 0
+	printf '%s\n' "${putFault:-the move of ${putItem%.md} into review failed (rc $putRc)}" >&2
 	return 1
 }
 
@@ -450,6 +472,7 @@ AgentsReviewRestart(){ ## item name, record path (may be empty), corrections tex
 ## keeps its item, and the person's items and another routine's stay as they were.
 AgentsReviewItemsForRoutine(){ ## routine short name, e.g. advance; the member whose duty reviews, where one is
 	type AgentsToolsFrontmatterKey > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.FrontmatterKey.include"
+	type AgentsToolsRunRouteAvailable > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.RunRoute.include"
 	local rfPath rfName rfBy rfMine rfSpawn rfRecord rfParent rfMember rfLive=" " rfGone=" " rfCount=0
 	for rfPath in "$MDAT_DATA_ROOT"/board/review/*.md ; do
 		[ -f "$rfPath" ] || continue
@@ -1061,7 +1084,15 @@ AgentsReviewOp(){ ## verb, who, item, new item, text, reason, session id, dismis
 		;;
 		return)
 			[ -n "$opText" ] || { echo "$MDSC_CMD: ⛔ ERROR: the corrections are required, with --message <text> or --from-stdin" >&2 ; return 1 ; }
-			opPath="$( AgentsReviewVerdictPath "$opItem" "review" )" || return 1
+			opPath="$( AgentsToolsDecisionsItemPath "$opItem" )" || { echo "$MDSC_CMD: ⛔ ERROR: no board item ${opItem%.md} in any board state" >&2 ; return 1 ; }
+			## A RETURN'S OWN RESUME WORKS WHATEVER STATE ITS ITEM IS IN (S6.34): the return starts the run
+			## again, so the item is put into review first, from wherever another closer, a grooming pass or
+			## an accept left it. The move below is the return's own from there.
+			opState="$( statePath="${opPath%/*}" ; printf '%s' "${statePath##*/}" )"
+			AgentsReviewPutIntoReview "$opItem" "$opState" "the return of its run starts it again" || {
+				echo "$MDSC_CMD: ⛔ ERROR: ${opItem%.md} could not be put into review from $opState, so nothing was returned" >&2
+				return 1
+			}
 			AgentsReviewMoveWithSection "$opItem" review running "## Review: returned ($( date -u +%Y-%m-%dT%H:%MZ ), $opWho)" "$opText" \
 				--header:remove:review-since-epoch --header:remove:review-reason > /dev/null 2>&1 || {
 				echo "$MDSC_CMD: ⛔ ERROR: the move of ${opItem%.md} back to running failed, so nothing was returned" >&2

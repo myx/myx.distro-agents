@@ -117,6 +117,8 @@ type AgentsSlackIdentityId > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-ag
 		## line of the result is printed: a caller that is gone or moved to the background once the result is out has its floors in the state, and the next wait does not return it again.
 		if [ "$waitOutcome" = "RECEIVED" ] ; then
 			local commitHit commitIndex commitTs
+			type AgentsWaitMentionsCommit > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/wait/AgentsTools.MemberWaitMentions.include"
+			type AgentsWaitDmsCommit > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/wait/AgentsTools.MemberWaitDms.include"
 			for commitHit in $waitHits ; do
 				commitIndex="${commitHit%%=*}"
 				case "${commitHit#*=}" in
@@ -355,6 +357,8 @@ type AgentsSlackIdentityId > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-ag
 					break
 				done
 				## What the wait has said is stored, and the last ts of each Slack source named.
+				type AgentsWaitMentionsCommit > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/wait/AgentsTools.MemberWaitMentions.include"
+				type AgentsWaitDmsCommit > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/wait/AgentsTools.MemberWaitDms.include"
 				for waitHit in $waitHits ; do
 					waitHitIndex="${waitHit%%=*}"
 					case "${waitHit#*=}" in

@@ -70,7 +70,7 @@ AgentsToolsBatchCancel(){ ## folder, call number
 ## mode, and the result as text or, with format json, as one JSON object.
 AgentsToolsBatchRun(){ ## runner, served test, raw arguments
 	local batchRunner="$1" batchServes="$2" batchArgs="$3" batchMode batchWorkers batchFormat batchCount batchAt batchTool
-	local batchDir batchRunning batchStarted batchNext batchStatus batchOk=0 batchFound="" batchLine batchPid=""
+	local batchDir batchRunning batchStarted batchNext batchStatus batchOk=0 batchFound="" batchLine batchPid="" batchRunAt
 	batchMode="$( AgentsToolsBatchArg "$batchArgs" mode )"
 	## NO MODE IS AUTO: every call that only reads (Read, Grep, Glob, a Bash command that is a pure read) runs at once, and any batch
 	## holding one call that may write runs one call after another, every one. A Bash call is a write unless it matches a known read.
@@ -129,6 +129,9 @@ AgentsToolsBatchRun(){ ## runner, served test, raw arguments
 		[ -s "$batchDir/$batchAt.args" ] || printf '{}\n' > "$batchDir/$batchAt.args"
 		batchAt=$(( batchAt + 1 ))
 	done
+	## THE CALLS ARE WHAT THE BATCH RAN (the owner's pace ruling): their span is not machinery time, as a Bash child's run is not.
+	## SECONDS is a builtin, so taking it costs the hot path no process.
+	batchRunAt="$SECONDS"
 	export MDAT_REPLY_IN_BATCH=1
 	case "$batchMode" in
 		sequence-*)
@@ -177,6 +180,7 @@ AgentsToolsBatchRun(){ ## runner, served test, raw arguments
 		;;
 	esac
 	wait 2> /dev/null
+	! type AgentsHarnessToolRunMsKeep > /dev/null 2>&1 || AgentsHarnessToolRunMsKeep "$(( ( SECONDS - batchRunAt ) * 1000 ))"
 	unset MDAT_REPLY_IN_BATCH
 	## The entries, in call order, whatever order the calls ended in.
 	[ "$batchFormat" != json ] || printf '{"mode":"%s","entries":[' "$batchMode"

@@ -14,7 +14,9 @@
 ##      the words beside it, and `ok`, `yes`, `approve` and `return` name none of them, so a plain
 ##      affirmation never accepts an act here.
 ##   6. what the act changed: the diff the post shows, a cut diff saying how much it leaves out and
-##      where the whole one is kept, and no change at all for an act that changed no file.
+##      where the whole one is kept, and no change at all for an act that changed no file;
+##   7. THE PARTS a change holds: the post lists the parts an epic has not judged, one line each,
+##      and a change of one part leaves that group out of the post whole -- the negative control.
 ## Red recipe: take the `|undo|` row out of agentsAskTools (AgentsTools.AskPost.include), and
 ## cases 1 to 4 fail; take the `undo` arm out of AgentsEscalationVerdict.awk and case 5 fails;
 ## take the `Lines/cut` block out of the undo template and case 6 fails.
@@ -116,6 +118,14 @@ rigAssert "and a diff it cut says how much is not shown, and where the whole one
 	"$( rigFillChanged "$rigCutLine" | LC_ALL=C grep -c -F "$rigCutLine" )" 1
 rigAssert "an act that changed no file shows no change at all -- the negative control" \
 	"$( rigFillPost post | LC_ALL=C grep -c 'What it changed' )" 0
+
+echo "-- 7. the parts a change holds --"
+rigParts=$'- part 1: `file-write` on `/ws/source/myx/a.include`\n- part 2: `file-write` on `/ws/source/myx/b.include`'
+rigAssert "the post lists each part an epic has not judged, under its own heading" \
+	"$( ASKP_F_member=lexr ASKP_F_act="$rigAct" ASKP_F_parts="$rigParts" ASKP_F_inverse="$rigInverse" ASKP_F_hold="$rigHold" rigFill post \
+		| LC_ALL=C grep -c -e '^\*\*🧩 Parts\*\*$' -e '^- part 1: ' -e '^- part 2: ' )" 3
+rigAssert "and a change of one part leaves that group out whole -- the negative control" \
+	"$( rigFillPost post | LC_ALL=C grep -c 'Parts' )" 0
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ UNDO ASK CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

@@ -395,11 +395,12 @@ echo "📘 syntax: DistroAgentsTools.fn.sh --owner-credential-store-verify" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --owner-workspace-forget <name>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --owner-workspace-list" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --owner-workspace-upsert <path> [--name <name>] [--kind workspace|directory] [--ceiling read-only|read-write]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --undo-record <kind> <target> [--from-state <state>] [--to-state <state>] [--entity <id>] [--base <path>] [--result <path>] [--session-id <id>] [--actor <member>]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --undo-record <kind> <target> [--from-state <state>] [--to-state <state>] [--entity <id>] [--base <path>] [--result <path>] [--session-id <id>] [--actor <member>] [--change <record-id>]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --undo-plan <record-id> [--session-id <id>]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --undo-run <record-id> [--session-id <id>]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --undo-purge <record-id> [--session-id <id>]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --undo-rework <record-id> [--session-id <id>]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --undo-settle <record-id> [--part <n>[,<n>]] [--by <member>] [--text <words>] [--session-id <id>]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --intern-context-show [--team-member <team-member>] [--session-id <session-id>] [--spawn-id <spawn-id>] [--select-workspace <place-name|absolute-path>] [--tooling-origin <spec|absolute-path>]" >&2
 ## The six tool files whose own three help forms read this one table through AgentsToolsFrontSyntax
 ## (Help.DistroAgentsSession.include and its siblings): every operation each of them dispatches, a line each.

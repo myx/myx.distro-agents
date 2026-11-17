@@ -74,6 +74,7 @@ AgentsToolsSpawnProxyRetryClosed(){ ## record file (may be empty), spawn id (may
 AgentsToolsSpawnProxyWorkDutyContinue(){ ## session thread, session id, the sandbox tracking record, the output file (may be empty), the exit code so far, cli args...
 	type AgentsToolsFrontmatterKey > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.FrontmatterKey.include"
 	type AgentsSessionMarked > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include" || return 1
+	type AgentsToolsSpawnProxyRunRecord > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnProxyClose.include"
 	local contThread="$1" contSessionId="$2" contTracking="$3" contLog="$4" contRounds=0 contPid
 	spawnProxyContinueExitCode="${5:-0}"
 	shift 5 2>/dev/null || shift $#
@@ -99,6 +100,8 @@ AgentsToolsSpawnProxyWorkDutyContinue(){ ## session thread, session id, the sand
 
 AgentsToolsSpawnProxyHandbackWarn(){
 	local warnThread="$1" warnMember="$2" warnLog="$3" warnSessionId="$4" warnTrack="${5:-}" warnTell="${6:-}" warnClosed=""
+	type AgentsToolsSpawnProxyHandbacks > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnProxyNotices.include"
+	type AgentsToolsSpawnProxyRunRecord > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnProxyClose.include"
 	## Whether a handback is still missing when this returns: what AgentsToolsSpawnProxyHandbackNotice says.
 	agentsSpawnProxyHandbackMissing=""
 	shift 6 2>/dev/null || shift $#
@@ -186,6 +189,7 @@ AgentsToolsSpawnProxyHandbackWarn(){
 AgentsToolsSpawnProxyHandbackNotice(){ ## session thread, member, the session's tracking thread, the member that brought this one in (the last two may be empty)
 	[ "${agentsSpawnProxyHandbackMissing:-}" = "yes" ] || return 0
 	agentsSpawnProxyHandbackMissing=""
+	type AgentsToolsSpawnProxySessionNotice > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnProxyNotices.include"
 	type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 	[ -z "${3:-}" ] || DistroAgentsTools --intern-op-event-track-post "$2" "$3" --kind handback --session-id "${MDAT_SPAWN_SESSION_ID:-}" \
 		--field handback="none posted -- no SubagentHandback call seen in its output" 2>&1 > /dev/null \
@@ -205,6 +209,7 @@ AgentsToolsSpawnProxyHandbackNotice(){ ## session thread, member, the session's 
 ##   $4 = the session's tracking thread, $5 = the member that brought this one in (either may be empty)
 AgentsToolsSpawnProxyOpenQuestionWarn(){
 	local warnThread="$1" warnMember="$2" warnTrack="${4:-}" warnTell="${5:-}" warnOpenLines
+	type AgentsToolsSpawnProxySessionNotice > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnProxyNotices.include"
 	[ -n "$warnThread$warnTrack" ] || return 0
 	warnOpenLines="$( printf '%s\n' "$3" | LC_ALL=C grep -E '^(OPEN|UNMATCHED|UNREADABLE) ' || : )"
 	[ -n "$warnOpenLines" ] || return 0

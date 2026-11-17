@@ -57,7 +57,8 @@ One prompt for one recorded act: who acted, what it changed, the operation that 
 [[**🗂 Act**
 {{act}}
 
-]][[**🪃 To undo it**
+]][[**🧩 Parts**
+{{parts}}]][[**🪃 To undo it**
 {{inverse}}
 
 ]][[**📦 Kept from cleanup until you answer**
@@ -162,7 +163,8 @@ The one reply the tooling posts in the prompt's own thread once an answer is rea
 
 - rule: The post is the one fenced block under `## post`, sent as the team bot through the member send, addressed to the human-owner. It is posted once for each record the lane opens, and only where the act's material is held.
 - rule: Required: `{{member}}`, the member or run that acted. A slot outside `[[ … ]]` is required: with one empty, nothing is posted. Text in `[[ … ]]` is kept only when every slot in it has a value, and a group may span lines, so a heading is left out together with its empty field. No field is ever shown as a placeholder.
-- rule: `{{act}}` is the `## act` line: `{{kind}}`, the inverse kind of the record as its closed list names it, and `{{target}}`, the thing the act was on, in code style.
+- rule: `{{act}}` is the `## act` line: `{{kind}}`, the inverse kind of the change's first part as its closed list names it, and `{{target}}`, the thing that part was on, in code style.
+- rule: `{{parts}}` is one `- part <n>: `<kind>` on `<target>`` line for each part no epic has settled, in part order. A change of one part has none, and its group is left out of the post whole.
 - rule: `{{inverse}}` is the `## inverse` line: `{{steps}}`, the operation that undoes the act, one step a line, as the lane would run it.
 - rule: `{{hold}}` is the folder kept from cleanup, by its place name where one holds it, else its path in code style.
 - rule: `{{change}}` is what the act changed: the record's `base`, the file as it stood, against its `result`, the file as the act left it, as one unified diff with its two file header lines left out, inside the fence `{{fence}}` gives. A kind that changes no file has none, and its group is left out of the post whole.

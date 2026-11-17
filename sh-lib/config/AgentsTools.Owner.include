@@ -101,6 +101,7 @@ AgentsToolsOwnerSetupHookScriptsRow(){
 AgentsToolsOwnerSetupMcpRegistrationRow(){
 	local mcpRowOut mcpRowRc mcpRowLine mcpRowMissing="" mcpRowUnreadable="" mcpRowUnknown=""
 	type AgentsToolsMyRoot > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.MyRoot.include"
+	type AgentsToolsClientToolPolicyClaudeMcpServersJson > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/client/AgentsTools.ClientToolPolicy.include"
 	if [ -z "$MYXROOT" ] ; then
 		mcpRowUnknown="        MYXROOT is empty, so the entries $1/.mcp.json should carry cannot be computed"$'\n'
 	elif [ ! -f "$1/.mcp.json" ] ; then
@@ -211,6 +212,7 @@ AgentsToolsOwnerSetupMcpRegistrationRow(){
 ## scoping as AgentsToolsOwnerSetupHookScriptsRow above.
 AgentsToolsOwnerSetupClaudePermissionsRow(){
 	local permRowOut permRowRc=0 permRowLine permRowMissing=""
+	type AgentsToolsClientToolPolicyClaudeAllowJson > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/client/AgentsTools.ClientToolPolicy.include"
 	if [ ! -f "$HOME/.claude/settings.json" ] ; then
 		permRowMissing="        $HOME/.claude/settings.json is absent"$'\n'
 	else

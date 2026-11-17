@@ -181,6 +181,7 @@ AgentsToolsSpawnProxyEndNotice(){ ## the run's record, what its closer saw of a 
 	type AgentsToolsFrontmatterKey > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.FrontmatterKey.include"
 	type AgentsToolsSpawnConversationThreadValid > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandboxInput.include"
 	type AgentsToolsRunRoute > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.RunRoute.include"
+	type AgentsToolsSessionParentThreadFind > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.SessionThreads.include"
 	local endRecord="${1:-}" endSeen="${2:-}" endBound="${3:-}" endWaits="${4:-}"
 	local endRun endMember endOwn endRoute endRouted="" endTo="" endTell="" endLine="" endBy="" endAt="" endUnrequested="" endSession="" endLimit=""
 	local endParts endPart endEvents="" endStop endWent endHeld="" endGave=""

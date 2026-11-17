@@ -6,6 +6,7 @@
 ## `<state> <item> <type> <from> <date> <title>`, newest first; --of <member> lists another member's inbox, --include-processed its
 ## processed items too, --grep <text> keeps the items whose title or name holds the text. Read only. An item is read whole with
 ## --get-inbox-item, several at once in one BatchTools call.
+		type AgentsToolsTeamMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.CommonOptions.include"
 		shift
 		local listMember="" listOf="" listProcessed="no" listGrep="" listFolder listState
 		case "${1:-}" in ''|-*) ;; *) listMember="$1" ; shift ;; esac

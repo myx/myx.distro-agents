@@ -617,17 +617,13 @@ AgentsToolsSessionControlDeathAct(){ ## session id, record file, the line of the
 				AgentsToolsBoardItemHeadersInto "$actItem.md" actState || :
 				## The close above is what moves a dead run's item, and an item nobody reviews reaches
 				## processed there: the verdict puts it into review from wherever it stands, before the
-				## return that starts the member again. A move that fails says what it said.
-				## Every state of the board's own list, a state added to it included: a dead run's item is
-				## found wherever another closer or a grooming pass left it.
+				## return that starts the member again. Every state of the board's own list, a state added
+				## to it included: a dead run's item is found wherever another closer or a grooming pass
+				## left it. One move, shared with a review return (AgentsReviewPutIntoReview).
 				if [ -z "$actWhy" ] && [ -n "$actItem" ] && [ -n "$actState" ] && [ "$actState" != "review" ] ; then
-					actOut="$(
-						set -- --intern-op-board-upsert-move-edit review "$actItem.md" --from-state:"$actState" \
-							--header:upsert:review-since-epoch:"$( date +%s )" --header:upsert:review-reason:"its run died, and the verdict on that run applies to it in review" \
-							--context "${MDSC_CMD:-session-control}" --log-verb:updated
-						. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.InternOpBoardUpsertMoveEdit.include"
-					 2>&1 )" || actWhy="its item could not be put into review from $actState"
-					[ -n "$actWhy" ] || actWhy="$( printf '%s\n' "$actOut" | LC_ALL=C grep -m1 -e 'ERROR' -e 'WARNING' )"
+					type AgentsReviewPutIntoReview > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ReviewFlow.include"
+					actOut="$( AgentsReviewPutIntoReview "$actItem" "$actState" "its run died, and the verdict on that run applies to it in review" 2>&1 )" \
+						|| actWhy="its item could not be put into review from $actState: ${actOut:-the move failed}"
 					AgentsToolsBoardItemHeadersInto "$actItem.md" actState || :
 				fi
 				[ -n "$actWhy" ] || [ "$actState" = "review" ] || actWhy="its item is in ${actState:-no board state}, not in review, so it could not be returned"

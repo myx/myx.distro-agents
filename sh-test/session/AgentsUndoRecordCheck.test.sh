@@ -6,6 +6,17 @@
 ## words and the hold. Run and purge carry HIS answer alone, so a member's own word is refused,
 ## and so is a rework with no words. The three hold readers ask the marker what it names, and a
 ## marker naming no open record keeps the material and says which record it wanted.
+## 10. PARTS (S13.19 statement 1): another act appended to the same change with --change is its
+##     part 2, under parts/<n>/; the change keeps one hold line; each part keeps its own base and
+##     result; a record with no parts folder reads as one part, its own folder; the plan names one
+##     step per part, a part whose own operands moved is named while its siblings still run, and
+##     the run puts each part back and records each step once under its part's key.
+## 11. THE SETTLE (statement 2): a member's own --undo-settle is refused, a call from no member's
+##     session is refused, a change naming no epic item and feature id is refused, the epic's own
+##     path keeps the pair and lands the verdict, a change every part of which is settled closes
+##     settled and releases its hold, and a second settle does nothing.
+## Red recipe: take AgentsToolsUndoPartDirs out of AgentsTools.UndoRecord.include and case 10
+## fails; take the state branch out of AgentsToolsUndoSettleCore and case 11 fails.
 ## Offline: a Slack-shaped fake curl is first on PATH, and no tree but this check's own rig.
 set -u
 : "${MDAT_WORKSPACE_MODE:=team-rig}" ; export MDAT_WORKSPACE_MODE
@@ -72,6 +83,13 @@ rigToolCall(){ ## arguments... -- the tool against this rig, rc in rigRc
 		MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" RIG_TMP="$rigTmp" RIG_SCENARIO="$rigDir" RIG_CURL_LOG="$rigDir/curl.log" \
 		MDAT_DATA_ROOT="$rigD" MDAT_SPAWN_SANDBOX_ROOT="$rigRun" MDAT_SPAWN_SESSION_ID=rigrun MDAT_SPAWN_AGENT=rig-member \
 		bash "$rigTool" "$@" ) > "$rigTmp/call.out" 2>&1
+	rigRc=$?
+}
+rigToolCallAs(){ ## acting member, arguments... -- the tool as that member, rc in rigRc
+	( cd "$rigWs" && env -u MDAT_SKILLSET_ROOT HOME="$rigTmp/home" PATH="$rigTmp/bin:/usr/bin:/bin:/usr/sbin:/sbin" \
+		MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" RIG_TMP="$rigTmp" RIG_SCENARIO="$rigDir" RIG_CURL_LOG="$rigDir/curl.log" \
+		MDAT_DATA_ROOT="$rigD" MDAT_SPAWN_SANDBOX_ROOT="$rigRun" MDAT_SPAWN_SESSION_ID=rigrun MDAT_SPAWN_AGENT="$1" \
+		bash "$rigTool" "${@:2}" ) > "$rigTmp/call.out" 2>&1
 	rigRc=$?
 }
 rigSweep(){ ## result file -- the sweep against this rig, as a rig
@@ -228,6 +246,77 @@ rm -f "$rigRun/undo.hold"
 rigSweep "$rigTmp/sweep2.out"
 rigAssert "a sandbox with no marker is still emptied" \
 	"$( [ -f "$rigRun/input/brief.md" ] && printf present || printf gone )" "gone"
+
+echo "-- 10. parts: one change, one record, one hold --"
+rigNew parts
+rigRecord one two
+rigChangeId="$rigId"
+printf 'two\n' > "$rigRun/output/part-two.txt" ; printf 'two\n' > "$rigTmp/result-two.txt" ; printf 'one\n' > "$rigTmp/base-two.txt"
+rigToolCall --undo-record file-write "$rigRun/output/part-two.txt" --base "$rigTmp/base-two.txt" --result "$rigTmp/result-two.txt" --session-id rigrun --change "$rigChangeId"
+rigAssert "a second act appended to the same change is its part 2" \
+	"$rigRc:$( LC_ALL=C ls "$rigWs/.local/agents/sessions/rigrun/undo/$rigChangeId/parts" 2> /dev/null | LC_ALL=C tr '\n' ' ' )" "0:1 2 "
+rigAssert "the change keeps one hold line, and its second part is one prompt in the same thread" \
+	"$( LC_ALL=C grep -c . "$rigRun/undo.hold" 2> /dev/null ):$( LC_ALL=C grep -c '^chat.postMessage' "$rigDir/curl.log" 2> /dev/null )" "1:2"
+rigAssert "each part keeps its own base and result" \
+	"$( cat "$rigWs/.local/agents/sessions/rigrun/undo/$rigChangeId/parts/2/base" ):$( cat "$rigWs/.local/agents/sessions/rigrun/undo/$rigChangeId/parts/2/result" )" "one:two"
+printf 'three\n' > "$rigRun/output/solo.txt" ; printf 'three\n' > "$rigTmp/result-solo.txt"
+rigToolCall --undo-record file-write "$rigRun/output/solo.txt" --base "$rigTmp/base-two.txt" --result "$rigTmp/result-solo.txt" --session-id rigrun
+rigSoloId="$( LC_ALL=C awk '/^RECORDED /{ print $2 ; exit }' "$rigTmp/call.out" )" || rigSoloId=""
+rigAssert "a record with no parts folder reads as one part, its own folder -- the fallback" \
+	"$( ( MDSC_CMD=rig MDLT_ORIGIN="$MDLT_ORIGIN" MMDAPP="$rigWs" ; . "$rigPackage/sh-lib/undo/AgentsTools.UndoRecord.include" rig ; AgentsToolsUndoPartDirs "$rigWs/.local/agents/sessions/rigrun/undo/$rigSoloId" ) 2>&1 | LC_ALL=C tr '\t' ':' )" \
+	"1:$rigWs/.local/agents/sessions/rigrun/undo/$rigSoloId"
+rigToolCall --undo-plan "$rigChangeId" --session-id rigrun
+rigAssert "the plan names one step per part, each carrying its own part's key" \
+	"$( LC_ALL=C grep -o -E '\[part [0-9]+[.][0-9]+\]' "$rigTmp/call.out" | LC_ALL=C tr '\n' ' ' )" "[part 1.1] [part 2.1] "
+printf 'three\n' > "$rigRun/output/part-two.txt"
+rigToolCall --undo-plan "$rigChangeId" --session-id rigrun
+rigAssert "a part whose own operands moved is named, and the change is still ready for its siblings" \
+	"$( LC_ALL=C grep -c '^ready ' "$rigTmp/call.out" ):$( LC_ALL=C grep -c 'not ready: part 2: the file has changed since the act' "$rigTmp/call.out" )" "1:1"
+printf 'two\n' > "$rigRun/output/part-two.txt"
+rigAnswer "$rigChangeId" reject
+rigToolCall --undo-run "$rigChangeId" --session-id rigrun
+rigAssert "the run puts each part back, and records each step once under its part's key" \
+	"$( cat "$rigRun/output/live.txt" ):$( cat "$rigRun/output/part-two.txt" ):$( LC_ALL=C awk -F'\t' '$1 == "made" { printf "%s ", $2 }' "$rigWs/.local/agents/sessions/rigrun/undo/$rigChangeId/steps" )" "one:one:1.1 2.1 "
+
+echo "-- 11. the settle arm, its gate, and the epic's own path --"
+rigNew settle
+rigRecord one two
+rigToolCall --undo-settle "$rigId" --by magic-coordinator --text "judged"
+rigAssert "a member's own settle is refused, and no verdict is written" \
+	"$rigRc:$( LC_ALL=C grep -c "an epic's judgement is magic-coordinator's alone" "$rigTmp/call.out" ):$( [ -f "$rigWs/.local/agents/sessions/rigrun/undo/$rigId/verdict" ] && printf present || printf none )" "1:1:none"
+rigToolCallNoMember(){ ## arguments... -- the tool under no member's session, rc in rigRc
+	( cd "$rigWs" && env -u MDAT_SKILLSET_ROOT -u MDAT_SPAWN_AGENT HOME="$rigTmp/home" PATH="$rigTmp/bin:/usr/bin:/bin:/usr/sbin:/sbin" \
+		MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" RIG_TMP="$rigTmp" RIG_SCENARIO="$rigDir" RIG_CURL_LOG="$rigDir/curl.log" \
+		MDAT_DATA_ROOT="$rigD" MDAT_SPAWN_SANDBOX_ROOT="$rigRun" MDAT_SPAWN_SESSION_ID=rigrun \
+		bash "$rigTool" "$@" ) > "$rigTmp/call.out" 2>&1
+	rigRc=$?
+}
+rigToolCallNoMember --undo-settle "$rigId" --by magic-coordinator --text "judged"
+rigAssert "a settle from no member's session is refused, so silence never settles" \
+	"$rigRc:$( [ -f "$rigWs/.local/agents/sessions/rigrun/undo/$rigId/verdict" ] && printf present || printf none )" "1:none"
+rigToolCallAs magic-coordinator --undo-settle "$rigId" --by magic-coordinator --text "judged"
+rigAssert "a change naming no epic item and feature id is refused" \
+	"$rigRc:$( LC_ALL=C grep -c 'names no epic item and feature id' "$rigTmp/call.out" )" "1:1"
+printf '# Rig epic\n\n## S13.19 The undo protocol\n\nStatus: running\n' > "$rigWs/epic-rig.md"
+rigEpicSettle(){ ## record id, feature id, words
+	( cd "$rigWs" && env -u MDAT_SKILLSET_ROOT HOME="$rigTmp/home" PATH="$rigTmp/bin:/usr/bin:/bin:/usr/sbin:/sbin" \
+		MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" RIG_TMP="$rigTmp" RIG_SCENARIO="$rigDir" RIG_CURL_LOG="$rigDir/curl.log" \
+		MDAT_DATA_ROOT="$rigD" MDAT_SPAWN_SANDBOX_ROOT="$rigRun" MDAT_SPAWN_SESSION_ID=rigrun MDAT_SPAWN_AGENT=magic-coordinator \
+		MDSC_CMD=rig RIG_EPIC="$rigWs/epic-rig.md" RIG_RECORD="$1" RIG_FEATURE="$2" RIG_WORDS="$3" bash -c '
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.MagicEpic.include" rig
+			AgentsToolsMagicEpicSettleChange "$RIG_EPIC" "$RIG_FEATURE" "$RIG_RECORD" "" "$RIG_WORDS"
+		' ) > "$rigTmp/call.out" 2>&1
+	rigRc=$?
+}
+rigEpicSettle "$rigId" S13.19 "judged by the epic"
+rigAssert "the epic's own path keeps the pair on the change and lands the verdict" \
+	"$rigRc:$( AgentsToolsUndoFieldRig "$rigId" epic ):$( AgentsToolsUndoFieldRig "$rigId" feature ):$( LC_ALL=C awk -F'\t' '{ printf "%s|%s|%s", $1, $2, $4 }' "$rigWs/.local/agents/sessions/rigrun/undo/$rigId/verdict" 2> /dev/null )" \
+	"0:epic-rig.md:S13.19:settled|magic-coordinator|judged by the epic"
+rigAssert "a change every part of which is settled closes settled, and its hold goes" \
+	"$( AgentsToolsUndoFieldRig "$rigId" state ):$( [ -f "$rigRun/undo.hold" ] && printf held || printf released )" "settled:released"
+rigEpicSettle "$rigId" S13.19 "judged again"
+rigAssert "a second settle on a closed change does nothing, and says so" \
+	"$rigRc:$( LC_ALL=C grep -c 'the change is settled already' "$rigTmp/call.out" )" "0:1"
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ UNDO RECORD CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

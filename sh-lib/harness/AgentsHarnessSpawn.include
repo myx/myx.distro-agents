@@ -713,6 +713,7 @@ AgentsHarnessToolTaskStop(){ ## handle, force, task_id, shell_id
 ## or `<member>.off-duty.routine.md`): rc 0 it is.
 AgentsHarnessWorkDuty(){
 	local dutyRecord=""
+	type AgentsSessionRunRecordInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
 	AgentsSessionRunRecordInto dutyRecord "${MDAT_SPAWN_SESSION_ID:-}" || return 1
 	type AgentsToolsFrontmatterKey > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.FrontmatterKey.include" || return 1
 	type AgentsToolsDutyRoutineIs > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/routine/AgentsTools.DutyRoutine.include" || return 1

@@ -107,6 +107,8 @@ AgentsHarnessSendProse(){ ## values...
 AgentsHarnessToolSendMessageRun(){ ## target, message, as bot, address to, broadcast (true: a thread reply also shown in the conversation), no inbox (true: a team member with no Slack DM is refused, since an inbox cannot be waited on), next (reply|handback: a NEXT: line naming the Wait that follows a sent message)
 	type AgentsHarnessWorkDuty > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessSpawn.include"
 	type AgentsHarnessOwnPostRecord > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessAccess.include"
+	type AgentsHarnessDismissedBy > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessWait.include"
+	type AgentsHarnessReportsNone > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessReports.include"
 	local toolTarget="$1" toolMessage="$2" toolAsBot="$3" toolAddressTo="$4" toolBroadcast="${5:-}" toolNoInbox="${6:-}" toolInboxOnly="" toolNext="${7:-}" toolAgain="${9:-}" sendRc=0 toolShown="" toolSession toolInbox
 	if [ -z "$harnessAgent" ] ; then
 		printf 'ERROR: this harness was started without --agent, so it has no team identity to send under, and one is never guessed here. Nothing was sent. Report this rather than working around it.%s\n' "${harnessAgentMissing:+ ($harnessAgentMissing)}" ; return 0

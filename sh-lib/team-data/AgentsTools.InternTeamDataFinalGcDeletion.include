@@ -345,6 +345,7 @@ AgentsToolsFinalGcScanSplitInbox(){ ## the member's inbox, resolved; now; the in
 ## cannot be established is neither: it is kept.
 AgentsToolsFinalGcScanDir(){
 	local scanDir="$1" nowEpoch="$2" mode="$3" population="$4"
+	type AgentsToolsSpawnSandboxFoldersOfItem > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandboxSweep.include"
 	local path fileBase thresholdDays ageSeconds thresholdSeconds
 	local clockEpoch inIndex inHead
 	local gcSandboxFolders gcSandboxRemovable gcSandboxOpen gcFolderName

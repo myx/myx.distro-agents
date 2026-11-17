@@ -4,10 +4,14 @@
 ## AgentsTools.OpUndoRecord.include -- the operation `--undo-record`, sourced by AgentsTools.UndoRecord.include with the operation's arguments.
 ## --undo-record <kind> <target> [--from-state <state>] [--to-state <state>] [--entity <id>]
 ##               [--base <file>] [--result <file>] [--session-id <id>] [--actor <member>]
+##               [--change <record-id>]
 ## Keeps the inverse of one act, and holds the acting run's sandbox material until the owner
-## answers. Prints `RECORDED <record-id> <state>`; rc 1 where the kind is not on the list.
+## answers. `--change` appends that act to a change already open, as its next part, so one logical
+## change carries one record, one hold line and one prompt whatever its part count. Prints
+## `RECORDED <record-id> <state>`, and `PART <record-id> <n>` where a part was appended; rc 1 where
+## the kind is not on the list, or the change names no open record of this workspace.
 		shift
-		local undoRecKind="" undoRecTarget="" undoRecFrom="" undoRecTo="" undoRecEntity="" undoRecBase="" undoRecResult="" undoRecSession="${MDAT_SPAWN_SESSION_ID:-}" undoRecActor="${MDAT_SPAWN_AGENT:-}" undoHoldDir=""
+		local undoRecKind="" undoRecTarget="" undoRecFrom="" undoRecTo="" undoRecEntity="" undoRecBase="" undoRecResult="" undoRecSession="${MDAT_SPAWN_SESSION_ID:-}" undoRecActor="${MDAT_SPAWN_AGENT:-}" undoHoldDir="" undoRecChange="" undoRecPartDir="" undoRecPartN=0 undoRecOp flatFrom flatTo flatEntity
 		while [ $# -gt 0 ] ; do
 			case "$1" in
 				--from-state) undoRecFrom="${2:-}" ; shift 2 ;;
@@ -17,6 +21,7 @@
 				--result) undoRecResult="${2:-}" ; shift 2 ;;
 				--session-id) undoRecSession="${2:-}" ; shift 2 ;;
 				--actor) undoRecActor="${2:-}" ; shift 2 ;;
+				--change) undoRecChange="${2:-}" ; shift 2 ;;
 				--*|-) echo "⛔ ERROR: $MDSC_CMD --undo-record: invalid option: $1" >&2 ; set +e ; return 1 ;;
 				*)
 					if [ -z "$undoRecKind" ] ; then undoRecKind="$1"
@@ -38,6 +43,53 @@
 			set +e ; return 1
 		fi
 		AgentsToolsAssertBareName "$undoRecSession" "--session-id" undo-record || { set +e ; return 1 ; }
+		## A part appended to a change already open: the record keeps its keys, its hold and its
+		## prompt, and the act becomes the change's next part.
+		if [ -n "$undoRecChange" ] ; then
+			undoRecDir="$( AgentsToolsUndoFind "$undoRecChange" "$undoRecSession" )" || { set +e ; return 1 ; }
+			case "$( AgentsToolsUndoField "$undoRecDir" state )" in
+				open) ;;
+				*) echo "⛔ ERROR: $MDSC_CMD --undo-record: $undoRecChange is $( AgentsToolsUndoField "$undoRecDir" state ), so no part is added to it" >&2 ; set +e ; return 1 ;;
+			esac
+			## The first part appended gives the change its parts folder: part 1 is what the record itself
+			## held, and its operands move into that part's folder. The record keeps its own keys, its
+			## hold and its ask, and from here on the parts folder is what a reader walks.
+			if [ ! -d "$undoRecDir/parts" ] ; then
+				mkdir -p "$undoRecDir/parts/1" || { echo "⛔ ERROR: $MDSC_CMD --undo-record: could not keep the first part" >&2 ; set +e ; return 1 ; }
+				{
+					printf 'kind: %s\n' "$( AgentsToolsUndoField "$undoRecDir" kind )"
+					printf 'state: open\n'
+					printf 'at: %s\n' "$( AgentsToolsUndoField "$undoRecDir" at )"
+					printf 'target: %s\n' "$( AgentsToolsUndoField "$undoRecDir" target )"
+					flatFrom="$( AgentsToolsUndoField "$undoRecDir" from-state )" ; [ -z "$flatFrom" ] || printf 'from-state: %s\n' "$flatFrom"
+					flatTo="$( AgentsToolsUndoField "$undoRecDir" to-state )" ; [ -z "$flatTo" ] || printf 'to-state: %s\n' "$flatTo"
+					flatEntity="$( AgentsToolsUndoField "$undoRecDir" entity )" ; [ -z "$flatEntity" ] || printf 'entity: %s\n' "$flatEntity"
+				} > "$undoRecDir/parts/1/record" || { echo "⛔ ERROR: $MDSC_CMD --undo-record: could not keep the first part" >&2 ; set +e ; return 1 ; }
+				for undoRecOp in base result change.diff ; do
+					[ ! -f "$undoRecDir/$undoRecOp" ] || mv -f "$undoRecDir/$undoRecOp" "$undoRecDir/parts/1/$undoRecOp" || { echo "⛔ ERROR: $MDSC_CMD --undo-record: could not keep the first part" >&2 ; set +e ; return 1 ; }
+				done
+			fi
+			undoRecPartN="$( AgentsToolsUndoPartDirs "$undoRecDir" | LC_ALL=C awk -F'\t' '$1 > top { top = $1 } END { print top + 0 }' )"
+			undoRecPartN=$(( undoRecPartN + 1 ))
+			undoRecPartDir="$undoRecDir/parts/$undoRecPartN"
+			mkdir -p "$undoRecPartDir" || { echo "⛔ ERROR: $MDSC_CMD --undo-record: could not keep part $undoRecPartN" >&2 ; set +e ; return 1 ; }
+			{
+				printf 'kind: %s\n' "$undoRecKind"
+				printf 'state: open\n'
+				printf 'at: %s\n' "$( date -u +%Y-%m-%dT%H:%M:%SZ )"
+				printf 'target: %s\n' "$undoRecTarget"
+				[ -z "$undoRecFrom" ] || printf 'from-state: %s\n' "$undoRecFrom"
+				[ -z "$undoRecTo" ] || printf 'to-state: %s\n' "$undoRecTo"
+				[ -z "$undoRecEntity" ] || printf 'entity: %s\n' "$undoRecEntity"
+			} > "$undoRecPartDir/record" || { rm -rf "$undoRecPartDir" ; echo "⛔ ERROR: $MDSC_CMD --undo-record: could not write part $undoRecPartN" >&2 ; set +e ; return 1 ; }
+			[ -z "$undoRecBase" ] || cp -p "$undoRecBase" "$undoRecPartDir/base" || :
+			[ -z "$undoRecResult" ] || cp -p "$undoRecResult" "$undoRecPartDir/result" || :
+			## The change's one prompt takes the new part, in its own thread and under its own ask, so
+			## his answer carries the whole change. A prompt already answered is left as it stands.
+			AgentsToolsUndoAskRevise "$undoRecDir" "${undoRecActor:-none}" > /dev/null || :
+			printf 'PART %s %s\n' "$undoRecChange" "$undoRecPartN"
+			return 0
+		fi
 		undoRecId="undo-$( uuidgen 2> /dev/null | LC_ALL=C tr 'ABCDEF' 'abcdef' )"
 		[ "${undoRecId#undo-}" != "" ] && [ "${undoRecId#undo-}" != "$undoRecId" ] || {
 			echo "⛔ ERROR: $MDSC_CMD --undo-record: no id could be generated, so nothing is promised" >&2 ; set +e ; return 1 ; }

@@ -195,12 +195,14 @@ AgentsToolsDocValidateRoutine(){ ## file, file as shown
 		done
 	done
 	## The requirements, asked of the one evaluator at this site, its key already read above.
-	for routineKeyName in requires-session-kind tracking-item start-context review-by ; do
+	for routineKeyName in requires-session-kind tracking-item start-context review-by deliverables ; do
 		case "$routineKeyName" in
 			requires-session-kind) routineLine="$routineKindTrim" ; routineKeyLine="$routineKindLine" ;;
 			tracking-item) routineLine="$routineTrack" ; routineKeyLine="$routineTrackLine" ;;
 			start-context) routineLine="$routineCtx" ; routineKeyLine="$routineCtxLine" ;;
 			review-by) routineLine="$routineReview" ; routineKeyLine="$routineReviewLine" ;;
+			## A repeatable key: the evaluator reads its own lines, so it takes none here.
+			deliverables) routineLine="" ; routineKeyLine="$( AgentsToolsDocValidateKeyLine "$routineFile" deliverables )" ;;
 		esac
 		routineVerdict="$( AgentsToolsRoutineRequirement "$routineKeyName" save "$routineFile" "" "$routineLine" )" && continue
 		routineWhy="${routineVerdict#*$'\t'}"

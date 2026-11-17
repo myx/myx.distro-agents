@@ -11,6 +11,15 @@
 ##       steps    one step made: `made` TAB `<step number>`, written BEFORE the step is taken
 ##       result   a file act's file as the act leaves it, so `plan` can see the act still stands
 ##       base     a file act's file as it stood, which `run` puts back
+##       parts/<n>/  one part of one logical change: its own kind, target, from-state, to-state,
+##                 entity, base and result, so a part whose operands moved never blocks its
+##                 siblings. The first part appended moves the record's own keys and operands
+##                 into parts/1/, and the record's parts folder is its one source from then on.
+##                 A record with no parts/ folder is one part, read from its own folder, so the
+##                 records made before parts read as they always did.
+##       verdict  a part's own verdict, at parts/<n>/verdict and at the record's own folder for a
+##                 one-part record: the word, who gave it, when, and the words written with it,
+##                 TAB separated on one line. An epic's settle writes it and opens no ask.
 ## The marker `undo.hold` in the acting run's own sandbox root is written by `record` and read by
 ## every cleaner: it carries one `<session-id>/<record-id>` line per open record, and nothing
 ## else. A record whose promise ends -- run, purged, refused -- takes its line out again.
@@ -67,6 +76,81 @@ if ! type AgentsToolsUndoKinds >/dev/null 2>&1 ; then
 		mv -f "$undoSetTmp" "$undoSetFile"
 	}
 
+	## A record's parts in order: `<part number> TAB <part folder>`, one a line. A record with no
+	## parts folder is one part whose folder is the record's own, so the fallback is the very
+	## shape a record had before parts existed.
+	AgentsToolsUndoPartDirs(){ ## record folder
+		local undoPartDir
+		[ -d "$1/parts" ] || { printf '1\t%s\n' "$1" ; return 0 ; }
+		for undoPartDir in "$1"/parts/* ; do
+			[ -d "$undoPartDir" ] || continue
+			case "${undoPartDir##*/}" in ''|*[!0123456789]*) continue ;; esac
+			printf '%s\t%s\n' "${undoPartDir##*/}" "$undoPartDir"
+		done | LC_ALL=C sort -n
+	}
+
+	## The folder one part keeps its own keys and operands in.
+	AgentsToolsUndoPartDir(){ ## record folder, part number
+		[ -d "$1/parts" ] || { printf '%s' "$1" ; return 0 ; }
+		printf '%s' "$1/parts/$2"
+	}
+
+	## A part's verdict word, or empty where the epic has judged nothing about it yet.
+	AgentsToolsUndoPartVerdict(){ ## part folder
+		[ -f "$1/verdict" ] || return 0
+		LC_ALL=C awk 'NR == 1 { print $1 ; exit }' "$1/verdict" 2> /dev/null
+	}
+
+	## One part's verdict, written beside and renamed on: the word, who gave it, when, and the words
+	## written with it, TAB separated so the words keep their own spaces.
+	AgentsToolsUndoPartVerdictSet(){ ## part folder, word, who, words
+		local undoVerdictTmp
+		undoVerdictTmp="$( mktemp "$1/verdict.XXXXXX" 2> /dev/null )" || return 1
+		printf '%s\t%s\t%s\t%s\n' "$2" "$3" "$( date -u +%Y-%m-%dT%H:%M:%SZ )" "$4" > "$undoVerdictTmp" || { rm -f "$undoVerdictTmp" ; return 1 ; }
+		mv -f "$undoVerdictTmp" "$1/verdict"
+	}
+
+	## How many parts carry no verdict, which is the count a change can still be asked about.
+	AgentsToolsUndoPartsUnsettled(){ ## record folder
+		local undoLeftPart undoLeftDir undoLeft=0
+		while IFS=$'\t' read -r undoLeftPart undoLeftDir ; do
+			[ -n "$undoLeftPart" ] || continue
+			[ -n "$( AgentsToolsUndoPartVerdict "$undoLeftDir" )" ] || undoLeft=$(( undoLeft + 1 ))
+		done <<< "$( AgentsToolsUndoPartDirs "$1" )"
+		printf '%s' "$undoLeft"
+	}
+
+	## An epic's judgement of a change, landed where both its paths reach it: each part it names
+	## carries `settled` with who gave it and the words written with it, no ask to the human-owner is
+	## opened, and a change every part of which carries a verdict closes `settled` with its hold
+	## released. The caller is the gate: this function decides no authority. Prints `SETTLED
+	## <record-id> <n>`, and `CLOSED <record-id> settled` where that closed the change.
+	AgentsToolsUndoSettleCore(){ ## record folder, who gave it, parts (empty: all), words
+		local undoCoreDir="$1" undoCoreBy="$2" undoCoreParts="$3" undoCoreText="$4" undoCorePart undoCorePartDir undoCoreSettled=0 undoCoreHold
+		case "$( AgentsToolsUndoField "$undoCoreDir" state )" in
+			settled) printf 'nothing to do: the change is settled already\n' ; return 0 ;;
+			open) ;;
+			*) printf 'not settled: the change is %s, so an epic judgement does not land on it\n' "$( AgentsToolsUndoField "$undoCoreDir" state )" >&2 ; return 1 ;;
+		esac
+		[ -n "$undoCoreParts" ] || undoCoreParts="$( AgentsToolsUndoPartDirs "$undoCoreDir" | LC_ALL=C cut -f1 | LC_ALL=C tr '\n' ',' | LC_ALL=C sed 's/,$//' )"
+		for undoCorePart in $( printf '%s' "$undoCoreParts" | LC_ALL=C tr ',' ' ' ) ; do
+			case "$undoCorePart" in
+				''|*[!0123456789]*) printf 'the parts are part numbers, comma separated, and this is: %s\n' "$undoCorePart" >&2 ; return 1 ;;
+			esac
+			undoCorePartDir="$( AgentsToolsUndoPartDir "$undoCoreDir" "$undoCorePart" )"
+			[ -d "$undoCorePartDir" ] || { printf 'the change holds no part %s\n' "$undoCorePart" >&2 ; return 1 ; }
+			AgentsToolsUndoPartVerdictSet "$undoCorePartDir" settled "$undoCoreBy" "$undoCoreText" || {
+				printf 'part %s verdict could not be written\n' "$undoCorePart" >&2 ; return 1 ; }
+			undoCoreSettled=$(( undoCoreSettled + 1 ))
+		done
+		printf 'SETTLED %s %s\n' "${undoCoreDir##*/}" "$undoCoreSettled"
+		[ "$( AgentsToolsUndoPartsUnsettled "$undoCoreDir" )" != 0 ] && return 0
+		AgentsToolsUndoSet "$undoCoreDir" state settled || { printf 'the change is settled and could not be closed\n' >&2 ; return 1 ; }
+		undoCoreHold="$( AgentsToolsUndoField "$undoCoreDir" hold-dir )"
+		[ -z "$undoCoreHold" ] || AgentsToolsUndoHoldDrop "$undoCoreHold" "$( AgentsToolsUndoField "$undoCoreDir" session-id )" "${undoCoreDir##*/}"
+		printf 'CLOSED %s settled\n' "${undoCoreDir##*/}"
+	}
+
 	## The folder of a record this workspace holds; rc 1 with the reason where it holds none.
 	AgentsToolsUndoFind(){ ## record id, session id (may be empty)
 		local undoFindSession="$2" undoFindDir=""
@@ -95,9 +179,10 @@ if ! type AgentsToolsUndoKinds >/dev/null 2>&1 ; then
 		printf '%s' "${undoItemPath##*/}"
 	}
 
-	## Why a record's inverse cannot be taken now, or empty where it can. A file act is taken only
-	## over the file as the act left it, and a board move only over the state the act left it in.
-	AgentsToolsUndoBlockedBy(){ ## record folder
+	## Why one part's inverse cannot be taken now, or empty where it can. A part is taken only over
+	## its own file as its own act left it, and a board move only over the state its own act left it
+	## in, so a part whose operands moved never speaks for its siblings.
+	AgentsToolsUndoPartBlockedBy(){ ## part folder
 		local undoBlockKind undoBlockTarget undoBlockShown
 		undoBlockKind="$( AgentsToolsUndoField "$1" kind )"
 		undoBlockTarget="$( AgentsToolsUndoField "$1" target )"
@@ -116,43 +201,75 @@ if ! type AgentsToolsUndoKinds >/dev/null 2>&1 ; then
 		esac
 	}
 
-	## The steps a record's inverse takes, one a line, TAB separated: `<tool>` `<operation>` `<argument>`.
-	## Nothing here runs and nothing is written.
+	## Why a change's inverse cannot be taken now, one line per blocked part, or nothing where every
+	## part can be taken. A part is named by its number where the change has parts, and a change of
+	## one part reads exactly as a record did before parts existed.
+	AgentsToolsUndoBlockedBy(){ ## record folder
+		local undoBlockPart undoBlockDir undoBlockSay undoBlockPrefix
+		while IFS=$'\t' read -r undoBlockPart undoBlockDir ; do
+			[ -n "$undoBlockPart" ] || continue
+			undoBlockSay="$( AgentsToolsUndoPartBlockedBy "$undoBlockDir" )"
+			[ -n "$undoBlockSay" ] || continue
+			undoBlockPrefix=""
+			[ ! -d "$1/parts" ] || undoBlockPrefix="part $undoBlockPart: "
+			printf '%s%s\n' "$undoBlockPrefix" "$undoBlockSay"
+		done <<< "$( AgentsToolsUndoPartDirs "$1" )"
+	}
+
+	## The steps a change's inverse takes, one a line, TAB separated: `<tool>` `<operation>`
+	## `<argument>` `<step key>`. Nothing here runs and nothing is written. A part an epic has
+	## settled is left out, and so is a part whose own operands moved: its siblings still run. The
+	## key is the step's plain number where the change is one part, and `<part>.<number within it>`
+	## where it has parts, so a step already made is never taken twice and settling a part never
+	## renumbers another.
 	AgentsToolsUndoSteps(){ ## record folder
-		local undoStepTarget
-		undoStepTarget="$( AgentsToolsUndoField "$1" target )"
-		case "$( AgentsToolsUndoField "$1" kind )" in
-			file-write)
-				printf '%s\t%s\t%s\n' AgentsUniversalHarness --intern-tool "$undoStepTarget"
-			;;
-			item-move)
-				printf '%s\t%s\t%s\n' DistroAgentsItems "--move-to-$( AgentsToolsUndoField "$1" from-state )" "$undoStepTarget"
-			;;
-			grant)
-				printf '%s\t%s\t%s\n' DistroAgentsGrants --revoke-permission "$undoStepTarget"
-			;;
-			config)
-				printf '%s\t%s\t%s --delete %s\n' DistroAgentsTools --agents-config-option "$( AgentsToolsUndoField "$1" entity )" "$undoStepTarget"
-			;;
-		esac
+		local undoStepPart undoStepDir undoStepKey undoStepTarget undoStepN=0 undoStepPartN=0 undoStepHasParts=no
+		[ ! -d "$1/parts" ] || undoStepHasParts=yes
+		while IFS=$'\t' read -r undoStepPart undoStepDir ; do
+			[ -n "$undoStepPart" ] || continue
+			[ "$( AgentsToolsUndoPartVerdict "$undoStepDir" )" != settled ] || continue
+			[ -z "$( AgentsToolsUndoPartBlockedBy "$undoStepDir" )" ] || continue
+			undoStepN=$(( undoStepN + 1 ))
+			## One part carries one step, so its key is its own number and a step within it: a key
+			## already made is never taken twice, and settling a part never renumbers another.
+			undoStepPartN=1
+			undoStepKey="$undoStepN"
+			[ "$undoStepHasParts" = no ] || undoStepKey="$undoStepPart.$undoStepPartN"
+			undoStepTarget="$( AgentsToolsUndoField "$undoStepDir" target )"
+			case "$( AgentsToolsUndoField "$undoStepDir" kind )" in
+				file-write)
+					printf '%s\t%s\t%s\t%s\n' AgentsUniversalHarness --intern-tool "$undoStepTarget" "$undoStepKey"
+				;;
+				item-move)
+					printf '%s\t%s\t%s\t%s\n' DistroAgentsItems "--move-to-$( AgentsToolsUndoField "$undoStepDir" from-state )" "$undoStepTarget" "$undoStepKey"
+				;;
+				grant)
+					printf '%s\t%s\t%s\t%s\n' DistroAgentsGrants --revoke-permission "$undoStepTarget" "$undoStepKey"
+				;;
+				config)
+					printf '%s\t%s\t%s --delete %s\t%s\n' DistroAgentsTools --agents-config-option "$( AgentsToolsUndoField "$undoStepDir" entity )" "$undoStepTarget" "$undoStepKey"
+				;;
+			esac
+		done <<< "$( AgentsToolsUndoPartDirs "$1" )"
 	}
 
 	## One step taken: the tool of the step, given its operation and its arguments. A file inverse
-	## goes through the harness's own Write, as the member's tool, exactly as an approved change does.
-	AgentsToolsUndoStepRun(){ ## record folder, tool, operation, argument
-		local undoRunRecord="$1" undoRunTool="$2" undoRunOp="$3" undoRunArg="$4"
-		case "$undoRunTool:$undoRunOp" in
+	## goes through the harness's own Write, as the member's tool, exactly as an approved change does,
+	## and it puts back the base of its own part, never another part's.
+	AgentsToolsUndoStepRun(){ ## part folder, tool, operation, argument
+		local undoStepRecord="$1" undoStepTool="$2" undoStepOp="$3" undoStepArg="$4"
+		case "$undoStepTool:$undoStepOp" in
 			AgentsUniversalHarness:--intern-tool)
-				[ -f "$undoRunRecord/base" ] || { printf 'the record keeps no base to put back\n' >&2 ; return 1 ; }
-				printf '{"path":"%s","content":"%s"}' "$undoRunArg" \
-					"$( LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/mcp/AgentsMcpJsonEscape.awk" < "$undoRunRecord/base" )" \
+				[ -f "$undoStepRecord/base" ] || { printf 'the record keeps no base to put back\n' >&2 ; return 1 ; }
+				printf '{"path":"%s","content":"%s"}' "$undoStepArg" \
+					"$( LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/mcp/AgentsMcpJsonEscape.awk" < "$undoStepRecord/base" )" \
 					| "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsUniversalHarness.sh" --intern-tool Write
 			;;
 			*:--agents-config-option)
-				"$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" "$undoRunOp" $undoRunArg
+				"$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" "$undoStepOp" $undoStepArg
 			;;
 			*)
-				"$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/$undoRunTool.fn.sh" "$undoRunOp" "$undoRunArg"
+				"$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/$undoStepTool.fn.sh" "$undoStepOp" "$undoStepArg"
 			;;
 		esac
 	}
@@ -228,44 +345,80 @@ if ! type AgentsToolsUndoKinds >/dev/null 2>&1 ; then
 				-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsAskPostFill.awk" "$2" 2> /dev/null
 	}
 
-	## The prompt of one record: posted to the human-owner's own conversation by the team bot, as
-	## the change prompt is, and recorded as that run's ask, so his answer arrives on its Wait and
-	## is carried out in one place. Prints the pending id; rc 1, the reason on stderr, where it
-	## could not be posted or recorded, so the act is not promised.
-	AgentsToolsUndoAskOpen(){ ## record folder, acting member, session id
-		local undoAskDir="$1" undoAskBy="$2" undoAskSession="$3" undoAskBody="" undoAskOut="" undoAskChannel="" undoAskTs="" undoAskAddressees="" undoAskAsking="" undoAskFields="" undoAskPending="" undoAskTemplate undoAskChange="" undoAskCut="" undoAskCounts="" undoAskTotal="" undoAskShown=""
+	## The prompt's body for one change: every part no epic has settled, each with its own diff, in
+	## the slots its template names. Prints the body; rc 1, the reason on stderr, where it cannot be
+	## filled, so nothing is promised on a prompt nobody was asked about.
+	AgentsToolsUndoAskBody(){ ## record folder, acting member
+		local undoBodyDir="$1" undoBodyBy="$2" undoBodyParts="" undoBodyHasParts=no undoBodyChange="" undoBodyCut="" undoBodyTemplate
+		local undoBodyPart undoBodyPartDir undoBodyPartKind undoBodyPartTarget undoBodyPartLabel undoBodyPartCounts undoBodyPartTotal undoBodyPartShown
 		type AgentsToolsAskKindRow > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.AskPost.include"
 		AgentsToolsAskKindRow undo || { printf 'the prompt cannot be filled: undo is not a kind the table of asks names\n' >&2 ; return 1 ; }
-		undoAskTemplate="$( AgentsToolsToolingTemplate "$agentsAskRowTemplate" )" || undoAskTemplate="$agentsAskRowTemplate"
-		## What the act changed, as the change lane shows it: the base against the result, whole in the
-		## record so a cut prompt can name it. An act that changed nothing, or a kind with no file at
-		## all, shows no change; a diff that cannot be produced is said here and refuses nothing quietly.
-		if [ -f "$undoAskDir/base" ] && [ -f "$undoAskDir/result" ] && ! cmp -s "$undoAskDir/base" "$undoAskDir/result" ; then
-			LC_ALL=C diff -U3 "$undoAskDir/base" "$undoAskDir/result" 2> /dev/null | LC_ALL=C awk 'NR > 2' > "$undoAskDir/change.diff"
-			undoAskCounts="$( LC_ALL=C awk -v maxLines="$agentsUndoShowLines" -v maxBytes="$agentsUndoShowBytes" -v maxLine="$agentsUndoShowLineBytes" '
+		undoBodyTemplate="$( AgentsToolsToolingTemplate "$agentsAskRowTemplate" )" || undoBodyTemplate="$agentsAskRowTemplate"
+		## An act that changed nothing, or a kind with no file at all, shows no change; a diff that
+		## cannot be produced is said here and refuses nothing quietly.
+		[ ! -d "$undoBodyDir/parts" ] || undoBodyHasParts=yes
+		type AgentsToolsPermissionShownTarget > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionPlaces.include"
+		while IFS=$'\t' read -r undoBodyPart undoBodyPartDir ; do
+			[ -n "$undoBodyPart" ] || continue
+			[ "$( AgentsToolsUndoPartVerdict "$undoBodyPartDir" )" != settled ] || continue
+			undoBodyPartKind="$( AgentsToolsUndoField "$undoBodyPartDir" kind )"
+			undoBodyPartTarget="$( AgentsToolsUndoField "$undoBodyPartDir" target )"
+			undoBodyPartLabel=""
+			if [ "$undoBodyHasParts" = yes ] ; then
+				undoBodyParts="$undoBodyParts- part $undoBodyPart: \`$undoBodyPartKind\` on \`$undoBodyPartTarget\`"$'\n'
+				undoBodyPartLabel="part $undoBodyPart: \`$undoBodyPartKind\` on \`$undoBodyPartTarget\`"$'\n'
+			fi
+			[ -f "$undoBodyPartDir/base" ] && [ -f "$undoBodyPartDir/result" ] && ! cmp -s "$undoBodyPartDir/base" "$undoBodyPartDir/result" || continue
+			LC_ALL=C diff -U3 "$undoBodyPartDir/base" "$undoBodyPartDir/result" 2> /dev/null | LC_ALL=C awk 'NR > 2' > "$undoBodyPartDir/change.diff"
+			undoBodyPartCounts="$( LC_ALL=C awk -v maxLines="$agentsUndoShowLines" -v maxBytes="$agentsUndoShowBytes" -v maxLine="$agentsUndoShowLineBytes" '
 				{
 					lineTotal++ ;
 					if ( ! cutHere && shownLines < maxLines && length( $0 ) <= maxLine && shownBytes + length( $0 ) + 1 <= maxBytes ) { shownLines++ ; shownBytes += length( $0 ) + 1 ; }
 					else { cutHere = 1 ; }
 				}
 				END { print lineTotal + 0, shownLines + 0 ; }
-			' "$undoAskDir/change.diff" 2> /dev/null )" || undoAskCounts=""
-			undoAskTotal="${undoAskCounts%% *}" ; undoAskShown="${undoAskCounts##* }"
-			[ "${undoAskTotal:-0}" != "0" ] || { printf 'the act changed its file and no diff of the change could be read, so its prompt is not posted\n' >&2 ; return 1 ; }
-			[ "${undoAskShown:-0}" = "0" ] || undoAskChange="$( LC_ALL=C sed -n "1,${undoAskShown}p" "$undoAskDir/change.diff" )"
-			if [ "$undoAskShown" != "$undoAskTotal" ] ; then
-				type AgentsToolsPermissionShownTarget > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionPlaces.include"
-				undoAskCut="$( ASKP_BLOCK="Lines/cut" ASKP_F_hidden="$(( undoAskTotal - undoAskShown ))" ASKP_F_total="$undoAskTotal" \
-					ASKP_F_diff_file="$( AgentsToolsPermissionShownTarget "$undoAskDir/change.diff" )" \
-					AgentsToolsUndoAskFill block "$undoAskTemplate" "$agentsAskRowForm" )" || undoAskCut=""
-			fi
-		fi
-		undoAskBody="$( ASKP_F_member="$undoAskBy" \
-			ASKP_F_act="$( printf '`%s` on `%s`' "$( AgentsToolsUndoField "$undoAskDir" kind )" "$( AgentsToolsUndoField "$undoAskDir" target )" )" \
-			ASKP_F_inverse="$( AgentsToolsUndoSteps "$undoAskDir" | LC_ALL=C awk -F'\t' '{ printf "  step %s %s %s\n", $1, $2, $3 ; }' )" \
-			ASKP_F_hold="$( AgentsToolsUndoField "$undoAskDir" hold-dir )" \
-			ASKP_F_fence='```' ASKP_F_change="$undoAskChange" ASKP_F_cut="$undoAskCut" \
-			AgentsToolsUndoAskFill post "$undoAskTemplate" "$agentsAskRowForm" )" || undoAskBody=""
+			' "$undoBodyPartDir/change.diff" 2> /dev/null )" || undoBodyPartCounts=""
+			undoBodyPartTotal="${undoBodyPartCounts%% *}" ; undoBodyPartShown="${undoBodyPartCounts##* }"
+			[ "${undoBodyPartTotal:-0}" != "0" ] || { printf 'the act changed its file and no diff of the change could be read, so its prompt is not posted\n' >&2 ; return 1 ; }
+			[ "${undoBodyPartShown:-0}" = "0" ] || undoBodyChange="$undoBodyChange$undoBodyPartLabel$( LC_ALL=C sed -n "1,${undoBodyPartShown}p" "$undoBodyPartDir/change.diff" )"$'\n'
+			[ "$undoBodyPartShown" = "$undoBodyPartTotal" ] || undoBodyCut="$undoBodyCut$( ASKP_BLOCK="Lines/cut" ASKP_F_hidden="$(( undoBodyPartTotal - undoBodyPartShown ))" ASKP_F_total="$undoBodyPartTotal" \
+				ASKP_F_diff_file="$( AgentsToolsPermissionShownTarget "$undoBodyPartDir/change.diff" )" \
+				AgentsToolsUndoAskFill block "$undoBodyTemplate" "$agentsAskRowForm" )"$'\n'
+		done <<< "$( AgentsToolsUndoPartDirs "$undoBodyDir" )"
+		ASKP_F_member="$undoBodyBy" \
+			ASKP_F_act="$( AgentsToolsUndoActLine "$undoBodyDir" )" \
+			ASKP_F_parts="$undoBodyParts" \
+			ASKP_F_inverse="$( AgentsToolsUndoSteps "$undoBodyDir" | LC_ALL=C awk -F'\t' '{ printf "  step %s %s %s\n", $1, $2, $3 ; }' )" \
+			ASKP_F_hold="$( AgentsToolsUndoField "$undoBodyDir" hold-dir )" \
+			ASKP_F_fence='```' ASKP_F_change="$undoBodyChange" ASKP_F_cut="$undoBodyCut" \
+			AgentsToolsUndoAskFill post "$undoBodyTemplate" "$agentsAskRowForm"
+	}
+
+	## The act line of a change, as its template names it: the kind and the target of the first part
+	## that carries no verdict, so a part an epic has judged is named nowhere in the prompt.
+	AgentsToolsUndoActLine(){ ## record folder
+		local undoActPart undoActDir undoActShown=""
+		while IFS=$'\t' read -r undoActPart undoActDir ; do
+			[ -n "$undoActPart" ] || continue
+			[ "$( AgentsToolsUndoPartVerdict "$undoActDir" )" != settled ] || continue
+			undoActShown="$( printf '`%s` on `%s`' "$( AgentsToolsUndoField "$undoActDir" kind )" "$( AgentsToolsUndoField "$undoActDir" target )" )"
+			break
+		done <<< "$( AgentsToolsUndoPartDirs "$1" )"
+		printf '%s' "$undoActShown"
+	}
+
+	## The prompt of one change: posted to the human-owner's own conversation by the team bot, as
+	## the change prompt is, and recorded as that run's ask, so his answer arrives on its Wait and
+	## is carried out in one place. One prompt carries every part no epic has settled, each with its
+	## own diff: a part an epic judged is never put to him as a question. Prints the pending id;
+	## rc 1, the reason on stderr, where it could not be posted or recorded, so the act is not
+	## promised.
+	AgentsToolsUndoAskOpen(){ ## record folder, acting member, session id
+		local undoAskDir="$1" undoAskBy="$2" undoAskSession="$3" undoAskBody="" undoAskOut="" undoAskChannel="" undoAskTs="" undoAskAddressees="" undoAskAsking="" undoAskFields="" undoAskPending="" undoAskTemplate
+		type AgentsToolsAskKindRow > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.AskPost.include"
+		AgentsToolsAskKindRow undo || { printf 'the prompt cannot be filled: undo is not a kind the table of asks names\n' >&2 ; return 1 ; }
+		undoAskTemplate="$( AgentsToolsToolingTemplate "$agentsAskRowTemplate" )" || undoAskTemplate="$agentsAskRowTemplate"
+		undoAskBody="$( AgentsToolsUndoAskBody "$undoAskDir" "$undoAskBy" )" || undoAskBody=""
 		[ -n "$undoAskBody" ] || { printf 'the prompt could not be filled from its template, so nothing is promised\n' >&2 ; return 1 ; }
 		undoAskOut="$( printf '%s\n' "$undoAskBody" | "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-op-comms-slack-send-message "$undoAskBy" human-owner --identity-bot --address-to human-owner --from-stdin 2>&1 )" || {
 			printf 'the prompt could not be posted, so nothing is promised: %s\n' "$( printf '%s\n' "$undoAskOut" | LC_ALL=C grep -m1 'ERROR' )" >&2 ; return 1 ; }
@@ -284,6 +437,35 @@ if ! type AgentsToolsUndoKinds >/dev/null 2>&1 ; then
 		type AgentsToolsAskPostReact > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.AskPost.include"
 		AgentsToolsAskPostReact "$undoAskBy" "$undoAskChannel:$undoAskTs" bot add $( AgentsToolsUndoAskFill reactions "$undoAskTemplate" "$agentsAskRowForm" )
 		printf '%s' "$undoAskPending"
+	}
+
+	## A part appended to a change whose prompt is already posted: the same prompt again, changed, in
+	## the same thread and under the same pending reply, so his answer carries the whole change. A
+	## prompt already answered is left as it is: the part is recorded, and his answer stands.
+	## Prints the pending id; rc 1 where the prompt could not be posted again or recorded.
+	AgentsToolsUndoAskRevise(){ ## record folder, acting member
+		local undoRevDir="$1" undoRevBy="$2" undoRevAsk undoRevFile undoRevBody undoRevOut undoRevTs undoRevChannel undoRevThread undoRevFields
+		undoRevAsk="$( AgentsToolsUndoField "$undoRevDir" ask )"
+		undoRevFile="$( AgentsToolsUndoAskPath "$undoRevAsk" )" || { printf 'the record names no ask of this workspace, so no prompt of it can be changed\n' >&2 ; return 1 ; }
+		undoRevChannel="$( AgentsToolsUndoAskField "$undoRevFile" channel )"
+		undoRevThread="$( AgentsToolsUndoAskField "$undoRevFile" thread-ts )"
+		[ -n "$undoRevChannel" ] && [ -n "$undoRevThread" ] || { printf 'the ask names no thread, so no prompt of it can be changed\n' >&2 ; return 1 ; }
+		type AgentsToolsAskKindRow > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.AskPost.include"
+		AgentsToolsAskKindRow undo || { printf 'the prompt cannot be filled: undo is not a kind the table of asks names\n' >&2 ; return 1 ; }
+		undoRevBody="$( AgentsToolsUndoAskBody "$undoRevDir" "$undoRevBy" )" || undoRevBody=""
+		[ -n "$undoRevBody" ] || { printf 'the changed prompt could not be filled from its template\n' >&2 ; return 1 ; }
+		undoRevOut="$( printf '%s\n' "$undoRevBody" | "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-op-comms-slack-send-message "$undoRevBy" "$undoRevChannel:$undoRevThread" --identity-bot --address-to human-owner --from-stdin 2>&1 )" || {
+			printf 'the changed prompt could not be posted: %s\n' "$( printf '%s\n' "$undoRevOut" | LC_ALL=C grep -m1 'ERROR' )" >&2 ; return 1 ; }
+		undoRevTs="$( printf '%s\n' "$undoRevOut" | LC_ALL=C sed -n 's/^SENT_MESSAGE_TS=//p' | head -1 )"
+		[ -n "$undoRevTs" ] || { printf 'the changed prompt was posted but its message could not be named\n' >&2 ; return 1 ; }
+		undoRevFields="$( AgentsToolsAskPostFieldsPack member "$undoRevBy" act "$undoRevBody" )"
+		printf '%s\n' "$undoRevBody" | "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-op-pending-reply-revise "$undoRevAsk" --revision-ts "$undoRevTs" --fields "$undoRevFields" --revised-by "$undoRevBy" --context undo-record > /dev/null 2>&1
+		case $? in
+			0) ;;
+			3) printf 'the prompt of %s is answered already, so it is left as it was answered, and the part stands on the record\n' "$undoRevAsk" >&2 ;;
+			*) printf 'the changed prompt was posted but %s could not be revised, so his answer is read on the prompt before it\n' "$undoRevAsk" >&2 ; return 1 ;;
+		esac
+		printf '%s' "$undoRevAsk"
 	}
 
 fi
@@ -308,6 +490,10 @@ case "$1" in
 
 	--undo-rework)
 		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/undo/AgentsTools.OpUndoRework.include"
+	;;
+
+	--undo-settle)
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/undo/AgentsTools.OpUndoSettle.include"
 	;;
 
 	--undo-*)

@@ -100,6 +100,22 @@ AgentsToolsMagicEpicTemp(){ ## prints a fresh scratch path in the calling sessio
 	mktemp "$epicBase/AgentsEpic.XXXXXX"
 }
 
+## An epic's judgement of a change, behind this file rather than behind a name of its own: the epic
+## file and the feature id are read here, the pair is kept on the change's record, and the settle
+## core lands the verdict. No sub-flag of `--epic-update` names it while the naming is open.
+AgentsToolsMagicEpicSettleChange(){ ## epic file, feature id, record id, parts (may be empty), words
+	local epicSettleFile="$1" epicSettleFeature="$2" epicSettleRecord="$3" epicSettleParts="${4:-}" epicSettleText="${5:-}" epicSettleDir="" epicSettleShown
+	[ "$( LC_ALL=C awk -v want="## $epicSettleFeature " 'index( $0, want ) == 1 { n++ } END { print n + 0 }' "$epicSettleFile" )" -eq 1 ] || {
+		echo "⛔ ERROR: $MDSC_CMD --epic-update: feature $epicSettleFeature must stand exactly once in $epicSettleFile" >&2
+		return 1 ; }
+	type AgentsToolsUndoFind > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/undo/AgentsTools.UndoRecord.include"
+	epicSettleDir="$( AgentsToolsUndoFind "$epicSettleRecord" "" )" || return 1
+	epicSettleShown="${epicSettleFile##*/}"
+	AgentsToolsUndoSet "$epicSettleDir" epic "$epicSettleShown" || { echo "⛔ ERROR: $MDSC_CMD --epic-update: the change's epic item could not be kept" >&2 ; return 1 ; }
+	AgentsToolsUndoSet "$epicSettleDir" feature "$epicSettleFeature" || { echo "⛔ ERROR: $MDSC_CMD --epic-update: the change's feature id could not be kept" >&2 ; return 1 ; }
+	AgentsToolsUndoSettleCore "$epicSettleDir" magic-coordinator "$epicSettleParts" "$epicSettleText"
+}
+
 case "$1" in
 
 	--epic-update)
