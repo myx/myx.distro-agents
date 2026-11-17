@@ -6,6 +6,7 @@
 ## REVIEW_WAIT_LIMIT ends the session, recorded once, the item staying in review. The
 ## verdicts: accept, return (delivered to a live child; restarting an ended session), reject,
 ## follow-up, each with its board move, its send, its Decisions line and its transcript line.
+## A run whose own record names no thread is restarted into the thread its session records (S6.10).
 ## A routine as review-by, listed by its own input scan and left alone by advance
 ## housekeeping. The endings: archive, trash, shutdown, TaskStop. The coordinator-thread
 ## fallback for a spawn whose parent has no thread.
@@ -422,7 +423,26 @@ rigEnv=()
 rigAssert "its handback reaches the thread of the session that started the run it replaces" \
 	"$( LC_ALL=C grep -c 'no recorded parent session' "$rigTmp/v3h" ):$( LC_ALL=C grep '"channel": *"CPRS00001"' "$rigTmp/bodies" | LC_ALL=C grep -c -F 'redone' )" 0:1
 
-rigReportsTo="$( LC_ALL=C sed -n 's/^agentsRunRouteField="\(.*\)"$/\1/p' "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandbox.include" )"
+echo "-- 9a. a run whose own record names no thread is restarted into the thread its session records --"
+## The run founded its session alone, so that record carries no session-thread. The session's own record
+## holds the thread the first member it brought in opened, and the restart joins there, under that
+## session's id: a session started again is the same session, never a new one beside it.
+rigRecord rig-par-nth spawn-succeeded "" dispatch-20261008T1200Z-nth trk-rig-nth 'start-context: inline
+'
+rigOwnerSessionThreadSet rig-par-nth CTHR00001:1700000000.000580 || rigRefuse "the session's thread could not be recorded"
+rigItem review dispatch-20261008T1200Z-nth rig-par-nth
+rigOp "$rigTmp/v3nth" --return-review --team-member magic-coordinator dispatch-20261008T1200Z-nth --message "redo the rig step"
+rigNewNthRecord="$( for rigCandidate in "$rigSpawned/trk-rig-nth"/*.spawn.md ; do [ "${rigCandidate##*/}" = rig-par-nth.md ] || printf '%s\n' "$rigCandidate" ; done | head -1 )"
+rigAssert "the op succeeds"                                "$( cat "$rigTmp/v3nth.rc" )" 0
+rigAssert "the restarted run joins the session the run it replaces founded" \
+	"$( [ -n "$rigNewNthRecord" ] && LC_ALL=C grep -c -x 'session-id: rig-par-nth' "$rigNewNthRecord" )" 1
+rigAssert "and carries the thread the session records, not one of its own" \
+	"$( [ -n "$rigNewNthRecord" ] && LC_ALL=C grep -c -x 'session-thread: CTHR00001:1700000000.000580' "$rigNewNthRecord" )" 1
+rigAssert "so no thread is opened for it in the team channel" "$( LC_ALL=C grep -c '"channel": *"CRIG00001"' "$rigTmp/bodies" )" 0
+
+## The field a run's route is kept under is declared by the module that reads it, sh-lib/member/AgentsTools.RunRoute.include.
+rigReportsTo="$( LC_ALL=C sed -n 's/^agentsRunRouteField="\(.*\)"$/\1/p' "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.RunRoute.include" )"
+[ -n "$rigReportsTo" ] || rigRefuse "the package names no field for where a run reports to (agentsRunRouteField)"
 echo "-- 9d. return to an ended run that had no parent session, made from inside another session: it has none again --"
 rigRecord rig-ended-np spawn-succeeded CENP00001:1700000000.000570 dispatch-20261008T1200Z-np trk-rig-np 'start-context: spawned
 '

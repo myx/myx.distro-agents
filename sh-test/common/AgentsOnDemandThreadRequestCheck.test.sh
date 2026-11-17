@@ -21,11 +21,13 @@ rigComms="$rigPkg/sh-lib/comms/AgentsTools.CommsIngest.include"
 [ -f "$rigInc" ] || { echo "⛔ ERROR: no thread include at $rigInc" >&2 ; exit 1 ; }
 . "$rigPkg/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
 . "$rigPkg/sh-test/check-fixtures/rig-processes.include.sh" || exit 1
+## And every thread on the shared on-demand pattern, by its lock, ended before the rig goes.
+. "$rigPkg/sh-test/check-fixtures/rig-control-threads.include.sh" || exit 1
 rigTmp="$( rigTempDir AgentsOnDemandThreadRequestCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 rigThreadPids=""
 rigThreadsStop(){ [ -z "$rigThreadPids" ] || rigProcSignal TERM $rigThreadPids ; rigThreadPids="" ; return 0 ; }
-trap 'rigThreadsStop ; rm -rf -- "$rigTmp"' EXIT
+trap 'rigThreadsStop ; rigControlThreadsEnd "$rigTmp" ; rm -rf -- "$rigTmp"' EXIT
 
 rigPassCount=0 ; rigFailCount=0
 rigAssert(){ ## what is asserted, got, want

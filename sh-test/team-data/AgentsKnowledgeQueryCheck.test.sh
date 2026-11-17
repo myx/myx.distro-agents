@@ -39,8 +39,8 @@ rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
 rigWs="$rigTmp/ws" rigData="$rigTmp/data"
 mkdir -p "$rigWs/.local/.agents" "$rigWs/.local/agents" "$rigTmp/home" "$rigTmp/skills"
-. "$rigOrigin/myx/myx.distro-agents/sh-test/check-fixtures/rig-store-item.include.sh" || exit 1
-## Every item the query reads is written by its store's own writer (rig-store-item.include.sh), and so is every folder
+. "$rigOrigin/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-writes.include.sh" || exit 1
+## Every item the query reads is written by its store's own writer (rig-owner-writes.include.sh), and so is every folder
 ## it lies in: a hand-written fixture stays green when that writer's own path changes.
 rigBodyCount=0
 rigStoreBody(){ ## text -- the path of a body file holding it

@@ -170,7 +170,7 @@ AgentsToolsRegistryLegacyRunsAs(){ ## process list text (`<pid> <command line>` 
 
 ## Whether the process an open record names as the one its launch started
 ## (`run-process: <pid> <start>`) is still that same process, the per-row way of the rule
-## AgentsToolsRunRecordedAlive states: that pid, started at that time.
+## AgentsToolsRunRecorded states: that pid, started at that time.
 AgentsToolsRegistryLegacyRecordedRun(){ ## spawn id
 	local runRecord runNamed runNow
 	for runRecord in "$MMDAPP/.local/agents/spawned"/*/"$1.spawn.md" ; do

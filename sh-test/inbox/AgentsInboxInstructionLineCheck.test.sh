@@ -43,9 +43,8 @@ rigScene(){ ## name
 . "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-writes.include.sh" || exit 1
 rigOwnerWs="${rigWs:-$rigTmp/ws}" rigOwnerData="${rigData:-${rigD:-${rigStore:-${rigOut:-$rigTmp/data}}}}" rigOwnerHome="${rigHome:-$rigTmp/home}" rigOwnerSkills="${rigSkills:-$rigTmp/skills}"
 	rm -rf "$rigDir"
-	mkdir -p "$rigWs/.local/.agents" "$rigWs/.local/temp" "$rigHome" \
-		"$rigData/inboxes/rig-member/incoming" "$rigData/inboxes/rig-other/incoming" "$rigData/board" \
-		"$rigSkills/rig-member" "$rigSkills/rig-other"
+	mkdir -p "$rigWs/.local/.agents" "$rigWs/.local/temp" "$rigHome" "$rigData/board" "$rigSkills/rig-member" "$rigSkills/rig-other"
+	rigInboxReady "$rigData" rig-member rig-other || rigRefuse "could not make the inboxes ready to be written"
 	printf -- '---\nmaintainers: rig\n---\nrig identity\n' > "$rigSkills/rig-member/rig-member.basic.md"
 	printf -- '---\nmaintainers: rig\n---\nrig identity\n' > "$rigSkills/rig-other/rig-other.basic.md"
 	printf 'SLACK_CHANNEL_MAGIC_TEAM=CRIG00001\nSLACK_BOT_TOKEN=rig-bot-token-TEAM\n' > "$rigWs/.local/.agents/magic-team.agent.env"
@@ -146,6 +145,9 @@ rigAssert "the named item's block ends with the instruction"        "$( rigLastL
 
 movedOne="inquiry-20261001T0100Z-rig-done.md"
 printf -- '---\ntype: inquiry\nfrom: rig-other\nprocessed-at: 2026-10-01 10:00 +0200\n---\n\nA rig body.\n' | rigOwnerInboxPut rig-member "$movedOne"
+## Filed into processed/ by the inbox's own mark, so the reading below is of an item the store itself calls processed.
+rigCall markOne --mark-inbox-processed --team-member rig-member "$movedOne"
+rigAssert "control: the mark filed the item as processed" "$( cat "$rigDir/markOne.rc" )" 0
 rigCall named2 --intern-op-session-context-scan rig-member --state backlog --item "$movedOne" --item-include-inbox --include-processed \
 	--all-types --no-slack --no-email --no-trello --no-board-related --no-inbox-inquiry --no-inbox-reflections --no-inbox-notes --no-inbox-other --context rig
 rigAssert "control: the already-processed named item was delivered"  "$( LC_ALL=C grep -c -x "## inbox/$movedOne" "$rigDir/named2.out" )" 1

@@ -193,7 +193,7 @@ AgentsHarnessAsk(){
 	if [ -z "$toolTo" ] && [ -z "$toolAddressTo" ] ; then
 		local askRouteRecord="" askRouteTo=""
 		if AgentsSessionRunRecordInto askRouteRecord "${MDAT_SPAWN_SESSION_ID:-}" ; then
-			type AgentsToolsRunRoute > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.RunRoute.include"
+			type AgentsToolsRunRoute > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.RunRoute.include"
 			askRouteTo="$( AgentsToolsRunRoute "$askRouteRecord" 2> /dev/null )" || askRouteTo=""
 			## A run that reports to no one asks where it would report to if it named nobody.
 			[ "$askRouteTo" != none ] || askRouteTo="$( AgentsToolsRunRoute "$askRouteRecord" default 2> /dev/null )" || askRouteTo=""
@@ -208,7 +208,7 @@ AgentsHarnessAsk(){
 	## exists -- same rule and same reason as SendMessage's own default. An ad-hoc/
 	## solo spawn holding none keeps today's explicit-target requirement exactly.
 	if [ -z "$toolTo" ] ; then
-		type AgentsToolsSessionCurrentThreadFind > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionThreads.include"
+		type AgentsToolsSessionCurrentThreadFind > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.SessionThreads.include"
 		toolTo="$( AgentsToolsSessionCurrentThreadFind 2>/dev/null )" || toolTo=""
 	fi
 	if [ -z "$toolTo" ] ; then
@@ -306,7 +306,7 @@ AgentsHarnessAsk(){
 	## owner's own conversation, and a proposal opens a thread of its own, both as before.
 	if [ "$toolKind" != "proposal" ] && [ "$toolTo" != "human-owner" ] && AgentsHarnessAskParty "$toolTo" ; then
 		local askMemberThread=""
-		type AgentsToolsSessionCurrentThreadFind > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionThreads.include"
+		type AgentsToolsSessionCurrentThreadFind > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.SessionThreads.include"
 		askMemberThread="$( AgentsToolsSessionCurrentThreadFind 2>/dev/null )" || askMemberThread=""
 		[ -z "$askMemberThread" ] || toolTo="$askMemberThread"
 	fi
@@ -331,7 +331,7 @@ AgentsHarnessAsk(){
 				## place: then the session's thread, else the routed member's own conversation.
 				*)
 					if [ "$toolTo" = "$toolAddressTo" ] ; then
-						type AgentsToolsSessionThreadFind > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionThreads.include"
+						type AgentsToolsSessionThreadFind > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.SessionThreads.include"
 						toolTo="$( AgentsToolsSessionThreadFind 2>/dev/null )" || toolTo=""
 						[ -n "$toolTo" ] || toolTo="$askRoute"
 					fi

@@ -31,5 +31,5 @@
 		[ -z "$addNew" ] || chmod 600 "$addFile" 2> /dev/null
 		addCount="$( AgentsToolsManagerKeysTrusted | LC_ALL=C grep -c . )"
 		addFinger="$( AgentsToolsManagerKeysTrustedFinger "$keysType" "$keysText" )"
-		AgentsToolsManagerKeysTrustedDone added "$addCount" "$addFile" "$keysType" "$addFinger"
+		printf '%s\ttrusted-%s\t%s\t%s\t%s\n' added "$addCount" "$( AgentsToolsManagerKeysField "$addFile" )" "$keysType" "$addFinger"
 		return 0

@@ -81,10 +81,8 @@ case "$1" in
 		fi
 		if [ -n "$collectMember" ] ; then
 			AgentsToolsAssertBareName "$collectMember" "--member" collect-sources || { set +e ; return 1 ; }
-			if [ ! -d "$MDAT_SKILLSET_ROOT/$collectMember" ] ; then
-				echo "$MDSC_CMD: collect-sources: ⛔ ERROR: no such member skill directory: $MDAT_SKILLSET_ROOT/$collectMember" >&2
-				set +e ; return 1
-			fi
+			type AgentsToolsSlackMemberPresent > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/slack/AgentsTools.CommsSlack.include"
+			AgentsToolsSlackMemberPresent "$collectMember" collect-sources || { set +e ; return 1 ; }
 			agentsCollectDefer="yes"
 			for collectEachKind in mail trello ; do
 				[ -z "$collectKind" ] || [ "$collectKind" = "$collectEachKind" ] || continue

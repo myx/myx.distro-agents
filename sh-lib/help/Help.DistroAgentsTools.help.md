@@ -923,7 +923,7 @@
 			Output: `IDENTITY|identity=|auth=|handle=|status=|
 			conversations=` once per identity, then
 			`CONV|identity=|auth=|id=|kind=|counterparty=|handle=|
-			counterparty-deleted=` per conversation, then
+			counterparty-deleted=|latest=` per conversation, then
 			`USER|<id>|<handle>` per party, then `ROSTER_STATUS=`.
 
 			`status=no-token` on the user leg means no
@@ -1152,8 +1152,10 @@
 			result**, attempted in order, one failure never stopping
 			the rest. stdout carries `DELETE_TARGET=<as given>` then
 			`DELETE_STATE=` per target: `deleted` (raw response
-			follows), `refused-on-authorship`, `could-not-call`,
-			`unresolvable-target`, or `no-message-ts`. Exit 0 only
+			follows), `refused-on-authorship`, `refused-open-ask`,
+			`refused-has-replies`, `unverified-thread`,
+			`could-not-call`, `unresolvable-target`, or
+			`no-message-ts`. Exit 0 only
 			when EVERY target was deleted; a non-zero exit never
 			means the whole run failed, and any `deleted` target
 			really was. A closing `#` note on stderr states how many
@@ -1164,6 +1166,18 @@
 			the acting member/identity, with Slack's raw error
 			alongside; the other identity is never retried
 			automatically -- use --identity-bot explicitly.
+
+			**An ask is not deleted, and neither is a message anybody
+			answered.** A target that is the question of an ask still
+			waiting is refused as `refused-open-ask`, and the one
+			line names the ask and the `--settle-pending-reply
+			--withdraw` call that closes it. A target whose thread
+			carries one reply or more is refused as
+			`refused-has-replies`, with the count. The thread is read
+			from Slack before the delete, and a read that does not
+			answer refuses as `unverified-thread` rather than
+			passing: a check that cannot reach its subject never
+			lets a delete through.
 
 		--slack-edit-message [--team-member <team-member>] <channel>:<ts>|<alias>:<ts>|session-current|session-parent [--identity-bot] [text...|--from-stdin|--from-file <path>] [--text-group report|brief|relay]
 			Same identity rule as --slack-react; as on
@@ -2868,8 +2882,8 @@
 			the workspace's member index, `.local/agents/members.index`
 			and its `members/` view: this workspace's own members
 			only, each name once; a link to a member of another
-			workspace is removed. `MDAT_SKILLSET_ROOT` defaults to
-			that view.
+			workspace is removed. The tooling resolves the member
+			set of the workspace it serves, and no caller passes one.
 
 		--install-vscode-integrations [--workspace <path>]
 			Installs/updates baseline VS Code + Claude Code MCP

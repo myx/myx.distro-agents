@@ -65,6 +65,9 @@ One prompt for one handback: who handed back, the task in words, the outcome lin
 ]][[**📦 Outcome**
 {{outcome}}
 
+]][[**📋 Deliverables the review judges**
+{{deliverables}}
+
 ]][[**🧵 Session**
 {{session}}
 
@@ -179,6 +182,7 @@ The one reply the tooling posts in the prompt's own thread once an answer is rea
 - rule: The post is the one fenced block under `## post`, sent as the team bot through the member send, addressed to the human-owner. It is posted once for each time a handback moves its item into review, and only where the item's `review-by` names `human-owner`. A reviewer that is a member, a session or a routine gets no prompt.
 - rule: Required: `{{member}}`, the member that handed back. A slot outside `[[ … ]]` is required: with one empty, nothing is posted. Text in `[[ … ]]` is kept only when every slot in it has a value, and a group may span lines, so a heading is left out together with its empty field. No field is ever shown as a placeholder.
 - rule: `{{task}}` is the `## task` line, which says what was worked on in words: `{{task-title}}`, the title of the item the handed-back item tracks, else that item's own heading; `{{task-names}}`, the names of the tracked item and of the dispatch, each in code style; and `{{task-text}}`, the tracked item's first paragraph, else the first paragraph of the dispatch's own brief. One reader gives them, for this post, the permission set post and the event-track start post alike (`AgentsTools.TaskText.include`).
+- rule: `{{deliverables}}` is the routine in force's `deliverables:`, as the tooling copied them onto the item when it entered review, one between `;` and each shown as an item: the reviewer judges them against the artefacts, never against the handback's account of them. A routine declaring none leaves the label and its field out.
 - rule: `{{outcome}}` is the outcome line of the handback as the review flow records it on the item: one line, redacted.
 - rule: `{{session}}` is the `## session` line of the session that handed back, its words first: `{{session-description}}`, what its spawn said it is for; then `{{session-id}}`, the first 8 characters of its coworking session; and `{{session-thread}}`, its session thread, a link where the workspace's address is configured, else its `<channel>:<ts>` in code style.
 - rule: The answer form is `verdict`. `{{how-to-answer}}` is the block under `# Answers` named for it, on every post that takes an answer.

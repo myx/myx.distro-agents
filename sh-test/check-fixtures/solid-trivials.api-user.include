@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+##
+## Fixture for AgentsSolidTrivialsCheck.test.sh: the second file of the same package, holding one of each way a file
+## can name a name another file has, and nothing else. Each way is asserted by name in the check.
+##
+## A plain call from another file: the line it calls moves into this caller.
+SolidNegativesApiUserPlain(){ ## text
+	SolidPositivePlainCall "$1"
+}
+
+## A load guard. The file only asks whether the name is loaded, and that question never runs it.
+SolidNegativesApiUserGuard(){ ## text
+	type SolidPositiveGuardOnly > /dev/null 2>&1 || return 1
+	printf '%s\n' "$1"
+}
+
+## A runner the file hands a name to, as an argument word, and runs by that name.
+SolidNegativesApiUserRunner(){ ## runnable, text
+	"$1" "$2"
+}
+
+## The table of names this file runs by name. Each argument word here is data, so the function it names has to exist.
+SolidNegativesApiUserTable(){
+	SolidNegativesApiUserRunner SolidNegativeByString one
+}
+
+SolidNegativesApiUser(){ ## text
+	SolidNegativeApi "$1"
+}

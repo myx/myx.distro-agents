@@ -152,7 +152,7 @@ AgentsToolsPermissionSetApply(){ ## <pending-id> <approver>
 				applySetWrote=$(( applySetWrote + 1 ))
 			done <<< "$applySetEntries"
 			## Interim, until the grants move into the session file itself: that file is written again now.
-			[ "$applySetWrote" -eq 0 ] || AgentsToolsGrantsStoreTouch "$applySetDir"
+			[ "$applySetWrote" -eq 0 ] || AgentsToolsGrantsStoreTouchDir "$applySetDir"
 			## The set's grants for this participant, said once in the session's tracking-thread.
 			[ "$applySetWrote" -gt 0 ] || continue
 			AgentsToolsPermissionAnswerPost grant "$applySetPart" "$applySetDir" "$applySetSession" "$applySetRef" "" "" "$applySetBy" \

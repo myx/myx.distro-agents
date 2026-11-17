@@ -25,10 +25,8 @@ AgentsToolsCommsEmailMarkSeen(){ ## <team-member> <uid>
 		routine-*)
 		;;
 		*)
-			if [ ! -d "$MDAT_SKILLSET_ROOT/$memberName" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --email-mark-seen: no such member skill directory: $MDAT_SKILLSET_ROOT/$memberName" >&2
-				set +e ; return 1
-			fi
+			type AgentsToolsSlackMemberPresent > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/slack/AgentsTools.CommsSlack.include"
+			AgentsToolsSlackMemberPresent "$memberName" --email-mark-seen || { set +e ; return 1 ; }
 		;;
 	esac
 	AgentsToolsCommsOwnSideCheck "$memberName" mail email-mark-seen || { set +e ; return 1 ; }
@@ -116,10 +114,8 @@ case "$1" in
 				routine-*)
 				;;
 				*)
-					if [ ! -d "$MDAT_SKILLSET_ROOT/$memberName" ] ; then
-						echo "⛔ ERROR: $MDSC_CMD --email-check: no such member skill directory: $MDAT_SKILLSET_ROOT/$memberName" >&2
-						set +e ; return 1
-					fi
+					type AgentsToolsSlackMemberPresent > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/slack/AgentsTools.CommsSlack.include"
+					AgentsToolsSlackMemberPresent "$memberName" --email-check || { set +e ; return 1 ; }
 				;;
 			esac
 			AgentsToolsCommsOwnSideCheck "$memberName" mail email-check || { set +e ; return 1 ; }
@@ -167,10 +163,8 @@ case "$1" in
 				routine-*)
 				;;
 				*)
-					if [ ! -d "$MDAT_SKILLSET_ROOT/$memberName" ] ; then
-						echo "⛔ ERROR: $MDSC_CMD --email-read: no such member skill directory: $MDAT_SKILLSET_ROOT/$memberName" >&2
-						set +e ; return 1
-					fi
+					type AgentsToolsSlackMemberPresent > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/slack/AgentsTools.CommsSlack.include"
+					AgentsToolsSlackMemberPresent "$memberName" --email-read || { set +e ; return 1 ; }
 				;;
 			esac
 			AgentsToolsCommsOwnSideCheck "$memberName" mail email-read || { set +e ; return 1 ; }
@@ -263,10 +257,8 @@ case "$1" in
 				routine-*)
 				;;
 				*)
-					if [ ! -d "$MDAT_SKILLSET_ROOT/$memberName" ] ; then
-						echo "⛔ ERROR: $MDSC_CMD --email-send: no such member skill directory: $MDAT_SKILLSET_ROOT/$memberName" >&2
-						set +e ; return 1
-					fi
+					type AgentsToolsSlackMemberPresent > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/slack/AgentsTools.CommsSlack.include"
+					AgentsToolsSlackMemberPresent "$memberName" --email-send || { set +e ; return 1 ; }
 				;;
 			esac
 			AgentsToolsCommsOwnSideCheck "$memberName" mail email-send || { set +e ; return 1 ; }

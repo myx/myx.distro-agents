@@ -25,11 +25,10 @@ set -e
 ## members/ view holds this workspace's own members only; a member of another workspace
 ## is found through the shared registry. Never a vendor link folder ($HOME/.claude/skills and the rest are
 ## generated from this data, and nothing of ours reads them back). An index not built
-## yet is built by --make-workspace-integrations; nothing falls back.
-if [ -z "${MDAT_SKILLSET_ROOT:-}" ] ; then
-	MDAT_SKILLSET_ROOT="$MMDAPP/.local/agents/members"
-	export MDAT_SKILLSET_ROOT
-fi
+## yet is built by --make-workspace-integrations; the rule of the root is the resolver's alone.
+type AgentsToolsSkillsetRootInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWorkspace.include"
+AgentsToolsSkillsetRootInto MDAT_SKILLSET_ROOT "${MMDAPP:-}"
+export MDAT_SKILLSET_ROOT
 
 if [ "$1" != "--agents-config-option" ] ; then
 	agentsContextRootOwn=""

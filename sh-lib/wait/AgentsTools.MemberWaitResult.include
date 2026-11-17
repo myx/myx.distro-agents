@@ -120,7 +120,8 @@ type AgentsSlackIdentityId > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-ag
 			for commitHit in $waitHits ; do
 				commitIndex="${commitHit%%=*}"
 				case "${commitHit#*=}" in
-					replies:*) AgentsWaitRepliesCommit "${commitHit#*=replies:}" "$waitDir/now.$commitIndex.advance" ;;
+					replies:*) type AgentsOwnPostsReplace > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.OwnPosts.include"
+						AgentsOwnPostsReplace "${commitHit#*=replies:}" "$waitDir/now.$commitIndex.advance" ;;
 					chat:*) AgentsWaitChatCommit "${commitHit#*=chat:}" "$memberName" "$waitDir/now.$commitIndex.newest" ;;
 					scan:*) AgentsWaitScanCommit "$memberName" "${commitHit#*=scan:}" "$waitDir/now.$commitIndex.sum" ;;
 					mentions:*) AgentsWaitMentionsCommit "$memberName" "$waitDir/now.$commitIndex.newest" ;;
@@ -192,7 +193,7 @@ type AgentsSlackIdentityId > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-ag
 			echo "# filters: sources=${waitSources% } floors=${waitFloorsUsed% } addressee=${waitAddressee% } include-own=$waitIncludeOwn"
 			if [ "$waitMode" = "default" ] ; then
 				local headerThread=""
-				type AgentsToolsSessionCurrentThreadFind > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionThreads.include"
+				type AgentsToolsSessionCurrentThreadFind > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.SessionThreads.include"
 				headerThread="$( AgentsToolsSessionCurrentThreadFind 2>/dev/null )" || headerThread=""
 				if [ -n "$headerThread" ] ; then
 					echo "# session thread: $headerThread, the one on record for this session"
@@ -241,7 +242,7 @@ type AgentsSlackIdentityId > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-ag
 					## The owner's account is the rig's own, as the send reads it: magic-team's SLACK_CHANNEL_HUMAN_OWNER where that is an account id, else the mention cache.
 					type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/settings/AgentsTools.ConfigOption.include"
 					waitSenderOwner="$( AgentsToolsConfigOption magic-team --select SLACK_CHANNEL_HUMAN_OWNER 2> /dev/null )" || waitSenderOwner=""
-					case "$waitSenderOwner" in [UW][A-Z0-9]*) ;; *) waitSenderOwner="$( AgentsSlackIdentityOwnerId )" ;; esac
+					case "$waitSenderOwner" in [UW][A-Z0-9]*) ;; *) waitSenderOwner="$( AgentsSlackIdentityId human-owner )" ;; esac
 					: > "$waitSenderMap"
 					for waitHit in $waitHits ; do
 						waitHitIndex="${waitHit%%=*}"
@@ -357,7 +358,8 @@ type AgentsSlackIdentityId > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-ag
 				for waitHit in $waitHits ; do
 					waitHitIndex="${waitHit%%=*}"
 					case "${waitHit#*=}" in
-						replies:*) AgentsWaitRepliesCommit "${waitHit#*=replies:}" "$waitDir/now.$waitHitIndex.advance" ;;
+						replies:*) type AgentsOwnPostsReplace > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.OwnPosts.include"
+							AgentsOwnPostsReplace "${waitHit#*=replies:}" "$waitDir/now.$waitHitIndex.advance" ;;
 						chat:*) AgentsWaitChatCommit "${waitHit#*=chat:}" "$memberName" "$waitDir/now.$waitHitIndex.newest" ;;
 						scan:*) AgentsWaitScanCommit "$memberName" "${waitHit#*=scan:}" "$waitDir/now.$waitHitIndex.sum" ;;
 						mentions:*) AgentsWaitMentionsCommit "$memberName" "$waitDir/now.$waitHitIndex.newest" ;;

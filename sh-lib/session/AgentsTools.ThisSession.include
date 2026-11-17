@@ -53,7 +53,7 @@ AgentsToolsThisSessionNeedSession(){ ## operation
 
 ## The thread of the session, the one the session-current alias names (AgentsToolsSessionCurrentThreadFind). rc 1, with a plain line, for none.
 AgentsToolsThisSessionNeedThread(){ ## operation
-	type AgentsToolsSessionCurrentThreadFind > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionThreads.include"
+	type AgentsToolsSessionCurrentThreadFind > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.SessionThreads.include"
 	thisSessionThread="$( AgentsToolsSessionCurrentThreadFind 2> /dev/null )" || thisSessionThread=""
 	[ -z "$thisSessionThread" ] || return 0
 	echo "$MDSC_CMD: ⛔ ERROR: $1: this session has no session thread, so it has no session channel. Nothing was done." >&2
@@ -439,7 +439,7 @@ AgentsToolsThisSessionIdleWait(){ ## the operation's arguments
 	fi
 	## THE GATE: what the run's own list still holds is work, and it is given back at once, so a list is the queue here as it is at a Wait.
 	## The item naming --idle-wait is the recurring wait-for-more one and is done by this call, so it passes.
-	type AgentsSessionChecklistOpenInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+	type AgentsSessionChecklistOpenInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.CheckListSeed.include"
 	AgentsSessionChecklistOpenInto idleBusy "$MDAT_SPAWN_SESSION_ID" "$MDAT_SPAWN_AGENT"
 	if [ -n "$idleBusy" ] ; then
 		idleBusyCount="$( LC_ALL=C awk 'END { print NR }' <<< "$idleBusy" )"
@@ -591,7 +591,7 @@ AgentsToolsThisSessionTopicSet(){ ## --session-id <id> <text>
 		return 1
 	fi
 	topicThread="$( LC_ALL=C sed -n '1p' "${MMDAPP:-/nonexistent}/.local/agents/sessions"/$topicSession/session.thread 2> /dev/null )" || topicThread=""
-	type AgentsToolsRunRouteMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.RunRoute.include"
+	type AgentsToolsRunRouteMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.RunRoute.include"
 	topicBy="$( AgentsToolsRunRouteMember "$topicSession" )" || topicBy=""
 	if [ -n "$topicThread" ] && [ -n "$topicBy" ] ; then
 		type AgentsToolsToolingTemplateFill > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.ToolingTemplate.include"
@@ -626,7 +626,7 @@ AgentsToolsThisSessionChapterSet(){ ## --session-id <id> <text>
 		return 1
 	}
 	chapterThread="$( LC_ALL=C sed -n '1p' "$chapterDir/session.thread" 2> /dev/null )" || chapterThread=""
-	type AgentsToolsRunRouteMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.RunRoute.include"
+	type AgentsToolsRunRouteMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.RunRoute.include"
 	chapterBy="$( AgentsToolsRunRouteMember "$chapterSession" )" || chapterBy=""
 	if [ -n "$chapterThread" ] && [ -n "$chapterBy" ] ; then
 		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
@@ -705,7 +705,7 @@ AgentsToolsThisSessionRuns(){ ## the operation's arguments (none)
 	local runsSession="$thisSessionKey" runsMember="$thisSessionMember" runsRows runsKinds runsBound runsPublic runsOwn runsKept
 	type AgentsToolsDispatcherManager > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/schedule/AgentsTools.Dispatcher.include"
 	AgentsToolsDispatcherManager || return 1
-	type AgentsToolsManagerSessionRows > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.ManagerSessionRows.include"
+	type AgentsToolsManagerSessionRows > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.ManagerSessionRows.include"
 	runsRows="$( AgentsToolsManagerSessionRows --all-sessions "" )" || return 1
 	runsKinds="$( AgentsToolsDispatcherKinds "$runsRows" )"
 	runsBound="$( AgentsToolsDispatcherSubSessions "$runsSession" | LC_ALL=C sort -u )"

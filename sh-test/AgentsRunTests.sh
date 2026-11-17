@@ -6,7 +6,7 @@
 ##   <that folder>/mdat-tests/<UTC-stamp>/<test>.log      the test's whole output
 ##     (<UTC-stamp>-<pid> for a run started in the same second as another)
 ##   <that folder>/mdat-tests/<UTC-stamp>/<test>.receipt  rc, seconds, last line
-##   <that folder>/mdat-tests/<UTC-stamp>/summary.txt     PASS / FAIL per test, totals
+##   <that folder>/mdat-tests/<UTC-stamp>/summary.txt     PASS / FAIL per test, each failure with its owner and reason, totals
 ## and points <that folder>/mdat-tests/latest at it.
 ##
 ## Usage: AgentsRunTests.sh [-w <workers>] [-t <timeout-seconds>] [--stall-margin <seconds>] [<name-substring>...]
@@ -29,6 +29,11 @@
 ##   into each line (default 900).
 ##   Status: 0 every test passed, 1 a test did not or the run was refused, 124 the run stood
 ##   still and was ended (A RUN THAT STANDS STILL, below).
+##   Known failures: every failure of the suite has an owner and a reason, kept beside this runner in
+##   `known-failures.txt`, one row a test, TAB between its three fields: the test, its owner, and why it is
+##   red. A FAIL line carries them, a test of the list that passes is printed FIXED, and the last line counts
+##   the failures that have an owner and those that do not. A list that is not three filled fields a row is
+##   refused before any test runs (THE FAILURES HAVE OWNERS, below).
 ##
 ## Each test gets a test-only session identity, so no test can write into a live session store.
 ## And nothing of the session its runner was started in. A member's session that a spawn started
@@ -37,6 +42,8 @@
 ## MDAT_SPAWN_* and MDAT_SESSION_* variable is taken out, and MDAT_CONVERSATION_THREADS: a rig
 ## that found them was no session of its own. Its spawn joined that session and took its thread,
 ## its question to a member went there, its harness kept its scratch in that member's sandbox.
+## And each test is handed the member folder of the workspace the run is in, never the one the
+## session that started the run serves: a test that read that one would act as a member of another workspace.
 ## And its waits remind no ask (MDAT_WAIT_REMIND=off, AgentsTools.MemberWait.include): the asks of
 ## a rig carry the ts its fake Slack gives, years old, so every wait that brings nothing would
 ## remind them, one more post than a scenario counts. A test of the reminders unsets it.
@@ -142,11 +149,10 @@
 ## the copy of the package this runner is in (its tests and their fixtures, sh-lib,
 ## sh-scripts, the skillset, the docs, project.inf, this runner), every file of the tooling's
 ## other packages under the same source root (myx.distro-*, myx.common), of myx.common as it
-## is installed (MYXROOT), and of the member set the environment hands the tests
-## (MDAT_SKILLSET_ROOT, which a test started from a scratch copy still reads from the
-## workspace), with the shell and the system the tests run under. Paths below those roots
-## and content only, never where a root lies: a copy that is byte for byte another shares
-## its passes. The key is made before the test starts and again once it has passed, and the
+## is installed (MYXROOT), and of the member folder of the workspace the run is in, which this
+## runner resolves for its tests, with the shell and the system the tests run under. Paths below
+## those roots and content only, never where a root lies: a copy that is byte for byte another
+## shares its passes. The key is made before the test starts and again once it has passed, and the
 ## pass is kept only where the two agree, so a pass on a tree that moved under the test is
 ## kept for no state. Only a pass is kept: a failure is no record, whatever made the test
 ## fail. Not in the key: the workspace's own data and the machine's state, which the rigs of
@@ -195,6 +201,9 @@ case "$runSlotDefault" in ''|*[!0123456789]*) runSlotDefault=2 ;; esac
 runSlotDefault=$(( runSlotDefault / 2 ))
 [ "$runSlotDefault" -ge 1 ] || runSlotDefault=1
 runTestLock="$MMDAPP/.local/temp/one-test-run.lock"
+## the member folder of the workspace the run is in: what every test is handed, and what the pass key
+## covers, so that the member set of the session that started the run reaches neither.
+runMembers="${MMDAPP%/}/.local/agents/members"
 ## the folder this run's source root is in, under the workspace's temp: empty for any other tree
 runOwnFolder="${MDLT_ORIGIN#"$MMDAPP/.local/temp/"}"
 if [ "$runOwnFolder" != "$MDLT_ORIGIN" ] ; then runOwnFolder="${runOwnFolder%%/*}" ; else runOwnFolder="" ; fi
@@ -219,10 +228,9 @@ runSlotKeeper="$runKeeperDir/runner-slot-keeper.py"
 runPassDir="${HOME:-}/.agents/magic-team/suite-results"
 runPassAge=$(( 7 * 86400 ))
 ## What a pass is keyed by, each `<name>=<folder>`: the copy of the package this runner is
-## in, myx.common as it is installed, the member set the environment hands the tests, and the
+## in, myx.common as it is installed, the member folder of the workspace the run is in, and the
 ## tooling's other packages under the source root.
-runPassRoots=( "package=$( cd "$testDir/.." && pwd -P )" "myxroot=${MYXROOT:-/usr/local/share/myx.common}" )
-[ -z "${MDAT_SKILLSET_ROOT:-}" ] || runPassRoots[${#runPassRoots[@]}]="members=$MDAT_SKILLSET_ROOT"
+runPassRoots=( "package=$( cd "$testDir/.." && pwd -P )" "myxroot=${MYXROOT:-/usr/local/share/myx.common}" "members=$runMembers" )
 for runPassRoot in "$MDLT_ORIGIN"/myx/myx.distro-* "$MDLT_ORIGIN"/myx/myx.common ; do
 	[ -d "$runPassRoot" ] || continue
 	[ "$( cd "$runPassRoot" 2>/dev/null && pwd -P )" != "${runPassRoots[0]#package=}" ] || continue
@@ -771,6 +779,50 @@ AgentsRunQueueTurn(){ ## -- stands in the line, takes a lane at this run's turn,
 		sleep "$turnSleep"
 	done
 }
+## THE FAILURES HAVE OWNERS. A red test of the suite is what a regression run cannot protect, so each one carries the
+## member who owns it and the reason it is red, in a list beside this runner. THE LIST IS READ HERE, BEFORE ANY TEST
+## RUNS, so a row that is not exactly three filled fields stops the run rather than letting a failure stand with no
+## owner: a summary whose owners cannot be trusted is worth less than no run. A missing list is no error, since a rig
+## holding the runner alone has none, and every failure then counts as unowned. Shell builtins alone read it, so a run
+## of 843 tests pays no process for it.
+runKnownFile="$testDir/known-failures.txt"
+runKnownTab=$'\t'
+runKnownDetail="" runKnownBad="" runKnownLine=0
+if [ -f "$runKnownFile" ] ; then
+	while IFS= read -r runKnownText ; do
+		runKnownLine=$(( runKnownLine + 1 ))
+		case "$runKnownText" in ''|'#'*) continue ;; esac
+		case "$runKnownText" in *"$runKnownTab"*) ;; *) runKnownBad="$runKnownBad $runKnownLine" ; continue ;; esac
+		runKnownTest="${runKnownText%%"$runKnownTab"*}" runKnownRest="${runKnownText#*"$runKnownTab"}"
+		case "$runKnownRest" in *"$runKnownTab"*) ;; *) runKnownBad="$runKnownBad $runKnownLine" ; continue ;; esac
+		runKnownOwner="${runKnownRest%%"$runKnownTab"*}" runKnownReason="${runKnownRest#*"$runKnownTab"}"
+		case "$runKnownTest" in ''|*' '*) runKnownBad="$runKnownBad $runKnownLine" ; continue ;; esac
+		case "$runKnownOwner$runKnownReason" in *"$runKnownTab"*|' ') runKnownBad="$runKnownBad $runKnownLine" ; continue ;; esac
+		case "$runKnownOwner" in '') runKnownBad="$runKnownBad $runKnownLine" ; continue ;; esac
+		case "$runKnownReason" in '') runKnownBad="$runKnownBad $runKnownLine" ; continue ;; esac
+		runKnownDetail="$runKnownDetail$runKnownTest$runKnownTab$runKnownOwner$runKnownTab$runKnownReason"$'\n'
+	done < "$runKnownFile"
+fi
+if [ -n "$runKnownBad" ] ; then
+	echo "⛔ ERROR: AgentsRunTests.sh: $runKnownFile holds a row that is not three filled fields -- the test, its owner and the reason it is red, TAB between them; the line(s):$runKnownBad" >&2
+	exit 1
+fi
+AgentsRunKnownOf(){ ## test name -- sets runKnown to ` owner=<owner> reason=<reason>`, or to nothing for a test the list does not hold
+	local knownRest="$runKnownDetail" knownLine knownTest knownOwner knownReason
+	runKnown=""
+	while [ -n "$knownRest" ] ; do
+		knownLine="${knownRest%%$'\n'*}"
+		if [ "$knownLine" = "$knownRest" ] ; then knownRest="" ; else knownRest="${knownRest#*$'\n'}" ; fi
+		knownTest="${knownLine%%"$runKnownTab"*}"
+		if [ "$knownTest" = "$1" ] ; then
+			knownLine="${knownLine#*"$runKnownTab"}"
+			knownOwner="${knownLine%%"$runKnownTab"*}" knownReason="${knownLine#*"$runKnownTab"}"
+			runKnown=" owner=$knownOwner reason=$knownReason" ; return 0
+		fi
+	done
+	return 0
+}
+
 ## Every run waits its turn, a run of named tests as the whole suite does (WAITING IN THE LINE, above).
 AgentsRunQueueTurn $( AgentsRunNames "$@" )
 
@@ -810,6 +862,7 @@ AgentsRunOneTest(){ ## test name, timeout seconds -- one task line of the run li
 		## MDAT_TEAM_MEMBER is the one more name AgentsToolsTeamMember falls to, past MDAT_SPAWN_AGENT: a test
 		## that needs a member sets its own, as the rigs already do.
 		unset ${!MDAT_SPAWN_@} ${!MDAT_SESSION_@} MDAT_CONVERSATION_THREADS harnessSessionId harnessAgent MDAT_TEAM_MEMBER
+		export MDAT_SKILLSET_ROOT="$runMembers"
 		export CLAUDE_CODE_SESSION_ID="rig-run-$oneName-test-only"
 		export MDAT_WAIT_REMIND=off
 		export MDAT_COMMS_READER=off
@@ -952,14 +1005,29 @@ if [ -f "$runDir/stalled.txt" ] ; then
 fi
 
 {
+	runPass=0 runNoteBlock="" runOwned=0 runUnowned=0 runFixed=0
+	runRows=""
 	for runName in $( cut -d' ' -f1 "$runList" ) ; do
 		runRc="$( sed -n 's/^rc=//p' "$runDir/$runName.receipt" 2>/dev/null )"
 		runEnded="$( sed -n 's/^ended-by=//p' "$runDir/$runName.receipt" 2>/dev/null | LC_ALL=C sed -n 1p )"
-		if [ "${runRc:-x}" = 0 ] ; then echo "PASS $runName" ; else echo "FAIL $runName rc=${runRc:-none}${runEnded:+ $runEnded}" ; fi
-	done | sort -k1,1 -k2,2
-	runPass="$( grep -l '^rc=0$' "$runDir"/*.receipt 2>/dev/null | wc -l | tr -d ' ' )"
+		runKnown="" ; AgentsRunKnownOf "$runName"
+		if [ "${runRc:-x}" = 0 ] ; then
+			runPass=$(( runPass + 1 ))
+			if [ -n "$runKnown" ] ; then
+				runFixed=$(( runFixed + 1 ))
+				runNoteBlock="$runNoteBlock""FIXED $runName -- it was listed as failing and it passed: take its row out of $runKnownFile"$'\n'
+			else
+				runRows="$runRows""PASS $runName"$'\n'
+			fi
+		else
+			if [ -n "$runKnown" ] ; then runOwned=$(( runOwned + 1 )) ; else runUnowned=$(( runUnowned + 1 )) ; fi
+			runRows="$runRows""FAIL $runName rc=${runRc:-none}${runEnded:+ $runEnded}$runKnown"$'\n'
+		fi
+	done
+	printf '%s' "$runRows" | sort -k1,1 -k2,2
+	printf '%s' "$runNoteBlock"
 	[ -z "$runStalled" ] || echo "STALLED  never ran $runNeverCount  never ended $runOpenCount"
-	echo "TOTAL $runCount  PASS $runPass  FAIL $(( runCount - runPass ))  WALL $(( $( date +%s ) - runStart ))s"
+	echo "TOTAL $runCount  PASS $runPass  FAIL $(( runCount - runPass ))  WALL $(( $( date +%s ) - runStart ))s  OWNED $runOwned  UNOWNED $runUnowned  FIXED $runFixed"
 } > "$runDir/summary.txt"
 python3 -I -B "$runPassKeeper" prune "$runPassDir" "$runPassAge" 2>/dev/null || :
 

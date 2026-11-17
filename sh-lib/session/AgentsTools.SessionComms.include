@@ -193,7 +193,7 @@ AgentsToolsCommsActivityPass(){ ## now
 		fi
 		rm -f "$actTmp"
 		actDone=$(( actDone + 1 ))
-	done <<< "$( type AgentsToolsSpawnedStartedRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include"; AgentsToolsSpawnedStartedRecords )"
+	done <<< "$( type AgentsToolsSpawnedStartedRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/schedule/AgentsTools.StartedRecords.include"; AgentsToolsSpawnedStartedRecords )"
 	return 0
 }
 
@@ -666,7 +666,7 @@ AgentsToolsSessionCommsPauseSet(){ ## epoch
 ## record that carries the id as its session-id. Nothing for none.
 AgentsToolsSessionCommsMember(){ ## session
 	local memberRecord="" memberFile
-	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandboxRecordHeader.include"
+	type AgentsToolsFrontmatterKey > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.FrontmatterKey.include"
 	for memberFile in "$MMDAPP/.local/agents/spawned"/*/"$1.spawn.md" ; do
 		[ -f "$memberFile" ] || continue
 		memberRecord="$memberFile"
@@ -678,7 +678,7 @@ AgentsToolsSessionCommsMember(){ ## session
 		memberRecord="$( AgentsToolsSpawnedSessionRecords "$1" own 2> /dev/null | LC_ALL=C sed -n '1p' )" || memberRecord=""
 	fi
 	[ -n "$memberRecord" ] || return 0
-	AgentsToolsSpawnSandboxRecordHeader "$memberRecord" owner
+	AgentsToolsFrontmatterKey "$memberRecord" owner
 }
 
 ## The number of blocks a chat index holds, read by the shell: its line count, since one line is one block. Sets

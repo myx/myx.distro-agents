@@ -11,7 +11,6 @@
 ##
 ## AgentsSlackIdentityId <member>              the member's cached user id; nothing for none (no lookup)
 ## AgentsSlackIdentityMember <id> [--not-owner] the member a user id is; nothing for an account of no member
-## AgentsSlackIdentityOwnerId                   the human-owner's user id
 ## AgentsSlackIdentityTeamIds                   every member's user id, one a line
 ## AgentsSlackIdentityOwnIds                    the team's own accounts: the members' ids and the tokens' own ids, one a line, each once
 ## AgentsSlackIdentityKnown <id>                rc 0 where the id is a member's
@@ -40,9 +39,6 @@ AgentsSlackIdentityId(){ ## member
 }
 AgentsSlackIdentityMember(){ ## user id, --not-owner to pass the human-owner by
 	AgentsSlackIdentityRows | LC_ALL=C awk -F= -v id="$1" -v notOwner="${2:-}" '$2 == id && !( notOwner != "" && $1 == "human-owner" ) { print $1 ; exit }'
-}
-AgentsSlackIdentityOwnerId(){
-	AgentsSlackIdentityId human-owner
 }
 AgentsSlackIdentityTeamIds(){
 	AgentsSlackIdentityRows | LC_ALL=C awk -F= '$2 ~ /^U[A-Z0-9]+$/ { print $2 }'

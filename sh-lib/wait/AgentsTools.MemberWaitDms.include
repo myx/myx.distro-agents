@@ -7,6 +7,7 @@
 ## Its helpers shared with the other probes are in AgentsTools.MemberWaitCore.include.
 ##
 type AgentsWaitPut > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/wait/AgentsTools.MemberWaitCore.include"
+type AgentsWaitReadRendered > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/wait/AgentsTools.MemberWaitSlack.include"
 
 ## THE DMS (sketch 3.2): `dms:<member>`, every message of every direct conversation of the member, under its user identity and the
 ## team bot's, from the session's pointer of the source (`dms:<member>`, the newest DM returned) -- a part of the floor of every Wait,
@@ -17,7 +18,7 @@ agentsWaitDmsRosterSeconds=300
 
 AgentsWaitProbeDms(){
 	local probeMember="$1" probeTarget="$2" probeFloor="$3" probeOut="$4" probeKey="" probePointer="" probeRoster="" probeRosterFile="" probeLine probeConv probeKind probeIdentity probeParty probeIdentArg
-	local probeParts=0 probeFailed=0 probeSeenConvs="" probeNow probeClientConvs="" probeClientConv probeRosterRc=0 probeText=""
+	local probeParts=0 probeFailed=0 probeSeenConvs="" probeNow probeClientConvs="" probeClientConv probeRosterRc=0 probeText="" probeLatest=""
 	[ "$probeTarget" = "$probeMember" ] || return 2
 	type AgentsToolsSessionChatKeyInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include" || return 2
 	AgentsToolsSessionChatKeyInto ; probeKey="$agentsSessionChatKey"
@@ -67,20 +68,23 @@ AgentsWaitProbeDms(){
 				probeQuickKey="$probeOut@$probeMember"
 				while IFS= read -r probeLine ; do
 					case "$probeLine" in "CONV|"*) ;; *) continue ;; esac
-					probeConv="" probeKind="" probeIdentity=""
+					probeConv="" probeKind="" probeIdentity="" probeLatest="-"
 					for probeIdentArg in ${probeLine//|/ } ; do
 						case "$probeIdentArg" in
 							id=*) probeConv="${probeIdentArg#id=}" ;;
 							kind=*) probeKind="${probeIdentArg#kind=}" ;;
 							identity=*) probeIdentity="${probeIdentArg#identity=}" ;;
+							latest=*) probeLatest="${probeIdentArg#latest=}" ;;
 						esac
 					done
 					[ -n "$probeConv" ] || continue
 					case "$probeKind" in im|mpim) ;; *) continue ;; esac
 					case "$probeQuickSeen" in *" $probeConv "*) continue ;; esac
 					probeQuickSeen="$probeQuickSeen$probeConv "
+					## A CONVERSATION THAT DID NOT MOVE HOLDS NOTHING NEW: its newest is at or before the pointer, S12.1.
+					[ "$probeLatest" = "-" ] || AgentsWaitTsNewer "$probeLatest" "$probePointer" || continue
 					type AgentsToolsMemberCommsSlackRun > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/slack/AgentsTools.MemberCommsSlack.include"
-					probeQuickOut="$( AgentsToolsMemberCommsSlackRun --intern-op-comms-slack-read "$probeMember" "$probeConv" ${probePointer:+--oldest "$probePointer"} $( [ "$probeIdentity" != "bot" ] || printf '%s' --identity-bot ) 2> /dev/null < /dev/null )" || probeQuickOut="#failed"
+					probeQuickOut="$( AgentsToolsMemberCommsSlackRun --intern-op-comms-slack-read "$probeMember" "$probeConv" --oldest "$probePointer" $( [ "$probeIdentity" != "bot" ] || printf '%s' --identity-bot ) 2> /dev/null < /dev/null )" || probeQuickOut="#failed"
 					probeQuickOut="${#probeQuickOut}:${probeQuickOut: -120}"
 					probeQuickKey="$probeQuickKey/$probeConv=${probeQuickOut//[[:space:]]/_}"
 				done <<< "$probeRoster"
@@ -92,7 +96,7 @@ AgentsWaitProbeDms(){
 			if [ -n "$probeRoster" ] || [ "$probeRosterRc" = 0 ] ; then
 				while IFS= read -r probeLine ; do
 					case "$probeLine" in "CONV|"*) ;; *) continue ;; esac
-					probeConv="" probeKind="" probeIdentity="" probeParty=""
+					probeConv="" probeKind="" probeIdentity="" probeParty="" probeLatest="-"
 					## The line is split by the shell, no tr process per line (call-path audit row 15).
 					for probeIdentArg in ${probeLine//|/ } ; do
 						case "$probeIdentArg" in
@@ -100,10 +104,13 @@ AgentsWaitProbeDms(){
 							kind=*) probeKind="${probeIdentArg#kind=}" ;;
 							identity=*) probeIdentity="${probeIdentArg#identity=}" ;;
 							counterparty=*) probeParty="${probeIdentArg#counterparty=}" ;;
+							latest=*) probeLatest="${probeIdentArg#latest=}" ;;
 						esac
 					done
 					[ -n "$probeConv" ] || continue
 					case "$probeKind" in im|mpim) ;; *) continue ;; esac
+					## A CONVERSATION THAT DID NOT MOVE HOLDS NOTHING NEW: its newest is at or before the pointer, S12.1.
+					[ "$probeLatest" = "-" ] || AgentsWaitTsNewer "$probeLatest" "$probePointer" || continue
 					## A DM both identities list is read once, under the first.
 					case " $probeSeenConvs " in *" $probeConv "*) continue ;; esac
 					probeSeenConvs="$probeSeenConvs $probeConv"
@@ -116,6 +123,7 @@ AgentsWaitProbeDms(){
 					fi
 					if MDAT_WAIT_READ_AS_BOT="$( [ "$probeIdentity" = "bot" ] && printf true )" AgentsWaitReadRendered "$probeMember" "$probeConv" conversation "$probePointer" "$probeOut.dm" ; then
 						probeText="$probeText$( AgentsWaitTaggedPart "$probeMember" "$probeConv" "$probeWhat" "$probePointer" "$probeOut.dm" "$probeOut" )" || probeFailed=$(( probeFailed + 1 ))
+						AgentsWaitDmEnterChat "$probeMember" "$probeConv" "$probeOut.dm"
 					else
 						probeFailed=$(( probeFailed + 1 ))
 					fi
@@ -134,6 +142,33 @@ AgentsWaitProbeDms(){
 	## Written only where it differs (AgentsWaitPut): a quiet tick writes no file.
 	AgentsWaitPut "$probeOut.newest" "${probeNewestText:+$probeNewestText$'\n'}" || :
 	[ -z "${probeQuickKey:-}" ] || agentsWaitConvSeen="${agentsWaitConvSeen:-} $probeQuickKey"
+	return 0
+}
+
+## A DM A PROBE READ ENTERS THE CHAT FILE of the session its member's messages enter (S12.29), so the one file the immediate sources
+## share carries it and the run's next tool call has it in its digest. That session is the one the member's `wake:` marker names, else
+## its oldest live one (AgentsToolsWakeSession); no other session is guessed. The block's origin is `dm`, which the floor delivers to the
+## member it is addressed to (AgentsSessionChatRead.awk). Quiet and best effort: the probe's own return is unchanged by it.
+AgentsWaitDmEnterChat(){ ## member, the conversation read, the rendering file
+	local enterMember="$1" enterConv="$2" enterRender="$3" enterSession="" enterSeen=""
+	[ -f "$enterRender" ] && [ -s "$enterRender" ] || return 0
+	type AgentsToolsSessionChatKeyInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include"
+	AgentsToolsSessionChatKeyInto
+	## The waiting session itself while its own sources carry the member's marker: no process, and the common case.
+	case " ${waitSources:-} " in
+		*" wake:$enterMember "*)
+			enterSession="$agentsSessionChatKey"
+			## This probe's own return carries the message, so the file's block is marked delivered and never comes twice.
+			enterSeen="$enterMember"
+		;;
+	esac
+	if [ -z "$enterSession" ] ; then
+		type AgentsToolsWakeSession > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/wait/AgentsTools.WakeMarker.include"
+		enterSession="$( AgentsToolsWakeSession "$enterMember" 2> /dev/null )" || return 0
+	fi
+	[ -n "$enterSession" ] || return 0
+	## The origin names the member the DM was read for, as a reply names its member: its floor delivers it to that member alone.
+	AgentsToolsSessionChatImport "$enterSession" "$enterConv" "$enterRender" "dm:$enterMember" "${enterSeen:--}"
 	return 0
 }
 

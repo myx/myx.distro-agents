@@ -621,15 +621,18 @@ type AgentsToolsScheduleDue > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-a
 type AgentsToolsSourceTtlOf > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.SourceTtl.include"
 type AgentsToolsInboxNotePath > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/inbox/AgentsTools.InboxPlace.include"
 type AgentsToolsSessionChatPointer > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include"
-type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandboxRecordHeader.include"
+type AgentsToolsFrontmatterKey > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.FrontmatterKey.include"
 type AgentsToolsSessionRecordLive > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionSeats.include"
-type AgentsToolsSpawnConversationThreadValid > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionThreads.include"
+type AgentsToolsSpawnConversationThreadValid > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandboxInput.include"
 
 agentsScheduleWorkDutyRoutine="magic-team.work-duty.routine.md"
 
-## The work-duty routine of a member: its own `<member>.work-duty.routine.md` where its skill folder holds one (the coordinator's takes the advance rules), else the team's.
-AgentsToolsScheduleDutyRoutine(){ ## member, its skill folder
-	if [ -n "${2:-}" ] && [ -f "$2/$1.work-duty.routine.md" ] ; then
+## The routine of a member's duty: out of its hours its own `<member>.off-duty.routine.md` where its skill folder holds one, else its own
+## `<member>.work-duty.routine.md` where the folder holds one (the coordinator's takes the advance rules), else the team's work-duty routine.
+AgentsToolsScheduleDutyRoutine(){ ## member, its skill folder, [in its hours: yes|no]
+	if [ -n "${2:-}" ] && [ "${3:-yes}" = no ] && [ -f "$2/$1.off-duty.routine.md" ] ; then
+		printf '%s.off-duty.routine.md\n' "$1"
+	elif [ -n "${2:-}" ] && [ -f "$2/$1.work-duty.routine.md" ] ; then
 		printf '%s.work-duty.routine.md\n' "$1"
 	else
 		printf '%s\n' "$agentsScheduleWorkDutyRoutine"
@@ -713,7 +716,7 @@ AgentsToolsScheduleSpawn(){ ## key, the arguments of --spawn-session...
 			[ ! -s "$spawnDutyFile" ] || IFS= read -r spawnDutySession < "$spawnDutyFile" || spawnDutySession=""
 			case "$spawnDutySession" in ''|*[!A-Za-z0-9._-]*) spawnDutySession="" ;; esac
 			## A kept session on another team data is no duty of this rig: its id is dropped, and the start makes a session of its own (S12.19).
-			type AgentsSessionDataRootInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+			type AgentsSessionDataRootInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataRoot.include"
 			AgentsSessionDataRootInto spawnKeptRoot "$spawnDutySession"
 			if [ -n "$spawnKeptRoot" ] && [ "$spawnKeptRoot" != "${MDAT_DATA_ROOT:-}" ] ; then
 				rm -f "$spawnDutyFile" ; spawnDutySession=""
@@ -968,17 +971,18 @@ AgentsToolsSchedulePaceAllows(){
 ## Prints the record path; rc 1 for none.
 AgentsToolsScheduleWorkDutyRecord(){ ## member
 	local dutyRecord dutySpawn
+	type AgentsToolsDutyRoutineIs > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/routine/AgentsTools.DutyRoutine.include"
 	## Only a started record can be a live duty, so the kept list of started records is read (AgentsTools.StartedRecords.include), not every duty record there ever was.
 	while IFS= read -r dutyRecord ; do
 		[ -f "$dutyRecord" ] || continue
-		case "$( AgentsToolsSpawnSandboxRecordHeader "$dutyRecord" routine )" in *.work-duty.routine.md) ;; *) continue ;; esac
-		[ "$( AgentsToolsSpawnSandboxRecordHeader "$dutyRecord" owner )" = "$1" ] && [ "$( AgentsToolsSpawnSandboxRecordHeader "$dutyRecord" status )" = "spawn-started" ] || continue
+		AgentsToolsDutyRoutineIs "$( AgentsToolsFrontmatterKey "$dutyRecord" routine )" || continue
+		[ "$( AgentsToolsFrontmatterKey "$dutyRecord" owner )" = "$1" ] && [ "$( AgentsToolsFrontmatterKey "$dutyRecord" status )" = "spawn-started" ] || continue
 		dutySpawn="${dutyRecord##*/}" ; dutySpawn="${dutySpawn%.spawn.md}"
 		type AgentsToolsLivenessOf > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunProcesses.include"
 		[ "$( AgentsToolsLivenessOf "$dutySpawn" "$dutyRecord" )" = alive ] || continue
 		printf '%s\n' "$dutyRecord"
 		return 0
-	done <<< "$( type AgentsToolsSpawnedStartedRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include"; AgentsToolsSpawnedStartedRecords )"
+	done <<< "$( type AgentsToolsSpawnedStartedRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/schedule/AgentsTools.StartedRecords.include"; AgentsToolsSpawnedStartedRecords )"
 	return 1
 }
 
@@ -1014,7 +1018,7 @@ AgentsToolsScheduleDutyRestartDue(){ ## member
 	## workspace holds hundreds of closed duty records. The awk prints `<path> <owner> <status>` for every record of the kept list
 	## (AgentsTools.StartedRecords.include), the member's closed ones are taken from that, and one `stat` gives their mtimes.
 	local dueRows dueMine dueLine
-	type AgentsToolsSpawnedDutyRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include"
+	type AgentsToolsSpawnedDutyRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/schedule/AgentsTools.StartedRecords.include"
 	dueRows="$( AgentsToolsSpawnedDutyRecords | LC_ALL=C tr '\n' '\0' | LC_ALL=C xargs -0 awk '
 		FNR == 1 { if ( NR > 1 && name != "" ) print name "\t" owner "\t" status ; name = FILENAME ; owner = "" ; status = "" ; fence = 0 }
 		$0 == "---" { fence++ ; next }
@@ -1049,7 +1053,7 @@ AgentsToolsScheduleDutyStaleClose(){ ## work-duty or spawn record
 	local staleRecord="$1" staleSpawn staleStatus staleLive staleSuper staleAt
 	[ -f "$staleRecord" ] || return 0
 	staleSpawn="${staleRecord##*/}" ; staleSpawn="${staleSpawn%.spawn.md}"
-	staleStatus="$( AgentsToolsSpawnSandboxRecordHeader "$staleRecord" status )"
+	staleStatus="$( AgentsToolsFrontmatterKey "$staleRecord" status )"
 	[ "$staleStatus" = spawn-started ] || return 0
 	type AgentsToolsLivenessOf > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunProcesses.include"
 	staleLive="$( AgentsToolsLivenessOf "$staleSpawn" "$staleRecord" )"
@@ -1356,20 +1360,20 @@ AgentsToolsScheduleDismiss(){ ## spawn record, why (a clause of the line printed
 	local dismissRecord="$1" dismissWhy="${2:-it has no more duty}" dismissSpawn dismissMember dismissThread="" dismissBy dismissStore="$MMDAPP/.local/agents/schedule/dismissed" dismissStat=""
 	dismissSpawn="${dismissRecord##*/}" ; dismissSpawn="${dismissSpawn%.spawn.md}"
 	[ ! -e "$dismissStore/$dismissSpawn" ] || return 0
-	type AgentsToolsManagerRunActivity > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.ManagerRunActivity.include"
+	type AgentsToolsManagerRunActivity > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.ManagerRunActivity.include"
 	if stat -f '%m' / > /dev/null 2>&1 ; then dismissStat="bsd" ; elif stat -c '%Y' / > /dev/null 2>&1 ; then dismissStat="gnu" ; fi
 	## AT ITS IDLE POINT ONLY, unless the caller says now: the night and vacation rules tell a run that never goes idle, because it feeds itself work,
 	## and the post waits in its thread until its next Wait, so it finishes the item it works on and then ends.
 	[ "${3:-}" = now ] || [ "$( AgentsToolsManagerRunActivity "$dismissSpawn" "$dismissStat" )" = "waiting" ] || return 0
 	AgentsToolsSessionDismissHeld "$dismissRecord" > /dev/null && return 0
-	dismissMember="$( AgentsToolsSpawnSandboxRecordHeader "$dismissRecord" owner )"
-	dismissThread="$( AgentsToolsSpawnSandboxRecordHeader "$dismissRecord" session-thread )"
+	dismissMember="$( AgentsToolsFrontmatterKey "$dismissRecord" owner )"
+	dismissThread="$( AgentsToolsFrontmatterKey "$dismissRecord" session-thread )"
 	if [ -z "$dismissThread" ] || [ "$dismissThread" = "-" ] ; then
 		dismissThread=""
 		[ ! -f "${dismissRecord%/*}/session.thread" ] || IFS= read -r dismissThread < "${dismissRecord%/*}/session.thread" || :
 	fi
 	## A duty's record names no session thread (S23.4): its tooling thread is where it is told, by a post addressed to it, which its next Wait reads as a message to it.
-	[ -n "$dismissThread" ] || dismissThread="$( AgentsToolsSpawnSandboxRecordHeader "$dismissRecord" agent-log-thread )"
+	[ -n "$dismissThread" ] || dismissThread="$( AgentsToolsFrontmatterKey "$dismissRecord" agent-log-thread )"
 	AgentsToolsSpawnConversationThreadValid "$dismissThread" || { printf 'work-duty: %s of %s is not told to go: it has neither a session thread nor a tooling thread to post in\n' "$dismissSpawn" "$dismissMember" ; return 0 ; }
 	dismissBy=magic-coordinator
 	[ "$dismissMember" != magic-coordinator ] || dismissBy=magic-librarian
@@ -1405,7 +1409,7 @@ AgentsToolsScheduleStanding(){ ## member, its directory
 ## `unknown` where no such line is known (a native CLI prints none, a run just begun has none).
 AgentsToolsScheduleDutyCache(){ ## spawn record
 	local cacheFile cacheLine
-	cacheFile="$( AgentsToolsSpawnSandboxRecordHeader "$1" output-file )"
+	cacheFile="$( AgentsToolsFrontmatterKey "$1" output-file )"
 	[ -n "$cacheFile" ] && [ -f "$cacheFile" ] || { printf 'unknown\n' ; return 0 ; }
 	cacheLine="$( LC_ALL=C grep -a -F 'shared prefix -- round 1 ' "$cacheFile" 2> /dev/null | tail -n 1 )"
 	case "$cacheLine" in
@@ -1419,24 +1423,30 @@ AgentsToolsScheduleDutyCache(){ ## spawn record
 ## running, a run reporting to it) or another run of the member is live, any routine but its work-duty. rc 0 where it does.
 AgentsToolsScheduleInSession(){ ## the duty's spawn record, member
 	local sessionOther
+	type AgentsToolsDutyRoutineIs > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/routine/AgentsTools.DutyRoutine.include"
 	! AgentsToolsSessionDismissHeld "$1" > /dev/null || return 0
 	while IFS= read -r sessionOther ; do
 		[ -f "$sessionOther" ] && [ "$sessionOther" != "$1" ] || continue
-		[ "$( AgentsToolsSpawnSandboxRecordHeader "$sessionOther" owner )" = "$2" ] || continue
-		[ "$( AgentsToolsSpawnSandboxRecordHeader "$sessionOther" status )" = "spawn-started" ] || continue
-		case "$( AgentsToolsSpawnSandboxRecordHeader "$sessionOther" routine )" in *.work-duty.routine.md) continue ;; esac
+		[ "$( AgentsToolsFrontmatterKey "$sessionOther" owner )" = "$2" ] || continue
+		[ "$( AgentsToolsFrontmatterKey "$sessionOther" status )" = "spawn-started" ] || continue
+		AgentsToolsDutyRoutineIs "$( AgentsToolsFrontmatterKey "$sessionOther" routine )" && continue
 		AgentsToolsSessionRecordLive "$sessionOther" && return 0
-	done <<< "$( type AgentsToolsSpawnedStartedRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include"; AgentsToolsSpawnedStartedRecords )"
+	done <<< "$( type AgentsToolsSpawnedStartedRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/schedule/AgentsTools.StartedRecords.include"; AgentsToolsSpawnedStartedRecords )"
 	return 1
 }
 
 ## How long a duty lives, decided at each iteration for a duty that is in its Wait (never one that works; a dismissal is given at an idle point only).
 ## It stays while the flags allow it (worktime; for the coordinator also emergency and overtime). Out of them it stays while it has input -- an item for
 ## it, for the coordinator the board's news -- or takes part in a session, and ends after an hour idle (3600). Whatever the flags, a duty whose last
-## wake read nothing from the cache (AgentsToolsScheduleDutyCache) ends after 20 minutes idle (1200): each of its wakes would be paid whole. Where no
-## cache figure is known the flags decide alone. Idle: since the first `wait going idle` line of the stretch that ends its milestones.
+## wake read nothing from the cache (AgentsToolsScheduleDutyCache) ends after 20 minutes idle (1200): each of its wakes would be paid whole.
+## THE KEEP-OR-STOP RULE (S18.4): the cache numbers its run wrote on its own record decide, where they are there. A rebuild of the cache costs more
+## than the wakes left before the next work time once the gap reaches the break-even count times the round, so the duty stops there. A round longer
+## than the cache lives makes every wake a miss, so it stops too, and so does a last wake that read nothing. A rule that keeps holds the duty whatever
+## its idle time, since keeping is the cheaper course it just measured. A record carrying no numbers leaves the limits above to decide, as before.
+## Idle: since the first `wait going idle` line of the stretch that ends its milestones.
 AgentsToolsScheduleDutyLifetime(){ ## the duty's spawn record, member, whether the flags allow (yes|no), whether the member is on vacation (yes|no)
 	local lifeRecord="$1" lifeMember="$2" lifeAllowed="$3" lifeVacation="${4:-no}" lifeSpawn lifeStat="" lifeSince lifeIdle lifeLimit="" lifeWhy
+	local lifeCacheRound lifeCacheLife lifeCacheTurns lifeNow lifeOffset lifeDay lifeInto lifeNextStart lifeKeep=""
 	lifeSpawn="${lifeRecord##*/}" ; lifeSpawn="${lifeSpawn%.spawn.md}"
 	## A MEMBER ON VACATION HOLDS NO DUTY: the duty that stands is told to go now, and takes it at its next Wait, as every dismissal is taken.
 	if [ "$lifeVacation" = yes ] ; then
@@ -1448,11 +1458,11 @@ AgentsToolsScheduleDutyLifetime(){ ## the duty's spawn record, member, whether t
 	## (lifeAllowed), and the coordinator's own duty is the last to go, as below. Members come back when the coordinator decides, by a dispatch.
 	if [ "$lifeAllowed" != yes ] && [ "$lifeMember" != magic-coordinator ] \
 		&& ! AgentsToolsScheduleInSession "$lifeRecord" "$lifeMember" \
-		&& ! agentsScheduleTagsSub=tags-person AgentsToolsScheduleTagNews "$lifeMember" "" "$( AgentsToolsSpawnSandboxRecordHeader "$lifeRecord" session-id )" ; then
+		&& ! agentsScheduleTagsSub=tags-person AgentsToolsScheduleTagNews "$lifeMember" "" "$( AgentsToolsFrontmatterKey "$lifeRecord" session-id )" ; then
 		AgentsToolsScheduleDismiss "$lifeRecord" "out of worktime only the coordinator runs, and no person called this member" now
 		return 0
 	fi
-	type AgentsToolsManagerRunIdleSince > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.ManagerRunActivity.include"
+	type AgentsToolsManagerRunIdleSince > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.ManagerRunActivity.include"
 	if stat -f '%m' / > /dev/null 2>&1 ; then lifeStat="bsd" ; elif stat -c '%Y' / > /dev/null 2>&1 ; then lifeStat="gnu" ; fi
 	lifeSince="$( AgentsToolsManagerRunIdleSince "$lifeSpawn" "$lifeStat" )" || return 0
 	lifeIdle=$(( ${agentsSchedulePassNow:-$( date +%s )} - lifeSince ))
@@ -1465,9 +1475,39 @@ AgentsToolsScheduleDutyLifetime(){ ## the duty's spawn record, member, whether t
 		## another member's duty is still live, the coordinator's stays, whatever its own idle time.
 		[ "$lifeMember" != magic-coordinator ] || ! AgentsToolsScheduleOtherDutyLive || return 0
 		! AgentsToolsScheduleInSession "$lifeRecord" "$lifeMember" || return 0
-		! AgentsToolsScheduleTagNews "$lifeMember" "$lifeSince" "$( AgentsToolsSpawnSandboxRecordHeader "$lifeRecord" session-id )" || return 0
+		! AgentsToolsScheduleTagNews "$lifeMember" "$lifeSince" "$( AgentsToolsFrontmatterKey "$lifeRecord" session-id )" || return 0
 		lifeLimit=3600 ; lifeWhy="out of worktime with no input, and it was idle $(( lifeIdle / 60 )) minutes"
 	fi
+	## THE KEEP-OR-STOP RULE (S18.4), out of its hours only, where its run wrote the cache numbers: the wakes left before worktime
+	## cost less than one rebuild only under the break-even count, so a gap at or past it stops the duty. A round longer than the
+	## cache lives makes every wake a miss, so that stops it too, and so does a last wake that read nothing or said nothing.
+	## A rule that keeps holds the duty whatever its idle time, since keeping is the cheaper course it just measured. Stopped,
+	## the next demand starts it again, which is why nothing rests here.
+	if [ "$lifeAllowed" != yes ] ; then
+		type AgentsToolsFrontmatterKey > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.FrontmatterKey.include"
+		lifeCacheRound="$( AgentsToolsFrontmatterKey "$lifeRecord" duty-cache-round )"
+		if [ -n "$lifeCacheRound" ] ; then
+			lifeCacheLife="$( AgentsToolsFrontmatterKey "$lifeRecord" duty-cache-life )"
+			lifeCacheTurns="$( AgentsToolsFrontmatterKey "$lifeRecord" duty-cache-turns )"
+			read -r lifeNow lifeOffset lifeDay lifeInto <<< "$( AgentsToolsScheduleClock )"
+			lifeNextStart="$( AgentsToolsScheduleNextWorkStart "$lifeNow" "$lifeOffset" )"
+			case "$lifeCacheLife:$lifeCacheTurns" in
+				*[!0123456789:]*|:*|*:) ;;
+				*)
+					if [ "$( AgentsToolsScheduleDutyCache "$lifeRecord" )" != read ] ; then
+						lifeLimit=0 ; lifeWhy="its last wake did not read its cache, so no keeping is shown cheaper"
+					elif [ "$lifeCacheRound" -gt "$lifeCacheLife" ] ; then
+						lifeLimit=0 ; lifeWhy="its wait round of ${lifeCacheRound}s reaches past the ${lifeCacheLife}s its cache lives, so every wake is a miss"
+					elif [ -n "$lifeNextStart" ] && [ "$(( lifeNextStart - lifeNow ))" -ge "$(( lifeCacheTurns * lifeCacheRound ))" ] ; then
+						lifeLimit=0 ; lifeWhy="the $(( lifeNextStart - lifeNow ))s to its next work time is past the ${lifeCacheTurns} wakes of ${lifeCacheRound}s that repay a rebuild"
+					else
+						lifeKeep=yes
+					fi
+				;;
+			esac
+		fi
+	fi
+	[ -z "$lifeKeep" ] || return 0
 	[ -n "$lifeLimit" ] && [ "$lifeIdle" -ge "$lifeLimit" ] || return 0
 	AgentsToolsScheduleDismiss "$lifeRecord" "$lifeWhy"
 }
@@ -1499,7 +1539,7 @@ AgentsToolsScheduleDayFirst(){ ## ask|record
 ## so a pass looks at the few runs that stand and never at every duty record there ever was.
 AgentsToolsScheduleStartedDutyRecords(){
 	local startedAll
-	type AgentsToolsSpawnedStartedRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include"
+	type AgentsToolsSpawnedStartedRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/schedule/AgentsTools.StartedRecords.include"
 	startedAll="$( AgentsToolsSpawnedStartedRecords )"
 	[ -n "$startedAll" ] || return 0
 	printf '%s\n' "$startedAll" | LC_ALL=C tr '\n' '\0' | LC_ALL=C xargs -0 grep -l -E '^routine: [A-Za-z0-9-]+\.work-duty\.routine\.md$' 2> /dev/null
@@ -1532,8 +1572,8 @@ AgentsToolsScheduleWorkDuty(){
 	## A live work-duty of a member that holds none (partner, warden, client, AgentsToolsScheduleStanding) is told to go at its idle point.
 	while IFS= read -r dutyStale ; do
 		[ -n "$dutyStale" ] && [ -f "$dutyStale" ] || continue
-		[ "$( AgentsToolsSpawnSandboxRecordHeader "$dutyStale" status )" = "spawn-started" ] || continue
-		case "$( AgentsToolsSpawnSandboxRecordHeader "$dutyStale" owner )" in
+		[ "$( AgentsToolsFrontmatterKey "$dutyStale" status )" = "spawn-started" ] || continue
+		case "$( AgentsToolsFrontmatterKey "$dutyStale" owner )" in
 			magic-team|'') ;;
 			magic-*|keeper-*) continue ;;
 		esac
@@ -1631,7 +1671,7 @@ AgentsToolsScheduleWorkDuty(){
 			## Out of its flags: a tag (a mention, a DM) newer than its pointer into the tagged source, and nothing else.
 			agentsScheduleTagsSub=tags-person AgentsToolsScheduleTagNews "$dutyMember" || continue
 		fi
-		if AgentsToolsScheduleSpawn "work-duty.$dutyMember" --session-thread:event-track --routine "$( AgentsToolsScheduleDutyRoutine "$dutyMember" "$dutyDir" )" "$dutyMember" ; then
+		if AgentsToolsScheduleSpawn "work-duty.$dutyMember" --session-thread:event-track --routine "$( AgentsToolsScheduleDutyRoutine "$dutyMember" "$dutyDir" "$dutyAllowed" )" "$dutyMember" ; then
 			mkdir -p "$MMDAPP/.local/agents/schedule/duty" 2> /dev/null && date +%s > "$MMDAPP/.local/agents/schedule/duty/$dutyMember"
 			AgentsToolsScheduleTagCarry "$dutyMember"
 			AgentsToolsScheduleTagGive "$dutyMember"
@@ -1711,19 +1751,19 @@ AgentsToolsScheduleEmergencyConfirm(){ ## the emergency item's file name
 agentsScheduleSupervisionRoutine="magic-coordinator.supervision-session.routine.md"
 AgentsToolsScheduleSupervision(){ ## --
 	local supFlags supOn=no supLive supRecord supSpawn supNewest supNewestAt supStat="" supWait supNow supDismissed
-	type AgentsToolsSpawnedRecordsOfRoutine > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include"
+	type AgentsToolsSpawnedRecordsOfRoutine > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/schedule/AgentsTools.StartedRecords.include"
 	supFlags="$( AgentsToolsScheduleCurrentFlags --current-flags 2> /dev/null )" || supFlags=""
 	case "$supFlags" in *"supervised: yes"*) supOn=yes ;; esac
 	supLive=""
 	while IFS= read -r supRecord ; do
 		[ -f "$supRecord" ] || continue
-		[ "$( AgentsToolsSpawnSandboxRecordHeader "$supRecord" owner )" = magic-coordinator ] || continue
-		[ "$( AgentsToolsSpawnSandboxRecordHeader "$supRecord" status )" = spawn-started ] || continue
+		[ "$( AgentsToolsFrontmatterKey "$supRecord" owner )" = magic-coordinator ] || continue
+		[ "$( AgentsToolsFrontmatterKey "$supRecord" status )" = spawn-started ] || continue
 		supSpawn="${supRecord##*/}" ; supSpawn="${supSpawn%.spawn.md}"
 		type AgentsToolsLivenessOf > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunProcesses.include"
 		[ "$( AgentsToolsLivenessOf "$supSpawn" "$supRecord" )" = alive ] || continue
 		supLive="$supRecord" ; break
-	done <<< "$( type AgentsToolsSpawnedRecordsOfRoutine > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include"; AgentsToolsSpawnedRecordsOfRoutine "$agentsScheduleSupervisionRoutine" supervision )"
+	done <<< "$( type AgentsToolsSpawnedRecordsOfRoutine > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/schedule/AgentsTools.StartedRecords.include"; AgentsToolsSpawnedRecordsOfRoutine "$agentsScheduleSupervisionRoutine" supervision )"
 	if [ -n "$supLive" ] ; then
 		if [ "$supOn" != yes ] ; then
 			supSpawn="${supLive##*/}" ; supSpawn="${supSpawn%.spawn.md}"
@@ -1785,7 +1825,7 @@ AgentsToolsScheduleLearning(){
 	[ "$( AgentsToolsScheduleCurrentFlags --current-flags 2> /dev/null | LC_ALL=C sed -n 's/^learning: //p' )" != yes ] || learnOn=yes
 	type AgentsToolsDispatcherManager > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/schedule/AgentsTools.Dispatcher.include"
 	AgentsToolsDispatcherManager 2> /dev/null || return 0
-	type AgentsToolsManagerSessionRows > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.ManagerSessionRows.include"
+	type AgentsToolsManagerSessionRows > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.ManagerSessionRows.include"
 	learnRows="$( AgentsToolsManagerSessionRows --schedule-learning "" 2> /dev/null )" || return 0
 	while IFS=$'\t' read -r learnKind learnId learnName learnState learnRest ; do
 		[ "$learnKind" = session ] && [ "$learnState" = finished ] || continue
@@ -1806,7 +1846,8 @@ AgentsToolsScheduleLearning(){
 		## ONLY A SESSION WITH SOMETHING TO LEARN FROM (the human-owner's rule, with the learning flag above): a reflection filed from it
 		## (its `from-session:`), or a `learn` mark put on it (sessions/<id>/learn) -- the place a reaction signal lands. A refusal is routine
 		## and is no signal. A session with neither is analysed by nobody: its work is on the board, and the retro reads that.
-		if [ ! -e "$MMDAPP/.local/agents/sessions/$learnId/learn" ] \
+		type AgentsSlackLearnMarked > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/slack/AgentsTools.SlackSenderMark.include"
+		if ! AgentsSlackLearnMarked "$learnId" \
 			&& ! LC_ALL=C grep -r -l -x -F -- "from-session: $learnId" "${MDAT_DATA_ROOT:-/nonexistent}/inboxes" --include='reflection-*.md' > /dev/null 2>&1 ; then
 			printf 'learning: session %s ended with no reflection and no learn mark: nothing to analyse, no inquiry\n' "$learnId"
 			continue
@@ -1840,10 +1881,10 @@ AgentsToolsScheduleMemberRuns(){ ## member
 	## The started records come from the kept list (AgentsTools.StartedRecords.include), never a read of the whole spawned/ tree for each call.
 	while IFS= read -r runsRecord ; do
 		[ -f "$runsRecord" ] || continue
-		[ "$( AgentsToolsSpawnSandboxRecordHeader "$runsRecord" owner )" = "$1" ] || continue
-		[ "$( AgentsToolsSpawnSandboxRecordHeader "$runsRecord" status )" = "spawn-started" ] || continue
+		[ "$( AgentsToolsFrontmatterKey "$runsRecord" owner )" = "$1" ] || continue
+		[ "$( AgentsToolsFrontmatterKey "$runsRecord" status )" = "spawn-started" ] || continue
 		AgentsToolsSessionRecordLive "$runsRecord" && return 0
-	done <<< "$( type AgentsToolsSpawnedStartedRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include"; AgentsToolsSpawnedStartedRecords )"
+	done <<< "$( type AgentsToolsSpawnedStartedRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/schedule/AgentsTools.StartedRecords.include"; AgentsToolsSpawnedStartedRecords )"
 	return 1
 }
 

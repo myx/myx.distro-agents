@@ -7,16 +7,16 @@ type AgentsSettingsScopeHas > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-a
 ## Functions only; sourced at the entry of DistroAgentsTools, before its context is resolved.
 ##
 
-## The member set root for work in another workspace: that workspace's own member index
-## view where the root here is this workspace's own view, which holds this workspace's
-## members only (AgentsTools.TeamRegistry.include); a root set anywhere else is kept as it is,
-## because that root is an invited member's own, and its session reads its own skillset there.
-AgentsToolsWorkspaceSkillsetRoot(){ ## workspace path
-	if [ "${MDAT_SKILLSET_ROOT:-}" = "${MMDAPP%/}/.local/agents/members" ] ; then
-		printf '%s\n' "${1%/}/.local/agents/members"
-	else
-		printf '%s\n' "${MDAT_SKILLSET_ROOT:-}"
-	fi
+## The member set root that serves a workspace, into the named variable: that workspace's own
+## member index view, which holds that workspace's members only (AgentsTools.TeamRegistry.include),
+## unless a root set here names another folder. That other folder is kept as it is, because it is
+## an invited member's own, and its session reads its own skillset there. ONE IMPLEMENTATION of
+## the rule: it fills a builtin, so a call path forks nothing, and every reader calls it.
+AgentsToolsSkillsetRootInto(){ ## variable, workspace path
+	case "${MDAT_SKILLSET_ROOT:-}" in
+		''|"${MMDAPP%/}/.local/agents/members") printf -v "$1" '%s' "${2%/}/.local/agents/members" ;;
+		*) printf -v "$1" '%s' "$MDAT_SKILLSET_ROOT" ;;
+	esac
 }
 
 ## Moves this process to another workspace root. The tooling origin stays, and everything
@@ -24,7 +24,7 @@ AgentsToolsWorkspaceSkillsetRoot(){ ## workspace path
 AgentsToolsWorkspaceSwitch(){ ## workspace path
 	local switchStale switchOrigin="${MDLT_ORIGIN:-}" switchOption="${MDLT_OPTION:-}" switchInmode="${MDLC_INMODE:-}"
 	## the member set root, worked out against the previous root before MMDAPP moves
-	MDAT_SKILLSET_ROOT="$( AgentsToolsWorkspaceSkillsetRoot "$1" )"
+	AgentsToolsSkillsetRootInto MDAT_SKILLSET_ROOT "$1"
 	## the caller's own workspace, kept once, so a spawn made after the switch can name the session that made it
 	[ -n "${MDAT_CALLER_WORKSPACE:-}" ] || export MDAT_CALLER_WORKSPACE="${MMDAPP:-}"
 	export MMDAPP="$1"
@@ -71,6 +71,9 @@ AgentsToolsWorkspaceSwitch(){ ## workspace path
 ## invited member works from the member set view of the workspace it is set up in, whole,
 ## so that view must hold the team's own folder (magic-team) too: checked here, once, so no
 ## later reader of the team's files meets a half view and goes on with an empty result.
+## The view is resolved here, per call, from the member registries' answer for where the
+## member is set up: a member set root a caller carries is never read for it, so no caller
+## decides which folder an invited member's skillset is read from.
 AgentsToolsMemberSkillsetBring(){ ## member, operation
 	local bringWorkspace bringRoot
 	## THE INBOX WRITES READ NO SKILLSET OF THE MEMBER THEY NAME. --upsert-inbox-inquiry names the
@@ -85,8 +88,7 @@ AgentsToolsMemberSkillsetBring(){ ## member, operation
 	esac
 	bringWorkspace="$( AgentsToolsMemberWorkspaceResolve "$1" "$2" )" || return 1
 	[ -n "$bringWorkspace" ] || return 0
-	## a root not set yet reads as this workspace's own view, which is what it is then set to
-	bringRoot="$( MDAT_SKILLSET_ROOT="${MDAT_SKILLSET_ROOT:-${MMDAPP%/}/.local/agents/members}" ; AgentsToolsWorkspaceSkillsetRoot "$bringWorkspace" )"
+	bringRoot="${bringWorkspace%/}/.local/agents/members"
 	if [ ! -d "$bringRoot/$1" ] ; then
 		echo "⛔ ERROR: $MDSC_CMD $2: member '$1' cannot be brought into the workspace this operation runs from, ${MMDAPP%/}: its skillset cannot be read -- nothing was done. Looked for its member directory at $bringRoot/$1, in $bringWorkspace, the workspace the machine's members index (${HOME:-}/.agents/magic-team/members.registry) says it is set up in." >&2
 		return 1

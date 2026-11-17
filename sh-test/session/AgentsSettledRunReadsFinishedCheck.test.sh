@@ -13,10 +13,10 @@
 ## every mark, sweeps every mark, or hides every flag fails here.
 ## Offline: the workspace, its records, its stores and its board are this rig's own temp tree. No socket.
 set -u
-. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-store.include.sh" || exit 1
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-writes.include.sh" || exit 1
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 rigPkg="${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}/myx/myx.distro-agents"
-rigRegistries="$rigPkg/sh-lib/team-data/AgentsTools.Registries.include"
+rigRegistries="$rigPkg/sh-lib/session/AgentsTools.RegistrySpawnedSessions.include"
 rigSandbox="$rigPkg/sh-lib/spawn/AgentsTools.SpawnSandbox.include"
 rigControl="$rigPkg/sh-lib/session/AgentsTools.InternSessionControl.include"
 rigHousekeeping="$rigPkg/sh-lib/spawn/AgentsTools.SpawnSandbox.include"
@@ -35,7 +35,9 @@ done
 mkdir -p "$MMDAPP/.local/temp"
 rigTmp="$( mktemp -d "$MMDAPP/.local/temp/AgentsSettledRunReadsFinishedCheck.XXXXXX" )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
-trap 'rm -rf -- "$rigTmp"' EXIT
+## And every thread a scene of this rig starts, by its log or lock, ended before the rig goes.
+. "$rigPkg/sh-test/check-fixtures/rig-control-threads.include.sh" || rigRefuse "the rig's fixture that ends threads is missing from the package"
+trap 'rigControlThreadsEnd "$rigTmp" ; rm -rf -- "$rigTmp"' EXIT
 rigWs="$rigTmp/ws"
 rigData="$rigTmp/data"
 rigAgents="$rigWs/.local/agents"
@@ -131,7 +133,7 @@ rigMark(){ ## spawn id -- whether its park mark stands
 	[ -f "$rigStores/$1/parked" ] && printf present || printf gone
 }
 rigStateOf(){ ## spawn id, status, live
-	rigInRig "${rigRegistries%/team-data/*}/run/AgentsTools.RunState.include" "$rigTmp/state.sh" "$1" "$2" "$3"
+	rigInRig "$rigPkg/sh-lib/run/AgentsTools.RunState.include" "$rigTmp/state.sh" "$1" "$2" "$3"
 }
 rigSessionRow(){ ## session id
 	rigInRig "$rigRegistries" "$rigTmp/row.sh" "$1"

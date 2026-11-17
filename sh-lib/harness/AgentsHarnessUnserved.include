@@ -17,6 +17,8 @@ WorkspaceContextExecute'
 
 ## The tools the harness does not serve and the MCP server does, one name a line: RootSession, the tool the MCP server holds for the harness's own
 ## root run. The secondary tools were here once; the harness now serves them itself, so they are on neither side's unserved list.
+## This is the one statement of that set: the harness's tool list reads it, and two checks read it by name, so it never
+## becomes a literal in either reader.
 AgentsToolsUnservedInHarness(){
 	printf '%s\n' RootSession
 }

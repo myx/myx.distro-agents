@@ -17,6 +17,7 @@ Not a member/routine contract — this is the fixed text of the one prompt the t
 - Lines
   - act
   - inverse
+  - cut
 - Answers
   - verdict
 - Reactions
@@ -31,11 +32,11 @@ Not a member/routine contract — this is the fixed text of the one prompt the t
 
 # Summary
 
-One prompt for one recorded act: who acted, what it did, the operation that undoes it, and the material kept from cleanup until the answer comes. The answer is the verdict on the act: accept, reject or rework.
+One prompt for one recorded act: who acted, what it changed, the operation that undoes it, and the material kept from cleanup until the answer comes. The answer is the verdict on the act: accept, reject or rework.
 
 ## Goals
 
-- The person sees what was done and what would undo it, without knowing an id, and answers with one click or one word.
+- The person sees what was done, what it changed and what would undo it, without knowing an id. One click or one word answers it.
 - An accept releases the material, a reject runs the inverse, and a rework keeps both and carries his words back.
 - Changing the wording, an icon or an emoji is an edit to this file, not to the operation that fills it.
 
@@ -62,7 +63,13 @@ One prompt for one recorded act: who acted, what it did, the operation that undo
 ]][[**📦 Kept from cleanup until you answer**
 {{hold}}
 
-]][[**✅ How to answer**
+]][[**📝 What it changed**
+{{fence}}
+{{change}}
+{{fence}}
+]][[{{cut}}
+]]
+[[**✅ How to answer**
 {{how-to-answer}}]]
 ```
 
@@ -80,6 +87,12 @@ One line of the post that is filled on its own.
 
 ```
 {{steps}}
+```
+
+## cut
+
+```
+✂️ The diff is cut here: {{hidden}} more of its {{total}} lines are not shown. The whole diff is kept in `{{diff-file}}`.
 ```
 
 # Answers
@@ -152,6 +165,8 @@ The one reply the tooling posts in the prompt's own thread once an answer is rea
 - rule: `{{act}}` is the `## act` line: `{{kind}}`, the inverse kind of the record as its closed list names it, and `{{target}}`, the thing the act was on, in code style.
 - rule: `{{inverse}}` is the `## inverse` line: `{{steps}}`, the operation that undoes the act, one step a line, as the lane would run it.
 - rule: `{{hold}}` is the folder kept from cleanup, by its place name where one holds it, else its path in code style.
+- rule: `{{change}}` is what the act changed: the record's `base`, the file as it stood, against its `result`, the file as the act left it, as one unified diff with its two file header lines left out, inside the fence `{{fence}}` gives. A kind that changes no file has none, and its group is left out of the post whole.
+- rule: `{{cut}}` is the block under `# Lines` named for it, under the change: how many of the diff's lines the post does not show, how many it holds, and the file the whole diff is kept in. It is left out where the post shows the whole diff.
 - rule: The answer form is `verdict`. `{{how-to-answer}}` is the block under `# Answers` named for it, on every post that takes an answer.
 - rule: The emoji placed under the post are the block under `# Reactions` named `verdict`, one Slack name each, in that order: `+1` accepts, `x` rejects, `leftwards_arrow_with_hook` asks for a rework. They are placed by the identity that posted, and a reaction by that identity is never an answer: only a click by the one the post is addressed to is.
 - rule: A name placed here must be one the verdict reader takes for an undo (`AgentsEscalationVerdict.awk`).

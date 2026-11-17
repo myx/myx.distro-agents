@@ -15,7 +15,7 @@ set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 rigLib="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib"
-. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-store-item.include.sh" || exit 1
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-writes.include.sh" || exit 1
 mkdir -p "$MMDAPP/.local/agents/scratch/sh-test" || exit 1
 rigTmp="$( mktemp -d "$MMDAPP/.local/agents/scratch/sh-test/AgentsStrayStoreCheck.XXXXXXXX" )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
@@ -28,7 +28,7 @@ rigAssert(){ ## what, got, want
 rigJust="$rigTmp/ws-just" ; rigRig="$rigTmp/ws-rig" ; rigStore="$rigJust/.local/agents/team-data-root" ; rigRoot="$rigRig/team-data"
 mkdir -p "$rigRig/.local/.agents" "$rigJust/.local/.agents" || exit 1
 printf 'TEAM_DATA_DIRECTORY=%s\n' "$rigRoot" > "$rigRig/.local/.agents/magic-coordinator.agent.env"
-## Every item below is built by its store's own write (rig-store-item.include.sh), and so is every folder it lies in: a
+## Every item below is built by its store's own write (rig-owner-writes.include.sh), and so is every folder it lies in: a
 ## hand-written fixture stays green when that write's own file contract changes.
 rigBodyCount=0
 rigStoreBody(){ ## text -- the path of a body file holding it
@@ -84,11 +84,11 @@ rigAssert "and said moved"                                   "$( LC_ALL=C grep -
 rigAssert "the identical one is removed here, kept there"    "$( [ ! -e "$rigStore/board/processed/dispatch-b.md" ] && [ -f "$rigRoot/board/processed/dispatch-b.md" ] && printf yes || printf no )" yes
 rigAssert "the differing copy is left"                       "$( [ -f "$rigStore/board/processed/dispatch-c.md" ] && LC_ALL=C grep -c 'changed on the rig' "$rigRoot/board/processed/dispatch-c.md" )" 1
 rigAssert "the unplaced stay"                                "$( [ -f "$rigStore/board/review/dispatch-d.md" ] && [ -f "$rigStore/board/review/dispatch-e.md" ] && [ -f "$rigStore/inboxes/magic-tester/incoming/reflection-x.md" ] && [ -f "$rigStore/audit/2026-11/one.txt" ] && printf yes || printf no )" yes
-rigAssert "the summary"                                      "$( LC_ALL=C grep -c '1 moved, 1 removed as identical, 5 left' "$rigTmp/err" )" 1
+rigAssert "the summary"                                      "$( LC_ALL=C grep -c '1 moved, 1 removed as identical or superseded, 5 left' "$rigTmp/err" )" 1
 
 echo "-- 4. a second apply changes nothing --"
 rigRun just-agents AgentsToolsStrayStoreReturn "$rigJust" --apply > "$rigTmp/apply2"
-rigAssert "nothing moved or removed"                         "$( LC_ALL=C grep -c '0 moved, 0 removed as identical, 5 left' "$rigTmp/err" )" 1
+rigAssert "nothing moved or removed"                         "$( LC_ALL=C grep -c '0 moved, 0 removed as identical or superseded, 5 left' "$rigTmp/err" )" 1
 
 echo "-- 5. a workspace in team-rig mode is refused --"
 rigAssert "refused, nothing printed"                         "$( rigRun team-rig AgentsToolsStrayStoreList "$rigJust" | LC_ALL=C wc -l | LC_ALL=C tr -d ' ' ):$( LC_ALL=C grep -c 'keeps team data' "$rigTmp/err" )" "0:1"
@@ -128,7 +128,7 @@ rigRun just-agents AgentsToolsStrayStoreReturn "$rigJ2" --apply > "$rigTmp/apply
 rigAssert "the placed one is moved to its rig's inbox"       "$( [ -f "$rigTwo/rig-one/team-data/inboxes/magic-tester/incoming/inquiry-placed.md" ] && [ ! -e "$rigStore2/inboxes/magic-tester/incoming/inquiry-placed.md" ] && printf yes || printf no )" yes
 rigAssert "the stamped one is moved to the rig it names"     "$( [ -f "$rigTwo/rig-three/team-data/inboxes/magic-tester/incoming/inquiry-stamped.md" ] && printf yes || printf no )" yes
 rigAssert "the ambiguous and the unplaced stay"              "$( [ -f "$rigStore2/inboxes/magic-tester/incoming/inquiry-ambiguous.md" ] && [ -f "$rigStore2/inboxes/magic-tester/incoming/inquiry-none.md" ] && printf yes || printf no )" yes
-rigAssert "the summary"                                      "$( LC_ALL=C grep -c '2 moved, 0 removed as identical, 2 left' "$rigTmp/err" )" 1
+rigAssert "the summary"                                      "$( LC_ALL=C grep -c '2 moved, 0 removed as identical or superseded, 2 left' "$rigTmp/err" )" 1
 rigAssert "no runs table is left behind"                     "$( ls -d "$MMDAPP/.local/agents/scratch/sh-test"/stray-runs.* 2> /dev/null | LC_ALL=C wc -l | LC_ALL=C tr -d ' ' )" 0
 
 echo "-- 7. the owner names the rig of what no run placed --"

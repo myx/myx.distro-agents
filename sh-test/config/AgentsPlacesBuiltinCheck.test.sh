@@ -153,15 +153,15 @@ echo "-- 4. a link and its target give the same answer --"
 rigReal="$rigSource/keeper-linked"
 RIG_AGENT=magic-coordinator RIG_SESSION=s-coord
 rigRun --request-permission-set --team-member magic-coordinator task-rig --entry "Read:@.skillset-shared:keeper-linked/a.md" --scope task --session-id s-coord
-rigAssert "an entry asked through the HOME link is asked for the real file" "$( rigN "$rigTmp/out" "PLACE: Read:$rigReal/a.md is .skillset-shared:keeper-linked/a.md" ):$( rigN "$rigTmp/out" "EXTRA: Read:$rigReal/a.md" )" "1:1"
+rigAssert "an entry asked through the HOME link is asked for the real file" "$( rigN "$rigTmp/out" "PLACE: Read:$rigReal/a.md is .skillset-shared:keeper-linked/a.md" ):$( rigN "$rigTmp/out" "HELD: Read:$rigReal/a.md by every participant already (floor)" )" "1:1"
 rigRun --request-permission-set --team-member magic-coordinator task-rig --entry "Read:@.skillset-.local:keeper-linked/a.md" --scope task --session-id s-coord
-rigAssert "through the workspace's member link: the same file" "$( rigN "$rigTmp/out" "PLACE: Read:$rigReal/a.md is .skillset-.local:keeper-linked/a.md" ):$( rigN "$rigTmp/out" "EXTRA: Read:$rigReal/a.md" )" "1:1"
+rigAssert "through the workspace's member link: the same file" "$( rigN "$rigTmp/out" "PLACE: Read:$rigReal/a.md is .skillset-.local:keeper-linked/a.md" ):$( rigN "$rigTmp/out" "HELD: Read:$rigReal/a.md by every participant already (floor)" )" "1:1"
 rigRun --request-permission-set --team-member magic-coordinator task-rig --entry "Read:@ws-main:source/rig/rig-proj/skillset/keeper-linked/a.md" --scope task --session-id s-coord
-rigAssert "by the file's own path under source: the same file" "$( rigN "$rigTmp/out" "EXTRA: Read:$rigReal/a.md" )" 1
+rigAssert "by the file's own path under source: the same file" "$( rigN "$rigTmp/out" "HELD: Read:$rigReal/a.md by every participant already (floor)" )" 1
 rigRun --request-permission-set --team-member magic-coordinator task-rig --entry "Read:@.skillset-shared:keeper-linked/reference/**" --scope task --session-id s-coord
-rigAssert "a folder under the link, with everything in it"    "$( rigN "$rigTmp/out" "PLACE: Read:$rigReal/reference/** is .skillset-shared:keeper-linked/reference/**" ):$( rigN "$rigTmp/out" "EXTRA: Read:$rigReal/reference/**" )" "1:1"
+rigAssert "a folder under the link, with everything in it"    "$( rigN "$rigTmp/out" "PLACE: Read:$rigReal/reference/** is .skillset-shared:keeper-linked/reference/**" ):$( rigN "$rigTmp/out" "HELD: Read:$rigReal/reference/** by every participant already (floor)" )" "1:1"
 rigRun --request-permission-set --team-member magic-coordinator task-rig --entry "Read:@.skillset-shared:keeper-local/a.md" --scope task --session-id s-coord
-rigAssert "a machine-local skill's file is its own, under HOME" "$( rigN "$rigTmp/out" "PLACE: Read:$rigSkills/keeper-local/a.md is .skillset-shared:keeper-local/a.md" ):$( rigN "$rigTmp/out" "EXTRA: Read:$rigSkills/keeper-local/a.md" )" "1:1"
+rigAssert "a machine-local skill's file is its own, under HOME" "$( rigN "$rigTmp/out" "PLACE: Read:$rigSkills/keeper-local/a.md is .skillset-shared:keeper-local/a.md" ):$( rigN "$rigTmp/out" "HELD: Read:$rigSkills/keeper-local/a.md by every participant already (floor)" )" "1:1"
 RIG_AGENT="" RIG_SESSION=""
 
 if [ "$rigFail" -ne 0 ] ; then

@@ -28,10 +28,24 @@ floorText(){ ## the pointer, one line a sentence, or nothing where there is no m
 	floorNameOk "$floorMember" || return 1
 	printf 'Your conversation was just compacted, and what you loaded before it may be gone. Load your floor again before you act, with the Skill tool: magic-team (file magic-team.armed.md), then %s (file %s.armed.md). Then carry on with your task.' "$floorMember" "$floorMember"
 }
-## Mirrors AgentsSessionMarkerFile <session> floor-dropped: its rig runs with no MDLT_ORIGIN, so the package never loads here.
+## The session's folder, into floorHere: the value the spawn proxy hands the launch, else the session concern's own small
+## generated file, which sh-scripts/AgentsSessionPartsMake.sh writes from its store include. This file never spells that store.
+floorFolder(){ ## rc 1 where there is no folder to write in
+	floorHere=""
+	floorNameOk "$floorSession" || return 1
+	if [ -n "${MDAT_SESSION_FOLDER:-}" ] ; then
+		floorHere="${MDAT_SESSION_FOLDER%/}"
+		return 0
+	fi
+	[ -n "${MMDAPP:-}" ] || return 1
+	[ -f "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-lib/session/AgentsSessionParts.include" ] || return 1
+	. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-lib/session/AgentsSessionParts.include" || return 1
+	AgentsSessionPartsFolderInto floorHere "${MMDAPP:-}" "$floorSession"
+}
+## The marker file, or nothing. No folder is a refusal: one line on stderr, nothing written, and the client's exit 0 stands.
 floorMarker(){ ## the marker file, or nothing
-	floorNameOk "$floorSession" && [ -n "${MMDAPP:-}" ] || return 1
-	printf '%s' "$MMDAPP/.local/agents/sessions/$floorSession/floor-dropped"
+	floorFolder || { echo "floor-after-compact.sh: no session folder for $floorSession: nothing written (MDAT_SESSION_FOLDER is unset, and the session parts file is not readable)" >&2 ; return 1 ; }
+	printf '%s' "$floorHere/floor-dropped"
 }
 floorJson(){ ## text -- a JSON string, quoted (the text has no quote, backslash or control character but what this adds)
 	printf '"%s"' "$1"

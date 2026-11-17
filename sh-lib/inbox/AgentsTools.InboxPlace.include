@@ -105,7 +105,8 @@ AgentsToolsInboxItemFind(){ ## member, item name, include processed (yes|no)
 	return 1
 }
 
-## Whether the item of that name lies in that inbox's processed/: rc 0 where it does.
+## Whether the item of that name lies in that inbox's processed/: rc 0 where it does. Kept as this store's own test: a
+## caller in another concern must ask it, never build the path itself.
 AgentsToolsInboxItemProcessed(){ ## member, item name
 	[ -f "$MDAT_DATA_ROOT/inboxes/$1/processed/$2" ]
 }
@@ -156,12 +157,16 @@ AgentsToolsInboxInstruction(){
 }
 
 ## THE INDEX OF LOCK NOTES: every note a routine declares as its `routine-lock-document` (`inbox:<member>:<note>`), read from the
-## routines of the member view (the root AgentsTools.SpawnRoutine.include reads), one note name a line, each once. A lock note is the
-## tooling's: the routine lock reads it at its own place, so no member operation moves or trashes one.
+## routines of the members the tooling's directory answers (the folders AgentsTools.SpawnRoutine.include reads), one note name a
+## line, each once. A lock note is the tooling's: the routine lock reads it at its own place, so no member operation moves or trashes one.
 AgentsToolsInboxLockNoteNames(){
-	local lockRoot="${MDAT_SKILLSET_ROOT:-${MMDAPP:-/nonexistent}/.local/agents/members}"
-	[ -d "$lockRoot" ] || return 0
-	find -L "$lockRoot" -name '*.routine.md' -type f 2> /dev/null | LC_ALL=C tr '\n' '\0' | LC_ALL=C xargs -0 grep -h '^routine-lock-document:' 2> /dev/null \
+	local lockMember lockRoot
+	type AgentsToolsTeamMemberDirectoryText > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamRegistry.include"
+	while IFS=$'\t' read -r lockMember lockRoot ; do
+		[ -n "$lockRoot" ] && [ -d "$lockRoot" ] || continue
+		find -L "$lockRoot" -name '*.routine.md' -type f 2> /dev/null
+	done <<< "$( AgentsToolsTeamMemberDirectoryText )" \
+		| LC_ALL=C tr '\n' '\0' | LC_ALL=C xargs -0 grep -h '^routine-lock-document:' 2> /dev/null \
 		| LC_ALL=C awk '{ sub( /^routine-lock-document: */, "" ) ; n = split( $0, lockValues, /[ ,]+/ ) ; for ( i = 1 ; i <= n ; i++ ) { lockName = lockValues[i] ; sub( /.*:/, "", lockName ) ; if ( lockName ~ /^note-.*\.md$/ && !seenName[lockName]++ ) print lockName ; } }'
 }
 

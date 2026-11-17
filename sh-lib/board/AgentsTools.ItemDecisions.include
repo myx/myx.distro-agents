@@ -41,12 +41,6 @@ AgentsToolsBoardStatePathInto(){ ## variable, state, item file name
 	printf -v "$1" '%s/board/%s/%s' "$MDAT_DATA_ROOT" "$2" "$3"
 }
 
-## The awk that prints an item's frontmatter fields, into the named variable: the board reader a cache stamp names,
-## so no caller builds this concern's own path. No process.
-AgentsToolsBoardFrontmatterAwkInto(){ ## variable
-	printf -v "$1" '%s/myx/myx.distro-agents/sh-lib/board/AgentsBoardItemFrontmatterPrintSelected.awk' "${MDLT_ORIGIN:-}"
-}
-
 ## THE BOARD'S ITEMS, into the named array, a path each: those whose file name starts with the prefix (empty for every item),
 ## in the states named, else in every state folder the board holds. The one walk of the board's folders; a reader of many
 ## items takes it and never names the folders. No process. Empty where there are none.
@@ -190,7 +184,7 @@ AgentsToolsDecisionsItemFromRef(){ ## task ref text, session id
 ## Text as one line: whitespace runs to one space, trimmed, cut at <max> bytes (default 300) on a UTF-8 boundary.
 AgentsToolsDecisionsOneLine(){ ## text, max
 	printf '%s' "$1" | LC_ALL=C tr -s ' \t\r\n' '    ' | LC_ALL=C awk -v max="${2:-300}" \
-		-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsProgressLineSafe.awk" \
+		-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/core/AgentsProgressLineSafe.awk" \
 		-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsDecisionsOneLine.awk"
 }
 
@@ -395,6 +389,23 @@ AgentsToolsDecisionsTracked(){ ## item path
 	trackedPath="$( AgentsToolsDecisionsItemPath "$trackedName" )" || return 1
 	[ "${trackedPath##*/}" != "${1##*/}" ] || return 1
 	printf '%s\n' "$trackedPath"
+}
+
+## The owners of the dispatch items that `tracks:` this item, one a line, each once: the board's own
+## walk of its dispatch items and its own reading of them, so a caller names an item and builds no path.
+## One awk pass, never a process per item: a permission check asks it.
+AgentsToolsDecisionsTrackingOwners(){ ## item name (with or without .md)
+	local trackName="${1##*/}" trackItems
+	trackName="${trackName%.md}"
+	[ -n "$trackName" ] || return 0
+	AgentsToolsBoardItemsInto trackItems "dispatch-" || return 0
+	[ "${#trackItems[@]}" -gt 0 ] || return 0
+	LC_ALL=C awk -v item="$trackName" '
+		FNR == 1 { fence = 0 ; owner = "" ; tracks = "" }
+		$0 == "---" { fence++ ; if ( fence > 1 ) { if ( tracks == item || tracks == item ".md" ) print owner ; nextfile } ; next }
+		fence == 1 && index( $0, "owner: " ) == 1 && owner == "" { owner = substr( $0, 8 ) }
+		fence == 1 && index( $0, "tracks: " ) == 1 && tracks == "" { tracks = substr( $0, 9 ) }
+	' ${trackItems[@]+"${trackItems[@]}"} 2> /dev/null || :
 }
 
 ## AgentsToolsDecisionsEarlier over the item, then the item it tracks, so a later session on

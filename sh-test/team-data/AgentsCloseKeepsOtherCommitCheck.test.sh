@@ -25,7 +25,7 @@ rigRefuse(){ echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1 ; 
 [ -f "$rigItem" ] || rigRefuse "the item include is not at the origin this workspace resolves: $rigItem"
 command -v git > /dev/null || rigRefuse "git is not installed"
 . "$rigPkg/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
-. "$rigPkg/sh-test/check-fixtures/rig-store-item.include.sh" || exit 1
+. "$rigPkg/sh-test/check-fixtures/rig-owner-writes.include.sh" || exit 1
 rigTmp="$( rigTempDir AgentsCloseKeepsOtherCommitCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
@@ -34,7 +34,7 @@ rigHome="$rigTmp/home"
 rigWs="$rigTmp/ws"
 mkdir -p "$rigStore" "$rigHome" "$rigWs/.local/agents" || rigRefuse "could not make the rig's own tree"
 rigTarget="$rigStore/board/running/dispatch-rig-close.md"
-## Every item is built by the board's own write (rig-store-item.include.sh), which also makes the folder it lies in: a
+## Every item is built by the board's own write (rig-owner-writes.include.sh), which also makes the folder it lies in: a
 ## hand-written fixture stays green when that write's own file contract changes. The store is a repository after the note
 ## is written, and the seed commit takes only the README, so the note stands in the working tree uncommitted as before.
 rigBodyCount=0

@@ -1752,7 +1752,7 @@ contracts are here.
   `SESSION_CONTROL_ANSWER_READ_SECONDS` (default 60). Once an answer comes, it
   carries it out, started with the signals the thread ignores at their
   defaults. A shell cannot give back a signal it inherited ignored, so the
-  call starts through `python3 sh-lib/session/AgentsSignalReset.py`, which
+  call starts through `python3 sh-lib/run/AgentsSignalReset.py`, which
   resets them and execs it (`AgentsSignalResetCheck`). With no `python3` it
   starts as it is. `control/` also holds `post.<run id>.sent`. A line of `control/dead` is a
   history, and gains `answer=<option> answered=<moment>`, and
@@ -2010,7 +2010,7 @@ contracts are here.
   own fragment read is only a fallback for consoles generated before `--access-root`; it keeps the text
   after the last tab if absolute. No roots is a refusal.
 - **`--agent <name>`** reads `$MDAT_SKILLSET_ROOT/<name>/<name>.basic.md` as the system identity and tells
-  the model to `Read` its `.armed.md`. A missing `.basic.md` is exit 1. `--session-id` is announced as
+  the model to read its `.armed.md` with the `Skill` tool. A missing `.basic.md` is exit 1. `--session-id` is announced as
   `🔗 session <id>`.
 - **The symlinked access-root case is unconfirmed live.** `AgentsHarnessContainmentCheck.test.sh` holds
   it offline.

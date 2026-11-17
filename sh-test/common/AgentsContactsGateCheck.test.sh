@@ -87,7 +87,7 @@ rigAssert "none of them was refused or recorded: nothing printed, no new refusal
 
 echo "-- 2. what is not --"
 rigGate "$rigTmp/n1" --tool email-send --target stranger@nowhere.example --message hello
-rigAssert "a recipient of no contact: refused, rc 1, with a refusal id; the error says what the gate checked" "$rigRc $( rigHas 'REFUSAL-ID: refusal-' "$rigTmp/n1.err" ) $( rigHas "not a coordinate of a contact client-ndm holds (DistroAgentsContacts.fn.sh --find-contact), not one of the team's own configured addresses (human-owner or member)" "$rigTmp/n1.err" )" "1 1 1"
+rigAssert "a recipient of no contact: refused, rc 1, with a refusal id; the error says what the gate checked" "$rigRc $( rigHas 'REFUSAL-ID: refusal-' "$rigTmp/n1.err" ) $( rigHas "not a coordinate of a contact client-ndm holds (DistroAgentsContacts.fn.sh --find-contact)" "$rigTmp/n1.err" ) $( rigHas "not one of the team's own configured addresses (human-owner or member)" "$rigTmp/n1.err" )" "1 1 1 1"
 rigGate "$rigTmp/n2" --tool email-send --target bob@acme.example --message hello
 rigAssert "a contact held by another member only: refused" "$rigRc" "1"
 rigGate "$rigTmp/n3" --tool slack-send-message --target UCARA0001 --team client-ndm --message hello

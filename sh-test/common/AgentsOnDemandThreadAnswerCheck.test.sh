@@ -16,9 +16,11 @@ rigFn="$rigPkg/sh-scripts/DistroAgentsTools.fn.sh"
 [ -f "$rigInc" ] || { echo "ERROR: no thread include at $rigInc" >&2 ; exit 1 ; }
 . "$rigPkg/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
 . "$rigPkg/sh-test/check-fixtures/rig-processes.include.sh" || exit 1
+## And every thread on the shared on-demand pattern, by its lock, ended before the rig goes.
+. "$rigPkg/sh-test/check-fixtures/rig-control-threads.include.sh" || exit 1
 rigTmp="$( rigTempDir AgentsOnDemandThreadAnswerCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
-trap 'rigThreadsStop ; rm -rf -- "$rigTmp"' EXIT
+trap 'rigThreadsStop ; rigControlThreadsEnd "$rigTmp" ; rm -rf -- "$rigTmp"' EXIT
 
 rigPass=0 ; rigFail=0
 rigAssert(){ if [ "$2" = "$3" ] ; then printf '  PASS  %s\n' "$1" ; rigPass=$(( rigPass + 1 )) ; else printf '  FAIL  %s\n        got:  %s\n        want: %s\n' "$1" "$2" "$3" ; rigFail=$(( rigFail + 1 )) ; fi ; }

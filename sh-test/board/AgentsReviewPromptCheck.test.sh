@@ -35,7 +35,7 @@ rigRefuse(){
 . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-processes.include.sh" || rigRefuse "the rig's process helper is missing from the package: sh-test/check-fixtures/rig-processes.include.sh"
 . "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
 . "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-writes.include.sh" || exit 1
-rigOwnerWs="${rigWs:-$rigTmp/ws}" rigOwnerData="${rigData:-${rigD:-${rigStore:-${rigOut:-$rigTmp/data}}}}" rigOwnerHome="${rigHome:-$rigTmp/home}" rigOwnerSkills="${rigSkills:-$rigTmp/skills}"
+
 ## A return of a review starts an ended run again, with the session's control thread, which outlives this check: the rig ends it.
 . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-control-threads.include.sh" || rigRefuse "the rig's fixture that ends control threads is missing from the package: sh-test/check-fixtures/rig-control-threads.include.sh"
 rigTmp="$( rigTempDir AgentsReviewPromptCheck )" || exit 1
@@ -99,6 +99,7 @@ rigStart(){ ## scenario name
 	local startMember
 	rigName="$1" ; rigDir="$rigTmp/$1" ; rigWs="$rigDir/ws" ; rigData="$rigDir/data"
 	rigSpawn="rig-child-$1" ; rigItem="dispatch-20261012T0100Z-$1"
+	rigOwnerWs="$rigWs" rigOwnerData="$rigData" rigOwnerHome="$rigDir" rigOwnerSkills="$rigDir/data/skills"
 	rigOwnerBoardReady || rigRefuse "the board could not be made ready to be written"
 	mkdir -p "$rigWs/.local/.agents" "$rigWs/.local/agents/spawned"
 	printf 'SLACK_CHANNEL_MAGIC_TEAM=CRIG00001\nSLACK_CHANNEL_HUMAN_OWNER=URIGOWNER\nSLACK_BOT_TOKEN=rig-bot-token-TEAM\n' > "$rigWs/.local/.agents/magic-team.agent.env"

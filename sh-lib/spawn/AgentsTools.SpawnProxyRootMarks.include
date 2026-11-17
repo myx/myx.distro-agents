@@ -20,7 +20,7 @@ AgentsToolsSpawnProxyRootMarkTarget(){ ## session id
 	[ -n "${MMDAPP:-}" ] || return 1
 	type AgentsSessionThread > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include" || return 1
 	markTarget="$( AgentsSessionThread "$markSession" )"
-	type AgentsToolsSpawnConversationThreadValid > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionThreads.include" || return 1
+	type AgentsToolsSpawnConversationThreadValid > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandboxInput.include" || return 1
 	AgentsToolsSpawnConversationThreadValid "$markTarget" || return 1
 	type AgentsToolsEventTrackThreadIs > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/event-track/AgentsTools.EventTrackThread.include" || return 1
 	AgentsToolsEventTrackThreadIs "$markTarget" && return 1
@@ -53,10 +53,10 @@ AgentsToolsSpawnProxyRootMarkPlace(){ ## session id
 ## The end marks a session is owed, once no run of it is left: written to `root.want` and placed. Nothing while a run
 ## of the session still runs, and nothing for a session with no session thread. Never fails its caller.
 AgentsToolsSpawnProxyRootMarks(){ ## tracking file of the run that just closed
-	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandboxRecordHeader.include"
+	type AgentsToolsFrontmatterKey > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.FrontmatterKey.include"
 	local markRecord="$1" markSession markCandidate markStatus markGood="white_check_mark" markWant
 	[ -f "$markRecord" ] || return 0
-	markSession="$( AgentsToolsSpawnSandboxRecordHeader "$markRecord" session-id )"
+	markSession="$( AgentsToolsFrontmatterKey "$markRecord" session-id )"
 	case "$markSession" in ''|-|.|..|*/*) return 0 ;; esac
 	AgentsToolsSpawnProxyRootMarkTarget "$markSession" > /dev/null || return 0
 	type AgentsSessionMarkerFileInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include" || return 1
@@ -64,7 +64,7 @@ AgentsToolsSpawnProxyRootMarks(){ ## tracking file of the run that just closed
 	AgentsSessionMarkerFileInto markWant "$markSession" root.want || return 0
 	type AgentsToolsSpawnedSessionRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include"
 	for markCandidate in $( AgentsToolsSpawnedSessionRecords "$markSession" own 2> /dev/null ) ; do
-		markStatus="$( AgentsToolsSpawnSandboxRecordHeader "$markCandidate" status )"
+		markStatus="$( AgentsToolsFrontmatterKey "$markCandidate" status )"
 		case "$markStatus" in
 			''|spawn-started) return 0 ;;
 			spawn-succeeded) ;;

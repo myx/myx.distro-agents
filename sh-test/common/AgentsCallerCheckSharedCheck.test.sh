@@ -12,8 +12,9 @@
 ##   2. --magic-*: the console and magic-coordinator's session pass; another member's session is refused
 ##   3. --client-*: the console and the named client's own session pass; another member's session is refused
 ##   4. --manager-*: the console passes; a member's session is refused; magic-coordinator's session runs the run
-##      management its supervision routine names, and is refused every other --manager-* operation (the ruling of
-##      board task-20261114T1052Z-manager-gate-coordinator-scope: a closed list of run-management names)
+##      management its supervision routine names, and the five S6.12's rule sends a member to, and is refused
+##      every other --manager-* operation (the ruling of board task-20261114T1052Z-manager-gate-coordinator-scope:
+##      a closed list of run-management names, extended 2026-11-16 by task-20261106T0226Z)
 ##   5. each refusal is word for word the refusal the dispatcher gives for that call
 ##   6. AgentsToolsActingMemberCheck's and AgentsToolsManagerCallerCheck's own refusals name who owns the operation
 ##      and how to ask, or where to run it instead (S18.1).
@@ -124,6 +125,12 @@ rigAs g1 console "$rigTmp/RigStandIn.fn.sh" AgentsToolsManagerCallerCheck manage
 rigAs g2 magic-coordinator "$rigTmp/RigStandIn.fn.sh" AgentsToolsManagerCallerCheck manager-session-list
 rigAs g3 keeper-myx "$rigTmp/RigStandIn.fn.sh" AgentsToolsManagerCallerCheck manager-session-list
 rigAs g4 magic-coordinator "$rigTmp/RigStandIn.fn.sh" AgentsToolsManagerCallerCheck manager-config-set
+### THE FIVE, AS THE RULING EXTENDED IT (task-20261106T0226Z): each is run management.
+rigAs g5 magic-coordinator "$rigTmp/RigStandIn.fn.sh" AgentsToolsManagerCallerCheck manager-session-pause
+rigAs g6 magic-coordinator "$rigTmp/RigStandIn.fn.sh" AgentsToolsManagerCallerCheck manager-session-resume
+rigAs g7 magic-coordinator "$rigTmp/RigStandIn.fn.sh" AgentsToolsManagerCallerCheck manager-session-restart
+rigAs g8 magic-coordinator "$rigTmp/RigStandIn.fn.sh" AgentsToolsManagerCallerCheck manager-session-join
+rigAs g9 keeper-myx "$rigTmp/RigStandIn.fn.sh" AgentsToolsManagerCallerCheck manager-session-restart
 rigRedirect(){ ## refusal text -> whether it says who owns the operation and how to ask: yes|no
 	case "$1" in *"ask the session's magic-coordinator, which owns it, to run it"*) printf yes ;; *) printf no ;; esac
 }
@@ -135,6 +142,8 @@ rigClientWay(){ ## refusal text -> whether it names the coordinator that can run
 rigAssert "the --client-* refusal names its own way (the coordinator that can run it as the client)" "$( rigClientWay "$( rigRefusalOf c3 )" )" "yes"
 rigAssert "the console passes, and so does magic-coordinator's session on run management; another member's session is refused" "$( rigRc g1 ):$( [ "$( rigRc g2 )" -ne 0 ] && printf refused || printf passed ):$( [ "$( rigRc g3 )" -ne 0 ] && printf refused || printf passed )" "0:passed:refused"
 rigAssert "magic-coordinator's session is refused a --manager-* operation that is no run management: a settings write" "$( [ "$( rigRc g4 )" -ne 0 ] && printf refused || printf passed ):$( rigIdMasked "$( rigRefusalOf g4 )" )" "refused:DistroAgentsTools: manager-config-set: ⛔ ERROR: this session acts as magic-coordinator, and a --manager-* operation is the console's own, never run from inside a member's session -- nothing was done: run it at the console directly, outside any member's session. REFUSAL-ID: <id>"
+rigAssert "and it runs pause, resume, restart and join, the five S6.12 sends a member to" "$( for rigOne in g5 g6 g7 g8 ; do printf '%s ' "$( rigRc "$rigOne" )" ; done )" "0 0 0 0 "
+rigAssert "control: another member's session is refused restart, so the four rows above are the gate's decision" "$( [ "$( rigRc g9 )" -ne 0 ] && printf refused || printf passed )" "refused"
 rigManagerWay(){ ## refusal text -> whether it says where the operation is run instead: yes|no
 	case "$1" in *"run it at the console directly, outside any member's session"*) printf yes ;; *) printf no ;; esac
 }

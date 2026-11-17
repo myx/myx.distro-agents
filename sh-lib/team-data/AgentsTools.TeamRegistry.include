@@ -44,6 +44,8 @@
 ## Dot-sourced; functions only.
 ##
 
+## The file of that name under that workspace's agents store. A caller outside this concern must ask it, never build
+## the store's path itself.
 AgentsToolsTeamLocalFile(){ ## workspace, name
 	printf '%s\n' "${1%/}/.local/agents/$2"
 }
@@ -138,7 +140,9 @@ AgentsToolsTeamMemberIndexText(){ ## workspace
 ## point of use by a reader that names members of other workspaces (routing, a spawn, the
 ## client sweeps); never written into a workspace. Each name once.
 AgentsToolsTeamMemberDirectoryText(){
-	local directoryRoot="${MDAT_SKILLSET_ROOT:-${MMDAPP:+${MMDAPP%/}/.local/agents/members}}" directoryShared directoryHomes directoryEntry
+	type AgentsToolsSkillsetRootInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWorkspace.include"
+	local directoryRoot="" directoryShared directoryHomes directoryEntry
+	AgentsToolsSkillsetRootInto directoryRoot "${MMDAPP:-}"
 	directoryShared="${HOME:-}/.agents/magic-team/members.registry"
 	[ -f "$directoryShared" ] || directoryShared=/dev/null
 	directoryHomes="${HOME:-}/.agents/magic-team/member-homes.registry"
@@ -165,7 +169,9 @@ AgentsToolsTeamMemberDirectoryText(){
 ## where it is one, else the one another workspace publishes. rc 1, nothing printed, when
 ## no workspace publishes it or its directory is not on this machine.
 AgentsToolsTeamMemberDirectory(){ ## member
-	local directoryRoot="${MDAT_SKILLSET_ROOT:-${MMDAPP:+${MMDAPP%/}/.local/agents/members}}" directoryFound
+	type AgentsToolsSkillsetRootInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWorkspace.include"
+	local directoryRoot="" directoryFound
+	AgentsToolsSkillsetRootInto directoryRoot "${MMDAPP:-}"
 	[ -n "$1" ] || return 1
 	if [ -n "$directoryRoot" ] && [ -d "$directoryRoot/$1" ] ; then
 		printf '%s\n' "$directoryRoot/$1"

@@ -121,8 +121,8 @@ printf -- '---\nname: human-owner\nstatus: reference-only\n---\n# human-owner\n'
 rigOwnerBoardWrite running "one.md" -- 'x\n' ; rigOwnerBoardWrite running "two.md" -- 'x\n' ; rigOwnerBoardWrite running "notes.txt" -- 'a file of the board folder that is no item\n'
 rigOwnerBoardWrite review "three.md" -- 'x\n'
 ## A folder of a state the board's own list does not hold, which the one board reader must still count as no state of its
-own: the owner refuses such a state, so this one folder is made here, and nothing writes an item into it.
-printf 'four\n' > "$rigData/board/odd-state/four.md"
+## own: the owner's writer makes the folder of the state it is given, so this item goes through it like any other.
+printf 'four\n' | rigOwnerBoardPut odd-state four.md || exit 1
 printf 'MAIN_LOOP_LAST_OUTCOME=ok\nMAIN_LOOP_LAST_ITERATION_UTC=2026-10-13T11:59:00Z\nMAIN_LOOP_CONSECUTIVE_FAILURES=0\n' > "$rigAgents/main-loop.state"
 
 ## THE RETESTS that wait, and one that is done.

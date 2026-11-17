@@ -505,7 +505,7 @@ rigAssert "it waited on nothing"                        "$( rigHolds "$rigOpOut"
 rigAssert "one listed kind per kind the build names"    "$rigProbesListed" "$rigKindsCount"
 rigAssert "the listing offers exactly the kinds the build names" "$rigKindsListed" "$rigKindsNamed"
 rigAssert "at least one kind is named at all"           "$( rigAtLeast "$rigKindsCount" 1 )" "at-least-1"
-cat "$rigHere"/member/AgentsTools.MemberWait*.include > "$rigTmp/wait-family.include" || rigRefuse "the wait includes could not be read together"
+cat "$rigHere"/wait/AgentsTools.MemberWait*.include > "$rigTmp/wait-family.include" || rigRefuse "the wait includes could not be read together"
 for rigKind in $rigKindsNamed ; do
 	rigNamedProbe="$( LC_ALL=C awk -F'\t' -v wantKind="$rigKind" '$1 == wantKind { print $2 ; }' "$rigOpOut" )"
 	rigAssert "the build names $rigKind and the listing's probe is defined in the source" \

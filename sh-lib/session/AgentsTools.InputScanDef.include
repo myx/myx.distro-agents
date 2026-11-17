@@ -16,7 +16,7 @@
 ##
 
 ## The scans of the tooling a definition may name, one a line: one for each `--intern-op-<scan>-input-scan` the
-## dispatcher routes (F6.4).
+## dispatcher routes (F6.4). The validator and Wait must read this one list, so that the set of scans is written once.
 AgentsToolsInputScanNames(){
 	printf '%s\n' client-sweep grooming member-work-session morning-review permission-escalation routine-coworking-session sweep work-duty
 }
@@ -127,7 +127,7 @@ AgentsToolsInputScanCachedCall(){ ## scan words (one a line), session or spawn i
 
 ## Whether a scan's report holds nothing to work: rc 0 where every line of it is blank, a heading (`#`), a section's `scope:` or `cap:` line, `(none)`, a
 ## `**NOTE:** no new ...` line or `Nothing new ...`. An FYI row is no work either: a row whose head line carries the `[fyi: ...]` mark right after its sender
-## (AgentsWaitTaggedPart, sh-lib/wait/AgentsTools.MemberWait.include) is a message of a session chat thread where the member's own instance is present,
+## (AgentsWaitTaggedPart, sh-lib/wait/AgentsTools.MemberWaitSlack.include) is a message of a session chat thread where the member's own instance is present,
 ## returned for knowledge only, and a report of nothing else starts nothing. Any other line is input, so a scan that words its emptiness in another way
 ## starts the run, and a report is never taken for empty on a guess: the mistake can only be a start.
 AgentsToolsInputScanReportEmpty(){ ## the report file

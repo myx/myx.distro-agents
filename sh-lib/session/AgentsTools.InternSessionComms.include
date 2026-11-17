@@ -363,6 +363,10 @@ case "$1" in
 			type AgentsToolsScheduleThreadAskDue > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/schedule/AgentsTools.ScheduleThread.include"
 			type AgentsToolsScheduleThreadAskDue > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/schedule/AgentsTools.ScheduleThread.include"
 			AgentsToolsScheduleThreadAskDue
+			## A WANTED SCHEDULE THREAD KEEPS THIS READER ALIVE (S12.12): at the hour of worktime with no session of the host doing anything,
+			## this pass is the only place that asks for the schedule, so the reader's own idle bound must not end it. It reads the value the
+			## ask has just set.
+			[ "${agentsScheduleThreadKeep:-no}" != yes ] || commsIdleFrom="$SECONDS"
 			## The ends of its own: nothing to do for the time set; its folder, or its lock, gone.
 			if [ "$(( SECONDS - commsIdleFrom ))" -ge "$commsIdleLimit" ] ; then
 				commsLeave="no live session had anything for it to do for ${commsIdleLimit}s"

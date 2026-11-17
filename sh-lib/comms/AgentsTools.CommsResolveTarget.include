@@ -35,11 +35,28 @@ type AgentsToolsSlackOneWayLine > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.dist
 ## THE RESOLUTION IS CACHED (owner 2026-10-28), with the comms cache's TTL mechanics: what an address resolves to for an acting member
 ## is kept a day in .local/cache/comms/slack/.resolve-<member>.txt, one writer a member, and read on demand. A session address is never
 ## kept: it follows the run. Only a resolution that succeeded is kept.
+## Whether an address's first word names a session this workspace's store holds, so the address reads that session's thread by its id
+## (`<session>:<member>[:<run>]`, S12.15, S12.29). A name the store does not hold is no session address, so the address is read by the
+## grammar below. No process: the store's own test.
+AgentsToolsCommsSessionAddress(){ ## address
+	case "${1:-}" in
+		*:*) ;;
+		*) return 1 ;;
+	esac
+	case "${1%%:*}" in
+		''|magic-team|human-owner|event-track|event-alert|session-current|session-parent|slack|printback|client|*[!abcdefghijklmnopqrstuvwxyz0123456789-]*) return 1 ;;
+	esac
+	type AgentsSessionKnown > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+	AgentsSessionKnown "${1%%:*}"
+}
 DistroAgentsToolsResolveTarget(){ ## address, acting member (optional)
 	local rvFile rvKey="$1" rvIn rvAt rvOut="" rvRc=0 rvNow tab=$'\t'
 	case "$1" in
 		''|session-*|*:session-*|"${harnessCurrentName:-session-current}"*|"${harnessParentName:-session-parent}"*) DistroAgentsToolsResolveTargetFresh "$@" ; return $? ;;
 	esac
+	## A SESSION ADDRESS FOLLOWS THE RUN AND IS NEVER KEPT (S12.15): its thread is the session's own record, which a run's move
+	## changes, so a kept answer would post into the thread the run left.
+	AgentsToolsCommsSessionAddress "$1" && { DistroAgentsToolsResolveTargetFresh "$@" ; return $? ; }
 	## A kept answer is our own side's: the team's own names resolve there and name nothing on the other, so a
 	## --client- call reads no kept answer and keeps none (AgentsToolsSlackOneWayLine, below: the refusal is this side's).
 	AgentsToolsCommsClientSide "${2:-}" && { DistroAgentsToolsResolveTargetFresh "$@" ; return $? ; }
@@ -69,6 +86,24 @@ DistroAgentsToolsResolveTarget(){ ## address, acting member (optional)
 DistroAgentsToolsResolveTargetFresh(){ ## address, acting member (optional)
 	local target="$1"
 	local channel threadTs clientMark="" sessionParent=""
+	## A SESSION ADDRESS RESOLVES BY AN ID (S12.15, S12.29): `<session>:<member>[:<run>]`, whose first word names a session this
+	## workspace's store holds, resolves to that session's own thread, read from the session's folder. It never matches thread files,
+	## and never reaches into another workspace. A word that names no session is the `<channel>:<ts>` grammar below, as it always was.
+	## The session id is printed beside the thread, so a send records its copy in that session's chat file by the id it was given.
+	if AgentsToolsCommsSessionAddress "$1" ; then
+		type AgentsSessionThread > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+		local sessionAddrWord="${1%%:*}" sessionAddrThread=""
+		sessionAddrThread="$( AgentsSessionThread "$sessionAddrWord" 2> /dev/null )" || sessionAddrThread=""
+		case "$sessionAddrThread" in
+			[ABCDEFGHIJKLMNOPQRSTUVWXYZ]*:[0123456789]*.[0123456789]*) ;;
+			*)
+				printf 'the session %s has no thread recorded, so %s names nowhere. Pass the thread as <channel>:<ts> instead.\n' "$sessionAddrWord" "$1"
+				return 3
+			;;
+		esac
+		printf 'CHANNEL=%s\nTHREAD_TS=%s\nSESSION_ID=%s\n' "${sessionAddrThread%%:*}" "${sessionAddrThread#*:}" "$sessionAddrWord"
+		return 0
+	fi
 	## The full pointer a Wait shows, `slack:<conversation>[:<ts>]`, is the address as it stands: its driver word comes off first.
 	case "$target" in slack:*) target="${target#slack:}" ;; esac
 	case "$target" in
@@ -124,7 +159,7 @@ DistroAgentsToolsResolveTargetFresh(){ ## address, acting member (optional)
 		## `:<ts>` after the name is a message in it, as for any thread.
 		session-current|session-current:*|session-parent|session-parent:*)
 			local sessionName="${target%%:*}" sessionMessage="" sessionFound="" sessionRc=0 sessionWhy="" sessionChannelSession="" sessionPrintback="" sessionTooling=""
-			type AgentsToolsSessionCurrentThreadFind > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionThreads.include"
+			type AgentsToolsSessionCurrentThreadFind > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.SessionThreads.include"
 			case "$target" in *:*) sessionMessage="${target#*:}" ;; esac
 			case "$sessionName" in
 				session-current)

@@ -24,10 +24,12 @@ rigRefuse(){
 [ -f "$rigTool" ] || rigRefuse "the tooling is not at the origin: $rigTool"
 . "$rigFixtures/rig-processes.include.sh" || rigRefuse "the rig's process helper is missing"
 . "$rigFixtures/rig-temp.include.sh" || exit 1
+## And the comms reader and control thread this check starts, by their logs and locks, ended before the rig goes.
+. "$rigFixtures/rig-control-threads.include.sh" || rigRefuse "the rig's fixture that ends threads is missing"
 rigTmp="$( rigTempDir AgentsSessionCommsIdleCostCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 rigStarted=""
-trap 'rigProcSignalWithChildren KILL $rigStarted ; rm -rf -- "$rigTmp"' EXIT
+trap 'rigProcSignalWithChildren KILL $rigStarted ; rigControlThreadsEnd "$rigTmp" ; rm -rf -- "$rigTmp"' EXIT
 trap 'exit 1' INT TERM
 
 rigPass=0

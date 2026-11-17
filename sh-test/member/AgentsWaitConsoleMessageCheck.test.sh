@@ -34,9 +34,11 @@ rigRefuse(){
 [ -f "$rigHarness" ] || rigRefuse "the harness is not at the origin this workspace resolves: $rigHarness"
 [ -f "$rigHere/session/AgentsTools.SessionChat.include" ] || rigRefuse "the chat include is not at the origin this workspace resolves"
 . "$rigFixtures/rig-temp.include.sh" || exit 1
+## And every thread a scene of this rig starts, by its log or its lock, ended before the rig goes.
+. "$rigFixtures/rig-control-threads.include.sh" || rigRefuse "the rig's fixture that ends threads is missing from the package"
 rigTmp="$( rigTempDir AgentsWaitConsoleMessageCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
-trap 'rm -rf -- "$rigTmp" 2> /dev/null' EXIT
+trap 'rigControlThreadsEnd "$rigTmp" ; rm -rf -- "$rigTmp" 2> /dev/null' EXIT
 rigBin="$rigTmp/bin" rigWs="$rigTmp/ws" rigScn="$rigTmp/scn" rigSkills="$rigTmp/skills"
 rigSess="rig-console-sess" rigMember="keeper-rig" rigChannel="CRIGSES01"
 rigSessDir="$rigWs/.local/agents/sessions/$rigSess"

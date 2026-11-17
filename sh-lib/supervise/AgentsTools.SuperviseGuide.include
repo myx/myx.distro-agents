@@ -53,15 +53,15 @@ AgentsToolsSuperviseGuide(){ ## <run-id> [--text <text>|--from-file <path>] [--w
 		;;
 	esac
 	type AgentsToolsSpawnRecord > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunRecords.include"
-	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandboxRecordHeader.include"
+	type AgentsToolsFrontmatterKey > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.FrontmatterKey.include"
 	type AgentsToolsSessionChatDir > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include"
 	guideRecord="$( MMDAPP="$guideWs" AgentsToolsSpawnRecord "$guideRun" )"
 	[ -n "$guideRecord" ] || { echo "$MDSC_CMD: ⛔ ERROR: --supervise-guide: no record of this workspace carries the run $guideRun" >&2 ; return 1 ; }
 	guideFolder="${guideRecord%/*}"
-	guideMember="$( AgentsToolsSpawnSandboxRecordHeader "$guideRecord" owner )"
-	guideSession="$( AgentsToolsSpawnSandboxRecordHeader "$guideRecord" session-id )"
+	guideMember="$( AgentsToolsFrontmatterKey "$guideRecord" owner )"
+	guideSession="$( AgentsToolsFrontmatterKey "$guideRecord" session-id )"
 	case "$guideMember" in ''|-) echo "$MDSC_CMD: ⛔ ERROR: --supervise-guide: the record of $guideRun names no member to address" >&2 ; return 1 ;; esac
-	guideThread="$( AgentsToolsSpawnSandboxRecordHeader "$guideRecord" session-thread )"
+	guideThread="$( AgentsToolsFrontmatterKey "$guideRecord" session-thread )"
 	case "$guideThread" in ''|-)
 		guideThread=""
 		[ ! -f "$guideFolder/session.thread" ] || IFS= read -r guideThread < "$guideFolder/session.thread" || :
@@ -100,11 +100,11 @@ AgentsToolsSuperviseChecklistAdd(){ ## <run-id> (--item <text>)... [--workspace 
 	case "$addRun" in ''|*/*|.|..) echo "$MDSC_CMD: ⛔ ERROR: --supervise-checklist-add: syntax is <run-id> (--item <text>)..." >&2 ; return 1 ;; esac
 	[ "${#addItems[@]}" -gt 0 ] || { echo "$MDSC_CMD: ⛔ ERROR: --supervise-checklist-add: give at least one --item" >&2 ; return 1 ; }
 	type AgentsToolsSpawnRecord > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunRecords.include"
-	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandboxRecordHeader.include"
+	type AgentsToolsFrontmatterKey > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.FrontmatterKey.include"
 	addRecord="$( MMDAPP="$addWs" AgentsToolsSpawnRecord "$addRun" )"
 	[ -n "$addRecord" ] || { echo "$MDSC_CMD: ⛔ ERROR: --supervise-checklist-add: no record of this workspace carries the run $addRun" >&2 ; return 1 ; }
 	addFolder="${addRecord%/*}"
-	addMember="$( AgentsToolsSpawnSandboxRecordHeader "$addRecord" owner )"
+	addMember="$( AgentsToolsFrontmatterKey "$addRecord" owner )"
 	case "$addMember" in ''|-) echo "$MDSC_CMD: ⛔ ERROR: --supervise-checklist-add: the record of $addRun names no member, so it keeps no list" >&2 ; return 1 ;; esac
 	addFile="$addFolder/$addMember.checklist.md"
 	## The list's own lock, the one the CheckList tool takes: a folder beside the file, removed to release it.

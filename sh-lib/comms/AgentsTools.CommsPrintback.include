@@ -87,7 +87,7 @@ AgentsToolsCommsPrintbackSessionInUse(){ ## session
 	type AgentsToolsSessionChatDir > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include" || return 1
 	inUseDir="$( AgentsToolsSessionChatDir "$1" )" || return 1
 	[ -d "$inUseDir" ] || return 1
-	type AgentsToolsRootHarnessKindRead > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.RootHarnessKind.include"
+	type AgentsToolsRootHarnessKindRead > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/chat/AgentsTools.RootHarnessKind.include"
 		inUseKind="$( AgentsToolsRootHarnessKindRead "$1" 2> /dev/null )" || inUseKind=""
 		case "$inUseKind" in
 			none) return 0 ;;
@@ -106,7 +106,7 @@ AgentsToolsCommsPrintbackSessionInUse(){ ## session
 ## session still keeps no session thread of its own.
 AgentsToolsCommsPrintbackTrackThread(){ ## session
 	local trackName="${1:-}" trackThread=""
-	type AgentsToolsRootHarnessKindRead > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.RootHarnessKind.include" || return 1
+	type AgentsToolsRootHarnessKindRead > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/chat/AgentsTools.RootHarnessKind.include" || return 1
 	[ "$( AgentsToolsRootHarnessKindRead "$trackName" 2> /dev/null )" = "track" ] || return 1
 	type AgentsToolsSessionChatDir > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include" || return 1
 	AgentsToolsSessionChatDir "$trackName" > /dev/null 2>&1 || return 1
@@ -129,25 +129,25 @@ AgentsToolsCommsPrintbackTrackThread(){ ## session
 AgentsToolsCommsPrintbackSessionOwnTarget(){ ## session (optional: this call's own)
 	local ownSession="${1:-}" ownKind="" ownTarget=""
 	if [ -z "$ownSession" ] ; then
-		type AgentsToolsSessionCurrentId > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionThreads.include" || return 1
+		type AgentsToolsSessionCurrentId > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.SessionThreads.include" || return 1
 		ownSession="$( AgentsToolsSessionCurrentId 2> /dev/null )" || ownSession=""
 	fi
 	[ -n "$ownSession" ] || return 1
 	type AgentsToolsSessionChatDir > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include" || return 1
 	AgentsToolsSessionChatDir "$ownSession" > /dev/null 2>&1 || return 1
-	type AgentsToolsRootHarnessKindRead > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.RootHarnessKind.include"
+	type AgentsToolsRootHarnessKindRead > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/chat/AgentsTools.RootHarnessKind.include"
 	ownKind="$( AgentsToolsRootHarnessKindRead "$ownSession" 2> /dev/null )" || ownKind=""
 	case "$ownKind" in
 		none) ownTarget="$( AgentsToolsCommsPrintbackChannelId "$ownSession" 2> /dev/null )" || ownTarget="" ;;
 		track) ownTarget="$( AgentsToolsCommsPrintbackTrackThread "$ownSession" 2> /dev/null )" || ownTarget="" ;;
 		full)
-			type AgentsToolsSessionCurrentThreadFind > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionThreads.include"
+			type AgentsToolsSessionCurrentThreadFind > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.SessionThreads.include"
 			ownTarget="$( AgentsToolsSessionCurrentThreadFind 2> /dev/null )" || ownTarget=""
 		;;
 	esac
 	if [ -z "$ownTarget" ] && [ -z "$ownKind" ] ; then
 		## No kind recorded: today's rule -- the session thread where one is on record, else F2.3's mark.
-		type AgentsToolsSessionCurrentThreadFind > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionThreads.include"
+		type AgentsToolsSessionCurrentThreadFind > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.SessionThreads.include"
 		ownTarget="$( AgentsToolsSessionCurrentThreadFind 2> /dev/null )" || ownTarget=""
 		if [ -z "$ownTarget" ] ; then
 			AgentsToolsCommsPrintbackSessionInUse "$ownSession" || return 1

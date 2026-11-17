@@ -50,7 +50,7 @@ trap 'chmod -R u+rwX -- "$rigTmp" 2> /dev/null ; rm -rf -- "$rigTmp"' EXIT
 rigWs="$rigTmp/ws" ; rigHome="$rigTmp/home" ; rigSkills="$rigTmp/skills"
 rigScopes="$rigWs/.local/.agents" ; rigAgents="$rigWs/.local/agents"
 rigData="$rigAgents/team-data-root"
-mkdir -p "$rigTmp/bin" "$rigScopes" "$rigAgents" "$rigHome" "$rigSkills" "$rigTmp/docs"
+mkdir -p "$rigTmp/bin" "$rigScopes" "$rigAgents" "$rigData" "$rigHome" "$rigSkills" "$rigTmp/docs"
 rigTab="$( printf '\t' )"
 rigOrigin="${MDLT_ORIGIN%/}"
 

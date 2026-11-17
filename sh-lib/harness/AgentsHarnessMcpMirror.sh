@@ -55,7 +55,7 @@ mirrorToolsJson="$( LC_ALL=C awk -v q="'" '
 ## The read cap stated in the descriptions is the one applied on the path being served:
 ## an MCP client's unless the caller names another (a wire the harness hosts).
 . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessReadCap.include"
-mirrorToolsJson="$( printf '%s\n' "$mirrorToolsJson" | AgentsReadCapFill "${MDAT_READ_CAP_BYTES:-$agentsReadCapMcp}" )"
+mirrorToolsJson="$( printf '%s\n' "$mirrorToolsJson" | LC_ALL=C sed "s/{{READ_CAP_BYTES}}/${MDAT_READ_CAP_BYTES:-$agentsReadCapMcp}/g" )"
 ## Every tool takes background, timeout and timeout_action (epic S20): the declarations say so here, as the harness's own do.
 mirrorToolsJson="$( printf '%s\n' "$mirrorToolsJson" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessTaskArgsFill.awk" )"
 

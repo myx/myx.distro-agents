@@ -11,7 +11,7 @@
 ## records what it receives, a fake curl answers Slack; every run is an `env -i` child
 ## refusing to run outside this rig's mktemp tree.
 set -u
-. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-store.include.sh" || exit 1
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-writes.include.sh" || exit 1
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigHere="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib"
 rigTest="${rigHere%/sh-lib}/sh-test"

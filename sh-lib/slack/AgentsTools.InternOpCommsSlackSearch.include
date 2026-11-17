@@ -120,10 +120,7 @@ case "$1" in
 				routine-*)
 				;;
 				*)
-					if [ ! -d "$MDAT_SKILLSET_ROOT/$memberName" ] ; then
-						echo "⛔ ERROR: $MDSC_CMD --slack-search-messages: no such member skill directory: $MDAT_SKILLSET_ROOT/$memberName" >&2
-						set +e ; return 1
-					fi
+					AgentsToolsSlackMemberPresent "$memberName" --slack-search-messages || { set +e ; return 1 ; }
 				;;
 			esac
 			local target="$1"

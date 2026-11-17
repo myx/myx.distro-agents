@@ -18,6 +18,9 @@ rigRefuse(){
 rigTmp="$( rigTempDir AgentsSweepConcurrencyCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
+## The sweep sources Parallel and cloneSync through $MYXROOT, which it resolves from PATH: each sweep below runs under env -i, so it is given here.
+rigMyxRoot="$( myx.common which lib/catMarkdown 2> /dev/null )" ; rigMyxRoot="${rigMyxRoot%/bin/lib/catMarkdown*}"
+[ -n "$rigMyxRoot" ] || rigRefuse "myx.common answers no lib/catMarkdown, so no sweep could source Parallel"
 
 rigPassCount=0
 rigFailCount=0
@@ -40,9 +43,9 @@ for rigEntry in "$MDLT_ORIGIN"/myx/* ; do
 	[ "${rigEntry##*/}" = myx.distro-agents ] || rigCopyTree "$rigEntry" "$rigSerial/myx/${rigEntry##*/}"
 done
 cp -R "$rigPackage" "$rigSerial/myx/myx.distro-agents"
-sed -i.rig -E 's/Parallel( --workers [0-9]+)? AgentsToolsMagicSweepAccountOne/Parallel --workers 1 AgentsToolsMagicSweepAccountOne/' "$rigSerial/myx/myx.distro-agents/sh-lib/magic/AgentsTools.MagicSweep.include"
-sed -i.rig -E 's/Parallel( --workers [^ ]+)? AgentsSessionContextSourceFetchOne/Parallel --workers 1 AgentsSessionContextSourceFetchOne/' "$rigSerial/myx/myx.distro-agents/sh-lib/session/AgentsTools.InternOpSessionContextScan.include"
-rigHeld="$( cat "$rigSerial/myx/myx.distro-agents/sh-lib/magic/AgentsTools.MagicSweep.include" "$rigSerial/myx/myx.distro-agents/sh-lib/session/AgentsTools.InternOpSessionContextScan.include" | LC_ALL=C grep -c 'Parallel --workers 1' || : )"
+sed -i.rig -E 's/Parallel( --workers [0-9]+)? AgentsToolsMagicSweepAccountOne/Parallel --workers 1 AgentsToolsMagicSweepAccountOne/' "$rigSerial/myx/myx.distro-agents/sh-lib/magic/AgentsTools.InternOpSweepInputScan.include"
+sed -i.rig -E 's/Parallel( --workers [^ ]+)? AgentsSessionContextSourceFetchOne/Parallel --workers 1 AgentsSessionContextSourceFetchOne/' "$rigSerial/myx/myx.distro-agents/sh-lib/session/AgentsTools.ContextScanComms.include"
+rigHeld="$( cat "$rigSerial/myx/myx.distro-agents/sh-lib/magic/AgentsTools.InternOpSweepInputScan.include" "$rigSerial/myx/myx.distro-agents/sh-lib/session/AgentsTools.ContextScanComms.include" | LC_ALL=C grep -c 'Parallel --workers 1' || : )"
 [ "$rigHeld" = 2 ] || rigRefuse "the serial copy did not hold both Parallel sites to one worker (found $rigHeld), so no serial run could be compared"
 
 ## The control that the identity assertion can fail: a copy that consumes the prefetched
@@ -61,12 +64,12 @@ sed -i.rig -e 's/^\([[:space:]]*\)printf .read\\n. > "\$sourcePrefetchDir\/state
 \1printf "%s\\n" "$1" >> "$sourcePrefetchDir\/finished"/' \
 	-e 's/^\([[:space:]]*\)sourceIndex=\$(( sourceIndex + 1 ))$/&\
 \1sourceRead="$( sed -n "$(( sourceIndex + 1 ))p" "$sourcePrefetchDir\/finished" 2>\/dev\/null )" ; [ -n "$sourceRead" ] || sourceRead=$sourceIndex/' \
-	"$rigMisordered/myx/myx.distro-agents/sh-lib/session/AgentsTools.InternOpSessionContextScan.include"
-LC_ALL=C grep -q 'sourcePrefetchDir/finished"$' "$rigMisordered/myx/myx.distro-agents/sh-lib/session/AgentsTools.InternOpSessionContextScan.include" \
+	"$rigMisordered/myx/myx.distro-agents/sh-lib/session/AgentsTools.ContextScanComms.include"
+LC_ALL=C grep -q 'sourcePrefetchDir/finished"$' "$rigMisordered/myx/myx.distro-agents/sh-lib/session/AgentsTools.ContextScanComms.include" \
 	|| rigRefuse "the misordered copy does not record the order its reads finished in"
 sed -i.rig 's/\$sourcePrefetchDir\/\([a-z]*\)\.\$sourceIndex/$sourcePrefetchDir\/\1.$sourceRead/g' \
-	"$rigMisordered/myx/myx.distro-agents/sh-lib/session/AgentsTools.InternOpSessionContextScan.include"
-rigReordered="$( LC_ALL=C grep -c 'sourcePrefetchDir/[a-z]*\.\$sourceRead' "$rigMisordered/myx/myx.distro-agents/sh-lib/session/AgentsTools.InternOpSessionContextScan.include" || : )"
+	"$rigMisordered/myx/myx.distro-agents/sh-lib/session/AgentsTools.ContextScanComms.include"
+rigReordered="$( LC_ALL=C grep -c 'sourcePrefetchDir/[a-z]*\.\$sourceRead' "$rigMisordered/myx/myx.distro-agents/sh-lib/session/AgentsTools.ContextScanComms.include" || : )"
 [ "$rigReordered" -gt 0 ] || rigRefuse "the misordered copy reads no prefetched file out of order, so it could not show the identity check failing"
 
 ## Histories carry a message stamped now, inside any cut-off the scan applies.
@@ -89,7 +92,7 @@ rigSweep(){ ## name, origin
 	done
 	local sweepStart sweepRc=0
 	sweepStart="$( date +%s )"
-	env -i MDAT_WORKSPACE_MODE=team-rig HOME="$sweepDir/home" PATH="$sweepDir/bin:/usr/bin:/bin" MMDAPP="$sweepDir/ws" MDAT_DATA_ROOT="$sweepDir/data" \
+	env -i MDAT_WORKSPACE_MODE=team-rig MYXROOT="$rigMyxRoot" HOME="$sweepDir/home" PATH="$sweepDir/bin:/usr/bin:/bin" MMDAPP="$sweepDir/ws" MDAT_DATA_ROOT="$sweepDir/data" \
 		MDLT_ORIGIN="$2" MDLT_OPTION="--run-from-path $2" FIX_DIR="$sweepDir" FIX_LATENCY=0.3 FIX_DMS=30 FIX_TS="$rigNow" RIG_TMP="$rigTmp" \
 		bash -c '
 			case "$MMDAPP" in "$RIG_TMP"/*) ;; *) exit 99 ;; esac

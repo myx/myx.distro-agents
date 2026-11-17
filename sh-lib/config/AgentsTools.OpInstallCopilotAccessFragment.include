@@ -54,7 +54,7 @@
 		## One line so `local` masks grep's exit 1 on a legitimately empty member set.
 		local memberCount="$( AgentsToolsClientAccessRootsMembers readable | grep -c '' )"
 		if [ "$memberCount" -lt 1 ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --install-copilot-access-fragment: no member skill directories resolved under $MDAT_SKILLSET_ROOT -- refusing to write a copilot fragment with no member grants" >&2
+			echo "⛔ ERROR: $MDSC_CMD --install-copilot-access-fragment: this workspace resolved no member skillset directories -- refusing to write a copilot fragment with no member grants" >&2
 			set +e ; return 1
 		fi
 

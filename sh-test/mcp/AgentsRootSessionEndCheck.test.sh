@@ -65,7 +65,7 @@ rigHookRun(){ ## mode, payload, extra env assignments... -- the hook as a client
 	rigHookRc=$?
 }
 rigEnded(){ ## session id -- ended or open, by AgentsToolsGrantsSessionEnded
-	env -i MDAT_WORKSPACE_MODE=team-rig PATH="$rigPath" MDLT_ORIGIN="$MDLT_ORIGIN" bash -c '. "$1/AgentsTools.Grants.include" && AgentsToolsGrantsSessionEnded "$2"' rig "$rigHere/grants" "$rigSessions/$1" \
+	env -i MDAT_WORKSPACE_MODE=team-rig PATH="$rigPath" MDLT_ORIGIN="$MDLT_ORIGIN" bash -c '. "$1/AgentsTools.Grants.include" && AgentsToolsGrantsSessionEnded "$2" "$3"' rig "$rigHere/grants" "$1" "$rigWs" \
 		&& printf ended || printf open
 }
 rigScan(){ ## session id -- what a session grant scan of its store finds for keeper-rig, Read /rig/target

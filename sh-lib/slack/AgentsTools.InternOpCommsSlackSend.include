@@ -163,6 +163,32 @@ AgentsToolsCommsSlackUnreachableReport(){ ## the addressees, the sending member
 }
 
 ## between `*_` and `_*`, never by its alias.
+## The last sends of this run, kept by the send that makes them: one message is sent once, which is the sender's problem.
+## The store answers every path into a session's folder (AgentsSessionFolderInto), so no part of it is built here, and the
+## repeat guard reads them with no process.
+
+## A run's last sends into the named variable, a line each: `<epoch>\t<place>\t<cksum of the body>`. Nothing for none.
+AgentsSessionSentRecentInto(){ ## variable, session
+	local recentFolder="" recentLine recentAll=""
+	printf -v "$1" '%s' ""
+	case "${2:-}" in ''|-|.|..|*/*|*[[:space:]]*) return 0 ;; esac
+	type AgentsSessionFolderInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+	AgentsSessionFolderInto recentFolder "${MMDAPP:-}" "$2" || return 0
+	[ -f "$recentFolder/sent.recent" ] || return 0
+	while IFS= read -r recentLine ; do recentAll="$recentAll$recentLine"$'\n' ; done < "$recentFolder/sent.recent"
+	printf -v "$1" '%s' "$recentAll"
+}
+
+## Adds one send to a run's last sends, keeping the last fifty.
+AgentsSessionSentRecentAdd(){ ## session, epoch, place, cksum of the body
+	local recentFolder=""
+	case "${1:-}" in ''|-|.|..|*/*|*[[:space:]]*) return 0 ;; esac
+	type AgentsSessionFolderInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+	AgentsSessionFolderInto recentFolder "${MMDAPP:-}" "$1" || return 0
+	{ [ ! -f "$recentFolder/sent.recent" ] || tail -n 49 "$recentFolder/sent.recent" ; printf '%s\t%s\t%s\n' "$2" "$3" "$4" ; } > "$recentFolder/sent.recent.tmp" 2> /dev/null && mv -f "$recentFolder/sent.recent.tmp" "$recentFolder/sent.recent" 2> /dev/null || :
+	return 0
+}
+
 AgentsToolsCommsSlackAliasShown(){ ## name as the line shows it, alias
 	type AgentsToolsAssertBareName > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.BareName.include"
 	[ "$2" = "$1" ] || printf '@%s' "$2"
@@ -182,16 +208,12 @@ case "$1" in
 			set +e ; return 1
 		fi
 		AgentsToolsAssertBareName "$memberName" "<team-member>" slack-send-message || { set +e ; return 1 ; }
-		local memberDir="$MDAT_SKILLSET_ROOT/$memberName"
 		## A routine, and a person at a console (user-<account>, F6.10, F11.6), have no skill folder: neither is a member.
 		case "$memberName" in
 			routine-*|user-*)
 			;;
 			*)
-				if [ ! -d "$memberDir" ] ; then
-					echo "⛔ ERROR: $MDSC_CMD --slack-send-message: no such member skill directory: $memberDir" >&2
-					set +e ; return 1
-				fi
+				AgentsToolsSlackMemberPresent "$memberName" --slack-send-message || { set +e ; return 1 ; }
 			;;
 		esac
 		local target="$1"
@@ -324,7 +346,7 @@ case "$1" in
 			fi
 		fi
 		AgentsToolsEmitRequestDetailHeader "$memberName" "$target"
-		local resolved rc channel="" threadTs="" failoverRouting=""
+		local resolved rc channel="" threadTs="" failoverRouting="" addressSessionId=""
 		resolved="$( DistroAgentsToolsResolveTarget "$target" "$memberName" )" && rc=0 || rc=$?
 		case "$rc" in
 			0)
@@ -338,6 +360,9 @@ case "$1" in
 					channel="$targetUserId"
 				fi
 				threadTs="$( printf '%s\n' "$resolved" | sed -n 's/^THREAD_TS=//p' )"
+				## A SESSION ADDRESS NAMES ITS SESSION BY ID (S12.15, S12.29): the resolver read it from the session store, so the copy
+				## into that session's chat file is made by the id given, never by matching thread files across workspaces.
+				addressSessionId="$( printf '%s\n' "$resolved" | sed -n 's/^SESSION_ID=//p' )" || addressSessionId=""
 				## THE ROOT-NATIVE PRINTBACK KIND THROUGH A SESSION ADDRESS (F2.3): where a session's
 				## external side is its printback channel, session-current and session-parent resolve to
 				## `printback:<session>` and the message goes by that driver, exactly as one naming the
@@ -385,7 +410,7 @@ case "$1" in
 		## The human-owner's account: magic-team's SLACK_CHANNEL_HUMAN_OWNER where that is an account id, else the mention cache.
 		type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/settings/AgentsTools.ConfigOption.include"
 		outsideOwner="$( AgentsToolsConfigOption magic-team --select SLACK_CHANNEL_HUMAN_OWNER 2> /dev/null )" || outsideOwner=""
-		case "$outsideOwner" in [UW][A-Z0-9]*) ;; *) outsideOwner="$( AgentsSlackIdentityOwnerId )" ;; esac
+		case "$outsideOwner" in [UW][A-Z0-9]*) ;; *) outsideOwner="$( AgentsSlackIdentityId human-owner )" ;; esac
 		case "$channel" in D[A-Z0-9]*)
 			case "$memberName" in client-*) ;; *)
 				local outsideInfo="" outsideAuthor="" outsideRead=""
@@ -452,17 +477,26 @@ case "$1" in
 		## post under one name and one alias, and the owner could not tell which spoke. The origin travels in the metadata here
 		## and in the author line below, as `@alias/origin`, a form `memberSendHeaderLength` accepts (`@[^ ]+`) and the mention
 		## converter skips (a slash is outside a member name).
-		local sendOrigin="" sendOriginRecord="${MDAT_SPAWN_SANDBOX_ROOT:-}/${MDAT_SPAWN_SESSION_ID:-}.spawn.md" sendOriginLine="" sendOriginN=0
-		if [ -n "${MDAT_SPAWN_SESSION_ID:-}" ] && [ -f "$sendOriginRecord" ] ; then
-			while IFS= read -r sendOriginLine && [ "$sendOriginN" -lt 60 ] ; do
+		local sendOrigin="" sendOriginRecord="" sendOriginLine="" sendOriginN=0
+		if [ -n "${MDAT_SPAWN_SESSION_ID:-}" ] ; then
+			## Its own sandbox record: a spawned run keeps one there. A session minted by a root harness keeps none, so its routine is
+			## the one its mint wrote in the session's own folder. Both are one file at a known path: a send is a call path, and it
+			## never walks the store to find a record.
+			sendOriginRecord="${MDAT_SPAWN_SANDBOX_ROOT:+$MDAT_SPAWN_SANDBOX_ROOT/}$MDAT_SPAWN_SESSION_ID.spawn.md"
+			[ -f "$sendOriginRecord" ] || sendOriginRecord=""
+			[ -z "$sendOriginRecord" ] || while IFS= read -r sendOriginLine && [ "$sendOriginN" -lt 60 ] ; do
 				sendOriginN=$(( sendOriginN + 1 ))
 				case "$sendOriginLine" in
 					'routine: '*) sendOrigin="${sendOriginLine#routine: }" ; break ;;
 				esac
 			done < "$sendOriginRecord"
+			if [ -z "$sendOrigin" ] ; then
+				type AgentsToolsRootHarnessRoutineInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/routine/AgentsTools.RoutineRootHarness.include"
+				AgentsToolsRootHarnessRoutineInto sendOrigin "$MDAT_SPAWN_SESSION_ID" "${MMDAPP:-}" || sendOrigin=""
+			fi
 			sendOrigin="${sendOrigin%.routine.md}" ; sendOrigin="${sendOrigin#*.}"
 			case "$sendOrigin" in *[!A-Za-z0-9._-]*) sendOrigin="" ;; esac
-		elif [ -z "${MDAT_SPAWN_SESSION_ID:-}" ] ; then
+		else
 			sendOrigin="console"
 		fi
 		[ -z "$sendOrigin" ] || sendTracking="$sendTracking,\"origin\":\"$sendOrigin\""
@@ -841,6 +875,8 @@ blocks|verbatim|caller|stdin file"
 				case "$replyAuthor" in U[A-Z0-9][A-Z0-9]*) ;; *) replyAuthor="" ;; esac
 				## A message a bot posted (the team's own bot, an integration) answers to no person: the addressee stays the caller's.
 				! printf '%s' "$rpMessage" | LC_ALL=C grep -q -E '"bot_id":"|"subtype":"bot_message"' || replyAuthor=""
+				## Nor does one Slack itself posted to: USLACKBOT is Slack's own account, in no member's row and no contact's.
+				case "$replyAuthor" in USLACKBOT) replyAuthor="" ;; esac
 				## A message the sending member posted itself answers to no person either: its own account is never a contact to check.
 				[ -z "$replyAuthor" ] || [ "$replyAuthor" != "$( AgentsToolsCommsSlackMentionUserId "$memberName" 2> /dev/null )" ] || replyAuthor=""
 				## Nor does one the team bot's own account posted (a session root, a console's message): the bot is the team, never a contact.
@@ -850,7 +886,7 @@ blocks|verbatim|caller|stdin file"
 						| LC_ALL=C awk -v path=user_id -v optional=1 -v dialect=slack -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" 2> /dev/null )" || replyBotId=""
 					[ -z "$replyBotId" ] || [ "$replyAuthor" != "$replyBotId" ] || replyAuthor=""
 				fi
-				if [ -n "$replyAuthor" ] && AgentsSlackIdentityKnown "$replyAuthor" && [ "$replyAuthor" != "$( AgentsSlackIdentityOwnerId )" ] ; then
+				if [ -n "$replyAuthor" ] && AgentsSlackIdentityKnown "$replyAuthor" && [ "$replyAuthor" != "$( AgentsSlackIdentityId human-owner )" ] ; then
 					replyAuthor=""
 				fi
 			fi
@@ -1049,7 +1085,7 @@ blocks|verbatim|caller|stdin file"
 						fi
 					fi
 					if ! AgentsToolsAssertBareName "$addrWho" "--address-to" slack-send-message 2> /dev/null || ! AgentsToolsTeamMemberDirectory "$addrWho" > /dev/null ; then
-						echo "⛔ ERROR: $MDSC_CMD --slack-send-message: --address-to '$addrWho': no such team member and no contact of that id -- expected $MDAT_SKILLSET_ROOT/$addrWho or a contact id the store holds. The word is no Slack id either: an account is U and a conversation C, D or G, then upper-case letters and digits only, nine characters or more in all. Nothing was sent. NEXT: a reply needs no --address-to, it goes to the author of the message it answers -- send it again without it. A person: address their account as it stands on their message (its user, or user_record in --slack-read), never a name; DistroAgentsContacts.fn.sh --find-contact <word> shows whether a contact is meant." >&2
+						echo "⛔ ERROR: $MDSC_CMD --slack-send-message: --address-to '$addrWho': no such team member and no contact of that id -- expected a team member the tooling holds, or a contact id the store holds. The word is no Slack id either: an account is U and a conversation C, D or G, then upper-case letters and digits only, nine characters or more in all. Nothing was sent. NEXT: a reply needs no --address-to, it goes to the author of the message it answers -- send it again without it. A person: address their account as it stands on their message (its user, or user_record in --slack-read), never a name; DistroAgentsContacts.fn.sh --find-contact <word> shows whether a contact is meant." >&2
 						set +e ; return 1
 					fi
 					## Inside our own team an addressee is shown as a sender is (AgentsToolsCommsSlackMemberTeamPresentation); a member with no row reads as its name.
@@ -1342,7 +1378,6 @@ blocks|verbatim|caller|stdin file"
 		local sentBody="${messageText:-$sourceText}"
 		if [ -z "$sendAgain" ] && [ -n "${MDAT_SPAWN_SESSION_ID:-}" ] && [ -n "$sentBody" ] ; then
 			local sentRecent="" sentKey sentAt sentTo sentText sentSum sentNow
-			type AgentsSessionSentRecentInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
 			AgentsSessionSentRecentInto sentRecent "$MDAT_SPAWN_SESSION_ID"
 			sentSum="$( printf '%s' "$sentBody" | LC_ALL=C cksum )" ; sentSum="${sentSum%% *}"
 			sentKey="${channel}:${threadTs}"
@@ -1470,7 +1505,7 @@ blocks|verbatim|caller|stdin file"
 			type AgentsToolsSessionChatDeliverCopy > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include"
 			AgentsToolsSessionChatKeyInto
 			! type AgentsToolsSessionChatDeliverCopy > /dev/null 2>&1 \
-				|| chatCopies="$( AgentsToolsSessionChatDeliverCopy "$agentsSessionChatKey" "$memberName" "$addressToList" "$channel:$threadTs" "$chatBody" 2> /dev/null )" || chatCopies=""
+				|| chatCopies="$( AgentsToolsSessionChatDeliverCopy "$agentsSessionChatKey" "$memberName" "$addressToList" "$channel:$threadTs" "$chatBody" "${addressSessionId:-}" 2> /dev/null )" || chatCopies=""
 		fi
 		## THE SESSION THREAD IS ASYNC (owner 2026-10-28), for a caller that asks (MDAT_SEND_ASYNC=true, the SendMessage tool): a post
 		## to the run's own session thread, recorded above, goes to the session's outbox while the comms reader runs, and the call

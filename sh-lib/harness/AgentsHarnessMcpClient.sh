@@ -229,7 +229,7 @@ AgentsHarnessMcpRun(){ ## server name, wall-clock bound in whole seconds, awaite
 	}
 	read -r harnessMcpStatus < "$harnessScratch/mcp.exited" || :
 
-	[ ! -s "$harnessScratch/mcp.err" ] || harnessMcpDiag="$( LC_ALL=C awk -v progressLineCap=200 -f "$harnessHere/session/AgentsProgressLineSafe.awk" < "$harnessScratch/mcp.err" )"
+	[ ! -s "$harnessScratch/mcp.err" ] || harnessMcpDiag="$( LC_ALL=C awk -v progressLineCap=200 -f "$harnessHere/core/AgentsProgressLineSafe.awk" < "$harnessScratch/mcp.err" )"
 
 	if [ -f "$harnessScratch/mcp.timedout" ] ; then
 		harnessMcpFault="it did not answer within $runBound seconds and was killed${harnessMcpDiag:+ (it said: $harnessMcpDiag)}"

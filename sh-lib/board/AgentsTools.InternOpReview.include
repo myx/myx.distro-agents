@@ -25,7 +25,7 @@ case "$1" in
 		shift
 		MDSC_CMD="$MDSC_CMD $reviewOp"
 		agentsReviewExecute=""
-		local reviewWho="${1:-}" reviewItem="" reviewNew="" reviewText="" reviewReason="" reviewSession="" reviewDismiss=yes reviewStdin=""
+		local reviewWho="${1:-}" reviewItem="" reviewNew="" reviewText="" reviewReason="" reviewSession="" reviewDismiss=yes reviewStdin="" reviewRung=""
 		[ $# -eq 0 ] || shift
 		case "$reviewVerb" in
 			handback|shutdown|next) ;;
@@ -87,11 +87,21 @@ case "$1" in
 				fi
 			;;
 			--accept-review|--return-review|--reject-review|--follow-up-review)
+				type AgentsToolsDecisionsItemPath > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemDecisions.include"
+				type AgentsToolsItemReviewer > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemReviewer.include"
 				if [ "$reviewWho" != magic-coordinator ] && reviewPath="$( AgentsToolsDecisionsItemPath "$reviewItem" )" && ! AgentsToolsItemIsReviewer "$reviewPath" "$reviewWho" ; then
-					type AgentsToolsItemReviewer > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemReviewer.include"
 					reviewPath="$( AgentsToolsItemReviewer "$reviewPath" )"
 					echo "$MDSC_CMD: ⛔ ERROR: ${reviewItem%.md} is reviewed by ${reviewPath:-magic-coordinator}, and $reviewWho is not that reviewer here, so it gives no verdict on it (magic-coordinator, reviewer of last resort, gives it on any item with $reviewOp)" >&2
 					set +e ; return 1
+				fi
+				## NO RUNG IS SKIPPED (S6.28): a review climbs the reviewer and the parent, then the duty, then
+				## the human-owner. The duty's verdict waits while a rung below it can still take the review.
+				if [ "$reviewWho" = magic-coordinator ] && reviewPath="$( AgentsToolsDecisionsItemPath "$reviewItem" )" ; then
+					reviewRung="$( AgentsToolsItemReviewerParentRung "$reviewPath" )" || reviewRung=""
+					if [ -n "$reviewRung" ] ; then
+						echo "$MDSC_CMD: ⛔ ERROR: ${reviewItem%.md} is reviewed by $reviewRung, whose rung comes first, so no verdict of magic-coordinator on it: the review climbs the reviewer and the parent, then the duty, then the human-owner (S6.28). The item stays in review." >&2
+						set +e ; return 1
+					fi
 				fi
 			;;
 		esac

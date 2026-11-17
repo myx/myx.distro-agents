@@ -23,11 +23,6 @@
 ## is applied. Sourced from AgentDispatcherTools.fn.sh's arm for the name; relies on $1/$@/$MDSC_CMD.
 ##
 
-## How many `## <feature-id> ` headings stand in an epic file.
-AgentsToolsMagicEpicFeatureCount(){ ## file, feature-id
-	LC_ALL=C awk -v want="## $2 " 'index( $0, want ) == 1 { n++ } END { print n + 0 }' "$1"
-}
-
 ## What a closed feature holds now, for its one line in `## Done`: the last line of its own body that is neither
 ## blank nor a `Status:` line, the `**Settled <date> (<owner>).** ` stamp taken off where one stands; else its own
 ## heading's title, without the separator after the id. Printed, one line.
@@ -45,7 +40,7 @@ AgentsToolsMagicEpicDoneText(){ ## file, feature-id
 ## An epic is written only as magic-coordinator, which owns it. Any member reads one, with no ask.
 AgentsToolsMagicEpicCaller(){ ## the operation, write (the default) or read
 	[ "${2:-write}" != read ] || return 0
-	type AgentsToolsSurfaceCaller > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.CoordinatorSurface.include"
+	type AgentsToolsSurfaceCaller > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.CoordinatorSurface.include"
 	AgentsToolsSurfaceCaller "$1" write
 }
 
@@ -152,7 +147,7 @@ case "$1" in
 				if [ -n "$statusItemN" ] ; then
 					[ "$featureStatus" = done ] || { echo "⛔ ERROR: $MDSC_CMD --epic-update --set-status: only done closes an item: <feature-id>.<n> done <text...>" >&2 ; set +e ; return 1 ; }
 					[ $# -gt 0 ] || { echo "⛔ ERROR: $MDSC_CMD --epic-update --set-status: the closed item's text is needed" >&2 ; set +e ; return 1 ; }
-					[ "$( AgentsToolsMagicEpicFeatureCount "$epicFile" "$featureId" )" -eq 1 ] || {
+					[ "$( LC_ALL=C awk -v want="## $featureId " 'index( $0, want ) == 1 { n++ } END { print n + 0 }' "$epicFile" )" -eq 1 ] || {
 						echo "⛔ ERROR: $MDSC_CMD --epic-update --set-status: feature $featureId must stand exactly once in $epicFile" >&2
 						set +e ; return 1
 					}
@@ -196,7 +191,7 @@ case "$1" in
 					set +e ; return 0
 				fi
 				[ $# -eq 0 ] || { echo "⛔ ERROR: $MDSC_CMD --epic-update --set-status: invalid option: $1 -- the status is one line, passed as one argument" >&2 ; set +e ; return 1 ; }
-				[ "$( AgentsToolsMagicEpicFeatureCount "$epicFile" "$featureId" )" -eq 1 ] || {
+				[ "$( LC_ALL=C awk -v want="## $featureId " 'index( $0, want ) == 1 { n++ } END { print n + 0 }' "$epicFile" )" -eq 1 ] || {
 					echo "⛔ ERROR: $MDSC_CMD --epic-update --set-status: feature $featureId must stand exactly once in $epicFile" >&2
 					set +e ; return 1
 				}
@@ -268,7 +263,7 @@ case "$1" in
 				local settledText settledLine
 				settledText="$( printf '%s ' "$@" | LC_ALL=C sed 's/ $//' )"
 				[ -n "$settledText" ] || { echo "⛔ ERROR: $MDSC_CMD --epic-update --add-settled: the settled text is needed" >&2 ; set +e ; return 1 ; }
-				[ "$( AgentsToolsMagicEpicFeatureCount "$epicFile" "$featureId" )" -eq 1 ] || {
+				[ "$( LC_ALL=C awk -v want="## $featureId " 'index( $0, want ) == 1 { n++ } END { print n + 0 }' "$epicFile" )" -eq 1 ] || {
 					echo "⛔ ERROR: $MDSC_CMD --epic-update --add-settled: feature $featureId must stand exactly once in $epicFile. A rule is added under its feature with --add-settled, and an item is closed with --set-status <feature-id>.<n> done <text...>" >&2
 					set +e ; return 1
 				}
@@ -334,7 +329,7 @@ case "$1" in
 		if [ -z "$readFeature" ] ; then
 			cat -- "$readFile" || { set +e ; return 1 ; }
 		else
-			[ "$( AgentsToolsMagicEpicFeatureCount "$readFile" "$readFeature" )" -eq 1 ] || {
+			[ "$( LC_ALL=C awk -v want="## $readFeature " 'index( $0, want ) == 1 { n++ } END { print n + 0 }' "$readFile" )" -eq 1 ] || {
 				echo "⛔ ERROR: $MDSC_CMD --epic-read: feature $readFeature must stand exactly once in $readFile" >&2
 				set +e ; return 1
 			}

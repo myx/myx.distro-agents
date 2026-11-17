@@ -471,7 +471,7 @@ rigToolingList(){
 		'sh-lib/manager/AgentsManagerScreen.Reads.py|1|call["process"].kill()|@uncollected' \
 		'sh-lib/manager/AgentsManagerScreen.Terminal.py|1|os.killpg(process.pid, signal.SIGCONT)|@uncollected' \
 		'sh-lib/manager/AgentsManagerScreen.Reads.py|1|os.killpg(call["process"].pid, number)|@uncollected' \
-		'sh-lib/session/AgentsTools.ConsoleSession.include|1|= "$signalLine" ] && kill "-$1" "$signalPid"|@file-start' \
+		'sh-lib/manager/AgentsTools.ConsoleSession.include|1|= "$signalLine" ] && kill "-$1" "$signalPid"|@file-start' \
 		'sh-lib/mcp/AgentsTools.InternMcpRequest.include|1|kill "$beatSleep"|@live-sleep' \
 		'sh-lib/mcp/AgentsTools.InternMcpRequest.include|1|kill -TERM -- "-$3"|@probed' \
 		'sh-lib/mcp/AgentsTools.InternMcpRequest.include|1|AgentsToolsRunGroupBegan "$watchBegan" 2> /dev/null )" && { : > "$3" ; kill -TERM -- "-$2"|@own-group' \
@@ -492,7 +492,7 @@ rigToolingList(){
 		'sh-lib/spawn/AgentsTools.InternOpAgentSpawnProxy.include|1|kill -KILL "$spawnPid"|@probed' \
 		'sh-lib/manager/AgentsTools.ManagerCheck.include|1|kill -TERM $endFound|the polite end of a check past its bound, at once, to what AgentsToolsRunGroupLeft gave at that moment: the check while it is still the process that began when it was started, and every process it started that stayed in its group, each by its own pid, never the group by its number' \
 		'sh-lib/manager/AgentsTools.ManagerCheck.include|1|kill -KILL $endLeft|the hard end of a check past its bound, two seconds after the polite one, at once, to what AgentsToolsRunGroupLeft gave at that moment: of the processes signalled, those that are still the processes they were, each kept with when it began, and what those started since, each by its own pid' \
-		'sh-lib/session/AgentsTools.ManagerRunActivity.include|1|kill -TERM "$hostPid"|@probed' \
+		'sh-lib/manager/AgentsTools.ManagerRunActivity.include|1|kill -TERM "$hostPid"|@probed' \
 		'sh-lib/run/AgentsTools.ManagerSessionKill.include|2|kill -TERM "$killPid"|@walk-now' \
 		'sh-lib/run/AgentsTools.ManagerSessionKill.include|1|kill -KILL "$killPid"|@walk-now' \
 		'sh-lib/slack/AgentsTools.MemberCommsSlackPresence.include|1|pkill -TERM -f "$presenceMatch"|a sweep by the command line of the tooling'"'"'s own presence holder for one key, its script and that key: no pid is kept, and whatever else carries both on its command line is reached too' \
@@ -542,6 +542,7 @@ rigToolingList(){
 		'sh-lib/member/AgentsTools.Incoming.include|1|kill -TERM -- "-$syncPid"|@probed' \
 		'sh-lib/member/AgentsTools.Incoming.include|1|kill -TERM "$syncPid"|@probed' \
 		'sh-lib/supervise/AgentsTools.SuperviseClose.include|1|kill -TERM "$closePid"|the pid a run keeps in its `<pid> <start>` file under spawned/, signalled on the one branch where AgentsToolsRunProcessesBegan, read three lines above, gave the start the file holds; a file with no start, or a start that differs, takes another branch and sends nothing' \
+		'sh-lib/supervise/AgentsTools.SuperviseClose.include|1|kill -KILL "$closePid"|the harder signal of the same branch, one pass later: the note beside the pid file names that very pid and began moment, read in the same pass by AgentsSessionRigTermNoteInto, which says `same` only for the run the pid file and the process both give; a note naming another process is removed and takes this branch with it' \
 		'sh-scripts/DistroAgentsDispatcher.fn.sh|1|kill -TERM "${stopHolder%% *}"|the schedule thread that holds `thread.lock`, kept there as `<pid> <start>` by one write as it took the lock, and signalled only when AgentsToolsThreadLockHolderLives, in the statement before, found that pid still the process that began then (AgentsToolsRunProcessesBegan); its other answers, gone or alive with no start to compare, send nothing'
 }
 ## THE READER. A signal is the word of a command that sends one, where it stands as a command: first of its line,

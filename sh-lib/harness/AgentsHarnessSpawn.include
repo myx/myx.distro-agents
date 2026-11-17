@@ -709,13 +709,14 @@ AgentsHarnessToolTaskStop(){ ## handle, force, task_id, shell_id
 	printf 'STOP-RESULT: NOT-STOPPED\n%s.\nTERM and then KILL were both sent, and pid(s) %s are STILL present. This session was NOT stopped -- report it rather than working around it.\n' "$stopOf" "$( printf '%s' "$survivors" | tr '\n' ' ' )"
 }
 
-## Whether this run is a work duty, as its own spawn record names its routine (`<member>.work-duty.routine.md`): rc 0 it is.
+## Whether this run is a duty, as its own spawn record names its routine (AgentsToolsDutyRoutineIs: `<member>.work-duty.routine.md`
+## or `<member>.off-duty.routine.md`): rc 0 it is.
 AgentsHarnessWorkDuty(){
 	local dutyRecord=""
 	AgentsSessionRunRecordInto dutyRecord "${MDAT_SPAWN_SESSION_ID:-}" || return 1
-	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandboxRecordHeader.include" || return 1
-	case "$( AgentsToolsSpawnSandboxRecordHeader "$dutyRecord" routine )" in *.work-duty.routine.md) return 0 ;; esac
-	return 1
+	type AgentsToolsFrontmatterKey > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.FrontmatterKey.include" || return 1
+	type AgentsToolsDutyRoutineIs > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/routine/AgentsTools.DutyRoutine.include" || return 1
+	AgentsToolsDutyRoutineIs "$( AgentsToolsFrontmatterKey "$dutyRecord" routine )"
 }
 
 ## Whether another run of this run's session is still going (sketch 5.3: "Same for any executor of any routine - whatever it is done - it is not
@@ -728,10 +729,10 @@ AgentsHarnessOthersRunning(){
 	local othersRecord othersSession othersRecords othersFile
 	if [ -n "${MDAT_SPAWN_SESSION_ID:-}" ] ; then
 		AgentsSessionRunRecordInto othersRecord "$MDAT_SPAWN_SESSION_ID" || return 1
-		type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandboxRecordHeader.include" || return 1
+		type AgentsToolsFrontmatterKey > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.FrontmatterKey.include" || return 1
 		## An executor is a member spawned or joined into a session; a helper brought in under its caller (`inline`) hands back and may end.
-		case "$( AgentsToolsSpawnSandboxRecordHeader "$othersRecord" start-context )" in spawned|joined) ;; *) return 1 ;; esac
-		othersSession="$( AgentsToolsSpawnSandboxRecordHeader "$othersRecord" session-id )"
+		case "$( AgentsToolsFrontmatterKey "$othersRecord" start-context )" in spawned|joined) ;; *) return 1 ;; esac
+		othersSession="$( AgentsToolsFrontmatterKey "$othersRecord" session-id )"
 		[ -n "$othersSession" ] || return 1
 		type AgentsReviewChildLive > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ReviewFlow.include"|| return 1
 		## The session's records from the kept per-session list (AgentsTools.StartedRecords.include), never a grep of every record on a harness call.
@@ -757,7 +758,7 @@ AgentsHarnessOthersRunning(){
 ## send would not take the name as an addressee: a default never fails a handback.
 AgentsHarnessCallerMember(){
 	local callerMember=""
-	type AgentsToolsSessionParentMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionThreads.include"
+	type AgentsToolsSessionParentMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.SessionThreads.include"
 	type AgentsToolsTeamMemberDirectory > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamRegistry.include"
 	callerMember="$( AgentsToolsSessionParentMember 2> /dev/null )" || return 0
 	## The bare name the member send itself holds an addressee to.

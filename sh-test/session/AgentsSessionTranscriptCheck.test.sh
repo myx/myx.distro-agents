@@ -306,7 +306,7 @@ rigStreamT="$rigStore/audit/2026-10/session-stream.log"
 	printf '%s\n' '{"type":"result","subtype":"success","is_error":false,"num_turns":2,"result":"All done.","session_id":"cli-1","total_cost_usd":0.0123,"usage":{"input_tokens":13,"cache_creation_input_tokens":100,"cache_read_input_tokens":2200,"output_tokens":47}}'
 } > "$rigTmp/stream.jsonl"
 rigStreamAwk(){
-	LC_ALL=C awk -f "$rigHere/session/AgentsProgressLineSafe.awk" -f "$rigFormat" -f "$rigHere/harness/AgentsClaudeStreamJsonTranscript.awk" -f "$rigHere/harness/AgentsClaudeStreamJsonFormat.awk" < "$rigTmp/stream.jsonl"
+	LC_ALL=C awk -f "$rigHere/core/AgentsProgressLineSafe.awk" -f "$rigFormat" -f "$rigHere/harness/AgentsClaudeStreamJsonTranscript.awk" -f "$rigHere/harness/AgentsClaudeStreamJsonFormat.awk" < "$rigTmp/stream.jsonl"
 }
 rigOut="$( MDAT_SPAWN_SESSION_ID="$rigStreamSid" rigStreamAwk 2>/dev/null )"
 rigAssert "the progress formatter still prints the result" "$rigOut" "All done."
@@ -321,7 +321,7 @@ rigAssert "the result with its usage" "$( rigHas "$rigStreamT" 'RESULT outcome=o
 rigAssert "the session's tokens, as the CLI reported its usage" "$( cat "$rigWs/.local/agents/sessions/$rigStreamSid/tokens" )" "13 2200 100 47"
 rigAssert "the served path is told this session's stream writes its tool lines" "$( [ -e "$rigWs/.local/agents/sessions/$rigStreamSid/transcript.stream" ] && echo yes )" yes
 rigAssert "with no session the progress output is byte-identical to the formatter alone" \
-	"$( MDAT_SPAWN_SESSION_ID= rigStreamAwk 2>&1 | cksum )" "$( LC_ALL=C awk -f "$rigHere/session/AgentsProgressLineSafe.awk" -f "$rigHere/harness/AgentsClaudeStreamJsonFormat.awk" < "$rigTmp/stream.jsonl" 2>&1 | cksum )"
+	"$( MDAT_SPAWN_SESSION_ID= rigStreamAwk 2>&1 | cksum )" "$( LC_ALL=C awk -f "$rigHere/core/AgentsProgressLineSafe.awk" -f "$rigHere/harness/AgentsClaudeStreamJsonFormat.awk" < "$rigTmp/stream.jsonl" 2>&1 | cksum )"
 rigAssert "a native round keeps its visible text after its tokens" "$( LC_ALL=C grep -A1 'ROUND n=1 ' "$rigStreamT" | tail -1 )" '> Let me look.'
 rigAssert "the console reads like the post: a served tool's argument shown, a call's own description first" \
 	"$( MDAT_SPAWN_SESSION_ID= rigStreamAwk 2>&1 >/dev/null | LC_ALL=C grep -c -x -F -e '  -> tool: mcp__myx_distro__Grep(x)' -e '  -> tool: List — Bash(ls)' )" 2
@@ -337,7 +337,7 @@ rigIntentT="$rigStore/audit/2026-10/session-intent.log"
 	printf '%s\n' '{"type":"user","message":{"role":"user","content":[{"tool_use_id":"tu_5","type":"tool_result","content":"a.md"}]}}'
 	printf '%s\n' '{"type":"result","subtype":"success","is_error":false,"num_turns":1,"result":"ok","session_id":"cli-5","total_cost_usd":0,"usage":{"input_tokens":1,"output_tokens":2}}'
 } > "$rigTmp/stream-intent.jsonl"
-( MDAT_SPAWN_SESSION_ID="$rigIntentSid" LC_ALL=C awk -f "$rigHere/session/AgentsProgressLineSafe.awk" -f "$rigFormat" -f "$rigHere/harness/AgentsClaudeStreamJsonTranscript.awk" -f "$rigHere/harness/AgentsClaudeStreamJsonFormat.awk" < "$rigTmp/stream-intent.jsonl" > /dev/null 2>&1 ) || :
+( MDAT_SPAWN_SESSION_ID="$rigIntentSid" LC_ALL=C awk -f "$rigHere/core/AgentsProgressLineSafe.awk" -f "$rigFormat" -f "$rigHere/harness/AgentsClaudeStreamJsonTranscript.awk" -f "$rigHere/harness/AgentsClaudeStreamJsonFormat.awk" < "$rigTmp/stream-intent.jsonl" > /dev/null 2>&1 ) || :
 rigAssert "a native spawn's served call: its description, not the text before it" "$( rigHas "$rigIntentT" 'TOOL Glob pattern="*.md" -> ok' )$( LC_ALL=C grep ' TOOL Glob ' "$rigIntentT" | LC_ALL=C grep -c ' | "Find the notes"$' )" 11
 rigLoopSid2="ffff6666-0000-4000-8000-000000000006"
 rigLoop2="$rigTmp/loop2"
@@ -385,7 +385,7 @@ rigErrT="$rigStore/audit/2026-10/session-native-error.log"
 	printf '%s\n' '{"type":"assistant","message":{"id":"msg_e","model":"<synthetic>","role":"assistant","content":[{"type":"text","text":"API Error: 401 token xoxp-9-8-rig is invalid"}]},"session_id":"cli-4","error":"authentication_failed"}'
 	printf '%s\n' '{"type":"result","subtype":"error_during_execution","is_error":true,"num_turns":1,"session_id":"cli-4","total_cost_usd":0,"usage":{"input_tokens":1,"output_tokens":2},"errors":["RIG-CLI-FAILURE"]}'
 } > "$rigTmp/stream-error.jsonl"
-( MDAT_SPAWN_SESSION_ID="$rigErrSid" LC_ALL=C awk -f "$rigHere/session/AgentsProgressLineSafe.awk" -f "$rigFormat" -f "$rigHere/harness/AgentsClaudeStreamJsonTranscript.awk" -f "$rigHere/harness/AgentsClaudeStreamJsonFormat.awk" < "$rigTmp/stream-error.jsonl" > /dev/null 2>&1 ) || :
+( MDAT_SPAWN_SESSION_ID="$rigErrSid" LC_ALL=C awk -f "$rigHere/core/AgentsProgressLineSafe.awk" -f "$rigFormat" -f "$rigHere/harness/AgentsClaudeStreamJsonTranscript.awk" -f "$rigHere/harness/AgentsClaudeStreamJsonFormat.awk" < "$rigTmp/stream-error.jsonl" > /dev/null 2>&1 ) || :
 rigAssert "the CLI's own error line is an ERROR, redacted" "$( rigHas "$rigErrT" ' ERROR source=cli' )$( rigHas "$rigErrT" '> Error: the CLI failed with Bearer [redacted]' )" 11
 rigAssert "the provider error is an ERROR with its kind, in full, redacted" "$( rigHas "$rigErrT" ' ERROR source=provider kind=authentication_failed' )$( rigHas "$rigErrT" '> API Error: 401 token [redacted] is invalid' )" 11
 rigAssert "the round text is redacted" "$( rigHas "$rigErrT" '> Using RIG_API_KEY=[redacted] now.' )" 1

@@ -3,9 +3,9 @@
 
 ##
 ## AgentsTools.BoardDispatchRuns.include -- the runs a board's dispatch items record, as one table for a reader that places a
-## file by whose run covers its moment (the stray store's inbox items). The reading of dispatch items is the board's own: a
-## caller names the team data root it enumerates and gets `owner<TAB>start<TAB>end` back, and builds no path into the board.
-## Sourced, never run. Functions only.
+## file by whose run covers its moment (the stray store's inbox items), and the dispatch item one session's record names. The
+## reading of dispatch items is the board's own: a caller names the team data root it enumerates and gets `owner<TAB>start<TAB>end`
+## back, and builds no path into the board. Sourced, never run. Functions only.
 ##
 
 ## A moment `YYYY-MM-DD HH:MM +ZZZZ` in seconds since 1970, by arithmetic: the system awk has no mktime. -1 for no moment.
@@ -42,5 +42,21 @@ AgentsToolsBoardDispatchRunsTableInto(){ ## variable, team data root
 		inHead && index($0, "resolved-at: ") == 1 { end = epochOf(substr($0, 14)) }
 		inHead && index($0, "processed-at: ") == 1 && end < 0 { end = epochOf(substr($0, 15)) }
 		END { flush() }' ${runsFiles[@]+"${runsFiles[@]}"} )"
+	return 0
+}
+
+## The dispatch item a session's transcript record names, its first line into the named variable: rc 0 where the store names
+## one, rc 1 where it names none, or a name that is no bare file name. No process. The record a start writes is the session
+## store's own file, so its path comes from the store's answer and is never built here.
+AgentsSessionDispatchItemInto(){ ## variable, run or session id
+	local itemFolder="" itemRead=""
+	printf -v "$1" '%s' ""
+	case "${2:-}" in ''|-|.|..|*/*|*[[:space:]]*) return 1 ;; esac
+	type AgentsSessionFolderInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+	AgentsSessionFolderInto itemFolder "${MMDAPP:-}" "$2" || return 1
+	printf -v itemRead '%s/dispatch-item' "$itemFolder"
+	[ -s "$itemRead" ] || return 1
+	{ IFS= read -r "$1" < "$itemRead" ; } 2> /dev/null || :
+	case "${!1}" in ''|*/*) printf -v "$1" '%s' "" ; return 1 ;; esac
 	return 0
 }

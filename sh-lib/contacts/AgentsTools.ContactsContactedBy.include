@@ -167,6 +167,6 @@ AgentsToolsContactsContactedBy(){ ## the operation, its arguments...
 	AgentsToolsContactsPersonRead "$contactsPersons/$byId.md" || :
 	byTier="$( AgentsToolsContactsTierName "$( AgentsToolsContactsTierFor "$byScope" )" || true )"
 	contactsEffectiveTier="$byTier"
-	AgentsToolsContactsTierKnown "$byTier" || byTier=tier-none
+	[ -n "$( AgentsToolsContactsTierName "$byTier" )" ] || byTier=tier-none
 	ASKP_F_id="$byId" ASKP_F_access="$( AgentsToolsContactsAccessText "$byId" )" ASKP_F_tiers="$( AgentsToolsEscalationNote "Contacts/$byTier" )" AgentsToolsEscalationNote "Contacts/contacted-known"
 }

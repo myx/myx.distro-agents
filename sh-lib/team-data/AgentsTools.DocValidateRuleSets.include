@@ -292,9 +292,9 @@ AgentsToolsDocValidateRoutine(){ ## file, file as shown
 	done <<< "$routineVerdict"
 	## The lock the spawner takes for the routine's session: `routine-lock-document: inbox:<member>:<note>.md`.
 	if [ -n "$routineLockValue" ] ; then
-		type AgentsToolsRoutineLockShape > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/routine/AgentsTools.RoutineLock.include"
+		type AgentsToolsRoutineLockParse > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/routine/AgentsTools.RoutineLock.include"
 		for routineLockOne in ${routineLockValue//,/ } ; do
-			AgentsToolsRoutineLockShape "$routineLockOne" > /dev/null || AgentsToolsDocValidateRow "$routineShown" "$routineLockLine" routine-lock-document "routine-lock-document: $routineLockOne is not inbox:<member>:<note>.md, a note in the inbox of a named member or of the member of the start ({{team-member}}); several, separated by commas"
+			AgentsToolsRoutineLockParse "$( AgentsToolsRoutineLockFill "$routineLockOne" macro-member )" > /dev/null || AgentsToolsDocValidateRow "$routineShown" "$routineLockLine" routine-lock-document "routine-lock-document: $routineLockOne is not inbox:<member>:<note>.md, a note in the inbox of a named member or of the member of the start ({{team-member}}); several, separated by commas"
 		done
 	fi
 	## The routine's own input scans: one line for each, `<scan> [--option value ...]` (macros among the five names of the common

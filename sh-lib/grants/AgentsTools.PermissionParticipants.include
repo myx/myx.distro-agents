@@ -121,7 +121,7 @@ AgentsToolsPermissionSessionRunning(){ ## session id (a spawn's own, or the cowo
 	type AgentsToolsRegistryMeasureRows > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.RegistrySpawnedSessions.include"
 	runCow="$( AgentsToolsPermissionShareStore "${1:-}" )"
 	[ -n "$runCow" ] || return 0
-	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandboxRecordHeader.include"
+	type AgentsToolsFrontmatterKey > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.FrontmatterKey.include"
 	type AgentsToolsSpawnedRegistryFile > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include"
 	## The registry as it stands (AgentsToolsSpawnedRegistryFile), measured for this session's rows: this
 	## runs on each ask routed, so it never rebuilds the registry from every record itself. The measure is
@@ -135,7 +135,7 @@ AgentsToolsPermissionSessionRunning(){ ## session id (a spawn's own, or the cowo
 		NF == 13 && $2 == cow && $12 == "running" { print $1 "\t" $8 "\t" $5 ; }' \
 	| while IFS=$'\t' read -r runTracking runSpawn runOwner ; do
 		AgentsSpawnRecordInto runRecord "$MMDAPP" "$runTracking" "$runSpawn" || continue
-		[ "$( AgentsToolsSpawnSandboxRecordHeader "$runRecord" agent-less )" != true ] || continue
+		[ "$( AgentsToolsFrontmatterKey "$runRecord" agent-less )" != true ] || continue
 		printf '%s\n' "$runOwner"
 	done | LC_ALL=C awk '! seen[$0]++'
 }

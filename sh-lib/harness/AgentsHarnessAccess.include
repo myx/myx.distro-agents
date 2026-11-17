@@ -6,11 +6,33 @@ type AgentsOwnPostsHas > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents
 
 ## Roots are canonicalised by the same rule the candidate is, in one helper used by
 ## every append site: resolving one side only broke --access-root <symlink>.
-AgentsHarnessResolveDir(){
-	local resolveIn="$1" resolveOut
+## Each distinct path is resolved once for the life of the process, so a repeat costs no fork.
+## A path that did not resolve is kept as a miss, and its entry is retried the moment the path exists:
+## one created later in this process then resolves as a fresh call always did.
+AgentsHarnessResolveDir(){ ## path, name of the variable the resolved path goes in
+	local resolveIn="$1" resolveOut resolveIndex=0 resolveCount=0
+	[ -z "${harnessResolveAsked[@]+asked}" ] || resolveCount="${#harnessResolveAsked[@]}"
+	while [ "$resolveIndex" -lt "$resolveCount" ] ; do
+		if [ "${harnessResolveAsked[$resolveIndex]}" = "$resolveIn" ] ; then
+			resolveOut="${harnessResolveAnswered[$resolveIndex]}"
+			if [ -n "$resolveOut" ] ; then
+				printf -v "$2" '%s' "$resolveOut"
+				return 0
+			fi
+			if [ ! -d "$resolveIn" ] ; then
+				printf -v "$2" '%s' "$resolveIn"
+				return 0
+			fi
+			resolveCount="$resolveIndex"
+			break
+		fi
+		resolveIndex=$(( resolveIndex + 1 ))
+	done
 	resolveOut="$( cd "$resolveIn" 2>/dev/null && pwd -P )" || resolveOut=""
+	harnessResolveAsked[$resolveCount]="$resolveIn"
+	harnessResolveAnswered[$resolveCount]="$resolveOut"
 	[ -n "$resolveOut" ] || resolveOut="$resolveIn"
-	printf '%s' "$resolveOut"
+	printf -v "$2" '%s' "$resolveOut"
 }
 
 ## One set of roots without the paths of this run alone. The console hands the spawn's own sandbox in on the access-root flags as well
@@ -159,7 +181,8 @@ AgentsHarnessWriteExcluded(){ ## resolved path
 	return 1
 }
 
-## The session this call belongs to: the harness's own, a spawn's, or the Claude Code client's.
+## The session this call belongs to: the harness's own, a spawn's, or the Claude Code client's. The one statement of
+## that rule, and a check must be able to substitute it by name, so it stays a name.
 AgentsHarnessSessionKey(){
 	printf '%s' "${harnessSessionId:-${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}}"
 }
@@ -299,8 +322,7 @@ AgentsHarnessDeniedPath(){ ## tool, path
 
 AgentsHarnessFileGate(){ ## tool, path, read|write
 	type AgentsToolsGrantsSessionCheck > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.Grants.include"
-	type AgentsSessionFolderInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
-	local gateRoots gateRootsOk=1 gateRc=0 gateSession gateOwn
+	local gateRoots gateRootsOk=1 gateRc=0 gateSession
 	if AgentsHarnessStaleTree "$1" "$2" ; then
 		return 1
 	fi
@@ -316,9 +338,8 @@ AgentsHarnessFileGate(){ ## tool, path, read|write
 		AgentsHarnessPathAllowed "$2" "${gateRoots:-$'\n'}" && gateRootsOk=0
 		if [ -n "$harnessResolvedPath" ] && [ -n "${MMDAPP:-}" ] ; then
 			gateSession="${harnessSessionId:-${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}}"
-			AgentsSessionFolderInto gateOwn "$MMDAPP" "$gateSession" || gateOwn=""
 			if AgentsToolsGrantsSessionEnsure "$MMDAPP" "$harnessGrantMember" "$gateSession" "$harnessSandboxInReal" "$harnessSandboxOutReal" "$harnessGateOrigin" ; then
-				AgentsToolsGrantsSessionCheck "$1" "$harnessResolvedPath" "$gateOwn" || gateRc=$?
+				AgentsToolsGrantsSessionCheck "$1" "$harnessResolvedPath" "$gateSession" "$MMDAPP" || gateRc=$?
 				case "$gateRc" in
 					0)
 						## An Allow once is used up here, by the one lock its store keeps.

@@ -129,7 +129,6 @@ rigList(){
 		'sh-lib/mcp/AgentsTools.InternMcpServer.include|1|--intern-mcp-request "$$"|no file name: the server names itself to its request' \
 		'sh-lib/spawn/AgentsTools.InternOpAgentSpawnProxy.include|1|spawn-proxy-$timestamp-$$-${MDAT_SPAWN_SESSION_ID:0:8}|no temp file: a receipt id, made its own by the first eight of the spawn id' \
 		'sh-lib/spawn/AgentsTools.SpawnProxyDispatchCreate.include|1|dispatch-$timestamp-spawn-proxy-$$-${MDAT_SPAWN_SESSION_ID:0:8}|no temp file: a dispatch item name, made its own by the first eight of the spawn id' \
-		'sh-lib/spawn/AgentsTools.SpawnProxySessionThreadOpen.include|2|$sessionThreadRecord.$$.tmp|the thread record of one session, written under the session-thread lock of that session' \
 		'sh-lib/grants/AgentsTools.InternOpChange.include|4|$holdDir/shown.$$|inside the folder of one held change, named by an id made for it' \
 		'sh-lib/inbox/AgentsTools.InternOpInboxToProcessed.include|1|.inbox-to-processed.$$|beside the one inbox item it replaces: shared only by two marks of that one item at the same moment' \
 		'sh-lib/questions/AgentsTools.InternOpPendingReplyOpen.include|4|$pendingRoot/.$pendingId.md.$$|named by the id made for this one new record' \
@@ -149,7 +148,6 @@ rigList(){
 		'sh-lib/member/AgentsTools.MemberHomes.include|4|$writeFile.tmp.$$|under the lock of the member registry of the machine' \
 		'sh-lib/member/AgentsTools.MemberHomes.include|4|$homesFile.tmp.$$|under the lock of the member homes registry' \
 		'sh-lib/member/AgentsTools.RetestQueue.include|1|${queueId:-$$-$RANDOM}|no temp file: the id of a request, and only where the machine has no uuidgen' \
-		'sh-lib/wait/AgentsTools.MemberWait.include|3|$idleFile.$$|inside the store of one session, written only by the process of that session' \
 		'sh-lib/config/AgentsTools.OpOwnerCredentialStoreSelfTest.include|1|selftest-$$-|no file name: a value written to a setting and read back' \
 		'sh-lib/questions/AgentsTools.PendingReplyCollect.include|3|$2.$$|under the lock of that one pending reply' \
 		'sh-lib/questions/AgentsTools.PendingReplyRemind.include|3|$2.$$|under the lock of that one pending reply' \
@@ -159,7 +157,7 @@ rigList(){
 		'sh-lib/run/AgentsTools.RunProcesses.include|1|${3:-$$}|no file name: the asking process, this one where none is given' \
 		'sh-lib/run/AgentsTools.RunLeft.include|3|$keepFile.$$.aside|the file of one run, named by its spawn id: a stop or a kill of one run is one call at a time' \
 		'sh-lib/session/AgentsTools.SessionTranscript.include|2|$addDir/tokens.$$|inside the store of one session id, added to by its one harness process, a round after another' \
-		'sh-lib/session/AgentsTools.SessionThreads.include|1|.conversation.read.$$|inside the input folder of one sandbox, which one start fills: two fills of one sandbox share that whole folder, whatever this is named' \
+		'sh-lib/spawn/AgentsTools.SpawnSandboxInput.include|1|.conversation.read.$$|inside the input folder of one sandbox, which one start fills: two fills of one sandbox share that whole folder, whatever this is named' \
 		'sh-lib/spawn/AgentsTools.SpawnProxyClose.include|1|mdat-session-run-ops.$$.$1|made its own by the process id of the console just started' \
 		'sh-lib/spawn/AgentsTools.SpawnProxyClose.include|3|$runFile.run.$$|beside one spawn record, written by the launches of that spawn, which come one after another in its own proxy' \
 		'sh-lib/spawn/AgentsTools.SpawnSessionParent.include|1|queued-spawn-$$.md|no temp file: an inbox note name, unique by minute and pid' \

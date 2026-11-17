@@ -51,8 +51,7 @@ AgentsToolsCommsSlackProfileCall(){
 	type AgentsToolsCommsSlackRun > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/slack/AgentsTools.CommsSlack.include"
 	profileCallResponse="$( AgentsToolsCommsSlackRun --intern-op-slack-call "$@" )" || profileCallRc=$?
 	if [ "$profileCallRc" != "0" ] ; then
-		local profileCallIdentityText="the identity this call ran under (named in the op's own diagnostic above)"
-		echo "⛔ ERROR: $MDSC_CMD $profileCallOp: the '$profileCallFacet' facet did NOT complete under $profileCallIdentityText (see the op's own diagnostic above, which carries Slack's own error code). This facet's state is UNKNOWN from this call, not known-unchanged. Nothing was rolled back and no retry under another identity was attempted; any other facet reported applied really was applied." >&2
+		echo "⛔ ERROR: $MDSC_CMD $profileCallOp: the '$profileCallFacet' facet did NOT complete under the identity this call ran under (named in the op's own diagnostic above) (see the op's own diagnostic above, which carries Slack's own error code). This facet's state is UNKNOWN from this call, not known-unchanged. Nothing was rolled back and no retry under another identity was attempted; any other facet reported applied really was applied." >&2
 		set +e ; return 1
 	fi
 	printf '%s\n' "$profileCallResponse"

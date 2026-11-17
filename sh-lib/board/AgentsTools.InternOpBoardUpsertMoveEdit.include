@@ -450,7 +450,7 @@ case "$1" in
 				seatSession="$( printf '%s\n' "$body" | LC_ALL=C awk '/^session-id: / { print substr( $0, 13 ) ; exit }' )"
 				case "$seatSession" in ''|*/*|.|..) ;; *)
 					type AgentsToolsGrantsStoreTouch > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.Grants.include"
-					AgentsToolsGrantsStoreTouch "$MMDAPP/.local/agents/sessions/$seatSession" > /dev/null 2>&1 || :
+					AgentsToolsGrantsStoreTouch "$seatSession" "$MMDAPP" > /dev/null 2>&1 || :
 				;; esac
 			;;
 		esac

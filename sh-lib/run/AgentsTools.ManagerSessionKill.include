@@ -143,7 +143,7 @@ AgentsToolsManagerSessionKill(){ ## the operation as it was called, the id, "run
 	type AgentsSessionMarkerFile > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
 	type AgentsToolsSpawnRecord > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunRecords.include"
 	type AgentsToolsRegistryHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
-	type AgentsToolsRunRecordedAlive > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunProcesses.include"
+	type AgentsToolsRunRecorded > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunProcesses.include"
 	type AgentsToolsManagerConsoleUser > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.ManagerConsoleIdentity.include"
 	local killOp="$1" killId="$2" killOwn="${3:-}" killTab=$'\t' killFile killUser killStamp killAt killPid killSeen=" "
 	local killKind killSession killSpawn killMember killStatus killLive killRest killRecord killFound killLeft killClosed
@@ -168,7 +168,7 @@ AgentsToolsManagerSessionKill(){ ## the operation as it was called, the id, "run
 	fi
 	if [ -n "$killOwnSpawn" ] && { [ -z "$killOwn" ] || [ "$killOwnSpawn" = "$killId" ] ; } ; then
 		local killOwnLive="no-process"
-		AgentsToolsRunRecordedAlive "$killOwnRecord" > /dev/null 2>&1 && killOwnLive="running" || killOwnLive="gone"
+		AgentsToolsRunRecorded "$killOwnRecord" > /dev/null 2>&1 && killOwnLive="running" || killOwnLive="gone"
 		[ "$killOwnLive" = "running" ] || killOwnLive="gone"
 		killFound="$( { AgentsToolsRunProcesses "$killOwnSpawn" "$killOwnRecord" < /dev/null ; AgentsToolsRunLeftKept "$killOwnSpawn" < /dev/null ; } | AgentsToolsManagerKillPids )"
 		if [ -n "$killFound" ] ; then
@@ -199,7 +199,7 @@ AgentsToolsManagerSessionKill(){ ## the operation as it was called, the id, "run
 		killFile="$MMDAPP/.local/agents/spawned-sessions.registry"
 		echo "⚠️ WARNING: $MDSC_CMD $killOp: the session registries could not be rebuilt in ${killFile%/*}, so only the record of $killId itself was read" >&2
 	fi
-	type AgentsToolsManagerSessionScope > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.ManagerSessionRows.include"
+	type AgentsToolsManagerSessionScope > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.ManagerSessionRows.include"
 	AgentsToolsManagerSessionScope "$killOp" "$killId" "$killOwn" "nothing was signalled" fresh || scopeFailed="yes"
 	## The scope said its one line: with nothing signalled first there is nothing more to say or do, rc 1.
 	[ -z "$scopeFailed" ] || [ -n "$killAny" ] || return 1
@@ -364,7 +364,7 @@ AgentsToolsManagerSessionFinish(){ ## the operation as it was called, the id, "r
 	local finishDismissed=0 finishClosed=0 finishState="-" finishWait=0 finishAt finishMarked finishUnclosed=0 finishOpen=0
 	local finishSpawns=() finishMembers=() finishRecords=() finishWaits=()
 	local scopeSession="" scopeRun="" scopeMeasured="" scopeListed="" scopeControl=""
-	type AgentsToolsManagerSessionScope > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.ManagerSessionRows.include"
+	type AgentsToolsManagerSessionScope > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.ManagerSessionRows.include"
 	AgentsToolsManagerSessionScope "$finishOp" "$finishId" "$finishOwn" "nothing more was done" fresh || return 1
 	[ "$scopeRun" != "-" ] || finishWhole="yes"
 	finishSession="$scopeSession"

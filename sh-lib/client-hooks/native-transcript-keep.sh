@@ -5,9 +5,9 @@
 ## run's context.jsonl. A REAL SCRIPT: installed by copying, runs exactly as it stands, nothing substituted into it.
 ## For the session named by the payload `session_id`, and only where it is the spawn this process belongs to
 ## (MDAT_SPAWN_SESSION_ID, MDAT_SPAWN_SANDBOX_ROOT):
-##   start   SessionStart: the pointer is written, <sandbox>/<id>.native.path holding the client's path of its log and
-##           <workspace>/.local/agents/sessions/<id>/native-log holding the path of the kept copy, so a run that never reaches
-##           an end still says where its log is.
+##   start   SessionStart: the pointer is written, <sandbox>/<id>.native.path holding the client's path of its log and the session's
+##           own `native-log`, in the folder the session concern gives this launch, holding the path of the kept copy, so a run that
+##           never reaches an end still says where its log is.
 ##   keep    Stop (a turn of the client ended): the log is copied to <sandbox>/<id>.native.jsonl.
 ##   end     SessionEnd: the same copy, the last. It carries its own timeout of 5 s (the client gives SessionEnd hooks 1.5 s in all
 ##           by default).
@@ -59,18 +59,38 @@ hookRoot="${MDAT_SPAWN_SANDBOX_ROOT%/}"
 hookCopy="$hookRoot/$hookId.native.jsonl"
 
 ## The workspace: MMDAPP, else the one this script is installed in (<workspace>/.claude/hooks).
-## Its session-store paths mirror AgentsSessionTokensAdd's tokens line, and native-log has no owner function: its rig sets neither MMDAPP nor MDLT_ORIGIN.
 hookWs="${MMDAPP:-}"
 [ -n "$hookWs" ] || hookWs="$( cd -P "${0%/*}/../.." 2>/dev/null && pwd -P )" || hookWs=""
 hookWs="${hookWs%/}"
 
-## The run's tokens for the panel and the session read: <workspace>/.local/agents/sessions/<id>/tokens, one line,
+## The session's folder, into hookFolder: the value the spawn proxy hands this launch, else the session concern's own generated
+## parts file, which sh-scripts/AgentsSessionPartsMake.sh writes from its store include. This file spells no store of that concern.
+## rc 1 where neither gives one, and the caller then refuses: it writes nothing and says so once on stderr.
+hookStoreFolder(){ ## rc 1 where there is no folder
+	hookFolder=""
+	hookBare "$hookId" || return 1
+	if [ -n "${MDAT_SESSION_FOLDER:-}" ] ; then
+		hookFolder="${MDAT_SESSION_FOLDER%/}"
+		return 0
+	fi
+	[ -n "$hookWs" ] || return 1
+	[ -f "${MDLT_ORIGIN:-$hookWs/.local}/myx/myx.distro-agents/sh-lib/session/AgentsSessionParts.include" ] || return 1
+	. "${MDLT_ORIGIN:-$hookWs/.local}/myx/myx.distro-agents/sh-lib/session/AgentsSessionParts.include" || return 1
+	AgentsSessionPartsFolderInto hookFolder "$hookWs" "$hookId"
+}
+## The refusal of a write with no folder to write in: one line, and the client's own exit 0 stands.
+hookNoFolder(){ ## what was not written
+	echo "native-transcript-keep.sh: no session folder for $hookId: $1 was not written (MDAT_SESSION_FOLDER is unset and the session parts file is unreadable)" >&2
+}
+
+## The run's tokens for the panel and the session read: the session's `tokens`, one line,
 ## `<in> <cache-read> <cache-write> <out>`, as a harness run's transcript keeps it. Summed whole from a log: each assistant
 ## message once, by its id, at the last usage the log gives it (a message's blocks repeat it).
 hookTokensWrite(){ ## log
 	local tokensFile tokensTmp
-	[ -n "$hookWs" ] && [ -d "$hookWs/.local/agents/sessions/$hookId" ] && [ -f "$1" ] || return 0
-	tokensFile="$hookWs/.local/agents/sessions/$hookId/tokens"
+	hookStoreFolder || { hookNoFolder tokens ; return 0 ; }
+	[ -d "$hookFolder" ] && [ -f "$1" ] || return 0
+	tokensFile="$hookFolder/tokens"
 	tokensTmp="$( mktemp "$tokensFile.XXXXXX" 2> /dev/null )" || return 0
 	LC_ALL=C awk '
 		function num(key,    at, rest) { at = index(usage, "\"" key "\":") ; if (at == 0) return 0 ; rest = substr(usage, at + length(key) + 3) ; sub(/^ */, "", rest) ; return rest + 0 }
@@ -89,15 +109,20 @@ hookTokensWrite(){ ## log
 case "$hookMode" in
 	start)
 		printf '%s\n' "$hookLog" > "$hookRoot/$hookId.native.path" 2> /dev/null || :
-		if [ -n "$hookWs" ] && [ -d "$hookWs/.local/agents" ] && mkdir -p "$hookWs/.local/agents/sessions/$hookId" 2> /dev/null ; then
-			printf '%s\n' "$hookCopy" > "$hookWs/.local/agents/sessions/$hookId/native-log" 2> /dev/null || :
+		if [ -n "$hookWs" ] && [ -d "$hookWs/.local/agents" ] ; then
+			if hookStoreFolder && mkdir -p "$hookFolder" 2> /dev/null ; then
+				printf '%s\n' "$hookCopy" > "$hookFolder/native-log" 2> /dev/null || :
+			else
+				hookNoFolder native-log
+			fi
 		fi
 		exit 0
 	;;
 	tokens)
 		## PostToolUse: a spawned member works in one long turn, so Stop may not come while it runs. The sum is taken from the
 		## client's live log, at most once in 30 s.
-		hookTokensFile="$hookWs/.local/agents/sessions/$hookId/tokens"
+		hookStoreFolder || { hookNoFolder tokens ; exit 0 ; }
+		hookTokensFile="$hookFolder/tokens"
 		[ ! -f "$hookTokensFile" ] || [ -z "$( find "$hookTokensFile" -newermt '-30 seconds' 2> /dev/null )" ] || exit 0
 		[ -f "$hookLog" ] && [ -r "$hookLog" ] || exit 0
 		hookTokensWrite "$hookLog"

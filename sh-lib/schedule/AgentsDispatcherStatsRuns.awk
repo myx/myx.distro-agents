@@ -1,15 +1,18 @@
-# AgentsDispatcherStatsRuns.awk -- F7.11: the runs row of the stats store, derived from the run records. -v list=<file> names the files to read, one path a line,
-# so that no argument list limits it: the token files (sessions/<run>/tokens, `<in> <cache-read> <cache-write> <out>`, the running sum the harness keeps) and the
-# run records (spawned/<session>/<run>.spawn.md); a token file is told from a record by its name. One TAB-separated row for each record:
+# AgentsDispatcherStatsRuns.awk -- F7.11: the runs row of the stats store, derived from the run records. -v list=<file> names the records to read, one path a line,
+# so that no argument list limits it; -v rows=<file> names the token sums the session store reported, `<run><TAB><in><TAB><cache-read><TAB><cache-write><TAB><out>`
+# a line, the running sum the harness keeps in a run's own folder. One TAB-separated row for each record:
 #   run session member routine status started-at resolved-at day workspace executing paying preset credential in cache-read cache-write out exit-code
 # An empty or absent field is `-`, absent tokens are 0. The day is the date part of started-at as the record writes it. The run is the record's `spawn-id:`
 # (its file name without .spawn.md where it has none). Nothing is read from anywhere else.
 
 function base(path,    parts, count) { count = split(path, parts, "/") ; return parts[count] }
-function runOfTokens(path,    parts, count) { count = split(path, parts, "/") ; return parts[count - 1] }
 function dash(text) { return ( text == "" ) ? "-" : text }
-function readTokens(path,    line, parts) {
-	if ( ( getline line < path ) > 0 && split( line, parts, " " ) >= 4 ) { tok[runOfTokens( path )] = ( parts[1] + 0 ) "\t" ( parts[2] + 0 ) "\t" ( parts[3] + 0 ) "\t" ( parts[4] + 0 ) }
+function readTokens(path,    line, at) {
+	while ( ( getline line < path ) > 0 ) {
+		at = index( line, "\t" )
+		if ( at == 0 ) { continue }
+		tok[substr( line, 1, at - 1 )] = substr( line, at + 1 )
+	}
 	close( path )
 }
 function readRecord(path,    line, front, run, session, member, routine, status, started, resolved, workspace, executing, paying, preset, credential, exitCode, at, key, value, day, tokenText, first) {
@@ -42,10 +45,11 @@ function readRecord(path,    line, front, run, session, member, routine, status,
 	printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n", run, dash( session ), dash( member ), dash( routine ), dash( status ), dash( started ), dash( resolved ), day, dash( workspace ), dash( executing ), dash( paying ), dash( preset ), dash( credential ), tokenText, dash( exitCode )
 }
 BEGIN {
+	if ( rows != "" ) { readTokens( rows ) }
 	count = 0
 	while ( ( getline path < list ) > 0 ) {
 		if ( path == "" ) { continue }
-		if ( base( path ) == "tokens" ) { readTokens( path ) } else { records[++count] = path }
+		records[++count] = path
 	}
 	close( list )
 	for ( at = 1 ; at <= count ; at++ ) { readRecord( records[at] ) }

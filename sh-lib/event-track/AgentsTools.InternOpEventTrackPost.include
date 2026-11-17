@@ -81,9 +81,12 @@ AgentsEventTrackPostRender(){ ## kind, member, session id, out dir, lines file, 
 	## waited on only where that changed (AgentsTools.EventTrackFeed.include); only for a session
 	## whose directory is already there.
 	local renderWaitState=""
+	type AgentsEventTrackWaitStateInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/event-track/AgentsTools.EventTrackFeed.include"
+	type AgentsSessionKnown > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
 	case "$renderSession" in ''|*/*|.|..|*' '*) ;; *)
-		[ "$renderKind" != "feed" ] || [ ! -d "${MMDAPP:-}/.local/agents/sessions/$renderSession" ] \
-			|| renderWaitState="$MMDAPP/.local/agents/sessions/$renderSession/event-track.wait-on"
+		if [ "$renderKind" = "feed" ] && AgentsSessionKnown "$renderSession" ; then
+			AgentsEventTrackWaitStateInto renderWaitState "$renderSession" || renderWaitState=""
+		fi
 	;; esac
 	## The transcript formatter first, for its redaction and tool names, then the Slack date
 	## helper, for every time a post shows. ETP_NOW is the moment the post is made: the time
@@ -397,10 +400,8 @@ case "$1" in
 		case "$etpMember" in
 			routine-*) ;;
 			*)
-				if [ ! -d "$MDAT_SKILLSET_ROOT/$etpMember" ] ; then
-					echo "⛔ ERROR: $MDSC_CMD --intern-op-event-track-post: no such member skill directory: $MDAT_SKILLSET_ROOT/$etpMember" >&2
-					set +e ; return 1
-				fi
+				type AgentsToolsSlackMemberPresent > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/slack/AgentsTools.CommsSlack.include"
+				AgentsToolsSlackMemberPresent "$etpMember" --intern-op-event-track-post || { set +e ; return 1 ; }
 			;;
 		esac
 

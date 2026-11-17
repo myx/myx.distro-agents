@@ -24,10 +24,9 @@ AgentsToolsClientToolPolicyFormatVersion(){
 	printf '%s\n' "subject-decision-reason-redirect"
 }
 
-## The fixed permissions.allow grants, one JSON array.
-## SendMessage sits alongside Agent/Task for the same reason those two do:
-## a dispatched member has to be able to reach the session that dispatched
-## it, and a spawn it made, without a prompt interrupting an unattended run.
+## The fixed permissions.allow grants, one JSON array. The one definition: the installer and the owner's
+## verify row both read it here, so the list is never stated twice. SendMessage sits beside Agent and Task,
+## so a dispatched member reaches its session and its spawn with no prompt.
 AgentsToolsClientToolPolicyClaudeAllowJson(){
 	printf '%s\n' '["mcp__myx_common", "mcp__myx_distro", "Agent", "Task", "SendMessage"]'
 }
@@ -61,7 +60,7 @@ AgentsToolsClientToolPolicyClaudeSettings(){
 	printf '%s\t%s\n' "autoMemoryEnabled" "false"
 }
 
-## The enabledMcpjsonServers entries, one JSON array.
+## The enabledMcpjsonServers entries, one JSON array: the one definition the installer and the verify row read, never stated twice.
 AgentsToolsClientToolPolicyClaudeMcpServersJson(){
 	printf '%s\n' '["myx.distro", "myx.common"]'
 }

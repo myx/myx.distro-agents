@@ -416,3 +416,55 @@ AgentsToolsSessionControlCheckWorkspace(){
 	AgentsToolsRegistryMeasureRows "$( AgentsToolsRegistryFile spawned-sessions )"
 	printf '%s' "$measuredRows" | AgentsToolsSessionControlCheck
 }
+
+## Every session's control thread as its control/pid names it, `<session><TAB><pid>` a line; a file whose first word is no number names none.
+AgentsSessionControlPidRows(){
+	local pidFile pidValue pidRest pidSession
+	for pidFile in "${MMDAPP:-/nonexistent}/.local/agents/sessions"/*/control/pid ; do
+		[ -f "$pidFile" ] || continue
+		pidValue=""
+		{ read -r pidValue pidRest < "$pidFile" ; } 2> /dev/null || continue
+		case "${pidValue:-}" in ''|*[!0123456789]*) continue ;; esac
+		pidSession="${pidFile%/control/pid}"
+		printf '%s\t%s\n' "${pidSession##*/}" "$pidValue"
+	done
+	return 0
+}
+
+## The epoch of the last write of a session's control-thread log, into the named variable. rc 1 where it has none.
+AgentsSessionControlLogEpochInto(){ ## variable, session
+	local controlLog="" controlAt="" controlStore=""
+	type AgentsSessionStoreDirInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+	printf -v "$1" '%s' ""
+	case "${2:-}" in ''|-|.|..|*/*|*[[:space:]]*) return 1 ;; esac
+	AgentsSessionStoreDirInto controlStore "${MMDAPP:-}" || return 1
+	printf -v controlLog '%s/%s/control/log' "$controlStore" "$2"
+	[ -f "$controlLog" ] || return 1
+	controlAt="$( stat -f %m "$controlLog" 2> /dev/null || stat -c %Y "$controlLog" 2> /dev/null )" || controlAt=""
+	case "$controlAt" in ''|*[!0123456789]*) return 1 ;; esac
+	printf -v "$1" '%s' "$controlAt"
+}
+
+## Every session's control thread, into the named array: `<session><TAB><pid><TAB><start><TAB>alive|gone|unknown>` an element. The start is the
+## moment the file keeps beside the pid, and the verdict is the one liveness rule (AgentsToolsThreadLockHolderLives), so a number the system has
+## since given to another process reads gone. A file whose first word is no number names no row.
+AgentsSessionControlRowsInto(){ ## array variable, workspace (default MMDAPP)
+	local controlVar="$1" controlWs="${2:-${MMDAPP:-}}" controlFile controlSession controlPid controlStart controlRc controlState controlLine
+	case "$controlVar" in ''|*[!A-Za-z0-9_]*) return 1 ;; esac
+	case "${controlWs%/}" in ''|/) return 1 ;; esac
+	eval "$controlVar=()"
+	type AgentsToolsThreadLockHolderLives > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.ThreadLock.include"
+	for controlFile in "${controlWs%/}/.local/agents/sessions"/*/control/pid ; do
+		[ -f "$controlFile" ] || continue
+		controlPid="" ; controlStart=""
+		{ read -r controlPid controlStart < "$controlFile" ; } 2> /dev/null || continue
+		case "${controlPid:-}" in ''|*[!0123456789]*) continue ;; esac
+		controlSession="${controlFile%/control/pid}" ; controlSession="${controlSession##*/}"
+		controlState="unknown"
+		controlRc=0 ; AgentsToolsThreadLockHolderLives "$controlPid $controlStart" || controlRc=$?
+		case "$controlRc" in 0) controlState="alive" ;; 1) controlState="gone" ;; esac
+		controlLine="$controlSession"$'\t'"$controlPid"$'\t'"$controlStart"$'\t'"$controlState"
+		eval "$controlVar+=( \"\$controlLine\" )"
+	done
+	return 0
+}

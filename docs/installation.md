@@ -53,15 +53,19 @@ what is still missing and names the command that closes it:
 - `--print-apply-command` writes the command an `--apply` would run, and changes
   nothing — use it when a credential has to be supplied.
 
-The CLI domains are `claude`, `claude-native`, `copilot`, `copilot-native`, `grok` and `scaleway`:
+The CLI domains are `claude`, `claude-native`, `copilot`, `copilot-native`, `grok`, `scaleway` and
+`deepseek`:
 
 - `claude-native` runs the vendor `claude` already installed and signed in on
   this machine. It stores no credential here — sign in once with
   `claude auth login`, and every workspace on the machine uses that sign-in.
 - `copilot-native` runs the vendor `copilot` CLI.
-- `claude`, `copilot`, `grok` and `scaleway` run this package's own harness. Each
+- `claude`, `copilot`, `grok`, `scaleway` and `deepseek` run this package's own harness. Each
   stores its own credential in this workspace, so a workspace can run under an
   account of its own.
+- `deepseek` reaches DeepSeek's API through `sh-lib/harness/AgentsDeepseekHarness.sh`. It needs no
+  vendor CLI, and its domain is installed when that harness file ships with the release, so
+  `--owner-setup-deepseek` reports the harness as installed or missing rather than scanning `PATH`.
 
 ## Workspace restrictions (optional)
 

@@ -5,7 +5,7 @@ maintainers: magic-coordinator, magic-librarian, magic-architect, keeper-myx, hu
 
 Normative contract: this file's own `# Contract` section, at its end. Where it and the rest of this file disagree, `# Contract` wins.
 
-Not a member/routine contract — this is the fixed shape of the report a builder sends after it applies (beat 4 of "How a feature is delivered", through the apply tool). The builder fills it through the tooling; the coordinator sets the feature's status line from it. It ends the builder's run.
+Not a member/routine contract — this is the fixed shape of the report a builder sends after it applies (beat 4, apply, of `magic-team.epic-build.routine`, through the apply tool). The builder fills it through the tooling; the coordinator sets the feature's status line from it. It ends the builder's run.
 
 ## Contents
 

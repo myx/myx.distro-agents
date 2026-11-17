@@ -508,7 +508,10 @@ echo "-- 10. the guard: every check of sh-test that names an operation which sta
 ## that names the spawn proxy, the spawn relay's own, the start of a session or the console's start of a member ends
 ## them too, whether its own starts wait or not: the guard reads names. So does one that names the return of a
 ## review, which starts an ended run again, or the harness's own tool that brings a member in.
-rigGuardOps='--intern-op-routine-lock-take|--intern-main-loop|--manager-session-control-start|--intern-op-agent-spawn-proxy|--spawn-prompt|--spawn-session|--manager-spawn-member|--return-review|--intern-op-review-return|--intern-tool +"?Agent'
+## And every detached thread the tooling runs by its own operation, which a check reaches by name: the control thread of a session, the
+## communications reader, the source collector, the schedule's service thread, the comms event-id thread, the chat writer of the session
+## chat files and the store's commit thread. Each of them outlives its rig the same way, and each writes its lock into the rig.
+rigGuardOps='--intern-op-routine-lock-take|--intern-main-loop|--manager-session-control-start|--intern-op-agent-spawn-proxy|--spawn-prompt|--spawn-session|--manager-spawn-member|--return-review|--intern-op-review-return|--intern-tool +"?Agent|--intern-session-control|--intern-session-comms|--intern-source-collect|--intern-schedule|--intern-comms-event-id|--intern-session-chat-writer|--intern-team-data-commit'
 ## THE CHECKS THAT NAME A SPAWN OPERATION AND RUN NONE, with the reason, by file name. A start its caller waits on
 ## (--wait) gets no control thread (AgentsToolsSessionControlWaited: its transcript says wait=true; the spawner starts the
 ## thread, and the communications reader beside it, in the supervising shell of a start that is not waited for), so a
@@ -525,7 +528,7 @@ rigGuardOps='--intern-op-routine-lock-take|--intern-main-loop|--manager-session-
 rigGuardWaived=' AgentsThisSessionCheck.test.sh AgentsHandbackNextCheck.test.sh AgentsHarnessSpawnToolCheck.test.sh AgentsDutyKillRestartCheck.test.sh AgentsHelpFormsCheck.test.sh '
 ## The guarded names as plain words, spaced: a line's guarded name is counted by where it stands against that line's `grep`,
 ## which a regular expression cannot compare. Spaced, never one a line: `awk -v` refuses a value holding a newline.
-rigGuardWords=' --intern-op-routine-lock-take --intern-main-loop --manager-session-control-start --intern-op-agent-spawn-proxy --spawn-prompt --spawn-session --manager-spawn-member --return-review --intern-op-review-return '
+rigGuardWords=' --intern-op-routine-lock-take --intern-main-loop --manager-session-control-start --intern-op-agent-spawn-proxy --spawn-prompt --spawn-session --manager-spawn-member --return-review --intern-op-review-return --intern-session-control --intern-session-comms --intern-source-collect --intern-schedule --intern-comms-event-id --intern-session-chat-writer --intern-team-data-commit '
 ## A line that only searches for a guarded name, printing nothing where it also calls one.
 rigSearchOnly(){ ## -- lines on stdin
 	LC_ALL=C awk -v words="$rigGuardWords" '

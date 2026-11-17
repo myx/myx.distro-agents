@@ -21,7 +21,7 @@
 				AgentsToolsSpawnRoutineResolve "$routineRecordSelector"
 			)" 2>/dev/null || routineRecorded=""
 			## A routine whose runs report to no one says so in its own frontmatter (`reports-to: none`).
-			[ ! -f "$routineRecorded" ] || [ "$( AgentsToolsSpawnSandboxRecordHeader "$routineRecorded" "$agentsRunRouteField" )" != none ] || routineReportsTo="none"
+			[ ! -f "$routineRecorded" ] || [ "$( AgentsToolsFrontmatterKey "$routineRecorded" "$agentsRunRouteField" )" != none ] || routineReportsTo="none"
 			routineFilePath="$routineRecorded"
 			routineRecorded="${routineRecorded##*/}"
 			## THE STARTING PATH (S6.27): the frames this session begins with, one `routine-stack:` line each. The
@@ -42,8 +42,8 @@
 			## static reference guidance are put at the head of that run's dispatch instead (AgentsTools.WorkDutyDispatch.include),
 			## where they are the same bytes on every work-duty run of the member and cache after the first.
 			if [ -n "$routineFilePath" ] && [ -f "$routineFilePath" ] ; then
-				type AgentsToolsWorkDutyDispatchIs > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/schedule/AgentsTools.WorkDutyDispatch.include"
-				AgentsToolsWorkDutyDispatchIs "$routineFilePath" && workDutyDispatchFile="$routineFilePath" || workDutyDispatchFile=""
+				type AgentsToolsDutyRoutineIs > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/routine/AgentsTools.DutyRoutine.include"
+				AgentsToolsDutyRoutineIs "$routineFilePath" && workDutyDispatchFile="$routineFilePath" || workDutyDispatchFile=""
 			fi
 			if [ -n "$workDutyDispatchFile" ] ; then
 				local workDutyDispatchHead

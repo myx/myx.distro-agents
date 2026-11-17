@@ -88,15 +88,18 @@ AgentsToolsCommonOwns(){ ## operation, option
 
 ## Whether an operation REQUIRES a common option where the context does not hold it: its help syntax writes the option unbracketed with its common placeholder
 ## (`--session-id <session-id>`), where the bracketed `[--session-id <session-id>]` is implied from its variable and may be left out.
-AgentsToolsCommonNeeds(){ ## operation, option
-	[ -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/help/Help.DistroAgentsTools.help.md" ] || return 1
-	LC_ALL=C awk -v op="$1" -v opt="$2" '
-		BEGIN { want = ( opt == "--team-member" ? "^<(team-member|member)>" : ( opt == "--session-id" ? "^<session-id>" : ( opt == "--spawn-id" ? "^<spawn-id>" : "^$never$" ) ) ) }
+## ONE pass answers all three, into agentsCommonNeeds: the caller asks once for each option, and a pass each read the 487 KB help file three times
+## on every tool call. agentsCommonNeeds is space-padded, so a membership test is `case " $agentsCommonNeeds " in *" $opt "*)`.
+AgentsToolsCommonNeedsOf(){ ## operation -- sets agentsCommonNeeds
+	local needsHelp="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/help/Help.DistroAgentsTools.help.md"
+	agentsCommonNeeds=" "
+	[ -f "$needsHelp" ] || return 1
+	agentsCommonNeeds=" $( LC_ALL=C awk -v op="$1" '
+		BEGIN { want["--team-member"] = "^<(team-member|member)>" ; want["--session-id"] = "^<session-id>" ; want["--spawn-id"] = "^<spawn-id>" }
 		$1 == "📘" && $4 == op { at = 5 }
 		/^\t\t--[a-z]/ && $1 == op { at = 2 }
-		at { for ( i = at ; i < NF ; i++ ) { if ( $i == opt && $( i + 1 ) ~ want ) { found = 1 ; exit } } at = 0 }
-		END { exit ( found ? 0 : 1 ) }
-	' "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/help/Help.DistroAgentsTools.help.md"
+		at { for ( i = at ; i < NF ; i++ ) { if ( ( $i in want ) && $( i + 1 ) ~ want[$i] ) { printf "%s ", $i } } at = 0 }
+	' "$needsHelp" ) "
 }
 
 ## An absolute path of a directory, as given (no symlink is resolved): nothing, rc 1, where it is none.
@@ -161,7 +164,7 @@ AgentsToolsCommonOriginKnown(){ ## absolute origin
 ## AgentsToolsCommonRun <main function> <tool script> "$@"; the caller returns its result.
 AgentsToolsCommonRun(){ ## main function, tool script, operation, arguments...
 	local runFn="$1" runScript="$2" runOp="$3" runActing runMember="" runSession="" runSpawn="" runWs="" runOrigin="" runName runWsAbs runOriginAbs runFirst runHere runRootSession
-	local runGivenMember="" runGivenSession="" runGivenSpawn="" runGivenWs="" runGivenOrigin="" runRest=() runIsFirst=no runInserted=no runBrought="" runBroughtRoot="" agentsCommonFronted=1
+	local runGivenMember="" runGivenSession="" runGivenSpawn="" runGivenWs="" runGivenOrigin="" runRest=() runIsFirst=no runInserted=no runBrought="" agentsCommonFronted=1
 	shift 3
 	type AgentsToolsActingMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.CallerCheck.include"
 	runActing="$( AgentsToolsActingMember )"
@@ -187,8 +190,9 @@ AgentsToolsCommonRun(){ ## main function, tool script, operation, arguments...
 
 	## REQUIRED WHERE THE CONTEXT DOES NOT HOLD IT: an operation whose syntax writes a common option unbracketed needs its value, from the option or from its variable;
 	## with neither, the call is refused naming the option, and never runs with an empty value.
+	AgentsToolsCommonNeedsOf "$runOp"
 	for runName in --team-member --session-id --spawn-id ; do
-		AgentsToolsCommonNeeds "$runOp" "$runName" || continue
+		case "$agentsCommonNeeds" in *" $runName "*) ;; *) continue ;; esac
 		case "$runName" in
 			--team-member) runFirst="${runGivenMember:-$( AgentsToolsTeamMember )}" ; runHere="MDAT_SPAWN_AGENT in this context and no account (USER)" ;;
 			--session-id) runFirst="${runGivenSession:-${MDAT_SESSION_ID:-}}" ; runHere="MDAT_SESSION_ID in this context" ;;
@@ -228,7 +232,7 @@ AgentsToolsCommonRun(){ ## main function, tool script, operation, arguments...
 			## The root-harness session acts on every rig this machine knows: magic-coordinator.root-harness.routine names `--spawn-run --select-workspace <place>`.
 			## Root: a minted root session, or magic-coordinator's own session here that no spawn made (its folder has no `control/state`).
 			runRootSession="${MDAT_SESSION_ID:-${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}}"
-			type AgentsToolsRootHarnessSessionIs > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.RootHarnessKind.include"
+			type AgentsToolsRootHarnessSessionIs > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/chat/AgentsTools.RootHarnessKind.include"
 			{ [ -n "$runRootSession" ] && case "$runRootSession" in */*|.|..) false ;; esac && {
 				{ AgentsToolsRootHarnessSessionIs "$runRootSession" ; } ||
 				{ [ "$runActing" = magic-coordinator ] && { type AgentsSessionKnown > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include" ; } && AgentsSessionKnown "$runRootSession" && ! AgentsSessionMarked "$runRootSession" control/state ; }
@@ -268,10 +272,11 @@ AgentsToolsCommonRun(){ ## main function, tool script, operation, arguments...
 			## holds none of. Resolved here because this is where every member-first call takes its member, --team-member and the
 			## implied one alike; the front door's own block only ever saw a name standing first.
 			type AgentsToolsMemberSkillsetBring > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWorkspace.include"
+			## NOTHING CARRIES THE MEMBER'S FOLDER (S12 row 16): the bring answers whether the member can be brought at all and
+			## which of its settings are read elsewhere; the call goes on here, and each reader of its folder resolves that folder
+			## from the member registries at its own entry.
 			runBrought="$( AgentsToolsMemberSkillsetBring "$runMember" "$runOp" )" || return 1
-			runBroughtRoot="${runBrought%%$'\t'*}"
-			[ "$runBroughtRoot" != "${MDAT_SKILLSET_ROOT:-}" ] || runBroughtRoot=""
-			[ -z "$runBroughtRoot" ] || AgentsToolsMemberSettingsBorrowedSay "$runMember" "$runOp" "${runBrought#*$'\t'}"
+			[ -z "$runBrought" ] || AgentsToolsMemberSettingsBorrowedSay "$runMember" "$runOp" "${runBrought#*$'\t'}"
 		fi
 	elif [ -n "$runGivenMember" ] ; then
 		if [ -n "$runActing" ] ; then
@@ -289,14 +294,13 @@ AgentsToolsCommonRun(){ ## main function, tool script, operation, arguments...
 	## Nothing given and nothing placed: the call goes on as it was, in the caller (rc 9).
 	[ -n "$runGivenMember$runGivenSession$runGivenSpawn$runGivenWs$runGivenOrigin" ] || [ "$runInserted" = yes ] || return 9
 	## Only a member placed, or a member named that changes no environment: the call is made again in place.
-	if [ -z "$runGivenSession$runGivenSpawn$runGivenWs$runGivenOrigin$runBroughtRoot" ] ; then
+	if [ -z "$runGivenSession$runGivenSpawn$runGivenWs$runGivenOrigin" ] ; then
 		"$runFn" "$runOp" ${runRest[@]+"${runRest[@]}"}
 		return $?
 	fi
 	## The call, made again under what was resolved: in a subshell of its own, so nothing is left behind in a shell that called this as a function.
 	(
 		[ -z "$runGivenWs" ] || { type AgentsToolsWorkspaceSwitch > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWorkspace.include" ; AgentsToolsWorkspaceSwitch "$runWsAbs" ; }
-		[ -z "$runBroughtRoot" ] || export MDAT_SKILLSET_ROOT="$runBroughtRoot"
 		[ -z "$runGivenSession" ] || export MDAT_SESSION_ID="$runGivenSession"
 		if [ -n "$runGivenSpawn" ] ; then
 			if [ "$runGivenSpawn" = shell-console ] ; then unset MDAT_SPAWN_SESSION_ID ; else export MDAT_SPAWN_SESSION_ID="$runGivenSpawn" ; fi

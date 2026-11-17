@@ -107,7 +107,7 @@ rigContactSeed "$rigData" magic-coordinator rig-owner - owner@example.com
 rigOp "$rigTmp/r2" --send-report --team-member magic-coordinator
 rigAssert "sent once due"                                 "$( cat "$rigTmp/r2.rc" ):$( LC_ALL=C grep -c '^SENT:to=owner@example.com:' "$rigTmp/r2" )" "0:1"
 rigAssert "addressed to the configured owner"             "$( LC_ALL=C grep -c -x 'To: owner@example.com' "$rigTmp/r2" )" 1
-rigAssert "the body carries the counts and the items"     "$( LC_ALL=C grep -c -x -E -e '➤ running: 1' -e '➤ blocked/task-rig-blocked.md' "$rigTmp/r2" | tr -d ' ' )" 2
+rigAssert "the body carries the counts and the items"     "$( LC_ALL=C grep -c -x -E -e '^[-➤] running: 1$' -e '^[-➤] blocked/task-rig-blocked.md$' "$rigTmp/r2" | tr -d ' ' )" 2
 rigAssert "last-test-email-sent is stamped now"           "$( rigField "$rigHbNote" last-test-email-sent | cut -c1-10 )" "$( date -u +%Y-%m-%d )"
 rigOp "$rigTmp/r3" --send-report --team-member magic-coordinator
 rigAssert "inside the hour it is not due, and sends nothing" "$( cat "$rigTmp/r3.rc" ):$( LC_ALL=C grep -c '^NOT_DUE:' "$rigTmp/r3" ):$( LC_ALL=C grep -c '^To: ' "$rigTmp/r3" )" "0:1:0"

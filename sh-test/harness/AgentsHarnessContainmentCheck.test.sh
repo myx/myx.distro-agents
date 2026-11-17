@@ -71,7 +71,8 @@ ln -s real "$rigTmp/link"
 
 rigFails=0
 rigRun(){ ## root, path, expected
-	harnessRoots="$( AgentsHarnessResolveDir "$1" )"
+	AgentsHarnessResolveDir "$1" rigRootReal
+	harnessRoots="$rigRootReal"
 	if AgentsHarnessPathAllowed "$2" ; then rigGot=ALLOW ; else rigGot=REFUSE ; fi
 	if [ "$rigGot" = "$3" ] ; then
 		printf '  PASS  %-6s  root=%-12s path=%s\n' "$rigGot" "${1#$rigTmp/}" "${2#$rigTmp/}"

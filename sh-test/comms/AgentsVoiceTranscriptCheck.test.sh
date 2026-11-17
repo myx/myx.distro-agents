@@ -93,7 +93,7 @@ rigHas(){ ## text, literal substring -- yes or no
 rigRead(){ ## origin -- one read of the conversation, as the member, its rendering on stdout
 	( cd "$rigWs" && env -u MDAT_DATA_ROOT -u MDAT_SPAWN_AGENT -u MDAT_SPAWN_SESSION_ID -u MDAT_SESSION_ID \
 		MDAT_TEAM_MEMBER=keeper-myx MDAT_SLACK_THREAD_CACHE_SECONDS=0 MMDAPP="$rigWs" MDLT_ORIGIN="$1" \
-		bash "$1/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --slack-read C0RIG0001 2> "$rigTmp/stderr" )
+		bash "$1/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --slack-read C0RIG0001 --oldest 1 2> "$rigTmp/stderr" )
 }
 ## One thread rendered by the comms cache itself -- the second of the three renderers the one function serves, driven where the Wait
 ## drives it. The rendering lands in the file given; the cache's own folder is the rig workspace's.

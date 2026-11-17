@@ -27,7 +27,7 @@ set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigHere="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib"
 rigTest="${rigHere%/sh-lib}/sh-test"
-. "$rigTest/check-fixtures/rig-store-item.include.sh" || exit 1
+. "$rigTest/check-fixtures/rig-owner-writes.include.sh" || exit 1
 rigLiveFrom=""
 [ "${1:-}" != "--live-copy-from" ] || rigLiveFrom="${2:?⛔ ERROR: --live-copy-from needs a workspace}"
 
@@ -231,7 +231,7 @@ printf -- '---\nstatus: z\n---\n' > "$rigPend/ask-8-unread.md"
 chmod 000 "$rigPend/ask-8-unread.md"
 mkdir -p "$rigPend/dir.md"
 printf 'n\n' > "$rigPend/ignored.txt"
-## The board items are written by the board's own write (rig-store-item.include.sh), faulty frontmatter and all: the owner
+## The board items are written by the board's own write (rig-owner-writes.include.sh), faulty frontmatter and all: the owner
 ## writes an item's body as given, so the crafted shapes below reach the readers exactly as the cases intend.
 rigBoardItem "running task-1.md" '---
 blocked-on: human

@@ -13,7 +13,7 @@
 ## Sourced, never run. Functions only.
 ##
 
-type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandboxRecordHeader.include"
+type AgentsToolsFrontmatterKey > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.FrontmatterKey.include"
 
 ## A rendering on stdin for a member, its tooling's own posts taken out, on stdout.
 ## ONLY THE RUNS THE RENDERING NAMES ARE LOOKED UP: the `[session: <spawn id>]` marks in it, each one's own record read, never every
@@ -22,12 +22,12 @@ AgentsToolsTrackingDrop(){ ## member
 	local dropText="" dropId dropRecord dropRoute dropMember dropAway="" dropSeen=" "
 	IFS= read -r -d '' dropText || :
 	type AgentsSessionRunRecordInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
-	type AgentsToolsRunRoute > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.RunRoute.include"
+	type AgentsToolsRunRoute > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.RunRoute.include"
 	for dropId in $( printf '%s' "$dropText" | LC_ALL=C grep -o '\[session: [A-Za-z0-9-]*\]' | LC_ALL=C sed 's/^\[session: //;s/\]$//' ) ; do
 		case "$dropSeen" in *" $dropId "*) continue ;; esac
 		dropSeen="$dropSeen$dropId "
 		AgentsSessionRunRecordInto dropRecord "$dropId" || continue
-		[ "$( AgentsToolsSpawnSandboxRecordHeader "$dropRecord" parent-member 2> /dev/null )" = "$1" ] || continue
+		[ "$( AgentsToolsFrontmatterKey "$dropRecord" parent-member 2> /dev/null )" = "$1" ] || continue
 		dropRoute="$( AgentsToolsRunRoute "$dropRecord" 2> /dev/null )" || dropRoute=""
 		dropMember="$( AgentsToolsRunRouteMember "$dropRoute" 2> /dev/null )" || dropMember=""
 		[ "$dropMember" = "$1" ] || dropAway="$dropAway $dropId"

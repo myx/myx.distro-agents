@@ -25,7 +25,7 @@ AgentsToolsMemberSlackSenderMark(){
 	fi
 	type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/settings/AgentsTools.ConfigOption.include"
 	markOwner="$( AgentsToolsConfigOption magic-team --select SLACK_CHANNEL_HUMAN_OWNER 2> /dev/null < /dev/null )" || markOwner=""
-	case "$markOwner" in [UW][A-Z0-9]*) ;; *) markOwner="$( AgentsSlackIdentityOwnerId )" ;; esac
+	case "$markOwner" in [UW][A-Z0-9]*) ;; *) markOwner="$( AgentsSlackIdentityId human-owner )" ;; esac
 	markOwn=" $( AgentsSlackIdentityTeamIds | LC_ALL=C tr '
 ' ' ' ) "
 	## The store is read once, in one awk pass over its records' headers: each Slack id they hold maps to "name, organisation, contact id".
@@ -83,6 +83,50 @@ AgentsToolsMemberSlackSenderMark(){
 }
 
 
+## Whether a session carries a learning signal: the learn record the reaction mark writes beside it
+## (AgentsSessionLearnAdd), read for the retro (AgentsToolsScheduleLearning). Slack owns the mark, so
+## slack answers whether one stands, and no other part builds its path. rc 0 where it does.
+AgentsSlackLearnMarked(){ ## session id
+	local learnStoreSession=""
+	case "${1:-}" in ''|-|.|..|*/*|*[[:space:]]*) return 1 ;; esac
+	type AgentsSessionFolderInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+	AgentsSessionFolderInto learnStoreSession "${MMDAPP:-}" "$1" || return 1
+	[ -e "$learnStoreSession/learn" ]
+}
+
+## The marks this file keeps in a session's own folder. The store answers every path into it (AgentsSessionFolderInto), so no part
+## of the path is built here. No process on the path either: the builder fills a variable by printf -v.
+
+## Marks a session for the retro: one dated line in its learn record, never twice for the same signal.
+AgentsSessionLearnAdd(){ ## session, signal line
+	local learnFolder=""
+	case "${1:-}" in ''|-|.|..|*/*|*[[:space:]]*) return 0 ;; esac
+	type AgentsSessionFolderInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+	AgentsSessionFolderInto learnFolder "${MMDAPP:-}" "$1" || return 0
+	LC_ALL=C grep -q -F -- "$2" "$learnFolder/learn" 2> /dev/null && return 0
+	printf '%s %s\n' "$( date '+%Y-%m-%d %H:%M %z' )" "$2" >> "$learnFolder/learn" 2> /dev/null || :
+	return 0
+}
+
+## Whether a session's run was told of a reaction already, by its entry `<ts> <emoji> <user>`: rc 0 it was.
+AgentsSessionToldHas(){ ## session, entry
+	local toldFolder=""
+	case "${1:-}" in ''|-|.|..|*/*|*[[:space:]]*) return 1 ;; esac
+	type AgentsSessionFolderInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+	AgentsSessionFolderInto toldFolder "${MMDAPP:-}" "$1" || return 1
+	LC_ALL=C grep -q -x -F -- "$2" "$toldFolder/corrections.told" 2> /dev/null
+}
+
+## Records that a session's run was told of a reaction, by its entry `<ts> <emoji> <user>`.
+AgentsSessionToldAdd(){ ## session, entry
+	local toldFolder=""
+	case "${1:-}" in ''|-|.|..|*/*|*[[:space:]]*) return 0 ;; esac
+	type AgentsSessionFolderInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+	AgentsSessionFolderInto toldFolder "${MMDAPP:-}" "$1" || return 0
+	printf '%s\n' "$2" >> "$toldFolder/corrections.told" 2> /dev/null || :
+	return 0
+}
+
 ## A REACTION ON THE TEAM'S OWN POST IS A LEARNING SIGNAL (the human-owner's rule): a positive or a negative reaction by a person of the
 ## standing the learning flag asks -- with learning on, tier-client and above; with it off, tier-owner and the human-owner -- marks the
 ## session that posted the message (its learn record, AgentsSessionLearnAdd: one line a reaction, never twice), so the retro analyses that session
@@ -94,7 +138,7 @@ AgentsToolsSlackReactionSignals(){ ## the Slack response
 	[ -n "${MMDAPP:-}" ] && command -v python3 > /dev/null 2>&1 || return 0
 	sigOwn="$( AgentsSlackIdentityTeamIds | LC_ALL=C tr '
 ' ' ' )"
-	sigOwner="$( AgentsSlackIdentityOwnerId )"
+	sigOwner="$( AgentsSlackIdentityId human-owner )"
 	type AgentsToolsScheduleCurrentFlags > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/schedule/AgentsTools.DispatcherSchedule.include"
 	type AgentsToolsScheduleCurrentFlags > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/schedule/AgentsTools.DispatcherSchedule.include"
 	[ "$( AgentsToolsScheduleCurrentFlags --current-flags 2> /dev/null | LC_ALL=C sed -n 's/^learning: //p' )" != yes ] || sigLearning=yes

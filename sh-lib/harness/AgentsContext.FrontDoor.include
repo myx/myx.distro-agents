@@ -45,8 +45,11 @@ if [ -z "${agentsCommonFronted:-}" ] && { [ -z "${2:-}" ] || case "$2" in -*) tr
 fi
 
 ## WE RUN FROM HERE: a name that takes a team member first uses the workspace it is run from, for everything, and is carried to no other. A member set up only in
-## another workspace on this machine is invited: only its skillset is read from there (AgentsToolsMemberSkillsetBring), and those of its own settings this workspace
+## another workspace on this machine is invited: its skillset is read from there (AgentsToolsMemberSkillsetBring), and those of its own settings this workspace
 ## holds none of, and it is stopped only when its skillset cannot be brought.
+## NOTHING CARRIES ITS FOLDER ACROSS A RE-RUN (S12 row 16): the bring answers whether the member can be brought at all, and which of
+## its settings this workspace holds none of; the call goes on here, in this process, and each reader of the member's folder resolves that
+## folder from the member registries at its own entry.
 ## A real first argument reaching here, past gate 39, was never resolved by it: gate 39 only runs where none was
 ## given. On the direct re-call AgentsToolsCommonRun makes once it has resolved the member itself, agentsCommonFronted
 ## is still set the whole way down this same call, so this block is skipped there: "$2" is already its answer, not a
@@ -79,10 +82,8 @@ case "$1" in
 					## honoured on no route.
 					[ "$frontOpName" != "--wait-for-input" ] || [ "${1:-}" != "$memberName" ] || shift
 					set -- "$frontOpName" "$memberName" "$@"
-					if [ -n "$memberBrought" ] && [ "$memberBrought" != "${MDAT_SKILLSET_ROOT:-}" ] ; then
+					if [ -n "$memberBrought" ] ; then
 						AgentsToolsMemberSettingsBorrowedSay "$memberName" "$frontOpName" "$memberBroughtFrom"
-						( export MDAT_SKILLSET_ROOT="$memberBrought" ; "$MDSC_CMD" "$@" )
-						frontRc=$? ; frontDone=yes ; return 0
 					fi
 				fi
 			;;

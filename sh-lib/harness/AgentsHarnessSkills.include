@@ -63,12 +63,6 @@ AgentsHarnessSkillLocate(){ ## skill name, then candidate SKILL.md paths in sear
 	printf '%s\n' "${@:2}" | LC_ALL=C awk -v wantName="$1" -f "$harnessHere/harness/AgentsHarnessSkillLocate.awk"
 }
 
-## Only the named sections of a Markdown file, |-separated heading texts, each down to the
-## next heading of the same or a higher level; an unknown one is ERROR listing the headings.
-AgentsHarnessSkillSection(){ ## file, sections
-	skillSections="$2" LC_ALL=C awk -f "$harnessHere/harness/AgentsHarnessSkillSection.awk" "$1"
-}
-
 AgentsHarnessPrefetchStamp(){ ## files... -- one line a file: its checksum, size and path; a file that is not there says so
 	local stampFile stampPresent=()
 	for stampFile in "$@" ; do
@@ -221,8 +215,7 @@ AgentsHarnessPrefetchBuild(){
 		agentsPrefetchRoutineFile="$( AgentsToolsSpawnRoutineResolve "$pfRoutine" 2> /dev/null )" || agentsPrefetchRoutineFile=""
 		if [ -f "$agentsPrefetchRoutineFile" ] ; then
 			pfKindFile="$( AgentsToolsSpawnRoutineKindPath "$agentsPrefetchRoutineFile" 2> /dev/null )" || pfKindFile=""
-			type AgentsToolsBoardFrontmatterAwkInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemDecisions.include"
-			AgentsToolsBoardFrontmatterAwkInto pfBoardAwk
+			printf -v pfBoardAwk '%s/myx/myx.distro-agents/sh-lib/board/AgentsBoardItemFrontmatterPrintSelected.awk' "${MDLT_ORIGIN:-}"
 			## No further condition: the policy names the routine, and the routine's own text is the session's first item.
 			pfStamp="$( AgentsHarnessPrefetchStamp "$agentsPrefetchRoutineFile" "${pfKindFile:-$agentsPrefetchRoutineFile}" "$harnessHere/spawn/AgentsTools.SpawnRoutine.include" \
 				"$harnessHere/harness/AgentsTools.InternMergeMdFiles.include" "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/markdown/LocalMergeMdFiles.awk" "$pfBoardAwk" \
@@ -268,10 +261,11 @@ AgentsHarnessPrefetchBuild(){
 ## under the root, whatever that root later resolves to.
 AgentsHarnessToolSkill(){ ## name, file, list, offset, limit, skill, args, section
 	local toolName="$1" toolFile="$2" toolList="$3" toolOffset="$4" toolLimit="$5" toolSkill="$6" toolArgs="$7" toolSection="${8:-}"
-	local skillDir skillPath skillRest skillSeg skillBytes skillPrefix skillLeaf skillSought pluginRoot skillPluginData skillOwnRoot skillCandidate skillOther skillOwnSum
+	local skillDir skillPath skillRest skillSeg skillBytes skillPrefix skillLeaf skillSought pluginRoot skillPluginData skillOwnRoot skillSelfRoot skillCandidate skillOther skillOwnSum
 	local skillVendor=()
 	## A member of another workspace is found through the shared registry, never through this workspace's own index.
 	type AgentsToolsTeamMemberDirectory > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamRegistry.include"
+	type AgentsToolsSkillsetRootInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWorkspace.include"
 	## skill is the native call shape: the name resolved and the skill rendered as the
 	## client does both. A path of its own, apart from name, file and list.
 	if [ -n "$toolSkill" ] ; then
@@ -296,7 +290,7 @@ AgentsHarnessToolSkill(){ ## name, file, list, offset, limit, skill, args, secti
 			## Team members from the member index, then a member of another workspace by its
 			## name; then a skill the user or a vendor put in $HOME/.claude/skills as a real
 			## folder. A link there is one our installer generated, and is never read back.
-			skillOwnRoot="${MDAT_SKILLSET_ROOT:-${MMDAPP:-}/.local/agents/members}"
+			AgentsToolsSkillsetRootInto skillOwnRoot "${MMDAPP:-}"
 			skillOther="$( AgentsToolsTeamMemberDirectory "$skillLeaf" 2> /dev/null )" || skillOther=""
 			skillVendor=()
 			for skillCandidate in "$HOME/.claude/skills/$skillLeaf" "$HOME"/.claude/skills/*/ ; do
@@ -393,7 +387,7 @@ AgentsHarnessToolSkill(){ ## name, file, list, offset, limit, skill, args, secti
 			fi
 		fi
 		if [ -n "$toolSection" ] ; then
-			AgentsHarnessSkillSection "$harnessScratch/skill.out" "$toolSection" > "$harnessScratch/skill.section" || :
+			skillSections="$toolSection" LC_ALL=C awk -f "$harnessHere/harness/AgentsHarnessSkillSection.awk" "$harnessScratch/skill.out" > "$harnessScratch/skill.section" || :
 			mv -f "$harnessScratch/skill.section" "$harnessScratch/skill.out"
 			case "$( head -c 6 "$harnessScratch/skill.out" )" in ERROR:) cat "$harnessScratch/skill.out" ; return 0 ;; esac
 		fi
@@ -422,7 +416,8 @@ AgentsHarnessToolSkill(){ ## name, file, list, offset, limit, skill, args, secti
 	## is found through the shared registry. A real folder in $HOME/.claude/skills is a
 	## skill the user or a vendor put there; a link there is our own generated output,
 	## never read back.
-	skillDir="${MDAT_SKILLSET_ROOT:-${MMDAPP:-}/.local/agents/members}/$toolName"
+	AgentsToolsSkillsetRootInto skillSelfRoot "${MMDAPP:-}"
+	skillDir="$skillSelfRoot/$toolName"
 	[ -d "$skillDir" ] || ! skillOther="$( AgentsToolsTeamMemberDirectory "$toolName" 2> /dev/null )" || skillDir="$skillOther"
 	[ -d "$skillDir" ] || [ -L "$HOME/.claude/skills/$toolName" ] || skillDir="$HOME/.claude/skills/$toolName"
 	if [ ! -d "$skillDir" ] ; then
@@ -498,7 +493,7 @@ AgentsHarnessToolSkill(){ ## name, file, list, offset, limit, skill, args, secti
 	## section narrows the file to the named headings first; offset, limit and the cap then
 	## apply to that text, as they do to a whole file.
 	if [ -n "$toolSection" ] ; then
-		AgentsHarnessSkillSection "$skillPath" "$toolSection" > "$harnessScratch/skill.out" || :
+		skillSections="$toolSection" LC_ALL=C awk -f "$harnessHere/harness/AgentsHarnessSkillSection.awk" "$skillPath" > "$harnessScratch/skill.out" || :
 		case "$( head -c 6 "$harnessScratch/skill.out" )" in ERROR:) cat "$harnessScratch/skill.out" ; return 0 ;; esac
 		skillPath="$harnessScratch/skill.out"
 	fi

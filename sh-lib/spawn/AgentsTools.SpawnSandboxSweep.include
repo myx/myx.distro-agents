@@ -74,10 +74,10 @@ AgentsToolsSpawnSandboxSweep(){ ## where
 ## Sandbox folder names linked to one board item, one per line, sorted, empty when none. Two links, either one is enough:
 ## the item's own spawn-id naming a record, and a record's spawns/spawned-by naming the item. An empty or `-` spawn-id matches nothing.
 AgentsToolsSpawnSandboxFoldersOfItem(){ ## item path
-	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandboxRecordHeader.include"
+	type AgentsToolsFrontmatterKey > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.FrontmatterKey.include"
 	local itemStem="${1##*/}" itemSpawn itemRecords=()
 	itemStem="${itemStem%.md}"
-	itemSpawn="$( AgentsToolsSpawnSandboxRecordHeader "$1" spawn-id )"
+	itemSpawn="$( AgentsToolsFrontmatterKey "$1" spawn-id )"
 	type AgentsToolsSpawnedAllRecordsInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include"
 	AgentsToolsSpawnedAllRecordsInto itemRecords "$MMDAPP"
 	[ ${#itemRecords[@]} -gt 0 ] || return 0
@@ -104,7 +104,7 @@ AgentsToolsSpawnSandboxFoldersOfItem(){ ## item path
 ## `shared` (another board item still links to it, or the folder is not a plain directory under the spawned root),
 ## `held` (its root carries the marker a promise of undo writes, so no cleaner may remove it), else `removable`.
 AgentsToolsSpawnSandboxFolderState(){ ## folder name, item stem going away
-	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandboxRecordHeader.include"
+	type AgentsToolsFrontmatterKey > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.FrontmatterKey.include"
 	local folderName="$1" skipStem="$2" spawnFolder=""
 	local recordPath recordStatus recordSpawn linkField linkText linkStem boardPath boardFiles=() spawnIds="" sharedHold
 	type AgentsToolsUndoHoldState > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/undo/AgentsTools.UndoHold.include"
@@ -123,7 +123,7 @@ AgentsToolsSpawnSandboxFolderState(){ ## folder name, item stem going away
 	esac
 	for recordPath in "$spawnFolder"/*.spawn.md ; do
 		[ -f "$recordPath" ] || continue
-		recordStatus="$( AgentsToolsSpawnSandboxRecordHeader "$recordPath" status )"
+		recordStatus="$( AgentsToolsFrontmatterKey "$recordPath" status )"
 		case "$recordStatus" in ''|spawn-started) echo open ; return 0 ;; esac
 	done
 	for recordPath in "$spawnFolder"/*.spawn.md ; do
@@ -131,7 +131,7 @@ AgentsToolsSpawnSandboxFolderState(){ ## folder name, item stem going away
 		recordSpawn="${recordPath##*/}"
 		spawnIds="$spawnIds ${recordSpawn%.spawn.md}"
 		for linkField in spawns spawned-by ; do
-			linkText="$( AgentsToolsSpawnSandboxRecordHeader "$recordPath" "$linkField" )"
+			linkText="$( AgentsToolsFrontmatterKey "$recordPath" "$linkField" )"
 			for linkStem in ${linkText//,/ } ; do
 				linkStem="${linkStem%.md}"
 				[ "$linkStem" != "$skipStem" ] || continue

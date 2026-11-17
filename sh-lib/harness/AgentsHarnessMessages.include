@@ -371,7 +371,7 @@ AgentsHarnessAuthorityAsk(){ ## what (words), the run's spawn id, tool, the call
 	type AgentsHarnessWholeNumber > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessToolsFile.include"
 	local askRecord=""
 	type AgentsToolsAuthorityGate > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.Authority.include"
-	type AgentsToolsRunRoute > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.RunRoute.include"
+	type AgentsToolsRunRoute > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.RunRoute.include"
 	AgentsSessionRunRecordInto askRecord "$2" || :
 	agentsAuthorityMode="" agentsAuthorityTimeout=""
 	case "${harnessArgV_escalate:-}" in
@@ -407,8 +407,8 @@ AgentsHarnessSendDismissRefused(){ ## target as given, message, address to
 	if [ -z "$dismissRun" ] ; then
 		type AgentsToolsSpawnedSessionRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include"
 		for dismissCandidate in $( AgentsToolsSpawnedSessionRecords "$dismissSession" own 2> /dev/null ) ; do
-			type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandboxRecordHeader.include"
-			[ "$( AgentsToolsSpawnSandboxRecordHeader "$dismissCandidate" owner )" = "$dismissMember" ] || continue
+			type AgentsToolsFrontmatterKey > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.FrontmatterKey.include"
+			[ "$( AgentsToolsFrontmatterKey "$dismissCandidate" owner )" = "$dismissMember" ] || continue
 			AgentsToolsSessionRecordLive "$dismissCandidate" || continue
 			dismissRun="${dismissCandidate##*/}" ; dismissRun="${dismissRun%.spawn.md}"
 			break

@@ -89,18 +89,18 @@ case "$1" in
 			set +e ; return 1
 		}
 
-		local armedFile="$MDAT_SKILLSET_ROOT/$targetMember/$targetMember.armed.md"
+		## The member's own folder, from the tooling's member directory, never a root a caller carried in.
+		type AgentsToolsTeamMemberDirectory > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamRegistry.include"
+		local armedDir
+		armedDir="$( AgentsToolsTeamMemberDirectory "$targetMember" )" || armedDir=""
+		[ -n "$armedDir" ] || armedDir="${MMDAPP%/}/.local/agents/members/$targetMember"
+		local armedFile="$armedDir/$targetMember.armed.md"
 		if [ ! -f "$armedFile" ] ; then
 			## Said so the reader can act: whose member set was read, and where the machine's members index says the member is set up.
-			local armedRootWs="" armedSetUp=""
-			case "$MDAT_SKILLSET_ROOT" in */.local/agents/members) armedRootWs="${MDAT_SKILLSET_ROOT%/.local/agents/members}" ;; esac
+			local armedSetUp=""
 			armedSetUp="$( LC_ALL=C awk -F'\t' -v who="$targetMember" 'NF >= 5 && $1 == who && $3 != "source-declared" { printf "%s%s", sep, $2 ; sep = ", " ; }' "${HOME:-}/.agents/magic-team/members.registry" 2> /dev/null )" || armedSetUp=""
 			[ -n "$armedSetUp" ] || armedSetUp="no workspace the machine's members index (${HOME:-}/.agents/magic-team/members.registry) names"
-			if [ -n "$armedRootWs" ] && [ "$armedRootWs" != "${MMDAPP%/}" ] ; then
-				echo "$MDSC_CMD: spawn-prepare-brief: ⛔ ERROR: no such member .armed.md: $armedFile -- nothing was started. The member set read is the view of $armedRootWs, not of ${MMDAPP%/}, the workspace this spawn runs from: MDAT_SKILLSET_ROOT was carried in from a member invited from $armedRootWs. $targetMember is set up in: $armedSetUp. Start it from a context whose MDAT_SKILLSET_ROOT is ${MMDAPP%/}/.local/agents/members." >&2
-			else
-				echo "$MDSC_CMD: spawn-prepare-brief: ⛔ ERROR: no such member .armed.md: $armedFile -- nothing was started. $targetMember is set up in: $armedSetUp." >&2
-			fi
+			echo "$MDSC_CMD: spawn-prepare-brief: ⛔ ERROR: no such member .armed.md: $armedFile -- nothing was started. The member set read is that of ${MMDAPP%/}, the workspace this spawn runs from. $targetMember is set up in: $armedSetUp." >&2
 			set +e ; return 1
 		fi
 
@@ -159,7 +159,7 @@ case "$1" in
 
 		## the standing directives in force that are not warnings (F7.9): the orders of the human-owner and the coordinator's notes that stand
 		local briefDirectives
-		type AgentsToolsSurfaceBriefText > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.CoordinatorSurface.include"
+		type AgentsToolsSurfaceBriefText > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.CoordinatorSurface.include"
 		briefDirectives="$( AgentsToolsSurfaceBriefText )"
 
 		## the member's access, from the same layers the holds check reads

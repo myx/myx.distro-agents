@@ -34,14 +34,9 @@ agentsCollectLine="" agentsCollectNew=0 agentsCollectWhy=""
 ## the collection of each source does (no): a pass of 64 mails is one commit, not 64.
 agentsCollectWritten=() agentsCollectDefer="no"
 
-
-AgentsToolsCollectStatePath(){ ## kind, member
-	printf '%s/%s.%s.state\n' "$MMDAPP/.local/agents/collect" "$1" "$2"
-}
-
 ## The value of a key of a source's state, nothing for a key it has none of.
 AgentsToolsCollectStateGet(){ ## kind, member, key
-	LC_ALL=C awk -v want="$3" '$1 == want { sub( /^[^ ]+ ?/, "" ) ; print ; exit ; }' "$( AgentsToolsCollectStatePath "$1" "$2" )" 2> /dev/null || :
+	LC_ALL=C awk -v want="$3" '$1 == want { sub( /^[^ ]+ ?/, "" ) ; print ; exit ; }' "$( printf '%s/%s.%s.state\n' "$MMDAPP/.local/agents/collect" "$1" "$2" )" 2> /dev/null || :
 }
 
 ## Sets keys of a source's state: key, value, key, value ...; an empty value removes the key. Written whole, then renamed.
@@ -52,7 +47,7 @@ AgentsToolsCollectStateSet(){ ## kind, member, key, value, ...
 		setPairs="${setPairs}$1"$'\t'"$2"$'\n'
 		shift 2
 	done
-	setPath="$( AgentsToolsCollectStatePath "$setKind" "$setMember" )" ; setDir="${setPath%/*}"
+	setPath="$( printf '%s/%s.%s.state\n' "$MMDAPP/.local/agents/collect" "$setKind" "$setMember" )" ; setDir="${setPath%/*}"
 	mkdir -p "$setDir" || return 1
 	setTmp="$( mktemp "$setDir/.state.XXXXXX" )" || return 1
 	{ [ ! -f "$setPath" ] || cat "$setPath" ; } | SET_PAIRS="$setPairs" LC_ALL=C awk '
@@ -69,21 +64,25 @@ AgentsToolsCollectStateSet(){ ## kind, member, key, value, ...
 ## directory this workspace holds, as `--intern-op-client-sweep-input-scan` asks. A client-* member is collected on the client
 ## side (MDAT_COMMS_SIDE=client), as the scan reads it.
 AgentsToolsCollectScanMembers(){
-	local scanFile scanExecutors scanExecutor scanName scanDir scanOut=""
+	local scanFile scanExecutors scanExecutor scanName scanDir scanOut="" scanMember scanMemberDir scanExecutorDir
 	type AgentsToolsRoutineKeyOwn > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/routine/AgentsTools.RoutineRequirements.include"
-	type AgentsToolsTeamMemberDirectoryText > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamRegistry.include"
-	for scanFile in "${MDAT_SKILLSET_ROOT:-/nonexistent}"/*/*.routine.md ; do
-		[ -f "$scanFile" ] || continue
-		AgentsToolsRoutineKeyLinesOwn "$scanFile" input-scan-def | LC_ALL=C awk '$1 == "sweep" { found = 1 ; } END { exit ! found ; }' || continue
-		scanExecutors="$( AgentsToolsRoutineKeyOwn "$scanFile" executors | LC_ALL=C tr ',' ' ' )"
-		for scanExecutor in $scanExecutors ; do
-			[ -d "$MDAT_SKILLSET_ROOT/$scanExecutor" ] || continue
-			scanOut="$scanOut$scanExecutor"$'\n'
+	type AgentsToolsTeamMemberDirectory > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamRegistry.include"
+	while IFS=$'\t' read -r scanMember scanMemberDir ; do
+		[ -n "$scanMemberDir" ] || continue
+		for scanFile in "$scanMemberDir"/*.routine.md ; do
+			[ -f "$scanFile" ] || continue
+			AgentsToolsRoutineKeyLinesOwn "$scanFile" input-scan-def | LC_ALL=C awk '$1 == "sweep" { found = 1 ; } END { exit ! found ; }' || continue
+			scanExecutors="$( AgentsToolsRoutineKeyOwn "$scanFile" executors | LC_ALL=C tr ',' ' ' )"
+			for scanExecutor in $scanExecutors ; do
+				scanExecutorDir="$( AgentsToolsTeamMemberDirectory "$scanExecutor" )" || scanExecutorDir=""
+				case "$scanExecutorDir" in "${MMDAPP%/}/"*) ;; *) continue ;; esac
+				scanOut="$scanOut$scanExecutor"$'\n'
+			done
 		done
-	done
+	done <<< "$( AgentsToolsTeamMemberDirectoryText )"
 	while IFS=$'\t' read -r scanName scanDir ; do
 		case "$scanName" in
-			client-*) [ -d "$scanDir" ] && [ -d "$MDAT_SKILLSET_ROOT/$scanName" ] && scanOut="$scanOut$scanName"$'\n' ;;
+			client-*) case "$scanDir" in "${MMDAPP%/}/"*) scanOut="$scanOut$scanName"$'\n' ;; esac ;;
 		esac
 	done < <( AgentsToolsTeamMemberDirectoryText )
 	printf '%s' "$scanOut" | LC_ALL=C sort -u

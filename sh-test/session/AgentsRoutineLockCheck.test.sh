@@ -16,7 +16,7 @@
 ## Red before F6.2: no routine-lock-document: is read (1's brief and 2 fail).
 ## Offline: a fake curl first on PATH; the team data of the rig is a plain folder, with no git remote.
 set -u
-. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-store.include.sh" || exit 1
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-writes.include.sh" || exit 1
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigPackage="$MDLT_ORIGIN/myx/myx.distro-agents"

@@ -216,6 +216,12 @@ if ! type AgentsToolsUndoKinds >/dev/null 2>&1 ; then
 	## One part of the undo prompt, filled from its template by the filler the ask posts use: the
 	## template and the answer form the table of the asks names for `undo`. Its slots travel in the
 	## caller's environment as ASKP_F_<slot>, as they do for every ask.
+	## How much of a diff the prompt shows before it is cut: lines, bytes, and the bytes of one line.
+	## The same shape the change lane keeps for its own prompt.
+	agentsUndoShowLines=60
+	agentsUndoShowBytes=6000
+	agentsUndoShowLineBytes=2000
+
 	AgentsToolsUndoAskFill(){ ## want (post|closed|reactions|block), template, answer form
 		ASKP_WANT="$1" ASKP_FORM="$3" \
 			LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsToolingTemplateFill.awk" \
@@ -227,14 +233,38 @@ if ! type AgentsToolsUndoKinds >/dev/null 2>&1 ; then
 	## is carried out in one place. Prints the pending id; rc 1, the reason on stderr, where it
 	## could not be posted or recorded, so the act is not promised.
 	AgentsToolsUndoAskOpen(){ ## record folder, acting member, session id
-		local undoAskDir="$1" undoAskBy="$2" undoAskSession="$3" undoAskBody="" undoAskOut="" undoAskChannel="" undoAskTs="" undoAskAddressees="" undoAskAsking="" undoAskFields="" undoAskPending="" undoAskTemplate
+		local undoAskDir="$1" undoAskBy="$2" undoAskSession="$3" undoAskBody="" undoAskOut="" undoAskChannel="" undoAskTs="" undoAskAddressees="" undoAskAsking="" undoAskFields="" undoAskPending="" undoAskTemplate undoAskChange="" undoAskCut="" undoAskCounts="" undoAskTotal="" undoAskShown=""
 		type AgentsToolsAskKindRow > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.AskPost.include"
 		AgentsToolsAskKindRow undo || { printf 'the prompt cannot be filled: undo is not a kind the table of asks names\n' >&2 ; return 1 ; }
 		undoAskTemplate="$( AgentsToolsToolingTemplate "$agentsAskRowTemplate" )" || undoAskTemplate="$agentsAskRowTemplate"
+		## What the act changed, as the change lane shows it: the base against the result, whole in the
+		## record so a cut prompt can name it. An act that changed nothing, or a kind with no file at
+		## all, shows no change; a diff that cannot be produced is said here and refuses nothing quietly.
+		if [ -f "$undoAskDir/base" ] && [ -f "$undoAskDir/result" ] && ! cmp -s "$undoAskDir/base" "$undoAskDir/result" ; then
+			LC_ALL=C diff -U3 "$undoAskDir/base" "$undoAskDir/result" 2> /dev/null | LC_ALL=C awk 'NR > 2' > "$undoAskDir/change.diff"
+			undoAskCounts="$( LC_ALL=C awk -v maxLines="$agentsUndoShowLines" -v maxBytes="$agentsUndoShowBytes" -v maxLine="$agentsUndoShowLineBytes" '
+				{
+					lineTotal++ ;
+					if ( ! cutHere && shownLines < maxLines && length( $0 ) <= maxLine && shownBytes + length( $0 ) + 1 <= maxBytes ) { shownLines++ ; shownBytes += length( $0 ) + 1 ; }
+					else { cutHere = 1 ; }
+				}
+				END { print lineTotal + 0, shownLines + 0 ; }
+			' "$undoAskDir/change.diff" 2> /dev/null )" || undoAskCounts=""
+			undoAskTotal="${undoAskCounts%% *}" ; undoAskShown="${undoAskCounts##* }"
+			[ "${undoAskTotal:-0}" != "0" ] || { printf 'the act changed its file and no diff of the change could be read, so its prompt is not posted\n' >&2 ; return 1 ; }
+			[ "${undoAskShown:-0}" = "0" ] || undoAskChange="$( LC_ALL=C sed -n "1,${undoAskShown}p" "$undoAskDir/change.diff" )"
+			if [ "$undoAskShown" != "$undoAskTotal" ] ; then
+				type AgentsToolsPermissionShownTarget > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionPlaces.include"
+				undoAskCut="$( ASKP_BLOCK="Lines/cut" ASKP_F_hidden="$(( undoAskTotal - undoAskShown ))" ASKP_F_total="$undoAskTotal" \
+					ASKP_F_diff_file="$( AgentsToolsPermissionShownTarget "$undoAskDir/change.diff" )" \
+					AgentsToolsUndoAskFill block "$undoAskTemplate" "$agentsAskRowForm" )" || undoAskCut=""
+			fi
+		fi
 		undoAskBody="$( ASKP_F_member="$undoAskBy" \
 			ASKP_F_act="$( printf '`%s` on `%s`' "$( AgentsToolsUndoField "$undoAskDir" kind )" "$( AgentsToolsUndoField "$undoAskDir" target )" )" \
 			ASKP_F_inverse="$( AgentsToolsUndoSteps "$undoAskDir" | LC_ALL=C awk -F'\t' '{ printf "  step %s %s %s\n", $1, $2, $3 ; }' )" \
 			ASKP_F_hold="$( AgentsToolsUndoField "$undoAskDir" hold-dir )" \
+			ASKP_F_fence='```' ASKP_F_change="$undoAskChange" ASKP_F_cut="$undoAskCut" \
 			AgentsToolsUndoAskFill post "$undoAskTemplate" "$agentsAskRowForm" )" || undoAskBody=""
 		[ -n "$undoAskBody" ] || { printf 'the prompt could not be filled from its template, so nothing is promised\n' >&2 ; return 1 ; }
 		undoAskOut="$( printf '%s\n' "$undoAskBody" | "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-op-comms-slack-send-message "$undoAskBy" human-owner --identity-bot --address-to human-owner --from-stdin 2>&1 )" || {

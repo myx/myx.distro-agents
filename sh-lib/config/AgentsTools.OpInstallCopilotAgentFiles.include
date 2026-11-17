@@ -31,7 +31,7 @@
 		local memberDirs ; memberDirs="$( AgentsToolsClientAccessRootsMembers acting )"
 		local memberCount="$( printf '%s' "$memberDirs" | grep -c '' )"
 		if [ "$memberCount" -lt 1 ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --install-copilot-agent-files: no member skill directories resolved under $MDAT_SKILLSET_ROOT -- refusing to write copilot agent files for zero members" >&2
+			echo "⛔ ERROR: $MDSC_CMD --install-copilot-agent-files: this workspace resolved no member skillset directories -- refusing to write copilot agent files for zero members" >&2
 			set +e ; return 1
 		fi
 

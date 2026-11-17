@@ -1,10 +1,13 @@
 #!/usr/bin/env bash
 ## AgentsCommandsListCheck -- the tooling commands of a workspace, listed with the path the shell runs each by
 ## (DistroAgentsTools.fn.sh --commands-list, AgentsTools.CommandsList.include; epic S12.26).
-## Guards: the list names the family's own commands with their paths; a project command the prepared index names is in it,
-## with the folder the index gives; a name met in two folders keeps its first, in the command path's order; `--names` prints
-## the names alone, sorted; another word is refused; the list is read through the tooling command itself.
-## Red: a list that misses the index's folders fails `the project command of the index is listed`.
+## Guards: the list names the family's own commands with their paths, a `.fn.sh` and a command that is no `.fn.sh` alike; a
+## project command the prepared index names is in it, with the folder the index gives; a file there the shell does not run is not
+## in it; a name met in two folders keeps its first, in the command path's order; `--names` prints the names alone, sorted; another
+## word is refused; the list is read through the tooling command itself.
+## Red: a list that misses the index's folders fails `the project command of the index is listed`; one that lists by suffix alone
+## fails `a family command that is no .fn.sh is listed` and `a command of the index that is no .fn.sh is listed`; one that lists
+## every file fails `a file of the index the shell does not run is not listed`.
 ## Offline: a temp workspace of this check alone, removed at its end; the family's own folders are read as they are.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
@@ -20,7 +23,10 @@ mkdir -p "$rigWs/.local" "$rigWs/source/rig/one/sh-scripts" "$rigWs/source/rig/t
 printf '#!/usr/bin/env bash\necho ONE\n' > "$rigWs/source/rig/one/sh-scripts/RigCustom.fn.sh"
 printf '#!/usr/bin/env bash\necho TWO\n' > "$rigWs/source/rig/two/sh-scripts/RigCustom.fn.sh"
 printf '#!/usr/bin/env bash\necho SHADOW\n' > "$rigWs/source/rig/two/sh-scripts/DistroAgentsTools.fn.sh"
-chmod 755 "$rigWs"/source/rig/*/sh-scripts/*.fn.sh
+printf '#!/usr/bin/env bash\necho PLAIN\n' > "$rigWs/source/rig/one/sh-scripts/RigPlain.sh"
+printf 'not a command\n' > "$rigWs/source/rig/one/sh-scripts/RigNote.txt"
+chmod 755 "$rigWs"/source/rig/*/sh-scripts/*.fn.sh "$rigWs/source/rig/one/sh-scripts/RigPlain.sh"
+chmod 644 "$rigWs/source/rig/one/sh-scripts/RigNote.txt"
 printf 'rig/one RigCustom %s\nrig/two RigCustom %s\nrig/two DistroAgentsTools %s\n' "$rigWs/source/rig/one/sh-scripts" "$rigWs/source/rig/two/sh-scripts" "$rigWs/source/rig/two/sh-scripts" > "$rigWs/.local/distro-commands.txt"
 rigPass=0 ; rigFail=0
 rigAssert(){ ## what, got, want
@@ -35,10 +41,13 @@ echo "-- 1. the family's commands, with their paths --"
 rigList > "$rigTmp/list"
 rigAssert "DistroAgentsTools is listed with the family's own path, not the index's shadow" "$( LC_ALL=C awk -F'\t' '$1 == "DistroAgentsTools" { print $2 }' "$rigTmp/list" )" "$rigTool"
 rigAssert "the agents' and the deploy's commands are in it" "$( LC_ALL=C grep -c -e '^DistroAgentsItems	' -e '^DeployProjectSsh	' "$rigTmp/list" )" 2
+rigAssert "a family command that is no .fn.sh is listed"    "$( LC_ALL=C awk -F'\t' '$1 == "workspace-install.sh" { print $2 }' "$rigTmp/list" )" "$MDLT_ORIGIN/myx/myx.distro-.local/sh-scripts/workspace-install.sh"
 rigAssert "each name once"                                  "$( LC_ALL=C cut -f 1 "$rigTmp/list" | LC_ALL=C sort | LC_ALL=C uniq -d | LC_ALL=C wc -l | LC_ALL=C tr -d ' ' )" 0
 
 echo "-- 2. the prepared index's commands --"
 rigAssert "the project command of the index is listed"      "$( LC_ALL=C awk -F'\t' '$1 == "RigCustom" { print $2 }' "$rigTmp/list" )" "$rigWs/source/rig/one/sh-scripts/RigCustom.fn.sh"
+rigAssert "a command of the index that is no .fn.sh is listed" "$( LC_ALL=C awk -F'\t' '$1 == "RigPlain.sh" { print $2 }' "$rigTmp/list" )" "$rigWs/source/rig/one/sh-scripts/RigPlain.sh"
+rigAssert "a file of the index the shell does not run is not listed" "$( LC_ALL=C awk -F'\t' '$1 == "RigNote.txt"' "$rigTmp/list" | LC_ALL=C wc -l | LC_ALL=C tr -d ' ' )" 0
 rigAssert "the list is sorted by name"                      "$( LC_ALL=C cut -f 1 "$rigTmp/list" | LC_ALL=C sort -c 2>&1 | LC_ALL=C wc -l | LC_ALL=C tr -d ' ' )" 0
 
 echo "-- 3. the names alone, and a refused word --"

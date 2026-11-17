@@ -39,10 +39,6 @@ AgentsHarnessContextEscape(){ ## raw text -- a JSON string body
 	printf '%s' "$1" | LC_ALL=C awk -f "$harnessHere/mcp/AgentsMcpJsonEscape.awk"
 }
 
-AgentsHarnessContextStamp(){
-	date -u +%Y-%m-%dT%H:%M:%SZ
-}
-
 ## The tools array exactly as AgentsWireRequestBody places it.
 AgentsHarnessContextToolsJson(){
 	case "$harnessWire" in
@@ -113,11 +109,11 @@ AgentsHarnessContextLine(){ ## n, kind, meta fragment (starting with a comma, or
 	case "$lineRecord" in
 		*$'\n'*)
 			printf '{"type":"message","n":%s,"leg":%s,"kind":"%s","round":%s,"ts":"%s","ms":%s%s,"record_text":"%s"}\n' \
-				"$1" "$harnessContextLeg" "$2" "${harnessRound:-0}" "$( AgentsHarnessContextStamp )" "${lineMs:-0}" "$3" "$( AgentsHarnessContextEscape "$lineRecord" )"
+				"$1" "$harnessContextLeg" "$2" "${harnessRound:-0}" "$( date -u +%Y-%m-%dT%H:%M:%SZ )" "${lineMs:-0}" "$3" "$( AgentsHarnessContextEscape "$lineRecord" )"
 		;;
 		*)
 			printf '{"type":"message","n":%s,"leg":%s,"kind":"%s","round":%s,"ts":"%s","ms":%s%s,"record":%s}\n' \
-				"$1" "$harnessContextLeg" "$2" "${harnessRound:-0}" "$( AgentsHarnessContextStamp )" "${lineMs:-0}" "$3" "$lineRecord"
+				"$1" "$harnessContextLeg" "$2" "${harnessRound:-0}" "$( date -u +%Y-%m-%dT%H:%M:%SZ )" "${lineMs:-0}" "$3" "$lineRecord"
 		;;
 	esac
 }
@@ -136,7 +132,7 @@ AgentsHarnessContextBegin(){ ## from (default 0)
 		printf '{"type":"context","version":1,"session":"%s","member":"%s","service":"%s","model":"%s","api_host":"%s","wire":"%s","machine":"%s","leg":%s,"from":%s,"ts":"%s","cache_key":"%s","system_shared":%s,"task":"%s"}\n' \
 			"$MDAT_SPAWN_SESSION_ID" "$( AgentsHarnessContextEscape "${harnessAgent:-}" )" "$( AgentsHarnessContextEscape "${harnessProviderName:-}" )" \
 			"$( AgentsHarnessContextEscape "${harnessModel:-}" )" "$( AgentsHarnessContextEscape "${harnessHost:-}" )" "$harnessWire" \
-			"$( AgentsHarnessContextEscape "$( AgentsHarnessContextMachine )" )" "$harnessContextLeg" "$harnessContextFrom" "$( AgentsHarnessContextStamp )" \
+			"$( AgentsHarnessContextEscape "$( AgentsHarnessContextMachine )" )" "$harnessContextLeg" "$harnessContextFrom" "$( date -u +%Y-%m-%dT%H:%M:%SZ )" \
 			"${agentsWirePromptCacheKey:-}" "${agentsWireSystemSharedBytes:-0}" "$( AgentsHarnessContextEscape "$harnessPrompt" )"
 		printf '{"type":"system","text":"%s"}\n' "$( AgentsHarnessContextSystemJson )"
 		printf '{"type":"tools","cksum":"%s","bytes":%s}\n' "$( printf '%s' "$beginTools" | LC_ALL=C cksum | LC_ALL=C awk '{ print $1 }' )" "$( printf '%s' "$beginTools" | LC_ALL=C wc -c | tr -d ' ' )"

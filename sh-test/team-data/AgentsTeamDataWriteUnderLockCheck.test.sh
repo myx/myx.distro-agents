@@ -49,10 +49,12 @@ command -v git > /dev/null || rigRefuse "git is not installed"
 command -v ps > /dev/null || rigRefuse "ps is not on PATH"
 rigRealGit="$( command -v git )"
 . "$rigPkg/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
-. "$rigPkg/sh-test/check-fixtures/rig-store-item.include.sh" || exit 1
+. "$rigPkg/sh-test/check-fixtures/rig-owner-writes.include.sh" || exit 1
+## And every thread a scene of this rig starts, the store's commit thread among them, ended before the rig goes.
+. "$rigPkg/sh-test/check-fixtures/rig-control-threads.include.sh" || rigRefuse "the rig's fixture that ends threads is missing from the package"
 rigTmp="$( rigTempDir AgentsTeamDataWriteUnderLockCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
-trap 'rigThreadStop ; rm -rf -- "$rigTmp"' EXIT
+trap 'rigThreadStop ; rigControlThreadsEnd "$rigTmp" ; rm -rf -- "$rigTmp"' EXIT
 rigWs="$rigTmp/ws"
 rigData="$rigTmp/data"
 rigBin="$rigTmp/bin"
@@ -223,7 +225,7 @@ rigThreadStop(){ ## ends a thread this rig left running, and waits for its lock 
 	return 0
 }
 
-## Every item the writers below edit is written once here, through the board's own write (rig-store-item.include.sh),
+## Every item the writers below edit is written once here, through the board's own write (rig-owner-writes.include.sh),
 ## before any writer or committer thread runs: the fixtures cannot race the writes this check measures.
 rigSeedItem(){ ## item name, body word
 	local seedBody="$rigTmp/seed.$1"

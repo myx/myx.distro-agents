@@ -94,11 +94,10 @@ DistroAgentsDispatcher(){
 			return "$commonRc"
 		;;
 	esac
-	## The skillset root, as every operation of the tooling settles it (AgentsContext.UseAgentsTools.include).
-	if [ -z "${MDAT_SKILLSET_ROOT:-}" ] ; then
-		MDAT_SKILLSET_ROOT="$MMDAPP/.local/agents/members"
-		export MDAT_SKILLSET_ROOT
-	fi
+	## The skillset root, resolved here for this call. NOT exported (S12 row 16): a child resolves its own at its own entry,
+	## so no process carries another's member folder.
+	type AgentsToolsSkillsetRootInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWorkspace.include"
+	AgentsToolsSkillsetRootInto MDAT_SKILLSET_ROOT "${MMDAPP:-}"
 	case "$1" in
 
 		## The sessions of this workspace with their runs, the rows --manager-session-list prints; those not finished

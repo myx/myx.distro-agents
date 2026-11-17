@@ -239,7 +239,7 @@ rigRun --slack-send-message --team-member client-acme magic-team --identity-bot 
 rigAssert "the same with --identity-bot: our team's bot" "$rigRc $( rigTokens chat.postMessage )" "0 rig-bot-token-HERE "
 rigRun --slack-send-message --team-member client-mel magic-team RIG-BODY
 rigAssert "a client set up here, that holds a bot token of its own: still our team's bot, its own never used, with the mark of its row and its member name as its alias, never the alias of its persona" "$rigRc $( rigTokens chat.postMessage )$( rigTheirs ) $( rigText )" '0 rig-bot-token-HERE 0 🐭 *_client-mel_* → @here.\nRIG-BODY'
-rigRun --slack-read --team-member client-acme magic-team
+rigRun --slack-read --team-member client-acme magic-team --oldest 1
 rigAssert "its read of magic-team is our team's bot reading our team's conversation" "$rigRc $( rigTokens conversations.history )$( rigTheirs )" "0 rig-bot-token-HERE 0"
 rigRun --slack-react --team-member client-acme CHERE0001:1700000001.000101 eyes
 rigAssert "its reaction in our conversation is our team's bot's" "$rigRc $( cat "$rigTmp/reactions" )" "0 rig-bot-token-HERE CHERE0001 1700000001.000101 eyes"
@@ -247,7 +247,7 @@ rigRun --slack-send-message --team-member client-acme human-owner RIG-BODY
 rigAssert "to the human-owner it is our team's bot's post too, as for any member with no account in our Slack: nothing is relayed under another member's account" "$rigRc $( rigTokens chat.postMessage )$( rigChannel ) $( rigN "$rigTmp/err" "magic-coordinator's user account" ) $( rigTheirs )" "0 rig-bot-token-HERE UHEREOWNER 0 0"
 rigRun --slack-send-message --team-member keeper-here client-acme RIG-BODY
 rigAssert "addressed by name from inside our team, a client has no Slack account on our side: refused as a member with no DM, never sent to its account in the other organisation" "$rigRc $( rigN "$rigTmp/err" "NO-SLACK-DM: team member 'client-acme' has no Slack DM channel of its own" ) $( rigLines "$rigTmp/bodies" ) $( rigTheirs )" "1 1 0 0"
-rigRun --slack-read --team-member client-acme CACME00001
+rigRun --slack-read --team-member client-acme CACME00001 --oldest 1
 rigAssert "a conversation of the other organisation named with no marker in a --member- operation is looked for in our own Slack, by our team's bot" "$( rigTokens conversations.history )$( rigTheirs )" "rig-bot-token-HERE 0"
 rigRun --slack-delete-message --team-member client-acme CACME00001:1700000001.000101
 rigAssert "and where it is not found there, the error says the side the call was on, and how the other organisation is reached" "$( rigN "$rigTmp/err" "THIS CALL USED the Slack here.slack.invalid, by the settings of the workspace $rigWork/ws-here (the workspace this operation runs in) -- this call is on our own organisation's side, where client-acme has no Slack settings of its own: what it holds is the other organisation's, read in a --client-* operation or for a client:<addressee> address" )" 1
@@ -274,7 +274,7 @@ rigRun --client-comms-slack-send-message --team-member client-acme CACME00001 --
 rigAssert "a client that holds no bot token of its own is refused the bot identity there: our team's bot does not stand in, and nothing is posted" "$rigRc $( rigLines "$rigTmp/bodies" ) $( rigOurs ) $( rigN "$rigTmp/err" 'this call is on the side of the other organisation, where only the settings client-acme itself holds are read, never the team'"'"'s' | LC_ALL=C awk '{ print ( $1 > 0 ) ? "said" : "silent" }' )" "1 0 0 said"
 rigRun --client-comms-slack-send-message --team-member client-acme CNOTLISTD RIG-BODY
 rigAssert "a recipient the client's contacts do not list is refused by the outbound contact gate, as before, and nothing is posted" "$rigRc $( rigLines "$rigTmp/bodies" )" "1 0"
-rigRun --client-comms-slack-read --team-member client-acme CACME00001
+rigRun --client-comms-slack-read --team-member client-acme CACME00001 --oldest 1
 rigAssert "its read of a conversation there is under the client's token" "$rigRc $( rigTokens conversations.history )$( rigOurs )" "0 rig-user-token-ACME 0"
 rigRun --client-comms-slack-read --team-member client-acme CACME00001:1700000001.000101 --thread
 rigAssert "and of a thread" "$rigRc $( rigTokens conversations.replies )$( rigOurs )" "0 rig-user-token-ACME 0"
@@ -299,7 +299,7 @@ rigAssert "magic-coordinator reaches the other organisation through its own oper
 rigAssert "every call it makes and every body it posts is what the client's own session made and posted: the same sender" "$( cmp -s "$rigTmp/calls" "$rigTmp/calls.own" && printf same-calls || printf other-calls ) $( cmp -s "$rigTmp/bodies" "$rigTmp/bodies.own" && printf same-bodies || printf other-bodies )" "same-calls same-bodies"
 rigRun --client-comms-slack-send-message --team-member client-acme CACME00001 RIG-BODY
 rigAssert "and not by the client's operation itself: its session is refused in one line that names its own operation, and nothing is posted" "$rigRc $( rigLines "$rigTmp/calls" ) $( rigN "$rigTmp/err" "this session acts as magic-coordinator, and a --client-* operation in the name of client-acme is for client-acme's own session only -- nothing was done: magic-coordinator runs it with --client-operation-run magic-coordinator --client-comms-slack-send-message client-acme" )" "1 0 1"
-rigRun --slack-read --team-member client-acme CACME00001
+rigRun --slack-read --team-member client-acme CACME00001 --oldest 1
 rigAssert "a --magic-comms-* operation given a client is our own side, as for any other member: the conversation is looked for in our own Slack, by our team's bot, and nothing the client holds is used" "$( rigTokens conversations.history )$( rigTheirs )" "rig-bot-token-HERE 0"
 rigPre=( MDAT_COMMS_OP=--slack-resolve-ids )
 rigFn AgentsToolsSlackSideNote client-acme
@@ -307,7 +307,7 @@ rigAssert "and where it is not found there, what the error says of the side name
 rigPre=()
 rigFn AgentsToolsSlackSideNote client-acme
 rigAssert "control: in every other operation it says the side as it did" "$fnOut" " -- this call is on our own organisation's side, where client-acme has no Slack settings of its own: what it holds is the other organisation's, read in a --client-* operation or for a client:<addressee> address"
-rigRun --slack-read --team-member keeper-here magic-team
+rigRun --slack-read --team-member keeper-here magic-team --oldest 1
 rigAssert "control: the coordinator acting as a member that is no client stays in our own Slack" "$rigRc $( rigTokens conversations.history )" "0 rig-user-token-KHERE "
 rigRun --intern-op-client-sweep-input-scan client-acme
 rigAssert "the client's own sweep reads its sources there under its own token, and never under our team's" "$( [ "$( rigN "$rigTmp/calls" ' rig-user-token-ACME' )" -gt 0 ] && printf read || printf unread ) $( rigOurs ) $( rigElsewhere )" "read 0 0"
@@ -349,7 +349,7 @@ rigRun --slack-send-message --team-member client-acme magic-team --address-to cl
 rigAssert "a client: addressee in a send that stays on our own side is refused, and nothing is posted" "$rigRc $( rigLines "$rigTmp/bodies" ) $( rigN "$rigTmp/err" "--address-to 'client:UACMEPERSON': a client: addressee is of the other organisation, and this send is on our own organisation's side" )" "1 0 1"
 rigRun --slack-read --team-member client-acme client:CACME00001:1700000001.000101 --thread
 rigAssert "a --member- read of a client: thread is the client's token reading" "$rigRc $( rigTokens conversations.replies )$( rigOurs )" "0 rig-user-token-ACME 0"
-rigRun --slack-read --team-member client-acme client:CACME00001
+rigRun --slack-read --team-member client-acme client:CACME00001 --oldest 1
 rigAssert "and of a client: conversation" "$rigRc $( rigTokens conversations.history )$( rigOurs )" "0 rig-user-token-ACME 0"
 rigRun --slack-react --team-member client-acme client:CACME00001:1700000001.000101 eyes
 rigAssert "a --member- reaction to a client: message is the client's own, on the id alone" "$rigRc $( cat "$rigTmp/reactions" ) $( rigOurs )" "0 rig-user-token-ACME CACME00001 1700000001.000101 eyes 0"
@@ -384,7 +384,7 @@ rigRun --client-comms-slack-react --team-member client-acme human-owner:17000000
 rigAssert "in a --client- reaction: the hint names the --member- reaction" "$rigRc $( rigLines "$rigTmp/calls" ) $( rigHinted --client-comms-slack-react human-owner:1700000001.000101 human-owner )" "1 0 1"
 rigRun --slack-send-message --team-member client-acme client:magic-team RIG-BODY
 rigAssert "a named conversation under the client: marker in a --member- send: the hint says the marker goes" "$rigRc $( rigLines "$rigTmp/calls" ) $( rigN "$rigTmp/err" "⛔ ERROR: DistroAgentsTools --slack-send-message: 'client:magic-team' is refused: for 'magic-team', $rigHintMarked." )" "1 0 1"
-rigRun --slack-read --team-member client-acme client:human-owner
+rigRun --slack-read --team-member client-acme client:human-owner --oldest 1
 rigAssert "and in a --member- read" "$rigRc $( rigLines "$rigTmp/calls" ) $( rigN "$rigTmp/err" "⛔ ERROR: DistroAgentsTools --slack-read: 'client:human-owner' is refused: for 'human-owner', $rigHintMarked." )" "1 0 1"
 rigRun --slack-send-message --team-member client-acme client:keeper-here RIG-BODY
 rigAssert "a team member's name under the marker: the same hint" "$rigRc $( rigLines "$rigTmp/calls" ) $( rigN "$rigTmp/err" "'client:keeper-here' is refused: for 'keeper-here', $rigHintMarked." )" "1 0 1"

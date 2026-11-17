@@ -81,7 +81,7 @@ AgentsToolsSpawnProxyConsoleRun(){ ## session id, session thread, conversation t
 	if [ -n "$runFrom" ] ; then
 		runMark="${MDAT_SPAWN_LAUNCH_MARKER:-$MMDAPP/.local/temp/mdat-$MDAT_SPAWN_SESSION_ID.launch}.resume-event"
 		rm -f "$runMark"
-		AgentsToolsSpawnConsoleLaunch MDAT_SKILLSET_ROOT="$( AgentsToolsWorkspaceSkillsetRoot "$MMDAPP" )" MDAT_SESSION_ID="$runSession" MDAT_SESSION_THREAD="$runThread" MDAT_CONVERSATION_THREADS="$runConv" \
+		AgentsToolsSpawnConsoleLaunch -u MDAT_SKILLSET_ROOT MDAT_SESSION_ID="$runSession" MDAT_SESSION_THREAD="$runThread" MDAT_CONVERSATION_THREADS="$runConv" \
 			MDAT_SPAWN_RESUME_FROM="$runFrom" MDAT_SPAWN_RESUME_EVENT_MARKER="$runMark" \
 			-- "$@" <<< "$runResume" &
 		runPid=$!
@@ -125,7 +125,7 @@ AgentsToolsSpawnProxyConsoleRun(){ ## session id, session thread, conversation t
 	## kept on the spawn's record (AgentsToolsSpawnProxyRunRecord). Nothing else of the run
 	## changes: its stdin and its streams are the same, its exit status is what this returns,
 	## and the wait lasts until that process has ended.
-	AgentsToolsSpawnConsoleLaunch MDAT_SKILLSET_ROOT="$( AgentsToolsWorkspaceSkillsetRoot "$MMDAPP" )" MDAT_SESSION_ID="$runSession" MDAT_SESSION_THREAD="$runThread" MDAT_CONVERSATION_THREADS="$runConv" \
+	AgentsToolsSpawnConsoleLaunch -u MDAT_SKILLSET_ROOT MDAT_SESSION_ID="$runSession" MDAT_SESSION_THREAD="$runThread" MDAT_CONVERSATION_THREADS="$runConv" \
 		-- "$@" <<< "$runFull" &
 	runPid=$!
 	AgentsToolsSpawnProxyRunRecord "$runPid"

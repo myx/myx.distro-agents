@@ -21,7 +21,8 @@ rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
 rigData="$rigTmp/data"
 rigSkills="$rigTmp/skills"
-mkdir -p "$rigTmp/ws/.local" "$rigTmp/home" "$rigSkills/rig-member" "$rigSkills/rig-other" "$rigSkills/magic-coordinator"
+mkdir -p "$rigTmp/ws/.local" "$rigTmp/home" "$rigSkills/rig-member" "$rigSkills/rig-other" "$rigSkills/magic-coordinator" "$rigSkills/keeper-rig"
+printf 'rig\n' > "$rigSkills/keeper-rig/keeper-rig.basic.md"
 
 rigPassCount=0
 rigFailCount=0
@@ -97,24 +98,27 @@ rigB5=task-20261006T0930Z-rig-groomed.md
 printf 'grooming body\n' | rigOp "$rigTmp/b5" --grooming-create-backlog --team-member rig-member "$rigB5" --owner-header-value rig-other --upsert-from-stdin
 rigAssert "a grooming create gets the headers too"                 "$( cat "$rigTmp/b5.rc" ):$( rigField "$rigData/board/backlog/$rigB5" type ):$( rigField "$rigData/board/backlog/$rigB5" from ):$( rigField "$rigData/board/backlog/$rigB5" owner )" "0:task:rig-member:rig-other"
 
+## An inquiry goes to one exact place: the coordinator, or a domain owner addressed directly. The rig's domain owner is
+## keeper-rig, so the write and the mark below are aimed at it.
+rigInquiryTo=keeper-rig
 echo "-- inbox: names and headers --"
 rigI1=inquiry-20261006T0930Z-rig-question.md
-printf 'Please look.\n' | RIG_AGENT=rig-other rigOp "$rigTmp/i1" --upsert-inbox-inquiry rig-member "$rigI1"
-rigI1Path="$rigData/inboxes/rig-member/incoming/$rigI1"
+printf 'Please look.\n' | RIG_AGENT=rig-other rigOp "$rigTmp/i1" --upsert-inbox-inquiry "$rigInquiryTo" "$rigI1"
+rigI1Path="$rigData/inboxes/$rigInquiryTo/incoming/$rigI1"
 rigAssert "a new inquiry is written as named, rc 0"         "$( cat "$rigTmp/i1.rc" ):$( [ -f "$rigI1Path" ] && echo written ):$( rigHolds "$rigTmp/i1" 'naming Rule' )" "0:written:no"
-rigAssert "type, from (the spawned member), owner"          "$( rigField "$rigI1Path" type ):$( rigField "$rigI1Path" from ):$( rigField "$rigI1Path" owner )" "inquiry:rig-other:rig-member"
+rigAssert "type, from (the spawned member), owner"          "$( rigField "$rigI1Path" type ):$( rigField "$rigI1Path" from ):$( rigField "$rigI1Path" owner )" "inquiry:rig-other:$rigInquiryTo"
 rigAssert "and a date"                                      "$( rigFieldCount "$rigI1Path" date )" 1
 rigAssert "the content follows"                             "$( rigHolds "$rigI1Path" 'Please look.' )" yes
 
 echo "-- inbox: an inquiry is from its caller, and never over another member's item --"
-rigQ="$rigData/inboxes/rig-member/incoming/inquiry-20261006T0932Z-rig-asked.md"
-printf 'Spoofed.\n' | RIG_AGENT=rig-other rigOp "$rigTmp/q1" --upsert-inbox-inquiry rig-member "${rigQ##*/}" --from-member magic-coordinator
+rigQ="$rigData/inboxes/$rigInquiryTo/incoming/inquiry-20261006T0932Z-rig-asked.md"
+printf 'Spoofed.\n' | RIG_AGENT=rig-other rigOp "$rigTmp/q1" --upsert-inbox-inquiry "$rigInquiryTo" "${rigQ##*/}" --from-member magic-coordinator
 rigAssert "a --from-member naming another member is refused, nothing written" "$( cat "$rigTmp/q1.rc" ):$( [ -f "$rigQ" ] && echo written || echo absent ):$( rigHolds "$rigTmp/q1" 'this session acts as rig-other' )" "1:absent:yes"
-printf 'Asked.\n' | RIG_AGENT=rig-other rigOp "$rigTmp/q2" --upsert-inbox-inquiry rig-member "${rigQ##*/}" --from-member rig-other
+printf 'Asked.\n' | RIG_AGENT=rig-other rigOp "$rigTmp/q2" --upsert-inbox-inquiry "$rigInquiryTo" "${rigQ##*/}" --from-member rig-other
 rigAssert "naming itself writes the new item, from it"     "$( cat "$rigTmp/q2.rc" ):$( rigField "$rigQ" from )" "0:rig-other"
-printf -- '---\nfrom: magic-coordinator\n---\nOverwritten.\n' | RIG_AGENT=magic-coordinator rigOp "$rigTmp/q3" --upsert-inbox-inquiry rig-member "${rigQ##*/}"
+printf -- '---\nfrom: magic-coordinator\n---\nOverwritten.\n' | RIG_AGENT=magic-coordinator rigOp "$rigTmp/q3" --upsert-inbox-inquiry "$rigInquiryTo" "${rigQ##*/}"
 rigAssert "another member cannot overwrite it"             "$( cat "$rigTmp/q3.rc" ):$( rigHolds "$rigQ" 'Asked.' ):$( rigHolds "$rigTmp/q3" 'written by rig-other, so magic-coordinator cannot overwrite it' )" "1:yes:yes"
-printf -- '---\ndocument-contract: inbox-item.inquiry\ntype: inquiry\nfrom: rig-other\ndate: 2026-10-06 09:32 +0000\nowner: rig-member\n---\nAsked again.\n' | RIG_AGENT=rig-other rigOp "$rigTmp/q4" --upsert-inbox-inquiry rig-member "${rigQ##*/}"
+printf -- '---\ndocument-contract: inbox-item.inquiry\ntype: inquiry\nfrom: rig-other\ndate: 2026-10-06 09:32 +0000\nowner: %s\n---\nAsked again.\n' "$rigInquiryTo" | RIG_AGENT=rig-other rigOp "$rigTmp/q4" --upsert-inbox-inquiry "$rigInquiryTo" "${rigQ##*/}"
 rigAssert "its author updates it"                           "$( cat "$rigTmp/q4.rc" ):$( rigHolds "$rigQ" 'Asked again.' )" "0:yes"
 
 printf -- '---\nowner: magic-coordinator\n---\nnote text\n' | RIG_AGENT=rig-member rigOp "$rigTmp/i2" --upsert-inbox-note --team-member rig-member note-20261006T0930Z-given.md --from-member magic-coordinator
@@ -146,9 +150,9 @@ RIG_AGENT=rig-member rigOp "$rigTmp/a5" --trash-inbox-item --team-member rig-mem
 rigAssert "its own session trashes its own item"           "$( cat "$rigTmp/a5.rc" ):$( [ -f "$rigData/inboxes/rig-member/incoming/warning-20261006T0930Z-rig-misfiled.md" ] && echo kept || echo gone )" "0:gone"
 
 echo "-- --mark-inbox-processed --"
-rigOp "$rigTmp/p1" --mark-inbox-processed --team-member rig-member "$rigI1"
-rigAssert "the member's own item is marked and moves to processed/" "$( cat "$rigTmp/p1.rc" ):$( [ -f "$rigI1Path" ] && echo still || echo gone ):$( [ -f "$rigData/inboxes/rig-member/processed/$rigI1" ] && echo moved || echo absent )" "0:gone:moved"
-rigAssert "with processed-at stamped"                       "$( rigFieldCount "$rigData/inboxes/rig-member/processed/$rigI1" processed-at )" 1
+rigOp "$rigTmp/p1" --mark-inbox-processed --team-member "$rigInquiryTo" "$rigI1"
+rigAssert "the member's own item is marked and moves to processed/" "$( cat "$rigTmp/p1.rc" ):$( [ -f "$rigI1Path" ] && echo still || echo gone ):$( [ -f "$rigData/inboxes/$rigInquiryTo/processed/$rigI1" ] && echo moved || echo absent )" "0:gone:moved"
+rigAssert "with processed-at stamped"                       "$( rigFieldCount "$rigData/inboxes/$rigInquiryTo/processed/$rigI1" processed-at )" 1
 RIG_AGENT=rig-other rigOp "$rigTmp/p2" --mark-inbox-processed --team-member rig-member note-20261006T0930Z-given.md
 rigAssert "another member's session is refused"             "$( cat "$rigTmp/p2.rc" ):$( [ -f "$rigI2Path" ] && echo kept ):$( rigFieldCount "$rigI2Path" processed-at )" "1:kept:0"
 RIG_AGENT=rig-member rigOp "$rigTmp/p3" --mark-inbox-processed --team-member rig-member note-20261006T0930Z-given.md

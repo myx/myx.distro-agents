@@ -30,7 +30,7 @@
 ## it says on standard error where the join was recorded instead of refusing it.
 ##
 
-type AgentsToolsManagerSessionScope > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.ManagerSessionRows.include"
+type AgentsToolsManagerSessionScope > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.ManagerSessionRows.include"
 type AgentsToolsSessionChatDir > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include"
 
 case "$1" in

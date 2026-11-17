@@ -590,6 +590,17 @@ AgentsToolsSlackResolveWorkspaceForScope(){
 	printf '%s\n' "$scopeUrl"
 	return 0
 }
+## The member test of every Slack operation here: the acting member's own skill folder, asked of the tooling's
+## member directory, so a member set up here and one invited from another workspace both answer alike and no
+## caller's carried root decides it (S12 row 16). rc 0 with the folder there; else one line naming the member, and rc 1.
+AgentsToolsSlackMemberPresent(){ ## member, operation label
+	type AgentsToolsTeamMemberDirectory > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamRegistry.include"
+	if ! AgentsToolsTeamMemberDirectory "$1" > /dev/null 2>&1 ; then
+		echo "⛔ ERROR: $MDSC_CMD $2: no such member skill directory: $1" >&2
+		return 1
+	fi
+}
+
 ## One conversation, DM or thread read as the acting member: the in-context helper behind
 ## the member reads and the session scans. Pretty text, or with --raw the response bodies.
 ## rc 0 read; 1 failed early; a human-owner fan-out: 3 one of its two DMs read, 4 neither.
@@ -612,10 +623,7 @@ AgentsToolsSlackCheck(){ ## <team-member> <magic-team|human-owner|event-track|ev
 			## Same routine-* carve-out as the sibling arms.
 		;;
 		*)
-			if [ ! -d "$MDAT_SKILLSET_ROOT/$memberName" ] ; then
-				echo "$MDSC_CMD: slack-check: ⛔ ERROR: no such member skill directory: $MDAT_SKILLSET_ROOT/$memberName" >&2
-				set +e ; return 1
-			fi
+			AgentsToolsSlackMemberPresent "$memberName" slack-check || { set +e ; return 1 ; }
 		;;
 	esac
 	local target="$1"

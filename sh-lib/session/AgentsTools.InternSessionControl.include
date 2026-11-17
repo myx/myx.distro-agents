@@ -496,7 +496,7 @@ AgentsToolsSessionControlDeathStart(){ ## run id, `quiet` for a start that is no
 	(
 		## A shell cannot give back a signal it inherited ignored, so the call starts through a python helper that resets them, then execs.
 		if command -v python3 > /dev/null 2>&1 ; then
-			exec python3 -I -B "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsSignalReset.py" \
+			exec python3 -I -B "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsSignalReset.py" \
 				"$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-session-control --death --session-id "$controlSession" --spawn-id "$startRun"
 		fi
 		exec "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-session-control --death --session-id "$controlSession" --spawn-id "$startRun"
@@ -542,7 +542,8 @@ $startRun $(( SECONDS + controlPostBound ))"
 ##   question is due, and a call apart asks it;
 ## - else a call about it is started.
 AgentsToolsSessionControlDeathStep(){
-	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandboxRecordHeader.include"
+	type AgentsToolsFrontmatterKey > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.FrontmatterKey.include"
+	type AgentsToolsSessionControlDeathMark > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionControlDeath.include"
 	local stepRun="${deathsLine%% *}" stepMarker stepHolder="" stepOne stepKey stepValue stepRead="" stepFailed="" stepError="" stepStamp stepRecord="" stepKeep="" stepUntil="" stepQuiet="" stepWait="" stepAsked stepStatus stepAnswer stepNot="" stepBack="" stepTries
 	stepMarker="$controlDir/post.$stepRun"
 	stepStamp="$( date -u +%Y-%m-%dT%H:%M:%SZ )"
@@ -624,7 +625,7 @@ AgentsToolsSessionControlDeathStep(){
 			while IFS= read -r stepOne ; do
 				[ "${stepOne##*/}" != "$stepRun.spawn.md" ] || { stepRecord="$stepOne" ; break ; }
 			done <<< "$controlRowsNames"
-			if [ -z "$stepRecord" ] || [ "$( AgentsToolsSpawnSandboxRecordHeader "$stepRecord" status )" != "spawn-started" ] ; then
+			if [ -z "$stepRecord" ] || [ "$( AgentsToolsFrontmatterKey "$stepRecord" status )" != "spawn-started" ] ; then
 				deathsLine="$deathsLine settled=$stepStamp how=closed-elsewhere"
 				AgentsToolsSessionControlSay event "session $controlSession: the death of run $stepRun: its record was closed by another closer, which told its end -- nothing more is told or asked here"
 				return 0
@@ -637,11 +638,11 @@ AgentsToolsSessionControlDeathStep(){
 				## A question is due: the reviewer is asked again, by the call that is started below.
 				:
 			elif [ "$( AgentsToolsSessionControlDeathCount "$deathsLine" answer )" -le "$stepTries" ] ; then
-				stepStatus="$( AgentsToolsSpawnSandboxRecordHeader "$( AgentsToolsPendingRecordPath "$stepAsked" || printf '%s' "$MMDAPP/.local/agents/pending/$stepAsked.md" )" status )"
+				stepStatus="$( AgentsToolsFrontmatterKey "$( AgentsToolsPendingRecordPath "$stepAsked" || printf '%s' "$MMDAPP/.local/agents/pending/$stepAsked.md" )" status )"
 				case "$stepStatus" in
 					reply-pending) stepQuiet="quiet" ;;
 					reply-received)
-						stepAnswer="$( AgentsToolsSpawnSandboxRecordHeader "$( AgentsToolsPendingRecordPath "$stepAsked" || printf '%s' "$MMDAPP/.local/agents/pending/$stepAsked.md" )" verdict )"
+						stepAnswer="$( AgentsToolsFrontmatterKey "$( AgentsToolsPendingRecordPath "$stepAsked" || printf '%s' "$MMDAPP/.local/agents/pending/$stepAsked.md" )" verdict )"
 						stepAnswer="${stepAnswer%%[!abcdefghijklmnopqrstuvwxyz]*}"
 						if AgentsToolsSessionControlDeathOption "$stepAnswer" ; then
 							deathsLine="$deathsLine answer=$stepAnswer answered=$stepStamp"
@@ -695,9 +696,10 @@ AgentsToolsSessionControlDeathStep(){
 ## Then each death that is not settled is taken one step further
 ## (AgentsToolsSessionControlDeathStep). controlDeadOpen: how many are not settled.
 AgentsToolsSessionControlDeaths(){
-	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandboxRecordHeader.include"
+	type AgentsToolsFrontmatterKey > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.FrontmatterKey.include"
 	type AgentsToolsSessionPauseHeld > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionPause.include"
 	type AgentsToolsRunWords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunProcesses.include"
+	type AgentsToolsSessionControlDeathClose > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionControlDeath.include"
 	local deathsWas="" deathsNow="" deathsGoneWas="" deathsGoneNow="" deathsOut="" deathsAt deathsNoted deathsRecord deathsShell deathsRole deathsLine deathsOne
 	local rowTracking rowSession rowParent rowHost rowOwner rowStatus rowExit rowSpawn rowAgentLog rowThread rowWorkspace rowLive rowState rowRest
 	controlDeadOpen=0
@@ -727,7 +729,7 @@ $rowSpawn "*) continue ;; esac
 		[ -f "$deathsRecord" ] || continue
 		deathsShell="$( AgentsToolsRunRecordedSupervisor "$deathsRecord" 2> /dev/null )" || deathsShell=""
 		## A run the console killed is an ordered end, not a death: its record is closed and nothing is asked.
-		if [ -n "$( AgentsToolsSpawnSandboxRecordHeader "$deathsRecord" killed-by )$( AgentsToolsSpawnSandboxRecordHeader "$deathsRecord" killed-at )" ] ; then
+		if [ -n "$( AgentsToolsFrontmatterKey "$deathsRecord" killed-by )$( AgentsToolsFrontmatterKey "$deathsRecord" killed-at )" ] ; then
 			! AgentsToolsSessionControlDeathClose "$deathsRecord" || AgentsToolsSessionControlSay event "session $controlSession: run $rowSpawn of $rowOwner was killed from the console and its record was still open: it is closed, and nothing is asked about it"
 			continue
 		fi
@@ -748,7 +750,7 @@ $rowSpawn "*) continue ;; esac
 			! AgentsToolsSessionControlDeathClose "$deathsRecord" || AgentsToolsSessionControlSay event "session $controlSession: run $rowSpawn of $rowOwner is gone and its supervising shell outlived the closing time of ${controlClosing}s: its record is closed, and nothing is asked about it"
 			continue
 		fi
-		[ "$( AgentsToolsSpawnSandboxRecordHeader "$deathsRecord" status )" = "spawn-started" ] || continue
+		[ "$( AgentsToolsFrontmatterKey "$deathsRecord" status )" = "spawn-started" ] || continue
 		! AgentsToolsSpawnRuns "$rowSpawn" "$deathsRecord" || continue
 		## A RUN PARKED ON ITS HANDBACK OR DISMISSED IS NOT DEAD (S6.34): the harness ends such a run
 		## on purpose, leaving its record as it was, so its handback is its result and no question is
@@ -846,6 +848,7 @@ AgentsToolsSessionControlTick(){
 	## A REQUEST OF THE CONSOLE is looked for at every tick, the cheap one too: two names are
 	## asked of the folder, and nothing is read while neither stands
 	## (AgentsToolsSessionControlRequestStep, AgentsTools.SessionControlRequest.include).
+	type AgentsToolsSessionControlRequestStep > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionControlRequest.include"
 	[ ! -e "$controlDir/request" ] && [ ! -e "$controlDir/request.taken" ] || AgentsToolsSessionControlRequestStep
 	## NOTHING CHANGED: a process that ran as a run of the session at the last read is still
 	## that process, and the state file says running. The session is running, and no more is read.

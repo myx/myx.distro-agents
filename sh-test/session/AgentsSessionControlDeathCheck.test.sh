@@ -61,7 +61,7 @@ rigCleanup(){
 	done
 	rigProcSignalWithChildren KILL $rigStarted
 }
-trap 'rigCleanup ; chmod -R u+rwX -- "$rigTmp" 2> /dev/null ; rm -rf -- "$rigTmp"' EXIT
+trap 'rigCleanup ; rigControlThreadsEnd "$rigTmp" ; chmod -R u+rwX -- "$rigTmp" 2> /dev/null ; rm -rf -- "$rigTmp"' EXIT
 trap 'exit 1' INT TERM
 
 ## THE RIG'S OWN PROCESS LIST, as AgentsSessionControlStateCheck keeps it: the whole-host listing is the rig's own

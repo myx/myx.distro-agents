@@ -30,21 +30,15 @@ agentsBoardActiveStates="pending running review blocked parked"
 agentsBoardStaleWindowSeconds=3600
 
 
-## Makes the board ready to be written: its folder, and the folder of every state of the
-## one list. Called by the one operation every board write goes through
-## (--intern-op-board-upsert-move-edit), by the writers that put a file into the board
-## themselves, and by the step that sets a workspace up (--owner-setup-storage --apply).
-## Makes folders only, never a file, so it adds nothing a commit of the team data would
-## carry. rc 1, saying which, where a folder cannot be made.
-AgentsToolsBoardReady(){
-	AgentsToolsBoardStateReady $agentsBoardStates
-}
-
-## Makes the folders of the states named, and of no other: the narrower form a caller takes when the board it writes
-## holds a state or two, a check's rig among them. A name outside the one list is refused: a folder the vocabulary does
-## not know is a state no reader would ever read. rc 1, saying which, where a folder cannot be made.
-AgentsToolsBoardStateReady(){ ## state...
+## Makes the board ready to be written: its folder, and the folder of every state of the one list, or of the states
+## named where a caller names some. Called by the one operation every board write goes through
+## (--intern-op-board-upsert-move-edit), by the writers that put a file into the board themselves, and by the step
+## that sets a workspace up (--owner-setup-storage --apply). A named state outside the one list is refused: a folder
+## the vocabulary does not know is a state no reader would ever read. Makes folders only, never a file, so it adds
+## nothing a commit of the team data would carry. rc 1, saying which, where a folder cannot be made.
+AgentsToolsBoardReady(){ ## state...
 	local readyState
+	[ $# -gt 0 ] || set -- $agentsBoardStates
 	[ -n "${MDAT_DATA_ROOT:-}" ] || return 0
 	for readyState in "$@" ; do
 		case " $agentsBoardStates " in

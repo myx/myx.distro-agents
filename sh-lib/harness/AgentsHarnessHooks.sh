@@ -23,12 +23,16 @@
 ## the settings merge. Every later decision is then builtins alone over this value:
 ## no parser sits in the per-call decision path, where a missing binary's empty
 ## output and exit 0 would read as permission.
-harnessHooksList=""
+harnessHooksList="${harnessHooksList:-}"
 ## Set instead of the list where the configuration cannot be trusted; every call is
 ## then refused naming this, because a guard that cannot read its rules permits nothing.
-harnessHooksFault=""
+harnessHooksFault="${harnessHooksFault:-}"
 ## Entries the class filter below left out, so a narrower set is never silent.
 harnessHooksSkipped=0
+
+## A BATCH RESOLVES THIS ONCE (AgentsUniversalHarness.sh --context): an entry started with the list,
+## the fault word and the escaped session and cwd already in hand reads them and loads nothing here.
+if [ -z "$harnessFromContext" ] ; then
 
 ## The rule set is OUR OWN: AgentsTools.ClientToolPolicy.include names every hook this
 ## estate installs and its class, and that is all this harness applies. A deny-reroute
@@ -83,6 +87,7 @@ if [ -z "$harnessHooksFault" ] && [ -n "$harnessHooksList" ] ; then
 	harnessHooksCwdRaw="$PWD"
 	harnessHooksCwdEsc="$( printf '%s' "$harnessHooksCwdRaw" | LC_ALL=C awk -f "$harnessHere/mcp/AgentsMcpJsonEscape.awk" )"
 	harnessHooksEscaped=1
+fi
 fi
 
 ## Prints the refusal a hook decided on, and nothing at all where the call may run.
@@ -255,7 +260,7 @@ AgentsHarnessHooksRefusal(){
 		## claude runs the tool anyway on a non-zero hook. This does not: a hook that
 		## crashed, was killed or was never executable has not approved anything.
 		if [ "$hookRc" != "0" ] ; then
-			printf 'ERROR: blocked before running -- the PreToolUse hook `%s` did not complete (exit status %s)%s. A hook that fails refuses the call here rather than letting it through.\n' "$hookCommand" "$hookRc" "$( [ ! -s "$harnessScratch/hook.err" ] || printf ': %s' "$( LC_ALL=C awk -v progressLineCap=400 -f "$harnessHere/session/AgentsProgressLineSafe.awk" < "$harnessScratch/hook.err" )" )"
+			printf 'ERROR: blocked before running -- the PreToolUse hook `%s` did not complete (exit status %s)%s. A hook that fails refuses the call here rather than letting it through.\n' "$hookCommand" "$hookRc" "$( [ ! -s "$harnessScratch/hook.err" ] || printf ': %s' "$( LC_ALL=C awk -v progressLineCap=400 -f "$harnessHere/core/AgentsProgressLineSafe.awk" < "$harnessScratch/hook.err" )" )"
 			return 0
 		fi
 

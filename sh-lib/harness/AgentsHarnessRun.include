@@ -166,7 +166,7 @@ AgentsHarnessTruncateArg(){
 ## tell it from one it wrote itself. The chat source of a Wait is read every second, so the dismissal
 ## lands within the wait's own check interval. Never fails the send.
 AgentsHarnessDismissalChatRecord(){
-	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandboxRecordHeader.include"
+	type AgentsToolsFrontmatterKey > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.FrontmatterKey.include"
 	local chatTo chatSession chatName chatMine chatTheirs chatRecord chatWhere
 	chatSession="${MDAT_SESSION_ID:-}"
 	chatTo="${harnessArgV_address_to:-}"
@@ -179,8 +179,8 @@ AgentsHarnessDismissalChatRecord(){
 		type AgentsToolsSpawnedSessionRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include"
 		for chatRecord in $( AgentsToolsSpawnedSessionRecords "$chatSession" own 2> /dev/null ) ; do
 			[ -f "$chatRecord" ] || continue
-			[ "$( AgentsToolsSpawnSandboxRecordHeader "$chatRecord" owner )" = "$chatName" ] || continue
-			[ "$( AgentsToolsSpawnSandboxRecordHeader "$chatRecord" status )" = spawn-started ] || continue
+			[ "$( AgentsToolsFrontmatterKey "$chatRecord" owner )" = "$chatName" ] || continue
+			[ "$( AgentsToolsFrontmatterKey "$chatRecord" status )" = spawn-started ] || continue
 			chatTheirs="${chatRecord##*/}" ; chatTheirs="${chatTheirs%.spawn.md}"
 			done
 		type AgentsToolsSessionChatAppend > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include"

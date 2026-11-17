@@ -10,9 +10,6 @@
 
 ## The one folder of the machine's queue, shared by every function here and every copy.
 retestStore="${HOME:-}/.agents/magic-team/retest-queue"
-AgentsToolsRetestField(){ ## file, field -- that field's values, one on a line
-	LC_ALL=C sed -n "s/^$2: //p" "$1" 2> /dev/null
-}
 AgentsToolsRetestOneLine(){ ## text -- the text on one line
 	printf '%s' "$1" | LC_ALL=C tr '\n\r\t' '   '
 }
@@ -148,8 +145,8 @@ AgentsToolsRetestQueue(){ ## operation, its arguments... -- one request into the
 		local queueLeft=300
 		while [ ! -f "$retestStore/done/$queueId.result" ] && [ "$queueLeft" -gt 0 ] ; do sleep 2 ; queueLeft=$(( queueLeft - 1 )) ; done
 		if [ -f "$retestStore/done/$queueId.result" ] ; then
-			AgentsToolsRetestSay "$retestStore/done/$queueId.result"
-			case "$( AgentsToolsRetestSay "$retestStore/done/$queueId.result" )" in "RETEST $queueId PASS"*) ;; *) return 1 ;; esac
+			LC_ALL=C sed -n "s/^line: //p" "$retestStore/done/$queueId.result" 2> /dev/null
+			case "$( LC_ALL=C sed -n "s/^line: //p" "$retestStore/done/$queueId.result" 2> /dev/null )" in "RETEST $queueId PASS"*) ;; *) return 1 ;; esac
 		else
 			AgentsToolsRetestResult "$queueOp" "$queueId"
 			return 1
@@ -158,17 +155,14 @@ AgentsToolsRetestQueue(){ ## operation, its arguments... -- one request into the
 	return 0
 }
 
-AgentsToolsRetestSay(){ ## result file -- the one line that says how that request ended
-	AgentsToolsRetestField "$1" line
-}
 AgentsToolsRetestFinish(){ ## batch folder, request file, batch id -- that request's result into `done`, from what the batch found for its copy; then out of `running`, and its line on stdout
 	local finishWork="$1" finishRequest="$2" finishBatch="$3" finishId finishCopy finishTest finishHow finishAll="" finishLine
 	local finishPassed=0 finishBefore=0 finishFailed="" finishNot="" finishVerdict=PASS
-	finishId="$( AgentsToolsRetestField "$finishRequest" id | LC_ALL=C sed -n 1p )"
-	finishCopy="$( LC_ALL=C grep -n -x -F -- "$( AgentsToolsRetestField "$finishRequest" origin | LC_ALL=C sed -n 1p )" "$finishWork/copies" | LC_ALL=C sed -n '1s/:.*//p' )"
+	finishId="$( LC_ALL=C sed -n "s/^id: //p" "$finishRequest" 2> /dev/null | LC_ALL=C sed -n 1p )"
+	finishCopy="$( LC_ALL=C grep -n -x -F -- "$( LC_ALL=C sed -n "s/^origin: //p" "$finishRequest" 2> /dev/null | LC_ALL=C sed -n 1p )" "$finishWork/copies" | LC_ALL=C sed -n '1s/:.*//p' )"
 	## what it asked for: its tests by name; a request that names none, only a file no test is known to cover, every test of the copy
-	finishAll="$( AgentsToolsRetestField "$finishRequest" test )"
-	[ -n "$finishAll" ] || [ -z "$( AgentsToolsRetestField "$finishRequest" file )" ] || finishAll="$( { printf '%s\n' "$finishAll" ; cat "$finishWork/$finishCopy.every" 2> /dev/null ; } | LC_ALL=C grep . | LC_ALL=C sort -u )"
+	finishAll="$( LC_ALL=C sed -n "s/^test: //p" "$finishRequest" 2> /dev/null )"
+	[ -n "$finishAll" ] || [ -z "$( LC_ALL=C sed -n "s/^file: //p" "$finishRequest" 2> /dev/null )" ] || finishAll="$( { printf '%s\n' "$finishAll" ; cat "$finishWork/$finishCopy.every" 2> /dev/null ; } | LC_ALL=C grep . | LC_ALL=C sort -u )"
 	{
 		cat "$finishRequest"
 		printf 'batch: %s\nfinished: %s\nrun: %s\n' "$finishBatch" "$( date -u +%Y-%m-%dT%H:%M:%SZ )" "$( cat "$finishWork/$finishCopy.folder" 2> /dev/null )"
@@ -187,17 +181,17 @@ AgentsToolsRetestFinish(){ ## batch folder, request file, batch id -- that reque
 			finishNot=" (every test: the copy it was asked about gave none to run)" ; printf 'not-run: * the copy it was asked about gave no test to run\n'
 		fi
 		[ -z "$finishFailed$finishNot" ] || finishVerdict=FAIL
-		finishLine="RETEST $finishId $finishVerdict -- asked by $( AgentsToolsRetestField "$finishRequest" by | LC_ALL=C sed -n 1p ) about $( AgentsToolsRetestField "$finishRequest" about | LC_ALL=C sed -n 1p ): $finishPassed passed"
+		finishLine="RETEST $finishId $finishVerdict -- asked by $( LC_ALL=C sed -n "s/^by: //p" "$finishRequest" 2> /dev/null | LC_ALL=C sed -n 1p ) about $( LC_ALL=C sed -n "s/^about: //p" "$finishRequest" 2> /dev/null | LC_ALL=C sed -n 1p ): $finishPassed passed"
 		[ "$finishBefore" = 0 ] || finishLine="$finishLine, $finishBefore passed on this very state before and not run again"
 		[ -z "$finishFailed" ] || finishLine="$finishLine, FAILED:$finishFailed"
 		[ -z "$finishNot" ] || finishLine="$finishLine, NOT RUN:$finishNot"
-		printf 'verdict: %s\nline: %s\n' "$finishVerdict" "$finishLine -- $( AgentsToolsRetestField "$finishRequest" why | LC_ALL=C sed -n 1p )"
+		printf 'verdict: %s\nline: %s\n' "$finishVerdict" "$finishLine -- $( LC_ALL=C sed -n "s/^why: //p" "$finishRequest" 2> /dev/null | LC_ALL=C sed -n 1p )"
 	} > "$retestStore/done/.$finishId.result" 2> /dev/null && mv -f "$retestStore/done/.$finishId.result" "$retestStore/done/$finishId.result" 2> /dev/null || {
 		rm -f "$retestStore/done/.$finishId.result" 2> /dev/null
 		echo "⛔ ERROR: $MDSC_CMD: the result of $finishId could not be written into $retestStore/done -- the request is left in the batch, and the next drain runs it again" >&2 ; return 1
 	}
 	rm -f "$finishRequest"
-	AgentsToolsRetestSay "$retestStore/done/$finishId.result"
+	LC_ALL=C sed -n "s/^line: //p" "$retestStore/done/$finishId.result" 2> /dev/null
 }
 AgentsToolsRetestCopy(){ ## batch folder, number of the copy, its source root, 1 where every test not yet passed is asked for -- runs that copy's part of the batch, each test once; what each did in <number>.outcome
 	local copyWork="$1" copyNo="$2" copyRoot="$3" copyRest="$4" copyDir copyTest copyWhen copyRc copyFolder copyCount copyEvery
@@ -272,12 +266,12 @@ AgentsToolsRetestDrain(){ ## operation, its arguments... -- everything that wait
 	## One drain at a time on the machine. The lock is this very process, by its pid and when it was started: one left by a drain that no longer exists is taken over.
 	drainPid="$( exec sh -c 'echo "$PPID"' )"
 	while ! mkdir "$drainLock" 2> /dev/null ; do
-		drainHolder="$( AgentsToolsRetestField "$drainLock/holder" pid | LC_ALL=C sed -n 1p )"
-		drainHolderThen="$( AgentsToolsRetestField "$drainLock/holder" started | LC_ALL=C sed -n 1p )"
+		drainHolder="$( LC_ALL=C sed -n "s/^pid: //p" "$drainLock/holder" 2> /dev/null | LC_ALL=C sed -n 1p )"
+		drainHolderThen="$( LC_ALL=C sed -n "s/^started: //p" "$drainLock/holder" 2> /dev/null | LC_ALL=C sed -n 1p )"
 		drainHolderNow="$( [ -z "$drainHolder" ] || AgentsToolsRetestProcess "$drainHolder" )"
 		## held: its process is there, and is the one that took it (a holder that has not yet written when it started is taking it this very moment)
 		if [ -n "$drainHolderNow" ] && { [ -z "$drainHolderThen" ] || [ "$drainHolderThen" = "$drainHolderNow" ] ; } ; then
-			echo "⛔ ERROR: $MDSC_CMD $drainOp: a batch is being run already, by pid $drainHolder since $( AgentsToolsRetestField "$drainLock/holder" since | LC_ALL=C sed -n 1p ) -- nothing was taken: what waits now is in the next batch, so drain again once that one has ended" >&2 ; return 1
+			echo "⛔ ERROR: $MDSC_CMD $drainOp: a batch is being run already, by pid $drainHolder since $( LC_ALL=C sed -n "s/^since: //p" "$drainLock/holder" 2> /dev/null | LC_ALL=C sed -n 1p ) -- nothing was taken: what waits now is in the next batch, so drain again once that one has ended" >&2 ; return 1
 		fi
 		## a holder not written yet is a drain that is taking the lock this very moment
 		drainTries=$(( drainTries + 1 ))
@@ -299,22 +293,22 @@ AgentsToolsRetestDrain(){ ## operation, its arguments... -- everything that wait
 	local drainPriority=""
 	for drainRequest in "$retestStore/waiting"/*.request ; do
 		[ -f "$drainRequest" ] || continue
-		[ "$( AgentsToolsRetestField "$drainRequest" priority | LC_ALL=C sed -n 1p )" != wait ] || { drainPriority=wait ; break ; }
+		[ "$( LC_ALL=C sed -n "s/^priority: //p" "$drainRequest" 2> /dev/null | LC_ALL=C sed -n 1p )" != wait ] || { drainPriority=wait ; break ; }
 	done
 	for drainRequest in "$retestStore/waiting"/*.request ; do
 		[ -f "$drainRequest" ] || continue
-		[ -z "$drainPriority" ] || [ "$( AgentsToolsRetestField "$drainRequest" priority | LC_ALL=C sed -n 1p )" = wait ] || continue
+		[ -z "$drainPriority" ] || [ "$( LC_ALL=C sed -n "s/^priority: //p" "$drainRequest" 2> /dev/null | LC_ALL=C sed -n 1p )" = wait ] || continue
 		mv -f "$drainRequest" "$retestStore/running/" 2> /dev/null
 	done
 	for drainRequest in "$retestStore/running"/*.request ; do
 		[ -f "$drainRequest" ] || continue
 		drainCount=$(( drainCount + 1 ))
-		drainRoot="$( AgentsToolsRetestField "$drainRequest" origin | LC_ALL=C sed -n 1p )"
+		drainRoot="$( LC_ALL=C sed -n "s/^origin: //p" "$drainRequest" 2> /dev/null | LC_ALL=C sed -n 1p )"
 		LC_ALL=C grep -q -x -F -- "$drainRoot" "$drainWork/copies" || printf '%s\n' "$drainRoot" >> "$drainWork/copies"
 		drainNo="$( LC_ALL=C grep -n -x -F -- "$drainRoot" "$drainWork/copies" | LC_ALL=C sed -n '1s/:.*//p' )"
-		AgentsToolsRetestField "$drainRequest" test >> "$drainWork/$drainNo.tests"
+		LC_ALL=C sed -n "s/^test: //p" "$drainRequest" 2> /dev/null >> "$drainWork/$drainNo.tests"
 		## a request that names its tests is run by them; only one that names none widens to every test not yet passed
-		[ -n "$( AgentsToolsRetestField "$drainRequest" test )" ] || [ -z "$( AgentsToolsRetestField "$drainRequest" file )" ] || : > "$drainWork/$drainNo.rest"
+		[ -n "$( LC_ALL=C sed -n "s/^test: //p" "$drainRequest" 2> /dev/null )" ] || [ -z "$( LC_ALL=C sed -n "s/^file: //p" "$drainRequest" 2> /dev/null )" ] || : > "$drainWork/$drainNo.rest"
 	done
 	if [ "$drainCount" = 0 ] ; then
 		echo "# retest: nothing waits" >&2
@@ -328,7 +322,7 @@ AgentsToolsRetestDrain(){ ## operation, its arguments... -- everything that wait
 			## each request is answered as soon as its own copy has run, never held for the rest of the batch
 			for drainRequest in "$retestStore/running"/*.request ; do
 				[ -f "$drainRequest" ] || continue
-				[ "$( AgentsToolsRetestField "$drainRequest" origin | LC_ALL=C sed -n 1p )" = "$drainRoot" ] || continue
+				[ "$( LC_ALL=C sed -n "s/^origin: //p" "$drainRequest" 2> /dev/null | LC_ALL=C sed -n 1p )" = "$drainRoot" ] || continue
 				AgentsToolsRetestFinish "$drainWork" "$drainRequest" "$drainBatch" || drainFails=$(( drainFails + 1 ))
 			done
 		done < "$drainWork/copies"
@@ -368,15 +362,15 @@ AgentsToolsRetestResult(){ ## operation, request id... -- where each request sta
 		esac
 		if [ -f "$retestStore/done/$resultId.result" ] ; then
 			resultFile="$retestStore/done/$resultId.result"
-			AgentsToolsRetestSay "$resultFile"
+			LC_ALL=C sed -n "s/^line: //p" "$resultFile" 2> /dev/null
 			LC_ALL=C sed -n -e 's/^\(passed\): /  \1 /p' -e 's/^\(failed\): /  \1 /p' -e 's/^\(not-run\): /  \1 /p' -e 's/^before: \([^ ]*\) \(.*\)$/  passed-before \1 at \2/p' -e 's/^\(file\): /  \1 /p' -e 's/^run: \(..*\)$/  run-folder \1/p' -e 's/^\(finished\): /  \1 /p' "$resultFile"
 		elif [ -f "$retestStore/running/$resultId.request" ] ; then
 			resultFile="$retestStore/running/$resultId.request"
-			printf 'RETEST %s RUNNING -- asked by %s about %s: it is in the batch being run -- %s\n' "$resultId" "$( AgentsToolsRetestField "$resultFile" by | LC_ALL=C sed -n 1p )" "$( AgentsToolsRetestField "$resultFile" about | LC_ALL=C sed -n 1p )" "$( AgentsToolsRetestField "$resultFile" why | LC_ALL=C sed -n 1p )"
+			printf 'RETEST %s RUNNING -- asked by %s about %s: it is in the batch being run -- %s\n' "$resultId" "$( LC_ALL=C sed -n "s/^by: //p" "$resultFile" 2> /dev/null | LC_ALL=C sed -n 1p )" "$( LC_ALL=C sed -n "s/^about: //p" "$resultFile" 2> /dev/null | LC_ALL=C sed -n 1p )" "$( LC_ALL=C sed -n "s/^why: //p" "$resultFile" 2> /dev/null | LC_ALL=C sed -n 1p )"
 		elif [ -f "$retestStore/waiting/$resultId.request" ] ; then
 			resultFile="$retestStore/waiting/$resultId.request"
 			resultAhead="$( ls "$retestStore/waiting" 2> /dev/null | LC_ALL=C grep '\.request$' | LC_ALL=C awk -v own="$resultId.request" '$0 < own { n++ } END { print n + 0 }' )"
-			printf 'RETEST %s WAITING -- asked by %s about %s: the next batch takes it, with %s request(s) that came before it -- %s\n' "$resultId" "$( AgentsToolsRetestField "$resultFile" by | LC_ALL=C sed -n 1p )" "$( AgentsToolsRetestField "$resultFile" about | LC_ALL=C sed -n 1p )" "$resultAhead" "$( AgentsToolsRetestField "$resultFile" why | LC_ALL=C sed -n 1p )"
+			printf 'RETEST %s WAITING -- asked by %s about %s: the next batch takes it, with %s request(s) that came before it -- %s\n' "$resultId" "$( LC_ALL=C sed -n "s/^by: //p" "$resultFile" 2> /dev/null | LC_ALL=C sed -n 1p )" "$( LC_ALL=C sed -n "s/^about: //p" "$resultFile" 2> /dev/null | LC_ALL=C sed -n 1p )" "$resultAhead" "$( LC_ALL=C sed -n "s/^why: //p" "$resultFile" 2> /dev/null | LC_ALL=C sed -n 1p )"
 		else
 			printf 'RETEST %s UNKNOWN -- no request of that id is in the queue of this machine (%s); a finished one is kept seven days\n' "$resultId" "$retestStore"
 			resultRc=1

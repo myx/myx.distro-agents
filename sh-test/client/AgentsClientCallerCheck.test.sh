@@ -186,7 +186,7 @@ rigSame(){ ## label, label -- `same` where the two runs kept under them ended, p
 }
 ## One --client-* operation of each family of stubs: <the family in a word>|<operation and arguments>
 rigOps=(
-	'Slack|--client-comms-slack-read client-ndm CNDM00001'
+	'Slack|--client-comms-slack-read client-ndm CNDM00001 --oldest 1'
 	'mail|--client-comms-email-check client-ndm'
 	'Google|--client-comms-google-whoami client-ndm'
 	'Trello|--client-comms-trello-whoami client-ndm'
@@ -327,7 +327,7 @@ rigAssert "control: a call to the other organisation is not taken for the tracki
 
 echo "-- 8. what the operation refuses itself, each in one plain line --"
 rigPre=( MDAT_SPAWN_AGENT=magic-coordinator )
-for rigOp in '--slack-read --team-member client-ndm magic-team' '--intern-op-sweep-input-scan client-ndm' '--intern-op-slack-call client-ndm --api auth.test' '--agents-config-option client-ndm --select TRELLO_KEY' 'client-comms-trello-whoami client-ndm' '--client- client-ndm' ; do
+for rigOp in '--slack-read --team-member client-ndm magic-team --oldest 1' '--intern-op-sweep-input-scan client-ndm' '--intern-op-slack-call client-ndm --api auth.test' '--agents-config-option client-ndm --select TRELLO_KEY' 'client-comms-trello-whoami client-ndm' '--client- client-ndm' ; do
 	rigName="${rigOp%% *}"
 	rigRun --client-operation-run magic-coordinator $rigOp
 	rigAssert "an operation that is no --client-* one is refused, and nothing is run: $rigName" "$rigRc $( rigLines "$rigTmp/calls" ) $( rigErrors ) $( rigWhole "$rigTmp/err" "⛔ ERROR: AgentDispatcherTools --client-operation-run: runs a --client-* operation, and $rigName is not one -- nothing was done" ) $( rigLines "$rigTmp/out" )" "1 0 1 1 0"
@@ -347,7 +347,7 @@ rigAssert "with no client named it gives its syntax, and nothing is run" "$rigRc
 
 echo "-- 9. a --magic-comms-* operation given a client is our own side, as for any other member --"
 rigPre=( MDAT_SPAWN_AGENT=magic-coordinator )
-rigRun --slack-read --team-member client-ndm CTEAM0001
+rigRun --slack-read --team-member client-ndm CTEAM0001 --oldest 1
 rigAssert "its Slack read in the client's name is in our own team's Slack, under the team's bot: nothing the client holds is used" "$rigRc $( rigCalls ) $( rigFrom NDMHERE )" "0 slack conversations.history rig-bot-token-TEAMHERE 0"
 rigSideLine="client-ndm has no mail settings on our own organisation's side: what it holds is the other organisation's. For the other organisation use"
 rigRun --email-mark-seen --team-member client-ndm 41
@@ -370,7 +370,7 @@ rigPre=( MDAT_SPAWN_AGENT=keeper-here )
 rigRun --client-comms-jira-board-list keeper-here
 rigAssert "a name that is no client's is refused by the operation itself, as before: the family runs only as a client-* member" "$rigRc $( rigLines "$rigTmp/calls" ) $( rigN "$rigTmp/err" '--client-comms-jira-board-list: runs only as a client-* member, and keeper-here is not one' ) $( rigN "$rigTmp/err" 'this session acts as' )" "1 0 1 0"
 rigPre=( MDAT_SPAWN_AGENT=magic-coordinator )
-rigRun --slack-read --team-member client-ndm magic-team
+rigRun --slack-read --team-member client-ndm magic-team --oldest 1
 rigAssert "a name the members and the coordinator share is not opened to a client's side by this rule: magic-coordinator's session runs it for the client on our own side, as its own --magic-* name did before the two were one, and is refused nothing" "$rigRc $( rigLines "$rigTmp/calls" ) $( rigN "$rigTmp/err" 'this session acts as magic-coordinator, so it cannot act as client-ndm -- nothing was done' )" "0 1 0"
 rigPre=()
 

@@ -49,15 +49,15 @@ AgentsToolsSuperviseRead(){ ## <run-id> [--tail <n>] [--thread-lines <n>] [--no-
 		case "$readAny" in ''|*[!0123456789]*|0) echo "$MDSC_CMD: ⛔ ERROR: --supervise-read: a count must be a whole number above zero, got: $readAny" >&2 ; return 1 ;; esac
 	done
 	type AgentsToolsSpawnRecord > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunRecords.include"
-	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandboxRecordHeader.include"
-	type AgentsSessionRunSandboxInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+	type AgentsToolsFrontmatterKey > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.FrontmatterKey.include"
+	type AgentsSessionRunSandboxInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandbox.include"
 	type AgentsTranscriptRunTail > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionTranscript.include"
 	readRecord="$( AgentsToolsSpawnRecord "$readRun" )"
 	[ -n "$readRecord" ] || { echo "$MDSC_CMD: ⛔ ERROR: --supervise-read: no record of this workspace carries the run $readRun" >&2 ; return 1 ; }
 	AgentsSessionRunSandboxInto readSandbox "$readRun" || readSandbox=""
-	readMember="$( AgentsToolsSpawnSandboxRecordHeader "$readRecord" owner )"
-	readSession="$( AgentsToolsSpawnSandboxRecordHeader "$readRecord" session-id )"
-	readStatus="$( AgentsToolsSpawnSandboxRecordHeader "$readRecord" status )"
+	readMember="$( AgentsToolsFrontmatterKey "$readRecord" owner )"
+	readSession="$( AgentsToolsFrontmatterKey "$readRecord" session-id )"
+	readStatus="$( AgentsToolsFrontmatterKey "$readRecord" status )"
 	readAny=gone
 	AgentsToolsSpawnRuns "$readRun" "$readRecord" > /dev/null 2>&1 && readAny=running
 	printf 'run\t%s\t%s\t%s\t%s\t%s\n' "$readRun" "${readMember:--}" "${readSession:--}" "${readStatus:--}" "$readAny"
@@ -72,7 +72,7 @@ AgentsToolsSuperviseRead(){ ## <run-id> [--tail <n>] [--thread-lines <n>] [--no-
 	[ "$readAny" != "-" ] || printf 'transcript\t-\n'
 	## The thread: the session's own, read from the chat file by the one reader of it, and cut to its last messages.
 	if [ "$readThread" = yes ] ; then
-		readThreadValue="$( AgentsToolsSpawnSandboxRecordHeader "$readRecord" session-thread )"
+		readThreadValue="$( AgentsToolsFrontmatterKey "$readRecord" session-thread )"
 		case "$readThreadValue" in ''|-) readThreadValue="$( AgentsSpawnedThreadOfRecord "$readRecord" )" ;; esac
 		printf 'thread\t%s\n' "${readThreadValue:--}"
 		if [ -n "$readThreadValue" ] ; then

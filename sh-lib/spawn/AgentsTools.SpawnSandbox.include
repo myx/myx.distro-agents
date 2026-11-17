@@ -3,7 +3,8 @@
 
 ##
 ## AgentsTools.SpawnSandbox.include -- what a spawn sandbox's input/ holds, and when it
-## is emptied. Sourced, never run. Functions only. Contract: MAGIC.md, "Spawn sandbox input/".
+## is emptied; and the sandbox's own reads: its record's path, the sandbox a run stands in, its
+## CheckList digests and its log tail. Sourced, never run. Functions only. Contract: MAGIC.md, "Spawn sandbox input/".
 ##
 
 ## THE CLOCK OF A START: the whole seconds each step of a start took, kept in $agentsStartSteps as `<step>=<n>s` words and said
@@ -17,11 +18,11 @@
 type DistroAgentsTools > /dev/null 2>&1 || DistroAgentsTools(){ unset -f DistroAgentsTools ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"&& DistroAgentsTools "$@" ; }
 
 ## THE PARTS, each one concern, split by concern; sourced here so every caller of this include keeps every function.
-. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandboxRecordHeader.include"
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.FrontmatterKey.include"
 . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnStartSteps.include"
 . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandboxInput.include"
-. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionThreads.include"
-. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.RunRoute.include"
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.SessionThreads.include"
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.RunRoute.include"
 . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSessionParent.include"
 . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionSeats.include"
 . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/wait/AgentsTools.MemberWaitSourcesDefault.include"
@@ -31,7 +32,98 @@ type DistroAgentsTools > /dev/null 2>&1 || DistroAgentsTools(){ unset -f DistroA
 . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemReviewer.include"
 . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnProxyClose.include"
 
-## One line to the daemon output, never stdout: fd 4 where execute opened it (the request's own stderr, not the result), else stderr, which is the log in a console or harness run.
+## The sandbox a run's record stands in, into the named variable: the name of its folder in the spawn store. rc 1 where the run has no record.
+AgentsSessionRunSandboxInto(){ ## variable, run
+	local sandboxRecord=""
+	printf -v "$1" '%s' ""
+	type AgentsSessionRunRecordInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+	AgentsSessionRunRecordInto sandboxRecord "${2:-}" || return 1
+	sandboxRecord="${sandboxRecord%/*}"
+	printf -v "$1" '%s' "${sandboxRecord##*/}"
+}
+
+## The record file of a run, from its sandbox's name and its record's name (the two fields the record rows carry), so a
+## caller holding those never builds a path into the store itself: the store answers its own folder. rc 1 where no such
+## record is there, or either name is no bare name.
+AgentsSessionSandboxRecordPath(){ ## sandbox, run id
+	local pathSandbox="${1:-}" pathRun="${2:-}" pathStore="" pathFile=""
+	case "$pathSandbox:$pathRun" in */*|*[[:space:]]*|:*) return 1 ;; esac
+	case "$pathSandbox" in ''|-|.|..) return 1 ;; esac
+	case "$pathRun" in ''|-|.|..) return 1 ;; esac
+	type AgentsSpawnedStoreDirInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+	AgentsSpawnedStoreDirInto pathStore "${MMDAPP:-}" || return 1
+	printf -v pathFile '%s/%s/%s.spawn.md' "$pathStore" "$pathSandbox" "$pathRun"
+	[ -f "$pathFile" ] || return 1
+	printf '%s\n' "$pathFile"
+	return 0
+}
+
+## A member's CheckList in a spawn sandbox, one line: `<kept yes|no><TAB><last write, epoch or -><TAB><open items><TAB><an open item on any
+## list there, yes|no><TAB><the item in progress, or nothing>`.
+AgentsSessionSandboxChecklist(){ ## sandbox, member
+	local listStore="" listDir="" listFiles=() listFile listKept=no listAt="-"
+	case "${1:-}" in ''|-|.|..|*/*|*[[:space:]]*) printf 'no\t-\t0\tno\t\n' ; return 0 ;; esac
+	type AgentsSpawnedStoreDirInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+	AgentsSpawnedStoreDirInto listStore "${MMDAPP:-}" || { printf 'no\t-\t0\tno\t\n' ; return 0 ; }
+	printf -v listDir '%s/%s' "$listStore" "$1"
+	for listFile in "$listDir"/*.checklist.md ; do [ ! -f "$listFile" ] || listFiles+=( "$listFile" ) ; done
+	if [ -f "$listDir/${2:-}.checklist.md" ] ; then
+		listKept=yes
+		listAt="$( stat -f %m "$listDir/${2:-}.checklist.md" 2> /dev/null || stat -c %Y "$listDir/${2:-}.checklist.md" 2> /dev/null )" || listAt="-"
+	fi
+	[ ${#listFiles[@]} -gt 0 ] || { printf 'no\t-\t0\tno\t\n' ; return 0 ; }
+	LC_ALL=C awk -v ownList="$listDir/${2:-}.checklist.md" -v listKept="$listKept" -v listAt="${listAt:--}" '
+		/^- \[ \]/ { anyOpen = 1 }
+		FILENAME != ownList { next }
+		/^- \[ \] / { openCount++ }
+		/^- \[~\] / && doingText == "" { doingText = $0 ; sub( /^- \[~\] /, "", doingText ) ; sub( / \(in progress: .*/, "", doingText ) }
+		END { printf "%s\t%s\t%d\t%s\t%s\n", listKept, listAt, openCount, ( anyOpen ? "yes" : "no" ), doingText }
+	' "${listFiles[@]}" 2> /dev/null
+}
+
+## A member's CheckList in a spawn sandbox, its lines: first the name of the file it is kept in, then each line. rc 1 where there is none.
+AgentsSessionSandboxChecklistLines(){ ## sandbox, member
+	local linesStore="" linesFile="" linesOne
+	case "${1:-}:${2:-}" in :*|*:|*/*|-:*|*:-|.:*|..:*|*:.|*:..) return 1 ;; esac
+	type AgentsSpawnedStoreDirInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+	AgentsSpawnedStoreDirInto linesStore "${MMDAPP:-}" || return 1
+	printf -v linesFile '%s/%s/%s.checklist.md' "$linesStore" "${1:-}" "${2:-}"
+	[ -f "$linesFile" ] || return 1
+	printf '%s\n' "$linesFile"
+	while IFS= read -r linesOne || [ -n "$linesOne" ] ; do printf '%s\n' "$linesOne" ; done < "$linesFile"
+	return 0
+}
+
+## The last lines of a run's session log: first the name of the log, then the lines. The log in its sandbox first, else its session's. rc 1 for none.
+AgentsSessionSandboxLogTail(){ ## sandbox, session, lines
+	local tailSpawned="" tailSessions="" tailLog
+	type AgentsSessionStoreDirInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+	AgentsSpawnedStoreDirInto tailSpawned "${MMDAPP:-}" || return 1
+	AgentsSessionStoreDirInto tailSessions "${MMDAPP:-}" || return 1
+	for tailLog in "$tailSpawned/${1:-}/session.log" "$tailSessions/${2:-}/session.log" ; do
+		[ -f "$tailLog" ] || continue
+		printf '%s\n' "$tailLog"
+		tail -n "$3" "$tailLog" 2> /dev/null
+		return 0
+	done
+	return 1
+}
+
+## The CheckList the calling run keeps: first its member, then its lines. The one under its native session's store, else under its spawn's sandbox.
+AgentsSessionOwnChecklistLines(){ ## native session id (may be empty), spawn sandbox (may be empty)
+	local ownSessionStore="" ownSpawnStore="" ownList ownLine ownMember
+	type AgentsSessionStoreDirInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+	AgentsSessionStoreDirInto ownSessionStore "${MMDAPP:-}" || ownSessionStore="/nonexistent/.local/agents/sessions"
+	AgentsSpawnedStoreDirInto ownSpawnStore "${MMDAPP:-}" || ownSpawnStore="/nonexistent/.local/agents/spawned"
+	for ownList in "$ownSessionStore/${1:-none}"/*.checklist.md "$ownSpawnStore/${2:-none}"/*.checklist.md ; do
+		[ -f "$ownList" ] || continue
+		ownMember="${ownList##*/}"
+		printf '%s\n' "${ownMember%.checklist.md}"
+		while IFS= read -r ownLine || [ -n "$ownLine" ] ; do printf '%s\n' "$ownLine" ; done < "$ownList"
+		return 0
+	done
+	return 0
+}
 ## The write that can fail is a redirection on a subshell, stderr silenced first, since a failed redirection on a special builtin ends a POSIX shell.
 ## fd 4 closed or not writable falls back to stderr.
 AgentsToolsDaemonLine(){ ## text...
@@ -54,4 +146,81 @@ AgentsToolsHousekeepingReport(){ ## member, lines
 	printf '%s\n' "$2" | DistroAgentsTools --intern-op-event-track-post "$1" "$reportThread" --kind activity --session-id "${MDAT_SPAWN_SESSION_ID:-}" \
 		--field what="board housekeeping" --from-stdin > /dev/null 2>&1 || :
 	return 0
+}
+
+## THE CONTROL THREADS OF TEST RIGS LEFT INSIDE SPAWN SANDBOXES, `<sandbox><TAB><pid><TAB><began><TAB><its pid file inside the sandbox>` a line,
+## from every `output/**/control/pid` there whose first word is a number. The walk of the spawn store to depth 14 ran minutes under load, so
+## its list is kept in schedule/supervise.rig-pids and reread within MDAT_SUPERVISE_RIG_WALK_SECONDS (900, 0 for every call). A kept list
+## delays a new rig's row by at most that bound, and its caller still tests the pid and the record.
+AgentsSessionRigControlRows(){
+	local rigKept="${MMDAPP:-/nonexistent}/.local/agents/schedule/supervise.rig-pids" rigStore=""
+	[ -n "${MMDAPP:-}" ] || return 0
+	type AgentsSpawnedStoreDirInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+	AgentsSpawnedStoreDirInto rigStore "$MMDAPP" || return 0
+	local rigTtl="${MDAT_SUPERVISE_RIG_WALK_SECONDS:-900}" rigAt=0 rigFile rigPid rigRest rigSandbox
+	case "$rigTtl" in ''|*[!0123456789]*) rigTtl=900 ;; esac
+	if [ "$rigTtl" -gt 0 ] && [ -f "$rigKept" ] ; then
+		rigAt="$( stat -f %m "$rigKept" 2> /dev/null || stat -c %Y "$rigKept" 2> /dev/null )" || rigAt=0
+		case "$rigAt" in ''|*[!0123456789]*) rigAt=0 ;; esac
+	fi
+	if [ "$rigTtl" -eq 0 ] || [ $(( $( date +%s ) - rigAt )) -ge "$rigTtl" ] ; then
+		mkdir -p "${rigKept%/*}" 2> /dev/null
+		find "$MMDAPP/.local/agents/spawned" -mindepth 6 -maxdepth 14 \( -name .git -o -name node_modules \) -prune -o -path '*/output/*' -path '*/control/pid' -type f -print 2> /dev/null > "$rigKept.tmp" && mv -f "$rigKept.tmp" "$rigKept" 2> /dev/null
+	fi
+	[ -f "$rigKept" ] || return 0
+	while IFS= read -r rigFile ; do
+		[ -n "$rigFile" ] || continue
+		rigPid="" ; rigRest=""
+		{ read -r rigPid rigRest < "$rigFile" ; } 2> /dev/null || continue
+		case "${rigPid:-}" in ''|*[!0123456789]*) continue ;; esac
+		rigSandbox="${rigFile#"$rigStore"/}" ; rigSandbox="${rigSandbox%%/*}"
+		printf '%s\t%s\t%s\t%s\n' "$rigSandbox" "$rigPid" "$rigRest" "${rigFile#"$rigStore"/"$rigSandbox"/}"
+	done < "$rigKept"
+	return 0
+}
+
+## THE NOTE BESIDE A RIG'S CONTROL PID FILE that a polite signal did not end: `<pid> <began>`, the two the pid file holds, kept
+## in a file of its own so the next pass knows the same process answered nothing and may be ended harder. A file and not a variable,
+## because the pass that writes it and the pass that reads it are different processes. It stands beside the pid file, so it goes
+## when the rig does, and only the store's owner builds its path.
+AgentsSessionRigTermNoteInto(){ ## variable, sandbox, the pid file inside the sandbox, pid, the began moment
+	local termNote="" termLine="" termStore=""
+	type AgentsSpawnedStoreDirInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+	printf -v "$1" '%s' "none"
+	case "${2:-}" in ''|-|.|..|*/*|*[[:space:]]*) return 0 ;; esac
+	case "${3:-}" in ''|/*|*..*|*[[:space:]]*) return 0 ;; esac
+	AgentsSpawnedStoreDirInto termStore "${MMDAPP:-}" || return 0
+	printf -v termNote '%s/%s/%s.term' "$termStore" "$2" "$3"
+	[ -f "$termNote" ] || return 0
+	{ IFS= read -r termLine < "$termNote" ; } 2> /dev/null || termLine=""
+	case "$termLine" in
+		'') return 0 ;;
+		"${4:-} ${5:-}") printf -v "$1" '%s' "same" ;;
+		*) printf -v "$1" '%s' "other" ;;
+	esac
+	return 0
+}
+
+AgentsSessionRigTermNoteSet(){ ## sandbox, the pid file inside the sandbox, pid, the began moment
+	local termNote="" termStore="" setWorkspace="${MMDAPP:-/nonexistent}"
+	type AgentsSpawnedStoreDirInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+	case "${1:-}" in ''|-|.|..|*/*|*[[:space:]]*) return 1 ;; esac
+	case "${2:-}" in ''|/*|*..*|*[[:space:]]*) return 1 ;; esac
+	AgentsSpawnedStoreDirInto termStore "$setWorkspace" || return 1
+	printf -v termNote '%s/%s/%s.term' "$termStore" "$1" "$2"
+	## made whole or not at all, so a reader never takes half a note for a whole one
+	mkdir -p "${termNote%/*}" 2> /dev/null && printf '%s %s\n' "${3:-}" "${4:-}" > "$termNote.tmp" && mv -f "$termNote.tmp" "$termNote" && return 0
+	rm -f -- "$termNote.tmp" 2> /dev/null ; return 1
+}
+
+AgentsSessionRigTermNoteClear(){ ## sandbox, the pid file inside the sandbox
+	local termNote="" termStore=""
+	type AgentsSpawnedStoreDirInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+	case "${1:-}" in ''|-|.|..|*/*|*[[:space:]]*) return 1 ;; esac
+	case "${2:-}" in ''|/*|*..*|*[[:space:]]*) return 1 ;; esac
+	AgentsSpawnedStoreDirInto termStore "${MMDAPP:-}" || return 1
+	printf -v termNote '%s/%s/%s.term' "$termStore" "$1" "$2"
+	## tested first, since a pass clears one for every rig whose thread has gone, and most rigs have no note
+	[ -e "$termNote" ] || return 0
+	rm -f -- "$termNote" 2> /dev/null || return 1
 }

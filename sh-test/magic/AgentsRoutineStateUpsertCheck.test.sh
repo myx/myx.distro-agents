@@ -40,6 +40,9 @@ command -v git > /dev/null 2>&1 || rigRefuse "no git on PATH, so no remote can b
 mkdir -p "$MMDAPP/.local/temp" || exit 1
 rigTmp="$( mktemp -d "$MMDAPP/.local/temp/AgentsRoutineStateUpsertCheck.XXXXXX" )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
+## The team-data sync reaches myx.common's git helpers through $MYXROOT, which it resolves from PATH: the calls below run under env -i, so it is given here.
+rigMyxRoot="$( myx.common which lib/catMarkdown 2> /dev/null )" ; rigMyxRoot="${rigMyxRoot%/bin/lib/catMarkdown*}"
+[ -n "$rigMyxRoot" ] || rigRefuse "myx.common answers no lib/catMarkdown, so the team-data sync could reach no git helper"
 trap 'chmod -R u+w -- "$rigTmp" 2>/dev/null ; rm -rf -- "$rigTmp"' EXIT
 rigWs="$rigTmp/ws" rigData="$rigTmp/data" rigHome="$rigTmp/home"
 mkdir -p "$rigTmp/bin" "$rigWs/.local/.agents" "$rigWs/.local/agents" "$rigHome"
@@ -95,7 +98,7 @@ rigUpdate(){ ## result name, run id (or -), acting member, standard input text, 
 	local callName="$1" callRun="$2" callMember="$3" callIn="$4" callRc=0 callEnv=()
 	shift 4
 	[ "$callRun" = "-" ] || callEnv=( MDAT_SPAWN_SESSION_ID="$callRun" MDAT_SPAWN_AGENT="$callMember" )
-	( cd "$rigWs" && printf '%s' "$callIn" | env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" PATH="$rigTmp/bin:/usr/bin:/bin:/usr/sbin:/sbin" MMDAPP="$rigWs" MDLT_ORIGIN="$rigOrigin" MDLT_OPTION="--run-from-path $rigOrigin" \
+	( cd "$rigWs" && printf '%s' "$callIn" | env -i MDAT_WORKSPACE_MODE=team-rig MYXROOT="$rigMyxRoot" HOME="$rigHome" PATH="$rigTmp/bin:/usr/bin:/bin:/usr/sbin:/sbin" MMDAPP="$rigWs" MDLT_ORIGIN="$rigOrigin" MDLT_OPTION="--run-from-path $rigOrigin" \
 		MDAT_DATA_ROOT="$rigData" MDAT_SKILLSET_ROOT="$rigTmp/skills" ${callEnv[@]+"${callEnv[@]}"} \
 		python3 -I -B "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-exec.py" --alarm 120 -- bash "$rigSession" --update-routine-state "$@" ) > "$rigTmp/$callName.out" 2> "$rigTmp/$callName.err" || callRc=$?
 	printf '%s' "$callRc" > "$rigTmp/$callName.rc"
@@ -103,7 +106,7 @@ rigUpdate(){ ## result name, run id (or -), acting member, standard input text, 
 rigCall(){ ## result name, operation words... -- one call of the tool as magic-coordinator's console run; rc in <name>.rc
 	local callName="$1" callRc=0
 	shift
-	( cd "$rigWs" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" PATH="$rigTmp/bin:/usr/bin:/bin:/usr/sbin:/sbin" MMDAPP="$rigWs" MDLT_ORIGIN="$rigOrigin" MDLT_OPTION="--run-from-path $rigOrigin" \
+	( cd "$rigWs" && env -i MDAT_WORKSPACE_MODE=team-rig MYXROOT="$rigMyxRoot" HOME="$rigHome" PATH="$rigTmp/bin:/usr/bin:/bin:/usr/sbin:/sbin" MMDAPP="$rigWs" MDLT_ORIGIN="$rigOrigin" MDLT_OPTION="--run-from-path $rigOrigin" \
 		MDAT_DATA_ROOT="$rigData" MDAT_SKILLSET_ROOT="$rigTmp/skills" MDAT_SPAWN_AGENT=magic-coordinator \
 		python3 -I -B "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-exec.py" --alarm 120 -- bash "$rigTool" "$@" ) > "$rigTmp/$callName.out" 2> "$rigTmp/$callName.err" < /dev/null || callRc=$?
 	printf '%s' "$callRc" > "$rigTmp/$callName.rc"

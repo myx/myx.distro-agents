@@ -17,6 +17,8 @@ rigRefuse(){
 rigTmp="$( rigTempDir AgentsBoardItemMovedReadCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 trap 'chmod -R u+rwX "$rigTmp" 2> /dev/null ; rm -rf -- "$rigTmp"' EXIT
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-writes.include.sh" || exit 1
+rigOwnerWs="$rigTmp/ws" rigOwnerData="$rigTmp/data" rigOwnerHome="$rigTmp/home" rigOwnerSkills="$rigTmp/skills"
 mkdir -p "$rigTmp/ws" "$rigTmp/home/.claude/skills/magic-coordinator" \
 	"$rigTmp/data/board/review" "$rigTmp/data/board/running" "$rigTmp/data/board/backlog" "$rigTmp/data/board/blocked"
 printf '# magic-coordinator\n' > "$rigTmp/home/.claude/skills/magic-coordinator/SKILL.md"
@@ -27,8 +29,6 @@ printf -- '---\ntype: task\nowner: magic-coordinator\n---\n\n# running rig item\
 
 rigPassCount=0
 rigFailCount=0
-. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-writes.include.sh" || exit 1
-rigOwnerWs="${rigWs:-$rigTmp/ws}" rigOwnerData="${rigData:-${rigD:-${rigStore:-${rigOut:-$rigTmp/data}}}}" rigOwnerHome="${rigHome:-$rigTmp/home}" rigOwnerSkills="${rigSkills:-$rigTmp/skills}"
 rigOwnerBoardReady
 rigAssert(){ ## what is asserted, got, want
 	if [ "$2" = "$3" ] ; then

@@ -364,9 +364,9 @@ rigBring ws-here keeper-there
 rigAssert "a caller that already reads the member's root is given that same root back, so nothing is left to change" "$brRc [${brOut%%$'\t'*}]" "0 [$( rigView ws-there )]"
 rigPre=( "MDAT_SKILLSET_ROOT=$rigElsewhere" )
 rigBring ws-here keeper-there
-rigAssert "accepted sibling: a root set anywhere else is kept as it is, and the member is looked for under it" "$brRc [$brOut] [$brErr]" "0 [$rigElsewhere"$'\t'"$rigWork/ws-there] []"
+rigAssert "a root a caller carries is never read for an invited member: the folder is the one the member registries give, resolved per call" "$brRc [$brOut] [$brErr]" "0 [$( rigView ws-there )"$'\t'"$rigWork/ws-there] []"
 rigBring ws-here keeper-multi
-rigAssert "and a root set elsewhere that does not hold the member is the refusal below, naming that root" "$brRc [$brOut] $( rigN "$rigTmp/brErr" "Looked for its member directory at $rigElsewhere/keeper-multi, in $rigWork/ws-third" )" "1 [] 1"
+rigAssert "and that root names neither the folder looked in nor the member: the member is brought from its source link's workspace" "$brRc [$brOut] [$brErr]" "0 [$( rigView ws-third )"$'\t'"$rigWork/ws-third] []"
 rigPre=()
 rigBring ws-here keeper-multi
 rigAssert "set up in two others: the view of the workspace the resolver names, its source link" "$brRc [$brOut]" "0 [$( rigView ws-third )"$'\t'"$rigWork/ws-third]"
@@ -456,9 +456,9 @@ rigAssert "set up in two others, each holding a setting for it: neither is read"
 rigRunIn ws-there --agents-config-option keeper-here --select WHERE
 rigAssert "and the other way: called from ws-there, a member set up only in ws-here reads ws-there's, which holds none" "$rigRc [$( cat "$rigTmp/out" )]" "0 []"
 rigRunIn ws-here --member-help --team-member keeper-there
-rigAssert "its skillset is read from the workspace it is set up in: the help names its armed file in that workspace's view, and nothing of it under the caller's" "$rigRc $( rigHelpNames "$( rigView ws-there )/keeper-there/keeper-there.armed.md" ) $( rigN "$rigTmp/err" "$( rigView ws-here )/keeper-there" )" "0 1 0"
+rigAssert "its skillset is read from the workspace it is set up in: the help names its armed file where the tooling's directory puts it, and nothing of it under the caller's" "$rigRc $( rigHelpNames "$( rigMemberHome ws-there keeper-there )/keeper-there.armed.md" ) $( rigN "$rigTmp/err" "$( rigView ws-here )/keeper-there" )" "0 1 0"
 rigRunIn ws-here --member-help --team-member keeper-multi
-rigAssert "set up in two others: read from the view of its source link's workspace" "$rigRc $( rigHelpNames "$( rigView ws-third )/keeper-multi/keeper-multi.armed.md" )" "0 1"
+rigAssert "set up in two others: read from its source link's workspace" "$rigRc $( rigHelpNames "$( rigMemberHome ws-third keeper-multi )/keeper-multi.armed.md" )" "0 1"
 rigPre=( "MDAT_SKILLSET_ROOT=$rigElsewhere" )
 rigRunIn ws-here --member-help --team-member keeper-there
 rigAssert "accepted sibling: a member set root the caller set somewhere else is kept, and read"   "$rigRc $( rigHelpNames "$rigElsewhere/keeper-there/keeper-there.armed.md" )" "0 1"
@@ -488,7 +488,7 @@ rigRunIn ws-here --member-help --team-member keeper-there
 rigAssert "(d) the view of its workspace lacks the team's own folder: stopped at the bring, by name, rc 1, so no reader meets a half view: no help is begun and no file is reported as one that could not be opened" "$rigRc $( rigN "$rigTmp/err" "⛔ ERROR: DistroAgentsKnowledge --member-help: member 'keeper-there' cannot be brought into the workspace this operation runs from, $rigWork/ws-here: the team's own folder cannot be read where its skillset is -- nothing was done. Looked for the team's directory at $( rigView ws-there )/magic-team, in $rigWork/ws-there, the workspace" ) $( rigN "$rigTmp/err" '# Duty instructions' ) $( rigN "$rigTmp/err" "can't open file" )" "1 1 0 0"
 rigMemberAt ws-there magic-team
 rigRunIn ws-here --member-help --team-member keeper-there
-rigAssert "(d) accepted sibling: with the team's folder there again, the help is printed, read from that view" "$rigRc $( rigN "$rigTmp/err" '# Tooling help output' ) $( rigHelpNames "$( rigView ws-there )/keeper-there/keeper-there.armed.md" )" "0 1 1"
+rigAssert "(d) accepted sibling: with the team's folder there again, the help is printed, read from the directory the tooling answers" "$rigRc $( rigN "$rigTmp/err" '# Tooling help output' ) $( rigHelpNames "$( rigMemberHome ws-there keeper-there )/keeper-there.armed.md" )" "0 1 1"
 rigMemberAt gone/ws-gone magic-team ; rigMemberAt gone/ws-gone keeper-gone ; mkdir -p "$rigWork/gone/ws-gone/.local/.agents" ; printf 'WHERE=ws-gone\n' > "$rigWork/gone/ws-gone/.local/.agents/keeper-gone.agent.env"
 mkdir -p "$rigWork/ws-nolist/.local/.agents" ; rigListAdd "$rigWork/ws-nolist" ; rigMemberAt ws-nolist magic-team ; rigMemberAt ws-nolist keeper-nowhere ; printf 'WHERE=ws-nolist\n' > "$rigWork/ws-nolist/.local/.agents/keeper-nowhere.agent.env"
 rigRunIn ws-here --agents-config-option keeper-gone --select WHERE
@@ -557,21 +557,21 @@ rigRunIn ws-here --slack-send-message --team-member keeper-here magic-team RIG-B
 rigAssert "control: nothing is said for a member set up here" "$rigRc $( rigFallbackSaid ) $( rigTokens )" "0 0 rig-user-token-KHERE "
 rigWorld
 
-echo "-- 6. no second call into itself: an invited member's operation re-runs exactly once --"
+echo "-- 6. one run, one process: an invited member's operation resolves its folder for itself and is never re-run --"
 rigWorld
 rigReRun="export MDAT_SKILLSET_ROOT=$( rigView ws-there )"
 rigTraceIn ws-here --agents-config-option keeper-there --select WHERE
-rigAssert "an invited member's call is re-run once, under its own member set root, and finishes; it is looked up twice, once before the re-run and once inside it, where nothing is left to change" "$rigRc [$( cat "$rigTmp/out" )] $( rigN "$rigTmp/trace" "$rigReRun" ) $( rigN "$rigTmp/trace" "$rigBringFn keeper-there --agents-config-option" )" "0 [] 1 2"
+rigAssert "an invited member's call runs once, in its own process: its folder is never carried in, so no second call into itself" "$rigRc [$( cat "$rigTmp/out" )] $( rigN "$rigTmp/trace" "export MDAT_SKILLSET_ROOT=" ) $( rigN "$rigTmp/trace" "$rigBringFn keeper-there --agents-config-option" )" "0 [] 0 1"
 rigTraceIn ws-here --agents-config-option keeper-here --select WHERE
-rigAssert "control: a member set up here is looked up once and never re-run"      "$rigRc $( cat "$rigTmp/out" ) $( rigN "$rigTmp/trace" "export MDAT_SKILLSET_ROOT=/" ) $( rigN "$rigTmp/trace" "$rigBringFn keeper-here --agents-config-option" )" "0 ws-here 0 1"
+rigAssert "control: a member set up here is looked up once too"      "$rigRc $( cat "$rigTmp/out" ) $( rigN "$rigTmp/trace" "export MDAT_SKILLSET_ROOT=" ) $( rigN "$rigTmp/trace" "$rigBringFn keeper-here --agents-config-option" )" "0 ws-here 0 1"
 rigPre=( "MDAT_SKILLSET_ROOT=$( rigView ws-there )" )
 rigTraceIn ws-here --agents-config-option keeper-there --select WHERE
-rigAssert "accepted sibling: a call that already reads the member's root goes on as it is, with no re-run" "$rigRc [$( cat "$rigTmp/out" )] $( rigN "$rigTmp/trace" "export MDAT_SKILLSET_ROOT=/" ) $( rigN "$rigTmp/trace" "$rigBringFn keeper-there --agents-config-option" )" "0 [] 0 1"
+rigAssert "a root a caller carries decides nothing: the call runs here, its folder read from the registry, and is never re-run" "$rigRc [$( cat "$rigTmp/out" )] $( rigN "$rigTmp/trace" "export MDAT_SKILLSET_ROOT=" ) $( rigN "$rigTmp/trace" "$rigBringFn keeper-there --agents-config-option" )" "0 [] 0 1"
 rigPre=()
 rigTraceIn ws-here --agents-config-option keeper-multi --select WHERE
-rigAssert "a member whose workspace is not the first row: once too, under that workspace's view and no other" "$rigRc $( rigN "$rigTmp/trace" "export MDAT_SKILLSET_ROOT=$( rigView ws-third )" ) $( rigN "$rigTmp/trace" "export MDAT_SKILLSET_ROOT=/" )" "0 1 1"
+rigAssert "a member whose workspace is not the first row: no re-run under that workspace's view either" "$rigRc $( rigN "$rigTmp/trace" "export MDAT_SKILLSET_ROOT=" )" "0 0"
 rigTraceIn ws-here --slack-send-message --team-member keeper-there magic-team RIG-BODY
-rigAssert "a send, whose stub reaches its implementation and the Slack call under it by the same door: one re-run still, one post" "$rigRc $( rigN "$rigTmp/trace" "export MDAT_SKILLSET_ROOT=/" ) $( rigN "$rigTmp/trace" "$rigReRun" ) $( rigN "$rigTmp/calls" "chat.postMessage " )" "0 1 1 1"
+rigAssert "a send, whose stub reaches its implementation and the Slack call under it by the same door: no re-run, one post" "$rigRc $( rigN "$rigTmp/trace" "export MDAT_SKILLSET_ROOT=" ) $( rigN "$rigTmp/calls" "chat.postMessage " )" "0 0 1"
 
 echo "-- 7. an invited member talks in the Slack of the workspace it was called from, under its own identity --"
 ## Two workspaces, each with its own team settings. keeper-there is set up only in ws-there, where it has an identity of
@@ -583,7 +583,7 @@ rigRunIn ws-here --slack-send-message --team-member keeper-there magic-team RIG-
 rigAssert "its send goes to the team's channel of the workspace it was called from, under its own identity, which that workspace holds none of and its own does" "$rigRc $( rigTokens )$( rigChannel )" "0 rig-user-token-KTHERE CHERE0001"
 rigAssert "under its own name, with the mark and alias of its row in the names registry of the workspace it is set up in: the calling workspace's registry holds no row for it" "$( rigText )" '🔧 *_keeper-there_* @therekeep → @here.\nRIG-BODY'
 rigAssert "nothing of the team of the workspace it is set up in is used: not its bot, not its channel" "$( rigN "$rigTmp/calls" 'bot-token-THERE' ) $( rigN "$rigTmp/bodies" 'CTHERE0001' )" "0 0"
-rigRunIn ws-here --slack-read --team-member keeper-there magic-team
+rigRunIn ws-here --slack-read --team-member keeper-there magic-team --oldest 1
 rigAssert "its read is made under the same identity"                       "$rigRc $( rigHistoryToken )" "0 rig-user-token-KTHERE "
 rigRunIn ws-here --slack-send-message --team-member keeper-multi magic-team RIG-BODY
 rigAssert "a member with no identity of its own in either workspace posts as the team bot of the workspace it was called from, in that team's channel" "$rigRc $( rigTokens )$( rigChannel )" "0 rig-bot-token-HERE CHERE0001"
@@ -624,7 +624,7 @@ rigRunIn ws-here --agents-config-option client-ndm --select WHERE
 rigAssert "accepted sibling: a setting the workspace it was called from holds for the client is the one read" "$rigRc [$( cat "$rigTmp/out" )]" "0 [ws-here]"
 rigAssert "the caller's own shell keeps its MMDAPP after the call"          "$( MMDAPP="$rigWork/ws-here" ; ( cd "$rigWork/ws-here" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" PATH="$PATH" MMDAPP="$MMDAPP" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" bash -c 'bash "$1" --agents-config-option client-ndm --select WHERE > /dev/null 2>&1 ; printf "%s" "$MMDAPP"' rig-shell "$rigTool" ) )" "$rigWork/ws-here"
 rigTraceIn ws-here --agents-config-option client-ndm --select WHERE
-rigAssert "its call is re-run once under its own member set root, as any invited member's is, and is switched to no workspace" "$rigRc $( cat "$rigTmp/out" ) $( rigN "$rigTmp/trace" "export MDAT_SKILLSET_ROOT=$( rigView ws-there )" ) $( rigN "$rigTmp/trace" "export MDAT_SKILLSET_ROOT=/" ) $( LC_ALL=C grep -c "+ $rigSwitchFn " "$rigTmp/trace" || : )" "0 ws-here 1 1 0"
+rigAssert "its call runs once, in this shell: no member set root is carried into it, and no workspace is switched to" "$rigRc $( cat "$rigTmp/out" ) $( rigN "$rigTmp/trace" "export MDAT_SKILLSET_ROOT=" ) $( LC_ALL=C grep -c "+ $rigSwitchFn " "$rigTmp/trace" || : )" "0 ws-here 0 0"
 rigRunIn ws-here --member-help client-ndm
 rigAssert "its skillset is read from the view of the workspace it is set up in"  "$rigRc $( rigHelpNames "$( rigView ws-there )/client-ndm/client-ndm.armed.md" )" "0 1"
 rigSumThere="$( rigTreeSum ws-there )"
@@ -652,7 +652,7 @@ rigRunIn ws-rig --client-comms-slack-send-message --team-member client-ndm CRIG0
 rigAssert "and there its own token and row for the client" "$( rigTokens )$( rigChannel ) $( rigText )" 'rig-user-token-NDMRIG CRIG000001 🐭 *_Rig Persona_* @rigalias → @here.\nRIG-BODY'
 rigIndexOff
 rigRunIn ws-here --client-comms-jira-board-list --team-member client-ndm
-rigAssert "control: with no index the client is not invited, and is not set up here: refused, naming this workspace's view, no call made" "$rigRc $( rigLines "$rigTmp/calls" ) $( rigN "$rigTmp/err" "no such member skill directory: $( rigView ws-here )/client-ndm" )" "1 0 1"
+rigAssert "control: with no index the client is not invited, and is not set up here: refused, naming the member, no call made" "$rigRc $( rigLines "$rigTmp/calls" ) $( rigN "$rigTmp/err" "no such member skill directory: client-ndm" )" "1 0 1"
 rigIndexOn
 rigRunIn ws-here --intern-op-client-sweep-input-scan keeper-nowhere
 rigAssert "a --client-* operation names the same refusal for a known member in no tracked workspace" "$rigRc $( rigN "$rigTmp/err" "⛔ ERROR: DistroAgentsTools --intern-op-client-sweep-input-scan: member 'keeper-nowhere' is in the team members index but is present in no tracked workspace -- nothing was done" )" "1 1"
@@ -1260,7 +1260,7 @@ rigExclusion="$( printf '%s\n' "$rigDispatchEntry" | LC_ALL=C grep -F -e '|*:|*:
 ## word is a place name or a path, and the namespace listing's a namespace, never a member.
 rigAssert "the entry's one exclusion line: the spawn proxy, the routine lock operations, the markdown merge, the MCP execute, the Decisions append, the review implementations, the directory and workspace ops, the make operations, the manager's own operations, an empty second word, an option" "$rigExclusion" '--intern-op-agent-spawn-proxy:*|--intern-op-routine-lock-*:*|--intern-merge-md-files:*|--intern-mcp-execute:*|--intern-op-decisions-append:*|--intern-op-review-*:*|--intern-directory-*:*|--owner-workspace-*:*|--make-*:*|--manager-*:*|*:|*:-*'
 rigAssert "control: a sample entry without the wrapping operations is told apart" "$( printf -- '--intern-op-agent-spawn-proxy:*|--intern-mcp-execute:*|*:|*:-*\n' )" "$( printf '%s' "$rigExclusion" | LC_ALL=C sed 's/--intern-op-routine-lock-[*]:[*]|//; s/--intern-merge-md-files:[*]|//; s/--intern-op-decisions-append:[*]|//; s/--intern-op-review-[*]:[*]|//; s/--intern-directory-[*]:[*]|--owner-workspace-[*]:[*]|--make-[*]:[*]|--manager-[*]:[*]|//' )"
-rigAssert "an invited member's call is re-run whole in a subshell under its member set root, and only where that is not the root it already reads" "$( printf '%s\n' "$rigDispatchEntry" | LC_ALL=C grep -c -F -e '( export MDAT_SKILLSET_ROOT="$memberBrought" ; DistroAgentsTools "$@" )' || : ) $( printf '%s\n' "$rigDispatchEntry" | LC_ALL=C grep -c -F -e '[ "$memberBrought" != "${MDAT_SKILLSET_ROOT:-}" ]' || : )" "1 1"
+rigAssert "an invited member's call runs whole in this shell, its folder resolved where it is read, and no root is carried into it" "$( printf '%s\n' "$rigDispatchEntry" | LC_ALL=C grep -c -F -e '( export MDAT_SKILLSET_ROOT="$memberBrought" ; DistroAgentsTools "$@" )' || : ) $( printf '%s\n' "$rigDispatchEntry" | LC_ALL=C grep -c -F -e 'AgentsToolsMemberSkillsetBring "$2" "$1"' || : )" "0 1"
 rigAssert "no call is carried to another workspace: the entry switches to none"  "$( printf '%s\n' "$rigDispatchEntry" | LC_ALL=C grep -c "$rigSwitchFn " || : )" 0
 rigAssert "the resolver is called in its own file and nowhere else: by the bring, and beside it by what answers whether a member is invited, which workspace it is set up in, and where its own settings are read from" "$( LC_ALL=C grep -l "$rigResolveFn \"" "$rigHere"/*/*.include "$rigHere"/*/*.sh "$rigPackage/sh-scripts"/*.sh 2> /dev/null | LC_ALL=C sed 's|.*/||' | LC_ALL=C sort | LC_ALL=C tr '\n' ' ' )" "AgentsTools.MemberWorkspace.include "
 rigAssert "the bring is called from the dispatcher entry, the door of the tool files and the spawn proxy, and nowhere else" "$( LC_ALL=C grep -l "$rigBringFn \"" "$rigHere"/*/*.include "$rigHere"/*/*.sh "$rigPackage/sh-scripts"/*.sh 2> /dev/null | LC_ALL=C sed 's|.*/||' | LC_ALL=C sort | LC_ALL=C tr '\n' ' ' )" "AgentsContext.FrontDoor.include AgentsTools.InternOpAgentSpawnProxy.include DistroAgentsTools.fn.sh "

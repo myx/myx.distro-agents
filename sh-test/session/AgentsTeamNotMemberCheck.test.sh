@@ -219,7 +219,7 @@ rigAssert "the root harness starts one member only, the coordinator, through tha
 	"$( LC_ALL=C grep -v '^[[:space:]]*#' "$rigHere/harness/AgentsTools.InternRootHarness.include" | LC_ALL=C grep -c -F -- '--spawn-prompt magic-coordinator ' || : ) $( LC_ALL=C grep -v '^[[:space:]]*#' "$rigHere/magic/AgentsTools.InternMainLoop.include" | LC_ALL=C grep -c -e 'spawn-proxy "' -e 'spawn-member' -e 'spawn-session' || : )" "1 0"
 printf -- '---\ntype: dispatch\nowner: magic-team\nstatus: dispatch-started\nreview-since-epoch: 1000\n---\n\n# rig dispatch\n' | rigStoreItem "$rigData" board review dispatch-20261013T1200Z-team.md
 rigConsolesBefore="$( rigConsoles )"
-rigRun --return-review magic-coordinator dispatch-20261013T1200Z-team --message "redo the rig step"
+rigRun --return-review --team-member magic-coordinator dispatch-20261013T1200Z-team --message "redo the rig step"
 rigAssert "a review return of an item the team owns restarts nobody: it says the spawn of magic-team failed, with that line as the cause, and no console is started" \
 	"$( cat "$rigTmp/out" "$rigTmp/err" | LC_ALL=C grep -c -F -- 'RETURN: not restarted: the spawn of magic-team for dispatch-20261013T1200Z-team failed (rc 1): ' || : ) $( cat "$rigTmp/out" "$rigTmp/err" | LC_ALL=C grep -F -- 'RETURN: not restarted' | LC_ALL=C grep -c -F -- "$rigSays" || : ) $(( $( rigConsoles ) - rigConsolesBefore )) $( rigConsolesOf magic-team )" "1 1 0 0"
 rigSettle

@@ -24,6 +24,8 @@ rigRefuse(){
 [ -f "$rigSandboxInclude" ] || rigRefuse "the include this check measures is not at the origin: $rigSandboxInclude"
 . "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
 . "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-processes.include.sh" || exit 1
+## And every thread a scene of this rig starts, by its log or its lock, ended before the rig goes.
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-control-threads.include.sh" || exit 1
 rigTmp="$( rigTempDir AgentsSessionRootMarksCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 rigWs="$rigTmp/ws" ; rigHome="$rigTmp/home" ; rigSkills="$rigTmp/skills" ; rigData="$rigTmp/data" ; rigSlack="$rigTmp/slack"
@@ -34,7 +36,7 @@ mkdir -p "$rigSkills/magic-team"
 printf -- '---\nmaintainers: rig\n---\nrig identity\n' > "$rigSkills/magic-team/magic-team.basic.md"
 rigHost="$( hostname -s 2> /dev/null )" ; [ -n "$rigHost" ] || rigHost="unknown"
 rigStarted=""
-trap 'rigProcSignalWithChildren KILL $rigStarted ; chmod -R u+rwX -- "$rigTmp" 2> /dev/null ; rm -rf -- "$rigTmp"' EXIT
+trap 'rigProcSignalWithChildren KILL $rigStarted ; rigControlThreadsEnd "$rigTmp" ; chmod -R u+rwX -- "$rigTmp" 2> /dev/null ; rm -rf -- "$rigTmp"' EXIT
 
 ## THE RIG'S SLACK: no socket, each call logged, each reaction kept as `<method> <ts> <name>`, and a step of
 ## slack/react-steps answering it -- `ok`, `rate:<n>` (HTTP 429 with a Retry-After of n), or `error:<name>`.

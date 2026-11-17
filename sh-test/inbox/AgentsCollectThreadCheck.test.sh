@@ -56,13 +56,17 @@ rigDir="" rigFix="" rigRc=0 rigOpEnv=""
 rigScene(){ ## name, kind
 	rigDir="$rigTmp/$1" rigFix="$rigTmp/$1/fix"
 	rm -rf "$rigDir"
-	mkdir -p "$rigDir/ws/.local/.agents" "$rigDir/ws/.local/temp" "$rigDir/data/inboxes" "$rigDir/data/board" "$rigFix" "$rigDir/skills/rig-member" "$rigDir/skills/client-rig"
-	printf -- '---\nmaintainers: rig\n---\nrig identity\n' > "$rigDir/skills/rig-member/rig-member.basic.md"
-	printf -- '---\nmaintainers: rig\n---\nrig identity\n' > "$rigDir/skills/client-rig/client-rig.basic.md"
+	mkdir -p "$rigDir/ws/.local/.agents" "$rigDir/ws/.local/temp" "$rigDir/ws/.local/agents/team-data-root/board" "$rigFix" "$rigDir/ws/.local/agents/members/rig-member" "$rigDir/ws/.local/agents/members/client-rig"
+	. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-writes.include.sh" || exit 1
+	## The store's own writes are this scene's, and the inboxes are made ready by the inbox's own maker.
+	rigOwnerWs="$rigDir/ws" rigOwnerData="$rigDir/ws/.local/agents/team-data-root" rigOwnerHome="$rigDir/home" rigOwnerSkills="$rigDir/ws/.local/agents/members"
+	rigInboxReady "$rigDir/ws/.local/agents/team-data-root" rig-member client-rig || rigRefuse "could not make the scene's inboxes ready to be written"
+	printf -- '---\nmaintainers: rig\n---\nrig identity\n' > "$rigDir/ws/.local/agents/members/rig-member/rig-member.basic.md"
+	printf -- '---\nmaintainers: rig\n---\nrig identity\n' > "$rigDir/ws/.local/agents/members/client-rig/client-rig.basic.md"
 	printf 'SLACK_CHANNEL_MAGIC_TEAM=CRIG00001\nSLACK_BOT_TOKEN=rig-bot-token-TEAM\n' > "$rigDir/ws/.local/.agents/magic-team.agent.env"
 	case "$2" in
 		conf|two)
-			printf -- '---\ntype: routine\nexecutors: rig-member\ninput-scan-def: sweep\n---\n# rig-member.sweep.routine\n' > "$rigDir/skills/rig-member/rig-member.sweep.routine.md"
+			printf -- '---\ntype: routine\nexecutors: rig-member\ninput-scan-def: sweep\n---\n# rig-member.sweep.routine\n' > "$rigDir/ws/.local/agents/members/rig-member/rig-member.sweep.routine.md"
 			printf 'EMAIL_IMAP_HOST=imap.rig.invalid\nEMAIL_USER=rig@rig.invalid\nEMAIL_APP_PASSWORD=rig-app-password-SECRET\n' > "$rigDir/ws/.local/.agents/rig-member.agent.env"
 		;;
 	esac
@@ -76,10 +80,9 @@ rigRunTool(){ ## name, args...
 	local runName="$1"
 	shift
 	rigRc=0
-. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-writes.include.sh" || exit 1
-rigOwnerWs="${rigWs:-$rigTmp/ws}" rigOwnerData="${rigData:-${rigD:-${rigStore:-${rigOut:-$rigTmp/data}}}}" rigOwnerHome="${rigHome:-$rigTmp/home}" rigOwnerSkills="${rigSkills:-$rigTmp/skills}"
+rigOwnerWs="${rigWs:-$rigDir/ws}" rigOwnerData="${rigData:-${rigD:-${rigStore:-${rigOut:-$rigDir/ws/.local/agents/team-data-root}}}}" rigOwnerHome="${rigHome:-$rigDir/home}" rigOwnerSkills="${rigSkills:-$rigDir/ws/.local/agents/members}"
 	: > "$rigFix/imap.log"
-	( cd "$rigDir/ws" && env -i MDAT_TEAM_DATA_COMMIT_THREAD=off MDAT_WORKSPACE_MODE=team-rig HOME="$rigDir/home" PATH="$rigPath" MMDAPP="$rigDir/ws" MDAT_DATA_ROOT="$rigDir/data" MDAT_SKILLSET_ROOT="$rigDir/skills" \
+	( cd "$rigDir/ws" && env -i MDAT_TEAM_DATA_COMMIT_THREAD=off MDAT_WORKSPACE_MODE=team-rig HOME="$rigDir/home" PATH="$rigPath" MMDAPP="$rigDir/ws" MDAT_DATA_ROOT="$rigDir/ws/.local/agents/team-data-root" MDAT_SKILLSET_ROOT="$rigDir/ws/.local/agents/members" \
 		MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" PYTHONPATH="$rigTmp/py" PYTHONDONTWRITEBYTECODE=1 FIX_DIR="$rigFix" MDAT_COLLECT_LOCK_TRIES=1 \
 		$rigOpEnv bash "$rigTool" "$@" ) > "$rigDir/$runName.out" 2> "$rigDir/$runName.err" < /dev/null || rigRc=$?
 }
@@ -110,7 +113,7 @@ rigWaitFor(){ ## seconds*2, command... -- waits until the command succeeds
 	return 1
 }
 rigNotes(){ ## inbox member -- how many collected mails it holds
-	ls -1 "$rigDir/data/inboxes/$1/incoming" 2> /dev/null | LC_ALL=C grep -c -- '-email-u' || :
+	ls -1 "$rigDir/ws/.local/agents/team-data-root/inboxes/$1/incoming" 2> /dev/null | LC_ALL=C grep -c -- '-email-u' || :
 }
 rigHasNotes(){ ## inbox member, count
 	[ "$( rigNotes "$1" )" -ge "$2" ]
@@ -234,11 +237,11 @@ rm -f "$rigFix/login-fails"
 rigOp one-pass --one --force
 rigAssert "--one makes one pass under the lock and ends, saying what it did" "$rigRc:$( rigCount "$rigDir/one-pass.err" 'mail:rig-member: 2 new' ):$( [ -e "$rigDir/ws/.local/agents/collect/thread.lock" ] && printf held ):$( rigNotes rig-member )" "0:1::2"
 rigScene o-git conf
-git init -q "$rigDir/data" && git -C "$rigDir/data" config user.name rig && git -C "$rigDir/data" config user.email rig@rig.invalid
-git -C "$rigDir/data" commit -q -m base --allow-empty > /dev/null 2>&1
+git init -q "$rigDir/ws/.local/agents/team-data-root" && git -C "$rigDir/ws/.local/agents/team-data-root" config user.name rig && git -C "$rigDir/ws/.local/agents/team-data-root" config user.email rig@rig.invalid
+git -C "$rigDir/ws/.local/agents/team-data-root" commit -q -m base --allow-empty > /dev/null 2>&1
 printf '801 unseen\n802 unseen\n803 unseen\n' > "$rigFix/mailbox"
 rigOp one-git --one --force
-rigAssert "a pass of three mails is one commit, holding the three notes" "$rigRc:$(( $( git -C "$rigDir/data" rev-list --count HEAD ) - 1 )):$( git -C "$rigDir/data" show --name-only --format= HEAD | LC_ALL=C grep -c -- '-email-u80[123]\.md' )" "0:1:3"
+rigAssert "a pass of three mails is one commit, holding the three notes" "$rigRc:$(( $( git -C "$rigDir/ws/.local/agents/team-data-root" rev-list --count HEAD ) - 1 )):$( git -C "$rigDir/ws/.local/agents/team-data-root" show --name-only --format= HEAD | LC_ALL=C grep -c -- '-email-u80[123]\.md' )" "0:1:3"
 rigOp mode-none
 rigAssert "no mode: a usage, and a failure" "$( [ "$rigRc" != 0 ] && printf failed ):$( LC_ALL=C grep -c -F -e '--run' "$rigDir/mode-none.err" | LC_ALL=C awk '{ print ( $1 > 0 ) ? "usage" : "none" }' )" "failed:usage"
 rigAssert "the main loop checks it on every iteration, as it checks the control threads" "$( LC_ALL=C grep -c -F 'AgentsToolsCollectThreadCheck main-loop' "$rigHere/magic/AgentsTools.InternMainLoop.include" )" 1

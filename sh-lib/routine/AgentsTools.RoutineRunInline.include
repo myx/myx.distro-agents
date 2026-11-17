@@ -47,12 +47,12 @@ AgentsToolsRoutineRunInline(){ ## routine selector
 		inlineSpawn="${MDAT_SPAWN_SESSION_ID:-shell-console}"
 		inlineSession=""
 		if [ -n "${MDAT_SPAWN_SESSION_ID:-}" ] && [ -n "${MMDAPP:-}" ] ; then
-			type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandboxRecordHeader.include"
+			type AgentsToolsFrontmatterKey > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.FrontmatterKey.include"
 			type AgentsSessionRunRecordInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
 			AgentsSessionRunRecordInto inlineRecord "$MDAT_SPAWN_SESSION_ID" || :
 			for inlineRecord in ${inlineRecord:+"$inlineRecord"} ; do
 				[ -f "$inlineRecord" ] || continue
-				inlineSession="$( AgentsToolsSpawnSandboxRecordHeader "$inlineRecord" session-id )"
+				inlineSession="$( AgentsToolsFrontmatterKey "$inlineRecord" session-id )"
 				break
 			done
 		fi

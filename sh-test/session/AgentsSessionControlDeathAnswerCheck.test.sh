@@ -34,7 +34,7 @@
 ## no socket; a ps beside it lists the rig's runs only; the console is a stand-in, never a real CLI. Every thread,
 ## call and stand-in this check starts is ended by it, through the rig's helpers.
 set -u
-. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-store.include.sh" || exit 1
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-writes.include.sh" || exit 1
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigPackage="$MDLT_ORIGIN/myx/myx.distro-agents"
 rigTool="$rigPackage/sh-scripts/DistroAgentsTools.fn.sh"
@@ -101,7 +101,7 @@ rigRemoveTree(){
 	done
 	[ ! -e "$rigTmp" ] || echo "⛔ ERROR: the rig's tree could not be removed: $rigTmp" >&2
 }
-trap 'rigCleanup ; rigRemoveTree' EXIT
+trap 'rigCleanup ; rigControlThreadsEnd "$rigTmp" ; rigRemoveTree' EXIT
 trap 'exit 1' INT TERM
 
 ## THE RIG'S OWN PROCESS LIST, as AgentsSessionControlStateCheck keeps it: the whole-host listing is the rig's own

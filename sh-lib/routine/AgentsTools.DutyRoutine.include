@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.DutyRoutine.include -- what makes a run a duty (S18.4): a routine of one of the duty kinds, `work-duty` or
+## `off-duty`, whose short name ends the file. The kinds are one list here, because every test of a duty record reads it:
+## the schedule's own duty lookup and its lifetime, the kept list of duty records, the harness's own duty test, the spawner's
+## one-instance rule and its joined-session rule, the spawn limit, the proxy's continue and the supervise resume.
+## Sourced, never run. Functions only.
+##
+
+## The duty kinds, each a word of a routine file's short name: `<kind>.routine.md`, so `magic-coordinator.off-duty.routine.md`.
+agentsDutyRoutineKinds="work-duty off-duty"
+
+## Whether a routine name or a routine file path is one of the duty routines: rc 0 it is.
+AgentsToolsDutyRoutineIs(){ ## routine name or file path
+	local isKind=""
+	for isKind in $agentsDutyRoutineKinds ; do
+		case "${1:-}" in *."$isKind".routine.md) return 0 ;; esac
+	done
+	return 1
+}
+
+## The same kinds as the expression a spawn record's own `routine:` line is matched with, for the one duty list built by a
+## grep over records rather than by this predicate.
+AgentsToolsDutyRoutineRecordPattern(){ ## -- the line's expression
+	local patternKind="" patternKinds=""
+	for patternKind in $agentsDutyRoutineKinds ; do
+		patternKinds="$patternKinds${patternKinds:+|}$patternKind"
+	done
+	printf '^routine: [A-Za-z0-9-]+\\.(%s)\\.routine\\.md$\n' "$patternKinds"
+}

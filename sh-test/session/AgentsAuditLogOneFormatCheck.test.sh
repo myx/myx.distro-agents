@@ -20,8 +20,11 @@
 ##      tree passes it too, because the merge that could reorder or repeat a line no longer runs.
 ##      What proves the guard is its own instrument test -- a sample file with the two lines in the
 ##      wrong order, and one holding a line twice, each read the way the case reads the audit file.
+##   8. A message out reaches the same audit file as its TOOL and ROUND lines, in one form, in both
+##      harnesses: the native run's stream writer writes the TOOL and ROUND lines, its served call the MSG-OUT.
 ## Red before S12.5: cases 1 and 2 fail, and case 3 fails for the native writer. Cases 0, 4, 5 and 6
-## are the controls that keep a fix from paying for itself out of them.
+## are the controls that keep a fix from paying for itself out of them. Case 8 is a guard: the format
+## holds today, and a scratch copy whose writer respells the line turns it red.
 ## Offline: the store, the workspace and the session are this rig's own; nothing opens a socket.
 set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
@@ -35,7 +38,7 @@ rigContextAwk="$rigHere/harness/AgentsHarnessContextTranscript.awk"
 rigFormatAwk="$rigHere/session/AgentsSessionTranscriptFormat.awk"
 rigStreamAwk="$rigHere/harness/AgentsClaudeStreamJsonTranscript.awk"
 rigStreamFormatAwk="$rigHere/harness/AgentsClaudeStreamJsonFormat.awk"
-rigProgressAwk="$rigHere/session/AgentsProgressLineSafe.awk"
+rigProgressAwk="$rigHere/core/AgentsProgressLineSafe.awk"
 
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
@@ -221,6 +224,74 @@ AgentsTranscriptHarnessStart
 rigAssert "7. a harness nested in the run leaves the run's model as it was" "$( rigModelOf "$rigSpawnedSid" )" rig-spawned-model
 kill "$rigLivePid" 2> /dev/null || :
 wait "$rigLivePid" 2> /dev/null || :
+
+echo "-- 8. TOOL, ROUND and MSG-OUT reach one audit file, in one form, in both harnesses (S12.5) --"
+## Case 7 leaves its run-local model names set; this case reads the exported session variable alone.
+unset harnessSessionId
+## The line's own word: the format spells it `MSG-OUT`, and a search for `MSG ` finds none of them.
+rigMsgSample="$rigTmp/msgout-sample.log"
+printf '2026-11-03T00:00:00Z START session=x\n2026-11-03T00:00:01Z MSG-OUT to=C1:1.2\n> hello\n' > "$rigMsgSample"
+rigAssert "8. self-test: the reader finds a message-out line the format writes" "$( rigKindCount "$rigMsgSample" MSG-OUT )" 1
+printf '2026-11-03T00:00:00Z START session=x\n2026-11-03T00:00:01Z MSG to=C1:1.2\n' > "$rigMsgSample"
+rigAssert "8. self-test: and finds none where the word is MSG, the word a word-search looks for" "$( rigKindCount "$rigMsgSample" MSG-OUT )" 0
+printf '2026-11-03T00:00:00Z START session=x\n2026-11-03T00:00:01Z MSG-OUTX to=C1:1.2\n' > "$rigMsgSample"
+rigAssert "8. self-test: and finds none where the word carries a tail" "$( rigKindCount "$rigMsgSample" MSG-OUT )" 0
+## A DeepSeek run writes all three kinds from its kept context: the round's ROUND line, the call's
+## TOOL line and the message it carried, each rendered by the context reader as the record is synced.
+rigServedSid="iiii9999-0000-4000-8000-000000000009"
+AgentsTranscriptStart "$rigServedSid" "$rigStore" "audit/2026-11/session-served.log" rig-member
+rigServedT="$rigStore/audit/2026-11/session-served.log"
+export MDAT_SPAWN_SESSION_ID="$rigServedSid"
+AgentsHarnessContextInit
+harnessMessages=( '{"role":"system","content":"RIG-SERVED-SYSTEM"}' '{"role":"user","content":"RIG-SERVED-TASK"}' )
+AgentsHarnessContextBegin 0
+AgentsTranscriptHarnessStart
+printf '21 0 0 6\n' > "$rigScratch/stream.usage.detail"
+printf 'RIG-SERVED-TEXT\n' > "$rigScratch/stream.content"
+harnessMessages+=( '{"role":"assistant","content":null,"tool_calls":[{"id":"rig-served-call","type":"function","function":{"name":"SendMessage","arguments":"{\"to\":\"session-current\",\"message\":\"rig served hello\"}"}}]}' )
+AgentsHarnessContextSync assistant "$( AgentsHarnessContextAssistantMeta )"
+AgentsTranscriptToolStart 'SendMessage'
+harnessMessages+=( '{"role":"tool","tool_call_id":"rig-served-call","content":"SENT_MESSAGE_TS C1:1.2"}' )
+AgentsHarnessContextSync tool "$( AgentsHarnessContextToolMeta 'SendMessage' 'rig-served-call' 'SENT_MESSAGE_TS C1:1.2' '' )"
+rigAssert "8. the kept-context run's log holds the TOOL line of the call it made" "$( rigKindCount "$rigServedT" TOOL )" 1
+rigAssert "8. and its ROUND line, from the round it synced" "$( rigKindCount "$rigServedT" ROUND )" 1
+rigAssert "8. and its MSG-OUT line, from the message the call carried" "$( rigKindCount "$rigServedT" MSG-OUT )" 1
+rigAssert "8. the MSG-OUT line carries the message itself, as quoted lines" "$( rigHas "$rigServedT" '> rig served hello' )" 1
+rigSessLog=""
+type AgentsSessionLogAppend > /dev/null 2>&1 || . "$rigHere/session/AgentsTools.SessionStore.include"
+AgentsSessionLogAppend "$rigServedSid" "rig debug line"
+AgentsSessionPartInto rigSessLog "$MMDAPP" "$rigServedSid" "session.log" || rigRefuse "the session store names no log for the rig session"
+rigAssert "8. the run's own session.log gains no audit line of its own, for either harness" "$( rigKindCount "$rigSessLog" TOOL )$( rigKindCount "$rigSessLog" ROUND )$( rigKindCount "$rigSessLog" MSG-OUT )" 000
+## The same three kinds in a claude-native run's log: its stream writer writes the TOOL and ROUND
+## lines and no MSG-OUT, and the served call of that same session writes the MSG-OUT line alone.
+rigServedNativeSid="jjjjaaaa-0000-4000-8000-00000000000a"
+AgentsTranscriptStart "$rigServedNativeSid" "$rigStore" "audit/2026-11/session-served-native.log" rig-member
+rigServedNativeT="$rigStore/audit/2026-11/session-served-native.log"
+{
+	printf '%s\n' '{"type":"system","subtype":"init","cwd":"/x","session_id":"cli-2","tools":["SendMessage"],"model":"rig-native-model"}'
+	printf '%s\n' '{"type":"assistant","message":{"id":"msg_2","type":"message","role":"assistant","content":[{"type":"text","text":"RIG-SERVED-NATIVE"}],"usage":{"input_tokens":21,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"output_tokens":6}}}'
+	printf '%s\n' '{"type":"assistant","message":{"id":"msg_2","type":"message","role":"assistant","content":[{"type":"tool_use","id":"tu_2","name":"SendMessage","input":{"to":"session-current","message":"rig native hello"}}],"usage":{"input_tokens":21,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"output_tokens":6}}}'
+	printf '%s\n' '{"type":"user","message":{"role":"user","content":[{"tool_use_id":"tu_2","type":"tool_result","content":[{"type":"text","text":"SENT_MESSAGE_TS C1:1.2"}]}]}}'
+	printf '%s\n' '{"type":"result","subtype":"success","is_error":false,"num_turns":1,"result":"rig done","session_id":"cli-2","total_cost_usd":0,"usage":{"input_tokens":21,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"output_tokens":6}}'
+} > "$rigTmp/stream-served.jsonl"
+MDAT_SPAWN_SESSION_ID="$rigServedNativeSid" LC_ALL=C awk -f "$rigProgressAwk" -f "$rigFormatAwk" -f "$rigStreamAwk" -f "$rigStreamFormatAwk" \
+	< "$rigTmp/stream-served.jsonl" > /dev/null 2>&1 || rigRefuse "the native stream writer did not run for the served case"
+rigAssert "control: the native stream writer wrote its TOOL and ROUND lines" "$( rigKindCount "$rigServedNativeT" TOOL )$( rigKindCount "$rigServedNativeT" ROUND )" 11
+rigAssert "8. the native stream writer writes no MSG-OUT line of its own" "$( rigKindCount "$rigServedNativeT" MSG-OUT )" 0
+MDAT_SPAWN_SESSION_ID="$rigServedNativeSid" AgentsTranscriptToolStart 'SendMessage'
+MDAT_SPAWN_SESSION_ID="$rigServedNativeSid" AgentsTranscriptToolDone 'SendMessage' '{"to":"session-current","message":"rig native hello"}' 'SENT_MESSAGE_TS C1:1.2' mcp ok 2> /dev/null
+rigAssert "8. the native run's log holds its MSG-OUT line" "$( rigKindCount "$rigServedNativeT" MSG-OUT )" 1
+rigAssert "8. and its TOOL line lands once, the stream writer's own" "$( rigKindCount "$rigServedNativeT" TOOL )" 1
+rigAssert "8. the native MSG-OUT line carries the message itself, as quoted lines" "$( rigHas "$rigServedNativeT" '> rig native hello' )" 1
+rigAssert "8. both harnesses write the MSG-OUT line in one form, its keys in one order" "$( rigKeys "$rigServedT" MSG-OUT )" "$( rigKeys "$rigServedNativeT" MSG-OUT )"
+rigNoStamp(){ ## file, kind word -- that kind's first line without its own stamp
+	LC_ALL=C grep -m1 " $2 " "$1" 2> /dev/null | LC_ALL=C sed -E 's/^[^ ]+ //' || :
+}
+rigAssert "8. and the line itself reads the same in both, once its stamp is taken off" \
+	"$( rigNoStamp "$rigServedT" MSG-OUT )" "$( rigNoStamp "$rigServedNativeT" MSG-OUT )"
+rigAssert "8. and that one form is the one the ruling names" "$( rigNoStamp "$rigServedNativeT" MSG-OUT )" 'MSG-OUT to=session-current'
+rigAssert "8. both harnesses write the TOOL line in one key form, its keys in one order" "$( rigKeys "$rigServedT" TOOL )" "$( rigKeys "$rigServedNativeT" TOOL )"
+rigAssert "8. and both write the ROUND line in one key form, its keys in one order" "$( rigKeys "$rigServedT" ROUND )" "$( rigKeys "$rigServedNativeT" ROUND )"
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	printf '⛔ AUDIT_LOG_ONE_FORMAT CHECK FAILED: %s of %s assertion(s)\n' "$rigFailCount" "$(( rigPassCount + rigFailCount ))" >&2

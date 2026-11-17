@@ -38,6 +38,6 @@
 		type AgentsToolsAssertBareName > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.BareName.include"
 		AgentsToolsAssertBareName "$checklistId" "the session id" "$checklistOp" || { set +e ; return 1 ; }
 		AgentsToolsAssertBareName "$checklistMember" "the member" "$checklistOp" || { set +e ; return 1 ; }
-		type AgentsSessionChecklistText > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+		type AgentsSessionChecklistText > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.CheckListSeed.include"
 		AgentsSessionChecklistText "$checklistId" "$checklistMember"
 		return 0

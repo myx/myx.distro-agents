@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # ^^^ for syntax checking in the editor only
 
-type AgentsToolsManagerSessionRows > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.ManagerSessionRows.include"
+type AgentsToolsManagerSessionRows > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.ManagerSessionRows.include"
 
 ## AgentsTools.OpManagerSessionList.include -- the operation `--manager-session-list`, sourced by AgentsTools.ManagerSession.include with the operation's arguments.
 ## The sessions of this workspace, each with its runs, then one row of counters: TAB-separated

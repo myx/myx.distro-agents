@@ -211,7 +211,7 @@ rigRetry(){ ## scenario, seconds the retry stays, what the rig's process list sa
 		. "$rigSpawnInclude" 2> "$rigDir/source.err"
 		## the stand-ins: the session is open, its record and its posts are not this check's
 		AgentsToolsSpawnProxyRetryClosed(){ : ; }
-		AgentsToolsWorkspaceSkillsetRoot(){ printf '%s/.local/agents/members' "$1" ; }
+		AgentsToolsSkillsetRootInto(){ printf -v "$1" '%s/.local/agents/members' "$2" ; }
 		AgentsToolsSpawnProxyRunRecord(){ : ; }
 		AgentsToolsSpawnProxySessionNotice(){ printf '%s\n' "$4" >> "$RIG_DIR/notices" ; }
 		DistroAgentsTools(){ : ; }

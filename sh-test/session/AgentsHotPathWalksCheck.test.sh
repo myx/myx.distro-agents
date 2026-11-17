@@ -44,60 +44,39 @@ rigList(){
 		'sh-lib/board/AgentsTools.BoardHousekeeping.include|AgentsToolsReviewUnseenEscalate|1|@housekeeping' \
 		'sh-lib/board/AgentsTools.BoardRoundScan.include|AgentsToolsBoardRecheckDueSection|1|@call-path' \
 		'sh-lib/board/AgentsTools.BoardStates.include|AgentsToolsBoardStateCounts|2|@one-off' \
-		'sh-lib/board/AgentsTools.ItemDecisions.include|AgentsToolsItemIsParty|1|@call-path' \
 		'sh-lib/board/AgentsTools.ReviewFlow.include|AgentsReviewItemsForRoutine|1|@call-path' \
-		'sh-lib/board/AgentsTools.ReviewFlow.include|AgentsReviewShutdown|2|@one-off' \
-		'sh-lib/grants/AgentsTools.InternOpPermissionGrantRead.include||1|@call-path' \
-		'sh-lib/grants/AgentsTools.PermissionHolds.include|AgentsToolsPermissionParticipants|1|@call-path' \
 		'sh-lib/harness/AgentsHarnessMessages.include|AgentsHarnessToolListAgents|1|@call-path' \
-		'sh-lib/harness/AgentsUniversalHarness.sh||2|@fallback' \
-		'sh-lib/magic/AgentsTools.CoordinatorReads.include|AgentsToolsBoardActiveItems|1|@one-off' \
-		'sh-lib/magic/AgentsTools.CoordinatorReads.include|AgentsToolsBoardCounts|1|@one-off' \
 		'sh-lib/run/AgentsTools.ManagerSessionKill.include|AgentsToolsManagerSessionKill|1|@one-off' \
-		'sh-lib/session/AgentsTools.ManagerSessionRows.include|AgentsToolsManagerSessionRows|1|@one-off' \
-		'sh-lib/session/AgentsTools.ManagerSessionRows.include|AgentsToolsManagerSessionScope|2|@one-off' \
+		'sh-lib/manager/AgentsTools.ManagerSessionRows.include|AgentsToolsManagerSessionScope|2|@one-off' \
+		'sh-lib/session/AgentsTools.SessionStore.include|AgentsSessionRowsInto|1|@rebuild' \
 		'sh-lib/manager/AgentsTools.OpManagerSessionControlStart.include||1|@rebuild' \
-		'sh-lib/manager/AgentsTools.OpManagerSessionKill.include||1|@one-off' \
-		'sh-lib/manager/AgentsTools.OpManagerSessionStop.include||1|@one-off' \
-		'sh-lib/member/AgentsTools.InternOpMorningReview.include||3|@one-off' \
+		'sh-lib/member/AgentsTools.InternOpMorningReview.include||1|@one-off' \
 		'sh-lib/wait/AgentsTools.MemberWaitSources.include||1|@call-path' \
-		'sh-lib/wait/AgentsTools.MemberWaitSourcesDefault.include|AgentsToolsWaitChildThreadSources|1|@fallback' \
 		'sh-lib/inbox/AgentsTools.OpUpsertInboxInquiry.include||1|@call-path' \
-		'sh-lib/monitoring/AgentsTools.Monitoring.include|AgentsToolsMonitoringHealth|1|@one-off' \
 		'sh-lib/questions/AgentsTools.PendingReplyCollect.include|AgentsToolsPendingReplySessionsRunning|1|@rebuild' \
 		'sh-lib/schedule/AgentsTools.Dispatcher.include|AgentsToolsDispatcherHistory|1|@one-off' \
-		'sh-lib/schedule/AgentsTools.DispatcherSchedule.include|AgentsToolsScheduleBoardDemand|1|@call-path' \
 		'sh-lib/schedule/AgentsTools.DispatcherSchedule.include|AgentsToolsSchedulePaceText|1|@kept' \
-		'sh-lib/schedule/AgentsTools.DispatcherSchedule.include|AgentsToolsScheduleVerifyStale|1|@call-path' \
-		'sh-lib/schedule/AgentsTools.DispatcherStats.include|AgentsToolsStatsDerive|4|@one-off' \
+		'sh-lib/schedule/AgentsTools.DispatcherStats.include|AgentsToolsStatsDerive|2|@one-off' \
 		'sh-lib/schedule/AgentsTools.DispatcherStats.include|AgentsToolsStatsRecords|1|@one-off' \
-		'sh-lib/session/AgentsTools.CoordinatorSurface.include|AgentsToolsSurfaceStanding|1|@call-path' \
-		'sh-lib/session/AgentsTools.InternOpSessionContextScan.include||1|@call-path' \
 		'sh-lib/session/AgentsTools.InternSessionControl.include|AgentsToolsSessionControlRows|1|@call-path' \
 		'sh-lib/session/AgentsTools.SessionChat.include|AgentsToolsSessionChatThreadSessions|1|@call-path' \
 		'sh-lib/session/AgentsTools.SessionComms.include|AgentsToolsSessionCommsSessions|1|@call-path' \
 		'sh-lib/session/AgentsTools.SessionComms.include|AgentsToolsSessionCommsTakeAll|1|@call-path' \
 		'sh-lib/session/AgentsTools.SessionComms.include|AgentsToolsSessionCommsWork|1|@call-path' \
 		'sh-lib/session/AgentsTools.SessionControlStart.include|AgentsToolsSessionControlCheckWorkspace|1|@rebuild' \
-		'sh-lib/session/AgentsTools.SessionTranscript.include|AgentsSessionTokensRollupRows|2|@call-path' \
-		'sh-lib/slack/AgentsTools.InternOpCommsSlackSend.include|AgentsToolsCommsSlackUnreachableReport|1|@one-off' \
 		'sh-lib/session/AgentsTools.ChildrenIndex.include|AgentsToolsChildrenIndexRepair|1|@housekeeping' \
 		'sh-lib/spawn/AgentsTools.InternOpAgentSpawnProxy.include||3|@rebuild' \
-		'sh-lib/spawn/AgentsTools.SpawnProxyRootMarks.include|AgentsToolsSpawnProxyRootMarkRetry|1|@housekeeping' \
 		'sh-lib/session/AgentsTools.StartedRecords.include|AgentsToolsSpawnedAllRecordsInto|1|@call-path' \
 		'sh-lib/session/AgentsTools.StartedRecords.include|AgentsToolsSpawnedChildRecords|1|@fallback' \
-		'sh-lib/session/AgentsTools.StartedRecords.include|AgentsToolsSpawnedDutyRecords|1|@kept' \
-		'sh-lib/session/AgentsTools.StartedRecords.include|AgentsToolsSpawnedRecordsOfRoutine|1|@kept' \
 		'sh-lib/session/AgentsTools.StartedRecords.include|AgentsToolsSpawnedRegistryFile|1|@kept' \
-		'sh-lib/session/AgentsTools.StartedRecords.include|AgentsToolsSpawnedStartedRecords|1|@kept' \
 		'sh-lib/session/AgentsTools.SessionStore.include|AgentsSessionFoldersFind|1|@one-off' \
-		'sh-lib/session/AgentsTools.SessionStore.include|AgentsSessionFeedLinesSince|1|@one-off' \
-		'sh-lib/session/AgentsTools.SessionStore.include|AgentsSessionControlPidRows|1|@one-off' \
-		'sh-lib/session/AgentsTools.SessionStore.include|AgentsSessionRigControlRows|1|@kept' \
+		'sh-lib/session/AgentsTools.SessionControlStart.include|AgentsSessionControlPidRows|1|@one-off' \
+		'sh-lib/session/AgentsTools.SessionControlStart.include|AgentsSessionControlRowsInto|1|@one-off' \
+		'sh-lib/session/AgentsTools.SessionTranscript.include|AgentsSessionTokensRowsInto|1|@one-off' \
+		'sh-lib/spawn/AgentsTools.SpawnSandbox.include|AgentsSessionRigControlRows|1|@kept' \
 		'sh-lib/session/AgentsTools.SessionChat.include|AgentsToolsSessionChatMessagesToSince|1|@one-off' \
 		'sh-lib/inbox/AgentsTools.InternTeamDataReflectionSweep.include||1|@one-off' \
 		'sh-lib/inbox/AgentsTools.InboxPlace.include|AgentsToolsInboxFilesInto|1|@call-path' \
-		'sh-lib/session/AgentsTools.RegistrySpawnedSessions.include|AgentsToolsRegistryMeasureRows|1|@one-off' \
 		'sh-lib/board/AgentsTools.BoardPendingRepliesEntries.include|AgentsToolsBoardPendingRepliesEntries|1|@rebuild' \
 		'sh-lib/board/AgentsTools.BoardRoundScan.include|AgentsToolsBoardRoundSections|1|@one-off' \
 		'sh-lib/session/AgentsTools.RegistrySpawnedSessions.include|AgentsToolsRegistryRenderSpawnedSessions|1|@rebuild' \

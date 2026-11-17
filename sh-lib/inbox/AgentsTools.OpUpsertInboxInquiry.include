@@ -85,7 +85,7 @@
 		## ONE SUBJECT, ONE OPEN INQUIRY (the human-owner: match, then append): where the target's open inbox holds an inquiry from the same
 		## sender whose title shares 0.7 or more of its words with this one's, the new text is appended to it under a dated heading instead
 		## of a second item. Only an inquiry given whole by --from-file is matched.
-		local inquirySource="" inquiryAt=0 inquiryWord inquiryNewTitle="" inquirySame="" inquiryMerged=""
+		local inquirySource="" inquiryAt=0 inquiryWord inquiryNewTitle="" inquirySame="" inquiryMerged="" inquiryFiledName=""
 		for inquiryWord in "$@" ; do
 			[ "$inquiryAt" = 1 ] && { inquirySource="$inquiryWord" ; break ; }
 			[ "$inquiryWord" = "--from-file" ] && inquiryAt=1
@@ -105,10 +105,10 @@
 				mkdir -p "$MMDAPP/.local/temp" 2> /dev/null
 				inquiryMerged="$( mktemp "$MMDAPP/.local/temp/mdat-inquiry-append.XXXXXX" 2> /dev/null )" || inquiryMerged=""
 				if [ -n "$inquiryMerged" ] ; then
+					inquiryFiledName="${2:-}"
 					{ LC_ALL=C awk '/^---$/ { hdr++ ; next } hdr >= 2' "$MDAT_DATA_ROOT/inboxes/${1:-}/incoming/$inquirySame"
 					  printf '\n## Added %s\n\n' "$( date '+%Y-%m-%d %H:%M %z' )"
 					  LC_ALL=C awk 'done || !/^# / { print ; next } { done = 1 }' "$inquirySource" ; } > "$inquiryMerged"
-					echo "# $MDSC_CMD --upsert-inbox-inquiry: appended to $inquirySame in $1's inbox, the open inquiry from $inquiryFrom on the same subject, instead of a second item ${2:-}." >&2
 					local inquiryRebuilt=() inquiryNextIsSource=""
 					for inquiryWord in "$@" ; do
 						if [ -n "$inquiryNextIsSource" ] ; then inquiryRebuilt+=( "$inquiryMerged" ) ; inquiryNextIsSource="" ; continue ; fi
@@ -136,8 +136,14 @@
 			;;
 		esac
 		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
-		DistroAgentsTools --intern-op-member-inbox-upsert "$@" --context --upsert-inbox-inquiry || { [ -z "$inquiryMerged" ] || rm -f "$inquiryMerged" ; return 1 ; }
+		## The merge notice is said only where the write is stored: a merge the gate refuses says the filing is not stored, never that it was appended.
+		DistroAgentsTools --intern-op-member-inbox-upsert "$@" --context --upsert-inbox-inquiry || {
+			[ -z "$inquiryMerged" ] || rm -f "$inquiryMerged"
+			[ -z "$inquiryMerged" ] || echo "⛔ ERROR: $MDSC_CMD --upsert-inbox-inquiry: ${inquiryFiledName:-the filing} is not stored: the write that would have appended it to $inquirySame in $1's inbox, the open inquiry from $inquiryFrom on the same subject, is refused -- nothing was written" >&2
+			set +e ; return 1
+		}
 		[ -z "$inquiryMerged" ] || rm -f "$inquiryMerged"
+		[ -z "$inquiryMerged" ] || echo "# $MDSC_CMD --upsert-inbox-inquiry: appended to $inquirySame in $1's inbox, the open inquiry from $inquiryFrom on the same subject, instead of a second item $inquiryFiledName." >&2
 		if [ -n "$inquiryReflection" ] ; then
 			type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 			DistroAgentsTools --intern-op-inbox-to-processed "$inquiryFrom" "$inquiryReflection" \

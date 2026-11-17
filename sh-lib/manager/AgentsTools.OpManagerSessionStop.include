@@ -43,13 +43,13 @@ type AgentsToolsManagerConsoleMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx
 		## The records the id names, by one grep over them, as the kill finds its own; then the few headers of each.
 		type AgentsSessionRunRecordInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
 		type AgentsToolsSpawnedSessionRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include"
-		type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandboxRecordHeader.include"
+		type AgentsToolsFrontmatterKey > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.FrontmatterKey.include"
 		while IFS= read -r stopRecord ; do
 			[ -n "$stopRecord" ] && [ -f "$stopRecord" ] || continue
-			[ "$( AgentsToolsSpawnSandboxRecordHeader "$stopRecord" status )" = "spawn-started" ] || continue
-			stopSpawn="$( AgentsToolsSpawnSandboxRecordHeader "$stopRecord" spawn-id )"
+			[ "$( AgentsToolsFrontmatterKey "$stopRecord" status )" = "spawn-started" ] || continue
+			stopSpawn="$( AgentsToolsFrontmatterKey "$stopRecord" spawn-id )"
 			case "$stopSpawn" in ''|-) continue ;; esac
-			stopMember="$( AgentsToolsSpawnSandboxRecordHeader "$stopRecord" owner )"
+			stopMember="$( AgentsToolsFrontmatterKey "$stopRecord" owner )"
 			if AgentsSessionMarked "$stopSpawn" dismissed ; then
 				## Dismissed once already: its mark stands and its block was written, so nothing is written twice.
 				stopOutcome="already-dismissed"

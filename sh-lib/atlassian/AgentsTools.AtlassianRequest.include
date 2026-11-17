@@ -33,10 +33,8 @@ AgentsToolsAtlassianCall() {
 			## A routine acting as caller has no skill directory and is not expected to grow one.
 		;;
 		*)
-			if [ ! -d "$MDAT_SKILLSET_ROOT/$actingMember" ] ; then
-				printf '%s\n' "⛔ ERROR: $MDSC_CMD --$callContext: no such member skill directory: $MDAT_SKILLSET_ROOT/$actingMember" >&2
-				return 1
-			fi
+			type AgentsToolsSlackMemberPresent > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/slack/AgentsTools.CommsSlack.include"
+			AgentsToolsSlackMemberPresent "$actingMember" "--$callContext" || return 1
 		;;
 	esac
 

@@ -55,4 +55,4 @@ Workspace restrictions are optional, and nothing installs them for you. Run `--i
 
 ## An agent CLI is missing
 
-A CLI missing from `PATH` is an error, whether you name it with `--cli` or configure it. There is no fallback. `scaleway` and `grok` are one-shot: pass `--non-interactive`.
+A CLI missing from `PATH` is an error, whether you name it with `--cli` or configure it. There is no fallback. `scaleway`, `grok` and `deepseek` are one-shot: pass `--non-interactive`.

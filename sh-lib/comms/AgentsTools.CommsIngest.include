@@ -20,7 +20,8 @@
 agentsCommsEventIdle="${MDAT_COMMS_EVENT_ID_IDLE_SECONDS:-60}"
 case "$agentsCommsEventIdle" in ''|*[!0-9]*|0) agentsCommsEventIdle=60 ;; esac
 
-## THE THREAD'S FOLDER: one a workspace, beside the cache it serves.
+## THE THREAD'S FOLDER: one a workspace, beside the cache it serves. The one definition of that store path, and a
+## check reads it by name, so a call site never writes the path out.
 AgentsCommsEventIdDir(){
 	printf '%s\n' "${MMDAPP:?}/.local/cache/comms/.event-id"
 }

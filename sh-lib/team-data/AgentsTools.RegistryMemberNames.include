@@ -10,7 +10,10 @@
 ## (Slack shortcode, else the unicode character) and the alias (the member's
 ## own name instead, when the alias is absent or malformed).
 AgentsToolsCommsSlackMemberMarks(){
-	local marksFile="$MDAT_SKILLSET_ROOT/$1/$1.basic.md"
+	local marksDir marksFile
+	type AgentsToolsTeamMemberDirectory > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamRegistry.include"
+	marksDir="$( AgentsToolsTeamMemberDirectory "$1" )" || marksDir=""
+	marksFile="$marksDir/$1.basic.md"
 	[ -f "$marksFile" ] || return 1
 	LC_ALL=C awk -F": " -v who="$1" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/slack/AgentsToolsCommsSlackMemberMarks.awk" "$marksFile"
 }
@@ -49,7 +52,10 @@ AgentsToolsRegistryNameInvalid(){ ## key, value as written
 ## line is absent or holds anything but words (letters, digits, hyphen, apostrophe,
 ## single spaces; bytes above 0x7f pass, so a localised name does).
 AgentsToolsRegistryMemberNameBullet(){ ## member
-	local bulletFile="$MDAT_SKILLSET_ROOT/$1/$1.basic.md" bulletName bulletPlain
+	local bulletDir bulletFile bulletName bulletPlain
+	type AgentsToolsTeamMemberDirectory > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamRegistry.include"
+	bulletDir="$( AgentsToolsTeamMemberDirectory "$1" )" || bulletDir=""
+	bulletFile="$bulletDir/$1.basic.md"
 	[ -f "$bulletFile" ] || return 1
 	bulletName="$( LC_ALL=C awk '
 		/^- \*\*Name\*\*:/ {
@@ -134,6 +140,7 @@ AgentsToolsRegistryTeamMembersNamesRows(){
 	type AgentsToolsRegistryFrontmatter > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
 	type AgentsToolsRegistryTeamMembersRows > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.RegistryTeamMembers.include"
 	local namesMember namesWorkspace namesKind namesPath namesFile namesText namesStatus namesFields namesMissing namesKey
+	local namesDir
 	local personaFields="" personaMissing="" personaRead="false" personaDir
 	while read -r namesMember namesWorkspace namesKind namesPath ; do
 		[ -n "$namesMember" ] || continue
@@ -144,7 +151,7 @@ AgentsToolsRegistryTeamMembersNamesRows(){
 					## The persona member may be another workspace's: read from its own folder,
 					## found through the shared registry (AgentsToolsTeamMemberDirectory).
 					personaDir="$( AgentsToolsTeamMemberDirectory "$registryPersonaMember" )" || personaDir=""
-					personaFields="$( [ -z "$personaDir" ] || MDAT_SKILLSET_ROOT="${personaDir%/*}" ; AgentsToolsRegistryMemberNamesRead "$registryPersonaMember" )"
+					personaFields="$( [ -z "$personaDir" ] || AgentsToolsRegistryMemberNamesRead "$registryPersonaMember" )"
 					personaMissing="$( AgentsToolsRegistryMemberNamesMissing "$personaFields" )"
 					for namesKey in $personaMissing ; do
 						echo "⚠️ WARNING: $MDSC_CMD ${registryBuildOp:---make-harness-indices}: persona member $registryPersonaMember: required field $namesKey is missing or not valid in its basic.md (a Name bullet of plain words, or its scope key)" >&2
@@ -158,9 +165,10 @@ AgentsToolsRegistryTeamMembersNamesRows(){
 				continue
 			;;
 		esac
-		namesFile="$MDAT_SKILLSET_ROOT/$namesMember/SKILL.md"
+		namesDir="$( AgentsToolsTeamMemberDirectory "$namesMember" )" || namesDir=""
+		namesFile="$namesDir/SKILL.md"
 		namesText=""
-		[ ! -f "$namesFile" ] || namesText="$( AgentsToolsRegistryFrontmatter "$namesFile" )"
+		[ -z "$namesDir" ] || [ ! -f "$namesFile" ] || namesText="$( AgentsToolsRegistryFrontmatter "$namesFile" )"
 		namesStatus="$( AgentsToolsRegistryHeader "$namesText" status )"
 		namesFields="$( AgentsToolsRegistryMemberNamesRead "$namesMember" )"
 		if [ "$namesStatus" != "reference-only" ] && [ "$namesMember" != "magic-team" ] && [ "$namesMember" != "human-owner" ] ; then

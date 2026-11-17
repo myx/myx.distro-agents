@@ -28,17 +28,17 @@
 			if [ -n "$parentSessionId" ] ; then
 				set -m
 				if [ -n "$outputFile" ] ; then
-					( trap '' HUP ; AgentsToolsSpawnConsoleLaunch MDAT_SKILLSET_ROOT="$spawnSkillsetRoot" MDAT_SESSION_ID="$sessionId" MDAT_SESSION_THREAD="$sessionThread" MDAT_CONVERSATION_THREADS="$conversationThreads" -- ${spawnCliArgs[@]+"${spawnCliArgs[@]}"} ) <<< "$spawnContext" >> "$outputFile" 2>&1 4>&- &
+					( trap '' HUP ; AgentsToolsSpawnConsoleLaunch -u MDAT_SKILLSET_ROOT MDAT_SESSION_ID="$sessionId" MDAT_SESSION_THREAD="$sessionThread" MDAT_CONVERSATION_THREADS="$conversationThreads" -- ${spawnCliArgs[@]+"${spawnCliArgs[@]}"} ) <<< "$spawnContext" >> "$outputFile" 2>&1 4>&- &
 				else
-					( trap '' HUP ; AgentsToolsSpawnConsoleLaunch MDAT_SKILLSET_ROOT="$spawnSkillsetRoot" MDAT_SESSION_ID="$sessionId" MDAT_SESSION_THREAD="$sessionThread" MDAT_CONVERSATION_THREADS="$conversationThreads" -- ${spawnCliArgs[@]+"${spawnCliArgs[@]}"} ) <<< "$spawnContext" >&2 4>&- &
+					( trap '' HUP ; AgentsToolsSpawnConsoleLaunch -u MDAT_SKILLSET_ROOT MDAT_SESSION_ID="$sessionId" MDAT_SESSION_THREAD="$sessionThread" MDAT_CONVERSATION_THREADS="$conversationThreads" -- ${spawnCliArgs[@]+"${spawnCliArgs[@]}"} ) <<< "$spawnContext" >&2 4>&- &
 				fi
 				spawnPid=$!
 				set +m
 			elif [ -n "$outputFile" ] ; then
-				AgentsToolsSpawnConsoleLaunch MDAT_SKILLSET_ROOT="$spawnSkillsetRoot" MDAT_SESSION_ID="$sessionId" MDAT_SESSION_THREAD="$sessionThread" MDAT_CONVERSATION_THREADS="$conversationThreads" -- ${spawnCliArgs[@]+"${spawnCliArgs[@]}"} <<< "$spawnContext" >> "$outputFile" 2>&1 4>&- &
+				AgentsToolsSpawnConsoleLaunch -u MDAT_SKILLSET_ROOT MDAT_SESSION_ID="$sessionId" MDAT_SESSION_THREAD="$sessionThread" MDAT_CONVERSATION_THREADS="$conversationThreads" -- ${spawnCliArgs[@]+"${spawnCliArgs[@]}"} <<< "$spawnContext" >> "$outputFile" 2>&1 4>&- &
 				spawnPid=$!
 			else
-				AgentsToolsSpawnConsoleLaunch MDAT_SKILLSET_ROOT="$spawnSkillsetRoot" MDAT_SESSION_ID="$sessionId" MDAT_SESSION_THREAD="$sessionThread" MDAT_CONVERSATION_THREADS="$conversationThreads" -- ${spawnCliArgs[@]+"${spawnCliArgs[@]}"} <<< "$spawnContext" >&2 4>&- &
+				AgentsToolsSpawnConsoleLaunch -u MDAT_SKILLSET_ROOT MDAT_SESSION_ID="$sessionId" MDAT_SESSION_THREAD="$sessionThread" MDAT_CONVERSATION_THREADS="$conversationThreads" -- ${spawnCliArgs[@]+"${spawnCliArgs[@]}"} <<< "$spawnContext" >&2 4>&- &
 				spawnPid=$!
 			fi
 			## The process this launch started, kept on the spawn's record: how its run is seen
@@ -148,7 +148,7 @@
 			## record is the file a later reader opens: a notice is a message, and a message is not the record.
 			AgentsToolsSpawnProxyCloseSandbox "$sandboxTracking" "$spawnOutcome" "$exitCode" "$( AgentsToolsSpawnProxyBoundReason "$timedOut" "$waitTimeoutSeconds" )" || :
 			local spawnEndReason=""
-			spawnEndReason="$( AgentsToolsSpawnSandboxRecordHeader "$sandboxTracking" end-reason 2>/dev/null )" || spawnEndReason=""
+			spawnEndReason="$( AgentsToolsFrontmatterKey "$sandboxTracking" end-reason 2>/dev/null )" || spawnEndReason=""
 			if [ "$dispatchDocMode" = "create" ] ; then
 				AgentsToolsSpawnProxyCloseDispatch "$dispatchItemName" "$dispatchBriefBody" "$exitCode" "$outputFile" "$spawnOutcome" running review wait-pass-ended "${spawnEndReason:-}" || :
 			elif [ "$dispatchDocMode" = "reuse" ] && [ -n "$trackedItemState" ] ; then

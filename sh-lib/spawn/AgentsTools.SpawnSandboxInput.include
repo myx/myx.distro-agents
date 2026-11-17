@@ -2,8 +2,9 @@
 # ^^^ for syntax checking in the editor only
 
 ##
-## AgentsTools.SpawnSandboxInput.include -- the input folder of a spawn's sandbox: its named paths, the nearest MAGIC.md, filling and cleaning it. Split out of AgentsTools.SpawnSandbox.include by concern, its functions unchanged. Sourced, never
-## run; it relies on what AgentsTools.SpawnSandbox.include sources for it.
+## AgentsTools.SpawnSandboxInput.include -- the input folder of a spawn's sandbox: its named paths, the nearest MAGIC.md, filling and cleaning it, and the conversation threads a brief relays from. Split out of AgentsTools.SpawnSandbox.include by concern, its functions unchanged. Sourced, never
+## run. Each function loads what it calls. The record a spawn's `conversation-threads:` is read from is found through
+## AgentsTools.SessionStore.include's own query, so no store path is built here.
 ##
 ## Path-like words of a text that name something on disk, one resolved path per line.
 AgentsToolsSpawnSandboxNamedPaths(){ ## text
@@ -82,7 +83,6 @@ AgentsToolsSpawnSandboxFillInput(){ ## this run's input folder, brief text, boar
 			done <<< "$fillMembers"
 		done
 	} > "$fillInput/pointers.md" 2>/dev/null
-	type AgentsToolsSpawnConversationHistory > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionThreads.include"
 	[ -z "$fillConversations" ] || AgentsToolsSpawnConversationHistory "$fillInput/conversation.md" "$fillMember" "$fillConversations" "$fillItem"
 	## The result of the routine's own input scan, which the spawner ran (F6.3), beside the brief and the pointers. The
 	## brief names this file only when this start ran a scan, so the name always holds this start's report.
@@ -100,5 +100,81 @@ AgentsToolsSpawnSandboxCleanInput(){ ## an input folder
 	[ -d "$1" ] || return 0
 	chmod -R u+w "$1" 2>/dev/null || :
 	find "$1" -mindepth 1 -maxdepth 1 -exec rm -rf -- {} + 2>/dev/null
+	return 0
+}
+
+## A conversation thread is `<channel>:<ts>`: an upper-case Slack id and a message ts.
+AgentsToolsSpawnConversationThreadValid(){ ## channel:ts
+	printf '%s\n' "$1" | LC_ALL=C grep -qxE '[A-Z0-9]+:[0-9]+\.[0-9]+'
+}
+
+## The conversation threads a brief relays messages from, one `<channel>:<ts>` per line:
+## a relayed Wait result's own "# arrived on: slack:<channel>:<ts>[:conversation]" line,
+## and a Slack permalink carrying thread_ts. Nothing else in a brief is read as one.
+AgentsToolsSpawnConversationDerive(){ ## brief text
+	printf '%s\n' "$1" | LC_ALL=C awk '
+		match( $0, /^# arrived on: slack:[A-Z0-9]+:[0-9]+\.[0-9]+/ ) {
+			v = substr( $0, 21, RLENGTH - 20 ) ; if ( ! ( v in seen ) ) { seen[v] = 1 ; print v ; }
+		}
+		{
+			rest = $0
+			while ( match( rest, /\/archives\/[A-Z0-9]+\/p[0-9]+\?[^ >)]*thread_ts=[0-9]+\.[0-9]+/ ) ) {
+				link = substr( rest, RSTART, RLENGTH ) ; rest = substr( rest, RSTART + RLENGTH )
+				ch = link ; sub( /^\/archives\//, "", ch ) ; sub( /\/.*/, "", ch )
+				ts = link ; sub( /.*thread_ts=/, "", ts )
+				v = ch ":" ts ; if ( ! ( v in seen ) ) { seen[v] = 1 ; print v ; }
+			}
+		}'
+}
+
+## input/conversation.md: the recent history of each conversation thread this spawn continues,
+## read as the member, newest MDAT_CONVERSATION_HISTORY_MAX messages (default 50), oldest first.
+## A post tagged [sender: <member>] is marked (own); one by another member (team: <name>).
+## A thread that cannot be read says so in the file, never reads as an empty one.
+## The board item behind the spawn, when there is one, has its `## Decisions` shown ahead of
+## the threads: they are binding, and a thread's older messages may be cut.
+AgentsToolsSpawnConversationHistory(){ ## output file, member, threads (space-separated), board item path (may be empty)
+	local historyFile="$1" historyMember="$2" historyThreads="$3" historyItem="${4:-}" historyThread historyMax historyRead historyDecisions=""
+	historyMax="${MDAT_CONVERSATION_HISTORY_MAX:-50}"
+	case "$historyMax" in ''|*[!0123456789]*|0) historyMax=50 ;; esac
+	[ -n "$historyThreads" ] || return 0
+	historyRead="${historyFile%/*}/.conversation.read.$$"
+	## Its own item, the one that tracks, and the items its earlier sessions in this sandbox asked under.
+	type AgentsToolsDecisionsBlock > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemDecisions.include"
+	historyDecisions="$( AgentsToolsDecisionsRelatedPaths "$historyItem" "${historyFile%/input/*}" | while IFS= read -r historyThread ; do
+		AgentsToolsDecisionsBlock "$historyThread" 30 && printf '\n'
+	done )" || historyDecisions=""
+	{
+		printf '%s\n' "# Conversation history" ""
+		[ -z "$historyDecisions" ] || printf '%s\n\n' "$historyDecisions"
+		printf '%s\n' "The conversation this session continues: read it before acting. Newest $historyMax messages per thread, oldest first, one \`<ts> | <user> | <text>\` head per message. (own) marks a post by $historyMember, (team: <name>) one by another team member."
+		for historyThread in $historyThreads ; do
+			printf '\n## Thread %s\n\n' "$historyThread"
+			type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+			if DistroAgentsTools --intern-op-comms-slack-read "$historyMember" "$historyThread" --thread > "$historyRead" 2>/dev/null \
+				&& LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" \
+				-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/slack/AgentsSlackMessagesFormat.awk" < "$historyRead" > "$historyRead.fmt" 2>/dev/null ; then
+				LC_ALL=C awk -v max="$historyMax" -v member="$historyMember" '
+					{ line[NR] = $0 ; if ( $0 ~ /^[0-9]+\.[0-9]+ \| / ) { head[++heads] = NR ; } }
+					END {
+						if ( heads == 0 ) { print "(no messages)" ; exit ; }
+						from = ( heads > max ) ? head[heads - max + 1] : head[1]
+						if ( heads > max ) { printf( "(%d older messages not shown)\n", heads - max ) ; }
+						for ( i = from ; i <= NR ; i++ ) {
+							l = line[i]
+							if ( l ~ /^[0-9]+\.[0-9]+ \| / && match( l, /\[sender: [A-Za-z0-9_.-]+\]/ ) ) {
+								who = substr( l, RSTART + 9, RLENGTH - 10 )
+								l = ( who == member ? "(own) " : "(team: " who ") " ) l
+							}
+							print l
+						}
+					}' "$historyRead.fmt"
+			else
+				printf '%s\n' "(could not be read -- unknown, not empty; read it with the slack read tool)"
+				echo "⚠️ WARNING: $MDSC_CMD: conversation history of $historyThread could not be read for $historyMember" >&2
+			fi
+		done
+	} > "$historyFile" 2>/dev/null
+	rm -f "$historyRead" "$historyRead.fmt"
 	return 0
 }

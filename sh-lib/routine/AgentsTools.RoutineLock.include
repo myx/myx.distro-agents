@@ -17,72 +17,22 @@
 ## "The advance lock paths: resync, conflict check, and the unlock order".
 ##
 
-## Runs the board's own resync primitive. Caller declares advanceSyncOut.
-## THE WRITERS ARE SETTLED BEFORE THE TREE IS MOVED (S12.4). The store's checkout is also its writers' working tree: a writer leaves
-## a file and an entry, and git refuses to move a tree that holds an uncommitted change to a file origin changed too. So the writers
-## are committed first, through the one thread, and this call holds until they are. A sync that still fails is a merge to settle, as
-## the close push settles one, and the sync then runs a second time. No caller sees a transient refusal of that kind.
-## A pull that lands takes the audit log family out of the index afterwards (task-20261113T1619Z), so a session's own append refuses no
-## later pull. That is the one order that loses no line: the merge runs first, line by line, and the removal then lands on a clean tree.
+## Runs the board's own resync primitive AS ONE REQUEST OF THE STORE'S THREAD (S12.13). Caller declares advanceSyncOut.
+## A DUTY START RUNS NO GIT OF ITS OWN. The team-data thread already serialises every commit and push of the one checkout, and its commits
+## already pull and push. A second serialising path in the acquiring process is what made one rig's starts break each other: the schedule
+## starts every due duty in one pass, so those git steps ran side by side on one working tree and answered `no such ref was fetched`.
+## The thread settles its writers before it moves the tree (S12.4), settles a merge the pull could not, runs the pull again, takes the audit
+## log family out of the index and pushes what it left ahead. So no caller sees a transient refusal of that kind.
 AgentsToolsAdvanceCloneSync(){
-	local repoRoot="$1" originUrl="$2" lockBranch="$3"
-	advanceSyncOut=""
-	type AgentsToolsMyRoot > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.MyRoot.include"
-	if [ -z "${MYXROOT:-}" ] || [ ! -f "$MYXROOT/bin/git/cloneSync.Common" ] ; then
-		advanceSyncOut="myx.common git/cloneSync is not reachable (MYXROOT=${MYXROOT:-<unset>})"
-		return 1
-	fi
-	local syncRc=0 syncGitDir=""
-	set +e
-	type AgentsToolsTeamDataPrepareSync > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataCommit.include"
-	if ! AgentsToolsTeamDataPrepareSync "the advance-lock resync" "$lockBranch" ; then
-		advanceSyncOut="the store holds uncommitted paths the pull would move, so the tree was not moved"
-		set -e
-		return 1
-	fi
-	advanceSyncOut="$( "$MYXROOT/bin/git/cloneSync.Common" --no-push "$repoRoot" "$originUrl" "$lockBranch" 2>&1 )"
-	syncRc=$?
-	## A head that moved under the pull -- a writer's commit landed between the sync's fetch and its merge, and git says "fetch updated
-	## the current branch head" and refuses to move the tree -- is a writer's transient, as another writer's index.lock is to item-upsert:
-	## the sync is run again, up to five times two seconds apart. A failure of another kind is reported as it is.
-	local syncTries=0
-	while [ "$syncRc" -ne 0 ] && [ "$syncTries" -lt 5 ] ; do
-		case "$advanceSyncOut" in *"fetch updated the current branch head"*) ;; *) break ;; esac
-		syncTries=$(( syncTries + 1 ))
-		sleep 2
-		advanceSyncOut="$( "$MYXROOT/bin/git/cloneSync.Common" --no-push "$repoRoot" "$originUrl" "$lockBranch" 2>&1 )"
-		syncRc=$?
-	done
-	## A merge the sync could not settle -- origin and a writer here both moved one file -- is settled here and the sync run again, as
-	## AgentsToolsTeamDataPushIfAhead settles one. A sync that failed for any other reason is reported as it is.
-	if [ "$syncRc" -ne 0 ] ; then
-		syncGitDir="$( git -C "$repoRoot" rev-parse --absolute-git-dir 2> /dev/null )" || syncGitDir=""
-		git -C "$repoRoot" fetch -q origin "+refs/heads/$lockBranch:refs/remotes/origin/$lockBranch" > /dev/null 2>&1 || :
-		git -C "$repoRoot" merge --no-commit --no-ff "refs/remotes/origin/$lockBranch" > /dev/null 2>&1 || :
-		AgentsToolsTeamDataMergeSettle "the advance-lock resync" > /dev/null 2>&1 || :
-		if [ -e "$syncGitDir/MERGE_HEAD" ] && [ -z "$( git -C "$repoRoot" diff --name-only --diff-filter=U 2> /dev/null )" ] ; then
-			git -C "$repoRoot" commit -q -m "* team-data merge settled before the board resync" > /dev/null 2>&1 || :
-		fi
-		if [ -e "$syncGitDir/MERGE_HEAD" ] ; then
-			git -C "$repoRoot" merge --abort > /dev/null 2>&1
-		else
-			advanceSyncOut="$( "$MYXROOT/bin/git/cloneSync.Common" --no-push "$repoRoot" "$originUrl" "$lockBranch" 2>&1 )"
-			syncRc=$?
-		fi
-	fi
-	set -e
-	if [ "$syncRc" -eq 0 ] ; then
-		type AgentsToolsTeamDataAuditUntrack > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataCommit.include"
-		type AgentsToolsTeamDataAuditUntrack > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataCommit.include"
-		AgentsToolsTeamDataAuditUntrack "the advance-lock resync" || :
-	fi
-	## Every sync pushes: what the resync left ahead of origin goes out now, best effort, with the owed marker of every team-data push.
-	if [ "$syncRc" -eq 0 ] ; then
-		type AgentsToolsTeamDataPushIfAhead > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataCommit.include"
-		! type AgentsToolsTeamDataPushIfAhead > /dev/null 2>&1 || AgentsToolsTeamDataPushIfAhead "the advance-lock resync" || :
-	fi
-	return "$syncRc"
+	local syncRoot="$1" syncOrigin="$2" syncBranch="$3"
+	type AgentsToolsTeamDataRequestAsk > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataThread.include"
+	advanceSyncOut="$( AgentsToolsTeamDataRequestAsk sync "$syncRoot" "$syncOrigin" "$syncBranch" )" || return 1
+	return 0
 }
+
+## ONE REQUEST OF THE STORE'S GIT: AgentsToolsTeamDataRequestAsk (AgentsTools.TeamDataThread.include) starts the thread where none lives,
+## asks it, and answers the verdict as its status with the reason on stdout. With the thread off, as the checks have it, it runs the
+## request in this process.
 
 ## Refuses a lock whose local copy is in a state the checkout cannot vouch
 ## for -- an unresolved merge, or an edit that was never committed. Runs both
@@ -124,25 +74,25 @@ AgentsToolsAdvanceLockStateCheck(){
 	return 0
 }
 
-## Refuses a lock whose local copy is not the one published on the branch head.
+## Refuses a lock whose local copy is not the one published on the branch head. The fetch and the two ids it is compared on are read by
+## the store's one thread, in one request (S12.13): a fetch here is a second move of the checkout, and a fetch in one process between
+## another's fetch and its compare is what made the two disagree.
 AgentsToolsAdvanceLockHeadCheck(){
 	local repoRoot="$1" lockRelPath="$2" lockBranch="$3" opName="$4"
-	local fetchOut="" fetchRc=0 headBlob="" remoteBlob=""
+	local headRead="" headRc=0 headBlob="" remoteBlob=""
 
-	## FETCH_HEAD, not origin/<branch>: an instrument that does not depend on
-	## the resync having updated the remote-tracking ref.
+	type AgentsToolsTeamDataRequestAsk > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataThread.include"
 	set +e
-	fetchOut="$( git -C "$repoRoot" fetch origin "$lockBranch" 2>&1 )"
-	fetchRc=$?
+	headRead="$( AgentsToolsTeamDataRequestAsk head "$lockRelPath" "$lockBranch" blobs )"
+	headRc=$?
 	set -e
-	if [ "$fetchRc" -ne 0 ] ; then
-		echo "⛔ ERROR: $MDSC_CMD $opName: LOCK_UNCHECKABLE -- could not fetch origin/$lockBranch to compare the lock against the actual head: $fetchOut" >&2
+	if [ "$headRc" -ne 0 ] ; then
+		echo "⛔ ERROR: $MDSC_CMD $opName: LOCK_UNCHECKABLE -- could not fetch origin/$lockBranch to compare the lock against the actual head: $headRead" >&2
 		return 1
 	fi
-	set +e
-	headBlob="$( git -C "$repoRoot" rev-parse --verify --quiet "HEAD:$lockRelPath" 2>/dev/null )"
-	remoteBlob="$( git -C "$repoRoot" rev-parse --verify --quiet "FETCH_HEAD:$lockRelPath" 2>/dev/null )"
-	set -e
+	headBlob="${headRead%%$'\t'*}" ; remoteBlob="${headRead#*$'\t'}"
+	[ "$headBlob" != "-" ] || headBlob=""
+	[ "$remoteBlob" != "-" ] || remoteBlob=""
 	if [ "$headBlob" != "$remoteBlob" ] ; then
 		echo "⛔ ERROR: $MDSC_CMD $opName: LOCK_STALE -- $lockRelPath is ${headBlob:-absent} locally and ${remoteBlob:-absent} on origin/$lockBranch; the local copy is not the actual head's and the lock must not be taken over it" >&2
 		return 1
@@ -191,13 +141,7 @@ AgentsToolsRoutineLockParse(){ ## value
 ## The spawner fills the macro with the member it starts, before it takes the lock, and the filled value is what the run's record,
 ## the brief and every later reader keep.
 AgentsToolsRoutineLockFill(){ ## the routine-lock-document value (a list), the team member of the start
-	local fillMacro='{{team-member}}'
-	printf '%s\n' "${1//"$fillMacro"/$2}"
-}
-
-## One value as a routine file writes it: the shape of the filled form, the macro read as a member. rc 1 for any other shape.
-AgentsToolsRoutineLockShape(){ ## one routine-lock-document value
-	AgentsToolsRoutineLockParse "$( AgentsToolsRoutineLockFill "$1" macro-member )"
+	printf '%s\n' "${1//"{{team-member}}"/$2}"
 }
 
 ## The path of the locking document, where an inbox note lives (F4.3).
@@ -322,14 +266,18 @@ AgentsToolsRoutineLockAcquireOne(){ ## one routine-lock-document value, the sess
 		fi
 	fi
 	if [ -n "$originUrl" ] && [ -n "$repoRoot" ] ; then
-		local fetchOut="" fetchRc=0 publishedSession
-		fetchOut="$( git -C "$repoRoot" fetch origin "$lockBranch" 2>&1 )" || fetchRc=$?
-		if [ "$fetchRc" -ne 0 ] ; then
+		local publishedSession="" publishRc=0
+		type AgentsToolsTeamDataRequestAsk > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataThread.include"
+		set +e
+		publishedSession="$( AgentsToolsTeamDataRequestAsk head "$lockRelPath" "$lockBranch" session )"
+		publishRc=$?
+		set -e
+		if [ "$publishRc" -ne 0 ] ; then
 			AgentsToolsRoutineLockDiscard "$lockPath" "$lockShort"
-			echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools}: LOCK_UNCHECKABLE -- could not fetch origin/$lockBranch to verify the published lock, so the lock was discarded: $fetchOut" >&2
+			echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools}: LOCK_UNCHECKABLE -- could not fetch origin/$lockBranch to verify the published lock, so the lock was discarded: $publishedSession" >&2
 			return 1
 		fi
-		publishedSession="$( git -C "$repoRoot" show "FETCH_HEAD:$lockRelPath" 2> /dev/null | LC_ALL=C awk '/^session-id: /{ print substr($0, 13) ; exit ; }' )"
+		[ "$publishedSession" != "-" ] || publishedSession=""
 		if [ "$publishedSession" != "$lockSession" ] ; then
 			AgentsToolsRoutineLockDiscard "$lockPath" "$lockShort"
 			echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools}: LOCK_NOT_PUBLISHED -- origin/$lockBranch:$lockRelPath reads session-id '$publishedSession', not '$lockSession' -- the lock write did not land on the remote, so the lock was discarded" >&2
@@ -429,16 +377,16 @@ AgentsToolsRoutineLockUnlock(){ ## the routine-lock-document value (a list), the
 AgentsToolsRoutineLockRelease(){ ## spawn record, outcome, exit code
 	local releaseRecord="$1" releaseOutcome="${2:-unknown}" releaseExit="${3:-unknown}" releaseValue releaseSession releaseThis releaseOther
 	[ -f "$releaseRecord" ] || return 0
-	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandboxRecordHeader.include"
-	releaseValue="$( AgentsToolsSpawnSandboxRecordHeader "$releaseRecord" routine-lock )"
+	type AgentsToolsFrontmatterKey > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.FrontmatterKey.include"
+	releaseValue="$( AgentsToolsFrontmatterKey "$releaseRecord" routine-lock )"
 	[ -n "$releaseValue" ] || return 0
-	releaseSession="$( AgentsToolsSpawnSandboxRecordHeader "$releaseRecord" session-id )"
+	releaseSession="$( AgentsToolsFrontmatterKey "$releaseRecord" session-id )"
 	releaseThis="${releaseRecord##*/}"
 	## The session's other records from the kept per-session list (AgentsTools.StartedRecords.include), never a read of every record at a run's end.
 	type AgentsToolsSpawnedSessionRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include"
 	for releaseOther in $( AgentsToolsSpawnedSessionRecords "$releaseSession" own 2> /dev/null ) ; do
 		[ -f "$releaseOther" ] && [ "${releaseOther##*/}" != "$releaseThis" ] || continue
-		[ "$( AgentsToolsSpawnSandboxRecordHeader "$releaseOther" routine-lock )" = "$releaseValue" ] || continue
+		[ "$( AgentsToolsFrontmatterKey "$releaseOther" routine-lock )" = "$releaseValue" ] || continue
 		type AgentsToolsSessionRecordLive > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionSeats.include"
 		! AgentsToolsSessionRecordLive "$releaseOther" || return 0
 	done
@@ -471,13 +419,13 @@ AgentsToolsRoutineLockReleaseConsole(){ ## the routine-lock-document value, the 
 		echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools} --intern-op-routine-lock-release: the lock on ${relValue#inbox:} holds no session-id -- nothing was released" >&2
 		return 1
 	}
-	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandboxRecordHeader.include"
+	type AgentsToolsFrontmatterKey > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.FrontmatterKey.include"
 	type AgentsToolsSpawnedSessionRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include"
 	for relOther in $( AgentsToolsSpawnedSessionRecords "$relSession" own 2> /dev/null ) ; do
 		[ -f "$relOther" ] || continue
 		## A closed record holds nothing: its run has ended, so only a record still started keeps the lock.
-		[ "$( AgentsToolsSpawnSandboxRecordHeader "$relOther" status )" = spawn-started ] || continue
-		case ",$( AgentsToolsSpawnSandboxRecordHeader "$relOther" routine-lock )," in
+		[ "$( AgentsToolsFrontmatterKey "$relOther" status )" = spawn-started ] || continue
+		case ",$( AgentsToolsFrontmatterKey "$relOther" routine-lock )," in
 			*",$relValue,"*) relHeld="$relOther" ; break ;;
 		esac
 	done
@@ -505,15 +453,15 @@ AgentsToolsRoutineSessionLockValue(){ ## the calling run's spawn id
 	AgentsSessionRunRecordInto sessionRecord "$1" || :
 	for sessionRecord in ${sessionRecord:+"$sessionRecord"} ; do
 		[ -f "$sessionRecord" ] || continue
-		type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandboxRecordHeader.include"
-		sessionId="$( AgentsToolsSpawnSandboxRecordHeader "$sessionRecord" session-id )"
+		type AgentsToolsFrontmatterKey > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.FrontmatterKey.include"
+		sessionId="$( AgentsToolsFrontmatterKey "$sessionRecord" session-id )"
 		break
 	done
 	[ -n "$sessionId" ] || return 1
 	type AgentsToolsSpawnedSessionRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include"
 	for sessionOther in $( AgentsToolsSpawnedSessionRecords "$sessionId" own 2> /dev/null ) ; do
 		[ -f "$sessionOther" ] || continue
-		sessionValue="$( AgentsToolsSpawnSandboxRecordHeader "$sessionOther" routine-lock )"
+		sessionValue="$( AgentsToolsFrontmatterKey "$sessionOther" routine-lock )"
 		[ -z "$sessionValue" ] || { printf '%s\t%s\n' "$sessionId" "$sessionValue" ; return 0 ; }
 	done
 	return 1
@@ -526,7 +474,7 @@ AgentsToolsRoutineSessionLockValue(){ ## the calling run's spawn id
 ## Never fails its caller.
 AgentsToolsRoutineLockRefreshOwn(){ ## the calling run's spawn id
 	local refreshRow refreshSession refreshValue refreshOne refreshPath refreshParsed refreshState refreshRecheck refreshEpoch refreshHalf refreshShort
-	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandboxRecordHeader.include"
+	type AgentsToolsFrontmatterKey > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.FrontmatterKey.include"
 	refreshRow="$( AgentsToolsRoutineSessionLockValue "$1" )" || return 0
 	refreshSession="${refreshRow%%$'\t'*}" ; refreshValue="${refreshRow#*$'\t'}"
 	refreshHalf=$(( $( ( printf '%s\n' 120 ) ) * 30 ))
@@ -630,7 +578,7 @@ AgentsToolsRoutineStateWrite(){ ## the inbox member, the note, the operation (fo
 ## so a participant can update the state as often as it has updates, and can neither take the lock nor give it back.
 AgentsToolsRoutineSessionStateUpdate(){ ## the operation's arguments
 	local updOp="--update-routine-state" updDocument="" updHeaders="" updModes=0 updMode="" updFile="" updArg
-	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandboxRecordHeader.include"
+	type AgentsToolsFrontmatterKey > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.FrontmatterKey.include"
 	type AgentsToolsInboxNotePath > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/inbox/AgentsTools.InboxPlace.include"
 	type AgentsToolsRecheckDate > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.RecheckDate.include"
 	type AgentsToolsItemUpsert > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/items/AgentsTools.InternOpItem.include"
@@ -863,13 +811,17 @@ AgentsToolsRoutineLockTakeOwn(){ ## routine word, member, owner label
 			--context "$takeOp" || return 1
 	fi
 	if [ "$takeWord" = advance ] && [ -n "${originUrl:-}" ] && [ -n "${repoRoot:-}" ] ; then
-		local fetchOut="" fetchRc=0 publishedSessionId
-		fetchOut="$( git -C "$repoRoot" fetch origin "$lockBranch" 2>&1 )" || fetchRc=$?
-		if [ "$fetchRc" -ne 0 ] ; then
-			echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools}: $takeOp: LOCK_UNCHECKABLE -- could not fetch origin/$lockBranch to verify the published lock: $fetchOut" >&2
+		local publishedSessionId="" takePublishRc=0
+		type AgentsToolsTeamDataRequestAsk > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataThread.include"
+		set +e
+		publishedSessionId="$( AgentsToolsTeamDataRequestAsk head "$lockRelPath" "$lockBranch" session )"
+		takePublishRc=$?
+		set -e
+		if [ "$takePublishRc" -ne 0 ] ; then
+			echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools}: $takeOp: LOCK_UNCHECKABLE -- could not fetch origin/$lockBranch to verify the published lock: $publishedSessionId" >&2
 			return 1
 		fi
-		publishedSessionId="$( git -C "$repoRoot" show "FETCH_HEAD:$lockRelPath" 2>/dev/null | LC_ALL=C awk '/^session-id: /{ print substr($0, 13) ; exit ; }' )"
+		[ "$publishedSessionId" != "-" ] || publishedSessionId=""
 		if [ "$publishedSessionId" != "$takeOwner" ] ; then
 			echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools}: $takeOp: LOCK_NOT_PUBLISHED -- origin/$lockBranch:$lockRelPath reads session-id '$publishedSessionId', not '$takeOwner' -- the lock write did not actually land on the remote" >&2
 			return 1
@@ -917,7 +869,7 @@ AgentsToolsRoutineLockCloseOwn(){ ## routine word, member
 				--no-push \
 				--commit-message "* advance.routine: update, unlock" \
 				--context "$closeOp" || return 1
-			local originUrl="" repoRoot="" lockBranch="" advanceSyncOut pushAttempt=1 pushOut="" pushRc=0
+			local originUrl="" repoRoot="" lockBranch="" advanceSyncOut pushOut="" pushRc=0
 			type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/settings/AgentsTools.ConfigOption.include"
 			originUrl="$( AgentsToolsConfigOption magic-team --select TEAM_DATA_GIT_REMOTE 2>/dev/null )" || originUrl=""
 			if [ -n "$originUrl" ] ; then
@@ -925,21 +877,12 @@ AgentsToolsRoutineLockCloseOwn(){ ## routine word, member
 			fi
 			if [ -n "$originUrl" ] && [ -n "$repoRoot" ] ; then
 				lockBranch="$( git -C "$repoRoot" rev-parse --abbrev-ref HEAD 2>/dev/null )" || lockBranch=""
-				while : ; do
-					pushOut="$( git -C "$repoRoot" push origin HEAD 2>&1 )" && pushRc=0 || pushRc=$?
-					[ "$pushRc" -eq 0 ] && break
-					case "$pushOut" in
-						*"Could not resolve host"*|*"could not resolve host"*|*"unable to access"*|*"Could not read from remote repository"*|*"Connection timed out"*|*"Connection refused"*|*"Operation timed out"*|*"Network is unreachable"*|*"connection reset"*)
-							if [ "$pushAttempt" -eq 1 ] ; then
-								echo "# ${MDSC_CMD:-DistroAgentsTools} $closeOp: push network failure, retrying once in 15s" >&2
-								sleep 15
-								pushAttempt=2
-								continue
-							fi
-						;;
-					esac
-					break
-				done
+				## THE PUSH IS THE STORE'S THREAD'S (S12.13): one request on the queue that already serialises this checkout's commits and pushes.
+				type AgentsToolsTeamDataRequestAsk > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataThread.include"
+				set +e
+				pushOut="$( AgentsToolsTeamDataRequestAsk push "$lockBranch" )"
+				pushRc=$?
+				set -e
 				if [ "$pushRc" -ne 0 ] ; then
 					echo "⚠️ WARNING: ${MDSC_CMD:-DistroAgentsTools} $closeOp: push failed after unlock commits landed locally -- closing anyway (same tolerance as AgentsToolsItemUpsert's own commit push): $pushOut" >&2
 				fi

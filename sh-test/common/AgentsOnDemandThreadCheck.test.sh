@@ -31,9 +31,11 @@ command -v git > /dev/null || rigRefuse "git is not installed"
 . "$rigPkg/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
 . "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-writes.include.sh" || exit 1
 . "$rigPkg/sh-test/check-fixtures/rig-processes.include.sh" || exit 1
+## And every thread on the shared on-demand pattern, by its lock, ended before the rig goes.
+. "$rigPkg/sh-test/check-fixtures/rig-control-threads.include.sh" || exit 1
 rigTmp="$( rigTempDir AgentsOnDemandThreadCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
-trap 'rigThreadsStop ; rm -rf -- "$rigTmp"' EXIT
+trap 'rigThreadsStop ; rigControlThreadsEnd "$rigTmp" ; rm -rf -- "$rigTmp"' EXIT
 
 rigPassCount=0
 rigFailCount=0

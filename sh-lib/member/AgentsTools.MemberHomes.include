@@ -29,11 +29,6 @@
 ##
 
 
-## A workspace where the agents subsystem is installed: its own member registry exists.
-AgentsToolsMemberHomesHasAgents(){ ## workspace
-	[ -f "${1%/}/.local/agents/members.registry" ]
-}
-
 ## The magic-team declares of one workspace, `<project> <rest>`, read in a subshell moved to
 ## that workspace, so this process keeps its own context. rc 1 when they cannot be read.
 AgentsToolsMemberHomesDeclares(){ ## workspace

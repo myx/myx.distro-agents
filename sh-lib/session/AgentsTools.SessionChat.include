@@ -31,8 +31,9 @@ type AgentsSlackIdentityId > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-ag
 ## `printback:<session>` and which never opens a thread, `delivered` for a message another session sent into this
 ## session's thread, recorded here by its send (AgentsToolsSessionChatDeliverCopy), and `notice` for a background notice the spawn proxy
 ## recorded on that channel (F3.3, AgentsToolsCommsPrintbackNoticeRecord): the floor never delivers a notice
-## block, and the next foreground call surfaces it as one line of the digest. <seen> is the members whose own
-## Wait delivered the block itself, comma-joined, `-` for none; the notice digest marks a notice it printed in
+## block, and the next foreground call surfaces it as one line of the digest. A direct message the session imported for one member
+## (S12.29) has the origin `dm:<member>`, and that member's floor alone delivers it, as it delivers a reply to its own post. <seen> is
+## the members whose own Wait delivered the block itself, comma-joined, `-` for none; the notice digest marks a notice it printed in
 ## that same field, so a notice is surfaced once.
 ##
 ## THE POINTERS, session.chat.pointers, `<reader><TAB><value>` a line, are the one place a session keeps where a reader
@@ -367,11 +368,17 @@ AgentsToolsSessionChatLiveRun(){ ## workspace root, session, member
 ## of a member dismissing another of the same member, the header names both runs (S27.8, AgentsHarnessWaitDismissed.awk): the
 ## sender's, and the live run of that member in the receiving session. Prints one `<root><TAB><session><TAB><block><TAB><thread>`
 ## for each copy, for AgentsToolsSessionChatDeliverStamp. Quiet, and never a reason for a send to fail.
-AgentsToolsSessionChatDeliverCopy(){ ## sending session (may be empty), member, addressees (spaced; may be empty), conversation:thread, body
+## A SESSION NAMED BY ITS ADDRESS IS REACHED BY ITS ID (S12.15): the sixth argument is the session the address itself named, and then
+## that session's file is the one written, in this workspace. Thread files are never matched for it, and no other workspace is read.
+AgentsToolsSessionChatDeliverCopy(){ ## sending session (may be empty), member, addressees (spaced; may be empty), conversation:thread, body, the session the address named (optional)
 	local copyRows="" copyRoot="" copySession="" copyNo="" copyFrom="" copyTo="" copyRun="" copyTheirs=""
 	## A post into the sender's own session thread is that session's already: nothing is looked for.
 	[ -z "$1" ] || [ "$( AgentsToolsSessionChatThread "$1" 2> /dev/null )" != "$4" ] || return 0
-	copyRows="$( AgentsToolsSessionChatThreadSessions "$4" "$1" )" || return 0
+	if [ -n "${6:-}" ] ; then
+		copyRows="$( printf '%s\t%s\n' "${MMDAPP%/}" "$6" )"
+	else
+		copyRows="$( AgentsToolsSessionChatThreadSessions "$4" "$1" )" || return 0
+	fi
 	copyRun="${MDAT_SPAWN_SESSION_ID:-${harnessSessionId:-${CLAUDE_CODE_SESSION_ID:-}}}"
 	while IFS=$'\t' read -r copyRoot copySession ; do
 		[ -n "$copyRoot" ] && [ -n "$copySession" ] || continue

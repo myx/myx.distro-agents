@@ -34,6 +34,9 @@ mkdir -p "$rigWs/.local/temp" "$rigWs/.local/.agents" "$rigHome" \
 for rigMember in rig-dev rig-other ; do
 	printf -- '---\nmaintainers: rig\n---\nrig identity\n' > "$rigSkills/$rigMember/$rigMember.basic.md"
 done
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-writes.include.sh" || exit 1
+rigOwnerWs="${rigWs:-$rigTmp/ws}" rigOwnerData="${rigData:-${rigD:-${rigStore:-${rigOut:-$rigTmp/data}}}}" rigOwnerHome="${rigHome:-$rigTmp/home}" rigOwnerSkills="${rigSkills:-$rigTmp/skills}"
+rigOwnerBoardReady
 rigItem(){ ## state, item name, owner
 	printf -- '---\ntype: task\nfrom: rig\ndate: 2026-11-13 09:00 +0200\nowner: %s\ndocument-contract: board-item.task\n---\n\n# %s\n\nbody\n' "$3" "$2" | rigOwnerBoardPut "$1" "$2.md"
 }
@@ -47,9 +50,6 @@ printf -- '---\ntype: inquiry\nfrom: rig-other\ndate: 2026-11-13 09:04 +0200\now
 	MDAT_DATA_ROOT="$rigData" MDAT_SKILLSET_ROOT="$rigSkills" MDAT_SPAWN_AGENT=rig-dev RIG_TMP="$rigTmp" RIG_TOOL="$rigTool" \
 	bash -c 'case "$MMDAPP" in "$RIG_TMP"/*) ;; *) exit 99 ;; esac ; case "$MDAT_DATA_ROOT" in "$RIG_TMP"/*) ;; *) exit 99 ;; esac ; exec bash "$RIG_TOOL" --get-my-board-items rig-dev' rig ) > "$rigTmp/out" 2> "$rigTmp/err" < /dev/null
 rigRc=$?
-. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-writes.include.sh" || exit 1
-rigOwnerWs="${rigWs:-$rigTmp/ws}" rigOwnerData="${rigData:-${rigD:-${rigStore:-${rigOut:-$rigTmp/data}}}}" rigOwnerHome="${rigHome:-$rigTmp/home}" rigOwnerSkills="${rigSkills:-$rigTmp/skills}"
-rigOwnerBoardReady
 rigCount(){ LC_ALL=C grep -c -F -- "$1" "$rigTmp/out" || : ; }
 
 echo "-- 1. the member's own active items are listed --"

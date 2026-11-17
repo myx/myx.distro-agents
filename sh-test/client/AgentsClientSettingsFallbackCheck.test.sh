@@ -186,7 +186,7 @@ rigTeams(){ ## -- how many calls of the last run carried a setting of either wor
 }
 ## One --client-* operation of each system, and the call it makes for an owner of the settings: <operation and arguments>|<the calls, with WHOSE and whose where the owner's name stands>
 rigOps=(
-	'--client-comms-slack-read client-ndm CNDM00001|slack conversations.history rig-user-token-WHOSE'
+	'--client-comms-slack-read client-ndm CNDM00001 --oldest 1|slack conversations.history rig-user-token-WHOSE'
 	'--client-comms-email-check client-ndm|imap imap-whose.invalid us@whose.invalid STATUS INBOX (UNSEEN); imap imap-whose.invalid us@whose.invalid UID SEARCH UNSEEN'
 	'--client-comms-jira-board-list client-ndm|http jira-whose.invalid us@whose.invalid'
 	'--client-comms-confluence-space-list client-ndm|http confluence-whose.invalid us@whose.invalid'
@@ -245,15 +245,15 @@ rigAssert "and Jira names the two it lacks here, though the other workspace hold
 echo "-- 4. the team's own settings are never borrowed, and never stand in for the client's --"
 rigWorld
 rigSettings NDMTHERE TRELLO GOOGLE JIRA CONFLUENCE | rigScopeOf ws-there client-ndm
-rigRun --client-comms-slack-read client-ndm CNDM00001
+rigRun --client-comms-slack-read client-ndm CNDM00001 --oldest 1
 rigAssert "a client that holds no Slack settings in either workspace reads nothing: neither team's bot stands in on the side of the other organisation" "$( [ "$rigRc" != 0 ] && printf refused || printf ran ) $( rigLines "$rigTmp/calls" ) $( rigN "$rigTmp/err" "where only the settings client-ndm itself holds are read, never the team's" )" "refused 0 1"
 rigRun --client-comms-email-check client-ndm
 rigAssert "nor a mailbox: neither team's is read in place of the one the client lacks" "$rigRc $( rigLines "$rigTmp/calls" ) $( rigN "$rigTmp/err" "not fully set in client-ndm's own scope" )" "1 0 1"
 rigWorld
 rigSettings TEAMHERE SLACKTEAM EMAIL TRELLO GOOGLE JIRA CONFLUENCE | LC_ALL=C grep -v '^SLACK_BOT_TOKEN=' | rigScopeOf ws-here magic-team
-rigRun --slack-read --team-member client-ndm magic-team
+rigRun --slack-read --team-member client-ndm magic-team --oldest 1
 rigAssert "our own side without our team's bot here is refused: the other workspace's team is not borrowed, and the client's own token is not used for our side" "$( [ "$rigRc" != 0 ] && printf refused || printf ran ) $( rigLines "$rigTmp/calls" )" "refused 0"
-rigRun --slack-read --team-member keeper-here magic-team
+rigRun --slack-read --team-member keeper-here magic-team --oldest 1
 rigAssert "control: the same for a member of our own team" "$( [ "$rigRc" != 0 ] && printf refused || printf ran ) $( rigLines "$rigTmp/calls" )" "refused 0"
 rigRun --agents-config-option magic-team --select SLACK_BOT_TOKEN
 rigAssert "control: the team's scope here answers none for it, and nothing is said of another workspace" "$rigRc [$( cat "$rigTmp/out" )] $( rigSaid )" "0 [] 0"
@@ -266,9 +266,9 @@ for rigOp in '--email-check --team-member client-ndm|mail|1' '--trello-whoami cl
 	rigAssert "$rigName makes no call and says the client holds no $rigWord settings on our side, though the workspace it is set up in holds them" "$rigRc $( rigLines "$rigTmp/calls" ) $( rigN "$rigTmp/err" "$rigName: client-ndm has no $rigWord settings on our own organisation's side: what it holds is the other organisation's. For the other organisation use --client-comms-${rigName#--}." )" "${rigOp##*|} 0 1"
 	rigAssert "and the line of the fallback, said before the side is known, does not say they are read for it: only where the operation reaches the other organisation" "$( rigSaid ) $( rigSaidFor "$rigName" "$rigAll" )" "1 1"
 done
-rigRun --slack-read --team-member client-ndm magic-team
+rigRun --slack-read --team-member client-ndm magic-team --oldest 1
 rigAssert "its Slack read of our team's conversation is our team's bot, held here: the token the client holds where it is set up is not used" "$rigRc $( rigCalls )" "0 slack conversations.history rig-bot-token-TEAMHERE"
-rigRun --slack-read --team-member client-ndm client:CNDM00001
+rigRun --slack-read --team-member client-ndm client:CNDM00001 --oldest 1
 rigAssert "control: the same operation with a client: address reaches the other organisation, and there the borrowed token is the one read" "$rigRc $( rigCalls )" "0 slack conversations.history rig-user-token-NDMTHERE"
 rigRun --email-check --team-member keeper-here
 rigAssert "control: a member of our own team that holds no mailbox is told its scope is not set: nothing is borrowed and nothing said for a member set up here" "$rigRc $( rigLines "$rigTmp/calls" ) $( rigN "$rigTmp/err" "not fully set in keeper-here's own scope" ) $( rigSaid )" "1 0 1 0"
@@ -286,7 +286,7 @@ for rigPass in first second ; do
 	rigAssert "so nothing of those systems is written into this workspace's scope of the client, which one setting would cut off from the rest" "$( rigHeldHere )" 0
 done
 rigAssert "and the workspace the client is set up in is only read by both" "$( rigTreeSum ws-there )" "$rigSumThere"
-rigRun --client-comms-slack-read client-ndm CNDM00001
+rigRun --client-comms-slack-read client-ndm CNDM00001 --oldest 1
 rigAssert "after the sweeps the client's Slack is still read from the workspace it is set up in" "$rigRc $( rigCalls )" "0 slack conversations.history rig-user-token-NDMTHERE"
 rigRun --client-operation-run magic-coordinator --client-comms-email-mark-seen client-ndm 41
 rigAssert "magic-coordinator's own operation, run as the client, marks a message in the mailbox the client holds where it is set up, and says once which settings are read from there" "$rigRc $( LC_ALL=C awk '{ print $1, $2, $3, $4, $5 }' "$rigTmp/calls" ) $( rigN "$rigTmp/err" "holds no settings of its own in" )" "0 imap imap-ndmthere.invalid us@ndmthere.invalid UID STORE 1"
@@ -301,7 +301,7 @@ rigRun --agents-config-option client-ndm --upsert SLACK_WORKSPACE_DOMAIN ndmhere
 rigAssert "the write is made as it always was: here, and nothing under the workspace the client is set up in" "$rigRc $( rigKeyHere client-ndm SLACK_WORKSPACE_DOMAIN ) $( [ "$( rigTreeSum ws-there )" = "$rigSumThere" ] && printf untouched || printf written )" "0 1 untouched"
 rigAssert "and the tooling says in one line that Slack is read here alone from now on, and which settings of it, held in the other workspace, are no longer read" "$( rigEnded ) $( rigEndedFor client-ndm SLACK_WORKSPACE_DOMAIN SLACK_ 'SLACK_USER_TOKEN, SLACK_CONVERSATIONS' )" "1 1"
 rigAssert "by their names only: no value of the other workspace's is in anything the write said" "$( cat "$rigTmp/err" "$rigTmp/out" | LC_ALL=C grep -c -e 'rig-user-token-NDMTHERE' -e 'CNDM00001' -e 'ndmthere' || : )" 0
-rigRun --client-comms-slack-read client-ndm CNDM00001
+rigRun --client-comms-slack-read client-ndm CNDM00001 --oldest 1
 rigAssert "what the line says holds: the client's Slack read from here finds no token now, and the other workspace's is not used" "$( [ "$rigRc" != 0 ] && printf refused || printf ran ) $( rigLines "$rigTmp/calls" )" "refused 0"
 rigRun --agents-config-option client-ndm --upsert SLACK_CONVERSATIONS CHERE0009
 rigAssert "a further setting of a system already held here says nothing: nothing changes hands" "$rigRc $( rigKeyHere client-ndm SLACK_CONVERSATIONS ) $( rigEnded )" "0 1 0"
@@ -338,7 +338,7 @@ rigRun --agents-config-option client-ndm --delete-if SLACK_USER_TOKEN rig-user-t
 rigAssert "the delete of the last one is made as it always was: here, and nothing under the workspace the client is set up in" "$rigRc $( rigHeldHere ) $( [ "$( rigTreeSum ws-there )" = "$rigSumThere" ] && printf untouched || printf written )" "0 0 untouched"
 rigAssert "and the tooling says in one line that Slack is read from the other workspace from now on, on which side for a client, and which settings those are" "$( rigBegun ) $( rigBegunFor client-ndm SLACK_USER_TOKEN SLACK_ ', and only where the operation reaches the other organisation' "$rigSlackNames" )" "1 1"
 rigAssert "by their names only: no value of either workspace's is in anything the delete said" "$( cat "$rigTmp/err" "$rigTmp/out" | LC_ALL=C grep -c -i -e 'rig-user-token' -e 'CNDM00001' -e 'slack.invalid' || : )" 0
-rigRun --client-comms-slack-read client-ndm CNDM00001
+rigRun --client-comms-slack-read client-ndm CNDM00001 --oldest 1
 rigAssert "what the line says holds: the client's Slack read from here uses the token held where it is set up again" "$rigRc $( rigCalls )" "0 slack conversations.history rig-user-token-NDMTHERE"
 printf '%s\n' 'SLACK_WORKSPACE_DOMAIN=khere.slack.invalid' | rigScopeOf ws-here keeper-there
 rigRun --agents-config-option keeper-there --delete SLACK_WORKSPACE_DOMAIN

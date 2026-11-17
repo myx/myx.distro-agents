@@ -11,5 +11,5 @@
 ## next `---`. Nothing, and rc 0, for a file that does not open with `---`, a key it lacks, or a file that
 ## is not there: a caller reads an absent key as empty.
 AgentsToolsFrontmatterKey(){ ## file, key
-	LC_ALL=C awk -v want="$2: " 'NR == 1 { if ( $0 != "---" ) exit ; next ; } $0 == "---" { exit ; } index( $0, want ) == 1 { print substr( $0, length( want ) + 1 ) ; exit ; }' "$1" 2> /dev/null
+	LC_ALL=C awk -v want="$2: " 'NR == 1 { if ( $0 != "---" ) exit ; next ; } $0 == "---" { exit ; } index( $0, want ) == 1 { print substr( $0, length( want ) + 1 ) ; exit ; }' "$1" 2> /dev/null || :
 }

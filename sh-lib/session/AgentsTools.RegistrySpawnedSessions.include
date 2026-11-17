@@ -147,7 +147,7 @@ $( LC_ALL=C awk '$2 ~ /\\/ { print $2 }' "$measuredFile" 2> /dev/null | LC_ALL=C
 		LC_ALL=C awk '
 			## A run of this host is alive by the one rule: a process of the list runs as it,
 			## or the process its record names as the one its launch started is still that same
-			## process. The second half is what AgentsToolsRunRecordedAlive answers for
+			## process. The second half is what AgentsToolsRunRecorded answers for
 			## one record, read here for every record of them and compared against one ps.
 			function deadNames( session, runId,   deadFile, deadLine, deadFields, deadCount ) {
 				if ( session == "" || session == "-" || runId == "" || runId == "-" ) return 0 ;
@@ -413,7 +413,7 @@ AgentsToolsRegistryRenderSpawnedSessions(){ ## view, session-id filter, state fi
 ## Prints `<id> <live>` a line, what this host says of that id:
 ##   running          a process of this host runs as it (AgentsToolsRunWords), or the
 ##                    process its record names still lives, that record being of this host
-##                    and still open (AgentsToolsRunRecordedAlive), as a row is read
+##                    and still open (AgentsToolsRunRecorded), as a row is read
 ##   no-process       a spawn record names it and nothing runs as it: no live asker
 ##   session-ended    no spawn record names it, and its own store carries the end marker of
 ##                    a root session (AgentsToolsGrantsSessionEnded): no live asker
@@ -452,12 +452,12 @@ $askerId
 			done < "$askerRecord"
 			case "$askerStatus" in spawn-succeeded|spawn-failed|spawn-ended-without-close) continue ;; esac
 			[ "$askerHost" = "$askersHost" ] || continue
-			! AgentsToolsRunRecordedAlive "$askerRecord" || { askerLive="running" ; break ; }
+			! AgentsToolsRunRecorded "$askerRecord" > /dev/null || { askerLive="running" ; break ; }
 		done
 		if [ -z "$askerSeen" ] ; then
 			askerLive="no-spawn-record"
 			type AgentsToolsGrantsSessionEnded > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.Grants.include"
-			! AgentsToolsGrantsSessionEnded "${MMDAPP:-/nonexistent}/.local/agents/sessions/$askerId" || askerLive="session-ended"
+			! AgentsToolsGrantsSessionEnded "$askerId" "${MMDAPP:-}" || askerLive="session-ended"
 		fi
 		printf '%s %s\n' "$askerId" "$askerLive"
 	done

@@ -22,12 +22,6 @@
 ## `## Work-duty dispatch --`, which this file writes first and nothing else does.
 ##
 
-## Whether a routine file is one of the work-duty routines: its short name is `work-duty`.
-AgentsToolsWorkDutyDispatchIs(){ ## routine file path
-	case "${1:-}" in *.work-duty.routine.md) return 0 ;; esac
-	return 1
-}
-
 ## 1. The routine's text, mixed with its kind's (AgentsToolsSpawnRoutineMixText), under the dispatch's heading and the
 ## call that serves the same bytes on demand. Read fresh from the skillset on every spawn, so a changed procedure is in
 ## the very next run.

@@ -53,7 +53,8 @@ AgentsWaitProbedFlush(){
 AgentsWaitActivityIdle(){ ## the sources of the wait, as they stand after the floor is added
 	local idleRound="" idleEpoch="" idleWord="" idleDefaults idleOne idleBusy
 	[ -n "${MDAT_SPAWN_SESSION_ID:-}" ] || return 0
-	type AgentsSessionChecklistOpenInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+	type AgentsSessionChecklistOpenInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.CheckListSeed.include"
+	type AgentsSessionActivityInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
 	AgentsSessionActivityInto idleEpoch idleWord "$MDAT_SPAWN_SESSION_ID" "" idleRound || return 0
 	[ "$idleWord" = "tool Wait" ] || return 0
 	type AgentsToolsWaitDefaultSources > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/wait/AgentsTools.MemberWaitSourcesDefault.include"

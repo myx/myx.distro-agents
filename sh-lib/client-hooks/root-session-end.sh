@@ -37,15 +37,14 @@ type hookString > /dev/null 2>&1 || . "$hookLib/client-hooks/AgentsHookPayload.i
 hookString session_id || exit 0
 hookSession="$hookValue"
 hookBare "$hookSession" || exit 0
-for hookRecord in "$hookWs/.local/agents/spawned"/*/"$hookSession.spawn.md" ; do
-	[ ! -f "$hookRecord" ] || exit 0
-done
 type AgentsSessionMarkerFileInto > /dev/null 2>&1 || . "$hookLib/session/AgentsTools.SessionStore.include"
+MMDAPP="$hookWs" AgentsSessionRunRecordInto hookRecord "$hookSession" || :
+[ -z "$hookRecord" ] || exit 0
 MMDAPP="$hookWs" AgentsSessionMarkerFileInto hookEnded "$hookSession" ended || exit 0
 hookStore="${hookEnded%/ended}"
 hookTouch(){
 	if . "$hookLib/grants/AgentsTools.Grants.include" 2> /dev/null ; then
-		AgentsToolsGrantsStoreTouch "$hookStore"
+		AgentsToolsGrantsStoreTouch "$hookSession" "$hookWs"
 	fi
 }
 

@@ -59,7 +59,7 @@ if ! type AgentsChangeFill > /dev/null 2>&1 ; then
 		type AgentsToolsPermissionIsHumanOwner > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionHolds.include"
 		type AgentsToolsDecisionsItemPath > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemDecisions.include"
 		type AgentsToolsTaskText > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.TaskText.include"
-		type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandboxRecordHeader.include"
+		type AgentsToolsFrontmatterKey > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.FrontmatterKey.include"
 	}
 
 	## One part of the prompt filled from its own template, by the filler the ask posts use: the
@@ -109,7 +109,8 @@ if ! type AgentsChangeFill > /dev/null 2>&1 ; then
 	}
 
 	## Whether the session that made a held change is gone. Its store says it ended
-	## (AgentsToolsGrantsSessionEnded): a spawn record that is closed, or the marker a session
+	## A run whose own store holds a grant is one of the member's other runs of a spawn record (AgentsChangeSessionGone, whose verdict comes
+## from AgentsToolsGrantsSessionEnded): a spawn record that is closed, or the marker a session
 	## with no spawn record leaves at its end. Or it is a spawn of this host that no process
 	## runs as (AgentsToolsSpawnRuns, the one rule for that). A spawn of another host
 	## cannot be seen from here, and is taken as running. A session with no spawn record runs
@@ -123,7 +124,7 @@ if ! type AgentsChangeFill > /dev/null 2>&1 ; then
 		type AgentsSessionFolderInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
 		AgentsSessionFolderInto goneStore "$MMDAPP" "$goneSession" || return 0
 		type AgentsToolsGrantsSessionEnded > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.Grants.include"
-		! AgentsToolsGrantsSessionEnded "$goneStore" || return 0
+		! AgentsToolsGrantsSessionEnded "$goneSession" "$MMDAPP" || return 0
 		type AgentsSessionRunRecordInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
 		AgentsSessionRunRecordInto goneRecord "$goneSession" || :
 		for goneRecord in ${goneRecord:+"$goneRecord"} ; do
@@ -353,15 +354,15 @@ case "$1" in
 		for holdCandidate in ${holdCandidate:+"$holdCandidate"} ; do
 			[ ! -f "$holdCandidate" ] || { holdRecord="$holdCandidate" ; break ; }
 		done
-		holdCow="$( [ -z "$holdRecord" ] || AgentsToolsSpawnSandboxRecordHeader "$holdRecord" session-id )"
+		holdCow="$( [ -z "$holdRecord" ] || AgentsToolsFrontmatterKey "$holdRecord" session-id )"
 		if [ -n "$holdCow" ] ; then
-			holdThread="$( AgentsToolsSpawnSandboxRecordHeader "$holdRecord" session-thread )"
+			holdThread="$( AgentsToolsFrontmatterKey "$holdRecord" session-thread )"
 			if [ -z "$holdThread" ] || [ "$holdThread" = "-" ] ; then
 				holdThread=""
 				holdThread="$( AgentsSpawnedThreadOfRecord "$holdRecord" )"
 			fi
 			holdSessionText="$( ASKP_F_session_id="${holdCow:0:8}" ASKP_F_session_thread="$( AgentsToolsPermissionSetThreadShown "$holdMember" "$holdThread" )" \
-				ASKP_F_session_description="$( AgentsToolsTaskTextLine "$( AgentsToolsSpawnSandboxRecordHeader "$holdRecord" description )" )" AgentsChangeFill block "Lines/session" 2> /dev/null )" || holdSessionText=""
+				ASKP_F_session_description="$( AgentsToolsTaskTextLine "$( AgentsToolsFrontmatterKey "$holdRecord" description )" )" AgentsChangeFill block "Lines/session" 2> /dev/null )" || holdSessionText=""
 		fi
 		type AgentsToolsPermissionRefusalWhere > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionPosts.include"
 		holdWhere="$( AgentsToolsPermissionRefusalWhere )"

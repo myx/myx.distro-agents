@@ -7,8 +7,9 @@
 ## the conversations it continues, its sandbox, its launch marker, whether its caller waits and how its CLI was started,
 ## nor a variable of those two families that only this check knows -- so a rig is a session of its own and joins no
 ## live one; it finds the test-only session id the runner gives it, and its reminders off; and what is no session's
-## reaches it as given: the member set and the team data root the tooling's environment hands the tests. The control is
-## the same tiny test started with no runner between, where it finds every one of them.
+## reaches it as given: the team data root the tooling's environment hands the tests; and the member folder it is
+## handed is the workspace's own, never the one its caller serves. The control is the same tiny test started with no
+## runner between, where it finds every one of them, and the member folder its caller named.
 ## The live fault this pins: the suite run by a spawned member, and three tests red there that pass from any other
 ## session. A rig's spawn joined the runner's own coworking session and took its thread, so its handback retry started
 ## the rig's console once more (AgentsHarnessUnattendedScopeCheck); a rig's question to a member went into that thread
@@ -25,10 +26,11 @@ rigRefuse(){
 rigTmp="$( rigTempDir AgentsRunTestsIdentityCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
-rigHome="$rigTmp/home" ; rigWs="$rigTmp/ws" ; rigMembers="$rigTmp/members" ; rigData="$rigTmp/data" ; rigLive="$rigTmp/live"
+rigHome="$rigTmp/home" ; rigWs="$rigTmp/ws" ; rigMembers="$rigWs/.local/agents/members" ; rigOtherMembers="$rigTmp/other-members" ; rigData="$rigTmp/data" ; rigLive="$rigTmp/live"
 rigTests="$rigWs/.local/temp/rig-scratch-a/source/myx/myx.distro-agents/sh-test"
-mkdir -p "$rigHome" "$rigWs/.local/temp" "$rigMembers/rig-member" "$rigData" "$rigTests"
+mkdir -p "$rigHome" "$rigWs/.local/temp" "$rigMembers/rig-member" "$rigOtherMembers/rig-member" "$rigData" "$rigTests"
 printf 'rig member\n' > "$rigMembers/rig-member/rig-member.basic.md"
+printf 'rig member\n' > "$rigOtherMembers/rig-member/rig-member.basic.md"
 
 rigFails=0 rigPasses=0
 rigAssert(){ ## what is asserted, got, want
@@ -59,7 +61,7 @@ rigStart(){ ## how (runner: through the runner under test; direct: the tiny test
 	local startWhat="$rigTests/AgentsRunTests.sh" ; [ "$1" = runner ] || startWhat="$rigTests/RigEnv.test.sh"
 	rigRc=0
 	( cd "$rigWs" && exec env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWs" MDLT_ORIGIN="$rigWs/.local/temp/rig-scratch-a/source" MYXROOT="${MYXROOT:-}" \
-		MDAT_SKILLSET_ROOT="$rigMembers" MDAT_DATA_ROOT="$rigData" RIG_SHARED="$rigTmp" RIG_HOW="$1" "${rigHanded[@]}" \
+		MDAT_SKILLSET_ROOT="$rigOtherMembers" MDAT_DATA_ROOT="$rigData" RIG_SHARED="$rigTmp" RIG_HOW="$1" "${rigHanded[@]}" \
 		bash "$startWhat" $( [ "$1" != runner ] || printf RigEnv ) ) > "$rigTmp/$1.out" 2>&1 || rigRc=$?
 }
 rigHandedFound(){ ## how -- the names the test found of what a spawn hands a session, sorted, on one line
@@ -81,7 +83,9 @@ rigAssert "control: started with no runner between, the same test finds every on
 echo "-- 2. it is a session of its own, and what is no session's reaches it as given --"
 rigAssert "its session id is the test-only one the runner gives it, never its caller's" "$( rigFound runner CLAUDE_CODE_SESSION_ID ) $( rigFound direct CLAUDE_CODE_SESSION_ID )" "rig-run-RigEnv-test-only rig-live-client"
 rigAssert "its waits remind no ask" "$( rigFound runner MDAT_WAIT_REMIND )" "off"
-rigAssert "the member set and the team data root reach it as the environment gave them" "$( rigFound runner MDAT_SKILLSET_ROOT ) $( rigFound runner MDAT_DATA_ROOT )" "$rigMembers $rigData"
+rigAssert "the team data root reaches it as the environment gave it" "$( rigFound runner MDAT_DATA_ROOT )" "$rigData"
+rigAssert "the member folder it is handed is the workspace's own, never the one its caller serves" "$( rigFound runner MDAT_SKILLSET_ROOT )" "$rigMembers"
+rigAssert "control: started with no runner between, the same test is handed the member folder its caller named" "$( rigFound direct MDAT_SKILLSET_ROOT )" "$rigOtherMembers"
 
 echo "-- 3. nothing a test starts outlives it: what it leaves running ends with it, and the test fails for it --"
 ## A tiny test that starts a process beside itself, named by a mark, and ends without ending it; held, it waits past

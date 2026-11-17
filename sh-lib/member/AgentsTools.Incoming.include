@@ -35,12 +35,12 @@ AgentsToolsIncomingDms(){ ## member
 ## Prints `collect: chat:<member>: N new`. A member in no live run has no thread to read, and says
 ## `collect: chat:<member>: no session ...` -- that is none, never a failure.
 AgentsToolsIncomingChat(){ ## member
-	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandboxRecordHeader.include"
+	type AgentsToolsFrontmatterKey > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.FrontmatterKey.include"
 	local incomingChatRecord="" incomingChatSession="" incomingChatThread="" incomingChatAdded=0
 	type AgentsToolsSessionCommsRead > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionComms.include"
 	if incomingChatRecord="$( AgentsToolsScheduleWorkDutyRecord "$1" 2> /dev/null )" ; then
-		incomingChatSession="$( AgentsToolsSpawnSandboxRecordHeader "$incomingChatRecord" session-id 2> /dev/null )"
-		incomingChatThread="$( AgentsToolsSpawnSandboxRecordHeader "$incomingChatRecord" session-thread 2> /dev/null )"
+		incomingChatSession="$( AgentsToolsFrontmatterKey "$incomingChatRecord" session-id 2> /dev/null )"
+		incomingChatThread="$( AgentsToolsFrontmatterKey "$incomingChatRecord" session-thread 2> /dev/null )"
 	fi
 	if [ -z "$incomingChatSession" ] || [ -z "$incomingChatThread" ] || [ "$incomingChatThread" = "-" ] ; then
 		printf 'collect: chat:%s: no session -- the member runs in none, so no live thread is read\n' "$1"

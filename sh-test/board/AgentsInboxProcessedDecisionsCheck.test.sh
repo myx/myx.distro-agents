@@ -55,7 +55,7 @@ rigDecisions(){ ## item file -> its Decisions section lines, in file order
 rigSeeded(){ ## item stamp, decision text
 	rigItem="note-20261101T${1}Z-rig.md"
 . "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-writes.include.sh" || exit 1
-rigOwnerWs="${rigWs:-$rigTmp/ws}" rigOwnerData="${rigData:-${rigD:-${rigStore:-${rigOut:-$rigTmp/data}}}}" rigOwnerHome="${rigHome:-$rigTmp/home}" rigOwnerSkills="${rigSkills:-$rigTmp/skills}"
+rigOwnerWs="$rigWs" rigOwnerData="$rigStore" rigOwnerHome="$rigOut/home" rigOwnerSkills="$rigOut/home/skills"
 	rigRun "seed-$1" --upsert-inbox-note "$rigItem" --from-member "$rigMember" <<< "$( printf -- '---\ntype: note\nowner: %s\n---\n\n# Note: rig\n\nBody of %s.\n\n## Decisions\n<!-- decisions-of: %s -->\n\n- 2026-11-01T12:00Z magic-developer resolved: %s\n' "$rigMember" "${rigItem%.md}" "${rigItem%.md}" "$2" )"
 	[ "$rigRc" = 0 ] || rigRefuse "the seed note of $rigItem failed: $( cat "$rigOut/seed-$1.err" )"
 	[ "$( rigDecisions "$( rigWhere )" | LC_ALL=C grep -c -F -- "$2" )" = 1 ] \

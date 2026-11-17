@@ -34,9 +34,13 @@ Declares: \
 	--magic-team:permissions:workspace:*:deny-tool:magic-coordinator:execute \
 	--magic-team:permissions:workspace:*:deny-tool:magic-coordinator:WorkspaceContextExecute \
 	--magic-team:permissions:workspace:*:allow-tool:magic-coordinator:AgentDispatcherTools \
+	--magic-team:permissions:workspace:*:allow-tool:magic-coordinator:Artifact \
 	\
 	--magic-team:permissions:workspace:*:allow-tool:magic-architect:WebFetch \
 	--magic-team:permissions:workspace:*:allow-tool:magic-architect:WebSearch \
+	--magic-team:permissions:workspace:*:allow-tool:magic-architect:Artifact \
+	\
+	--magic-team:permissions:workspace:*:allow-tool:magic-librarian:Artifact \
 	\
 	--magic-team:permissions:workspace:*:allow-read:magic-tester:source/**/sh-test/** \
 	--magic-team:permissions:workspace:*:allow-read:magic-tester:source/**/test/** \

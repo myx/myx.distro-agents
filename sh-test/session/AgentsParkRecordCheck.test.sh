@@ -6,7 +6,7 @@
 ## parked record rendered `unclosed`, and nothing read the mark at all.
 ## Offline: the workspace, its board and its spawn records are this rig's own temp tree. No socket.
 set -u
-. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-store.include.sh" || exit 1
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-writes.include.sh" || exit 1
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 rigPkg="${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}/myx/myx.distro-agents"
 

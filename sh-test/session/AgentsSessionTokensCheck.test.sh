@@ -28,7 +28,7 @@ trap 'rigControlThreadsEnd "$rigTmp" ; [ -n "${RIG_KEEP:-}" ] || rm -rf -- "$rig
 rigTmp="$( cd "$rigTmp" && pwd -P )"
 export GIT_AUTHOR_NAME=rig GIT_AUTHOR_EMAIL=rig@example.invalid GIT_COMMITTER_NAME=rig GIT_COMMITTER_EMAIL=rig@example.invalid
 rigWs="$rigTmp/ws"
-rigStore="$rigTmp/store"
+rigStore="$rigWs/.local/store"
 mkdir -p "$rigWs/.local/.agents" "$rigWs/.local/agents" "$rigTmp/home"
 rigBoardStates "$rigStore" running review backlog
 git -C "$rigStore" init -q || rigRefuse "could not init the temp store"
@@ -137,7 +137,7 @@ RIG_STREAM_EOF
 	printf '#!/bin/sh\n## cli-configured MDAT_SPAWN_LAUNCH_MARKER --cli)\ncat > /dev/null\n'
 	printf '[ -z "$MDAT_SPAWN_LAUNCH_MARKER" ] || printf "claude-native\\n" > "$MDAT_SPAWN_LAUNCH_MARKER"\n'
 	printf 'L="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib"\n'
-	printf 'LC_ALL=C awk -f "$L/session/AgentsProgressLineSafe.awk" -f "$L/session/AgentsSessionTranscriptFormat.awk" -f "$L/harness/AgentsClaudeStreamJsonTranscript.awk" -f "$L/harness/AgentsClaudeStreamJsonFormat.awk" < "$RIG_STREAM"\n'
+	printf 'LC_ALL=C awk -f "$L/core/AgentsProgressLineSafe.awk" -f "$L/session/AgentsSessionTranscriptFormat.awk" -f "$L/harness/AgentsClaudeStreamJsonTranscript.awk" -f "$L/harness/AgentsClaudeStreamJsonFormat.awk" < "$RIG_STREAM"\n'
 } > "$rigWs/DistroAgentsConsole.sh"
 chmod +x "$rigWs/DistroAgentsConsole.sh"
 rigBefore="$( rigCommits )"

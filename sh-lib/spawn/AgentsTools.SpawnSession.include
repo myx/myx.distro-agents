@@ -405,7 +405,8 @@ case "$1" in
 		## THE SPAWN LIMIT (S23.1): a start made while the limit of runs is reached is queued, never refused: filed as an inquiry for the coordinator and added to the CheckList of its
 		## running work-duty (AgentsToolsSpawnQueue). A work-duty's own start and a start that joins a session are never turned away.
 		local spawnLimitLine=""
-		if [ -z "$sessionJoinId" ] && case "$resolvedRoutineName" in *.work-duty.routine.md) false ;; *) true ;; esac && spawnLimitLine="$( AgentsToolsSpawnLimitReached )" ; then
+		type AgentsToolsDutyRoutineIs > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/routine/AgentsTools.DutyRoutine.include"
+		if [ -z "$sessionJoinId" ] && ! AgentsToolsDutyRoutineIs "$resolvedRoutineName" && spawnLimitLine="$( AgentsToolsSpawnLimitReached )" ; then
 			echo "$MDSC_CMD: spawn-session: the limit of ${spawnLimitLine#* } runs at once is reached (${spawnLimitLine%% *} running): nothing was started, and the request is queued" >&2
 			AgentsToolsSpawnQueue "$spawnLimitLine" "$resolvedRoutineName" "${spawnMembers[*]}" "$sessionDescription" "$spawnTaskText" || { echo "$MDSC_CMD: spawn-session: ⛔ ERROR: the request could not be queued, and nothing was started" >&2 ; set +e ; return 1 ; }
 			set +e ; return 0
@@ -434,11 +435,11 @@ case "$1" in
 		fi
 		if [ "$partitionRoster" = "true" ] ; then
 			## The caller the parent stands for: its member, its session and its thread, read before any spawn.
-			type AgentsToolsRunRouteValid > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.RunRoute.include" || { set +e ; return 1 ; }
+			type AgentsToolsRunRouteValid > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.RunRoute.include" || { set +e ; return 1 ; }
 			partitionMember="$( AgentsToolsActingMember 2> /dev/null )" || partitionMember=""
-			type AgentsToolsSessionCurrentId > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionThreads.include"
+			type AgentsToolsSessionCurrentId > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.SessionThreads.include"
 			partitionSession="$( AgentsToolsSessionCurrentId )"
-			type AgentsToolsSessionCurrentThreadFind > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionThreads.include"
+			type AgentsToolsSessionCurrentThreadFind > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.SessionThreads.include"
 			partitionThread="$( AgentsToolsSessionCurrentThreadFind 2> /dev/null )" || partitionThread=""
 			## A caller that is no member and names the member its runs report to (--parent-member: the schedule names
 			## magic-coordinator) is that member here, so the parent reports to it and never to the account at the console.

@@ -22,7 +22,7 @@ rigRefuse(){
 [ -x "$rigFn" ] || rigRefuse "dispatcher not found: $rigFn"
 command -v git > /dev/null || rigRefuse "git is not installed"
 . "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
-. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-store-item.include.sh" || exit 1
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-writes.include.sh" || exit 1
 rigTmp="$( rigTempDir AgentsTeamDataRemoteCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 ## A take of a routine's lock may start the control threads of the sessions of the workspace, which outlive this check: the rig ends them.
@@ -50,7 +50,7 @@ rigRemote(){ ## name
 	git -C "$rigTmp/$1.git" symbolic-ref HEAD refs/heads/main
 	rm -rf "$rigTmp/seed" ; mkdir -p "$rigTmp/seed"
 	printf 'seed\n' > "$rigTmp/seed/README.md"
-	## The seed item is written by the seed store's own write (rig-store-item.include.sh) while it is no repository yet, so
+	## The seed item is written by the seed store's own write (rig-owner-writes.include.sh) while it is no repository yet, so
 	## the seed commit below carries it exactly as before.
 	printf 'remote item\n' > "$rigTmp/seed-body"
 	rigStoreItem "$rigTmp" "$rigTmp/seed" "$rigTmp/seed" magic-coordinator "board processed note-20260101T0000Z-remote.md" "$rigTmp/seed-body" \
@@ -59,7 +59,7 @@ rigRemote(){ ## name
 	git -C "$rigTmp/seed" add -A && git -C "$rigTmp/seed" commit -q -m seed && git -C "$rigTmp/seed" push -q "$rigTmp/$1.git" main 2> /dev/null \
 		|| rigRefuse "could not seed the bare remote $1"
 }
-## A local item of the rig's own store, written by the store's own write (rig-store-item.include.sh): it commits into the
+## A local item of the rig's own store, written by the store's own write (rig-owner-writes.include.sh): it commits into the
 ## store where the store is a repository, as every writer of the tooling does, and writes the file alone where it is not.
 rigLocalItem(){ ## selector (`board running note-x.md`, `inbox magic-tester note-x.md`), body text
 	rigBodyCount=$(( rigBodyCount + 1 ))
@@ -90,7 +90,7 @@ rigScenario(){ ## name, TEAM_DATA_GIT_REMOTE value (may be empty)
 ## A store that is a repository of its own with one commit, on the branch named, and no remote.
 rigInitStore(){ ## branch
 	printf 'local item\n' > "$rigTmp/local-item-body"
-	## The item is written by the store's own write (rig-store-item.include.sh) before the store is a repository, so the one
+	## The item is written by the store's own write (rig-owner-writes.include.sh) before the store is a repository, so the one
 	## local commit below carries it: a hand-written fixture stays green when that write's own path changes.
 	rigStoreItem "$rigTmp" "$rigStore" "$rigDir/ws" magic-coordinator "board running note-20261014T0101Z-local.md" "$rigTmp/local-item-body" \
 		> /dev/null || rigRefuse "could not write the local item through the board's own write"

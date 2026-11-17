@@ -285,10 +285,15 @@ rowids items2
 at @team magic-coordinator sessions $rigS1 $rigA1
 turn
 rowids items3
+get memberFolder
 RIGSCRIPT
 rigAssert "it holds CheckList, Transcript and Permissions" "$( rigVal items )" ".. checklist.md transcript permissions"
 rigAssert "which show by those names, the last a folder" "[$( rigVal i1 )][$( rigVal i2 )][$( rigVal i3 )]" "[ CheckList][ Transcript][ Permissions                     ►]"
 rigAssert "the same folder is under an agent of a list of agents, and under a session of a member" "$( rigVal items2 ) | $( rigVal items3 )" ".. checklist.md transcript permissions | .. checklist.md transcript permissions"
+## The level of that folder is the member folder `MEMBER_FOLDERS` declares (Roots.py), not a second spelling of it: the participant
+## opened under a member's session stands at the same depth and under that folder's own id, whatever the id is called.
+rigAssert "the folder under a member's session stands under the member folder MEMBER_FOLDERS declares" \
+	"$( rigVal memberFolder.path )" "magic-team/team/magic-coordinator/sessions/$rigS1/$rigA1"
 rigAssert "CheckList asks for the check list of that member in that session" "$( rigCalled "--manager-session-checklist-read --session-id $rigS1 magic-coordinator" )" "1"
 rigAssert "and shows it as Markdown: the text of its heading and its items, without the marks that write them" "$( rigPaneHolds chk 'Check list' ) $( rigPaneHolds chk '[x] the first thing is done' ) $( rigPaneHolds chk '# Check list' )" "1 1 0"
 ## One member of that session kept no check list: the pane says so in the member's own name, and not the

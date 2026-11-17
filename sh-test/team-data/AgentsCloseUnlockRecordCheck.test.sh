@@ -20,7 +20,7 @@ rigRefuse(){
 [ -x "$rigFn" ] || rigRefuse "dispatcher not found: $rigFn"
 command -v git > /dev/null || rigRefuse "git is not installed"
 . "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
-. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-store-item.include.sh" || exit 1
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-writes.include.sh" || exit 1
 rigTmp="$( rigTempDir AgentsCloseUnlockRecordCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 ## A take of a routine's lock may start the control threads of the sessions of the workspace, which outlive this check: the rig ends them.
@@ -49,8 +49,8 @@ rigNote=""
 rigUse(){ ## store dir
 	rigStore="$1" ; rigNote="$1/inboxes/magic-coordinator/incoming/$rigNoteName"
 	## The folders are the store's own to make: the board's state folders by its ready step, an inbox's by the write that
-	## first puts an item there (rig-store-item.include.sh). A hand-made folder stays green when that path changes.
-	rigStoreBoardReady "$rigTmp" "$rigStore" "$rigTmp/ws" || rigRefuse "could not make the board's state folders"
+	## first puts an item there (rig-owner-writes.include.sh). A hand-made folder stays green when that path changes.
+	rigOwnerData="$rigStore" rigOwnerWs="$MMDAPP" rigOwnerHome="$MMDAPP" rigOwnerBoardReady || rigRefuse "could not make the board's state folders"
 }
 rigOp(){ ## result file, op and arguments...
 	local opOut="$1" ; shift

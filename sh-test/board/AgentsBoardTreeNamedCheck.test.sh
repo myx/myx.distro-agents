@@ -30,12 +30,12 @@ rigHome="$rigTmp/home"
 mkdir -p "$rigWs" "$rigHome/skills/magic-coordinator"
 printf -- '---\nmaintainers: rig\n---\nrig identity\n' > "$rigHome/skills/magic-coordinator/magic-coordinator.basic.md"
 rigItem="task-20261104T0101Z-rig-tree.md"
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-writes.include.sh" || exit 1
+rigOwnerWs="${rigWs:-$rigTmp/ws}" rigOwnerData="${rigData:-${rigD:-${rigStore:-${rigOut:-$rigTmp/data}}}}" rigOwnerHome="${rigHome:-$rigTmp/home}" rigOwnerSkills="${rigSkills:-$rigTmp/skills}"
 printf -- '---\ntype: task\nowner: magic-coordinator\n---\n\nrig item\n' | rigOwnerBoardPut running "$rigItem"
 
 rigPassCount=0
 rigFailCount=0
-. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-writes.include.sh" || exit 1
-rigOwnerWs="${rigWs:-$rigTmp/ws}" rigOwnerData="${rigData:-${rigD:-${rigStore:-${rigOut:-$rigTmp/data}}}}" rigOwnerHome="${rigHome:-$rigTmp/home}" rigOwnerSkills="${rigSkills:-$rigTmp/skills}"
 rigOwnerBoardReady
 rigAssert(){ ## what is asserted, got, want
 	if [ "$2" = "$3" ] ; then

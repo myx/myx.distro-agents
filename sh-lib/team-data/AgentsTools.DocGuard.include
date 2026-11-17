@@ -52,8 +52,12 @@ AgentsToolsDocGuardRow(){ ## path
 
 ## The contract file the registry names, at the skillset root of the run first, then the package; rc 1 where missing.
 AgentsToolsDocGuardContractFile(){ ## contract name
-	local cBase
-	for cBase in "${MDAT_SKILLSET_ROOT:-}/magic-team" "$MDLT_ORIGIN/myx/myx.distro-agents/skillset/magic-team/magic-team" ; do
+	local cBase teamDir cBases=()
+	type AgentsToolsTeamMemberDirectory > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamRegistry.include"
+	teamDir="$( AgentsToolsTeamMemberDirectory magic-team )" || teamDir=""
+	[ -z "$teamDir" ] || cBases+=( "$teamDir" )
+	cBases+=( "$MDLT_ORIGIN/myx/myx.distro-agents/skillset/magic-team/magic-team" )
+	for cBase in ${cBases[@]+"${cBases[@]}"} ; do
 		[ ! -f "$cBase/contracts/$1" ] || { printf '%s\n' "$cBase/contracts/$1" ; return 0 ; }
 	done
 	return 1

@@ -67,7 +67,7 @@ rigConsoleRun(){ ## the console's mode, the session to resume (may be empty), "l
 		set -- --rig-none
 		. "$rigSpawnInclude" 2> /dev/null
 		AgentsReviewRecord(){ printf '%s %s %s: %s [%s %s]\n' "$1" "$2" "$3" "$4" "$5" "$6" >> "$rigTmp/records" ; }
-		AgentsToolsWorkspaceSkillsetRoot(){ printf '%s/.local/agents/members' "$1" ; }
+		AgentsToolsSkillsetRootInto(){ printf -v "$1" '%s/.local/agents/members' "$2" ; }
 		## The process of a start is kept on the spawn's record, which this fixture has none of.
 		AgentsToolsSpawnProxyRunRecord(){ : ; }
 		## The watcher looks for the mark of the first event, then at the run. This stand-in for its

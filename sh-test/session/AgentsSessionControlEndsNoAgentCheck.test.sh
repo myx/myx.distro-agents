@@ -34,6 +34,8 @@ command -v ps > /dev/null || rigRefuse "ps is not on PATH"
 . "$rigPkg/sh-test/check-fixtures/rig-processes.include.sh" || rigRefuse "the rig's process helper is missing from the package"
 . "$rigPkg/sh-test/check-fixtures/rig-blocking-stand-in.include.sh" || rigRefuse "the rig's blocking stand-in is missing from the package"
 . "$rigPkg/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
+## And every thread a scene of this rig starts, by its own log or lock, ended before the rig goes.
+. "$rigPkg/sh-test/check-fixtures/rig-control-threads.include.sh" || rigRefuse "the rig's fixture that ends threads is missing from the package"
 rigTmp="$( rigTempDir AgentsSessionControlEndsNoAgentCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 rigPids=""
@@ -42,7 +44,7 @@ rigPids=""
 ## taken for this shell's own, and then ONE signal covers the loop pids and the stand-ins together: $rigPids holds
 ## the stand-ins alone, so the loop pids are read from the note file and named in that same call.
 rigStopAll(){ rigLoops="$( PATH="$rigProcPath" LC_ALL=C awk 'NF == 2 && $1 ~ /^[0-9]+$/ { print $1 }' "$rigTmp/loops.note" 2> /dev/null )" ; rigProcNoteFrom "$rigTmp/loops.note" 2> /dev/null ; rigProcSignalWithChildren KILL $rigLoops $rigPids ; rm -rf -- "$rigTmp" ; }
-trap rigStopAll EXIT
+trap 'rigControlThreadsEnd "$rigTmp" ; rigStopAll' EXIT
 rigWs="$rigTmp/ws"
 rigData="$rigTmp/data"
 mkdir -p "$rigWs/.local/.agents" "$rigTmp/bin" "$rigTmp/home"

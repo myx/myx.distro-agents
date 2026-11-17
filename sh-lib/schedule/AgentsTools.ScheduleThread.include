@@ -86,9 +86,9 @@ AgentsToolsScheduleThreadAskDue(){
 AgentsToolsScheduleThreadPass(){
 	## A THREAD WHOSE FOLDER IS GONE RUNS NO PASS: a check's rig removed, a workspace stopped. The serve loop's own guard reads the lock
 	## between ticks, but a pass over a dead rig can stand for an hour (a spawn that waits on a console that is no more), so the tick
-	## itself looks first and ends the thread (AgentsToolsOnDemandThreadEnd; serveFolder is the serve loop's, seen here as the loop calls this). A pass
+	## itself looks first and ends the thread (serveEnd is the serve loop's, set here as the loop calls this). A pass
 	## outside the loop, --one or a check's stand-in, has no folder to lose and runs.
-	[ -z "${serveFolder:-}" ] || [ -d "$serveFolder" ] || { AgentsToolsOnDemandThreadEnd "its folder is gone" ; return 0 ; }
+	[ -z "${serveFolder:-}" ] || [ -d "$serveFolder" ] || { serveEnd="its folder is gone" ; return 0 ; }
 	if [ $(( SECONDS - agentsScheduleThreadLastPass )) -ge "$agentsScheduleThreadGap" ] ; then
 		agentsScheduleThreadLastPass="$SECONDS"
 		type AgentsToolsScheduleLoop > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/schedule/AgentsTools.DispatcherSchedule.include"

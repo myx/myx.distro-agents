@@ -9,6 +9,8 @@
 ##   1. THE CONTROL: a read with an empty cache reaches Slack, and the next read inside the TTL does not.
 ##   2. The second read returns the same messages as the first, so it is a cache and not an empty answer.
 ##   3. A read past the TTL reaches Slack again, so the cache is not a lie.
+##   4. A whole conversation with no floor is refused, naming `--oldest`; one message,
+##      and the same conversation read from a floor, are not (S12.22).
 ## Offline: a Slack-shaped fake curl first on PATH, which counts every call it answers.
 set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
@@ -66,18 +68,20 @@ rigAssert(){ ## what is asserted, got, want
 }
 ## How many calls the fake curl has answered so far.
 rigCalls(){ LC_ALL=C wc -l < "$rigScn/calls" 2> /dev/null | LC_ALL=C tr -d ' ' ; }
-## One --slack-read, its own cache, and the fake curl first on PATH.
-rigRead(){ ## target -- the read's output
+## One --slack-read, its own cache, and the fake curl first on PATH. Its stderr is kept for the scene that reads a refusal.
+rigRead(){ ## target [read args...] -- the read's output
+	local readTarget="$1"
+	shift
 	( cd "$rigWs" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp/home" PATH="$rigTmp/bin:/usr/bin:/bin:/usr/sbin:/sbin" \
 		"MMDAPP=$rigWs" "MDLT_ORIGIN=$rigOrigin" "MDLT_OPTION=--run-from-path $rigOrigin" "MDAT_SKILLSET_ROOT=$rigTmp/skills" \
 		"MDAT_DATA_ROOT=$rigScn/data" "RIG_SCN=$rigScn" "MDAT_SPAWN_AGENT=keeper-rig" "MDAT_SESSION_ID=rig-session" \
-		bash "$rigTools" --slack-read --team-member keeper-rig "$1" ) 2> /dev/null
+		bash "$rigTools" --slack-read --team-member keeper-rig "$readTarget" "$@" ) 2> "$rigTmp/read.err"
 }
 
 echo "-- 1. the control: one read asks Slack, the next does not --"
-rigRead CRIG00001 > "$rigTmp/read1.txt"
+rigRead CRIG00001 --oldest 1 > "$rigTmp/read1.txt"
 rigAfterFirst="$( rigCalls )"
-rigRead CRIG00001 > "$rigTmp/read2.txt"
+rigRead CRIG00001 --oldest 1 > "$rigTmp/read2.txt"
 rigAssert "the first read reached Slack" "$( [ "${rigAfterFirst:-0}" -ge 1 ] && printf asked || printf no-call )" "asked"
 rigAssert "the second read inside the TTL asked Slack nothing" "$( rigCalls )" "$rigAfterFirst"
 
@@ -89,8 +93,19 @@ echo "-- 3. a read past the TTL asks again --"
 rigStateFile="$( LC_ALL=C find "$rigWs/.local/cache/comms" -name '.state.txt' 2> /dev/null | head -1 )"
 rigAssert "the cache keeps its own state file for the conversation" "$( [ -n "$rigStateFile" ] && printf there || printf absent )" "there"
 [ -z "$rigStateFile" ] || printf '%s %s\n' "$(( $( date +%s ) - 100000 ))" "$(( $( date +%s ) - 100000 ))" > "$rigStateFile"
-rigRead CRIG00001 > /dev/null
+rigRead CRIG00001 --oldest 1 > /dev/null
 rigAssert "a read past the TTL reaches Slack again" "$( [ "$( rigCalls )" -gt "$rigAfterFirst" ] && printf asked || printf served-old )" "asked"
+
+echo "-- 4. a whole conversation needs a floor --"
+rigBefore="$( rigCalls )"
+rigRead CRIG00001 > "$rigTmp/refused.txt"
+rigAssert "a whole conversation with no floor is refused" "$?" 1
+rigAssert "and the refusal names the option to pass" "$( LC_ALL=C grep -c -F -- '--oldest' "$rigTmp/read.err" )" 1
+rigAssert "and Slack was not asked" "$( rigCalls )" "$rigBefore"
+rigRead CRIG00001:1793600000.000001 > "$rigTmp/onemessage.txt"
+rigAssert "control: one message with no floor is still read" "$?" 0
+rigRead CRIG00001 --oldest 1 > /dev/null
+rigAssert "control: the same conversation read from a floor is served" "$?" 0
 
 printf '\n  %s passed, %s failed\n' "$rigPassCount" "$rigFailCount"
 [ "$rigFailCount" -eq 0 ] || exit 1

@@ -39,10 +39,14 @@ rigRefuse(){
 [ -f "$rigTool" ] || rigRefuse "the team tooling is not at the origin this workspace resolves: $rigTool"
 . "$rigFixtures/rig-processes.include.sh" || rigRefuse "the rig's process helper is missing from the package"
 . "$rigFixtures/rig-temp.include.sh" || exit 1
+## And the control thread and comms reader a scene of this rig starts, by their logs and locks, ended before the rig goes.
+. "$rigFixtures/rig-control-threads.include.sh" || rigRefuse "the rig's fixture that ends threads is missing from the package"
+## And the comms reader and control thread a scene starts here, by their logs and locks, ended before the rig goes.
+. "$rigFixtures/rig-control-threads.include.sh" || rigRefuse "the rig's fixture that ends threads is missing from the package"
 rigTmp="$( rigTempDir AgentsSessionCommsCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 rigStarted=""
-trap 'rigProcSignalWithChildren KILL $rigStarted ; rm -rf -- "$rigTmp"' EXIT
+trap 'rigProcSignalWithChildren KILL $rigStarted ; rigControlThreadsEnd "$rigTmp" ; rm -rf -- "$rigTmp"' EXIT
 trap 'exit 1' INT TERM
 mkdir -p "$rigTmp/bin" "$rigTmp/bin-fast" "$rigTmp/skills/keeper-rig" "$rigTmp/skills/keeper-addr" "$rigTmp/skills/keeper-exec" "$rigTmp/skills/keeper-old"
 for rigMember in keeper-rig keeper-addr keeper-exec keeper-old ; do printf '%s\n' "$rigMember" > "$rigTmp/skills/$rigMember/$rigMember.basic.md" ; done

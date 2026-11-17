@@ -13,23 +13,10 @@
 ##   telegram:<chat-id>       a Telegram chat
 ##   printback:<session>      the root-native printback channel of that session: no network at all, the
 ##                            session's own chat file is the record and the caller's output is the copy
-## The <service> picks the driver (AgentsToolsCommsChannelDrivers, order = preference), and the driver reads its own
+## The <service> picks the driver (slack, email, telegram, printback; order = preference), and the driver reads its own
 ## part of the address. A named channel of the team is declared in a project's `Declares:` as
 ## `magic-team:comms-channel:<name>:<service>:<address>` (AgentsToolsCommsChannelDeclares).
 ##
-
-## The drivers, in order of preference: a channel-id's <service> picks the driver that reaches it.
-AgentsToolsCommsChannelDrivers(){
-	printf '%s\n' slack email telegram printback
-}
-
-## rc 0 where the word names a comms driver.
-AgentsToolsCommsChannelDriverOk(){ ## service
-	case "$1" in
-		slack|email|telegram|printback) return 0 ;;
-	esac
-	return 1
-}
 
 ## The single alias -> SLACK_CHANNEL_* map. The Slack drivers read every channel alias through this one function,
 ## so no SLACK_CHANNEL_* literal stands anywhere in AgentsTools.CommsSlack.include or AgentsTools.MemberCommsSlack.include.
@@ -91,14 +78,21 @@ AgentsToolsCommsChannelDeclares(){ ## [selected project ids]
 }
 
 
-## The drivers as the channel-id reads them: `Services` is the current name, `Drivers` the earlier one, kept as its alias.
-AgentsToolsCommsChannelServices(){ AgentsToolsCommsChannelDrivers ; }
-## rc 0 where the word names a service: `ServiceKnown` is the current name, `DriverOk` the earlier one.
-AgentsToolsCommsChannelServiceKnown(){ AgentsToolsCommsChannelDriverOk "$1" ; }
+## The driver words as the channel-id reads them, in preference order. The load guard that reaches this file from
+## the Slack driver names it, so it must stay a name, and the two checks read the order from it.
+AgentsToolsCommsChannelServices(){ printf '%s\n' slack email telegram printback ; }
+## rc 0 where the word names a service, as the driver list states them: this is the only classifier of a word, so a
+## caller never restates the set. `DriverOk` was the earlier name of it.
+AgentsToolsCommsChannelServiceKnown(){ ## service
+	case "$1" in
+		slack|email|telegram|printback) return 0 ;;
+	esac
+	return 1
+}
 ## The preference rank of a service, 1-based, empty for a word that is no service.
 AgentsToolsCommsChannelServiceRank(){ ## service
 	local service rank=0
-	for service in $( AgentsToolsCommsChannelDrivers ) ; do
+	for service in $( printf '%s\n' slack email telegram printback ) ; do
 		rank=$(( rank + 1 ))
 		[ "$service" = "$1" ] && { printf '%s\n' "$rank" ; return 0 ; }
 	done
@@ -109,7 +103,7 @@ AgentsToolsCommsChannelServiceRank(){ ## service
 AgentsToolsCommsChannelOrderDeclares(){ ## name
 	local want="$1" rows="" rowLine rowName rowService rowAddress service
 	rows="$( cat )"
-	for service in $( AgentsToolsCommsChannelDrivers ) ; do
+	for service in $( printf '%s\n' slack email telegram printback ) ; do
 		while IFS= read -r rowLine ; do
 			[ -n "$rowLine" ] || continue
 			rowName="${rowLine%%$'\t'*}"

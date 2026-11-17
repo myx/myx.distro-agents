@@ -59,6 +59,10 @@ rigRun serve -- MDAT_SPAWN_AGENT='../evil;x' MDAT_SPAWN_SESSION_ID="$rigId"
 rigAssert "a name that is no bare name: nothing on stdout, exit 0" "$( wc -c < "$rigTmp/hook.out" | tr -d ' ' ):$rigRc" "0:0"
 
 echo "-- 3. Grok Build: PostCompact marks, the next PreToolUse answers once --"
+## A workspace the tooling installed into holds the session concern's parts file, which is where a launch that sets no folder value
+## reads one: this check takes the package's own.
+rigParts="$rigWs/.local/myx/myx.distro-agents/sh-lib/session/AgentsSessionParts.include"
+mkdir -p "${rigParts%/*}" && cp "$rigHere/session/AgentsSessionParts.include" "$rigParts"
 rigRun grok -- MDAT_SPAWN_AGENT=rig-member MDAT_SPAWN_SESSION_ID="$rigId"
 rigAssert "without a mark the PreToolUse hook answers nothing" "$( wc -c < "$rigTmp/hook.out" | tr -d ' ' ):$rigRc" "0:0"
 rigRun mark -- MDAT_SPAWN_AGENT=rig-member MDAT_SPAWN_SESSION_ID="$rigId"
@@ -82,6 +86,34 @@ rigAssert "config grok: valid JSON, PostCompact marks and PreToolUse serves, bot
 rigRun config copilot
 rigAssert "config copilot: valid JSON, preCompact marks and postToolUse serves, both this script" \
 	"$( python3 -I -c 'import json,sys; h=json.load(open(sys.argv[1])); x=h["hooks"]; print(h["version"], x["preCompact"][0]["bash"].endswith("floor-after-compact.sh mark"), x["postToolUse"][0]["bash"].endswith("floor-after-compact.sh copilot"))' "$rigTmp/hook.out" 2> /dev/null )" "1 True True"
+
+echo "-- 6. the folder the marker goes in: the launch's value, else the session concern's own file, else a refusal --"
+rm -f "$rigMarker"
+rm -rf "$rigWs/.local/myx"
+rigRun mark -- MDAT_SPAWN_AGENT=rig-member MDAT_SPAWN_SESSION_ID="$rigId" MDAT_SESSION_FOLDER="$rigWs/.local/agents/sessions/$rigId"
+rigAssert "a launch that hands the folder: the marker is written in that folder" \
+	"$( [ -f "$rigMarker" ] && printf written || printf none ):$rigRc" "written:0"
+rm -f "$rigMarker"
+rigRun mark -- MDAT_SPAWN_AGENT=rig-member MDAT_SPAWN_SESSION_ID="$rigId" MDAT_SESSION_FOLDER=""
+rigAssert "no folder value and no parts file installed: nothing is written, one line on stderr, and exit 0" \
+	"$( [ -f "$rigMarker" ] && printf written || printf none )|$( LC_ALL=C grep -c 'no session folder' "$rigTmp/hook.err" ):$rigRc" "none|1:0"
+mkdir -p "${rigParts%/*}" && cp "$rigHere/session/AgentsSessionParts.include" "$rigParts"
+rigRun mark -- MDAT_SPAWN_AGENT=rig-member MDAT_SPAWN_SESSION_ID="$rigId" MDAT_SESSION_FOLDER=""
+rigAssert "no folder value, and the parts file is installed: the folder comes from the concern's own file" \
+	"$( [ -f "$rigMarker" ] && printf written || printf none ):$rigRc" "written:0"
+## The store's leaf moved in the parts file alone: the hook follows the file, so the marker lands in the new place only.
+rigMoved="$rigWs/.local/agents/sessions-moved/$rigId/floor-dropped"
+LC_ALL=C sed 's|^agentsSessionPartsLeaf=".*"$|agentsSessionPartsLeaf=".local/agents/sessions-moved"|' "$rigParts" > "$rigTmp/parts.moved" && mv -f "$rigTmp/parts.moved" "$rigParts"
+rm -f "$rigMarker"
+rigRun mark -- MDAT_SPAWN_AGENT=rig-member MDAT_SPAWN_SESSION_ID="$rigId" MDAT_SESSION_FOLDER=""
+rigAssert "the store leaf moved in the parts file alone: the marker follows it, and the old path stays empty" \
+	"$( [ -f "$rigMarker" ] && printf old || printf none ):$( [ -f "$rigMoved" ] && printf moved || printf none )" "none:moved"
+## Control both ways: the launch's own value still wins, and lands where it says.
+rm -f "$rigMarker" "$rigMoved"
+rigRun mark -- MDAT_SPAWN_AGENT=rig-member MDAT_SPAWN_SESSION_ID="$rigId" MDAT_SESSION_FOLDER="$rigWs/.local/agents/sessions/$rigId"
+rigAssert "control: with a moved parts file and a handed folder, the marker lands in the handed folder" \
+	"$( [ -f "$rigMarker" ] && printf handed || printf none ):$( [ -f "$rigMoved" ] && printf moved || printf none )" "handed:none"
+rm -rf "$rigWs/.local/myx"
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ FLOOR AFTER COMPACT CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

@@ -20,6 +20,10 @@
 ##                   loads, or loads a file that leaves F undefined, so the call fails, or reads stale data, on its path.
 ##   guard-name      a guarded load whose F is defined in its file but not called by the code it guards: it works
 ##                   until a split moves the function that code calls, then fails silently on that path.
+##   undefined-call  a call to a family function that is defined nowhere, or whose defining file is not loaded on
+##                   the call's own path: in its function, in its case arm, or by its file's top-level loads
+##                   (MAGIC.md, "Dispatcher and code layout": a shared include loads before its case only what
+##                   every operation reaches, else the branch or function guards its own load).
 ## Left out on purpose: the universal harness's served-mode stubs (AgentsUniversalHarness.sh), the two wire
 ## implementations that share one interface (AgentsOpenAiChatWire.sh, AgentsAnthropicMessagesWire.sh), the client
 ## hooks (each a standalone script), a define-once guard (`if ! type F ; then F(){`), a self-replacing lazy stub
@@ -34,16 +38,24 @@ code = sorted(f for f in glob.glob('sh-lib/**/*', recursive=True) + glob.glob('s
               and '/client-hooks/' not in f and '.include-green' not in f and not f.endswith('template.sh'))
 text = {f: open(f, errors='replace').read() for f in code}
 fnRe = re.compile(r'^([A-Za-z_][A-Za-z0-9_]*)\(\)\s*\{?\s*(?:#.*)?$')
-loadRe = re.compile(r'(?:^\s*|[;&|(]\s*|\$\(\s*|\{\s*|\bthen\s+|\bdo\s+|\belse\s+|\bif\s+)\.\s+"\$MDLT_ORIGIN/myx/myx\.distro-agents/((?:sh-lib|sh-scripts)/[A-Za-z0-9._/-]+)"')
+## Both forms the package loads by: `$MDLT_ORIGIN/...`, and the origin's fallback `${MDLT_ORIGIN:-$MMDAPP/.local}/...`
+## that a file outside the origin uses (AgentsTools.Make.VSCodeSettingsFragment.include:25).
+loadRe = re.compile(r'(?:^\s*|[;&|(]\s*|\$\(\s*|\{\s*|\bthen\s+|\bdo\s+|\belse\s+|\bif\s+)\.\s+"(?:\$MDLT_ORIGIN|\$\{MDLT_ORIGIN:-\$MMDAPP/\.local\})/myx/myx\.distro-agents/((?:sh-lib|sh-scripts)/[A-Za-z0-9._/-]+)"')
 callRe = re.compile(r'(?:^|[;|&(`]|\$\(|\bthen\b|\bdo\b|\belse\b|\bif\b|\bwhile\b|\buntil\b|!|\{)\s*([A-Za-z_][A-Za-z0-9_]*)\b')
 rows = []
 def row(cls, f, n, detail): rows.append(f'{cls}\t{f}:{n}\t{detail}')
 
 # --- the load graph and the calls
 defs, top, fnLoads, fnCalls, topCalls, loadSites = {}, {}, {}, {}, {}, {}
+## What a line can already have loaded: the file's own unconditional loads, those of the case arm it sits in,
+## and those of the function it sits in. A call is defined on its path only against this set, never against a
+## load another arm or another function of the same file makes.
+lineFn, lineArm, scopeLoads, armSeq = {}, {}, collections.defaultdict(lambda: collections.defaultdict(set)), 0
+own, siteAt = {}, {}
 for r in code:
     top[r], fnLoads[r], fnCalls[r], topCalls[r] = set(), {}, {}, []
-    cur = None ; prevSt = '' ; heredoc = None ; ifTyped = {} ; inSq = False
+    lineFn[r], lineArm[r] = {}, {}
+    cur = None ; prevSt = '' ; heredoc = None ; ifTyped = {} ; inSq = False ; armPath = []
     for n, line in enumerate(text[r].split('\n'), 1):
         if heredoc:
             if line.strip() == heredoc: heredoc = None
@@ -59,16 +71,30 @@ for r in code:
         s = '' if line.lstrip().startswith('#') else line
         m = fnRe.match(line)
         if m:
-            cur = m.group(1) ; defs.setdefault(cur, r) ; fnLoads[r][cur] = set() ; fnCalls[r][cur] = []
+            cur = m.group(1) ; defs.setdefault(cur, r) ; fnLoads[r][cur] = set() ; fnCalls[r][cur] = [] ; armPath = []
             continue
         if cur and line == '}':
-            cur = None ; continue
+            cur = None ; armPath = [] ; continue
         st = s.strip()
+        ## Case arms, at file scope and inside a function. A load inside one arm is on that arm's path only;
+        ## an arm whose label continues from the line above counts from the line its `)` sits on.
+        if st:
+            if re.match(r'^.*\bcase\b.*\bin\s*$', st): armPath.append(0)
+            elif re.match(r'^esac\b', st) and armPath: armPath.pop()
+            elif armPath and re.match(r'^[-A-Za-z0-9_*.|$(){}\[\]%:,/\x27"]+\s*\)\s*$', st):
+                armSeq += 1 ; armPath[-1] = armSeq
+        lineFn[r][n], lineArm[r][n] = cur, tuple(armPath)
         branch = bool(re.match(r'^[^()#"]*[^\s(]\)\s*\.\s', st)) or (st.startswith('. ') and prevSt.endswith(')') and not prevSt.endswith('$( )'))
         for lm in loadRe.finditer(s):
             p = lm.group(1)
             if not branch: (fnLoads[r][cur] if cur else top[r]).add(p)
             loadSites.setdefault(p, []).append((r, cur))
+            siteAt.setdefault(p, []).append((r, cur, tuple(armPath)))
+            scopeLoads[(r, cur)][tuple(armPath)].add(p)
+        ## A file-scope load outside every case arm is `own`: the only kind that is on the path of the whole
+        ## file. An arm's load is on that arm's path alone (MAGIC.md, "Dispatcher and code layout").
+        if not cur and not armPath and not branch:
+            for lm in loadRe.finditer(s): own.setdefault(r, set()).add(lm.group(1))
         if st: prevSt = st
         sc = re.sub(r"'[^']*'", "''", s)
         sc = re.sub(r'"(?:[^"\\$]|\\.|\$(?!\())*"', '""', sc)
@@ -102,6 +128,50 @@ for _ in range(40):
 def prevLoads(r, n, g):
     lines = text[r].split('\n')
     return any(g in lines[k] for k in range(max(0, n - 3), n - 1))
+def typedAbove(r, n, c):
+    ## A `type <c>` test on one of the 3 lines above: the call is guarded by its own load there.
+    lines = text[r].split('\n')
+    at = re.compile(r'\btype\s+' + re.escape(c) + r'\b')
+    return any(at.search(lines[k]) for k in range(max(0, n - 4), n - 1))
+## The load context a call's own path sees, against the arm-free loads alone (`own`). A loader's arm loads
+## reach the file it loads, so the loop reads them as before; a case arm's load inside a file never reaches
+## that file's other arms or its loaders. `ctx` above keeps its wider reading for `unreached`.
+def ownClosure(seed):
+    out, todo = set(), list(seed)
+    while todo:
+        p = todo.pop()
+        if p in out: continue
+        out.add(p) ; todo += list(own.get(p, ()))
+    return out
+ctxPath = {r: set(allf) for r in allf}
+def siteLoads(p, fn, at):
+    out = set()
+    for a, loads in scopeLoads.get((p, fn), {}).items():
+        if a == at[:len(a)]: out |= loads
+    return out
+for _ in range(400):
+    changed = False
+    for r in allf:
+        if r in entries: new = ownClosure({r})
+        else:
+            parts = [ctxPath[p] | ownClosure(siteLoads(p, fn, at)) for (p, fn, at) in siteAt[r] if p in ctxPath]
+            new = ownClosure({r}) | (set.intersection(*parts) if parts else set())
+        if new != ctxPath[r]: ctxPath[r] = new ; changed = True
+    if not changed: break
+def pathLoaded(r, n, fn=None):
+    ## The files loaded when line n runs: what r's loaders have loaded by then, r's own arm-free file-scope
+    ## loads, and the loads of the calling function or case arm and of every case arm enclosing it, with what
+    ## those load in turn. A load in a sibling arm, or in another function of the same file, is not on this
+    ## path (MAGIC.md, "Dispatcher and code layout").
+    if fn is None: fn = lineFn[r].get(n)
+    path = lineArm[r].get(n, ())
+    direct = set(ctxPath[r]) | set(own.get(r, ()))
+    ## A file-scope line after its own `case ... esac` runs once an arm has run and returned nothing: the
+    ## include is sourced whole, so that arm's loads reach it. A line inside an arm sees that arm's loads
+    ## and its enclosing arms' alone (MAGIC.md, "Dispatcher and code layout").
+    for at, loads in scopeLoads.get((r, fn), {}).items():
+        if not path or at == path[:len(at)]: direct |= loads
+    return ownClosure(direct)
 
 ## The two wire implementations share one interface (the header above): a call to a function
 ## whose defining file is a wire file is satisfied wherever the harness core loads the one
@@ -182,13 +252,26 @@ for f in glob.glob('../myx.distro-*/sh-lib/**/*', recursive=True) + glob.glob('.
         known.update(re.findall(r'^\s*([A-Za-z_][A-Za-z0-9_]*)\(\)', open(f, errors='replace').read(), re.M))
 famRe = re.compile(r'(?:^|[;|&(`]|\$\(|\bthen\b|\bdo\b|\belse\b|\bif\b|\bwhile\b|!|\{)\s*((?:Agents|DistroAgents|Agent[A-Z][a-z]+Tools)[A-Za-z0-9_]*)(?![A-Za-z0-9_.=\[])')
 for r in code:
+    ## The universal harness is left out on purpose, as `unreached` leaves it out: its served-mode stubs are its own.
+    if r.startswith('sh-lib/harness/AgentsUniversalHarness.sh'): continue
     for n, line in enumerate(text[r].split('\n'), 1):
         if line.lstrip().startswith('#'): continue
         s = re.sub(r"'[^']*'", "''", line) ; s = re.sub(r'"(?:[^"\\$]|\\.|\$(?!\())*"', '""', s)
         if re.match(r'^\s*local\s', s): continue
         s = re.sub(r'^\s*[A-Za-z0-9_*.|:-]+\)(\s|$)', ' ', s)
+        ## A line the load graph never read is text: a heredoc body, or a single-quoted string across lines.
+        if n not in lineFn[r]: continue
         for m in famRe.finditer(s):
-            if m.group(1) not in known: row('undefined-call', r, n, f'{m.group(1)} is defined nowhere')
+            c = m.group(1)
+            ## A call the same function, arm or file tests for with `type F` is the package's optional form
+            ## (`type F ... || . file`, or `if type F ; then F ; else <script> ; fi`): its own guard is the
+            ## load, so it is no row here. The window is the 3 lines above, as `prevLoads` reads one.
+            if typedAbove(r, n, c): continue
+            if c not in known: row('undefined-call', r, n, f'{c} is defined nowhere') ; continue
+            g = defs.get(c)
+            if not g or g == r or c == 'DistroAgentsContext' or pathLoaded(r, n) & {g}: continue
+            if g in wireFiles or (g == mcpClientFile and r in mcpClientReachedByCoreGated): continue
+            row('undefined-call', r, n, f'{c} of {g} is not loaded on this path')
 # --- guarded loads: the guard names a function its file defines, and the guarded code calls
 guardRe = re.compile(r'type ([A-Za-z_][A-Za-z0-9_]*) > /dev/null 2>&1 \|\| \. "\$MDLT_ORIGIN/myx/myx\.distro-agents/((?:sh-lib|sh-scripts)/[^"]+)"')
 anyDef = re.compile(r'^\s*([A-Za-z_][A-Za-z0-9_]*)\(\)\s*\{')

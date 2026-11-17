@@ -102,7 +102,7 @@ AgentsToolsSessionRoutineStackLines(){ ## session id
 ## acts on the list asks here, so it never reads a folder the tool does not write.
 AgentsToolsSessionCheckListFile(){ ## session id, member name
 	local listFile=""
-	type AgentsSessionChecklistFileInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+	type AgentsSessionChecklistFileInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.CheckListSeed.include"
 	AgentsSessionChecklistFileInto listFile "$1" "$2" || return 1
 	printf '%s\n' "$listFile"
 }
@@ -175,12 +175,58 @@ AgentsToolsRoutineStackFrameClosed(){ ## session id, the item whose accept close
 	return 0
 }
 
+## ONE RUN'S FRAME AS THE SUPERVISOR READS IT (S6.27 stage 6): `<the routine on top><TAB><epoch when it came into force, or -><TAB><frames
+## still open below it><TAB><push and rewind moves that named the routine on top>`. A frame's instant is its last move line's `at:`,
+## and where the session has never moved it is the record's own `started-at`, which the record already carries. One awk of the one
+## record and then the package's own ISO reader, so a scan pays two processes for the runs that are live. A record with no frame
+## prints `-` for its routine.
+AgentsToolsRoutineStackFrameRow(){ ## record path
+	local frameText frameMoved frameEpoch
+	frameText="$( LC_ALL=C awk '
+		function instantOf( line,   at, value ) { at = index( line, " at: " ) ; if ( at == 0 ) { return "" } ; value = substr( line, at + 5 ) ; sub( / by: .*/, "", value ) ; return value }
+		$0 == "---" { if ( ++dashes == 2 ) { exit } ; next }
+		dashes != 1 { next }
+		index( $0, "routine-stack: " ) == 1 { frame[++frameCount] = substr( $0, 16 ) ; next }
+		index( $0, "started-at: " ) == 1 && started == "" { started = substr( $0, 13 ) ; next }
+		index( $0, "routine-stack-" ) == 1 {
+			verb = $1 ; sub( /:$/, "", verb ) ; sub( /^routine-stack-/, "", verb )
+			movedName[++moveCount] = $2 ; movedVerb[moveCount] = verb ; movedAt[moveCount] = instantOf( $0 )
+		}
+		END {
+			top = "-" ; open = 0
+			for ( i = 1 ; i <= frameCount ; i++ ) {
+				if ( frame[i] ~ /:current$/ ) { top = frame[i] ; sub( /:current$/, "", top ) }
+				if ( frame[i] ~ /:open$/ ) open++
+			}
+			repeat = 0 ; when = ""
+			for ( i = 1 ; i <= moveCount ; i++ ) {
+				if ( movedName[i] != top || top == "-" ) continue
+				if ( movedVerb[i] == "push" || movedVerb[i] == "rewind" ) repeat++
+				when = movedAt[i]
+			}
+			if ( when == "" ) when = started
+			printf "%s\t%s\t%d\t%d\n", top, ( when == "" ? "-" : when ), open, repeat
+		}
+	' "$1" 2> /dev/null )"
+	case "$frameText" in '') return 0 ;; esac
+	frameMoved="$( printf '%s\n' "$frameText" | LC_ALL=C cut -f2 )"
+	frameEpoch="-"
+	case "$frameMoved" in
+		''|-) ;;
+		*) frameEpoch="$( printf '%s\n' "$frameMoved" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/output/LocalIsoToEpoch.awk" 2> /dev/null )" || frameEpoch="-" ;;
+	esac
+	case "$frameEpoch" in ''|*[!0123456789]*) frameEpoch="-" ;; esac
+	printf '%s\t%s\t%s\t%s\n' "$( printf '%s\n' "$frameText" | LC_ALL=C cut -f1 )" "$frameEpoch" \
+		"$( printf '%s\n' "$frameText" | LC_ALL=C cut -f3 )" "$( printf '%s\n' "$frameText" | LC_ALL=C cut -f4 )"
+	return 0
+}
+
 ## THE FRAME ONCE ITS ACCEPT'S ITEM HAS MOVED (S6.27 stage 4): the item is in `processed`, so the frame that asked for
 ## it is closed whatever the record's state was before the accept. The record's stack is read from the item's own child.
 AgentsToolsBoardAcceptFrameClosed(){ ## item path, the item file name
 	local frameItem="$2" frameRecordPath="" frameRecordCandidate frameSpawn frameSession frameLive
-	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandboxRecordHeader.include"
-	frameSpawn="$( AgentsToolsSpawnSandboxRecordHeader "$1" spawn-id )"
+	type AgentsToolsFrontmatterKey > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.FrontmatterKey.include"
+	frameSpawn="$( AgentsToolsFrontmatterKey "$1" spawn-id )"
 	[ -n "$frameSpawn" ] && [ "$frameSpawn" != "-" ] || return 0
 	type AgentsSessionRunRecordInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
 	AgentsSessionRunRecordInto frameRecordCandidate "$frameSpawn" || :
@@ -188,7 +234,7 @@ AgentsToolsBoardAcceptFrameClosed(){ ## item path, the item file name
 		[ ! -f "$frameRecordCandidate" ] || { frameRecordPath="$frameRecordCandidate" ; break ; }
 	done
 	[ -n "$frameRecordPath" ] || return 0
-	frameSession="$( AgentsToolsSpawnSandboxRecordHeader "$frameRecordPath" session-id )"
+	frameSession="$( AgentsToolsFrontmatterKey "$frameRecordPath" session-id )"
 	[ -n "$frameSession" ] || return 0
 	## A session that records no frame asks for nothing, so an item of it is released as it always was. Only a
 	## session that records frames can keep its run.
@@ -221,10 +267,12 @@ AgentsToolsRoutineStackRecordText(){ ## the text of the record on standard input
 ## The step names of one frame's routine, in reading order: the routine's steps as its run reads them, which is its own
 ## with the routine of its kind mixed in. A run that joined a session takes the steps that begin `All participants`.
 AgentsToolsRoutineStackSteps(){ ## the routine file of the frame, session id, spawn id
-	local stepsPath="$1"
+	local stepsPath="$1" stepsMembers=""
 	type AgentsToolsSpawnRoutineMixText > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnRoutine.include"
 	type AgentsToolsCheckListRoutineSteps > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.CheckListSeed.include"
-	AgentsToolsSpawnRoutineMixText "$stepsPath" | AgentsToolsCheckListRoutineSteps "$2" "$3"
+	type AgentsToolsTeamMemberDirectoryText > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamRegistry.include"
+	stepsMembers="$( AgentsToolsTeamMemberDirectoryText | LC_ALL=C cut -f1 )" || stepsMembers=""
+	AgentsToolsSpawnRoutineMixText "$stepsPath" | AgentsToolsCheckListRoutineSteps "$2" "$3" "$stepsMembers"
 }
 ## The first of the frame's steps that the caller's own CheckList has not closed, so a moved run resumes where its list
 ## stands: a step already `- [x]` is behind it. Nothing where the list is not there or holds every step closed.
@@ -244,6 +292,9 @@ AgentsToolsRoutineStackStartStep(){ ## the CheckList file, the step names, one a
 ## requirement is. A replace skips the routine in force, so its reason is required. A replace writes the executor's
 ## CheckList, because the replaced routine's `step` items go; every other move leaves the list alone. Its result names
 ## the frame's steps and the step the run starts at, and a replace says how many items it dropped and kept.
+## THE MOVE'S OWN INSTANT IS ON ITS LINE (S6.27 stage 6): `routine-stack-<verb>: <routine> at: <date-time> by: <who>
+## reason: <why>`. Nothing else in the record says when a frame moved, and the supervisor's `frame-stall` has no other
+## source for its window than this line. The instant is the record's own date-time form, the one `started-at` carries.
 AgentsToolsRoutineStackMove(){ ## the verb, the routine file a push, replace or return-to names, the reason, where it came from (chair|routine|tool)
 	local moveVerb="$1" moveRoutine="${2:-}" moveReason="${3:-}" moveBy="${4:-chair}"
 	local moveSession="${MDAT_SESSION_ID:-${MDAT_SPAWN_SESSION_ID:-}}" moveSpawn="${MDAT_SPAWN_SESSION_ID:-}" moveMember="${MDAT_SPAWN_AGENT:-}"
@@ -285,7 +336,7 @@ AgentsToolsRoutineStackMove(){ ## the verb, the routine file a push, replace or 
 		return 1
 	}
 	moveTopName="${moveNew##*$'\n'}" ; moveTopName="${moveTopName%:*}"
-	moveLine="routine-stack-${moveVerb%%-to}: $moveTopName by: $moveBy reason: ${moveReason:--}"
+	moveLine="routine-stack-${moveVerb%%-to}: $moveTopName at: $( date '+%Y-%m-%d %H:%M %z' ) by: $moveBy reason: ${moveReason:--}"
 	. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.LocalLock.include"
 	AgentsToolsLocalLockTake "routine-stack-$moveSession" 30 "the routine stack of $moveSession" || {
 		echo "$MDSC_CMD: ⛔ ERROR: --routine-stack $moveVerb: another move of session $moveSession holds its stack. Nothing was done." >&2

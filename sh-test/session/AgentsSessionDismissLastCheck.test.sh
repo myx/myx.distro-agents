@@ -23,7 +23,7 @@
 ## Offline: a Slack-shaped fake curl answers the served calls and the accept's sends; every run is a stand-in process
 ## of this rig carrying its own spawn id, which no other process carries; each workspace is this rig's own temp tree.
 set -u
-. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-store.include.sh" || exit 1
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-writes.include.sh" || exit 1
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 rigHere="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib"
 rigTest="${rigHere%/sh-lib}/sh-test"

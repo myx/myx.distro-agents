@@ -18,6 +18,8 @@ rigRefuse(){
 rigTmp="$( mkdir -p "$MMDAPP/.local/temp" && mktemp -d "$MMDAPP/.local/temp/AgentsMemberVaultItemReadCheck-XXXXXXXX" )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
 mkdir -p "$rigTmp/ws/.local" "$rigTmp/home" "$rigTmp/skills/magic-tester" "$rigTmp/data/vault" "$rigTmp/data/audit"
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-writes.include.sh" || exit 1
+rigOwnerWs="${rigWs:-$rigTmp/ws}" rigOwnerData="${rigData:-${rigD:-${rigStore:-${rigOut:-$rigTmp/data}}}}" rigOwnerHome="${rigHome:-$rigTmp/home}" rigOwnerSkills="${rigSkills:-$rigTmp/skills}"
 printf 'line one\nline two\nline three\nline four\n' | rigOwnerVaultPut verbatim-20260929T1000Z-rig.md
 printf 'audit only\n' > "$rigTmp/data/audit/verbatim-20260929T1000Z-audit-only.md"
 
@@ -68,8 +70,6 @@ rigRead verbatim-20260929T1000Z-rig.md --start-line
 rigAssert "vault: --start-line alone fails"          "$( [ "$rigRc" -ne 0 ] && echo non-zero || echo 0 )" non-zero
 rigAssert "vault: with the flag named"               "$( rigHolds "$rigTmp/err" '--start-line requires a value' )" yes
 rigRc=0
-. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-writes.include.sh" || exit 1
-rigOwnerWs="${rigWs:-$rigTmp/ws}" rigOwnerData="${rigData:-${rigD:-${rigStore:-${rigOut:-$rigTmp/data}}}}" rigOwnerHome="${rigHome:-$rigTmp/home}" rigOwnerSkills="${rigSkills:-$rigTmp/skills}"
 ( cd "$rigTmp/ws" && env HOME="$rigTmp/home" MMDAPP="$rigTmp/ws" MDLT_ORIGIN="$MDLT_ORIGIN" \
 	MDAT_SKILLSET_ROOT="$rigTmp/skills" MDAT_DATA_ROOT="$rigTmp/data" \
 	bash "$rigTool" --get-audit-item --team-member magic-tester transcript-2026-09-29-rig.md --end-line ) > "$rigTmp/out" 2> "$rigTmp/err" || rigRc=$?

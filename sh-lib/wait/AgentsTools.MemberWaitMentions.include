@@ -8,6 +8,7 @@ type AgentsSlackIdentityId > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-ag
 ## Its helpers shared with the other probes are in AgentsTools.MemberWaitCore.include.
 ##
 type AgentsWaitPut > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/wait/AgentsTools.MemberWaitCore.include"
+type AgentsWaitReadRendered > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/wait/AgentsTools.MemberWaitSlack.include"
 
 ## EVERY OTHER LIVE SESSION OF ONE MEMBER (sketch 7.4), its own thread, one a line: the `session-thread` of
 ## each spawn record whose owner is the member, whose run is alive (the one rule a run is alive by,
@@ -33,7 +34,7 @@ AgentsWaitOtherLiveThreads(){ ## member, session to exclude
 	## THE MEMBER'S RECORDS AMONG THE STARTED ONES (call-path audit row 33): a run that is alive has a record in status spawn-started,
 	## so the kept list of those (AgentsTools.StartedRecords.include) is the whole population; each header is read by the shell up
 	## to its owner line or its closing fence. No grep over every record of the store on a round.
-	type AgentsToolsSpawnedStartedRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include"
+	type AgentsToolsSpawnedStartedRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/schedule/AgentsTools.StartedRecords.include"
 	local otherLine otherFence otherOwnerIs
 	otherNames=""
 	while IFS= read -r otherFile ; do

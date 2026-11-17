@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-## Behavioural check on the signal reset of the death call of the session control thread (sh-lib/session/AgentsSignalReset.py,
+## Behavioural check on the signal reset of the death call of the session control thread (sh-lib/run/AgentsSignalReset.py,
 ## started from AgentsToolsSessionControlDeathStart): a process started with signals ignored, as a thread's child is, runs the
 ## helper, and the command it execs finds each of them at its default. The control is the same start WITHOUT the helper, where the
 ## ignored signals stay ignored. The code that starts the call names the helper and no other interpreter.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
-rigHelper="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsSignalReset.py"
+rigHelper="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsSignalReset.py"
 rigInclude="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.InternSessionControl.include"
 [ -f "$rigHelper" ] || { echo "⛔ ERROR: the helper is not at the origin this workspace resolves: $rigHelper -- refusing to report a result" >&2 ; exit 1 ; }
 command -v python3 > /dev/null 2>&1 || { echo "⛔ ERROR: no python3 on PATH -- refusing to report a result" >&2 ; exit 1 ; }

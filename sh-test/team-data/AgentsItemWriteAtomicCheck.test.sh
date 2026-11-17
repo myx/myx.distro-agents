@@ -24,8 +24,12 @@ rigTmp="$( rigTempDir AgentsItemWriteAtomicCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 trap 'chmod -R u+w -- "$rigTmp" 2>/dev/null ; rm -rf -- "$rigTmp"' EXIT
 rigWs="$rigTmp/ws" rigData="$rigTmp/data"
-mkdir -p "$rigWs/.local/.agents" "$rigTmp/skills/rig-member" "$rigData/board/backlog"
+mkdir -p "$rigWs/.local/.agents" "$rigTmp/skills/rig-member"
 printf 'rig-member\n' > "$rigTmp/skills/rig-member/rig-member.basic.md"
+## The item this check starts from is written by the board's own writer, so a change to the format it writes
+## reddens this check instead of leaving it green on a format it guessed.
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-writes.include.sh" || exit 1
+rigOwnerWs="$rigWs" rigOwnerData="$rigData" rigOwnerHome="$rigTmp" rigOwnerSkills="$rigTmp/skills" rigOwnerMember=rig-member
 printf 'SLACK_CHANNEL_MAGIC_TEAM=CRIG00001\nSLACK_BOT_TOKEN=rig-bot-token-TEAM\n' > "$rigWs/.local/.agents/magic-team.agent.env"
 rigItem="note-20261019T0100Z-rig-atom.md"
 
@@ -56,7 +60,7 @@ rigUpsert(){ ## body text -- the call's output
 rigInode(){ LC_ALL=C stat -f '%i' "$rigData/board/backlog/$rigItem" 2> /dev/null || LC_ALL=C stat -c '%i' "$rigData/board/backlog/$rigItem" 2> /dev/null ; }
 rigItemText(){ cat "$rigData/board/backlog/$rigItem" 2> /dev/null ; }
 
-printf -- '---\ntype: note\nowner: rig-member\n---\n\nRIG-OLD-BODY\n' > "$rigData/board/backlog/$rigItem"
+printf -- '---\ntype: note\nowner: rig-member\n---\n\nRIG-OLD-BODY\n' | rigOwnerBoardPut backlog "$rigItem" || exit 1
 
 echo "-- 1. the control: the upsert lands --"
 rigOut="$( rigUpsert "$( printf -- '---\ntype: note\nowner: rig-member\n---\n\nRIG-NEW-BODY\n' )" )"

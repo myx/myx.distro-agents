@@ -52,6 +52,17 @@
 agentsEventTrackFeedTools="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 agentsEventTrackFeedLib="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib"
 
+## The session's previous Wait set, into the named variable, rc 1 where it keeps none: the part a feed
+## post reads first and leaves holding its last one. Event-track's own part of a session's folder, so
+## no other part builds its path.
+AgentsEventTrackWaitStateInto(){ ## variable, session id, workspace (optional)
+	local waitFolder=""
+	printf -v "$1" '%s' ""
+	type AgentsToolsEventTrackSessionFolderInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/event-track/AgentsTools.EventTrackThread.include"
+	AgentsToolsEventTrackSessionFolderInto waitFolder "${2:-}" "${3:-}" || return 1
+	printf -v "$1" '%s/event-track.wait-on' "$waitFolder"
+}
+
 ## Keeps the lines on standard input in the participant's feed, for its poster to post. Nothing
 ## while the feed is switched off, or for a session that is no bare id.
 AgentsEventTrackFeedAppend(){ ## session id, workspace (optional)
@@ -123,10 +134,11 @@ AgentsEventTrackFeedRun(){ ## the participant's own session id, member, the sess
 	[ -n "${MDAT_SPAWN_PROXY_OWN_FEED:-}" ] || return 0
 	local LC_ALL=C
 	local runDir runFeed runTaken runOffset=0 runSize runNew runOpen="" runWas runSince=0 runPoll=4 runNow runCut runNap
+	local runWorkspace="${4:-}"
 	[ -n "$3" ] || return 0
 	[ -n "${MMDAPP:-}" ] || return 0
 	type AgentsToolsEventTrackSessionFolderInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/event-track/AgentsTools.EventTrackThread.include"
-	AgentsToolsEventTrackSessionFolderInto runDir "${1:-}" "${4:-}" || return 0
+	AgentsToolsEventTrackSessionFolderInto runDir "${1:-}" "$runWorkspace" || return 0
 	runFeed="$runDir/feed"
 	runTaken="$runDir/feed.posting"
 	## A hangup ends the poster only where it ends its run. A detached run ignores it (the
@@ -135,7 +147,7 @@ AgentsEventTrackFeedRun(){ ## the participant's own session id, member, the sess
 	## ignored, the run dies of it, and the poster posts what is open and ends, as on TERM.
 	local runHangup="HUP"
 	case "$( trap -p HUP )" in "trap -- '' "*) runHangup="" ;; esac
-	trap 'AgentsEventTrackFeedPost "$2" "$3" "$runOpen" "$1" 1 "$5" > /dev/null ; AgentsEventTrackFeedDrop "$runTaken" "$runOffset" ; exit 0' TERM INT $runHangup
+	trap 'AgentsEventTrackFeedPost "$2" "$3" "$runOpen" "$1" 1 "$runWorkspace" > /dev/null ; AgentsEventTrackFeedDrop "$runTaken" "$runOffset" ; exit 0' TERM INT $runHangup
 	## Its starter, the shell whose TERM ends it, read once. Once its parent is no longer that shell (a proxy ended by KILL),
 	## nothing would end it: it posts what is open and ends by itself.
 	local runSelf runStarter runEpoch0 runSecs0 runRound=0 runPipe runPipeOpen=""
@@ -152,7 +164,7 @@ AgentsEventTrackFeedRun(){ ## the participant's own session id, member, the sess
 		runRound=$(( runRound + 1 ))
 		if [ "${runStarter:-1}" = 1 ] || ! kill -0 "$runStarter" 2> /dev/null \
 			|| { [ $(( runRound % 15 )) = 0 ] && [ "$( ps -o ppid= -p "$runSelf" 2> /dev/null | tr -d ' ' )" != "$runStarter" ] ; } ; then
-			AgentsEventTrackFeedPost "$2" "$3" "$runOpen" "$1" 1 "$4" > /dev/null ; AgentsEventTrackFeedDrop "$runTaken" "$runOffset" ; exit 0
+			AgentsEventTrackFeedPost "$2" "$3" "$runOpen" "$1" 1 "$runWorkspace" > /dev/null ; AgentsEventTrackFeedDrop "$runTaken" "$runOffset" ; exit 0
 		fi
 		## The feed taken at the last poll goes once all of it is read. A poll later, never at
 		## once: a write that opened the feed just before it was taken has landed by then.
@@ -171,7 +183,7 @@ AgentsEventTrackFeedRun(){ ## the participant's own session id, member, the sess
 					runOffset=$(( runOffset + ${#runCut} + 1 ))
 					runWas="$runOpen"
 					## Into the open post; no line sends it early.
-					runOpen="$( AgentsEventTrackFeedPost "$2" "$3" "${runOpen:+$runOpen$'\n'}$runCut" "$1" 0 "$4" )"
+					runOpen="$( AgentsEventTrackFeedPost "$2" "$3" "${runOpen:+$runOpen$'\n'}$runCut" "$1" 0 "$runWorkspace" )"
 					## The 7 seconds count from the open post's first line: anew once that post went.
 					[ -n "$runWas" ] && [ "${runOpen%%$'\n'*}" = "${runWas%%$'\n'*}" ] || runSince=$(( runEpoch0 + SECONDS - runSecs0 ))
 				fi
@@ -180,7 +192,7 @@ AgentsEventTrackFeedRun(){ ## the participant's own session id, member, the sess
 		runNow=$(( runEpoch0 + SECONDS - runSecs0 ))
 		## Fixed, never configured: the open post goes 7 seconds after its first line.
 		if [ -n "$runOpen" ] && [ $(( runNow - runSince )) -ge 7 ] ; then
-			AgentsEventTrackFeedPost "$2" "$3" "$runOpen" "$1" 1 "$4" > /dev/null
+			AgentsEventTrackFeedPost "$2" "$3" "$runOpen" "$1" 1 "$runWorkspace" > /dev/null
 			runOpen=""
 		fi
 		## Asleep no longer than the open post has left.

@@ -93,7 +93,7 @@ AgentsToolsManagerDashboardSessionMeasured(){
 	rowsPending="$MMDAPP/.local/agents/pending-replies.registry"
 	[ -f "$rowsPending" ] || rowsPending="/dev/null"
 	rowsMeasure="$rowsFile"
-	type AgentsToolsManagerSessionControls > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.ManagerSessionRows.include"
+	type AgentsToolsManagerSessionControls > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.ManagerSessionRows.include"
 	rowsControl="$( AgentsToolsManagerSessionControls )" || rowsControl=""
 	if mkdir -p "${MMDAPP%/}/.local/temp" 2> /dev/null && rowsNarrow="$( mktemp "${MMDAPP%/}/.local/temp/mdat-manager-dashboard.sessions.XXXXXX" 2> /dev/null )" ; then
 		if MDAT_DASHBOARD_CONTROL="$rowsControl" MDAT_DASHBOARD_PENDING="$rowsPending" LC_ALL=C awk -v todayDate="$dashboardToday" '
@@ -137,7 +137,7 @@ AgentsToolsManagerDashboardSessionCounts(){
 	local countsRows
 	[ -z "$dashboardSessions" ] || return 0
 	dashboardSessions="none"
-	countsRows="$( type AgentsToolsManagerSessionControls > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.ManagerSessionRows.include"
+	countsRows="$( type AgentsToolsManagerSessionControls > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.ManagerSessionRows.include"
 		AgentsToolsManagerDashboardSessionMeasured 2> /dev/null )" || countsRows=""
 	[ -n "$countsRows" ] || return 0
 	dashboardSessionRows="$countsRows"

@@ -73,6 +73,7 @@ Read this before writing code in any language. It is not a per-language module, 
 - A load's file is the file that defines the called function, never a file that pulls it in as a side effect.
 - An include of another concern is that concern's contract, whether `sh-lib/<concern>/*.include` or a shared awk file. Loading it to call its functions is right, never a breach: the package is one subsystem, as the shared awk files and the distro index helpers show. The breach scan carries no class for it.
 - An internal data file is owned strictly. Only its owner concern's functions read or write a store: `.local/agents/sessions/<id>/...`, `.local/agents/spawned/...`, the board, the inboxes, the vault. Every other concern asks the owner and gets data back, never a path to build on.
+- A store's owner function takes an id and a workspace where needed, and builds its own part's path. A caller passes the id, never a path.
 - The breach scan reports a store read past its owner as `foreign-store`. A store the package does not own belongs to the distro tooling.
 
 ## Inlining and removal
@@ -87,6 +88,8 @@ Read this before writing code in any language. It is not a per-language module, 
 - Read the gate's result before the landing command runs. Never chain landing after the gate in one call.
 - A mechanical rewrite of a line judges it by the code the line belongs to: its function, or its case arm.
 - A stage built from an older copy is merged onto live hunk by hunk: take only the hunks that carry its own change, keep every other line as live has it, and check that no function now on live is dropped from any staged file before landing.
+- A stage merges three ways against its base, never by copying whole files from a stale copy.
+- A diff file is proved to apply before anything relies on it. For a git diff the check is `patch --dry-run -p1 --forward`.
 
 ## Simplicity is a requirement
 
@@ -127,6 +130,7 @@ A checker reports green on its own counterexample as readily as on a clean subje
 - **A check runs only through `sh-test/AgentsRunTests.sh`**, with `MDAT_SKILLSET_ROOT` set to the workspace's members. Never through a home-made driver: a driver that does not clear the caller's environment lets a rig run as the caller.
 - **A check that reads code by file name breaks on every move.** It finds its subject by function name, or by a glob over `sh-lib/*/`. Never by a fixed folder.
 - **A fixture's data and a harness's argument list are both program text, and either can run something.** A fixture value naming a builtin is a call. Measured: a bare expansion whose variable held `set` ran `set`, printed the environment and exited 0, on a row that read as confirmed. A runner that selected its subjects with `*.sh` in its own folder selected itself. It started a copy, which started a third, until the call timed out. Write the fixture as the assignment the real code takes, choose a value the language does not execute, and name every subject the harness runs.
+- A check builds its fixtures through `sh-test/check-fixtures/rig-owner-writes.include.sh`, never by writing a store file by hand.
 
 - A check calls an operation in the syntax its help gives (`--help-syntax <op>`), never from memory. Member operations take `--team-member <member>`; the positional member is retired.
 - A check runs in seconds: one interpreter process for a whole scan, never one per file.
@@ -182,6 +186,8 @@ A checker reports green on its own counterexample as readily as on a clean subje
 - An include the MCP server sources on every request, such as `sh-lib/mcp/AgentsTools.InternMcpRequest.include`, holds its tool list in one single-quoted string. No apostrophe goes into that string. An edit to such an include is followed by `bash -n` before the next tool call.
 - A quote mark in a comment inside `$( )` or `<( )` is read as an open quote when the substitution runs, so `bash -n` and the breach scan both pass it while the operation fails. Write such a comment with no quote mark, or put it above the substitution.
 - A guard is one builtin; a load is a parse. No operation does parser or interpreter work it does not need: no load on a path that does not call into the file, no fork a builtin can do, no subshell per record where one awk pass reads them all.
+- A call path starts no subshell and no process per call. A Wait round, a tool call and a spawn start are call paths.
+- `printf -v` fills a named variable. An array grows by `+=( "$x" )` in a loop fed by a redirection, never by a command substitution.
 - A review requires all of this. Code that breaks it is sent back, whatever else it fixes.
 
 ## The three costs of needless work

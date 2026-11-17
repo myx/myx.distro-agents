@@ -32,19 +32,19 @@ mkdir -p "$MMDAPP/.local/agents/scratch/sh-test" || exit 1
 rigTmp="$( mktemp -d "$MMDAPP/.local/agents/scratch/sh-test/AgentsGrantsSessionEndedCheck.XXXXXX" )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
 
-rigScene(){ ## store root, session id, status, activity after the record (yes|no)
+rigScene(){ ## workspace root, session id, status, activity after the record (yes|no)
 	local sceneRoot="$1" sceneId="$2" sceneStatus="$3" sceneAfter="$4"
-	mkdir -p "$sceneRoot/spawned/spawn-0abc" "$sceneRoot/sessions/$sceneId"
-	printf -- '---\ntype: spawn\nstatus: %s\n---\n\n# %s\n' "$sceneStatus" "$sceneId" > "$sceneRoot/spawned/spawn-0abc/$sceneId.spawn.md"
+	mkdir -p "$sceneRoot/.local/agents/spawned/spawn-0abc" "$sceneRoot/.local/agents/sessions/$sceneId"
+	printf -- '---\ntype: spawn\nstatus: %s\n---\n\n# %s\n' "$sceneStatus" "$sceneId" > "$sceneRoot/.local/agents/spawned/spawn-0abc/$sceneId.spawn.md"
 	## the session's own chat: written before the record, or after it
-	printf '# chat\n' > "$sceneRoot/sessions/$sceneId/session.chat"
+	printf '# chat\n' > "$sceneRoot/.local/agents/sessions/$sceneId/session.chat"
 	if [ "$sceneAfter" = "yes" ] ; then
-		touch -t 209901010000 "$sceneRoot/sessions/$sceneId/session.chat" 2> /dev/null || sleep 1
+		touch -t 209901010000 "$sceneRoot/.local/agents/sessions/$sceneId/session.chat" 2> /dev/null || sleep 1
 	fi
 }
 
-rigEnded(){ ## store root of one session -- "ended" or "live"
-	if MMDAPP="$MMDAPP" bash -c '. "$1" > /dev/null 2>&1 ; AgentsToolsGrantsSessionEnded "$2"' _ "$rigGrants" "$1" > /dev/null 2>&1 ; then
+rigEnded(){ ## workspace root of one session, session id -- "ended" or "live"
+	if bash -c '. "$1" > /dev/null 2>&1 ; AgentsToolsGrantsSessionEnded "$2" "$3"' _ "$rigGrants" "$2" "$1" > /dev/null 2>&1 ; then
 		printf 'ended\n'
 	else
 		printf 'live\n'
@@ -53,15 +53,15 @@ rigEnded(){ ## store root of one session -- "ended" or "live"
 
 echo "-- 1. a session that ran on after a spawn-failed record is not ended --"
 rigScene "$rigTmp/a" sess-stale spawn-failed yes
-rigAssert "the stale record does not end a live session" "$( rigEnded "$rigTmp/a/sessions/sess-stale" )" "live"
+rigAssert "the stale record does not end a live session" "$( rigEnded "$rigTmp/a" sess-stale )" "live"
 
 echo "-- 2. the control: nothing after the record --"
 rigScene "$rigTmp/b" sess-dead spawn-failed no
-rigAssert "a failed record with no activity after it is ended" "$( rigEnded "$rigTmp/b/sessions/sess-dead" )" "ended"
+rigAssert "a failed record with no activity after it is ended" "$( rigEnded "$rigTmp/b" sess-dead )" "ended"
 
 echo "-- 3. the control: a started record --"
 rigScene "$rigTmp/c" sess-started spawn-started no
-rigAssert "a started record is never ended" "$( rigEnded "$rigTmp/c/sessions/sess-started" )" "live"
+rigAssert "a started record is never ended" "$( rigEnded "$rigTmp/c" sess-started )" "live"
 
 if [ "$rigFails" -ne 0 ] ; then
 	echo "⛔ GRANTS SESSION ENDED CHECK FAILED: $rigFails of $(( rigPasses + rigFails )) assertion(s)" >&2

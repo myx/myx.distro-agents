@@ -12,8 +12,8 @@ rigHarness="$rigPkg/sh-lib/harness/AgentsUniversalHarness.sh"
 rigExec="$rigPkg/sh-test/check-fixtures/rig-exec.py"
 rigRoutine="$rigPkg/skillset/magic-team/magic-team/magic-team.standalone.routine.md"
 
-rigRefuse(){
 . "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-writes.include.sh" || exit 1
+rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }
 [ -f "$rigHarness" ] || rigRefuse "the harness is not at the origin: $rigHarness"

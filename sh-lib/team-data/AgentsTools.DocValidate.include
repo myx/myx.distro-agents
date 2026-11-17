@@ -30,13 +30,17 @@ AgentsToolsDocValidateRow(){ ## file as shown, line, rule, text
 
 ## The contract of a type kind: its path, rc 1 where the kind has none. Looked for in the skillset of the run, then in the package.
 AgentsToolsDocValidateContractFile(){ ## kind
-	local contractBase
+	local contractBase teamDir contractBases=()
+	type AgentsToolsTeamMemberDirectory > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamRegistry.include"
 	case "$1" in
 		''|*[!A-Za-z0-9.-]*|*-item.) return 1 ;;
 		*-item.?*) ;;
 		*) return 1 ;;
 	esac
-	for contractBase in "${MDAT_SKILLSET_ROOT:-}/magic-team" "$MDLT_ORIGIN/myx/myx.distro-agents/skillset/magic-team/magic-team" ; do
+	teamDir="$( AgentsToolsTeamMemberDirectory magic-team )" || teamDir=""
+	[ -z "$teamDir" ] || contractBases+=( "$teamDir" )
+	contractBases+=( "$MDLT_ORIGIN/myx/myx.distro-agents/skillset/magic-team/magic-team" )
+	for contractBase in ${contractBases[@]+"${contractBases[@]}"} ; do
 		[ ! -f "$contractBase/contracts/$1.contract.format.md" ] || { printf '%s\n' "$contractBase/contracts/$1.contract.format.md" ; return 0 ; }
 	done
 	return 1
@@ -64,10 +68,14 @@ AgentsToolsDocValidateKinds(){
 ## Read once per process, by the shell alone, into a memo: one Kind line a contract, in place of a cat of every vault contract
 ## piped through sed and awk at each call (call-path audit, the sibling of row 37).
 AgentsToolsDocValidateVaultTypes(){
-	local typesBase typesFile typesLine typesKind typesWord typesSeen=" "
+	local typesBase typesFile typesLine typesKind typesWord typesSeen=" " teamDir typesBases=()
 	if [ -z "${agentsDocValidateVaultTypesMemo+set}" ] ; then
 		agentsDocValidateVaultTypesMemo=""
-		for typesBase in "${MDAT_SKILLSET_ROOT:-}/magic-team" "$MDLT_ORIGIN/myx/myx.distro-agents/skillset/magic-team/magic-team" ; do
+		type AgentsToolsTeamMemberDirectory > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamRegistry.include"
+		teamDir="$( AgentsToolsTeamMemberDirectory magic-team )" || teamDir=""
+		[ -z "$teamDir" ] || typesBases+=( "$teamDir" )
+		typesBases+=( "$MDLT_ORIGIN/myx/myx.distro-agents/skillset/magic-team/magic-team" )
+		for typesBase in ${typesBases[@]+"${typesBases[@]}"} ; do
 			for typesFile in "$typesBase"/contracts/vault-item.*.contract.format.md ; do
 				[ -f "$typesFile" ] || continue
 				while IFS= read -r typesLine ; do
@@ -136,8 +144,16 @@ AgentsToolsDocValidateDisposition(){ ## rule, site
 
 ## The file names of the routines of the skillset (the root of the run, and the package's own), space-separated: what the value form `routine` is checked against.
 AgentsToolsDocValidateRoutineNames(){
-	local routineFile routineNames=""
-	for routineFile in "${MDAT_SKILLSET_ROOT:-$MMDAPP/.local/agents/members}"/*/*.routine.md "$MDLT_ORIGIN/myx/myx.distro-agents/skillset/magic-team"/*/*.routine.md ; do
+	local routineFile routineNames="" routineMember routineDir
+	type AgentsToolsTeamMemberDirectoryText > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamRegistry.include"
+	while IFS=$'\t' read -r routineMember routineDir ; do
+		[ -n "$routineDir" ] || continue
+		for routineFile in "$routineDir"/*.routine.md ; do
+			[ -f "$routineFile" ] || continue
+			routineNames="$routineNames ${routineFile##*/}"
+		done
+	done <<< "$( AgentsToolsTeamMemberDirectoryText )"
+	for routineFile in "$MDLT_ORIGIN/myx/myx.distro-agents/skillset/magic-team"/*/*.routine.md ; do
 		[ -f "$routineFile" ] || continue
 		routineNames="$routineNames ${routineFile##*/}"
 	done

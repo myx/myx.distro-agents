@@ -79,6 +79,23 @@ AgentsToolsSessionRoutineFile(){ ## session id
 	return 1
 }
 
+## THE DELIVERABLES IN FORCE FOR A SESSION (S6.27 stage 5): the `deliverables:` lines of the routine its stack has on top,
+## else of the routine its record names, as its run reads them. The tooling copies them, so a handback and a review carry
+## the routine's own declaration and never the member's account of it. Nothing where the session records no frame and
+## names no routine, and nothing where that routine declares none.
+AgentsToolsRoutineDeliverablesInForce(){ ## session id
+	local dlSession="$1" dlFrame="" dlPath=""
+	type AgentsToolsSessionRoutineStackLines > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/routine/AgentsTools.RoutineStack.include"
+	dlFrame="$( AgentsToolsSessionRoutineStackLines "$dlSession" | LC_ALL=C awk '$0 ~ /:current$/ { name = $0 ; sub( /^routine-stack: /, "", name ) ; sub( /:current$/, "", name ) } END { if ( name != "" ) print name }' )"
+	if [ -n "$dlFrame" ] ; then
+		type AgentsToolsSpawnRoutineResolve > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnRoutine.include"
+		dlPath="$( AgentsToolsSpawnRoutineResolve "$dlFrame" 2> /dev/null )" || dlPath=""
+	fi
+	[ -n "$dlPath" ] || dlPath="$( AgentsToolsSessionRoutineFile "$dlSession" )" || :
+	[ -n "$dlPath" ] || return 0
+	AgentsToolsRoutineKeyLines "$dlPath" deliverables
+}
+
 ## The words of a routine's `wait-sources:` lines, one a line, the macro {{team-member}} filled with the member. The one reader of that key: the idle wait,
 ## the wait of a scan at a start, and the floor of every wait of a session that runs the routine take their sources from it.
 AgentsToolsRoutineWaitWords(){ ## routine file path, team member
@@ -274,7 +291,14 @@ AgentsToolsRoutineRequirement(){ ## requirement, site (save|spawn|start), routin
 					return 0
 				;;
 			esac
-			type AgentsToolsRunRouteValid > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.RunRoute.include"
+			## A ROUTINE THAT DECLARES A DELIVERABLE MAY NOT ALSO DECLARE `review-by: none` (S6.27 stage 5): `none`
+			## closes the item with no verdict, so a declared deliverable would have no judge and the step would close
+			## on a claim. Read of the key as the run reads it, its kind routine's lines included.
+			if [ "$reqValue" = "none" ] && [ -n "$( AgentsToolsRoutineKeyLines "$reqFile" deliverables )" ] ; then
+				printf 'reject\t%s\n' "review-by: none, and this routine declares deliverables: none closes the item with no verdict, so a declared deliverable would have no judge -- name the reviewer, or remove the deliverables"
+				return 1
+			fi
+			type AgentsToolsRunRouteValid > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.RunRoute.include"
 			if AgentsToolsRunRouteValid "$reqValue" ; then
 				printf 'validate\t%s\n' "review-by: $reqValue"
 				return 0

@@ -568,7 +568,7 @@ printf 'rig\n' > "$rigScenarioDir/share.txt"
 : > "$RIG_CURL_LOG"
 rigOp "$rigCurrent" --slack-send-message event-alert RIG-BODY
 rigAssert "send"                                                  "$rigOpRc:$( rigPosts ):$( rigOpErrors )" "1:0:⛔ ERROR: DistroAgentsTools --slack-send-message: $rigNoAlert Nothing was sent."
-rigOp "$rigCurrent" --slack-read event-alert
+rigOp "$rigCurrent" --slack-read event-alert --oldest 1
 rigAssert "read"                                                  "$rigOpRc:$( rigOpErrors )" "1:⛔ ERROR: DistroAgentsTools --slack-read: $rigNoAlert"
 rigOp "$rigCurrent" --slack-react "event-alert:$rigMessage" eyes
 rigAssert "react"                                                 "$rigOpRc:$( rigOpErrors )" "1:⛔ ERROR: DistroAgentsTools --slack-react: $rigNoAlert"
@@ -581,7 +581,7 @@ rigAssert "search-messages"                                       "$rigOpRc:$( r
 rigOp "$rigCurrent" --slack-file-share event-alert --from-file "$rigScenarioDir/share.txt"
 rigAssert "file-share"                                            "$rigOpRc:$( rigOpErrors )" "1:⛔ ERROR: DistroAgentsTools --slack-file-share: $rigNoAlert Nothing was uploaded."
 rigAssert "none of them called Slack"                             "$( LC_ALL=C grep -c -v -x -e 'auth.test' -e 'conversations.info' "$RIG_CURL_LOG" )" 0
-rigOp "$rigCurrent" --slack-read event-track
+rigOp "$rigCurrent" --slack-read event-track --oldest 1
 rigAssert "control: the one that is set still resolves"           "$( rigOpErrors | LC_ALL=C grep -c 'names nowhere' )" 0
 
 echo "-- where an alias cannot make sense it is refused, and the line says why --"

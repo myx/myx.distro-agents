@@ -183,5 +183,10 @@
 		## The rest of the reply and every later one: clarifications on this verdict, given to
 		## whoever reads this result and kept on the record.
 		AgentsToolsEscalationSaid "$readOut"
+		## An applied answer closed the record, which moved to closed/ (retention, T9): the status
+		## is read where it lies now, or an empty field reads as an open record and the words are dropped.
+		local readWhereFile=""
+		readWhereFile="$( AgentsToolsEscalationRecord "$readId" 2> /dev/null )" || readWhereFile=""
+		[ -z "$readWhereFile" ] || readFile="$readWhereFile"
 		[ "$( AgentsToolsEscalationField "$readFile" status )" != "reply-received" ] || AgentsToolsEscalationClarify "$readId" "$readOut"
 		return 0

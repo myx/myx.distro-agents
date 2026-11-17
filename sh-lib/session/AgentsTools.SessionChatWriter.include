@@ -110,6 +110,7 @@ AgentsToolsSessionChatWriterRequest(){ ## kind (stamp, pointer-set, pointer-unse
 ## with the request.
 AgentsToolsSessionChatWriterHandler(){ ## kind, the request file
 	local handlerKind="${1:-}" handlerFile="${2:-}" handlerNo="" handlerSession handlerFrom handlerTo handlerTs handlerWhere handlerOrigin handlerTime handlerSeen handlerArgs=() handlerLine
+	type AgentsToolsSessionChatStampDirect > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include"
 	case "$handlerKind" in
 		append|stamp|pointer-set|pointer-unset|import) ;;
 		*) printf '%s a request of a kind this thread does not take: %s\n' "$( date -u +%Y-%m-%dT%H:%M:%SZ )" "${handlerKind:--}" >&2 ; return 0 ;;

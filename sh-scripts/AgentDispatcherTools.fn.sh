@@ -4,7 +4,7 @@
 ## AgentDispatcherTools.fn.sh -- the coordinator's role surface (F7.9): one tool for magic-coordinator over the tasks, the spawns, the worktime flags, the standing
 ## directives, and the contacts with their access level and coordinates. A role surface, not a merge: it OWNS NO STATE and every operation delegates to the subject
 ## that owns the answer (DistroAgentsDispatcher.fn.sh, DistroAgentsContacts.fn.sh, the board, the coordinator's inbox). It declares no store; the one standing
-## order of the human-owner it writes goes into the state-note, through that note's lock. Functions: sh-lib/session/AgentsTools.CoordinatorSurface.include.
+## order of the human-owner it writes goes into the state-note, through that note's lock. Functions: sh-lib/magic/AgentsTools.CoordinatorSurface.include.
 ##   --tasks, --spawns, --flags, --contacts, --contact       the views
 ##   --standing-directives, --directive-set, --directive-end  stubs of DistroAgentsSession.fn.sh (ThisSession), which owns them
 ##
@@ -138,7 +138,7 @@ AgentDispatcherTools(){
 	. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.FrontDoor.include"
 	[ -z "$frontDone" ] || return "$frontRc"
 	. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.UseAgentsTools.include"
-	type AgentsToolsSurfaceCaller > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.CoordinatorSurface.include"
+	type AgentsToolsSurfaceCaller > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.CoordinatorSurface.include"
 	case "$1" in
 
 		## [--active|--waiting|--all]: the runs, the Dispatcher's rows.

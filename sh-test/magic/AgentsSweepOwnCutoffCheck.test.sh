@@ -58,10 +58,12 @@ rigSession=""
 rigLatency=0
 rigDms=2
 rigLeg=""
+rigMyxRoot="$( myx.common which lib/catMarkdown 2> /dev/null )" ; rigMyxRoot="${rigMyxRoot%/bin/lib/catMarkdown*}"
+[ -n "$rigMyxRoot" ] || rigRefuse "myx.common answers no lib/catMarkdown, so the sweep could source no Parallel"
 rigRun(){ ## out-name, args...
 	local runName="$1" ; shift
 	local runRc=0
-	env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigDir/home" PATH="$rigDir/bin:/usr/bin:/bin" MMDAPP="$rigDir/ws" MDAT_DATA_ROOT="$rigDir/data" \
+	env -i MDAT_WORKSPACE_MODE=team-rig MYXROOT="$rigMyxRoot" HOME="$rigDir/home" PATH="$rigDir/bin:/usr/bin:/bin" MMDAPP="$rigDir/ws" MDAT_DATA_ROOT="$rigDir/data" \
 		MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" FIX_DIR="$rigDir" FIX_LATENCY="$rigLatency" FIX_DMS="$rigDms" FIX_TS="$rigNow" RIG_TMP="$rigTmp" \
 		${rigSession:+MDAT_SPAWN_AGENT="$rigSession"} ${rigLeg:+ENV_MAGIC_SWEEP_SLACK_LEG_SECONDS="$rigLeg"} \
 		bash -c '

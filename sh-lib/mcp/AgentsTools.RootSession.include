@@ -171,7 +171,7 @@ AgentsToolsRootSessionServe(){ ## scratch root, server pid, operation, id given,
 			## THE CHANNEL KIND (F3.1), read from this workspace's setting and kept before the token: a session
 			## whose kind could not be recorded is not made, since the inference would then decide against the
 			## choice the workspace made. The value names a channel, never a path.
-			type AgentsToolsRootHarnessKindSetting > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.RootHarnessKind.include"
+			type AgentsToolsRootHarnessKindSetting > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/chat/AgentsTools.RootHarnessKind.include"
 			if ! type AgentsToolsRootHarnessKindSetting > /dev/null 2>&1 ; then
 				AgentsSessionDiscard "$rootId" || :
 				AgentsToolsRootSessionLockGive "$rootLock"
@@ -186,6 +186,7 @@ AgentsToolsRootSessionServe(){ ## scratch root, server pid, operation, id given,
 				return 1
 			fi
 			## The routine the session runs is kept before the token: a session whose routine could not be recorded is not made, since it would run with none of the routine's denies.
+			type AgentsToolsRootHarnessRoutineWrite > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/routine/AgentsTools.RoutineRootHarness.include"
 			if ! AgentsToolsRootHarnessRoutineWrite "$rootDir" ; then
 				AgentsSessionDiscard "$rootId" || :
 				AgentsToolsRootSessionLockGive "$rootLock"

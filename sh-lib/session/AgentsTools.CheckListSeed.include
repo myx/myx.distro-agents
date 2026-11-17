@@ -75,24 +75,36 @@ AgentsToolsCheckListEpicItems(){ ## the workspace the text may name the epic fil
 ## Opening steps, Steps and Closure steps. A step is a numbered `N. **name**` line, or the deepest heading of a group of headings. The mixed text puts a kind routine's
 ## sections under `# Opening steps of <file>` and a heading of the section's own name, which is no step. A run that joins a session (session id other than its own spawn id,
 ## the two arguments) lists only the steps whose text begins `All participants`.
-AgentsToolsCheckListRoutineSteps(){ ## session id, spawn id
-	LC_ALL=C awk -v sessionId="$1" -v spawnId="$2" '
+## A NESTED CONTRIBUTOR LINE IS ONE MORE ITEM (S6.27 stage 6, design lines 198 to 209): a line under a step whose own word before
+## its colon names a member (`  - magic-tester: confirm the check can fail`) is a contribution the step waits for, and it prints
+## `awaited: <step> from <member>` after the step it belongs to. The member names come from the third argument, one a line, which
+## the seeding site reads from the member registry: a nested line naming no member (`- rule:`, `- goal:`, `- all participants:`) is
+## no contribution, and with no names given every nested line is left as the routine's own prose.
+AgentsToolsCheckListRoutineSteps(){ ## session id, spawn id, the member names (a line each, may be empty)
+	CHECKLIST_MEMBERS="${3:-}" LC_ALL=C awk -v sessionId="$1" -v spawnId="$2" '
 		function level( headLine,   levelNo ) { levelNo = 0 ; while ( substr( headLine, levelNo + 1, 1 ) == "#" ) levelNo++ ; return levelNo ; }
+		BEGIN { memberCount = split( ENVIRON["CHECKLIST_MEMBERS"], memberOne, "\n" ) ; for ( i = 1 ; i <= memberCount ; i++ ) { gsub( /^[ \t]+|[ \t]+$/, "", memberOne[i] ) ; if ( memberOne[i] != "" ) member[memberOne[i]] = 1 } }
 		/^#+ / {
 			headLevel = level( $0 ) ; headText = substr( $0, headLevel + 2 ) ;
 			if ( headLevel == 1 ) {
 				if ( pending != "" && ( sessionId == spawnId || pendingAll ) ) print pending ;
 				pending = "" ; inSteps = ( headText ~ /^(Opening steps|Steps|Closure steps)( of .*)?$/ ) ; stepsName = headText ; sub( / of .*$/, "", stepsName ) ;
+				stepName = "" ;
 				next ;
 			}
 			if ( ! inSteps || headText == stepsName ) next ;
 			if ( pending != "" && headLevel <= pendingLevel && ( sessionId == spawnId || pendingAll ) ) print pending ;
-			pending = headText ; pendingLevel = headLevel ; pendingAll = 0 ; pendingBody = 0 ;
+			pending = headText ; pendingLevel = headLevel ; pendingAll = 0 ; pendingBody = 0 ; stepName = headText ;
 			next ;
 		}
 		inSteps && /^[0-9]+\. \*\*/ {
 			pending = "" ; stepText = $0 ; sub( /^[0-9]+\. \*\*/, "", stepText ) ; sub( /\*\*.*$/, "", stepText ) ;
+			stepName = stepText ;
 			if ( stepText != "" && ( sessionId == spawnId || $0 ~ /^[0-9]+\. \*\*[^*]*\*\*:? *All participants/ ) ) print stepText ;
+		}
+		inSteps && stepName != "" && /^[ \t]+- / {
+			contributor = $0 ; sub( /^[ \t]+- /, "", contributor ) ; sub( /[ \t]*:.*$/, "", contributor ) ;
+			if ( ( contributor in member ) && ( sessionId == spawnId || pendingAll ) ) print "awaited: " stepName " from " contributor ;
 		}
 		inSteps && pending != "" && ! pendingBody && NF { pendingBody = 1 ; pendingAll = ( $0 ~ /^All participants/ ) ; }
 		END { if ( pending != "" && ( sessionId == spawnId || pendingAll ) ) print pending ; }
@@ -130,4 +142,83 @@ AgentsToolsCheckListSeed(){ ## session id, member name, the routine's step names
 	type AgentsToolsCheckListSourcesMark > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.CheckListSources.include"
 		AgentsToolsCheckListSourcesMark "$seedFile" "$seedSteps" "$seedAddedText" 2> /dev/null || :
 	printf '%s\n' "$seedAdded"
+}
+
+## A member's CheckList of a run, into the named variable: the file the CheckList tool keeps it in (AgentsHarnessCheckListPlace).
+## The list belongs to the run's session, the session-id of the run's record, else the run itself, and is kept in the folder of
+## that session's own record, else in that session's store. A Wait probe that watched the run's own record folder instead missed
+## the list of a run whose record names another session. rc 1 for a run or member that is no bare name. No process.
+AgentsSessionChecklistFileInto(){ ## variable, run, member
+	local listRecord="" listSession="" listLine listStore=""
+	type AgentsSessionRunRecordInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+	printf -v "$1" '%s' ""
+	case "${2:-}:${3:-}" in :*|*:|*/*|-:*|*:-|.:*|..:*|*:.|*:..|*[[:space:]]*) return 1 ;; esac
+	if AgentsSessionRunRecordInto listRecord "$2" ; then
+		while IFS= read -r listLine ; do
+			case "$listLine" in 'session-id: '*) listSession="${listLine#session-id: }" ; break ;; '# '*) break ;; esac
+		done < "$listRecord"
+	fi
+	[ -n "$listSession" ] || listSession="$2"
+	[ "$listSession" = "$2" ] || AgentsSessionRunRecordInto listRecord "$listSession" || :
+	if [ -n "$listRecord" ] ; then
+		printf -v "$1" '%s/%s.checklist.md' "${listRecord%/*}" "$3"
+	else
+		AgentsSessionStoreDirInto listStore "${MMDAPP:-}" || listStore="/nonexistent/.local/agents/sessions"
+		printf -v "$1" '%s/%s/%s.checklist.md' "$listStore" "$listSession" "$3"
+	fi
+	return 0
+}
+
+## The open work on a run's own CheckList, into the named variable: each open or in-progress item, a line each, empty where
+## none is open. The list is kept where the CheckList tool keeps it: the folder of the record of the run's session, else
+## that session's store. The item that means the idle wait itself is no open work, and it is known by its text alone. Four
+## forms are in use: the duty's own item, `wait for more: run --idle-wait`; a seeded routine step, kept as the bare
+## `wait-for-more`; the operation in a run's own words, with a capital and no dashes ("Wait for more: idle-wait"); and
+## "Wait for the next arrival", measured on two live duties. Taken for open work, that item turned every idle wait back, so
+## the run never returned to its checkpoint. The list is found by AgentsSessionChecklistFileInto. No process: a Wait round asks it.
+AgentsSessionChecklistOpenInto(){ ## variable, run, member
+	local openList="" openLine openBusy=""
+	printf -v "$1" '%s' ""
+	AgentsSessionChecklistFileInto openList "${2:-}" "${3:-}" || return 0
+	[ -f "$openList" ] || return 0
+	while IFS= read -r openLine || [ -n "$openLine" ] ; do
+		case "$openLine" in '- [ ] '*|'- [~] '*) ;; *) continue ;; esac
+		case "$openLine" in *--idle-wait*|*[Ww]ait-for-more*|*[Ww]ait\ for\ more*|*[Ww]ait\ for\ the\ next\ arrival*) continue ;; esac
+		openBusy="$openBusy$openLine"$'\n'
+	done < "$openList"
+	printf -v "$1" '%s' "${openBusy%$'\n'}"
+	return 0
+}
+
+## A member's CheckList in a session, its lines as they stand: the list the CheckList tool keeps in the folder of the
+## record of the session's founding run, else in the session's store. Nothing where the member kept none.
+AgentsSessionChecklistText(){ ## session id, member
+	local textFolder="" textFile textStore=""
+	type AgentsSessionRunRecordInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+	type AgentsSessionStoreDirInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+	AgentsSessionRunRecordInto textFile "${1:-}" && textFolder="${textFile%/*}"
+	AgentsSessionStoreDirInto textStore "${MMDAPP:-}" || textStore="/nonexistent/.local/agents/sessions"
+	[ -n "$textFolder" ] || textFolder="$textStore/$1"
+	[ -f "$textFolder/$2.checklist.md" ] || textFolder="$textStore/$1"
+	[ -f "$textFolder/$2.checklist.md" ] || return 0
+	cat "$textFolder/$2.checklist.md" 2> /dev/null || :
+}
+
+## The one member whose CheckList a session's folder keeps, into the named variable: rc 0 with the member set where exactly one
+## is there, rc 1 with it empty where none is, rc 2 where several are. A one-folder glob is no walk and no process.
+AgentsSessionSoleChecklistMemberInto(){ ## variable, workspace, session
+	local soleFolder="" soleFile="" soleName="" soleCount=0
+	type AgentsSessionFolderInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+	printf -v "$1" '%s' ""
+	AgentsSessionFolderInto soleFolder "${2:-}" "${3:-}" || return 1
+	for soleFile in "$soleFolder"/*.checklist.md ; do
+		[ -f "$soleFile" ] || continue
+		soleCount=$(( soleCount + 1 ))
+		soleName="${soleFile##*/}" ; soleName="${soleName%.checklist.md}"
+	done
+	case "$soleCount" in
+		1) printf -v "$1" '%s' "$soleName" ; return 0 ;;
+		0) return 1 ;;
+		*) return 2 ;;
+	esac
 }

@@ -129,11 +129,8 @@
 			set +e ; return 1
 		fi
 
-		local memberDir="$MDAT_SKILLSET_ROOT/$memberName"
-		if [ ! -d "$memberDir" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --append-transcript: no such member skill directory: $memberDir" >&2
-			set +e ; return 1
-		fi
+		type AgentsToolsSlackMemberPresent > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/slack/AgentsTools.CommsSlack.include"
+		AgentsToolsSlackMemberPresent "$memberName" --append-transcript || { set +e ; return 1 ; }
 		## The month folder comes from the name's own date, so a session crossing
 		## a month boundary keeps appending to the one file it started.
 		## By the one audit lookup (AgentsToolsAuditMonth), which every reader of it looks up by.

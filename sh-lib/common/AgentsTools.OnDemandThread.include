@@ -194,9 +194,6 @@ AgentsToolsOnDemandThreadRequest(){ ## folder, bound seconds or -, the operation
 AgentsToolsOnDemandThreadEnding(){
 	[ -n "${serveEnd:-}" ]
 }
-AgentsToolsOnDemandThreadEnd(){ ## reason
-	serveEnd="${1:-a handler asked it}"
-}
 
 ## THE THREAD'S WHOLE LIFE, run as its own process: it takes the folder's lock, holds the request fifo open read-write so a caller's
 ## open never waits, reads one request a second, and calls <handler> with the request's fields. A second with no request calls <tick>,

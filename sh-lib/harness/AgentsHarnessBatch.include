@@ -19,8 +19,8 @@
 ## refused and the list kept before stays as it was; written to a temp file mktemp names beside
 ## it and put in place by one rename, so no reader sees half a list.
 ## BatchTools: several calls in one, by the one engine (AgentsTools.BatchTools.include). Each call is a served
-## call of its own, with this run's root flags, session and member, so it runs as it would alone: through the
-## hooks and the reply layer of a served call, and in the model loop through the arm gate first.
+## call run here, in a subshell of this process and with a scratch folder of its own, so it runs as it would
+## alone -- the hooks, the arm gate and the reply layer -- and pays no startup of its own.
 AgentsHarnessToolBatchTools(){ ## raw arguments
 	. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsTools.BatchTools.include" || { printf 'ERROR: BatchTools: its engine is missing from this package -- nothing was run.\n' ; return 0 ; }
 	AgentsToolsBatchRun AgentsHarnessBatchCall AgentsHarnessBatchServes "$1"
@@ -34,14 +34,58 @@ AgentsHarnessBatchServes(){ ## tool name
 	LC_ALL=C grep -q -F -- "{\"type\":\"function\",\"function\":{\"name\":\"$1\"," "$harnessWireFile"
 }
 
-## One call of a batch, made as the call alone would be: the arm gate first, in the model loop, then a served call.
+## One call of a batch, made as the call alone would be: the arm gate first, in the model loop, then the body
+## a served call runs. That body needs no second process: every value its startup computed is already in this
+## one, and the call gets a scratch folder of its own for the files a tool writes there.
 AgentsHarnessBatchCall(){ ## tool name, arguments file, call number
 	local callGate
 	type AgentsHarnessArmGate > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessRun.include"
 	callGate="$( AgentsHarnessArmGate "$1" )"
 	[ -z "$callGate" ] || { printf '%s\n' "$callGate" ; return 1 ; }
-	MDAT_SPAWN_AGENT="${MDAT_SPAWN_AGENT:-$harnessAgent}" "$BASH" "$harnessHere/harness/AgentsUniversalHarness.sh" --intern-tool "$1" \
-		${harnessSessionId:+--session-id "$harnessSessionId"} ${harnessRootFlags[@]+"${harnessRootFlags[@]}"} < "$2"
+	## The scratch of this call alone: an image it reads, a secondary tool's output, a Bash call's own files.
+	harnessScratch="$harnessScratch/$3"
+	mkdir -p "$harnessScratch" || return 1
+	harnessReadImageFile="$harnessScratch/read.image"
+	## A batch entry returns text only, and no head part of its own: the batch's reply carries both.
+	harnessHeadFile=""
+	harnessImageFile=""
+	## Served for this one call, as the process it replaced was, so the gates read it as that call.
+	harnessToolOnly=1
+	harnessToolOnlyName="$1"
+	## An entry that reaches a server loads the client for itself, as the design says -- and only that entry pays.
+	case "$1" in
+		ListMcpResourcesTool|ReadMcpResourceTool|ReadMcpResourceDirTool|ToolSearch|mcp__*)
+			type AgentsHarnessMcpCall > /dev/null 2>&1 || . "$harnessHere/harness/AgentsHarnessMcpClient.sh"
+		;;
+	esac
+	AgentsHarnessBatchCallBody "$1" "$2"
+}
+
+## The body of a served call, run for one entry: the transcript lines, the announce, the hooks' refusal, the
+## tool, and the reply. A tool that ends its own shell -- an exit in its code -- ends this entry, never the batch.
+AgentsHarnessBatchCallBody(){ ## tool name, arguments file
+	type AgentsHarnessRunTool > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessRun.include"
+	type AgentsTranscriptToolStart > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionTranscript.include"
+	type AgentsHarnessHooksRefusal > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessHooks.sh"
+	harnessToolOnlyArgs="$( cat "$2" )"
+	[ -n "$harnessToolOnlyArgs" ] || harnessToolOnlyArgs="{}"
+	AgentsTranscriptToolStart "$1" || :
+	AgentsHarnessAnnounceTool "$1" "$harnessToolOnlyArgs"
+	## Every hook gets its say here exactly as it does in the loop: a surface that skips
+	## them is a way around them.
+	harnessResult="$( AgentsHarnessHooksRefusal "$1" "$harnessToolOnlyArgs" )"
+	harnessTranscriptOutcome="" ; [ -z "$harnessResult" ] || harnessTranscriptOutcome="refused"
+	[ -n "$harnessResult" ] || AgentsHarnessRunTool "$1" "$harnessToolOnlyArgs"
+	## Not for the call of a native client's own tool that this one did nothing about (NOT-HELD).
+	case "$harnessResult" in
+		NOT-HELD:*) ;;
+		*) AgentsTranscriptToolDone "$1" "$harnessToolOnlyArgs" "$harnessResult" mcp "$harnessTranscriptOutcome" || : ;;
+	esac
+	AgentsHarnessReply "$1" "$harnessResult"
+	printf '%s\n' "$harnessReply"
+	## A refused or unknown tool leaves a caller's status check dead otherwise.
+	case "$harnessResult" in ERROR:*) return 1 ;; esac
+	return 0
 }
 
 AgentsHarnessToolCheckList(){ ## raw arguments

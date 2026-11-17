@@ -5,8 +5,8 @@
 ## Held, run and not read (every file a call sources is logged by a line put at the head of each .include of a copy of the package, and
 ## every probe function the process holds afterwards is listed, so what was parsed is read from the process and not from the file names):
 ##   1. THE KINDS. One wait of 2 seconds for each kind, in a process of its own, over a Slack-shaped fake curl: it sources the arm, the core
-##      and the pieces its kind takes (file, inbox, board, process and wake: Local; slack: Slack; ask: Ask and Slack; replies: Replies;
-##      mentions and tagged: Mentions; dms: Dms; chat and scan: Chat) and no other MemberWait*.include, it holds the probe functions of
+##      and the pieces its kind takes (file, inbox, board, process and wake: Local; slack: Slack; ask: Ask and Slack; replies: Replies and
+##      Slack; mentions and tagged: Mentions and Slack; dms: Dms and Slack; chat and scan: Chat and Slack) and no other MemberWait*.include, it holds the probe functions of
 ##      those pieces and no other, and it is not refused for a kind it does not carry (the kind's probe must be there before the check).
 ##   2. THE FLOOR. A --wait-default wait of a session adds to the sources it was given the replies of the session's own posts, the
 ##      member's DMs and mentions and its wake marker (the chat of the session too, where the session has a folder; the rig's has none):
@@ -89,15 +89,16 @@ rigDiff(){ ## got lines, want lines -- `ok`, or what is missing and what is more
 	diffMore="$( LC_ALL=C comm -23 <( printf '%s\n' "$1" ) <( printf '%s\n' "$2" ) | LC_ALL=C tr '\n' ' ' )"
 	if [ -z "$diffMissing$diffMore" ] ; then printf ok ; else printf 'missing [%s] more [%s]' "${diffMissing% }" "${diffMore% }" ; fi
 }
+## The three Slack-shaped helpers live in the Slack piece (S12.1), so every probe that calls one carries it.
 rigPiecesOfKind(){ ## kind -- the pieces a wait with one source of it takes, besides the arm and the core
 	case "$1" in
 		file|inbox|board|process|wake) printf '%s' "$rigPieceLocal" ;;
 		slack) printf '%s' "$rigPieceSlack" ;;
 		ask) printf '%s %s' "$rigPieceAsk" "$rigPieceSlack" ;;
-		replies) printf '%s' "$rigPieceReplies" ;;
-		mentions|tagged) printf '%s' "$rigPieceMentions" ;;
-		dms) printf '%s' "$rigPieceDms" ;;
-		chat|scan) printf '%s' "$rigPieceChat" ;;
+		replies) printf '%s %s' "$rigPieceReplies" "$rigPieceSlack" ;;
+		mentions|tagged) printf '%s %s' "$rigPieceMentions" "$rigPieceSlack" ;;
+		dms) printf '%s %s' "$rigPieceDms" "$rigPieceSlack" ;;
+		chat|scan) printf '%s %s' "$rigPieceChat" "$rigPieceSlack" ;;
 	esac
 }
 rigProbesOfPiece(){ ## piece -- the probe functions it holds
@@ -228,10 +229,10 @@ rigKind scan "scan:permission-escalation"
 echo "-- 2. the floor of a session --"
 rigProcess '. "$1" ; set +e ; DistroAgentsTools --wait-for-input --team-member '"$rigMember"' --wait-default --wait-session-id rig-floor-1 --wait-source "file:'"$rigTmp"'/quiet.txt" --wait-timeout 2 --wait-poll-interval 1 > "$RIG_WAIT_OUT" ;'
 [ -z "${RIG_DEBUG:-}" ] || LC_ALL=C grep -m3 -e '^# waited' -e '^WAIT-RESULT' "$RIG_WAIT_OUT"
-rigAssert "a --wait-default wait of a file source in a session: the arm, the core, Local, Replies, Dms and Mentions, and no other" \
-	"$( rigDiff "$( rigFamilyOf "$RIG_SOURCED_LOG" )" "$( rigWantFiles yes "$rigPieceLocal" "$rigPieceReplies" "$rigPieceDms" "$rigPieceMentions" )" )" ok
-rigAssert "and it holds the probe functions of those four pieces, and no other" \
-	"$( rigDiff "$( LC_ALL=C cat "$RIG_HELD_LIST" )" "$( rigWantProbes "$rigPieceLocal" "$rigPieceReplies" "$rigPieceDms" "$rigPieceMentions" )" )" ok
+rigAssert "a --wait-default wait of a file source in a session: the arm, the core, Local, Replies, Dms, Mentions and Slack, and no other" \
+	"$( rigDiff "$( rigFamilyOf "$RIG_SOURCED_LOG" )" "$( rigWantFiles yes "$rigPieceLocal" "$rigPieceReplies" "$rigPieceDms" "$rigPieceMentions" "$rigPieceSlack" )" )" ok
+rigAssert "and it holds the probe functions of those pieces, and no other" \
+	"$( rigDiff "$( LC_ALL=C cat "$RIG_HELD_LIST" )" "$( rigWantProbes "$rigPieceLocal" "$rigPieceReplies" "$rigPieceDms" "$rigPieceMentions" "$rigPieceSlack" )" )" ok
 
 echo "-- 3. the callers that source a piece of the wait --"
 rigProcess '. "$1" ; set +e ; . "$MDLT_ORIGIN/'"$rigPackageRel"'/sh-lib/questions/AgentsTools.PendingReplyRecords.include" ; AgentsToolsPendingReplyPollOwn '"$rigMember"' ;'

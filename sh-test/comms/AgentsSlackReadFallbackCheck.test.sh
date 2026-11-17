@@ -108,7 +108,7 @@ rigRun -- --slack-send-message --team-member magic-coordinator DOTHER0001:170000
 rigAssert "a reply into a thread whose parent is in another conversation than the bot can see: an error, and nothing posted under the bot" "$( [ "$rigRc" != 0 ] && echo failed ) $( rigCalls chat.postMessage ) $( LC_ALL=C grep -c 'NOT posted\|nothing was posted' "$rigTmp/err" | LC_ALL=C awk '{ print ( $1 > 0 ) ? "said" : "silent" }' )" "failed user said"
 
 echo "-- 2. a whole conversation --"
-rigRun -- --slack-read --team-member magic-coordinator DRIG00001
+rigRun -- --slack-read --team-member magic-coordinator DRIG00001 --oldest 1
 rigAssert "a conversation the user cannot reach is read under the bot: the owner's top-level messages come back" "$rigRc $( LC_ALL=C grep -c 'RIG-OWNER-REPLY' "$rigTmp/out" ) $( rigCalls conversations.history )" "0 1 user,bot"
 
 echo "-- 3. a conversation the user reaches --"

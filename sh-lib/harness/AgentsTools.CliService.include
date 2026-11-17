@@ -31,6 +31,34 @@ agentsCliServiceWaitRounds="claude-native:2700 deepseek:2700"
 ## The safe round, of every other service: four and a half minutes, under a five-minute cache.
 agentsCliServiceWaitRoundSafe=270
 
+## THE CACHE MULTIPLIERS (S18.4), `<service>:<lifetime-seconds>:<wake-milli>:<rebuild-milli>`: what the service charges
+## for reading a region of the shared prefix against writing it again, in thousandths of the plain price. The prices are the
+## service's prompt-caching page, read 2026-11-17. The wire already asks the hour for the armed floor and keeps the growing
+## tail plain (AgentsAnthropicMessagesWire.sh:20-26), so the armed floor is the region an idle duty is decided on.
+## The row is the service's own fact: a service whose prices were not read has no row, and an idle duty on it never keeps.
+agentsCliServiceCacheRegions="claude-native:3600:100:2000"
+
+## The three numbers an idle duty's keep-or-stop decision is made on, from the wait round that is this file's other fact and
+## the cache row of the service: the round itself, the seconds that cache lives, and the wakes of that round which repay
+## writing it again, that is rebuild over wake (2000 over 100 is 20). A round past the lifetime makes every wake a miss, so
+## the lifetime caps what the round may be.
+## Prints `<round> <lifetime> <wakes-to-break-even>`, or nothing at all for a service with no row here.
+AgentsToolsCliServiceDutyCache(){ ## cli service
+	local cacheOne cacheLife cacheWake cacheRebuild
+	[ -n "${1:-}" ] || return 1
+	for cacheOne in $agentsCliServiceCacheRegions ; do
+		[ "${cacheOne%%:*}" = "$1" ] || continue
+		cacheLife="${cacheOne#*:}" ; cacheLife="${cacheLife%%:*}"
+		cacheWake="${cacheOne#*:*:}" ; cacheWake="${cacheWake%%:*}"
+		cacheRebuild="${cacheOne##*:}"
+		case "$cacheWake" in ''|0|*[!0123456789]*) return 1 ;; esac
+		case "$cacheRebuild" in ''|*[!0123456789]*) return 1 ;; esac
+		printf '%s %s %s\n' "$( AgentsToolsCliServiceWaitRound "$1" )" "$cacheLife" "$(( cacheRebuild / cacheWake ))"
+		return 0
+	done
+	return 1
+}
+
 ## THE CLI THAT WORKS (F13.4). Of the vendor CLIs this machine may carry, claude-native and copilot-native, in that order, the first that is installed and
 ## works is the one the setup selects (--owner-setup-cli-auto). It is asked here, of the CLI itself, when a person or the console asks the setup: a
 ## spawn never asks, it resolves the CLI service of the preset its tier names and scans no PATH (AgentsReviewCliResolved), so this is called from the setup alone.

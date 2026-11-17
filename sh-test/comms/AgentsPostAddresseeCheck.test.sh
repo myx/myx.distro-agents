@@ -35,10 +35,12 @@ rigTmp="$( mkdir -p "$MMDAPP/.local/temp" && mktemp -d "$MMDAPP/.local/temp/Agen
 ## the parent's id, ended with the rig, through the one way a check signals what it kept
 ## (sh-test/check-fixtures/rig-processes.include.sh). A route to a session goes to a member that runs there.
 . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-processes.include.sh" || rigRefuse "the rig's process helper is missing from the package: sh-test/check-fixtures/rig-processes.include.sh"
+## The control threads the tooling starts in a rig outlive the call that started them, so the rig ends them.
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-control-threads.include.sh" || rigRefuse "the rig's control-thread helper is missing from the package: sh-test/check-fixtures/rig-control-threads.include.sh"
 bash -c 'sleep 1800 ; :' rig-run --session-id rig-parent-id > /dev/null 2>&1 < /dev/null &
 rigParentPid=$! ; rigProcNote "$rigParentPid"
 disown "$rigParentPid" 2> /dev/null || :
-trap 'rigProcSignalWithChildren TERM "$rigParentPid" ; rm -rf -- "$rigTmp"' EXIT
+trap 'rigProcSignalWithChildren TERM "$rigParentPid" ; rigControlThreadsEnd "$rigTmp" ; rm -rf -- "$rigTmp"' EXIT
 mkdir -p "$rigTmp/bin" "$rigTmp/tmp" "$rigTmp/skills"
 for rigName in "$rigMember" "$rigLead" "$rigOther" human-owner ; do
 	mkdir -p "$rigTmp/skills/$rigName"
@@ -203,7 +205,7 @@ rigRow sendAccount SendMessage '{"to":"session-current","address_to":"URIGSOME1"
 rigAssert "a Slack account, by its id"                               "$( rigHeader )" "${rigFrom}<@URIGSOME1>."
 rigRow sendUnknown SendMessage '{"to":"session-current","address_to":"rig-nobody","message":"m"}'
 rigAssert "a name that is no team member: refused as a question to it is, nothing posted" \
-	"$( rigPosts ):$( rigFirst | LC_ALL=C cut -c1-22 ):$( LC_ALL=C grep -c -F -- "--address-to 'rig-nobody': no such team member and no contact of that id -- expected $rigTmp/skills/rig-nobody" "$rigScenarioDir/tool.out" )" "0:ERROR: the send failed:1"
+	"$( rigPosts ):$( rigFirst | LC_ALL=C cut -c1-22 ):$( LC_ALL=C grep -c -F -- "--address-to 'rig-nobody': no such team member and no contact of that id -- expected a team member the tooling holds" "$rigScenarioDir/tool.out" )" "0:ERROR: the send failed:1"
 rigRow sendResult SendMessage "{\"to\":\"session-current\",\"address_to\":\"$rigOther\",\"message\":\"m\"}"
 rigAssert "the result still says where it went and that the Wait follows" \
 	"$( rigFirst ):$( LC_ALL=C grep -c -x 'NEXT: call Wait' "$rigScenarioDir/tool.out" )" \
@@ -218,6 +220,19 @@ rigRow backNamed SubagentHandback "{\"address_to\":\"$rigOther\",\"outcome\":\"x
 rigAssert "an address_to it gives is not taken"                     "$( rigPosts ):$( rigHeader )" "1:$rigToLead"
 rigRow backElsewhere SubagentHandback '{"to":"CELSE0001","outcome":"x"}'
 rigAssert "a conversation it names is not taken"                    "$( rigPosts ):$( rigHeader )" "1:$rigToLead"
+
+echo "-- a thread Slack itself posted in is answered, and Slack's own account is never the addressee --"
+rigStart backSlackbotRoot
+rigRecords rig-parent-id "$rigLead"
+printf '{"ok":true,"messages":[{"ts":"1700000001.000101","user":"USLACKBOT","text":"has joined the channel"}],"has_more":false}\n' > "$rigScenarioDir/replies.json"
+rigCall SubagentHandback '{"outcome":"x"}'
+rigAssert "the message it answers is Slack's own: one post, in the parent's thread, headed to its member" "$( rigPosts )$( rigPostedTo "$rigParent" ):$( rigHeader )" "1yes:$rigToLead"
+rigStart backUnknownRoot
+rigRecords rig-parent-id "$rigLead"
+printf '{"ok":true,"messages":[{"ts":"1700000001.000101","user":"URIGPERSON","text":"asked here"}],"has_more":false}\n' > "$rigScenarioDir/replies.json"
+rigCall SubagentHandback '{"outcome":"x"}'
+rigAssert "control: that read reaches the reply, and a person who is no contact is still refused" \
+	"$( rigPosts ):$( LC_ALL=C grep -c -F "REFUSED -- 'URIGPERSON' is not a known contact" "$rigScenarioDir/tool.out" )" "0:1"
 
 echo "-- and to the coordinator where its route names no member: the handback is posted all the same --"
 rigStart backNoParent
@@ -288,7 +303,7 @@ rigRow shapeBoth SendMessage "{\"to\":\"session-current\",\"address_to\":\"URIGS
 rigAssert "an account, a member and a conversation, each named as what it is" "$( rigPosts ):$( rigHeader )" "1:${rigFrom}<@URIGSOME1>; 🤖 *_${rigOther}_*; <#DRIGSOME1>."
 ## What the member send says of a word that names nobody: one line, whole.
 rigRefusal(){ ## the word as it was given
-	LC_ALL=C grep -c -F -- "⛔ ERROR: DistroAgentsTools --slack-send-message: --address-to '$1': no such team member and no contact of that id -- expected $rigTmp/skills/$1 or a contact id the store holds. The word is no Slack id either: an account is U and a conversation C, D or G, then upper-case letters and digits only, nine characters or more in all. Nothing was sent." "$rigScenarioDir/tool.out"
+	LC_ALL=C grep -c -F -- "⛔ ERROR: DistroAgentsTools --slack-send-message: --address-to '$1': no such team member and no contact of that id -- expected a team member the tooling holds, or a contact id the store holds. The word is no Slack id either: an account is U and a conversation C, D or G, then upper-case letters and digits only, nine characters or more in all. Nothing was sent." "$rigScenarioDir/tool.out"
 }
 rigShapeNo=0
 while IFS= read -r rigWord ; do

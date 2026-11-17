@@ -20,12 +20,193 @@
 teamPassDir=""
 teamPassOwedFile=""
 
+## THE STORE'S OWN GIT IS THIS THREAD'S WORK (S12.13): `sync <store> <origin> <branch>`, `head <lock path> <branch> <blobs|session>` and
+## `push <branch>`. A lock's resync, its head fetch and its push leave the acquiring process and arrive here, on the queue that already
+## serialises every commit and push of this one checkout. The answer's first line is `ok` or `failed`, then the reason or the values read.
+AgentsToolsTeamDataThreadRequest(){ ## the request's fields...
+	local requestLockRc=0
+	type AgentsToolsTeamDataStoreLockTake > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataStoreLock.include"
+	if ! AgentsToolsTeamDataStoreLockTake 300 "a request of the store's git" ; then
+		printf 'failed\nthe store lock stayed held, so the request was not served\n'
+		return 1
+	fi
+	AgentsToolsTeamDataThreadRequestLocked "$@" || requestLockRc=$?
+	AgentsToolsTeamDataStoreLockGive
+	return "$requestLockRc"
+}
+
+AgentsToolsTeamDataThreadRequestLocked(){ ## the request's fields...
+	case "${1:-}" in
+		sync) shift ; AgentsToolsTeamDataResyncRun "${1:-}" "${2:-}" "${3:-}" ;;
+		head) shift ; AgentsToolsTeamDataHeadRun "${1:-}" "${2:-}" "${3:-blobs}" ;;
+		push) shift ; AgentsToolsTeamDataPushRun "${1:-}" ;;
+		*) printf 'failed\nno such request of the store: %s\n' "${1:-<none>}" ;;
+	esac
+	return 0
+}
+
+## The push, run where the store's git runs: what the store holds ahead of its origin goes out, with the debt marker every push carries.
+AgentsToolsTeamDataPushRun(){ ## branch
+	local pushBranch="${1:-}"
+	if [ -z "$pushBranch" ] ; then
+		printf 'failed\nthe push needs its branch\n'
+		return 0
+	fi
+	AgentsToolsTeamDataPushIfAhead "the store's close" || :
+	case "$( AgentsToolsTeamDataPushAheadState )" in
+		ahead) printf 'failed\nthe store is still ahead of origin on %s\n' "$pushBranch" ; return 0 ;;
+	esac
+	printf 'ok\n%s\n' "the store's commits reached origin"
+	return 0
+}
+
+## The resync, run where the store's git runs: its writers settle first, so the tree the pull moves holds their work as commits, then
+## the pull, the merge it could not settle, and the push it leaves owing. Prints `ok` or `failed`, then its reason.
+AgentsToolsTeamDataResyncRun(){ ## store root, origin url, branch
+	local resyncStore="${1:-}" resyncOrigin="${2:-}" resyncBranch="${3:-}"
+	local resyncOut="" resyncRc=0 resyncGitDir="" resyncTries=0
+	type AgentsToolsMyRoot > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.MyRoot.include"
+	type AgentsToolsTeamDataPrepareSync > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataCommit.include"
+	if [ -z "$resyncStore" ] || [ -z "$resyncOrigin" ] || [ -z "$resyncBranch" ] ; then
+		printf 'failed\nthe resync needs the store, its origin and its branch\n'
+		return 0
+	fi
+	if [ -z "${MYXROOT:-}" ] || [ ! -f "$MYXROOT/bin/git/cloneSync.Common" ] ; then
+		printf 'failed\nmyx.common git/cloneSync is not reachable (MYXROOT=%s)\n' "${MYXROOT:-<unset>}"
+		return 0
+	fi
+	if ! AgentsToolsTeamDataPrepareSync "the store's resync" "$resyncBranch" ; then
+		printf 'failed\nthe store holds uncommitted paths the pull would move, so the tree was not moved\n'
+		return 0
+	fi
+	resyncRc=0
+	resyncOut="$( "$MYXROOT/bin/git/cloneSync.Common" --no-push "$resyncStore" "$resyncOrigin" "$resyncBranch" 2>&1 )" || resyncRc=$?
+	## A head that moved under the pull is a writer's transient: the pull runs again, up to five times two seconds apart.
+	while [ "$resyncRc" -ne 0 ] && [ "$resyncTries" -lt 5 ] ; do
+		case "$resyncOut" in *"fetch updated the current branch head"*) ;; *) break ;; esac
+		resyncTries=$(( resyncTries + 1 ))
+		sleep 2
+		resyncRc=0
+		resyncOut="$( "$MYXROOT/bin/git/cloneSync.Common" --no-push "$resyncStore" "$resyncOrigin" "$resyncBranch" 2>&1 )" || resyncRc=$?
+	done
+	## A merge the pull could not settle, origin and this store both having moved one file, is settled here and the pull run again.
+	if [ "$resyncRc" -ne 0 ] ; then
+		resyncGitDir="$( git -C "$resyncStore" rev-parse --absolute-git-dir 2> /dev/null )" || resyncGitDir=""
+		git -C "$resyncStore" fetch -q origin "+refs/heads/$resyncBranch:refs/remotes/origin/$resyncBranch" > /dev/null 2>&1 || :
+		git -C "$resyncStore" merge --no-commit --no-ff "refs/remotes/origin/$resyncBranch" > /dev/null 2>&1 || :
+		AgentsToolsTeamDataMergeSettle "the store's resync" > /dev/null 2>&1 || :
+		if [ -e "$resyncGitDir/MERGE_HEAD" ] && [ -z "$( git -C "$resyncStore" diff --name-only --diff-filter=U 2> /dev/null )" ] ; then
+			git -C "$resyncStore" commit -q -m "* team-data merge settled before the resync" > /dev/null 2>&1 || :
+		fi
+		if [ -e "$resyncGitDir/MERGE_HEAD" ] ; then
+			git -C "$resyncStore" merge --abort > /dev/null 2>&1 || :
+		else
+			## THE PULL THAT SETTLED A MERGE IS THE ANSWER, so its status is the resync's: a second pull that lands clears the
+			## first one's failure, which the merge has just turned into a commit.
+			resyncRc=0
+			resyncOut="$( "$MYXROOT/bin/git/cloneSync.Common" --no-push "$resyncStore" "$resyncOrigin" "$resyncBranch" 2>&1 )" || resyncRc=$?
+		fi
+	fi
+	if [ "$resyncRc" -ne 0 ] ; then
+		printf 'failed\n%s\n' "${resyncOut:-the resync failed and said nothing}"
+		return 0
+	fi
+	## A pull that lands takes the audit log family out of the index, and every resync pushes what it left ahead (S12.4, task-20261113T1619Z).
+	type AgentsToolsTeamDataAuditUntrack > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataCommit.include"
+	AgentsToolsTeamDataAuditUntrack "the store's resync" || :
+	AgentsToolsTeamDataPushIfAhead "the store's resync" || :
+	printf 'ok\n%s\n' "$resyncOut"
+	return 0
+}
+
+## The fetch of a lock's head check, and the value read from it, in one call: a fetch and a read in two processes can disagree, since the
+## store's head moves under the fetch. `blobs` prints the local and the published blob id, `session` the published `session-id`.
+AgentsToolsTeamDataHeadRun(){ ## the lock's path relative to the store, branch, blobs|session
+	local headRelPath="${1:-}" headBranch="${2:-}" headWant="${3:-blobs}" headOut="" headRc=0 headLocal="" headPublished="" headSession=""
+	if [ -z "$headRelPath" ] || [ -z "$headBranch" ] ; then
+		printf 'failed\nthe head check needs the lock path and the branch\n'
+		return 0
+	fi
+	headOut="$( git -C "$MDAT_DATA_ROOT" fetch origin "$headBranch" 2>&1 )" || headRc=$?
+	if [ "$headRc" -ne 0 ] ; then
+		printf 'failed\n%s\n' "${headOut:-the fetch failed and said nothing}"
+		return 0
+	fi
+	if [ "$headWant" = session ] ; then
+		headSession="$( git -C "$MDAT_DATA_ROOT" show "FETCH_HEAD:$headRelPath" 2> /dev/null | LC_ALL=C awk '/^session-id: /{ print substr($0, 13) ; exit ; }' )" || headSession=""
+		printf 'ok\n%s\n' "${headSession:--}"
+		return 0
+	fi
+	headLocal="$( git -C "$MDAT_DATA_ROOT" rev-parse --verify --quiet "HEAD:$headRelPath" 2> /dev/null )" || headLocal=""
+	headPublished="$( git -C "$MDAT_DATA_ROOT" rev-parse --verify --quiet "FETCH_HEAD:$headRelPath" 2> /dev/null )" || headPublished=""
+	printf 'ok\n%s\t%s\n' "${headLocal:--}" "${headPublished:--}"
+	return 0
+}
+
+## ONE REQUEST OF THE STORE'S GIT, ASKED OF THE ONE THREAD: the thread is started where none lives and asked; with the thread off, as the
+## checks have it, the request runs in this process. Prints the answer after its verdict, and answers the verdict as its status.
+AgentsToolsTeamDataRequestAsk(){ ## the request's fields...
+	local askDir="" askAnswer="" askVerdict="" askRest=""
+	type AgentsToolsTeamDataThreadDir > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataCommit.include"
+	type AgentsToolsOnDemandThreadRequest > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.OnDemandThread.include"
+	type AgentsToolsTeamDataStoreLockHeld > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataStoreLock.include"
+	if [ "${MDAT_TEAM_DATA_COMMIT_THREAD:-}" = "off" ] || ! askDir="$( AgentsToolsTeamDataThreadDir )" ; then
+		askAnswer="$( AgentsToolsTeamDataThreadRequest "$@" )"
+	elif AgentsToolsTeamDataStoreLockHeld ; then
+		## THE THREAD TAKES THE STORE LOCK FOR ITSELF, so a caller that holds it asks in its own process: the work is the same and the
+		## exclusion is already this caller's (AgentsTools.TeamDataStoreLock.include).
+		askAnswer="$( AgentsToolsTeamDataThreadRequest "$@" )"
+	else
+		askAnswer="$( AgentsToolsOnDemandThreadRequest "$askDir" 300 --intern-team-data-commit --run -- "$@" )" \
+			|| askAnswer="failed"$'\n'"the store's thread answered nothing in 300s"
+	fi
+	askVerdict="${askAnswer%%$'\n'*}"
+	askRest="${askAnswer#*$'\n'}"
+	[ "$askRest" != "$askAnswer" ] || askRest=""
+	printf '%s' "$askRest"
+	[ "$askVerdict" = ok ] || return 1
+	return 0
+}
+
 ## A pass over the entries that wait, oldest first, each committed as its own commit, then one push. An entry already gone when the
 ## pass reaches it is nothing to commit, so a pass run twice for one request commits it once. `done` goes to descriptor 3, which the
 ## shared thread points at the caller's fifo for a request and at /dev/null for a tick.
+## THE WHOLE PASS RUNS UNDER THE STORE'S ONE LOCK (AgentsTools.TeamDataStoreLock.include): the thread is the store's normal holder, so no
+## writer commits or pushes between its steps, and each step inside is re-entrant and costs no second take.
 AgentsToolsTeamDataThreadPass(){
+	local passLockRc=0 passLockTries=1
+	type AgentsToolsTeamDataStoreLockTake > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataStoreLock.include"
+	## THE TICK NEVER WAITS: it runs once a second inside the serving loop, so a tick that waited on a writer would hold up the requests
+	## behind it. It takes the lock or leaves the work for its next second. A request is a caller waiting for its own answer, and a commit
+	## request among them, so a request waits its turn out.
+	case "${1:-}" in
+		'') passLockTries=1 ;;
+		*) passLockTries=300 ;;
+	esac
+	if ! AgentsToolsTeamDataStoreLockTake "$passLockTries" "the team-data thread" ; then
+		case "${1:-}" in
+			'') printf 'done\n' >&3 ; return 0 ;;
+		esac
+		printf 'failed\nthe store lock stayed held, so this request was not served\n' >&3
+		return 0
+	fi
+	AgentsToolsTeamDataThreadPassLocked "$@" || passLockRc=$?
+	AgentsToolsTeamDataStoreLockGive
+	return "$passLockRc"
+}
+
+AgentsToolsTeamDataThreadPassLocked(){
+	## A REQUEST OF THE STORE'S GIT IS SERVED HERE TOO (S12.13): a lock asks for its resync, its head read and its push, and this pass
+	## runs them, so no second process moves the checkout the commits below move. A word this thread does not know is refused by name:
+	## it is never taken for a commit pass, which would answer `done` to a request nobody served.
+	case "${1:-}" in
+		sync|head|push) AgentsToolsTeamDataThreadRequest "$@" >&3 ; return 0 ;;
+		''|commit) ;;
+		*) printf 'failed\nno such request of the store: %s\n' "$1" >&3 ; return 0 ;;
+	esac
 	local passEntry passContext passPath passPaths passCount=0 passAny=""
 	if [ -z "$teamPassDir" ] ; then
+		type AgentsToolsTeamDataThreadDir > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataCommit.include"
 		teamPassDir="$( AgentsToolsTeamDataThreadDir )" || { printf 'no store\n' >&3 ; return 0 ; }
 		teamPassOwedFile="$( AgentsToolsTeamDataCommitOwedPath )" || teamPassOwedFile=""
 	fi

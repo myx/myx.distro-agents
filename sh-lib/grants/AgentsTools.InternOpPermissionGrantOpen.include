@@ -168,7 +168,7 @@ type AgentsToolsGrantsStoreTouch > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.dis
 			set +e ; return 1
 		}
 		## Interim, until the grants move into the session file itself: that file is written again now.
-		AgentsToolsGrantsStoreTouch "$grantDir"
+		AgentsToolsGrantsStoreTouchDir "$grantDir"
 		## Said where its refusal was, in the session's tracking-thread: one post per grant written.
 		local grantScope="$grantKind"
 		case "$grantKind" in

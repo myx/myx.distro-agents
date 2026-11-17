@@ -21,10 +21,12 @@ rigRefuse(){
 [ -f "$rigPackage/sh-lib/common/AgentsTools.OnDemandThread.include" ] || rigRefuse "the shared thread's include is not in the package"
 . "$rigPackage/sh-test/check-fixtures/rig-processes.include.sh" || rigRefuse "the rig's process helper is missing"
 . "$rigPackage/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
+## And the schedule thread this check serves, by its lock, ended before the rig goes.
+. "$rigPackage/sh-test/check-fixtures/rig-control-threads.include.sh" || rigRefuse "the rig's fixture that ends threads is missing"
 rigTmp="$( rigTempDir AgentsScheduleOneThreadCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 rigStarted=""
-trap 'chmod -R u+wX -- "$rigTmp" 2> /dev/null ; rigProcSignalWithChildren KILL $rigStarted ; rm -rf -- "$rigTmp"' EXIT
+trap 'chmod -R u+wX -- "$rigTmp" 2> /dev/null ; rigControlThreadsEnd "$rigTmp" ; rigProcSignalWithChildren KILL $rigStarted ; rm -rf -- "$rigTmp"' EXIT
 trap 'exit 1' INT TERM
 rigPassCount=0
 rigFailCount=0

@@ -135,11 +135,6 @@ AgentsToolsContactsWriteFile(){ ## operation, target file, function that prints 
 	AgentsToolsTeamDataCommitPaths "* contact: $1" "$2" || :
 }
 
-## The stamp of a log line: `YYYY-MM-DD HH:MM +ZZZZ`.
-AgentsToolsContactsStamp(){
-	date '+%Y-%m-%d %H:%M %z'
-}
-
 ## The store lock, so that two members' collects do not write over one another. The lock is released by AgentsToolsContactsUnlock.
 contactsLockPath=""
 AgentsToolsContactsLock(){ ## operation

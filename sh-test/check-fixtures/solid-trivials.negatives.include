@@ -1,0 +1,93 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+##
+## Fixture for AgentsSolidTrivialsCheck.test.sh: one of every name that must NOT come back as a `trivial` row.
+## Each blocker is the rule's own, named in the comment above it.
+##
+## Kept: an API. SolidNegativeApi is named by solid-trivials.api-user.include, another file.
+SolidNegativeApi(){ ## text
+	printf '%s\n' "$1"
+}
+
+## Kept: the shell runs it by name. a trap.
+SolidNegativeTrap(){ :
+}
+
+## Kept: a case arm runs it.
+SolidNegativeArm(){ :
+}
+
+## Kept: a variable holds it.
+SolidNegativeHeld(){ :
+}
+
+## Kept: the comment states the reason the value is what it is. owner 2026-01-01.
+SolidNegativeKnown(){ ## word
+	printf '%s\n' "$1"
+}
+
+## Kept: its body is a pipeline, not one simple command.
+SolidNegativePipe(){ ## file
+	LC_ALL=C grep -c . "$1" | LC_ALL=C awk '{ print $1 }'
+}
+
+## Kept: two statements.
+SolidNegativeTwo(){ ## file
+	printf '%s\n' "$1"
+	printf '%s\n' "$1"
+}
+
+## Kept: handed over as a bare word, a callback the file passes on.
+SolidNegativeHanded(){ ## text
+	printf '%s\n' "$1"
+}
+
+SolidNegativeUse(){ ## path
+	SolidNegativeApi "$1"
+	case "$1" in
+		solid) SolidNegativeArm ;;
+	esac
+	SolidNegativePipe "$1" > /dev/null
+	SolidNegativeTwo "$1" > /dev/null
+	SOLID_NEGATIVE_CALLBACK=SolidNegativeHanded
+	SOLID_NEGATIVE_ARRAY=( SolidNegativeHeld )
+	trap SolidNegativeTrap EXIT
+	printf '%s\n' "${SOLID_NEGATIVE_CALLBACK}" "${SOLID_NEGATIVE_ARRAY[0]}"
+}
+
+## Kept: read twice.
+SolidNegativeTwice="one-value"
+printf '%s\n' "$SolidNegativeTwice" "$SolidNegativeTwice"
+
+## Kept: read far from its assignment.
+SolidNegativeFarAway="first-value"
+printf '%s\n' one
+printf '%s\n' two
+printf '%s\n' three
+printf '%s\n' four
+printf '%s\n' five
+printf '%s\n' "$SolidNegativeFarAway"
+
+## Kept: a counter the loop changes.
+SolidNegativeCounter=0
+while [ "$SolidNegativeCounter" -lt 1 ] ; do SolidNegativeCounter=$(( SolidNegativeCounter + 1 )) ; done
+
+## Kept: a value the shell writes into, not one this line gives.
+SolidNegativeRead=""
+read -r SolidNegativeRead
+printf '%s\n' "$SolidNegativeRead"
+
+## Kept: exported.
+export SolidNegativeExported="exported-value"
+printf '%s\n' "$SolidNegativeExported"
+
+## Kept: another file hands its name to a runner, which runs it by that name. The name is data there, so no caller
+## line names it and the function has to exist.
+SolidNegativeByString(){ ## text
+	printf '%s\n' "$1"
+}
+
+## Kept: a sibling package names it, one optional part of one system naming another's.
+SolidNegativeSibling(){ ## text
+	printf '%s\n' "$1"
+}

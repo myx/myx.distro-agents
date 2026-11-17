@@ -22,7 +22,7 @@ command -v git > /dev/null || rigRefuse "git is not installed"
 
 . "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
 . "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-control-threads.include.sh" || exit 1
-. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-store-item.include.sh" || exit 1
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-writes.include.sh" || exit 1
 rigTmp="$( rigTempDir AgentsTeamDataWritersCommitCheck )" || exit 1
 ## The store's commit thread, and every other thread a scene started, ends before the rig goes (rigControlThreadsEnd, T1905Z).
 trap 'rigControlThreadsEnd "$rigTmp" ; rm -rf -- "$rigTmp"' EXIT
@@ -73,7 +73,7 @@ rigAfter(){ ## writer name
 }
 ## What a writer printed, and what the store's commit thread logged for it: the commit, and its warnings, are the thread's.
 rigSaid(){ cat "$rigTmp/out" "$rigStore"/.git/team-data-commit/thread.log 2> /dev/null ; }
-## A fixture item is built by its store's own write (rig-store-item.include.sh), never by hand: a hand-written item stays
+## A fixture item is built by its store's own write (rig-owner-writes.include.sh), never by hand: a hand-written item stays
 ## green when that write's own file contract changes, which is what this check is here to catch.
 rigBodyCount=0
 rigPut(){ ## selector ((`board backlog rig-old.md`), body text

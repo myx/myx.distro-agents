@@ -60,9 +60,9 @@ AgentsToolsTeamDataRepairMoveFlatItems(){
 	return 0
 }
 
-case "$1" in
-
-	--repair-team-data-checkout)
+## THE STORE'S ONE LOCK SPANS THE WHOLE OPERATION (AgentsTools.TeamDataStoreLock.include): every git step it runs moves or writes the
+## store's tree, and no other writer may commit or push inside that span.
+AgentsToolsTeamDataCheckoutRepairRun(){
 		shift
 		local callingMember="$1"
 		shift || true
@@ -344,6 +344,21 @@ case "$1" in
 		fi
 		echo "TEAM-DATA-REPAIRED: $headBranch is repaired and pushed, read back as origin/$headBranch = $headFull"
 		return 0
+}
+
+case "$1" in
+
+	--repair-team-data-checkout)
+		local TeamDataCheckoutRepairRc=0
+		type AgentsToolsTeamDataStoreLockTake > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataStoreLock.include"
+		if ! AgentsToolsTeamDataStoreLockTake 300 "--repair-team-data-checkout" ; then
+			echo "⛔ ERROR: $MDSC_CMD --repair-team-data-checkout: the store lock stayed held by another writer, so nothing was repaired" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsTeamDataCheckoutRepairRun "$@" || TeamDataCheckoutRepairRc=$?
+		AgentsToolsTeamDataStoreLockGive
+		return "$TeamDataCheckoutRepairRc"
+
 	;;
 
 	*)

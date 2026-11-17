@@ -39,7 +39,7 @@ AgentsToolsContactsCollectOrganisation(){ ## the operation, its arguments...
 	AgentsToolsContactsMerge orgDomain "domain" "$colDomain" "$colCorrect"
 	AgentsToolsContactsMerge orgNote "note" "$colNote" "$colCorrect"
 	if [ -n "$collectChanged" ] ; then
-		colStamp="$( AgentsToolsContactsStamp )"
+		colStamp="$( date '+%Y-%m-%d %H:%M %z' )"
 		orgLog="$orgLog- $colStamp -- ${colBy:-console} -- $( [ "$colNew" = yes ] && printf 'collected' || printf 'changed' ): $collectChanged"$'\n'
 		AgentsToolsContactsWriteFile "$colOp" "$colFile" AgentsToolsContactsOrgText || { AgentsToolsContactsUnlock ; return 1 ; }
 		colNow=$( [ "$colNew" = yes ] && printf created || printf updated )
@@ -60,7 +60,7 @@ AgentsToolsContactsCollectOrganisation(){ ## the operation, its arguments...
 ## Adds the calling member to `reached-by`; --reached-by names the member only for a call from no member's session (the console, a migration).
 AgentsToolsContactsCollectContact(){ ## the operation, its arguments...
 	type AgentsToolsContactsOneLine > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/contacts/AgentsTools.ContactsRecord.include"
-	type AgentsToolsContactsTierKnown > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/contacts/AgentsTools.ContactsTiers.include"
+	type AgentsToolsContactsTierName > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/contacts/AgentsTools.ContactsTiers.include"
 	type AgentsToolsContactsOneLine > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/contacts/AgentsTools.ContactsRecord.include"
 	type AgentsToolsContactsCoordinateCheck > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/contacts/AgentsTools.ContactsCoordinates.include"
 	local colOp="$1" colId="" colName="" colOrg="" colRole="" colRel="" colHow="" colLanguage="" colOwner="" colTier="" colNote="" colCorrect="" colMember="" colSlack="" colHandle="" colConv="" colMail="" colDrop=""
@@ -97,7 +97,7 @@ AgentsToolsContactsCollectContact(){ ## the operation, its arguments...
 						## product entry may stand above or below.
 						case "${2%%=*}" in '*'|'<all>'|'<any>') colTier="${2#*=}" ; shift 2 ; continue ;; esac
 						AgentsToolsContactsSlug "${2%%=*}" || { echo "$MDSC_CMD: ⛔ ERROR: $colOp: the scope of --scope-tier is lowercase letters, digits and hyphens (at most 64): ${2%%=*}" >&2 ; return 1 ; }
-						AgentsToolsContactsTierKnown "${2#*=}" || { echo "$MDSC_CMD: ⛔ ERROR: $colOp: the tier of --scope-tier is $( AgentsToolsContactsTiersShown ): ${2#*=}" >&2 ; return 1 ; }
+						[ -n "$( AgentsToolsContactsTierName "${2#*=}" )" ] || { echo "$MDSC_CMD: ⛔ ERROR: $colOp: the tier of --scope-tier is tier-moot, tier-contact, tier-client, tier-admin and tier-owner: ${2#*=}" >&2 ; return 1 ; }
 						colScopeTier="${colScopeTier:+$colScopeTier,}${2%%=*}=$( AgentsToolsContactsTierName "${2#*=}" )"
 					;;
 					--slack) AgentsToolsContactsCoordinateCheck slack-id "$2" || { echo "$MDSC_CMD: ⛔ ERROR: $colOp: $contactsWhy" >&2 ; return 1 ; } ; colSlack="$( AgentsToolsContactsListAdd "$colSlack" "$2" )" ;;
@@ -119,7 +119,7 @@ AgentsToolsContactsCollectContact(){ ## the operation, its arguments...
 	## A contact's tier is the human-owner's to set (S6.17, S6.36), whoever else holds the record: his own member name, or the console account
 	## mapped to him. The four words are the ladder, lowest first, and each includes the ones before it.
 	if [ -n "$colTier" ] ; then
-		AgentsToolsContactsTierKnown "$colTier" || { echo "$MDSC_CMD: ⛔ ERROR: $colOp: --tier is $( AgentsToolsContactsTiersShown ): $colTier" >&2 ; return 1 ; }
+		[ -n "$( AgentsToolsContactsTierName "$colTier" )" ] || { echo "$MDSC_CMD: ⛔ ERROR: $colOp: --tier is tier-moot, tier-contact, tier-client, tier-admin and tier-owner: $colTier" >&2 ; return 1 ; }
 		colTier="$( AgentsToolsContactsTierName "$colTier" )"
 		AgentsToolsContactsStore "$colOp" || return 1
 		colTierBy="$( AgentsToolsActingMember )"
@@ -242,10 +242,10 @@ AgentsToolsContactsCollectContact(){ ## the operation, its arguments...
 		done <<< "$( printf '%s' "$colDrop" | LC_ALL=C tr ',' '\n' | LC_ALL=C sed 's/^ *//' )"
 		[ -z "$colDropped" ] || collectChanged="${collectChanged:+$collectChanged, }dropped $colDropped"
 	fi
-	local colReached="$crReached"
+	colBefore="$crReached"
 	crReached="$( AgentsToolsContactsListAdd "$crReached" "$colMember" )"
-	[ "$colReached" = "$crReached" ] || collectChanged="${collectChanged:+$collectChanged, }reached-by $colMember"
-	colStamp="$( AgentsToolsContactsStamp )"
+	[ "$colBefore" = "$crReached" ] || collectChanged="${collectChanged:+$collectChanged, }reached-by $colMember"
+	colStamp="$( date '+%Y-%m-%d %H:%M %z' )"
 	if [ -n "$collectChanged" ] || [ -n "$colNote" ] ; then
 		[ -z "$collectChanged" ] || crLog="$crLog- $colStamp -- $colMember -- $( [ "$colNew" = yes ] && printf 'collected' || printf 'changed' ): $collectChanged"$'\n'
 		[ -z "$colNote" ] || crLog="$crLog- $colStamp -- $colMember -- note: $colNote"$'\n'

@@ -26,16 +26,6 @@ AgentsToolsContactsTierName(){ ## word
 	return 0
 }
 
-## Whether a word is one of them, or an old word of one.
-AgentsToolsContactsTierKnown(){ ## word
-	[ -n "$( AgentsToolsContactsTierName "$1" )" ]
-}
-
-## The words in one line, for a refusal to name them.
-AgentsToolsContactsTiersShown(){
-	printf 'tier-moot, tier-contact, tier-client, tier-admin and tier-owner'
-}
-
 ## A person's record read into crId, crName, crOrg, crRole, crRel, crOwner, crTier, crReached, crSlackId, crSlackHandle, crSlackConv, crEmail, crHow,
 ## crAllows; crExtra holds the front matter lines this file does not know (kept as they stand), crLog the log lines. rc 1 for no file.
 crId="" crName="" crOrg="" crRole="" crRel="" crOwner="" crTier="" crScopeTiers="" crReached="" crSlackId="" crSlackHandle="" crSlackConv="" crEmail="" crHow="" crLanguage="" crAllows="" crExtra="" crLog=""
@@ -152,7 +142,7 @@ AgentsToolsContactsTierAnswerWord(){ ## contact id, [scope]
 	[ -z "$( AgentsToolsAuthorityField "$answeredFile" acted-at )" ] || return 1
 	answeredWord="$( AgentsToolsAuthorityField "$answeredFile" chosen )"
 	[ -n "$answeredWord" ] || answeredWord="$( AgentsToolsAuthorityField "$answeredFile" verdict )"
-	AgentsToolsContactsTierKnown "$answeredWord" || return 1
+	[ -n "$( AgentsToolsContactsTierName "$answeredWord" )" ] || return 1
 	printf '%s\n' "$answeredWord"
 }
 

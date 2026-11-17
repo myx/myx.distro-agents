@@ -8,6 +8,9 @@
 ##   P3 (none)           an include of another concern is that concern's contract, never a breach: the package is one subsystem
 ##                       (the shared awk files and the distro index helpers are the examples). Data files are owned strictly: P2.
 ##   P4 duplicate        one concern written twice.
+##   P4 trivial          a function or variable that carries less than the code behind it, so it is inlined
+##                       (AgentsSolidTrivials.py beside this file). Beside duplicate because it is the same kind of
+##                       defect, code with more parts than the job needs, and the concern rewrite fixes both.
 ##   P5 fabricated       a check that tests its own fixture; replaced by unit tests as each concern is rewritten.
 ##   P6 dead          a function defined and named nowhere else. A concern is a folder of sh-lib until the concern map names others.
 ## Classes, priority 1 first:
@@ -20,7 +23,11 @@
 ##                   The owner of a file is the one concern whose state it records, wherever it sits: a path into a session
 ##                   folder is matched to its most specific part first (sessionParts), and a concern reading its own part is no row.
 ##   duplicate       one awk program text written in more than one file.
-##   fabricated      a check writes a store the code under test then reads, instead of driving its owner.
+##   trivial         a function of one simple command, or a printf of its arguments, with no API and no comment to
+##                   keep; a variable of one value read once nearby. Kept for an API, a trap or similar mechanism, or
+##                   a comment that states why: AgentsSolidTrivials.py names the reason for each name it leaves out.
+##   fabricated      a check writes a store the code under test then reads, instead of driving its owner. A site on
+##                   allowedFabricatedSites is a reasoned row and prints nothing.
 ## Usage: AgentsSolidBreachScan.sh [<package root>] [--summary]   (default root: $MDLT_ORIGIN/myx/myx.distro-agents)
 set -u
 root="${1:-${MDLT_ORIGIN:?MDLT_ORIGIN is not set}/myx/myx.distro-agents}" ; case "$root" in --summary) root="$MDLT_ORIGIN/myx/myx.distro-agents" ;; esac
@@ -83,6 +90,19 @@ LocalToolsPlacesOwnerUpsert|myx.distro-.local/sh-lib/places/LocalTools.Places.in
 LocalToolsPlacesResolve|myx.distro-.local/sh-lib/places/LocalTools.Places.include:6
 LocalToolsPlacesWorkspaceRoots|myx.distro-.local/sh-lib/places/LocalTools.Places.include:6
 DistroLocalEchoBashPrompt|myx.distro-.local/sh-lib/LocalTools.EchoBashPrompt.include:4'
+## The fabricated sites that cannot move to an owner, one `<file>:<line>|<reason>` a line. Each writes the index
+## folder of an installed workspace, which only the distro tooling's own source ingest writes: its one writer builds
+## every row from every installed project.inf, so no rig can drive it for one case.
+## A site here prints no row. A line that moves makes its site a row again, which asks the reader to reason it anew.
+allowedFabricatedSites='sh-test/check-fixtures/rig-distro-workspace.include.sh:47|the rig index folder, written only by the distro tooling source ingest
+sh-test/check-fixtures/rig-distro-workspace.include.sh:49|the origin index copied, as an installed package holds it
+sh-test/check-fixtures/rig-distro-workspace.include.sh:51|the empty index of an origin that holds none
+sh-test/config/AgentsMakeIndicesRegistriesCheck.test.sh:329|the index folder of an installed workspace, written by the source ingest
+sh-test/config/AgentsMakeIndicesRegistriesCheck.test.sh:330|that index emptied, the state before its first build
+sh-test/config/AgentsMakeIndicesRegistriesCheck.test.sh:340|that index rows, which the ingest builds from every installed project.inf
+sh-test/grants/AgentsGrantsIndexCheck.test.sh:416|the index folder of an installed package, written by the source ingest
+sh-test/grants/AgentsGrantsIndexCheck.test.sh:417|that index rows, which the ingest builds from the installed project.inf
+sh-test/grants/AgentsGrantsIndexCheck.test.sh:418|one row only the index holds, the case a stale project.inf must not win'
 rows(){
 	## foreign-package
 	LC_ALL=C grep -rnoE --include='*.include' --include='*.sh' --include='*.py' --include='*.awk' -e '\$MDLT_ORIGIN/myx/myx\.common/' sh-lib sh-scripts |
@@ -184,12 +204,23 @@ rows(){
 		LC_ALL=C awk -F: '{ f = $1 ; l = $2 ; $1 = "" ; $2 = "" ; t = $0 ; sub(/^[^'"'"']*/, "", t) ; if (!(t in first)) first[t] = f ":" l ; else if (index(first[t], f ":") != 1) printf "duplicate\t%s:%s\tsame awk program as %s\n", f, l, first[t] }'
 	## the internal contracts: unreached calls, silent loads, optional calls, dual use, duplicate definitions, dead functions
 	python3 "$scanHere/AgentsSolidContracts.py" "$root"
-	## fabricated: a check writing into a store path
-	LC_ALL=C grep -rnE '(>|>>|cp [^|]*|mkdir -p [^|]*)[^|;]*(system-index|/board/|/inboxes/|/vault/|distro-declares|distro-projects)' sh-test --include='*.sh' |
-		LC_ALL=C awk -F: '{ printf "fabricated\t%s:%s\twrites a store the code reads\n", $1, $2 }'
+	## trivial: a function or variable that is inlined, with what makes it one
+	python3 "$scanHere/AgentsSolidTrivials.py" "$root"
+	## fabricated: a check writing into a store path; a `>` straight after a `-` is a text arrow, no redirect
+	LC_ALL=C grep -rnE '((^|[^-])>>?|cp [^|]*|mkdir -p [^|]*)[^|;]*(system-index|/board/|/inboxes/|/vault/|distro-declares|distro-projects)' sh-test --include='*.sh' |
+		allowedFabricatedSites="$allowedFabricatedSites" LC_ALL=C awk -F: '
+			BEGIN {
+				n = split(ENVIRON["allowedFabricatedSites"], reasonedLines, "\n")
+				for (reasonedAt = 1 ; reasonedAt <= n ; reasonedAt++) {
+					if (reasonedLines[reasonedAt] == "") continue
+					split(reasonedLines[reasonedAt], reasonedWord, "|")
+					reasonedSite[reasonedWord[1]] = 1
+				}
+			}
+			!(( $1 ":" $2 ) in reasonedSite) { printf "fabricated\t%s:%s\twrites a store the code reads\n", $1, $2 }'
 }
 prioritise(){
-	LC_ALL=C awk -F'\t' 'BEGIN { p["foreign-package"] = "P1" ; p["foreign-store"] = "P2" ; p["duplicate"] = "P4" ; p["fabricated"] = "P5" ; p["unreached"] = "P0" ; p["silent-load"] = "P0" ; p["optional-call"] = "P0" ; p["dual-use"] = "P0" ; p["undefined-call"] = "P0" ; p["guard-target"] = "P0" ; p["guard-name"] = "P0" ; p["guarded-op"] = "P0" ; p["load-missing"] = "P0" ; p["duplicate-def"] = "P4" ; p["dead"] = "P6" } { print p[$1] "\t" $0 }' | LC_ALL=C sort -t "$(printf '\t')" -k1,1 -s
+	LC_ALL=C awk -F'\t' 'BEGIN { p["foreign-package"] = "P1" ; p["foreign-store"] = "P2" ; p["duplicate"] = "P4" ; p["trivial"] = "P4" ; p["fabricated"] = "P5" ; p["unreached"] = "P0" ; p["silent-load"] = "P0" ; p["optional-call"] = "P0" ; p["dual-use"] = "P0" ; p["undefined-call"] = "P0" ; p["guard-target"] = "P0" ; p["guard-name"] = "P0" ; p["guarded-op"] = "P0" ; p["load-missing"] = "P0" ; p["duplicate-def"] = "P4" ; p["dead"] = "P6" } { print p[$1] "\t" $0 }' | LC_ALL=C sort -t "$(printf '\t')" -k1,1 -s
 }
 if [ -n "$summary" ] ; then
 	rows | prioritise | LC_ALL=C awk -F'\t' '{ n[$1 " " $2]++ ; t++ ; split($3, f, "/") ; d[$1 " " $2 " " f[1] "/" f[2]]++ } END { for (c in n) printf "class %s %d\n", c, n[c] ; for (k in d) printf "where %s %d\n", k, d[k] ; printf "total %d\n", t + 0 }' | LC_ALL=C sort -k1,1 -k2,2

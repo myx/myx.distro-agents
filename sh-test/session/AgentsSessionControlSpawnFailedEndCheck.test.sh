@@ -17,9 +17,11 @@ rigRefuse(){
 [ -f "$rigTool" ] || rigRefuse "the tooling script is not at the origin this workspace resolves: $rigTool"
 . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-processes.include.sh" || exit 1
 . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
+## And every thread a scene of this rig starts, by its log or its lock, ended before the rig goes.
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-control-threads.include.sh" || exit 1
 rigTmp="$( rigTempDir AgentsSessionControlSpawnFailedEndCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
-trap 'rm -rf -- "$rigTmp"' EXIT
+trap 'rigControlThreadsEnd "$rigTmp" ; rm -rf -- "$rigTmp"' EXIT
 
 rigPassCount=0
 rigFailCount=0

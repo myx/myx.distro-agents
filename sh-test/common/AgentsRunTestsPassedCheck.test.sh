@@ -6,7 +6,7 @@
 ## made here, so that nothing done to the machine's own while this check runs moves the state under it. Held: a test
 ## that passes goes on record under the content it passed on, and `--passed` says so, running nothing; a run reads none
 ## of it and runs what it is told; a change to a library file, to the test, to a fixture, to the runner, to another
-## package of the tooling, to myx.common, to the member set the environment hands the tests, and to whether a file may
+## package of the tooling, to myx.common, to the member folder the runner hands its tests, and to whether a file may
 ## be run, each leaves the test with no pass on the new state, while the same content with a newer date keeps it and
 ## the earlier content brings the earlier pass back; a failure is never kept; the same content in another folder shares
 ## the pass; a pass on a tree that moved while the test ran is kept for no state, and the receipt says so; a pass older
@@ -30,7 +30,7 @@ rigTmp="$( rigTempDir AgentsRunTestsPassedCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 rigStarted=""
 trap 'rigProcSignal TERM $rigStarted ; rm -rf -- "$rigTmp"' EXIT
-rigHome="$rigTmp/home" ; rigWs="$rigTmp/ws" ; rigMembers="$rigTmp/members" ; rigCommon="$rigTmp/myx.common"
+rigHome="$rigTmp/home" ; rigWs="$rigTmp/ws" ; rigMembers="$rigWs/.local/agents/members" ; rigCommon="$rigTmp/myx.common"
 rigRecord="$rigHome/.agents/magic-team/suite-results"
 mkdir -p "$rigHome" "$rigWs/.local/temp" "$rigMembers/rig-member" "$rigCommon"
 tar -C "${MYXROOT:-/usr/local/share/myx.common}" --exclude .git -chf - . 2> /dev/null | tar -C "$rigCommon" -xf - 2> /dev/null
@@ -140,7 +140,7 @@ printf 'changed\n' >> "$( rigPkg a )/sh-test/check-fixtures/rig.txt" ; rigAgain 
 printf '## rig: a changed runner\n' >> "$( rigPkg a )/sh-test/AgentsRunTests.sh" ; rigAgain "the runner"
 printf '## changed\n' >> "$( rigRoot a )/myx/myx.distro-system/sh-lib/RigSystem.include" ; rigAgain "a file of another package of the tooling"
 printf 'changed\n' > "$rigCommon/help/rig-note.md" ; rigAgain "a file of myx.common as it is installed"
-printf 'changed\n' >> "$rigMembers/rig-member/rig-member.basic.md" ; rigAgain "a file of the member set the environment hands the tests"
+printf 'changed\n' >> "$rigMembers/rig-member/rig-member.basic.md" ; rigAgain "a file of the member folder the runner hands its tests"
 printf 'Name: rig\n' > "$( rigPkg a )/sh-lib/RigNew.include" ; rigAgain "a file added to the package"
 chmod +x "$( rigPkg a )/sh-lib/RigNew.include" ; rigAgain "a file that may now be run"
 rigKept="$( rigRecords RigOne )"

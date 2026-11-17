@@ -330,7 +330,7 @@ for rigState in processed backlog ; do
 	rigOp "$rigTmp/out-$rigState" rig-session --advance-batch-outcome --team-member magic-coordinator \
 		--items:"task-20261104T1090Z-rig-out-$rigState.md:advanced:inline:out-$rigState"
 	rigAssert "a record for a $rigState document is refused, and says why" \
-		"$( cat "$rigTmp/out-$rigState.rc" ):$( LC_ALL=C grep -c -F 'no active state holds' "$rigTmp/out-$rigState" || : )" "1:1"
+		"$( cat "$rigTmp/out-$rigState.rc" ):$( LC_ALL=C grep -c -E "no active state .* holds task-20261104T1090Z-rig-out-$rigState.md -- it is in $rigState now, where a round records no outcome" "$rigTmp/out-$rigState" || : )" "1:1"
 	rigAssert "and nothing was written into it" \
 		"$( LC_ALL=C grep -c '^outcome: ' "$rigData/board/$rigState/task-20261104T1090Z-rig-out-$rigState.md" || : )" 0
 done

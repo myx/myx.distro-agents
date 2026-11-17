@@ -34,13 +34,13 @@ rigRefuse(){
 }
 [ -f "$rigTool" ] || rigRefuse "the dispatcher is not at the origin this workspace resolves: $rigTool"
 . "$rigPackage/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
-. "$rigPackage/sh-test/check-fixtures/rig-store-item.include.sh" || exit 1
+. "$rigPackage/sh-test/check-fixtures/rig-owner-writes.include.sh" || exit 1
 rigTmp="$( rigTempDir AgentsDocSelfCheckCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
 rigWs="$rigTmp/ws" rigData="$rigTmp/data" rigSkills="$rigTmp/skills" rigD="$rigTmp/docs"
 mkdir -p "$rigWs/.local/agents" "$rigTmp/home" "$rigSkills/magic-team" "$rigD/sub"
-## The one board item the citations are checked against is written by the board's own write (rig-store-item.include.sh):
+## The one board item the citations are checked against is written by the board's own write (rig-owner-writes.include.sh):
 ## a hand-written fixture stays green when that write's own file contract changes.
 rigStoreItem "$rigTmp" "$rigData" "$rigWs" magic-team "board running task-20261001T1000Z-real-item.md" \
 	"$( printf -- '---\ntype: task\n---\n# Task: real\n' > "$rigTmp/body1" ; printf '%s' "$rigTmp/body1" )" \

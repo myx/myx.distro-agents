@@ -7,17 +7,21 @@
 ##
 ## --supervise-close-orphans [--execute] [--workspace <path>]...: one line an orphan, `rig-orphan <workspace> <id> pid=<pid> <path> <verdict>`.
 ## Without --execute it is a readout: `would-close` for one whose process is the one its pid file names, `kept-unverified` for a pid
-## file with no began moment to check against, `kept-mismatch` for a pid the host has given to another process since. With --execute a
-## `would-close` one is sent TERM and reads `closed`, or `still-alive` where it did not end within two seconds; nothing is killed harder here.
+## file with no began moment to check against, `kept-mismatch` for a pid the host has given to another process since, `would-kill` for
+## one an earlier pass sent TERM and left alive. With --execute a `would-close` one is sent TERM and reads `closed`, or `still-alive`
+## where it did not end within two seconds, and that pass leaves a note naming the process beside its pid file. The next `--execute`
+## pass that finds that same pid and began moment named by the note ends the process with KILL, reading `killed` or `survived-kill`;
+## the note goes once the process has, and a pass that finds the process gone clears it with no signal, readout or `--execute`.
 ## THE PID IS CHECKED AGAINST THE PROCESS BEFORE A SIGNAL: the pid file holds `<pid> <began>`, as AgentsToolsRunProcessesBegan
-## writes it, and the began moment of the live process must be the same, or the number names a stranger.
-## A workspace with nothing to close says so: `none - - no rig-orphan`. The rigs' control threads are the session store's rows (S10.37 names the walk).
+## writes it, and the began moment of the live process must be the same, or the number names a stranger. The note is read the same
+## way: a note naming another pid or another began is a rig gone by, it is removed, and nothing is signalled on it.
+## A workspace with nothing to close says so: `none - - no rig-orphan`. The rigs' control threads are the spawn sandbox's rows (S10.37 names the walk).
 type AgentsToolsRunProcessesBegan > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunProcesses.include"
-type AgentsSessionRigControlRows > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+type AgentsSessionRigTermNoteInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandbox.include"
 
 AgentsToolsSuperviseCloseOrphans(){ ## [--execute] [--workspace <path>]...
 	type AgentsToolsRunProcessesBegan > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunProcesses.include"
-	local closeWorkspaces=() closeWs closeAgents closeExecute="" closeRow closePid closeRest closePath closeNow closeSpid closeStatus closeVerdict closeFound=0 closeWait closeTab=$'\t'
+	local closeWorkspaces=() closeWs closeAgents closeExecute="" closeRow closePid closeRest closePath closeNow closeNote closeSpid closeStatus closeVerdict closeFound=0 closeWait closeTab=$'\t'
 	while [ $# -gt 0 ] ; do
 		case "$1" in
 			--execute) closeExecute=yes ; shift ;;
@@ -34,22 +38,47 @@ AgentsToolsSuperviseCloseOrphans(){ ## [--execute] [--workspace <path>]...
 			closeSpid="${closeRow%%"$closeTab"*}" ; closeRow="${closeRow#*"$closeTab"}"
 			closePid="${closeRow%%"$closeTab"*}" ; closeRow="${closeRow#*"$closeTab"}"
 			closeRest="${closeRow%%"$closeTab"*}" ; closePath="${closeRow#*"$closeTab"}"
-			kill -0 "$closePid" 2> /dev/null || continue
+			kill -0 "$closePid" 2> /dev/null || { MMDAPP="$closeWs" AgentsSessionRigTermNoteClear "$closeSpid" "$closePath" || : ; continue ; }
 			MMDAPP="$closeWs" AgentsSessionRunHeadersInto "$closeSpid" closeStatus=status || closeStatus=""
 			[ "$closeStatus" != spawn-started ] || continue
 			closeFound=$(( closeFound + 1 ))
 			closeNow="$( printf '%s\n' "$closePid" | AgentsToolsRunProcessesBegan )" ; closeNow="${closeNow#"$closePid" }"
+			closeNote="none"
+			MMDAPP="$closeWs" AgentsSessionRigTermNoteInto closeNote "$closeSpid" "$closePath" "$closePid" "$closeNow"
+			if [ "$closeNote" = other ] ; then
+				MMDAPP="$closeWs" AgentsSessionRigTermNoteClear "$closeSpid" "$closePath" || :
+				closeNote="none"
+			fi
 			if [ -z "$closeRest" ] ; then
 				closeVerdict="kept-unverified"
 			elif [ "$closeRest" != "$closeNow" ] ; then
 				closeVerdict="kept-mismatch"
+			elif [ "$closeNote" = same ] ; then
+				## a pass already sent TERM to this very process and it lived: the next --execute pass may end it harder
+				if [ -z "$closeExecute" ] ; then
+					closeVerdict="would-kill"
+				else
+					kill -KILL "$closePid" 2> /dev/null || :
+					closeWait=0
+					while [ "$closeWait" -lt 20 ] && kill -0 "$closePid" 2> /dev/null ; do sleep 0.1 ; closeWait=$(( closeWait + 1 )) ; done
+					if [ -z "$( printf '%s\n' "$closePid" | AgentsToolsRunProcessesBegan )" ] ; then
+						closeVerdict="killed" ; MMDAPP="$closeWs" AgentsSessionRigTermNoteClear "$closeSpid" "$closePath" || :
+					else
+						closeVerdict="survived-kill"
+					fi
+				fi
 			elif [ -z "$closeExecute" ] ; then
 				closeVerdict="would-close"
 			else
 				kill -TERM "$closePid" 2> /dev/null || :
 				closeWait=0
 				while [ "$closeWait" -lt 20 ] && kill -0 "$closePid" 2> /dev/null ; do sleep 0.1 ; closeWait=$(( closeWait + 1 )) ; done
-				if kill -0 "$closePid" 2> /dev/null ; then closeVerdict="still-alive" ; else closeVerdict="closed" ; fi
+				## a process that answered TERM reads gone here, and so does one ended and not yet collected by its parent
+				if [ -z "$( printf '%s\n' "$closePid" | AgentsToolsRunProcessesBegan )" ] ; then
+					closeVerdict="closed" ; MMDAPP="$closeWs" AgentsSessionRigTermNoteClear "$closeSpid" "$closePath" || :
+				else
+					closeVerdict="still-alive" ; MMDAPP="$closeWs" AgentsSessionRigTermNoteSet "$closeSpid" "$closePath" "$closePid" "$closeNow" || :
+				fi
 			fi
 			printf 'rig-orphan %s %s pid=%s %s %s\n' "${closeWs##*/}" "$( printf '%s' "$closeSpid" | cut -c1-8 )" "$closePid" "$closePath" "$closeVerdict"
 		done <<< "$( MMDAPP="$closeWs" AgentsSessionRigControlRows )"

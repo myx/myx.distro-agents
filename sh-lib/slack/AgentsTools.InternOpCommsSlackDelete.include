@@ -30,10 +30,7 @@ case "$1" in
 					## Same routine-* carve-out as the sibling arms.
 				;;
 				*)
-					if [ ! -d "$MDAT_SKILLSET_ROOT/$memberName" ] ; then
-						echo "⛔ ERROR: $MDSC_CMD --slack-delete-message: no such member skill directory: $MDAT_SKILLSET_ROOT/$memberName" >&2
-						set +e ; return 1
-					fi
+					AgentsToolsSlackMemberPresent "$memberName" --slack-delete-message || { set +e ; return 1 ; }
 				;;
 			esac
 			local identityAsBot="false"
@@ -105,6 +102,52 @@ case "$1" in
 					printf 'DELETE_TARGET=%s\n' "$oneTarget"
 					printf '%s\n' DELETE_STATE=no-message-ts
 					echo "⛔ ERROR: $MDSC_CMD --slack-delete-message: a specific <ts> is required -- use <channel>:<ts>, or <alias>:<ts> for a message in the conversation an alias names. Nothing was deleted for '$oneTarget'; the remaining targets are still attempted." >&2
+					deleteFailed=$(( deleteFailed + 1 ))
+					continue
+				fi
+				## AN OPEN ASK IS NOT DELETED, AND NEITHER IS AN ANSWERED MESSAGE (epic S6.10). The
+				## question of an ask that still waits is where its answer will be, and a message with
+				## replies is a conversation somebody took part in. Both are refused before chat.delete.
+				## The store answers the first, through its own reader, and no second reader of it is made.
+				type AgentsToolsPendingReplyOpenAt > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.PendingReplyRecords.include"
+				local openAsk=""
+				openAsk="$( AgentsToolsPendingReplyOpenAt "$channel" "$threadTs" )" || openAsk=""
+				if [ -n "$openAsk" ] ; then
+					printf 'DELETE_TARGET=%s\n' "$oneTarget"
+					printf '%s\n' DELETE_STATE=refused-open-ask
+					echo "⛔ ERROR: $MDSC_CMD --slack-delete-message: REFUSED FOR $channel:$threadTs -- it is the question of open ask $openAsk, which is still waiting for its answer. Close the ask first with --settle-pending-reply $openAsk --reason <text> --withdraw, or leave the message. Nothing was deleted for this target; the remaining targets are still attempted." >&2
+					deleteFailed=$(( deleteFailed + 1 ))
+					continue
+				fi
+				## The message's own reply count, read from Slack by the one call this family reads a
+				## single message with: conversations.replies anchored at the message's own ts. The
+				## JSON engine prints one row per message, its ts and its reply count.
+				local threadArgs=( "$memberName" --api conversations.replies --resolve-target "$channel" --form "ts=$threadTs" --form "oldest=$threadTs" --form "inclusive=true" --form "limit=1" --form "include_all_metadata=true" )
+				if [ "$identityAsBot" = "true" ] ; then
+					threadArgs+=( --identity bot )
+				fi
+				threadArgs+=( --context "--slack-delete-message" )
+				local threadResponse="" threadCallRc=0
+				threadResponse="$( AgentsToolsCommsSlackRun --intern-op-slack-call ${threadArgs[@]+"${threadArgs[@]}"} 2>"$diagFile" )" || threadCallRc=$?
+				local threadDiag=""
+				threadDiag="$( cat "$diagFile" )" || threadDiag=""
+				[ -z "$threadDiag" ] || printf '%s\n' "$threadDiag" >&2
+				## A ts compares as a string: at 1.7e9 a float cannot tell two a microsecond apart.
+				local replyCount="" replyRc=0
+				replyCount="$( printf '%s\n' "$threadResponse" | LC_ALL=C awk -v mode=records -v array=messages -v want=ts,reply_count -v dialect=slack \
+					-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" \
+					| LC_ALL=C awk -F'\t' -v wantTs="$threadTs" '{ if ( ($1 "") == ( wantTs "" ) ) { print $2 ; found = 1 ; exit ; } } END { if ( ! found ) { exit 1 ; } }' )" || replyRc=$?
+				if [ "$threadCallRc" != "0" ] || [ "$replyRc" != "0" ] ; then
+					printf 'DELETE_TARGET=%s\n' "$oneTarget"
+					printf '%s\n' DELETE_STATE=unverified-thread
+					echo "⛔ ERROR: $MDSC_CMD --slack-delete-message: COULD NOT CHECK $channel:$threadTs -- the read of the message's own thread did not answer (call rc=$threadCallRc, read rc=$replyRc; the op's own diagnostic above says why). Nothing is known from this call about whether that message is an ask or has replies, and it was NOT deleted. This refusal stands so that no check which cannot reach its subject ever passes." >&2
+					deleteFailed=$(( deleteFailed + 1 ))
+					continue
+				fi
+				if [ -n "$replyCount" ] && [ "$replyCount" != "0" ] ; then
+					printf 'DELETE_TARGET=%s\n' "$oneTarget"
+					printf '%s\n' DELETE_STATE=refused-has-replies
+					echo "⛔ ERROR: $MDSC_CMD --slack-delete-message: REFUSED FOR $channel:$threadTs -- $replyCount replies stand in its thread, so it is a message somebody answered and its thread is part of the conversation. Nothing was deleted for this target; the remaining targets are still attempted." >&2
 					deleteFailed=$(( deleteFailed + 1 ))
 					continue
 				fi

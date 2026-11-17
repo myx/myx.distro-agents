@@ -33,7 +33,7 @@ rigTmp="$( cd "$rigTmp" && pwd -P )"
 export GIT_AUTHOR_NAME=rig GIT_AUTHOR_EMAIL=rig@example.invalid GIT_COMMITTER_NAME=rig GIT_COMMITTER_EMAIL=rig@example.invalid
 rigWs="$rigTmp/ws"
 rigStore="$rigTmp/store"
-mkdir -p "$rigWs/.local/.agents" "$rigWs/.local/agents" "$rigTmp/home" "$rigTmp/bin"
+mkdir -p "$rigWs/.local/.agents" "$rigWs/.local/agents" "$rigTmp/home" "$rigTmp/bin" "$rigStore"
 git -C "$rigStore" init -q && printf 'seed\n' > "$rigStore/README.md" && git -C "$rigStore" add -A && git -C "$rigStore" commit -q -m seed || rigRefuse "could not seed the temp store"
 ## Nothing live is inherited: no session id, no data root, no calls log, no sandbox.
 unset CLAUDE_CODE_SESSION_ID MDAT_SPAWN_SESSION_ID MDAT_SPAWN_AGENT MDAT_MCP_SERVED_MARKER MDAT_MCP_CALLS_LOG MDAT_SESSION_ID MDAT_SESSION_THREAD \
@@ -305,6 +305,49 @@ rigAssert "a death after the first result: the resumed run ends normally, in one
 rigAssert "the call the dead run never answered gets its result, and the one it did is not answered twice" \
 	"$( LC_ALL=C grep -o -F '"tool_use_id":"toolu_RIG_A"' "$rigS10/req.1" | wc -l | tr -d ' ' ):$( LC_ALL=C grep -o -F '"tool_use_id":"toolu_RIG_B"' "$rigS10/req.1" | wc -l | tr -d ' ' ):$( LC_ALL=C grep -o -F 'the run ended before this call gave a result' "$rigS10/req.1" | wc -l | tr -d ' ' )" "1:1:1"
 rigSandbox="$rigSandboxWas"
+
+echo "-- 3d. the same death on the chat wire: its kept call gets a result too --"
+## Section 3c holds the Messages wire, whose call is a `tool_use` block. The repair reads the chat wire's
+## arm as well -- the call inside `tool_calls`, its result keyed `tool_call_id` -- and nothing held that arm:
+## with it removed the whole check still passed. The kept file is again a real context this package wrote,
+## on the chat wire, cut at the assistant's call.
+rigWireWas="$HARNESS_WIRE" ; rigEndpointWas="$HARNESS_ENDPOINT" ; rigHeaderWas="$HARNESS_EXTRA_HEADERS"
+rigOutLightWas="$HARNESS_OUTPUT_TOKENS_LIGHT" ; rigOutMainWas="$HARNESS_OUTPUT_TOKENS_MAIN"
+export HARNESS_WIRE=OpenAiChat HARNESS_ENDPOINT="https://harness-context-check.invalid/v1/chat/completions" HARNESS_EXTRA_HEADERS=""
+export HARNESS_OUTPUT_TOKENS_LIGHT="" HARNESS_OUTPUT_TOKENS_MAIN=""
+rigChatTool(){ ## file, scenario dir -- one tool_calls entry, the chat wire's own stream shape
+	printf 'data: {"choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"rig-chat-call","type":"function","function":{"name":"Glob","arguments":"{\\"pattern\\": \\"a*\\", \\"path\\": \\"%s\\"}"}}]}}]}\ndata: {"choices":[{"index":0,"delta":{},"finish_reason":"tool_calls"}],"usage":{"prompt_tokens":100,"completion_tokens":5,"total_tokens":105}}\ndata: [DONE]\n' "$2" > "$1"
+}
+rigChatText(){ ## file, text
+	printf 'data: {"choices":[{"index":0,"delta":{"content":"%s"},"finish_reason":"stop"}],"usage":{"prompt_tokens":20,"completion_tokens":2,"total_tokens":22}}\ndata: [DONE]\n' "$2" > "$1"
+}
+rigS11="$rigTmp/s11"
+mkdir -p "$rigS11"
+rigChatTool "$rigS11/res.1" "$rigS11"
+rigChatText "$rigS11/res.2" RIG-CHAT-CALL-ANSWER
+rigSandboxWas="$rigSandbox" ; rigSandbox="$rigTmp/sb11" ; mkdir -p "$rigSandbox"
+rigRun "$rigS11" "dddd4444-0000-4000-8000-0000000000d1" -- RIG-TASK-MARKER
+rigAssert "the chat-wire run that is to die writes a context, and answers" "$rigRunStatus:$rigRounds:$( ls "$rigSandbox" | LC_ALL=C grep -c -x context.jsonl )" "0:2:1"
+cp "$rigSandbox/context.jsonl" "$rigTmp/s11.full"
+## The chat wire keeps the system text as a message record of its own, so a cut that ends on the call is
+## records 1 to 3 where the Messages wire's cut is records 1 and 2.
+head -3 "$rigTmp/s11.full" > "$rigTmp/s11.kept"
+sed -n '4,6p' "$rigTmp/s11.full" >> "$rigTmp/s11.kept"
+## The kept file must be the system record, the task and the call, and nothing else: a count alone would pass
+## on a file cut before the call, which is why the call itself is counted too.
+rigAssert "the kept chat-wire file ends on the assistant's call, with no result for it" \
+	"$( LC_ALL=C awk -v mode=validate "${rigAwk[@]}" "$rigTmp/s11.kept" ):$( LC_ALL=C grep -c -F '"tool_calls"' "$rigTmp/s11.kept" ):$( LC_ALL=C grep -c -F '"tool_call_id"' "$rigTmp/s11.kept" )" "3:1:0"
+rigS12="$rigTmp/s12"
+mkdir -p "$rigS12"
+rigChatText "$rigS12/res.1" RIG-CHAT-RESUMED-ANSWER
+rigSandbox="$rigTmp/sb12" ; mkdir -p "$rigSandbox"
+rigRun "$rigS12" "dddd4444-0000-4000-8000-0000000000d2" MDAT_HARNESS_RESUME_CONTEXT="$rigTmp/s11.kept" -- RIG-CORRECTIONS
+rigAssert "the resumed chat-wire run ends normally, in one request" "$rigRunStatus:$rigRounds" 0:1
+rigAssert "the call the dead chat-wire run never answered gets its result, and says the call did not complete" \
+	"$( LC_ALL=C grep -o -F '"tool_call_id":"rig-chat-call"' "$rigS12/req.1" | wc -l | tr -d ' ' ):$( LC_ALL=C grep -o -F 'the run ended before this call gave a result' "$rigS12/req.1" | wc -l | tr -d ' ' )" "1:1"
+rigSandbox="$rigSandboxWas"
+export HARNESS_WIRE="$rigWireWas" HARNESS_ENDPOINT="$rigEndpointWas" HARNESS_EXTRA_HEADERS="$rigHeaderWas"
+export HARNESS_OUTPUT_TOKENS_LIGHT="$rigOutLightWas" HARNESS_OUTPUT_TOKENS_MAIN="$rigOutMainWas"
 
 echo "-- 4. an ineligible resume refuses before any request, and the proxy falls back --"
 rigS3="$rigTmp/s3"

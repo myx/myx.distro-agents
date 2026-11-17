@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-## Behavioural check on the kept list of a rig's control pid files (`AgentsSessionRigControlRows`, sh-lib/session/AgentsTools.SessionStore.include).
+## Behavioural check on the kept list of a rig's control pid files (`AgentsSessionRigControlRows`, sh-lib/spawn/AgentsTools.SpawnSandbox.include).
 ## The walk over spawned/ to depth 14 ran minutes under load, twice a supervision tick; it now runs once in MDAT_SUPERVISE_RIG_WALK_SECONDS. Held:
 ##   1. THE FIRST CALL WALKS and lists a control pid file inside a run's output folder.
 ##   2. A SECOND CALL WITHIN THE TTL READS THE KEPT LIST: a pid file made in between is not listed yet, and the list file is not rewritten.
@@ -12,7 +12,7 @@ rigPackage="$MDLT_ORIGIN/myx/myx.distro-agents"
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }
-[ -f "$rigPackage/sh-lib/session/AgentsTools.SessionStore.include" ] || rigRefuse "the session store include is not in the package"
+[ -f "$rigPackage/sh-lib/spawn/AgentsTools.SpawnSandbox.include" ] || rigRefuse "the spawn sandbox include is not in the package"
 . "$rigPackage/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
 rigTmp="$( rigTempDir AgentsSuperviseRigWalkCacheCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
@@ -41,7 +41,7 @@ mkdir -p "$rigAgents/spawned/rig-spawn-one/control" && printf '%s own\n' "$$" > 
 rigWalk(){ ## ttl
 	MDLT_ORIGIN="$MDLT_ORIGIN" MDAT_SUPERVISE_RIG_WALK_SECONDS="$1" MMDAPP="$rigWs" bash -c '
 		set +e +u
-		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include" > /dev/null 2>&1
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandbox.include" > /dev/null 2>&1
 		AgentsSessionRigControlRows
 	' 2> /dev/null | LC_ALL=C awk -F'\t' '{ print $1 "/" $4 }'
 }

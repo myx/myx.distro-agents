@@ -55,6 +55,41 @@ AgentsToolsWakeTouch(){ ## team member, who wrote it (may be empty)
 	return 0
 }
 
+## THE SESSION A MEMBER'S DIRECT MESSAGES ENTER (S12.29): the member's live session whose stored wait carries its own `wake:` source,
+## else the oldest of its live sessions. One fact has one carrier, and the marker a member's waits already hold is that carrier, so the
+## import needs no new store and no per-session choice by hand. Prints the session id; rc 1, nothing printed, for a member with no live
+## session here. Reads the kept list of started records, its own headers, and one wait state a session, walking no store: the oldest is
+## the record the others are not older than, compared by the shell's own `-ot`, so no start is read from a date.
+AgentsToolsWakeSession(){ ## team member
+	local wakeOf="${1:-}" wakeRecord wakeOwner wakeSession wakeOldest="" wakeOldestRecord="" wakeNamed="" wakeNamedRecord="" wakeSources=""
+	type AgentsToolsSpawnedStartedRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/schedule/AgentsTools.StartedRecords.include"
+	type AgentsToolsFrontmatterKey > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.FrontmatterKey.include"
+	type AgentsSessionWaitSourcesLineInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+	case "$wakeOf" in ''|*/*|*[[:space:]]*) return 1 ;; esac
+	while IFS= read -r wakeRecord ; do
+		[ -n "$wakeRecord" ] && [ -f "$wakeRecord" ] || continue
+		wakeOwner="$( AgentsToolsFrontmatterKey "$wakeRecord" owner )"
+		[ "$wakeOwner" = "$wakeOf" ] || continue
+		wakeSession="$( AgentsToolsFrontmatterKey "$wakeRecord" session-id )"
+		case "$wakeSession" in ''|-|.|..|*/*|*[[:space:]]*) continue ;; esac
+		## A wait that stands names the session its member's messages enter; among several, the one that began first.
+		wakeSources=""
+		AgentsSessionWaitSourcesLineInto wakeSources "$wakeSession"
+		case " $wakeSources " in
+			*" wake:$wakeOf "*)
+				if [ -z "$wakeNamed" ] || [ "$wakeRecord" -ot "$wakeNamedRecord" ] ; then wakeNamed="$wakeSession" ; wakeNamedRecord="$wakeRecord" ; fi
+				continue
+			;;
+		esac
+		[ -n "$wakeOldest" ] && ! [ "$wakeRecord" -ot "$wakeOldestRecord" ] && continue
+		wakeOldest="$wakeSession" ; wakeOldestRecord="$wakeRecord"
+	done <<< "$( AgentsToolsSpawnedStartedRecords 2> /dev/null )"
+	[ -z "$wakeNamed" ] || { printf '%s\n' "$wakeNamed" ; return 0 ; }
+	[ -n "$wakeOldest" ] || return 1
+	printf '%s\n' "$wakeOldest"
+	return 0
+}
+
 ## POKES THE NAP OF THE WAITS: a wait naps on a fifo it holds both ends of (nap.fifo in its folder, AgentsTools.MemberWaitRun.include), and a line written
 ## into it ends that nap at once, so the wait looks at its sources now and not at the end of its nap. This is what lets a wait nap long: the writers of
 ## what it watches poke it, and the nap's length is only the fallback for a writer that does not. A poke is one newline; a wait that wakes reads its

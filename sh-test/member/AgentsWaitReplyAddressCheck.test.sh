@@ -50,7 +50,7 @@ rigAssert "the thread reply answers where the thread is" "$( printf '%s\n' "$rig
 rigAssert "and a top-level message answers at its own ts" "$( printf '%s\n' "$rigOut" | LC_ALL=C grep -c 'reply-to: slack:C0BJ49W7ZCM:1793494251.398389' )" "1"
 
 echo "-- 5. control: a source whose conversation is unknown invents no address --"
-rigOut="$( printf '%s\n' '1793000031.000100 | U5 | a line with no conversation' | rigAddressed file "file:$rigTmp/rig-drop" )"
+rigOut="$( printf '%s\n' '1793000031.000100 | U5 | a line with no conversation' | rigAddressed file "file:/nonexistent/rig-drop" )"
 rigAssert "the line is printed as it stands" "$( printf '%s\n' "$rigOut" | LC_ALL=C grep -c 'reply-to' )" "0"
 
 echo "-- 6. a source that names a bare channel: each message answers at its own ts there --"

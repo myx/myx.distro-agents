@@ -8,7 +8,7 @@
 
 ## HOW A RUN IS RECOGNISED, the one place, by a fact of the run's own and by nothing else: its
 ## own word on its own command line (here), or, where its CLI is given no such word, the
-## process its launch started, kept on its record (AgentsToolsRunRecordedAlive below).
+## process its launch started, kept on its record (AgentsToolsRunRecorded below).
 ## Prints the ids the processes of a process list run as, one per line; stdin is
 ## the list, a line a process, which may start with its pid. That word is the value of the
 ## process's own --session-id argument, or of its own --resume argument -- the first of the
@@ -87,11 +87,6 @@ AgentsToolsRunRecorded(){ ## spawn record file
 	printf '%s\n' "$recordedPid"
 }
 
-## The same as a question alone: rc 0 while the process the record names still lives.
-AgentsToolsRunRecordedAlive(){ ## spawn record file
-	AgentsToolsRunRecorded "$1" > /dev/null
-}
-
 ## WHETHER THE SHELL THAT SUPERVISES A SPAWN'S RUN STILL LIVES, asked of the spawn's own record:
 ## `supervisor-process: <pid> <start>`, written beside `run-process` and by the same writer
 ## (AgentsToolsSpawnProxyRunRecord, AgentsTools.SpawnSandbox.include) in the shell that
@@ -134,7 +129,7 @@ AgentsToolsRunRecordedSupervisor(){ ## spawn record file
 
 ## The spawn ids of a spawned-sessions registry that run on this host, one per line between
 ## newlines. A row whose record names the process its launch started (`run-process`) runs
-## while that process lives (AgentsToolsRunRecordedAlive), and only then: a word on
+## while that process lives (AgentsToolsRunRecorded), and only then: a word on
 ## another process's command line, such as a shell whose command text quotes the id, is no
 ## run of it. A row whose record names none runs where a process of the list runs as it
 ## (AgentsToolsRunWords), the list read once for every row and not by a shell match
@@ -238,7 +233,7 @@ AgentsToolsSpawnRuns(){ ## spawn id, its record file (may be empty)
 	[ "$runsFound" != "${2:-}" ] || runsFound=""
 	for runsRecord in "${2:-}" "$runsFound" ; do
 		[ -n "$runsRecord" ] && [ -f "$runsRecord" ] || continue
-		! AgentsToolsRunRecordedAlive "$runsRecord" || return 0
+		! AgentsToolsRunRecorded "$runsRecord" > /dev/null || return 0
 		! LC_ALL=C awk '$0 == "---" { if ( ++fenceCount > 1 ) { exit 1 ; } next ; } fenceCount == 1 && index( $0, "run-process: " ) == 1 { exit 0 ; } END { } ' "$runsRecord" 2>/dev/null || runsNamed="named"
 	done
 	[ -z "$runsNamed" ] || return 1

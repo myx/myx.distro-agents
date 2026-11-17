@@ -28,7 +28,7 @@ rigRefuse(){
 }
 [ -x "$rigFn" ] || rigRefuse "dispatcher not found: $rigFn"
 . "$rigPackage/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
-. "$rigPackage/sh-test/check-fixtures/rig-store-item.include.sh" || exit 1
+. "$rigPackage/sh-test/check-fixtures/rig-owner-writes.include.sh" || exit 1
 rigTmp="$( rigTempDir AgentsDocWriteGateCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
@@ -38,7 +38,7 @@ mkdir -p "$rigTmp/idbin" && printf '#!/bin/sh\n[ "$*" = "-un" ] || exec /usr/bin
 rigData="$rigTmp/data" rigSkills="$rigTmp/skills" rigWs="$rigTmp/ws"
 mkdir -p "$rigWs/.local" "$rigTmp/home" "$rigSkills/rig-member" "$rigSkills/rig-other" "$rigSkills/magic-coordinator"
 ## The store's own folders are made by its own writes, and every item below is written by AgentsToolsItemUpsert
-## (rig-store-item.include.sh): a hand-made folder or a hand-written item stays green when the writer's own path changes.
+## (rig-owner-writes.include.sh): a hand-made folder or a hand-written item stays green when the writer's own path changes.
 rigBodyCount=0
 rigStoreBody(){ ## text -- the path of a body file holding it
 	rigBodyCount=$(( rigBodyCount + 1 ))
@@ -116,7 +116,7 @@ rigAssert "with blocks it is made, and meets the contract of an approval" "$( ca
 
 echo "-- 3. before and after: only what the write introduces --"
 rigS=task-20261001T1020Z-stored.md
-## Written by the store's own writer, faulty content and all: it writes an item's body as given (rig-store-item.include.sh).
+## Written by the store's own writer, faulty content and all: it writes an item's body as given (rig-owner-writes.include.sh).
 rigStoreItem "$rigTmp" "$rigData" "$rigWs" rig-member "board running $rigS" "$( rigStoreBody "$( printf -- '---\ntype: task\nfrom: rig-member\ndate: 2026-07-01\nstatus: open\n---\n# Task: a stored task\n' )" )" \
 	|| rigRefuse "could not build the stored item $rigS";
 rigBase="$( rigMeets board-item.task "$rigData/board/running/$rigS" )"

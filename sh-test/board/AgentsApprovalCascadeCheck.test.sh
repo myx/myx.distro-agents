@@ -20,7 +20,7 @@ rigTmp="$( rigTempDir AgentsApprovalCascadeCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
 rigData="$rigTmp/data"
-mkdir -p "$rigTmp/ws"
+mkdir -p "$rigTmp/ws" "$rigData"
 rigGit(){ env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp" PATH="/usr/bin:/bin" GIT_CONFIG_NOSYSTEM=1 git -C "$rigData" "$@" ; }
 rigGit init -q || rigRefuse "git init failed"
 rigGit config user.email rig@example.invalid
@@ -178,9 +178,9 @@ rigAssert "the gated item moved to board/pending"          "$( rigLoc task-rig-f
 
 echo "-- malformed, missing, frontmatter-less blocks targets: reported, the move stands --"
 rigItem blocked task-rig-g task $'blocked-by: approval-rig-g\n'
-## Hand-made on purpose: the owner's write always gives an item a front matter, and this item exists to have
-## none, so the reader's own answer to that can be seen.
-printf 'no frontmatter here\n' > "$rigData/board/backlog/task-rig-nofm.md"
+## An item with no front matter at all. The owner's writer passes the text it is given through verbatim, so this
+## item reaches the board with none, and the reader's own answer to that can be seen.
+printf 'no frontmatter here\n' | rigOwnerBoardPut backlog task-rig-nofm.md || exit 1
 rigItem running approval-rig-g approval "${rigApproved}blocks: bad/name, task-rig-missing, task-rig-nofm, task-rig-g.md, task-rig-g"$'\n'
 rigOp "$rigTmp/o8" --move-to-processed --team-member magic-coordinator approval-rig-g.md --from-state:running
 rigAssert "the move succeeds"                              "$( cat "$rigTmp/o8.rc" )" 0

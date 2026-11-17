@@ -281,6 +281,9 @@ harnessSessionId=""
 harnessAgent=""
 harnessAgentMissing=""
 harnessMcpServers=()
+## --context: the shared startup one batch resolved for all its entries (AgentsHarnessBatch.include read it once).
+harnessContextFile=""
+harnessFromContext=""
 ## The arguments this process was started with, whole: a duty that meets newer tooling code at its keepalive starts again in place with
 ## them (AgentsHarnessIdleWait), in the same process, the same session and on the new code.
 harnessStartArgv=( "$@" ) harnessStartSelf="$0"
@@ -337,6 +340,15 @@ while [ $# -gt 0 ] ; do
 			harnessSessionId="$2"
 			shift 2
 		;;
+		--context)
+			## A value is required and nothing more: the batch wrote the file, and it is read below.
+			if [ -z "${2:-}" ] ; then
+				echo "${harnessBad}⛔ ERROR:${harnessOff} $harnessSelfName: --context: value required" >&2
+				exit 1
+			fi
+			harnessContextFile="$2"
+			shift 2
+		;;
 		--agent)
 			## Becomes a path segment fed to cd, so '.' and '..' are rejected outright.
 			case "${2:-}" in
@@ -378,6 +390,22 @@ done
 ## A spawned session's MDAT_SPAWN_AGENT, else the root session's magic-coordinator,
 ## and only when that member is in the skillset -- otherwise it stays empty, the four
 ## tools that send refuse, and every other tool is still served.
+## The served member set root, resolved once here for the whole run by the one resolver: this
+## workspace's member index view, or a root set here that names another folder.
+type AgentsToolsSkillsetRootInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWorkspace.include"
+harnessServedSkillset="${MDAT_SKILLSET_ROOT:-}"
+[ -z "${MMDAPP:-}" ] || AgentsToolsSkillsetRootInto harnessServedSkillset "$MMDAPP"
+## AN INVITED MEMBER'S OWN FOLDER, resolved per call (S12 row 16): no launch hands a member set root on, so a member set up
+## only in another workspace on this machine is looked up in the machine's members index here, as the spawn proxy looked
+## it up before starting this run. Only when this workspace's view lacks the member, so a member set up here pays nothing.
+## Exported, so every tool call this run makes reads the same member's folder.
+harnessBringAgent="$harnessAgent"
+[ -n "$harnessBringAgent" ] || [ -z "$harnessToolOnly" ] || harnessBringAgent="${MDAT_SPAWN_AGENT:-${MDAT_TEAM_MEMBER:-}}"
+if [ -n "$harnessBringAgent" ] && [ ! -r "$harnessServedSkillset/$harnessBringAgent/$harnessBringAgent.basic.md" ] ; then
+	type AgentsToolsMemberSkillsetBring > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWorkspace.include"
+	harnessBrought="$( AgentsToolsMemberSkillsetBring "$harnessBringAgent" --agent 2> /dev/null )" || harnessBrought=""
+	[ -z "$harnessBrought" ] || { harnessServedSkillset="${harnessBrought%%$'\t'*}" ; export MDAT_SKILLSET_ROOT="$harnessServedSkillset" ; }
+fi
 if [ -n "$harnessToolOnly" ] && [ -z "$harnessAgent" ] ; then
 	## A root session (no MDAT_SPAWN_AGENT) resolves its own served member first, falling to
 	## magic-coordinator only where neither is set (S21.21): TaskStop reads this same value.
@@ -399,11 +427,6 @@ if [ -n "$harnessToolOnly" ] && [ -z "$harnessAgent" ] ; then
 			*) harnessAgent="" ; harnessAgentCheckRest="" ;;
 		esac
 	done
-	## The skillset root the Skill tool also falls back to, so a served call resolves its
-	## member where MDAT_SKILLSET_ROOT is unset: this workspace's member index view
-	## (AgentsTools.TeamRegistry.include), never a vendor link folder. One it still cannot
-	## find is said, not dropped.
-	harnessServedSkillset="${MDAT_SKILLSET_ROOT:-${MMDAPP:+$MMDAPP/.local/agents/members}}"
 	## Announced, then exported, so every later check and every child the call runs reads the same root.
 	if [ -z "${MDAT_SKILLSET_ROOT:-}" ] ; then
 		printf 'WARNING: MDAT_SKILLSET_ROOT is not set in this process, so the served identity is read from the fallback %s\n' "${harnessServedSkillset:-<MMDAPP unset too>}" >&2
@@ -425,10 +448,10 @@ fi
 harnessAgentBasicText=""
 harnessAgentRealDir=""
 if [ -n "$harnessAgent" ] ; then
-	harnessAgentDir="${MDAT_SKILLSET_ROOT:-}/$harnessAgent"
+	harnessAgentDir="$harnessServedSkillset/$harnessAgent"
 	harnessAgentBasicFile="$harnessAgentDir/$harnessAgent.basic.md"
-	if [ -z "${MDAT_SKILLSET_ROOT:-}" ] || [ ! -f "$harnessAgentBasicFile" ] || [ ! -r "$harnessAgentBasicFile" ] ; then
-		echo "${harnessBad}⛔ ERROR:${harnessOff} $harnessSelfName: --agent $harnessAgent: no such file, or unreadable: ${MDAT_SKILLSET_ROOT:-<MDAT_SKILLSET_ROOT unset>}/$harnessAgent/$harnessAgent.basic.md" >&2
+	if [ -z "$harnessServedSkillset" ] || [ ! -f "$harnessAgentBasicFile" ] || [ ! -r "$harnessAgentBasicFile" ] ; then
+		echo "${harnessBad}⛔ ERROR:${harnessOff} $harnessSelfName: --agent $harnessAgent: no such file, or unreadable: $harnessAgentBasicFile -- check MDAT_SKILLSET_ROOT in the MCP server environment" >&2
 		exit 1
 	fi
 	harnessAgentBasicText="$( cat "$harnessAgentBasicFile" )"
@@ -442,8 +465,8 @@ fi
 ## again in the default skill bundle (the Skill tool below), while a served call, which is a native client's, keeps it in its bundle.
 ## Not read for magic-team itself, nor for a run that names no agent.
 harnessSystemShared=""
-if [ -z "$harnessToolOnly" ] && [ -n "$harnessAgent" ] && [ "$harnessAgent" != "magic-team" ] && [ -r "${MDAT_SKILLSET_ROOT:-}/magic-team/magic-team.basic.md" ] ; then
-	harnessSystemShared="$( cat "$MDAT_SKILLSET_ROOT/magic-team/magic-team.basic.md" )"
+if [ -z "$harnessToolOnly" ] && [ -n "$harnessAgent" ] && [ "$harnessAgent" != "magic-team" ] && [ -r "$harnessServedSkillset/magic-team/magic-team.basic.md" ] ; then
+	harnessSystemShared="$( cat "$harnessServedSkillset/magic-team/magic-team.basic.md" )"
 fi
 
 ## Remaining argv joined into one prompt; stdin when no argv prompt was given.
@@ -550,7 +573,59 @@ harnessRuntimeRoots=""
 harnessRuntimeWriteRoots=""
 harnessSandboxInReal=""
 harnessSandboxOutReal=""
-if [ "${#harnessAccessRoots[@]}" -eq 0 ] ; then
+
+## THE SHARED STARTUP OF A BATCH (--context): the read and write sets, the run roots, the gate flags,
+## the sandbox paths and the scratch base one batch resolved, read here in place of computing them.
+## A context that leaves out one of these REFUSES this entry, and the hooks are a separate block below.
+harnessContextWanted=" readroots writeroots runroots runwrites systemroots systemwrites gateindexed grantmember sandboxin sandboxout scratchbase hookslist hooksfault hooksescaped hookssession hookssessionesc hookscwd hookscwdesc"
+if [ -n "$harnessContextFile" ] ; then
+	if [ ! -f "$harnessContextFile" ] || [ ! -r "$harnessContextFile" ] ; then
+		[ -z "$harnessToolOnly" ] || printf 'ERROR: the shared context this call was started with is not readable: %s -- nothing was done\n' "$harnessContextFile"
+		echo "${harnessBad}⛔ ERROR:${harnessOff} $harnessSelfName: the shared context this call was started with is not readable: $harnessContextFile" >&2
+		exit 1
+	fi
+	harnessContextSeen=" "
+	while IFS= read -r harnessContextLine ; do
+		[ -n "$harnessContextLine" ] || continue
+		harnessContextKey="${harnessContextLine%%$'\t'*}"
+		## `printf -v` is never asked for an empty result: bash 3.2 keeps the last buffer.
+		harnessContextRaw="${harnessContextLine#*$'\t'}"
+		harnessContextValue=""
+		[ -z "$harnessContextRaw" ] || printf -v harnessContextValue '%b' "$harnessContextRaw"
+		harnessContextSeen="$harnessContextSeen$harnessContextKey "
+		case "$harnessContextKey" in
+			readroots) harnessRoots="$harnessContextValue" ;;
+			writeroots) harnessWriteRoots="$harnessContextValue" ;;
+			runroots) harnessRuntimeRoots="$harnessContextValue" ;;
+			runwrites) harnessRuntimeWriteRoots="$harnessContextValue" ;;
+			systemroots) harnessSystemRoots="$harnessContextValue" ;;
+			systemwrites) harnessSystemWriteRoots="$harnessContextValue" ;;
+			gateindexed) harnessGateIndexed="$harnessContextValue" ;;
+			grantmember) harnessGrantMember="$harnessContextValue" ;;
+			sandboxin) harnessSandboxInReal="$harnessContextValue" ;;
+			sandboxout) harnessSandboxOutReal="$harnessContextValue" ;;
+			scratchbase) harnessScratchBase="$harnessContextValue" ;;
+			hookslist) harnessHooksList="$harnessContextValue" ;;
+			hooksfault) harnessHooksFault="$harnessContextValue" ;;
+			hooksescaped) harnessHooksEscaped="$harnessContextValue" ;;
+			hookssession) harnessHooksSessionRaw="$harnessContextValue" ;;
+			hookssessionesc) harnessHooksSessionEsc="$harnessContextValue" ;;
+			hookscwd) harnessHooksCwdRaw="$harnessContextValue" ;;
+			hookscwdesc) harnessHooksCwdEsc="$harnessContextValue" ;;
+		esac
+	done < "$harnessContextFile"
+	for harnessContextKey in $harnessContextWanted ; do
+		case "$harnessContextSeen" in
+			*" $harnessContextKey "*) continue ;;
+		esac
+		[ -z "$harnessToolOnly" ] || printf 'ERROR: the shared context this call was started with leaves out %s, so nothing was done -- a short context is refused, never recomputed\n' "$harnessContextKey"
+		echo "${harnessBad}⛔ ERROR:${harnessOff} $harnessSelfName: the shared context leaves out $harnessContextKey, so this call refuses rather than computing it again: $harnessContextFile" >&2
+		exit 1
+	done
+	harnessFromContext=1
+fi
+
+if [ -z "$harnessFromContext" ] && [ "${#harnessAccessRoots[@]}" -eq 0 ] ; then
 	harnessRootsInclude="$harnessHere/client/AgentsTools.ClientAccessRoots.include"
 	if [ ! -f "$harnessRootsInclude" ] ; then
 		echo "${harnessBad}⛔ ERROR:${harnessOff} $harnessSelfName: the access-root mechanism is missing from this package: $harnessRootsInclude" >&2
@@ -639,16 +714,19 @@ fi
 
 ## A root the index resolved at install, and still a directory, keeps that resolution;
 ## every other one is resolved here, one subshell each, as always.
+if [ -z "$harnessFromContext" ] ; then
 harnessRoots=""
 harnessRootIdx=0
 for harnessRoot in ${harnessAccessRoots[@]+"${harnessAccessRoots[@]}"} ; do
 	if [ -n "${harnessRootsFromIndex:-}" ] && [ -n "${harnessAccessRootsReal[$harnessRootIdx]-}" ] ; then
 		harnessRoots="${harnessRoots}${harnessAccessRootsReal[$harnessRootIdx]}"$'\n'
 	else
-		harnessRoots="${harnessRoots}$( AgentsHarnessResolveDir "$harnessRoot" )"$'\n'
+		AgentsHarnessResolveDir "$harnessRoot" harnessRootReal
+		harnessRoots="${harnessRoots}$harnessRootReal"$'\n'
 	fi
 	harnessRootIdx=$(( harnessRootIdx + 1 ))
 done
+fi
 if [ -z "$harnessRoots" ] ; then
 	[ -z "$harnessToolOnly" ] || printf 'ERROR: no access roots resolved, so nothing was done -- sh-lib/client/AgentsTools.ClientAccessRoots.include yielded an empty set; check MDAT_SKILLSET_ROOT, HOME and MMDAPP in the MCP server environment\n'
 	echo "${harnessBad}⛔ ERROR:${harnessOff} $harnessSelfName: no access roots resolved -- refusing to run a tool-calling agent with nowhere it may touch. Pass --access-write-root for a root it may both read and write, or --access-read-root for one it may only read. With no flag at all the set comes from sh-lib/client/AgentsTools.ClientAccessRoots.include, so an empty set means that mechanism yielded nothing -- check MDAT_SKILLSET_ROOT and MMDAPP." >&2
@@ -658,6 +736,7 @@ fi
 ## Reads keep the generous set above. Writes narrow to their own where one is given, or
 ## where no root flag was given at all; with read flags only, they stay exactly as wide as reads, which is what every console
 ## generated before this flag passes, so no existing spawn loses a write.
+if [ -z "$harnessFromContext" ] ; then
 harnessWriteRoots=""
 if [ "${#harnessWriteAccessRoots[@]}" -gt 0 ] ; then
 	harnessRootIdx=0
@@ -665,7 +744,8 @@ if [ "${#harnessWriteAccessRoots[@]}" -gt 0 ] ; then
 		if [ -n "${harnessWriteFromIndex:-}" ] && [ -n "${harnessWriteAccessRootsReal[$harnessRootIdx]-}" ] ; then
 			harnessWriteRoots="${harnessWriteRoots}${harnessWriteAccessRootsReal[$harnessRootIdx]}"$'\n'
 		else
-			harnessWriteRoots="${harnessWriteRoots}$( AgentsHarnessResolveDir "$harnessWriteRoot" )"$'\n'
+			AgentsHarnessResolveDir "$harnessWriteRoot" harnessWriteRootReal
+			harnessWriteRoots="${harnessWriteRoots}$harnessWriteRootReal"$'\n'
 		fi
 		harnessRootIdx=$(( harnessRootIdx + 1 ))
 	done
@@ -674,6 +754,7 @@ if [ "${#harnessWriteAccessRoots[@]}" -gt 0 ] ; then
 fi
 [ -n "$harnessWriteRoots" ] || harnessWriteRoots="$harnessRoots"
 [ -z "$harnessAgentRealDir" ] || harnessRuntimeWriteRoots="${harnessRuntimeWriteRoots}$harnessAgentRealDir"$'\n'
+fi
 
 ## What the member layer names (F10.7): the roots of the workspace and of the member, the same for every run of a member. What is added below is of
 ## this run alone -- its sandbox, its results folder, the sandboxes of its children -- and goes to the task block of the first message
@@ -685,6 +766,7 @@ fi
 ## first differed inside the system message, at the sandbox path -- with the tools and the whole prefetched skill behind that point, so they
 ## were never read from the cache. It is added back just below, after the system text has taken its own, so the gate reads the same set it did
 ## and the task block names the roots (harnessRunNotes).
+if [ -z "$harnessFromContext" ] ; then
 harnessSandboxInReal="" harnessSandboxOutReal=""
 if [ -n "${MDAT_SPAWN_SANDBOX_ROOT:-}" ] ; then
 	if [ -n "${MDAT_SPAWN_SANDBOX_ROOT_REAL:-}" ] && [ "${MDAT_SPAWN_SANDBOX_ROOT_REAL#/}" != "$MDAT_SPAWN_SANDBOX_ROOT_REAL" ] \
@@ -693,7 +775,8 @@ if [ -n "${MDAT_SPAWN_SANDBOX_ROOT:-}" ] ; then
 		&& [ -d "$MDAT_SPAWN_SANDBOX_ROOT_REAL/output" ] && [ ! -L "$MDAT_SPAWN_SANDBOX_ROOT_REAL/output" ] ; then
 		harnessSandboxInReal="$MDAT_SPAWN_SANDBOX_ROOT_REAL/input" harnessSandboxOutReal="$MDAT_SPAWN_SANDBOX_ROOT_REAL/output"
 	else
-		harnessSandboxInReal="$( AgentsHarnessResolveDir "$MDAT_SPAWN_SANDBOX_ROOT/input" )" harnessSandboxOutReal="$( AgentsHarnessResolveDir "$MDAT_SPAWN_SANDBOX_ROOT/output" )"
+		AgentsHarnessResolveDir "$MDAT_SPAWN_SANDBOX_ROOT/input" harnessSandboxInReal
+		AgentsHarnessResolveDir "$MDAT_SPAWN_SANDBOX_ROOT/output" harnessSandboxOutReal
 	fi
 	harnessRootsStable="$( AgentsHarnessRootsWithout "$harnessRoots" "$harnessSandboxInReal" "$harnessSandboxOutReal" )"
 	harnessWriteRootsStable="$( AgentsHarnessRootsWithout "$harnessWriteRoots" "$harnessSandboxInReal" "$harnessSandboxOutReal" )"
@@ -710,6 +793,7 @@ if [ -n "${MDAT_SPAWN_SANDBOX_ROOT:-}" ] ; then
 	harnessRuntimeRoots="${harnessRuntimeRoots}$harnessSandboxInReal"$'\n'"$harnessSandboxOutReal"$'\n'
 	harnessRuntimeWriteRoots="${harnessRuntimeWriteRoots}$harnessSandboxOutReal"$'\n'
 fi
+fi
 
 ## A result too long for its reply is kept in the session's own results/ folder (AgentsTranscriptReplyLong,
 ## AgentsTools.SessionTranscript.include), and the reply says to read the rest there: the session reads
@@ -719,7 +803,8 @@ case "$harnessResultsKey" in
 	''|*/*|.|..|*' '*) ;;
 	*)
 		if [ -n "${MMDAPP:-}" ] ; then
-			harnessResultsReal="$( AgentsHarnessResolveDir "$MMDAPP/.local/agents/sessions" )/$harnessResultsKey/results"
+			AgentsHarnessResolveDir "$MMDAPP/.local/agents/sessions" harnessResultsReal
+			harnessResultsReal="$harnessResultsReal/$harnessResultsKey/results"
 			harnessRoots="${harnessRoots}$harnessResultsReal"$'\n'
 			harnessRuntimeRoots="${harnessRuntimeRoots}$harnessResultsReal"$'\n'
 		fi
@@ -744,12 +829,14 @@ if [ -n "$harnessParentKey" ] && [ -n "${MMDAPP:-}" ] ; then
 		harnessChildRoot="${harnessChildRecord%/*}"
 		if AgentsSpawnedFolderNameInto harnessChildName "$harnessChildRoot" \
 			&& [ ! -L "$harnessChildRoot" ] && [ -d "$harnessChildRoot/output" ] && [ ! -L "$harnessChildRoot/output" ] && [ -d "$harnessChildRoot/input" ] && [ ! -L "$harnessChildRoot/input" ] ; then
-			[ -n "$harnessSpawnedReal" ] || harnessSpawnedReal="$( AgentsHarnessResolveDir "$MMDAPP/.local/agents/spawned" )"
+			[ -n "$harnessSpawnedReal" ] || AgentsHarnessResolveDir "$MMDAPP/.local/agents/spawned" harnessSpawnedReal
 			harnessRoots="${harnessRoots}$harnessSpawnedReal/$harnessChildName/output"$'\n'
 			harnessWriteRoots="${harnessWriteRoots}$harnessSpawnedReal/$harnessChildName/input"$'\n'
 		else
-			harnessRoots="${harnessRoots}$( AgentsHarnessResolveDir "$harnessChildRoot/output" )"$'\n'
-			harnessWriteRoots="${harnessWriteRoots}$( AgentsHarnessResolveDir "$harnessChildRoot/input" )"$'\n'
+			AgentsHarnessResolveDir "$harnessChildRoot/output" harnessRootReal
+			harnessRoots="${harnessRoots}$harnessRootReal"$'\n'
+			AgentsHarnessResolveDir "$harnessChildRoot/input" harnessWriteRootReal
+			harnessWriteRoots="${harnessWriteRoots}$harnessWriteRootReal"$'\n'
 		fi
 	done <<< "$harnessChildRecords"
 	## The same roots, for a named member's file gate: the two sets grew by exactly these.
@@ -780,6 +867,8 @@ if [ "${harnessWriteRoots:0:${#harnessSystemWriteRoots}}" = "$harnessSystemWrite
 ## the spawn's sandbox tmp/ where it has one, else $MMDAPP/.local/agents/scratch, which
 ## no member's floor grants (AgentsTools.Grants.include). With no workspace there is no scratch,
 ## and no run: a served call says so on stdout, where its caller reads every refusal.
+## The context already carries it for an entry of a batch, and an empty one it carries stands for the refusal below.
+if [ -z "$harnessFromContext" ] ; then
 harnessScratchBase=""
 if [ -n "${MDAT_SPAWN_SANDBOX_ROOT:-}" ] && mkdir -p "$MDAT_SPAWN_SANDBOX_ROOT/tmp" 2>/dev/null ; then
 	harnessScratchBase="$MDAT_SPAWN_SANDBOX_ROOT/tmp"
@@ -788,6 +877,12 @@ elif [ -n "${MMDAPP:-}" ] && [ -d "$MMDAPP" ] && mkdir -p "$MMDAPP/.local/agents
 else
 	[ -z "$harnessToolOnly" ] || printf 'ERROR: no workspace to keep the scratch of this call in -- MMDAPP names none, so nothing was done\n'
 	echo "${harnessBad}⛔ ERROR:${harnessOff} $harnessSelfName: no workspace to keep the scratch of this run in -- MMDAPP names none, and the system temp folder is never used" >&2
+	exit 1
+fi
+fi
+if [ -z "$harnessScratchBase" ] ; then
+	[ -z "$harnessToolOnly" ] || printf 'ERROR: the shared context names no scratch base, so nothing was done\n'
+	echo "${harnessBad}⛔ ERROR:${harnessOff} $harnessSelfName: the shared context names no scratch base for this run: $harnessContextFile" >&2
 	exit 1
 fi
 harnessScratch="$( mktemp -d "$harnessScratchBase/AgentsUniversalHarness.XXXXXX" )" || {
@@ -1316,7 +1411,7 @@ fi
 if [ -n "$harnessNeedsMcp" ] ; then
 	. "$harnessWireFile"
 	## The declarations a hosted model is given state the cap this process applies.
-	[ -z "${harnessToolsJson:-}" ] || harnessToolsJson="$( printf '%s\n' "$harnessToolsJson" | AgentsReadCapFill "$harnessReadCap" )"
+	[ -z "${harnessToolsJson:-}" ] || harnessToolsJson="$( printf '%s\n' "$harnessToolsJson" | LC_ALL=C sed "s/{{READ_CAP_BYTES}}/$harnessReadCap/g" )"
 	## Every tool takes background, timeout and timeout_action (epic S20): the declarations say so.
 	[ -z "${harnessToolsJson:-}" ] || harnessToolsJson="$( printf '%s\n' "$harnessToolsJson" | LC_ALL=C awk -f "$harnessHere/harness/AgentsHarnessTaskArgsFill.awk" )"
 	## EACH TOOLING TOOL NAMES ITS OPERATIONS (the declarations, so the shared cached prefix holds them): a run asked `--help-syntax` to learn
@@ -1370,7 +1465,8 @@ fi
 
 ## Sourced the same way, and after the wire so its refusals can name this run's tools.
 ## Absent, this refuses to start: a harness that cannot consult its hooks must not run
-## unguarded, which is the same rule its hooks are held to.
+## unguarded, which is the same rule its hooks are held to. Every VALUE of theirs a batch resolved
+## once comes from the context, so the block is read and not sourced, and the per-call refusal stays here.
 harnessHooksFile="$harnessHere/harness/AgentsHarnessHooks.sh"
 if [ ! -f "$harnessHooksFile" ] ; then
 	echo "${harnessBad}⛔ ERROR:${harnessOff} $harnessSelfName: the PreToolUse hook support is missing from this package: $harnessHooksFile" >&2
@@ -1568,8 +1664,8 @@ if [ -n "$harnessAgent" ] ; then
 	## THE TEAM'S ARMED FILE (P2): it joins the team layer for every member run, whatever its session kind, after the team's
 	## basic and before the tools. It is the team's own text, never a member's, so it does not end the shared prefix; and
 	## because it is here, a work-duty's dispatch carries no second copy of it.
-	if [ -r "${MDAT_SKILLSET_ROOT:-}/magic-team/magic-team.armed.md" ] ; then
-		printf -v harnessSystemTeamFirst '%s\n\n%s' "$harnessSystemTeamFirst" "$( cat "$MDAT_SKILLSET_ROOT/magic-team/magic-team.armed.md" )"
+	if [ -r "$harnessServedSkillset/magic-team/magic-team.armed.md" ] ; then
+		printf -v harnessSystemTeamFirst '%s\n\n%s' "$harnessSystemTeamFirst" "$( cat "$harnessServedSkillset/magic-team/magic-team.armed.md" )"
 	fi
 	harnessSystemTeamRest="$harnessSystemCommon"
 	harnessSystemTeam="$harnessSystemTeamFirst"$'\n\n'"$harnessSystemTeamRest"
@@ -1586,9 +1682,9 @@ if [ -n "$harnessAgent" ] ; then
 	## session of every member shares it, and a session of any other kind is left as it was. It is the optional skillset file
 	## magic-team/magic-team.armed-extended.md; a skillset without it has no such layer. In the first message and not in the system message, so the tool floor
 	## stays shared by every session.
-	if [ -r "${MDAT_SKILLSET_ROOT:-}/magic-team/magic-team.armed-extended.md" ] && AgentsHarnessWorkDuty ; then
+	if [ -r "$harnessServedSkillset/magic-team/magic-team.armed-extended.md" ] && AgentsHarnessWorkDuty ; then
 		printf -v harnessMemberText '%s\n\n%s\n\n%s' "## Team+ -- more of the team's own text, the same for every work-duty session of this team" \
-			"$( cat "$MDAT_SKILLSET_ROOT/magic-team/magic-team.armed-extended.md" )" "$harnessMemberText"
+			"$( cat "$harnessServedSkillset/magic-team/magic-team.armed-extended.md" )" "$harnessMemberText"
 	fi
 else
 	harnessSystemText="You are an autonomous coding agent running through a bespoke $harnessProviderName harness$harnessSystemTail"
@@ -1667,7 +1763,7 @@ AgentsHarnessCacheWatch(){
 ## a thread it cannot reach, or a post that will not go, is said on stderr and the pause goes on.
 AgentsHarnessBusySay(){ ## the words
 	local sayThread=""
-	type AgentsToolsSessionCurrentThreadFind > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionThreads.include"
+	type AgentsToolsSessionCurrentThreadFind > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.SessionThreads.include"
 	sayThread="$( AgentsToolsSessionCurrentThreadFind 2> /dev/null )" || sayThread=""
 	if [ -z "$sayThread" ] ; then
 		printf '%s\n' "${harnessDim}this run has no session thread, so the pause is not posted there${harnessOff}" >&2
@@ -2160,6 +2256,7 @@ while : ; do
 		if AgentsHarnessCheckListPlace 2> /dev/null && [ -s "$checkListFolder/$checkListMember.checklist.md" ] ; then
 			restartState="$( LC_ALL=C head -c 12000 "$checkListFolder/$checkListMember.checklist.md" 2> /dev/null )" || restartState=""
 		fi
+		type AgentsSessionDispatchItemInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.BoardDispatchRuns.include"
 		AgentsSessionDispatchItemInto restartItem "${MDAT_SPAWN_SESSION_ID:-}" || restartItem=""
 		if [ -n "$restartItem" ] ; then
 			restartItemPath="$( AgentsHarnessDispatchItemPath "$restartItem" 2> /dev/null )" || restartItemPath=""

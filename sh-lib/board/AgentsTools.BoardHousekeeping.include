@@ -19,7 +19,7 @@
 AgentsToolsReviewUnseenEscalate(){ ## the member the scan acts as
 	local unBy="$1" unPath unItem unSince unLimit unNow unReviewer unTold unSeen unMark
 	type AgentsReviewWaitLimit > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ReviewFlow.include"
-	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandboxRecordHeader.include"
+	type AgentsToolsFrontmatterKey > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.FrontmatterKey.include"
 	type AgentsToolsSpawnProxyStaleHandbackTell > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnProxyClose.include"
 	unLimit="$( AgentsReviewWaitLimit )"
 	unNow="$( date +%s )"
@@ -27,11 +27,11 @@ AgentsToolsReviewUnseenEscalate(){ ## the member the scan acts as
 		[ -f "$unPath" ] || continue
 		unItem="${unPath##*/}"
 		## An item already raised is left alone: one escalation per review entry, kept beside the item.
-		unSince="$( AgentsToolsSpawnSandboxRecordHeader "$unPath" review-since-epoch )"
+		unSince="$( AgentsToolsFrontmatterKey "$unPath" review-since-epoch )"
 		case "$unSince" in ''|*[!0123456789]*) continue ;; esac
 		unSeen=$(( unNow - unSince ))
 		[ "$unSeen" -ge "$unLimit" ] || continue
-		unReviewer="$( AgentsToolsSpawnSandboxRecordHeader "$unPath" review-by )"
+		unReviewer="$( AgentsToolsFrontmatterKey "$unPath" review-by )"
 		case "$unReviewer" in ''|human-owner|*.routine|*:*) unTold=magic-coordinator ;; *) unTold="$unReviewer" ;; esac
 		unMark="$MDAT_DATA_ROOT/board/review/.unseen-$unItem"
 		[ ! -f "$unMark" ] || continue
@@ -93,7 +93,7 @@ AgentsToolsPendingAskHousekeeping(){ ## stale hours, calling member
 }
 
 AgentsToolsAdvanceSpawnHousekeeping(){ ## stale hours, calling member, [no-threads: the control threads are left to the caller's own check]
-	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandboxRecordHeader.include"
+	type AgentsToolsFrontmatterKey > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.FrontmatterKey.include"
 	type AgentsToolsHousekeepingReport > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandbox.include"
 	type AgentsToolsRegistryRenderSpawnedSessions > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.RegistrySpawnedSessions.include"
 	type AgentsToolsRegistryPendingSessionOpen > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.RegistryPendingReplies.include"
@@ -118,6 +118,7 @@ AgentsToolsAdvanceSpawnHousekeeping(){ ## stale hours, calling member, [no-threa
 	AgentsToolsSpawnProxyStaleParkClear
 	startedRows="$( printf '%s\n' "$measureText" | LC_ALL=C awk 'NF == 13 && $6 == "spawn-started" && $8 != "-" { print ; }' )"
 	type AgentsToolsSessionControlDeathHeld > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionControlDeath.include"
+	type AgentsSessionStoreChangedWithin > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
 	while read -r rowTracking rowSession rowParent rowHost rowOwner rowStatus rowExit rowSpawn rowAgentLog rowSessionThread rowWorkspace rowLive rowState ; do
 		[ -n "$rowTracking" ] || continue
 		recordPath="$spawnRoot/$rowTracking/$rowSpawn.spawn.md"
@@ -129,19 +130,19 @@ AgentsToolsAdvanceSpawnHousekeeping(){ ## stale hours, calling member, [no-threa
 				## A death that the control thread of its session keeps and has not settled is that thread's while it lives: it tells it and asks about it, and this pass
 				## neither closes nor tells that run (AgentsToolsSessionControlDeathHeld). With no thread alive the run is closed here as before.
 				! AgentsToolsSessionControlDeathHeld "$rowSession" "$rowSpawn" 2> /dev/null || continue
-				[ -z "$( find "$spawnRoot/$rowTracking" "$MMDAPP/.local/agents/sessions/$rowSpawn" "$MMDAPP/.local/agents/sessions/$rowSession" -type f -mmin -15 2> /dev/null | head -1 )" ] || continue
+				! AgentsSessionStoreChangedWithin 15 files "$rowTracking" "$rowSpawn" "$rowSession" || continue
 				rowSide=local
 			;;
 			*)
 				if AgentsToolsRegistryPendingSessionOpen "$rowSession" ; then continue ; fi
-				[ -z "$( find "$spawnRoot/$rowTracking" "$MMDAPP/.local/agents/sessions/$rowSpawn" "$MMDAPP/.local/agents/sessions/$rowSession" -type f -mmin -"$(( staleHours * 60 ))" 2> /dev/null | head -1 )" ] || continue
+				! AgentsSessionStoreChangedWithin "$(( staleHours * 60 ))" files "$rowTracking" "$rowSpawn" "$rowSession" || continue
 				rowSide=foreign
 			;;
 		esac
-		[ "$( AgentsToolsSpawnSandboxRecordHeader "$recordPath" status )" = spawn-started ] || continue
+		[ "$( AgentsToolsFrontmatterKey "$recordPath" status )" = spawn-started ] || continue
 		## An agent-less parent whose watcher is gone is closed from its children's outcomes, once they all have closed and none is
 		## queued; else its watcher is started again, from its run-process and host (AgentsToolsSpawnSessionParentRevive).
-		if [ "$( AgentsToolsSpawnSandboxRecordHeader "$recordPath" agent-less )" = true ] ; then
+		if [ "$( AgentsToolsFrontmatterKey "$recordPath" agent-less )" = true ] ; then
 			if AgentsToolsSpawnSessionParentClose "$recordPath" ; then
 				housekeepingLog="${housekeepingLog}housekeeping: closed agent-less parent $rowTracking $rowSpawn from its children"$'\n'
 			elif AgentsToolsSpawnSessionParentRevive "$recordPath" ; then
@@ -150,29 +151,30 @@ AgentsToolsAdvanceSpawnHousekeeping(){ ## stale hours, calling member, [no-threa
 			continue
 		fi
 		AgentsToolsSpawnProxyCloseSandbox "$recordPath" "$endedOutcome" unknown
-		if [ "$( AgentsToolsSpawnSandboxRecordHeader "$recordPath" status )" != "spawn-$endedOutcome" ] ; then
+		if [ "$( AgentsToolsFrontmatterKey "$recordPath" status )" != "spawn-$endedOutcome" ] ; then
 			AgentsToolsDaemonLine "⚠️ WARNING: $MDSC_CMD routine lock take (advance): could not close the record of spawn $rowSpawn in $rowTracking"
 			continue
 		fi
 		housekeepingLog="${housekeepingLog}housekeeping: closed record $rowTracking $rowSpawn"$'\n'
-		itemOutput="$( AgentsToolsSpawnSandboxRecordHeader "$recordPath" output-file )"
+		itemOutput="$( AgentsToolsFrontmatterKey "$recordPath" output-file )"
 		[ -n "$itemOutput" ] || itemOutput="-"
 		for linkField in spawns spawned-by ; do
-			linkStem="$( AgentsToolsSpawnSandboxRecordHeader "$recordPath" "$linkField" )"
+			linkStem="$( AgentsToolsFrontmatterKey "$recordPath" "$linkField" )"
 			[ -n "$linkStem" ] || continue
 			itemName="${linkStem%.md}.md"
 			type AgentsToolsBoardItemHeadersInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemDecisions.include"
 			AgentsToolsBoardItemHeadersInto "$itemName" itemState || :
 			[ -n "$itemState" ] || continue
 			itemPath="$MDAT_DATA_ROOT/board/$itemState/$itemName"
-			[ "$( AgentsToolsSpawnSandboxRecordHeader "$itemPath" status )" = dispatch-started ] || continue
+			## A closed dispatch carries the moment it closed, so the field is the open test (S16 stage 2 item 6: no board item stores its run's condition).
+			[ -z "$( AgentsToolsFrontmatterKey "$itemPath" resolved-at )" ] || continue
 			## An item that names a newer spawn belongs to that one, not to this dead record.
-			itemSpawn="$( AgentsToolsSpawnSandboxRecordHeader "$itemPath" spawn-id )"
+			itemSpawn="$( AgentsToolsFrontmatterKey "$itemPath" spawn-id )"
 			[ -z "$itemSpawn" ] || [ "$itemSpawn" = "-" ] || [ "$itemSpawn" = "$rowSpawn" ] || continue
 			targetState="$itemState"
 			[ "$linkField" != spawns ] || [ "$itemState" != running ] || targetState=review
 			AgentsToolsSpawnProxyCloseDispatch "$itemName" "" unknown "$itemOutput" "$endedOutcome" "$itemState" "$targetState" > /dev/null 2>&1
-			if [ "$( AgentsToolsSpawnSandboxRecordHeader "$MDAT_DATA_ROOT/board/$targetState/$itemName" status )" = "dispatch-$endedOutcome" ] ; then
+			if [ -n "$( AgentsToolsFrontmatterKey "$MDAT_DATA_ROOT/board/$targetState/$itemName" resolved-at )" ] ; then
 				housekeepingLog="${housekeepingLog}housekeeping: $itemName $itemState->$targetState $endedOutcome"$'\n'
 			fi
 		done
@@ -183,9 +185,10 @@ AgentsToolsAdvanceSpawnHousekeeping(){ ## stale hours, calling member, [no-threa
 	done <<< "$startedRows"
 	for itemPath in "$MDAT_DATA_ROOT"/board/running/dispatch-*.md ; do
 		[ -f "$itemPath" ] || continue
-		[ "$( AgentsToolsSpawnSandboxRecordHeader "$itemPath" status )" = dispatch-started ] || continue
+		## A closed dispatch carries the moment it closed, so the field is the open test (S16 stage 2 item 6).
+		[ -z "$( AgentsToolsFrontmatterKey "$itemPath" resolved-at )" ] || continue
 		itemName="${itemPath##*/}"
-		itemSpawn="$( AgentsToolsSpawnSandboxRecordHeader "$itemPath" spawn-id )"
+		itemSpawn="$( AgentsToolsFrontmatterKey "$itemPath" spawn-id )"
 		recordPath=""
 		if [ -n "$itemSpawn" ] && [ "$itemSpawn" != "-" ] ; then
 			for recordCandidate in "$spawnRoot"/*/"$itemSpawn.spawn.md" ; do
@@ -193,12 +196,12 @@ AgentsToolsAdvanceSpawnHousekeeping(){ ## stale hours, calling member, [no-threa
 			done
 		fi
 		if [ -n "$recordPath" ] ; then
-			recordStatus="$( AgentsToolsSpawnSandboxRecordHeader "$recordPath" status )"
+			recordStatus="$( AgentsToolsFrontmatterKey "$recordPath" status )"
 			case "$recordStatus" in ''|spawn-started) continue ;; esac
 			closeOutcome="${recordStatus#spawn-}"
-			recordExit="$( AgentsToolsSpawnSandboxRecordHeader "$recordPath" exit-code )"
+			recordExit="$( AgentsToolsFrontmatterKey "$recordPath" exit-code )"
 			[ -n "$recordExit" ] || recordExit="unknown"
-			itemOutput="$( AgentsToolsSpawnSandboxRecordHeader "$recordPath" output-file )"
+			itemOutput="$( AgentsToolsFrontmatterKey "$recordPath" output-file )"
 			[ -n "$itemOutput" ] || itemOutput="-"
 		else
 			[ -z "$( find "$itemPath" -mmin -"$(( staleHours * 60 ))" 2> /dev/null | head -1 )" ] || continue
@@ -215,11 +218,11 @@ AgentsToolsAdvanceSpawnHousekeeping(){ ## stale hours, calling member, [no-threa
 	## A started record that names no spawn id has no run to measure: it closes once nothing in it changed for the stale hours.
 	for recordPath in "$spawnRoot"/*/*.spawn.md ; do
 		[ -f "$recordPath" ] || continue
-		[ "$( AgentsToolsSpawnSandboxRecordHeader "$recordPath" status )" = spawn-started ] || continue
-		case "$( AgentsToolsSpawnSandboxRecordHeader "$recordPath" spawn-id )" in ''|-) ;; *) continue ;; esac
+		[ "$( AgentsToolsFrontmatterKey "$recordPath" status )" = spawn-started ] || continue
+		case "$( AgentsToolsFrontmatterKey "$recordPath" spawn-id )" in ''|-) ;; *) continue ;; esac
 		[ -z "$( find "${recordPath%/*}" -type f -mmin -"$(( staleHours * 60 ))" 2> /dev/null | head -1 )" ] || continue
 		AgentsToolsSpawnProxyCloseSandbox "$recordPath" "$endedOutcome" unknown > /dev/null 2>&1
-		[ "$( AgentsToolsSpawnSandboxRecordHeader "$recordPath" status )" != "spawn-$endedOutcome" ] || housekeepingLog="${housekeepingLog}housekeeping: closed record ${recordPath#$spawnRoot/}, which names no spawn id"$'\n'
+		[ "$( AgentsToolsFrontmatterKey "$recordPath" status )" != "spawn-$endedOutcome" ] || housekeepingLog="${housekeepingLog}housekeeping: closed record ${recordPath#$spawnRoot/}, which names no spawn id"$'\n'
 	done
 	## A sandbox whose launch never wrote its record is a failed launch: a launch writes it within minutes, so after an hour it gets a record saying so,
 	## so it stays listed, as every sandbox is, and reads failed rather than unclosed.
@@ -228,7 +231,7 @@ AgentsToolsAdvanceSpawnHousekeeping(){ ## stale hours, calling member, [no-threa
 		[ -d "$emptyDir" ] || continue
 		emptyName="${emptyDir%/}" ; emptyName="${emptyName##*/}"
 		ls "$emptyDir"*.spawn.md > /dev/null 2>&1 && continue
-		[ -z "$( find "$emptyDir" "$MMDAPP/.local/agents/sessions/$emptyName" -mmin -60 2> /dev/null | head -1 )" ] || continue
+		! AgentsSessionStoreChangedWithin 60 entries "$emptyName" "$emptyName" || continue
 		printf -- '---\nsession-id: -\nspawn-id: -\ntracking-name: %s\nhost: %s\nstatus: spawn-failed\nexit-code: unknown\nstarted-at: %s\nsession-comment: launch never wrote its record\n---\n\nClosed by housekeeping: the launch made this sandbox and ended before writing its record.\n' \
 			"$emptyName" "$( hostname -s 2> /dev/null )" "$( date -r "$emptyDir" +"%Y-%m-%d %H:%M %z" 2> /dev/null )" > "$emptyDir$emptyName.spawn.md" 2> /dev/null \
 			&& housekeepingLog="${housekeepingLog}housekeeping: closed sandbox $emptyName as a failed launch, which wrote no record"$'\n'
@@ -241,7 +244,7 @@ AgentsToolsAdvanceSpawnHousekeeping(){ ## stale hours, calling member, [no-threa
 	for itemPath in "$MDAT_DATA_ROOT"/board/review/*.md ; do
 		[ -f "$itemPath" ] || continue
 		itemName="${itemPath##*/}"
-		reviewBy="$( AgentsToolsSpawnSandboxRecordHeader "$itemPath" review-by )"
+		reviewBy="$( AgentsToolsFrontmatterKey "$itemPath" review-by )"
 		case "$reviewBy" in
 			## A routine reviews on its own next run, from its own input scan: grooming.routine, advance.routine, any <routine>.
 			''|human-owner|*.routine) continue ;;
@@ -263,9 +266,10 @@ AgentsToolsAdvanceSpawnHousekeeping(){ ## stale hours, calling member, [no-threa
 			## writes), never by age. An id with no store at all, by age as before.
 			*/*|:.|:..|:) [ -z "$( find "$itemPath" -mmin -"$(( staleHours * 60 ))" 2> /dev/null | head -1 )" ] || continue ;;
 			*)
-				if [ -d "$MMDAPP/.local/agents/sessions/$reviewId" ] ; then
+				type AgentsSessionKnown > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+				if AgentsSessionKnown "$reviewId" ; then
 					type AgentsToolsGrantsSessionEnded > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.Grants.include"
-					AgentsToolsGrantsSessionEnded "$MMDAPP/.local/agents/sessions/$reviewId" || continue
+					AgentsToolsGrantsSessionEnded "$reviewId" "$MMDAPP" || continue
 				else
 					[ -z "$( find "$itemPath" -mmin -"$(( staleHours * 60 ))" 2> /dev/null | head -1 )" ] || continue
 				fi

@@ -25,10 +25,8 @@ AgentsToolsCommsTrelloCheck(){ ## <team-member>
 		routine-*)
 		;;
 		*)
-			if [ ! -d "$MDAT_SKILLSET_ROOT/$memberName" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --trello-check: no such member skill directory: $MDAT_SKILLSET_ROOT/$memberName" >&2
-				set +e ; return 1
-			fi
+			type AgentsToolsSlackMemberPresent > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/slack/AgentsTools.CommsSlack.include"
+			AgentsToolsSlackMemberPresent "$memberName" --trello-check || { set +e ; return 1 ; }
 		;;
 	esac
 	AgentsToolsCommsOwnSideCheck "$memberName" Trello trello-check || { set +e ; return 1 ; }
@@ -80,10 +78,8 @@ AgentsToolsCommsTrelloWhoami(){ ## <team-member>
 			## Same carve-out, same reason, as the two arms above.
 		;;
 		*)
-			if [ ! -d "$MDAT_SKILLSET_ROOT/$memberName" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --trello-whoami: no such member skill directory: $MDAT_SKILLSET_ROOT/$memberName" >&2
-				set +e ; return 1
-			fi
+			type AgentsToolsSlackMemberPresent > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/slack/AgentsTools.CommsSlack.include"
+			AgentsToolsSlackMemberPresent "$memberName" --trello-whoami || { set +e ; return 1 ; }
 		;;
 	esac
 	AgentsToolsCommsOwnSideCheck "$memberName" Trello trello-whoami || { set +e ; return 1 ; }
@@ -176,10 +172,8 @@ case "$1" in
 				routine-*)
 				;;
 				*)
-					if [ ! -d "$MDAT_SKILLSET_ROOT/$memberName" ] ; then
-						echo "⛔ ERROR: $MDSC_CMD --trello-read: no such member skill directory: $MDAT_SKILLSET_ROOT/$memberName" >&2
-						set +e ; return 1
-					fi
+					type AgentsToolsSlackMemberPresent > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/slack/AgentsTools.CommsSlack.include"
+					AgentsToolsSlackMemberPresent "$memberName" --trello-read || { set +e ; return 1 ; }
 				;;
 			esac
 			AgentsToolsCommsOwnSideCheck "$memberName" Trello trello-read || { set +e ; return 1 ; }
@@ -258,10 +252,8 @@ case "$1" in
 				routine-*)
 				;;
 				*)
-					if [ ! -d "$MDAT_SKILLSET_ROOT/$callingMember" ] ; then
-						echo "⛔ ERROR: $MDSC_CMD $postOp: no such member skill directory: $MDAT_SKILLSET_ROOT/$callingMember" >&2
-						set +e ; return 1
-					fi
+					type AgentsToolsSlackMemberPresent > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/slack/AgentsTools.CommsSlack.include"
+					AgentsToolsSlackMemberPresent "$callingMember" "$postOp" || { set +e ; return 1 ; }
 				;;
 			esac
 			## The member's own Trello account is read by the side of the call: a client-* member

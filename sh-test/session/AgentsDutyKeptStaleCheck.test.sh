@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-## Behavioural check on a kept duty session ending with its day (AgentsToolsDutyKeptStale, sh-lib/session/AgentsTools.StartedRecords.include),
+## Behavioural check on a kept duty session ending with its day (AgentsToolsDutyKeptStale, sh-lib/schedule/AgentsTools.StartedRecords.include),
 ## and its two readers: the schedule's start point (AgentsToolsScheduleSpawn) and the spawn proxy. Held:
 ##   1. a kept session founded on an earlier day is stale; one founded today is not; one with no founding record is not judged stale
 ##   2. the date is the session's own started-at, never the kept file's time: a kept file rewritten today still names yesterday's session
@@ -31,7 +31,7 @@ rigFound(){ ## session id, started-at
 	printf -- '---\nsession-id: %s\nspawn-id: %s\nowner: keeper-rig\nstatus: spawn-ended-without-close\nstarted-at: %s\n---\n' "$1" "$1" "$2" > "$rigWs/.local/agents/spawned/$1/$1.spawn.md"
 }
 rigStale(){ ## session id -> stale|today
-	MMDAPP="$rigWs" bash -c '. "$1" ; AgentsToolsDutyKeptStale "$2" && echo stale || echo today' rig "$rigPkg/sh-lib/session/AgentsTools.StartedRecords.include" "$1"
+	MMDAPP="$rigWs" bash -c '. "$1" ; AgentsToolsDutyKeptStale "$2" && echo stale || echo today' rig "$rigPkg/sh-lib/schedule/AgentsTools.StartedRecords.include" "$1"
 }
 rigYesterday="$( date -v-1d '+%Y-%m-%d' 2> /dev/null || date -d yesterday '+%Y-%m-%d' )"
 rigToday="$( date '+%Y-%m-%d' )"

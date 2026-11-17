@@ -27,9 +27,17 @@ AgentsToolsHandbackNextKey(){ ## file, key
 
 ## The file of a routine, by its exact file name: the skillset of the run, then the package's own. Nothing where there is none.
 AgentsToolsHandbackNextRoutineFile(){ ## routine file name
-	local routineCandidate
+	local routineCandidate routineMember routineDir
+	type AgentsToolsTeamMemberDirectoryText > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamRegistry.include"
 	case "$1" in ''|*/*|*' '*) return 0 ;; esac
-	for routineCandidate in "${MDAT_SKILLSET_ROOT:-$MMDAPP/.local/agents/members}"/*/"$1" "$MDLT_ORIGIN/myx/myx.distro-agents/skillset/magic-team"/*/"$1" ; do
+	while IFS=$'\t' read -r routineMember routineDir ; do
+		[ -n "$routineDir" ] || continue
+		routineCandidate="$routineDir/$1"
+		[ -f "$routineCandidate" ] || continue
+		printf '%s' "$routineCandidate"
+		return 0
+	done <<< "$( AgentsToolsTeamMemberDirectoryText )"
+	for routineCandidate in "$MDLT_ORIGIN/myx/myx.distro-agents/skillset/magic-team"/*/"$1" ; do
 		[ -f "$routineCandidate" ] || continue
 		printf '%s' "$routineCandidate"
 		return 0
@@ -67,8 +75,8 @@ AgentsToolsHandbackNext(){ ## member, spawn id, the outcome field of the handbac
 	local nextMarker nextName nextTask nextManual nextWhy="" nextExecutorOk="no" nextAllowed nextEntry nextArgs=() nextGateRows nextGateRc=0
 	AgentsSessionRunRecordInto nextRecord "$nextSession" || :
 	[ -n "$nextRecord" ] || return 0
-	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandboxRecordHeader.include"
-	nextRoutine="$( AgentsToolsSpawnSandboxRecordHeader "$nextRecord" routine )"
+	type AgentsToolsFrontmatterKey > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.FrontmatterKey.include"
+	nextRoutine="$( AgentsToolsFrontmatterKey "$nextRecord" routine )"
 	nextRoutineFile="$( AgentsToolsHandbackNextRoutineFile "$nextRoutine" )"
 	[ -n "$nextRoutineFile" ] || return 0
 	nextWant="$( AgentsToolsHandbackNextKey "$nextRoutineFile" hands-over-to )"
@@ -80,7 +88,7 @@ AgentsToolsHandbackNext(){ ## member, spawn id, the outcome field of the handbac
 		AgentsToolsRoutineStackMove push "${nextWant##*/}" "hands over to ${nextWant##*/}" routine > /dev/null 2>&1 || :
 	fi
 	## Only the executor of the routine hands it over: a worker run that writes the line starts nothing.
-	nextOwner="$( AgentsToolsSpawnSandboxRecordHeader "$nextRecord" owner )"
+	nextOwner="$( AgentsToolsFrontmatterKey "$nextRecord" owner )"
 	nextExecutors="$( AgentsToolsHandbackNextKey "$nextRoutineFile" executors )"
 	for nextEntry in ${nextExecutors//,/ } ; do
 		[ "$nextEntry" != "$nextOwner" ] || nextExecutorOk="yes"

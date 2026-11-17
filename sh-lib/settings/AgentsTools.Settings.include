@@ -15,13 +15,15 @@
 ## AgentsSettingsKeyNames <workspace> <scope> [<prefix>]           the keys the scope holds, those starting with <prefix>, one a line, each once
 ## AgentsSettingsHoldsKeys <workspace> <scope> <prefix>            rc 0 where the scope holds a key starting with <prefix>
 ## AgentsSettingsKeyNamesJoined <workspace> <scope> <prefix> [<key to leave out>]  those keys joined by ", ": names only, never a value
-## AgentsSettingsScopeCreate|AgentsSettingsScopeDelete <workspace> <scope>, AgentsSettingsScopeRename <workspace> <old> <new>
+## AgentsSettingsScopeCreate <workspace> <scope>, AgentsSettingsScopeRename <workspace> <old> <new>
 AgentsSettingsStoreDir(){ ## workspace
 	printf '%s/.local/.agents\n' "${1%/}"
 }
+## Kept as the settings store's path: a caller outside this include must ask it, never spell the path itself.
 AgentsSettingsScopeFile(){ ## workspace, scope
 	printf '%s/.local/.agents/%s.agent.env\n' "${1%/}" "$2"
 }
+## Kept as the settings store's existence test: every caller must ask it, never test the path itself.
 AgentsSettingsScopeHas(){ ## workspace, scope
 	[ -f "${1%/}/.local/.agents/$2.agent.env" ]
 }
@@ -40,6 +42,7 @@ AgentsSettingsKeyNames(){ ## workspace, scope, prefix (may be empty)
 	AgentsSettingsScopeHas "$1" "$2" || return 0
 	AgentsSettingsRead "$1" "$2" --select-all | LC_ALL=C awk -v p="${3:-}" '{ k = $0 ; sub( /=.*/, "", k ) } index( k, p ) == 1 && !( k in seen ) { seen[k] = 1 ; print k }'
 }
+## Kept as the store's predicate for one key: every caller must ask it, never repeat the read and the emptiness test.
 AgentsSettingsHoldsKeys(){ ## workspace, scope, prefix
 	[ -n "$( AgentsSettingsKeyNames "$1" "$2" "$3" )" ]
 }
@@ -48,9 +51,6 @@ AgentsSettingsKeyNamesJoined(){ ## workspace, scope, prefix, a key to leave out 
 }
 AgentsSettingsScopeCreate(){ ## workspace, scope -- an empty scope, as the setting reader makes one: the folder 770, the file 660
 	mkdir -p "${1%/}/.local/.agents" && chmod 770 "${1%/}/.local/.agents" && ( umask 007 ; : > "${1%/}/.local/.agents/$2.agent.env" ) && chmod 660 "${1%/}/.local/.agents/$2.agent.env"
-}
-AgentsSettingsScopeDelete(){ ## workspace, scope
-	rm -f -- "${1%/}/.local/.agents/$2.agent.env"
 }
 AgentsSettingsScopeRename(){ ## workspace, old scope, new scope -- rc 1 where the new one is there already
 	[ ! -e "${1%/}/.local/.agents/$3.agent.env" ] || return 1

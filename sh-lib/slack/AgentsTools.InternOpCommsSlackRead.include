@@ -25,10 +25,7 @@ case "$1" in
 				routine-*)
 				;;
 				*)
-					if [ ! -d "$MDAT_SKILLSET_ROOT/$memberName" ] ; then
-						echo "⛔ ERROR: $MDSC_CMD --slack-read: no such member skill directory: $MDAT_SKILLSET_ROOT/$memberName" >&2
-						set +e ; return 1
-					fi
+					AgentsToolsSlackMemberPresent "$memberName" --slack-read || { set +e ; return 1 ; }
 				;;
 			esac
 			local target="$1"
@@ -103,6 +100,12 @@ case "$1" in
 					[ -z "$readErrFile" ] || rm -f "$readErrFile"
 					set +e ; return 1
 				fi
+				## A WHOLE CONVERSATION IS READ FROM A FLOOR (S12.22): a read with no floor is cached as floor 0, the whole history.
+				if [ -z "$readOldest" ] ; then
+					echo "⛔ ERROR: $MDSC_CMD --slack-read: a whole conversation is read from a floor, and this read named none. Pass --oldest <epoch>[.<micros>] -- a conversation read from the start is cached as floor 0, the whole history, and costs every read after it. A single message keeps its own form." >&2
+					[ -z "$readErrFile" ] || rm -f "$readErrFile"
+					set +e ; return 1
+				fi
 				## HUMAN-OWNER READS BOTH DMs: the bare macro name must reach AgentsToolsSlackCheck
 				## literally, never the one party id it resolves to above -- that id is a single DM,
 				## and the fan-out that reads both of the human-owner's DMs (one per identity, merged
@@ -118,12 +121,10 @@ case "$1" in
 					return 0
 				fi
 				## THROUGH THE COMMS CACHE (AgentsTools.CommsCache.include), slack/<channel>: a read from a floor it covers is served from
-				## it; once its TTL has passed only what came after its newest is pulled from Slack and added. ONE PATH (epic S21.13): a
-				## read with no floor is cached too, as floor 0 -- covered only by a cache itself built from floor 0, the whole history.
+				## it; once its TTL has passed only what came after its newest is pulled from Slack and added. ONE PATH (epic S21.13).
 				local convFile="" convTmp="" convAt="" convFrom="" convNewest="" convNow="" convKey convFetch="$readOldest" convTtl="${MDAT_SLACK_THREAD_CACHE_SECONDS:-15}"
 				case "$convTtl" in ''|*[!0-9]*) convTtl=15 ;; esac
-				local convFloorNum
-				case "$readOldest" in '') convFloorNum=0 ;; *) convFloorNum="${readOldest%%.*}" ;; esac
+				local convFloorNum="${readOldest%%.*}"
 				type AgentsToolsCommsCacheSlackDir > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsCache.include"
 				## --wait <seconds>: this read is on the cache's terms, waiting on the comms service thread for that long at most.
 				[ -z "$readWait" ] || { MDAT_COMMS_CACHE_ONLY="true" ; MDAT_COMMS_CACHE_WAIT_SECONDS="$readWait" ; }
@@ -147,7 +148,7 @@ case "$1" in
 							[ -z "$readErrFile" ] || rm -f "$readErrFile"
 							return 0
 						fi
-						AgentsToolsCommsCacheWanted "$convFile" "slack-conversation $channel $memberName $identityAsBot"
+						AgentsToolsCommsCacheWanted "$convFile" "slack-conversation $channel $memberName $identityAsBot $readOldest"
 						## WAIT OR UNREAD, by the request: with a budget (MDAT_COMMS_CACHE_WAIT_SECONDS) the read waits on the thread's pull by
 						## the folder's fifo, then serves what came; with none it is unread at once.
 						if AgentsToolsCommsCacheWaitReady "$convFile" "${MDAT_COMMS_CACHE_WAIT_SECONDS:-0}" && AgentsToolsCommsCacheState "$convFile" ; then

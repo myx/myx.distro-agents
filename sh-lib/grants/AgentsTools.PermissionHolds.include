@@ -256,18 +256,28 @@ AgentsToolsPermissionFloorRoots(){ ## workspace, member, read|write, session id 
 	return 0
 }
 
-## The tooling origin's own floor tools, as its project.inf declares them (S21.20, item 20n): the
+## The tooling origin's own floor tools, as the distro declares them (S21.20, item 20n): the
 ## `--magic-team:permissions:workspace:*:allow-tool:*:<tool>` rows of the package MDLT_ORIGIN holds.
-## That is the workspace's tooling origin, never a `.local` copy of the package. Read once per run;
-## empty where the origin carries no such package, so the code list above answers alone.
+## That is the workspace's tooling origin, never a `.local` copy of the package. Read through the distro
+## door, as Grants reads the same declares, and once per run: empty where the origin names none, so the
+## code list above answers alone. A named workspace is read for itself and is not kept, which is how a
+## check asks it about a workspace of its own.
 agentsPermissionOriginFloorTools="" agentsPermissionOriginFloorRead=""
-AgentsToolsPermissionOriginFloorTools(){
-	local originPackage
-	[ -z "$agentsPermissionOriginFloorRead" ] || return 0
-	agentsPermissionOriginFloorRead=1
-	originPackage="$( cd "${MDLT_ORIGIN:-}/myx/myx.distro-agents" 2> /dev/null && pwd -P )/project.inf" || return 0
-	[ -f "$originPackage" ] || return 0
-	agentsPermissionOriginFloorTools="$( LC_ALL=C awk '{ for ( i = 1 ; i <= NF ; i++ ) { originWord = $i ; sub( /^\\/, "", originWord ) ; if ( sub( /^--magic-team:permissions:workspace:[*]:allow-tool:[*]:/, "", originWord ) ) printf "%s ", originWord ; } }' "$originPackage" )"
+AgentsToolsPermissionOriginFloorTools(){ ## workspace holding the origin (optional)
+	local originWs=""
+	if [ -n "${1:-}" ] ; then
+		originWs="${1%/}"
+	else
+		[ -z "$agentsPermissionOriginFloorRead" ] || return 0
+		agentsPermissionOriginFloorRead=1
+		case "${MDLT_ORIGIN:-}" in
+			*/source) originWs="${MDLT_ORIGIN%/source}" ;;
+			*/.local) originWs="${MDLT_ORIGIN%/.local}" ;;
+			*) return 0 ;;
+		esac
+	fi
+	type AgentsDistroDeclaresCut > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/distro/AgentsTools.DistroDoor.include"
+	agentsPermissionOriginFloorTools="$( AgentsDistroDeclaresCut "$originWs" '--magic-team:permissions:workspace:*:allow-tool:*' 2> /dev/null | LC_ALL=C awk '$1 == "myx/myx.distro-agents" && $2 != "" { n = split( $2, floorField, ":" ) ; printf "%s ", floorField[n] }' )"
 	return 0
 }
 
@@ -309,15 +319,10 @@ AgentsToolsPermissionStandingDenied(){ ## member, tool, natural target
 	return 1
 }
 
-## True while an item is on the board in an open state.
+## True while an item is on the board in an open state, asked of the board's own reader.
 AgentsToolsPermissionItemOpen(){ ## item name
-	local openName="${1##*/}" openState
-	openName="${openName%.md}"
-	[ -n "$openName" ] && [ -n "${MDAT_DATA_ROOT:-}" ] || return 1
-	for openState in $agentsPermissionOpenStates ; do
-		[ ! -f "$MDAT_DATA_ROOT/board/$openState/$openName.md" ] || return 0
-	done
-	return 1
+	type AgentsToolsBoardItemInStates > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemDecisions.include"
+	AgentsToolsBoardItemInStates "${1:-}" $agentsPermissionOpenStates
 }
 
 ## One front-matter field of a record, or empty.
@@ -435,8 +440,8 @@ AgentsToolsPermissionGrantScan(){ ## session dir, member, tool, natural target, 
 				## A session grant ends with the session whose store holds it.
 				[ "$scanMode" != "item-runs-task" ] || continue
 				if [ "$scanMode" != "item-runs" ] ; then
-					type AgentsToolsGrantsSessionEnded > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.Grants.include"
-					! AgentsToolsGrantsSessionEnded "$scanDir" || continue
+					type AgentsToolsGrantsStoreEnded > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.Grants.include"
+					! AgentsToolsGrantsStoreEnded "$scanDir" || continue
 				fi
 			;;
 			once)
@@ -502,7 +507,7 @@ AgentsToolsPermissionSessionRoutine(){ ## session id
 	done
 	## A root-harness session has no spawn record: the routine its mint kept in its folder is the one it runs.
 	if [ -z "$srRoutine" ] && [ -z "$srCow" ] ; then
-		type AgentsToolsRootHarnessRoutineRead > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.RootHarnessKind.include"
+		type AgentsToolsRootHarnessRoutineRead > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/routine/AgentsTools.RoutineRootHarness.include"
 		srRoutine="$( AgentsToolsRootHarnessRoutineRead "$srSession" 2> /dev/null )" || srRoutine=""
 	fi
 	if [ -z "$srRoutine" ] && [ -n "$srCow" ] && [ "$srCow" != "$srSession" ] ; then
@@ -720,15 +725,17 @@ AgentsToolsPermissionRoutineDenies(){ ## member, tool, natural target, session i
 }
 
 ## The first live session or task grant that covers a call, printed as `<kind> <ref>`: a grant of an
-## approved set, which is the owner's own word and which a standing deny row (project.inf) does not
-## take away. A routine's deny rows still win over it. rc 1 where none covers the call.
+## approved set, which is the owner's own word and which a standing deny row does not take away.
+## A routine's deny rows still win over it. rc 1 where none covers the call.
 AgentsToolsPermissionSetCovers(){ ## member, tool, natural target, session id
-	local setcMember="$1" setcTool="$2" setcTarget="$3" setcSession="${4:-}" setcStore setcFound
+	local setcMember="$1" setcTool="$2" setcTarget="$3" setcSession="${4:-}" setcStore setcDir setcFound
 	[ -n "$setcMember" ] && [ -n "$setcTool" ] && [ -n "$setcSession" ] && [ -n "${MMDAPP:-}" ] || return 1
 	case "$setcSession" in */*|.|..) return 1 ;; esac
+	type AgentsSessionFolderInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
 	while IFS= read -r setcStore ; do
 		[ -n "$setcStore" ] || continue
-		if setcFound="$( AgentsToolsPermissionGrantScan "$MMDAPP/.local/agents/sessions/$setcStore" "$setcMember" "$setcTool" "$setcTarget" hold )" ; then
+		AgentsSessionFolderInto setcDir "$MMDAPP" "$setcStore" || continue
+		if setcFound="$( AgentsToolsPermissionGrantScan "$setcDir" "$setcMember" "$setcTool" "$setcTarget" hold )" ; then
 			printf '%s' "$setcFound"
 			return 0
 		fi
@@ -741,7 +748,7 @@ AgentsToolsPermissionSetCovers(){ ## member, tool, natural target, session id
 ## With `record` as its fifth word the refusal is recorded and its id printed under the hint, so the member can ask
 ## for the call by that id. The harness records its own, and passes nothing here.
 AgentsToolsPermissionDenyRefusal(){ ## member, tool, natural target, session id, record (optional)
-	local denyLayer denyName denyTool="${2:-}" denyWhy denyId="" denyTools
+	local denyLayer denyName denyTool="${2:-}" denyWhy denyId="" denyTools denySandbox
 	case "$denyTool" in ''|*[!A-Za-z0-9_]*) denyTool="this call" ;; esac
 	## CheckList has no gate (sketch 3.4): no permission row decides it. It refuses only at execution, where it has no place to write.
 	[ "$denyTool" != "CheckList" ] || return 1
@@ -750,12 +757,17 @@ AgentsToolsPermissionDenyRefusal(){ ## member, tool, natural target, session id,
 		denyWhy="the access-control rows of its routine $denyName"
 	elif AgentsToolsPermissionStandingDenied "${1:-}" "${2:-}" "${3:-}" > /dev/null 2>&1 ; then
 		## The run's own session folder is its sandbox (epic 20261026 S8 item 2): a read there, such as a result the tooling kept and named, is never denied.
+		denySandbox=""
+		if [ -n "${4:-}" ] ; then
+			type AgentsSessionFolderInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+			AgentsSessionFolderInto denySandbox "$MMDAPP" "$4" || denySandbox=""
+		fi
 		case "${2:-}:${3:-}" in
-			Read:"$MMDAPP/.local/agents/sessions/${4:-.}/"*|Grep:"$MMDAPP/.local/agents/sessions/${4:-.}/"*|Glob:"$MMDAPP/.local/agents/sessions/${4:-.}/"*) [ -z "${4:-}" ] || return 1 ;;
+			Read:"$denySandbox/"*|Grep:"$denySandbox/"*|Glob:"$denySandbox/"*) [ -z "$denySandbox" ] || return 1 ;;
 		esac
 		## An approved set's grant is the owner's own word, and outranks a standing deny row.
 		AgentsToolsPermissionSetCovers "${1:-}" "${2:-}" "${3:-}" "${4:-}" > /dev/null && return 1
-		denyWhy="a deny row declared for ${1:-} in project.inf"
+		denyWhy="a deny row declared for ${1:-} by the declares of this workspace"
 	else
 		return 1
 	fi
@@ -863,7 +875,7 @@ AgentsToolsPermissionFreeReadSeats(){ ## member
 ## and the store of the coworking session it joined.
 AgentsToolsPermissionHolds(){ ## member, tool, natural target, session id (optional)
 	local holdMember="$1" holdTool="$2" holdTarget="$3" holdSession="${4:-}"
-	local holdRoot holdVerb holdGlob holdPattern holdLayer holdRowTool holdRowTools holdRowTarget holdPurpose holdDir holdFound holdSandbox=""
+	local holdRoot holdVerb holdGlob holdPattern holdLayer holdRowTool holdRowTools holdRowTarget holdPurpose holdDir holdStore holdFound holdSandbox=""
 	[ -n "$holdMember" ] && [ -n "$holdTool" ] || return 1
 	if AgentsToolsPermissionIsHumanOwner "$holdMember" ; then
 		printf 'human-owner'
@@ -957,9 +969,11 @@ AgentsToolsPermissionHolds(){ ## member, tool, natural target, session id (optio
 	## (c), (d), (e): the session's grants, never a once.
 	[ -n "$holdSession" ] && [ -n "${MMDAPP:-}" ] || return 1
 	case "$holdSession" in */*|.|..) return 1 ;; esac
+	type AgentsSessionFolderInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
 	while IFS= read -r holdDir ; do
 		[ -n "$holdDir" ] || continue
-		holdFound="$( AgentsToolsPermissionGrantScan "$MMDAPP/.local/agents/sessions/$holdDir" "$holdMember" "$holdTool" "$holdTarget" hold )" || continue
+		AgentsSessionFolderInto holdStore "$MMDAPP" "$holdDir" || continue
+		holdFound="$( AgentsToolsPermissionGrantScan "$holdStore" "$holdMember" "$holdTool" "$holdTarget" hold )" || continue
 		AgentsToolsPermissionGrantLayer "${holdFound#* }"
 		printf ' %s' "$holdFound"
 		return 0
@@ -978,7 +992,7 @@ AgentsToolsPermissionHolds(){ ## member, tool, natural target, session id (optio
 ## the one that spawned it), the task item's owner and `participants:`, and the owner
 ## of every dispatch item tracking it.
 AgentsToolsPermissionParticipants(){ ## session id (may be empty), task item (may be empty)
-	local partSession="$1" partTask="${2:-}" partCow="" partParent="" partRecord partPath partItem partFiles=()
+	local partSession="$1" partTask="${2:-}" partCow="" partParent="" partRecord partItem partState partOwner partParticipants partOwnRecord partParentRecord partFiles=()
 	{
 		if [ -n "$partSession" ] && [ -n "${MMDAPP:-}" ] ; then
 			case "$partSession" in */*|.|..) partSession="" ;; esac
@@ -1004,8 +1018,9 @@ AgentsToolsPermissionParticipants(){ ## session id (may be empty), task item (ma
 				AgentsToolsSpawnedSessionRecords "${partCow:-$partSession}" own
 				[ "${partCow:-$partSession}" = "$partSession" ] || AgentsToolsSpawnedSessionRecords "$partSession" own
 				AgentsToolsSpawnedChildRecords "$partSession"
-				printf '%s\n' "$MMDAPP/.local/agents/spawned"/*/"$partSession.spawn.md"
-				[ -z "$partParent" ] || printf '%s\n' "$MMDAPP/.local/agents/spawned"/*/"$partParent.spawn.md"
+				AgentsSessionRunRecordInto partOwnRecord "$partSession" || partOwnRecord=""
+				AgentsSessionRunRecordInto partParentRecord "$partParent" || partParentRecord=""
+				printf '%s\n%s\n' "$partOwnRecord" "$partParentRecord"
 			} 2> /dev/null | LC_ALL=C sort -u )
 			[ "${#partFiles[@]}" -eq 0 ] || LC_ALL=C awk -v ownSession="$partSession" -v cowSession="${partCow:-$partSession}" -v parentSession="$partParent" '
 				FNR == 1 { front = 0 ; recSession = "" ; recSpawn = "" ; recParent = "" ; recOwner = "" ; }
@@ -1024,26 +1039,20 @@ AgentsToolsPermissionParticipants(){ ## session id (may be empty), task item (ma
 		fi
 		## A root-harness session has no spawn record: the coordinator is its one participant.
 		if [ -n "$partSession" ] && [ -n "${MMDAPP:-}" ] ; then
-			type AgentsToolsRootHarnessRoutineRead > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.RootHarnessKind.include"
+			type AgentsToolsRootHarnessRoutineRead > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/routine/AgentsTools.RoutineRootHarness.include"
 			! AgentsToolsRootHarnessRoutineRead "$partSession" > /dev/null 2>&1 || printf 'magic-coordinator\n'
 		fi
 		if [ -n "$partTask" ] && [ -n "${MDAT_DATA_ROOT:-}" ] ; then
 			partItem="${partTask##*/}" ; partItem="${partItem%.md}"
-			for partPath in "$MDAT_DATA_ROOT"/board/*/"$partItem.md" ; do
-				[ -f "$partPath" ] || continue
-				AgentsToolsPermissionField "$partPath" owner ; printf '\n'
-				AgentsToolsPermissionField "$partPath" participants | LC_ALL=C tr ', ' '\n\n' ; printf '\n'
-				break
-			done
-			## The owners of the dispatch items tracking this item, by one awk over the dispatch items: a board holds
-			## hundreds of them, and this runs on each ask, so never a process per item. The walk itself stays
-			## until the board keeps an index of what tracks an item (epic S10.37).
-			LC_ALL=C awk -v item="$partItem" '
-				FNR == 1 { fence = 0 ; owner = "" ; tracks = "" }
-				$0 == "---" { fence++ ; if ( fence > 1 ) { if ( tracks == item || tracks == item ".md" ) print owner ; nextfile } ; next }
-				fence == 1 && index( $0, "owner: " ) == 1 && owner == "" { owner = substr( $0, 8 ) }
-				fence == 1 && index( $0, "tracks: " ) == 1 && tracks == "" { tracks = substr( $0, 9 ) }
-			' "$MDAT_DATA_ROOT"/board/*/dispatch-*.md 2> /dev/null || :
+			type AgentsToolsBoardItemHeadersInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemDecisions.include"
+			AgentsToolsBoardItemHeadersInto "$partItem" partState partOwner=owner partParticipants=participants || partOwner=""
+			if [ -n "$partOwner" ] ; then
+				printf '%s\n' "$partOwner"
+				printf '%s\n' "$partParticipants" | LC_ALL=C tr ', ' '\n\n' ; printf '\n'
+			fi
+			## The owners of the dispatch items tracking this item, by the board's own reader: a board holds
+			## hundreds of them, and this runs on each ask, so never a process per item.
+			AgentsToolsDecisionsTrackingOwners "$partItem"
 		fi
 	} | LC_ALL=C awk 'NF && !seenMember[$1]++ { print $1 ; }'
 }

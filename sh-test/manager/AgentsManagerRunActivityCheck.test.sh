@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-## Behavioural check on AgentsToolsManagerRunActivity (sh-lib/session/AgentsTools.ManagerRunActivity.include), run rather than
+## Behavioural check on AgentsToolsManagerRunActivity (sh-lib/manager/AgentsTools.ManagerRunActivity.include), run rather than
 ## read: what the console calls a live run that sits inside a call waiting on a person. Held: a Wait writes `wait going idle`
 ## as it starts and its wait/state says whether it is over; an ask writes `ask going idle` as it starts and a later milestone
 ## of its own says it is over, so a member idle in Wait for its coordinator's verdict reads waiting, never running (owner
@@ -7,7 +7,7 @@
 ## working. Offline; the rig is a directory of stores in this check's own temp tree.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
-rigInclude="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.ManagerRunActivity.include"
+rigInclude="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.ManagerRunActivity.include"
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }

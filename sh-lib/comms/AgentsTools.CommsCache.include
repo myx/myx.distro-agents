@@ -430,7 +430,7 @@ AgentsToolsCommsCacheSlackFile(){ ## member, cache folder, message ts, file id, 
 ## past its TTL is pulled once, by the way its state names, so a member's read on the rig is served from the cache and never waits on
 ## the service. Once an hour it deletes the marks older than 48 hours (owner 2026-10-29).
 AgentsToolsCommsCachePullWatched(){ ## now, most (optional; the channels one call may pull, none or 0 for no bound)
-	local watchMarks="$MMDAPP/.local/cache/comms/.interest" watchService watchEntry watchEntryMark watchMark watchName watchDir watchHow watchTarget watchMember watchBot watchQuiet watchBase watchMarkAt watchMarkTtl watchTtl="${MDAT_SLACK_THREAD_CACHE_SECONDS:-15}"
+	local watchMarks="$MMDAPP/.local/cache/comms/.interest" watchService watchEntry watchEntryMark watchMark watchName watchDir watchHow watchTarget watchMember watchBot watchFloor watchQuiet watchBase watchMarkAt watchMarkTtl watchTtl="${MDAT_SLACK_THREAD_CACHE_SECONDS:-15}"
 	local watchMost="${2:-0}" watchDone=0
 	case "$watchMost" in ''|*[!0123456789]*) watchMost=0 ;; esac
 	case "$watchTtl" in ''|*[!0-9]*) watchTtl=15 ;; esac
@@ -487,7 +487,7 @@ AgentsToolsCommsCachePullWatched(){ ## now, most (optional; the channels one cal
 		[ "$watchQuiet" -le $(( watchBase * 210 )) ] || watchQuiet=$(( watchBase * 210 ))
 		## A WANT IS A READER'S DEMAND (a reader waiting by the folder's fifo): the folder is pulled now, whatever its own schedule says.
 		[ -f "$watchDir/.want" ] || [ $(( $1 - agentsCommsCacheAt )) -ge $(( watchBase + 18 * watchQuiet / 210 )) ] || continue
-		read -r watchHow watchTarget watchMember watchBot <<< "$agentsCommsCacheRecipe"
+		read -r watchHow watchTarget watchMember watchBot watchFloor <<< "$agentsCommsCacheRecipe"
 		case "$watchHow" in
 			slack-thread)
 				## The pull reads at the readers' own TTL (the mark's, watchBase): a thread pulled seconds ago is pulled again where a reader
@@ -502,9 +502,12 @@ AgentsToolsCommsCachePullWatched(){ ## now, most (optional; the channels one cal
 				MDAT_COMMS_CACHE_ONLY="" MDAT_COMMS_CACHE_PULLER=true AgentsHookFire store-changed mentions "$watchTarget" "$watchDir" "$1" > /dev/null || :
 			;;
 			slack-conversation)
-				## From what the cache covers, so the read finds it stale and pulls only after its newest.
+				## From what the cache covers, so the read finds it stale and pulls only after its newest; a folder not in the cache yet
+				## is pulled from the floor its wanting reader named, never from the start (S12.22).
 				type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
-				MDAT_COMMS_CACHE_ONLY="" MDAT_COMMS_CACHE_PULLER=true MDAT_SLACK_THREAD_CACHE_SECONDS="$watchBase" DistroAgentsTools --intern-op-comms-slack-read "$watchMember" "$watchTarget" $( [ -z "$agentsCommsCacheFrom" ] || printf '%s\n' --oldest "$agentsCommsCacheFrom" ) \
+				[ -n "$watchFloor" ] || watchFloor="$agentsCommsCacheFrom"
+				[ -n "$watchFloor" ] || watchFloor="$( date +%s ).000000"
+				MDAT_COMMS_CACHE_ONLY="" MDAT_COMMS_CACHE_PULLER=true MDAT_SLACK_THREAD_CACHE_SECONDS="$watchBase" DistroAgentsTools --intern-op-comms-slack-read "$watchMember" "$watchTarget" --oldest "$watchFloor" \
 					$( [ "$watchBot" != "true" ] || printf '%s' --identity-bot ) > /dev/null 2>&1 < /dev/null || :
 			;;
 		esac

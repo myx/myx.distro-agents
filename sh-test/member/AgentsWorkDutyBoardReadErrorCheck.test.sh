@@ -58,6 +58,10 @@ rigScan(){ ## out-file, err-file
 rigBoardFailures(){ ## out-file, err-file
 	cat "$1" "$2" | LC_ALL=C grep -c 'could not be read' || :
 }
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-writes.include.sh" || exit 1
+rigOwnerWs="${rigWs:-$rigTmp/ws}" rigOwnerData="${rigData:-${rigD:-${rigStore:-${rigOut:-$rigTmp/data}}}}" rigOwnerHome="${rigHome:-$rigTmp/home}" rigOwnerSkills="${rigSkills:-$rigTmp/skills}"
+## Every state folder of the board is made first: the blocked one is the one case 2 makes unreadable.
+rigOwnerBoardReady
 rigItem(){ ## name, owner
 	printf -- '---\ntype: task\nowner: %s\n---\n\n# rig\n' "$2" | rigOwnerBoardPut pending "$1"
 }
@@ -75,9 +79,6 @@ chmod 000 "$rigData/board/blocked"
 rigBusyRc="$( rigScan "$rigTmp/busy.out" "$rigTmp/busy.err" )"
 chmod 755 "$rigData/board/blocked"
 rigBusyWord="nonzero"
-. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-writes.include.sh" || exit 1
-rigOwnerWs="${rigWs:-$rigTmp/ws}" rigOwnerData="${rigData:-${rigD:-${rigStore:-${rigOut:-$rigTmp/data}}}}" rigOwnerHome="${rigHome:-$rigTmp/home}" rigOwnerSkills="${rigSkills:-$rigTmp/skills}"
-rigOwnerBoardReady
 [ "$rigBusyRc" != "0" ] || rigBusyWord="zero"
 rigAssert "the scan exits non-zero, so its caller cannot take an empty board as a result" "$rigBusyWord" "nonzero"
 rigAssert "and it says the board could not be read" "$( [ "$( rigBoardFailures "$rigTmp/busy.out" "$rigTmp/busy.err" )" -ge 1 ] && printf said || printf silent )" "said"

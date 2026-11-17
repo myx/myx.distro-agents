@@ -28,41 +28,44 @@ AgentsToolsStatsRecords(){
 
 ## Derives the store into a folder: full, or the rows of what changed since the folder's runs.index (refresh). Prints nothing.
 AgentsToolsStatsDerive(){ ## folder, full|refresh
-	local deriveDir="$1" deriveMode="$2" deriveRef deriveList deriveRows deriveOld deriveIds deriveChanged deriveFile deriveRun
+	local deriveDir="$1" deriveMode="$2" deriveRef deriveList deriveRows deriveOld deriveIds deriveChanged deriveRun deriveTokens deriveNewRuns
 	mkdir -p "$deriveDir" "$MMDAPP/.local/temp" 2> /dev/null || return 1
 	deriveRef="$( mktemp "$MMDAPP/.local/temp/mdat-stats-ref.XXXXXX" )" || return 1
 	deriveList="$( mktemp "$MMDAPP/.local/temp/mdat-stats-list.XXXXXX" )" || { rm -f "$deriveRef" ; return 1 ; }
 	deriveRows="$( mktemp "$MMDAPP/.local/temp/mdat-stats-rows.XXXXXX" )" || { rm -f "$deriveRef" "$deriveList" ; return 1 ; }
+	deriveTokens="$( mktemp "$MMDAPP/.local/temp/mdat-stats-tokens.XXXXXX" )" || { rm -f "$deriveRef" "$deriveList" "$deriveRows" ; return 1 ; }
 	deriveOld="$deriveDir/runs.index"
+	## The token sums come from the transcript's own reading of them, never from a path built here.
+	type AgentsSessionTokensRowsInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionTranscript.include"
+	AgentsSessionTokensRowsInto deriveTokenRows "$MMDAPP"
 	if [ "$deriveMode" = refresh ] && [ -f "$deriveOld" ] ; then
-		## what changed since the index: records, and records whose token file did
+		## what changed since the index: the records, and the records of the runs whose token sum was written after it
+		type AgentsSessionTokensNewRunsInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionTranscript.include"
+		AgentsSessionTokensNewRunsInto deriveNewRuns "$deriveOld" "$MMDAPP"
 		deriveChanged="$( { find "$MMDAPP/.local/agents/spawned" -mindepth 2 -maxdepth 2 -name '*.spawn.md' -newer "$deriveOld" 2> /dev/null
-			find "$MMDAPP/.local/agents/sessions" -mindepth 2 -maxdepth 2 -name tokens -newer "$deriveOld" 2> /dev/null | while IFS= read -r deriveFile ; do
-				deriveRun="${deriveFile%/tokens}" ; deriveRun="${deriveRun##*/}"
+			[ -z "$deriveNewRuns" ] || while IFS= read -r deriveRun ; do
+				[ -n "$deriveRun" ] || continue
 				find "$MMDAPP/.local/agents/spawned" -mindepth 2 -maxdepth 2 -name "$deriveRun.spawn.md" 2> /dev/null
-			done ; } | LC_ALL=C sort -u )"
-		if [ -z "$deriveChanged" ] ; then rm -f "$deriveRef" "$deriveList" "$deriveRows" ; return 0 ; fi
-		printf '%s\n' "$deriveChanged" | while IFS= read -r deriveFile ; do
-			deriveRun="${deriveFile##*/}" ; deriveRun="${deriveRun%.spawn.md}"
-			[ ! -f "$MMDAPP/.local/agents/sessions/$deriveRun/tokens" ] || printf '%s\n' "$MMDAPP/.local/agents/sessions/$deriveRun/tokens"
-			printf '%s\n' "$deriveFile"
-		done > "$deriveList"
+			done <<< "$deriveNewRuns" ; } | LC_ALL=C sort -u )"
+		if [ -z "$deriveChanged" ] ; then rm -f "$deriveRef" "$deriveList" "$deriveRows" "$deriveTokens" ; return 0 ; fi
+		printf '%s\n' "$deriveChanged" > "$deriveList"
 	else
 		deriveMode=full
-		{ find "$MMDAPP/.local/agents/sessions" -mindepth 2 -maxdepth 2 -name tokens 2> /dev/null | LC_ALL=C sort ; AgentsToolsStatsRecords ; } > "$deriveList"
+		AgentsToolsStatsRecords > "$deriveList"
 	fi
-	LC_ALL=C awk -v list="$deriveList" -f "$agentsStatsHere/AgentsDispatcherStatsRuns.awk" > "$deriveRows" || { rm -f "$deriveRef" "$deriveList" "$deriveRows" ; return 1 ; }
+	printf '%s' "$deriveTokenRows" > "$deriveTokens" || { rm -f "$deriveRef" "$deriveList" "$deriveRows" "$deriveTokens" ; return 1 ; }
+	LC_ALL=C awk -v list="$deriveList" -v rows="$deriveTokens" -f "$agentsStatsHere/AgentsDispatcherStatsRuns.awk" > "$deriveRows" || { rm -f "$deriveRef" "$deriveList" "$deriveRows" "$deriveTokens" ; return 1 ; }
 	if [ "$deriveMode" = refresh ] ; then
 		## the rows of runs that were not read again stay as they are
 		deriveIds="$( LC_ALL=C cut -f1 "$deriveRows" )"
 		## The ids travel through the environment: they are one a line, and `-v` refuses a newline in its value.
 		DERIVE_IDS="$deriveIds" LC_ALL=C awk -F'\t' 'BEGIN { count = split( ENVIRON["DERIVE_IDS"], parts, "\n" ) ; for ( at = 1 ; at <= count ; at++ ) { skip[parts[at]] = 1 ; } } NR > 1 && !( $1 in skip ) { print }' "$deriveOld" >> "$deriveRows" \
-			|| { rm -f "$deriveRef" "$deriveList" "$deriveRows" ; return 1 ; }
+			|| { rm -f "$deriveRef" "$deriveList" "$deriveRows" "$deriveTokens" ; return 1 ; }
 	fi
 	{
 		printf '%s runs 1\n' "$agentsStatsFormat"
 		LC_ALL=C sort -t "$( printf '\t' )" -k6,6 -k1,1 "$deriveRows"
-	} > "$deriveDir/runs.index.new" || { rm -f "$deriveRef" "$deriveList" "$deriveRows" ; return 1 ; }
+	} > "$deriveDir/runs.index.new" || { rm -f "$deriveRef" "$deriveList" "$deriveRows" "$deriveTokens" ; return 1 ; }
 	{
 		printf '%s routines 1\n' "$agentsStatsFormat"
 		tail -n +2 "$deriveDir/runs.index.new" | LC_ALL=C awk -v want=routines -f "$agentsStatsHere/AgentsDispatcherStatsRoll.awk" | LC_ALL=C sort -t "$( printf '\t' )" -k1,1
@@ -75,7 +78,7 @@ AgentsToolsStatsDerive(){ ## folder, full|refresh
 	touch -r "$deriveRef" "$deriveDir/runs.index.new" 2> /dev/null || :
 	mv -f "$deriveDir/routines.index.new" "$deriveDir/routines.index" && mv -f "$deriveDir/tokens.index.new" "$deriveDir/tokens.index" && mv -f "$deriveDir/runs.index.new" "$deriveDir/runs.index"
 	local deriveRc=$?
-	rm -f "$deriveRef" "$deriveList" "$deriveRows"
+	rm -f "$deriveRef" "$deriveList" "$deriveRows" "$deriveTokens"
 	return "$deriveRc"
 }
 

@@ -8,8 +8,10 @@
 			set +e ; return 1
 		fi
 		local cleanupDir="$MMDAPP/.local/.cleanup"
-		local cleanupSpawned="$MMDAPP/.local/agents/spawned"
 		local cleanupHold cleanupHoldState cleanupUnresolved=""
+		local cleanupSpawned=""
+		type AgentsSpawnedStoreDirInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+		AgentsSpawnedStoreDirInto cleanupSpawned "$MMDAPP" || return 1
 		type AgentsToolsUndoHoldState > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/undo/AgentsTools.UndoHold.include"
 		for cleanupHold in "$cleanupSpawned"/*/undo.hold ; do
 			[ -f "$cleanupHold" ] || continue

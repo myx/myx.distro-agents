@@ -43,3 +43,17 @@ AgentsToolsTeamDataRootOf(){ ## workspace path
 	printf '%s/.local/agents/team-data-root\n' "$rootWs"
 	return 0
 }
+
+## The team data root a session was started on, into the named variable: empty where it kept none. No process.
+## The record a start writes beside the session is the session store's own file, so its path comes from the store's answer
+## (AgentsSessionFolderInto) and is never built here.
+AgentsSessionDataRootInto(){ ## variable, session
+	local rootFolder="" rootLine=""
+	printf -v "$1" '%s' ""
+	case "${2:-}" in ''|-|.|..|*/*|*[[:space:]]*) return 0 ;; esac
+	type AgentsSessionFolderInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+	AgentsSessionFolderInto rootFolder "${MMDAPP:-}" "$2" || return 0
+	[ -s "$rootFolder/data-root" ] || return 0
+	IFS= read -r rootLine < "$rootFolder/data-root" || :
+	printf -v "$1" '%s' "$rootLine"
+}

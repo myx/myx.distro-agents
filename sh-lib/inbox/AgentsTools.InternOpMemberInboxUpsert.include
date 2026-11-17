@@ -56,7 +56,10 @@ case "$1" in
 		## view holds is found exactly as it always was.
 		type AgentsToolsTeamMemberDirectory > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamRegistry.include"
 		if ! AgentsToolsTeamMemberDirectory "$memberName" > /dev/null ; then
-			echo "$MDSC_CMD: member-inbox-upsert: ⛔ ERROR: no member record of that name on this machine: $memberName -- nothing was written. Looked for its directory under ${MDAT_SKILLSET_ROOT:-the member view of this workspace}, and for a row of it in the machine members index (${HOME:-}/.agents/magic-team/members.registry)." >&2
+			local memberSetRoot=""
+			type AgentsToolsSkillsetRootInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWorkspace.include"
+			AgentsToolsSkillsetRootInto memberSetRoot "${MMDAPP:-}"
+			echo "$MDSC_CMD: member-inbox-upsert: ⛔ ERROR: no member record of that name on this machine: $memberName -- nothing was written. Looked for its directory under $memberSetRoot, and for a row of it in the machine members index (${HOME:-}/.agents/magic-team/members.registry)." >&2
 			set +e ; return 1
 		fi
 		[ -n "${MDAT_DATA_ROOT:-}" ] || {

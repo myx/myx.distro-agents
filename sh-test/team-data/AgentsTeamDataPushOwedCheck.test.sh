@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 ## Behavioural check on the team-data push's debt: a push that cannot take the
-## team-data-push lock is OWED, never skipped. The case is shaped like the report of the
+## store's one lock is OWED, never skipped. The case is shaped like the report of the
 ## owner -- local commits of the team data sitting unmerged while a lock was supposed to
 ## make that impossible. One writer holds the lock for the whole of the first close, so
 ## the close cannot push; the commit stays local, and the close must say it is owed and
@@ -30,7 +30,7 @@ export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
 rigWs="$rigTmp/ws"
 rigStore="$rigTmp/store"
 rigRemoteGit="$rigTmp/owed.git"
-rigLock="$rigWs/.local/agents/locks/team-data-push"
+rigLock="$rigStore/.git/team-data-commit/store.lock"
 rigOwed="$rigWs/.local/agents/team-data-push.owed"
 
 rigPassCount=0
@@ -80,15 +80,17 @@ rigRemoteHead(){ git -C "$rigRemoteGit" rev-parse -q --verify refs/heads/main 2>
 rigAhead(){ git -C "$rigStore" rev-list --count "refs/remotes/origin/main..HEAD" 2> /dev/null || printf '?' ; }
 rigBehind(){ git -C "$rigStore" rev-list --count "HEAD..refs/remotes/origin/main" 2> /dev/null || printf '?' ; }
 
-echo "-- a local commit, made while another writer holds the push lock --"
+echo "-- a local commit, whose close push meets a held store lock --"
 ## The four board moves of the report are exactly this: a commit by a writer that never
 ## pushes, with the close push to follow.
 printf 'board move\n' > "$rigStore/board-move.md"
-## Another writer's push holds the lock for the whole of this process's first close.
-## It names this process, which is alive, so the lock is a live holder and is not broken.
+## The write and its commit take the store's one lock and give it back, so the commit lands. Then another
+## process's push takes that lock and holds it for the whole of this close: the commit is already made, and
+## the push cannot go out. The lock names this check, which is alive, so it is a live holder and is not broken.
+rigRun "$rigTmp/p0" 'AgentsToolsTeamDataCommitPaths "board move" "$MDAT_DATA_ROOT/board-move.md"'
 mkdir -p "${rigLock%/*}"
-ln -s "$$" "$rigLock"
-rigRun "$rigTmp/p1" 'AgentsToolsTeamDataCommitPaths "board move" "$MDAT_DATA_ROOT/board-move.md" ; AgentsToolsTeamDataPushIfAhead "the check close one"'
+printf '%s' "$$" > "$rigLock"
+rigRun "$rigTmp/p1" 'AgentsToolsTeamDataPushIfAhead "the check close one"'
 rigHeadOne="$( git -C "$rigStore" rev-parse HEAD )"
 rigAssert "the commit landed locally"                            "$( git -C "$rigStore" log -1 --format=%s )" "* board move"
 rigAssert "the close reports success and says the push is owed"  "$( cat "$rigTmp/p1.rc" ):$( rigCount "$rigTmp/p1.err" "the push is OWED" )" "0:1"
@@ -105,7 +107,7 @@ rm -rf "$rigTmp/adv" ; git clone -q "$rigRemoteGit" "$rigTmp/adv" 2> /dev/null |
 printf 'from elsewhere\n' > "$rigTmp/adv/elsewhere.md"
 git -C "$rigTmp/adv" add -A && git -C "$rigTmp/adv" commit -q -m "elsewhere" || rigRefuse "could not advance the remote"
 git -C "$rigTmp/adv" push -q origin main 2> /dev/null || rigRefuse "could not push the advance"
-ln -s "$$" "$rigLock"
+printf '%s' "$$" > "$rigLock"
 ( sleep 34 ; rm -f "$rigLock" ) &
 rigNudge=$!
 rigRun "$rigTmp/p2" 'AgentsToolsTeamDataPushIfAhead "the check close two"'

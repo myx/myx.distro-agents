@@ -27,15 +27,17 @@ rigRefuse(){
 [ -d "$rigLib/team-data" ] || rigRefuse "the tooling is not at the origin this workspace resolves: $rigLib"
 command -v git > /dev/null || rigRefuse "git is not installed"
 . "$rigPkg/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
-. "$rigPkg/sh-test/check-fixtures/rig-store-item.include.sh" || exit 1
+. "$rigPkg/sh-test/check-fixtures/rig-owner-writes.include.sh" || exit 1
+## And every thread a scene of this rig starts, the store's commit thread among them, ended before the rig goes.
+. "$rigPkg/sh-test/check-fixtures/rig-control-threads.include.sh" || rigRefuse "the rig's fixture that ends threads is missing from the package"
 rigTmp="$( rigTempDir AgentsTeamDataStrayWritesCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
-trap 'rm -rf -- "$rigTmp"' EXIT
+trap 'rigControlThreadsEnd "$rigTmp" ; rm -rf -- "$rigTmp"' EXIT
 rigWs="$rigTmp/ws"
 rigData="$rigTmp/data"
 mkdir -p "$rigWs/.local/.agents" "$rigTmp/home"
 printf 'SLACK_CHANNEL_MAGIC_TEAM=CRIG00001\nSLACK_BOT_TOKEN=rig-bot-token-TEAM\nNO_PROXY=*\n' > "$rigWs/.local/.agents/magic-team.agent.env"
-## The review item is built by the board's own write (rig-store-item.include.sh), before the store is a repository, so the
+## The review item is built by the board's own write (rig-owner-writes.include.sh), before the store is a repository, so the
 ## seed commit below carries it exactly as before: a hand-written fixture stays green when that write's own path changes.
 printf -- '---\ntype: dispatch\nowner: rig-member\nspawn-id: rigspawn1\nreview-by: magic-coordinator\nreview-since-epoch: 1000\n---\n\nrig item\n' > "$rigTmp/body-review"
 rigStoreItem "$rigTmp" "$rigData" "$rigWs" rig-member "board review dispatch-rig-unseen.md" "$rigTmp/body-review" \

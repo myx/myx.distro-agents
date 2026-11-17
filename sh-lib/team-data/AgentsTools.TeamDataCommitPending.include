@@ -14,9 +14,9 @@
 ## for work left uncommitted, and it is magic-coordinator's only.
 ##
 
-case "$1" in
-
-	--commit-pending)
+## THE STORE'S ONE LOCK SPANS THE WHOLE OPERATION (AgentsTools.TeamDataStoreLock.include): every git step it runs moves or writes the
+## store's tree, and no other writer may commit or push inside that span.
+AgentsToolsTeamDataCommitPendingRun(){
 		shift
 		local callingMember="$1"
 		shift || true
@@ -195,6 +195,21 @@ case "$1" in
 		fi
 		echo "TEAM-DATA-PUSHED: $commitId to origin, read back as origin/$headBranch = $headFull"
 		return 0
+}
+
+case "$1" in
+
+	--commit-pending)
+		local TeamDataCommitPendingRc=0
+		type AgentsToolsTeamDataStoreLockTake > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataStoreLock.include"
+		if ! AgentsToolsTeamDataStoreLockTake 300 "--commit-pending" ; then
+			echo "⛔ ERROR: $MDSC_CMD --commit-pending: the store lock stayed held by another writer, so nothing was committed and nothing was pushed" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsTeamDataCommitPendingRun "$@" || TeamDataCommitPendingRc=$?
+		AgentsToolsTeamDataStoreLockGive
+		return "$TeamDataCommitPendingRc"
+
 	;;
 
 	*)

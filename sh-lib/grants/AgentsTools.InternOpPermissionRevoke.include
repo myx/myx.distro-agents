@@ -62,7 +62,7 @@ type AgentsToolsGrantsItemRuns > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distr
 			echo "$MDSC_CMD: ⛔ ERROR: can't write the revoke marker in $revokeStore, so $revokeRef stands" >&2
 			set +e ; return 1
 		}
-		AgentsToolsGrantsStoreTouch "$revokeStore"
+		AgentsToolsGrantsStoreTouchDir "$revokeStore"
 		## A task grant's entries leave its item's `access-control:` too, so no later dispatch tracking the
 		## item carries them, and the revoke goes on the item's Decisions. Best effort: the grant
 		## is revoked either way. An access-control row is made of its grants line without the trailing ref.

@@ -24,7 +24,7 @@ rigTmp="$( rigTempDir AgentsBoardDependenciesCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
 rigData="$rigTmp/data"
-mkdir -p "$rigTmp/ws/.local/agents"
+mkdir -p "$rigTmp/ws/.local/agents" "$rigData"
 rigGit(){ env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp" PATH="/usr/bin:/bin" GIT_CONFIG_NOSYSTEM=1 git -C "$rigData" "$@" ; }
 rigGit init -q || rigRefuse "git init failed"
 rigGit config user.email rig@example.invalid

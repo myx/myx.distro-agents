@@ -21,7 +21,7 @@ rigRefuse(){
 }
 [ -x "$rigFn" ] || rigRefuse "dispatcher not found: $rigFn"
 . "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
-. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-store-item.include.sh" || exit 1
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-writes.include.sh" || exit 1
 rigTmp="$( rigTempDir AgentsReflectionSweepCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
@@ -68,7 +68,7 @@ rigOp(){ ## result file, op and arguments...
 rigInc(){ printf '%s/inboxes/%s/incoming/%s' "$rigData" "$1" "$2" ; }
 rigProc(){ printf '%s/inboxes/%s/processed/%s' "$rigData" "$1" "$2" ; }
 rigNow="$( date -u +%Y%m%dT%H%MZ )"
-## Every inbox item is written by the store's own write (rig-store-item.include.sh), and so is the folder it lies in:
+## Every inbox item is written by the store's own write (rig-owner-writes.include.sh), and so is the folder it lies in:
 ## a hand-written fixture stays green when that write's own path changes, which is what this check is here to catch.
 rigBodyCount=0
 rigPut(){ ## member, file name, text -- an item of that inbox's incoming/

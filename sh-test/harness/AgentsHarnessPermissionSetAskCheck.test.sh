@@ -24,8 +24,10 @@ rigHarness="$rigHere/harness/AgentsUniversalHarness.sh"
 rigTools="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 rigMember="magic-tester"
 
-rigRefuse(){
+## The one store-write helper is sourced at the top level: a source inside rigRefuse runs only when that function runs,
+## and the checks below use the helper whether or not setup ever refused.
 . "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-writes.include.sh" || exit 1
+rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }
 [ -f "$rigHarness" ] || rigRefuse "harness not found at the origin this workspace resolves: $rigHarness"

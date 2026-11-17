@@ -625,10 +625,10 @@ rigCode(){ ## file -- its lines that are no comment
 	LC_ALL=C grep -v '^[[:space:]]*#' "$1"
 }
 rigAssert "the processes of a run are asked of the one place a run is recognised, when it is signalled and when what is left of it is read, and the family lists no process a second way: the plan of a kill reads a run by the same walk" \
-	"$( rigCode "$rigHere/manager/AgentsTools.ManagerSessionKill.include" | LC_ALL=C grep -c -e 'AgentsToolsRunProcesses "' -e 'AgentsToolsRunLeft "' || : ) $( cat "$rigHere"/*/AgentsTools.Manager*.include | LC_ALL=C grep -v '^[[:space:]]*#' | LC_ALL=C grep -c -e 'ps -' -e 'RunWords' -e 'pgrep' -e 'pkill' || : ) $( rigCode "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include" | LC_ALL=C grep -c -E '^AgentsToolsRunProcesses\(\)\{' || : )" "5 0 1"
+	"$( rigCode "$rigHere/run/AgentsTools.ManagerSessionKill.include" | LC_ALL=C grep -c -e 'AgentsToolsRunProcesses "' -e 'AgentsToolsRunLeft "' || : ) $( cat "$rigHere"/*/AgentsTools.Manager*.include | LC_ALL=C grep -v '^[[:space:]]*#' | LC_ALL=C grep -c -e 'ps -' -e 'RunWords' -e 'pgrep' -e 'pkill' || : ) $( rigCode "$rigHere/run/AgentsTools.RunProcesses.include" | LC_ALL=C grep -c -E '^AgentsToolsRunProcesses\(\)\{' || : )" "5 0 1"
 rigAssert "no process group is signalled, anywhere in the family" "$( cat "$rigHere"/*/AgentsTools.Manager*.include | LC_ALL=C grep -v '^[[:space:]]*#' | LC_ALL=C grep -c -E 'kill +(-[A-Za-z0-9]+ +)?(-- +)?"?-[$"]' || : )" "0"
-rigAssert "the polite time is set in one place, two seconds" "$( rigCode "$rigHere/manager/AgentsTools.ManagerSessionKill.include" | LC_ALL=C grep -c -x -e 'agentsManagerKillPoliteSeconds=2' || : )" "1"
-rigAssert "the handback retry reads the mark of a kill on the record of its run" "$( rigCode "$rigHere/spawn/AgentsTools.InternOpAgentSpawnProxy.include" | LC_ALL=C grep -c -F -e 'AgentsToolsSpawnSandboxRecordHeader "$1" killed-at' || : )" "1"
+rigAssert "the polite time is set in one place, two seconds" "$( rigCode "$rigHere/run/AgentsTools.ManagerSessionKill.include" | LC_ALL=C grep -c -x -e 'agentsManagerKillPoliteSeconds=2' || : )" "1"
+rigAssert "the handback retry reads the mark of a kill on the record of its run" "$( cat "$rigHere/spawn/AgentsTools.InternOpAgentSpawnProxy.include" "$rigHere/spawn/AgentsTools.SpawnProxyHandbackMissing.include" | LC_ALL=C grep -v '^[[:space:]]*#' | LC_ALL=C grep -c -F -e 'AgentsToolsFrontmatterKey "$1" killed-at' || : )" "1"
 
 echo "-- 17. the kill of a whole session finishes it: its questions dismissed, its open records closed --"
 ## A question that waits, asked as the tooling opens one: in the thread of its own post, by the team bot.
@@ -672,8 +672,8 @@ printf -- '---\nsession-id: fin-wait\nspawn-id: fin-wait\ntracking-name: fin-wai
 rigQuestion fin-wait ; rigAskOne="$rigPend"
 rigQuestion fin-wait ; rigAskTwo="$rigPend"
 ## A RUN WITH NO LIVE PROCESS NEVER READS WAITING (sketch 5.4, AgentsTools.Registries.include:547):
-## an open ask of the session leaves the run unclosed, and the ask stands on the session row.
-rigAssert "control: a session whose one record is open and nothing runs behind it reads unclosed on the two questions of it, and is among the active ones" "$( rigStateOf fin-wait ) $( rigStateOf fin-wait --active ) $( rigAsked "$rigAskOne" status ) $( rigAsked "$rigAskTwo" status )" "unclosed unclosed reply-pending reply-pending"
+## an ask of the session that still waits makes the session read waiting, whatever its open record says, and the ask stands on the session row (MAGIC.md, questions and decisions: "the session state counts any ask that still waits as waiting").
+rigAssert "control: a session whose one record is open and nothing runs behind it reads waiting on the two questions of it that still wait, and is among the active ones" "$( rigStateOf fin-wait ) $( rigStateOf fin-wait --active ) $( rigAsked "$rigAskOne" status ) $( rigAsked "$rigAskTwo" status )" "waiting waiting reply-pending reply-pending"
 rigRun "$rigOp" --session-id fin-wait
 rigAssert "the kill of a session with nothing alive is no refusal: status 0, its run told as it stands, each question dismissed, its record closed, and a last row that sums it: nothing ended, two dismissed, one closed, finished" \
 	"$rigRc $( rigTroublesButPost ) $( rigRowsOf kill ) | $( LC_ALL=C awk -F'\t' '$1 == "dismiss" { gsub( /\t/, " " ) ; print }' "$rigTmp/out" | LC_ALL=C sed -e "s/$rigAskOne/ASK-ONE/" -e "s/$rigAskTwo/ASK-TWO/" | LC_ALL=C sort | LC_ALL=C tr '\n' '/' ) | $( rigRowsOf close ) | $( rigRowsOf finish )" \

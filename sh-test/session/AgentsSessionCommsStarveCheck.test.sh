@@ -14,6 +14,8 @@ rigRefuse(){ echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1 ; 
 [ -f "$rigTool" ] || rigRefuse "the team tooling is not at the origin: $rigTool"
 . "$rigFixtures/rig-processes.include.sh" || rigRefuse "the rig's process helper is missing"
 . "$rigFixtures/rig-temp.include.sh" || exit 1
+## And every thread a scene of this rig starts, by its log or its lock, ended before the rig goes.
+. "$rigFixtures/rig-control-threads.include.sh" || rigRefuse "the rig's fixture that ends threads is missing"
 rigTmp="$( rigTempDir AgentsSessionCommsStarveCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
@@ -52,7 +54,7 @@ sleep 600 > /dev/null 2>&1 < /dev/null &
 rigStandPid=$!
 rigProcNote "$rigStandPid"
 rigStarted="$rigStandPid"
-trap 'rigProcSignalWithChildren TERM $rigStarted ; rm -rf -- "$rigTmp"' EXIT
+trap 'rigProcSignalWithChildren TERM $rigStarted ; rigControlThreadsEnd "$rigTmp" ; rm -rf -- "$rigTmp"' EXIT
 disown "$rigStandPid" 2> /dev/null || :
 rigProcBegan "$rigStandPid" > "$rigSessDir/control/pid"
 printf '{"ok":true,"messages":[{"ts":"%s","user":"URIGOWNER","text":"RIG-ROOT","thread_ts":"%s"}],"has_more":false}\n' "$rigRoot" "$rigRoot" > "$rigDir/replies.CRIGSES01.$rigRoot.json"

@@ -29,6 +29,6 @@ type AgentsToolsGrantsStoreTouch > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.dis
 		AgentsSessionFolderInto consumeDir "$MMDAPP" "$consumeSession" || :
 		mkdir -p "$consumeDir/consumed" 2>/dev/null || { set +e ; return 1 ; }
 		mkdir "$consumeDir/consumed/$consumeRefusal" 2>/dev/null || { set +e ; return 1 ; }
-		AgentsToolsGrantsStoreTouch "$consumeDir"
+		AgentsToolsGrantsStoreTouchDir "$consumeDir"
 		printf 'CONSUMED: %s\n' "$consumeRefusal"
 		return 0

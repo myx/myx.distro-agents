@@ -42,16 +42,16 @@ AgentsToolsSuperviseFault(){ ## <run-id> --owner <member> --title <text> [--from
 	fi
 	case "$faultBody" in *[![:space:]]*) ;; *) echo "$MDSC_CMD: ⛔ ERROR: --supervise-fault: the evidence is empty -- nothing was filed" >&2 ; return 1 ;; esac
 	type AgentsToolsSpawnRecord > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunRecords.include"
-	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandboxRecordHeader.include"
+	type AgentsToolsFrontmatterKey > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.FrontmatterKey.include"
 	faultRecord="$( MMDAPP="$faultWs" AgentsToolsSpawnRecord "$faultRun" )"
 	[ -n "$faultRecord" ] || { echo "$MDSC_CMD: ⛔ ERROR: --supervise-fault: no record of this workspace carries the run $faultRun" >&2 ; return 1 ; }
 	faultFolder="${faultRecord%/*}"
-	faultMember="$( AgentsToolsSpawnSandboxRecordHeader "$faultRecord" owner )"
-	faultSession="$( AgentsToolsSpawnSandboxRecordHeader "$faultRecord" session-id )"
+	faultMember="$( AgentsToolsFrontmatterKey "$faultRecord" owner )"
+	faultSession="$( AgentsToolsFrontmatterKey "$faultRecord" session-id )"
 	## The item the run works: its `spawns:`, else its `spawned-by:`, cut to the bare name as the review flow cuts it.
 	faultItem=""
 	for faultSaid in spawns spawned-by ; do
-		faultSaid="$( AgentsToolsSpawnSandboxRecordHeader "$faultRecord" "$faultSaid" )"
+		faultSaid="$( AgentsToolsFrontmatterKey "$faultRecord" "$faultSaid" )"
 		faultSaid="${faultSaid%%,*}" ; faultSaid="${faultSaid%% *}" ; faultSaid="${faultSaid%.md}"
 		case "$faultSaid" in ''|-) continue ;; esac
 		faultItem="$faultSaid" ; break

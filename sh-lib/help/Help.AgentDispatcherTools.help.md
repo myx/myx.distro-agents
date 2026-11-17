@@ -187,10 +187,16 @@
 			inside a run's own output folder after that run's record closed. One
 			line each, ending in a verdict. Without `--execute` it is a readout:
 			`would-close`, `kept-unverified` where the pid file holds no began
-			moment, `kept-mismatch` where the pid now belongs to another process.
+			moment, `kept-mismatch` where the pid now belongs to another process,
+			`would-kill` for one an earlier pass signalled and left alive.
 			With `--execute` a `would-close` one is sent TERM and reads `closed`,
-			or `still-alive` after two seconds; nothing is killed harder. The pid
-			is checked against the process before any signal.
+			or `still-alive` after two seconds, and that pass leaves a note beside
+			its pid file naming the process. The next `--execute` pass that note
+			names ends it with KILL, reading `killed` or `survived-kill`.
+			The note goes once the process has, whether this pass ended it or the
+			process ended on its own. The pid is checked against the process
+			before any signal, and the note the same way: one naming another pid,
+			or another began moment, is removed and nothing is signalled on it.
 
 		--supervise-copy <from-run-id> <source-path> <to-run-id> <destination-path>
 			One file copied from one run's sandbox to another's, always a real copy

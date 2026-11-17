@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # ^^^ for syntax checking in the editor only
 type AgentsToolsSpawnRecord > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunRecords.include"
-type AgentsToolsRunRecordedAlive > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunProcesses.include"
+type AgentsToolsRunRecorded > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunProcesses.include"
 
 type AgentsToolsManagerConsoleMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.ManagerConsoleIdentity.include"
 
@@ -38,7 +38,7 @@ type AgentsToolsManagerConsoleMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx
 		fi
 		AgentsToolsAssertBareName "$restartId" "the session id" "$restartOp" || { set +e ; return 1 ; }
 		restartBy="$( AgentsToolsManagerConsoleMember 2> /dev/null )" || restartBy="console"
-		type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandboxRecordHeader.include"
+		type AgentsToolsFrontmatterKey > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.FrontmatterKey.include"
 		## The record: the run's own, which for a session's id is its founding run's, whose spawn id is the session's; else the older
 		## record that names the session alone (AgentsToolsRunOwnRecord). With --run only a run's own record is taken.
 		restartRecord="$( AgentsToolsSpawnRecord "$restartId" < /dev/null )" || restartRecord=""
@@ -47,12 +47,12 @@ type AgentsToolsManagerConsoleMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx
 			printf 'none\t%s\t-\t-\tno record of this workspace is named by that id\n' "$restartId"
 			return 0
 		fi
-		restartSpawn="$( AgentsToolsSpawnSandboxRecordHeader "$restartRecord" spawn-id )"
-		restartSession="$( AgentsToolsSpawnSandboxRecordHeader "$restartRecord" session-id )"
+		restartSpawn="$( AgentsToolsFrontmatterKey "$restartRecord" spawn-id )"
+		restartSession="$( AgentsToolsFrontmatterKey "$restartRecord" session-id )"
 		case "$restartSpawn" in ''|-) restartSpawn="$restartSession" ;; esac
-		restartMember="$( AgentsToolsSpawnSandboxRecordHeader "$restartRecord" owner )"
-		restartStatus="$( AgentsToolsSpawnSandboxRecordHeader "$restartRecord" status )"
-		if [ "$restartStatus" = "spawn-started" ] && AgentsToolsRunRecordedAlive "$restartRecord" > /dev/null 2>&1 ; then
+		restartMember="$( AgentsToolsFrontmatterKey "$restartRecord" owner )"
+		restartStatus="$( AgentsToolsFrontmatterKey "$restartRecord" status )"
+		if [ "$restartStatus" = "spawn-started" ] && AgentsToolsRunRecorded "$restartRecord" > /dev/null 2>&1 ; then
 			printf 'restart\t%s\t%s\t%s\tlive\t%s\n' "$restartSession" "$restartSpawn" "${restartMember:--}" "the run still lives: stop or kill it first"
 			return 0
 		fi

@@ -29,7 +29,8 @@ See exactly which operations one member is allowed to run:
 Started on a terminal, the console opens the manager screen: the team's sessions, questions, members,
 settings and help in one terminal screen. Ctrl-X (or Alt-X) leaves it. `--manager` opens it whatever is
 configured. A vendor's own CLI starts only where it is named, as `--cli claude-native`; `--cli` with one
-of this package's harnesses (`claude`, `copilot`, `grok`, `scaleway`) opens the manager screen too.
+of this package's harnesses (`claude`, `copilot`, `grok`, `scaleway`, `deepseek`) opens the manager
+screen too.
 
 In the manager screen:
 
@@ -48,7 +49,7 @@ costs a full model round trip. For a read, run the tool directly instead:
 
 Keep the console for work that needs an agent session.
 
-	DistroAgentsConsole.sh [--manager] [--cli copilot|copilot-native|claude|claude-native|grok|grok-native|scaleway] [--cli-auto] [--non-interactive] [args...]
+	DistroAgentsConsole.sh [--manager] [--cli copilot|copilot-native|claude|claude-native|grok|grok-native|scaleway|deepseek] [--cli-auto] [--non-interactive] [args...]
 
 	./DistroAgentsConsole.sh
 	./DistroAgentsConsole.sh --cli claude-native
@@ -57,9 +58,10 @@ Keep the console for work that needs an agent session.
 	echo "list the projects that changed today" | ./DistroAgentsConsole.sh --non-interactive
 
 - Known CLIs, in preference order: `copilot`, `copilot-native`, `claude`, `claude-native`, `grok`,
-  `grok-native`, `scaleway`. That order is the fallback, used when no CLI is configured.
-- A name ending in `-native` runs the vendor's own CLI. `claude`, `copilot`, `grok` and `scaleway`
-  run this package's own harness against that service's API.
+  `grok-native`, `scaleway`. That order is the fallback, used when no CLI is configured. A harness leg
+  that file discovery finds joins that scan after them.
+- A name ending in `-native` runs the vendor's own CLI. `claude`, `copilot`, `grok`, `scaleway` and
+  `deepseek` run this package's own harness against that service's API.
 - `claude-native` runs the `claude` CLI already installed and signed in on this machine, using that
   existing login rather than any credential configured here.
 - `grok` runs this package's own harness against xAI's API, and the vendor `grok` CLI is reached as
@@ -69,6 +71,10 @@ Keep the console for work that needs an agent session.
   on a machine where nothing else is set up. Configure it once with
   `DistroAgentsTools.fn.sh --owner-setup-scaleway`. It is one-shot only: always pass
   `--non-interactive`, and it will tell you so if you forget.
+- `deepseek` runs this package's own harness against DeepSeek's API, from
+  `sh-lib/harness/AgentsDeepseekHarness.sh`. A preset selects it with `PRESET_CLI_SERVICE=deepseek`, and
+  `DistroAgentsTools.fn.sh --owner-setup-deepseek --apply --set-as-default` stores its key and points
+  `SPAWN_TIER_NORMAL` at that preset. It is one-shot only: pass `--non-interactive`.
 - `--cli-auto` — for a start with no terminal, as `--non-interactive`: take the CLI of the preset the
   team's tier (`SPAWN_TIER_NORMAL`) names, or the first installed one from the order above when none is configured. On a
   terminal it opens the manager screen, as a plain start does.
@@ -77,8 +83,8 @@ Keep the console for work that needs an agent session.
   configured CLI, else the first installed one from the order above, else a bash session. A configured
   CLI missing from `PATH` is an error, the same as naming it with `--cli`.
 - `--non-interactive` — one-shot, no attached terminal.
-	- Supported for `copilot`, `copilot-native`, `claude`, `claude-native`, `grok` and `scaleway`.
-	  Not for `grok-native`.
+	- Supported for `copilot`, `copilot-native`, `claude`, `claude-native`, `grok`, `deepseek` and
+	  `scaleway`. Not for `grok-native`.
 	- Remaining arguments are joined into one prompt.
 	- With no arguments, the prompt is read from stdin.
 	- Exits with an error rather than falling back to bash when no CLI is available.

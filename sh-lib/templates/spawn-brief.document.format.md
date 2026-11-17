@@ -57,7 +57,7 @@ session-kind: {{kind}}, defined by {{kind-routine}}.
 Read these two sections of magic-team/magic-team.armed.md with section and not the whole file:
 - {name: magic-team, file: magic-team.armed.md, section: Nothing stops on its own: log, escalate, resolve|Every message is addressed, tagged, and sent on a real channel}
 
-[scan] input-scan: input-scan.md in your own input folder holds this routine's input scan ({{scan}}), which the spawner ran at start.
+[scan] input-scan: input-scan.md in your own input folder holds this routine's input scan ({{scan}}), taken at start, whose header carries that instant.
 [scan] - Read it first, by line range, before anything else.
 [scan] - Do not run the scan again.
 [lock] routine-lock: {{lock}} -- the spawner holds this routine's lock for the session and gives it back at its end.

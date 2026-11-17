@@ -2,17 +2,21 @@
 # ^^^ for syntax checking in the editor only
 
 ##
-## AgentsTools.CommandsList.include -- THE TOOLING COMMANDS OF THIS WORKSPACE, listed (epic S12.26): every `<Name>.fn.sh` of the
-## family's own sh-scripts and of every command folder the prepared index names, each name once, with the path the shell runs it
-## by. The one list a member reads to learn that `DeployRouting` or `DistroAgentsSlack` is a command with a `.fn.sh` suffix, never a
-## function, and where it stands. Sourced, never run. Functions only.
+## AgentsTools.CommandsList.include -- THE TOOLING COMMANDS OF THIS WORKSPACE, listed (epic S12.26): every command of the family's own
+## sh-scripts and of every command folder the prepared index names, each name once, with the path the shell runs it by. The one list
+## a member reads to learn that `DeployRouting` or `workspace-install.sh` is a command, never a function, and where it stands.
+## Sourced, never run.
 ##
-## THE FOLDERS are the ones the command path holds, in its order (myx.distro-.local/sh-lib/console-.local-path.include): the family's
-## `.local`, `system`, `agents`, `deploy`, `source` and `remote` sh-scripts, then the folders of `$MMDAPP/.local/distro-commands.txt`
-## (`<project> <command> <sh-scripts folder>`, written by the source-prepare builder). A name met twice keeps its first folder, as the
-## shell would. A ONE-OFF TOOL: seven globs and one file read, for a reader that asks once; nothing here runs on a call path.
+## THE FOLDERS are the family's own, in the command path's order (myx.distro-.local/sh-lib/console-.local-path.include): the
+## `.local`, `system`, `agents`, `deploy`, `source` and `remote` sh-scripts, then the folders of
+## `$MMDAPP/.local/distro-commands.txt` (`<project> <command> <sh-scripts folder>`, written by the source-prepare builder). A file is
+## a command there where its name ends `.fn.sh`, the folder's own convention, or where the shell would run it by name, so one that
+## is executable. A name met twice keeps its first folder, as the shell would. A ONE-OFF TOOL: six folders and one file read, for a
+## reader that asks once; nothing here runs on a call path. The command path's first folder, myx.common's own, belongs to another
+## package, and this list leaves it out.
 ##
-## ROWS, tab-separated: `<name> <path>`, sorted by name. `--names` prints the names alone.
+## ROWS, tab-separated: `<name> <path>`, sorted by name. A `.fn.sh` command goes by its bare name, and every other one by its own
+## file name. `--names` prints the names alone.
 ##
 
 AgentsToolsCommandsList(){ ## --names (optional)
@@ -28,8 +32,9 @@ AgentsToolsCommandsList(){ ## --names (optional)
 		"$MDLT_ORIGIN/myx/myx.distro-deploy/sh-scripts" "$MDLT_ORIGIN/myx/myx.distro-source/sh-scripts" "$MDLT_ORIGIN/myx/myx.distro-remote/sh-scripts" \
 		$( [ -z "${MMDAPP:-}" ] || [ ! -f "$MMDAPP/.local/distro-commands.txt" ] || LC_ALL=C awk '$3 != "" { print $3 }' "$MMDAPP/.local/distro-commands.txt" ) ; do
 		[ -d "$listFolder" ] || continue
-		for listFile in "$listFolder"/*.fn.sh ; do
+		for listFile in "$listFolder"/* ; do
 			[ -f "$listFile" ] || continue
+			case "${listFile##*/}" in *.fn.sh) ;; *) [ -x "$listFile" ] || continue ;; esac
 			listName="${listFile##*/}" ; listName="${listName%.fn.sh}"
 			case "$listSeen" in *" $listName "*) continue ;; esac
 			listSeen="$listSeen$listName "

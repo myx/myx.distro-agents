@@ -81,7 +81,7 @@ FILENAME == ARGV[2] {
 # Whether the block at <at> is left to the source of the same Wait that reads its thread: covered, and not a `delivered` block,
 # which the session's own file gives first (S12.15).
 function leftToSource(at) {
-	return ( isCovered(idxWhere[at]) && idxOrigin[at] != "delivered" ) ;
+	return ( isCovered(idxWhere[at]) && idxOrigin[at] != "delivered" && idxOrigin[at] !~ /^dm:/ ) ;
 }
 
 function isCovered(whereValue,   at) {
@@ -149,6 +149,10 @@ END {
 		} else if ( origin ~ /^reply:/ ) {
 			take = ( origin == "reply:" member ) ;
 			source = replySource ;
+		} else if ( origin ~ /^dm:/ ) {
+			# A DM the session imported for one member (S12.29): its floor, and only its, as a reply to its own post is.
+			take = ( origin == "dm:" member ) ;
+			source = "dm" ;
 		} else if ( ownThread(idxWhere[at]) ) {
 			source = sourceOf(idxWhere[at]) ;
 			if ( role == "executor" ) { take = 1 ; }

@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
 # ^^^ for syntax checking in the editor only
-type AgentsSlackIdentityId > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/slack/AgentsTools.SlackIdentities.include"
 
 ##
 ## AgentsTools.MemberWaitCore.include -- the helpers --wait-for-input shares between its probes, and the floor advance
@@ -56,60 +55,6 @@ AgentsWaitCoveredSet(){ ## member, sources...
 	printf '%s\n' "${coverList# }"
 }
 
-## One look at a thread or a conversation, rendered in the form every reader of Slack here reads. The
-## file is the caller's own, and a step of the wait that wrote it is noted (AgentsWaitOwnFile).
-AgentsWaitReadRendered(){ ## member, read target, thread|conversation, oldest (a conversation only; may be empty), the rendering file
-	local readMember="$1" readTarget="$2" readKind="$3" readOldest="$4" readOut="$5" readArgs readRc=0
-	if [ "$readKind" = "thread" ] ; then
-		AgentsWaitThreadCached "$readMember" "$readTarget" "$readOut" "${MDAT_WAIT_READ_AS_BOT:-false}" || readRc=$?
-		case "$readRc" in
-			0) [ -n "${agentsWaitThreadUnchanged:-}" ] || AgentsWaitTrackingDropFile "$readMember" "$readOut" ; return 0 ;;
-			2) [ ! -s "$readOut.err" ] || cat "$readOut.err" >&2 ; return 2 ;;
-		esac
-		readRc=0
-	fi
-	readArgs=( "$readMember" "$readTarget" )
-	[ "${MDAT_WAIT_READ_AS_BOT:-}" != "true" ] || readArgs=( ${readArgs[@]+"${readArgs[@]}"} --identity-bot )
-	if [ "$readKind" = "thread" ] ; then
-		readArgs=( ${readArgs[@]+"${readArgs[@]}"} --thread )
-	elif [ -n "$readOldest" ] ; then
-		readArgs=( ${readArgs[@]+"${readArgs[@]}"} --oldest "$readOldest" )
-	fi
-	type AgentsToolsMemberCommsSlackRun > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/slack/AgentsTools.MemberCommsSlack.include"
-	AgentsToolsMemberCommsSlackRun --intern-op-comms-slack-read ${readArgs[@]+"${readArgs[@]}"} > "$readOut.read" 2> "$readOut.err" || readRc=$?
-	## A conversation the user identity cannot see, such as the bot's own DM with a person, is read again as the bot --
-	## on our own side only: a client: target is the other organisation's, where an identity of ours reads nothing.
-	if [ "$readRc" != "0" ] && [ "${MDAT_WAIT_READ_AS_BOT:-}" != "true" ] && [ "${readTarget#client:}" = "$readTarget" ] && LC_ALL=C grep -q 'channel_not_found' "$readOut.err" 2> /dev/null ; then
-		readRc=0
-		type AgentsToolsMemberCommsSlackRun > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/slack/AgentsTools.MemberCommsSlack.include"
-		AgentsToolsMemberCommsSlackRun --intern-op-comms-slack-read ${readArgs[@]+"${readArgs[@]}"} --identity-bot > "$readOut.read" 2> "$readOut.err" || readRc=$?
-	fi
-	if [ "$readRc" != "0" ] ; then
-		[ ! -s "$readOut.err" ] || cat "$readOut.err" >&2
-		return 2
-	fi
-	AgentsWaitOwnFile "$readOut.read" || return 2
-	if [ "$readKind" = "thread" ] ; then
-		## The one rendering (epic S11): the function the read operation and the comms cache render through.
-		type AgentsToolsSlackFormatPagedConversation > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/slack/AgentsTools.CommsSlack.include"
-		AgentsToolsSlackFormatPagedConversation "$readMember" "$( cat "$readOut.read" )" > "$readOut" 2>> "$readOut.err" || readRc=$?
-	else
-		## A conversation is read formatted already (AgentsToolsSlackCheck), its lines the rendering, less the
-		## `## target=` mark: the JSON formatter would print nothing of them.
-		LC_ALL=C awk 'NR == 1 && /^## target=/ { next ; } { print ; }' < "$readOut.read" > "$readOut.new" 2>> "$readOut.err" || readRc=$?
-		## A conversation read again with nothing new is the same rendering: the file stands as it is, unwritten.
-		if [ "$readRc" = "0" ] ; then
-			if cmp -s "$readOut.new" "$readOut" ; then rm -f "$readOut.new" ; else mv -f "$readOut.new" "$readOut" ; fi
-		fi
-	fi
-	AgentsWaitOwnFile "$readOut" || return 2
-	if [ "$readRc" != "0" ] ; then
-		[ ! -s "$readOut.err" ] || cat "$readOut.err" >&2
-		return 2
-	fi
-	AgentsWaitTrackingDropFile "$readMember" "$readOut"
-	return 0
-}
 
 ## The tooling's own posts out of a rendering file, in place, for a member: a tracking post is no input to it (AgentsTools.TrackingDrop.include).
 AgentsWaitTrackingDropFile(){ ## member, a rendering file
@@ -191,79 +136,6 @@ AgentsWaitFloorAdvance(){ ## session, source (slack:<channel>:<ts>:conversation)
 	return 0
 }
 
-## One part of the tags: the lines of a rendering that are for the member, after the floor, PRINTED for the caller to
-## gather into its rendering behind a `# in <where>` line. <what> is `mentions` (the messages that mention the member), `dm-mentions` (the
-## same, in a DM, which no session-thread drop touches) or the Slack account of the other party of a DM.
-## With a seventh word of 1 the messages are shown elsewhere, and only the fact is said here. An eighth word is the FYI note of a
-## part that is for the member's knowledge only -- a session thread where its own instance is present: each row of it carries
-## `[fyi: <note>]` in its head line, right after the sender, and a `# fyi: <note> -- for your knowledge, not yours to answer` line
-## stands before the part. That mark is what a reader of the rows (AgentsToolsInputScanReportEmpty) tells a message of no work by.
-AgentsWaitTaggedPart(){ ## member, where, what, floor, the rendering, the tags rendering, [shown elsewhere], [the FYI note]
-	local partOut="$6.part" partText=""
-	partText="$( LC_ALL=C awk -v mode=channel -v postTs=0 -v floorTs="${4:-0}" -v callerName="$1" -v callerId="$( AgentsSlackIdentityId "$1" )" -v addressees="$( case "$3" in (mentions|dm-mentions) ;; (*) printf '%s' "$3" ;; esac )" \
-		-v siblings=0 -v siblingsMax=1000000 -v mentionsOnly="$( case "$3" in (mentions|dm-mentions) printf 1 ;; (*) printf 0 ;; esac )" \
-		-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsDismissalMatch.awk" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/wait/AgentsWaitOwnPostReplies.awk" \
-		< "$5" 2> /dev/null )" || return 1
-	## A mention the member already received through a session thread it takes part in is left out (AgentsWaitSessionReceivedDrop.awk).
-	## A DM part is never one: a DM is no session thread.
-	if [ "$3" = mentions ] && [ -n "$partText" ] && [ -s "${MMDAPP:-/nonexistent}/.local/agents/schedule/seen/$1.session" ] ; then
-		partText="$( printf '%s\n' "$partText" | SEEN_SESSION_FILE="$MMDAPP/.local/agents/schedule/seen/$1.session" LC_ALL=C awk \
-			-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/wait/AgentsWaitSessionReceivedDrop.awk" )" || return 1
-	fi
-	## The part is written only where it differs (AgentsWaitPut): a probe that found the same messages again leaves the file, and the watch on
-	## it, alone.
-	AgentsWaitPut "$partOut" "$partText"
-	AgentsWaitOwnFile "$partOut" || return 1
-	if [ -s "$partOut" ] && [ -n "${8:-}" ] ; then
-		LC_ALL=C awk -v mark="[fyi: ${8}]" '
-			match( $0, /^[0-9]+\.[0-9]+ \| [^|]*\|/ ) { $0 = substr( $0, 1, RSTART + RLENGTH - 1 ) mark substr( $0, RSTART + RLENGTH ) ; }
-			{ print }' "$partOut" > "$partOut.fyi" && mv -f "$partOut.fyi" "$partOut" || return 1
-	fi
-	if [ -s "$partOut" ] ; then
-		if [ -n "${8:-}" ] ; then
-			printf '# fyi: %s -- for your knowledge, not yours to answer\n' "${8}" || return 1
-		fi
-		if [ "${7:-0}" = "1" ] ; then
-			## Shown by the source that reads the conversation. The ts of the newest is kept, for the pointer, as a head line would be.
-			printf '# in %s: tagged there, and shown among its messages under the source that reads it\n' "$2" || return 1
-			LC_ALL=C awk '/^[0-9]+\.[0-9]+ \| / { ts = $1 ; } END { if ( ts != "" ) { print ts " | tagged | (see the source that reads this conversation)" ; } }' "$partOut" || return 1
-		else
-			{ printf '# in %s\n' "$2" ; cat "$partOut" ; } || return 1
-		fi
-	fi
-	return 0
-}
-
-## A WHOLE THREAD THROUGH THE COMMS CACHE (AgentsTools.CommsCache.include), slack/slack-<channel>-<thread ts>, rendered: served from it
-## within its TTL, else only the replies after its newest are read from Slack and merged, so a thread is pulled once per TTL
-## whatever reads it. rc 0 the rendering is written, 1 the cache cannot serve (the caller reads Slack itself), 2 the read failed.
-AgentsWaitThreadCached(){ ## member, <channel>:<thread ts>, the rendering file, as bot (true|false)
-	local tcNow="${roundNow:-}"
-	type AgentsToolsCommsCacheSlackThread > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsCache.include" || return 1
-	case "$tcNow" in ''|*[!0-9]*) tcNow="$( date +%s )" ;; esac
-	local tcServed="" tcTtl="${MDAT_SLACK_THREAD_CACHE_SECONDS:-15}" tcRc=0
-	case "$tcTtl" in ''|*[!0-9]*) tcTtl=15 ;; esac
-	## Says to the caller that the file is as it left it, so it keeps what it made of it (agentsWaitThreadUnchanged).
-	agentsWaitThreadUnchanged=""
-	case "$2" in
-		*[!A-Za-z0-9.:]*|:*|*:) ;;
-		*:*)
-			if AgentsToolsCommsCacheSlackDir "$1" "${4:-false}" "${2%%:*}" "${2#*:}" ; then
-				AgentsToolsCommsCacheInterest "$agentsCommsCacheDir" "$tcNow" "$tcTtl"
-				## Served into this file already, from a pull still inside its TTL: the file holds it, and is not written again.
-				if [ -f "$3" ] && AgentsToolsCommsCacheState "$agentsCommsCacheDir" && [ $(( tcNow - agentsCommsCacheAt )) -lt "$tcTtl" ] ; then
-					case " ${agentsWaitThreadServed:-} " in *" $3=$agentsCommsCacheAt "*) agentsWaitThreadUnchanged="yes" ; return 0 ;; esac
-				fi
-			fi
-		;;
-	esac
-	AgentsToolsCommsCacheSlackThread "$1" "$2" "$3" "$4" "$tcNow" || tcRc=$?
-	## What this file now holds, by the pull it came from.
-	if [ "$tcRc" = 0 ] && [ -n "${agentsCommsCacheDir:-}" ] && AgentsToolsCommsCacheState "$agentsCommsCacheDir" ; then
-		agentsWaitThreadServed="${agentsWaitThreadServed:-} $3=$agentsCommsCacheAt"
-	fi
-	return "$tcRc"
-}
 
 AgentsWaitEmpty(){ ## file
 	[ -f "$1" ] && [ ! -s "$1" ] && return 0

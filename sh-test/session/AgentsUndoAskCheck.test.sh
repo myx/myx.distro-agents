@@ -13,8 +13,11 @@
 ##   5. the verdict reader: `accept`, `reject` and `rework` each read as themselves, each carries
 ##      the words beside it, and `ok`, `yes`, `approve` and `return` name none of them, so a plain
 ##      affirmation never accepts an act here.
+##   6. what the act changed: the diff the post shows, a cut diff saying how much it leaves out and
+##      where the whole one is kept, and no change at all for an act that changed no file.
 ## Red recipe: take the `|undo|` row out of agentsAskTools (AgentsTools.AskPost.include), and
-## cases 1 to 4 fail; take the `undo` arm out of AgentsEscalationVerdict.awk and case 5 fails.
+## cases 1 to 4 fail; take the `undo` arm out of AgentsEscalationVerdict.awk and case 5 fails;
+## take the `Lines/cut` block out of the undo template and case 6 fails.
 ## Offline: the template is filled straight, and the reader is an awk program on stdin. No
 ## curl, no network, no workspace and no team data.
 set -u
@@ -69,7 +72,11 @@ rigClick(){ ## emoji name
 rigAct="$( printf '`file-write` on `/ws/source/myx/x.include`' )"
 rigInverse="  step AgentsUniversalHarness --intern-tool /ws/source/myx/x.include"
 rigHold="ws:source/myx/x.spawn/input"
+rigChange=$'@@ -1 +1 @@\n-a\n+b'
+rigCutLine='✂️ The diff is cut here: 341 more of its 401 lines are not shown. The whole diff is kept in `ws:myx/myx.distro-agents:undo/u/change.diff`.'
 rigFillPost(){ ASKP_F_member=lexr ASKP_F_act="$rigAct" ASKP_F_inverse="$rigInverse" ASKP_F_hold="$rigHold" rigFill "$1" ; }
+rigFillChanged(){ ASKP_F_member=lexr ASKP_F_act="$rigAct" ASKP_F_inverse="$rigInverse" ASKP_F_hold="$rigHold" \
+	ASKP_F_fence='```' ASKP_F_change="$rigChange" ASKP_F_cut="${1:-}" rigFill post ; }
 
 echo "-- 1. the table of the asks --"
 rigAssert "the kind undo is in the table, with its own template and the verdict form" \
@@ -101,6 +108,14 @@ rigAssert "a click accepts, a click rejects, and a click asks for a rework" \
 	"$( rigClick +1 ):$( rigClick x ):$( rigClick leftwards_arrow_with_hook )" "accept|URIGOWNER:reject|URIGOWNER:rework|URIGOWNER"
 rigAssert "a plain affirmation never accepts an act here" \
 	"$( rigVerdict 'ok' ):$( rigVerdict 'yes please' ):$( rigVerdict 'approve' ):$( rigVerdict 'return' )" "RETURNED|:RETURNED|:RETURNED|:RETURNED|"
+
+echo "-- 6. what the act changed --"
+rigAssert "the post shows the diff of the base against the result, under its heading and in a fence" \
+	"$( rigFillChanged | LC_ALL=C grep -c '^\*\*📝 What it changed\*\*$' ):$( rigFillChanged | LC_ALL=C grep -c '^```$' ):$( rigFillChanged | LC_ALL=C grep -c -e '^-a$' -e '^+b$' )" "1:2:2"
+rigAssert "and a diff it cut says how much is not shown, and where the whole one is kept" \
+	"$( rigFillChanged "$rigCutLine" | LC_ALL=C grep -c -F "$rigCutLine" )" 1
+rigAssert "an act that changed no file shows no change at all -- the negative control" \
+	"$( rigFillPost post | LC_ALL=C grep -c 'What it changed' )" 0
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ UNDO ASK CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

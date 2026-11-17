@@ -1,0 +1,9 @@
+## known-failures.txt -- the checks of the suite that fail today, with the owner of each and the reason it is not fixed.
+## Read by sh-test/AgentsRunTests.sh at the end of a run: a FAIL line of a test listed here carries its owner and
+## its reason, a test listed here that passes is printed FIXED, and the summary says how many failures have an owner
+## and how many have none. Held by AgentsRunTestsKnownFailuresCheck.test.sh.
+##
+## One row a test, three fields, TAB between them:
+##   <test name, as the runner names it>  <owner: a member, or magic-tester>  <reason: one line, why it is red and what it waits for>
+## A row that is not three filled fields is refused by the run, which names it by its line.
+## A row is removed in the change that makes its test pass, never before: a stale row is printed FIXED until it is.

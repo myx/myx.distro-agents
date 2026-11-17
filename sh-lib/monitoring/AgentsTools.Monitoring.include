@@ -76,19 +76,19 @@ AgentsToolsMonitoringHealth(){ ## workspace (default MMDAPP)
 	AgentsToolsMonitoringLockState "$healthWs/.local/agents/comms/lock" ; healthState="$agentsMonitoringState"
 	AgentsToolsMonitoringLine health "$healthName" comms-reader "$healthState" "${agentsMonitoringHolder:+pid $agentsMonitoringHolder}"
 	[ "$healthState" != dead ] || healthAlarms="${healthAlarms}comms-reader"$'\t'"the lock names pid ${agentsMonitoringHolder:--}, which is gone"$'\n'
-	## The control threads of the sessions: how many live, how many left a dead lock.
+	## The control threads of the sessions: how many live, how many left a dead lock, from the control thread's own reading of them.
 	healthCount=0 ; healthLine=0
-	for healthFile in "$healthWs"/.local/agents/sessions/*/control/pid ; do
-		[ -f "$healthFile" ] || continue
-		AgentsToolsMonitoringLockState "$healthFile"
-		case "$agentsMonitoringState" in alive) healthCount=$(( healthCount + 1 )) ;; dead) healthLine=$(( healthLine + 1 )) ;; esac
+	type AgentsSessionControlRowsInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionControlStart.include"
+	AgentsSessionControlRowsInto healthControlRows "$healthWs"
+	for healthFile in ${healthControlRows[@]+"${healthControlRows[@]}"} ; do
+		case "${healthFile##*$'\t'}" in alive) healthCount=$(( healthCount + 1 )) ;; gone) healthLine=$(( healthLine + 1 )) ;; esac
 	done
 	AgentsToolsMonitoringLine health "$healthName" control-threads "$healthCount alive" "$healthLine dead"
 
 	## THE RUNS: the started records kept by the tooling, and the pace of their tool calls.
-	type AgentsToolsSpawnedStartedRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include"
+	type AgentsToolsSpawnedStartedRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/schedule/AgentsTools.StartedRecords.include"
 	healthCount=0
-	type AgentsToolsSpawnedStartedRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include"
+	type AgentsToolsSpawnedStartedRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/schedule/AgentsTools.StartedRecords.include"
 		while IFS= read -r healthLine ; do [ -z "$healthLine" ] || healthCount=$(( healthCount + 1 )) ; done <<< "$( MMDAPP="$healthWs" AgentsToolsSpawnedStartedRecords 2> /dev/null )"
 	AgentsToolsMonitoringLine health "$healthName" runs-started "$healthCount" "records with status spawn-started"
 	type AgentsToolsSchedulePaceText > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/schedule/AgentsTools.DispatcherSchedule.include"

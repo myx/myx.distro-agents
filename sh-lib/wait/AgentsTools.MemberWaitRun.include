@@ -237,6 +237,12 @@
 			{ exec 6<> "$waitDir/nap.fifo" ; } 2> /dev/null && waitNapFifo="yes"
 		fi
 
+		## A SOURCE'S BOUND IS THE WAIT'S OWN DEADLINE, NEVER A READ'S OWN (S12.27). A probe whose Slack thread the cache cannot serve falls
+		## back to a live read, and that read carries a bound of its own, MDAT_SLACK_READ_BOUND_SECONDS, 120 s where the caller set none,
+		## which outlives a shorter Wait and holds every source after it. The caller's value is held here once, and each source is given
+		## what is left of the deadline, or the caller's own where that is shorter.
+		local waitReadBoundBase="${MDAT_SLACK_READ_BOUND_SECONDS:-120}"
+		case "$waitReadBoundBase" in ''|*[!0-9]*) waitReadBoundBase=120 ;; esac
 		local waitRound=0 waitOutcome="TIMEOUT" waitHits=""
 		local waitProbeFailures="" waitReadSources="" waitRemindNext=0 waitProbedAt=() waitDeferred="" waitReturned="" waitPermissionErrors="" waitDetachedTask=""
 		## The TTL holds across Waits. A source is checked only once its TTL has passed since any Wait of the session last checked it.
@@ -292,7 +298,7 @@
 			esac
 			## A wait whose directory was taken from under it reads nothing any more: it ends here (AgentsWaitLost).
 			if AgentsWaitLost "$waitDir" ; then waitOutcome="LOST" ; break ; fi
-			local roundSource roundKind roundTarget roundFn roundQuietFrom roundQuiet roundStaleOk roundIndex=0 roundRc roundEvery roundNow sourceNow roundTtl roundSlowGap="" roundProbeTimeout=""
+			local roundSource roundKind roundTarget roundFn roundQuietFrom roundQuiet roundStaleOk roundIndex=0 roundRc roundEvery roundNow sourceNow roundTtl roundSlowGap="" roundProbeTimeout="" roundReadBound="" roundSecondsLeft=""
 			roundNow=$(( waitStart + SECONDS - waitSecs0 ))
 			## ONE CLOCK A ROUND (call-path audit rows 15 and 18): the probes read agentsWaitRoundNow where it is set, and fork a date
 			## of their own only when called outside a round.
@@ -385,6 +391,14 @@
 				case "$roundKind" in slack|ask|replies|dms) [ "$waitRound" = "1" ] || [ -z "$waitDeadline" ] || [ $(( waitDeadline - sourceNow )) -ge 2 ] || roundStaleOk="true" ;; esac
 				## A probe past the bound is never cut short, but it no longer holds the call: a costly probe is handed to the task wrapper.
 				roundProbeTimeout=""
+				## THE SOURCE'S OWN BOUND (S12.27): what is left of the Wait's deadline, or the caller's shorter bound. A source that overruns it
+				## is named never read in this round, WAIT-NEVER-READ, and the round goes on to its other sources.
+				roundReadBound="$waitReadBoundBase"
+				if [ -n "$waitDeadline" ] && [ "${waitTimeout:-0}" != "0" ] ; then
+					roundSecondsLeft=$(( waitDeadline - sourceNow ))
+					[ "$roundSecondsLeft" -ge 1 ] || roundSecondsLeft=1
+					[ "$roundReadBound" -le "$roundSecondsLeft" ] || roundReadBound="$roundSecondsLeft"
+				fi
 				## Chat and replies are excluded here, because each makes a real Slack call and must not be exempt from the bound wrapper.
 				case " $agentsWaitKindUnbounded " in
 					*" $roundKind "*) ;;
@@ -415,7 +429,7 @@
 					type AgentsToolsTaskCall > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.ToolTask.include"
 					## With no session id set, the task call runs the probe in line with no bound, so this wait passes its own session id.
 					## A probe is a read of what reaches the member, so a chat message does not detach it (MDAT_TOOL_TASK_NO_MESSAGE): it is what the probe reads.
-					MDAT_COMMS_CACHE_ONLY="$waitCacheOnly" MDAT_COMMS_CACHE_WAIT_SECONDS="$(( roundProbeTimeout < 30 ? roundProbeTimeout : 30 ))" MDAT_COMMS_CACHE_WAIT_UNTIL="$(( sourceNow + ( roundProbeTimeout < 30 ? roundProbeTimeout : 30 ) ))" MDAT_COMMS_CACHE_STALE_OK="$roundStaleOk" MDAT_SLACK_THREAD_CACHE_SECONDS="$waitCacheTtl" \
+					MDAT_SLACK_READ_BOUND_SECONDS="$roundReadBound" MDAT_COMMS_CACHE_ONLY="$waitCacheOnly" MDAT_COMMS_CACHE_WAIT_SECONDS="$(( roundProbeTimeout < 30 ? roundProbeTimeout : 30 ))" MDAT_COMMS_CACHE_WAIT_UNTIL="$(( sourceNow + ( roundProbeTimeout < 30 ? roundProbeTimeout : 30 ) ))" MDAT_COMMS_CACHE_STALE_OK="$roundStaleOk" MDAT_SLACK_THREAD_CACHE_SECONDS="$waitCacheTtl" \
 						MDAT_SPAWN_SESSION_ID="${harnessSessionId:-${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-$waitSessionId}}}" MDAT_TOOL_TASK_NO_MESSAGE=yes \
 						AgentsToolsTaskCall "wait probe $roundSource" "" "$roundProbeTimeout" return "$roundFn" "$memberName" "$roundTarget" "${waitFloorOf[$roundIndex]}" "$waitDir/now.$roundIndex" "${waitAddressee% }" "$waitIncludeOwn" "$waitDir/base.$roundIndex" \
 						|| roundRc=$?
@@ -429,7 +443,7 @@
 				else
 					## THE BUDGET IS ONE MOMENT FOR THE WHOLE PROBE (MDAT_COMMS_CACHE_WAIT_UNTIL): a probe over several folders shares it, so a round never
 					## outlives the Wait's bound by the seconds times the folders (the ask probe over three asks held a 300 s Wait for 500).
-					MDAT_COMMS_CACHE_ONLY="$waitCacheOnly" MDAT_COMMS_CACHE_WAIT_SECONDS="$( [ -n "$waitDeadline" ] && [ "${waitTimeout:-0}" != "0" ] && [ $(( waitDeadline - sourceNow )) -gt 0 ] && printf '%s' $(( waitDeadline - sourceNow < 30 ? waitDeadline - sourceNow : 30 )) || printf 0 )" MDAT_COMMS_CACHE_WAIT_UNTIL="$( [ -n "$waitDeadline" ] && [ "${waitTimeout:-0}" != "0" ] && [ $(( waitDeadline - sourceNow )) -gt 0 ] && printf '%s' $(( waitDeadline - sourceNow < 30 ? waitDeadline : sourceNow + 30 )) || printf '' )" MDAT_COMMS_CACHE_STALE_OK="$roundStaleOk" MDAT_SLACK_THREAD_CACHE_SECONDS="$waitCacheTtl" "$roundFn" "$memberName" "$roundTarget" "${waitFloorOf[$roundIndex]}" "$waitDir/now.$roundIndex" "${waitAddressee% }" "$waitIncludeOwn" "$waitDir/base.$roundIndex" || roundRc=$?
+					MDAT_SLACK_READ_BOUND_SECONDS="$roundReadBound" MDAT_COMMS_CACHE_ONLY="$waitCacheOnly" MDAT_COMMS_CACHE_WAIT_SECONDS="$( [ -n "$waitDeadline" ] && [ "${waitTimeout:-0}" != "0" ] && [ $(( waitDeadline - sourceNow )) -gt 0 ] && printf '%s' $(( waitDeadline - sourceNow < 30 ? waitDeadline - sourceNow : 30 )) || printf 0 )" MDAT_COMMS_CACHE_WAIT_UNTIL="$( [ -n "$waitDeadline" ] && [ "${waitTimeout:-0}" != "0" ] && [ $(( waitDeadline - sourceNow )) -gt 0 ] && printf '%s' $(( waitDeadline - sourceNow < 30 ? waitDeadline : sourceNow + 30 )) || printf '' )" MDAT_COMMS_CACHE_STALE_OK="$roundStaleOk" MDAT_SLACK_THREAD_CACHE_SECONDS="$waitCacheTtl" "$roundFn" "$memberName" "$roundTarget" "${waitFloorOf[$roundIndex]}" "$waitDir/now.$roundIndex" "${waitAddressee% }" "$waitIncludeOwn" "$waitDir/base.$roundIndex" || roundRc=$?
 				fi
 				## A source denied by a permission is an error of its own, said in the header, and is not a source never read.
 				if [ "$roundRc" = "4" ] ; then
@@ -468,8 +482,8 @@
 				AgentsWaitOwnFile "$waitDir/now.$roundIndex" || { waitOutcome="LOST" ; break ; }
 				## What a look at the posts found nothing to return is stored at once, and what it found once it is said.
 				if [ "$roundKind" = "replies" ] && [ ! -s "$waitDir/now.$roundIndex" ] ; then
-					type AgentsWaitRepliesCommit > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/wait/AgentsTools.MemberWaitReplies.include"
-					AgentsWaitRepliesCommit "$roundTarget" "$waitDir/now.$roundIndex.advance"
+					type AgentsOwnPostsReplace > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.OwnPosts.include"
+					AgentsOwnPostsReplace "$roundTarget" "$waitDir/now.$roundIndex.advance"
 				fi
 				## The same for the session chat file: a look that found nothing to return moved past what it read (the covered, the not its own).
 				if [ "$roundKind" = "chat" ] && [ ! -s "$waitDir/now.$roundIndex" ] ; then

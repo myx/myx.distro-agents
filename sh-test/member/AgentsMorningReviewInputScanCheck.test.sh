@@ -25,6 +25,10 @@ mkdir -p "$rigTmp/ws" "$rigSkills/magic-coordinator" "$rigSkills/magic-librarian
 	"$rigData/inboxes/magic-coordinator/incoming" "$rigData/inboxes/magic-librarian/incoming"
 printf '# magic-coordinator\n' > "$rigSkills/magic-coordinator/SKILL.md"
 printf '# magic-librarian\n' > "$rigSkills/magic-librarian/SKILL.md"
+## The board's own writer, sourced and pointed at this rig before the first item is written: every item of this
+## check goes through it, so a change to the store's write contract reddens this check.
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-writes.include.sh" || exit 1
+rigOwnerWs="${rigWs:-$rigTmp/ws}" rigOwnerData="${rigData:-${rigD:-${rigStore:-${rigOut:-$rigTmp/data}}}}" rigOwnerHome="${rigHome:-$rigTmp/home}" rigOwnerSkills="${rigSkills:-$rigTmp/skills}"
 rigItem(){ ## state, name, header lines
 	printf -- '---\n%b---\n\nBODY-SENTINEL never in a scan\n' "$3" | rigOwnerBoardPut "$1" "$2.md"
 }
@@ -33,9 +37,9 @@ for rigN in 1 2 3 4 5 ; do
 done
 rigItem blocked task-rig-condition "type: task\ncondition: waits on rig\n"
 rigItem blocked task-rig-blockedby "type: task\nblocked-by: task-rig-other\n"
-## Hand-made on purpose: the owner's write always gives an item a front matter, and this item exists to have
-## none, so the scan's own answer to that can be seen.
-printf 'no frontmatter at all\nBODY-SENTINEL\n' > "$rigData/board/blocked/task-rig-nofm.md"
+## An item with no front matter at all. The owner's writer passes the text it is given through verbatim, so this
+## item reaches the board with none, and the scan's own answer to that can be seen.
+printf 'no frontmatter at all\nBODY-SENTINEL\n' | rigOwnerBoardPut blocked task-rig-nofm.md || exit 1
 rigItem parked task-rig-norecheck "type: task\n"
 rigItem parked task-rig-recheck "type: task\nrecheck-date: 2026-10-10 00:00 +0000\n"
 rigItem review dispatch-rig-noreviewby "status: dispatch-succeeded\n"
@@ -51,8 +55,6 @@ touch -t 202001010000 "$rigSkills/magic-librarian/rig-old.md"
 
 rigPassCount=0
 rigFailCount=0
-. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-writes.include.sh" || exit 1
-rigOwnerWs="${rigWs:-$rigTmp/ws}" rigOwnerData="${rigData:-${rigD:-${rigStore:-${rigOut:-$rigTmp/data}}}}" rigOwnerHome="${rigHome:-$rigTmp/home}" rigOwnerSkills="${rigSkills:-$rigTmp/skills}"
 rigOwnerBoardReady
 rigAssert(){ ## what is asserted, got, want
 	if [ "$2" = "$3" ] ; then

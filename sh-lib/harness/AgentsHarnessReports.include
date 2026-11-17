@@ -20,6 +20,21 @@ AgentsHarnessFormalBody(){ ## block `<Section>/<heading>`
 	ASKP_BLOCK="$1" AgentsToolsAskPostFill block report.post.format.md "" 2> "$harnessScratch/report-post.err"
 }
 
+## The deliverables of the routine in force, as a handback carries them (S6.27 stage 5): the routine's own
+## `deliverables:` lines, one item a line and each under `- `, copied by the tooling and never composed by the member.
+## Nothing where the session runs no routine, or its routine declares none, so the label is left out as any empty field is.
+AgentsHarnessReportDeliverables(){
+	local reportSession reportLines="" reportLine
+	reportSession="${harnessSessionId:-${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}}"
+	[ -n "$reportSession" ] || return 0
+	type AgentsToolsRoutineDeliverablesInForce > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/routine/AgentsTools.RoutineRequirements.include"
+	while IFS= read -r reportLine ; do
+		[ -n "$reportLine" ] || continue
+		reportLines="$reportLines${reportLines:+$'\n'}- $reportLine"
+	done <<< "$( AgentsToolsRoutineDeliverablesInForce "$reportSession" )"
+	printf '%s' "$reportLines"
+}
+
 ## The task a report belongs to, as it stands under the report's `Task` label: the task of
 ## this session in words, from the board item its spawn was dispatched for
 ## (AgentsTools.TaskText.include, the one piece of code that says a task in words), with the
@@ -46,11 +61,6 @@ AgentsHarnessReportTask(){ ## the task as the call gave it (may be empty)
 		ASKP_F_task_title="$reportTitle" ASKP_F_task_names="$reportNames" ASKP_F_task_given="${1:-}" AgentsHarnessFormalBody "Lines/task" && return 0
 	fi
 	printf '%s' "${1:-}"
-}
-
-## What a report tool returns when its body could not be filled: nothing was sent.
-AgentsHarnessFormalUnfilled(){ ## tool name
-	printf 'ERROR: %s: the post could not be filled from its template, so nothing was sent. What the fill reported follows:\n%s\n' "$1" "$( cat "$harnessScratch/report-post.err" 2>/dev/null )"
 }
 
 ## The exact inverse of AgentsTools.InternOpPermission.include's
@@ -94,7 +104,7 @@ AgentsHarnessFormalSend(){ ## tool name, target, as_bot, body text, optional nex
 AgentsHarnessReportsTo(){
 	local reportsRecord=""
 	AgentsSessionRunRecordInto reportsRecord "${MDAT_SPAWN_SESSION_ID:-}" || return 1
-	type AgentsToolsRunRoute > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.RunRoute.include" || return 1
+	type AgentsToolsRunRoute > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.RunRoute.include" || return 1
 	AgentsToolsRunRoute "$reportsRecord" 2> /dev/null
 }
 
@@ -108,12 +118,12 @@ AgentsHarnessReportRoute(){ ## the to the run gave, the address_to it gave
 	routeOwn="${MDAT_SESSION_THREAD:-}"
 	if [ -z "$routeOwn" ] ; then
 		## The one finder of a session's own thread: the session the run joined, its spawn record, else its sessions/<id>/session.thread.
-		type AgentsToolsSessionCurrentThreadFind > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionThreads.include"
+		type AgentsToolsSessionCurrentThreadFind > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.SessionThreads.include"
 		routeOwn="$( AgentsToolsSessionCurrentThreadFind 2> /dev/null )" || routeOwn=""
 	fi
 	case "$routeOwn" in [CG][A-Z0-9]*:[0-9]*.[0-9]*) ;; *) routeOwn="" ;; esac
 	routeTo="$routeGiven" ; routeAddress="${2:-}"
-	type AgentsToolsRunRouteKind > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.RunRoute.include"
+	type AgentsToolsRunRouteKind > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.RunRoute.include"
 	routeWhere="$( AgentsHarnessReportsTo )" && [ -n "$routeWhere" ] || return 1
 	routeKind="$( AgentsToolsRunRouteKind "$routeWhere" 2> /dev/null )" || routeKind=""
 	## A RUN THAT REPORTS TO NO ONE REPORTS UP THE LADDER (the human-owner's rule): `reports-to: none` means no review, never no
@@ -171,8 +181,8 @@ AgentsHarnessReportRoute(){ ## the to the run gave, the address_to it gave
 AgentsHarnessReportsNone(){
 	local noneRecord=""
 	AgentsSessionRunRecordInto noneRecord "${MDAT_SPAWN_SESSION_ID:-}" || return 1
-	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandboxRecordHeader.include" || return 1
-	[ "$( AgentsToolsSpawnSandboxRecordHeader "$noneRecord" "$agentsRunRouteField" )" = none ]
+	type AgentsToolsFrontmatterKey > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.FrontmatterKey.include" || return 1
+	[ "$( AgentsToolsFrontmatterKey "$noneRecord" "$agentsRunRouteField" )" = none ]
 }
 
 ## Posting a handback does not end this run and releases nobody waiting on it -- the
@@ -185,6 +195,7 @@ AgentsHarnessToolSubagentHandbackRun(){ ## task, outcome, findings, unfinished, 
 	type AgentsHarnessDismissedKeep > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessWait.include"
 	type AgentsToolsSessionDismissHold > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionSeats.include"
 	local toolTo="$harnessParentName" toolTask="$1" toolOutcome="$2" toolFindings="$3" toolUnfinished="$4" toolAsBot="$5" toolAddressTo="" toolPendingCount="${6:-0}" toolBody
+	local toolDeliverables=""
 	local toolOpen="" toolOpenRc=0 toolOther="" toolLine="" toolOthers=0
 	if [ -z "$toolOutcome" ] ; then
 		printf 'ERROR: SubagentHandback: outcome is required and was empty. A handback carrying no outcome reports nothing, so nothing was sent.\n' ; return 0
@@ -246,8 +257,9 @@ AgentsHarnessToolSubagentHandbackRun(){ ## task, outcome, findings, unfinished, 
 		toolCollected="$( "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-op-pending-reply-collect \
 			--session-id "$toolCollectSession" --context SubagentHandback 2>/dev/null | LC_ALL=C grep -v '^COLLECT: ' )" || toolCollected=""
 	fi
-	toolBody="$( ASKP_F_task="$( AgentsHarnessReportTask "$toolTask" )" ASKP_F_outcome="$toolOutcome" ASKP_F_findings="$toolFindings" ASKP_F_unfinished="$toolUnfinished" ASKP_F_collected="$toolCollected" ASKP_F_address_to="$toolAddressTo" \
-		AgentsHarnessFormalBody "Skeleton/SubagentHandback" )" || { AgentsHarnessFormalUnfilled SubagentHandback ; return 0 ; }
+	toolDeliverables="$( AgentsHarnessReportDeliverables )"
+	toolBody="$( ASKP_F_task="$( AgentsHarnessReportTask "$toolTask" )" ASKP_F_outcome="$toolOutcome" ASKP_F_deliverables="$toolDeliverables" ASKP_F_findings="$toolFindings" ASKP_F_unfinished="$toolUnfinished" ASKP_F_collected="$toolCollected" ASKP_F_address_to="$toolAddressTo" \
+		AgentsHarnessFormalBody "Skeleton/SubagentHandback" )" || { printf 'ERROR: %s: the post could not be filled from its template, so nothing was sent. What the fill reported follows:\n%s\n' SubagentHandback "$( cat "$harnessScratch/report-post.err" 2>/dev/null )" ; return 0 ; }
 	rm -f "$harnessScratch/send.out" "$harnessScratch/send.delivered"
 	## Its own words are the outcome, the findings and what is unfinished: the task as given is
 	## carried, and the answers collected are the tooling's.
@@ -369,7 +381,7 @@ AgentsHarnessToolReportFindings(){
 		case "$toolTo" in "$harnessParentName"|"$harnessCurrentName") toolAddressTo="$( AgentsHarnessCallerMember )" ;; esac
 	fi
 	toolBody="$( ASKP_F_task="$( AgentsHarnessReportTask )" ASKP_F_subject="$toolSubject" ASKP_F_findings="$toolFindings" ASKP_F_evidence="$toolEvidence" ASKP_F_confidence="$toolConfidence" ASKP_F_address_to="$toolAddressTo" \
-		AgentsHarnessFormalBody "Skeleton/ReportFindings" )" || { AgentsHarnessFormalUnfilled ReportFindings ; return 0 ; }
+		AgentsHarnessFormalBody "Skeleton/ReportFindings" )" || { printf 'ERROR: %s: the post could not be filled from its template, so nothing was sent. What the fill reported follows:\n%s\n' ReportFindings "$( cat "$harnessScratch/report-post.err" 2>/dev/null )" ; return 0 ; }
 	harnessSendProse="$( AgentsHarnessSendProse "$toolSubject" "$toolFindings" "$toolEvidence" "$toolConfidence" )" \
 	AgentsHarnessFormalSend ReportFindings "$toolTo" "$toolAsBot" "$toolBody" "" "$toolAddressTo"
 }
@@ -392,7 +404,7 @@ AgentsHarnessToolPushNotification(){
 	toolMark="$( AgentsHarnessFormalBody "Severity/$toolSeverity" )" || toolMark=""
 	toolBody="$( ASKP_F_task="$( AgentsHarnessReportTask )" ASKP_F_severity="$toolMark" ASKP_F_headline="$toolHeadline" ASKP_F_detail="$toolDetail" ASKP_F_action_required="$toolAction" ASKP_F_address_to="$toolAddressTo" \
 		AgentsHarnessFormalBody "Skeleton/PushNotification" )" || toolBody=""
-	[ -n "$toolMark" ] && [ -n "$toolBody" ] || { AgentsHarnessFormalUnfilled PushNotification ; return 0 ; }
+	[ -n "$toolMark" ] && [ -n "$toolBody" ] || { printf 'ERROR: %s: the post could not be filled from its template, so nothing was sent. What the fill reported follows:\n%s\n' PushNotification "$( cat "$harnessScratch/report-post.err" 2>/dev/null )" ; return 0 ; }
 	harnessSendProse="$( AgentsHarnessSendProse "$toolHeadline" "$toolDetail" "$toolAction" )" \
 	AgentsHarnessFormalSend PushNotification "$toolTo" "$toolAsBot" "$toolBody" "" "$toolAddressTo"
 }
@@ -415,7 +427,7 @@ AgentsHarnessToolArtifact(){
 	[ -n "$toolTitle" ] || toolTitle="$( AgentsHarnessFormalBody "Words/untitled" )" || toolTitle=""
 	toolBody="$( ASKP_F_task="$( AgentsHarnessReportTask )" ASKP_F_title="$toolTitle" ASKP_F_kind="$toolKind" ASKP_F_url="$toolUrl" ASKP_F_summary="$toolSummary" ASKP_F_address_to="$toolAddressTo" \
 		AgentsHarnessFormalBody "Skeleton/Artifact" )" || toolBody=""
-	[ -n "$toolTitle" ] && [ -n "$toolBody" ] || { AgentsHarnessFormalUnfilled Artifact ; return 0 ; }
+	[ -n "$toolTitle" ] && [ -n "$toolBody" ] || { printf 'ERROR: %s: the post could not be filled from its template, so nothing was sent. What the fill reported follows:\n%s\n' Artifact "$( cat "$harnessScratch/report-post.err" 2>/dev/null )" ; return 0 ; }
 	AgentsHarnessFormalSend Artifact "$toolTo" "$toolAsBot" "$toolBody" "" "$toolAddressTo"
 }
 

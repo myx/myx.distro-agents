@@ -441,7 +441,7 @@ AgentsToolsCommsSlackConversationsRoster(){ ## <team-member> [options] | --print
 
 		local rosterLines="" rosterLinesRc=0
 		rosterLines="$( printf '%s\n' "$rosterConvPages" \
-			| LC_ALL=C awk -v array=channels -v want=id,is_im,is_mpim,user,is_user_deleted,is_member \
+			| LC_ALL=C awk -v array=channels -v want=id,is_im,is_mpim,user,is_user_deleted,is_member,latest \
 				-v mode=records -v dialect=slack -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" )" || rosterLinesRc=$?
 		rosterConvPages=""
 		if [ "$rosterLinesRc" != "0" ] ; then
@@ -508,8 +508,8 @@ AgentsToolsCommsSlackConversationsRoster(){ ## <team-member> [options] | --print
 				if (kind == "other" && $6 != "true") next
 				who = ($4 == "") ? "-" : $4
 				name = (who in handleOf && handleOf[who] != "") ? handleOf[who] : "-"
-				printf("CONV|identity=%s|auth=%s|id=%s|kind=%s|counterparty=%s|handle=%s|counterparty-deleted=%s\n", \
-					identity, auth, $1, kind, who, name, ($5 == "" ? "-" : $5))
+				printf("CONV|identity=%s|auth=%s|id=%s|kind=%s|counterparty=%s|handle=%s|counterparty-deleted=%s|latest=%s\n", \
+					identity, auth, $1, kind, who, name, ($5 == "" ? "-" : $5), ($7 == "" ? "-" : $7))
 				if (name != "-" && !(who in named)) { named[who] = name ; order[++nn] = who ; }
 				count++
 			}

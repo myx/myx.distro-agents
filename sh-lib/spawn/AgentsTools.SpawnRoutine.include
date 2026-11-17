@@ -43,8 +43,7 @@ AgentsToolsSpawnRoutineDefaultName(){
 ## absolute path on success. Zero or more than one match is refused, with the candidates
 ## named for a reader to narrow the selector by.
 AgentsToolsSpawnRoutineResolve(){ ## selector
-	local routineSelector="$1" routineRoot routineFile routineMatches=() routineMember routineDir
-	routineRoot="${MDAT_SKILLSET_ROOT:-$MMDAPP/.local/agents/members}"
+	local routineSelector="$1" routineFile routineMatches=() routineMember routineDir
 	## Every member's folder, a member of another workspace included (AgentsToolsTeamMemberDirectoryText).
 	while IFS=$'\t' read -r routineMember routineDir ; do
 		[ -n "$routineDir" ] || continue
@@ -57,7 +56,7 @@ AgentsToolsSpawnRoutineResolve(){ ## selector
 	done <<< "$( AgentsToolsTeamMemberDirectoryText )"
 	case "${#routineMatches[@]}" in
 		0)
-			echo "⛔ ERROR: --routine $routineSelector: matches no routine file under $routineRoot" >&2
+			echo "⛔ ERROR: --routine $routineSelector: matches no routine file in the member directory the tooling serves for ${MMDAPP%/}" >&2
 			return 1
 		;;
 		1)

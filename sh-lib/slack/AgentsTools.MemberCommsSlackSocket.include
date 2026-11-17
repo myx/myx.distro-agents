@@ -29,10 +29,7 @@ case "$1" in
 		fi
 		type AgentsToolsAssertBareName > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.BareName.include"
 		AgentsToolsAssertBareName "$memberName" "<team-member>" "socket-$socketOp" || { set +e ; return 1 ; }
-		if [ ! -d "$MDAT_SKILLSET_ROOT/$memberName" ] ; then
-			echo "$MDSC_CMD: socket-$socketOp: ⛔ ERROR: no such team member: $memberName" >&2
-			set +e ; return 1
-		fi
+		AgentsToolsSlackMemberPresent "$memberName" "socket-$socketOp" || { set +e ; return 1 ; }
 		if [ $# -gt 0 ] ; then
 			echo "$MDSC_CMD: socket-$socketOp: ⛔ ERROR: invalid option: $1" >&2
 			set +e ; return 1

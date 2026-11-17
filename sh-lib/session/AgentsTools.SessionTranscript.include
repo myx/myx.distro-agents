@@ -105,7 +105,7 @@ AgentsTranscriptRunTail(){ ## run, sandbox, session (may be empty), lines
 ## The part to append to now. A part at or over the roll size starts the next one,
 ## created exclusively, so of two writers rolling at once only one writes its header.
 AgentsTranscriptPath(){ ## session id
-	local basePath currentPath nextPath partNumber=1 currentBytes
+	local basePath currentPath nextPath partNumber=1 currentBytes rollBytes
 	basePath="$( AgentsTranscriptBase "$1" )" || return 1
 	currentPath="$basePath"
 	while : ; do
@@ -116,7 +116,9 @@ AgentsTranscriptPath(){ ## session id
 	done
 	currentBytes="$( wc -c < "$currentPath" 2>/dev/null | tr -d ' ' )"
 	case "$currentBytes" in ''|*[!0123456789]*) currentBytes=0 ;; esac
-	if [ "$currentBytes" -ge "$( rollBytes="${MDAT_TRANSCRIPT_ROLL_BYTES:-8388608}" ; case "$rollBytes" in ''|*[!0123456789]*) rollBytes=8388608 ;; esac ; printf '%s' "$rollBytes" )" ] ; then
+	rollBytes="${MDAT_TRANSCRIPT_ROLL_BYTES:-8388608}"
+	case "$rollBytes" in ''|*[!0123456789]*) rollBytes=8388608 ;; esac
+	if [ "$currentBytes" -ge "$rollBytes" ] ; then
 		if ( set -C ; : > "$nextPath" ) 2>/dev/null ; then
 			printf '%s ROLL -> %s\n' "$( date -u +%Y-%m-%dT%H:%M:%SZ )" "${nextPath##*/}" >> "$currentPath" 2>/dev/null
 			printf '%s CONTINUED from %s\n' "$( date -u +%Y-%m-%dT%H:%M:%SZ )" "${currentPath##*/}" >> "$nextPath" 2>/dev/null
@@ -154,12 +156,20 @@ AgentsTranscriptAppend(){ ## file, text
 }
 
 ## `<ts> KIND key=val ...` through the formatter; an empty value drops its key.
+## A value's newline, tab and carriage return become one space each by parameter expansion:
+## the fork and pipe a `tr` per key set cost were the largest single block of the spawn's externals
+## (8 of 95) and of every transcript line's. Proved equal to the `tr` on bash 3.2 for a
+## control with none, one with all three, and the empty value.
 AgentsTranscriptEventLine(){ ## kind, then key value pairs
-	local eventKind="$1"
+	local eventKind="$1" eventValue
 	shift
 	{
 		while [ $# -ge 2 ] ; do
-			printf '%s\t%s\n' "$1" "$( printf '%s' "$2" | tr '\n\t\r' '   ' )"
+			eventValue="$2"
+			eventValue="${eventValue//$'\n'/ }"
+			eventValue="${eventValue//$'\t'/ }"
+			eventValue="${eventValue//$'\r'/ }"
+			printf '%s\t%s\n' "$1" "$eventValue"
 			shift 2
 		done
 	} | STL_TS="$( date -u +%Y-%m-%dT%H:%M:%SZ )" STL_KIND="$eventKind" LC_ALL=C awk -v stlStandalone=event -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsSessionTranscriptFormat.awk"
@@ -511,6 +521,41 @@ AgentsTranscriptNote(){ ## session id, author, text, time given (optional)
 }
 
 ## ---- tokens ----
+
+## Every run's token sums, into the named variable, `<run><TAB><in><TAB><cache-read><TAB><cache-write><TAB><out>` a line: the running sum the
+## harness keeps in the run's own folder. A file that holds no four numbers names no line. One read of the store, on the schedule's
+## own index pass, and no path built outside it.
+AgentsSessionTokensRowsInto(){ ## variable, workspace (default MMDAPP)
+	local tokensVar="$1" tokensWs="${2:-${MMDAPP:-}}" tokensFile tokensRun tokensIn tokensCr tokensCw tokensOut tokensRest tokensAll=""
+	case "$tokensVar" in ''|*[!A-Za-z0-9_]*) return 1 ;; esac
+	case "${tokensWs%/}" in ''|/) return 1 ;; esac
+	printf -v "$tokensVar" '%s' ""
+	for tokensFile in "${tokensWs%/}/.local/agents/sessions"/*/tokens ; do
+		[ -f "$tokensFile" ] || continue
+		tokensIn="" ; tokensCr="" ; tokensCw="" ; tokensOut="" ; tokensRest=""
+		read -r tokensIn tokensCr tokensCw tokensOut tokensRest < "$tokensFile" || :
+		case "$tokensIn$tokensCr$tokensCw$tokensOut" in ''|*[!0123456789]*) continue ;; esac
+		tokensRun="${tokensFile%/tokens}" ; tokensRun="${tokensRun##*/}"
+		tokensAll="$tokensAll$tokensRun"$'\t'"$tokensIn"$'\t'"$tokensCr"$'\t'"$tokensCw"$'\t'"$tokensOut"$'\n'
+	done
+	printf -v "$tokensVar" '%s' "$tokensAll"
+}
+
+## The runs whose token sums were written after a marker file, into the named variable, one run id a line: a reader's own index catches up
+## from the runs whose sum moved since that index was taken.
+AgentsSessionTokensNewRunsInto(){ ## variable, marker file, workspace (default MMDAPP)
+	local newVar="$1" newMarker="${2:-}" newWs="${3:-${MMDAPP:-}}" newFile newRun newAll=""
+	case "$newVar" in ''|*[!A-Za-z0-9_]*) return 1 ;; esac
+	printf -v "$newVar" '%s' ""
+	[ -f "$newMarker" ] || return 0
+	case "${newWs%/}" in ''|/) return 1 ;; esac
+	while IFS= read -r newFile ; do
+		[ -n "$newFile" ] || continue
+		newRun="${newFile%/tokens}" ; newRun="${newRun##*/}"
+		newAll="$newAll$newRun"$'\n'
+	done <<< "$( find "${newWs%/}/.local/agents/sessions" -mindepth 2 -maxdepth 2 -name tokens -newer "$newMarker" 2> /dev/null )"
+	printf -v "$newVar" '%s' "$newAll"
+}
 
 ## Adds one round to the session's running sum.
 AgentsSessionTokensAdd(){ ## session id, in, cache-read, cache-write, out

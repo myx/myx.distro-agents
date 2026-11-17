@@ -21,6 +21,7 @@ works is not rewritten".
 - A variable derived from another
 - A store path behind a name
 - A store read past its owner
+- A store path the caller builds
 - A name without its prefix
 - An operation in a file of many operations
 - A load that serves a path the file never takes
@@ -29,9 +30,12 @@ works is not rewritten".
 - A write to the system temp folder
 - A check run outside the test runner
 - A check that names its subject by its folder
+- A check that writes a store file by hand
 - An analytical SOLID scan left unrun
 - A guarded load whose name or file is wrong
 - A refactor review that skips the breach scan counts
+- A stage landed by copying whole files
+- A subshell or process on a call path
 - A review that reads only what the diff adds
 
 ## An unnecessary function
@@ -100,6 +104,21 @@ tooling, and it takes the same finding. Not a finding: an include of another
 concern, `sh-lib/<concern>/*.include` or a shared awk file, loaded to call its
 functions. That include is the concern's contract. The finding names the store,
 its owner, and the function that returns the data instead.
+
+## A store path the caller builds
+
+Rule: `code-craft.md`, "Loads and contracts", the owner-function bullet.
+
+Look for:
+
+- a call passing a path into another concern's function.
+- a caller assembling a store path from an id before the call.
+
+A finding is a caller that builds the path to another concern's part, where the
+callee could take the id. The path belongs in the owner's own function. Not a
+finding: the owner's include, loaded to call its functions, which is its
+contract. The finding names the call, the part it reaches, and the id the
+owner takes instead.
 
 ## A name without its prefix
 
@@ -226,6 +245,21 @@ subject by function name or by a glob over `sh-lib/*/`, never by a fixed folder.
 The finding names the selector, the move that breaks it, and the selector that
 survives.
 
+## A check that writes a store file by hand
+
+Rule: `code-craft.md`, "A check is code, and it is proven by its red", the
+fixture bullet.
+
+Look for:
+
+- a check writing a board, inbox or session file with its own heredoc.
+- a fixture made by copying a store file into place.
+
+A finding is a fixture built anywhere but through the store owner's writer,
+`sh-test/check-fixtures/rig-owner-writes.include.sh`. The check then asserts its
+own guess at the format, not the format the owner writes. The finding names the
+owner's writer for that store.
+
 ## An analytical SOLID scan left unrun
 
 Rule: the SOLID scan of the change's tree. Run
@@ -259,6 +293,35 @@ class counts on the result.
 
 A finding is a review of a refactor that quotes no class counts from a scan run
 with its root given. A default run reads live, not the copy.
+
+## A stage landed by copying whole files
+
+Rule: `code-craft.md`, "Batch changes".
+
+Look for:
+
+- a landing that copies a file whole from an older copy.
+- a removed line that was a live call from another landing.
+- a diff file nothing proved to apply.
+
+A finding is any of the three. The stage merges three ways against its base.
+Each removed line is read for a live owner call. A diff file is proved to apply
+before it is relied on. The finding names the file, the line, and the check the
+landing runs.
+
+## A subshell or process on a call path
+
+Rule: `code-craft.md`, "Each call runs only its own path", the call-path bullets.
+
+Look for:
+
+- a `$( )`, a pipeline or a background job on a schedule pass, a Wait round, a
+  tool call or a spawn start.
+- an array filled through a command substitution where a builtin serves.
+- a value written as `var=$( printf … )` where `printf -v var` serves.
+
+A finding is a subshell or a process started where a builtin does the same work.
+The finding names the call path, the line, and the builtin form the site takes.
 
 ## A review that reads only what the diff adds
 

@@ -21,8 +21,8 @@
 ## the one Python (AgentsKnowledgeStore.py) through the store's own Python.
 ##
 
-## The one place the workspace's knowledge index root is spelled. The build caller and the query both ask this, and
-## nothing else names the path, so a move of the index is one line.
+## The one place the workspace's knowledge index root is spelled: the build caller and the query must both ask it, and
+## nothing else names the path, so that a move of the index is one line.
 AgentsToolsKnowledgeIndexRoot(){ ## -- the index root on stdout
 	printf '%s\n' "${MMDAPP%/}/.local/knowledge-index"
 }

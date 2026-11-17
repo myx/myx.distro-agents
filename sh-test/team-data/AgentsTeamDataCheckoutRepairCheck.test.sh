@@ -19,7 +19,7 @@ rigRefuse(){
 [ -x "$rigFn" ] || rigRefuse "dispatcher not found: $rigFn"
 command -v git > /dev/null || rigRefuse "git is not installed"
 . "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
-. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-store-item.include.sh" || exit 1
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-writes.include.sh" || exit 1
 rigTmp="$( rigTempDir AgentsTeamDataCheckoutRepairCheck )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
 rigTmp="$( cd "$rigTmp" && pwd -P )"
@@ -49,7 +49,7 @@ rigRemote(){ ## name
 	git init -q --bare "$rigTmp/$1.git" || rigRefuse "could not init the bare remote $1"
 	rm -rf "$rigTmp/seed" ; mkdir -p "$rigTmp/seed"
 	printf 'seed\n' > "$rigTmp/seed/README.md"
-	## The seed store's own items, written by its own writes (rig-store-item.include.sh) while it is no repository yet, so the
+	## The seed store's own items, written by its own writes (rig-owner-writes.include.sh) while it is no repository yet, so the
 	## seed commit below carries them exactly as before. The five flat inbox items below are the pre-migration form the repair
 	## itself is the subject of, and no writer of the tooling produces that form: they stay as the remote's old layout.
 	printf 'board item\n' > "$rigTmp/seed-body-board" ; printf 'audit line\n' > "$rigTmp/seed-body-audit"

@@ -10,17 +10,12 @@
 ## arguments go to it as they come, its rows come back as they are, its status is the status of the call. The console renders them and computes nothing.
 ##
 
-## The Dispatcher, called as a script of this package, as the surfaces that delegate to it call it.
-AgentsToolsManagerStatsDispatcher(){ ## its arguments...
-	"$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsDispatcher.fn.sh" "$@"
-}
-
 case "$1" in
 
 	## The tokens summed by one key: `tokens <key> <runs> <in> <cache-read> <cache-write> <out>`, a row a key.
 	--manager-stats-tokens)
 		shift
-		AgentsToolsManagerStatsDispatcher --token-stats "$@"
+		"$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsDispatcher.fn.sh" --token-stats "$@"
 		managerStatsRc=$?
 		set +e ; return "$managerStatsRc"
 	;;
@@ -28,7 +23,7 @@ case "$1" in
 	## The routines rows of the runs: `routine <a row of routines.index>`, one routine's or every one's.
 	--manager-stats-routines)
 		shift
-		AgentsToolsManagerStatsDispatcher --routine-stats "$@"
+		"$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsDispatcher.fn.sh" --routine-stats "$@"
 		managerStatsRc=$?
 		set +e ; return "$managerStatsRc"
 	;;

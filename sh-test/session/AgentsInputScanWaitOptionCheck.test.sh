@@ -10,7 +10,7 @@
 ##   4. (the line form and its refusals are AgentsSkillsetValidateRoutineCheck's; the collect window of the work-duty scan is AgentsWorkDutyInputScanCheck's)
 ## Offline: a fake curl first on PATH; every tree is this rig's own.
 set -u
-. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-store.include.sh" || exit 1
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-writes.include.sh" || exit 1
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigPackage="$MDLT_ORIGIN/myx/myx.distro-agents"

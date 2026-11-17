@@ -115,7 +115,7 @@ AgentsWaitProbeChecklist(){
 	if [ "${agentsWaitChecklistKey:-}" = "$probeSpawn:$1" ] && [ -n "${agentsWaitChecklistFile:-}" ] ; then
 		probeFile="$agentsWaitChecklistFile"
 	else
-		type AgentsSessionChecklistFileInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+		type AgentsSessionChecklistFileInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.CheckListSeed.include"
 		AgentsSessionChecklistFileInto probeFile "$probeSpawn" "$1" || return 2
 		[ ! -f "$probeFile" ] || { agentsWaitChecklistKey="$probeSpawn:$1" ; agentsWaitChecklistFile="$probeFile" ; }
 	fi

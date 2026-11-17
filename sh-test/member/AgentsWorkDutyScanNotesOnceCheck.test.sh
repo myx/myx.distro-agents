@@ -40,14 +40,13 @@ mkdir -p "$rigW/.local/.agents" "$rigW/.local/agents/spawned" "$rigW/.local/agen
 rigCopyTree "${rigHere%/myx/myx.distro-agents/sh-lib}" "$rigW/source" || rigRefuse "the rig's source copy could not be made"
 printf '# magic-coordinator\n' > "$rigW/.local/agents/members/magic-coordinator/SKILL.md"
 printf 'SLACK_CHANNEL_MAGIC_TEAM=CRIG00001\nSLACK_CHANNEL_HUMAN_OWNER=URIGOWNER\nSLACK_BOT_TOKEN=rig-bot-token-TEAM\nWAIT_COLLECT_SECONDS=1\n' > "$rigW/.local/.agents/magic-team.agent.env"
-rigItem="$rigD/board/running/dispatch-rig-running.md"
-rigItemWrite(){ ## the tokens line the running item holds
-	printf -- '---\ntype: dispatch\nowner: magic-coordinator\nstatus: dispatch-started\n%s\n---\n\n# Rig running item\n' "$1" > "$rigItem"
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-writes.include.sh" || exit 1
+rigOwnerWs="${rigWs:-$rigTmp/ws}" rigOwnerData="${rigData:-${rigD:-${rigStore:-${rigOut:-$rigTmp/data}}}}" rigOwnerHome="${rigHome:-$rigTmp/home}" rigOwnerSkills="${rigSkills:-$rigTmp/skills}"
+rigItemWrite(){ ## the tokens line the running item holds -- written by the board's own owner, which makes its state folder
+	printf -- '---\ntype: dispatch\nowner: magic-coordinator\nstatus: dispatch-started\n%s\n---\n\n# Rig running item\n' "$1" | rigOwnerBoardPut running dispatch-rig-running.md
 }
 rigItemWrite "tokens: in=1 cache-read=2 cache-write=3 out=4"
 rigSession="rig-scan-tokens-session" rigRun="rig-scan-tokens-run"
-. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-writes.include.sh" || exit 1
-rigOwnerWs="${rigWs:-$rigTmp/ws}" rigOwnerData="${rigData:-${rigD:-${rigStore:-${rigOut:-$rigTmp/data}}}}" rigOwnerHome="${rigHome:-$rigTmp/home}" rigOwnerSkills="${rigSkills:-$rigTmp/skills}"
 ## One Wait on the scan source, timeout 0, as a run of the team session.
 rigWait(){ ## result name
 	local waitRc=0

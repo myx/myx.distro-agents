@@ -33,11 +33,13 @@ rigRefuse(){
 command -v git > /dev/null || rigRefuse "git is not installed"
 . "$rigPkg/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
 . "$rigPkg/sh-test/check-fixtures/rig-processes.include.sh" || exit 1
+## And every thread a scene of this rig starts, ended at its next tick or not, ends before its tree goes.
+. "$rigPkg/sh-test/check-fixtures/rig-control-threads.include.sh" || exit 1
 rigTmp="$( rigTempDir AgentsArtifactClaimCommitCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 rigRealGit="$( command -v git )"
 rigThreadLock=""
-trap 'rigClaimThreadEnd ; rm -rf -- "$rigTmp"' EXIT
+trap 'rigClaimThreadEnd ; rigControlThreadsEnd "$rigTmp" ; rm -rf -- "$rigTmp"' EXIT
 rigWs="$rigTmp/ws" rigData="$rigTmp/data" rigBin="$rigTmp/bin" rigHome="$rigTmp/home" rigSkills="$rigTmp/skills"
 mkdir -p "$rigWs/.local/.agents" "$rigWs/.local/temp" "$rigBin" "$rigHome" "$rigSkills/magic-tester" || rigRefuse "could not create the rig"
 printf 'rig\n' > "$rigSkills/magic-tester/magic-tester.basic.md"

@@ -118,7 +118,7 @@ AgentsToolsAuthoritySessionRecord(){ ## session
 	type AgentsToolsSpawnedSessionRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include"
 	for sessionCandidate in $( AgentsToolsSpawnedSessionRecords "$1" own 2> /dev/null ) ; do
 		[ -n "$sessionAny" ] || sessionAny="$sessionCandidate"
-		type AgentsToolsRunRoute > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.RunRoute.include"
+		type AgentsToolsRunRoute > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.RunRoute.include"
 		AgentsToolsAuthorityHolds "$( AgentsToolsRunRoute "$sessionCandidate" )" "$1" || { printf '%s' "$sessionCandidate" ; return 0 ; }
 	done
 	[ -n "$sessionAny" ] || return 1
@@ -430,7 +430,7 @@ AgentsToolsAuthorityTarget(){ ## holder
 		printf 'human-owner\n'
 		return 0
 	fi
-	type AgentsToolsRunRoute > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.RunRoute.include"
+	type AgentsToolsRunRoute > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.RunRoute.include"
 	[ -n "$agentsAuthorityCallerRecord" ] && targetTo="$( AgentsToolsRunRoute "$agentsAuthorityCallerRecord" )" || targetTo=""
 	case "$targetTo" in ''|none) targetTo="$1" ;; esac
 	printf '%s\n' "$targetTo"
@@ -547,7 +547,7 @@ AgentsToolsAuthorityRequestOpen(){ ## mode (enqueue|wait), confirmation (yes|emp
 	if [ -n "$openConfirm" ] ; then
 		openTarget="human-owner" ; openAddress="human-owner"
 	else
-		type AgentsToolsRunRouteKind > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.RunRoute.include"
+		type AgentsToolsRunRouteKind > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.RunRoute.include"
 		case "$( AgentsToolsRunRouteKind "$openTo" )" in
 			person|none) openTarget="human-owner" ; openAddress="human-owner" ;;
 			member)
@@ -880,7 +880,7 @@ AgentsToolsAuthorityGate(){ ## what (words), original (pending id or spawn id), 
 	agentsAuthorityOutcome="act" agentsAuthorityChosenNow=""
 	## A refusal the caller says it is (agentsAuthorityRefusing, taken once) grants nothing: it is not gated.
 	if [ -n "${agentsAuthorityRefusing:-}" ] ; then agentsAuthorityRefusing="" ; return 0 ; fi
-	type AgentsToolsRunRoute > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.RunRoute.include"
+	type AgentsToolsRunRoute > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.RunRoute.include"
 	! AgentsToolsAuthorityApproved "$gateOriginal" || return 0
 	AgentsToolsAuthorityCaller
 	gateHolder="$( AgentsToolsRunRoute "$gateRecord" )"
@@ -1002,7 +1002,7 @@ AgentsToolsAuthorityRequestRead(){ ## request record
 		return 0
 	fi
 	type AgentsToolsEscalationThreadVerdict > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.Escalation.include"
-	type AgentsToolsRunRoute > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.RunRoute.include"
+	type AgentsToolsRunRoute > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.RunRoute.include"
 	readOut="$( AgentsToolsEscalationThreadVerdict "$( AgentsToolsAuthorityField "$readFile" owner )" "$readFile" "$( basename "$readFile" .md )" \
 		"$( AgentsToolsAuthorityField "$readFile" channel )" "$( AgentsToolsAuthorityField "$readFile" question-ts )" "$( AgentsToolsAuthorityField "$readFile" thread-ts )" \
 		"$( AgentsToolsAuthorityField "$readFile" addressees )" true 2> /dev/null )" || readOut=""

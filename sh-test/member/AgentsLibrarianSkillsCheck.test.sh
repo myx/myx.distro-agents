@@ -178,7 +178,7 @@ rigCheck(){ ## member, tool, path
 		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.Grants.include" || exit 97
 		AgentsToolsGrantsSessionEnsure "$MMDAPP" "$RIG_MEMBER" "s-$RIG_MEMBER" "" "" "$MDLT_ORIGIN/myx/myx.distro-agents/skillset" || exit 96
 		checkRc=0 ; checkSkill=no
-		AgentsToolsGrantsSessionCheck "$RIG_TOOL" "$RIG_PATH" "$MMDAPP/.local/agents/sessions/s-$RIG_MEMBER" || checkRc=$?
+		AgentsToolsGrantsSessionCheck "$RIG_TOOL" "$RIG_PATH" "s-$RIG_MEMBER" "$MMDAPP" || checkRc=$?
 		! AgentsToolsGrantsCheckSkillset || checkSkill=yes
 		printf "%s|%s|%s|%s" "$checkRc" "$agentsGrantsCheckLayer" "$agentsGrantsCheckFrom" "$checkSkill"
 	' 2> "$rigTmp/check.err"

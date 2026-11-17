@@ -1,0 +1,49 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+##
+## Fixture for AgentsSolidTrivialsCheck.test.sh: the trivials, one of every kind the rule names. Each of these must
+## come back as a `trivial` row, with its kind.
+##
+## A function whose body is one simple command, and one call site in this same file.
+SolidTrivialCopyPath(){ ## file
+	basename "$1"
+}
+
+## A function whose body is one printf of its arguments.
+SolidTrivialVersionLine(){ ## version
+	printf '%s\n' "$1"
+}
+
+SolidPositiveRun(){ ## path
+	SolidTrivialCopyPath "$1" > /dev/null
+	printf '%s\n' "$( SolidTrivialVersionLine two )"
+}
+
+## A variable from a literal, read once on the next line.
+SolidPositiveBase="base-value"
+printf '%s\n' "$SolidPositiveBase"
+
+## A variable from another variable, read once nearby.
+SolidPositiveOrigin="origin-value"
+SolidPositiveSeen="$SolidPositiveOrigin"
+printf '%s\n' "$SolidPositiveSeen"
+
+## Row: another file of the package calls it plainly, and that caller keeps the line itself.
+SolidPositivePlainCall(){ ## text
+	printf '%s\n' "$1"
+}
+
+## Row: another file only asks whether it is loaded, with `type`, and a load guard runs nothing.
+SolidPositiveGuardOnly(){ ## text
+	printf '%s\n' "$1"
+}
+
+## Row: a folder beside the package holds no sh-lib and no sh-scripts, so it counts as no package.
+SolidPositiveSiblingless(){ ## text
+	printf '%s\n' "$1"
+}
+
+## Row: the package beside this one writes the name in prose and in a heredoc body, and its code has it nowhere.
+SolidPositiveSiblingProse(){ ## text
+	printf '%s\n' "$1"
+}

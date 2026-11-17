@@ -1,0 +1,138 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.TeamDataStoreLock.include -- the one lock of the team-data store's own git: every commit, every integration of origin and
+## every push of the store's tree runs under it, so no two processes move that checkout at once. Sourced, never run. Functions only.
+##
+## The lock is a file, store.lock, in team-data-commit/ of the store's own git directory, so every workspace and every process that writes
+## the store meets this one lock. Its text is the pid of the holder. A take of a free lock forks nothing and starts no process: one builtin
+## test of the store's own .git directory, and one builtin write under `set -C`, which creates and never writes over a lock already there.
+## Only a held lock costs anything more: a read of its holder, one builtin test of that pid, and a broken holder's rename.
+##
+## Re-entrant in its process: a step that already holds the lock takes it again for free and counts, and only the shell that made the file
+## removes it, at its outermost give. So a locked span may call another locked step without waiting on itself, and a child shell that
+## inherited the hold never frees its parent's lock. Every take is paired with a give on every path out of its span.
+##
+
+teamStoreLockPath=""
+teamStoreLockDepth=0
+## 1 only in the shell that made the file. A command substitution or a subshell inherits the hold and takes it again for free with this 0.
+teamStoreLockMine=0
+teamStoreLockDir=""
+
+## Fills teamStoreLockDir with the folder the lock lives in, or leaves it empty where the store is no repository git can use. No fork: the
+## store's own .git directory answers a builtin test, and only a .git that is a file (a linked worktree) asks git for it.
+AgentsToolsTeamDataStoreLockDir(){ ## -- sets teamStoreLockDir
+	teamStoreLockDir=""
+	[ -n "${MDAT_DATA_ROOT:-}" ] || return 1
+	case "$MDAT_DATA_ROOT" in
+		/*) ;;
+		*) return 1 ;;
+	esac
+	if [ -d "$MDAT_DATA_ROOT/.git" ] ; then
+		teamStoreLockDir="${MDAT_DATA_ROOT%/}/.git/team-data-commit"
+		return 0
+	fi
+	[ -e "$MDAT_DATA_ROOT" ] || return 1
+	local dirGit=""
+	dirGit="$( git -C "$MDAT_DATA_ROOT" rev-parse --absolute-git-dir 2> /dev/null )" || return 1
+	[ -n "$dirGit" ] || return 1
+	teamStoreLockDir="$dirGit/team-data-commit"
+	return 0
+}
+
+## Moves a lock whose holder is gone aside, by a rename only one breaker can make, and puts back a fresh lock moved by mistake.
+AgentsToolsTeamDataStoreLockBreak(){ ## lock path, the holder this call read
+	local breakLock="$1" breakRead="$2" breakAside="" breakMoved="" breakNoClobber=""
+	breakAside="$( mktemp "$breakLock.stale.XXXXXX" 2> /dev/null )" || return 1
+	if ! mv "$breakLock" "$breakAside" 2> /dev/null ; then
+		rm -f "$breakAside" 2> /dev/null
+		return 1
+	fi
+	{ IFS= read -r breakMoved < "$breakAside" || [ -n "$breakMoved" ] ; } 2> /dev/null || breakMoved=""
+	rm -f "$breakAside" 2> /dev/null
+	[ "$breakMoved" = "$breakRead" ] && return 0
+	## A fresh lock taken between the read and the rename is its holder's, and it goes back: `set -C` creates or fails, never overwrites.
+	if [ -n "$breakMoved" ] ; then
+		case "$-" in *C*) breakNoClobber="yes" ;; *) set -C ;; esac
+		{ printf '%s' "$breakMoved" > "$breakLock" ; } 2> /dev/null || :
+		[ -n "$breakNoClobber" ] || set +C
+	fi
+	return 1
+}
+
+## Takes the lock for this process, waiting up to <tries> seconds for a live holder. rc 0 held, by this call or already by this process.
+## rc 0 too where there is no store git to key the lock to: nothing of the store is under git there, so nothing needs serialising, and a
+## write into such a store lands as it did before. rc 1 not held: a live holder kept it for the whole wait.
+AgentsToolsTeamDataStoreLockTake(){ ## tries, label
+	local takeTries="${1:-300}" takeLabel="${2:-the team-data store}" takeTry=0
+	local takeLock="" takeHolder="" takeMade="" takeNoClobber=""
+	if [ "${teamStoreLockDepth:-0}" -gt 0 ] ; then
+		teamStoreLockDepth=$(( teamStoreLockDepth + 1 ))
+		return 0
+	fi
+	if ! AgentsToolsTeamDataStoreLockDir ; then
+		teamStoreLockPath=""
+		teamStoreLockMine=0
+		teamStoreLockDepth=1
+		return 0
+	fi
+	takeLock="$teamStoreLockDir/store.lock"
+	[ -d "$teamStoreLockDir" ] || mkdir -p "$teamStoreLockDir" 2> /dev/null || return 1
+	case "$-" in *C*) takeNoClobber="yes" ;; *) set -C ;; esac
+	while [ "$takeTry" -lt "$takeTries" ] ; do
+		takeTry=$(( takeTry + 1 ))
+		takeMade=""
+		{ printf '%s' "$$" > "$takeLock" ; } 2> /dev/null && takeMade="yes"
+		if [ -n "$takeMade" ] ; then
+			teamStoreLockPath="$takeLock"
+			teamStoreLockMine=1
+			teamStoreLockDepth=1
+			[ -n "$takeNoClobber" ] || set +C
+			return 0
+		fi
+		{ IFS= read -r takeHolder < "$takeLock" || [ -n "$takeHolder" ] ; } 2> /dev/null || takeHolder=""
+		if [ "$takeHolder" = "$$" ] ; then
+			teamStoreLockPath="$takeLock"
+			teamStoreLockDepth=1
+			return 0
+		fi
+		case "$takeHolder" in
+			''|*[!0123456789]*)
+				## No pid this host can test: taken for one that is gone, and broken by the rename only one breaker makes.
+				AgentsToolsTeamDataStoreLockBreak "$takeLock" "$takeHolder" && continue
+			;;
+			*)
+				if ! kill -0 "$takeHolder" 2> /dev/null ; then
+					AgentsToolsTeamDataStoreLockBreak "$takeLock" "$takeHolder" && continue
+				fi
+			;;
+		esac
+		[ "$takeTry" -lt "$takeTries" ] || break
+		sleep 1
+	done
+	[ -n "$takeNoClobber" ] || set +C
+	echo "⚠️ WARNING: ${MDSC_CMD:-the tooling}: $takeLabel: the store lock stayed held by $( cat "$takeLock" 2> /dev/null ) for ${takeTries}s" >&2
+	return 1
+}
+
+## Whether this process holds the lock now: a builtin test, no fork.
+AgentsToolsTeamDataStoreLockHeld(){
+	[ "${teamStoreLockDepth:-0}" -gt 0 ]
+}
+
+## Gives back what this process holds, and removes the lock only at its outermost give, and only in the shell that made it.
+AgentsToolsTeamDataStoreLockGive(){
+	local giveHolder=""
+	[ "${teamStoreLockDepth:-0}" -gt 0 ] 2> /dev/null || return 0
+	teamStoreLockDepth=$(( teamStoreLockDepth - 1 ))
+	[ "$teamStoreLockDepth" -gt 0 ] && return 0
+	if [ "${teamStoreLockMine:-0}" = "1" ] && [ -n "$teamStoreLockPath" ] ; then
+		{ IFS= read -r giveHolder < "$teamStoreLockPath" || [ -n "$giveHolder" ] ; } 2> /dev/null || giveHolder=""
+		[ "$giveHolder" != "$$" ] || rm -f "$teamStoreLockPath" 2> /dev/null
+	fi
+	teamStoreLockMine=0
+	teamStoreLockPath=""
+	return 0
+}

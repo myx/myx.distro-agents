@@ -42,6 +42,13 @@ MEMBER_TEAM_KIND = "team"
 MEMBER_FOLDERS = (("permissions", "Permissions", "grants"), ("files", "Skillset Files", "files"),
                   ("sessions", "Sessions", "member-sessions"), ("settings", "Member Settings", "member-settings"),
                   ("help", "Member Help", "member-help"))
+## The level of one of a member's folders, as a plugin below `team` names it (so `*/sessions`), where `below` is what stands under
+## that folder. MEMBER_FOLDERS writes each id once, and every level that names a member's folder derives from it here.
+def memberFolderLevel(kind, below=""):
+    for folderId, label, folderKind in MEMBER_FOLDERS:
+        if folderKind == kind:
+            return "*/" + folderId + ("/" + below if below else "")
+    return None
 ## The scope a credential of a subject of the digest is read from, for the form of the credential: the scopes are their
 ## own (None: the group of the line is the scope), and the credentials of the CLIs are settings of the team.
 CREDENTIAL_SCOPE = {"scopes": None, "cli": "magic-team"}

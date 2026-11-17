@@ -41,9 +41,11 @@ rigRefuse(){
 [ -f "$rigTool" ] || rigRefuse "the tool is not at the origin this workspace resolves: $rigTool"
 [ -d "$rigOrigin/myx/myx.distro-.local" ] || rigRefuse "the tooling's own sibling is not beside the package under test: $rigOrigin/myx"
 . "$rigTest/check-fixtures/rig-temp.include.sh" || exit 1
+## And every thread a scene of this rig starts, by its log or its lock, ended before the rig goes.
+. "$rigTest/check-fixtures/rig-control-threads.include.sh" || rigRefuse "the rig's fixture that ends threads is missing from the package"
 rigTmp="$( rigTempDir AgentsSpawnDataRootCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
-trap 'chmod -R u+w -- "$rigTmp" 2> /dev/null ; rm -rf -- "$rigTmp"' EXIT
+trap 'rigControlThreadsEnd "$rigTmp" ; chmod -R u+w -- "$rigTmp" 2> /dev/null ; rm -rf -- "$rigTmp"' EXIT
 if [ "${MMDAPP#/}" = "${MMDAPP}" ] || [ "${MDAT_DATA_ROOT:-$rigTmp/absent}" = "${MDAT_DATA_ROOT#/}" ] ; then
 	rigRefuse "MMDAPP or MDAT_DATA_ROOT is not an absolute path, so the rig guard cannot be written"
 fi

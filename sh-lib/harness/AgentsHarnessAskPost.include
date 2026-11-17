@@ -13,11 +13,14 @@ AgentsHarnessAskPost(){
 ## Whether a name is a party a permission is routed for: the human-owner, or a team member
 ## by its name. A conversation, an account id and a routine are none.
 AgentsHarnessAskParty(){ ## name
+	local partyRoot=""
 	case "$1" in
 		human-owner) return 0 ;;
 		''|event-track|event-alert|magic-team|*[!abcdefghijklmnopqrstuvwxyz0123456789-]*) return 1 ;;
 	esac
-	[ -d "${MDAT_SKILLSET_ROOT:-${MMDAPP:-}/.local/agents/members}/$1" ]
+	type AgentsToolsSkillsetRootInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWorkspace.include"
+	AgentsToolsSkillsetRootInto partyRoot "${MMDAPP:-}"
+	[ -d "$partyRoot/$1" ]
 }
 
 ## The answer form of the caller's question: its kind's own, else its select, else free text.

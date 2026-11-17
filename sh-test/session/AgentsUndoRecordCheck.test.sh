@@ -29,7 +29,7 @@ rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 trap 'rigControlThreadsEnd "$rigTmp" ; chmod -R u+w "$rigTmp" 2> /dev/null ; rm -rf -- "$rigTmp"' EXIT
 mkdir -p "$rigTmp/bin" "$rigTmp/home"
 cp "$rigCurl" "$rigTmp/bin/curl" && chmod +x "$rigTmp/bin/curl" || rigRefuse "could not install the fake curl"
-for rigReal in date uuidgen awk sed grep cmp mkdir mktemp rm wc cut tr sort cat cp mv od dirname basename hostname ; do
+for rigReal in date uuidgen awk sed grep cmp diff mkdir mktemp rm wc cut tr sort cat cp mv od dirname basename hostname ; do
 	[ ! -x "/usr/bin/$rigReal" ] || ln -sf "/usr/bin/$rigReal" "$rigTmp/bin/$rigReal" 2> /dev/null || :
 	[ ! -x "/bin/$rigReal" ] || ln -sf "/bin/$rigReal" "$rigTmp/bin/$rigReal" 2> /dev/null || :
 done
@@ -114,6 +114,14 @@ rigAssert "the hold in the acting run's sandbox names that record" \
 	"$( LC_ALL=C grep -c "^rigrun/$rigId\$" "$rigRun/undo.hold" 2>/dev/null || : )" 1
 rigAssert "the record keeps the base the inverse puts back" \
 	"$( [ -f "$rigWs/.local/agents/sessions/rigrun/undo/$rigId/base" ] && cat "$rigWs/.local/agents/sessions/rigrun/undo/$rigId/base" || printf 'absent' )" "one"
+rigAssert "the prompt it posted shows the act's change, and keeps the whole diff beside the record" \
+	"$( LC_ALL=C grep -c -F 'What it changed' "$rigDir/post.1" 2> /dev/null ):$( LC_ALL=C grep -c -F -e '-one' "$rigDir/post.1" 2> /dev/null ):$( LC_ALL=C grep -c -F -e '+two' "$rigDir/post.1" 2> /dev/null ):$( [ -f "$rigWs/.local/agents/sessions/rigrun/undo/$rigId/change.diff" ] && printf kept || printf absent )" "1:1:1:kept"
+rigAssert "and a change short enough to show whole is not cut" \
+	"$( LC_ALL=C grep -c -F 'The diff is cut here' "$rigDir/post.1" 2> /dev/null )" 0
+rigNew samefile
+rigRecord one one
+rigAssert "an act whose result is its base shows no change, and still promises the undo -- the unchanged control" \
+	"$( LC_ALL=C grep -c -F 'What it changed' "$rigDir/post.1" 2> /dev/null ):$( LC_ALL=C grep -c -F 'To undo it' "$rigDir/post.1" 2> /dev/null )" "0:1"
 
 echo "-- 2. a kind outside the closed list --"
 rigToolCall --undo-record not-a-kind anything --session-id rigrun
@@ -186,7 +194,28 @@ rigAssert "his words are kept as he wrote them, and the record moves to rework-a
 rigAssert "and the hold stands, because the promise does" \
 	"$( [ -f "$rigRun/undo.hold" ] && printf held || printf released )" "held"
 
-echo "-- 8. the readers ask what the marker names --"
+echo "-- 8. a change too long to show whole says so, and names the whole one --"
+rigNew cut
+rigCutLineNo=1
+: > "$rigTmp/base-long.txt" ; : > "$rigTmp/result-long.txt"
+while [ "$rigCutLineNo" -le 200 ] ; do
+	printf 'line %s\n' "$rigCutLineNo" >> "$rigTmp/base-long.txt"
+	printf 'changed %s\n' "$rigCutLineNo" >> "$rigTmp/result-long.txt"
+	rigCutLineNo=$(( rigCutLineNo + 1 ))
+done
+cp "$rigTmp/result-long.txt" "$rigRun/output/live.txt"
+rigToolCall --undo-record file-write "$rigRun/output/live.txt" --base "$rigTmp/base-long.txt" --result "$rigTmp/result-long.txt" --session-id rigrun
+rigId="$( LC_ALL=C awk '/^RECORDED /{ print $2 ; exit }' "$rigTmp/call.out" )" || rigId=""
+rigCutLine="$( LC_ALL=C grep -m1 'The diff is cut here:' "$rigDir/post.1" 2> /dev/null )"
+rigCutTotal="$( printf '%s' "$rigCutLine" | LC_ALL=C sed -n 's/.*of its \([0-9][0-9]*\) lines are not shown.*/\1/p' )"
+rigKeptTotal="$( LC_ALL=C wc -l < "$rigWs/.local/agents/sessions/rigrun/undo/$rigId/change.diff" | LC_ALL=C tr -d ' ' )"
+rigShownTotal="$( LC_ALL=C sed -n '/What it changed/,/^✂️/p' "$rigDir/post.1" 2> /dev/null | LC_ALL=C grep -c -e '^-' -e '^+' )"
+rigAssert "a change too long to show whole says how many of its lines are not shown, of how many, and where the whole one is kept" \
+	"$( printf '%s' "$rigCutLine" | LC_ALL=C grep -c 'The diff is cut here:' ):$( printf '%s' "$rigCutLine" | LC_ALL=C grep -c 'change.diff' )" "1:1"
+rigAssert "the count it names is the kept diff's own, and the post shows fewer than it holds" \
+	"$rigCutTotal:$([ "${rigShownTotal:-0}" -lt "${rigKeptTotal:-0}" ] && printf fewer || printf not-fewer):$([ "${rigKeptTotal:-0}" -gt 60 ] && printf long || printf short)" "$rigKeptTotal:fewer:long"
+
+echo "-- 9. the readers ask what the marker names --"
 rigNew readers
 printf 'rigrun/undo-record-that-is-not-there\n' > "$rigRun/undo.hold"
 rigSweep "$rigTmp/sweep.out"

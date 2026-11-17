@@ -14,10 +14,8 @@
 			set +e ; return 1
 		fi
 		AgentsToolsAssertBareName "$memberName" "<team-member>" get-audit-item || { set +e ; return 1 ; }
-		if [ ! -d "$MDAT_SKILLSET_ROOT/$memberName" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --get-audit-item: no such member skill directory: $MDAT_SKILLSET_ROOT/$memberName" >&2
-			set +e ; return 1
-		fi
+		type AgentsToolsSlackMemberPresent > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/slack/AgentsTools.CommsSlack.include"
+		AgentsToolsSlackMemberPresent "$memberName" --get-audit-item || { set +e ; return 1 ; }
 		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 		DistroAgentsTools --intern-op-audit-item-read "$documentName" "$@"
 		return $?

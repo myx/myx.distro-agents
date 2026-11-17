@@ -25,4 +25,4 @@ type AgentsToolsContactsSlackTeam > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.di
 type AgentsToolsContactsTierName > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/contacts/AgentsTools.ContactsTiers.include"
 type AgentsToolsContactsCollectOrganisation > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/contacts/AgentsTools.ContactsCollect.include"
 type AgentsToolsContactsAll > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/contacts/AgentsTools.ContactsQuery.include"
-type AgentsToolsContactsChain > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/contacts/AgentsTools.ContactsAccess.include"
+type AgentsToolsContactsAccess > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/contacts/AgentsTools.ContactsAccess.include"

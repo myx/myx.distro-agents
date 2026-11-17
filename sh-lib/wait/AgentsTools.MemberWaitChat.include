@@ -8,6 +8,7 @@ type AgentsSessionThread > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agen
 ## Its helpers shared with the other probes are in AgentsTools.MemberWaitCore.include.
 ##
 type AgentsWaitPut > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/wait/AgentsTools.MemberWaitCore.include"
+type AgentsWaitReadRendered > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/wait/AgentsTools.MemberWaitSlack.include"
 
 ## THE SESSION CHAT FILE AS A SOURCE (F9.2): `chat:<session>`, the floor of a run beside the replies to its own posts. It reads
 ## the file (AgentsTools.SessionChat.include) from the pointer of the member forward, in full, the executor of the session every

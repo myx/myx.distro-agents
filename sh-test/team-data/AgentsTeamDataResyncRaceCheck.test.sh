@@ -31,7 +31,7 @@ rigRefuse(){
 [ -f "$rigMyx/bin/git/cloneSync.Common" ] || rigRefuse "myx.common git/cloneSync is missing: $rigMyx"
 command -v git > /dev/null || rigRefuse "git is not installed"
 . "$rigPkg/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
-. "$rigPkg/sh-test/check-fixtures/rig-store-item.include.sh" || exit 1
+. "$rigPkg/sh-test/check-fixtures/rig-owner-writes.include.sh" || exit 1
 rigTmp="$( rigTempDir AgentsTeamDataResyncRaceCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 export GIT_AUTHOR_NAME=rig GIT_AUTHOR_EMAIL=rig@example.invalid
@@ -79,7 +79,7 @@ rigSeed(){
 	git -C "$rigRemoteGit" symbolic-ref HEAD refs/heads/main
 	git init -q "$rigTmp/seed" && git -C "$rigTmp/seed" symbolic-ref HEAD refs/heads/main
 	printf 'seed\n' > "$rigTmp/seed/README.md"
-	## The seed item is written by the seed store's own write (rig-store-item.include.sh) while that store is no repository
+	## The seed item is written by the seed store's own write (rig-owner-writes.include.sh) while that store is no repository
 	## yet, so the seed commit below carries it exactly as before.
 	printf 'item one\n' > "$rigTmp/seed-body"
 	rigStoreItem "$rigTmp" "$rigTmp/seed" "$rigWs" magic-tester "board running ${rigShared##*/}" "$rigTmp/seed-body" \
@@ -145,7 +145,7 @@ echo "-- 3. a rig's own file never reaches the store's history, and the real ite
 rigSeed
 rigRigData="$rigStore/.local/agents/scratch/sh-test/rigcheck/data"
 ## A rig's own stray file, and the real item beside it. Both are written by their store's own write
-## (rig-store-item.include.sh): the stray into a store of its own outside the team-data store, then put where a rig's own
+## (rig-owner-writes.include.sh): the stray into a store of its own outside the team-data store, then put where a rig's own
 ## scratch lives, because that misplacement is the subject here and not a writer's output. The real item is the board's.
 printf 'a rig note\n' > "$rigTmp/stray-body"
 rigStoreItem "$rigTmp" "$rigTmp/stray-store" "$rigWs" magic-tester "inbox rig-member note-rig.md" "$rigTmp/stray-body" \

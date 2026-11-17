@@ -51,12 +51,19 @@ AgentsToolsTeamDataSettle(){ ## bound seconds
 		settlePath=""
 	done
 	[ -n "$settlePath" ] || [ -n "$( AgentsToolsTeamDataSettleDirty )" ] || return 0
-	## With the thread off, as the checks have it, the writers are committed here: there is no thread to ask.
-	if [ "${MDAT_TEAM_DATA_COMMIT_THREAD:-}" != "off" ] ; then
+	## With the thread off, as the checks have it, the writers are committed here: there is no thread to ask. A thread's own pass
+	## asks nobody either: it runs the same commit path a request to it would, so every writer keeps the context it left. And a
+	## caller that HOLDS THE STORE LOCK commits here too: the thread takes that same lock for itself, so asking it from inside a
+	## hold is a process waiting on a lock its own caller holds (AgentsTools.TeamDataStoreLock.include).
+	type AgentsToolsTeamDataStoreLockHeld > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataStoreLock.include"
+	if [ "${MDAT_TEAM_DATA_COMMIT_THREAD:-}" != "off" ] && [ -z "${serveFolder:-}" ] && ! AgentsToolsTeamDataStoreLockHeld ; then
 		type AgentsToolsOnDemandThreadStart > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.OnDemandThread.include"
 		mkdir -p "$settleDir" 2> /dev/null || :
 		AgentsToolsOnDemandThreadStart "$settleDir" --intern-team-data-commit --run > /dev/null 2>&1 || :
 		AgentsToolsOnDemandThreadAsk "$settleDir" "$settleBound" "commit" > /dev/null || :
+	elif [ -n "${serveFolder:-}" ] || AgentsToolsTeamDataStoreLockHeld ; then
+		type AgentsToolsTeamDataThreadPass > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataThread.include"
+		{ AgentsToolsTeamDataThreadPass commit ; } 3> /dev/null || :
 	fi
 	## A write that landed while that pass ran, and one whose entry never came: committed here, as the thread would have committed it.
 	while IFS= read -r settlePath ; do
@@ -71,7 +78,20 @@ AgentsToolsTeamDataSettle(){ ## bound seconds
 ## NOTHING IS LOST IN THE CROSSING. A tracked log whose last lines are uncommitted is committed first, so the lines a session appended
 ## exist in the branch before the index stops carrying the file, and a merge that takes origin's copy of it loses no line that was
 ## recorded. A store that tracks no log is left untouched: no commit, and no rule written for a file it never carried.
+## The store's one lock held for the whole untrack, which writes .gitignore, stages and commits (AgentsTools.TeamDataStoreLock.include).
 AgentsToolsTeamDataAuditUntrack(){ ## where
+	local untrackLockRc=0
+	type AgentsToolsTeamDataStoreLockTake > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataStoreLock.include"
+	if ! AgentsToolsTeamDataStoreLockTake 300 "the audit untrack" ; then
+		echo "⚠️ WARNING: $MDSC_CMD: $1: the store lock stayed held, so the audit log family was not untracked and a pull is still refused over it" >&2
+		return 1
+	fi
+	AgentsToolsTeamDataAuditUntrackLocked "$@" || untrackLockRc=$?
+	AgentsToolsTeamDataStoreLockGive
+	return "$untrackLockRc"
+}
+
+AgentsToolsTeamDataAuditUntrackLocked(){ ## where
 	[ -n "${MDAT_DATA_ROOT:-}" ] || return 0
 	local untrackRoot untrackPaths=() untrackPending=() untrackEntry untrackOut
 	untrackRoot="$( git -C "$MDAT_DATA_ROOT" rev-parse --show-toplevel 2> /dev/null )" || return 0
@@ -107,7 +127,20 @@ AgentsToolsTeamDataAuditUntrack(){ ## where
 ## uncommitted is a commit rather than a refusal, and a path origin also moves that is still uncommitted here is carried as this store's own
 ## commit, untracked ones included. A path this store's own rules will not commit is named in one line a caller can act on, and nothing is
 ## moved over it.
+## The store's one lock held for the whole prepare, which settles the writers, fetches and commits what origin also moved.
 AgentsToolsTeamDataPrepareSync(){ ## where, branch
+	local prepareLockRc=0
+	type AgentsToolsTeamDataStoreLockTake > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataStoreLock.include"
+	if ! AgentsToolsTeamDataStoreLockTake 300 "the store's prepare for a pull" ; then
+		echo "⚠️ WARNING: $MDSC_CMD: $1: the store lock stayed held, so the pull was not prepared and the tree was not moved" >&2
+		return 1
+	fi
+	AgentsToolsTeamDataPrepareSyncLocked "$@" || prepareLockRc=$?
+	AgentsToolsTeamDataStoreLockGive
+	return "$prepareLockRc"
+}
+
+AgentsToolsTeamDataPrepareSyncLocked(){ ## where, branch
 	local prepareWhere="$1" prepareBranch="$2" preparePath prepareLeft=""
 	[ -n "${MDAT_DATA_ROOT:-}" ] || return 0
 	AgentsToolsTeamDataSettle 60 || :
@@ -129,11 +162,31 @@ AgentsToolsTeamDataPrepareSync(){ ## where, branch
 ## as the close push settles one, and the pull runs once more: a store whose two sides both changed one item still comes level. The audit log
 ## family leaves the tracked set only after that: a log both sides appended is merged line by line first, so the crossing loses no line.
 ## Flags go before the three paths, as cloneSync takes them.
+## The store's one lock held for the whole sync: the prepare, the pull, the settle of a conflict and the audit untrack are one span.
 AgentsToolsTeamDataSyncWithRemote(){ ## where, repository root, origin url, branch, then the cloneSync flags
+	local syncLockRc=0
+	type AgentsToolsTeamDataStoreLockTake > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataStoreLock.include"
+	if ! AgentsToolsTeamDataStoreLockTake 300 "the store's sync" ; then
+		echo "⚠️ WARNING: $MDSC_CMD: $1: the store lock stayed held, so the store was not synced with origin" >&2
+		return 1
+	fi
+	AgentsToolsTeamDataSyncWithRemoteLocked "$@" || syncLockRc=$?
+	AgentsToolsTeamDataStoreLockGive
+	return "$syncLockRc"
+}
+
+AgentsToolsTeamDataSyncWithRemoteLocked(){ ## where, repository root, origin url, branch, then the cloneSync flags
 	local syncWhere="$1" syncRoot="$2" syncOrigin="$3" syncBranch="$4" syncRc=0
 	shift 4
 	[ -n "${MDAT_DATA_ROOT:-}" ] || return 0
 	AgentsToolsTeamDataPrepareSync "$syncWhere" "$syncBranch" || return 1
+	## $MYXROOT is resolved here, as the two sync sites further down this file resolve it: a caller that runs this function
+	## with no PATH answering for myx.common has set neither, and an empty value would run /bin/git/cloneSync.Common.
+	type AgentsToolsMyRoot > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.MyRoot.include"
+	if [ -z "${MYXROOT:-}" ] || [ ! -f "$MYXROOT/bin/git/cloneSync.Common" ] ; then
+		echo "⛔ ERROR: $MDSC_CMD: $syncWhere: myx.common git/cloneSync is not reachable on this machine, so the team-data store was not synced" >&2
+		return 1
+	fi
 	LC_ALL=C "$MYXROOT/bin/git/cloneSync.Common" "$@" "$syncRoot" "$syncOrigin" "$syncBranch" || syncRc=$?
 	if [ "$syncRc" -ne 0 ] && AgentsToolsTeamDataMergeAgain "$syncWhere" "$syncRoot" "$syncBranch" ; then
 		syncRc=0
@@ -155,6 +208,13 @@ AgentsToolsTeamDataCommitPaths(){ ## context, path...
 	local queueContext="$1" queueDir queueEntry queueStart
 	shift
 	[ "$#" -gt 0 ] && [ -n "${MDAT_DATA_ROOT:-}" ] && [ -n "${MMDAPP:-}" ] || return 0
+	## A CALLER THAT HOLDS THE STORE LOCK COMMITS HERE: the thread takes that same lock for itself, so a request to it from inside a hold
+	## is a process waiting on a lock its own caller holds. The commit path is re-entrant, so it runs under the caller's hold.
+	type AgentsToolsTeamDataStoreLockHeld > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataStoreLock.include"
+	if AgentsToolsTeamDataStoreLockHeld ; then
+		AgentsToolsTeamDataCommitPathsNow "$queueContext" "$@"
+		return 0
+	fi
 	queueDir="$( AgentsToolsTeamDataThreadDir )" || return 0
 	if [ "${MDAT_TEAM_DATA_COMMIT_THREAD:-}" = "off" ] || ! mkdir -p "$queueDir" 2> /dev/null ; then
 		AgentsToolsTeamDataCommitPathsNow "$queueContext" "$@"
@@ -223,7 +283,21 @@ AgentsToolsTeamDataCommitOwedTake(){
 }
 
 ## What the thread does with one entry: commits exactly the given paths, which must lie under $MDAT_DATA_ROOT.
+## The store's one lock held for the whole commit, and a lock that cannot be had leaves the paths OWED, never a write that silently dropped.
 AgentsToolsTeamDataCommitPathsNow(){ ## context, path...
+	local nowContext="${1:-}" nowRc=0
+	type AgentsToolsTeamDataStoreLockTake > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataStoreLock.include"
+	if ! AgentsToolsTeamDataStoreLockTake 300 "the team-data commit" ; then
+		AgentsToolsTeamDataCommitOwedAdd "${@:2}"
+		echo "# $MDSC_CMD: team-data commit: ⚠️ WARNING: the store lock stayed held, so the commit is OWED and the next run carries it: $nowContext" >&2
+		return 0
+	fi
+	AgentsToolsTeamDataCommitPathsNowLocked "$@" || nowRc=$?
+	AgentsToolsTeamDataStoreLockGive
+	return "$nowRc"
+}
+
+AgentsToolsTeamDataCommitPathsNowLocked(){ ## context, path...
 	local commitContext="$1" ; shift
 	[ "$#" -gt 0 ] || return 0
 	[ -n "${MDAT_DATA_ROOT:-}" ] || return 0
@@ -351,7 +425,20 @@ AgentsToolsTeamDataChangeStamp(){ ## file
 ## so origin's branch is merged here by the tooling's own merge, which the settling engine (AgentsToolsTeamDataMergeSettle) can work, and a
 ## merge left with no conflict is committed. One step for every caller that integrates origin: the close push and the checkout repair.
 ## rc 0 where the merge is committed and nothing is open; rc 1 where a conflict stays, the merge aborted and the checkout as before.
+## The store's one lock held for the whole re-taken merge: the fetch, the merge, the settle and its commit.
 AgentsToolsTeamDataMergeAgain(){ ## where, repository root, branch
+	local againLockRc=0
+	type AgentsToolsTeamDataStoreLockTake > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataStoreLock.include"
+	if ! AgentsToolsTeamDataStoreLockTake 300 "the merge taken again" ; then
+		echo "⚠️ WARNING: $MDSC_CMD: $1: the store lock stayed held, so origin's branch was not merged in" >&2
+		return 1
+	fi
+	AgentsToolsTeamDataMergeAgainLocked "$@" || againLockRc=$?
+	AgentsToolsTeamDataStoreLockGive
+	return "$againLockRc"
+}
+
+AgentsToolsTeamDataMergeAgainLocked(){ ## where, repository root, branch
 	local againWhere="$1" againRoot="$2" againBranch="$3" againGit=""
 	againGit="$( git -C "$againRoot" rev-parse --absolute-git-dir 2>/dev/null )" || return 1
 	git -C "$againRoot" fetch -q origin "+refs/heads/$againBranch:refs/remotes/origin/$againBranch" > /dev/null 2>&1 || :
@@ -366,7 +453,20 @@ AgentsToolsTeamDataMergeAgain(){ ## where, repository root, branch
 	fi
 	return 0
 }
+## The store's one lock held for the whole settle, which stages each settled file and commits the merge.
 AgentsToolsTeamDataMergeSettle(){ ## where
+	local settleLockRc=0
+	type AgentsToolsTeamDataStoreLockTake > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataStoreLock.include"
+	if ! AgentsToolsTeamDataStoreLockTake 300 "the merge settle" ; then
+		echo "⚠️ WARNING: $MDSC_CMD: $1: the store lock stayed held, so the merge was left as it was" >&2
+		return 1
+	fi
+	AgentsToolsTeamDataMergeSettleLocked "$@" || settleLockRc=$?
+	AgentsToolsTeamDataStoreLockGive
+	return "$settleLockRc"
+}
+
+AgentsToolsTeamDataMergeSettleLocked(){ ## where
 	local settleRoot="" settleGit="" settlePath="" settleCount=0 settleOut="" settleWork="" settleOurs="" settleBase="" settleTheirs=""
 	[ -n "${MDAT_DATA_ROOT:-}" ] || return 0
 	settleRoot="$( git -C "$MDAT_DATA_ROOT" rev-parse --show-toplevel 2>/dev/null )" || return 0
@@ -436,31 +536,31 @@ AgentsToolsTeamDataMergeSettle(){ ## where
 ## Pushes only when the store is its repository's own root; an origin that is not
 ## TEAM_DATA_GIT_REMOTE is set to it first (AgentsToolsTeamDataRemoteAlign), where before
 ## it returned there and said nothing. Always returns 0.
-## One pusher at a time on this host: every close can call this, async spawn closes
-## concurrently, so the body runs under the package's local lock. A BUSY LOCK IS A PUSH
-## OWED, NEVER A SKIP: the holder's `git push origin HEAD` may have resolved HEAD before
-## this process committed, so returning quietly leaves this process's commits local with
-## nothing recorded to bring them out -- which is how five commits sat local and unmerged
-## from August to October. So a call that finds the lock busy records the debt and goes;
-## the NEXT push waits the holder out (a push is bounded) and carries the debt to the
-## remote, and the debt goes only where the store is verified not ahead. A debt left
-## unpaid is therefore re-attempted on every later push instead of being re-forgotten.
+## One process at a time moves the store's branch: every close can call this, async spawn
+## closes concurrently, and item-upsert pushes from its own process, so the body runs under
+## the store's one lock (AgentsTools.TeamDataStoreLock.include), keyed to the store's own
+## git directory. A BUSY LOCK IS A PUSH OWED, NEVER A SKIP: the holder's `git push origin
+## HEAD` may have resolved HEAD before this process committed, so returning quietly leaves
+## this process's commits local with nothing recorded to bring them out -- which is how five
+## commits sat local and unmerged from August to October. So a call that finds the lock busy
+## records the debt and goes; the NEXT push waits the holder out (a push is bounded) and
+## carries the debt to the remote, and the debt goes only where the store is verified not
+## ahead. A debt left unpaid is therefore re-attempted on every later push.
 AgentsToolsTeamDataPushIfAhead(){ ## where
 	[ -n "${MDAT_DATA_ROOT:-}" ] || return 0
-	. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.LocalLock.include"
-	local pushLock="" pushOwed="" pushTries=30
+	type AgentsToolsTeamDataStoreLockTake > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataStoreLock.include"
+	local pushOwed="" pushTries=30
 	pushOwed="$( AgentsToolsTeamDataPushOwedPath )" || pushOwed=""
 	## A store already owed a push does not skip again: it waits the lock out, and the state
 	## check below clears the debt only when the store is not ahead any more.
 	[ -z "$pushOwed" ] || [ ! -e "$pushOwed" ] || pushTries=330
-	if ! AgentsToolsLocalLockTake "team-data-push" "$pushTries" "the team-data push" ; then
+	if ! AgentsToolsTeamDataStoreLockTake "$pushTries" "the team-data push" ; then
 		AgentsToolsTeamDataPushOwedMark
-		echo "⚠️ WARNING: $MDSC_CMD: $1: another team-data push holds the lock; the store's commits stay local and the push is OWED, marked ${pushOwed:-<no workspace>}, so the next one waits the lock out instead of skipping" >&2
+		echo "⚠️ WARNING: $MDSC_CMD: $1: the store lock stayed held, so the store's commits stay local and the push is OWED, marked ${pushOwed:-<no workspace>}, so the next one waits the lock out instead of skipping" >&2
 		return 0
 	fi
-	pushLock="$agentsLocalLockPath"
 	AgentsToolsTeamDataPushIfAheadLocked "$1"
-	AgentsToolsLocalLockGive "$pushLock"
+	AgentsToolsTeamDataStoreLockGive
 	## The debt is the store being ahead: a push that failed, or one this configuration could
 	## not make, records it too, so the next call is patient rather than quick to give up. It
 	## goes only where the store is verified not ahead, or where nothing can be told.
@@ -599,7 +699,21 @@ AgentsToolsTeamDataPushIfAheadLocked(){ ## where
 ## a store whose origin was another. Its branch, never renamed, is told to follow its
 ## namesake at the origin, which their `git pull` needs. Never a force; a store inside a
 ## larger repository is never touched. rc 0 where the origin is the remote, now or already.
+## THE STORE'S OWN CONFIG IS THE STORE'S TREE'S: written under the one lock, as every commit and push is, so no process reads a half-written
+## remote (AgentsTools.TeamDataStoreLock.include). rc 0 where the origin is the remote, now or already.
 AgentsToolsTeamDataRemoteAlign(){ ## where, remote
+	local alignLockRc=0
+	type AgentsToolsTeamDataStoreLockTake > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataStoreLock.include"
+	if ! AgentsToolsTeamDataStoreLockTake 300 "$1: the store's remote" ; then
+		echo "⚠️ WARNING: $MDSC_CMD: $1: the store lock stayed held, so the origin of the team-data store was not set" >&2
+		return 1
+	fi
+	AgentsToolsTeamDataRemoteAlignLocked "$@" || alignLockRc=$?
+	AgentsToolsTeamDataStoreLockGive
+	return "$alignLockRc"
+}
+
+AgentsToolsTeamDataRemoteAlignLocked(){ ## where, remote
 	local alignWas="" alignBranch=""
 	[ -n "${MDAT_DATA_ROOT:-}" ] && [ -e "$MDAT_DATA_ROOT/.git" ] && [ -n "${2:-}" ] || return 1
 	alignWas="$( git -C "$MDAT_DATA_ROOT" remote get-url origin 2> /dev/null )" || alignWas=""
@@ -731,8 +845,14 @@ AgentsToolsTeamDataPrepareStore(){
 	type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/settings/AgentsTools.ConfigOption.include"
 	prepareName="$( AgentsToolsConfigOption magic-team --select TEAM_DATA_GIT_USER_NAME 2>/dev/null )" || prepareName=""
 	prepareEmail="$( AgentsToolsConfigOption magic-team --select TEAM_DATA_GIT_USER_EMAIL 2>/dev/null )" || prepareEmail=""
-	[ -z "$prepareName" ] || git -C "$MDAT_DATA_ROOT" config user.name "$prepareName" || return 1
-	[ -z "$prepareEmail" ] || git -C "$MDAT_DATA_ROOT" config user.email "$prepareEmail" || return 1
+	## THE STORE'S OWN CONFIG IS THE STORE'S TREE'S: written under the one lock, as every commit and push is, so a writer that commits at
+	## the same moment never sees a half-written identity (AgentsTools.TeamDataStoreLock.include).
+	type AgentsToolsTeamDataStoreLockTake > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataStoreLock.include"
+	if AgentsToolsTeamDataStoreLockTake 300 "--owner-setup-storage" ; then
+		[ -z "$prepareName" ] || git -C "$MDAT_DATA_ROOT" config user.name "$prepareName" || { AgentsToolsTeamDataStoreLockGive ; return 1 ; }
+		[ -z "$prepareEmail" ] || git -C "$MDAT_DATA_ROOT" config user.email "$prepareEmail" || { AgentsToolsTeamDataStoreLockGive ; return 1 ; }
+		AgentsToolsTeamDataStoreLockGive
+	fi
 	[ -z "$prepareName$prepareEmail" ] || echo "# $MDSC_CMD --owner-setup-storage: the configured author identity is written into $MDAT_DATA_ROOT's own config" >&2
 	[ -z "$prepareRemote" ] || AgentsToolsTeamDataPushIfAhead "--owner-setup-storage"
 	return 0

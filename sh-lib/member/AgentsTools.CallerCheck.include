@@ -45,13 +45,14 @@ if ! type AgentsToolsActingMember >/dev/null 2>&1 ; then
 					## proxy names a root session's starter by. Several CheckLists in one store name no one.
 					local actingHome="" actingOne=0
 					type AgentsSessionKnownIn > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
-					type AgentsToolsRootHarnessRoutineInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.RootHarnessKind.include"
+					type AgentsToolsRootHarnessRoutineInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/routine/AgentsTools.RoutineRootHarness.include"
 					for actingHome in "${MDAT_CALLER_WORKSPACE:-$MMDAPP}" "$MMDAPP" ; do
 						AgentsSessionKnownIn "$actingHome" "$actingStore" || continue
 						if AgentsToolsRootHarnessRoutineInto actingRoutine "$actingStore" "$actingHome" ; then
 							actingName="${actingRoutine%%.*}"
 							break
 						fi
+						type AgentsSessionSoleChecklistMemberInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.CheckListSeed.include"
 						AgentsSessionSoleChecklistMemberInto actingName "$actingHome" "$actingStore" || actingOne=$?
 						[ "$actingOne" != 1 ] || continue
 						break
@@ -151,16 +152,17 @@ if ! type AgentsToolsManagerCallerCheck >/dev/null 2>&1 ; then
 	## run management only. THE COORDINATOR MANAGES ITS RUNS, AND NOTHING ELSE: its supervision
 	## sessions list, read and kill the runs they watch, and start their control (magic-coordinator.supervision-session.routine.md,
 	## `end-and-resume` and its Tooling operations), and a supervision session is a spawned session acting as
-	## magic-coordinator. The names are a closed list, the routine's own (board task-20261114T1052Z, ruled
-	## 2026-11-14): any other --manager-* operation, a settings write among them, is refused to it as to
-	## any member. A call from no such session, a person at a console or a script, is accepted; the
+	## magic-coordinator. The names are a closed list: the routine's own, and those of the five that S6.12's
+	## rule names which the routine did not (board task-20261114T1052Z, ruled 2026-11-14, extended
+	## 2026-11-16 by task-20261106T0226Z). Any other --manager-* operation, a settings write among them,
+	## is refused to it as to any member. A call from no such session, a person at a console or a script, is accepted; the
 	## per-operation checks of the manager include (the kill gate among them) still run.
 	AgentsToolsManagerCallerCheck(){ ## operation
 		local checkActing
 		checkActing="$( AgentsToolsActingMember )"
 		[ -n "$checkActing" ] || return 0
 		if [ "$checkActing" = magic-coordinator ] ; then
-			case " manager-session-list manager-session-transcript-read manager-session-checklist-read manager-session-kill manager-session-control-start " in
+			case " manager-session-list manager-session-transcript-read manager-session-checklist-read manager-session-kill manager-session-pause manager-session-resume manager-session-restart manager-session-join manager-session-control-start " in
 				*" ${1#--} "*) return 0 ;;
 			esac
 		fi

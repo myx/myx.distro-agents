@@ -68,9 +68,9 @@ case "$1" in
 		esac
 		## The session reads the member set root of the workspace it starts in, never this one's own view. An invited
 		## member's own root, set just above, is that member's and stays: its session reads its own skillset there.
-		type AgentsToolsWorkspaceSkillsetRoot > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWorkspace.include"
-		local spawnSkillsetRoot
-		spawnSkillsetRoot="$( AgentsToolsWorkspaceSkillsetRoot "$MMDAPP" )"
+		type AgentsToolsSkillsetRootInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWorkspace.include"
+		local spawnSkillsetRoot=""
+		AgentsToolsSkillsetRootInto spawnSkillsetRoot "$MMDAPP"
 		local contextFromFile="false" waitMode="false" spawnContext=""
 		## Which agent CLI this one spawn runs on. Empty means the workspace setting
 		## decides, which is what every caller got before this option existed.
@@ -580,29 +580,28 @@ case "$1" in
 		## makes it, the schedule's or a console's; a kept id no record knows is dropped. The first start records its session under a lock,
 		## below, where its session is settled.
 		local dutyKeptFile="" dutyKeptId=""
-		case "$routineSelector" in
-			*.work-duty.routine.md)
-				dutyKeptFile="$MMDAPP/.local/agents/schedule/duty-session/$callerName"
-				if [ -z "$joinSessionId" ] && [ -s "$dutyKeptFile" ] ; then
-					IFS= read -r dutyKeptId < "$dutyKeptFile" || dutyKeptId=""
-					case "$dutyKeptId" in ''|*[!A-Za-z0-9._-]*) dutyKeptId="" ;; esac
-					type AgentsToolsSpawnedSessionRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include"
-					## Before either drop, the kept session's read pointer into the tagged source is kept (AgentsToolsDutyKeptTagFold).
-					if [ -n "$dutyKeptId" ] && [ -z "$( AgentsToolsSpawnedSessionRecords "$dutyKeptId" own 2> /dev/null )" ] ; then
-						type AgentsToolsDutyKeptTagFold > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include"
-						AgentsToolsDutyKeptTagFold "$callerName" "$dutyKeptId"
-						rm -f "$dutyKeptFile" ; dutyKeptId=""
-					fi
-					## A kept session of an earlier day is no session of today's duty: dropped, so the start opens one of its own (AgentsToolsDutyKeptStale).
-					if [ -n "$dutyKeptId" ] && AgentsToolsDutyKeptStale "$dutyKeptId" ; then
-						type AgentsToolsDutyKeptTagFold > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include"
-						AgentsToolsDutyKeptTagFold "$callerName" "$dutyKeptId"
-						rm -f "$dutyKeptFile" ; dutyKeptId=""
-					fi
-					if [ -n "$dutyKeptId" ] ; then joinSessionId="$dutyKeptId" ; sessionNew="" ; fi
+		type AgentsToolsDutyRoutineIs > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/routine/AgentsTools.DutyRoutine.include"
+		if AgentsToolsDutyRoutineIs "$routineSelector" ; then
+			dutyKeptFile="$MMDAPP/.local/agents/schedule/duty-session/$callerName"
+			if [ -z "$joinSessionId" ] && [ -s "$dutyKeptFile" ] ; then
+				IFS= read -r dutyKeptId < "$dutyKeptFile" || dutyKeptId=""
+				case "$dutyKeptId" in ''|*[!A-Za-z0-9._-]*) dutyKeptId="" ;; esac
+				type AgentsToolsSpawnedSessionRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include"
+				## Before either drop, the kept session's read pointer into the tagged source is kept (AgentsToolsDutyKeptTagFold).
+				if [ -n "$dutyKeptId" ] && [ -z "$( AgentsToolsSpawnedSessionRecords "$dutyKeptId" own 2> /dev/null )" ] ; then
+					type AgentsToolsDutyKeptTagFold > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include"
+					AgentsToolsDutyKeptTagFold "$callerName" "$dutyKeptId"
+					rm -f "$dutyKeptFile" ; dutyKeptId=""
 				fi
-			;;
-		esac
+				## A kept session of an earlier day is no session of today's duty: dropped, so the start opens one of its own (AgentsToolsDutyKeptStale).
+				if [ -n "$dutyKeptId" ] && AgentsToolsDutyKeptStale "$dutyKeptId" ; then
+					type AgentsToolsDutyKeptTagFold > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include"
+					AgentsToolsDutyKeptTagFold "$callerName" "$dutyKeptId"
+					rm -f "$dutyKeptFile" ; dutyKeptId=""
+				fi
+				if [ -n "$dutyKeptId" ] ; then joinSessionId="$dutyKeptId" ; sessionNew="" ; fi
+			fi
+		fi
 		if [ -n "$joinSessionId" ] && [ -n "$sessionNew" ] ; then
 			echo "$MDSC_CMD: agent-spawn-proxy: ⛔ ERROR: use only one of --session-id <session-id> | --session-new: one joins a session, the other starts one" >&2
 			set +e ; return 1
@@ -910,21 +909,34 @@ case "$1" in
 		spawnerMember="$( AgentsToolsTeamMember 2> /dev/null )" || spawnerMember=""
 		## Who started it, as the posts say: a starter that is no member names itself, read once and dropped so the agent's spawns never inherit it.
 		local spawnStartedBy="${MDAT_SPAWN_STARTED_BY:-}" startedRecord="" startedRoutine=""
-		## Else the calling session names itself: a spawned run by its member and routine, the root harness by its member.
+		## Else the calling session names itself, off its own record where it keeps one: a spawned run by its member
+		## and routine, the root harness by the record its mint wrote.
 		if [ -z "$spawnStartedBy" ] && [ -n "${MDAT_SPAWN_SESSION_ID:-}" ] ; then
-			type AgentsSessionRunOwnRecordInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include" || return 1
-			! AgentsSessionRunOwnRecordInto startedRecord "$MDAT_SPAWN_SESSION_ID" "${MDAT_CALLER_WORKSPACE:-$MMDAPP}" \
+			type AgentsSessionRunRecordInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include" || return 1
+			! AgentsSessionRunRecordInto startedRecord "$MDAT_SPAWN_SESSION_ID" "${MDAT_CALLER_WORKSPACE:-$MMDAPP}" \
 				|| startedRoutine="$( LC_ALL=C sed -n 's/^routine: //p' "$startedRecord" 2> /dev/null | head -1 )" || startedRoutine=""
 			[ -z "$spawnerMember" ] || [ -z "$startedRoutine" ] || spawnStartedBy="$spawnerMember, ${startedRoutine%.routine.md}"
 		elif [ -z "$spawnStartedBy" ] && [ -n "${CLAUDE_CODE_SESSION_ID:-}" ] ; then
-			type AgentsSessionFolderFilesInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
-			local startedRecords=()
-			AgentsSessionFolderFilesInto startedRecords "${MDAT_CALLER_WORKSPACE:-$MMDAPP}" "$CLAUDE_CODE_SESSION_ID" .checklist.md
-			for startedRecord in ${startedRecords[@]+"${startedRecords[@]}"} ; do
-				startedRecord="${startedRecord##*/}"
-				spawnStartedBy="${startedRecord%.checklist.md}, root harness"
-				break
-			done
+			## The root harness keeps a record of its own (AgentsTools.RootSession.include): its member is that
+			## record's `owner:`, and its routine the one the mint kept beside it. A session minted before that
+			## record is named by its one CheckList, as it always was.
+			local startedByMember="" startedByRoutine="" startedRecords=()
+			type AgentsSessionRunRecordInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include" || return 1
+			type AgentsToolsRootHarnessRoutineInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/routine/AgentsTools.RoutineRootHarness.include" || return 1
+			if AgentsSessionRunRecordInto startedRecord "$CLAUDE_CODE_SESSION_ID" "${MDAT_CALLER_WORKSPACE:-$MMDAPP}" ; then
+				type AgentsToolsFrontmatterKey > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.FrontmatterKey.include" || return 1
+				startedByMember="$( AgentsToolsFrontmatterKey "$startedRecord" owner )" || startedByMember=""
+				AgentsToolsRootHarnessRoutineInto startedByRoutine "$CLAUDE_CODE_SESSION_ID" "${MDAT_CALLER_WORKSPACE:-$MMDAPP}" || startedByRoutine=""
+				startedByRoutine="${startedByRoutine%.routine.md}" ; startedByRoutine="${startedByRoutine#*.}"
+			else
+				AgentsSessionFolderFilesInto startedRecords "${MDAT_CALLER_WORKSPACE:-$MMDAPP}" "$CLAUDE_CODE_SESSION_ID" .checklist.md
+				for startedRecord in ${startedRecords[@]+"${startedRecords[@]}"} ; do
+					startedRecord="${startedRecord##*/}"
+					startedByMember="${startedRecord%.checklist.md}"
+					break
+				done
+			fi
+			[ -z "$startedByMember" ] || spawnStartedBy="$startedByMember, ${startedByRoutine:-root harness}"
 		fi
 		[ -n "$spawnStartedBy" ] || spawnStartedBy="$spawnerMember"
 		unset MDAT_SPAWN_STARTED_BY
@@ -1178,6 +1190,9 @@ case "$1" in
 		}
 		## Its own channel: only the launcher writes it, so no agent output can reach it.
 		export MDAT_SPAWN_LAUNCH_MARKER="$sessionStateDir/launch"
+		## The session's folder, handed to the client hooks: a hook joins its part name onto this value and never
+		## spells a store of its own. Set only where the owner gave one, so a hook reads its own fallback when absent.
+		[ -z "$sessionStateDir" ] || export MDAT_SESSION_FOLDER="$sessionStateDir"
 		[ "$dispatchDocMode" = "none" ] && [ "$waitMode" = "true" ] || outputFile="$sessionStateDir/session.log"
 
 		## What the spawner said this spawn is for, and how it named its session, as the records
@@ -1207,7 +1222,10 @@ case "$1" in
 		## A session's name carries its short id, so two sessions sharing a name, or two of one member,
 		## tell apart in a list of them. A name that already carries one keeps it as it is: a child of a
 		## partitioned spawn carries its parent's, so the parent and its members read as one session.
+		## A run that gave its session no name of its own keeps none: the suffix belongs to a name, and
+		## a bare `(<short id>)` is a title nothing asked for (a run that only joins its caller's session).
 		case "$sessionCommentKept" in
+			'') ;;
 			*"("[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]")"*) ;;
 			*) sessionCommentKept="$sessionCommentKept (${sessionId:0:8})" ;;
 		esac
@@ -1333,7 +1351,7 @@ case "$1" in
 		## call for a session thread. The tooling thread its copies go to is the event-track thread the start
 		## post below opens, and the dispatch names it. The kind is the session's own record's to say
 		## (AgentsToolsRootHarnessKindRead), never a caller's opinion of it.
-		type AgentsToolsRootHarnessKindRead > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.RootHarnessKind.include"
+		type AgentsToolsRootHarnessKindRead > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/chat/AgentsTools.RootHarnessKind.include"
 		[ "$( AgentsToolsRootHarnessKindRead "$sessionId" 2> /dev/null )" = "track" ] && sessionTrack="true" || sessionTrack=""
 		## A WORK-DUTY'S SESSION THREAD IS IN THE OWNER'S CONVERSATION (S23.4), opened by its own start
 		## post, where anyone posts to it and a Wait reads it; its tooling thread stays in event-track.
@@ -1401,7 +1419,7 @@ case "$1" in
 		## notice, not posted: the next foreground call of that session surfaces the line (F3.3).
 		## A work-duty's opening start opened its session's thread itself, so it is the opener: it
 		## posts its root and no joined line, as any session's first run does.
-		if [ "$sessionId" != "$MDAT_SPAWN_SESSION_ID" ] && [ -z "$sessionTrack" ] && [ -z "$workDutyStart" ] && ! { case "${routineFilePath##*/}" in *.work-duty.routine.md) AgentsToolsSessionMemberHasRecord "$sessionId" "$callerName" ;; *) false ;; esac ; } ; then
+		if [ "$sessionId" != "$MDAT_SPAWN_SESSION_ID" ] && [ -z "$sessionTrack" ] && [ -z "$workDutyStart" ] && ! { type AgentsToolsDutyRoutineIs > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/routine/AgentsTools.DutyRoutine.include" ; AgentsToolsDutyRoutineIs "$routineFilePath" && AgentsToolsSessionMemberHasRecord "$sessionId" "$callerName" ; } ; then
 			## It is said to the member that makes this spawn call, where the send can address
 			## it, and to nobody where there is none: never to the member that joined.
 			local joinedArgs=( "$callerName" "$sessionThread" --identity-bot ) joinedTo="" joinedLine=""
@@ -1652,6 +1670,19 @@ case "$1" in
 			printf 'member-workspace: %s\n' "$memberWorkspaceName"
 			printf 'cli: %s\n' "$spawnCliResolved"
 			printf 'cli-setting: %s\n' "$spawnCliSetting"
+			## THE CACHE IT RUNS ON (S18.4): the wait round of its CLI service, the seconds that cache lives and the wakes of that
+			## round which repay writing it again, kept here because the schedule does not read the spawn concern's own files.
+			## A service with no prices read leaves all three empty, and an idle duty on it never keeps.
+			local spawnCacheRow="" spawnCacheRound="" spawnCacheLife="" spawnCacheTurns=""
+			if type AgentsToolsCliServiceDutyCache > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsTools.CliService.include" ; then
+				spawnCacheRow="$( AgentsToolsCliServiceDutyCache "$spawnCliResolved" 2> /dev/null )" || spawnCacheRow=""
+			fi
+			if [ -n "$spawnCacheRow" ] ; then
+				read -r spawnCacheRound spawnCacheLife spawnCacheTurns <<< "$spawnCacheRow"
+				printf 'duty-cache-round: %s\n' "$spawnCacheRound"
+				printf 'duty-cache-life: %s\n' "$spawnCacheLife"
+				printf 'duty-cache-turns: %s\n' "$spawnCacheTurns"
+			fi
 			## The preset this spawn runs on, `<preset>[:<effort>]`, and the scope and setting name that hold its key (never the key): what the
 			## tokens of the run are grouped by. Neither where no preset was chosen.
 			[ -z "$spawnPresetRecorded" ] || printf 'preset: %s\n' "$spawnPresetRecorded"
@@ -1710,9 +1741,7 @@ case "$1" in
 		## The parent now has this run as a seat to review: its permission files are written again here, once, so no check scans for it.
 		case "${parentSessionId:-}" in ''|none|*/*|.|..) ;; *)
 			type AgentsToolsGrantsStoreTouch > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.Grants.include"
-			local grantsSessionDir=""
-			AgentsSessionFolderInto grantsSessionDir "$MMDAPP" "$parentSessionId" || :
-			AgentsToolsGrantsStoreTouch "$grantsSessionDir" > /dev/null 2>&1 || :
+			AgentsToolsGrantsStoreTouch "$parentSessionId" "$MMDAPP" > /dev/null 2>&1 || :
 		;; esac
 		## A SESSION THAT STARTS AGAIN SHOWS NO END (S6.37): a run that restarts, or resumes, the session takes the
 		## end marks off its root message. A start that is neither asks nothing and reacts to nothing.
@@ -1813,7 +1842,9 @@ case "$1" in
 		seedRoutineSteps=""
 		if [ -n "$routineFilePath" ] && [ -z "$workDutyDispatchFile" ] ; then
 			type AgentsToolsSpawnRoutineMixText > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnRoutine.include"
-			seedRoutineSteps="$( AgentsToolsSpawnRoutineMixText "$routineFilePath" | AgentsToolsCheckListRoutineSteps "$sessionId" "$MDAT_SPAWN_SESSION_ID" || : )"
+			type AgentsToolsTeamMemberDirectoryText > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamRegistry.include"
+			seedMemberNames="$( AgentsToolsTeamMemberDirectoryText | LC_ALL=C cut -f1 )" || seedMemberNames=""
+			seedRoutineSteps="$( AgentsToolsSpawnRoutineMixText "$routineFilePath" | AgentsToolsCheckListRoutineSteps "$sessionId" "$MDAT_SPAWN_SESSION_ID" "$seedMemberNames" || : )"
 		fi
 		{
 			printf '%s\n' "$seedSourceText" | AgentsToolsCheckListSectionItems
@@ -2032,7 +2063,7 @@ case "$1" in
 			## THE RECORD IS CLOSED FIRST, and then the item, as in the waiting branch: what is posted follows.
 			AgentsToolsSpawnProxyCloseSandbox "$sandboxTracking" "$bgOutcome" "$bgExitCode" || :
 			local bgEndReason=""
-			bgEndReason="$( AgentsToolsSpawnSandboxRecordHeader "$sandboxTracking" end-reason 2>/dev/null )" || bgEndReason=""
+			bgEndReason="$( AgentsToolsFrontmatterKey "$sandboxTracking" end-reason 2>/dev/null )" || bgEndReason=""
 			if [ "$dispatchDocMode" = "create" ] ; then
 				AgentsToolsSpawnProxyCloseDispatch "$dispatchItemName" "$dispatchBriefBody" "$bgExitCode" "$outputFile" "$bgOutcome" running review ended-without-handback "${bgEndReason:-}" || :
 			elif [ "$dispatchDocMode" = "reuse" ] && [ -n "$trackedItemState" ] ; then

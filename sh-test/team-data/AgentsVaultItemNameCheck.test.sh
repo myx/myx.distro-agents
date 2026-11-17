@@ -15,7 +15,7 @@ rigRefuse(){
 [ -x "$rigItems" ] || rigRefuse "items dispatcher not found: $rigItems"
 [ -f "$rigTools" ] || rigRefuse "tools dispatcher not found: $rigTools"
 . "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
-. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-store-item.include.sh" || exit 1
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-writes.include.sh" || exit 1
 rigTmp="$( rigTempDir AgentsVaultItemNameCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
@@ -35,7 +35,7 @@ rigScenario(){ ## name
 	mkdir -p "$rigDir/ws/.local" "$rigDir/home/skills/magic-coordinator"
 	printf -- '---\nmaintainers: rig\n---\nrig identity\n' > "$rigDir/home/skills/magic-coordinator/magic-coordinator.basic.md"
 }
-## A fixture item is built by its store's own writer (rig-store-item.include.sh), never by hand: every folder these
+## A fixture item is built by its store's own writer (rig-owner-writes.include.sh), never by hand: every folder these
 ## items lie in is made by that writer too, so a change to where the code files an item shows up here.
 rigBodyCount=0
 rigItem(){ ## the store and its path (`vault epic-blueprint-x.md`, `board backlog task-x.md`), the body text

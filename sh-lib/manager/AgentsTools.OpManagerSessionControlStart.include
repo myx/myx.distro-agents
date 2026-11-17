@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # ^^^ for syntax checking in the editor only
 
-type AgentsToolsManagerSessionScope > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.ManagerSessionRows.include"
+type AgentsToolsManagerSessionScope > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.ManagerSessionRows.include"
 
 ## AgentsTools.OpManagerSessionControlStart.include -- the operation `--manager-session-control-start`, sourced by AgentsTools.ManagerSession.include with the operation's arguments.
 ## The control thread of one session started where it does not live, or, with --all, of

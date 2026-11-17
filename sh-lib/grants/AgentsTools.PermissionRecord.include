@@ -50,7 +50,8 @@ AgentsToolsPermissionRecordToGrantField(){ ## record-form value
 	printf '%s' "$grantField"
 }
 
-## A natural value serialised for the grants file; what a grant match compares.
+## A natural value serialised for the grants file; what a grant match compares. The one statement of that
+## two-step escape, and a check substitutes it by name, so it never becomes written-out code at each caller.
 AgentsToolsPermissionEscape(){ ## value
 	AgentsToolsPermissionRecordToGrantField "$( AgentsToolsPermissionEscapeRecord "$1" )"
 }

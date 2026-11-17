@@ -35,10 +35,8 @@ case "$1" in
 			routine-*)
 			;;
 			*)
-				if [ ! -d "$MDAT_SKILLSET_ROOT/$clientMember" ] ; then
-					echo "⛔ ERROR: $MDSC_CMD --intern-op-client-sweep-input-scan: no such member skill directory: $MDAT_SKILLSET_ROOT/$clientMember" >&2
-					set +e ; return 1
-				fi
+				type AgentsToolsSlackMemberPresent > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/slack/AgentsTools.CommsSlack.include"
+				AgentsToolsSlackMemberPresent "$clientMember" --intern-op-client-sweep-input-scan || { set +e ; return 1 ; }
 			;;
 		esac
 
@@ -199,10 +197,8 @@ case "$1" in
 			routine-*)
 			;;
 			*)
-				if [ ! -d "$MDAT_SKILLSET_ROOT/$checkMember" ] ; then
-					echo "⛔ ERROR: $MDSC_CMD --client-sweep-config-check: no such member skill directory: $MDAT_SKILLSET_ROOT/$checkMember" >&2
-					set +e ; return 1
-				fi
+				type AgentsToolsSlackMemberPresent > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/slack/AgentsTools.CommsSlack.include"
+				AgentsToolsSlackMemberPresent "$checkMember" --client-sweep-config-check || { set +e ; return 1 ; }
 			;;
 		esac
 

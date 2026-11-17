@@ -19,7 +19,7 @@
 			if [ -z "$rootTitle" ] ; then
 				type AgentsToolsSpawnedSessionRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include"
 				rootTitle="$( AgentsToolsSpawnedSessionRecords "$sessionId" own 2> /dev/null | head -1 )" || rootTitle=""
-				[ -z "$rootTitle" ] || rootTitle="$( AgentsToolsSpawnSandboxRecordHeader "$rootTitle" session-comment )"
+				[ -z "$rootTitle" ] || rootTitle="$( AgentsToolsFrontmatterKey "$rootTitle" session-comment )"
 			fi
 			[ -n "$rootTitle" ] || rootTitle="$callerName"
 			local rootTarget="magic-team"

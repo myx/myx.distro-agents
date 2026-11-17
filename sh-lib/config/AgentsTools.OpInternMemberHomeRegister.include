@@ -23,7 +23,7 @@
 			[ -n "$homesRoot" ] && [ "$homesRoot" != "$homesHere" ] || continue
 			## not mounted: its rows stay as they stood
 			[ -d "$homesRoot" ] || continue
-			if AgentsToolsMemberHomesHasAgents "$homesRoot" ; then
+			if [ -f "${homesRoot%/}/.local/agents/members.registry" ] ; then
 				AgentsToolsMemberHomesDeclaredWrite "$homesRoot" < /dev/null || homesStatus=1
 				continue
 			fi

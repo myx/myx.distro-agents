@@ -15,7 +15,8 @@
 type AgentsToolsSessionPauseHeld > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionPause.include"
 
 AgentsToolsSessionControlRelease(){
-	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandboxRecordHeader.include"
+	type AgentsToolsFrontmatterKey > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.FrontmatterKey.include"
+	type AgentsToolsSessionDismissHeld > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionSeats.include"
 	local releaseTracking releaseSession releaseParent releaseHost releaseOwner releaseStatus releaseExit releaseSpawn releaseAgentLog releaseThread releaseWorkspace releaseLive releaseWord releaseRest
 	local releaseRecord releaseField releaseStem releaseItem releaseSpawnOf releaseBoard releaseState releaseWhy releaseNow releaseSeen releaseCalled
 	[ -n "${MDAT_DATA_ROOT:-}" ] || return 0
@@ -37,14 +38,14 @@ AgentsToolsSessionControlRelease(){
 		[ -f "$releaseRecord" ] || continue
 		releaseWhy="" ; releaseBoard=""
 		for releaseField in spawns spawned-by ; do
-			releaseStem="$( AgentsToolsSpawnSandboxRecordHeader "$releaseRecord" "$releaseField" )"
+			releaseStem="$( AgentsToolsFrontmatterKey "$releaseRecord" "$releaseField" )"
 			[ -n "$releaseStem" ] || continue
 			releaseItem="${releaseStem%.md}.md"
 			type AgentsToolsBoardItemInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemDecisions.include"
 			AgentsToolsBoardItemInto releaseBoard "$releaseItem" || :
 			[ -n "$releaseBoard" ] || continue
 			## An item that names a newer spawn belongs to that one, not to this run.
-			releaseSpawnOf="$( AgentsToolsSpawnSandboxRecordHeader "$releaseBoard" spawn-id )"
+			releaseSpawnOf="$( AgentsToolsFrontmatterKey "$releaseBoard" spawn-id )"
 			[ -n "$releaseSpawnOf" ] && [ "$releaseSpawnOf" != "-" ] && [ "$releaseSpawnOf" != "$releaseSpawn" ] || break
 			releaseBoard=""
 		done
@@ -75,7 +76,7 @@ AgentsToolsSessionControlRelease(){
 		(
 			## A shell cannot give back a signal it inherited ignored, so the call starts through a python helper that resets them, then execs.
 			if command -v python3 > /dev/null 2>&1 ; then
-				exec python3 -I -B "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsSignalReset.py" \
+				exec python3 -I -B "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsSignalReset.py" \
 					"$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-session-control --release --session-id "$controlSession" --spawn-id "$releaseSpawn"
 			fi
 			exec "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-session-control --release --session-id "$controlSession" --spawn-id "$releaseSpawn"

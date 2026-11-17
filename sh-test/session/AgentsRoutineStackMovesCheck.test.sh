@@ -17,8 +17,10 @@
 ##  12. --by takes chair, routine or tool, and any other word is refused (D4)
 ##  13. --return-to naming the frame already in force is refused, and no move line is written (D3)
 ##  14. a routine that stands twice on the stack resolves to the one below the top (D3)
+## 15. every move line carries its own instant, `at: <YYYY-MM-DD HH:MM +HHMM>`, which the supervisor's frame-stall reads
 ## Red before stage 2: 1 to 8 fail (the operation does not exist yet); 9 and 10 hold from before it.
 ## Red before the four defects were fixed on live: 11, 12, 13 and 14 fail, and 9 and 10 hold.
+## Red before stage 6: 15 fails, since the move line carried no instant at all.
 ## Offline: a fake curl answers Slack; every workspace is a folder of the rig's own.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
@@ -122,6 +124,10 @@ rigMoveLines(){
 rigMoves(){
 	rigMoveLines | LC_ALL=C awk 'BEGIN { ORS = "" } { printf "%s%s", ( NR > 1 ? "|" : "" ), $0 }'
 }
+## The same lines with their own `at:` taken out, so an assertion compares what a move says and not when it was made.
+rigMovesNoInstant(){
+	rigMoveLines | LC_ALL=C sed -E 's/ at: [0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2} [+-][0-9]{4} / /' | LC_ALL=C awk 'BEGIN { ORS = "" } { printf "%s%s", ( NR > 1 ? "|" : "" ), $0 }'
+}
 rigHeader(){ ## header -- one header of the record
 	LC_ALL=C awk -v want="$1" '$0 == "---" { if ( ++n > 1 ) exit ; next } n == 1 && index( $0, want ": " ) == 1 { print substr( $0, length( want ) + 3 ) ; exit }' "$rigRecord" 2> /dev/null
 }
@@ -133,7 +139,7 @@ rigScene push
 rigCall m-1 --routine-stack --push rig-b.routine.md --reason "the round needs the plan first"
 rigAssert "the move is made: rc 0 and an OK line"          "$rigRc:$( rigOutHolds 'OK: --routine-stack push' )" "0:1"
 rigAssert "the old top is open and the new frame is current" "$( rigFrames )" "rig-a.routine.md:open → rig-b.routine.md:current"
-rigAssert "one move line, with the routine, its by: and its reason" "$( rigMoves )" "routine-stack-push: rig-b.routine.md by: chair reason: the round needs the plan first"
+rigAssert "one move line, with the routine, its by: and its reason" "$( rigMovesNoInstant )" "routine-stack-push: rig-b.routine.md by: chair reason: the round needs the plan first"
 rigAssert "and the result says which routine is in force"   "$( rigOutHolds 'rig-b.routine.md is in force' )" 1
 
 echo "-- 2. replace exchanges the routine in force --"
@@ -200,7 +206,7 @@ rigAssert "refused, naming the three words"                  "$rigRc:$( rigErrHo
 rigAssert "and no move line was written"                     "$( rigMoves )" ""
 rigCall r-5 --routine-stack --rewind --by tool --reason "the tool moved it"
 rigAssert "one of the three is taken"                        "$rigRc:$( rigOutHolds 'OK: --routine-stack rewind' )" "0:1"
-rigAssert "and it is the word the record carries"            "$( rigMoves )" "routine-stack-rewind: rig-a.routine.md by: tool reason: the tool moved it"
+rigAssert "and it is the word the record carries"            "$( rigMovesNoInstant )" "routine-stack-rewind: rig-a.routine.md by: tool reason: the tool moved it"
 
 echo "-- 13. --return-to naming the frame in force is refused --"
 rigScene return-to-top
@@ -209,7 +215,7 @@ rigAssert "the push is made first"                           "$rigRc:$( rigOutHo
 rigCall t-2 --routine-stack --return-to rig-b.routine.md --reason "the frame already in force"
 rigAssert "refused, saying it is no frame below the top"      "$rigRc:$( rigErrHolds 'no frame below' )" "1:1"
 rigAssert "the frames do not move"                           "$( rigFrames )" "rig-a.routine.md:open → rig-b.routine.md:current"
-rigAssert "and one move line stands, the push alone"         "$( rigMoves )" "routine-stack-push: rig-b.routine.md by: chair reason: the plan comes next"
+rigAssert "and one move line stands, the push alone"         "$( rigMovesNoInstant )" "routine-stack-push: rig-b.routine.md by: chair reason: the plan comes next"
 
 echo "-- 14. a routine that stands twice resolves to the one below the top --"
 rigCall t-3 --routine-stack --push rig-a.routine.md --reason "back to the first routine"
@@ -218,6 +224,18 @@ rigAssert "three frames, the first routine twice"            "$( rigFrames )" "r
 rigCall t-4 --routine-stack --return-to rig-a.routine.md --reason "the frame below, not the one in force"
 rigAssert "the return-to is made"                            "$rigRc:$( rigOutHolds 'OK: --routine-stack return-to' )" "0:1"
 rigAssert "and it lands on the lower frame of that routine"   "$( rigFrames )" "rig-a.routine.md:current → rig-b.routine.md:done → rig-a.routine.md:done"
+
+## THE MOVE'S OWN INSTANT (stage 6): the supervisor's frame-stall reads when a frame came into force from this line, and nothing
+## else in the record carries it but the session's own start. This scene has made three moves: two pushes and one return-to.
+echo "-- 15. every move line carries its own instant --"
+rigAssert "every move line of the record carries an at: in the record's own date-time form" \
+	"$( rigMoveLines | LC_ALL=C grep -c -E '^routine-stack-[a-z-]+: [^ ]+ at: [0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9] [0-9][0-9]:[0-9][0-9] [+-][0-9][0-9][0-9][0-9] by: ' )" 3
+rigAssert "the frame reader names the routine in force, its open frames and its pushes" \
+	"$( env -i HOME="$rigTmp/home" PATH="$PATH" MMDAPP="$rigWs" MDLT_ORIGIN="$rigOrigin" MDAT_DATA_ROOT="$rigScn/data" \
+		bash -c '. "$1" ; AgentsToolsRoutineStackFrameRow "$2"' rig "$rigHere/routine/AgentsTools.RoutineStack.include" "$rigRecord" 2> /dev/null | LC_ALL=C cut -f1,3,4 )" "rig-a.routine.md	0	1"
+rigAssert "and it reads that frame's instant as an epoch, never a date to parse again" \
+	"$( env -i HOME="$rigTmp/home" PATH="$PATH" MMDAPP="$rigWs" MDLT_ORIGIN="$rigOrigin" MDAT_DATA_ROOT="$rigScn/data" \
+		bash -c '. "$1" ; AgentsToolsRoutineStackFrameRow "$2"' rig "$rigHere/routine/AgentsTools.RoutineStack.include" "$rigRecord" 2> /dev/null | LC_ALL=C cut -f2 | LC_ALL=C grep -c -E '^[0-9]{9,}$' )" 1
 
 ## THE RIG'S OWN PROCESSES ARE BACK BEFORE THIS CHECK ENDS. A move posts into the session's event-track
 ## thread, and that post is queued and drained by a process started apart, at most one message every seven

@@ -44,6 +44,10 @@ rigCopy="$rigSandbox/$rigId.native.jsonl"
 rigStore="$rigWs/.local/agents/sessions/$rigId"
 mkdir -p "$rigWs/.local/agents" "$rigSandbox" "$rigHome/.claude/projects/-rig"
 printf '{"type":"user","message":"one"}\n' > "$rigLog"
+## The session concern's own parts file, as a workspace the tooling installed into holds it: the route a launch that sets no
+## folder value takes. This check takes the package's own.
+rigParts="$rigWs/.local/myx/myx.distro-agents/sh-lib/session/AgentsSessionParts.include"
+mkdir -p "${rigParts%/*}" && cp "$rigHere/session/AgentsSessionParts.include" "$rigParts"
 
 rigPayload(){ ## session id, transcript path, event name
 	printf '{"session_id":"%s","transcript_path":"%s","cwd":"%s","hook_event_name":"%s"}' "$1" "$2" "$rigWs" "$3"
@@ -138,6 +142,30 @@ cp "$rigHook" "$rigWs/.claude/hooks/native-transcript-keep.sh" && chmod 0755 "$r
 rm -rf "$rigStore" ; mkdir -p "$rigWs/.local/agents"
 rigPayload "$rigId" "$rigLog" SessionStart | env -i HOME="$rigHome" PATH="/usr/bin:/bin" MDAT_SPAWN_SESSION_ID="$rigId" MDAT_SPAWN_SANDBOX_ROOT="$rigSandbox" bash "$rigWs/.claude/hooks/native-transcript-keep.sh" start > /dev/null 2>&1
 rigAssert "the session's store is found by the script's own place"                     "$( cat "$rigStore/native-log" 2> /dev/null )" "$rigCopy"
+
+echo "-- 6. the folder: the launch's value, else the session concern's own file, else a refusal --"
+rigHanded="$rigWs/.local/agents/sessions-handed/$rigId"
+rm -rf "$rigStore" "$rigHanded"
+rigRun start "$( rigPayload "$rigId" "$rigLog" SessionStart )" MDAT_SESSION_FOLDER="$rigHanded"
+rigAssert "a launch that hands the folder: native-log is written in it, and nothing else is made" \
+	"$( cat "$rigHanded/native-log" 2> /dev/null ):$( [ -d "$rigStore" ] && printf made || printf none ):$rigRc" "$rigCopy:none:0"
+rm -rf "$rigStore" "$rigHanded"
+rm -rf "$rigWs/.local/myx"
+rigRun start "$( rigPayload "$rigId" "$rigLog" SessionStart )" MDAT_SESSION_FOLDER=""
+rigAssert "no folder value and no parts file installed: nothing is written, one line on stderr, exit 0" \
+	"$( [ -d "$rigStore" ] && printf made || printf none ):$( LC_ALL=C grep -c 'no session folder' "$rigTmp/hook.err" ):$rigRc" "none:1:0"
+mkdir -p "${rigParts%/*}" && cp "$rigHere/session/AgentsSessionParts.include" "$rigParts"
+rigRun start "$( rigPayload "$rigId" "$rigLog" SessionStart )" MDAT_SESSION_FOLDER=""
+rigAssert "no folder value, and the parts file is installed: the folder comes from the concern's own file" \
+	"$( cat "$rigStore/native-log" 2> /dev/null ):$rigRc" "$rigCopy:0"
+## The store's leaf moved in the parts file alone: the hook follows the file, so native-log lands in the new place only.
+rigMoved="$rigWs/.local/agents/sessions-moved/$rigId"
+LC_ALL=C sed 's|^agentsSessionPartsLeaf=".*"$|agentsSessionPartsLeaf=".local/agents/sessions-moved"|' "$rigParts" > "$rigTmp/parts.moved" && mv -f "$rigTmp/parts.moved" "$rigParts"
+rm -rf "$rigStore" "$rigMoved"
+rigRun start "$( rigPayload "$rigId" "$rigLog" SessionStart )" MDAT_SESSION_FOLDER=""
+rigAssert "the store leaf moved in the parts file alone: native-log follows it, and the old path is not made" \
+	"$( cat "$rigMoved/native-log" 2> /dev/null ):$( [ -d "$rigStore" ] && printf made || printf none )" "$rigCopy:none"
+rm -rf "$rigWs/.local/myx"
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ NATIVE TRANSCRIPT KEEP CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

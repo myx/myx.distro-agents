@@ -18,11 +18,14 @@ rigTest="${rigHere%/sh-lib}/sh-test"
 rigTool="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 rigHarness="$rigHere/harness/AgentsUniversalHarness.sh"
 ## The name of the address field, read where it is held, so a rename is one line there.
-rigReportsTo="$( LC_ALL=C sed -n 's/^agentsRunRouteField="\(.*\)"$/\1/p' "$rigHere/spawn/AgentsTools.SpawnSandbox.include" )"
+rigReportsTo="$( LC_ALL=C sed -n 's/^agentsRunRouteField="\(.*\)"$/\1/p' "$rigHere/session/AgentsTools.RunRoute.include" )"
+[ -n "$rigReportsTo" ] || { echo "⛔ ERROR: the package names no field for where a run reports to (agentsRunRouteField) -- nothing is read from a record without its own header name" >&2 ; exit 1 ; }
 rigMember="magic-tester"
 
-rigRefuse(){
+## The one store-write helper is sourced at the top level: a source inside rigRefuse runs only when that function runs,
+## and the checks below use the helper whether or not setup ever refused.
 . "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-writes.include.sh" || exit 1
+rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }
 . "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-copy.include.sh" || rigRefuse "the rig's copy helper is missing from the package: sh-test/check-fixtures/rig-copy.include.sh"
@@ -220,7 +223,7 @@ rigStart race
 rigRecord "$rigQ1" 1700000001.000102 Q1 rig-sess-e ""
 rigReplies ',{"ts":"1700000001.000200","user":"URIGOWNER","text":"yes","thread_ts":"1700000001.000101"}'
 ( rigCollect raceCollect --session-id rig-sess-e ) &
-( rigEnv env MDAT_SKILLSET_ROOT="$MDAT_SKILLSET_ROOT" bash "$rigTool" --settle-pending-reply "$rigMember" "$rigQ1" --reason "settled in the race" > "$rigScenarioDir/raceSettle" 2>&1 ) &
+( rigEnv env MDAT_SKILLSET_ROOT="$MDAT_SKILLSET_ROOT" bash "$rigTool" --settle-pending-reply --team-member "$rigMember" "$rigQ1" --reason "settled in the race" > "$rigScenarioDir/raceSettle" 2>&1 ) &
 wait
 rigAssert "one closer closed it"                          "$( cat "$rigScenarioDir/raceCollect" "$rigScenarioDir/raceSettle" | LC_ALL=C grep -c -E "^(ANSWERED $rigQ1|SETTLED $rigQ1)" )" 1
 rigAssert "the other found it closed"                     "$( cat "$rigScenarioDir/raceCollect" "$rigScenarioDir/raceSettle" | LC_ALL=C grep -c "^ALREADY-CLOSED $rigQ1" )" 1

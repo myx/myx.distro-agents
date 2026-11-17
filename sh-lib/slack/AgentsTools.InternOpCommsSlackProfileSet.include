@@ -23,10 +23,8 @@
 				set +e ; return 1
 			;;
 			*)
-				if [ ! -d "$MDAT_SKILLSET_ROOT/$profileMember" ] ; then
-					echo "⛔ ERROR: $MDSC_CMD --slack-profile-set: no such member skill directory: $MDAT_SKILLSET_ROOT/$profileMember" >&2
-					set +e ; return 1
-				fi
+				type AgentsToolsSlackMemberPresent > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/slack/AgentsTools.CommsSlack.include"
+				AgentsToolsSlackMemberPresent "$profileMember" --slack-profile-set || { set +e ; return 1 ; }
 			;;
 		esac
 		local profileFieldCount=0

@@ -7,11 +7,6 @@ type AgentsSlackIdentityId > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-ag
 ## Sourced, never run. Functions only. Loaded by AgentsTools.Contacts.include, with the other parts it calls.
 ##
 
-## The tooling's own script, called as the family calls it from another script.
-AgentsToolsContactsChain(){ ## DistroAgentsTools arguments...
-	"$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" "$@"
-}
-
 ## A standing grant for a contact, entered by grant-open --kind contact (AgentsTools.InternOpPermission.include): the entry
 ## `contact:<tool>:<target>:<granted by>:<time>` joins the `allows:` of the record, the way a task grant's joins its board item's, and one dated log
 ## line says what it allows. An entry for the same tool, target and signer is there once. The permission model reads the key, never this file.
@@ -31,7 +26,7 @@ AgentsToolsContactsAllowAdd(){ ## id, entry, the natural target (for the log lin
 	if [[ ",$crAllows," != *",$allowKey"* ]] ; then
 		crAllows="${crAllows:+$crAllows,}$allowEntry"
 		type AgentsToolsPermissionPartyName > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionPosts.include"
-		crLog="$crLog- $( AgentsToolsContactsStamp ) -- $( AgentsToolsPermissionPartyName "$allowBy" ) -- allowed: $allowTool $allowNatural (standing)"$'\n'
+		crLog="$crLog- $( date '+%Y-%m-%d %H:%M %z' ) -- $( AgentsToolsPermissionPartyName "$allowBy" ) -- allowed: $allowTool $allowNatural (standing)"$'\n'
 		AgentsToolsContactsWriteFile allow-add "$allowFile" AgentsToolsContactsPersonText || { AgentsToolsContactsUnlock ; return 1 ; }
 	fi
 	AgentsToolsContactsUnlock
@@ -41,7 +36,7 @@ AgentsToolsContactsAllowAdd(){ ## id, entry, the natural target (for the log lin
 ## the tiers the record's `tier:` adds to Ingest and Basic. An unknown value on a record hand-edited is read as no tier, so it adds nothing.
 AgentsToolsContactsAccessText(){ ## id
 	local accessRows accessTiers="Moot and Contact only"
-	accessRows="$( AgentsToolsContactsChain --intern-op-permission-contact-holds "contact:$1" 2> /dev/null | LC_ALL=C awk -F'\t' 'NF >= 5 { printf "%s%s on %s (allowed by %s)", sep, $2, $3, $4 ; sep = ", " ; }' )" || accessRows=""
+	accessRows="$( "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-op-permission-contact-holds "contact:$1" 2> /dev/null | LC_ALL=C awk -F'\t' 'NF >= 5 { printf "%s%s on %s (allowed by %s)", sep, $2, $3, $4 ; sep = ", " ; }' )" || accessRows=""
 	type AgentsToolsFrontmatterKey > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.FrontmatterKey.include"
 	type AgentsToolsContactsTierName > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/contacts/AgentsTools.ContactsTiers.include"
 	case "${contactsEffectiveTier:-$( AgentsToolsContactsTierName "$( AgentsToolsFrontmatterKey "$contactsPersons/$1.md" tier )" )}" in
@@ -80,7 +75,7 @@ AgentsToolsContactsAccess(){ ## the operation, its arguments...
 	[ -f "$contactsPersons/$accId.md" ] || { echo "$MDSC_CMD: ⛔ ERROR: $accOp: no contact $accId is recorded -- find one with --find-contact <value>" >&2 ; return 1 ; }
 	if [ -n "$accTool$accTarget" ] ; then
 		[ -n "$accTool" ] && [ -n "$accTarget" ] || { echo "$MDSC_CMD: ⛔ ERROR: $accOp: --tool and --target come together" >&2 ; return 1 ; }
-		accOut="$( AgentsToolsContactsChain --intern-op-permission-grant-read "contact:$accId" --session-id "${accSession:-${MDAT_SPAWN_SESSION_ID:-no-session}}" --tool "$accTool" --target "$accTarget" 2> /dev/null )" || accRc=$?
+		accOut="$( "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-op-permission-grant-read "contact:$accId" --session-id "${accSession:-${MDAT_SPAWN_SESSION_ID:-no-session}}" --tool "$accTool" --target "$accTarget" 2> /dev/null )" || accRc=$?
 		[ -z "$accOut" ] || printf '%s\n' "$accOut"
 		if [ "$accRc" != 0 ] ; then
 			printf 'NO-GRANT: contact:%s %s %s\n' "$accId" "$accTool" "$accTarget"
@@ -88,7 +83,7 @@ AgentsToolsContactsAccess(){ ## the operation, its arguments...
 		fi
 		return 0
 	fi
-	AgentsToolsContactsChain --intern-op-permission-contact-holds "contact:$accId"
+	"$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-op-permission-contact-holds "contact:$accId"
 }
 
 ## --escalate-contact <id> --tool <tool> --target <target> --asked <text> [--session-id <id>]: what a contact asks for and holds no access to is put to the
@@ -121,12 +116,12 @@ AgentsToolsContactsEscalate(){ ## the operation, its arguments...
 	[ -n "$escSession" ] || { echo "$MDSC_CMD: ⛔ ERROR: $escOp: the refusal is recorded in a session, and this call names none: --session-id <id>" >&2 ; return 1 ; }
 	AgentsToolsContactsStore "$escOp" || return 1
 	[ -f "$contactsPersons/$escId.md" ] || { echo "$MDSC_CMD: ⛔ ERROR: $escOp: no contact $escId is recorded -- find one with --find-contact <value>" >&2 ; return 1 ; }
-	escRefusal="$( AgentsToolsContactsChain --intern-op-permission-refusal-log "contact:$escId" --session-id "$escSession" --tool "$escTool" --target "$escTarget" --reason "$escAsked" 2> /dev/null | LC_ALL=C sed -n 's/^\(refusal-[0-9a-f-]*\)$/\1/p' | LC_ALL=C sed -n 1p )"
+	escRefusal="$( "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-op-permission-refusal-log "contact:$escId" --session-id "$escSession" --tool "$escTool" --target "$escTarget" --reason "$escAsked" 2> /dev/null | LC_ALL=C sed -n 's/^\(refusal-[0-9a-f-]*\)$/\1/p' | LC_ALL=C sed -n 1p )"
 	[ -n "$escRefusal" ] || { echo "$MDSC_CMD: ⛔ ERROR: $escOp: the permission model recorded no refusal for contact:$escId -- nothing was asked" >&2 ; return 1 ; }
 	AgentsToolsContactsLock "$escOp" || return 1
 	AgentsToolsContactsPersonRead "$contactsPersons/$escId.md" || { AgentsToolsContactsUnlock ; return 1 ; }
 	escName="$crName"
-	crLog="$crLog- $( AgentsToolsContactsStamp ) -- $escBy -- escalated: $escTool $escTarget: $escAsked (refusal $escRefusal)"$'\n'
+	crLog="$crLog- $( date '+%Y-%m-%d %H:%M %z' ) -- $escBy -- escalated: $escTool $escTarget: $escAsked (refusal $escRefusal)"$'\n'
 	AgentsToolsContactsWriteFile "$escOp" "$contactsPersons/$escId.md" AgentsToolsContactsPersonText || { AgentsToolsContactsUnlock ; return 1 ; }
 	AgentsToolsContactsUnlock
 	type AgentsToolsEscalationNote > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.Escalation.include"
@@ -170,19 +165,21 @@ AgentsToolsContactsAllow(){ ## the operation, its arguments...
 	[ -n "$allowBy" ] || { echo "$MDSC_CMD: ⛔ ERROR: $allowOp: a grant is signed by a member, and this call comes from no member's session" >&2 ; return 1 ; }
 	AgentsToolsContactsStore "$allowOp" || return 1
 	[ -f "$contactsPersons/$allowId.md" ] || { echo "$MDSC_CMD: ⛔ ERROR: $allowOp: no contact $allowId is recorded -- find one with --find-contact <value>" >&2 ; return 1 ; }
-	allowRecord="$MMDAPP/.local/agents/sessions/$allowSession/$allowRefusal.md"
-	if [ ! -f "$allowRecord" ] || [ "$( AgentsToolsFrontmatterKey "$allowRecord" owner )" != "contact:$allowId" ] ; then
+	allowRecord=""
+	type AgentsToolsPermissionRefusalRecordInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionRecord.include"
+	AgentsToolsPermissionRefusalRecordInto allowRecord "$allowRefusal" "$allowSession" || allowRecord=""
+	if [ -z "$allowRecord" ] || [ "$( AgentsToolsFrontmatterKey "$allowRecord" owner )" != "contact:$allowId" ] ; then
 		echo "$MDSC_CMD: ⛔ ERROR: $allowOp: the refusal $allowRefusal of session $allowSession is not one recorded for contact:$allowId (--escalate-contact records it) -- nothing is granted" >&2
 		return 1
 	fi
 	allowTool="$( AgentsToolsFrontmatterKey "$allowRecord" tool )" ; allowTarget="$( AgentsToolsFrontmatterKey "$allowRecord" target )"
-	allowOut="$( AgentsToolsContactsChain --intern-op-permission-grant-open "$allowBy" --session-id "$allowSession" --refusal-id "$allowRefusal" --kind "$allowKind" )" || allowRc=$?
+	allowOut="$( "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-op-permission-grant-open "$allowBy" --session-id "$allowSession" --refusal-id "$allowRefusal" --kind "$allowKind" )" || allowRc=$?
 	[ -z "$allowOut" ] || printf '%s\n' "$allowOut"
 	[ "$allowRc" = 0 ] || return "$allowRc"
 	[ "$allowKind" = session ] || return 0
 	AgentsToolsContactsLock "$allowOp" || return 1
 	if AgentsToolsContactsPersonRead "$contactsPersons/$allowId.md" ; then
-		crLog="$crLog- $( AgentsToolsContactsStamp ) -- $allowBy -- allowed for the session $allowSession: $allowTool $allowTarget (refusal $allowRefusal)"$'\n'
+		crLog="$crLog- $( date '+%Y-%m-%d %H:%M %z' ) -- $allowBy -- allowed for the session $allowSession: $allowTool $allowTarget (refusal $allowRefusal)"$'\n'
 		AgentsToolsContactsWriteFile "$allowOp" "$contactsPersons/$allowId.md" AgentsToolsContactsPersonText || :
 	fi
 	AgentsToolsContactsUnlock

@@ -14,7 +14,7 @@
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigPackage="${RIG_PACKAGE:-$MDLT_ORIGIN/myx/myx.distro-agents}"
-rigInclude="$rigPackage/sh-lib/session/AgentsTools.ManagerSessionRows.include"
+rigInclude="$rigPackage/sh-lib/manager/AgentsTools.ManagerSessionRows.include"
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }

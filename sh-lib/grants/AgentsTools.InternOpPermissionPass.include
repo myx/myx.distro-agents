@@ -156,11 +156,11 @@ type AgentsToolsGrantsItemRuns > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distr
 		fi
 		printf '%s:%s:%s:%s:%s:%s\n' "$passKind" "$passTool" "$( AgentsToolsPermissionEscape "$passTarget" )" "$passBy" "$( date -u +%Y%m%dT%H%M%SZ )" "$passRef" >> "$passDir/grants" || {
 			echo "$MDSC_CMD: ⛔ ERROR: can't write the grant for $passRef, so nothing is passed" >&2
-			AgentsToolsGrantsStoreTouch "$passDir"
+			AgentsToolsGrantsStoreTouchDir "$passDir"
 			set +e ; return 1
 		}
 		## Every session index joining this store is rebuilt at its next check.
-		AgentsToolsGrantsStoreTouch "$passDir"
+		AgentsToolsGrantsStoreTouchDir "$passDir"
 		## A grant written by passing one on is said in that session's tracking-thread too.
 		AgentsToolsPermissionAnswerPost grant "$passTo" "$passDir" "${passDir##*/}" "$passRef" "$passTool" "$passTarget" "$passBy" "$passKind, passed on"
 		printf 'GRANT: %s %s\n' "$passKind" "$passRef"

@@ -73,7 +73,7 @@ rigFn(){ ## the function and its arguments... -- run in the loop's include: `<rc
 			set +e
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/schedule/AgentsTools.DispatcherSchedule.include" > /dev/null 2>&1
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.BoardItemHandler.include" > /dev/null 2>&1
-			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include" > /dev/null 2>&1
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunProcesses.include" > /dev/null 2>&1
 			"$@"
 		' rig "$@" 2> /dev/null )"
 	fnRc=$?

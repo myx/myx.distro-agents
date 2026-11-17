@@ -437,28 +437,37 @@ def helpFocus(state, row):
 
 ## ---- the plugin: `Team Members` ----
 
+## A participant of a session opened under a member's `Sessions` folder holds the same folder as one opened under a session of
+## `Activity`: its `CheckList`, `Transcript` and `Permissions`. Its level is that member folder's, taken from MEMBER_FOLDERS, and
+## its rows, reads and summary come from the one function that makes them, so the folder is named once.
+MEMBER_PARTICIPANT_TREE = {"participants": [], "folders": [], "rows": {}, "focus": {}, "summaries": {}, "derived": {}, "reads": {}, "markdown": []}
+activityParticipants(MEMBER_PARTICIPANT_TREE, "@team/" + memberFolderLevel("member-sessions", "*"))
+## The agents of one of those sessions: the session's own runs, as the Activity lists give them.
+MEMBER_PARTICIPANT_TREE["derived"]["@team/" + memberFolderLevel("member-sessions", "*")] = "participantRows"
+
 registerPlugin({
     "name": "team",
     "apps": ("agents",),
     "mount": "magic-team",
     "root": {"id": "team", "label": "Team Members", "go": "~T~eam Members", "group": "team"},
-    ## What a member holds as a folder: MEMBER_FOLDERS.
-    "rows": {
+    ## What a member holds as a folder: MEMBER_FOLDERS, and under its `Sessions` the participant folders of MEMBER_PARTICIPANT_TREE.
+    "rows": dict(MEMBER_PARTICIPANT_TREE["rows"], **{
         "team/*": tuple((folderId, label, kind, True) for folderId, label, kind in MEMBER_FOLDERS),
-    },
-    "focus": {"team": "teamFocus", "team/*/permissions": "grantsFocus", "team/*/files": "filesFocus", "team/*/help": "helpFocus",
-              "team/*/sessions": "sessionsFocus", "team/*/settings": "settingsFocus"},
-    "summaries": {
+    }),
+    "focus": dict(MEMBER_PARTICIPANT_TREE["focus"], **{
+        "team": "teamFocus", "team/*/permissions": "grantsFocus", "team/*/files": "filesFocus", "team/*/help": "helpFocus",
+        "team/*/sessions": "sessionsFocus", "team/*/settings": "settingsFocus"}),
+    "summaries": dict(MEMBER_PARTICIPANT_TREE["summaries"], **{
         "team": {"lines": "membersSummary"},
         "team/*/permissions": {"lines": "grantsSummary"},
         "team/*/files": {"lines": "filesSummary"},
         "team/*/sessions": {"lines": "sessionsSummary", "counted": ("running", "waiting", "unclosed")},
         "team/*/settings": {"lines": "memberSettingsSummary"},
         "team/*/help": {"lines": "helpSummary", "chapters": "help"},
-    },
+    }),
     ## The grants as they are shown, and the settings of the member, are made of what other reads hold.
-    "derived": {"team/*/permissions": "memberGrantRows", "team/*/settings": "memberSettingRows"},
-    "reads": {
+    "derived": dict(MEMBER_PARTICIPANT_TREE["derived"], **{"team/*/permissions": "memberGrantRows", "team/*/settings": "memberSettingRows"}),
+    "reads": dict(MEMBER_PARTICIPANT_TREE["reads"], **{
         ## The members of the team as this workspace knows them, one row each.
         "list:team": {"operation": ["--manager-team-member-list"], "rows": "members"},
         ## One member, whole: its information, the sessions it is in, its grants and its settings.
@@ -478,7 +487,7 @@ registerPlugin({
         ## The chapters of the help of this tool, which a member's `Member Help` shows around its own
         ## syntax lines. It is no level of the list: a read of its own, made beside that folder.
         "list:help": {"operation": ["--manager-help-read"], "rows": "chapters", "once": True},
-    },
+    }),
     "commands": (
         {"name": "start", "keys": ("n",), "menu": ("member", 1), "label": "~S~tart", "status": "Start", "after": "colours",
          "views": ("team",), "for": "a team member", "on": ("team:record",), "does": ("action", "start"), "calls": ("start",)},

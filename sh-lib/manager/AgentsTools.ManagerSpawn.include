@@ -27,7 +27,7 @@
 ## basic floor of the member loads). --goal <text> is the prompt given as an option.
 ##
 
-type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandboxRecordHeader.include"
+type AgentsToolsFrontmatterKey > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.FrontmatterKey.include"
 type AgentsToolsTeamMemberStartCheck > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamRegistry.include"
 
 ## One member asked before anything is started: a bare name, a member of this machine (its folder, where it has one here, is left in spawnFolder of the caller), and no

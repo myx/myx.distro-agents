@@ -31,9 +31,9 @@ case "$1" in
 
 	--intern-op-work-duty-input-scan)
 		shift
-		local workMember="${1:-}" workSession="${MDAT_SESSION_ID:-}" workWindow workWork workOut workInboxRc=0 workBoardRc=0 workState workSeed workReady
+		local workMember="${1:-}" workSession="${MDAT_SESSION_ID:-}" workFloor=work-duty workWindow workWork workOut workInboxRc=0 workBoardRc=0 workState workSeed workReady
 		if [ -z "$workMember" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --intern-op-work-duty-input-scan: syntax is <team-member> [--session-id <id>]" >&2
+			echo "⛔ ERROR: $MDSC_CMD --intern-op-work-duty-input-scan: syntax is <team-member> [--session-id <id>] [--floor work-duty|off-duty]" >&2
 			set +e ; return 1
 		fi
 		shift
@@ -47,17 +47,24 @@ case "$1" in
 					workSession="$2"
 					shift 2
 				;;
+				--floor)
+					workFloor="${2:-}"
+					case "$workFloor" in
+						work-duty|off-duty) ;;
+						'') echo "⛔ ERROR: $MDSC_CMD --intern-op-work-duty-input-scan: --floor: value required, work-duty or off-duty" >&2 ; set +e ; return 1 ;;
+						*) echo "⛔ ERROR: $MDSC_CMD --intern-op-work-duty-input-scan: --floor takes work-duty or off-duty, got: $workFloor" >&2 ; set +e ; return 1 ;;
+					esac
+					shift 2
+				;;
 				*)
-					echo "⛔ ERROR: $MDSC_CMD --intern-op-work-duty-input-scan: invalid option: $1 -- syntax is <team-member> [--session-id <id>]" >&2
+					echo "⛔ ERROR: $MDSC_CMD --intern-op-work-duty-input-scan: invalid option: $1 -- syntax is <team-member> [--session-id <id>] [--floor work-duty|off-duty]" >&2
 					set +e ; return 1
 				;;
 			esac
 		done
 		AgentsToolsAssertBareName "$workMember" "<team-member>" work-duty-input-scan || { set +e ; return 1 ; }
-		if [ ! -d "$MDAT_SKILLSET_ROOT/$workMember" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --intern-op-work-duty-input-scan: no such member skill directory: $MDAT_SKILLSET_ROOT/$workMember" >&2
-			set +e ; return 1
-		fi
+		type AgentsToolsSlackMemberPresent > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/slack/AgentsTools.CommsSlack.include"
+		AgentsToolsSlackMemberPresent "$workMember" --intern-op-work-duty-input-scan || { set +e ; return 1 ; }
 		## The window: the setting of the team scope where it is a whole number of one second or more, else a minute.
 		type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/settings/AgentsTools.ConfigOption.include"
 		workWindow="$( AgentsToolsConfigOption magic-team --select WAIT_COLLECT_SECONDS 2> /dev/null )" || workWindow=""
@@ -83,7 +90,7 @@ case "$1" in
 			workTraceAt="$traceNow"
 		}
 
-		printf '# Work duty input scan: %s\n\n' "$workMember"
+		printf '# Work duty input scan: %s, taken %s\n\n' "$workMember" "$( date '+%Y-%m-%d %H:%M %z' )"
 		## S19.3: a duty whose session a pause holds says so in its own scan, and the runs it reads are read as they stand.
 		if AgentsToolsSessionPauseHeld "$workSession" ; then
 			printf '**PAUSED:** session %s is paused, so its runs hold at their pause points and none is stuck, dead or idle.\n\n' "$workSession"
@@ -116,11 +123,15 @@ case "$1" in
 		## What only magic-coordinator's duty carries (F7.12): the items of the human-owner and the external contacts that are due, and
 		## the permission asks, each found by script. The wait of the duty watches this scan, so a new ask or a due item wakes it, and none starts a session.
 		if [ "$workMember" = "magic-coordinator" ] ; then
-			type AgentsToolsExternalOwnerSection > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.ExternalOwnerItems.include"
-			printf '\n'
-			AgentsToolsExternalOwnerSection
-			workTrace external-owner-items
-			printf '\n'
+			## THE FLOOR DECIDES THE SOURCES: the off-duty floor reads Slack, the member's own inbox and the board, and leaves the external owners'
+			## due items to the work-duty. Email and Trello are read by neither floor, so the collect below takes --no-email --no-trello for both.
+			if [ "$workFloor" = work-duty ] ; then
+				type AgentsToolsExternalOwnerSection > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.ExternalOwnerItems.include"
+				printf '\n'
+				AgentsToolsExternalOwnerSection
+				workTrace external-owner-items
+				printf '\n'
+			fi
 			type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 			DistroAgentsTools --intern-op-permission-escalation-input-scan "$workMember" 2> /dev/null || printf '## permission asks addressed to permission-escalation.routine\n\n(the permission asks could not be read)\n'
 			workTrace permission-asks

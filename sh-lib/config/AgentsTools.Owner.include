@@ -1079,7 +1079,7 @@ case "$1" in
 					## it: progressLineCap>0 drives AgentsProgressLineSafe through its
 					## own progressLineSafe() call, which is the only way the call-time
 					## hazard is reachable at all.
-					printf 'abc' | LC_ALL=C awk -v progressLineCap=2 -f "$setupLibDir/session/AgentsProgressLineSafe.awk" >/dev/null 2>&1 \
+					printf 'abc' | LC_ALL=C awk -v progressLineCap=2 -f "$setupLibDir/core/AgentsProgressLineSafe.awk" >/dev/null 2>&1 \
 						|| setupHelperBad="$setupHelperBad AgentsProgressLineSafe.awk"
 					printf 'a"b' | LC_ALL=C awk -f "$setupLibDir/mcp/AgentsMcpJsonEscape.awk" >/dev/null 2>&1 \
 						|| setupHelperBad="$setupHelperBad AgentsMcpJsonEscape.awk"
@@ -1089,7 +1089,7 @@ case "$1" in
 						|| setupHelperBad="$setupHelperBad AgentsHarnessJsonSlice.awk"
 					## The library-loaded ones, each with the files it is loaded after; an
 					## empty stream proves they parse together, and writes nothing.
-					: | LC_ALL=C awk -f "$setupLibDir/session/AgentsProgressLineSafe.awk" -f "$setupLibDir/harness/AgentsHarnessJsonField.awk" -f "$setupLibDir/harness/AgentsHarnessJsonSlice.awk" -f "$setupLibDir/harness/AgentsOpenAiChatStream.awk" >/dev/null 2>&1 \
+					: | LC_ALL=C awk -f "$setupLibDir/core/AgentsProgressLineSafe.awk" -f "$setupLibDir/harness/AgentsHarnessJsonField.awk" -f "$setupLibDir/harness/AgentsHarnessJsonSlice.awk" -f "$setupLibDir/harness/AgentsOpenAiChatStream.awk" >/dev/null 2>&1 \
 						|| setupHelperBad="$setupHelperBad AgentsOpenAiChatStream.awk"
 					: | LC_ALL=C awk -f "$setupLibDir/harness/AgentsHarnessJsonField.awk" -f "$setupLibDir/harness/AgentsHarnessJsonSlice.awk" -f "$setupLibDir/harness/AgentsAnthropicMessagesStream.awk" >/dev/null 2>&1 \
 						|| setupHelperBad="$setupHelperBad AgentsAnthropicMessagesStream.awk"
@@ -1114,7 +1114,7 @@ case "$1" in
 					## the servers are.
 					local setupAxiomOut="" setupAxiomRc=0
 					setupAxiomOut="$( LC_ALL=C awk -f "$setupTestDir/harness/AgentsHarnessAwkAxiom.test.awk" \
-						"$setupLibDir/session/AgentsProgressLineSafe.awk" \
+						"$setupLibDir/core/AgentsProgressLineSafe.awk" \
 						"$setupLibDir/harness/AgentsHarnessJsonField.awk" \
 						"$setupLibDir/harness/AgentsHarnessJsonSlice.awk" \
 						"$setupLibDir/harness/AgentsOpenAiChatStream.awk" \
@@ -2415,18 +2415,18 @@ case "$1" in
 									echo "        ${setupMemberSlot%%|*}"
 									echo "          -> ${setupMemberSlot#*|}"
 								done
-								echo "  why:  the grant names each member's directory as $MDAT_SKILLSET_ROOT"
+								echo "  why:  the grant names each member's directory where this workspace's member set"
 								echo "        resolves it. A link reaching a second copy of the same member is a"
 								echo "        different directory, and regenerating the fragment does not move"
 								echo "        it -- an existing link is kept exactly as it is."
-								echo "  fix:  re-point each link above at the directory $MDAT_SKILLSET_ROOT/<member>"
-								echo "        resolves to, then run $setupToolPath --owner-setup-claude --apply"
+								echo "  fix:  re-point each link above at that member's directory in this"
+								echo "        workspace, then run $setupToolPath --owner-setup-claude --apply"
 							}
 							AgentsToolsOwnerSetupRow "Skill access roots" "INCOMPLETE"
 							## The one finding here nothing carries out: --install-skillset-symlinks
 							## keeps an existing link exactly as it is, whatever it points at,
 							## so no run of it moves this one.
-							setupSetupSteps="${setupSetupSteps}  re-point the member links --check lists at the directories $MDAT_SKILLSET_ROOT resolves to -- an existing link is never moved for you"$'\n'
+							setupSetupSteps="${setupSetupSteps}  re-point the member links --check lists at this workspace's own member directories -- an existing link is never moved for you"$'\n'
 							setupBlockers="$setupBlockers CLIENT_ACCESS_ROOTS"
 							setupRc=1
 						fi

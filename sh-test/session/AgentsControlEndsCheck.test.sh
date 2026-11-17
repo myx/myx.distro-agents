@@ -6,7 +6,7 @@
 ## neither the record nor itself, and kept ticking.
 ## Offline: the workspace, its board and its spawn records are this rig's own temp tree. No socket.
 set -u
-. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-store.include.sh" || exit 1
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-writes.include.sh" || exit 1
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 rigPkg="${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}/myx/myx.distro-agents"
 rigFn="$rigPkg/sh-scripts/DistroAgentsTools.fn.sh"
@@ -18,8 +18,10 @@ rigRefuse(){
 mkdir -p "$MMDAPP/.local/temp"
 rigTmp="$( mktemp -d "$MMDAPP/.local/temp/AgentsControlEndsCheck.XXXXXX" )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
+## And every thread a scene of this rig starts, by its own log or lock, ended before its tree goes.
+. "$rigPkg/sh-test/check-fixtures/rig-control-threads.include.sh" || rigRefuse "the rig's fixture that ends threads is missing from the package"
 rigPids=""
-trap 'for rigOne in $rigPids ; do kill -KILL "$rigOne" 2> /dev/null ; done ; rm -rf -- "$rigTmp"' EXIT
+trap 'for rigOne in $rigPids ; do kill -KILL "$rigOne" 2> /dev/null ; done ; rigControlThreadsEnd "$rigTmp" ; rm -rf -- "$rigTmp"' EXIT
 rigWs="$rigTmp/ws"
 rigData="$rigTmp/data"
 rigSpawned="$rigWs/.local/agents/spawned"

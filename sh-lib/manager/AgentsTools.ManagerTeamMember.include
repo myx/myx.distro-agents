@@ -72,12 +72,14 @@ AgentsToolsManagerTeamMemberSessions(){ ## the operation as it was called
 ## resolution of an invited member answers, where its folder is in that workspace's member
 ## set. Not present: the machine's directory names it, and no such workspace can be reached.
 AgentsToolsManagerTeamMemberPlace(){ ## member, the members of this workspace's registry between newlines, the machine's directory of members
-	local placeText placeWorkspace
+	local placeText placeWorkspace placeDir
+	type AgentsToolsTeamMemberDirectory > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamRegistry.include"
 	placedSetUp="" ; placedRoot="" ; placedWorkspace="" ; placedFolder=""
 	case "$2" in *$'\n'"$1"$'\n'*) placedSetUp="here" ;; esac
-	[ -n "$placedSetUp" ] || [ ! -d "${MDAT_SKILLSET_ROOT:-/nonexistent}/$1" ] || placedSetUp="here"
+	placeDir="$( AgentsToolsTeamMemberDirectory "$1" )" || placeDir=""
+	case "$placeDir" in "${MMDAPP%/}/"*) placedSetUp="here" ;; esac
 	if [ "$placedSetUp" = "here" ] ; then
-		placedRoot="${MDAT_SKILLSET_ROOT:-}" ; placedWorkspace="${MMDAPP%/}"
+		placedRoot="${placeDir%/*}" ; placedWorkspace="${MMDAPP%/}"
 		return 0
 	fi
 	placeText=$'\n'"$3"
@@ -86,7 +88,7 @@ AgentsToolsManagerTeamMemberPlace(){ ## member, the members of this workspace's 
 	placedFolder="${placeText%%$'\n'*}"
 	placedSetUp="not-present"
 	if placeWorkspace="$( AgentsToolsMemberInvitedWorkspace "$1" )" ; then
-		placedRoot="$( AgentsToolsWorkspaceSkillsetRoot "$placeWorkspace" )"
+		placedRoot="${placeWorkspace%/}/.local/agents/members"
 		if [ -d "$placedRoot/$1" ] ; then
 			placedSetUp="elsewhere" ; placedWorkspace="${placeWorkspace%/}"
 		else
@@ -189,7 +191,7 @@ AgentsToolsManagerTeamMemberNamesSay(){ ## the operation as it was called
 ## as `not-present`. Fails, printing nothing, where a registry cannot be rebuilt.
 AgentsToolsManagerTeamMemberListRows(){ ## the operation as it was called
 	type AgentsToolsTeamMemberDirectoryText > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamRegistry.include"
-	local listOp="$1" listOwn=$'\n' listSeen=$'\n' listLive listMember listRest listDirectory
+	local listOp="$1" listOwn=$'\n' listSeen=$'\n' listLive listMember listRest listDirectory listDir
 	local ownRows="" sessionRows="" placedSetUp placedRoot placedWorkspace placedFolder
 	AgentsToolsManagerTeamMemberOwn "$listOp" || return 1
 	AgentsToolsManagerTeamMemberSessions "$listOp" || return 1
@@ -201,8 +203,9 @@ AgentsToolsManagerTeamMemberListRows(){ ## the operation as it was called
 	while read -r listMember listRest ; do
 		[ -n "$listMember" ] || continue
 		## A MEMBER IS A FOLDER HOLDING ITS SKILL.md: a stray file or a left-over folder of the members view is no row (S10.21).
-		[ -f "${MDAT_SKILLSET_ROOT:-$MMDAPP/.local/agents/members}/$listMember/SKILL.md" ] || continue
-		AgentsToolsManagerTeamMemberRow "$listMember" here "${MDAT_SKILLSET_ROOT:-}" "${MMDAPP%/}" "$listLive"
+		listDir="$( AgentsToolsTeamMemberDirectory "$listMember" )" || listDir=""
+		[ -f "$listDir/SKILL.md" ] || continue
+		AgentsToolsManagerTeamMemberRow "$listMember" here "${listDir%/*}" "${MMDAPP%/}" "$listLive"
 	done <<< "$ownRows"
 	listDirectory="$( AgentsToolsTeamMemberDirectoryText )" || listDirectory=""
 	while IFS=$'\t' read -r listMember listRest ; do

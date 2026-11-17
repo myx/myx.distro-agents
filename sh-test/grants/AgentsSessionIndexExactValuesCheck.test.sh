@@ -98,7 +98,7 @@ rigFnSays(){ ## tool, path -- rc of the check and what admitted it
 		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.Grants.include" || exit 97
 		AgentsToolsGrantsSessionEnsure "$MMDAPP" rig-member s-fn "" "" "$RIG_ORIGIN" || exit 96
 		checkRc=0
-		AgentsToolsGrantsSessionCheck "$RIG_TOOL" "$RIG_PATH" "$MMDAPP/.local/agents/sessions/s-fn" || checkRc=$?
+		AgentsToolsGrantsSessionCheck "$RIG_TOOL" "$RIG_PATH" s-fn "$MMDAPP" || checkRc=$?
 		printf "%s %s" "$checkRc" "$agentsGrantsCheckLayer"
 	' 2> "$rigTmp/fn.err"
 }

@@ -12,48 +12,26 @@
 agentsManagerHostFullSeconds=86400
 agentsManagerHostPlainSeconds=3600
 
-## Whether a live run sits inside a Wait call, by its own store, .local/agents/sessions/<spawn
-## id>: `waiting` when the last line of its milestones is `wait going idle`, which a Wait
-## writes as it starts, and its wait/state, which a wait writes as it ends, is older than
-## that line or was never written; or when the last line is `ask going idle`, an ask that
-## writes that as it starts and ends the block with a line of its own; `working` otherwise, a
-## run with no milestones among them.
-## Working is one thing here: no file of a run's store says a tool call from thinking. Asked
-## of a live run only. stat(1) differs by platform: its flavour is the caller's, probed once.
-AgentsToolsManagerRunActivity(){ ## spawn id, stat flavour (bsd, gnu)
-	local activityDir activityLine activityLast="" activityEnded="" activityYear activityMonth activityStamp
-	case "${1:-}" in ''|*/*|.|..) printf 'working\n' ; return 0 ;; esac
-	activityDir="$MMDAPP/.local/agents/sessions/$1"
-	[ -f "$activityDir/milestones" ] || { printf 'working\n' ; return 0 ; }
-	while IFS= read -r activityLine || [ -n "$activityLine" ] ; do
-		[ -z "$activityLine" ] || activityLast="$activityLine"
-	done < "$activityDir/milestones"
-	case "$activityLast" in
-		[0123456789][0123456789][0123456789][0123456789]-[0123456789][0123456789]-[0123456789][0123456789]T[0123456789][0123456789]:[0123456789][0123456789]:[0123456789][0123456789]Z' wait going idle') ;;
-		[0123456789][0123456789][0123456789][0123456789]-[0123456789][0123456789]-[0123456789][0123456789]T[0123456789][0123456789]:[0123456789][0123456789]:[0123456789][0123456789]Z' ask going idle') printf 'waiting\n' ; return 0 ;;
-		*) printf 'working\n' ; return 0 ;;
-	esac
-	[ -f "$activityDir/wait/state" ] || { printf 'waiting\n' ; return 0 ; }
-	case "${2:-}" in
-		bsd) activityEnded="$( stat -f '%m' "$activityDir/wait/state" 2>/dev/null )" || activityEnded="" ;;
-		gnu) activityEnded="$( stat -c '%Y' "$activityDir/wait/state" 2>/dev/null )" || activityEnded="" ;;
-	esac
-	## A wait/state that cannot be dated says nothing of a wait: working, as any run not known to wait.
-	case "$activityEnded" in ''|*[!0123456789]*) printf 'working\n' ; return 0 ;; esac
-	## The line's own time, `2026-10-12T23:15:19Z`, as seconds since 1970, by the calendar alone.
-	activityYear=$(( 10#${activityLast:0:4} )) ; activityMonth=$(( 10#${activityLast:5:2} ))
-	[ "$activityMonth" -gt 2 ] || { activityYear=$(( activityYear - 1 )) ; activityMonth=$(( activityMonth + 12 )) ; }
-	activityStamp=$(( ( 365 * activityYear + activityYear / 4 - activityYear / 100 + activityYear / 400 + ( 153 * ( activityMonth - 3 ) + 2 ) / 5 + 10#${activityLast:8:2} - 719469 ) * 86400 + 10#${activityLast:11:2} * 3600 + 10#${activityLast:14:2} * 60 + 10#${activityLast:17:2} ))
-	if [ "$activityEnded" -lt "$activityStamp" ] ; then printf 'waiting\n' ; else printf 'working\n' ; fi
+## Whether a live run sits inside a call waiting on a person, as the console calls it: `waiting` or `working`, answered by the session
+## store, which owns the run's store (AgentsSessionRunActivityInto). The console prints the word its counters and its rows read.
+AgentsToolsManagerRunActivity(){ ## spawn id
+	local activityWord=""
+	type AgentsSessionRunActivityInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+	AgentsSessionRunActivityInto activityWord "${1:-}" || return 0
+	printf '%s\n' "$activityWord"
 	return 0
 }
 
 ## Since when a waiting run has been idle, as an epoch: the stamp of the first `wait going idle` line of the stretch of them that ends its milestones
 ## (a Wait that came back quiet and was called again adds a line to the stretch and does not end it; an arrival, a post, a rewind, a handback does).
-## rc 1, nothing printed, for a run that does not wait or whose stretch cannot be dated.
-AgentsToolsManagerRunIdleSince(){ ## spawn id, stat flavour (bsd, gnu)
-	local sinceLine sinceFirst=""
-	[ "$( AgentsToolsManagerRunActivity "${1:-}" "${2:-}" )" = "waiting" ] || return 1
+## rc 1, nothing printed, for a run that does not wait or whose stretch cannot be dated. The stat flavour it was asked with is no longer needed:
+## the store dates its own file.
+AgentsToolsManagerRunIdleSince(){ ## spawn id, stat flavour (ignored, kept for its callers)
+	local sinceLine sinceFirst="" sinceDir="" sinceWord=""
+	type AgentsSessionFolderInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+	AgentsSessionRunActivityInto sinceWord "${1:-}" || return 1
+	[ "$sinceWord" = "waiting" ] || return 1
+	AgentsSessionFolderInto sinceDir "${MMDAPP:-}" "${1:-}" || return 1
 	while IFS= read -r sinceLine || [ -n "$sinceLine" ] ; do
 		case "$sinceLine" in
 			'') ;;
@@ -61,7 +39,7 @@ AgentsToolsManagerRunIdleSince(){ ## spawn id, stat flavour (bsd, gnu)
 			*' ask going idle') [ -n "$sinceFirst" ] || sinceFirst="$sinceLine" ;;
 			*) sinceFirst="" ;;
 		esac
-	done < "$MMDAPP/.local/agents/sessions/$1/milestones"
+	done < "$sinceDir/milestones"
 	[ -n "$sinceFirst" ] || return 1
 	sinceFirst="$( printf '%s\n' "${sinceFirst%% *}" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/output/LocalIsoToEpoch.awk" 2> /dev/null )" || return 1
 	case "$sinceFirst" in ''|*[!0123456789]*) return 1 ;; esac

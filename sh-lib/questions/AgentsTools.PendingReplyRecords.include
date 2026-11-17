@@ -62,6 +62,31 @@ AgentsToolsPendingReplyField(){ ## record file, field name
 	' "$1" 2>/dev/null
 }
 
+## The open ask a message stands on, if any: its pending id, empty where there is none. A message
+## stands on an ask when it is that ask's question as first posted (`question-ts`), the version it
+## was asked again as (`revision-ts`), or the parent of the thread it was posted in (`thread-ts`).
+## One pass over the store, its header fields taken as AgentsToolsPendingReplyField takes them.
+AgentsToolsPendingReplyOpenAt(){ ## channel, the message's ts
+	local atChannel="$1" atTs="$2" atStore="$MMDAPP/.local/agents/pending"
+	[ -n "$atChannel" ] && [ -n "$atTs" ] && [ -d "$atStore" ] || return 0
+	set -- "$atStore"/*.md
+	[ -f "$1" ] || return 0
+	LC_ALL=C awk -v wantChannel="$atChannel" -v wantTs="$atTs" '
+		function decide() {
+			if ( status == "reply-pending" && channel == wantChannel && ( questionTs == wantTs || revisionTs == wantTs || threadTs == wantTs ) ) { print fileId ; found = 1 ; }
+		}
+		FNR == 1 { if ( found ) { exit ; } fileId = FILENAME ; sub( /^.*\//, "", fileId ) ; sub( /\.md$/, "", fileId ) ; status = "" ; channel = "" ; questionTs = "" ; revisionTs = "" ; threadTs = "" ; stop = 0 ; }
+		stop { next ; }
+		/^# / { stop = 1 ; next ; }
+		index( $0, "status: " ) == 1 { status = substr( $0, 9 ) ; next }
+		index( $0, "channel: " ) == 1 { channel = substr( $0, 10 ) ; next }
+		index( $0, "question-ts: " ) == 1 { questionTs = substr( $0, 14 ) ; next }
+		index( $0, "revision-ts: " ) == 1 { revisionTs = substr( $0, 14 ) ; next }
+		index( $0, "thread-ts: " ) == 1 { threadTs = substr( $0, 12 ) ; next }
+		END { if ( ! found ) { decide() ; } }
+	' "$@"
+}
+
 ## Prints records as the read shows them, in one awk pass over every file given:
 ## `PENDING-REPLY: <id>`, the header fields the read names, `question:` with the
 ## question's first line, then a blank line. -v owner keeps only that member's records,

@@ -149,6 +149,9 @@ printf '%s\n' "$rigMethod" >> "$RIG_CURL_LOG"
 case "$rigMethod" in
 	auth.test) printf '{"ok":true,"user_id":"URIGSELF1"}\n' ;;
 	conversations.history) printf '{"ok":true,"messages":[],"has_more":false}\n' ;;
+	## The delete reads its target's own thread before it deletes, so its message is answered here:
+	## one message, carrying no reply_count, which is a message with nothing answering it.
+	conversations.replies) printf '{"ok":true,"messages":[{"ts":"1700000000.000100","user":"URIGSELF1","text":"rig message"}]}\n' ;;
 	search.messages) printf '{"ok":true,"messages":{"total":1,"paging":{"count":100,"total":1,"page":1,"pages":1},"matches":[{"ts":"1700000900.000100","user":"URIGOTHER","text":"plain","permalink":"https://rig.slack.com/archives/CRIG00001/p1700000900000100"}]}}\n' ;;
 	conversations.info) printf '{"ok":true,"channel":{"id":"CRIG00001","is_channel":true,"is_member":true,"name":"rig"}}\n' ;;
 	files.getUploadURLExternal) printf '{"ok":true,"upload_url":"https://files.slack.com/upload/rig","file_id":"F0RIG00001"}\n' ;;

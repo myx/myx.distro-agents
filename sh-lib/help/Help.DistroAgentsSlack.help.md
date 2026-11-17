@@ -91,7 +91,9 @@
 
 		--slack-read (<channel>:<ts> [--thread]|<channel>|<conversation-id>|<alias> [--oldest <ts>]) [--wait <seconds>]
 			Prints a conversation, the thread of one message with `--thread`, or the messages
-			after `--oldest`. It is served from the comms cache. With `--wait`, a read that
+			after `--oldest`. A whole conversation needs `--oldest`: a read of one with no
+			floor is refused, since a read from the start is cached as floor zero and costs
+			every read after it. It is served from the comms cache. With `--wait`, a read that
 			the cache cannot serve yet waits for that many seconds on the comms service
 			thread, by fifo, for the data to arrive.
 

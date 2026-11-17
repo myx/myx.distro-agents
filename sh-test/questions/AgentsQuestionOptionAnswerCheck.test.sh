@@ -154,7 +154,7 @@ rigNew(){ ## fixed text...
 rigInThread(){ printf '"thread_ts":"%s"' "$1" ; }
 rigAnswer(){ ## answering member, its session, verdict
 	rigMark
-	RIG_OP_AGENT="$1" RIG_OP_SESSION="$2" rigOp --answer-escalation "$1" "$rigPend" "$3"
+	RIG_OP_AGENT="$1" RIG_OP_SESSION="$2" rigOp --answer-escalation --team-member "$1" "$rigPend" "$3"
 }
 
 echo "-- A. a question with one answer form: its option's first word is the answer --"

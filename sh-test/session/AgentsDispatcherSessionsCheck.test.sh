@@ -118,7 +118,7 @@ rigAssert "--all-sessions: the same rows, the same exit" "$( [ -f "$rigTmp/all.o
 rigCall active "$rigDispatcher" --active-sessions
 rigAssert "--active-sessions: the same rows as --manager-session-list --active" "$( [ -f "$rigTmp/active.out" ] && rigSame active listActive )" "same"
 rigAssert "the function of the rows is named in the Dispatcher's include and in the manager's, and the Dispatcher builds no row of its own" \
-	"$( LC_ALL=C grep -l 'AgentsToolsManagerSessionRows ' "$rigPackage/sh-lib/schedule/AgentsTools.Dispatcher.include" "$rigPackage/sh-lib/session/AgentsTools.ManagerSessionRows.include" 2> /dev/null | wc -l | tr -d ' ' ):$( LC_ALL=C grep -c 'AgentsManagerSessionRows.awk' "$rigPackage/sh-lib/schedule/AgentsTools.Dispatcher.include" 2> /dev/null || :)" "2:0"
+	"$( LC_ALL=C grep -l 'AgentsToolsManagerSessionRows ' "$rigPackage/sh-lib/schedule/AgentsTools.Dispatcher.include" "$rigPackage/sh-lib/manager/AgentsTools.ManagerSessionRows.include" 2> /dev/null | wc -l | tr -d ' ' ):$( LC_ALL=C grep -c 'AgentsManagerSessionRows.awk' "$rigPackage/sh-lib/schedule/AgentsTools.Dispatcher.include" 2> /dev/null || :)" "2:0"
 
 echo "-- 2. --waiting-sessions --"
 rigCall waiting "$rigDispatcher" --waiting-sessions

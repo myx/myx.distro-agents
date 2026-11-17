@@ -13,10 +13,8 @@
 			set +e ; return 1
 		fi
 		AgentsToolsAssertBareName "$memberName" "<team-member>" get-my-board-items || { set +e ; return 1 ; }
-		if [ ! -d "$MDAT_SKILLSET_ROOT/$memberName" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --get-my-board-items: no such member skill directory: $MDAT_SKILLSET_ROOT/$memberName" >&2
-			set +e ; return 1
-		fi
+		type AgentsToolsSlackMemberPresent > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/slack/AgentsTools.CommsSlack.include"
+		AgentsToolsSlackMemberPresent "$memberName" --get-my-board-items || { set +e ; return 1 ; }
 		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 		DistroAgentsTools --intern-op-session-context-scan "$memberName" --all-types \
 			--no-inbox-inquiry --no-inbox-reflections --no-inbox-notes --no-inbox-other \

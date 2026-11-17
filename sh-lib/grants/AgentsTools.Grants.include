@@ -69,14 +69,10 @@ agentsGrantsHeader=""
 agentsGrantsIndexFile=""
 agentsGrantsIndexText=""
 
-## The member set root the floor's readable member directories come from.
-AgentsToolsGrantsSkillsetRoot(){ ## workspace -- sets agentsGrantsSkillsetRoot
-	agentsGrantsSkillsetRoot="${MDAT_SKILLSET_ROOT:-${1%/}/.local/agents/members}"
-}
-
 ## The index header: its format, and what its floor was read under.
 AgentsToolsGrantsIndexHeader(){ ## workspace -- sets agentsGrantsHeader
-	AgentsToolsGrantsSkillsetRoot "$1"
+	type AgentsToolsSkillsetRootInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWorkspace.include"
+	AgentsToolsSkillsetRootInto agentsGrantsSkillsetRoot "$1"
 	agentsGrantsHeader="$agentsGrantsIndexVersion"$'\t'"MDAT_SKILLSET_ROOT=$agentsGrantsSkillsetRoot"$'\t'"HOME=${HOME:-}"
 }
 
@@ -216,7 +212,8 @@ AgentsToolsGrantsIndexText(){ ## workspace
 AgentsToolsGrantsIndexWrite(){ ## workspace
 	local writeFile="${1%/}/.local/agents/grants.index" writeTemp writeSliceDir writeSliceNew
 	## One index per member set root, so callers under different roots never rebuild each other's: the workspace's own root keeps the plain name.
-	AgentsToolsGrantsSkillsetRoot "$1"
+	type AgentsToolsSkillsetRootInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWorkspace.include"
+	AgentsToolsSkillsetRootInto agentsGrantsSkillsetRoot "$1"
 	[ "$agentsGrantsSkillsetRoot" = "${1%/}/.local/agents/members" ] || writeFile="$writeFile.${agentsGrantsSkillsetRoot//[!A-Za-z0-9._-]/_}"
 	writeTemp="$( mktemp "$writeFile.XXXXXX" )" || writeTemp=""
 	if [ -z "$writeTemp" ] || ! ( AgentsToolsGrantsIndexText "$1" ) > "$writeTemp" ; then
@@ -265,7 +262,8 @@ AgentsToolsGrantsIndexEnsure(){ ## workspace
 	[ -n "$ensureWs" ] && [ -d "$ensureWs" ] || return 1
 	ensureDir="$ensureWs/.local/agents" ; ensureFile="$ensureDir/grants.index"
 	## One index per member set root, so callers under different roots never rebuild each other's: the workspace's own root keeps the plain name.
-	AgentsToolsGrantsSkillsetRoot "$ensureWs"
+	type AgentsToolsSkillsetRootInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWorkspace.include"
+	AgentsToolsSkillsetRootInto agentsGrantsSkillsetRoot "$ensureWs"
 	[ "$agentsGrantsSkillsetRoot" = "$ensureWs/.local/agents/members" ] || ensureFile="$ensureFile.${agentsGrantsSkillsetRoot//[!A-Za-z0-9._-]/_}"
 	if AgentsToolsGrantsIndexFresh "$ensureWs" "$ensureFile" ; then
 		agentsGrantsIndexFile="$ensureFile" ; return 0
@@ -617,7 +615,7 @@ AgentsToolsGrantsDeclaredText(){ ## declaring workspace root, op name for messag
 ## it stood (rc 0, said); another workspace's that is not keeps that workspace's rows.
 ## Then the pointer in $HOME/.agents/magic-team. rc 1 on a failure to write.
 AgentsToolsGrantsRegistryWrite(){ ## workspace, op name for messages
-	local regWs regName regOp="$2" regText regRc=0 regRows regTags regRoot regOtherName regOtherText regOtherRc
+	local regWs regName regOp="$2" regText regRc=0 regRows regTags regRoot regSkillsetRoot regOtherName regOtherText regOtherRc
 	local regFile regTagsFile regLock regWait=0 regOld=""
 	regWs="$( cd "${1%/}" 2> /dev/null && pwd )" || { echo "⛔ ERROR: $regOp: workspace not found: $1" >&2 ; return 1 ; }
 	regName="${regWs##*/}"
@@ -638,10 +636,11 @@ AgentsToolsGrantsRegistryWrite(){ ## workspace, op name for messages
 	regRows="$( printf '%s\n' "$regText" | LC_ALL=C sed -n 's/^row	//p' )"
 	regTags="$( printf '%s\n' "$regText" | LC_ALL=C sed -n 's/^tag	//p' )"
 	## Acting members only: nobody is granted write on the identity record.
+	AgentsToolsSkillsetRootInto regSkillsetRoot "$regWs"
 	while IFS= read -r regRoot ; do
 		[ -n "$regRoot" ] || continue
 		regRows="$regRows"$'\n'"${regRoot##*/}:$regName:member:Edit(/$regRoot/**)"
-	done <<< "$( MDAT_SKILLSET_ROOT="${MDAT_SKILLSET_ROOT:-$regWs/.local/agents/members}" AgentsToolsClientAccessRootsMembers acting )"
+	done <<< "$( MDAT_SKILLSET_ROOT="$regSkillsetRoot" AgentsToolsClientAccessRootsMembers acting )"
 	regRows="$regRows"$'\n'"magic-librarian:$regName:builtin:Read(/$regWs/source/**)"
 	## Registered tooling workspaces without agents: their own declares, `.` their own root.
 	while IFS= read -r regRoot ; do
@@ -788,12 +787,21 @@ AgentsToolsGrantsRunSeats(){ ## workspace, session id
 	return 0
 }
 
-## Whether a session store's session has ended, by builtins only: its spawn record
+## Whether a session has ended, by builtins only: its spawn record
 ## (spawned/*/<id>.spawn.md) closed with a spawn-* status other than spawn-started. A session with
 ## no spawn record (a root session: the human-owner's own, an interactive native console) ends
 ## by its client's SessionEnd hook instead (client-hooks/root-session-end.sh): an `ended`
 ## marker in its own store, which a resume removes. rc 0 ended, 1 not.
-AgentsToolsGrantsSessionEnded(){ ## session store directory
+## It takes the session id and builds the store's folder itself: no caller builds a path into the session store.
+AgentsToolsGrantsSessionEnded(){ ## session id, workspace (default MMDAPP)
+	local endedId="" endedStore=""
+	type AgentsSessionFolderInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include" || return 1
+	AgentsSessionFolderInto endedStore "${2:-${MMDAPP:-}}" "${1:-}" || return 1
+	AgentsToolsGrantsStoreEnded "$endedStore"
+}
+
+## The same verdict for a store whose folder the caller already holds: the granted stores of a member's own runs, one a loop.
+AgentsToolsGrantsStoreEnded(){ ## session store directory
 	local endedStore="${1%/}" endedRoot endedId endedRecord endedLine endedFront endedSeen=""
 	endedRoot="$endedStore"
 	endedId="${endedRoot##*/}" ; endedRoot="${endedRoot%/*}" ; endedRoot="${endedRoot%/*}/spawned"
@@ -878,7 +886,7 @@ AgentsToolsGrantsItemRuns(){ ## workspace, session id, member
 ## data root the item cannot be read, and nothing is live.
 AgentsToolsGrantsItemRunsLive(){ ## item, coworking session store (may be empty)
 	[ -n "$1" ] && [ -n "${MDAT_DATA_ROOT:-}" ] || return 1
-	[ -z "$2" ] || ! AgentsToolsGrantsSessionEnded "$2" || return 1
+	[ -z "$2" ] || ! AgentsToolsGrantsStoreEnded "$2" || return 1
 	type AgentsToolsBoardItemInStates > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemDecisions.include"
 	AgentsToolsBoardItemInStates "$1" ${agentsPermissionOpenStates:-running review blocked pending backlog parked}
 }
@@ -897,12 +905,6 @@ AgentsToolsGrantsItemRunsLines(){ ## the session's own stores, one per line; tas
 		case $'\n'"$1"$'\n' in *$'\n'"$linesStore"$'\n'*) [ -z "${2:-}" ] || continue ; linesOnly="" ;; esac
 		printf '%s\t%s\t%s\t%s\n' "$linesStore" "$agentsGrantsItemRunsItem" "${agentsGrantsItemRunsSession:--}" "$linesOnly"
 	done <<< "$agentsGrantsItemRunsStores"
-}
-
-## The header a session file is written under: its format, the member, and the floor it adds.
-## AgentsToolsGrantsSessionRewrite reads these fields back, so a writer needs nothing else.
-AgentsToolsGrantsSessionHeader(){ ## member, sandbox input, sandbox output, origin skillset -- sets agentsGrantsSessionHeader
-	agentsGrantsSessionHeader="$agentsGrantsSessionVersion"$'\t'"$1"$'\t'"$2"$'\t'"$3"$'\t'"$4"
 }
 
 ## The session index on stdout, with one awk, from the current grants index, and for a session
@@ -935,9 +937,11 @@ AgentsToolsGrantsSessionText(){ ## workspace, member, session id, sandbox input,
 		[ -f "$textStore/grants" ] || continue
 		textFiles+=( "$textStore/grants" )
 		## A store whose session has ended: its session grants are dropped here.
-		! AgentsToolsGrantsSessionEnded "$textStore" || agentsGrantsEnded="$agentsGrantsEnded$textStore"$'\n'
+		! AgentsToolsGrantsStoreEnded "$textStore" || agentsGrantsEnded="$agentsGrantsEnded$textStore"$'\n'
 	done <<< "$agentsGrantsStores"
-	AgentsToolsGrantsSessionHeader "$2" "$4" "$5" "$6"
+	## The header a session file is written under: its format, the member, and the floor it adds.
+	## AgentsToolsGrantsSessionRewrite reads these fields back, so a writer needs nothing else.
+	agentsGrantsSessionHeader="$agentsGrantsSessionVersion"$'\t'"$2"$'\t'"$4"$'\t'"$5"$'\t'"$6"
 	export agentsGrantsEnded agentsGrantsStores agentsGrantsItemRuns agentsGrantsRunSeats
 	export agentsGrantsSessionHeader agentsGrantsSandboxIn agentsGrantsSandboxOut agentsGrantsOrigin
 	if [ -n "$agentsGrantsIndexFile" ] ; then
@@ -1016,7 +1020,7 @@ AgentsToolsGrantsSessionCheckRows(){ ## tool, resolved path, own session store
 			session)
 				AgentsToolsGrantsToolCovers "$checkA" "$1" && [[ $2 == $checkB ]] || continue
 				## Its session may have ended since the rebuild: a joined store's end touches nothing here.
-				[ -z "$checkD" ] || ! AgentsToolsGrantsSessionEnded "$checkD" || continue
+				[ -z "$checkD" ] || ! AgentsToolsGrantsStoreEnded "$checkD" || continue
 				agentsGrantsCheckLayer="session $checkC"
 				return 0
 			;;
@@ -1098,8 +1102,9 @@ AgentsToolsGrantsCommonCheckRows(){ ## tool, resolved path, member
 ## at run start and by whatever changes it, and the grants index by the builder.
 AgentsToolsGrantsSessionLocate(){ ## workspace, member, session id (may be empty)
 	local locateWs="${1%/}"
+	type AgentsToolsSkillsetRootInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWorkspace.include"
 	agentsGrantsCheckMember="$2" ; agentsGrantsSessionFile="" ; agentsGrantsSessionText="" ; agentsGrantsIndexText=""
-	AgentsToolsGrantsSkillsetRoot "$locateWs"
+	AgentsToolsSkillsetRootInto agentsGrantsSkillsetRoot "$locateWs"
 	agentsGrantsIndexFile="$locateWs/.local/agents/grants.index"
 	[ "$agentsGrantsSkillsetRoot" = "$locateWs/.local/agents/members" ] || agentsGrantsIndexFile="$agentsGrantsIndexFile.${agentsGrantsSkillsetRoot//[!A-Za-z0-9._-]/_}"
 	case "$3" in
@@ -1148,9 +1153,12 @@ AgentsToolsGrantsJoinedAdd(){ ## joined store, joining store
 	LC_ALL=C grep -qxF -- "$2" "$1/grants.joined" 2> /dev/null || printf '%s\n' "$2" >> "$1/grants.joined" 2> /dev/null || :
 }
 
-## One file-tool call decided by the two files: the grants index, then the session's own.
-AgentsToolsGrantsSessionCheck(){ ## tool, resolved path, own session store
-	local commonRc=0 commonSlice=""
+## One file-tool call decided by the two files: the grants index, then the session's own. It takes the session id and the workspace,
+## and asks the session store for that session's folder: no caller builds a path into the session store to hand it over.
+AgentsToolsGrantsSessionCheck(){ ## tool, resolved path, session id, workspace (default MMDAPP)
+	local commonRc=0 commonSlice="" checkStore=""
+	type AgentsSessionFolderInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include" || return 1
+	AgentsSessionFolderInto checkStore "${4:-${MMDAPP:-}}" "${3:-}" || checkStore=""
 	if [ -n "${agentsGrantsIndexFile:-}" ] && [ -f "$agentsGrantsIndexFile" ] ; then
 		commonSlice="$agentsGrantsIndexFile.by-member/${agentsGrantsCheckMember:-}"
 		if [ -f "$commonSlice" ] && [ ! "$agentsGrantsIndexFile" -nt "$commonSlice" ] ; then
@@ -1163,9 +1171,9 @@ AgentsToolsGrantsSessionCheck(){ ## tool, resolved path, own session store
 	fi
 	case "$commonRc" in 0|3) return "$commonRc" ;; esac
 	if [ -n "$agentsGrantsSessionFile" ] && [ -f "$agentsGrantsSessionFile" ] ; then
-		AgentsToolsGrantsSessionCheckRows "$1" "$2" "$3" < "$agentsGrantsSessionFile"
+		AgentsToolsGrantsSessionCheckRows "$1" "$2" "$checkStore" < "$agentsGrantsSessionFile"
 	else
-		AgentsToolsGrantsSessionCheckRows "$1" "$2" "$3" <<< "${agentsGrantsSessionText:-}"
+		AgentsToolsGrantsSessionCheckRows "$1" "$2" "$checkStore" <<< "${agentsGrantsSessionText:-}"
 	fi
 }
 
@@ -1177,9 +1185,18 @@ AgentsToolsGrantsCheckSkillset(){
 	return 1
 }
 
-## A session store's grants or seats changed: opening, using up or revoking a grant, or a spawn
+## A session's grants or seats changed: opening, using up or revoking a grant, or a spawn
 ## that names this session its parent. Every session file holding them is written again now.
-AgentsToolsGrantsStoreTouch(){ ## session store directory
+## It takes the session id and the workspace, and asks the session store for the folder.
+AgentsToolsGrantsStoreTouch(){ ## session id, workspace (default MMDAPP)
+	local touchStore=""
+	type AgentsSessionFolderInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include" || return 1
+	AgentsSessionFolderInto touchStore "${2:-${MMDAPP:-}}" "${1:-}" || return 0
+	AgentsToolsGrantsStoreTouchDir "$touchStore"
+}
+
+## The same, for a store whose folder the caller already holds: the granted stores of a member's own runs, one a loop.
+AgentsToolsGrantsStoreTouchDir(){ ## session store directory
 	local touchFile touchJoined
 	[ -d "$1" ] || return 0
 	touch "$1/grants" 2> /dev/null || :
@@ -1225,7 +1242,7 @@ AgentsToolsGrantsMemberList(){ ## workspace, member, session id (may be empty)
 			while IFS=$'\t' read -r listKind listRun listItem listCow ; do
 				[ "$listKind" = run ] || continue
 				AgentsSessionFolderInto listStore "$listWs" "$listRun" || continue
-				[ -f "$listStore/grants" ] && AgentsToolsGrantsSessionEnded "$listStore" || continue
+				[ -f "$listStore/grants" ] && AgentsToolsGrantsStoreEnded "$listStore" || continue
 				if [ "$listCow" = "-" ] ; then listCow="" ; else AgentsSessionFolderInto listCow "$listWs" "$listCow" || continue ; fi
 				AgentsToolsGrantsItemRunsLive "$listItem" "$listCow" || continue
 				agentsGrantsItemRuns="$agentsGrantsItemRuns$listStore"$'\t'"$listItem"$'\t'"${listCow:--}"$'\t\n'
@@ -1235,7 +1252,7 @@ AgentsToolsGrantsMemberList(){ ## workspace, member, session id (may be empty)
 	while IFS= read -r listStore ; do
 		[ -n "$listStore" ] && [ -f "$listStore/grants" ] || continue
 		listFiles+=( "$listStore/grants" )
-		! AgentsToolsGrantsSessionEnded "$listStore" || agentsGrantsEnded="$agentsGrantsEnded$listStore"$'\n'
+		! AgentsToolsGrantsStoreEnded "$listStore" || agentsGrantsEnded="$agentsGrantsEnded$listStore"$'\n'
 		for listUsed in "$listStore/consumed"/* ; do
 			[ ! -d "$listUsed" ] || agentsGrantsUsed="$agentsGrantsUsed$listUsed"$'\n'
 		done

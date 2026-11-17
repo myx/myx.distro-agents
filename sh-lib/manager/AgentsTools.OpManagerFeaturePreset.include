@@ -23,7 +23,7 @@
 		type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/settings/AgentsTools.ConfigOption.include"
 		printf '%s\n' "$presetModel" | AgentsToolsConfigOption "preset-$presetName" --upsert-from-stdin PRESET_MODEL_OR_MACRO > /dev/null || {
 			echo "⛔ ERROR: $MDSC_CMD $presetOp: the setting reader refused the model of the preset -- the preset was taken out again" >&2
-			AgentsSettingsScopeDelete "${MMDAPP%/}" "preset-$presetName"
+			rm -f -- "${MMDAPP%/}/.local/.agents/preset-$presetName.agent.env"
 			set +e ; return 1
 		}
 		printf 'created\tagents:preset-%s\t%s\n' "$presetName" "$presetModel"

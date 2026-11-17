@@ -86,7 +86,9 @@ case "$1" in
 		set -- "$clientOperation" "$clientMember" "${@:4}"
 		if [ -n "$clientBroughtRoot" ] && [ "$clientBroughtRoot" != "${MDAT_SKILLSET_ROOT:-}" ] ; then
 			AgentsToolsMemberSettingsBorrowedSay "$clientMember" "$clientOperation" "$clientBroughtFrom"
-			( export MDAT_SKILLSET_ROOT="$clientBroughtRoot" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/$clientOpInclude" "$@" || exit $? ; [ -z "$clientOpRunner" ] || "$clientOpRunner" "$@" )
+			## NOTHING CARRIES THE CLIENT'S FOLDER (S12 row 16): the subshell keeps the include and its runner,
+			## and each reader of the member's folder resolves it here, from the member registries.
+			( . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/$clientOpInclude" "$@" || exit $? ; [ -z "$clientOpRunner" ] || "$clientOpRunner" "$@" )
 			return $?
 		fi
 		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/$clientOpInclude" "$@" || return $?

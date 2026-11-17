@@ -10,6 +10,7 @@ type AgentsSlackIdentityId > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-ag
 ## Its helpers shared with the other probes are in AgentsTools.MemberWaitCore.include.
 ##
 type AgentsWaitPut > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/wait/AgentsTools.MemberWaitCore.include"
+type AgentsWaitReadRendered > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/wait/AgentsTools.MemberWaitSlack.include"
 
 ## THE REPLIES TO THE RUN'S OWN POSTS: the floor of a plain Wait, `replies:<session id>`. A run that
 ## posted a question does not choose where to watch for the answer, a channel or a thread: it calls
@@ -30,7 +31,7 @@ type AgentsWaitPut > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-
 ## of the same Wait reads is left to that source, and so is a conversation it reads by name, so a message
 ## is returned once; a post a question (AskQuestion and its kin) opened belongs to its pending record's
 ## ask: source. What a look finds is rendered to the wait and stored only once the wait has returned it
-## (AgentsWaitRepliesCommit): a wait that ended before it was said loses nothing. The words stored are
+## (AgentsOwnPostsReplace): a wait that ended before it was said loses nothing. The words stored are
 ## this record's, the one record of the run's own posts.
 agentsWaitRepliesSiblings=10
 
@@ -300,16 +301,10 @@ AgentsWaitProbeReplies(){
 	done
 	if [ "$probeAttempted" != "0" ] && [ "$probeFailed" -ge "$probeAttempted" ] ; then
 		## The round that returns this stops short of the commit of a source that ran: the pacing is stored here.
-		AgentsWaitRepliesCommit "$probeSession" "$probeOut.advance"
+		AgentsOwnPostsReplace "$probeSession" "$probeOut.advance"
 		return 2
 	fi
 	return 0
-}
-
-## Stores what a look found, once the wait has said it: the lines of $2 replace the lines of the record
-## that start with the same two words. Under the lock the harness takes to add a post.
-AgentsWaitRepliesCommit(){ ## session id, the advance file
-	AgentsOwnPostsReplace "$1" "$2"
 }
 
 ## The replies to a post of the member, read by its own wait: the member's, and delivered by that wait.

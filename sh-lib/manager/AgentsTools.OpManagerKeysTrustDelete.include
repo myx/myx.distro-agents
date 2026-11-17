@@ -46,5 +46,5 @@
 			echo "⛔ ERROR: $MDSC_CMD $deleteOp: the new authorized keys could not be put in place -- nothing was changed" >&2
 			set +e ; return 1
 		fi
-		AgentsToolsManagerKeysTrustedDone deleted "$deleteN" "$deleteFile" "$deleteType" "$deleteFinger"
+		printf '%s\ttrusted-%s\t%s\t%s\t%s\n' deleted "$deleteN" "$( AgentsToolsManagerKeysField "$deleteFile" )" "$deleteType" "$deleteFinger"
 		return 0

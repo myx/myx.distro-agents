@@ -106,10 +106,9 @@ DistroAgentsSession(){
 		;;
 	esac
 	## The skillset root, as every operation of the tooling settles it (AgentsContext.UseAgentsTools.include).
-	if [ -z "${MDAT_SKILLSET_ROOT:-}" ] ; then
-		MDAT_SKILLSET_ROOT="$MMDAPP/.local/agents/members"
-		export MDAT_SKILLSET_ROOT
-	fi
+	type AgentsToolsSkillsetRootInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWorkspace.include"
+	AgentsToolsSkillsetRootInto MDAT_SKILLSET_ROOT "${MMDAPP:-}"
+	export MDAT_SKILLSET_ROOT
 	case "$1" in
 
 		## The text of a routine as its run reads it: the routine's file with the routine of its
@@ -299,7 +298,7 @@ DistroAgentsSession(){
 		--standing-directives|--directive-set|--directive-end)
 			DistroAgentsSessionTools
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.UseAgentsTools.include"
-			type AgentsToolsSurfaceStanding > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.CoordinatorSurface.include"
+			type AgentsToolsSurfaceStanding > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.CoordinatorSurface.include"
 			case "$1" in
 				--standing-directives) AgentsToolsSurfaceCaller "$1" read || { set +e ; return 1 ; } ; AgentsToolsSurfaceStanding "$@" ;;
 				--directive-set) AgentsToolsSurfaceDirectiveSet "$@" ;;

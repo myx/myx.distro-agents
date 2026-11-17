@@ -24,7 +24,7 @@ rigAssert(){ ## what is asserted, got, want
 }
 rigReal="$MMDAPP"
 rigWs="$rigTmp/ws"
-rigData="$rigWs/data"
+rigData="$rigWs/.local/agents/team-data-root"
 mkdir -p "$rigWs/.local/agents/spawned" "$rigWs/.local/agents/schedule"
 rigBoardStates "$rigData" pending
 export MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDSC_CMD=check
@@ -65,7 +65,6 @@ AgentsToolsScheduleDutyRoutine(){ printf 'magic-team.work-duty.routine.md\n' ; }
 ## A duty started is a duty live from then on (the record a real start leaves), so the next pass starts the next member and not this one again.
 AgentsToolsScheduleSpawn(){ printf '%s\n' "${2:-$1}" >> "$rigSpawnLog" ; case "$1" in work-duty.*) printf '%s\n' "${1#work-duty.}" >> "$rigSpawnLog.members" ;; esac ; return 0 ; }
 AgentsToolsScheduleDismiss(){ printf '%s\n' "$1" >> "$rigDismissLog" ; }
-AgentsToolsSpawnSandboxRecordHeader(){ LC_ALL=C awk -F': ' -v key="$2" '$0 == "---" && NR > 1 { exit } $1 == key { print $2 ; exit }' "$1" ; }
 
 rigReset(){ rm -f "$rigSpawnLog" "$rigSpawnLog.members" "$rigDismissLog" "$rigLifeLog" "$rigData"/board/pending/*.md "$rigWs/.local/agents/spawned"/*/*.spawn.md 2>/dev/null ; rigFlags="" rigMemberFlags="" rigLive="" rigDemand="" rigTagNews="" rigSlow="" rigRestart="" ; }
 rigStarted(){ [ -f "$rigSpawnLog.members" ] && LC_ALL=C sort "$rigSpawnLog.members" | tr '\n' ' ' | sed 's/ $//' ; printf '' ; }

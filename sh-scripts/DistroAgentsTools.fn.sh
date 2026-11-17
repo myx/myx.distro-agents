@@ -101,16 +101,12 @@ DistroAgentsTools(){
 		--intern-op-agent-spawn-proxy:*|--intern-op-routine-lock-*:*|--intern-merge-md-files:*|--intern-mcp-execute:*|--intern-op-decisions-append:*|--intern-op-review-*:*|--intern-directory-*:*|--owner-workspace-*:*|--make-*:*|--manager-*:*|--session-floor-remove:*|--camunda-diagram-sync-stale:*|*:|*:-*) ;;
 		--*:*)
 			## An invited member, set up only in another workspace: its operation runs here; only its skillset, and the settings this workspace lacks, are read from there.
+			## NOTHING CARRIES ITS FOLDER (S12 row 16): the bring answers whether the member can be brought at all, and which of its
+			## settings this workspace holds none of. Each reader of its folder resolves that folder from the member registries itself.
 			local memberBrought memberBroughtFrom
 			memberBrought="$( AgentsToolsMemberSkillsetBring "$2" "$1" )" || { set +e ; return 1 ; }
 			memberBroughtFrom="${memberBrought#*$'\t'}"
-			memberBrought="${memberBrought%%$'\t'*}"
-			if [ -n "$memberBrought" ] && [ "$memberBrought" != "${MDAT_SKILLSET_ROOT:-}" ] ; then
-				## Said here, once for the whole operation, where the member is invited: which of its own settings are read from the workspace it is set up in.
-				AgentsToolsMemberSettingsBorrowedSay "$2" "$1" "$memberBroughtFrom"
-				( export MDAT_SKILLSET_ROOT="$memberBrought" ; DistroAgentsTools "$@" )
-				return $?
-			fi
+			[ -z "$memberBrought" ] || AgentsToolsMemberSettingsBorrowedSay "$2" "$1" "$memberBroughtFrom"
 		;;
 	esac
 	. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.UseAgentsTools.include"
@@ -146,7 +142,7 @@ DistroAgentsTools(){
 
 	case "$1" in
 		--console-*)
-			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.ConsoleSession.include"
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.ConsoleSession.include"
 			return $?
 		;;
 
@@ -535,6 +531,13 @@ DistroAgentsTools(){
 			return $?
 		;;
 
+		## One pass of the comms source ingest for one source (S1.12 §3): the operation a comms service thread runs for each source it
+		## ingests, and the only way a source is read.
+		--intern-comms-ingest)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.InternCommsIngest.include"
+			return $?
+		;;
+
 		## The event ids of the comms cache, minted by one thread holding last time and sequence (S12.11, its first use on an event).
 		--intern-comms-event-id)
 			shift
@@ -792,10 +795,8 @@ DistroAgentsTools(){
 				set +e ; return 1
 			fi
 			AgentsToolsAssertBareName "$incomingMember" "<team-member>" member-incoming-sync || { set +e ; return 1 ; }
-			if [ ! -d "$MDAT_SKILLSET_ROOT/$incomingMember" ] ; then
-				echo "$MDSC_CMD: member-incoming-sync: ⛔ ERROR: no such member skill directory: $MDAT_SKILLSET_ROOT/$incomingMember" >&2
-				set +e ; return 1
-			fi
+			type AgentsToolsSlackMemberPresent > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/slack/AgentsTools.CommsSlack.include"
+			AgentsToolsSlackMemberPresent "$incomingMember" member-incoming-sync || { set +e ; return 1 ; }
 			type AgentsToolsIncomingSync > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.Incoming.include"
 			AgentsToolsIncomingSync "$incomingMember"
 			return $?

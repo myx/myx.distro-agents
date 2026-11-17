@@ -124,8 +124,16 @@ case "$1" in
 			esac
 		done
 
-		local skillRoot="$MDAT_SKILLSET_ROOT"
-		local memberFile="$skillRoot/$targetMember/$targetMember.armed.md"
+		## The member's own folder, from the tooling's member directory, never a root a caller carried in.
+		type AgentsToolsTeamMemberDirectory > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamRegistry.include"
+		local memberDir
+		memberDir="$( AgentsToolsTeamMemberDirectory "$targetMember" )" || memberDir=""
+		if [ -z "$memberDir" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --member-help: no such team-member in the member directory the tooling serves for ${MMDAPP%/}: $targetMember" >&2
+			set +e ; return 1
+		fi
+		local skillRoot="${memberDir%/*}"
+		local memberFile="$memberDir/$targetMember.armed.md"
 		if [ ! -f "$memberFile" ] ; then
 			echo "⛔ ERROR: $MDSC_CMD --member-help: no such team-member: $targetMember ($memberFile not found)" >&2
 			set +e ; return 1

@@ -25,7 +25,7 @@ rigStore="$rigOut/data"
 rigWs="$rigOut/ws"
 mkdir -p "$rigWs/.local" "$rigOut/home/skills/magic-coordinator" "$rigOut/home/skills/magic-developer" || rigRefuse "could not create the rig"
 . "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-writes.include.sh" || exit 1
-rigOwnerWs="${rigWs:-$rigTmp/ws}" rigOwnerData="${rigData:-${rigD:-${rigStore:-${rigOut:-$rigTmp/data}}}}" rigOwnerHome="${rigHome:-$rigTmp/home}" rigOwnerSkills="${rigSkills:-$rigTmp/skills}"
+rigOwnerWs="$rigWs" rigOwnerData="$rigStore" rigOwnerHome="$rigOut/home" rigOwnerSkills="$rigOut/home/skills"
 rigOwnerBoardReady || rigRefuse "could not create the rig's board"
 printf -- '---\nmaintainers: rig\n---\nrig identity\n' > "$rigOut/home/skills/magic-coordinator/magic-coordinator.basic.md"
 printf -- '---\nmaintainers: rig\n---\nrig identity\n' > "$rigOut/home/skills/magic-developer/magic-developer.basic.md"

@@ -126,15 +126,23 @@ AgentsToolsArtifactClaimDrop(){ ## commit subject
 ## The next number of the type, secured before anything is published: its record is written
 ## and committed, and pushed where the store has an origin. The push is the race: one that
 ## loses because origin moved drops this commit, resyncs, and takes the next number again.
-## Under the team-data-push lock, which every push from this checkout takes, since processes
-## sharing one checkout share one HEAD and git cannot order them. Sets artNumber, artRecord.
+## Under the store's one lock (AgentsTools.TeamDataStoreLock.include), which every commit and
+## every push of this checkout takes, since processes sharing one checkout share one HEAD and
+## git cannot order them. Sets artNumber, artRecord.
 AgentsToolsArtifactClaim(){
-	local claimTry=0 claimSubject="" claimOut="" claimRc=0 claimSync="" claimSeen=""
-	if ! AgentsToolsLocalLockTake team-data-push 300 "the team-data push" ; then
-		echo "⛔ ERROR: $artCmd: the team-data push lock stayed held for 5 minutes, so no number could be secured. Nothing was published" >&2
+	local claimTry=0 claimSubject="" claimOut="" claimRc=0 claimSync="" claimSeen="" claimLockRc=0
+	type AgentsToolsTeamDataStoreLockTake > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataStoreLock.include"
+	if ! AgentsToolsTeamDataStoreLockTake 300 "the numbered artifact claim" ; then
+		echo "⛔ ERROR: $artCmd: the store lock stayed held for 5 minutes, so no number could be secured. Nothing was published" >&2
 		return 1
 	fi
-	artLock="$agentsLocalLockPath"
+	AgentsToolsArtifactClaimLocked || claimLockRc=$?
+	AgentsToolsTeamDataStoreLockGive
+	return "$claimLockRc"
+}
+
+AgentsToolsArtifactClaimLocked(){
+	local claimTry=0 claimSubject="" claimOut="" claimRc=0 claimSync="" claimSeen=""
 	AgentsToolsArtifactStore
 	while [ "$claimTry" -lt 5 ] ; do
 		claimTry=$(( claimTry + 1 ))
@@ -158,13 +166,11 @@ AgentsToolsArtifactClaim(){
 			fi
 		fi
 		if [ -z "$artOrigin" ] ; then
-			AgentsToolsLocalLockGive "$artLock" ; artLock=""
 			return 0
 		fi
 		claimRc=0
 		claimOut="$( LC_ALL=C git -C "$artRepo" push origin HEAD 2>&1 )" || claimRc=$?
 		if [ "$claimRc" = 0 ] ; then
-			AgentsToolsLocalLockGive "$artLock" ; artLock=""
 			return 0
 		fi
 		## Lost or unreachable, this claim leaves the checkout: only a moved origin is retried.
@@ -187,7 +193,6 @@ AgentsToolsArtifactClaim(){
 		echo "# $artCmd: $artNumber was taken by another writer first; taking the next number" >&2
 	done
 	[ "$claimTry" -lt 5 ] || echo "⛔ ERROR: $artCmd: five claims in a row lost to other writers, so no number is secured. Nothing was published" >&2
-	AgentsToolsLocalLockGive "$artLock" ; artLock=""
 	artNumber=""
 	return 1
 }
@@ -553,10 +558,8 @@ case "$1" in
 		fi
 		AgentsToolsAssertBareName "$artMember" "<team-member>" intern-artifact-publish || { set +e ; return 1 ; }
 		[ -z "$artSession" ] || AgentsToolsAssertBareName "$artSession" "--session-id" intern-artifact-publish || { set +e ; return 1 ; }
-		if [ ! -d "$MDAT_SKILLSET_ROOT/$artMember" ] ; then
-			echo "⛔ ERROR: $artCmd: no such member skill directory: $MDAT_SKILLSET_ROOT/$artMember" >&2
-			set +e ; return 1
-		fi
+		type AgentsToolsSlackMemberPresent > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/slack/AgentsTools.CommsSlack.include"
+		AgentsToolsSlackMemberPresent "$artMember" --intern-artifact-publish || { set +e ; return 1 ; }
 		## One line each: a title and a kind are a page name and a record field.
 		artTitle="$( printf '%s' "$artTitle" | LC_ALL=C tr '\t\r\n' '   ' )"
 		artKind="$( printf '%s' "$artKind" | LC_ALL=C tr '\t\r\n' '   ' )"

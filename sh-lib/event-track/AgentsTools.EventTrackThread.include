@@ -42,9 +42,9 @@ if ! type AgentsToolsEventTrackThreadOfInto > /dev/null 2>&1 ; then
 		local headerRecord="" headerValue=""
 		printf -v "$1" '%s' ""
 		type AgentsSessionRunRecordInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
-		type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandboxRecordHeader.include"
+		type AgentsToolsFrontmatterKey > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.FrontmatterKey.include"
 		AgentsSessionRunRecordInto headerRecord "${2:-}" "${3:-}" || return 0
-		headerValue="$( AgentsToolsSpawnSandboxRecordHeader "$headerRecord" "${4:-}" 2> /dev/null )"
+		headerValue="$( AgentsToolsFrontmatterKey "$headerRecord" "${4:-}" 2> /dev/null )"
 		printf -v "$1" '%s' "$headerValue"
 	}
 

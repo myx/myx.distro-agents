@@ -9,6 +9,7 @@ runs-at: workdays 09:00
 routine-lock-document: inbox:magic-librarian:note-20261008T000000Z-morning-review-state.md
 input-scan-def: morning-review
 review-by: inherit
+cache-prefix: routine
 ---
 # magic-librarian.morning-review.routine — the actual procedure
 
@@ -62,11 +63,12 @@ Exact instructions. Execute in order, every step, literally as written — not l
 2. **check-state-shape-drift**: Check the state model itself, not only content, from the scan's state shape. For example, `board-blocked` and `board-parked` items collapsed into `board-running` or `board-archived`. That loses the difference between "stalled on something external" and "deliberately deferred".
    - step: check the skillset files the scan lists as changed for accreted dated narration, per "Skillset content hygiene". Plain hygiene that keeps every meaning is fixed with `--skillset-upsert`. A change of meaning is proposed to that file's `maintainers:`.
 3. **check-cross-file-consistency**: Check status claims in one file against the current content of another. Start from the skillset files the scan lists as changed.
+   - step: take that list one file per round, in the scan's order. A file both checks examine is one round, since they walk the same list.
 
 # Closure steps
 
 1. **report-board-findings**: every board finding of this run goes to `magic-coordinator` as one inquiry, `--upsert-inbox-inquiry magic-coordinator`, a finding a line with its evidence, the file and line, and the move it proposes. `magic-coordinator`'s duty reads its inbox and makes the moves. With no finding, nothing is filed.
-2. **advance-cutoff**: `magic-librarian` updates the routine's state with the new cut-off: `--update-routine-state --header:upsert:last_reviewed_ts:<the scan's next: value>`.
+2. **advance-cutoff**: `magic-librarian` stores the cut-off through `--update-routine-state --header:upsert:last_reviewed_ts:<epoch-seconds>`. The value is epoch seconds, the form the scan reads back. It is the scan's `next:` value only where every changed file was examined, else the moment of the last file examined.
 
 # Routine's local procedures
 
@@ -85,10 +87,14 @@ All statements apply at the same time, always. These rules override a participan
 - A state-model drift outranks ordinary staleness: fix the model gap, not only the one instance, since one gap likely misfiled several items.
 - A cross-file inconsistency where it is unclear which file is right is surfaced and resolved explicitly, never by silently picking a winner. No quorum there is the no-quorum document, carried up by "The ladder: one rung at a time".
 - A finding that is not about the board goes to `magic-librarian`'s own daily audit with `post-inquiry`.
+- A round is one changed file of the scan's list, examined once. The two checks walk the same list, so a file that both examine is one round.
+- The run raises `review_round` on its locked state note as each round begins, through `--update-routine-state`. A context restart does not reset it.
+- The bound is the scan's list walked once. The run examines each file of that list once, in the scan's order, and nothing past its end.
+- The walk-away point is the end of the list. At it the run files what it holds through **report-board-findings**. There it also names every file of the list it did not examine. Then it closes, and a second pass is a new run.
 
 # Routine-specific tooling
 
-Every harness tool and `magic-tooling` operation this routine uses. A harness tool is called by its own name. An operation is called through the harness tool of its tool file, with `operation` and `args`. Its behaviour is read with `--member-help`. Steps use its name only.
+Every harness tool and `magic-tooling` operation this routine uses. A harness tool is called by its own name. An operation is called through the harness tool of its tool file, with `operation` and `args`. The six below carry their syntax line, so no round spends a call on help for their form. Steps use its name only.
 
 ## Harness tools
 
@@ -96,12 +102,12 @@ Every harness tool and `magic-tooling` operation this routine uses. A harness to
 
 ## Tooling operations
 
-- `--update-routine-state [--document <note>] [--header:upsert:<name>:<value>]... [--header:remove:<name>]... [--from-file <path>|--edit-patch-from-stdin]`
-- `--upsert-inbox-inquiry <team-member> <item-filename>` (`DistroAgentsItems`)
-- `--skillset-upsert <team-member> <pathname>`
-- `--queue-list`
-- `--queue-take`
-- `--queue-done <name>`
+- `DistroAgentsSession.fn.sh --update-routine-state [--team-member <team-member>] [--document <note>] [--header:upsert:<name>:<value>]... [--header:remove:<name>]... [--edit-patch-from-stdin|--from-file <path>]`
+- `DistroAgentsItems.fn.sh --upsert-inbox-inquiry <member> <item-filename> [--from-member <member>] [--include-processed] [--from-reflection <reflection-file>] [--reply] [--from-file <path>|--upsert-from-slots]`
+- `AgentLibrarianTools.fn.sh --skillset-upsert [--team-member <team-member>] <pathname> (--from-stdin|--from-file <path>)`
+- `AgentLibrarianTools.fn.sh --queue-list`
+- `AgentLibrarianTools.fn.sh --queue-take`
+- `AgentLibrarianTools.fn.sh --queue-done <name> (--apply|--refuse <reason>|--result <text>)`
 
 # Maintainer Notes
 

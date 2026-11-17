@@ -17,7 +17,7 @@
 set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 rigPkg="${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}/myx/myx.distro-agents"
-rigInclude="$rigPkg/sh-lib/session/AgentsTools.ManagerSessionRows.include"
+rigInclude="$rigPkg/sh-lib/manager/AgentsTools.ManagerSessionRows.include"
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }

@@ -26,8 +26,12 @@ trap 'rm -rf -- "$rigTmp"' EXIT
 rigData="$rigTmp/data"
 rigSkills="$rigTmp/skills"
 rigInbox="$rigData/inboxes/rig-member"
-mkdir -p "$rigTmp/ws/.local" "$rigTmp/home" "$rigSkills/rig-member" "$rigSkills/magic-librarian" "$rigInbox/incoming" \
+mkdir -p "$rigTmp/ws/.local" "$rigTmp/home" "$rigSkills/rig-member" "$rigSkills/magic-librarian" \
 	|| rigRefuse "could not create the scratch team data store"
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-writes.include.sh" || exit 1
+rigOwnerWs="$rigTmp/ws" rigOwnerData="$rigData" rigOwnerHome="$rigTmp/home" rigOwnerSkills="$rigSkills"
+## Both inboxes are made ready by the inbox's own maker, so a moved folder reddens this check.
+rigInboxReady "$rigData" rig-member magic-librarian || rigRefuse "could not make the inboxes ready to be written"
 
 rigPassCount=0
 rigFailCount=0
@@ -69,12 +73,17 @@ rigOp(){ ## result file, op and arguments...
 rigDaysAgo(){ ## days
 	printf '%s\n' "$(( $( date +%s ) - $1 * 86400 ))" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/output/LocalEpochToIsoDate.awk"
 }
+## An item as an older writer left it: still in processed/, with no stamp at all. The owner files it stamped, then takes the stamp off.
+rigOwnerLegacyProcessed(){ ## data root, member, item, body
+	printf '%s\n' "$4" | rigOwnerInboxPutHandled "$2" "$3" "2026-01-01 00:00 +0000" || rigRefuse "could not write $3"
+	RIG_DATA="$1" rigOp "$rigTmp/unstamp" --mark-inbox-processed --team-member "$2" "$3" "--header:remove:processed-at" --include-processed
+	[ "$( cat "$rigTmp/unstamp.rc" )" = 0 ] || rigRefuse "could not take the stamp off $3"
+}
+
 
 echo "-- mark: stamped, and moved from incoming/ to processed/ --"
 rigLib1="$rigData/inboxes/magic-librarian"
-. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-writes.include.sh" || exit 1
-rigOwnerWs="${rigWs:-$rigTmp/ws}" rigOwnerData="${rigData:-${rigD:-${rigStore:-${rigOut:-$rigTmp/data}}}}" rigOwnerHome="${rigHome:-$rigTmp/home}" rigOwnerSkills="${rigSkills:-$rigTmp/skills}"
-printf -- '---\ntype: note\n---\n\n# Rig note\n' > "$rigLib1/incoming/note-rig.md"
+printf -- '---\ntype: note\n---\n\n# Rig note\n' | rigOwnerInboxPut magic-librarian note-rig.md
 rigOp "$rigTmp/m1" --librarian-inbox-to-processed --team-member magic-librarian note-rig.md
 rigAssert "the mark succeeds"                          "$( cat "$rigTmp/m1.rc" )" 0
 rigAssert "the item is in processed/, and no longer in incoming/" "$( rigIs "$rigLib1/processed/note-rig.md" ):$( rigIs "$rigLib1/incoming/note-rig.md" )" "file:none"
@@ -91,14 +100,14 @@ rigAssert "and changes nothing, nor moves it"          "$( cmp -s "$rigTmp/note-
 rigAssert "and says so"                                "$( rigHolds "$rigTmp/m2" 'already processed' )" yes
 
 echo "-- an item with no frontmatter --"
-printf 'plain body line\n' > "$rigInbox/incoming/note-20261006T0930Z-plain.md"
+printf 'plain body line\n' | rigOwnerInboxPut rig-member note-20261006T0930Z-plain.md
 rigOp "$rigTmp/m3" --mark-inbox-processed --team-member rig-member note-20261006T0930Z-plain.md
 rigAssert "the mark succeeds"                          "$( cat "$rigTmp/m3.rc" )" 0
 rigAssert "a frontmatter block is created, in processed/" "$( head -n 1 "$rigInbox/processed/note-20261006T0930Z-plain.md" ):$( rigFieldCount "$rigInbox/processed/note-20261006T0930Z-plain.md" processed-at )" "---:1"
 rigAssert "the body follows it"                        "$( rigHolds "$rigInbox/processed/note-20261006T0930Z-plain.md" 'plain body line' )" yes
 
 echo "-- a caller's processed-at wins --"
-printf -- '---\ntype: note\n---\nbody\n' > "$rigInbox/incoming/note-20261006T0930Z-given.md"
+printf -- '---\ntype: note\n---\nbody\n' | rigOwnerInboxPut rig-member note-20261006T0930Z-given.md
 rigOp "$rigTmp/m4" --mark-inbox-processed --team-member rig-member note-20261006T0930Z-given.md "--header:upsert:processed-at:2020-02-02 02:02 +0000"
 rigAssert "the given value is the one written"         "$( cat "$rigTmp/m4.rc" ):$( rigField "$rigInbox/processed/note-20261006T0930Z-given.md" processed-at ):$( rigFieldCount "$rigInbox/processed/note-20261006T0930Z-given.md" processed-at )" "0:2020-02-02 02:02 +0000:1"
 
@@ -119,16 +128,16 @@ rigOp "$rigTmp/m9" --mark-inbox-processed --team-member rig-member note-20261006
 rigAssert "a missing item is refused"                  "$( [ "$( cat "$rigTmp/m9.rc" )" -ne 0 ] && printf refused || printf accepted )" refused
 
 echo "-- readers: active scans drop marked items, named reads still find them --"
-printf -- '---\ntype: note\n---\nstill open\n' > "$rigInbox/incoming/note-20261006T0931Z-open.md"
-printf -- '---\ntype: note\nprocessed-at: 2026-01-01 00:00 +0000\n---\nlegacy\n' > "$rigInbox/processed/note-20260101T0000Z-legacy.md"
+printf -- '---\ntype: note\n---\nstill open\n' | rigOwnerInboxPut rig-member note-20261006T0931Z-open.md
+printf -- '---\ntype: note\n---\nlegacy\n' | rigOwnerInboxPutHandled rig-member note-20260101T0000Z-legacy.md "2026-01-01 00:00 +0000"
 rigOp "$rigTmp/r1" --intern-op-member-work-session-input-scan rig-member
 rigAssert "the scan runs"                              "$( cat "$rigTmp/r1.rc" )" 0
 rigAssert "an unmarked note is listed"                 "$( rigHolds "$rigTmp/r1" 'note-20261006T0931Z-open.md' )" yes
 rigAssert "a marked note is not"                       "$( rigHolds "$rigTmp/r1" 'note-20261006T0930Z-plain.md' )" no
 rigAssert "nor another processed/ one"                "$( rigHolds "$rigTmp/r1" 'note-20260101T0000Z-legacy.md' )" no
-printf -- '---\ntype: inquiry\nprocessed-at: 2026-10-01 00:00 +0000\n---\nmarked q\n' > "$rigInbox/processed/inquiry-20261001T0000Z-marked.md"
-printf -- '---\ntype: inquiry\n---\nopen q\n' > "$rigInbox/incoming/inquiry-20261001T0000Z-open.md"
-printf -- '---\ntype: inquiry\n---\nlegacy q\n' > "$rigInbox/processed/inquiry-20261001T0000Z-legacy.md"
+printf -- '---\ntype: inquiry\n---\nmarked q\n' | rigOwnerInboxPutHandled rig-member inquiry-20261001T0000Z-marked.md "2026-10-01 00:00 +0000"
+printf -- '---\ntype: inquiry\n---\nopen q\n' | rigOwnerInboxPut rig-member inquiry-20261001T0000Z-open.md
+rigOwnerLegacyProcessed "$rigData" rig-member inquiry-20261001T0000Z-legacy.md 'legacy q'
 for rigScope in active all ; do
 	rigOp "$rigTmp/r-$rigScope" --intern-op-session-context-scan rig-member --all-types "--do-inbox-inquiry-$rigScope" \
 		--no-slack --no-email --no-trello --no-board-related --no-inbox-reflections --no-inbox-notes --no-inbox-other --context rig
@@ -144,21 +153,28 @@ rigAssert "an incoming item is read by name"           "$( cat "$rigTmp/r4.rc" )
 
 echo "-- GC: marked items by their stamp's age, never an unmarked one --"
 rigG="$rigTmp/gc"
-mkdir -p "$rigG/board"
 rigGi="$rigG/inboxes/rig-member"
-printf -- '---\ntype: note\nprocessed-at: 2020-01-01 00:00 +0000\n---\nold marked\n' > "$rigGi/processed/note-20200101T0000Z-old.md"
-printf -- '---\ntype: note\n---\nold standing note\n' > "$rigGi/incoming/note-20200101T0000Z-standing.md"
+rigBoardStates "$rigG" || rigRefuse "could not make the GC rig's board ready"
+rigInboxReady "$rigG" rig-member || rigRefuse "could not make the GC rig's inbox ready to be written"
+rigOwnerData="$rigG"
+## Every item here is built by the inbox's own writes: the fixture's handled form stamps it and files it in processed/.
+rigGcItem(){ ## item, type, stamp, body -- one item into processed/, stamped
+	printf -- '---\ntype: %s\n---\n%s\n' "$2" "$4" | rigOwnerInboxPutHandled rig-member "$1" "$3" || rigRefuse "could not write $1"
+}
+rigGcItem note-20200101T0000Z-old.md note "2020-01-01 00:00 +0000" 'old marked'
+printf -- '---\ntype: note\n---\nold standing note\n' | rigOwnerInboxPut rig-member note-20200101T0000Z-standing.md || rigRefuse "could not write note-20200101T0000Z-standing.md"
 touch -t 202001010000 "$rigGi/incoming/note-20200101T0000Z-standing.md"
-printf 'old body with no frontmatter\n' > "$rigGi/incoming/inquiry-20200101T0000Z-unhandled.md"
+printf 'old body with no frontmatter\n' | rigOwnerInboxPut rig-member inquiry-20200101T0000Z-unhandled.md || rigRefuse "could not write inquiry-20200101T0000Z-unhandled.md"
 touch -t 202001010000 "$rigGi/incoming/inquiry-20200101T0000Z-unhandled.md"
-printf -- '---\ntype: note\nprocessed-at: %s\n---\nfresh marked\n' "$( date +"%Y-%m-%d %H:%M %z" )" > "$rigGi/processed/note-20261006T0000Z-fresh.md"
-printf -- '---\ntype: note\nprocessed-at: %s\n---\nthree days\n' "$( rigDaysAgo 3 )" > "$rigGi/processed/note-20261003T0000Z-three.md"
-printf -- '---\ntype: reflection\nprocessed-at: %s\n---\ntwo days\n' "$( rigDaysAgo 2 )" > "$rigGi/processed/reflection-20261004T0000Z-two.md"
-printf -- '---\ntype: note\nprocessed-at: someday\n---\nunreadable\n' > "$rigGi/processed/note-20200101T0000Z-unreadable.md"
-printf -- '---\ntype: note\n---\nbody line\nprocessed-at: 2020-01-01 00:00 +0000\n' > "$rigGi/incoming/note-20200101T0000Z-bodyline.md"
-printf -- '---\ntype: note\n---\nlegacy old\n' > "$rigGi/processed/note-20200101T0000Z-legacy-old.md"
+rigGcItem note-20261006T0000Z-fresh.md note "$( date +"%Y-%m-%d %H:%M %z" )" 'fresh marked'
+rigGcItem note-20261003T0000Z-three.md note "$( rigDaysAgo 3 )" 'three days'
+rigGcItem reflection-20261004T0000Z-two.md reflection "$( rigDaysAgo 2 )" 'two days'
+rigGcItem note-20200101T0000Z-unreadable.md note someday 'unreadable'
+printf -- '---\ntype: note\n---\nbody line\nprocessed-at: 2020-01-01 00:00 +0000\n' | rigOwnerInboxPut rig-member note-20200101T0000Z-bodyline.md || rigRefuse "could not write note-20200101T0000Z-bodyline.md"
+## The two legacy items the drain covers: in processed/ with no stamp, as an older writer left them.
+rigOwnerLegacyProcessed "$rigG" rig-member note-20200101T0000Z-legacy-old.md 'legacy old'
 touch -t 202001010000 "$rigGi/processed/note-20200101T0000Z-legacy-old.md"
-printf -- '---\ntype: note\n---\nlegacy young\n' > "$rigGi/processed/note-20261006T0000Z-legacy-young.md"
+rigOwnerLegacyProcessed "$rigG" rig-member note-20261006T0000Z-legacy-young.md 'legacy young'
 RIG_DATA="$rigG" rigOp "$rigTmp/g1" --intern-team-data-final-gc-deletion rig-member
 rigAssert "the pass deletes"                           "$( cat "$rigTmp/g1.rc" )" 0
 rigAssert "the summary counts three inbox items"       "$( rigHolds "$rigTmp/g1" 'team-data-final-gc: 3 inbox-items' )" yes
@@ -178,8 +194,10 @@ rigAssert "a second pass deletes nothing (rc 2)"       "$( cat "$rigTmp/g2.rc" )
 echo "-- git-tracked root: the mark and the collection are committed --"
 if command -v git > /dev/null 2>&1 ; then
 	rigT="$rigTmp/tracked"
+	rigInboxReady "$rigT" rig-member || rigRefuse "could not make the tracked root's inbox ready to be written"
+	rigOwnerData="$rigT"
 	printf -- '---\ntype: note\n---\ntracked\n' | rigOwnerInboxPut rig-member note-20261006T0930Z-tracked.md
-	printf -- '---\ntype: note\nprocessed-at: 2020-01-01 00:00 +0000\n---\ntracked old\n' | rigOwnerInboxPut rig-member note-20200101T0000Z-tracked-old.md
+	printf -- '---\ntype: note\n---\ntracked old\n' | rigOwnerInboxPutHandled rig-member note-20200101T0000Z-tracked-old.md "2020-01-01 00:00 +0000"
 	rigGit(){ env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp/home" PATH="/usr/bin:/bin" git -C "$rigT" "$@" ; }
 	rigGit init -q && rigGit config user.email rig@example.invalid && rigGit config user.name rig \
 		&& rigGit add -A && rigGit commit -q -m seed || rigRefuse "could not seed the tracked root"

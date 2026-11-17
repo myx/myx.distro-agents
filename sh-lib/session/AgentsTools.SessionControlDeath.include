@@ -62,9 +62,9 @@
 ## the note template (`# Death`), never a text written here.
 ##
 
-type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandboxRecordHeader.include"
-type AgentsToolsRunRoute > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.RunRoute.include"
-type AgentsToolsSessionParentThreadFind > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionThreads.include"
+type AgentsToolsFrontmatterKey > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.FrontmatterKey.include"
+type AgentsToolsRunRoute > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.RunRoute.include"
+type AgentsToolsSessionParentThreadFind > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.SessionThreads.include"
 type AgentsToolsSpawnProxyCloseSandbox > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnProxyClose.include"
 type AgentsToolsBoardItemHeadersInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemDecisions.include"
 type AgentsToolsSpawnProxyEndNotice > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnProxyNotices.include"
@@ -158,22 +158,23 @@ AgentsToolsSessionControlDeathClose(){ ## record file
 	local closeRecord="$1" closeRun closeOutput closeField closeStem closeItem closeState closePath closeSpawn closeTarget
 	[ -f "$closeRecord" ] || return 1
 	closeRun="${closeRecord##*/}" ; closeRun="${closeRun%.spawn.md}"
-	[ "$( AgentsToolsSpawnSandboxRecordHeader "$closeRecord" status )" = "spawn-started" ] || return 1
+	[ "$( AgentsToolsFrontmatterKey "$closeRecord" status )" = "spawn-started" ] || return 1
 	AgentsToolsSpawnProxyCloseSandbox "$closeRecord" "$agentsSessionControlDeathOutcome" unknown
-	[ "$( AgentsToolsSpawnSandboxRecordHeader "$closeRecord" status )" = "spawn-$agentsSessionControlDeathOutcome" ] || return 1
+	[ "$( AgentsToolsFrontmatterKey "$closeRecord" status )" = "spawn-$agentsSessionControlDeathOutcome" ] || return 1
 	[ -n "${MDAT_DATA_ROOT:-}" ] || return 0
-	closeOutput="$( AgentsToolsSpawnSandboxRecordHeader "$closeRecord" output-file )"
+	closeOutput="$( AgentsToolsFrontmatterKey "$closeRecord" output-file )"
 	[ -n "$closeOutput" ] || closeOutput="-"
 	for closeField in spawns spawned-by ; do
-		closeStem="$( AgentsToolsSpawnSandboxRecordHeader "$closeRecord" "$closeField" )"
+		closeStem="$( AgentsToolsFrontmatterKey "$closeRecord" "$closeField" )"
 		[ -n "$closeStem" ] || continue
 		closeItem="${closeStem%.md}.md"
 		type AgentsToolsBoardItemInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemDecisions.include"
 		AgentsToolsBoardItemInto closePath "$closeItem" || continue
 		closeState="${closePath%/*}" ; closeState="${closeState##*/}"
-		[ "$( AgentsToolsSpawnSandboxRecordHeader "$closePath" status )" = dispatch-started ] || continue
+		## A closed dispatch carries the moment it closed, so the field is the open test (S16 stage 2 item 6).
+		[ -z "$( AgentsToolsFrontmatterKey "$closePath" resolved-at )" ] || continue
 		## An item that names a newer spawn belongs to that one, not to this dead record.
-		closeSpawn="$( AgentsToolsSpawnSandboxRecordHeader "$closePath" spawn-id )"
+		closeSpawn="$( AgentsToolsFrontmatterKey "$closePath" spawn-id )"
 		[ -z "$closeSpawn" ] || [ "$closeSpawn" = "-" ] || [ "$closeSpawn" = "$closeRun" ] || continue
 		closeTarget="$closeState"
 		[ "$closeField" != spawns ] || [ "$closeState" != running ] || closeTarget=review
@@ -221,11 +222,11 @@ AgentsToolsSessionControlDeathQuestion(){ ## session id
 			case "$questionId" in ''|none|*/*|.|..) continue ;; esac
 			questionRecord="$( AgentsToolsPendingRecordPath "$questionId" || printf '%s' "$MMDAPP/.local/agents/pending/$questionId.md" )"
 			[ -f "$questionRecord" ] || continue
-			if [ "$( AgentsToolsSpawnSandboxRecordHeader "$questionRecord" status )" = "reply-pending" ] ; then
+			if [ "$( AgentsToolsFrontmatterKey "$questionRecord" status )" = "reply-pending" ] ; then
 				printf 'open\n'
 				return 0
 			fi
-			questionAt="$( AgentsToolsSpawnSandboxRecordHeader "$questionRecord" resolved-epoch )"
+			questionAt="$( AgentsToolsFrontmatterKey "$questionRecord" resolved-epoch )"
 			case "$questionAt" in ''|*[!0123456789]*|????????????*) continue ;; esac
 			[ -n "$questionLast" ] && [ "$questionLast" -ge "$questionAt" ] || questionLast="$questionAt"
 		done
@@ -261,14 +262,14 @@ AgentsToolsSessionControlDeathAsk(){ ## session id, record file, where it is ask
 	local askRun askMember askRole askName askShort="" askQuestion askOptions askContext askBody askOut askChannel askTs askThread askAddressees askAsking askId askSent askFound
 	type AgentsToolsAskKindRow > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.AskPost.include"
 	askRun="${askRecord##*/}" ; askRun="${askRun%.spawn.md}"
-	askMember="$( AgentsToolsSpawnSandboxRecordHeader "$askRecord" owner )"
+	askMember="$( AgentsToolsFrontmatterKey "$askRecord" owner )"
 	[ -n "$askMember" ] || { printf 'failed %s\n' "its record names no member" ; return 1 ; }
 	AgentsToolsAskKindRow decision || { printf 'failed %s\n' "the table of the asks names no decision" ; return 1 ; }
 	## The founder of a session is its executor: its own id is the id of the session.
 	askRole="participant" ; [ "$askRun" != "$askSession" ] || askRole="executor"
 	askRole="$( AgentsToolsSessionControlDeathText "$askRole" )" || askRole=""
 	## The session by the name its spawn gave it, else by its short id.
-	askName="$( AgentsToolsSpawnSandboxRecordHeader "$askRecord" session-comment )"
+	askName="$( AgentsToolsFrontmatterKey "$askRecord" session-comment )"
 	[ -n "$askName" ] || askShort="${askSession:0:8}"
 	askKey="death:$askRun"
 	case "$askTry" in
@@ -361,6 +362,7 @@ AgentsToolsSessionControlDeathAsk(){ ## session id, record file, where it is ask
 AgentsToolsSessionControlDeathWork(){ ## session id, run id, the file its result goes to
 	type AgentsToolsSpawnRecord > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunRecords.include"
 	type AgentsToolsSpawnRuns > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunProcesses.include"
+	type AgentsToolsSpawnConversationThreadValid > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandboxInput.include"
 	local workSession="$1" workRun="$2" workResult="$3"
 	local workRecord workLine workTold workAsked workField workItem="" workState workReviewer="" workParent workThread workWhere="" workWhom="" workLives="" workSaid workOut workStamp
 	## The team data and the members, as every operation of the tooling finds them.
@@ -373,8 +375,8 @@ AgentsToolsSessionControlDeathWork(){ ## session id, run id, the file its result
 		return 0
 	fi
 	workLine="$( AgentsToolsSessionControlDeathLine "$workSession" "$workRun" )" || workLine=""
-	workTold="$( AgentsToolsSessionControlDeathMark "$workLine" told )" || workTold="$( AgentsToolsSpawnSandboxRecordHeader "$workRecord" death-told )"
-	workAsked="$( AgentsToolsSessionControlDeathMark "$workLine" asked )" || workAsked="$( AgentsToolsSpawnSandboxRecordHeader "$workRecord" death-asked )"
+	workTold="$( AgentsToolsSessionControlDeathMark "$workLine" told )" || workTold="$( AgentsToolsFrontmatterKey "$workRecord" death-told )"
+	workAsked="$( AgentsToolsSessionControlDeathMark "$workLine" asked )" || workAsked="$( AgentsToolsFrontmatterKey "$workRecord" death-asked )"
 	## Where the death stands, by what its line counts: an answer more than failed answers is
 	## carried out; as many questions as failed answers, the reviewer is asked again.
 	local workTries
@@ -390,20 +392,20 @@ AgentsToolsSessionControlDeathWork(){ ## session id, run id, the file its result
 				AgentsToolsSessionControlDeathAgain "$workSession" "$workRecord" "$workLine" "$( AgentsToolsPendingRecordPath "$workAsked" || printf '%s' "$MMDAPP/.local/agents/pending/$workAsked.md" )" "$workResult"
 				return 0
 			fi
-			if [ "$( AgentsToolsSpawnSandboxRecordHeader "$( AgentsToolsPendingRecordPath "$workAsked" || printf '%s' "$MMDAPP/.local/agents/pending/$workAsked.md" )" status )" = "reply-pending" ] ; then
+			if [ "$( AgentsToolsFrontmatterKey "$( AgentsToolsPendingRecordPath "$workAsked" || printf '%s' "$MMDAPP/.local/agents/pending/$workAsked.md" )" status )" = "reply-pending" ] ; then
 				AgentsToolsSessionControlDeathRead "$workAsked" "$workResult"
 				return 0
 			fi
 		;;
 	esac
-	if [ "$( AgentsToolsSpawnSandboxRecordHeader "$workRecord" status )" != "spawn-started" ] ; then
+	if [ "$( AgentsToolsFrontmatterKey "$workRecord" status )" != "spawn-started" ] ; then
 		printf 'closed: elsewhere\n' >> "$workResult"
 		return 0
 	fi
 	## The item of the run, and where the run reports to (AgentsToolsRunRoute), which decides what
 	## follows a death: the question is asked only where the run works an item.
 	for workField in spawns spawned-by ; do
-		workItem="$( AgentsToolsSpawnSandboxRecordHeader "$workRecord" "$workField" )"
+		workItem="$( AgentsToolsFrontmatterKey "$workRecord" "$workField" )"
 		workItem="${workItem%%,*}" ; workItem="${workItem%% *}" ; workItem="${workItem%.md}"
 		workState=""
 		[ -z "$workItem" ] || [ -z "${MDAT_DATA_ROOT:-}" ] || AgentsToolsBoardItemHeadersInto "$workItem.md" workState || :
@@ -414,7 +416,7 @@ AgentsToolsSessionControlDeathWork(){ ## session id, run id, the file its result
 	workRoute="$( AgentsToolsRunRoute "$workRecord" )"
 	[ -z "$workItem" ] || workReviewer="$workRoute"
 	## Whether the member that brought the run in still runs in the session that requested it.
-	workParent="$( AgentsToolsSpawnSandboxRecordHeader "$workRecord" parent-spawn-id )"
+	workParent="$( AgentsToolsFrontmatterKey "$workRecord" parent-spawn-id )"
 	case "$workParent" in ''|none|*/*|.|..) workParent="" ;; esac
 	workThread=""
 	if [ "$( AgentsToolsRunRouteKind "$workRoute" )" = session ] ; then
@@ -494,9 +496,9 @@ AgentsToolsSessionControlDeathWork(){ ## session id, run id, the file its result
 AgentsToolsSessionControlDeathAgain(){ ## session id, record file, the line of the death, the record of the question before, the file its result goes to
 	local againSession="$1" againRecord="$2" againLine="$3" againBefore="$4" againResult="$5"
 	local againWhere againWhom againItem againWords againWord againRest againTries=0 againSame=0 againLast="" againOption="" againBack="" againReason="" againOut againId
-	againWhere="$( AgentsToolsSpawnSandboxRecordHeader "$againBefore" communication-channel-id )" ; againWhere="${againWhere#slack:}"
-	againWhom="$( AgentsToolsSpawnSandboxRecordHeader "$againBefore" address-to )"
-	againItem="$( AgentsToolsSpawnSandboxRecordHeader "$againBefore" item )"
+	againWhere="$( AgentsToolsFrontmatterKey "$againBefore" communication-channel-id )" ; againWhere="${againWhere#slack:}"
+	againWhom="$( AgentsToolsFrontmatterKey "$againBefore" address-to )"
+	againItem="$( AgentsToolsFrontmatterKey "$againBefore" item )"
 	if [ -z "$againWhere" ] || [ -z "$againWhom" ] ; then
 		againWhere="human-owner" ; againWhom="human-owner"
 	fi
@@ -530,7 +532,7 @@ AgentsToolsSessionControlDeathAgain(){ ## session id, record file, the line of t
 ## What it left is read from the record, a file, by the next tick of the thread.
 AgentsToolsSessionControlDeathRead(){ ## pending id, the file its result goes to
 	local readOwner
-	readOwner="$( AgentsToolsSpawnSandboxRecordHeader "$( AgentsToolsPendingRecordPath "$1" || printf '%s' "$MMDAPP/.local/agents/pending/$1.md" )" owner )"
+	readOwner="$( AgentsToolsFrontmatterKey "$( AgentsToolsPendingRecordPath "$1" || printf '%s' "$MMDAPP/.local/agents/pending/$1.md" )" owner )"
 	type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 	[ -z "$readOwner" ] || ( DistroAgentsTools --intern-op-escalation-read "$readOwner" "$1" ) > /dev/null 2>&1 || :
 	printf 'read: done\n' >> "$2"
@@ -570,8 +572,8 @@ AgentsToolsSessionControlDeathSay(){ ## thread, member, whom it is told, line, r
 ## `death-failed` with why. The result: `done: <answer>`, which settles the death, or
 ## `failed: <why>`, after which the death stays unsettled, its reviewer is asked again
 ## (AgentsToolsSessionControlDeathAgain), and the tooling tries nothing by itself.
-## A DEAD-RUN VERDICT WORKS ON AN ITEM IN processed OR running: the item is moved into review,
-## with that reason, before the answer is carried out, and the answer then proceeds as for review.
+## A DEAD-RUN VERDICT WORKS ON AN ITEM IN ANY BOARD STATE: the item is put into review, with that
+## reason, before the answer is carried out, and the answer then proceeds as for review.
 ## The move comes after the record is closed, because that close is itself what takes a run's item
 ## out of running: an item nobody reviews reaches processed there, and a verdict read before it
 ## would find the state the close has just left and refuse to work on it.
@@ -582,17 +584,18 @@ AgentsToolsSessionControlDeathSay(){ ## thread, member, whom it is told, line, r
 ## name it.
 AgentsToolsSessionControlDeathAct(){ ## session id, record file, the line of the death, the file its result goes to
 	type AgentsToolsSpawnRuns > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunProcesses.include"
+	type AgentsToolsSpawnConversationThreadValid > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandboxInput.include"
 	local actSession="$1" actRecord="$2" actLine="$3" actResult="$4"
 	local actRun actAnswer actId actPending actBy actMember actField actItem="" actState="" actPath="" actNow actOut="" actWhy="" actSaid="" actReason="" actThread actParent actParentMember actBack="" actShown
 	actRun="${actRecord##*/}" ; actRun="${actRun%.spawn.md}"
 	actAnswer="$( AgentsToolsSessionControlDeathMark "$actLine" answer )" || actAnswer=""
 	actId="$( AgentsToolsSessionControlDeathMark "$actLine" asked )" || actId=""
 	actPending="$( AgentsToolsPendingRecordPath "$actId" || printf '%s' "$MMDAPP/.local/agents/pending/$actId.md" )"
-	actBy="$( AgentsToolsSpawnSandboxRecordHeader "$actPending" address-to )"
+	actBy="$( AgentsToolsFrontmatterKey "$actPending" address-to )"
 	[ -n "$actBy" ] || actBy="human-owner"
-	actMember="$( AgentsToolsSpawnSandboxRecordHeader "$actRecord" owner )"
+	actMember="$( AgentsToolsFrontmatterKey "$actRecord" owner )"
 	for actField in spawns spawned-by ; do
-		actItem="$( AgentsToolsSpawnSandboxRecordHeader "$actRecord" "$actField" )"
+		actItem="$( AgentsToolsFrontmatterKey "$actRecord" "$actField" )"
 		actItem="${actItem%%,*}" ; actItem="${actItem%% *}" ; actItem="${actItem%.md}"
 		actState=""
 		[ -z "$actItem" ] || [ -z "${MDAT_DATA_ROOT:-}" ] || AgentsToolsBoardItemHeadersInto "$actItem.md" actState || :
@@ -601,7 +604,7 @@ AgentsToolsSessionControlDeathAct(){ ## session id, record file, the line of the
 	done
 	case "$actAnswer" in
 		resume|fresh)
-			actNow="" ; [ -z "$actItem" ] || { type AgentsToolsBoardItemInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemDecisions.include" ; AgentsToolsBoardItemInto actPath "$actItem" && actNow="$( AgentsToolsSpawnSandboxRecordHeader "$actPath" spawn-id )" ; } || :
+			actNow="" ; [ -z "$actItem" ] || { type AgentsToolsBoardItemInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemDecisions.include" ; AgentsToolsBoardItemInto actPath "$actItem" && actNow="$( AgentsToolsFrontmatterKey "$actPath" spawn-id )" ; } || :
 			if AgentsToolsSpawnRuns "$actRun" "$actRecord" || [ -n "$( AgentsToolsRunProcesses "$actRun" "$actRecord" - 2> /dev/null )" ] ; then
 				actWhy="a process still runs as the run it would replace, so nothing was started"
 			elif [ -z "$actItem" ] ; then
@@ -609,25 +612,23 @@ AgentsToolsSessionControlDeathAct(){ ## session id, record file, the line of the
 			elif [ -n "$actNow" ] && [ "$actNow" != "-" ] && [ "$actNow" != "$actRun" ] && AgentsToolsSpawnRuns "$actNow" "" ; then
 				actSaid="death-$actAnswer"
 			else
-				[ "$( AgentsToolsSpawnSandboxRecordHeader "$actRecord" status )" != "spawn-started" ] || AgentsToolsSessionControlDeathClose "$actRecord" \
+				[ "$( AgentsToolsFrontmatterKey "$actRecord" status )" != "spawn-started" ] || AgentsToolsSessionControlDeathClose "$actRecord" \
 					|| actWhy="its record could not be closed as $agentsSessionControlDeathOutcome"
 				AgentsToolsBoardItemHeadersInto "$actItem.md" actState || :
 				## The close above is what moves a dead run's item, and an item nobody reviews reaches
 				## processed there: the verdict puts it into review from wherever it stands, before the
 				## return that starts the member again. A move that fails says what it said.
-				if [ -z "$actWhy" ] && [ -n "$actItem" ] && [ "$actState" != "review" ] ; then
-					case "$actState" in
-						running|processed)
-							actOut="$(
-								set -- --intern-op-board-upsert-move-edit review "$actItem.md" --from-state:"$actState" \
-									--header:upsert:review-since-epoch:"$( date +%s )" --header:upsert:review-reason:"its run died, and the verdict on that run applies to it in review" \
-									--context "${MDSC_CMD:-session-control}" --log-verb:updated
-								. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.InternOpBoardUpsertMoveEdit.include"
-							 2>&1 )" || actWhy="its item could not be put into review from $actState"
-							[ -n "$actWhy" ] || actWhy="$( printf '%s\n' "$actOut" | LC_ALL=C grep -m1 -e 'ERROR' -e 'WARNING' )"
-							AgentsToolsBoardItemHeadersInto "$actItem.md" actState || :
-						;;
-					esac
+				## Every state of the board's own list, a state added to it included: a dead run's item is
+				## found wherever another closer or a grooming pass left it.
+				if [ -z "$actWhy" ] && [ -n "$actItem" ] && [ -n "$actState" ] && [ "$actState" != "review" ] ; then
+					actOut="$(
+						set -- --intern-op-board-upsert-move-edit review "$actItem.md" --from-state:"$actState" \
+							--header:upsert:review-since-epoch:"$( date +%s )" --header:upsert:review-reason:"its run died, and the verdict on that run applies to it in review" \
+							--context "${MDSC_CMD:-session-control}" --log-verb:updated
+						. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.InternOpBoardUpsertMoveEdit.include"
+					 2>&1 )" || actWhy="its item could not be put into review from $actState"
+					[ -n "$actWhy" ] || actWhy="$( printf '%s\n' "$actOut" | LC_ALL=C grep -m1 -e 'ERROR' -e 'WARNING' )"
+					AgentsToolsBoardItemHeadersInto "$actItem.md" actState || :
 				fi
 				[ -n "$actWhy" ] || [ "$actState" = "review" ] || actWhy="its item is in ${actState:-no board state}, not in review, so it could not be returned"
 				if [ -z "$actWhy" ] ; then
@@ -657,7 +658,7 @@ AgentsToolsSessionControlDeathAct(){ ## session id, record file, the line of the
 			fi
 		;;
 		close)
-			[ "$( AgentsToolsSpawnSandboxRecordHeader "$actRecord" status )" != "spawn-started" ] || AgentsToolsSessionControlDeathClose "$actRecord" \
+			[ "$( AgentsToolsFrontmatterKey "$actRecord" status )" != "spawn-started" ] || AgentsToolsSessionControlDeathClose "$actRecord" \
 				|| actWhy="its record could not be closed as $agentsSessionControlDeathOutcome"
 			[ -z "$actItem" ] || AgentsToolsBoardItemHeadersInto "$actItem.md" actState || :
 			case "$actWhy:$actItem:$actState" in
@@ -674,7 +675,7 @@ AgentsToolsSessionControlDeathAct(){ ## session id, record file, the line of the
 		kill)
 			type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 			( DistroAgentsTools --manager-session-kill --session-id "$actSession" ) > /dev/null 2>&1 || :
-			[ "$( AgentsToolsSpawnSandboxRecordHeader "$actRecord" status )" != "spawn-started" ] || AgentsToolsSessionControlDeathClose "$actRecord" \
+			[ "$( AgentsToolsFrontmatterKey "$actRecord" status )" != "spawn-started" ] || AgentsToolsSessionControlDeathClose "$actRecord" \
 				|| actWhy="its record could not be closed as $agentsSessionControlDeathOutcome"
 			[ -n "$actWhy" ] || actSaid="death-killed"
 		;;
@@ -685,7 +686,7 @@ AgentsToolsSessionControlDeathAct(){ ## session id, record file, the line of the
 		actSaid="death-failed" ; actReason="$actWhy" ; actShown="$actBack"
 	fi
 	## Told where it was answered, and to the session that requested the run where that is another thread.
-	actThread="$( AgentsToolsSpawnSandboxRecordHeader "$actPending" channel ):$( AgentsToolsSpawnSandboxRecordHeader "$actPending" thread-ts )"
+	actThread="$( AgentsToolsFrontmatterKey "$actPending" channel ):$( AgentsToolsFrontmatterKey "$actPending" thread-ts )"
 	AgentsToolsSpawnConversationThreadValid "$actThread" || actThread=""
 	[ -z "$actThread" ] || AgentsToolsSessionControlDeathSay "$actThread" "$actMember" "$actBy" "$actSaid" "$actRun" "$actBy" "$actAnswer" "$actReason" "$actShown"
 	## And in the thread of the session the run reports to (AgentsToolsRunRoute), to its member.

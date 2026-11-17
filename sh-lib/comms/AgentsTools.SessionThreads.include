@@ -1,0 +1,134 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.SessionThreads.include -- which thread a session posts to: its own, its current one, its
+## parent's, and the conversation threads this run continues. Comms' file (S2b piece 4 of the SOLID epic);
+## the three SpawnConversation* functions it held live in sh-lib/spawn/AgentsTools.SpawnSandboxInput.include.
+## Sourced, never run. Each function loads what it calls, and reaches the session and spawn stores through
+## AgentsTools.SessionStore.include's own queries, so no store path is built here.
+##
+## This caller's own coworking-session thread, from the one-line pointer file the
+## spawn proxy writes in the sandbox root (session.thread) -- prints
+## "channel:ts" and returns 0 when it exists and holds a value, prints nothing and
+## returns 1 otherwise (no coworking session, or the file is not written yet).
+## Falls back to a key on $MDAT_SPAWN_SESSION_ID, the sandbox root's own name, only
+## once $MDAT_SESSION_THREAD is unset -- a caller spawned with an explicit --tracking-name
+## can diverge from that, and settling which id the sandbox folder is actually named for
+## is keeper-myx's own open item, not decided here.
+AgentsToolsSessionThreadFind(){
+	## MDAT_SESSION_THREAD is exported directly by spawn-proxy at launch, correct
+	## for every participant alike -- founding or joining a coworking session.
+	## Preferred over the file lookup below, which keys off MDAT_SPAWN_SESSION_ID,
+	## a value that is this spawn's own spawn-id, not the shared session folder,
+	## for every participant after the session's first.
+	[ -z "${MDAT_SESSION_THREAD:-}" ] || { printf '%s\n' "$MDAT_SESSION_THREAD" ; return 0 ; }
+	[ -n "${MDAT_SPAWN_SESSION_ID:-}" ] || return 1
+	type AgentsSpawnPartInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+	local threadFile="" threadLine=""
+	AgentsSpawnPartInto threadFile "${MMDAPP:-}" "$MDAT_SPAWN_SESSION_ID" session.thread || return 1
+	[ -f "$threadFile" ] && IFS= read -r threadLine < "$threadFile" || return 1
+	[ -n "$threadLine" ] || return 1
+	printf '%s\n' "$threadLine"
+	return 0
+}
+
+## The thread session-current names, and a send or an ask with no target goes to: this
+## caller's own coworking-session thread (AgentsToolsSessionThreadFind), else the thread
+## recorded for a session that is itself the coworking session -- a native client session,
+## never spawned through the proxy, whose thread the first member it brings in opens. That
+## record is one line, sessions/<session-id>/session.thread, written by the spawn proxy,
+## and the session is found as the proxy finds it: the one this caller joined, else this
+## caller's own. Prints "channel:ts" and returns 0; prints nothing and returns 1 for none.
+## A bare Wait takes a spawn's thread by AgentsToolsSessionThreadFind alone
+## (AgentsToolsWaitDefaultSources). With none it watches magic-team and human-owner, as it
+## always has, and beside them the thread recorded here (--wait-for-input).
+AgentsToolsSessionCurrentThreadFind(){
+	AgentsToolsSessionThreadFind && return 0
+	type AgentsSessionPartInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+	local currentSession="" currentFile="" currentLine=""
+	currentSession="${MDAT_SESSION_ID:-${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}}"
+	case "$currentSession" in ''|*/*|.|..) return 1 ;; esac
+	AgentsSessionPartInto currentFile "${MMDAPP:-}" "$currentSession" session.thread || return 1
+	[ -f "$currentFile" ] && IFS= read -r currentLine < "$currentFile" || return 1
+	[ -n "$currentLine" ] || return 1
+	printf '%s\n' "$currentLine"
+	return 0
+}
+
+## The session this call belongs to, by the chain every session reader keeps: the coworking session of a
+## run, else the run's own, else the client's (AgentsToolsSessionChatKey's own chain). Empty for none.
+## Kept a name so that the chain is spelled in exactly one place: its six readers must never spell it themselves. It is
+## not AgentsHarnessSessionKey's chain, which starts at the harness's own session id.
+AgentsToolsSessionCurrentId(){
+	printf '%s' "${MDAT_SESSION_ID:-${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}}"
+}
+
+## WHERE A RUN REPORTS TO: the one address its handback goes to, its questions and
+## escalations that name no target are asked at, its end and its death are told at, and
+## that decides what follows its work. Its field name and the meaning of the value are held
+## by AgentsTools.RunRoute.include, sourced here for every reader of this file: a name this
+## file, and the readers that reach it, would otherwise read unset.
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.RunRoute.include"
+
+## The thread of the session this run reports to (AgentsToolsRunRoute), from this run's own
+## spawn record, the one MDAT_SPAWN_SESSION_ID names: prints "<channel>:<ts> <session>" and
+## returns 0. Returns 1, nothing printed, when it reports to no session (a member, a person,
+## or no record), and 2, the session printed, when that session has no thread to find
+## (AgentsToolsSpawnParentThread, which finds magic-coordinator's where the session has none).
+## The sandbox folder is named by tracking name or session id, so the store's own query finds the record.
+AgentsToolsSessionParentThreadFind(){
+	type AgentsToolsFrontmatterKey > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.FrontmatterKey.include"
+	type AgentsToolsRunRouteValid > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.RunRoute.include"
+	type AgentsSpawnRecordFindInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+	local parentRecord="" parentRoute parentSession parentThread=""
+	AgentsSpawnRecordFindInto parentRecord "${MMDAPP:-}" "${MDAT_SPAWN_SESSION_ID:-}" || return 1
+	## A run that reports to a session names that session's thread whether or not the member it reports to still runs there:
+	## naming the thread is no routing, and only a handback's route skips a member that is gone (AgentsToolsRunRoute).
+	parentRoute="$( AgentsToolsFrontmatterKey "$parentRecord" "$agentsRunRouteField" )"
+	case "$parentRoute" in
+		*:*) AgentsToolsRunRouteValid "$parentRoute" || parentRoute="" ;;
+		*) parentRoute="" ;;
+	esac
+	[ -n "$parentRoute" ] || parentRoute="$( AgentsToolsRunRoute "$parentRecord" )"
+	[ "$( AgentsToolsRunRouteKind "$parentRoute" )" = session ] || return 1
+	parentSession="${parentRoute%%:*}"
+	type AgentsToolsSpawnParentThread > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ReviewFlow.include"
+	parentThread="$( AgentsToolsSpawnParentThread "$parentSession" "$MDAT_SPAWN_SESSION_ID" 2> /dev/null )" || parentThread=""
+	if [ -z "$parentThread" ] ; then
+		printf '%s\n' "$parentSession" ; return 2
+	fi
+	printf '%s %s\n' "$parentThread" "$parentSession"
+}
+
+## The member this run reports to (AgentsToolsRunRoute, AgentsToolsRunRouteMember), from its own
+## spawn record, the one MDAT_SPAWN_SESSION_ID names: who its handback and the notes of its end
+## are addressed to. Prints the name and returns 0. Returns 1, nothing printed, where it reports
+## to a person, or to a session whose executor no record names, or has no record.
+AgentsToolsSessionParentMember(){
+	type AgentsSpawnRecordFindInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+	local memberRecord=""
+	AgentsSpawnRecordFindInto memberRecord "${MMDAPP:-}" "${MDAT_SPAWN_SESSION_ID:-}" || return 1
+	type AgentsToolsRunRoute > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.RunRoute.include"
+	AgentsToolsRunRouteMember "$( AgentsToolsRunRoute "$memberRecord" )"
+}
+
+## The conversation threads this spawn continues, space-separated: MDAT_CONVERSATION_THREADS,
+## which the spawn proxy passes to the console, else the `conversation-threads:` field of this
+## spawn's own record in its sandbox root. Prints nothing and returns 1 when there are none.
+AgentsToolsConversationThreadsFind(){
+	[ -z "${MDAT_CONVERSATION_THREADS:-}" ] || { printf '%s\n' "$MDAT_CONVERSATION_THREADS" ; return 0 ; }
+	[ -n "${MDAT_SPAWN_SESSION_ID:-}" ] || return 1
+	type AgentsSpawnRecordFindInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+	local recordFile="" recordThreads=""
+	if [ -n "${MDAT_SPAWN_SANDBOX_ROOT:-}" ] ; then
+		recordFile="$MDAT_SPAWN_SANDBOX_ROOT/$MDAT_SPAWN_SESSION_ID.spawn.md"
+	else
+		AgentsSpawnRecordFindInto recordFile "${MMDAPP:-}" "$MDAT_SPAWN_SESSION_ID" || return 1
+	fi
+	[ -f "$recordFile" ] || return 1
+	recordThreads="$( LC_ALL=C awk '/^---$/ { if ( ++fm == 2 ) exit ; next ; } fm == 1 && /^conversation-threads: / { print substr( $0, 23 ) ; exit ; }' "$recordFile" )"
+	[ -n "$recordThreads" ] || return 1
+	printf '%s\n' "$recordThreads"
+	return 0
+}

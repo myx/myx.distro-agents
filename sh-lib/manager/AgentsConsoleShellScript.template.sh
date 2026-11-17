@@ -551,6 +551,19 @@ if [ "${MDAT_SPAWN_BARE:-}" = "true" ] ; then
 else
 	: "${MDAT_SPAWN_AGENT:=magic-coordinator}"
 fi
+## THE MEMBER'S OWN FOLDER, resolved here for this start (S12 row 16): no launch hands a member set root on, so the console
+## resolves it before the member's roots are computed below. A member set up here reads this workspace's view. A member set up
+## only in another workspace on this machine is looked up in the machine's members index, as the spawn proxy looked it up.
+## Unresolved, the member's own roots drop out of both sets, and a narrower grant looks exactly like a full one.
+if [ -n "$MDAT_SPAWN_AGENT" ] && [ -z "${MDAT_SKILLSET_ROOT:-}" ] ; then
+	type AgentsToolsMemberSkillsetBring > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWorkspace.include"
+	AgentsToolsSkillsetRootInto MDAT_SKILLSET_ROOT "$MMDAPP"
+	if [ ! -d "$MDAT_SKILLSET_ROOT/$MDAT_SPAWN_AGENT" ] ; then
+		DAGC_BROUGHT="$( AgentsToolsMemberSkillsetBring "$MDAT_SPAWN_AGENT" --agent 2> /dev/null )" || DAGC_BROUGHT=""
+		[ -z "$DAGC_BROUGHT" ] || MDAT_SKILLSET_ROOT="${DAGC_BROUGHT%%$'\t'*}"
+	fi
+	export MDAT_SKILLSET_ROOT
+fi
 if [ "${MDAT_SPAWN_BARE:-}" = "true" ] ; then
 	echo "# console: $DAGC_CLI is a bare run: no member, so no roots of one are added" >&2
 elif [ -n "$DAGC_ACCESS_WRITE_FLAG" ] ; then
@@ -588,7 +601,8 @@ elif [ -n "$DAGC_ACCESS_WRITE_FLAG" ] ; then
 	## Said because a partial set is otherwise silent: the member roots drop out
 	## where the skillset root is unresolved, and a narrower grant then looks
 	## exactly like a full one.
-	echo "# console: $DAGC_CLI access roots: $DAGC_ACCESS_GUARANTEED install-guaranteed + $DAGC_ACCESS_WILDCARD_ADDED of $DAGC_ACCESS_WILDCARD_TOTAL live-checked candidates existed, added; member set from ${MDAT_SKILLSET_ROOT:-<unresolved>}" >&2
+	DAGC_MEMBER_SET="unresolved" ; [ -z "${MDAT_SKILLSET_ROOT:-}" ] || DAGC_MEMBER_SET="resolved"
+	echo "# console: $DAGC_CLI access roots: $DAGC_ACCESS_GUARANTEED install-guaranteed + $DAGC_ACCESS_WILDCARD_ADDED of $DAGC_ACCESS_WILDCARD_TOTAL live-checked candidates existed, added; member set $DAGC_MEMBER_SET" >&2
 elif [ -n "$DAGC_ACCESS_FLAG" ] ; then
 	## Per member: every root this member may read or write, off the grants index, so reads
 	## there need no prompt; the hooks still decide every call. copilot gets the same set, a
@@ -981,7 +995,7 @@ DagcRunClaudeStreaming(){
 	local claudePrompt="$1" progressAwkPath streamAwkPath claudePid awkPid claudeStatus
 	## Order is load-bearing: the formatter calls progressLineSafe() and does not
 	## define it, and an undefined awk function is a fatal exit 2 at call time.
-	progressAwkPath="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsProgressLineSafe.awk"
+	progressAwkPath="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/core/AgentsProgressLineSafe.awk"
 	streamAwkPath="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsClaudeStreamJsonFormat.awk"
 	## The session transcript writer rides the same stream, ahead of the formatter that exits
 	## on the result line, and only where both of its files are present.

@@ -284,7 +284,22 @@ AgentsToolsItemRead(){ ## <team-member> [<selector>|<item-filename>] [--acquire-
 	return 0
 }
 
-AgentsToolsItemUpsert(){ ## <team-member> [<selector>|<item-filename>] [--header:...]... [--from-file <path>|--upsert-from-stdin|--edit-patch-from-stdin] [--update-lock|--unlock-lock] [--commit-message <text>] [--no-push] --context <caller-op>
+## THE STORE'S ONE LOCK SPANS THE WHOLE UPSERT: its git steps write the store's tree and move the same branch every other writer moves, and
+## no writer may hold a git call between its write and its own settlement (AgentsTools.TeamDataStoreLock.include). The write itself is
+## inside the span too, so no other writer's settle commits this call's half-written item. A take of a free lock forks nothing.
+AgentsToolsItemUpsert(){
+	local upsertLockRc=0
+	type AgentsToolsTeamDataStoreLockTake > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataStoreLock.include"
+	if ! AgentsToolsTeamDataStoreLockTake 300 "item-upsert" ; then
+		echo "DistroAgentsTools: item-upsert: ⛔ ERROR: the store lock stayed held, so nothing was written and nothing was committed" >&2
+		set +e ; return 1
+	fi
+	AgentsToolsItemUpsertLocked "$@" || upsertLockRc=$?
+	AgentsToolsTeamDataStoreLockGive
+	return "$upsertLockRc"
+}
+
+AgentsToolsItemUpsertLocked(){ ## <team-member> [<selector>|<item-filename>] [--header:...]... [--from-file <path>|--upsert-from-stdin|--edit-patch-from-stdin] [--update-lock|--unlock-lock] [--commit-message <text>] [--no-push] --context <caller-op>
 	local MDSC_CMD='DistroAgentsTools'
 	local opContext ; AgentsToolsItemContextScan "$@"
 	local callingMember="$1"
@@ -577,6 +592,9 @@ AgentsToolsItemUpsert(){ ## <team-member> [<selector>|<item-filename>] [--header
 		return 0
 	fi
 
+	## THE STORE'S WRITERS ARE SETTLED BEFORE THIS CALL'S OWN GIT, inside the one span that started with this call's write: a second writer
+	## may hold an entry or an uncommitted path, and a commit made between another writer's write and its own settlement leaves that write
+	## unlanded. With nothing waiting the settle forks nothing.
 	local isClosing="false"
 	case "$( LC_ALL=C awk '/^state: /{ print substr($0, 8) ; exit ; }' "$target" )" in
 		*-finished) isClosing="true" ;;
@@ -711,8 +729,7 @@ AgentsToolsItemUpsert(){ ## <team-member> [<selector>|<item-filename>] [--header
 	## Unlock: the close must be on the remote, not only in this checkout -- a
 	## rejected push whose sync then rebased this commit on top is pushed once
 	## more; still not pushed, the commit is dropped and the lock kept.
-	if [ "$unlockLock" = "true" ] && [ "$pushRc" -ne 0 ] ; then
-		set +e
+	if [ "$unlockLock" = "true" ] && [ "$pushRc" -ne 0 ] ; then		set +e
 		pushOut="$( git -C "$repoRoot" push origin HEAD 2>&1 )"
 		pushRc=$?
 		set -e

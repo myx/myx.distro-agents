@@ -35,11 +35,11 @@ The brief every builder of an epic is given, by its dispatch, so each lane works
 ```
 You are dispatched to build one feature of an epic.
 
-Inputs: {{epic-file}}; read "How a feature is delivered", the ground rules, the section of feature {{feature-id}} with its Settled lines, and the constraints naming that feature, and nothing else.
+Inputs: {{epic-file}}; read the four beats of `magic-team.epic-build.routine` (readback-and-gaps, sandbox, gate, apply), the ground rules, the section of feature {{feature-id}} with its Settled lines, and the constraints naming that feature, and nothing else.
 
 No gaps are invented: the epic is the full spec. Send a gap at once, one line, with your proposed reading by the owner's rules — no one-word keys; one mechanism, reuse before adding; existing name forms and `MAGIC.md` conventions; existing defaults; explicit values; keep it simple. Build only the parts the gap does not touch until it is answered.
 
-Tests: the feature's tests, those of the files touched, and the guards; quietly, only failure lines and the summary reaching the context; never a full sweep, except before one large atomic switch, in the scratch.
+Tests: the feature's tests, those of the files touched, and the guards; quietly, only failure lines and the summary reaching the context; never a full sweep, except before one large atomic switch, in the scratch. `magic-tester` prepares each red test: it fails against the code as it stands, and the change turns it green. Why: a test written after the change tests the change, not the fault.
 
 Reading: only the ranges needed of big files (the console's python, `MAGIC.md`, the harness).
 

@@ -523,13 +523,13 @@ rigAssert "the whole workspace is denied to the orchestrator, though a standing 
 rigAssert "the shell tools are denied by name" "$( rigHolds keeper-orch execute "" rig-orch ):$( rigHolds keeper-orch Bash "" rig-orch )" "NOT-HOLDS:NOT-HOLDS"
 rigAssert "its own sandbox, input and output, is the floor the session adds: no deny row takes it away" "$( rigHolds keeper-orch Read "$rigWs/.local/agents/spawned/rig-orch/input/a.txt" rig-orch ):$( rigHolds keeper-orch Edit "$rigWs/.local/agents/spawned/rig-orch/output/b.txt" rig-orch )" "HOLDS floor:HOLDS floor"
 rigAssert "and no sandbox of another session is" "$( rigHolds keeper-orch Read "$rigWs/.local/agents/spawned/rig-other/input/a.txt" rig-orch )" "NOT-HOLDS"
-rigAssert "the hint names the deny row, the owner and the way to ask" "$( ( cd "$rigWs" && env MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" bash -c '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.Grants.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionHolds.include" ; AgentsToolsPermissionDenyRefusal keeper-orch Read "'"$rigWs"'/ORCH/f.txt" rig-orch' ) | LC_ALL=C grep -c -e 'deny row declared for keeper-orch in project.inf' )" "1"
+rigAssert "the hint names the deny row, the owner and the way to ask" "$( ( cd "$rigWs" && env MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" bash -c '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.Grants.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionHolds.include" ; AgentsToolsPermissionDenyRefusal keeper-orch Read "'"$rigWs"'/ORCH/f.txt" rig-orch' ) | LC_ALL=C grep -c -e 'deny row declared for keeper-orch by the declares of this workspace' )" "1"
 rigHarnessReadOut(){ ## acting member, path -- what the harness's Read answers, its first lines
 	( cd "$rigWs" && printf '{"path":"%s"}' "$2" | env -u MDAT_DATA_ROOT -u MDAT_SESSION_UNATTENDED -u CLAUDE_CODE_SESSION_ID -u MDAT_SPAWN_AGENT \
 		MDAT_SPAWN_SESSION_ID=rig-harness RIG_SCENARIO="$rigTmp" MMDAPP="$rigWs" ${1:+MDAT_SPAWN_AGENT="$1"} \
 		bash "$rigHarness" --intern-tool Read 2>/dev/null ) | head -3
 }
-rigAssert "the harness's Read refuses the orchestrator a file of the workspace, ahead of its roots, with the hint" "$( rigHarnessReadOut keeper-orch "$rigWs/ORCH/f.txt" | LC_ALL=C grep -c 'deny row declared for keeper-orch in project.inf' )" "1"
+rigAssert "the harness's Read refuses the orchestrator a file of the workspace, ahead of its roots, with the hint" "$( rigHarnessReadOut keeper-orch "$rigWs/ORCH/f.txt" | LC_ALL=C grep -c 'deny row declared for keeper-orch by the declares of this workspace' )" "1"
 rigAssert "and the same file is read by a member with no deny row" "$( rigHarnessReadOut magic-developer "$rigWs/ORCH/f.txt" | LC_ALL=C grep -c 'denied to this session' )" "0"
 export MDAT_SKILLSET_ROOT="$rigSkillsReal"
 echo "-- the access block of a dispatch: the same layers, said short --"

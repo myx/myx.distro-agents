@@ -78,7 +78,8 @@ AgentsToolsSuperviseResume(){ ## [--workspace <path>]...
 			resumeSpawns="${resumeRow%%"$resumeTab"*}" ; resumeSpawnedBy="${resumeRow#*"$resumeTab"}"
 			## A run whose record is open has not ended, and one that handed back is not this operation's either.
 			[ "$resumeStatus" != spawn-started ] || continue
-			case "$resumeRoutine" in *.work-duty.routine.md) continue ;; esac
+			type AgentsToolsDutyRoutineIs > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/routine/AgentsTools.DutyRoutine.include"
+			AgentsToolsDutyRoutineIs "$resumeRoutine" && continue
 			resumeDismissed=no
 			! MMDAPP="$resumeWs" AgentsSessionMarked "$resumeRun" dismissed || resumeDismissed=yes
 			[ ! -e "$resumeAgents/schedule/dismissed/$resumeRun" ] || resumeDismissed=yes

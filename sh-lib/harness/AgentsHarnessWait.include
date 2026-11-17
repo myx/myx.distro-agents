@@ -172,8 +172,8 @@ AgentsHarnessSeatTake(){
 	type AgentsSessionRunRecordInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
 	AgentsSessionRunRecordInto seatRecord "${MDAT_SPAWN_SESSION_ID:-}" || return 0
 	type AgentsToolsSessionSeatTake > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionSeats.include"
-	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandboxRecordHeader.include"
-	seatSession="$( AgentsToolsSpawnSandboxRecordHeader "$seatRecord" session-id )"
+	type AgentsToolsFrontmatterKey > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.FrontmatterKey.include"
+	seatSession="$( AgentsToolsFrontmatterKey "$seatRecord" session-id )"
 	[ -n "$seatSession" ] || return 0
 	seatHolder="$( AgentsToolsSessionSeatTake "$seatSession" "$harnessAgent" "$seatRecord" )" || seatRc=$?
 	[ "$seatRc" = "1" ] && [ -n "$seatHolder" ] || return 0
@@ -185,10 +185,10 @@ AgentsHarnessSeatTake(){
 ## one it restarts (`restarted-from:`). rc 0 it is.
 AgentsHarnessSeatPassed(){ ## the holder's spawn id
 	type AgentsSessionRunRecordInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
-	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandboxRecordHeader.include"
+	type AgentsToolsFrontmatterKey > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.FrontmatterKey.include"
 	local passedRecord=""
 	AgentsSessionRunRecordInto passedRecord "$1" || return 1
-	[ "$( AgentsToolsSpawnSandboxRecordHeader "$passedRecord" restarted-from )" = "${MDAT_SPAWN_SESSION_ID:-}" ]
+	[ "$( AgentsToolsFrontmatterKey "$passedRecord" restarted-from )" = "${MDAT_SPAWN_SESSION_ID:-}" ]
 }
 
 ## Whether a served wait reads this run's session: with its default sources (its session thread
@@ -243,7 +243,7 @@ AgentsHarnessDismissHeldGive(){
 ## once this call is over (AgentsHarnessDismissedAfter). rc 0.
 AgentsHarnessSeatRefuse(){ ## what was refused (read, sent), the holder's spawn id
 	local refuseSession="" refuseMark=""
-	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandboxRecordHeader.include"
+	type AgentsToolsFrontmatterKey > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.FrontmatterKey.include"
 	type AgentsSessionRunHeadersInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
 	AgentsSessionRunHeadersInto "${MDAT_SPAWN_SESSION_ID:-}" refuseSession=session-id || :
 	printf 'ERROR: not %s: run %s holds the seat of %s in session %s, and a member is active once in a session. This run is refused and ends. Send what it should do there with SendMessage to %s:%s.\n' \

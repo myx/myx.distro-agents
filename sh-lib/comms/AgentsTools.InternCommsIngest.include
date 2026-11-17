@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.InternCommsIngest.include -- one pass of the comms source ingest for one source (S1.12 §3): the operation a comms
+## service thread runs for each source it ingests, and the only way a source is read. Sourced from DistroAgentsTools.fn.sh's
+## `--intern-comms-ingest` arm; needs $1/$@/$MDSC_CMD from dot-sourcing. The events, the pointer, the store and its own rules are
+## AgentsTools.CommsIngest.include's, stated once in myx.distro-agents/MAGIC.md. A pass it cannot read leaves the pointer where it was.
+##
+
+case "$1" in
+
+	--intern-comms-ingest)
+		## THE CALL IS READ WHOLE BEFORE ANYTHING IS DONE: a wrong shape answers this operation's own syntax, so no caller reads a
+		## broken call as a source that held nothing. The words are read by their places, and nothing is shifted away.
+		local ingestOpMember="${3:-}" ingestOpChannel="${4:-}"
+		if [ "${2:-}" != "--run" ] || [ -z "$ingestOpMember" ] || [ -z "$ingestOpChannel" ] || [ -n "${5:-}" ] ; then
+			printf '%s\n' "$MDSC_CMD --intern-comms-ingest -- one pass of the comms source ingest for one source: it reads the source from its pointer's floor, writes the events the store does not hold, and moves the pointer to the last id it wrote (S1.12)." >&2
+			printf '%s\n' "" >&2
+			printf '%s\n' "  $MDSC_CMD --intern-comms-ingest --run <member> <channel id>" >&2
+			set +e ; return 1
+		fi
+		## The member names the cache folder and the account file of the read, so it is one path segment and never a path.
+		case "$ingestOpMember" in
+			-*|*[!abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._-]*)
+				echo "⛔ ERROR: the ingest takes one member name, got: $ingestOpMember" >&2
+				set +e ; return 1
+			;;
+		esac
+		type AgentsCommsIngestSlack > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsIngest.include"
+		AgentsCommsIngestSlack "$ingestOpMember" "$ingestOpChannel"
+		return $?
+	;;
+
+	*)
+		echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
+		set +e ; return 1
+	;;
+esac

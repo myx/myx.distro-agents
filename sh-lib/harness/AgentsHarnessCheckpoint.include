@@ -255,9 +255,8 @@ AgentsHarnessIdleWait(){ ## timeout ('-' for none), then the sources, a leading 
 	## model's next turn is read from the cache (AgentsTools.MemberWait.include). Where the call named no bound and none is set for the
 	## run, that quiet round is the KEEPALIVE: the wait stops there, the conversation is returned to its checkpoint and the model is woken
 	## with the keepalive text, so its next turn refreshes the cache from the cached prefix instead of paying the whole history again.
-	local idleMode=default
 	while : ; do
-		idleOut="$( AgentsHarnessToolWait "$idleWaitSources" "$idleTimeout" "" "" "" "" "$idleMode" )"
+		idleOut="$( AgentsHarnessToolWait "$idleWaitSources" "$idleTimeout" "" "" "" "" "default" )"
 		idleHead="$( printf '%s\n' "$idleOut" | head -1 )"
 		case "$idleHead" in
 			"WAIT-RESULT: TIMEOUT"*)

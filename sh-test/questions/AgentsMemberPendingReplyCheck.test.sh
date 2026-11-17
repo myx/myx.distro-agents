@@ -23,8 +23,8 @@ set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 rigTool="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 
-rigRefuse(){
 . "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-writes.include.sh" || exit 1
+rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }
 [ -f "$rigTool" ] || rigRefuse "the tool is not at the origin this workspace resolves: $rigTool"
@@ -132,7 +132,7 @@ rigField(){ ## id, field
 }
 
 echo "-- read: the member's own open records --"
-rigOp list --read-pending-reply magic-tester
+rigOp list --read-pending-reply --team-member magic-tester
 rigHolds "$rigTmp/list" 'PENDING-REPLIES:' | grep -q yes || rigRefuse "the read op never answered: $( grep -m1 ERROR "$rigTmp/list.err" )"
 rigAssert "three are listed"                          "$( LC_ALL=C sed -n 's/^PENDING-REPLIES: //p' "$rigTmp/list" )" 3
 rigAssert "its own open question is there"            "$( rigHolds "$rigTmp/list" 'PENDING-REPLY: 11111111-0000-0000-0000-000000000001' )" yes
@@ -140,26 +140,26 @@ rigAssert "with its first line"                       "$( rigHolds "$rigTmp/list
 rigAssert "and its thread"                            "$( rigHolds "$rigTmp/list" 'thread-ts: 1700000001.000101' )" yes
 rigAssert "a closed one is not"                       "$( rigHolds "$rigTmp/list" '000000000002' )" no
 rigAssert "nor another member's"                      "$( rigHolds "$rigTmp/list" '000000000003' )" no
-rigOp listall --read-pending-reply magic-tester --all
+rigOp listall --read-pending-reply --team-member magic-tester --all
 rigAssert "--all adds the closed one"                 "$( LC_ALL=C sed -n 's/^PENDING-REPLIES: //p' "$rigTmp/listall" )" 4
-rigOp listany --read-pending-reply magic-tester --any-owner
+rigOp listany --read-pending-reply --team-member magic-tester --any-owner
 rigAssert "--any-owner adds the other member's"       "$( rigHolds "$rigTmp/listany" '000000000003' )" yes
-rigOp one --read-pending-reply magic-tester 11111111-0000-0000-0000-000000000003
+rigOp one --read-pending-reply --team-member magic-tester 11111111-0000-0000-0000-000000000003
 rigAssert "one by id shows it"                        "$( rigHolds "$rigTmp/one" 'owner: magic-coordinator' )" yes
-rigOp missing --read-pending-reply magic-tester 11111111-0000-0000-0000-000000000009
+rigOp missing --read-pending-reply --team-member magic-tester 11111111-0000-0000-0000-000000000009
 rigAssert "a missing id fails"                        "$( [ "$rigRc" -ne 0 ] && echo non-zero || echo 0 )" non-zero
 ## --count: the number of the records the same list shows, by the same store and the same test of what is open, and nothing else.
-rigOp countown --read-pending-reply magic-tester --count
+rigOp countown --read-pending-reply --team-member magic-tester --count
 rigAssert "--count prints the number the list counts, and nothing else" "[$( cat "$rigTmp/countown" )] [$( LC_ALL=C sed -n 's/^PENDING-REPLIES: //p' "$rigTmp/list" )] $( LC_ALL=C awk 'END { print NR + 0 ; }' "$rigTmp/countown" )" "[3] [3] 1"
-rigOp countall --read-pending-reply magic-tester --all --count
+rigOp countall --read-pending-reply --team-member magic-tester --all --count
 rigAssert "--all widens the count as it widens the list" "$( cat "$rigTmp/countall" )" 4
-rigOp countany --read-pending-reply magic-tester --any-owner --count
+rigOp countany --read-pending-reply --team-member magic-tester --any-owner --count
 rigAssert "--any-owner counts every member's open records, as the list does" "$( [ "$( cat "$rigTmp/countany" )" = "$( LC_ALL=C sed -n 's/^PENDING-REPLIES: //p' "$rigTmp/listany" )" ] && echo same || echo differs ):$( LC_ALL=C grep -c -x -E '[0-9]+' "$rigTmp/countany" )" "same:1"
-rigOp countid --read-pending-reply magic-tester 11111111-0000-0000-0000-000000000003 --count
+rigOp countid --read-pending-reply --team-member magic-tester 11111111-0000-0000-0000-000000000003 --count
 rigAssert "--count with the id of one record is refused, and prints no number" "$( [ "$rigRc" -ne 0 ] && echo non-zero || echo 0 ):$( LC_ALL=C grep -c -x -E '[0-9]+' "$rigTmp/countid" )" "non-zero:0"
 
 echo "-- settle: the member's own open question --"
-rigOp settle1 --settle-pending-reply magic-tester 11111111-0000-0000-0000-000000000001 --reason "answered in the thread at 12:47"
+rigOp settle1 --settle-pending-reply --team-member magic-tester 11111111-0000-0000-0000-000000000001 --reason "answered in the thread at 12:47"
 rigAssert "it says settled"                           "$( head -1 "$rigTmp/settle1" )" "SETTLED 11111111-0000-0000-0000-000000000001"
 rigAssert "the record is closed"                      "$( rigStatus 11111111-0000-0000-0000-000000000001 )" reply-received
 rigAssert "with the reason"                           "$( rigField 11111111-0000-0000-0000-000000000001 verdict )" "settled: answered in the thread at 12:47"
@@ -170,24 +170,24 @@ rigAssert "not answered"                              "$( LC_ALL=C grep -c -x -F
 rigAssert "and the opener is left, others being open" "$( LC_ALL=C grep -c -x -F '1700000001.000101 white_check_mark' "$rigTmp/scenario/reactions" 2>/dev/null )" 0
 
 echo "-- settle: refusals --"
-rigOp settle3 --settle-pending-reply magic-tester 11111111-0000-0000-0000-000000000003 --reason "not mine"
+rigOp settle3 --settle-pending-reply --team-member magic-tester 11111111-0000-0000-0000-000000000003 --reason "not mine"
 rigAssert "another member's record is refused"        "$( [ "$rigRc" -ne 0 ] && echo non-zero || echo 0 )" non-zero
 rigAssert "naming who asked it"                       "$( rigHolds "$rigTmp/settle3.err" 'asked by magic-coordinator' )" yes
 rigAssert "and it stays open"                         "$( rigStatus 11111111-0000-0000-0000-000000000003 )" reply-pending
-rigOp settle4 --settle-pending-reply magic-tester 11111111-0000-0000-0000-000000000004 --reason "a readback"
+rigOp settle4 --settle-pending-reply --team-member magic-tester 11111111-0000-0000-0000-000000000004 --reason "a readback"
 rigAssert "a readback is refused"                     "$( [ "$rigRc" -ne 0 ] && echo non-zero || echo 0 )" non-zero
 rigAssert "and stays open"                            "$( rigStatus 11111111-0000-0000-0000-000000000004 )" reply-pending
-rigOp settle0 --settle-pending-reply magic-tester 11111111-0000-0000-0000-000000000005
+rigOp settle0 --settle-pending-reply --team-member magic-tester 11111111-0000-0000-0000-000000000005
 rigAssert "no reason is refused"                      "$( [ "$rigRc" -ne 0 ] && echo non-zero || echo 0 )" non-zero
 
 echo "-- settle: a closed record is left as it is --"
-rigOp settle2 --settle-pending-reply magic-tester 11111111-0000-0000-0000-000000000001 --reason "again"
+rigOp settle2 --settle-pending-reply --team-member magic-tester 11111111-0000-0000-0000-000000000001 --reason "again"
 rigAssert "it says already closed"                    "$( head -1 "$rigTmp/settle2" )" "ALREADY-CLOSED 11111111-0000-0000-0000-000000000001 reply-received"
 rigAssert "and the first reason stands"               "$( rigField 11111111-0000-0000-0000-000000000001 verdict )" "settled: answered in the thread at 12:47"
 
 echo "-- two settles racing on one record: exactly one closes it --"
-( rigOp raceA --settle-pending-reply magic-tester 11111111-0000-0000-0000-000000000005 --reason "race A" ) &
-( rigOp raceB --settle-pending-reply magic-tester 11111111-0000-0000-0000-000000000005 --reason "race B" ) &
+( rigOp raceA --settle-pending-reply --team-member magic-tester 11111111-0000-0000-0000-000000000005 --reason "race A" ) &
+( rigOp raceB --settle-pending-reply --team-member magic-tester 11111111-0000-0000-0000-000000000005 --reason "race B" ) &
 wait
 rigAssert "one says settled"                          "$( cat "$rigTmp/raceA" "$rigTmp/raceB" | LC_ALL=C grep -c '^SETTLED ' )" 1
 rigAssert "the other says already closed"             "$( cat "$rigTmp/raceA" "$rigTmp/raceB" | LC_ALL=C grep -c '^ALREADY-CLOSED ' )" 1
@@ -197,80 +197,80 @@ echo "-- amend: the coordinator corrects a closed record's verdict --"
 rigRecord 11111111-0000-0000-0000-000000000006 magic-tester reply-unknown "" "May the rig keep report six?"
 printf 'verdict: closed in error\n' > "$rigTmp/v6" && LC_ALL=C awk -v add="$( cat "$rigTmp/v6" )" 'NR == 2 { print add ; } { print ; }' "$rigStore/11111111-0000-0000-0000-000000000006.md" > "$rigTmp/r6" && mv "$rigTmp/r6" "$rigStore/11111111-0000-0000-0000-000000000006.md"
 rigRecord 11111111-0000-0000-0000-000000000007 magic-tester reply-received permission "Rig permission seven"
-rigOp amend6 --amend-pending-reply magic-coordinator 11111111-0000-0000-0000-000000000006 --verdict "No - keep it elsewhere" --reason "the answer in its thread at 12:32"
+rigOp amend6 --amend-pending-reply --team-member magic-coordinator 11111111-0000-0000-0000-000000000006 --verdict "No - keep it elsewhere" --reason "the answer in its thread at 12:32"
 rigAssert "it says amended"                           "$( head -1 "$rigTmp/amend6" )" "AMENDED 11111111-0000-0000-0000-000000000006"
 rigAssert "the verdict is corrected"                  "$( rigField 11111111-0000-0000-0000-000000000006 verdict )" "No - keep it elsewhere"
 rigAssert "the record reads received"                 "$( rigStatus 11111111-0000-0000-0000-000000000006 )" reply-received
 rigAssert "with who amended it"                       "$( rigField 11111111-0000-0000-0000-000000000006 amended-by )" magic-coordinator
 rigAssert "and why"                                   "$( rigField 11111111-0000-0000-0000-000000000006 amend-reason )" "the answer in its thread at 12:32"
 rigAssert "and what it corrected"                     "$( rigField 11111111-0000-0000-0000-000000000006 amended-from )" "closed in error"
-rigOp read6 --read-pending-reply magic-tester 11111111-0000-0000-0000-000000000006
+rigOp read6 --read-pending-reply --team-member magic-tester 11111111-0000-0000-0000-000000000006
 rigAssert "the read shows who amended it"             "$( rigHolds "$rigTmp/read6" 'amended-by: magic-coordinator' )" yes
 rigAssert "and what it corrected"                     "$( rigHolds "$rigTmp/read6" 'amended-from: closed in error' )" yes
-rigOp amend7 --amend-pending-reply magic-coordinator 11111111-0000-0000-0000-000000000007 --verdict "deny" --reason "x"
+rigOp amend7 --amend-pending-reply --team-member magic-coordinator 11111111-0000-0000-0000-000000000007 --verdict "deny" --reason "x"
 rigAssert "a permission record is not amended"        "$( rigHolds "$rigTmp/amend7.err" 'corrected through the grant store' )" yes
 rigAssert "and is left as it was"                     "$( rigField 11111111-0000-0000-0000-000000000007 verdict )" ""
 rigAssert "and no Slack mark is posted for it"        "$( LC_ALL=C grep -c -x -F '1700000001.000102 white_check_mark' "$rigTmp/scenario/reactions" 2>/dev/null )" 0
-rigOp amendOpen --amend-pending-reply magic-coordinator 11111111-0000-0000-0000-000000000003 --verdict "x" --reason "y"
+rigOp amendOpen --amend-pending-reply --team-member magic-coordinator 11111111-0000-0000-0000-000000000003 --verdict "x" --reason "y"
 rigAssert "an open record is refused"                 "$( [ "$rigRc" -ne 0 ] && echo non-zero || echo 0 )" non-zero
 rigAssert "and stays open"                            "$( rigStatus 11111111-0000-0000-0000-000000000003 )" reply-pending
-rigOp amendOther --amend-pending-reply magic-tester 11111111-0000-0000-0000-000000000006 --verdict "x" --reason "y"
+rigOp amendOther --amend-pending-reply --team-member magic-tester 11111111-0000-0000-0000-000000000006 --verdict "x" --reason "y"
 rigAssert "another member may not amend"              "$( rigHolds "$rigTmp/amendOther.err" 'only magic-coordinator amends' )" yes
 rigAssert "and the verdict stands"                    "$( rigField 11111111-0000-0000-0000-000000000006 verdict )" "No - keep it elsewhere"
 
 echo "-- settle: a session settles as itself; the coordinator, on another's behalf, with --settle-pending-reply --"
 rigRecord 11111111-0000-0000-0000-000000000008 magic-tester reply-pending "" "May the rig keep report eight?"
-RIG_AGENT=magic-coordinator rigOp settle8a --settle-pending-reply magic-tester 11111111-0000-0000-0000-000000000008 --reason "as another"
+RIG_AGENT=magic-coordinator rigOp settle8a --settle-pending-reply --team-member magic-tester 11111111-0000-0000-0000-000000000008 --reason "as another"
 rigAssert "a session settling as another member is refused" "$( [ "$rigRc" -ne 0 ] && echo non-zero || echo 0 ):$( rigHolds "$rigTmp/settle8a.err" 'this session acts as magic-coordinator' )" "non-zero:yes"
 rigAssert "and it stays open"                         "$( rigStatus 11111111-0000-0000-0000-000000000008 )" reply-pending
-RIG_AGENT=magic-tester rigOp settle8b --settle-pending-reply magic-coordinator 11111111-0000-0000-0000-000000000008 --reason "not the coordinator"
+RIG_AGENT=magic-tester rigOp settle8b --settle-pending-reply --team-member magic-coordinator 11111111-0000-0000-0000-000000000008 --reason "not the coordinator"
 rigAssert "another member's session naming the coordinator is refused" "$( [ "$rigRc" -ne 0 ] && echo non-zero || echo 0 ):$( rigHolds "$rigTmp/settle8b.err" 'this session acts as magic-tester, so it cannot act as magic-coordinator' )" "non-zero:yes"
-rigOp settle8c --settle-pending-reply magic-developer 11111111-0000-0000-0000-000000000008 --reason "named a member"
+rigOp settle8c --settle-pending-reply --team-member magic-developer 11111111-0000-0000-0000-000000000008 --reason "named a member"
 rigAssert "a member that is neither the asker nor the coordinator is refused" "$( rigHolds "$rigTmp/settle8c.err" 'the asker settles its own, and magic-coordinator another' ):$( rigStatus 11111111-0000-0000-0000-000000000008 )" "yes:reply-pending"
-RIG_AGENT=magic-coordinator rigOp settle8d --settle-pending-reply magic-coordinator 11111111-0000-0000-0000-000000000008 --reason "settled for the tester"
+RIG_AGENT=magic-coordinator rigOp settle8d --settle-pending-reply --team-member magic-coordinator 11111111-0000-0000-0000-000000000008 --reason "settled for the tester"
 rigAssert "the coordinator settles it on the asker's behalf" "$( head -1 "$rigTmp/settle8d" ):$( rigStatus 11111111-0000-0000-0000-000000000008 )" "SETTLED 11111111-0000-0000-0000-000000000008:reply-received"
 rigAssert "signed as the coordinator"                 "$( rigField 11111111-0000-0000-0000-000000000008 answered-by )" "magic-coordinator (settled)"
-RIG_AGENT=magic-coordinator rigOp settle4m --settle-pending-reply magic-coordinator 11111111-0000-0000-0000-000000000004 --reason "a readback"
+RIG_AGENT=magic-coordinator rigOp settle4m --settle-pending-reply --team-member magic-coordinator 11111111-0000-0000-0000-000000000004 --reason "a readback"
 rigAssert "a readback is refused on the magic form too" "$( [ "$rigRc" -ne 0 ] && echo non-zero || echo 0 ):$( rigStatus 11111111-0000-0000-0000-000000000004 )" "non-zero:reply-pending"
 
 echo "-- withdraw: the asker discards its own open question, of any kind --"
 rigRecord 11111111-0000-0000-0000-000000000010 magic-tester reply-pending permission "Rig permission ten"
 rigRecord 11111111-0000-0000-0000-000000000011 magic-coordinator reply-pending decision "Rig decision eleven"
 rigPostsBefore="$( cat "$rigTmp/scenario/posts" 2>/dev/null || echo 0 )"
-RIG_AGENT=magic-tester rigOp wd10 --settle-pending-reply magic-tester 11111111-0000-0000-0000-000000000010 --reason "the task was cancelled" --withdraw
+RIG_AGENT=magic-tester rigOp wd10 --settle-pending-reply --team-member magic-tester 11111111-0000-0000-0000-000000000010 --reason "the task was cancelled" --withdraw
 rigAssert "it says withdrawn"                         "$( head -1 "$rigTmp/wd10" )" "WITHDRAWN 11111111-0000-0000-0000-000000000010"
 rigAssert "closed as withdrawn, a permission too"     "$( rigStatus 11111111-0000-0000-0000-000000000010 )" withdrawn
 rigAssert "with the reason and who withdrew it"       "$( rigField 11111111-0000-0000-0000-000000000010 withdraw-reason ):$( rigField 11111111-0000-0000-0000-000000000010 withdrawn-by )" "the task was cancelled:magic-tester"
 rigAssert "and no verdict, so nothing is granted"     "$( rigField 11111111-0000-0000-0000-000000000010 verdict ):$( rigField 11111111-0000-0000-0000-000000000010 grant )" ":"
 rigAssert "a note is posted in its thread"            "$(( $( cat "$rigTmp/scenario/posts" 2>/dev/null || echo 0 ) - rigPostsBefore ))" 1
 rigAssert "and the note says it needs no answer"      "$( cat "$rigTmp/scenario/post.$( cat "$rigTmp/scenario/posts" )" 2>/dev/null | LC_ALL=C grep -c -F 'no longer needs an answer' )" 1
-rigOp list10 --read-pending-reply magic-tester
+rigOp list10 --read-pending-reply --team-member magic-tester
 rigAssert "it is no longer listed as waiting"         "$( rigHolds "$rigTmp/list10" '000000000010' )" no
-RIG_AGENT=magic-tester rigOp wd11 --settle-pending-reply magic-tester 11111111-0000-0000-0000-000000000011 --reason "not mine" --withdraw
+RIG_AGENT=magic-tester rigOp wd11 --settle-pending-reply --team-member magic-tester 11111111-0000-0000-0000-000000000011 --reason "not mine" --withdraw
 rigAssert "another member's question is refused"      "$( rigHolds "$rigTmp/wd11.err" 'cannot withdraw it' ):$( rigStatus 11111111-0000-0000-0000-000000000011 )" "yes:reply-pending"
-RIG_AGENT=magic-coordinator rigOp wd8m --settle-pending-reply magic-coordinator 11111111-0000-0000-0000-000000000005 --reason "for the tester" --withdraw
+RIG_AGENT=magic-coordinator rigOp wd8m --settle-pending-reply --team-member magic-coordinator 11111111-0000-0000-0000-000000000005 --reason "for the tester" --withdraw
 rigAssert "the coordinator withdraws none but its own" "$( rigHolds "$rigTmp/wd8m.err" 'cannot withdraw it' )" yes
-RIG_AGENT=magic-coordinator rigOp wd11c --settle-pending-reply magic-coordinator 11111111-0000-0000-0000-000000000011 --reason "asked the wrong person" --withdraw
+RIG_AGENT=magic-coordinator rigOp wd11c --settle-pending-reply --team-member magic-coordinator 11111111-0000-0000-0000-000000000011 --reason "asked the wrong person" --withdraw
 rigAssert "control: it withdraws its own decision"    "$( head -1 "$rigTmp/wd11c" ):$( rigStatus 11111111-0000-0000-0000-000000000011 )" "WITHDRAWN 11111111-0000-0000-0000-000000000011:withdrawn"
-RIG_AGENT=magic-tester rigOp wd10again --settle-pending-reply magic-tester 11111111-0000-0000-0000-000000000010 --reason "again" --withdraw
+RIG_AGENT=magic-tester rigOp wd10again --settle-pending-reply --team-member magic-tester 11111111-0000-0000-0000-000000000010 --reason "again" --withdraw
 rigAssert "a closed record is left as it is"          "$( head -1 "$rigTmp/wd10again" ):$( rigField 11111111-0000-0000-0000-000000000010 withdraw-reason )" "ALREADY-CLOSED 11111111-0000-0000-0000-000000000010 withdrawn:the task was cancelled"
 
 echo "-- a permission set: its own verdicts, the human-owner's to give --"
 rigRecord 11111111-0000-0000-0000-000000000009 magic-coordinator reply-pending permission-set "Rig permission set nine"
 LC_ALL=C awk 'NR == 2 { print "address-to: human-owner" ; print "session-id: rig-set-session" ; } { print ; }' "$rigStore/11111111-0000-0000-0000-000000000009.md" > "$rigTmp/r9" && mv "$rigTmp/r9" "$rigStore/11111111-0000-0000-0000-000000000009.md"
 printf 'scope: task\nitem: task-rig-none\nsession-id: rig-set-session\nparticipants: magic-tester\nentry: WebSearch\n' > "$rigStore/11111111-0000-0000-0000-000000000009.set"
-rigOp read9 --read-pending-reply magic-tester 11111111-0000-0000-0000-000000000009
+rigOp read9 --read-pending-reply --team-member magic-tester 11111111-0000-0000-0000-000000000009
 rigAssert "it reads as a permission-set"              "$( rigHolds "$rigTmp/read9" 'kind: permission-set' )" yes
-RIG_AGENT=magic-tester rigOp ans9a --answer-escalation magic-tester 11111111-0000-0000-0000-000000000009 allow-set
+RIG_AGENT=magic-tester rigOp ans9a --answer-escalation --team-member magic-tester 11111111-0000-0000-0000-000000000009 allow-set
 rigAssert "a member it is not addressed to cannot answer it" "$( rigHolds "$rigTmp/ans9a.err" 'cannot answer it' ):$( rigStatus 11111111-0000-0000-0000-000000000009 )" "yes:reply-pending"
 ## An answer is given from a session and bound to it: the asking run takes the answer from the
 ## record by the session it carries, so one carrying none would never reach it, and is refused
 ## before its verdict is looked at.
-rigOp ans9none --answer-escalation human-owner 11111111-0000-0000-0000-000000000009 edit "drop WebSearch"
+rigOp ans9none --answer-escalation --team-member human-owner 11111111-0000-0000-0000-000000000009 edit "drop WebSearch"
 rigAssert "a caller carrying no session is refused"   "$( rigHolds "$rigTmp/ans9none.err" 'carries no session id' ):$( rigStatus 11111111-0000-0000-0000-000000000009 )" "yes:reply-pending"
-RIG_SESSION=rig-answerer rigOp ans9b --answer-escalation human-owner 11111111-0000-0000-0000-000000000009 allow-once
+RIG_SESSION=rig-answerer rigOp ans9b --answer-escalation --team-member human-owner 11111111-0000-0000-0000-000000000009 allow-once
 rigAssert "a permission verdict is not a set's"       "$( rigHolds "$rigTmp/ans9b.err" 'is not a verdict of this permission-set' ):$( rigStatus 11111111-0000-0000-0000-000000000009 )" "yes:reply-pending"
-RIG_SESSION=rig-answerer rigOp ans9c --answer-escalation human-owner 11111111-0000-0000-0000-000000000009 edit "drop WebSearch"
+RIG_SESSION=rig-answerer rigOp ans9c --answer-escalation --team-member human-owner 11111111-0000-0000-0000-000000000009 edit "drop WebSearch"
 rigAssert "edit is the human-owner's, with its change" "$( rigStatus 11111111-0000-0000-0000-000000000009 ):$( rigField 11111111-0000-0000-0000-000000000009 verdict ):$( rigField 11111111-0000-0000-0000-000000000009 verdict-text )" "reply-received:edit:drop WebSearch"
 rigAssert "and is bound to the session it came from"  "$( rigField 11111111-0000-0000-0000-000000000009 answered-session )" rig-answerer
 rigAssert "and grants nothing"                        "$( rigHolds "$rigTmp/ans9c" 'GRANT:' )" no
@@ -325,7 +325,7 @@ rigStale2(){
 	} > "$rigReg2"
 }
 rigStale2
-rigOp2 list2 --read-pending-reply magic-tester
+rigOp2 list2 --read-pending-reply --team-member magic-tester
 rigHolds "$rigTmp/list2" 'PENDING-REPLIES:' | grep -q yes || rigRefuse "the read op never answered in the second workspace: $( grep -m1 ERROR "$rigTmp/list2.err" )"
 rigAssert "after a list, an ask the store has closed reads closed in the file" "$( rigRegRow2 "$rigA3.md" | LC_ALL=C awk '{ print $5 ; }' )" reply-received
 rigAssert "an ask the file did not know has its row"  "$( rigRegRow2 "$rigA2.md" | LC_ALL=C awk '{ print $2 ":" $5 ; }' )" "ask:reply-pending"
@@ -334,7 +334,7 @@ rigAssert "the board item that waits is a row, the data root being the operation
 rigRows2 > "$rigTmp/rows2.want"
 rigAssert "the file is, byte for byte, what the one rebuild writes: every row of the store, and nothing else" "$( cmp -s "$rigReg2" "$rigTmp/rows2.want" && echo same || echo differs ):$( LC_ALL=C awk 'END { print NR + 0 ; }' "$rigReg2" )" "same:4"
 rigAssert "the read rebuilds through the one rebuild function and writes no registry itself" \
-	"$( LC_ALL=C grep -q 'AgentsToolsRegistryPendingRepliesRebuild' "$rigReadInclude" && echo calls-it || echo never ):$( LC_ALL=C grep -c -e 'AgentsToolsRegistryWrite' -e 'pending-replies\.registry' "$rigReadInclude" )" "calls-it:0"
+	"$( LC_ALL=C grep -q 'AgentsToolsRegistryPendingRepliesRebuild' "$rigReadInclude" && echo calls-it || echo never ):$( LC_ALL=C grep -c 'AgentsToolsRegistryWrite' "$rigReadInclude" )" "calls-it:0"
 rigAssert "no temp file of the rebuild is left"       "$( ls "$rigAgents2" | LC_ALL=C grep -c '^pending-replies\.registry\.' )" 0
 ## The list prints what it printed before: the two open ones, each field in its place, and the count.
 {
@@ -348,25 +348,25 @@ rigAssert "and one line more for each open one, before its question" "$( LC_ALL=
 ## One record by its id: the file is not written again.
 rigStale2
 rigRegBefore="$( ls -i "$rigReg2" | LC_ALL=C awk '{ print $1 ; }' ):$( cksum < "$rigReg2" )"
-rigOp2 one2 --read-pending-reply magic-tester "$rigA1"
+rigOp2 one2 --read-pending-reply --team-member magic-tester "$rigA1"
 rigAssert "a read of one record by its id shows it"   "$( rigHolds "$rigTmp/one2" "PENDING-REPLY: $rigA1" ):$rigRc" "yes:0"
 rigAssert "and leaves the registry as it lay, the same file and the same bytes" "$( ls -i "$rigReg2" | LC_ALL=C awk '{ print $1 ; }' ):$( cksum < "$rigReg2" )" "$rigRegBefore"
-rigOp2 any2 --read-pending-reply magic-coordinator --any-owner
+rigOp2 any2 --read-pending-reply --team-member magic-coordinator --any-owner
 rigAssert "the --any-owner list rebuilds it too"      "$( cmp -s "$rigReg2" "$rigTmp/rows2.want" && echo same || echo differs )" same
 ## The count renders nothing and writes nothing: no registry rebuilt, no asker measured.
 rigStale2
 rigRegBefore="$( ls -i "$rigReg2" | LC_ALL=C awk '{ print $1 ; }' ):$( cksum < "$rigReg2" )"
-rigOp2 count2 --read-pending-reply magic-tester --count
+rigOp2 count2 --read-pending-reply --team-member magic-tester --count
 rigAssert "--count prints the number of the open ones the list shows" "$( cat "$rigTmp/count2" ):$rigRc" "2:0"
 rigAssert "and leaves the registry as it lay, the same file and the same bytes" "$( ls -i "$rigReg2" | LC_ALL=C awk '{ print $1 ; }' ):$( cksum < "$rigReg2" )" "$rigRegBefore"
-rigOp2 count3 --read-pending-reply magic-coordinator --any-owner --count
+rigOp2 count3 --read-pending-reply --team-member magic-coordinator --any-owner --count
 rigAssert "--any-owner --count is the count of that list" "$( cat "$rigTmp/count3" ):$( LC_ALL=C sed -n 's/^PENDING-REPLIES: //p' "$rigTmp/any2" )" "2:2"
 ## A workspace with no ask store: the list says none, and the registry is written with no row.
 rigWs3="$rigTmp/ws3"
 mkdir -p "$rigWs3/.local" "$rigTmp/data3"
 cp -R "$rigTmp/ws/.local/.agents" "$rigWs3/.local/.agents" || rigRefuse "the third workspace got no settings"
 ( cd "$rigWs3" && env -u MDAT_SPAWN_AGENT -u MDAT_SPAWN_SESSION_ID HOME="$rigTmp/home" MMDAPP="$rigWs3" MDLT_ORIGIN="$MDLT_ORIGIN" \
-	MDAT_SKILLSET_ROOT="$rigTmp/skills" MDAT_DATA_ROOT="$rigTmp/data3" bash "$rigTool" --read-pending-reply magic-tester ) > "$rigTmp/list3" 2> "$rigTmp/list3.err"
+	MDAT_SKILLSET_ROOT="$rigTmp/skills" MDAT_DATA_ROOT="$rigTmp/data3" bash "$rigTool" --read-pending-reply --team-member magic-tester ) > "$rigTmp/list3" 2> "$rigTmp/list3.err"
 rigAssert "with no ask store the list says none"      "$( cat "$rigTmp/list3" )" "PENDING-REPLIES: 0"
 rigAssert "the registry is written with no row, and no store is made" "$( [ -f "$rigWs3/.local/agents/pending-replies.registry" ] && LC_ALL=C awk 'END { print NR + 0 ; }' "$rigWs3/.local/agents/pending-replies.registry" || echo no-file ):$( [ -e "$rigWs3/.local/agents/pending" ] && echo made || echo none )" "0:none"
 
@@ -443,7 +443,7 @@ rigAskerOf(){ ## output name, ask number -- the asker-live value of that ask's b
 		END { if ( ! found ) { print "absent" ; } }
 	' "$rigTmp/$1"
 }
-rigOp2 askers --read-pending-reply magic-tester
+rigOp2 askers --read-pending-reply --team-member magic-tester
 rigAssert "every open record is listed, each with its asker line" "$( LC_ALL=C sed -n 's/^PENDING-REPLIES: //p' "$rigTmp/askers" ):$( LC_ALL=C grep -c '^asker-live: ' "$rigTmp/askers" )" "17:17"
 rigAssert "a run that lives is running, by its own --session-id word" "$( rigAskerOf askers 1 )" running
 rigAssert "a run whose record is closed and that no process runs as has no process: no live asker" "$( rigAskerOf askers 2 )" no-process
@@ -462,24 +462,24 @@ rigAssert "an id nothing here names is not called dead" "$( rigAskerOf askers 14
 rigAssert "an ask of another host is not measured here, though a process of this host runs as its id" "$( rigAskerOf askers 15 )" other-host
 rigAssert "nor one that records no host"              "$( rigAskerOf askers 16 )" host-unrecorded
 rigAssert "one that names no asking session says so" "$( rigAskerOf askers 17 )" no-session-id
-rigOp2 askersall --read-pending-reply magic-tester --all
+rigOp2 askersall --read-pending-reply --team-member magic-tester --all
 rigAssert "a closed record carries no asker line"     "$( LC_ALL=C sed -n 's/^PENDING-REPLIES: //p' "$rigTmp/askersall" ):$( rigAskerOf askersall 18 ):$( LC_ALL=C grep -c '^asker-live: ' "$rigTmp/askersall" )" "18:absent:17"
 rigAssert "liveness is measured, never stored: no row of the registry holds it" "$( LC_ALL=C grep -c -E '(^| )(running|no-process|session-ended|no-spawn-record)( |$)' "$rigReg2" ):$( LC_ALL=C awk '$2 == "ask" { askRows++ ; } END { print askRows + 0 ; }' "$rigReg2" )" "0:18"
 rigRegBefore="$( ls -i "$rigReg2" | LC_ALL=C awk '{ print $1 ; }' ):$( cksum < "$rigReg2" )"
-rigOp2 asker1 --read-pending-reply magic-tester "$( rigB 1 )"
-rigOp2 asker5 --read-pending-reply magic-tester "$( rigB 5 )"
-rigOp2 asker18 --read-pending-reply magic-tester "$( rigB 18 )"
+rigOp2 asker1 --read-pending-reply --team-member magic-tester "$( rigB 1 )"
+rigOp2 asker5 --read-pending-reply --team-member magic-tester "$( rigB 5 )"
+rigOp2 asker18 --read-pending-reply --team-member magic-tester "$( rigB 18 )"
 rigAssert "one record by its id says the same of its asker" "$( rigAskerOf asker1 1 ):$( rigAskerOf asker5 5 ):$( rigAskerOf asker18 18 )" "running:no-process:absent"
 rigAssert "and still rebuilds nothing"                "$( ls -i "$rigReg2" | LC_ALL=C awk '{ print $1 ; }' ):$( cksum < "$rigReg2" )" "$rigRegBefore"
 ## The process ends: the next read says so, with no record changed.
 LC_ALL=C grep -v '^910001 ' "$rigTmp/ps.list" > "$rigTmp/ps.list.next" && mv "$rigTmp/ps.list.next" "$rigTmp/ps.list"
 rigStoreBefore="$( cat "$rigStore2"/*.md | cksum )"
-rigOp2 askers2 --read-pending-reply magic-tester
+rigOp2 askers2 --read-pending-reply --team-member magic-tester
 rigAssert "once its process is gone the next read says so" "$( rigAskerOf askers2 1 ):$( rigAskerOf askers2 4 )" "no-process:running"
 rigAssert "and the read closed, withdrew and marked nothing: every record is as it was" "$( cat "$rigStore2"/*.md | cksum )" "$rigStoreBefore"
 ## The registry cannot be written: the list still stands, read from the records, and says that it measured no asker.
 chmod a-w "$rigAgents2"
-rigOp2 askers3 --read-pending-reply magic-tester
+rigOp2 askers3 --read-pending-reply --team-member magic-tester
 chmod u+w "$rigAgents2"
 rigAssert "where the registry cannot be rebuilt the list still stands, and no asker is called alive or dead" \
 	"$rigRc:$( LC_ALL=C sed -n 's/^PENDING-REPLIES: //p' "$rigTmp/askers3" ):$( rigAskerOf askers3 1 ):$( rigAskerOf askers3 2 ):$( rigAskerOf askers3 15 )" "0:17:not-measured:not-measured:other-host"
@@ -548,10 +548,10 @@ printf 'owner: magic-tester\nsession-id: rig-change-sess\ntool: Edit\nfile: /rig
 printf 'owner: magic-tester\nsession-id: rig-change-sess\ntool: Edit\nfile: /rig/ws/source/one/report.md\nmatched: 1\nask: %s\nheld-at: 2026-10-12 12:20 +0300\n' "$( rigW 5 )" > "$rigAgents2/sessions/rig-change-sess/changes/change-rig-0001/change"
 printf -- '--- a/report.md\n+++ b/report.md\n@@ -1,3 +1,3 @@\n-old\n+new\n \n same\n' > "$rigAgents2/sessions/rig-change-sess/changes/change-rig-0001/change.diff"
 
-rigOp2 wlist --read-pending-reply magic-coordinator --any-owner
+rigOp2 wlist --read-pending-reply --team-member magic-coordinator --any-owner
 rigAssert "the list does not change: five records, and nothing of the stored part" "$( LC_ALL=C sed -n 's/^PENDING-REPLIES: //p' "$rigTmp/wlist" ):$( LC_ALL=C grep -c -e '^PENDING-REPLY-STORED' -e '^posted: ' -e '^option: ' "$rigTmp/wlist" )" "5:0"
 rigStoreBefore="$( cat "$rigStore2"/* | cksum ):$( ls "$rigStore2" | LC_ALL=C awk 'END { print NR + 0 ; }' )"
-for rigWNo in 1 2 3 4 5 ; do rigOp2 "whole$rigWNo" --read-pending-reply magic-coordinator "$( rigW "$rigWNo" )" ; done
+for rigWNo in 1 2 3 4 5 ; do rigOp2 "whole$rigWNo" --read-pending-reply --team-member magic-coordinator "$( rigW "$rigWNo" )" ; done
 ## The lines of today stay as they are: the block a list prints for that record, byte for byte, comes first.
 rigWholeHead=""
 for rigWNo in 1 2 3 4 5 ; do

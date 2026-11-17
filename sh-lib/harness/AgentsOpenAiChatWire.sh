@@ -405,7 +405,7 @@ AgentsWireStreamConsume(){
 			;;
 		esac
 	done < <( agentsWireStreamScratch="$harnessScratch" agentsWireStreamSeen="$tcSeen" agentsWireStreamFlags="$-" LC_ALL=C awk \
-		-f "$harnessHere/session/AgentsProgressLineSafe.awk" \
+		-f "$harnessHere/core/AgentsProgressLineSafe.awk" \
 		-f "$harnessHere/harness/AgentsHarnessJsonField.awk" \
 		-f "$harnessHere/harness/AgentsOpenAiChatStream.awk" )
 }

@@ -1299,7 +1299,7 @@ PARTICIPANT_ITEMS = (("checklist.md", "CheckList", "checklist", False), ("transc
 def participantFolderLevels():
     found = [pluginLevel("activity", name + "/*/*") for name, label, function in ACTIVITY_SESSION_LISTS]
     found += [pluginLevel("activity", name + "/*") for name, label, function in ACTIVITY_AGENT_LISTS]
-    found.append(pluginLevel("team", "*/sessions/*/*"))
+    found.append(pluginLevel("team", memberFolderLevel("member-sessions", "*/*")))
     return [level for level in found if level]
 
 
@@ -1415,9 +1415,6 @@ def activityTree():
         tree["summaries"][level] = {"lines": "agentsSummary"}
         tree["reads"]["list:" + level] = {"from": "list:activity"}
         activityParticipants(tree, level)
-    ## The sessions a member is in are listed by `Team Members` (Members.py); the participants of one of them are those of any session.
-    tree["derived"]["@team/*/sessions/*"] = "participantRows"
-    activityParticipants(tree, "@team/*/sessions/*")
     return tree
 
 

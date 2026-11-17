@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # ^^^ for syntax checking in the editor only
 
-type AgentsToolsManagerSessionScope > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.ManagerSessionRows.include"
+type AgentsToolsManagerSessionScope > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.ManagerSessionRows.include"
 
 ## AgentsTools.OpManagerSessionTranscriptRead.include -- the operation `--manager-session-transcript-read`, sourced by AgentsTools.ManagerSession.include with the operation's arguments.
 ## What one run, or every run of one session, did: the lines the tracking thread of the

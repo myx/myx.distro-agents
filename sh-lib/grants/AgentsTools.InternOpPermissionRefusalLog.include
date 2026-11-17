@@ -71,6 +71,8 @@ type AgentsToolsPermissionGranteeAssert > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/
 		printf '%s\n' "$refusalId"
 		## And how to ask for the call, each line as `HINT: <text>`, for whoever refused it to print.
 		AgentsToolsPermissionRefusalHint "$refusalId" | LC_ALL=C sed 's/^/HINT: /'
+		## The post is owed and its answer is not, so it is made in a job of its own with every stream closed:
+		## a gate that captures this output is never held by the queue, its 7 s pace or a transport retry.
 		AgentsToolsPermissionRefusalPost "$refusalOwner" "$refusalSession" "$refusalId" \
-			"$refusalSession" "$refusalTool" "$refusalTarget" "$refusalReason"
+			"$refusalSession" "$refusalTool" "$refusalTarget" "$refusalReason" > /dev/null 2>&1 < /dev/null &
 		return 0

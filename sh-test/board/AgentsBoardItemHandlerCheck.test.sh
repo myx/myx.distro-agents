@@ -21,11 +21,11 @@ rigRefuse(){
 rigTmp="$( rigTempDir AgentsBoardItemHandlerCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
-rigSkills="$rigTmp/skills" rigWs="$rigTmp/ws" rigD="$rigTmp/items"
+rigSkills="$rigTmp/skills" rigWs="$rigTmp/ws" rigD="$rigTmp/items" rigStore="$rigTmp/store"
 mkdir -p "$rigSkills/magic-team" "$rigWs/.local/agents" "$rigTmp/home" "$rigD"
 rigPassCount=0 rigFailCount=0
 . "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-writes.include.sh" || exit 1
-rigOwnerWs="${rigWs:-$rigTmp/ws}" rigOwnerData="${rigData:-${rigD:-${rigStore:-${rigOut:-$rigTmp/data}}}}" rigOwnerHome="${rigHome:-$rigTmp/home}" rigOwnerSkills="${rigSkills:-$rigTmp/skills}"
+rigOwnerWs="$rigWs" rigOwnerData="$rigStore" rigOwnerHome="$rigTmp/home" rigOwnerSkills="$rigSkills"
 rigOwnerBoardReady
 rigAssert(){ ## what is asserted, got, want
 	if [ "$2" = "$3" ] ; then
@@ -104,7 +104,7 @@ printf '%s\n' '---' 'from: keeper-rig' '---' '# no type' > "$rigD/n1.md"
 rigAssert "an item with no type cannot be decided" "$( rigAsk AgentsToolsBoardItemHandler "$rigD/n1.md" )" "2:"
 
 echo "-- 7. the board digest prints the routine that runs each item next --"
-rigStore="$rigTmp/store" rigFn="$rigPackage/sh-scripts/DistroAgentsTools.fn.sh"
+rigFn="$rigPackage/sh-scripts/DistroAgentsTools.fn.sh"
 printf '%s\n' '---' 'type: proposal' 'owner: keeper-rig' '---' '# a proposal' | rigOwnerBoardPut pending proposal-20261028T0100Z-rig-plain.md
 printf '%s\n' '---' 'type: task' 'owner: keeper-rig' 'handler-routine: investigate.routine' '---' '# a task' | rigOwnerBoardPut pending task-20261028T0101Z-rig-chosen.md
 printf '%s\n' '---' 'type: task' 'owner: keeper-rig' 'handler-routine: magic-team.nowhere.routine' '---' '# a task' | rigOwnerBoardPut pending task-20261028T0102Z-rig-bad.md

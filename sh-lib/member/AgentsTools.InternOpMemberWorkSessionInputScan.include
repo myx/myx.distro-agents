@@ -22,11 +22,8 @@
 			esac
 		fi
 		AgentsToolsAssertBareName "$memberName" "<team-member>" member-work-session-input-scan || { set +e ; return 1 ; }
-		local memberDir="$MDAT_SKILLSET_ROOT/$memberName"
-		if [ ! -d "$memberDir" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --intern-op-member-work-session-input-scan: no such member skill directory: $memberDir" >&2
-			set +e ; return 1
-		fi
+		type AgentsToolsSlackMemberPresent > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/slack/AgentsTools.CommsSlack.include"
+		AgentsToolsSlackMemberPresent "$memberName" --intern-op-member-work-session-input-scan || { set +e ; return 1 ; }
 
 		## Every non-terminal state, owner-filtered, and the member's whole own inbox: the item's own terms.
 		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"

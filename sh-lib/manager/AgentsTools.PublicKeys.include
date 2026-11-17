@@ -306,12 +306,6 @@ AgentsToolsManagerKeysTrustedFinger(){ ## type, key
 	printf '%s' "${fingerPrint:--}"
 }
 
-## The row that says a key was added to or removed from the authorized keys: what happened, its number among them,
-## the file, its type and its fingerprint.
-AgentsToolsManagerKeysTrustedDone(){ ## what happened, n, file, type, fingerprint
-	printf '%s\ttrusted-%s\t%s\t%s\t%s\n' "$1" "$2" "$( AgentsToolsManagerKeysField "$3" )" "$4" "$5"
-}
-
 ## The mode of a file, to put it back after a write: BSD and GNU stat both.
 AgentsToolsManagerKeysMode(){ ## file
 	stat -f '%Lp' "$1" 2> /dev/null || stat -c '%a' "$1"

@@ -30,6 +30,8 @@
 ## AgentsSessionRunClosed <session> <run>             rc 0 where the session's control/closed names the run (`-`: the session itself)
 ## AgentsSessionCloseRun <session> <run> <who> <when> names the run in the session's control/closed, once
 ## AgentsSessionPartInto <var> <ws> <session> <part>   one file of a session's folder, by its part name (`chapter`, `session.thread`)
+## AgentsSpawnPartInto <var> <ws> <folder> <part>    one file of a spawn's folder, by its part name (`session.thread`)
+## AgentsSpawnRecordFindInto <var> <ws> <run>        the record of a run, wherever in the store its folder stands; rc 1 for none
 ## AgentsSpawnPartitionFileInto <var> <ws> <parent> <part>  one file an agent-less parent keeps for its starts (`args`, `task`, `scopes`)
 ## AgentsSessionFolderFilesInto <array> <ws> <session> <suffix>   the files of a session's folder whose name ends in that suffix
 ## AgentsSessionStoreTreeIs <path>                   rc 0 where that path lies in a sessions or spawn store
@@ -220,8 +222,8 @@ AgentsSessionKnown(){ ## session
 ## spawned/<run>/ first, else a session's folder (spawned/<session>/<run>.spawn.md). The folder's own name is NOT the id: a
 ## relocated or renamed sandbox keeps its record's name. A file whose own `spawn-id:` names another run is not its record.
 ## Read with the shell's own `read`, so a lookup on a Wait round starts no process. rc 1, the variable empty, where the run
-## has no record. The record is a handle for the session concern's readers of a record (AgentsToolsRunRoute and its kin),
-## never a path to build on. The workspace is this one (MMDAPP) unless one is named.
+## has no record. The record is a handle for a reader of a record (AgentsToolsRunRoute and its kin), never a path to build
+## on. The workspace is this one (MMDAPP) unless one is named.
 AgentsSessionRunRecordInto(){ ## variable, run id, workspace (default MMDAPP)
 	local recordOne="" recordWs="${3:-${MMDAPP:-/nonexistent}}" recordLine recordSaid
 	printf -v "$1" '%s' ""
@@ -238,7 +240,7 @@ AgentsSessionRunRecordInto(){ ## variable, run id, workspace (default MMDAPP)
 }
 
 ## The headers of a run's record (AgentsSessionRunRecordInto) into the named variables, `<variable>=<key>` a pair, in one
-## read. Each value is the first line of its key in the record's first frontmatter block, as AgentsToolsSpawnSandboxRecordHeader
+## read. Each value is the first line of its key in the record's first frontmatter block, as AgentsToolsFrontmatterKey
 ## reads one. rc 1, every variable empty, where the run has no record; rc 0 with no pairs answers whether it has one.
 AgentsSessionRunHeadersInto(){ ## run id, variable=key...
 	local headRun="${1:-}" headRecord="" headPair headOne headKeys="" headValues=""
@@ -369,6 +371,64 @@ AgentsSessionActivityInto(){ ## epoch variable, word variable, run, session (may
 	return 1
 }
 
+## Whether a live run sits inside a call waiting on a person, into the named variable: `waiting` when the last line of its milestones is
+## `wait going idle`, which a Wait writes as it starts, and its wait/state, which a wait writes as it ends, is older than that line or
+## was never written; or when the last line is `ask going idle`, an ask that writes that as it starts and ends the block with a line of its
+## own; `working` otherwise, a run with no milestones among them. Working is one thing here: no file of a run's store says a tool call
+## from thinking. Asked of a live run only. A run of another workspace is a run here has no store, which reads working.
+AgentsSessionRunActivityInto(){ ## word variable, run (may be empty)
+	local activityVar="$1" activityDir="" activityLine activityLast="" activityEnded="" activityYear activityMonth activityStamp
+	case "$activityVar" in ''|*[!A-Za-z0-9_]*) return 1 ;; esac
+	printf -v "$activityVar" '%s' "working"
+	AgentsSessionFolderInto activityDir "${MMDAPP:-}" "${2:-}" || return 0
+	[ -f "$activityDir/milestones" ] || return 0
+	while IFS= read -r activityLine || [ -n "$activityLine" ] ; do
+		[ -z "$activityLine" ] || activityLast="$activityLine"
+	done < "$activityDir/milestones"
+	case "$activityLast" in
+		[0123456789][0123456789][0123456789][0123456789]-[0123456789][0123456789]-[0123456789][0123456789]T[0123456789][0123456789]:[0123456789][0123456789]:[0123456789][0123456789]Z' wait going idle') ;;
+		[0123456789][0123456789][0123456789][0123456789]-[0123456789][0123456789]-[0123456789][0123456789]T[0123456789][0123456789]:[0123456789][0123456789]:[0123456789][0123456789]Z' ask going idle') printf -v "$activityVar" '%s' "waiting" ; return 0 ;;
+		*) return 0 ;;
+	esac
+	[ -f "$activityDir/wait/state" ] || { printf -v "$activityVar" '%s' "waiting" ; return 0 ; }
+	activityEnded="$( stat -f '%m' "$activityDir/wait/state" 2> /dev/null || stat -c '%Y' "$activityDir/wait/state" 2> /dev/null )" || activityEnded=""
+	## A wait/state that cannot be dated says nothing of a wait: working, as any run not known to wait.
+	case "$activityEnded" in ''|*[!0123456789]*) return 0 ;; esac
+	## The line's own time, `2026-10-12T23:15:19Z`, as seconds since 1970, by the calendar alone.
+	activityYear=$(( 10#${activityLast:0:4} )) ; activityMonth=$(( 10#${activityLast:5:2} ))
+	[ "$activityMonth" -gt 2 ] || { activityYear=$(( activityYear - 1 )) ; activityMonth=$(( activityMonth + 12 )) ; }
+	activityStamp=$(( ( 365 * activityYear + activityYear / 4 - activityYear / 100 + activityYear / 400 + ( 153 * ( activityMonth - 3 ) + 2 ) / 5 + 10#${activityLast:8:2} - 719469 ) * 86400 + 10#${activityLast:11:2} * 3600 + 10#${activityLast:14:2} * 60 + 10#${activityLast:17:2} ))
+	[ "$activityEnded" -lt "$activityStamp" ] || return 0
+	printf -v "$activityVar" '%s' "waiting"
+	return 0
+}
+
+## THE SESSIONS AND THEIR RUNS, into the named array, one element a row: the registry's measured rows, as the store measured them. A row
+## carries its run's id, its session's id, its owner, whether it is live and the state derived for it, and its dates, so a reader joins a
+## session to its runs on the session field and asks no file again. The registries are rebuilt for this workspace alone; another workspace
+## is read as it lies. rc 1 where they could not be rebuilt, and the array is then empty.
+AgentsSessionRowsInto(){ ## array variable, workspace (default MMDAPP)
+	local rowsVar="$1" rowsWs="${2:-${MMDAPP:-}}" rowsFile rowsLine measuredRows="" measuredDated="" measuredAny="false"
+	case "$rowsVar" in ''|*[!A-Za-z0-9_]*) return 1 ;; esac
+	case "${rowsWs%/}" in ''|/) return 1 ;; esac
+	eval "$rowsVar=()"
+	type AgentsToolsRegistryMeasureRows > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.RegistrySpawnedSessions.include"
+	rowsFile="${rowsWs%/}/.local/agents/spawned-sessions.registry"
+	if [ "${rowsWs%/}" = "${MMDAPP%/}" ] ; then
+		AgentsToolsRegistrySpawnedSessionsRebuild || return 1
+		## The state of a session is derived from the asks still open, so their registry is rebuilt here too.
+		type AgentsToolsRegistryRebuild > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
+		AgentsToolsRegistryRebuild pending-replies || return 1
+	fi
+	[ -f "$rowsFile" ] || return 0
+	AgentsToolsRegistryMeasureRows "$rowsFile" "" "" 17
+	while IFS= read -r rowsLine ; do
+		[ -n "$rowsLine" ] || continue
+		eval "$rowsVar+=( \"\$rowsLine\" )"
+	done <<< "$measuredDated"
+	return 0
+}
+
 ## Whether a run's session log shows a handback with no tool but Wait after it: rc 0 it does. The run's own log, else its session's.
 AgentsSessionLogHandbackIdle(){ ## run, session (may be empty)
 	local idleLog="${MMDAPP:-/nonexistent}/$agentsSessionStoreLeaf/${1:-}/session.log"
@@ -408,168 +468,6 @@ AgentsSessionFeedLinesSince(){ ## since epoch, since ISO stamp
 	' "${feedFeeds[@]}"
 }
 
-## Every session's control thread as its control/pid names it, `<session><TAB><pid>` a line; a file whose first word is no number names none.
-AgentsSessionControlPidRows(){
-	local pidFile pidValue pidRest pidSession
-	for pidFile in "${MMDAPP:-/nonexistent}/.local/agents/sessions"/*/control/pid ; do
-		[ -f "$pidFile" ] || continue
-		pidValue=""
-		{ read -r pidValue pidRest < "$pidFile" ; } 2> /dev/null || continue
-		case "${pidValue:-}" in ''|*[!0123456789]*) continue ;; esac
-		pidSession="${pidFile%/control/pid}"
-		printf '%s\t%s\n' "${pidSession##*/}" "$pidValue"
-	done
-	return 0
-}
-
-## The epoch of the last write of a session's control-thread log, into the named variable. rc 1 where it has none.
-AgentsSessionControlLogEpochInto(){ ## variable, session
-	local controlLog="${MMDAPP:-/nonexistent}/$agentsSessionStoreLeaf/${2:-}/control/log" controlAt=""
-	printf -v "$1" '%s' ""
-	case "${2:-}" in ''|-|.|..|*/*|*[[:space:]]*) return 1 ;; esac
-	[ -f "$controlLog" ] || return 1
-	controlAt="$( stat -f %m "$controlLog" 2> /dev/null || stat -c %Y "$controlLog" 2> /dev/null )" || controlAt=""
-	case "$controlAt" in ''|*[!0123456789]*) return 1 ;; esac
-	printf -v "$1" '%s' "$controlAt"
-}
-
-## THE CONTROL THREADS OF TEST RIGS LEFT INSIDE SPAWN SANDBOXES, `<sandbox><TAB><pid><TAB><began><TAB><its pid file inside the sandbox>` a line,
-## from every `output/**/control/pid` there whose first word is a number. The walk of the spawn store to depth 14 ran minutes under load, so
-## its list is kept in schedule/supervise.rig-pids and reread within MDAT_SUPERVISE_RIG_WALK_SECONDS (900, 0 for every call). A kept list
-## delays a new rig's row by at most that bound, and its caller still tests the pid and the record.
-AgentsSessionRigControlRows(){
-	local rigKept="${MMDAPP:-/nonexistent}/.local/agents/schedule/supervise.rig-pids" rigStore="${MMDAPP:-/nonexistent}/$agentsSpawnedStoreLeaf"
-	[ -n "${MMDAPP:-}" ] || return 0
-	local rigTtl="${MDAT_SUPERVISE_RIG_WALK_SECONDS:-900}" rigAt=0 rigFile rigPid rigRest rigSandbox
-	case "$rigTtl" in ''|*[!0123456789]*) rigTtl=900 ;; esac
-	if [ "$rigTtl" -gt 0 ] && [ -f "$rigKept" ] ; then
-		rigAt="$( stat -f %m "$rigKept" 2> /dev/null || stat -c %Y "$rigKept" 2> /dev/null )" || rigAt=0
-		case "$rigAt" in ''|*[!0123456789]*) rigAt=0 ;; esac
-	fi
-	if [ "$rigTtl" -eq 0 ] || [ $(( $( date +%s ) - rigAt )) -ge "$rigTtl" ] ; then
-		mkdir -p "${rigKept%/*}" 2> /dev/null
-		find "$MMDAPP/.local/agents/spawned" -mindepth 6 -maxdepth 14 \( -name .git -o -name node_modules \) -prune -o -path '*/output/*' -path '*/control/pid' -type f -print 2> /dev/null > "$rigKept.tmp" && mv -f "$rigKept.tmp" "$rigKept" 2> /dev/null
-	fi
-	[ -f "$rigKept" ] || return 0
-	while IFS= read -r rigFile ; do
-		[ -n "$rigFile" ] || continue
-		rigPid="" ; rigRest=""
-		{ read -r rigPid rigRest < "$rigFile" ; } 2> /dev/null || continue
-		case "${rigPid:-}" in ''|*[!0123456789]*) continue ;; esac
-		rigSandbox="${rigFile#"$rigStore"/}" ; rigSandbox="${rigSandbox%%/*}"
-		printf '%s\t%s\t%s\t%s\n' "$rigSandbox" "$rigPid" "$rigRest" "${rigFile#"$rigStore"/"$rigSandbox"/}"
-	done < "$rigKept"
-	return 0
-}
-
-## The sandbox a run's record stands in, into the named variable: the name of its folder in the spawn store. rc 1 where the run has no record.
-AgentsSessionRunSandboxInto(){ ## variable, run
-	local sandboxRecord=""
-	printf -v "$1" '%s' ""
-	AgentsSessionRunRecordInto sandboxRecord "${2:-}" || return 1
-	sandboxRecord="${sandboxRecord%/*}"
-	printf -v "$1" '%s' "${sandboxRecord##*/}"
-}
-
-## A member's CheckList in a spawn sandbox, one line: `<kept yes|no><TAB><last write, epoch or -><TAB><open items><TAB><an open item on any
-## list there, yes|no><TAB><the item in progress, or nothing>`.
-AgentsSessionSandboxChecklist(){ ## sandbox, member
-	local listDir="${MMDAPP:-/nonexistent}/$agentsSpawnedStoreLeaf/${1:-}" listFiles=() listFile listKept=no listAt="-"
-	case "${1:-}" in ''|-|.|..|*/*|*[[:space:]]*) printf 'no\t-\t0\tno\t\n' ; return 0 ;; esac
-	for listFile in "$listDir"/*.checklist.md ; do [ ! -f "$listFile" ] || listFiles+=( "$listFile" ) ; done
-	if [ -f "$listDir/${2:-}.checklist.md" ] ; then
-		listKept=yes
-		listAt="$( stat -f %m "$listDir/${2:-}.checklist.md" 2> /dev/null || stat -c %Y "$listDir/${2:-}.checklist.md" 2> /dev/null )" || listAt="-"
-	fi
-	[ ${#listFiles[@]} -gt 0 ] || { printf 'no\t-\t0\tno\t\n' ; return 0 ; }
-	LC_ALL=C awk -v ownList="$listDir/${2:-}.checklist.md" -v listKept="$listKept" -v listAt="${listAt:--}" '
-		/^- \[ \]/ { anyOpen = 1 }
-		FILENAME != ownList { next }
-		/^- \[ \] / { openCount++ }
-		/^- \[~\] / && doingText == "" { doingText = $0 ; sub( /^- \[~\] /, "", doingText ) ; sub( / \(in progress: .*/, "", doingText ) }
-		END { printf "%s\t%s\t%d\t%s\t%s\n", listKept, listAt, openCount, ( anyOpen ? "yes" : "no" ), doingText }
-	' "${listFiles[@]}" 2> /dev/null
-}
-
-## A member's CheckList in a spawn sandbox, its lines: first the name of the file it is kept in, then each line. rc 1 where there is none.
-AgentsSessionSandboxChecklistLines(){ ## sandbox, member
-	local linesFile="${MMDAPP:-/nonexistent}/$agentsSpawnedStoreLeaf/${1:-}/${2:-}.checklist.md" linesOne
-	case "${1:-}:${2:-}" in :*|*:|*/*|-:*|*:-|.:*|..:*|*:.|*:..) return 1 ;; esac
-	[ -f "$linesFile" ] || return 1
-	printf '%s\n' "$linesFile"
-	while IFS= read -r linesOne || [ -n "$linesOne" ] ; do printf '%s\n' "$linesOne" ; done < "$linesFile"
-	return 0
-}
-
-## The last lines of a run's session log: first the name of the log, then the lines. The log in its sandbox first, else its session's. rc 1 for none.
-AgentsSessionSandboxLogTail(){ ## sandbox, session, lines
-	local tailLog
-	for tailLog in "${MMDAPP:-/nonexistent}/$agentsSpawnedStoreLeaf/${1:-}/session.log" "${MMDAPP:-/nonexistent}/$agentsSessionStoreLeaf/${2:-}/session.log" ; do
-		[ -f "$tailLog" ] || continue
-		printf '%s\n' "$tailLog"
-		tail -n "$3" "$tailLog" 2> /dev/null
-		return 0
-	done
-	return 1
-}
-
-## The CheckList the calling run keeps: first its member, then its lines. The one under its native session's store, else under its spawn's sandbox.
-AgentsSessionOwnChecklistLines(){ ## native session id (may be empty), spawn sandbox (may be empty)
-	local ownList ownLine ownMember
-	for ownList in "${MMDAPP:-/nonexistent}/$agentsSessionStoreLeaf/${1:-none}"/*.checklist.md "${MMDAPP:-/nonexistent}/$agentsSpawnedStoreLeaf/${2:-none}"/*.checklist.md ; do
-		[ -f "$ownList" ] || continue
-		ownMember="${ownList##*/}"
-		printf '%s\n' "${ownMember%.checklist.md}"
-		while IFS= read -r ownLine || [ -n "$ownLine" ] ; do printf '%s\n' "$ownLine" ; done < "$ownList"
-		return 0
-	done
-	return 0
-}
-
-## A member's CheckList of a run, into the named variable: the file the CheckList tool keeps it in (AgentsHarnessCheckListPlace).
-## The list belongs to the run's session, the session-id of the run's record, else the run itself, and is kept in the folder of
-## that session's own record, else in that session's store. A Wait probe that watched the run's own record folder instead missed
-## the list of a run whose record names another session. rc 1 for a run or member that is no bare name. No process.
-AgentsSessionChecklistFileInto(){ ## variable, run, member
-	local listRecord="" listSession="" listLine
-	printf -v "$1" '%s' ""
-	case "${2:-}:${3:-}" in :*|*:|*/*|-:*|*:-|.:*|..:*|*:.|*:..|*[[:space:]]*) return 1 ;; esac
-	if AgentsSessionRunRecordInto listRecord "$2" ; then
-		while IFS= read -r listLine ; do
-			case "$listLine" in 'session-id: '*) listSession="${listLine#session-id: }" ; break ;; '# '*) break ;; esac
-		done < "$listRecord"
-	fi
-	[ -n "$listSession" ] || listSession="$2"
-	[ "$listSession" = "$2" ] || AgentsSessionRunRecordInto listRecord "$listSession" || :
-	if [ -n "$listRecord" ] ; then
-		printf -v "$1" '%s/%s.checklist.md' "${listRecord%/*}" "$3"
-	else
-		printf -v "$1" '%s/%s/%s/%s.checklist.md' "${MMDAPP:-/nonexistent}" "$agentsSessionStoreLeaf" "$listSession" "$3"
-	fi
-	return 0
-}
-
-## The open work on a run's own CheckList, into the named variable: each open or in-progress item, a line each, empty where
-## none is open. The list is kept where the CheckList tool keeps it: the folder of the record of the run's session, else
-## that session's store. The item that means the idle wait itself is no open work, and it is known by its text alone. Four
-## forms are in use: the duty's own item, `wait for more: run --idle-wait`; a seeded routine step, kept as the bare
-## `wait-for-more`; the operation in a run's own words, with a capital and no dashes ("Wait for more: idle-wait"); and
-## "Wait for the next arrival", measured on two live duties. Taken for open work, that item turned every idle wait back, so
-## the run never returned to its checkpoint. The list is found by AgentsSessionChecklistFileInto. No process: a Wait round asks it.
-AgentsSessionChecklistOpenInto(){ ## variable, run, member
-	local openList="" openLine openBusy=""
-	printf -v "$1" '%s' ""
-	AgentsSessionChecklistFileInto openList "${2:-}" "${3:-}" || return 0
-	[ -f "$openList" ] || return 0
-	while IFS= read -r openLine || [ -n "$openLine" ] ; do
-		case "$openLine" in '- [ ] '*|'- [~] '*) ;; *) continue ;; esac
-		case "$openLine" in *--idle-wait*|*[Ww]ait-for-more*|*[Ww]ait\ for\ more*|*[Ww]ait\ for\ the\ next\ arrival*) continue ;; esac
-		openBusy="$openBusy$openLine"$'\n'
-	done < "$openList"
-	printf -v "$1" '%s' "${openBusy%$'\n'}"
-	return 0
-}
-
 ## Removes a session's folder from the store, for a session whose making could not be finished. Only a bare id, and only a
 ## folder of this workspace's store: nothing else is ever removed. rc 1 for a name that is no session.
 AgentsSessionDiscard(){ ## session
@@ -591,58 +489,6 @@ AgentsSpawnRecordWrite(){ ## run
 	cat > "$writeTemp" 2> /dev/null && mv -f "$writeTemp" "$writeDir/$1.spawn.md" 2> /dev/null && return 0
 	rm -f "$writeTemp" 2> /dev/null
 	return 1
-}
-
-## The team data root a session was started on, into the named variable: empty where it kept none. No process.
-AgentsSessionDataRootInto(){ ## variable, session
-	local rootLine=""
-	printf -v "$1" '%s' ""
-	case "${2:-}" in ''|-|.|..|*/*|*[[:space:]]*) return 0 ;; esac
-	[ -s "${MMDAPP:-/nonexistent}/$agentsSessionStoreLeaf/$2/data-root" ] || return 0
-	IFS= read -r rootLine < "${MMDAPP:-/nonexistent}/$agentsSessionStoreLeaf/$2/data-root" || :
-	printf -v "$1" '%s' "$rootLine"
-}
-
-## Marks a session for the retro: one dated line in its learn record, never twice for the same signal.
-AgentsSessionLearnAdd(){ ## session, signal line
-	local learnFile
-	case "${1:-}" in ''|-|.|..|*/*|*[[:space:]]*) return 0 ;; esac
-	learnFile="${MMDAPP:-/nonexistent}/$agentsSessionStoreLeaf/$1/learn"
-	LC_ALL=C grep -q -F -- "$2" "$learnFile" 2> /dev/null && return 0
-	printf '%s %s\n' "$( date '+%Y-%m-%d %H:%M %z' )" "$2" >> "$learnFile" 2> /dev/null || :
-	return 0
-}
-
-## Whether a session's run was told of a reaction already, by its entry `<ts> <emoji> <user>`: rc 0 it was.
-AgentsSessionToldHas(){ ## session, entry
-	case "${1:-}" in ''|-|.|..|*/*|*[[:space:]]*) return 1 ;; esac
-	LC_ALL=C grep -q -x -F -- "$2" "${MMDAPP:-/nonexistent}/$agentsSessionStoreLeaf/$1/corrections.told" 2> /dev/null
-}
-
-## Records that a session's run was told of a reaction, by its entry `<ts> <emoji> <user>`.
-AgentsSessionToldAdd(){ ## session, entry
-	case "${1:-}" in ''|-|.|..|*/*|*[[:space:]]*) return 0 ;; esac
-	printf '%s\n' "$2" >> "${MMDAPP:-/nonexistent}/$agentsSessionStoreLeaf/$1/corrections.told" 2> /dev/null || :
-	return 0
-}
-
-## A run's last sends into the named variable, a line each: `<epoch>\t<place>\t<cksum of the body>`. Nothing for none.
-AgentsSessionSentRecentInto(){ ## variable, session
-	local recentLine recentAll=""
-	printf -v "$1" '%s' ""
-	case "${2:-}" in ''|-|.|..|*/*|*[[:space:]]*) return 0 ;; esac
-	[ -f "${MMDAPP:-/nonexistent}/$agentsSessionStoreLeaf/$2/sent.recent" ] || return 0
-	while IFS= read -r recentLine ; do recentAll="$recentAll$recentLine"$'\n' ; done < "${MMDAPP:-/nonexistent}/$agentsSessionStoreLeaf/$2/sent.recent"
-	printf -v "$1" '%s' "$recentAll"
-}
-
-## Adds one send to a run's last sends, keeping the last fifty.
-AgentsSessionSentRecentAdd(){ ## session, epoch, place, cksum of the body
-	local recentFile
-	case "${1:-}" in ''|-|.|..|*/*|*[[:space:]]*) return 0 ;; esac
-	recentFile="${MMDAPP:-/nonexistent}/$agentsSessionStoreLeaf/$1/sent.recent"
-	{ [ ! -f "$recentFile" ] || tail -n 49 "$recentFile" ; printf '%s\t%s\t%s\n' "$2" "$3" "$4" ; } > "$recentFile.tmp" 2> /dev/null && mv -f "$recentFile.tmp" "$recentFile" 2> /dev/null || :
-	return 0
 }
 
 ## The started run records of one folder of spawned/, a record a line, as the store's walks hand a record. One read of the folder.
@@ -685,6 +531,30 @@ AgentsSpawnRecordInto(){ ## variable, workspace, sandbox, run
 	case "${4:-}" in ''|-|.|..|*/*|*[[:space:]]*) return 1 ;; esac
 	AgentsSpawnedStoreDirInto recordStore "$2" || return 1
 	printf -v "$1" '%s/%s/%s.spawn.md' "$recordStore" "$3" "$4"
+}
+
+## The record of a run, by the run's own id: the store's folders are named by a tracking name or by a session id, so the folder is
+## searched for the name and never built from it. rc 1, the variable empty, where no folder holds that record.
+AgentsSpawnRecordFindInto(){ ## variable, workspace, run
+	local findStore="" findRecord
+	printf -v "$1" '%s' ""
+	case "${3:-}" in ''|-|.|..|*/*|*[[:space:]]*) return 1 ;; esac
+	AgentsSpawnedStoreDirInto findStore "${2:-}" || return 1
+	for findRecord in "$findStore"/*/"$3.spawn.md" ; do
+		[ ! -f "$findRecord" ] || { printf -v "$1" '%s' "$findRecord" ; return 0 ; }
+	done
+	return 1
+}
+
+## One file of a spawn's folder, by its part name: `session.thread`, the thread the proxy writes for one run. rc 1, the variable
+## empty, for a folder or a part that is no bare name.
+AgentsSpawnPartInto(){ ## variable, workspace, folder name, part name
+	local partSpawnStore=""
+	printf -v "$1" '%s' ""
+	case "${3:-}" in ''|-|.|..|*/*|*[[:space:]]*) return 1 ;; esac
+	case "${4:-}" in ''|-|.|..|*/*|*[[:space:]]*) return 1 ;; esac
+	AgentsSpawnedStoreDirInto partSpawnStore "${2:-}" || return 1
+	printf -v "$1" '%s/%s/%s' "$partSpawnStore" "$3" "$4"
 }
 
 ## One file of a session's own folder, by its part name: `session.thread`, `chapter`, `launch.steps`. rc 1, the variable empty,
@@ -880,17 +750,6 @@ AgentsSessionEffortSet(){ ## run or session id, effort word
 	printf '%s\n' "$effortFile"
 }
 
-## A member's CheckList in a session, its lines as they stand: the list the CheckList tool keeps in the folder of the
-## record of the session's founding run, else in the session's store. Nothing where the member kept none.
-AgentsSessionChecklistText(){ ## session id, member
-	local textFolder="" textFile
-	AgentsSessionRunRecordInto textFile "${1:-}" && textFolder="${textFile%/*}"
-	[ -n "$textFolder" ] || textFolder="${MMDAPP:-/nonexistent}/$agentsSessionStoreLeaf/$1"
-	[ -f "$textFolder/$2.checklist.md" ] || textFolder="${MMDAPP:-/nonexistent}/$agentsSessionStoreLeaf/$1"
-	[ -f "$textFolder/$2.checklist.md" ] || return 0
-	cat "$textFolder/$2.checklist.md" 2> /dev/null || :
-}
-
 ## The name of one folder of a workspace's spawned store, from its path, into the named variable: rc 1, the variable empty,
 ## where that path is not a folder of that store. No process.
 AgentsSpawnedFolderNameInto(){ ## variable, path
@@ -926,19 +785,6 @@ AgentsSessionEffortInto(){ ## variable, run or session id
 	return 0
 }
 
-## The dispatch item a session's transcript record names, its first line into the named variable: rc 0 where the store names
-## one, rc 1 where it names none, or a name that is no bare file name. No process.
-AgentsSessionDispatchItemInto(){ ## variable, run or session id
-	local itemRead
-	printf -v "$1" '%s' ""
-	case "${2:-}" in ''|-|.|..|*/*|*[[:space:]]*) return 1 ;; esac
-	printf -v itemRead '%s/%s/%s/dispatch-item' "${MMDAPP:-/nonexistent}" "$agentsSessionStoreLeaf" "$2"
-	[ -s "$itemRead" ] || return 1
-	{ IFS= read -r "$1" < "$itemRead" ; } 2> /dev/null || :
-	case "${!1}" in ''|*/*) printf -v "$1" '%s' "" ; return 1 ;; esac
-	return 0
-}
-
 ## Whether one workspace's store holds a session: rc 0 where it has the session's folder. A name that is no bare id is no
 ## session. No process: a caller that reads another workspace asks here.
 AgentsSessionKnownIn(){ ## workspace, session
@@ -947,20 +793,19 @@ AgentsSessionKnownIn(){ ## workspace, session
 	[ -d "$knownFolder" ]
 }
 
-## The one member whose CheckList a session's folder keeps, into the named variable: rc 0 with the member set where exactly one
-## is there, rc 1 with it empty where none is, rc 2 where several are. A one-folder glob is no walk and no process.
-AgentsSessionSoleChecklistMemberInto(){ ## variable, workspace, session
-	local soleFolder="" soleFile="" soleName="" soleCount=0
-	printf -v "$1" '%s' ""
-	AgentsSessionFolderInto soleFolder "${2:-}" "${3:-}" || return 1
-	for soleFile in "$soleFolder"/*.checklist.md ; do
-		[ -f "$soleFile" ] || continue
-		soleCount=$(( soleCount + 1 ))
-		soleName="${soleFile##*/}" ; soleName="${soleName%.checklist.md}"
+## Whether anything in a run's store changed within the minutes: its spawned folder (`-` for none) and the session folders named.
+## `files` counts files only, `entries` folders too. rc 0 something did.
+AgentsSessionStoreChangedWithin(){ ## minutes, files|entries, spawned folder, session or run id...
+	local changedMinutes="$1" changedType="$2" changedPath changedPaths=() changedFound=""
+	case "${3:-}" in ''|-|.|..|*/*) ;; *) changedPaths+=( "${MMDAPP:-/nonexistent}/$agentsSpawnedStoreLeaf/$3" ) ;; esac
+	shift 3
+	for changedPath in "$@" ; do
+		case "$changedPath" in ''|-|.|..|*/*) ;; *) changedPaths+=( "${MMDAPP:-/nonexistent}/$agentsSessionStoreLeaf/$changedPath" ) ;; esac
 	done
-	case "$soleCount" in
-		1) printf -v "$1" '%s' "$soleName" ; return 0 ;;
-		0) return 1 ;;
-		*) return 2 ;;
+	[ "${#changedPaths[@]}" -gt 0 ] || return 1
+	case "$changedType" in
+		files) changedFound="$( find "${changedPaths[@]}" -type f -mmin "-$changedMinutes" 2> /dev/null | head -1 )" ;;
+		*) changedFound="$( find "${changedPaths[@]}" -mmin "-$changedMinutes" 2> /dev/null | head -1 )" ;;
 	esac
+	[ -n "$changedFound" ]
 }

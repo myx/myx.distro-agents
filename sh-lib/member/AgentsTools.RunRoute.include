@@ -1,0 +1,186 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.RunRoute.include -- the route of a message to a run: whether a route is valid, its kind, its member, whether it is available, its duty. Sourced, never run; each function loads what it calls.
+##
+## WHERE A RUN REPORTS TO: the one address its handback goes to, its questions and
+## escalations that name no target are asked at, its end and its death are told at, and
+## that decides what follows its work. Kept on its spawn record under the one name below,
+## where the spawn wrote one: `<session>[:<member>]` (a session alone means its executor), a
+## member, `user-<account>` for a person who started it at a console, `human-owner`, or `none`
+## for a run that reports to no one: it ends when its work is done, its handback, if it gives
+## one, is its report and moves nothing to review, and nobody is told of its end. The
+## reviewers of its item are its item's `review-by`, another field for another thing: neither
+## ever stands in for the other. Beside it, `parent-session-id:` is the session that started the
+## run, where one did: what a run reports to where it names nothing itself. The run that made
+## the spawn call is `parent-spawn-id:`, the run tree's own: a native caller's client session id
+## stands there as its spawn id.
+## The name is declared here, in the module whose readers read it: this file is loaded by
+## everyone that reads a route, while AgentsTools.SessionThreads.include is not.
+agentsRunRouteField="reports-to"
+## Who of a parent session a run reports to where it names nobody itself: `parent-member`, the
+## member that made the spawn call there, before that session's executor; or `executor` first.
+agentsRunRouteMemberFirst="parent-member"
+
+## Whether a value is an address of that form: one bare name, or two joined by one `:`. Each
+## name is asked of the bare-name gate (AgentsTools.BareName.include, loaded where it is not
+## yet, as in a served harness tool), quietly: a value that is no address is an answer here.
+AgentsToolsRunRouteValid(){ ## value
+	type AgentsToolsAssertBareName > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.BareName.include"
+	case "$1" in
+		''|*:*:*|:*|*:) return 1 ;;
+		*:*) AgentsToolsAssertBareName "${1%%:*}" "an address's session" AgentsToolsRunRouteValid 2> /dev/null && AgentsToolsAssertBareName "${1#*:}" "an address's member" AgentsToolsRunRouteValid 2> /dev/null ;;
+		*) AgentsToolsAssertBareName "$1" "an address" AgentsToolsRunRouteValid 2> /dev/null ;;
+	esac
+}
+
+## What an address is, by its form: `none`, `person` (human-owner, user-<account>, or empty),
+## `member` (a member of this team), or `session` (`<session>:<member>`, or a bare id that is no member).
+AgentsToolsRunRouteKind(){ ## address
+	case "$1" in
+		none) printf 'none\n' ;;
+		''|human-owner|user-?*) printf 'person\n' ;;
+		*:*) printf 'session\n' ;;
+		magic-*|keeper-*|warden-*|partner-*|client-*|oncall-*|expert-*) printf 'member\n' ;;
+		*)
+			type AgentsToolsTeamMemberDirectory > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamRegistry.include"
+			if AgentsToolsTeamMemberDirectory "$1" > /dev/null 2>&1 ; then printf 'member\n' ; else printf 'session\n' ; fi
+		;;
+	esac
+}
+
+## The member an address names: the member of `<session>:<member>`, a member itself, and for a
+## bare session the executor of that session, the owner of its founding record (the record
+## named by the session's own id). rc 1, nothing printed, for a person, and for a session
+## whose executor no record here names.
+AgentsToolsRunRouteMember(){ ## address
+	local memberRecord memberOwner=""
+	type AgentsToolsAssertBareName > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.BareName.include"
+	case "$( AgentsToolsRunRouteKind "$1" )" in
+		member) printf '%s\n' "$1" ; return 0 ;;
+		person|none) return 1 ;;
+	esac
+	case "$1" in *:*) printf '%s\n' "${1#*:}" ; return 0 ;; esac
+	type AgentsSessionRunRecordInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+	type AgentsToolsFrontmatterKey > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.FrontmatterKey.include"
+	if AgentsSessionRunRecordInto memberRecord "$1" ; then memberOwner="$( AgentsToolsFrontmatterKey "$memberRecord" owner )" ; fi
+	AgentsToolsAssertBareName "$memberOwner" "the owner of a session's founding record" AgentsToolsRunRouteMember 2> /dev/null || return 1
+	printf '%s\n' "$memberOwner"
+}
+
+## Whether a member is there to take a matter in a session: a live run of it there, by the one
+## rule a run is alive by, that is not the asking run itself. In a native session, which has no
+## founding record here, the asking run's initiator is that session itself: only its client can
+## tell whether it lives, so it is taken as there.
+AgentsToolsRunRouteAvailable(){ ## session, member, the asking run's spawn record
+	local availRecord="$3" availOwn availCandidate availId
+	type AgentsToolsAssertBareName > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.BareName.include"
+	AgentsToolsAssertBareName "$1" "the session" AgentsToolsRunRouteAvailable 2> /dev/null && AgentsToolsAssertBareName "$2" "the member" AgentsToolsRunRouteAvailable 2> /dev/null || return 1
+	availOwn="${availRecord##*/}" ; availOwn="${availOwn%.spawn.md}"
+	type AgentsToolsSpawnRuns > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunProcesses.include"
+	type AgentsToolsSpawnedSessionRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include"
+	for availCandidate in $( AgentsToolsSpawnedSessionRecords "$1" own ) ; do
+		availId="${availCandidate##*/}" ; availId="${availId%.spawn.md}"
+		[ "$availId" != "$availOwn" ] || continue
+		type AgentsToolsFrontmatterKey > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.FrontmatterKey.include"
+		[ "$( AgentsToolsFrontmatterKey "$availCandidate" owner )" = "$2" ] || continue
+		## An agent-less parent runs no member: it stands for its caller, and takes no matter itself.
+		[ "$( AgentsToolsFrontmatterKey "$availCandidate" agent-less )" != true ] || continue
+		[ "$( AgentsToolsFrontmatterKey "$availCandidate" status )" = spawn-started ] || continue
+		type AgentsToolsSpawnRuns > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunProcesses.include"
+		AgentsToolsSpawnRuns "$availId" "$availCandidate" > /dev/null 2>&1 || continue
+		return 0
+	done
+	## The record is found by the store's own reader, never by an `ls` process (call-path audit row 44).
+	local availAny
+	type AgentsSessionRunRecordInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+	type AgentsToolsFrontmatterKey > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.FrontmatterKey.include"
+	AgentsSessionRunRecordInto availAny "$1" && return 1
+	[ "$( AgentsToolsFrontmatterKey "$availRecord" parent-member )" = "$2" ] || return 1
+	return 0
+}
+
+## The address the run of a spawn record reports to, printed, in this order:
+## 1. its `reports-to:`, where the spawn wrote one (`none` too) -- unless `default` is asked; a
+##    `<session>:<member>` there whose member no longer runs in that session falls through to 2-4;
+## 2. else, in its `parent-session-id:`, the session that started it, as `<session>:<member>`:
+##    the member that made the call there (`parent-member:`), the initiator, where it is there
+##    (AgentsToolsRunRouteAvailable), else that session's executor, the owner of its founding
+##    record (AgentsToolsRunRouteMember), where it is there; or the executor first, as
+##    agentsRunRouteMemberFirst says;
+## 3. else magic-coordinator, where a run of it is there, in that session, else in the session
+##    of this run, as `<session>:magic-coordinator`: never this run itself, so a coordinator is
+##    never handed its own matter back;
+## 4. else the coordinator's current duty session (AgentsToolsRunRouteDuty), where a coordinator run is there;
+## 5. else the human-owner.
+## The member is named, never a run: whichever run of it is there takes the matter.
+## AN AGENT-LESS PARENT takes no matter itself: a run whose address in 1 or 2 is such a parent's
+## session reports where that parent does, its own route read the same way, one hop and no more.
+## THE LADDER BEFORE THE HUMAN-OWNER: a matter with no parent left to take it goes to the coordinator's current duty session, where a
+## run of magic-coordinator is there, as `<session>:magic-coordinator`; rc 1 where none is. Every route that would end at the
+## human-owner asks this first, so he is reached only when the coordinator rung is exhausted.
+AgentsToolsRunRouteDuty(){ ## the spawn record the route is read for
+	local dutyId=""
+	dutyId="$( head -1 "${MMDAPP:-/nonexistent}/.local/agents/schedule/duty-session/magic-coordinator" 2> /dev/null )" || dutyId=""
+	case "$dutyId" in ''|*/*|.|..) return 1 ;; esac
+	AgentsToolsRunRouteAvailable "$dutyId" magic-coordinator "${1:-}" 2> /dev/null || return 1
+	printf '%s:magic-coordinator\n' "$dutyId"
+}
+AgentsToolsRunRoute(){ ## spawn record path, `default` for the address it has where it names none itself (may be empty)
+	local routeRecord="${1:-}" routeValue="" routeSession="" routeInitiator="" routeExecutor="" routeOne routeHop routeParent=""
+	type AgentsToolsAssertBareName > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.BareName.include"
+	[ -n "$routeRecord" ] && [ -f "$routeRecord" ] || { AgentsToolsRunRouteDuty "" || printf 'human-owner\n' ; return 0 ; }
+	## The hop: the session named by its reports-to, else its parent session; never from a parent itself, so no cycle.
+	type AgentsToolsFrontmatterKey > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.FrontmatterKey.include"
+	if [ -z "${agentsRunRouteHopped:-}" ] && [ "$( AgentsToolsFrontmatterKey "$routeRecord" agent-less )" != true ] ; then
+		routeHop=""
+		[ "${2:-}" = default ] || routeHop="$( AgentsToolsFrontmatterKey "$routeRecord" "$agentsRunRouteField" )"
+		AgentsToolsRunRouteValid "$routeHop" || routeHop=""
+		[ -n "$routeHop" ] || routeHop="$( AgentsToolsFrontmatterKey "$routeRecord" parent-session-id )"
+		routeHop="${routeHop%%:*}"
+		type AgentsSessionRunRecordInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+		if AgentsToolsAssertBareName "$routeHop" "the agent-less parent" AgentsToolsRunRoute 2> /dev/null \
+			&& AgentsSessionRunRecordInto routeParent "$routeHop" \
+			&& [ "$( AgentsToolsFrontmatterKey "$routeParent" agent-less )" = true ] ; then
+			## The parent stands for its caller: the address its own record names, the one its `owner:` is (S5 item 1).
+			routeOne="$( AgentsToolsFrontmatterKey "$routeParent" "$agentsRunRouteField" )"
+			## A parent naming itself is no hop: that is the one run which takes no matter at all (S5 item 1, the cycle guard).
+			if AgentsToolsRunRouteValid "$routeOne" && [ "${routeOne%%:*}" != "$routeHop" ] ; then printf '%s\n' "$routeOne" ; return 0 ; fi
+			routeOne="$( agentsRunRouteHopped=1 AgentsToolsRunRoute "$routeParent" )"
+			if ! AgentsSessionRunRecordInto routeParent "${routeOne%%:*}" \
+				|| [ "$( AgentsToolsFrontmatterKey "$routeParent" agent-less )" != true ] ; then
+				printf '%s\n' "$routeOne" ; return 0
+			fi
+			## The cycle guard: a parent whose own route names an agent-less session again ends in steps 3-4, of this run's session.
+			routeOne="$( AgentsToolsFrontmatterKey "$routeRecord" session-id )"
+			! AgentsToolsRunRouteAvailable "$routeOne" magic-coordinator "$routeRecord" || { printf '%s:magic-coordinator\n' "$routeOne" ; return 0 ; }
+			AgentsToolsRunRouteDuty "$routeRecord" || printf 'human-owner\n' ; return 0
+		fi
+	fi
+	if [ "${2:-}" != default ] ; then
+		routeValue="$( AgentsToolsFrontmatterKey "$routeRecord" "$agentsRunRouteField" )"
+		if AgentsToolsRunRouteValid "$routeValue" ; then
+			case "$routeValue" in
+				*:*) ! AgentsToolsRunRouteAvailable "${routeValue%%:*}" "${routeValue#*:}" "$routeRecord" || { printf '%s\n' "$routeValue" ; return 0 ; } ;;
+				*) printf '%s\n' "$routeValue" ; return 0 ;;
+			esac
+		fi
+	fi
+	routeSession="$( AgentsToolsFrontmatterKey "$routeRecord" parent-session-id )"
+	if AgentsToolsAssertBareName "$routeSession" "the parent session" AgentsToolsRunRoute 2> /dev/null ; then
+		routeInitiator="$( AgentsToolsFrontmatterKey "$routeRecord" parent-member )"
+		routeExecutor="$( AgentsToolsRunRouteMember "$routeSession" )" || routeExecutor=""
+		for routeOne in $( [ "$agentsRunRouteMemberFirst" = executor ] && printf '%s %s' "$routeExecutor" "$routeInitiator" || printf '%s %s' "$routeInitiator" "$routeExecutor" ) ; do
+			AgentsToolsRunRouteAvailable "$routeSession" "$routeOne" "$routeRecord" || continue
+			printf '%s:%s\n' "$routeSession" "$routeOne"
+			return 0
+		done
+	fi
+	for routeOne in "$routeSession" "$( AgentsToolsFrontmatterKey "$routeRecord" session-id )" ; do
+		AgentsToolsRunRouteAvailable "$routeOne" magic-coordinator "$routeRecord" || continue
+		printf '%s:magic-coordinator\n' "$routeOne"
+		return 0
+	done
+	AgentsToolsRunRouteDuty "$routeRecord" || printf 'human-owner\n'
+}

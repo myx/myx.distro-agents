@@ -29,12 +29,17 @@
 ## AND THE THREAD OF THE SOURCES A SCAN READS (F4.2), the same: its start line is in collect/thread.log and its lock, collect/thread.lock,
 ## names it (sh-lib/comms/AgentsTools.CollectThread.include).
 ##
-## AND THE SCHEDULE'S SERVICE THREAD (S12.12), the same: its start line is in schedule-thread/thread.log and its lock, schedule-thread/thread.lock,
-## names it (sh-lib/schedule/AgentsTools.ScheduleThread.include).
+## AND THE SCHEDULE'S SERVICE THREAD (S12.12), the same: its lock, schedule-thread/thread.lock, names it (sh-lib/schedule/AgentsTools.ScheduleThread.include).
 ##
 ## AND THE STORE'S ONE COMMIT THREAD (S12.4, T1905Z): any write of a scene into a rig's team-data store starts it, and it can still be
 ## writing when the rig is removed; its lock, team-data-commit/thread.lock in the store's git folder, names it the same way
 ## (sh-lib/team-data/AgentsTools.TeamDataThread.include).
+##
+## AND EVERY OTHER THREAD ON THE SHARED ON-DEMAND PATTERN (S12.11) -- the chat writer of a workspace's session chat files
+## (sh-lib/session/AgentsTools.SessionChatWriter.include) and the event-id thread of the comms cache
+## (sh-lib/comms/AgentsTools.CommsIngest.include) -- takes thread.lock in its own folder, a file naming it `<pid> <start>`
+## (AgentsToolsThreadLockTake, sh-lib/common/AgentsTools.ThreadLock.include). So ONE read of thread.lock under the rig ends every
+## such thread, the schedule's and the store's included, and one a thread added later takes needs no line written here.
 ##
 ##   rigControlThreadNotes <dir>...   the notes found under those rig trees, `<pid> <start>` a line
 ##   rigControlThreadsEnd <dir>...    ends every such process that is still itself, with what it started (the
@@ -53,10 +58,11 @@ rigControlThreadNotes(){ ## dir...
 	PATH="$rigProcPath" find "$@" -path '*/collect/thread.log' -type f -exec cat {} + 2> /dev/null \
 		| PATH="$rigProcPath" LC_ALL=C sed -n 's/^.* a start of the source collector is made: pid \([0-9][0-9]*\), begun \([^ ]*\)$/\1 \2/p'
 	PATH="$rigProcPath" find "$@" -path '*/collect/thread.lock' -type l -exec readlink {} \; 2> /dev/null
-	PATH="$rigProcPath" find "$@" -path '*/schedule-thread/thread.log' -type f -exec cat {} + 2> /dev/null \
-		| PATH="$rigProcPath" LC_ALL=C sed -n 's/^.* a thread is started here: pid \([0-9][0-9]*\)$/\1/p'
-	PATH="$rigProcPath" find "$@" -path '*/schedule-thread/thread.lock' -type f -exec cat {} + 2> /dev/null
-	PATH="$rigProcPath" find "$@" -path '*/team-data-commit/thread.lock' -type f -exec cat {} + 2> /dev/null
+	## A lock on the shared on-demand pattern holds its note with no newline after it (AgentsToolsThreadLockTake writes
+	## `<pid> <start>` and stops), so each is read and ended here: two of them cat'd together would arrive as one line,
+	## and the reading below would find no note in either.
+	PATH="$rigProcPath" find "$@" -path '*/thread.lock' -type f -exec sh -c 'for lockFile do IFS= read -r lockLine < "$lockFile" || [ -n "$lockLine" ] ; printf "%s\n" "$lockLine" ; done' sh {} + 2> /dev/null
+	PATH="$rigProcPath" find "$@" -path '*/thread.lock' -type l -exec readlink {} \; 2> /dev/null
 	return 0
 }
 
