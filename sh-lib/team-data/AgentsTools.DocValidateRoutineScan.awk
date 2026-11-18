@@ -5,6 +5,7 @@
 #   K  <key>  <raw value>  <trimmed value>  <line of the first `key: ` line>
 #   I  <included routine name>  <section>
 #   W  <wait-sources line>
+#   R  <references line>  <line of that line>
 #   S  <input-scan-def line>  <line of the first line equal to `input-scan-def: <line>`>
 #   H  <count>  <first line>  <heading>
 # An absent key's line is 0; an input-scan-def line no line equals exactly has line 0; a
@@ -50,6 +51,11 @@ inFront {
 		gsub(/^[ \t]+|[ \t]+$/, "", w)
 		if (w != "") waitBuf[++waitN] = w
 	}
+	if (index($0, "references: ") == 1) {
+		ref = substr($0, length("references: ") + 1)
+		gsub(/^[ \t]+|[ \t]+$/, "", ref)
+		if (ref != "") { refBuf[++refN] = ref ; refLineBuf[refN] = NR }
+	}
 	if (index($0, "input-scan-def: ") == 1) {
 		raw = substr($0, length("input-scan-def: ") + 1)
 		val = raw
@@ -81,6 +87,7 @@ END {
 	}
 	for (i = 1 ; i <= incN ; i++) printf "I\034%s\034%s\n", incNameBuf[i], incSectionBuf[i]
 	for (i = 1 ; i <= waitN ; i++) printf "W\034%s\n", waitBuf[i]
+	for (i = 1 ; i <= refN ; i++) printf "R\034%s\034%d\n", refBuf[i], refLineBuf[i]
 	# The first line whose whole text equals `input-scan-def: <value>`, per value.
 	for (i = 1 ; i <= scanN ; i++) {
 		val = scanValBuf[i]

@@ -844,10 +844,11 @@ AgentsToolsGrantsItemRuns(){ ## workspace, session id, member
 		[ ! -f "$runsRecord" ] || { runsFound=1 ; break ; }
 	done
 	[ -n "$runsFound" ] || return 1
-	## The awk shares only within the run's own coworking session, so its candidates are that session's
+	## The share is only within the run's own coworking session, so its candidates are that session's
 	## records, from the kept per-session list (AgentsTools.StartedRecords.include), never every record
 	## on a gate call. The session that one of these runs started is in the list too: its id is that run's.
-	runsCow="$( LC_ALL=C awk '$0 == "---" { if ( ++fence > 1 ) exit ; next } fence == 1 && index( $0, "session-id: " ) == 1 { print substr( $0, 13 ) ; exit }' "$runsRecord" 2> /dev/null )" || runsCow=""
+	type AgentsToolsFrontmatterKey > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.FrontmatterKey.include"
+	runsCow="$( AgentsToolsFrontmatterKey "$runsRecord" session-id )" || runsCow=""
 	case "$runsCow" in ''|*/*|.|..) return 1 ;; esac
 	type AgentsToolsSpawnedSessionRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include"
 	while IFS= read -r runsCandidate ; do

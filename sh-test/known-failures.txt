@@ -7,3 +7,141 @@
 ##   <test name, as the runner names it>  <owner: a member, or magic-tester>  <reason: one line, why it is red and what it waits for>
 ## A row that is not three filled fields is refused by the run, which names it by its line.
 ## A row is removed in the change that makes its test pass, never before: a stale row is printed FIXED until it is.
+AgentsApprovalCascadeCheck	magic-tester	1 of 46: its wait-helper assertion reads 5s where the word seconds is wanted, so the check waits on the helper it measures
+AgentsArtifactPublishCheck	magic-developer	4 of 55: the published link is not posted, got nono want yesyes, so it waits for the Artifact post path
+AgentsAtlassianReadOrderCheck	magic-developer	1 of 14: with no team key here the borrowed settings set is not read, got 6 none want 0 jira-THERE.invalid
+AgentsBashKillGuardCheck	magic-developer	1 of 25: the detached shape is not refused, got 0:none want 1:none
+AgentsBashPathGuardCheck	magic-developer	1 of 16: one file starts with a bash path, sh-lib/atlassian/AgentsTools.JiraFields.include reads #!/usr/bin/env bash || return 1
+AgentsBashPathProofCheck	magic-developer	6 of 32: the policy registers no AgentsHookPayload.include among the hooks, and the memory-store read and write are not denied by their hooks
+AgentsBatchToolsCheck	magic-developer	1 of 28: the batch does not return with the one answer found before the slow call ends, got after 25s or not found want early
+AgentsBoardStatesCheck	magic-developer	3 of 25: an item named with no .md is not on the board, got no want yes, and --trash-board-item cannot take it, got 1:gone:none want 0:gone:trash
+AgentsBoardStatusKeyMigrationCheck	magic-coordinator	waits for the board-item.dispatch contract change, since the check asserts the dispatch status writes are gone and they were put back at 08:35 for that contract
+AgentsChangeApprovalCheck	magic-tester	ended at its 900s limit inside section 6, and its record assertion reads the approval prompt heading where two posts are wanted, got # Change for approval
+AgentsClientCallerCheck	magic-developer	a client call made by our own team's session is not refused in one plain line naming its own --client- operation: the call still reaches the system, got 1 2 1 1 want 1 0 1 1
+AgentsClientHookAllowGrantedCheck	magic-developer	1 of 29: the sandbox output is not exempt from the allow rows, got none want allow
+AgentsClientSettingsFallbackCheck	magic-developer	27 of 95: --client-comms-slack-read does not reach the other organisation with the settings the client holds, got 1 want 0 with a conversations.history call
+AgentsClientSidesCheck	magic-developer	refuses to report a result: the baseline send of a member set up here reached no post under its own token, so it waits for the member send path
+AgentsClientSystemsCheck	magic-developer	1 of 81 here and 39 of 81 on live: a client's call on our own side does not name --client-operation-run, got 1 0 0 want 1 0 1
+AgentsCodingRoleSplitCheck	magic-librarian	4 of 9: the five S10.10 role-split statements are not in magic-team.armed.md yet, so it waits on the S10.10 ruling and magic-librarian's skillset text
+AgentsCommandPathCheck	magic-developer	1 of 11: the include starts 2 processes where it starts none, got 2 want 0
+AgentsCommonOptionsCheck	magic-developer	5 of 35: a spec .local of a workspace with no tooling is not refused and the retired positional still answers, got 1 0 want 1 1
+AgentsCommsCacheOutboxCheck	magic-developer	the queued posts are not posted, got 0 want 2, and the outbox is not emptied, got kept want empty
+AgentsCommsTelegramCheck	magic-developer	2 of 21: the member and team scopes resolve to no token, got empty want member-bot-token member-token
+AgentsContactsGateCheck	magic-tester	left 1 process running at its end, leak-pid 40204, so it fails on its own teardown
+AgentsContactsStoreCheck	magic-developer	5 of 45: the console account mapped to him sets tier-contact where tier-client is read, got 1 tier-contact want 0 tier-client
+AgentsContactsTierWordCheck	magic-developer	10 of 48: his word is carried out as tier-owner where tier-contact is stored, got 0 tier-owner want 0 tier-contact, and the answer is not stamped as acted on
+AgentsCredentialExposureCheck	magic-developer	refuses to report a result: no Atlassian call reached the fake curl because the client Jira settings are missing
+AgentsDetachedProcessReportCheck	magic-developer	1 of 14: the control fails, a running process is not reported before its stop, got no want yes
+AgentsDetachedProcessWaitCheck	magic-developer	9 of 32: the wait resolves the handle without its output, got WAIT-RESULT: RECEIVED:1:1:0 want RECEIVED:1:1:1
+AgentsEffortWhileRunningCheck	magic-developer	refuses to report a result: the harness issued no request at all, so the scenario exercised nothing
+AgentsEmailEnvTokenCheck	magic-developer	2 of 5: the member's own scope EMAIL_IMAP_HOST and EMAIL_USER are not used, got 0 want 1
+AgentsGrantsIndexCheck	magic-tester	13 of 104, re-measured by magic-coordinator at 04:01: the index carries a magic-developer member the check does not expect and one coordinator row is missing, with magic-developer on the index build
+AgentsHandbackNextCheck	magic-developer	1 of 38: no start was made from the served call, got 0 want 1
+AgentsHarnessAccessRootsCheck	magic-developer	refuses to report a result: the model rig-main is of no family this service's legs know
+AgentsHarnessAnthropicWireCheck	magic-developer	refuses to report a result: the harness issued no request at all, so the scenario exercised nothing
+AgentsHarnessAskCheck	magic-developer	ended at its 900s limit: the result opens with an AskQuestion error that the question was posted and recorded as pending, where RECEIVED is wanted
+AgentsHarnessAskForgedMarkCheck	magic-tester	ended at its 900s limit with no failing assertion before it, so the check or its rig stands still
+AgentsHarnessAskFormsCheck	magic-developer	ended at its 900s limit: the same AskQuestion error stands where the result must open with RECEIVED
+AgentsHarnessAskMemberSenderCheck	magic-developer	6 of 21: a decision's reply is not read as its answer, got no:none want no:VERDICT: beta
+AgentsHarnessAskNumberedReplyCheck	magic-developer	refuses to report a result: the rig did not leave two questions in one thread
+AgentsHarnessAskOptionsSelectCheck	magic-developer	2 of 19: the call asked again as free text does not answer, got 1:no-such-file:no-such-file want 2:no:yes
+AgentsHarnessAskOwnerBotCheck	magic-developer	ended at its 900s limit: the owner's click is not read as the answer, got yes:no:no:no-verdict-line want no:yes:no:VERDICT: yes
+AgentsHarnessAskPlaceCheck	magic-developer	5 of 17: a question to a member is not posted as a reply in the session thread, got empty-output want ASK-RESULT: POSTED
+AgentsHarnessAskRewaitCheck	magic-developer	refuses to report a result: no re-wait line came back, and the first reply is not RETURNED
+AgentsHarnessAskSessionWaitCheck	magic-developer	refuses to report a result: the rig produced no refusal to ask permission for
+AgentsHarnessAskTaggedWakeCheck	magic-developer	4 of 11: the control's ask is not open, got no-record want reply-pending
+AgentsHarnessCheckListNudgeCheck	magic-developer	ended at its time limit of 900s: the nudge case reads 16 where no message is wanted, and the check does not finish
+AgentsHarnessContextCheck	magic-developer	refuses to report a result: the model rig-main is of no family this service's legs know
+AgentsHarnessCopilotLegCheck	magic-developer	refuses to report a result: the harness issued no request at all, so the scenario exercised nothing
+AgentsHarnessDismissedEndCheck	magic-developer	refuses to report a result: the Wait never returned the dismissal, it returned TIMEOUT
+AgentsHarnessDshInstallCheck	magic-developer	the integrations run ends 1 where 0 is wanted, got 1 want 0
+AgentsHarnessDutyNoQuitCheck	magic-developer	1 of 7: the wait does not end at the run's bound with the conversation returned to its checkpoint, got no:no-such-file want yes:0
+AgentsHarnessEditIntegrityCheck	magic-developer	1 of 30: a live holder's lock does not refuse the edit, got nothing where the write-lock error is wanted, and it leaves 8 processes running
+AgentsHarnessEscalationEdgeCheck	magic-developer	its race rows: round 1 holds 1 post where 2 are wanted and the second post is not in that thread
+AgentsHarnessGrokLegCheck	magic-developer	refuses to report a result: the harness issued no request at all, so the scenario exercised nothing
+AgentsHarnessHandbackCheckListCheck	magic-tester	left 4 processes running at its end, so it fails on its own teardown rather than on an assertion
+AgentsHarnessHandbackPendingCountCheck	magic-tester	left 4 processes running at its end, so it fails on its own teardown rather than on an assertion
+AgentsApplyReportHandbackCheck	magic-tester	its assertions all pass; it fails on its own teardown, leaving the 4 processes the handback path leaves, as its two sibling checks above
+AgentsHarnessHookWatchdogCheck	magic-developer	2 of its rows: the hook is not ended before its own end and the call is not refused with its status, got never-began not-ended-by-itself where began 1 1 is wanted
+AgentsHarnessHooksDiffCheck	magic-developer	the hook decision matrix fails on many rows, among them Read with a multi-line reason, a path alias, and a Write with an unknown decision
+AgentsHarnessIdleWaitCheck	magic-developer	the message is not read as the arrival: the run does not return to armed with it, got 0:2:1:no want 0:2:1:yes, and the wake does not come within 20s
+AgentsHarnessListAgentsCheck	magic-developer	1 of 28: a record whose process has gone still reads running where gone is wanted
+AgentsHarnessMcpCheck	magic-developer	refuses to report a result: the harness issued no request at all, so the scenario exercised nothing
+AgentsHarnessMcpIndexCheck	magic-developer	the server index registers the wrong set: a workspace with no server installed still lists myx.common
+AgentsHarnessNativeCallCheck	magic-developer	the controls fail: a Write and an Edit sent with path do not reach the hook as tool_input.file_path
+AgentsHarnessNoticeSurfaceCheck	magic-developer	the start and end notices are not both recorded: the chat file holds 1 notice block where 2 are wanted, and its own channel reads own instead of notice
+AgentsHarnessPausePointsCheck	magic-developer	its pause rows fail: a Read with the flag standing ends instead of holding, and a Bash that holds does not run its own body
+AgentsHarnessPermissionCheck	magic-developer	its posting rows fail: one post is made where two are wanted, and the second post does not name the second id
+AgentsHarnessPermissionContactCheck	magic-developer	the contact click is not read as the answer: got yes:empty-output:no-verdict-line where VERDICT: allow-contact is wanted, and the emoji set differs
+AgentsHarnessPermissionEdgeCheck	magic-developer	the permission edge rows fail: a grant is not opened, got nothing where GRANT: once is wanted, and the admitted call does not fail on its own
+AgentsHarnessPermissionFolderCheck	magic-developer	his click on the folder is not read as the answer, got yes:empty-output:no-verdict-line:0 where VERDICT: allow-folder with one set entry is wanted
+AgentsHarnessPermissionJoinCheck	magic-developer	refuses to report a result: the rig produced no refusal to ask permission for, so no row below is measured
+AgentsHarnessPermissionProjectCheck	magic-developer	his click on the project is not read as the answer, got yes:empty-output:no-verdict-line:0 where VERDICT: allow-project with one set entry is wanted
+AgentsHarnessPermissionSetAskCheck	magic-developer	the set ask comes back unanswered, got empty-output:no-verdict-line:0 where VERDICT: allow-set with the whole grant is wanted
+AgentsHarnessPromptCacheKeyCheck	magic-developer	refuses to report a result: the Grok leaf issued no request, since the model deepseek-flash is of no family that leaf knows
+AgentsHarnessProposeApproveCheck	magic-developer	its prompt rows fail: the served call runs to completion where it must not, and one post is made where the root and the proposal are wanted
+AgentsHarnessPushNotificationCheck	magic-developer	1 of 4: the served call reports not-sent where a sent message is wanted
+AgentsHarnessReadGateCheck	magic-tester	ended at its 900s time limit with no failing assertion before it, so the check or its rig stands still
+AgentsHarnessRefusalCheck	magic-developer	the run does not end normally, got rc 1 want 0, and three request rounds are recorded where two are wanted
+AgentsHarnessRestartCheck	magic-developer	refuses to report a result: the harness issued no request at all, so the scenario exercised nothing
+AgentsHarnessServedIdentityCheck	magic-developer	refuses to report a result: the server did not answer initialize in scenario root, so nothing was served
+AgentsHarnessSetupIndexCheck	magic-developer	8 of 51: both setup runs answer nothing, got : want RIG-FINAL-MARKER, and it leaves 2 processes running
+AgentsHarnessSpawnSeedCheck	magic-tester	ended at its 900s time limit with no failing assertion before it, so the check or its rig stands still
+AgentsHarnessSpawnToolCheck	magic-developer	1 of 3: the wire still declares an Agent tool, got 1 want 0
+AgentsHarnessUnattendedScopeCheck	magic-developer	2 of 20: the proxy does not report the spawn started, got 0 want 1, and the session notice opened no thread
+AgentsHarnessWaitCheck	magic-developer	the wait returns TIMEOUT on the good source where RECEIVED is wanted, and a later scenario issued no request at all
+AgentsHarnessWaitReadFailCheck	magic-developer	1 of 7: a source that could not be read is reported as never-read, got yes want no
+AgentsInvestigatePublishCheck	magic-developer	3 of 45: the task is not created, got 1:0 want 0:1
+AgentsJiraAssigneeCheck	magic-tester	left 2 processes running at its end, so it fails on its own teardown
+AgentsMakeIndicesRegistriesCheck	magic-tester	9 of 86: the registry folder holds one grants.index pair per rig that the check does not expect, and it leaves 4 processes running
+AgentsNeedsReplyMarkerCheck	magic-developer	3 of 23: the NEEDS REPLY marker in a quoted line, which the sender did not write, is refused where it must be sent, got 1:0 want 0:1, and SubagentHandback on the same text posts instead of returning CORRECTION
+AgentsOnDemandThreadCheck	magic-developer	the control fails: no request thread answered within its bound, got a no-thread error where the harness's own words are wanted
+AgentsOriginPathsExistCheck	magic-developer	1 of 10: three includes spell a package path in another form, root-session-end.sh:35 and :40 and AgentsHarnessBatch.include:58
+AgentsOwnerSetupCredentialScopeCheck	magic-developer	5 of 52: the deepseek setup does not end 0, got 1 want 0
+AgentsPackageConventionsCheck	magic-developer	1 of 3 sections: two unguarded uses of a GNU-only flag, got 2 want 0
+AgentsParkHandbackCheck	magic-developer	3 of 6: the handback is not posted, got 0 want 1, so the model is asked more than once
+AgentsPermissionHoldsCheck	magic-tester	ended at its 900s limit after the escalation-answer rule, so the check or its rig stands still
+AgentsPermissionPostLeadCheck	magic-developer	refuses to report a result: the permission that is to be asked again was never recorded
+AgentsPermissionSetRecordCheck	magic-tester	left 11 processes running at its end, so it fails on its own teardown rather than on an assertion
+AgentsPlacesRegistryCheck	magic-tester	refuses to report a result: its rig member lost-rig sits in the members index but in no tracked workspace, so no row below is measured
+AgentsPostAddresseeCheck	magic-developer	ReportFindings posts nothing to the starting session's thread, got 0no want 1yes, and the case waits on the architect's ruling on which conversation a handback reaches when the run has no parent and no addressee
+AgentsPresetModelCheck	magic-developer	1 of 51: a vendor CLI is passed a model option, got 2 want 0
+AgentsPresetStoreCheck	magic-developer	1 of 90: the two preset keys are not named in the same set of files, one file is named ahead of the set, got config/AgentsTools.OwnerSetupOptionSpec.include first
+AgentsPromptCachePrefixCheck	magic-developer	refuses to report a result: the harness issued no request, since the model rig-main is of no family its leg knows
+AgentsRefusedTargetDecodeCheck	magic-developer	10 of 19: the question is not posted, got no want yes, and the percent in its target is not shown as a percent
+AgentsReplyFloorCheck	magic-developer	1 of 16: the tool result given to the model is not the file's content, got 0 want 1
+AgentsReviewFlowCheck	magic-tester	ended at its 900s limit inside the restart section: the Decisions restart row reads 0:0 where 1:0 is wanted
+AgentsReviewItemsDeadParentCheck	magic-tester	left 4 processes running at its end, leak-pid 13431 and three bash pids, so it fails on its own teardown
+AgentsReviewPromptCheck	magic-tester	2 of 89: review-by none still moves the item into review and posts, got review:1:1 want review:0:0, and it later ended at its 900s limit
+AgentsReviewReadGrantsCheck	magic-developer	1 of 15: the client's index does not admit the peer's chat, got none want allow, and it leaves 1 process running
+AgentsRunRuleReadersCheck	magic-developer	1 of 31: two runs' session id with no dispatch item reads UNKNOWN where RUNNING is wanted
+AgentsRunTestsQueueCheck	magic-tester	1 of 74: the third run named one copy ahead of it where two were queueing, got 1 rig-scratch-b/source want 2 with rig-scratch-a/source
+AgentsRunTestsSubfolderCheck	magic-tester	2 of 13: sh-test itself holds known-failures.txt, triage.md and AgentsRunTestsSweepCheck.test.sh beside the runner, and the folder solid names no sh-lib system
+AgentsRunTestsSweepCheck	magic-developer	5 of 15: the busy rig and the link rig are not both kept with their reasons, got 1:0 want 1:1, and a word for the hours is refused at the wrong count, got 1:1:3 want 1:1:4
+AgentsSandboxLinkCheck	magic-tester	ended at its 900s limit inside section 5, and its refusal row reads 0 0 made where 1 1 none is wanted
+AgentsScheduleRetestDrainCheck	magic-developer	the step AgentsToolsScheduleRetestDrain is not built: 5 of 5 assertions fail for its absence, and the step makes the drain run with no person (task-20261117T2212Z-retest-queue-never-drains)
+AgentsScheduleTickAndAskCheck	magic-tester	left 1 process running at its end, so it fails on its own teardown
+AgentsSessionAddressCheck	magic-developer	4 of 184: a reports-to send says the session has no recorded parent where the parent's thread is wanted, got rc=3 want rc=0 with the parent channel
+AgentsSessionAddressFirstCheck	magic-developer	the S2 record and its result disagree: the record holds 2 blocks where 1 is wanted, and the result does not name the channel and thread it went to
+AgentsSessionGrantRestartCheck	magic-tester	ended at its 900s limit inside section 2, the restarted run's grant, so the check or its rig stands still
+AgentsSessionIndexJoinedStoresCheck	magic-tester	ended at its 900s limit inside section 3, the runs row of a restarted run, so the check or its rig stands still
+AgentsShLibFoldersCheck	magic-developer	3 of 7: the sh-lib root holds the file hooks.registry, got [hooks.registry] want none, and one folder and several common files are outside their named sets
+AgentsSkillsetOpDispatchCheck	magic-developer	the skillset names seven --upsert-vault-* operations with no exact dispatch arm (item, investigation-report, decision-record, verbatim-record, epic-blueprint, planning, tracking), so each lands nowhere
+AgentsSlackClientPersonaCheck	magic-developer	refuses to report a result: the Slack includes could not be read together
+AgentsSlackDateCheck	magic-developer	2 of 51: the end post carries no epoch token, got no token want now, and it leaves 2 processes running
+AgentsSlackDmAddresseeCheck	magic-developer	1 of 4: a send naming an account that is not the other party is not re-addressed to the other party, got 0 0 1 want 0 1 1
+AgentsSlackPathIsolationCheck	magic-developer	1 of 61: the read did not reach conversations.history, got not-reached want reached
+AgentsSlackReadFallbackCheck	magic-developer	3 of 13: a send whose user identity cannot reach the conversation is not posted under the bot, got 1 want 0 user,bot
+AgentsSlackReadOneCachePathCheck	magic-developer	the control fails: one message with no floor is not read, got 1 want 0
+AgentsSlackRosterNarrowedCheck	magic-developer	the roster makes 4 users.info calls where 2 are wanted, one a counterparty
+AgentsSlackSendIdentityCheck	magic-developer	5 of 40: a member's send to a channel uses the bot token where its own is wanted, got rig-bot-token-TEAM want rig-user-token-KEEPER
+AgentsSplitSizeGateCheck	magic-developer	1 of 40: AgentsTools.InternOpCommsSlackSend.include is 1831 lines against the 1500-line gate
+AgentsSuperviseRigCheck	magic-developer	1 of 12: section 3 wants a held line naming no board state, and the unguarded board read at sh-lib/supervise/AgentsTools.SuperviseResume.include:103 ends the operation under set -e before line 104 prints
+AgentsTaskGrantRestartCheck	magic-tester	ended at its 900s limit inside section 2, the restarted run's grant, so the check or its rig stands still
+AgentsTempNamesCheck	magic-developer	1 of 35: a $$ is not on the list, sh-lib/team-data/AgentsTools.TeamDataStoreLock.include:87
+AgentsTestSignalsCheck	magic-tester	2 of 38: signals of sh-test are not on the list, common/AgentsHookFireCheck.test.sh:19 among them, and three kills of AgentsHarnessToolsBash.include are unlisted for magic-developer
+AgentsToolWindowCheck	magic-developer	3 of 12: the long Bash call's handle is not returned and its 120 s window is not named, so TaskStop closes nothing; the same 3 rows fail on the copy before any change
+AgentsTrelloEnvTokenCheck	magic-developer	1 of 5: the scope read is not reached, got 1 want 0
+AgentsVscodePanelCheck	magic-librarian	2 of 59: instructions.md is a list where a heading is wanted, got items 5 want items 0
+AgentsWaitCommentsCheck	magic-developer	multi-line comment blocks stand in AgentsTools.MemberWait.include, AgentsTools.MemberWaitRun.include and AgentsTools.MemberWaitSources.include where one-line comments are the rule
+AgentsWriteGrantReadsCheck	magic-tester	left 2 processes running at its end, so it fails on its own teardown

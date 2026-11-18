@@ -52,6 +52,7 @@ harnessCallIds=()
 harnessCallNames=()
 harnessCallArgs=()
 AgentsHarnessToolCallsRead(){ ## tool call count
+	type AgentsHarnessWholeNumber > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessToolsFile.include"
 	type AgentsHarnessFileText > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessRun.include"
 	local readCount="$1" readIdx=0 readBlock=0 readBlocks="" readType="" readFrom=""
 	harnessCallIds=()

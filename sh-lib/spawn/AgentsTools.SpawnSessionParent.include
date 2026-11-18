@@ -157,7 +157,7 @@ type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents
 	## carries both, in the same order the parent row does, so the two read as one session.
 	[ ! -s "$startIdentifyFile" ] || startIdentify="$( cat "$startIdentifyFile" )"
 	if [ -n "$startIdentify" ] ; then
-		type AgentsToolsTaskTextKept > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.TaskText.include"
+		type AgentsToolsTaskTextKept > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/core/AgentsTools.TaskText.include"
 		type AgentsToolsFrontmatterKey > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.FrontmatterKey.include"
 		startRoutine="$( AgentsToolsFrontmatterKey "${startArgsFile%/partition.args}/$1.spawn.md" routine )"
 		startRoutine="${startRoutine#magic-team.}" ; startRoutine="${startRoutine%.routine.md}"
@@ -259,7 +259,9 @@ AgentsToolsSpawnSessionParentTick(){ ## parent record
 	if [ -n "$tickPending" ] ; then
 		tickRoute="$( AgentsToolsFrontmatterKey "$tickRecord" "$agentsRunRouteField" )"
 		case "$tickRoute" in
-			*:*) AgentsToolsRunRouteAvailable "${tickRoute%%:*}" "${tickRoute#*:}" "$tickRecord" || tickRoute="" ;;
+			*:*)
+				type AgentsToolsRunRouteAvailable > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.RunRoute.include"
+				AgentsToolsRunRouteAvailable "${tickRoute%%:*}" "${tickRoute#*:}" "$tickRecord" || tickRoute="" ;;
 		esac
 		if [ -z "$tickRoute" ] ; then
 			AgentsToolsSpawnSessionParentPost "$tickRecord" caller-gone --kind error \

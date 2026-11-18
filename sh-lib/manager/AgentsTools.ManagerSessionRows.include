@@ -360,5 +360,5 @@ AgentsToolsManagerTranscriptTail(){ ## spawn id, lines
 		break
 	done
 	printf '%s\n' "$tailText" | LC_ALL=C awk -v transcriptMode=tail -v wantLines="$tailWant" -v linesBefore="$tailBefore" \
-		-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsSessionTranscriptFormat.awk" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerSessionTranscript.awk"
+		-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/transcript/AgentsSessionTranscriptFormat.awk" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerSessionTranscript.awk"
 }

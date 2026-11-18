@@ -55,8 +55,11 @@ AgentsToolsRegistryHousekeepingDue(){
 	[ ! -f "$dueStamp" ] || [ -n "$( find "$dueStamp" -mmin +5 2> /dev/null )" ] || return 0
 	: > "$dueStamp" 2> /dev/null || return 0
 	( export AGENTS_REGISTRY_HOUSEKEEPING=1
-		type AgentsHookFire > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.Hook.include"
-		AgentsHookFire spawned-housekeeping 24 magic-coordinator no-threads
+		## A pass already running here is this housekeeping: what follows still runs, the pass does not.
+		if [ -z "${AGENTS_HOUSEKEEPING_PASS_RUNNING:-}" ] ; then
+			type AgentsHookFire > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.Hook.include"
+			AgentsHookFire spawned-housekeeping 24 magic-coordinator no-threads
+		fi
 		## The main loop's collect, for a rig with no main loop running: an answer standing in an ask's thread
 		## closes its record within minutes, whether or not its asker's Wait names it (InternMainLoop.include).
 		collectTmp="$( mktemp "$MMDAPP/.local/agents/pending-collect.last.XXXXXX" 2> /dev/null )" || return 0

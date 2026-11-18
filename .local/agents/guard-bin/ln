@@ -1,0 +1,3 @@
+#!/bin/bash
+. '/Users/myx/Workspaces/ws-myx-devops/source/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SandboxLinks.include' || exit 1
+AgentsToolsLnGuard "$@"

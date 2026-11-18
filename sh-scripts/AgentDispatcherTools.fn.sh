@@ -175,6 +175,16 @@ AgentDispatcherTools(){
 			return $?
 		;;
 
+		## The rigs the team runs, one line a rig: `<root><TAB><owner account or ->`. Read only.
+		--supervise-rigs)
+			shift
+			AgentsToolsSurfaceCaller --supervise-rigs read || return 1
+			if [ $# -gt 0 ] ; then echo "$MDSC_CMD: ⛔ ERROR: --supervise-rigs: takes no arguments" >&2 ; return 1 ; fi
+			type AgentsToolsSuperviseRigs > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/supervise/AgentsTools.SuperviseRigs.include"
+			AgentsToolsSuperviseRigs "${MMDAPP%/}"
+			return $?
+		;;
+
 		## [--workspace <path>]...: the supervisor's scan, one line a finding: open asks to the coordinator or the owner, dead records, finished runs, runs with no plan.
 		--supervise-scan)
 			shift

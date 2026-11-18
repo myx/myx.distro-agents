@@ -74,7 +74,7 @@ rigTool(){ ## output basename, tool, member, run id, session, thread ts, argumen
 	printf '%s' "$7" | ( cd "$rigWs" && env -u MDAT_SESSION_THREAD -u MDAT_CONVERSATION_THREADS -u MDAT_SESSION_ID -u MDAT_DATA_ROOT -u CLAUDE_CODE_SESSION_ID -u CLAUDE_CODE_ENTRYPOINT \
 		"HOME=$rigHome" "PATH=$rigPath" "RIG_SCENARIO=$rigScn" "MMDAPP=$rigWs" "MDLT_ORIGIN=$MDLT_ORIGIN" "MDAT_SKILLSET_ROOT=$rigSkills" "MDAT_DATA_ROOT=$rigTmp/data" \
 		MDAT_SPAWN_SESSION_ID="$4" MDAT_SPAWN_AGENT="$3" MDAT_SESSION_ID="$5" MDAT_SESSION_THREAD="$rigChannel:$6" \
-		MDAT_WAIT_REMIND=off MDAT_COMMS_READER=off MDAT_SLACK_THREAD_CACHE_SECONDS=0 MDAT_HARNESS_WAIT_TIMEOUT=8 \
+		MDAT_WAIT_REMIND=off MDAT_COMMS_READER=off MDAT_SLACK_THREAD_CACHE_SECONDS=0 MDAT_HARNESS_WAIT_TIMEOUT=8 MDAT_WAIT_POLL_SECONDS=1 \
 		bash "$rigHarness" --intern-tool "$2" ) > "$rigTmp/$1.out" 2> "$rigTmp/$1.err"
 }
 rigSend(){ ## output basename, thread ts, addressee, message -- rig-lead's run in its own session sends into that thread
@@ -122,7 +122,7 @@ rigAssert "the sender's own record is as it was: one block, in its own session" 
 	"$( LC_ALL=C wc -l < "$rigWs/.local/agents/sessions/rig-root-sess/session.chat.index" 2> /dev/null | LC_ALL=C tr -d ' ' ):$( rigIndex "$rigWs/.local/agents/sessions/rig-root-sess/session.chat.index" 1 | LC_ALL=C awk '{ print $3 }' )" "1:own"
 
 echo "-- 2. the run's Wait returns DISMISSED from that file, while its read of the thread from Slack fails --"
-rigTool wait-duty Wait "$rigHelper" rig-duty-run rig-duty-sess "$rigDutyTs" "{\"timeout\":\"6\",\"poll_interval\":\"1\",\"mode\":\"default\",\"sources\":\"slack:$rigChannel:$rigDutyTs:conversation\"}"
+rigTool wait-duty Wait "$rigHelper" rig-duty-run rig-duty-sess "$rigDutyTs" "{\"timeout\":\"6\",\"mode\":\"default\",\"sources\":\"slack:$rigChannel:$rigDutyTs:conversation\"}"
 rigAssert "the Wait returns DISMISSED" "$( rigFirstLine wait-duty )" "WAIT-RESULT: DISMISSED"
 rigAssert "naming the sender" "$( LC_ALL=C grep -c "^WAIT-DISMISSED-BY: .*$rigLead" "$rigTmp/wait-duty.out" )" "1"
 ## The fake Slack answers a thread it holds no file for with thread_not_found, so no read of it from Slack can carry the message.
@@ -167,7 +167,7 @@ rigOncePost="$( rigPosts )"
 ## The thread as Slack answers it: its root, and the post as Slack keeps it, at the ts it gave.
 printf '{"ok":true,"messages":[{"ts":"%s","user":"URIGBOT01","text":"RIG-ROOT"},%s],"has_more":false}\n' "$rigOnceTs" \
 	"$( LC_ALL=C sed -e "s/^{\"channel\":\"[A-Z0-9]*\",/{\"ts\":\"1760000000.00010$rigOncePost\",\"user\":\"URIGBOT01\",/" "$rigScn/post.$rigOncePost" )" > "$rigScn/replies.$rigChannel.$rigOnceTs.json"
-rigTool wait-once Wait "$rigHelper" rig-once-run rig-once-sess "$rigOnceTs" "{\"timeout\":\"6\",\"poll_interval\":\"1\",\"mode\":\"default\",\"sources\":\"slack:$rigChannel:$rigOnceTs:conversation\",\"since_utime\":\"1700000000\"}"
+rigTool wait-once Wait "$rigHelper" rig-once-run rig-once-sess "$rigOnceTs" "{\"timeout\":\"6\",\"mode\":\"default\",\"sources\":\"slack:$rigChannel:$rigOnceTs:conversation\",\"since_utime\":\"1700000000\"}"
 rigAssert "where the session reads its thread from Slack too, the message is delivered once" "$( rigFirstLine wait-once ):$( LC_ALL=C grep -c -x 'RIG-ONCE-BODY' "$rigTmp/wait-once.out" )" "WAIT-RESULT: RECEIVED:1"
 
 if [ "$rigFailCount" -ne 0 ] ; then

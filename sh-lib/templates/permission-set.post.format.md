@@ -69,7 +69,10 @@ One ask for everything a task or a session needs beyond what its participants ho
 ```
 # 🔐 Permission set
 
-May the participants have these, {{scope-words}}?
+[[**📌 About**
+{{about}}
+
+]]May the participants have these, {{scope-words}}?
 
 **🔑 Asked for**
 {{asked}}
@@ -258,7 +261,8 @@ The one reply the tooling posts in the thread an answer was read in: what was re
 # Contract
 
 - rule: The post is the one fenced block under `## post`, sent as the team bot through the member send, addressed to the human-owner.
-- rule: Required: `{{scope-words}}` and `{{asked}}`. A slot outside `[[ … ]]` is required: with one empty, nothing is posted. `{{how-to-answer}}` is filled from `# Answers` on every post that takes an answer, and a post that takes one is never sent without it. Text in `[[ … ]]` is kept only when every slot in it has a value, and a group may span lines, so a heading is left out together with its empty list. No field is ever shown as a placeholder.
+- rule: Required: `{{scope-words}}` and `{{asked}}`. Optional: `{{about}}`. A slot outside `[[ … ]]` is required: with one empty, nothing is posted. `{{how-to-answer}}` is filled from `# Answers` on every post that takes an answer, and a post that takes one is never sent without it. Text in `[[ … ]]` is kept only when every slot in it has a value, and a group may span lines, so a heading is left out together with its empty list. No field is ever shown as a placeholder.
+- rule: `{{about}}` is filled by the tool, never by the asking agent: the plain title of the task the asking run works on, and the system it concerns, on one line (`AgentsToolsAskAboutLine`). Its group is left out whole where neither is named.
 - rule: `{{asked}}` is one `## asked` line for each place asked, in the order first asked: `{{place}}` once, then `{{tools}}`, every tool asked for it, separated by commas, in one fixed order: Read, Grep, Glob, Edit, Write, NotebookEdit, Execute, WebFetch, WebSearch, cred, then any other in the order asked. No place and no line is written twice. Every entry an allow would grant stands in it: what is not shown is not asked.
 - rule: An entry asked with no target, a tool alone, has no place: its tools stand on one `## asked-any` line, which says that the grant is for any target, in the same order.
 - rule: `{{place}}` is the place the entry was asked by, `<name>:<glob>`, where the asker named one (`@<name>[:<glob>]`), a registered place or a built-in one (`.skillset-shared`, `.skillset-.local`): the name as asked, whatever other place its files lie in. An entry asked by a path is shown by its location root, `<place>:<relative path>`, where the target lies in a registered place; a target that lies in none is shown as given. No absolute path is shown beside a place or anywhere else in the post for a target that has one. One resolver gives the location root, for every permission post (`LocalTools.Places.include`). There is no separate list of places.

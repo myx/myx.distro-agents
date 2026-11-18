@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.SuperviseStartFailing.include -- the scan's `start-failing` kind: a session whose runs keep failing to start.
+## Sourced, never run; functions only.
+##
+## WHY. A session whose every start fails reads as a session starting, and a duty can be down for an hour while each scan
+## shows it starting again. This names it: two or more failed starts in the last hour, and no run of it open now. A run open
+## now is the test, never the newest record, since a session's own first record is rewritten when its last start fails.
+## COST. One awk pass over the record table the scan already holds in memory. Only a session it names costs one more read:
+## the first error line of its newest failed run's log, which is the line that says why.
+##
+
+## <workspace> <now> <record table> -- prints `start-failing <ws> <session> <member> failed=<n> last=<n>m why=<line>`, one a session;
+## `last` is the age of its newest failed start, `why` the first error line of that run's log.
+## The table is the scan's own: `<sandbox> <name> <written> <spawn-id> <session-id> <owner> <status> ...`, TAB-separated.
+AgentsToolsSuperviseStartFailing(){ ## workspace, now, table
+	type AgentsSessionLogInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+	local failWs="$1" failNow="$2" failRow failSid failMember failCount failAge failSpid failLog failWhy
+	while IFS=' ' read -r failSid failMember failCount failAge failSpid ; do
+		[ -n "$failSid" ] || continue
+		## The run's log through the session store's own reader, in the scanned workspace.
+		failWhy=""
+		if MMDAPP="$failWs" AgentsSessionLogInto failLog "$failSpid" ; then
+			failWhy="$( LC_ALL=C grep -m1 -E 'ERROR|No such file|line [0-9]+: |command not found|unbound variable' "$failLog" 2> /dev/null | LC_ALL=C cut -c1-140 )" || failWhy=""
+		fi
+		printf 'start-failing %s %s %s failed=%s last=%sm why=%s\n' "${failWs##*/}" "${failSid:0:8}" "$failMember" "$failCount" "$failAge" "${failWhy:-none in its log}"
+	done <<< "$( printf '%s\n' "$3" | LC_ALL=C awk -F'\t' -v now="$failNow" '
+		$5 == "" || $3 !~ /^[0-9]+$/ { next }
+		$7 == "spawn-started" { open[$5] = 1 ; next }
+		$7 == "spawn-failed" && now - $3 <= 3600 {
+			failed[$5]++ ; member[$5] = $6
+			if ( !( $5 in lastAt ) || $3 > lastAt[$5] ) { lastAt[$5] = $3 ; lastSpid[$5] = $4 }
+		}
+		END {
+			for ( sid in failed ) {
+				if ( failed[sid] < 2 || ( sid in open ) ) continue
+				print sid, member[sid], failed[sid], int( ( now - lastAt[sid] ) / 60 ), lastSpid[sid]
+			}
+		}' )"
+}

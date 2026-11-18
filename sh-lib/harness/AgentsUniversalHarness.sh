@@ -1231,7 +1231,7 @@ harnessToolSearchFloorFile="$harnessScratch/toolsearch.floor"
 ## keeps no context). Nothing is written into the dispatch, its input/ or the spawn record; the routine's text leaves a marker in the
 ## root of the sandbox (AgentsToolsPrefetchMarkerWrite) for the process that prints it.
 . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsTools.PrefetchRoutine.include"
-harnessPrefetch="" harnessPrefetchWhat="" harnessPrefetchReads="" harnessPrefetchRoutineSum="" harnessPrefetchRoutineFiles="" harnessSkillWhole=""
+harnessPrefetch="" harnessPrefetchWhat="" harnessPrefetchReads="" harnessPrefetchRoutineSum="" harnessPrefetchRoutineFiles=""
 ## The prefix layers are the team layer (the team's basic and armed files in the system text), the tool floor, the member
 ## layer, and the session layer. A work-duty session has two more (sketch 8, epic S18.8): the Team+ layer, the optional
 ## skillset file magic-team/magic-team.armed-extended.md, and the Member+ layer, <member>/reference/*.md merged

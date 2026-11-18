@@ -353,6 +353,7 @@ if ! type AgentsToolsUndoKinds >/dev/null 2>&1 ; then
 		local undoBodyPart undoBodyPartDir undoBodyPartKind undoBodyPartTarget undoBodyPartLabel undoBodyPartCounts undoBodyPartTotal undoBodyPartShown
 		type AgentsToolsAskKindRow > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.AskPost.include"
 		AgentsToolsAskKindRow undo || { printf 'the prompt cannot be filled: undo is not a kind the table of asks names\n' >&2 ; return 1 ; }
+		type AgentsToolsToolingTemplate > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.ToolingTemplate.include"
 		undoBodyTemplate="$( AgentsToolsToolingTemplate "$agentsAskRowTemplate" )" || undoBodyTemplate="$agentsAskRowTemplate"
 		## An act that changed nothing, or a kind with no file at all, shows no change; a diff that
 		## cannot be produced is said here and refuses nothing quietly.
@@ -417,6 +418,7 @@ if ! type AgentsToolsUndoKinds >/dev/null 2>&1 ; then
 		local undoAskDir="$1" undoAskBy="$2" undoAskSession="$3" undoAskBody="" undoAskOut="" undoAskChannel="" undoAskTs="" undoAskAddressees="" undoAskAsking="" undoAskFields="" undoAskPending="" undoAskTemplate
 		type AgentsToolsAskKindRow > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.AskPost.include"
 		AgentsToolsAskKindRow undo || { printf 'the prompt cannot be filled: undo is not a kind the table of asks names\n' >&2 ; return 1 ; }
+		type AgentsToolsToolingTemplate > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.ToolingTemplate.include"
 		undoAskTemplate="$( AgentsToolsToolingTemplate "$agentsAskRowTemplate" )" || undoAskTemplate="$agentsAskRowTemplate"
 		undoAskBody="$( AgentsToolsUndoAskBody "$undoAskDir" "$undoAskBy" )" || undoAskBody=""
 		[ -n "$undoAskBody" ] || { printf 'the prompt could not be filled from its template, so nothing is promised\n' >&2 ; return 1 ; }

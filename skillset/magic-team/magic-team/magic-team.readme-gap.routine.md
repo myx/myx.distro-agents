@@ -45,7 +45,7 @@ An idle-run routine of a `keeper-*` or `partner-*` member: it finds the most con
 - Does:
   - One README gap per pass, in the executor's own territory, closed by the outcome its inputs name.
 - Doesn't:
-  - Write a full manual or exhaustive API docs, or re-touch a directory already logged in `processed/`.
+  - Write a full manual or exhaustive API docs, or re-touch a directory already logged in the executor's own inbox.
   - Backfill a missing `CLAUDE.md`. A missing `CLAUDE.md` beside an existing README is a separate convention, filled incidentally during other work and never by a sweep. This routine is not used for it.
   - Ground content in ticket or board text, or in guesswork.
   - Set its own scheduling: that is the executor's `## Idle-Tasks` entry.
@@ -65,7 +65,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
    - An entry with no `outcome` is a gap in that file: escalate it, and do not guess one.
 2. **hunt-readme-gap**: Hunt the territory for a directory or package with no README, or a near-empty or unedited-stub one, rules:
    - Check the known `candidates` first, and recheck each rather than assume it is still true.
-   - Skip anything already logged in `processed/`, and a directory that has a README but no `CLAUDE.md`.
+   - Skip anything already logged in the executor's own inbox, and a directory that has a README but no `CLAUDE.md`.
    - Pick the most consequential gap, not the first found.
 3. **establish-understanding**: Read the picked directory's own source until something true and specific can be said about it, rules:
    - The sources are the ones `grounding` names, else the directory's own `project.inf`, files and build files.
@@ -81,7 +81,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
 # Closure steps
 
 1. **report-and-log**: Report back to whoever dispatched this run. Give the directory picked, why it is the most consequential gap found, and what was written or handed over. Then log it, rules:
-   - By default, log the outcome as a new dated file under `processed/`: `processed/<board-item-type>-<date>-<short-topic>.md`, a real board-item type, never an invented word. File a `reflection-*` with `--upsert-inbox-reflection`.
+   - By default, log the outcome as a new `note-*` own-inbox log item, through `--upsert-inbox-note`, named `note-<date>-<short-topic>.md`. File a `reflection-*` with `--upsert-inbox-reflection`.
    - Where the executor's `log` input names another form, that form is used instead.
    - Where the workspace keeps no team data, nothing is filed: what would have been filed goes into the report.
 

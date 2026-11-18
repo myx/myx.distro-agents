@@ -70,7 +70,8 @@ review||ACCEPT|accept
 readback||yes|yes
 readback||ok!|yes
 readback||I agree|yes
-readback||correct|correct
+readback||correct|yes
+readback||edit|edit
 decision||beta|beta
 decision||Beta.|beta
 decision||ok|beta
@@ -94,7 +95,7 @@ readback||yes: go on|yes -- go on
 readback||I agree, go on|yes -- go on
 readback||yes, no problem|yes -- no problem
 readback||ok, agreed|yes -- agreed
-readback||correct: the path is /b|correct -- the path is /b
+readback||edit: the path is /b|edit -- the path is /b
 decision||beta, because it is cheaper|beta -- because it is cheaper
 decision||beta: because it is cheaper|beta -- because it is cheaper
 decision||ok, the second|beta -- the second
@@ -110,7 +111,7 @@ proposal||approved ship it|RETURNED
 review||return fix the tests|RETURNED
 readback||yes please|RETURNED
 readback||I agree with the first part|RETURNED
-readback||correct the path is /b|RETURNED
+readback||edit the path is /b|RETURNED
 decision||beta because it is cheaper|RETURNED
 decision||ok then|RETURNED
 question|yes-no|yes go on|RETURNED
@@ -147,8 +148,8 @@ rigAssert "a quote of the question ahead of the answer is skipped, and the line 
 	"$( rigVerdict permission "" $'&gt; may I?\nallow-once, this once' ):$( rigVerdict permission "" $'&gt; may I?\nallow-once this once' )" \
 	"allow-once -- this once:RETURNED"
 rigAssert "a caller that does not ask for the words gets the verdict alone, a correction with its words as before" \
-	"$( printf '1700000001.000200 | URIGOWNER | allow-once, but only this file\n' | MDAT_VERDICT_KIND=permission MDAT_VERDICT_AUTHORS=URIGOWNER LC_ALL=C awk -f "$rigHere/questions/AgentsEscalationVerdict.awk" | LC_ALL=C cut -f1 ):$( printf '1700000001.000200 | URIGOWNER | correct: the path is /b\n' | MDAT_VERDICT_KIND=readback MDAT_VERDICT_AUTHORS=URIGOWNER LC_ALL=C awk -f "$rigHere/questions/AgentsEscalationVerdict.awk" | LC_ALL=C cut -f1 )" \
-	"allow-once:correct -- the path is /b"
+	"$( printf '1700000001.000200 | URIGOWNER | allow-once, but only this file\n' | MDAT_VERDICT_KIND=permission MDAT_VERDICT_AUTHORS=URIGOWNER LC_ALL=C awk -f "$rigHere/questions/AgentsEscalationVerdict.awk" | LC_ALL=C cut -f1 ):$( printf '1700000001.000200 | URIGOWNER | edit: the path is /b\n' | MDAT_VERDICT_KIND=readback MDAT_VERDICT_AUTHORS=URIGOWNER LC_ALL=C awk -f "$rigHere/questions/AgentsEscalationVerdict.awk" | LC_ALL=C cut -f1 )" \
+	"allow-once:edit -- the path is /b"
 rigAssert "a reply that is none does not end the reading: the next one that answers is the verdict" \
 	"$( printf '1700000001.000200 | URIGOWNER | allow-once please\n1700000001.000300 | URIGOWNER | allow-once\n' | MDAT_VERDICT_KIND=permission MDAT_VERDICT_AUTHORS=URIGOWNER LC_ALL=C awk -f "$rigHere/questions/AgentsEscalationVerdict.awk" | LC_ALL=C tr '\t' '|' )" \
 	"allow-once|URIGOWNER|1700000001.000300"

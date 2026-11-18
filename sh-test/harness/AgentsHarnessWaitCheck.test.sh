@@ -536,7 +536,7 @@ rigStart(){ ## scenario directory name
 
 ## A round answering with one Wait tool call, then the usage chunk the core reads.
 rigWaitStream(){ ## canned-stream file, sources value, timeout value
-	printf 'data: {"choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"rig-wait-call","type":"function","function":{"name":"Wait","arguments":"{\\"sources\\":\\"%s\\",\\"timeout\\":\\"%s\\",\\"poll_interval\\":\\"1\\"}"}}]}}]}\n' "$2" "$3" > "$1"
+	printf 'data: {"choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"rig-wait-call","type":"function","function":{"name":"Wait","arguments":"{\\"sources\\":\\"%s\\",\\"timeout\\":\\"%s\\"}"}}]}}]}\n' "$2" "$3" > "$1"
 	printf 'data: {"choices":[{"index":0,"delta":{},"finish_reason":"tool_calls"}],"usage":{"prompt_tokens":1,"completion_tokens":1,"total_tokens":20}}\n' >> "$1"
 	printf 'data: [DONE]\n' >> "$1"
 }
@@ -556,7 +556,7 @@ rigRun(){ ## the harness arguments this scenario adds
 	## directory is this scenario's too. A session id is the spawn proxy's own,
 	## which the stateful Wait needs for its store; the scenario stands in for it.
 	RIG_SCENARIO="$rigScenarioDir" MMDAPP="$rigScenarioDir" MDAT_SPAWN_SESSION_ID="rig-waitcheck-session" \
-		MDAT_HARNESS_CONTEXT_TOKENS=0 MDAT_HARNESS_MAX_RESTARTS=1 \
+		MDAT_HARNESS_CONTEXT_TOKENS=0 MDAT_HARNESS_MAX_RESTARTS=1 MDAT_WAIT_POLL_SECONDS=1 \
 		"$rigHarness" --access-root "$rigScenarioDir" "$@" RIG-TASK-MARKER \
 		> "$rigScenarioDir/out" 2> "$rigScenarioDir/err" || rigRunStatus=$?
 	rigRoundCount="$( cat "$rigScenarioDir/round" )"

@@ -135,8 +135,10 @@ AgentsToolsLnGuardMake(){ ## folder -- writes the guard `ln` there, for a run to
 ## guard puts `-D skip` before the arguments of a RECURSIVE grep only (-r, -R, --recursive, -d recurse), which BSD and GNU
 ## grep both take and which skips a fifo, a socket and a device; an explicit operand is read as given, because a process
 ## substitution `<( ... )` is a fifo, and skipping it made every such grep of every tool answer no match. Then it runs the first
-## `grep` on PATH outside the guard folder. One `sh`, no include read: a grep stands in many a member's pipeline. A guard
-## already there is kept while its text is the same.
+## `grep` on PATH outside the guard folder. Another `grep` wrapper on PATH may call the guard again, so the guard exports the
+## folder it chose, MDAT_GREP_GUARD_AFTER, and a guard entered again walks only the folders after it: without that the two
+## call each other for ever. One `sh`, no include read: a grep stands in many a member's pipeline. A guard already there is
+## kept while its text is the same.
 AgentsToolsGrepGuardMake(){ ## folder -- writes the guard `grep` there, for a run to put first on its PATH
 	local guardText guardTemp
 	guardText='#!/bin/sh
@@ -152,9 +154,13 @@ for guardArg in "$@" ; do
 	guardPrev="$guardArg"
 done
 IFS=:
+guardAfter="${MDAT_GREP_GUARD_AFTER:-}"
 for guardDir in $PATH ; do
 	case "$guardDir" in */.local/agents/guard-bin) continue ;; esac
-	[ -x "$guardDir/grep" ] && exec "$guardDir/grep" "$@"
+	if [ -n "$guardAfter" ] ; then [ "$guardDir" != "$guardAfter" ] || guardAfter="" ; continue ; fi
+	[ -x "$guardDir/grep" ] || continue
+	MDAT_GREP_GUARD_AFTER="$guardDir" ; export MDAT_GREP_GUARD_AFTER
+	exec "$guardDir/grep" "$@"
 done
 exec /usr/bin/grep "$@"'
 	[ "$( cat "$1/grep" 2> /dev/null )" = "$guardText" ] && [ -x "$1/grep" ] && return 0

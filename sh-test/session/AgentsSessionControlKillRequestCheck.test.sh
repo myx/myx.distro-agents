@@ -398,9 +398,9 @@ rigJobTwo=$!
 wait "$rigJobOne" "$rigJobTwo"
 rigAssert "both calls end with status 0, and each was answered by the thread" \
 	"$( rigRc kg1 ) $( rigRc kg2 ):$( rigSays kg1 'carried out by the control thread of session kg-run' ) $( rigSays kg2 'carried out by the control thread of session kg-run' )" "0 0:1 1"
-rigAssert "every run is ended by one of them only: three rows say ended over both, and the other three say that no process was there" \
+rigAssert "every run is ended by one of them only: three rows say ended over both, and the other three say that the run was closed, as a run with no process left is" \
 	"$( rigRows kg1 kg2 | LC_ALL=C tr ' ' '\n' | LC_ALL=C awk -F, 'NF == 5 { said[$2 " " $4]++ ; } END { for ( run in said ) print run "=" said[run] ; }' | LC_ALL=C sort | LC_ALL=C tr '\n' ' ' ):$( rigLives "$rigKg1" "$rigKg2" "$rigKg3" )" \
-	"kg-run ended=1 kg-run no-process=1 kg-three ended=1 kg-three no-process=1 kg-two ended=1 kg-two no-process=1 :ended ended ended"
+	"kg-run ended=1 kg-run closed=1 kg-three ended=1 kg-three closed=1 kg-two ended=1 kg-two closed=1 :ended ended ended"
 rigAssert "the request of the first is not overwritten: the outcome file holds both, each done, and each call printed the rows of its own" \
 	"$( LC_ALL=C grep -c '^request: ' "$rigStores/kg-run/control/outcome" ):$( rigOutcome kg-run 'result: done' ):$( LC_ALL=C sed -n 's/^row: //p' "$rigStores/kg-run/control/outcome" | LC_ALL=C sort | LC_ALL=C cmp -s - <( cat "$rigTmp/kg1.out" "$rigTmp/kg2.out" | LC_ALL=C awk -F'\t' '$1 == "kill"' | LC_ALL=C sort ) && echo same-rows || echo other-rows )" "2:2:same-rows"
 rigAssert "and the ending of each run is recorded once" \

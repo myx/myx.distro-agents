@@ -55,6 +55,7 @@ AgentsToolsSuperviseGuide(){ ## <run-id> [--text <text>|--from-file <path>] [--w
 	type AgentsToolsSpawnRecord > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunRecords.include"
 	type AgentsToolsFrontmatterKey > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.FrontmatterKey.include"
 	type AgentsToolsSessionChatDir > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include"
+	AgentsToolsSuperviseRunIdInto guideRun "$guideRun" || return 1
 	guideRecord="$( MMDAPP="$guideWs" AgentsToolsSpawnRecord "$guideRun" )"
 	[ -n "$guideRecord" ] || { echo "$MDSC_CMD: ⛔ ERROR: --supervise-guide: no record of this workspace carries the run $guideRun" >&2 ; return 1 ; }
 	guideFolder="${guideRecord%/*}"
@@ -101,6 +102,7 @@ AgentsToolsSuperviseChecklistAdd(){ ## <run-id> (--item <text>)... [--workspace 
 	[ "${#addItems[@]}" -gt 0 ] || { echo "$MDSC_CMD: ⛔ ERROR: --supervise-checklist-add: give at least one --item" >&2 ; return 1 ; }
 	type AgentsToolsSpawnRecord > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunRecords.include"
 	type AgentsToolsFrontmatterKey > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.FrontmatterKey.include"
+	AgentsToolsSuperviseRunIdInto addRun "$addRun" || return 1
 	addRecord="$( MMDAPP="$addWs" AgentsToolsSpawnRecord "$addRun" )"
 	[ -n "$addRecord" ] || { echo "$MDSC_CMD: ⛔ ERROR: --supervise-checklist-add: no record of this workspace carries the run $addRun" >&2 ; return 1 ; }
 	addFolder="${addRecord%/*}"

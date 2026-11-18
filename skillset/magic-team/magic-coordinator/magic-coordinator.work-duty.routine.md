@@ -119,6 +119,11 @@ Steps:
 
 # Routine's local rules
 
+- **conversation-first**: this duty's input is conversations: the human-owner's, every member's and every contact's. It communicates and orchestrates the work. It never does the work itself, and nothing blocks it.
+  - It answers what reaches it between any two steps, before the round goes on.
+  - Its inbox is one of its conversation sources. A new conversation, which reaches no live session, arrives there as an item, and is answered in its own thread.
+  - It runs no work of its own, such as a daily, a grooming, an epic's plan rounds or a build, and never waits inside a coworking session. Each of those runs as its own session, which this duty starts and then leaves.
+  - A second duty of this member answers what reaches it itself. Only its writes to the routine's state note wait for the lock.
 - Work the input before you wait; never wait with input unworked.
 - A task whose nature is research, requirements or epic preparation is worked in `investigation` mode from its first round (`magic-team.armed.md`'s "Conversations").
 - A round is one run through the steps up to **post-the-round**. Where a rule below says "pass" or "round", it means that.
@@ -181,7 +186,7 @@ Every harness tool and `magic-tooling` operation this routine uses. A harness to
 - `--idle-wait [--wait-timeout <seconds>]` (`ThisSession`)
 - `ThisSession`, operation `post` (`message`, `address_to <team-member>`): one line into this session's own thread.
 - `--routine-run-inline <routine>` (`ThisSession`)
-- `--update-routine-state [--document <note>] [--header:upsert:<name>:<value>]... [--header:remove:<name>]... [--from-file <path>|--edit-patch-from-stdin]`
+- `--update-routine-state [--document <note>] [--header:upsert:<name>:<value>]... [--header:remove:<name>]... [--from-file <path>|--edit-patch-from-stdin]` (`DistroAgentsSession`)
 - `--advance-to-running <item-filename> --from-state:<state> [--header:...]...` (`DistroAgentsItems`)
 - `--advance-to-parked <item-filename> --from-state:<state> [--header:...]...` (`DistroAgentsItems`)
 - `--move-to-blocked <item-filename> --from-state:<state> [--header:...]...` (`DistroAgentsItems`)
@@ -200,9 +205,9 @@ Every harness tool and `magic-tooling` operation this routine uses. A harness to
 - `--epic-update <epic-file> --set-status <feature-id> <status>` (`AgentDispatcherTools`)
 - `--intern-doc-validate`
 - `--skillset-upsert <team-member> <pathname>`
-- `--queue-list`
-- `--queue-take`
-- `--queue-done <name>`
+- `--queue-list` (`AgentLibrarianTools`)
+- `--queue-take` (`AgentLibrarianTools`)
+- `--queue-done <name>` (`AgentLibrarianTools`)
 
 ## Gaps
 
@@ -226,6 +231,7 @@ Used to check this file's own definitions against its own goals when it is updat
 - "YOU PERSONALLY TALK TO ME IN SLACK DM / DO ORCHESTRATE UNATTENDED / WHEN THEY FINISH - CHECK ALL / UNPAUSE SOME OF EPIC WORK - MOST IMPORTANT FIRST AND ALWAYS CHECK TOOL CALL TIMES / WHILE IT IS ACCEPTABLE - BRING MORE / INSTRUCT ALL TO CODE PROPERLY - ACTIVELY INSTRUCT ALL"
 - "YOU NEED TO GIVE THEM EXACT STEPS TO DO NON STOP AND FUCKING FINISH IT"
 - "CODE REVIEW ALSO SHOULD SEE IT - THEY SUPPOSED TO LOOK AT CODE NOT AT GREEN TEST RESULT"
+- "DUTY DOES ALL CONVERSATION / IT FUCKING SHOULD NOT BE BLOCKED ON COORDINATOR DOING DAILY OR WAITING IN SOME COWORKING ON NON-DUTY-RELATED MATTERS" — with all, not only the human-owner.
 
 ## Verbatim-tests (benchmarks)
 

@@ -230,11 +230,17 @@
 		## hours, so that fork rather than any probe is what an idle estate cost the machine. A fifo this wait holds both
 		## ends of, waited on by the shell's own `read -t`, blocks for the nap and starts nothing. Measured on bash 3.2.57:
 		## a read of 300 seconds is woken by TERM as promptly as a sleep is, so a wait is still ended the way it was.
-		local waitNapFifo="" waitNapLine=""
+		local waitNapFifo="" waitNapLine="" waitNapPointer=""
 		if mkfifo "$waitDir/nap.fifo" 2> /dev/null || [ -p "$waitDir/nap.fifo" ] ; then
 			## The redirection is on the block and not on the `exec`, which given redirections alone would keep them for the
 			## life of this shell: on the exec itself, `2> /dev/null` would silence every line the wait still owes.
 			{ exec 6<> "$waitDir/nap.fifo" ; } 2> /dev/null && waitNapFifo="yes"
+		fi
+		## A WAIT'S FOLDER IS NOT ALWAYS UNDER .local/temp: a session's wait keeps it under its session, where no glob reaches it, so a
+		## marker written for that wait woke nothing. Each waiting run names its nap fifo in one small file beside its member's waits.
+		if [ -n "$waitNapFifo" ] ; then
+			waitNapPointer="$MMDAPP/.local/temp/mdat-member-wait.$memberName/nap.run.${waitSessionId:-${waitDir##*/}}"
+			{ mkdir -p "${waitNapPointer%/*}" && printf '%s\n' "$waitDir/nap.fifo" > "$waitNapPointer" ; } 2> /dev/null || waitNapPointer=""
 		fi
 
 		## A SOURCE'S BOUND IS THE WAIT'S OWN DEADLINE, NEVER A READ'S OWN (S12.27). A probe whose Slack thread the cache cannot serve falls

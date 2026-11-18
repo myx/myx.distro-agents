@@ -41,7 +41,7 @@ type AgentsSettingsKeyNamesJoined > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.di
 
 ## The subjects of the digest, in the order a person looks for them, which is the order
 ## they are printed in whatever the order they are asked in.
-agentsManagerConfigSubjects="workspace cli systems loop scopes interface console control knowledge"
+agentsManagerConfigSubjects="workspace cli systems loop scopes interface console control"
 
 ## THE LABELS: what a screen calls each subject and each line, and what it says of a line, in
 ## the one declaration of them. One row on a line of its own,
@@ -127,10 +127,7 @@ control|kill||Control Kill||
 control|channel||Root Harness Channel||
 control|request|SESSION_CONTROL_REQUEST_SECONDS|Control Request Seconds|settings|How many seconds a console waits for the control thread of a session to take a request. After that the console takes the request back and carries it out itself, and a change is read at the next request.
 control|kill|SESSION_CONTROL_KILL_SECONDS|Control Kill Seconds|settings|How many seconds the carrying out of a kill request may take before it ends its own work. A change is read at the next request, by the console and by the control thread.
-control|channel|ROOT_HARNESS_VERBOSITY|Root Harness Verbosity|settings|Which external channel the copy of a root-harness session lives on: nothing beyond its own printback output, the tooling's own event-track thread, or a session thread in the team channel. It is read when a session is minted, so a change is the next session's, and it never changes where a message that names an address goes.
-knowledge|||Knowledge Store||
-knowledge|store||Store Switch||
-knowledge|store|MDAT_KNOWLEDGE_STORE|Knowledge Store Switch|settings|Whether this workspace keeps a vector store of what the team knows, in addition to its MAGIC.md files. It is off unless it is turned on. The installer of the knowledge store makes the environment the store needs, from binary packages, and where that cannot be done the store stays off and the Knowledge tool reads MAGIC.md alone. A change is read at the next use."
+control|channel|ROOT_HARNESS_VERBOSITY|Root Harness Verbosity|settings|Which external channel the copy of a root-harness session lives on: nothing beyond its own printback output, the tooling's own event-track thread, or a session thread in the team channel. It is read when a session is minted, so a change is the next session's, and it never changes where a message that names an address goes."
 
 ## THE MODE OF THE WORKSPACE, the owner's, its three values, its key, what `just-agents` must not do and the gate that holds it: all in
 ## AgentsTools.TeamDataGate.include, which the digest reads the mode by (AgentsToolsWorkspaceMode) as the gate does. The settings
@@ -565,8 +562,7 @@ console|origin|MDLT_CONSOLE_ORIGIN|choice|user system||@origins|system
 console|detail|MDLT_CONSOLE_DETAIL|choice|user||=<default> (none),true=true (track),full=full (debug)
 control|request|SESSION_CONTROL_REQUEST_SECONDS|number|team|5|1..60
 control|kill|SESSION_CONTROL_KILL_SECONDS|number|team|30|5..600
-control|channel|ROOT_HARNESS_VERBOSITY|choice|team|none|none=Printback,track=Tooling Thread,full=Team Thread
-knowledge|store|MDAT_KNOWLEDGE_STORE|choice|environment team|off|off=Off,on=On"
+control|channel|ROOT_HARNESS_VERBOSITY|choice|team|none|none=Printback,track=Tooling Thread,full=Team Thread"
 
 ## THE OTHER NAMES of a value of a changeable setting: a name it had before, or a second name
 ## of it, each with the value it means, which it is read as and saved as. One row a setting,

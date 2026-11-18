@@ -165,7 +165,11 @@ AgentsSessionRigControlRows(){
 	fi
 	if [ "$rigTtl" -eq 0 ] || [ $(( $( date +%s ) - rigAt )) -ge "$rigTtl" ] ; then
 		mkdir -p "${rigKept%/*}" 2> /dev/null
-		find "$MMDAPP/.local/agents/spawned" -mindepth 6 -maxdepth 14 \( -name .git -o -name node_modules \) -prune -o -path '*/output/*' -path '*/control/pid' -type f -print 2> /dev/null > "$rigKept.tmp" && mv -f "$rigKept.tmp" "$rigKept" 2> /dev/null
+		## The kept list is replaced after every walk, whatever find's status: in a store that changes while it is walked, find
+		## nearly always meets a file that went away and exits 1, and a list kept only on success was never renewed (MEL's was a day
+		## old, so every scan walked for minutes). A list short of a vanished path is safe: the caller tests each pid and record.
+		find "$MMDAPP/.local/agents/spawned" -mindepth 6 -maxdepth 14 \( -name .git -o -name node_modules \) -prune -o -path '*/output/*' -path '*/control/pid' -type f -print 2> /dev/null > "$rigKept.tmp"
+		mv -f "$rigKept.tmp" "$rigKept" 2> /dev/null
 	fi
 	[ -f "$rigKept" ] || return 0
 	while IFS= read -r rigFile ; do

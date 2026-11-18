@@ -47,6 +47,7 @@ AgentsToolsTeamDataThreadRequestLocked(){ ## the request's fields...
 
 ## The push, run where the store's git runs: what the store holds ahead of its origin goes out, with the debt marker every push carries.
 AgentsToolsTeamDataPushRun(){ ## branch
+	type AgentsToolsTeamDataPushIfAhead > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataCommit.include"
 	local pushBranch="${1:-}"
 	if [ -z "$pushBranch" ] ; then
 		printf 'failed\nthe push needs its branch\n'
@@ -224,12 +225,14 @@ AgentsToolsTeamDataThreadPassLocked(){
 					[ -z "$passPath" ] || passPaths+=( "$passPath" )
 				done
 			} < "$passEntry"
+			type AgentsToolsTeamDataCommitPathsNow > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataCommit.include"
 			AgentsToolsTeamDataCommitPathsNow "$passContext" ${passPaths[@]+"${passPaths[@]}"}
 			rm -f "$passEntry"
 			passCount=$(( passCount + 1 ))
 		done < <( ls -rt "$teamPassDir"/*.entry 2> /dev/null )
 	fi
 	AgentsToolsTeamDataThreadOwed
+	type AgentsToolsTeamDataPushIfAhead > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataCommit.include"
 	[ "$passCount" = 0 ] || AgentsToolsTeamDataPushIfAhead "the team-data thread"
 	printf 'done\n' >&3
 	return 0
@@ -243,6 +246,7 @@ teamOwedTriedAt=-100
 ## a merge left unfinished must not leave a write that "warned" and never landed. The debt is a file in the workspace, not this
 ## thread's memory, so a debt outlives the thread that met it.
 AgentsToolsTeamDataThreadOwed(){
+	type AgentsToolsTeamDataCommitPathsNow > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataCommit.include"
 	local owedPath owedPaths=()
 	[ -n "$teamPassOwedFile" ] && [ -s "$teamPassOwedFile" ] || return 0
 	[ "$(( SECONDS - teamOwedTriedAt ))" -ge 30 ] || return 0

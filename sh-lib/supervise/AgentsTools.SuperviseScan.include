@@ -6,8 +6,12 @@
 ## read only, one line a finding. Sourced, never run; functions only.
 ##
 
-## --supervise-scan [--workspace <path>]...: one line a finding, `<kind> <workspace> <id> <detail>`, for each workspace named, else this one.
-## Kinds: `ask` an open question to magic-coordinator or the human-owner; `unposted` an open question whose post never landed;
+## --supervise-scan [--workspace <path>]...: one line a finding, `<kind> <workspace> <id> <detail>`, for each workspace named, else
+## every rig the team runs (AgentsTools.SuperviseRigs.include). A rig is the workspace that runs the team's duties, which is the mode
+## `team-rig` of its own settings; a --workspace that is no rig is refused, naming why, so a scan never reads a workspace the team does
+## not run.
+## Kinds: `ask` an open question to magic-coordinator or the human-owner; `ask-clarified` such a question that already holds a reply
+## kept as a clarification, with the newest one, to be closed with those words; `unposted` an open question whose post never landed;
 ## `orphan-ask` an open question to another member that has no live run to answer it; `msg` a post addressed to magic-coordinator in
 ## any session chat since --since <epoch>; `dead` a record still started whose run has no process, and is neither parked nor dismissed;
 ## `run` where each live run stands, `<ws> <id> <member> <active|waiting|stuck> tool=<name> age=<n>m paused=<yes|no> asks=<n> msg <who>: <text> plan: <text>`;
@@ -16,12 +20,35 @@
 ## `frame-stall` a live run whose frame in force has not moved inside the stall bound, `<ws> <id> <member> <routine> stalled=<n>m open=<n>`;
 ## `frame-repeat` a live run whose frame in force was pushed or rewound more than once, `<ws> <id> <member> <routine> repeat=<n>`;
 ## `idle-done` a live run that handed back and has nothing pending; `no-plan` a live run older than ten minutes with no CheckList of its own;
-## `stale-plan` a run active in the last ten minutes whose CheckList is unchanged for an hour; `control-stuck` a control thread
+## `stale-plan` a run active in the last ten minutes whose CheckList is unchanged for an hour; `owner-owed` a message of the
+## human-owner no other account answered in its own thread, `<ws> <conversation>:<ts> age=<n>m <first words>`, read from the
+## comms cache (S1.12) and never by a Slack call of the scan's own; `control-stuck` a control thread
 ## whose session has no record left open at all and whose log has not been written for SESSION_CONTROL_NO_RUN_END_SECONDS plus five
 ## minutes, which is a thread that should have ended itself and did not (S5.6); `rig-orphan` a control thread inside a run's output folder,
-## a test rig, alive after that run's record closed (S5.2); `track` an event of a run's
+## a test rig, alive after that run's record closed (S5.2); `start-failing` a session with two or more failed starts in the
+## last hour and none started since, `<ws> <session> <member> failed=<n> last=<n>m why=<its log's first error line>`
+## (AgentsTools.SuperviseStartFailing.include); `stale-rules` a session whose oldest open run started before the skillset's
+## newest change, `<ws> <session> <member> started=<n>h changed=<n>m` (AgentsTools.SuperviseStaleRules.include); `track` an event of a run's
 ## event-track thread since --since: a failed or refused tool call, an ask, an answer, a handback, a final answer, a model change.
+## Then each workspace's board (AgentsTools.SuperviseBoard.include): `epic` every active epic's movement, `still` where nothing moves;
+## `pending-skipped` approved work the schedule passes over in silence; `accepted-unlanded` an accept whose change never reached live;
+## `leftover` a run still open a day after it started.
 ## Last, `checklist`, `checklist-doing` and `checklist-open`: the calling supervisor's own CheckList as a digest, once a scan.
+##
+## WHAT THE SUPERVISOR MUST ACT ON EACH TICK, each read through its store's own owner function:
+##   `owner-ask` an open question to the human-owner, with how long it has stood and how often it was reminded:
+##           `<ws> <id> age=<n>m reminders=<n>`. The plain `ask` line stays beside it.
+##   `ask-thread-noise` an open question whose thread another open question also names, so a reply in it can answer the wrong
+##           one: `<ws> <id> thread <ts>`.
+##   `gate-as-message` a live run whose latest post opens a gate (`gate: <feature-id>`) with no ask behind it:
+##           `<ws> <id> <member> <feature-id>`.
+##   `review-waiting` a board item in review with no verdict, its age there and its reviewer's rung:
+##           `<ws> <item> age=<n>m rung=<duty|owner|none|member>`. `duty` is magic-coordinator, `owner` the human-owner,
+##           `none` nobody named, else the member that reviews it.
+##   `review-limit-near` such an item whose run still lives and whose review-wait limit is close: `<ws> <item> left=<n>s rung=<...>`.
+##   `ended-open` a session whose control thread lives while every run of it has ended: `<ws> <session> control=<pid>`.
+##   `leftover-group` a process group of an ended run, still holding a process: `<ws> <id> pid=<n> age=<n>m`.
+##   `retest-queue` the machine's retest queue, once a scan: `<ws> waiting=<n> oldest=<n>m holder=<alive|stale|none>`.
 ## A `run` line reads no file's date: its age is the run's own activity mark, else the stamp of its own transcript. The transcript is
 ## read for a name alone between tools, since a long call leaves no line there until it returns, and every part of it is read.
 ## Liveness is the process and the record's own `run-process`, never the status word, which answers one question only: whether the
@@ -57,8 +84,12 @@ AgentsToolsSuperviseScan(){
 	local scanNow scanStoreId scanMarkName scanMarked scanMarkEpoch scanMarkWord scanAgeSec scanAgeText scanTool scanStamp scanName scanEpoch
 	local scanLine scanRuns scanAsk scanAskSid scanAsks scanMsg scanPlan scanWord scanVerdict scanPaused scanSetAside
 	local scanRow scanTable scanStatus scanRunNamed scanBegan scanLive scanAskSet scanTab scanSandbox scanRecordAt scanRecordAge scanAgentLess
-	local scanList scanListKept scanListAt scanListAny scanLogAt
+	local scanList scanListKept scanListAt scanListAny scanLogAt scanClar scanCtlRows scanCtlLive
 	local scanStallSec scanPending scanAskParent scanAskFound scanAskParentMember scanRecordName scanRecordPath scanFrame scanFrameName scanFrameAt scanFrameOpen scanFrameRepeat
+	local scanRigRoot scanRigOwner
+	local scanAskFiles scanNoiseThreads scanThreadTs scanOwnerAge scanReminders
+	local scanRevItems scanRevItem scanRevName scanRevSince scanRevRung scanRevSpawn scanRevLeft scanRevLimit
+	local scanGroupPs scanGroupPids scanGroupIds scanParentSid scanQueueState scanBoardRoot scanMsgTail
 	while [ $# -gt 0 ] ; do
 		case "$1" in
 			--since) [ $# -ge 2 ] || { echo "$MDSC_CMD: ⛔ ERROR: --since requires an epoch" >&2 ; return 1 ; } ; scanSince="$2" ; shift 2 ;;
@@ -66,7 +97,25 @@ AgentsToolsSuperviseScan(){
 			*) echo "$MDSC_CMD: ⛔ ERROR: --supervise-scan: invalid option: $1" >&2 ; return 1 ;;
 		esac
 	done
-	[ ${#scanWorkspaces[@]} -gt 0 ] || scanWorkspaces=( "${MMDAPP%/}" )
+	## THE RIGS THE TEAM RUNS, read once, for the pass with no --workspace. A named --workspace is held to the same test, one at a
+	## time. The test is the workspace's own mode, never a list kept here, so a rig that starts or stops is read as it stands.
+	type AgentsToolsSuperviseRigs > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/supervise/AgentsTools.SuperviseRigs.include"
+	if [ ${#scanWorkspaces[@]} -eq 0 ] ; then
+		while IFS=$'\t' read -r scanRigRoot scanRigOwner ; do
+			[ -n "$scanRigRoot" ] || continue
+			scanWorkspaces+=( "$scanRigRoot" )
+		done <<< "$( AgentsToolsSuperviseRigs "${MMDAPP%/}" )"
+		## A SCAN THAT REACHED NO RIG SAYS SO, never a blank that reads as a clean pass.
+		[ ${#scanWorkspaces[@]} -gt 0 ] || { printf 'error - - no rig: no workspace of this machine is a team rig running the team duties\n' ; return 1 ; }
+	else
+		## A WORKSPACE THE TEAM DOES NOT RUN IS REFUSED. A path recalled rather than read is how a scan read a workspace that is no
+		## rig, and the rigs it should have read went unsupervised.
+		for scanWs in ${scanWorkspaces[@]+"${scanWorkspaces[@]}"} ; do
+			AgentsToolsSuperviseRigIs "$scanWs" && continue
+			echo "$MDSC_CMD: ⛔ ERROR: --supervise-scan: $scanWs is no rig -- a rig is a workspace whose own settings make it a team rig and run the team duties -- nothing was done" >&2
+			return 1
+		done
+	fi
 	scanStallSec="${MDAT_SUPERVISE_STALL_SECONDS:-600}"
 	case "$scanStallSec" in ''|*[!0123456789]*|0) scanStallSec=600 ;; esac
 	scanNow="$( date -u +%s )"
@@ -82,11 +131,31 @@ AgentsToolsSuperviseScan(){
 	scanLive="$( printf '%s\n' "$scanPs" | AgentsToolsRunWords )" || scanLive=""
 	scanBegan="$( printf '%s\n' "$scanPs" | LC_ALL=C awk 'NF { print $1 }' | AgentsToolsRunProcessesBegan )" || scanBegan=""
 	for scanWs in ${scanWorkspaces[@]+"${scanWorkspaces[@]}"} ; do
+		scanRigOwner="$( AgentsToolsSuperviseRigOwner "$scanWs" )" || scanRigOwner=""
 		scanAgents="$scanWs/.local/agents"
 		[ -d "$scanAgents" ] || { printf 'error %s - no .local/agents here\n' "${scanWs##*/}" ; continue ; }
 		## EVERY RECORD'S FIELDS IN ONE READ OF THEM ALL, before any question is read, since the asks below answer from it:
 		## `<sandbox> <name> <written> <spawn-id> <session-id> <owner> <status> <run-process> <parent-session-id> <agent-less>`, TAB-separated.
 		scanTable="$( AgentsToolsSpawnedRecordRows "$scanWs" spawn-id session-id owner status run-process parent-session-id agent-less 2> /dev/null )" || scanTable=""
+		## A SESSION WHOSE STARTS KEEP FAILING, from the same table: it reads as starting while every start fails.
+		type AgentsToolsSuperviseStartFailing > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/supervise/AgentsTools.SuperviseStartFailing.include"
+		AgentsToolsSuperviseStartFailing "$scanWs" "$scanNow" "$scanTable"
+		## A RUN ON RULES OLDER THAN THE SKILLSET, from the same table: a rule landed since its start does not bind it.
+		type AgentsToolsSuperviseStaleRules > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/supervise/AgentsTools.SuperviseStaleRules.include"
+		AgentsToolsSuperviseStaleRules "$scanWs" "$scanNow" "$scanTable"
+		## AN OPEN ASK WHOSE THREAD ANOTHER OPEN ASK ALSO NAMES, counted in one pass over the store before the loop below reads it.
+		scanAskFiles=( "$scanAgents"/pending/*.md )
+		scanNoiseThreads=""
+		if [ -f "${scanAskFiles[0]}" ] ; then
+			scanNoiseThreads="$( LC_ALL=C awk -v statusKey="status: " -v threadKey="thread-ts: " '
+				FNR == 1 { fence = 0 ; status = "" ; threadTs = "" }
+				$0 == "---" { fence++ ; if ( fence == 2 && status == "reply-pending" && threadTs != "" ) count[ threadTs ]++ ; next }
+				fence == 1 && index( $0, statusKey ) == 1 { status = substr( $0, length( statusKey ) + 1 ) ; next }
+				fence == 1 && index( $0, threadKey ) == 1 { threadTs = substr( $0, length( threadKey ) + 1 ) ; next }
+				END { for ( oneTs in count ) if ( count[ oneTs ] > 1 ) print oneTs }
+			' "${scanAskFiles[@]}" 2> /dev/null )" || scanNoiseThreads=""
+		fi
+		type AgentsToolsPendingReplyField > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.PendingReplyRecords.include"
 		for scanFile in "$scanAgents"/pending/*.md ; do
 			[ -f "$scanFile" ] || continue
 			LC_ALL=C grep -q -x 'status: reply-pending' "$scanFile" || continue
@@ -108,6 +177,19 @@ AgentsToolsSuperviseScan(){
 			printf 'ask %s %s %s by %s at %s\n' "${scanWs##*/}" "$( basename "$scanFile" .md | cut -c1-8 )" \
 				"$( LC_ALL=C sed -n 's/^kind: //p' "$scanFile" | head -1 )" "$( LC_ALL=C sed -n 's/^owner: //p' "$scanFile" | head -1 )" \
 				"$( LC_ALL=C sed -n 's/^asked-at: //p' "$scanFile" | head -1 )"
+			## THE THREAD HOLDS ANOTHER QUESTION, so a reply in it can answer the wrong one.
+			scanThreadTs="$( LC_ALL=C sed -n 's/^thread-ts: //p' "$scanFile" | head -1 )"
+			case "$scanThreadTs" in
+				'') ;;
+				*) case $'\n'"$scanNoiseThreads"$'\n' in
+					*$'\n'"$scanThreadTs"$'\n'*) printf 'ask-thread-noise %s %s thread %s\n' "${scanWs##*/}" "$( basename "$scanFile" .md | cut -c1-8 )" "$scanThreadTs" ;;
+				esac ;;
+			esac
+			## AN OPEN ASK SOMEONE HAS ALREADY ANSWERED IN WORDS: a reply that does not start with an option is kept as a clarification
+			## and the ask stays open, so the answer waits unread. Its line carries the newest of them, for the coordinator to close the
+			## ask with those words where they settle it.
+			scanClar="$( LC_ALL=C awk '/^## Clarifications/ { on = 1 ; next } /^## / { on = 0 } on && /^- / { last = $0 } END { print last }' "$scanFile" )"
+			[ -z "$scanClar" ] || printf 'ask-clarified %s %s %s\n' "${scanWs##*/}" "$( basename "$scanFile" .md | cut -c1-8 )" "$( printf '%s' "${scanClar#- }" | cut -c1-160 )"
 			## AN ASK TO THE OWNER THAT ITS OWN PARENT CAN SETTLE (S13.2). The asking run's record names the session that
 			## started it; where that parent is a live magic-coordinator's, the question never needed the owner. Every other
 			## ask keeps its one line. Liveness is the tooling's one reading of it, so an unknown parent is never a live one.
@@ -115,6 +197,14 @@ AgentsToolsSuperviseScan(){
 				*human-owner*|U0*) ;;
 				*) continue ;;
 			esac
+			## WHAT THE OWNER STILL HOLDS: how long it has stood, and how often it was reminded, from its own record.
+			scanOwnerAge="-"
+			scanEpoch="$( LC_ALL=C sed -n 's/^asked-at: //p' "$scanFile" | head -1 \
+				| LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/output/LocalIsoToEpoch.awk" 2> /dev/null )" || scanEpoch=""
+			case "$scanEpoch" in ''|*[!0123456789]*) ;; *) scanOwnerAge="$(( ( scanNow - scanEpoch ) / 60 ))m" ;; esac
+			scanReminders="$( AgentsToolsPendingReplyField "$scanFile" reminders )"
+			case "$scanReminders" in ''|*[!0123456789]*) scanReminders=0 ;; esac
+			printf 'owner-ask %s %s age=%s reminders=%s\n' "${scanWs##*/}" "$( basename "$scanFile" .md | cut -c1-8 )" "$scanOwnerAge" "$scanReminders"
 			## BOTH ANSWERS COME FROM THE RECORD TABLE READ ONCE ABOVE (S13.18): the asking run's parent and that parent's member, in
 			## one lookup. A scan's cost is then the records' own, however many questions the owner holds.
 			scanAskSid="$( LC_ALL=C sed -n 's/^session-id: //p' "$scanFile" | head -1 )"
@@ -279,6 +369,11 @@ AgentsToolsSuperviseScan(){
 			printf 'run %s %s %s %s tool=%s age=%s paused=%s asks=%s msg %s plan: %s\n' "${scanWs##*/}" \
 				"${scanSpid:0:8}" "$scanMember" "$scanVerdict" "${scanTool:-none}" "$scanAgeText" \
 				"$scanPaused" "$scanAsks" "$scanMsg" "$scanPlan"
+			## A GATE POSTED AS A PLAIN MESSAGE: the run's latest post opens a gate, and no ask stands behind it.
+			scanMsgTail="${scanMsg#*: }"
+			case "$scanMsgTail" in
+				'gate: '*) [ "$scanAsks" -gt 0 ] || printf 'gate-as-message %s %s %s %s\n' "${scanWs##*/}" "${scanSpid:0:8}" "$scanMember" "${scanMsgTail#gate: }" ;;
+			esac
 			## THE RUN'S FRAME IN FORCE (S6.27 stage 6): the two readings and the one kind the design names, and none of them is
 			## `stale-plan`. `frame` is where every live run with a stack stands: its routine on top, how long that frame has held,
 			## how many frames stay open below it, and how often it has been pushed or rewound. `frame-repeat` marks a frame pushed
@@ -326,14 +421,20 @@ AgentsToolsSuperviseScan(){
 		## workspace, which is what a scan is for: a thread whose pid still lives, whose log has said nothing for that limit and five
 		## minutes more, and whose session has no record left open at all, so nothing it watches can come back.
 		scanNoRunMin=$(( ( ${SESSION_CONTROL_NO_RUN_END_SECONDS:-3600} + 300 ) / 60 ))
+		## Alive as the list of sessions reads it (AgentsToolsSessionControlLive): the pid the file names, begun when the file says.
+		## A bare pid test took a later process that reused the number for a thread that died days before. Asked ONCE for every
+		## session, so the process list is read once a workspace, never once a thread (it was 70 reads on MEL, most of the scan).
+		type AgentsToolsSessionControlLive > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionControlStart.include"
+		scanCtlRows="$( MMDAPP="$scanWs" AgentsSessionControlPidRows )"
+		scanCtlLive=$'\n'"$( printf '%s\n' "$scanCtlRows" | LC_ALL=C cut -f1 | MMDAPP="$scanWs" AgentsToolsSessionControlLive 2> /dev/null | LC_ALL=C awk '{ print $1 }' )"$'\n'
 		while IFS="$scanTab" read -r scanCtlSid scanCtlPid ; do
 			[ -n "$scanCtlSid" ] || continue
-			## Alive as the list of sessions reads it (AgentsToolsSessionControlLive): the pid the file names, begun when the file says.
-			## A bare pid test took a later process that reused the number for a thread that died days before.
-			type AgentsToolsSessionControlLive > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionControlStart.include"
-			[ -n "$( printf '%s\n' "$scanCtlSid" | MMDAPP="$scanWs" AgentsToolsSessionControlLive 2> /dev/null )" ] || continue
+			case "$scanCtlLive" in *$'\n'"$scanCtlSid"$'\n'*) ;; *) continue ;; esac
 			MMDAPP="$scanWs" AgentsSessionControlLogEpochInto scanCtlAt "$scanCtlSid" || continue
-			[ $(( scanNow - scanCtlAt )) -gt $(( scanNoRunMin * 60 )) ] || continue
+			## A THREAD THAT HAS OUTLIVED A CLOSE: past the closing window, its session has no record left open, so every run of
+			## it has ended. Inside SESSION_CONTROL_NO_RUN_END_SECONDS the thread is still within its own end, so the session is
+			## merely still open; past it the thread should have ended itself and has not.
+			[ $(( scanNow - scanCtlAt )) -gt "${SESSION_CONTROL_CLOSING_SECONDS:-300}" ] || continue
 			scanOpen=""
 			## The session's own records come from the kept per-session list, never a grep over every record (call-path audit row 50).
 			type AgentsToolsSpawnedSessionRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include"
@@ -343,9 +444,13 @@ AgentsToolsSuperviseScan(){
 				scanOpen="yes" ; break
 			done
 			[ -z "$scanOpen" ] || continue
+			if [ $(( scanNow - scanCtlAt )) -le $(( scanNoRunMin * 60 )) ] ; then
+				printf 'ended-open %s %s control=%s\n' "${scanWs##*/}" "$( printf '%s' "$scanCtlSid" | cut -c1-8 )" "$scanCtlPid"
+				continue
+			fi
 			printf 'control-stuck %s %s %s pid=%s quiet-over=%sm no-record-open\n' "${scanWs##*/}" \
 				"$( printf '%s' "$scanCtlSid" | cut -c1-8 )" "$scanCtlSid" "$scanCtlPid" "$scanNoRunMin"
-		done <<< "$( MMDAPP="$scanWs" AgentsSessionControlPidRows )"
+		done <<< "$scanCtlRows"
 		## A TEST RIG LEFT RUNNING (S5.2): a control thread started inside a run's own output folder, alive after that run's record closed.
 		while IFS= read -r scanCtlRow ; do
 			[ -n "$scanCtlRow" ] || continue
@@ -357,7 +462,66 @@ AgentsToolsSuperviseScan(){
 			[ "$scanStatus" != spawn-started ] || continue
 			printf 'rig-orphan %s %s pid=%s %s\n' "${scanWs##*/}" "${scanSpid:0:8}" "$scanCtlPid" "$scanCtlPath"
 		done <<< "$( MMDAPP="$scanWs" AgentsSessionRigControlRows )"
+		## WHAT THE OWNER IS OWED (S13): every message of his that no other account answered in its own thread, read from the comms
+		## cache the single ingest keeps, so the scan reaches no service itself.
+		type AgentsToolsSuperviseOwnerOwed > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/supervise/AgentsTools.SuperviseOwnerOwed.include"
+		AgentsToolsSuperviseOwnerOwed "$scanWs" "$scanNow" "$scanRigOwner"
+		## THE BOARD OF THIS WORKSPACE: every epic's movement, approved work the schedule passes over in silence, accepted work not
+		## landed, and runs still open a day on (AgentsTools.SuperviseBoard.include).
+		type AgentsToolsSuperviseBoard > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/supervise/AgentsTools.SuperviseBoard.include"
+		AgentsToolsSuperviseBoard "$scanWs" "$scanNow"
+		## A HAND-BACK WAITING ON A VERDICT, and one whose review-wait limit is close: the board's own walk, once.
+		type AgentsToolsTeamDataRootOf > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataRoot.include"
+		type AgentsToolsItemReviewer > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemReviewer.include"
+		type AgentsReviewWaitLimit > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ReviewFlow.include"
+		type AgentsToolsBoardItemsInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemDecisions.include"
+		scanBoardRoot="$( AgentsToolsTeamDataRootOf "$scanWs" 2> /dev/null )" || scanBoardRoot=""
+		if [ -n "$scanBoardRoot" ] ; then
+			scanRevLimit="$( AgentsReviewWaitLimit )"
+			scanRevItems=()
+			MDAT_DATA_ROOT="$scanBoardRoot" MMDAPP="$scanWs" AgentsToolsBoardItemsInto scanRevItems "" review
+			for scanRevItem in ${scanRevItems[@]+"${scanRevItems[@]}"} ; do
+				scanRevSince="$( AgentsToolsDecisionsField "$scanRevItem" review-since-epoch )"
+				case "$scanRevSince" in ''|*[!0123456789]*) continue ;; esac
+				scanRevName="${scanRevItem##*/}" ; scanRevName="${scanRevName%.md}"
+				scanRevRung="$( AgentsToolsItemReviewer "$scanRevItem" )"
+				scanRevRung="${scanRevRung#*:}"
+				case "$scanRevRung" in ''|none*) scanRevRung=none ;; magic-coordinator) scanRevRung=duty ;; human-owner) scanRevRung=owner ;; esac
+				printf 'review-waiting %s %s age=%sm rung=%s\n' "${scanWs##*/}" "$scanRevName" "$(( ( scanNow - scanRevSince ) / 60 ))" "$scanRevRung"
+				## NEAR THE LIMIT: the run that handed back still lives, so the verdict is still owed to it.
+				scanRevSpawn="$( AgentsToolsDecisionsField "$scanRevItem" spawn-id )"
+				[ -n "$scanRevSpawn" ] || continue
+				case $'\n'"$scanLive"$'\n' in *$'\n'"$scanRevSpawn"$'\n'*) ;; *) continue ;; esac
+				scanRevLeft=$(( scanRevSince + scanRevLimit - scanNow ))
+				[ "$scanRevLeft" -ge 600 ] || printf 'review-limit-near %s %s left=%ss rung=%s\n' "${scanWs##*/}" "$scanRevName" "$scanRevLeft" "$scanRevRung"
+			done
+		fi
+		## A PROCESS GROUP OF AN ENDED RUN: the leader its record kept is gone, and the group's number still holds a process.
+		## One awk over the record table and two sets read once, never a process a record: `scanGroupPids` every process id,
+		## `scanGroupIds` every group id. A leader pid still among the living is another group's now, so it is no finding.
+		scanGroupPs="$( ps -A -o pid=,pgid= 2> /dev/null )" || scanGroupPs=""
+		scanGroupPids=$'\n'"$( printf '%s\n' "$scanGroupPs" | LC_ALL=C awk 'NF { print $1 }' )"$'\n'
+		scanGroupIds=$'\n'"$( printf '%s\n' "$scanGroupPs" | LC_ALL=C awk 'NF { print $2 }' )"$'\n'
+		printf '%s\n' "$scanTable" | MDAT_SCAN_LIVE="$scanLive" MDAT_SCAN_PIDS="$scanGroupPids" MDAT_SCAN_GROUPS="$scanGroupIds" \
+			LC_ALL=C awk -F'\t' -v ws="${scanWs##*/}" -v now="$scanNow" '
+			BEGIN {
+				liveSet = "\n" ENVIRON["MDAT_SCAN_LIVE"] "\n" ; pidSet = ENVIRON["MDAT_SCAN_PIDS"] ; groupSet = ENVIRON["MDAT_SCAN_GROUPS"]
+			}
+			{
+				spawnId = $4 ; keptRun = $8 ; writtenAt = $3
+				split( keptRun, keptWord, " " ) ; leader = keptWord[1]
+				if ( leader !~ /^[0-9]+$/ ) next
+				if ( index( liveSet, "\n" spawnId "\n" ) ) next
+				if ( index( pidSet, "\n" leader "\n" ) ) next
+				if ( ! index( groupSet, "\n" leader "\n" ) ) next
+				if ( writtenAt !~ /^[0-9]+$/ ) writtenAt = now
+				printf "leftover-group %s %s pid=%s age=%dm\n", ws, substr( spawnId, 1, 8 ), leader, int( ( now - writtenAt ) / 60 )
+			}'
 	done
+	## THE MACHINE'S RETEST QUEUE, once a scan and not once a workspace, through its store's own owner.
+	type AgentsToolsRetestQueueState > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.RetestQueue.include"
+	scanQueueState="$( AgentsToolsRetestQueueState )" || scanQueueState=""
+	[ -z "$scanQueueState" ] || printf 'retest-queue %s %s\n' "${scanWorkspaces[0]##*/}" "$scanQueueState"
 	## The calling supervisor's own CheckList, as a digest, so every supervisor loop reports it beside its findings:
 	## `checklist <member> done=<n> in-progress=<n> open=<n>`, then one `checklist-doing` or `checklist-open` line an item.
 	MMDAPP="${MDAT_CALLER_WORKSPACE:-$MMDAPP}" AgentsSessionOwnChecklistLines "${CLAUDE_CODE_SESSION_ID:-}" "${MDAT_SPAWN_SESSION_ID:-}" | LC_ALL=C awk '

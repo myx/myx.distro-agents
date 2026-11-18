@@ -68,7 +68,7 @@ Coworking-like sessions only: name this session's transcript `transcript-<date>-
 
 ### post-opening-broadcast
 
-Post the session type, the participants known so far and the goal, if framed, into the session thread. Post at once; completeness never delays it. Coworking-like sessions: `magic-coordinator` makes the opening Trello card update, directly or as a `note-pending-trello-update-*` record in its own inbox.
+Post the session type, the participants known so far and the goal, if framed, into the session thread, addressed to `magic-coordinator`, never to the human-owner. Post at once; completeness never delays it. Coworking-like sessions: `magic-coordinator` makes the opening Trello card update, directly or as a `note-pending-trello-update-*` record in its own inbox.
 
 ### fold-in-learned-lessons
 

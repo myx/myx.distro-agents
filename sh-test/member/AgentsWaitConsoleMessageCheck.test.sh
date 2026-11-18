@@ -125,7 +125,7 @@ rigWaitTool(){ ## tool arguments json, output basename -- the Wait tool through 
 	rigRc=0
 	printf '%s' "$1" | ( cd "$rigWs" && env -u MDAT_SESSION_THREAD -u MDAT_CONVERSATION_THREADS -u MDAT_SESSION_ID -u MDAT_DATA_ROOT \
 		"PATH=$rigPath" "RIG_SCENARIO=$rigScn" "MMDAPP=$rigWs" "MDLT_ORIGIN=$MDLT_ORIGIN" "MDAT_SKILLSET_ROOT=$rigSkills" \
-		MDAT_SPAWN_SESSION_ID="$rigSess" MDAT_SPAWN_AGENT="$rigMember" MDAT_WAIT_REMIND=off MDAT_SLACK_THREAD_CACHE_SECONDS=0 \
+		MDAT_SPAWN_SESSION_ID="$rigSess" MDAT_SPAWN_AGENT="$rigMember" MDAT_WAIT_REMIND=off MDAT_SLACK_THREAD_CACHE_SECONDS=0 MDAT_WAIT_POLL_SECONDS=1 \
 		bash "$rigHarness" --intern-tool Wait ) > "$rigTmp/$2.out" 2> "$rigTmp/$2.err" || rigRc=$?
 }
 rigFloorBlocks(){ ## covered ("" or channel:ts) -- how many blocks the chat floor delivers into $rigTmp/floor.out
@@ -162,7 +162,7 @@ rigAssert "once, and named as the thread source's arrival" "$( LC_ALL=C grep -c 
 
 echo "-- 4. the harness tool returns it too --"
 rigFresh
-rigWaitTool "{\"timeout\":\"12\",\"poll_interval\":\"1\",\"mode\":\"default\",\"sources\":\"slack:$rigChannel:$rigRoot:conversation\",\"since_utime\":\"$rigRoot\"}" console-tool
+rigWaitTool "{\"timeout\":\"12\",\"mode\":\"default\",\"sources\":\"slack:$rigChannel:$rigRoot:conversation\",\"since_utime\":\"$rigRoot\"}" console-tool
 rigAssert "the Wait tool's result carries the console's body" "$( LC_ALL=C grep -c -F 'RIG-CONSOLE-BODY' "$rigTmp/console-tool.out" )" "1"
 
 echo "-- 5. the controls --"

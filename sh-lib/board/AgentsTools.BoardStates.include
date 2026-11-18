@@ -18,7 +18,8 @@
 ##
 
 ## THE ONE LIST of the states a board item can be in. A state added here has its folder
-## made by AgentsToolsBoardReady with no further code.
+## made by AgentsToolsBoardReady with no further code, and is one the item lookup searches, so a
+## state is named here and nowhere else.
 agentsBoardStates="backlog pending running review blocked parked processed archived retained"
 
 ## THE FIVE ACTIVE STATES: what a sweep gives a round or a recheck to, and no other. Backlog is

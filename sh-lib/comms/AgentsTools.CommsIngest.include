@@ -159,14 +159,29 @@ AgentsCommsIngestSlack(){ ## member, the channel id, [--as-bot] [--floor <slack 
 		done
 	done
 	AgentsCommsIngestAppend "$ingestDir" "$ingestRows" || { rm -f "$ingestRows" ; return 1 ; }
+	## A MESSAGE THIS PASS STORED IN A DIRECT CONVERSATION WAKES THE MEMBER'S WAITS (S1.13): a person's message writes none of our
+	## markers, and the wait reads this marker every tick, so its own DM read comes now rather than at its slow gap. Another channel is no wake.
+	case "$ingestChannel" in
+		D*)
+			case "$( LC_ALL=C awk -F'\t' '$1 == "msg" { n++ } END { print n + 0 }' "$ingestRows" 2> /dev/null )" in
+				''|0) ;;
+				*)
+					type AgentsToolsWakeTouch > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/wait/AgentsTools.WakeMarker.include"
+					AgentsToolsWakeTouch "$ingestMember" ingest
+				;;
+			esac
+		;;
+	esac
 	rm -f "$ingestRows"
 	return 0
 }
 
-## The event rows one raw read holds that the store does not, as the fifteen columns that follow the id.
+## The event rows one raw read holds that the store does not, as the fifteen columns that follow the id. THE STORE IS BOTH FILES:
+## the events, and the month's `messages.txt`, which holds a message the tooling itself posted (S1 item 11) and the messages the
+## cache held before the stream. A message either file holds is held, so neither is made again by a read.
 AgentsCommsIngestRows(){ ## the cache folder, and the read's body on stdin
 	local rowsDir rowsFiles=""
-	for rowsDir in "$1"/[0-9][0-9][0-9][0-9][0-9][0-9]/events.txt ; do
+	for rowsDir in "$1"/[0-9][0-9][0-9][0-9][0-9][0-9]/events.txt "$1"/[0-9][0-9][0-9][0-9][0-9][0-9]/messages.txt ; do
 		[ -f "$rowsDir" ] && rowsFiles="$rowsFiles $rowsDir"
 	done
 	LC_ALL=C awk -v storeFiles="$rowsFiles" -v lineBytes="${agentsCommsCacheLineCap:-2000}" -v headBytes=400 \

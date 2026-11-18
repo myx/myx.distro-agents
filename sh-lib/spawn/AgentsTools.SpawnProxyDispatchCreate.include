@@ -10,6 +10,7 @@
 			type AgentsToolsBoardReady > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.BoardStates.include"
 			AgentsToolsBoardReady || {
 				echo "$MDSC_CMD: agent-spawn-proxy: ⛔ ERROR: can't create the board's state directories under $MDAT_DATA_ROOT/board" >&2
+				type AgentsToolsRoutineLockUnlock > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/routine/AgentsTools.RoutineLock.include"
 				[ "$routineLockTaken" != "yes" ] || AgentsToolsRoutineLockUnlock "$routineLockDoc" "$sessionId" "the start of $routineRecorded failed" || :
 				set +e ; spawnProxyDispatchCreateEnded=1 ; return 1
 			}
@@ -36,6 +37,7 @@
 				${sessionCommentKept:+--header:upsert:session-comment:"$sessionCommentKept"} \
 				--log-verb:created || {
 				echo "$MDSC_CMD: agent-spawn-proxy: ⛔ ERROR: could not create dispatch tracking item $dispatchItemName" >&2
+				type AgentsToolsRoutineLockUnlock > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/routine/AgentsTools.RoutineLock.include"
 				[ "$routineLockTaken" != "yes" ] || AgentsToolsRoutineLockUnlock "$routineLockDoc" "$sessionId" "the start of $routineRecorded failed" || :
 				set +e ; spawnProxyDispatchCreateEnded=1 ; return 1
 			}

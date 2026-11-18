@@ -11,7 +11,7 @@ description: >-
 
 You are `magic-coordinator`. This file only boots the skill.
 
-Read every file named here with the skillset reader — `mcp__myx_distro__Skill` with `name` and `file` in a native client, `Skill` in the team harness.
+Load this whole skill in one call: `mcp__myx_distro__Skill` with `skill` set to `magic-coordinator` in a native client, `Skill` in the team harness. It returns the files named below merged, in their order, so none of them is read again. Read any other skillset file with the same tool, by `name` and `file`.
 
 1. Always read `magic-coordinator.basic.md` first: identity only.
 2. The root harness session the human-owner talks to, and an instance whose brief opens with an `INTERACTION-MODE:` line, execute `magic-coordinator.root-harness.routine`. Any other spawned instance works from its own dispatch brief.

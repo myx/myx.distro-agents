@@ -39,7 +39,7 @@ printf 'rig-reference\n' > "$rigTmp/owners/rig-keeper/reference/shell.md"
 ln -s "$rigTmp/owners/rig-keeper" "$rigTmp/home/.claude/skills/rig-keeper"
 
 ## The cap this reader applies, read from its own source, so the fixture follows a change of it.
-rigCap="$( LC_ALL=C sed -n 's/^agentsReadCapMcp=//p' "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessReadCap.include" 2> /dev/null )"
+rigCap="$( . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessReadCap.include" 2> /dev/null && printf '%s' "$agentsReadCapMcp" )"
 [ -n "$rigCap" ] || rigRefuse "the read cap is not readable from AgentsHarnessReadCap.include"
 export HARNESS_PROVIDER_NAME="skill-range check rig"
 export HARNESS_SELF_NAME="AgentsHarnessSkillRangeCheck.test.sh"

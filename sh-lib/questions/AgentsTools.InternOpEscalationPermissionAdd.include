@@ -53,7 +53,7 @@
 		AgentsToolsAssertBareName "$addRefusal" "--refusal-id" escalation-permission-add || { set +e ; return 1 ; }
 		type AgentsToolsPermissionSetPost > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionSetPost.include"
 		type AgentsToolsAskPostReact > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.AskPost.include"
-		type AgentsToolsTaskTextKept > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.TaskText.include"
+		type AgentsToolsTaskTextKept > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/core/AgentsTools.TaskText.include"
 		type AgentsToolsDecisionsItemPath > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemDecisions.include"
 		type AgentsToolsLocalLockTake > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.LocalLock.include"
 		## The call asked for, from its refusal record: never from the asker's words.
@@ -167,6 +167,7 @@
 		esac
 		## The prompt with this call added, filled from what its record will keep.
 		local addNewHave="$addHave$addEntry"$'\n' addNewPlaces="$addPlaces" addNewPurposes="$addPurposes" addBody="" addWas="" addWasEmoji=""
+		type AgentsToolsPermissionPlaceHint > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionPlaces.include"
 		addText="$( AgentsToolsPermissionPlaceHint "${addEntry#*:}" )"
 		[ -z "$addText" ] || [ -n "$( AgentsToolsPermissionSetLookup "$addPlaces" "${addEntry#*:}" )" ] || addNewPlaces="$addPlaces${addEntry#*:}"$'\t'"$addText"$'\n'
 		## One place has one purpose: the first one given for it stays.

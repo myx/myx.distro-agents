@@ -81,6 +81,15 @@ AgentsHarnessBatchCallBody(){ ## tool name, arguments file
 		NOT-HELD:*) ;;
 		*) AgentsTranscriptToolDone "$1" "$harnessToolOnlyArgs" "$harnessResult" mcp "$harnessTranscriptOutcome" || : ;;
 	esac
+	## WHAT THIS CALL ITSELF RAN, for the pace: the span a tool keeps from inside its own subshell (AgentsHarnessToolRunMsKeep),
+	## which is the Bash child's run or the Wait's waiting. The engine holds the call's whole time and takes this from it.
+	if [ -n "${harnessScratch:-}" ] && [ -f "$harnessScratch/tool.run.ms" ] ; then
+		[ -n "${harnessToolRunMs:-}" ] || { IFS= read -r harnessToolRunMs < "$harnessScratch/tool.run.ms" ; } 2> /dev/null || :
+		rm -f "$harnessScratch/tool.run.ms" 2> /dev/null || :
+	fi
+	case "${harnessToolRunMs:-}" in ''|*[!0-9]*) harnessToolRunMs=0 ;; esac
+	printf '%s\n' "$harnessToolRunMs" > "${2%.args}.ran" 2> /dev/null || :
+	harnessToolRunMs=""
 	AgentsHarnessReply "$1" "$harnessResult"
 	printf '%s\n' "$harnessReply"
 	## A refused or unknown tool leaves a caller's status check dead otherwise.
@@ -207,7 +216,7 @@ AgentsHarnessToolCheckList(){ ## raw arguments
 AgentsHarnessCheckListPlace(){
 	type AgentsSessionRunRecordInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
 	type AgentsHarnessDispatchField > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessSpawn.include"
-	local placeRecord=""
+	local placeRecord="" placeList=""
 	checkListMember="" checkListSession="" checkListFolder="" checkListWhy=""
 	if [ -z "$harnessAgent" ] ; then
 		checkListWhy='this session has no team identity, so its checklist has no place to be kept: set MDAT_SKILLSET_ROOT to the team skillset in the server environment so the served member resolves.' ; return 1
@@ -228,13 +237,14 @@ AgentsHarnessCheckListPlace(){
 		checkListWhy='the session id of this call is no bare name, so it names no place for a checklist: call RootSession operation=mint to make a session, or operation=adopt with the id and token mint printed.'
 		checkListSession="" ; return 1
 	fi
-	AgentsSessionRunRecordInto placeRecord "$checkListSession" || :
-	if [ -n "$placeRecord" ] ; then
-		checkListFolder="${placeRecord%/*}"
-	else
-		AgentsSessionFolderInto checkListFolder "$MMDAPP" "$checkListSession" || checkListFolder=""
+	## The folder is the session owner's one locator's (AgentsSessionChecklistFileInto), so this tool, the Wait's checklist
+	## probe and --idle-wait never name two places for one list.
+	type AgentsSessionChecklistFileInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.CheckListSeed.include"
+	if ! AgentsSessionChecklistFileInto placeList "$checkListSession" "$harnessAgent" ; then
+		checkListWhy='the member name of this call is no bare name, so its checklist has no place to be kept: set MDAT_SKILLSET_ROOT to the team skillset in the server environment so the served member resolves.' ; return 1
 	fi
 	checkListMember="$harnessAgent"
+	checkListFolder="${placeList%/*}"
 	return 0
 }
 
@@ -463,9 +473,11 @@ AgentsHarnessCheckListAppendLines(){ ## folder, member -- stdin: the item texts,
 ## (the target's record names the caller's session as `parent-session-id`) and the participant its executor (the record's owner) -- or, with no session, to the caller's own list. Nothing
 ## already on a list is changed. The result names the member and the session and gives no path.
 AgentsHarnessCheckListAppend(){
+	type AgentsSessionRunRecordInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+	type AgentsSessionChecklistFileInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.CheckListSeed.include"
 	type AgentsHarnessArgFind > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessRun.include"
 	type AgentsHarnessBareName > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessSpawn.include"
-	local appendMember="${harnessArgV_member:-}" appendSession="${harnessArgV_session:-}" appendCount appendIndex=0 appendItems="" appendRecord appendFolder appendAdded appendDueText appendDueAt
+	local appendMember="${harnessArgV_member:-}" appendSession="${harnessArgV_session:-}" appendCount appendIndex=0 appendItems="" appendRecord appendList appendFolder appendAdded appendDueText appendDueAt
 	if AgentsHarnessArgFind todos.__count ; then
 		printf 'ERROR: append adds to a list and takes no todos, which replace your own: give one or the other. Nothing was written.\n' ; return 0
 	fi
@@ -511,7 +523,8 @@ AgentsHarnessCheckListAppend(){
 		if [ "$( AgentsHarnessDispatchField "$appendRecord" owner )" != "$appendMember" ] ; then
 			printf 'ERROR: %s is not the executor of session %s, whose list takes the parent'"'"'s items. Nothing was written.\n' "$( AgentsHarnessTruncateArg "$appendMember" )" "$appendSession" ; return 0
 		fi
-		appendFolder="${appendRecord%/*}"
+		AgentsSessionChecklistFileInto appendList "$appendSession" "$appendMember" || { printf 'ERROR: the checklist of %s in session %s has no place to be kept. Nothing was written.\n' "$( AgentsHarnessTruncateArg "$appendMember" )" "$appendSession" ; return 0 ; }
+		appendFolder="${appendList%/*}"
 	fi
 	if ! appendAdded="$( printf '%s' "$appendItems" | AgentsHarnessCheckListAppendLines "$appendFolder" "$appendMember" )" ; then
 		printf 'ERROR: the checklist of %s could not be written to. Nothing was written.\n' "$appendMember" ; return 0

@@ -190,7 +190,7 @@ rigDismissedBy="$( dismissalMember=magic-tester LC_ALL=C awk -f "$rigLib/questio
 rigAssert "the dismissal reader finds the DISMISSED among messages that carry tokens" "$rigDismissedBy:rc=$rigRc" '1791525820.000100 | U0BOT:rc=0'
 rigDismissedBy="$( LC_ALL=C grep -v -F 'DISMISSED' "$rigTmp/thread.fmt" | dismissalMember=magic-tester LC_ALL=C awk -f "$rigLib/questions/AgentsDismissalMatch.awk" -f "$rigLib/harness/AgentsHarnessWaitDismissed.awk" )" ; rigRc=$?
 rigAssert "and none where there is none: a reminder with a token dismisses no one" "$rigDismissedBy:rc=$rigRc" ':rc=1'
-COMMS_USER_HANDLES=$'U0TESTER\ttester' LC_ALL=C awk -v kind=slack -v source=rig -v channel=CRIG -f "$rigLib/session/AgentsSessionContextCommsItems.awk" < "$rigTmp/thread.json" > "$rigTmp/thread.items" 2>> "$rigTmp/thread.err" ; rigRc=$?
+COMMS_USER_HANDLES=$'U0TESTER\ttester' LC_ALL=C awk -v kind=slack -v source=rig -v channel=CRIG -f "$rigLib/comms/AgentsSessionContextCommsItems.awk" < "$rigTmp/thread.json" > "$rigTmp/thread.items" 2>> "$rigTmp/thread.err" ; rigRc=$?
 rigAssert "the session-context scan: no raw control string, the text with its fallback" \
 	"$rigRc:$( LC_ALL=C grep -c -F '!date^' "$rigTmp/thread.items" ):$( LC_ALL=C grep -c -x -F 'text: yes, since 2026-10-09 06:02 UTC | fine' "$rigTmp/thread.items" )" 0:0:1
 rigAssert "it still reads who a message with a token is from and for: the send header, and a mention" \
@@ -208,7 +208,7 @@ printf '{"ok":true,"messages":[{"ts":"1.000001","user":"U1","text":"%s"}]}\n' "$
 printf '{"ok":true,"messages":{"total":1,"paging":{"count":20,"total":1,"page":1,"pages":1},"matches":[{"ts":"9.000001","user":"U1","text":"%s","permalink":"https://rig.slack.com/archives/C1/p9000001"}]}}\n' "$rigReaderText" > "$rigTmp/one.search.json"
 rigAssert "the readers' copies say what the helper says: the formatter, the session-context scan, the search" \
 	"$( LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" \
-	-f "$rigLib/slack/AgentsSlackMessagesFormat.awk" < "$rigTmp/one.json" )|$( LC_ALL=C awk -v kind=slack -v source=rig -v channel=C1 -f "$rigLib/session/AgentsSessionContextCommsItems.awk" < "$rigTmp/one.json" | LC_ALL=C grep '^text: ' )|$( LC_ALL=C awk -v cutoff=5 -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" -f "$rigLib/slack/AgentsSlackSearchMatches.awk" < "$rigTmp/one.search.json" )" \
+	-f "$rigLib/slack/AgentsSlackMessagesFormat.awk" < "$rigTmp/one.json" )|$( LC_ALL=C awk -v kind=slack -v source=rig -v channel=C1 -f "$rigLib/comms/AgentsSessionContextCommsItems.awk" < "$rigTmp/one.json" | LC_ALL=C grep '^text: ' )|$( LC_ALL=C awk -v cutoff=5 -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" -f "$rigLib/slack/AgentsSlackSearchMatches.awk" < "$rigTmp/one.search.json" )" \
 	"1.000001 | U1 | $rigWant|text: $rigWant|9.000001 | U1 | $rigWant"
 
 ## ---------------------------------------------------------------------------

@@ -378,3 +378,28 @@ AgentsToolsRetestResult(){ ## operation, request id... -- where each request sta
 	done
 	return "$resultRc"
 }
+
+## The queue as one line, for a reader that asks once: `waiting=<n> oldest=<n>m holder=<alive|stale|none>`, the age counted
+## from the oldest request's own `asked:` stamp. Nothing printed where nothing waits and no drain lock stands, so a caller may
+## print its line only where this one is not empty. The oldest is the first by name, and a request is named by the moment it was
+## asked in UTC, so the name order is the age order.
+AgentsToolsRetestQueueState(){
+	local stateCount=0 stateAsked="" stateAge=0 stateHolder=none stateFile statePid stateEpoch stateNow
+	for stateFile in "$retestStore"/waiting/*.request ; do
+		[ -f "$stateFile" ] || continue
+		stateCount=$(( stateCount + 1 ))
+		[ -n "$stateAsked" ] || stateAsked="$( LC_ALL=C sed -n 's/^asked: //p' "$stateFile" 2> /dev/null | LC_ALL=C sed -n 1p )"
+	done
+	if [ -n "$stateAsked" ] ; then
+		stateNow="$( date +%s )"
+		stateEpoch="$( printf '%s\n' "$stateAsked" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/output/LocalIsoToEpoch.awk" 2> /dev/null )" || stateEpoch=""
+		case "$stateEpoch" in ''|*[!0123456789]*) ;; *) stateAge=$(( ( stateNow - stateEpoch ) / 60 )) ;; esac
+	fi
+	if [ -d "$retestStore/drain.lock" ] ; then
+		stateHolder=stale
+		statePid="$( LC_ALL=C sed -n 's/^pid: //p' "$retestStore/drain.lock/holder" 2> /dev/null | LC_ALL=C sed -n 1p )"
+		[ -z "$statePid" ] || [ -z "$( AgentsToolsRetestProcess "$statePid" )" ] || stateHolder=alive
+	fi
+	[ "$stateCount" -gt 0 ] || [ "$stateHolder" != none ] || return 0
+	printf 'waiting=%s oldest=%sm holder=%s\n' "$stateCount" "$stateAge" "$stateHolder"
+}

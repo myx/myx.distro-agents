@@ -66,7 +66,8 @@ echo "-- 1. the table --"
 rigAssert "a tool in the table answers its own number" "$( AgentsHarnessToolWindowSeconds Read )" "30"
 rigAssert "a name the table does not hold answers nothing" "[$( AgentsHarnessToolWindowSeconds rigNoSuchTool )]" "[]"
 rigAssert "every row sits inside the window the owner set, 10 to 300 seconds" "$( printf '%s\n' "$agentsHarnessToolWindow" | LC_ALL=C awk -F'\t' 'NF { if ( $2 < 10 || $2 > 300 || $2 !~ /^[0-9]+$/ ) { bad++ ; } } END { print bad + 0 ; }' )" "0"
-rigAssert "and no tool that blocks by design on its own bound carries one" "$( for rigSkip in Wait AskQuestion ConfirmReadback EscalateDecision RequestPermission ProposeApprove ThisSession TaskOutput TaskStop SubagentHandback BatchTools ; do printf '%s\n' "[$( AgentsHarnessToolWindowSeconds "$rigSkip" )]" ; done | LC_ALL=C grep -c '^\[\]$' )" "11"
+rigAssert "and no tool that blocks by design on its own bound carries one" "$( for rigSkip in Wait ThisSession TaskOutput TaskStop SubagentHandback BatchTools ; do printf '%s\n' "[$( AgentsHarnessToolWindowSeconds "$rigSkip" )]" ; done | LC_ALL=C grep -c '^\[\]$' )" "6"
+rigAssert "and neither does an ask tool: its window is the bound, and its own timeout is its round" "$( for rigAsk in AskQuestion ConfirmReadback EscalateDecision RequestPermission ProposeApprove ; do printf '%s\n' "[$( AgentsHarnessToolWindowSeconds "$rigAsk" )]" ; done | LC_ALL=C grep -c '^\[\]$' )" "5"
 
 echo "-- 2. a call that runs long, at its own window --"
 rigCall Read "{\"file_path\":\"$rigTmp/work/note.txt\"}" read1

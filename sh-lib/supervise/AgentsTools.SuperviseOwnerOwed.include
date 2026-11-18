@@ -1,0 +1,47 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.SuperviseOwnerOwed.include -- the supervisor's `owner-owed` reading (S13): each message of the human-owner
+## in a workspace's conversations that no other account answered in its own thread, read from the comms cache alone.
+##
+## It reads local files only, so no Slack call of the scan's own is made: the single ingest and the supervisor's rig put
+## every message there (S1.12, S1 ruling 14). A message's own thread is the thread folder that carries it where one does,
+## and its conversation itself where none does; the folder's own `.state.txt` pulling line names both. A conversation counts
+## when it is the team channel or a direct one: another channel holds no conversation of his, and a mentions or search
+## partition holds no conversation at all.
+## The reading itself is AgentsSuperviseOwnerOwed.awk's; this file finds the cache, the two ids and the store's month files.
+## Sourced, never run: functions only.
+##
+
+## What the owner is owed (S13): every message of the rig's owner that no other account answered in its own thread, read from the comms
+## cache the single ingest keeps, so the scan reaches no service itself. The owner's own account is the rig list's answer for this rig
+## (AgentsTools.SuperviseRigs.include), and the team channel is the rig's own.
+AgentsToolsSuperviseOwnerOwedIds(){ ## workspace, the rig's owner account
+	local idsOwner="${2:-}" idsTeam=""
+	[ -n "$idsOwner" ] || return 1
+	type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/settings/AgentsTools.ConfigOption.include"
+	idsTeam="$( MMDAPP="${1%/}" AgentsToolsConfigOption magic-team --select SLACK_CHANNEL_MAGIC_TEAM 2> /dev/null )" || idsTeam=""
+	case "$idsTeam" in [CD][A-Z0-9]*) ;; *) return 1 ;; esac
+	agentsSuperviseOwedOwner="$idsOwner"
+	agentsSuperviseOwedTeam="$idsTeam"
+	return 0
+}
+
+## ONE WORKSPACE'S `owner-owed` LINES, in the scan's own form. One awk pass over every month file the cache keeps, so a
+## workspace with a hundred conversations still costs one process. A workspace with no cache, or with no owner account, prints none.
+AgentsToolsSuperviseOwnerOwed(){ ## workspace, now, the rig's owner account
+	local owedWs="${1%/}" owedNow="$2" owedStore owedFiles=() owedFile
+	[ -n "$owedWs" ] && [ -d "$owedWs/.local/cache/comms/slack" ] || return 0
+	AgentsToolsSuperviseOwnerOwedIds "$owedWs" "${3:-}" || return 0
+	owedStore="$owedWs/.local/cache/comms/slack"
+	for owedFile in "$owedStore"/*/[0-9][0-9][0-9][0-9][0-9][0-9]/messages.txt ; do
+		[ -f "$owedFile" ] && owedFiles+=( "$owedFile" )
+	done
+	[ "${#owedFiles[@]}" -gt 0 ] || return 0
+	LC_ALL=C awk -v ws="${owedWs##*/}" -v owner="$agentsSuperviseOwedOwner" -v team="$agentsSuperviseOwedTeam" \
+		-v now="$owedNow" -v headBytes=80 \
+		-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/supervise/AgentsSuperviseOwnerOwed.awk" \
+		${owedFiles[@]+"${owedFiles[@]}"} 2> /dev/null || :
+	return 0
+}

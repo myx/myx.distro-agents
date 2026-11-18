@@ -32,5 +32,5 @@ AgentsToolsTrackingDrop(){ ## member
 		dropMember="$( AgentsToolsRunRouteMember "$dropRoute" 2> /dev/null )" || dropMember=""
 		[ "$dropMember" = "$1" ] || dropAway="$dropAway $dropId"
 	done
-	printf '%s' "$dropText" | LC_ALL=C awk -v member="$1" -v away="${dropAway# }" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTrackingDrop.awk"
+	printf '%s' "$dropText" | LC_ALL=C awk -v member="$1" -v away="${dropAway# }" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/wait/AgentsTrackingDrop.awk"
 }

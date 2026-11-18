@@ -19,7 +19,7 @@ rigTest="${rigHere%/sh-lib}/sh-test"
 rigFn="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-reply.include.sh" || { echo "⛔ ERROR: the rig's reply fixture is missing from the package: sh-test/check-fixtures/rig-reply.include.sh -- refusing to report a result" >&2 ; exit 1 ; }
 rigHarness="$rigHere/harness/AgentsUniversalHarness.sh"
-rigFormat="$rigHere/session/AgentsSessionTranscriptFormat.awk"
+rigFormat="$rigHere/transcript/AgentsSessionTranscriptFormat.awk"
 
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1

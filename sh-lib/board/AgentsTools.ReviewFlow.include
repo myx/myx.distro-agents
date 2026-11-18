@@ -637,10 +637,14 @@ AgentsToolsSpawnParentThread(){ ## parent session id, this spawn's own id
 ## run that handed back and waits for its review is alive and waiting, also while the one who
 ## would review it is the dead one. Once the question is closed the limit runs again, counted
 ## from the moment it was closed where that is later than the moment the item entered review.
+## THE LIMIT COUNTS FROM THE ANSWER ITS OWNER GAVE IT TOO: an ask of this run's session that was
+## answered restarts the count, so a run that has its verdict and is applying is never ended
+## mid-apply. The moment of that answer is the ask store's own (AgentsToolsPendingReplySessionAnswerInto,
+## AgentsTools.PendingReplyRecords.include), read as a kept measure, never by opening its records.
 AgentsReviewWaitLeft(){ ## spawn id
 	type AgentsToolsDecisionsItemPath > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemDecisions.include"
 	type AgentsToolsFrontmatterKey > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.FrontmatterKey.include"
-	local leftItem leftPath leftSince leftLimit leftNow leftRecord leftSession="" leftHold=""
+	local leftItem leftPath leftSince leftLimit leftNow leftRecord leftSession="" leftHold="" leftAnswer=""
 	leftItem="$( AgentsReviewItemOfSession "$1" )" || return 1
 	leftPath="$( AgentsToolsDecisionsItemPath "$leftItem" )" || return 1
 	[ "$( statePath="${leftPath%/*}" ; printf '%s' "${statePath##*/}" )" = review ] || return 1
@@ -661,6 +665,11 @@ AgentsReviewWaitLeft(){ ## spawn id
 			''|*[!0123456789]*) ;;
 			*) [ "$leftHold" -le "$leftSince" ] || leftSince="$leftHold" ;;
 		esac
+	fi
+	if [ -n "$leftSession" ] ; then
+		type AgentsToolsPendingReplySessionAnswerInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.PendingReplyRecords.include"
+		AgentsToolsPendingReplySessionAnswerInto leftAnswer "$leftSession" || leftAnswer=""
+		case "$leftAnswer" in ''|*[!0123456789]*) ;; *) [ "$leftAnswer" -le "$leftSince" ] || leftSince="$leftAnswer" ;; esac
 	fi
 	leftLimit="$( AgentsReviewWaitLimit )"
 	leftNow="$( date +%s )"
@@ -765,7 +774,7 @@ AgentsReviewPromptPost(){ ## who handed back, item file name, its spawn id, outc
 		*) return 0 ;;
 	esac
 	type AgentsToolsAskPostReact > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.AskPost.include"
-	type AgentsToolsTaskText > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.TaskText.include"
+	type AgentsToolsTaskText > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/core/AgentsTools.TaskText.include"
 	rpTask="$( AgentsToolsTaskText "$rpPath" )"
 	for rpName in "$( AgentsToolsTaskTextValue "$rpTask" item )" "$( AgentsToolsTaskTextValue "$rpTask" dispatch )" ; do
 		[ -z "$rpName" ] || rpNames="$rpNames${rpNames:+ · }\`$rpName\`"

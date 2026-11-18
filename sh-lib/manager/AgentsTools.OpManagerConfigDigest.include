@@ -31,7 +31,7 @@
 				systems) digestLines="$( AgentsToolsManagerConfigSystems )" || digestLines="" ;;
 				loop) digestLines="$( AgentsToolsManagerConfigLoop )" || digestLines="" ; [ -n "$digestLines" ] || continue ;;
 				scopes) digestLines="$( AgentsToolsManagerConfigScopes )" || digestLines="" ;;
-				interface|console|control|knowledge) digestLines="$( AgentsToolsManagerConfigDeclared "$digestName" )" || digestLines="" ;;
+				interface|console|control) digestLines="$( AgentsToolsManagerConfigDeclared "$digestName" )" || digestLines="" ;;
 			esac
 			digestCount=0
 			if [ -n "$digestLines" ] ; then

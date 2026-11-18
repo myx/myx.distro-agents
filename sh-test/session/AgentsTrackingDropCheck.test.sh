@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 ## Behavioural check on what the tooling posted itself, and the readers that decide whether something is input (F7.12, the owner's additions of 2026-10-20;
-## sh-lib/session/AgentsTools.TrackingDrop.include and AgentsTrackingDrop.awk, the metadata of the send in AgentsTools.MemberCommsSlack.include, the chat file's
+## sh-lib/wait/AgentsTools.TrackingDrop.include and AgentsTrackingDrop.awk, the metadata of the send in AgentsTools.MemberCommsSlack.include, the chat file's
 ## import in AgentsSessionChatImport.awk). Held, run through the real send and the real read against a Slack-shaped fake curl:
 ##   1. what the tooling sends itself is marked `tracking: tooling` in the post's metadata, and a member's own send is not
 ##   2. a read of it shows `[tracking: tooling]`; for the member it is addressed to (DISMISSED, `--address-to`) the drop keeps it -- it always reaches that run --
@@ -48,7 +48,7 @@ rigTooling(){ ## words... -- one call of the tooling from the rig workspace, std
 		bash "$rigTool" "$@" 2> "$rigScn/last.err" )
 }
 rigDrop(){ ## member, a rendering file -- what the drop leaves of it for that member
-	( cd "$rigWs" && env "MMDAPP=$rigWs" "MDLT_ORIGIN=$MDLT_ORIGIN" bash -c '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.TrackingDrop.include" ; AgentsToolsTrackingDrop "$1" < "$2"' _ "$1" "$2" )
+	( cd "$rigWs" && env "MMDAPP=$rigWs" "MDLT_ORIGIN=$MDLT_ORIGIN" bash -c '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/wait/AgentsTools.TrackingDrop.include" ; AgentsToolsTrackingDrop "$1" < "$2"' _ "$1" "$2" )
 }
 
 echo "-- 1. the tooling's own sends are marked, a member's are not --"

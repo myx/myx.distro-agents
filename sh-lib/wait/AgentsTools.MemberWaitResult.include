@@ -124,8 +124,12 @@ type AgentsSlackIdentityId > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-ag
 				case "${commitHit#*=}" in
 					replies:*) type AgentsOwnPostsReplace > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.OwnPosts.include"
 						AgentsOwnPostsReplace "${commitHit#*=replies:}" "$waitDir/now.$commitIndex.advance" ;;
-					chat:*) AgentsWaitChatCommit "${commitHit#*=chat:}" "$memberName" "$waitDir/now.$commitIndex.newest" ;;
-					scan:*) AgentsWaitScanCommit "$memberName" "${commitHit#*=scan:}" "$waitDir/now.$commitIndex.sum" ;;
+					chat:*)
+						type AgentsWaitChatCommit > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/wait/AgentsTools.MemberWaitChat.include"
+						AgentsWaitChatCommit "${commitHit#*=chat:}" "$memberName" "$waitDir/now.$commitIndex.newest" ;;
+					scan:*)
+						type AgentsWaitScanCommit > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/wait/AgentsTools.MemberWaitChat.include"
+						AgentsWaitScanCommit "$memberName" "${commitHit#*=scan:}" "$waitDir/now.$commitIndex.sum" ;;
 					mentions:*) AgentsWaitMentionsCommit "$memberName" "$waitDir/now.$commitIndex.newest" ;;
 					dms:*) AgentsWaitDmsCommit "$memberName" "$waitDir/now.$commitIndex.newest" ;;
 					slack:*)
@@ -364,8 +368,12 @@ type AgentsSlackIdentityId > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-ag
 					case "${waitHit#*=}" in
 						replies:*) type AgentsOwnPostsReplace > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.OwnPosts.include"
 							AgentsOwnPostsReplace "${waitHit#*=replies:}" "$waitDir/now.$waitHitIndex.advance" ;;
-						chat:*) AgentsWaitChatCommit "${waitHit#*=chat:}" "$memberName" "$waitDir/now.$waitHitIndex.newest" ;;
-						scan:*) AgentsWaitScanCommit "$memberName" "${waitHit#*=scan:}" "$waitDir/now.$waitHitIndex.sum" ;;
+						chat:*)
+							type AgentsWaitChatCommit > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/wait/AgentsTools.MemberWaitChat.include"
+							AgentsWaitChatCommit "${waitHit#*=chat:}" "$memberName" "$waitDir/now.$waitHitIndex.newest" ;;
+						scan:*)
+							type AgentsWaitScanCommit > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/wait/AgentsTools.MemberWaitChat.include"
+							AgentsWaitScanCommit "$memberName" "${waitHit#*=scan:}" "$waitDir/now.$waitHitIndex.sum" ;;
 						mentions:*) AgentsWaitMentionsCommit "$memberName" "$waitDir/now.$waitHitIndex.newest" ;;
 						dms:*) AgentsWaitDmsCommit "$memberName" "$waitDir/now.$waitHitIndex.newest" ;;
 					esac
@@ -394,6 +402,7 @@ type AgentsSlackIdentityId > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-ag
 						waitHitIndex="${waitHit%%=*}"
 						case "${waitHit#*=}" in slack:*|tagged:*) ;; *) continue ;; esac
 						waitLastTs="$( LC_ALL=C awk '/^[0-9]+\.[0-9]+ \| / { if ( ts == "" || $1 + 0 > ts + 0 ) { ts = $1 ; } } END { if (ts != "") print ts; }' "$waitDir/now.$waitHitIndex" )"
+						type AgentsToolsSessionChatPointerSet > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include"
 						[ -z "$waitLastTs" ] || AgentsToolsSessionChatPointerSet "$collectKey" "collect:$memberName:${waitHit#*=}" "$waitLastTs"
 					done
 				fi

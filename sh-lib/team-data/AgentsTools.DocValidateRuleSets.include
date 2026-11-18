@@ -64,6 +64,26 @@ AgentsToolsDocValidateRunsAfter(){ ## routine file, file as shown, its runs-afte
 	return 0
 }
 
+## One `references:` line of a routine, as the prefetch reads it: `<member>/<file>`, the member's skill folder and one file of
+## it. Prints the reason it is refused, rc 1; nothing and rc 0 where it is a file the run can read.
+AgentsToolsDocValidateRoutineRef(){ ## the references line
+	local refOne="$1" refMember refFile refRest refSeg refRoot=""
+	refMember="${refOne%%/*}" ; refFile="${refOne#*/}"
+	if [ "$refMember" = "$refOne" ] || [ -z "$refFile" ] ; then
+		printf 'references: %s is not <member>/<file>, the member whose skill folder holds the file\n' "$refOne" ; return 1
+	fi
+	refRest="$refOne"
+	while [ -n "$refRest" ] ; do
+		refSeg="${refRest%%/*}"
+		case "$refRest" in */*) refRest="${refRest#*/}" ;; *) refRest="" ;; esac
+		case "$refSeg" in ''|.|..|*[!A-Za-z0-9._-]*) printf 'references: %s names a path that is not a bare file inside a member folder\n' "$refOne" ; return 1 ;; esac
+	done
+	type AgentsToolsSkillsetRootInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWorkspace.include"
+	AgentsToolsSkillsetRootInto refRoot "${MMDAPP:-}"
+	[ -z "$refRoot" ] || [ -f "$refRoot/$refMember/$refFile" ] || { printf 'references: %s is not a file there is, so no run could read it\n' "$refOne" ; return 1 ; }
+	return 0
+}
+
 ## The rule set of the `routine` kind: the frontmatter keys, the requirements, the sections.
 AgentsToolsDocValidateRoutine(){ ## file, file as shown
 	local routineFile="$1" routineShown="$2" routineFirst="" routineType routineTypeLine routineKeyName routineKeyLine routineVerdict routineWhy routineHeading routineLine headingAt
@@ -78,6 +98,7 @@ AgentsToolsDocValidateRoutine(){ ## file, file as shown
 	local routineWaitLine routineIncludesLine routineOpenCount routineOpenFirst routineStepsCount routineStepsFirst routineCloseCount routineCloseFirst routineLocalCount routineLocalFirst
 	local kindExecRaw kindMaintRaw kindInvRaw kindCache routineBlock routineKindBlock scanTag scanA scanB scanC scanD scanIdx
 	local routineIncNames=() routineIncSections=() routineWaitLines=() routineScanLines=() routineScanExact=()
+	local routineRefLines=() routineRefAts=() routineRefOne routineRefAt routineRefWhy
 	IFS= read -r routineFirst < "$routineFile" 2> /dev/null || :
 	if [ "$routineFirst" != "---" ] ; then
 		AgentsToolsDocValidateRow "$routineShown" 1 frontmatter "the file does not open with a frontmatter block"
@@ -111,6 +132,7 @@ AgentsToolsDocValidateRoutine(){ ## file, file as shown
 				esac
 			;;
 			I) routineIncNames+=( "$scanA" ) ; routineIncSections+=( "$scanB" ) ;;
+			R) routineRefLines+=( "$scanA" ) ; routineRefAts+=( "$scanB" ) ;;
 			W) routineWaitLines+=( "$scanA" ) ;;
 			S) routineScanLines+=( "$scanA" ) ; routineScanExact+=( "$scanB" ) ;;
 			H)
@@ -336,6 +358,13 @@ AgentsToolsDocValidateRoutine(){ ## file, file as shown
 		''|*[[:space:]]*|*,*) [ -z "$routineHandsOver" ] || AgentsToolsDocValidateRow "$routineShown" "$routineHandsOverLine" hands-over-to "hands-over-to: $routineHandsOver is not one routine" ;;
 		*) AgentsToolsDocValidateRunsAfter "$routineFile" "$routineShown" "$routineHandsOver" hands-over-to ;;
 	esac
+	## The references a routine's executor needs (`references: <member>/<file>`, one a line): each is a file of a member's
+	## skill folder, read for the executor with the routine's own text (AgentsHarnessPrefetchReferenceReads). A line naming no
+	## member folder, or a file that is not there, is refused here, so a run is never told to read what it cannot reach.
+	for (( scanIdx = 0 ; scanIdx < ${#routineRefLines[@]} ; scanIdx++ )) ; do
+		routineRefOne="${routineRefLines[$scanIdx]}" ; routineRefAt="${routineRefAts[$scanIdx]}"
+		routineRefWhy="$( AgentsToolsDocValidateRoutineRef "$routineRefOne" )" || AgentsToolsDocValidateRow "$routineShown" "$routineRefAt" references "$routineRefWhy"
+	done
 	## The sections: # Opening steps, # Steps and # Closure steps, each once, in that order; and the local procedures.
 	for routineHeading in "Opening steps" "Steps" "Closure steps" "Routine's local procedures" ; do
 		case "$routineHeading" in

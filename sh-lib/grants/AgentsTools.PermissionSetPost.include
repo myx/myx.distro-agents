@@ -118,7 +118,7 @@ AgentsToolsPermissionSetPost(){ ## asker, item, scope, session id (may be empty)
 	local postBy="$1" postItem="$2" postScope="$3" postSession="$4" postExtra="$5" postHeld="$6" postParts="$7" postPurposes="$8" postWant="${9:-post}" postPlaces="${10:-}" postReason="${11:-}"
 	local postLine postPlace postTools postNote postAsked="" postHeldText="" postTaskFile postTask postNames="" postName postText="" postTaskText=""
 	local postCow="" postThread="" postSessionText="" postPartsText="" postWhere postByText permEntryTool permEntryTarget
-	type AgentsToolsTaskText > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.TaskText.include"
+	type AgentsToolsTaskText > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/core/AgentsTools.TaskText.include"
 	## A grouped line is split by hand: a tab is IFS whitespace, so read would drop the empty
 	## place of an entry asked with no target, and take its tools for the place.
 	while IFS= read -r postLine ; do
@@ -190,7 +190,9 @@ AgentsToolsPermissionSetPost(){ ## asker, item, scope, session id (may be empty)
 	postWhere="$( AgentsToolsPermissionRefusalWhere )"
 	postByText="$( ASKP_F_member="$postBy" ASKP_F_host="$( printf '%s\n' "$postWhere" | LC_ALL=C sed -n 's/^host: //p' )" \
 		ASKP_F_workspace="$( printf '%s\n' "$postWhere" | LC_ALL=C sed -n 's/^workspace: //p' )" AgentsToolsPermissionSetFill block "Lines/asked-by" )"
-	ASKP_F_scope_words="$( AgentsToolsPermissionSetFill block "Scope words/$postScope" )" ASKP_F_asked="${postAsked%$'\n'}" ASKP_F_held="${postHeldText%$'\n'}" \
+	type AgentsToolsAskAboutLine > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.AskAbout.include"
+	ASKP_F_about="$( AgentsToolsAskAboutLine "$postSession" "$postItem" )" \
+		ASKP_F_scope_words="$( AgentsToolsPermissionSetFill block "Scope words/$postScope" )" ASKP_F_asked="${postAsked%$'\n'}" ASKP_F_held="${postHeldText%$'\n'}" \
 		ASKP_F_reason="$postReasonText" \
 		ASKP_F_task="$postTaskText" ASKP_F_session="$postSessionText" ASKP_F_participants="${postPartsText%$'\n'}" ASKP_F_asked_by="$postByText" \
 		AgentsToolsPermissionSetFill "$postWant"

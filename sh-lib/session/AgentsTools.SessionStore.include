@@ -9,13 +9,12 @@
 ## Every path here is built by printf -v, never by a command substitution, so a call in a hot path forks no process; each printing
 ## query has an `...Into <variable>` form for a caller that wants the path without a fork.
 ##
-## AgentsSessionStoreDir <workspace>   the sessions store of that workspace (AgentsSessionStoreDirInto <variable> <workspace>)
-## AgentsSpawnedStoreDir <workspace>   the spawn records of that workspace (AgentsSpawnedStoreDirInto <variable> <workspace>)
+## AgentsSessionStoreDirInto <variable> <workspace>   the sessions store of that workspace, into the variable
+## AgentsSpawnedStoreDirInto <variable> <workspace>   the spawn records of that workspace, into the variable
 ## AgentsSessionThread <session>       the session's Slack thread `<channel>:<ts>`, as its folder records it, else as its founding
 ##                                      run's record names it (then kept in the folder); nothing where it has none
 ## AgentsSessionThreadSet <session> <channel:ts>   records the session's thread in its folder
 ## AgentsSpawnedThreadOfRecord <spawn record>       the thread the folder of a spawn record keeps; nothing for none
-## AgentsSessionDeathFile <session>                  the session's record of deaths (control/dead), for its writer (...Into)
 ## AgentsSessionHasDeathRecord <session>             rc 0 where the session records a death
 ## AgentsSessionRunDead <session> <run>              rc 0 where the session's record of deaths names the run
 ## AgentsSessionDeathSessions                         the sessions with a death recorded, one a line
@@ -248,12 +247,7 @@ AgentsSessionRunHeadersInto(){ ## run id, variable=key...
 	for headPair in "$@" ; do printf -v "${headPair%%=*}" '%s' "" ; headKeys="$headKeys ${headPair#*=}" ; done
 	AgentsSessionRunRecordInto headRecord "$headRun" || return 1
 	[ $# -gt 0 ] || return 0
-	headValues="$( LC_ALL=C awk -v keys="$headKeys" '
-		BEGIN { n = split( keys, k, " " ) }
-		$0 == "---" { if ( ++fence > 1 ) exit ; next }
-		fence == 1 { for ( i = 1 ; i <= n ; i++ ) if ( !( i in v ) && index( $0, k[i] ": " ) == 1 ) v[i] = substr( $0, length( k[i] ) + 3 ) }
-		END { for ( i = 1 ; i <= n ; i++ ) print v[i] }
-	' "$headRecord" 2> /dev/null )"
+	headValues="$( LC_ALL=C awk -v keys="$headKeys" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/core/AgentsFrontmatterHeaderValues.awk" "$headRecord" 2> /dev/null )"
 	{ for headPair in "$@" ; do IFS= read -r headOne || headOne="" ; printf -v "${headPair%%=*}" '%s' "$headOne" ; done ; } <<< "$headValues"
 	return 0
 }

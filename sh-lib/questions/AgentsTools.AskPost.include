@@ -39,9 +39,6 @@ ProposeApprove|proposal|propose-approve.post.format.md|approve|question proposal
 |review|review-prompt.post.format.md|verdict|
 |change|change-approve.post.format.md|approve|
 |undo|undo-approve.post.format.md|verdict|"
-	## The parameters every one of them takes.
-	agentsAskCommonArgs="to address_to context wait timeout wait_source as_bot pending_id withdraw revise description"
-
 	agentsAskRowName="" ; agentsAskRowKind="" ; agentsAskRowTemplate="" ; agentsAskRowForm="" ; agentsAskRowArgs=""
 
 	## The row of one tool name, an `mcp__<server>__` prefix dropped. Sets agentsAskRow*; rc 1,

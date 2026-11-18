@@ -145,6 +145,7 @@ AgentsToolsManagerWizardGitValue(){ ## git key
 	git config --global --get "$1" 2> /dev/null || :
 }
 
+type AgentsToolsManagerFeatureNames > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.ManagerFeature.include"
 case "$1" in
 
 	## What the form of a wizard needs: the choices and what stands now, as rows. Its form is the help entry's.

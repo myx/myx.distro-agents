@@ -18,7 +18,7 @@
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigPackage="$MDLT_ORIGIN/myx/myx.distro-agents"
-rigDropAwk="$rigPackage/sh-lib/session/AgentsTrackingDrop.awk"
+rigDropAwk="$rigPackage/sh-lib/wait/AgentsTrackingDrop.awk"
 rigImportAwk="$rigPackage/sh-lib/session/AgentsSessionChatImport.awk"
 rigRepliesAwk="$rigPackage/sh-lib/wait/AgentsWaitOwnPostReplies.awk"
 rigMatchAwk="$rigPackage/sh-lib/questions/AgentsDismissalMatch.awk"

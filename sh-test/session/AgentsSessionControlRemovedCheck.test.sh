@@ -88,6 +88,8 @@ rigRec(){ ## session id -- one record of a run of this host that is still open, 
 	printf -- '---\nsession-id: %s\nspawn-id: %s\nhost: %s\nworkspace: rigws\nowner: keeper-rig\nstatus: spawn-started\nstarted-at: 2026-10-13 09:00 +0300\n---\n\n# Spawn session: %s\n' \
 		"$1" "$1" "$rigHost" "$1" > "$rigSp/t-$1/rec-$1.md.rig" && mv -f "$rigSp/t-$1/rec-$1.md.rig" "$rigSp/t-$1/rec-$1.spawn.md"
 }
+## The lock of a control thread is a plain file holding `<pid> <start>` (AgentsTools.InternSessionControl.include,
+## "WHAT IT KEEPS"; MAGIC.md says symlink and is to be corrected), so it is read with cat, never with readlink.
 ## A thread: a process of its own, started with its signals at their defaults, whatever this check itself was
 ## started with. Its pid in rigThreadPid. It is noted nowhere here: its own pid file is its note.
 rigThreadPid=""
@@ -122,7 +124,7 @@ rigStatusOf(){ ## pid of a job of this shell -- the status it ended with into ri
 rigHolds(){ ## session id, pid -- the pid file of the session names that pid, and its lock is there
 	local holdsLine=""
 	{ IFS= read -r holdsLine < "$rigStores/$1/control/pid" ; } 2> /dev/null
-	[ -n "$holdsLine" ] && [ "${holdsLine%% *}" = "$2" ] && [ -L "$rigStores/$1/control/lock" ]
+	[ -n "$holdsLine" ] && [ "${holdsLine%% *}" = "$2" ] && { [ -e "$rigStores/$1/control/lock" ] || [ -L "$rigStores/$1/control/lock" ] ; }
 }
 rigTicked(){ ## session id -- its thread has made a tick: it said in its log what it found
 	[ "$( LC_ALL=C grep -c -F -- "record(s) are still open" "$rigStores/$1/control/log" 2> /dev/null || : )" -ge 1 ]
@@ -149,6 +151,13 @@ rigNames(){ ## dir -- every name under it, sorted, as one sum; none where it is 
 	[ -e "$1" ] || { printf 'none\n' ; return 0 ; }
 	( cd "$1" && find . | LC_ALL=C sort ) | cksum
 }
+## What a control lock holds, by the reader the product keeps for it (AgentsTools.InternSessionControl.include,
+## AgentsToolsSessionControlLockHolder): the text of the file it writes, or the target of a link an older
+## release made.
+rigLockHolder(){ ## session id
+	local lockPath="$rigStores/$1/control/lock" lockText=""
+	if [ -L "$lockPath" ] ; then readlink "$lockPath" 2> /dev/null ; else cat "$lockPath" 2> /dev/null ; fi
+}
 rigRows(){ ## pid -- how many rows files of that thread lie under .local/temp of the rig
 	ls "$rigWs/.local/temp/mdat-session-control.$1.rows" 2> /dev/null | LC_ALL=C grep -c . || :
 }
@@ -156,11 +165,11 @@ rigRows(){ ## pid -- how many rows files of that thread lie under .local/temp of
 echo "-- 1. its control folder alone is removed: it is made again, as before --"
 rigUp sess-keep ; rigKeep="$rigThreadPid" ; rigKeepBegan="$( rigProcBegan "$rigKeep" )"
 rigAssert "control: the thread of a session with an open record and no run alive is up, holds its session and has ticked" \
-	"$( rigLives "$rigKeep" ):$( cat "$rigStores/sess-keep/control/pid" 2> /dev/null ):$( readlink "$rigStores/sess-keep/control/lock" 2> /dev/null ):$( rigTicked sess-keep && echo ticked )" "1:$rigKeepBegan:$rigKeepBegan:ticked"
+	"$( rigLives "$rigKeep" ):$( cat "$rigStores/sess-keep/control/pid" 2> /dev/null ):$( rigLockHolder sess-keep ):$( rigTicked sess-keep && echo ticked )" "1:$rigKeepBegan:$rigKeepBegan:ticked"
 rm -rf "$rigStores/sess-keep/control"
 rigWaitFor 10 rigHolds sess-keep "$rigKeep"
 rigAssert "its whole control folder is removed while the folder of its session stands: it is made again, with its pid file and its lock, by the same process" \
-	"$( rigLives "$rigKeep" ):$( cat "$rigStores/sess-keep/control/pid" 2> /dev/null ):$( readlink "$rigStores/sess-keep/control/lock" 2> /dev/null )" "1:$rigKeepBegan:$rigKeepBegan"
+	"$( rigLives "$rigKeep" ):$( cat "$rigStores/sess-keep/control/pid" 2> /dev/null ):$( rigLockHolder sess-keep )" "1:$rigKeepBegan:$rigKeepBegan"
 rigAssert "and it does not say that its session is gone"            "$( rigLogGone sess-keep )" "0"
 
 echo "-- 2. the folder of its session is removed: the thread ends, and makes nothing again --"

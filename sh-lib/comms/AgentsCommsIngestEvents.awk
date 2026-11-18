@@ -20,12 +20,32 @@ BEGIN {
 	}
 }
 
+## A line of the store of our own posts (S1 item 11, `<first field> | <poster> | [local: <id>] <text>`), folded as the message it
+## says is held. One message is stored once, so a read that carries it again makes no second `msg` of it, and no `edit` of a text the
+## store already holds. The tag is the join between the post's own line, at its own time, and the line that records its Slack ts.
+function storedPost(line,   fieldCount, field, first, tag, at, rest, text) {
+	fieldCount = split(line, field, " | ")
+	if (fieldCount < 3) return
+	first = field[1]
+	text = ""
+	for (at = 3 ; at <= fieldCount ; at++) text = text (at > 3 ? " | " : "") field[at]
+	if (index(text, "[local: ") == 1) {
+		rest = substr(text, 9) ; at = index(rest, "]") ; if (at == 0) return
+		tag = substr(rest, 1, at - 1)
+		text = substr(rest, at + 2)
+		if (text != "") heldLocalText[tag] = esc(text)
+		if (first ~ /^[0-9]+\.[0-9]+$/) { heldMsg[first] = 1 ; heldText[first] = (text != "" ? esc(text) : heldLocalText[tag]) ; heldLocalTs[tag] = first }
+		return
+	}
+	if (first ~ /^[0-9]+\.[0-9]+$/) { heldMsg[first] = 1 ; heldText[first] = esc(text) }
+}
+
 ## One stored event folded into what a new read is compared against: which messages are held, their text
 ## (from the body file where the line was cut), the live marks, the thread summary, the reply authors, the
 ## files and the unfurl targets.
 function storedEvent(line, dir,   col, n, kind, mid, text) {
 	n = split(line, col, "\t")
-	if (n < 16) return
+	if (n < 16) { storedPost(line) ; return }
 	kind = col[2] ; mid = col[3]
 	if (kind == "msg" || kind == "post") { heldMsg[mid] = 1 ; heldText[mid] = storedText(col[7], dir, col[16]) ; return }
 	if (kind == "edit") { heldText[mid] = storedText(col[7], dir, col[16]) ; return }

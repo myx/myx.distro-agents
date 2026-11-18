@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.ApplyReport.include -- the gate that holds an apply report to its tree and its read-back.
+## One concern, two carriers: a handback of an apply, and a send that declares --text-group relay. Each
+## prints its own refusal and this prints the faults, so the two wordings stay with their own readers.
+## The predicate is AgentsApplyReportCheck.awk beside this file.
+##
+
+## Prints one fault a line, and nothing at all when the text is clean. Text on stdin, the carrier's own words.
+## 0 clean. 1 faults found. 2 the checker could not measure, which is never a pass.
+AgentsToolsApplyReportFaults(){
+	local applyFaults applyRc=0
+	applyFaults="$( LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsApplyReportCheck.awk" )" || applyRc=$?
+	case "$applyRc" in
+		0) return 0 ;;
+		1) printf '%s\n' "$applyFaults" ; return 1 ;;
+	esac
+	printf 'checker-failed: the apply-report check could not measure this text (rc=%s), so nothing is known about whether it names its tree\n' "$applyRc"
+	return 2
+}

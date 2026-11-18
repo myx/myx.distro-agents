@@ -81,18 +81,21 @@ AgentsToolsSessionChatNewestInto(){ ## variable, session, conversation:thread
 	local newestValue=""
 	printf -v "$1" '%s' 0
 	case "${2:-}" in ''|.|..|*/*|*[[:space:]]*) return 0 ;; esac
-	newestValue="$( LC_ALL=C awk -F'\t' -v where="${3:-}" '$3 == where { split($2, part, ".") ; if ( ( part[1] + 0 ) > newest ) { newest = part[1] + 0 ; } } END { print newest + 0 ; }' "${MMDAPP:-/nonexistent}/.local/agents/sessions/$2/$agentsSessionChatName.index" 2> /dev/null )" || newestValue=0
+	AgentsToolsSessionChatReadPath "$2" || return 0
+	newestValue="$( LC_ALL=C awk -F'\t' -v where="${3:-}" '$3 == where { split($2, part, ".") ; if ( ( part[1] + 0 ) > newest ) { newest = part[1] + 0 ; } } END { print newest + 0 ; }' "$agentsSessionChatReadPath" 2> /dev/null )" || newestValue=0
+	AgentsToolsSessionChatReadPathDone
 	printf -v "$1" '%s' "${newestValue:-0}"
 	return 0
 }
 
-## Whether a session's chat is unchanged since a mark was touched: rc 0 where the mark is newer than both its index and its
-## pointers, so a reader need not read it again. Equal times count as a change, so nothing written in the mark's own second is
-## missed. No process: an idle Wait tick asks it.
+## Whether a session's chat is unchanged since a mark was touched: rc 0 where the mark is newer than its index, its pointers and its
+## stamps, so a reader need not read it again. Equal times count as a change, so nothing written in the mark's own second is missed.
+## No process: an idle Wait tick asks it.
 AgentsToolsSessionChatUnchangedSince(){ ## session, mark file
 	case "${1:-}" in ''|.|..|*/*|*[[:space:]]*) return 1 ;; esac
 	[ "${2:-}" -nt "${MMDAPP:-/nonexistent}/.local/agents/sessions/$1/$agentsSessionChatName.index" ] \
-		&& [ "${2:-}" -nt "${MMDAPP:-/nonexistent}/.local/agents/sessions/$1/$agentsSessionChatName.pointers" ]
+		&& [ "${2:-}" -nt "${MMDAPP:-/nonexistent}/.local/agents/sessions/$1/$agentsSessionChatName.pointers" ] \
+		&& [ ! "${MMDAPP:-/nonexistent}/.local/agents/sessions/$1/$agentsSessionChatName.stamps" -nt "${2:-}" ]
 }
 
 ## THE MESSAGES OTHERS ADDRESSED TO A MEMBER SINCE A MOMENT, over every chat written since it, in one read of them all:
@@ -135,9 +138,10 @@ AgentsToolsSessionChatThreadMessages(){ ## session, conversation:thread, member,
 	local threadChat
 	threadChat="$( AgentsToolsSessionChatDir "${1:-}" )" || return 0
 	[ -n "${2:-}" ] && [ -s "$threadChat/$agentsSessionChatName.index" ] && [ -f "$threadChat/$agentsSessionChatName" ] || return 0
+	AgentsToolsSessionChatReadPath "$1" || return 0
 	LC_ALL=C awk -v thread="$2" -v own=no -v member="${3:--}" -v memberId="${4:-}" \
 		-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsSessionThreadRead.awk" \
-		"$threadChat/$agentsSessionChatName.index" "$threadChat/$agentsSessionChatName" 2> /dev/null \
+		"$agentsSessionChatReadPath" "$threadChat/$agentsSessionChatName" 2> /dev/null \
 		| LC_ALL=C awk -v wantLines="$5" '
 			/^20[0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9:]+Z [^ ]+ -> / {
 				heldNo++ ; heldSpeaker[heldNo] = $2 ; heldText[heldNo] = "" ; next ;
@@ -148,6 +152,7 @@ AgentsToolsSessionChatThreadMessages(){ ## session, conversation:thread, member,
 				for ( at = first ; at <= heldNo ; at++ ) { print heldSpeaker[at] "\t" heldText[at] ; }
 			}
 		' || :
+	AgentsToolsSessionChatReadPathDone
 }
 
 ## The session this call belongs to, empty for none: the team session of a run, else the run's own, else the
@@ -270,23 +275,100 @@ AgentsToolsSessionChatViaWriter(){ ## kind, the arguments of the direct write
 ## that probe, which then misses its bound (`AgentsThisSessionCheck`, the --to-@any scene: `WAIT-NEVER-READ: [chat:...]`,
 ## 7 s of a 5 s bound); the ask costs five processes against the direct write's three besides. The thread takes `stamp` all
 ## the same, for the day an ask costs less than the lock (S12.11).
+## A STAMP IS ONE APPENDED LINE (S1 item 11): the index is never rewritten, because every stamp used to rewrite it whole. It
+## goes into `<session>/session.chat.stamps`, `<block>\t<ts>\t<conversation:thread>\t<seen>`, and AgentsToolsSessionChatResolve
+## lays it over the index for whoever reads. A ts of `-` is a block that is not posted yet, as the index says it.
 AgentsToolsSessionChatStamp(){ ## session, block number, ts, conversation:thread
 	AgentsToolsSessionChatStampDirect "$@"
 }
 AgentsToolsSessionChatStampDirect(){ ## session, block number, ts, conversation:thread
-	local stampDir stampFile stampTmp chatLock=""
+	local stampDir stampFile chatLock=""
 	stampDir="$( AgentsToolsSessionChatDir "$1" )" || return 1
 	stampFile="$stampDir/$agentsSessionChatName.index"
 	[ -f "$stampFile" ] || return 1
 	case "$2" in ''|*[!0123456789]*) return 1 ;; esac
 	AgentsToolsSessionChatLockTake "$1"
-	stampTmp="$( mktemp "$stampFile.XXXXXX" 2> /dev/null )" || stampTmp=""
-	if [ -n "$stampTmp" ] ; then
-		LC_ALL=C awk -F'\t' -v OFS='\t' -v want="$2" -v ts="$3" -v where="$4" '$1 == want { $2 = ts ; $3 = where ; } { print ; }' "$stampFile" >| "$stampTmp" 2> /dev/null \
-			&& mv -f "$stampTmp" "$stampFile" 2> /dev/null || rm -f "$stampTmp"
-	fi
+	printf '%s\t%s\t%s\t%s\n' "$2" "${3:--}" "${4:--}" "-" >> "$stampDir/$agentsSessionChatName.stamps" 2> /dev/null
 	AgentsToolsSessionChatLockGive
 	return 0
+}
+
+## THE INDEX AS A READER SEES IT (S1 item 11): the index's own line per block, with the stamps over it. Prints the effective index,
+## in the index's six columns and its order. rc 1 where the session has none. It takes two paths, the index file and the stamps
+## file, so a caller that holds both names them and nothing is looked up.
+## THE STAMPS ARE READ WHOLE AND FOLDED IN MEMORY: one line a stamp and one a seen mark, a few thousand at most for a session of
+## hundreds of blocks, so the fold costs a fraction of the stamp it saves. The last stamp line for a block wins on ts and
+## conversation, and every seen line for it adds its member, in the order they were written.
+AgentsToolsSessionChatResolve(){ ## the index file, the stamps file
+	local resolveIndex="$1" resolveStamps="$2"
+	[ -f "$resolveIndex" ] || return 1
+	[ -s "$resolveStamps" ] || { cat "$resolveIndex" ; return 0 ; }
+	LC_ALL=C awk -F'\t' -v OFS='\t' '
+		FILENAME == ARGV[1] {
+			stampNo[$1] = 1
+			if ( $2 != "" && $2 != "-" ) { stampTs[$1] = $2 }
+			if ( $3 != "" && $3 != "-" ) { stampWhere[$1] = $3 }
+			if ( $4 != "" && $4 != "-" ) {
+				seenCount = split($4, seenList, ",")
+				for ( seenAt = 1 ; seenAt <= seenCount ; seenAt++ ) {
+					if ( seenList[seenAt] == "" ) { continue }
+					if ( index("," stampSeen[$1] ",", "," seenList[seenAt] ",") > 0 ) { continue }
+					stampSeen[$1] = ( stampSeen[$1] == "" ? seenList[seenAt] : stampSeen[$1] "," seenList[seenAt] )
+				}
+			}
+			next
+		}
+		{
+			effectiveSeen = $6
+			if ( $1 in stampNo ) {
+				if ( stampWhere[$1] != "" && stampWhere[$1] != "-" ) { $3 = stampWhere[$1] }
+				if ( stampTs[$1] != "" ) { $2 = stampTs[$1] }
+				if ( stampSeen[$1] != "" ) { effectiveSeen = ( effectiveSeen == "-" || effectiveSeen == "" ) ? stampSeen[$1] : effectiveSeen "," stampSeen[$1] }
+			}
+			print $1 OFS $2 OFS $3 OFS $4 OFS $5 OFS ( effectiveSeen == "" ? "-" : effectiveSeen )
+		}' "$resolveStamps" "$resolveIndex"
+}
+
+## A PATH A READER MAY BE HANDED, AND THE SAME AS IT STOOD WHEN THERE ARE NO STAMPS: sets agentsSessionChatReadPath to the resolved
+## index, or to the index itself where the session has no stamps. Sets the path only: nothing is printed, so a read is no extra
+## subshell. A caller that took a temp gives it back with AgentsToolsSessionChatReadPathDone.
+## THE RENDERING IS KEPT, ONE PER SESSION, `session.chat.resolved`: it is made again only where the stamps or the index are newer
+## than it, so a session whose files are quiet pays one mtime test a read, never an awk. It is derived, and a reader that finds it
+## missing or older simply makes it.
+AgentsToolsSessionChatReadPath(){ ## session
+	local readPathDir
+	agentsSessionChatReadPath=""
+	readPathDir="$( AgentsToolsSessionChatDir "$1" )" || return 1
+	[ -f "$readPathDir/$agentsSessionChatName.index" ] || return 1
+	if [ ! -s "$readPathDir/$agentsSessionChatName.stamps" ] ; then
+		agentsSessionChatReadPath="$readPathDir/$agentsSessionChatName.index"
+		return 0
+	fi
+	if [ -f "$readPathDir/$agentsSessionChatName.resolved" ] && [ ! "$readPathDir/$agentsSessionChatName.stamps" -nt "$readPathDir/$agentsSessionChatName.resolved" ] && [ ! "$readPathDir/$agentsSessionChatName.index" -nt "$readPathDir/$agentsSessionChatName.resolved" ] ; then
+		agentsSessionChatReadPath="$readPathDir/$agentsSessionChatName.resolved"
+		return 0
+	fi
+	agentsSessionChatReadPath="$( mktemp "$readPathDir/resolved.XXXXXX" 2> /dev/null )" || { agentsSessionChatReadPath="" ; return 1 ; }
+	AgentsToolsSessionChatResolve "$readPathDir/$agentsSessionChatName.index" "$readPathDir/$agentsSessionChatName.stamps" >| "$agentsSessionChatReadPath" 2> /dev/null \
+		|| { rm -f "$agentsSessionChatReadPath" ; agentsSessionChatReadPath="" ; return 1 ; }
+	mv -f "$agentsSessionChatReadPath" "$readPathDir/$agentsSessionChatName.resolved" 2> /dev/null || { rm -f "$agentsSessionChatReadPath" ; agentsSessionChatReadPath="" ; return 1 ; }
+	agentsSessionChatReadPath="$readPathDir/$agentsSessionChatName.resolved"
+	return 0
+}
+AgentsToolsSessionChatReadPathDone(){
+	agentsSessionChatReadPath=""
+	return 0
+}
+
+## The index as a reader sees it, for a caller that wants the text itself rather than a path: the kept rendering where it is current,
+## else one made now. Prints the effective index and leaves nothing behind.
+AgentsToolsSessionChatResolvedStream(){ ## session
+	local streamDir
+	streamDir="$( AgentsToolsSessionChatDir "$1" )" || return 1
+	[ -f "$streamDir/$agentsSessionChatName.index" ] || return 1
+	AgentsToolsSessionChatReadPath "$1" || return 1
+	cat "$agentsSessionChatReadPath" 2> /dev/null
+	AgentsToolsSessionChatReadPathDone
 }
 
 ## A send's own record, before its post (the write path of F9.1): the message a run is about to send, recorded as
@@ -600,6 +682,7 @@ AgentsToolsSessionChatFloor(){ ## session, member, covered (optional), `deliver`
 		esac
 	fi
 	[ -s "$floorDir/$agentsSessionChatName.index" ] || return 0
+	## A STAMP ADDS NO BLOCK (S1 item 11), so the number of blocks is the index's own count: this path resolves nothing.
 	floorCount="$( { LC_ALL=C wc -l < "$floorDir/$agentsSessionChatName.index" ; } 2> /dev/null | LC_ALL=C tr -d ' ' )"
 	case "$floorCount" in ''|*[!0123456789]*) return 0 ;; esac
 	floorPointer="$( AgentsToolsSessionChatPointer "$1" "read:$2" )" || return 0
@@ -616,9 +699,11 @@ AgentsToolsSessionChatFloor(){ ## session, member, covered (optional), `deliver`
 		floorThread="$( AgentsToolsCommsPrintbackTrackThread "$1" 2> /dev/null )" || floorThread=""
 	fi
 	floorSide="$( mktemp "$floorDir/floor.XXXXXX" 2> /dev/null )" || return 0
+	AgentsToolsSessionChatReadPath "$1" || return 0
 	LC_ALL=C awk -v after="$floorPointer" -v session="$1" -v member="$2" -v role="$( AgentsToolsSessionChatRole "$1" )" -v thread="$floorThread" -v memberId="$( AgentsSlackIdentityId "$2" )" \
 		-v covered="${3:-}" -v replySource="replies:$1" -v side="$floorSide" -v filter="${agentsSessionChatFilter:-}" -v pendingBefore="$( date -u -v-"$agentsSessionChatPendingSeconds"S +%Y-%m-%dT%H:%M:%SZ 2> /dev/null || date -u -d "$agentsSessionChatPendingSeconds seconds ago" +%Y-%m-%dT%H:%M:%SZ 2> /dev/null || printf '' )" \
-		-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsSessionChatRead.awk" "$floorDir/$agentsSessionChatName.index" "$floorDir/$agentsSessionChatName" 2> /dev/null || :
+		-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsSessionChatRead.awk" "$agentsSessionChatReadPath" "$floorDir/$agentsSessionChatName" 2> /dev/null || :
+	AgentsToolsSessionChatReadPathDone
 	agentsSessionChatNewest="$( LC_ALL=C sed -n 's/^newest //p' "$floorSide" 2> /dev/null | head -1 )"
 	agentsSessionChatSeen="$( LC_ALL=C sed -n 's/^seen //p' "$floorSide" 2> /dev/null | LC_ALL=C tr '\n' ' ' )"
 	## The blocks this read delivered, in order: a wait keys an eyes reaction on a block number (S6.48).
@@ -653,9 +738,10 @@ AgentsToolsSessionChatDelivered(){ ## session, member
 }
 
 ## Marks blocks as delivered to a member by its own call, in the last field of their index lines (the members, comma-joined): the
-## floor reads past a block marked for its member. Nothing but the index changes, and a number that is no block is let be.
+## floor reads past a block marked for its member. ONE APPENDED LINE A BLOCK (S1 item 11), never a rewrite: the line carries the
+## block's own ts and conversation as the index holds them, so the resolver needs nothing else. A number that is no block is let be.
 AgentsToolsSessionChatSeen(){ ## session, member, block number...
-	local seenSession="$1" seenDir seenFile seenTmp seenMember="$2" seenNumbers chatLock=""
+	local seenSession="$1" seenDir seenFile seenMember="$2" seenNumbers seenRows chatLock=""
 	seenDir="$( AgentsToolsSessionChatDir "$seenSession" )" || return 1
 	seenFile="$seenDir/$agentsSessionChatName.index"
 	[ -f "$seenFile" ] || return 1
@@ -663,17 +749,13 @@ AgentsToolsSessionChatSeen(){ ## session, member, block number...
 	seenNumbers=" $* "
 	case "$seenNumbers" in *[!\ 0123456789]*) return 1 ;; esac
 	AgentsToolsSessionChatLockTake "$seenSession"
-	seenTmp="$( mktemp "$seenFile.XXXXXX" 2> /dev/null )" || seenTmp=""
-	if [ -n "$seenTmp" ] ; then
-		SEEN_NUMBERS="$seenNumbers" SEEN_MEMBER="$seenMember" LC_ALL=C awk -F'\t' -v OFS='\t' '
-			$1 + 0 > 0 && index(ENVIRON["SEEN_NUMBERS"], " " $1 " ") > 0 {
-				seenCount = split($6, seenList, ",") ; seenHas = 0 ;
-				for ( seenAt = 1 ; seenAt <= seenCount ; seenAt++ ) { if ( seenList[seenAt] == ENVIRON["SEEN_MEMBER"] ) { seenHas = 1 ; } }
-				if ( ! seenHas ) { $6 = ( $6 == "-" || $6 == "" ) ? ENVIRON["SEEN_MEMBER"] : $6 "," ENVIRON["SEEN_MEMBER"] ; }
-			}
-			{ print ; }' "$seenFile" >| "$seenTmp" 2> /dev/null \
-			&& mv -f "$seenTmp" "$seenFile" 2> /dev/null || rm -f "$seenTmp"
-	fi
+	seenRows="$( SEEN_NUMBERS="$seenNumbers" LC_ALL=C awk -F'\t' -v member="$seenMember" '
+		$1 + 0 > 0 && index(ENVIRON["SEEN_NUMBERS"], " " $1 " ") > 0 {
+			seenCount = split($6, seenList, ",") ; seenHas = 0 ;
+			for ( seenAt = 1 ; seenAt <= seenCount ; seenAt++ ) { if ( seenList[seenAt] == member ) { seenHas = 1 ; } }
+			if ( ! seenHas ) { printf "%s\t%s\t%s\t%s\n", $1, $2, $3, member }
+		}' "$seenFile" 2> /dev/null )" || seenRows=""
+	[ -z "$seenRows" ] || printf '%s\n' "$seenRows" >> "$seenDir/$agentsSessionChatName.stamps" 2> /dev/null
 	AgentsToolsSessionChatLockGive
 	return 0
 }

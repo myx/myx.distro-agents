@@ -411,7 +411,9 @@ DistroAgentsTestingApplyDo(){ ## repository, scratch
 	local applyRepo="$1" applyScratch="$2" applyOrder="$2/apply-order.txt"
 	local applyLock="$MMDAPP/.local/temp/live-apply.lock" applyStageDir="$2/stage.apply" applyTries=0 applyLists=( "$2/changed-files.txt" )
 	local applyF applyPkg applyRel applyLive applyBase applyMine applyN applyBad applyRole applyPass applyRecord="$2/applied-steps.txt"
-	local applyCand applyKind applyStopped applyDoneList applyStill applySyntax=""
+	local applyCand applyKind applyStopped applyDoneList applyStill applySyntax="" applyAbs applyRoot
+	## Split from its assignment: a declaring keyword reports its own status, so the guard below would never fire.
+	applyRoot="$( cd "$applyRepo" 2> /dev/null && pwd -P )" || { echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTesting} --apply-tool apply: cannot resolve the repository $applyRepo" >&2 ; return 1 ; }
 	[ -f "$applyOrder" ] || { echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTesting} --apply-tool apply: $applyOrder is not there" >&2 ; return 1 ; }
 	[ -f "$applyScratch/packages.txt" ] || { echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTesting} --apply-tool apply: $applyScratch/packages.txt is not there" >&2 ; return 1 ; }
 	if [ "$( LC_ALL=C sort "$applyOrder" 2> /dev/null )" != "$( LC_ALL=C sort "$applyScratch/changed-files.txt" 2> /dev/null )" ] ; then
@@ -499,6 +501,7 @@ DistroAgentsTestingApplyDo(){ ## repository, scratch
 		applyN=$(( applyN + 1 ))
 		applyPkg="${applyF%%/*}" ; applyRel="${applyF#*/}"
 		applyLive="$applyRepo/source/myx/$applyPkg/$applyRel"
+		applyAbs="$applyRoot/source/myx/$applyPkg/$applyRel"
 		applyCand="$( cat "$applyStageDir/cand.$applyN" )" ; applyKind="$( cat "$applyStageDir/kind.$applyN" )"
 		[ "$applyKind" != done ] || continue
 		if [ -z "$applyStopped" ] ; then
@@ -514,12 +517,12 @@ DistroAgentsTestingApplyDo(){ ## repository, scratch
 		if [ "$applyKind" = remove ] ; then
 			printf 'removed\t%s\t%s\n' "$applyF" "$applyRun" >> "$applyRecord"
 			if rm -f -- "$applyLive" 2> /dev/null ; then
-				applyDoneList="$applyDoneList $applyF (removed)" ; echo "removed: $applyF"
+				applyDoneList="$applyDoneList $applyF (removed)" ; echo "removed: $applyF -> $applyAbs"
 			else
 				applyStopped="the removal of $applyF failed"
 			fi
 		elif printf 'put\t%s\t%s\n' "$applyF" "$applyRun" >> "$applyRecord" && mv -f "$applyCand" "$applyLive" 2> /dev/null ; then
-			applyDoneList="$applyDoneList $applyF ($applyKind)" ; echo "put in place ($applyKind): $applyF"
+			applyDoneList="$applyDoneList $applyF ($applyKind)" ; echo "put in place ($applyKind): $applyF -> $applyAbs"
 		else
 			applyStopped="the rename of $applyF failed" ; rm -f "$applyCand" 2> /dev/null
 		fi
@@ -538,12 +541,13 @@ DistroAgentsTestingApplyDo(){ ## repository, scratch
 		applyPkg="${applyF%%/*}" ; applyRel="${applyF#*/}"
 		applyLive="$applyRepo/source/myx/$applyPkg/$applyRel"
 		applyMine="$applyScratch/source/myx/$applyPkg/$applyRel"
+		applyAbs="$applyRoot/source/myx/$applyPkg/$applyRel"
 		case "$( cat "$applyStageDir/kind.$applyN" )" in
-			remove) if [ -e "$applyLive" ] ; then echo "STILL ON LIVE: $applyF" ; applyStill=1 ; else echo "live no longer holds: $applyF" ; fi ; continue ;;
+			remove) if [ -e "$applyLive" ] ; then echo "STILL ON LIVE: $applyF" ; applyStill=1 ; else echo "read-back: $applyAbs, gone from live" ; fi ; continue ;;
 			done) [ -e "$applyMine" ] || continue ;;
 		esac
 		case "$applyF" in *.sh|*.include) "$BASH" -n "$applyLive" 2> /dev/null ;; *) : ;; esac || { echo "SYNTAX AFTER APPLY: $applyF" ; applySyntax=1 ; }
-		if cmp -s "$applyLive" "$applyMine" ; then echo "live == this work's file: $applyF" ; else echo "live holds this work's file with another's hunks merged in: $applyF" ; fi
+		if cmp -s "$applyLive" "$applyMine" ; then echo "read-back: $applyAbs, cmp clean against the staged file" ; else echo "read-back: $applyAbs, cmp shows the staged file with another's hunks merged in" ; fi
 	done < "$applyStageDir/order"
 	[ -z "$applyStill" ] || exit 6
 	[ -z "$applySyntax" ] || exit 7

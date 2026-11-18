@@ -11,4 +11,8 @@
 ##
 
 agentsReadCapWire=200000
-agentsReadCapMcp=131072
+## The MCP client's own limit is in tokens, MAX_MCP_OUTPUT_TOKENS (25000 by default in the native client). A result
+## over it is saved to a file and the client tells the model to Read that file, so the cap stays under it: three bytes
+## a token, a margin for text that takes more tokens a byte. Under the cap, Skill and Read cut the result themselves
+## and name the offset to call again with.
+agentsReadCapMcp=$(( ${MAX_MCP_OUTPUT_TOKENS:-25000} * 3 ))

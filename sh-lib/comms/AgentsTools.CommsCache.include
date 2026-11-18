@@ -265,12 +265,16 @@ AgentsToolsCommsCacheSlackThread(){ ## member, <channel>:<thread ts>, the render
 ## `<session>\t<block>\t<member>\t<identity>\t<method>\t<payload>`, the payload's line ends kept as \037. A caller that gives a reason
 ## keeps it in front of the payload, inside that last column, as `why=<reason>` and then \037: so the writer prints what really happened to
 ## the post, a queue for the reader or a real failure (S5.6), and a payload is never split by it, since the column count does not change and
-## a record of an older release simply carries no reason. The pusher takes the file
+## a record of an older release simply carries no reason. An own post's local id is kept the same way, as `local=<id>` before the reason, so
+## the pusher records the ts against it when it posts (AgentsToolsCommsCachePostLink). The pusher takes the file
 ## aside as outbox.pushing.txt and keeps how far it got in .push.txt (`<sent> <retry-at> <attempts>`, its one writer). Once all of it
 ## is sent that file is gone, so the outbox is cut back to nothing; a send made meanwhile is in the next one. rc 1 not appended.
-AgentsToolsCommsCacheOutboxAppend(){ ## cache folder, session, block, member, identity, method, payload, why (may be empty)
-	local appendPayload="${7//$'\n'/$'\037'}" appendWhy appendSep=$'\037'
+AgentsToolsCommsCacheOutboxAppend(){ ## cache folder, session, block, member, identity, method, payload, why (may be empty), local id (may be empty)
+	local appendPayload="${7//$'\n'/$'\037'}" appendWhy appendLocal appendSep=$'\037'
 	appendWhy="$( printf '%s' "${8:-}" | LC_ALL=C tr '\r\n\t' '   ' | LC_ALL=C cut -c1-300 )"
+	appendLocal="${9:-}"
+	case "$appendLocal" in ''|*[!0-9A-Za-z-]*) appendLocal="" ;; esac
+	[ -z "$appendLocal" ] || appendPayload="local=$appendLocal$appendSep$appendPayload"
 	[ -z "$appendWhy" ] || appendPayload="why=$appendWhy$appendSep$appendPayload"
 	{ [ -d "$1" ] || mkdir -p "$1" ; } 2> /dev/null || return 1
 	printf '%s\t%s\t%s\t%s\t%s\t%s\n' "$2" "$3" "$4" "$5" "$6" "$appendPayload" >> "$1/outbox.messages.txt" 2> /dev/null || return 1
@@ -283,13 +287,55 @@ AgentsToolsCommsCacheOutboxAppend(){ ## cache folder, session, block, member, id
 	return 0
 }
 
+## THE STORE OF OUR OWN POST (S1 item 11): a message our tooling posts is stored once, at the moment it is posted, in its
+## month's messages.txt: `<its own epoch> | <poster> | [local: <local id>] <its text>`. A post that waits in the outbox, or is
+## never delivered, is stored all the same. One later append records the Slack ts against that local id: the same line with the
+## ts in its first field (AgentsToolsCommsCachePostLink). The tag is the join, and AgentsToolsCommsCacheServe prints one line a
+## message (see the tag rule there). Prints the local id. rc 1 where nothing was written, and then the post is not stored.
+AgentsToolsCommsCachePostStore(){ ## cache folder, member, the text
+	local storeId storeAt storeMonth
+	storeAt="$( date +%s )"
+	type AgentsCommsEventIdNext > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsIngest.include"
+	storeId="$( AgentsCommsEventIdNext 1 )" || return 1
+	case "$storeId" in [0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]T*) ;; *) return 1 ;; esac
+	storeMonth="$( LC_ALL=C awk -v t="$storeAt" "$agentsCommsMonthAwk"' BEGIN { print monthOf(t + 0) }' )" || return 1
+	AgentsToolsCommsCachePostAppend "$1" "$storeMonth" "$storeAt.000000" "$2" "$storeId" "$3" || return 1
+	printf '%s\n' "$storeId"
+}
+
+## The line of a post into the store, and the whole of a long text in the body file its line's first field names, as a read's
+## own long message is kept. One writer, and it is the two functions above and below.
+AgentsToolsCommsCachePostAppend(){ ## cache folder, month, first field, member, local id, the text
+	local appendWhole="${6:-}" appendHead appendBodyName
+	mkdir -p "$1/$2" 2> /dev/null || return 1
+	appendWhole="$6"
+	appendHead="$( printf '%s' "$appendWhole" | LC_ALL=C tr '\r\n\t' '   ' )"
+	if [ "${#appendHead}" -gt "$agentsCommsCacheLineCap" ] ; then
+		appendBodyName="$3.body.txt"
+		printf '%s\n' "$appendWhole" > "$1/$2/$appendBodyName" 2> /dev/null || return 1
+		appendHead="$( printf '%s' "$appendHead" | LC_ALL=C cut -c1-"$(( agentsCommsCacheLineCap - ${#appendBodyName} - 12 ))" ) [body: $appendBodyName]"
+	fi
+	printf '%s | %s | [local: %s] %s\n' "$3" "$4" "$5" "$appendHead" >> "$1/$2/messages.txt" 2> /dev/null
+}
+
+## THE SLACK TS RECORDED AGAINST A LOCAL ID: the post's own line again, its first field the ts Slack gave it, the same tag. A
+## reference, never a second copy of the text: a reader is served the message once, whichever of the two lines its cut-off allows.
+## rc 1 where nothing was written, and then the post stays stored by its local line alone.
+AgentsToolsCommsCachePostLink(){ ## cache folder, member, local id, the post's own epoch, the ts, the text (optional)
+	local linkMonth linkAt="${4:-}"
+	case "$5" in [0-9][0-9]*.[0-9][0-9][0-9][0-9][0-9][0-9]) ;; *) return 1 ;; esac
+	case "$linkAt" in ''|*[!0-9]*|*.*) linkAt="$( date +%s )" ;; esac
+	linkMonth="$( LC_ALL=C awk -v t="${5%%.*}" "$agentsCommsMonthAwk"' BEGIN { print monthOf(t + 0) }' )" || return 1
+	AgentsToolsCommsCachePostAppend "$1" "$linkMonth" "$5" "$2" "$3" "${6:-}"
+}
+
 ## ONE PUSH OF A CHANNEL'S OUTBOX, by one pusher at a time (.pushlock.txt, stale after 120 s): the records after `sent`, oldest first,
 ## each posted as the session's writer posts one (AgentsToolsSessionCommsPost), with the record's own reason kept on line 2 so the writer
 ## says what really happened to it. Posted or given up moves `sent`. One left for later keeps its place, sets `retry-at` and counts the
 ## attempt, and nothing after it overtakes it. `most` bounds the posts of this call, and nothing of it when 0: a backlog is drained over
 ## passes, so the pass that drains it still takes the console's messages and reads the threads.
 AgentsToolsCommsCachePush(){ ## cache folder, now, most (optional; 0 or none: no bound)
-	local pushDir="$1" pushNow="$2" pushMost="${3:-0}" pushLock="" pushSent=0 pushRetry=0 pushTries=0 pushNo pushWork pushRc=0 pushWhy pushSep=$'\037' pushFull=""
+	local pushDir="$1" pushNow="$2" pushMost="${3:-0}" pushLock="" pushSent=0 pushRetry=0 pushTries=0 pushNo pushWork pushRc=0 pushWhy pushLocal pushSep=$'\037' pushFull=""
 	local pushSession pushBlock pushMember pushIdentity pushMethod pushPayload pushPauseDir pushPauseUntil pushMerged
 	case "$pushMost" in ''|*[!0123456789]*) pushMost=0 ;; esac
 	agentsCommsCachePushMade=0
@@ -327,15 +373,22 @@ AgentsToolsCommsCachePush(){ ## cache folder, now, most (optional; 0 or none: no
 			pushNo=$(( pushNo + 1 ))
 			[ "$pushNo" -gt "$pushSent" ] || continue
 			case "$pushBlock" in ''|*[!0-9]*) pushSent="$pushNo" ; continue ;; esac
-			## The reason a caller kept in front of the payload, where it kept one. A record of an older release has none.
-			pushWhy=""
+			## The reason a caller kept in front of the payload, where it kept one, and the local id of an own post (S1 item 11).
+			## A record of an older release has neither.
+			pushWhy="" pushLocal=""
 			case "$pushPayload" in
 				why=*"$pushSep"*)
 					pushWhy="${pushPayload#why=}" ; pushWhy="${pushWhy%%"$pushSep"*}"
 					pushPayload="${pushPayload#*"$pushSep"}"
 				;;
 			esac
-			printf '%s\t%s\t%s\n%s\n%s\n' "$pushMember" "$pushIdentity" "$pushMethod" "${pushWhy:--}" "${pushPayload//$'\037'/$'\n'}" > "$pushWork/$pushBlock.retry"
+			case "$pushPayload" in
+				local=*"$pushSep"*)
+					pushLocal="${pushPayload#local=}" ; pushLocal="${pushLocal%%"$pushSep"*}"
+					pushPayload="${pushPayload#*"$pushSep"}"
+				;;
+			esac
+			printf '%s\t%s\t%s\t%s\n%s\n%s\n' "$pushMember" "$pushIdentity" "$pushMethod" "$pushLocal" "${pushWhy:--}" "${pushPayload//$'\037'/$'\n'}" > "$pushWork/$pushBlock.retry"
 			## Never bare: AgentsToolsSessionCommsPost returns 1 or 2 on an ordinary, expected outcome (rate-limited,
 			## refused, unreached), and a caller under set -e (DistroAgentsTools.fn.sh) is killed outright by that
 			## return unless it is the left side of ||, never just followed by `; pushRc=$?`.
@@ -531,6 +584,10 @@ AgentsToolsCommsCacheState(){ ## cache folder
 
 ## The messages of a channel strictly after a floor, as a read prints them: the head line first where `head` is asked, then each
 ## message whole, its continuation lines and its long body restored. Only the month folders at or after the floor's are opened.
+## ONE LINE A MESSAGE (S1 item 11): of the lines that carry one `[local: <id>]`, the first at or after the floor serves it, and its
+## later line, which records the ts, is no second copy. A line with a tag but no text is the reference, so the text comes from the
+## tag's own line, which the post wrote. An untagged line whose first field is a ts a tagged line records is a read's copy of that
+## same message, and is not served again.
 AgentsToolsCommsCacheServe(){ ## cache folder, floor ts, head|nohead
 	local serveMonth serveDir serveName serveFiles=()
 	AgentsToolsCommsCacheState "$1" || return 1
@@ -545,12 +602,44 @@ AgentsToolsCommsCacheServe(){ ## cache folder, floor ts, head|nohead
 	LC_ALL=C awk -v floorTs="${2:-0}" '
 		function secOf(v) { sub(/\..*$/, "", v) ; return ( v == "" ? 0 : v + 0 ) ; }
 		function fracOf(v) { if ( v !~ /\./ ) { return "000000" ; } sub(/^[^.]*\./, "", v) ; return substr(v "000000", 1, 6) ; }
+		function past(at) { return ( secOf(heldFirst[at]) > secOf(floorTs) || ( secOf(heldFirst[at]) == secOf(floorTs) && fracOf(heldFirst[at]) > fracOf(floorTs) ) ) }
 		FNR == 1 { dir = FILENAME ; sub(/\/[^\/]*$/, "", dir) ; }
 		{
-			if ( !( secOf($1) > secOf(floorTs) || ( secOf($1) == secOf(floorTs) && fracOf($1) > fracOf(floorTs) ) ) ) { next ; }
-			body = dir "/" $1 ".body.txt"
-			if ( index($0, " [body: " $1 ".body.txt]") ) { while ( ( getline line < body ) > 0 ) { print line ; } close(body) ; next ; }
-			line = $0 ; gsub(/\037/, "\n", line) ; print line
+			heldCount++
+			heldLine[heldCount] = $0 ; heldDir[heldCount] = dir ; heldFirst[heldCount] = $1
+			heldWho[heldCount] = $0 ; sub(/^[^|]*\| /, "", heldWho[heldCount]) ; sub(/ \| .*/, "", heldWho[heldCount])
+			heldTag[heldCount] = "" ; heldText[heldCount] = ""
+			openAt = index($0, "[local: ")
+			if ( openAt > 0 ) {
+				rest = substr($0, openAt + 8) ; closeAt = index(rest, "]")
+				if ( closeAt > 0 ) {
+					heldTag[heldCount] = substr(rest, 1, closeAt - 1)
+					heldText[heldCount] = substr(rest, closeAt + 2)
+					if ( $1 ~ /^[0-9]+\.[0-9]+$/ ) { linkedTs[$1] = 1 }
+					if ( heldText[heldCount] != "" && ! ( heldTag[heldCount] in tagText ) ) { tagText[heldTag[heldCount]] = heldCount }
+				}
+			}
+		}
+		END {
+			for ( i = 1 ; i <= heldCount ; i++ ) {
+				if ( ! past(i) ) { continue }
+				if ( heldTag[i] == "" ) { if ( heldFirst[i] in linkedTs ) { continue } }
+				else {
+					if ( heldTag[i] in served ) { continue }
+					served[heldTag[i]] = 1
+					if ( heldText[i] == "" ) { textAt = tagText[heldTag[i]] ; if ( textAt == "" ) { continue } }
+					else { textAt = i }
+				}
+				if ( index(heldLine[textAt == "" ? i : textAt], " [body: " heldFirst[textAt == "" ? i : textAt] ".body.txt]") ) {
+					bodyDir = heldDir[textAt == "" ? i : textAt] ; bodyName = heldFirst[textAt == "" ? i : textAt] ".body.txt"
+					while ( ( getline line < (bodyDir "/" bodyName) ) > 0 ) { print line }
+					close(bodyDir "/" bodyName)
+					continue
+				}
+				if ( heldTag[i] == "" || textAt == i ) { line = heldLine[i] }
+				else { line = heldFirst[i] " | " heldWho[i] " | [local: " heldTag[i] "] " heldText[textAt] }
+				gsub(/\037/, "\n", line) ; print line
+			}
 		}' ${serveFiles[@]+"${serveFiles[@]}"}
 }
 

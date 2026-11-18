@@ -3,10 +3,11 @@
 # Adds the arguments every tool takes (epic S20, AgentsTools.ToolTask.include) to the schema of each tool declaration on stdin, one declaration a line:
 # `background`, `sync`, `async`, `timeout` and `timeout_action`. A tool that already declares its own `timeout` (Bash, WorkspaceContextExecute) keeps it and gets the others.
 # The tools that block by design on their own bound, the handback and BatchTools are left as they are: the dispatcher does not wrap them.
+# The five tools that ask do take them, as every other tool does (S10.30).
 # A line that is no declaration, or whose schema has no properties object, is passed on as it is.
 
 BEGIN {
-	split("Wait AskQuestion ConfirmReadback EscalateDecision RequestPermission ProposeApprove ThisSession TaskOutput TaskStop SubagentHandback BatchTools", skipName, " ") ;
+	split("Wait ThisSession TaskOutput TaskStop SubagentHandback BatchTools", skipName, " ") ;
 	for (skipAt in skipName) { skip[skipName[skipAt]] = 1 ; }
 	background = "\"background\":{\"type\":\"boolean\",\"description\":\"true returns at once with TASK-ID=process-N and the call goes on as a task: Wait sources=process:process-N, TaskOutput handle=process-N and TaskStop handle=process-N work on it.\"}" ;
 	timeout = "\"timeout\":{\"type\":\"integer\",\"description\":\"Seconds after which the call returns early as a task, or is ended with timeout_action kill. With none, the call returns early at the window of this tool, 10 to 300 seconds.\"}" ;

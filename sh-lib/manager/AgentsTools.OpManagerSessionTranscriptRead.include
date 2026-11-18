@@ -74,7 +74,7 @@ type AgentsToolsManagerSessionScope > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.
 			case "$runSource" in
 				session-log)
 					runRows="$( AgentsSessionLogTail "$runSpawn" "$transcriptTail" \
-						| MDAT_MANAGER_SPAWN="$runSpawn" MDAT_MANAGER_MEMBER="$runMember" LC_ALL=C awk -v transcriptMode=log -f "$transcriptLib/session/AgentsSessionTranscriptFormat.awk" -f "$transcriptLib/manager/AgentsManagerSessionTranscript.awk" )"
+						| MDAT_MANAGER_SPAWN="$runSpawn" MDAT_MANAGER_MEMBER="$runMember" LC_ALL=C awk -v transcriptMode=log -f "$transcriptLib/transcript/AgentsSessionTranscriptFormat.awk" -f "$transcriptLib/manager/AgentsManagerSessionTranscript.awk" )"
 					[ -z "$runRows" ] || transcriptLogs="$transcriptLogs$runRows$transcriptNl"
 				;;
 				transcript)
@@ -86,7 +86,7 @@ type AgentsToolsManagerSessionScope > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.
 					## post's own renderer and its template; no post is made, and nothing is written.
 					type AgentsEventTrackPostRender > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/event-track/AgentsTools.InternOpEventTrackPost.include"
 					runRows="$( printf '%s\n' "$runLines" | ETP_ROWS=1 AgentsEventTrackPostRender feed "$runMember" "" "" - \
-						| MDAT_MANAGER_SPAWN="$runSpawn" MDAT_MANAGER_MEMBER="$runMember" LC_ALL=C awk -v transcriptMode=feed -f "$transcriptLib/session/AgentsSessionTranscriptFormat.awk" -f "$transcriptLib/manager/AgentsManagerSessionTranscript.awk" )"
+						| MDAT_MANAGER_SPAWN="$runSpawn" MDAT_MANAGER_MEMBER="$runMember" LC_ALL=C awk -v transcriptMode=feed -f "$transcriptLib/transcript/AgentsSessionTranscriptFormat.awk" -f "$transcriptLib/manager/AgentsManagerSessionTranscript.awk" )"
 					[ -n "$runRows" ] || continue
 					transcriptFeed="$transcriptFeed$runRows$transcriptNl"
 					## A run whose transcript is cut holds nothing before its first line here: the

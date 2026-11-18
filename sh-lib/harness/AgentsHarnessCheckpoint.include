@@ -122,6 +122,7 @@ AgentsHarnessSnapshotHeld(){ ## name
 
 ## The conversation put back to the snapshot of that name (the newest where none is named), with the input given, if any, as the next one.
 AgentsHarnessRewindTo(){ ## name, dispatch text ('' for none)
+	type AgentsHarnessContextBegin > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessContext.include"
 	local rewindName="$1" rewindInput="${2:-}" rewindRow rewindLine="" rewindKept="" rewindKind rewindCount rewindTools rewindSystem rewindTime rewindDropped nowSum
 	[ -n "$harnessCheckpointDir" ] || return 1
 	## The stack from the bottom to the snapshot rewound to is kept: the newest where no name is given, else the one of that name.

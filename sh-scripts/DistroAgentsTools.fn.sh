@@ -657,8 +657,10 @@ DistroAgentsTools(){
 			done
 			## The console's own command path, so a command is called by its name (epic S12.25).
 			. "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/console-.local-path.include" || echo "$MDSC_CMD: mcp-execute: WARNING: the console path include failed, so commands may not resolve by name" >&2
-			## No call links a sandbox into source (epic S23.11): the guard ln is first on the call's PATH. Without a guard folder the call runs as before.
-			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SandboxLinks.include" && AgentsToolsLnGuardMake "$MMDAPP/.local/agents/guard-bin" && PATH="$MMDAPP/.local/agents/guard-bin:$PATH"
+			## No call links a sandbox into source (epic S23.11) and no `grep -r` blocks on a fifo (epic S10.26): both guards are
+			## first on the call's PATH. Each maker keeps a guard whose text is the same, and writes a changed one, so the folder
+			## this puts on PATH never serves an old guard. Without a guard folder the call runs as before.
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SandboxLinks.include" && AgentsToolsLnGuardMake "$MMDAPP/.local/agents/guard-bin" && AgentsToolsGrepGuardMake "$MMDAPP/.local/agents/guard-bin" && PATH="$MMDAPP/.local/agents/guard-bin:$PATH"
 			## tested, not bare: set -e would kill the process instead of returning the status
 			( set -e ; eval "$( cat )" ) || execStatus=$?
 			if [ "$execStatus" != "0" ] ; then

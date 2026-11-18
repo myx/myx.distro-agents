@@ -1000,9 +1000,9 @@ DagcRunClaudeStreaming(){
 	## The session transcript writer rides the same stream, ahead of the formatter that exits
 	## on the result line, and only where both of its files are present.
 	local transcriptAwkArgs=()
-	[ ! -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsSessionTranscriptFormat.awk" ] \
+	[ ! -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/transcript/AgentsSessionTranscriptFormat.awk" ] \
 		|| [ ! -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsClaudeStreamJsonTranscript.awk" ] \
-		|| transcriptAwkArgs=( -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsSessionTranscriptFormat.awk" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsClaudeStreamJsonTranscript.awk" )
+		|| transcriptAwkArgs=( -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/transcript/AgentsSessionTranscriptFormat.awk" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsClaudeStreamJsonTranscript.awk" )
 	## A resume (MDAT_SPAWN_RESUME_EVENT_MARKER, from the proxy) marks its first stream-json
 	## event, so a resume that fails before it is told apart from one that ran.
 	if [ -n "${MDAT_SPAWN_RESUME_EVENT_MARKER:-}" ] ; then

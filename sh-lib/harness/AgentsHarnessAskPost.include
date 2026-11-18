@@ -25,6 +25,7 @@ AgentsHarnessAskParty(){ ## name
 
 ## The answer form of the caller's question: its kind's own, else its select, else free text.
 AgentsHarnessAskForm(){
+	type AgentsToolsAskKindRow > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.AskPost.include"
 	AgentsToolsAskKindRow "$toolKind" || :
 	printf '%s' "${agentsAskRowForm:-${toolSelect:-text}}"
 }
@@ -36,6 +37,7 @@ AgentsHarnessAskForm(){
 ## What a proposal lacks is a correction its caller makes, so its line starts with CORRECTION,
 ## and so does the line for options given with no answer form.
 AgentsHarnessAskCheck(){ ## -- reads the caller's tool* fields
+	type AgentsToolsAskKindRow > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.AskPost.include"
 	type AgentsHarnessRefusedTargetDecode > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessReports.include"
 	type AgentsHarnessBareName > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessSpawn.include"
 	## OPTIONS ARE ONE PER LINE, AND A CALLER THAT SENT A JSON LIST OF STRINGS ON ONE LINE MEANT THAT (2026-11-10 11:13: a question to
@@ -176,10 +178,12 @@ AgentsHarnessAskCheck(){ ## -- reads the caller's tool* fields
 ## (sh-lib/templates/, AgentsTools.AskPost.include). Prints the body; non-zero, with the
 ## reason in ask-post.err, when the template could not fill it.
 AgentsHarnessAskBody(){ ## optional revised (1: the question asked again, changed)
+	type AgentsToolsAskKindRow > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.AskPost.include"
 	AgentsHarnessAskPost && AgentsToolsAskKindRow "$toolKind" || return 3
 	## A second name of the tools shows every field in its own skeleton, around its kind's template.
 	ASKP_SKELETON="$( AgentsToolsAskPostSkeleton "${askPostName:-$harnessAskName}" )" \
 	ASKP_OPTIONS="$toolOptions" ASKP_REVISED="${1:-}" ASKP_F_tag="$askTag" ASKP_F_question="$toolQuestion" ASKP_F_context="$toolContext" \
+		ASKP_F_about="$( AgentsHarnessAskAbout )" \
 		ASKP_F_understood="$toolUnderstood" ASKP_F_source="$toolFrom" ASKP_F_will_do="$toolWillDo" \
 		ASKP_F_refused_tool="$askRefusedTool" ASKP_F_refused_target="$askRefusedTarget" ASKP_F_refused_for="$askRefusedOwner" ASKP_F_refusal_id="$toolRefusalId" \
 		ASKP_F_folder="${askRefusedFolder:-}" ASKP_F_project="${askRefusedProject:-}" ASKP_F_contact="${askRefusedContact:-}" \
@@ -187,12 +191,20 @@ AgentsHarnessAskBody(){ ## optional revised (1: the question asked again, change
 		AgentsToolsAskPostFill post "$agentsAskRowTemplate" "$( AgentsHarnessAskForm )" 2> "$harnessScratch/ask-post.err"
 }
 
+## The About line of a post: the task the asking run works on, and the system it concerns
+## (AgentsTools.AskAbout.include). Every ask has a cold reader, a member as much as a person.
+AgentsHarnessAskAbout(){
+	type AgentsToolsAskAboutLine > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.AskAbout.include"
+	AgentsToolsAskAboutLine "${harnessSessionId:-${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}}" "$toolTaskRef"
+}
+
 ## The root a proposal opens its thread with: the `## root` block of its template, the
 ## question alone. It is posted once, and no later call changes it. Prints it; non-zero,
 ## with the reason in ask-post.err, when the template has no such block.
 AgentsHarnessAskRootBody(){
+	type AgentsToolsAskKindRow > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.AskPost.include"
 	AgentsHarnessAskPost && AgentsToolsAskKindRow "$toolKind" || return 3
-	ASKP_BLOCK="Skeleton/root" ASKP_F_question="$toolQuestion" AgentsToolsAskPostFill block "$agentsAskRowTemplate" "" 2> "$harnessScratch/ask-post.err"
+	ASKP_BLOCK="Skeleton/root" ASKP_F_question="$toolQuestion" ASKP_F_about="$( AgentsHarnessAskAbout )" AgentsToolsAskPostFill block "$agentsAskRowTemplate" "" 2> "$harnessScratch/ask-post.err"
 }
 
 ## The asker's own words in the post: the fields the call gave, its options as the list they
@@ -206,16 +218,19 @@ AgentsHarnessAskProse(){
 
 ## What the post was filled with, as kept beside its record: a later fill starts from it.
 AgentsHarnessAskFields(){
+	type AgentsToolsAskPostFieldsPack > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.AskPost.include"
 	AgentsHarnessAskPost || return 0
-	AgentsToolsAskPostFieldsPack asked-as "${askPostName:-$harnessAskName}" tag "$askTag" question "$toolQuestion" context "$toolContext" understood "$toolUnderstood" source "$toolFrom" will-do "$toolWillDo" \
+	AgentsToolsAskPostFieldsPack asked-as "${askPostName:-$harnessAskName}" tag "$askTag" question "$toolQuestion" context "$toolContext" about "$( AgentsHarnessAskAbout )" understood "$toolUnderstood" source "$toolFrom" will-do "$toolWillDo" \
 		refused-tool "$askRefusedTool" refused-target "$askRefusedTarget" refused-for "$askRefusedOwner" refusal-id "$toolRefusalId" folder "${askRefusedFolder:-}" project "${askRefusedProject:-}" contact "${askRefusedContact:-}" \
-		reason "$toolReason" task "$toolTaskRef" proposal "$toolProposal" document "$toolDocument"
+		reason "$toolReason" task "$toolTaskRef" proposal "$toolProposal" document "$toolDocument" \
+		decision-kind "${MDAT_ASK_DECISION_KIND:-}" decision-source "${MDAT_ASK_DECISION_SOURCE:-}" decision-strike "${MDAT_ASK_DECISION_STRIKE:-}" decision-escalate "${MDAT_ASK_DECISION_ESCALATE:-}"
 }
 
 ## The answer emoji of the caller's question, as Slack names: what its template places for
 ## its answer form, the folder's too where a permission offers the folder of the refused file,
 ## and the project's where it offers the project beside it.
 AgentsHarnessAskSeedNames(){
+	type AgentsToolsAskKindRow > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.AskPost.include"
 	AgentsHarnessAskPost && AgentsToolsAskKindRow "$toolKind" || return 0
 	ASKP_OPTIONS="$toolOptions" ASKP_F_folder="${askRefusedFolder:-}" ASKP_F_project="${askRefusedProject:-}" ASKP_F_contact="${askRefusedContact:-}" AgentsToolsAskPostFill reactions "$agentsAskRowTemplate" "$( AgentsHarnessAskForm )" 2> /dev/null || :
 }

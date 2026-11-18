@@ -1,0 +1,232 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## THE CACHE-TO-INBOX TRANSFER (S1.12 stage 2, item 12 and standing ruling 14): one pass per reader hands the two kinds of message
+## it would otherwise never see into its own inbox, once each, and moves that reader's own pointer.
+##
+## It reads local files only. It never calls a service, so ruling 14's limit is untouched: the comms service thread is the only
+## thing that fetches, and this hands over what that thread already fetched.
+##
+##   The kept list  $MMDAPP/.local/cache/comms/.transfer/sources.txt, `<member><TAB><source folder>` a source, sorted. Rebuilt
+##                  when the store folder is newer than it, and once an hour whatever the folder says, because a source whose
+##                  reading member changed leaves that folder's own mtime alone.
+##   The pointer    $MMDAPP/.local/cache/comms/.transfer/<member>.txt, one reader's own mark and one cursor a source:
+##                    pointer <the newest event id handled>
+##                    source <source key> <the last event id handled from it>
+##                  One writer, this transfer, written whole through a temp beside it, moved only after every item is written.
+##                  It lies outside the source folders, so no cleaner reaches it. A CURSOR A SOURCE IS WHAT KEEPS A SLOW SOURCE:
+##                  one id for the whole reader would skip a message a slower source ingested after the mark but whose own id
+##                  sorts before it, and that message would enter no inbox at all.
+##   What moves     a message in a direct or group conversation the reader is party to, where the author is not the reader, and one
+##                  whose text carries `<@<the reader's Slack id>>`. An `edit` of a message already handed over is no second
+##                  delivery, because the item's name is the message's own id.
+##   The item       note-<the message's own minute>-slack-<the message's own id>.md, `communication-channel-id`
+##                  slack:<channel>:<ts>. The name is the dedup, as mail's -email-u<uid> and Trello's -trello-<id> are.
+##
+## Sourced, never run: functions only. Which events a reader is handed is AgentsCommsTransferEvents.awk's.
+##
+
+## Where the kept list and every reader's pointer live. rc 1 for no workspace.
+AgentsCommsTransferDir(){
+	[ -n "${MMDAPP:-}" ] || return 1
+	printf '%s\n' "$MMDAPP/.local/cache/comms/.transfer"
+}
+
+## THE KEPT LIST, REBUILT ONLY WHEN THE STORE'S SHAPE MAY HAVE MOVED: no list at all, the store folder newer than it, or the list
+## over an hour old. A rebuild reads every source's `.state.txt` in the shell, with no process a source.
+AgentsCommsTransferSources(){ ## the list path, the store folder
+	local listPath="$1" listStore="$2" listSource listFresh listLine listMember listRows=""
+	if [ -f "$listPath" ] && [ ! "$listStore" -nt "$listPath" ] ; then
+		listFresh="$( find "$listPath" -mmin -60 2> /dev/null )"
+		[ -z "$listFresh" ] || return 0
+	fi
+	for listSource in "$listStore"/*/.state.txt ; do
+		[ -f "$listSource" ] || continue
+		listMember=""
+		while IFS= read -r listLine ; do
+			case "$listLine" in
+				slack-conversation\ *|slack-thread\ *)
+					listLine="${listLine#* }"
+					listLine="${listLine#* }"
+					listMember="${listLine%% *}"
+				;;
+			esac
+		done < "$listSource"
+		case "$listMember" in ''|*[!A-Za-z0-9._-]*) continue ;; esac
+		listRows="$listRows$listMember"$'\t'"${listSource%/.state.txt}"$'\n'
+	done
+	listRows="$( printf '%s' "$listRows" | LC_ALL=C sort )" || return 1
+	local listTemp
+	## The list's folder is made here, where it is first needed: the collect thread keeps the list before any reader's pass,
+	## and a reader's pass was the only maker of it, so on a fresh workspace no list and no pass ever came.
+	mkdir -p "${listPath%/*}" 2> /dev/null || return 1
+	listTemp="$( mktemp "$listPath.XXXXXX" 2> /dev/null )" || return 1
+	printf '%s\n' "$listRows" > "$listTemp" && mv -f "$listTemp" "$listPath" 2> /dev/null || { rm -f "$listTemp" ; return 1 ; }
+	return 0
+}
+
+## THE READERS the kept list names, one a line, sorted and made distinct: what the thread's own pass walks.
+AgentsCommsTransferMembers(){ ## the list path
+	LC_ALL=C awk -F'\t' 'NF { if (!( $1 in seen )) { seen[$1] = 1 ; print $1 } }' "$1" 2> /dev/null
+}
+
+## THE POINTER FILE, WRITTEN WHOLE through a temp beside it, as the ingest writes its own. Its body is the caller's, and its first
+## line must be the reader's own mark: a file whose mark cannot be read is no pointer, and it is not written.
+AgentsCommsTransferPointerWrite(){ ## the pointer path, the whole body
+	local pointPath="$1" pointBody="$2" pointTemp
+	case "${pointBody%%$'\n'*}" in
+		'pointer '[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]T*) ;;
+		*) return 1 ;;
+	esac
+	pointTemp="$( mktemp "$pointPath.XXXXXX" 2> /dev/null )" || return 1
+	printf '%s\n' "$pointBody" > "$pointTemp" 2> /dev/null && mv -f "$pointTemp" "$pointPath" 2> /dev/null || { rm -f "$pointTemp" ; return 1 ; }
+	return 0
+}
+
+## ONE SOURCE'S OWN CURSOR, or the reader's mark where the source has no line of its own yet: the floor that source is read from.
+AgentsCommsTransferCursor(){ ## the source key
+	local cursorKey="$1" cursorAt=0
+	while [ "$cursorAt" -lt ${#passCursors[@]} ] ; do
+		if [ "${passCursorKeys[$cursorAt]}" = "$cursorKey" ] ; then printf '%s\n' "${passCursors[$cursorAt]}" ; return 0 ; fi
+		cursorAt=$(( cursorAt + 1 ))
+	done
+	return 1
+}
+
+## One source's cursor set, replacing its line or adding one.
+AgentsCommsTransferCursorSet(){ ## the source key, the id
+	local setKey="$1" setId="$2" setAt=0
+	while [ "$setAt" -lt ${#passCursors[@]} ] ; do
+		if [ "${passCursorKeys[$setAt]}" = "$setKey" ] ; then passCursors[$setAt]="$setId" ; return 0 ; fi
+		setAt=$(( setAt + 1 ))
+	done
+	passCursorKeys[${#passCursorKeys[@]}]="$setKey"
+	passCursors[${#passCursors[@]}]="$setId"
+	return 0
+}
+
+## ONE PASS FOR ONE READER, and nothing else. rc 0 the pass ran, whether or not it handed anything over. rc 1 a source could not be
+## read or an item could not be written, and then the pointer is where it was.
+AgentsCommsTransferSlack(){ ## member
+	local passMember="${1:-}" passDir passList passPointer passMark="" passId="" passStore passLine passKey
+	local passSource passPath passMoved="false" passFile passMonth passRows passKind passEvent passMessage passChannel passStamp passText
+	local passName passWork passItemRc=0 passSeed passCursor passAt passMax passLines
+	case "$passMember" in ''|-*|*[!A-Za-z0-9._-]*) echo "⛔ ERROR: the transfer takes one member name, got: $passMember" >&2 ; set +e ; return 1 ;; esac
+	[ -n "${MMDAPP:-}" ] || { echo "⛔ ERROR: the transfer needs a workspace" >&2 ; set +e ; return 1 ; }
+	passStore="$MMDAPP/.local/cache/comms/slack"
+	passDir="$( AgentsCommsTransferDir )" || { set +e ; return 1 ; }
+	mkdir -p "$passDir" 2> /dev/null || { set +e ; return 1 ; }
+	passList="$passDir/sources.txt"
+	AgentsCommsTransferSources "$passList" "$passStore" || { echo "⛔ ERROR: the transfer could not keep the list of sources in $passDir" >&2 ; set +e ; return 1 ; }
+	passPointer="$passDir/$passMember.txt"
+	## THE READER'S SLACK ID, from the file the cache's own reads keep. Never from `auth.test`: that is a service call.
+	if [ -f "$passStore/.user-id-$passMember.txt" ] ; then
+		{ read -r passSeed passId ; } 2> /dev/null < "$passStore/.user-id-$passMember.txt" || passId=""
+	fi
+	case "$passId" in U[A-Z0-9]*) ;; *) passId="" ; echo "# the transfer: no .user-id file names $passMember, so only its direct conversations are handed over" >&2 ;; esac
+	## THE POINTER READ WHOLE: the reader's own mark and one cursor a source.
+	passCursorKeys=() passCursors=()
+	if [ -f "$passPointer" ] ; then
+		while IFS= read -r passLine ; do
+			case "$passLine" in
+				'pointer '*) passMark="${passLine#pointer }" ;;
+				'source '*)
+					passLine="${passLine#source }"
+					passKey="${passLine%% *}"
+					passCursor="${passLine#* }"
+					[ -n "$passKey" ] && [ -n "$passCursor" ] && [ "$passKey" != "$passCursor" ] || continue
+					AgentsCommsTransferCursorSet "$passKey" "$passCursor"
+				;;
+			esac
+		done < "$passPointer"
+	fi
+	case "$passMark" in [0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]T*) ;; *) passMark="" ;; esac
+	## A SOURCE WITH NO CURSOR IS SEEDED TO ITS OWN NEWEST INGESTED ID, and hands over nothing on that pass: an inbox is a queue of
+	## work, and the cache keeps every message for reads. The same rule covers the first pass of a reader that has no pointer at all.
+	while IFS="$( printf '\t' )" read -r passSource passPath ; do
+		[ "$passSource" = "$passMember" ] || continue
+		passKey="${passPath##*/}"
+		AgentsCommsTransferCursor "$passKey" > /dev/null && continue
+		[ -f "$passPath/.ingest.txt" ] || continue
+		{ read -r passSeed ; } 2> /dev/null < "$passPath/.ingest.txt" || continue
+		case "$passSeed" in [0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]T*) ;; *) continue ;; esac
+		AgentsCommsTransferCursorSet "$passKey" "$passSeed"
+		[ -n "$passMark" ] && [ ! "$passSeed" \> "$passMark" ] || passMark="$passSeed"
+		passMoved="true"
+	done < "$passList"
+	## A SOURCE IS READ ONLY WHERE ITS INGEST MOVED since this reader's last pass: the pointer file's own mtime is that pass's
+	## moment, so a source whose `.ingest.txt` is not newer holds nothing this pass must read.
+	while IFS="$( printf '\t' )" read -r passSource passPath ; do
+		[ "$passSource" = "$passMember" ] || continue
+		[ -f "$passPath/.ingest.txt" ] || continue
+		[ "$passPath/.ingest.txt" -nt "$passPointer" ] || continue
+		passKey="${passPath##*/}"
+		passCursor="$( AgentsCommsTransferCursor "$passKey" )" || continue
+		passMoved="true"
+		for passFile in "$passPath"/[0-9][0-9][0-9][0-9][0-9][0-9]/events.txt ; do
+			[ -f "$passFile" ] || continue
+			passMonth="${passFile%/events.txt}" ; passMonth="${passMonth##*/}"
+			[ "$passMonth" \< "${passCursor:0:6}" ] && continue
+			passRows="$( LC_ALL=C awk -v pointer="$passCursor" -v myId="$passId" \
+				-v target="$( LC_ALL=C awk 'NF == 4 && $1 ~ /^slack-/ { print $2 ; exit }' "$passPath/.state.txt" 2> /dev/null )" \
+				-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsCommsTransferEvents.awk" "$passFile" 2> /dev/null )" \
+				|| { echo "⛔ ERROR: the transfer could not read $passFile" >&2 ; set +e ; return 1 ; }
+			[ -n "$passRows" ] || continue
+			while IFS="$( printf '\t' )" read -r passKind passEvent passMessage passChannel passStamp passText ; do
+				case "$passKind" in
+					MSG)
+						passName="note-$passStamp-slack-$passMessage.md"
+						## AN ITEM THE INBOX ALREADY HOLDS, OR ALREADY PROCESSED, IS NOT WRITTEN AGAIN: the name is the
+						## message's own id, so an `edit` and a re-read name the same item. The inbox's write refuses a
+						## second body for an existing item rather than replacing it, and a handled message is no work.
+						type AgentsToolsInboxItemFind > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/inbox/AgentsTools.InboxPlace.include"
+						AgentsToolsInboxItemFind "$passMember" "$passName" yes > /dev/null && continue
+						mkdir -p "$MMDAPP/.local/temp" 2> /dev/null
+						passWork="$( mktemp "$MMDAPP/.local/temp/mdat-transfer.XXXXXX" 2> /dev/null )" || { echo "⛔ ERROR: the transfer could not make a working file" >&2 ; set +e ; return 1 ; }
+						{
+							printf '## slack-message %s:%s\n' "$passChannel" "$passMessage"
+							printf 'source: slack\nchannel: %s\nts: %s\n\n' "$passChannel" "$passMessage"
+							printf '%s\n' "$passText" | LC_ALL=C awk '{ gsub(/\\037/, "\n") ; gsub(/\\036/, "\t") ; print }'
+						} > "$passWork" 2> /dev/null || { rm -f "$passWork" ; echo "⛔ ERROR: the transfer could not write its working file" >&2 ; set +e ; return 1 ; }
+						type AgentsToolsCollectItemWrite > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.Collect.include"
+						## THE WRITE'S OWN TOOL, in this shell: the collect item write sources it inside its pipeline's left side,
+						## where it can serve no caller. A transfer stands outside the dispatcher, so it brings the tool here.
+						type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+						AgentsToolsCollectItemWrite "$passMember" "$passName" "slack:$passChannel:$passMessage" "$passWork" || passItemRc=$?
+						rm -f "$passWork"
+						[ "$passItemRc" -eq 0 ] || { echo "⛔ ERROR: the transfer could not write $passName" >&2 ; set +e ; return 1 ; }
+					;;
+					LAST)
+						[ -z "$passEvent" ] && continue
+						[ "$passEvent" \> "$passCursor" ] || continue
+						passCursor="$passEvent"
+						AgentsCommsTransferCursorSet "$passKey" "$passCursor"
+					;;
+				esac
+			done <<< "$passRows"
+		done
+	done < "$passList"
+	## A PASS THAT CHANGED NOTHING WRITES NOTHING AT ALL, its own pointer included.
+	[ "$passMoved" = "true" ] || return 0
+	## THE FILE, WHOLE: the reader's own mark first, then one cursor a source, the sources sorted by their own key.
+	passMax=""
+	passAt=0
+	while [ "$passAt" -lt ${#passCursorKeys[@]} ] ; do
+		passCursor="${passCursors[$passAt]}"
+		[ -n "$passMax" ] && [ ! "$passCursor" \> "$passMax" ] || passMax="$passCursor"
+		passAt=$(( passAt + 1 ))
+	done
+	[ -n "$passMax" ] || passMax="$passMark"
+	[ -n "$passMax" ] || return 0
+	passLines=""
+	passAt=0
+	while [ "$passAt" -lt ${#passCursorKeys[@]} ] ; do
+		passLines="$passLines""source ${passCursorKeys[$passAt]} ${passCursors[$passAt]}"$'\n'
+		passAt=$(( passAt + 1 ))
+	done
+	passLines="$( printf '%s' "$passLines" | LC_ALL=C sort )" || return 1
+	AgentsCommsTransferPointerWrite "$passPointer" "pointer $passMax
+$passLines" || { set +e ; return 1 ; }
+	return 0
+}

@@ -329,7 +329,7 @@ AgentsToolsOwnerQuorumDecide(){ ## rule, members (one a line), votes (one a line
 		[ -n "$decVote" ] || continue
 		decMember="${decVote%%=*}" ; decVerdict="${decVote#*=}"
 		decWord="$( printf '%s' "$decVerdict" | LC_ALL=C tr 'ABCDEFGHIJKLMNOPQRSTUVWXYZ' 'abcdefghijklmnopqrstuvwxyz' )"
-		if case "$decWord" in allow|allow-once|allow-session|allow-task|allow-contact|yes|correct) : ;; *) false ;; esac ; then
+		if case "$decWord" in allow|allow-once|allow-session|allow-task|allow-contact|yes|correct|edit) : ;; *) false ;; esac ; then
 			decApproves=$(( decApproves + 1 ))
 			[ -n "$decFirstApprove" ] || decFirstApprove="$decVerdict $decMember"
 		elif AgentsToolsAuthorityRefusing "$decWord" ; then
@@ -462,7 +462,7 @@ AgentsToolsAuthorityFlags(){ ## arguments...
 
 ## The words an approving answer of a request is, beside a choice of a decision's own.
 AgentsToolsAuthorityApproving(){ ## verdict
-	case "$1" in allow|allow-once|allow-session|allow-task|allow-contact|yes|correct) return 0 ;; esac
+	case "$1" in allow|allow-once|allow-session|allow-task|allow-contact|yes|correct|edit) return 0 ;; esac
 	return 1
 }
 
@@ -581,6 +581,7 @@ AgentsToolsAuthorityRequestOpen(){ ## mode (enqueue|wait), confirmation (yes|emp
 	## Its text, in the form of a permission request (request-permission.post.format.md, with its `# Authority` words): the refused call said
 	## plainly, why it is asked, how to answer, and the refusal this request logs by its id, which an `allow-session` is granted from.
 	type AgentsToolsAskPostFill > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.AskPost.include"
+	type AgentsToolsAskAboutLine > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.AskAbout.include"
 	openRefusal="$( "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-op-permission-refusal-log "$agentsAuthorityCallerId" \
 		--session-id "${openSession:-none}" --tool authority --target "$openTo" --reason "$openWhat" 2> /dev/null | LC_ALL=C grep -o -E 'refusal-[0-9a-f-]+' | head -1 )"
 	if [ -z "$openRefusal" ] ; then
@@ -593,7 +594,8 @@ AgentsToolsAuthorityRequestOpen(){ ## mode (enqueue|wait), confirmation (yes|emp
 	[ "$openKind" != decision ] || openSlotChoices="$openOptions"
 	openReason="$( ASKP_BLOCK="Authority/reason" ASKP_F_requester="$agentsAuthorityCallerId" ASKP_F_holder="$openTo" AgentsToolsAskPostFill block request-permission.post.format.md "" 2> /dev/null )" || openReason=""
 	openTaskText="$( ASKP_BLOCK="Authority/task" ASKP_F_requester="$agentsAuthorityCallerId" ASKP_F_operation="$openOperation" AgentsToolsAskPostFill block request-permission.post.format.md "" 2> /dev/null )" || openTaskText=""
-	openText="$( export ASKP_F_refused_tool="$openWhat" ASKP_F_refused_for="$agentsAuthorityCallerId" ASKP_F_refusal_id="$openRefusal" ASKP_F_reason="$openReason" ASKP_F_task="$openTaskText" \
+	openText="$( export ASKP_F_refused_tool="$( AgentsToolsAskWordsPlain "$openWhat" )" ASKP_F_refused_for="$agentsAuthorityCallerId" ASKP_F_refusal_id="$openRefusal" ASKP_F_reason="$openReason" ASKP_F_task="$openTaskText" \
+		ASKP_F_about="$( AgentsToolsAskAboutLine "$openSession" "" )" ASKP_F_allowed_words="$( AgentsToolsAskWordsPlain "$openWhat" )" \
 		ASKP_F_text="$openSlotText" ASKP_F_choices="$openSlotChoices" ; AgentsToolsAskPostFill post request-permission.post.format.md "$openForm" 2> /dev/null )" || openText=""
 	if [ -z "$openText" ] ; then
 		echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools}: the request could not be posted: its text could not be filled from sh-lib/templates/request-permission.post.format.md, so nothing was asked" >&2
@@ -601,7 +603,7 @@ AgentsToolsAuthorityRequestOpen(){ ## mode (enqueue|wait), confirmation (yes|emp
 	fi
 	[ -z "$openOptions" ] || [ "$openKind" != decision ] || openText="$openText"$'\n'"$openOptions"
 	## The slots the post was filled with, kept beside a permission request's record: a later fill starts from them.
-	[ "$openKind" != permission ] || openFields="$( AgentsToolsAskPostFieldsPack asked-as RequestPermission refused-tool "$openWhat" refused-for "$agentsAuthorityCallerId" refusal-id "$openRefusal" reason "$openReason" task "$openTaskText" )"
+	[ "$openKind" != permission ] || openFields="$( AgentsToolsAskPostFieldsPack asked-as RequestPermission refused-tool "$openWhat" refused-for "$agentsAuthorityCallerId" refusal-id "$openRefusal" reason "$openReason" task "$openTaskText" about "$( AgentsToolsAskAboutLine "$openSession" "" )" )"
 	openOut="$( printf '%s\n' "$openText" | "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-op-comms-slack-send-message "$openSender" "$openTarget" --identity-bot ${openAddress:+--address-to "$openAddress"} --from-stdin 2>&1 )" || {
 		echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools}: the request to $openTo could not be posted, so nothing was asked: $( printf '%s\n' "$openOut" | LC_ALL=C grep -m1 'ERROR' )" >&2
 		return 1
@@ -649,7 +651,7 @@ AgentsToolsAuthorityRequestSettle(){ ## request record, verdict, answered by
 	settleVerdict="$( printf '%s' "$2" | LC_ALL=C tr 'ABCDEFGHIJKLMNOPQRSTUVWXYZ' 'abcdefghijklmnopqrstuvwxyz' )"
 	## The word is the answer; a comment after it (`yes, go on` is read as `yes -- go on`) is not part of it.
 	settleVerdict="${settleVerdict%% -- *}"
-	if ! case "$settleVerdict" in allow|allow-once|allow-session|allow-task|allow-contact|yes|correct) : ;; *) false ;; esac ; then
+	if ! case "$settleVerdict" in allow|allow-once|allow-session|allow-task|allow-contact|yes|correct|edit) : ;; *) false ;; esac ; then
 		case "$settleVerdict" in
 			deny|no) ;;
 			*)
@@ -676,7 +678,7 @@ AgentsToolsAuthorityRequestSettle(){ ## request record, verdict, answered by
 		}
 	fi
 	AgentsToolsAuthorityFieldSet "$settleFile" status reply-received verdict "$settleVerdict" answered-by "$settleBy" answered-at "$( date +"%Y-%m-%d %H:%M %z" )" ${settleChosen:+chosen "$settleChosen"} || return 1
-	if ! case "$settleVerdict" in allow|allow-once|allow-session|allow-task|allow-contact|yes|correct) : ;; *) false ;; esac && [ -z "$settleChosen" ] ; then
+	if ! case "$settleVerdict" in allow|allow-once|allow-session|allow-task|allow-contact|yes|correct|edit) : ;; *) false ;; esac && [ -z "$settleChosen" ] ; then
 		printf 'DENIED %s\n' "$( basename "$settleFile" .md )"
 		return 0
 	fi

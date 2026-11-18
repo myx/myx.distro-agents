@@ -18,7 +18,7 @@
 # ("allow-once, allow-session", "yes, no"). No negation parsing is attempted in place of any
 # of it: the owner's rule is "complete first line, or separated by punctuation at least".
 # Any other reply is RETURNED and goes back to the asker, with its text. The first answer
-# that classifies wins. A readback "correct" prints "correct -- <his words on that line>".
+# that classifies wins. A readback "edit" prints "edit -- <his words on that line>"; a bare "correct" is a plain affirmation.
 # Only the reply's first line is read -- its first line that is no quote of the question, a
 # ``` fenced block or a line starting with ">" or "&gt;" being skipped -- and the rest of it
 # is a clarification, kept by the caller.
@@ -155,12 +155,12 @@ BEGIN {
 		if ( optionWord != "" ) { optionSet[optionWord] = 1 ; }
 		if ( optionWord != "" && recommendedWord == "" && index( lowered( optionLines[optionIndex] ), "(recommended)" ) ) { recommendedWord = optionWord ; }
 	}
-	split( "ok okay yes agree agreed confirm confirmed", affirmWords, " " ) ;
+	split( "ok okay yes agree agreed confirm confirmed correct", affirmWords, " " ) ;
 	for ( affirmIndex in affirmWords ) { affirmSet[affirmWords[affirmIndex]] = 1 ; }
 	split( "+1 thumbsup ok_hand white_check_mark", affirmReactions, " " ) ;
 	for ( affirmIndex in affirmReactions ) { affirmReactionSet[affirmReactions[affirmIndex]] = 1 ; }
 	verdictTs = "" ;
-	if ( kind == "readback" ) { optionSet["yes"] = 1 ; optionSet["no"] = 1 ; optionSet["correct"] = 1 ; }
+	if ( kind == "readback" ) { optionSet["yes"] = 1 ; optionSet["no"] = 1 ; optionSet["edit"] = 1 ; }
 	else if ( kind == "permission" ) { optionSet["deny"] = 1 ; optionSet["allow-once"] = 1 ; optionSet["allow-session"] = 1 ; optionSet["allow-task"] = 1 ; }
 	folderOffered = ( kind == "permission" && ENVIRON["MDAT_VERDICT_FOLDER"] != "" ) ;
 	projectOffered = ( kind == "permission" && ENVIRON["MDAT_VERDICT_PROJECT"] != "" ) ;
@@ -462,7 +462,7 @@ function lineShape( text,    word, rest, markLength, marked ) {
 ## first word, and -- taken with plain set -- a plain affirmation where the kind has one.
 function answerOf( word, plain ) {
 	if ( kind == "readback" || form == "yes-no" ) {
-		if ( word == "yes" || word == "no" || ( word == "correct" && kind == "readback" ) ) { return word ; }
+		if ( word == "yes" || word == "no" || ( word == "edit" && kind == "readback" ) ) { return word ; }
 		return ( plain && ( word in affirmSet ) ) ? "yes" : "" ;
 	}
 	if ( kind == "permission" ) { return ( word == "deny" || word == "allow-once" || word == "allow-session" || word == "allow-task" || ( word == "allow-folder" && folderOffered ) || ( word == "allow-project" && projectOffered ) || ( word == "allow-contact" && contactOffered ) ) ? word : "" ; }
@@ -521,7 +521,7 @@ function judgeMessage(    replyText, replyWord, replyRest, shape, answer, other,
 			## His words on the verdict's line: always with a correction, an edit, a proposal's
 			## and a review's verdict, and with any other for a caller that keeps them.
 			gsub( /\t/, " ", words ) ;
-			if ( ! wordsWanted && ! ( ( kind == "readback" && answer == "correct" ) || ( kind == "permission-set" && answer == "edit" ) || kind == "proposal" || kind == "review" || kind == "undo" ) ) { words = "" ; }
+			if ( ! wordsWanted && ! ( ( kind == "readback" && answer == "edit" ) || ( kind == "permission-set" && answer == "edit" ) || kind == "proposal" || kind == "review" || kind == "undo" ) ) { words = "" ; }
 			verdict = answer ( words != "" ? " -- " words : "" ) ;
 		} else if ( kind == "decision" || form == "one" ) {
 			replyWord = replyText ;

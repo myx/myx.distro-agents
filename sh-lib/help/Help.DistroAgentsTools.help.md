@@ -269,7 +269,7 @@
 📘 syntax: DistroAgentsQuestions.fn.sh --read-pending-reply [--team-member <team-member>] [<pending-id>] [--all] [--any-owner] [--count]
 📘 syntax: DistroAgentsSession.fn.sh --settle-pending-reply [--team-member <team-member>] <pending-id> --reason <text> [--withdraw]
 📘 syntax: DistroAgentsQuestions.fn.sh --amend-pending-reply [--team-member <team-member>] <pending-id> --verdict <text> --reason <text>
-📘 syntax: DistroAgentsQuestions.fn.sh --record-decision [--team-member <team-member>] <item-filename> --kind <clarification|resolved|dismissed> --text <one line> [--source <ts-or-id>] [--clears-blocker]
+📘 syntax: DistroAgentsQuestions.fn.sh --record-decision [--team-member <team-member>] <item-filename> --kind <clarification|resolved|dismissed> --text <one line> (--with <party> [--wait]|--readback <pending-id>) [--source <ts-or-id>] [--clears-blocker]
 📘 syntax: DistroAgentsItems.fn.sh --request-review [--team-member <team-member>] <item-filename> --reason <text>
 📘 syntax: DistroAgentsItems.fn.sh --accept-review [--team-member <team-member>] <item-filename> [--summary <text>]
 📘 syntax: DistroAgentsItems.fn.sh --return-review [--team-member <team-member>] <item-filename> (--message <text>|--from-stdin)
@@ -298,6 +298,7 @@
 📘 syntax: AgentDispatcherTools.fn.sh --epic-read <epic-file|epic-item> [--feature <feature-id>]
 📘 syntax: AgentDispatcherTools.fn.sh --epic-list [<folder>]
 📘 syntax: AgentDispatcherTools.fn.sh --spawn-run [--select-workspace <place-name>] (--routine <selector>|--routine-default) [<DistroAgentsDispatcher.fn.sh --spawn-session options>]
+📘 syntax: AgentDispatcherTools.fn.sh --supervise-rigs
 📘 syntax: AgentDispatcherTools.fn.sh --supervise-scan [--workspace <path>]... [--since <epoch>]
 📘 syntax: AgentDispatcherTools.fn.sh --supervise-resume [--workspace <path>]...
 📘 syntax: AgentDispatcherTools.fn.sh --supervise-read <run-id> [--tail <lines>] [--thread-lines <lines>] [--no-thread] [--no-checklist] [--log] [--workspace <path>]
@@ -2922,12 +2923,10 @@
 
 		--install-knowledge-store [--from-folder <folder>]
 			Installs the Python environment the knowledge store
-			(LanceDB) needs. The store is optional and off unless the
-			setting `MDAT_KNOWLEDGE_STORE` is `on` (the environment
-			first, then the settings of the team; `--manager-config-set`
-			saves it): with it off the call refuses, says so and how to
-			turn it on, and installs nothing. With it on, this is a thin
-			call of the feature `setup.feature-lancedb`, its fragment
+			(LanceDB) needs. The store is optional, and its install is
+			all it takes: there is no switch, and every reader uses the
+			store once its install stands. This is a thin call of the
+			feature `setup.feature-lancedb`, its fragment
 			`host/install/feature-lancedb.install.txt`, which does the
 			install: the environment `venv/` in `$LANCEDB_HOME`, else
 			`.local/lancedb/` of the workspace, made with the embedded
@@ -2936,7 +2935,7 @@
 			the licence of every package listed before anything is placed
 			and carried into `licenses/`; `lancedb.env` is written last,
 			and its presence is what says the install is whole. This call
-			keeps the option parse, the gate of the setting and
+			keeps the option parse and
 			`--from-folder`: a folder downloaded once elsewhere (the
 			`wheelhouse/` of an online run and the model, copied), which
 			the feature installs from without downloading; a folder that
@@ -3348,11 +3347,6 @@
 			printback output, `track` the tooling thread, `full` a session
 			thread in the team channel; read when a session is minted, and
 			`none` where nothing sets it.
-			`knowledge`: the switch of the knowledge store, one line:
-			group `store`, key `MDAT_KNOWLEDGE_STORE`, `off` where nothing
-			sets it, or `on`, from the environment or from what is saved
-			for the team. The store is installed by
-			`--install-knowledge-store`, and only when this is `on`.
 
 		--manager-config-set <key> <value>
 			One of the console's own operations (see Notes). Saves one
@@ -3385,9 +3379,6 @@
 			to 60, and `SESSION_CONTROL_KILL_SECONDS`, a `number` from 5
 			to 600, the workspace's: the two bounds of a request to a
 			control thread, read at the next request.
-			`MDAT_KNOWLEDGE_STORE`, a `choice` of `off` and `on`, the
-			workspace's: whether the workspace wants the knowledge store,
-			read at the next use, `off` where nothing sets it.
 			`ROOT_HARNESS_VERBOSITY`, a `choice` of `none`, `track` and
 			`full`, the workspace's: which external channel a root-harness
 			session's copy lives on, its printback output, the tooling
@@ -6437,12 +6428,19 @@
 			have written a grant, which is corrected through the grant
 			store.
 
-		--record-decision [--team-member <team-member>] <item-filename> --kind <clarification|resolved|dismissed> --text <one line> [--source <ts-or-id>] [--clears-blocker]
+		--record-decision [--team-member <team-member>] <item-filename> --kind <clarification|resolved|dismissed> --text <one line> (--with <party> [--wait]|--readback <pending-id>) [--source <ts-or-id>] [--clears-blocker]
 			Appends one dated line to the board item's `## Decisions`
 			section, creating the section when it is missing, through the
 			board edit primitive:
 			`- <UTC> <team-member> <kind>: <text> (<source>)`. Prints
-			`DECISION-RECORDED <item> <state>`. Decisions are binding
+			`DECISION-RECORDED <item> <state>`. The line lands only
+			through its confirmed readback on the same item: `--with
+			<party>` asks it, and its `yes` or `edit` lands the line by
+			itself, as its asker, from whichever reader closes it; a `no`
+			lands nothing. It returns at once with `DECISION-ASKED`, or
+			with `--wait` ends with `DECISION-RECORDED` or
+			`DECISION-NOT-RECORDED`. `--readback <pending-id>` records
+			through one already confirmed. Decisions are binding
 			context for the item: a spawn brief, conversation.md and a
 			named-item input scan show them first, newest first, at most
 			30. `--clears-blocker` also removes the item's `blocked-on`
@@ -7449,8 +7447,8 @@
 			in JSON, `{"entries":[{"source","store","section","snippet"}]}`. A call with
 			no source, no term, a group not closed, a close that closes none or an
 			option it does not know is refused, rc 1, with nothing read. The store is
-			searched only when `--add-source-docs` is added and the setting
-			`MDAT_KNOWLEDGE_STORE` is `on` and the store's environment stands: otherwise
+			searched only when `--add-source-docs` is added and the store's
+			environment stands: otherwise
 			the text alone answers, exactly as it always did.
 
 		--knowledge-store-spread <path> [--keep <glob>]...

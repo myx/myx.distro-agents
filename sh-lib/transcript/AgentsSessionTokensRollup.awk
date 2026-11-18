@@ -3,13 +3,13 @@
 # Token totals for board items, computed when shown and never stored: an item's own
 # `tokens:` header plus every item under it, by the links that already exist.
 #   - an item whose `tracks:` or `follows-up:` names it;
-#   - a spawn record (.local/agents/spawned/*/*.spawn.md) whose `parent-spawn-id:` is the
+#   - a spawn record, a file named <spawn-id>.spawn.md, whose `parent-spawn-id:` is the
 #     item's `spawn-id:` (the children index lists the same records) -- the record's
 #     `spawns:` item is under it.
 # Each descendant counts once, however many links reach it.
 #
-# stdin: one file path per line, board items and spawn records alike (told apart by
-# a /spawned/ segment). -v want="<item> <item> ..." names the items to total, bare
+# stdin: one file path per line, board items and spawn records alike, told apart by the
+# record's own name. -v want="<item> <item> ..." names the items to total, bare
 # names with or without .md. Prints one row per wanted item that has any tokens:
 #   <item>\t<in>\t<cache-read>\t<cache-write>\t<out>\t<sub-sessions>
 # Run LC_ALL=C.
@@ -29,7 +29,7 @@ function rlTokensField(headerText, keyName,   fieldText) {
 }
 
 function rlReadFile(filePath,   lineText, lineNumber, inFront, keyName, valueText, itemName, isRecord, tokenText, linkCount, linkList, linkIndex) {
-	isRecord = (index(filePath, "/spawned/") > 0)
+	isRecord = (filePath ~ /\.spawn\.md$/)
 	itemName = rlBare(filePath)
 	lineNumber = 0
 	inFront = 0

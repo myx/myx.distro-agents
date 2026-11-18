@@ -21,9 +21,13 @@
 ##   guard-name      a guarded load whose F is defined in its file but not called by the code it guards: it works
 ##                   until a split moves the function that code calls, then fails silently on that path.
 ##   undefined-call  a call to a family function that is defined nowhere, or whose defining file is not loaded on
-##                   the call's own path: in its function, in its case arm, or by its file's top-level loads
-##                   (MAGIC.md, "Dispatcher and code layout": a shared include loads before its case only what
-##                   every operation reaches, else the branch or function guards its own load).
+##                   the call's own path. A load covers a call only where it sits before the call and in the call's own
+##                   branch or an enclosing one: a load in an `if` block, a `case` arm or an `else` reaches that
+##                   branch's calls alone, never a call after its `fi` or in a sibling branch. A file that defines a
+##                   function runs its file-scope `if` block at load, so there its load covers the file; a fragment,
+##                   which defines none, is sourced inside a function that runs it, so its blocks are branches
+##                   (MAGIC.md, "Dispatcher and code layout": a shared include loads before its case only what every
+##                   operation reaches, else the branch or function guards its own load).
 ## Left out on purpose: the universal harness's served-mode stubs (AgentsUniversalHarness.sh), the two wire
 ## implementations that share one interface (AgentsOpenAiChatWire.sh, AgentsAnthropicMessagesWire.sh), the client
 ## hooks (each a standalone script), a define-once guard (`if ! type F ; then F(){`), a self-replacing lazy stub
@@ -50,12 +54,19 @@ defs, top, fnLoads, fnCalls, topCalls, loadSites = {}, {}, {}, {}, {}, {}
 ## What a line can already have loaded: the file's own unconditional loads, those of the case arm it sits in,
 ## and those of the function it sits in. A call is defined on its path only against this set, never against a
 ## load another arm or another function of the same file makes.
-lineFn, lineArm, scopeLoads, armSeq = {}, {}, collections.defaultdict(lambda: collections.defaultdict(set)), 0
+lineFn, lineArm, armSeq = {}, {}, 0
+## A file that defines at least one function of its own. One that defines none is a fragment, sourced inside a
+## function that runs it, so its file-scope `if` blocks are that function's branches.
+libFile = {r for r in code if any(fnRe.match(line) for line in text[r].split('\n'))}
+## Every load a scope makes, with the line it sits on and the case arm it sits in: `(line, arm, path)`. A
+## call is covered only by a load before it, in its own case arm or an enclosing one. A load after the
+## call, or in a sibling arm, has not run when the call does.
+scopeLoadAt = collections.defaultdict(list)
 own, siteAt = {}, {}
 for r in code:
     top[r], fnLoads[r], fnCalls[r], topCalls[r] = set(), {}, {}, []
     lineFn[r], lineArm[r] = {}, {}
-    cur = None ; prevSt = '' ; heredoc = None ; ifTyped = {} ; inSq = False ; armPath = []
+    cur = None ; prevSt = '' ; heredoc = None ; ifTyped = {} ; inSq = False ; armPath = [] ; armText = ''
     for n, line in enumerate(text[r].split('\n'), 1):
         if heredoc:
             if line.strip() == heredoc: heredoc = None
@@ -71,26 +82,53 @@ for r in code:
         s = '' if line.lstrip().startswith('#') else line
         m = fnRe.match(line)
         if m:
-            cur = m.group(1) ; defs.setdefault(cur, r) ; fnLoads[r][cur] = set() ; fnCalls[r][cur] = [] ; armPath = []
+            cur = m.group(1) ; defs.setdefault(cur, r) ; fnLoads[r][cur] = set() ; fnCalls[r][cur] = [] ; armPath = [] ; armText = ''
             continue
         if cur and line == '}':
-            cur = None ; armPath = [] ; continue
+            cur = None ; armPath = [] ; armText = '' ; continue
         st = s.strip()
-        ## Case arms, at file scope and inside a function. A load inside one arm is on that arm's path only;
-        ## an arm whose label continues from the line above counts from the line its `)` sits on.
+        ## Branch scopes, at file scope and inside a function: a `case` arm, and a shell `if` block. A load inside
+        ## one is on that branch's path only, so it covers no call in a sibling branch, in a branch that follows
+        ## its own `fi`, or in another block of the same file. An arm whose label continues from the line above
+        ## counts from the line its `)` sits on. The keywords are read from one logical statement, so a condition
+        ## continued over several lines opens its block once, and only a shell `if` counts: awk's `if ( )` has no
+        ## `then`.
         if st:
-            if re.match(r'^.*\bcase\b.*\bin\s*$', st): armPath.append(0)
-            elif re.match(r'^esac\b', st) and armPath: armPath.pop()
-            elif armPath and re.match(r'^[-A-Za-z0-9_*.|$(){}\[\]%:,/\x27"]+\s*\)\s*$', st):
-                armSeq += 1 ; armPath[-1] = armSeq
+            armText += ' ' + re.sub(r'"(?:[^"\\]|\\.)*"', ' ', re.sub(r"'[^']*'", "''", line.split(' #')[0]))
+            if armText.rstrip().endswith('\\'):
+                armText = armText.rstrip()[:-1]
+            else:
+                ## Inside a function a `case` arm and an `if` block are both branches of a run. A file that defines
+                ## a function runs its file-scope `if` block at load, so there its load counts for the whole file.
+                ## A file that defines none is a fragment, sourced inside a function that runs it, so its
+                ## file-scope blocks are that function's branches and every keyword counts.
+                armKwAll = [(m.group(1)) for m in re.finditer(r'\b(if|elif|else|then|fi|case|esac)\b', armText)]
+                armToks = armKwAll if (cur or r not in libFile) else [k for k in armKwAll if k in ('case', 'esac')]
+                for armIdx, armKw in enumerate(armToks):
+                    if armKw in ('if', 'elif'):
+                        if 'then' not in armToks[armIdx + 1:]: continue
+                        if armKw == 'elif' and armPath and armPath[-1][0] == 'if': armSeq += 1 ; armPath[-1] = ('if', armSeq)
+                        else: armSeq += 1 ; armPath.append(('if', armSeq))
+                    elif armKw == 'else':
+                        if armPath and armPath[-1][0] == 'if': armSeq += 1 ; armPath[-1] = ('if', armSeq)
+                    elif armKw == 'fi':
+                        if armPath and armPath[-1][0] == 'if': armPath.pop()
+                    elif armKw == 'case':
+                        armPath.append(('case', 0))
+                    elif armKw == 'esac':
+                        while armPath and armPath[-1][0] != 'case': armPath.pop()
+                        if armPath: armPath.pop()
+                if armPath and armPath[-1][0] == 'case' and re.match(r'^[-A-Za-z0-9_*.|$(){}\[\]%:,/\x27"]+\s*\)\s*$', armText.strip()):
+                    armSeq += 1 ; armPath[-1] = ('case', armSeq)
+                armText = ''
         lineFn[r][n], lineArm[r][n] = cur, tuple(armPath)
         branch = bool(re.match(r'^[^()#"]*[^\s(]\)\s*\.\s', st)) or (st.startswith('. ') and prevSt.endswith(')') and not prevSt.endswith('$( )'))
         for lm in loadRe.finditer(s):
             p = lm.group(1)
             if not branch: (fnLoads[r][cur] if cur else top[r]).add(p)
             loadSites.setdefault(p, []).append((r, cur))
-            siteAt.setdefault(p, []).append((r, cur, tuple(armPath)))
-            scopeLoads[(r, cur)][tuple(armPath)].add(p)
+            siteAt.setdefault(p, []).append((r, cur, tuple(armPath), n))
+            scopeLoadAt[(r, cur)].append((n, tuple(armPath), p))
         ## A file-scope load outside every case arm is `own`: the only kind that is on the path of the whole
         ## file. An arm's load is on that arm's path alone (MAGIC.md, "Dispatcher and code layout").
         if not cur and not armPath and not branch:
@@ -144,33 +182,44 @@ def ownClosure(seed):
         out.add(p) ; todo += list(own.get(p, ()))
     return out
 ctxPath = {r: set(allf) for r in allf}
-def siteLoads(p, fn, at):
+def siteLoads(p, fn, at, beforeLine):
+    ## What the loading scope has loaded by the line that loads r, in the arm that load sits in or an
+    ## enclosing one: a load further down that scope, or in a sibling arm, has not run yet.
     out = set()
-    for a, loads in scopeLoads.get((p, fn), {}).items():
-        if a == at[:len(a)]: out |= loads
+    for atLine, a, loaded in scopeLoadAt.get((p, fn), ()):
+        if atLine <= beforeLine and a == at[:len(a)]: out.add(loaded)
     return out
 for _ in range(400):
     changed = False
     for r in allf:
         if r in entries: new = ownClosure({r})
         else:
-            parts = [ctxPath[p] | ownClosure(siteLoads(p, fn, at)) for (p, fn, at) in siteAt[r] if p in ctxPath]
+            parts = [ctxPath[p] | ownClosure(siteLoads(p, fn, at, atLine)) for (p, fn, at, atLine) in siteAt[r] if p in ctxPath]
             new = ownClosure({r}) | (set.intersection(*parts) if parts else set())
         if new != ctxPath[r]: ctxPath[r] = new ; changed = True
     if not changed: break
+## The front door of an operation: AgentsContext.FrontDoor.include loads AgentsContext.UseAgentsTools.include,
+## which loads the bare-name gate and the caller-check layer in includes of their own that have no other
+## effect. Every tool file and entry script sources the front door before its `case`, so every file an
+## operation reaches has both gates defined by the time its own code runs (MAGIC.md, "Dispatcher and code
+## layout"). A call to one of them is covered, and a guard beside it would load what is already loaded.
+frontDoorFiles = {'sh-lib/harness/AgentsContext.FrontDoor.include', 'sh-lib/harness/AgentsContext.UseAgentsTools.include'}
+frontDoorGates = {'sh-lib/member/AgentsTools.BareName.include', 'sh-lib/member/AgentsTools.CallerCheck.include'}
+## Every operation runs the front door before its `case`, and the front door loads both gates in includes of
+## their own that have no other effect. So the gates are on every path an operation reaches, and a call to one
+## is covered. A file that runs without the front door -- the harness core, which loads its includes itself --
+## guard-loads the gate where it calls it (AgentsHarnessSpawn.include:9).
 def pathLoaded(r, n, fn=None):
     ## The files loaded when line n runs: what r's loaders have loaded by then, r's own arm-free file-scope
-    ## loads, and the loads of the calling function or case arm and of every case arm enclosing it, with what
-    ## those load in turn. A load in a sibling arm, or in another function of the same file, is not on this
-    ## path (MAGIC.md, "Dispatcher and code layout").
+    ## loads, and the scope's own loads, with what those load in turn. Of the scope's loads only those before
+    ## the call count, and only those in the call's own case arm or an enclosing one. A load in a sibling
+    ## arm, in another function of the same file, or on a later line is not on this path (MAGIC.md,
+    ## "Dispatcher and code layout").
     if fn is None: fn = lineFn[r].get(n)
     path = lineArm[r].get(n, ())
     direct = set(ctxPath[r]) | set(own.get(r, ()))
-    ## A file-scope line after its own `case ... esac` runs once an arm has run and returned nothing: the
-    ## include is sourced whole, so that arm's loads reach it. A line inside an arm sees that arm's loads
-    ## and its enclosing arms' alone (MAGIC.md, "Dispatcher and code layout").
-    for at, loads in scopeLoads.get((r, fn), {}).items():
-        if not path or at == path[:len(at)]: direct |= loads
+    for atLine, at, p in scopeLoadAt.get((r, fn), ()):
+        if atLine <= n and at == path[:len(at)]: direct.add(p)
     return ownClosure(direct)
 
 ## The two wire implementations share one interface (the header above): a call to a function
@@ -245,6 +294,18 @@ for fn, locs in where.items():
 # --- calls to a function nobody defines
 known = set(pkgFn)
 for t in text.values(): known.update(re.findall(r'^\s*(?:function\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*\(\)', t, re.M))
+## The file each name is defined in, read from the whole text. `defs` holds only the column-one definitions
+## the load graph read as code, and a single-quoted string left open by one line's quoting makes every line
+## after it text; the family's define-once guard and its helper-inside-a-function are indented as well. A
+## column-one definition settles the name; an indented one settles it only where the name has none. A
+## self-replacing stub (`F(){ unset -f F ; . file ; F "$@" ; }`) is not a definition of the work.
+defFile, defFileIndented = {}, {}
+for r in code:
+    for line in text[r].split('\n'):
+        m = re.match(r'^(\s*)(?:function\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*\(\)', line)
+        if not m or 'unset -f ' + m.group(2) in line: continue
+        (defFileIndented if m.group(1) else defFile).setdefault(m.group(2), r)
+for name, r in defFileIndented.items(): defFile.setdefault(name, r)
 for f in glob.glob('sh-test/**/*.sh', recursive=True):
     known.update(re.findall(r'^\s*([A-Za-z_][A-Za-z0-9_]*)\(\)', open(f, errors='replace').read(), re.M))
 for f in glob.glob('../myx.distro-*/sh-lib/**/*', recursive=True) + glob.glob('../myx.distro-*/sh-scripts/*'):
@@ -254,6 +315,7 @@ famRe = re.compile(r'(?:^|[;|&(`]|\$\(|\bthen\b|\bdo\b|\belse\b|\bif\b|\bwhile\b
 for r in code:
     ## The universal harness is left out on purpose, as `unreached` leaves it out: its served-mode stubs are its own.
     if r.startswith('sh-lib/harness/AgentsUniversalHarness.sh'): continue
+    seenAt = set()
     for n, line in enumerate(text[r].split('\n'), 1):
         if line.lstrip().startswith('#'): continue
         s = re.sub(r"'[^']*'", "''", line) ; s = re.sub(r'"(?:[^"\\$]|\\.|\$(?!\())*"', '""', s)
@@ -266,11 +328,12 @@ for r in code:
             ## A call the same function, arm or file tests for with `type F` is the package's optional form
             ## (`type F ... || . file`, or `if type F ; then F ; else <script> ; fi`): its own guard is the
             ## load, so it is no row here. The window is the 3 lines above, as `prevLoads` reads one.
-            if typedAbove(r, n, c): continue
+            if typedAbove(r, n, c) or (n, c) in seenAt: continue
+            seenAt.add((n, c))
             if c not in known: row('undefined-call', r, n, f'{c} is defined nowhere') ; continue
-            g = defs.get(c)
+            g = defFile.get(c)
             if not g or g == r or c == 'DistroAgentsContext' or pathLoaded(r, n) & {g}: continue
-            if g in wireFiles or (g == mcpClientFile and r in mcpClientReachedByCoreGated): continue
+            if g in wireFiles or g in frontDoorGates or (g == mcpClientFile and r in mcpClientReachedByCoreGated): continue
             row('undefined-call', r, n, f'{c} of {g} is not loaded on this path')
 # --- guarded loads: the guard names a function its file defines, and the guarded code calls
 guardRe = re.compile(r'type ([A-Za-z_][A-Za-z0-9_]*) > /dev/null 2>&1 \|\| \. "\$MDLT_ORIGIN/myx/myx\.distro-agents/((?:sh-lib|sh-scripts)/[^"]+)"')

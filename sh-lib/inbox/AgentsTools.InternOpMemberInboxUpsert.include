@@ -326,6 +326,10 @@ case "$1" in
 		AgentsToolsInboxReady "$memberName" || { set +e ; return 1 ; }
 		printf '%s\n' "$content" > "$target"
 		[ -z "$movedFrom" ] || rm -f -- "$movedFrom"
+		## THE INDEX IS NOW BEHIND: an inbox is one of the stores the knowledge query reads, and an item's stamp can move it between the
+		## folders, so a rename counts as a change too. One stamp, touched here, which the schedule's refresh reads.
+		type AgentsToolsKnowledgeWantedMark > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/knowledge/AgentsTools.KnowledgeIndexPlace.include"
+		AgentsToolsKnowledgeWantedMark
 		## The waits of the member are poked, so one that naps long still reads the new item at once (AgentsToolsWakePoke).
 		type AgentsHookFire > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.Hook.include"
 		AgentsHookFire store-changed wake "$memberName"

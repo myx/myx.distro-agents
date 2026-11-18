@@ -24,7 +24,8 @@ AgentsToolsBatchArg(){ ## raw arguments, dot path, raw (optional)
 	printf '%s\n' "$1" | LC_ALL=C awk -v path="$2" -v optional=1 ${3:+-v mode=raw} -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" 2> /dev/null
 }
 
-## Starts one call, in a group of its own; its result in <n>.out, its status in <n>.rc once it has ended.
+## Starts one call, in a group of its own; its result in <n>.out, its status in <n>.rc once it has ended, and the second it
+## started in <n>.started, so the call is timed whole by the engine and never by the call's own report.
 AgentsToolsBatchStart(){ ## runner, folder, call number
 	local startMonitor="$-" startTool=""
 	IFS= read -r startTool < "$2/$3.tool" || :
@@ -32,6 +33,15 @@ AgentsToolsBatchStart(){ ## runner, folder, call number
 	( "$1" "$startTool" "$2/$3.args" "$3" > "$2/$3.out" 2> /dev/null < /dev/null ; printf '%s\n' "$?" > "$2/$3.rc.part" && mv -f "$2/$3.rc.part" "$2/$3.rc" ) &
 	printf '%s\n' "$!" > "$2/$3.pid"
 	case "$startMonitor" in *m*) ;; *) set +m ;; esac
+	printf '%s\n' "$( date +%s )" > "$2/$3.started" 2> /dev/null || :
+}
+
+## The span one ended call took, in <n>.whole (ms): its start, read once when it ended.
+AgentsToolsBatchWhole(){ ## folder, call number
+	local wholeStart=""
+	{ IFS= read -r wholeStart < "$1/$2.started" ; } 2> /dev/null || wholeStart=""
+	case "$wholeStart" in ''|*[!0123456789]*) return 0 ;; esac
+	[ -f "$1/$2.whole" ] || printf '%s\n' "$(( ( $( date +%s ) - wholeStart ) * 1000 ))" > "$1/$2.whole" 2> /dev/null || :
 }
 
 ## A call that has ended: ok, or error where its status is non-zero, a line of its result starts with ERROR, or it
@@ -69,6 +79,8 @@ AgentsToolsBatchCancel(){ ## folder, call number
 ## does not serve (the served test, by name, as the second function given: rc 0 serves it); else every call by its
 ## mode, and the result as text or, with format json, as one JSON object.
 AgentsToolsBatchRun(){ ## runner, served test, raw arguments
+	type AgentsHarnessBashReadOnly > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessToolsBash.include"
+	type AgentsHarnessToolRunMsKeep > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessContext.include"
 	local batchRunner="$1" batchServes="$2" batchArgs="$3" batchMode batchWorkers batchFormat batchCount batchAt batchTool
 	local batchDir batchRunning batchStarted batchNext batchStatus batchOk=0 batchFound="" batchLine batchPid="" batchRunAt
 	batchMode="$( AgentsToolsBatchArg "$batchArgs" mode )"
@@ -129,9 +141,10 @@ AgentsToolsBatchRun(){ ## runner, served test, raw arguments
 		[ -s "$batchDir/$batchAt.args" ] || printf '{}\n' > "$batchDir/$batchAt.args"
 		batchAt=$(( batchAt + 1 ))
 	done
-	## THE CALLS ARE WHAT THE BATCH RAN (the owner's pace ruling): their span is not machinery time, as a Bash child's run is not.
-	## SECONDS is a builtin, so taking it costs the hot path no process.
-	batchRunAt="$SECONDS"
+	## THE CALLS ARE WHAT THE BATCH RAN (the owner's pace ruling): each call counts once, at its own tooling time, and the batch
+	## itself counts nothing. The engine times each call whole (AgentsToolsBatchStart, AgentsToolsBatchWhole) and the call keeps
+	## what it itself ran (<n>.ran, AgentsHarnessBatchCallBody), so the two are taken apart here, one reading a call. The list goes
+	## to the record (AgentsHarnessContextToolMeta) through the run's scratch, and a call that left no span leaves no value.
 	export MDAT_REPLY_IN_BATCH=1
 	case "$batchMode" in
 		sequence-*)
@@ -139,6 +152,7 @@ AgentsToolsBatchRun(){ ## runner, served test, raw arguments
 			while [ "$batchAt" -le "$batchCount" ] ; do
 				AgentsToolsBatchStart "$batchRunner" "$batchDir" "$batchAt"
 				wait "$( cat "$batchDir/$batchAt.pid" )" 2> /dev/null
+				AgentsToolsBatchWhole "$batchDir" "$batchAt"
 				[ "$batchMode" = sequence-all-through ] || [ "$( AgentsToolsBatchStatus "$batchDir" "$batchAt" )" = ok ] || break
 				batchAt=$(( batchAt + 1 ))
 			done
@@ -150,7 +164,7 @@ AgentsToolsBatchRun(){ ## runner, served test, raw arguments
 			while : ; do
 				batchRunning=0
 				for batchAt in $batchStarted ; do
-					[ ! -f "$batchDir/$batchAt.rc" ] || continue
+					[ ! -f "$batchDir/$batchAt.rc" ] || { AgentsToolsBatchWhole "$batchDir" "$batchAt" ; continue ; }
 					## A CALL WITH NO PROCESS AND NO STATUS NEVER ENDS ON ITS OWN: its fork failed (the process limit), or it was killed
 					## before it wrote its status, which it writes before it exits. It ends here as an error, so the pool does not wait for ever.
 					batchPid="" ; IFS= read -r batchPid < "$batchDir/$batchAt.pid" 2> /dev/null || batchPid=""
@@ -180,7 +194,22 @@ AgentsToolsBatchRun(){ ## runner, served test, raw arguments
 		;;
 	esac
 	wait 2> /dev/null
-	! type AgentsHarnessToolRunMsKeep > /dev/null 2>&1 || AgentsHarnessToolRunMsKeep "$(( ( SECONDS - batchRunAt ) * 1000 ))"
+	batchMachList="" batchWhole="" batchRan=""
+	batchAt=1
+	while [ "$batchAt" -le "$batchCount" ] ; do
+		batchWhole="" ; { IFS= read -r batchWhole < "$batchDir/$batchAt.whole" ; } 2> /dev/null || batchWhole=""
+		batchRan=0 ; { IFS= read -r batchRan < "$batchDir/$batchAt.ran" ; } 2> /dev/null || batchRan=0
+		case "$batchWhole" in
+			''|*[!0123456789]*) ;;
+			*)
+				case "$batchRan" in ''|*[!0123456789]*) batchRan=0 ;; esac
+				batchMach=$(( batchWhole - batchRan )) ; [ "$batchMach" -ge 0 ] || batchMach=0
+				batchMachList="$batchMachList${batchMachList:+,}$batchMach"
+			;;
+		esac
+		batchAt=$(( batchAt + 1 ))
+	done
+	[ -z "${harnessScratch:-}" ] || printf '%s\n' "$batchMachList" > "$harnessScratch/tool.calls.ms" 2> /dev/null || :
 	unset MDAT_REPLY_IN_BATCH
 	## The entries, in call order, whatever order the calls ended in.
 	[ "$batchFormat" != json ] || printf '{"mode":"%s","entries":[' "$batchMode"

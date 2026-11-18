@@ -17,10 +17,14 @@
 ##       session's recorded tooling thread and records it, `full` posts it into the session thread and
 ##       records it. The body is read back from the chat file, not from the result.
 ##
-##   S3. THE RECORD SAYS WHICH WAY THE MESSAGE WENT. Each block's index line carries the conversation
-##       it went to and its origin (`printback` for the printback channel, `own` for a Slack send),
-##       and each Slack send's own log line names the target and the channel. The printback send
-##       writes no Slack send log (F2.2): its block is the record that says where it went.
+##   S3. THE RECORD SAYS WHICH WAY THE MESSAGE WENT. Each block's line in the resolved index carries
+##       the conversation it went to and its origin (`printback` for the printback channel, `own` for
+##       a Slack send), and each Slack send's own log line names the target and the channel. The
+##       printback send writes no Slack send log (F2.2): its block is the record that says where it went.
+##
+##   THE RECORD IS READ AS ITS READERS READ IT. A post's ts and conversation are stamped into
+##       session.chat.stamps and the index keeps the `-` it was written with (S1 item 11), so every
+##       assertion below reads the package's own resolved index (AgentsToolsSessionChatResolve).
 ##
 ## THE RIG ORIGIN. Every call runs the package COPY in this rig (never the tree under test):
 ## `origin/myx/myx.distro-agents`, with the REAL `myx.distro-system` and `myx.distro-.local` linked
@@ -214,9 +218,14 @@ rigBlockOf(){ ## chat file, fixed text -- the number of the one block whose body
 		/^[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9]Z .* -> .*:$/ { count++ ; next }
 		count > 0 && index($0, marker) > 0 { print count ; exit }' "$1"
 }
-rigIndexField(){ ## chat file, N, field 1..6 -- that field of the block's index line
+rigIndexField(){ ## chat file, N, field 1..6 -- that field of the block's line in the RESOLVED index
+	## A STAMP IS ITS OWN LINE (S1 item 11): the ts and the conversation of a post go into session.chat.stamps, and
+	## the index keeps the `-` it was written with. The package's own resolver lays the stamps over the index, so the
+	## check reads what every reader of the chat reads, never the pre-stamp file.
 	[ -f "$1.index" ] || { printf 'no-index' ; return 0 ; }
-	LC_ALL=C awk -F'\t' -v want="$2" -v field="$3" '$1 == want { print $field ; found = 1 ; exit ; } END { if ( ! found ) { print "no-such-block" ; } }' "$1.index"
+	( type AgentsToolsSessionChatResolve > /dev/null 2>&1 || . "$rigRigPackage/sh-lib/session/AgentsTools.SessionChat.include" ; \
+		AgentsToolsSessionChatResolve "$1.index" "$1.stamps" ) \
+		| LC_ALL=C awk -F'\t' -v want="$2" -v field="$3" '$1 == want { print $field ; found = 1 ; exit ; } END { if ( ! found ) { print "no-such-block" ; } }'
 }
 rigChats(){ ## workspace -- every session chat file in it, one a line
 	find "$1/.local/agents/sessions" -name 'session.chat' -type f 2> /dev/null | LC_ALL=C sort || :
@@ -268,6 +277,15 @@ rigLogCount(){ ## workspace -- how many lines the Slack send log holds, 0 when t
 	rigLogPath="$( rigLogFile "$1" )"
 	[ -n "$rigLogPath" ] || { printf 0 ; return 0 ; }
 	LC_ALL=C grep -c . "$rigLogPath" 2> /dev/null || printf 0
+}
+rigLogRows(){ ## workspace, target, channel, member (optional) -- how many log lines name them
+	## A COUNT OF THE WHOLE LOG IS NO MEASURE OF ONE SEND: the tooling appends rows of its own while a check runs (the
+	## event-track notice below), so a before-and-after total moves by two for one send. The rows naming this send are
+	## the measure, and they carry their own control: a target no send named reads 0.
+	local rigLogPath=""
+	rigLogPath="$( rigLogFile "$1" )"
+	[ -n "$rigLogPath" ] || { printf 0 ; return 0 ; }
+	LC_ALL=C awk -F'\t' -v wantTarget="$2" -v wantChannel="$3" -v wantMember="${4:-}" '($3 == wantTarget && $4 == wantChannel) && (wantMember == "" || $2 == wantMember) { rows++ } END { print rows + 0 }' "$rigLogPath"
 }
 rigLogLine(){ ## workspace, target, channel, member (optional) -- the send log's line naming them, `none` when absent
 	local rigLogPath=""
@@ -394,7 +412,7 @@ for rigKind in none track full ; do
 		"$( rigChatFilesWith "$rigWs" "RIG-UNADDRESSED-$rigKind" )" "1"
 	rigBareTs="$( rigIndexField "$rigKindChat" "$rigBareBlock" 2 )"
 	rigAssert "$rigKind S2: the record is a real block with the message's body" \
-		"$( rigHeaders "$rigKindChat" ):$( rigTextCount "$( rigBody "$rigKindChat" "$rigBareBlock" )" -F -- "RIG-UNADDRESSED-$rigKind" )" "1:1"
+		"$( [ -n "$rigBareBlock" ] && printf 'block' || printf 'no-block' ):$( rigTextCount "$( rigBody "$rigKindChat" "$rigBareBlock" )" -F -- "RIG-UNADDRESSED-$rigKind" )" "block:1"
 	rigAssert "$rigKind S2/S3: the record's conversation is that channel, and its origin says how it got there" \
 		"$( rigIndexField "$rigKindChat" "$rigBareBlock" 3 ):$( rigIndexField "$rigKindChat" "$rigBareBlock" 4 )" \
 		"$rigOwnChannel:$( [ "$rigKind" = "none" ] && printf printback || printf own )"
@@ -424,7 +442,6 @@ for rigKind in none track full ; do
 		fi )" "$( [ "$rigKind" = "none" ] && printf 1 || printf 1:1 )"
 
 	## ---- S1: an addressed message goes where it names, whatever the kind -- here a team conversation ----
-	rigLogBeforeAddressed="$( rigLogCount "$rigWs" )"
 	rigSendMessage "$rigWs" "$rigScn" "$rigKindSession" "$rigKindToken" \
 		"{\"to\":\"human-owner\",\"address_to\":\"$rigHelperMember\",\"message\":\"RIG-ADDRESSED-$rigKind\"}" "addressed-$rigKind"
 	rigAssert "$rigKind S1: the addressed message is sent, never gated by the kind" "$rigSendErr" "no"
@@ -442,17 +459,16 @@ for rigKind in none track full ; do
 		"$( rigIndexField "$rigKindChat" "$rigAddressedBlock" 3 ):$( rigIndexField "$rigKindChat" "$rigAddressedBlock" 4 )" \
 		"URIGOWNER:$rigAddressedTs:own"
 	rigAssert "$rigKind S1/S3: the send log names the same target and channel, and the send appended its one line" \
-		"$( rigTextCount "$( rigLogLine "$rigWs" human-owner URIGOWNER "$rigRootMember" )" -F -- human-owner ):$(( $( rigLogCount "$rigWs" ) - rigLogBeforeAddressed ))" "1:1"
+		"$( rigLogRows "$rigWs" human-owner URIGOWNER "$rigRootMember" )" "1"
 
 	## ---- S1/S3: printback is an address, not only the fallback of an unaddressed message ----
-	rigLogBeforePrintback="$( rigLogCount "$rigWs" )"
 	rigSendMessage "$rigWs" "$rigScn" "$rigKindSession" "$rigKindToken" \
 		"{\"to\":\"printback:$rigKindSession\",\"address_to\":\"$rigHelperMember\",\"message\":\"RIG-PRINTBACK-$rigKind\"}" "printback-$rigKind"
 	rigAssert "$rigKind S1: an explicit printback address is honoured, whatever the kind" "$rigSendErr" "no"
 	rigAssert "$rigKind S1: the result names the printback channel" \
 		"$( rigFirstLine "$rigSendText" )" "Sent to printback:$rigKindSession as $rigRootMember. What the operation reported follows:"
 	rigAssert "$rigKind S1: the printback address makes no Slack call of its own" \
-		"$( rigPostCount "$rigScn" "RIG-PRINTBACK-$rigKind" ):$( rigLogCount "$rigWs" )" "0:$rigLogBeforePrintback"
+		"$( rigPostCount "$rigScn" "RIG-PRINTBACK-$rigKind" ):$( rigLogRows "$rigWs" "printback:$rigKindSession" "printback:$rigKindSession" )" "0:0"
 	rigPrintbackBlock="$( rigBlockOf "$rigKindChat" "RIG-PRINTBACK-$rigKind" )"
 	rigAssert "$rigKind S1/S3: the record is a printback block of that channel, with its origin and no ts" \
 		"$( rigIndexField "$rigKindChat" "$rigPrintbackBlock" 2 ):$( rigIndexField "$rigKindChat" "$rigPrintbackBlock" 3 ):$( rigIndexField "$rigKindChat" "$rigPrintbackBlock" 4 )" \
@@ -462,9 +478,16 @@ for rigKind in none track full ; do
 	rigAssert "$rigKind S1/S3: that record is the session's, and in no other chat file" \
 		"$( rigChatFilesWith "$rigWs" "RIG-PRINTBACK-$rigKind" )" "1"
 
-	## ---- the floor of this kind: one chat file a session, no second record, nothing of the channel in a result ----
-	rigAssert "$rigKind: the session's own chat file holds all four records" \
-		"$( rigHeaders "$rigKindChat" )" "4"
+	## ---- the floor of this kind: one chat file a session, the joined line where there is a thread, nothing of the channel in a result
+	## THE JOINED LINE IS THE SESSION'S OWN: a member joining is an event of the session, recorded once in the session's one chat
+	## file and never copied into the spawn's own. A session whose external side is its tooling thread says nothing (F3.1), and a
+	## printback session has it as a notice, which is no block.
+	rigJoinedBlock="$( rigBlockOf "$rigKindChat" "$rigHelperMember joined" )"
+	rigAssert "$rigKind: the joined line is in the session's own chat file where the session has a thread, and in no other chat file" \
+		"$( [ -n "$rigJoinedBlock" ] && printf 'block' || printf 'no-block' ):$( rigChatFilesWith "$rigWs" "$rigHelperMember joined" )" \
+		"$( [ "$rigKind" = "full" ] && printf 'block:1' || printf 'no-block:0' )"
+	rigAssert "$rigKind: the session's own chat file holds the four records this check sent, and the joined line" \
+		"$( rigHeaders "$rigKindChat" )" "$( [ "$rigKind" = "full" ] && printf 5 || printf 4 )"
 	if [ "$rigKind" != "full" ] ; then
 		rigAssert "$rigKind: the workspace holds exactly one chat file, the session's own" \
 			"$( rigChats "$rigWs" )" "$rigKindChat"

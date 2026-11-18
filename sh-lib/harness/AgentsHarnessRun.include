@@ -540,6 +540,8 @@ AgentsHarnessArmNote(){ ## tool name, arguments JSON, result -- records the armi
 }
 
 AgentsHarnessRunToolNow(){ ## tool name, arguments JSON -- sets harnessResult
+	type AgentsHarnessToolAskQuestion > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessAsk.include"
+	type AgentsHarnessToolBash > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessToolsBash.include"
 	type AgentsHarnessToolCheckList > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessBatch.include"
 	type AgentsHarnessToolListMcpResourcesTool > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessMcpResources.include"
 	type AgentsHarnessToolSendMessage > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessMessages.include"
@@ -579,7 +581,7 @@ AgentsHarnessRunToolNow(){ ## tool name, arguments JSON -- sets harnessResult
 			[ -n "$harnessResult" ] || harnessResult="$( AgentsHarnessToolSendMessage "${harnessArgV_to}" "${harnessArgV_message}" "${harnessArgV_as_bot}" "${harnessArgV_address_to}" "" "" reply "" "${harnessArgV_again}" )"
 		;;
 		ListAgents) harnessResult="$( AgentsHarnessToolListAgents "${harnessArgV_view}" "${harnessArgV_session_id}" "${harnessArgV_state}" )" ;;
-		Wait)      harnessResult="$( AgentsHarnessToolWait "${harnessArgV_sources}" "${harnessArgV_timeout}" "${harnessArgV_poll_interval}" "${harnessArgV_since_utime}" "${harnessArgV_addressee}" "${harnessArgV_include_own}" "${harnessArgV_mode}" "${harnessArgV_seen}" "${harnessArgV_note}" "${harnessArgV_done}" "${harnessArgV_wait}" "" "${harnessArgV_unwait}" )" ;;
+		Wait)      harnessResult="$( AgentsHarnessToolWait "${harnessArgV_sources}" "${harnessArgV_timeout}" "" "${harnessArgV_since_utime}" "${harnessArgV_addressee}" "${harnessArgV_include_own}" "${harnessArgV_mode}" "${harnessArgV_seen}" "${harnessArgV_note}" "${harnessArgV_done}" "${harnessArgV_wait}" "" "${harnessArgV_unwait}" )" ;;
 		SubagentHandback) harnessResult="$( AgentsHarnessToolSubagentHandback "${harnessArgV_task}" "${harnessArgV_outcome}" "${harnessArgV_findings}" "${harnessArgV_unfinished}" "${harnessArgV_as_bot}" "${harnessArgV_checklist_pending_count}" )" ;;
 		ReportFindings) harnessResult="$( AgentsHarnessToolReportFindings "${harnessArgV_to}" "${harnessArgV_subject}" "${harnessArgV_findings}" "${harnessArgV_evidence}" "${harnessArgV_confidence}" "${harnessArgV_as_bot}" "${harnessArgV_address_to}" )" ;;
 		PushNotification) harnessResult="$( AgentsHarnessToolPushNotification "${harnessArgV_to}" "${harnessArgV_severity}" "${harnessArgV_headline}" "${harnessArgV_detail}" "${harnessArgV_action_required}" "${harnessArgV_as_bot}" "${harnessArgV_address_to}" )" ;;
@@ -641,21 +643,6 @@ AgentsHarnessToolSecondary(){ ## tool file name, arguments JSON -- prints the re
 		printf 'ERROR: there is no tool file %s.fn.sh in the package this workspace resolves, so nothing ran.\n' "$secondaryName"
 		return 0
 	fi
-	## A KEY THE TOOL DOES NOT DECLARE IS REFUSED, never dropped: a call with `workspace` or `arguments` ran as if it had neither, so
-	## --flags answered for the server's own workspace and --supervise-read ran with no run id, and the caller read both as answers.
-	## The keys are the mirror's schema (AgentsMcpSecondaryMirror.sh) and the task wrapper's own.
-	local secondaryPath secondaryKey secondaryUnknown=""
-	for secondaryPath in ${harnessArgPaths[@]+"${harnessArgPaths[@]}"} ; do
-		secondaryKey="${secondaryPath%%.*}"
-		case "$secondaryKey" in
-			operation|args|description|sync|async|background|timeout|timeout_action) ;;
-			*) case " $secondaryUnknown " in *" $secondaryKey "*) ;; *) secondaryUnknown="${secondaryUnknown:+$secondaryUnknown }$secondaryKey" ;; esac ;;
-		esac
-	done
-	if [ -n "$secondaryUnknown" ] ; then
-		printf 'ERROR: %s does not take: %s. It takes operation, args (the words, one each), description, sync, async, background, timeout and timeout_action. The workspace is the one this server runs in. Nothing was done.\n' "$secondaryName" "$secondaryUnknown"
-		return 0
-	fi
 	AgentsHarnessArgFind args.__count || harnessArgFound=""
 	case "$harnessArgFound" in ''|*[!0123456789]*) ;; *) secondaryArgCount="$harnessArgFound" ;; esac
 	while [ "$secondaryAt" -lt "$secondaryArgCount" ] ; do
@@ -683,9 +670,11 @@ AgentsHarnessToolSecondary(){ ## tool file name, arguments JSON -- prints the re
 ## its own result when it ends in time, and early, with `TASK-ID=process-N` and a hint, when the caller asked for `background` or `async`, the window of
 ## that tool passes (AgentsHarnessToolWindow.include, 10 to 300 s), the caller's `timeout` passes (with `timeout_action` return, the default, or kill), or
 ## a message addressed to the member arrives in the session chat. `sync` is the other way: the call runs to its own end here, with no window at all.
-## Not wrapped: the tools that block by design on their own bound (Wait and the asking tools, ThisSession, TaskOutput and TaskStop), the
-## handback (it may end the session) and BatchTools (its entries run apart from this dispatcher). Bash and WorkspaceContextExecute keep their own
-## `timeout`, which kills: it is the task's timeout only where `timeout_action` is given too.
+## Not wrapped: the tools that block by design on their own bound (Wait, ThisSession, TaskOutput and TaskStop), the handback (it may
+## end the session) and BatchTools (its entries run apart from this dispatcher). The five tools that ask are wrapped as any tool is, so a
+## question no longer holds the run for its whole wait (S10.30). Bash, WorkspaceContextExecute and the asking tools each keep their own
+## `timeout`, which is theirs unless the caller names a `timeout_action`: then it is the task's, and kills for Bash and
+## WorkspaceContextExecute. An ask's own `timeout` is its seconds per waiting round, and the ask is given none when the action is named.
 harnessTaskStripTimeout="" harnessTaskScratch=""
 AgentsHarnessTaskBody(){ ## tool name, arguments JSON -- the result on stdout
 	## The task outlives this process when it returns early, and this process removes its scratch folder as it ends: the task works in a folder of its own.
@@ -699,12 +688,66 @@ AgentsHarnessTaskBody(){ ## tool name, arguments JSON -- the result on stdout
 	printf '%s\n' "$harnessResult"
 }
 
+## The declared parameters of a harness tool, in harnessToolArgs_<tool>, read from the declarations once a process.
+harnessToolArgsRead=""
+## The rows of the declared parameters on stdin, `<tool> TAB <names>`, each into harnessToolArgs_<tool>; any other line is passed over.
+AgentsHarnessArgDeclaredRows(){
+	local rowTool rowArgs
+	while IFS=$'\t' read -r rowTool rowArgs ; do
+		case "$rowTool" in ''|*[!ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_]*) continue ;; esac
+		printf -v "harnessToolArgs_$rowTool" '%s' "$rowArgs"
+		harnessToolArgsRead=yes
+	done
+}
+
 AgentsHarnessRunTool(){ ## tool name, arguments JSON -- sets harnessResult
 	type AgentsHarnessCwdRefusalText > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessAccess.include"
 	type AgentsHarnessDismissedAfter > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessWait.include"
-	local taskName="$1" taskArgs="$2" taskTimeout taskAction taskBackground taskCwdRefusal
+	local taskName="$1" taskArgs="$2" taskTimeout taskAction taskBackground taskCwdRefusal taskDeclared="" taskPath taskKey taskUnknown="" taskCacheFrom="" taskCacheTemp taskRows
+	## A KEY THE TOOL DOES NOT DECLARE IS REFUSED, never dropped: a call carrying one ran as if it had none, and its caller read that as the answer.
 	case "$taskName" in
-		Wait|AskQuestion|ConfirmReadback|EscalateDecision|RequestPermission|ProposeApprove|ThisSession|TaskOutput|TaskStop|SubagentHandback|BatchTools)
+		mcp__*|''|*[!ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_]*) ;;
+		*)
+			## The names are cached, the wire's path first: built again where the cache is missing, of another origin, or older than a file it comes from.
+			if [ -z "$harnessToolArgsRead" ] ; then
+				[ -z "${MMDAPP:-}" ] || [ ! -f "$MMDAPP/.local/temp/mdat-harness-tool-args" ] || { IFS= read -r taskCacheFrom < "$MMDAPP/.local/temp/mdat-harness-tool-args" ; } 2> /dev/null || :
+				if [ "$taskCacheFrom" = "$harnessHere/harness/AgentsOpenAiChatWire.sh" ] && [ ! "$harnessHere/harness/AgentsOpenAiChatWire.sh" -nt "$MMDAPP/.local/temp/mdat-harness-tool-args" ] \
+					&& [ ! "$harnessHere/harness/AgentsHarnessTaskArgsFill.awk" -nt "$MMDAPP/.local/temp/mdat-harness-tool-args" ] && [ ! "$harnessHere/harness/AgentsHarnessToolArgNames.awk" -nt "$MMDAPP/.local/temp/mdat-harness-tool-args" ] ; then
+					AgentsHarnessArgDeclaredRows < "$MMDAPP/.local/temp/mdat-harness-tool-args"
+				else
+					taskRows="$( LC_ALL=C awk -f "$harnessHere/harness/AgentsHarnessTaskArgsFill.awk" "$harnessHere/harness/AgentsOpenAiChatWire.sh" | LC_ALL=C awk -f "$harnessHere/harness/AgentsHarnessJsonField.awk" -f "$harnessHere/harness/AgentsHarnessToolArgNames.awk" )"
+					AgentsHarnessArgDeclaredRows <<< "$taskRows"
+					if [ -n "$harnessToolArgsRead" ] && [ -n "${MMDAPP:-}" ] && mkdir -p "$MMDAPP/.local/temp" 2> /dev/null && taskCacheTemp="$( mktemp "$MMDAPP/.local/temp/mdat-harness-tool-args.XXXXXX" 2> /dev/null )" ; then
+						printf '%s\n%s\n' "$harnessHere/harness/AgentsOpenAiChatWire.sh" "$taskRows" > "$taskCacheTemp" && mv -f "$taskCacheTemp" "$MMDAPP/.local/temp/mdat-harness-tool-args" || rm -f "$taskCacheTemp"
+					fi
+				fi
+			fi
+			if [ -z "$harnessToolArgsRead" ] ; then
+				harnessResult="ERROR: the parameters the harness tools declare could not be read from AgentsOpenAiChatWire.sh, so $taskName was not run. Nothing was done."
+				return 0
+			fi
+			taskDeclared="harnessToolArgs_$taskName" ; taskDeclared="${!taskDeclared:-}"
+		;;
+	esac
+	if [ -n "$taskDeclared" ] ; then
+		AgentsHarnessArgParse "$taskArgs"
+		for taskPath in ${harnessArgPaths[@]+"${harnessArgPaths[@]}"} ; do
+			taskKey="${taskPath%%.*}"
+			case "$taskKey" in
+				''|*[$' \t\n']*) ;;
+				*) case " $taskDeclared " in *" $taskKey "*) continue ;; esac ;;
+			esac
+			case " $taskUnknown " in *" $taskKey "*) ;; *) taskUnknown="${taskUnknown:+$taskUnknown }$taskKey" ;; esac
+		done
+		if [ -n "$taskUnknown" ] ; then
+			harnessResult="ERROR: $taskName: ${taskUnknown%% *} is not a parameter of $taskName."
+			[ "$taskUnknown" = "${taskUnknown%% *}" ] || harnessResult="$harnessResult Nor are: ${taskUnknown#* }."
+			harnessResult="$harnessResult Its parameters are: $taskDeclared. Nothing was done."
+			return 0
+		fi
+	fi
+	case "$taskName" in
+		Wait|ThisSession|TaskOutput|TaskStop|SubagentHandback|BatchTools)
 			AgentsHarnessRunToolNow "$taskName" "$taskArgs"
 			AgentsHarnessDismissedAfter "$taskName"
 			return 0
@@ -724,6 +767,11 @@ AgentsHarnessRunTool(){ ## tool name, arguments JSON -- sets harnessResult
 			if [ -n "$taskAction" ] ; then harnessTaskStripTimeout="yes" ; else taskTimeout="" ; fi
 			## Bash's own detach is not a background of this kind: it already returns at once with its own handle.
 			[ "${harnessArgV_detach:-}" != "true" ] || taskBackground=""
+		;;
+		AskQuestion|ConfirmReadback|EscalateDecision|RequestPermission|ProposeApprove)
+			## Their own `timeout` is their seconds per waiting round, and stays theirs, unless the caller named an action: then it is the
+			## task's bound, and the ask is not given it. The same form Bash and WorkspaceContextExecute take above.
+			if [ -n "$taskAction" ] ; then harnessTaskStripTimeout="yes" ; else taskTimeout="" ; fi
 		;;
 	esac
 	case "${harnessArgV_sync:-}" in

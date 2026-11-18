@@ -705,7 +705,7 @@ AgentsToolsSessionCommsRead(){ ## session, conversation:thread, member
 	[ -n "${MMDAPP:-}" ] || return 1
 	readWork="$( mktemp -d "$MMDAPP/.local/agents/comms/read.XXXXXX" 2> /dev/null )" || return 1
 	## The newest ts of the thread in the file, compared as text: Slack's are ten digits, a dot and six.
-	readOldest="$( LC_ALL=C awk -F'\t' -v where="$readThread" '$3 == where && $2 ~ /^[0-9]+\.[0-9]+$/ && ( $2 "" ) > ( newest "" ) { newest = $2 ; } END { print newest ; }' "$readDir/$agentsSessionChatName.index" 2> /dev/null )" || readOldest=""
+	readOldest="$( AgentsToolsSessionChatResolvedStream "$readSession" 2> /dev/null | LC_ALL=C awk -F'\t' -v where="$readThread" '$3 == where && $2 ~ /^[0-9]+\.[0-9]+$/ && ( $2 "" ) > ( newest "" ) { newest = $2 ; } END { print newest ; }' )" || readOldest=""
 	AgentsToolsSessionCommsIndexCount "$readDir/$agentsSessionChatName.index" ; readBefore="$agentsCommsIndexCount"
 	type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 	DistroAgentsTools --intern-op-comms-slack-read "$readMember" "$readThread" --thread --identity-bot ${readOldest:+--oldest "$readOldest"} > "$readWork/read" 2> "$readWork/err" || readRc=$?
@@ -759,10 +759,11 @@ AgentsToolsSessionCommsOutboxMark(){ ## session, outbox file `<n>.retry`, state 
 ## no Slack's); rc 2 given up and marked: `unknown` where curl failed after the request may have reached Slack, `refused` where
 ## Slack answered and said no.
 AgentsToolsSessionCommsPost(){ ## session, outbox file `<n>.retry`
-	local postCopies="" postSession="$1" postFile="$2" postNo postMeta="" postMember postIdentity postApi postPayload postToken="" postLine postWork postRc=0 postResponse postStatus postWait postTs postChannel postThread postError postNow
+	local postCopies="" postSession="$1" postFile="$2" postNo postMeta="" postMember postIdentity postApi postPayload postToken="" postLine postWork postRc=0 postResponse postStatus postWait postTs postChannel postThread postError postNow postLocal="" postText=""
 	postNo="${postFile##*/}" ; postNo="${postNo%%.*}"
 	{ IFS= read -r postMeta < "$postFile" ; } 2> /dev/null || return 1
-	IFS=$'\t' read -r postMember postIdentity postApi <<< "$postMeta" || :
+	IFS=$'\t' read -r postMember postIdentity postApi postLocal <<< "$postMeta" || :
+	case "$postLocal" in ''|*[!0-9A-Za-z-]*) postLocal="" ;; esac
 	if [ -z "$postMember" ] || [ "$postApi" != "chat.postMessage" ] ; then
 		AgentsToolsSessionCommsOutboxMark "$postSession" "$postFile" refused "the outbox file names no member, or a method the writer does not post"
 		return 2
@@ -820,6 +821,14 @@ AgentsToolsSessionCommsPost(){ ## session, outbox file `<n>.retry`
 		rm -f "$postFile"
 		if [ -n "$postChannel" ] && [ -n "$postTs" ] ; then
 			AgentsToolsSessionChatStamp "$postSession" "$postNo" "$postTs" "$postChannel:$postThread"
+			## THE TS RECORDED AGAINST THE LOCAL ID (S1 item 11): the post's own line stays the message, and this line is the
+			## reference that says which Slack message it became. A post stored with no local id, of an older release, has none.
+			if [ -n "$postLocal" ] ; then
+				type AgentsToolsCommsCachePostLink > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsCache.include"
+				AgentsToolsCommsCacheSlackDir "$postMember" "$( [ "$postIdentity" = "bot" ] && printf true || printf false )" "${postChannel#client:}" "${postThread#*:}" 2> /dev/null || :
+				postText="$( printf '%s\n' "$postPayload" | LC_ALL=C awk -v path=text -v optional=1 -v dialect=slack -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" 2> /dev/null )" || postText=""
+				[ -z "${agentsCommsCacheDir:-}" ] || AgentsToolsCommsCachePostLink "$agentsCommsCacheDir" "$postMember" "$postLocal" "" "$postTs" "$postText" || :
+			fi
 			## The copies of this post in the sessions whose thread it went into take the same ts (kept when it was queued).
 			postCopies="$( AgentsToolsSessionChatDir "$postSession" 2> /dev/null )/chat.copies/$postNo"
 			if [ -f "$postCopies" ] ; then

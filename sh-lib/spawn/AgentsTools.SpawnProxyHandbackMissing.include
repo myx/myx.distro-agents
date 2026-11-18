@@ -213,6 +213,7 @@ AgentsToolsSpawnProxyOpenQuestionWarn(){
 	[ -n "$warnThread$warnTrack" ] || return 0
 	warnOpenLines="$( printf '%s\n' "$3" | LC_ALL=C grep -E '^(OPEN|UNMATCHED|UNREADABLE) ' || : )"
 	[ -n "$warnOpenLines" ] || return 0
+	type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 	[ -z "$warnTrack" ] || printf '%s\n' "$warnOpenLines" \
 	  | DistroAgentsTools --intern-op-event-track-post "$warnMember" "$warnTrack" --kind notice --session-id "${MDAT_SPAWN_SESSION_ID:-}" \
 		--field what="ended with its own question still open, never answered" --from-stdin 2>&1 > /dev/null \

@@ -289,6 +289,12 @@ AgentsToolsItemRead(){ ## <team-member> [<selector>|<item-filename>] [--acquire-
 ## inside the span too, so no other writer's settle commits this call's half-written item. A take of a free lock forks nothing.
 AgentsToolsItemUpsert(){
 	local upsertLockRc=0
+	## THE INDEX IS NOW BEHIND: a board, vault or audit item is one of the stores the knowledge query reads, and this is the one call site
+	## every writer of them takes. One stamp, touched before the lock, which reads nothing and fails nothing.
+	if [ -n "${MDAT_DATA_ROOT:-}" ] && [ -n "${MMDAPP:-}" ] ; then
+		type AgentsToolsKnowledgeWantedMark > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/knowledge/AgentsTools.KnowledgeIndexPlace.include"
+		AgentsToolsKnowledgeWantedMark
+	fi
 	type AgentsToolsTeamDataStoreLockTake > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataStoreLock.include"
 	if ! AgentsToolsTeamDataStoreLockTake 300 "item-upsert" ; then
 		echo "DistroAgentsTools: item-upsert: ⛔ ERROR: the store lock stayed held, so nothing was written and nothing was committed" >&2

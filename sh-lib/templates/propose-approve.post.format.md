@@ -51,7 +51,10 @@ A proposal puts one document to the human-owner. The root is the question the pr
 ```
 # 📜 Proposal
 
-{{question}}
+[[**📌 About**
+{{about}}
+
+]]{{question}}
 ```
 
 ## post
@@ -133,7 +136,8 @@ The one reply the tooling posts in the thread an answer was read in: what was re
 
 - rule: A proposal makes two posts, each sent as the proposing member's own message through the member send, and each names its addressee as every member message does. The root is the one fenced block under `## root`: a message of its own, which opens the thread. The proposal is the one fenced block under `## post`: a reply in that thread.
 - rule: The root is posted once. The tooling never edits it or deletes it, and puts no mark on it. It places under it the emoji of the block under `# Reactions` named for the answer form, one Slack name each, in that order, and by the identity that posted it: a reaction by that identity is never an answer. They are placed on the root alone, never under the proposal reply. They are taken off the root again when its verdict is read and when the proposal is discarded, and stay as they are when a changed proposal replaces the reply. Its other reactions are a person's own.
-- rule: Required: `{{question}}` in the root, `{{proposal}}` and `{{document}}` in the reply. Optional: `{{context}}`. `{{how-to-answer}}` is filled from `# Answers` on every reply that takes an answer.
+- rule: Required: `{{question}}` in the root, `{{proposal}}` and `{{document}}` in the reply. Optional: `{{about}}` in the root; `{{context}}`. `{{how-to-answer}}` is filled from `# Answers` on every reply that takes an answer.
+- rule: `{{about}}` is filled by the tool, never by the asking agent, and only for a post addressed to the human-owner: the plain title of the task the asking run works on, and the system it concerns, on one line (`AgentsToolsAskAboutLine`). Its group is left out whole where neither is named. `{{question}}` names no file path, no code token between backticks and no internal id, which name nothing to a person: the tool refuses such a question and the detail belongs in `{{context}}` (`AgentsToolsAskPlainCheck`).
 - rule: `{{document}}` is the link to the proposal document: the absolute `http://` or `https://` URL of a page that exists. The document is what the human-owner approves. A proposal with no document is never posted.
 - rule: A slot outside `[[ … ]]` is required: with one empty, nothing is posted. Text in `[[ … ]]` is kept only when every slot in it has a value, and a group may span lines, so a heading is left out together with its empty field. No field is ever shown as a placeholder.
 - rule: The answer form is `approve`. `{{how-to-answer}}` is the block under `# Answers` named for it.

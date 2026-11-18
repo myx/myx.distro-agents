@@ -21,17 +21,24 @@ rigAssert(){ ## what is asserted, got, want
 	if [ "$2" = "$3" ] ; then printf '  PASS  %s\n' "$1" ; rigPasses=$(( rigPasses + 1 ))
 	else printf '  FAIL  %s\n        got:  %s\n        want: %s\n' "$1" "$2" "$3" ; rigFails=$(( rigFails + 1 )) ; fi
 }
+## Every store of this rig is written by its owner's own writer, never by hand here: the board through
+## rigOwnerBoardPut, the vault through rigOwnerVaultPut, and a board item of odd frontmatter through rigOwnerStoreItem.
 rigRealOrigin="$MDLT_ORIGIN"
 rigWs="$rigTmp/ws"
 rigData="$rigWs/data"
 rigPending="$rigData/board/pending"
 rigSpawnLog="$rigTmp/spawn.log"
 rigItemsLog="$rigTmp/items.log"
-mkdir -p "$rigPending" "$rigWs/.local"
-## A tree of the origin's own, with the one items tool stubbed and the one awk the function reads, as real copies.
+mkdir -p "$rigWs/.local"
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-writes.include.sh" || exit 1
+rigOwnerWs="$rigWs" rigOwnerData="$rigData" rigOwnerHome="$rigTmp/home" rigOwnerSkills="$rigTmp/skills" rigOwnerOrigin="$MDLT_ORIGIN"
+rigOwnerBoardReady
+## A tree of the origin's own: its whole sh-lib and sh-scripts as real copies, so the function loads what it loads,
+## and the one items tool stubbed on top.
 rigOrigin="$rigTmp/origin"
-mkdir -p "$rigOrigin/myx/myx.distro-agents/sh-scripts" "$rigOrigin/myx/myx.distro-.local/sh-lib/output"
-cp "$rigRealOrigin/myx/myx.distro-.local/sh-lib/output/LocalIsoToEpoch.awk" "$rigOrigin/myx/myx.distro-.local/sh-lib/output/LocalIsoToEpoch.awk" || rigRefuse "the date awk is not there"
+mkdir -p "$rigOrigin/myx/myx.distro-agents/sh-scripts"
+cp -RL "$rigRealOrigin/myx/myx.distro-.local" "$rigOrigin/myx/myx.distro-.local" || rigRefuse "the origin's local package is not there"
+cp -RL "$rigRealOrigin/myx/myx.distro-agents/sh-lib" "$rigOrigin/myx/myx.distro-agents/sh-lib" || rigRefuse "the origin's sh-lib is not there"
 cat > "$rigOrigin/myx/myx.distro-agents/sh-scripts/DistroAgentsItems.fn.sh" <<'RIGITEMS'
 #!/usr/bin/env bash
 printf '%s\n' "$*" >> "${RIG_ITEMS_LOG:?}"
@@ -64,12 +71,12 @@ AgentsToolsScheduleWorkDutyRecord(){ case " $rigDutyMembers " in *" $1 "*) print
 AgentsToolsScheduleMemberRuns(){ case " $rigRunMembers " in *" $1 "*) return 0 ;; esac ; return 1 ; }
 AgentsToolsScheduleOverrideLeft(){ [ "$1" = MDAT_SCHEDULE_EMERGENCY ] && [ "$rigEmergency" = yes ] && printf 'on\n' ; return 0 ; }
 
-rigItem(){ ## file name, then header lines -- one board item
+rigItem(){ ## file name, then header lines -- one board item, written by the board's own writer
 	local itemName="$1"
 	shift
-	{ printf '%s\n' '---' ; printf '%s\n' "$@" ; printf '%s\n' '---' '' '# an item' ; } > "$rigPending/$itemName"
+	{ printf '%s\n' '---' ; printf '%s\n' "$@" ; printf '%s\n' '---' '' '# an item' ; } | rigOwnerBoardPut pending "$itemName"
 }
-rigReset(){ rm -f "$rigPending"/*.md "$rigSpawnLog" "$rigItemsLog" ; rigMedian=1000 rigDutyMembers="" rigRunMembers="" rigEmergency=no rigWorktime=yes ; unset RIG_ITEMS_FAIL ; }
+rigReset(){ rm -f "$rigPending"/*.md "$rigData/vault"/*.md "$rigSpawnLog" "$rigItemsLog" ; rigMedian=1000 rigDutyMembers="" rigRunMembers="" rigEmergency=no rigWorktime=yes ; unset RIG_ITEMS_FAIL ; }
 rigSpawned(){ [ -f "$rigSpawnLog" ] && wc -l < "$rigSpawnLog" | tr -d ' ' || printf '0' ; }
 rigRunPass(){ rigOut="$( AgentsToolsScheduleStartPending 2>&1 )" ; }
 
@@ -77,6 +84,12 @@ rigReset
 rigItem task-a.md 'approved-by: human-owner' 'owner: magic-developer'
 rigMedian=9000 ; rigRunPass
 rigAssert "a slow machine (median 9 s) starts nothing, and says the pace gate held it" "$( rigSpawned ):$( printf '%s\n' "$rigOut" | grep -c 'held by the pace gate' )" "0:1"
+
+rigReset
+rigItem task-a.md 'approved-by: human-owner' 'owner: magic-developer'
+rigItem task-b.md 'approved-by: human-owner' 'owner: magic-tester' 'mark: urgent'
+rigMedian=9000 ; rigRunPass
+rigAssert "on a slow machine an urgent item starts whatever the pace, and the one with no mark waits" "$( rigSpawned ):$( awk '{ print $NF }' "$rigSpawnLog" )" "1:magic-tester"
 
 rigReset
 rigItem task-a.md 'approved-by: human-owner' 'owner: magic-developer'
@@ -89,6 +102,23 @@ rigReset
 rigItem task-a.md 'owner: magic-developer'
 rigRunPass
 rigAssert "an item with no approved-by is not started" "$( rigSpawned ):$( [ -f "$rigItemsLog" ] && echo moved || echo untouched )" "0:untouched"
+
+## THE GO OF THE EPIC: a child carries `epic:` alone, and the go is read live from that blueprint.
+rigEpic(){ ## blueprint file name, then its frontmatter lines -- one epic blueprint in the rig's vault
+	local epicName="$1"
+	shift
+	{ printf '%s\n' '---' 'document-contract: vault-item.epic-blueprint' 'type: epic-blueprint' 'from: magic-coordinator' 'date: 2026-11-02 00:00 +0200' ; printf '%s\n' "$@" ; printf '%s\n' '---' '' '# an epic' ; } | rigOwnerVaultPut "$epicName"
+}
+rigReset
+rigEpic epic-blueprint-20261102T0000Z-rig.md 'approved-by: human-owner (rig-session, 2026-11-02T09:00:00Z)' 'approved-at: 2026-11-02 11:00 +0200'
+rigItem task-a.md 'epic: epic-blueprint-20261102T0000Z-rig' 'owner: magic-developer'
+rigRunPass
+rigAssert "an item whose epic carries a go is started, and moved to running first" "$( rigSpawned ):$( awk '{ print $NF }' "$rigSpawnLog" ):$( [ -f "$rigItemsLog" ] && LC_ALL=C awk 'NR == 1 { print $1, $2, $3 }' "$rigItemsLog" || echo untouched )" "1:magic-developer:--advance-to-running --team-member magic-coordinator"
+rigReset
+rigEpic epic-blueprint-20261102T0000Z-rig.md ''
+rigItem task-a.md 'epic: epic-blueprint-20261102T0000Z-rig' 'owner: magic-developer'
+rigRunPass
+rigAssert "the same item, a blueprint with no go: not started, not moved" "$( rigSpawned ):$( [ -f "$rigItemsLog" ] && echo moved || echo untouched )" "0:untouched"
 
 rigReset
 rigItem task-a.md 'approved-by: human-owner' 'owner: magic-developer' 'recheck-date: 2099-01-01 00:00 +0000'

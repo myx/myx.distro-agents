@@ -297,7 +297,7 @@ AgentsToolsCommsPrintbackNoticeRecord(){ ## channel-id, from, whom it is told (m
 ## with no chat file, and one with no new notice. Nothing here is a message: no Slack call, no printback print,
 ## and no second record.
 AgentsToolsCommsPrintbackNoticeDigest(){ ## session, member
-	local digestSession="${1:-}" digestMember="${2:-}" digestDir="" digestIndex="" digestChat="" digestNew="" digestText="" digestRc=0 chatLock=""
+	local digestSession="${1:-}" digestMember="${2:-}" digestDir="" digestIndex="" digestChat="" digestNew="" digestText="" digestRc=0 chatLock="" digestMarks=""
 	[ -n "$digestSession" ] && [ -n "$digestMember" ] || return 0
 	type AgentsToolsSessionChatDir > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include"
 	AgentsToolsCommsPrintbackSessionInUse "$digestSession" || return 0
@@ -309,6 +309,8 @@ AgentsToolsCommsPrintbackNoticeDigest(){ ## session, member
 	## WITHOUT THE LOCK NOTHING IS TAKEN: two calls that read the same notice before either marks it would
 	## both print it. The notice stays for the next call, which is what "never twice" asks over "just now".
 	[ -n "$chatLock" ] || return 0
+	## THE MARK IS AN APPENDED LINE (S1 item 11), so the index is read as a reader sees it and never rewritten: the awk prints what
+	## this member has not seen, and the blocks it marked, which are appended to the stamps file below.
 	digestNew="$( mktemp "$digestIndex.digest.XXXXXX" 2> /dev/null )" || digestNew=""
 	if [ -n "$digestNew" ] ; then
 		digestText="$( LC_ALL=C awk -F'\t' -v OFS='\t' -v where="printback:$digestSession" -v member="$digestMember" -v newIndex="$digestNew" '
@@ -326,7 +328,6 @@ AgentsToolsCommsPrintbackNoticeDigest(){ ## session, member
 			END {
 				for (at = 1 ; at <= count ; at++) {
 					if (wh[at] != where || org[at] != "notice" || hasSeen(sn[at])) {
-						print no[at], ts[at], wh[at], org[at], line[at], sn[at] > newIndex ;
 						continue ;
 					}
 					end = (at < count) ? line[at + 1] - 1 : last ;
@@ -337,22 +338,20 @@ AgentsToolsCommsPrintbackNoticeDigest(){ ## session, member
 						if (v == "") { continue ; }
 						text = (text == "") ? v : text " " v ;
 					}
-					if (text == "") {
-						print no[at], ts[at], wh[at], org[at], line[at], sn[at] > newIndex ;
-						continue ;
-					}
+					if (text == "") { continue ; }
 					print text ;
-					sn[at] = (sn[at] == "-" || sn[at] == "") ? member : sn[at] "," member ;
-					print no[at], ts[at], wh[at], org[at], line[at], sn[at] > newIndex ;
+					print no[at] "\t" ts[at] "\t" wh[at] "\t" member > newIndex ;
 				}
 			}
-		' "$digestIndex" "$digestChat" 2> /dev/null )" || digestRc=$?
+		' <<< "$( AgentsToolsSessionChatResolvedStream "$digestSession" 2> /dev/null )" "$digestChat" 2> /dev/null )" || digestRc=$?
 	fi
-	if [ "$digestRc" = "0" ] && [ -n "$digestNew" ] && [ -n "$digestText" ] && mv -f "$digestNew" "$digestIndex" 2> /dev/null ; then
-		printf '%s\n' "$digestText"
-	else
-		[ -z "$digestNew" ] || rm -f "$digestNew"
+	if [ "$digestRc" = "0" ] && [ -n "$digestNew" ] && [ -s "$digestNew" ] ; then
+		digestMarks="$( cat "$digestNew" 2> /dev/null )"
+		[ -z "$digestMarks" ] || printf '%s\n' "$digestMarks" >> "$digestDir/$agentsSessionChatName.stamps" 2> /dev/null
+		[ -n "$digestText" ] || : > "$digestNew"
+		[ -z "$digestText" ] || printf '%s\n' "$digestText"
 	fi
+	[ -z "$digestNew" ] || rm -f "$digestNew"
 	AgentsToolsSessionChatLockGive
 	return 0
 }

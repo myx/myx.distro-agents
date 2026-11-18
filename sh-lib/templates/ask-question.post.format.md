@@ -59,7 +59,10 @@ One question to a person: its title, the question, the options where it has any,
 ```
 # ❓ Question[[ {{tag}}]][[ {{revised}}]]
 
-{{question}}
+[[**📌 About**
+{{about}}
+
+]]{{question}}
 
 [[**📋 Options**
 {{options}}
@@ -194,7 +197,8 @@ The one reply the tooling posts in the thread an answer was read in, for a quest
 # Contract
 
 - rule: The post is the one fenced block under `## post`, sent through the member send as the asking member's own message. Asked of the human-owner (`to` is `human-owner`), it is the team bot's message, whoever asks and whatever `as_bot` says: the owner is asked in one place, never in the conversation of whichever account asks. It then stands in the bot's own conversation with the owner, as a permission does, and its record says `ask-identity: bot`, so its answer emoji and every later read, edit and reminder are the bot's too. It names its addressee as every member message does.
-- rule: Required: `{{question}}`, the question as asked. Optional: `{{tag}}`, the question's number where it shares a thread; `{{options}}`; `{{context}}`. `{{how-to-answer}}` is filled from `# Answers` on every post that takes an answer.
+- rule: Required: `{{question}}`, the question as asked. Optional: `{{tag}}`, the question's number where it shares a thread; `{{options}}`; `{{about}}`; `{{context}}`. `{{how-to-answer}}` is filled from `# Answers` on every post that takes an answer.
+- rule: `{{about}}` is filled by the tool, never by the asking agent, and only for a post addressed to the human-owner: the plain title of the task the asking run works on, and the system it concerns, on one line (`AgentsToolsAskAboutLine`). Its group is left out whole where neither is named. `{{question}}` names no file path, no code token between backticks and no internal id, which name nothing to a person: the tool refuses such a question and the detail belongs in `{{context}}` (`AgentsToolsAskPlainCheck`).
 - rule: A slot outside `[[ … ]]` is required: with one empty, nothing is posted. Text in `[[ … ]]` is kept only when every slot in it has a value, and a group may span lines, so a heading is left out together with its empty field. No field is ever shown as a placeholder.
 - rule: The answer form is `text` when the call gives no `select`, else its `select`: `yes-no`, `one` or `many`. `one` and `many` need options. `yes-no` and `text` take none: options given with no `select` would be a list nobody can click, so that call is returned to its caller as a correction, to pass `select` `one` or `many`, and nothing is posted.
 - rule: `{{options}}` is one line per option, in the order given, each by the `## numbered` line where the form's `# Reactions` block holds `{{numbers}}`, else by the `## plain` line. `{{option}}` is the option as given, a leading `- ` dropped. `{{number}}` is its number as a keycap emoji, 1️⃣ to 🔟. An option past the tenth is numbered in plain digits. The `## plain` line is kept for a question asked before options needed a `select`: its post is still filled again from its record.

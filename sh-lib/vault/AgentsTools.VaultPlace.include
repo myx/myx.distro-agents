@@ -32,6 +32,16 @@ if ! type AgentsToolsVaultItemPath > /dev/null 2>&1 ; then
 		printf '%s/%s\n' "$itemFolder" "$1"
 	}
 
+	## The value of one frontmatter key of the vault item of that name, and nothing where the item carries none: rc 1,
+	## nothing printed, where the store root is not set, the name is no bare file name, or the item is not there.
+		AgentsToolsVaultItemKey(){ ## item name, key
+			local itemPath=""
+			itemPath="$( AgentsToolsVaultItemPath "$1" )" || return 1
+			[ -f "$itemPath" ] || return 1
+			type AgentsToolsFrontmatterKey > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.FrontmatterKey.include"
+			AgentsToolsFrontmatterKey "$itemPath" "$2"
+		}
+
 	## THE ITEMS of the vault into the named array, a path each: those whose file name starts with the prefix
 	## (empty for every item), in the vault folder and in a folder of it. The one walk of the vault store, so a
 	## reader of many items takes this and names no folder. The newest variable, where one is named, takes the

@@ -16,16 +16,10 @@
 ##       The records of the store beside the MAGIC.md whose section caption matches a `--section` glob are deleted, so
 ##       they are no longer findable. The MAGIC.md is left as it is. At least one `--section` is required.
 ##
-## Both refuse when the store is off or not installed, naming the installers; both are safe to run again (a spread
+## Both refuse when the store is not installed, naming the installers; both are safe to run again (a spread
 ## replaces a record already moved, a retire deletes what matches and keeps the rest). The record write and delete are
 ## the one Python (AgentsKnowledgeStore.py) through the store's own Python.
 ##
-
-## The one place the workspace's knowledge index root is spelled: the build caller and the query must both ask it, and
-## nothing else names the path, so that a move of the index is one line.
-AgentsToolsKnowledgeIndexRoot(){ ## -- the index root on stdout
-	printf '%s\n' "${MMDAPP%/}/.local/knowledge-index"
-}
 
 ## The embedding model the index was built with: its folder and its stamp `<name>@<revision>@<dim>`, as the install
 ## wrote them in lancedb.env. rc 1 when the install does not stand, which is no index at all.
@@ -46,13 +40,8 @@ AgentsToolsKnowledgeStoreRefuse(){ ## text -- why, on stderr; rc 1
 	return 1
 }
 
-AgentsToolsKnowledgeStoreAssertReady(){ ## -- the setting on and the store's Python standing; rc 1 with why otherwise
-	type AgentsToolsKnowledgeStoreSetting > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/settings/AgentsTools.KnowledgeStoreSetting.include"
+AgentsToolsKnowledgeStoreAssertReady(){ ## -- the store's Python standing; rc 1 with why otherwise
 	type AgentsToolsKnowledgeStorePython > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/knowledge/AgentsTools.Knowledge.include"
-	if [ "$( AgentsToolsKnowledgeStoreSetting )" != "on" ] ; then
-		AgentsToolsKnowledgeStoreRefuse "the knowledge store is off (MDAT_KNOWLEDGE_STORE): turn it on with --manager-config-set MDAT_KNOWLEDGE_STORE on, then --install-knowledge-store"
-		return 1
-	fi
 	AgentsToolsKnowledgeStorePython > /dev/null 2>&1 || { AgentsToolsKnowledgeStoreRefuse "the knowledge store is not installed: run --install-knowledge-store first (which asks --install-embedded-python)" ; return 1 ; }
 	return 0
 }
@@ -159,13 +148,14 @@ AgentsToolsKnowledgeStoreRetire(){ ## the arguments after the operation word
 ## THE PRODUCTION BUILD OF THE INDEX (S12.197 step 3): every section the query can be asked for -- the source docs of every
 ## project, the board, the vault and every inbox -- is split by the one scanner and handed to the one build, under its own
 ## lock. The build keeps a row whose text is unchanged, embeds the changed ones and deletes the rows of sections gone, so a
-## run is safe to repeat. Every inbox is indexed: which hits a member may read is decided at query time, per file.
+## run is safe to repeat. Every inbox is indexed: which hits count is decided at query time, by the sources the query added.
 AgentsToolsKnowledgeIndexBuild(){ ## the arguments after the operation word: none
 	[ $# -eq 0 ] || { AgentsToolsKnowledgeStoreRefuse "--knowledge-index-build takes no arguments, got: $1" ; return 1 ; }
-	type AgentsToolsKnowledgeStoreSetting > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/settings/AgentsTools.KnowledgeStoreSetting.include"
 	type AgentsToolsKnowledgeFiles > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/knowledge/AgentsTools.Knowledge.include"
-	[ "$( AgentsToolsKnowledgeStoreSetting )" = "on" ] || { AgentsToolsKnowledgeStoreRefuse "the knowledge store is off (MDAT_KNOWLEDGE_STORE); nothing was built" ; return 1 ; }
 	local buildPython="" buildModel="" buildRoot="" buildData="${MDAT_DATA_ROOT%/}" buildSections=""
+	## THE ONE PLACE THE INDEX'S PATHS ARE SPELLED is the place include, and this operation asks it: the build's own root, and the stamp
+	## a finished build leaves. Loaded before either is asked, so the call never depends on what a caller loaded first.
+	type AgentsToolsKnowledgeIndexRoot > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/knowledge/AgentsTools.KnowledgeIndexPlace.include"
 	[ -n "$buildData" ] && [ -d "$buildData" ] || { AgentsToolsKnowledgeStoreRefuse "no team data root (MDAT_DATA_ROOT); nothing was built" ; return 1 ; }
 	buildPython="$( AgentsToolsKnowledgeStorePython )" || { AgentsToolsKnowledgeStoreRefuse "the knowledge store is not installed; run --install-knowledge-store first" ; return 1 ; }
 	buildModel="$( AgentsToolsKnowledgeIndexModel )" || { AgentsToolsKnowledgeStoreRefuse "the embedding model of the store does not stand; run --install-knowledge-store first" ; return 1 ; }
@@ -176,7 +166,11 @@ AgentsToolsKnowledgeIndexBuild(){ ## the arguments after the operation word: non
 	} | LC_ALL=C awk '!seen[$0]++' | LC_ALL=C awk -v format=index -v wsRoot="${MMDAPP%/}/" -v dataRoot="$buildData/" \
 		-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/knowledge/AgentsKnowledgeScan.awk" )" || { AgentsToolsKnowledgeStoreRefuse "the sections could not be read; nothing was built" ; return 1 ; }
 	printf '%s' "$buildSections" | "$buildPython" -W ignore "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/knowledge/AgentsKnowledgeStore.py" build \
-		--index "$buildRoot" --model-dir "${buildModel%%$'\n'*}" --model-stamp "${buildModel#*$'\n'}"
+		--index "$buildRoot" --model-dir "${buildModel%%$'\n'*}" --model-stamp "${buildModel#*$'\n'}" || return 1
+	## THE STAMP OF A FINISHED BUILD, written only here: the refresh reads it against the one a write leaves, and a build that
+	## refused above has written nothing, so the next pass tries again.
+	: > "$( AgentsToolsKnowledgeIndexStamp built )" 2> /dev/null || :
+	return 0
 }
 
 case "$1" in

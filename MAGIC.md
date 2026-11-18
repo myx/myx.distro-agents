@@ -2072,6 +2072,9 @@ contracts are here.
   (`HARNESS_PARSES` catches this; the site check does not). A missing comma between declarations passes `bash -n` and the site check, and
   fails only at the endpoint as a 400. `HARNESS_TOOLS_JSON` catches it by
   comparing text and parsed counts. Run it after any declaration change.
+- **A parameter the dispatcher reads must be declared in `harnessToolsJson`, or every call carrying it is refused.** `AgentsHarnessRunTool` refuses a
+  top-level key the tool's `parameters.properties` does not name, before anything runs. The names are cached in
+  `$MMDAPP/.local/temp/mdat-harness-tool-args`, built again when the wire or its two readers are newer. An `mcp__*` tool is its server's to check.
 - **Addressing.** `SendMessage`, `SubagentHandback`, `PushNotification`, `ReportFindings`, `Artifact`,
   `AskQuestion`, `ConfirmReadback`, `EscalateDecision` and `RequestPermission` share one `to`
   resolver, which reads one of these forms:
@@ -5052,3 +5055,135 @@ Standing decisions of the human-owner. Each holds until he changes it.
 - **Every caller pulls through one function.** `AgentsToolsTeamDataSyncWithRemote` wraps myx.common's `git/cloneSync`: the settle and carry first, cloneSync's own pull and push, the settle-again and the untrack after a pull that landed. The board resync in `AgentsToolsAdvanceCloneSync` and the read-back sync of `item-upsert` both come through it, so one rule holds at every caller.
 - **A landed write is never reported as a failure.** The read-back sync of `item-upsert` runs through the same wrapper, so another member's uncommitted path, or a session's own append to a log, no longer makes a write that stands on origin read as `LOCK_UNCHECKABLE`.
 - **The checks.** `sh-test/team-data/AgentsTeamDataLiveLogSyncCheck.test.sh` holds the live log appended on both sides, the family leaving the index and the ignore rule reaching origin, a foreign writer's path, a path the store will not commit, one item both sides changed, and both control directions. It reads 10 of 22 red on the tree before this change and 22 of 22 green after.
+
+## For magic-developer
+
+- **A rig that copies this package alone fails every send, and the failure names a settings variable.** The copy's own siblings are invisible from that error, so the list below is the one thing a rig needs and cannot learn from the message. The general rule is `magic-developer/reference/code-craft.md:116`.
+- **The packages this tree names, counted 2026-11-17 15:21 +0200.** Population: every file under `sh-lib` and `sh-scripts`, 878, walked with `find -L … -exec grep -lF`. The `sh-test` column is the same token over that folder's 975 files.
+
+| token | `sh-lib` + `sh-scripts` | `sh-test` |
+|---|---|---|
+| `myx.distro-.local` | 107 | 133 |
+| `myx.common` | 60 | 61 |
+| `myx.distro-system` | 4 | 24 |
+| `myx.distro-source` | 6 | 14 |
+| `myx.distro-deploy` | 3 | 9 |
+| `myx.distro-remote` | 2 | 5 |
+| `repository.inf` | 0 | 8 |
+
+- **The controls.** A made-up token reads 0 in both folders, and the walk reads 878 and 975.
+- **What the counts do not answer.** Which of the six code packages a send specifically needs: they count files that name a package, never the send path. Nothing off this host either, so FreeBSD and Linux are unread.
+- **The count moves with the tree, so quote it with its date.** An earlier set read 873 files and agreed on twelve of these fourteen cells; the tree gained five files between the two.
+
+## A retest by name, and the `--project` that widens it
+
+- **`--retest-queue --project <p>` adds every test registered for that project.** A test named on the command line is queued beside them, never instead.
+- **The request takes them from the testbed, not from the argument.** `AgentsToolsTestbedProjectTests` is read at `sh-lib/member/AgentsTools.RetestQueue.include:88`, and each name it prints is appended to the request.
+- **The help does not say so.** `DistroAgentsTesting.fn.sh --help-syntax` prints `[--project <p>]` after `--why`, in the shape of an option that narrows.
+- **A retest of named tests therefore carries no `--project`.** Name the tests and stop. The tester's next batch runs everything the request holds, so the project is paid for there.
+- **A project with no registered test refuses the whole request.** Named tests are refused with it, and nothing is queued.
+
+## A state note's patch is matched against its body, not a read-back
+
+- **A patch anchor is matched against the stored body, so a count taken over a read-back capture answers about the capture.** `--get-inbox-item` writes `SystemContext:` lines ahead of the document, then its frontmatter. A line number, a length or an `old` count over that output is not one over the body the patch is applied to. Measured on `note-20261020T000000Z-work-duty-state-and-lock.md`, 2026-11-18: an anchor asserted unique over the capture was refused as `old text not found`, then as `matches 3 times` once shortened.
+- **Anchor on one line, then read the body back.** The one-line anchor landed first time. The multi-line forms built from the capture did not. `--edit-patch-from-stdin` takes a JSON array of `{"old", "new", "replace_all"}` and applies each in order, so a multi-step repair is one call.
+- **`--header:` and `--edit-patch-from-stdin` are mutually exclusive.** So are `--from-file`, `--upsert-from-stdin` and the patch mode. A call naming two is refused before anything is written.
+
+## The P4 duplicate class compares invocation text, so a copied `.awk` file is invisible
+
+- **What the class reads.** `sh-test/solid/AgentsSolidBreachScan.sh:203` selects `awk … '…'`, an invocation with its program quoted inline. The reducer at `:204` keys on that quoted text.
+- **So it reports one thing: the same invocation written in two `.include` or `.sh` files.** A `.awk` file holds a program, never an invocation, so this class has nothing to match in one.
+- **Widening its `--include` list reaches a call site planted in a `.awk` file.** Measured 2026-11-18 on planted trees: that site reports 1 row with `--include='*.awk'` and 0 without.
+- **That widening changes no output on the live tree today.** Measured 2026-11-18 01:32 +0200: 152 selected rows either way, and 0 duplicate rows either way. The two tracked libraries `sh-lib/core/AgentsProgressLineSafe.awk` and `sh-lib/session/AgentsProgressLineSafe.awk`, byte-identical at `d76e52f0`, go unreported.
+- **Two more axes, each with its control in the same run.** A program under 80 characters repeated on one line reports 0, against 1 for the same shape at 100 characters. A 100-character program split over three physical lines reports 0, against 1 on one line.
+- **Nothing else in the scan compares whole files.** `AgentsSolidTrivials.py:51` selects `.include` and `.sh` only. Over `shasum|sha256|md5`, `sh-test/solid` names a digest in 0 files and `sh-lib` in 2. Adding `hashlib` to the pattern reads 4.
+- **A whole-file class over `*.awk` finds two pairs.** Population: 151 files, `sh-lib` 142, `sh-test` 9, `sh-scripts` 0, read 2026-11-18 01:16 +0200. The three folders hold no symlink, and a `-L` walk returns the same counts.
+- **The pairs are the progress library above, and the JSON slice reader with its kept fixture.** The second is `sh-lib/harness/AgentsHarnessJsonSlice.awk` with `sh-test/check-fixtures/AgentsHarnessJsonSlice.legacy.awk`, at `1d449840bc9d`.
+- **That instrument's control, in the same run.** A planted third copy reports its group, and removing it reports none. Two files differing by one appended line report nothing.
+- **The second pair is a fixture that has never diverged.** The live file first exists at commit `42a80b8a`, already byte-identical to the fixture kept since `5ff3f2b5`. Neither has changed since.
+- **So that class needs its allowance named, not a folder pattern.** A written store path is already allowed at `:97` by `allowedFabricatedSites`. A kept fixture needs the same, or the class reports a file correct by design. Filed as `inquiry-20261118T0128Z`.
+- **The `session/` copy of the progress library is dead, and one file names it.** Population: the 19 files under the three folders that name `AgentsProgressLineSafe`, read 2026-11-18 01:25 +0200. Twelve spell `core/…`, one spells `session/…`, and six name neither path.
+- **That spelling is in a file nothing runs.** `sh-lib/harness/AgentsOpenAiChatWire.sh.keep:397` spells it, and no file sources a `*.sh.keep`. The live file beside it, `AgentsOpenAiChatWire.sh:408`, spells `core/…`.
+- **The family already treats a `.keep` as no code.** Two checks exclude `*.keep` from their own scans, `AgentsBashPathGuardCheck.test.sh:162` and `AgentsOriginPathsExistCheck.test.sh:34`.
+
+## The P5 fabricated class reads a literal store path
+
+- **The P5 `fabricated` class reads a literal store path, so a path built in a variable is never a row.** `sh-test/solid/AgentsSolidBreachScan.sh:210` selects `>` or `mkdir -p` followed by `system-index`, `/board/`, `/inboxes/`, `/vault/`, `distro-declares` or `distro-projects`. A check that writes `rigBoard="$rigTmp/data/board"` and then `> "$rigBoard/running/x.md"` prints nothing. The pattern also names no session or spawn store.
+- **Measured 2026-11-17 on the live tree: 40 store-root `mkdir`s over 35 checks, and 56 session-store writes over 16 checks.** Every one was invisible to the class. A green P5 of 0 is therefore no evidence that no check fabricates its store.
+- **The store rule exempts a word ending `sh-lib`.** `word !~ /sh-lib$/` at `:176` is what keeps a load of board code out of the `foreign-store` rows. `sh-test/solid/AgentsSolidBoardLoadCheck.test.sh` holds it, and its red arm removes that exemption.
+
+## A load covers a call only in its own branch
+
+- **A load covers a call only where it sits before the call and in the call's own branch or an enclosing one.** A load inside an `if` block, a `case` arm or an `else` reaches that branch's calls alone. It never reaches a call after its `fi`, or a call in a sibling branch.
+- **A file that defines a function runs its file-scope `if` block at load, so there its load covers the whole file.** A fragment defines no function, is sourced inside a function, and its blocks are branches.
+- **`sh-test/solid/AgentsSolidUndefinedCall.test.sh` holds the class, seven assertions.** Its red rows are a call after the `fi`, a call in the `else`, and a call to a name no file defines.
+
+## One frontmatter headers reader for the whole package
+
+- **One frontmatter headers reader serves the whole package.** `sh-lib/core/AgentsFrontmatterHeaderValues.awk` prints the first line of each named key of a file's first frontmatter block. It prints one value a line, and an empty line for a key the block lacks. `-v keys=` takes the keys, space separated, under `LC_ALL=C`.
+- **`AgentsSessionRunHeadersInto` and `AgentsToolsBoardItemHeadersInto` both run it with `-f`, and neither carries a program of its own.** A third reader of a frontmatter key runs this file too, never a copy.
+- **The board item lookup takes its order from the board's own two lists.** `AgentsToolsBoardItemInto` searches `$agentsBoardActiveStates` and then `$agentsBoardStates`, both of `sh-lib/board/AgentsTools.BoardStates.include`. So the five live states answer before the backlog.
+- **It carried a literal copy of that order until task-20261115T1024Z, so a state added to the one list was never searched.** `sh-test/board/AgentsFrontmatterHeadersCheck.test.sh` holds both facts, and its failing case is a state appended to the one list.
+
+## The ask tools run as tasks, the rest bypass the wrapper
+
+- **The five ask tools run as tasks: `AskQuestion`, `ConfirmReadback`, `EscalateDecision`, `RequestPermission` and `ProposeApprove`.** Each takes `background`, `sync`, `async` and `timeout_action`. Its own `timeout` still means its seconds per waiting round. `sh-lib/harness/AgentsHarnessRun.include` carries that arm.
+- **`Wait`, `ThisSession`, `TaskOutput`, `TaskStop`, `SubagentHandback` and `BatchTools` still bypass the wrapper.** Their names stand in two lists that move together: the dispatcher arm, and the skip list of `sh-lib/harness/AgentsHarnessTaskArgsFill.awk`.
+
+## A tool call's streams are named on the command that runs it
+
+- **A tool call's streams are named on the command that runs it, never set by a subshell around it.** The Bash tool runs `< in > out 2> err bash -c 'cd "$1" && set -e && eval "$2"'` as the harness's own child. An `( exec < in > out ; exec <cmd> )` wrapper costs one process a call for nothing. Measured on one call with `timeout: 0`: 9 harness-argv ancestors before, 8 after.
+- **The command's `cd` and `set -e` stay inside its own `bash -c`.** Run them in the harness's shell and the change of directory outlives the call.
+- **The output mode is a branch at each site, not a helper that redirects the caller's shell:** `2>&1` for merged, `2> err` for prefixed. `AgentsHarnessToolStreams` is the old form and is now unused. A second call site adds the branch, not the helper.
+
+## The session chat's ts and conversation are stamped beside the index
+
+- **A post's ts and its conversation go into `session.chat.stamps`, one appended line a block:** `<block>	<ts>	<conversation:thread>	<seen>`. `session.chat.index` keeps the `-` it was written with.
+- **A reader of a record's ts or conversation reads the resolved index, `AgentsToolsSessionChatResolve`, never the index file alone.** A check that reads the index file directly sees `-` for both fields. Measured 2026-11-17 in a rig: the index line read `1 - - own 1 -`, where the stamps line read `1	1760000001.000002	CRIG00001:1760000001.000001	-`.
+- **A send is counted by the log rows that name it.** A whole-log total moves by rows the tooling appends itself, such as the event-track notice, so a before-and-after total is no measure of one send.
+
+## Close refusals, the owner-ruling guard and the decision strike
+
+- **The board writer refuses a close while the item's `condition:` stands, and a close of an item in `board-parked`.** The three closing states are processed, archived and retained. The refusal reads the item as the write would leave it, so a close that clears the condition in the same write still lands. A move out of `processed`, which housekeeping makes into archived or retained, is no close of a live item.
+- **`--record-decision` records a line only through a confirmed readback on the same item.** A line that tells a decision by the human-owner also needs the message or the ask's verdict it came from. That goes in `--source`, or a readback he confirmed carries it.
+- **`--record-decision --strike <exact line> --reason <text> --readback <id>` marks a recorded line struck in place.** It appends one `dismissed` line naming what was struck and why.
+
+## The epic go is read live from the blueprint
+
+- **The go of an approved epic is read live from its blueprint, never copied onto a child.** `AgentsToolsBoardItemEpicGo` (`sh-lib/board/AgentsTools.BoardItemHandler.include`) prints the blueprint's `approved-by`, and `AgentsToolsVaultItemKey` (`sh-lib/vault/AgentsTools.VaultPlace.include`) is the vault's own frontmatter reader.
+- **A board item names its epic in `epic:`, a bare vault item name in `item-names` form.** Two readers take the go from it: the start gate in `sh-lib/schedule/AgentsTools.DispatcherSchedule.include`, and the recall refusal in `sh-lib/board/AgentsTools.InternOpBoardUpsertMoveEdit.include`.
+- **A recall to `board-backlog` is refused where the item names an epic whose blueprint carries `approved-by`.** `--grooming-to-backlog` and `--move-to-backlog` both reach that one point.
+
+## The knowledge index is built on a schedule and kept fresh
+
+- **`AgentsTools.KnowledgeIndexPlace.include` is the one place the index root and its two stamps are spelled.** `AgentsToolsKnowledgeIndexRoot` and `AgentsToolsKnowledgeIndexStamp` live there, and every caller loads it on its own path.
+- **`AgentsToolsKnowledgeWantedMark` touches `wanted`.** `AgentsToolsItemUpsert` calls it for the board, the vault and the audit, and the member inbox upsert calls it for every inbox. `AgentsToolsKnowledgeIndexBuild` writes `built` only after a build that finished, so a refused build leaves the next pass to try again.
+- **`AgentsToolsScheduleThreadKnowledgeKeep` runs once in each schedule pass.** It rebuilds when `wanted` is newer than `built`, or when `built` is older than `MDAT_SCHEDULE_KNOWLEDGE_INDEX_SECONDS` (900, and 0 turns it off). The 900 s bound catches a hand edit to a project `MAGIC.md`, which no writer marks.
+- **A write and a build inside one second cannot be ordered by mtime, so the pass rebuilds unless `built` is strictly newer than `wanted`.** That costs at most one extra build an hour.
+- **The query names its source on stderr, beside the dropped-sections count:** `answered from the index`, or `answered from the text alone` with the reason. The answer text is unchanged by that line. `AgentsKnowledgeIndexKeepCheck` (`sh-test/team-data`) holds all of it, 13 assertions offline.
+
+## The rigs list and the scan's every-rig default
+
+- **`--supervise-rigs` (`AgentDispatcherTools`) prints the rigs the team runs, one line a rig:** the workspace root, a TAB, and its owner account or `-`. It is read only.
+- **A rig is a workspace whose own settings make it a team rig and run the team duties.** That is `MDAT_WORKSPACE_MODE=team-rig` of its `magic-team` scope, read through `AgentsToolsWorkspaceMode`. A workspace naming an owner account but running no schedule is no rig.
+- **The roots come from the places list's workspace rows, this workspace first.** A workspace the machine does not know is never a rig, and the mode test keeps a run's sandbox and a check's rig out.
+- **`--supervise-scan` with no `--workspace` scans every rig that list names.** With no rig found it prints one `error` line and fails, rather than printing nothing. A `--workspace` that is no rig is refused in one line naming it, and the call fails.
+- **Each rig's owner account is the rig list's answer, and the scan passes it to the `owner-owed` reading.** That reading reads the rig's own conversation with its owner. A rig naming none is still scanned, with no `owner-owed` line.
+- **The implementation is `sh-lib/supervise/AgentsTools.SuperviseRigs.include`, and its check is `sh-test/session/AgentsSuperviseRigsCheck.test.sh`.**
+
+## The supervisor reads owner-owed from the comms cache
+
+- **The supervisor reads `owner-owed` from the comms cache, never by a Slack call of its own.** `--supervise-scan` carries the line for each message of the human-owner that no other account answered in its own thread. The cache is `$MMDAPP/.local/cache/comms/slack/<service>-<id>/YYYYMM/messages.txt`.
+- **A cache folder's conversation and thread come from its own `.state.txt` pulling line** (`slack-conversation <target>`, `slack-thread <channel>:<thread ts>`), never from its folder name. The store owns that fact, as the cache-to-inbox transfer reads it.
+- **A conversation counts for `owner-owed` when its target is the team channel (`SLACK_CHANNEL_MAGIC_TEAM`) or a direct one (`D…`).** Another channel holds no conversation of his, and the mentions and search partitions hold none at all.
+
+## An include file's header names only the functions it defines
+
+- **An include file's header names only the functions that file defines.** `sh-lib/session/AgentsTools.SessionStore.include` named `AgentsSessionDeathFile`, which no file defines. Its header now names `AgentsSessionStoreDirInto` and `AgentsSpawnedStoreDirInto`, the two forms the file does define. `sh-test/session/AgentsSessionStoreHeaderCheck.test.sh` holds it.
+
+## The review wait limit counts from an answer to the run
+
+- **The review wait limit counts from the later of two moments.** One is the item's `review-since-epoch`. The other is the newest answer to an ask of the run's session.
+- **That answer is read from `.local/agents/pending/answers/<session>.epoch`.** The ask store's own close writes it, and never lowers it. So a run that has its verdict and is applying is never ended mid-apply.
+- **`AgentsToolsPendingReplyAnswersSeed` writes those files once, from every answered record.** That covers the answers closed before the measure existed. It is a one-off at the change, never a schedule step. A session with no file reads as no answer, so its limit counts from review entry as before.
+- **A record's frontmatter field is read with `AgentsToolsFrontmatterKey`, never an inline awk.** Two inline copies of the session-id read stood in this package, and the SOLID gate reported them as a P4 duplicate. `AgentsTools.Grants.include` and `AgentsTools.InternOpPendingReplyClose.include` both call it now.

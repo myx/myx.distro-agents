@@ -1,0 +1,122 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.SuperviseBoard.include -- the supervisor's scan of one workspace's board: what keeps approved work from moving,
+## read only, one line a finding, `<kind> <workspace> <id> <detail>`, called once a workspace by --supervise-scan.
+## Sourced, never run; functions only.
+##
+## Kinds:
+##   `epic` every epic blueprint of the vault not marked superseded: `<ws> <epic> edited=<n>m moved=<n> running=<n>`, and `still`
+##          last where no board item naming it changed in the last hour and the blueprint itself is older than two hours. An epic
+##          is the owner's goal, so a still one is read and moved, never left.
+##   `pending-skipped` an approved board-pending task the schedule's start pass leaves in silence (AgentsToolsScheduleStartPending):
+##          `<ws> <item> recheck=<date>` for a recheck-date not yet due, `<ws> <item> verify-before-build` for a task whose routine
+##          falls to the table's verify row (no handler-routine) and that no run has ever worked.
+##   `accepted-unlanded` a dispatch accepted in the last day whose run left a stage, a patch or a diff in its output and whose item
+##          records no landing: `<ws> <dispatch>`. An accept is a review verdict; the change reaches live only when it lands.
+##   `running-idle` a task in board-running that no live run names (`<ws> <item>`): the start pass reads board-pending alone, so
+##          nothing starts it again. Moved back to pending, it starts by its handler.
+##   `leftover` a run whose record is still open a day after it started: `<ws> <spawn-id> <member> started=<date>`.
+## Every board item is read through the board's own walk (AgentsToolsBoardItemsInto), every run record through the session store's
+## record rows (AgentsToolsSpawnedRecordRows); nothing here builds a path into either store.
+
+AgentsToolsSuperviseBoard(){ ## workspace path, now (epoch)
+	local boardWs="${1%/}" boardNow="${2:-$( date +%s )}" boardRoot boardWsName boardItems=() boardEpics boardEpic boardName boardAge
+	local boardMoved boardRun boardItem boardKey boardRecheck boardEpoch boardRecords boardRow boardStatus
+	boardWsName="${boardWs##*/}"
+	type AgentsToolsTeamDataRootOf > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataRoot.include"
+	boardRoot="$( AgentsToolsTeamDataRootOf "$boardWs" 2> /dev/null )" || return 0
+	[ -d "$boardRoot" ] || return 0
+	type AgentsToolsBoardItemsInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemDecisions.include"
+	type AgentsToolsSpawnedRecordRows > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include"
+	## The records of this workspace once: `<sandbox> <name> <written> <spawn-id> <status> <owner> <started-at> <description>`, TAB-separated,
+	## and their paths from the store's own walk, for the one question a row cannot answer: what a run left in its output.
+	local boardPaths=() boardWhy
+	boardRecords="$( AgentsToolsSpawnedRecordRows "$boardWs" spawn-id status owner started-at description 2> /dev/null )" || boardRecords=""
+	AgentsToolsSpawnedAllRecordsInto boardPaths "$boardWs" || boardPaths=()
+	(
+		export MDAT_DATA_ROOT="$boardRoot" MMDAPP="$boardWs"
+		## EPICS: the names of every item that changed in the last hour, once, then one fixed-string count an epic.
+		AgentsToolsBoardItemsInto boardItems ""
+		boardMoved="$( LC_ALL=C find ${boardItems[@]+"${boardItems[@]}"} -mmin -60 2> /dev/null )"
+		## The epics are the vault's own items, by its own walk; one in a folder of the vault is no epic.
+		local boardEpicFiles=() boardVault=""
+		type AgentsToolsVaultFilesInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/vault/AgentsTools.VaultPlace.include"
+		AgentsToolsVaultFolderInto boardVault || boardVault=""
+		AgentsToolsVaultFilesInto boardEpicFiles epic-blueprint-
+		for boardEpic in ${boardEpicFiles[@]+"${boardEpicFiles[@]}"} ; do
+			[ "${boardEpic%/*}" = "$boardVault" ] || continue
+			case "${boardEpic##*/}" in epic-blueprint-*.md) ;; *) continue ;; esac
+			LC_ALL=C grep -q '^Superseded by' "$boardEpic" && continue
+			boardName="${boardEpic##*/}" ; boardName="${boardName%.md}"
+			boardAge=$(( ( boardNow - $( stat -f %m "$boardEpic" 2> /dev/null || stat -c %Y "$boardEpic" ) ) / 60 ))
+			boardEpics=0 ; [ -z "$boardMoved" ] || boardEpics="$( printf '%s\n' "$boardMoved" | LC_ALL=C xargs grep -l -F -- "$boardName" 2> /dev/null | LC_ALL=C wc -l | tr -d ' ' )"
+			AgentsToolsBoardItemsInto boardItems "" running
+			boardRun=0 ; [ ${#boardItems[@]} -eq 0 ] || boardRun="$( LC_ALL=C grep -l -F -- "$boardName" "${boardItems[@]}" 2> /dev/null | LC_ALL=C wc -l | tr -d ' ' )"
+			printf 'epic %s %s edited=%sm moved=%s running=%s%s\n' "$boardWsName" "${boardName#epic-blueprint-}" "$boardAge" "$boardEpics" "$boardRun" \
+				"$( [ "$boardEpics" = 0 ] && [ "$boardAge" -gt 120 ] && printf ' still' )"
+		done
+		## PENDING THE SCHEDULE PASSES OVER IN SILENCE.
+		type AgentsToolsBoardItemKey > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.BoardItemHandler.include"
+		AgentsToolsBoardItemsInto boardItems "task-" pending
+		for boardItem in ${boardItems[@]+"${boardItems[@]}"} ; do
+			[ -n "$( AgentsToolsBoardItemKey "$boardItem" approved-by )" ] || continue
+			boardKey="${boardItem##*/}" ; boardKey="${boardKey%.md}"
+			boardWhy=""
+			boardRecheck="$( AgentsToolsBoardItemKey "$boardItem" recheck-date )"
+			if [ -n "$boardRecheck" ] ; then
+				boardEpoch="$( printf '%s\n' "$boardRecheck" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/output/LocalIsoToEpoch.awk" 2> /dev/null )"
+				case "$boardEpoch" in ''|*[!0123456789]*) ;; *) [ "$boardEpoch" -le "$boardNow" ] || boardWhy="recheck=${boardRecheck// /_}" ;; esac
+			fi
+			## A task whose routine falls to the table's verify row and that no run's description names: a verify with nothing built.
+			if [ -z "$( AgentsToolsBoardItemKey "$boardItem" handler-routine )" ] \
+				&& ! printf '%s\n' "$boardRecords" | LC_ALL=C awk -F'\t' -v k="Board item $boardKey" 'index( $8, k ) { found = 1 ; exit } END { exit ! found }' ; then
+				boardWhy="${boardWhy:+$boardWhy }verify-before-build"
+			fi
+			[ -z "$boardWhy" ] || printf 'pending-skipped %s %s %s\n' "$boardWsName" "$boardKey" "$boardWhy"
+		done
+		## RUNNING WITH NO RUN: a task in board-running that no live run names. The start pass reads board-pending alone, so such a
+		## task, whose run ended (a verify that found nothing built, a run that died), is started again by nothing.
+		## A task is also worked when a running dispatch item `tracks:` it and that dispatch's run lives: the dispatch's name ends in
+		## its run's spawn-id prefix. The tracked names are read once, in one awk over the running dispatches.
+		local boardLiveIds boardTracked=""
+		boardLiveIds="$( printf '%s\n' "$boardRecords" | LC_ALL=C awk -F'\t' '$5 == "spawn-started" { print substr( $4, 1, 8 ) }' )"
+		AgentsToolsBoardItemsInto boardItems "dispatch-" running
+		[ ${#boardItems[@]} -eq 0 ] || boardTracked=$'\n'"$( LC_ALL=C awk -v live=$'\n'"$boardLiveIds"$'\n' '
+			FNR == 1 { fence = 0 ; id = FILENAME ; sub( /.*-/, "", id ) ; sub( /\.md$/, "", id ) }
+			$0 == "---" { if ( ++fence > 1 ) nextfile ; next }
+			fence == 1 && index( $0, "tracks: " ) == 1 { t = substr( $0, 9 ) ; sub( / .*/, "", t ) ; sub( /\.md$/, "", t ) ; if ( index( live, "\n" substr( id, 1, 8 ) "\n" ) ) print t ; nextfile }
+		' "${boardItems[@]}" 2> /dev/null )"$'\n'
+		AgentsToolsBoardItemsInto boardItems "task-" running
+		for boardItem in ${boardItems[@]+"${boardItems[@]}"} ; do
+			boardKey="${boardItem##*/}" ; boardKey="${boardKey%.md}"
+			case "$boardTracked" in *$'\n'"$boardKey"$'\n'*) continue ;; esac
+			printf '%s\n' "$boardRecords" | LC_ALL=C awk -F'\t' -v k="Board item $boardKey" '$5 == "spawn-started" && index( $8, k ) { found = 1 ; exit } END { exit ! found }' \
+				|| printf 'running-idle %s %s\n' "$boardWsName" "$boardKey"
+		done
+		## ACCEPTED, NOT LANDED.
+		## One find for the day's dispatches, one grep for the accepted ones, one for those with no landing recorded: three
+		## processes for the whole state, never one a dispatch.
+		local boardFolders=()
+		AgentsToolsBoardStateFoldersInto boardFolders processed
+		for boardItem in $( LC_ALL=C find ${boardFolders[@]+"${boardFolders[@]}"} -maxdepth 1 -name 'dispatch-*.md' -mmin -1440 2> /dev/null \
+			| LC_ALL=C xargs grep -l 'verdict: accepted' /dev/null 2> /dev/null \
+			| LC_ALL=C xargs grep -L -i -E 'landed|superseded|nothing to land|read only|read-only' /dev/null 2> /dev/null ) ; do
+			[ "$boardItem" != /dev/null ] || continue
+			boardKey="${boardItem##*/}" ; boardKey="${boardKey%.md}"
+			boardRow="$( printf '%s\n' ${boardPaths[@]+"${boardPaths[@]}"} | LC_ALL=C grep -m1 "/${boardKey##*-}[^/]*\.spawn\.md\$" )"
+			boardRow="${boardRow%/*}"
+			[ -n "$boardRow" ] && [ -d "$boardRow/output" ] || continue
+			LC_ALL=C find "$boardRow/output" -maxdepth 4 \( -type d -name stage -o -name '*.patch' -o -name '*.diff' \) 2> /dev/null | LC_ALL=C grep -q . \
+				&& printf 'accepted-unlanded %s %s\n' "$boardWsName" "$boardKey"
+		done
+	)
+	## LEFTOVERS: a record still open a day after its start.
+	printf '%s\n' "$boardRecords" | while IFS="$( printf '\t' )" read -r _ _ _ boardRow boardStatus boardItem boardRecheck _ ; do
+		[ "$boardStatus" = spawn-started ] || continue
+		boardEpoch="$( date -j -f '%Y-%m-%d %H:%M' "${boardRecheck:0:16}" +%s 2> /dev/null || date -d "${boardRecheck:0:16}" +%s 2> /dev/null )" || continue
+		[ $(( boardNow - boardEpoch )) -gt 86400 ] && printf 'leftover %s %s %s started=%s\n' "$boardWsName" "$boardRow" "$boardItem" "${boardRecheck:0:16}"
+	done
+	return 0
+}

@@ -82,9 +82,14 @@ A permission request asks for one refused call: what an allow would grant, said 
 ```
 # 🔐 Permission[[ {{tag}}]][[ {{revised}}]]
 
-{{question}}
+[[**📌 About**
+{{about}}
 
-**💡 Why this task needs it**
+]]{{question}}
+
+[[{{allowed}}
+
+]]**💡 Why this task needs it**
 {{reason}}
 
 **🗂 Task**
@@ -107,6 +112,18 @@ A block of the post that has a name. It is filled, and stands where the slot of 
 
 ```
 Allow **{{refused-tool}}**[[ on `{{refused-target}}`]][[ for **{{refused-for}}**]]? An allow grants exactly that, and nothing wider.
+```
+
+## allowed
+
+```
+This allows: {{allowed-words}}.
+```
+
+## answer-words
+
+```
+It answers a question asked in this team, and only that one.
 ```
 
 ## refusal
@@ -236,7 +253,7 @@ x
 
 # Authority
 
-The words of a request for the authority over a session or a run (F6.10): the post of an operation refused for the authority it needs, which the person at a console or a member asks of whoever holds it. It is this template's post, so its first line is the refused call said plainly (`{{refused-tool}}`, for example `end session <name or id> (<routine>, <members>)`), its reason and its task are the two blocks below, and its answers, emoji and reading are the permission's. `allow-session` gives the one who asked the authority over the named session while it lives.
+The words of a request for the authority over a session or a run (F6.10): the post of an operation refused for the authority it needs, which the person at a console or a member asks of whoever holds it. It is this template's post, so its first line is the refused call said plainly (`{{refused-tool}}`, for example `end session <name or id> (<routine>, <members>)`), the line under it says in words what the allow would let run (`{{allowed-words}}`), its reason and its task are the two blocks below, and its answers, emoji and reading are the permission's. `allow-session` gives the one who asked the authority over the named session while it lives.
 
 ## reason
 
@@ -368,7 +385,8 @@ The one reply the tooling posts in the thread an answer was read in: what was re
 
 - rule: The post is the one fenced block under `## post`, sent through the member send. Asked of a team member, it is the asking member's own message. Asked of the human-owner (`to` is `human-owner`), it is the team bot's message, whatever `as_bot` says: it stands in the bot's own conversation with the owner, as a Permission set does, and its record then says `ask-identity: bot`, so its answer emoji and every later read, edit and reminder are the bot's too. It names its addressee as every member message does.
 - rule: Who it is addressed to is settled when it is asked: the party named, where it holds the refused call and can be reached (the human-owner always, magic-coordinator, any other member only with a live run in the session); else a holder running in the session; else the human-owner. Where that is not the party named, the asker is told in a `NOTE` line of the result. A conversation, an account id or a routine given as the addressee is asked as given.
-- rule: Required: `{{refused-tool}}`, `{{refusal-id}}`, `{{reason}}` and `{{task}}`. Optional: `{{tag}}`, the question's number where it shares a thread, and `{{context}}`. `{{how-to-answer}}` is filled from `# Answers` on every post that takes an answer.
+- rule: Required: `{{refused-tool}}`, `{{refusal-id}}`, `{{reason}}` and `{{task}}`. Optional: `{{tag}}`, the question's number where it shares a thread; `{{about}}`; `{{context}}`. `{{how-to-answer}}` is filled from `# Answers` on every post that takes an answer.
+- rule: `{{about}}` is filled by the tool, never by the asking agent, and only for a post addressed to the human-owner: the plain title of the task the asking run works on, and the system it concerns, on one line (`AgentsToolsAskAboutLine`). Its group is left out whole where neither is named. `{{question}}` names no file path, no code token between backticks and no internal id, which name nothing to a person: the tool refuses such a question and the detail belongs in `{{context}}` (`AgentsToolsAskPlainCheck`).
 - rule: The first line of the post, under its title, is the block under `# Parts` named `question`, which stands wherever a post shows `{{question}}`: the refused tool, its target and who the call was refused for, as the refusal record holds them, and the sentence that an allow grants exactly that. It is never the asker's words, so the post never asks for more than its answer grants. The three are said there and nowhere else in the post.
 - rule: The asker's words are the reason only: the tooling says what is asked, and the asker says why. The call gives the reason, and a question of its own is optional. `{{reason}}` in a post is the block under `# Parts` named `reason`: the question as the asker worded it, where the call gave one, then the reason the call gave. They are shown under `Why this task needs it`, and nowhere else.
 - rule: A request is known by its refused call, never by the asker's words: the tool, the exact target, the member the call was refused for and the session it was refused in. A request for a call that the member already has a request open for in that session, to the same party, is not posted again, however it is worded.

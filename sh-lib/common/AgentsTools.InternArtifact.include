@@ -207,6 +207,7 @@ AgentsToolsArtifactRecordClose(){ ## published|released
 		AgentsToolsArtifactRecordWrite published "$artUrl" || return 1
 		MDAT_TEAM_DATA_COMMIT_WAIT=yes AgentsToolsTeamDataCommitPaths "intern-artifact-publish: ${artNumber:-$artTitle} published, $artMember" "$artRecord"
 	fi
+	type AgentsToolsTeamDataPushIfAhead > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataCommit.include"
 	AgentsToolsTeamDataPushIfAhead intern-artifact-publish
 }
 
@@ -451,6 +452,7 @@ AgentsToolsArtifactPublish(){
 
 	## The team place, read only, before a number is taken.
 	if [ "$artBackend" = confluence ] ; then
+		type AgentsToolsAtlassianUrlEncode > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/atlassian/AgentsTools.AtlassianRequest.include"
 		AgentsToolsArtifactConfluence "$artWork/space.json" GET "/wiki/api/v2/spaces?keys=$( AgentsToolsAtlassianUrlEncode "$artSpace" )" || return $?
 		artSpaceId="$( LC_ALL=C awk -v array=results -v want='id,key' -v mode=records -v dialect=atlassian -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" < "$artWork/space.json" 2>/dev/null \
 			| LC_ALL=C awk -F'\t' -v want="$artSpace" '$2 == want { print $1 ; }' )"

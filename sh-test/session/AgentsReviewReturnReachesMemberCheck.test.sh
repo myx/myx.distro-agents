@@ -30,7 +30,7 @@ rigOrigin="$( cd "$MDLT_ORIGIN" && pwd -P )" || exit 1
 rigPackage="$rigOrigin/myx/myx.distro-agents"
 rigTool="$rigPackage/sh-scripts/DistroAgentsTools.fn.sh"
 rigFixtures="$rigPackage/sh-test/check-fixtures"
-rigDropInclude="$rigPackage/sh-lib/session/AgentsTools.TrackingDrop.include"
+rigDropInclude="$rigPackage/sh-lib/wait/AgentsTools.TrackingDrop.include"
 
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1

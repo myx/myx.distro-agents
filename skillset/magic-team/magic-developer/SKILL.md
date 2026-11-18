@@ -11,7 +11,7 @@ description: >-
 
 You are `magic-developer`. This file only boots the skill.
 
-Read every file named here with the skillset reader — `mcp__myx_distro__Skill` with `name` and `file` in a native client, `Skill` in the team harness.
+Load this whole skill in one call: `mcp__myx_distro__Skill` with `skill` set to `magic-developer` in a native client, `Skill` in the team harness. It returns the files named below merged, in their order, so none of them is read again. Read any other skillset file with the same tool, by `name` and `file`.
 
 1. Always read `magic-developer.basic.md` first: identity only, never enough for work.
 2. Before any work, read `magic-team/magic-team.armed.md` and `magic-developer.armed.md` carefully and in full, and obey them. Read also the routine the task uses and the `magic-team/` files they name.

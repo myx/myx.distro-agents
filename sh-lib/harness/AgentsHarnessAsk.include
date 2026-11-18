@@ -14,24 +14,16 @@ type AgentsToolsPendingRecordPath > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.di
 
 ## One call of a tool that asks. The name it was called by picks its row
 ## (AgentsTools.AskPost.include), which presets the kind, and the one ask function below
-## runs it. A tool that presets its kind takes its own parameters and the common ones only.
+## runs it. A tool that presets its kind takes the parameters it declares, and the dispatcher refuses any other (AgentsHarnessRunTool).
 ## A second name, with no preset, takes kind as a parameter, and every parameter.
 AgentsHarnessAskCall(){ ## the tool name as called
-	local callKind="${harnessArgV_kind}" callKey callArg
+	type AgentsToolsAskToolRow > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.AskPost.include"
+	local callKind="${harnessArgV_kind}"
 	if ! AgentsHarnessAskPost || ! AgentsToolsAskToolRow "$1" ; then
 		printf 'ERROR: %s names no tool that asks, so nothing was sent.\n' "$1" ; return 0
 	fi
 	harnessAskName="$agentsAskRowName"
 	if [ -n "$agentsAskRowKind" ] ; then
-		for callKey in ${!harnessArgV_@} ; do
-			callArg="${callKey#harnessArgV_}"
-			case " $agentsAskCommonArgs $agentsAskRowArgs " in
-				*" $callArg "*) ;;
-				*)
-					printf 'ERROR: %s: %s is not a parameter of %s. Its own are: %s. The common ones are: %s. Nothing was sent.\n' "$harnessAskName" "$callArg" "$harnessAskName" "$agentsAskRowArgs" "$agentsAskCommonArgs" ; return 0
-				;;
-			esac
-		done
 		callKind="$agentsAskRowKind"
 	fi
 	## The entries of a permission: a list, taken an entry a line, or one text that is that already.
@@ -75,6 +67,8 @@ AgentsHarnessAsk(){
 	type AgentsToolsPermissionShownTarget > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionPlaces.include"
 	local toolTo="$1" toolQuestion="$2" toolOptions="$3" toolContext="$4" toolWait="$5" toolTimeout="$6" toolSource="$7" toolAsBot="$8" toolAddressTo="$9"
 	local toolKind="${10:-question}" toolUnderstood="${11}" toolFrom="${12}" toolWillDo="${13}" toolRefusalId="${14}" toolReason="${15}" toolTaskRef="${16}" toolPendingId="${17}"
+	## The readback of a decision is about the item the decision goes on (MDAT_ASK_DECISION_ITEM, set by --record-decision --with alone).
+	[ -z "${MDAT_ASK_DECISION_KIND:-}" ] || [ -n "$toolTaskRef" ] || toolTaskRef="${MDAT_ASK_DECISION_ITEM:-}"
 	local toolReadback="${18:-}" toolWithdraw="${19:-}" toolSelect="${20:-}" toolRevise="${21:-}" toolProposal="${22:-}" toolDocument="${23:-}" toolEntries="${24:-}" toolEscalate="${25:-}"
 	local askBody askSent askWaitOut askFirst askOutcome askPendingId="" askSelectNote="" askPostName="" askRouteNote=""
 	## Free text is the form of a question with no select, so `text` names it too.
@@ -361,7 +355,15 @@ AgentsHarnessAsk(){
 				askOwnerBot=1
 				toolAsBot="true"
 			;;
-		esac
+			esac
+	fi
+	## A QUESTION IS SAID IN PLAIN WORDS, WHATEVER ITS ADDRESSEE: a file path, a file name with a
+	## line, a code token between backticks, an internal id and a bare uuid each name nothing to
+	## a cold reader, and the detail belongs in the context (AgentsTools.AskAbout.include).
+	## Refused before any lock is taken or anything is posted, and the asker rewrites it.
+	if [ "$toolKind" != "proposal" ] ; then
+		type AgentsToolsAskPlainCheck > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.AskAbout.include"
+		AgentsToolsAskPlainCheck "$harnessAskName" "$toolQuestion" || return 0
 	fi
 	## A CALL ANOTHER PARTICIPANT RUNNING IN THIS SESSION ALREADY HOLDS IS NOT ASKED OF HIM (sketch
 	## 12.5): the member is told to ask that participant, or to pass the permission on. The explicit
@@ -377,12 +379,14 @@ AgentsHarnessAsk(){
 			askHeldTarget="$( AgentsToolsPermissionRecordDecode "$askHeldTarget" 2> /dev/null )"
 		fi
 		if [ -n "$askHeldTool" ] && [ -n "$askHeldTarget" ] ; then
+			type AgentsToolsPermissionHolds > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionHolds.include"
 			if AgentsToolsPermissionHolds "$harnessAgent" "$askHeldTool" "$askHeldTarget" "$askSession" > /dev/null 2>&1 ; then
 				printf 'CORRECTION: %s: nothing was asked: you hold %s on %s already, so a refusal stands only where the call was refused. Make the call again.\n' "$harnessAskName" "$askHeldTool" "$( AgentsToolsPermissionShownTarget "$askHeldTarget" 2> /dev/null )"
 				return 0
 			fi
 			case "$toolEscalate" in true|1|yes) ;; *)
 				local askHeldRun="" askHeldOne=""
+				type AgentsToolsPermissionSessionRunning > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionParticipants.include"
 				askHeldRun="$( AgentsToolsPermissionSessionRunning "$askSession" 2> /dev/null )"
 				while IFS= read -r askHeldOne ; do
 					askHeldOne="${askHeldOne%% *}"
@@ -390,6 +394,7 @@ AgentsHarnessAsk(){
 					printf '%s\n' "$askHeldRun" | LC_ALL=C grep -q -x -F -- "$askHeldOne" || continue
 					askHolder="$askHeldOne"
 					break
+				type AgentsToolsPermissionHolders > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionHolds.include"
 				done <<< "$( AgentsToolsPermissionHolders "$askHeldTool" "$askHeldTarget" "$askSession" "" "$harnessAgent" 2> /dev/null )"
 				if [ -n "$askHolder" ] ; then
 					printf 'CORRECTION: %s: nothing was asked. A participant who is running in this session already holds what you ask for: %s on %s, held by %s. Ask that participant to do it for you, or to pass the permission on. If you need it for yourself, call RequestPermission again with escalate true and it is asked as it stands.\n' "$harnessAskName" "$askHeldTool" "$( AgentsToolsPermissionShownTarget "$askHeldTarget" 2> /dev/null )" "$askHolder"
@@ -696,11 +701,13 @@ AgentsHarnessAsk(){
 		printf 'ERROR: %s: the question to %s could not be recorded, and nothing was posted, so THE QUESTION DOES NOT EXIST and nobody was asked. Ask it again.\n' "$harnessAskName" "$askRoutine" ; return 0
 	fi
 	fi ## end of the posting path
-	## An escalation is answered before the work goes on, so a typed kind always waits.
+	## An escalation is answered before the work goes on, so a typed kind always waits. The one exception is the readback of a
+	## decision that --record-decision --with opens (MDAT_ASK_DECISION_KIND): its answer lands the decision by itself, from
+	## whichever reader closes it, so it waits only when its caller asked for --wait.
 	local askWaitNote=""
-	case "$toolKind:$toolWait" in
-		question:*) ;;
-		*:false|*:0|*:no)
+	case "$toolKind:$toolWait:${MDAT_ASK_DECISION_KIND:+decision}" in
+		question:*|readback:false:decision|readback:0:decision|readback:no:decision) ;;
+		*:false:*|*:0:*|*:no:*)
 			askWaitNote="wait=false was ignored: a $toolKind question is an escalation, and it always waits for its answer."
 			toolWait="true"
 		;;

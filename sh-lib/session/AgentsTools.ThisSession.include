@@ -119,9 +119,11 @@ AgentsToolsThisSessionThread(){ ## the operation's arguments
 	threadFile="$( AgentsToolsSessionChatDir "$thisSessionKey" )"
 	[ -s "$threadFile/$agentsSessionChatName.index" ] && [ -f "$threadFile/$agentsSessionChatName" ] || return 0
 	[ "$threadOwn" != "yes" ] || threadMemberId="$( AgentsSlackIdentityId "$thisSessionMember" )"
+	AgentsToolsSessionChatReadPath "$thisSessionKey" || return 0
 	LC_ALL=C awk -v thread="$thisSessionThread" -v own="$threadOwn" -v member="$thisSessionMember" -v memberId="$threadMemberId" \
 		-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsSessionThreadRead.awk" \
-		"$threadFile/$agentsSessionChatName.index" "$threadFile/$agentsSessionChatName"
+		"$agentsSessionChatReadPath" "$threadFile/$agentsSessionChatName"
+	AgentsToolsSessionChatReadPathDone
 }
 
 ## --wait-session-channel: Wait on the session channel alone -- the `chat:` source, read by the caller's own floor pointer, the same one
@@ -646,7 +648,7 @@ AgentsToolsThisSessionSetTopic(){ ## the operation's arguments
 	AgentsToolsAuthorityFlags "$@" || return 1
 	topicText="$( IFS=' ' ; printf '%s' "${agentsAuthorityRest[*]}" )"
 	[ -n "$topicText" ] || { echo "$MDSC_CMD: ⛔ ERROR: --set-session-topic: syntax is --set-session-topic <text> [--escalate-wait [--timeout <s>]|--escalate-enqueue]. Nothing was set." >&2 ; return 1 ; }
-	type AgentsToolsTaskTextKept > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.TaskText.include"
+	type AgentsToolsTaskTextKept > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/core/AgentsTools.TaskText.include"
 	topicKept="$( AgentsToolsTaskTextKept "$topicText" )"
 	[ -n "$topicKept" ] || { echo "$MDSC_CMD: ⛔ ERROR: --set-session-topic: the topic names nothing. Nothing was set." >&2 ; return 1 ; }
 	## The executor of the session sets it itself; anyone else is gated (a participant's change
@@ -672,7 +674,7 @@ AgentsToolsThisSessionSetChapter(){ ## the operation's arguments
 	AgentsToolsAuthorityFlags "$@" || return 1
 	chapterText="$( IFS=' ' ; printf '%s' "${agentsAuthorityRest[*]}" )"
 	[ -n "$chapterText" ] || { echo "$MDSC_CMD: ⛔ ERROR: --set-session-chapter: syntax is --set-session-chapter <text> [--escalate-wait [--timeout <s>]|--escalate-enqueue]. Nothing was set." >&2 ; return 1 ; }
-	type AgentsToolsTaskTextKept > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.TaskText.include"
+	type AgentsToolsTaskTextKept > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/core/AgentsTools.TaskText.include"
 	chapterKept="$( AgentsToolsTaskTextKept "$chapterText" )"
 	[ -n "$chapterKept" ] || { echo "$MDSC_CMD: ⛔ ERROR: --set-session-chapter: the chapter names nothing. Nothing was set." >&2 ; return 1 ; }
 	## The executor of the session sets it itself; anyone else is gated (a participant's change

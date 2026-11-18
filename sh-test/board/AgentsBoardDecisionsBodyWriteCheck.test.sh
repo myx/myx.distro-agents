@@ -64,7 +64,7 @@ rigSeeded(){ ## item stamp, decision text
 	rigItem="task-20261101T${1}Z-rig"
 	rigRun "$rigToolsFn" "seed-$1" --intern-op-board-upsert-move-edit running "$rigItem.md" --create --upsert-from-stdin --context rig <<< "$( rigDoc "Body of $rigItem." )"
 	[ "$rigRc" = 0 ] || rigRefuse "the seed create of $rigItem failed: $( cat "$rigOut/seed-$1.err" )"
-	rigRun "$rigQuestFn" "seedrec-$1" --record-decision --team-member magic-coordinator "$rigItem" --kind clarification --text "$2"
+	rigRun "$rigToolsFn" "seedrec-$1" --intern-op-decisions-append magic-coordinator "$rigItem" --kind clarification --text "$2"
 	[ "$rigRc" = 0 ] || rigRefuse "the seed decision on $rigItem failed: $( cat "$rigOut/seedrec-$1.err" )"
 	[ "$( rigDecisions "$( rigItemPath )" | LC_ALL=C grep -c -F -- "$2" )" = 1 ] \
 		|| rigRefuse "the seed decision of $rigItem cannot be read back -- the rig cannot see its own subject"
@@ -90,9 +90,9 @@ rigAssert "one Decisions section only"              "$( LC_ALL=C grep -c '^## De
 echo "== 3. whole body that carries its own decision line =="
 rigSeeded 1002 "RIG-DECISION-D must stand."
 rigRun "$rigToolsFn" b3 --intern-op-board-upsert-move-edit running "$rigItem.md" --from-state:running --upsert-body:"$( rigDoc "A fourth body." "- 2026-11-01T11:00Z magic-developer clarification: RIG-DECISION-E new line." )" --context rig
-rigAssert "CLAIM 5: the carrying body is accepted"  "$rigRc" 0
-rigAssert "CLAIM 6: the carried line is stored"     "$( rigDecisions "$( rigItemPath )" | LC_ALL=C grep -c 'RIG-DECISION-E new line\.' )" 1
-rigAssert "CLAIM 7: merging keeps D"                "$( rigDecisions "$( rigItemPath )" | LC_ALL=C grep -c 'RIG-DECISION-D must stand\.' )" 1
+rigAssert "CLAIM 5: a body bringing an unrecorded decision is refused" "$( [ "$rigRc" -ne 0 ] && printf refused || printf taken ):$( LC_ALL=C grep -c 'never recorded' "$rigOut/b3.err" )" refused:1
+rigAssert "CLAIM 6: the carried line is not stored" "$( rigDecisions "$( rigItemPath )" | LC_ALL=C grep -c 'RIG-DECISION-E new line\.' )" 0
+rigAssert "CLAIM 7: D stands"                       "$( rigDecisions "$( rigItemPath )" | LC_ALL=C grep -c 'RIG-DECISION-D must stand\.' )" 1
 rigAssert "one Decisions section only"              "$( LC_ALL=C grep -c '^## Decisions' "$( rigItemPath )" )" 1
 
 echo "== 4. a patch that rewrites a decision line =="
@@ -132,6 +132,23 @@ rigRun "$rigToolsFn" b8 --intern-op-board-upsert-move-edit running "$rigItem.md"
 rigAssert "this operator serves no --from-file body mode" "$( [ "$rigRc" -ne 0 ] && printf refused || printf taken )" refused
 rigAssert "and the refusal names the option"        "$( LC_ALL=C grep -c -F -- '--from-file' "$rigOut/b8.err" )" 1
 rigAssert "the item is untouched"                   "$( rigDecisions "$( rigItemPath )" | LC_ALL=C grep -c 'RIG-DECISION-J must stand\.' )" 1
+
+echo "== 9. a patch that marks a recorded decision struck =="
+rigSeeded 1008 "RIG-DECISION-K must stand."
+rigRun "$rigToolsFn" b9 --intern-op-board-upsert-move-edit running "$rigItem.md" --from-state:running --edit-patch-from-stdin --context rig \
+	<<< '[{"old":"RIG-DECISION-K must stand.","new":"RIG-DECISION-K must stand. [struck by keeper-myx: by hand]"}]'
+rigAssert "a hand-made strike is refused"           "$( [ "$rigRc" -ne 0 ] && printf refused || printf taken ):$( LC_ALL=C grep -c 'changes a recorded decision' "$rigOut/b9.err" )" refused:1
+rigAssert "the line stands unstruck"                "$( rigDecisions "$( rigItemPath )" | LC_ALL=C grep -c 'struck by' )" 0
+
+echo "== 10. a new item created with a decision of its own =="
+rigItem="task-20261101T1009Z-rig"
+rigRun "$rigToolsFn" b10 --intern-op-board-upsert-move-edit running "$rigItem.md" --create --upsert-from-stdin --context rig <<< "$( rigDoc "A born body." "- 2026-11-01T11:00Z magic-developer clarification: RIG-DECISION-L born with it." )"
+rigAssert "a create bringing a decision is refused" "$( [ "$rigRc" -ne 0 ] && printf refused || printf taken ):$( [ -f "$( rigItemPath )" ] && echo written || echo absent )" refused:absent
+
+echo "== 11. CONTROL DIRECTION: the decisions writer and the strike still write =="
+rigSeeded 1010 "RIG-DECISION-M must stand."
+rigRun "$rigToolsFn" b11 --intern-op-decisions-append magic-coordinator "$rigItem" --kind clarification --text "RIG-DECISION-N recorded by the writer."
+rigAssert "the writer's own line lands"             "$rigRc:$( rigDecisions "$( rigItemPath )" | LC_ALL=C grep -c 'RIG-DECISION-N recorded by the writer\.' )" 0:1
 
 printf '\n'
 if [ "$rigFail" -ne 0 ] ; then

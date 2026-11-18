@@ -194,6 +194,7 @@ DistroAgentsToolsResolveTargetFresh(){ ## address, acting member (optional)
 			## The tooling thread, where the session's own record names that kind: the copy of a message
 			## addressed to the session goes there, and no session thread stands behind it.
 			if [ -n "$sessionChannelSession" ] ; then
+				type AgentsToolsCommsPrintbackTrackThread > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsPrintback.include"
 				sessionTooling="$( AgentsToolsCommsPrintbackTrackThread "$sessionChannelSession" 2> /dev/null )" || sessionTooling=""
 			fi
 			if [ -n "$sessionTooling" ] ; then

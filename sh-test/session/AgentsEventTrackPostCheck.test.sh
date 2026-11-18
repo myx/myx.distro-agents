@@ -641,7 +641,7 @@ rigEveryTotal=0
 for rigName in $rigFloorNames ; do
 	rigEveryTotal=$(( rigEveryTotal + 1 ))
 	printf '%s' '{"description":"Intent for '"$rigName"'"}' | STL_TS="2030-01-01T00:10:00Z" STL_TOOL="mcp__myx_distro__$rigName" STL_OUTCOME=ok STL_BYTES=10 STL_LINES=1 STL_COMMENT='RIG model text' \
-		LC_ALL=C awk -v stlStandalone=tool -f "$rigLib/session/AgentsSessionTranscriptFormat.awk" >> "$rigTmp/lines.every"
+		LC_ALL=C awk -v stlStandalone=tool -f "$rigLib/transcript/AgentsSessionTranscriptFormat.awk" >> "$rigTmp/lines.every"
 done
 rigRender feed "$rigTmp/k-every" "$rigTmp/lines.every"
 rigEveryLed=0
@@ -658,7 +658,7 @@ rigAssert "a read line, exactly: the description, then the tool" "$( cat "$rigTm
 for rigName in TodoWrite mcp__myx_distro__CheckList ; do
 	printf '%s' '{"todos":[{"content":"Run it","status":"pending","activeForm":"Running it"},{"content":"Check '"$rigName"'","status":"in_progress","activeForm":"Checking '"$rigName"'"}]}' \
 		| STL_TS="2030-01-01T00:11:00Z" STL_TOOL="$rigName" STL_OUTCOME=ok STL_BYTES=10 STL_LINES=1 STL_COMMENT='RIG model text' \
-		LC_ALL=C awk -v stlStandalone=tool -f "$rigLib/session/AgentsSessionTranscriptFormat.awk" >> "$rigTmp/lines.todo"
+		LC_ALL=C awk -v stlStandalone=tool -f "$rigLib/transcript/AgentsSessionTranscriptFormat.awk" >> "$rigTmp/lines.todo"
 done
 rigRender feed "$rigTmp/k-todo" "$rigTmp/lines.todo"
 rigAssert "a TodoWrite line leads with its item in progress" "$( cat "$rigTmp/k-todo"/?????? | LC_ALL=C grep -c -F -- 'Checking TodoWrite — ' )" 1
@@ -1595,7 +1595,7 @@ rigAssert "with no description and no task text there is no such line, and no em
 	'BOX [bust_in_silhouette] magic-tester (run `abcdef01`) | <date {date_short_pretty} at {time}>|▶️ run start|cli: rig-cli|:0'
 ## The one reader of a task in words (AgentsTools.TaskText.include), which the permission set
 ## post uses too: the tracked item's title and first paragraph, else the dispatch's own brief.
-. "$rigLib/session/AgentsTools.TaskText.include"
+. "$rigLib/core/AgentsTools.TaskText.include"
 rigBoardStates "$rigTmp/data" running backlog
 printf -- '---\nstatus: task\nowner: magic-tester\n---\n\n# Fix the vars loader\n\nThe loader drops a variable whose value holds an equals sign. It must keep the whole value! Add a check for it. Then run the suite? A fifth sentence that must not show.\n\n## Notes\n\nnot the first paragraph\n' | rigStoreItem "$rigTmp/data" board backlog task-rig-start.md
 printf -- '---\nowner: magic-tester\ntracks: task-rig-start\n---\n\n# Spawn-proxy dispatch: magic-tester\n\n## Brief\n\nbrief text of the dispatch.\n' | rigStoreItem "$rigTmp/data" board running dispatch-rig-tracks.md

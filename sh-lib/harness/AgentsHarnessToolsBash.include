@@ -657,7 +657,13 @@ AgentsHarnessToolBashRun(){ ## cwd, command, timeout, detach, handle, stop, offs
 	case ":$PATH:" in *":$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts:"*) ;; *) . "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/console-.local-path.include" 2> /dev/null || : ;; esac
 	## No command links a sandbox into source (epic S23.11): the guard ln is first on PATH, for the command and for what it starts.
 	## And no shell `grep -r` blocks on a request fifo (epic S10.26): the guard grep beside it puts `-D skip` before the arguments.
-	case ":$PATH:" in *":$MMDAPP/.local/agents/guard-bin:"*) ;; *) . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SandboxLinks.include" && AgentsToolsLnGuardMake "$MMDAPP/.local/agents/guard-bin" && AgentsToolsGrepGuardMake "$MMDAPP/.local/agents/guard-bin" && PATH="$MMDAPP/.local/agents/guard-bin:$PATH" ;; esac
+	## The guards' text is checked once per harness process, whatever PATH it was started with: a process that inherits the
+	## folder on PATH would otherwise never write a changed guard, and the rig would run the old one for ever. Each maker
+	## keeps a guard whose text is the same, so this costs one read of each file per process.
+	if [ -z "${harnessGuardsMade:-}" ] ; then
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SandboxLinks.include" && AgentsToolsLnGuardMake "$MMDAPP/.local/agents/guard-bin" && AgentsToolsGrepGuardMake "$MMDAPP/.local/agents/guard-bin" && harnessGuardsMade=1
+	fi
+	case ":$PATH:" in *":$MMDAPP/.local/agents/guard-bin:"*) ;; *) [ -z "${harnessGuardsMade:-}" ] || PATH="$MMDAPP/.local/agents/guard-bin:$PATH" ;; esac
 	if [ "$toolDetach" = "true" ] || [ "$toolDetach" = "1" ] || [ "$toolDetach" = "yes" ] ; then
 		if ! AgentsHarnessCwdAllowed "$toolCwd" ; then return 0 ; fi
 		toolCwd="$harnessResolvedPath"
@@ -750,15 +756,27 @@ AgentsHarnessToolBashRun(){ ## cwd, command, timeout, detach, handle, stop, offs
 	: > "$harnessScratch/run.err"
 	[ -z "$toolStdin" ] || printf '%s' "$toolStdin" > "$harnessScratch/run.stdin"
 	if [ "$toolTimeout" = 0 ] ; then
-		( AgentsHarnessToolStreams "$harnessScratch/run.stdin" "$harnessScratch/run.out" "$harnessScratch/run.err" "$toolOutputMode" ; cd "$toolCwd" && set -e && eval "$toolCommand" ) || toolStatus=$?
+		if [ -n "$toolOutputMode" ] ; then
+			bash -c 'cd "$1" && set -e && eval "$2"' _ "$toolCwd" "$toolCommand" < "$harnessScratch/run.stdin" > "$harnessScratch/run.out" 2> "$harnessScratch/run.err" || toolStatus=$?
+		else
+			bash -c 'cd "$1" && set -e && eval "$2"' _ "$toolCwd" "$toolCommand" < "$harnessScratch/run.stdin" > "$harnessScratch/run.out" 2>&1 || toolStatus=$?
+		fi
 	elif [ -n "$harnessTimeoutCmd" ] ; then
-		( AgentsHarnessToolStreams "$harnessScratch/run.stdin" "$harnessScratch/run.out" "$harnessScratch/run.err" "$toolOutputMode" ; exec "$harnessTimeoutCmd" "$toolTimeout" bash -c 'cd "$1" && set -e && eval "$2"' _ "$toolCwd" "$toolCommand" ) || toolStatus=$?
+		if [ -n "$toolOutputMode" ] ; then
+			"$harnessTimeoutCmd" "$toolTimeout" bash -c 'cd "$1" && set -e && eval "$2"' _ "$toolCwd" "$toolCommand" < "$harnessScratch/run.stdin" > "$harnessScratch/run.out" 2> "$harnessScratch/run.err" || toolStatus=$?
+		else
+			"$harnessTimeoutCmd" "$toolTimeout" bash -c 'cd "$1" && set -e && eval "$2"' _ "$toolCwd" "$toolCommand" < "$harnessScratch/run.stdin" > "$harnessScratch/run.out" 2>&1 || toolStatus=$?
+		fi
 		[ "$toolStatus" != 124 ] || : > "$harnessScratch/run.timedout"
 	else
 		## Watchdog where no `timeout` exists; a group, not a subshell, so $toolStatus survives.
 		{
-			## The subshell execs the command, so the pid kept below is the command's own and a stop reaches it.
-			( AgentsHarnessToolStreams "$harnessScratch/run.stdin" "$harnessScratch/run.out" "$harnessScratch/run.err" "$toolOutputMode" ; exec bash -c 'cd "$1" && set -e && eval "$2"' _ "$toolCwd" "$toolCommand" ) &
+			## The command runs here, under its own `bash -c`, so the pid kept below is the command's own and a stop reaches it.
+			if [ -n "$toolOutputMode" ] ; then
+				bash -c 'cd "$1" && set -e && eval "$2"' _ "$toolCwd" "$toolCommand" < "$harnessScratch/run.stdin" > "$harnessScratch/run.out" 2> "$harnessScratch/run.err" &
+			else
+				bash -c 'cd "$1" && set -e && eval "$2"' _ "$toolCwd" "$toolCommand" < "$harnessScratch/run.stdin" > "$harnessScratch/run.out" 2>&1 &
+			fi
 			harnessRunPid=$!
 			printf '%s\n' "$harnessRunPid" > "$harnessScratch/run.pid"
 			## The >/dev/null is load-bearing: without it the orphaned `sleep` holds this

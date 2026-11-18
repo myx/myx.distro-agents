@@ -63,7 +63,7 @@ State that this session is standalone. Every type-gated step keys off this decla
 
 ### post-opening-broadcast
 
-Post the session type and the goal, if framed, into the session thread. Post at once; completeness never delays it.
+Post the session type and the goal, if framed, into the session thread, addressed to `magic-coordinator`, never to the human-owner. Post at once; completeness never delays it.
 
 ### fold-in-learned-lessons
 

@@ -609,6 +609,7 @@ AgentsHarnessToolTaskOutput(){ ## handle, byte offset, byte limit, output file
 ## says which participant is meant; one that no item and no spawn record names is not
 ## reached, whatever process carries it.
 AgentsHarnessToolTaskStop(){ ## handle, force, task_id, shell_id
+	type AgentsSessionRunRecordInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
 	local toolHandle="${3:-${4:-$1}}" toolForce="$2"
 	## A task a long call returned (TASK-ID=process-N) is a session process: stopping it is the Bash stop of its handle.
 	case "$toolHandle" in process-*) AgentsHarnessToolBash "" "" "" "" "$toolHandle" "true" "" "" "" ; return 0 ;; esac
@@ -727,6 +728,7 @@ AgentsHarnessWorkDuty(){
 ## advisory note of AgentsUniversalHarness.sh is (MDAT_SESSION_ID, AgentsToolsSessionOthersRunning), straight against the session's other live
 ## participants. rc 0 another is going; rc 1 this run is the last one.
 AgentsHarnessOthersRunning(){
+	type AgentsSessionRunRecordInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
 	local othersRecord othersSession othersRecords othersFile
 	if [ -n "${MDAT_SPAWN_SESSION_ID:-}" ] ; then
 		AgentsSessionRunRecordInto othersRecord "$MDAT_SPAWN_SESSION_ID" || return 1

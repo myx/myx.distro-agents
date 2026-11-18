@@ -388,6 +388,7 @@ AgentsHarnessWaitCheckListAnswered(){
 ## match (the cache gate). The request is the round end's own rewind, with the arrival as the next input: no second return path.
 ## Anything else keeps the conversation; a gate that cannot measure says so in one NOTE line. idle-wait is untouched.
 AgentsHarnessWaitFloorRewind(){ ## the sources the Wait named, the wait result file
+	type AgentsHarnessSnapshotHeld > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessCheckpoint.include"
 	local fwSource fwTarget="" fwRow="" fwSum="" fwHalf
 	[ -n "${harnessCheckpointDir:-}" ] || return 0
 	type AgentsHarnessWorkDuty > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessSpawn.include"
@@ -433,7 +434,7 @@ AgentsHarnessToolWait(){
 	type AgentsHarnessWholeNumber > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessToolsFile.include"
 	type AgentsHarnessSessionThread > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessMessages.include"
 	type AgentsHarnessCheckListCounts > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessBatch.include"
-	local toolSources="$1" toolTimeout="$2" toolPoll="$3" toolSince="$4" toolAddressee="$5" toolIncludeOwn="$6" waitRc=0 waitDiag="" waitSource waitStateful="false" waitSession waitName waitThread waitOwnSources="$1" waitIdleReturn=""
+	local toolSources="$1" toolTimeout="$2" toolSince="$4" toolAddressee="$5" toolIncludeOwn="$6" waitRc=0 waitDiag="" waitSource waitStateful="false" waitSession waitName waitThread waitOwnSources="$1" waitIdleReturn=""
 	local waitCounts waitBusy waitFloorOnly="" waitAll waitOpen waitActive
 	local toolMode="${7:-}" toolSeen="${8:-}" toolNote="${9:-}" toolDone="${10:-}" toolWaitIds="${11:-}"
 	## unwait names one source to drop from the stored wait on demand -- the same
@@ -549,6 +550,7 @@ AgentsHarnessToolWait(){
 			'') ;;
 			expired)
 				## The limit dismisses no run while another participant of its session runs, or a run that needs it (F6.9): the wait goes on.
+				type AgentsToolsSessionLimitHeld > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionSeats.include"
 				if [ -n "$waitRecord" ] && AgentsToolsSessionLimitHeld "$waitRecord" > /dev/null ; then
 					waitReviewLeft=""
 				else
@@ -562,9 +564,6 @@ AgentsHarnessToolWait(){
 			;;
 			*) [ -n "$toolTimeout" ] && [ "$toolTimeout" -le "$waitReviewLeft" ] || toolTimeout="$waitReviewLeft" ;;
 		esac
-	fi
-	if [ -n "$toolPoll" ] && ! AgentsHarnessWholeNumber "$toolPoll" ; then
-		printf 'ERROR: poll_interval must be a whole number of seconds, got: %s\n' "$toolPoll" ; return 0
 	fi
 	if [ -n "$toolSince" ] ; then
 		if ! AgentsHarnessWholeNumber "${toolSince%%.*}" ; then
@@ -646,7 +645,6 @@ AgentsHarnessToolWait(){
 		[ -z "$toolWaitIds" ] || set -- "$@" --wait-react-wait "$toolWaitIds"
 	fi
 	[ -z "$toolTimeout" ] || set -- "$@" --wait-timeout "$toolTimeout"
-	[ -z "$toolPoll" ] || set -- "$@" --wait-poll-interval "$toolPoll"
 	[ -z "$toolSince" ] || set -- "$@" --wait-since-utime "$toolSince"
 	[ -z "$toolAddressee" ] || set -- "$@" --wait-addressee "$toolAddressee"
 	case "$toolIncludeOwn" in
@@ -679,6 +677,7 @@ AgentsHarnessToolWait(){
 		## An executor is not dismissed while another participant of its session runs (F6.9): its
 		## dismissal is kept, given at its first wait once they have ended, and this wait is what it got.
 		if [ -n "$waitRecord" ] && waitHeldOthers="$( AgentsHarnessDismissWaits )" ; then
+			type AgentsToolsSessionDismissHold > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionSeats.include"
 			AgentsToolsSessionDismissHold "$MDAT_SPAWN_SESSION_ID" "$waitDismissedBy"
 		else
 			printf 'WAIT-RESULT: DISMISSED\nWAIT-DISMISSED-BY: %s\n' "$waitDismissedBy"

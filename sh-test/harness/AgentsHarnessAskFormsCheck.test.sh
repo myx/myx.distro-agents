@@ -186,7 +186,7 @@ rigAssert "a free-text question: no emoji line, plain options, the rest as befor
 	$'# ❓ Question\n\nWhich way?\n\n**📋 Options**\n- alpha -- a\n- beta -- b\n\n**⚙ Context**\nctx\n\n**✅ How to answer**\n- reply in this thread'
 rigAssert "a readback: the same body as before" \
 	"$( ASKP_F_tag=Q2 ASKP_F_question='Right?' ASKP_F_understood=U ASKP_F_source=S ASKP_F_will_do=W rigFill post confirm-readback.post.format.md confirm )" \
-	$'# 🔁 Readback Q2\n\nRight?\n\n**📥 What I understood**\nU\n\n**📎 Where it came from**\nS\n\n**▶️ What I will do if confirmed**\nW\n\n**✅ How to answer**\n- click 👍 to confirm or ❌ to stop\n- or reply `yes` (or `ok`, `agreed`, `confirm`), `no`, or `correct:` followed by the correction\n- the word first; a comment after a comma, or on the next lines'
+	$'# 🔁 Readback Q2\n\nRight?\n\n**📥 What I understood**\nU\n\n**📎 Where it came from**\nS\n\n**▶️ What I will do if confirmed**\nW\n\n**✅ How to answer**\n- click 👍 to confirm or ❌ to stop\n- or reply `yes` (or `ok`, `agreed`, `confirm`), `no`, or `edit:` followed by your own wording\n- the word first; a comment after a comma, or on the next lines'
 rigAssert "a decision: its options numbered, the recommended line kept" \
 	"$( ASKP_F_question='Pick' ASKP_OPTIONS=$'alpha -- a\nbeta -- b (recommended)' rigFill post escalate-decision.post.format.md one )" \
 	$'# 🧭 Decision\n\nPick\n\n**📋 Options**\n- 1️⃣ alpha -- a\n- 2️⃣ beta -- b (recommended)\n\n**✅ How to answer**\n- click the number of your choice\n- or reply with its number, or with the first word of the option\n- the word first; a comment after a comma, or on the next lines\n- or reply `ok` (or add 👍) to take the recommended option'
@@ -975,7 +975,7 @@ rigAssert "a later grant lands in that same thread"    "$( rigHolds "$( rigPostW
 
 echo "-- records and lines from before still read --"
 rigAssert "a transcript line of the second name renders by its kind" \
-	"$( LC_ALL=C awk -f "$rigHere/session/AgentsSessionTranscriptFormat.awk" -f /dev/stdin <<< 'BEGIN { print stlAskTool( "AskUserQuestion", "permission" ) " " stlAskTool( "AskUserQuestion", "" ) " " stlAskTool( "EscalateDecision", "" ) " [" stlAskTool( "Read", "" ) "]" ; }' )" \
+	"$( LC_ALL=C awk -f "$rigHere/transcript/AgentsSessionTranscriptFormat.awk" -f /dev/stdin <<< 'BEGIN { print stlAskTool( "AskUserQuestion", "permission" ) " " stlAskTool( "AskUserQuestion", "" ) " " stlAskTool( "EscalateDecision", "" ) " [" stlAskTool( "Read", "" ) "]" ; }' )" \
 	"RequestPermission AskQuestion EscalateDecision []"
 rigAssert "the verdict reader says RETURNED where a reply names none of the answers" \
 	"$( printf '1700000001.000200 | URIGOWNER | maybe\n' | MDAT_VERDICT_KIND=decision MDAT_VERDICT_OPTIONS=$'alpha\nbeta' MDAT_VERDICT_AUTHORS=URIGOWNER LC_ALL=C awk -f "$rigHere/questions/AgentsEscalationVerdict.awk" | cut -f1 )" "RETURNED"

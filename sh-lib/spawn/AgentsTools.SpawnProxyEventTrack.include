@@ -45,6 +45,7 @@ AgentsToolsSpawnProxySessionRootPost(){ ## member whose bot token posts it, the 
 	case "$rootChannel" in
 		U[A-Z0-9]*|W[A-Z0-9]*)
 			rootDmUser="$rootChannel"
+			type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 			rootResponse="$( DistroAgentsTools --intern-op-slack-call "$rootMember" --api conversations.open --identity bot --form "users=$rootDmUser" \
 				--context --intern-op-agent-spawn-proxy 2> /dev/null )" || rootResponse=""
 			rootChannel="$( printf '%s\n' "$rootResponse" | LC_ALL=C awk -v path=channel.id -v optional=1 -v dialect=slack -f "$rootLib/harness/AgentsHarnessJsonField.awk" 2> /dev/null )" || rootChannel=""

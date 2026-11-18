@@ -47,3 +47,28 @@ AgentsToolsSuperviseInWorkspace(){ ## function, arguments...
 		"$onFn" ${onArgs[@]+"${onArgs[@]}"}
 	)
 }
+
+## The run id a supervisor gives, in the form the scan prints it: the first 8 characters. A unique prefix of 8 or more
+## resolves to the full id in this workspace's spawned store, and a full id stays as it is. A run is stored in either
+## place the record lookup reads (AgentsSessionRunRecordInto): its own folder, spawned/<id>/, or the folder of the
+## session it runs in, spawned/<session>/<id>.spawn.md. A session folder carries the id of its first run, so a run found
+## both ways is counted once. A prefix that matches several runs is refused, rc 1, naming the count. No match leaves
+## the id as given, so the caller's own "no record" error still speaks. The lookup itself stays exact, so a kill or a
+## restart never acts on a prefix.
+AgentsToolsSuperviseRunIdInto(){ ## variable, run id
+	local idGiven="$2" idPath idFound="" idSeen=" " idCount=0
+	printf -v "$1" '%s' "$idGiven"
+	[ -n "${agentsSpawnedStoreLeaf:-}" ] || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+	[ ! -d "${MMDAPP%/}/$agentsSpawnedStoreLeaf/$idGiven" ] || return 0
+	case "$idGiven" in ????????*) ;; *) return 0 ;; esac
+	case "$idGiven" in *[!0123456789abcdef-]*) return 0 ;; esac
+	for idPath in "${MMDAPP%/}/$agentsSpawnedStoreLeaf/$idGiven"*/ "${MMDAPP%/}/$agentsSpawnedStoreLeaf"/*/"$idGiven"*.spawn.md ; do
+		[ -e "$idPath" ] || continue
+		case "$idPath" in */) idPath="${idPath%/}" ; idPath="${idPath##*/}" ;; *) idPath="${idPath##*/}" ; idPath="${idPath%.spawn.md}" ;; esac
+		case "$idSeen" in *" $idPath "*) continue ;; esac
+		idSeen="$idSeen$idPath " ; idFound="$idPath" ; idCount=$(( idCount + 1 ))
+	done
+	[ "$idCount" -le 1 ] || { echo "$MDSC_CMD: ⛔ ERROR: the run id $idGiven matches $idCount runs: give more of it" >&2 ; return 1 ; }
+	[ "$idCount" -eq 0 ] || printf -v "$1" '%s' "$idFound"
+	return 0
+}

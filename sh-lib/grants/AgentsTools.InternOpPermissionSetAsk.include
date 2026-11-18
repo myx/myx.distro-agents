@@ -40,7 +40,7 @@ type AgentsToolsGrantsToolCovers > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.dis
 		## entry of one tool and of several alike. There is no word that means every tool.
 		local setKnownTools="${agentsPermissionEntryTools# }" setEntryTools setEntryRest setEntryTool
 		setKnownTools="${setKnownTools% }"
-		type AgentsToolsTaskTextKept > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.TaskText.include"
+		type AgentsToolsTaskTextKept > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/core/AgentsTools.TaskText.include"
 		## A member's own set names no item: only who asks stands ahead of its options.
 		local setRefusal="" setTaskRef="" setReason="" setRefusedTool="" setRefusedTarget="" setOpenAsk=""
 		if [ -n "$setOwn" ] ; then

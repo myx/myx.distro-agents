@@ -137,7 +137,7 @@ RIG_STREAM_EOF
 	printf '#!/bin/sh\n## cli-configured MDAT_SPAWN_LAUNCH_MARKER --cli)\ncat > /dev/null\n'
 	printf '[ -z "$MDAT_SPAWN_LAUNCH_MARKER" ] || printf "claude-native\\n" > "$MDAT_SPAWN_LAUNCH_MARKER"\n'
 	printf 'L="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib"\n'
-	printf 'LC_ALL=C awk -f "$L/core/AgentsProgressLineSafe.awk" -f "$L/session/AgentsSessionTranscriptFormat.awk" -f "$L/harness/AgentsClaudeStreamJsonTranscript.awk" -f "$L/harness/AgentsClaudeStreamJsonFormat.awk" < "$RIG_STREAM"\n'
+	printf 'LC_ALL=C awk -f "$L/core/AgentsProgressLineSafe.awk" -f "$L/transcript/AgentsSessionTranscriptFormat.awk" -f "$L/harness/AgentsClaudeStreamJsonTranscript.awk" -f "$L/harness/AgentsClaudeStreamJsonFormat.awk" < "$RIG_STREAM"\n'
 } > "$rigWs/DistroAgentsConsole.sh"
 chmod +x "$rigWs/DistroAgentsConsole.sh"
 rigBefore="$( rigCommits )"

@@ -48,7 +48,7 @@ AgentsHarnessReportTask(){ ## the task as the call gave it (may be empty)
 	reportSession="${harnessSessionId:-${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}}"
 	if [ -n "$reportSession" ] && [ -n "${MDAT_DATA_ROOT:-}" ] ; then
 		type AgentsToolsDecisionsItemFromRef > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemDecisions.include"
-		type AgentsToolsTaskText > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.TaskText.include"
+		type AgentsToolsTaskText > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/core/AgentsTools.TaskText.include"
 			reportItem="$( AgentsToolsDecisionsItemFromRef "" "$reportSession" 2> /dev/null )" || reportItem=""
 			[ -z "$reportItem" ] || reportPath="$( AgentsToolsDecisionsItemPath "$reportItem" 2> /dev/null )" || reportPath=""
 			[ -z "$reportPath" ] || reportTask="$( AgentsToolsTaskText "$reportPath" )"
@@ -190,6 +190,7 @@ AgentsHarnessReportsNone(){
 ## A HANDBACK HAS NO ADDRESSEE OF THE RUN'S, BY DESIGN: where it goes and who it is for are the tooling's alone
 ## (AgentsHarnessReportRoute), so the tool takes neither.
 AgentsHarnessToolSubagentHandbackRun(){ ## task, outcome, findings, unfinished, as_bot, checklist_pending_count
+	type AgentsHarnessCallerMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessSpawn.include"
 	type AgentsHarnessCheckListOpenItems > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessBatch.include"
 	type AgentsHarnessSessionThread > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessMessages.include"
 	type AgentsHarnessDismissedKeep > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessWait.include"
@@ -229,6 +230,16 @@ AgentsHarnessToolSubagentHandbackRun(){ ## task, outcome, findings, unfinished, 
 	fi
 	if [ "$toolOthers" -gt 0 ] ; then
 		toolUnfinished="${toolUnfinished:+$toolUnfinished$'\n\n'}Still open in this session's CheckList, and listed here as unfinished:"$'\n'"${toolOther%$'\n'}"
+	fi
+	## AN APPLY NAMES ITS TREE AND READS IT BACK (task-20261117T2241Z): a handback whose own words say a file was applied
+	## carries that file's absolute path and its read-back, else it is refused here, naming what is missing. A report that
+	## claims no apply is not measured, so ordinary work reports are untouched.
+	type AgentsToolsApplyReportFaults > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.ApplyReport.include"
+	local toolApplyFaults="" toolApplyRc=0
+	toolApplyFaults="$( printf '%s\n%s\n%s\n' "$toolOutcome" "$toolFindings" "$toolUnfinished" | AgentsToolsApplyReportFaults )" || toolApplyRc=$?
+	if [ "$toolApplyRc" != 0 ] ; then
+		printf 'REFUSED: this handback says a file was applied, and it does not give that file its absolute path and its read-back. Nothing was sent. A line names the file absolute path, the workspace it belongs to, and a read-back (cmp against the staged file, or its hash). What is missing:\n%s\n' "$toolApplyFaults"
+		return 0
 	fi
 	## A handback goes where this run reports to (AgentsHarnessReportRoute), addressed as that route says. A session with no
 	## spawn record of its own has no route, and session-parent stays as the one address resolver says it.
@@ -370,6 +381,7 @@ AgentsHarnessParkClear(){
 }
 
 AgentsHarnessToolReportFindings(){
+	type AgentsHarnessCallerMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessSpawn.include"
 	type AgentsHarnessSendProse > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessMessages.include"
 	local toolTo="$1" toolSubject="$2" toolFindings="$3" toolEvidence="$4" toolConfidence="$5" toolAsBot="$6" toolAddressTo="${7:-}" toolBody
 	if [ -z "$toolSubject" ] || [ -z "$toolFindings" ] ; then

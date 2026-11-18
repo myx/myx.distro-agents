@@ -79,6 +79,15 @@ case "$1" in
 						echo "$MDSC_CMD: board-upsert-move-edit: ⛔ ERROR: item not found: $sourcePath" >&2
 						set +e ; return 1
 					fi
+					## A CHILD OF AN EPIC WITH A GO IS NEVER RECALLED: the go is one approval for every child, and
+					## `check-backlog-promote` reads it from the epic, so a recall would only take the item out of the queue.
+					if [ "$toState" = "backlog" ] && [ "$isCreate" != "true" ] ; then
+						type AgentsToolsBoardItemKey > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.BoardItemHandler.include"
+						if [ -n "$( AgentsToolsBoardItemEpicGo "$sourcePath" )" ] ; then
+							echo "$MDSC_CMD: board-upsert-move-edit: ⛔ ERROR: $opContext: recalled: $itemName names the epic $( AgentsToolsBoardItemKey "$sourcePath" epic ), which carries a go, so the recall is refused. Withdraw the go at the epic to recall it." >&2
+							set +e ; return 1
+						fi
+					fi
 					sourceModeCount=$(( sourceModeCount + 1 ))
 					shift
 				;;
@@ -303,6 +312,28 @@ case "$1" in
 			esac
 		fi
 
+		## A CLOSE IS NOT A WAY PAST A WAIT (task-20261117T2332Z): an item in board-parked, or one whose
+		## `condition:` stands, is a decision nobody has taken, so no close takes it. The closing moves are
+		## the three a finished item ends in. Read off the item as this write would leave it, so a close
+		## that answers the condition itself is let through.
+		case "$toState" in
+			processed|archived|retained)
+				## An item already closed and only being filed by housekeeping is no close of a live item.
+				if [ "$isCreate" != "true" ] && [ "$fromState" != "processed" ] ; then
+					local closeCondition=""
+					closeCondition="$( printf '%s\n' "$body" | LC_ALL=C awk 'NR == 1 { if ( $0 != "---" ) exit ; next } $0 == "---" { exit } index( $0, "condition: " ) == 1 { print substr( $0, 12 ) ; exit }' )"
+					if [ "$fromState" = "parked" ] ; then
+						echo "$MDSC_CMD: board-upsert-move-edit: ⛔ ERROR: ${itemName%.md} is parked, so it is not closed: a parked item waits for its condition, and the move that releases it comes first" >&2
+						set +e ; return 1
+					fi
+					if [ -n "$closeCondition" ] ; then
+						echo "$MDSC_CMD: board-upsert-move-edit: ⛔ ERROR: ${itemName%.md} is not closed: its condition stands, and only an answer to it clears that -- $closeCondition" >&2
+						set +e ; return 1
+					fi
+				fi
+			;;
+		esac
+
 		## Move stamp: the date field the target state owns. Contract: MAGIC.md.
 		local stampField=""
 		case "$toState" in
@@ -420,10 +451,12 @@ case "$1" in
 		writeBeside="$( mktemp "$targetPath.XXXXXX" )" || writeBeside=""
 		if [ -z "$writeBeside" ] || ! printf '%s\n' "$body" > "$writeBeside" || ! mv -f "$writeBeside" "$targetPath" ; then
 			[ -z "$writeBeside" ] || rm -f "$writeBeside"
+			type AgentsToolsLocalLockGive > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.LocalLock.include"
 			[ -z "$handlerLock" ] || AgentsToolsLocalLockGive "$handlerLock"
 			echo "$MDSC_CMD: board-upsert-move-edit: ⛔ ERROR: could not write $targetPath" >&2
 			set +e ; return 1
 		fi
+		type AgentsToolsLocalLockGive > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.LocalLock.include"
 		[ -z "$handlerLock" ] || AgentsToolsLocalLockGive "$handlerLock"
 		if [ -n "$handlerChanged" ] ; then
 			type AgentsToolsDecisionsAppend > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemDecisions.include"

@@ -18,23 +18,72 @@
 ## lines leave and `## Done` gets one line, its id and what holds now -- the feature's settled text, else its
 ## heading's title. `--add-settled` adds the rule as one plain present-tense line under the same heading, after its
 ## `Status:` line, with no date and no owner. Both refuse where the feature is not there or stands more than once.
+## An id is `S<n>` or `S<n>.<m>`, and it stands exactly once: as a heading that bears it, else as the one item
+## `<m>. ` of the feature in force where that item stands. A heading wins where a list item carries the same id,
+## and stderr names both places. The id owns a span of lines, and every operation here works on that span.
 ## A vault item is edited as a copy and handed to `--upsert-vault-epic-blueprint`, so its contract check and its commit both
 ## happen at the one vault write. A plain source file is edited in place and never committed: the owner commits what
 ## is applied. Sourced from AgentDispatcherTools.fn.sh's arm for the name; relies on $1/$@/$MDSC_CMD.
 ##
 
-## What a closed feature holds now, for its one line in `## Done`: the last line of its own body that is neither
-## blank nor a `Status:` line, the `**Settled <date> (<owner>).** ` stamp taken off where one stands; else its own
-## heading's title, without the separator after the id. Printed, one line.
-AgentsToolsMagicEpicDoneText(){ ## file, feature-id
-	LC_ALL=C awk -v want="## $2 " '
-		index( $0, want ) == 1 { inFeature = 1 ; title = substr( $0, length( want ) + 1 ) ; sub( /^[-:] /, "", title ) ; next }
-		! inFeature { next }
-		$0 ~ /^## / || $0 ~ /^# / { exit }
+## What a closed feature holds now, for its one line in `## Done`: the last line of its span that is neither
+## blank nor a `Status:` line, the `**Settled <date> (<owner>).** ` stamp taken off where one stands; else the
+## line the span opens on, the id taken off it. Printed, one line.
+AgentsToolsMagicEpicDoneText(){ ## file, the span's first line, its last line, the id
+	LC_ALL=C awk -v spanFirst="$2" -v spanLast="$3" -v idText="$4" '
+		NR < spanFirst || NR > spanLast { next }
+		NR == spanFirst { title = $0 ; sub( /^#+ /, "", title ) ; if ( index( title, idText " " ) == 1 ) title = substr( title, length( idText ) + 2 ) ; sub( /^[-:] /, "", title ) ; next }
 		$0 ~ /^Status: / { next }
 		NF { held = $0 ; sub( /^[[:space:]]*\*\*Settled [^*]*\*\*[[:space:]]*/, "", held ) }
 		END { print ( held != "" ? held : title ) }
 	' "$1"
+}
+
+## Where one epic id stands: the heading that bears it, else the one numbered item of the feature in force there.
+## A heading wins where a list item carries the same id, and stderr names both places. Prints `<heading|item> <first> <last>`
+## -- the place it stands, and the span of lines it owns -- and returns 1 with the sentence the callers share where it
+## stands nowhere or more than once.
+AgentsToolsMagicEpicPlace(){ ## the epic file, the id, the operation as the caller's own message shows it
+	local placeOut=""
+	placeOut="$( EPIC_ID="$2" EPIC_FILE="$1" PLACE_OP="$3" LC_ALL=C awk -v cmdText="$MDSC_CMD" '
+		function headingName(textIn,   rest) { rest = textIn ; sub( /^#+ /, "", rest ) ; sub( /[ \t].*$/, "", rest ) ; return rest }
+		function idShaped(textIn) { return textIn ~ /^S[0-9]+(\.[0-9]+)?$/ }
+		function fault(textIn) { printf "⛔ ERROR: %s %s: %s in %s\n", cmdText, ENVIRON["PLACE_OP"], textIn, ENVIRON["EPIC_FILE"] > "/dev/stderr" ; exit 1 }
+		BEGIN {
+			idText = ENVIRON["EPIC_ID"] ; dotAt = 0 ;
+			for (at = length( idText ) ; at > 0 ; at--) if ( substr( idText, at, 1 ) == "." ) { dotAt = at ; break }
+			featureText = ( dotAt ? substr( idText, 1, dotAt - 1 ) : idText ) ;
+			itemText = ( dotAt ? substr( idText, dotAt + 1 ) : "" ) ;
+			fenced = 0 ; spaceText = "" ; spaceLevel = 0 ; headCount = 0 ; headFirst = 0 ; headLast = 0 ; headLevel = 0 ;
+			itemTotal = 0 ; itemFirst = 0 ; itemLast = 0 ; itemOpen = 0 ;
+		}
+		{
+			if ( index( $0, "```" ) == 1 ) { fenced = ! fenced ; next }
+			if ( fenced ) { next }
+			if ( itemOpen && $0 ~ /^[ \t]/ ) { itemLast = FNR ; next }
+			itemOpen = 0
+			if ( match( $0, /^#+ / ) ) {
+				level = RLENGTH - 1 ; nameText = headingName( $0 ) ;
+				if ( headFirst > 0 && headLast == 0 && level <= headLevel ) { headLast = FNR - 1 }
+				if ( idShaped( nameText ) ) { spaceText = nameText ; spaceLevel = level }
+				else if ( spaceText != "" && level <= spaceLevel ) { spaceText = "" }
+				if ( nameText == idText ) { if ( headFirst == 0 ) { headFirst = FNR ; headLevel = level } ; headCount++ }
+				next
+			}
+			if ( itemText != "" && spaceText == featureText && $0 ~ ( "^" itemText "[.][ \t]" ) ) { itemTotal++ ; itemFirst = FNR ; itemLast = FNR ; itemOpen = 1 }
+		}
+		END {
+			if ( headCount > 1 ) fault( ( itemText == "" ? "feature " : "item " ) idText " must stand exactly once" )
+			if ( headFirst > 0 ) {
+				if ( headLast == 0 ) headLast = FNR
+				if ( itemTotal > 0 ) printf "⚠️ WARNING: %s %s: %s stands as a heading at line %d and as item %s of %s at line %d -- the heading is the one used\n", cmdText, ENVIRON["PLACE_OP"], idText, headFirst, itemText, featureText, itemFirst > "/dev/stderr"
+				printf "heading %d %d\n", headFirst, headLast ; exit 0
+			}
+			if ( itemTotal == 1 ) { printf "item %d %d\n", itemFirst, itemLast ; exit 0 }
+			fault( ( itemText == "" ? "feature " : "item " ) idText " must stand exactly once" )
+		}
+	' "$1" )" || return 1
+	printf '%s\n' "$placeOut"
 }
 
 ## An epic is written only as magic-coordinator, which owns it. Any member reads one, with no ask.
@@ -105,9 +154,7 @@ AgentsToolsMagicEpicTemp(){ ## prints a fresh scratch path in the calling sessio
 ## core lands the verdict. No sub-flag of `--epic-update` names it while the naming is open.
 AgentsToolsMagicEpicSettleChange(){ ## epic file, feature id, record id, parts (may be empty), words
 	local epicSettleFile="$1" epicSettleFeature="$2" epicSettleRecord="$3" epicSettleParts="${4:-}" epicSettleText="${5:-}" epicSettleDir="" epicSettleShown
-	[ "$( LC_ALL=C awk -v want="## $epicSettleFeature " 'index( $0, want ) == 1 { n++ } END { print n + 0 }' "$epicSettleFile" )" -eq 1 ] || {
-		echo "⛔ ERROR: $MDSC_CMD --epic-update: feature $epicSettleFeature must stand exactly once in $epicSettleFile" >&2
-		return 1 ; }
+	AgentsToolsMagicEpicPlace "$epicSettleFile" "$epicSettleFeature" "--epic-update" > /dev/null || return 1
 	type AgentsToolsUndoFind > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/undo/AgentsTools.UndoRecord.include"
 	epicSettleDir="$( AgentsToolsUndoFind "$epicSettleRecord" "" )" || return 1
 	epicSettleShown="${epicSettleFile##*/}"
@@ -144,59 +191,41 @@ case "$1" in
 		case "$epicMode" in
 
 			--set-status)
-				local statusItemId="${1:-}" featureId="${1:-}" featureStatus="${2:-}" statusTemp statusDoneText statusDoneLine statusItemN="" statusItemCount
+				local statusItemId="${1:-}" featureId="${1:-}" featureStatus="${2:-}" statusTemp statusDoneText statusDoneLine statusKind statusPlace statusSpan statusItemCount
 				shift 2 || true
 				if [ -z "$statusItemId" ] || [ -z "$featureStatus" ] ; then
 					echo "⛔ ERROR: $MDSC_CMD --epic-update --set-status: syntax is <feature-id> <status>, or <feature-id>.<n> done <text...>" >&2
 					set +e ; return 1
 				fi
-				## An id with a dot closes one item of its feature; the feature id alone is the feature.
-				case "$featureId" in
-					*.*) statusItemN="${featureId##*.}" ; featureId="${featureId%.*}" ;;
+				case "${featureId##*.}" in
+					*[!0-9]*)
+						[ "$featureId" = "${featureId%.*}" ] || { echo "⛔ ERROR: $MDSC_CMD --epic-update --set-status: $statusItemId is no item id -- the form is <feature-id>.<n>" >&2 ; set +e ; return 1 ; }
+						## An id with no item number is a feature's, and its status is one word: no text rides on it.
+						[ $# -eq 0 ] || { echo "⛔ ERROR: $MDSC_CMD --epic-update --set-status: invalid option: $1 -- the status is one line, passed as one argument" >&2 ; set +e ; return 1 ; }
+					;;
 				esac
-				if [ -n "$statusItemN" ] ; then
-					case "$statusItemN" in
-						*[!0-9]*) echo "⛔ ERROR: $MDSC_CMD --epic-update --set-status: $statusItemId is no item id -- the form is <feature-id>.<n>" >&2 ; set +e ; return 1 ;;
-					esac
-				fi
+				## What the id names settles the branch: the heading that bears it, else the one item of its feature.
+				## A dotted id is no item on its own say, since a `### S18.4` heading carries a dotted id of its own.
+				statusPlace="$( AgentsToolsMagicEpicPlace "$epicFile" "$statusItemId" "--epic-update --set-status" )" || { set +e ; return 1 ; }
+				statusKind="${statusPlace%% *}" ; statusSpan="${statusPlace#* }"
 				## An item closes on its own id, with the caller's text: it and its nested lines leave, and `## Done` gets one line.
-				if [ -n "$statusItemN" ] ; then
+				if [ "$statusKind" = item ] ; then
 					[ "$featureStatus" = done ] || { echo "⛔ ERROR: $MDSC_CMD --epic-update --set-status: only done closes an item: <feature-id>.<n> done <text...>" >&2 ; set +e ; return 1 ; }
 					[ $# -gt 0 ] || { echo "⛔ ERROR: $MDSC_CMD --epic-update --set-status: the closed item's text is needed" >&2 ; set +e ; return 1 ; }
-					[ "$( LC_ALL=C awk -v want="## $featureId " 'index( $0, want ) == 1 { n++ } END { print n + 0 }' "$epicFile" )" -eq 1 ] || {
-						echo "⛔ ERROR: $MDSC_CMD --epic-update --set-status: feature $featureId must stand exactly once in $epicFile" >&2
-						set +e ; return 1
-					}
 					statusDoneText="$( printf '%s ' "$@" | LC_ALL=C sed 's/ $//' )"
-					statusItemCount="$( LC_ALL=C awk -v want="## $featureId " -v n="$statusItemN" '
-						index( $0, want ) == 1 { inFeature = 1 ; next }
-						! inFeature { next }
-						$0 ~ /^## / || $0 ~ /^# / { exit }
-						$0 ~ ( "^" n "[.][ \t]" ) { count++ }
-						END { print count + 0 }
-					' "$epicFile" )"
-					[ "$statusItemCount" -eq 1 ] || {
-						echo "⛔ ERROR: $MDSC_CMD --epic-update --set-status: item $statusItemId must stand exactly once in $epicFile" >&2
-						set +e ; return 1
-					}
 					statusDoneLine="- $statusItemId: $statusDoneText"
 					statusTemp="$( AgentsToolsMagicEpicTemp )" || { set +e ; return 1 ; }
 					## The line goes through the environment, never -v, which decodes a backslash in it (MAGIC.md section 3).
-					EPIC_LINE="$statusDoneLine" LC_ALL=C awk -v want="## $featureId " -v n="$statusItemN" '
+					EPIC_LINE="$statusDoneLine" LC_ALL=C awk -v spanFirst="${statusSpan%% *}" -v spanLast="${statusSpan##* }" '
 						function emit(lineIn) { print lineIn ; lastBlank = ( lineIn ~ /^[ \t]*$/ ) ; }
-						BEGIN { line = ENVIRON["EPIC_LINE"] ; inFeature = 0 ; seenDone = 0 ; skipping = 0 ; heldBlank = 0 ; closed = 0 ; lastBlank = 0 }
+						BEGIN { line = ENVIRON["EPIC_LINE"] ; seenDone = 0 ; lastBlank = 0 ; heldBlank = 0 }
 						{
 							if ( $0 == "## Done" ) { seenDone = 1 }
-							if ( skipping ) {
-								if ( $0 ~ /^[ \t]/ ) { next }
-								if ( $0 ~ /^[ \t]*$/ ) { heldBlank = 1 ; next }
-								skipping = 0
-								if ( heldBlank && ! lastBlank ) { emit( "" ) }
-								heldBlank = 0
-							}
-							if ( inFeature && ( $0 ~ /^## / || $0 ~ /^# / ) ) { inFeature = 0 }
-							if ( ! inFeature && index( $0, want ) == 1 ) { inFeature = 1 ; emit( $0 ) ; next }
-							if ( inFeature && ! closed && $0 ~ ( "^" n "[.][ \t]" ) ) { closed = 1 ; skipping = 1 ; next }
+							if ( NR >= spanFirst && NR <= spanLast ) { next }
+							## The blank line the closed item leaves behind goes only where one does not already stand.
+							if ( NR == spanLast + 1 && $0 ~ /^[ \t]*$/ ) { heldBlank = 1 ; next }
+							if ( heldBlank && ! lastBlank ) { emit( "" ) }
+							heldBlank = 0
 							emit( $0 )
 						}
 						END { if ( ! seenDone ) { emit( "" ) ; emit( "## Done" ) } ; emit( line ) }
@@ -207,34 +236,25 @@ case "$1" in
 					set +e ; return 0
 				fi
 				[ $# -eq 0 ] || { echo "⛔ ERROR: $MDSC_CMD --epic-update --set-status: invalid option: $1 -- the status is one line, passed as one argument" >&2 ; set +e ; return 1 ; }
-				[ "$( LC_ALL=C awk -v want="## $featureId " 'index( $0, want ) == 1 { n++ } END { print n + 0 }' "$epicFile" )" -eq 1 ] || {
-					echo "⛔ ERROR: $MDSC_CMD --epic-update --set-status: feature $featureId must stand exactly once in $epicFile" >&2
-					set +e ; return 1
-				}
 				## A feature closes only once it holds no item, and becomes one line of `## Done`. The section stands
 				## last, so a file without one gets it at its own end.
 				if [ "$featureStatus" = done ] ; then
-					statusItemCount="$( LC_ALL=C awk -v want="## $featureId " '
-						index( $0, want ) == 1 { inFeature = 1 ; next }
-						! inFeature { next }
-						$0 ~ /^## / || $0 ~ /^# / { exit }
-						$0 ~ /^[0-9]+\. / { count++ }
+					statusItemCount="$( LC_ALL=C awk -v spanFirst="${statusSpan%% *}" -v spanLast="${statusSpan##* }" '
+						NR > spanFirst && NR <= spanLast && $0 ~ /^[0-9]+\. / { count++ }
 						END { print count + 0 }
 					' "$epicFile" )"
 					[ "$statusItemCount" -eq 0 ] || {
 						echo "⛔ ERROR: $MDSC_CMD --epic-update --set-status: feature $featureId holds $statusItemCount open item(s) -- close each by its own id first: <feature-id>.<n> done <text...>" >&2
 						set +e ; return 1
 					}
-					statusDoneText="$( AgentsToolsMagicEpicDoneText "$epicFile" "$featureId" )"
+					statusDoneText="$( AgentsToolsMagicEpicDoneText "$epicFile" "${statusSpan%% *}" "${statusSpan##* }" "$featureId" )"
 					statusDoneLine="- $featureId: $statusDoneText"
 					statusTemp="$( AgentsToolsMagicEpicTemp )" || { set +e ; return 1 ; }
-					EPIC_LINE="$statusDoneLine" LC_ALL=C awk -v want="## $featureId " '
-						BEGIN { line = ENVIRON["EPIC_LINE"] ; inFeature = 0 ; seenDone = 0 ; }
+					EPIC_LINE="$statusDoneLine" LC_ALL=C awk -v spanFirst="${statusSpan%% *}" -v spanLast="${statusSpan##* }" '
+						BEGIN { line = ENVIRON["EPIC_LINE"] ; seenDone = 0 }
 						{
 							if ( $0 == "## Done" ) { seenDone = 1 }
-							if ( inFeature ) {
-								if ( $0 ~ /^## / || $0 ~ /^# / ) { inFeature = 0 } else { next }
-							} else if ( index( $0, want ) == 1 ) { inFeature = 1 ; next }
+							if ( NR >= spanFirst && NR <= spanLast ) { next }
 							print
 						}
 						END { if ( ! seenDone ) { print "" ; print "## Done" } ; print line }
@@ -245,19 +265,14 @@ case "$1" in
 					set +e ; return 0
 				fi
 				statusTemp="$( AgentsToolsMagicEpicTemp )" || { set +e ; return 1 ; }
-				EPIC_LINE="Status: $featureStatus" LC_ALL=C awk -v want="## $featureId " '
-					BEGIN { new = ENVIRON["EPIC_LINE"] ; inFeature = 0 ; placed = 0 ; }
+				EPIC_LINE="Status: $featureStatus" LC_ALL=C awk -v spanFirst="${statusSpan%% *}" -v spanLast="${statusSpan##* }" '
+					BEGIN { new = ENVIRON["EPIC_LINE"] ; placed = 0 }
 					{
-						if ( ! inFeature ) {
-							if ( index( $0, want ) == 1 ) { inFeature = 1 ; print ; next }
-							print ; next
-						}
-						## A feature with no Status: line gets it before the next heading, not only at the end of the file.
-						if ( $0 ~ /^## / || $0 ~ /^# / ) { if ( ! placed ) { print new ; print "" ; placed = 1 } ; inFeature = 0 ; print ; next }
-						if ( ! placed && $0 ~ /^Status: / ) { print new ; placed = 1 ; next }
+						## A feature with no Status: line gets it at the end of its span, and one that has it keeps its place.
+						if ( NR > spanFirst && NR <= spanLast && $0 ~ /^Status: / ) { print new ; placed = 1 ; next }
 						print
+						if ( NR == spanLast && ! placed ) { print new ; print "" ; placed = 1 }
 					}
-					END { if ( ! placed && inFeature ) { print "" ; print new } }
 				' "$epicFile" > "$statusTemp" || { rm -f -- "$statusTemp" ; set +e ; return 1 ; }
 					AgentsToolsMagicEpicPut "$statusTemp" "$epicFile" "$epicVaultName" || { set +e ; return 1 ; }
 					printf 'EPIC: %s: %s status set to %s\n' "${epicShown##*/}" "$featureId" "$featureStatus"
@@ -276,28 +291,21 @@ case "$1" in
 						--date|--owner) echo "⛔ ERROR: $MDSC_CMD --epic-update --add-settled: $settledWord is gone -- the rule is written plain, with no date and no owner" >&2 ; set +e ; return 1 ;;
 					esac
 				done
-				local settledText settledLine
+				local settledText settledLine settledSpan
 				settledText="$( printf '%s ' "$@" | LC_ALL=C sed 's/ $//' )"
 				[ -n "$settledText" ] || { echo "⛔ ERROR: $MDSC_CMD --epic-update --add-settled: the settled text is needed" >&2 ; set +e ; return 1 ; }
-				[ "$( LC_ALL=C awk -v want="## $featureId " 'index( $0, want ) == 1 { n++ } END { print n + 0 }' "$epicFile" )" -eq 1 ] || {
-					echo "⛔ ERROR: $MDSC_CMD --epic-update --add-settled: feature $featureId must stand exactly once in $epicFile. A rule is added under its feature with --add-settled, and an item is closed with --set-status <feature-id>.<n> done <text...>" >&2
-					set +e ; return 1
-				}
+				settledSpan="$( AgentsToolsMagicEpicPlace "$epicFile" "$featureId" "--epic-update --add-settled" )" || { set +e ; return 1 ; }
+				settledSpan="${settledSpan#* }"
 				settledLine="$settledText"
 				settledTemp="$( AgentsToolsMagicEpicTemp )" || { set +e ; return 1 ; }
-				EPIC_LINE="$settledLine" LC_ALL=C awk -v want="## $featureId " '
-					BEGIN { line = ENVIRON["EPIC_LINE"] ; inFeature = 0 ; placed = 0 ; }
+				EPIC_LINE="$settledLine" LC_ALL=C awk -v spanFirst="${settledSpan%% *}" -v spanLast="${settledSpan##* }" '
+					BEGIN { line = ENVIRON["EPIC_LINE"] ; placed = 0 }
 					{
-						if ( ! inFeature ) {
-							if ( index( $0, want ) == 1 ) { inFeature = 1 ; print ; next }
-							print ; next
-						}
-						## A feature with no Status: line gets the settlement before the next heading, not only at the end of the file.
-						if ( $0 ~ /^## / || $0 ~ /^# / ) { if ( ! placed ) { print line ; print "" ; placed = 1 } ; inFeature = 0 ; print ; next }
-						if ( ! placed && $0 ~ /^Status: / ) { print $0 ; print "" ; print line ; placed = 1 ; next }
+						## A feature with no Status: line gets the settlement before the span ends, not only at the end of the file.
+						if ( NR > spanFirst && NR <= spanLast && $0 ~ /^Status: / ) { print $0 ; print "" ; print line ; placed = 1 ; next }
+						if ( NR == spanLast && ! placed ) { print "" ; print line ; placed = 1 }
 						print
 					}
-					END { if ( ! placed && inFeature ) { print "" ; print line } }
 				' "$epicFile" > "$settledTemp" || { rm -f -- "$settledTemp" ; set +e ; return 1 ; }
 				LC_ALL=C grep -q -F -x -- "$settledLine" "$settledTemp" || { rm -f -- "$settledTemp" ; echo "⛔ ERROR: $MDSC_CMD --epic-update --add-settled: the line is not in $epicShown after the write -- nothing was settled" >&2 ; set +e ; return 1 ; }
 				AgentsToolsMagicEpicPut "$settledTemp" "$epicFile" "$epicVaultName" || { set +e ; return 1 ; }
@@ -345,15 +353,11 @@ case "$1" in
 		if [ -z "$readFeature" ] ; then
 			cat -- "$readFile" || { set +e ; return 1 ; }
 		else
-			[ "$( LC_ALL=C awk -v want="## $readFeature " 'index( $0, want ) == 1 { n++ } END { print n + 0 }' "$readFile" )" -eq 1 ] || {
-				echo "⛔ ERROR: $MDSC_CMD --epic-read: feature $readFeature must stand exactly once in $readFile" >&2
-				set +e ; return 1
-			}
-			LC_ALL=C awk -v want="## $readFeature " '
-				index( $0, want ) == 1 { on = 1 ; print ; next }
-				on && ( $0 ~ /^## / || $0 ~ /^# / ) { exit }
-				on { print }
-			' "$readFile" || { set +e ; return 1 ; }
+			## One id prints the lines it owns: a feature's whole section, down to the next heading, or one item and its nested lines.
+			local readSpan=""
+			readSpan="$( AgentsToolsMagicEpicPlace "$readFile" "$readFeature" "--epic-read --feature" )" || { set +e ; return 1 ; }
+			readSpan="${readSpan#* }"
+			LC_ALL=C awk -v spanFirst="${readSpan%% *}" -v spanLast="${readSpan##* }" 'NR >= spanFirst && NR <= spanLast' "$readFile" || { set +e ; return 1 ; }
 		fi
 	;;
 

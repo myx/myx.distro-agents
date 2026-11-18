@@ -118,6 +118,55 @@ AgentsToolsPendingReplyAskers(){ ## stdin: the asking ids, a line each
 	printf '%s\n' "$askersIds" | AgentsToolsRegistryAskersLive "$( AgentsToolsRunProcessArgs ; printf '%s' "$agentsProcessArgs" )"
 }
 
+## The answer a session's ask was given, as the moment it was given in epoch seconds, into the named
+## variable: empty where none of its asks was answered.
+## THE KEPT MEASURE, NEVER A WALK: `answers/<session>.epoch`, beside the records in the live store,
+## holds that moment. The ask store's own close writes it (AgentsTools.InternOpPendingReplyClose.include),
+## so the review limit's reader pays one `read` and the store is opened by no round. A session with no
+## file reads as no answer: the limit then counts from its entry into review, as it did before this
+## measure. The files of the answers closed before it existed are written once, from those records, by
+## AgentsToolsPendingReplyAnswersSeed.
+AgentsToolsPendingReplySessionAnswerInto(){ ## variable, session id
+	local answerLine="" answerRoot="${MMDAPP:-/nonexistent}/.local/agents/pending"
+	printf -v "$1" '%s' ""
+	case "${2:-}" in ''|-|.|..|*/*|*[[:space:]]*) return 1 ;; esac
+	{ IFS= read -r answerLine < "$answerRoot/answers/$2.epoch" ; } 2> /dev/null || answerLine=""
+	case "$answerLine" in ''|0|*[!0123456789]*) return 0 ;; esac
+	printf -v "$1" '%s' "$answerLine"
+	return 0
+}
+
+## THE SEED OF THE KEPT MEASURE, run once where the measure is first installed: one pass over every
+## record of the store, closed and open, and one file a session holding the moment its last ask was
+## answered. A file already there is never lowered: one written by a close since is the newer fact.
+## Prints how many files it wrote. A session with no answered ask gets none, so it reads as no answer.
+AgentsToolsPendingReplyAnswersSeed(){ ## no argument
+	local seedRoot="${MMDAPP:-/nonexistent}/.local/agents/pending" seedWritten=0 seedLine seedSession seedEpoch seedKept=""
+	[ -d "$seedRoot" ] || return 0
+	mkdir -p "$seedRoot/answers" 2> /dev/null || return 1
+	while IFS= read -r seedLine ; do
+		seedSession="${seedLine%% *}" ; seedEpoch="${seedLine##* }"
+		case "$seedSession" in ''|-|*/*|.|..) continue ;; esac
+		case "$seedEpoch" in ''|*[!0123456789]*) continue ;; esac
+		if [ -f "$seedRoot/answers/$seedSession.epoch" ] ; then
+			seedKept=""
+			{ IFS= read -r seedKept < "$seedRoot/answers/$seedSession.epoch" ; } 2> /dev/null || seedKept=""
+			case "$seedKept" in ''|*[!0123456789]*) ;; *) continue ;; esac
+		fi
+		printf '%s\n' "$seedEpoch" > "$seedRoot/answers/$seedSession.epoch" 2> /dev/null || continue
+		seedWritten=$(( seedWritten + 1 ))
+	done <<< "$( LC_ALL=C awk '
+		FNR == 1 { fence = 0 ; thisSession = "" ; status = "" ; resolved = "" }
+		$0 == "---" { fence++ ; if ( fence > 1 ) { if ( status == "reply-received" && thisSession != "" && resolved != "" && resolved > best[thisSession] ) { best[thisSession] = resolved ; } ; nextfile } ; next }
+		fence == 1 && index( $0, "session-id: " ) == 1 { thisSession = substr( $0, 13 ) ; next }
+		fence == 1 && index( $0, "status: " ) == 1 { status = substr( $0, 9 ) ; next }
+		fence == 1 && index( $0, "resolved-epoch: " ) == 1 { resolved = substr( $0, 17 ) ; next }
+		END { for ( one in best ) { print one, best[one] ; } }
+	' "$seedRoot"/*.md "$seedRoot/closed"/*.md 2> /dev/null )"
+	printf '%s\n' "$seedWritten"
+	return 0
+}
+
 ## Where the stores keep more of one ask than its record, for the read of that one record,
 ## which prints it whole (AgentsToolsPendingReplyScan.awk, MDAT_PENDING_WHOLE). Sets
 ## replyWholeBeside, the names of what lies beside the record, its id taken off;

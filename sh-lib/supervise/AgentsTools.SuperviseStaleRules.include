@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.SuperviseStaleRules.include -- the scan's `stale-rules` kind: an open run started before the skillset last changed.
+## Sourced, never run; functions only.
+##
+## WHY. A run reads its skillset once, when it starts. A long duty keeps working on the rules it loaded, so a rule landed since
+## does not bind it, and nothing on screen says so. This names each such run, so the supervisor can guide it to reload.
+## COST. One find over the skillset, bounded to the files changed since the oldest open run started, and one stat call for all
+## the files it finds. With nothing changed since then, no stat runs.
+##
+
+## <workspace> <now> <record table> [<skillset dir>] -- prints `stale-rules <ws> <session> <member> started=<n>h changed=<n>m`, one a
+## session, where its oldest open run started before the newest change under the skillset (default: this package's skillset).
+## The table is the scan's own: `<sandbox> <name> <written> <spawn-id> <session-id> <owner> <status> ...`, TAB-separated.
+AgentsToolsSuperviseStaleRules(){ ## workspace, now, table, skillset dir
+	local staleWs="$1" staleNow="$2" staleDir="${4:-$MDLT_ORIGIN/myx/myx.distro-agents/skillset}" staleOpen staleOldest staleFile staleNewest
+	local staleFiles=()
+	staleOpen="$( printf '%s\n' "$3" | LC_ALL=C awk -F'\t' '$7 == "spawn-started" && $5 != "" && $3 ~ /^[0-9]+$/ { print $3, $5, $6 }' | LC_ALL=C sort -n )"
+	[ -n "$staleOpen" ] || return 0
+	staleOldest="${staleOpen%% *}"
+	while IFS= read -r staleFile ; do
+		[ -z "$staleFile" ] || staleFiles+=( "$staleFile" )
+	done <<< "$( LC_ALL=C find "$staleDir" -type f -name '*.md' -mmin "-$(( ( staleNow - staleOldest ) / 60 + 1 ))" 2> /dev/null )"
+	[ "${#staleFiles[@]}" -gt 0 ] || return 0
+	## GNU stat first: BSD stat refuses -c, so the second form runs only there.
+	staleNewest="$( { stat -c '%Y' "${staleFiles[@]}" 2> /dev/null || stat -f '%m' "${staleFiles[@]}" 2> /dev/null ; } | LC_ALL=C sort -n | LC_ALL=C tail -1 )"
+	case "$staleNewest" in ''|*[!0123456789]*) return 0 ;; esac
+	printf '%s\n' "$staleOpen" | LC_ALL=C awk -v ws="${staleWs##*/}" -v now="$staleNow" -v newest="$staleNewest" '
+		$1 < newest && !seen[$2]++ { printf "stale-rules %s %s %s started=%dh changed=%dm\n", ws, substr( $2, 1, 8 ), $3, int( ( now - $1 ) / 3600 ), int( ( now - newest ) / 60 ) }'
+}

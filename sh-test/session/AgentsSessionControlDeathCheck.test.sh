@@ -171,6 +171,9 @@ rigHeader(){ ## run id, header name -- its value in the frontmatter of that run'
 rigStandPid=""
 rigStand(){ ## run id (may be empty)
 	sleep 600 > /dev/null 2>&1 < /dev/null &
+	## The tooling keeps the process list it read for 10 s (.local/temp/ps-args.txt), so a stand-in that
+	## starts or ends after that read is seen only once the kept one goes.
+	rm -f "$rigWs/.local/temp/ps-args.txt" 2> /dev/null
 	rigStandPid=$!
 	rigProcNote "$rigStandPid" ; rigStarted="$rigStarted $rigStandPid"
 	disown "$rigStandPid" 2> /dev/null || :
@@ -289,6 +292,7 @@ rigGoneNotes(){ ## session id, run id -- how many lines of control/gone note tha
 rigStand '' ; rigGonePid="$rigStandPid"
 rigGoneShell="$( rigProcBegan "$rigGonePid" )"
 rigProcSignal TERM "$rigGonePid" ; rigWaitFor 10 rigEnded "$rigGonePid" || rigRefuse "the stand-in of a supervising shell that is gone did not end"
+rm -f "$rigWs/.local/temp/ps-args.txt" 2> /dev/null
 case "$rigGoneShell" in *' '*) ;; *) rigRefuse "when the stand-in of a supervising shell began could not be read" ;; esac
 ## The session that requests runs below: magic-coordinator runs as s-req, with its thread.
 rigReqThread="CRIGSESS1:1700000001.000100"
@@ -332,15 +336,16 @@ spawns: item-wait
 rigStand d-wait
 rigOne d-wait
 rigAssert "a run that handed back and waits for its review is alive: running, and no death" "$( rigState d-wait ):$( rigDeadLines d-wait )" "running:0"
-## A RUN A PAUSE HOLDS (S19.3): its process gone and its record open is the pause's own state, never a death, and its
-## thread judges it `running` still -- so nothing asks about it and nothing restarts it.
+## A RUN A PAUSE HOLDS (S19.3): its process gone and its record open is the pause's own state, never a death, so nothing
+## asks about it and nothing restarts it. Its session writes no state word: no run alive with a record open is none of the
+## three (AgentsTools.InternSessionControl.include, what the state holds).
 mkdir -p "$rigStores/d-held"
 printf '2026-11-04T06:00:00Z rig\n' > "$rigStores/d-held/paused"
 rigRec d-held d-held keeper-rig spawn-started "supervisor-process: $rigGoneShell
 "
 rigOne d-held ; rigOne d-held
-rigAssert "a paused run whose process is gone is no death, and its session reads running" \
-	"$rigRc:$( rigDeadLines d-held ):$( rigState d-held )" "0:0:running"
+rigAssert "a paused run whose process is gone is no death, and its session states nothing new: no run alive and a record open is none of the three words" \
+	"$rigRc:$( rigDeadLines d-held ):$( rigState d-held )" "0:0:"
 ## It is resumed for its handback: the process its record names lives, and no line of the list carries its word.
 rigStand '' ; rigResumed="$rigStandPid"
 rigRec d-resume d-resume keeper-rig spawn-started "run-process: $( rigProcBegan "$rigResumed" )
@@ -442,7 +447,7 @@ rigAssert "the thread stays when the only run of its session is a death and its 
 rigCall --manager-session-list > "$rigTmp/list.out" 2> "$rigTmp/list.err" < /dev/null
 rigAssert "a session with no live run and an open question reads waiting in the list of sessions" \
 	"$( LC_ALL=C awk '$1 == "session" && $2 == "d-gone" { for ( wordAt = 3 ; wordAt <= NF ; wordAt++ ) { if ( $wordAt == "waiting" ) { print "waiting" ; exit } } }' "$rigTmp/list.out" )" "waiting"
-rigCall --read-pending-reply magic-coordinator --any-owner > "$rigTmp/pending.out" 2> "$rigTmp/pending.err" < /dev/null
+rigCall --read-pending-reply --team-member magic-coordinator --any-owner > "$rigTmp/pending.out" 2> "$rigTmp/pending.err" < /dev/null
 rigGoneAsk="$( LC_ALL=C grep -l -x -F -- 'session-id: d-gone' "$rigPending"/*.md 2> /dev/null | LC_ALL=C sed -n '1p' )"
 rigGoneAsk="${rigGoneAsk##*/}" ; rigGoneAsk="${rigGoneAsk%.md}"
 rigAssert "the question is among the pending questions: one open record of the kind decision, addressed to the reviewer, with the id of the session, and the line of the death keeps its id" \

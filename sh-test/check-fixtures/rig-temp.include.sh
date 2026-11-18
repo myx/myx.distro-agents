@@ -88,7 +88,7 @@ rigQueueSessionEnded(){ ## session -- rc 0 when those records say that run has e
 ## Whom a ticket ahead is, and how long it has held the line: the one phrase both waiters say, about the ticket
 ## rather than about a process, so a number given to another process can never be read as a live holder.
 rigQueueTicketWhom(){ ## ticket file -- that phrase
-	local whomSession whomOrigin whomKind whomSince whomStamp whomClock whomFrom whomAge
+	local whomSession whomOrigin whomKind whomSince whomStamp whomClock whomFrom whomAge whomRunDir whomLine whomAll=0 whomDone=0 whomDoing=""
 	whomSession="$( LC_ALL=C sed -n 's/^session=//p' "$1" 2> /dev/null | LC_ALL=C sed -n 1p )"
 	whomOrigin="$( LC_ALL=C sed -n 's/^origin=//p' "$1" 2> /dev/null | LC_ALL=C sed -n 1p )"
 	whomKind="$( LC_ALL=C sed -n 's/^kind=//p' "$1" 2> /dev/null | LC_ALL=C sed -n 1p )"
@@ -101,8 +101,16 @@ rigQueueTicketWhom(){ ## ticket file -- that phrase
 		whomClock="$( date +%s )" || whomClock=0
 		whomAge="in the line for $(( whomClock - whomStamp ))s"
 	fi
-	printf 'the %s of session %s%s, %s' \
-		"$( [ "$whomKind" = check ] && printf 'check' || printf 'run' )" "${whomSession:-nobody}" "$whomFrom" "$whomAge"
+	## a run at work says how far it is, after its age, so the waiter's "whom changed" test passes over it as it does over the age
+	whomRunDir="$( LC_ALL=C sed -n 's/^rundir=//p' "$1" 2> /dev/null | LC_ALL=C sed -n 1p )"
+	if [ -n "$whomRunDir" ] && [ -f "$whomRunDir/tests.list" ] ; then
+		while IFS= read -r whomLine ; do whomAll=$(( whomAll + 1 )) ; done < "$whomRunDir/tests.list"
+		[ ! -f "$whomRunDir/progress.txt" ] || while IFS= read -r whomLine ; do case "$whomLine" in PASS*|FAIL*) whomDone=$(( whomDone + 1 )) ;; esac ; done < "$whomRunDir/progress.txt"
+		whomDoing=", running: $whomDone of $whomAll checks done"
+		[ ! -f "$1.yield" ] || whomDoing=", its lanes given up between two checks: $whomDone of $whomAll checks done"
+	fi
+	printf 'the %s of session %s%s, %s%s' \
+		"$( [ "$whomKind" = check ] && printf 'check' || printf 'run' )" "${whomSession:-nobody}" "$whomFrom" "$whomAge" "$whomDoing"
 }
 
 ## A ticket ahead is given up rather than waited for in four cases: it names no session, the records say its session
@@ -113,7 +121,7 @@ rigQueueTicketWhom(){ ## ticket file -- that phrase
 ## `alive`, so a rule added here answers one of those two and never a word of its own: a sixth state word is a rule that
 ## loop makes invisible.
 rigQueueTicketState(){ ## ticket file -- `alive`, `own`, `gone`, `ended`, `stalled` or `held`
-	local ticketSession="" ticketSince="" ticketStamp ticketClock ticketAge ticketBeat="" ticketPid="" ticketPstart="" ticketWon="" ticketKey ticketValue ticketLine
+	local ticketSession="" ticketSince="" ticketStamp ticketClock ticketAge ticketBeat="" ticketPid="" ticketPstart="" ticketWon="" ticketKey ticketValue ticketLine ticketLane
 	local ticketHold=${MDAT_SUITE_QUEUE_HOLD_SECONDS:-21600} ticketStall=${MDAT_SUITE_QUEUE_STALL_SECONDS:-3600}
 	case "$ticketHold" in ''|*[!0123456789]*) ticketHold=21600 ;; esac
 	case "$ticketStall" in ''|*[!0123456789]*) ticketStall=3600 ;; esac
@@ -166,6 +174,14 @@ rigQueueTicketState(){ ## ticket file -- `alive`, `own`, `gone`, `ended`, `stall
 		''|*[!0123456789]*) ;;
 		*) [ "$(( ticketClock - ticketWon ))" -le "$ticketHold" ] && printf 'alive' || printf 'held' ; return 0 ;;
 	esac
+	## A run holding one of the machine's lanes is at work and not waiting, so its stale beat is no evidence that it stopped
+	## (AgentsRunTicketState). Lane 1 is the hand rule's lock in the workspace, the others are the machine's, each naming its session.
+	for ticketLane in "${rigQueueDir%/suite-queue}"/suite-lanes/lane.*/pid "${MMDAPP:-}/.local/temp/suite-run.lock/holder.txt" ; do
+		[ -f "$ticketLane" ] || continue
+		while IFS='=' read -r ticketKey ticketValue ; do
+			[ "$ticketKey" != session ] || [ "$ticketValue" != "$ticketSession" ] || { printf 'alive' ; return 0 ; }
+		done 2> /dev/null < "$ticketLane"
+	done
 	## A run that stopped waiting gives up the place a process alone would go on holding. A ticket with no beat at all
 	## carries no evidence that its holder stopped, so the hold limit above alone judges it.
 	[ -n "$ticketBeat" ] || { printf 'alive' ; return 0 ; }
@@ -187,26 +203,72 @@ rigQueueInsideRun(){ ## -- rc 0 when this check runs inside a run of the tests, 
 ## THE WALL-CLOCK LIMIT OF A CHECK (S12.14). A check started by hand takes its turn in the machine's line and holds it for as long as it likes,
 ## and the runner's own `-t` covers only the tests a run starts. So the turn sets a deadline for the check it was called by, and a check that
 ## stands still is ended by its own work rather than found by a person hours later. MDAT_SUITE_CHECK_LIMIT_SECONDS (900) is the limit.
-## A check inside a run takes no deadline of its own: the run's `-t` and its stall watch already cover it.
-## The deadline is set when this fixture is sourced, which is the first line of a check: a value made inside rigTempDir could not reach the
-## check, since that call is a command substitution.
-rigCheckDeadline=""
-[ -n "${MDAT_SUITE_QUEUE_TURN:-}" ] || rigCheckDeadline=$(( $( date +%s ) + ${MDAT_SUITE_CHECK_LIMIT_SECONDS:-900} ))
-rigCheckSecondsLeft(){ ## -- the seconds this check has left before its deadline, or 0 where none is set or it has passed
-	local leftSeconds
-	case "${rigCheckDeadline:-}" in
-		''|*[!0123456789]*) printf '0\n' ; return 0 ;;
-	esac
-	leftSeconds=$(( rigCheckDeadline - $( date +%s ) ))
+## THE LIMIT COUNTS FROM THE TURN, never from when the check was started: a check that waited in the line is given its whole limit.
+## The bound is a watch started where the turn is won (rigQueueTurn), since that call runs in a command substitution and nothing it sets can
+## reach the check. The turn writes the instant it was won on its own ticket, and rigCheckSecondsLeft reads it there.
+## A check inside a run takes no watch of its own: the run's `-t` and its stall watch already cover it.
+rigCheckLimitSeconds="${MDAT_SUITE_CHECK_LIMIT_SECONDS:-900}"
+case "$rigCheckLimitSeconds" in ''|*[!0123456789]*) rigCheckLimitSeconds=900 ;; esac
+## The watch of this check, kept so the check ends it: a watch outliving its check is a process left behind in a run.
+rigCheckWatchPid=""
+rigCheckSecondsLeft(){ ## -- the seconds this check has left before its limit, or 0 where none is set or it has passed
+	local leftTicket leftWon="" leftSeconds
+	if [ -z "${MDAT_SUITE_QUEUE_TURN:-}" ] ; then
+		for leftTicket in "$rigQueueDir"/*".$$.ticket" ; do
+			[ -f "$leftTicket" ] || continue
+			leftWon="$( LC_ALL=C sed -n 's/^turn-won=//p' "$leftTicket" 2> /dev/null | LC_ALL=C sed -n 1p )"
+			case "$leftWon" in ''|*[!0123456789]*) leftWon="" ;; esac
+		done
+	fi
+	case "$leftWon" in ''|*[!0123456789]*) printf '0\n' ; return 0 ;; esac
+	leftSeconds=$(( leftWon + rigCheckLimitSeconds - $( date +%s ) ))
 	[ "$leftSeconds" -ge 0 ] || leftSeconds=0
 	printf '%s\n' "$leftSeconds"
+}
+
+## The watch. It is a function so the helper's path is read while this file is the one running: inside the process it starts, a path read
+## from BASH_SOURCE would be the calling check's own folder. It is disowned so a check's own bare `wait` waits for its own work, never
+## for the watch, and its pid is kept so the check may end it (rigCheckWatchEnd).
+rigCheckWatch(){ ## pid -- the check whose turn was just won
+	local watchPid="$1" watchHelper watchLeft watchChunk
+	watchHelper="$( dirname "${BASH_SOURCE[0]}" )/rig-processes.include.sh"
+	( trap '' TERM
+	  type rigProcNote > /dev/null 2>&1 || . "$watchHelper" || exit 1
+	  rigProcNote "$watchPid"
+	  watchLeft="$rigCheckLimitSeconds"
+	  while [ "$watchLeft" -gt 0 ] ; do
+			watchChunk=30 ; [ "$watchLeft" -ge "$watchChunk" ] || watchChunk="$watchLeft"
+			sleep "$watchChunk"
+			watchLeft=$(( watchLeft - watchChunk ))
+			[ -n "$( rigProcStill "$watchPid" )" ] || exit 0
+	  done
+	  printf '⛔ ERROR: %s: overran its wall-clock limit of %ss (MDAT_SUITE_CHECK_LIMIT_SECONDS) and is ended here\n' "$0" "$rigCheckLimitSeconds" >&2
+	  ## the check, then what it started: this watch runs under the check, so a signal reaching it comes after the check's own
+	  rigProcSignalWithChildren TERM "$watchPid"
+	  sleep 5
+	  rigProcSignalWithChildren KILL "$watchPid"
+	) > /dev/null < /dev/null &
+	rigCheckWatchPid=$!
+	rigProcNote "$rigCheckWatchPid" 2> /dev/null || :
+	disown "$rigCheckWatchPid" 2> /dev/null || :
+}
+
+rigCheckWatchEnd(){ ## -- ends this check's watch, where one is running: a watch left behind would be a process a run reports as leaked
+	local endHelper
+	[ -n "$rigCheckWatchPid" ] || return 0
+	if ! type rigProcSignal > /dev/null 2>&1 ; then
+		endHelper="$( dirname "${BASH_SOURCE[0]}" )/rig-processes.include.sh"
+		. "$endHelper" 2> /dev/null || return 0
+	fi
+	rigProcSignal TERM "$rigCheckWatchPid" 2> /dev/null || :
+	rigCheckWatchPid=""
 }
 
 rigQueueTurn(){ ## -- waits its turn in the machine's line; says once in one line whom it waits behind
 	local turnStamp turnTicket turnFile turnAhead turnWhom turnState turnSaid="" turnSleep rigQueueClock=""
 	## A test the runner started is inside the run's own turn (AgentsRunTests.sh exports MDAT_SUITE_QUEUE_TURN), and so is
 	## a check a test starts: taking a ticket there would wait behind a run that is itself waiting for this test, which is
-	## a deadlock of the whole line. The run's turn already covers everything under it.
+	## a deadlock of the whole line. The run's turn already covers everything under it, and sets no limit of its own.
 	[ -z "${MDAT_SUITE_QUEUE_TURN:-}" ] || return 0
 	rigQueueInsideRun && return 0
 	mkdir -p "$rigQueueDir" 2> /dev/null || {
@@ -229,6 +291,9 @@ rigQueueTurn(){ ## -- waits its turn in the machine's line; says once in one lin
 		## so a holder that stops beating gives up its place while its run lives, and the beat file stays one line
 		rigQueueClock="$( date +%s )" || rigQueueClock=""
 		printf '%s\n' "$rigQueueClock" > "$rigQueueDir/$turnTicket.beat" 2> /dev/null || :
+		## a beat whose ticket is gone is a leftover: a waiter pruned while it lived rewrites its beat once more, and nothing else
+		## would ever remove it
+		for turnFile in "$rigQueueDir"/*.ticket.beat "$rigQueueDir"/*.ticket.yield ; do [ ! -f "$turnFile" ] || [ -f "${turnFile%.*}" ] || rm -f "$turnFile" ; done
 		for turnFile in "$rigQueueDir"/*.ticket ; do
 			[ -f "$turnFile" ] || continue
 			[ "${turnFile##*/}" \< "$turnTicket" ] || continue
@@ -238,14 +303,22 @@ rigQueueTurn(){ ## -- waits its turn in the machine's line; says once in one lin
 				alive) ;;
 				*) ## `gone`, `ended`, `held` and `stalled`: a place given up, taken back here, and said of the ones a reader must know
 					[ "$turnState" = gone ] || echo "# $0: a place given up in the line, so this one stands no longer behind it: $( rigQueueTicketWhom "$turnFile" )" >&2
-					rm -f "$turnFile" "$turnFile.beat" ; continue
+					rm -f "$turnFile" "$turnFile.beat" "$turnFile.yield" ; continue
 				;;
 			esac
+			## A run that gave its lanes up between two checks is passed by until it takes them again (AgentsRunTests.sh).
+			[ ! -f "$turnFile.yield" ] || continue
 			turnAhead=$(( turnAhead + 1 ))
 			[ -n "$turnWhom" ] || turnWhom="$( rigQueueTicketWhom "$turnFile" )"
 		done
-		## the turn won: the holder is at work and beats no more, so its beat file goes; the ticket stays until a later waiter judges it gone
-		[ "$turnAhead" -gt 0 ] || { printf 'turn-won=%s\n' "${rigQueueClock:-$( date +%s )}" >> "$rigQueueDir/$turnTicket" 2> /dev/null || : ; rm -f "$rigQueueDir/$turnTicket.beat" 2> /dev/null ; break ; }
+		## the turn won: the holder is at work and beats no more, so its beat file goes; the ticket stays until a later waiter judges it gone.
+		## The limit counts from this instant, and is enforced from here (THE WALL-CLOCK LIMIT, above).
+		[ "$turnAhead" -gt 0 ] || {
+			printf 'turn-won=%s\n' "${rigQueueClock:-$( date +%s )}" >> "$rigQueueDir/$turnTicket" 2> /dev/null || :
+			rm -f "$rigQueueDir/$turnTicket.beat" 2> /dev/null
+			rigCheckWatch "$$"
+			break
+		}
 		## said once each time whom it waits behind changes: the age is left out of that comparison, since it moves every pass
 		if [ "${turnWhom%, in the line for *}" != "$turnSaid" ] ; then
 			echo "# $0: one check runs on this machine at a time -- this one waits its turn behind $turnWhom" >&2

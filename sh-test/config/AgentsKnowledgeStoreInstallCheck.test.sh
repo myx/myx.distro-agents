@@ -4,11 +4,9 @@
 ## setup.feature-lancedb, its fragment host/install/feature-lancedb.install.txt, whose own steps are not run here. The rig is an
 ## origin of links to the real one with that one fragment replaced by a stand-in (sh-test/check-fixtures/knowledge-store-install.feature.stub.sh),
 ## a HOME, a workspace, env -i for every call. No request leaves the rig and nothing is installed. Held:
-##   1. the store has a setting, MDAT_KNOWLEDGE_STORE, in the catalogue of the changeable settings (subject knowledge),
-##      off unless it is turned on, read from the environment and then the settings of the team, saved in those of the team
-##   2. with the setting off, which it is by default, the operation refuses, says so and how to turn it on, writes nothing and
-##      does not call the feature
-##   3. with it on, the feature is called once, with no argument, the workspace and the origin handed over; its standard output
+##   1. the store has no setting: no MDAT_KNOWLEDGE_STORE can be saved, and its install is all it takes
+##   2. with nothing set, the install calls the feature
+##   3. the feature is called once, with no argument, the workspace and the origin handed over; its standard output
 ##      (the Python of the environment, one line) and its messages are passed through, and its rc is the operation's
 ##   4. --from-folder <folder> is checked, made absolute and handed on; a missing folder, a missing value and any other option are
 ##      refused before the feature is called
@@ -55,14 +53,14 @@ cp "$rigFixDir/knowledge-store-install.feature.stub.sh" "$rigFeature"
 
 ## A scenario: its own workspace, HOME and log of the feature.
 rigNew(){ ## name
-	rigDir="$rigTmp/$1" ; rigSetting="" ; rigFeatureRc=0
+	rigDir="$rigTmp/$1" ; rigFeatureRc=0
 	mkdir -p "$rigDir/ws/.local" "$rigDir/home"
 	: > "$rigDir/feature.log"
 }
-rigRun(){ ## the tool's arguments; rigSetting and rigFeatureRc, where set, reach the call
+rigRun(){ ## the tool's arguments; rigFeatureRc, where set, reaches the call
 	rigRc=0
 	( cd "$rigTmp/cwd" && env -i HOME="$rigDir/home" PATH="/usr/bin:/bin:/usr/sbin:/sbin" MMDAPP="$rigDir/ws" MDLT_ORIGIN="$rigOrigin" MDLT_OPTION="--run-from-path $rigOrigin" \
-		RIG_FEATURE_LOG="$rigDir/feature.log" RIG_FEATURE_RC="$rigFeatureRc" ${rigSetting:+MDAT_KNOWLEDGE_STORE="$rigSetting"} \
+		RIG_FEATURE_LOG="$rigDir/feature.log" RIG_FEATURE_RC="$rigFeatureRc" \
 		bash "$rigTool" "$@" ) > "$rigDir/out" 2> "$rigDir/err" || rigRc=$?
 }
 rigTree(){ ## folder -- what stands below it, sorted, one line
@@ -75,31 +73,19 @@ rigCalls(){ ## -- how many times the feature was called
 	LC_ALL=C grep -c '^CALL' "$rigDir/feature.log" || :
 }
 
-echo "-- 1. the setting of the store, in the catalogue of the changeable settings --"
-rigNew digest
-rigRun --manager-config-digest knowledge
-rigAssert "the subject knowledge has one line, MDAT_KNOWLEDGE_STORE, off by default" "$( LC_ALL=C awk -F'\t' '$1 == "line" { print $2 " " $4 " " $5 " " $6 }' "$rigDir/out" )" "knowledge MDAT_KNOWLEDGE_STORE set off"
-rigRun --manager-config-digest --full knowledge
-rigAssert "in full it says it can be changed, a choice of off and on saved for the workspace, its value from the default, with a label and a description, of the settings" "$( LC_ALL=C awk -F'\t' '$1 == "line" { print $7 " " ( length( $8 ) > 40 ? "described" : "bare" ) " " $9 " " $10 " " $11 " " $12 " " $13 " " $15 }' "$rigDir/out" )" "Knowledge_Store_Switch described yes choice workspace default off=Off,on=On settings"
-rigSetting=on ; rigRun --manager-config-digest --full knowledge ; rigSetting=""
-rigAssert "set in the environment it reads on, from the environment" "$( LC_ALL=C awk -F'\t' '$1 == "line" { print $6 " " $12 }' "$rigDir/out" )" "on environment"
+echo "-- 1. the store has no setting: its install is all it takes --"
+rigNew no-setting
 rigRun --manager-config-set MDAT_KNOWLEDGE_STORE on
-rigAssert "it is saved in the settings of the team, which then hold it" "$( LC_ALL=C cut -f1-4 "$rigDir/out" | LC_ALL=C tr "\t" " " ) $( LC_ALL=C grep -c -x 'MDAT_KNOWLEDGE_STORE=on' "$rigDir/ws/.local/.agents/magic-team.agent.env" )" "saved MDAT_KNOWLEDGE_STORE on workspace 1"
-rigRun --manager-config-set MDAT_KNOWLEDGE_STORE maybe
-rigAssert "any other value is refused and nothing is saved" "$( [ "$rigRc" -ne 0 ] && printf refused ) $( LC_ALL=C grep -c -x 'MDAT_KNOWLEDGE_STORE=on' "$rigDir/ws/.local/.agents/magic-team.agent.env" )" "refused 1"
+rigAssert "no setting of that name: refused, and nothing is saved" "$( [ "$rigRc" -ne 0 ] && printf refused ) $( cat "$rigDir/ws/.local/.agents/magic-team.agent.env" 2> /dev/null | LC_ALL=C grep -c 'MDAT_KNOWLEDGE_STORE' )" "refused 0"
 
-echo "-- 2. with the setting off, which it is by default, nothing is installed --"
-rigNew off
+echo "-- 2. with nothing set, the install calls the feature --"
+rigNew plain
 rigRun --install-knowledge-store
-rigAssert "refused, rc non-zero, it says the store is off and how to turn it on, the feature not called, nothing written" "$( [ "$rigRc" -ne 0 ] && printf refused ) $( LC_ALL=C grep -c -F -e 'MDAT_KNOWLEDGE_STORE' -e 'is off' "$rigDir/err" | LC_ALL=C sed -e 's/^[1-9][0-9]*$/said/' ) $( rigCalls ) [$( rigLocalTree "$rigDir/ws/.local" )]" "refused said 0 []"
-rigSetting=off ; rigRun --install-knowledge-store ; rigSetting=""
-rigAssert "set to off, the same" "$( [ "$rigRc" -ne 0 ] && printf refused ) $( rigCalls )" "refused 0"
-rigSetting=yes ; rigRun --install-knowledge-store ; rigSetting=""
-rigAssert "a word that is no value of the setting is off too" "$( [ "$rigRc" -ne 0 ] && printf refused ) $( rigCalls )" "refused 0"
+rigAssert "rc 0, and the feature was called once" "$rigRc $( rigCalls )" "0 1"
 
-echo "-- 3. with it on: the feature is called, its output passed through, its rc returned --"
+echo "-- 3. the feature is called, its output passed through, its rc returned --"
 rigNew on
-rigSetting=on ; rigRun --install-knowledge-store
+rigRun --install-knowledge-store
 rigAssert "rc 0, and standard output is the Python the feature printed, one line, unchanged" "$rigRc $( LC_ALL=C cat "$rigDir/out" | LC_ALL=C sed -e "s|$rigDir/ws/||" )" "0 .local/lancedb/venv/bin/python"
 rigAssert "the messages of the feature are on standard error, unchanged" "$( LC_ALL=C grep -c -x 'setup.feature-lancedb: the stand-in said this' "$rigDir/err" )" 1
 rigAssert "the feature was called once, with no argument, the workspace and the origin handed over" "$( rigCalls ) $( LC_ALL=C grep -c -x 'CALL' "$rigDir/feature.log" ) $( LC_ALL=C grep -c -x "ENV MMDAPP=$rigDir/ws" "$rigDir/feature.log" ) $( LC_ALL=C grep -c -x "ENV MDLT_ORIGIN=$rigOrigin" "$rigDir/feature.log" )" "1 1 1 1"
@@ -108,15 +94,15 @@ rigAssert "nothing else is written by the operation: the home of the rig is empt
 echo "-- 4. --from-folder --"
 mkdir -p "$rigTmp/carried"
 rigNew from
-rigSetting=on ; rigRun --install-knowledge-store --from-folder "$rigTmp/carried"
+rigRun --install-knowledge-store --from-folder "$rigTmp/carried"
 rigAssert "a folder is handed on, absolute, with the option" "$rigRc $( rigCalls ) $( LC_ALL=C grep -c -x "CALL --from-folder $rigTmp/carried" "$rigDir/feature.log" )" "0 1 1"
 rigNew from-relative
-rigSetting=on ; ( cd "$rigTmp" && rigRc=0 && env -i HOME="$rigDir/home" PATH="/usr/bin:/bin:/usr/sbin:/sbin" MMDAPP="$rigDir/ws" MDLT_ORIGIN="$rigOrigin" MDLT_OPTION="--run-from-path $rigOrigin" RIG_FEATURE_LOG="$rigDir/feature.log" RIG_FEATURE_RC=0 MDAT_KNOWLEDGE_STORE=on bash "$rigTool" --install-knowledge-store --from-folder carried > "$rigDir/out" 2> "$rigDir/err" )
+( cd "$rigTmp" && rigRc=0 && env -i HOME="$rigDir/home" PATH="/usr/bin:/bin:/usr/sbin:/sbin" MMDAPP="$rigDir/ws" MDLT_ORIGIN="$rigOrigin" MDLT_OPTION="--run-from-path $rigOrigin" RIG_FEATURE_LOG="$rigDir/feature.log" RIG_FEATURE_RC=0 bash "$rigTool" --install-knowledge-store --from-folder carried > "$rigDir/out" 2> "$rigDir/err" )
 rigAssert "a relative folder is made absolute before it is handed on" "$( LC_ALL=C grep -c -x "CALL --from-folder $rigTmp/carried" "$rigDir/feature.log" )" 1
 rigRefuseCase(){ ## label, what the message names, the arguments
 	local caseLabel="$1" caseNames="$2"
 	shift 2
-	rigNew "refuse-${caseLabel// /-}" ; rigSetting=on
+	rigNew "refuse-${caseLabel// /-}"
 	rigRun --install-knowledge-store "$@"
 	rigAssert "$caseLabel: refused, rc non-zero, it names $caseNames, the feature not called, nothing written" "$( [ "$rigRc" -ne 0 ] && printf refused ) $( LC_ALL=C grep -c -F -e "$caseNames" "$rigDir/err" | LC_ALL=C sed -e 's/^[1-9][0-9]*$/named/' ) $( rigCalls ) [$( rigLocalTree "$rigDir/ws/.local" )]" "refused named 0 []"
 }
@@ -126,16 +112,16 @@ rigRefuseCase "another option" "invalid option" --nonsense
 
 echo "-- 5. the rc of the feature is the rc of the operation --"
 rigNew rc-1
-rigSetting=on ; rigFeatureRc=1 ; rigRun --install-knowledge-store
+rigFeatureRc=1 ; rigRun --install-knowledge-store
 rigAssert "1, refused or failed: rc 1, nothing on standard output, the message passed through" "$rigRc [$( LC_ALL=C cat "$rigDir/out" )] $( LC_ALL=C grep -c -x 'setup.feature-lancedb: the stand-in said this' "$rigDir/err" )" "1 [] 1"
 rigNew rc-3
-rigSetting=on ; rigFeatureRc=3 ; rigRun --install-knowledge-store
+rigFeatureRc=3 ; rigRun --install-knowledge-store
 rigAssert "3, this platform is not covered: rc 3, nothing on standard output, the store stays off" "$rigRc [$( LC_ALL=C cat "$rigDir/out" )] $( rigCalls )" "3 [] 1"
 
 echo "-- 6. a feature that is not in the origin --"
 rigNew no-feature
 mv "$rigFeature" "$rigFeature.away"
-rigSetting=on ; rigRun --install-knowledge-store
+rigRun --install-knowledge-store
 mv "$rigFeature.away" "$rigFeature"
 rigAssert "refused, rc non-zero, it names the feature, and the store stays off" "$( [ "$rigRc" -ne 0 ] && printf refused ) $( LC_ALL=C grep -c -F 'setup.feature-lancedb' "$rigDir/err" | LC_ALL=C sed -e 's/^[1-9][0-9]*$/named/' ) $( LC_ALL=C grep -c -i 'stays off' "$rigDir/err" | LC_ALL=C sed -e 's/^[1-9][0-9]*$/off/' ) $( rigCalls )" "refused named off 0"
 

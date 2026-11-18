@@ -3,7 +3,7 @@
 ## AgentsTools.ContextScanComms.include -- the comms block of the --intern-op-session-context-scan op, moved unchanged into one function and loaded only when comms are asked for.
 
 AgentsToolsContextScanComms(){
-			local commsItemsAwk="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsSessionContextCommsItems.awk"
+			local commsItemsAwk="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsSessionContextCommsItems.awk"
 
 			local sessionContextCapIm=128 sessionContextCapEmail=128 sessionContextCapTrello=64
 			local sessionContextThreadContextBefore=3
@@ -570,7 +570,7 @@ AgentsToolsContextScanComms(){
 						parseRaw="$( cat "$sourcePrefetchDir/raw.$1" 2>/dev/null )" || parseRaw=""
 						parseJson="$( printf '%s\n' "$parseRaw" | sed '1d' )"
 						parseRaw=""
-						parseRows="$( printf '%s\n' "$parseJson" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsSessionContextDmIdentityMap.awk" | sort -u )"
+						parseRows="$( printf '%s\n' "$parseJson" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsSessionContextDmIdentityMap.awk" | sort -u )"
 						[ -z "$parseRows" ] || printf '%s\n' "$parseRows" > "$sourcePrefetchDir/idmap.$1"
 						parseBlocks="$( printf '%s\n' "$parseJson" | LC_ALL=C awk -v kind=slack -v source="$fetchLabel" -v channel="$fetchChannel" -f "$commsItemsAwk" )" || parseFail="items"
 						## Trimmed against THIS source's resume point, the same value the
@@ -763,7 +763,7 @@ AgentsToolsContextScanComms(){
 
 				if [ "$commsMemberScopeOnly" != "true" ] && [ ${#matchedFiles[@]} -gt 0 ] ; then
 					local boardThreads
-					boardThreads="$( LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsSessionContextBoardThreadIds.awk" ${matchedFiles[@]+"${matchedFiles[@]}"} )" || boardThreads=""
+					boardThreads="$( LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsSessionContextBoardThreadIds.awk" ${matchedFiles[@]+"${matchedFiles[@]}"} )" || boardThreads=""
 					[ -z "$boardThreads" ] || boardThreads="$( printf '%s\n' "$boardThreads" | sort -u )"
 					while IFS= read -r dt ; do
 						[ -n "$dt" ] || continue
@@ -1263,7 +1263,7 @@ AgentsToolsContextScanComms(){
 						"$imSourcesScanned" "$imSourcesTotal" "$imInstrument"
 				else
 					local imRendered=""
-					imRendered="$( printf '%s' "$imBlocks" | IM_SOURCE_RESUME="$imSourceResume" LC_ALL=C awk -v cap="$sessionContextCapIm" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsSessionContextImRender.awk" )" || {
+					imRendered="$( printf '%s' "$imBlocks" | IM_SOURCE_RESUME="$imSourceResume" LC_ALL=C awk -v cap="$sessionContextCapIm" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsSessionContextImRender.awk" )" || {
 						imRendered=""
 						printf 'conversations: unknown -- the grouping/cap filter failed\n'
 						printf '**NOTE:** partial -- the conversation grouping/cap filter failed; IM item blocks are omitted from this document, though their sources WERE read and are counted in sources-scanned above\n\n'

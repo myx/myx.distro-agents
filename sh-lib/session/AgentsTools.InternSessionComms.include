@@ -105,6 +105,13 @@ case "$1" in
 			[ "$commsRc" = 0 ] || return "$commsRc"
 			commsSaidStart="$( AgentsToolsSessionCommsStart )" || :
 			echo "# $MDSC_CMD --intern-session-comms --inject: the reader: ${commsSaidStart:-no answer}" >&2
+			## THE READER IS THE WORKSPACE'S, NOT THE ADDRESSEE: a message to a run that has ended is stored and read by nobody until a
+			## run of that member starts there again, so each addressee with no live run in the session is said, with the way to restart it.
+			type AgentsToolsRunRouteAvailable > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.RunRoute.include"
+			local commsTarget
+			for commsTarget in ${commsTo//,/ } ; do
+				AgentsToolsRunRouteAvailable "$commsSession" "$commsTarget" "" || echo "🙋 WARNING: $MDSC_CMD --intern-session-comms --inject: no live run of $commsTarget in session $commsSession reads this message: it is stored, and read only when a run of $commsTarget starts there again. A run that handed back is restarted with its message by --return-review." >&2
+			done
 			return 0
 		fi
 

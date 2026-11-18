@@ -43,6 +43,7 @@ AgentsToolsSuperviseFault(){ ## <run-id> --owner <member> --title <text> [--from
 	case "$faultBody" in *[![:space:]]*) ;; *) echo "$MDSC_CMD: ⛔ ERROR: --supervise-fault: the evidence is empty -- nothing was filed" >&2 ; return 1 ;; esac
 	type AgentsToolsSpawnRecord > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunRecords.include"
 	type AgentsToolsFrontmatterKey > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.FrontmatterKey.include"
+	AgentsToolsSuperviseRunIdInto faultRun "$faultRun" || return 1
 	faultRecord="$( MMDAPP="$faultWs" AgentsToolsSpawnRecord "$faultRun" )"
 	[ -n "$faultRecord" ] || { echo "$MDSC_CMD: ⛔ ERROR: --supervise-fault: no record of this workspace carries the run $faultRun" >&2 ; return 1 ; }
 	faultFolder="${faultRecord%/*}"

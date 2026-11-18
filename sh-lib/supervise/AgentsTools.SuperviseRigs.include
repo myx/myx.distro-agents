@@ -1,0 +1,56 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.SuperviseRigs.include -- THE RIGS THE TEAM RUNS: every workspace whose settings make it a team rig, beside its owner
+## account. One implementation, two readers: the scan's pass with no --workspace and the coordinator's --supervise-rigs operation, which
+## the supervision routine's first step reads. Sourced, never run; functions only.
+##
+## A RIG IS THE WORKSPACE THAT RUNS THE TEAM'S DUTIES, which is the mode `team-rig` of its `magic-team` scope (AgentsToolsWorkspaceMode):
+## one workspace of a machine keeps a board, an inbox, an audit and a team-data store, and runs the duties on them. A workspace naming an
+## owner account but running no schedule is no rig, and neither is one that runs a schedule for no owner. The roots are the places list's
+## own workspace rows (LocalToolsPlacesMergedText), this workspace's first; the mode test settles the rest.
+##
+## The owner account is `SLACK_CHANNEL_HUMAN_OWNER` of the same scope, in the account-id form every send and every ask reads it, and it is
+## what each rig's own conversation with its owner is read by. A rig naming none is still a rig: it prints `-` there and is scanned.
+##
+
+## Whether a workspace is a rig: rc 0 where it is, rc 1 where it is not. The caller's own workspace is read as every operation reads it,
+## the environment default included; any other workspace is read from its own settings alone, since that default names the caller's mode
+## and would answer for every other workspace read with it.
+AgentsToolsSuperviseRigIs(){ ## workspace
+	local rigMode=""
+	type AgentsToolsWorkspaceMode > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataGate.include"
+	if [ "${1%/}" = "${MMDAPP%/}" ] ; then
+		rigMode="$( MMDAPP="${1%/}" AgentsToolsWorkspaceMode 2> /dev/null )" || rigMode=""
+	else
+		rigMode="$( unset MDAT_WORKSPACE_MODE ; MMDAPP="${1%/}" AgentsToolsWorkspaceMode 2> /dev/null )" || rigMode=""
+	fi
+	[ "${rigMode%% *}" = team-rig ]
+}
+
+## The owner account of one rig, on stdout; rc 1, nothing printed, where its team settings name none.
+AgentsToolsSuperviseRigOwner(){ ## workspace
+	local rigOwner=""
+	type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/settings/AgentsTools.ConfigOption.include"
+	rigOwner="$( MMDAPP="${1%/}" AgentsToolsConfigOption magic-team --select SLACK_CHANNEL_HUMAN_OWNER 2> /dev/null )" || rigOwner=""
+	case "$rigOwner" in [UW][A-Z0-9]*) ;; *) return 1 ;; esac
+	printf '%s\n' "$rigOwner"
+}
+
+## Every rig this machine runs, on stdout, `<root><TAB><owner account or ->` a line, each root once, the caller's own workspace first.
+AgentsToolsSuperviseRigs(){ ## workspace
+	local rigsHere="${1%/}" rigsRoot rigsOwner rigsSeen=$'\n'
+	type LocalToolsPlacesMergedText > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/places/LocalTools.Places.include"
+	while IFS= read -r rigsRoot ; do
+		[ -n "$rigsRoot" ] || continue
+		case "$rigsSeen" in *$'\n'"$rigsRoot"$'\n'*) continue ;; esac
+		rigsSeen="$rigsSeen$rigsRoot"$'\n'
+		AgentsToolsSuperviseRigIs "$rigsRoot" || continue
+		rigsOwner="$( AgentsToolsSuperviseRigOwner "$rigsRoot" )" || rigsOwner=""
+		printf '%s\t%s\n' "$rigsRoot" "${rigsOwner:--}"
+	done <<< "$( {
+		[ -z "$rigsHere" ] || printf '%s\n' "$rigsHere"
+		LocalToolsPlacesMergedText "$rigsHere" quiet | LC_ALL=C awk -F'\t' '$2 == "workspace" && $4 ~ /^\// { print $4 ; }'
+	} )"
+}

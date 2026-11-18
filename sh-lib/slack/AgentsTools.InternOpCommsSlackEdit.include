@@ -114,6 +114,18 @@ case "$1" in
 			## Over a limit it is a correction for the sender to make (rc 6), as for the send.
 			type AgentsToolsOutputStyleRefusal > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.OutputStyle.include"
 			printf '%s' "$sourceText" | AgentsToolsOutputStyleRefusal "$memberName" "$textGroup" "$target" "" "word-cap semicolon paragraph-gate" || { local editFloorRc=$? ; set +e ; return "$editFloorRc" ; }
+			## A RELAY THAT SAYS A FILE WAS APPLIED NAMES ITS TREE AND READS IT BACK (task-20261117T2241Z): the send carries
+			## this gate, and an edit that skipped it would be the way a report without its path reaches the reader anyway.
+			if [ "$textGroup" = "relay" ] ; then
+				type AgentsToolsApplyReportFaults > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.ApplyReport.include"
+				local editApplyFaults="" editApplyRc=0
+				editApplyFaults="$( printf '%s\n' "$sourceText" | AgentsToolsApplyReportFaults )" || editApplyRc=$?
+				if [ "$editApplyRc" != 0 ] ; then
+					echo "⛔ ERROR: $MDSC_CMD --slack-edit-message: this relay says a file was applied, and it does not give that file its absolute path and its read-back. Nothing was posted. A line names the file absolute path, the workspace it belongs to, and a read-back (cmp against the staged file, or its hash). What is missing:" >&2
+					printf '%s\n' "$editApplyFaults" >&2
+					set +e ; return 1
+				fi
+			fi
 			local resolved rc channel threadTs
 			type DistroAgentsToolsResolveTarget > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsResolveTarget.include"
 			resolved="$( DistroAgentsToolsResolveTarget "$target" "$memberName" )" && rc=0 || rc=$?

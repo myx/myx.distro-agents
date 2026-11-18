@@ -312,13 +312,16 @@ AgentsHarnessToolWriteRun(){
 	## new one and never half of it. `cp -p` first gives the temp the target's own mode.
 	toolTemp="$( dirname -- "$toolPath" )/.$( basename -- "$toolPath" ).mdat-write.$$"
 	if [ -e "$toolPath" ] && ! cp -p "$toolPath" "$toolTemp" 2>/dev/null ; then
+		type AgentsToolsLocalLockGive > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.LocalLock.include"
 		rm -f "$toolTemp" ; AgentsToolsLocalLockGive "$toolLock"
 		printf 'ERROR: could not write: %s\n' "$toolPath" ; return 0
 	fi
 	if ! printf '%s' "$toolContent" > "$toolTemp" || ! mv -f "$toolTemp" "$toolPath" ; then
+		type AgentsToolsLocalLockGive > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.LocalLock.include"
 		rm -f "$toolTemp" ; AgentsToolsLocalLockGive "$toolLock"
 		printf 'ERROR: could not write: %s\n' "$toolPath" ; return 0
 	fi
+	type AgentsToolsLocalLockGive > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.LocalLock.include"
 	AgentsToolsLocalLockGive "$toolLock"
 	printf 'OK: wrote %s\n' "$toolPath"
 }
@@ -433,10 +436,12 @@ AgentsHarnessToolEditRun(){
 		fi
 		editsSeen="$editsSeen${editsSeen:+ }$toolCount"
 		if [ "$toolCount" = "0" ] ; then
+			type AgentsToolsLocalLockGive > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.LocalLock.include"
 			AgentsToolsLocalLockGive "$toolLock"
 			printf 'ERROR: %sold_string not found in %s -- nothing was written\n' "$editsWhere" "$toolPath" ; return 0
 		fi
 		if [ -z "${editsAll[$editsIndex]}" ] && [ "$toolCount" != "1" ] ; then
+			type AgentsToolsLocalLockGive > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.LocalLock.include"
 			AgentsToolsLocalLockGive "$toolLock"
 			printf 'ERROR: %sold_string occurs %s times in %s -- it must identify exactly one place. Nothing was written; extend old_string until it is unique, or pass replace_all to change every occurrence.\n' "$editsWhere" "$toolCount" "$toolPath" ; return 0
 		fi
@@ -456,6 +461,7 @@ AgentsHarnessToolEditRun(){
 				printf "%s%s", outText, scanRest
 			}
 		' "$editsSource" > "$editsOut" 2>/dev/null ; then
+			type AgentsToolsLocalLockGive > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.LocalLock.include"
 			AgentsToolsLocalLockGive "$toolLock"
 			printf 'ERROR: %scould not rewrite: %s -- nothing was written\n' "$editsWhere" "$toolPath" ; return 0
 		fi
@@ -465,6 +471,7 @@ AgentsHarnessToolEditRun(){
 	done
 	## A MAGIC.md CHANGES THROUGH ITS OPERATION ALONE (S10.23), as for Write: refused by its name, nothing written.
 	case "${toolPath##*/}" in MAGIC.md)
+		type AgentsToolsLocalLockGive > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.LocalLock.include"
 		AgentsToolsLocalLockGive "$toolLock"
 		AgentsHarnessRefusal Edit "$toolPath" "ERROR: a MAGIC.md changes through DistroAgentsKnowledge --magic-section-upsert <path> --section <heading> alone, one section a call, never Write or Edit (S10.23) -- nothing was written: $toolPath" ; return 0
 	;; esac
@@ -473,6 +480,7 @@ AgentsHarnessToolEditRun(){
 		*/skillset/magic-team/*/incoming/*|*/skillset/magic-team/*/processed/*) ;;
 		*/skillset/magic-team/*)
 			case "${harnessAgent:-}" in magic-librarian|magic-coordinator|'') ;; *)
+				type AgentsToolsLocalLockGive > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.LocalLock.include"
 				AgentsToolsLocalLockGive "$toolLock"
 				AgentsHarnessRefusal Edit "$toolPath" "ERROR: a skillset file changes by its maintainers' agreement and magic-librarian writes it: put the change, with what it measured, into an inquiry to magic-librarian -- nothing was written: $toolPath" ; return 0
 			;; esac
@@ -485,9 +493,11 @@ AgentsHarnessToolEditRun(){
 	## the file as it stands under the lock, which is what the change was worked out from.
 	if [ -n "$toolHeld" ] ; then
 		if ! cp "$toolPath" "$harnessScratch/change.base" 2>/dev/null || ! cp "$editsSource" "$harnessScratch/change.result" 2>/dev/null ; then
+			type AgentsToolsLocalLockGive > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.LocalLock.include"
 			AgentsToolsLocalLockGive "$toolLock"
 			printf 'ERROR: could not keep the change to hold it, so nothing is held and nothing was written: %s\n' "$toolPath" ; return 0
 		fi
+		type AgentsToolsLocalLockGive > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.LocalLock.include"
 		AgentsToolsLocalLockGive "$toolLock"
 		AgentsHarnessChangeHold Edit "$toolPath" "$harnessScratch/change.base" "$harnessScratch/change.result" "$6" "$editsSeen"
 		return 0
@@ -495,9 +505,11 @@ AgentsHarnessToolEditRun(){
 	## Replaced by rename, as Write does, so no reader ever sees a half-written file.
 	toolTemp="$( dirname -- "$toolPath" )/.$( basename -- "$toolPath" ).mdat-edit.$$"
 	if ! cp -p "$toolPath" "$toolTemp" 2>/dev/null || ! cat "$editsSource" > "$toolTemp" || ! mv -f "$toolTemp" "$toolPath" ; then
+		type AgentsToolsLocalLockGive > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.LocalLock.include"
 		rm -f "$toolTemp" ; AgentsToolsLocalLockGive "$toolLock"
 		printf 'ERROR: could not write: %s\n' "$toolPath" ; return 0
 	fi
+	type AgentsToolsLocalLockGive > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.LocalLock.include"
 	AgentsToolsLocalLockGive "$toolLock"
 	if [ -n "$editsListed" ] ; then
 		printf 'OK: applied %s edit(s) in %s%s\n' "$editsCount" "$toolPath" "${editsNote:+ -- $editsNote}"

@@ -58,7 +58,7 @@ AgentsWaitCoveredSet(){ ## member, sources...
 
 ## The tooling's own posts out of a rendering file, in place, for a member: a tracking post is no input to it (AgentsTools.TrackingDrop.include).
 AgentsWaitTrackingDropFile(){ ## member, a rendering file
-	type AgentsToolsTrackingDrop > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.TrackingDrop.include"
+	type AgentsToolsTrackingDrop > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/wait/AgentsTools.TrackingDrop.include"
 	[ -f "$2" ] || return 0
 	AgentsToolsTrackingDrop "$1" < "$2" > "$2.nt" 2> /dev/null || { rm -f "$2.nt" ; return 0 ; }
 	## The drop read as much as it took away: the file stands as it is, unwritten.

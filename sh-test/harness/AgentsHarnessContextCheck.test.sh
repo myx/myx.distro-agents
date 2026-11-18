@@ -16,7 +16,7 @@ set -u
 rigHere="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib"
 rigTest="${rigHere%/sh-lib}/sh-test"
 rigHarness="$rigHere/harness/AgentsUniversalHarness.sh"
-rigAwk=( -f "$rigHere/harness/AgentsHarnessJsonField.awk" -f "$rigHere/session/AgentsSessionTranscriptFormat.awk" -f "$rigHere/harness/AgentsHarnessContextTranscript.awk" )
+rigAwk=( -f "$rigHere/harness/AgentsHarnessJsonField.awk" -f "$rigHere/transcript/AgentsSessionTranscriptFormat.awk" -f "$rigHere/harness/AgentsHarnessContextTranscript.awk" )
 
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1

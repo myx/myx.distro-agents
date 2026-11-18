@@ -186,6 +186,7 @@ AgentsToolsPermissionSetApply(){ ## <pending-id> <approver>
 	## On the item's Decisions once: the line of this request, there already, is not written again.
 	## A set that names no item -- a session's own calls, asked with no board item to record
 	## them on (--intern-op-escalation-permission-add) -- has no Decisions.
+	type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 	[ -z "$applySetItem" ] \
 	|| { applySetPath="$( AgentsToolsDecisionsItemPath "$applySetItem" 2>/dev/null )" && LC_ALL=C grep -F -- "permission set approved for the " "$applySetPath" 2>/dev/null | LC_ALL=C grep -q -F -- "($applySetId)" ; } \
 	|| DistroAgentsTools --intern-op-decisions-append "$applySetBy" "$applySetItem" --kind verdict \

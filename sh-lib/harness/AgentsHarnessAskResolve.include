@@ -253,6 +253,7 @@ AgentsHarnessAskResolve(){ ## pending reply id, kind, question tag, wait output,
 ## What the asker of a returned question is told: the hint of its tool's own template
 ## (`# Returned`), saying what the reply may mean, with the exact call of each way on.
 AgentsHarnessAskReturnedHint(){ ## pending reply id, kind, answer form (empty for none), the tool name as called (empty: the tool of that kind)
+	type AgentsToolsAskKindRow > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.AskPost.include"
 	type AgentsHarnessAskPost > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessAskPost.include"
 	local hintId="${1:-<none>}" hintTool="${4:-}" hintThread="" hintReadback="" hintText=""
 	AgentsHarnessAskPost && AgentsToolsAskKindRow "$2" || return 0

@@ -51,7 +51,7 @@ printf 'rig\n' > "$rigSkills/keeper-rig/keeper-rig.basic.md"
 ## The rig's own store, named as the owner names one: an absolute path in its magic-coordinator scope.
 printf 'TEAM_DATA_DIRECTORY=%s\n' "$rigRigStore" > "$rigRig/.local/.agents/magic-coordinator.agent.env"
 for rigWs in "$rigHere" "$rigRig" ; do
-	printf 'SLACK_BOT_TOKEN=rig-bot-token-TEAM\nSLACK_CHANNEL_MAGIC_TEAM=CRIG00001\nSPAWN_TIER_NORMAL=rig-cli\n' > "$rigWs/.local/.agents/magic-team.agent.env"
+	printf 'SLACK_BOT_TOKEN=rig-bot-token-TEAM\nSLACK_CHANNEL_MAGIC_TEAM=CRIG00001\nMDAT_WORKSPACE_MODE=team-rig\nSPAWN_TIER_NORMAL=rig-cli\n' > "$rigWs/.local/.agents/magic-team.agent.env"
 	printf 'PRESET_CLI_SERVICE=rig-cli\n' > "$rigWs/.local/.agents/preset-rig-cli.agent.env"
 done
 rigHost="$( hostname -s 2> /dev/null )" ; [ -n "$rigHost" ] || rigHost=unknown

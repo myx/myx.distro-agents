@@ -90,7 +90,20 @@ AgentsToolsRoutineHandles(){ ## routine file, type
 }
 
 AgentsToolsBoardItemKey(){ ## item file, key -- its frontmatter value
-	LC_ALL=C awk -v key="$2" 'NR == 1 { if ($0 != "---") exit ; next } $0 == "---" { exit } index($0, key ": ") == 1 { print substr($0, length(key) + 3) ; exit }' "$1"
+	type AgentsToolsFrontmatterKey > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.FrontmatterKey.include"
+	AgentsToolsFrontmatterKey "$1" "$2"
+}
+
+## THE GO OF AN ITEM'S EPIC: the item carries `epic:`, and the go is read live from that blueprint, so one approval
+## stands for every child and no child carries a copy of it.
+AgentsToolsBoardItemEpicGo(){ ## item file -- its epic blueprint's approved-by, and nothing where that carries none
+	local epicName=""
+	epicName="$( AgentsToolsBoardItemKey "$1" epic )"
+	[ -n "$epicName" ] || return 1
+	type AgentsToolsVaultItemKey > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/vault/AgentsTools.VaultPlace.include"
+	## A name given with no extension is the Markdown document of that name (the ruling in AgentsTools.InternOpVaultAudit.include).
+	case "$epicName" in *.*) ;; *) epicName="$epicName.md" ;; esac
+	AgentsToolsVaultItemKey "$epicName" approved-by
 }
 
 AgentsToolsBoardItemHandler(){ ## item file, [--at-gate]

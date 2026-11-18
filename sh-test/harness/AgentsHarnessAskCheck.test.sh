@@ -443,13 +443,13 @@ rigAssert "and says wait=false was ignored"               "$( rigHolds "$rigScen
 rigAssert "control: waited without it, no such line"      "$( rigHolds "$rigTmp/readback-yes/out" 'wait=false was ignored' )" no
 rigVerdict "an escalation always waits -- wait=false is overridden and said so"
 
-rigStart readback-correct
-rigReplies "" ',{"ts":"1700000001.000200","user":"URIGOWNER","text":"correct: use tag v2 instead","thread_ts":"1700000001.000101"}'
+rigStart readback-edit
+rigReplies "" ',{"ts":"1700000001.000200","user":"URIGOWNER","text":"edit: use tag v2 instead","thread_ts":"1700000001.000101"}'
 rigAsk 30 "{\"to\":\"magic-team\",\"question\":\"$rigQuestion\",\"address_to\":\"URIGOWNER\",$rigReadbackArgs}" from-read
 rigAssert "it ran to completion"                          "$rigKilled" no
-rigAssert "the verdict is correct"                        "$( rigVerdictLine )" "VERDICT: correct"
-rigAssert "and carries the correction"                    "$( rigHolds "$rigScenarioDir/out" 'VERDICT-TEXT: use tag v2 instead' )" yes
-rigVerdict "readback -- correct carries its text"
+rigAssert "the verdict is edit"                           "$( rigVerdictLine )" "VERDICT: edit"
+rigAssert "and carries the edit"                    "$( rigHolds "$rigScenarioDir/out" 'VERDICT-TEXT: use tag v2 instead' )" yes
+rigVerdict "readback -- edit carries its text"
 
 ## ---------------------------------------------------------------------------
 ## 12. A bare reaction on a typed kind is not its answer: it is RETURNED to

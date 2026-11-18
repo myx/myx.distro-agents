@@ -131,6 +131,10 @@
 					answerOptionLine="$( printf '%s' "$answerOptionLine" | LC_ALL=C tr 'A-Z' 'a-z' )"
 					[ "$answerOptionLine" != "$answerVerdict" ] || answerFound=1
 				done < <( cat "${answerFile%.md}.options" 2> /dev/null )
+				## A plain question that offers no options is posted with `yes` and `no` as its answers, so those two answer it.
+				if [ -z "$answerFound" ] && [ "$answerKind" = question ] && [ ! -s "${answerFile%.md}.options" ] ; then
+					case "$answerVerdict" in yes|no) answerFound=1 ;; esac
+				fi
 			;;
 		esac
 		if [ -z "$answerFound" ] ; then

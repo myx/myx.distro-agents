@@ -1,19 +1,19 @@
 #!/usr/bin/env bash
 ## Behavioural check on the knowledge store (F8.2/F8.3): the query reads the `MAGIC.LanceDB` beside each MAGIC.md with
-## the text, falling back to the text alone when the store is off, uninstalled or absent; the librarian's spread moves
+## the text, falling back to the text alone when the store is not installed or absent; the librarian's spread moves
 ## the sections that are not kept to the store and retires records from it. Held over a rig distro workspace (for the
 ## --add-source-docs source scan) and a rig store: the store's own Python is a stand-in that runs the real python3 with
 ## the lancedb stand-in module (sh-test/check-fixtures/knowledge-store-lancedb.stub), so nothing live is fetched and no
 ## LanceDB is installed. Held:
-##   1. the store off (the default): a MAGIC.LanceDB that stands is not searched, the text alone answers
-##   2. the store on and its Python standing: the record of the store answers with the MAGIC.md text, named by the
+##   1. the store not installed: a MAGIC.LanceDB that stands is not searched, the text alone answers
+##   2. the store installed, its Python standing: the record of the store answers with the MAGIC.md text, named by the
 ##      MAGIC.md reference
 ##   3. JSON: the store's entry has the MAGIC.md reference as its source, its caption as its section
 ##   4. spread: the sections not named by --keep move to the store, the MAGIC.md keeps the rest, and the query finds
 ##      the moved section through the store
 ##   5. retire: the records a --section names are deleted, and the query no longer finds them
 ##   6. refused, rc 1, nothing written: spread with no --keep, a keep that would remove every section, and either
-##      operation with the store off; the index build with the store off (under its own label), with an argument,
+##      operation with the store not installed; the index build with it not installed (under its own label), with an argument,
 ##      and with no model in the store's environment
 ##   7. the engine: one row a section, keyed by the source and the heading path, with the eleven columns, and the
 ##      full-text index the fusion needs
@@ -75,40 +75,43 @@ mkdir -p "$rigDws/.local/lancedb/venv/bin"
 cp "$rigPythonStub" "$rigDws/.local/lancedb/venv/bin/python" && chmod +x "$rigDws/.local/lancedb/venv/bin/python"
 : > "$rigDws/.local/lancedb/lancedb.env"
 
-rigQuery(){ ## result name, store setting (on|off), words...
-	local queryName="$1" querySetting="$2" queryRc=0
-	shift 2
+rigQuery(){ ## result name, words...
+	local queryName="$1" queryRc=0
+	shift
 	( cd "$rigDws" && env -i HOME="$rigHome" PATH="$( rigDistroPath ):$rigPythonDir" MMDAPP="$rigDws" MDLT_ORIGIN="$rigOrigin" MDLT_OPTION="--run-from-path $rigOrigin" \
 		MDAT_DATA_ROOT="$rigData" MDAT_SKILLSET_ROOT="$rigTmp/skills" MDAT_SPAWN_AGENT=keeper-rig MDAT_SPAWN_SESSION_ID=rig-store-run \
-		${querySetting:+MDAT_KNOWLEDGE_STORE="$querySetting"} RIG_LANCEDB_STUB="$rigLancedbStub" \
+		RIG_LANCEDB_STUB="$rigLancedbStub" \
 		python3 -I -B "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-exec.py" --alarm 300 -- bash "$rigKnowledge" "$@" ) > "$rigTmp/$queryName.out" 2> "$rigTmp/$queryName.err" < /dev/null || queryRc=$?
 	printf '%s' "$queryRc" > "$rigTmp/$queryName.rc"
 }
-rigStoreRun(){ ## result name, words... -- one store operation, the store on
+rigStoreRun(){ ## result name, words... -- one store operation, the store installed
 	local runName="$1" runRc=0
 	shift
 	( cd "$rigDws" && env -i HOME="$rigHome" PATH="/usr/bin:/bin:/usr/sbin:/sbin:$rigPythonDir" MMDAPP="$rigDws" MDLT_ORIGIN="$rigOrigin" MDLT_OPTION="--run-from-path $rigOrigin" \
-		MDAT_DATA_ROOT="$rigData" MDAT_SKILLSET_ROOT="$rigTmp/skills" MDAT_KNOWLEDGE_STORE=on RIG_LANCEDB_STUB="$rigLancedbStub" \
+		MDAT_DATA_ROOT="$rigData" MDAT_SKILLSET_ROOT="$rigTmp/skills" RIG_LANCEDB_STUB="$rigLancedbStub" \
 		bash "$rigTool" "$@" ) > "$rigTmp/$runName.out" 2> "$rigTmp/$runName.err" < /dev/null || runRc=$?
 	printf '%s' "$runRc" > "$rigTmp/$runName.rc"
 }
 
-echo "-- 1. the store off: a store that stands is not searched, the text alone answers --"
+echo "-- 1. the store not installed: a store record that stands is not searched, the text alone answers --"
+## Not installed is the whole switch (the install is all it takes): the store's own Python is moved aside for these runs.
 mkdir -p "$rigDws/source/rig/rig.alpha/MAGIC.LanceDB"
 printf '[{"section":"Stored note","text":"The RIGSTOREWORD lives in the store."}]' > "$rigDws/source/rig/rig.alpha/MAGIC.LanceDB/sections.json"
-rigQuery off off --add-source-docs --query-keyword RIGSTOREWORD
-rigAssert "the store record does not answer while the store is off" "$( cat "$rigTmp/off.rc" ):$( rigHolds off RIGSTOREWORD )" "0:no"
-rigQuery offdoc off --add-source-docs --query-keyword RIGDOCWORD
+mv "$rigDws/.local/lancedb" "$rigDws/.local/lancedb.aside"
+rigQuery off --add-source-docs --query-keyword RIGSTOREWORD
+rigAssert "the store record does not answer while the store is not installed" "$( cat "$rigTmp/off.rc" ):$( rigHolds off RIGSTOREWORD )" "0:no"
+rigQuery offdoc --add-source-docs --query-keyword RIGDOCWORD
+mv "$rigDws/.local/lancedb.aside" "$rigDws/.local/lancedb"
 rigAssert "the MAGIC.md text still answers" "$( cat "$rigTmp/offdoc.rc" ):$( rigHolds offdoc RIGDOCWORD )" "0:yes"
 
-echo "-- 2. the store on: its record answers with the text, named by the MAGIC.md reference --"
-rigQuery on on --add-source-docs --query-keyword RIGSTOREWORD
+echo "-- 2. the store installed: its record answers with the text, named by the MAGIC.md reference --"
+rigQuery on --add-source-docs --query-keyword RIGSTOREWORD
 rigAssert "the store record answers, and its section is under the MAGIC.md reference" "$( cat "$rigTmp/on.rc" ):$( rigHolds on RIGSTOREWORD ):$( LC_ALL=C grep -c -x -F '# source/rig/rig.alpha/MAGIC.md' "$rigTmp/on.out" || : ):$( LC_ALL=C grep -c -x -F '## Stored note' "$rigTmp/on.out" || : )" "0:yes:1:1"
-rigQuery onboth on --add-source-docs --query-keyword RIGDOCWORD
+rigQuery onboth --add-source-docs --query-keyword RIGDOCWORD
 rigAssert "the text and the store answer the same query" "$( rigHolds onboth RIGDOCWORD ):$( rigHolds onboth 'Alpha rules' )" "yes:yes"
 
 echo "-- 3. JSON: the store entry has the MAGIC.md reference and its caption --"
-rigQuery onjson on --mdat-output-format json --add-source-docs --query-keyword RIGSTOREWORD
+rigQuery onjson --mdat-output-format json --add-source-docs --query-keyword RIGSTOREWORD
 rigAssert "the JSON entry carries the reference, store docs, the caption and the snippet" "$( python3 -I -c 'import json, sys
 data = json.load( open( sys.argv[1] ) )
 entry = next( ( e for e in data["entries"] if "RIGSTOREWORD" in e.get("snippet","") ), None )
@@ -118,14 +121,14 @@ echo "-- 4. spread: the sections not kept move to the store, the MAGIC.md keeps 
 rigStoreRun spread --knowledge-store-spread source/rig/rig.alpha/MAGIC.md --keep 'Alpha rules' --keep 'Alpha other'
 rigAssert "spread succeeds and prints the reference" "$( cat "$rigTmp/spread.rc" ):$( LC_ALL=C cat "$rigTmp/spread.out" | LC_ALL=C tr -d '\n' )" "0:source/rig/rig.alpha/MAGIC.md"
 rigAssert "the moved section is out of the MAGIC.md, the kept ones stay" "$( rigHolds spread 'RIGSPREADWORD' ):$( LC_ALL=C grep -c -F 'Alpha spread me' "$rigDws/source/rig/rig.alpha/MAGIC.md" || : ):$( LC_ALL=C grep -c -F 'Alpha rules' "$rigDws/source/rig/rig.alpha/MAGIC.md" || : )" "no:0:1"
-rigQuery spreadq on --add-source-docs --query-keyword RIGSPREADWORD
+rigQuery spreadq --add-source-docs --query-keyword RIGSPREADWORD
 rigAssert "the moved section is found through the store, not the text" "$( cat "$rigTmp/spreadq.rc" ):$( rigHolds spreadq RIGSPREADWORD ):$( rigHolds spreadq 'Alpha spread me' )" "0:yes:yes"
 
 echo "-- 5. retire: the records a --section names are deleted, and the query no longer finds them --"
 rigStoreRun retire --knowledge-store-retire source/rig/rig.alpha/MAGIC.md --section 'Alpha spread me' --section 'Stored note'
 rigAssert "retire succeeds and reports two removed" "$( cat "$rigTmp/retire.rc" ):$( LC_ALL=C cat "$rigTmp/retire.out" | LC_ALL=C tr -d '\n' )" "0:2"
-rigQuery retireq on --add-source-docs --query-keyword RIGSPREADWORD
-rigQuery retireq2 on --add-source-docs --query-keyword RIGSTOREWORD
+rigQuery retireq --add-source-docs --query-keyword RIGSPREADWORD
+rigQuery retireq2 --add-source-docs --query-keyword RIGSTOREWORD
 rigAssert "neither retired record answers any more" "$( cat "$rigTmp/retireq.rc" ):$( rigHolds retireq RIGSPREADWORD ):$( cat "$rigTmp/retireq2.rc" ):$( rigHolds retireq2 RIGSTOREWORD )" "0:no:0:no"
 
 echo "-- 6. refused, rc 1, nothing written --"
@@ -133,26 +136,28 @@ rigStoreRun nokeep --knowledge-store-spread source/rig/rig.alpha/MAGIC.md
 rigAssert "spread with no --keep refuses" "$( cat "$rigTmp/nokeep.rc" ):$( LC_ALL=C grep -c -F -e 'at least one --keep' "$rigTmp/nokeep.err" || : )" "1:1"
 rigStoreRun emptykeep --knowledge-store-spread source/rig/rig.alpha/MAGIC.md --keep 'No such section'
 rigAssert "a keep that would remove every section refuses, and the MAGIC.md is left whole" "$( cat "$rigTmp/emptykeep.rc" ):$( LC_ALL=C grep -c -F -e 'remove every section' "$rigTmp/emptykeep.err" || : ):$( LC_ALL=C grep -c -F 'Alpha rules' "$rigDws/source/rig/rig.alpha/MAGIC.md" || : )" "1:1:1"
-rigStoreOffRun(){ ## result name, words... -- a store operation, the store off
+rigStoreOffRun(){ ## result name, words... -- a store operation, the store not installed (its Python moved aside for the run)
 	local offName="$1" offRc=0
 	shift
+	mv "$rigDws/.local/lancedb" "$rigDws/.local/lancedb.aside"
 	( cd "$rigDws" && env -i HOME="$rigHome" PATH="/usr/bin:/bin:/usr/sbin:/sbin:$rigPythonDir" MMDAPP="$rigDws" MDLT_ORIGIN="$rigOrigin" MDLT_OPTION="--run-from-path $rigOrigin" \
 		MDAT_DATA_ROOT="$rigData" MDAT_SKILLSET_ROOT="$rigTmp/skills" RIG_LANCEDB_STUB="$rigLancedbStub" \
 		bash "$rigTool" "$@" ) > "$rigTmp/$offName.out" 2> "$rigTmp/$offName.err" < /dev/null || offRc=$?
+	mv "$rigDws/.local/lancedb.aside" "$rigDws/.local/lancedb"
 	printf '%s' "$offRc" > "$rigTmp/$offName.rc"
 }
 rigStoreOffRun offspread --knowledge-store-spread source/rig/rig.alpha/MAGIC.md --keep 'Alpha rules'
 rigStoreOffRun offretire --knowledge-store-retire source/rig/rig.alpha/MAGIC.md --section 'Stored note'
-rigAssert "with the store off both refuse, naming --install-knowledge-store" "$( cat "$rigTmp/offspread.rc" ):$( LC_ALL=C grep -c -F -e 'is off' "$rigTmp/offspread.err" || : ):$( cat "$rigTmp/offretire.rc" ):$( LC_ALL=C grep -c -F -e 'is off' "$rigTmp/offretire.err" || : )" "1:1:1:1"
+rigAssert "with the store not installed both refuse, naming --install-knowledge-store" "$( cat "$rigTmp/offspread.rc" ):$( LC_ALL=C grep -c -F -e 'not installed' "$rigTmp/offspread.err" || : ):$( cat "$rigTmp/offretire.rc" ):$( LC_ALL=C grep -c -F -e 'not installed' "$rigTmp/offretire.err" || : )" "1:1:1:1"
 rigStoreOffRun offbuild --knowledge-index-build
-rigAssert "the index build refuses with the store off, under its own label, and builds nothing" "$( cat "$rigTmp/offbuild.rc" ):$( LC_ALL=C grep -c -F -e 'is off' "$rigTmp/offbuild.err" || : ):$( LC_ALL=C grep -c -F -e '--install-knowledge-store:' "$rigTmp/offbuild.err" || : ):$( [ -e "$rigDws/.local/knowledge-index" ] && printf built || printf none )" "1:1:0:none"
+rigAssert "the index build refuses with the store not installed, under its own label, and builds nothing" "$( cat "$rigTmp/offbuild.rc" ):$( LC_ALL=C grep -c -F -e 'not installed' "$rigTmp/offbuild.err" || : ):$( LC_ALL=C grep -c -F -e '--install-knowledge-store:' "$rigTmp/offbuild.err" || : ):$( [ -e "$rigDws/.local/knowledge-index" ] && printf built || printf none )" "1:1:0:none"
 rigStoreRun argbuild --knowledge-index-build stray
 rigAssert "the index build refuses an argument" "$( cat "$rigTmp/argbuild.rc" ):$( LC_ALL=C grep -c -F -e 'takes no arguments' "$rigTmp/argbuild.err" || : )" "1:1"
 rigStoreRun nomodelbuild --knowledge-index-build
 rigAssert "the index build refuses while the store names no model, and builds nothing" "$( cat "$rigTmp/nomodelbuild.rc" ):$( LC_ALL=C grep -c -F -e 'embedding model' "$rigTmp/nomodelbuild.err" || : ):$( [ -e "$rigDws/.local/knowledge-index" ] && printf built || printf none )" "1:1:none"
 rigNoDataRc=0
 ( cd "$rigDws" && env -i HOME="$rigHome" PATH="/usr/bin:/bin:/usr/sbin:/sbin:$rigPythonDir" MMDAPP="$rigDws" MDLT_ORIGIN="$rigOrigin" MDLT_OPTION="--run-from-path $rigOrigin" \
-	MDAT_DATA_ROOT="$rigTmp/no-data-root" MDAT_SKILLSET_ROOT="$rigTmp/skills" MDAT_KNOWLEDGE_STORE=on RIG_LANCEDB_STUB="$rigLancedbStub" \
+	MDAT_DATA_ROOT="$rigTmp/no-data-root" MDAT_SKILLSET_ROOT="$rigTmp/skills" RIG_LANCEDB_STUB="$rigLancedbStub" \
 	bash "$rigTool" --knowledge-index-build ) > "$rigTmp/nodatabuild.out" 2> "$rigTmp/nodatabuild.err" < /dev/null || rigNoDataRc=$?
 rigAssert "the index build refuses with no team data root, and builds nothing" "$rigNoDataRc:$( LC_ALL=C grep -c -F -e 'no team data root' "$rigTmp/nodatabuild.err" || : ):$( [ -e "$rigDws/.local/knowledge-index" ] && printf built || printf none )" "1:1:none"
 

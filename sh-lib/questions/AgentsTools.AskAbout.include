@@ -1,0 +1,131 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.AskAbout.include -- what an ask says it is about, and what its question may not
+## say. Sourced by the ask post fill and the permission set post. Function-only.
+##
+## Every ask has a cold reader: a person, or a member with none of the asking run's context.
+##
+## The About line is filled by the tooling, never by the asking agent: the plain title of the
+## task the asking run works on -- the tracked task's own heading, else the run's session name
+## -- and the system it concerns, the workspace the run executes in. A value that is not there
+## is not printed, so no title ever stands with nothing beside it.
+##
+## The refusal holds every ask, whatever its addressee: a file path, a file name with a line
+## number, a code token in backticks, an internal id and a bare uuid each name nothing to a
+## cold reader, and the detail belongs in the context.
+##
+
+if ! type AgentsToolsAskAboutLine > /dev/null 2>&1 ; then
+
+	## The About line of one ask: `<title> -- <system>`, either part alone where the other is
+	## not there, and nothing at all where neither is.
+	AgentsToolsAskAboutLine(){ ## session id, item name (may be empty)
+		type AgentsSessionRunHeadersInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+		type AgentsToolsTaskText > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/core/AgentsTools.TaskText.include"
+		local aboutSession="${1:-}" aboutItem="${2:-}" aboutSpawned="" aboutDispatch="" aboutComment="" aboutDescription="" aboutSystem="" aboutFile="" aboutLines="" aboutTitle=""
+		if [ -n "$aboutSession" ] ; then
+			AgentsSessionRunHeadersInto "$aboutSession" aboutSpawned=spawned-by aboutDispatch=spawns aboutComment=session-comment aboutDescription=description aboutSystem=executing-workspace || :
+		fi
+		[ -n "$aboutItem" ] || aboutItem="${aboutSpawned:-$aboutDispatch}"
+		if [ -n "$aboutItem" ] ; then
+			type AgentsToolsBoardItemInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemDecisions.include"
+			if AgentsToolsBoardItemInto aboutFile "$aboutItem" 2> /dev/null ; then
+				aboutLines="$( AgentsToolsTaskText "$aboutFile" )"
+				## A dispatch that tracks no task has only its own heading, which names the spawn
+				## rather than the work, so the run's own words stand in its place.
+				case "$aboutLines" in
+					*$'dispatch\t'*) [ -n "$( AgentsToolsTaskTextValue "$aboutLines" item )" ] || aboutFile="" ;;
+				esac
+				[ -z "$aboutFile" ] || aboutTitle="$( AgentsToolsTaskTextValue "$aboutLines" title )"
+			fi
+		fi
+		[ -n "$aboutTitle" ] || aboutTitle="$( AgentsToolsTaskTextLine "$aboutComment" )"
+		[ -n "$aboutTitle" ] || aboutTitle="$( AgentsToolsTaskTextLine "$aboutDescription" )"
+		[ -z "$aboutTitle" ] && [ -z "$aboutSystem" ] || printf '%s%s' "$aboutTitle" "${aboutTitle:+${aboutSystem:+ -- }}$aboutSystem"
+	}
+
+	## A question in plain words, whatever its addressee: a cold reader has none of the asking
+	## run's context. Prints the CORRECTION line and returns 1 for the first shape that names
+	## nothing to that reader, and nothing at all where the question is plain. The shapes are a
+	## file path, a file name with a line number, a code token between backticks, an internal id
+	## and a bare uuid.
+	AgentsToolsAskPlainCheck(){ ## tool name, question text
+		local plainName="${1:-ask}" plainText="${2:-}" plainPath="" plainId=""
+		plainPath="$( printf '%s\n' "$plainText" | LC_ALL=C awk '
+			{
+				wordTotal = split( $0, wordList, " " ) ;
+				for ( wordNo = 1 ; wordNo <= wordTotal ; wordNo++ ) {
+					if ( wordList[wordNo] ~ /^[~]?\// ) { print wordList[wordNo] ; exit }
+				}
+			}
+		' )"
+		if [ -n "$plainPath" ] ; then
+			printf 'CORRECTION: %s: the question carries a file path ("%s"), which names nothing to the person reading it, so say the question in plain words and put the path in the context. Nothing was sent.\n' "$plainName" "$plainPath"
+			return 1
+		fi
+		plainPath="$( printf '%s\n' "$plainText" | LC_ALL=C awk '
+			{
+				wordTotal = split( $0, wordList, " " ) ;
+				for ( wordNo = 1 ; wordNo <= wordTotal ; wordNo++ ) {
+					if ( wordList[wordNo] ~ /^[A-Za-z0-9_.-]+\.[A-Za-z0-9]+:[0-9]+[,.:;]?$/ ) { print wordList[wordNo] ; exit }
+				}
+			}
+		' )"
+		if [ -n "$plainPath" ] ; then
+			printf 'CORRECTION: %s: the question carries a file name and line ("%s"), which names nothing to the person reading it, so say the question in plain words and put the file and line in the context. Nothing was sent.\n' "$plainName" "$plainPath"
+			return 1
+		fi
+		case "$plainText" in
+			*'`'*)
+				printf 'CORRECTION: %s: the question carries a code token between backticks, which names nothing to the person reading it, so say the question in plain words and put the code in the context. Nothing was sent.\n' "$plainName"
+				return 1
+			;;
+		esac
+		plainId="$( printf '%s\n' "$plainText" | LC_ALL=C awk '
+			## An internal id is its prefix and a date or a hex run: `task-20261114T0902Z-...`,
+			## `refusal-f76d9a57`, `session-<uuid>`. A bare uuid is one too, as a permission
+			## request showed. A prefix alone is ordinary English, so `session-level` and
+			## `task-force` are no id and are left alone.
+			{
+				wordTotal = split( $0, wordList, " " ) ;
+				for ( wordNo = 1 ; wordNo <= wordTotal ; wordNo++ ) {
+					word = wordList[wordNo] ;
+					gsub( /[][(),.:;]/ , "", word ) ;
+					if ( word ~ /^[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]-[0-9a-f][0-9a-f][0-9a-f][0-9a-f]-[0-9a-f][0-9a-f][0-9a-f][0-9a-f]-[0-9a-f][0-9a-f][0-9a-f][0-9a-f]-[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]$/ ) { print word ; exit }
+					if ( word ~ /^[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]$/ && word ~ /[a-f]/ ) { print word ; exit }
+					if ( word !~ /^(ask|refusal|task|dispatch|epic|inquiry|interview|note|reflection|warning|transcript|session|board)-/ ) { continue }
+					if ( word ~ /-[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][TZ]/ || word ~ /-[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]($|-)/ ) { print word ; exit }
+				}
+			}
+		' )"
+		if [ -n "$plainId" ] ; then
+			printf 'CORRECTION: %s: the question carries an internal id ("%s"), which names nothing to the person reading it, so say what it is in plain words and put the id in the context. Nothing was sent.\n' "$plainName" "$plainId"
+			return 1
+		fi
+		return 0
+	}
+
+	## A value said in words a cold reader parses: an internal id and a bare uuid are replaced by
+	## what they stand for, since the record keeps them and a post need not show them.
+	AgentsToolsAskWordsPlain(){ ## value
+		printf '%s\n' "${1:-}" | LC_ALL=C awk '
+			{
+				out = "" ; wordTotal = split( $0, wordList, " " ) ;
+				for ( wordNo = 1 ; wordNo <= wordTotal ; wordNo++ ) {
+					word = wordList[wordNo] ; bare = word ; gsub( /[][(),.:;?]/ , "", bare ) ;
+					said = word ;
+					if ( bare ~ /^[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]-[0-9a-f][0-9a-f][0-9a-f][0-9a-f]-[0-9a-f][0-9a-f][0-9a-f][0-9a-f]-[0-9a-f][0-9a-f][0-9a-f][0-9a-f]-[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]$/ ) { said = "that one" }
+					else if ( bare ~ /^[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]$/ && bare ~ /[a-f]/ ) { said = "that one" }
+					else if ( bare ~ /^(ask|refusal|task|dispatch|epic|inquiry|interview|note|reflection|warning|transcript|session|board)-/ ) {
+						if ( bare ~ /-[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][TZ]/ || bare ~ /-[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]($|-)/ ) { said = "that one" }
+					}
+					out = out ( out == "" ? "" : " " ) said ;
+				}
+				print out ;
+			}
+		'
+	}
+
+fi

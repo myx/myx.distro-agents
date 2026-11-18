@@ -4,7 +4,8 @@
 📘 syntax: DistroAgentsQuestions.fn.sh --forward-escalation [--team-member <team-member>] <request-id>
 📘 syntax: DistroAgentsQuestions.fn.sh --read-pending-reply [--team-member <team-member>] [<pending-id>] [--all] [--any-owner] [--count]
 📘 syntax: DistroAgentsQuestions.fn.sh --amend-pending-reply [--team-member <team-member>] <pending-id> --verdict <text> --reason <text>
-📘 syntax: DistroAgentsQuestions.fn.sh --record-decision [--team-member <team-member>] <item-filename> --kind <clarification|resolved|dismissed> --text <one line> [--source <ts-or-id>] [--clears-blocker]
+📘 syntax: DistroAgentsQuestions.fn.sh --record-decision [--team-member <team-member>] <item-filename> --kind <clarification|resolved|dismissed> --text <one line> (--with <party> [--wait]|--readback <pending-id>) [--source <ts-or-id>] [--clears-blocker]
+📘 syntax: DistroAgentsQuestions.fn.sh --record-decision [--team-member <team-member>] <item-filename> --strike <exact line text> --reason <text> (--with <party> [--wait]|--readback <pending-id>)
 
 ##  Summary:
 
@@ -38,9 +39,26 @@
 		--amend-pending-reply <pending-id> --verdict <text> --reason <text>
 			Amends the verdict a question already closed with, and keeps the reason beside it.
 
-		--record-decision <item-filename> --kind <clarification|resolved|dismissed> --text <one line>
+		--record-decision <item-filename> --kind <clarification|resolved|dismissed> --text <one line> (--with <party> [--wait]|--readback <pending-id>)
 			One line onto that item's own Decisions, where a ruling on the work belongs.
-			`--clears-blocker` clears what the line settles.
+			It lands only through its confirmed readback, on the same item: `yes` lands the text it confirmed, word for word,
+			and `edit` lands the words of the edit. A `no` lands nothing. The line names who confirmed it and when. A readback lands once.
+			`--with <party>` asks that readback: the text goes to the party it was made with, and their answer lands it by itself,
+			whoever reads the answer and whether or not the asking run still lives. It returns at once with `DECISION-ASKED`, the
+			readback joins your waits, and its answer reaches your session floor. `--wait` waits for the answer instead and ends
+			with `DECISION-RECORDED` or `DECISION-NOT-RECORDED`.
+			`--readback <pending-id>` records through a readback already confirmed.
+			A line that tells a decision by the human-owner lands only with the message or the ask's verdict it came from,
+			named in `--source`, or from a readback he confirmed.
+			`--clears-blocker` clears what the line settles, with `--readback` only.
+
+		--record-decision <item-filename> --strike <exact line text> --reason <text> (--with <party> [--wait]|--readback <pending-id>)
+			Marks one of that item's recorded lines struck, with the reason and who struck it, and deletes nothing.
+			Its writer, the item's owner, or magic-coordinator above them may strike it, through the readback
+			that confirmed the reason. That readback is answered by the account that confirmed the line, or by
+			the human-owner: a line with no confirmation behind it is struck on his confirmation alone. The
+			dismissed line names that readback, so it strikes once. `--with <party>` asks it, and its yes or edit
+			strikes the line by itself; a no keeps it. A strike takes no `--kind` and no `--text`.
 
 ##  Notes:
 

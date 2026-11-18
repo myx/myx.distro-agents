@@ -172,7 +172,7 @@ AgentsTranscriptEventLine(){ ## kind, then key value pairs
 			printf '%s\t%s\n' "$1" "$eventValue"
 			shift 2
 		done
-	} | STL_TS="$( date -u +%Y-%m-%dT%H:%M:%SZ )" STL_KIND="$eventKind" LC_ALL=C awk -v stlStandalone=event -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsSessionTranscriptFormat.awk"
+	} | STL_TS="$( date -u +%Y-%m-%dT%H:%M:%SZ )" STL_KIND="$eventKind" LC_ALL=C awk -v stlStandalone=event -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/transcript/AgentsSessionTranscriptFormat.awk"
 }
 
 ## A text as `> ` lines, cut at cap bytes (0: whole): the whole body in one pipe.
@@ -184,7 +184,7 @@ AgentsTranscriptEvent(){ ## session id, kind, body ('' for none), body cap, then
 	eventPath="$( AgentsTranscriptPath "$eventSession" )" || return 0
 	eventBlock="$( AgentsTranscriptEventLine "$eventKind" "$@" )" || return 0
 	[ -n "$eventBlock" ] || return 0
-	[ -z "$eventBody" ] || eventBlock="$eventBlock"$'\n'"$( printf '%s' "$eventBody" | STL_CAP="${eventCap:-0}" LC_ALL=C awk -v stlStandalone=body -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsSessionTranscriptFormat.awk" )"
+	[ -z "$eventBody" ] || eventBlock="$eventBlock"$'\n'"$( printf '%s' "$eventBody" | STL_CAP="${eventCap:-0}" LC_ALL=C awk -v stlStandalone=body -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/transcript/AgentsSessionTranscriptFormat.awk" )"
 	AgentsTranscriptAppend "$eventPath" "$eventBlock"
 	AgentsTranscriptFeed "$eventSession" "$eventBlock"
 	return 0
@@ -321,7 +321,7 @@ AgentsTranscriptToolDone(){ ## tool name, arguments JSON, result, source, outcom
 	[ -n "$doneComment" ] || doneComment="${agentsTranscriptRoundText:0:400}"
 	doneLine="$( printf '%s' "$doneArgs" | STL_TS="$( date -u +%Y-%m-%dT%H:%M:%SZ )" STL_TOOL="$doneTool" STL_OUTCOME="$doneOutcome" \
 		STL_FIRST="${doneFirst:0:400}" STL_BYTES="${#doneResult}" STL_LINES="$( printf '%s' "$doneResult" | awk 'END { print NR + 0 }' )" STL_DUR_MS="$doneDur" STL_COMMENT="$doneComment" \
-		awk -v stlStandalone=tool -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsSessionTranscriptFormat.awk" 2>/dev/null )" || doneLine=""
+		awk -v stlStandalone=tool -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/transcript/AgentsSessionTranscriptFormat.awk" 2>/dev/null )" || doneLine=""
 	[ -n "$doneLine" ] || return 0
 	if [ "$doneSource" = "mcp" ] ; then
 		printf '%s%s\n' "${doneSession:+${doneSession:0:8} }" "$doneLine" >&2
@@ -332,7 +332,7 @@ AgentsTranscriptToolDone(){ ## tool name, arguments JSON, result, source, outcom
 		doneBlock="$doneLine"
 		## Errors and refusals in full; a failed command's own output is held to 16 KB.
 		[ "$doneBase" != "execute" ] || doneCap=16384
-		[ "$doneOutcome" = "ok" ] || [ -z "$doneResult" ] || doneBlock="$doneBlock"$'\n'"$( printf '%s' "$doneResult" | STL_CAP="${doneCap:-0}" LC_ALL=C awk -v stlStandalone=body -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsSessionTranscriptFormat.awk" )"
+		[ "$doneOutcome" = "ok" ] || [ -z "$doneResult" ] || doneBlock="$doneBlock"$'\n'"$( printf '%s' "$doneResult" | STL_CAP="${doneCap:-0}" LC_ALL=C awk -v stlStandalone=body -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/transcript/AgentsSessionTranscriptFormat.awk" )"
 		AgentsTranscriptAppend "$donePath" "$doneBlock"
 		AgentsTranscriptFeed "$doneSession" "$doneBlock"
 	fi
@@ -340,20 +340,20 @@ AgentsTranscriptToolDone(){ ## tool name, arguments JSON, result, source, outcom
 	case "$doneBase" in
 		SendMessage)
 			[ "$doneOutcome" = "ok" ] || return 0
-			AgentsTranscriptEvent "$doneSession" MSG-OUT "$( printf '%s' "$doneArgs" | STL_KEY="message" LC_ALL=C awk -v stlStandalone=field -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsSessionTranscriptFormat.awk" )" 4096 to "$( printf '%s' "$doneArgs" | STL_KEY="to" LC_ALL=C awk -v stlStandalone=field -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsSessionTranscriptFormat.awk" )"
+			AgentsTranscriptEvent "$doneSession" MSG-OUT "$( printf '%s' "$doneArgs" | STL_KEY="message" LC_ALL=C awk -v stlStandalone=field -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/transcript/AgentsSessionTranscriptFormat.awk" )" 4096 to "$( printf '%s' "$doneArgs" | STL_KEY="to" LC_ALL=C awk -v stlStandalone=field -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/transcript/AgentsSessionTranscriptFormat.awk" )"
 			AgentsTranscriptMilestone "$doneSession" "message out"
 		;;
 		SubagentHandback)
 			[ "$doneOutcome" = "ok" ] || return 0
 			doneBody="$( printf 'task: %s\noutcome: %s\nfindings: %s\nunfinished: %s' \
-				"$( printf '%s' "$doneArgs" | STL_KEY="task" LC_ALL=C awk -v stlStandalone=field -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsSessionTranscriptFormat.awk" )" "$( printf '%s' "$doneArgs" | STL_KEY="outcome" LC_ALL=C awk -v stlStandalone=field -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsSessionTranscriptFormat.awk" )" \
-				"$( printf '%s' "$doneArgs" | STL_KEY="findings" LC_ALL=C awk -v stlStandalone=field -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsSessionTranscriptFormat.awk" )" "$( printf '%s' "$doneArgs" | STL_KEY="unfinished" LC_ALL=C awk -v stlStandalone=field -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsSessionTranscriptFormat.awk" )" )"
-			AgentsTranscriptEvent "$doneSession" HANDBACK "$doneBody" 4096 to "$( printf '%s' "$doneArgs" | STL_KEY="to" LC_ALL=C awk -v stlStandalone=field -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsSessionTranscriptFormat.awk" )"
+				"$( printf '%s' "$doneArgs" | STL_KEY="task" LC_ALL=C awk -v stlStandalone=field -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/transcript/AgentsSessionTranscriptFormat.awk" )" "$( printf '%s' "$doneArgs" | STL_KEY="outcome" LC_ALL=C awk -v stlStandalone=field -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/transcript/AgentsSessionTranscriptFormat.awk" )" \
+				"$( printf '%s' "$doneArgs" | STL_KEY="findings" LC_ALL=C awk -v stlStandalone=field -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/transcript/AgentsSessionTranscriptFormat.awk" )" "$( printf '%s' "$doneArgs" | STL_KEY="unfinished" LC_ALL=C awk -v stlStandalone=field -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/transcript/AgentsSessionTranscriptFormat.awk" )" )"
+			AgentsTranscriptEvent "$doneSession" HANDBACK "$doneBody" 4096 to "$( printf '%s' "$doneArgs" | STL_KEY="to" LC_ALL=C awk -v stlStandalone=field -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/transcript/AgentsSessionTranscriptFormat.awk" )"
 			AgentsTranscriptMilestone "$doneSession" "handback"
 		;;
 		ReportFindings|PushNotification|Artifact)
 			[ "$doneOutcome" = "ok" ] || return 0
-			AgentsTranscriptEvent "$doneSession" MSG-OUT "$doneArgs" 4096 tool "$doneBase" to "$( printf '%s' "$doneArgs" | STL_KEY="to" LC_ALL=C awk -v stlStandalone=field -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsSessionTranscriptFormat.awk" )"
+			AgentsTranscriptEvent "$doneSession" MSG-OUT "$doneArgs" 4096 tool "$doneBase" to "$( printf '%s' "$doneArgs" | STL_KEY="to" LC_ALL=C awk -v stlStandalone=field -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/transcript/AgentsSessionTranscriptFormat.awk" )"
 			AgentsTranscriptMilestone "$doneSession" "message out"
 		;;
 		Wait)
@@ -374,16 +374,16 @@ AgentsTranscriptToolDone(){ ## tool name, arguments JSON, result, source, outcom
 				EscalateDecision) doneKind="decision" ;;
 				RequestPermission) doneKind="permission" ;;
 				ProposeApprove) doneKind="proposal" ;;
-				*) doneKind="$( printf '%s' "$doneArgs" | STL_KEY="kind" LC_ALL=C awk -v stlStandalone=field -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsSessionTranscriptFormat.awk" )" ;;
+				*) doneKind="$( printf '%s' "$doneArgs" | STL_KEY="kind" LC_ALL=C awk -v stlStandalone=field -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/transcript/AgentsSessionTranscriptFormat.awk" )" ;;
 			esac
-			AgentsTranscriptEvent "$doneSession" ASK "$( printf '%s' "$doneArgs" | STL_KEY="question" LC_ALL=C awk -v stlStandalone=field -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsSessionTranscriptFormat.awk" )" 4096 \
-				to "$( printf '%s' "$doneArgs" | STL_KEY="to" LC_ALL=C awk -v stlStandalone=field -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsSessionTranscriptFormat.awk" )" kind "$doneKind"
+			AgentsTranscriptEvent "$doneSession" ASK "$( printf '%s' "$doneArgs" | STL_KEY="question" LC_ALL=C awk -v stlStandalone=field -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/transcript/AgentsSessionTranscriptFormat.awk" )" 4096 \
+				to "$( printf '%s' "$doneArgs" | STL_KEY="to" LC_ALL=C awk -v stlStandalone=field -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/transcript/AgentsSessionTranscriptFormat.awk" )" kind "$doneKind"
 			AgentsTranscriptEvent "$doneSession" ANSWER "$doneResult" 4096
 			## The end of the block, whatever came of it: nothing waits on an ask that is over.
 			if [ "$doneOutcome" != "ok" ] ; then AgentsTranscriptMilestone "$doneSession" "ask ended" ; else AgentsTranscriptMilestone "$doneSession" "message out" ; fi
 		;;
 		Agent)
-			AgentsTranscriptEvent "$doneSession" SPAWN "$doneResult" 1024 agent "$( printf '%s' "$doneArgs" | STL_KEY="agent" LC_ALL=C awk -v stlStandalone=field -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsSessionTranscriptFormat.awk" )"
+			AgentsTranscriptEvent "$doneSession" SPAWN "$doneResult" 1024 agent "$( printf '%s' "$doneArgs" | STL_KEY="agent" LC_ALL=C awk -v stlStandalone=field -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/transcript/AgentsSessionTranscriptFormat.awk" )"
 		;;
 	esac
 	return 0
@@ -615,7 +615,7 @@ AgentsSessionTokensRollupRows(){ ## item name...
 	{
 		[ ${#rollupItems[@]} -eq 0 ] || printf '%s\n' "${rollupItems[@]}"
 		[ ${#rollupRecords[@]} -eq 0 ] || printf '%s\n' "${rollupRecords[@]}"
-	} | LC_ALL=C awk -v want="$*" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsSessionTokensRollup.awk" 2>/dev/null
+	} | LC_ALL=C awk -v want="$*" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/transcript/AgentsSessionTokensRollup.awk" 2>/dev/null
 	return 0
 }
 
@@ -785,7 +785,7 @@ AgentsTranscriptReplyFloor(){
 			function secOf(v) { sub(/\..*$/, "", v) ; return ( v == "" ? 0 : v + 0 ) }
 			function fracOf(v) { if ( v !~ /\./ ) { return "000000" } ; sub(/^[^.]*\./, "", v) ; return substr(v "000000", 1, 6) }
 			$3 == where && ( secOf($2) > secOf(best) || ( secOf($2) == secOf(best) && fracOf($2) > fracOf(best) ) ) { best = $2 }
-			END { print best }' "$MMDAPP/.local/agents/sessions/$floorKey/session.chat.index" 2> /dev/null )" || floorSeen=""
+			END { print best }' <<< "$( AgentsToolsSessionChatResolvedStream "$floorKey" 2> /dev/null )" 2> /dev/null )" || floorSeen=""
 		## What the session holds is where its cache is served from: its newest block, else the moment of its first import, which is
 		## the line the importer draws between history and what is new to it. Nothing older is brought in.
 		if [ -z "$floorSeen" ] ; then floorSeen="$( AgentsToolsSessionChatPointer "$floorKey" "import:$floorThread" )" || floorSeen=0 ; fi

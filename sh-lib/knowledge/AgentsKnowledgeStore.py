@@ -24,7 +24,7 @@
 ##   remove --store <dir> --sections <file>
 ##                                        the records whose `section` matches a glob of the file (one glob a line) are
 ##                                        deleted; prints how many
-##   query  --index <dir> --model-dir <dir> --out-dir <dir> --text <text> [--limit <n>]
+##   query  --index <dir> --model-dir <dir> --out-dir <dir> --text <text> [--limit <n>] [--groups <docs,board,vault,inbox>]
 ##                                        the fused answer: full text and vector in one ranked call (RRF). Each hit's
 ##                                        section is written to a scratch file in --out-dir, holding the section as the
 ##                                        walk wrote it, and one `<scratch><TAB><source><TAB><store>` a line on stdout.
@@ -287,6 +287,7 @@ def _query(argv):
     outDir = None
     text = None
     limit = 24
+    groups = None
     at = 0
     while at < len(argv):
         word = argv[at]
@@ -300,6 +301,8 @@ def _query(argv):
             text = argv[at + 1]
         elif word == "--limit":
             limit = int(argv[at + 1])
+        elif word == "--groups":
+            groups = [group for group in argv[at + 1].split(",") if group]
         else:
             return _refuse("query: invalid option: " + word)
         at += 2
@@ -315,7 +318,15 @@ def _query(argv):
     vector = [float(value) for value in model.encode([text])[0]]
     table = db.open_table("sections")
     try:
-        hits = table.search(query_type="hybrid").vector(vector).text(text).rerank(RRFReranker()).limit(limit).to_list()
+        search = table.search(query_type="hybrid").vector(vector).text(text)
+        # The groups asked for filter the rows before the limit, so the limit is spent on the sources the caller added:
+        # filtered after it, a board query came back empty whenever inbox or docs rows filled the first places.
+        if groups:
+            for group in groups:
+                if group not in ("docs", "board", "vault", "inbox"):
+                    return _refuse("query: --groups: no such group: " + group)
+            search = search.where("`group` IN (" + ", ".join("'" + group + "'" for group in groups) + ")", prefilter=True)
+        hits = search.rerank(RRFReranker()).limit(limit).to_list()
     except ValueError:
         # LanceDB refuses a fusion over a table with no full-text index, and the text alone answers then.
         return _NO_INDEX

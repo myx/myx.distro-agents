@@ -17,6 +17,7 @@
 		undoPurgeWord="$( AgentsToolsUndoOwnerWord "$undoPurgeDir" "accept" )" || { set +e ; return 1 ; }
 		AgentsToolsUndoSet "$undoPurgeDir" state accepted || { echo "⛔ ERROR: $MDSC_CMD --undo-purge: could not close the record" >&2 ; set +e ; return 1 ; }
 		undoPurgeHold="$( AgentsToolsUndoField "$undoPurgeDir" hold-dir )"
+		type AgentsToolsUndoHoldDrop > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/undo/AgentsTools.UndoHold.include"
 		[ -z "$undoPurgeHold" ] || AgentsToolsUndoHoldDrop "$undoPurgeHold" "$( AgentsToolsUndoField "$undoPurgeDir" session-id )" "$undoPurgeId"
 		printf 'PURGED %s\n' "$undoPurgeId"
 		return 0

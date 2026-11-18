@@ -18,7 +18,7 @@ type AgentsToolsSpawnConsoleLaunch > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.d
 ## rc 1 and the reason.
 AgentsHarnessContextCheck(){ ## context file
 	[ -s "$1" ] || { printf 'no kept context at %s' "$1" ; return 1 ; }
-	LC_ALL=C awk -v mode=validate -f "$agentsHarnessResumeLib/harness/AgentsHarnessJsonField.awk" -f "$agentsHarnessResumeLib/session/AgentsSessionTranscriptFormat.awk" \
+	LC_ALL=C awk -v mode=validate -f "$agentsHarnessResumeLib/harness/AgentsHarnessJsonField.awk" -f "$agentsHarnessResumeLib/transcript/AgentsSessionTranscriptFormat.awk" \
 		-f "$agentsHarnessResumeLib/harness/AgentsHarnessContextTranscript.awk" "$1" 2>&1
 }
 

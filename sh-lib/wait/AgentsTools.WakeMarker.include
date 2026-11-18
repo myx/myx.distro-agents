@@ -97,14 +97,27 @@ AgentsToolsWakeSession(){ ## team member
 ## The fifo is opened read-write, which never blocks, in a subshell so the descriptor is never kept; a wait that is gone leaves a pipe nobody reads, which
 ## the system frees when this one closes. Quiet and best effort.
 AgentsToolsWakePoke(){ ## team member (may be empty: every wait)
-	local pokeMember="${1:-}" pokeFifo
+	local pokeBase="" pokeDir pokePointer pokeTarget
 	[ -n "${MMDAPP:-}" ] || return 0
-	case "$pokeMember" in */*|*[[:space:]]*) return 0 ;; esac
-	## The star is outside the quotes, where a glob works.
-	if [ -n "$pokeMember" ] ; then pokeFifo="$MMDAPP/.local/temp/mdat-member-wait.$pokeMember" ; else pokeFifo="$MMDAPP/.local/temp/mdat-member-wait" ; fi
-	for pokeFifo in "$pokeFifo".*/nap.fifo ; do
-		[ -p "$pokeFifo" ] || continue
-		( exec 7<> "$pokeFifo" && printf '\n' >&7 ) 2> /dev/null || :
+	case "${1:-}" in */*|*[[:space:]]*) return 0 ;; esac
+	## The wait folders of the member, and with none, those of every member: the base is the member's own folder, then one folder a
+	## wait. A session's wait keeps its folder under that session, where this cannot reach, so it publishes its fifo's path in the
+	## member's own folder, one small file a run.
+	[ -z "${1:-}" ] || pokeBase="$1"
+	for pokeDir in "$MMDAPP/.local/temp/mdat-member-wait${pokeBase:+.${pokeBase}}" "$MMDAPP/.local/temp/mdat-member-wait${pokeBase:+.${pokeBase}}."*/ ; do
+		[ -d "$pokeDir" ] || continue
+		## The star is outside the quotes, where a glob works.
+		for pokePointer in "$pokeDir"/nap.fifo "$pokeDir"/nap.run.* ; do
+			if [ -p "$pokePointer" ] ; then
+				pokeTarget="$pokePointer"
+			else
+				[ -f "$pokePointer" ] || continue
+				pokeTarget=""
+				{ IFS= read -r pokeTarget < "$pokePointer" ; } 2> /dev/null || continue
+			fi
+			[ -p "$pokeTarget" ] || continue
+			( exec 7<> "$pokeTarget" && printf '\n' >&7 ) 2> /dev/null || :
+		done
 	done
 	return 0
 }

@@ -735,16 +735,20 @@ $rowSpawn "*) continue ;; esac
 		fi
 		## A SUPERVISING SHELL IS GIVEN THE CLOSING TIME AND NOT A SECOND MORE (S5.6): a shell alive is closing its
 		## record, and a shell still alive once the time has passed never will, so the record is closed here.
-		deathsNoted=""
-		while read -r deathsOne deathsLine ; do
-			[ "$deathsOne" != "$rowSpawn" ] || { deathsNoted="$deathsLine" ; break ; }
-		done <<< "$deathsGoneWas"
-		case "$deathsNoted" in ''|*[!0123456789]*|????????????*) deathsNoted="$deathsAt" ;; esac
-		[ -n "$controlClosing" ] || controlClosing="$( AgentsToolsSessionControlSeconds SESSION_CONTROL_CLOSING_SECONDS 300 )"
-		if [ "$(( deathsAt - deathsNoted ))" -lt "$controlClosing" ] ; then
-			deathsGoneNow="$deathsGoneNow${deathsGoneNow:+
-}$rowSpawn $deathsNoted"
-			continue
+		## A shell already gone is closing nothing, so it is given no closing time: that run is a death at once.
+		if [ "$deathsShell" != "gone" ] ; then
+			deathsNoted=""
+			while read -r deathsOne deathsLine ; do
+				[ "$deathsOne" != "$rowSpawn" ] || { deathsNoted="$deathsLine" ; break ; }
+			done <<< "$deathsGoneWas"
+			case "$deathsNoted" in ''|*[!0123456789]*|????????????*) deathsNoted="$deathsAt" ;; esac
+			[ -n "$controlClosing" ] || controlClosing="$( AgentsToolsSessionControlSeconds SESSION_CONTROL_CLOSING_SECONDS 300 )"
+			if [ "$(( deathsAt - deathsNoted ))" -lt "$controlClosing" ] ; then
+				## Only a record that names no supervising shell keeps that moment: a shell alive names itself in the record.
+				[ "$deathsShell" = "alive" ] || deathsGoneNow="$deathsGoneNow${deathsGoneNow:+
+	}$rowSpawn $deathsNoted"
+				continue
+			fi
 		fi
 		if [ "$deathsShell" = "alive" ] ; then
 			! AgentsToolsSessionControlDeathClose "$deathsRecord" || AgentsToolsSessionControlSay event "session $controlSession: run $rowSpawn of $rowOwner is gone and its supervising shell outlived the closing time of ${controlClosing}s: its record is closed, and nothing is asked about it"

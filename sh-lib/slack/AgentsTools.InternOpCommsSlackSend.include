@@ -1371,6 +1371,20 @@ blocks|verbatim|caller|stdin file"
 			[ "${MDAT_SEND_FLOOR:-}" != "hold" ] || printf '%s' "$floorText" | AgentsToolsOutputStyleRetiredMarker || { floorRc=$? ; set +e ; return "$floorRc" ; }
 			printf '%s' "$floorText" | AgentsToolsOutputStyleRefusal "$memberName" "$textGroup" "$target" "$botTokenSource" "$floorGating" || { floorRc=$? ; set +e ; return "$floorRc" ; }
 		fi
+		## A RELAY THAT SAYS A FILE WAS APPLIED NAMES ITS TREE AND READS IT BACK (task-20261117T2241Z): a send declaring the
+		## relay group that says applied, landed or fixed carries the file's absolute path and its read-back, else it is refused
+		## here. A declared relay is the only carrier looked at, so ordinary status talk is untouched. It stands outside the
+		## prose-only block above, because a blocks payload carries the same claim.
+		if [ "$textGroup" = "relay" ] ; then
+			type AgentsToolsApplyReportFaults > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.ApplyReport.include"
+			local relayApplyFaults="" relayApplyRc=0
+			relayApplyFaults="$( printf '%s\n' "${messageText:-$sourceText}" | AgentsToolsApplyReportFaults )" || relayApplyRc=$?
+			if [ "$relayApplyRc" != 0 ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --slack-send-message: this relay says a file was applied, and it does not give that file its absolute path and its read-back. Nothing was posted. A line names the file absolute path, the workspace it belongs to, and a read-back (cmp against the staged file, or its hash). What is missing:" >&2
+				printf '%s\n' "$relayApplyFaults" >&2
+				set +e ; return 1
+			fi
+		fi
 		## A REPEATED MESSAGE IS A LOOP, NOT A CORRECTION (his ruling): the same body to the same place within the half hour is refused unless
 		## --again says the repeat is meant. It is judged after the floor, so a body the floor holds back comes back as its CORRECTION, never as
 		## a repeat; and on the whole body, not its first line, so two asks under one caption are two messages. The last fifty sends of the
@@ -1456,7 +1470,7 @@ blocks|verbatim|caller|stdin file"
 				AgentsToolsCommsCacheSlackDir "$memberName" "$( [ "$sendIdentity" != "bot" ] || printf true )" "$channel" "$threadTs" 2> /dev/null || :
 				keepOut="${agentsCommsCacheDir:-}"
 				if [ -n "$keepOut" ] && [ -n "${channel:-}" ] \
-					&& AgentsToolsCommsCacheOutboxAppend "$keepOut" "$chatKey" "$chatNo" "$memberName" "$sendIdentity" "$sendApi" "$payload" ; then
+					&& AgentsToolsCommsCacheOutboxAppend "$keepOut" "$chatKey" "$chatNo" "$memberName" "$sendIdentity" "$sendApi" "$payload" "" "$postLocalId" ; then
 					return 0
 				fi
 			fi
@@ -1497,6 +1511,14 @@ blocks|verbatim|caller|stdin file"
 			chatRecord="$( AgentsToolsSessionChatSend "$memberName" "$addressToList" "$chatBody" 2> /dev/null )" || chatRecord=""
 			chatKey="${chatRecord%% *}" ; chatNo="${chatRecord##* }"
 		fi
+		## STORED ONCE, AT POST TIME (S1 item 11): before Slack is called, the message our tooling posts is a line of the cache with a
+		## local id of its own, whether it goes now or waits in an outbox. Its ts is recorded against that id once Slack answers.
+		local postLocalId=""
+		if [ -z "$updateTs" ] && [ -n "${channel:-}" ] ; then
+			type AgentsToolsCommsCachePostStore > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsCache.include"
+			AgentsToolsCommsCacheSlackDir "$memberName" "$( [ "$sendIdentity" = "bot" ] && printf true || printf false )" "$channel" "${threadTs:-}" 2> /dev/null || agentsCommsCacheDir=""
+			[ -z "${agentsCommsCacheDir:-}" ] || postLocalId="$( AgentsToolsCommsCachePostStore "$agentsCommsCacheDir" "$memberName" "$chatBody" 2> /dev/null )" || postLocalId=""
+		fi
 		## THE RECEIVING SESSION'S CHAT FILE IS ITS PRIMARY CHANNEL (S12.15, AgentsToolsSessionChatDeliverCopy): a message into the thread
 		## of another session is recorded in that session's file too, before Slack is called, so a report or a DISMISSED addressed to a
 		## member there reaches its run whatever Slack lets that run read. Our own organisation's threads only, and never an edit.
@@ -1534,7 +1556,7 @@ blocks|verbatim|caller|stdin file"
 				type AgentsToolsCommsCacheOutboxAppend > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsCache.include"
 				if AgentsToolsCommsClientSide "$memberName" || ! type AgentsToolsCommsCacheOutboxAppend > /dev/null 2>&1 \
 					|| ! AgentsToolsCommsCacheSlackDir "$memberName" "$( [ "$sendIdentity" = "bot" ] && printf true || printf false )" "$channel" "$threadTs" \
-					|| ! AgentsToolsCommsCacheOutboxAppend "$agentsCommsCacheDir" "$chatKey" "$chatNo" "$memberName" "$sendIdentity" "$sendApi" "$payload" ; then
+					|| ! AgentsToolsCommsCacheOutboxAppend "$agentsCommsCacheDir" "$chatKey" "$chatNo" "$memberName" "$sendIdentity" "$sendApi" "$payload" "" "$postLocalId" ; then
 					AgentsToolsSlackSendChatKeep retry "queued for the comms reader: an async post to the session thread"
 				fi
 				printf '{"ok":true,"queued":true,"channel":"%s","message":{"thread_ts":"%s"}}\n' "$channel" "$threadTs"
@@ -1763,6 +1785,13 @@ blocks|verbatim|caller|stdin file"
 				AgentsToolsCommsSlackUnreachableReport "$addressedMembers" "$memberName"
 			## The block recorded before the post takes the ts and the thread Slack gave it, so a later read of the thread knows it.
 			[ -z "$chatRecord" ] || [ -z "$sentTs" ] || AgentsToolsSessionChatStamp "$chatKey" "$chatNo" "$sentTs" "${sentChannel#client:}:$sentThreadTs" 2> /dev/null || :
+			## THE TS RECORDED AGAINST THE LOCAL ID (S1 item 11): the post's own line stays the message, and this line is the
+			## reference that says which Slack message it became.
+			if [ -n "$postLocalId" ] && [ -n "$sentTs" ] ; then
+				type AgentsToolsCommsCachePostLink > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsCache.include"
+				AgentsToolsCommsCacheSlackDir "$memberName" "$( [ "$sendIdentity" = "bot" ] && printf true || printf false )" "${sentChannel#client:}" "${sentThreadTs:-}" 2> /dev/null || :
+				[ -z "${agentsCommsCacheDir:-}" ] || AgentsToolsCommsCachePostLink "$agentsCommsCacheDir" "$memberName" "$postLocalId" "" "$sentTs" "$chatBody" || :
+			fi
 			## Its copies in the receiving sessions' files take the same ts, and keep their thread (AgentsToolsSessionChatDeliverStamp).
 			[ -z "$chatCopies" ] || [ -z "$sentTs" ] || AgentsToolsSessionChatDeliverStamp "$chatCopies" "$sentTs" 2> /dev/null || :
 			AgentsToolsSlackSendLogLine ok "$( [ -n "$updateTs" ] && printf 'edited' || printf 'posted' ) ts=$sentTs"

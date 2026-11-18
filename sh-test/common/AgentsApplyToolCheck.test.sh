@@ -82,6 +82,10 @@ rigFresh ; rigOp "$rigTmp/base.out" apply --repository "$rigRepo" --scratch "$ri
 rigAssert "both files put in place"              "$( LC_ALL=C grep -c 'two MINE' "$rigLiveD/a.sh" )$( LC_ALL=C grep -c 'beta MINE' "$rigLiveD/b.txt" )" 11
 rigAssert "the lock is given back, no temp left" "$( ls "$rigWs/.local/temp" | LC_ALL=C wc -l | LC_ALL=C tr -d ' ' ):$( ls "$rigLiveD" | LC_ALL=C wc -l | LC_ALL=C tr -d ' ' )" 0:2
 rigAssert "the apply ends well"                  "$( cat "$rigTmp/base.out.rc" )" 0
+rigAssert "each applied file is named by its absolute path, and read back" \
+	"$( LC_ALL=C grep -c -x -F "read-back: $rigLiveD/a.sh, cmp clean against the staged file" "$rigTmp/base.out" ):$( LC_ALL=C grep -c -x -F "read-back: $rigLiveD/b.txt, cmp clean against the staged file" "$rigTmp/base.out" )" 1:1
+rigAssert "and the put line names that path too" \
+	"$( LC_ALL=C grep -c -x -F "put in place (base): p/d/a.sh -> $rigLiveD/a.sh" "$rigTmp/base.out" )" 1
 
 echo "-- live moved on a line far from this work's: the merge is made now, the other's hunk stays --"
 rigFresh ; sed 's/^seven$/seven THEIRS/' "$rigLiveD/a.sh" > "$rigTmp/x" && mv "$rigTmp/x" "$rigLiveD/a.sh"
@@ -182,6 +186,10 @@ rigAssert "the removals come after every write" \
 	"$( LC_ALL=C awk '/^put in place/ { p = NR } /^removed:/ && !r { r = NR } END { print ( p && r && p < r ) ? "after" : "before" }' "$rigTmp/ren.out" )" after
 rigAssert "each step is in the record" \
 	"$( LC_ALL=C awk -F'\t' 'NF == 3 && ( $1 " " $2 == "put p/e/c.txt" || $1 " " $2 == "removed p/d/b.txt" || $1 " " $2 == "removed p/d/c.txt" ) { n++ ; } END { print n + 0 ; }' "$rigScratch/applied-steps.txt" 2> /dev/null )" 3
+rigAssert "the removal and the renamed file are read back by their absolute paths" \
+	"$( LC_ALL=C grep -c -x -F "removed: p/d/b.txt -> $rigLiveD/b.txt" "$rigTmp/ren.out" ):$( LC_ALL=C grep -c -x -F "put in place (new): p/e/c.txt -> $rigLiveE/c.txt" "$rigTmp/ren.out" ):$( LC_ALL=C grep -c -x -F "read-back: $rigLiveE/c.txt, cmp clean against the staged file" "$rigTmp/ren.out" )" 1:1:1
+rigAssert "and the removal's read-back says the path is gone" \
+	"$( LC_ALL=C grep -c -x -F "read-back: $rigLiveD/b.txt, gone from live" "$rigTmp/ren.out" )" 1
 
 echo "-- a record line of another work is no step of this one --"
 rigRename ; printf 'put\tp/e/c.txt\tsome-other-work\n' > "$rigScratch/applied-steps.txt" ; mkdir -p "$rigLiveE" ; cp -p "$rigScratch/source/myx/p/e/c.txt" "$rigLiveE/c.txt"

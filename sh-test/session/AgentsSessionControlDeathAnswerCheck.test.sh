@@ -133,10 +133,12 @@ cat > "$rigTmp/bin/curl" <<'RIGCURL'
 #!/bin/sh
 rigDir="${0%/*}/../slack"
 rigHeader="$( cat )"
-rigMethod="" ; rigPrevArg="" ; rigBody=""
+rigMethod="" ; rigPrevArg="" ; rigBody="" ; rigThreadTs=""
 for rigArg in "$@" ; do
 	case "$rigArg" in https://slack.com/api/*) rigMethod="${rigArg#https://slack.com/api/}" ; rigMethod="${rigMethod%%\?*}" ;; esac
 	[ "$rigPrevArg" != "--data-binary" ] || rigBody="${rigArg#@}"
+	## A form field is one argument, `name=value`: the ts of a thread is the one this answers for.
+	case "$rigArg" in ts=*) rigThreadTs="${rigArg#ts=}" ;; esac
 	rigPrevArg="$rigArg"
 done
 rigKeep(){ [ -z "$rigBody" ] || { printf '%s ' "$rigMethod" ; cat "$rigBody" ; echo ; } >> "$rigDir/$1" ; }
@@ -160,7 +162,12 @@ case "$rigMethod" in
 	reactions.add) [ ! -e "$rigDir/hang-react" ] || exec sleep 30 ; rigKeep bodies ; printf '{"ok":true}\n' ;;
 	conversations.replies)
 		[ ! -e "$rigDir/hang-read" ] || exec sleep 30
-		if [ -s "$rigDir/replies.json" ] ; then cat "$rigDir/replies.json" ; else printf '{"ok":true,"messages":[],"has_more":false}\n' ; fi
+		## Slack answers a thread with its own root post first, always, and finds the thread by the `ts`
+		## form the caller sends: a stub that answered an empty list would be a thread holding no
+		## question, which is no thread Slack ever gives.
+		if [ -s "$rigDir/replies.json" ] ; then cat "$rigDir/replies.json" ; else
+			printf '{"ok":true,"messages":[{"ts":"%s","user":"URIGBOT01","text":"the question"}],"has_more":false}\n' "$rigThreadTs"
+		fi
 	;;
 	*) rigKeep bodies ; printf '{"ok":false,"error":"channel_not_found"}\n' ;;
 esac
@@ -218,6 +225,9 @@ rigHeader(){ ## run id, header name -- its value in the frontmatter of that run'
 rigStandPid=""
 rigStand(){ ## run id (may be empty)
 	sleep 600 > /dev/null 2>&1 < /dev/null &
+	## The tooling keeps the process list it read for 10 s (.local/temp/ps-args.txt), so a stand-in that
+	## starts or ends after that read is seen only once the kept one goes.
+	rm -f "$rigWs/.local/temp/ps-args.txt" 2> /dev/null
 	rigStandPid=$!
 	rigProcNote "$rigStandPid" ; rigStarted="$rigStarted $rigStandPid"
 	disown "$rigStandPid" 2> /dev/null || :
@@ -444,7 +454,9 @@ rigAssert "a question closed longer ago than the limit dismisses as before" "$( 
 
 echo "-- 2. the answer is read from the record of the question, and the thread of the question on its period --"
 rigDeath d-wait d-wait keeper-rig human-owner
-rigOne d-wait ; rigSettle d-wait ; rigOne d-wait ; rigSettle d-wait
+## The read of the thread is a call apart, started by a tick and finished after it: the last settle here waits for
+## that call, so the assertion below reads a read that was made, never one still in flight.
+rigOne d-wait ; rigSettle d-wait ; rigOne d-wait ; rigSettle d-wait ; rigSettle d-wait
 rigAssert "with no reply nothing is done: the record is open, the line holds no answer, the read of its thread was made, and no run was started or ended" \
 	"$( rigAsks d-wait ):$( rigDeadLine d-wait d-wait | LC_ALL=C grep -c -F -- 'answer=' ):$( LC_ALL=C grep -c '^conversations.replies ' "$rigSlack/calls" | LC_ALL=C awk '{ print ( $1 >= 1 ) ? "read" : "not-read" }' ):$( rigLaunches ):$( rigHeader d-wait status )" "human-owner;:0:read:0:spawn-started"
 ## A reply of the one who was asked, in the thread of the question: read by the call apart, where every answer is read.

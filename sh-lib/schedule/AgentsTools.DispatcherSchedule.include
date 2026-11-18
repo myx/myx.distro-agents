@@ -265,7 +265,22 @@ AgentsToolsScheduleCurrentFlags(){ ## the operation as it was called, its argume
 	done
 	## The pace a start is gated on, and the members' own flags: one picture, whichever door reads it (--current-flags here, --flags at
 	## the coordinator's surface, which relays this output and keeps no loop of its own).
-	AgentsToolsSchedulePaceText 2> /dev/null || :
+	## THE PACE IS A RIG'S: it measures the live runs of the workspace it is read in, so in a workspace that runs no team it would count
+	## the reader's own calls alone and read like the team's. There each rig's own pace is printed, named by its folder, and read without
+	## its cache, so nothing is written into the rig.
+	type AgentsToolsSuperviseRigIs > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/supervise/AgentsTools.SuperviseRigs.include"
+	if AgentsToolsSuperviseRigIs "$MMDAPP" ; then
+		AgentsToolsSchedulePaceText 2> /dev/null || :
+	else
+		local flagsRig flagsOwner flagsPace flagsRigs=""
+		while IFS=$'\t' read -r flagsRig flagsOwner ; do
+			[ -n "$flagsRig" ] || continue
+			flagsRigs="$flagsRigs $flagsRig"
+			flagsPace="$( MMDAPP="$flagsRig" MDAT_TOOL_PACE_CACHE_SECONDS=0 AgentsToolsSchedulePaceText 2> /dev/null )" || flagsPace=""
+			printf 'pace of %s: %s\n' "${flagsRig##*/}" "${flagsPace#pace: }"
+		done <<< "$( AgentsToolsSuperviseRigs "$MMDAPP" 2> /dev/null )"
+		[ -n "$flagsRigs" ] || printf 'pace: this workspace runs no team and names no rig, so no pace is read here -- a duty start is not run here\n'
+	fi
 	AgentsToolsScheduleMemberFlagLines "$flagsEpoch"
 	return 0
 }
@@ -916,6 +931,14 @@ AgentsToolsSchedulePaceText(){ ## -- one line: what was read, and what it decide
 					## A WAIT WAITS BY DESIGN: its minutes are the pause it was asked for, not the machinery around a call (MDV read 907 s a call on one
 					## Wait of 15 minutes). Its record is left out of the pace, as execute is.
 					if ( index( $0, "\"tool\":\"Wait\"" ) ) { next }
+					## A BATCH IS ITS CALLS: each counted once at its own tooling time, and the batch itself counting nothing.
+					if ( match( $0, /"calls_mach_ms":\[[0-9,]*\]/ ) ) {
+						split( substr( $0, RSTART + 17, RLENGTH - 18 ), callMach, "," )
+						for ( callAt = 1 ; callAt in callMach ; callAt++ ) if ( callMach[callAt] != "" ) print callMach[callAt]
+						next
+					}
+					## A batch record of the older shape carries its whole span as one call, which is what the ruling forbids: it is no call.
+					if ( index( $0, "\"tool\":\"BatchTools\"" ) ) { next }
 					if ( match( $0, /"mach_ms":[0-9]+/ ) ) { print substr( $0, RSTART + 10, RLENGTH - 10 ) ; next }
 					if ( match( $0, /"dur_ms":[0-9]+/ ) ) { print substr( $0, RSTART + 9, RLENGTH - 9 ) }
 				}' "$paceFile" 2> /dev/null
@@ -977,6 +1000,8 @@ AgentsToolsScheduleWorkDutyRecord(){ ## member
 		[ -f "$dutyRecord" ] || continue
 		AgentsToolsDutyRoutineIs "$( AgentsToolsFrontmatterKey "$dutyRecord" routine )" || continue
 		[ "$( AgentsToolsFrontmatterKey "$dutyRecord" owner )" = "$1" ] && [ "$( AgentsToolsFrontmatterKey "$dutyRecord" status )" = "spawn-started" ] || continue
+		## A DETACHED RUN IS NO LIVE DUTY OF THE FLOOR (S15, Rules line 6): it keeps its session and its work, and its mark says so.
+		[ -z "$( AgentsToolsFrontmatterKey "$dutyRecord" duty-detached )" ] || continue
 		dutySpawn="${dutyRecord##*/}" ; dutySpawn="${dutySpawn%.spawn.md}"
 		type AgentsToolsLivenessOf > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunProcesses.include"
 		[ "$( AgentsToolsLivenessOf "$dutySpawn" "$dutyRecord" )" = alive ] || continue
@@ -1075,12 +1100,54 @@ AgentsToolsScheduleDutyStaleClose(){ ## work-duty or spawn record
 	return 0
 }
 
+## A DUTY BLOCKED INSIDE A SESSION DETACHES (S15, Rules line 6 and Open 3). The measured case, 2026-11-17 09:41 +0200: a
+## member's duty joined a session (`session-id` other than its own `spawn-id`) and stayed there, its lock refused every new
+## start of that duty, and the member had no floor. A run inside a session works that session's rounds, so it is past
+## MDAT_DUTY_BLOCKED_SECONDS (900) `blocked`, whatever its Wait does. The floor must answer while another instance works a
+## session, so the floor goes unanswered no longer than the bound: magic-coordinator's ruling of 2026-11-17 11:16 +0200.
+## The detach gives the lock back and marks the record `duty-detached`, which ends it as the member's live duty
+## (AgentsToolsScheduleWorkDutyRecord reads that mark). The kept session of the member's restarts goes with it, so the start
+## that follows makes a duty of its own, a separate instance. IT KEEPS ITS SESSION AND ITS WORK: no process is signalled,
+## no record deleted, its `session-id` untouched, and its own later release of the lock answers nothing to do.
+## The bound is one setting, stated in seconds. Prints one line when it detaches, and nothing when the record is no duty
+## inside a session or is inside its bound.
+AgentsToolsScheduleDutyBlockedDetach(){ ## the duty's spawn record
+	local blockedRecord="$1" blockedBound="${MDAT_DUTY_BLOCKED_SECONDS:-900}" blockedMember blockedRun blockedSession blockedSpawn blockedAt blockedNow blockedValue blockedIn
+	[ -f "$blockedRecord" ] || return 1
+	case "$blockedBound" in ''|*[!0123456789]*|0) blockedBound=900 ;; esac
+	type AgentsToolsFrontmatterKey > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.FrontmatterKey.include"
+	[ "$( AgentsToolsFrontmatterKey "$blockedRecord" status )" = "spawn-started" ] || return 1
+	[ -z "$( AgentsToolsFrontmatterKey "$blockedRecord" duty-detached )" ] || return 1
+	blockedSession="$( AgentsToolsFrontmatterKey "$blockedRecord" session-id )"
+	blockedSpawn="$( AgentsToolsFrontmatterKey "$blockedRecord" spawn-id )"
+	## INSIDE A SESSION is the run's `session-id` naming a session other than the one its own `spawn-id` founded.
+	[ -n "$blockedSession" ] && [ -n "$blockedSpawn" ] && [ "$blockedSession" != "$blockedSpawn" ] || return 1
+	blockedAt="$( printf '%s\n' "$( AgentsToolsFrontmatterKey "$blockedRecord" started-at )" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/output/LocalIsoToEpoch.awk" 2> /dev/null )" || blockedAt=""
+	case "$blockedAt" in ''|*[!0123456789]*) return 1 ;; esac
+	blockedNow="${agentsSchedulePassNow:-$( date +%s )}"
+	blockedIn=$(( blockedNow - blockedAt ))
+	[ "$blockedIn" -ge "$blockedBound" ] || return 1
+	blockedMember="$( AgentsToolsFrontmatterKey "$blockedRecord" owner )"
+	blockedRun="${blockedRecord##*/}" ; blockedRun="${blockedRun%.spawn.md}"
+	blockedValue="$( AgentsToolsFrontmatterKey "$blockedRecord" routine-lock )"
+	if [ -n "$blockedValue" ] ; then
+		type AgentsToolsRoutineLockUnlock > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/routine/AgentsTools.RoutineLock.include"
+		AgentsToolsRoutineLockUnlock "$blockedValue" "$blockedSession" "$blockedRun detached: inside session $blockedSession past its bound of $blockedBound s, $blockedIn s in" || :
+	fi
+	type AgentsToolsSpawnSessionRecordNote > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSessionParent.include"
+	printf 'duty-detached\t%s: inside session %s past its bound of %s s (%s s in)\n' "$( date '+%Y-%m-%d %H:%M %z' )" "$blockedSession" "$blockedBound" "$blockedIn" | AgentsToolsSpawnSessionRecordNote "$blockedRecord" || :
+	## THE KEPT SESSION GOES, so the start that follows is an instance of its own and never joins the detached session again.
+	rm -f "$MMDAPP/.local/agents/schedule/duty-session/$blockedMember" 2> /dev/null || :
+	printf 'work-duty: %s of %s is detached: %s s inside session %s, past its bound of %s s; its lock is given back, and a new duty starts\n' "$blockedRun" "$blockedMember" "$blockedIn" "$blockedSession" "$blockedBound"
+	return 0
+}
+
 ## The team channel, read once for every member there is to look for: the messages after the last read, and for each member the newest that
 ## mentions it (`<@its Slack id>` or `@its name`), kept in tags/<member>. No read at all inside the TTL of the source, and none made for nobody.
 ## The first look reads from now: what stood there before is not news. A read that fails is tried again after the TTL. <force> yes is the
 ## per-member sync's (AgentsTools.Incoming.include): the tags are read now, whatever the TTL, for the members given.
 AgentsToolsScheduleTeamTags(){ ## the members to look for, spaced; force (yes|no)
-	type AgentsToolsTrackingDrop > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.TrackingDrop.include"
+	type AgentsToolsTrackingDrop > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/wait/AgentsTools.TrackingDrop.include"
 	local teamStore="$MMDAPP/.local/agents/schedule" teamNow teamTtl teamAt="" teamFloor="" teamOut teamTemp teamMember teamId teamNewest teamHit teamIdList=""
 	[ -n "${1// /}" ] || return 0
 	teamNow="${agentsSchedulePassNow:-$( date +%s )}"
@@ -1253,7 +1320,7 @@ AgentsToolsScheduleDmTags(){ ## the members within their flags to look for, spac
 	## agentsScheduleDmNewest is the newest DM this call found, empty for none: the per-member sync's line (AgentsTools.Incoming.include).
 	agentsScheduleDmNewest=""
 	[ -n "$1$2" ] || return 0
-	type AgentsToolsTrackingDrop > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.TrackingDrop.include"
+	type AgentsToolsTrackingDrop > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/wait/AgentsTools.TrackingDrop.include"
 	dmNow="${agentsSchedulePassNow:-$( date +%s )}"
 	mkdir -p "$dmStore/dms" "$dmStore/dm-looked" 2> /dev/null || return 0
 	## THE STAMP IS THE LOOK'S OWN MOMENT, not the pass clock: a pass that ran into minutes stamped every member with its start, so the TTL
@@ -1565,8 +1632,11 @@ AgentsToolsScheduleWorkDuty(){
 	## The pass's one start begins here: the duties are the pass's first starter, and the pending items read the marker after them.
 	agentsSchedulePassStarted=""
 	## A duty record that says started while its run is gone is closed here, from the liveness reading, so the restart rule below reads an end and not a status (S23.6).
+	## AND A DUTY BLOCKED INSIDE A SESSION DETACHES HERE (S15, Rules line 6): it gives up the duty lock and the floor, keeps
+	## its session and its work, and the start below makes a duty of its own. One reading of the kept list serves both.
 	while IFS= read -r dutyStale ; do
 		[ -n "$dutyStale" ] || continue
+		AgentsToolsScheduleDutyBlockedDetach "$dutyStale" || :
 		AgentsToolsScheduleDutyStaleClose "$dutyStale"
 	done <<< "$( AgentsToolsScheduleStartedDutyRecords )"
 	## A live work-duty of a member that holds none (partner, warden, client, AgentsToolsScheduleStanding) is told to go at its idle point.
@@ -1908,10 +1978,11 @@ AgentsToolsScheduleVerifyStale(){ ## item file name
 ## naming a routine). The start is `magic-coordinator.work-duty.routine`'s **start-pending** done by the thread: the item moves to `board-running`
 ## first, then its `restart-session` group, else its `owner`, is spawned on that routine. A move refused starts nothing, and says why.
 AgentsToolsScheduleStartPending(){
-	local pendFile pendName pendNow pendRecheck pendEpoch pendRoutine pendRc pendMembers pendOut pendMark pendOne pendFast="" pendFlags pendOpen=no
+	local pendFile pendName pendNow pendRecheck pendEpoch pendRoutine pendRc pendMembers pendOut pendMark pendOne pendFast="" pendFlags pendOpen=no pendHeld="" pendGo=""
 	type AgentsToolsBoardItemHandler > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.BoardItemHandler.include"
-	## The pace gate holds this start as it holds a duty start: a slow machine gets no new session.
-	case "$( AgentsToolsSchedulePaceText 2> /dev/null )" in *' is held'*) printf 'start-pending: held by the pace gate, nothing started\n' ; return 0 ;; esac
+	## The pace gate holds this start as it holds a duty start: a slow machine gets no new session. An urgent or emergency item starts
+	## whatever the pace (the owner's ruling), so the hold is read once here and applied per item, at its mark.
+	case "$( AgentsToolsSchedulePaceText 2> /dev/null )" in *' is held'*) pendHeld=yes ;; esac
 	## ONE START PER PASS: a duty started in this pass is the pass's one start; the pending items wait for the next pass, when the pace shows it.
 	[ -z "${agentsSchedulePassStarted:-}" ] || { printf 'start-pending: %s started this pass, nothing more is started until the next\n' "$agentsSchedulePassStarted" ; return 0 ; }
 	pendNow="${agentsSchedulePassNow:-$( date +%s )}"
@@ -1926,7 +1997,10 @@ AgentsToolsScheduleStartPending(){
 		[ -f "$pendFile" ] || continue
 		pendName="${pendFile##*/}"
 		case "$pendName" in dispatch-*) continue ;; esac
-		[ -n "$( AgentsToolsBoardItemKey "$pendFile" approved-by )" ] || continue
+		## The go is the item's own, else its epic's: a child of an approved epic carries `epic:` alone and no copy of the go.
+		pendGo="$( AgentsToolsBoardItemKey "$pendFile" approved-by )"
+		[ -n "$pendGo" ] || pendGo="$( AgentsToolsBoardItemEpicGo "$pendFile" )"
+		[ -n "$pendGo" ] || continue
 		pendRecheck="$( AgentsToolsBoardItemKey "$pendFile" recheck-date )"
 		if [ -n "$pendRecheck" ] ; then
 			pendEpoch="$( printf '%s\n' "$pendRecheck" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/output/LocalIsoToEpoch.awk" 2> /dev/null )"
@@ -1954,6 +2028,7 @@ AgentsToolsScheduleStartPending(){
 		## ONE SESSION PER MEMBER UNLESS THE MACHINE IS FAST: a member that runs a session already gets another only while the median tool call is 5 s or
 		## less, or for an urgent or emergency item, or while the emergency flag is on. Otherwise the item waits in pending.
 		pendMark="$( AgentsToolsBoardItemKey "$pendFile" mark )"
+		[ -z "$pendHeld" ] || case "$pendMark" in urgent|emergency) ;; *) pendHeld=said ; continue ;; esac
 		[ "$pendOpen" = yes ] || case "$pendMark" in urgent|emergency) ;; *) continue ;; esac
 		case "$pendMark" in
 			urgent|emergency) ;;
@@ -1991,6 +2066,7 @@ AgentsToolsScheduleStartPending(){
 		fi
 		return 0
 	done
+	[ "$pendHeld" != said ] || printf 'start-pending: held by the pace gate, nothing started\n'
 	return 0
 }
 

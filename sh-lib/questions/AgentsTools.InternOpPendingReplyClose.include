@@ -194,6 +194,23 @@
 		{ printf '%s\n' "$pendingBody" > "$pendingFile.$$" && mv -f "$pendingFile.$$" "$pendingFile" ; } \
 			|| { rm -f "$pendingFile.$$" ; AgentsToolsLocalLockGive "$pendingLock" ; set +e ; return 1 ; }
 		AgentsToolsLocalLockGive "$pendingLock"
+		## AN ANSWERED ASK RESTARTS THE REVIEW COUNT OF ITS SESSION (AgentsReviewWaitLeft): its moment goes in
+		## one line beside the records, after the record's own rename, and never lowers a later one. Best effort.
+		if [ "$pendingStatus" = "reply-received" ] && [ -z "$pendingAmend" ] ; then
+			local answerSession answerEpoch answerKept=""
+			type AgentsToolsFrontmatterKey > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.FrontmatterKey.include"
+			answerSession="$( AgentsToolsFrontmatterKey "$pendingFile" session-id )"
+			answerEpoch="$( date +%s )"
+			case "$answerSession" in ''|-|*/*|.|..) ;; *)
+				mkdir -p "$MMDAPP/.local/agents/pending/answers" 2> /dev/null || :
+				{ IFS= read -r answerKept < "$MMDAPP/.local/agents/pending/answers/$answerSession.epoch" ; } 2> /dev/null || answerKept=""
+				case "$answerKept" in ''|*[!0123456789]*) ;; *) [ "$answerKept" -le "$answerEpoch" ] || answerEpoch="$answerKept" ;; esac
+				## A WRITE THAT FAILED LEAVES NO FILE: absent reads as no answer, never as a stale one.
+				printf '%s\n' "$answerEpoch" > "$MMDAPP/.local/agents/pending/answers/$answerSession.epoch" 2> /dev/null \
+					|| rm -f "$MMDAPP/.local/agents/pending/answers/$answerSession.epoch" 2> /dev/null || :
+			;;
+			esac
+		fi
 		## AN ANSWERED ASK REACHES ITS ASKER ON THE SESSION FLOOR: one message on the asking session's printback channel in its chat file,
 		## addressed to the member that asked (AgentsToolsPendingReplyFloorNotice). It names the ask, its question and its
 		## result, so a run that rewound to its checkpoint since it asked still learns the answer and what it answers: a floor Wait or an

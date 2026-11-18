@@ -96,6 +96,13 @@
 ## the caller to remove; with any run ahead of it in the line the run is refused, saying so. A lock left
 ## by a runner that no longer exists is removed; one taken by hand never is.
 ##
+## A RUN GIVES ITS LANES UP BETWEEN ITS CHECKS WHILE ANOTHER WAITS FOR THEM. At each boundary between two of its checks a
+## run that holds lanes reads the line: a check started by hand behind it, or a run behind it with no lane free, waits for
+## it. Its workers stop at their boundaries, its lanes go back, and `<ticket>.yield` tells every waiter to pass it by. Once
+## each ticket it yielded to is done the mark goes and it takes its lanes again. It runs a check between two yields, so it is
+## never starved, and its order, logs, receipts and summary are as they were. At its turn a run writes `rundir=` on its
+## ticket, so a waiter says of it how many of its checks are done.
+##
 ## NOTHING RUNS AROUND THE LINE. A run that cannot be given a lane says so and refuses; a test started by
 ## a run carries that run's ticket (MDAT_SUITE_QUEUE_TURN) and stands in no line of its own, and a ticket
 ## that is no file of the line buys no run anything.
@@ -439,7 +446,7 @@ AgentsRunTicketState(){ ## ticket file, the sessions holding a lane now on one l
 }
 
 AgentsRunDescribeTicket(){ ## ticket file -- that place named as its own ticket names it: its session, the copy it runs from and how long it has held
-	local describeSession describeKind describeOrigin describeSince describeStamp describeClock describeAge describeFrom
+	local describeSession describeKind describeOrigin describeSince describeStamp describeClock describeAge describeFrom describeRunDir describeLine describeAll=0 describeDone=0 describeDoing=""
 	describeSession="$( LC_ALL=C sed -n 's/^session=//p' "$1" 2>/dev/null | LC_ALL=C sed -n 1p )"
 	describeKind="$( LC_ALL=C sed -n 's/^kind=//p' "$1" 2>/dev/null | LC_ALL=C sed -n 1p )"
 	describeOrigin="$( LC_ALL=C sed -n 's/^origin=//p' "$1" 2>/dev/null | LC_ALL=C sed -n 1p )"
@@ -453,14 +460,23 @@ AgentsRunDescribeTicket(){ ## ticket file -- that place named as its own ticket 
 		''|*[!0123456789]*) ;;
 		*) if [ "$describeClock" -ge "$describeStamp" ] ; then describeAge="$(( describeClock - describeStamp ))s" ; else describeAge="no time yet" ; fi ;;
 	esac
-	printf 'the %s of session %s%s, in the line for %s' \
+	## a run at work says how far it is, after its age, so the waiter's "whom changed" test passes over it as it does over the age
+	describeRunDir="$( LC_ALL=C sed -n 's/^rundir=//p' "$1" 2>/dev/null | LC_ALL=C sed -n 1p )"
+	if [ -n "$describeRunDir" ] && [ -f "$describeRunDir/tests.list" ] ; then
+		while IFS= read -r describeLine ; do describeAll=$(( describeAll + 1 )) ; done < "$describeRunDir/tests.list"
+		[ ! -f "$describeRunDir/progress.txt" ] || while IFS= read -r describeLine ; do case "$describeLine" in PASS*|FAIL*) describeDone=$(( describeDone + 1 )) ;; esac ; done < "$describeRunDir/progress.txt"
+		describeDoing=", running: $describeDone of $describeAll checks done"
+		[ ! -f "$1.yield" ] || describeDoing=", its lanes given up between two checks: $describeDone of $describeAll checks done"
+	fi
+	printf 'the %s of session %s%s, in the line for %s%s' \
 		"$( [ "$describeKind" = check ] && printf 'check' || printf 'run' )" \
-		"${describeSession:-nobody}" "$describeFrom" "$describeAge"
+		"${describeSession:-nobody}" "$describeFrom" "$describeAge" "$describeDoing"
 }
 AgentsRunQueueLeave(){ ## -- out of the line, and every lane this run took given back
 	local leaveLane
-	[ -z "$runTicket" ] || rm -f "$runQueueDir/$runTicket" "$runQueueDir/$runTicket.beat"
-	for leaveLane in $runLaneMine ; do AgentsRunLaneGive "$leaveLane" ; done
+	[ -z "$runTicket" ] || rm -f "$runQueueDir/$runTicket" "$runQueueDir/$runTicket.beat" "$runQueueDir/$runTicket.yield"
+	## a lane given up between two checks may be another run's by now: only one this runner still holds goes back
+	for leaveLane in $runLaneMine ; do [ "$( AgentsRunLaneHolder "$leaveLane" )" != "$$" ] || AgentsRunLaneGive "$leaveLane" ; done
 	runTicket="" runLockMine="" runLaneMine=""
 }
 ## THE PACE A TOOL CALL FINDS NOW, and the lanes it buys (WAITING IN THE LINE, above). One fixed piece of this
@@ -668,6 +684,8 @@ AgentsRunQueueTurn(){ ## -- stands in the line, takes a lane at this run's turn,
 		## pass, so a run that stopped waiting gives up its place while its session lives, and the beat file stays one line
 		runQueueClock="$( date +%s )" || runQueueClock=""
 		printf '%s\n' "$runQueueClock" > "$runQueueDir/$runTicket.beat" 2>/dev/null || :
+		## A beat whose ticket is gone is a leftover nothing else removes: a waiter pruned while it lived rewrites it once more.
+		for turnFile in "$runQueueDir"/*.ticket.beat "$runQueueDir"/*.ticket.yield ; do [ ! -f "$turnFile" ] || [ -f "${turnFile%.*}" ] || rm -f "$turnFile" ; done
 		## The lanes are read at every pass, so a lane whose run died is given back here rather than held for ever.
 		turnHolders="$( AgentsRunLaneHolders "$runLaneCountNow" )"
 		for turnFile in "$runQueueDir"/*.ticket ; do
@@ -682,9 +700,11 @@ AgentsRunQueueTurn(){ ## -- stands in the line, takes a lane at this run's turn,
 				alive) ;;
 				*) ## `gone`, `ended`, `held` and `stalled`: a place given up, taken out of the line here and said
 					[ "$turnState" = gone ] || echo "# AgentsRunTests.sh: a place given up in the line, so this run stands no longer behind it: $( AgentsRunDescribeTicket "$turnFile" )" >&2
-					rm -f "$turnFile" "$turnFile.beat" ; continue
+					rm -f "$turnFile" "$turnFile.beat" "$turnFile.yield" ; continue
 				;;
 			esac
+			## A run that gave its lanes up between two checks is passed by until it takes them again.
+			[ ! -f "$turnFile.yield" ] || continue
 			## A ticket ahead that holds no lane is the head of the queue, and this run waits for it, so a run
 			## that arrived first starts first. One already holding a lane is running, and this run may take
 			## another lane beside it -- and where every lane is taken, the holder is named as well.
@@ -837,6 +857,8 @@ runDir="$runRoot/$( date -u +%Y%m%dT%H%M%SZ )"
 mkdir -p "$runRoot" 2>/dev/null
 mkdir "$runDir" 2>/dev/null || { runDir="$runDir-$$" ; mkdir -p "$runDir" ; } || { echo "⛔ ERROR: AgentsRunTests.sh: cannot create $runDir" >&2 ; exit 1 ; }
 ln -sfn "$runDir" "$runRoot/latest" 2>/dev/null || :
+## the run folder on the ticket, so a waiter says how many of its checks are done
+[ -z "$runTicket" ] || printf 'rundir=%s\n' "$runDir" >> "$runQueueDir/$runTicket" 2>/dev/null || :
 ## No test links a rig into source (epic S23.11): each finds a guard `ln` first on its PATH. A runner copied alone into a rig cannot reach sh-lib and runs with none.
 if [ -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SandboxLinks.include" ] ; then
 	. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SandboxLinks.include" && AgentsToolsLnGuardMake "$runDir/guard-bin" && PATH="$runDir/guard-bin:$PATH"
@@ -907,13 +929,106 @@ AgentsRunOneTest(){ ## test name, timeout seconds -- one task line of the run li
 	fi
 }
 
+## The tickets behind this run's own that wait for its lanes, into runYieldWaiters one a line (A RUN GIVES ITS LANES UP, above): a
+## check started by hand waits behind every ticket ahead of it, and a run only where no lane is free for it. With no ticket behind
+## this run, the common case at a boundary, it is one glob of the line and no process.
+AgentsRunYieldWaiters(){
+	local yieldFile yieldKey yieldValue yieldSession yieldKind yieldWon yieldHolders="" yieldFree=""
+	runYieldWaiters=""
+	[ -n "$runTicket" ] && [ -n "$runLaneMine" ] || return 0
+	for yieldFile in "$runQueueDir"/*.ticket ; do
+		[ -f "$yieldFile" ] || continue
+		[ "${yieldFile##*/}" \> "$runTicket" ] || continue
+		[ ! -f "$yieldFile.yield" ] || continue
+		yieldSession="" yieldKind="" yieldWon=""
+		while IFS='=' read -r yieldKey yieldValue ; do
+			case "$yieldKey" in
+				session) [ -n "$yieldSession" ] || yieldSession="$yieldValue" ;;
+				kind) [ -n "$yieldKind" ] || yieldKind="$yieldValue" ;;
+				turn-won) [ -n "$yieldWon" ] || yieldWon="$yieldValue" ;;
+			esac
+		done 2> /dev/null < "$yieldFile"
+		## a check that has won its turn is at work, and waits for nothing
+		[ -z "$yieldWon" ] || continue
+		[ -n "$yieldHolders" ] || yieldHolders="$( AgentsRunLaneHolders "$runLaneCountNow" ) "
+		[ "$( AgentsRunTicketState "$yieldFile" "$yieldHolders" )" = alive ] || continue
+		if [ "$yieldKind" != check ] ; then
+			! AgentsRunTicketHoldsLane "$yieldSession" "$yieldHolders" || continue
+			[ -n "$yieldFree" ] || yieldFree="$( AgentsRunLaneFreeOne "$runLaneCountNow" || printf 'none' )"
+			[ "$yieldFree" = none ] || continue
+		fi
+		runYieldWaiters="$runYieldWaiters$yieldFile"$'\n'
+	done
+	return 0
+}
+## The yield itself, by the one worker that marked the ticket: the checks in flight end (a log with no receipt yet is one still
+## running), the lanes go back, each ticket it yielded to is waited out, the mark goes, and the same lanes are taken again. It
+## touches the run list as it waits, so the stall watch does not take the run for one that stands still.
+AgentsRunYieldGive(){
+	local giveFile giveBusy giveLane giveWaiter giveLanes="$runLaneMine"
+	while : ; do
+		giveBusy=""
+		for giveFile in "$runDir"/*.log ; do [ ! -f "$giveFile" ] || [ -f "${giveFile%.log}.receipt" ] || { giveBusy=1 ; break ; } ; done
+		[ -n "$giveBusy" ] || break
+		touch "$runList" 2> /dev/null || :
+		sleep 1
+	done
+	for giveLane in $runLaneMine ; do AgentsRunLaneGive "$giveLane" ; done
+	echo "# AgentsRunTests.sh: gave its lane(s)$runLaneMine back between two checks: $( printf '%s' "$runYieldWaiters" | LC_ALL=C grep -c . ) ticket(s) behind it wait for them" >&2
+	while IFS= read -r giveWaiter ; do
+		[ -n "$giveWaiter" ] || continue
+		while [ -f "$giveWaiter" ] && [ "$( AgentsRunTicketState "$giveWaiter" "$( AgentsRunLaneHolders "$runLaneCountNow" ) " )" = alive ] ; do
+			date +%s > "$runQueueDir/$runTicket.beat" 2> /dev/null || :
+			touch "$runList" 2> /dev/null || :
+			sleep 2
+		done
+	done <<< "$runYieldWaiters"
+	rm -f "$runQueueDir/$runTicket.yield"
+	for giveLane in $giveLanes ; do
+		until AgentsRunLaneFree "$giveLane" && AgentsRunLaneTake "$giveLane" ; do
+			date +%s > "$runQueueDir/$runTicket.beat" 2> /dev/null || :
+			touch "$runList" 2> /dev/null || :
+			sleep 2
+		done
+	done
+	## the same lanes as before: a take adds its lane to the list, and a list grown at each yield would wait at the next for a lane it holds
+	runLaneMine="$giveLanes"
+	echo "# AgentsRunTests.sh: took its lane(s)$runLaneMine again and goes on with its checks" >&2
+	return 0
+}
+## Before a worker is handed its next check (A RUN GIVES ITS LANES UP, above). With a ticket waiting for the run's lanes, no new check is
+## handed out: the first worker to mark the ticket yields for the run, once, and every other worker waits until the mark is gone and the
+## lanes are the run's again. rc 0 where the worker stopped.
+AgentsRunYieldPoint(){
+	local pointBack pointLane
+	AgentsRunYieldWaiters
+	[ -n "$runYieldWaiters" ] || [ -f "$runQueueDir/$runTicket.yield" ] || return 1
+	if [ -n "$runYieldWaiters" ] && ( set -C ; date +%s > "$runQueueDir/$runTicket.yield" ) 2> /dev/null ; then
+		AgentsRunYieldGive
+		return 0
+	fi
+	while : ; do
+		pointBack=1
+		[ ! -f "$runQueueDir/$runTicket.yield" ] || pointBack=""
+		for pointLane in $runLaneMine ; do [ -z "$pointBack" ] || [ "$( AgentsRunLaneHolder "$pointLane" )" = "$$" ] || pointBack="" ; done
+		[ -z "$pointBack" ] || break
+		sleep 1
+	done
+	return 0
+}
+
 AgentsRunWorker(){ ## worker number -- one task line of the driver: the tests of the run list one after another, each the first no worker has taken, until none is left
-	local workerName workerTimeout
+	local workerName workerTimeout workerRan=""
 	while read -r workerName workerTimeout ; do
 		[ -n "$workerName" ] || continue
+		## before a check is handed out: a worker that has run one since its last stop may give the run's lanes up, and every worker stops while one does
+		if [ -n "$workerRan" ] || [ -f "$runQueueDir/$runTicket.yield" ] ; then
+			! AgentsRunYieldPoint || workerRan=""
+		fi
 		## taken by whoever makes its log: made by one worker or not at all, never by two
 		( set -C ; printf '' > "$runDir/$workerName.log" ) 2>/dev/null || continue
 		AgentsRunOneTest "$workerName" "$workerTimeout" < /dev/null || :
+		workerRan=1
 	done < "$runList"
 	return 0
 }

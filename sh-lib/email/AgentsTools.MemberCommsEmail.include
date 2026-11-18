@@ -409,6 +409,18 @@ case "$1" in
 			type AgentsToolsOutputStyleRefusal > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.OutputStyle.include"
 			printf '%s' "$subject" | AgentsToolsOutputStyleRefusal "$memberName" "$textGroup" "$recipients (subject)" "" "word-cap semicolon paragraph-gate" || { local mailFloorRc=$? ; set +e ; return "$mailFloorRc" ; }
 			printf '%s' "$bodyLines" | AgentsToolsOutputStyleRefusal "$memberName" "$textGroup" "$recipients" "" "word-cap semicolon paragraph-gate" || { local mailFloorRc=$? ; set +e ; return "$mailFloorRc" ; }
+			## A RELAY THAT SAYS A FILE WAS APPLIED NAMES ITS TREE AND READS IT BACK (task-20261117T2241Z): the same gate the
+			## Slack send carries, on the one other place a relay leaves the team.
+			if [ "$textGroup" = "relay" ] ; then
+				type AgentsToolsApplyReportFaults > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.ApplyReport.include"
+				local mailApplyFaults="" mailApplyRc=0
+				mailApplyFaults="$( printf '%s\n%s\n' "$subject" "$bodyLines" | AgentsToolsApplyReportFaults )" || mailApplyRc=$?
+				if [ "$mailApplyRc" != 0 ] ; then
+					echo "⛔ ERROR: $MDSC_CMD --email-send: this relay says a file was applied, and it does not give that file its absolute path and its read-back. Nothing was sent. A line names the file absolute path, the workspace it belongs to, and a read-back (cmp against the staged file, or its hash). What is missing:" >&2
+					printf '%s\n' "$mailApplyFaults" >&2
+					set +e ; return 1
+				fi
+			fi
 
 			## Outbound-to-unlisted-people gate: email has no internal/team
 			## conversation concept the way Slack does, so every recipient

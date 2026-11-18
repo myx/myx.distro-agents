@@ -34,6 +34,7 @@
 		fi
 		## Not forwarded when it is already answered: by an earlier ask of the same session, or in its item's Decisions.
 		local forwardEarlier=""
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 		forwardEarlier="$( LC_ALL=C awk 'seenBody { print ; next } /^# Question asked$/ { seenBody = 1 }' "$forwardFile" \
 			| DistroAgentsTools --intern-op-pending-reply-earlier "$forwardBy" \
 				--kind "$( AgentsToolsEscalationField "$forwardFile" kind )" \

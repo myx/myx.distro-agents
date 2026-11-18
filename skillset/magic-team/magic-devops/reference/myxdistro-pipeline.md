@@ -369,6 +369,9 @@ another.
 - **A single target is reached with `ListSshTargets` or `ExecuteSequence --select-projects <instance>`**, using the FreeBSD instance names from the inventory. The inventory keyword is the only OS marker for an instance.
 - **A parse check is `cat file | sh -n`, plus a deliberately broken control file.** `sh -c 'sh -n; echo $?'` reported a false rc 0.
 - **macOS bash 3.2 rejects the generated installer's `eval "$( cat << BLK` wrapper**, which FreeBSD `sh` and bash 5 accept.
+- **A long run on a remote host starts detached there.** The connection is a monitor, never the run's parent. A reset ends a foreground script and leaves what it started with nothing to stop it.
+- **A run's stop is read back in its own call, by asking the host what is running.** The run's own success line says nothing about what it left up.
+- **A run that dies part-way is recorded, not retried quietly.** Its calls reached the host, so what it started is real.
 
 ## Example command syntax on record
 

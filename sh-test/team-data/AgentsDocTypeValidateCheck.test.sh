@@ -234,6 +234,13 @@ done
 rigAssert "the owner is required in all 10 board contracts, and no board shape (10 exist) shows it optional" "$rigOwners:$rigShapes" "10:10"
 rigAssert "a contract is no longer 'not built yet'" "$( LC_ALL=C grep -l 'not built yet' "$rigTemplates"/*-item.*.contract.format.md | LC_ALL=C wc -l | LC_ALL=C tr -d ' ' )" "0"
 
+rigTask task-20261001T1096Z-epic.md 'epic: epic-blueprint-20261102T0000Z-rig'
+rigCheck board-item.task task-20261001T1096Z-epic.md
+rigAssert "a task naming its epic: the key is named, and the document passes" "$rigRc:$( rigRules )" "0:"
+rigTask task-20261001T1097Z-epic.md 'epic-owner: magic-coordinator'
+rigCheck board-item.task task-20261001T1097Z-epic.md
+rigAssert "control: a key no contract names still reports" "$rigRc:$( rigRules )" "0:report-contract-unknown-key"
+
 echo "-- 9. a pure rule set --"
 rigCheck board-item.task task-20261001T1015Z-a.md
 cp "$rigTmp/said.out" "$rigTmp/first.out"

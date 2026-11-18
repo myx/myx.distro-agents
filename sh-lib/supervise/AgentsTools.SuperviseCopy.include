@@ -66,6 +66,9 @@ AgentsToolsSuperviseCopy(){ ## <from-run> <source> <to-run> <destination>
 		esac
 	done
 	type AgentsToolsSpawnRecord > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunRecords.include"
+	type AgentsToolsSuperviseRunIdInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/supervise/AgentsTools.SuperviseWorkspace.include"
+	AgentsToolsSuperviseRunIdInto copyFromRun "$copyFromRun" || return 1
+	AgentsToolsSuperviseRunIdInto copyToRun "$copyToRun" || return 1
 	copyRecord="$( MMDAPP="$copyWs" AgentsToolsSpawnRecord "$copyFromRun" )"
 	[ -n "$copyRecord" ] || { echo "$MDSC_CMD: ⛔ ERROR: --supervise-copy: no record of this workspace carries the run $copyFromRun" >&2 ; return 1 ; }
 	copyFromRoot="${copyRecord%/*}"

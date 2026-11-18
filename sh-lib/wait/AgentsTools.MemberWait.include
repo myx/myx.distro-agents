@@ -385,6 +385,7 @@ AgentsWaitFolderSweep(){ ## member -- keeps this shell's own `<pid> <start>` for
 
 ## The end of a Wait's folder: a kept one only lets its hold go, one of its own under .local/temp goes whole. Run in the wait's scope.
 AgentsWaitFolderEnd(){
+	[ -z "${waitNapPointer:-}" ] || rm -f "$waitNapPointer" 2> /dev/null
 	if [ -n "${waitDirKept:-}" ] ; then
 		rm -f "$waitStateDir/work.$memberName/.held" 2> /dev/null
 	elif [ -n "${waitDetachedTask:-}" ] ; then

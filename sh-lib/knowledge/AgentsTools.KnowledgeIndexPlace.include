@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.KnowledgeIndexPlace.include -- where the workspace's knowledge index stands, and the two stamps that keep it
+## fresh. Sourced, never run; functions only.
+##
+## `wanted` is touched when a store the index reads changes, by the writers of those stores; `built` when a build finishes.
+## Neither is a walk: each is one stat of one file, so a pass with nothing to do pays two.
+##
+
+## The index's root, spelled in this file alone. A copy of the path in another file would silently keep answering for the
+## old place after a move, and the build and the query would then read two different indexes.
+AgentsToolsKnowledgeIndexRoot(){ ## -- the index root on stdout
+	printf '%s\n' "${MMDAPP%/}/.local/knowledge-index"
+}
+
+## A stamp's path, made from the root above rather than spelled again: a rebuild of the index never moves a stamp, so the
+## refresh's two tests keep reading the same two files.
+AgentsToolsKnowledgeIndexStamp(){ ## wanted|built -- that stamp's path on stdout
+	printf '%s.%s.stamp\n' "$( AgentsToolsKnowledgeIndexRoot )" "$1"
+}
+
+## A store the index reads has changed. Never fails its caller: the stamp advises the refresh, and is no record of the write.
+AgentsToolsKnowledgeWantedMark(){ ## -- nothing
+	: > "$( AgentsToolsKnowledgeIndexStamp wanted )" 2> /dev/null || :
+}

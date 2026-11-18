@@ -15,7 +15,7 @@ set -u
 
 rigHere="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib"
 rigField="$rigHere/harness/AgentsHarnessJsonField.awk"
-rigFormat="$rigHere/session/AgentsSessionTranscriptFormat.awk"
+rigFormat="$rigHere/transcript/AgentsSessionTranscriptFormat.awk"
 rigPost="$rigHere/event-track/AgentsTools.InternOpEventTrackPost.include"
 rigTool="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 

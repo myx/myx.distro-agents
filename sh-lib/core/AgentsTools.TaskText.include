@@ -22,24 +22,24 @@ if ! type AgentsToolsTaskText > /dev/null 2>&1 ; then
 	## One value read off an item file, or nothing.
 	AgentsToolsTaskTextRead(){ ## want (title|text|brief|header), item file, header name (with header)
 		[ -f "${2:-}" ] || return 0
-		TASKTEXT_WANT="$1" TASKTEXT_FIELD="${3:-}" LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsSessionTranscriptFormat.awk" \
-			-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTaskText.awk" "$2" 2>/dev/null || :
+		TASKTEXT_WANT="$1" TASKTEXT_FIELD="${3:-}" LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/transcript/AgentsSessionTranscriptFormat.awk" \
+			-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/core/AgentsTaskText.awk" "$2" 2>/dev/null || :
 	}
 
 	## A value somebody gave -- a description, a comment, a purpose -- as a post shows it: one
 	## line, redacted, cut as a message is. Nothing for an empty value.
 	AgentsToolsTaskTextLine(){ ## value
 		[ -n "${1:-}" ] || return 0
-		TASKTEXT_WANT=line TASKTEXT_VALUE="$1" LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsSessionTranscriptFormat.awk" \
-			-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTaskText.awk" < /dev/null 2>/dev/null || :
+		TASKTEXT_WANT=line TASKTEXT_VALUE="$1" LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/transcript/AgentsSessionTranscriptFormat.awk" \
+			-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/core/AgentsTaskText.awk" < /dev/null 2>/dev/null || :
 	}
 
 	## The same value as a record keeps it: one line, redacted, bounded, so a header field holds
 	## it and a later reader can show it. Nothing for an empty value.
 	AgentsToolsTaskTextKept(){ ## value
 		[ -n "${1:-}" ] || return 0
-		TASKTEXT_WANT=kept TASKTEXT_VALUE="$1" LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsSessionTranscriptFormat.awk" \
-			-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTaskText.awk" < /dev/null 2>/dev/null || :
+		TASKTEXT_WANT=kept TASKTEXT_VALUE="$1" LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/transcript/AgentsSessionTranscriptFormat.awk" \
+			-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/core/AgentsTaskText.awk" < /dev/null 2>/dev/null || :
 	}
 
 	## The task of a board item, as `<name><TAB><value>` lines, a line only where it has a value:

@@ -96,6 +96,7 @@ AgentsToolsScheduleThreadPass(){
 		type AgentsToolsBoardDependencies > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.BoardDependencies.include"
 		AgentsToolsBoardDependencies
 		AgentsToolsScheduleThreadChildrenKeep
+		AgentsToolsScheduleThreadKnowledgeKeep
 		AgentsToolsScheduleThreadWantedInto
 		## A PASS LONGER THAN ITS GAP IS SAID: a pass is seconds, and one that ran into minutes (35 on MEL, in the DM look) left a log that read as a stopped
 		## schedule. The line names the pass's own length, so a reader tells a slow pass from a dead thread.
@@ -121,6 +122,36 @@ AgentsToolsScheduleThreadChildrenKeep(){
 	[ $(( keepNow - keepAt )) -ge "$keepEvery" ] || return 0
 	type AgentsToolsChildrenIndexRepair > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.ChildrenIndex.include"
 	AgentsToolsChildrenIndexRepair "$MMDAPP" > /dev/null 2>&1 || :
+	return 0
+}
+
+## THE KNOWLEDGE INDEX KEPT FRESH (the board item task-20261117T2330Z). The index is derived, and a store the query reads changes under it with
+## every write, so a pass rebuilds it once the change is visible and the last build is stale enough to be worth replacing. Its freshness is two
+## stamps and no walk: `wanted`, touched by the writers of those stores, and `built`, written by a build that finished. A build embeds only
+## the sections whose text changed, so the rebuild is cheap after the first one. MDAT_SCHEDULE_KNOWLEDGE_INDEX_SECONDS (900, 0 for never) is the
+## bound that catches what no writer marks, such as a hand edit to a project's MAGIC.md. Never fails the pass.
+AgentsToolsScheduleThreadKnowledgeKeep(){
+	local keepEvery="${MDAT_SCHEDULE_KNOWLEDGE_INDEX_SECONDS:-900}" keepBuilt keepWanted
+	case "$keepEvery" in ''|*[!0123456789]*) keepEvery=900 ;; esac
+	[ "$keepEvery" -gt 0 ] || return 0
+	## THE PLACE INCLUDE CARRIES THE STAMPS, and it is loaded for them before either is asked: the build itself is the store include's
+	## own function, loaded here for that call.
+	type AgentsToolsKnowledgeIndexStamp > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/knowledge/AgentsTools.KnowledgeIndexPlace.include"
+	keepBuilt="$( AgentsToolsKnowledgeIndexStamp built )"
+	keepWanted="$( AgentsToolsKnowledgeIndexStamp wanted )"
+	## A build stands, it is newer than anything wanted, and it sits inside the bound: nothing to do, at two stats and one find.
+	## `built` newer than `wanted` is the test, never "not older": a write and a build inside the same second cannot be ordered by
+	## mtime, and a build that may have missed the write is no reason to skip one.
+	if [ -f "$keepBuilt" ] \
+		&& { [ ! -f "$keepWanted" ] || [ "$keepBuilt" -nt "$keepWanted" ] ; } \
+		&& [ -z "$( find "$keepBuilt" -mmin +$(( keepEvery / 60 )) 2> /dev/null )" ] ; then
+		return 0
+	fi
+	## The build owns every refusal it makes, and each one leaves `built` as it was: a rig with no store says so and the next pass asks again.
+	## Its include is sourced for its function, never its command script re-entered: this is a step of a pass, not an external call.
+	( set -- --sourced-for-its-functions ; set +e
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/knowledge/AgentsTools.KnowledgeStore.include"
+		AgentsToolsKnowledgeIndexBuild ) > /dev/null 2>&1 || :
 	return 0
 }
 

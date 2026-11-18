@@ -6,12 +6,11 @@
 ## Python environment the knowledge store (LanceDB) needs. Sourced by the dispatcher, which hands over the operation word
 ## and its arguments.
 ##
-## The store is optional, and turned on by the setting MDAT_KNOWLEDGE_STORE (the catalogue of the changeable settings,
-## AgentsTools.ManagerSettings.include): off unless it is on, in the environment or in the settings of the team. With it off
-## nothing is installed. With it on, this is a thin call: the install is the feature setup.feature-lancedb, its fragment
+## The store is optional, and its install is all it takes: there is no switch, and every reader uses the store once its
+## install stands. This is a thin call: the install is the feature setup.feature-lancedb, its fragment
 ## host/install/feature-lancedb.install.txt, which makes the environment in $LANCEDB_HOME (else $MMDAPP/.local/lancedb) with
 ## the embedded Python of the local tools, the pinned LanceDB and the embedding model, and carries the licences. This keeps the
-## option parse, the setting's gate and --from-folder, passes the feature's output through unchanged (the Python of the
+## option parse, and --from-folder, passes the feature's output through unchanged (the Python of the
 ## environment on standard output, one line; everything else on standard error), and returns its rc: 0 installed, 1 refused or
 ## failed (nothing left), 3 this platform is not covered (nothing written, the store stays off).
 ##
@@ -37,12 +36,6 @@ AgentsToolsKnowledgeStoreInstall(){ ## the arguments after the operation word
 		esac
 	done
 	[ -n "${MMDAPP:-}" ] && [ -d "$MMDAPP/.local" ] || { AgentsToolsInstallKnowledgeStoreRefuse "no workspace: MMDAPP is not set, or has no .local" ; return 1 ; }
-
-	type AgentsToolsKnowledgeStoreSetting > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/settings/AgentsTools.KnowledgeStoreSetting.include"
-	if [ "$( AgentsToolsKnowledgeStoreSetting )" != "on" ] ; then
-		AgentsToolsInstallKnowledgeStoreRefuse "the knowledge store is off (MDAT_KNOWLEDGE_STORE), so nothing was installed. Turn it on with: DistroAgentsTools.fn.sh --manager-config-set MDAT_KNOWLEDGE_STORE on"
-		return 1
-	fi
 
 	## --from-folder is checked here, where the person gave it, so a wrong folder is refused before the feature is asked
 	if [ -n "$fromFolderSet" ] ; then

@@ -93,6 +93,8 @@ AgentsToolsPendingAskHousekeeping(){ ## stale hours, calling member
 }
 
 AgentsToolsAdvanceSpawnHousekeeping(){ ## stale hours, calling member, [no-threads: the control threads are left to the caller's own check]
+	## This call is the housekeeping, so the registry read below starts no second pass: that one ends this pass's leftovers first and takes their lines.
+	local AGENTS_HOUSEKEEPING_PASS_RUNNING=1
 	type AgentsToolsFrontmatterKey > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.FrontmatterKey.include"
 	type AgentsToolsHousekeepingReport > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandbox.include"
 	type AgentsToolsRegistryRenderSpawnedSessions > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.RegistrySpawnedSessions.include"

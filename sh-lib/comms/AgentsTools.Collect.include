@@ -253,7 +253,7 @@ AgentsToolsCollectMail(){ ## member, since
 			mailGap=1 ; mailNotRead="$mailNotRead $mailUid:$mailBlockRc"
 			continue
 		fi
-		AGENTS_EMAIL_UID="$mailUid" AGENTS_EMAIL_MAILBOX="INBOX" AGENTS_EMAIL_STATUS="unseen" python3 "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsSessionContextEmailItem.py" \
+		AGENTS_EMAIL_UID="$mailUid" AGENTS_EMAIL_MAILBOX="INBOX" AGENTS_EMAIL_STATUS="unseen" python3 "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsSessionContextEmailItem.py" \
 			< "$mailWork/$mailUid.eml" > "$mailWork/$mailUid.block" 2> /dev/null || { mailGap=1 ; mailNotRead="$mailNotRead $mailUid:2" ; continue ; }
 		mailDate="$( python3 "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/email/AgentsCollectMailDate.py" < "$mailWork/$mailUid.eml" 2> /dev/null )" || mailDate="-"
 		case "$mailDate" in ????????T????Z) ;; *) mailDate="$( date -u +%Y%m%dT%H%MZ )" ;; esac
@@ -285,7 +285,7 @@ AgentsToolsCollectTrello(){ ## member
 		rm -rf "$trWork"
 		return 1
 	fi
-	printf '%s\n' "$trJson" | LC_ALL=C awk -v kind=trello -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsSessionContextCommsItems.awk" > "$trWork/blocks" 2> "$trWork/awkerr" || {
+	printf '%s\n' "$trJson" | LC_ALL=C awk -v kind=trello -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsSessionContextCommsItems.awk" > "$trWork/blocks" 2> "$trWork/awkerr" || {
 		agentsCollectWhy="the answer of Trello was not a list of notifications"
 		rm -rf "$trWork"
 		return 1

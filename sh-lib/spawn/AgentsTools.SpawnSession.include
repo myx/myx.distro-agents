@@ -470,7 +470,7 @@ case "$1" in
 			## its task names, else the head of its description, else its routine. Every row of the session carries
 			## that with the session's short id, so a parent and its members read as one session, and two sessions
 			## of one routine or one member tell apart.
-			type AgentsToolsTaskTextLine > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.TaskText.include"
+			type AgentsToolsTaskTextLine > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/core/AgentsTools.TaskText.include"
 			type AgentsToolsDecisionsItemFromRef > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemDecisions.include"
 			partitionLabel="$sessionNameOrComment"
 			[ -n "$partitionLabel" ] || partitionLabel="$( AgentsToolsDecisionsItemFromRef "$sessionDescription" "" 2> /dev/null )" || :

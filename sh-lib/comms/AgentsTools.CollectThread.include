@@ -261,6 +261,18 @@ AgentsToolsCollectThreadPass(){ ## force (yes|no)
 		esac
 		[ -z "${colThreadEnd:-}" ] || break
 	done < <( AgentsToolsCollectSources )
+	## THE CACHE-TO-INBOX TRANSFER, one pass a reader (S1.12 stage 2): the handover ruling 14 leaves to this thread, of what the
+	## ingest already fetched. Its readers are the members the store's own sources name, which are not the mail and Trello members
+	## above. It reaches no service, so no service call joins this pass.
+	type AgentsCommsTransferSlack > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsTransfer.include"
+	local passTransferList transferMember
+	passTransferList="$( AgentsCommsTransferDir )/sources.txt"
+	AgentsCommsTransferSources "$passTransferList" "$MMDAPP/.local/cache/comms/slack" || :
+	while IFS= read -r transferMember ; do
+		[ -n "$transferMember" ] || continue
+		AgentsCommsTransferSlack "$transferMember" || :
+		[ -z "${colThreadEnd:-}" ] || break
+	done < <( AgentsCommsTransferMembers "$passTransferList" )
 	agentsCollectDefer="no"
 	AgentsToolsCollectCommit "source collection" yes
 	return 0

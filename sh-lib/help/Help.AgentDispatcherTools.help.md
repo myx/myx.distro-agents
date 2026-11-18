@@ -127,10 +127,19 @@
 			folder and have no `..` part; one outside is an error, never an empty
 			result.
 
+		--supervise-rigs
+			The rigs the team runs, one line a rig, `<root>` and its owner account,
+			TAB-separated, each root once. A rig is a workspace whose own settings
+			make it a team rig and run the team duties; a rig naming no owner
+			account carries `-` there and is still a rig. Read only, and a scan
+			with no `--workspace` reads the same list.
+
 		--supervise-scan [--workspace <path>]... [--since <epoch>]
 			The supervisor's read of the rigs, one line a finding, for each
-			workspace named, else this one. With no finding it prints one
-			line, `none - - no finding: nothing needs a coordinator's hand`. Its kinds:
+			workspace named, else every rig the team runs. A rig is a workspace
+			whose own settings make it a team rig and run the team duties, and a
+			`--workspace` that is no rig is refused, naming why. With no finding it
+			prints one line, `none - - no finding: nothing needs a coordinator's hand`. Its kinds:
 			`rig-orphan` (a control thread inside a run's output folder, a test rig,
 			alive after that run's record closed), `ask`, `unposted`,
 			`orphan-ask`, `parent-ask` (an open question to the owner whose asking

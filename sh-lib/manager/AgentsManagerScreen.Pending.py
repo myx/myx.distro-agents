@@ -438,7 +438,7 @@ def askAnswer(state, row):
 ## The answers that approve, of the kinds whose approval is asked once more before it is given
 ## (F6.10): an allow of a permission, and the yes of a confirmation (a readback).
 APPROVING_KINDS = ("permission", "permission-set", "readback")
-APPROVING_ANSWERS = ("allow", "allow-once", "allow-session", "allow-task", "allow-folder", "allow-project", "allow-set", "yes", "correct")
+APPROVING_ANSWERS = ("allow", "allow-once", "allow-session", "allow-task", "allow-folder", "allow-project", "allow-set", "yes", "correct", "edit")
 
 
 ## Answer in the dialog of an answer: the operation is called once, with the answer picked,

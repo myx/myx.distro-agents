@@ -105,6 +105,7 @@
 		## The hold is the record's own, written where a cleaner would delete: the acting run's sandbox root.
 		if [ "$undoRecState" = open ] && [ -n "${MDAT_SPAWN_SANDBOX_ROOT:-}" ] ; then
 			undoHoldDir="$MDAT_SPAWN_SANDBOX_ROOT"
+			type AgentsToolsUndoHoldAdd > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/undo/AgentsTools.UndoHold.include"
 			AgentsToolsUndoHoldAdd "$undoHoldDir" "$undoRecSession" "$undoRecId" \
 				|| echo "⚠️ WARNING: $MDSC_CMD --undo-record: the record is kept, but its hold could not be written in $undoHoldDir" >&2
 		fi
@@ -131,6 +132,7 @@
 			undoRecAsk="$( AgentsToolsUndoAskOpen "$undoRecDir" "${undoRecActor:-none}" "$undoRecSession" 2> "$undoRecDir/ask.failed" )" || undoRecAsk=""
 			if [ -z "$undoRecAsk" ] ; then
 				cat "$undoRecDir/ask.failed" >&2 2> /dev/null || :
+				type AgentsToolsUndoHoldDrop > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/undo/AgentsTools.UndoHold.include"
 				[ -z "$undoHoldDir" ] || AgentsToolsUndoHoldDrop "$undoHoldDir" "$undoRecSession" "$undoRecId"
 				rm -rf "$undoRecDir"
 				echo "⛔ ERROR: $MDSC_CMD --undo-record: the act is kept and nothing is promised for it" >&2

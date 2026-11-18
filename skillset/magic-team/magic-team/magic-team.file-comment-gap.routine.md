@@ -44,7 +44,7 @@ An idle-run routine of a `keeper-*` member. It adds one grounded file-header com
 - Does:
   - One grounded distinctness comment per pass, on a genuinely understood file of the executor's territory.
 - Doesn't:
-  - Comment how the file works line by line, restate its interface, or re-touch a file already logged in `processed/`.
+  - Comment how the file works line by line, restate its interface, or re-touch a file already logged in the executor's own inbox.
   - Change the file beyond its comment. What else the executor's `rules` input keeps out applies as well.
   - Set its own scheduling: that is the executor's `## Idle-Tasks` entry.
 
@@ -65,7 +65,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
    - `scope` is the territory, and the kinds of file in it.
    - `covers`, `lands-in`, `log` and `rules`, where given, are the executor's own: they apply in the steps below.
    - An entry with no `lands-in` is a gap in that file: escalate it, and do not guess one.
-2. **pick-understood-file**: Pick one file of the territory that has been read and actually understood. It lacks a good comment, and is not already logged in `processed/`, rules:
+2. **pick-understood-file**: Pick one file of the territory that has been read and actually understood. It lacks a good comment, and is not already logged in the executor's own inbox, rules:
    - Understanding comes from reading the file and its own dependencies, never from its name or its package's place in a taxonomy.
    - A file that cannot be described in one specific, true sentence is not understood: pick another.
 3. **add-distinctness-comment**: Add a short file-header comment stating why this file is distinct from all the others, at the angle `covers` names, rules:
@@ -75,7 +75,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
 # Closure steps
 
 1. **log-outcome**: Log the activity and its outcome, rules:
-   - By default, log it as a new dated file under `processed/` (`processed/<board-item-type>-<date>-<short-topic>.md`, a real board-item type, never an invented word). Then run this member's own post-activity reflection (`--upsert-inbox-reflection`), per its own `.armed.md`.
+   - By default, log it as a new `note-*` own-inbox log item, through `--upsert-inbox-note`, named `note-<date>-<short-topic>.md`. Then run this member's own post-activity reflection (`--upsert-inbox-reflection`), per its own `.armed.md`.
    - Where the executor's `log` input names another form, that form is used instead.
    - Where the workspace keeps no team data (the tool answers `this workspace keeps no team data`), nothing is filed. What would have been filed goes into the report to whoever dispatched this run.
 

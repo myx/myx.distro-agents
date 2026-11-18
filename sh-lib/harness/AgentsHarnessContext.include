@@ -33,7 +33,7 @@ harnessContextFrom=0
 harnessContextFeed=""
 harnessContextLastAssistant=0
 harnessContextResumed=0
-harnessContextAwk=( -f "$harnessHere/harness/AgentsHarnessJsonField.awk" -f "$harnessHere/session/AgentsSessionTranscriptFormat.awk" -f "$harnessHere/harness/AgentsHarnessContextTranscript.awk" )
+harnessContextAwk=( -f "$harnessHere/harness/AgentsHarnessJsonField.awk" -f "$harnessHere/transcript/AgentsSessionTranscriptFormat.awk" -f "$harnessHere/harness/AgentsHarnessContextTranscript.awk" )
 
 AgentsHarnessContextEscape(){ ## raw text -- a JSON string body
 	printf '%s' "$1" | LC_ALL=C awk -f "$harnessHere/mcp/AgentsMcpJsonEscape.awk"
@@ -217,7 +217,14 @@ AgentsHarnessToolRunMsKeep(){ ## milliseconds the call itself ran
 
 ## The meta of a tool result: the call it answers, how long it ran and how it came out.
 AgentsHarnessContextToolMeta(){ ## tool name, call id, result, preset outcome
-	local metaDur=0 metaMach=0
+	local metaDur=0 metaMach=0 metaCalls=""
+	## A BATCH IS ITS CALLS (the owner's pace ruling): the engine leaves one tooling value a call in the run's scratch, and the
+	## record carries that list. Its own mach_ms then counts nothing to the reader that knows the list.
+	if [ -n "${harnessScratch:-}" ] && [ -f "$harnessScratch/tool.calls.ms" ] ; then
+		{ IFS= read -r metaCalls < "$harnessScratch/tool.calls.ms" ; } 2> /dev/null || metaCalls=""
+		rm -f "$harnessScratch/tool.calls.ms" 2> /dev/null || :
+	fi
+	[ -z "$metaCalls" ] || printf ',"calls_mach_ms":[%s]' "$metaCalls"
 	[ -z "${agentsTranscriptT0:-}" ] || metaDur=$(( $( date +%s )000 - agentsTranscriptT0 ))
 	## The span the tool kept from inside its subshell (AgentsHarnessToolRunMsKeep), read once and taken away, so no later call reads it.
 	if [ -n "${harnessScratch:-}" ] && [ -f "$harnessScratch/tool.run.ms" ] ; then
