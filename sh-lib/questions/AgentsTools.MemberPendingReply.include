@@ -3,10 +3,10 @@
 
 ##
 ## AgentsTools.MemberPendingReply.include -- the dispatcher arm of the member-facing
-## pending-reply operations: --read-pending-reply, --settle-pending-reply, --amend-pending-reply
-## and the console's --manager-pending-reply-dismiss. Each arm sources its operation file
+## pending-reply operations: --read-pending-reply, --settle-pending-reply, --amend-pending-reply,
+## --reconcile-answered-status and the console's --manager-pending-reply-dismiss. Each arm sources its operation file
 ## (AgentsTools.OpReadPendingReply.include, AgentsTools.OpSettlePendingReply.include,
-## AgentsTools.OpAmendPendingReply.include), which loads the shared reads it needs from
+## AgentsTools.OpAmendPendingReply.include, AgentsTools.OpReconcileAnsweredStatus.include), which loads the shared reads it needs from
 ## AgentsTools.PendingReplyRecords.include. Sourced to run an operation, never for the
 ## functions; the reads live in the records library.
 ##
@@ -24,6 +24,10 @@ case "$1" in
 
 	--amend-pending-reply)
 		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.OpAmendPendingReply.include"
+	;;
+
+	--reconcile-answered-status)
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.OpReconcileAnsweredStatus.include"
 	;;
 
 	*)

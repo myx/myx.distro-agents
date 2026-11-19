@@ -887,6 +887,36 @@ case "$selfPath" in
 			exit 0
 		fi
 
+		## AN ATLASSIAN WRITE RUNS ONLY BEHIND ITS GATED FRONT (S20 F5.1), in the process that front runs in: as a command of this
+		## file the internal write is refused, whoever calls it, the console included. The generic call writes with any method but GET.
+		agentsWriteOp=""
+		case "$1" in
+			--intern-op-atlassian-confluence-space-create|--intern-op-atlassian-confluence-page-create|--intern-op-atlassian-confluence-page-update|--intern-op-atlassian-confluence-comment-add|--intern-op-atlassian-confluence-page-delete|--intern-op-atlassian-jira-issue-create|--intern-op-atlassian-jira-issue-update|--intern-op-atlassian-jira-issue-transition|--intern-op-atlassian-jira-comment-add|--intern-op-atlassian-jira-issue-link-page|--intern-op-atlassian-jira-issue-delete|--intern-op-atlassian-jira-project-delete)
+				agentsWriteOp="${1#--}"
+			;;
+			--intern-op-atlassian-call)
+				agentsWriteMethod="GET" agentsWriteNext=""
+				for agentsWriteArg in "$@" ; do
+					[ "$agentsWriteNext" != "--method" ] || agentsWriteMethod="$agentsWriteArg"
+					agentsWriteNext="$agentsWriteArg"
+				done
+				[ "$agentsWriteMethod" = "GET" ] || agentsWriteOp="${1#--}"
+			;;
+		esac
+		if [ -n "$agentsWriteOp" ] ; then
+			type AgentsToolsActingMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.CallerCheck.include"
+			agentsWriteBy="$( AgentsToolsActingMember )"
+			if [ -z "$agentsWriteBy" ] ; then
+				agentsWriteNext=""
+				for agentsWriteArg in "$@" ; do
+					[ "$agentsWriteNext" != "--member" ] || agentsWriteBy="$agentsWriteArg"
+					agentsWriteNext="$agentsWriteArg"
+				done
+			fi
+			echo "DistroAgentsTools: $agentsWriteOp: ⛔ ERROR: an Atlassian write runs only through its DistroAgentsAtlassian operation, never as a command of the internal layer -- nothing was sent.$( AgentsToolsCallerRefusalId "${agentsWriteBy:-human-owner}" "$agentsWriteOp" "internal Atlassian write called as a command" )" >&2
+			exit 1
+		fi
+
 		DistroAgentsTools "$@"
 	;;
 	*)

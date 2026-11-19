@@ -5,6 +5,9 @@ maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 requires-session-kind: coworking
 input-scan-def: none
 review-by: inherit
+deliverables: the findings shown by evidence, kept apart from what is inferred or assumed
+deliverables: a decision someone can act on, and the next step it leads to
+deliverables: the investigation report, published where the organisation reads it
 runs-at: none
 ---
 # magic-team.investigate.routine — the actual procedure

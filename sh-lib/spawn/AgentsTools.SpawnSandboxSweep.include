@@ -157,20 +157,15 @@ AgentsToolsSpawnSandboxFolderState(){ ## folder name, item stem going away
 	return 0
 }
 
-## Removes one sandbox folder of this host: the write permission a record may have lost, then the folder itself. The folder is
-## named, never pathed: the spawned store is this concern's own, and no caller builds a path into it.
+## Removes one sandbox folder of this host, by the store's own removal (AgentsSpawnRecordRemove). The folder is named, never pathed:
+## the spawned store is this concern's own, and no caller builds a path into it.
 ## Prints the folder that stayed and rc 1 where it did not go; prints nothing and rc 0 where it is gone, or was never there.
 AgentsToolsSpawnSandboxRemove(){ ## folder name
 	local removeName="$1" removeFolder=""
 	case "$removeName" in ''|.|..|-*|*/*|*[[:space:]]*) printf '%s\n' "${removeName:--}" ; return 1 ;; esac
-	type AgentsSpawnedStoreDirInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
-	AgentsSpawnedStoreDirInto removeFolder "$MMDAPP" || { printf '%s\n' "$removeName" ; return 1 ; }
-	removeFolder="$removeFolder/$removeName"
-	chmod -R u+w "$removeFolder" 2> /dev/null || :
-	rm -rf -- "$removeFolder" 2> /dev/null || :
-	if [ -e "$removeFolder" ] ; then
-		printf '%s\n' "$removeFolder"
-		return 1
-	fi
-	return 0
+	type AgentsSpawnRecordRemove > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+	AgentsSpawnRecordRemove "$removeName" && return 0
+	AgentsSpawnedStoreDirInto removeFolder "$MMDAPP" || :
+	printf '%s\n' "${removeFolder:+$removeFolder/}$removeName"
+	return 1
 }

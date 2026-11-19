@@ -9,6 +9,8 @@
 ##   4. nothing is done while the board has not changed: a second call prints nothing and leaves the report as it was; an item written, one that
 ##      came or moved makes the next call recompute
 ##   5. the scan section is the report, or one line that there is none yet
+##   6. a wave item of pending or blocked whose body names `Tracking document: <epic>, feature <id>`, where that epic's `## Done` holds the id, goes to
+##      review with a Decisions line naming the Done line; one whose feature is open, or with no such line, stays; a moved item put back stays
 ## Offline: a temp data root with a local git repository, no remote; every call through one `env -i` whose child refuses to run outside this rig's tree.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
@@ -136,6 +138,36 @@ sleep 1
 rigGit mv board/running/task-rig-new.md board/review/task-rig-new.md && rigGit commit -q -m "rig: moved"
 rigRun "$rigTmp/r6" AgentsToolsBoardDependencies
 rigAssert "an item that moved makes it recompute too, and nothing is left to write" "$( wc -c < "$rigTmp/r6" | tr -d ' ' ):$( LC_ALL=C grep -c 'task-rig-new' "$rigReport" | LC_ALL=C awk '{ print ( $1 > 0 ) ? "named" : "none" }' )" "0:named"
+
+echo "-- 6. a wave item whose feature reads done in its epic goes to review, whatever wrote the Done --"
+printf '# rig epic\n\n## S1 - one\n\n1. item one\n2. item two\n\n## S3 - three\n\n## Done\n\n- S1.2: the second item holds now.\n- S3: the third feature holds now.\n' \
+	| rigOwnerVaultPut epic-blueprint-20261101T0000Z-rigwave.md
+rigGit add -A && rigGit commit -q -m "rig: epic"
+rigWave(){ ## state, bare name, feature id -- a wave item as the epic-wave routine writes it, its feature named in its body
+	printf -- '---\ntype: task\nowner: rig\n---\n\n# Task: build %s\n\n- Routine: magic-team.epic-build.routine\n- Tracking document: epic-blueprint-20261101T0000Z-rigwave, feature %s\n- Executor: rig\n\n## Decisions\n\n' "$3" "$3" \
+		| rigOwnerBoardPut "$1" "$2.md"
+	rigGit add -- "board/$1/$2.md" && rigGit commit -q -m "rig: $2" -- "board/$1/$2.md"
+}
+rigWave pending task-rig-wave-item S1.2
+rigWave blocked task-rig-wave-feature S3
+rigWave pending task-rig-wave-open S1.1
+rigItem pending task-rig-wave-none ''
+rigRun "$rigTmp/r7" AgentsToolsBoardDependencies
+rigWhere(){ ## bare name -- the state the item lies in
+	local whereState
+	for whereState in "$rigData"/board/*/ ; do [ ! -f "${whereState}$1.md" ] || { whereState="${whereState%/}" ; printf '%s' "${whereState##*/}" ; return 0 ; } ; done
+}
+rigAssert "an item and a feature that read done move to review, from pending and from blocked" "$( rigWhere task-rig-wave-item ):$( rigWhere task-rig-wave-feature )" "review:review"
+rigAssert "control: a wave item whose feature is not done, and an item with no tracking line, stay where they are" "$( rigWhere task-rig-wave-open ):$( rigWhere task-rig-wave-none )" "pending:pending"
+rigAssert "the moved item's Decisions name the Done line, for its reviewer to accept" \
+	"$( LC_ALL=C grep -c -F 'feature S1.2 reads done in epic-blueprint-20261101T0000Z-rigwave: - S1.2: the second item holds now.' "$rigData/board/review/task-rig-wave-item.md" 2> /dev/null || : )" 1
+rigAssert "each move is said in one line" "$( LC_ALL=C grep -c '^done features: ' "$rigTmp/r7" || : )" 2
+rigRun "$rigTmp/r8" AgentsToolsBoardDependencies
+rigAssert "the next call finds nothing more to move" "$( LC_ALL=C grep -c '^done features: ' "$rigTmp/r8" || : )" 0
+## put back to pending by its reviewer: the pass that already moved it for that Done line leaves it there
+rigOwnerBoardMove review pending task-rig-wave-item.md
+rigRun "$rigTmp/r9" AgentsToolsBoardDependencies
+rigAssert "an item put back after the pass moved it is left alone" "$( rigWhere task-rig-wave-item ):$( LC_ALL=C grep -c '^done features: ' "$rigTmp/r9" || : )" "pending:0"
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ BOARD DEPENDENCIES CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

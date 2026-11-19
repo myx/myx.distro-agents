@@ -570,6 +570,8 @@ function slotValue( name ) {
 	## A caller's field is escaped here, where it lands, but for a Slack date token of the
 	## helper's own making, which a caller gives for a date or a time and which works only
 	## unescaped (sldKeep).
+	## The run's routine shows in the boxes of the post's own member only, never in another member's.
+	if ( name == "origin" && fillMember != member ) { return "" ; }
 	if ( name in field ) { return ( fillTitle ? fieldTitle[name] : sldKeep( cleanValue( field[name] ) ) ) ; }
 	return "" ;
 }

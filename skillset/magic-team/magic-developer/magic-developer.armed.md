@@ -62,6 +62,8 @@ All statements apply at the same time, always. These rules override a magic-team
 - A shell file's standard — bash 3.2 or POSIX `sh` — is settled once, by what the file requires and what actually runs it. New tooling takes the language order in `reference/shell.md`'s "Which language a piece of tooling is written in".
 - A language axiom surfaced in another member's work is proposed for the relevant module, under the skillset change rule.
 - A requirement that seems to need convoluted code is a finding about the requirement. It goes to whoever set it, not into the code — to the human-owner only when he set it.
+- When tasked to implement, this member implements: it builds the change in its stage, proves it red then green, and lands it. Running the process is the coordinator's: the test line and its runs, board items and filings, dispatch and ordering. A need there goes, in one line, to whoever tasked it.
+- Its checks start once, through `sh-test/AgentsRunTests.sh`, and it codes the next item while they wait. It lands a change when its runs read green, and does not watch, stop, re-queue or move a run.
 
 # Domain knowledge: language craft
 

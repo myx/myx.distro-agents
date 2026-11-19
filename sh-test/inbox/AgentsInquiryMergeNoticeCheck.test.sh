@@ -3,11 +3,14 @@
 ## from the same sender is merged into it, and the merge notice is said only where the write is stored.
 ## Held, against a temp store only:
 ##   1. CONTROL: a filing on a new subject is stored, and the call says it wrote it -- so the rig can write.
-##   2. A filing on the open inquiry's own subject is merged into it, and the write gate refuses that merged item.
+##   2. A filing on the open inquiry's own subject is merged into it, and a merge the store refuses (neither its inbox folder nor
+##      the item can be written) is not stored: the refusal is the store's, never the contract's on the merged item's own frontmatter.
 ##   3. The refused merge says no success notice: the output holds no "instead of a second item".
 ##   4. The refused merge names the filing as not stored.
 ##   5. The target item is unchanged: it holds the first filing's text and no "## Added" heading.
 ##   6. No second item of the merged filing's name is left in the inbox.
+##   7. THE MERGE STORES (the human-owner: match, then append): the same filing, the folder writable again, is appended to the open
+##      inquiry under "## Added", the inquiry whole with its own frontmatter, and the success notice is said.
 ## Every call goes through one `env -i` whose child refuses to run outside this rig's mktemp tree; no Slack, no mail.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
@@ -20,7 +23,9 @@ rigRefuse(){
 . "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
 rigTmp="$( rigTempDir AgentsInquiryMergeNoticeCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
-trap 'rm -rf -- "$rigTmp"' EXIT
+## The inbox folder is made unwritable for one call below: its mode is given back before the tree goes, whatever ends the run.
+trap 'chmod -R u+w -- "$rigTmp" 2> /dev/null ; rm -rf -- "$rigTmp"' EXIT
+trap 'exit 1' INT TERM
 rigData="$rigTmp/data"
 rigSkills="$rigTmp/skills"
 ## The inbox's folder is the write's own to make (AgentsToolsInboxReady): the control below makes it through the operation.
@@ -81,18 +86,37 @@ rigTarget="$rigData/inboxes/magic-coordinator/incoming/inquiry-20261116T1001Z-ri
 rigAssert "the target inquiry is stored" "$rigRc:$( [ -f "$rigTarget" ] && printf yes || printf no )" "0:yes"
 rigBefore="$( rigTile "$rigTarget" )"
 
-## 3. The second filing on that same subject: merged, and the write gate refuses the merged item.
-echo "-- 3. a second filing on the same subject is merged, and the gate refuses the merge --"
+## 3. The second filing on that same subject: merged, and the store refuses the write (the inbox folder cannot be written for this call).
+echo "-- 3. a second filing on the same subject is merged, and the store refuses the merge --"
 rigFile "rig merge notice subject" "The second filing." > "$rigTmp/second.md"
+rigIncoming="$rigData/inboxes/magic-coordinator/incoming"
+if [ "$( id -u )" = 0 ] ; then
+	## Root writes through a folder's mode, so no store refusal can be driven this way: the section is skipped, and says so.
+	echo "  SKIP  section 3: this run is root, which writes through the folder's mode, so the refused merge cannot be driven -- its rows are not asserted"
+else
+	## The store rewrites an item in place as well as beside it: both the folder and the item are made unwritable, so no write of the merge can land.
+	chmod a-w "$rigIncoming" "$rigTarget"
+	rigOp --upsert-inbox-inquiry magic-coordinator inquiry-20261116T1002Z-rig-merge-subject.md --from-file "$rigTmp/second.md"
+	chmod u+w "$rigIncoming" "$rigTarget"
+	rigAssert "the refused merge exits non-zero" "$rigRc" 1
+	rigAssert "the refusal is the store's: the merged item keeps its frontmatter, so no contract-frontmatter fires" "$( rigSaid x 'contract-frontmatter' )" 0
+	rigAssert "NO SUCCESS NOTICE: the output holds no 'instead of a second item'" "$( rigSaid x 'instead of a second item' )" 0
+	rigAssert "the refusal names the filing as not stored" "$( rigSaid x 'inquiry-20261116T1002Z-rig-merge-subject.md is not stored' )" 1
+	rigAssert "the target is unchanged: not one byte of it" "$( rigTile "$rigTarget" )" "$rigBefore"
+	rigAssert "the target holds the first filing's text" "$( rigHolds "$rigTarget" 'The first filing.' )" yes
+	rigAssert "and no '## Added' heading was written into it" "$( rigHolds "$rigTarget" '## Added ' )" no
+	rigAssert "no second item of the merged filing's name is left in the inbox" "$( rigIn inquiry-20261116T1002Z-rig-merge-subject.md )" no
+	rigAssert "the inbox folder's and the item's modes are given back after the refused write" "$( [ -w "$rigIncoming" ] && [ -w "$rigTarget" ] && printf writable || printf unwritable )" writable
+fi
+
+## 4. The same filing, the folder writable: the merge stores.
+echo "-- 4. the merge stores: the open inquiry whole, the filing under its Added heading --"
 rigOp --upsert-inbox-inquiry magic-coordinator inquiry-20261116T1002Z-rig-merge-subject.md --from-file "$rigTmp/second.md"
-rigAssert "the refused merge exits non-zero" "$rigRc" 1
-rigAssert "the gate refused the merged item's frontmatter" "$( rigSaid x 'contract-frontmatter' )" 1
-rigAssert "NO SUCCESS NOTICE: the output holds no 'instead of a second item'" "$( rigSaid x 'instead of a second item' )" 0
-rigAssert "the refusal names the filing as not stored" "$( rigSaid x 'inquiry-20261116T1002Z-rig-merge-subject.md is not stored' )" 1
-rigAssert "the target is unchanged: not one byte of it" "$( rigTile "$rigTarget" )" "$rigBefore"
-rigAssert "the target holds the first filing's text" "$( rigHolds "$rigTarget" 'The first filing.' )" yes
-rigAssert "and no '## Added' heading was written into it" "$( rigHolds "$rigTarget" '## Added ' )" no
-rigAssert "no second item of the merged filing's name is left in the inbox" "$( rigIn inquiry-20261116T1002Z-rig-merge-subject.md )" no
+rigAssert "the merge is stored and the call succeeds" "$rigRc" 0
+rigAssert "the success notice is said" "$( rigSaid x 'instead of a second item' )" 1
+rigAssert "the target holds both filings, the second under an Added heading" "$( rigHolds "$rigTarget" 'The first filing.' ):$( rigHolds "$rigTarget" 'The second filing.' ):$( rigHolds "$rigTarget" '## Added ' )" "yes:yes:yes"
+rigAssert "the target keeps its own frontmatter, one block, its type and author" "$( LC_ALL=C awk '$0 == "---" { n++ } END { print n + 0 }' "$rigTarget" ):$( rigHolds "$rigTarget" 'type: inquiry' ):$( rigHolds "$rigTarget" 'from: rig-member' )" "2:yes:yes"
+rigAssert "and still no second item of the merged filing's name" "$( rigIn inquiry-20261116T1002Z-rig-merge-subject.md )" no
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ INQUIRY MERGE NOTICE CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

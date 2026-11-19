@@ -678,6 +678,7 @@ AgentsHarnessAsk(){
 	askTs="$( printf '%s\n' "$askSent" | LC_ALL=C sed -n 's/^SENT_MESSAGE_TS=//p' | head -1 )"
 	askThreadTs="$( printf '%s\n' "$askSent" | LC_ALL=C sed -n 's/^SENT_MESSAGE_THREAD_TS=//p' | head -1 )"
 	askAddressees="$( printf '%s\n' "$askSent" | LC_ALL=C sed -n 's/^SENT_MESSAGE_ADDRESSEES=//p' | head -1 )"
+	local askAccountIds="$askAddressees" askClickers="" askClickId=""
 	## A member with no account of its own is asked by its name and answers under the team's
 	## account: its name stands among the accounts that answer, and every reader of the answer
 	## tells its reply by the sender the tooling recorded on it (AgentsSlackThreadAnswers.awk).
@@ -693,9 +694,15 @@ AgentsHarnessAsk(){
 	fi
 	[ -n "$askJoined" ] && askPendingId="$askJoined" || askPendingId="$( AgentsHarnessPendingReplyOpen "$toolTo" "${askRootBody:+$askRootBody$'\n\n'}$askBody" "$toolKind" "$toolAddressTo" "$askChannel" "$askTs" "$askThreadTs" "$askAddressees" "$askSelfIds" "$toolRefusalId" "$toolOptions" "$askTag" "$askKey" "$toolAsBot" "$toolTaskRef" "$toolReason" "$toolSelect" "$( AgentsHarnessAskFields )" "$askLiveTs" )"
 	[ -z "$askLock" ] || AgentsToolsLocalLockGive "$askLock"
+	## The answer emoji are for a click, and only an addressee account other than the poster's clicks. An addressee that answers
+	## under the poster's own account answers in text, `Q<n>:`, and the reader never counts that account's reactions, so its
+	## question gets no emoji at all: they would only be read back as its answer.
+	for askClickId in $askAccountIds ; do
+		case "$askSelfIds" in *" $askClickId "*) ;; *) askClickers="$askClickId" ; break ;; esac
+	done
 	## The answer emoji go under the question itself, as the identity that posted it. A call
 	## added to an open prompt places none: that prompt has its own.
-	[ -n "$askRoutine" ] || [ -n "$askJoined" ] || [ -z "$askChannel" ] || [ -z "$askTs" ] || AgentsHarnessAskReact "$askChannel:$askTs" "$toolAsBot" add $( AgentsHarnessAskSeedNames )
+	[ -n "$askRoutine" ] || [ -n "$askJoined" ] || [ -z "$askChannel" ] || [ -z "$askTs" ] || [ -z "$askClickers" ] || AgentsHarnessAskReact "$askChannel:$askTs" "$toolAsBot" add $( AgentsHarnessAskSeedNames )
 	## An ask to a routine exists only as its record.
 	if [ -n "$askRoutine" ] && [ -z "$askPendingId" ] ; then
 		printf 'ERROR: %s: the question to %s could not be recorded, and nothing was posted, so THE QUESTION DOES NOT EXIST and nobody was asked. Ask it again.\n' "$harnessAskName" "$askRoutine" ; return 0

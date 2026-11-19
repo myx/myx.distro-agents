@@ -25,8 +25,12 @@ type AgentsToolsThreadLockTake > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distr
 ## THE REQUEST FIFO IS HELD OPEN BEFORE THE FORK AND BY THE CHILD AFTER IT (descriptor 8), so a request written the moment this
 ## returns lands in the fifo and waits for the thread instead of going with the last descriptor. The thread closes 8 once it has its
 ## own descriptor on the fifo. A reply fifo a caller left behind goes with the start.
+## THE START IS CLAIMED BEFORE ANYTHING IS STARTED: where no living thread holds the lock, the starter takes thread.lock in its own
+## name by the lock's one atomic take, so of two starts at once one claims and starts, and the other reads the claim and says alive.
+## The claim passes to the thread's process once it is forked, and that process waits for it before its operation runs.
 AgentsToolsOnDemandThreadStart(){ ## folder, the operation and its words...
 	local startFolder="${1:-}" startLock="" startLog startMonitor startPid="" startDrop startTold startIdle=""
+	local startMe="" startHolder="" startTook=0 startChild="" startTry=0
 	shift
 	if [ -z "$startFolder" ] || [ "$#" -lt 1 ] ; then
 		printf 'failed - %s\n' "the folder and the operation are both needed"
@@ -35,34 +39,71 @@ AgentsToolsOnDemandThreadStart(){ ## folder, the operation and its words...
 	startLog="$startFolder/thread.log"
 	{ IFS= read -r startLock < "$startFolder/thread.lock" || [ -n "$startLock" ] ; } 2> /dev/null || startLock=""
 	AgentsToolsThreadLockHolderLives "$startLock" ; startTold=$?
-	case "$startTold" in
-		1) ;;
-		0)
-			## THE BOUND IS THE FOLDER'S (S12.11 ruling 4): the thread that took it wrote it there, so a start applies
-			## none of its own and the caller learns the bound in force.
-			{ IFS= read -r startIdle < "$startFolder/thread.idle" || [ -n "$startIdle" ] ; } 2> /dev/null || startIdle=""
-			case "$startIdle" in ''|*[!0123456789]*) startIdle="unknown" ;; esac
-			printf "alive %s bound %ss in force, this start discarded its own\n" "${startLock%% *}" "$startIdle"
-			return 0
-		;;
-		*)
-			## A holder that cannot be told is no thread this call may claim: the caller learns, and the lock is left as it is.
-			printf 'failed - %s\n' "$startFolder/thread.lock names a process that cannot be told whether it still lives: $startLock"
-			return 1
-		;;
-	esac
-	{ mkdir -p "$startFolder" && printf '' >> "$startLog" ; } 2> /dev/null || { printf 'failed - %s\n' "$startLog could not be written" ; return 1 ; }
+	startHolder="$startLock"
+	if [ "$startTold" = 1 ] ; then
+		{ mkdir -p "$startFolder" && printf '' >> "$startLog" ; } 2> /dev/null || { printf 'failed - %s\n' "$startLog could not be written" ; return 1 ; }
+		## THE CLAIM: the starter's own `<pid> <start>`, read the way a thread reads its own, and the take only one caller can make.
+		startMe="$( exec sh -c 'echo "$PPID"' 2> /dev/null )" || startMe=""
+		startMe="$( printf '%s\n' "$startMe" | AgentsToolsRunProcessesBegan )" || startMe=""
+		[ -n "$startMe" ] || { printf 'failed - %s\n' "the start could not read when its own process began, so its claim would name nobody" ; return 1 ; }
+		## A claim read from another start may pass to its thread, and that start end, between the take and the look at its holder:
+		## the take is made again, and reads the thread that now holds the lock, or claims a lock left by nobody.
+		while [ "$startTold" = 1 ] && [ "$startTry" -lt 5 ] ; do
+			startTry=$(( startTry + 1 ))
+			startHolder="$( AgentsToolsThreadLockTake "$startFolder/thread.lock" "$startMe" )" ; startTook=$?
+			case "$startTook" in
+				0) startHolder="" ; break ;;
+				1) AgentsToolsThreadLockHolderLives "$startHolder" ; startTold=$? ;;
+				*) printf 'failed - %s\n' "$startFolder/thread.lock could not be taken for the start" ; return 1 ;;
+			esac
+		done
+	fi
+	if [ -n "$startHolder" ] ; then
+		case "$startTold" in
+			0)
+				## THE BOUND IS THE FOLDER'S (S12.11 ruling 4): the thread that took it wrote it there, so a start applies
+				## none of its own and the caller learns the bound in force.
+				{ IFS= read -r startIdle < "$startFolder/thread.idle" || [ -n "$startIdle" ] ; } 2> /dev/null || startIdle=""
+				case "$startIdle" in ''|*[!0123456789]*) startIdle="unknown" ;; esac
+				printf "alive %s bound %ss in force, this start discarded its own\n" "${startHolder%% *}" "$startIdle"
+				return 0
+			;;
+			1)
+				printf 'failed - %s\n' "$startFolder/thread.lock was claimed by a process that ended before this start could read it: $startHolder"
+				return 1
+			;;
+			*)
+				## A holder that cannot be told is no thread this call may claim: the caller learns, and the lock is left as it is.
+				printf 'failed - %s\n' "$startFolder/thread.lock names a process that cannot be told whether it still lives: $startHolder"
+				return 1
+			;;
+		esac
+	fi
 	if [ ! -p "$startFolder/request.fifo" ] ; then
 		rm -f "$startFolder/request.fifo" 2> /dev/null
-		mkfifo "$startFolder/request.fifo" 2> /dev/null || { printf 'failed - %s\n' "$startFolder/request.fifo could not be made" ; return 1 ; }
+		mkfifo "$startFolder/request.fifo" 2> /dev/null || {
+			AgentsToolsThreadLockGive "$startFolder/thread.lock" "$startMe"
+			printf 'failed - %s\n' "$startFolder/request.fifo could not be made" ; return 1
+		}
 	fi
 	rm -f "$startFolder"/reply.* 2> /dev/null || :
-	exec 8<> "$startFolder/request.fifo" || { printf 'failed - %s\n' "$startFolder/request.fifo could not be opened" ; return 1 ; }
+	exec 8<> "$startFolder/request.fifo" || {
+		AgentsToolsThreadLockGive "$startFolder/thread.lock" "$startMe"
+		printf 'failed - %s\n' "$startFolder/request.fifo could not be opened" ; return 1
+	}
 	startMonitor="$BASH_SUBSHELL:$-"
 	set -m
 	(
 		trap '' HUP
 		set +e
+		## THE OPERATION RUNS ONCE THE CLAIM IS PASSED: while the lock still names the starter, this process waits, up to 5 s, so its
+		## own take finds the lock naming it, or given back.
+		for (( startDrop = 0 ; startDrop < 50 ; startDrop++ )) ; do
+			startHolder=""
+			{ IFS= read -r startHolder < "$startFolder/thread.lock" || [ -n "$startHolder" ] ; } 2> /dev/null || startHolder=""
+			[ "$startHolder" = "$startMe" ] || break
+			sleep 0.1
+		done
 		## The starter's MDAT_SKILLSET_ROOT stays: a rig hands its own member folder that way, and the schedule thread drops an inherited
 		## root that is another workspace's members itself (epic S12 item 16). The variable of an invited member's own root, once the
 		## spawn proxy sets one, is what this start is to drop with the session variables.
@@ -77,8 +118,19 @@ AgentsToolsOnDemandThreadStart(){ ## folder, the operation and its words...
 	startPid="$!"
 	exec 8>&-
 	case "$startMonitor" in 0:*m*) ;; *) set +m ;; esac
-	case "$startPid" in ''|*[!0123456789]*) printf 'failed - %s\n' "the process of the thread could not be started" ; return 1 ;; esac
+	case "$startPid" in ''|*[!0123456789]*)
+		AgentsToolsThreadLockGive "$startFolder/thread.lock" "$startMe"
+		printf 'failed - %s\n' "the process of the thread could not be started" ; return 1
+	;; esac
 	disown "$startPid" 2> /dev/null || :
+	## THE CLAIM PASSES TO THE THREAD'S PROCESS: its `<pid> <start>` is written over the starter's. A process that cannot be named gets
+	## the claim given back instead, and its operation takes the lock itself, or ends at once where another took it first.
+	startChild="$( printf '%s\n' "$startPid" | AgentsToolsRunProcessesBegan )" || startChild=""
+	startHolder=""
+	{ IFS= read -r startHolder < "$startFolder/thread.lock" || [ -n "$startHolder" ] ; } 2> /dev/null || startHolder=""
+	if [ "$startHolder" = "$startMe" ] ; then
+		[ -n "$startChild" ] && printf '%s' "$startChild" > "$startFolder/thread.lock" 2> /dev/null || AgentsToolsThreadLockGive "$startFolder/thread.lock" "$startMe"
+	fi
 	printf '%s a thread is started here: pid %s\n' "$( date -u +%Y-%m-%dT%H:%M:%SZ )" "$startPid" >> "$startLog" 2> /dev/null || :
 	printf 'started %s\n' "$startPid"
 	## A LOCK THAT OUTLIVED ITS PROCESS IS REPORTED (S12.14): the holder the lock named was gone when this start read it, so the
@@ -197,7 +249,7 @@ AgentsToolsOnDemandThreadEnding(){
 
 ## THE THREAD'S WHOLE LIFE, run as its own process: it takes the folder's lock, holds the request fifo open read-write so a caller's
 ## open never waits, reads one request a second, and calls <handler> with the request's fields. A second with no request calls <tick>,
-## or nothing where the tick is `-`. A tick that answers 2 counts as a request, for a thread whose work stands. It ends on TERM, after <idle>
+## or nothing where the tick is `-`. A tick that answers 2 counts as a request, for a thread whose work stands, except in a check's rig. It ends on TERM, after <idle>
 ## seconds with no request, and when its folder or its lock is gone.
 ## <once> `yes` calls the tick alone and ends, for a caller that wants the work now rather than a request served.
 ## DESCRIPTOR 3 IS ALWAYS OPEN, at /dev/null except while one request's answer is served, so a handler prints its answer to descriptor
@@ -305,7 +357,8 @@ AgentsToolsOnDemandThreadServe(){ ## folder, idle seconds, handler, tick or -, o
 			serveRc=0 ; "$serveTick" || serveRc=$?
 			case "$serveRc" in
 				0) ;;
-				2) serveLast="$SECONDS" ;;
+				## In a check's rig (MDAT_WORKSPACE_MODE=team-rig) a tick's work is no request, so the thread ends on its idle bound and never outlives its check.
+				2) [ "${MDAT_WORKSPACE_MODE:-}" = team-rig ] || serveLast="$SECONDS" ;;
 				*) printf '%s %s answered %s\n' "$( date -u +%Y-%m-%dT%H:%M:%SZ )" "$serveTick" "$serveRc" >&2 ;;
 			esac
 		fi

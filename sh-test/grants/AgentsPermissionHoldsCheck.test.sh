@@ -96,7 +96,7 @@ printf 'SLACK_CHANNEL_MAGIC_TEAM=CRIG00001\nSLACK_BOT_TOKEN=rig-bot-token-TEAM\n
 	printf 'magic-developer:ws:workspace:Edit(/%s/DEV/**)\n' "$rigWs"
 	printf 'keeper-myx:ws:namespace:Edit(/%s/KEEP/**)\n' "$rigWs"
 	printf 'keeper-myx:ws:tool:WebFetch:https://docs.rig.example/*\n'
-	## magic-architect's rows as its --magic-team: floor directives in myx.distro-agents/project.inf write them
+	## magic-architect's rows as its magic-team: floor directives in myx.distro-agents/project.inf write them
 	printf 'magic-architect:ws:tool:WebFetch\n'
 	printf 'magic-architect:ws:tool:WebSearch\n'
 } > "$rigWs/.local/agents/permissions.registry"

@@ -9,6 +9,8 @@ runs-at: workdays 09:00
 routine-lock-document: inbox:magic-librarian:note-20261008T000000Z-morning-review-state.md
 input-scan-def: morning-review
 review-by: inherit
+deliverables: one inquiry to magic-coordinator holding every board finding, each with its evidence and the move it proposes
+deliverables: the review cut-off stored as last_reviewed_ts
 cache-prefix: routine
 ---
 # magic-librarian.morning-review.routine — the actual procedure

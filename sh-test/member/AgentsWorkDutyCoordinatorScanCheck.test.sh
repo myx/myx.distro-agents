@@ -10,6 +10,8 @@
 ##   4. NO MARKER (no duty has started yet): every such item is due. And a scan twice in a row reads the same (the wait of the duty watches it).
 ##   5. THE BOARD, for the rules of magic-coordinator.advance.routine, in the coordinator's scan and in no other member's: the items of the active states, the
 ##      review items, the registries, the items whose recheck-date has arrived (and not the ones ahead), and the dependencies as the tooling last computed them.
+##   6. THE OPEN ASKS addressed to magic-coordinator, of any kind and any owner, opened through the tool: an open death ask of keeper-rig and an open
+##      readback of another member are listed; one closed through the tool is not.
 ## Offline: a Slack-shaped fake curl first on PATH.
 set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
@@ -104,6 +106,22 @@ rigAssert "the items of the active states are in the digest" "$( printf '%s\n' "
 rm -f "$rigWs/.local/agents/board-dependencies.last"
 printf '## board dependencies (recomputed 2026-10-20T10:00:00Z)\n\ncycles: none\n' > "$rigWs/.local/agents/board-dependencies.last"
 rigAssert "the dependencies section is the report the tooling kept" "$( rigScan magic-coordinator | LC_ALL=C grep -c -x -F -e '## board dependencies (recomputed 2026-10-20T10:00:00Z)' )" 1
+
+echo "-- 6. the open asks addressed to magic-coordinator --"
+rigAsk(){ ## arguments... -- one ask operation of the tool in the rig (stdin passes through), its stdout
+	( cd "$rigWs" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp/home" PATH="$rigTmp/bin:/usr/bin:/bin:/usr/sbin:/sbin" MMDAPP="$rigWs" MDLT_ORIGIN="$rigOrigin" MDLT_OPTION="--run-from-path $rigOrigin" \
+		MDAT_DATA_ROOT="$rigData" MDAT_SKILLSET_ROOT="$rigTmp/skills" bash "$rigTool" "$@" 2> /dev/null )
+}
+mkdir -p "$rigTmp/skills/magic-rig" && printf 'rig\n' > "$rigTmp/skills/magic-rig/magic-rig.basic.md" && printf 'rig\n' > "$rigTmp/skills/magic-rig/magic-rig.armed.md"
+rigDeath="$( printf 'keeper-rig died\n' | rigAsk --intern-op-pending-reply-open keeper-rig --to magic-coordinator --kind death --address-to magic-coordinator | head -1 )"
+rigReadback="$( printf 'my reading\n' | rigAsk --intern-op-pending-reply-open magic-rig --to magic-coordinator --kind readback --address-to magic-coordinator | head -1 )"
+rigClosed="$( printf 'a question\n' | rigAsk --intern-op-pending-reply-open keeper-rig --to magic-coordinator --kind question --address-to magic-coordinator | head -1 )"
+[ -n "$rigDeath" ] && [ -n "$rigReadback" ] && [ -n "$rigClosed" ] || rigRefuse "the open op gave no record id"
+rigAsk --intern-op-pending-reply-close "$rigClosed" --if-open --status reply-received --verdict fine > /dev/null
+rigAsks="$( rigScan magic-coordinator | LC_ALL=C awk '/^## open asks addressed to magic-coordinator$/ { on = 1 ; next } /^## / { on = 0 } on && NF' )"
+rigAssert "an open death ask of keeper-rig is listed" "$( printf '%s\n' "$rigAsks" | LC_ALL=C grep -c -x -F -e "- $rigDeath.md owner keeper-rig session -" || : )" 1
+rigAssert "an open readback of another member is listed" "$( printf '%s\n' "$rigAsks" | LC_ALL=C grep -c -x -F -e "- $rigReadback.md owner magic-rig session -" || : )" 1
+rigAssert "a closed one is not listed" "$( printf '%s\n' "$rigAsks" | LC_ALL=C grep -c -F -e "$rigClosed" || : )" 0
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ WORK DUTY COORDINATOR SCAN CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

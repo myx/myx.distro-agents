@@ -123,6 +123,13 @@ AgentsToolsKnowledgeRun(){ ## format (md|json), arguments...
 			--query-keyword|--query-pattern|--query-glob)
 				if [ -z "${2:-}" ] ; then echo "$knowOp: ⛔ ERROR: $1 takes a text -- nothing was read" >&2 ; return 1 ; fi
 				case "$2" in *$'\n'*) echo "$knowOp: ⛔ ERROR: $1 takes a text of one line -- nothing was read" >&2 ; return 1 ;; esac
+				## A term the scan cannot compile is refused by the scan's own reading of it: awk fails it at the first line matched, and that read as an empty answer.
+				case "$1" in
+					--query-pattern) KNOWLEDGE_QUERY="re $2" LC_ALL=C awk -v format=check -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/knowledge/AgentsKnowledgeScan.awk" < /dev/null 2> /dev/null \
+						|| { echo "$knowOp: ⛔ ERROR: $1 is no valid extended regular expression: $2 -- nothing was read" >&2 ; return 1 ; } ;;
+					--query-glob) KNOWLEDGE_QUERY="gl $2" LC_ALL=C awk -v format=check -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/knowledge/AgentsKnowledgeScan.awk" < /dev/null 2> /dev/null \
+						|| { echo "$knowOp: ⛔ ERROR: $1 is no valid glob: $2 -- nothing was read" >&2 ; return 1 ; } ;;
+				esac
 				case "$1" in --query-keyword) knowQuery="${knowQuery}kw $2"$'\n' ;; --query-pattern) knowQuery="${knowQuery}re $2"$'\n' ;; *) knowQuery="${knowQuery}gl $2"$'\n' ;; esac
 				knowTerms=$(( knowTerms + 1 ))
 				shift 2

@@ -10,6 +10,8 @@
 ##   6. after the link line, Serve serves it once still: neither the reference line nor a Slack read's own copy of it
 ##   7. a reader whose floor sits between the post's epoch and its ts still gets the message, once
 ##   8. the ingest's fold holds the ts the link names, so the read does not make a second message of it
+##   9. a thread folder our post makes holds a `slack-local-thread` line and no pointers; no state is written over, none for a
+##      conversation; and the ingest pass's list and the transfer's list are the same with that folder as without it
 ## Offline: a cache folder of the rig's own, no network, nothing of the team's read.
 set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
@@ -83,6 +85,34 @@ rigRows="$( LC_ALL=C awk -v storeFiles="$rigEntry/202611/messages.txt" -v lineBy
 	-f "$rigOrigin/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" -f "$rigIngestAwk" < "$rigTmp/read.json" )"
 rigAssert "a read of messages the store already holds makes no new message of them" "$( printf '%s\n' "$rigRows" | LC_ALL=C awk -F'\t' '$1 == "msg"' | wc -l | LC_ALL=C tr -d ' ' )" 0
 rigAssert "and our own post is no second message of the store" "$( printf '%s\n' "$rigRows" | LC_ALL=C awk -F'\t' -v ts="$rigTs" '$1 == "msg" && $3 == ts' | wc -l | LC_ALL=C tr -d ' ' )" 0
+
+echo "-- 9. a thread folder our post makes is named by a line of its own kind, and nothing pulls it --"
+rigLocal="$rigTmp/cache/slack/slack-bot-D0RIGLOCL1-1794918200.000100"
+AgentsToolsCommsCachePostStore "$rigLocal" magic-coordinator "RIG-LOCAL-REPLY" "D0RIGLOCL1:1794918200.000100" true > /dev/null
+rigAssert "the folder it made holds that line, its first line no pointers" \
+	"$( LC_ALL=C sed -n 3p "$rigLocal/.state.txt" 2> /dev/null ):$( LC_ALL=C sed -n 1p "$rigLocal/.state.txt" 2> /dev/null )" "slack-local-thread D0RIGLOCL1:1794918200.000100 magic-coordinator true:- - -"
+rigAssert "the cache reads that folder as holding no state, as it read one with no file" "$( AgentsToolsCommsCacheState "$rigLocal" && echo state || echo none )" none
+AgentsToolsCommsCachePostStore "$rigEntry" magic-developer "RIG-POST-THREE" "CRIGPOST:1794918000.000100" false > /dev/null
+rigAssert "a folder that holds a state keeps it whole" "$( LC_ALL=C sed -n 3p "$rigEntry/.state.txt" )" "slack-thread CRIGPOST magic-developer false"
+rigPlain="$rigTmp/cache/slack/slack-CRIGPLAIN"
+AgentsToolsCommsCachePostStore "$rigPlain" magic-developer "RIG-PLAIN" "" false > /dev/null
+rigAssert "a post into a conversation, no thread, writes no state" "$( [ -e "$rigPlain/.state.txt" ] && echo state || echo none )" none
+## The pulling lists: the ingest pass's sources and the transfer's, each built over the store with the local folder, then without it.
+rigConvDir="$rigTmp/cache/slack/slack-D0RIGCONV1"
+mkdir -p "$rigConvDir/202611" || exit 1
+printf '%s %s %s\n%s\n%s\n' 1794918000 1794917000 1794918100 "## target=D0RIGCONV1 channel=D0RIGCONV1" "slack-conversation D0RIGCONV1 magic-developer false" > "$rigConvDir/.state.txt"
+. "$rigOrigin/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsIngestPass.include"
+. "$rigOrigin/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsTransfer.include"
+rigLists(){ ## tag -- both lists, rebuilt from the store as it stands
+	rm -f "$rigTmp/ingest.$1" "$rigTmp/transfer.$1"
+	AgentsCommsIngestPassSources "$rigTmp/ingest.$1" "$rigTmp/cache/slack" ; AgentsCommsTransferSources "$rigTmp/transfer.$1" "$rigTmp/cache/slack"
+}
+rigLists with
+mv "$rigLocal" "$rigTmp/aside"
+rigLists without
+rigAssert "control: the lists name the conversation folder" "$( LC_ALL=C grep -c 'slack-D0RIGCONV1' "$rigTmp/ingest.with" ):$( LC_ALL=C grep -c 'slack-D0RIGCONV1' "$rigTmp/transfer.with" )" "1:1"
+rigAssert "the ingest pass's list is the same with the local folder as without it" "$( cmp -s "$rigTmp/ingest.with" "$rigTmp/ingest.without" && echo same || echo differs )" same
+rigAssert "and so is the transfer's" "$( cmp -s "$rigTmp/transfer.with" "$rigTmp/transfer.without" && echo same || echo differs )" same
 
 printf '\n%d passed, %d failed\n' "$rigPasses" "$rigFails"
 [ "$rigFails" = 0 ]

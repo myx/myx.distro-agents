@@ -19,6 +19,7 @@
 ## validator twice, on the item as it is and on the item as it would be, and refuses only a refusing fault the write
 ## introduced: an untouched line can start failing when a line above it moves, so a fault is its rule and its text, never its
 ## line. A reporting fault the write introduced is said and the write goes on. Both are the same row, said the same way.
+## An inbox item asks its frontmatter block on a create. Asked `whole`, the inbox writer's gate asks it and the required keys at every write.
 ##
 
 type AgentsToolsItemNameType > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/items/AgentsTools.ItemNameShape.include"
@@ -128,7 +129,7 @@ AgentsToolsDocValidateVaultKind(){ ## type word
 ## ONE table. A key the contract does not name is said, since writers of the team (the advance routine's
 ## `advance-reassess-note-<stamp>`) keep keys of their own; two keys that appear together are said, since the writer of
 ## `--recheck-in` writes `recheck-date` alone and 33 stored items stand so; a body that opens a frontmatter block it never
-## closes is written as it was, since a create that wrote before must not start refusing (its keys cannot be read); the
+## closes is written as it was outside an inbox, since a create that wrote before must not start refusing (its keys cannot be read); the
 ## body, the file name, a contract rule this reader does not know, a name off the naming Rule and a type in the wrong
 ## store are said. Everything else is the contract, and refuses.
 AgentsToolsDocValidateDisposition(){ ## rule, site
@@ -190,9 +191,10 @@ AgentsToolsDocValidateType(){ ## file, file as shown, kind, site (check|write)
 ##   name     the item's file name
 ##   before   the file the item is now, or empty where there is none
 ##   mode     create (the rules of a new item are asked too: the naming Rule, and the type for the store) or change
-AgentsToolsDocValidateGate(){ ## op, label, store, name, before, mode
-	local gateOp="$1" gateLabel="$2" gateStore="$3" gateName="$4" gateBefore="${5:-}" gateMode="${6:-change}"
-	local gateAfter gateKind gateContract gateAfterRows gateBeforeIds gateNew gateRule gateText gateDetail gateShown gateRefused=0 gateFault
+##   rules    whole (an inbox item's frontmatter and required keys are asked at every write, never excused as there before), or empty
+AgentsToolsDocValidateGate(){ ## op, label, store, name, before, mode, rules
+	local gateOp="$1" gateLabel="$2" gateStore="$3" gateName="$4" gateBefore="${5:-}" gateMode="${6:-change}" gateRules="${7:-}"
+	local gateAfter gateKind gateContract gateAfterRows gateBeforeIds gateNew gateRule gateText gateDetail gateShown gateRefused=0 gateFault gateBreaches=""
 	gateAfter="$( cat )"
 	gateKind="$gateStore-item.$( AgentsToolsItemNameType "$gateName" )"
 	## A vault type word is not its contract's name (`investigation` is `vault-item.investigation-report`): the contracts say which is which.
@@ -231,6 +233,14 @@ AgentsToolsDocValidateGate(){ ## op, label, store, name, before, mode
 	if [ -n "$gateContract" ] && [ -n "$gateBefore" ] && [ -f "$gateBefore" ] ; then
 		gateBeforeIds="$( AgentsToolsDocValidateTypeRows "$gateContract" "$gateName" < "$gateBefore" | LC_ALL=C cut -f 2-3 )"
 	fi
+	## AN INBOX ITEM ASKED WHOLE IS WHOLE AT EVERY WRITE: its frontmatter block and the keys its contract requires are asked of the item
+	## as it would be, never excused as faults it already had. A type with no contract is asked its block alone, on a create or asked whole.
+	if [ "$gateStore" = inbox ] ; then
+		[ "$gateRules" != whole ] || gateBeforeIds="$( printf '%s\n' "$gateBeforeIds" | LC_ALL=C grep -v -E $'^contract-(frontmatter|key)\t' || : )"
+		[ -n "$gateContract" ] || { [ "$gateRules" != whole ] && [ "$gateMode" != create ] ; } \
+			|| printf '%s\n' "$gateAfter" | LC_ALL=C awk 'NR == 1 && $0 != "---" { exit ; } NR > 1 && $0 == "---" { closedFm = 1 ; exit ; } END { exit !closedFm ; }' \
+			|| gateAfterRows="${gateAfterRows}contract-frontmatter"$'\t'"the document has no complete frontmatter block"$'\t'$'\n'
+	fi
 	## The faults the write introduces: those after it that the item did not already have, a repeated fault counted as often as it is.
 	gateNew="$( printf '%s\n' "$gateAfterRows" | LC_ALL=C sed '/^$/d' | OLD="$gateBeforeIds" LC_ALL=C awk -F'\t' '
 		BEGIN { oldN = split( ENVIRON["OLD"], oldRows, "\n" ) ; for ( oldIdx = 1 ; oldIdx <= oldN ; oldIdx++ ) have[oldRows[oldIdx]]++ ; }
@@ -246,19 +256,23 @@ AgentsToolsDocValidateGate(){ ## op, label, store, name, before, mode
 		esac
 		## A CHANGE THAT DROPS THE FRONTMATTER REFUSES: the item had a complete block (the fault is new to it), and a write without it would
 		## take its creation facts -- from, date, owner, the contract -- which no later update stamps again, so its author could not
-		## write it back. A create keeps the table's report: a body whose block never closes is written as it was.
-		if [ "$gateRule" = contract-frontmatter ] && [ "$gateMode" = change ] ; then
-			echo "$MDSC_CMD: $gateOp: ⛔ ERROR: $gateLabel: $gateShown -- the item has one now, and this write would drop it with its creation facts. NEXT: send the whole item with its frontmatter, or change the body alone with --edit-patch-from-stdin" >&2
+		## write it back. A create keeps the table's report: a body whose block never closes is written as it was, outside an inbox.
+		if [ "$gateRule" = contract-frontmatter ] && { [ "$gateMode" = change ] || [ "$gateStore" = inbox ] ; } ; then
+			if [ "$gateStore" = inbox ] ; then gateShown="$gateShown -- an inbox item is never written without one, since its type, from, owner and contract stand there" ; else gateShown="$gateShown -- the item has one now, and this write would drop it with its creation facts" ; fi
+			echo "$MDSC_CMD: $gateOp: ⛔ ERROR: $gateLabel: $gateShown. NEXT: send the whole item with its frontmatter, or change the body alone with --edit-patch-from-stdin" >&2
 			gateRefused=$(( gateRefused + 1 ))
+			gateBreaches="${gateBreaches:+$gateBreaches | }$gateRule: $gateText -- NEXT: send the whole item with its frontmatter, or change the body alone with --edit-patch-from-stdin"
 		elif [ "$( AgentsToolsDocValidateDisposition "$gateRule" write )" = "refuse" ] ; then
 			echo "$MDSC_CMD: $gateOp: ⛔ ERROR: $gateLabel: $gateShown" >&2
 			gateRefused=$(( gateRefused + 1 ))
+			gateBreaches="${gateBreaches:+$gateBreaches | }$gateRule: $gateText${gateDetail:+: $gateDetail}"
 		else
 			echo "$MDSC_CMD: $gateOp: ⚠️ WARNING: $gateLabel: $gateShown" >&2
 		fi
 	done <<< "$gateNew"
 	if [ "$gateRefused" -gt 0 ] ; then
-		echo "$MDSC_CMD: $gateOp: ⛔ ERROR: $gateName breaks the $gateKind contract in $gateRefused place(s) the write introduces -- nothing was written" >&2
+		## The closing line names each breach, so a caller that keeps only the last line still has the cause and the NEXT.
+		echo "$MDSC_CMD: $gateOp: ⛔ ERROR: $gateName breaks the $gateKind contract in $gateRefused place(s) the write introduces -- nothing was written: $gateBreaches" >&2
 		return 1
 	fi
 	return 0

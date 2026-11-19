@@ -78,7 +78,7 @@ rigSaid(){ ## fixed text -- how many lines of the last call's output hold it
 	LC_ALL=C grep -c -F -- "$2" "$rigTmp/out" 2> /dev/null || :
 }
 rigFromWorkspace(){ ## item path -- the `from-workspace` value its front matter holds
-	LC_ALL=C awk 'NR -ge 2 && $0 == "---" { exit } index($0, "from-workspace: ") == 1 { print substr($0, 17) ; exit }' "$1"
+	LC_ALL=C awk '$0 == "---" { if (++fmFence >= 2) exit ; next } index($0, "from-workspace: ") == 1 { print substr($0, 17) ; exit }' "$1"
 }
 
 printf -- '---\ntype: inquiry\n---\n\nRIG-CROSS-ASK\n' > "$rigTmp/inq.md"

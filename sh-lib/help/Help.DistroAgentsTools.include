@@ -30,17 +30,22 @@ echo "" >&2
 	;;
 esac
 
-## --help-syntax <op> prints the syntax lines of that one operation, and a word ending in `-`
-## those of every operation it begins, a family such as --magic-: the manual's own syntax
-## lines, which this file's match one for one. A word that names none is refused.
+## --help-syntax <op> prints the syntax lines that carry that `--` word anywhere, as the operation or an option
+## inside it, and a word ending in `-` those of every such word it begins, a family such as --magic-: the
+## manual's own syntax lines, which this file's match one for one. A word that names none is refused.
 case "$1:${2:-}" in
 	--help-syntax:?*)
 		local helpSyntaxWant="$2" helpSyntaxLines
 		helpSyntaxLines="$( LC_ALL=C awk -v want="$helpSyntaxWant" '
 			/^##/ { exit }
 			index( $0, "📘 syntax: " ) == 1 {
-				split( substr( $0, length( "📘 syntax: " ) + 1 ), words, " " ) ; op = words[2] ; gsub( /[][]/, "", op )
-				if ( op == want || ( want ~ /-$/ && index( op, want ) == 1 ) ) print
+				wordCount = split( substr( $0, length( "📘 syntax: " ) + 1 ), words, " " ) ; wantNamed = 0
+				for ( wordAt = 2 ; wordAt <= wordCount ; wordAt++ ) {
+					altText = words[wordAt] ; gsub( /[][()<>]/, "", altText ) ; sub( /\.\.\.$/, "", altText ) ;
+					altCount = split( altText, altWords, "|" ) ;
+					for ( altAt = 1 ; altAt <= altCount ; altAt++ ) { if ( altWords[altAt] ~ /^--/ && ( altWords[altAt] == want || ( want ~ /-$/ && index( altWords[altAt], want ) == 1 ) ) ) wantNamed = 1 ; } ;
+				}
+				if ( wantNamed ) print
 			}' "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/help/Help.DistroAgentsTools.help.md" )"
 		if [ -z "$helpSyntaxLines" ] ; then
 echo "⛔ ERROR: $MDSC_CMD --help-syntax $helpSyntaxWant: no operation is named so, or begins so -- $MDSC_CMD --help-syntax lists them all" >&2
@@ -375,6 +380,7 @@ echo "📘 syntax: DistroAgentsGrants.fn.sh --revoke-permission <ref> [--session
 echo "📘 syntax: DistroAgentsQuestions.fn.sh --read-pending-reply [--team-member <team-member>] [<pending-id>] [--all] [--any-owner] [--count]" >&2
 echo "📘 syntax: DistroAgentsSession.fn.sh --settle-pending-reply [--team-member <team-member>] <pending-id> --reason <text> [--withdraw]" >&2
 echo "📘 syntax: DistroAgentsQuestions.fn.sh --amend-pending-reply [--team-member <team-member>] <pending-id> --verdict <text> --reason <text>" >&2
+echo "📘 syntax: DistroAgentsQuestions.fn.sh --reconcile-answered-status [--team-member <team-member>] [--apply]" >&2
 echo "📘 syntax: DistroAgentsQuestions.fn.sh --record-decision [--team-member <team-member>] <item-filename> --kind <clarification|resolved|dismissed> --text <one line> (--with <party> [--wait]|--readback <pending-id>) [--source <ts-or-id>] [--clears-blocker]" >&2
 echo "📘 syntax: DistroAgentsItems.fn.sh --request-review [--team-member <team-member>] <item-filename> --reason <text>" >&2
 echo "📘 syntax: DistroAgentsItems.fn.sh --accept-review [--team-member <team-member>] <item-filename> [--summary <text>]" >&2

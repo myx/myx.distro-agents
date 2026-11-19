@@ -102,6 +102,13 @@
 #                                 the refused file lies in, so allow-project is one of its answers.
 # ENVIRON["MDAT_VERDICT_CONTACT"] permission only, non-empty: the refused call is a contact's, so
 #                                 allow-contact is one of its answers.
+# ENVIRON["MDAT_VERDICT_CHOSEN"]  non-empty: no input is read; the emoji names whose click gives that verdict are
+#                                 printed, one a line -- by the click table below, or the number of each option
+#                                 it names -- so a close keeps the chosen option's emoji and takes off the others.
+#
+# THE CLICK TABLE (clickRows): what each emoji answers, kind by kind, in the order clicks are judged. It is the one
+# table of clicks: judgeReactions reads it from a click to its verdict, MDAT_VERDICT_CHOSEN from a verdict to its
+# clicks, so the two directions cannot differ.
 #
 # THE WORDS WITH A VERDICT. A reply that gives a verdict is not only a verdict: what the person
 # wrote after the answering word, on that line, is for the asker to read -- a condition, a
@@ -159,6 +166,16 @@ BEGIN {
 	for ( affirmIndex in affirmWords ) { affirmSet[affirmWords[affirmIndex]] = 1 ; }
 	split( "+1 thumbsup ok_hand white_check_mark", affirmReactions, " " ) ;
 	for ( affirmIndex in affirmReactions ) { affirmReactionSet[affirmReactions[affirmIndex]] = 1 ; }
+	## `<emoji>:<verdict>` a row, first judged first. A readback, and a question of the yes-no form, reads the affirmations as yes.
+	clickRows["permission"] = "x:deny one:allow-once repeat:allow-session file_folder:allow-folder building_construction:allow-project bust_in_silhouette:allow-contact" ;
+	clickRows["permission-set"] = "x:deny unlock:allow-set" ;
+	clickRows["proposal"] = "x:rejected white_check_mark:approved" ;
+	clickRows["change"] = "x:reject +1:approve thumbsup:approve white_check_mark:approve" ;
+	clickRows["undo"] = "x:reject +1:accept thumbsup:accept leftwards_arrow_with_hook:rework" ;
+	clickRows["review"] = "+1:accept thumbsup:accept leftwards_arrow_with_hook:return x:reject" ;
+	clickRows["readback"] = "" ;
+	for ( affirmIndex = 1 ; affirmIndex <= 4 ; affirmIndex++ ) { clickRows["readback"] = clickRows["readback"] affirmReactions[affirmIndex] ":yes " ; }
+	clickRows["readback"] = clickRows["readback"] "x:no" ;
 	verdictTs = "" ;
 	if ( kind == "readback" ) { optionSet["yes"] = 1 ; optionSet["no"] = 1 ; optionSet["edit"] = 1 ; }
 	else if ( kind == "permission" ) { optionSet["deny"] = 1 ; optionSet["allow-once"] = 1 ; optionSet["allow-session"] = 1 ; optionSet["allow-task"] = 1 ; }
@@ -195,6 +212,26 @@ BEGIN {
 		numberLine[numberTotal] = optionWord ;
 	}
 	split( "one two three four five six seven eight nine keycap_ten", numberNames, " " ) ;
+	## The rows of this kind: a question of the yes-no form takes the readback's.
+	clickKind = ( kind == "readback" || form == "yes-no" ) ? "readback" : kind ;
+	clickTotal = ( clickKind in clickRows ) ? split( clickRows[clickKind], clickList, " " ) : 0 ;
+	for ( clickIndex = 1 ; clickIndex <= clickTotal ; clickIndex++ ) {
+		clickName[clickIndex] = clickList[clickIndex] ; sub( /:.*$/, "", clickName[clickIndex] ) ;
+		clickVerdict[clickIndex] = clickList[clickIndex] ; sub( /^[^:]*:/, "", clickVerdict[clickIndex] ) ;
+		verdictOfClick[clickName[clickIndex]] = clickVerdict[clickIndex] ;
+	}
+	## THE CHOSEN OPTION'S EMOJI (MDAT_VERDICT_CHOSEN): read off the same rows, and the numbers of the options it names.
+	chosenText = ENVIRON["MDAT_VERDICT_CHOSEN"] ;
+	if ( chosenText != "" ) {
+		chosenMode = 1 ;
+		sub( / -- .*$/, "", chosenText ) ;
+		chosenTotal = split( lowered( chosenText ), chosenWords, " " ) ;
+		for ( chosenIndex = 1 ; chosenIndex <= chosenTotal ; chosenIndex++ ) {
+			for ( clickIndex = 1 ; clickIndex <= clickTotal ; clickIndex++ ) { if ( clickVerdict[clickIndex] == chosenWords[chosenIndex] ) { print clickName[clickIndex] ; } }
+			if ( clickTotal == 0 ) { for ( numberIndex = 1 ; numberIndex <= numberTotal && numberIndex <= 10 ; numberIndex++ ) { if ( numberWord[numberIndex] == chosenWords[chosenIndex] ) { print numberNames[numberIndex] ; } } }
+		}
+		exit 0 ;
+	}
 	## The marks of more than one byte that close a word or stand after it: an ellipsis, and
 	## the two long dashes.
 	longMarks[1] = "…" ; longMarks[2] = "–" ; longMarks[3] = "—" ;
@@ -256,54 +293,28 @@ function manyOf( text,    words, wordTotal, wordIndex, oneWord, numberIndex, tak
 
 ## The reactions on the question, judged once they are all read. Only an accepted account
 ## that is no asking account counts, so an emoji the tooling placed is never an answer.
-function judgeReactions(    lineIndex, name, who, heldIndex, picked ) {
+function judgeReactions(    lineIndex, name, who, heldIndex, picked, clickIndex, pickedSeen ) {
 	if ( reactionsJudged ) { return ; }
 	reactionsJudged = 1 ;
 	if ( verdict != "" || reactionTotal == 0 ) { return ; }
-	if ( kind == "permission" ) {
-		## Deny first, then the narrower grant: two clicks never widen what one gives.
-		if ( ( who = holderOf( "x" ) ) != "" ) { verdict = "deny" ; }
-		else if ( ( who = holderOf( "one" ) ) != "" ) { verdict = "allow-once" ; }
-		else if ( ( who = holderOf( "repeat" ) ) != "" ) { verdict = "allow-session" ; }
-		else if ( folderOffered && ( who = holderOf( "file_folder" ) ) != "" ) { verdict = "allow-folder" ; }
-		else if ( projectOffered && ( who = holderOf( "building_construction" ) ) != "" ) { verdict = "allow-project" ; }
-		else if ( contactOffered && ( who = holderOf( "bust_in_silhouette" ) ) != "" ) { verdict = "allow-contact" ; }
-		if ( verdict != "" ) { author = who ; }
-		return ;
-	}
-	if ( kind == "permission-set" ) {
-		## Deny first: two clicks never give what one of them withholds.
-		if ( ( who = holderOf( "x" ) ) != "" ) { verdict = "deny" ; author = who ; }
-		else if ( ( who = holderOf( "unlock" ) ) != "" ) { verdict = "allow-set" ; author = who ; }
-		return ;
-	}
-	if ( kind == "proposal" ) {
-		## Rejected first: two clicks never approve what one of them rejects.
-		if ( ( who = holderOf( "x" ) ) != "" ) { verdict = "rejected" ; author = who ; }
-		else if ( ( who = holderOf( "white_check_mark" ) ) != "" ) { verdict = "approved" ; author = who ; }
-		return ;
-	}
-	if ( kind == "change" ) {
-		## Reject first: two clicks never approve what one of them rejects.
-		if ( ( who = holderOf( "x" ) ) != "" ) { verdict = "reject" ; author = who ; }
-		else if ( ( who = holderOf( "+1" ) ) != "" || ( who = holderOf( "thumbsup" ) ) != "" || ( who = holderOf( "white_check_mark" ) ) != "" ) { verdict = "approve" ; author = who ; }
-		return ;
-	}
-	if ( kind == "undo" ) {
-		## Reject first, as a change does. A click for a rework carries no words, and a rework
-		## with none names no verdict: the lane returns it to the member that acted.
-		if ( ( who = holderOf( "x" ) ) != "" ) { verdict = "reject" ; author = who ; }
-		else if ( ( who = holderOf( "+1" ) ) != "" || ( who = holderOf( "thumbsup" ) ) != "" ) { verdict = "accept" ; author = who ; }
-		else if ( ( who = holderOf( "leftwards_arrow_with_hook" ) ) != "" ) { verdict = "rework" ; author = who ; }
+	if ( kind == "permission" || kind == "permission-set" || kind == "proposal" || kind == "change" || kind == "undo" ) {
+		## The first row of the table that an accepted account holds: the refusing click stands first, so two clicks
+		## never give what one of them withholds, nor widen what one gives. A grant the request does not offer is no row.
+		## A click for a rework carries no words, and a rework with none names no verdict: the lane returns it to the member that acted.
+		for ( clickIndex = 1 ; clickIndex <= clickTotal ; clickIndex++ ) {
+			if ( answerOf( clickVerdict[clickIndex], 0 ) != clickVerdict[clickIndex] ) { continue ; }
+			if ( ( who = holderOf( clickName[clickIndex] ) ) != "" ) { verdict = clickVerdict[clickIndex] ; author = who ; return ; }
+		}
 		return ;
 	}
 	if ( kind == "review" ) {
 		## One verdict is the answer. Two held by one account name none.
 		for ( heldIndex = 1 ; heldIndex <= heldTotal ; heldIndex++ ) {
-			who = heldOrder[heldIndex] ; picked = "" ; pickedCount = 0 ;
-			if ( ( ( who, "+1" ) in held ) || ( ( who, "thumbsup" ) in held ) ) { picked = "accept" ; pickedCount++ ; }
-			if ( ( who, "leftwards_arrow_with_hook" ) in held ) { picked = "return" ; pickedCount++ ; }
-			if ( ( who, "x" ) in held ) { picked = "reject" ; pickedCount++ ; }
+			who = heldOrder[heldIndex] ; picked = "" ; pickedCount = 0 ; pickedSeen = " " ;
+			for ( clickIndex = 1 ; clickIndex <= clickTotal ; clickIndex++ ) {
+				if ( ! ( ( who, clickName[clickIndex] ) in held ) || index( pickedSeen, " " clickVerdict[clickIndex] " " ) ) { continue ; }
+				picked = clickVerdict[clickIndex] ; pickedCount++ ; pickedSeen = pickedSeen picked " " ;
+			}
 			if ( pickedCount == 1 ) { verdict = picked ; author = who ; return ; }
 		}
 		return ;
@@ -328,8 +339,7 @@ function judgeReactions(    lineIndex, name, who, heldIndex, picked ) {
 	}
 	for ( lineIndex = 1 ; lineIndex <= reactionTotal ; lineIndex++ ) {
 		name = reactionNames[lineIndex] ;
-		if ( ( kind == "readback" || form == "yes-no" ) && ( name in affirmReactionSet ) ) { verdict = "yes" ; }
-		else if ( ( kind == "readback" || form == "yes-no" ) && name == "x" ) { verdict = "no" ; }
+		if ( clickKind == "readback" && ( name in verdictOfClick ) ) { verdict = verdictOfClick[name] ; }
 		else if ( kind == "decision" && ( name in affirmReactionSet ) && recommendedWord != "" ) { verdict = recommendedWord ; }
 		if ( verdict != "" ) { author = reactionFirst[lineIndex] ; return ; }
 	}
@@ -543,6 +553,7 @@ function judgeMessage(    replyText, replyWord, replyRest, shape, answer, other,
 }
 
 END {
+	if ( chosenMode ) { exit 0 ; }
 	judgeReactions() ;
 	judgeMessage() ;
 	printf "%s\t%s\t%s\n", ( verdict != "" ? verdict : "RETURNED" ), author, verdictTs ;

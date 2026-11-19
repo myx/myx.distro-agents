@@ -127,7 +127,7 @@ rigCase(){ ## name members files -- a rig of its own: that many team members and
 	export MANAGER_SCREEN_RIG="$rigTmp/$1"
 	mkdir -p "$MANAGER_SCREEN_RIG"
 	( cd "$MANAGER_SCREEN_RIG" || exit 1
-	rigRow session "$rigS1" daily_of_Monday running 2026-10-12_16:57_+0000 - 1 running=1 running 2026-10-12_16:58_+0000 gone > "rows"
+	rigRow session "$rigS1" daily_of_Monday running 2026-10-12_16:57_+0000 - 1 running=1 running 2026-10-12_16:58_+0000 gone '' - - - active > "rows"
 	rigRow run "$rigS1" "$rigS1" magic-coordinator spawn-started running running 2026-10-12_16:57_+0000 - rig-host ws-rig waiting >> "rows"
 	rigRow counters 1 0 1 0 1 0.42 >> "rows"
 	{

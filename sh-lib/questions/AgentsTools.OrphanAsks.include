@@ -1,0 +1,46 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.OrphanAsks.include -- the orphan ask: an open ask that no live run can answer. Its one test, which --supervise-scan
+## (AgentsTools.SuperviseScan.include, `orphan-ask`) and magic-coordinator's work-duty scan (AgentsTools.InternOpWorkDuty.include) both
+## call, and the duty's section listing the orphan asks a member asked. Sourced, never run. Functions only.
+##
+
+## Whether an open ask is an ORPHAN ASK: rc 0 it is, posted and addressed to a member, neither a coordinator nor a human, that no
+## process runs as (`--team-member <member> ` on its command line); rc 1 it is addressed to a member a process runs as; rc 2 it is
+## addressed to no member, or was never posted. The process list is the caller's, read once for all its asks.
+AgentsToolsOrphanAskTest(){ ## address-to, question-ts, process list text
+	[ -n "$2" ] || return 2
+	case "$1" in *magic-coordinator*|*human-owner*|U0*|'') return 2 ;; esac
+	case "$3" in *"--team-member $1 "*) return 1 ;; esac
+	return 0
+}
+
+## The section: its heading, the two moves, and one line an orphan ask the member asked, `- <pending id> to <member> item <item>
+## asked <asked-at> age=<n>m`. The asks are the member's rows of the kept pending-replies registry, never a walk of the store. Nothing
+## here dispatches or closes one: each is listed at every scan until it is settled.
+AgentsToolsOrphanAskSection(){ ## asking member
+	local orphanKey orphanFile orphanTo orphanItem orphanAt orphanAge orphanEpoch orphanPs orphanPsRead="" orphanNow orphanRows=""
+	type AgentsToolsRegistryFile > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
+	type AgentsToolsPendingReplyField > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.PendingReplyRecords.include"
+	orphanNow="$( date -u +%s )"
+	while IFS= read -r orphanKey ; do
+		[ -n "$orphanKey" ] || continue
+		orphanFile="$MMDAPP/.local/agents/pending/$orphanKey"
+		orphanTo="$( AgentsToolsPendingReplyField "$orphanFile" address-to )"
+		## The process list, read once a section, at its first ask.
+		[ -n "$orphanPsRead" ] || { orphanPs="$( ps -A -ww -o args= 2> /dev/null | LC_ALL=C grep -v -- '--intern-session-control' )" || orphanPs="" ; orphanPsRead=1 ; }
+		AgentsToolsOrphanAskTest "$orphanTo" "$( AgentsToolsPendingReplyField "$orphanFile" question-ts )" "$orphanPs" || continue
+		orphanItem="$( AgentsToolsPendingReplyField "$orphanFile" item )"
+		orphanAt="$( AgentsToolsPendingReplyField "$orphanFile" asked-at )"
+		orphanAge="-"
+		orphanEpoch="$( printf '%s\n' "$orphanAt" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/output/LocalIsoToEpoch.awk" 2> /dev/null )" || orphanEpoch=""
+		case "$orphanEpoch" in ''|*[!0123456789]*) ;; *) orphanAge="$(( ( orphanNow - orphanEpoch ) / 60 ))m" ;; esac
+		orphanRows="$orphanRows- ${orphanKey%.md} to $orphanTo item ${orphanItem:--} asked ${orphanAt:--} age=$orphanAge"$'\n'
+	done <<< "$( LC_ALL=C awk -v asker="$1" '$2 == "ask" && $4 == asker && $5 == "reply-pending" { print $1 ; }' "$( AgentsToolsRegistryFile pending-replies )" 2> /dev/null )"
+	printf '\n## open asks of %s that no live run can answer\n\n' "$1"
+	[ -n "$orphanRows" ] || { printf '(none)\n' ; return 0 ; }
+	printf 'Each waits on a member with no run. Dispatch that member on its item, or close the ask: DistroAgentsSession.fn.sh --settle-pending-reply <pending id> --reason <text>.\n\n%s' "$orphanRows"
+	return 0
+}

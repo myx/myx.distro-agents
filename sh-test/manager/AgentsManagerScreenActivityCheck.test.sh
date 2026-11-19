@@ -71,18 +71,18 @@ rigF="$rigTmp/fixture" ; mkdir -p "$rigF"
 ## one works, one has ended), 1500000 tokens; one with no name and two agents, waiting, 40000 tokens with a run not counted in; one lone run with no name,
 ## finished, 9000000 tokens; one of another host, named, with no figure; one lone run with no name whose record is still open, 500 tokens.
 {
-	rigRow session "$rigS1" daily_of_Monday running 2026-10-12_16:57_+0300 - 3 running=2,finished=1 - - alive 1500000
+	rigRow session "$rigS1" daily_of_Monday running 2026-10-12_16:57_+0300 - 3 running=2,finished=1 - - alive 1500000 - - - active
 	rigRow run "$rigS1" "$rigA1" magic-coordinator spawn-started running waiting 2026-10-12_16:57_+0300 - rig-host ws-rig waiting
 	rigRow run "$rigS1" "$rigA2" magic-tester spawn-started running thinking 2026-10-12_17:05_+0300 - rig-host ws-rig working
 	rigRow run "$rigS1" - keeper-myx spawn-succeeded no-spawn-id finished 2026-10-12_17:06_+0300 2026-10-12_18:00_+0300 rig-host ws-rig -
-	rigRow session "$rigS2" - waiting 2026-10-12_09:00_+0300 - 2 finished=2 - - none 40000+
+	rigRow session "$rigS2" - waiting 2026-10-12_09:00_+0300 - 2 finished=2 - - none 40000+ - - - active
 	rigRow run "$rigS2" "$rigB1" magic-librarian spawn-succeeded no-process finished 2026-10-12_09:00_+0300 2026-10-12_09:30_+0300 rig-host ws-rig -
 	rigRow run "$rigS2" "$rigB2" magic-developer spawn-failed no-process finished 2026-10-12_09:10_+0300 2026-10-12_09:20_+0300 rig-host ws-rig -
-	rigRow session "$rigS3" - finished 2026-10-11_14:28_+0300 2026-10-11_14:51_+0300 1 finished=1 - - none 9000000
+	rigRow session "$rigS3" - finished 2026-10-11_14:28_+0300 2026-10-11_14:51_+0300 1 finished=1 - - none 9000000 - - - closed
 	rigRow run "$rigS3" "$rigS3" magic-devops spawn-succeeded no-process finished 2026-10-11_14:28_+0300 2026-10-11_14:51_+0300 rig-host ws-rig -
-	rigRow session "$rigS4" far_away unknown-foreign 2026-10-10_08:00_+0300 - 1 unknown-foreign=1 - - none -
+	rigRow session "$rigS4" far_away unknown-foreign 2026-10-10_08:00_+0300 - 1 unknown-foreign=1 - - none - - - - closed
 	rigRow run "$rigS4" "$rigD1" keeper-mel spawn-started unknown-foreign unknown-foreign 2026-10-10_08:00_+0300 - other-host ws-rig -
-	rigRow session "$rigS5" - unclosed 2026-09-30_10:34_+0300 - 1 unclosed=1 - - none 500
+	rigRow session "$rigS5" - unclosed 2026-09-30_10:34_+0300 - 1 unclosed=1 - - none 500 - - - active
 	rigRow run "$rigS5" "$rigE1" keeper-ae3 spawn-started no-process unclosed 2026-09-30_10:34_+0300 - rig-host ws-rig -
 	rigRow counters 1 0 1 1 3 0.42
 } > "$rigF/rows.--manager-session-list"
@@ -105,7 +105,7 @@ printf '# Check list\n\n- [x] the first thing is done\n- [ ] the second thing is
 ## runs and one of a session that has finished, and a standing one.
 {
 	rigRow member magic-coordinator - - - - - here here active - 
-	rigRow session "$rigS1" daily_of_Monday running 2026-10-12_16:57_+0300 - 1 running=1
+	rigRow session "$rigS1" daily_of_Monday running 2026-10-12_16:57_+0300 - 1 running=1 - - - '' - - - active
 	rigRow run "$rigS1" "$rigA1" magic-coordinator spawn-started running waiting 2026-10-12_16:57_+0300 - rig-host ws-rig waiting
 	rigRow grant standing read /rig/ws_rig/docs docs:. standing_by_owner none
 	rigRow grant session read /rig/ws_rig/a - "ref-1_by_magic-coordinator" "until_session_${rigS1}_ends"

@@ -9,7 +9,7 @@
 ##   <that folder>/mdat-tests/<UTC-stamp>/summary.txt     PASS / FAIL per test, each failure with its owner and reason, totals
 ## and points <that folder>/mdat-tests/latest at it.
 ##
-## Usage: AgentsRunTests.sh [-w <workers>] [-t <timeout-seconds>] [--stall-margin <seconds>] [<name-substring>...]
+## Usage: AgentsRunTests.sh [--wait] [-w <workers>] [-t <timeout-seconds>] [--stall-margin <seconds>] [<name-substring>...]
 ##        AgentsRunTests.sh --passed [<name-substring>...]
 ##        AgentsRunTests.sh --sweep-rigs-list [<hours>]
 ##        AgentsRunTests.sh --sweep-rigs [<hours>]
@@ -28,7 +28,10 @@
 ##   Each line of the run list is `<test> <timeout-seconds>`; -t sets the timeout written
 ##   into each line (default 900).
 ##   Status: 0 every test passed, 1 a test did not or the run was refused, 124 the run stood
-##   still and was ended (A RUN THAT STANDS STILL, below).
+##   still and was ended (A RUN THAT STANDS STILL, below), 75 the run was queued and goes on detached, with no result yet.
+##   --wait: a run whose turn has not come waits for it in this call. Without it, the run never holds its caller: it
+##   goes on detached in its place in the line, and this call names where its result will be (NOBODY SITS ON A WAIT, below).
+##   A run left detached waits up to 3600 s for its turn unless the machine sets MDAT_SUITE_QUEUE_LIMIT, since nobody waits on it.
 ##   Known failures: every failure of the suite has an owner and a reason, kept beside this runner in
 ##   `known-failures.txt`, one row a test, TAB between its three fields: the test, its owner, and why it is
 ##   red. A FAIL line carries them, a test of the list that passes is printed FIXED, and the last line counts
@@ -70,17 +73,15 @@
 ## gives it up too, however alive its run looks, and so does one whose waiting holder stopped beating past
 ## MDAT_SUITE_QUEUE_STALL_SECONDS.
 ##
-## HOW MANY RUNS STAND BESIDE EACH OTHER, AND WHAT DECIDES IT. The line became the team's throttle:
-## at 01:20Z on 2026-11-04 five runs queued behind one holder, and a run refused after 900 s having
-## started nothing. Load average is not the measure. At load 15 to 39 that night tool calls stayed at a
-## median of 1 s and a 90th percentile of 5 s, so the machine had capacity the line did not use. What is
-## measured is the pace a tool call finds now: one fixed piece of this shell's own work, no fork, best of
-## three, against the fastest pace this machine has shown. That floor is kept in
-## $HOME/.agents/magic-team/suite-lanes/pace-floor, a slower measurement never raises it, and it is read
-## afresh once it is a day old. Lanes are floor/pace times the machine's own count (suite-lanes/max, 3
-## unless it holds a number), at least one: fewer runs stand beside each other as calls slow down, more as
-## they speed up. Measured on ws-myx-devops at 04:16Z: 283 ms at rest, 336 ms with eight busy loops
-## added, 983 ms with twenty, and 286 ms again two seconds after those ended while load still read 19.8.
+## HOW MANY RUNS STAND BESIDE EACH OTHER, AND WHAT DECIDES IT. The line became the team's throttle, and the pace line
+## the schedule keeps is its only measure: the median machinery time of a tool call of the live runs over
+## MDAT_TOOL_PACE_WINDOW_SECONDS (300 s), held against MDAT_TOOL_PACE_MS (4000 ms). Neither load average nor a probe of
+## this shell's own speed is read. The runner never takes that measure, which walks the whole `spawned/` tree: it reads the
+## file each rig keeps it in, `<rig>/.local/agents/schedule/pace.measure`, of the rigs AgentsToolsSuperviseRigs names, and the
+## freshest one decides. Lanes are laneMax, the machine's own count (suite-lanes/max, else MDAT_SUITE_LANES, else 3), while
+## that measure reads under the gate, rests on fewer than 3 calls, is older than MDAT_TOOL_PACE_CACHE_SECONDS (60 s) or is on
+## no rig: a duty start is allowed on the same readings. Over the gate it is one lane. A count set by hand in suite-lanes/count
+## wins, up to laneMax. The count is read when a run joins the line and again every 15 passes of its wait.
 ##
 ## A LANE IS WHAT A RUN HOLDS, AND THE QUEUE IS STILL IN ARRIVAL ORDER. A run takes one lane at its turn
 ## and gives it back when it ends, so two runs stand beside each other exactly as many lanes allow. A
@@ -99,7 +100,8 @@
 ## A RUN GIVES ITS LANES UP BETWEEN ITS CHECKS WHILE ANOTHER WAITS FOR THEM. At each boundary between two of its checks a
 ## run that holds lanes reads the line: a check started by hand behind it, or a run behind it with no lane free, waits for
 ## it. Its workers stop at their boundaries, its lanes go back, and `<ticket>.yield` tells every waiter to pass it by. Once
-## each ticket it yielded to is done the mark goes and it takes its lanes again. It runs a check between two yields, so it is
+## each ticket it yielded to holds a lane, has won its turn or is gone, the mark goes and it takes free lanes again; it never
+## waits for such a run to end, and waits 120 s at most in all. It runs a check between two yields, so it is
 ## never starved, and its order, logs, receipts and summary are as they were. At its turn a run writes `rundir=` on its
 ## ticket, so a waiter says of it how many of its checks are done.
 ##
@@ -176,7 +178,9 @@ set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 
 testDir="$( cd "$( dirname "$0" )" && pwd )"
-runWorkers="" runTimeout=900 runPassed="" runStallMargin=120 runSweep="" runSweepHours=24
+runWorkers="" runTimeout=900 runPassed="" runStallMargin=120 runSweep="" runSweepHours=24 runWait=""
+## The arguments as given, for the run that goes on detached (NOBODY SITS ON A WAIT).
+runArgs=( "$@" )
 while [ $# -gt 0 ] ; do
 	case "$1" in
 		--sweep-rigs|--sweep-rigs-list)
@@ -193,6 +197,7 @@ while [ $# -gt 0 ] ; do
 			runStallMargin="$2" ; shift 2
 		;;
 		--passed) runPassed=1 ; shift ;;
+		--wait) runWait=1 ; shift ;;
 		--) shift ; break ;;
 		-*) echo "⛔ ERROR: AgentsRunTests.sh: unknown option: $1" >&2 ; exit 1 ;;
 		*) break ;;
@@ -201,7 +206,7 @@ done
 
 runQueueDir="${HOME:-}/.agents/magic-team/suite-queue"
 runHandLock="$MMDAPP/.local/temp/suite-run.lock"
-runTicket="" runLockMine=""
+runTicket="" runLockMine="" runDir=""
 runSlotDir="${HOME:-}/.agents/magic-team/suite-workers"
 runSlotDefault="$( sysctl -n hw.ncpu 2>/dev/null || getconf _NPROCESSORS_ONLN 2>/dev/null || echo 2 )"
 case "$runSlotDefault" in ''|*[!0123456789]*) runSlotDefault=2 ;; esac
@@ -215,7 +220,19 @@ runMembers="${MMDAPP%/}/.local/agents/members"
 runOwnFolder="${MDLT_ORIGIN#"$MMDAPP/.local/temp/"}"
 if [ "$runOwnFolder" != "$MDLT_ORIGIN" ] ; then runOwnFolder="${runOwnFolder%%/*}" ; else runOwnFolder="" ; fi
 runLaneDir="${HOME:-}/.agents/magic-team/suite-lanes"
-runLaneMine="" runLaneAlone="" runLaneCountNow=1
+runLaneMine="" runLaneAlone="" runLaneCountNow=1 runLaneWhy=""
+## NOBODY SITS ON A WAIT: a run started detached for its caller takes that caller's ticket over first, before any work of its own, so the
+## caller hands its place on at once. Its own pid and start go on the ticket, its run folder comes from it, and leaving the line is its own.
+if [ -n "${MDAT_SUITE_QUEUE_ADOPT:-}" ] && [ -f "$runQueueDir/$MDAT_SUITE_QUEUE_ADOPT" ] ; then
+	{ LC_ALL=C grep -v -E '^(pid|pstart)=' "$runQueueDir/$MDAT_SUITE_QUEUE_ADOPT" ; printf 'pid=%s\npstart=%s\n' "$$" "$( ps -o lstart= -p "$$" 2> /dev/null | LC_ALL=C tr -s ' ' | LC_ALL=C sed 's/^ //;s/ $//' )" ; } > "$runQueueDir/.$MDAT_SUITE_QUEUE_ADOPT" \
+		&& mv -f "$runQueueDir/.$MDAT_SUITE_QUEUE_ADOPT" "$runQueueDir/$MDAT_SUITE_QUEUE_ADOPT" || {
+		echo "⛔ ERROR: AgentsRunTests.sh: cannot take over its caller's ticket in the machine's line of test runs: $runQueueDir/$MDAT_SUITE_QUEUE_ADOPT" >&2 ; exit 1
+	}
+	runTicket="$MDAT_SUITE_QUEUE_ADOPT"
+	trap AgentsRunQueueLeave EXIT
+	runDir="$( LC_ALL=C sed -n 's/^rundir=//p' "$runQueueDir/$runTicket" | LC_ALL=C sed -n 1p )"
+fi
+unset MDAT_SUITE_QUEUE_ADOPT
 
 ## The slot keeper, one small program for both ends of a slot: every change to the one state
 ## file ($runSlotDir/state: `H <pid>` a slot held, `W <pid>` one asked for, in arrival order)
@@ -267,7 +284,7 @@ AgentsRunNames(){ ## name-substring... -- the tests of this copy, one on a line:
 	local namesTest namesName namesWant namesPick
 	for namesTest in "$testDir"/*.test.sh "$testDir"/*/*.test.sh ; do
 		[ -f "$namesTest" ] || continue
-		namesName="$( basename "$namesTest" .test.sh )"
+		namesName="${namesTest##*/}" ; namesName="${namesName%.test.sh}"
 		if [ $# -gt 0 ] ; then
 			namesPick=""
 			for namesWant in "$@" ; do
@@ -390,8 +407,8 @@ AgentsRunSessionEnded(){ ## session -- rc 0 where this workspace's records say t
 	[ -z "$endSeen" ] || return 1
 	[ -e "$MMDAPP/.local/agents/sessions/$endSession/ended" ]
 }
-AgentsRunTicketState(){ ## ticket file, the sessions holding a lane now on one line -- `alive`, `own`, `gone`, `ended`, `held` or `stalled`
-	local ticketSession="" ticketSince="" ticketStamp ticketClock ticketAge ticketBeat="" ticketPid="" ticketPstart="" ticketKey ticketValue ticketLine
+AgentsRunTicketState(){ ## ticket file, the lane holders now on one line (AgentsRunLaneHolders) -- `alive`, `own`, `gone`, `ended`, `held` or `stalled`
+	local ticketSession="" ticketSince="" ticketStamp ticketClock ticketAge ticketBeat="" ticketPid="" ticketPstart="" ticketKind="" ticketKey ticketValue ticketLine
 	local ticketHold=${MDAT_SUITE_QUEUE_HOLD_SECONDS:-21600} ticketStall=${MDAT_SUITE_QUEUE_STALL_SECONDS:-3600}
 	case "$ticketHold" in ''|*[!0123456789]*) ticketHold=21600 ;; esac
 	case "$ticketStall" in ''|*[!0123456789]*) ticketStall=3600 ;; esac
@@ -402,6 +419,7 @@ AgentsRunTicketState(){ ## ticket file, the sessions holding a lane now on one l
 			session) [ -n "$ticketSession" ] || ticketSession="$ticketValue" ;;
 			since) [ -n "$ticketSince" ] || ticketSince="$ticketValue" ;;
 			pid) [ -n "$ticketPid" ] || ticketPid="$ticketValue" ;;
+			kind) [ -n "$ticketKind" ] || ticketKind="$ticketValue" ;;
 			pstart) [ -n "$ticketPstart" ] || ticketPstart="$ticketValue" ;;
 		esac
 	done 2> /dev/null < "$1"
@@ -421,7 +439,7 @@ AgentsRunTicketState(){ ## ticket file, the sessions holding a lane now on one l
 	## THE HOLD LIMIT FIRST, from the second the ticket joined the line: the first field of its name, `<epoch>.<micro>.<pid>.ticket`,
 	## zero-padded and so read in base ten (a leading zero is octal to the shell), with no process; a name that carries no epoch (a
 	## ticket made by hand) is dated by its `since`, one date process. A place held past the limit is given up, beating or not.
-	ticketStamp="${1##*/}" ; ticketStamp="${ticketStamp%%.*}"
+	ticketStamp="${1##*/}" ; ticketStamp="${ticketStamp#0[abc]-}" ; ticketStamp="${ticketStamp%%.*}"
 	case "$ticketStamp" in ''|*[!0123456789]*) ticketStamp="" ;; *) ticketStamp="$(( 10#$ticketStamp ))" ; [ "$ticketStamp" -ge 1000000000 ] || ticketStamp="" ;; esac
 	[ -n "$ticketStamp" ] || [ -z "$ticketSince" ] || ticketStamp="$( date -u -j -f '%Y-%m-%dT%H:%M:%SZ' "$ticketSince" '+%s' 2> /dev/null || date -u -d "$ticketSince" '+%s' 2> /dev/null )" || ticketStamp=""
 	case "$ticketStamp" in
@@ -438,7 +456,8 @@ AgentsRunTicketState(){ ## ticket file, the sessions holding a lane now on one l
 		[ "$( ps -o lstart= -p "$ticketPid" 2> /dev/null | LC_ALL=C tr -s ' ' | LC_ALL=C sed 's/^ //;s/ $//' )" = "$ticketPstart" ] || { printf 'gone' ; return 0 ; }
 	fi
 	## A run holding one of the machine's lanes is running and not waiting: its lane's own holder record says it is there.
-	case " ${2:-} " in *" $ticketSession "*) printf 'alive' ; return 0 ;; esac
+	[ "$ticketKind" != check ] || ticketPid=""
+	! AgentsRunTicketHoldsLane "$ticketPid" "$ticketSession" "${2:-}" || { printf 'alive' ; return 0 ; }
 	## A run that stopped waiting gives up the place a process alone would go on holding. A ticket with no beat at all
 	## carries no evidence that its holder stopped, so the hold limit above alone judges it.
 	[ -n "$ticketBeat" ] || { printf 'alive' ; return 0 ; }
@@ -476,59 +495,54 @@ AgentsRunQueueLeave(){ ## -- out of the line, and every lane this run took given
 	local leaveLane
 	[ -z "$runTicket" ] || rm -f "$runQueueDir/$runTicket" "$runQueueDir/$runTicket.beat" "$runQueueDir/$runTicket.yield"
 	## a lane given up between two checks may be another run's by now: only one this runner still holds goes back
-	for leaveLane in $runLaneMine ; do [ "$( AgentsRunLaneHolder "$leaveLane" )" != "$$" ] || AgentsRunLaneGive "$leaveLane" ; done
+	for leaveLane in 1 "$runLaneDir"/lane.* ; do
+		leaveLane="${leaveLane##*/lane.}"
+		case "$leaveLane" in ''|*[!0123456789]*) continue ;; esac
+		[ "$( AgentsRunLaneHolder "$leaveLane" )" != "$$" ] || AgentsRunLaneGive "$leaveLane"
+	done
 	runTicket="" runLockMine="" runLaneMine=""
 }
-## THE PACE A TOOL CALL FINDS NOW, and the lanes it buys (WAITING IN THE LINE, above). One fixed piece of this
-## shell's own work, no fork, so it measures the machine and not a program's start; the best of three, since the
-## slowest sample of a loaded machine says when a call was descheduled and not how fast one would be.
-AgentsRunPaceMs(){ ## -- the milliseconds of one fixed piece of shell work, or nothing where it cannot be timed
-	local paceTry paceOne paceLow="" paceWhole paceFrac
-	for paceTry in 1 2 3 ; do
-		## `%3R` is seconds to three decimals, such as `0.283`, so the whole part and the fraction are read apart
-		paceOne="$( { TIMEFORMAT='%3R' ; time for (( paceStep = 0 ; paceStep < 90000 ; paceStep++ )) ; do : ; done ; } 2>&1 )"
-		case "$paceOne" in ''|*[!0123456789.]*|*.*.*|*.) continue ;; esac
-		paceWhole="${paceOne%%.*}" ; paceFrac="${paceOne#*.}"
-		case "$paceWhole" in ''|*[!0123456789]*) continue ;; esac
-		paceOne=$(( 10#$paceWhole * 1000 + 10#$paceFrac ))
-		if [ -z "$paceLow" ] || [ "$paceOne" -lt "$paceLow" ] ; then paceLow="$paceOne" ; fi
-	done
-	printf '%s' "$paceLow"
-}
-AgentsRunLaneCount(){ ## -- how many runs may stand beside each other now: the machine's own count, else the pace against the fastest pace it has shown
-	local laneMax lanePace laneFloor laneCount laneFixed
+## THE PACE A TOOL CALL FINDS NOW, and the lanes it buys (HOW MANY RUNS STAND BESIDE EACH OTHER, above): the schedule's pace line, read from the
+## file each rig keeps it in (`<epoch> <window> <median ms> <calls>`) and never taken here, since taking it walks the whole `spawned/` tree.
+AgentsRunLaneCount(){ ## -- one line: how many runs may stand beside each other now, then why
+	local laneMax laneFixed laneRig laneAt laneHeld laneMedian laneAge laneBestAge="" laneBestRig="" laneBestMedian="" laneBestHeld=""
+	local laneTtl="${MDAT_TOOL_PACE_CACHE_SECONDS:-60}" laneLimit="${MDAT_TOOL_PACE_MS:-4000}" laneNow="$( date +%s )"
 	laneMax="$( LC_ALL=C sed -n 1p "$runLaneDir/max" 2>/dev/null )"
 	case "$laneMax" in ''|*[!0123456789]*) laneMax="${MDAT_SUITE_LANES:-3}" ;; esac
 	case "$laneMax" in ''|*[!0123456789]*) laneMax=3 ;; esac
 	[ "$laneMax" -ge 1 ] || laneMax=1
-	mkdir -p "$runLaneDir" 2>/dev/null || { printf '1\n' ; return 0 ; }
 	## A machine whose lane count is set by hand keeps it, as a machine sets its budget of test workers by hand. That is
-	## how a rig of a check fixes the count, so nothing of it waits on how busy the host is.
+	## how a rig of a check fixes the count, so nothing of it waits on the pace.
 	laneFixed="$( LC_ALL=C sed -n 1p "$runLaneDir/count" 2>/dev/null )"
 	case "$laneFixed" in
 		''|*[!0123456789]*) ;;
-		*) [ "$laneFixed" -ge 1 ] || laneFixed=1 ; [ "$laneFixed" -le "$laneMax" ] || laneFixed="$laneMax" ; printf '%s\n' "$laneFixed" ; return 0 ;;
+		*) [ "$laneFixed" -ge 1 ] || laneFixed=1 ; [ "$laneFixed" -le "$laneMax" ] || laneFixed="$laneMax" ; printf '%s set by hand in %s/count\n' "$laneFixed" "$runLaneDir" ; return 0 ;;
 	esac
-	laneFloor="$( LC_ALL=C sed -n 1p "$runLaneDir/pace-floor" 2>/dev/null )"
-	case "$laneFloor" in ''|*[!0123456789]*) laneFloor="" ;; esac
-	lanePace="$( AgentsRunPaceMs )"
-	## NO PACE, A BUSY MACHINE: a probe that cannot be timed says nothing about the machine, and a signal whose failure mode was
-	## "the machine is idle" is fooled by breaking the instrument. One lane is the safe reading, and never the maximum.
-	## A pace of zero is no measurement either: it would divide by zero, and written to the floor it would make every later
-	## reading look slow enough for one lane for ever.
-	case "$lanePace" in ''|*[!0123456789]*|0) printf '1\n' ; return 0 ;; esac
-	## The floor is the fastest pace this machine has shown. It is re-read once it is a day old, so a machine that
-	## was busy when it was last written is not held to that pace for ever, and a slower pace never raises it.
-	if [ -f "$runLaneDir/pace-floor" ] && [ -n "$( find "$runLaneDir/pace-floor" -mtime +0 2>/dev/null )" ] ; then laneFloor="" ; fi
-	if [ -z "$laneFloor" ] || [ "$lanePace" -lt "$laneFloor" ] ; then
-		printf '%s\n' "$lanePace" > "$runLaneDir/.pace-floor.$$" 2>/dev/null && mv -f "$runLaneDir/.pace-floor.$$" "$runLaneDir/pace-floor" 2>/dev/null || :
-		laneFloor="$lanePace"
+	case "$laneTtl" in ''|*[!0123456789]*) laneTtl=60 ;; esac
+	case "$laneLimit" in ''|*[!0123456789]*|0) laneLimit=4000 ;; esac
+	type AgentsToolsSuperviseRigs > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/supervise/AgentsTools.SuperviseRigs.include" || {
+		echo "⛔ ERROR: AgentsRunTests.sh: the rigs of the machine cannot be named, AgentsTools.SuperviseRigs.include does not load" >&2 ; printf '1 the rigs cannot be named\n' ; return 0
+	}
+	## The freshest measure of the rigs --flags names, the one a measure younger than its own TTL: an older one, or none, is too little to judge.
+	while IFS=$'\t' read -r laneRig _ ; do
+		{ read -r laneAt _ laneMedian laneHeld < "$laneRig/.local/agents/schedule/pace.measure" ; } 2> /dev/null || continue
+		case "$laneAt" in ''|*[!0123456789]*) continue ;; esac
+		case "$laneHeld" in ''|*[!0123456789]*) continue ;; esac
+		case "$laneMedian" in ''|*[!0123456789]*) laneHeld=0 ;; esac
+		laneAge=$(( laneNow - laneAt ))
+		[ "$laneAge" -ge 0 ] && [ "$laneAge" -lt "$laneTtl" ] || continue
+		[ -z "$laneBestAge" ] || [ "$laneAge" -lt "$laneBestAge" ] || continue
+		laneBestAge="$laneAge" laneBestRig="$laneRig" laneBestMedian="$laneMedian" laneBestHeld="$laneHeld"
+	done <<< "$( AgentsToolsSuperviseRigs "$MMDAPP" 2> /dev/null )"
+	if [ -z "$laneBestRig" ] ; then
+		printf '%s no pace measure of a rig is under %ss old, too little to judge\n' "$laneMax" "$laneTtl"
+	elif [ "$laneBestHeld" -lt 3 ] ; then
+		printf '%s pace of %s, %ss old: %s calls in its window, too few to judge\n' "$laneMax" "${laneBestRig##*/}" "$laneBestAge" "$laneBestHeld"
+	elif [ "$laneBestMedian" -lt "$laneLimit" ] ; then
+		printf '%s pace of %s, %ss old: median %s ms machinery a call over %s calls, under the %s ms gate\n' "$laneMax" "${laneBestRig##*/}" "$laneBestAge" "$laneBestMedian" "$laneBestHeld" "$laneLimit"
+	else
+		printf '1 pace of %s, %ss old: median %s ms machinery a call over %s calls, at or over the %s ms gate\n' "${laneBestRig##*/}" "$laneBestAge" "$laneBestMedian" "$laneBestHeld" "$laneLimit"
 	fi
-	[ "$laneFloor" -gt 0 ] || laneFloor=1
-	laneCount=$(( laneMax * laneFloor / lanePace ))
-	[ "$laneCount" -ge 1 ] || laneCount=1
-	[ "$laneCount" -le "$laneMax" ] || laneCount="$laneMax"
-	printf '%s\n' "$laneCount"
 }
 AgentsRunLaneReport(){ ## -- the lane this run holds, of how many stood open when its turn came, and which other runs hold the rest
 	local reportEach reportUsed=0
@@ -605,20 +619,27 @@ AgentsRunAloneWanted(){ ## test name... -- rc 0 where one of them asks for the m
 	done
 	return 1
 }
-AgentsRunTicketHoldsLane(){ ## session, the sessions holding lanes on one line -- rc 0 where one of the lanes is that session's
-	case "$1" in ''|none) return 1 ;; esac
-	case " $2 " in *" $1 "*) return 0 ;; esac
+## A LANE IS ITS RUN'S OWN: runs of one session are several runs, so a run ticket holds a lane only by its own pid. A check's ticket, whose
+## run holds the lane, and a ticket that names no process, as a runner copy from before the lanes writes it, go by their session.
+AgentsRunTicketHoldsLane(){ ## the ticket's pid (empty for a check's, or one that names none), its session, the lane holders on one line -- rc 0 where a lane is that run's
+	if [ -n "$1" ] ; then
+		case " $3 " in *" pid=$1 "*) return 0 ;; esac
+		return 1
+	fi
+	case "$2" in ''|none) return 1 ;; esac
+	case " $3 " in *" session=$2 "*) return 0 ;; esac
 	return 1
 }
-AgentsRunLaneHolders(){ ## lanes to read -- the sessions holding them now, on one line, a dead one given back as it is read, each session once
-	local holderLane=1 holderLine="" holderHeld
-	while [ "$holderLane" -le "$1" ] ; do
+## Every lane there is, never only those the count reads now: a run took its lane under the count of its turn, and a lower
+## count since must not make it read as a run with no lane, which every waiter behind it would then stand behind.
+AgentsRunLaneHolders(){ ## -- the runs holding a lane now, `pid=<pid> session=<session>` a lane, on one line, a dead one given back as it is read
+	local holderLane holderLine=""
+	for holderLane in 1 "$runLaneDir"/lane.* ; do
+		holderLane="${holderLane##*/lane.}"
+		case "$holderLane" in ''|*[!0123456789]*) continue ;; esac
 		if ! AgentsRunLaneFree "$holderLane" ; then
-			holderHeld="$( AgentsRunLaneSession "$holderLane" )"
-			[ -n "$holderHeld" ] || holderHeld="$( AgentsRunLaneHolder "$holderLane" )"
-			case " $holderLine " in *" $holderHeld "*) ;; *) holderLine="$holderLine $holderHeld" ;; esac
+			holderLine="$holderLine pid=$( AgentsRunLaneHolder "$holderLane" ) session=$( AgentsRunLaneSession "$holderLane" )"
 		fi
-		holderLane=$(( holderLane + 1 ))
 	done
 	printf '%s' "$holderLine"
 }
@@ -639,19 +660,26 @@ AgentsRunHandLockByHand(){ ## -- rc 0 where the hand lock stands and no run hold
 	LC_ALL=C grep -q '^lanes: yes' "$runHandLock"/* 2>/dev/null && return 1
 	return 0
 }
-AgentsRunDescribeSession(){ ## session -- that place named as its own ticket names it, where a lane holds it and no ticket names it
-	local describeWanted="$1" describeFile
-	for describeFile in "$runQueueDir"/*.ticket ; do
-		[ -f "$describeFile" ] || continue
-		[ "$( LC_ALL=C sed -n 's/^session=//p' "$describeFile" 2>/dev/null | LC_ALL=C sed -n 1p )" != "$describeWanted" ] || { AgentsRunDescribeTicket "$describeFile" ; return 0 ; }
-	done
-	printf 'the run of session %s, holding one of the machine lanes' "${describeWanted:-nobody}"
+## A run a session starts keeps its folder in that session's output folder, beside its own files, and a run
+## with no session keeps the workspace's .local/temp. The rule stands here as well as at the tooling's own
+## sites because a runner copied alone into a rig cannot reach sh-lib.
+AgentsRunFolderMake(){ ## -- makes this run's folder, runDir, points latest at it, and writes it on the ticket
+	local folderRoot="$MMDAPP/.local/temp/mdat-tests"
+	[ -z "${MDAT_SPAWN_SANDBOX_ROOT:-}" ] || folderRoot="$MDAT_SPAWN_SANDBOX_ROOT/output/mdat-tests"
+	runDir="$folderRoot/$( date -u +%Y%m%dT%H%M%SZ )"
+	## A folder of its own: a run started in the same second as another takes its pid into the name,
+	## since two runs in one folder would each run the other's list and overwrite its logs.
+	mkdir -p "$folderRoot" 2>/dev/null
+	mkdir "$runDir" 2>/dev/null || { runDir="$runDir-$$" ; mkdir -p "$runDir" ; } || { echo "⛔ ERROR: AgentsRunTests.sh: cannot create $runDir" >&2 ; exit 1 ; }
+	ln -sfn "$runDir" "$folderRoot/latest" 2>/dev/null || :
+	## the run folder on the ticket, so a waiter says how many of its checks are done
+	[ -z "$runTicket" ] || printf 'rundir=%s\n' "$runDir" >> "$runQueueDir/$runTicket" 2>/dev/null || :
 }
 AgentsRunQueueTurn(){ ## -- stands in the line, takes a lane at this run's turn, and returns; says whom it waits behind, each time that changes
 	local turnStamp turnFile turnSession turnState turnWhom="" turnWho="" turnHeldWhom="" turnAhead=0 turnSaid="" turnBegan turnWaited runQueueClock="" turnSleep
-	local turnHolders turnLane turnRound=0 turnRecount=0
+	local turnHolders turnLane turnRound=0 turnRecount=0 turnChild turnTries turnAdopted="$runTicket" turnKey turnValue turnPid turnKind
 	## A RUN NEVER STANDS IN THE LINE PAST ITS BOUND. A run that has waited MDAT_SUITE_QUEUE_LIMIT seconds -- 900 unless
-	## the machine sets it -- says in one line whom it waits behind and refuses: it runs nothing outside its turn, and its
+	## the machine sets it, and 3600 for a run left detached, since nobody waits on it -- says in one line whom it waits behind and refuses: it runs nothing outside its turn, and its
 	## ticket goes, so the runs behind it are not held by it. Two runs waited half an hour on 2026-11-03 before a person
 	## ended them; a run below a person's patience is worth more than a run that never says anything.
 	turnBegan="$( date +%s )"
@@ -665,21 +693,45 @@ AgentsRunQueueTurn(){ ## -- stands in the line, takes a lane at this run's turn,
 	}
 	turnStamp="$( python3 -I -B -c 'import time; print("%017.6f" % time.time(), end="")' 2>/dev/null )" || turnStamp=""
 	[ -n "$turnStamp" ] || turnStamp="$( date +%s ).000000"
-	runTicket="$turnStamp.$$.ticket"
+	## A HIGHER TIER IS SERVED FIRST: the task's tier (S16 stage 4, `mark:` of its item: emergency, urgent, important), given as
+	## MDAT_SUITE_TIER, names the ticket with a prefix that sorts before every stamp, emergency before urgent before important, so the
+	## line's own order by name serves it first, with no read added to a waiter's pass. Runs of one tier keep their arrival order.
+	## THE TIER DEFAULTS TO THE CONTEXT TASK'S: the item this run's session works, as its spawn record names it, and that item's
+	## `mark:`, read once here through the item reader. A given MDAT_SUITE_TIER wins; a run of no session, or of a task with no mark, is ordinary.
+	if [ -z "${MDAT_SUITE_TIER:-}" ] ; then
+		runTierSession="$( AgentsRunOwnSession )"
+		case "$runTierSession" in
+			''|none) ;;
+			*)
+				runTierItem="$( LC_ALL=C grep -m1 -oE '(task|dispatch)-[0-9]{8}T[0-9]{4}Z-[A-Za-z0-9.-]+\.md' "$MMDAPP/.local/agents/spawned/$runTierSession/$runTierSession.spawn.md" 2> /dev/null )" || runTierItem=""
+				if [ -n "$runTierItem" ] && command -v DistroAgentsItems.fn.sh > /dev/null 2>&1 ; then
+					MDAT_SUITE_TIER="$( DistroAgentsItems.fn.sh --get-board-item "$runTierItem" 2> /dev/null | LC_ALL=C sed -n 's/^mark: *//p' | LC_ALL=C sed -n 1p )" || MDAT_SUITE_TIER=""
+				fi
+			;;
+		esac
+	fi
+	case "${MDAT_SUITE_TIER:-}" in emergency) runTierPrefix="0a-" ;; urgent) runTierPrefix="0b-" ;; important) runTierPrefix="0c-" ;; *) runTierPrefix="" ;; esac
+	runTicket="${turnAdopted:-$runTierPrefix$turnStamp.$$.ticket}"
 	trap AgentsRunQueueLeave EXIT
 	trap 'exit 130' INT
 	trap 'exit 143' TERM HUP
-	## whole or not at all: a ticket half written would read as one of no run. The pid and its start let a waiter judge a
-	## run that died at work gone at once (rigQueueTicketState), where the hold limit alone kept its place for hours.
-	printf 'session=%s\norigin=%s\nkind=run\nsince=%s\npid=%s\npstart=%s\n' "$( AgentsRunOwnSession )" "$MDLT_ORIGIN" "$( date -u +%Y-%m-%dT%H:%M:%SZ )" "$$" "$( ps -o lstart= -p "$$" 2> /dev/null | LC_ALL=C tr -s ' ' | LC_ALL=C sed 's/^ //;s/ $//' )" > "$runQueueDir/.$runTicket" \
-		&& mv -f "$runQueueDir/.$runTicket" "$runQueueDir/$runTicket" || {
-		echo "⛔ ERROR: AgentsRunTests.sh: cannot stand in the machine's line of test runs: $runQueueDir" >&2 ; exit 1
-	}
+	if [ -n "$turnAdopted" ] ; then
+		## A run that took its caller's ticket over (NOBODY SITS ON A WAIT, above) counts its bound from the second that ticket joined the line.
+		turnBegan="${runTicket#0[abc]-}" ; turnBegan="$(( 10#${turnBegan%%.*} ))"
+	else
+		## whole or not at all: a ticket half written would read as one of no run. The pid and its start let a waiter judge a
+		## run that died at work gone at once (rigQueueTicketState), where the hold limit alone kept its place for hours.
+		printf 'session=%s\norigin=%s\nkind=run\nsince=%s\npid=%s\npstart=%s\n%s' "$( AgentsRunOwnSession )" "$MDLT_ORIGIN" "$( date -u +%Y-%m-%dT%H:%M:%SZ )" "$$" "$( ps -o lstart= -p "$$" 2> /dev/null | LC_ALL=C tr -s ' ' | LC_ALL=C sed 's/^ //;s/ $//' )" "${runTierPrefix:+tier=$MDAT_SUITE_TIER
+}" > "$runQueueDir/.$runTicket" \
+			&& mv -f "$runQueueDir/.$runTicket" "$runQueueDir/$runTicket" || {
+			echo "⛔ ERROR: AgentsRunTests.sh: cannot stand in the machine's line of test runs: $runQueueDir" >&2 ; exit 1
+		}
+	fi
 	runLaneAlone=""
 	AgentsRunAloneWanted "$@" && runLaneAlone=1
-	runLaneCountNow="$( AgentsRunLaneCount )"
+	read -r runLaneCountNow runLaneWhy <<< "$( AgentsRunLaneCount )"
 	while : ; do
-		turnWhom="" ; turnAhead=0
+		turnWhom="" ; turnAhead=0 ; turnHeldWhom=""
 		## one clock per pass, read by every judgement of it; the beat of this waiting ticket is that second, written over at every
 		## pass, so a run that stopped waiting gives up its place while its session lives, and the beat file stays one line
 		runQueueClock="$( date +%s )" || runQueueClock=""
@@ -687,11 +739,22 @@ AgentsRunQueueTurn(){ ## -- stands in the line, takes a lane at this run's turn,
 		## A beat whose ticket is gone is a leftover nothing else removes: a waiter pruned while it lived rewrites it once more.
 		for turnFile in "$runQueueDir"/*.ticket.beat "$runQueueDir"/*.ticket.yield ; do [ ! -f "$turnFile" ] || [ -f "${turnFile%.*}" ] || rm -f "$turnFile" ; done
 		## The lanes are read at every pass, so a lane whose run died is given back here rather than held for ever.
-		turnHolders="$( AgentsRunLaneHolders "$runLaneCountNow" )"
+		turnHolders="$( AgentsRunLaneHolders )"
 		for turnFile in "$runQueueDir"/*.ticket ; do
 			[ -f "$turnFile" ] || continue
+			## The line ends at this run's own ticket: nothing behind it changes its turn.
+			[ "${turnFile##*/}" != "$runTicket" ] || break
 			[ "${turnFile##*/}" \< "$runTicket" ] || continue
-			turnSession="$( LC_ALL=C sed -n 's/^session=//p' "$turnFile" 2>/dev/null | LC_ALL=C sed -n 1p )"
+			## Read in the shell: every waiter reads every ticket ahead of it at every pass, so a process here is paid waiters times tickets.
+			turnSession="" turnPid="" turnKind=""
+			while IFS='=' read -r turnKey turnValue ; do
+				case "$turnKey" in
+					session) [ -n "$turnSession" ] || turnSession="$turnValue" ;;
+					pid) [ -n "$turnPid" ] || turnPid="$turnValue" ;;
+					kind) [ -n "$turnKind" ] || turnKind="$turnValue" ;;
+				esac
+			done 2> /dev/null < "$turnFile"
+			[ "$turnKind" != check ] || turnPid=""
 			## A ticket of this run's own session -- a check running it, or a check of a check -- is the turn this run is
 			## inside, and never a place ahead of it (AgentsRunTicketState). A ticket that names no session is nobody's.
 			turnState="$( AgentsRunTicketState "$turnFile" "$turnHolders" )"
@@ -708,8 +771,8 @@ AgentsRunQueueTurn(){ ## -- stands in the line, takes a lane at this run's turn,
 			## A ticket ahead that holds no lane is the head of the queue, and this run waits for it, so a run
 			## that arrived first starts first. One already holding a lane is running, and this run may take
 			## another lane beside it -- and where every lane is taken, the holder is named as well.
-			if AgentsRunTicketHoldsLane "$turnSession" "$turnHolders" ; then
-				[ -n "$turnHeldWhom" ] || turnHeldWhom="$( AgentsRunDescribeSession "$turnSession" )"
+			if AgentsRunTicketHoldsLane "$turnPid" "$turnSession" "$turnHolders" ; then
+				[ -n "$turnHeldWhom" ] || turnHeldWhom="$( AgentsRunDescribeTicket "$turnFile" )"
 				continue
 			fi
 			turnAhead=$(( turnAhead + 1 ))
@@ -776,12 +839,45 @@ AgentsRunQueueTurn(){ ## -- stands in the line, takes a lane at this run's turn,
 				## the run that holds the lane this one needs.
 				[ -n "$turnWhom" ] || turnWhom="${turnHeldWhom:-another run holding one of $runLaneCountNow lane(s) of the machine}"
 			fi
+		elif [ -n "$turnHeldWhom" ] && [ -z "$( AgentsRunLaneFreeOne "$runLaneCountNow" )" ] ; then
+			## A head of the line ahead of it, and every lane held: what it waits for is a lane, so the run holding one is the run named.
+			turnWhom="$turnHeldWhom"
 		fi
 		## said once each time whom it waits behind changes: the age is left out of that comparison, since it moves every pass
 		turnWho="${turnWhom%, in the line for *}"
 		if [ "$turnWho" != "$turnSaid" ] ; then
-			echo "# AgentsRunTests.sh: $runLaneCountNow lane(s) of test runs on this machine, by its pace -- this one waits its turn behind $turnWhom" >&2
+			echo "# AgentsRunTests.sh: $runLaneCountNow lane(s) of test runs on this machine ($runLaneWhy) -- this one waits its turn behind $turnWhom" >&2
 			turnSaid="$turnWho"
+		fi
+		## NOBODY SITS ON A WAIT. A run that must wait, and was not given --wait, starts a run of itself detached, in a process group of
+		## its own, which takes this very ticket over, so the line keeps its order. This call returns once that run has, and names where the
+		## result will be: a tool call that started it is never held for a turn that may be an hour away.
+		if [ -z "$runWait" ] ; then
+			[ -n "$runDir" ] || AgentsRunFolderMake
+			set -m
+			MDAT_SUITE_QUEUE_ADOPT="$runTicket" MDAT_SUITE_TIER="${MDAT_SUITE_TIER:-}" MDAT_SUITE_QUEUE_LIMIT="${MDAT_SUITE_QUEUE_LIMIT:-3600}" nohup "$BASH" "$testDir/${0##*/}" --wait ${runArgs[@]+"${runArgs[@]}"} > "$runDir/runner.log" 2>&1 < /dev/null &
+			turnChild=$!
+			set +m
+			## Taken over while the run started lives, within a minute; its start-up before that is a bash start and one file write.
+			turnTries=300
+			while [ "$turnTries" -gt 0 ] && kill -0 "$turnChild" 2> /dev/null && ! LC_ALL=C grep -q -x "pid=$turnChild" "$runQueueDir/$runTicket" 2> /dev/null ; do sleep 0.2 ; turnTries=$(( turnTries - 1 )) ; done
+			if LC_ALL=C grep -q -x "pid=$turnChild" "$runQueueDir/$runTicket" 2> /dev/null ; then
+				printf '# AgentsRunTests.sh: queued and not waited on: this call returns now, and the run waits its turn detached, as pid %s, on ticket %s\n' "$turnChild" "$runQueueDir/$runTicket"
+				printf '# AgentsRunTests.sh: read it later: %s/progress.txt as its checks end, %s/summary.txt once it has ended, %s/runner.log for its own lines\n' "$runDir" "$runDir" "$runDir"
+				runTicket=""
+				exit 75
+			fi
+			## Not taken over: the run started is ended, and once it has, this call waits its turn itself where the ticket still names it, so
+			## the place is never left to nobody. A ticket that run took and then gave back on its way out is a place lost, and said so.
+			kill -TERM -- "-$turnChild" 2> /dev/null || kill -TERM "$turnChild" 2> /dev/null || :
+			wait "$turnChild" 2> /dev/null || :
+			if ! LC_ALL=C grep -q -x "pid=$$" "$runQueueDir/$runTicket" 2> /dev/null ; then
+				runTicket=""
+				echo "⛔ ERROR: AgentsRunTests.sh: not started: the run started to wait detached took this run's ticket and ended, so its place in the machine's line is gone and nothing was run. Its own lines are in $runDir/runner.log. Run it again." >&2
+				exit 1
+			fi
+			echo "# AgentsRunTests.sh: the run started to wait detached did not take this run's ticket over, so this call waits its turn itself" >&2
+			runWait=1
 		fi
 		## Its bound passed: what it waits behind, and no run of it. The ticket is given back here, so nothing behind it
 		## waits on a run that will never start.
@@ -792,10 +888,13 @@ AgentsRunQueueTurn(){ ## -- stands in the line, takes a lane at this run's turn,
 		fi
 		## the lanes are read again now and then, so a machine that came to rest or grew busy widens or narrows them
 		turnRecount=$(( turnRecount + 1 ))
-		if [ "$turnRecount" -ge 15 ] ; then turnRecount=0 ; runLaneCountNow="$( AgentsRunLaneCount )" ; fi
+		if [ "$turnRecount" -ge 15 ] ; then turnRecount=0 ; read -r runLaneCountNow runLaneWhy <<< "$( AgentsRunLaneCount )" ; fi
 		## the pass is slower the longer the line: a run far back has nothing to gain from a quick look, and a long line looked
 		## at quickly by every waiter is load on the very machine the line protects
-		turnSleep=$(( 5 + turnAhead * 3 )) ; [ "$turnSleep" -le 30 ] || turnSleep=30
+		## A run more than 10 back cannot reach a lane for minutes, so it looks up to 90 s apart. Under 120 s, so its beat still reads fresh
+		## to every other waiter, which then spends no `ps` on it (AgentsRunTicketState).
+		turnSleep=$(( 5 + turnAhead * 3 ))
+		if [ "$turnAhead" -le 10 ] ; then [ "$turnSleep" -le 30 ] || turnSleep=30 ; else [ "$turnSleep" -le 90 ] || turnSleep=90 ; fi
 		sleep "$turnSleep"
 	done
 }
@@ -846,19 +945,8 @@ AgentsRunKnownOf(){ ## test name -- sets runKnown to ` owner=<owner> reason=<rea
 ## Every run waits its turn, a run of named tests as the whole suite does (WAITING IN THE LINE, above).
 AgentsRunQueueTurn $( AgentsRunNames "$@" )
 
-## A run a session starts keeps its folder in that session's output folder, beside its own files, and a run
-## with no session keeps the workspace's .local/temp. The rule stands here as well as at the tooling's own
-## sites because a runner copied alone into a rig cannot reach sh-lib.
-runRoot="$MMDAPP/.local/temp/mdat-tests"
-[ -z "${MDAT_SPAWN_SANDBOX_ROOT:-}" ] || runRoot="$MDAT_SPAWN_SANDBOX_ROOT/output/mdat-tests"
-runDir="$runRoot/$( date -u +%Y%m%dT%H%M%SZ )"
-## A folder of its own: a run started in the same second as another takes its pid into the name,
-## since two runs in one folder would each run the other's list and overwrite its logs.
-mkdir -p "$runRoot" 2>/dev/null
-mkdir "$runDir" 2>/dev/null || { runDir="$runDir-$$" ; mkdir -p "$runDir" ; } || { echo "⛔ ERROR: AgentsRunTests.sh: cannot create $runDir" >&2 ; exit 1 ; }
-ln -sfn "$runDir" "$runRoot/latest" 2>/dev/null || :
-## the run folder on the ticket, so a waiter says how many of its checks are done
-[ -z "$runTicket" ] || printf 'rundir=%s\n' "$runDir" >> "$runQueueDir/$runTicket" 2>/dev/null || :
+## The run's folder, made at its turn, or already made where the run was queued and went on detached (NOBODY SITS ON A WAIT).
+[ -n "$runDir" ] || AgentsRunFolderMake
 ## No test links a rig into source (epic S23.11): each finds a guard `ln` first on its PATH. A runner copied alone into a rig cannot reach sh-lib and runs with none.
 if [ -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SandboxLinks.include" ] ; then
 	. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SandboxLinks.include" && AgentsToolsLnGuardMake "$runDir/guard-bin" && PATH="$runDir/guard-bin:$PATH"
@@ -933,27 +1021,28 @@ AgentsRunOneTest(){ ## test name, timeout seconds -- one task line of the run li
 ## check started by hand waits behind every ticket ahead of it, and a run only where no lane is free for it. With no ticket behind
 ## this run, the common case at a boundary, it is one glob of the line and no process.
 AgentsRunYieldWaiters(){
-	local yieldFile yieldKey yieldValue yieldSession yieldKind yieldWon yieldHolders="" yieldFree=""
+	local yieldFile yieldKey yieldValue yieldSession yieldPid yieldKind yieldWon yieldHolders="" yieldFree=""
 	runYieldWaiters=""
 	[ -n "$runTicket" ] && [ -n "$runLaneMine" ] || return 0
 	for yieldFile in "$runQueueDir"/*.ticket ; do
 		[ -f "$yieldFile" ] || continue
 		[ "${yieldFile##*/}" \> "$runTicket" ] || continue
 		[ ! -f "$yieldFile.yield" ] || continue
-		yieldSession="" yieldKind="" yieldWon=""
+		yieldSession="" yieldPid="" yieldKind="" yieldWon=""
 		while IFS='=' read -r yieldKey yieldValue ; do
 			case "$yieldKey" in
 				session) [ -n "$yieldSession" ] || yieldSession="$yieldValue" ;;
+				pid) [ -n "$yieldPid" ] || yieldPid="$yieldValue" ;;
 				kind) [ -n "$yieldKind" ] || yieldKind="$yieldValue" ;;
 				turn-won) [ -n "$yieldWon" ] || yieldWon="$yieldValue" ;;
 			esac
 		done 2> /dev/null < "$yieldFile"
 		## a check that has won its turn is at work, and waits for nothing
 		[ -z "$yieldWon" ] || continue
-		[ -n "$yieldHolders" ] || yieldHolders="$( AgentsRunLaneHolders "$runLaneCountNow" ) "
+		[ -n "$yieldHolders" ] || yieldHolders="$( AgentsRunLaneHolders ) "
 		[ "$( AgentsRunTicketState "$yieldFile" "$yieldHolders" )" = alive ] || continue
 		if [ "$yieldKind" != check ] ; then
-			! AgentsRunTicketHoldsLane "$yieldSession" "$yieldHolders" || continue
+			! AgentsRunTicketHoldsLane "$yieldPid" "$yieldSession" "$yieldHolders" || continue
 			[ -n "$yieldFree" ] || yieldFree="$( AgentsRunLaneFreeOne "$runLaneCountNow" || printf 'none' )"
 			[ "$yieldFree" = none ] || continue
 		fi
@@ -961,38 +1050,62 @@ AgentsRunYieldWaiters(){
 	done
 	return 0
 }
-## The yield itself, by the one worker that marked the ticket: the checks in flight end (a log with no receipt yet is one still
-## running), the lanes go back, each ticket it yielded to is waited out, the mark goes, and the same lanes are taken again. It
+## The yield itself, by the one worker that marked the ticket: the checks in flight end (a check of the run list whose log has no
+## receipt yet is one still running; no other file of the run folder is a check), the lanes go back, each ticket it yielded to is
+## waited for until it holds a lane, has won its turn or is gone, 120 s at most in all, the mark goes, and free lanes are taken again. It
 ## touches the run list as it waits, so the stall watch does not take the run for one that stands still.
 AgentsRunYieldGive(){
-	local giveFile giveBusy giveLane giveWaiter giveLanes="$runLaneMine"
+	local giveName giveRest giveBusy giveLane giveWaiter giveLanes="$runLaneMine" giveWant=0 giveHave=0 giveTry giveUntil giveHolders giveKey giveValue givePid giveSession giveKind giveWon
 	while : ; do
 		giveBusy=""
-		for giveFile in "$runDir"/*.log ; do [ ! -f "$giveFile" ] || [ -f "${giveFile%.log}.receipt" ] || { giveBusy=1 ; break ; } ; done
+		while read -r giveName giveRest ; do [ ! -f "$runDir/$giveName.log" ] || [ -f "$runDir/$giveName.receipt" ] || { giveBusy=1 ; break ; } ; done < "$runList"
 		[ -n "$giveBusy" ] || break
 		touch "$runList" 2> /dev/null || :
 		sleep 1
 	done
 	for giveLane in $runLaneMine ; do AgentsRunLaneGive "$giveLane" ; done
 	echo "# AgentsRunTests.sh: gave its lane(s)$runLaneMine back between two checks: $( printf '%s' "$runYieldWaiters" | LC_ALL=C grep -c . ) ticket(s) behind it wait for them" >&2
+	## A waiter that took a lane may yield in its turn: waiting for it to end would hold this run back for the whole chain while a lane stands free.
+	giveUntil=$(( SECONDS + 120 ))
 	while IFS= read -r giveWaiter ; do
 		[ -n "$giveWaiter" ] || continue
-		while [ -f "$giveWaiter" ] && [ "$( AgentsRunTicketState "$giveWaiter" "$( AgentsRunLaneHolders "$runLaneCountNow" ) " )" = alive ] ; do
+		while [ "$SECONDS" -lt "$giveUntil" ] && [ -f "$giveWaiter" ] ; do
+			giveHolders="$( AgentsRunLaneHolders ) "
+			[ "$( AgentsRunTicketState "$giveWaiter" "$giveHolders" )" = alive ] || break
+			givePid="" giveSession="" giveKind="" giveWon=""
+			while IFS='=' read -r giveKey giveValue ; do
+				case "$giveKey" in
+					session) [ -n "$giveSession" ] || giveSession="$giveValue" ;;
+					pid) [ -n "$givePid" ] || givePid="$giveValue" ;;
+					kind) [ -n "$giveKind" ] || giveKind="$giveValue" ;;
+					turn-won) [ -n "$giveWon" ] || giveWon="$giveValue" ;;
+				esac
+			done 2> /dev/null < "$giveWaiter"
+			[ -z "$giveWon" ] || break
+			[ "$giveKind" != check ] || givePid=""
+			! AgentsRunTicketHoldsLane "$givePid" "$giveSession" "$giveHolders" || break
 			date +%s > "$runQueueDir/$runTicket.beat" 2> /dev/null || :
 			touch "$runList" 2> /dev/null || :
 			sleep 2
 		done
 	done <<< "$runYieldWaiters"
-	rm -f "$runQueueDir/$runTicket.yield"
-	for giveLane in $giveLanes ; do
-		until AgentsRunLaneFree "$giveLane" && AgentsRunLaneTake "$giveLane" ; do
-			date +%s > "$runQueueDir/$runTicket.beat" 2> /dev/null || :
-			touch "$runList" 2> /dev/null || :
-			sleep 2
+	## As many lanes as it gave, whichever are free: a head that waits for its old lane while another stands free holds the whole line behind it.
+	for giveLane in $giveLanes ; do giveWant=$(( giveWant + 1 )) ; done
+	[ "$giveWant" -le "$runLaneCountNow" ] || giveWant="$runLaneCountNow"
+	runLaneMine=""
+	while [ "$giveHave" -lt "$giveWant" ] ; do
+		giveTry=1
+		while [ "$giveTry" -le "$runLaneCountNow" ] && [ "$giveHave" -lt "$giveWant" ] ; do
+			case " $runLaneMine " in *" $giveTry "*) ;; *) ! { AgentsRunLaneFree "$giveTry" && AgentsRunLaneTake "$giveTry" ; } || giveHave=$(( giveHave + 1 )) ;; esac
+			giveTry=$(( giveTry + 1 ))
 		done
+		[ "$giveHave" -lt "$giveWant" ] || break
+		date +%s > "$runQueueDir/$runTicket.beat" 2> /dev/null || :
+		touch "$runList" 2> /dev/null || :
+		sleep 2
 	done
-	## the same lanes as before: a take adds its lane to the list, and a list grown at each yield would wait at the next for a lane it holds
-	runLaneMine="$giveLanes"
+	## The mark comes off only now, with the lanes taken back: a worker waiting on it goes on with lanes the run holds.
+	rm -f "$runQueueDir/$runTicket.yield"
 	echo "# AgentsRunTests.sh: took its lane(s)$runLaneMine again and goes on with its checks" >&2
 	return 0
 }
@@ -1000,18 +1113,23 @@ AgentsRunYieldGive(){
 ## handed out: the first worker to mark the ticket yields for the run, once, and every other worker waits until the mark is gone and the
 ## lanes are the run's again. rc 0 where the worker stopped.
 AgentsRunYieldPoint(){
-	local pointBack pointLane
+	local pointLane
 	AgentsRunYieldWaiters
 	[ -n "$runYieldWaiters" ] || [ -f "$runQueueDir/$runTicket.yield" ] || return 1
 	if [ -n "$runYieldWaiters" ] && ( set -C ; date +%s > "$runQueueDir/$runTicket.yield" ) 2> /dev/null ; then
 		AgentsRunYieldGive
 		return 0
 	fi
+	## The lanes the run holds now, read from the lane files this runner holds: the yield takes back any lanes that stand free, so their
+	## numbers may be others than those this worker was forked with.
 	while : ; do
-		pointBack=1
-		[ ! -f "$runQueueDir/$runTicket.yield" ] || pointBack=""
-		for pointLane in $runLaneMine ; do [ -z "$pointBack" ] || [ "$( AgentsRunLaneHolder "$pointLane" )" = "$$" ] || pointBack="" ; done
-		[ -z "$pointBack" ] || break
+		runLaneMine=""
+		for pointLane in 1 "$runLaneDir"/lane.* ; do
+			pointLane="${pointLane##*/lane.}"
+			case "$pointLane" in ''|*[!0123456789]*) continue ;; esac
+			[ "$( AgentsRunLaneHolder "$pointLane" )" != "$$" ] || runLaneMine="$runLaneMine $pointLane"
+		done
+		[ -f "$runQueueDir/$runTicket.yield" ] || [ -z "$runLaneMine" ] || break
 		sleep 1
 	done
 	return 0
@@ -1062,8 +1180,8 @@ AgentsRunStallEnd(){ ## seconds the run has stood still -- the note of it, for t
 		}' | while read -r endSignal endPid ; do kill "-$endSignal" "$endPid" 2>/dev/null ; done
 	return 0
 }
-AgentsRunStallWatch(){ ## -- beside the run for as long as it lasts: once nothing in the run folder has changed for longer than a test may take and the margin, the run is ended as stalled (A RUN THAT STANDS STILL, above)
-	local watchLimit=$(( 10#$runTimeout + 10#$runStallMargin )) watchEvery watchSleep="" watchSeen="" watchNow watchStill=0
+AgentsRunStallWatch(){ ## -- beside the run for as long as it lasts: once nothing in the run folder has changed for longer than a test may take and the margin, the run is ended as stalled (A RUN THAT STANDS STILL, above). Its measure is real seconds, so a shortened `sleep` on PATH changes only how often it looks, never what it reads
+	local watchLimit=$(( 10#$runTimeout + 10#$runStallMargin )) watchEvery watchSleep="" watchSeen="" watchNow watchStill=0 watchChanged=$SECONDS
 	watchEvery=$(( watchLimit / 10 )) ; [ "$watchEvery" -ge 1 ] || watchEvery=1 ; [ "$watchEvery" -le 20 ] || watchEvery=20
 	trap '[ -z "$watchSleep" ] || kill "$watchSleep" 2>/dev/null ; exit 0' TERM
 	while : ; do
@@ -1072,10 +1190,12 @@ AgentsRunStallWatch(){ ## -- beside the run for as long as it lasts: once nothin
 		watchSleep=$! ; wait "$watchSleep" ; watchSleep=""
 		## a runner that is gone has nobody to tell
 		kill -0 "$$" 2>/dev/null || return 0
+		## what it counts is real seconds since the run folder last changed, never the length of its own naps: a nap is
+		## however long `sleep` was told to take, and a rig may put its own `sleep` first on PATH (sh-test's clock)
 		watchNow="$( python3 -I -B "$runStallKeeper" "$runDir" 2>/dev/null )"
 		[ -n "$watchNow" ] || continue
-		if [ "$watchNow" != "$watchSeen" ] ; then watchSeen="$watchNow" ; watchStill=0 ; continue ; fi
-		watchStill=$(( watchStill + watchEvery ))
+		if [ "$watchNow" != "$watchSeen" ] ; then watchSeen="$watchNow" ; watchChanged=$SECONDS ; continue ; fi
+		watchStill=$(( SECONDS - watchChanged ))
 		[ "$watchStill" -gt "$watchLimit" ] || continue
 		AgentsRunStallEnd "$watchStill" || :
 		return 0
@@ -1090,7 +1210,7 @@ mkdir -p "$runSlotDir" 2>/dev/null && [ -w "$runSlotDir" ] || {
 }
 
 echo "# AgentsRunTests.sh: $runCount test(s), workers ${runWorkers:-1}, timeout ${runTimeout}s, run folder: $runDir" >&2
-echo "# AgentsRunTests.sh: $( AgentsRunLaneReport ) -- the machine's lanes are read against its own pace ($runLaneDir)" >&2
+echo "# AgentsRunTests.sh: $( AgentsRunLaneReport ) -- lanes of the machine: $runLaneWhy" >&2
 runStart="$( date +%s )"
 ## as many workers as the driver would run at once, and a line of the driver for each, never more lines than tests (THE DRIVER IS HANDED ITS WORKERS, above)
 runWorkerCount="${runWorkers:-1}"

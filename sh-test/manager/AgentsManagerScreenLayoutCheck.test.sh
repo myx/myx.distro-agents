@@ -56,7 +56,7 @@ rigS1=11111111-0000-4000-8000-000000000001 ; rigR2=a2a2a2a2-0000-4000-8000-00000
 rigLong='✉️ to *magic-tester*: please run the named tests once more against live and say exactly which ones you ran, by name, and then wait for the next word from me before anything else is started'
 rigF="$rigTmp/fixture" ; mkdir -p "$rigF"
 {
-	rigRow session "$rigS1" daily_of_Monday running 2026-10-12_16:57_+0000 - 2 running=2
+	rigRow session "$rigS1" daily_of_Monday running 2026-10-12_16:57_+0000 - 2 running=2 - - - '' - - - active
 	rigRow run "$rigS1" "$rigS1" magic-coordinator spawn-started running waiting 2026-10-12_16:57_+0000 - rig-host ws-rig waiting
 	rigRow run "$rigS1" "$rigR2" magic-tester spawn-started running tool 2026-10-12_17:05_+0000 - rig-host ws-rig working
 	rigRow counters 1 0 1 1 0 0.42

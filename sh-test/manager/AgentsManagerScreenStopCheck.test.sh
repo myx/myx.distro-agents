@@ -44,7 +44,7 @@ rigRow(){ ## the fields of one row, joined by TAB
 rigS1=11111111-0000-4000-8000-000000000001 ; rigR2=a2a2a2a2-0000-4000-8000-0000000000a2
 rigF="$rigTmp/fixture" ; mkdir -p "$rigF"
 {
-	rigRow session "$rigS1" daily_of_Monday running 2026-10-12_16:57_+0000 - 2 running=2 running 2026-10-12_16:58_+0000 alive
+	rigRow session "$rigS1" daily_of_Monday running 2026-10-12_16:57_+0000 - 2 running=2 running 2026-10-12_16:58_+0000 alive '' - - - active
 	rigRow run "$rigS1" "$rigS1" magic-coordinator spawn-started running running 2026-10-12_16:57_+0000 - rig-host ws-rig waiting
 	rigRow run "$rigS1" "$rigR2" magic-tester spawn-started running running 2026-10-12_17:05_+0000 - rig-host ws-rig working
 	rigRow counters 1 0 1 0 2 0.42

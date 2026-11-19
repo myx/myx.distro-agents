@@ -60,27 +60,31 @@ if [ ! -f "$rigLocalContext" ] ; then
 fi
 mkdir -p "$rigTmp/ws/.local/.agents" "$rigTmp/home" "$rigTmp/ws/.local/myx/myx.distro-.local/sh-lib"
 rigCopyTree "$rigLocalContext" "$rigTmp/ws/.local/myx/myx.distro-.local/sh-lib/LocalContext.include"
-## The installer finds the MCP server script in the workspace's own installed myx.common.
+## The installer finds the MCP server through the myx.common on PATH, so PATH carries the rig's own copy of its
+## launcher and tree, never the machine's.
 rigCommonRoot="$MDLT_ORIGIN/myx/myx.common/os-myx.common/host/tarball/share/myx.common"
 [ -x "$rigCommonRoot/bin/lib/agentMcpServer.Common" ] || rigRefuse "agentMcpServer.Common not found or not executable under $rigCommonRoot"
-mkdir -p "$rigTmp/ws/.local/myx/myx.common/os-myx.common/host/tarball/share"
+[ -x "$MDLT_ORIGIN/myx/myx.common/os-myx.common/host/tarball/bin/myx.common" ] || rigRefuse "the myx.common launcher not found or not executable under $MDLT_ORIGIN/myx/myx.common/os-myx.common/host/tarball/bin"
+mkdir -p "$rigTmp/ws/.local/myx/myx.common/os-myx.common/host/tarball/share" "$rigTmp/ws/.local/myx/myx.common/os-myx.common/host/tarball/bin"
 rigCopyTree "$rigCommonRoot" "$rigTmp/ws/.local/myx/myx.common/os-myx.common/host/tarball/share/myx.common"
-rigInstall(){
-	env -i HOME="$rigTmp/home" PATH="/usr/bin:/bin" MMDAPP="$rigTmp/ws" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
+rigCopyTree "$MDLT_ORIGIN/myx/myx.common/os-myx.common/host/tarball/bin/myx.common" "$rigTmp/ws/.local/myx/myx.common/os-myx.common/host/tarball/bin/myx.common"
+## The output is kept, so a refusal below names what the installer said.
+rigInstall(){ ## output file
+	env -i HOME="$rigTmp/home" PATH="$rigTmp/ws/.local/myx/myx.common/os-myx.common/host/tarball/bin:/usr/bin:/bin" MMDAPP="$rigTmp/ws" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
 		RIG_TMP="$rigTmp" RIG_FN="$rigFn" \
 		bash -c '
 			case "$MMDAPP" in "$RIG_TMP"/*) ;; *) exit 99 ;; esac
 			case "$HOME" in "$RIG_TMP"/*) ;; *) exit 99 ;; esac
 			cd "$MMDAPP" && exec bash "$RIG_FN" --install-vscode-integrations
-		' > /dev/null 2>&1
+		' > "$1" 2>&1
 }
-rigInstall
+rigInstall "$rigTmp/install1.out"
 for rigConfig in .local/agents/mcp.servers.json .vscode/mcp.json .mcp.json ; do
-	[ -f "$rigTmp/ws/$rigConfig" ] || rigRefuse "the first install wrote no $rigConfig"
+	[ -f "$rigTmp/ws/$rigConfig" ] || rigRefuse "the first install wrote no $rigConfig; the installer said: $( LC_ALL=C grep -F '⛔' "$rigTmp/install1.out" | LC_ALL=C tr '\n' ' ' )"
 	cp -p "$rigTmp/ws/$rigConfig" "$rigTmp/before.${rigConfig//\//_}"
 done
 sleep 1
-rigInstall
+rigInstall "$rigTmp/install2.out"
 for rigConfig in .local/agents/mcp.servers.json .vscode/mcp.json .mcp.json ; do
 	rigAssert "$rigConfig keeps its bytes"             "$( rigSame "$rigTmp/before.${rigConfig//\//_}" "$rigTmp/ws/$rigConfig" )" same
 done

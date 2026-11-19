@@ -83,6 +83,8 @@ rigRecord magic-librarian rig-run-mr rig-sess-mr "inbox:magic-librarian:$rigMrNo
 rigRecord magic-coordinator rig-run-multi rig-sess-multi "inbox:magic-coordinator:note-20261001T000000Z-rig-a-state.md,inbox:magic-coordinator:note-20261001T000000Z-rig-b-state.md"
 rigRecord magic-coordinator rig-run-done rig-sess-done "inbox:magic-coordinator:note-20261001T000000Z-rig-done-state.md"
 rigRecord magic-coordinator rig-run-nolock rig-sess-nolock ""
+## A second duty, detached from the lock it once held: its record names the advance note, which another session holds now.
+rigRecord magic-coordinator rig-run-detached rig-sess-detached "inbox:magic-coordinator:note-20260809T154715Z-advance-state-and-lock.md"
 
 rigPassCount=0
 rigFailCount=0
@@ -172,6 +174,26 @@ rigUpdate multi3 rig-run-multi magic-coordinator "x" --document note-20261001T00
 rigAssert "a --document the session did not lock"      "$( cat "$rigTmp/multi3.rc" ):$( LC_ALL=C grep -c -F 'did not lock a document named' "$rigTmp/multi3.err" )" "1:1"
 rigUpdate empty rig-run-advance magic-coordinator ""
 rigAssert "empty content erases nothing"               "$( cat "$rigTmp/empty.rc" ):$( LC_ALL=C grep -c -F 'RIG-STATE-UPDATE of advance' "$( rigNotePath magic-coordinator note-20260809T154715Z-advance-state-and-lock.md )" )" "1:1"
+
+echo "-- 5b. a second duty whose note another session holds: its write is kept, never refused, and lands once it holds the lock --"
+rigAdvance="$( rigNotePath magic-coordinator note-20260809T154715Z-advance-state-and-lock.md )"
+rigUpdate detached rig-run-detached magic-coordinator "$( printf -- '---\nstate: advance-running\nsession-id: rig-sess-detached\n---\n\nRIG-DETACHED-WRITE.\n' )"
+rigAssert "kept: rc 0, it is told to go on answering, the note untouched, the write in its own session folder" \
+	"$( cat "$rigTmp/detached.rc" ):$( LC_ALL=C grep -c -F 'Go on answering what reaches you yourself' "$rigTmp/detached.out" ):$( LC_ALL=C grep -c -F 'RIG-DETACHED-WRITE.' "$rigAdvance" ):$( LC_ALL=C grep -c -F 'RIG-DETACHED-WRITE.' "$rigWs/.local/agents/sessions/rig-sess-detached/state-kept.note-20260809T154715Z-advance-state-and-lock.md" 2> /dev/null )" "0:1:0:1"
+rigSeedNote magic-coordinator note-20260809T154715Z-advance-state-and-lock.md advance rig-sess-detached
+rigUpdate detached2 rig-run-detached magic-coordinator "$( printf -- '---\nstate: advance-running\nsession-id: rig-sess-detached\n---\n\nRIG-DETACHED-HOLDS.\n' )"
+rigAssert "once it holds the lock its write lands, and the kept one is spent" \
+	"$( cat "$rigTmp/detached2.rc" ):$( LC_ALL=C grep -c -F 'RIG-DETACHED-HOLDS.' "$rigAdvance" ):$( [ -f "$rigWs/.local/agents/sessions/rig-sess-detached/state-kept.note-20260809T154715Z-advance-state-and-lock.md" ] && echo kept || echo spent )" "0:1:spent"
+echo "-- 5c. a store lock another process holds: the state write fails within its bound and names the holder, and never hangs --"
+mkdir -p "$rigData/.git/team-data-commit"
+sleep 600 & rigLockPid=$!
+printf '%s' "$rigLockPid" > "$rigData/.git/team-data-commit/store.lock"
+rigHeldFrom="$( date +%s )"
+rigUpdate heldlock rig-run-grooming magic-coordinator "" --header:upsert:rig-held:1
+rigHeldTook=$(( $( date +%s ) - rigHeldFrom ))
+kill "$rigLockPid" 2> /dev/null ; wait "$rigLockPid" 2> /dev/null ; rm -f "$rigData/.git/team-data-commit/store.lock"
+rigAssert "it fails within 60s, says the lock stayed held, and names the holding command" \
+	"$( [ "$( cat "$rigTmp/heldlock.rc" )" != 0 ] && echo failed || echo wrote ):$( [ "$rigHeldTook" -lt 60 ] && echo bounded || echo "took ${rigHeldTook}s" ):$( LC_ALL=C grep -c -F 'sleep 600' "$rigTmp/heldlock.err" )" "failed:bounded:1"
 
 echo "-- 6. the per-routine upserts and the morning review's advance are retired --"
 rigStill=""

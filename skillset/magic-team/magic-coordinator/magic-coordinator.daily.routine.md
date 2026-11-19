@@ -11,6 +11,10 @@ routine-lock-document: inbox:magic-coordinator:note-20260811T120000Z-daily-state
 input-scan-def: work-duty --session-id {{session-id}}
 input-scan-def: routine-coworking-session
 review-by: inherit
+deliverables: the state of every permanent member but magic-coordinator, against the board
+deliverables: the day's assignments in dependency order
+deliverables: the summary of the work session for this session's parent
+deliverables: each permanent member with work today, except partner-* members, spawned into this session, and the day's dispatch sent
 ---
 # magic-coordinator.daily.routine — the actual procedure
 

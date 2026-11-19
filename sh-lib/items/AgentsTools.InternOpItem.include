@@ -296,8 +296,8 @@ AgentsToolsItemUpsert(){
 		AgentsToolsKnowledgeWantedMark
 	fi
 	type AgentsToolsTeamDataStoreLockTake > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataStoreLock.include"
-	if ! AgentsToolsTeamDataStoreLockTake 300 "item-upsert" ; then
-		echo "DistroAgentsTools: item-upsert: ⛔ ERROR: the store lock stayed held, so nothing was written and nothing was committed" >&2
+	if ! AgentsToolsTeamDataStoreLockTake "${agentsItemUpsertLockTries:-300}" "item-upsert" ; then
+		echo "DistroAgentsTools: item-upsert: ⛔ ERROR: the store lock stayed held for ${agentsItemUpsertLockTries:-300}s, so nothing was written and nothing was committed" >&2
 		set +e ; return 1
 	fi
 	AgentsToolsItemUpsertLocked "$@" || upsertLockRc=$?
@@ -538,6 +538,15 @@ AgentsToolsItemUpsertLocked(){ ## <team-member> [<selector>|<item-filename>] [--
 		esac
 	fi
 
+	## A NEW INBOX ITEM IS STAMPED AS THE INBOX WRITER STAMPS ONE: type from the name, from the caller, date now, owner the inbox's
+	## member and the contract of the type, each only where the content has none (the contracts' tooling-filled keys).
+	if [ "$category" = inbox ] && [ ! -f "$target" ] ; then
+		type AgentsToolsDocValidateGate > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.DocValidate.include"
+		local newType="$( AgentsToolsItemNameType "$itemName" )"
+		[ -z "$newType" ] || headerOps="${headerOps}default"$'\t'"type"$'\t'"$newType"$'\n'
+		headerOps="${headerOps}default"$'\t'"from"$'\t'"$callingMember"$'\n'"default"$'\t'"date"$'\t'"$( date +"%Y-%m-%d %H:%M %z" )"$'\n'"default"$'\t'"owner"$'\t'"$inboxMember"$'\n'
+		! AgentsToolsDocValidateContractFile "inbox-item.$newType" > /dev/null || headerOps="${headerOps}default"$'\t'"document-contract"$'\t'"inbox-item.$newType"$'\n'
+	fi
 	## The ops file has to be a real path -- it is the awk's own `-v opsFile=`
 	## input. It is created inside this substitution's own subshell, so its
 	## trap is that subshell's and can never disarm the caller's, and the trap
@@ -553,6 +562,11 @@ AgentsToolsItemUpsertLocked(){ ## <team-member> [<selector>|<item-filename>] [--
 			printf '%s\n' "$content" | LC_ALL=C awk -v opsFile="$headerOpsFile" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsBoardItemHeaderOpsApply.awk"
 		)" || { set +e ; return 1 ; }
 	fi
+	## A RECHECK-DATE ON A PENDING ITEM RE-CHECKS AN UNMET CONDITION (AgentsToolsRecheckPendingBody): a date this call sets beside none is refused, one carried over dropped.
+	if [ "$category:$boardState" = board:pending ] ; then
+		type AgentsToolsRecheckPendingBody > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.RecheckDate.include"
+		content="$( printf '%s\n' "$content" | AgentsToolsRecheckPendingBody "$MDSC_CMD: item-upsert" "${itemName%.md}" "$headerOps" )" || { set +e ; return 1 ; }
+	fi
 
 	## --unlock-lock prints RELEASED only once its own close is proven on disk
 	## (AgentsToolsItemUnlockVerify) and landed as far as this configuration
@@ -565,11 +579,33 @@ AgentsToolsItemUpsertLocked(){ ## <team-member> [<selector>|<item-filename>] [--
 		priorContent="$( cat "$target" ; printf x )" ; priorContent="${priorContent%x}"
 	fi
 
+	## THE WRITE GATE OF AN INBOX ITEM (AgentsToolsDocValidateGate): a refusing fault this write introduces refuses it, such as a block
+	## that never closes or a type that is not the name's. A state note keeps keys of its own, so the gate's reports are not said.
+	if [ "$category" = inbox ] ; then
+		type AgentsToolsDocValidateGate > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.DocValidate.include"
+		local gateWas="" gateMode="create" gateSaid=""
+		[ ! -f "$target" ] || { gateWas="$target" ; gateMode="change" ; }
+		gateSaid="$( printf '%s\n' "$content" | AgentsToolsDocValidateGate item-upsert "$itemName" inbox "$itemName" "$gateWas" "$gateMode" 2>&1 > /dev/null )" || {
+			printf '%s\n' "$gateSaid" >&2
+			[ "$unlockLock" != "true" ] || AgentsToolsItemUnlockKeep as-is "the write gate refused the note"
+			set +e ; return 1
+		}
+	fi
 	## Written beside the item and moved into place, so a reader in the write window sees the old
 	## item or the new one and never part of one. The beside file is this call's own, by mktemp and
 	## never by $$: two calls from subshells of one shell have one $$, so they meet on one name.
 	local writeBeside=""
 	writeBeside="$( mktemp "$target.XXXXXX" )" || writeBeside=""
+	## The note's session-id before this write, read by the shell to the end of its front matter: a write that changes it takes the lock.
+	local pushDeferBefore="" pushDeferAfter="" pushDeferLine="" pushDeferFence=0
+	if [ -f "$target" ] ; then
+		while IFS= read -r pushDeferLine ; do
+			case "$pushDeferLine" in
+				---) pushDeferFence=$(( pushDeferFence + 1 )) ; [ "$pushDeferFence" -lt 2 ] || break ;;
+				'session-id: '*) pushDeferBefore="${pushDeferLine#session-id: }" ; break ;;
+			esac
+		done < "$target"
+	fi
 	if [ -z "$writeBeside" ] || ! printf '%s\n' "$content" > "$writeBeside" || ! mv -f "$writeBeside" "$target" ; then
 		[ -z "$writeBeside" ] || rm -f "$writeBeside"
 		if [ "$unlockLock" = "true" ] ; then AgentsToolsItemUnlockKeep restore "could not write $target" ; set +e ; return 1 ; fi
@@ -645,6 +681,30 @@ AgentsToolsItemUpsertLocked(){ ## <team-member> [<selector>|<item-filename>] [--
 		if [ "$unlockLock" = "true" ] ; then echo "RELEASED" ; return 0 ; fi
 		if [ "$updateLock" = "true" ] ; then echo "REFRESHED" ; return 0 ; fi
 		return 0
+	fi
+
+	## A WRITE THAT TAKES NO LOCK PUSHES IN THE ONE TEAM-DATA THREAD: it owes the push and returns, so one push carries several commits and no
+	## writer of the rig waits on another's push under the store lock. A lock op pushes and reads back here: --update-lock, --unlock-lock, a claim.
+	if [ "$updateLock" != "true" ] && [ "$unlockLock" != "true" ] && [ "${MDAT_TEAM_DATA_COMMIT_THREAD:-}" != "off" ] ; then
+		pushDeferFence=0
+		while IFS= read -r pushDeferLine ; do
+			case "$pushDeferLine" in
+				---) pushDeferFence=$(( pushDeferFence + 1 )) ; [ "$pushDeferFence" -lt 2 ] || break ;;
+				'session-id: '*) pushDeferAfter="${pushDeferLine#session-id: }" ; break ;;
+			esac
+		done < "$target"
+		if [ "$itemLockable" != "true" ] || [ "$pushDeferAfter" = "$pushDeferBefore" ] ; then
+			type AgentsToolsTeamDataPushOwedMark > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataCommit.include"
+			type AgentsToolsOnDemandThreadStart > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.OnDemandThread.include"
+			AgentsToolsTeamDataPushOwedMark
+			case "$( AgentsToolsOnDemandThreadStart "$( AgentsToolsTeamDataThreadDir )" --intern-team-data-commit --run 2> /dev/null )" in
+				''|failed*) ;;
+				*)
+					echo "# $MDSC_CMD: item-upsert: committed, push deferred to the team-data thread ${target#"$itemStoreRoot"/}" >&2
+					return 0
+				;;
+			esac
+		fi
 	fi
 
 	local pushAttempt=1 pushOut="" pushRc=0

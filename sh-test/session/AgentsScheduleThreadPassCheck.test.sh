@@ -10,6 +10,7 @@
 ##   3. WITH OVERTIME ALONE, worktime off, it answers 2.
 ##   4. WITH EMERGENCY ALONE, worktime off, it answers 2.
 ##   5. THE PASS IS MINUTES APART: a second tick a moment later runs no pass, and it is the same stand-in the first tick called that says so.
+##   6. A PASS OVER ITS GAP SAYS WHERE ITS TIME WENT: the loop's seconds with its own steps' times, then each of the thread's steps.
 ## Offline: no clock is faked and no workspace is read.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
@@ -127,6 +128,22 @@ rigFlags "worktime: yes (default)" "weekend: no (default)" "holidays: no" "emerg
 : > "$rigTmp/asks"
 rigAssert "worktime on: wanted, asked" "$( rigAskDue "" "" )" "yes asks=1"
 
+
+echo "-- 6. a pass over its gap says where its time went --"
+rigFlags "worktime: no (default)" "weekend: no (default)" "holidays: no" "emergency: no" "overtime: no" "learning: no" "supervised: no"
+rigLine="$( env -i PATH="/usr/bin:/bin:/usr/sbin:/sbin" MDLT_ORIGIN="$MDLT_ORIGIN" RIG_FLAGS="$rigTmp/flags" MDAT_SCHEDULE_PASS_SECONDS=1 \
+	bash -c '
+		AgentsToolsScheduleCurrentFlags(){ cat "$RIG_FLAGS" ; return 0 ; }
+		AgentsToolsScheduleLoop(){ sleep 2 ; agentsSchedulePassTimes="rig-step 2s" ; return 0 ; }
+		AgentsToolsBoardDependencies(){ return 0 ; }
+		export -f AgentsToolsScheduleCurrentFlags AgentsToolsScheduleLoop AgentsToolsBoardDependencies
+		export RIG_FLAGS
+		set +e +u
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/schedule/AgentsTools.ScheduleThread.include" > /dev/null 2>&1
+		AgentsToolsScheduleThreadPass
+	' 2> /dev/null )"
+rigAssert "the line of a pass over its gap names the loop with its steps, then the thread's own steps, each with its seconds" \
+	"$( printf '%s\n' "$rigLine" | LC_ALL=C grep -c -E '^pass: took [0-9]+s, over the 1s gap between passes: the next begins at once -- loop [23]s \(rig-step 2s\), dependencies [0-9]+s, children [0-9]+s, knowledge [0-9]+s, wanted [0-9]+s$' )" "1"
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ SCHEDULE THREAD PASS CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount ))" >&2 ; exit 1
 fi

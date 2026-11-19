@@ -134,8 +134,8 @@ rigAssert "an update that drops the item's required keys is refused, the item as
 printf 'legacy\n' | rigOp "$rigTmp/i4" --upsert-inbox-note --team-member rig-member 2026-07-22-note-legacy.md
 rigAssert "an old-shape name is still written, warned"     "$( cat "$rigTmp/i4.rc" ):$( [ -f "$rigData/inboxes/rig-member/incoming/2026-07-22-note-legacy.md" ] && echo written ):$( rigHolds "$rigTmp/i4" 'does not follow the naming Rule' )" "0:written:yes"
 
-printf 'misfiled\n' | rigOp "$rigTmp/i5" --upsert-inbox-note --team-member rig-member warning-20261006T0930Z-rig-misfiled.md
-rigAssert "a board type in an inbox is written, warned"    "$( cat "$rigTmp/i5.rc" ):$( rigHolds "$rigTmp/i5" 'is not an inbox type' )" "0:yes"
+printf 'misfiled\n' | rigOp "$rigTmp/i5" --intern-op-member-inbox-upsert rig-member warning-20261006T0930Z-rig-misfiled.md --context rig
+rigAssert "a board type in an inbox, by the primitive, is written, warned"    "$( cat "$rigTmp/i5.rc" ):$( rigHolds "$rigTmp/i5" 'is not an inbox type' )" "0:yes"
 
 echo "-- inbox: a note, a reflection and a trash are the inbox owner's own --"
 printf 'not mine to write\n' | RIG_AGENT=rig-other rigOp "$rigTmp/a1" --upsert-inbox-note --team-member rig-member note-20261006T0931Z-other.md

@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 ## Behavioural check on a Wait's bound (S5 item 4): no probe holds a wait far past its timeout, and a hit ends the
 ## round instead of paying a slow source after it. Held, run and not read:
-##   1. A SLOW SOURCE DOES NOT OVERRUN THE BOUND. One Slack source whose every call takes 5 s, with a 2 s bound,
-##      returns within the bound plus a small margin. Before the fix the probe ran in line unbounded and the whole
-##      conversation was paid for: measured 34 s of a 1 s bound.
+##   1. A SLOW SOURCE COSTS AT MOST ONE READ BOUND. The bound decides when a wait returns, never which sources it reads
+##      (owner ruling 2026-10-31): a source not yet read gets its whole read bound, here 3 s, and Slack calls that take 5 s
+##      each end at it. Two slow sources under a 1 s bound, which reads every source in line, are each read once, and each
+##      read ends at its 3 s bound by the read's own record. Wall-clock time is not the measure: under load it is noise.
 ##   2. A HIT ENDS THE ROUND. A source that has news, read first, with a sleeping source after it: the wait returns
 ##      with the news at about the first source's own cost, not the sum of both.
 ##   3. THE CONTROL. The same wait over a source that never has news still waits out its whole bound, so the fix
@@ -92,7 +93,7 @@ rigTimedWait(){ ## name, bound, sources... -- one Wait, and how many seconds it 
 	: > "$rigScenario/calls.log"
 	timedStart="$( date +%s )"
 	( cd "$rigWs" && env -u CLAUDE_CODE_SESSION_ID -u CLAUDE_CODE_ENTRYPOINT -u MDAT_SPAWN_SESSION_ID -u MDAT_SPAWN_AGENT -u MDAT_SESSION_THREAD \
-		RIG_SCENARIO="$rigScenario" MDAT_WAIT_REMIND=off MDAT_SLACK_THREAD_CACHE_SECONDS=0 HOME="$rigTmp/home" \
+		RIG_SCENARIO="$rigScenario" MDAT_WAIT_REMIND=off MDAT_SLACK_THREAD_CACHE_SECONDS=0 MDAT_SLACK_READ_BOUND_SECONDS=3 HOME="$rigTmp/home" \
 		MMDAPP="$rigWs" MDLT_ORIGIN="$rigOrigin" MDAT_DATA_ROOT="$rigTmp/data" MDAT_SKILLSET_ROOT="$rigTmp/skills" \
 		bash "$rigTool" --wait-for-input --team-member "$rigMember" --wait-default --wait-session-id "rig-bound-$timedName" \
 		--wait-timeout "$timedBound" --wait-poll-interval 1 "$@" ) > "$rigTmp/$timedName.out" 2> "$rigTmp/$timedName.err" < /dev/null || rigRc=$?
@@ -102,15 +103,15 @@ rigFirst(){ head -1 "$rigTmp/$1.out" ; }
 rigHas(){ LC_ALL=C grep -c -F -- "$2" "$rigTmp/$1.out" || : ; }
 mkdir -p "$rigTmp/data/board"
 
-echo "-- 1. a slow source does not overrun the bound --"
-rigTimedWait slo1 2 --wait-source slack:CBTSLOW01
-rigOneSourceTook=$rigTook
-rigTimedWait slo2 2 --wait-source slack:CBTSLOW03 --wait-source slack:CBTSLOW04
-rigAssert "a second slow source does not double the wait: one source's cost, not the round's sum" \
-	"$([ $(( rigTook - rigOneSourceTook )) -le 8 ] && printf flat || printf doubled )" "flat"
-rigAssert "and a 2 s bound over two sources of 5 s each ends within one probe's own cost and a margin" \
-	"$([ "$rigTook" -le 20 ] && printf within || printf over )" "within"
-printf '  measured: bound 2 s, one slow source %ss, two slow sources %ss, %s\n' "$rigOneSourceTook" "$rigTook" "$( rigFirst slo2 )"
+echo "-- 1. a slow source costs at most one read bound --"
+rigTimedWait slo2 1 --wait-source slack:CBTSLOW03 --wait-source slack:CBTSLOW04
+rigAssert "each slow source is read once in its round" \
+	"$( LC_ALL=C grep -c ' CBTSLOW03$' "$rigScenario/calls.log" || : ):$( LC_ALL=C grep -c ' CBTSLOW04$' "$rigScenario/calls.log" || : )" "1:1"
+rigAssert "and each read ended at its 3 s read bound, by the read's own record, never at the 5 s its call takes" \
+	"$( LC_ALL=C grep -c -F 'a Slack read was ended at its bound of 3 s' "$rigTmp/slo2.err" || : )" "2"
+rigAssert "and both are named never read" \
+	"$( LC_ALL=C sed -n 's/^WAIT-NEVER-READ: //p' "$rigTmp/slo2.out" | LC_ALL=C grep -c -F -e '[slack:CBTSLOW03]' -e '[slack:CBTSLOW04]' || : ):$( LC_ALL=C sed -n 's/^WAIT-NEVER-READ: //p' "$rigTmp/slo2.out" | LC_ALL=C grep -o -F -e '[slack:CBTSLOW03]' -e '[slack:CBTSLOW04]' | LC_ALL=C wc -l | LC_ALL=C tr -d ' ' )" "1:2"
+printf '  measured: bound 1 s, read bound 3 s, two slow sources, took %ss of wall clock, %s\n' "$rigTook" "$( rigFirst slo2 )"
 
 echo "-- 2. a hit ends the round --"
 rigTimedWait hit 60 --wait-source slack:CRIGAAANEWS01 --wait-source slack:CRIGZZZSLOW02
@@ -127,7 +128,7 @@ rigAssert "and it ends TIMEOUT" "$( rigFirst quiet )" "WAIT-RESULT: TIMEOUT"
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	printf '  --- the failed calls, for the reader:\n'
-	for rigF in slo1 slo2 hit quiet ; do printf '  == %s\n' "$rigF" ; head -c 900 "$rigTmp/$rigF.out" ; done
+	for rigF in slo2 hit quiet ; do printf '  == %s\n' "$rigF" ; head -c 900 "$rigTmp/$rigF.out" ; done
 	echo "⛔ WAIT BOUND CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1
 fi
 printf 'WAIT_BOUND_HONOURED: OK (%d assertions, offline)\n' "$rigPassCount"

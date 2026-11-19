@@ -39,7 +39,9 @@ rigPython="$( command -v python3 )" || rigRefuse "no python3 on PATH"
 . "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
 rigTmp="$( rigTempDir AgentsBatchToolsCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
-trap 'rm -rf -- "$rigTmp"' EXIT
+## Calls here start the rig's schedule thread, a detached process: it is ended before the tree goes.
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-control-threads.include.sh" || rigRefuse "the rig's fixture that ends its threads is missing from the package: sh-test/check-fixtures/rig-control-threads.include.sh"
+trap 'rigControlThreadsEnd "$rigTmp" ; rm -rf -- "$rigTmp"' EXIT
 ## The granted team work directory of the workspace: inside the access roots of the server and of a served call.
 rigFix="$rigTmp/.local/temp/team/fix"
 mkdir -p "$rigFix/marks" "$rigTmp/.local/.agents" "$rigTmp/home"

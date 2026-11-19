@@ -2,7 +2,7 @@
 ## Behavioural check on `AgentsToolsScheduleStartPending` (AgentsTools.DispatcherSchedule.include), run rather than read: the schedule thread's start of an
 ## approved item of board-pending, with no agent, one an pass. The spawner, the pace, the items tool and the lookups of live sessions are stubs, so the check
 ## decides what the function chooses and nothing is started. Held: a slow machine (the pace gate) starts nothing; an item with no `approved-by` is not started;
-## a recheck date that is not due holds an item, and one that is due does not; an item is started with its routine and its members and moved to running first;
+## a recheck date that is not due holds an item whose condition stands, and one that is due does not; an item is started with its routine and its members and moved to running first;
 ## an item whose start is its owner alone, and whose owner holds a live duty, is left for that duty, unless it is urgent or emergency or the emergency flag is
 ## on; an item with a restart-session group is started whatever the owner's duty; a member that runs a session already gets another only at a median tool call
 ## of 5 s or less, unless the item is urgent or emergency; one item is started a pass, the oldest by name, and an item the rules leave is no hold on the next.
@@ -121,10 +121,10 @@ rigRunPass
 rigAssert "the same item, a blueprint with no go: not started, not moved" "$( rigSpawned ):$( [ -f "$rigItemsLog" ] && echo moved || echo untouched )" "0:untouched"
 
 rigReset
-rigItem task-a.md 'approved-by: human-owner' 'owner: magic-developer' 'recheck-date: 2099-01-01 00:00 +0000'
+rigItem task-a.md 'approved-by: human-owner' 'owner: magic-developer' 'condition: the rig waits for an answer' 'recheck-date: 2099-01-01 00:00 +0000'
 rigRunPass
-rigAssert "a recheck date that is not due holds the item" "$( rigSpawned )" "0"
-rigItem task-a.md 'approved-by: human-owner' 'owner: magic-developer' 'recheck-date: 2000-01-01 00:00 +0000'
+rigAssert "a recheck date that is not due holds an item whose condition stands" "$( rigSpawned )" "0"
+rigItem task-a.md 'approved-by: human-owner' 'owner: magic-developer' 'condition: the rig waits for an answer' 'recheck-date: 2000-01-01 00:00 +0000'
 rigRunPass
 rigAssert "a recheck date that is due does not" "$( rigSpawned )" "1"
 
@@ -210,6 +210,33 @@ rigItem task-a.md 'approved-by: human-owner' 'owner: magic-developer' 'mark: imp
 rigItem task-b.md 'approved-by: human-owner' 'owner: magic-tester' 'mark: emergency'
 rigRunPass
 rigAssert "worktime off: an important item waits, the emergency one after it is started" "$( rigSpawned ):$( awk '{ print $NF }' "$rigSpawnLog" )" "1:magic-tester"
+
+## A VERIFY ONLY AFTER NEW WORK, ITS VERDICT KEPT UNTIL THE ITEM CHANGES: read off the records once, then off the kept verdict while the item is unchanged.
+rigReset
+rigItem task-v.md 'approved-by: human-owner' 'owner: magic-developer'
+printf -- '---\nspawn-id: rig-verify-1\nstatus: spawn-succeeded\nstarted-at: 2026-11-01 10:00 +0000\nroutine: magic-team.verify.routine.md\ndescription: Board item task-v.md, approved\n---\n\n# rig\n' | rigOwnerSpawnPut rig-verify-1 || rigRefuse "the record of the verify run could not be written"
+rigRunPass
+rigAssert "an item whose newest run was a verify is not started, and its verdict is kept" \
+	"$( rigSpawned ):$( printf '%s\n' "$rigOut" | grep -c 'a verify waits for new work' ):$( cat "$rigWs/.local/agents/schedule/verify-stale/task-v.md" 2> /dev/null )" "0:1:stale"
+rm -rf "$rigWs/.local/agents/spawned/rig-verify-1"
+rigRunPass
+rigAssert "the item unchanged, the next pass takes the kept verdict and reads no record: not started, though that record is gone" \
+	"$( rigSpawned ):$( printf '%s\n' "$rigOut" | grep -c 'a verify waits for new work' )" "0:1"
+sleep 1 ; rigItem task-v.md 'approved-by: human-owner' 'owner: magic-developer'
+rigRunPass
+rigAssert "the item written since, the verdict is read again: no verify on record now, so it is started" "$( rigSpawned )" "1"
+## A KEPT VERDICT GOES WITH ITS ITEM: three verify items, each with its verdict kept, then none of them pending any more.
+rigReset
+for rigVerify in task-v1 task-v2 task-v3 ; do
+	rigItem "$rigVerify.md" 'approved-by: human-owner' 'owner: magic-developer'
+	printf -- '---\nspawn-id: rig-%s\nstatus: spawn-succeeded\nstarted-at: 2026-11-01 10:00 +0000\nroutine: magic-team.verify.routine.md\ndescription: Board item %s.md, approved\n---\n\n# rig\n' "$rigVerify" "$rigVerify" \
+		| rigOwnerSpawnPut "rig-$rigVerify" || rigRefuse "the record of a verify run could not be written"
+done
+rigRunPass
+rigAssert "three verify items processed: three verdicts kept" "$( ls "$rigWs/.local/agents/schedule/verify-stale" 2> /dev/null | LC_ALL=C grep -c -x 'task-v[123].md' )" "3"
+rigReset
+rigRunPass
+rigAssert "none of them pending any more, moved on or gone: no kept file is left" "$( ls "$rigWs/.local/agents/schedule/verify-stale" 2> /dev/null | LC_ALL=C grep -c 'task-v' )" "0"
 
 if [ "$rigFails" -ne 0 ] ; then echo "⛔ START PENDING CHECK FAILED: $rigFails of $(( rigPasses + rigFails )) assertion(s)" >&2 ; exit 1 ; fi
 echo "START_PENDING: OK ($rigPasses assertions, offline)"

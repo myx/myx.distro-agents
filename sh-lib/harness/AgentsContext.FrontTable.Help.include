@@ -51,20 +51,32 @@ AgentsToolsFrontHelp(){ ## entry function name, what the tool is
 	AgentsToolsFrontSyntaxLines "$1" "" first-form
 }
 
-## The syntax lines of a tool file's names, one name's, or those of every name a prefix ending in `-` begins: the lines of the
+## The syntax lines of a tool file's names, one name's, or those of every name a prefix ending in `-` begins: a line answers a
+## name that is any `--` word of it, alternatives and brackets taken apart, so an option inside an operation finds it too: the lines of the
 ## file's own manual, sh-lib/help/Help.<file>.help.md, which is where a tool's syntax is written, and of the shared include,
 ## sh-lib/help/Help.DistroAgentsTools.include, only where no manual is there to read. Prints them, and nothing where the file
-## has none. With `first-form`, one line for each name, its first, which is the short list a bare call prints.
-AgentsToolsFrontSyntaxLines(){ ## entry function name, a name or a prefix (optional), first-form (optional)
+## has none. With `first-form`, one line for each name, its first, which is the short list a bare call prints. With
+## `operation-word`, only a line a call may begin with that exact name: the leading optional groups and the first required word,
+## no prefix. A gate asks this, so an option inside an operation is never taken for one.
+AgentsToolsFrontSyntaxLines(){ ## entry function name, a name or a prefix (optional), first-form|operation-word (optional)
 	local synManual="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/help/Help.$1.help.md"
 	[ -f "$synManual" ] || synManual="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/help/Help.DistroAgentsTools.include"
 	LC_ALL=C awk -v tool="$1.fn.sh" -v want="${2:-}" -v form="${3:-}" '
 		{
 			line = $0 ; sub( /^echo "/, "", line ) ; sub( /" >&2$/, "", line )
 			if ( index( line, "📘 syntax: " ) != 1 ) next
-			split( substr( line, length( "📘 syntax: " ) + 1 ), words, " " ) ; op = words[2] ; gsub( /[][]/, "", op )
+			wordCount = split( substr( line, length( "📘 syntax: " ) + 1 ), words, " " ) ; op = words[2] ; gsub( /[][]/, "", op )
 			if ( words[1] != tool ) next
-			if ( want != "" && op != want && ! ( want ~ /-$/ && index( op, want ) == 1 ) ) next
+			if ( want != "" ) {
+				wantNamed = 0 ; groupDepth = 0 ; leadDone = 0
+				for ( wordAt = 2 ; wordAt <= wordCount && ! leadDone ; wordAt++ ) {
+					altText = words[wordAt] ; gsub( /[][()<>]/, "", altText ) ; sub( /\.\.\.$/, "", altText ) ;
+					altCount = split( altText, altWords, "|" ) ;
+					for ( altAt = 1 ; altAt <= altCount ; altAt++ ) { if ( altWords[altAt] ~ /^--/ && ( altWords[altAt] == want || ( form != "operation-word" && want ~ /-$/ && index( altWords[altAt], want ) == 1 ) ) ) wantNamed = 1 ; } ;
+					if ( form == "operation-word" ) { if ( groupDepth == 0 && substr( words[wordAt], 1, 1 ) != "[" ) leadDone = 1 ; groupDepth += gsub( /\[/, "[", words[wordAt] ) - gsub( /\]/, "]", words[wordAt] ) ; } ;
+				}
+				if ( ! wantNamed ) next
+			}
 			if ( form == "first-form" ) { if ( op in listed ) next ; listed[op] = 1 }
 			print line
 		}' "$synManual"

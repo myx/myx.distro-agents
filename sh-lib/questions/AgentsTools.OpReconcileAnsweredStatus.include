@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+## AgentsTools.OpReconcileAnsweredStatus.include -- the operation `--reconcile-answered-status`, sourced by AgentsTools.MemberPendingReply.include with the operation's arguments.
+## The open items whose `status:` or `condition:` names an ask already answered, and lacks its answer: listed, and given it with --apply
+## (AgentsToolsDecisionsStatusAppend). It brings up to date what was written before a close appended the answer by itself.
+		shift
+		MDSC_CMD="$MDSC_CMD --reconcile-answered-status"
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.UseAgentsTools.include"
+		local recMember="${1:-}" recDry=1 recPath recHead recOne recRecord recId recLine recOut recFound="" recRc=0
+		shift 2> /dev/null || :
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--apply) recDry="" ; shift ;;
+				*) echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2 ; set +e ; return 1 ;;
+			esac
+		done
+		if [ -z "$recDry" ] && [ "$recMember" != "magic-coordinator" ] ; then
+			echo "$MDSC_CMD: ⛔ ERROR: only magic-coordinator applies it, not ${recMember:-nobody}; without --apply it only reads" >&2
+			set +e ; return 1
+		fi
+		type AgentsToolsDecisionsStatusNamers > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemDecisions.include"
+		while IFS=$'\t' read -r recPath recHead ; do
+			## The ask by its first eight characters, in every store a record lives in: one record, never a guess between two.
+			recRecord=""
+			for recOne in "$MMDAPP/.local/agents/pending/$recHead"*.md "$MMDAPP/.local/agents/pending/closed/$recHead"*.md "$MMDAPP/.local/questions/$recHead"*.md ; do
+				[ -f "$recOne" ] || continue
+				[ -z "$recRecord" ] || { recRecord="-" ; break ; }
+				recRecord="$recOne"
+			done
+			case "$recRecord" in ''|-) continue ;; esac
+			recId="${recRecord##*/}" ; recId="${recId%.md}"
+			recLine="$( AgentsToolsDecisionsStatusLine "$recId" "$recRecord" )" || continue
+			recOut="$( AgentsToolsDecisionsStatusAppend "$recPath" "$recLine" "$recId" "$recDry" )" || recRc=1
+			[ -z "$recOut" ] || { printf '%s\n' "$recOut" ; recFound=1 ; }
+		done < <( AgentsToolsDecisionsStatusNamers "" )
+		[ -n "$recFound" ] || [ "$recRc" != 0 ] || echo "STATUS-NONE"
+		[ -z "$recFound" ] || [ -z "$recDry" ] || echo "NEXT: --apply appends each answer to its item's status, magic-coordinator's only"
+		[ "$recRc" = 0 ] || set +e
+		return "$recRc"

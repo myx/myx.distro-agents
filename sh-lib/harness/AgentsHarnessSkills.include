@@ -432,6 +432,15 @@ AgentsHarnessToolSkill(){ ## name, file, list, offset, limit, skill, args, secti
 				}
 			fi
 		fi
+		## A run's whole read of its own skill is its reload: kept as skill.loaded, and the reload the supervisor marked is cleared.
+		if [ -n "$skillReader" ] && [ "$skillReader" = "$skillMember" ] && [ -z "$toolSection" ] && [ "${toolOffset:-1}" = 1 ] ; then
+			local skillLoaded="" skillDue=""
+			type AgentsSessionMarkerFileInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+			if AgentsSessionMarkerFileInto skillLoaded "${MDAT_SPAWN_SESSION_ID:-}" skill.loaded && AgentsSessionMarkerFileInto skillDue "${MDAT_SPAWN_SESSION_ID:-}" reload.due ; then
+				mkdir -p "${skillLoaded%/*}" 2> /dev/null && date -u +%Y-%m-%dT%H:%M:%SZ > "$skillLoaded" 2> /dev/null
+				rm -f "$skillDue" 2> /dev/null
+			fi
+		fi
 		if [ -n "$toolSection" ] ; then
 			skillSections="$toolSection" LC_ALL=C awk -f "$harnessHere/harness/AgentsHarnessSkillSection.awk" "$harnessScratch/skill.out" > "$harnessScratch/skill.section" || :
 			mv -f "$harnessScratch/skill.section" "$harnessScratch/skill.out"

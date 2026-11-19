@@ -74,6 +74,7 @@ rigList(){
 		'sh-lib/session/AgentsTools.SessionControlStart.include|AgentsSessionControlRowsInto|1|@one-off' \
 		'sh-lib/session/AgentsTools.SessionTranscript.include|AgentsSessionTokensRowsInto|1|@one-off' \
 		'sh-lib/spawn/AgentsTools.SpawnSandbox.include|AgentsSessionRigControlRows|1|@kept' \
+		'sh-lib/board/AgentsTools.BoardDependencies.include|AgentsToolsBoardDependencies|1|@housekeeping' \
 		'sh-lib/session/AgentsTools.SessionChat.include|AgentsToolsSessionChatMessagesToSince|1|@one-off' \
 		'sh-lib/inbox/AgentsTools.InternTeamDataReflectionSweep.include||1|@one-off' \
 		'sh-lib/inbox/AgentsTools.InboxPlace.include|AgentsToolsInboxFilesInto|1|@call-path' \
@@ -105,6 +106,10 @@ rigWalks(){ ## file (relative to the package)
 	## spawned store walks.
 	if ( n ~ /spawned"?\/\*\/\*\.spawn\.md|spawned"?\/\*\/"?\*\.spawn|[Ss]pawned"\*\/\*\.spawn\.md|find "?\$[{A-Za-z_}:-]*\/?\.local\/agents\/spawned|find "\$[A-Za-z]+Agents"\/spawned/ ) { print file "|" fn ; next }
 	if ( n ~ /spawned"?\/\*\/"? *(;|do)/ ) { print file "|" fn ; next }
+	## A stat, ls or test that takes a glob over every folder of a store: one syscall per folder, on each call.
+	if ( n ~ /(^|[^A-Za-z0-9_.-])(stat|ls|test|\[)[ \t][^|;]*(spawned|agents\/sessions|inboxes|board)"?\/\*\/"?([ )\x27]|$)/ ) { print file "|" fn ; next }
+	## A helper whose whole job is such a walk is a walk at each of its callers, where the cost lands.
+	if ( n ~ /AgentsSpawnedStoreNewestInto([^A-Za-z]|$)/ ) { print file "|" fn ; next }
 	## board store walks.
 	if ( n ~ /board"?\/(\*|[a-z-]+|"?\$[a-zA-Z{}:-]+"?)\/[a-z.-]*\*[a-z.-]*\.md|board"?\/\*\/"?\*[" ;]|find "?\$\{?MDAT_DATA_ROOT[^ ]*board/ ) { print file "|" fn ; next }
 	## session-store and inbox walks; a case pattern or a one-file glob is none.
@@ -182,9 +187,24 @@ ProbeSkip(){
 ProbeHit(){
 	find "$MMDAPP/.local/agents/sessions" -maxdepth 2 -type d -name wait -mtime +7
 }
+ProbeStat(){
+	stamp="$( LC_ALL=C stat -f '%m' "$MMDAPP/.local/agents/spawned" "$MMDAPP/.local/agents/spawned"/*/ 2> /dev/null )"
+}
+ProbeLs(){
+	ls -d "$MDAT_DATA_ROOT/inboxes"/*/ > /dev/null
+}
+ProbeTest(){
+	[ -d "$MMDAPP/.local/agents/sessions"/*/ ] || :
+}
+ProbeOneStat(){
+	stamp="$( LC_ALL=C stat -f '%m' "$MMDAPP/.local/agents/spawned" "$MMDAPP/.local/agents/spawned/$1"/ 2> /dev/null )"
+}
+ProbeHelperCall(){
+	AgentsSpawnedStoreNewestInto stamp "$MMDAPP"
+}
 PROBE
 rigProbe="$( rigPackage="$rigTmp/probe" rigWalks sh-lib/ProbeSkip.include | LC_ALL=C sort | LC_ALL=C tr '\n' ' ' )"
-rigAssert "a one-file sessions glob and a sessions case read nothing; a find over the sessions store is a walk" "$rigProbe" "sh-lib/ProbeSkip.include|ProbeHit "
+rigAssert "a one-file sessions glob, a sessions case and a stat of one named folder read nothing; a find over the sessions store, a stat, ls or test over every folder of a store, and a call of the walking stamp are walks" "$rigProbe" "sh-lib/ProbeSkip.include|ProbeHelperCall sh-lib/ProbeSkip.include|ProbeHit sh-lib/ProbeSkip.include|ProbeLs sh-lib/ProbeSkip.include|ProbeStat sh-lib/ProbeSkip.include|ProbeTest "
 
 if [ "$rigFail" -ne 0 ] ; then
 	echo "⛔ HOT PATH WALKS CHECK FAILED: $rigFail of $(( rigPass + rigFail )) assertion(s)" >&2

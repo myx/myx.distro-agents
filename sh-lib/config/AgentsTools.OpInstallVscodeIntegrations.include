@@ -235,7 +235,20 @@
 					fi
 					if cmp -s "$distroTmp" "$distroFile" ; then
 						rm -f "$distroTmp"
+						## The same 0644 the myx.common upsert above makes true, on an unchanged file too.
+						if ! chmod 644 "$distroFile" ; then
+							echo "⛔ ERROR: mcp-distro-install $distroFile: could not set mode 0644" >&2
+							failed=1
+							continue
+						fi
 					else
+						## Set on the temp, made under the caller's umask, so mv carries 0644 and not that umask.
+						if ! chmod 644 "$distroTmp" ; then
+							echo "⛔ ERROR: mcp-distro-install $distroFile: could not set mode 0644" >&2
+							rm -f "$distroTmp"
+							failed=1
+							continue
+						fi
 						if ! mv -f "$distroTmp" "$distroFile" ; then
 							echo "⛔ ERROR: mcp-distro-install $distroFile" >&2
 							rm -f "$distroTmp"

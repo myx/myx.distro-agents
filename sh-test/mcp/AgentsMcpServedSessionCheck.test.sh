@@ -38,8 +38,10 @@ rigAssert(){ ## what is asserted, got, want
 }
 
 ## The handshake line the harness opens an exchange with, as the client builds it, for a run whose session is set.
+## Every name the client takes a session from is given here, so a session of the run that started this check never
+## reaches the client that knows none.
 rigHandshake(){ ## session id, or "" for a client that knows none
-	MMDAPP="$rigWs" MDLT_ORIGIN="$rigTmp/origin" MDAT_SPAWN_SESSION_ID="$1" \
+	MMDAPP="$rigWs" MDLT_ORIGIN="$rigTmp/origin" MDAT_SPAWN_SESSION_ID="$1" harnessSessionId="" CLAUDE_CODE_SESSION_ID="" \
 		bash -c '. "$1" > /dev/null 2>&1 ; AgentsHarnessMcpHandshake' _ "$rigClient" 2> /dev/null | head -1
 }
 

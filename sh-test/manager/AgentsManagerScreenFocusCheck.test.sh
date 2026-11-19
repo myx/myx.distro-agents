@@ -67,15 +67,15 @@ rigRow(){ ## the fields of one row, joined by TAB
 ## server keys, a key whose row carries its whole line and one that is absent; two checks; one block.
 rigF="$rigTmp/fixture" ; mkdir -p "$rigF"
 {
-	rigRow session s-run daily_of_Monday running 2026-10-13T01:00:00Z - 3 running=2,finished=1 running 2026-10-13T01:00:05Z alive 57100000
+	rigRow session s-run daily_of_Monday running 2026-10-13T01:00:00Z - 3 running=2,finished=1 running 2026-10-13T01:00:05Z alive 57100000 - - - active
 	rigRow run s-run sp-1 magic-coordinator done live running 2026-10-13T01:00:00Z - righost ws-one working
 	rigRow run s-run sp-2 keeper-myx done live running 2026-10-13T01:01:00Z - righost ws-one waiting
 	rigRow run s-run sp-3 keeper-myx done ended finished 2026-10-13T01:02:00Z 2026-10-13T01:05:00Z righost ws-one -
-	rigRow session s-wait review_of_the_board waiting 2026-10-13T00:00:00Z - 1 waiting=1 waiting 2026-10-13T00:00:05Z gone 1200+
+	rigRow session s-wait review_of_the_board waiting 2026-10-13T00:00:00Z - 1 waiting=1 waiting 2026-10-13T00:00:05Z gone 1200+ - - - active
 	rigRow run s-wait sp-4 magic-architect done live waiting 2026-10-13T00:00:00Z - righost ws-one waiting
-	rigRow session s-open - unclosed 2026-10-12T00:00:00Z - 0 - - - none 0
-	rigRow session s-done old_work finished 2026-10-11T00:00:00Z 2026-10-11T01:00:00Z 2 finished=2 - - none 900
-	rigRow session s-done2 older_work finished 2026-10-10T00:00:00Z 2026-10-10T01:00:00Z 1 finished=1 - - none 100
+	rigRow session s-open - unclosed 2026-10-12T00:00:00Z - 0 - - - none 0 - - - active
+	rigRow session s-done old_work finished 2026-10-11T00:00:00Z 2026-10-11T01:00:00Z 2 finished=2 - - none 900 - - - closed
+	rigRow session s-done2 older_work finished 2026-10-10T00:00:00Z 2026-10-10T01:00:00Z 1 finished=1 - - none 100 - - - closed
 	rigRow counters 1 0 2 2 3 0.42 righost
 } > "$rigF/rows.--manager-session-list"
 cat > "$rigF/rows.--read-pending-reply" <<'RIGROWS'

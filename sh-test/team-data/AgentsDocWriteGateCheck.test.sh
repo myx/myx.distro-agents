@@ -130,6 +130,8 @@ rigOp "$rigTmp/e3" --intern-op-board-upsert-move-edit review "$rigS" --from-stat
 rigAssert "a move with no new fault goes" "$( cat "$rigTmp/e3.rc" ):$( [ -f "$rigData/board/review/$rigS" ] && echo moved )" "0:moved"
 rigOp "$rigTmp/e4" --intern-op-board-upsert-move-edit review "$rigS" --from-state:review --header:upsert:archive:yes
 rigAssert "a refusing fault the write introduces refuses it: ERROR, the item as it was" "$( cat "$rigTmp/e4.rc" ):$( rigField "$rigData/board/review/$rigS" archive | LC_ALL=C wc -c | LC_ALL=C tr -d ' ' ):$( rigHolds "$rigTmp/e4" 'board-upsert-move-edit: ⛔ ERROR: ' ):$( rigHolds "$rigTmp/e4" 'the key archive is not the word true: yes' )" "1:0:yes:yes"
+rigE4Rule="$( LC_ALL=C grep '⛔ ERROR: ' "$rigTmp/e4" | LC_ALL=C grep -v 'place(s)' | head -1 | LC_ALL=C sed "s/.*$rigS: //" | LC_ALL=C cut -d: -f1 )"
+rigAssert "the closing line names the breach by its rule, so a caller that keeps the last line has its cause" "$( [ -n "$rigE4Rule" ] && LC_ALL=C grep 'place(s) the write introduces' "$rigTmp/e4" | LC_ALL=C grep -c -F -- "nothing was written: $rigE4Rule: " )" 1
 rigOp "$rigTmp/e5" --intern-op-board-upsert-move-edit review "$rigS" --from-state:review --header:upsert:own-note:looked
 rigAssert "a reporting fault is said as a WARNING and the write goes on" "$( cat "$rigTmp/e5.rc" ):$( rigField "$rigData/board/review/$rigS" own-note ):$( rigHolds "$rigTmp/e5" 'board-upsert-move-edit: ⚠️ WARNING: ' ):$( rigHolds "$rigTmp/e5" 'the key own-note is not named by the contract' )" "0:looked:yes:yes"
 rigOp "$rigTmp/e6" --intern-op-board-upsert-move-edit review "$rigS" --from-state:review --header:upsert:own-note:looked
@@ -147,7 +149,7 @@ echo "-- 4. one behaviour for a failure: refused or said, in one form --"
 printf -- '---\n---\nlegacy\n' | rigOp "$rigTmp/u1" --intern-op-board-upsert-move-edit pending task-2026-09-29-legacy.md --create --acting-member:rig-member --upsert-from-stdin --context rig
 rigAssert "the naming Rule is a rule of the gate: a WARNING line of the same form, the item created" \
 	"$( cat "$rigTmp/u1.rc" ):$( rigHolds "$rigTmp/u1" 'board-upsert-move-edit: ⚠️ WARNING: --create: task-2026-09-29-legacy.md does not follow the naming Rule' ):$( [ -f "$rigData/board/pending/task-2026-09-29-legacy.md" ] && echo created )" "0:yes:created"
-printf 'misfiled\n' | RIG_AGENT=rig-member rigOp "$rigTmp/u2" --upsert-inbox-note --team-member rig-member warning-20261001T1030Z-misfiled.md
+printf 'misfiled\n' | RIG_AGENT=rig-member rigOp "$rigTmp/u2" --intern-op-member-inbox-upsert rig-member warning-20261001T1030Z-misfiled.md --context rig
 rigAssert "a type in the wrong store is a rule of the gate: a WARNING line of the same form, the item written" \
 	"$( cat "$rigTmp/u2.rc" ):$( rigHolds "$rigTmp/u2" 'member-inbox-upsert: ⚠️ WARNING: new item: warning-20261001T1030Z-misfiled.md is not an inbox type' )" "0:yes"
 rigAssert "there is no second mechanism: the naming check function is gone, and the two primitives ask the one gate" \

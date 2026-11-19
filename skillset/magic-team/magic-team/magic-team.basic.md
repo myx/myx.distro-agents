@@ -136,12 +136,12 @@ Team text carries three kinds of sentence. Keep them apart, and let the reader s
 
 ### Evidence a claim carries
 
-- A heading that claims a measurement binds every line under it. A line not measured moves out, or the heading changes.
+- A heading that claims a measurement binds every line under it. A line under it that was not measured moves out, or its heading changes.
 - A number carries its unit, its population and its denominator. Without them it is a shape, not a result.
 - A count that names several states or items marks each one measured or assumed. One unmarked member makes the whole count a claim.
 - A quote carries its source and its date. A link carries the thing it is evidence of.
-- A dated reading is added to, never rewritten. A later reading that differs lands as its own statement beside the first, and says what it did not measure.
-- A line citation names the file's path, not only its name. Two files can share a name, and a bare name with a line number is right for only one of them.
+- A reading that carries a date is added to, never rewritten. Where a later reading differs, it lands as its own statement beside the first, and says what it did not measure.
+- A line citation names the file's path, not only its name. Two files can share one name, and a bare name with a line number is right for one of them and wrong for the other.
 - "I could not reproduce it" and "I ruled out the mechanisms that would cause it" are different claims. Say which one is made.
 - A clean comparison becomes a result once the same comparison has been seen to come out dirty.
 - Establish the failing case before the passing one: construct the input the defect makes fail, watch it fail, apply the fix, watch it pass.
@@ -150,7 +150,7 @@ Team text carries three kinds of sentence. Keep them apart, and let the reader s
 - A read that names one folder answers about that folder. A check for an item stored anywhere names the whole store, or says which folder it read.
 - A search for wording recalled rather than copied answers about that wording, never about the rule. Read the section a rule names as its own home before calling it absent.
 - An account of an event is read from the event's own record, never from recollection.
-- A resumed run reads the store before it trusts the routine state note. Where they disagree, the store is what happened. A state note is a claim by the cycle that wrote it: a blocking conclusion in it is re-measured before a report repeats it.
+- A resumed run reads the store before it trusts the routine state note. Where they disagree, the store is what happened. A state note is a claim by the cycle that wrote it. A blocking conclusion in it is re-measured before a report repeats it.
 - Read the instrument before trusting the measurement. A count, a list and a probe each answer their own predicate.
 - An error's advice belongs to the layer that printed it. Read the caller's own syntax line before acting on advice from below it.
 - A failure on a path the skillset does not prescribe is not a measurement of the tool. Take the prescribed path first, so a failure is the tool's.
@@ -184,7 +184,7 @@ The floor's clauses, with their benchmarks, are stated once in `magic-team.armed
 
 ### Precision in a change
 
-- An exact string is copied character for character, never retyped. A not-found answer about a name this member introduced is a finding about that name first: read the name from the store before calling the thing absent.
+- An exact string is copied character for character, never retyped. A not-found answer about a name this member introduced is a finding about that name first. Read the name from the store before calling the thing absent.
 - One logical change to a file is planned whole, then made in one `Edit` call, which takes `edits` when the change touches several places. Never a whole-file rewrite, and never a row of partial edits that leaves the file in a state nobody intended.
 - A literal replacement removes exactly what it matched. Where the anchor is structural, the new text re-emits it. Read the write back by its structure, not its size.
 - A generated file is fixed in its generator.

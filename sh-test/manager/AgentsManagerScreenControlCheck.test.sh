@@ -81,13 +81,13 @@ rigRunsS1(){
 }
 rigRunS2(){ rigRow run "$rigS2" "$rigS2" magic-architect spawn-started running running 2026-10-12_15:00_+0000 - rig-host ws-rig working ; }
 rigOthers(){
-	rigRow session "$rigS2" weekly_review running 2026-10-12_15:00_+0000 - 1 running=1 running 2026-10-12_15:01_+0000 alive
+	rigRow session "$rigS2" weekly_review running 2026-10-12_15:00_+0000 - 1 running=1 running 2026-10-12_15:01_+0000 alive '' - - - active
 	rigRunS2
-	rigRow session "$rigS3" - finished 2026-10-11_14:28_+0000 2026-10-11_14:51_+0000 1 finished=1 finished 2026-10-11_14:51_+0000 none
+	rigRow session "$rigS3" - finished 2026-10-11_14:28_+0000 2026-10-11_14:51_+0000 1 finished=1 finished 2026-10-11_14:51_+0000 none '' - - - closed
 	rigRow run "$rigS3" "$rigS3" magic-devops spawn-succeeded no-process finished 2026-10-11_14:28_+0000 2026-10-11_14:51_+0000 rig-host ws-rig -
-	rigRow session "$rigS4" far_work waiting 2026-10-12_12:00_+0000 - 1 finished=1 - - none
+	rigRow session "$rigS4" far_work waiting 2026-10-12_12:00_+0000 - 1 finished=1 - - none '' - - - active
 	rigRow run "$rigS4" "$rigS4" keeper-mel spawn-succeeded no-process finished 2026-10-12_12:00_+0000 2026-10-12_12:30_+0000 rig-host ws-rig -
-	rigRow session "$rigS5" broken_one finished 2026-10-12_09:00_+0000 2026-10-12_09:50_+0000 1 finished=1 running 2026-10-12_09:40_+0000 gone
+	rigRow session "$rigS5" broken_one finished 2026-10-12_09:00_+0000 2026-10-12_09:50_+0000 1 finished=1 running 2026-10-12_09:40_+0000 gone '' - - - closed
 	rigRow run "$rigS5" "$rigS5" keeper-ae3 spawn-failed no-process finished 2026-10-12_09:00_+0000 2026-10-12_09:50_+0000 rig-host ws-rig -
 	rigRow counters 2 0 2 1 3 0.42
 }
@@ -98,12 +98,12 @@ rigOthers(){
 ## The read of one session. Of the first it prints no `control` row, as a read of before. Of the second it prints
 ## one, with the pid of the thread and a stored state that is newer than the one the list had.
 {
-	rigRow session "$rigS1" daily_of_Monday running 2026-10-12_16:57_+0000 - 3 running=2,finished=1
+	rigRow session "$rigS1" daily_of_Monday running 2026-10-12_16:57_+0000 - 3 running=2,finished=1 - - - '' - - - active
 	rigRow dispatch "$rigS1" record magic-coordinator magic-coordinator.daily.routine.md dispatch-20261012T165700Z-daily-1 C0RIG:1791000000.000100 C0TRK:1791000000.000200 'The daily of Monday.'
 	rigRunsS1
 } > "$rigF/rows.--manager-session-read --session-id $rigS1"
 {
-	rigRow session "$rigS2" weekly_review running 2026-10-12_15:00_+0000 - 1 running=1 member-dead 2026-10-12_17:30_+0000 alive
+	rigRow session "$rigS2" weekly_review running 2026-10-12_15:00_+0000 - 1 running=1 member-dead 2026-10-12_17:30_+0000 alive '' - - - active
 	rigRow dispatch "$rigS2" record magic-architect - - - - 'The review of the week.'
 	rigRow control "$rigS2" member-dead 2026-10-12_17:30_+0000 alive 4242
 	rigRunS2

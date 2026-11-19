@@ -51,8 +51,9 @@ Not types: `talk-*` (use `interview-*`), `approve-*` (use `approval-*`), `epic-*
 - `author` — task-creation author, where it differs from `from`.
 - `blocks`/`blocked-by`, `spawns`/`spawned-by`, `supersedes`/`superseded-by` — relations. Bare item names, no folder, no `.md`, comma-separated without brackets. The dependency recompute keeps both directions of `blocks`/`blocked-by`.
 - `approved-by`/`approved-at` — who gave the go, and when. The go is a header fact, not a folder.
+- `epic` — the epic blueprint the item belongs to, by its vault name. With no `approved-by` of its own, the item takes that blueprint's go, and a recall to `board-backlog` is refused while the blueprint carries one.
 - `status` — free-text state label. Dropped when stale.
-- `recheck-date`/`condition` — when to look again, and what for, on a blocked, parked, retained or running item.
+- `recheck-date`/`condition` — when to look again, and what for, on a pending, blocked, parked, retained or running item.
 - `owner-session`/`owner-session-since` — the live session kind holding the item, and since when.
 - `session-id` — the active coworking session.
 - `participants` — who worked on it, added as they join.

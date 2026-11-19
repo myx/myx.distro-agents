@@ -6,6 +6,8 @@ access-control: participants:allow-tool:WebSearch, participants:allow-tool:WebFe
 requires-session-kind: coworking
 input-scan-def: none
 review-by: inherit
+deliverables: the answer, each fact with its source, kept apart from the session's judgement
+deliverables: how firm the answer is, and why
 runs-at: none
 ---
 # magic-team.research.routine — the actual procedure

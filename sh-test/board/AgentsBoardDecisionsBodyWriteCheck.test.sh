@@ -150,6 +150,15 @@ rigSeeded 1010 "RIG-DECISION-M must stand."
 rigRun "$rigToolsFn" b11 --intern-op-decisions-append magic-coordinator "$rigItem" --kind clarification --text "RIG-DECISION-N recorded by the writer."
 rigAssert "the writer's own line lands"             "$rigRc:$( rigDecisions "$( rigItemPath )" | LC_ALL=C grep -c 'RIG-DECISION-N recorded by the writer\.' )" 0:1
 
+echo "== 12. a mark made by hand is refused =="
+rigSeeded 1012 "RIG-DECISION-Q must stand."
+rigRun "$rigToolsFn" b14 --intern-op-board-upsert-move-edit running "$rigItem.md" --from-state:running --edit-patch-from-stdin --context rig \
+	<<< '[{"old":"RIG-DECISION-Q must stand.","new":"RIG-DECISION-Q must stand. [backfilled 2026-11-18 with the human-owner allowance: by hand]"}]'
+rigAssert "a hand-made backfill is refused"          "$( [ "$rigRc" -ne 0 ] && printf refused || printf taken ):$( rigDecisions "$( rigItemPath )" | LC_ALL=C grep -c 'backfilled' )" refused:0
+rigRun "$rigToolsFn" b15 --intern-op-board-upsert-move-edit running "$rigItem.md" --from-state:running --edit-patch-from-stdin --context rig \
+	<<< '[{"old":"RIG-DECISION-Q must stand.","new":"RIG-DECISION-Q must stand. [confirmed by URIGOWNER: by hand]"}]'
+rigAssert "a hand-made confirmation is refused"      "$( [ "$rigRc" -ne 0 ] && printf refused || printf taken ):$( rigDecisions "$( rigItemPath )" | LC_ALL=C grep -c 'confirmed by' )" refused:0
+
 printf '\n'
 if [ "$rigFail" -ne 0 ] ; then
 	echo "BOARD-DECISIONS-BODY-WRITE: FAILED, $rigFail of $(( rigPass + rigFail )) assertion(s)" >&2

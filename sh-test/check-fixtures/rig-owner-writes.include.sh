@@ -27,6 +27,7 @@
 ##   rigOwnerBoardPut <state> <item>                        one board item, its content on stdin
 ##   rigOwnerBoardWrite <state> <item> <format> [args...]   one board item, its content by printf
 ##   rigOwnerBoardMove <from-state> <to-state> <item> [header operation...]
+##   rigOwnerBoardLegacyPut <item>                       one pending item as old data left it, its content on stdin
 ##   rigOwnerInboxReady <member>                            that inbox's folder, ready to be written
 ##   rigOwnerInboxPut <member> <item>                       one inbox item, its content on stdin
 ##   rigOwnerInboxWrite <member> <item> <format> [args...]  one inbox item, its content by printf
@@ -103,6 +104,16 @@ rigOwnerBoardWrite(){ ## state, item, format, arguments...
 	shift 3
 	[ "$ownerFormat" != "--" ] || { ownerFormat="${1:-}" ; shift || true ; }
 	printf -- "$ownerFormat" "$@" | rigOwnerBoardPut "$ownerState" "$ownerItem"
+}
+
+## A pending item the writers no longer produce, for a reader's handling of old data: a recheck-date beside no unmet `condition:`.
+## Every writer into board-pending drops that date (AgentsToolsRecheckPendingBody), so the owner writes the item into
+## board-blocked and the file is moved into board-pending.
+rigOwnerBoardLegacyPut(){ ## item -- the item's content on stdin
+	local legacyData
+	legacyData="$( rigOwnerOf rigOwnerData rigData )"
+	rigOwnerBoardPut blocked "$1" || return 1
+	mkdir -p "$legacyData/board/pending" && mv -f "$legacyData/board/blocked/$1" "$legacyData/board/pending/$1"
 }
 
 ## One board item moved from one state to another, its headers changed by the board's own header operations: the move

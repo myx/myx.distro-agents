@@ -8,7 +8,8 @@
 ## headBytes the head's length. A conversation is read when it is the team channel or a direct one, and nothing else:
 ## another channel, and a mentions or search partition, hold no conversation of his.
 ## THE FOLDER'S CONVERSATION AND THREAD COME FROM ITS OWN `.state.txt` PULLING LINE, `slack-conversation <target>` or
-## `slack-thread <channel>:<thread ts>`, as the cache-to-inbox transfer reads them: the store owns that fact, and a
+## `slack-thread <channel>:<thread ts>`, as the cache-to-inbox transfer reads them, or from the line of a thread folder our own
+## post made, `slack-local-thread <channel>:<thread ts>`, which nothing pulls (AgentsToolsCommsCachePostStore): the store owns that fact, and a
 ## folder's name is no second owner of it. LC_ALL=C.
 
 function tsAfter(one, two,   oneSec, twoSec, oneFrac, twoFrac) {
@@ -25,9 +26,9 @@ function readPulling(   line, word, count, fields, target) {
 	owedConv = "" ; owedThread = ""
 	while ((getline line < (owedDir "/.state.txt")) > 0) {
 		count = split(line, fields, " ")
-		if (count < 2 || (fields[1] != "slack-conversation" && fields[1] != "slack-thread")) continue
+		if (count < 2 || (fields[1] != "slack-conversation" && fields[1] != "slack-thread" && fields[1] != "slack-local-thread")) continue
 		target = fields[2]
-		if (fields[1] == "slack-thread" && index(target, ":")) {
+		if (fields[1] != "slack-conversation" && index(target, ":")) {
 			owedThread = substr(target, index(target, ":") + 1)
 			target = substr(target, 1, index(target, ":") - 1)
 		}

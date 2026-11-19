@@ -16,6 +16,8 @@
 ##   json   {"entries":[{"source":..,"store":..,"section":..,"snippet":..}]}, the snippet the section's own text (cut at 4000 bytes, "truncated":true then)
 ##   index  {"sections":[{"path":..,"source":..,"store":..,"heading-path":..,"heading":..,"text":..}]}, every section with the query not applied: the heading path
 ##          is the chain of captions joined by `>`, deepest last. This is the index engine's input.
+##   check  nothing read and nothing printed: each `re` and `gl` term is compiled once, and awk ends at 2 on one it cannot
+##          compile, so a caller refuses that term before the scan would fail it as an empty answer
 ##   rc 3   a source file could not be read, so the answer covers only the files that were. Each is named on stderr, and the
 ##          count closes them. A caller must not read that answer as a complete one.
 ## -v wsRoot=<workspace>/ and -v dataRoot=<team data root>/ turn a path into its source, relative to the one it lies under; the store is `board`,
@@ -154,6 +156,10 @@ BEGIN {
 		if (gap == 0) { kind[tokenCount] = queryLine[at] ; arg[tokenCount] = "" ; } else { kind[tokenCount] = substr(queryLine[at], 1, gap - 1) ; arg[tokenCount] = substr(queryLine[at], gap + 1) ; } ;
 		if (kind[tokenCount] == "kw") { needle[tokenCount] = tolower(arg[tokenCount]) ; } ;
 		if (kind[tokenCount] == "gl") { globRx[tokenCount] = globRegex(arg[tokenCount]) ; } ;
+	} ;
+	if (format == "check") {
+		for (term = 1 ; term <= tokenCount ; term++) { checkHit = (kind[term] == "re") ? ("" ~ arg[term]) : (kind[term] == "gl") ? ("" ~ globRx[term]) : 0 ; } ;
+		exit 0 ;
 	} ;
 	storeMapCount = 0 ;
 	if ("KNOWLEDGE_STORE_MAP" in ENVIRON) {

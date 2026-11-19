@@ -603,7 +603,7 @@ AgentsToolsAuthorityRequestOpen(){ ## mode (enqueue|wait), confirmation (yes|emp
 	fi
 	[ -z "$openOptions" ] || [ "$openKind" != decision ] || openText="$openText"$'\n'"$openOptions"
 	## The slots the post was filled with, kept beside a permission request's record: a later fill starts from them.
-	[ "$openKind" != permission ] || openFields="$( AgentsToolsAskPostFieldsPack asked-as RequestPermission refused-tool "$openWhat" refused-for "$agentsAuthorityCallerId" refusal-id "$openRefusal" reason "$openReason" task "$openTaskText" about "$( AgentsToolsAskAboutLine "$openSession" "" )" )"
+	[ "$openKind" != permission ] || openFields="$( AgentsToolsAskPostFieldsPack asked-as RequestPermission refused-tool "$openWhat" refused-for "$agentsAuthorityCallerId" refusal-id "$openRefusal" reason "$openReason" task "$openTaskText" about "$( AgentsToolsAskAboutLine "$openSession" "" )" allowed-words "$( AgentsToolsAskWordsPlain "$openWhat" )" )"
 	openOut="$( printf '%s\n' "$openText" | "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-op-comms-slack-send-message "$openSender" "$openTarget" --identity-bot ${openAddress:+--address-to "$openAddress"} --from-stdin 2>&1 )" || {
 		echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools}: the request to $openTo could not be posted, so nothing was asked: $( printf '%s\n' "$openOut" | LC_ALL=C grep -m1 'ERROR' )" >&2
 		return 1

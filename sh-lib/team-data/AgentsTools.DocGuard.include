@@ -132,7 +132,7 @@ AgentsToolsDocGuardDecide(){ ## path, before text, after text, door (harness|hoo
 		printf '%s: the document-contract guard refused %s: the contract %s named by the registry is missing -- nothing was written\n' "$gPath" "$gPath" "$gContract" >&2
 		return 1
 	fi
-	local gBeforeRows gAfterRows gNewFaults gNewRule gNewRow gRefused=0
+	local gBeforeRows gAfterRows gNewFaults gNewRule gNewRow gRefused=0 gBreaches=""
 	gBeforeRows="$( AgentsToolsDocGuardValidateText "$gKind" "$gPath" "$gBefore" )"
 	gAfterRows="$( AgentsToolsDocGuardValidateText "$gKind" "$gPath" "$gAfter" )"
 	gNewFaults="$( AgentsToolsDocGuardDelta "$gBeforeRows" "$gAfterRows" "$gPath" )"
@@ -146,11 +146,13 @@ AgentsToolsDocGuardDecide(){ ## path, before text, after text, door (harness|hoo
 			*)
 				printf '%s: the document-contract guard refuses: %s\n' "$gPath" "$gNewRow" >&2
 				gRefused=$(( gRefused + 1 ))
+				gBreaches="${gBreaches:+$gBreaches | }$gNewRow"
 			;;
 		esac
 	done <<< "$gNewFaults"
 	[ "$gRefused" = 0 ] || {
-		printf '%s: %s breaks its contract in %s place(s) the write introduces -- nothing was written\n' "$gPath" "$gKind" "$gRefused" >&2
+		## The closing line names each breach, so a caller that keeps only the last line still has the cause and the NEXT.
+		printf '%s: %s breaks its contract in %s place(s) the write introduces -- nothing was written: %s\n' "$gPath" "$gKind" "$gRefused" "$gBreaches" >&2
 		return 1
 	}
 	return 0

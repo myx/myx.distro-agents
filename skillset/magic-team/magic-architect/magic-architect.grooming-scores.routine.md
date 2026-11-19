@@ -6,6 +6,8 @@ invitees: none
 requires-session-kind: standalone
 input-scan-def: none
 review-by: inherit
+deliverables: a proposed score and its one line of reasoning for each item scored, sent to magic-coordinator
+deliverables: the report of the items scored or changed
 runs-at: none
 ---
 # magic-architect.grooming-scores.routine — the actual procedure

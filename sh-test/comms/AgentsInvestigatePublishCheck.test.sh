@@ -17,6 +17,8 @@
 ##  12. the step's "and a link" half: the task found links to the page, the stored link is read back through
 ##      `--jira-issue-link-list`, a retry leaves one link, and a write by another member, a missing address or a
 ##      task the site does not hold is refused
+##  13. an internal Atlassian write called as a command of DistroAgentsTools is refused for every caller, with a REFUSAL-ID and
+##      no site call (S20 F5.1); control: a direct read, and the generic call with GET, still reach the site
 ## Offline: a fake `curl` first on PATH that answers as the Atlassian site and opens no socket; the rig's own team
 ## data and workspace under this workspace's scratch.
 set -u
@@ -165,6 +167,17 @@ rigSiteCall "$rigTmp/j3" magic-coordinator --jira-issue-search 'project = RIG OR
 rigAssert "the search ran" "$rigRc" 0
 rigAssert "and names the task already filed" "$( LC_ALL=C grep -c -F -- 'RIG-9' "$rigTmp/j3.out" )" 1
 
+echo "-- 9a. every member reads: a tester's search runs, the other reads pass the gate, and a delete stays the coordinator's --"
+rigSiteCall "$rigTmp/r1" magic-tester --jira-issue-search 'project = RIG ORDER BY updated DESC'
+rigAssert "a tester's issue search runs, and finds the task" "$rigRc:$( LC_ALL=C grep -c -F -- 'RIG-9' "$rigTmp/r1.out" )" 0:1
+rigSiteCall "$rigTmp/r2" magic-tester --jira-comment-read "$rigIssueKey"
+rigSiteCall "$rigTmp/r3" magic-tester --confluence-page-search 'type = page'
+rigSiteCall "$rigTmp/r4" magic-tester --confluence-comment-read 12345
+rigAssert "the other three reads pass both gates for a tester" \
+	"$( LC_ALL=C grep -c -e "magic-coordinator's only" -e 'runs only as magic-coordinator' "$rigTmp/r2.err" "$rigTmp/r3.err" "$rigTmp/r4.err" | LC_ALL=C awk -F: '{ n += $2 } END { print n + 0 }' )" 0
+rigSiteCall "$rigTmp/r5" magic-tester --jira-issue-delete "$rigIssueKey"
+rigAssert "a tester's delete is still refused" "$( [ "$rigRc" != 0 ] && printf refused || printf allowed ):$( rigCalls | LC_ALL=C grep -c -i 'DELETE' )" refused:0
+
 echo "-- 9. control: the write operations run only as the coordinator --"
 rigSiteCall "$rigTmp/w1" magic-tester --confluence-page-create --space TEAM --title 'Investigation report: not mine' --body-storage '<p>x</p>'
 rigAssert "a tester's page create is refused" "$( [ "$rigRc" != 0 ] && printf refused || printf allowed )" refused
@@ -224,6 +237,39 @@ rigAssert "a read with no issue key is refused, by that operation's own syntax l
 rigSiteCall "$rigTmp/l10" magic-coordinator --jira-issue-link-list RIG-ODD
 rigAssert "an answer that is no array of links is UNKNOWN with 3, never an issue holding none" \
 	"$rigRc:$( LC_ALL=C grep -c -F 'are UNKNOWN, not empty' "$rigTmp/l10.err" ):$( LC_ALL=C grep -c . "$rigTmp/l10.out" )" "3:1:0"
+rigAssert "every call stayed on a host ending .invalid" "$( rigForeignCalls )" 0
+
+echo "-- 13. an internal write as a command is refused for every caller, and a direct read still runs --"
+mkdir -p "$rigSkills/magic-developer" && printf -- '---\nmaintainers: rig\n---\nrig identity\n' > "$rigSkills/magic-developer/magic-developer.basic.md"
+rigDirect="$rigPackage/sh-scripts/DistroAgentsTools.fn.sh"
+rigDirectWrite(){ ## words... -- once with no acting member, once as magic-developer: refused, a REFUSAL-ID, no site call
+	local directAs directBefore
+	for directAs in "" magic-developer ; do
+		directBefore="$( rigCalls | LC_ALL=C wc -l | LC_ALL=C tr -d ' ' )"
+		rigCall "$rigTmp/d" "$directAs" "$rigDirect" "$@"
+		rigAssert "$1 as ${directAs:-no acting member}: refused, with a REFUSAL-ID, and no site call" \
+			"$rigRc:$( LC_ALL=C grep -c -- 'REFUSAL-ID: refusal-' "$rigTmp/d.err" ):$(( $( rigCalls | LC_ALL=C wc -l | LC_ALL=C tr -d ' ' ) - directBefore ))" "1:1:0"
+	done
+}
+rigDirectWrite --intern-op-atlassian-confluence-space-create --member magic-coordinator --key RIGX --name Rig
+rigDirectWrite --intern-op-atlassian-confluence-page-create --member magic-coordinator --space-id 1 --title 'direct' --body-storage '<p>x</p>'
+rigDirectWrite --intern-op-atlassian-confluence-page-update --member magic-coordinator --page-id 1001 --version 2 --title 'direct' --status current --body-storage '<p>x</p>'
+rigDirectWrite --intern-op-atlassian-confluence-comment-add --member magic-coordinator --page-id 1001 --body-storage '<p>x</p>'
+rigDirectWrite --intern-op-atlassian-confluence-page-delete --member magic-coordinator --page-id 1001
+rigDirectWrite --intern-op-atlassian-jira-issue-create --member magic-coordinator --project RIG --issuetype Task --summary 'direct'
+rigDirectWrite --intern-op-atlassian-jira-issue-update --member magic-coordinator --issue-key RIG-9 --fields-json '{"summary":"direct"}'
+rigDirectWrite --intern-op-atlassian-jira-issue-transition --member magic-coordinator --issue-key RIG-9 --to-status Done
+rigDirectWrite --intern-op-atlassian-jira-comment-add --member magic-coordinator --issue-key RIG-9 --body-adf '{"type":"doc","version":1,"content":[]}'
+rigDirectWrite --intern-op-atlassian-jira-issue-link-page --member magic-coordinator --issue-key RIG-9 --url "$rigPageUrl" --title 'direct'
+rigDirectWrite --intern-op-atlassian-jira-issue-delete --member magic-coordinator --issue-key RIG-9
+rigDirectWrite --intern-op-atlassian-jira-project-delete --member magic-coordinator --project-key RIG
+rigDirectWrite --intern-op-atlassian-call --member magic-coordinator --product jira --path /rest/api/3/issue/RIG-9 --method DELETE
+rigCallsBefore="$( rigCalls | LC_ALL=C wc -l | LC_ALL=C tr -d ' ' )"
+rigCall "$rigTmp/d" magic-developer "$rigDirect" --intern-op-atlassian-jira-issue-search --member magic-developer --jql 'project = RIG'
+rigAssert "control: a direct read as a command still reaches the site" "$( [ "$( rigCalls | LC_ALL=C wc -l | LC_ALL=C tr -d ' ' )" -gt "$rigCallsBefore" ] && printf reached || printf none )" reached
+rigCallsBefore="$( rigCalls | LC_ALL=C wc -l | LC_ALL=C tr -d ' ' )"
+rigCall "$rigTmp/d" magic-developer "$rigDirect" --intern-op-atlassian-call --member magic-developer --product jira --path /rest/api/3/issue/RIG-9 --method GET
+rigAssert "control: the generic call with GET still reaches the site" "$( [ "$( rigCalls | LC_ALL=C wc -l | LC_ALL=C tr -d ' ' )" -gt "$rigCallsBefore" ] && printf reached || printf none )" reached
 rigAssert "every call stayed on a host ending .invalid" "$( rigForeignCalls )" 0
 
 if [ "$rigFails" -ne 0 ] ; then

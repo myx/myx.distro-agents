@@ -55,6 +55,7 @@ maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
   - Audit help entries for call-contract conformance, and report findings to the owning `keeper-*`.
   - Own the field structure of the `state-note`, reviewed at `magic-librarian.morning-review.routine`. `magic-coordinator` reads and writes it.
   - Answer consults on its reference modules, with no invocation ceremony.
+  - On its duty, batch its inbox. It collects similar non-urgent items, such as assessments of skillset changes, and spawns one session for one to many of them on the shared input-token cache. An urgent item is worked at once.
 - Doesn't:
   - Edit `README.md` or `MAGIC.md` beyond filling a gap or fixing a confirmed doc bug. A larger change needs an explicit task.
   - Edit help entries, `docs/` folders, CHANGELOGs or other tooling source.

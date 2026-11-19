@@ -2,13 +2,15 @@
 ## Behavioural check on a bound inside a round (AgentsTools.MemberWait.include, "A ROUND READS EVERY SOURCE IT HOLDS").
 ## A bound decides when a wait RETURNS, never which sources its round reads (owner ruling 2026-10-31): a round reads every
 ## source it holds, an arrival found early included, and a probe that cannot finish inside the bound is handed to the task
-## wrapper and named in WAIT-NEVER-READ. Held, with the inbox probe made slow by a `date` that sleeps when it is asked for a
-## file's time (the one thing that probe calls it for), and a floor of 1 so that what is there counts as an arrival:
-##   1. a bound of 2 s and a first probe of 3 s that finds the note: RECEIVED with both arrivals, the source after the slow
-##      one read too, and nothing named in WAIT-NEVER-READ
+## wrapper and named in WAIT-NEVER-READ. Held, with the board probe, the first of the round, made slow by an `ls` that sleeps
+## when it lists the board's pending folder (the listing that probe makes), and a floor of 1 so that what is there counts:
+##   1. a bound of 2 s and a first probe of 3 s that finds the item: RECEIVED with both arrivals, the source after the slow
+##      one read too, nothing named in WAIT-NEVER-READ, and the wait took the slow probe's 3 s, so the instrument ran
 ##   2. control, the probe quick: both sources arrive, nothing is named in WAIT-NEVER-READ
 ##   3. a zero bound reads every source once, slow probe or not: both arrive
-##   4. a quiet round past the bound (nothing found by the slow probe) still reads the source after it: nothing is named
+##   4. a quiet round past the bound (nothing found by the slow probe) still reads the source after it: nothing is named.
+##      The inbox is listed whole, so an item standing in incoming/ arrives at once (AgentsTools.MemberWait.include): the
+##      note is marked handled first, so the inbox after the slow probe has nothing new
 
 ## Offline: a Slack-shaped fake curl logs and answers any call; every tree is this rig's own.
 set -u
@@ -26,10 +28,18 @@ rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
 mkdir -p "$rigTmp/bin"
 cp "$rigTest/check-fixtures/slack-send-identity-check.curl.stub.sh" "$rigTmp/bin/curl" || rigRefuse "the fake curl fixture is missing from the package"
-cp "$rigTest/check-fixtures/wait-bound-slow-date.date.stub.sh" "$rigTmp/bin/date" || rigRefuse "the slow date fixture is missing from the package"
-chmod +x "$rigTmp/bin/curl" "$rigTmp/bin/date"
-RIG_DATE_REAL="$( command -v date )" || rigRefuse "no date on PATH to hand the other calls to"
-export RIG_DATE_REAL
+## The slow ls: run in the board's pending folder, which the board probe of a wait lists, it sleeps three seconds first where the
+## scenario has its `slow` flag; every other call goes to the real ls at once.
+cat > "$rigTmp/bin/ls" <<'EOF'
+#!/bin/sh
+case "$PWD" in
+	*/board/pending) [ ! -f "$RIG_SCENARIO/slow" ] || sleep 3 ;;
+esac
+exec "$RIG_LS_REAL" "$@"
+EOF
+chmod +x "$rigTmp/bin/curl" "$rigTmp/bin/ls"
+RIG_LS_REAL="$( command -v ls )" || rigRefuse "no ls on PATH to hand the other calls to"
+export RIG_LS_REAL
 PATH="$rigTmp/bin:$PATH"
 export PATH
 
@@ -56,12 +66,14 @@ printf -- '---\ntype: note\nfrom: magic-coordinator\n---\n\n# Note: bound betwee
 printf -- '---\ntype: task\nowner: magic-coordinator\n---\n\n# Rig item pending\n' | rigOwnerBoardPut pending task-rig-pending.md
 ## One Wait on the inbox, then a board state, from a floor of 1 (what is there counts); the slow date is on where the flag is.
 rigWait(){ ## result name, bound seconds, slow (yes or no), floor (a number, or none)
-	local waitRc=0
+	local waitRc=0 waitStart
+	waitStart="$( date +%s )"
 	rm -f "$rigTmp/slow"
 	[ "$3" != yes ] || : > "$rigTmp/slow"
 	( cd "$rigW" && env -u MDAT_SKILLSET_ROOT -u CLAUDE_CODE_SESSION_ID -u MDAT_SESSION_ID -u MDAT_SPAWN_SESSION_ID -u MDAT_SPAWN_AGENT HOME="$rigH" MMDAPP="$rigW" MDLT_ORIGIN="$rigW/source" MDAT_DATA_ROOT="$rigD" RIG_SCENARIO="$rigTmp" MDAT_WAIT_REMIND=off \
 		python3 -I -B "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-exec.py" --alarm 120 -- bash "$rigW/source/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --wait-for-input --team-member magic-coordinator --wait-source inbox:magic-coordinator --wait-source board:pending --wait-timeout "$2" --wait-poll-interval 1 ${4:+--wait-since-utime "$4"} ) > "$rigTmp/$1.out" 2> "$rigTmp/$1.err" < /dev/null 4> /dev/null || waitRc=$?
 	printf '%s' "$waitRc" > "$rigTmp/$1.rc"
+	rigTook=$(( $( date +%s ) - waitStart ))
 }
 rigResult(){ ## result name -- the outcome word of its WAIT-RESULT line, or none
 	local resultWord
@@ -81,6 +93,7 @@ echo "-- 1. a bound that passes in the first probe, which found something: the s
 rigWait w1 2 yes 1
 rigAssert "RECEIVED, ending 0, with both arrivals"                "$( rigResult w1 ):$( cat "$rigTmp/w1.rc" ):$( rigArrivals w1 )" "RECEIVED:0:board:pending inbox:magic-coordinator"
 rigAssert "nothing is named as never read"                        "$( rigNeverRead w1 )" "none"
+rigAssert "the slow probe took its 3 s, so a slow probe was measured" "$( [ "$rigTook" -ge 3 ] && printf slow || printf quick )" "slow"
 echo "-- 2. control, the probe quick: both sources arrive --"
 rigWait w2 2 no 1
 rigAssert "RECEIVED with both, nothing named as never read"       "$( rigResult w2 ):$( rigArrivals w2 ):$( rigNeverRead w2 )" "RECEIVED:board:pending inbox:magic-coordinator:none"
@@ -88,6 +101,9 @@ echo "-- 3. a zero bound reads every source once, slow probe or not --"
 rigWait w3 0 yes 1
 rigAssert "RECEIVED with both, nothing named as never read"       "$( rigResult w3 ):$( rigArrivals w3 ):$( rigNeverRead w3 )" "RECEIVED:board:pending inbox:magic-coordinator:none"
 echo "-- 4. a quiet round past the bound still reads the sources at its tail --"
+## Marked by the inbox's own member, whose folder is the rig's member folder.
+rigOwnerSkills="$rigW/.local/agents/members" rigOwnerMember=magic-coordinator rigOwnerWrap "MDAT_TEAM_DATA_COMMIT_THREAD=off bash \"\$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsItems.fn.sh\" --mark-inbox-processed --team-member magic-coordinator note-20261022T1700Z-bound-between-sources.md" \
+	"mark the note handled" || rigRefuse "the note could not be marked handled, so the inbox would not be quiet"
 rigWait w4 2 yes
 rigAssert "TIMEOUT, nothing named as never read"                  "$( rigResult w4 ):$( rigNeverRead w4 )" "TIMEOUT:none"
 

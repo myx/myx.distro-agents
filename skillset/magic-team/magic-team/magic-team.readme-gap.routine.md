@@ -6,6 +6,7 @@ invitees: none
 requires-session-kind: standalone
 input-scan-def: none
 review-by: inherit
+deliverables: one README written for one directory, or a grounded draft handed to magic-librarian
 runs-at: none
 ---
 # magic-team.readme-gap.routine — the actual procedure

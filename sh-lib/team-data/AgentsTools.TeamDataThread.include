@@ -15,10 +15,11 @@
 ## and the debt's path are read once for the life of the thread, and an empty folder is found by the shell's own glob.
 ##
 
-## The folder and the debt file, read once: this function runs once a second for the life of the thread, and each read is a git call
+## The folder, the debt file and the owed-push marker, read once: this function runs once a second for the life of the thread, and each read is a git call
 ## or a subshell. Empty means not read yet, or no store.
 teamPassDir=""
 teamPassOwedFile=""
+teamPassPushOwed=""
 
 ## THE STORE'S OWN GIT IS THIS THREAD'S WORK (S12.13): `sync <store> <origin> <branch>`, `head <lock path> <branch> <blobs|session>` and
 ## `push <branch>`. A lock's resync, its head fetch and its push leave the acquiring process and arrive here, on the queue that already
@@ -210,6 +211,7 @@ AgentsToolsTeamDataThreadPassLocked(){
 		type AgentsToolsTeamDataThreadDir > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataCommit.include"
 		teamPassDir="$( AgentsToolsTeamDataThreadDir )" || { printf 'no store\n' >&3 ; return 0 ; }
 		teamPassOwedFile="$( AgentsToolsTeamDataCommitOwedPath )" || teamPassOwedFile=""
+		teamPassPushOwed="$( AgentsToolsTeamDataPushOwedPath )" || teamPassPushOwed=""
 	fi
 	for passEntry in "$teamPassDir"/*.entry ; do
 		[ -f "$passEntry" ] && { passAny="yes" ; break ; }
@@ -233,7 +235,14 @@ AgentsToolsTeamDataThreadPassLocked(){
 	fi
 	AgentsToolsTeamDataThreadOwed
 	type AgentsToolsTeamDataPushIfAhead > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataCommit.include"
-	[ "$passCount" = 0 ] || AgentsToolsTeamDataPushIfAhead "the team-data thread"
+	## A push is owed by a pass that committed, or by a writer that left its push to this thread (the marker, tested by the shell): a push
+	## owed with nothing committed here is tried every ten seconds at most, so a remote that is down is not pushed at every tick.
+	if [ "$passCount" != 0 ] ; then
+		AgentsToolsTeamDataPushIfAhead "the team-data thread"
+	elif [ -n "$teamPassPushOwed" ] && [ -e "$teamPassPushOwed" ] && [ "$(( SECONDS - teamPushOwedTriedAt ))" -ge 10 ] ; then
+		teamPushOwedTriedAt="$SECONDS"
+		AgentsToolsTeamDataPushIfAhead "the team-data thread"
+	fi
 	printf 'done\n' >&3
 	return 0
 }
@@ -241,6 +250,8 @@ AgentsToolsTeamDataThreadPassLocked(){
 ## How long ago the debt was last tried, in the thread's own clock: kept across passes, because the thread is one process and this is
 ## the state it holds.
 teamOwedTriedAt=-100
+## When an owed push with nothing committed by the pass was last tried, in the thread's own clock.
+teamPushOwedTriedAt=-100
 
 ## The debt of a commit that failed, tried again on its own timer, at least thirty seconds after the last try: a lock, a full disk or
 ## a merge left unfinished must not leave a write that "warned" and never landed. The debt is a file in the workspace, not this

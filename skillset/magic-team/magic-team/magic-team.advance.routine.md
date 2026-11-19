@@ -6,6 +6,7 @@ requires-session-kind: standalone
 routine-lock-document: inbox:{{team-member}}:note-20261020T000000Z-work-duty-state-and-lock.md
 input-scan-def: none
 review-by: inherit
+deliverables: each running document handed to the routine that runs its next iteration
 runs-at: none
 ---
 # magic-team.advance.routine — the actual procedure
@@ -104,7 +105,7 @@ All statements apply at the same time, always. These rules override a participan
 `type` is the item's board type word; `proposal-root` is a `proposal` item that carries a `communication-channel-id`. `routine` is the routine file name without `.md`, or `-` where the iteration is an action with no routine of its own. A row with `gate` `yes` is never overridden by `handler-routine:`. A routine also handles a type when its `# Summary` carries the line `Handles: <type>, <type>`.
 
 What each row does:
-- `approval`: `recheck-date` due and unresolved means asking the human-owner
+- `approval`: `recheck-date` due and unresolved — ask the human-owner
   again, in its tracked thread. Otherwise use his direct channel
   (`AskQuestion`, `wait: false`), alone in its own message. Extend it with `--recheck-in 17±2`.
 - `proposal-root`: read the thread root's closing reaction (the human-owner's own) and apply it per `magic-team.proposal.routine`'s **close-on-root-reaction**. None there: take the `approval` row.

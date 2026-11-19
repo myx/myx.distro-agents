@@ -196,7 +196,7 @@ AgentsToolsRoutineLockAcquireOne(){ ## one routine-lock-document value, the sess
 		## In processed/ (the lock note of a member other than magic-coordinator) it carries the stamp of that folder.
 		lockStamp=""
 		! AgentsToolsInboxNoteProcessed "$lockMember" "$lockNote" || lockStamp="processed-at: $( date +"%Y-%m-%d %H:%M %z" )"$'\n'
-		mkdir -p "${lockPath%/*}" && printf -- '---\ntype: note\nfrom: %s\nowner: %s\n%s---\n\n# %s\n\nThe state of the %s routine, locked by the spawner while it runs.\n' "$lockMember" "$lockMember" "$lockStamp" "${lockNote%.md}" "$lockShort" > "$lockPath" || {
+		mkdir -p "${lockPath%/*}" && printf -- '---\ntype: note\nfrom: %s\ndate: %s\nowner: %s\ndocument-contract: inbox-item.note\n%s---\n\n# %s\n\nThe state of the %s routine, locked by the spawner while it runs.\n' "$lockMember" "$( date +"%Y-%m-%d %H:%M %z" )" "$lockMember" "$lockStamp" "${lockNote%.md}" "$lockShort" > "$lockPath" || {
 			echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools}: the locking document $lockNote of $lockMember does not exist and could not be made: $lockPath" >&2
 			return 1
 		}
@@ -538,10 +538,11 @@ AgentsToolsRoutineStateWrite(){ ## the inbox member, the note, the operation (fo
 			END { if (!done) print recheck ; }
 		' )"
 	fi
+	## Read to the end, never left at the closing line: an awk that leaves breaks the pipe of a large note under its writer.
 	callerFields="$( printf '%s\n' "$stateContent" | LC_ALL=C awk '
 		NR==1 { if ($0=="---") { inFM=1 ; } ; next ; }
 		inFM {
-			if ($0=="---") exit
+			if ($0=="---") { inFM = 0 ; next ; }
 			if ($0 !~ /^(type|from|date|owner|state|recheck-date|session-id|processed-at): /) print
 		}
 	' )"
@@ -562,7 +563,8 @@ AgentsToolsRoutineStateWrite(){ ## the inbox member, the note, the operation (fo
 	fi
 	local mergedContent
 	mergedContent="$( printf -- '---\n%s\n%s\n---\n\n%s' "$lockFields" "$callerFields" "$callerBody" )"
-	printf '%s\n' "$mergedContent" | AgentsToolsItemUpsert "$writeMember" --from-inbox "$writeMember" "$writeNote" \
+	## A state write waits for a busy store lock this long, then fails naming the holder: a duty that stalls on it stalls every answer it owes.
+	printf '%s\n' "$mergedContent" | agentsItemUpsertLockTries="${MDAT_STATE_WRITE_LOCK_SECONDS:-30}" AgentsToolsItemUpsert "$writeMember" --from-inbox "$writeMember" "$writeNote" \
 		--upsert-from-stdin \
 		--commit-message "* ${writeWord:-routine}, state, $( date -u +%Y-%m-%dT%H:%M:%SZ )" \
 		--context "$writeOp"
@@ -662,10 +664,6 @@ AgentsToolsRoutineSessionStateUpdate(){ ## the operation's arguments
 			return 1
 		;;
 	esac
-	if [ "$updHeld" != "$updSession" ] ; then
-		echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools} $updOp: $updNote is held by session ${updHeld:-<none>}, not by this session $updSession -- nothing was written" >&2
-		return 1
-	fi
 	## The record to write: header edits of the stored one, a patch of it, a file, or standard input.
 	local updContent
 	if [ -n "$updHeaders" ] ; then
@@ -701,8 +699,22 @@ AgentsToolsRoutineSessionStateUpdate(){ ## the operation's arguments
 			;;
 		esac
 	fi
-	AgentsToolsRoutineStateWrite "$updMember" "$updNote" "$updOp" "$updContent"
-	return $?
+	## A SECOND DUTY OF THE MEMBER ANSWERS WHAT REACHES IT ITSELF: only its writes to the state note wait for the lock, kept in its own session folder, never refused.
+	local updKept=""
+	type AgentsSessionFolderInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+	AgentsSessionFolderInto updKept "${MMDAPP:-}" "$updSession" 2> /dev/null || updKept=""
+	if [ "$updHeld" != "$updSession" ] ; then
+		if [ -n "$updKept" ] && mkdir -p "$updKept" 2> /dev/null && printf '%s\n' "$updContent" > "$updKept/state-kept.$updNote.tmp" 2> /dev/null && mv -f "$updKept/state-kept.$updNote.tmp" "$updKept/state-kept.$updNote" ; then
+			echo "KEPT: $updNote is held by session ${updHeld:-<none>}, so this write is kept for this session and lands once it holds the lock. Go on answering what reaches you yourself: only writes to this state note wait."
+			return 0
+		fi
+		echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools} $updOp: $updNote is held by session ${updHeld:-<none>}, not by this session $updSession, and the write could not be kept -- nothing was written" >&2
+		return 1
+	fi
+	AgentsToolsRoutineStateWrite "$updMember" "$updNote" "$updOp" "$updContent" || return $?
+	## The holder's write is its newest, so a write it kept while another held the lock is spent.
+	[ -z "$updKept" ] || rm -f "$updKept/state-kept.$updNote" 2> /dev/null
+	return 0
 }
 
 ## THE TAKE AND THE GIVING BACK OF THE FOUR STANDING LOCKS (F1.4). The advance, daily, grooming and retro routines locked by hand before the spawner did, and what

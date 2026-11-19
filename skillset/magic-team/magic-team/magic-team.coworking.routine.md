@@ -101,6 +101,11 @@ Exact instructions. Execute in order, every step, literally as written — not l
    - make the real-time judgement calls a solo dispatch would leave to one member.
    - carry every participant's stuck point to an outcome. The outcome is the group's own agreement, carried up by "The ladder: one rung at a time", never a personal ruling.
    - the collaboration shape (hand-offs, parallel pieces, live back-and-forth) is the task's own; nothing here fixes it.
+   - watch the session thread, one of its Wait's floor sources, and answer what reaches it there.
+   - check the progress and the results against the goal. Resolve the problems, unblock the halts and correct the deviations.
+   - file reflections, for lasting improvements, assessments and investigations.
+   - set the session's title and its chapters.
+   - escalate or report to the coordinator's duty, and further up the ladder.
 4. **narrate-progress-in-thread**: post each scope change and each piece of work starting, as one short line in the session thread (`updated session scope: ...`, `applying ...`).
 5. **report-out-with-transcripts**: post the session's report into the session thread, with enough of the working transcript to show how the outcome was reached. The report is the executor's own text under the output-style floor; transcript excerpts are marked quotation, never restyled. Redact a sensitive part and keep the rest. A handback to the session's own parent follows, carrying what was agreed, per "The ladder: one rung at a time".
 

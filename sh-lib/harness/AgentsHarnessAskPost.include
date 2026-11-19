@@ -97,6 +97,15 @@ AgentsHarnessAskCheck(){ ## -- reads the caller's tool* fields
 			[ -n "$toolUnderstood" ] && [ -n "$toolFrom" ] && [ -n "$toolWillDo" ] || {
 				printf 'ERROR: %s: kind readback needs understood, source and will_do, and one was empty. Nothing was sent.\n' "$harnessAskName" ; return 1
 			}
+			## A READBACK TO HIM CITES HIS OWN WORDS: a source that is a post of this session itself, its thread root or another, holds none of them.
+			if [ "$toolTo" = human-owner ] ; then
+				askSession="${harnessSessionId:-${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}}"
+				type AgentsSessionThread > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+				type AgentsOwnPostsLines > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.OwnPosts.include"
+				if [ -n "$( { AgentsSessionThread "$askSession" ; printf '\n' ; AgentsOwnPostsLines "$askSession" ; } | LC_ALL=C awk -v want="${toolFrom#slack:}" '$1 == want { print ; exit }' )" ] ; then
+					printf 'ERROR: %s: the source %s is a post of this session itself, so it holds no word of the human-owner. A ruling it brings from a coordinator with his authority is recorded with --record-decision and acted on, never read back to him. A readback cites his own message. Nothing was sent.\n' "$harnessAskName" "$toolFrom" ; return 1
+				fi
+			fi
 		;;
 		decision)
 			[ -n "$toolOptions" ] || {

@@ -5,6 +5,8 @@ maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 requires-session-kind: coworking
 input-scan-def: none
 review-by: inherit
+deliverables: the proposal thread, its question as the root and its proposed form as a reply revised in place
+deliverables: the verdict carried forward: on approval, the work documents in `board-backlog`, and the tracking item resolved with the verdict
 runs-at: none
 ---
 # magic-team.proposal.routine — the actual procedure

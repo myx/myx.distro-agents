@@ -10,6 +10,8 @@
 ##   5. and it does so again on the very next call, unchanged list and all (S22 item 6: the list is the queue)
 ##   6. mode continue is waiting on purpose, so it makes the ordinary wait and carries the count alone
 ##   7. an idle Wait with nothing open waits as it always did
+##   8. a work duty's list is its round: its Wait is given the open items first even where it names a source of its own or
+##      continues, so one open ask holds only the item it gates; control: a duty with nothing open waits
 set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 rigHere="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib"
@@ -61,7 +63,7 @@ mkdir -p "$rigFolder"
 printf -- '- [x] Read the plan\n- [ ] Fix the index (in progress: Fixing the index)\n- [ ] Run the suite\n' > "$rigList"
 rigCall "{\"sources\":\"file:$rigFile\",\"timeout\":2}"
 rigAssert "the call is a TIMEOUT" "$( rigHead )" "WAIT-RESULT: TIMEOUT"
-rigAssert "the count is carried, and only the count" "$( rigLines '^CHECKLIST: 1 pending, 1 in progress$' )" "1"
+rigAssert "the count is carried, and only the count" "$( rigLines '^CHECKLIST: 1 pending, 1 in progress -- mark done what finished, add what you took on$' )" "1"
 rigAssert "no item is carried" "$( rigLines '^- \[ \] ' )" "0"
 
 echo "-- 2. a wait that delivers an arrival --"
@@ -69,7 +71,7 @@ echo "-- 2. a wait that delivers an arrival --"
 ( sleep 1 ; printf 'arrived\n' > "$rigFile" ) &
 rigCall "{\"sources\":\"file:$rigFile\",\"timeout\":8}" 8
 rigAssert "the arrival is delivered" "$( LC_ALL=C head -1 "$rigWs/out" )" "WAIT-RESULT: RECEIVED"
-rigAssert "the arrival carries the count too" "$( rigLines '^CHECKLIST: 1 pending, 1 in progress$' )" "1"
+rigAssert "the arrival carries the count too" "$( rigLines '^CHECKLIST: 1 pending, 1 in progress -- mark done what finished, add what you took on$' )" "1"
 rigAssert "and still no item" "$( rigLines '^- \[ \] ' )" "0"
 
 echo "-- 3. every item closed, and no list at all --"
@@ -98,13 +100,28 @@ rigAssert "and still no wait" "$( rigLines '^WAIT-RESULT' )" "0"
 echo "-- 6. mode continue is waiting on purpose, and checks nothing --"
 rigCall '{"mode":"continue","timeout":2}'
 rigAssert "it makes the ordinary wait" "$( rigHead )" "WAIT-RESULT: TIMEOUT"
-rigAssert "and carries the count alone" "$( rigLines '^CHECKLIST: 1 pending, 1 in progress$' )" "1"
+rigAssert "and carries the count alone" "$( rigLines '^CHECKLIST: 1 pending, 1 in progress -- mark done what finished, add what you took on$' )" "1"
 
 echo "-- 7. an idle Wait with nothing open waits --"
 printf -- '- [x] Read the plan\n- [x] Fix the index\n- [x] Run the suite\n' > "$rigList"
 rigCall '{"timeout":2}'
 rigAssert "nothing open, so it waits" "$( rigHead )" "WAIT-RESULT: TIMEOUT"
 rigAssert "and says the list is closed" "$( rigLines '^CHECKLIST: all 3 closed$' )" "1"
+
+echo "-- 8. a work duty is given its open items first, whatever its Wait names --"
+rigDuty="rig-wait-duty"
+mkdir -p "$rigWs/.local/agents/sessions/$rigDuty" "$rigWs/.local/agents/spawned/$rigDuty"
+printf -- '---\nsession-id: %s\nspawn-id: %s\nowner: %s\nroutine: magic-coordinator.work-duty.routine.md\nstatus: spawn-started\n---\n' "$rigDuty" "$rigDuty" "$rigMember" > "$rigWs/.local/agents/spawned/$rigDuty/$rigDuty.spawn.md"
+printf -- '- [x] the inbox\n- [ ] the due items\n' > "$rigWs/.local/agents/spawned/$rigDuty/$rigMember.checklist.md"
+rigSessionWas="$rigSession" ; rigSession="$rigDuty"
+rigCall "{\"sources\":\"file:$rigFile\",\"timeout\":2}"
+rigAssert "a duty naming a source of its own is given its open item, not a wait" "$( LC_ALL=C head -1 "$rigWs/out" ):$( rigLines '^WAIT-RESULT' )" "CHECKLIST: 1 pending. Finish or close them before you wait for DISMISSED.:0"
+rigCall '{"mode":"continue","timeout":2}'
+rigAssert "a duty continuing its wait is given it too" "$( LC_ALL=C head -1 "$rigWs/out" ):$( rigLines '^WAIT-RESULT' )" "CHECKLIST: 1 pending. Finish or close them before you wait for DISMISSED.:0"
+printf -- '- [x] the inbox\n- [x] the due items\n' > "$rigWs/.local/agents/spawned/$rigDuty/$rigMember.checklist.md"
+rigCall "{\"sources\":\"file:$rigFile\",\"timeout\":2}"
+rigAssert "control: a duty with nothing open waits on what it named" "$( rigHead )" "WAIT-RESULT: TIMEOUT"
+rigSession="$rigSessionWas"
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ HARNESS WAIT CHECKLIST CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

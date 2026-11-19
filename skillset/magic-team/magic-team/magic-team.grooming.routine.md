@@ -10,6 +10,7 @@ runs-after: magic-librarian.morning-review
 routine-lock-document: inbox:magic-coordinator:note-20260809T154332Z-grooming-state-and-lock.md
 input-scan-def: grooming
 review-by: inherit
+deliverables: a state decision on every open item reviewed: triage, promotion, unblocking, recall or score
 ---
 # magic-team.grooming.routine — the actual procedure
 
@@ -77,12 +78,12 @@ Exact instructions. Execute in order, every step, literally as written — not l
      - stale, no longer worth doing → **Drop**.
      - too big for one work session → **Split**.
      - owned by the wrong member → **Reassign**.
-     - otherwise → **Refine**: change at least one of description, size, order or `recheck-date`.
+     - otherwise → **Refine**: change at least one of description, size, order or `recheck-date`. A `recheck-date` only beside an `unmet` condition.
    - apply the verb, each one call:
      - **Refine**, **Reassign**: same-state `--grooming-to-<state>` with `--from-state:` that state.
      - **Defer**: `--grooming-to-parked`.
-     - **Block**: `--grooming-to-blocked`, with `condition` and `recheck-date`.
-     - **Unblock**: `--grooming-to-pending` for an approved item, `--grooming-to-backlog` for one never approved.
+     - **Block**: `--grooming-to-blocked`, with `condition: unmet: <what it waits for>` and `recheck-date`.
+     - **Unblock**: `--grooming-to-pending` for an approved item, `--grooming-to-backlog` for one never approved. In the same call, rewrite `condition:` as `met: <date-time>: <what settled it>` or `none: <why>`, never as other prose, and set no `recheck-date` (`reference/board-model.md`, "`condition` and `recheck-date`").
      - **Split**: create each child with `--grooming-create-backlog`, `spawned-by` the parent; move the parent to `board-blocked`, `blocked-by` the children. A child needing several members' judgement carries `restart-session:` with them.
      - **Drop**: `--grooming-to-archived`, or remove an item that never had substance.
      - **Merge**: fold the duplicate's new information into the survivor (`supersedes`), and close the duplicate to `board-processed` (`superseded-by`). Settled information is applied into the survivor's content; in-flight information is added as a dated note. Merge only when sure it is the same ask; in doubt, keep both.
@@ -166,7 +167,7 @@ Decided jointly by `magic-coordinator`, `magic-librarian` and `magic-architect`.
 1. The item's scope or assumptions shifted so its state no longer reflects reality:
    - all three agree → `--grooming-to-backlog` with a note on the trigger.
    - they disagree → resolve it in discussion; escalate when still unresolved. Never a silent default.
-2. Framing still holds → no move; update only what narrower changed (owner, `recheck-date`, a note).
+2. Framing still holds → no move; update only what narrower changed (owner, `recheck-date` beside an `unmet` condition only, a note).
 
 # Routine's local rules
 

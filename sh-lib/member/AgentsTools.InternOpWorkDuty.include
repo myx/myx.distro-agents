@@ -13,6 +13,7 @@ type AgentsToolsSessionPauseHeld > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.dis
 ##   - the inbox items not yet processed -- the member's incoming/ alone (F4.3), invitations and sub-tasks for handling and joining
 ##     among them, being items of their own types;
 ##   - the board items the member owns that it can act on: pending and running;
+##   - the Decisions of the active epics it takes part in, every active epic for magic-coordinator (AgentsTools.EpicDecisions.include);
 ##   - for magic-coordinator alone: the human-owner and contact items due, the open permission asks, and the board (F7.12);
 ##   - the Slack that is tagged to the member -- a mention of it in the team channel or in its session thread, and any DM -- and the
 ##     team channel besides, over a collect window. A message of a session thread where the member's instance is present is no item
@@ -31,7 +32,7 @@ case "$1" in
 
 	--intern-op-work-duty-input-scan)
 		shift
-		local workMember="${1:-}" workSession="${MDAT_SESSION_ID:-}" workFloor=work-duty workWindow workWork workOut workInboxRc=0 workBoardRc=0 workState workSeed workReady
+		local workMember="${1:-}" workSession="${MDAT_SESSION_ID:-}" workFloor=work-duty workWindow workWork workOut workInboxRc=0 workBoardRc=0 workState workSeed workReady workAsks
 		if [ -z "$workMember" ] ; then
 			echo "⛔ ERROR: $MDSC_CMD --intern-op-work-duty-input-scan: syntax is <team-member> [--session-id <id>] [--floor work-duty|off-duty]" >&2
 			set +e ; return 1
@@ -96,13 +97,15 @@ case "$1" in
 			printf '**PAUSED:** session %s is paused, so its runs hold at their pause points and none is stuck, dead or idle.\n\n' "$workSession"
 		fi
 
-		## The inbox: the items not yet processed, which is what the member's incoming/ holds. EVERY MEMBER GETS ITS OWN BOARD TASKS here, the items of
-		## the pending and running states it owns (`--do-board-related-startable`); the coordinator gets the whole board besides, below.
+		## The inbox: the items not yet processed, which is what the member's incoming/ holds. A MEMBER GETS ITS OWN BOARD TASKS here, the items of
+		## the pending and running states it owns (`--do-board-related-startable`); the coordinator's own tasks are in its board digest, below, and never twice.
+		local workBoardOwn=--do-board-related-startable
+		[ "$workMember" != magic-coordinator ] || workBoardOwn=--no-board-related
 		printf '## Inbox: items not yet processed\n\n'
 		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 		DistroAgentsTools --intern-op-session-context-scan "$workMember" --all-types \
 			--do-inbox-reflections --do-inbox-notes --do-inbox-inquiry-active --do-inbox-other \
-			--no-slack --no-email --no-trello --do-board-related-startable \
+			--no-slack --no-email --no-trello "$workBoardOwn" \
 			--header type --header owner --header mark --header restart-session \
 			--context --intern-op-work-duty-input-scan > "$workWork/inbox.out" 2> "$workWork/inbox.err" || workInboxRc=$?
 		if [ "$workInboxRc" != "0" ] ; then
@@ -119,6 +122,10 @@ case "$1" in
 		printf '\n## Handbacks ready for the duty\n\n'
 		workReady="$( AgentsReviewItemsForRoutine "$workMember.work-duty" 2> /dev/null )" || workReady="(none)"
 		printf '%s\n# ready: %s\n' "$workReady" "$( printf '%s\n' "$workReady" | LC_ALL=C grep -c '^- ' || : )"
+		## The Decisions of the epics the member takes part in, every active epic for the coordinator: read before anyone acts on them.
+		type AgentsToolsEpicDecisionsSection > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.EpicDecisions.include"
+		AgentsToolsEpicDecisionsSection "$workMember" || printf '\n(the decisions of the active epics could not be read)\n'
+		workTrace epic-decisions
 
 		## What only magic-coordinator's duty carries (F7.12): the items of the human-owner and the external contacts that are due, and
 		## the permission asks, each found by script. The wait of the duty watches this scan, so a new ask or a due item wakes it, and none starts a session.
@@ -135,6 +142,17 @@ case "$1" in
 			type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 			DistroAgentsTools --intern-op-permission-escalation-input-scan "$workMember" 2> /dev/null || printf '## permission asks addressed to permission-escalation.routine\n\n(the permission asks could not be read)\n'
 			workTrace permission-asks
+			## The open asks addressed to magic-coordinator, of any kind and any owner: the rows of the kept pending-replies registry that are open
+			## (reply-pending) and blocked on its reply. Read from the registry, never by a walk of the store. An ask's open and its close rebuild
+			## the registry, so a new ask is listed at once and the wait of the duty wakes on it.
+			type AgentsToolsRegistryFile > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
+			workAsks="$( LC_ALL=C awk '$2 == "ask" && $5 == "reply-pending" && $6 == "reply_from_magic-coordinator" { printf "- %s owner %s session %s\n", $1, $4, $3 ; }' "$( AgentsToolsRegistryFile pending-replies )" 2> /dev/null | LC_ALL=C sort )" || workAsks=""
+			printf '\n## open asks addressed to magic-coordinator\n\n%s\n' "${workAsks:-(none)}"
+			workTrace coordinator-asks
+			## The open asks this coordinator asked of a member with no live run (AgentsTools.OrphanAsks.include): listed until each is settled.
+			type AgentsToolsOrphanAskSection > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.OrphanAsks.include"
+			AgentsToolsOrphanAskSection "$workMember"
+			workTrace orphan-asks
 			## The board, for the rules of magic-team.advance.routine, which this duty takes (F7.12): the items of the active states, the review items,
 			## the registries of sessions, the items whose recheck-date has arrived and the dependencies as the tooling last computed them. All pure reads: what a
 			## dead spawn left open and the edges of the dependencies are done by the main loop before.

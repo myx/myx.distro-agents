@@ -889,11 +889,15 @@ blocks|verbatim|caller|stdin file"
 				if [ -n "$replyAuthor" ] && AgentsSlackIdentityKnown "$replyAuthor" && [ "$replyAuthor" != "$( AgentsSlackIdentityId human-owner )" ] ; then
 					replyAuthor=""
 				fi
+				## A POST OF THE TOOLING'S OWN NEVER INFERS THE HUMAN-OWNER: it names him only where its caller does, as an ask of his level does.
+				[ "${MDAT_SEND_FLOOR:-}" = "hold" ] || [ "$replyAuthor" != "$outsideOwner" ] || replyAuthor=""
 			fi
 		;; esac
 		## The reply goes to its author, set here from what it answers: the caller's addressees do not replace it. A person who is not the
 		## human-owner is written to only as a known contact (AgentsToolsContactAssertKnown, the one gate), in a channel as in a direct
 		## conversation; an unknown author is refused with the escalation the gate writes.
+		## A post whose caller names someone is never re-addressed to the human-owner: he is tagged only by a message for him.
+		[ -z "${addressToList// /}" ] || [ "$replyAuthor" != "$outsideOwner" ] || replyAuthor=""
 		if [ -n "$replyAuthor" ] ; then
 			[ -z "${addressToList// /}" ] || [ "${addressToList// /}" = "$replyAuthor" ] || echo "# $MDSC_CMD --slack-send-message: this reply answers $replyAuthor's message ($channel:$threadTs), so it is addressed to $replyAuthor, not to${addressToList}." >&2
 			addressToList=" $replyAuthor"
@@ -965,12 +969,17 @@ blocks|verbatim|caller|stdin file"
 					dmParties="$dmKept"
 				fi
 			fi
+			## Nor is he ever the other party of his conversation, for any post, whatever its target: an ask names him, and a readback answers his own message.
+			dmKept=""
+			for dmParty in $dmParties ; do [ "$dmParty" = "$outsideOwner" ] || dmKept="$dmKept $dmParty" ; done
+			dmParties="$dmKept"
 			addressToList="$dmParties"
 			addressInferred="true"
 		fi
 		## A DIRECT MESSAGE HAS ONE OTHER PARTY (the human-owner's order, 2026-11-10: a reply to one person went out headed for another): in a
-		## one-to-one conversation an account the caller names as the addressee must be that other party, or the send is refused and says whose
-		## conversation it is. A word that is no account (a team member's name) is not judged here.
+		## one-to-one conversation an account the caller names as the addressee is re-addressed to that other party, and the send says whose
+		## conversation it is. A word that is no account (a team member's name) is not judged here. In the human-owner's conversation nobody is
+		## re-addressed to him: he is tagged only by a message for him.
 		if [ -n "$addressToList" ] && [ "$addressInferred" != "true" ] ; then
 			case "$channel" in
 				D[A-Z0-9][A-Z0-9][A-Z0-9][A-Z0-9][A-Z0-9][A-Z0-9][A-Z0-9][A-Z0-9]*)
@@ -981,7 +990,7 @@ blocks|verbatim|caller|stdin file"
 					imInfo="$( AgentsToolsCommsSlackRun --intern-op-slack-call ${imArgs[@]+"${imArgs[@]}"} )" || imInfo=""
 					imParty="$( printf '%s\n' "$imInfo" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" \
 						-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/slack/AgentsSlackConversationCounterparty.awk" )" || imParty=""
-					if [ -n "$imParty" ] ; then
+					if [ -n "$imParty" ] && [ "$imParty" != "$outsideOwner" ] ; then
 						local imKept="" imSwapped=""
 						for imWho in $addressToList ; do
 							case "$imWho" in
@@ -1319,12 +1328,12 @@ blocks|verbatim|caller|stdin file"
 			set +e ; return 1
 		fi
 		## HIS WORDS NEVER GO TO A CHANNEL: a body that carries the human-owner's quoted words, the verbatim marker a
-		## relay of his answer wears, is sent to a direct conversation alone (a D… id: the asker's DM, his own). A channel, public or private, is
+		## relay of his answer wears, is sent to a direct conversation alone (a D… id, or a person's U… or W… id, which posts into the direct conversation). A channel, public or private, is
 		## read by people his words were not typed for. There is no override: a ruling goes to a channel in the sender's own words.
 		case "${messageText:-$sourceText}" in
 			*"Human-owner verbatim"*|*"human-owner verbatim"*)
 				case "$channel" in
-					D*) ;;
+					D*|U*|W*) ;;
 					*)
 						echo "⛔ ERROR: $MDSC_CMD --slack-send-message: the message quotes the human-owner (Human-owner verbatim) and $channel is a channel, not a direct conversation: his words never go to a channel. A relay of his answer goes to the asker's DM; a ruling for a channel is said in your own words. Nothing was posted." >&2
 						set +e ; return 1
@@ -1333,16 +1342,32 @@ blocks|verbatim|caller|stdin file"
 			;;
 		esac
 		## NO TALK OF HIM IN A CHANNEL: a member's own message that names the human-owner, what he said, wrote or asked,
-		## goes to a direct conversation alone (a D… id). A channel is for the work's state and decision, never for who said what and how. There is
+		## goes to a direct conversation alone (a D… id, or a person's U… or W… id). A channel is for the work's state and decision, never for who said what and how. There is
 		## no override: the message is said again without him. A send of the tooling's own (MDAT_SEND_FLOOR not `hold`) is not looked at.
 		if [ "${MDAT_SEND_FLOOR:-}" = "hold" ] ; then
 			case "$channel" in
-				D*) ;;
+				D*|U*|W*) ;;
 				*)
 					if printf '%s' "${messageText:-$sourceText}" | LC_ALL=C grep -q -i -E 'human[- ]owner|\<he (wrote|said|asked|ruled|told|answered)\>|\<his (ruling|word|words|answer|order)\>' ; then
 						echo "⛔ ERROR: $MDSC_CMD --slack-send-message: the message talks of the human-owner (who said, wrote or asked what) and $channel is a channel, not a direct conversation: a channel carries the work's state and the decision, never who said what. Say the state or the decision without him, and send it again. Nothing was posted." >&2
 						set +e ; return 1
 					fi
+				;;
+			esac
+		fi
+		## A member's own post to its session thread never tags the human-owner: the tag subscribes him to every later post there. An ask and a readback go their own way.
+		## The session thread is the one the post resolved to: a raw <conversation>:<ts> of that thread is the same post as session-current.
+		if [ "${MDAT_SEND_FLOOR:-}" = "hold" ] ; then
+			## His account as this send read it above (outsideOwner): the setting first, then the cache, which a mention lookup may have reset since.
+			local ownerWhere ownerResolved
+			case " $addressToList " in
+				*" human-owner "*|*" ${outsideOwner:-human-owner} "*)
+					for ownerWhere in session-current session-parent ; do
+						ownerResolved="$( DistroAgentsToolsResolveTarget "$ownerWhere" "$memberName" 2> /dev/null )" || continue
+						[ "$( LC_ALL=C sed -n 's/^CHANNEL=//p' <<< "$ownerResolved" ):$( LC_ALL=C sed -n 's/^THREAD_TS=//p' <<< "$ownerResolved" )" = "$channel:$threadTs" ] || continue
+						echo "⛔ ERROR: $MDSC_CMD --slack-send-message: a post to the session thread is addressed to the human-owner, and that tag subscribes him to every later post there. Address it to magic-coordinator; ask him with an ask tool, or read back his own message in reply to it. Nothing was posted." >&2
+						set +e ; return 1
+					done
 				;;
 			esac
 		fi
@@ -1517,7 +1542,7 @@ blocks|verbatim|caller|stdin file"
 		if [ -z "$updateTs" ] && [ -n "${channel:-}" ] ; then
 			type AgentsToolsCommsCachePostStore > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsCache.include"
 			AgentsToolsCommsCacheSlackDir "$memberName" "$( [ "$sendIdentity" = "bot" ] && printf true || printf false )" "$channel" "${threadTs:-}" 2> /dev/null || agentsCommsCacheDir=""
-			[ -z "${agentsCommsCacheDir:-}" ] || postLocalId="$( AgentsToolsCommsCachePostStore "$agentsCommsCacheDir" "$memberName" "$chatBody" 2> /dev/null )" || postLocalId=""
+			[ -z "${agentsCommsCacheDir:-}" ] || postLocalId="$( AgentsToolsCommsCachePostStore "$agentsCommsCacheDir" "$memberName" "$chatBody" "${threadTs:+$channel:$threadTs}" "$( [ "$sendIdentity" = "bot" ] && printf true || printf false )" 2> /dev/null )" || postLocalId=""
 		fi
 		## THE RECEIVING SESSION'S CHAT FILE IS ITS PRIMARY CHANNEL (S12.15, AgentsToolsSessionChatDeliverCopy): a message into the thread
 		## of another session is recorded in that session's file too, before Slack is called, so a report or a DISMISSED addressed to a

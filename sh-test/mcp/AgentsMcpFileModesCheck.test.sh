@@ -5,7 +5,8 @@
 ## wrong one, and states a file that is absent. Temp HOME and workspace only; every call
 ## goes through one `env -i` whose child refuses to run outside this rig's mktemp tree.
 ## The rig workspace carries no myx.distro-agents copy, so the installer ends rc 1 on its own
-## distro-path check; the files it writes before that are what this rig reads.
+## distro-path check; the files it writes before that are what this rig reads. The installer finds
+## the MCP server through the myx.common on PATH, so PATH carries the rig's own copy, never the machine's.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigFn="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
@@ -45,7 +46,7 @@ rigScenario(){ ## name -- a workspace that passes the set-up check, and an empty
 }
 rigRun(){ ## umask, result file, op and arguments...
 	local runMask="$1" runOut="$2" ; shift 2
-	env -i HOME="$rigDir/home" PATH="/usr/bin:/bin" MMDAPP="$rigDir/ws" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
+	env -i HOME="$rigDir/home" PATH="$rigDir/ws/.local/myx/myx.common/os-myx.common/host/tarball/bin:/usr/bin:/bin" MMDAPP="$rigDir/ws" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
 		RIG_TMP="$rigTmp" RIG_FN="$rigFn" RIG_MASK="$runMask" \
 		bash -c '
 			case "$MMDAPP" in "$RIG_TMP"/*) ;; *) exit 99 ;; esac

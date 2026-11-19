@@ -22,7 +22,10 @@ rigRefuse(){ echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1 ; 
 rigTmp="$( rigTempDir AgentsSuperviseRigCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 rigPids=""
+## Calls here start the rig's schedule thread, a detached process: rigCleanup ends it before the tree goes.
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-control-threads.include.sh" || rigRefuse "the rig's fixture that ends its threads is missing from the package: sh-test/check-fixtures/rig-control-threads.include.sh"
 rigCleanup(){
+	rigControlThreadsEnd "$rigTmp"
 	: > "$rigTmp/release"
 	sleep 1
 	for rigOne in $rigPids ; do kill -TERM "$rigOne" 2> /dev/null ; done

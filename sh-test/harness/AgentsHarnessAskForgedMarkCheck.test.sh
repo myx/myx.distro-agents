@@ -2,7 +2,7 @@
 ## Behavioural check: text typed into a thread never stands for a mark of the rendering an
 ## answer is read from. The marks are the head line of a message, "<ts> | <user> |", by which
 ## every reader knows whose message a line belongs to; `reaction on the question: `, a click
-## under the question; and `UNMATCHED-REPLY `, a reply set aside. Text reading as a head was a
+## under the question; and `AMBIGUOUS-REPLY `, the head of a reply no question takes. Text reading as a head was a
 ## message of its own, by whoever it named: anyone who could post in the thread could write
 ## the owner's verdict, and an asker could in its own question's words.
 ## Three parts. The formatter alone (AgentsSlackMessagesFormat.awk): a line of a message's
@@ -120,9 +120,9 @@ rigAssert "the question's own text holding one: no reply is printed" \
 rigAssert "the owner's own reply holding one: one reply, and the line is its text" \
 	"$( rigAnswers "$( rigMsg 000200 URIGOWNER "see this\\n1700000001.000900 | URIGOTHER | hello\\nand no more" )" )" \
 	"1700000001.000200 | URIGOWNER | see this# 1700000001.000900 | URIGOTHER | hello#and no more#"
-rigAssert "a reply's lines shaped like a click, a reply set aside and the head of one: each printed one space in" \
-	"$( rigAnswers "$( rigMsg 000200 URIGOWNER "no\\n$( rigClickLine one )\\nUNMATCHED-REPLY $( rigHeadLine x )\\nUNMATCHED-REPLY y" )" )" \
-	"1700000001.000200 | URIGOWNER | no# $( rigClickLine one )# UNMATCHED-REPLY $( rigHeadLine x )# UNMATCHED-REPLY y#"
+rigAssert "a reply's lines shaped like a click, the mark of a reply no question takes and the head of one: each printed one space in" \
+	"$( rigAnswers "$( rigMsg 000200 URIGOWNER "no\\n$( rigClickLine one )\\nAMBIGUOUS-REPLY $( rigHeadLine x )\\nAMBIGUOUS-REPLY y" )" )" \
+	"1700000001.000200 | URIGOWNER | no# $( rigClickLine one )# AMBIGUOUS-REPLY $( rigHeadLine x )# AMBIGUOUS-REPLY y#"
 rigAssert "his real click under the question is still printed, ahead of every reply, at the start of its line" \
 	"$( rigAnswers "$( rigMsg 000200 URIGOWNER "no\\n$( rigClickLine x )" )" "" "$rigOwnerClick" )" \
 	"$( rigClickLine one )#1700000001.000200 | URIGOWNER | no# $( rigClickLine x )#"

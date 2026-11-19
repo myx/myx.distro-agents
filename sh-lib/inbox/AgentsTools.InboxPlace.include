@@ -111,6 +111,67 @@ AgentsToolsInboxItemProcessed(){ ## member, item name
 	[ -f "$MDAT_DATA_ROOT/inboxes/$1/processed/$2" ]
 }
 
+## A stray, repaired: an item stored under a name that does not end `.md`, which no reader and neither removal
+## operation reaches. No twin: strip any suffix, append `.md`, rename in place. A twin whose body differs: refuse,
+## naming the differing lines. A twin whose body matches: drop the stray, leave the twin. The twin is looked for in
+## both folders, since a stray in incoming/ shadows a twin in processed/. Bodies are compared, not whole files: the
+## twin carries a `processed-at` stamp the stray never had. Prints the surviving name, TAB, then plain, renamed
+## or twin-matched.
+AgentsToolsInboxStrayRepair(){ ## member, given name
+	local strayGiven="$2" strayCandidate="" strayFolder="" strayPath="" strayTwinPath="" strayTwinFolder
+	## One path segment, as the operations' own gate asks: the inbox folders are appended to this name.
+	case "$strayGiven" in ''|.|..|-*|*/*) return 1 ;; esac
+	case "$strayGiven" in *.md) printf '%s\tplain\n' "$strayGiven" ; return 0 ;; esac
+	strayCandidate="${strayGiven%.*}.md"
+	case "$strayCandidate" in .md|'') return 1 ;; esac
+	[ -n "${MDAT_DATA_ROOT:-}" ] || return 1
+	while IFS= read -r strayFolder ; do
+		[ -f "$strayFolder/$strayGiven" ] && { strayPath="$strayFolder/$strayGiven" ; break ; }
+	done < <( AgentsToolsInboxFolders "$1" yes )
+	[ -n "$strayPath" ] || {
+		echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools}: inbox-stray-repair: no item of that name in $1's incoming/ or processed/: $strayGiven" >&2
+		return 1
+	}
+	while IFS= read -r strayTwinFolder ; do
+		[ -f "$strayTwinFolder/$strayCandidate" ] && { strayTwinPath="$strayTwinFolder/$strayCandidate" ; break ; }
+	done < <( AgentsToolsInboxFolders "$1" yes )
+	if [ -z "$strayTwinPath" ] ; then
+		if [ -e "${strayPath%/*}/$strayCandidate" ] ; then
+			echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools}: inbox-stray-repair: the stray $strayGiven reached $strayCandidate after the twin search, which would have replaced it -- nothing was renamed" >&2
+			return 1
+		fi
+		mv -- "$strayPath" "${strayPath%/*}/$strayCandidate" || return 1
+		printf '%s\trenamed\n' "$strayCandidate"
+		return 0
+	fi
+	local strayCompare=""
+	strayCompare="$( LC_ALL=C awk '
+		FNR == 1 { fileNo++ ; inHdr = 0 ; if ( $0 == "---" ) { inHdr = 1 ; next ; } }
+		inHdr { if ( $0 == "---" ) { inHdr = 0 ; } ; next ; }
+		fileNo == 1 { first[++firstCount] = $0 ; next ; }
+		{ second[++secondCount] = $0 ; }
+		END {
+			shown = 0 ;
+			for ( i = 1 ; i <= firstCount || i <= secondCount ; i++ ) {
+				if ( first[i] == second[i] ) continue ;
+				differingLine[++shown] = i ;
+			}
+			if ( shown == 0 ) { printf "SAME\n" ; exit }
+			printf "lines" ;
+			for ( j = 1 ; j <= shown && j <= 3 ; j++ ) printf "%s%d", ( j > 1 ? ", " : " " ), differingLine[j]
+			if ( shown > 3 ) printf " and %d more", shown - 3
+			printf " differ among %d and %d body lines\n", firstCount, secondCount ;
+		}
+	' "$strayPath" "$strayTwinPath" )"
+	if [ "$strayCompare" != "SAME" ] ; then
+		echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools}: inbox-stray-repair: $strayGiven has a twin at its own .md name whose body differs ($strayCompare): $strayTwinPath -- nothing was done, and the two copies are left for a person to settle" >&2
+		return 1
+	fi
+	rm -f -- "$strayPath" || return 1
+	printf '%s\ttwin-matched\n' "$strayCandidate"
+	return 0
+}
+
 ## Makes an inbox ready to be written: its folder, and its incoming/ and processed/. The one function a writer that
 ## puts an item into an inbox calls before it writes, and the one a check calls before it hands an inbox to the code
 ## under test. Makes folders only, never a file, so it adds nothing a commit of the team data would carry, like

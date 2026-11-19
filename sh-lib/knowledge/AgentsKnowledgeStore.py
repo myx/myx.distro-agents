@@ -87,7 +87,7 @@ def _dump(argv):
     import lancedb
     for store in stores:
         db = lancedb.connect(store)
-        if "sections" not in db.table_names():
+        if "sections" not in db.list_tables().tables:
             continue
         for row in _all_rows(db.open_table("sections")):
             section = row.get("heading") or row.get("section", "")
@@ -136,7 +136,7 @@ def _add(argv):
         db = lancedb.connect(store)
         # Merge, not replace: only the rows of this source with these captions are replaced. Every other row, of this
         # source or another one, stays as it was, and the table is never rewritten whole.
-        if "sections" in db.table_names():
+        if "sections" in db.list_tables().tables:
             table = db.open_table("sections")
             table.delete("source = " + _sqlText(source) + " AND section IN (" + ", ".join(_sqlText(caption) for caption in by_caption) + ")")
             table.add(list(by_caption.values()))
@@ -310,7 +310,7 @@ def _query(argv):
         return _refuse("query: --index, --model-dir, --out-dir and --text are needed")
     import lancedb
     db = lancedb.connect(indexDir)
-    if "sections" not in db.table_names():
+    if "sections" not in db.list_tables().tables:
         return _NO_INDEX
     import model2vec
     from lancedb.rerankers import RRFReranker
@@ -350,10 +350,10 @@ def _buildLocked(indexDir, modelDir, modelStamp, sections):
     db = lancedb.connect(indexDir)
     storedRows = {}
     storedStamp = ""
-    if "sections" in db.table_names():
+    if "sections" in db.list_tables().tables:
         for row in _all_rows(db.open_table("sections")):
             storedRows[row.get("section-id", "")] = row
-    if "meta" in db.table_names():
+    if "meta" in db.list_tables().tables:
         for row in _all_rows(db.open_table("meta")):
             storedStamp = row.get("model-stamp", "")
     rebuild = storedStamp != modelStamp
@@ -376,14 +376,14 @@ def _buildLocked(indexDir, modelDir, modelStamp, sections):
             rows[at]["vector"] = [float(value) for value in vector]
     # A vanished row is one whose id the pass no longer produces: a changed row is re-embedded, never deleted.
     deleted = len(set(storedRows) - set(row["section-id"] for row in rows))
-    if "sections" in db.table_names():
+    if "sections" in db.list_tables().tables:
         db.drop_table("sections")
     if rows:
         db.create_table("sections", rows)
         # The full-text side the fused query needs; a store built without it answers as no index.
         from lancedb.index import FTS
         db.open_table("sections").create_index("text", config=FTS())
-    if "meta" in db.table_names():
+    if "meta" in db.list_tables().tables:
         db.drop_table("meta")
     db.create_table("meta", [{"model-stamp": modelStamp, "schema-version": _SCHEMA_VERSION}])
     sys.stdout.write("built: %d section(s), %d embedded, %d deleted%s\n" % (len(rows), len(needsEmbed), deleted, ", rebuilt" if rebuild else ""))

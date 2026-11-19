@@ -78,7 +78,28 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --list-places: takes no arguments" >&2
 			set +e ; return 1
 		fi
-		LocalToolsPlacesMergedText "${MMDAPP%/}" quiet | LC_ALL=C awk -F'\t' -v OFS='\t' 'NF >= 3 && $1 != "" { print $1, $2, $3 ; }'
+		## A workspace's own namespaces follow its ceiling as a fourth column, by the mdci convention: the namespaces whose
+		## util.repository-<namespace> project its source holds, else, marked ~, those of its util.workspace-* projects. A place that holds neither prints its three columns, as before.
+		local placeName placeKind placeCeil placeBase placeRepo placeOwn
+		while IFS=$'\t' read -r placeName placeKind placeCeil ; do
+			placeOwn=""
+			if [ "$placeKind" = workspace ] ; then
+				placeBase="$( LocalToolsPlacesResolve "${MMDAPP%/}" "$placeName" 2> /dev/null )" || placeBase=""
+				for placeRepo in "${placeBase%/}"/source/*/util.repository-* ; do
+					[ -n "$placeBase" ] && [ -d "$placeRepo" ] || continue
+					placeOwn="${placeOwn:+$placeOwn,}${placeRepo##*/util.repository-}"
+				done
+				## The second guess, where no util.repository-* stands: the namespace folder of each util.workspace-* project, marked ~.
+				if [ -z "$placeOwn" ] ; then
+					for placeRepo in "${placeBase%/}"/source/*/util.workspace-* ; do
+						[ -n "$placeBase" ] && [ -d "$placeRepo" ] || continue
+						placeRepo="${placeRepo%/util.workspace-*}" ; placeRepo="~${placeRepo##*/}"
+						case ",$placeOwn," in *",$placeRepo,"*) ;; *) placeOwn="${placeOwn:+$placeOwn,}$placeRepo" ;; esac
+					done
+				fi
+			fi
+			printf '%s\t%s\t%s%s\n' "$placeName" "$placeKind" "$placeCeil" "${placeOwn:+$'\t'$placeOwn}"
+		done < <( LocalToolsPlacesMergedText "${MMDAPP%/}" quiet | LC_ALL=C awk -F'\t' -v OFS='\t' 'NF >= 3 && $1 != "" { print $1, $2, $3 ; }' )
 		return 0
 	;;
 

@@ -109,7 +109,7 @@ rigAssert "a routine first starts a coworking session, a member name first start
 rigAssert "the console and the coordinator (a standing row) may; a member with no allow-tool row is refused, with the way to ask" "$( cat "$rigTmp/allowed" | tr '\n' ' ' )" "console=allowed|coordinator=allowed|developer=refused 1 "
 rigAssert "the Agent tool is kept as a stub that makes the same spawn and says where it went" "$( LC_ALL=C grep -c -F 'MOVED: Agent is replaced by AgentDispatcherTools operation=--spawn-run' "$rigHere/harness/AgentsHarnessRun.include" )" "1"
 rigAssert "the coordinator's standing row is declared in the package" "$( LC_ALL=C grep -c -F 'allow-tool:magic-coordinator:AgentDispatcherTools' "$rigHere/../project.inf" )" "1"
-rigDeclared="$( LC_ALL=C grep -o -e '--magic-team:permissions:workspace:\*:deny-[a-z]*:magic-coordinator:[A-Za-z*]*' "$rigHere/../project.inf" | LC_ALL=C sed 's/.*workspace:\*://' | LC_ALL=C tr '\n' ' ' )"
+rigDeclared="$( LC_ALL=C grep -o -e 'magic-team:permissions:workspace:\*:deny-[a-z]*:magic-coordinator:[A-Za-z*]*' "$rigHere/../project.inf" | LC_ALL=C sed 's/.*workspace:\*://' | LC_ALL=C tr '\n' ' ' )"
 rigAssert "the coordinator's deny rows are declared in the package: no shell, no disk but its sandbox" "$rigDeclared" "deny-read:magic-coordinator:** deny-write:magic-coordinator:** deny-tool:magic-coordinator:Bash deny-tool:magic-coordinator:execute deny-tool:magic-coordinator:WorkspaceContextExecute "
 
 echo "-- 6. a session RootSession did not mint is held to none of this --"
@@ -127,7 +127,7 @@ rigRoutineFile="$MDLT_ORIGIN/myx/myx.distro-agents/skillset/magic-team/magic-coo
 rigRows="$( LC_ALL=C sed -n 's/^access-control: //p' "$rigRoutineFile" | head -1 )"
 rigServed="$( LC_ALL=C grep -o '"function":{"name":"[A-Za-z]*"' "$rigHere/harness/AgentsOpenAiChatWire.sh" | LC_ALL=C sed 's/.*"name":"//; s/"//' ) execute"
 rigSecondary="$( ( . "$rigHere/harness/AgentsContext.FrontTable.include" ; printf '%s' "$agentsFrontSecondary" ) | LC_ALL=C tr '\n' ' ' )"
-rigFloor="$( ( . "$rigHere/grants/AgentsTools.PermissionHolds.include" ; printf '%s' "$agentsPermissionFloorTools" ) )"
+rigFloor="$( LC_ALL=C sed -n 's/^[[:space:]]*magic-team:permissions:workspace:\*:allow-tool:\*:\([^ ]*\) \\$/\1/p' "$rigHere/../project.inf" | LC_ALL=C tr '\n' ' ' )"
 rigEscaped=""
 for rigTool7 in $rigServed $rigSecondary ; do
 	case " $rigFloor RootSession AgentDispatcherTools " in *" $rigTool7 "*) continue ;; esac

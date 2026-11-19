@@ -9,10 +9,12 @@
 ##   4. IT IS QUIET while a record of that session is still open, so a thread with something to watch is not called stuck.
 ##   5. IT IS QUIET for a pid file whose number a later process reused: alive is the pid begun when the file says
 ##      (AgentsToolsSessionControlLive), as a session's control pid file is written, `<pid> <start>`.
+##   6. IT IS QUIET under a record the writer does not name closed: a record with no status line, and a sandbox with no record.
 ## The real scan runs over a rig of this check's own. The control threads are sleepers, noted before their pid files are written, and
 ## ended through the shared helper.
 ## RED RECIPE, measured on a copy under this check's own scratch on 2026-11-06: read the pid file as a whole line instead of its first
 ## word (both `<pid> <rest>` reads, at :319 and :339) and rows 1 and 3 fail, while 2 and 4 stay quiet.
+## Red before the closed-status rule: 6 reports both of its rigs as rig orphans.
 ## Offline: the scan and a rig of its own.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
@@ -26,7 +28,7 @@ rigRefuse(){
 . "$rigPackage/sh-test/check-fixtures/rig-processes.include.sh" || exit 1
 rigTmp="$( rigTempDir AgentsSupervisePidFileCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
-trap 'chmod -R u+wX -- "$rigTmp" 2> /dev/null ; rigProcSignal TERM "${rigCtlPidA:-0}" || : ; rigProcSignal TERM "${rigCtlPidB:-0}" || : ; rm -rf -- "$rigTmp"' EXIT
+trap 'chmod -R u+wX -- "$rigTmp" 2> /dev/null ; rigProcSignal TERM "${rigCtlPidA:-0}" || : ; rigProcSignal TERM "${rigCtlPidB:-0}" || : ; for rigEach in ${rigPidsK:-} ; do rigProcSignal TERM "$rigEach" || : ; done ; rm -rf -- "$rigTmp"' EXIT
 trap 'exit 1' INT TERM
 rigWs="$rigTmp/ws"
 rigAgents="$rigWs/.local/agents"
@@ -51,7 +53,7 @@ rigControlThread(){ ## the pid-file path, the rest of the line
 }
 ## THE SCAN, over this rig's workspace, with the real tool from the package under test.
 rigScan(){ ## the workspace
-	env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp" PATH="/usr/bin:/bin:/usr/sbin:/sbin" \
+	env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp" PATH="/usr/bin:/bin:/usr/sbin:/sbin" MDAT_SUPERVISE_RIG_WALK_SECONDS=0 \
 		MMDAPP="$rigWs" MDLT_ORIGIN="$rigOrigin" MDLT_OPTION="--run-from-path $rigOrigin" MDSC_CMD=AgentDispatcherTools \
 		bash "$rigFn" --supervise-scan --workspace "$1" 2>&1
 }
@@ -107,6 +109,19 @@ mkdir -p "$rigAgents/spawned/rig-session-x-run" || exit 1
 printf -- '---\nsession-id: rig-session-x\nspawn-id: rig-session-x-run\nowner: rig-keeper\nstatus: spawn-started\nstarted-at: 2026-11-06 11:00 +0000\n---\n' > "$rigAgents/spawned/rig-session-x-run/rig-session-x-run.spawn.md"
 rigAssert "a thread whose session still has an open record is not called stuck" \
 	"$( rigScan "$rigWs" | LC_ALL=C grep -c '^control-stuck .* rig-session-x ' )" 0
+
+echo "-- 6. and it is quiet under a record the writer does not name closed --"
+rigPidsK=""
+mkdir -p "$rigAgents/spawned/rig-clo2/sessions/run-a/output/control" "$rigAgents/spawned/rig-nost/sessions/run-a/output/control" "$rigAgents/spawned/rig-none/sessions/run-a/output/control" || exit 1
+printf -- '---\nsession-id: rig-clo2\nspawn-id: rig-clo2\nowner: rig-keeper\nstatus: spawn-failed\nstarted-at: 2026-11-06 10:00 +0000\n---\n' > "$rigAgents/spawned/rig-clo2/rig-clo2.spawn.md"
+printf -- '---\nsession-id: rig-nost\nspawn-id: rig-nost\nowner: rig-keeper\nstarted-at: 2026-11-06 10:00 +0000\n---\n' > "$rigAgents/spawned/rig-nost/rig-nost.spawn.md"
+for rigSpid in rig-clo2 rig-nost rig-none ; do
+	rigControlThread "$rigAgents/spawned/$rigSpid/sessions/run-a/output/control/pid" "rig-control $rigSpid" ; rigPidsK="$rigPidsK $rigLastPid"
+done
+rigOut="$( rigScan "$rigWs" )"
+rigAssert "the control: a closed run's live thread is a rig orphan in the same scan" "$( printf '%s\n' "$rigOut" | LC_ALL=C grep -c "^rig-orphan ${rigWs##*/} rig-clo2 " )" 1
+rigAssert "a rig whose record has no status is no rig orphan" "$( printf '%s\n' "$rigOut" | LC_ALL=C grep -c "^rig-orphan ${rigWs##*/} rig-nost " )" 0
+rigAssert "a rig with no record is no rig orphan" "$( printf '%s\n' "$rigOut" | LC_ALL=C grep -c "^rig-orphan ${rigWs##*/} rig-none " )" 0
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ SUPERVISE PID FILE CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount ))" >&2 ; exit 1

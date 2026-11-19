@@ -5,7 +5,7 @@
 ## and Agent*Tools file and the harness and MCP tools. For the reading member, an operation it may call is listed with
 ## its one-line description; every other one only by its family, with its owner and a hint: ask that owner, or read
 ## `--help-syntax <op>`. Who may use what comes from the grants floor and the project.inf
-## permissions, the `--magic-team:` floor directives included. It serves the input token cache: two generations are byte-identical, in a deterministic order, with no
+## permissions, the `magic-team:` floor directives of named members included. It serves the input token cache: two generations are byte-identical, in a deterministic order, with no
 ## timestamps.
 ## Held:
 ##   1. the generator exits 0 and writes .local/agents/tool-index.md
@@ -45,7 +45,7 @@ for rigName in magic-coordinator magic-tester magic-architect ; do
 	printf -- '---\nname: %s\ndescription: rig member\n---\n# %s\n\nRIG-SKILL-LINE\n' "$rigName" "$rigName" > "$rigTmp/skills/$rigName/SKILL.md"
 	printf '# Basic\n\nRIG-BASIC-LINE\n' > "$rigTmp/skills/$rigName/$rigName.basic.md"
 done
-## magic-architect's rows as its --magic-team: floor directives in myx.distro-agents/project.inf write them
+## magic-architect's rows as its magic-team: floor directives in myx.distro-agents/project.inf write them
 printf 'magic-architect:ws:tool:WebFetch\nmagic-architect:ws:tool:WebSearch\n' > "$rigWs/.local/agents/permissions.registry"
 
 rigPassCount=0

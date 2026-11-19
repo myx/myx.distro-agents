@@ -6,6 +6,8 @@ access-control: participants:allow-tool:WebSearch, participants:allow-tool:WebFe
 requires-session-kind: standalone
 input-scan-def: none
 review-by: inherit
+deliverables: the interview item narrowed until nothing open remains, each settled piece approved, dispatched and compacted out
+deliverables: the transcript of the exchange
 runs-at: none
 ---
 # magic-team.interview.routine — the actual procedure

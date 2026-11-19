@@ -6,6 +6,8 @@ access-control: participants:allow-tool:WebSearch, participants:allow-tool:WebFe
 requires-session-kind: coworking
 input-scan-def: none
 review-by: inherit
+deliverables: the ideas listed and lightly assessed
+deliverables: the promising ideas handed on to magic-team.discuss.routine or to task creation
 runs-at: none
 ---
 # magic-team.brainstorm.routine — the actual procedure

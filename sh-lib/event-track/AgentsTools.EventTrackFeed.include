@@ -147,7 +147,10 @@ AgentsEventTrackFeedRun(){ ## the participant's own session id, member, the sess
 	## ignored, the run dies of it, and the poster posts what is open and ends, as on TERM.
 	local runHangup="HUP"
 	case "$( trap -p HUP )" in "trap -- '' "*) runHangup="" ;; esac
-	trap 'AgentsEventTrackFeedPost "$2" "$3" "$runOpen" "$1" 1 "$runWorkspace" > /dev/null ; AgentsEventTrackFeedDrop "$runTaken" "$runOffset" ; exit 0' TERM INT $runHangup
+	## THE SIGNAL ONLY ASKS: the trap notes it, and the loop posts what is open and ends between two of its steps, with the poster's
+	## own arguments. A window being posted when the signal lands is posted once, and never again by the end.
+	local runStop=""
+	trap 'runStop=yes' TERM INT $runHangup
 	## Its starter, the shell whose TERM ends it, read once. Once its parent is no longer that shell (a proxy ended by KILL),
 	## nothing would end it: it posts what is open and ends by itself.
 	local runSelf runStarter runEpoch0 runSecs0 runRound=0 runPipe runPipeOpen=""
@@ -159,6 +162,7 @@ AgentsEventTrackFeedRun(){ ## the participant's own session id, member, the sess
 	## The clock is read once and counted on by the shell: an idle poll starts no process at all.
 	runEpoch0="$( date +%s )" ; runSecs0="$SECONDS"
 	while : ; do
+		[ -z "$runStop" ] || { AgentsEventTrackFeedPost "$2" "$3" "$runOpen" "$1" 1 "$runWorkspace" > /dev/null ; AgentsEventTrackFeedDrop "$runTaken" "$runOffset" ; exit 0 ; }
 		## The starter gone is asked of the shell itself (kill -0) each poll; whether its parent is still that shell (a reused pid)
 		## is asked of ps once a minute.
 		runRound=$(( runRound + 1 ))
@@ -195,6 +199,7 @@ AgentsEventTrackFeedRun(){ ## the participant's own session id, member, the sess
 			AgentsEventTrackFeedPost "$2" "$3" "$runOpen" "$1" 1 "$runWorkspace" > /dev/null
 			runOpen=""
 		fi
+		[ -z "$runStop" ] || continue
 		## Asleep no longer than the open post has left.
 		runNap="$runPoll"
 		[ -z "$runOpen" ] || [ $(( runSince + 7 - runNow )) -ge "$runNap" ] || runNap=$(( runSince + 7 - runNow ))

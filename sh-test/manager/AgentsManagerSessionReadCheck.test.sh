@@ -184,7 +184,7 @@ printf 'magic-coordinator (the daily is over)\n' > "$rigStores/run-c/dismissed"
 : > "$rigStores/run-c/ended"
 printf '%s\n' "$rigData/audit/gone.log" > "$rigStores/run-c/transcript"
 
-rigSessionRow="$( printf 'session\tsess-a\tdaily_of_Monday\trunning\t2026-10-13_09:00_+0300\t-\t3\tthinking=1,waiting=1,finished=1\t-\t-\tnone\t88076795+\t-\t-\t-' )"
+rigSessionRow="$( printf 'session\tsess-a\tdaily_of_Monday\trunning\t2026-10-13_09:00_+0300\t-\t3\tthinking=1,waiting=1,finished=1\t-\t-\tnone\t88076795+\t-\t-\t-\tactive' )"
 rigControlRow="$( printf 'control\tsess-a\t-\t-\tnone\t-' )"
 ## The tokens of the session: the figures of its founder alone, the one run of the three whose figures are known,
 ## which runs still; the session runs, so it is a total so far, and two runs are left out of it.

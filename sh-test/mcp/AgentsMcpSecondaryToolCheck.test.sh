@@ -16,6 +16,9 @@
 ## proven by the Slack arm's own diagnostic, reached before any network (the acting member's
 ## skill directory does not exist under the rig's skillset root, so nothing is fetched).
 ##
+## And (5) the gate's syntax reader takes only a word a call may begin with, never an option inside a syntax
+## line, and the arm loads it on the path that calls it; a fresh server takes a file's own operations.
+##
 ## And (4) an operation the file serves as its own, which has no row of the front table at all,
 ## is reached all the same: a tool answers with its own file's operations, never with
 ## DistroAgentsTools.fn.sh's whole list, and never only with the names moved into it.
@@ -207,6 +210,35 @@ rigAssert "the target is not rejected as a bad member name" \
 	"$( rigHolds "$rigMemberText" 'outside the allowed set' )" no
 rigAssert "the call reaches the Slack arm with the real target" \
 	"$( rigHolds "$rigMemberText" 'channel=C0BJ49W7ZCM' )" yes
+
+## (5) A fresh server whose first call needs the syntax reader: a front-table row, a file's own operation with no
+## row, and the first word of a query are each taken. The reader is asked as the gate asks it, operation-word.
+{
+	printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}'
+	printf '%s\n' '{"jsonrpc":"2.0","id":10,"method":"tools/call","params":{"name":"DistroAgentsKnowledge","arguments":{"operation":"--team-member"}}}'
+	printf '%s\n' '{"jsonrpc":"2.0","id":11,"method":"tools/call","params":{"name":"DistroAgentsKnowledge","arguments":{"operation":"--list-places"}}}'
+	printf '%s\n' '{"jsonrpc":"2.0","id":12,"method":"tools/call","params":{"name":"DistroAgentsDispatcher","arguments":{"operation":"--all-sessions"}}}'
+	printf '%s\n' '{"jsonrpc":"2.0","id":13,"method":"tools/call","params":{"name":"DistroAgentsKnowledge","arguments":{"operation":"--add-source-docs","args":["--query-keyword","rig-no-such-word"]}}}'
+} | MMDAPP="$rigTmp" MDLT_ORIGIN="$MDLT_ORIGIN" \
+	bash "$rigTool" --intern-mcp-server --run > "$rigTmp/gatewire" 2> "$rigTmp/gateerr" || :
+for rigGate in 10 11 12 13 ; do
+	LC_ALL=C grep "\"id\":$rigGate," "$rigTmp/gatewire" > "$rigTmp/gate$rigGate" 2>/dev/null || :
+	[ -s "$rigTmp/gate$rigGate" ] || rigRefuse "gate call $rigGate was never answered, so the gate was never observed"
+done
+echo "-- the gate takes an operation word only, its reader loaded wherever the call comes --"
+rigAssert "the gate's reader: an option inside a line is no operation, and a word a call begins with is one" \
+	"$( . "$rigHere/harness/AgentsContext.FrontTable.Help.include" && for rigWord in --team-member --query-keyword --list-places --add-source-docs ; do printf '%s:%s ' "$rigWord" "$( AgentsToolsFrontSyntaxLines DistroAgentsKnowledge "$rigWord" operation-word | LC_ALL=C grep -c . )" ; done )" \
+	"--team-member:0 --query-keyword:0 --list-places:1 --add-source-docs:1 "
+rigAssert "on the wire, an option inside a syntax line is refused as an operation" \
+	"$( rigHolds "$( rigValue "$rigTmp/gate10" error.message )" 'not an operation of that tool file' )" yes
+rigAssert "a row of the front table is still taken" \
+	"$( rigHolds "$( rigValue "$rigTmp/gate11" error.message )$( rigValue "$rigTmp/gate11" result.content.0.text )" 'not an operation of that tool file' )" no
+rigAssert "a file's own operation with no row is taken through the syntax reader" \
+	"$( rigHolds "$( rigValue "$rigTmp/gate12" error.message )$( rigValue "$rigTmp/gate12" result.content.0.text )" 'not an operation of that tool file' )" no
+rigAssert "a word a call may begin with, the first of a query, is taken though it is not the line's first word" \
+	"$( rigHolds "$( rigValue "$rigTmp/gate13" error.message )$( rigValue "$rigTmp/gate13" result.content.0.text )" 'not an operation of that tool file' )" no
+rigAssert "the syntax reader is loaded before the gate calls it, in the secondary arm itself" \
+	"$( LC_ALL=C awk '/elif \[ -n "\$mcpIsSecondaryTool" \]/ { arm = 1 ; next ; } arm && /type AgentsToolsFrontSyntaxLines/ { print "loaded-first" ; exit ; } arm && /if \[ -z "\$mcpSecondaryOp" \]/ { print "loaded-late" ; exit ; }' "$rigHere/mcp/AgentsTools.InternMcpRequest.include" ):$( LC_ALL=C grep -c 'command not found' "$rigTmp/gateerr" || : )" "loaded-first:0"
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ SECONDARY TOOL DISPATCH CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2

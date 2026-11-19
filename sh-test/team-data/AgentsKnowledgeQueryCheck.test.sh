@@ -18,7 +18,8 @@
 ##   8. the markdown is the engine's nesting: the source is a section, the section that answers is under it
 ##   9. --add-source-docs reads MAGIC.md, README.md and docs/**.md of the projects selected (the selector of ListDistroProjects, none:
 ##      every project) and the workspace's util.workspace-* always
-##  10. refused, rc 1, nothing printed: no source, no term, a group not closed, a close that closes none, an unknown option
+##  10. refused, rc 1, nothing printed: no source, no term, a group not closed, a close that closes none, an unknown option,
+##      a pattern or a glob the scan cannot compile (named in the refusal, never a false empty answer)
 ##  11. the index: a fused query answers a section whose words the query does not share and one an exact term finds, each
 ##      named by its heading path; with the store not installed or the index not standing the answer is today's text
 ##      search, byte for byte; a hit of a file outside the sources added (another member's inbox) is dropped and counted;
@@ -185,6 +186,9 @@ rigQuery r4 --add-board-items --query-keyword RIGWORDONE --query-close
 rigQuery r5 --add-board-items --query-keyword RIGWORDONE --bogus
 rigAssert "no source, no term, a group not closed, a close that closes none, an unknown option" "$( for rigN in r1 r2 r3 r4 r5 ; do printf '%s:%s ' "$( cat "$rigTmp/$rigN.rc" )" "$( LC_ALL=C grep -c . "$rigTmp/$rigN.out" || : )" ; done )" "1:0 1:0 1:0 1:0 1:0 "
 rigAssert "each says what is wrong"                                      "$( LC_ALL=C grep -c -F -e 'no source added' "$rigTmp/r1.err" ):$( LC_ALL=C grep -c -F -e 'no query term' "$rigTmp/r2.err" ):$( LC_ALL=C grep -c -F -e 'not closed' "$rigTmp/r3.err" ):$( LC_ALL=C grep -c -F -e 'closes no group' "$rigTmp/r4.err" ):$( LC_ALL=C grep -c -F -e 'invalid option: --bogus' "$rigTmp/r5.err" )" "1:1:1:1:1"
+rigQuery r6 --add-board-items --query-pattern '(?i)RIGWORDONE'
+rigQuery r7 --add-board-items --query-glob '*[]*'
+rigAssert "a pattern and a glob the scan cannot compile: rc 1, nothing on stdout, the term named" "$( for rigN in r6:'(?i)RIGWORDONE' r7:'*[]*' ; do printf '%s:%s:%s ' "$( cat "$rigTmp/${rigN%%:*}.rc" )" "$( LC_ALL=C grep -c . "$rigTmp/${rigN%%:*}.out" || : )" "$( LC_ALL=C grep -c -F -e "${rigN#*:}" "$rigTmp/${rigN%%:*}.err" || : )" ; done )" "1:0:1 1:0:1 "
 
 echo "-- 11. the index: fused, the fallback, the read set, and the one resolver --"
 ## A rig workspace of its own: the store's Python standing, an index built at the resolver's root, a vault of two

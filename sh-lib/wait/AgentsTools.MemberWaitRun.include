@@ -243,10 +243,11 @@
 			{ mkdir -p "${waitNapPointer%/*}" && printf '%s\n' "$waitDir/nap.fifo" > "$waitNapPointer" ; } 2> /dev/null || waitNapPointer=""
 		fi
 
-		## A SOURCE'S BOUND IS THE WAIT'S OWN DEADLINE, NEVER A READ'S OWN (S12.27). A probe whose Slack thread the cache cannot serve falls
-		## back to a live read, and that read carries a bound of its own, MDAT_SLACK_READ_BOUND_SECONDS, 120 s where the caller set none,
-		## which outlives a shorter Wait and holds every source after it. The caller's value is held here once, and each source is given
-		## what is left of the deadline, or the caller's own where that is shorter.
+		## A SOURCE READ ONCE IS BOUND BY THE WAIT'S DEADLINE (S12.27). A probe whose Slack thread the cache cannot serve falls back to a live
+		## read, bounded by MDAT_SLACK_READ_BOUND_SECONDS, 120 s where the caller set none, held here once. A source not yet read in this call
+		## gets that whole bound, so the bound decides when the wait returns, never which sources it reads (owner ruling 2026-10-31): the
+		## deadline is overrun by at most one read bound per source, and only while that source is unread. A source read once gets what is
+		## left of the deadline, or that bound where it is shorter.
 		local waitReadBoundBase="${MDAT_SLACK_READ_BOUND_SECONDS:-120}"
 		case "$waitReadBoundBase" in ''|*[!0-9]*) waitReadBoundBase=120 ;; esac
 		local waitRound=0 waitOutcome="TIMEOUT" waitHits=""
@@ -397,14 +398,19 @@
 				case "$roundKind" in slack|ask|replies|dms) [ "$waitRound" = "1" ] || [ -z "$waitDeadline" ] || [ $(( waitDeadline - sourceNow )) -ge 2 ] || roundStaleOk="true" ;; esac
 				## A probe past the bound is never cut short, but it no longer holds the call: a costly probe is handed to the task wrapper.
 				roundProbeTimeout=""
-				## THE SOURCE'S OWN BOUND (S12.27): what is left of the Wait's deadline, or the caller's shorter bound. A source that overruns it
-				## is named never read in this round, WAIT-NEVER-READ, and the round goes on to its other sources.
+				## THE SOURCE'S OWN BOUND (S12.27): a source not yet read in this call gets its whole read bound; one read already gets what is
+				## left of the Wait's deadline, or that bound where shorter. A source that overruns it is named never read in this round,
+				## WAIT-NEVER-READ: a full read's time did not complete. The round goes on to its other sources.
 				roundReadBound="$waitReadBoundBase"
-				if [ -n "$waitDeadline" ] && [ "${waitTimeout:-0}" != "0" ] ; then
-					roundSecondsLeft=$(( waitDeadline - sourceNow ))
-					[ "$roundSecondsLeft" -ge 1 ] || roundSecondsLeft=1
-					[ "$roundReadBound" -le "$roundSecondsLeft" ] || roundReadBound="$roundSecondsLeft"
-				fi
+				case "$waitReadSources" in
+					*"[$roundSource]"*)
+						if [ -n "$waitDeadline" ] && [ "${waitTimeout:-0}" != "0" ] ; then
+							roundSecondsLeft=$(( waitDeadline - sourceNow ))
+							[ "$roundSecondsLeft" -ge 1 ] || roundSecondsLeft=1
+							[ "$roundReadBound" -le "$roundSecondsLeft" ] || roundReadBound="$roundSecondsLeft"
+						fi
+					;;
+				esac
 				## Chat and replies are excluded here, because each makes a real Slack call and must not be exempt from the bound wrapper.
 				case " $agentsWaitKindUnbounded " in
 					*" $roundKind "*) ;;

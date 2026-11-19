@@ -682,6 +682,15 @@ rigAssert "each question is withdrawn through the one dismissal of the console: 
 	"$( rigAsked "$rigAskOne" status ) $( rigAsked "$rigAskTwo" status ) $( rigAsked "$rigAskOne" withdrawn-by ) [$( rigAsked "$rigAskTwo" withdraw-reason )] $( rigPosted 'the session was killed from the console by rig' )" \
 	"withdrawn withdrawn console:rig [the session was killed from the console by rig] 2"
 rigAssert "the session reads finished, and has left the active ones" "$( rigStateOf fin-wait ) $( rigStateOf fin-wait --active )" "finished not-listed"
+## A QUESTION WAITING ON THE HUMAN-OWNER IS NOT THE RUN'S TO TAKE WITH IT: the kill keeps it, so his answer still reaches a coordinator.
+mkdir -p "$rigSp/fin-own"
+printf -- '---\nsession-id: fin-own\nspawn-id: fin-own\ntracking-name: fin-own\nhost: %s\nworkspace: rigws\nowner: magic-coordinator\nstatus: spawn-started\nstarted-at: 2026-10-13 09:40 +0300\nreports-to: %s\ndeath-told: 2026-10-13 09:41 +0300\n---\n\n# Spawn session: fin-own\n' "$rigHost" "$rigConsoleUser" > "$rigSp/fin-own/fin-own.spawn.md"
+rigQuestion fin-own ; rigAskOwn="$rigPend"
+LC_ALL=C sed -e 's/^blocked-on: .*/blocked-on: reply from human-owner/' "$rigAgents/pending/$rigAskOwn.md" > "$rigTmp/own.md" && mv -f "$rigTmp/own.md" "$rigAgents/pending/$rigAskOwn.md"
+LC_ALL=C awk -v want="$rigAskOwn.md" 'BEGIN { OFS = " " } $1 == want { $6 = "reply_from_human-owner" } { print }' "$rigAgents/pending-replies.registry" > "$rigTmp/own.reg" && mv -f "$rigTmp/own.reg" "$rigAgents/pending-replies.registry"
+rigRun "$rigOp" --session-id fin-own
+rigAssert "a question waiting on the human-owner is kept by the kill of its session, and says so" \
+	"$( rigRowsOf dismiss | LC_ALL=C sed "s/$rigAskOwn/ASK-OWN/" ) $( rigAsked "$rigAskOwn" status )" "dismiss fin-own ASK-OWN fin-own kept-for-owner reply-pending"
 ## AN UNCLOSED SESSION: a record left open, no process behind it, nobody to close it.
 rigRec fin-open fin-open fin-open "$rigHost" magic-coordinator spawn-started 41 "spawns: dispatch-rig-fin-open
 session-thread: CRIG00001:1700000000.000941"

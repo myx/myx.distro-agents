@@ -6,6 +6,8 @@ requires-session-kind: standalone
 start-context: any
 input-scan-def: none
 review-by: inherit
+deliverables: each finding with the file and line of the analog it is checked against
+deliverables: each finding classified as a violation, a judgement call or clean, and each wording finding with its best replacement
 runs-at: none
 ---
 # magic-librarian.conventions-check.routine — the actual procedure

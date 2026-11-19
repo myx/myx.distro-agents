@@ -151,7 +151,7 @@ rigMake(){ ## names... -- the one operation
 rigNote(){ ## the operation as called, name -- the line that build step says on stderr here, for its file as it stands now; none for mcp.servers
 	case "$2" in
 		members|grants|tool-index) printf '# DistroAgentsTools %s: wrote %s\n' "$1" "$( rigFile "$2" )" ;;
-		permissions) printf '# DistroAgentsTools %s: workspace %s has no distro project in source/ and no package under .local/myx with a --magic-team: floor directive, so none declares a grant -- nothing is removed\n' "$1" "$rigWs" ;;
+		permissions) printf '# DistroAgentsTools %s: workspace %s has no distro project in source/ and no package under .local/myx with a magic-team: floor directive, so none declares a grant -- nothing is removed\n' "$1" "$rigWs" ;;
 		mcp.servers) ;;
 		harness.roots) printf '🧭 harness roots index written: .local/agents/harness.roots.index\n' ;;
 		harness.hooks) printf '🧭 harness hooks index written: .local/agents/harness.hooks.index\n' ;;
@@ -325,13 +325,13 @@ rigIntWs="$rigTmp/int/ws" ; rigIntHome="$rigTmp/int/home" ; rigIntAgents="$rigIn
 mkdir -p "$rigIntHome" "$rigIntWs/.local/myx" "$rigIntWs/source"
 for rigIntPackage in "$MDLT_ORIGIN/myx"/myx.* ; do rigCopyTree "$rigIntPackage" "$rigIntWs/.local/myx/${rigIntPackage##*/}" ; done
 ## The declares index the floor is read through (.local/system-index/distro-declares.txt), built here as live has it:
-## one `<project id> <declare>` row for every --magic-team:permissions: line of each installed package's project.inf.
+## one `<project id> <declare>` row for every magic-team:permissions: line of each installed package's project.inf.
 mkdir -p "$rigIntWs/.local/system-index"
 : > "$rigIntWs/.local/system-index/distro-declares.txt"
 for rigIntPackage in "$MDLT_ORIGIN/myx"/myx.* ; do
 	[ -f "$rigIntPackage/project.inf" ] || continue
 	LC_ALL=C awk -v id="myx/${rigIntPackage##*/}" '
-		/^[[:space:]]*--magic-team:permissions:/ {
+		/^[[:space:]]*magic-team:permissions:/ {
 			line = $0
 			sub( /^[[:space:]]+/, "", line )
 			sub( /[[:space:]]*\\$/, "", line )

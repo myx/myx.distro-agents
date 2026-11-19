@@ -14,7 +14,7 @@
 ## kept as a clarification, with the newest one, to be closed with those words; `unposted` an open question whose post never landed;
 ## `orphan-ask` an open question to another member that has no live run to answer it; `msg` a post addressed to magic-coordinator in
 ## any session chat since --since <epoch>; `dead` a record still started whose run has no process, and is neither parked nor dismissed;
-## `run` where each live run stands, `<ws> <id> <member> <active|waiting|stuck> tool=<name> age=<n>m paused=<yes|no> asks=<n> msg <who>: <text> plan: <text>`;
+## `run` where each live run stands, `<ws> <id> <member> <active|waiting|stuck|dismissed-silent> tool=<name> age=<n>m paused=<yes|no> asks=<n> msg <who>: <text> plan: <text>`;
 ## `frame` where each live run's routine stack stands, `<ws> <id> <member> <routine> age=<n>m open=<n> repeat=<n>`: its frame in force,
 ## how long it has held, the frames still open below it, and how often it has been pushed or rewound (S6.27 stage 6);
 ## `frame-stall` a live run whose frame in force has not moved inside the stall bound, `<ws> <id> <member> <routine> stalled=<n>m open=<n>`;
@@ -27,8 +27,7 @@
 ## minutes, which is a thread that should have ended itself and did not (S5.6); `rig-orphan` a control thread inside a run's output folder,
 ## a test rig, alive after that run's record closed (S5.2); `start-failing` a session with two or more failed starts in the
 ## last hour and none started since, `<ws> <session> <member> failed=<n> last=<n>m why=<its log's first error line>`
-## (AgentsTools.SuperviseStartFailing.include); `stale-rules` a session whose oldest open run started before the skillset's
-## newest change, `<ws> <session> <member> started=<n>h changed=<n>m` (AgentsTools.SuperviseStaleRules.include); `track` an event of a run's
+## (AgentsTools.SuperviseStartFailing.include); `track` an event of a run's
 ## event-track thread since --since: a failed or refused tool call, an ask, an answer, a handback, a final answer, a model change.
 ## Then each workspace's board (AgentsTools.SuperviseBoard.include): `epic` every active epic's movement, `still` where nothing moves;
 ## `pending-skipped` approved work the schedule passes over in silence; `accepted-unlanded` an accept whose change never reached live;
@@ -49,6 +48,8 @@
 ##   `ended-open` a session whose control thread lives while every run of it has ended: `<ws> <session> control=<pid>`.
 ##   `leftover-group` a process group of an ended run, still holding a process: `<ws> <id> pid=<n> age=<n>m`.
 ##   `retest-queue` the machine's retest queue, once a scan: `<ws> waiting=<n> oldest=<n>m holder=<alive|stale|none>`.
+##   `solid-delta` the live SOLID gate's kept reading: `<ws> total=<n> at=<n>m zero=<n>m files=<n>`, and a second line naming up
+##           to five of the files changed since it last read 0 (AgentsTools.SuperviseSolidDelta.include).
 ## A `run` line reads no file's date: its age is the run's own activity mark, else the stamp of its own transcript. The transcript is
 ## read for a name alone between tools, since a long call leaves no line there until it returns, and every part of it is read.
 ## Liveness is the process and the record's own `run-process`, never the status word, which answers one question only: whether the
@@ -71,23 +72,25 @@ type AgentsTranscriptLastTool > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro
 ##           stalled frame asks whether it should be replaced or skipped. Its window is the frame's last move line
 ##           (`routine-stack-<verb>: <routine> at: <date-time>`, AgentsTools.RoutineStack.include), since nothing else in the record
 ##           carries an instant and a move's event-track post would walk a second store on every scan. A frame held on an awaited
-##           contribution is HELD and never stalled, so a run whose whole CheckList is awaited items is left alone.
+##           contribution is HELD and never stalled, so a run whose whole CheckList is awaited items is left alone. A base
+##           frame, with no live frame below it (`open=0`), is never `frame-stall`: nothing can move it while its session lives.
 ##   `frame-repeat` a live run whose frame in force has been pushed or rewound more than once: `<ws> <id> <member> <routine>
 ##           repeat=<n>`. A loop is a real path, and this is what keeps it visible.
 ## The bound is MDAT_SUPERVISE_STALL_SECONDS (600 where unset, and the same one the `stuck` verdict reads).
+## `dismissed-silent` is a run told DISMISSED after its last round, with no round for MDAT_SUPERVISE_DISMISSED_SILENT_SECONDS (600) since.
 ## Every reading of the session store is its owner's (sh-lib/session/): the record rows, the marks, the logs, the chats, the feeds,
 ## the CheckLists and the control threads come back as data, and nothing here names a file of that store.
 
 AgentsToolsSuperviseScan(){
 	local scanWorkspaces=() scanWs scanAgents scanFile scanSpid scanSid scanMember scanPs scanSince="" scanTo scanTs
-	local scanCtlRow scanCtlPid scanCtlSid scanCtlAt scanCtlPath scanNoRunMin scanOpen scanSinceIso
+	local scanCtlRow scanCtlPid scanCtlSid scanCtlAt scanCtlPath scanNoRunMin scanOpen scanCtlOpen scanSinceIso
 	local scanNow scanStoreId scanMarkName scanMarked scanMarkEpoch scanMarkWord scanAgeSec scanAgeText scanTool scanStamp scanName scanEpoch
 	local scanLine scanRuns scanAsk scanAskSid scanAsks scanMsg scanPlan scanWord scanVerdict scanPaused scanSetAside
 	local scanRow scanTable scanStatus scanRunNamed scanBegan scanLive scanAskSet scanTab scanSandbox scanRecordAt scanRecordAge scanAgentLess
 	local scanList scanListKept scanListAt scanListAny scanLogAt scanClar scanCtlRows scanCtlLive
 	local scanStallSec scanPending scanAskParent scanAskFound scanAskParentMember scanRecordName scanRecordPath scanFrame scanFrameName scanFrameAt scanFrameOpen scanFrameRepeat
-	local scanRigRoot scanRigOwner
-	local scanAskFiles scanNoiseThreads scanThreadTs scanOwnerAge scanReminders
+	local scanRigRoot scanRigOwner scanDismissSec scanDismissAt scanDismissEpoch
+	local scanAskFiles scanNoiseThreads scanThreadTs scanOwnerAge scanReminders scanOrphanRc
 	local scanRevItems scanRevItem scanRevName scanRevSince scanRevRung scanRevSpawn scanRevLeft scanRevLimit
 	local scanGroupPs scanGroupPids scanGroupIds scanParentSid scanQueueState scanBoardRoot scanMsgTail
 	while [ $# -gt 0 ] ; do
@@ -118,6 +121,8 @@ AgentsToolsSuperviseScan(){
 	fi
 	scanStallSec="${MDAT_SUPERVISE_STALL_SECONDS:-600}"
 	case "$scanStallSec" in ''|*[!0123456789]*|0) scanStallSec=600 ;; esac
+	scanDismissSec="${MDAT_SUPERVISE_DISMISSED_SILENT_SECONDS:-600}"
+	case "$scanDismissSec" in ''|*[!0123456789]*|0) scanDismissSec=600 ;; esac
 	scanNow="$( date -u +%s )"
 	scanTab=$'\t'
 	## A CONTROL THREAD IS NO RUN, and it is left out here rather than trusted to the run-word reader alone: a thread started through a
@@ -140,9 +145,6 @@ AgentsToolsSuperviseScan(){
 		## A SESSION WHOSE STARTS KEEP FAILING, from the same table: it reads as starting while every start fails.
 		type AgentsToolsSuperviseStartFailing > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/supervise/AgentsTools.SuperviseStartFailing.include"
 		AgentsToolsSuperviseStartFailing "$scanWs" "$scanNow" "$scanTable"
-		## A RUN ON RULES OLDER THAN THE SKILLSET, from the same table: a rule landed since its start does not bind it.
-		type AgentsToolsSuperviseStaleRules > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/supervise/AgentsTools.SuperviseStaleRules.include"
-		AgentsToolsSuperviseStaleRules "$scanWs" "$scanNow" "$scanTable"
 		## AN OPEN ASK WHOSE THREAD ANOTHER OPEN ASK ALSO NAMES, counted in one pass over the store before the loop below reads it.
 		scanAskFiles=( "$scanAgents"/pending/*.md )
 		scanNoiseThreads=""
@@ -156,6 +158,7 @@ AgentsToolsSuperviseScan(){
 			' "${scanAskFiles[@]}" 2> /dev/null )" || scanNoiseThreads=""
 		fi
 		type AgentsToolsPendingReplyField > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.PendingReplyRecords.include"
+		type AgentsToolsOrphanAskTest > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.OrphanAsks.include"
 		for scanFile in "$scanAgents"/pending/*.md ; do
 			[ -f "$scanFile" ] || continue
 			LC_ALL=C grep -q -x 'status: reply-pending' "$scanFile" || continue
@@ -166,13 +169,13 @@ AgentsToolsSuperviseScan(){
 					"$( LC_ALL=C sed -n 's/^kind: //p' "$scanFile" | head -1 )" "$( LC_ALL=C sed -n 's/^owner: //p' "$scanFile" | head -1 )" "$scanTo"
 				continue
 			fi
-			case "$scanTo" in
-				*magic-coordinator*|*human-owner*|U0*|'') ;;
-				*)
-					printf '%s\n' "$scanPs" | LC_ALL=C grep -q -- "--team-member $scanTo " && continue
-					printf 'orphan-ask %s %s to %s by %s\n' "${scanWs##*/}" "$( basename "$scanFile" .md | cut -c1-8 )" "$scanTo" "$( LC_ALL=C sed -n 's/^owner: //p' "$scanFile" | head -1 )"
-					continue
-				;;
+			## THE ORPHAN ASK, by the one test the coordinator duty section shares (AgentsToolsOrphanAskTest): rc 0 an orphan, rc 1 an ask
+			## to a member a process runs as, rc 2 an ask to no member, which the lines below read.
+			scanOrphanRc=0
+			AgentsToolsOrphanAskTest "$scanTo" "$scanTs" "$scanPs" || scanOrphanRc=$?
+			case "$scanOrphanRc" in
+				0) printf 'orphan-ask %s %s to %s by %s\n' "${scanWs##*/}" "$( basename "$scanFile" .md | cut -c1-8 )" "$scanTo" "$( LC_ALL=C sed -n 's/^owner: //p' "$scanFile" | head -1 )" ; continue ;;
+				1) continue ;;
 			esac
 			printf 'ask %s %s %s by %s at %s\n' "${scanWs##*/}" "$( basename "$scanFile" .md | cut -c1-8 )" \
 				"$( LC_ALL=C sed -n 's/^kind: //p' "$scanFile" | head -1 )" "$( LC_ALL=C sed -n 's/^owner: //p' "$scanFile" | head -1 )" \
@@ -270,6 +273,18 @@ AgentsToolsSuperviseScan(){
 			case "$scanRecordAt" in ''|*[!0123456789]*) ;; *) scanRecordAge=$(( scanNow - scanRecordAt )) ;; esac
 			scanOpen=no
 			[ "$scanStatus" != spawn-started ] || scanOpen=yes
+			## LIVENESS FIRST, from the two tables already read: an id a process of this host answers for, or the pid and start
+			## its record names, still that same process. A run neither answers for is finished and costs no more than this.
+			scanRuns=""
+			case $'\n'"$scanLive"$'\n' in *$'\n'"$scanSpid"$'\n'*) scanRuns=yes ;; esac
+			if [ -z "$scanRuns" ] && [ -n "$scanRunNamed" ] ; then
+				case $'\n'"$scanBegan"$'\n' in *$'\n'"$scanRunNamed"$'\n'*) scanRuns=yes ;; esac
+			fi
+			## Only an open record is a run that should have started: a closed one with no process is finished, and no mark is read for it.
+			if [ -z "$scanRuns" ] ; then
+				[ "$scanOpen" = yes ] || continue
+				[ -n "$scanRecordAge" ] && [ "$scanRecordAge" -gt 300 ] || continue
+			fi
 			## A run parked or dismissed on its handback waits for its verdict: no dead line, and no verdict of its own.
 			MMDAPP="$scanWs" AgentsSessionRunStoreIdInto scanStoreId "$scanSpid" "$scanSid"
 			scanSetAside=no
@@ -277,17 +292,7 @@ AgentsToolsSuperviseScan(){
 				! MMDAPP="$scanWs" AgentsSessionMarked "$scanStoreId" "$scanMarkName" || scanSetAside=yes
 			done
 			[ "$scanSetAside" = no ] || continue
-			## LIVENESS NEXT, from the two tables already read: an id a process of this host answers for, or the pid and start
-			## its record names, still that same process. A run neither answers for is finished and costs no more than this.
-			scanRuns=""
-			case $'\n'"$scanLive"$'\n' in *$'\n'"$scanSpid"$'\n'*) scanRuns=yes ;; esac
-			if [ -z "$scanRuns" ] && [ -n "$scanRunNamed" ] ; then
-				case $'\n'"$scanBegan"$'\n' in *$'\n'"$scanRunNamed"$'\n'*) scanRuns=yes ;; esac
-			fi
 			if [ -z "$scanRuns" ] ; then
-				## Only an open record is a run that should have started: a closed one with no process is a finished run.
-				[ "$scanOpen" = yes ] || continue
-				[ -n "$scanRecordAge" ] && [ "$scanRecordAge" -gt 300 ] || continue
 				[ "$scanAgentLess" = true ] || printf 'dead %s %s %s\n' "${scanWs##*/}" "${scanSpid:0:8}" "$scanMember"
 				continue
 			fi
@@ -364,6 +369,21 @@ AgentsToolsSuperviseScan(){
 			esac
 			[ "$scanPaused" = no ] || scanVerdict=waiting
 			[ "$scanVerdict" = waiting ] || [ -z "$scanAgeSec" ] || [ "$scanAgeSec" -lt "$scanStallSec" ] || scanVerdict=stuck
+			## DISMISSED AND SILENT: its session's chat told the member to go after the run's last round, and no round came within the
+			## bound. A run in its Wait reads a dismissal within its tick, so this one never came back to read it. Nothing is ended here.
+			if [ "$scanPaused" = no ] && [ -n "$scanAgeSec" ] && [ "$scanAgeSec" -ge "$scanDismissSec" ] ; then
+				type AgentsToolsSessionChatDismissedAtInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include"
+				MMDAPP="$scanWs" AgentsToolsSessionChatDismissedAtInto scanDismissAt "${scanSid:-$scanSpid}" "$scanMember"
+				case "$scanDismissAt" in
+					[0-9][0-9][0-9][0-9]-*)
+						scanDismissEpoch="$( printf '%s\n' "$scanDismissAt" | LC_ALL=C awk -f "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-.local/sh-lib/output/LocalIsoToEpoch.awk" 2> /dev/null )" || scanDismissEpoch=""
+						case "$scanDismissEpoch" in
+							''|*[!0123456789]*) ;;
+							*) [ "$scanDismissEpoch" -le $(( scanNow - scanAgeSec )) ] || [ $(( scanNow - scanDismissEpoch )) -lt "$scanDismissSec" ] || scanVerdict=dismissed-silent ;;
+						esac
+					;;
+				esac
+			fi
 			scanAgeText="-"
 			[ -z "$scanAgeSec" ] || scanAgeText="$(( scanAgeSec / 60 ))m"
 			printf 'run %s %s %s %s tool=%s age=%s paused=%s asks=%s msg %s plan: %s\n' "${scanWs##*/}" \
@@ -381,6 +401,7 @@ AgentsToolsSuperviseScan(){
 			## inside the bound: the remedy is to replace or skip the frame, where a stalled plan asks the chair to close a step. A
 			## frame held on an unmet contribution is held and never stalled, so a run whose own list holds an `awaited:` item is left
 			## alone, and a paused run is left alone as it is everywhere. A record with no frame prints none of the three.
+			## A base frame (`open=0`) is never `frame-stall`: no move advances it while its session lives, and `stall` covers a stuck run.
 			type AgentsToolsRoutineStackFrameRow > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/routine/AgentsTools.RoutineStack.include"
 			type AgentsSessionSandboxRecordPath > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandbox.include"
 			scanRecordPath="$( MMDAPP="$scanWs" AgentsSessionSandboxRecordPath "$scanSandbox" "$scanRecordName" )" || scanRecordPath=""
@@ -399,7 +420,7 @@ AgentsToolsSuperviseScan(){
 				case "$scanFrameAt" in
 					''|-) ;;
 					*)
-						if [ $(( scanNow - scanFrameAt )) -ge "$scanStallSec" ] && [ "$scanPaused" = no ] \
+						if [ $(( scanNow - scanFrameAt )) -ge "$scanStallSec" ] && [ "$scanPaused" = no ] && [ "${scanFrameOpen:-0}" -gt 0 ] 2> /dev/null \
 							&& ! MMDAPP="$scanWs" AgentsSessionSandboxChecklistLines "$scanSandbox" "$scanMember" 2> /dev/null | LC_ALL=C grep -q -F -- '- [ ] awaited: ' ; then
 							printf 'frame-stall %s %s %s %s stalled=%s open=%s\n' "${scanWs##*/}" "${scanSpid:0:8}" "$scanMember" "$scanFrameName" "$scanFrameAge" "$scanFrameOpen"
 						fi
@@ -427,6 +448,8 @@ AgentsToolsSuperviseScan(){
 		type AgentsToolsSessionControlLive > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionControlStart.include"
 		scanCtlRows="$( MMDAPP="$scanWs" AgentsSessionControlPidRows )"
 		scanCtlLive=$'\n'"$( printf '%s\n' "$scanCtlRows" | LC_ALL=C cut -f1 | MMDAPP="$scanWs" AgentsToolsSessionControlLive 2> /dev/null | LC_ALL=C awk '{ print $1 }' )"$'\n'
+		## The sessions that own a record still open, from the table read once above, never a read of each session's records.
+		scanCtlOpen=$'\n'"$( printf '%s\n' "$scanTable" | LC_ALL=C awk -F'\t' '$7 == "spawn-started" && $5 != "" { print $5 }' )"$'\n'
 		while IFS="$scanTab" read -r scanCtlSid scanCtlPid ; do
 			[ -n "$scanCtlSid" ] || continue
 			case "$scanCtlLive" in *$'\n'"$scanCtlSid"$'\n'*) ;; *) continue ;; esac
@@ -435,15 +458,7 @@ AgentsToolsSuperviseScan(){
 			## it has ended. Inside SESSION_CONTROL_NO_RUN_END_SECONDS the thread is still within its own end, so the session is
 			## merely still open; past it the thread should have ended itself and has not.
 			[ $(( scanNow - scanCtlAt )) -gt "${SESSION_CONTROL_CLOSING_SECONDS:-300}" ] || continue
-			scanOpen=""
-			## The session's own records come from the kept per-session list, never a grep over every record (call-path audit row 50).
-			type AgentsToolsSpawnedSessionRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include"
-			for scanFile in $( MMDAPP="$scanWs" AgentsToolsSpawnedSessionRecords "$scanCtlSid" own 2> /dev/null ) ; do
-				[ -f "$scanFile" ] || continue
-				LC_ALL=C grep -q -x 'status: spawn-started' "$scanFile" 2> /dev/null || continue
-				scanOpen="yes" ; break
-			done
-			[ -z "$scanOpen" ] || continue
+			case "$scanCtlOpen" in *$'\n'"$scanCtlSid"$'\n'*) continue ;; esac
 			if [ $(( scanNow - scanCtlAt )) -le $(( scanNoRunMin * 60 )) ] ; then
 				printf 'ended-open %s %s control=%s\n' "${scanWs##*/}" "$( printf '%s' "$scanCtlSid" | cut -c1-8 )" "$scanCtlPid"
 				continue
@@ -459,7 +474,8 @@ AgentsToolsSuperviseScan(){
 			scanCtlPath="${scanCtlRow#*"$scanTab"}"
 			kill -0 "$scanCtlPid" 2> /dev/null || continue
 			MMDAPP="$scanWs" AgentsSessionRunHeadersInto "$scanSpid" scanStatus=status || scanStatus=""
-			[ "$scanStatus" != spawn-started ] || continue
+			## An orphan only under a status the record writer names closed; a missing record or status, or another word, is none.
+			case "$scanStatus" in spawn-succeeded|spawn-failed|spawn-ended-without-close) ;; *) continue ;; esac
 			printf 'rig-orphan %s %s pid=%s %s\n' "${scanWs##*/}" "${scanSpid:0:8}" "$scanCtlPid" "$scanCtlPath"
 		done <<< "$( MMDAPP="$scanWs" AgentsSessionRigControlRows )"
 		## WHAT THE OWNER IS OWED (S13): every message of his that no other account answered in its own thread, read from the comms
@@ -470,6 +486,9 @@ AgentsToolsSuperviseScan(){
 		## landed, and runs still open a day on (AgentsTools.SuperviseBoard.include).
 		type AgentsToolsSuperviseBoard > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/supervise/AgentsTools.SuperviseBoard.include"
 		AgentsToolsSuperviseBoard "$scanWs" "$scanNow"
+		## THE LIVE SOLID GATE'S KEPT READING, once a workspace and never a gate run of the scan's own.
+		type AgentsToolsSuperviseSolidDelta > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/supervise/AgentsTools.SuperviseSolidDelta.include"
+		AgentsToolsSuperviseSolidDelta "$scanWs" "$scanNow"
 		## A HAND-BACK WAITING ON A VERDICT, and one whose review-wait limit is close: the board's own walk, once.
 		type AgentsToolsTeamDataRootOf > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataRoot.include"
 		type AgentsToolsItemReviewer > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemReviewer.include"
@@ -484,9 +503,9 @@ AgentsToolsSuperviseScan(){
 				scanRevSince="$( AgentsToolsDecisionsField "$scanRevItem" review-since-epoch )"
 				case "$scanRevSince" in ''|*[!0123456789]*) continue ;; esac
 				scanRevName="${scanRevItem##*/}" ; scanRevName="${scanRevName%.md}"
-				scanRevRung="$( AgentsToolsItemReviewer "$scanRevItem" )"
+				scanRevRung="$( MMDAPP="$scanWs" AgentsToolsItemReviewer "$scanRevItem" )"
 				scanRevRung="${scanRevRung#*:}"
-				case "$scanRevRung" in ''|none*) scanRevRung=none ;; magic-coordinator) scanRevRung=duty ;; human-owner) scanRevRung=owner ;; esac
+				case "$scanRevRung" in none*) scanRevRung=none ;; ''|magic-coordinator) scanRevRung=duty ;; human-owner) scanRevRung=owner ;; esac
 				printf 'review-waiting %s %s age=%sm rung=%s\n' "${scanWs##*/}" "$scanRevName" "$(( ( scanNow - scanRevSince ) / 60 ))" "$scanRevRung"
 				## NEAR THE LIMIT: the run that handed back still lives, so the verdict is still owed to it.
 				scanRevSpawn="$( AgentsToolsDecisionsField "$scanRevItem" spawn-id )"

@@ -28,8 +28,18 @@
 ##                   a comment that states why: AgentsSolidTrivials.py names the reason for each name it leaves out.
 ##   fabricated      a check writes a store the code under test then reads, instead of driving its owner. A site on
 ##                   allowedFabricatedSites is a reasoned row and prints nothing.
-## Usage: AgentsSolidBreachScan.sh [<package root>] [--summary]   (default root: $MDLT_ORIGIN/myx/myx.distro-agents)
+## Usage: AgentsSolidBreachScan.sh [<package root>] [--summary] [--record <workspace>]   (default root: $MDLT_ORIGIN/myx/myx.distro-agents)
+##   --record keeps this reading for the supervisor, in that workspace's `.local/agents/solid-gate.last`, through the store's own
+##   writer (AgentsTools.SuperviseSolidDelta.include). `--supervise-scan` prints it as kind `solid-delta`, and never runs this gate.
 set -u
+recordWs="" ; scanArgs=()
+while [ $# -gt 0 ] ; do
+	case "$1" in
+		--record) [ $# -ge 2 ] || { echo "⛔ ERROR: AgentsSolidBreachScan.sh: --record takes a workspace path" >&2 ; exit 2 ; } ; recordWs="${2%/}" ; shift 2 ;;
+		*) scanArgs+=( "$1" ) ; shift ;;
+	esac
+done
+set -- ${scanArgs[@]+"${scanArgs[@]}"}
 root="${1:-${MDLT_ORIGIN:?MDLT_ORIGIN is not set}/myx/myx.distro-agents}" ; case "$root" in --summary) root="$MDLT_ORIGIN/myx/myx.distro-agents" ;; esac
 summary="" ; for a in "$@" ; do [ "$a" = --summary ] && summary=yes ; done
 scanHere="$( cd "${BASH_SOURCE%/*}" && pwd )"
@@ -93,6 +103,8 @@ DistroLocalEchoBashPrompt|myx.distro-.local/sh-lib/LocalTools.EchoBashPrompt.inc
 ## The fabricated sites that cannot move to an owner, one `<file>:<line>|<reason>` a line. Each writes the index
 ## folder of an installed workspace, which only the distro tooling's own source ingest writes: its one writer builds
 ## every row from every installed project.inf, so no rig can drive it for one case.
+## The schedule-loop row is a sync's own touch of a board state's folder, which the team-data sync makes and no item writer does.
+## The rig-owner-writes row is old data a reader must still take, which no writer into board-pending leaves any more.
 ## A site here prints no row. A line that moves makes its site a row again, which asks the reader to reason it anew.
 allowedFabricatedSites='sh-test/check-fixtures/rig-distro-workspace.include.sh:47|the rig index folder, written only by the distro tooling source ingest
 sh-test/check-fixtures/rig-distro-workspace.include.sh:49|the origin index copied, as an installed package holds it
@@ -100,9 +112,11 @@ sh-test/check-fixtures/rig-distro-workspace.include.sh:51|the empty index of an 
 sh-test/config/AgentsMakeIndicesRegistriesCheck.test.sh:329|the index folder of an installed workspace, written by the source ingest
 sh-test/config/AgentsMakeIndicesRegistriesCheck.test.sh:330|that index emptied, the state before its first build
 sh-test/config/AgentsMakeIndicesRegistriesCheck.test.sh:340|that index rows, which the ingest builds from every installed project.inf
-sh-test/grants/AgentsGrantsIndexCheck.test.sh:416|the index folder of an installed package, written by the source ingest
-sh-test/grants/AgentsGrantsIndexCheck.test.sh:417|that index rows, which the ingest builds from the installed project.inf
-sh-test/grants/AgentsGrantsIndexCheck.test.sh:418|one row only the index holds, the case a stale project.inf must not win'
+sh-test/grants/AgentsGrantsIndexCheck.test.sh:421|the index folder of an installed package, written by the source ingest
+sh-test/grants/AgentsGrantsIndexCheck.test.sh:422|that index rows, which the ingest builds from the installed project.inf
+sh-test/grants/AgentsGrantsIndexCheck.test.sh:423|one row only the index holds, the case a stale project.inf must not win
+sh-test/session/AgentsScheduleLoopCheck.test.sh:199|the clock of the review folder moved as a team-data sync moves it, no item written: a sync has no owner function a rig can drive
+sh-test/check-fixtures/rig-owner-writes.include.sh:116|a pending item as old data left it, a recheck-date beside no unmet condition: every writer into board-pending drops that date, so no owner writes it'
 rows(){
 	## foreign-package
 	LC_ALL=C grep -rnoE --include='*.include' --include='*.sh' --include='*.py' --include='*.awk' -e '\$MDLT_ORIGIN/myx/myx\.common/' sh-lib sh-scripts |
@@ -222,8 +236,17 @@ rows(){
 prioritise(){
 	LC_ALL=C awk -F'\t' 'BEGIN { p["foreign-package"] = "P1" ; p["foreign-store"] = "P2" ; p["duplicate"] = "P4" ; p["trivial"] = "P4" ; p["fabricated"] = "P5" ; p["unreached"] = "P0" ; p["silent-load"] = "P0" ; p["optional-call"] = "P0" ; p["dual-use"] = "P0" ; p["undefined-call"] = "P0" ; p["guard-target"] = "P0" ; p["guard-name"] = "P0" ; p["guarded-op"] = "P0" ; p["load-missing"] = "P0" ; p["duplicate-def"] = "P4" ; p["dead"] = "P6" } { print p[$1] "\t" $0 }' | LC_ALL=C sort -t "$(printf '\t')" -k1,1 -s
 }
-if [ -n "$summary" ] ; then
-	rows | prioritise | LC_ALL=C awk -F'\t' '{ n[$1 " " $2]++ ; t++ ; split($3, f, "/") ; d[$1 " " $2 " " f[1] "/" f[2]]++ } END { for (c in n) printf "class %s %d\n", c, n[c] ; for (k in d) printf "where %s %d\n", k, d[k] ; printf "total %d\n", t + 0 }' | LC_ALL=C sort -k1,1 -k2,2
+if [ -n "$summary" ] || [ -n "$recordWs" ] ; then
+	scanRows="$( rows | prioritise )"
+	printf '%s\n' "$scanRows" | LC_ALL=C awk -F'\t' 'NF { n[$1 " " $2]++ ; t++ ; split($3, f, "/") ; d[$1 " " $2 " " f[1] "/" f[2]]++ } END { for (c in n) printf "class %s %d\n", c, n[c] ; for (k in d) printf "where %s %d\n", k, d[k] ; printf "total %d\n", t + 0 }' | LC_ALL=C sort -k1,1 -k2,2
 else
 	rows | prioritise
 fi
+## THE READING KEPT FOR THE SUPERVISOR, through that store's own writer. A marker not kept is a failed run, never a silent one.
+if [ -n "$recordWs" ] ; then
+	scanTotal="$( printf '%s\n' "$scanRows" | LC_ALL=C awk 'NF { t++ } END { print t + 0 }' )"
+	. "$scanHere/../../sh-lib/supervise/AgentsTools.SuperviseSolidDelta.include"
+	AgentsToolsSolidGateMarkerWrite "$recordWs" "$scanTotal" "$( pwd -P )" \
+		|| { echo "⛔ ERROR: AgentsSolidBreachScan.sh: the reading could not be kept at ${recordWs%/}/.local/agents/solid-gate.last" >&2 ; exit 1 ; }
+fi
+exit 0

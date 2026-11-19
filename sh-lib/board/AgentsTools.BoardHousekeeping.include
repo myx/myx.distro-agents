@@ -218,24 +218,32 @@ AgentsToolsAdvanceSpawnHousekeeping(){ ## stale hours, calling member, [no-threa
 	housekeepingLog="${housekeepingLog}$( AgentsToolsPendingAskHousekeeping "$staleHours" "$2" )
 "
 	## A started record that names no spawn id has no run to measure: it closes once nothing in it changed for the stale hours.
+	## A record newer than the store's stamp was written past the store's own writer (AgentsSpawnRecordWrite): it is told, and the stamp moved.
+	local missedWrites=""
 	for recordPath in "$spawnRoot"/*/*.spawn.md ; do
 		[ -f "$recordPath" ] || continue
+		[ ! "$recordPath" -nt "$spawnRoot" ] || missedWrites="$missedWrites ${recordPath#$spawnRoot/}"
 		[ "$( AgentsToolsFrontmatterKey "$recordPath" status )" = spawn-started ] || continue
 		case "$( AgentsToolsFrontmatterKey "$recordPath" spawn-id )" in ''|-) ;; *) continue ;; esac
 		[ -z "$( find "${recordPath%/*}" -type f -mmin -"$(( staleHours * 60 ))" 2> /dev/null | head -1 )" ] || continue
 		AgentsToolsSpawnProxyCloseSandbox "$recordPath" "$endedOutcome" unknown > /dev/null 2>&1
 		[ "$( AgentsToolsFrontmatterKey "$recordPath" status )" != "spawn-$endedOutcome" ] || housekeepingLog="${housekeepingLog}housekeeping: closed record ${recordPath#$spawnRoot/}, which names no spawn id"$'\n'
 	done
+	if [ -n "$missedWrites" ] ; then
+		housekeepingLog="${housekeepingLog}housekeeping: ⚠️ missed write: newer than the store's stamp, so written past AgentsSpawnRecordWrite:$missedWrites"$'\n'
+		touch "$spawnRoot" 2> /dev/null || :
+	fi
 	## A sandbox whose launch never wrote its record is a failed launch: a launch writes it within minutes, so after an hour it gets a record saying so,
 	## so it stays listed, as every sandbox is, and reads failed rather than unclosed.
 	local emptyDir emptyName
+	type AgentsSpawnRecordWrite > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
 	for emptyDir in "$spawnRoot"/*/ ; do
 		[ -d "$emptyDir" ] || continue
 		emptyName="${emptyDir%/}" ; emptyName="${emptyName##*/}"
 		ls "$emptyDir"*.spawn.md > /dev/null 2>&1 && continue
 		! AgentsSessionStoreChangedWithin 60 entries "$emptyName" "$emptyName" || continue
 		printf -- '---\nsession-id: -\nspawn-id: -\ntracking-name: %s\nhost: %s\nstatus: spawn-failed\nexit-code: unknown\nstarted-at: %s\nsession-comment: launch never wrote its record\n---\n\nClosed by housekeeping: the launch made this sandbox and ended before writing its record.\n' \
-			"$emptyName" "$( hostname -s 2> /dev/null )" "$( date -r "$emptyDir" +"%Y-%m-%d %H:%M %z" 2> /dev/null )" > "$emptyDir$emptyName.spawn.md" 2> /dev/null \
+			"$emptyName" "$( hostname -s 2> /dev/null )" "$( date -r "$emptyDir" +"%Y-%m-%d %H:%M %z" 2> /dev/null )" 2> /dev/null | AgentsSpawnRecordWrite "$emptyName" \
 			&& housekeepingLog="${housekeepingLog}housekeeping: closed sandbox $emptyName as a failed launch, which wrote no record"$'\n'
 	done
 	## A review item that has waited past the limit for a verdict is raised to its reviewer (S27.3).

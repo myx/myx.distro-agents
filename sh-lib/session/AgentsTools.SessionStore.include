@@ -83,7 +83,7 @@ AgentsSessionDeathLines(){ ## session
 }
 AgentsSessionMarkerFileInto(){ ## variable, run or session id, marker -- rc 1 for an id or a marker that is none
 	case "${2:-}" in ''|-|.|..|*/*|*[[:space:]]*) return 1 ;; esac
-	case "${3:-}" in paused|parked|dismissed|stop.left|control/closed|control/state|root.want|root.end|root.pause|ended|floor-dropped) ;; *) return 1 ;; esac
+	case "${3:-}" in paused|parked|dismissed|stop.left|control/closed|control/state|root.want|root.end|root.pause|ended|floor-dropped|reload.due|skill.loaded) ;; *) return 1 ;; esac
 	printf -v "$1" '%s/%s/%s/%s' "${MMDAPP:-/nonexistent}" "$agentsSessionStoreLeaf" "$2" "$3"
 }
 AgentsSessionMarkerFile(){ ## run or session id, marker
@@ -471,18 +471,57 @@ AgentsSessionDiscard(){ ## session
 	return 0
 }
 
-## Writes a run's own spawn record, its frontmatter on stdin, in one rename: a reader sees the old record or the new one,
-## never a part. rc 1 where it could not be written, the record then left as it was.
-AgentsSpawnRecordWrite(){ ## run
-	local writeDir writeTemp
-	case "${1:-}" in ''|-|.|..|*/*|*[[:space:]]*) return 1 ;; esac
-	[ -n "${MMDAPP:-}" ] || return 1
-	printf -v writeDir '%s/%s/%s' "$MMDAPP" "$agentsSpawnedStoreLeaf" "$1"
-	mkdir -p "$writeDir" 2> /dev/null || return 1
-	writeTemp="$( mktemp "$writeDir/$1.spawn.md.XXXXXX" 2> /dev/null )" || return 1
-	cat > "$writeTemp" 2> /dev/null && mv -f "$writeTemp" "$writeDir/$1.spawn.md" 2> /dev/null && return 0
+## THE STORE'S STAMP: spawned/ itself, its own clock moved by the two functions below after every record they create, rewrite, close
+## or remove, and by nothing else. A reader keeps the clock it read before its walk and walks again when the clock differs; a clock read
+## in its own second is not kept, since a write later in that second leaves it as it was (AgentsSpawnedStoreStampInto).
+
+## Writes a spawn record, its whole text on stdin, in one rename, then moves the store's stamp: a reader sees the old record or the new
+## one, never a part. The record is named by its run, in the run's own folder or the folder given, or by its path in a spawned/ store.
+## With the text the record must still hold, it is written only where it still holds that text. rc 1 where it was not written, the
+## record then left as it was. A record named outside a spawned/ store, `<workspace>/.local/agents/spawned/<folder>/<run>.spawn.md`, where
+## every reader looks and the stamp is, is refused, and the refusal says so on stderr.
+AgentsSpawnRecordWrite(){ ## run or record path, folder (empty: the run's own), the record as it must still stand (optional)
+	local writeRecord="${1:-}" writeTemp writeNow="" writeWhy=""
+	case "$writeRecord" in
+		*/../*|*/./*) writeWhy="its path holds a . or .. part" ;;
+		*/*.spawn.md) ;;
+		''|-|.|..|*/*|*[[:space:]]*) writeWhy="it names no run and no record" ;;
+		*)
+			case "${2:-$writeRecord}" in -|.|..|*/*|*[[:space:]]*) writeWhy="its folder is no folder name" ;; esac
+			[ -n "${MMDAPP:-}" ] || writeWhy="${writeWhy:-no workspace (MMDAPP) to write it in}"
+			printf -v writeRecord '%s/%s/%s/%s.spawn.md' "${MMDAPP:-}" "$agentsSpawnedStoreLeaf" "${2:-$writeRecord}" "$writeRecord"
+		;;
+	esac
+	case "${writeRecord%/*/*}" in */.local/agents/spawned) ;; *) writeWhy="${writeWhy:-it lies in no spawned/ store, where its readers look}" ;; esac
+	if [ -n "$writeWhy" ] ; then
+		echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools}: the spawn record $writeRecord was not written: $writeWhy" >&2
+		return 1
+	fi
+	mkdir -p "${writeRecord%/*}" 2> /dev/null || return 1
+	writeTemp="$( mktemp "$writeRecord.XXXXXX" 2> /dev/null )" || return 1
+	if cat > "$writeTemp" 2> /dev/null && chmod 644 "$writeTemp" 2> /dev/null ; then
+		[ $# -lt 3 ] || { IFS= read -r -d '' writeNow < "$writeRecord" 2> /dev/null || : ; }
+		if [ $# -lt 3 ] || [ "$writeNow" = "$3" ] ; then
+			mv -f "$writeTemp" "$writeRecord" 2> /dev/null && { touch "${writeRecord%/*/*}" 2> /dev/null || : ; return 0 ; }
+		fi
+	fi
 	rm -f "$writeTemp" 2> /dev/null
 	return 1
+}
+
+## Removes one folder of spawned/ with every record in it, the write permission a record may have lost given back first, then moves the
+## store's stamp. rc 1 where the folder stayed.
+AgentsSpawnRecordRemove(){ ## folder
+	local removeFolder
+	case "${1:-}" in ''|-|.|..|-*|*/*|*[[:space:]]*) return 1 ;; esac
+	[ -n "${MMDAPP:-}" ] || return 1
+	printf -v removeFolder '%s/%s/%s' "$MMDAPP" "$agentsSpawnedStoreLeaf" "$1"
+	[ -e "$removeFolder" ] || return 0
+	chmod -R u+w "$removeFolder" 2> /dev/null || :
+	rm -rf -- "$removeFolder" 2> /dev/null || :
+	[ ! -e "$removeFolder" ] || return 1
+	touch "${removeFolder%/*}" 2> /dev/null || :
+	return 0
 }
 
 ## The started run records of one folder of spawned/, a record a line, as the store's walks hand a record. One read of the folder.

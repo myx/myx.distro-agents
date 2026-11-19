@@ -6,6 +6,7 @@ requires-session-kind: standalone
 start-context: any
 input-scan-def: none
 review-by: inherit
+deliverables: the filed task its requester agreed, or the hand-over to magic-team.epic-intake.routine above the epic threshold
 runs-at: none
 ---
 # magic-coordinator.ingest-task.routine — the actual procedure

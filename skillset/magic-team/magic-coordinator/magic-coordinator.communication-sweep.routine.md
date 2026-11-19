@@ -5,6 +5,9 @@ maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 requires-session-kind: standalone
 input-scan-def: sweep
 review-by: inherit
+deliverables: every handled message answered or acted on, and every routed message delivered
+deliverables: each source a pass could not read, in that member's sweep-state-note
+deliverables: today's status and what is blocked on the human team, on the own-status Trello card
 runs-at: none
 ---
 # magic-coordinator.communication-sweep.routine — the actual procedure

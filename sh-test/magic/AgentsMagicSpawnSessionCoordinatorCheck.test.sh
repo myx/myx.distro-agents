@@ -1,9 +1,8 @@
 #!/usr/bin/env bash
-## Behavioural check on --spawn-session's coordinator rule, reconciled for F6.1: the coordinator comes only from
-## frontmatter (the coworking kind routine's `executors: magic-coordinator` is a default a routine may override), and
-## the spawner's hardcoded add of it is gone. A coworking routine with its own members gets no coordinator added,
-## whoever spawns it; a spawner that is magic-coordinator gets none added; a standalone routine gets none added. Any other member's session is refused: the op is magic-coordinator's only, the
-## console passes. Offline: same fake console/curl rig as AgentsMagicSpawnSessionCheck.test.sh.
+## Behavioural check on --spawn-session's coordinator rule: a coworking session always holds a magic-coordinator instance
+## as its executor, seated first, so it starts the session and the given member joins it, whoever spawns it. A join into
+## a session adds none, and a standalone routine gets none. Any other member's session is refused: the op is
+## magic-coordinator's only, the console passes. Offline: same fake console/curl rig as AgentsMagicSpawnSessionCheck.test.sh.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigHere="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib"
@@ -39,6 +38,7 @@ PATH="$rigTmp/bin:$PATH"
 printf '%s\n' '#!/usr/bin/env bash' \
 	'## --cli-configured stand-in: writes MDAT_SPAWN_LAUNCH_MARKER and records the context.' \
 	'cat > "$RIG_SCENARIO/brief.$MDAT_SPAWN_AGENT"' \
+	'printf "%s %s\\n" "$MDAT_SPAWN_AGENT" "${MDAT_SESSION_ID:-}" >> "$RIG_SCENARIO/started"' \
 	'printf "📦 SubagentHandback\n"' \
 	'printf "rig-cli\n" > "$MDAT_SPAWN_LAUNCH_MARKER"' > "$rigWs/DistroAgentsConsole.sh"
 chmod +x "$rigWs/DistroAgentsConsole.sh"
@@ -74,7 +74,7 @@ rigWaitFor(){ ## file
 }
 
 rigReset(){
-	rm -f "$rigTmp"/brief.*
+	rm -f "$rigTmp"/brief.* "$rigTmp/started"
 	chmod -R u+w -- "$rigWs/.local/agents/spawned" 2>/dev/null ; rm -rf "$rigWs/.local/agents/spawned"
 }
 
@@ -96,21 +96,32 @@ rigAssert "is refused"                                   "$( printf '%s\n' "$rig
 rigAssert "nothing was spawned"                          "$( printf '%s\n' "$rigOut" | grep -c '^SESSION_ID=' ):$( ls "$rigWs/.local/agents/spawned" 2>/dev/null | wc -l | tr -d ' ' )" "0:0"
 rigReset
 
-echo "-- coworking routine, spawned from the console, no coordinator given: none added --"
+echo "-- coworking routine, spawned from the console with one member: magic-coordinator seated first, one session --"
 rigOut="$( rigRun "" "RIG-TASK-TEXT" --routine rigcowork rig-member-a )"
-rigAssert "lands"                                        "$( printf '%s\n' "$rigOut" | grep -c '^SESSION_ID=' )" 1
-rigAssert "only the given member is spawned"             "$( printf '%s\n' "$rigOut" | grep -c -x -F 'MEMBERS=rig-member-a' )" 1
-rigAssert "no added line"                                "$( printf '%s\n' "$rigOut" | grep -c 'added magic-coordinator' )" 0
+rigAssert "lands as one session"                         "$( printf '%s\n' "$rigOut" | grep -c '^SESSION_ID=' )" 1
+rigAssert "the coordinator is seated first, then the member" "$( printf '%s\n' "$rigOut" | grep -c -x -F 'MEMBERS=magic-coordinator rig-member-a' )" 1
+rigWaitFor "$rigTmp/brief.magic-coordinator" || rigRefuse "magic-coordinator's own console never received a context: $( printf '%s\n' "$rigOut" | grep ERROR | head -1 )"
 rigWaitFor "$rigTmp/brief.rig-member-a" || rigRefuse "rig-member-a's own console never received a context: $( printf '%s\n' "$rigOut" | grep ERROR | head -1 )"
-rigAssert "the member's brief names the routine, and no coordinator was started" "$( grep -c 'magic-team.rigcowork.routine.md' "$rigTmp/brief.rig-member-a" | awk '{ print ( $1 > 0 ) ? "yes" : "no" ; }' ):$( [ -e "$rigTmp/brief.magic-coordinator" ] && echo started || echo none )" "yes:none"
+rigAssert "both briefs name the routine"                 "$( grep -c 'magic-team.rigcowork.routine.md' "$rigTmp/brief.magic-coordinator" | awk '{ print ( $1 > 0 ) ? "yes" : "no" ; }' ):$( grep -c 'magic-team.rigcowork.routine.md' "$rigTmp/brief.rig-member-a" | awk '{ print ( $1 > 0 ) ? "yes" : "no" ; }' )" "yes:yes"
 rigReset
 
-echo "-- coworking routine, spawned by magic-coordinator itself: not added --"
+echo "-- coworking routine, spawned by magic-coordinator itself: an instance of its own is seated in the session --"
 rigOut="$( rigRun magic-coordinator "RIG-TASK-TEXT" --routine rigcowork rig-member-a )"
-rigAssert "lands"                                        "$( printf '%s\n' "$rigOut" | grep -c '^SESSION_ID=' )" 1
-rigAssert "only the given member is spawned"             "$( printf '%s\n' "$rigOut" | grep -c -x -F 'MEMBERS=rig-member-a' )" 1
-rigAssert "no added line"                                "$( printf '%s\n' "$rigOut" | grep -c 'added magic-coordinator' )" 0
+rigAssert "lands as one session"                         "$( printf '%s\n' "$rigOut" | grep -c '^SESSION_ID=' )" 1
+rigAssert "the coordinator is seated first, then the member" "$( printf '%s\n' "$rigOut" | grep -c -x -F 'MEMBERS=magic-coordinator rig-member-a' )" 1
 rigWaitFor "$rigTmp/brief.rig-member-a" || rigRefuse "rig-member-a's own console never received a context"
+rigJoinId="$( printf '%s\n' "$rigOut" | sed -n 's/^SESSION_ID=//p' | head -1 )"
+rigOut="$( rigRun magic-coordinator "RIG-TASK-TEXT" --routine rigcowork --join-session "$rigJoinId" rig-member-b )"
+rigAssert "a join into that session adds no second coordinator" "$( printf '%s\n' "$rigOut" | grep -c -x -F 'MEMBERS=rig-member-b' )" 1
+rigWaitFor "$rigTmp/brief.rig-member-b" || rigRefuse "rig-member-b's own console never received a context: $( printf '%s\n' "$rigOut" | grep ERROR | head -1 )"
+rigReset
+
+echo "-- coworking routine, two members partitioned into one session each: every child seats its own magic-coordinator --"
+rigOut="$( rigRun "" "RIG-TASK-TEXT" --routine rigcowork rig-member-a rig-member-b )"
+rigAssert "partitioned into two children"                "$( printf '%s\n' "$rigOut" | sed -n 's/^CHILDREN=//p' | wc -w | tr -d ' ' )" 2
+rigLeft=10 ; while [ "$( grep -c . "$rigTmp/started" 2> /dev/null )" -lt 4 ] && [ "$rigLeft" -gt 0 ] ; do sleep 1 ; rigLeft=$(( rigLeft - 1 )) ; done
+rigAssert "each member and one coordinator per child started" "$( grep -c '^rig-member-a ' "$rigTmp/started" ):$( grep -c '^rig-member-b ' "$rigTmp/started" ):$( grep -c '^magic-coordinator ' "$rigTmp/started" )" "1:1:2"
+rigAssert "each coordinator sits in a child of its own"  "$( awk '$1 == "magic-coordinator" { print $2 }' "$rigTmp/started" | sort -u | grep -c . )" 2
 rigReset
 
 echo "-- standalone routine, spawned from the console: not added --"

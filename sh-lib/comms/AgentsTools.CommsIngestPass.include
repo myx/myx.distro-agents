@@ -1,0 +1,127 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.CommsIngestPass.include -- the cadence of the comms source ingest, and the sweep item 12 puts around it (S1.12 stage 3).
+##
+## THE SWEEP, in item 12's own order: each due channel source is ingested, then the cache-to-inbox transfer hands over what the ingest
+## wrote, then one commit covers the items the transfer made. It runs on the comms reader, which standing ruling 14 makes the only thing
+## that fetches a source: its call site is AgentsToolsCommsCachePullWatched.
+##
+##   The kept list  $MMDAPP/.local/cache/comms/.ingest-pass/sources.txt, `<member><TAB><target><TAB><folder>` a channel source, sorted.
+##                  Rebuilt when the store folder is newer than it, and once an hour whatever the folder says.
+##   A source       a channel folder whose recipe line reads `slack-conversation <target> <member> <as bot>`. A folder read as the bot is
+##                  left out, because --intern-comms-ingest takes no --as-bot and reads as the member whose `.user-id` file names its
+##                  account. A thread folder is not a source: the ingest's history read carries its channel's threads.
+##   A source is due its `.state.txt` is newer than its `.ingest.txt`, so a pull brought what the ingest has not read, and its own TTL
+##                  has passed since that ingest (AgentsToolsSourceTtlOf, the one table). A source with no `.ingest.txt` is due at once.
+##   The turn       $MMDAPP/.local/cache/comms/.ingest-pass/turn holds the folder served last, and the next pass starts after it, so a pass
+##                  bounded below the list still reaches every source in turn.
+##
+## Sourced, never run: functions only.
+##
+
+## Where the kept list and the turn live, beside the store they serve. rc 1 for no workspace.
+AgentsCommsIngestPassDir(){
+	[ -n "${MMDAPP:-}" ] || return 1
+	printf '%s\n' "$MMDAPP/.local/cache/comms/.ingest-pass"
+}
+
+## THE KEPT LIST, REBUILT ONLY WHEN THE STORE'S SHAPE MAY HAVE MOVED: no list at all, the store folder newer than it, or the list over an
+## hour old. A folder whose recipe names no member, and one read as the bot, are left out.
+AgentsCommsIngestPassSources(){ ## the list path, the store folder
+	local srcPath="$1" srcStore="$2" srcState srcLine srcTarget srcMember srcBot srcRows="" srcTemp
+	if [ -f "$srcPath" ] && [ ! "$srcStore" -nt "$srcPath" ] ; then
+		[ -n "$( find "$srcPath" -mmin -60 2> /dev/null )" ] || return 0
+	fi
+	for srcState in "$srcStore"/*/.state.txt ; do
+		[ -f "$srcState" ] || continue
+		srcTarget="" srcMember="" srcBot=""
+		while IFS= read -r srcLine ; do
+			case "$srcLine" in
+				slack-conversation\ *)
+					srcLine="${srcLine#slack-conversation }"
+					srcTarget="${srcLine%% *}"
+					srcLine="${srcLine#* }"
+					srcMember="${srcLine%% *}"
+					srcBot="${srcLine##* }"
+				;;
+			esac
+		done < "$srcState"
+		[ -n "$srcMember" ] || continue
+		[ "$srcBot" != "true" ] || continue
+		case "$srcMember" in -*|*[!A-Za-z0-9._-]*) continue ;; esac
+		case "$srcTarget" in ''|*[!A-Za-z0-9._-]*) continue ;; esac
+		srcRows="$srcRows$srcMember"$'\t'"$srcTarget"$'\t'"${srcState%/.state.txt}"$'\n'
+	done
+	srcRows="$( printf '%s' "$srcRows" | LC_ALL=C sort )" || return 1
+	mkdir -p "${srcPath%/*}" 2> /dev/null || return 1
+	srcTemp="$( mktemp "$srcPath.XXXXXX" 2> /dev/null )" || return 1
+	printf '%s\n' "$srcRows" > "$srcTemp" && mv -f "$srcTemp" "$srcPath" 2> /dev/null || { rm -f "$srcTemp" ; return 1 ; }
+	return 0
+}
+
+## ONE INGEST, at most <most> sources served, each one due, starting after the source the last pass served. rc 0 whether or not it served
+## anything; rc 1 a source could not be read, and the pass went on with the rest of its turn.
+AgentsCommsIngestPass(){ ## most (0 for no bound)
+	local passMost="${1:-0}" passDir passList passTurn="" passNow passAt=0 passStep=0 passServed=0 passFailed=0 passStart=0
+	local passLine passMember passTarget passPath passIngest passIngestAt passTtl passRows=() passTab
+	case "$passMost" in ''|*[!0123456789]*) passMost=0 ;; esac
+	[ -n "${MMDAPP:-}" ] || { echo "⛔ ERROR: the comms ingest pass needs a workspace" >&2 ; set +e ; return 1 ; }
+	passDir="$( AgentsCommsIngestPassDir )" || { set +e ; return 1 ; }
+	passList="$passDir/sources.txt"
+	AgentsCommsIngestPassSources "$passList" "$MMDAPP/.local/cache/comms/slack" || { echo "⛔ ERROR: the ingest pass could not keep its list in $passDir" >&2 ; set +e ; return 1 ; }
+	passTab="$( printf '\t' )"
+	while IFS= read -r passLine ; do
+		[ -n "$passLine" ] || continue
+		passRows[${#passRows[@]}]="$passLine"
+	done < "$passList"
+	[ "${#passRows[@]}" -gt 0 ] || return 0
+	[ ! -f "$passDir/turn" ] || { IFS= read -r passTurn 2> /dev/null < "$passDir/turn" || passTurn="" ; }
+	passNow="$( date +%s )"
+	while [ "$passAt" -lt "${#passRows[@]}" ] ; do
+		[ "${passRows[$passAt]##*/}" != "$passTurn" ] || { passStart=$(( passAt + 1 )) ; break ; }
+		passAt=$(( passAt + 1 ))
+	done
+	type AgentsToolsSourceTtlOf > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.SourceTtl.include"
+	while [ "$passStep" -lt "${#passRows[@]}" ] ; do
+		[ "$passMost" -eq 0 ] || [ "$passServed" -lt "$passMost" ] || break
+		passLine="${passRows[$(( ( passStart + passStep ) % ${#passRows[@]} ))]}"
+		passStep=$(( passStep + 1 ))
+		passMember="${passLine%%$passTab*}"
+		passLine="${passLine#*$passTab}"
+		passTarget="${passLine%%$passTab*}"
+		passPath="${passLine#*$passTab}"
+		passIngest="$passPath/.ingest.txt"
+		if [ -f "$passIngest" ] ; then
+			[ "$passPath/.state.txt" -nt "$passIngest" ] || continue
+			passIngestAt="$( LC_ALL=C stat -f '%m' "$passIngest" 2> /dev/null || LC_ALL=C stat -c '%Y' "$passIngest" 2> /dev/null )" || passIngestAt=""
+			case "$passIngestAt" in ''|*[!0123456789]*) passIngestAt=0 ;; esac
+			passTtl="$( AgentsToolsSourceTtlOf "slack:$passTarget" )"
+			case "$passTtl" in ''|*[!0123456789]*) passTtl=15 ;; esac
+			[ $(( passNow - passIngestAt )) -ge "$passTtl" ] || continue
+		fi
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+		DistroAgentsTools --intern-comms-ingest --run "$passMember" "$passTarget" || passFailed=$(( passFailed + 1 ))
+		printf '%s\n' "${passPath##*/}" > "$passDir/turn" 2> /dev/null || :
+		passServed=$(( passServed + 1 ))
+	done
+	[ "$passFailed" -eq 0 ] || { set +e ; return 1 ; }
+	return 0
+}
+
+## THE SWEEP: the due sources ingested, then the cache-to-inbox transfer for each reader the store names, then one commit.
+AgentsCommsSweepPass(){ ## most (0 for no bound)
+	local sweepList sweepMember
+	AgentsCommsIngestPass "${1:-0}" || :
+	type AgentsCommsTransferSlack > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsTransfer.include"
+	sweepList="$MMDAPP/.local/cache/comms/.transfer/sources.txt"
+	AgentsCommsTransferSources "$sweepList" "$MMDAPP/.local/cache/comms/slack" || return 1
+	while IFS= read -r sweepMember ; do
+		[ -n "$sweepMember" ] || continue
+		AgentsCommsTransferSlack "$sweepMember" || :
+	done < <( AgentsCommsTransferMembers "$sweepList" )
+	type AgentsToolsCollectCommit > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.Collect.include"
+	AgentsToolsCollectCommit "comms sweep" yes
+	return 0
+}

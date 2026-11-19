@@ -37,15 +37,15 @@ def parsePermissionList(text):
 GRANT_SESSION = re.compile(r"session (\S+) (?:ends|runs)")
 
 
-## A grant as it is shown: one of a session shows in the place where it ends the status of its session, whether it is
-## finished or active, and not its condition; the session is found among the sessions the list read gave. A grant of any other
+## A grant as it is shown: one of a session shows in the place where it ends the status of its session, active by the phase
+## the list gave it, else finished, and not its condition; the session is found among the sessions the list read gave. A grant of any other
 ## kind is as it was read, and so is one whose session that list does not hold.
 def grantShown(state, grant):
     named = GRANT_SESSION.search(grant["ends"]) if grant["kind"] == "session" else None
     held = sessionRowOf(state, named.group(1)) if named else None
     if held is None:
         return grant
-    return dict(grant, ends="finished" if held["session"]["state"] == SESSION_FINISHED else "active")
+    return dict(grant, ends="active" if held["session"]["phase"] == "active" else "finished")
 
 
 ## The rows of `Permissions`, a member's or a participant's: its grants as read, each shown as grantShown has it, under a heading

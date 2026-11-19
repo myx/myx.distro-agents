@@ -73,6 +73,7 @@ rigTests(){ ## copy, test... -- that copy's tests: the runner under test and the
 rigTinyName="${0##*/}" ; rigTinyName="${rigTinyName%.test.sh}"
 case "$MDLT_ORIGIN" in */.local/temp/*) rigTinyCopy="${MDLT_ORIGIN##*/.local/temp/}" ; rigTinyCopy="${rigTinyCopy%%/*}" ;; *) rigTinyCopy=live ;; esac
 printf 'BEGIN %s %s\n' "$rigTinyCopy" "$rigTinyName" >> "$RIG_SHARED/log"
+printf '%s\n' "${MDAT_SUITE_QUEUE_LIMIT-}" >> "$RIG_SHARED/limits.log"
 rigHeldFor=600
 while [ -e "$RIG_SHARED/hold.$rigTinyName" ] && [ ! -e "$RIG_SHARED/let.$rigTinyName" ] && [ "$rigHeldFor" -gt 0 ] ; do sleep 0.2 ; rigHeldFor=$(( rigHeldFor - 1 )) ; done
 printf 'END %s %s\n' "$rigTinyCopy" "$rigTinyName" >> "$RIG_SHARED/log"
@@ -87,7 +88,7 @@ rigTests rig-scratch-a RigOne RigTwo
 rigCall(){ ## result prefix, operation, its arguments... -- one call of the tooling from the workspace, in the background; <prefix>.out .err, its pid in rigLast
 	local callOut="$1" ; shift
 	case "$rigWs" in "$rigTmp"/*) ;; *) rigRefuse "the workspace is outside this rig's own tree: $rigWs" ;; esac
-	( cd "$rigWs" && exec env -i HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWs" MDLT_ORIGIN="$rigLive" MDLT_OPTION="--run-from-path $rigLive" RIG_TMP="$rigTmp" RIG_SHARED="$rigTmp" ${rigAs:+MDAT_SPAWN_AGENT="$rigAs"} \
+	( cd "$rigWs" && exec env -i HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWs" MDLT_ORIGIN="$rigLive" MDLT_OPTION="--run-from-path $rigLive" RIG_TMP="$rigTmp" RIG_SHARED="$rigTmp" ${rigAs:+MDAT_SPAWN_AGENT="$rigAs"} ${rigLane:+MDAT_RETEST_LANE_WAIT="$rigLane"} \
 		bash -c 'case "$MMDAPP" in "$RIG_TMP"/*) ;; *) exit 99 ;; esac ; exec bash "$0" "$@"' "$rigTool" "$@" ) > "$callOut.out" 2> "$callOut.err" < /dev/null &
 	rigLast=$!
 	rigStarted="$rigStarted $rigLast" ; rigProcNote "$rigLast"
@@ -127,9 +128,9 @@ rigStands(){ ## request id -- where the result operation says that request stand
 	LC_ALL=C sed -n "1s/^RETEST $1 \([A-Z]*\) .*/\1/p" "$rigTmp/stands.out"
 }
 rigFresh(){ ## -- an empty queue, no pass on record, an empty log, nothing held or failing
-	rm -rf "$rigHome/.agents" ; : > "$rigTmp/log" ; rm -f "$rigTmp"/hold.* "$rigTmp"/let.* "$rigTmp"/fail.* ; rigAs=""
+	rm -rf "$rigHome/.agents" ; : > "$rigTmp/log" ; rm -f "$rigTmp"/hold.* "$rigTmp"/let.* "$rigTmp"/fail.* ; rigAs="" rigLane=""
 }
-rigAs=""
+rigAs="" rigLane=""
 
 echo "-- 1. queueing returns at once with an id, and waits for no test --"
 rigFresh
@@ -293,6 +294,41 @@ rigAssert "control: the same three readers on --get-path-history give 1 1 1" "$(
 rigOp "$rigTmp/h9" --retest-queue --no-such-option
 rigAssert "an unknown option is refused with the syntax, which is the one the help gives" "$rigRc $( LC_ALL=C grep -c -F -- "syntax is $( LC_ALL=C sed -n 's/^📘 syntax: DistroAgentsTesting.fn.sh --retest-queue //p' "$rigHelpManual" )" "$rigTmp/h9.err" )" "1 1"
 rigAssert "the queue's code sends nothing anywhere: it names no Slack call, no curl and no post" "$( LC_ALL=C grep -c -i -E 'slack|curl|AgentsTools[A-Za-z]*(Post|Send)' "$rigInclude" )" "0"
+
+echo "-- 10. a copy's requests run shortest first, and each is answered as soon as its own tests have run --"
+rigFresh
+: > "$rigTmp/hold.RigOne" ; : > "$rigTmp/hold.RigTwo" ; : > "$rigTmp/hold.RigThree"
+rigAsk "$rigTmp/q10a" --by rig-first --why 'the two-test request, asked first' RigTwo RigThree ; rigIdA="$rigId"
+rigAsk "$rigTmp/q10b" --by rig-second --why 'the one-test request, asked second' RigOne ; rigIdB="$rigId"
+rigCall "$rigTmp/d10" --retest-drain ; rigPidD=$rigLast
+rigUntil 'BEGIN live RigOne' "$rigTmp/log" || rigRefuse "the batch's first test never began, so nothing below would be measured"
+rigAssert "the one-test request runs first, though it was asked second" "$( LC_ALL=C sed -n 's/^BEGIN live //p' "$rigTmp/log" | LC_ALL=C head -1 ) $( [ -f "$rigQueue/running/$rigIdA.request" ] && printf ahead-in-batch || printf missing ) $( [ -f "$rigQueue/running/$rigIdB.request" ] && printf in-batch || printf missing )" "RigOne ahead-in-batch in-batch"
+: > "$rigTmp/let.RigOne"
+for rigWaitLeft in $( seq 1 300 ) ; do
+	[ ! -f "$rigQueue/done/$rigIdB.result" ] || break
+	sleep 1
+done
+rigAssert "the shorter request is answered while the longer one still runs" "$( [ -f "$rigQueue/done/$rigIdB.result" ] && printf finished || printf waiting ) $( [ -f "$rigQueue/running/$rigIdA.request" ] && printf running || printf gone )" "finished running"
+rigAssert "the finished shorter request's result names the one test it ran" "$( LC_ALL=C sed -n 's/^passed: //p' "$rigQueue/done/$rigIdB.result" 2> /dev/null | LC_ALL=C tr '\n' ' ' )" "RigOne "
+: > "$rigTmp/let.RigTwo" ; : > "$rigTmp/let.RigThree" ; rigEnd "$rigPidD"
+rigAssert "each test ran once, and the longer request passes with its two" "$( rigBegins RigOne ) $( rigBegins RigTwo ) $( rigBegins RigThree ) $( rigLine "$rigTmp/d10" "$rigIdA" | LC_ALL=C cut -d' ' -f1-3 )" "1 1 1 RETEST <id> PASS"
+rigAssert "the longer request's own result names the two tests it ran" "$( LC_ALL=C sed -n 's/^passed: //p' "$rigQueue/done/$rigIdA.result" 2> /dev/null | LC_ALL=C sort | LC_ALL=C tr '\n' ' ' )" "RigThree RigTwo "
+rm -f "$rigTmp"/hold.* "$rigTmp"/let.*
+
+echo "-- 11. a drain waits the machine's line out, however long it is, so a busy machine does not answer a request NOT RUN --"
+rigFresh
+: > "$rigTmp/limits.log"
+rigAsk "$rigTmp/q11a" --by rig-first --why 'the line is long' RigOne ; rigIdA="$rigId"
+rigOp "$rigTmp/d11" --retest-drain
+rigAssert "the test a drain runs is handed a lane wait well past the runner's own 900s bound" "$( LC_ALL=C sed -n '$p' "$rigTmp/limits.log" | LC_ALL=C awk '{ print ( $1 + 0 >= 3600 ) ? "long" : "short" }' )" "long"
+rigAssert "and its request passes, never answered NOT RUN for a line it gave up on" "$( rigLine "$rigTmp/d11" "$rigIdA" | LC_ALL=C cut -d' ' -f1-3 )" "RETEST <id> PASS"
+: > "$rigTmp/limits.log"
+rigLane=1234
+rigAsk "$rigTmp/q11b" --by rig-second --why 'a caller wants a short wait' RigOne ; rigIdB="$rigId"
+rigOp "$rigTmp/d11b" --retest-drain
+rigAssert "a caller's own shorter wait is the one the test is handed" "$( LC_ALL=C sed -n '$p' "$rigTmp/limits.log" )" "1234"
+rigLane=""
+rigFresh
 
 if [ "$rigFails" -ne 0 ] ; then
 	echo "⛔ RETEST QUEUE CHECK FAILED: $rigFails of $(( rigPasses + rigFails )) assertion(s)" >&2 ; exit 1

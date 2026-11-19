@@ -47,6 +47,17 @@ case "$1" in
 				set +e ; return 1
 			;;
 		esac
+		## EACH OPERATION WRITES ITS OWN TYPE: --upsert-inbox-<type> refuses a name that says another type. A name that says none is the gate's to warn.
+		case "$opContext" in
+			--upsert-inbox-note|--upsert-inbox-inquiry|--upsert-inbox-reflection)
+				type AgentsToolsItemNameType > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/items/AgentsTools.ItemNameShape.include"
+				local opType="${opContext#--upsert-inbox-}" nameType="$( AgentsToolsItemNameType "$itemName" )"
+				if [ -n "$nameType" ] && [ "$nameType" != "$opType" ] ; then
+					echo "$MDSC_CMD: member-inbox-upsert: ⛔ ERROR: $opContext writes $opType-* items only, and $itemName names a $nameType -- nothing was written" >&2
+					set +e ; return 1
+				fi
+			;;
+		esac
 		## A MEMBER RECORD, NOT THE CALLER'S OWN VIEW. The item is written into the team data of the
 		## workspace this call runs from, and the write reads no skillset of the member whose inbox it
 		## is: any member this machine holds a record of is written to, wherever that member is set up,
@@ -236,8 +247,8 @@ case "$1" in
 		## content names none of them: type from the name's prefix, from the writing member
 		## when known, date now, owner the member whose inbox this is, and the contract the type names. Never on an update:
 		## those are creation facts, and the one updating is not the one who created it.
-		## A body opening a frontmatter block it never closes is written as given, as before:
-		## there is no frontmatter to complete, and the header awk would refuse it.
+		## A body opening a frontmatter block it never closes gets no defaults: the header awk would refuse it,
+		## and the write gate refuses an inbox item with no complete block.
 		local openFrontmatter="false"
 		if [ "${content%%$'\n'*}" = "---" ] && [ "$( printf '%s\n' "$content" | LC_ALL=C awk -v fieldName=type -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsBoardItemFrontmatterFieldProbe.awk" )" = "NONE" ] ; then
 			openFrontmatter="true"
@@ -322,9 +333,10 @@ case "$1" in
 		## whose rule reports is said and the write goes on.
 		local gateMode="change" gateLabel="$itemName"
 		[ -n "$existingPath" ] || { gateMode="create" ; gateLabel="new item" ; }
-		printf '%s\n' "$content" | AgentsToolsDocValidateGate member-inbox-upsert "$gateLabel" inbox "$itemName" "$existingPath" "$gateMode" || { set +e ; return 1 ; }
+		printf '%s\n' "$content" | AgentsToolsDocValidateGate member-inbox-upsert "$gateLabel" inbox "$itemName" "$existingPath" "$gateMode" whole || { set +e ; return 1 ; }
 		AgentsToolsInboxReady "$memberName" || { set +e ; return 1 ; }
-		printf '%s\n' "$content" > "$target"
+		## A store that cannot be written refuses the write as the gate does: said, and nothing else done (no move, no stamp, no poke).
+		printf '%s\n' "$content" > "$target" || { echo "$MDSC_CMD: member-inbox-upsert: ⛔ ERROR: $itemName could not be written at $target -- nothing was stored" >&2 ; set +e ; return 1 ; }
 		[ -z "$movedFrom" ] || rm -f -- "$movedFrom"
 		## THE INDEX IS NOW BEHIND: an inbox is one of the stores the knowledge query reads, and an item's stamp can move it between the
 		## folders, so a rename counts as a change too. One stamp, touched here, which the schedule's refresh reads.

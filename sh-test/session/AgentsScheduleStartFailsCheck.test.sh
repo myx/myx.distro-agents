@@ -7,6 +7,7 @@
 ##   4. A START THE ROUTINE'S OWN LOCK REFUSED is a wait, not a failure: it counts for nothing.
 ##   5. A SUCCESS clears the count and the hold, as the start's own success path does.
 ##   6. A HOLD PAST ITS MINUTES is lifted, with the count, so the next start is a fresh streak.
+##   7. THE HOLD IS AGED ON THE PASS CLOCK, as the ten-minute hold of a start is: dated at a pass instant, it holds for its minutes of pass time.
 ## The inquiry's filing is replaced by a function of this check's own, so nothing is posted or written to any inbox.
 ## Red before the change: the functions are not defined, so every row fails.
 ## Offline: a rig workspace under this check's temp tree.
@@ -94,6 +95,15 @@ touch -t 202001010000 "$rigStore/$rigKey.escalated"
 rigAssert "the key is free again" "$( rigHeld )" "free"
 rigAssert "the count is gone with the hold" "$( rigCount )" "none"
 rigAssert "a hold within its minutes stands" "$( MDAT_SCHEDULE_START_FAILS_HOLD_MINUTES=1 ; AgentsToolsScheduleStartFailed "$rigKey" "$rigFailure" ; AgentsToolsScheduleStartFailed "$rigKey" "$rigFailure" ; AgentsToolsScheduleStartFailed "$rigKey" "$rigFailure" ; rigHeld )" "held"
+
+echo "-- 7. the hold is aged on the pass clock --"
+rm -f "$rigStore/$rigKey.fails" "$rigStore/$rigKey.escalated"
+AgentsToolsScheduleStartFailed "$rigKey" "$rigFailure" ; AgentsToolsScheduleStartFailed "$rigKey" "$rigFailure" ; AgentsToolsScheduleStartFailed "$rigKey" "$rigFailure"
+rigPassAt=1792404000
+python3 -I -B -c 'import os, sys; e = int(sys.argv[1]); os.utime(sys.argv[2], (e, e))' "$rigPassAt" "$rigStore/$rigKey.escalated" || rigRefuse "the hold could not be dated at the pass instant"
+rigAssert "dated at the pass instant, the key is held a minute of pass time later" "$( agentsSchedulePassNow=$(( rigPassAt + 60 )) ; rigHeld )" "held"
+rigAssert "and still at 359 minutes of pass time" "$( agentsSchedulePassNow=$(( rigPassAt + 359 * 60 )) ; rigHeld )" "held"
+rigAssert "control: past its 360 minutes of pass time it is free, the count gone with it" "$( agentsSchedulePassNow=$(( rigPassAt + 361 * 60 )) ; rigHeld ):$( rigCount )" "free:none"
 
 export MMDAPP="$rigReal"
 if [ "$rigFailCount" -ne 0 ] ; then

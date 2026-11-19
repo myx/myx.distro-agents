@@ -289,6 +289,7 @@ if ! type AgentsToolsEventTrackSendDir > /dev/null 2>&1 ; then
 	## could not be taken or a record failed (the rest still go).
 	AgentsToolsEventTrackSendDrain(){ ## outbox, sender function
 		local drainTail="" drainCount=1 drainOut="$1" drainSender="$2" drainRc=0 drainLock="" drainLead="" drainNext="" drainMerged="" drainSeq="" drainGroup="" drainDone="" drainOne=""
+		local drainFeedOf="" drainMember="" drainKind="" drainSession="" drainRest=""
 		[ -n "$drainOut" ] && [ -d "$drainOut" ] && [ -n "$drainSender" ] || return 0
 		AgentsToolsEventTrackSendSendLockTake "$drainOut" "${drainOut##*/}" || {
 			echo "⚠️ WARNING: ${MDSC_CMD:-event-track}: the event-track outbox of ${drainOut##*/} is sending, so this drain left its posts to that sender" >&2
@@ -305,7 +306,9 @@ if ! type AgentsToolsEventTrackSendDir > /dev/null 2>&1 ; then
 			## lead's own arrival, so the first post of a burst collects the burst.
 			AgentsToolsEventTrackSendPace "$drainOut" "$drainLead"
 			[ -d "$drainOut" ] && [ -d "$drainLead" ] || break
-			drainMerged="" ; drainGroup="${drainLead##*/}" ; drainTail="$drainLead" ; drainCount=1
+			drainMerged="" ; drainGroup="${drainLead##*/}" ; drainTail="$drainLead" ; drainCount=1 ; drainFeedOf=""
+			IFS=$'\t' read -r drainMember drainKind drainSession drainRest < "$drainLead/meta" 2> /dev/null || :
+			[ "$drainKind" != feed ] || drainFeedOf="$drainMember	$drainSession"
 			while : ; do
 				drainNext="$( AgentsToolsEventTrackSendOldest "$drainOut" "$drainLead" )"
 				[ -n "$drainNext" ] && [ "$drainNext" != "$drainLead" ] || break
@@ -318,6 +321,12 @@ if ! type AgentsToolsEventTrackSendDir > /dev/null 2>&1 ; then
 				fi
 				## Everything bound for the same thread is collected behind the lead, in arrival order, whatever its member, kind or fields; up to the group's size.
 				AgentsToolsEventTrackSendSameThread "$drainLead" "$drainNext" || break
+				## TWO PARTICIPANTS' FEED LINES NEVER SHARE A POST: a feed record of another member or session than the group's own feed ends the group, in its place.
+				IFS=$'\t' read -r drainMember drainKind drainSession drainRest < "$drainNext/meta" 2> /dev/null || :
+				if [ "$drainKind" = feed ] ; then
+					[ -n "$drainFeedOf" ] || drainFeedOf="$drainMember	$drainSession"
+					[ "$drainFeedOf" = "$drainMember	$drainSession" ] || break
+				fi
 				[ "$drainCount" -lt "$agentsEventTrackSendGroupMax" ] || break
 				drainCount=$(( drainCount + 1 ))
 				drainSeq="${drainNext##*/}"

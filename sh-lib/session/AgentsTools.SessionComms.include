@@ -112,16 +112,28 @@ AgentsToolsSessionCommsOnceClear(){ ## situation -- it ended: the next time it c
 ## is dropped, since tracking is best effort. The lines posted are the tool lines of the log, the shape the spawner's own poller took, 100 at most a window.
 ## Sets agentsCommsActivityPosted to `yes` where it posted, for the thread's idle end.
 AgentsToolsCommsActivityPass(){ ## now
-	local actNow="$1" actStore actRecord actSpawn actLast=0 actLines=0 actRow actMember actThread actLog actRead actCount actNew actTmp actDone=0 actTrack actFeed actTaken
+	local actNow="$1" actStore actRecord actSpawn actLast=0 actLines=0 actRow actMember actThread actLog actRead actCount actNew actTmp actDone=0 actTrack actFeed actTaken actStamp="" actClock="" actListed
 	agentsCommsActivityPosted=""
 	[ -n "${MMDAPP:-}" ] && [ $(( actNow - ${agentsCommsActivityAt:-0} )) -ge 20 ] || return 0
 	agentsCommsActivityAt="$actNow"
 	actStore="$MMDAPP/.local/agents/comms/activity"
+	## The last listing found no run started, and the store's stamp is the one it was taken with: no record was made, closed or removed since.
+	type AgentsSpawnedStoreStampInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include"
+	## The clock before the stamp, so a stamp older than it was read in a second already gone: the pass's own `now` may run ahead of it.
+	actClock="$( date +%s )" || actClock=""
+	AgentsSpawnedStoreStampInto actStamp "$MMDAPP"
+	case "$actStamp:$actClock" in *[!0123456789:]*|:*|*:) actStamp="" ;; esac
+	[ "${agentsCommsActivityIdle:-}" != yes ] || [ -z "$actStamp" ] || [ "$actStamp" != "${agentsCommsActivityStamp:-}" ] || return 0
 	mkdir -p "$actStore" 2> /dev/null || return 0
 	type AgentsEventTrackPostQueueLines > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/event-track/AgentsTools.InternOpEventTrackPost.include" dummy-arg
 	type AgentsToolsEventTrackThreadOfInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/event-track/AgentsTools.EventTrackThread.include"
 	type AgentsEventTrackFeedPathInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/event-track/AgentsTools.EventTrackThread.include"
 	type AgentsToolsSessionRecordLive > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionSeats.include"
+	## The stamp was read before the list: a record made while it is read moves it. A stamp of the second it was read in is not kept.
+	actListed="$( type AgentsToolsSpawnedStartedRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/schedule/AgentsTools.StartedRecords.include"; AgentsToolsSpawnedStartedRecords )"
+	agentsCommsActivityIdle="" ; [ -n "$actListed" ] || agentsCommsActivityIdle=yes
+	agentsCommsActivityStamp=""
+	[ -z "$agentsCommsActivityIdle" ] || [ -z "$actStamp" ] || [ "$actStamp" -ge "$actClock" ] || agentsCommsActivityStamp="$actStamp"
 	while IFS= read -r actRecord ; do
 		[ -f "$actRecord" ] || continue
 		actSpawn="${actRecord##*/}" ; actSpawn="${actSpawn%.spawn.md}"
@@ -193,7 +205,7 @@ AgentsToolsCommsActivityPass(){ ## now
 		fi
 		rm -f "$actTmp"
 		actDone=$(( actDone + 1 ))
-	done <<< "$( type AgentsToolsSpawnedStartedRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/schedule/AgentsTools.StartedRecords.include"; AgentsToolsSpawnedStartedRecords )"
+	done <<< "$actListed"
 	return 0
 }
 
@@ -575,7 +587,10 @@ AgentsToolsSessionCommsOrder(){
 ## file's own date, exactly as it was before. So a reader that has been running a minute stops paying for stat(), and nothing else moves.
 AgentsToolsSessionCommsActive(){ ## session, now
 	local activeDir activeAt
-	activeDir="$( AgentsToolsSessionChatDir "$1" )" || return 1
+	## The folder of AgentsToolsSessionChatDir, built here: asked of every listed session every pass, so it starts no process.
+	case "$1" in ''|.|..|*/*|*[[:space:]]*) return 1 ;; esac
+	[ -n "${MMDAPP:-}" ] || return 1
+	activeDir="$MMDAPP/.local/agents/sessions/$1"
 	if [ -n "${agentsCommsBeat15:-}" ] && [ -f "${agentsCommsBeat15:-}" ] ; then
 		if [ -e "$activeDir/$agentsSessionChatName.waiting" ] && [ "$activeDir/$agentsSessionChatName.waiting" -nt "$agentsCommsBeat15" ] ; then
 			return 0
@@ -633,13 +648,21 @@ AgentsToolsSessionCommsLookedSet(){ ## session, now
 
 ## The budget: rc 0 where a read may be made at this moment, and counted; rc 1 where the last minute holds as many as the budget.
 AgentsToolsSessionCommsBudgetTake(){ ## now
-	local budgetDir budgetKept budgetCount=0
+	local budgetDir budgetKept="" budgetCount=0 budgetLine budgetRest budgetRead=0
 	[ -n "${MMDAPP:-}" ] || return 1 ; budgetDir="$MMDAPP/.local/agents/comms"
-	mkdir -p "$budgetDir" 2> /dev/null || return 1
-	budgetKept="$( { [ ! -f "$budgetDir/calls" ] || cat "$budgetDir/calls" ; } 2> /dev/null | LC_ALL=C awk -v from="$(( $1 - 60 ))" '$1 ~ /^[0-9]+$/ && ( $1 + 0 ) > from { print $1 ; }' )"
-	[ -z "$budgetKept" ] || budgetCount="$( printf '%s\n' "$budgetKept" | LC_ALL=C wc -l | LC_ALL=C tr -d ' ' )"
+	[ -d "$budgetDir" ] || mkdir -p "$budgetDir" 2> /dev/null || return 1
+	## The reads of the last minute, read and counted by the shell, the first field of each line, with no process.
+	if [ -f "$budgetDir/calls" ] ; then
+		while read -r budgetLine budgetRest ; do
+			budgetRead=$(( budgetRead + 1 ))
+			case "$budgetLine" in ''|*[!0123456789]*) continue ;; esac
+			[ "$budgetLine" -gt $(( $1 - 60 )) ] || continue
+			budgetKept="$budgetKept${budgetKept:+$'\n'}$budgetLine" ; budgetCount=$(( budgetCount + 1 ))
+		done 2> /dev/null < "$budgetDir/calls"
+	fi
 	if [ "$budgetCount" -ge "$agentsSessionCommsReadsPerMinute" ] ; then
-		{ printf '%s\n' "$budgetKept" > "$budgetDir/calls.aside" && mv -f "$budgetDir/calls.aside" "$budgetDir/calls" ; } 2> /dev/null || rm -f "$budgetDir/calls.aside" 2> /dev/null
+		## At the budget the file is written again only where a read of it aged out: a full minute that stands as it was costs no process.
+		[ "$budgetRead" = "$budgetCount" ] || { printf '%s\n' "$budgetKept" > "$budgetDir/calls.aside" && mv -f "$budgetDir/calls.aside" "$budgetDir/calls" ; } 2> /dev/null || rm -f "$budgetDir/calls.aside" 2> /dev/null
 		return 1
 	fi
 	{ { [ -z "$budgetKept" ] || printf '%s\n' "$budgetKept" ; printf '%s\n' "$1" ; } > "$budgetDir/calls.aside" && mv -f "$budgetDir/calls.aside" "$budgetDir/calls" ; } 2> /dev/null \

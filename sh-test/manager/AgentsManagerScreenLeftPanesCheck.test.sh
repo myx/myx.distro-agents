@@ -63,14 +63,14 @@ rigT=$'\t'
 	printf 'block\tloop\tMain_Loop\t1\nfigure\tloop\tmain-loop-outcome\tMain_Loop_Last_Outcome\tfailed\t-\tbad\t-\n'
 } > "rows.--manager-dashboard-read team-data team-data-git loop"
 {
-	printf 'session\tS-alpha\talpha_work\trunning\t2026-10-14_17:00_+0000\t2026-10-14_17:00_+0000\t1\trunning=1\trunning\t2026-10-14_17:00_+0000\talive\t5000\n'
+	printf 'session\tS-alpha\talpha_work\trunning\t2026-10-14_17:00_+0000\t2026-10-14_17:00_+0000\t1\trunning=1\trunning\t2026-10-14_17:00_+0000\talive\t5000\t-\t-\t-\tactive\n'
 	printf 'run\tS-alpha\tS-alpha\tkeeper-rig\tactive\trunning\trunning\t2026-10-14_17:00_+0000\t-\trig-host\t/rig/ws\tworking\n'
-	printf 'session\tS-beta\tbeta_work\tunclosed\t2026-10-13_10:00_+0000\t2026-10-13_11:00_+0000\t1\tunclosed=1\trunning\t2026-10-13_10:00_+0000\tgone\t900\n'
+	printf 'session\tS-beta\tbeta_work\tunclosed\t2026-10-13_10:00_+0000\t2026-10-13_11:00_+0000\t1\tunclosed=1\trunning\t2026-10-13_10:00_+0000\tgone\t900\t-\t-\t-\tactive\n'
 	printf 'run\tS-beta\tS-beta\tmagic-tester\tactive\tno-process\tunclosed\t2026-10-13_10:00_+0000\t-\trig-host\t/rig/ws\t-\n'
-	printf 'session\tS-gamma\tgamma_work\tfinished\t2026-10-12_10:00_+0000\t2026-10-12_11:00_+0000\t1\tfinished=1\tfinished\t2026-10-12_11:00_+0000\tnone\t100\n'
+	printf 'session\tS-gamma\tgamma_work\tfinished\t2026-10-12_10:00_+0000\t2026-10-12_11:00_+0000\t1\tfinished=1\tfinished\t2026-10-12_11:00_+0000\tnone\t100\t-\t-\t-\tclosed\n'
 	printf 'run\tS-gamma\tS-gamma\tkeeper-rig\tactive\tno-process\tfinished\t2026-10-12_10:00_+0000\t2026-10-12_11:00_+0000\trig-host\t/rig/ws\t-\n'
 	for rigNo in $( seq -w 1 40 ) ; do
-		printf 'session\tS-old%s\told_%s\tfinished\t2026-10-01_10:00_+0000\t2026-10-01_11:00_+0000\t0\t-\tfinished\t-\tnone\t-\n' "$rigNo" "$rigNo"
+		printf 'session\tS-old%s\told_%s\tfinished\t2026-10-01_10:00_+0000\t2026-10-01_11:00_+0000\t0\t-\tfinished\t-\tnone\t-\t-\t-\t-\tclosed\n' "$rigNo" "$rigNo"
 	done
 	printf 'counters\t1\t0\t1\t0\t2\t0.50\trig-host\n'
 } > "rows.--manager-session-list"

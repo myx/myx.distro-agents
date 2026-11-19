@@ -260,6 +260,7 @@ DistroAgentsDispatcher(){
 		;;
 
 		## The cleanup of the failed sessions of this workspace: each closed with the console kill, which reads it as finished from then on.
+		## It reads every session, since a failed one is ended and the active list no longer carries it.
 		--close-failed-sessions)
 			local closeOp="$1" closeId closeDone=0 closeAll=0 closeRc=0 closeList=""
 			shift
@@ -267,7 +268,7 @@ DistroAgentsDispatcher(){
 			type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 			## THE SAME ONE READING, AND THE SAME REFUSAL: a list that could not be read closes nothing, and `closed 0 of 0` there reads as a
 			## rig with no failed session rather than a call that never looked.
-			closeList="$( DistroAgentsDispatcher --active-sessions --scope all 2>&1 )" || {
+			closeList="$( DistroAgentsDispatcher --all-sessions --scope all 2>&1 )" || {
 				echo "⛔ ERROR: $MDSC_CMD $closeOp: nothing was closed, since the sessions could not be listed: $( printf '%s\n' "$closeList" | LC_ALL=C grep -m 1 -E 'ERROR|REFUS' | LC_ALL=C cut -c1-300 )" >&2 ; return 1
 			}
 			for closeId in $( printf '%s\n' "$closeList" | LC_ALL=C awk -F'\t' '$1 == "session" && $4 == "failed" { print $2 }' ) ; do

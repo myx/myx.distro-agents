@@ -144,7 +144,7 @@ AgentsToolsRoutineStackMoved(){ ## verb, the routine file a push, replace or ret
 ## accept, because a frame below it still asks for work. A session whose record carries no frame prints 0 and closes as
 ## any session did before the stack existed. rc 1, nothing printed, when the record cannot be written.
 AgentsToolsRoutineStackFrameClosed(){ ## session id, the item whose accept closed the frame (may be empty)
-	local closedSession="$1" closedItem="${2:-}" closedRecord closedLines closedNew closedLive closedTmp closedLock
+	local closedSession="$1" closedItem="${2:-}" closedRecord closedLines closedNew closedLive closedText closedLock
 	closedRecord="$( AgentsToolsSessionRoutineStackRecord "$closedSession" )" || return 1
 	closedLines="$( AgentsToolsSessionRoutineStackLines "$closedSession" | LC_ALL=C sed -n 's/^routine-stack: //p' )"
 	[ -n "$closedLines" ] || { printf '0\n' ; return 0 ; }
@@ -162,10 +162,9 @@ AgentsToolsRoutineStackFrameClosed(){ ## session id, the item whose accept close
 		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.LocalLock.include"
 		AgentsToolsLocalLockTake "routine-stack-$closedSession" 30 "the routine stack of $closedSession" || return 1
 		closedLock="$agentsLocalLockPath"
-		closedTmp="$( mktemp "$closedRecord.XXXXXX" 2> /dev/null )" || closedTmp=""
-		if [ -z "$closedTmp" ] || ! STACK_FRAMES_NEW="$closedNew" STACK_MOVE_LINE="" AgentsToolsRoutineStackRecordText < "$closedRecord" > "$closedTmp" 2> /dev/null \
-			|| ! mv -f "$closedTmp" "$closedRecord" 2> /dev/null ; then
-			[ -z "$closedTmp" ] || rm -f "$closedTmp" 2> /dev/null
+		type AgentsSpawnRecordWrite > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+		closedText="$( STACK_FRAMES_NEW="$closedNew" STACK_MOVE_LINE="" AgentsToolsRoutineStackRecordText < "$closedRecord" 2> /dev/null )" || closedText=""
+		if [ -z "$closedText" ] || ! printf '%s\n' "$closedText" | AgentsSpawnRecordWrite "$closedRecord" ; then
 			AgentsToolsLocalLockGive "$closedLock"
 			return 1
 		fi
@@ -299,7 +298,7 @@ AgentsToolsRoutineStackMove(){ ## the verb, the routine file a push, replace or 
 	local moveVerb="$1" moveRoutine="${2:-}" moveReason="${3:-}" moveBy="${4:-chair}"
 	local moveSession="${MDAT_SESSION_ID:-${MDAT_SPAWN_SESSION_ID:-}}" moveSpawn="${MDAT_SPAWN_SESSION_ID:-}" moveMember="${MDAT_SPAWN_AGENT:-}"
 	local moveRecord="" moveFrameLines="" moveRoutineName="" moveFrames="" moveNew="" moveLine="" moveTopName="" moveTopFile=""
-	local moveSteps="" moveStepList="" moveStart="" moveStore="" moveTmp="" moveLock="" moveDropped="" moveListFile=""
+	local moveSteps="" moveStepList="" moveStart="" moveStore="" moveText="" moveLock="" moveDropped="" moveListFile=""
 	case "$moveVerb" in
 		push|replace|return-to)
 			[ -n "$moveRoutine" ] || { echo "$MDSC_CMD: ⛔ ERROR: --routine-stack $moveVerb: it names the routine to move to. Nothing was done." >&2 ; return 1 ; }
@@ -343,10 +342,10 @@ AgentsToolsRoutineStackMove(){ ## the verb, the routine file a push, replace or 
 		return 1
 	}
 	moveLock="$agentsLocalLockPath"
-	moveTmp="$( mktemp "$moveRecord.XXXXXX" 2> /dev/null )" || moveTmp=""
-	if [ -z "$moveTmp" ] || ! STACK_FRAMES_NEW="$moveNew" STACK_MOVE_LINE="$moveLine" AgentsToolsRoutineStackRecordText < "$moveRecord" > "$moveTmp" 2> /dev/null \
-		|| ! LC_ALL=C grep -q -x -F -- "$moveLine" "$moveTmp" || ! mv -f "$moveTmp" "$moveRecord" 2> /dev/null ; then
-		[ -z "$moveTmp" ] || rm -f "$moveTmp" 2> /dev/null
+	type AgentsSpawnRecordWrite > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+	moveText="$( STACK_FRAMES_NEW="$moveNew" STACK_MOVE_LINE="$moveLine" AgentsToolsRoutineStackRecordText < "$moveRecord" 2> /dev/null )" || moveText=""
+	case $'\n'"$moveText"$'\n' in *$'\n'"$moveLine"$'\n'*) ;; *) moveText="" ;; esac
+	if [ -z "$moveText" ] || ! printf '%s\n' "$moveText" | AgentsSpawnRecordWrite "$moveRecord" ; then
 		AgentsToolsLocalLockGive "$moveLock"
 		echo "$MDSC_CMD: ⛔ ERROR: --routine-stack $moveVerb: the stack of session $moveSession could not be written. Nothing was done." >&2
 		return 1

@@ -106,9 +106,11 @@
 				inquiryMerged="$( mktemp "$MMDAPP/.local/temp/mdat-inquiry-append.XXXXXX" 2> /dev/null )" || inquiryMerged=""
 				if [ -n "$inquiryMerged" ] ; then
 					inquiryFiledName="${2:-}"
-					{ LC_ALL=C awk '/^---$/ { hdr++ ; next } hdr >= 2' "$MDAT_DATA_ROOT/inboxes/${1:-}/incoming/$inquirySame"
+					## THE OPEN INQUIRY STAYS WHOLE, its frontmatter with it: the write replaces the item, and one without its frontmatter would drop its
+					## creation facts (the contract refuses that). The new filing adds its body only: no frontmatter of its own, and not its title line.
+					{ LC_ALL=C cat "$MDAT_DATA_ROOT/inboxes/${1:-}/incoming/$inquirySame"
 					  printf '\n## Added %s\n\n' "$( date '+%Y-%m-%d %H:%M %z' )"
-					  LC_ALL=C awk 'done || !/^# / { print ; next } { done = 1 }' "$inquirySource" ; } > "$inquiryMerged"
+					  LC_ALL=C awk 'NR == 1 && $0 == "---" { front = 1 ; next } front { if ( $0 == "---" ) front = 0 ; next } done || !/^# / { print ; next } { done = 1 }' "$inquirySource" ; } > "$inquiryMerged"
 					local inquiryRebuilt=() inquiryNextIsSource=""
 					for inquiryWord in "$@" ; do
 						if [ -n "$inquiryNextIsSource" ] ; then inquiryRebuilt+=( "$inquiryMerged" ) ; inquiryNextIsSource="" ; continue ; fi

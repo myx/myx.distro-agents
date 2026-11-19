@@ -163,7 +163,7 @@ rigSystem='BOX [gear] system | run `abcdef01` · <date {date_short_pretty} at {t
 rigPlainRun='👤 *magic-tester* (run `abcdef01`)'
 rigPlainSystem='⚙️ system · run `abcdef01`'
 rigKindsFrom="$( date +%s )"
-for rigKindLabel in "start;run;▶️ run start — rig-what" "end;run;🏁 run end" "handback;run;📦 handback: none posted" \
+for rigKindLabel in "start;run;▶️ run start — rig-what" "end;run;🏁 run end · succeeded" "handback;run;📦 handback: none posted" \
 	"notice;run;⚠️ notice: rig-what" "refusal;system;🚫 refusal: rig-what" "error;system;⛔ error: rig-what" "activity;system;📋 rig-what" ; do
 	rigKind="${rigKindLabel%%;*}" ; rigRest="${rigKindLabel#*;}" ; rigSubject="${rigRest%%;*}" ; rigLabel="${rigRest#*;}"
 	rigHeader="$rigRun" ; rigPlainHeader="$rigPlainRun"
@@ -180,52 +180,52 @@ for rigKindLabel in "start;run;▶️ run start — rig-what" "end;run;🏁 run 
 		"$( LC_ALL=C grep -c -e '@here' -e '^→' -e '\*_' "$rigPost" )" 0
 done
 rigKindsTo="$( date +%s )"
-rigAssert "the fields the caller gave fill their slots" "$( rigCount "$rigTmp/k-end/000001" 'cli: rig-cli' )" 1
-rigAssert "a given tokens field reads as in, cache and out" "$( rigCount "$rigTmp/k-end/000001" 'tokens: in 1.1K · cache 500 · out 1.4K (incl. 1 sub-session)' )" 1
-rigAssert "a line whose slots are all empty is left out" "$( cat "$rigTmp/k-error/000001" "$rigTmp/k-end/000001" | LC_ALL=C grep -c -e 'detail:' -e 'ended:' -e 'timed out' )" 0
-rigAssert "an empty field on a kept line is left out, its label with it" "$( rigCount "$rigTmp/k-end/000001" 'outcome: succeeded' )" 1
+rigAssert "the fields the caller gave fill their slots" "$( rigCount "$rigTmp/k-end/000001" '🤖 rig-cli' )" 1
+rigAssert "a given tokens field reads as in, cache and out" "$( rigCount "$rigTmp/k-end/000001" '🪙 in 1.1K · cache 500 · out 1.4K (incl. 1 sub-session)' )" 1
+rigAssert "a line whose slots are all empty is left out" "$( cat "$rigTmp/k-error/000001" "$rigTmp/k-end/000001" | LC_ALL=C grep -c -e ' — ' -e 'ended:' -e 'timed out' )" 0
+rigAssert "an empty field on a kept line is left out, its label with it" "$( rigCount "$rigTmp/k-end/000001" '🏁 run end · succeeded' )" 1
 rigAssert "no field anywhere reads as a placeholder" "$( cat "$rigTmp"/k-*/000001 | LC_ALL=C grep -c -e ': -$' -e ': - ' -e ' -$' )" 0
 rigAssert "a line whose first field is empty opens with the next one, not its separator" \
-	"$( rigRender start "$rigTmp/k-sep" /dev/null runs=native wait=true dispatch=none ; sed -n '3,4p' "$rigTmp/k-sep/000001" | LC_ALL=C tr '\n' '|' )" 'runs: native · wait: true|dispatch: `none`|'
-rigAssert "a value given as - is no value" "$( rigRender end "$rigTmp/k-dash" /dev/null outcome=- exit-code=0 ; sed -n 3p "$rigTmp/k-dash/000001" )" 'exit: 0'
+	"$( rigRender start "$rigTmp/k-sep" /dev/null runs=native wait=true dispatch=none ; sed -n '3,4p' "$rigTmp/k-sep/000001" | LC_ALL=C tr '\n' '|' )" 'runs: native · wait: true · dispatch: `none`|'
+rigAssert "a value given as - is no value" "$( rigRender end "$rigTmp/k-dash" /dev/null outcome=- exit-code=0 ; sed -n 2p "$rigTmp/k-dash/000001" )" '🏁 run end · exit 0'
 ## The first post of a thread, by the spawn that starts the session: the session's block, with
 ## only what is the session's, then that spawn's own start entry, a run block as any other's.
 rigRender start "$rigTmp/k-root" /dev/null cli=claude-native runs=native tier=max started-by=magic-tester session-id=154edb9e joined-session=- parent-spawn-id=- tracking-name=- \
 	session-thread=CRIG:1.2 host=rig-host workspace=rig-ws started-at='2030-01-01 00:00 +0000' output-file=rig-ws/session.log receipt=spawn-proxy-rig context=rig-context
 rigAssert "a root: the session's block holds its id, who started it and its thread, and the starter's own run block its cli, tier and where it runs; no parent or tracking that only repeats the session, no output, receipt or context" \
 	"$( rigMask < "$rigTmp/k-root/000001" | LC_ALL=C tr '\n' '|' )" \
-	'BOX [thread] session `154edb9e` | <date {ago}>|🚀 session start — by *magic-tester*|~ session thread: `CRIG:1.2`|BOX [bust_in_silhouette] magic-tester (run `abcdef01`) | <date {date_short_pretty} at {time}>|▶️ run start|cli: claude-native · runs: native · tier: max|~ where: rig-host / rig-ws · started: 2030-01-01 00:00 +0000|'
+	'BOX [thread] session `154edb9e` | <date {ago}>|🚀 session start — by *magic-tester* · 🧵 `CRIG:1.2`|BOX [bust_in_silhouette] magic-tester (run `abcdef01`) | <date {date_short_pretty} at {time}>|▶️ run start|🤖 claude-native · runs: native · tier: max|~ 🖥 rig-host / rig-ws · started: 2030-01-01 00:00 +0000|'
 rigAssert "nothing in the session's block is a run's: no cli, tier, host or start time is a line of it" \
-	"$( LC_ALL=C awk '/^BOX \[bust_in_silhouette\]/ { exit ; } { print ; }' "$rigTmp/k-root/000001" | LC_ALL=C grep -c -e 'cli:' -e 'tier:' -e 'runs:' -e 'where:' -e 'started:' )" 0
+	"$( LC_ALL=C awk '/^BOX \[bust_in_silhouette\]/ { exit ; } { print ; }' "$rigTmp/k-root/000001" | LC_ALL=C grep -c -e '🤖' -e 'tier:' -e 'runs:' -e '🖥' -e 'started:' )" 0
 rigAssert "the same root as plain text: each line where the template has it, an empty line between its two blocks" \
 	"$( LC_ALL=C tr '\n' '|' < "$rigTmp/k-root/000001.plain.001" )" \
-	'🧵 session `154edb9e`|🚀 session start — by *magic-tester*|session thread: `CRIG:1.2`||👤 *magic-tester* (run `abcdef01`)|▶️ run start|cli: claude-native · runs: native · tier: max|where: rig-host / rig-ws · started: 2030-01-01 00:00 +0000'
+	'🧵 session `154edb9e`|🚀 session start — by *magic-tester* · 🧵 `CRIG:1.2`||👤 *magic-tester* (run `abcdef01`)|▶️ run start|🤖 claude-native · runs: native · tier: max|🖥 rig-host / rig-ws · started: 2030-01-01 00:00 +0000'
 rigFlat "$rigTmp/k-root/000001.blocks" > "$rigTmp/flat.root"
-rigAssert "its short text names both boxes" "$( cat "$rigTmp/k-root/000001.text" )" 'session 154edb9e, magic-tester (run abcdef01) · 5 lines'
+rigAssert "its short text names both boxes" "$( cat "$rigTmp/k-root/000001.text" )" 'session 154edb9e, magic-tester (run abcdef01) · 4 lines'
 ## The session thread as a link, where the spawn gives one: the link to the thread's root in
 ## the team's conversation, and no id beside it.
 rigAssert "a root whose session thread is given as a link shows the link, and no id" \
-	"$( rigRender start "$rigTmp/k-link" /dev/null started-by=magic-tester session-id=154edb9e session-thread=- session-thread-link=https://rig.slack.com/archives/CRIG/p12 ; sed -n 3p "$rigTmp/k-link/000001" )" \
-	'~ <https://rig.slack.com/archives/CRIG/p12|session thread in magic-team>'
+	"$( rigRender start "$rigTmp/k-link" /dev/null started-by=magic-tester session-id=154edb9e session-thread=- session-thread-link=https://rig.slack.com/archives/CRIG/p12 ; sed -n 2p "$rigTmp/k-link/000001" )" \
+	'🚀 session start — by *magic-tester* · <https://rig.slack.com/archives/CRIG/p12|🧵 thread>'
 ## The three workspaces of a run: the one it runs in is its `workspace`, and the member's and the
 ## paying one are context of their own, given by the caller only where they are another.
 rigAssert "a start whose member is set up elsewhere and which is paid from elsewhere says both workspaces, after where it runs" \
 	"$( rigRender start "$rigTmp/k-ws-both" /dev/null cli=rig-cli host=rig-host workspace=rig-ws member-workspace=rig-ws-member paying-workspace=rig-ws-paying ; LC_ALL=C grep '^~ ' "$rigTmp/k-ws-both/000001" | LC_ALL=C tr '\n' '|' )" \
-	"~ where: rig-host / rig-ws · member's workspace: rig-ws-member · paying workspace: rig-ws-paying|"
-rigAssert "the same as plain text: a line of their own" \
-	"$( LC_ALL=C grep -e '^where: ' -e 'workspace: ' "$rigTmp/k-ws-both/000001.plain.001" | LC_ALL=C tr '\n' '|' )" \
-	"where: rig-host / rig-ws|member's workspace: rig-ws-member · paying workspace: rig-ws-paying|"
-rigAssert "one given as - is not shown, and the other opens the line without its separator" \
-	"$( rigRender start "$rigTmp/k-ws-paying" /dev/null cli=rig-cli host=rig-host workspace=rig-ws member-workspace=- paying-workspace=rig-ws-paying ; LC_ALL=C grep -e '^where: ' -e 'workspace: ' "$rigTmp/k-ws-paying/000001.plain.001" | LC_ALL=C tr '\n' '|' )" \
-	"where: rig-host / rig-ws|paying workspace: rig-ws-paying|"
+	"~ 🖥 rig-host / rig-ws · member's: rig-ws-member · paying: rig-ws-paying|"
+rigAssert "the same as plain text: one line" \
+	"$( LC_ALL=C grep -e '^🖥 ' "$rigTmp/k-ws-both/000001.plain.001" | LC_ALL=C tr '\n' '|' )" \
+	"🖥 rig-host / rig-ws · member's: rig-ws-member · paying: rig-ws-paying|"
+rigAssert "one given as - is not shown, its label with it" \
+	"$( rigRender start "$rigTmp/k-ws-paying" /dev/null cli=rig-cli host=rig-host workspace=rig-ws member-workspace=- paying-workspace=rig-ws-paying ; LC_ALL=C grep -e '^🖥 ' "$rigTmp/k-ws-paying/000001.plain.001" | LC_ALL=C tr '\n' '|' )" \
+	"🖥 rig-host / rig-ws · paying: rig-ws-paying|"
 rigAssert "both given as -, the three being one: the run says its workspace once, and no line of theirs is left" \
-	"$( rigRender start "$rigTmp/k-ws-one" /dev/null cli=rig-cli host=rig-host workspace=rig-ws member-workspace=- paying-workspace=- ; LC_ALL=C grep -e '^where: ' -e 'workspace: ' "$rigTmp/k-ws-one/000001.plain.001" | LC_ALL=C tr '\n' '|' )" \
-	"where: rig-host / rig-ws|"
+	"$( rigRender start "$rigTmp/k-ws-one" /dev/null cli=rig-cli host=rig-host workspace=rig-ws member-workspace=- paying-workspace=- ; LC_ALL=C grep -e '^🖥 ' "$rigTmp/k-ws-one/000001.plain.001" | LC_ALL=C tr '\n' '|' )" \
+	"🖥 rig-host / rig-ws|"
 ## A spawn that joins: its own start entry alone, a reply, with the session it joined.
 rigRender start "$rigTmp/k-join" /dev/null cli=grok runs=harness tier=fast started-by=- session-id=- session-thread=- joined-session=154edb9e parent-spawn-id=3f2488f9 tracking-name=rig-track
 rigAssert "one that joins posts its run block alone: no session block, the session it joined, its own cli and tier" \
 	"$( rigMask < "$rigTmp/k-join/000001" | LC_ALL=C tr '\n' '|' )" \
-	'BOX [bust_in_silhouette] magic-tester (run `abcdef01`) | <date {date_short_pretty} at {time}>|▶️ run start · joined session `154edb9e`|cli: grok · runs: harness · tier: fast|~ parent: `3f2488f9` · tracking: `rig-track`|'
+	'BOX [bust_in_silhouette] magic-tester (run `abcdef01`) | <date {date_short_pretty} at {time}>|▶️ run start · joined `154edb9e`|🤖 grok · runs: harness · tier: fast|~ parent: `3f2488f9` · tracking: `rig-track`|'
 rigAssert "a parent or tracking name that differs from the session is kept" \
 	"$( sed -n 4p "$rigTmp/k-join/000001" )" '~ parent: `3f2488f9` · tracking: `rig-track`'
 printf '%s\n' '2030-01-01T00:09:00Z TOOL Read path=/x/only.md -> ok 10B/1L 1ms' > "$rigTmp/lines.nowhat"
@@ -296,46 +296,46 @@ rigAssert "the lines in one section, then one context child holding one mrkdwn t
 	'blocks.0.child_blocks.0.type=section|blocks.0.child_blocks.0.text.type=mrkdwn|blocks.0.child_blocks.1.type=context|blocks.0.child_blocks.1.elements.0.type=mrkdwn|blocks.0.child_blocks=[2|'
 rigAssert "a refusal: the label, the call and the reason are its lines; the refusal id, the item and where are its context" \
 	"$( rigMask < "$rigTmp/k-ctx/000001" | LC_ALL=C tr '\n' '|' )" \
-	'BOX [gear] system | run `abcdef01` · <date {date_short_pretty} at {time}>|🚫 refusal: Permission refused|tool: `Write` · target: `/x/README.md`|reason: not in the write-root set|~ refusal-id: `refusal-rig-1` · dispatch: `rig-item` · entry: `rig-entry` · where: rig-host / rig-ws|'
+	'BOX [gear] system | run `abcdef01` · <date {date_short_pretty} at {time}>|🚫 refusal: Permission refused · `Write` → `/x/README.md`|reason: not in the write-root set|~ refusal-id: `refusal-rig-1` · dispatch: `rig-item` · entry: `rig-entry` · 🖥 rig-host / rig-ws|'
 rigAssert "as plain text a context line is a line like any other, where the template has it" \
 	"$( LC_ALL=C tr '\n' '|' < "$rigTmp/k-ctx/000001.plain.001" )" \
-	'⚙️ system · run `abcdef01`|🚫 refusal: Permission refused|tool: `Write` · target: `/x/README.md`|reason: not in the write-root set|refusal-id: `refusal-rig-1`|dispatch: `rig-item` · entry: `rig-entry`|where: rig-host / rig-ws'
+	'⚙️ system · run `abcdef01`|🚫 refusal: Permission refused · `Write` → `/x/README.md`|reason: not in the write-root set|refusal-id: `refusal-rig-1` · dispatch: `rig-item` · entry: `rig-entry` · 🖥 rig-host / rig-ws'
 
 echo "-- a refusal, a grant and a denial each name every member involved that they have --"
 rigRender refusal "$rigTmp/k-who-refusal" /dev/null what='Permission refused' tool=Write target=/x/README.md caller=magic-tester \
 	reason='not in the write-root set' refusal-id=refusal-rig-1
 rigAssert "a refusal: the member whose call it was, the one party its record holds" \
 	"$( rigMask < "$rigTmp/k-who-refusal/000001" | LC_ALL=C tr '\n' '|' )" \
-	'BOX [gear] system | run `abcdef01` · <date {date_short_pretty} at {time}>|🚫 refusal: Permission refused|tool: `Write` · target: `/x/README.md`|member: magic-tester|reason: not in the write-root set|~ refusal-id: `refusal-rig-1`|'
+	'BOX [gear] system | run `abcdef01` · <date {date_short_pretty} at {time}>|🚫 refusal: Permission refused · `Write` → `/x/README.md` · 👤 magic-tester|reason: not in the write-root set|~ refusal-id: `refusal-rig-1`|'
 rigRender refusal "$rigTmp/k-who-refusal-none" /dev/null what='Permission refused' tool=Write target=/x/README.md caller=- reason=r
-rigAssert "a refusal given no member leaves that line out" \
+rigAssert "a refusal given no member leaves that field out" \
 	"$( rigMask < "$rigTmp/k-who-refusal-none/000001" | LC_ALL=C tr '\n' '|' )" \
-	'BOX [gear] system | run `abcdef01` · <date {date_short_pretty} at {time}>|🚫 refusal: Permission refused|tool: `Write` · target: `/x/README.md`|reason: r|'
+	'BOX [gear] system | run `abcdef01` · <date {date_short_pretty} at {time}>|🚫 refusal: Permission refused · `Write` → `/x/README.md`|reason: r|'
 rigRender grant "$rigTmp/k-who-grant" /dev/null tool=Write target=/x/README.md by=human-owner caller=magic-tester asked=magic-coordinator scope='this session' \
 	refusal-id=refusal-rig-1 host=rig-host workspace=rig-ws
 rigAssert "a grant: the call, who granted it, whose call it was, who was asked, its scope; the refusal it answers and where are its context" \
 	"$( rigMask < "$rigTmp/k-who-grant/000001" | LC_ALL=C tr '\n' '|' )" \
-	'BOX [gear] system | run `abcdef01` · <date {date_short_pretty} at {time}>|✅ permission granted|tool: `Write` · target: `/x/README.md`|granted by: human-owner · member: magic-tester · asked: magic-coordinator · scope: this session|~ refusal-id: `refusal-rig-1` · where: rig-host / rig-ws|'
+	'BOX [gear] system | run `abcdef01` · <date {date_short_pretty} at {time}>|✅ permission granted · `Write` → `/x/README.md`|granted by: human-owner · 👤 magic-tester · asked: magic-coordinator · scope: this session|~ refusal-id: `refusal-rig-1` · 🖥 rig-host / rig-ws|'
 rigRender grant "$rigTmp/k-who-grant-few" /dev/null tool=Write target=/x/README.md by=human-owner caller=magic-tester asked=- scope=once refusal-id=refusal-rig-1
 rigAssert "a grant answered by the one who was asked names nobody twice" \
 	"$( rigMask < "$rigTmp/k-who-grant-few/000001" | LC_ALL=C tr '\n' '|' )" \
-	'BOX [gear] system | run `abcdef01` · <date {date_short_pretty} at {time}>|✅ permission granted|tool: `Write` · target: `/x/README.md`|granted by: human-owner · member: magic-tester · scope: once|~ refusal-id: `refusal-rig-1`|'
+	'BOX [gear] system | run `abcdef01` · <date {date_short_pretty} at {time}>|✅ permission granted · `Write` → `/x/README.md`|granted by: human-owner · 👤 magic-tester · scope: once|~ refusal-id: `refusal-rig-1`|'
 rigRender denial "$rigTmp/k-who-denial" /dev/null tool=Write target=/x/README.md by=magic-coordinator caller=magic-tester asked=- scope=- refusal-id=refusal-rig-1 host=rig-host workspace=rig-ws
 rigAssert "a denial: the same fields, and never a scope" \
 	"$( rigMask < "$rigTmp/k-who-denial/000001" | LC_ALL=C tr '\n' '|' )" \
-	'BOX [gear] system | run `abcdef01` · <date {date_short_pretty} at {time}>|❌ permission denied|tool: `Write` · target: `/x/README.md`|denied by: magic-coordinator · member: magic-tester|~ refusal-id: `refusal-rig-1` · where: rig-host / rig-ws|'
+	'BOX [gear] system | run `abcdef01` · <date {date_short_pretty} at {time}>|❌ permission denied · `Write` → `/x/README.md`|denied by: magic-coordinator · 👤 magic-tester|~ refusal-id: `refusal-rig-1` · 🖥 rig-host / rig-ws|'
 rigRender end "$rigTmp/k-ctx-end" /dev/null outcome=succeeded cli=rig-cli armed=no ended-at='<!date^1893456000^{date_num} {time}|2030-01-01 00:00 UTC>'
 rigAssert "an end: when it ended is its context, and a date token a caller gives stays one there, unescaped" \
 	"$( sed -n '2,$p' "$rigTmp/k-ctx-end/000001" | LC_ALL=C tr '\n' '|' ):$( LC_ALL=C grep -c -e '&lt;!date' "$rigTmp/k-ctx-end/000001" )" \
-	'🏁 run end|outcome: succeeded|cli: rig-cli · armed: no|~ ended: <!date^1893456000^{date_num} {time}|2030-01-01 00:00 UTC>|:0'
+	'🏁 run end · succeeded|🤖 rig-cli · armed: no|~ ended: <!date^1893456000^{date_num} {time}|2030-01-01 00:00 UTC>|:0'
 rigRender error "$rigTmp/k-ctx-error" /dev/null what=rig-what detail=rig-detail host=rig-host at=rig-at
-rigAssert "an error: where and when are its context" "$( sed -n '2,$p' "$rigTmp/k-ctx-error/000001" | LC_ALL=C tr '\n' '|' )" '⛔ error: rig-what|detail: rig-detail|~ where: rig-host · at: rig-at|'
+rigAssert "an error: where and when are its context" "$( sed -n '2,$p' "$rigTmp/k-ctx-error/000001" | LC_ALL=C tr '\n' '|' )" '⛔ error: rig-what — rig-detail|~ 🖥 rig-host · at: rig-at|'
 rigAssert "a kind with no secondary detail given has no context child" "$( rigFlat "$rigTmp/k-handback/000001.blocks" | LC_ALL=C grep -c -e '=context$' )" 0
 
 echo "-- every post carries a short text beside its boxes --"
 rigAssert "the boxes' titles as plain text, then how many lines" \
 	"$( cat "$rigTmp/k-start/000001.text" ):$( cat "$rigTmp/k-handback/000001.text" ):$( cat "$rigTmp/k-ctx/000001.text" ):$( cat "$rigTmp/k-nowhat/000001.text" )" \
-	'magic-tester (run abcdef01) · 2 lines:magic-tester (run abcdef01) · 1 line:system · 6 lines:magic-tester · 1 line'
+	'magic-tester (run abcdef01) · 2 lines:magic-tester (run abcdef01) · 1 line:system · 3 lines:magic-tester · 1 line'
 rigAssert "the template's own line, to change there" "$( LC_ALL=C grep -c -x -F -e '[[{{subjects}}]][[ · {{line-count}}]]' "$rigTemplate" )" 1
 
 ## ---------------------------------------------------------------------------
@@ -749,7 +749,8 @@ rigChars(){ LC_ALL=C awk '{ line = $0 ; gsub( /[\200-\277]/, "", line ) ; astral
 rigOpsOf(){ LC_ALL=C awk 1 "$@" | LC_ALL=C grep -o -e 'file-number-[0-9]*' -e 'rig-item-[0-9]*' | LC_ALL=C sed -e 's/^file-number-0*//' -e 's/^rig-item-0*/v/' | LC_ALL=C tr '\n' ' ' ; }
 rigLongCount=300
 rigLong="$rigTmp/lines.long"
-LC_ALL=C awk -v total="$rigLongCount" 'BEGIN { for ( n = 1 ; n <= total ; n++ ) { printf "2030-01-01T00:%02d:%02dZ TOOL Read path=/a/long/enough/path/file-number-%03d.md -> ok 10B/1L 1ms\n", 5 + int( n / 60 ), n % 60, n ; if ( n % 25 == 0 ) printf "2030-01-01T00:%02d:%02dZ VERDICT item=rig-item-%03d by=magic-tester text=\"accepted\"\n", 5 + int( n / 60 ), n % 60, n } }' > "$rigLong"
+## Long file names: a line shows a path by its file name alone, and the plain text must need more than two posts of 8192 characters.
+LC_ALL=C awk -v total="$rigLongCount" 'BEGIN { for ( n = 1 ; n <= total ; n++ ) { printf "2030-01-01T00:%02d:%02dZ TOOL Read path=/a/long/enough/path/file-number-%03d-named-long-enough-for-three-plain-text-posts.md -> ok 10B/1L 1ms\n", 5 + int( n / 60 ), n % 60, n ; if ( n % 25 == 0 ) printf "2030-01-01T00:%02d:%02dZ VERDICT item=rig-item-%03d by=magic-tester text=\"accepted\"\n", 5 + int( n / 60 ), n % 60, n } }' > "$rigLong"
 rigLongOps="$( LC_ALL=C awk -v total="$rigLongCount" 'BEGIN { for ( n = 1 ; n <= total ; n++ ) { printf "%d ", n ; if ( n % 25 == 0 ) printf "v%d ", n } }' )"
 rigRender feed "$rigTmp/k-long" "$rigLong"
 rigAssert "300 operations in 24 runs of a subject are one post: 24 boxes, 48 blocks with their sections, within the 50" \
@@ -856,7 +857,7 @@ rigAssert "MDAT_EVENT_TRACK_CHUNK_BYTES changes nothing: still one post, and one
 rigAssert "neither knob is read anywhere in sh-lib" \
 	"$( LC_ALL=C grep -r -l -e 'MDAT_EVENT_TRACK_CHUNK_BYTES' -e 'MDAT_EVENT_TRACK_POLL_SECONDS' -e 'ETP_CAP' "$rigLib" | LC_ALL=C awk 'END { print NR }' )" 0
 rigAssert "the feed polls every 4 s: with the 7 s window, under 12 s from a line to its send" \
-	"$( LC_ALL=C grep -c -e '^	local runFeed .* runPoll=4 ' "$rigLib/event-track/AgentsTools.EventTrackFeed.include" )" 1
+	"$( LC_ALL=C grep -c -e '^	local .*runFeed .* runPoll=4 ' "$rigLib/event-track/AgentsTools.EventTrackFeed.include" )" 1
 rigAssert "the window is 7 s, in the loop and in the nap, and no 5 s window is left" \
 	"$( LC_ALL=C grep -c -e 'runNow - runSince )) -ge 7 ]' -e 'runSince + 7 - runNow' "$rigLib/event-track/AgentsTools.EventTrackFeed.include" ):$( LC_ALL=C grep -c -e 'runSince + 5' -e 'runSince )) -ge 5' "$rigLib/event-track/AgentsTools.EventTrackFeed.include" )" 2:0
 
@@ -902,9 +903,10 @@ rigAssert "at the window's end the post goes once, whole, in order" \
 ## A process this check keeps is signalled through the rig's one helper (sh-test/check-fixtures/rig-processes.include.sh), by when it began.
 . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-processes.include.sh" || rigRefuse "the rig's process helper is missing from the package: sh-test/check-fixtures/rig-processes.include.sh"
 ## The real poster loop: a line, another 5 s later (a poll after the first), then quiet. Both go in one post, 7 s after the first line is read.
+## The poster runs only for a caller that asks for it (MDAT_SPAWN_PROXY_OWN_FEED): otherwise the comms service thread posts the feed.
 rigRunWs="$rigTmp/feed-run" ; rigRunFeed="$rigRunWs/.local/agents/sessions/rig-run/feed"
 mkdir -p "${rigRunFeed%/feed}" ; : > "$rigSends"
-( MMDAPP="$rigRunWs" ; AgentsEventTrackFeedSend(){ { printf 'BEGIN %s\n' "$( date +%s )" ; cat ; } >> "$rigSends" ; } ; AgentsEventTrackFeedRun rig-run magic-tester "CRIG:9.8" ) &
+( MMDAPP="$rigRunWs" ; MDAT_SPAWN_PROXY_OWN_FEED=yes ; AgentsEventTrackFeedSend(){ { printf 'BEGIN %s\n' "$( date +%s )" ; cat ; } >> "$rigSends" ; } ; AgentsEventTrackFeedRun rig-run magic-tester "CRIG:9.8" ) &
 rigRunPid=$! ; rigProcNote "$rigRunPid"
 rigRunAt="$( date +%s )"
 printf '%s\n' '2030-01-01T00:07:01Z TOOL Read path=/run/1 -> ok' >> "$rigRunFeed"
@@ -917,6 +919,21 @@ rigRunSentAt="$( LC_ALL=C sed -n 's/^BEGIN //p' "$rigSends" | head -1 )"
 rigAssert "the poster holds its first line through the window: one post, both lines, in order" \
 	"$rigRunSends:$( LC_ALL=C grep -o '/run/[12]' "$rigSends" | LC_ALL=C tr '\n' ' ' )" "1:/run/1 /run/2 "
 rigAssert "and that post goes no sooner than 7 s after the first line" "$( [ -n "$rigRunSentAt" ] && [ $(( rigRunSentAt - rigRunAt )) -ge 7 ] && printf yes || printf no )" yes
+## A TERM that lands while a window is being posted ends the poster after that post, never with a second post of the same window.
+rigTermWs="$rigTmp/feed-term" ; mkdir -p "$rigTermWs/.local/agents/sessions/rig-term" "$rigTermWs/.local/temp" ; : > "$rigTmp/term.posts"
+( MMDAPP="$rigTermWs" ; MDAT_SPAWN_PROXY_OWN_FEED=yes
+  AgentsEventTrackFeedPost(){
+	if [ "$5" = 1 ] && [ -n "$3" ] ; then printf '%s\n' "$3" >> "$rigTmp/term.posts" ; : > "$rigTmp/term.inpost" ; command sleep 3 ; rm -f "$rigTmp/term.inpost" ; return 0 ; fi
+	[ "$5" = 1 ] || printf '%s' "$3"
+  }
+  AgentsEventTrackFeedRun rig-term magic-tester "CRIG:9.7" ) &
+rigTermPid=$! ; rigProcNote "$rigTermPid"
+printf '%s\n' '2030-01-01T00:07:01Z TOOL Read path=/term/1 -> ok' >> "$rigTermWs/.local/agents/sessions/rig-term/feed"
+rigTermWait=0
+while [ ! -f "$rigTmp/term.inpost" ] && [ "$rigTermWait" -lt 200 ] ; do sleep 0.1 ; rigTermWait=$(( rigTermWait + 1 )) ; done
+rigProcSignal TERM "$rigTermPid" ; wait "$rigTermPid" 2> /dev/null
+rigAssert "a TERM during a window's post ends the poster after it: the window is posted once" \
+	"$( [ "$rigTermWait" -lt 200 ] && printf posting || printf never ):$( LC_ALL=C grep -c -F '/term/1' "$rigTmp/term.posts" )" "posting:1"
 ## The real send, its op a fake: what the feed hands the post op.
 . "$rigLib/event-track/AgentsTools.EventTrackFeed.include"
 cat > "$rigTmp/fake-tools" <<'RIG_FAKE_EOF'
@@ -994,8 +1011,11 @@ mkdir -p "$rigTmp/opsleep"
 printf '%s\n' '#!/usr/bin/env bash' '/bin/sleep 0.05' > "$rigTmp/opsleep/sleep"
 chmod +x "$rigTmp/opsleep/sleep"
 rigOpPath="$rigTmp/bin:$rigTmp/opsleep:/usr/bin:/bin:/usr/sbin:/sbin"
+## The op runs as a job of its own process group: what it starts in a job apart and does not wait for (a refusal's post, a
+## grant's, a drain of a thread's outbox) is still the op's, so its group is waited for, 60 s at most, before the push.
 rigOp(){ ## stdin file, op arguments... -- stdout to op.out, stderr to op.err, rc to rigOpRc
-	local opIn="$1" ; shift
+	local opIn="$1" opGroup="" opWait=0 ; shift
+	set -m
 	env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp/home" PATH="$rigOpPath" \
 		MMDAPP="$rigTmp/ws" MDAT_DATA_ROOT="$rigTmp/data" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
 		MDAT_SKILLSET_ROOT="$rigTmp/skills" MDAT_SPAWN_SESSION_ID=rig-sender-session RIG_SCENARIO="$rigTmp/scenario" RIG_TMP="$rigTmp" RIG_FN="$rigFn" \
@@ -1003,8 +1023,44 @@ rigOp(){ ## stdin file, op arguments... -- stdout to op.out, stderr to op.err, r
 			case "$MMDAPP" in "$RIG_TMP"/*) ;; *) echo "RIG-GUARD: MMDAPP outside the rig tree" >&2 ; exit 99 ;; esac
 			case "$( command -v curl )" in "$RIG_TMP"/*) ;; *) echo "RIG-GUARD: curl is not the rig fake" >&2 ; exit 99 ;; esac
 			cd "$MMDAPP" && exec bash "$RIG_FN" "$@"
-		' rig "$@" < "$opIn" > "$rigTmp/op.out" 2> "$rigTmp/op.err"
+		' rig "$@" < "$opIn" > "$rigTmp/op.out" 2> "$rigTmp/op.err" &
+	opGroup=$!
+	set +m
+	wait "$opGroup"
 	rigOpRc=$?
+	while [ "$opWait" -lt 600 ] && pgrep -g "$opGroup" > /dev/null 2>&1 ; do sleep 0.1 ; opWait=$(( opWait + 1 )) ; done
+	[ -n "${rigNoPush:-}" ] || rigPush
+}
+## One push of every comms outbox of the rig, as the comms reader makes it (AgentsToolsCommsCachePushAll): a post into a thread
+## waits there for the reader, which the runner of the checks keeps off, so the rig pushes after each op and each spawn. A post
+## into a thread reaches that outbox through a drain started apart (AgentsTools.EventTrackSend.include), so the push first waits,
+## 60 s at most, until no thread's outbox holds a record, so that each op's posts are sent before the next op runs.
+rigPush(){
+	local pushWait=0
+	while [ "$pushWait" -lt 600 ] && compgen -G "$rigTmp/ws/.local/agents/event-track-send/*.*/[0-9]*" > /dev/null ; do
+		sleep 0.1 ; pushWait=$(( pushWait + 1 ))
+	done
+	env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp/home" PATH="$rigOpPath" \
+		MMDAPP="$rigTmp/ws" MDAT_DATA_ROOT="$rigTmp/data" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
+		MDAT_SKILLSET_ROOT="$rigTmp/skills" RIG_SCENARIO="$rigTmp/scenario" RIG_TMP="$rigTmp" \
+		bash -c '
+			case "$MMDAPP" in "$RIG_TMP"/*) ;; *) echo "RIG-GUARD: MMDAPP outside the rig tree" >&2 ; exit 99 ;; esac
+			case "$( command -v curl )" in "$RIG_TMP"/*) ;; *) echo "RIG-GUARD: curl is not the rig fake" >&2 ; exit 99 ;; esac
+			cd "$MMDAPP" || exit 99
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionComms.include" || exit 99
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsCache.include" || exit 99
+			## Pass after pass, a second apart and 60 at most, until no outbox holds a post: a post the writer holds back goes in a later pass.
+			pushRound=0
+			while [ "$pushRound" -lt 60 ] ; do
+				AgentsToolsCommsCachePushAll "$( date +%s )"
+				pushLeft=""
+				for pushOut in "$MMDAPP/.local/cache/comms"/*/*/outbox.pushing.txt "$MMDAPP/.local/cache/comms"/*/*/outbox.messages.txt ; do
+					[ ! -s "$pushOut" ] || pushLeft=yes
+				done
+				[ -n "$pushLeft" ] || break
+				/bin/sleep 1 ; pushRound=$(( pushRound + 1 ))
+			done
+		' >> "$rigTmp/push.out" 2>> "$rigTmp/push.err"
 }
 rigReset(){ rm -f "$rigTmp/scenario"/* ; rm -rf "$rigTmp/ws/.local/agents/event-track-send" ; }
 rigCalls(){ LC_ALL=C grep -c -x -F "$1" "$rigTmp/scenario/calls" 2>/dev/null || : ; }
@@ -1234,11 +1290,19 @@ rigAssert "an outbox removed mid-drain ends its drain, and leaves no process run
 	"$( rigOutDrainBounded C0RIGGONE rigOutGoneSender 10 ):$( rigOutSendsList ):$( pgrep -f 'event-track-send/C0RIGGONE/' > /dev/null && printf left || printf none )" \
 	"ended:0000001 :none"
 
-## The post op is no second sender: every tracking post, the immediate ones too, is queued in
-## its channel's outbox and drained from there -- a start post, a refusal, a notice and the
-## feed's lines alike.
-rigAssert "the post op queues every post and drains the outbox, and has no post path of its own" \
-	"$( LC_ALL=C grep -c 'AgentsToolsEventTrackSendAppend "\$etpQueue"' "$rigLib/event-track/AgentsTools.InternOpEventTrackPost.include" ):$( LC_ALL=C grep -c 'AgentsToolsEventTrackSendDrain "\$etpQueue" AgentsEventTrackPostSend' "$rigLib/event-track/AgentsTools.InternOpEventTrackPost.include" ):$( LC_ALL=C grep -c 'chat.postMessage' "$rigLib/event-track/AgentsTools.InternOpEventTrackPost.include" )" 1:1:1
+## EVERY POST INTO A THREAD GOES THROUGH THE OUTBOXES, AND ONLY A ROOT POST GOES DIRECT. A post into a thread is queued in its
+## thread's outbox, drained there and handed to the comms outbox, which the comms reader pushes: the op makes no Slack call of its
+## own. A root post is posted by the op and waited for, since its ts opens the thread its later posts name.
+rigReset ; rm -rf "$rigTmp/ws/.local/cache/comms"
+rigNoPush=yes rigOp /dev/null --intern-op-event-track-post magic-tester CRIGTRACK:1699999999.000001 --kind end --session-id abcdef01-2345 --field outcome=succeeded
+rigAssert "a post into a thread: drained through its thread's outbox, handed to the comms outbox, no Slack call of the op's own, and posted in its thread by the push" \
+	"$rigOpRc:$( ls "$rigTmp/ws/.local/agents/event-track-send/CRIGTRACK.1699999999.000001/done" 2> /dev/null | LC_ALL=C awk 'END { print NR }' ):$( cat "$rigTmp/ws/.local/cache/comms"/*/*/outbox.messages.txt 2> /dev/null | LC_ALL=C grep -c -F '"thread_ts":"1699999999.000001"' ):$( cat "$rigTmp/scenario/calls" 2> /dev/null | LC_ALL=C grep -c -x -F chat.postMessage ):$( rigPush ; rigCalls chat.postMessage ):$( rigYes env LC_ALL=C grep -q -F '"thread_ts":"1699999999.000001"' "$rigTmp/scenario/post.1" )" \
+	"0:1:1:0:1:yes"
+rigReset ; rm -rf "$rigTmp/ws/.local/cache/comms"
+rigNoPush=yes rigOp "$rigLines" --intern-op-event-track-post magic-tester event-track --kind feed --session-id abcdef01-2345 --from-stdin
+rigAssert "a root post: posted by the op itself, its ts read back at once, and nothing handed to the comms outbox" \
+	"$rigOpRc:$( rigCalls chat.postMessage ):$( LC_ALL=C grep -c -x -F 'SENT_MESSAGE_TS=1700000001.000101' "$rigTmp/op.err" ):$( cat "$rigTmp/ws/.local/cache/comms"/*/*/outbox.messages.txt 2> /dev/null | LC_ALL=C awk 'END { print NR }' )" \
+	"0:1:1:0"
 rigAssert "the window is 7 s, fixed in code, and nothing configures it" \
 	"$( LC_ALL=C grep -c 'agentsEventTrackSendPaceSeconds=7' "$rigLib/event-track/AgentsTools.EventTrackSend.include" ):$( LC_ALL=C grep -r -l -e 'MDAT_EVENT_TRACK_PACE' -e 'EVENT_TRACK_PACE_SECONDS' "$rigLib" | LC_ALL=C awk 'END { print NR }' )" 1:0
 
@@ -1364,6 +1428,7 @@ rigSpawn(){ ## the CLI the stand-in launches[, parent spawn id, session id] -- s
 			cd "$MMDAPP" && exec bash "$RIG_FN" --intern-op-agent-spawn-proxy "$RIG_MEMBER" "$@" --wait ${RIG_THREAD_ARG:+"$RIG_THREAD_ARG"} --context rig-spawn-track
 		' rig ${rigSpawnArgs[@]+"${rigSpawnArgs[@]}"} < "$rigTmp/spawn.brief" > "$rigTmp/op.out" 2> "$rigTmp/op.err"
 	rigOpRc=$?
+	rigPush
 }
 ## The posts in the order they were made, one line each: n, thread_ts or "root", and its first label.
 rigPostsMade(){
@@ -1381,14 +1446,14 @@ rigReset
 rigSpawn rig-cli
 rigAssert "the spawn ran and launched"                    "$rigOpRc:$( LC_ALL=C grep -c '^LAUNCHED=true$' "$rigTmp/op.out" )" 0:1
 rigAssert "one start post, the first post, a root, with the CLI resolved before it: no placeholder" \
-	"$( rigPostsMade | LC_ALL=C awk '$3 == "🚀_session_start" { print $1 ":" $2 }' ):$( LC_ALL=C grep -l -F 'cli: configured' "$rigTmp/scenario"/post.[0-9]* 2>/dev/null | LC_ALL=C awk 'END { print NR }' )" "1:root:0"
+	"$( rigPostsMade | LC_ALL=C awk '$3 == "🚀_session_start" { print $1 ":" $2 }' ):$( LC_ALL=C grep -l -F '🤖 configured' "$rigTmp/scenario"/post.[0-9]* 2>/dev/null | LC_ALL=C awk 'END { print NR }' )" "1:root:0"
 rigAssert "the root opens with the session's box, its title the session and its subtitle one date, then the starter's own run box, and nothing outside the boxes" \
 	"$( rigBoxes "$rigTmp/scenario/post.1" | LC_ALL=C grep '^BOX ' | rigMask | LC_ALL=C sed -E 's/`[0-9a-f]{8}`/`<id>`/' | LC_ALL=C tr '\n' '|' ):$( rigShape "$rigTmp/scenario/post.1" )" 'BOX [thread] session `<id>` | <date {ago}>|BOX [bust_in_silhouette] magic-tester (run `<id>`) | <date {date_short_pretty} at {time}>|:0:0:0:0:0'
 rigAssert "the session's box says who started it, and names no session thread, since a session that starts alone has none: a tracking thread is never one; the run's box the resolved CLI, how it runs, and everything else settled before it" \
-	"$( rigYes env LC_ALL=C grep -q -F '"text":"🚀 session start — by *magic-tester*"' "$rigTmp/scenario/post.1" ):$( LC_ALL=C grep -c -F 'session thread' "$rigTmp/scenario/post.1" ):$( rigYes env LC_ALL=C grep -q -F '"text":"▶️ run start\ncli: rig-cli · runs: native · wait: true\ndispatch: `none`"' "$rigTmp/scenario/post.1" )" yes:0:yes
+	"$( rigYes env LC_ALL=C grep -q -F '"text":"🚀 session start — by *magic-tester*"' "$rigTmp/scenario/post.1" ):$( LC_ALL=C grep -c -F 'session thread' "$rigTmp/scenario/post.1" ):$( rigYes env LC_ALL=C grep -q -F '"text":"▶️ run start\n🤖 rig-cli · runs: native · wait: true · dispatch: `none`"' "$rigTmp/scenario/post.1" )" yes:0:yes
 rigAssert "and leaves out what is not known, with no placeholder" "$( LC_ALL=C grep -c -e 'tier: -' -e 'routine: -' -e ': - ' "$rigTmp/scenario/post.1" )" 0
 rigAssert "a compact root: each id its first 8 characters, in its box's title, the starter's run id the session's own; no parent when there is none, no tracking name that is the session's own, no output, receipt or context" \
-	"$( rigBoxes "$rigTmp/scenario/post.1" | LC_ALL=C grep '^BOX ' | LC_ALL=C grep -o -E '`[0-9a-f]{8}`' | LC_ALL=C sort -u | LC_ALL=C awk 'END { print NR }' ):$( LC_ALL=C grep -c -e 'parent: ' -e 'tracking: ' -e 'output: ' -e 'receipt: ' -e 'context: ' -e 'spawn: ' -e 'joined session' "$rigTmp/scenario/post.1" )" 1:0
+	"$( rigBoxes "$rigTmp/scenario/post.1" | LC_ALL=C grep '^BOX ' | LC_ALL=C grep -o -E '`[0-9a-f]{8}`' | LC_ALL=C sort -u | LC_ALL=C awk 'END { print NR }' ):$( LC_ALL=C grep -c -e 'parent: ' -e 'tracking: ' -e 'output: ' -e 'receipt: ' -e 'context: ' -e 'spawn: ' -e 'joined `' "$rigTmp/scenario/post.1" )" 1:0
 rigAssert "when it started is a date token, sent as one: unescaped, in its context" \
 	"$( rigBoxes "$rigTmp/scenario/post.1" | LC_ALL=C grep -c -E '^~ .* · started: <!date\^[0-9]+\^\{date_num\} \{time\}\|[0-9: -]+ UTC>$' ):$( LC_ALL=C grep -c -e '&lt;!date' "$rigTmp/scenario/post.1" )" 1:0
 rigAssert "no chat.update call is ever made"              "$( rigCalls chat.update )" 0
@@ -1399,7 +1464,7 @@ rigReset
 { cat "$rigTmp/agent.env.base" ; printf 'SPAWN_TIER_NORMAL=scaleway\nSPAWN_HARNESS_TIER=light\n' ; } > "$rigEnvFile" ; printf 'PRESET_CLI_SERVICE=scaleway\n' > "${rigEnvFile%/*}/preset-scaleway.agent.env"
 rigSpawn rig-other
 rigAssert "a harness leg: the start post says so, with its tier" \
-	"$rigOpRc:$( rigYes env LC_ALL=C grep -q -F '\ncli: scaleway · runs: harness · tier: light · wait: true\n' "$rigTmp/scenario/post.1" )" 0:yes
+	"$rigOpRc:$( rigYes env LC_ALL=C grep -q -F '\n🤖 scaleway · runs: harness · tier: light · wait: true · dispatch: `none`' "$rigTmp/scenario/post.1" )" 0:yes
 rigAssert "a fact learned after the start (another CLI launched) is a reply in its thread, never an edit" \
 	"$( rigCalls chat.update ):$( rigPostsMade | LC_ALL=C awk '$3 == "⚠️_notice" { print $2 }' ):$( rigYes env LC_ALL=C grep -q -F '⚠️ notice: launched on rig-other, not on scaleway as resolved for the start post' "$rigTmp/scenario/post.2" )" \
 	"0:1700000001.000101:yes"
@@ -1415,7 +1480,7 @@ rigReset
 { cat "$rigTmp/agent.env.base" ; printf 'SPAWN_TIER_NORMAL=rig-cli\n' ; } > "$rigEnvFile" ; printf 'PRESET_CLI_SERVICE=rig-cli\n' > "${rigEnvFile%/*}/preset-rig-cli.agent.env"
 rigSpawn rig-cli "$rigJoinSession" "$rigJoinSession"
 rigAssert "spawned from the session's own spawn: the session it joined, short, no parent or tracking that only repeat it, and nothing of the session's own: no session box, no session thread" \
-	"$rigOpRc:$( rigYes env LC_ALL=C grep -q -F '"text":"▶️ run start · joined session `154edb9e`\ncli: rig-cli' "$rigTmp/scenario/post.1" ):$( LC_ALL=C grep -c -e 'parent: ' -e 'tracking: ' -e 'session start' -e 'session thread' -e '"name":"thread"' "$rigTmp/scenario/post.1" )" 0:yes:0
+	"$rigOpRc:$( rigYes env LC_ALL=C grep -q -F '"text":"▶️ run start · joined `154edb9e`\n🤖 rig-cli' "$rigTmp/scenario/post.1" ):$( LC_ALL=C grep -c -e 'parent: ' -e 'tracking: ' -e 'session start' -e '🧵' -e '"name":"thread"' "$rigTmp/scenario/post.1" )" 0:yes:0
 rigAssert "its session had no thread, so its start entry opened one, recorded as the session's and under no id of its own" \
 	"$( rigYes env LC_ALL=C grep -q -F 'thread_ts' "$rigTmp/scenario/post.1" ):$( cat "$rigTmp/ws/.local/agents/sessions/$rigJoinSession/event-track.thread" 2>/dev/null ):$( ls "$rigTmp/ws/.local/agents/sessions"/*/event-track.thread 2>/dev/null | LC_ALL=C grep -c -v "/$rigJoinSession/" )" "no:CRIGTRACK:1700000001.000101:$rigThreadsBefore"
 rigReset
@@ -1459,15 +1524,15 @@ rigAssert "the first post: the session's box holds its id and who started it, an
 	"BOX [thread] session \`${rigCow:0:8}\` | <date {ago}>|🚀 session start — by *magic-coordinator*|"
 rigAssert "the starter's own start entry is the second box of that post: its member, its run, its CLI and how it runs" \
 	"$( rigBoxes "$rigTmp/scenario/post.1" | LC_ALL=C awk '/^BOX / { boxNo++ ; } boxNo == 2 && ! /^~ / { print ; }' | rigMask | LC_ALL=C tr '\n' '|' )" \
-	"BOX [bust_in_silhouette] magic-coordinator (run \`${rigCow:0:8}\`) | <date {date_short_pretty} at {time}>|▶️ run start|cli: rig-cli · runs: native · wait: true|dispatch: \`none\`|"
+	"BOX [bust_in_silhouette] magic-coordinator (run \`${rigCow:0:8}\`) | <date {date_short_pretty} at {time}>|▶️ run start|🤖 rig-cli · runs: native · wait: true · dispatch: \`none\`|"
 rigAssert "the joiner's start entry, a reply: its own member, run, CLI and tier, the session it joined, and no session box" \
 	"$( rigBoxes "$rigTmp/scenario/post.3" | LC_ALL=C grep -v '^~ ' | rigMask | LC_ALL=C tr '\n' '|' )" \
-	"BOX [bust_in_silhouette] magic-tester (run \`${rigJoiner:0:8}\`) | <date {date_short_pretty} at {time}>|▶️ run start · joined session \`${rigCow:0:8}\`|cli: scaleway · runs: harness · tier: light · wait: true|dispatch: \`none\`|"
+	"BOX [bust_in_silhouette] magic-tester (run \`${rigJoiner:0:8}\`) | <date {date_short_pretty} at {time}>|▶️ run start · joined \`${rigCow:0:8}\`|🤖 scaleway · runs: harness · tier: light · wait: true · dispatch: \`none\`|"
 rigAssert "the first post still reads right after the join: the starter's CLI is in the starter's box alone, the joiner's nowhere in it" \
-	"$( LC_ALL=C grep -c -F 'cli: rig-cli' "$rigTmp/scenario/post.1" ):$( LC_ALL=C grep -c -e scaleway -e rig-other -e 'tier: light' "$rigTmp/scenario/post.1" )" "1:0"
+	"$( LC_ALL=C grep -c -F '🤖 rig-cli' "$rigTmp/scenario/post.1" ):$( LC_ALL=C grep -c -e scaleway -e rig-other -e 'tier: light' "$rigTmp/scenario/post.1" )" "1:0"
 rigAssert "each end post is that participant's: its own box, its own CLI, outcome and exit" \
-	"$( rigBoxes "$rigTmp/scenario/post.2" | LC_ALL=C grep -e '^BOX ' -e '^🏁' -e '^cli: ' | rigMask | LC_ALL=C tr '\n' '|' ):$( rigBoxes "$rigTmp/scenario/post.5" | LC_ALL=C grep -e '^BOX ' -e '^🏁' -e '^cli: ' | rigMask | LC_ALL=C tr '\n' '|' )" \
-	"BOX [bust_in_silhouette] magic-coordinator (run \`${rigCow:0:8}\`) | <date {date_short_pretty} at {time}>|🏁 run end|cli: rig-cli · armed: unknown|:BOX [bust_in_silhouette] magic-tester (run \`${rigJoiner:0:8}\`) | <date {date_short_pretty} at {time}>|🏁 run end|cli: rig-other · armed: unknown|"
+	"$( rigBoxes "$rigTmp/scenario/post.2" | LC_ALL=C grep -e '^BOX ' -e '^🏁' -e '^🤖 ' | rigMask | LC_ALL=C tr '\n' '|' ):$( rigBoxes "$rigTmp/scenario/post.5" | LC_ALL=C grep -e '^BOX ' -e '^🏁' -e '^🤖 ' | rigMask | LC_ALL=C tr '\n' '|' )" \
+	"BOX [bust_in_silhouette] magic-coordinator (run \`${rigCow:0:8}\`) | <date {date_short_pretty} at {time}>|🏁 run end · succeeded · exit 0 · launched: true|🤖 rig-cli · armed: unknown|:BOX [bust_in_silhouette] magic-tester (run \`${rigJoiner:0:8}\`) | <date {date_short_pretty} at {time}>|🏁 run end · succeeded · exit 0 · launched: true|🤖 rig-other · armed: unknown|"
 rigAssert "and the launch fact is the joiner's" \
 	"$( rigBoxes "$rigTmp/scenario/post.4" | LC_ALL=C grep -e '^BOX ' -e '^⚠️' | rigMask | LC_ALL=C tr '\n' '|' )" \
 	"BOX [bust_in_silhouette] magic-tester (run \`${rigJoiner:0:8}\`) | <date {date_short_pretty} at {time}>|⚠️ notice: launched on rig-other, not on scaleway as resolved for the start post|"
@@ -1475,12 +1540,12 @@ rigAssert "no post but the first carries a session box" "$( LC_ALL=C grep -l -F 
 cp "$rigTmp/agent.env.base" "$rigEnvFile"
 
 echo "   the feed: one poster per participant, both into the session's thread"
-## Each participant's own buffer and poster, as the spawn proxy starts them. Their lines are
+## Each participant's own buffer and poster, as a spawn proxy that asks for its own poster starts them (MDAT_SPAWN_PROXY_OWN_FEED). Their lines are
 ## written interleaved; the joiner's model line and restart are immediate lines of its run.
 rigFeedBefore="$( cat "$rigTmp/scenario/posts" 2>/dev/null || echo 0 )"
 env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp/home" PATH="$rigTmp/bin:/usr/bin:/bin:/usr/sbin:/sbin" \
 	MMDAPP="$rigTmp/ws" MDAT_DATA_ROOT="$rigTmp/data" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
-	MDAT_SKILLSET_ROOT="$rigTmp/skills" RIG_SCENARIO="$rigTmp/scenario" RIG_TMP="$rigTmp" RIG_A="$rigCow" RIG_B="$rigJoiner" RIG_THREAD="CRIGTRACK:$rigCowThread" \
+	MDAT_SKILLSET_ROOT="$rigTmp/skills" RIG_SCENARIO="$rigTmp/scenario" RIG_TMP="$rigTmp" RIG_A="$rigCow" RIG_B="$rigJoiner" RIG_THREAD="CRIGTRACK:$rigCowThread" MDAT_SPAWN_PROXY_OWN_FEED=yes \
 	bash -c '
 		case "$MMDAPP" in "$RIG_TMP"/*) ;; *) echo "RIG-GUARD: MMDAPP outside the rig tree" >&2 ; exit 99 ;; esac
 		case "$( command -v curl )" in "$RIG_TMP"/*) ;; *) echo "RIG-GUARD: curl is not the rig fake" >&2 ; exit 99 ;; esac
@@ -1503,6 +1568,7 @@ env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp/home" PATH="$rigTmp/bin:/usr/b
 		sleep 12
 		rigProcSignal TERM "$feedA" "$feedB" ; wait "$feedA" "$feedB" 2>/dev/null
 	' > "$rigTmp/feed.out" 2> "$rigTmp/feed.err"
+rigPush
 rigFeedPosts(){ ## -> the numbers of the posts the feed made
 	local feedN feedTotal
 	feedTotal="$( cat "$rigTmp/scenario/posts" 2>/dev/null || echo 0 )"
@@ -1541,7 +1607,7 @@ rigCowRefusal="$( LC_ALL=C sed -n 's/^\(refusal-[0-9a-f-]*\)$/\1/p' "$rigTmp/op.
 [ -n "$rigCowRefusal" ] || rigRefuse "the rig logged no refusal for the joiner: $( LC_ALL=C grep -m1 ERROR "$rigTmp/op.err" )"
 rigAssert "the joiner's refusal is a reply in the session's thread, naming its member and its run" \
 	"$( rigPostThread "$( rigPostNo )" ):$( rigBoxes "$rigTmp/scenario/post.$( rigPostNo )" | LC_ALL=C grep -e '^BOX ' -e '^🚫' -e '^member: ' | rigMask | LC_ALL=C tr '\n' '|' )" \
-	"$rigCowThread:BOX [gear] system | run \`${rigJoiner:0:8}\` · <date {date_short_pretty} at {time}>|🚫 refusal: Permission refused|member: magic-tester|"
+	"$rigCowThread:BOX [gear] system | run \`${rigJoiner:0:8}\` · <date {date_short_pretty} at {time}>|🚫 refusal: Permission refused · \`Write\` → \`/x/rig-cow.txt\` · 👤 magic-tester|"
 rigOp /dev/null --intern-op-permission-grant-open human-owner --session-id "$rigJoiner" --refusal-id "$rigCowRefusal" --kind once
 rigAssert "its grant too, where the refusal is" \
 	"$( LC_ALL=C grep -c '^GRANT: once ' "$rigTmp/op.out" ):$( rigPostThread "$( rigPostNo )" ):$( rigBoxes "$rigTmp/scenario/post.$( rigPostNo )" | LC_ALL=C grep -c -F '✅ permission granted' )" "1:$rigCowThread:1"
@@ -1586,13 +1652,13 @@ rigRender start "$rigTmp/k-task" /dev/null what='fix the loader' task-title='Fix
 	task-text='The loader drops a variable. It must keep the whole value.' cli=rig-cli
 rigAssert "the description on the first line, the task's title with both names, the longer text as a line of the box, then the run's facts" \
 	"$( rigMask < "$rigTmp/k-task/000001" | LC_ALL=C tr '\n' '|' )" \
-	'BOX [bust_in_silhouette] magic-tester (run `abcdef01`) | <date {date_short_pretty} at {time}>|▶️ run start — fix the loader|task: Fix the vars loader · `task-rig` · `dispatch-1-spawn-proxy-1`|The loader drops a variable. It must keep the whole value.|cli: rig-cli|'
+	'BOX [bust_in_silhouette] magic-tester (run `abcdef01`) | <date {date_short_pretty} at {time}>|▶️ run start — fix the loader|📋 Fix the vars loader · `task-rig` · `dispatch-1-spawn-proxy-1`|The loader drops a variable. It must keep the whole value.|🤖 rig-cli|'
 rigAssert "the same as plain text" "$( sed -n '2,4p' "$rigTmp/k-task/000001.plain.001" | LC_ALL=C tr '\n' '|' )" \
-	'▶️ run start — fix the loader|task: Fix the vars loader · `task-rig` · `dispatch-1-spawn-proxy-1`|The loader drops a variable. It must keep the whole value.|'
+	'▶️ run start — fix the loader|📋 Fix the vars loader · `task-rig` · `dispatch-1-spawn-proxy-1`|The loader drops a variable. It must keep the whole value.|'
 rigRender start "$rigTmp/k-task-none" /dev/null cli=rig-cli
 rigAssert "with no description and no task text there is no such line, and no empty one" \
-	"$( rigMask < "$rigTmp/k-task-none/000001" | LC_ALL=C tr '\n' '|' ):$( LC_ALL=C grep -c -e '^$' -e 'task:' "$rigTmp/k-task-none/000001.plain.001" )" \
-	'BOX [bust_in_silhouette] magic-tester (run `abcdef01`) | <date {date_short_pretty} at {time}>|▶️ run start|cli: rig-cli|:0'
+	"$( rigMask < "$rigTmp/k-task-none/000001" | LC_ALL=C tr '\n' '|' ):$( LC_ALL=C grep -c -e '^$' -e '📋' "$rigTmp/k-task-none/000001.plain.001" )" \
+	'BOX [bust_in_silhouette] magic-tester (run `abcdef01`) | <date {date_short_pretty} at {time}>|▶️ run start|🤖 rig-cli|:0'
 ## The one reader of a task in words (AgentsTools.TaskText.include), which the permission set
 ## post uses too: the tracked item's title and first paragraph, else the dispatch's own brief.
 . "$rigLib/core/AgentsTools.TaskText.include"
@@ -1624,19 +1690,19 @@ rigTaskSession="$( LC_ALL=C sed -n 's/^SESSION_ID=//p' "$rigTmp/op.out" | head -
 rigTaskDispatchFile="$( ls "$rigTmp/data/board"/*/"$rigTaskDispatch" 2>/dev/null | head -1 )"
 rigAssert "its start entry: the description on the first line, the task's title with both names, and the task's own text below" \
 	"$( rigBoxes "$rigTmp/scenario/post.1" | LC_ALL=C awk '/^BOX / { boxNo++ ; } boxNo == 2' | LC_ALL=C sed -n '2,4p' | LC_ALL=C tr '\n' '|' )" \
-	"▶️ run start — fix the loader for the vars file|task: Fix the vars loader · \`task-rig-start\` · \`${rigTaskDispatch%.md}\`|The loader drops a variable whose value holds an equals sign. It must keep the whole value! Add a check for it. Then run the suite?|"
+	"▶️ run start — fix the loader for the vars file|📋 Fix the vars loader · \`task-rig-start\` · \`${rigTaskDispatch%.md}\`|The loader drops a variable whose value holds an equals sign. It must keep the whole value! Add a check for it. Then run the suite?|"
 rigAssert "the description is kept on the dispatch record and on the spawn's record, and the session is titled by the document it was given" \
-	"$( LC_ALL=C grep -c -x -F 'description: fix the loader for the vars file' "${rigTaskDispatchFile:-/dev/null}" ):$( LC_ALL=C grep -c -x -F 'description: fix the loader for the vars file' "$rigStore/spawned/$rigTaskSession/$rigTaskSession.spawn.md" ):$( LC_ALL=C grep -c -x -F 'session-comment: Fix the vars loader' "$rigStore/spawned/$rigTaskSession/$rigTaskSession.spawn.md" )" "1:1:1"
+	"$( LC_ALL=C grep -c -x -F 'description: fix the loader for the vars file' "${rigTaskDispatchFile:-/dev/null}" ):$( LC_ALL=C grep -c -x -F 'description: fix the loader for the vars file' "$rigStore/spawned/$rigTaskSession/$rigTaskSession.spawn.md" ):$( LC_ALL=C grep -c -x -F "session-comment: Fix the vars loader (${rigTaskSession:0:8})" "$rigStore/spawned/$rigTaskSession/$rigTaskSession.spawn.md" )" "1:1:1"
 ## One that joins says what it was brought in for, from its own dispatch: no description, so
 ## its first line has none, and its own brief's text shows.
 printf 'Check the loader against the three sample files. Report what differs.\n' > "$rigTmp/spawn.brief"
 rigSpawnArgs=( --from-stdin --dispatch-doc:create )
 rigSpawnMember=magic-coordinator rigSpawn rig-cli "$rigTaskSession" "$rigTaskSession"
 rigJoinDispatch="$( LC_ALL=C sed -n 's/^DISPATCH_ITEM=//p' "$rigTmp/op.out" | head -1 )"
-rigJoinStart="$( LC_ALL=C grep -l -F 'joined session' "$rigTmp/scenario"/post.[0-9]* 2>/dev/null | head -1 )"
+rigJoinStart="$( LC_ALL=C grep -l -F 'joined `' "$rigTmp/scenario"/post.[0-9]* 2>/dev/null | head -1 )"
 rigAssert "a joiner's start entry shows its own: no description on its first line, its own dispatch and its own brief's text" \
 	"$( rigBoxes "${rigJoinStart:-/dev/null}" | LC_ALL=C sed -n '2,4p' | LC_ALL=C tr '\n' '|' )" \
-	"▶️ run start · joined session \`${rigTaskSession:0:8}\`|task: Spawn-proxy dispatch: magic-coordinator · \`${rigJoinDispatch%.md}\`|Check the loader against the three sample files. Report what differs.|"
+	"▶️ run start · joined \`${rigTaskSession:0:8}\`|📋 Spawn-proxy dispatch: magic-coordinator · \`${rigJoinDispatch%.md}\`|Check the loader against the three sample files. Report what differs.|"
 rigAssert "and no description field is written for it: its dispatch has none, and of the session's two spawn records only the starter's has one" \
 	"$( cat "$rigTmp/data/board"/*/"$rigJoinDispatch" 2>/dev/null | LC_ALL=C grep -c '^description: ' ):$( ls "$rigStore/spawned/$rigTaskSession"/*.spawn.md 2>/dev/null | LC_ALL=C awk 'END { print NR }' ):$( cat "$rigStore/spawned/$rigTaskSession"/*.spawn.md 2>/dev/null | LC_ALL=C grep -c '^description: ' )" "0:2:1"
 rigSpawnArgs=( --dispatch-doc:none )
@@ -1646,6 +1712,27 @@ cp "$rigTmp/agent.env.base" "$rigEnvFile"
 echo "-- no request left for a real host --"
 rigAssert "every call was a Slack method the fake answered" "$( cat "$rigTmp/scenario/calls" 2>/dev/null | LC_ALL=C grep -c -e '^url:' -e '^no-method$' || : )" 0
 
+
+## ---------------------------------------------------------------------------
+echo "-- a tracking post names the routine of the run it reports on, beside that run's member and in its metadata --"
+## ---------------------------------------------------------------------------
+MDAT_SKILLSET_ROOT="$rigTmp/skills" rigRender feed "$rigTmp/k-origin" "$rigTmp/lines.blocks" origin=work-duty
+rigAssert "the member's own boxes carry its run's routine, another member's and the system's do not" \
+	"$( rigHeaders "$rigTmp/k-origin/000001" | LC_ALL=C sed -E 's/ \| <!date.*//' | LC_ALL=C tr '\n' '|' )" \
+	'BOX [bust_in_silhouette] magic-tester/work-duty|BOX [bust_in_silhouette] magic-coordinator|BOX [bust_in_silhouette] magic-tester/work-duty|BOX [bust_in_silhouette] magic-tester/work-duty (run `abcdef01`)|BOX [bust_in_silhouette] magic-tester/work-duty|BOX [gear] system|BOX [bust_in_silhouette] magic-tester/work-duty|'
+rigAssert "and so do the plain-text headers" \
+	"$( rigYes env LC_ALL=C grep -q '^👤 \*magic-tester\*/work-duty' "$rigTmp/k-origin/000001.plain.001" ):$( rigYes env LC_ALL=C grep -q '^👤 \*magic-coordinator\*/' "$rigTmp/k-origin/000001.plain.001" )" "yes:no"
+rigOriginSid="abcdef02-2345-4000-8000-000000000002"
+mkdir -p "$rigTmp/ws/.local/agents/spawned/$rigOriginSid"
+printf -- '---\nsession-id: %s\nspawn-id: %s\nowner: magic-tester\nroutine: magic-tester.work-duty.routine.md\n---\n' "$rigOriginSid" "$rigOriginSid" \
+	> "$rigTmp/ws/.local/agents/spawned/$rigOriginSid/$rigOriginSid.spawn.md"
+rigReset
+rigOp "$rigLines" --intern-op-event-track-post magic-tester event-track --kind feed --session-id "$rigOriginSid" --from-stdin
+rigAssert "a post about a run with a record: its box names the run's routine, and its metadata carries it as the origin" \
+	"$rigOpRc:$( rigBoxes "$rigTmp/scenario/post.1" | LC_ALL=C grep -c -F 'BOX [bust_in_silhouette] magic-tester/work-duty' ):$( rigYes env LC_ALL=C grep -q -F "\"tracking\":\"feed\",\"session\":\"$rigOriginSid\",\"origin\":\"work-duty\"}}" "$rigTmp/scenario/post.1" )" "0:1:yes"
+( MMDAPP="$rigTmp/ws" AgentsEventTrackPostQueueLines magic-tester "$rigOriginSid" CRIGTRACK 1700000000.000100 "$rigLines" feed ) > /dev/null 2>&1 ; rigQueueRc=$?
+rigAssert "a window queued into a thread carries the origin in its metadata too" \
+	"$rigQueueRc:$( LC_ALL=C grep -rl -F "\"session\":\"$rigOriginSid\",\"origin\":\"work-duty\"}}" "$rigTmp/ws/.local/cache/comms" 2> /dev/null | LC_ALL=C wc -l | LC_ALL=C tr -d ' ' )" "0:1"
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ EVENT TRACK POST CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1
 fi

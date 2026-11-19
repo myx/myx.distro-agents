@@ -4,8 +4,10 @@
 📘 syntax: DistroAgentsQuestions.fn.sh --forward-escalation [--team-member <team-member>] <request-id>
 📘 syntax: DistroAgentsQuestions.fn.sh --read-pending-reply [--team-member <team-member>] [<pending-id>] [--all] [--any-owner] [--count]
 📘 syntax: DistroAgentsQuestions.fn.sh --amend-pending-reply [--team-member <team-member>] <pending-id> --verdict <text> --reason <text>
+📘 syntax: DistroAgentsQuestions.fn.sh --reconcile-answered-status [--team-member <team-member>] [--apply]
 📘 syntax: DistroAgentsQuestions.fn.sh --record-decision [--team-member <team-member>] <item-filename> --kind <clarification|resolved|dismissed> --text <one line> (--with <party> [--wait]|--readback <pending-id>) [--source <ts-or-id>] [--clears-blocker]
 📘 syntax: DistroAgentsQuestions.fn.sh --record-decision [--team-member <team-member>] <item-filename> --strike <exact line text> --reason <text> (--with <party> [--wait]|--readback <pending-id>)
+📘 syntax: DistroAgentsQuestions.fn.sh --record-decision [--team-member <team-member>] <item-filename> --review --with <party> [--wait]
 
 ##  Summary:
 
@@ -39,6 +41,15 @@
 		--amend-pending-reply <pending-id> --verdict <text> --reason <text>
 			Amends the verdict a question already closed with, and keeps the reason beside it.
 
+		--reconcile-answered-status [--apply]
+			Lists the open items whose `status:` or `condition:` names a question already
+			answered, by its id or the id's first eight characters, and whose status lacks that
+			answer: one `STATUS-STALE <item> <state> <pending-id>` line each, or `STATUS-NONE`.
+			It writes nothing. `--apply` appends `<pending-id> answered <verdict> by <who> at
+			<time>` to each one's status, and prints `STATUS-ANSWERED` lines instead. Only
+			magic-coordinator may apply it. A close with a verdict appends the same line by itself,
+			to the ask's own item and to every open item that names it so.
+
 		--record-decision <item-filename> --kind <clarification|resolved|dismissed> --text <one line> (--with <party> [--wait]|--readback <pending-id>)
 			One line onto that item's own Decisions, where a ruling on the work belongs.
 			It lands only through its confirmed readback, on the same item: `yes` lands the text it confirmed, word for word,
@@ -59,6 +70,17 @@
 			the human-owner: a line with no confirmation behind it is struck on his confirmation alone. The
 			dismissed line names that readback, so it strikes once. `--with <party>` asks it, and its yes or edit
 			strikes the line by itself; a no keeps it. A strike takes no `--kind` and no `--text`.
+
+		--record-decision <item-filename> --review --with <party> [--wait]
+			Reads back every unconfirmed line of that item's own Decisions as one numbered list. An unconfirmed
+			line is a clarification, resolved or dismissed line with no confirmed readback behind it, neither
+			struck nor confirmed. Each line carries a proposed action: confirm where its source shows an answered
+			or settled ask, re-ask where it shows a withdrawn one, and prune otherwise. `yes` applies the list,
+			`edit: 3 confirm, 5 prune` changes the lines it names, and `no` changes nothing. Confirm marks the
+			line confirmed, naming who and when. Prune strikes it. Re-ask strikes it and asks its text again of
+			the party, through `--with`. An answer from one who is not the human-owner and holds no tier-admin
+			or tier-owner over the item sends the list up to the human-owner. The item's owner or magic-coordinator
+			starts it. With no unconfirmed line it prints `DECISION-REVIEW-NONE` and asks nothing.
 
 ##  Notes:
 

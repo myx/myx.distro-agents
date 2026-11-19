@@ -6,6 +6,7 @@ requires-session-kind: standalone
 start-context: any
 input-scan-def: none
 review-by: inherit
+deliverables: the ask, reminder or status owed on each due item whose owner is the human-owner or an external contact
 runs-at: none
 ---
 # magic-coordinator.external-inbox-handle-loop.routine — the actual procedure

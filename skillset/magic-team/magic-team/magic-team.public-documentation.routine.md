@@ -6,6 +6,7 @@ access-control: participants:allow-tool:WebFetch
 requires-session-kind: coworking
 input-scan-def: none
 review-by: inherit
+deliverables: one page improved this iteration, each claim checked before it is published
 runs-at: none
 ---
 # magic-team.public-documentation.routine — the actual procedure

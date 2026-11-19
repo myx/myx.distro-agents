@@ -1,0 +1,88 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.SuperviseSolidDelta.include -- the live SOLID gate's kept reading, and the delta `--supervise-scan` prints from it as
+## kind `solid-delta`: the gate's total, and the files changed since it last read 0 (epic S13,
+## `task-20261117T2331Z-supervise-scan-new-kinds`).
+##
+## The marker is `<workspace>/.local/agents/solid-gate.last`, four lines: `total`, `at`, `zero-at`, `package`. The gate's own run
+## writes it (`sh-test/solid/AgentsSolidBreachScan.sh --record <workspace>`), and the scan only reads it. That is what keeps a scan
+## to four reads: the gate itself costs half a minute over the whole package. A gate that never read 0 keeps `zero-at -`, since a
+## tree that was never clean has no delta to measure from.
+##
+## The files are found by their modification time against that instant, never by git: no git runs over a source folder.
+## Sourced, never run; functions only.
+##
+
+## One instant the tooling keeps, as epoch seconds: no portable date(1) prints one, so both spellings are tried.
+AgentsToolsSolidGateEpochOf(){ ## an instant ending in Z -- its epoch seconds, empty where it does not read
+	date -u -j -f '%Y-%m-%dT%H:%M:%SZ' "$1" +%s 2> /dev/null || date -u -d "$1" +%s 2> /dev/null
+}
+
+AgentsToolsSolidGateMarkerWrite(){ ## workspace path, total, package root -- the gate's own reading, kept for the scan; rc 1 where it is not kept
+	local gateMarker gateTotal gatePackage gateZero gateNow gateTemp
+	gateMarker="${1%/}/.local/agents/solid-gate.last"
+	gateTotal="$2" ; gatePackage="$3"
+	case "$gateTotal" in ''|*[!0123456789]*) return 1 ;; esac
+	[ -d "${gatePackage:-}" ] || return 1
+	mkdir -p "${gateMarker%/*}" || return 1
+	gateNow="$( date -u +%Y-%m-%dT%H:%M:%SZ )"
+	## The newest instant the gate read 0. A later run that reads rows leaves it standing, so the delta spans every file the tree
+	## has moved since it was last clean.
+	gateZero="-"
+	if [ -s "$gateMarker" ] ; then
+		gateZero="$( LC_ALL=C awk '$1 == "zero-at" { print $2 ; exit }' "$gateMarker" )" || gateZero="-"
+		case "$gateZero" in ''|-) gateZero="-" ;; esac
+	fi
+	[ "$gateTotal" != 0 ] || gateZero="$gateNow"
+	gateTemp="$( mktemp "$gateMarker.XXXXXX" )" || return 1
+	printf 'total %s\nat %s\nzero-at %s\npackage %s\n' "$gateTotal" "$gateNow" "$gateZero" "$gatePackage" > "$gateTemp" \
+		&& mv -f "$gateTemp" "$gateMarker" || { rm -f "$gateTemp" ; return 1 ; }
+	return 0
+}
+
+AgentsToolsSuperviseSolidDelta(){ ## workspace path, now (epoch) -- one `solid-delta` line, where the gate has kept a reading
+	local deltaWs="${1%/}" deltaNow="${2:-$( date +%s )}" deltaMarker deltaTotal deltaAt deltaZero deltaPackage
+	local deltaAtEpoch deltaZeroEpoch deltaAtAge="-" deltaZeroAge="none" deltaCount=0 deltaPaths="" deltaListed deltaPath deltaSince
+	deltaMarker="${deltaWs}/.local/agents/solid-gate.last"
+	[ -s "$deltaMarker" ] || return 0
+	deltaTotal="$( LC_ALL=C awk '$1 == "total" { print $2 ; exit }' "$deltaMarker" )" || deltaTotal=""
+	case "$deltaTotal" in ''|*[!0123456789]*) return 0 ;; esac
+	deltaAt="$( LC_ALL=C awk '$1 == "at" { print $2 ; exit }' "$deltaMarker" )" || deltaAt=""
+	deltaZero="$( LC_ALL=C awk '$1 == "zero-at" { print $2 ; exit }' "$deltaMarker" )" || deltaZero=""
+	deltaPackage="$( LC_ALL=C awk '$1 == "package" { print $2 ; exit }' "$deltaMarker" )" || deltaPackage=""
+	if [ -n "$deltaAt" ] ; then
+		deltaAtEpoch="$( AgentsToolsSolidGateEpochOf "$deltaAt" )" || deltaAtEpoch=""
+		case "$deltaAtEpoch" in ''|*[!0123456789]*) ;; *) deltaAtAge="$(( ( deltaNow - deltaAtEpoch ) / 60 ))m" ;; esac
+	fi
+	case "$deltaZero" in
+		''|-) ;;
+		*)
+			deltaZeroEpoch="$( AgentsToolsSolidGateEpochOf "$deltaZero" )" || deltaZeroEpoch=""
+			case "$deltaZeroEpoch" in
+				''|*[!0123456789]*) ;;
+				*)
+					deltaZeroAge="$(( ( deltaNow - deltaZeroEpoch ) / 60 ))m"
+					## A folder the marker names but this host cannot read gives no delta, and its age says so, rather than a zero
+					## that would read as a clean tree. `find` reads the instant in local time, in its space-separated spelling:
+					## the `T` spelling is accepted on Darwin and read as a different moment.
+					deltaSince="$( date -r "$deltaZeroEpoch" '+%Y-%m-%d %H:%M:%S' 2> /dev/null || date -d "@$deltaZeroEpoch" '+%Y-%m-%d %H:%M:%S' 2> /dev/null )" || deltaSince=""
+					if [ -d "$deltaPackage" ] && [ -n "$deltaSince" ] ; then
+						deltaListed="$( find "$deltaPackage" -type f -newermt "$deltaSince" -print 2> /dev/null | LC_ALL=C sort )" \
+							|| deltaZeroAge="${deltaZeroAge}-unread"
+						while IFS= read -r deltaPath ; do
+							[ -n "$deltaPath" ] || continue
+							deltaCount=$(( deltaCount + 1 ))
+							[ "$deltaCount" -gt 5 ] || deltaPaths="$deltaPaths ${deltaPath#"$deltaPackage"/}"
+						done <<< "$deltaListed"
+					else
+						deltaZeroAge="${deltaZeroAge}-unread"
+					fi
+				;;
+			esac
+		;;
+	esac
+	printf 'solid-delta %s total=%s at=%s zero=%s files=%s\n' "${deltaWs##*/}" "$deltaTotal" "$deltaAtAge" "$deltaZeroAge" "$deltaCount"
+	[ -z "$deltaPaths" ] || printf 'solid-delta %s paths:%s\n' "${deltaWs##*/}" "$deltaPaths"
+}

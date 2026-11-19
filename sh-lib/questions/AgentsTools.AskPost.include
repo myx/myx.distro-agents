@@ -167,21 +167,27 @@ ProposeApprove|proposal|propose-approve.post.format.md|approve|question proposal
 		return 0
 	}
 
-	## A post that no longer takes an answer: the tooling's own answer emoji are taken off it,
+	## A post that no longer takes an answer: the tooling's own answer emoji are taken off it, but for the chosen option's
+	## where it closes on a verdict (AgentsEscalationVerdict.awk, MDAT_VERDICT_CHOSEN): those stay, so the answer still shows,
 	## it gets one mark (a heading under `# Marks` of its template; none where no mark is named:
 	## an answered question gets its own where its record closes), and, when asked, it is
 	## edited to the same post without its `How to answer` part. The edit is the member send
 	## itself, told to update that message (--update-ts): the same author line, text and
 	## blocks the post went out with, under the same floor, so what a person sees does change
 	## and any body the send took is taken again. Each step is best effort.
-	AgentsToolsAskPostClose(){ ## record file, post ts, mark (superseded|cancelled; empty: none), edit (edit|empty)
-		local closeFile="$1" closeTs="$2" closeMark="$3" closeEdit="${4:-}" closeOwner closeChannel closeAs closeEmoji closeText closeRevised=1 closeVersion="" closeTarget closeTo closeArgs
+	AgentsToolsAskPostClose(){ ## record file, post ts, mark (superseded|cancelled; empty: none), edit (edit|empty), verdict (the answer chosen; empty: none was)
+		local closeFile="$1" closeTs="$2" closeMark="$3" closeEdit="${4:-}" closeOwner closeChannel closeAs closeEmoji closeText closeRevised=1 closeVersion="" closeTarget closeTo closeArgs closeKeep="" closeName closeOff=""
 		closeOwner="$( AgentsToolsAskPostField "$closeFile" owner )"
 		closeChannel="$( AgentsToolsAskPostField "$closeFile" channel )"
 		closeAs="$( AgentsToolsAskPostField "$closeFile" ask-identity )"
 		[ -n "$closeOwner" ] && [ -n "$closeChannel" ] && [ -n "$closeTs" ] || return 0
 		closeEmoji="$( AgentsToolsAskPostRecordFill reactions "$closeFile" 2>/dev/null )" || closeEmoji=""
-		[ -z "$closeEmoji" ] || AgentsToolsAskPostReact "$closeOwner" "$closeChannel:$closeTs" "$closeAs" remove $closeEmoji
+		## The chosen option's emoji, by the verdict reader's own click table, one run for the whole close: they stay.
+		[ -z "${5:-}" ] || [ -z "$closeEmoji" ] || closeKeep=" $( MDAT_VERDICT_CHOSEN="$5" MDAT_VERDICT_KIND="$( AgentsToolsAskPostField "$closeFile" kind )" \
+			MDAT_VERDICT_SELECT="$( AgentsToolsAskPostField "$closeFile" select )" MDAT_VERDICT_OPTIONS="$( cat "${closeFile%.md}.options" 2> /dev/null )" \
+			LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsEscalationVerdict.awk" < /dev/null 2> /dev/null | LC_ALL=C tr '\n' ' ' ) "
+		for closeName in $closeEmoji ; do case "$closeKeep" in *" $closeName "*) ;; *) closeOff="$closeOff $closeName" ;; esac ; done
+		[ -z "$closeOff" ] || AgentsToolsAskPostReact "$closeOwner" "$closeChannel:$closeTs" "$closeAs" remove $closeOff
 		closeEmoji=""
 		[ -z "$closeMark" ] || closeEmoji="$( AgentsToolsAskPostRecordFill block "$closeFile" "Marks/$closeMark" 2>/dev/null )" || closeEmoji=""
 		[ -z "$closeEmoji" ] || AgentsToolsAskPostReact "$closeOwner" "$closeChannel:$closeTs" "$closeAs" add $closeEmoji

@@ -60,16 +60,16 @@ rigF="$rigTmp/fixture" ; mkdir -p "$rigF"
 ## tool, it waits in a Wait, it has nothing to do, one handed back and left, one has ended. The second has no chapter, and its one agent handed back and left. The
 ## third has ended.
 {
-	rigRow session "$rigS1" Rig_work running 2026-10-12_16:57_+0300 - 5 thinking=1,tool=1,waiting=1,idling=1,parked=1,finished=1 - - alive 1500000 - - Writing_the_dispatch
+	rigRow session "$rigS1" Rig_work running 2026-10-12_16:57_+0300 - 5 thinking=1,tool=1,waiting=1,idling=1,parked=1,finished=1 - - alive 1500000 - - Writing_the_dispatch active
 	rigRow run "$rigS1" "$rigA1" magic-coordinator spawn-started running thinking 2026-10-12_16:57_+0300 - rig-host ws-rig working
 	rigRow run "$rigS1" "$rigA2" magic-tester spawn-started running tool 2026-10-12_17:05_+0300 - rig-host ws-rig working
 	rigRow run "$rigS1" "$rigA3" magic-librarian spawn-started running waiting 2026-10-12_17:06_+0300 - rig-host ws-rig waiting
 	rigRow run "$rigS1" "$rigA4" magic-architect spawn-started running idling 2026-10-12_17:07_+0300 - rig-host ws-rig -
 	rigRow run "$rigS1" - keeper-myx spawn-succeeded gone parked 2026-10-12_17:07_+0300 2026-10-12_18:00_+0300 rig-host ws-rig -
 	rigRow run "$rigS1" - keeper-mel spawn-succeeded gone finished 2026-10-12_17:08_+0300 2026-10-12_18:10_+0300 rig-host ws-rig -
-	rigRow session "$rigS2" Handed_back parked 2026-10-12_09:00_+0300 - 1 parked=1 - - none 40000 - - -
+	rigRow session "$rigS2" Handed_back parked 2026-10-12_09:00_+0300 - 1 parked=1 - - none 40000 - - - active
 	rigRow run "$rigS2" "$rigB1" magic-developer spawn-succeeded gone parked 2026-10-12_09:00_+0300 2026-10-12_09:30_+0300 rig-host ws-rig -
-	rigRow session "$rigS3" Ended finished 2026-10-11_14:28_+0300 2026-10-11_14:51_+0300 1 finished=1 - - none 9000000 - - -
+	rigRow session "$rigS3" Ended finished 2026-10-11_14:28_+0300 2026-10-11_14:51_+0300 1 finished=1 - - none 9000000 - - - closed
 	rigRow run "$rigS3" "$rigC1" magic-devops spawn-succeeded gone finished 2026-10-11_14:28_+0300 2026-10-11_14:51_+0300 rig-host ws-rig -
 	rigRow counters 1 0 2 1 2 0.42
 } > "$rigF/rows.--manager-session-list"

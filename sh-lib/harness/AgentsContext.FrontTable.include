@@ -85,6 +85,7 @@ DistroAgentsQuestions	--forward-escalation	coordinator
 DistroAgentsQuestions	--read-escalation	member
 DistroAgentsQuestions	--read-pending-reply	member
 DistroAgentsQuestions	--readback-escalation	member
+DistroAgentsQuestions	--reconcile-answered-status	coordinator
 DistroAgentsQuestions	--record-decision	member
 DistroAgentsGrants	--list-permissions	member
 DistroAgentsGrants	--pass-permission	member
@@ -109,11 +110,11 @@ DistroAgentsSlack	--slack-socket-start	member
 DistroAgentsSlack	--slack-socket-status	member
 DistroAgentsSlack	--slack-socket-stop	member
 DistroAgentsAtlassian	--confluence-comment-add	coordinator
-DistroAgentsAtlassian	--confluence-comment-read	coordinator
+DistroAgentsAtlassian	--confluence-comment-read	member
 DistroAgentsAtlassian	--confluence-page-create	coordinator
 DistroAgentsAtlassian	--confluence-page-delete	coordinator
 DistroAgentsAtlassian	--confluence-page-read	member
-DistroAgentsAtlassian	--confluence-page-search	coordinator
+DistroAgentsAtlassian	--confluence-page-search	member
 DistroAgentsAtlassian	--confluence-page-update	coordinator
 DistroAgentsAtlassian	--confluence-space-create	coordinator
 DistroAgentsAtlassian	--confluence-space-list	member
@@ -121,13 +122,13 @@ DistroAgentsAtlassian	--jira-board-issue-search	member
 DistroAgentsAtlassian	--jira-board-list	member
 DistroAgentsAtlassian	--jira-board-read	member
 DistroAgentsAtlassian	--jira-comment-add	coordinator
-DistroAgentsAtlassian	--jira-comment-read	coordinator
+DistroAgentsAtlassian	--jira-comment-read	member
 DistroAgentsAtlassian	--jira-issue-create	coordinator
 DistroAgentsAtlassian	--jira-issue-delete	coordinator
 DistroAgentsAtlassian	--jira-issue-link-list	member
 DistroAgentsAtlassian	--jira-issue-link-page	coordinator
 DistroAgentsAtlassian	--jira-issue-read	member
-DistroAgentsAtlassian	--jira-issue-search	coordinator
+DistroAgentsAtlassian	--jira-issue-search	member
 DistroAgentsAtlassian	--jira-issue-transition	coordinator
 DistroAgentsAtlassian	--jira-issue-update	coordinator
 DistroAgentsAtlassian	--jira-project-delete	coordinator

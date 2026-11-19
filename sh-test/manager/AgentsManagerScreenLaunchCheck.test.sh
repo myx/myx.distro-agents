@@ -80,12 +80,12 @@ rigWhy='its_executors,_magic-team,_is_any_member:_the_session_spawner_starts_it_
 	rigRow routine odd.routine.md rig-member broken - - - - the_file_does_not_open_with_a_frontmatter_block
 } > "$rigF/rows.--manager-routine-list"
 rigOld(){
-	rigRow session "$rigS1" - running 2026-10-12_16:57_+0000 - 1 running=1
+	rigRow session "$rigS1" - running 2026-10-12_16:57_+0000 - 1 running=1 - - - '' - - - active
 	rigRow run "$rigS1" "$rigS1" keeper-myx spawn-started running running 2026-10-12_16:57_+0000 - rig-host ws-rig working
 }
 { rigOld ; rigRow counters 1 0 1 0 3 0.42 ; } > "$rigF/rows"
 {
-	rigRow session "$rigNew" daily running 2026-10-13_02:30_+0000 - 2 running=2
+	rigRow session "$rigNew" daily running 2026-10-13_02:30_+0000 - 2 running=2 - - - '' - - - active
 	rigRow run "$rigNew" "$rigNew" magic-coordinator spawn-started running running 2026-10-13_02:30_+0000 - rig-host ws-rig working
 	rigRow run "$rigNew" 98989898-0000-4000-8000-000000000098 magic-librarian spawn-started running running 2026-10-13_02:30_+0000 - rig-host ws-rig working
 	rigOld

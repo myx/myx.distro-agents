@@ -54,27 +54,38 @@ printf '%s\n' '{"ok":true,"file":{"id":"FVOICE02","name":"thread-clip.m4a","size
 ## Exactly the 24 bytes both files.info answers declare: the fetch refuses a body of any other length.
 printf '%s' '0123456789abcdefghijklmn' > "$rigScenario/clip.bin"
 
-## Two origins: one where the local AI feature is installed (its transcribe is a stand-in that logs its every call), and one where it is not.
-rigOriginIn="$rigTmp/origin-in"
-rigOriginOut="$rigTmp/origin-out"
-mkdir -p "$rigOriginIn/myx" "$rigOriginOut/myx"
-## Each rig origin holds the package under test and every package beside it, but never mdci-packages-myx: whether the local AI feature
-## is installed there is the one thing the two origins differ in.
-for rigSibling in "$rigOrigin/myx"/* ; do
-	rigSiblingName="${rigSibling##*/}"
-	case "$rigSiblingName" in mdci-packages-myx) continue ;; esac
-	rigCopyTree "$rigSibling" "$rigOriginIn/myx/$rigSiblingName" || rigRefuse "the rig origin could not be copied: $rigSiblingName"
-	rigCopyTree "$rigSibling" "$rigOriginOut/myx/$rigSiblingName" || rigRefuse "the rig origin could not be copied: $rigSiblingName"
-done
-mkdir -p "$rigOriginIn/myx/mdci-packages-myx/setup.feature-local-ai/data/local-ai"
-cat > "$rigOriginIn/myx/mdci-packages-myx/setup.feature-local-ai/data/local-ai/mdci-local-ai" <<'RIGFEATURE'
+## The install a deploy puts on a machine, at the one path the feature's own fragments call:
+## ${MDCI_FILES_PATH:-/usr/local/mdci-files}/local-ai/mdci-local-ai. The rig names folders of its own there, so an install
+## stands, is broken, or is absent, without touching this machine and without reading any source file.
+rigInstallIn="$rigTmp/install-in"
+rigInstallOut="$rigTmp/install-out"
+rigInstallBroken="$rigTmp/install-broken"
+mkdir -p "$rigInstallIn/local-ai" "$rigInstallOut" "$rigInstallBroken/local-ai"
+cat > "$rigInstallIn/local-ai/mdci-local-ai" <<'RIGFEATURE'
 #!/bin/sh
 printf '%s\n' "$*" >> "$RIG_FEATURE_LOG"
 printf '{"text": " these are the rig clip words"}\n'
 RIGFEATURE
+chmod +x "$rigInstallIn/local-ai/mdci-local-ai"
+## A command that stands and cannot do the work: the install is there, and the speech endpoint does not answer.
+printf '#!/bin/sh\nprintf "%%s\\n" "$*" >> "$RIG_FEATURE_LOG"\nprintf "local-ai: %%s\\n" "transcribe: the speech endpoint 127.0.0.1:8182 does not answer" >&2\nexit 1\n' \
+	> "$rigInstallBroken/local-ai/mdci-local-ai"
+chmod +x "$rigInstallBroken/local-ai/mdci-local-ai"
 RIG_FEATURE_LOG="$rigScenario/feature.calls"
 export RIG_FEATURE_LOG
 : > "$RIG_FEATURE_LOG"
+
+## One origin, holding the package under test and every package beside it, and a staged copy of the feature's command under
+## mdci-packages-myx. That staged copy stands in every source tree, which is why no case may read it as an install.
+rigOriginIn="$rigTmp/origin"
+mkdir -p "$rigOriginIn/myx"
+for rigSibling in "$rigOrigin/myx"/* ; do
+	case "${rigSibling##*/}" in mdci-packages-myx) continue ;; esac
+	rigCopyTree "$rigSibling" "$rigOriginIn/myx/${rigSibling##*/}" || rigRefuse "the rig origin could not be copied: ${rigSibling##*/}"
+done
+mkdir -p "$rigOriginIn/myx/mdci-packages-myx/setup.feature-local-ai/data/local-ai"
+cp "$rigInstallIn/local-ai/mdci-local-ai" "$rigOriginIn/myx/mdci-packages-myx/setup.feature-local-ai/data/local-ai/mdci-local-ai" \
+	|| rigRefuse "the staged stand-in could not be copied into the rig origin"
 
 rigPasses=0
 rigFails=0
@@ -90,23 +101,23 @@ rigHas(){ ## text, literal substring -- yes or no
 }
 ## One read with the read cache off (MDAT_SLACK_THREAD_CACHE_SECONDS=0), so every case reads Slack again and what the rendering
 ## carries is the work of this pass, never a rendering some earlier read left in a cache.
-rigRead(){ ## origin -- one read of the conversation, as the member, its rendering on stdout
+rigRead(){ ## origin, install path -- one read of the conversation, as the member, its rendering on stdout
 	( cd "$rigWs" && env -u MDAT_DATA_ROOT -u MDAT_SPAWN_AGENT -u MDAT_SPAWN_SESSION_ID -u MDAT_SESSION_ID \
-		MDAT_TEAM_MEMBER=keeper-myx MDAT_SLACK_THREAD_CACHE_SECONDS=0 MMDAPP="$rigWs" MDLT_ORIGIN="$1" \
+		MDAT_TEAM_MEMBER=keeper-myx MDAT_SLACK_THREAD_CACHE_SECONDS=0 MMDAPP="$rigWs" MDLT_ORIGIN="$1" MDCI_FILES_PATH="$2" \
 		bash "$1/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --slack-read C0RIG0001 --oldest 1 2> "$rigTmp/stderr" )
 }
 ## One thread rendered by the comms cache itself -- the second of the three renderers the one function serves, driven where the Wait
 ## drives it. The rendering lands in the file given; the cache's own folder is the rig workspace's.
-rigCacheThread(){ ## origin, channel:ts, rendering file
+rigCacheThread(){ ## origin, install path, channel:ts, rendering file
 	( cd "$rigWs" && env -u MDAT_DATA_ROOT -u MDAT_SPAWN_AGENT -u MDAT_SPAWN_SESSION_ID -u MDAT_SESSION_ID \
-		MDAT_TEAM_MEMBER=keeper-myx MMDAPP="$rigWs" MDLT_ORIGIN="$1" \
-		bash -c '. "$1/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsCache.include" ; AgentsToolsCommsCacheSlackThread keeper-myx "$2" "$3" false "$( date +%s )"' _ "$1" "$2" "$3" 2> "$rigTmp/stderr" )
+		MDAT_TEAM_MEMBER=keeper-myx MMDAPP="$rigWs" MDLT_ORIGIN="$1" MDCI_FILES_PATH="$2" \
+		bash -c '. "$1/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsCache.include" ; AgentsToolsCommsCacheSlackThread keeper-myx "$3" "$4" false "$( date +%s )"' _ "$1" "$2" "$3" "$4" 2> "$rigTmp/stderr" )
 }
 rigCount(){ ## file, literal substring
 	LC_ALL=C grep -c -F -- "$2" "$1" 2> /dev/null || :
 }
 
-rigOut="$( rigRead "$rigOriginIn" )" || rigOut="$rigOut"
+rigOut="$( rigRead "$rigOriginIn" "$rigInstallIn" )" || rigOut="$rigOut"
 LC_ALL=C grep -q '^conversations.history ' "$rigScenario/calls" \
 	|| rigRefuse "the conversation was never read through the fake curl, so nothing below would be measured"
 
@@ -128,7 +139,7 @@ rigAssert "...and that file is never fetched to be read out" \
 
 echo "-- the same clip a second time costs no fetch and no speech call --"
 : > "$RIG_FEATURE_LOG"
-rigOut="$( rigRead "$rigOriginIn" )" || rigOut="$rigOut"
+rigOut="$( rigRead "$rigOriginIn" "$rigInstallIn" )" || rigOut="$rigOut"
 rigAssert "the words are there again" "$( rigHas "$rigOut" '[voice transcript: these are the rig clip words]' )" yes
 rigAssert "the clip is not fetched again" "$( rigCount "$rigScenario/calls" 'download https://files.slack.com/FVOICE01' )" 1
 rigAssert "the speech-to-text command is not asked again" "$( rigCount "$RIG_FEATURE_LOG" 'transcribe' )" 0
@@ -137,26 +148,50 @@ echo "-- a thread: the comms cache's own renderer, through the same one function
 ## The words of the conversation's clip are cleared first, so a transcript below can only be this read's own work.
 rm -rf "$rigWs/.local/agents/schedule/voice"
 : > "$RIG_FEATURE_LOG"
-rigCacheThread "$rigOriginIn" 'C0RIG0001:1700000003.000300' "$rigTmp/thread.rendered" || rigRefuse "the comms cache could not render the thread"
+rigCacheThread "$rigOriginIn" "$rigInstallIn" 'C0RIG0001:1700000003.000300' "$rigTmp/thread.rendered" || rigRefuse "the comms cache could not render the thread"
 rigOut="$( cat "$rigTmp/thread.rendered" )"
 rigAssert "the thread parent's clip is read into text too" "$( rigHas "$rigOut" '[voice transcript: these are the rig clip words]' )" yes
 rigAssert "...its file annotation gone as on the conversation's line" "$( rigHas "$rigOut" '[file: FVOICE02' )" no
 rigAssert "...and the speech-to-text command was asked for it" "$( rigCount "$RIG_FEATURE_LOG" 'transcribe' )" 1
 
-echo "-- where the feature is not installed, the message stays marked untranscribed --"
+echo "-- the staged command stands and nothing is installed: the install decides, not a source file --"
+## The staged copy stands in every source tree, so nothing here may read it as an install.
+rm -rf "$rigWs/.local/agents/schedule/voice"
+: > "$rigScenario/calls"
+: > "$RIG_FEATURE_LOG"
+rigOut="$( rigRead "$rigOriginIn" "$rigInstallOut" )" || rigOut="$rigOut"
+rigAssert "the message is marked untranscribed though the staged command stands" "$( rigHas "$rigOut" '[voice: untranscribed]' )" yes
+rigAssert "no words are claimed for it" "$( rigHas "$rigOut" '[voice transcript:' )" no
+rigAssert "the clip is not fetched" "$( rigCount "$rigScenario/calls" 'download https://files.slack.com/FVOICE01' )" 0
+rigAssert "the speech-to-text command is not asked" "$( rigCount "$RIG_FEATURE_LOG" 'transcribe' )" 0
+rigAssert "and the plain file is still named as a file" "$( rigHas "$rigOut" '[file: FPLAIN01' )" yes
+
+echo "-- an install whose speech endpoint does not answer: untranscribed, and the reason kept --"
+## The clip's state from the case above is cleared, so what follows is this read's own work.
+rm -rf "$rigWs/.local/agents/schedule/voice"
+: > "$rigScenario/calls"
+: > "$RIG_FEATURE_LOG"
+rigOut="$( rigRead "$rigOriginIn" "$rigInstallBroken" )" || rigOut="$rigOut"
+rigAssert "the message is marked untranscribed" "$( rigHas "$rigOut" '[voice: untranscribed]' )" yes
+rigAssert "the command was asked, once" "$( rigCount "$RIG_FEATURE_LOG" 'transcribe' )" 1
+rigAssert "and one line carries the reason the install gave" \
+	"$( LC_ALL=C grep -c 'the speech endpoint 127.0.0.1:8182 does not answer' "$rigTmp/stderr" )" 1
+
+echo "-- where the install is absent, the message stays marked untranscribed --"
 ## The words of a clip that was transcribed by the case above are kept for the member, so this case starts without them.
 rm -rf "$rigWs/.local/agents/schedule/voice"
 : > "$rigScenario/calls"
-rigOut="$( rigRead "$rigOriginOut" )" || rigOut="$rigOut"
+rigOut="$( rigRead "$rigOriginIn" "$rigInstallOut" )" || rigOut="$rigOut"
 rigAssert "the message is marked untranscribed" "$( rigHas "$rigOut" '[voice: untranscribed]' )" yes
-rigAssert "no words are claimed for it" "$( rigHas "$rigOut" '[voice transcript:' )" no
-rigAssert "nothing was fetched for a clip that could not be read anyway" \
-	"$( rigCount "$rigScenario/calls" 'download https://files.slack.com/FVOICE01' )" 0
-rigAssert "and the plain file is still named as a file" "$( rigHas "$rigOut" '[file: FPLAIN01' )" yes
-
-echo "-- one line says why, where the reason is not in the rendering --"
-rigAssert "the untranscribed reason names the feature that is not installed" \
+rigAssert "and one line says why, where the rendering does not" \
 	"$( LC_ALL=C grep -c 'setup.feature-local-ai is not installed on this machine' "$rigTmp/stderr" )" 1
+
+ echo "-- and that costs one look, not one per message --"
+## The state is kept beside the clip, as a transcript is, so a poll that hands the same message over again looks nothing up.
+: > "$rigScenario/calls"
+rigOut="$( rigRead "$rigOriginIn" "$rigInstallOut" )" || rigOut="$rigOut"
+rigAssert "the message is still marked untranscribed" "$( rigHas "$rigOut" '[voice: untranscribed]' )" yes
+rigAssert "and Slack was not asked about the clip again" "$( rigCount "$rigScenario/calls" 'files.info FVOICE01' )" 0
 
 if [ "$rigFails" -ne 0 ] ; then
 	echo "⛔ VOICE TRANSCRIPT CHECK FAILED: $rigFails of $(( rigPasses + rigFails )) assertion(s)" >&2 ; exit 1

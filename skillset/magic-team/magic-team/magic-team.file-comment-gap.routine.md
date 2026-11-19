@@ -6,6 +6,8 @@ invitees: none
 requires-session-kind: standalone
 input-scan-def: none
 review-by: inherit
+deliverables: one grounded file-header comment on one file that lacked one
+deliverables: the activity and its outcome logged, by default as a note in the member's own inbox
 runs-at: none
 ---
 # magic-team.file-comment-gap.routine — the actual procedure

@@ -833,7 +833,7 @@ AgentsToolsEscalationApply(){ ## record file, request id, verdict, verdict text,
 		change:applied*) ;;
 		change:*)
 			type AgentsChangePostClose > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.InternOpChange.include"
-			AgentsChangePostClose "$applyFile"
+			AgentsChangePostClose "$applyFile" "$applyVerdict"
 		;;
 	esac
 	## The rest of it, from the note: its text, grant line and follow floor on the record, its
@@ -866,7 +866,7 @@ AgentsToolsEscalationApply(){ ## record file, request id, verdict, verdict text,
 			## longer takes an answer is the same text without that group): edited in place once the answer is read, as a superseded
 			## version already is. Best effort, said on stderr where the edit does not land.
 			type AgentsToolsAskPostClose > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.AskPost.include"
-			! type AgentsToolsAskPostClose > /dev/null 2>&1 || AgentsToolsAskPostClose "$applyFile" "$( AgentsToolsEscalationField "$applyFile" question-ts )" "" edit
+			! type AgentsToolsAskPostClose > /dev/null 2>&1 || AgentsToolsAskPostClose "$applyFile" "$( AgentsToolsEscalationField "$applyFile" question-ts )" "" edit "$applyVerdict"
 		;;
 	esac
 	## A noted answer completed in place of the one this call brought: that one is not applied.
@@ -903,6 +903,8 @@ AgentsToolsEscalationApply(){ ## record file, request id, verdict, verdict text,
 ## itself -- and that is read too, when its thread holds nothing (AgentsToolsEscalationAskDirect).
 AgentsToolsEscalationThreadVerdict(){ ## member, record file, pending id, channel, question ts, thread ts, accepted authors, read as bot (true|empty), no verdict from this thread (non-empty|empty)
 	local threadMember="$1" threadFile="$2" threadPending="$3" threadChannel="$4" threadQuestion="$5" threadRoot="$6" threadAuthors="$7" threadAsBot="${8:-}" threadNoVerdict="${9:-}"
+	type AgentsToolsAskAnsweringAccountsInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.AskThread.include"
+	AgentsToolsAskAnsweringAccountsInto threadAuthors "$threadAuthors"
 	local threadWork threadRc=0 threadVerdict threadAuthor threadAsking threadOptions="" threadVerdictTs="" threadClarify=""
 	local threadErrFile="" threadErr="" threadAs="member $threadMember" threadFilterRc=0
 	[ -z "$threadAsBot" ] || threadAs="the team bot"
@@ -921,9 +923,9 @@ AgentsToolsEscalationThreadVerdict(){ ## member, record file, pending id, channe
 	[ -z "$threadErrFile" ] || rm -f "$threadErrFile"
 	[ ! -f "${threadFile%.md}.options" ] || threadOptions="$( cat "${threadFile%.md}.options" )"
 	## A thread several questions share (AgentsTools.AskThread.include): a reply with no number
-	## answers the latest question above it; one after that question closed is set aside, and
-	## named if nothing else answers.
-	local threadStanding="" threadAnswers="" threadUntagged=""
+	## answers a question only where no other stood open when it came; else none takes it, and
+	## its author is asked once which one it answers (AgentsToolsEscalationWhichAsk).
+	local threadStanding="" threadAnswers=""
 	type AgentsToolsAskThreadStanding > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.AskThread.include"
 	threadStanding="$( AgentsToolsAskThreadStanding "$threadChannel" "$threadQuestion" )"
 	local threadOthers=""
@@ -946,7 +948,7 @@ AgentsToolsEscalationThreadVerdict(){ ## member, record file, pending id, channe
 	if [ "$threadRc" = "0" ] ; then
 		threadAnswers="$( LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" \
 		-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/slack/AgentsSlackMessagesFormat.awk" <<< "$threadWork" 2>/dev/null \
-			| LC_ALL=C awk -v rootTs="$threadLive" -v alsoTs="$threadAlso" -v askingUsers="$( AgentsToolsEscalationField "$threadFile" asking-accounts )" -v fromUsers="$threadAuthors" -v tag="${threadStanding%%$'\t'*}" -v threadCount="${threadStanding#*$'\t'}" -v others="$threadOthers" \
+			| LC_ALL=C awk -v rootTs="$threadLive" -v alsoTs="$threadAlso" -v askingUsers="$( AgentsToolsEscalationField "$threadFile" asking-accounts )" -v fromUsers="$threadAuthors" -v whichMark=1 -v tag="${threadStanding%%$'\t'*}" -v threadCount="${threadStanding#*$'\t'}" -v others="$threadOthers" \
 				-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsDismissalMatch.awk" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/slack/AgentsSlackThreadAnswers.awk" 2>/dev/null )" || threadFilterRc=$?
 		## A rendering that does not hold the question's own message is not known to be its
 		## thread: nothing is known from it, which is never the same as nobody having answered.
@@ -956,6 +958,11 @@ AgentsToolsEscalationThreadVerdict(){ ## member, record file, pending id, channe
 		fi
 		[ -z "$threadSince" ] || threadAnswers="$( printf '%s\n' "$threadAnswers" | LC_ALL=C awk -v sinceTs="$threadSince" \
 			-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/slack/AgentsSlackThreadAnswersSince.awk" 2>/dev/null )" || threadAnswers=""
+		## A REPLY NO ASK TAKES ALONE: several stood open when it came, and it names none. Its author is asked once, in the thread, which one it answers.
+		case "$threadAnswers" in *AMBIGUOUS-REPLY\ *)
+			AgentsToolsEscalationWhichAsk "$threadFile" "$threadChannel" "$threadRoot" "$( printf '%s\n' "$threadAnswers" | LC_ALL=C sed -n 's/^AMBIGUOUS-REPLY \([0-9]*\.[0-9]*\) | \([^ ]*\) |.*/\1 \2/p' )"
+			threadAnswers="$( printf '%s\n' "$threadAnswers" | LC_ALL=C grep -v '^AMBIGUOUS-REPLY ' )"
+		;; esac
 		## AN ANSWER TYPED IN THE CONVERSATION, where the question is one top-level post of a
 		## conversation of two people (a direct message). What the post asks is answered by a
 		## click under it or by a reply in its thread, and a person answering there does neither:
@@ -966,7 +973,7 @@ AgentsToolsEscalationThreadVerdict(){ ## member, record file, pending id, channe
 		## answering as it did, and only in a direct conversation, where no other question stands
 		## that an unnumbered reply could belong to. A conversation that cannot be read leaves
 		## the result exactly what the thread said: never an answer guessed at.
-		if ! printf '%s\n' "$threadAnswers" | LC_ALL=C grep -q -E '^([0-9]+\.[0-9]+ \| |reaction on the question: |UNMATCHED-REPLY )' \
+		if ! printf '%s\n' "$threadAnswers" | LC_ALL=C grep -q -E '^([0-9]+\.[0-9]+ \| |reaction on the question: )' \
 			&& AgentsToolsEscalationAskDirect "$threadFile" "$threadChannel" ; then
 			local threadDirect="" threadDirectRc=0
 			type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
@@ -981,9 +988,8 @@ AgentsToolsEscalationThreadVerdict(){ ## member, record file, pending id, channe
 			fi
 		fi
 		## Nothing an accepted account wrote or clicked: the question is open, and nothing is returned.
-		printf '%s\n' "$threadAnswers" | LC_ALL=C grep -q -E '^([0-9]+\.[0-9]+ \| |reaction on the question: |UNMATCHED-REPLY )' || { printf 'OPEN\t\n' ; return 0 ; }
-		threadUntagged="$( printf '%s\n' "$threadAnswers" | LC_ALL=C grep -c '^UNMATCHED-REPLY ' )"
-		threadVerdict="$( printf '%s\n' "$threadAnswers" | LC_ALL=C grep -v '^UNMATCHED-REPLY ' \
+		printf '%s\n' "$threadAnswers" | LC_ALL=C grep -q -E '^([0-9]+\.[0-9]+ \| |reaction on the question: )' || { printf 'OPEN\t\n' ; return 0 ; }
+		threadVerdict="$( printf '%s\n' "$threadAnswers" \
 			| MDAT_VERDICT_WORDS=1 MDAT_VERDICT_KIND="${threadKind:-question}" MDAT_VERDICT_OPTIONS="$threadOptions" MDAT_VERDICT_AUTHORS="$threadAuthors" \
 				MDAT_VERDICT_FOLDER="$( AgentsToolsEscalationFolderOffered "$threadFile" )" MDAT_VERDICT_PROJECT="$( AgentsToolsEscalationFolderOffered "$threadFile" project )" \
 				MDAT_VERDICT_CONTACT="$( AgentsToolsEscalationFolderOffered "$threadFile" contact )" \
@@ -1000,11 +1006,6 @@ AgentsToolsEscalationThreadVerdict(){ ## member, record file, pending id, channe
 			| LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsDismissalMatch.awk" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsPendingReplyOwnWords.awk" 2>/dev/null \
 			| LC_ALL=C awk -v answerTs="${threadVerdictTs:-$threadQuestion}" \
 			-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsPendingReplyClarifications.awk" 2>/dev/null | LC_ALL=C awk '{ print "CLARIFY\t" $0 ; }' )" || threadClarify=""
-	fi
-	if [ "${threadUntagged:-0}" -gt 0 ] && { [ -z "$threadVerdict" ] || [ "${threadVerdict%%$'\t'*}" = "RETURNED" ] ; } ; then
-		printf 'RETURNED\t\ta reply with no question number came after the latest question above it was already answered, so it answers none -- a reply to this question starts with the plain text %s\n' "${threadStanding%%$'\t'*}"
-		[ -z "$threadClarify" ] || printf '%s\n' "$threadClarify"
-		return 0
 	fi
 	[ -n "$threadVerdict" ] || { printf 'RETURNED\t\n' ; return 0 ; }
 	threadAuthor="${threadVerdict#*$'\t'}"
@@ -1083,6 +1084,36 @@ AgentsToolsEscalationRecord(){ ## request id
 		echo "$MDSC_CMD: ⛔ ERROR: no escalation record $1" >&2
 		return 1
 	}
+}
+
+## The one line that asks which open ask a reply answers (AMBIGUOUS-REPLY of AgentsSlackThreadAnswers.awk): posted once a reply, whichever of the
+## asks reads it first, by a mark in the pending store taken with no clobber; it names the asks open in the thread and is addressed to the reply's author.
+AgentsToolsEscalationWhichAsk(){ ## record file, channel, thread root, "<reply ts> <author>" lines
+	local whichStore="$MMDAPP/.local/agents/pending" whichLine whichTs whichWho whichMark whichTags="" whichFile whichKey whichStatus whichTag whichChannel
+	while IFS= read -r whichFile ; do
+		[ -f "$whichFile" ] || continue
+		whichStatus="" whichTag="" whichChannel=""
+		while IFS= read -r whichKey ; do
+			case "$whichKey" in
+				'status: '*) whichStatus="${whichKey#status: }" ;;
+				'question-tag: '*) whichTag="${whichKey#question-tag: }" ;;
+				'channel: '*) whichChannel="${whichKey#channel: }" ;;
+				'# '*) break ;;
+			esac
+		done < "$whichFile"
+		[ "$whichStatus" = reply-pending ] && [ "$whichChannel" = "$2" ] && [ -n "$whichTag" ] || continue
+		whichTags="$whichTags${whichTags:+, }$whichTag"
+	done < <( LC_ALL=C grep -l -x -F --include='*.md' "thread-ts: $3" "$whichStore"/*.md 2> /dev/null )
+	[ -n "$whichTags" ] || return 0
+	while read -r whichTs whichWho ; do
+		[ -n "$whichTs" ] && [ -n "$whichWho" ] || continue
+		whichMark="$whichStore/which.$2.$whichTs"
+		( set -C ; : > "$whichMark" ) 2> /dev/null || continue
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+		printf 'Which ask does this answer: %s? Reply naming one, or click on that ask'"'"'s own post.\n' "$whichTags" \
+			| DistroAgentsTools --intern-op-comms-slack-send-message "$( AgentsToolsEscalationField "$1" owner )" "$2:$3" --identity-bot --address-to "$whichWho" --from-stdin > /dev/null 2>&1 || rm -f "$whichMark"
+	done <<< "$4"
+	return 0
 }
 
 ## Whether an ask stands as ONE TOP-LEVEL POST of a conversation of two people (a direct

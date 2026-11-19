@@ -114,7 +114,7 @@ rigOp(){ ## output name, op, arguments...
 	## RIG_AGENT, when set, is the spawned session's own member (MDAT_SPAWN_AGENT); RIG_SESSION, when
 	## set, the session the call is given from (MDAT_SPAWN_SESSION_ID). With neither, the console: a
 	## caller carrying no session at all.
-	( cd "$rigTmp/ws" && env -u MDAT_SPAWN_AGENT -u MDAT_SPAWN_SESSION_ID HOME="$rigTmp/home" MMDAPP="$rigTmp/ws" MDLT_ORIGIN="$MDLT_ORIGIN" \
+	( cd "$rigTmp/ws" && env -u MDAT_SPAWN_AGENT -u MDAT_SPAWN_SESSION_ID -u CLAUDE_CODE_SESSION_ID HOME="$rigTmp/home" MMDAPP="$rigTmp/ws" MDLT_ORIGIN="$MDLT_ORIGIN" \
 		MDAT_SKILLSET_ROOT="$rigTmp/skills" MDAT_DATA_ROOT="$rigTmp/data" ${RIG_AGENT:+MDAT_SPAWN_AGENT="$RIG_AGENT"} ${RIG_SESSION:+MDAT_SPAWN_SESSION_ID="$RIG_SESSION"} \
 		bash "$rigTool" "$@" ) > "$rigTmp/$opOut" 2> "$rigTmp/$opOut.err" || rigRc=$?
 }
@@ -299,7 +299,7 @@ rigAsk2(){ ## id, status, host ("" for none), session-id ("" for none), question
 rigOp2(){ ## output name, op, arguments... -- rigOp, in that workspace
 	local opOut="$1" ; shift
 	rigRc=0
-	( cd "$rigWs2" && env -u MDAT_SPAWN_AGENT -u MDAT_SPAWN_SESSION_ID HOME="$rigTmp/home" MMDAPP="$rigWs2" MDLT_ORIGIN="$MDLT_ORIGIN" \
+	( cd "$rigWs2" && env -u MDAT_SPAWN_AGENT -u MDAT_SPAWN_SESSION_ID -u CLAUDE_CODE_SESSION_ID HOME="$rigTmp/home" MMDAPP="$rigWs2" MDLT_ORIGIN="$MDLT_ORIGIN" \
 		MDAT_SKILLSET_ROOT="$rigTmp/skills" MDAT_DATA_ROOT="$rigTmp/data2" \
 		bash "$rigTool" "$@" ) > "$rigTmp/$opOut" 2> "$rigTmp/$opOut.err" || rigRc=$?
 }
@@ -365,7 +365,7 @@ rigAssert "--any-owner --count is the count of that list" "$( cat "$rigTmp/count
 rigWs3="$rigTmp/ws3"
 mkdir -p "$rigWs3/.local" "$rigTmp/data3"
 cp -R "$rigTmp/ws/.local/.agents" "$rigWs3/.local/.agents" || rigRefuse "the third workspace got no settings"
-( cd "$rigWs3" && env -u MDAT_SPAWN_AGENT -u MDAT_SPAWN_SESSION_ID HOME="$rigTmp/home" MMDAPP="$rigWs3" MDLT_ORIGIN="$MDLT_ORIGIN" \
+( cd "$rigWs3" && env -u MDAT_SPAWN_AGENT -u MDAT_SPAWN_SESSION_ID -u CLAUDE_CODE_SESSION_ID HOME="$rigTmp/home" MMDAPP="$rigWs3" MDLT_ORIGIN="$MDLT_ORIGIN" \
 	MDAT_SKILLSET_ROOT="$rigTmp/skills" MDAT_DATA_ROOT="$rigTmp/data3" bash "$rigTool" --read-pending-reply --team-member magic-tester ) > "$rigTmp/list3" 2> "$rigTmp/list3.err"
 rigAssert "with no ask store the list says none"      "$( cat "$rigTmp/list3" )" "PENDING-REPLIES: 0"
 rigAssert "the registry is written with no row, and no store is made" "$( [ -f "$rigWs3/.local/agents/pending-replies.registry" ] && LC_ALL=C awk 'END { print NR + 0 ; }' "$rigWs3/.local/agents/pending-replies.registry" || echo no-file ):$( [ -e "$rigWs3/.local/agents/pending" ] && echo made || echo none )" "0:none"

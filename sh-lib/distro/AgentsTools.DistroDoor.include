@@ -7,8 +7,10 @@
 ## through the tooling's own operations, so a change of the tooling's sources or formats reaches no code here. Sourced, never run.
 ##
 ## AgentsDistroDeclaresCut <workspace> <prefix>: `<project> <rest>` a line, for each declare of that workspace's distro that
-## starts with <prefix>, the prefix cut (ListDistroDeclares --all-filter-and-cut). The workspace's own input spec is used:
-## its source where it has one, else its installed distro. rc is the tool's; nothing is printed on a failure.
+## starts with <prefix>, the prefix cut. The workspace's own input spec is used: its source where it has one, read off the
+## project.inf of every source project as it stands (ListDistroProjects --select-all, then ListDistroDeclares --select-from-env),
+## never from a kept declares index that can lag; else its installed distro (ListDistroDeclares --all-filter-and-cut). rc is the
+## tool's; nothing is printed on a failure.
 AgentsDistroDeclaresCut(){ ## workspace, prefix
 	local doorWs="${1%/}" doorPrefix="${2:?⛔ ERROR: AgentsDistroDeclaresCut: a declare prefix is required}" doorSpec="--distro-from-distro"
 	[ ! -d "$doorWs/source" ] || doorSpec="--distro-from-source"
@@ -17,7 +19,14 @@ AgentsDistroDeclaresCut(){ ## workspace, prefix
 		type DistroAgentsContext > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.include"
 		DistroAgentsContext "$doorSpec" > /dev/null || exit 2
 		Require ListDistroDeclares > /dev/null 2>&1 || :
-		Distro ListDistroDeclares --all-filter-and-cut "$doorPrefix"
+		if [ "$doorSpec" = "--distro-from-source" ] ; then
+			Require ListDistroProjects > /dev/null 2>&1 || :
+			doorSelected="$( Distro ListDistroProjects --select-all )" || exit 2
+			[ -n "$doorSelected" ] || exit 0
+			MDSC_SELECT_PROJECTS="$doorSelected" Distro ListDistroDeclares --select-from-env --filter-and-cut "$doorPrefix"
+		else
+			Distro ListDistroDeclares --all-filter-and-cut "$doorPrefix"
+		fi
 	)
 }
 

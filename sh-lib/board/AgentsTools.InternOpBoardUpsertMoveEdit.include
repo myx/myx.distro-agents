@@ -299,10 +299,13 @@ case "$1" in
 
 		## A body write keeps what another run recorded: a whole body puts the stored section back,
 		## and a body derived from the item refuses rather than drop a recorded line.
-		if [ "$isCreate" != "true" ] && [ -n "$bodyMode" ] ; then
+		if [ -n "$bodyMode" ] ; then
 			type AgentsToolsDecisionsKeep > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemDecisions.include"
-			case "$bodyMode" in
-				patch|script)
+			case "$isCreate:$bodyMode" in
+				true:*)
+					body="$( printf '%s\n' "$body" | AgentsToolsDecisionsKeep "" keep "$itemName" )" || { set +e ; return 1 ; }
+				;;
+				*:patch|*:script)
 					body="$( printf '%s\n' "$body" | AgentsToolsDecisionsKeep "$sourcePath" edit "$itemName" )" || { set +e ; return 1 ; }
 				;;
 				*)
@@ -408,6 +411,11 @@ case "$1" in
 				printf '%s' "$headerOps" > "$headerOpsFile" || exit 1
 				printf '%s\n' "$body" | LC_ALL=C awk -v opsFile="$headerOpsFile" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsBoardItemHeaderOpsApply.awk"
 			)" || { set +e ; return 1 ; }
+		fi
+
+		## A RECHECK-DATE ON A PENDING ITEM RE-CHECKS AN UNMET CONDITION (AgentsToolsRecheckPendingBody): a date this call sets beside none is refused, one carried over dropped.
+		if [ "$toState" = pending ] ; then
+			body="$( printf '%s\n' "$body" | AgentsToolsRecheckPendingBody "$MDSC_CMD: board-upsert-move-edit" "${itemName%.md}" "$headerOps" )" || { set +e ; return 1 ; }
 		fi
 
 		if [ -z "$body" ] ; then

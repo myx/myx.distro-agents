@@ -6,6 +6,7 @@ access-control: participants:allow-tool:WebSearch, participants:allow-tool:WebFe
 requires-session-kind: coworking
 input-scan-def: none
 review-by: inherit
+deliverables: the decision recorded in the document it binds, or the no-quorum document sent up
 runs-at: none
 ---
 # magic-team.discuss.routine — the actual procedure

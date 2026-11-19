@@ -5,6 +5,7 @@ maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 requires-session-kind: coworking
 input-scan-def: routine-coworking-session
 review-by: inherit
+deliverables: each material point of the conversation, filed as an inquiry or as a note in magic-coordinator's own inbox
 runs-at: none
 ---
 # magic-coordinator.one-on-one.routine — the actual procedure

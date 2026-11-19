@@ -55,7 +55,7 @@ rigRow(){ ## the fields of one row, joined by TAB
 ## One running session with a waiting and a working agent, and the row of counters: two sessions running, none
 ## paused, one agent working, two waiting, three asks, a load average of 0.42.
 {
-	rigRow session 11111111-0000-4000-8000-000000000001 daily_of_Monday running 2026-10-12_16:57_+0000 - 2 running=2
+	rigRow session 11111111-0000-4000-8000-000000000001 daily_of_Monday running 2026-10-12_16:57_+0000 - 2 running=2 - - - '' - - - active
 	rigRow run 11111111-0000-4000-8000-000000000001 a1a1a1a1-0000-4000-8000-0000000000a1 magic-coordinator spawn-started running running 2026-10-12_16:57_+0000 - rig-host ws-rig waiting
 	rigRow run 11111111-0000-4000-8000-000000000001 a2a2a2a2-0000-4000-8000-0000000000a2 magic-tester spawn-started running running 2026-10-12_17:05_+0000 - rig-host ws-rig working
 	rigRow counters 2 0 1 2 3 0.42

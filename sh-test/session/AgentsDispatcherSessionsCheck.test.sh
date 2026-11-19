@@ -92,10 +92,10 @@ rigCall(){ ## result name, script, words... -- one call from the rig workspace; 
 	local callName="$1" callScript="$2"
 	shift 2
 	( cd "$rigWs" && env -i HOME="$rigTmp/home" PATH="$rigTmp/bin:/usr/bin:/bin:/usr/sbin:/sbin" TZ=Etc/GMT-3 MMDAPP="$rigWs" MDLT_ORIGIN="$rigOrigin" MDLT_OPTION="--run-from-path $rigOrigin" \
-		MDAT_SKILLSET_ROOT="$rigSkills" ${rigAs:+MDAT_SPAWN_AGENT="$rigAs"} bash "$callScript" "$@" ) > "$rigTmp/$callName.out" 2> "$rigTmp/$callName.err" < /dev/null
+		MDAT_SKILLSET_ROOT="$rigSkills" ${rigAs:+MDAT_SPAWN_AGENT="$rigAs"} ${rigNow:+MDAT_MANAGER_NOW_MINUTES="$rigNow"} bash "$callScript" "$@" ) > "$rigTmp/$callName.out" 2> "$rigTmp/$callName.err" < /dev/null
 	printf '%s' "$?" > "$rigTmp/$callName.rc"
 }
-rigAs=""
+rigAs="" rigNow=""
 rigSame(){ ## result name, result name -- `same` where rc and stdout are the same, else the first difference
 	if [ "$( cat "$rigTmp/$1.rc" )" = "$( cat "$rigTmp/$2.rc" )" ] && cmp -s "$rigTmp/$1.out" "$rigTmp/$2.out" ; then printf 'same'
 	else printf 'rc %s/%s, %s' "$( cat "$rigTmp/$1.rc" )" "$( cat "$rigTmp/$2.rc" )" "$( diff "$rigTmp/$1.out" "$rigTmp/$2.out" | head -3 | tr '\n' '|' )"
@@ -133,7 +133,11 @@ rigAssert "--kind standalone keeps the standalone ones"                         
 rigCall kindAdhoc "$rigDispatcher" --all-sessions --kind ad-hoc
 rigAssert "--kind ad-hoc keeps the run with no routine"                                          "$( rigSessions kindAdhoc )" "rig-s-adhoc=waiting "
 rigCall kindActive "$rigDispatcher" --active-sessions --kind standalone
-rigAssert "--kind goes with --active-sessions: the active ones of that kind"                     "$( rigSessions kindActive )" "rig-rc-d=unclosed rig-rc-b=failed rig-s-solo=unclosed "
+rigAssert "--kind goes with --active-sessions: the active ones of that kind, a failed one ended"    "$( rigSessions kindActive )" "rig-rc-d=unclosed rig-s-solo=unclosed "
+## rig-rc-b failed at 2026-10-19_12:00_+0300, the registry's minute 29873340: one minute on, it still stands, ended
+rigNow=29873341 ; rigCall kindEnded "$rigDispatcher" --active-sessions --kind standalone ; rigNow=""
+rigAssert "a failed session that ended a minute ago still stands among the active ones, its phase ended, the others active" \
+	"$( LC_ALL=C awk -F'\t' '$1 == "session" { printf "%s=%s:%s ", $2, $4, $NF }' "$rigTmp/kindEnded.out" )" "rig-rc-d=unclosed:active rig-rc-b=failed:ended rig-s-solo=unclosed:active "
 rigCall kindWaiting "$rigDispatcher" --waiting-sessions --kind coworking
 rigAssert "--kind goes with --waiting-sessions: the waiting ones of that kind"                   "$( rigSessions kindWaiting )" "rig-s-cow=waiting "
 rigAssert "a kept session keeps its runs and the counters row"                                   "$( rigHas kindCow run ):$( rigHas kindCow counters )" "2:1"

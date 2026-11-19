@@ -6,11 +6,8 @@
 # whole.
 #
 # EVERY LINE IS JUDGED BY THE REPLY IT BELONGS TO, never by what the line itself starts with.
-# A reply is its head and every line under it up to the next head. A reply that reader set
-# aside has `UNMATCHED-REPLY ` ahead of its head and of each line under it, and its head is
-# still its head: its own ts says whether it is kept, and its lines go with it, marked as they
-# came. Read by the reply above them, a set-aside reply after the live proposal reply was lost
-# under one that is dropped, and one before it came back under one that is kept. A line under
+# A reply is its head and every line under it up to the next head: its own ts says whether it
+# is kept, and its lines go with it. A line under
 # a head goes with that reply whatever it starts with, `# ` and `reaction on the question: `
 # too: a person writes such lines. Only the lines ahead of the first reply are the question's
 # own, its reactions, and are kept as they are.
@@ -33,10 +30,9 @@ function newerThan( a, b ) {
 
 BEGIN { keep = 1 ; }
 
-## A head, set aside or not, says by its own ts whether its reply is kept.
+## A head says by its own ts whether its reply is kept.
 {
 	headLine = $0 ;
-	sub( /^UNMATCHED-REPLY /, "", headLine ) ;
 	if ( headLine ~ /^[0-9]+\.[0-9]+ \| / ) {
 		sub( / .*$/, "", headLine ) ;
 		keep = ( sinceTs == "" || newerThan( headLine, sinceTs ) ) ;

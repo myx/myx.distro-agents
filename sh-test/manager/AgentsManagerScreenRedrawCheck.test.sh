@@ -94,9 +94,9 @@ for name, icon, first, family, alias, liked in team:
     read += ["bullet\tMore %02d\tplain words again, with no emoji at all in them" % number for number in range(40)]
     open(rig + "/rows.--manager-team-member-read --full " + name, "w").write("\n".join(read) + "\n")
 open(rig + "/rows.--manager-session-list", "w").write(
-    "session\ts1\tlong-log\trunning\t2026-10-14T01:00:00Z\t2026-10-14T01:00:00Z\t1\t-\n"
+    "session\ts1\tlong-log\trunning\t2026-10-14T01:00:00Z\t2026-10-14T01:00:00Z\t1\t-\t-\t-\tnone\t\t-\t-\t-\tactive\n"
     "run\ts1\tsp1\tmagic-devops\tdone\tlive\trunning\t2026-10-14T01:00:00Z\t-\trighost\tws-one\tworking\n"
-    "session\ts2\tshort\trunning\t2026-10-14T01:00:00Z\t2026-10-14T01:00:00Z\t1\t-\n"
+    "session\ts2\tshort\trunning\t2026-10-14T01:00:00Z\t2026-10-14T01:00:00Z\t1\t-\t-\t-\tnone\t\t-\t-\t-\tactive\n"
     "run\ts2\tsp2\tmagic-coordinator\tdone\tlive\trunning\t2026-10-14T01:00:00Z\t-\trighost\tws-one\tworking\n")
 log = ["source\tsp1\tmagic-devops\tlog\t/x"]
 log += ["log\tsp1\tmagic-devops\t%s line %02d of a long log, ⚒️ with \U0001f680 emoji ⚠️ and 1️⃣ keycaps and \U0001f9d1‍\U0001f4bb joined ones, long enough to wrap" % (

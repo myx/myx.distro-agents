@@ -6,6 +6,9 @@ invitees: human-owner
 requires-session-kind: standalone
 input-scan-def: none
 review-by: inherit
+deliverables: one table of each target with its send status, its identity status and its missing items
+deliverables: a final READY line, or NOT READY with the numbered missing actions
+deliverables: one concrete ask to the human-owner for each blocker
 runs-at: none
 ---
 # magic-coordinator.bootstrap.routine — the actual procedure

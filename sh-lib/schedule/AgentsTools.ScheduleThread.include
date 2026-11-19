@@ -91,16 +91,23 @@ AgentsToolsScheduleThreadPass(){
 	[ -z "${serveFolder:-}" ] || [ -d "$serveFolder" ] || { serveEnd="its folder is gone" ; return 0 ; }
 	if [ $(( SECONDS - agentsScheduleThreadLastPass )) -ge "$agentsScheduleThreadGap" ] ; then
 		agentsScheduleThreadLastPass="$SECONDS"
+		## Each step's seconds, so a pass over its gap says where its time went: the loop's own steps in agentsSchedulePassTimes, then this thread's.
+		local passAt passTimes
+		agentsSchedulePassTimes=""
 		type AgentsToolsScheduleLoop > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/schedule/AgentsTools.DispatcherSchedule.include"
-		AgentsToolsScheduleLoop
+		passAt="$SECONDS" ; AgentsToolsScheduleLoop
+		passTimes="loop $(( SECONDS - passAt ))s${agentsSchedulePassTimes:+ ($agentsSchedulePassTimes)}"
 		type AgentsToolsBoardDependencies > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.BoardDependencies.include"
-		AgentsToolsBoardDependencies
-		AgentsToolsScheduleThreadChildrenKeep
-		AgentsToolsScheduleThreadKnowledgeKeep
-		AgentsToolsScheduleThreadWantedInto
+		passAt="$SECONDS" ; AgentsToolsBoardDependencies ; passTimes="$passTimes, dependencies $(( SECONDS - passAt ))s"
+		passAt="$SECONDS" ; AgentsToolsScheduleThreadChildrenKeep ; passTimes="$passTimes, children $(( SECONDS - passAt ))s"
+		passAt="$SECONDS" ; AgentsToolsScheduleThreadKnowledgeKeep ; passTimes="$passTimes, knowledge $(( SECONDS - passAt ))s"
+		passAt="$SECONDS" ; AgentsToolsScheduleThreadWantedInto ; passTimes="$passTimes, wanted $(( SECONDS - passAt ))s"
 		## A PASS LONGER THAN ITS GAP IS SAID: a pass is seconds, and one that ran into minutes (35 on MEL, in the DM look) left a log that read as a stopped
-		## schedule. The line names the pass's own length, so a reader tells a slow pass from a dead thread.
-		[ $(( SECONDS - agentsScheduleThreadLastPass )) -lt "$agentsScheduleThreadGap" ] || printf 'pass: took %ss, over the %ss gap between passes: the next begins at once\n' "$(( SECONDS - agentsScheduleThreadLastPass ))" "$agentsScheduleThreadGap"
+		## schedule. The line names the pass's own length, so a reader tells a slow pass from a dead thread, and each step's, so the cost is found where it is.
+		[ $(( SECONDS - agentsScheduleThreadLastPass )) -lt "$agentsScheduleThreadGap" ] || printf 'pass: took %ss, over the %ss gap between passes: the next begins at once -- %s\n' "$(( SECONDS - agentsScheduleThreadLastPass ))" "$agentsScheduleThreadGap" "$passTimes"
+		## THE LAST PASS'S TIMES ARE KEPT, every pass, in the thread's own folder (last-pass.times, one line, written over): a pass under its gap prints
+		## no line, and its steps are read there. A thread outside the loop, a check's stand-in, has no folder and keeps nothing.
+		[ -z "${serveFolder:-}" ] || [ ! -d "$serveFolder" ] || printf '%s took %ss -- %s\n' "$( date -u +%Y-%m-%dT%H:%M:%SZ )" "$(( SECONDS - agentsScheduleThreadLastPass ))" "$passTimes" > "$serveFolder/last-pass.times" 2> /dev/null || :
 	fi
 	[ "${agentsScheduleThreadKeep:-no}" != yes ] || return 2
 	return 0
@@ -131,7 +138,7 @@ AgentsToolsScheduleThreadChildrenKeep(){
 ## the sections whose text changed, so the rebuild is cheap after the first one. MDAT_SCHEDULE_KNOWLEDGE_INDEX_SECONDS (900, 0 for never) is the
 ## bound that catches what no writer marks, such as a hand edit to a project's MAGIC.md. Never fails the pass.
 AgentsToolsScheduleThreadKnowledgeKeep(){
-	local keepEvery="${MDAT_SCHEDULE_KNOWLEDGE_INDEX_SECONDS:-900}" keepBuilt keepWanted
+	local keepEvery="${MDAT_SCHEDULE_KNOWLEDGE_INDEX_SECONDS:-900}" keepBuilt keepWanted keepGuard keepBuilder=""
 	case "$keepEvery" in ''|*[!0123456789]*) keepEvery=900 ;; esac
 	[ "$keepEvery" -gt 0 ] || return 0
 	## THE PLACE INCLUDE CARRIES THE STAMPS, and it is loaded for them before either is asked: the build itself is the store include's
@@ -147,11 +154,23 @@ AgentsToolsScheduleThreadKnowledgeKeep(){
 		&& [ -z "$( find "$keepBuilt" -mmin +$(( keepEvery / 60 )) 2> /dev/null )" ] ; then
 		return 0
 	fi
+	## THE BUILD RUNS BESIDE THE PASS, never in it: a build after a write took 100 s of a 180 s pass on MEL. One at a time: `<index root>.building`
+	## holds the builder's pid, a mark whose builder is gone is taken over, and a mark that never got its pid is stale after a minute.
+	keepGuard="$( AgentsToolsKnowledgeIndexRoot ).building"
+	{ read -r keepBuilder < "$keepGuard/pid" ; } 2> /dev/null || keepBuilder=""
+	case "$keepBuilder" in
+		''|*[!0123456789]*) [ -z "$( find "$keepGuard" -maxdepth 0 -mmin +1 2> /dev/null )" ] || rm -rf "$keepGuard" ;;
+		*) kill -0 "$keepBuilder" 2> /dev/null && return 0 ; rm -rf "$keepGuard" ;;
+	esac
+	mkdir -p "${keepGuard%/*}" 2> /dev/null
+	mkdir "$keepGuard" 2> /dev/null || return 0
 	## The build owns every refusal it makes, and each one leaves `built` as it was: a rig with no store says so and the next pass asks again.
 	## Its include is sourced for its function, never its command script re-entered: this is a step of a pass, not an external call.
 	( set -- --sourced-for-its-functions ; set +e
 		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/knowledge/AgentsTools.KnowledgeStore.include"
-		AgentsToolsKnowledgeIndexBuild ) > /dev/null 2>&1 || :
+		AgentsToolsKnowledgeIndexBuild
+		rm -rf "$keepGuard" ) > /dev/null 2>&1 < /dev/null &
+	printf '%s\n' "$!" > "$keepGuard/pid" 2> /dev/null
 	return 0
 }
 

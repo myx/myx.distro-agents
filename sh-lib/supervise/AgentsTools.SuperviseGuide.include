@@ -83,6 +83,28 @@ AgentsToolsSuperviseGuide(){ ## <run-id> [--text <text>|--from-file <path>] [--w
 	return 0
 }
 
+## --supervise-reload-due <run-id> --file <changed file>: the run's reload.due mark, naming the file that changed and when it was marked. The run's
+## next Wait answers it first, every round, until a whole read of its own Skill clears it (AgentsHarnessWait.include, AgentsHarnessSkills.include).
+AgentsToolsSuperviseReloadDue(){ ## <run-id> --file <path> [--workspace <path>]
+	! AgentsToolsSuperviseWorkspaceGiven "$@" || { AgentsToolsSuperviseInWorkspace AgentsToolsSuperviseReloadDue "$@" ; return $? ; }
+	local dueRun="" dueFile="" dueMark=""
+	while [ $# -gt 0 ] ; do
+		case "$1" in
+			--file) [ $# -ge 2 ] || { echo "$MDSC_CMD: ⛔ ERROR: --file requires a path" >&2 ; return 1 ; } ; dueFile="$2" ; shift 2 ;;
+			-*) echo "$MDSC_CMD: ⛔ ERROR: --supervise-reload-due: invalid option: $1" >&2 ; return 1 ;;
+			*) [ -z "$dueRun" ] || { echo "$MDSC_CMD: ⛔ ERROR: --supervise-reload-due: takes one run id, got a second: $1" >&2 ; return 1 ; } ; dueRun="$1" ; shift ;;
+		esac
+	done
+	[ -n "$dueRun" ] && [ -n "$dueFile" ] || { echo "$MDSC_CMD: ⛔ ERROR: --supervise-reload-due: syntax is <run-id> --file <changed file>" >&2 ; return 1 ; }
+	AgentsToolsSuperviseRunIdInto dueRun "$dueRun" || return 1
+	type AgentsSessionMarkerFileInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+	AgentsSessionMarkerFileInto dueMark "$dueRun" reload.due || { echo "$MDSC_CMD: ⛔ ERROR: --supervise-reload-due: no session folder can be named for the run $dueRun" >&2 ; return 1 ; }
+	mkdir -p "${dueMark%/*}" && printf '%s\t%s\n' "$dueFile" "$( date -u +%Y-%m-%dT%H:%M:%SZ )" > "$dueMark" \
+		|| { echo "$MDSC_CMD: ⛔ ERROR: --supervise-reload-due: the mark of $dueRun could not be written -- nothing was marked" >&2 ; return 1 ; }
+	printf 'reload-due\t%s\t%s\n' "$dueRun" "$dueFile"
+	return 0
+}
+
 ## --supervise-checklist-add <run-id> (--item <text>)...: pending items at the end of that run's own list.
 AgentsToolsSuperviseChecklistAdd(){ ## <run-id> (--item <text>)... [--workspace <path>]
 	! AgentsToolsSuperviseWorkspaceGiven "$@" || { AgentsToolsSuperviseInWorkspace AgentsToolsSuperviseChecklistAdd "$@" ; return $? ; }

@@ -677,6 +677,7 @@ AgentsHarnessToolSecondary(){ ## tool file name, arguments JSON -- prints the re
 ## WorkspaceContextExecute. An ask's own `timeout` is its seconds per waiting round, and the ask is given none when the action is named.
 harnessTaskStripTimeout="" harnessTaskScratch=""
 AgentsHarnessTaskBody(){ ## tool name, arguments JSON -- the result on stdout
+	local taskOwnerScratch="${harnessScratch:-}" taskRunMs=""
 	## The task outlives this process when it returns early, and this process removes its scratch folder as it ends: the task works in a folder of its own.
 	harnessTaskScratch="$( mktemp -d "${harnessScratch%/*}/AgentsUniversalHarness.XXXXXX" 2> /dev/null )" || harnessTaskScratch=""
 	if [ -n "$harnessTaskScratch" ] ; then
@@ -685,6 +686,12 @@ AgentsHarnessTaskBody(){ ## tool name, arguments JSON -- the result on stdout
 	fi
 	[ -z "$harnessTaskStripTimeout" ] || harnessArgV_timeout=""
 	AgentsHarnessRunToolNow "$1" "$2"
+	## THE CALL'S OWN RUN GOES BACK TO ITS RECORD (the owner's pace ruling). A span kept in the task's own folder goes with that folder, and
+	## the record would count the whole call as machinery. It goes to the caller's scratch under this call's id, so a task that outlives
+	## its call marks no later one (AgentsHarnessContextToolMeta takes it for the id it names only).
+	if [ -n "$harnessTaskScratch" ] && [ -n "$taskOwnerScratch" ] && [ -f "$harnessTaskScratch/tool.run.ms" ] ; then
+		{ IFS= read -r taskRunMs < "$harnessTaskScratch/tool.run.ms" && printf '%s %s\n' "${harnessCallId:-}" "$taskRunMs" > "$taskOwnerScratch/tool.run.ms.call" ; } 2> /dev/null || :
+	fi
 	printf '%s\n' "$harnessResult"
 }
 

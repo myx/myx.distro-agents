@@ -12,12 +12,11 @@
 ##      moment its process was first seen gone, kept in control/gone, which outlives the thread: no death before, a
 ##      death after, and an ordinary end where the record closes in time.
 ##   3. THE THREAD STAYS while a death is not settled, with a participant alive and with none, and asks once.
-##   4. WHO IS TOLD AND WHO IS ASKED. No reviewer set: the message alone, in the thread of the session that requested
-##      the run, or to the human-owner as a plain message where no session did; the record is then closed as ended
-##      without close and the death is settled. A reviewer set: one question of the kind decision, as the team bot,
-##      with four options: to the member that brought the run in where the reviewer is its live session, one post and
-##      no note beside it; to the human-owner where the reviewer is a person or its session has ended, with one note
-##      in the thread of the requesting session where that still runs and no handback stands there.
+##   4. WHO IS TOLD AND WHO IS ASKED. Every death is asked: one question of the kind decision, as the team bot, with
+##      four options. To the member that brought the run in where the run works an item and that member still runs in
+##      the session it reports to: one post there and no note beside it. Every other death -- no item, no reviewer, or
+##      none live -- goes to the next rung, magic-coordinator, in the thread of the dead run's own session, else in
+##      magic-team, never to the human-owner; the message of its end is told as before beside it.
 ##   5. WHAT THE QUESTION SAYS, and that it is recorded as every decision is: its record open, its number emoji placed.
 ##   6. A POST THAT FAILS is tried again and asked once. A POST THAT HANGS holds no tick and is ended at its bound.
 ##   7. WHO SPEAKS: a death the thread keeps is the thread's while it lives, and a death it told is told by no other.
@@ -317,7 +316,7 @@ rigSettle d-gone
 rigTen=0
 while [ "$rigTen" -lt 10 ] ; do rigOne d-gone ; rigTen=$(( rigTen + 1 )) ; done
 rigAssert "a death is recorded once and asked once: after ten more ticks one line, one question to its reviewer, one open record" \
-	"$( rigDeadLines d-gone ):$( rigQuestions d-gone ):$( rigAsks d-gone )" "1:URIGOWNER - human-owner;:human-owner;"
+	"$( rigDeadLines d-gone ):$( rigQuestions d-gone ):$( rigAsks d-gone )" "1:CRIG00001 - magic-coordinator;:magic-coordinator;"
 ## Its supervising shell is still closing it.
 rigStand '' ; rigShell="$rigStandPid"
 rigRec d-closng d-closng keeper-rig spawn-started "supervisor-process: $( rigProcBegan "$rigShell" )
@@ -443,7 +442,7 @@ rigThread only d-gone ; rigOnly="$rigThreadPid"
 rigWaitFor 20 rigHolds d-gone "$rigOnly" || rigRefuse "the thread of d-gone did not start: $( LC_ALL=C tr '\n' ' ' < "$rigTmp/only.err" | cut -c1-600 )"
 sleep 10
 rigAssert "the thread stays when the only run of its session is a death and its question is open: after ten ticks it lives, with its pid file and its lock, the state member-dead, and it has posted nothing more" \
-	"$( rigEnded "$rigOnly" && echo ended || echo alive ):$( rigControl d-gone | LC_ALL=C tr ' ' '\n' | LC_ALL=C grep -c -x -e pid -e lock ):$( rigState d-gone ):$( rigQuestions d-gone ):$(( $( LC_ALL=C grep -c '^chat.postMessage ' "$rigSlack/calls" ) - rigCalls ))" "alive:2:member-dead:URIGOWNER - human-owner;:0"
+	"$( rigEnded "$rigOnly" && echo ended || echo alive ):$( rigControl d-gone | LC_ALL=C tr ' ' '\n' | LC_ALL=C grep -c -x -e pid -e lock ):$( rigState d-gone ):$( rigQuestions d-gone ):$(( $( LC_ALL=C grep -c '^chat.postMessage ' "$rigSlack/calls" ) - rigCalls ))" "alive:2:member-dead:CRIG00001 - magic-coordinator;:0"
 rigCall --manager-session-list > "$rigTmp/list.out" 2> "$rigTmp/list.err" < /dev/null
 rigAssert "a session with no live run and an open question reads waiting in the list of sessions" \
 	"$( LC_ALL=C awk '$1 == "session" && $2 == "d-gone" { for ( wordAt = 3 ; wordAt <= NF ; wordAt++ ) { if ( $wordAt == "waiting" ) { print "waiting" ; exit } } }' "$rigTmp/list.out" )" "waiting"
@@ -451,26 +450,26 @@ rigCall --read-pending-reply --team-member magic-coordinator --any-owner > "$rig
 rigGoneAsk="$( LC_ALL=C grep -l -x -F -- 'session-id: d-gone' "$rigPending"/*.md 2> /dev/null | LC_ALL=C sed -n '1p' )"
 rigGoneAsk="${rigGoneAsk##*/}" ; rigGoneAsk="${rigGoneAsk%.md}"
 rigAssert "the question is among the pending questions: one open record of the kind decision, addressed to the reviewer, with the id of the session, and the line of the death keeps its id" \
-	"$( [ -n "$rigGoneAsk" ] && LC_ALL=C grep -c -F -- "$rigGoneAsk" "$rigTmp/pending.out" | LC_ALL=C awk '{ print ( $1 >= 1 ) ? "listed" : "not-listed" }' ):$( LC_ALL=C grep -c -x -F -e 'kind: decision' -e 'address-to: human-owner' -e 'session-id: d-gone' -e 'ask-identity: bot' "$rigPending/$rigGoneAsk.md" 2> /dev/null ):$( rigDeadLine d-gone d-gone | LC_ALL=C tr ' ' '\n' | LC_ALL=C grep -c -x -F -- "asked=$rigGoneAsk" )" "listed:4:1"
+	"$( [ -n "$rigGoneAsk" ] && LC_ALL=C grep -c -F -- "$rigGoneAsk" "$rigTmp/pending.out" | LC_ALL=C awk '{ print ( $1 >= 1 ) ? "listed" : "not-listed" }' ):$( LC_ALL=C grep -c -x -F -e 'kind: decision' -e 'address-to: magic-coordinator' -e 'session-id: d-gone' -e 'ask-identity: bot' "$rigPending/$rigGoneAsk.md" 2> /dev/null ):$( rigDeadLine d-gone d-gone | LC_ALL=C tr ' ' '\n' | LC_ALL=C grep -c -x -F -- "asked=$rigGoneAsk" )" "listed:4:1"
 rigThreadEnd "$rigOnly"
 
 echo "-- 4. who is told and who is asked --"
-## No reviewer and no session that requested it: a plain message to the human-owner, and the record is closed.
+## No reviewer and no session that requested it: a plain message to the human-owner, and the question to magic-coordinator in magic-team.
 rigRec d-plain d-plain keeper-rig spawn-started "supervisor-process: $rigGoneShell
 session-comment: plain start
 "
 rigOne d-plain ; rigSettle d-plain
-rigAssert "a dead run with no reviewer and no parent session is told to the human-owner as a plain message, in words that say it died: one message, no question, no record" \
-	"$( rigNotes d-plain ):$( rigQuestions d-plain ):$( rigAsks d-plain ):$( LC_ALL=C grep -F -- '`d-plain`' "$rigSlack/bodies" | LC_ALL=C grep -c -F -- 'No session requested this run' )" "URIGOWNER - human-owner;:::1"
+rigAssert "a dead run with no reviewer and no parent session is told to the human-owner as a plain message, in words that say it died, and asked of magic-coordinator in magic-team: one message, one question, one record" \
+	"$( rigNotes d-plain ):$( rigQuestions d-plain ):$( rigAsks d-plain ):$( LC_ALL=C grep -F -- '`d-plain`' "$rigSlack/bodies" | LC_ALL=C grep -c -F -- 'No session requested this run' )" "URIGOWNER - human-owner;:CRIG00001 - magic-coordinator;:magic-coordinator;:1"
 rigOne d-plain
-rigAssert "its record is closed as ended without close, the line of the death is settled, and the session reads finished" \
-	"$( rigHeader d-plain status ):$( rigDeadSettled d-plain d-plain && echo settled ):$( rigState d-plain )" "spawn-ended-without-close:settled:finished"
-## No dispatch item, requested by a member of a live session: the note in the thread of that session, and no question.
+rigAssert "its record stays open and its death unsettled until that question is answered, and the session reads member-dead" \
+	"$( rigHeader d-plain status ):$( rigDeadSettled d-plain d-plain && echo settled || echo unsettled ):$( rigState d-plain )" "spawn-started:unsettled:member-dead"
+## No dispatch item, requested by a member of a live session: the note in the thread of that session, and the question to magic-coordinator.
 rigRec d-noitm d-noitm keeper-rig spawn-started "${rigAsked}supervisor-process: $rigGoneShell
 "
 rigOne d-noitm ; rigSettle d-noitm
-rigAssert "a dead run with no dispatch item gets the message and no question: one note in the thread of the session that requested it, addressed to the member that brought it in, no record, its record closed and the death settled" \
-	"$( rigNotes d-noitm ):$( rigQuestions d-noitm ):$( rigAsks d-noitm ):$( rigHeader d-noitm status ):$( rigDeadSettled d-noitm d-noitm && echo settled )" "${rigReqThread%%:*} ${rigReqThread#*:} magic-coordinator;:::spawn-ended-without-close:settled"
+rigAssert "a dead run with no dispatch item gets the message and the question: one note in the thread of the session that requested it, addressed to the member that brought it in, and one question to magic-coordinator in magic-team, its own session having no thread; its record stays open and the death unsettled" \
+	"$( rigNotes d-noitm ):$( rigQuestions d-noitm ):$( rigAsks d-noitm ):$( rigHeader d-noitm status ):$( rigDeadSettled d-noitm d-noitm && echo settled || echo unsettled )" "${rigReqThread%%:*} ${rigReqThread#*:} magic-coordinator;:CRIG00001 - magic-coordinator;:magic-coordinator;:spawn-started:unsettled"
 ## A participant whose reviewer is the session that requested it, and the member that brought it in still runs there.
 rigItem item-part d-part s-req
 rigRec d-part s-req keeper-rig spawn-started "${rigAsked}session-thread: $rigReqThread
@@ -503,8 +502,18 @@ supervisor-process: $rigGoneShell
 spawns: item-ended
 "
 rigOne d-ended ; rigSettle d-ended
-rigAssert "the question about a run whose parent session has ended goes to the human-owner, and nothing is posted in a session thread" \
-	"$( rigQuestions d-ended ):$( LC_ALL=C grep -c -F -- 'CRIGSESS2' "$rigSlack/bodies" ):$( rigAsks d-ended )" "URIGOWNER - human-owner;:0:human-owner;"
+rigAssert "the question about a run whose parent session has ended goes to the next rung, magic-coordinator, in magic-team where its own session has no thread, and nothing is posted in the ended session's thread" \
+	"$( rigQuestions d-ended ):$( LC_ALL=C grep -c -F -- 'CRIGSESS2' "$rigSlack/bodies" ):$( rigAsks d-ended )" "CRIG00001 - magic-coordinator;:0:magic-coordinator;"
+## Its own session has a thread, and nobody that could review it is live: the question goes there, to magic-coordinator.
+rigRec s-own s-own magic-coordinator spawn-succeeded "${rigClosed}session-thread: CRIGSESS3:1700000003.000100
+"
+rigItem item-own d-own human-owner
+rigRec d-own s-own keeper-rig spawn-started "supervisor-process: $rigGoneShell
+spawns: item-own
+"
+rigOne s-own ; rigSettle s-own
+rigAssert "the question about a dead run with no live reviewer goes to magic-coordinator in the thread of the run's own session, and nothing to the human-owner" \
+	"$( rigQuestions d-own ):$( rigAsks s-own ):$( rigPosts '`d-own`' | LC_ALL=C grep -c -F -- 'URIGOWNER' )" "CRIGSESS3 1700000003.000100 magic-coordinator;:magic-coordinator;:0"
 ## It posted its handback in the thread of the session that requested it, and then died with its record open.
 rigItem item-hb d-hb human-owner review
 rigRec d-hb d-hb keeper-rig spawn-started "${rigAsked}supervisor-process: $rigGoneShell
@@ -530,7 +539,7 @@ rigOne s-two
 rigTwoLines="$( rigDeadLines s-two d-two-a ):$( rigDeadLines s-two d-two-b ):$( rigDeadLines s-two )"
 rigSettle s-two ; rigOne s-two ; rigSettle s-two
 rigAssert "two dead runs are two lines, and two questions, each naming one of them, with two open records" \
-	"$rigTwoLines:$( rigQuestions d-two-a ):$( rigQuestions d-two-b ):$( rigAsks s-two )" "1:1:2:URIGOWNER - human-owner;:URIGOWNER - human-owner;:human-owner;human-owner;"
+	"$rigTwoLines:$( rigQuestions d-two-a ):$( rigQuestions d-two-b ):$( rigAsks s-two )" "1:1:2:CRIG00001 - magic-coordinator;:CRIG00001 - magic-coordinator;:magic-coordinator;magic-coordinator;"
 
 echo "-- 5. what the question says, and how it is posted --"
 rigBody="$( rigQuestionBody d-ho )"
@@ -554,7 +563,7 @@ rigOne d-retry ; rigSettle d-retry
 rigAssert "the stub refuses the first post: no question stands, no record is open, the line of the death keeps no question, and the log of the thread says that it failed" \
 	"[$( rigQuestions d-retry )]:[$( rigAsks d-retry )]:$( rigDeadLine d-retry d-retry | LC_ALL=C grep -c -F -- 'asked=' ):$( rigLogHas d-retry 'it is tried again' | LC_ALL=C awk '{ print ( $1 >= 1 ) ? "said" : "not-said" }' ):$( LC_ALL=C grep -c -F -- '`d-retry`' "$rigSlack/bodies.refused" 2> /dev/null )" "[]:[]:0:said:1"
 rigOne d-retry ; rigSettle d-retry
-rigAssert "and takes the second: one question stands where it was sent, and one record is open" "$( rigQuestions d-retry ):$( rigAsks d-retry )" "URIGOWNER - human-owner;:human-owner;"
+rigAssert "and takes the second: one question stands where it was sent, and one record is open" "$( rigQuestions d-retry ):$( rigAsks d-retry )" "CRIG00001 - magic-coordinator;:magic-coordinator;"
 ## The post is ended at its bound after Slack took the question and before the post could mark it: the stub does
 ## not answer the first emoji.
 rigItem item-cut d-cut human-owner
@@ -567,17 +576,17 @@ rigCutFirst="$( rigQuestions d-cut ):$( rigAsks d-cut ):$( rigDeadLine d-cut d-c
 rm -f "$rigSlack/hang-react" ; rigBound 30
 rigOne d-cut ; rigSettle d-cut ; rigOne d-cut ; rigSettle d-cut
 rigAssert "a post that is ended at its bound after Slack took the question is not posted again: the next try finds its record, places its emoji and keeps its id on the line, and one question stands with one record" \
-	"$rigCutFirst|$( rigQuestions d-cut ):$( rigAsks d-cut ):$( rigDeadLine d-cut d-cut | LC_ALL=C grep -c -F -- 'asked=' )" "URIGOWNER - human-owner;:human-owner;:0:said|URIGOWNER - human-owner;:human-owner;:1"
+	"$rigCutFirst|$( rigQuestions d-cut ):$( rigAsks d-cut ):$( rigDeadLine d-cut d-cut | LC_ALL=C grep -c -F -- 'asked=' )" "CRIG00001 - magic-coordinator;:magic-coordinator;:0:said|CRIG00001 - magic-coordinator;:magic-coordinator;:1"
 ## The post was made and its record could not be written: what the send answered is kept, and nothing else of it.
 rigItem item-sent d-sent human-owner
 rigRec d-sent d-sent keeper-rig spawn-started "supervisor-process: $rigGoneShell
 spawns: item-sent
 "
 mkdir -p "$rigStores/d-sent/control"
-printf 'SENT_MESSAGE_CHANNEL=DRIG00001\nSENT_MESSAGE_TS=1700000009.000900\nSENT_MESSAGE_ADDRESSEES=URIGOWNER\n' > "$rigStores/d-sent/control/post.d-sent.sent"
+printf 'SENT_MESSAGE_CHANNEL=CRIG00001\nSENT_MESSAGE_TS=1700000009.000900\nSENT_MESSAGE_ADDRESSEE_MEMBERS=magic-coordinator\n' > "$rigStores/d-sent/control/post.d-sent.sent"
 rigOne d-sent ; rigSettle d-sent
 rigAssert "a question that was posted while its record could not be written gets its record at the next try, and no second post" \
-	"[$( rigQuestions d-sent )]:$( rigAsks d-sent ):$( LC_ALL=C grep -l -x -F -- 'question-ts: 1700000009.000900' "$rigPending"/*.md 2> /dev/null | LC_ALL=C grep -c . ):$( [ -e "$rigStores/d-sent/control/post.d-sent.sent" ] && echo kept || echo taken )" "[]:human-owner;:1:taken"
+	"[$( rigQuestions d-sent )]:$( rigAsks d-sent ):$( LC_ALL=C grep -l -x -F -- 'question-ts: 1700000009.000900' "$rigPending"/*.md 2> /dev/null | LC_ALL=C grep -c . ):$( [ -e "$rigStores/d-sent/control/post.d-sent.sent" ] && echo kept || echo taken )" "[]:magic-coordinator;:1:taken"
 ## A post that is not answered, under a thread: a second run of the session dies meanwhile.
 rigBound 2
 rigItem item-hang d-hang human-owner
@@ -607,7 +616,7 @@ rm -f "$rigSlack/hang" ; rigBound 30
 rigWaitFor 40 rigHangAsked
 sleep 4
 rigAssert "and it is tried again once the stub answers: one question for each of the two dead runs, and two open records" \
-	"$( rigQuestions d-hang ):$( rigQuestions c-hang ):$( rigAsks s-hang )" "URIGOWNER - human-owner;:URIGOWNER - human-owner;:human-owner;human-owner;"
+	"$( rigQuestions d-hang ):$( rigQuestions c-hang ):$( rigAsks s-hang )" "CRIG00001 - magic-coordinator;:CRIG00001 - magic-coordinator;:magic-coordinator;magic-coordinator;"
 
 echo "-- 7. who speaks: the thread while it lives, and a death it told is told by no other --"
 rigInside(){ ## lines of a script, run inside the tooling's own context in the rig workspace
@@ -616,7 +625,7 @@ rigInside(){ ## lines of a script, run inside the tooling's own context in the r
 rigHeld="$( rigInside '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionControlDeath.include"' 'AgentsToolsSessionControlDeathHeld s-hang d-hang ; echo "rig-held=$?"' 'AgentsToolsSessionControlDeathHeld d-plain d-plain ; echo "rig-settled=$?"' | LC_ALL=C grep '^rig-' | LC_ALL=C tr '\n' ' ' )"
 rigThreadEnd "$rigHang"
 rigHeldAfter="$( rigInside '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionControlDeath.include"' 'AgentsToolsSessionControlDeathHeld s-hang d-hang ; echo "rig-held=$?"' | LC_ALL=C grep '^rig-' | LC_ALL=C tr '\n' ' ' )"
-rigAssert "a death the thread keeps and has not settled is held by it while it lives, for the advance pass to leave alone; a settled one is not, and none is once the thread has ended" \
+rigAssert "a death the thread keeps and has not settled is held by it while it lives, for the advance pass to leave alone; one of a session with no thread alive is not, and none is once the thread has ended" \
 	"$rigHeld$rigHeldAfter" "rig-held=0 rig-settled=1 rig-held=1 "
 rigBodies="$( wc -l < "$rigSlack/bodies" | LC_ALL=C tr -d ' ' )"
 rigInside '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandbox.include"' "AgentsToolsSpawnProxyEndNotice '$rigSp/d-hang/d-hang.spawn.md' ; AgentsToolsSpawnProxyEndNotice '$rigSp/d-ho/d-ho.spawn.md' missing" > /dev/null

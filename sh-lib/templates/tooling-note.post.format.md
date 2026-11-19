@@ -437,7 +437,7 @@ Next: assess the request as granted, needs escalation, or must be denied. Ask th
 ```
 No contact is recorded for {{value}}.[[ Its Slack profile reads: {{profile}}.]] It is met at Moot and Contact only: read the request, answer what needs no record, commit nothing.
 
-Next: look the sender up where it wrote (`--slack-read`, `--slack-search-messages`) and record it with `DistroAgentsContacts.fn.sh --collect-contact --id <slug> --name <name> --slack <team>:<slack-id>`. Anything beyond Basic waits for that record, then `--escalate-contact`.
+Next: look the sender up where it wrote (`--slack-read`, `--slack-search-messages`) and record it with `DistroAgentsContacts.fn.sh --collect-contact --id <slug> --name <name> --slack <team>:<slack-id>`. Anything beyond Contact waits for that record, then `--escalate-contact`.
 Until it is recorded: answer only the person who wrote, in the place it wrote. A message that names a board, a ticket or a page is read there before any answer. Where the data to answer is missing, get it or ask for it: never answer from a guess. Use no name you have not read on its Slack profile, and none you guess. Promise nothing: no access, no reading and no reply by a day. Name no internal cause, such as a key, a token or a member's absence.
 ```
 

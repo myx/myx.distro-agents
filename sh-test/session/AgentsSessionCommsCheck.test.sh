@@ -19,6 +19,8 @@
 ##   5. THE PROCESS. One for the workspace on the host, started detached, holding a lock that names it; a second start is told it
 ##      lives; TERM ends it in order; a lock whose holder is gone is taken over; it ends by itself when no session has wanted it
 ##      for a while; it is never started where MDAT_COMMS_READER is `off`. It imports what a thread says while it runs.
+##   5b. A PASS THAT READS NOTHING STARTS NOTHING: the due test of a session (a quiet one, asked whether it is active) and the budget
+##      of a session at the budget's end run no subshell and start no program, and still answer as before.
 ##   6. THE WAIT STANDS DOWN while the reader is current, and says it is blocked: a wait touches the session's marker, and reads
 ##      the thread itself only when the reader's last look is older than its own TTL and ten seconds more.
 ##   7. THE FLOOR WAITS FOR A POST THAT IS NOT YET: a block of another member that has no ts yet is not passed by the pointer of a
@@ -446,6 +448,49 @@ rigAssert "with no live session for the time set, it ends by itself, and gives i
 rigAssert "and says why in its log"                                    "$( LC_ALL=C grep -c 'no live session' "$rigDir/ws/.local/agents/comms/log" 2> /dev/null )" 1
 rigOp mode-none < /dev/null
 rigAssert "no mode: a usage, and a failure"                            "$( [ "$rigRc" != 0 ] && printf failed ):$( LC_ALL=C grep -c -F -e '--run' "$rigDir/mode-none.err" | LC_ALL=C awk '{ print ( $1 > 0 ) ? "usage" : "none" }' )" "failed:usage"
+
+echo "-- 5b. a pass that reads nothing starts nothing --"
+## The instrument: a DEBUG trap that writes a line for each command run in a subshell, and shims first on PATH that write a line for each
+## program they stand for, then run it. Its control below shows it counting both.
+rigShims="$rigTmp/shims" ; mkdir -p "$rigShims"
+for rigShim in awk cat wc tr mkdir mv sed date rm sort head tail grep ls stat find touch mktemp ; do
+	rigShimReal="$( command -v "$rigShim" )" || continue
+	printf '#!/bin/sh\nprintf "X %s\\n" >> "$RIG_FORKS"\nexec "%s" "$@"\n' "$rigShim" "$rigShimReal" > "$rigShims/$rigShim" ; chmod +x "$rigShims/$rigShim"
+done
+rigCounted(){ ## body of shell code, run with the comms functions defined and the instrument on -- its answer, then the lines the instrument wrote
+	local rigCountedSaid
+	: > "$rigTmp/forks"
+	rigCountedSaid="$( cd "$rigDir/ws" && env -i HOME="$rigTmp" PATH="$rigShims:/usr/bin:/bin" MMDAPP="$rigDir/ws" MDLT_ORIGIN="$MDLT_ORIGIN" RIG_FORKS="$rigTmp/forks" bash -c '
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionComms.include" > /dev/null 2>&1 || exit 9
+		type AgentsToolsSessionChatDir > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include" > /dev/null 2>&1 || exit 9
+		agentsCommsBeat15="$MMDAPP/.local/agents/comms/beat/b15" ; agentsCommsBeat60="$MMDAPP/.local/agents/comms/beat/b60"
+		set -T ; trap "[ \"\$BASH_SUBSHELL\" = 0 ] || printf \"S\n\" >> \"\$RIG_FORKS\"" DEBUG
+		'"$1"'
+		trap - DEBUG' 2> /dev/null )"
+	printf '%s %s' "$rigCountedSaid" "$( LC_ALL=C grep -c . "$rigTmp/forks" )"
+}
+rigScene pass
+mkdir -p "$rigDir/ws/.local/agents/comms/looked" "$rigDir/ws/.local/agents/comms/beat"
+rigNow5="$( date +%s )"
+: > "$rigDir/ws/.local/agents/comms/beat/b15" ; : > "$rigDir/ws/.local/agents/comms/beat/b60"
+touch -t "$( rigStamp $(( rigNow5 - 30 )) )" "$rigDir/ws/.local/agents/comms/beat/b15" "$rigDir/ws/.local/agents/comms/beat/b60"
+: > "$rigSessDir/session.chat.waiting"
+rigAssert "control: the instrument counts a subshell and a program" "$( rigCounted 'x="$( echo hi )" ; date > /dev/null ; echo counted' )" "counted 2"
+printf '%s 60\n' "$(( rigNow5 - 10 ))" > "$rigDir/ws/.local/agents/comms/looked/$rigSession"
+rigAssert "a quiet session asked whether it is active: due, as a wait marks it, and no subshell, no program" \
+	"$( rigCounted "AgentsToolsSessionCommsDue $rigSession $rigNow5 && echo due || echo quiet" )" "due 0"
+rm -f "$rigSessDir/session.chat.waiting"
+rigAssert "the same session with no wait: not due, and no subshell, no program" \
+	"$( rigCounted "AgentsToolsSessionCommsDue $rigSession $rigNow5 && echo due || echo quiet" )" "quiet 0"
+agentsRigFull=$(( rigNow5 + 600 )) ; : > "$rigDir/ws/.local/agents/comms/calls"
+for rigI in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 ; do printf '%s\n' "$agentsRigFull" >> "$rigDir/ws/.local/agents/comms/calls" ; done
+rigAssert "the budget at its end: refused, and no subshell, no program, and the file as it was" \
+	"$( rigCounted "AgentsToolsSessionCommsBudgetTake $rigNow5 && echo taken || echo full" ) $( LC_ALL=C grep -c . "$rigDir/ws/.local/agents/comms/calls" )" "full 0 20"
+: > "$rigDir/ws/.local/agents/comms/calls"
+rigAssert "control: under the budget a read is taken and counted" \
+	"$( rigCounted "AgentsToolsSessionCommsBudgetTake $rigNow5 && echo taken || echo full" | LC_ALL=C awk '{ print $1 }' ) $( cat "$rigDir/ws/.local/agents/comms/calls" )" "taken $rigNow5"
+rigAssert "the activity pass with no run started: a pass after the one that listed starts nothing" \
+	"$( rigCounted "AgentsToolsCommsActivityPass $rigNow5 ; : > \"\$RIG_FORKS\" ; AgentsToolsCommsActivityPass $(( rigNow5 + 20 )) ; echo listed-once" )" "listed-once 0"
 
 echo "-- 6. the wait stands down --"
 rigWaitOp(){ ## output basename -- a wait of keeper-exec on the session, bounded, with the reader's last look as the scene left it

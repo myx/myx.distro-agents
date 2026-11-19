@@ -65,13 +65,17 @@
 		AgentsToolsAssertBareName "$memberName" "<member>" trash-inbox-item || { set +e ; return 1 ; }
 		AgentsToolsAssertBareName "$itemName" "<item-filename>" trash-inbox-item || { set +e ; return 1 ; }
 		AgentsToolsActingMemberCheck "$memberName" trash-inbox-item || { set +e ; return 1 ; }
-		case "$itemName" in
-			*.md) ;;
-			*)
-				echo "⛔ ERROR: $MDSC_CMD --trash-inbox-item: <item-filename> must end in .md -- every inbox item is a markdown document: $itemName" >&2
-				set +e ; return 1
-			;;
-		esac
+		## A stray here is repaired first, never refused: its own gate would leave it unclosable for ever.
+		local repairedAnswer repairedName repairedHow
+		repairedAnswer="$( AgentsToolsInboxStrayRepair "$memberName" "$itemName" )" || { set +e ; return 1 ; }
+		repairedName="${repairedAnswer%%$'\t'*}" ; repairedHow="${repairedAnswer#*$'\t'}"
+		## The twin branch ends the operation: the twin is the copy this call chose to keep.
+		if [ "$repairedHow" = "twin-matched" ] ; then
+			echo "# $MDSC_CMD: trash-inbox-item: $itemName was a stray whose twin already holds the same body: the stray is dropped and $repairedName is left in place, nothing trashed" >&2
+			return 0
+		fi
+		[ "$repairedName" = "$itemName" ] || echo "# $MDSC_CMD: trash-inbox-item: $itemName was a stray, renamed to $repairedName" >&2
+		itemName="$repairedName"
 		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 		DistroAgentsTools --intern-op-board-trash "$memberName" "--from-inbox:$memberName" "$itemName" \
 			${trashOnly[@]+"${trashOnly[@]}"} --context --trash-inbox-item

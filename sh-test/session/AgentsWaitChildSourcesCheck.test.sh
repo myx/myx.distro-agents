@@ -16,7 +16,9 @@
 ##   7. A ROUND READS EVERY SOURCE IT HOLDS. A round that has an arrival in hand and has passed its bound reads the rest of its
 ##      sources too, and WAIT-NEVER-READ names none of them.
 ##   8. A SOURCE INSIDE ITS SLOW GAP IS NOT ONE NEVER READ. A slack source the wait's own backoff skips was read within its gap,
-##      so it is not reported as a source the round could not see.
+##      so it is not reported as a source the round could not see. A READ THAT OUTLASTS THE BOUND IS DETACHED: a fresh source with no
+##      gap to skip it is read by a slow fake curl, the call returns while that read still holds, the source is named in the detached
+##      line and in WAIT-NEVER-READ, and the round goes on to read the source after it.
 ##   9. A CLOSED ASK'S LATER REPLY REACHES THE ASKER BY THE SESSION FLOOR. With the ask gone from the stored wait, a new message in
 ##      its thread arrives from `replies:<session>`.
 ## Offline: a Slack-shaped fake curl answers every read from the scenario folder, every workspace is a folder of this rig's own, and
@@ -26,7 +28,8 @@
 ## AgentsTools.MemberWait.include, or the no-verdict drop out of --intern-op-pending-reply-close, and 5 fails with 4 standing.
 ## Take the closed-ask filter out of AgentsWaitStateStore (AgentsTools.MemberWait.include), and 5 fails on the stored wait; carry every stored
 ## source past a named set in the carry-forward, and 6 fails; put the between-sources bound break back in, and 7 fails; take the read mark off
-## the slow-gap skip, and 8 fails; drop `replies:` from the session floor, and 9 fails.
+## the slow-gap skip, and 8 fails; read every probe in line instead of through the task wrapper, or end the round at a detached
+## probe, and the detach rows of 8 fail; drop `replies:` from the session floor, and 9 fails.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
@@ -173,7 +176,7 @@ rigWaitEcho(){ ## output basename, then the operation's arguments after the memb
 	  printf 'rig: the wait did not return within 60s, and was killed\n' >> "$rigAskAt/$waitName.err" ; kill -TERM "$waitPid" 2>/dev/null ; sleep 2 ; kill -KILL "$waitPid" 2>/dev/null ) &
 	waitWatch=$!
 	wait "$waitPid" 2>/dev/null
-	kill -TERM "$waitWatch" 2>/dev/null
+	## The watchdog ends by itself within a second of the wait: a TERM would end it and leave its running sleep behind the check.
 	wait "$waitWatch" 2>/dev/null || :
 }
 rigPlain(){ ## output basename -- a plain call over the stored wait: every source read once, then it returns
@@ -266,6 +269,44 @@ printf '%s\t%s\n' "$rigQuietSource" "$(( $( date +%s ) - 1 ))" >> "$rigAws/.loca
 rigPollSeconds="" rigWaitEcho gap-skipped --wait-default --wait-session-id "$rigSess" --wait-timeout 5 --wait-source-ttl 2 \
 	--wait-source "$rigQuietSource" > /dev/null 2>&1
 rigAssert "a source the slow gap skipped was read within its gap" "$( rigNeverRead )" none
+
+echo "-- 8: a read that outlasts the bound is detached, and the round reads on --"
+## Two fresh threads with no probed mark, so no gap skips either: the first is read slowly, the second, after it in byte order, at once.
+rigSlowSource="slack:$rigChannel:$(( rigNow - 600 )).000004:conversation"
+rigAfterSource="slack:$rigChannel:$(( rigNow - 600 )).000005:conversation"
+printf '{"ok":true,"messages":[{"ts":"%s","user":"URIGASKED","text":"rig thread after the slow one"}],"has_more":false}\n' "$(( rigNow - 600 )).000005" \
+	> "$rigAskAt/replies.$rigChannel.$(( rigNow - 600 )).000005.json"
+mkdir -p "$rigTmp/slowbin"
+cat > "$rigTmp/slowbin/curl" <<'RIGSLOW'
+#!/usr/bin/env bash
+## The fake curl, slowed: a read of a thread whose ts ends .000004 holds while slow.hold stands, at most 45 s.
+for slowArg in "$@" ; do
+	case "$slowArg" in
+		ts@*)
+			case "$( cat "${slowArg#ts@}" 2>/dev/null )" in *.000004) ;; *) continue ;; esac
+			: > "$RIG_SCENARIO/slow.seen"
+			slowLeft=45
+			while [ -f "$RIG_SCENARIO/slow.hold" ] && [ "$slowLeft" -gt 0 ] ; do sleep 1 ; slowLeft=$(( slowLeft - 1 )) ; done
+			: > "$RIG_SCENARIO/slow.done"
+		;;
+	esac
+done
+exec "$RIG_TMP/bin/curl" "$@"
+RIGSLOW
+chmod +x "$rigTmp/slowbin/curl"
+: > "$rigAskAt/slow.hold"
+rigWaitPath="$rigTmp/slowbin:$rigWaitPath" rigWaitEcho slow-detached --wait-default --wait-session-id "$rigSess" --wait-timeout 10 \
+	--wait-source "$rigSlowSource" --wait-source "$rigAfterSource" > /dev/null 2>&1
+rigSlowNever=" $( LC_ALL=C sed -n 's/^WAIT-NEVER-READ: //p' "$rigOut" ) "
+rigAssert "the slow read was reached, not skipped inside a gap" "$( [ -f "$rigAskAt/slow.seen" ] && printf yes || printf no )" yes
+rigAssert "the call returned while the slow read still held"    "$( [ -f "$rigAskAt/slow.done" ] && printf no || printf yes )" yes
+rigAssert "the detached probe is named in the header"           "$( rigHolds "($rigSlowSource) is still running" )" yes
+rigAssert "and its source is named never read"                  "$( case "$rigSlowNever" in (*"[$rigSlowSource]"*) printf named ;; (*) printf none ;; esac )" named
+rigAssert "the round went on and read the source after it"      "$( rigOf "$( rigWatch )" "$rigAfterSource" ):$( case "$rigSlowNever" in (*"[$rigAfterSource]"*) printf named ;; (*) printf none ;; esac )" 1:none
+## The detached probe ends once its hold is gone: the rig waits for that, so nothing of it outlives the row.
+rm -f "$rigAskAt/slow.hold"
+rigSlowLeft=15
+while [ ! -f "$rigAskAt/slow.done" ] && [ "$rigSlowLeft" -gt 0 ] ; do sleep 1 ; rigSlowLeft=$(( rigSlowLeft - 1 )) ; done
 
 echo "-- 9: a closed ask's later reply reaches the asker by the session floor --"
 rigFloorPostTs="$(( rigNow - 120 )).000001"

@@ -395,13 +395,13 @@ def scriptRun(module):
             state.path = steps
         elif command == "sessions":
             ## the list of the sessions as if its operation had printed it: each `<id>=<name>` a session that runs, with one agent that works;
-            ## a name that ends in `!` is a session that is finished, with one agent that has ended
+            ## a name that ends in `!` is a session that is finished, with one agent that has ended; its phase is the one the list gives it
             text = ""
             for word in words:
                 sessionId, equals, name = word.partition("=")
                 done = name.endswith("!")
                 name = name.rstrip("!")
-                text += "session\t%s\t%s\t%s\t2026-10-12_16:57_+0000\t-\t1\t%s=1\n" % (sessionId, name, "finished" if done else "running", "finished" if done else "running")
+                text += "session\t%s\t%s\t%s\t2026-10-12_16:57_+0000\t-\t1\t%s=1\t-\t-\tnone\t\t-\t-\t-\t%s\n" % (sessionId, name, "finished" if done else "running", "finished" if done else "running", "closed" if done else "active")
                 text += "run\t%s\t%s\tmagic-coordinator\tspawn-started\t%s\t%s\t2026-10-12_16:57_+0000\t-\trig-host\tws-rig\t%s\n" % (
                     sessionId, sessionId, "no-process" if done else "running", "finished" if done else "running", "-" if done else "working")
             state.rows.update(module.parseSessionLevels(text))

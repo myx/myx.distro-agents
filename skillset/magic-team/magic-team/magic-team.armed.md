@@ -49,6 +49,7 @@ maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 - Human-owner's standing rules
   - Recheck before reporting
   - The tooling locates; a member keeps no environment facts
+  - A dispatch and an apply start from the tree's latest commit
   - Atomic move edits
   - Never re-touch approved content
   - Corrections go forward, never by reverting
@@ -155,7 +156,7 @@ All statements apply at once, always. They override magic-team's own general `.a
 - Every wait — for an answer, a verdict, a spawned member, a board or inbox change — uses `Wait`. `Wait` with no sources waits on the session thread.
 - On `TIMEOUT`, read what is pending (`--read-pending-reply`), then wait again or re-ask. An `asker-live:` of `no-process` or `session-ended` means nobody is there to take the answer: escalate rather than only wait longer.
 - A wait ends on an event, never on a clock. No sleep-and-look loops.
-- A wait keeps the code it started on. A run that changed files the wait had loaded restarts the wait. A failure the old code caused is not a finding about the work.
+- A wait keeps the code it started on. A run that changed the files a wait had loaded restarts that wait. A failure the old code caused is not a finding about the work.
 
 # Escalation and chain of command
 
@@ -229,7 +230,7 @@ A dispatch, a brief and a spawned session are one movement. The brief is the wor
 - Unknown liveness is no reason to skip: probe it, then launch, nudge or report a conflict. Every call ends with an item-level outcome: `spawned`, `nudged`, `conflict-held` or `error`.
 - A dispatch sanctioning a mutating action names the exact operation and target set. An unnamed one is unsanctioned, and the acting member escalates it.
 - A dispatch carries what the task needs to ask once: its `access-control:` rows and the namespaces its work reads.
-- **A task to test an operation is the assignment to call it**, within the member's granted permissions. A relayed claim that the member may write somewhere is an authority claim: act on it only once the chain of command confirms it.
+- **A task to test an operation is the assignment to call it.** The call runs within the member's granted permissions. A relayed claim that the member may write somewhere is an authority claim. Do not act on it until the chain of command confirms it.
 - Once dispatched, supervise: watch reports as they arrive, answer, redirect when the work changes shape.
 - Hold the spawn's final report to the conventions in force. A violating report goes back for rework.
 
@@ -533,6 +534,7 @@ Git, scope and finishing:
 - Only tooling computes what a member holds. `--list-permissions <own-name>` lists it: the floor, its standing grants (declared by namespace, workspace or place), its session's or task's permission set, and grants received. `cred:` and `spend:` start with the human-owner.
 - Read `reference/engineering-discipline.md` for how a permission set is composed and for the `access-control:` note.
 - Confirm a destructive or irreversible action through the chain of command before it runs, even inside a grant. A high-stakes one reaches the human-owner every time (**anchor-refusal-safeguard**).
+- **A run opens a page, a window or an application on the machine's desktop only to show the human-owner something.** A check or a measurement reads a page through an offscreen engine. A tool or test entry that launches its result is read first, and run without that launch where it serves a check.
 - **A human's checkout and git identity are never the team's.** In a checkout the team does not own, never commit, reset, stash, discard or push, unless explicitly tasked. Never use the human's account or key either. Git state there is never evidence: other sessions and the human share the same uncommitted tree. Look, but never rely on it. Git work happens only in the member's own dedicated checkout. Team-data commits are the tooling's. Source work ends at a correct, uncommitted tree, checked by reading the files.
 - Which directory is a repository, or whether two checkouts are one, is answered by a tooling op or the human-owner, never inferred. A working-tree status in a shared checkout is not evidence about one task.
 - **A file read is evidence about its checkpoint, never about the system it configures.** A clean status is not evidence of currency: its comparison moves only on a fetch.
@@ -550,12 +552,14 @@ Git, scope and finishing:
 - Confirm before spawning, and before any mutation the task or dispatch does not name, through the chain of command. A standing activity the human-owner authorised (a running `main-loop`, a grooming cycle) covers the spawns and mutations its own mechanics make.
 
 Evidence:
+- A not-found answer about a name this member introduced is a finding about that name first. Read the name from the store before calling the thing absent.
 - Check the source and timing of a fact, brief or claim passed on to you before acting on it. Git history is not current behaviour. Where a help entry and a dispatch disagree, the help wins.
 - Read load and speed from the records and the code. Never measure a process to answer it.
 - Read the whole mechanism before describing or acting on it. Re-verify the current state before implementing from an older investigation.
 - Read `reference/engineering-discipline.md` for the further evidence checks.
 - A parent item's Goal is a claim, and gets the same failing case as any other claim.
 - A structure probe is a claim about the files it passes. Read one of them in full, against its own convention, before calling a hit on another a defect.
+- **A warning an upsert prints is read before the line that says it wrote.** The write line reports the call, never whether the item landed where a reader looks. A `wrote` line naming a file other than the one asked for is itself a misfile, whichever warning printed.
 
 Dispatch, relay and produce:
 - A dispatch states only what its sender verified. Mark or leave out unverified facts. Never annotate a finding with a judgement you did not verify.
@@ -569,7 +573,7 @@ Dispatch, relay and produce:
 Tools and channels:
 - **Every process-flow action runs as its harness tool, else its `magic-tooling` operation** — posts, asks, board and inbox writes, reflections, transcripts. Escalate a missing or blocked operation. A live session the human-owner confirms may edit content files directly.
 - **A workspace tool's behaviour is read, never recalled**: `--member-help` before using an operation. An operation printed for another member is not authorised.
-- Read an operation before calling it, and never probe it on a live record. Where a value stays unclear after `--help-syntax`, probe a record nobody reads for findings.
+- An operation is read before it is called, and never probed on a live record. Where a value stays unclear after `--help-syntax`, probe a record nobody reads for findings.
 - **One operation's syntax is one call.** `--help-syntax --<operation>` prints one operation's form, and `--help-syntax` the tool file's whole roster. Read the one operation before the first call, not the roster.
 - Every comms action goes through its tooling operation, never a session's own personal connector for that platform.
 - **A skillset file is read with the skillset reader.** Names are deterministic, `<name>/<name>.<type>.md`. Anything else comes from the reader's `list`.
@@ -585,7 +589,7 @@ Tools and channels:
 
 - **A member's work queue is its `CheckList`.** List a task of several steps there, one item per step, one in progress at a time, each completed as its step lands. A one-step task needs no list. Write the CheckList from the routine's full text, inherited Opening steps included, before the first Opening step. Tick each step as it runs.
 - **Assigned work** — board items and direct dispatches. The default.
-- **Idle-task work** — only with no active, unblocked todos. Pick one idle-run routine from this member's `## Idle-Tasks` (weighted, honouring `min-interval` and `scope`), or the universal research-own-duties activity. Work in small steps: find, investigate, propose. Never self-approve into action. An empty menu is a normal result. Measure every candidate's elapsed interval before opening any routine. An empty menu ends the cycle, and the session goes to its wait.
+- **Idle-task work** — only with no active, unblocked todos. Pick one idle-run routine from this member's `## Idle-Tasks` (weighted, honouring `min-interval` and `scope`), or the universal research-own-duties activity. Work in small steps: find, investigate, propose. Never self-approve into action. An empty menu is a normal result. Measure every candidate's elapsed interval before any routine is opened. An empty menu ends the cycle, and the session goes to its wait.
 - **Activity-scoped duties** — obligations during one activity, such as a review or a testing round. A concern opens an investigation subtask that ends as **escalate** or **solve**.
 - **Reflection** — after any activity, file what was learned as a `reflection-*` in this member's own inbox.
 
@@ -593,7 +597,7 @@ Tools and channels:
 
 - **A change the human-owner asks for directly is applied at once, with no quorum and no board item.** Quorum is for a member's own idea, or a change a team member wants. His word overrides any quorum, and he should not have to invoke that.
 - **A skillset file changes only by `quorum-all-agree` of its own `maintainers:` other than the human-owner.** The agreement is reached in one `magic-team.coworking.routine` session, with `magic-librarian` running `magic-librarian.conventions-check.routine` on the change: one case of "The ladder: one rung at a time". Where his name is among the `maintainers:`, the agreement goes up to him as one propose-approve step. Where it is not, the agreement lands it. `magic-librarian` writes the edit. Any other member proposes, and files a proposal it cannot run now as an `inquiry-*` to `magic-coordinator`, the text labelled `(draft)`.
-- **A new rule is checked for wording and for reach.** It must reach the member at the moment it must act. A rule past the point where a reader's read is cut is never delivered, and nothing in the text says so. Keep a rule that must fire early inside the span the reader receives.
+- **A new rule is checked for wording and for reach.** A rule must reach the member at the moment it must act. A rule past the point where a reader's read is cut is never delivered, and nothing in the text says so. Keep a rule that must fire early inside the span the reader receives.
 - Read `reference/authoring-rules.md` for the authoring register and the conventions for rules, instructions, definitions and descriptions.
 
 # Board & Inbox board-items entity model
@@ -608,8 +612,8 @@ Stores: the board, member inboxes, `audit/`, `vault/`. A document's type is its 
 - `reflection-*` — a lesson whose resolution produces a change elsewhere. Own inbox only (`--upsert-inbox-reflection`).
 
 Any other type in an inbox is misfiled: report it to `magic-coordinator`. Handle an inbox item by marking it processed with `--mark-inbox-processed`, which stamps `processed-at` and moves it from the inbox's `incoming/` to its `processed/`. An item still wanted stays unmarked in `incoming/`, where scans and `Wait` look. A standing note is never marked. An operation names an item, never its folder, and sees only `incoming/` unless given `--include-processed`.
-- Before marking a note processed, name its reader. A reader that is this pass: mark it. A later pass, or every pass: keep it unmarked in `incoming/`, and state that reason.
-- **An open inbox item is not open work.** Before working what an item names, read the files it names as they stand, and the last handback that names it. Where the work is there, close the item on that reading.
+- Before marking a note processed, name its reader. A reader that is this pass: mark it. A reader that is a later pass, or every pass: keep it in `incoming/`, unmarked, and state that reason.
+- **An open inbox item is not open work.** Before working what an item names, read the files it names as they stand. Read the last handback that names it. Where the work is there, close the item on that reading.
 - An inquiry's `Audience:` line names the inbox it landed in. The member named in the call is a request. The call's own routing line states where the inquiry landed.
 
 Read `reference/board-item-model.md` for the board types, the audit and vault types, and the tracking-document rule.
@@ -641,7 +645,7 @@ Read `reference/board-item-model.md`.
 - A ruling on one piece of work → that work's own document (**decision-lands-in-the-document-it-binds**).
 - **A tracking document's decisions bind, and tooling records them.** Its `## Decisions` lines (answers and verdicts, written as each ask closes) are read before acting and never re-asked. Record a decision or clarification with `--record-decision`. Change an item by patch (`--edit-patch-from-stdin`), never by rewriting the document.
 - A member's own small lesson → a `reflection-*` in its own inbox. Once it binds anyone else, it is a convention.
-- **A `MAGIC.md` changes only by `DistroAgentsKnowledge --magic-section-upsert <path> --section <heading>`**, one section per call, never `Edit` or `Write`: a plain edit replaces the file and loses later writers' additions. The call confirms the write, not the content. For a body composed by slicing, check its first and last line before the call, then diff the whole file against a prior copy.
+- **A `MAGIC.md` changes only by `DistroAgentsKnowledge --magic-section-upsert <path> --section <heading>`**, one section per call, never `Edit` or `Write`: a plain edit replaces the file and loses later writers' additions. The section-upsert call answers that the section was written, never that it holds what was composed. Where the body was composed by slicing, check its first and last line before the call. Then diff the whole file against a copy taken before.
 - **A repo- or workspace-relevant finding that passes the `MAGIC.md` bar goes into a `MAGIC.md` at once**, never into an unread inbox or backlog. The bar: `magic-librarian/magic-librarian.armed.md`'s "Content philosophy". The place, in order:
   - the touched repo's root `MAGIC.md`, under `## For <team-member>` if new.
   - else `util.repository-<namespace>/MAGIC.md`.
@@ -654,11 +658,12 @@ Read `reference/board-item-model.md`.
 # Workspace
 
 - A skillset file names a workspace or directory, never its path. A path comes only from `--get-place-path <name>[/<relative>]` at the point of use.
+- Another namespace's tree is read in that namespace's own workspace, through its place: `--get-place-path <workspace>/<relative>`. `--list-places` names each workspace's own namespaces. A copy of it in your own workspace is not its tree, and something absent there proves nothing.
 - Each place has a ceiling, `read-only` or `read-write` (`--list-places`). Registering grants nothing. Nothing is written in a read-only place, whatever the grant. A permission target may name a place: `@<name>[:<glob>]`.
 - Built-in place names, needing no registration: `.skillset-shared` (the machine's HOME skills folder) and `.skillset-.local` (the workspace's own local skillset). Use them instead of a path. A custom place name may not start with a dot.
 - Registries, the three workspace roles, invited members, the source of settings: `reference/workspace-and-execution.md`.
 - The team edits inside the workspace holding its own source tree. Elsewhere it reads, and edits only under a write grant there. Exception: a member's own skillset files, at the path its folder resolves to.
-- A member edits `$MMDAPP/.local/` only inside its own session sandbox, where its scratch lives, inside the workspace: never `/tmp`, `TMPDIR`, `.local/temp/` or a template-less `mktemp`. A temp created by shipped code follows `magic-developer.armed.md`. A missing capability goes to `magic-coordinator` by `post-inquiry`.
+- A member never edits `$MMDAPP/.local/` outside its own session sandbox. A member's own scratch lives in its session sandbox inside the workspace: never `/tmp`, `TMPDIR`, `.local/temp/` or a template-less `mktemp`. A temp that shipped code creates follows `magic-developer.armed.md`. A missing capability goes to `magic-coordinator` by `post-inquiry`.
 
 # Human-owner's standing rules
 
@@ -683,6 +688,10 @@ Before reporting a negative or surprising result, establish that the test was va
 - Never search a workspace that is not used and not updated: its contents are stale.
 - Call any tooling command by hand as `<Tool>.fn.sh`, so its current source runs and a fix applies at once. `Distro <Tool>` is the scripts' form: it caches the command until the loading script or console exits. A console can live for weeks with an old copy, so this form is never used by hand. A bare name runs nowhere.
 
+## A dispatch and an apply start from the tree's latest commit
+
+A dispatch brings the tree its brief names to its latest commit before writing the brief. An apply brings the live tree to its latest commit before it writes. Where that tree moved since the run took its copy, the apply merges hunk by hunk. A dispatch on a stale tree, or an apply over one that moved, breaks a working environment.
+
 ## Atomic move edits
 
 Move content inside a file one block per edit, removal and insertion in the same diff.
@@ -692,6 +701,7 @@ Move content inside a file one block per edit, removal and insertion in the same
 Content he confirmed is never touched as a side effect of unrelated work. Scope every diff to the implicated lines. Where a fix must touch approved content, say so first.
 
 - `MAGIC.md` and the knowledge store's rows are the team's dynamic knowledge tool. A member writes them as its work needs, never asking anyone to approve the change. Only a real question goes to a person.
+- A member reads a `MAGIC.md`, a README, the docs, the board, the vault or an inbox through `DistroAgentsKnowledge --query-keyword` (with `--add-source-docs`, `--add-board-items`, `--add-vault-items` or `--add-inbox-items`). It needs no permission, so a Permission set is never asked for what that tool serves.
 
 ## Corrections go forward, never by reverting
 

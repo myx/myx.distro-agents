@@ -45,10 +45,13 @@ AgentsToolsRetestTestHeld(){ ## sh-test folder of a copy, test name
 }
 AgentsToolsRetestRunner(){ ## source root of a copy, runner arguments... -- that copy's own runner, on that copy
 	local runnerRoot="$1" ; shift
+	## A DRAIN WAITS ITS TURN, however long the machine's line is: the runner's own 900s bound would answer every request
+	## `NOT RUN` on a busy machine, which is a queue drained in name only. A run whose caller wants a shorter wait sets
+	## MDAT_RETEST_LANE_WAIT, and a check of this does.
 	if [ "$runnerRoot" = "$( cd "$MDLT_ORIGIN" 2> /dev/null && pwd -P )" ] ; then
-		( cd "$runnerRoot/myx/myx.distro-agents" && exec "$BASH" sh-test/AgentsRunTests.sh "$@" )
+		( cd "$runnerRoot/myx/myx.distro-agents" && exec env MDAT_SUITE_QUEUE_LIMIT="${MDAT_RETEST_LANE_WAIT:-86400}" "$BASH" sh-test/AgentsRunTests.sh --wait "$@" )
 	else
-		( cd "$runnerRoot/myx/myx.distro-agents" && exec env MDLT_ORIGIN="$runnerRoot" MDLT_OPTION="--run-from-path $runnerRoot" "$BASH" sh-test/AgentsRunTests.sh "$@" )
+		( cd "$runnerRoot/myx/myx.distro-agents" && exec env MDLT_ORIGIN="$runnerRoot" MDLT_OPTION="--run-from-path $runnerRoot" MDAT_SUITE_QUEUE_LIMIT="${MDAT_RETEST_LANE_WAIT:-86400}" "$BASH" sh-test/AgentsRunTests.sh --wait "$@" )
 	fi
 }
 AgentsToolsRetestProcess(){ ## pid -- when that process was started, as the system tells it: empty where no such process is
@@ -193,27 +196,61 @@ AgentsToolsRetestFinish(){ ## batch folder, request file, batch id -- that reque
 	rm -f "$finishRequest"
 	LC_ALL=C sed -n "s/^line: //p" "$retestStore/done/$finishId.result" 2> /dev/null
 }
-AgentsToolsRetestCopy(){ ## batch folder, number of the copy, its source root, 1 where every test not yet passed is asked for -- runs that copy's part of the batch, each test once; what each did in <number>.outcome
-	local copyWork="$1" copyNo="$2" copyRoot="$3" copyRest="$4" copyDir copyTest copyWhen copyRc copyFolder copyCount copyEvery
+AgentsToolsRetestLists(){ ## batch folder, number of the copy, its source root -- the copy's every test in <number>.every, and those that passed on its state in <number>.passed
+	local listsWork="$1" listsNo="$2" listsRoot="$3" listsDir listsTest listsWhen
+	listsDir="$listsRoot/myx/myx.distro-agents/sh-test"
+	: > "$listsWork/$listsNo.every" ; : > "$listsWork/$listsNo.passed"
+	while read -r listsTest listsWhen ; do
+		[ -n "$listsTest" ] || continue
+		printf '%s\n' "$listsTest" >> "$listsWork/$listsNo.every"
+		[ "${listsWhen:--}" = - ] || printf '%s %s\n' "$listsTest" "$listsWhen" >> "$listsWork/$listsNo.passed"
+	done <<< "$( AgentsToolsRetestRunner "$listsRoot" --passed 2> /dev/null )"
+	[ -s "$listsWork/$listsNo.every" ] || ( cd "$listsDir" 2> /dev/null && for listsTest in *.test.sh */*.test.sh ; do [ -f "$listsTest" ] && { listsTest="${listsTest##*/}" ; printf '%s\n' "${listsTest%.test.sh}" ; } ; done ) > "$listsWork/$listsNo.every"
+	## read once a copy: the lists do not change under a batch, and a second read would restate what a request already said
+	printf 'listed\n' > "$listsWork/$listsNo.listed"
+	return 0
+}
+AgentsToolsRetestRunTests(){ ## batch folder, number of the copy, its source root, the tests file -- runs them on that copy's own runner, each once, and appends what each did to <number>.outcome
+	local runWork="$1" runNo="$2" runRoot="$3" runFile="$4" runDir runTest runRc runFolder runCount runEvery
+	runDir="$runRoot/myx/myx.distro-agents/sh-test"
+	runCount="$( LC_ALL=C grep -c . "$runFile" )"
+	runEvery="$( cd "$runDir" 2> /dev/null && ls *.test.sh */*.test.sh 2> /dev/null | LC_ALL=C grep -c . )"
+	echo "# retest: about $( AgentsToolsRetestCopyName "$runRoot" ) ($runRoot): $runCount test(s), each once" >&2
+	## Every test of the copy is its whole suite, and is run as one, so it waits its turn in the machine's line for those.
+	if [ "$runCount" = "$runEvery" ] ; then
+		AgentsToolsRetestRunner "$runRoot" 2>&1 | tee -a "$runWork/$runNo.out" >&2
+	else
+		AgentsToolsRetestRunner "$runRoot" $( cat "$runFile" ) 2>&1 | tee -a "$runWork/$runNo.out" >&2
+	fi
+	runFolder="$( LC_ALL=C sed -n 's/^# AgentsRunTests\.sh: .* run folder: //p' "$runWork/$runNo.out" | LC_ALL=C tail -n 1 )"
+	printf '%s\n' "$runFolder" > "$runWork/$runNo.folder"
+	while IFS= read -r runTest ; do
+		[ -n "$runTest" ] || continue
+		runRc="$( LC_ALL=C sed -n 's/^rc=//p' "$runFolder/$runTest.receipt" 2> /dev/null | LC_ALL=C sed -n 1p )"
+		case "${runFolder:+$runRc}" in
+			0) printf '%s passed\n' "$runTest" ;;
+			'') printf '%s the runner gave no result for it: %s\n' "$runTest" "$( LC_ALL=C grep . "$runWork/$runNo.out" | LC_ALL=C tail -n 1 | LC_ALL=C cut -c1-200 )" ;;
+			*) printf '%s failed rc=%s log: %s\n' "$runTest" "$runRc" "$runFolder/$runTest.log" ;;
+		esac
+	done < "$runFile" >> "$runWork/$runNo.outcome"
+}
+AgentsToolsRetestCopy(){ ## batch folder, number of the copy, its source root, 1 where every test not yet passed is asked for -- runs that copy's part of a rest, each test once; what each did in <number>.outcome
+	local copyWork="$1" copyNo="$2" copyRoot="$3" copyRest="$4" copyDir copyTest copyWhen copyCount
 	copyDir="$copyRoot/myx/myx.distro-agents/sh-test"
-	: > "$copyWork/$copyNo.outcome" ; : > "$copyWork/$copyNo.run" ; : > "$copyWork/$copyNo.every"
+	: > "$copyWork/$copyNo.outcome" ; : > "$copyWork/$copyNo.run" ; : > "$copyWork/$copyNo.every" ; : > "$copyWork/$copyNo.out"
 	if [ ! -f "$copyDir/AgentsRunTests.sh" ] ; then
 		LC_ALL=C sed 's/$/ the copy it was asked about is no longer there/' "$copyWork/$copyNo.tests" > "$copyWork/$copyNo.outcome"
 		echo "# retest: about $( AgentsToolsRetestCopyName "$copyRoot" ): no copy of the package with its test runner is at $copyRoot any more; nothing is run for it" >&2
 		return 0
 	fi
 	if [ -n "$copyRest" ] ; then
+		AgentsToolsRetestLists "$copyWork" "$copyNo" "$copyRoot"
 		## every test of the copy, and of each whether it has passed on the state the copy is in now
 		while read -r copyTest copyWhen ; do
 			[ -n "$copyTest" ] || continue
-			printf '%s\n' "$copyTest" >> "$copyWork/$copyNo.every"
-			if [ "${copyWhen:--}" = - ] ; then
-				printf '%s\n' "$copyTest" >> "$copyWork/$copyNo.tests"
-			elif ! LC_ALL=C grep -q -x -F -- "$copyTest" "$copyWork/$copyNo.tests" ; then
-				printf '%s before %s\n' "$copyTest" "$copyWhen" >> "$copyWork/$copyNo.outcome"
-			fi
-		done <<< "$( AgentsToolsRetestRunner "$copyRoot" --passed 2> /dev/null )"
-		[ -s "$copyWork/$copyNo.every" ] || ( cd "$copyDir" && for copyTest in *.test.sh */*.test.sh ; do [ -f "$copyTest" ] && { copyTest="${copyTest##*/}" ; printf '%s\n' "${copyTest%.test.sh}" ; } ; done ) | tee -a "$copyWork/$copyNo.tests" > "$copyWork/$copyNo.every"
+			printf '%s before %s\n' "$copyTest" "$copyWhen" >> "$copyWork/$copyNo.outcome"
+		done < "$copyWork/$copyNo.passed"
+		LC_ALL=C awk -v skipFile="$copyWork/$copyNo.passed" 'BEGIN { while ( ( getline oneLine < skipFile ) > 0 ) { split( oneLine, oneWord, " " ) ; skip[oneWord[1]] = 1 } } !($0 in skip)' "$copyWork/$copyNo.every" >> "$copyWork/$copyNo.tests"
 	fi
 	## each test once, and only the tests the copy holds
 	LC_ALL=C sort -u "$copyWork/$copyNo.tests" | while IFS= read -r copyTest ; do
@@ -225,24 +262,7 @@ AgentsToolsRetestCopy(){ ## batch folder, number of the copy, its source root, 1
 		echo "# retest: about $( AgentsToolsRetestCopyName "$copyRoot" ): nothing to run: every test asked for has passed on the state that copy is in" >&2
 		return 0
 	fi
-	copyEvery="$( cd "$copyDir" && ls *.test.sh */*.test.sh 2> /dev/null | LC_ALL=C grep -c . )"
-	echo "# retest: about $( AgentsToolsRetestCopyName "$copyRoot" ) ($copyRoot): $copyCount test(s), each once" >&2
-	## Every test of the copy is its whole suite, and is run as one, so it waits its turn in the machine's line for those.
-	if [ "$copyCount" = "$copyEvery" ] ; then
-		AgentsToolsRetestRunner "$copyRoot" 2>&1 | tee "$copyWork/$copyNo.out" >&2
-	else
-		AgentsToolsRetestRunner "$copyRoot" $( cat "$copyWork/$copyNo.run" ) 2>&1 | tee "$copyWork/$copyNo.out" >&2
-	fi
-	copyFolder="$( LC_ALL=C sed -n 's/^# AgentsRunTests\.sh: .* run folder: //p' "$copyWork/$copyNo.out" | LC_ALL=C sed -n 1p )"
-	printf '%s\n' "$copyFolder" > "$copyWork/$copyNo.folder"
-	while IFS= read -r copyTest ; do
-		copyRc="$( LC_ALL=C sed -n 's/^rc=//p' "$copyFolder/$copyTest.receipt" 2> /dev/null | LC_ALL=C sed -n 1p )"
-		case "${copyFolder:+$copyRc}" in
-			0) printf '%s passed\n' "$copyTest" ;;
-			'') printf '%s the runner gave no result for it: %s\n' "$copyTest" "$( LC_ALL=C grep . "$copyWork/$copyNo.out" | LC_ALL=C tail -n 1 | LC_ALL=C cut -c1-200 )" ;;
-			*) printf '%s failed rc=%s log: %s\n' "$copyTest" "$copyRc" "$copyFolder/$copyTest.log" ;;
-		esac
-	done < "$copyWork/$copyNo.run" >> "$copyWork/$copyNo.outcome"
+	AgentsToolsRetestRunTests "$copyWork" "$copyNo" "$copyRoot" "$copyWork/$copyNo.run"
 }
 AgentsToolsRetestDrain(){ ## operation, its arguments... -- everything that waits, as one batch; a line on stdout for each request it finishes
 	local drainOp="$1" ; shift
@@ -284,7 +304,7 @@ AgentsToolsRetestDrain(){ ## operation, its arguments... -- everything that wait
 	trap 'rm -f "$retestStore/drain.lock/holder" 2> /dev/null ; rmdir "$retestStore/drain.lock" 2> /dev/null' EXIT
 	printf 'since: %s\nstarted: %s\n' "$( date -u +%Y-%m-%dT%H:%M:%SZ )" "$( AgentsToolsRetestProcess "$drainPid" )" >> "$drainLock/holder"
 
-	local drainWork="$retestStore/running/.batch" drainBatch drainRequest drainRoot drainNo drainCount=0 drainLeft drainFails=0
+	local drainWork="$retestStore/running/.batch" drainBatch drainRequest drainRoot drainDir drainNo drainAsks drainName drainTest drainWhen drainCount=0 drainLeft drainFails=0
 	drainBatch="batch-$( date -u +%Y%m%dT%H%M%SZ )-$drainPid"
 	rm -rf "$drainWork" ; mkdir -p "$drainWork" || { echo "⛔ ERROR: $MDSC_CMD $drainOp: cannot write under $retestStore/running -- nothing was run" >&2 ; return 1 ; }
 	: > "$drainWork/copies"
@@ -305,10 +325,6 @@ AgentsToolsRetestDrain(){ ## operation, its arguments... -- everything that wait
 		drainCount=$(( drainCount + 1 ))
 		drainRoot="$( LC_ALL=C sed -n "s/^origin: //p" "$drainRequest" 2> /dev/null | LC_ALL=C sed -n 1p )"
 		LC_ALL=C grep -q -x -F -- "$drainRoot" "$drainWork/copies" || printf '%s\n' "$drainRoot" >> "$drainWork/copies"
-		drainNo="$( LC_ALL=C grep -n -x -F -- "$drainRoot" "$drainWork/copies" | LC_ALL=C sed -n '1s/:.*//p' )"
-		LC_ALL=C sed -n "s/^test: //p" "$drainRequest" 2> /dev/null >> "$drainWork/$drainNo.tests"
-		## a request that names its tests is run by them; only one that names none widens to every test not yet passed
-		[ -n "$( LC_ALL=C sed -n "s/^test: //p" "$drainRequest" 2> /dev/null )" ] || [ -z "$( LC_ALL=C sed -n "s/^file: //p" "$drainRequest" 2> /dev/null )" ] || : > "$drainWork/$drainNo.rest"
 	done
 	if [ "$drainCount" = 0 ] ; then
 		echo "# retest: nothing waits" >&2
@@ -317,14 +333,58 @@ AgentsToolsRetestDrain(){ ## operation, its arguments... -- everything that wait
 		drainNo=0
 		while IFS= read -r drainRoot ; do
 			drainNo=$(( drainNo + 1 ))
-			[ -f "$drainWork/$drainNo.tests" ] || : > "$drainWork/$drainNo.tests"
-			AgentsToolsRetestCopy "$drainWork" "$drainNo" "$drainRoot" "$( [ ! -e "$drainWork/$drainNo.rest" ] || printf 1 )"
-			## each request is answered as soon as its own copy has run, never held for the rest of the batch
+			drainDir="$drainRoot/myx/myx.distro-agents/sh-test"
+			: > "$drainWork/$drainNo.outcome" ; : > "$drainWork/$drainNo.out" ; : > "$drainWork/$drainNo.ran" ; : > "$drainWork/$drainNo.order"
+			## THE SHORTEST REQUEST FIRST, so a gate proof never waits on a long request beside it; one that names no test is the widest, and last
 			for drainRequest in "$retestStore/running"/*.request ; do
 				[ -f "$drainRequest" ] || continue
 				[ "$( LC_ALL=C sed -n "s/^origin: //p" "$drainRequest" 2> /dev/null | LC_ALL=C sed -n 1p )" = "$drainRoot" ] || continue
-				AgentsToolsRetestFinish "$drainWork" "$drainRequest" "$drainBatch" || drainFails=$(( drainFails + 1 ))
+				drainAsks="$( LC_ALL=C sed -n "s/^test: //p" "$drainRequest" 2> /dev/null | LC_ALL=C grep -c . )"
+				[ -n "$( LC_ALL=C sed -n "s/^test: //p" "$drainRequest" 2> /dev/null )" ] || [ -z "$( LC_ALL=C sed -n "s/^file: //p" "$drainRequest" 2> /dev/null )" ] || drainAsks=999999
+				printf '%s %s\n' "$drainAsks" "${drainRequest##*/}" >> "$drainWork/$drainNo.order"
 			done
+			LC_ALL=C sort -s -n -k1,1 "$drainWork/$drainNo.order" > "$drainWork/$drainNo.sorted"
+			while read -r drainAsks drainName ; do
+				[ -n "$drainName" ] || continue
+				drainRequest="$retestStore/running/$drainName"
+				[ -f "$drainRequest" ] || continue
+				if [ ! -f "$drainDir/AgentsRunTests.sh" ] ; then
+					LC_ALL=C sed -n "s/^test: //p" "$drainRequest" 2> /dev/null | LC_ALL=C sed 's/$/ the copy it was asked about is no longer there/' >> "$drainWork/$drainNo.outcome"
+					echo "# retest: about $( AgentsToolsRetestCopyName "$drainRoot" ): no copy of the package with its test runner is at $drainRoot any more; nothing is run for it" >&2
+					AgentsToolsRetestFinish "$drainWork" "$drainRequest" "$drainBatch" || drainFails=$(( drainFails + 1 ))
+					continue
+				fi
+				[ -f "$drainWork/$drainNo.listed" ] || AgentsToolsRetestLists "$drainWork" "$drainNo" "$drainRoot"
+				## the tests this request still needs: those it names, or for one that names none, every test not passed on this state
+				: > "$drainWork/$drainNo.want"
+				if [ "$drainAsks" = 999999 ] ; then
+					## a test that passed on this very state before the batch, and so did not run again, says so once, at the request that asked for every one
+					while read -r drainTest drainWhen ; do
+						[ -n "$drainTest" ] || continue
+						if ! LC_ALL=C grep -q -x -F -- "$drainTest" "$drainWork/$drainNo.ran" ; then printf '%s before %s\n' "$drainTest" "$drainWhen" >> "$drainWork/$drainNo.outcome" ; fi
+					done < "$drainWork/$drainNo.passed"
+					LC_ALL=C awk -v skipFile="$drainWork/$drainNo.passed" -v ranFile="$drainWork/$drainNo.ran" '
+						BEGIN {
+							while ( ( getline oneLine < skipFile ) > 0 ) { split( oneLine, oneWord, " " ) ; skip[oneWord[1]] = 1 }
+							while ( ( getline oneLine < ranFile ) > 0 ) ran[oneLine] = 1
+						}
+						!($0 in skip) && !($0 in ran)' "$drainWork/$drainNo.every" > "$drainWork/$drainNo.want"
+					else
+					LC_ALL=C sed -n "s/^test: //p" "$drainRequest" 2> /dev/null | LC_ALL=C awk -v ranFile="$drainWork/$drainNo.ran" 'BEGIN { while ( ( getline oneLine < ranFile ) > 0 ) ran[oneLine] = 1 } !($0 in ran)' | LC_ALL=C sort -u > "$drainWork/$drainNo.want"
+				fi
+				: > "$drainWork/$drainNo.run"
+				while IFS= read -r drainTest ; do
+					[ -n "$drainTest" ] || continue
+					if AgentsToolsRetestTestHeld "$drainDir" "$drainTest" ; then printf '%s\n' "$drainTest" >> "$drainWork/$drainNo.run"
+					else printf '%s the copy holds no test of that name any more\n' "$drainTest" >> "$drainWork/$drainNo.outcome" ; fi
+				done < "$drainWork/$drainNo.want"
+				if [ -s "$drainWork/$drainNo.run" ] ; then
+					AgentsToolsRetestRunTests "$drainWork" "$drainNo" "$drainRoot" "$drainWork/$drainNo.run"
+					cat "$drainWork/$drainNo.run" >> "$drainWork/$drainNo.ran"
+				fi
+				## each test of the copy runs once, and each request is answered as soon as its own tests have run
+				AgentsToolsRetestFinish "$drainWork" "$drainRequest" "$drainBatch" || drainFails=$(( drainFails + 1 ))
+			done < "$drainWork/$drainNo.sorted"
 		done < "$drainWork/copies"
 		for drainRequest in "$retestStore/running"/*.request ; do
 			[ -f "$drainRequest" ] || continue

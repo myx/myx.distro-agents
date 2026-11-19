@@ -126,8 +126,12 @@ case "$1" in
 				;;
 			esac
 			AgentsToolsAssertBareName "$actingMember" "<team-member>" "$fwdOp" || { set +e ; return 1 ; }
-			case "$actingMember" in
-				magic-coordinator) ;;
+			## Every member reads as itself; a delete stays the coordinator's.
+			case "$fwdOp:$actingMember" in
+				jira-issue-search:*|jira-comment-read:*|confluence-page-search:*|confluence-comment-read:*)
+					AgentsToolsActingMemberCheck "$actingMember" "$fwdOp" || { set +e ; return 1 ; }
+				;;
+				*:magic-coordinator) ;;
 				*)
 					printf '%s\n' "⛔ ERROR: $MDSC_CMD --$fwdOp: runs only as magic-coordinator, and $actingMember is not it${fwdMemberTail}" >&2
 					set +e ; return 1

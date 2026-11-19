@@ -9,7 +9,7 @@
 ##      carries one argument no operation takes, so that it refuses before it acts)
 ##   4. every name an operation had before is refused by DistroAgentsTools.fn.sh with its new place in the line, or with why it is gone
 ##   5. a coordinator's own operation is refused in the session of another member, and any member's is not
-##   6. `--help-syntax` of a tool file: its lines, one name's, a prefix's, and a word that names none is refused
+##   6. `--help-syntax` of a tool file: its lines, one name's, a prefix's, an option's that sits inside a line, and a word that names none is refused
 ##   7. `--mdat-output-format json` before a name wraps the result of the operations the harness runs
 ##   8. the standing lock of a routine is taken and given back by the spawner's functions, and refused in a workspace that keeps no team data
 ##   9. a tool file run by itself calls the others by DistroAgentsTools, and the tool files are commands of the harness's execute
@@ -132,6 +132,14 @@ rigCall DistroAgentsItems --help-syntax --get-audit-item
 rigAssert "one name: its syntax line alone" "$( LC_ALL=C grep -c -F '📘 syntax: ' "$rigTmp/call.out" ):$( LC_ALL=C grep -c -F -- '--get-audit-item' "$rigTmp/call.out" )" "1:1"
 rigCall DistroAgentsItems --help-syntax --grooming-
 rigAssert "a prefix ending in a dash: the lines of every name it begins" "$( LC_ALL=C grep -c -F -- ' --grooming-' "$rigTmp/call.out" )" "$( LC_ALL=C grep -c -F 'DistroAgentsItems.fn.sh --grooming-' "$( rigSyntaxSource DistroAgentsItems )" )"
+rigCall DistroAgentsKnowledge --help-syntax --list-places
+rigAssert "an ordinary name of another file: its own line alone" "$( LC_ALL=C grep -c -F '📘 syntax: ' "$rigTmp/call.out" ):$( LC_ALL=C grep -c -F -- 'DistroAgentsKnowledge.fn.sh --list-places' "$rigTmp/call.out" )" "1:1"
+for rigWord in --query-keyword --add-source-docs ; do
+	rigCall DistroAgentsKnowledge --help-syntax "$rigWord"
+	rigAssert "a word inside a line, $rigWord: the query line, which carries it" "$( LC_ALL=C grep -c -F '📘 syntax: ' "$rigTmp/call.out" ):$( LC_ALL=C grep -F '📘 syntax: ' "$rigTmp/call.out" | LC_ALL=C grep -c -F -e '--add-source-docs|' | LC_ALL=C tr -d ' ' )" "1:1"
+done
+rigCall DistroAgentsTools --help-syntax --from-stdin
+rigAssert "DistroAgentsTools answers alike: an option no line has as its operation gives the lines that carry it, and only those" "$( [ "$( LC_ALL=C grep -c -F '📘 syntax: ' "$rigTmp/call.out" )" -gt 0 ] && printf some || printf none ):$( LC_ALL=C grep -F '📘 syntax: ' "$rigTmp/call.out" | LC_ALL=C grep -c -v -F -e '--from-stdin' )" "some:0"
 rigCall DistroAgentsItems --help-syntax --rig-no-such-operation
 rigAssert "a word that names none is refused" "$( LC_ALL=C grep -c -F 'no operation of DistroAgentsItems is named so' "$rigTmp/call.out" )" 1
 

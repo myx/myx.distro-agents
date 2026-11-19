@@ -44,12 +44,13 @@ A container for related work, an epic. Its children link to it by `spawns` and `
 | `spawned-by` | optional | member | `item-names` | The item this one was spawned from. |
 | `supersedes` | optional | member | `item-names` | Items this one replaces. |
 | `superseded-by` | optional | member | `item-names` | Items that replace this one. |
+| `epic` | optional | member | `word` | The epic blueprint the item belongs to, by its vault name. With no `approved-by` of its own, the item takes that blueprint's go. |
 | `approved-by` | optional | member | `approval-ref` | Who gave the go, with the session and the time. Written with `approved-at`. |
 | `approved-at` | optional | member | `date-time` | When the go was given. Written with `approved-by`. |
 | `communication-channel-id` | optional | member | `channel-id` | The one external message the item traces to. |
 | `status` | optional | member | `text` | A state label in free text; dropped when stale. |
-| `recheck-date` | optional | member | `date-time` | When to look again. Written with `condition`. |
-| `condition` | optional | member | `text` | What the recheck looks for. Written with `recheck-date`. |
+| `recheck-date` | optional | member | `date-time` | When the next iteration is due. Written with `condition`. |
+| `condition` | optional | member | `text` | What the item waits for: `unmet: …`, `met: …` or `none: …`. An `unmet` one is written with `recheck-date`. |
 | `owner-session` | optional | member | `text` | The live session kind holding the item. |
 | `owner-session-since` | optional | member | `date-time` | Since when `owner-session` holds it. |
 | `session-id` | optional | member | `session-id` | The active coworking session. |
@@ -109,6 +110,7 @@ A container for related work, an epic. Its children link to it by `spawns` and `
 - `type` equals the type word in the filename (`project`).
 - `approved-by` and `approved-at` appear together.
 - `recheck-date` and `condition` appear together.
+- [store] A `recheck-date` on a `board-pending` item appears only beside an `unmet` condition.
 - [store] Only `magic-coordinator` creates or moves a board item.
 - [store] A move into `board-blocked` carries an `execution-receipt`.
 - [store] The dependency recompute keeps both directions of `blocks`/`blocked-by`.

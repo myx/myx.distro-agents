@@ -6,6 +6,9 @@ requires-session-kind: standalone
 tracking-item: required
 runs-at: none
 review-by: inherit
+deliverables: the final run's result
+deliverables: the librarian pass, fed from the builders' knowledge lines
+deliverables: the run's scratch packed into the next epic's input, and deleted
 ---
 # magic-team.epic-close.routine — the actual procedure
 

@@ -68,18 +68,18 @@ rigS4=44444444-0000-4000-8000-000000000004 ; rigS5=55555555-0000-4000-8000-00000
 ## one with no name and two agents, waiting; one lone run with no name, finished; one of another host; one lone
 ## run with no name whose record is still open. Then the row of counters.
 {
-	rigRow session "$rigS1" daily_of_Monday running 2026-10-12_16:57_+0300 - 3 running=2,finished=1
+	rigRow session "$rigS1" daily_of_Monday running 2026-10-12_16:57_+0300 - 3 running=2,finished=1 - - - '' - - - active
 	rigRow run "$rigS1" a1a1a1a1-0000-4000-8000-0000000000a1 magic-coordinator spawn-started running waiting 2026-10-12_16:57_+0300 - rig-host ws-rig waiting
 	rigRow run "$rigS1" a2a2a2a2-0000-4000-8000-0000000000a2 magic-tester spawn-started running thinking 2026-10-12_17:05_+0300 - rig-host ws-rig working
 	rigRow run "$rigS1" - keeper-myx spawn-succeeded no-spawn-id finished 2026-10-12_17:06_+0300 2026-10-12_18:00_+0300 rig-host ws-rig -
-	rigRow session "$rigS2" - waiting 2026-10-12_09:00_+0300 - 2 finished=2
+	rigRow session "$rigS2" - waiting 2026-10-12_09:00_+0300 - 2 finished=2 - - - '' - - - active
 	rigRow run "$rigS2" b1b1b1b1-0000-4000-8000-0000000000b1 magic-librarian spawn-succeeded no-process finished 2026-10-12_09:00_+0300 2026-10-12_09:30_+0300 rig-host ws-rig -
 	rigRow run "$rigS2" b2b2b2b2-0000-4000-8000-0000000000b2 magic-developer spawn-failed no-process finished 2026-10-12_09:10_+0300 2026-10-12_09:20_+0300 rig-host ws-rig -
-	rigRow session "$rigS3" - finished 2026-10-11_14:28_+0300 2026-10-11_14:51_+0300 1 finished=1
+	rigRow session "$rigS3" - finished 2026-10-11_14:28_+0300 2026-10-11_14:51_+0300 1 finished=1 - - - '' - - - closed
 	rigRow run "$rigS3" "$rigS3" magic-devops spawn-succeeded no-process finished 2026-10-11_14:28_+0300 2026-10-11_14:51_+0300 rig-host ws-rig -
-	rigRow session "$rigS4" far_away unknown-foreign 2026-10-10_08:00_+0300 - 1 unknown-foreign=1
+	rigRow session "$rigS4" far_away unknown-foreign 2026-10-10_08:00_+0300 - 1 unknown-foreign=1 - - - '' - - - closed
 	rigRow run "$rigS4" d1d1d1d1-0000-4000-8000-0000000000d1 keeper-mel spawn-started unknown-foreign unknown-foreign 2026-10-10_08:00_+0300 - other-host ws-rig -
-	rigRow session "$rigS5" - unclosed 2026-09-30_10:34_+0300 - 1 unclosed=1
+	rigRow session "$rigS5" - unclosed 2026-09-30_10:34_+0300 - 1 unclosed=1 - - - '' - - - active
 	rigRow run "$rigS5" e1e1e1e1-0000-4000-8000-0000000000e1 keeper-ae3 spawn-started no-process unclosed 2026-09-30_10:34_+0300 - rig-host ws-rig -
 	rigRow counters 1 0 1 1 3 0.42
 } > "$rigTmp/five.rows"
@@ -279,7 +279,7 @@ echo "-- five hundred sessions --"
 	rigNumber=500
 	while [ "$rigNumber" -ge 1 ] ; do
 		rigId="$( printf '%08d-0000-4000-8000-000000000000' "$rigNumber" )"
-		rigRow session "$rigId" "$( printf 'session_%03d' "$rigNumber" )" finished 2026-10-01_10:00_+0300 2026-10-01_11:00_+0300 2 finished=2
+		rigRow session "$rigId" "$( printf 'session_%03d' "$rigNumber" )" finished 2026-10-01_10:00_+0300 2026-10-01_11:00_+0300 2 finished=2 - - - '' - - - closed
 		rigRow run "$rigId" "$( printf '%08d-0000-4000-8000-00000000000a' "$rigNumber" )" magic-developer spawn-succeeded no-process finished 2026-10-01_10:00_+0300 2026-10-01_10:30_+0300 rig-host ws-rig -
 		rigRow run "$rigId" "$( printf '%08d-0000-4000-8000-00000000000b' "$rigNumber" )" magic-tester spawn-succeeded no-process finished 2026-10-01_10:10_+0300 2026-10-01_11:00_+0300 rig-host ws-rig -
 		rigNumber=$(( rigNumber - 1 ))
@@ -415,11 +415,11 @@ echo "-- a partitioned spawn: the parent row and its member rows carry one ident
 ## below are the ones the spawner writes (MagicSpawnSession, SpawnSandbox), and the list draws them as they are.
 rigQ1=66666666-0000-4000-8000-000000000006 ; rigQ2=77777777-0000-4000-8000-000000000007 ; rigQ3=88888888-0000-4000-8000-000000000008
 {
-	rigRow session "$rigQ1" "non-agent_parent_of_magic-team.verify.routine.md_(66666666):_task-20261113T1219Z-spawn-rewrites-live-input.md" running 2026-10-13_09:00_+0300 - 2 running=2
+	rigRow session "$rigQ1" "non-agent_parent_of_magic-team.verify.routine.md_(66666666):_task-20261113T1219Z-spawn-rewrites-live-input.md" running 2026-10-13_09:00_+0300 - 2 running=2 - - - '' - - - active
 	rigRow run "$rigQ1" q1q1q1q1-0000-4000-8000-0000000000f1 magic-coordinator spawn-started running waiting 2026-10-13_09:00_+0300 - rig-host ws-rig waiting
-	rigRow session "$rigQ2" "magic-developer,_verify_(66666666):_task-20261113T1219Z-spawn-rewrites-live-input.md" running 2026-10-13_09:01_+0300 - 1 running=1
+	rigRow session "$rigQ2" "magic-developer,_verify_(66666666):_task-20261113T1219Z-spawn-rewrites-live-input.md" running 2026-10-13_09:01_+0300 - 1 running=1 - - - '' - - - active
 	rigRow run "$rigQ2" q2q2q2q2-0000-4000-8000-0000000000f2 magic-developer spawn-started running thinking 2026-10-13_09:01_+0300 - rig-host ws-rig working
-	rigRow session "$rigQ3" "magic-tester,_verify_(66666666):_task-20261113T1219Z-spawn-rewrites-live-input.md" running 2026-10-13_09:02_+0300 - 1 running=1
+	rigRow session "$rigQ3" "magic-tester,_verify_(66666666):_task-20261113T1219Z-spawn-rewrites-live-input.md" running 2026-10-13_09:02_+0300 - 1 running=1 - - - '' - - - active
 	rigRow run "$rigQ3" q3q3q3q3-0000-4000-8000-0000000000f3 magic-tester spawn-started running thinking 2026-10-13_09:02_+0300 - rig-host ws-rig working
 	rigRow counters 3 0 2 1 0 0.10
 } > "$rigTmp/partition.rows"

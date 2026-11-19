@@ -8,6 +8,9 @@ runs-at: none
 input-scan-def: work-duty --session-id {{session-id}}
 wait-sources: inbox:{{team-member}}
 review-by: inherit
+deliverables: each chosen feature dispatched to a builder, and each gate checked
+deliverables: each closed item moved to the epic's Done
+deliverables: the epic and its state document current
 ---
 # magic-team.epic-wave.routine — the actual procedure
 

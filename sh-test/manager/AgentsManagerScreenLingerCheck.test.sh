@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 ## Behavioural check on the row of a session that has just ended in `Active Sessions` (S7.29; lingering in
 ## sh-lib/manager/AgentsManagerScreen.Sessions.py), run rather than read, through the driver and the stand-in dispatcher. Held:
-##   1. A session finished within the last half minute still stands in Active Sessions, and its row says `ended just now` where its
+##   1. A session the list gives the phase `ended` still stands in Active Sessions, and its row says `ended just now` where its
 ##      state stood, so a reader sees why a closed session is there.
-##   2. One finished earlier stands in Closed Sessions alone, with its state as it is.
+##   2. One the list gives the phase `closed` stands in Closed Sessions alone, with its state as it is.
 ##   3. A running session's row is as it was: its state at its tail.
 ## Red before S7.29: the ended row kept its state word `finished` as its tail, so row 1 fails.
 ## Offline: no operation of the real tooling is called. The clock is the driver's `wall`.
@@ -41,16 +41,16 @@ rigRow(){ ## the fields of one row, joined by TAB
 	while [ $# -gt 0 ] ; do rowText="$rowText"$'\t'"$1" ; shift ; done
 	printf '%s\n' "$rowText"
 }
-## Three sessions: one running, one finished at the wall clock's minute, one finished ten minutes before it.
+## Three sessions, each with the phase the list gives it: one running, active; one finished at the wall clock's minute, ended; one finished ten minutes before it, closed.
 rigS1=11111111-0000-4000-8000-000000000001 ; rigS2=22222222-0000-4000-8000-000000000002 ; rigS3=33333333-0000-4000-8000-000000000003
 export MANAGER_SCREEN_RIG="$rigTmp/rig"
 mkdir -p "$MANAGER_SCREEN_RIG"
 {
-	rigRow session "$rigS1" daily_of_Monday running 2026-10-12_16:57_+0000 - 1 running=1 running 2026-10-12_16:58_+0000 alive
+	rigRow session "$rigS1" daily_of_Monday running 2026-10-12_16:57_+0000 - 1 running=1 running 2026-10-12_16:58_+0000 alive - - - - active
 	rigRow run "$rigS1" "$rigS1" magic-coordinator spawn-started running running 2026-10-12_16:57_+0000 - rig-host ws-rig waiting
-	rigRow session "$rigS2" just_ended finished 2026-10-13_02:00_+0000 2026-10-13_02:30_+0000 1 finished=1 finished 2026-10-13_02:30_+0000 none
+	rigRow session "$rigS2" just_ended finished 2026-10-13_02:00_+0000 2026-10-13_02:30_+0000 1 finished=1 finished 2026-10-13_02:30_+0000 none - - - - ended
 	rigRow run "$rigS2" "$rigS2" magic-tester spawn-succeeded no-process finished 2026-10-13_02:00_+0000 2026-10-13_02:30_+0000 rig-host ws-rig -
-	rigRow session "$rigS3" long_ended finished 2026-10-13_01:00_+0000 2026-10-13_02:20_+0000 1 finished=1 finished 2026-10-13_02:20_+0000 none
+	rigRow session "$rigS3" long_ended finished 2026-10-13_01:00_+0000 2026-10-13_02:20_+0000 1 finished=1 finished 2026-10-13_02:20_+0000 none - - - - closed
 	rigRow run "$rigS3" "$rigS3" magic-devops spawn-succeeded no-process finished 2026-10-13_01:00_+0000 2026-10-13_02:20_+0000 rig-host ws-rig -
 	rigRow counters 1 0 1 0 1 0.42
 } > "$MANAGER_SCREEN_RIG/rows"

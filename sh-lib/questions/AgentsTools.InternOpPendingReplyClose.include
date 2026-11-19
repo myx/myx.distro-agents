@@ -220,6 +220,11 @@
 		if [ "$pendingStatus" = "reply-received" ] ; then
 			AgentsToolsPendingReplyFloorNotice "$pendingFile" "$pendingId" "$pendingVerdict" "${pendingAnsweredBy:-$pendingAmendedBy}" "${pendingAmend:+amended}" || :
 		fi
+		## AN ANSWER REACHES THE STATUS OF THE OPEN ITEMS THAT NAME ITS ASK, before its Decisions line clears a condition naming it.
+		if [ "$pendingStatus" = "reply-received" ] && [ -n "$pendingVerdict" ] ; then
+			type AgentsToolsDecisionsStatusFromPending > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemDecisions.include"
+			AgentsToolsDecisionsStatusFromPending "$pendingId" "$pendingFile" || :
+		fi
 		## THE OUTCOME ON THE ASK'S ITEM: one line on its Decisions (AgentsToolsDecisionsFromPending), and a blocker naming the ask
 		## cleared, for every close -- answered, settled, unknown, withdrawn or amended -- unless the answer came from those Decisions
 		## (--no-decision). Best effort: a record with no item records nothing, and a failed board edit never undoes the close.
@@ -272,19 +277,19 @@
 				[ -z "$pendingAnswerTs" ] || AgentsToolsPendingReplyReact "$reactOwner" "$reactChannel:$pendingAnswerTs" eyes "$pendingId" "$reactIdentity"
 				## Never a mark on the root of a proposal: a check mark there is the human-owner's own
 				## verdict, and the tooling puts none beside it. The two answer emoji it placed there itself
-				## (F9.4) are taken off, as the identity that placed them, so what stands is his alone.
+				## (F9.4) are taken off, as the identity that placed them, but for the one his verdict chose.
 				if [ -n "$reactQuestion" ] && [ "$reactKind" = "proposal" ] ; then
 					type AgentsToolsAskPostClose > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.AskPost.include"
-					AgentsToolsAskPostClose "$pendingFile" "$reactQuestion" "" ""
+					AgentsToolsAskPostClose "$pendingFile" "$reactQuestion" "" "" "$pendingVerdict"
 				elif [ -n "$reactQuestion" ] ; then
 					## The question takes no click any more: with its mark the tooling takes off that
 					## post the answer emoji it placed there itself, the names its template gives for
-					## its kind and answer form, under the identity that placed them
+					## its kind and answer form, under the identity that placed them, but for the chosen option's
 					## (AgentsToolsAskPostClose). The click of who answered is his own, and stays.
 					## The prompt of a held change is also edited to its text without `How to answer`,
 					## as one that was rejected is. Best effort, each step, as the mark is.
 					type AgentsToolsAskPostClose > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.AskPost.include"
-					AgentsToolsAskPostClose "$pendingFile" "$reactQuestion" "" "$( [ "$reactKind" != "change" ] || printf 'edit' )"
+					AgentsToolsAskPostClose "$pendingFile" "$reactQuestion" "" "$( [ "$reactKind" != "change" ] || printf 'edit' )" "$pendingVerdict"
 					AgentsToolsPendingReplyReact "$reactOwner" "$reactChannel:$reactQuestion" "${pendingMark:-white_check_mark}" "$pendingId" "$reactIdentity"
 				fi
 				## The opener is ours only where the question opened its own thread; a question
@@ -315,4 +320,11 @@
 				mv -f "$pendingMove" "$MMDAPP/.local/agents/pending/closed/$( basename "$pendingMove" )" 2>/dev/null || :
 			done
 		fi
+		## The pending-replies registry is rebuilt whole now, so its readers no longer list the closed ask as open (the open rebuilds it too).
+		case "$pendingFile" in
+			"$MMDAPP/.local/agents/pending/"*)
+				type AgentsToolsRegistryRebuild > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
+				AgentsToolsRegistryRebuild pending-replies > /dev/null 2>&1 || :
+			;;
+		esac
 		return 0

@@ -292,7 +292,11 @@ AgentsToolsCommsCacheOutboxAppend(){ ## cache folder, session, block, member, id
 ## never delivered, is stored all the same. One later append records the Slack ts against that local id: the same line with the
 ## ts in its first field (AgentsToolsCommsCachePostLink). The tag is the join, and AgentsToolsCommsCacheServe prints one line a
 ## message (see the tag rule there). Prints the local id. rc 1 where nothing was written, and then the post is not stored.
-AgentsToolsCommsCachePostStore(){ ## cache folder, member, the text
+## A THREAD FOLDER OUR POST MAKES IS NAMED BY A LINE OF ITS OWN KIND: where the folder has no `.state.txt`, one is written, never
+## over another, whose recipe is `slack-local-thread <channel>:<ts> <member> <bot>` and whose first line holds no pointers. So a
+## reader of the folder's conversation and thread (AgentsSuperviseOwnerOwed.awk) finds it, while every puller keys only on
+## `slack-conversation` and `slack-thread` and polls nothing more, and AgentsToolsCommsCacheState reads it as no state, as before.
+AgentsToolsCommsCachePostStore(){ ## cache folder, member, the text, the thread `<channel>:<ts>` (may be empty), read as the bot (true|false)
 	local storeId storeAt storeMonth
 	storeAt="$( date +%s )"
 	type AgentsCommsEventIdNext > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsIngest.include"
@@ -300,6 +304,9 @@ AgentsToolsCommsCachePostStore(){ ## cache folder, member, the text
 	case "$storeId" in [0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]T*) ;; *) return 1 ;; esac
 	storeMonth="$( LC_ALL=C awk -v t="$storeAt" "$agentsCommsMonthAwk"' BEGIN { print monthOf(t + 0) }' )" || return 1
 	AgentsToolsCommsCachePostAppend "$1" "$storeMonth" "$storeAt.000000" "$2" "$storeId" "$3" || return 1
+	case "${4:-}" in
+		?*:?*) [ -e "$1/.state.txt" ] || ( set -C ; printf '%s\n%s\n%s\n' '- - -' "## target=$4 channel=${4%%:*}" "slack-local-thread $4 $2 ${5:-false}" > "$1/.state.txt" ) 2> /dev/null || : ;;
+	esac
 	printf '%s\n' "$storeId"
 }
 
@@ -487,6 +494,10 @@ AgentsToolsCommsCachePullWatched(){ ## now, most (optional; the channels one cal
 	local watchMost="${2:-0}" watchDone=0
 	case "$watchMost" in ''|*[!0123456789]*) watchMost=0 ;; esac
 	case "$watchTtl" in ''|*[!0-9]*) watchTtl=15 ;; esac
+	## THE SWEEP (S1.12 stage 3), in item 12's order: the due channel sources are ingested, then the transfer hands over what the ingest
+	## wrote. It stands before the marks' own guard, because a rig with no mark still owes its sources their ingest.
+	type AgentsCommsSweepPass > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsIngestPass.include"
+	AgentsCommsSweepPass "$watchMost" || :
 	[ -n "${MMDAPP:-}" ] && [ -d "$watchMarks" ] || return 0
 	if [ $(( $1 - ${agentsCommsInterestCleanAt:-0} )) -ge 3600 ] ; then
 		agentsCommsInterestCleanAt="$1"

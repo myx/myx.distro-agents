@@ -6,6 +6,8 @@
 ## run's own output folder after that run's record closed, the `rig-orphan` row of --supervise-scan. Sourced, never run.
 ##
 ## --supervise-close-orphans [--execute] [--workspace <path>]...: one line an orphan, `rig-orphan <workspace> <id> pid=<pid> <path> <verdict>`.
+## A session's control thread that outlived its session, the scan's `control-stuck`, reads `control-stuck <workspace> <id> pid=<pid> <verdict>`:
+## it is sent TERM only, and reads `would-close`, then `closed`, or `still-alive` on every pass, never KILL.
 ## Without --execute it is a readout: `would-close` for one whose process is the one its pid file names, `kept-unverified` for a pid
 ## file with no began moment to check against, `kept-mismatch` for a pid the host has given to another process since, `would-kill` for
 ## one an earlier pass sent TERM and left alive. With --execute a `would-close` one is sent TERM and reads `closed`, or `still-alive`
@@ -21,7 +23,7 @@ type AgentsSessionRigTermNoteInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.di
 
 AgentsToolsSuperviseCloseOrphans(){ ## [--execute] [--workspace <path>]...
 	type AgentsToolsRunProcessesBegan > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunProcesses.include"
-	local closeWorkspaces=() closeWs closeAgents closeExecute="" closeRow closePid closeRest closePath closeNow closeNote closeSpid closeStatus closeVerdict closeFound=0 closeWait closeTab=$'\t'
+	local closeWorkspaces=() closeWs closeAgents closeExecute="" closeRow closePid closeRest closePath closeNow closeNote closeSpid closeStatus closeVerdict closeFound=0 closeWait closeCtlRows closeCtlLive closeSid closeAt closeAll closeDone closeRecord closeTab=$'\t'
 	while [ $# -gt 0 ] ; do
 		case "$1" in
 			--execute) closeExecute=yes ; shift ;;
@@ -40,7 +42,8 @@ AgentsToolsSuperviseCloseOrphans(){ ## [--execute] [--workspace <path>]...
 			closeRest="${closeRow%%"$closeTab"*}" ; closePath="${closeRow#*"$closeTab"}"
 			kill -0 "$closePid" 2> /dev/null || { MMDAPP="$closeWs" AgentsSessionRigTermNoteClear "$closeSpid" "$closePath" || : ; continue ; }
 			MMDAPP="$closeWs" AgentsSessionRunHeadersInto "$closeSpid" closeStatus=status || closeStatus=""
-			[ "$closeStatus" != spawn-started ] || continue
+			## Only a status the record writer names closed; any other record is kept silently until its row word (kept-unknown-record) is approved.
+			case "$closeStatus" in spawn-succeeded|spawn-failed|spawn-ended-without-close) ;; *) continue ;; esac
 			closeFound=$(( closeFound + 1 ))
 			closeNow="$( printf '%s\n' "$closePid" | AgentsToolsRunProcessesBegan )" ; closeNow="${closeNow#"$closePid" }"
 			closeNote="none"
@@ -81,6 +84,41 @@ AgentsToolsSuperviseCloseOrphans(){ ## [--execute] [--workspace <path>]...
 				fi
 			fi
 			printf 'rig-orphan %s %s pid=%s %s %s\n' "${closeWs##*/}" "$( printf '%s' "$closeSpid" | cut -c1-8 )" "$closePid" "$closePath" "$closeVerdict"
+		## A SESSION'S CONTROL THREAD THAT OUTLIVED ITS SESSION, TERM only: alive as the list of sessions reads it (pid and start), its log quiet
+		## past SESSION_CONTROL_NO_RUN_END_SECONDS and five minutes, at least one record of its session and every one closed by the writer's
+		## word, and not the supervising session's own. One that outlives TERM reads still-alive on every pass; no KILL is sent to it.
+		type AgentsToolsSessionControlLive > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionControlStart.include"
+		type AgentsToolsSpawnedSessionRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include"
+		type AgentsToolsFrontmatterKey > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.FrontmatterKey.include"
+		closeCtlRows="$( MMDAPP="$closeWs" AgentsSessionControlPidRows )"
+		closeCtlLive=$'\n'"$( printf '%s\n' "$closeCtlRows" | LC_ALL=C cut -f1 | MMDAPP="$closeWs" AgentsToolsSessionControlLive 2> /dev/null | LC_ALL=C awk '{ print $1 }' )"$'\n'
+		while IFS="$closeTab" read -r closeSid closePid ; do
+			[ -n "$closeSid" ] || continue
+			case "$closeCtlLive" in *$'\n'"$closeSid"$'\n'*) ;; *) continue ;; esac
+			[ "$closeSid" != "${MDAT_SPAWN_SESSION_ID:-}" ] && [ "$closeSid" != "${CLAUDE_CODE_SESSION_ID:-}" ] || continue
+			MMDAPP="$closeWs" AgentsSessionControlLogEpochInto closeAt "$closeSid" || continue
+			[ $(( $( date +%s ) - closeAt )) -gt $(( ${SESSION_CONTROL_NO_RUN_END_SECONDS:-3600} + 300 )) ] || continue
+			closeAll=0 closeDone=0
+			while IFS= read -r closeRecord ; do
+				[ -n "$closeRecord" ] || continue
+				closeAll=$(( closeAll + 1 ))
+				case "$( AgentsToolsFrontmatterKey "$closeRecord" status )" in spawn-succeeded|spawn-failed|spawn-ended-without-close) closeDone=$(( closeDone + 1 )) ;; esac
+			done <<< "$( MMDAPP="$closeWs" AgentsToolsSpawnedSessionRecords "$closeSid" own )"
+			[ "$closeAll" -gt 0 ] && [ "$closeDone" -eq "$closeAll" ] || continue
+			closeFound=$(( closeFound + 1 ))
+			if [ -z "$closeExecute" ] ; then
+				closeVerdict="would-close"
+			else
+				kill -TERM "$closePid" 2> /dev/null || :
+				closeWait=0
+				while [ "$closeWait" -lt 20 ] && kill -0 "$closePid" 2> /dev/null ; do sleep 0.1 ; closeWait=$(( closeWait + 1 )) ; done
+				case $'\n'"$( printf '%s\n' "$closeSid" | MMDAPP="$closeWs" AgentsToolsSessionControlLive 2> /dev/null | LC_ALL=C awk '{ print $1 }' )"$'\n' in
+					*$'\n'"$closeSid"$'\n'*) closeVerdict="still-alive" ;;
+					*) closeVerdict="closed" ;;
+				esac
+			fi
+			printf 'control-stuck %s %s pid=%s %s\n' "${closeWs##*/}" "$( printf '%s' "$closeSid" | cut -c1-8 )" "$closePid" "$closeVerdict"
+		done <<< "$closeCtlRows"
 		done <<< "$( MMDAPP="$closeWs" AgentsSessionRigControlRows )"
 	done
 	[ "$closeFound" -gt 0 ] || printf 'none - - no rig-orphan\n'

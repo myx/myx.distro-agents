@@ -6,6 +6,9 @@ invitees: human-owner
 requires-session-kind: standalone
 input-scan-def: none
 review-by: inherit
+deliverables: one line in the human-owner's direct conversation for each change of a tick
+deliverables: every proven item moved to the epic's Done
+deliverables: the full report to the human-owner at check-all-and-report
 runs-at: none
 access-control: executors:allow-read:@team-data/**
 ---
@@ -66,6 +69,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
 1. **write-the-duty-list**: Write these recurring duties to your `CheckList`, one item each:
    - watch the human-owner's replies.
    - read the pace: the `pace:` line of `--flags` is the median machinery time of a tool call against the 4 s gate, the measure of how slow the tools are. Load average is not the measure. Report it first.
+   - read the throughput from the same line: its calls in 5 minutes, divided by 5, is the tool calls a minute the live runs make. It is the second measure. Report it beside the pace, rig by rig.
    - read the epics' movement.
    - read the live runs.
    - unstall the stuck.
@@ -74,7 +78,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
    - assess the system.
    - report the changes.
 
-   Every tick starts from that list.
+   Every tick starts from that list. Give each open item a `due` time at the next tick. An item past its due time returns at the top of `Wait`, under `CheckList pending:`.
 2. **declare-the-supervision**: Post one message to the human-owner's direct conversation, carrying:
    - what runs.
    - what is held.
@@ -97,19 +101,21 @@ Exact instructions. Execute in order, every step, literally as written — not l
    - **words-close-the-ask**: an `ask-clarified` line of `--supervise-scan` is an open ask that already holds his reply in words, kept as a clarification because it did not start with an option. Where those words settle it, close it this tick with them quoted (`--settle-pending-reply`, or the ask's own answer operation for a readback); where they do not, read them back to him in the same thread. His answer is never left waiting as a comment.
    - **every-rig-is-read**: this step covers every rig supervised, each rig's own conversation with him. The rigs come from the tooling, never from memory: a rig is a workspace whose team settings name a human-owner account, and each rig's conversation is read under that rig's own owner account. A workspace that names none is no rig and is never read in a rig's place. A message of his addressed to another rig's coordinator is owed until a reply of the team follows it in its thread. Unanswered after one tick, relay it to that coordinator's live run unchanged. Unanswered after two, put it on that rig's board as an urgent item for the member whose work it is, quoting his words, so the schedule starts it whatever the pace.
    - **a-question-is-not-a-ruling**: a question of his is answered from measured facts, in the thread he asked it. It is never acted on as a ruling: no item is moved, closed or reopened, and nothing is recorded as his decision, on a question.
-   - **screen-every-ask-to-him**: each tick, read every open ask to him on every rig. An ask that the epic, the board or his recorded words settle, an ask that asks him what his own words mean, and an ask whose thread carries unrelated posts are faults. Its asker withdraws it this tick, and the fault is recorded. The supervisor never posts to him a question the team's own facts answer.
+   - **screen-every-ask-to-him**: each tick, read every open ask to him on every rig. An ask that the epic, the board or his recorded words settle, an ask that asks him what his own words mean, and an ask whose thread carries unrelated posts are faults. Its asker withdraws it this tick, and the fault is recorded. A `parent-ask` line of `--supervise-scan` is the same fault: an ask to him that the asking run's live parent can settle. The supervisor never posts to him a question the team's own facts answer.
    - **his-correction-undoes-first**: on his correction of the supervisor's own act, undo that act first, through the tool that made it, and read the undone state back. Then report in one message what was undone and what is still open. Nothing new is started on the corrected subject until he writes again.
 2. **read-every-live-run**: For each live run of a session that is not held, read these before acting:
    - its latest tool calls, with their times, and each tool's machinery time. A tool whose machinery time carries the run of the command it started is a fault of the pace measure: it counts only tooling time, and a batch counts as its calls.
    - the item in progress on its `CheckList`.
    - every open ask addressed to the coordinator.
    - for each member's work-duty, whether it is on its floor: a duty working inside a session leaves its floor empty, and nobody answers there. That is a fault of the pool (S15 of the refactorings epic), fixed in the tooling, never by starting a duty by hand.
-3. **unstall-runs**: Give each of these runs its next exact step, in its session thread:
-   - a run with no tool call for ten minutes.
+3. **unstall-runs**: Give each of these runs its next exact step, in its session thread, with `--supervise-guide`:
+   - a run with no tool call for ten minutes, such as a `stall` line of `--supervise-scan`.
    - a run waiting for a continue.
    - a run that handed back has ended: its next step reaches it by `--return-review` with the step as the message, which restarts it in its own conversation. A message sent to it instead is stored and read by nobody, whatever the send reports.
 
    Answer an ask that has waited past one tick by `magic-coordinator.work-duty.routine`'s **answer-run-asks**.
+
+   Resume a run that ended with no handback with `--supervise-resume`. It waits the fixed sleep, and leaves alone a run its owner dismissed.
 
    - **reload-stale-rules**: a `stale-rules` line of `--supervise-scan` is a run on rules older than the skillset's newest change. Where that change is a rule the run's work needs, guide the run once to reload its own skill (`Skill` with its own name). Read its next calls to confirm it did.
 
@@ -121,10 +127,12 @@ Exact instructions. Execute in order, every step, literally as written — not l
    - a `leftover` of `--supervise-scan`: a run still open a day after its start.
 
    A dismissal recorded on a run's item closes the item and does not end the run. A run is ended by `TaskStop` in its own workspace, by that rig's coordinator, then read back as ended by its record and its processes. Never end one of the critical session's own.
-5. **watch-the-epics**: Run `--supervise-scan` with one `--workspace` for each rig supervised, and read every `epic` line of every rig: no line is filtered out, and a `still` one is read first. Read the movement of every epic in play this tick: its last edit, the named items moved in the hour, and the runs on it. Act on the board lines of the same scan this tick: a `pending-skipped` item gets its stale `recheck-date` removed or its build routine set as `handler-routine:`, so a verify never runs on a task nothing has built; an `accepted-unlanded` dispatch is landed by **land-a-diff**, or recorded superseded on its item, since an accept is a review verdict and only a landing reaches live. The client's epics come first. An epic with nothing moved in an hour has its next step read and its blocker acted on this tick. A client's blocker that needs the human-owner goes to him before any internal ask. Before relaying, reading back or asking anything about a piece of work, read the epic that governs it: a reading the epic already settles is never put to him.
+5. **watch-the-epics**: Run `--supervise-scan` with one `--workspace` for each rig supervised, and read every `epic` line of every rig: no line is filtered out, and a `still` one is read first. Read the movement of every epic in play this tick: its last edit, the named items moved in the hour, and the runs on it. Act on the board lines of the same scan this tick: a `pending-skipped` item gets its `condition` rewritten as `met: …` or `none: …` where its wait is over, never its date removed, or its build routine set as `handler-routine:`, so a verify never runs on a task nothing has built; an `accepted-unlanded` dispatch is landed by **land-a-diff**, or recorded superseded on its item, since an accept is a review verdict and only a landing reaches live. The client's epics come first. An epic with nothing moved in an hour has its next step read and its blocker acted on this tick. A client's blocker that needs the human-owner goes to him before any internal ask. Before relaying, reading back or asking anything about a piece of work, read the epic that governs it: a reading the epic already settles is never put to him.
 6. **sample-the-rest**: Sample the sessions that are not stuck, at random, or all of them as load allows. Read what each filed in `event-track` and the content it produced. Check its decisions and quality against the brief, the epic and the rules in force. Read the planning documents against the rulings too, and correct any line a later ruling has overtaken.
 7. **assess-the-system**: Assess how the whole system works: tooling, setup, processes, people and teams. Look for gaps, inefficiency and what to tune.
 8. **handle-a-problem**: Assess each problem the steps above found, before any action. Then fix it, file it, or send a request to magic.vane@meloscope.com (`--email-send`). Choose by the start mode, the install, the situation and the kind of problem.
+   - balance what is fixed now against what is filed, by each item's priority and urgency.
+   - an urgent or critical item gets its MVP fixed forward this tick, and only its rework is filed. Above all when the member it would be filed to is blocked or stuck: a critical item filed whole to a stuck member does not move.
    - detect problems and areas to improve actively, by reading the code and the running system, not only what a run reports.
    - rule: every message this step sends to a run or a member is a direct message. It states the exact change in the supervisor's own words, and quotes the human-owner only for a name, path or flag whose exact form is load-bearing.
    - classify each: simple or profitable, then offer it or do it. Complicated or a minor improvement, then discuss it or record it.
@@ -134,6 +142,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
      - dispatch it, or record it for an immediate or queued session.
      - record it to the process flow, for planned grooming and implementation.
    - a fault met is fixed forward in the tooling. No private script, wrapper or one-time patch stands in for the fix.
+   - file a tooling fault that blocks a run to its owning member with `--supervise-fault`, which links it to that run.
    - `MAGIC.md` and the knowledge store's rows are the team's dynamic knowledge tool: a change to them is made as the work needs and is never put to any person. A person is asked only a real question.
    - use what works, and take on what is broken.
    - study how a tool is made only when that is the task.
@@ -163,7 +172,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
 
 The Closure steps below run first. Then the Closure steps of the routine it inherits from run (its session kind's).
 
-1. **stop-the-tick**: Stop the tick, and release every session still held.
+1. **stop-the-tick**: Stop the tick, and release every session still held, with `--manager-session-resume`.
 2. **leave-the-record**: The epic, the board items and the human-owner's direct conversation hold what happened. Write nothing else.
 
 # Routine's local procedures
@@ -275,7 +284,7 @@ Every harness tool and `magic-tooling` operation this routine uses. A harness to
 
 ## Harness tools
 
-- `CheckList` — your work queue. Pass the whole list every call, each item with `content`, `status` and `activeForm`, and one item `in_progress`. A call with no `todos` reads the list. `append` with `member` adds pending items to the list of a member in a session you started.
+- `CheckList` — your work queue. Pass the whole list every call, each item with `content`, `status` and `activeForm`, and one item `in_progress`. An open item may carry `due`. A call with no `todos` reads the list. `append` with `member` adds pending items to the list of a member in a session you started.
 - `Wait` — waits on the session thread, and on any `sources` you add. `RECEIVED` brings the new content. `TIMEOUT` is a normal result: call `Wait` with `mode=continue`. `DISMISSED` ends the run.
 - `SendMessage` — posts one message. Pass `message`, `to` and `address_to`. A sentence over 25 words or a semicolon returns a CORRECTION: shorten it and send again. The result gives the ts to `Wait` on. A change line goes to `human-owner`.
 
@@ -287,6 +296,12 @@ Every harness tool and `magic-tooling` operation this routine uses. A harness to
 - `--manager-session-checklist-read --session-id <id> <member>` (`DistroAgentsTools`, at the shell)
 - `--manager-session-kill --session-id <id> [--run] [--plan]` (`DistroAgentsTools`, at the shell; the caller gate admits the acting magic-coordinator)
 - `--manager-session-control-start (--session-id <id>|--all)` (`DistroAgentsTools`, at the shell)
+- `--manager-session-pause --session-id <id>` and `--manager-session-resume --session-id <id>` (`DistroAgentsTools`, at the shell)
+- `--supervise-scan [--workspace <path>]... [--since <epoch>]` (`AgentDispatcherTools`)
+- `--supervise-guide <run-id> [--text <text>|--from-file <path>] [--workspace <path>]` (`AgentDispatcherTools`)
+- `--supervise-resume [--workspace <path>]...` (`AgentDispatcherTools`)
+- `--supervise-copy <from-run-id> <source-path> <to-run-id> <destination-path>` (`AgentDispatcherTools`)
+- `--supervise-fault <run-id> --owner <member> --title <one line> [--from-file <path>] [--workspace <path>]` (`AgentDispatcherTools`)
 - `--spawn-session` (`DistroAgentsDispatcher`)
 - `--return-review <item-filename> (--message <text>|--from-stdin)` (`DistroAgentsItems`)
 - `--email-send <email@address>... -- <subject> -- (<body...>|--from-stdin|--from-file <path>)` (`DistroAgentsMail`)
@@ -297,15 +312,7 @@ Every harness tool and `magic-tooling` operation this routine uses. A harness to
 
 A GAP is a planned tool the implementation lacks.
 
-- **GAP** the `supervised` flag (epic S13). It is a scheduler flag like `learning`. `--current-flags` lists worktime, weekend, holidays, emergency, overtime and learning only. Until it exists, a supervision run starts from the root or by hand.
-- **GAP** pause and release of a session or a run (epic S19.1). Only a temporary `paused` file in the run's session folder exists. No operation pauses, releases or shows the `paused` state.
-- **GAP** one view of the runs (epic S13.1), with state, liveness, last activity, title, pending CheckList count and open asks. `--supervise-scan` prints findings only, and `--manager-session-list` prints runs.
-- **GAP** stall detection (epic S13.2). Missing: a run waiting with pending items, and a run silent past a bound. Also missing: an ask to the human-owner that its parent can settle. `--supervise-scan` covers the other kinds.
-- **GAP** resume of a run that ended without a handback, after the fixed sleep, honouring dismissed runs (epic S13.3). No operation does it.
-- **GAP** guidance, readback and ask answers given as the supervisor (epic S13.5). `--manager-session-message` posts as the console account, never as `magic-coordinator`.
-- **GAP** a file copy between two session sandboxes, always a real copy (epic S13.6). No operation does it.
-- **GAP** filing a tooling fault to its owning member, linked to the run it blocks (epic S13.7). `--upsert-inbox-inquiry` files the inquiry and makes no link.
-- **GAP** a due time on a CheckList item, and a `CheckList pending:` block in the `Wait` result (epic S13.9). `CheckList` has no due field.
+- **GAP** one view of the runs (epic S13.1), with state, liveness, last activity, title, pending CheckList count and open asks. The `run` line of `--supervise-scan` carries each live run's state, last activity, paused state and open asks. `--manager-session-list` carries the title and liveness. Neither carries a pending CheckList count for every run.
 - **GAP** automatic resume of a session's executor when an item is added to its CheckList (epic S4.1, investigation first).
 
 # Maintainer Notes

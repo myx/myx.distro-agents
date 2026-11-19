@@ -70,7 +70,7 @@ rigCase(){ ## name -- a rig of its own, every fixture of this check in it
 	printf '%s\nmember\tkeeper-far\t-\tFar\tKeeper\t-\tkeeper\t-\tnot-present\tactive\tno-process\t-\n' "$rigMember" > "rows.--manager-team-member-list"
 	{
 		printf '%s\ninfo\tdescription\tA_rig_keeper\n' "$rigMember"
-		printf 'session\tsess-1\tA_session\trunning\t2026-10-13T01:00Z\t-\t1\t-\n'
+		printf 'session\tsess-1\tA_session\trunning\t2026-10-13T01:00Z\t-\t1\t-\t-\t-\tnone\t\t-\t-\t-\tactive\n'
 		printf 'run\tsess-1\tsp-1\tkeeper-rig\topen\trunning\tworking\t2026-10-13T01:00Z\t-\thost\t/rig/ws\t-\n'
 		printf 'grant\tfloor\tread\t/rig/ws/source/**/README.md\tws:source/**/README.md\tfloor\tnone\n'
 		printf 'grant\tstanding\twrite\t/rig/ws/source/x/**\tws:source/x/**\tws:workspace\tnone\n'

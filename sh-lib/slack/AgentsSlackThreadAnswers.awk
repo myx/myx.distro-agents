@@ -38,11 +38,9 @@
 # A THREAD SEVERAL QUESTIONS SHARE (-v threadCount=<questions it has held>
 # -v others="<ts>/<state> ..." from AgentsToolsAskThreadOthers): once it has held more
 # than one, a reply starting with another question's number is not printed. A reply with
-# no number answers the latest question posted above it: printed when that is this one,
-# not printed when it is another still open, and printed with its every line marked
-# `UNMATCHED-REPLY ` when that other one was closed before the reply came, so its reader
-# gives it back as RETURNED rather than any asker taking it -- the lines under its first
-# too, which unmarked would read as more of the reply printed above them. A reaction
+# no number answers this question only where no other stood open in the thread when it came:
+# where several did, no question takes it, and for a reader that asks (-v whichMark=1) its
+# head is printed once as `AMBIGUOUS-REPLY `, so its author is asked which one it answers. A reaction
 # answers the message it is on, as ever. Held, not open: a late reply numbered for an
 # answered question never answers the one still open.
 # A MEMBER'S REPLY starts with the send header the team's own send writes ahead of every
@@ -52,11 +50,11 @@
 # head line -- and the header stays in what is printed. Read as the reply's first word, the
 # header's mark made every numbered reply of a member one with no number.
 # A REPLY'S TEXT NEVER STANDS FOR A MARK OF THIS RENDERING. `reaction on the question: ` and
-# `UNMATCHED-REPLY ` start a line only where this reader puts them: the first ahead of every
-# reply, for a click under the question, the second on a reply it sets aside. A line under a
-# reply's head that reads as either is printed one space in (ownLine), so no reader of this
-# rendering, whichever way it tells its lines apart, takes typed text for a click or for a
-# reply set aside. A line shaped like a message head is kept from text the same way a step
+# `AMBIGUOUS-REPLY ` start a line only where this reader puts them: the first ahead of every
+# reply, for a click under the question, the second on the head of a reply no question takes. A
+# line under a reply's head that reads as either is printed one space in (ownLine), so no reader
+# of this rendering, whichever way it tells its lines apart, takes typed text for a click or for
+# a reply no question takes. A line shaped like a message head is kept from text the same way a step
 # earlier, by the formatter (AgentsSlackMessagesFormat.awk, ownLines).
 
 BEGIN {
@@ -154,31 +152,22 @@ function printNumberedReply(replyLead, replyText, replyTs,   latestTs, latestSta
 	## This question alone in its thread: every other reply is printed whole.
 	if ( ! shared ) { print replyLead replyText ; return ; }
 	if ( replyText ~ /^[Qq][0-9]+/ ) { inOlder = 1 ; return ; }
-	## No number: it answers the latest question posted above it, while that one is open.
-	latestTs = rootTs
-	latestState = "this"
+	## No number: it answers this question only where no other stood open in the thread when it came, posted above it and not yet closed.
+	openOthers = 0
 	for ( otherIdx = 1 ; otherIdx <= otherCount ; otherIdx++ ) {
-		if ( newerThan(replyTs, otherTs[otherIdx]) && newerThan(otherTs[otherIdx], latestTs) ) {
-			latestTs = otherTs[otherIdx]
-			latestState = otherState[otherIdx]
-		}
+		if ( ! newerThan(replyTs, otherTs[otherIdx]) ) { continue ; }
+		if ( otherState[otherIdx] == "open" || ( otherState[otherIdx] ~ /^[0-9]+$/ && secOf(replyTs) <= otherState[otherIdx] + 0 ) ) { openOthers++ ; }
 	}
-	if ( latestState == "this" ) { print replyLead replyText ; return ; }
-	if ( latestState ~ /^[0-9]+$/ && secOf(replyTs) > latestState + 0 ) {
-		## Set aside whole: its every line is marked, the lines under this one too (inAside).
-		replyText = replyLead replyText
-		gsub(/\n/, "\nUNMATCHED-REPLY ", replyText)
-		print "UNMATCHED-REPLY " replyText
-		inAside = 1
-		return
-	}
+	if ( openOthers == 0 ) { print replyLead replyText ; return ; }
+	## Several stood open: no question takes it. For a reader that asks (-v whichMark=1) its head is marked, so he is asked once which one it answers.
+	if ( whichMark ) { replyText = replyLead replyText ; sub(/\n.*$/, "", replyText) ; print "AMBIGUOUS-REPLY " replyText ; }
 	inOlder = 1
 }
 
 ## A line under a reply's head, as it is printed: one space in where it reads as one of this
 ## reader's own marks, which stand at the start of a line only where this reader puts them.
 function ownLine(lineText) {
-	return ( lineText ~ /^(reaction on the question: |UNMATCHED-REPLY )/ ? " " lineText : lineText )
+	return ( lineText ~ /^(reaction on the question: |AMBIGUOUS-REPLY )/ ? " " lineText : lineText )
 }
 
 ## A member's reply whose send header fills its head line starts on a line under it, so that
@@ -199,11 +188,25 @@ function reactedByAddressee(ann,   userList, userCount, userIdx, reactUser) {
 	sub(/\)\]$/, "", userList)
 	userCount = split(userList, reactUser, ",")
 	for ( userIdx = 1 ; userIdx <= userCount ; userIdx++ ) {
-		## Never an asking account (-v askingUsers): the tooling places the answer emoji as it.
+		## Never an asking account (-v askingUsers): the tooling places the answer emoji as it. Never the question's own poster either.
 		if ( reactUser[userIdx] != "" && index( " " askingUsers " ", " " reactUser[userIdx] " " ) ) { continue ; }
+		if ( reactUser[userIdx] != "" && reactUser[userIdx] == rootAccount ) { continue ; }
 		if ( reactUser[userIdx] != "" && index( " " fromUsers " ", " " reactUser[userIdx] " " ) ) { return 1 ; }
 	}
 	return 0
+}
+
+## One reaction annotation with the accounts that cannot answer left out of its users: an asking account and the question's own poster.
+function reactionAnswerers(ann,   annHead, userList, userCount, userIdx, reactUser, keptUsers, keptCount) {
+	annHead = ann ; sub(/ x[0-9]+ \(.*$/, "", annHead)
+	userList = ann ; sub(/^.*\(/, "", userList) ; sub(/\)\]$/, "", userList)
+	userCount = split(userList, reactUser, ",")
+	keptUsers = "" ; keptCount = 0
+	for ( userIdx = 1 ; userIdx <= userCount ; userIdx++ ) {
+		if ( reactUser[userIdx] == "" || reactUser[userIdx] == rootAccount || index( " " askingUsers " ", " " reactUser[userIdx] " " ) ) { continue ; }
+		keptUsers = keptUsers ( keptCount ? "," : "" ) reactUser[userIdx] ; keptCount++
+	}
+	return annHead " x" keptCount " (" keptUsers ")]"
 }
 
 ## The reactions of one message head line that an addressee made, each printed as an answer.
@@ -213,7 +216,7 @@ function printReactions(line,   rest, ann) {
 	while ( match(rest, /^ \[[^]]*\]/) ) {
 		ann = substr(rest, RSTART + 1, RLENGTH - 1)
 		rest = substr(rest, RSTART + RLENGTH)
-		if ( ann ~ /^\[reactions: / && reactedByAddressee(ann) ) { print "reaction on the question: " ann ; }
+		if ( ann ~ /^\[reactions: / && reactedByAddressee(ann) ) { print "reaction on the question: " reactionAnswerers(ann) ; }
 	}
 }
 
@@ -224,12 +227,13 @@ function printReactions(line,   rest, ann) {
 /^[0-9]+\.[0-9]+ \| / {
 	releaseHeldOwn()
 	releaseHeldHead()
-	inAside = 0
 	msgTs = $1
 	if ( msgTs == rootTs ) {
 		rootSeen = 1
 		inRoot = 1
 		inOlder = 0
+		## The question's poster: its account, and the member it was sent for where that account is the team's one.
+		rootAccount = $3 ; rootSender = lineSender($0)
 		printReactions($0)
 		next
 	}
@@ -243,6 +247,8 @@ function printReactions(line,   rest, ann) {
 	}
 	inRoot = 0
 	if ( ! newerThan(msgTs, rootTs) ) { inOlder = 1 ; next ; }
+	## The poster of the question never answers it: a reply by its own account and its own sender is no answer.
+	if ( rootAccount != "" && $3 == rootAccount && lineSender($0) == rootSender ) { inOlder = 1 ; next ; }
 	if ( ! conversationMode && ! index( " " fromUsers " ", " " $3 " " ) ) {
 		## A MEMBER WITH NO ACCOUNT OF ITS OWN answers under the team's one, so no account tells
 		## its reply. Among the accounts that answer (-v fromUsers) it stands by its member
@@ -287,7 +293,7 @@ heldHead != "" {
 	next
 }
 
-{ if ( heldOwn != "" ) heldOwn = heldOwn "\n" $0 ; if ( ! inRoot && ! inOlder ) print ( inAside ? "UNMATCHED-REPLY " $0 : ownLine($0) ) ; }
+{ if ( heldOwn != "" ) heldOwn = heldOwn "\n" $0 ; if ( ! inRoot && ! inOlder ) print ownLine($0) ; }
 
 END {
 	if ( badUsage ) { exit 2 ; }

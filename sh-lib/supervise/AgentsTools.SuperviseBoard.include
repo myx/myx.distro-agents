@@ -11,11 +11,14 @@
 ##          last where no board item naming it changed in the last hour and the blueprint itself is older than two hours. An epic
 ##          is the owner's goal, so a still one is read and moved, never left.
 ##   `pending-skipped` an approved board-pending task the schedule's start pass leaves in silence (AgentsToolsScheduleStartPending):
-##          `<ws> <item> recheck=<date>` for a recheck-date not yet due, `<ws> <item> verify-before-build` for a task whose routine
+##          `<ws> <item> recheck=<date>` for a recheck-date not yet due beside an unmet `condition:`, `<ws> <item> verify-before-build` for a task whose routine
 ##          falls to the table's verify row (no handler-routine) and that no run has ever worked.
+##   `recheck-unreadable` an approved board-pending task whose recheck-date its reader cannot take: `<ws> <item> <date>`. Such a date
+##          holds nothing, so the item starts as if it had none; the date is rewritten in the board's `date-time` form.
 ##   `accepted-unlanded` a dispatch accepted in the last day whose run left a stage, a patch or a diff in its output and whose item
 ##          records no landing: `<ws> <dispatch>`. An accept is a review verdict; the change reaches live only when it lands.
-##   `running-idle` a task in board-running that no live run names (`<ws> <item>`): the start pass reads board-pending alone, so
+##   `running-idle` a task in board-running that no live run names and whose owner holds no live duty run (`<ws> <item>`): the
+##          start pass reads board-pending alone, so
 ##          nothing starts it again. Moved back to pending, it starts by its handler.
 ##   `leftover` a run whose record is still open a day after it started: `<ws> <spawn-id> <member> started=<date>`.
 ## Every board item is read through the board's own walk (AgentsToolsBoardItemsInto), every run record through the session store's
@@ -33,7 +36,7 @@ AgentsToolsSuperviseBoard(){ ## workspace path, now (epoch)
 	## The records of this workspace once: `<sandbox> <name> <written> <spawn-id> <status> <owner> <started-at> <description>`, TAB-separated,
 	## and their paths from the store's own walk, for the one question a row cannot answer: what a run left in its output.
 	local boardPaths=() boardWhy
-	boardRecords="$( AgentsToolsSpawnedRecordRows "$boardWs" spawn-id status owner started-at description 2> /dev/null )" || boardRecords=""
+	boardRecords="$( AgentsToolsSpawnedRecordRows "$boardWs" spawn-id status owner started-at description routine 2> /dev/null )" || boardRecords=""
 	AgentsToolsSpawnedAllRecordsInto boardPaths "$boardWs" || boardPaths=()
 	(
 		export MDAT_DATA_ROOT="$boardRoot" MMDAPP="$boardWs"
@@ -59,61 +62,129 @@ AgentsToolsSuperviseBoard(){ ## workspace path, now (epoch)
 		done
 		## PENDING THE SCHEDULE PASSES OVER IN SILENCE.
 		type AgentsToolsBoardItemKey > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.BoardItemHandler.include"
+		type AgentsToolsRecheckConditionUnmet > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.RecheckDate.include"
 		AgentsToolsBoardItemsInto boardItems "task-" pending
-		for boardItem in ${boardItems[@]+"${boardItems[@]}"} ; do
-			[ -n "$( AgentsToolsBoardItemKey "$boardItem" approved-by )" ] || continue
-			boardKey="${boardItem##*/}" ; boardKey="${boardKey%.md}"
+		## Every approved pending task in one read, `<key> <recheck-date> <handler-routine> <named by a run> <condition>` split by \037, which keeps an empty field where a TAB does not.
+		local boardPending="" boardRechecks="" boardEpochs="" boardHandler boardHas
+		[ ${#boardItems[@]} -eq 0 ] || boardPending="$( { printf '%s\n' "$boardRecords" ; printf '=\n' ; printf '%s\n' "${boardItems[@]}" ; } | LC_ALL=C awk -F'\t' '
+			## The items are named on the input and read by getline, which answers a file moved away since the listing; awk stops on one it is handed.
+			! recordsListed { if ( $0 == "=" ) recordsListed = 1 ; else runDescription[ ++descriptionCount ] = $8 ; next }
+			{
+				itemPath = $0 ; inFrontmatter = 0 ; split( "", keyValue ) ; split( "", keySeen )
+				while ( ( getline itemLine < itemPath ) > 0 ) {
+					if ( inFrontmatter == 0 ) { if ( itemLine != "---" ) break ; inFrontmatter = 1 ; continue }
+					if ( itemLine == "---" ) break
+					for ( keyName in keyWanted ) if ( ! ( keyName in keySeen ) && index( itemLine, keyName ": " ) == 1 ) { keySeen[ keyName ] = 1 ; keyValue[ keyName ] = substr( itemLine, length( keyName ) + 3 ) }
+				}
+				close( itemPath )
+				if ( keyValue[ "approved-by" ] == "" ) next
+				itemKey = itemPath ; sub( /.*\//, "", itemKey ) ; sub( /\.md$/, "", itemKey )
+				runNames = 0 ; for ( descriptionAt = 1 ; descriptionAt <= descriptionCount ; descriptionAt++ ) if ( index( runDescription[ descriptionAt ], "Board item " itemKey ) ) { runNames = 1 ; break }
+				printf "%s\037%s\037%s\037%s\037%s\n", itemKey, keyValue[ "recheck-date" ], keyValue[ "handler-routine" ], runNames, keyValue[ "condition" ]
+			}
+			BEGIN { keyWanted[ "approved-by" ] = 1 ; keyWanted[ "recheck-date" ] = 1 ; keyWanted[ "condition" ] = 1 ; keyWanted[ "handler-routine" ] = 1 }
+		' 2> /dev/null )"
+		## The recheck dates in one conversion, only those of the shape the converter reads: it stops at any other, which gave no epoch either.
+		while IFS=$'\037' read -r boardKey boardRecheck boardHandler boardHas boardCondition ; do
+			case "$boardRecheck" in [0-9][0-9][0-9][0-9]-[0-1][0-9]-[0-3][0-9]*) boardRechecks="$boardRechecks$boardRecheck"$'\n' ;; esac
+		done <<< "$boardPending"
+		[ -z "$boardRechecks" ] || boardEpochs="$( printf '%s' "$boardRechecks" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/output/LocalIsoToEpoch.awk" 2> /dev/null )"$'\n'
+		while IFS=$'\037' read -r boardKey boardRecheck boardHandler boardHas boardCondition ; do
+			[ -n "$boardKey" ] || continue
 			boardWhy=""
-			boardRecheck="$( AgentsToolsBoardItemKey "$boardItem" recheck-date )"
-			if [ -n "$boardRecheck" ] ; then
-				boardEpoch="$( printf '%s\n' "$boardRecheck" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/output/LocalIsoToEpoch.awk" 2> /dev/null )"
-				case "$boardEpoch" in ''|*[!0123456789]*) ;; *) [ "$boardEpoch" -le "$boardNow" ] || boardWhy="recheck=${boardRecheck// /_}" ;; esac
-			fi
+			case "$boardRecheck" in
+				[0-9][0-9][0-9][0-9]-[0-1][0-9]-[0-3][0-9]*)
+					boardEpoch="${boardEpochs%%$'\n'*}" ; boardEpochs="${boardEpochs#*$'\n'}"
+					## As the start pass reads it: a date not yet due holds only beside an unmet condition (AgentsToolsRecheckConditionUnmet).
+					case "$boardEpoch" in
+						''|*[!0123456789]*) printf 'recheck-unreadable %s %s %s\n' "$boardWsName" "$boardKey" "${boardRecheck// /_}" ;;
+						*) if [ "$boardEpoch" -gt "$boardNow" ] && AgentsToolsRecheckConditionUnmet "$boardCondition" ; then boardWhy="recheck=${boardRecheck// /_}" ; fi ;;
+					esac
+				;;
+				'') ;;
+				*) printf 'recheck-unreadable %s %s %s\n' "$boardWsName" "$boardKey" "${boardRecheck// /_}" ;;
+			esac
 			## A task whose routine falls to the table's verify row and that no run's description names: a verify with nothing built.
-			if [ -z "$( AgentsToolsBoardItemKey "$boardItem" handler-routine )" ] \
-				&& ! printf '%s\n' "$boardRecords" | LC_ALL=C awk -F'\t' -v k="Board item $boardKey" 'index( $8, k ) { found = 1 ; exit } END { exit ! found }' ; then
-				boardWhy="${boardWhy:+$boardWhy }verify-before-build"
-			fi
+			[ -n "$boardHandler" ] || [ "$boardHas" = 1 ] || boardWhy="${boardWhy:+$boardWhy }verify-before-build"
 			[ -z "$boardWhy" ] || printf 'pending-skipped %s %s %s\n' "$boardWsName" "$boardKey" "$boardWhy"
-		done
+		done <<< "$boardPending"
 		## RUNNING WITH NO RUN: a task in board-running that no live run names. The start pass reads board-pending alone, so such a
 		## task, whose run ended (a verify that found nothing built, a run that died), is started again by nothing.
 		## A task is also worked when a running dispatch item `tracks:` it and that dispatch's run lives: the dispatch's name ends in
 		## its run's spawn-id prefix. The tracked names are read once, in one awk over the running dispatches.
+		## The live ids reach it on stdin, its first input: a list passed with -v carries newlines, which BSD awk refuses.
 		local boardLiveIds boardTracked=""
 		boardLiveIds="$( printf '%s\n' "$boardRecords" | LC_ALL=C awk -F'\t' '$5 == "spawn-started" { print substr( $4, 1, 8 ) }' )"
 		AgentsToolsBoardItemsInto boardItems "dispatch-" running
-		[ ${#boardItems[@]} -eq 0 ] || boardTracked=$'\n'"$( LC_ALL=C awk -v live=$'\n'"$boardLiveIds"$'\n' '
+		[ ${#boardItems[@]} -eq 0 ] || boardTracked=$'\n'"$( printf '%s\n' "$boardLiveIds" | LC_ALL=C awk '
+			NR == FNR { if ( $0 != "" ) live[ $0 ] = 1 ; next }
 			FNR == 1 { fence = 0 ; id = FILENAME ; sub( /.*-/, "", id ) ; sub( /\.md$/, "", id ) }
 			$0 == "---" { if ( ++fence > 1 ) nextfile ; next }
-			fence == 1 && index( $0, "tracks: " ) == 1 { t = substr( $0, 9 ) ; sub( / .*/, "", t ) ; sub( /\.md$/, "", t ) ; if ( index( live, "\n" substr( id, 1, 8 ) "\n" ) ) print t ; nextfile }
-		' "${boardItems[@]}" 2> /dev/null )"$'\n'
+			fence == 1 && index( $0, "tracks: " ) == 1 { t = substr( $0, 9 ) ; sub( / .*/, "", t ) ; sub( /\.md$/, "", t ) ; if ( substr( id, 1, 8 ) in live ) print t ; nextfile }
+		' - "${boardItems[@]}" 2> /dev/null )"$'\n'
+		## WORKED BY ITS OWNER'S DUTY: a live duty run works its owner's running tasks in its board round, so a running task whose
+		## owner holds a live duty run on this rig is not idle. The duty routines are one list, agentsDutyRoutineKinds; the owners
+		## are read in one awk over the running tasks' headers.
+		type AgentsToolsDutyRoutineIs > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/routine/AgentsTools.DutyRoutine.include" || return 1
+		local boardDutyOwners boardOwners="" boardOwner
+		boardDutyOwners=$'\n'"$( printf '%s\n' "$boardRecords" | LC_ALL=C awk -F'\t' -v kinds="$agentsDutyRoutineKinds" '
+			BEGIN { n = split( kinds, k, " " ) }
+			$5 == "spawn-started" { for ( i = 1 ; i <= n ; i++ ) if ( $9 ~ ( "\\." k[ i ] "\\.routine\\.md$" ) ) { print $6 ; break } }
+		' )"$'\n'
 		AgentsToolsBoardItemsInto boardItems "task-" running
+		[ ${#boardItems[@]} -eq 0 ] || boardOwners=$'\n'"$( LC_ALL=C awk '
+			FNR == 1 { fence = 0 ; id = FILENAME ; sub( /.*\//, "", id ) ; sub( /\.md$/, "", id ) }
+			$0 == "---" { if ( ++fence > 1 ) nextfile ; next }
+			fence == 1 && index( $0, "owner: " ) == 1 { print id " " substr( $0, 8 ) ; nextfile }
+		' "${boardItems[@]}" 2> /dev/null )"$'\n'
 		for boardItem in ${boardItems[@]+"${boardItems[@]}"} ; do
 			boardKey="${boardItem##*/}" ; boardKey="${boardKey%.md}"
 			case "$boardTracked" in *$'\n'"$boardKey"$'\n'*) continue ;; esac
+			case "$boardOwners" in
+				*$'\n'"$boardKey "*) boardOwner="${boardOwners#*$'\n'"$boardKey "}" ; boardOwner="${boardOwner%%$'\n'*}"
+					case "$boardDutyOwners" in *$'\n'"$boardOwner"$'\n'*) continue ;; esac ;;
+			esac
 			printf '%s\n' "$boardRecords" | LC_ALL=C awk -F'\t' -v k="Board item $boardKey" '$5 == "spawn-started" && index( $8, k ) { found = 1 ; exit } END { exit ! found }' \
 				|| printf 'running-idle %s %s\n' "$boardWsName" "$boardKey"
 		done
 		## ACCEPTED, NOT LANDED.
-		## One find for the day's dispatches, one grep for the accepted ones, one for those with no landing recorded: three
-		## processes for the whole state, never one a dispatch.
-		local boardFolders=()
+		## THE DAY IS THE DISPATCH'S OWN: its name carries the moment it was made (dispatch-<YYYYMMDDTHHMM...>). A store sync or a git
+		## fetch rewrites old files and moves their mtime, so the find's -mmin only narrows, and the name decides, against the pass clock.
+		## One find for the day's dispatches, one grep for the accepted ones, one for those with no landing recorded, one awk that names each
+		## one's run folder, and one find and one awk over all those runs' outputs: six processes for the whole state, never one a dispatch.
+		local boardFolders=() boardKeys="" boardRuns="" boardOutputs=() boardLeft="" boardCut
+		boardCut="$( date -u -r $(( boardNow - 86400 )) +%Y%m%dT%H%M 2> /dev/null || date -u -d "@$(( boardNow - 86400 ))" +%Y%m%dT%H%M )"
 		AgentsToolsBoardStateFoldersInto boardFolders processed
 		for boardItem in $( LC_ALL=C find ${boardFolders[@]+"${boardFolders[@]}"} -maxdepth 1 -name 'dispatch-*.md' -mmin -1440 2> /dev/null \
+			| LC_ALL=C awk -v cut="$boardCut" '{ made = $0 ; sub( /.*\/dispatch-/, "", made ) ; if ( substr( made, 1, 13 ) >= cut ) print }' \
 			| LC_ALL=C xargs grep -l 'verdict: accepted' /dev/null 2> /dev/null \
 			| LC_ALL=C xargs grep -L -i -E 'landed|superseded|nothing to land|read only|read-only' /dev/null 2> /dev/null ) ; do
 			[ "$boardItem" != /dev/null ] || continue
 			boardKey="${boardItem##*/}" ; boardKey="${boardKey%.md}"
-			boardRow="$( printf '%s\n' ${boardPaths[@]+"${boardPaths[@]}"} | LC_ALL=C grep -m1 "/${boardKey##*-}[^/]*\.spawn\.md\$" )"
-			boardRow="${boardRow%/*}"
-			[ -n "$boardRow" ] && [ -d "$boardRow/output" ] || continue
-			LC_ALL=C find "$boardRow/output" -maxdepth 4 \( -type d -name stage -o -name '*.patch' -o -name '*.diff' \) 2> /dev/null | LC_ALL=C grep -q . \
-				&& printf 'accepted-unlanded %s %s\n' "$boardWsName" "$boardKey"
+			boardKeys="$boardKeys$boardKey"$'\n'
 		done
+		## `<dispatch><TAB><run folder>`: the first record of the store's walk whose name starts with the dispatch's spawn-id prefix.
+		[ -z "$boardKeys" ] || boardRuns="$( { printf '%s' "$boardKeys" ; printf '=\n' ; printf '%s\n' ${boardPaths[@]+"${boardPaths[@]}"} ; } | LC_ALL=C awk '
+			! keysListed { if ( $0 == "=" ) { keysListed = 1 ; next } ; runPrefix = $0 ; sub( /.*-/, "", runPrefix ) ; dispatchKeys[ ++keyCount ] = $0 ; prefixWanted[ runPrefix ] = 1 ; prefixSizes[ length( runPrefix ) ] = 1 ; next }
+			{ recordName = $0 ; sub( /.*\//, "", recordName ) ; if ( recordName !~ /\.spawn\.md$/ ) next
+			  for ( prefixSize in prefixSizes ) { nameHead = substr( recordName, 1, prefixSize ) ; if ( ( nameHead in prefixWanted ) && ! ( nameHead in runFolder ) ) { runFolder[ nameHead ] = $0 ; sub( /\/[^\/]*$/, "", runFolder[ nameHead ] ) } } }
+			END { for ( keyAt = 1 ; keyAt <= keyCount ; keyAt++ ) { runPrefix = dispatchKeys[ keyAt ] ; sub( /.*-/, "", runPrefix ) ; if ( runPrefix in runFolder ) printf "%s\t%s\n", dispatchKeys[ keyAt ], runFolder[ runPrefix ] } }
+		' )"
+		while IFS=$'\t' read -r boardKey boardRow ; do
+			[ -n "$boardRow" ] && [ -d "$boardRow/output" ] && boardOutputs+=( "$boardRow/output" )
+		done <<< "$boardRuns"
+		## What each run left, its output folder printed once where a stage, a patch or a diff stands within four levels of it.
+		[ ${#boardOutputs[@]} -eq 0 ] || boardLeft=$'\n'"$( { printf '%s\n' "${boardOutputs[@]}" ; printf '=\n' ; LC_ALL=C find "${boardOutputs[@]}" -maxdepth 4 \( -type d -name stage -o -name '*.patch' -o -name '*.diff' \) -print 2> /dev/null ; } | LC_ALL=C awk '
+			! outputsListed { if ( $0 == "=" ) outputsListed = 1 ; else outputKnown[ $0 ] = 1 ; next }
+			{ foundPath = $0 ; for ( levelUp = 0 ; levelUp < 5 && index( foundPath, "/" ) ; levelUp++ ) { sub( /\/[^\/]*$/, "", foundPath ) ; if ( ( foundPath in outputKnown ) && ! ( foundPath in outputTold ) ) { outputTold[ foundPath ] = 1 ; print foundPath ; break } } }
+		' )"$'\n'
+		while IFS=$'\t' read -r boardKey boardRow ; do
+			[ -n "$boardRow" ] || continue
+			case "$boardLeft" in *$'\n'"$boardRow/output"$'\n'*) printf 'accepted-unlanded %s %s\n' "$boardWsName" "$boardKey" ;; esac
+		done <<< "$boardRuns"
 	)
 	## LEFTOVERS: a record still open a day after its start.
-	printf '%s\n' "$boardRecords" | while IFS="$( printf '\t' )" read -r _ _ _ boardRow boardStatus boardItem boardRecheck _ ; do
+	printf '%s\n' "$boardRecords" | while IFS=$'\t' read -r _ _ _ boardRow boardStatus boardItem boardRecheck _ ; do
 		[ "$boardStatus" = spawn-started ] || continue
 		boardEpoch="$( date -j -f '%Y-%m-%d %H:%M' "${boardRecheck:0:16}" +%s 2> /dev/null || date -d "${boardRecheck:0:16}" +%s 2> /dev/null )" || continue
 		[ $(( boardNow - boardEpoch )) -gt 86400 ] && printf 'leftover %s %s %s started=%s\n' "$boardWsName" "$boardRow" "$boardItem" "${boardRecheck:0:16}"

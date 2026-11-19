@@ -112,18 +112,19 @@ rigLive(){ ## member, idle|working -- the run of that member's duty in the rig: 
 	## The real start of this duty ends a moment after its record says so, with a last milestone of its own; the run of the rig is made after that, or it is written over. A loaded machine takes minutes over it: the wait is bounded at ten.
 	liveLeft=3000
 	while [ "$liveLeft" -gt 0 ] && ! LC_ALL=C grep -q ' end$' "$rigStores/$liveSpawn/milestones" 2> /dev/null ; do sleep 0.2 ; liveLeft=$(( liveLeft - 1 )) ; done
-	LC_ALL=C sed -i.bak -e 's/^status: .*/status: spawn-started/' -e '/^resolved-at: /d' "$liveRecord" && rm -f "$liveRecord.bak"
 	## THE ITEM OF A LIVE DUTY IS A RUNNING DISPATCH. The real start of this rig ends at once (no agent CLI), so the proxy put its dispatch item in processed as
 	## dispatch-failed. A run whose item is processed is ended by its session's control thread once SESSION_CONTROL_CLOSING_SECONDS have passed
 	## (AgentsTools.SessionControlRelease.include), on the rig's own clock: a check that moves that clock hours ahead would lose every stand-in to that rule.
 	## The item goes back to running as dispatch-started, which is what a live duty's item is, so the stand-in is a live duty in every record the tooling reads.
-	local liveStem liveItem liveField
+	local liveStem liveItem liveField liveState
 	for liveField in spawns spawned-by ; do
 		liveStem="$( LC_ALL=C awk -v wantHeader="$liveField" '$0 == "---" { fmCount++ ; if ( fmCount > 1 ) exit ; next } fmCount == 1 && index( $0, wantHeader ": " ) == 1 { print substr( $0, length( wantHeader ) + 3 ) ; exit }' "$liveRecord" 2> /dev/null )"
 		[ -n "$liveStem" ] || continue
 		for liveItem in "$rigData"/board/processed/"${liveStem%.md}.md" "$rigData"/board/archived/"${liveStem%.md}.md" ; do
 			[ -f "$liveItem" ] || continue
-			rigOwnerBoardMove "${liveItem%/*}" running "${liveItem##*/}" "upsert:status:dispatch-started" "remove:resolved-at" "remove:processed-at" "remove:execution-receipt" \
+			## The move names the item's state by its folder's own name, never the folder's path.
+			liveState="${liveItem%/*}" ; liveState="${liveState##*/}"
+			rigOwnerBoardMove "$liveState" running "${liveItem##*/}" "upsert:status:dispatch-started" "remove:resolved-at" "remove:processed-at" "remove:execution-receipt" \
 				|| rigRefuse "the owner could not move ${liveItem##*/} back to running"
 		done
 	done
@@ -135,6 +136,11 @@ rigLive(){ ## member, idle|working -- the run of that member's duty in the rig: 
 	rigLiveFifo="$rigLiveDoor" bash -c 'exec 0<"$rigLiveFifo" ; IFS= read -r rigLiveLine ; exit 0' runner 5>&- > /dev/null 2>&1 < /dev/null &
 	rigLivePid="$!"
 	rigProcNote "$!" ; rigStarted="$rigStarted $!"
+	## A LIVE DUTY'S RECORD NAMES ITS LIVE PROCESS: the real start of this rig wrote the process it ran, which has ended, and a run whose
+	## recorded process is gone reads as gone, whatever runs beside it. The stand-in is the run's process, stamped by the tooling's own reader.
+	local liveStamp
+	liveStamp="$( . "$rigPackage/sh-lib/run/AgentsTools.RunProcesses.include" > /dev/null 2>&1 ; AgentsToolsRunProcessStart "$rigLivePid" 2> /dev/null )"
+	LC_ALL=C sed -i.bak -e 's/^status: .*/status: spawn-started/' -e '/^resolved-at: /d' -e "s|^run-process: .*|run-process: $rigLivePid $liveStamp|" "$liveRecord" && rm -f "$liveRecord.bak"
 	printf '%s claude --verbose --session-id %s --agent %s the brief\n' "$!" "$liveSpawn" "$1" >> "$rigDir/ps.list"
 	disown "$!" 2> /dev/null || :
 	mkdir -p "$rigStores/$liveSpawn"
@@ -149,8 +155,21 @@ rigMentionCache(){ ## -- the Slack ids of the members of the rig (URIG<last word
 }
 rigAt(){ printf '%s' "$1" > "$rigDir/now.epoch" ; }
 
+## THE START MARKS ON THE RIG'S CLOCK: the pass reads the age of a start mark (schedule/starting/: the start, .hold, .fails, .escalated) against
+## its own clock, and the files carry the real one. Each mark an iteration wrote is dated at that iteration's instant, the now.epoch it ran at,
+## kept in marks.since, whose own mtime is the real moment the iteration began: an iteration may run in a subshell of the check.
+rigMarksDate(){ ## -- the marks written since the last iteration began, dated at its instant
+	[ -s "$rigDir/marks.since" ] || return 0
+	local marksFiles=() marksFile
+	while IFS= read -r marksFile ; do
+		[ -n "$marksFile" ] && marksFiles+=( "$marksFile" )
+	done < <( find "$rigWs/.local/agents/schedule/starting" -type f -newer "$rigDir/marks.since" 2> /dev/null )
+	[ ${#marksFiles[@]} -eq 0 ] || python3 -I -B -c 'import os, sys; e = int(sys.argv[1]); [os.utime(p, (e, e)) for p in sys.argv[2:] if os.path.exists(p)]' "$( cat "$rigDir/marks.since" )" ${marksFiles[@]+"${marksFiles[@]}"}
+}
 rigOneRc=0
 rigOneRun(){ ## name of its output files -- one iteration of the real loop
+	rigMarksDate
+	cat "$rigDir/now.epoch" > "$rigDir/marks.since"
 	## The lists of started, duty and routine records are kept for seconds in the product (AgentsTools.StartedRecords.include), and a check makes records between its iterations, so it reads them fresh.
 	env -i MDAT_WORKSPACE_MODE=team-rig MDAT_SCHEDULE_THREAD=off MDAT_STARTED_RECORDS_SECONDS=0 MDAT_DUTY_RECORDS_SECONDS=0 MDAT_ROUTINE_RECORDS_SECONDS=0 HOME="$rigDir/home" PATH="$rigDir/bin:/usr/bin:/bin:/usr/sbin:/sbin" \
 		MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
@@ -180,6 +199,7 @@ rigWaitStarts(){ ## -- until the starts the loop made in the background have end
 		[ -n "$waitOpen" ] || break
 		sleep 0.2 ; waitLeft=$(( waitLeft - 1 ))
 	done
+	rigMarksDate
 	return 0
 }
 rigTool(){ ## words... -- one tooling call from the rig workspace

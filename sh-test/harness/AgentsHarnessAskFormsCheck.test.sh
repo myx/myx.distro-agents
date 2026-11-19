@@ -147,11 +147,13 @@ rigMessage(){ ## ts suffix, user, text, optional extra fields
 ## from-read the guard counts from the first thread read this call makes.
 rigKilled=""
 rigCall(){ ## guard seconds, tool, argument object, optional from-read
-	local callPid callLeft callStartLeft=120 callReads
+	local callPid callLeft callStartLeft=120 callReads callArgs="{\"sync\":true,${3#\{}"
+	## Every call runs to its own end: a harness call returns early as a task once its window passes, and the guard here is the bound.
+	[ "$3" != '{}' ] || callArgs='{"sync":true}'
 	rigKilled="no"
 	callReads="$( rigCalls conversations.replies )"
 	set -m
-	( cd "$rigScenarioDir/ws" && printf '%s' "$3" | env -u MDAT_DATA_ROOT -u CLAUDE_CODE_SESSION_ID -u CLAUDE_CODE_ENTRYPOINT \
+	( cd "$rigScenarioDir/ws" && printf '%s' "$callArgs" | env -u MDAT_DATA_ROOT -u CLAUDE_CODE_SESSION_ID -u CLAUDE_CODE_ENTRYPOINT \
 		MDAT_SPAWN_SESSION_ID="rig-forms-$rigScenarioName" RIG_SCENARIO="$rigScenarioDir" MMDAPP="$rigScenarioDir/ws" MDAT_SPAWN_AGENT="$rigMember" MDAT_HARNESS_WAIT_TIMEOUT=1 \
 		bash "$rigHarness" --intern-tool "$2" --access-read-root "$rigScenarioDir/ws" --access-write-root "$rigScenarioDir/ws/IN" ) > "$rigScenarioDir/out" 2> "$rigScenarioDir/err" &
 	callPid=$!
@@ -428,6 +430,16 @@ rigCall 60 AskQuestion "{\"pending_id\":\"$( rigRecordId )\",\"revise\":true,\"c
 rigAssert "a click on the live update answers too"     "$( rigVerdictLine )" "VERDICT: beta"
 rigAssert "the earlier reply is not read again"        "$( rigHolds "$rigScenarioDir/out" 'VERDICT: RETURNED' )" no
 
+echo "-- asked again, changed, in its own thread nobody engaged with: the root is edited in place, nothing new is posted --"
+rigStart revise-root-unengaged
+rigThread 000101 "" ""
+rigCall 30 AskQuestion "{$rigAsk,\"question\":\"Which check first?\",\"select\":\"one\",$rigOptions,\"wait\":false}"
+rigCall 8 AskQuestion "{\"pending_id\":\"$( rigRecordId )\",\"revise\":true,\"context\":\"alpha takes a minute\"}" from-read
+rigAssert "the root is edited, nothing is posted or deleted, and the record names the root as its live version" \
+	"$( rigCalls chat.postMessage ):$( rigCalls chat.update ):$( cat "$rigScenarioDir/deleted" 2>/dev/null | tr '\n' ' ' ):$( rigRecordField revision-ts ):$( rigRecordField revisions )" \
+	"1:1::1700000001.000101:1"
+rigAssert "the edit carries the change"               "$( rigHolds "$rigScenarioDir/edit.1700000001.000101" 'alpha takes a minute' )" yes
+
 echo "-- asked again inside another thread: a new reply each time, the one before marked and closed --"
 rigStart revise-threaded
 printf '{"ok":true,"messages":[{"ts":"1700000001.000001","user":"URIGOWNER","text":"the thread"},{"ts":"1700000001.000101","user":"URIGSELF1","text":"first","thread_ts":"1700000001.000001"},{"ts":"1700000001.000150","user":"URIGOWNER","text":"which is fastest?","thread_ts":"1700000001.000001"}],"has_more":false}\n' > "$rigScenarioDir/replies.json"
@@ -523,9 +535,18 @@ rigAssert "a reply with no number answers the question posted last above it: the
 rigCall 6 AskQuestion "{\"pending_id\":\"$rigSharedSecond\"}" from-read
 rigAssert "the question above the live version does not take that reply: it is still waiting" "$rigKilled:$( rigFieldOf "$rigSharedSecond" status )" "yes:reply-pending"
 
-echo "-- a discarded question: its post marked, without its answer emoji and its How to answer --"
-rigStart discard-root
+echo "-- a discarded question nobody engaged with: its post deleted, nothing posted, its asker told in its own chat --"
+rigStart discard-unengaged
 rigThread 000101 "" ""
+rigCall 30 AskQuestion "{$rigAsk,\"question\":\"Should the rig go on?\",\"select\":\"yes-no\",\"wait\":false}"
+rigCall 60 AskQuestion "{\"pending_id\":\"$( rigRecordId )\",\"withdraw\":\"the rig went on by itself\"}"
+rigAssert "it is withdrawn, its post deleted, and nothing posted or edited" \
+	"$( rigFirstLine "$rigScenarioDir/out" ):$( cat "$rigScenarioDir/deleted" 2>/dev/null | tr '\n' ' ' ):$( rigCalls chat.postMessage ):$( [ -f "$rigScenarioDir/edit.1700000001.000101" ] && echo edited || echo not-edited )" \
+	"ASK-RESULT: WITHDRAWN:1700000001.000101 :1:not-edited"
+
+echo "-- a discarded question somebody reacted to: its post marked, without its answer emoji and its How to answer --"
+rigStart discard-root
+rigThread 000101 "$( rigReactions "$rigBoth" eyes )" ""
 rigCall 30 AskQuestion "{$rigAsk,\"question\":\"Should the rig go on?\",\"select\":\"yes-no\",\"wait\":false}"
 rigAssert "posted, not waited on"                      "$( rigFirstLine "$rigScenarioDir/out" )" "ASK-RESULT: POSTED"
 rigCall 60 AskQuestion "{\"pending_id\":\"$( rigRecordId )\",\"withdraw\":\"the rig went on by itself\"}"
@@ -553,7 +574,7 @@ rigAssert "and the update under it loses its answer emoji" "$( rigReacted reacti
 ## not posted: it comes back as a correction. A line the tooling adds is nobody's to rewrite:
 ## a refused call over every limit holds nothing back, and its post is edited when discarded.
 rigStart discard-below-floor
-rigThread 000101 "" ""
+rigThread 000101 "$( rigReactions "$rigBoth" eyes )" ""
 rigCall 30 AskQuestion "{$rigAsk,\"question\":\"Should the rig go on now; or wait for the next run?\",\"select\":\"yes-no\",\"wait\":false}"
 rigAssert "a question over the plain-language floor is not posted: it comes back as a correction" \
 	"$( rigFirstLine "$rigScenarioDir/out" | cut -c1-12 ):$( rigCalls chat.postMessage ):$( rigRecordCount )" "CORRECTION: :0:0"
@@ -570,7 +591,7 @@ rigAssert "and it is still edited when discarded"      "$( rigEditShape "$rigSce
 ## and the post keeps its mark with its text as it was.
 rigStart discard-edit-refused
 : > "$rigScenarioDir/edit-refuse"
-rigThread 000101 "" ""
+rigThread 000101 "$( rigReactions "$rigBoth" eyes )" ""
 rigCall 30 AskQuestion "{$rigAsk,\"question\":\"Should the rig go on?\",\"select\":\"yes-no\",\"wait\":false}"
 rigCall 30 AskQuestion "{\"pending_id\":\"$( rigRecordId )\",\"withdraw\":\"the rig went on by itself\"}"
 rigAssert "a refused edit never fails the discard"     "$rigKilled:$( rigFirstLine "$rigScenarioDir/out" ):$( rigRecordField status )" "no:ASK-RESULT: WITHDRAWN:withdrawn"

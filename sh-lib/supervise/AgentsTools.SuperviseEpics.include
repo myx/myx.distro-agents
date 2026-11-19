@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.SuperviseEpics.include -- `--supervise-epics [--workspace <path>] [--member <name>]`: the Decisions of a rig's active epics, the
+## section its work-duty scans print (AgentsTools.EpicDecisions.include), read before an order is written to a duty there. Sourced; functions only.
+##
+
+AgentsToolsSuperviseEpics(){ ## [--workspace <path>] [--member <name>]
+	type AgentsToolsSuperviseInWorkspace > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/supervise/AgentsTools.SuperviseWorkspace.include"
+	! AgentsToolsSuperviseWorkspaceGiven "$@" || { AgentsToolsSuperviseInWorkspace AgentsToolsSuperviseEpics "$@" ; return $? ; }
+	local epicsMember="" epicsOut
+	while [ $# -gt 0 ] ; do
+		case "$1" in
+			--member)
+				[ -n "${2:-}" ] || { echo "$MDSC_CMD: ⛔ ERROR: --supervise-epics: --member requires a member name" >&2 ; return 1 ; }
+				epicsMember="$2" ; shift 2
+			;;
+			*)
+				echo "$MDSC_CMD: ⛔ ERROR: --supervise-epics: invalid option: $1 -- syntax is [--workspace <path>] [--member <name>]" >&2
+				return 1
+			;;
+		esac
+	done
+	type AgentsToolsAssertBareName > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.BareName.include"
+	[ -z "$epicsMember" ] || AgentsToolsAssertBareName "$epicsMember" "<name>" supervise-epics || return 1
+	type AgentsToolsEpicDecisionsSection > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.EpicDecisions.include"
+	epicsOut="$( AgentsToolsEpicDecisionsSection "$epicsMember" )" || return 1
+	## AN EMPTY READ SAYS SO: no epic is a result, and a blank would read as a failure.
+	if [ -z "$epicsOut" ] ; then
+		printf 'none: no item of the running, pending, blocked or review state names an epic%s\n' "${epicsMember:+ that $epicsMember may read}"
+		return 0
+	fi
+	printf '%s\n' "$epicsOut"
+}

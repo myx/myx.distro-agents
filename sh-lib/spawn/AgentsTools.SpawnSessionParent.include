@@ -12,7 +12,7 @@
 ## rc 1, nothing changed, while a child is open or queued or the record is closed already. Its watcher calls it, and
 ## housekeeping does for a parent whose watcher is gone.
 AgentsToolsSpawnSessionParentClose(){ ## parent record
-	local closeRecord="$1" closeChild closeChildRecord closeStatus closeOutcome="succeeded" closeList="" closeTemp closeThread closeFailed
+	local closeRecord="$1" closeChild closeChildRecord closeStatus closeOutcome="succeeded" closeList="" closeText closeThread closeFailed
 	type AgentsToolsFrontmatterKey > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.FrontmatterKey.include"
 	type AgentsSessionRunOwnRecordInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include" || return 1
 	[ "$( AgentsToolsFrontmatterKey "$closeRecord" status )" = spawn-started ] || return 1
@@ -31,13 +31,13 @@ AgentsToolsSpawnSessionParentClose(){ ## parent record
 		closeOutcome="failed" ; closeList="$closeList${closeList:+, }$closeFailed start-failed"
 	done
 	[ -n "$closeList" ] || { closeOutcome="failed" ; closeList="no child was started" ; }
-	closeTemp="$( mktemp "$closeRecord.tmp.XXXXXX" )" || return 1
-	LC_ALL=C awk -v outcome="$closeOutcome" -v stamp="$( date +"%Y-%m-%d %H:%M %z" )" '
+	closeText="$( LC_ALL=C awk -v outcome="$closeOutcome" -v stamp="$( date +"%Y-%m-%d %H:%M %z" )" '
 		NR == 1 { print ; next ; }
 		$0 == "---" && !closed { print "resolved-at: " stamp ; print ; closed = 1 ; next ; }
 		$0 == "status: spawn-started" { print "status: spawn-" outcome ; next ; }
 		{ print ; }
-	' "$closeRecord" > "$closeTemp" && chmod 644 "$closeTemp" && mv -f "$closeTemp" "$closeRecord" || { rm -f -- "$closeTemp" ; return 1 ; }
+	' "$closeRecord" )" && [ -n "$closeText" ] || return 1
+	printf '%s\n' "$closeText" | AgentsSpawnRecordWrite "$closeRecord" || return 1
 	## Its handback, in the caller's thread, where the parent has one. Best-effort, never the parent's outcome.
 	closeThread="$( AgentsToolsFrontmatterKey "$closeRecord" session-thread )"
 	[ -n "$closeThread" ] || return 0
@@ -50,9 +50,10 @@ AgentsToolsSpawnSessionParentClose(){ ## parent record
 
 ## Header lines set on a spawn record another process may be writing too: read, changed, and moved in only where
 ## the file is still what was read (three tries), as AgentsToolsSpawnProxyRunRecord does. Lines on stdin: `<header><TAB><value>`.
-AgentsToolsSpawnSessionRecordNote(){ ## record file
-	local noteFile="$1" noteOps noteSeen noteBody noteNow noteTries=0 noteTmp=""
+AgentsToolsSpawnSessionRecordNote(){ ## spawn record file
+	local noteFile="$1" noteOps noteSeen noteBody noteTries=0
 	[ -f "$noteFile" ] || return 1
+	type AgentsSpawnRecordWrite > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include" || return 1
 	noteOps="$( mktemp "$noteFile.ops.XXXXXX" )" || return 1
 	LC_ALL=C awk -F'\t' 'NF >= 2 { printf "upsert\t%s\t%s\n", $1, $2 }' > "$noteOps"
 	while [ "$noteTries" -lt 3 ] ; do
@@ -61,14 +62,9 @@ AgentsToolsSpawnSessionRecordNote(){ ## record file
 		[ -n "$noteSeen" ] || break
 		noteBody="$( printf '%s' "$noteSeen" | LC_ALL=C awk -v opsFile="$noteOps" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsBoardItemHeaderOpsApply.awk" 2> /dev/null )" || noteBody=""
 		[ -n "$noteBody" ] || break
-		[ -n "$noteTmp" ] || noteTmp="$( mktemp "$noteFile.note.XXXXXX" 2> /dev/null )" || break
-		printf '%s\n' "$noteBody" 2> /dev/null > "$noteTmp" || break
-		noteNow="" ; IFS= read -r -d '' noteNow < "$noteFile" 2> /dev/null || :
-		[ "$noteNow" = "$noteSeen" ] || continue
-		chmod 644 "$noteTmp" 2> /dev/null ; mv -f "$noteTmp" "$noteFile" 2> /dev/null && { rm -f "$noteOps" ; return 0 ; }
-		break
+		printf '%s\n' "$noteBody" | AgentsSpawnRecordWrite "$noteFile" "" "$noteSeen" && { rm -f "$noteOps" ; return 0 ; }
 	done
-	rm -f "$noteOps" ${noteTmp:+"$noteTmp"}
+	rm -f "$noteOps"
 	return 1
 }
 ## The founding record of a session this call started, given the lines; a warning, never a stop, where it cannot be.
@@ -144,7 +140,7 @@ agentsSpawnSessionParentWorkers=4
 ## session id; rc 1 where it failed.
 AgentsToolsSpawnSessionParentStart(){ ## parent session id, queue entry
 type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
-	local startArgs=() startArg startOut startChild startMember="${2%@*}" startScope="" startNotes="" startShort="${1:0:8}" startRoutine="" startIdentify="" startLabel=""
+	local startArgs=() startArg startOut startChild startMember="${2%@*}" startScope="" startNotes="" startShort="${1:0:8}" startRoutine="" startIdentify="" startLabel="" startRoutineFile=""
 	local startArgsFile="" startTaskFile="" startIdentifyFile="" startNotesFile="" startScopesFile=""
 	type AgentsSpawnPartitionFileInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
 	AgentsSpawnPartitionFileInto startArgsFile "$MMDAPP" "$1" args || return 1
@@ -174,6 +170,17 @@ type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents
 		| DistroAgentsTools --intern-op-agent-spawn-proxy "$startMember" ${startArgs[@]+"${startArgs[@]}"} --reports-to "$1" --session-new --parent-session "$1" --context --spawn-session )" || return 1
 	startChild="$( printf '%s\n' "$startOut" | LC_ALL=C awk -F= '$1 == "SESSION_ID" { print $2 ; exit ; }' )"
 	[ -n "$startChild" ] || return 1
+	## A coworking child holds a magic-coordinator instance as its executor, as every coworking session does: seated once its member started it.
+	if [ "$startMember" != magic-coordinator ] ; then
+		type AgentsToolsFrontmatterKey > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.FrontmatterKey.include"
+		type AgentsToolsSpawnRoutineIsCoworking > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnRoutine.include"
+		startRoutineFile="$( AgentsToolsSpawnRoutineResolve "$( AgentsToolsFrontmatterKey "${startArgsFile%/partition.args}/$1.spawn.md" routine )" 2> /dev/null )" || startRoutineFile=""
+		if [ -n "$startRoutineFile" ] && AgentsToolsSpawnRoutineIsCoworking "$startRoutineFile" ; then
+			{ [ -z "$startScope" ] || printf 'scope: %s\n' "$startScope" ; cat "$startTaskFile" ; } \
+				| DistroAgentsTools --intern-op-agent-spawn-proxy magic-coordinator ${startArgs[@]+"${startArgs[@]}"} --reports-to "$1" --session-id "$startChild" --context --spawn-session > /dev/null \
+				|| echo "$MDSC_CMD: spawn-session: ⚠️ WARNING: the child $startChild of $1 started, and its magic-coordinator could not be seated in it" >&2
+		fi
+	fi
 	[ ! -s "$startNotesFile" ] || startNotes="$( cat "$startNotesFile" )"$'\n'
 	[ -z "$startScope" ] || startNotes="${startNotes}scope"$'\t'"$startScope"$'\n'
 	[ -z "$startNotes" ] || AgentsToolsSpawnSessionNoteSession "$startChild" "$startNotes"

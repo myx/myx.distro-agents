@@ -269,6 +269,7 @@
 📘 syntax: DistroAgentsQuestions.fn.sh --read-pending-reply [--team-member <team-member>] [<pending-id>] [--all] [--any-owner] [--count]
 📘 syntax: DistroAgentsSession.fn.sh --settle-pending-reply [--team-member <team-member>] <pending-id> --reason <text> [--withdraw]
 📘 syntax: DistroAgentsQuestions.fn.sh --amend-pending-reply [--team-member <team-member>] <pending-id> --verdict <text> --reason <text>
+📘 syntax: DistroAgentsQuestions.fn.sh --reconcile-answered-status [--team-member <team-member>] [--apply]
 📘 syntax: DistroAgentsQuestions.fn.sh --record-decision [--team-member <team-member>] <item-filename> --kind <clarification|resolved|dismissed> --text <one line> (--with <party> [--wait]|--readback <pending-id>) [--source <ts-or-id>] [--clears-blocker]
 📘 syntax: DistroAgentsItems.fn.sh --request-review [--team-member <team-member>] <item-filename> --reason <text>
 📘 syntax: DistroAgentsItems.fn.sh --accept-review [--team-member <team-member>] <item-filename> [--summary <text>]
@@ -300,9 +301,11 @@
 📘 syntax: AgentDispatcherTools.fn.sh --spawn-run [--select-workspace <place-name>] (--routine <selector>|--routine-default) [<DistroAgentsDispatcher.fn.sh --spawn-session options>]
 📘 syntax: AgentDispatcherTools.fn.sh --supervise-rigs
 📘 syntax: AgentDispatcherTools.fn.sh --supervise-scan [--workspace <path>]... [--since <epoch>]
+📘 syntax: AgentDispatcherTools.fn.sh --supervise-epics [--workspace <path>] [--member <name>]
 📘 syntax: AgentDispatcherTools.fn.sh --supervise-resume [--workspace <path>]...
 📘 syntax: AgentDispatcherTools.fn.sh --supervise-read <run-id> [--tail <lines>] [--thread-lines <lines>] [--no-thread] [--no-checklist] [--log] [--workspace <path>]
 📘 syntax: AgentDispatcherTools.fn.sh --supervise-guide <run-id> [--text <text>|--from-file <path>] [--workspace <path>]
+📘 syntax: AgentDispatcherTools.fn.sh --supervise-reload-due <run-id> --file <changed file> [--workspace <path>]
 📘 syntax: AgentDispatcherTools.fn.sh --supervise-checklist-add <run-id> (--item <text>)... [--workspace <path>]
 📘 syntax: AgentDispatcherTools.fn.sh --supervise-fault <run-id> --owner <member> --title <one line> [--from-file <path>] [--workspace <path>]
 📘 syntax: AgentDispatcherTools.fn.sh --supervise-close-orphans [--execute] [--workspace <path>]...
@@ -4630,7 +4633,7 @@
 			TAB-separated fields on stdout, the first naming the row. An
 			absent value reads `-`, and a value's own whitespace reads `_`,
 			as in a registry: a date reads `2026-10-12_16:57_+0300`.
-			`session <session-id> <name> <state> <started-at> <state-at> <run-count> <state-tally> <session-state> <session-state-at> <control-thread> <tokens> <usage-limit> <refused> <chapter>`
+			`session <session-id> <name> <state> <started-at> <state-at> <run-count> <state-tally> <session-state> <session-state-at> <control-thread> <tokens> <usage-limit> <refused> <chapter> <phase>`
 			`run <session-id> <spawn-id> <member> <status> <live> <state> <started-at> <resolved-at> <host> <workspace> <activity>`
 			`counters <sessions-running> <sessions-paused> <agents-working> <agents-waiting> <pending-answers> <load-average> <host>`
 			A session row is followed by its runs, the earliest started
@@ -4678,6 +4681,12 @@
 			line the executor of the session set with
 			`--set-session-chapter` for the stage it is in, read from the
 			store of the session at each call, with `-` where there is none.
+			<phase> is the one rule of an active session, which the console's
+			lists take as it is: `active` for a <state> of `running`, `busy`,
+			`starting`, `waiting`, `paused`, `awaiting-review` or
+			`unclosed`; `ended` for a `finished` or `failed` session whose
+			last run closed in this minute or the one before, by the
+			registry's minute; else `closed`.
 			A run's <live> is what `ListAgents` shows: `running`, `gone`, `remote` or `unknown`. Its <state> too,
 			but for a run that died on its start: that one reads `failed`.
 			A live run's <state> is what it is doing: `thinking`, `tool`, `idling`
@@ -4686,11 +4695,10 @@
 			its <state> is `waiting` or `idling`, `paused` where a pause holds it, inside a `Wait` call or an ask that
 			waits on a person, and `working` otherwise: it is read from
 			<state> and from no other file. `--active` keeps
-			every session that is not finished and can be acted on from
-			this host: those whose <state> is `running`, `waiting`,
-			`awaiting-review`, `unclosed`, `paused` or `failed`, each with all its runs, as without it. It leaves
-			out the `finished` ones, and the `unknown-foreign`, which are
-			another host's: nothing can be done with those from here. The
+			every session whose <phase> is `active` or `ended`, each with all its runs, as without it. It leaves
+			out the `closed` ones: those that ended earlier, finished or
+			failed, and the `unknown-foreign`, which are another host's:
+			nothing can be done with those from here. The
 			counters count the whole workspace
 			either way. <sessions-paused> is the sessions a pause holds,
 			whose every live run reads `paused` (S19). <pending-answers> is the open asks, <load-average> the
@@ -4733,7 +4741,7 @@
 			measured in the same call. It writes nothing else. Prints
 			rows of TAB-separated fields on stdout, the first naming the
 			row. An absent value reads `-`.
-			`session <session-id> <name> <state> <started-at> <state-at> <run-count> <state-tally> <session-state> <session-state-at> <control-thread> <tokens> <usage-limit> <refused> <chapter>`
+			`session <session-id> <name> <state> <started-at> <state-at> <run-count> <state-tally> <session-state> <session-state-at> <control-thread> <tokens> <usage-limit> <refused> <chapter> <phase>`
 			`dispatch <session-id> <founder> <member> <routine> <dispatch-item> <session-thread> <tracking-thread> <description>`
 			`control <session-id> <session-state> <session-state-at> <control-thread> <control-pid>`
 			`tokens <session-id> <tokens-in> <tokens-cache-read> <tokens-cache-write> <tokens-out> <runs-summed> <runs-running> <total> <runs-unknown>`
@@ -6427,6 +6435,15 @@
 			decision or permission is refused, because its verdict may
 			have written a grant, which is corrected through the grant
 			store.
+
+		--reconcile-answered-status [--team-member <team-member>] [--apply]
+			Lists the open items whose `status:` or `condition:` names a question already
+			answered, by its id or the id's first eight characters, and whose status lacks that
+			answer: one `STATUS-STALE <item> <state> <pending-id>` line each, or `STATUS-NONE`.
+			It writes nothing. `--apply` appends `<pending-id> answered <verdict> by <who> at
+			<time>` to each one's status, and prints `STATUS-ANSWERED` lines instead. Only
+			magic-coordinator may apply it. A close with a verdict appends the same line by itself,
+			to the ask's own item and to every open item that names it so.
 
 		--record-decision [--team-member <team-member>] <item-filename> --kind <clarification|resolved|dismissed> --text <one line> (--with <party> [--wait]|--readback <pending-id>) [--source <ts-or-id>] [--clears-blocker]
 			Appends one dated line to the board item's `## Decisions`

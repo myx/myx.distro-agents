@@ -125,6 +125,55 @@ AgentsToolsBoardDependencies(){
 	[ -n "${MDAT_DATA_ROOT:-}" ] && [ -d "$MDAT_DATA_ROOT/board" ] || return 0
 	mkdir -p "$depState" 2> /dev/null || return 0
 	depMarker="$depState/board-dependencies.marker" depSig="$depState/board-dependencies.sig" depReport="$depState/board-dependencies.last"
+	## A WAVE ITEM WHOSE FEATURE IS DONE GOES TO REVIEW: an item of pending or blocked whose body says `Tracking document: <epic>, feature <id>`,
+	## where that epic's `## Done` holds a line for the id, is put into review with a Decisions line naming that Done line, for its reviewer to
+	## accept. Whatever route wrote the Done, this pass finds it. It runs at every call, since a Done is written in the vault and not on the board.
+	## An item without the line, or one this pass already moved for that Done line, is left alone. Each epic is read once a pass.
+	local depWave depWaveState depWaveItem depWaveEpic depWaveId depWavePath depWaveDone="" depWaveRead=" " depWaveFrom depWaveLine
+	depWave="$( LC_ALL=C awk '
+		function flush() { if ( item != "" && epic != "" && !index( marks, "feature " id " reads done in " epic ) ) print st "\t" item "\t" epic "\t" id ; }
+		FNR == 1 { flush() ; n = split( FILENAME, p, "/" ) ; item = p[n] ; st = p[n - 1] ; epic = "" ; id = "" ; marks = "" }
+		epic == "" && /^([-*] )?Tracking document: [^,]+, feature S[0-9]+(\.[0-9]+)?[ \t]*$/ {
+			line = $0 ; sub( /^([-*] )?Tracking document: /, "", line ) ; sub( /[ \t]+$/, "", line )
+			epic = line ; sub( /, feature .*$/, "", epic ) ; id = line ; sub( /^.*, feature /, "", id ) ; next
+		}
+		index( $0, " reads done in " ) { marks = marks "\n" $0 }
+		END { flush() }
+	' "$MDAT_DATA_ROOT"/board/pending/*.md "$MDAT_DATA_ROOT"/board/blocked/*.md 2> /dev/null )"
+	while IFS=$'\t' read -r depWaveState depWaveItem depWaveEpic depWaveId ; do
+		[ -n "$depWaveItem" ] || continue
+		case "$depWaveRead" in *" $depWaveEpic "*) ;; *)
+			depWaveRead="$depWaveRead$depWaveEpic "
+			## The epic as the epic tooling names one: a vault item by its name, or a file under a todo-sketchpad folder with no .. part
+			## (AgentsTools.MagicEpic.include, which runs its operation when sourced, so its rule is held here).
+			depWavePath=""
+			case "/$depWaveEpic/" in
+				*/../*) ;;
+				*/todo-sketchpad/*) depWavePath="$depWaveEpic" ;;
+				/epic-blueprint-*/) case "$depWaveEpic" in */*) ;; *)
+					type AgentsToolsVaultItemPath > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/vault/AgentsTools.VaultPlace.include"
+					depWavePath="$( AgentsToolsVaultItemPath "${depWaveEpic%.md}.md" 2> /dev/null )" || depWavePath=""
+				;; esac ;;
+			esac
+			[ -z "$depWavePath" ] || [ ! -f "$depWavePath" ] || depWaveDone="$depWaveDone$( LC_ALL=C awk -v epic="$depWaveEpic" '/^## / { done = ( $0 ~ /^## Done[ \t]*$/ ) ; next } done && /^- S[0-9]/ { print epic "\t" $0 }' "$depWavePath" 2> /dev/null )"$'\n'
+		;; esac
+		depWaveLine=""
+		while IFS=$'\t' read -r depWaveFrom depWaveLine ; do
+			[ "$depWaveFrom" = "$depWaveEpic" ] || { depWaveLine="" ; continue ; }
+			case "$depWaveLine" in "- $depWaveId:"*) break ;; esac
+			depWaveLine=""
+		done <<< "$depWaveDone"
+		[ -n "$depWaveLine" ] || continue
+		type AgentsReviewPutIntoReview > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ReviewFlow.include"
+		if AgentsReviewPutIntoReview "$depWaveItem" "$depWaveState" "feature $depWaveId is done in $depWaveEpic" 2> /dev/null ; then
+			type AgentsToolsDecisionsAppend > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemDecisions.include"
+			type AgentsToolsActingMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.CallerCheck.include"
+			AgentsToolsDecisionsAppend "$( AgentsToolsActingMember )" "$depWaveItem" review "feature $depWaveId reads done in $depWaveEpic: ${depWaveLine:0:240} -- put into review from $depWaveState for its reviewer to accept" "the board's done pass" "" "" > /dev/null 2>&1 || :
+			printf 'done features: %s is in review, its feature %s done in %s\n' "${depWaveItem%.md}" "$depWaveId" "$depWaveEpic"
+		else
+			printf 'done features: %s could not be put into review, though its feature %s is done in %s\n' "${depWaveItem%.md}" "$depWaveId" "$depWaveEpic"
+		fi
+	done <<< "$depWave"
 	AgentsToolsBoardDependenciesChanged "$depMarker" "$depSig" || return 0
 	depFindings="$( AgentsToolsBoardDependenciesFindings )"
 	while IFS=$'\t' read -r depKind depItemState depItem depField depValue ; do

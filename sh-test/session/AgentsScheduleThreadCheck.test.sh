@@ -12,6 +12,8 @@
 ##   4. ONE ASK STARTS IT AND A SECOND DOES NOTHING. The first says `started <pid>` and the thread takes the lock. A second inside the ask interval
 ##      says `waiting`. One after the interval, with the thread alive, says `alive <pid>` and starts no second one.
 ##   5. A KILLED THREAD IS PUT BACK by the next ask, under a new pid.
+##   5c. ANY INCLUDE ITS PASS SOURCES IS ITS CODE: a change to one ends the thread between passes, and it runs again on the current code
+##       in its own process, its lock kept.
 ##   6. THE PASSES ARE MINUTES APART: two ticks a second apart make one pass between them.
 ##   7. `MDAT_SCHEDULE_THREAD=off` says `off` and starts nothing.
 ##   8. THE MAIN LOOP ONLY MAKES SURE IT RUNS: with the thread on, one iteration asks for it and starts no routine in its own process. With the thread
@@ -213,11 +215,37 @@ rigThreadUp ; sleep 1 ; rigPid5="$( rigThreadPid )"
 : > "$rigCodeFile"
 rigWaited=0
 while [ "$rigWaited" -lt 120 ] ; do
-	rigPid6="$( rigThreadPid )"
-	{ [ -n "$rigPid6" ] && [ "$rigPid6" != "$rigPid5" ] ; } && break
+	[ "$( LC_ALL=C grep -c -F "the thread runs as pid $rigPid5:" "$rigWs/.local/agents/schedule-thread/thread.log" )" -lt 2 ] || break
+	{ rigPid6="$( rigThreadPid )" ; [ -n "$rigPid6" ] && [ "$rigPid6" != "$rigPid5" ] ; } && break
 	sleep 0.5 ; rigWaited=$(( rigWaited + 1 ))
 done
-rigAssert "the thread ended on its code changing, and a new one holds the lock, started by the first with no ask from outside" "$( LC_ALL=C grep -c -F 'ends: its code changed' "$rigWs/.local/agents/schedule-thread/thread.log" ):$( { [ -n "$rigPid6" ] && [ "$rigPid6" != "$rigPid5" ] ; } && printf new || printf same )" "1:new"
+rigPid6="$( rigThreadPid )"
+rigAssert "the thread ended on its code changing, and runs again by itself with no ask from outside, the same process holding the lock" "$( LC_ALL=C grep -c -F 'ends: its code changed' "$rigWs/.local/agents/schedule-thread/thread.log" ):$( [ "$rigPid6" = "$rigPid5" ] && printf same || printf "other:$rigPid6" )" "1:same"
+rigThreadEnd
+
+echo "-- 5c. a change to any include a pass sources ends the thread, not only to the four of the thread's own --"
+## A copy of the tooling in the rig, so a file of it may change: the include of the board's dependencies, which the pass sources and which is
+## none of the thread's own files. The thread runs from that copy; the include is written, and the thread must end on it and run again,
+## the same process holding the same lock.
+rigOrigin="$rigDir/origin"
+mkdir -p "$rigOrigin/myx/myx.distro-agents"
+cp -RL "$MDLT_ORIGIN/myx/myx.distro-system" "$rigOrigin/myx/myx.distro-system" || rigRefuse "the origin's system package is not there"
+cp -RL "$MDLT_ORIGIN/myx/myx.distro-.local" "$rigOrigin/myx/myx.distro-.local" || rigRefuse "the origin's local package is not there"
+cp -RL "$rigPackage/sh-lib" "$rigPackage/sh-scripts" "$rigOrigin/myx/myx.distro-agents/" || rigRefuse "the package's sh-lib and sh-scripts could not be copied"
+rm -rf "$rigWs/.local/agents/schedule-thread"
+rigAsk ask6 MDLT_ORIGIN="$rigOrigin" "MDLT_OPTION=--run-from-path $rigOrigin" PKG="$rigOrigin/myx/myx.distro-agents"
+rigThreadUp ; sleep 1 ; rigPid7="$( rigThreadPid )"
+[ -n "$rigPid7" ] || rigRefuse "the thread from the rig's copy of the tooling never took its lock, so nothing below would be measured"
+sleep 1 ; touch "$rigOrigin/myx/myx.distro-agents/sh-lib/board/AgentsTools.BoardDependencies.include"
+rigWaited=0
+while [ "$rigWaited" -lt 240 ] ; do
+	[ "$( LC_ALL=C grep -c -F "the thread runs as pid $rigPid7:" "$rigWs/.local/agents/schedule-thread/thread.log" )" -lt 2 ] || break
+	{ rigPid8="$( rigThreadPid )" ; [ -n "$rigPid8" ] && [ "$rigPid8" != "$rigPid7" ] ; } && break
+	sleep 0.5 ; rigWaited=$(( rigWaited + 1 ))
+done
+rigPid8="$( rigThreadPid )"
+rigAssert "the thread ended on the board's include changing, and runs again on the current code, the same process holding the lock" \
+	"$( LC_ALL=C grep -c -F 'ends: its code changed: AgentsTools.BoardDependencies.include' "$rigWs/.local/agents/schedule-thread/thread.log" ):$( LC_ALL=C grep -c -F "the thread runs as pid $rigPid7:" "$rigWs/.local/agents/schedule-thread/thread.log" ):$( [ "$rigPid8" = "$rigPid7" ] && printf same || printf "other:$rigPid8" )" "1:2:same"
 rigThreadEnd
 
 echo "-- 6. the passes are minutes apart --"

@@ -96,7 +96,8 @@ AgentsToolsBoardItemEpoch(){ ## date-time
 }
 
 ## WHETHER A DOCUMENT IS DUE A ROUND, and why. THE predicate of the guarantee: its folder is one
-## of the five active states, `recheck-date` is absent or past, and `last-round-at` is absent or
+## of the five active states, `recheck-date` is absent, past, unreadable or, on a pending item, set beside no unmet
+## `condition:` (AgentsToolsRecheckConditionUnmet), and `last-round-at` is absent or
 ## older than the staleness window. Prints ONE LINE FOR EVERY item file given, never a filtered
 ## set, so a reader works the answer out from the inputs rather than trusting a filter. The five
 ## fields are `\x1c`-separated, since a tab is IFS whitespace and would shift an empty field:
@@ -106,7 +107,8 @@ AgentsToolsBoardItemEpoch(){ ## date-time
 ## none is, 2 where a path is no board item file OR a document could not be read: a fault is
 ## never reported as an empty set, and the document that could not be read is named.
 AgentsToolsBoardItemDue(){ ## item file...
-	local duePath dueState dueRecheck dueLast dueRows dueNow dueEpoch dueWhy dueAny=0 dueUnread=0
+	local duePath dueState dueRecheck dueLast dueCondition dueRows dueNow dueEpoch dueWhy dueAny=0 dueUnread=0
+	type AgentsToolsRecheckConditionUnmet > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.RecheckDate.include"
 	local dueRead=() dueBlind=()
 	[ $# -gt 0 ] || return 1
 	for duePath in "$@" ; do
@@ -123,12 +125,12 @@ AgentsToolsBoardItemDue(){ ## item file...
 	if [ ${#dueRead[@]} -gt 0 ] ; then
 		dueRows="$(
 			LC_ALL=C awk '
-				function dueRow(path, state, recheck, lastRound) {
-					printf "%s\x1c%s\x1c%s\x1c%s\n", path, state, recheck, lastRound ;
+				function dueRow(path, state, recheck, lastRound, condition) {
+					printf "%s\x1c%s\x1c%s\x1c%s\x1c%s\n", path, state, recheck, lastRound, condition ;
 				}
 				FNR == 1 {
-					if (seenPath != "") { dueRow(seenPath, seenState, seenRecheck, seenLast) } ;
-					fm = 0 ; seenPath = FILENAME ; seenState = "" ; seenRecheck = "" ; seenLast = "" ;
+					if (seenPath != "") { dueRow(seenPath, seenState, seenRecheck, seenLast, seenCondition) } ;
+					fm = 0 ; seenPath = FILENAME ; seenState = "" ; seenRecheck = "" ; seenLast = "" ; seenCondition = "" ; conditionSeen = 0 ;
 					pathDepth = split(FILENAME, pathPart, "/") ;
 					if (pathDepth > 1) { seenState = pathPart[pathDepth - 1] } ;
 					if ($0 == "---") { fm = 1 } ;
@@ -137,11 +139,12 @@ AgentsToolsBoardItemDue(){ ## item file...
 				fm == 1 && $0 == "---" { fm = 0 ; next } ;
 				fm == 1 && index($0, "recheck-date: ") == 1 { seenRecheck = substr($0, 15) ; next } ;
 				fm == 1 && index($0, "last-round-at: ") == 1 { seenLast = substr($0, 16) ; next } ;
-				END { if (seenPath != "") { dueRow(seenPath, seenState, seenRecheck, seenLast) } } ;
+				fm == 1 && ! conditionSeen && index($0, "condition: ") == 1 { conditionSeen = 1 ; seenCondition = substr($0, 12) ; next } ;
+				END { if (seenPath != "") { dueRow(seenPath, seenState, seenRecheck, seenLast, seenCondition) } } ;
 			' ${dueRead[@]+"${dueRead[@]}"}
 		)" || return 2
 	fi
-	while IFS=$'\x1c' read -r duePath dueState dueRecheck dueLast ; do
+	while IFS=$'\x1c' read -r duePath dueState dueRecheck dueLast dueCondition ; do
 		[ -n "$duePath" ] || continue
 		[ -n "$dueRecheck" ] || dueRecheck="-"
 		[ -n "$dueLast" ] || dueLast="-"
@@ -150,7 +153,8 @@ AgentsToolsBoardItemDue(){ ## item file...
 			*" $dueState "*) ;;
 			*) dueWhy="not-an-active-state" ;;
 		esac
-		if [ "$dueWhy" = due ] && [ "$dueRecheck" != - ] ; then
+		## On a pending item a recheck-date re-checks an unmet condition, and beside any other it holds nothing back (board-model.md).
+		if [ "$dueWhy" = due ] && [ "$dueRecheck" != - ] && { [ "$dueState" != pending ] || AgentsToolsRecheckConditionUnmet "$dueCondition" ; } ; then
 			dueEpoch="$( AgentsToolsBoardItemEpoch "$dueRecheck" )"
 			case "$dueEpoch" in
 				''|*[!0123456789]*) ;;

@@ -144,12 +144,12 @@ if ! type AgentsChangeFill > /dev/null 2>&1 ; then
 
 	## The prompt of a change that takes no answer any more, closed the way the post of a
 	## discarded permission set is: its own answer emoji taken off, the cancelled mark of its
-	## template put on, its How to answer part edited away (AgentsToolsAskPostClose). Best effort.
-	AgentsChangePostClose(){ ## record file
+	## template put on, its How to answer part edited away (AgentsToolsAskPostClose). Best effort. Where it was answered, the emoji of that answer stay.
+	AgentsChangePostClose(){ ## record file, verdict (empty: none was given)
 		local closeTs
 		type AgentsToolsAskPostClose > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.AskPost.include"
 		closeTs="$( AgentsToolsAskPostField "$1" question-ts )"
-		[ -z "$closeTs" ] || AgentsToolsAskPostClose "$1" "$closeTs" cancelled edit
+		[ -z "$closeTs" ] || AgentsToolsAskPostClose "$1" "$closeTs" cancelled edit "${2:-}"
 		return 0
 	}
 

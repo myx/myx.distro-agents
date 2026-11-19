@@ -84,13 +84,32 @@ case "$1" in
 		mkdir -p "$schDir" 2> /dev/null || { echo "⛔ ERROR: $MDSC_CMD --intern-schedule: $schDir could not be made -- nothing was started" >&2 ; return 1 ; }
 		exec < /dev/null >> "$schDir/thread.log" 2>&1
 		case "$MMDAPP:$MDLT_ORIGIN" in /*:/*) cd / 2> /dev/null ;; esac
-		## The code this thread runs for hours: a change to one of these ends it, and the next ask starts one on the current code (AgentsToolsOnDemandThreadServe).
-		agentsOnDemandCodeFiles="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/schedule/AgentsTools.InternSchedule.include $MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/schedule/AgentsTools.ScheduleThread.include $MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/schedule/AgentsTools.DispatcherSchedule.include $MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.OnDemandThread.include ${MDAT_SCHEDULE_CODE_EXTRA:-}"
+		## The code this thread runs for hours is every file of the tooling it sources, at any pass: a change to any one ends it between two passes, and
+		## it starts again on the current code (AgentsToolsOnDemandThreadServe). The patterns are expanded at each look, so a file added since counts.
+		agentsOnDemandCodeFiles="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/*/*.include $MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/*/*.awk $MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/*/*.py $MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/*/*.sh $MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/*.sh ${MDAT_SCHEDULE_CODE_EXTRA:-}"
 		local schServeRc=0
 		agentsOnDemandLeft=""
 		AgentsToolsOnDemandThreadServe "$schDir" "$schIdle" AgentsToolsScheduleThreadPass AgentsToolsScheduleThreadPass no || schServeRc=$?
-		## A thread that ended because its own code changed starts again on the current code; the lock was given up, so the ask starts one.
-		case "${agentsOnDemandLeft:-}" in "its code changed"*) AgentsToolsScheduleThreadAsk > /dev/null 2>&1 || : ;; esac
+		## A THREAD THAT ENDED BECAUSE ITS OWN CODE CHANGED RUNS AGAIN ON THE CURRENT CODE IN ITS OWN PROCESS: it takes its lock back and re-execs
+		## itself with the same arguments, so the lock and the process stay the one thread's. Where a start claimed the lock first, that start's
+		## thread is the one, and this process ends. Where the lock cannot be taken at all, the ask starts one.
+		case "${agentsOnDemandLeft:-}" in
+			"its code changed"*)
+				local schMe="" schTook=0
+				schMe="$( exec sh -c 'echo "$PPID"' 2> /dev/null )" || schMe=""
+				schMe="$( printf '%s\n' "$schMe" | AgentsToolsRunProcessesBegan )" || schMe=""
+				schTook=2
+				[ -z "$schMe" ] || { AgentsToolsThreadLockTake "$schDir/thread.lock" "$schMe" > /dev/null ; schTook=$? ; }
+				case "$schTook" in
+					0)
+						printf '%s the thread, pid %s, runs again on the current code\n' "$( date -u +%Y-%m-%dT%H:%M:%SZ )" "${schMe%% *}"
+						exec "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-schedule --run
+					;;
+					1) ;;
+					*) AgentsToolsScheduleThreadAsk > /dev/null 2>&1 || : ;;
+				esac
+			;;
+		esac
 		return $schServeRc
 	;;
 

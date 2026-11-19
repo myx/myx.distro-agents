@@ -30,7 +30,7 @@ trap 'chmod -R u+rwX -- "$rigTmp" 2> /dev/null ; rm -rf -- "$rigTmp"' EXIT
 trap 'exit 1' INT TERM
 ## The pass runs with MMDAPP at the rig's own root, and the store under its .local, so the schedule's kept files and the
 ## store's own makers both see one rig.
-rigWs="$rigTmp" rigData="$rigTmp/.local/agents/team-data" rigMembers="$rigTmp/members" rigSpawned="$rigTmp/spawned"
+rigWs="$rigTmp" rigData="$rigTmp/.local/agents/team-data" rigMembers="$rigTmp/members" rigSpawned="$rigTmp/.local/agents/spawned"
 rigMember=magic-coordinator
 rigNote="note-20261020T000000Z-work-duty-state-and-lock.md"
 rigInbox="$rigData/inboxes/$rigMember/incoming"

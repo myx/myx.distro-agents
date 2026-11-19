@@ -6,6 +6,7 @@ requires-session-kind: standalone
 start-context: any
 input-scan-def: member-work-session
 review-by: inherit
+deliverables: each inbox item read and replied to, routed or resolved, then marked processed
 runs-at: none
 ---
 # magic-team.process-inbox.routine — the actual procedure

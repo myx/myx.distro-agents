@@ -7,8 +7,8 @@
 ## tokens usage-limit chapter), the pending-replies registry file, then the measured rows
 ## (measuredDated of AgentsToolsRegistryMeasureRows: eleven stored columns, live, state,
 ## started-at, resolved-at, session-comment, session-state, session-state-at). -v activeOnly=1
-## keeps the sessions that are not finished and can be acted on from this host, those that
-## read running, waiting, awaiting-review, unclosed or failed (activeState); -v loadAverage is the figure of the counters row, and
+## keeps the sessions whose phase, the last field of their row, is `active` or `ended`. -v loadAverage is
+## the figure of the counters row, and
 ## -v hostName the name of this host, which stands last in that row, `-` where none is given. In
 ## the environment, MDAT_MANAGER_CONTROL is a line `<session-id> <alive|gone> <pid>` for
 ## each session whose control thread left a pid file or a lock, as it was measured for this
@@ -39,8 +39,10 @@
 ## THE REFUSED COUNT of a session, the second-last field of its row, is every one of its runs' own
 ## `refused` count added (sketch 3.6): not only the refusal that stopped a run, every one a
 ## run's harness loop hit. `-` where none of the session's runs ever carried one.
-## THE CHAPTER of a session, the last field of its row, is the one line its executor set with --set-session-chapter, read
+## THE CHAPTER of a session, the last field but one of its row, is the one line its executor set with --set-session-chapter, read
 ## from the session's store; `-` where there is none, or where the row is no session of its own.
+## THE PHASE of a session, the last field of its row, is the one rule of an active session for every door, the CLI's
+## --active and the console's lists alike: `active` (activeState), `ended` (recentlyEnded), else `closed`.
 ##
 ## Every line goes out behind five sort keys and a TAB each, for
 ## `sort -t <TAB> -k1,1nr -k2,2n -k3,3n -k4,4n -k5,5n` and a cut of them: the session's
@@ -49,23 +51,22 @@
 ## row carries -2, so it is the last line.
 ##
 
-## Whether --active keeps a session of that state: one that is not finished, and with which
-## something can still be done from this host. `running`. `waiting`: no live process and a run
+## Whether a session of that state is active: one that is not finished, and with which
+## something can still be done from this host. `running`, and `busy`, every live run of it waiting on a busy provider. `waiting`: no live process and a run
 ## of it waiting on an answer, which can be answered or dismissed, or every live run of it in a
 ## wait on a person, which is what it is doing. `unclosed`, no live process
-## and a record still open: the record can be closed, the run started again. `failed`, every run of it
-## died on its start: a joined coordinator takes it up. `awaiting-review`, every run of it ended or handed back and one
-## parked: its handback waits for a verdict. Not `finished`;
+## and a record still open: the record can be closed, the run started again. `awaiting-review`, every run of it ended or handed back and one
+## parked: its handback waits for a verdict. Not `finished`, and not `failed`, every run of it died on its start: a failed session is ended;
 ## and not `unknown-foreign`, which is another host's: nothing can be done with it from here. `starting`, a run the main
 ## loop is still starting (its start marker has no result yet), whose process is not seen yet.
-## A SESSION THAT ENDED IN THE LAST MINUTE STAYS IN THE ACTIVE LIST, as finished, so a run that dies between two refreshes is seen (S7.29).
+## A SESSION THAT ENDED IN THE LAST MINUTE STAYS IN THE ACTIVE LIST, finished or failed, so a run that dies between two refreshes is seen (S7.29).
 function recentlyEnded(sessionKey) {
 	if (nowMinutes == "") { nowMinutes = ENVIRON["MDAT_MANAGER_NOW_MINUTES"] ; if (nowMinutes == "") { srand() ; nowMinutes = int(srand() / 60) ; } }
-	return ( sessionState[sessionKey] == "finished" && sessionEnd[sessionKey] >= 0 && nowMinutes - sessionEnd[sessionKey] <= 1 ) ;
+	return ( ( sessionState[sessionKey] == "finished" || sessionState[sessionKey] == "failed" ) && sessionEnd[sessionKey] >= 0 && nowMinutes - sessionEnd[sessionKey] <= 1 ) ;
 }
 
 function activeState(stateWord) {
-	return ( stateWord == "running" || stateWord == "starting" || stateWord == "waiting" || stateWord == "paused" || stateWord == "awaiting-review" || stateWord == "unclosed" || stateWord == "failed" ) ;
+	return ( stateWord == "running" || stateWord == "busy" || stateWord == "starting" || stateWord == "waiting" || stateWord == "paused" || stateWord == "awaiting-review" || stateWord == "unclosed" ) ;
 }
 
 ## The usage-limit flag of one run, from the store's facts: the `usage-limit` fact, the one wording
@@ -213,7 +214,8 @@ END {
 		else sessionState[sessionKey] = "finished" ;
 		if (sessionState[sessionKey] == "running") sessionsRunning++ ;
 		if (sessionState[sessionKey] == "paused") sessionsPaused++ ;
-		if (activeOnly && !activeState(sessionState[sessionKey]) && !recentlyEnded(sessionKey)) continue ;
+		sessionPhase[sessionKey] = ( activeState(sessionState[sessionKey]) ? "active" : ( recentlyEnded(sessionKey) ? "ended" : "closed" ) ) ;
+		if (activeOnly && sessionPhase[sessionKey] == "closed") continue ;
 		if (learnOnly && sessionState[sessionKey] != "finished") continue ;
 		stateTally = "" ;
 		for (stateAt = 1 ; stateAt <= stateTotal ; stateAt++) {
@@ -221,16 +223,16 @@ END {
 		}
 		## The date of a state is on record for a session that ended alone: when its last run closed.
 		## Then, at the end of the row, what its control thread stored and whether that thread lives;
-		## its tokens; and, last, the usage-limit flag of its runs, `-` where none was refused.
+		## its tokens; the usage-limit flag of its runs, `-` where none was refused; its refused count, its chapter, and, last, its phase.
 		print sessionStart[sessionKey], sessionAt, 0, 0, 0, "session", sessionKey, sessionName[sessionKey], sessionState[sessionKey], ( sessionStart[sessionKey] < 0 ? "-" : sessionStartText[sessionKey] ), ( ( sessionState[sessionKey] == "finished" || sessionState[sessionKey] == "failed" ) && sessionEnd[sessionKey] >= 0 ? sessionEndText[sessionKey] : "-" ), sessionRuns[sessionKey], stateTally, sessionStored[sessionKey], sessionStoredAt[sessionKey], ( ( sessionKey in sessionById ) && ( sessionKey in controlOf ) ? controlOf[sessionKey] : "none" ), \
 			( ( sessionKey in sessionTokenRuns ) ? tokensFigure(sessionTokens[sessionKey]) ( ( sessionKey in sessionTokenUnknown ) ? "+" : "" ) : "-" ), \
 			( ( sessionKey in sessionUsageLimit ) ? sessionUsageLimit[sessionKey] : "-" ), \
 			( ( sessionKey in sessionRefused ) && sessionRefused[sessionKey] > 0 ? sessionRefused[sessionKey] : "-" ), \
-			( ( sessionKey in sessionById ) ? chapterOfSession(sessionKey) : "-" ) ;
+			( ( sessionKey in sessionById ) ? chapterOfSession(sessionKey) : "-" ), sessionPhase[sessionKey] ;
 	}
 	for (runAt = 1 ; runAt <= runTotal ; runAt++) {
 		sessionKey = runSession[runAt] ;
-		if (activeOnly && !activeState(sessionState[sessionKey]) && !recentlyEnded(sessionKey)) continue ;
+		if (activeOnly && sessionPhase[sessionKey] == "closed") continue ;
 		if (learnOnly && sessionState[sessionKey] != "finished") continue ;
 		## A run with no date stands after the dated ones of its session.
 		print sessionStart[sessionKey], sessionPlace[sessionKey], 1, ( runMinutes[runAt] < 0 ? 99999999999 : runMinutes[runAt] ), runAt, "run", sessionKey, runRow[runAt], runActivity[runAt] ;

@@ -6,6 +6,8 @@ requires-session-kind: standalone
 tracking-item: required
 runs-at: none
 review-by: inherit
+deliverables: the epic file, its self-check clean and each answer recorded as a Settled line
+deliverables: the hand-over to magic-team.epic-wave.routine
 ---
 # magic-team.epic-intake.routine — the actual procedure
 

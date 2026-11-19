@@ -5,6 +5,9 @@ maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 requires-session-kind: coworking
 input-scan-def: none
 review-by: inherit
+deliverables: the plan's pieces, each with an owner and a proof
+deliverables: the pieces' order, needs and checks
+deliverables: the plan in the task's tracking document, put up for approval
 runs-at: none
 ---
 # magic-team.plan.routine — the actual procedure

@@ -53,11 +53,11 @@ rigRow(){ ## the fields of one row, joined by TAB
 rigS1=11111111-0000-4000-8000-000000000001 ; rigS2=22222222-0000-4000-8000-000000000002 ; rigS3=33333333-0000-4000-8000-000000000003 ; rigS4=44444444-0000-4000-8000-000000000004
 rigF="$rigTmp/fixture" ; mkdir -p "$rigF"
 {
-	rigRow session "$rigS1" daily_of_Monday running 2026-10-12_16:57_+0000 - 1 running=1 - - - 57147723
+	rigRow session "$rigS1" daily_of_Monday running 2026-10-12_16:57_+0000 - 1 running=1 - - - 57147723 - - - active
 	rigRow run "$rigS1" "$rigS1" magic-coordinator spawn-started running running 2026-10-12_16:57_+0000 - rig-host ws-rig waiting
-	rigRow session "$rigS2" the_retro finished 2026-10-11_14:28_+0000 2026-10-11_14:51_+0000 1 finished=1 - - - 523000+
-	rigRow session "$rigS3" grooming finished 2026-10-10_14:28_+0000 2026-10-10_14:51_+0000 1 finished=1 - - - -
-	rigRow session "$rigS4" an_old_one finished 2026-10-09_14:28_+0000 2026-10-09_14:51_+0000 1 finished=1
+	rigRow session "$rigS2" the_retro finished 2026-10-11_14:28_+0000 2026-10-11_14:51_+0000 1 finished=1 - - - 523000+ - - - closed
+	rigRow session "$rigS3" grooming finished 2026-10-10_14:28_+0000 2026-10-10_14:51_+0000 1 finished=1 - - - - - - - closed
+	rigRow session "$rigS4" an_old_one finished 2026-10-09_14:28_+0000 2026-10-09_14:51_+0000 1 finished=1 - - - '' - - - closed
 	rigRow counters 1 0 0 1 0 0.42
 } > "$rigF/rows"
 { rigRow source "$rigS1" magic-coordinator transcript /rig/audit/session-s1.log ; rigRow feed 2026-10-13T02:00:05Z "$rigS1" magic-coordinator member magic-coordinator '⏳ wait going idle' ; } > "$rigF/rows.--manager-session-transcript-read"

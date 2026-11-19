@@ -236,6 +236,7 @@ rigTool "$rigTmp/b2" --contacted-by bare@ndm.example
 rigAssert "a contact that holds nothing: said so, Moot and Contact only" "$rigRc $( rigHas 'Access of bare-one: nothing standing, so Moot and Contact only' "$rigTmp/b2.out" )" "0 1"
 rigTool "$rigTmp/b3" --contacted-by UNOBODY999
 rigAssert "a sender nobody recorded: the next step, rc 1" "$rigRc $( rigHas 'No contact is recorded for UNOBODY999.' "$rigTmp/b3.out" ) $( rigHas 'DistroAgentsContacts.fn.sh --collect-contact --id <slug> --name <name> --slack <team>:<slack-id>' "$rigTmp/b3.out" )" "1 1 1"
+rigAssert "and it names the tiers by their own words: nothing beyond Contact before the record, and no retired word" "$( rigHas 'Anything beyond Contact waits for that record' "$rigTmp/b3.out" ) $( LC_ALL=C grep -c -w -E 'Ingest|Basic|Partner|Recorded' "$rigTmp/b3.out" || : )" "1 0"
 rigTool "$rigTmp/b4" --contacted-by "alice"
 rigAssert "a value that names two contacts: the rows, and the way to say which, rc 1" "$rigRc $( LC_ALL=C grep -c '^contact' "$rigTmp/b4.out" ) $( rigHas 'names 2 contacts' "$rigTmp/b4.err" )" "1 2 1"
 rigTool "$rigTmp/b5" --contacted-by U111ABC --slack-team other-team

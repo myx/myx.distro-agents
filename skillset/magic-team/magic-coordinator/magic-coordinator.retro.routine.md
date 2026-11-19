@@ -7,6 +7,8 @@ runs-at: none
 routine-lock-document: inbox:magic-coordinator:note-20260811T120000Z-retro-state-and-lock.md
 input-scan-def: none
 review-by: inherit
+deliverables: exactly one concrete improvement for the next daily, as a note in magic-coordinator's own inbox
+deliverables: each methodology finding turned into a concrete proposal, or none, with the maintainers' decision on each
 ---
 # magic-coordinator.retro.routine — the actual procedure
 

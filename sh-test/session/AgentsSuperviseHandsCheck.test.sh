@@ -56,6 +56,7 @@ printf 'rig\n' > "$rigSkills/magic-tester/magic-tester.basic.md"
 printf 'rig\n' > "$rigSkills/magic-developer/magic-developer.basic.md"
 ## A SLACK-SHAPED CURL, so the guidance path that posts into a run's thread is exercised too (S13.5): it opens no socket,
 ## and it keeps each posted body under `$rigTmp/slack`, one file a post.
+## It holds the first message of the run's thread ($rigThread), posted by the bot: a reply goes only under a message its conversation holds.
 mkdir -p "$rigTmp/bin" "$rigTmp/slack"
 cat > "$rigTmp/bin/curl" <<'RIGCURL'
 #!/bin/sh
@@ -75,7 +76,7 @@ case "$*" in
 	;;
 	*auth.test*) printf '{"ok":true,"user_id":"URIGBOT01","url":"https://rig.invalid/"}\n' ;;
 	*conversations.info*) printf '{"ok":true,"channel":{"id":"CRIG00001","is_im":false,"is_mpim":false}}\n' ;;
-	*conversations.replies*) printf '{"ok":true,"messages":[]}\n' ;;
+	*conversations.replies*) printf '{"ok":true,"messages":[{"ts":"1793000000.000100","bot_id":"BRIGBOT01","text":"session thread"}],"has_more":false}\n' ;;
 	*) printf '{"ok":true}\n' ;;
 esac
 RIGCURL

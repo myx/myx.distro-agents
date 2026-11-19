@@ -6,6 +6,7 @@ requires-session-kind: standalone
 start-context: any
 input-scan-def: none
 review-by: inherit
+deliverables: each reflection incorporated in the skillset, filed as an open question, or retired as covered
 runs-at: none
 ---
 # magic-team.process-reflections.routine — the actual procedure

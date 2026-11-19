@@ -43,13 +43,17 @@
 			echo "⛔ ERROR: $MDSC_CMD --mark-inbox-processed: this session acts as $MDAT_SPAWN_AGENT, and only its own inbox items are its to mark handled -- not $memberName's" >&2
 			set +e ; return 1
 		fi
-		case "$itemName" in
-			*.md) ;;
-			*)
-				echo "⛔ ERROR: $MDSC_CMD --mark-inbox-processed: <item-filename> must end in .md -- every inbox item is a markdown document: $itemName" >&2
-				set +e ; return 1
-			;;
-		esac
+		## A stray here is repaired first, never refused: its own gate would leave it unclosable for ever.
+		local repairedAnswer repairedName repairedHow
+		repairedAnswer="$( AgentsToolsInboxStrayRepair "$memberName" "$itemName" )" || { set +e ; return 1 ; }
+		repairedName="${repairedAnswer%%$'\t'*}" ; repairedHow="${repairedAnswer#*$'\t'}"
+		## The twin branch ends the operation: the twin is the copy this call chose to keep.
+		if [ "$repairedHow" = "twin-matched" ] ; then
+			echo "# $MDSC_CMD: mark-inbox-processed: $itemName was a stray whose twin already holds the same body: the stray is dropped and $repairedName is left in place, nothing marked" >&2
+			return 0
+		fi
+		[ "$repairedName" = "$itemName" ] || echo "# $MDSC_CMD: mark-inbox-processed: $itemName was a stray, renamed to $repairedName" >&2
+		itemName="$repairedName"
 		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 		DistroAgentsTools --intern-op-inbox-to-processed "$memberName" "$itemName" \
 			--context --mark-inbox-processed \

@@ -48,14 +48,14 @@ rigRow(){ local rowText="$1" ; shift ; while [ $# -gt 0 ] ; do rowText="$rowText
 ## The sessions: one that runs, one that is stuck (an open record, nothing alive), one that waits, and one that has finished, each with its runs.
 rigF="$rigTmp/fixture" ; mkdir -p "$rigF"
 {
-	rigRow session s-run run-session running 2026-10-13_10:00_+0000 - 1 running=1 - - none 10
+	rigRow session s-run run-session running 2026-10-13_10:00_+0000 - 1 running=1 - - none 10 - - - active
 	rigRow run s-run r-run keeper-rig spawn-started running running 2026-10-13_10:00_+0000 - rig ws working
-	rigRow session s-stuck stuck-session unclosed 2026-10-13_09:00_+0000 - 2 unclosed=2 - - gone 10
+	rigRow session s-stuck stuck-session unclosed 2026-10-13_09:00_+0000 - 2 unclosed=2 - - gone 10 - - - active
 	rigRow run s-stuck r-st1 keeper-rig spawn-started no-process unclosed 2026-10-13_09:00_+0000 - rig ws -
 	rigRow run s-stuck r-st2 keeper-two spawn-started no-process unclosed 2026-10-13_09:01_+0000 - rig ws -
-	rigRow session s-wait wait-session waiting 2026-10-13_08:00_+0000 - 1 finished=1 - - none 10
+	rigRow session s-wait wait-session waiting 2026-10-13_08:00_+0000 - 1 finished=1 - - none 10 - - - active
 	rigRow run s-wait r-wa keeper-rig spawn-succeeded no finished 2026-10-13_08:00_+0000 2026-10-13_08:30_+0000 rig ws -
-	rigRow session s-fin fin-session finished 2026-10-12_08:00_+0000 2026-10-12_09:00_+0000 2 finished=2 - - none 10
+	rigRow session s-fin fin-session finished 2026-10-12_08:00_+0000 2026-10-12_09:00_+0000 2 finished=2 - - none 10 - - - closed
 	rigRow run s-fin r-fi1 keeper-rig spawn-succeeded no finished 2026-10-12_08:00_+0000 2026-10-12_08:30_+0000 rig ws -
 	rigRow run s-fin r-fi2 magic-coordinator spawn-succeeded no finished 2026-10-12_08:05_+0000 2026-10-12_09:00_+0000 rig ws -
 	rigRow counters 1 0 1 0 0 0.42 rig

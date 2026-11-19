@@ -72,7 +72,7 @@ rigRow(){ ## the fields of one row, joined by TAB
 rigS1=11111111-0000-4000-8000-000000000001
 rigF="$rigTmp/fixture" ; mkdir -p "$rigF"
 {
-	rigRow session "$rigS1" daily_of_Monday running 2026-10-12_16:57_+0000 - 1 running=1 running 2026-10-12_16:58_+0000 gone
+	rigRow session "$rigS1" daily_of_Monday running 2026-10-12_16:57_+0000 - 1 running=1 running 2026-10-12_16:58_+0000 gone '' - - - active
 	rigRow run "$rigS1" "$rigS1" magic-coordinator spawn-started running running 2026-10-12_16:57_+0000 - rig-host ws-rig waiting
 	rigRow counters 1 0 1 0 1 0.42
 } > "$rigF/rows"
@@ -254,7 +254,7 @@ rigAssert "control: the root list is drawn all the same"      "$( rigListRows ro
 echo "-- 6. summary mode: a run in Wait shows what it waits on, and for how long --"
 rigCase summary
 {
-	rigRow session "$rigS1" daily_of_Monday running 2026-10-12_16:57_+0000 - 1 running=1 running 2026-10-12_16:58_+0000 alive
+	rigRow session "$rigS1" daily_of_Monday running 2026-10-12_16:57_+0000 - 1 running=1 running 2026-10-12_16:58_+0000 alive '' - - - active
 	rigRow dispatch "$rigS1" record magic-coordinator magic-coordinator.daily.routine.md dispatch-20261012T165700Z-daily-1 C0RIG:1791000000.000100 C0TRK:1791000000.000200 'The daily of Monday.'
 	rigRow run "$rigS1" "$rigS1" magic-coordinator spawn-started running running 2026-10-12_16:57_+0000 - rig-host ws-rig waiting
 	rigRow store "$rigS1" store rig-model 1 0 0 1 - - 2026-10-13T02:18:00Z Wait ask:Q12 - - -

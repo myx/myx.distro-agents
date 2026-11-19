@@ -8,6 +8,7 @@
 ##   2. that write is not in the index yet, and one schedule pass puts it there: the query finds it
 ##   3. that pass wrote `built` newer than `wanted` and left no lock behind
 ##   4. a second pass with nothing changed builds nothing: `built` keeps the moment it had
+##      (the build runs beside the pass, one at a time, under `<index root>.building`; each row reads it once that mark is gone)
 ##   5. a `built` older than the bound builds again, which is what catches a hand edit to a MAGIC.md
 ##   6. the bound at 0 never builds, whatever the stamps say
 ##   7. the query says which source answered, on stderr, and its answer text is unchanged by that line
@@ -68,6 +69,9 @@ rigPass(){ ## result name, the bound in seconds, extra environment as NAME=value
 		bash -c '. "$1" ; AgentsToolsScheduleThreadKnowledgeKeep ; printf "%s\n" "$?"' _ "$rigLib/schedule/AgentsTools.ScheduleThread.include" ) \
 		> "$rigTmp/$passName.out" 2> "$rigTmp/$passName.err" < /dev/null || passRc=$?
 	printf '%s' "$passRc" > "$rigTmp/$passName.rc"
+	## The build runs beside the pass: what it built is read once its mark is gone, two minutes at most.
+	local passWaited=0
+	while [ -e "$rigDws/.local/knowledge-index.building" ] && [ "$passWaited" -lt 120 ] ; do sleep 1 ; passWaited=$(( passWaited + 1 )) ; done
 }
 rigQuery(){ ## result name, store setting (on|off), words... -- one query
 	local queryName="$1" querySetting="$2" queryRc=0

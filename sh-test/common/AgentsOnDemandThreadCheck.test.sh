@@ -61,6 +61,7 @@ rigAnswerHandler(){
 }
 rigSilentHandler(){ return 0 ; }
 rigTickCount(){ printf 'tick\n' >> "$RIG_TICK_FILE" ; }
+rigTickWork(){ return 2 ; }
 RIGOWNER
 
 ## One serving thread of its own, under its own folder: started the way an owner starts one, in the background, and
@@ -215,9 +216,13 @@ echo "-- 8. a start says alive for a living thread, and starts one where none li
 rigDir8="$rigTmp/thread8"
 mkdir -p "$rigDir8"
 export RIG_TICK_FILE="$rigTmp/ticks8"
-rigAssert "8. a start with no thread there starts one" \
-	"$( . "$rigInc" ; . "$rigOwner" ; AgentsToolsOnDemandThreadStart "$rigDir8" --intern-team-data-commit --one | LC_ALL=C awk '{ print $1 }' )" started
+rigSaid8="$( . "$rigInc" ; . "$rigOwner" ; AgentsToolsOnDemandThreadStart "$rigDir8" --intern-team-data-commit --one )"
+rigAssert "8. a start with no thread there starts one" "$( printf '%s\n' "$rigSaid8" | LC_ALL=C awk 'NR == 1 { print $1 }' )" started
 rigWaitForFifo "$rigDir8"
+## The started process holds the start's claim until it ends. Its operation serves another folder, so it ends, and the thread below takes the lock it left.
+rigPid8="$( printf '%s\n' "$rigSaid8" | LC_ALL=C sed -n '1s/^started //p' )"
+rigWaited=0
+while [ -n "$rigPid8" ] && [ "$rigWaited" -lt 20 ] && kill -0 "$rigPid8" 2> /dev/null ; do sleep 1 ; rigWaited=$(( rigWaited + 1 )) ; done
 (
 	cd "$rigTmp" || exit 1
 	. "$rigInc" || exit 1
@@ -340,6 +345,63 @@ rigAssert "12. the second line names the lock that outlived its process" "$( pri
 rigAssert "12. and the thread's log records the take-over" "$( LC_ALL=C grep -c -F "the lock of $rigGone12 Sun_Nov__1_00:00:00_2026 outlived its process: taken over by this start" "$rigDir12/thread.log" 2> /dev/null )" 1
 rigPid12="$( printf '%s\n' "$rigSaid12" | LC_ALL=C sed -n '1s/^started //p' )"
 [ -z "$rigPid12" ] || { rigThreadPids="$rigThreadPids $rigPid12" ; rigProcNoteFrom "$rigDir12/thread.lock" ; }
+
+echo "-- 13. a tick whose work stands keeps a thread alive, but in a check's rig (team-rig) it ends on its idle bound --"
+rigDir13="$rigTmp/t13" ; rigDir13b="$rigTmp/t13b" ; mkdir -p "$rigDir13" "$rigDir13b"
+MDAT_WORKSPACE_MODE=team-rig rigServe "$rigDir13" 2 rigSilentHandler rigTickWork
+MDAT_WORKSPACE_MODE= rigServe "$rigDir13b" 2 rigSilentHandler rigTickWork
+sleep 7
+rigAssert "13. in a check's rig the thread ended on its idle bound, its lock given back" "$( rigLocks "$rigDir13" )" 0
+rigAssert "13. control: outside a rig the same thread is still there" "$( rigLocks "$rigDir13b" )" 1
+
+echo "-- 14. of two starts at once, one claims the start and starts the thread, and the other reads the claim and says alive --"
+rigData14="$rigTmp/store14"
+mkdir -p "$rigTmp/ws14/.local/agents" "$rigData14"
+git -C "$rigData14" init -q || rigRefuse "could not init the store for case 14"
+git -C "$rigData14" config user.email rig@example.invalid
+git -C "$rigData14" config user.name rig
+printf 'seed\n' > "$rigData14/README.md"
+git -C "$rigData14" add -A && git -C "$rigData14" commit -q -m seed || rigRefuse "could not seed the store for case 14"
+rigFolder14="$rigData14/.git/team-data-commit"
+(
+	cd "$rigTmp" || exit 1
+	MDAT_DATA_ROOT="$rigData14" MMDAPP="$rigTmp/ws14" MDLT_ORIGIN="$rigOrigin" MDAT_TEAM_DATA_COMMIT_IDLE_SECONDS=30 \
+		bash -c '
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.OnDemandThread.include" || exit 1
+			AgentsToolsOnDemandThreadStart "$1" --intern-team-data-commit --run > "$2.a" 2>&1 &
+			AgentsToolsOnDemandThreadStart "$1" --intern-team-data-commit --run > "$2.b" 2>&1 &
+			wait
+		' rigfourteen "$rigFolder14" "$rigTmp/start14"
+) > /dev/null 2>&1 < /dev/null
+rigWaited=0
+while [ "$rigWaited" -lt 20 ] && [ "$( LC_ALL=C grep -c 'the thread runs as pid' "$rigFolder14/thread.log" 2> /dev/null )" != 1 ] ; do sleep 1 ; rigWaited=$(( rigWaited + 1 )) ; done
+## A second process, where one was forked, reaches its own take within this: it waits up to 5 s for a claim to pass.
+sleep 7
+rigAssert "14. one of the two starts says started" "$( cat "$rigTmp/start14.a" "$rigTmp/start14.b" 2> /dev/null | LC_ALL=C grep -c '^started ' )" 1
+rigAssert "14. and the other says alive" "$( cat "$rigTmp/start14.a" "$rigTmp/start14.b" 2> /dev/null | LC_ALL=C grep -c '^alive ' )" 1
+rigAssert "14. one thread runs there" "$( LC_ALL=C grep -c 'the thread runs as pid' "$rigFolder14/thread.log" 2> /dev/null )" 1
+rigAssert "14. and no second process was started only to be refused" "$( LC_ALL=C grep -c 'a second one is not started' "$rigFolder14/thread.log" 2> /dev/null )" 0
+if [ -f "$rigFolder14/thread.lock" ] ; then
+	rigProcNoteFrom "$rigFolder14/thread.lock"
+	rigProcSignal TERM "$( LC_ALL=C cut -d' ' -f1 "$rigFolder14/thread.lock" )"
+	rigWaited=0
+	while [ "$rigWaited" -lt 10 ] && [ -f "$rigFolder14/thread.lock" ] ; do sleep 1 ; rigWaited=$(( rigWaited + 1 )) ; done
+fi
+
+echo "-- 15. a thread that cannot take the lock ends at once, and runs no pass --"
+rigDir15="$rigTmp/t15" ; mkdir -p "$rigDir15"
+## The lock names this rig's own shell, which lives: a thread served over it is the second one. The lock goes at the end of the
+## case, so the rig's own end never reads this shell as a thread to end.
+rigMe15="$( . "$rigInc" ; printf '%s\n' "$$" | AgentsToolsRunProcessesBegan )"
+printf '%s' "$rigMe15" > "$rigDir15/thread.lock"
+export RIG_TICK_FILE="$rigTmp/ticks15"
+rigBegan15="$SECONDS"
+( cd "$rigTmp" || exit 1 ; . "$rigInc" || exit 1 ; . "$rigOwner" || exit 1 ; AgentsToolsOnDemandThreadServe "$rigDir15" 30 rigAnswerHandler rigTickCount no ) > "$rigDir15.log" 2>&1 < /dev/null
+rigAssert "15. the thread ends with rc 1" "$?" 1
+rigAssert "15. within 3s" "$( [ $(( SECONDS - rigBegan15 )) -le 3 ] && printf soon || printf late )" soon
+rigAssert "15. it ran no pass" "$( [ -f "$RIG_TICK_FILE" ] && printf ticked || printf none )" none
+rigAssert "15. and the lock still names the living holder" "$( cat "$rigDir15/thread.lock" 2> /dev/null )" "$rigMe15"
+rm -f "$rigDir15/thread.lock"
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	printf '⛔ ON_DEMAND_THREAD CHECK FAILED: %s of %s assertion(s)\n' "$rigFailCount" "$(( rigPassCount + rigFailCount ))" >&2

@@ -25,7 +25,8 @@
 ## AND THE YIELD: a run gives its lane up between two of its checks to a run behind it, keeps its checks once and in order,
 ## and is named by a waiter with its checks done of all (section 10); a run of two workers yields once, after its checks in
 ## flight (10a); one worker yields twice and takes its one lane back each time (10b). A check started by hand judges a run at work by its
-## lane, never by its beat, says the same of it, and passes a yielding run by (sections 11 and 12).
+## lane, never by its beat, says the same of it, and passes a yielding run by (sections 11 and 12). A run that yielded waits for the
+## run it yielded to only until that run holds a lane, so a lane that stands free is taken while that run still works (10f).
 set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 rigRunner="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-test/AgentsRunTests.sh"
@@ -96,8 +97,8 @@ rigStallLimit=""
 rigRun(){ ## session, runner args... -- that session's runner, started in the background from its own copy; its output in <session>.out. With rigHold set, its test ends only at rigLet <session>
 	( cd "$rigWs" && exec env -i HOME="${rigHomeFor:-$rigHome}" PATH="$PATH" MMDAPP="$rigWs" MDLT_ORIGIN="$( rigRoot "$1" )" MYXROOT="${MYXROOT:-}" RIG_SHARED="$rigTmp" RIG_SUITE="$1" RIG_HOLD="$rigHold" \
 		MDAT_SUITE_QUEUE_LIMIT="${rigQueueLimit:-}" MDAT_SUITE_QUEUE_HOLD_SECONDS="${rigHoldLimit:-}" MDAT_SUITE_QUEUE_STALL_SECONDS="${rigStallLimit:-}" \
-		MDAT_SPAWN_SESSION_ID="rig-session-$1" \
-		bash "$( rigRoot "$1" )/myx/myx.distro-agents/sh-test/AgentsRunTests.sh" "${@:2}" ) > "$rigTmp/$1.out" 2>&1 &
+		MDAT_SPAWN_SESSION_ID="rig-session-$1" MDAT_SUITE_TIER="${rigTier:-}" \
+		bash "$( rigRoot "$1" )/myx/myx.distro-agents/sh-test/AgentsRunTests.sh" --wait "${@:2}" ) > "$rigTmp/$1.out" 2>&1 &
 	rigLast=$!
 	rigStarted="$rigStarted $rigLast" ; rigProcNote "$rigLast"
 }
@@ -219,6 +220,42 @@ rigAssert "the second said, in one line, that it waits and behind whom: the firs
 rigAssert "the third said whom it waited behind, in one line each time that changed, naming a copy ahead of it and never its own" "$( rigWaits c ) $( LC_ALL=C grep -F -- 'waits its turn behind' "$rigTmp/c.out" | LC_ALL=C sed -e 's/.* from //' -e 's/, in the line for .*//' -e "s|$rigWs/.local/temp/||" | LC_ALL=C sort -u | LC_ALL=C tr '\n' ' ' )" "2 rig-scratch-a/source rig-scratch-b/source "
 rigAssert "each held the lock itself while it ran" "$( rigHeldOwn b ) $( rigHeldOwn c )" "own own"
 rigAssert "and the line and the lock are free again" "$( rigTickets ) $( [ -d "$rigLock" ] && printf held || printf free )" "0 free"
+
+echo "-- 2a. a run of a higher tier is served before the ordinary runs that arrived before it, and its ticket names the tier --"
+rigFresh ; rigHold=1
+rigRun a ; rigPidA=$rigLast
+rigUntil 'BEGIN a' "$rigTmp/log" || rigRefuse "the first suite never began, so nothing below would be measured"
+rigRun b ; rigPidB=$rigLast
+rigUntil 'waits its turn behind' "$rigTmp/b.out" || rigRefuse "the ordinary suite never said it waits, so the order below would be nobody's"
+rigTier=urgent ; rigRun c ; rigPidC=$rigLast ; rigTier=""
+rigUntil 'waits its turn behind' "$rigTmp/c.out" || rigRefuse "the urgent suite never said it waits, so the order below would be nobody's"
+rigAssert "the urgent ticket names its tier, and sorts first" "$( LC_ALL=C grep -h '^tier=' "$rigQueue"/*.ticket 2> /dev/null ) $( ls "$rigQueue" | LC_ALL=C grep '\.ticket$' | LC_ALL=C sed -n '1s/^\(0b-\).*/\1/p' )" "tier=urgent 0b-"
+rigLet a ; rigEnd "$rigPidA"
+rigUntil 'BEGIN c' "$rigTmp/log" || :
+rigLet c ; rigEnd "$rigPidC"
+rigUntil 'BEGIN b' "$rigTmp/log" || :
+rigLet b ; rigEnd "$rigPidB"
+rigAssert "the urgent run began before the ordinary one that arrived before it" "$( rigOrder )" "BEGIN a END a BEGIN c END c BEGIN b END b"
+
+echo "-- 2b. with no tier given, a run takes its context task's tier: the item its session's spawn record names, and its mark --"
+rigFresh ; rigHold=1
+mkdir -p "$rigTmp/fakebin" "$rigWs/.local/agents/spawned/rig-session-c"
+printf '#!/bin/sh\nprintf -- "---\\nmark: urgent\\n---\\n"\n' > "$rigTmp/fakebin/DistroAgentsItems.fn.sh" ; chmod +x "$rigTmp/fakebin/DistroAgentsItems.fn.sh"
+printf -- '---\nsession-id: rig-session-c\ndescription: Board item task-20260101T0000Z-rig-urgent.md, approved\n---\n' > "$rigWs/.local/agents/spawned/rig-session-c/rig-session-c.spawn.md"
+rigRun a ; rigPidA=$rigLast
+rigUntil 'BEGIN a' "$rigTmp/log" || rigRefuse "the first suite never began, so nothing below would be measured"
+rigRun b ; rigPidB=$rigLast
+rigUntil 'waits its turn behind' "$rigTmp/b.out" || rigRefuse "the ordinary suite never said it waits, so the order below would be nobody's"
+PATH="$rigTmp/fakebin:$PATH" rigRun c ; rigPidC=$rigLast
+rigUntil 'waits its turn behind' "$rigTmp/c.out" || rigRefuse "the task's suite never said it waits, so the order below would be nobody's"
+rigAssert "the ticket names the tier its task's mark gave" "$( LC_ALL=C grep -h '^tier=' "$rigQueue"/*.ticket 2> /dev/null )" "tier=urgent"
+rigLet a ; rigEnd "$rigPidA"
+rigUntil 'BEGIN c' "$rigTmp/log" || :
+rigLet c ; rigEnd "$rigPidC"
+rigUntil 'BEGIN b' "$rigTmp/log" || :
+rigLet b ; rigEnd "$rigPidB"
+rigAssert "the urgent task's run began before the ordinary one that arrived before it" "$( rigOrder )" "BEGIN a END a BEGIN c END c BEGIN b END b"
+rm -rf "$rigTmp/fakebin" "$rigWs/.local/agents/spawned/rig-session-c"
 
 echo "-- 3. a run of named tests stands in the same line --"
 rigFresh ; rigHold=1
@@ -405,9 +442,9 @@ rigFresh ; rigBudget 1 ; rigHold=1 ; rigStallLimit=3
 rigRun a RigTiny ; rigPidA=$rigLast
 rigUntil 'BEGIN a' "$rigTmp/log" || rigRefuse "the test that was to be killed never began"
 rigSlotPid="$( LC_ALL=C sed -n 's/^H //p' "$rigWorkers/state" | LC_ALL=C sed -n 1p )"
-## first whoever would give the slot back, the runner's own process that waits for the test, then the test itself
+## first whoever would give the slot back, the runner's own process that waits for the test, then the slot's keeper with the test under it, so no held test outlives this section
 rigSlotGiver="$( ps -o ppid= -p "$rigSlotPid" 2> /dev/null | LC_ALL=C tr -d ' ' )"
-kill -KILL "$rigSlotGiver" "$rigPidA" 2> /dev/null ; kill -KILL "$rigSlotPid" 2> /dev/null ; wait "$rigPidA" 2> /dev/null
+kill -KILL "$rigSlotGiver" "$rigPidA" 2> /dev/null ; rigProcNote "$rigSlotPid" ; rigProcSignalWithChildren KILL "$rigSlotPid" || : ; wait "$rigPidA" 2> /dev/null
 rigKilledLeft=50 ; while kill -0 "$rigSlotPid" 2> /dev/null && [ "$rigKilledLeft" -gt 0 ] ; do sleep 0.2 ; rigKilledLeft=$(( rigKilledLeft - 1 )) ; done
 rigAssert "control: the killed test's slot is still listed, since nobody was left to give it back" "$( LC_ALL=C grep -c "^H $rigSlotPid\$" "$rigWorkers/state" || : )" 1
 rigHold=""
@@ -619,6 +656,113 @@ rigEnd "$rigPidP"
 rigAssert "after its second yield it took its lane back and ran its third check" "$( rigOrder )" "BEGIN p.1 END p.1 BEGIN a END a BEGIN p.2 END p.2 BEGIN b END b BEGIN p.3 END p.3"
 rigAssert "all three runs passed, and each yield took back the one lane it gave" "$rigRcA $rigRcB $rigRc $( LC_ALL=C grep -c -F -- 'took its lane(s) 1 again' "$rigTmp/p.out" || : )" "0 0 0 2"
 
+echo "-- 10c. a run gives its lane up only to a ticket behind it with no free lane; a yielded run whose old lane another holds takes the lane that stands free --"
+rigTicketOf(){ ## pid, session -- a ticket in the line for that live process, behind every ticket before it
+	local ofFile="$rigQueue/$( date +%s ).000000.$1.ticket"
+	printf 'session=%s\norigin=%s\nkind=run\nsince=%s\npid=%s\npstart=%s\nrundir=%s\n' "$2" "$( rigRoot a )" "$( date -u +%Y-%m-%dT%H:%M:%SZ )" "$1" \
+		"$( ps -o lstart= -p "$1" 2> /dev/null | LC_ALL=C tr -s ' ' | LC_ALL=C sed 's/^ //;s/ $//' )" "$rigTmp" > "$ofFile"
+	date +%s > "$ofFile.beat"
+}
+## control: lane 2 stands free for the ticket behind, which takes it itself, so the run gives nothing up and begins its next check
+rigFresh ; rigLanes 2 ; rigHold=1
+rigRun p ; rigPidP=$rigLast
+rigUntil 'BEGIN p.1' "$rigTmp/log" || rigRefuse "the run of three checks never began, so nothing below would be measured"
+sleep 300 & rigPidWait=$! ; rigProcNote "$rigPidWait"
+rigTicketOf "$rigPidWait" rig-session-waiter
+rigLet p.1
+rigUntilBegun 2 ; rigBegan=$?
+rigAssert "control: a lane free for the ticket behind it, the run gives no lane up and begins its next check" "$rigBegan $( LC_ALL=C grep -c -F -- 'gave its lane(s)' "$rigTmp/p.out" || : )" "0 0"
+rigLet p.2 ; rigLet p.3 ; rigEnd "$rigPidP"
+rigProcSignal TERM "$rigPidWait" || :
+## every lane held, lane 2 by a run of its own whose test is held: the ticket behind has no free lane, and the run gives its lane up to it
+rigFresh ; rigLanes 2 ; rigHold=1
+rigRun p ; rigPidP=$rigLast
+rigUntil 'BEGIN p.1' "$rigTmp/log" || rigRefuse "the run of three checks never began, so nothing below would be measured"
+rigRun b ; rigPidB=$rigLast
+rigUntil 'BEGIN b' "$rigTmp/log" || rigRefuse "the run that holds lane 2 never began, so nothing below would be measured"
+sleep 300 & rigPidWait=$! ; rigProcNote "$rigPidWait"
+rigTicketOf "$rigPidWait" rig-session-waiter
+rigLet p.1
+rigUntil 'gave its lane(s)' "$rigTmp/p.out" || rigRefuse "the run never yielded to the ticket behind it"
+## lane 1 goes to another live run with a ticket of its own, before the yielded run may take a lane back; lane 2 is let go by its
+## run, and then the ticket it waited for ends
+## its stand-in names the runner on its command line, which is what the lane reader takes a live run by (AgentsRunRunnerAlive)
+bash -c 'sleep 300 ; :' rig-stand-in-AgentsRunTests.sh & rigPidOne=$! ; rigProcNote "$rigPidOne"
+rigTicketOf "$rigPidOne" rig-session-one
+mkdir "$rigLock" && printf 'runner-pid: %s\nsession=rig-session-one\n' "$rigPidOne" > "$rigLock/holder.txt"
+rigLet b ; rigEnd "$rigPidB"
+## the ticket it waited for ends as a run that ends does: its process goes, and it leaves the line
+rigProcSignal TERM "$rigPidWait" || : ; rm -f "$rigQueue"/*.000000."$rigPidWait".ticket "$rigQueue"/*.000000."$rigPidWait".ticket.beat
+rigAwait 'took its lane(s)' "$rigTmp/p.out" 150 ; rigTook=$?
+rigAssert "its old lane held, it takes the free lane 2 within 30s" "$rigTook $( LC_ALL=C grep -c -F -- 'took its lane(s) 2 again' "$rigTmp/p.out" || : )" "0 1"
+rigProcSignalWithChildren TERM "$rigPidOne" || : ; rm -rf "$rigLock"
+rigLet p.2 ; rigUntilBegun 3 && rigLet p.3
+rigEnd "$rigPidP"
+rigAssert "and its run ended whole" "$rigRc" 0
+
+echo "-- 10d. a run holding a lane above the count read now is a run at work, and the run behind it takes the free lane --"
+rigFresh ; rigLanes 2 ; rigHold=1
+rigRun a ; rigPidA=$rigLast
+rigUntil 'BEGIN a' "$rigTmp/log" || rigRefuse "the first run never began, so nothing below would be measured"
+rigRun b ; rigPidB=$rigLast
+rigUntil 'BEGIN b' "$rigTmp/log" || rigRefuse "the second run never took lane 2 beside the first"
+rigLet a ; rigEnd "$rigPidA"
+## the machine's count falls to one while the second run still holds lane 2
+printf '1\n' > "$rigLanes/count"
+rigRun c ; rigPidC=$rigLast
+rigAwait 'BEGIN c' "$rigTmp/log" 150 ; rigBegan=$?
+rigAssert "lane 2 held above a count of 1, the run behind it takes the free lane 1 within 30s" "$rigBegan $( rigWaits c )" "0 0"
+rigLet b ; rigLet c ; rigEnd "$rigPidB" ; rigEnd "$rigPidC"
+rigAssert "and that run ended whole" "$rigRc" 0
+
+echo "-- 10e. a run of two workers whose yield takes back another lane than it gave goes on with both workers, and ends --"
+## p takes lane 1 and runs two checks at once; b holds lane 2; a ticket behind has no free lane, so p gives lane 1 up. Then lane 1 goes to a
+## stand-in and b lets lane 2 go, so p takes lane 2 back: the worker that did not yield must go on with the lane the run holds now.
+rigFresh ; rigLanes 2 ; rigHold=1
+rigRun p -w 2 ; rigPidP=$rigLast
+rigUntil 'BEGIN p.2' "$rigTmp/log" || rigRefuse "the run of two workers never began its two checks, so nothing below would be measured"
+rigRun b ; rigPidB=$rigLast
+rigUntil 'BEGIN b' "$rigTmp/log" || rigRefuse "the run that holds lane 2 never began, so nothing below would be measured"
+sleep 300 & rigPidWait=$! ; rigProcNote "$rigPidWait"
+rigTicketOf "$rigPidWait" rig-session-waiter
+rigLet p.1 ; rigLet p.2
+rigUntil 'gave its lane(s)' "$rigTmp/p.out" || rigRefuse "the run never yielded to the ticket behind it"
+bash -c 'sleep 300 ; :' rig-stand-in-AgentsRunTests.sh & rigPidOne=$! ; rigProcNote "$rigPidOne"
+rigTicketOf "$rigPidOne" rig-session-one
+mkdir "$rigLock" && printf 'runner-pid: %s\nsession=rig-session-one\n' "$rigPidOne" > "$rigLock/holder.txt"
+rigLet b ; rigEnd "$rigPidB"
+rigProcSignal TERM "$rigPidWait" || : ; rm -f "$rigQueue"/*.000000."$rigPidWait".ticket "$rigQueue"/*.000000."$rigPidWait".ticket.beat
+rigAwait 'took its lane(s) 2 again' "$rigTmp/p.out" 150 ; rigTook=$?
+rigAwait 'BEGIN p.3' "$rigTmp/log" 150 || : ; rigLet p.3
+## the run ends once its last check has: a worker still waiting for lane 1, which it no longer holds, would hold it open for ever
+rigLeft=150 ; while [ "$rigLeft" -gt 0 ] && [ -n "$( rigProcStill "$rigPidP" )" ] ; do sleep 0.2 ; rigLeft=$(( rigLeft - 1 )) ; done
+rigEnded="$( [ -z "$( rigProcStill "$rigPidP" )" ] && printf ended || printf hangs )"
+rigAssert "it took lane 2 back, ran its third check, and ended within 30s of it" "$rigTook $( LC_ALL=C grep -c '^END p.3$' "$rigTmp/log" || : ) $rigEnded" "0 1 ended"
+[ "$rigEnded" = ended ] || { rigProcSignalWithChildren TERM "$rigPidP" || : ; }
+rigEnd "$rigPidP"
+rigAssert "and it left no lane of its own behind" "$( ls "$rigLanes" 2> /dev/null | LC_ALL=C grep -c '^lane\.' || : )" "0"
+rigProcSignalWithChildren TERM "$rigPidOne" || : ; rm -rf "$rigLock"
+
+echo "-- 10f. a run that yielded waits for the run it yielded to only until that run holds a lane, then takes a lane that stands free --"
+## p holds lane 1 and b lane 2; q, of three checks, arrives with no lane free, and p gives lane 1 up to it after its first check. q takes
+## lane 1 and its first check is held. Then b lets lane 2 go: a run that waited for q to end would leave lane 2 free for as long as q works.
+rigFresh ; rigLanes 2 ; rigHold=1
+rigRun p ; rigPidP=$rigLast
+rigUntil 'BEGIN p.1' "$rigTmp/log" || rigRefuse "the run of three checks never began, so nothing below would be measured"
+rigRun b ; rigPidB=$rigLast
+rigUntil 'BEGIN b' "$rigTmp/log" || rigRefuse "the run that holds lane 2 never began, so nothing below would be measured"
+rigRun q ; rigPidQ=$rigLast
+rigUntil 'waits its turn behind' "$rigTmp/q.out" || rigRefuse "the run behind both lanes never said it waits, so the yield below would be nobody's"
+rigLet p.1
+rigUntil 'BEGIN q.1' "$rigTmp/log" || rigRefuse "the run p yielded to never began, so nothing below would be measured"
+rigLet b ; rigEnd "$rigPidB"
+rigAwait 'BEGIN p.2' "$rigTmp/log" 150 ; rigBegan=$?
+rigAssert "with q at work on lane 1 and lane 2 free, p takes lane 2 within 30s and begins its second check while q's first is still held" "$rigBegan $( rigBegun )" "0 q.1 p.2 "
+rigLet q.1 ; rigLet q.2 ; rigLet q.3 ; rigLet p.2 ; rigLet p.3
+rigEnd "$rigPidQ" ; rigRcQ=$rigRc
+rigEnd "$rigPidP"
+rigAssert "and both runs ended whole" "$rigRcQ $rigRc" "0 0"
+
 echo "-- 11. a check started by hand judges a run at work by its lane, and says how far it is --"
 rigFresh
 rigTempInclude="$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh"
@@ -660,6 +804,62 @@ rigLeft=50
 while [ "$rigLeft" -gt 0 ] && [ -n "$rigWonPids" ] && [ -n "$( rigProcStill $rigWonPids )" ] ; do sleep 0.2 ; rigLeft=$(( rigLeft - 1 )) ; done
 rigAssert "and nothing it started is left running" "$( [ -n "$rigWonPids" ] && printf noted || printf not-noted ) $( [ -n "$rigWonPids" ] && rigProcStill $rigWonPids | LC_ALL=C grep -c . || : )" "noted 0"
 rm -f "$rigWorkTicket" "$rigWorkTicket.beat" "$rigWorkTicket.yield"
+
+echo "-- 14. a waiter far back costs the line little: no process per ticket ahead in a pass, and a longer pause past 10 ahead --"
+## One lane, held; twenty live tickets ahead of the waiter b. The waiter runs with a sed and a sleep of the rig's first on its PATH: each
+## logs itself, and the sleep lasts one second whatever it was asked, so two passes come quickly. One pass is what stands between two pauses.
+rigFresh ; rigLanes 1 ; rigHold=1
+rigRun a ; rigPidA=$rigLast
+rigUntil 'BEGIN a' "$rigTmp/log" || rigRefuse "the run holding the one lane never began, so nothing below would be measured"
+rigAhead=""
+for rigOne in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 ; do
+	sleep 300 & rigAheadPid=$! ; rigProcNote "$rigAheadPid" ; rigAhead="$rigAhead $rigAheadPid"
+	rigTicketOf "$rigAheadPid" "rig-session-ahead-$rigOne"
+done
+mkdir -p "$rigTmp/shim"
+printf '#!/bin/sh\nprintf "SED\\n" >> "%s/shim.log"\nexec /usr/bin/sed "$@"\n' "$rigTmp" > "$rigTmp/shim/sed"
+printf '#!/bin/sh\nprintf "SLEEP %%s\\n" "$*" >> "%s/shim.log"\nexec /bin/sleep 1\n' "$rigTmp" > "$rigTmp/shim/sleep"
+chmod +x "$rigTmp/shim/sed" "$rigTmp/shim/sleep" ; : > "$rigTmp/shim.log"
+PATH="$rigTmp/shim:$PATH" rigRun b ; rigPidB=$rigLast
+rigLeft=600 ; while [ "$rigLeft" -gt 0 ] && [ "$( LC_ALL=C grep -c -E '^SLEEP ([5-9]|[1-9][0-9]+)$' "$rigTmp/shim.log" )" -lt 3 ] ; do sleep 0.2 ; rigLeft=$(( rigLeft - 1 )) ; done
+## the seds of the second pass: between the first and the second pause of the line's own length
+rigPassSeds="$( LC_ALL=C awk '/^SLEEP ([5-9]|[1-9][0-9]+)$/ { pauses++ ; next } pauses == 1 && $0 == "SED" { n++ } END { print n + 0 }' "$rigTmp/shim.log" )"
+rigPause="$( LC_ALL=C sed -n 's/^SLEEP \([5-9]\)$/\1/p;s/^SLEEP \([1-9][0-9]*\)$/\1/p' "$rigTmp/shim.log" | LC_ALL=C sed -n 1p )"
+## the pass's own reads (the lanes, the first ticket named) take a few; a sed pair for each of the twenty tickets would take 40 more
+rigAssert "one pass twenty tickets back starts no sed for each ticket ahead: fewer than 40 in all" "$( [ "$rigPassSeds" -lt 40 ] && printf fewer || printf "$rigPassSeds" )" fewer
+rigAssert "and it pauses longer than the 30 s a run near the front pauses: 5 s and 3 s a ticket ahead, up to 90 s" "$rigPause" 65
+rigProcSignal TERM "$rigPidB" || : ; rigEnd "$rigPidB"
+rigLet a ; rigEnd "$rigPidA"
+rigProcSignal TERM $rigAhead || : ; rm -f "$rigQueue"/*.ticket "$rigQueue"/*.ticket.beat
+
+echo "-- 13. a lane is its run's own: another ticket of the holder's session is neither named for it nor kept alive by it --"
+## One lane, held by a run of session a. Ahead of the waiter b stand two other tickets of session a, as runs of one session are several runs:
+## one that gave its lanes up (a mark beside it), from another copy, and one whose beat stopped two hours ago.
+rigFresh ; rigLanes 1 ; rigHold=1 ; rigStallLimit=60
+rigRun a ; rigPidA=$rigLast
+rigUntil 'BEGIN a' "$rigTmp/log" || rigRefuse "the run holding the one lane never began, so nothing below would be measured"
+sleep 300 & rigPidSib=$! ; rigProcNote "$rigPidSib"
+rigSibling="$rigQueue/$(( $( date +%s ) - 600 )).000000.$rigPidSib.ticket"
+printf 'session=rig-session-a\norigin=%s\nkind=run\nsince=%s\npid=%s\npstart=%s\n' "$( rigRoot c )" "$( date -u +%Y-%m-%dT%H:%M:%SZ )" "$rigPidSib" \
+	"$( ps -o lstart= -p "$rigPidSib" 2> /dev/null | LC_ALL=C tr -s ' ' | LC_ALL=C sed 's/^ //;s/ $//' )" > "$rigSibling"
+date +%s > "$rigSibling.beat" ; date +%s > "$rigSibling.yield"
+sleep 300 & rigPidStale=$! ; rigProcNote "$rigPidStale"
+rigStale="$rigQueue/$(( $( date +%s ) - 500 )).000000.$rigPidStale.ticket"
+printf 'session=rig-session-a\norigin=%s\nkind=run\nsince=%s\npid=%s\npstart=%s\n' "$( rigRoot n )" "$( date -u +%Y-%m-%dT%H:%M:%SZ )" "$rigPidStale" \
+	"$( ps -o lstart= -p "$rigPidStale" 2> /dev/null | LC_ALL=C tr -s ' ' | LC_ALL=C sed 's/^ //;s/ $//' )" > "$rigStale"
+printf '%s\n' "$(( $( date +%s ) - 7200 ))" > "$rigStale.beat"
+rigRun b ; rigPidB=$rigLast
+rigUntil 'waits its turn behind' "$rigTmp/b.out" || rigRefuse "the run behind the one lane never said it waits"
+rigAwait 'a place given up in the line' "$rigTmp/b.out" 100 || :
+rigAssert "the waiter names the run that holds the lane, never another ticket of its session" \
+	"$( LC_ALL=C grep 'waits its turn behind' "$rigTmp/b.out" | LC_ALL=C grep -c -F "from $( rigRoot a )," || : ):$( LC_ALL=C grep -c -F "from $( rigRoot c )," "$rigTmp/b.out" || : )" "1:0"
+rigAssert "a ticket of the holder's session whose own beat stopped is a place given up, and leaves the line" \
+	"$( [ -f "$rigStale" ] && printf kept || printf gone ):$( LC_ALL=C grep -c -F 'a place given up in the line' "$rigTmp/b.out" || : )" "gone:1"
+rigLet a ; rigEnd "$rigPidA"
+rigUntil 'BEGIN b' "$rigTmp/log" || :
+rigLet b ; rigEnd "$rigPidB"
+rigAssert "control: the waiter then takes the lane and runs" "$rigRc $( LC_ALL=C grep -c '^END b$' "$rigTmp/log" || : )" "0 1"
+rigProcSignal TERM "$rigPidSib" "$rigPidStale" || : ; rm -f "$rigSibling" "$rigSibling.beat" "$rigSibling.yield" "$rigStale" "$rigStale.beat"
 
 if [ "$rigFails" -ne 0 ] ; then
 	echo "⛔ RUN TESTS QUEUE CHECK FAILED: $rigFails of $(( rigPasses + rigFails )) assertion(s)" >&2 ; exit 1

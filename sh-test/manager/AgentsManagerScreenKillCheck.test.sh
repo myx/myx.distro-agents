@@ -67,11 +67,11 @@ rigS1=11111111-0000-4000-8000-000000000001 ; rigR2=a2a2a2a2-0000-4000-8000-00000
 rigS2=22222222-0000-4000-8000-000000000002
 rigF="$rigTmp/fixture" ; mkdir -p "$rigF"
 rigLone(){
-	rigRow session "$rigS2" - finished 2026-10-11_14:28_+0000 2026-10-11_14:51_+0000 1 finished=1
+	rigRow session "$rigS2" - finished 2026-10-11_14:28_+0000 2026-10-11_14:51_+0000 1 finished=1 - - - '' - - - closed
 	rigRow run "$rigS2" "$rigS2" magic-devops spawn-succeeded no-process finished 2026-10-11_14:28_+0000 2026-10-11_14:51_+0000 rig-host ws-rig -
 }
 {
-	rigRow session "$rigS1" daily_of_Monday running 2026-10-12_16:57_+0000 - 4 running=2,finished=2
+	rigRow session "$rigS1" daily_of_Monday running 2026-10-12_16:57_+0000 - 4 running=2,finished=2 - - - '' - - - active
 	rigRow run "$rigS1" "$rigS1" magic-coordinator spawn-started running waiting 2026-10-12_16:57_+0000 - rig-host ws-rig waiting
 	rigRow run "$rigS1" "$rigR2" magic-tester spawn-started running thinking 2026-10-12_17:05_+0000 - rig-host ws-rig working
 	rigRow run "$rigS1" "$rigR3" keeper-myx spawn-succeeded no-process finished 2026-10-12_17:06_+0000 2026-10-12_18:00_+0000 rig-host ws-rig -
@@ -80,7 +80,7 @@ rigLone(){
 	rigRow counters 1 0 1 1 3 0.42
 } > "$rigF/rows"
 {
-	rigRow session "$rigS1" daily_of_Monday finished 2026-10-12_16:57_+0000 2026-10-13_02:00_+0000 4 finished=4
+	rigRow session "$rigS1" daily_of_Monday finished 2026-10-12_16:57_+0000 2026-10-13_02:00_+0000 4 finished=4 - - - '' - - - closed
 	rigRow run "$rigS1" "$rigS1" magic-coordinator spawn-failed no-process finished 2026-10-12_16:57_+0000 2026-10-13_02:00_+0000 rig-host ws-rig -
 	rigRow run "$rigS1" "$rigR2" magic-tester spawn-failed no-process finished 2026-10-12_17:05_+0000 2026-10-13_02:00_+0000 rig-host ws-rig -
 	rigRow run "$rigS1" "$rigR3" keeper-myx spawn-succeeded no-process finished 2026-10-12_17:06_+0000 2026-10-12_18:00_+0000 rig-host ws-rig -
@@ -424,14 +424,14 @@ rigAssert "the operation was never called"                           "$( rigKill
 echo "-- a session that is not finished and has no agent alive: k closes it, and the kill finishes it --"
 rigS3=33333333-0000-4000-8000-000000000003 ; rigR5=b5b5b5b5-0000-4000-8000-0000000000b5 ; rigQ1=0f62d1f4-0000-4000-8000-0000000000f1
 rigCase waiting
-rigStale(){ ## the state of the session -- its rows of the list
-	rigRow session "$rigS3" stale_work "$1" 2026-10-01_09:00_+0000 2026-10-01_10:00_+0000 2 finished=2
+rigStale(){ ## the state of the session, its phase -- its rows of the list
+	rigRow session "$rigS3" stale_work "$1" 2026-10-01_09:00_+0000 2026-10-01_10:00_+0000 2 finished=2 - - - '' - - - "$2"
 	rigRow run "$rigS3" "$rigS3" magic-coordinator spawn-succeeded no-process finished 2026-10-01_09:00_+0000 2026-10-01_10:00_+0000 rig-host ws-rig -
 	rigRow run "$rigS3" "$rigR5" keeper-myx spawn-succeeded no-process finished 2026-10-01_09:05_+0000 2026-10-01_09:40_+0000 rig-host ws-rig -
 	rigRow counters 0 0 0 1 1 0.42
 }
-rigStale waiting > "$MANAGER_SCREEN_RIG/rows"
-rigStale finished > "$MANAGER_SCREEN_RIG/after.rows"
+rigStale waiting active > "$MANAGER_SCREEN_RIG/rows"
+rigStale finished closed > "$MANAGER_SCREEN_RIG/after.rows"
 rigStaleKill(){ ## the outcome of the question, of the record, the state the session reads -- the rows of its kill
 	rigRow kill "$rigS3" "$rigR5" keeper-myx no-process spawn-succeeded - -
 	rigRow kill "$rigS3" "$rigS3" magic-coordinator no-process spawn-succeeded - -

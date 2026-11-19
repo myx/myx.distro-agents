@@ -6,6 +6,7 @@
 ## runs of one routine. A list is read from the spawn store once in its time to live and kept in `.local/agents/schedule/`, so
 ## a schedule pass reads a file where it used to grep every record.
 ## The walk of the store is the session store's own, in `sh-lib/session/AgentsTools.StartedRecords.include`.
+## Inside a schedule pass the clock is the pass's own (agentsSchedulePassNow), so a list is read once a pass however long the pass runs.
 ## Sourced, never run. Functions only.
 ##
 
@@ -19,7 +20,7 @@ AgentsToolsSpawnedDutyRecords(){ ## -- the paths of the work-duty records, a lin
 	case "$dutyTtl" in ''|*[!0123456789]*) dutyTtl=10 ;; esac
 	if [ "$dutyTtl" -gt 0 ] ; then
 		{ IFS= read -r dutyAt < "$dutyCache" ; } 2> /dev/null || dutyAt=""
-		dutyNow="$( date +%s )" || dutyNow=""
+		dutyNow="${agentsSchedulePassNow:-$( date +%s )}" || dutyNow=""
 		case "$dutyAt$dutyNow" in
 			''|*[!0123456789]*) ;;
 			*)
@@ -51,7 +52,7 @@ AgentsToolsSpawnedRecordsOfRoutine(){ ## routine file name, cache name -- the pa
 	case "$2" in ''|*[!A-Za-z0-9._-]*) routineTtl=0 ;; esac
 	if [ "$routineTtl" -gt 0 ] ; then
 		{ IFS= read -r routineAt < "$routineCache" ; } 2> /dev/null || routineAt=""
-		routineNow="$( date +%s )" || routineNow=""
+		routineNow="${agentsSchedulePassNow:-$( date +%s )}" || routineNow=""
 		case "$routineAt$routineNow" in
 			''|*[!0123456789]*) ;;
 			*)
@@ -73,20 +74,20 @@ AgentsToolsSpawnedRecordsOfRoutine(){ ## routine file name, cache name -- the pa
 	return 0
 }
 
-## The list's first line is `<kept at, epoch> <newest folder under spawned/, epoch>`: it stands while its TTL has not passed AND no
-## folder under spawned/ is newer than it was kept with, so a record made since (a new folder, or a new file in a session's
-## folder, either touching the folder it lands in) refreshes the list at once, as the per-session list does. A record that
-## closed since stays listed until the TTL passes: a reader that needs the status as it is now reads it off the record.
+## The list's first line is `<kept at, epoch> <the store's stamp>` (AgentsSpawnedStoreStampInto): it stands while its TTL has not passed
+## AND the stamp is the one it was kept with, so a record made, closed or removed since refreshes the list at once, as the per-session
+## list does. A stamp of the pass's own second or later is not kept, and an empty one always walks.
 AgentsToolsSpawnedStartedRecords(){ ## -- the paths of the started records, a line each
 	local startedCache="$MMDAPP/.local/agents/schedule/started.records" startedTtl="${MDAT_STARTED_RECORDS_SECONDS:-30}" startedAt="" startedKept="" startedStamp="" startedNow="" startedList="" startedTemp startedPaths=()
 	case "$startedTtl" in ''|*[!0123456789]*) startedTtl=30 ;; esac
-	type AgentsSpawnedStoreNewestInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include"
-	AgentsSpawnedStoreNewestInto startedStamp "$MMDAPP"
-	case "$startedStamp" in ''|*[!0123456789]*) startedStamp=0 ;; esac
+	type AgentsSpawnedStoreStampInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include"
+	## The clock before the stamp, so a stamp older than it was read in a second already gone.
+	startedNow="${agentsSchedulePassNow:-$( date +%s )}" || startedNow=""
+	AgentsSpawnedStoreStampInto startedStamp "$MMDAPP"
+	case "$startedStamp" in ''|*[!0123456789]*) startedStamp="" ;; esac
 	if [ "$startedTtl" -gt 0 ] ; then
 		{ read -r startedAt startedKept < "$startedCache" ; } 2> /dev/null || { startedAt="" ; startedKept="" ; }
-		startedNow="$( date +%s )" || startedNow=""
-		case "$startedAt$startedNow$startedKept" in
+		case "$startedAt$startedNow$startedKept$startedStamp" in
 			''|*[!0123456789]*) ;;
 			*)
 				if [ "$(( startedNow - startedAt ))" -ge 0 ] && [ "$(( startedNow - startedAt ))" -lt "$startedTtl" ] && [ "$startedKept" = "$startedStamp" ] ; then
@@ -98,6 +99,7 @@ AgentsToolsSpawnedStartedRecords(){ ## -- the paths of the started records, a li
 	fi
 	AgentsToolsSpawnedAllRecordsInto startedPaths "$MMDAPP" || startedPaths=()
 	startedList="$( LC_ALL=C grep -l -x -F 'status: spawn-started' ${startedPaths[@]+"${startedPaths[@]}"} /dev/null 2> /dev/null )" || startedList=""
+	case "$startedStamp:$startedNow" in *[!0123456789:]*|:*|*:) startedTtl=0 ;; *) [ "$startedStamp" -lt "$startedNow" ] || startedTtl=0 ;; esac
 	if [ "$startedTtl" -gt 0 ] && mkdir -p "${startedCache%/*}" 2> /dev/null && startedTemp="$( mktemp "$startedCache.XXXXXX" 2> /dev/null )" ; then
 		{ printf '%s %s\n' "${startedNow:-$( date +%s )}" "$startedStamp" ; [ -z "$startedList" ] || printf '%s\n' "$startedList" ; } > "$startedTemp" 2> /dev/null \
 			&& mv -f "$startedTemp" "$startedCache" 2> /dev/null || rm -f "$startedTemp" 2> /dev/null

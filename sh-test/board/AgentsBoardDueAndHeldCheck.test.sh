@@ -75,13 +75,15 @@ rigStamp(){ ## seconds from now (may be negative)
 		|| date -u -d "@$(( $( date +%s ) + $1 ))" +"%Y-%m-%d %H:%M +0000"
 }
 ## A spawn record of this rig: `spawn-started` with no `exit-code` where live, else ended.
+## Written by the session store's own record writer, which marks the store changed: the kept list of started records
+## (AgentsToolsSpawnedStartedRecords) is read again only after such a mark, so a record written by hand stays unseen.
 rigRecord(){ ## spawn id, member, live|ended
 	{
 		printf -- '---\n'
 		printf 'session-id: %s\nspawn-id: %s\nowner: %s\nstatus: spawn-started\n' "$1" "$1" "$2"
 		[ "$3" = live ] || printf 'exit-code: 0\n'
 		printf -- '---\n'
-	} > "$rigWs/.local/agents/spawned/rig/$1.spawn.md"
+	} | rigOwnerStore AgentsSpawnRecordWrite "$1" rig || rigRefuse "the spawn record $1 could not be written by the session store"
 }
 ## The staleness window the code carries, in seconds, or nothing.
 rigWindow(){

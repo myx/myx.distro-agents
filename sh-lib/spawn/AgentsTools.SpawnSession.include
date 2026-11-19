@@ -307,9 +307,7 @@ case "$1" in
 			spawnMembers=( ${callerExpanded[@]+"${callerExpanded[@]}"} )
 		fi
 
-		## Who is in the session is the routine's own say, its frontmatter: the coordinator is
-		## there where the routine, or the kind routine it inherits from (a default setting, not
-		## a rule), names it in `executors:`, and nowhere else. Nothing is added here.
+		## Who is in the session is the routine's own say; a coworking session also holds magic-coordinator, seated once the partition is decided.
 
 		## Every member is asked before the first is started, so a call that names one
 		## wrong member starts nobody and leaves no half of a session behind: that its
@@ -400,6 +398,10 @@ case "$1" in
 		if [ -n "$partitionWorkers" ] && [ "$partitionRoster" != "true" ] ; then
 			echo "$MDSC_CMD: spawn-session: ⛔ ERROR: --workers applies to a partitioned run only (a <type>-* or two or more members) -- nothing was started" >&2
 			set +e ; return 1
+		fi
+		## A COWORKING SESSION ALWAYS HOLDS A magic-coordinator INSTANCE AS ITS EXECUTOR: seated first, it starts the session and the rest join it.
+		if [ -z "$sessionJoinId" ] && [ "$partitionRoster" != "true" ] && AgentsToolsSpawnRoutineIsCoworking "$resolvedRoutineFile" ; then
+			case " ${spawnMembers[*]} " in *" magic-coordinator "*) ;; *) spawnMembers=( magic-coordinator ${spawnMembers[@]+"${spawnMembers[@]}"} ) ;; esac
 		fi
 
 		## THE SPAWN LIMIT (S23.1): a start made while the limit of runs is reached is queued, never refused: filed as an inquiry for the coordinator and added to the CheckList of its
@@ -492,7 +494,8 @@ case "$1" in
 			AgentsSpawnPartitionFileInto partitionIdentifyFile "$MMDAPP" "$partitionParentId" identify || return 1
 			AgentsSpawnPartitionFileInto partitionNotesFile "$MMDAPP" "$partitionParentId" notes || return 1
 			AgentsSpawnPartitionFileInto partitionScopesFile "$MMDAPP" "$partitionParentId" scopes || return 1
-			mkdir -p "${partitionRecord%/*}" && {
+			type AgentsSpawnRecordWrite > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+			{
 				printf '%s\n' "---"
 				printf 'session-id: %s\n' "$partitionParentId"
 				printf 'spawn-id: %s\n' "$partitionParentId"
@@ -515,7 +518,7 @@ case "$1" in
 				printf 'started-at: %s\n' "$( date +"%Y-%m-%d %H:%M %z" )"
 				printf '%s\n' "---"
 				printf '\n# Agent-less parent session: %s\n' "$partitionParentId"
-			} > "$partitionRecord" || { echo "$MDSC_CMD: spawn-session: ⛔ ERROR: could not write the record of the agent-less parent $partitionParentId -- nothing was started" >&2 ; set +e ; return 1 ; }
+			} | AgentsSpawnRecordWrite "$partitionRecord" || { echo "$MDSC_CMD: spawn-session: ⛔ ERROR: could not write the record of the agent-less parent $partitionParentId -- nothing was started" >&2 ; set +e ; return 1 ; }
 			## What every start of the queue is given, kept beside the record for its watcher (AgentsToolsSpawnSessionParentStart).
 			local partitionArgs=( --dispatch-doc:create )
 			if [ "$routineDefault" = "true" ] ; then partitionArgs+=( --routine-default ) ; else partitionArgs+=( --routine "$routineSelector" ) ; fi

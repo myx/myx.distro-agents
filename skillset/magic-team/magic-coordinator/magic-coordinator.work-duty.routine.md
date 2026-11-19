@@ -43,6 +43,11 @@ The Opening steps of its session kind run first. Then:
    - the due items of the human-owner and the external contacts: `magic-coordinator.external-inbox-handle-loop.routine`, inline (`--routine-run-inline magic-coordinator.external-inbox-handle-loop.routine`).
    - the permission asks: `magic-coordinator.permission-escalation.routine`, inline (`--routine-run-inline magic-coordinator.permission-escalation.routine`).
    - the board and what is tagged to you: the board steps below, **reconcile-sessions** to **release-held-work**, against the scan's sections. Keep the round's tracking note current as the round proceeds (`--update-routine-state`), referencing items by name rather than copying them.
+   - each new input, whatever its source, is worked this way:
+     - analyse how it affects the board's state and the running sessions, and act on that.
+     - check before you state or judge.
+     - handle a small item yourself, in 5 to 20 seconds of activity. Anything larger runs as its own session.
+     - communicate in every direction, with whoever it concerns, never as a relay alone.
 2. **reconcile-sessions**: compare the scan's session registries with the board before any other board work. Each handler states its outcome, steps:
    - **reconcile-read**: read the spawned-sessions and pending-replies registries, and match each `board-running` item to its session by `session-id`. A pending-replies row's `session-id` is the id of the run that asked, never of the coworking session that run joined.
    - **reconcile-dead-session**: a `board-running` item other than a `dispatch-*` whose session is not live is a failed spawn. Record the registry reading in its `execution-receipt`. It carries `restart-session`: respawn that group at the item's recorded state, outcome `respawned`. Otherwise: move it to `board-blocked` with a `condition` naming the dead session, outcome `flagged-once`.
@@ -60,7 +65,7 @@ The Opening steps of its session kind run first. Then:
 5. **check-process-board**: run `check-process-board` against this round's read.
 6. **start-pending**: start decided `board-pending` work, steps:
    - candidates: approved `board-pending` items with no dispatch recorded, a child that `check-process-board` promoted from an approved parent included. The approval is the go; the running session covers the spawn.
-   - conflict gate: any one of these keeps the item in `board-pending`, with `recheck-date` advanced:
+   - conflict gate: any one of these keeps the item in `board-pending`, held by `--move-to-pending <item> --from-state:pending --header:upsert:condition:unmet: conflicts with <job> --recheck-in <n>`:
      - package or topic overlap with a running job.
      - resource contention shown by a live signal this round: an active lock or channel.
      - a document the item needs, being edited by another live session.
@@ -81,11 +86,11 @@ The Opening steps of its session kind run first. Then:
    - an ask only he can answer, while a supervision session runs: record it for him, and tell its run what to do meanwhile. Never ask him. Otherwise forward it to him (`--forward-escalation`).
 9. **release-held-work**: hold the work at what the machine carries, rules and steps:
    - rule: held work is the epic's sessions that wait for release, in its release order: most important first, by its urgency marks. A critical session is never held.
-   - rule: while a supervision session runs, hold each session that started since the last round. Never hold the critical session, a released session, a supervision session or this one.
+   - rule: while a supervision session runs, hold each session that started since the last round, with `--manager-session-pause`. Never hold the critical session, a released session, a supervision session or this one.
    - rule: the measure of capacity is the gap between tool calls that a run feels, never the load average alone.
    - step: for every live run, take the gaps between its consecutive tool calls over the last ten minutes, and their median. One long call that is a Wait or a test run is not a slow call.
    - step: ask one Permission set for the session next in the release order, where it has no approved `access-control:` set (`--request-permission-set`, on the item that tracks it). Cover every place, tool and member it will use.
-   - step: every median under a minute and no run stuck, as `magic-coordinator.supervision-session.routine`'s **unstall-runs** defines it: release the next held session in the release order, per `release-a-session`.
+   - step: every median under a minute and no run stuck, as `magic-coordinator.supervision-session.routine`'s **unstall-runs** defines it: release the next held session in the release order, per `release-a-session`, with `--manager-session-resume`.
    - step: a median of a minute or more: release nothing. Find the cause in the call path, and dispatch its fix with no regression.
 10. **decide-inline**: for each item of this round, decide inline which it is, and move on, steps:
    - small: work it at once here, as an inline routine (`--routine-run-inline`).
@@ -119,10 +124,19 @@ Steps:
 
 # Routine's local rules
 
-- **conversation-first**: this duty's input is conversations: the human-owner's, every member's and every contact's. It communicates and orchestrates the work. It never does the work itself, and nothing blocks it.
+- **conversation-first**: this duty's input is every new input: every conversation, the human-owner's, every member's and every contact's, and everything its input scan brings. Nothing blocks it.
+  - It communicates in every direction, between anyone, never as a relay alone.
+  - It orchestrates: it analyses how each new input affects the board's state and the running sessions, and acts on that.
+  - It checks before it states or judges, which is real work. It handles a small item itself, in 5 to 20 seconds of activity. Anything larger runs as its own session.
   - It answers what reaches it between any two steps, before the round goes on.
+  - It acknowledges each arrival at once, in words, in its own thread: that it heard, what it will do, and when it will answer. Then it answers, or hands the matter to a coordinator instance in that session.
   - Its inbox is one of its conversation sources. A new conversation, which reaches no live session, arrives there as an item, and is answered in its own thread.
   - It runs no work of its own, such as a daily, a grooming, an epic's plan rounds or a build, and never waits inside a coworking session. Each of those runs as its own session, which this duty starts and then leaves.
+  - When it starts anything non-trivial in a coworking session, it appoints an in-session coordinator instance as that session's executor, with a cold-reader dispatch. That instance orchestrates the session's members towards the session's goal, under every instruction and rule, and escalates or reports to this duty. An instance that waits costs nothing.
+    - It watches the session thread, one of its Wait's floor sources, and works almost as a supervisor of that session.
+    - It unblocks the halts, resolves the problems, corrects the deviations, and checks the progress and the results.
+    - It files reflections, for lasting improvements, assessments and investigations.
+    - It sets the session's title and its chapters.
   - A second duty of this member answers what reaches it itself. Only its writes to the routine's state note wait for the lock.
 - Work the input before you wait; never wait with input unworked.
 - A task whose nature is research, requirements or epic preparation is worked in `investigation` mode from its first round (`magic-team.armed.md`'s "Conversations").
@@ -208,12 +222,12 @@ Every harness tool and `magic-tooling` operation this routine uses. A harness to
 - `--queue-list` (`AgentLibrarianTools`)
 - `--queue-take` (`AgentLibrarianTools`)
 - `--queue-done <name>` (`AgentLibrarianTools`)
+- `--manager-session-pause --session-id <id>` and `--manager-session-resume --session-id <id>` (`DistroAgentsTools`, at the shell)
 
 ## Gaps
 
 A GAP is a planned tool the implementation lacks.
 
-- **GAP** the hold and release of a session (epic S19.1). No operation does either, so **release-held-work** is done through the console until one exists.
 - **GAP** automatic resume of a session's executor when an item is added to its CheckList (epic S4.1, investigation first).
 
 # Maintainer Notes

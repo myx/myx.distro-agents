@@ -47,6 +47,7 @@ maintainers: magic-librarian, magic-coordinator, magic-architect, human-owner
   - Apply the systems-depth lens to any frontend task it touches.
   - Write real, idiomatic code, not architecture only.
   - Own CSS and browser-facing craft.
+  - Prove a change in a scratch copy against the existing test rig for that code, red then green, in loops. A deploy is never its proof, and a renderer bound to no service needs no host.
   - Run `pwa-vision-iteration` as its idle task.
 - Doesn't:
   - Force the systems-depth lens onto a task that is just styling/markup.

@@ -135,6 +135,8 @@ printf '%s\n' "$( rigGood )" > "$rigDir/w.routine.md"
 rigBefore="$( cat "$rigDir/w.routine.md" )"
 rigRequest 2 Write "$( rigWriteArgs "$rigDir/w.routine.md" "$rigBroken" )" | rigServer 2
 rigAssert "the broken write refused" "$( LC_ALL=C grep -c 'the document-contract guard refuses:' "$rigTmp/err.2" )" 1
+rigRefusedRow="$( LC_ALL=C sed -n 's/.*the document-contract guard refuses: //p' "$rigTmp/err.2" | head -1 )"
+rigAssert "the closing line names the breach the guard refused" "$( [ -n "$rigRefusedRow" ] && LC_ALL=C grep 'breaks its contract in' "$rigTmp/err.2" | LC_ALL=C grep -c -F -- "nothing was written: $rigRefusedRow" )" 1
 rigAssert "the file is unchanged" "$( cat "$rigDir/w.routine.md" )" "$rigBefore"
 
 echo "-- 3. an Edit that introduces a refusing fault is refused whole --"

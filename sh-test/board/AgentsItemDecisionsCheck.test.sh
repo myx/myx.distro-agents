@@ -19,7 +19,9 @@ rigRefuse(){
 [ -f "$rigTool" ] || rigRefuse "the tool is not at the origin this workspace resolves: $rigTool"
 [ -f "$rigHarness" ] || rigRefuse "the harness is not at the origin this workspace resolves: $rigHarness"
 rigTmp="$( mkdir -p "$MMDAPP/.local/temp" && mktemp -d "$MMDAPP/.local/temp/AgentsItemDecisionsCheck.XXXXXX" )" || exit 1
-trap 'rm -rf -- "$rigTmp"' EXIT
+## Calls here start the rig's schedule thread, a detached process: it is ended before the tree goes.
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-control-threads.include.sh" || rigRefuse "the rig's fixture that ends its threads is missing from the package: sh-test/check-fixtures/rig-control-threads.include.sh"
+trap 'rigControlThreadsEnd "$rigTmp" ; rm -rf -- "$rigTmp"' EXIT
 rigStore="$rigTmp/ws/.local/agents/pending"
 rigBoard="$rigTmp/data/board"
 mkdir -p "$rigStore" "$rigTmp/home" "$rigTmp/skills" "$rigTmp/bin" "$rigTmp/tmp" "$rigTmp/scenario" "$rigTmp/ws/.local/.agents" \
@@ -180,6 +182,10 @@ rigAssert "as clarification lines on the item"    "$( rigSection "$rigBoard/bloc
 rigAssert "the record stays answered as it was"   "$( rigField "$rigStore/$rigId1.md" verdict )" "keep it, signed off"
 printf '1700000009.000300\tURIGOWNER\tand keep the signature page\n' | rigOp clar2 --intern-op-pending-reply-clarify "$rigId1" --from-stdin
 rigAssert "a message kept once is not kept twice" "$( head -1 "$rigTmp/clar2" ):$( rigSection "$rigBoard/blocked/$rigTask.md" | LC_ALL=C grep -c "clarification: on $rigId1 " )" "CLARIFIED $rigId1 0:2"
+rigRec1="$rigStore/$rigId1.md" ; [ -f "$rigRec1" ] || rigRec1="$rigStore/closed/$rigId1.md"
+LC_ALL=C awk 'NR == 2 { print "asking-accounts:  URIGSELF1 " ; } { print ; }' "$rigRec1" > "$rigTmp/r1a" && mv "$rigTmp/r1a" "$rigRec1" || rigRefuse "the record of $rigId1 took no asking account"
+printf '1700000009.000400\tURIGSELF1\tthe ask itself, posted again\n' | rigOp clar3 --intern-op-pending-reply-clarify "$rigId1" --from-stdin
+rigAssert "a post of the asking account is no clarification on the item" "$( rigSection "$rigBoard/blocked/$rigTask.md" | LC_ALL=C grep -c "clarification: on $rigId1 " )" 2
 printf 'Should the rig also sign the side letter?\n' | rigOp open6 --intern-op-pending-reply-open "$rigMember" --to human-owner \
 	--session-id rig-session-a --kind decision --address-to human-owner --item "$rigTask"
 rigId6="$( head -1 "$rigTmp/open6" )"
@@ -349,14 +355,12 @@ rigDecOp(){ ## output name, op, arguments...
 		bash "$rigTool" "$@" ) > "$rigTmp/$opOut" 2> "$rigTmp/$opOut.err" || rigRc=$?
 	return "$rigRc"
 }
-## A waited call in the background, answered while it waits, and ended at 150 s if it never returns.
+## A waited call in the background, answered while it waits, and waited out: its limit is soft, and the runner's timeout bounds a hang.
 rigDecWaited(){ ## reply text, output name, op, arguments...
-	local waitedReply="$1" waitedPid waitedLeft=150 ; shift
+	local waitedReply="$1" waitedPid ; shift
 	rigDecOp "$@" &
 	waitedPid=$!
 	rigAnswerAsked "$waitedReply" || :
-	while kill -0 "$waitedPid" 2> /dev/null && [ "$waitedLeft" -gt 0 ] ; do sleep 1 ; waitedLeft=$(( waitedLeft - 1 )) ; done
-	kill -0 "$waitedPid" 2> /dev/null && { kill "$waitedPid" ; sleep 1 ; } 2> /dev/null
 	rigRc=0 ; wait "$waitedPid" 2> /dev/null || rigRc=$?
 }
 rigDecOp dask1 --record-decision --team-member "$rigMember" "$rigAsked" --kind resolved --text "The rig asks before it records." --with human-owner
@@ -374,6 +378,7 @@ rigDecWaited "edit: The rig asks first, then records." dask2 --record-decision -
 rigAssert "waited: an edit lands the person's words" "$rigRc:$( tail -1 "$rigTmp/dask2" | cut -d' ' -f1 ):$( rigSection "$rigBoard/running/$rigAsked.md" | tail -1 | LC_ALL=C sed -E 's/.* clarification: //; s/ \(readback .*$//' )" "0:DECISION-RECORDED:The rig asks first, then records."
 rigDecWaited "no" dask3 --record-decision --team-member "$rigMember" "$rigAsked" --kind clarification --text "The rig records without asking." --with human-owner --wait
 rigAssert "a no lands nothing, and says what next"   "$rigRc:$( rigAskedLines ):$( tail -1 "$rigTmp/dask3" | cut -d' ' -f1 ):$( LC_ALL=C grep -c 'then ask it again' "$rigTmp/dask3" )" 0:2:DECISION-NOT-RECORDED:1
+[ "$( rigAskedLines )" = 2 ] || rigSection "$rigBoard/running/$rigAsked.md" | LC_ALL=C sed 's/^/        | /'
 rigDecOp dask4 --record-decision --team-member "$rigMember" "$rigAsked" --kind clarification --text "Both." --with human-owner --readback "$rigDid1"
 rigAssert "--with and --readback together: refused"  "$( [ "$rigRc" -ne 0 ] && echo refused || echo taken ):$( rigAskedLines )" refused:2
 
@@ -389,8 +394,12 @@ echo "-- who decides it himself: a contact by its tier --"
 mkdir -p "$rigTmp/data/contacts/persons"
 printf -- '---\ncontact-id: rig-admin\ndisplay-name: Rig Admin\ntier: tier-admin\n---\n' > "$rigTmp/data/contacts/persons/rig-admin.md"
 printf -- '---\ncontact-id: rig-guest\ndisplay-name: Rig Guest\norganisation: rig-org\n---\n' > "$rigTmp/data/contacts/persons/rig-guest.md"
-rigDecides(){ ( MDAT_DATA_ROOT="$rigTmp/data" AgentsToolsDecisionPartyDecides "$1" ) && echo decides || echo goes-up ; }
+rigDecides(){ ( MDAT_DATA_ROOT="$rigTmp/data" AgentsToolsDecisionPartyDecides "$1" "${2:-}" ) && echo decides || echo goes-up ; }
 rigAssert "a tier-admin contact decides, a plain contact and a member outside it go up" "$( rigDecides contact:rig-admin ):$( rigDecides contact:rig-guest ):$( rigDecides contact:rig-nobody ):$( rigDecides keeper-myx )" "decides:goes-up:goes-up:goes-up"
+printf -- '---\ncontact-id: rig-projadmin\ndisplay-name: Rig Project Admin\norganisation: rig-org\nscope-tiers: rig-proj=tier-admin\n---\n' > "$rigTmp/data/contacts/persons/rig-projadmin.md"
+printf -- '---\ntype: task\nowner: magic-tester\nprojects: rig-other, rig-proj\n---\n\n# Rig project item\n' > "$rigTmp/rig-proj-item.md"
+printf -- '---\ntype: task\nowner: magic-tester\nprojects: rig-other\n---\n\n# Rig other item\n' > "$rigTmp/rig-other-item.md"
+rigAssert "an admin of a project the item names decides it, and only there" "$( rigDecides contact:rig-projadmin "$rigTmp/rig-proj-item.md" ):$( rigDecides contact:rig-projadmin "$rigTmp/rig-other-item.md" ):$( rigDecides contact:rig-projadmin )" "decides:goes-up:goes-up"
 echo "-- confirmed by one who cannot decide it: it goes up to the human-owner, and his answer lands it --"
 rigAssert "asked of the human-owner, nothing goes up" "$( cat "$rigStore/$rigDid1.fields" "$rigStore/closed/$rigDid1.fields" 2> /dev/null | LC_ALL=C grep -c '^decision-escalate' )" 0
 rigEsc="task-20261008T1800Z-rig-decision-escalated"
@@ -406,6 +415,44 @@ rigAssert "confirmed, it goes up and records nothing" "$( rigSection "$rigBoard/
 rigAnswerAsked "yes"
 rigDecOp esc3 --intern-op-escalation-read magic-coordinator "$rigEscNew"
 rigAssert "his yes lands it, naming both confirmations" "$( rigSection "$rigBoard/running/$rigEsc.md" | LC_ALL=C grep -c -F "magic-tester resolved: The rig vendor is the blue one. (readback $rigEscNew, confirmed by URIGOWNER at " ):$( rigSection "$rigBoard/running/$rigEsc.md" | LC_ALL=C grep -c -F "confirmed by URIGCONTACT in readback $rigEscId)" )" 1:1
+
+echo "-- a review: every unconfirmed line as one list, and its answer applied line by line --"
+rigRev="task-20261008T1900Z-rig-review"
+{
+	printf -- '---\ntype: task\nowner: magic-tester\n---\n\n# Rig review\n\n## Decisions\n<!-- decisions-of: %s -->\n\n' "$rigRev"
+	printf -- '- 2026-11-01T10:00Z magic-tester clarification: The rig keeps the red wire. (ask rig-a, withdrawn)\n'
+	printf -- '- 2026-11-01T10:01Z magic-tester resolved: The rig ships on Friday. (ask rig-b, answered by URIGOWNER (settled))\n'
+	printf -- '- 2026-11-01T10:02Z magic-tester clarification: The rig drops the old port. (no source)\n'
+	printf -- '- 2026-11-01T10:03Z magic-tester resolved: The rig is confirmed already. (readback rig-c, confirmed by URIGOWNER at 2026-11-01T10:03Z)\n'
+	printf -- '- 2026-11-01T10:04Z magic-tester clarification: The rig long line keeps every word: word01 word02 word03 word04 word05 word06 word07 word08 word09 word10 word11 word12 word13 word14 word15 word16 word17 word18 word19 word20 word21 word22 word23 word24 word25 word26 word27 word28 word29 word30 word31 word32 word33 word34 word35 word36 word37 word38 word39 word40 word41 word42 word43 word44 word45 word46 word47 word48 word49 word50 word51 word52 word53 word54 word55 word56 word57 word58 word59. (no source)\n'
+} > "$rigBoard/running/$rigRev.md"
+rigRevLine(){ rigSection "$rigBoard/running/$rigRev.md" | LC_ALL=C grep -F -- "$1" | head -1 ; }
+rigDecOp drev0 --record-decision --team-member "$rigMember" "$rigRev" --review --kind resolved --with human-owner
+rigAssert "a review with --kind: refused"            "$( [ "$rigRc" -ne 0 ] && echo refused || echo taken )" refused
+rigDecOp drev1 --record-decision --team-member "$rigMember" "$rigRev" --review --with human-owner
+rigRevId="$( rigAskedId drev1 )"
+rigAssert "the list: each unconfirmed line with its action, the confirmed one left out" "$rigRc:$( LC_ALL=C awk -F'\t' '$1 == "understood" { print ( index( $0, "1. re-ask: magic-tester, clarification, 2026-11-01\\n> The rig keeps the red wire." ) ? "re-ask" : "-" ) ":" ( index( $0, "2. confirm: magic-tester, resolved, 2026-11-01" ) ? "confirm" : "-" ) ":" ( index( $0, "3. prune: magic-tester, clarification, 2026-11-01" ) ? "prune" : "-" ) ":" ( index( $0, "confirmed already" ) ? "listed" : "left" ) ":" ( index( $0, "(ask rig-" ) ? "raw" : "plain" ) ; }' "$rigStore/$rigRevId.fields" 2> /dev/null )" "0:re-ask:confirm:prune:left:plain"
+rigAnswerAsked "edit: 3 confirm"
+rigDecOp drev2 --intern-op-escalation-read magic-coordinator "$rigRevId"
+rigAssert "edited: the withdrawn one struck and asked again, the settled and the edited one confirmed" "$( rigRevLine 'The rig keeps the red wire. (ask' | LC_ALL=C grep -c 'struck by magic-tester: asked again' ):$( rigRevLine 'The rig ships on Friday.' | LC_ALL=C grep -c -F "[confirmed by URIGOWNER: readback $rigRevId, at " ):$( rigRevLine 'The rig drops the old port.' | LC_ALL=C grep -c -F "[confirmed by URIGOWNER: readback $rigRevId, at " ):$( rigRevLine 'The rig is confirmed already.' | LC_ALL=C grep -c -F '[' )" "1:1:1:0"
+rigAssert "the re-ask is a readback of its text"     "$( cat "$rigStore"/*.fields 2> /dev/null | LC_ALL=C grep -c -x -F "$( printf 'understood\tThe rig keeps the red wire.' )" )" 1
+rigDecOp drev3 --intern-op-escalation-read magic-coordinator "$rigRevId"
+rigAssert "a line longer than 300 characters is struck whole" "$( rigRevLine 'The rig long line keeps every word' | LC_ALL=C grep -c -F 'word59. (no source) [struck by magic-tester: pruned' )" 1
+rigAssert "read again, it applies once"              "$( rigSection "$rigBoard/running/$rigRev.md" | LC_ALL=C grep -c 'struck by' ):$( rigSection "$rigBoard/running/$rigRev.md" | LC_ALL=C grep -c '\[confirmed by ' )" "2:2"
+rigDecOp drev6 --record-decision --team-member magic-coordinator "$rigRev" --review --with human-owner
+rigAssert "magic-coordinator reviews an item it is no party of" "$rigRc:$( LC_ALL=C grep -c -E '^DECISION-(ASKED|REVIEW-NONE) ' "$rigTmp/drev6" )" "0:1"
+rigDecOp drev7 --record-decision --team-member keeper-myx "$rigRev" --review --with human-owner
+rigAssert "a member that is no party of it reviews nothing" "$( [ "$rigRc" -ne 0 ] && echo refused || echo taken )" refused
+rigRev2="task-20261008T1901Z-rig-review-up"
+{
+	printf -- '---\ntype: task\nowner: magic-tester\n---\n\n# Rig review up\n\n## Decisions\n<!-- decisions-of: %s -->\n\n' "$rigRev2"
+	printf -- '- 2026-11-01T11:00Z magic-tester clarification: The rig paints it blue. (no source)\n'
+} > "$rigBoard/running/$rigRev2.md"
+rigDecOp drev4 --record-decision --team-member "$rigMember" "$rigRev2" --review --with human-owner
+rigRevUp="$( rigAskedId drev4 )"
+rigDecOp drev5 --intern-op-pending-reply-close "$rigRevUp" --if-open --status reply-received --verdict yes --answered-by URIGCONTACT
+rigRevNew="$( cat "$rigStore/$rigRevUp.fields" "$rigStore/closed/$rigRevUp.fields" 2> /dev/null | LC_ALL=C awk -F'\t' '$1 == "escalated" { print $2 ; exit ; }' )"
+rigAssert "answered by one without rights: nothing changes, and the list goes up" "$( rigSection "$rigBoard/running/$rigRev2.md" | LC_ALL=C grep -c -F '[' ):$( [ -n "$rigRevNew" ] && rigField "$rigStore/$rigRevNew.md" item ):$( LC_ALL=C grep -c -F "$( printf 'understood\t1. prune: magic-tester, clarification, 2026-11-01' )" "$rigStore/$rigRevNew.fields" 2> /dev/null )" "0:$rigRev2:1"
 
 echo
 printf 'ITEM_DECISIONS: %s passed, %s failed\n' "$rigPassCount" "$rigFailCount"

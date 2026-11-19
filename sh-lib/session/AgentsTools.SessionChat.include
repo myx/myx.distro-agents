@@ -133,6 +133,28 @@ AgentsToolsSessionChatLastMessage(){ ## session
 	'
 }
 
+## When a session's chat last told a member to go, its header's ISO stamp into the named variable: empty where it never did. A
+## dismissal is a block another member addressed to it whose whole body is DISMISSED, as SendMessage and AgentsToolsRunDismiss write it.
+AgentsToolsSessionChatDismissedAtInto(){ ## variable, session, member
+	local dismissedAt=""
+	printf -v "$1" '%s' ""
+	case "${2:-}" in ''|.|..|*/*|*[[:space:]]*) return 0 ;; esac
+	[ -n "${3:-}" ] && [ -f "${MMDAPP:-/nonexistent}/.local/agents/sessions/$2/$agentsSessionChatName" ] || return 0
+	dismissedAt="$( LC_ALL=C awk -v member="$3" '
+		function settleBlock() { if ( heldOne && bodyCount == 1 && bodyText ~ /^DISMISSED[.!]?$/ ) { newestAt = heldAt ; } ; heldOne = 0 ; }
+		/^20[0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9:]+Z [^ ]+ -> / {
+			settleBlock() ;
+			toPart = $0 ; sub( /^[^ ]+ [^ ]+ -> /, "", toPart ) ; sub( /:[ ]*$/, "", toPart ) ;
+			toCount = split( toPart, toName, /, */ ) ;
+			for ( toAt = 1 ; toAt <= toCount ; toAt++ ) { if ( toName[toAt] == member && $2 != member ) { heldOne = 1 ; } ; } ;
+			heldAt = $1 ; bodyCount = 0 ; bodyText = "" ; next ;
+		}
+		heldOne && NF { bodyCount++ ; bodyText = $0 ; sub( /^[ ]+/, "", bodyText ) ; sub( /[ ]+$/, "", bodyText ) ; }
+		END { settleBlock() ; print newestAt ; }
+	' "$MMDAPP/.local/agents/sessions/$2/$agentsSessionChatName" 2> /dev/null )" || dismissedAt=""
+	printf -v "$1" '%s' "$dismissedAt"
+}
+
 ## The last messages of one thread of a session's chat, `<speaker><TAB><text>` a message, by the one reader of the chat; nothing for none.
 AgentsToolsSessionChatThreadMessages(){ ## session, conversation:thread, member, member's Slack id (may be empty), messages
 	local threadChat
@@ -332,8 +354,8 @@ AgentsToolsSessionChatResolve(){ ## the index file, the stamps file
 ## A PATH A READER MAY BE HANDED, AND THE SAME AS IT STOOD WHEN THERE ARE NO STAMPS: sets agentsSessionChatReadPath to the resolved
 ## index, or to the index itself where the session has no stamps. Sets the path only: nothing is printed, so a read is no extra
 ## subshell. A caller that took a temp gives it back with AgentsToolsSessionChatReadPathDone.
-## THE RENDERING IS KEPT, ONE PER SESSION, `session.chat.resolved`: it is made again only where the stamps or the index are newer
-## than it, so a session whose files are quiet pays one mtime test a read, never an awk. It is derived, and a reader that finds it
+## THE RENDERING IS KEPT, ONE PER SESSION, `session.chat.resolved`: it is made again unless it is newer than both the stamps and the
+## index, so a session whose files are quiet pays one mtime test a read, never an awk. It is derived, and a reader that finds it
 ## missing or older simply makes it.
 AgentsToolsSessionChatReadPath(){ ## session
 	local readPathDir
@@ -344,7 +366,8 @@ AgentsToolsSessionChatReadPath(){ ## session
 		agentsSessionChatReadPath="$readPathDir/$agentsSessionChatName.index"
 		return 0
 	fi
-	if [ -f "$readPathDir/$agentsSessionChatName.resolved" ] && [ ! "$readPathDir/$agentsSessionChatName.stamps" -nt "$readPathDir/$agentsSessionChatName.resolved" ] && [ ! "$readPathDir/$agentsSessionChatName.index" -nt "$readPathDir/$agentsSessionChatName.resolved" ] ; then
+	## -nt compares whole seconds: equal times count as a change, so a write in the view's own second is never missed.
+	if [ "$readPathDir/$agentsSessionChatName.resolved" -nt "$readPathDir/$agentsSessionChatName.stamps" ] && [ "$readPathDir/$agentsSessionChatName.resolved" -nt "$readPathDir/$agentsSessionChatName.index" ] ; then
 		agentsSessionChatReadPath="$readPathDir/$agentsSessionChatName.resolved"
 		return 0
 	fi
@@ -792,14 +815,15 @@ AgentsToolsSessionChatImportDirect(){ ## session, conversation:thread, rendering
 	: > "$importWork/chat" ; : > "$importWork/index" ; : > "$importWork/none"
 	[ -f "$importDir/$agentsSessionChatName.index" ] || : > "$importDir/$agentsSessionChatName.index"
 	[ -f "$importDir/$agentsSessionChatName" ] || : > "$importDir/$agentsSessionChatName"
+	[ -f "$importDir/$agentsSessionChatName.stamps" ] || : > "$importDir/$agentsSessionChatName.stamps"
 	importLine=$(( $( { LC_ALL=C wc -l < "$importDir/$agentsSessionChatName" ; } 2> /dev/null || printf 0 ) + 1 ))
 	importNo=$(( $( { LC_ALL=C wc -l < "$importDir/$agentsSessionChatName.index" ; } 2> /dev/null || printf 0 ) + 1 ))
 	importMap="$importWork/identities"
 	AgentsSlackIdentityRows > "$importMap" 2> /dev/null || : > "$importMap"
-	LC_ALL=C awk -v channel="${2%%:*}" -v where="$2" -v origin="${4:-slack}" -v seen="${5:--}" -v historyBefore="$importHistory" \
-		-v startLine="$importLine" -v startNo="$importNo" -v chatOut="$importWork/chat" -v indexOut="$importWork/index" \
+	chatOut="$importWork/chat" indexOut="$importWork/index" LC_ALL=C awk -v channel="${2%%:*}" -v where="$2" -v origin="${4:-slack}" -v seen="${5:--}" \
+		-v historyBefore="$importHistory" -v startLine="$importLine" -v startNo="$importNo" \
 		-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsSessionChatImport.awk" \
-		"$importDir/$agentsSessionChatName.index" "$importMap" "$3" 2> /dev/null || :
+		"$importDir/$agentsSessionChatName.index" "$importDir/$agentsSessionChatName.stamps" "$importMap" "$3" 2> /dev/null || :
 	if [ -s "$importWork/index" ] ; then
 		cat "$importWork/chat" >> "$importDir/$agentsSessionChatName" 2> /dev/null && cat "$importWork/index" >> "$importDir/$agentsSessionChatName.index" 2> /dev/null || :
 	fi

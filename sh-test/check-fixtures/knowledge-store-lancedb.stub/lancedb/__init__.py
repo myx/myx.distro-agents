@@ -1,6 +1,6 @@
 # Stand-in for the `lancedb` module, for the knowledge store checks: a store on disk is a plain JSON file,
 # `<store>/sections.json`, and `<store>/sections.fts` records that the full-text index stands. Mirrors the calls
-# AgentsKnowledgeStore.py makes -- connect, table_names, open_table, create_table, drop_table, count_rows (with a filter too),
+# AgentsKnowledgeStore.py makes -- connect, list_tables, open_table, create_table, drop_table, count_rows (with a filter too),
 # add, delete, create_index,
 # search(None).limit(n).to_list(), and the hybrid builder's search(query_type=...).vector().text().rerank().limit().to_list()
 # -- and nothing else. A fused answer here ranks by reciprocal rank over two legs, the vector leg by dot product and the
@@ -153,6 +153,12 @@ class _Table(object):
         return [1] if self.hasIndex() else []
 
 
+class _TableList(object):
+    def __init__(self, tables):
+        self.tables = tables
+        self.page_token = None
+
+
 class _Db(object):
     def __init__(self, store_dir):
         self._dir = store_dir
@@ -160,10 +166,10 @@ class _Db(object):
     def open_table(self, name):
         return _Table(self._dir, name)
 
-    def table_names(self):
+    def list_tables(self):
         if not os.path.isdir(self._dir):
-            return []
-        return [entry[:-5] for entry in os.listdir(self._dir) if entry.endswith(".json")]
+            return _TableList([])
+        return _TableList([entry[:-5] for entry in os.listdir(self._dir) if entry.endswith(".json")])
 
     def create_table(self, name, rows):
         if not os.path.isdir(self._dir):

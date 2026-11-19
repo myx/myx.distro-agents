@@ -7,7 +7,7 @@
 ##      one matching nothing gives no row and no warning), directory through the places,
 ##      project -- a write grant on a read-only place capped to read with one warning, an
 ##      unknown name kept as an unresolved row with one warning, and magic-librarian's read of
-##      source/**; the `--magic-team:` floor directives of magic-architect and magic-tester,
+##      source/**; the `magic-team:` floor directives of magic-architect and magic-tester,
 ##      declared as myx.distro-agents/project.inf declares them, with their tags, as the registry
 ##      readers find them, and none of member `*`;
 ##   2. grants.index: fully unrolled per member, the ceilings deepest first, the floor (temp in
@@ -23,9 +23,9 @@
 ##      grant opens or the grants index changes, an Allow once used up and lapsed, a task
 ##      grant ending with its item;
 ##   5. CLIENT_ACCESS_ROOTS_EXTRA is gone;
-##   6. the team floor tools in code (agentsPermissionFloorTools) and the inert reference lines
-##      in myx.distro-agents/project.inf name exactly the same tools, both ways; and so do the
-##      directives of magic-architect and magic-tester and their registry rows;
+##   6. the team floor tools of myx.distro-agents/project.inf are no registry row, once each declared;
+##      the directives of magic-architect and magic-tester and their registry rows name exactly the
+##      same rows, both ways;
 ##   7. a workspace with no source/: no registry of its own, the floor directive rows through the
 ##      registry of a workspace that declares them, and none under a HOME with no such registry, said;
 ##   8. a rig, no source/ and myx.distro-agents installed under .local/myx: the same rows from there.
@@ -109,10 +109,10 @@ rigHelperScript(){ ## include, function, arguments...
 	printf '\n'
 }
 
-## The --magic-team: directives of the real package, declared by the rig project as the package declares them.
+## The magic-team: directives of the real package, declared by a rig project of the package's own id, myx/myx.distro-agents.
 rigFloorDirectives=()
-while IFS= read -r rigOne ; do rigFloorDirectives+=( "$rigOne" ) ; done < <( LC_ALL=C sed -n 's/^[[:space:]]*\(--magic-team:[^ ]*\) \\$/\1/p' "$rigPackage/project.inf" )
-[ "${#rigFloorDirectives[@]}" -gt 0 ] || rigRefuse "no --magic-team: directive in $rigPackage/project.inf"
+while IFS= read -r rigOne ; do rigFloorDirectives+=( "$rigOne" ) ; done < <( LC_ALL=C sed -n 's/^[[:space:]]*\(magic-team:[^ ]*\) \\$/\1/p' "$rigPackage/project.inf" )
+[ "${#rigFloorDirectives[@]}" -gt 0 ] || rigRefuse "no magic-team: directive in $rigPackage/project.inf"
 
 ## ws-main has agents installed; ws-side is a registered tooling workspace without agents; the
 ## two testbeds and ws-testbed-old are registered workspaces with no source, for the patterns.
@@ -136,8 +136,14 @@ rigWsMake ws-main \
 	"magic-team:permissions:project:.:allow-write:keeper-w:p/**" \
 	"magic-team:permissions:workspace:.:deny-write:keeper-w:shared/locked/**" \
 	"magic-team:permissions:workspace:.:deny-read:keeper-w:shared/secret/**" \
-	"magic-team:permissions:workspace:*:deny-tool:keeper-w:RigDeniedTool" \
-	"${rigFloorDirectives[@]}"
+	"magic-team:permissions:workspace:*:deny-tool:keeper-w:RigDeniedTool"
+mkdir -p "$rigMain/source/myx/myx.distro-agents"
+printf 'Name: myx\n' > "$rigMain/source/myx/repository.inf"
+{
+	printf 'Name: myx.distro-agents\n\nDeclares: \\\n'
+	for rigOne in "${rigFloorDirectives[@]}" ; do printf '\t%s \\\n' "$rigOne" ; done
+	printf '\n'
+} > "$rigMain/source/myx/myx.distro-agents/project.inf"
 rigWsMake ws-side "magic-team:permissions:workspace:.:allow-write:keeper-two:mine/**"
 mkdir -p "$rigMain/.local/agents" "$rigMain/.local/temp" "$rigMain/shared"
 : > "$rigMain/.local/agents/members.registry"
@@ -344,19 +350,18 @@ rigAssert "a stored value opens nothing"                        "$( rigRead magi
 rigRun ws-main --owner-setup-claude --access-root "$rigTmp/extra" --apply
 rigAssert "its owner-setup option is refused as unknown"        "$( [ "$rigRc" != 0 ] && printf refused || printf taken )" refused
 
-echo "-- 6. the team floor tools: granted in code, referenced in myx.distro-agents/project.inf --"
-## The code list (agentsPermissionFloorTools) and the inert --magic-team: reference lines, one
-## tool per line, sorted with duplicates kept, so a doubled line shows as a difference.
-rigFloorCode="$( LC_ALL=C sed -n 's/^agentsPermissionFloorTools=" *\(.*[^ ]\) *"$/\1/p' "$rigHere/grants/AgentsTools.PermissionHolds.include" | LC_ALL=C tr -s ' ' '\n' | LC_ALL=C sort )"
-[ -n "$rigFloorCode" ] || rigRefuse "no agentsPermissionFloorTools list found in $rigHere/grants/AgentsTools.PermissionHolds.include"
-rigFloorRef="$( LC_ALL=C sed -n 's/^[[:space:]]*--magic-team:permissions:workspace:\*:allow-tool:\*:\([^ ]*\) \\$/\1/p' "$rigPackage/project.inf" | LC_ALL=C sort )"
-rigAssert "every code floor tool has its reference line"        "$( LC_ALL=C comm -23 <( printf '%s\n' "$rigFloorCode" ) <( printf '%s\n' "$rigFloorRef" ) | LC_ALL=C tr '\n' ' ' )" ""
-rigAssert "every reference line names a code floor tool, once"  "$( LC_ALL=C comm -13 <( printf '%s\n' "$rigFloorCode" ) <( printf '%s\n' "$rigFloorRef" ) | LC_ALL=C tr '\n' ' ' )" ""
+echo "-- 6. the team floor tools: declared in myx.distro-agents/project.inf, no registry row --"
+## The declared floor tools, one a line, sorted with duplicates kept, so a doubled row shows as a difference.
+rigFloorRef="$( LC_ALL=C sed -n 's/^[[:space:]]*magic-team:permissions:workspace:\*:allow-tool:\*:\([^ ]*\) \\$/\1/p' "$rigPackage/project.inf" | LC_ALL=C sort )"
+[ -n "$rigFloorRef" ] || rigRefuse "no floor tool row found in $rigPackage/project.inf"
+rigAssert "no floor tool is declared twice"                     "$( printf '%s\n' "$rigFloorRef" | LC_ALL=C uniq -d | LC_ALL=C tr '\n' ' ' )" ""
+rigAssert "no floor tool is a registry row of member *"         "$( LC_ALL=C grep -c -E "^\\*:ws-main:tool:($( printf '%s\n' "$rigFloorRef" | LC_ALL=C paste -s -d '|' - ))\$" "$rigTmp/build.reg" || : )" "0"
+rigAssert "control: a * tool row of another package is a registry row" "$( LC_ALL=C grep -c -F '*:ws-main:tool:RigTeamTool' "$rigTmp/build.reg" )" "1"
 ## The members this package carries: each floor directive turned into the rows it stands for in
 ## this rig (a `*` every rig workspace, a pattern each one whose name matches, a tool one row),
 ## against the rows the registry of ws-main holds, both ways.
 rigMemberRef="$(
-	LC_ALL=C sed -n -E 's/^[[:space:]]*--magic-team:permissions:workspace:([^:]*):(allow-[a-z]*):(magic-architect|magic-tester):([^ ]*) \\$/\1 \2 \3 \4/p' "$rigPackage/project.inf" \
+	LC_ALL=C sed -n -E 's/^[[:space:]]*magic-team:permissions:workspace:([^:]*):(allow-[a-z]*):(magic-architect|magic-tester):([^ ]*) \\$/\1 \2 \3 \4/p' "$rigPackage/project.inf" \
 	| while read -r refSel refVerb refMember refGlob ; do
 		case "$refVerb" in
 			(allow-tool) printf '%s:ws-main:tool:%s\n' "$refMember" "$refGlob" ; continue ;;
@@ -369,7 +374,7 @@ rigMemberRef="$(
 		done
 	done | LC_ALL=C sort
 )"
-[ -n "$rigMemberRef" ] || rigRefuse "no --magic-team: directive of magic-architect or magic-tester in $rigPackage/project.inf"
+[ -n "$rigMemberRef" ] || rigRefuse "no magic-team: directive of magic-architect or magic-tester in $rigPackage/project.inf"
 rigMemberRows="$( LC_ALL=C grep -E '^(magic-architect|magic-tester):ws-main:(workspace|tool):' "$rigTmp/build.reg" | LC_ALL=C sort )"
 rigAssert "every member directive has its registry rows"        "$( LC_ALL=C comm -23 <( printf '%s\n' "$rigMemberRef" ) <( printf '%s\n' "$rigMemberRows" ) | LC_ALL=C tr '\n' ' ' )" ""
 rigAssert "every such registry row has its directive, once"     "$( LC_ALL=C comm -13 <( printf '%s\n' "$rigMemberRef" ) <( printf '%s\n' "$rigMemberRows" ) | LC_ALL=C tr '\n' ' ' )" ""
@@ -402,7 +407,7 @@ rigHomeMain="$rigHome" rigHome="$rigTmp/home-nosrc"
 mkdir -p "$rigHome"
 rigRun ws-nosrc --make-agents-indices
 [ "$rigRc" = 0 ] || rigRefuse "--make-agents-indices failed in the workspace with no source, own HOME: $( LC_ALL=C grep -m3 -e ERROR -e WARNING "$rigTmp/err" )"
-rigAssert "control: with no declaring registry, no floor directive row, and it says why" "$( rigN "$rigTmp/err" 'no package under .local/myx with a --magic-team: floor directive' ):$( rigIdx magic-tester read "$rigNoSrc/.local/myx/**" ):$( rigRun ws-nosrc --intern-op-permission-holds magic-architect WebFetch https://docs.rig.example/a ; head -1 "$rigTmp/out" )" "1:0:NOT-HOLDS"
+rigAssert "control: with no declaring registry, no floor directive row, and it says why" "$( rigN "$rigTmp/err" 'no package under .local/myx with a magic-team: floor directive' ):$( rigIdx magic-tester read "$rigNoSrc/.local/myx/**" ):$( rigRun ws-nosrc --intern-op-permission-holds magic-architect WebFetch https://docs.rig.example/a ; head -1 "$rigTmp/out" )" "1:0:NOT-HOLDS"
 rigHome="$rigHomeMain"
 
 echo "-- 8. a rig: no source/, myx.distro-agents installed under .local/myx, its own HOME --"
@@ -414,9 +419,9 @@ cp "$rigPackage/project.inf" "$rigRig/.local/myx/myx.distro-agents/project.inf" 
 ## The floor is read through the .local declares index, never by globbing the project.inf files: the index holds the package's own rows and one more, and the
 ## installed project.inf one that the index does not hold.
 mkdir -p "$rigRig/.local/system-index"
-LC_ALL=C awk '/^[[:space:]]+--magic-team:/ { print "myx/myx.distro-agents " $1 }' "$rigPackage/project.inf" > "$rigRig/.local/system-index/distro-declares.txt"
-printf 'myx/myx.distro-agents --magic-team:permissions:workspace:*:allow-tool:magic-tester:RigIndexOnlyTool\n' >> "$rigRig/.local/system-index/distro-declares.txt"
-printf '\t--magic-team:permissions:workspace:*:allow-tool:magic-tester:RigGlobOnlyTool\n' >> "$rigRig/.local/myx/myx.distro-agents/project.inf"
+LC_ALL=C awk '/^[[:space:]]+magic-team:/ { print "myx/myx.distro-agents " $1 }' "$rigPackage/project.inf" > "$rigRig/.local/system-index/distro-declares.txt"
+printf 'myx/myx.distro-agents magic-team:permissions:workspace:*:allow-tool:magic-tester:RigIndexOnlyTool\n' >> "$rigRig/.local/system-index/distro-declares.txt"
+printf '\tmagic-team:permissions:workspace:*:allow-tool:magic-tester:RigGlobOnlyTool\n' >> "$rigRig/.local/myx/myx.distro-agents/project.inf"
 : > "$rigRig/.local/agents/members.registry"
 rigRun ws-rig --owner-workspace-upsert "$rigTestbedD"
 [ "$rigRc" = 0 ] || rigRefuse "the testbed could not be registered from the rig: $( head -3 "$rigTmp/err" )"

@@ -271,7 +271,7 @@ rigStepOne(){ ## -- the last output with each `session` row cut to the eight fie
 	LC_ALL=C awk -F'\t' '$1 == "session" { print $1 "\t" $2 "\t" $3 "\t" $4 "\t" $5 "\t" $6 "\t" $7 "\t" $8 ; next } { print }' "$rigTmp/out"
 }
 rigAssert "the fields of step one stand where they stood: the first eight fields of each session row, and every run row and the counters row, byte for byte -- each session with its runs, the sessions by start date, the newest first, and the counters last" "$( rigStepOne )" "$rigWant"
-rigAssert "each session row ends with three more fields: the stored state and its date, - in both for a session with no state file, and its control thread, none where it never had one" "$( LC_ALL=C awk -F'\t' '$1 == "session" { rows++ ; if ( NF == 15 && $9 == "-" && $10 == "-" && $11 == "none" ) plain++ } END { print rows + 0 ":" plain + 0 }' "$rigTmp/out" )" "9:9"
+rigAssert "each session row ends with three more fields: the stored state and its date, - in both for a session with no state file, and its control thread, none where it never had one" "$( LC_ALL=C awk -F'\t' '$1 == "session" { rows++ ; if ( NF == 16 && $9 == "-" && $10 == "-" && $11 == "none" ) plain++ } END { print rows + 0 ":" plain + 0 }' "$rigTmp/out" )" "9:9"
 rigAssert "a session with live runs reads running: its row, with a count of 3, and its run rows read thinking, tool and finished, as the registry derives them" "$( rigRowOf session sess-run | LC_ALL=C awk '{ print $4, $7 }' ) $( rigRows run | LC_ALL=C awk '$2 == "sess-run" { printf "%s ", $7 }' )" "running 3 thinking tool finished "
 rigAssert "a session whose runs are all closed reads finished, an open ask of it or not (sketch 5.4, never waiting): its start is the earliest of its runs and the date of its state the latest closing, by their times and not by their text" "$( rigRowOf session sess-fin | LC_ALL=C awk '{ print $4, $5, $6 }' )" "finished 2026-10-12_16:57_+0300 2026-10-12_17:30_+0200"
 rigAssert "a session shows its name, the first session-comment among its records, and one with none shows -" "$( rigRowOf session sess-run | LC_ALL=C awk '{ print $3 }' ) $( rigRowOf session sess-fin | LC_ALL=C awk '{ print $3 }' )" "daily_of_Monday -"
@@ -313,6 +313,9 @@ rigStates(){ ## -- the sessions of the last output, each with its state, in the 
 rigRun "$rigOp"
 rigAssert "control: without --active every session is listed, whatever its state: two running, one waiting, two unclosed, three finished, and one of another host" "$rigRc $( rigStates )" \
 	"0 sess-run2=running sess-run=running sess-fin=finished sess-ask=waiting sess-askrun=finished sess-foreign=unknown-foreign sess-nospawn=finished sess-unclosed=unclosed box-empty=unclosed "
+rigAssert "each session row ends with its phase, the one rule of an active session: active for those --active keeps, closed for the finished and the one of another host" \
+	"$( rigRows session | LC_ALL=C awk '{ printf "%s=%s ", $2, $NF }' )" \
+	"sess-run2=active sess-run=active sess-fin=closed sess-ask=active sess-askrun=closed sess-foreign=closed sess-nospawn=closed sess-unclosed=active box-empty=active "
 rigPlainRuns="$( rigRows run | LC_ALL=C awk '$2 != "sess-fin" && $2 != "sess-foreign" && $2 != "sess-nospawn" && $2 != "sess-askrun"' )"
 rigRun "$rigOp" --active
 rigAssert "--active ends 0 and keeps every session that is not finished and can be acted on from this host: those that read running, waiting, and unclosed, a record of theirs still open" "$rigRc $( rigStates )" \

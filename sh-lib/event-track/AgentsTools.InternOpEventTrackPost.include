@@ -68,13 +68,14 @@ AgentsEventTrackPostRender(){ ## kind, member, session id, out dir, lines file, 
 	type AgentsToolsTeamMemberDirectoryText > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamRegistry.include"
 	## Who a message's Slack account is: the team's own account cache, read only, `<id>=<name>` each.
 	## THE ROSTER, THE ACCOUNT CACHE AND THE CLOCK ARE READ ONCE FOR A PROCESS, not once for each record of a group: a drain renders up to a
-	## group of records, and each read them again. The clock moves with $SECONDS from the one reading.
-	if [ -z "${agentsEventTrackPostRenderMemo:-}" ] || [ $(( SECONDS - agentsEventTrackPostSeconds0 )) -ge 300 ] ; then
+	## group of records, and each read them again. The clock moves with $SECONDS from the one reading. The reading is kept for the workspace,
+	## the member root and the home it was read from, and read again where any of them is another.
+	if [ "${agentsEventTrackPostRenderMemo:-}" != "${MMDAPP:-}|${MDAT_SKILLSET_ROOT:-}|${HOME:-}" ] || [ $(( SECONDS - agentsEventTrackPostSeconds0 )) -ge 300 ] ; then
 		agentsEventTrackPostUsers=""
 		agentsEventTrackPostUsers="$( AgentsSlackIdentityPairs | LC_ALL=C awk '{ printf " %s", $0 }' )"
 		agentsEventTrackPostMembers=" $( [ -z "${MDAT_SKILLSET_ROOT:-}" ] || AgentsToolsTeamMemberDirectoryText 2>/dev/null | LC_ALL=C cut -f1 | tr '\n' ' ' )"
 		agentsEventTrackPostEpoch0="$( date +%s )" ; agentsEventTrackPostSeconds0="$SECONDS"
-		agentsEventTrackPostRenderMemo=1
+		agentsEventTrackPostRenderMemo="${MMDAPP:-}|${MDAT_SKILLSET_ROOT:-}|${HOME:-}"
 	fi
 	local renderUsers="$agentsEventTrackPostUsers"
 	## A feed post's session keeps its previous Wait set beside its feed, so a Wait shows what it
@@ -97,6 +98,23 @@ AgentsEventTrackPostRender(){ ## kind, member, session id, out dir, lines file, 
 		LC_ALL=C awk -f "$agentsEventTrackPostLib/transcript/AgentsSessionTranscriptFormat.awk" -f "$agentsEventTrackPostLib/slack/AgentsSlackDate.awk" \
 		-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsToolingTemplateFill.awk" -f "$agentsEventTrackPostLib/event-track/AgentsEventTrackPostFill.awk" \
 		"$( AgentsToolsToolingTemplate event-track.post.format.md )" "$renderLines"
+}
+
+## THE ORIGIN OF A TRACKING POST: the routine of the run it reports on, short (`work-duty`), read from that run's record, else the one
+## a root harness's mint kept beside it; nothing where the run keeps neither. The member send names its own the same way.
+AgentsEventTrackPostOriginInto(){ ## variable, run id
+	local originRecord="" originRoutine=""
+	printf -v "$1" '%s' ""
+	case "${2:-}" in ''|-|.|..|*/*|*[[:space:]]*) return 0 ;; esac
+	type AgentsSessionRunRecordInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include" || return 1
+	! AgentsSessionRunRecordInto originRecord "$2" || originRoutine="$( LC_ALL=C sed -n 's/^routine: //p' "$originRecord" 2> /dev/null | head -1 )"
+	if [ -z "$originRoutine" ] ; then
+		type AgentsToolsRootHarnessRoutineInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/routine/AgentsTools.RoutineRootHarness.include" || return 1
+		AgentsToolsRootHarnessRoutineInto originRoutine "$2" || originRoutine=""
+	fi
+	originRoutine="${originRoutine%.routine.md}" ; originRoutine="${originRoutine#*.}"
+	case "$originRoutine" in *[!A-Za-z0-9._-]*) originRoutine="" ;; esac
+	printf -v "$1" '%s' "$originRoutine"
 }
 
 ## One line in the monthly send log, in the member send's columns: time, member, target,
@@ -156,10 +174,12 @@ AgentsEventTrackPostQueueLines(){ ## member, session id, channel, thread, lines 
 	local queueMember="$1" queueSession="$2" queueChannel="$3" queueThread="$4" queueLines="$5" queueKind="${6:-activity}" queueDir queueFile queueText queuePayload queueMeta queueNo queueCount=0
 	queueDir="$( mkdir -p "$MMDAPP/.local/temp" && mktemp -d "$MMDAPP/.local/temp/mdat-event-track-queue.XXXXXX" )" || return 1
 	mkdir -p "$queueDir/posts"
-	AgentsEventTrackPostRender "$queueKind" "$queueMember" "$queueSession" "$queueDir/posts" "$queueLines" || { rm -rf "$queueDir" ; return 1 ; }
+	local queueOrigin=""
+	AgentsEventTrackPostOriginInto queueOrigin "$queueSession" || { rm -rf "$queueDir" ; return 1 ; }
+	AgentsEventTrackPostRender "$queueKind" "$queueMember" "$queueSession" "$queueDir/posts" "$queueLines" ${queueOrigin:+"origin=$queueOrigin"} || { rm -rf "$queueDir" ; return 1 ; }
 	type AgentsToolsCommsCacheOutboxAppend > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsCache.include"
 	AgentsToolsCommsCacheSlackDir "$queueMember" true "$queueChannel" "$queueThread" || { rm -rf "$queueDir" ; return 1 ; }
-	queueMeta="{\"event_type\":\"magic_sender\",\"event_payload\":{\"sender\":\"$queueMember\",\"tracking\":\"$queueKind\"${queueSession:+,\"session\":\"$queueSession\"}}}"
+	queueMeta="{\"event_type\":\"magic_sender\",\"event_payload\":{\"sender\":\"$queueMember\",\"tracking\":\"$queueKind\"${queueSession:+,\"session\":\"$queueSession\"}${queueOrigin:+,\"origin\":\"$queueOrigin\"}}}"
 	queueNo="$( date +%s )$$"
 	for queueFile in "$queueDir/posts"/*.blocks ; do
 		[ -f "$queueFile" ] || continue
@@ -204,9 +224,13 @@ AgentsEventTrackPostSend(){ ## record dir
 	local postDirPosts="$postDir/posts"
 	## What the log row says of the window: how many lines it held and how many parts it was cut into, so a window that passes Slack's size limit shows.
 	postLineCount="$( LC_ALL=C awk 'END { print NR + 0 }' "$postRec/lines" )"
-	AgentsEventTrackPostRender "$postKind" "$postMember" "$postSession" "$postDir/posts" "$postRec/lines" ${postFields[@]+"${postFields[@]}"} || postRc=$?
+	## The origin is of the run the post is about: the one --session-id gave, else the calling run.
+	local postOrigin=""
+	AgentsEventTrackPostOriginInto postOrigin "${postSession:-${harnessSessionId:-${MDAT_SPAWN_SESSION_ID:-}}}" || postRc=$?
+	AgentsEventTrackPostRender "$postKind" "$postMember" "$postSession" "$postDir/posts" "$postRec/lines" ${postFields[@]+"${postFields[@]}"} ${postOrigin:+"origin=$postOrigin"} || postRc=$?
 	## The records the drain collected behind this one, in arrival order: each rendered as itself, the parts of all packed into messages up to Slack's block limit.
 	local postAlsoDir postAlsoMember postAlsoKind postAlsoSession postAlsoLines postAlsoFields postAlsoAt=0 postAlsoParts=() postAlsoFile
+	local postAlsoOrigin
 	if [ -d "$postRec/also" ] && [ "$postRc" = "0" ] ; then
 		for postAlsoFile in "$postDir/posts"/*.blocks ; do
 			[ ! -f "$postAlsoFile" ] || postAlsoParts+=( "$postAlsoFile" )
@@ -223,7 +247,8 @@ AgentsEventTrackPostSend(){ ## record dir
 			fi
 			mkdir -p "$postDir/also.$postAlsoAt"
 			postLineCount=$(( postLineCount + $( LC_ALL=C awk 'END { print NR + 0 }' "$postAlsoDir/lines" ) ))
-			AgentsEventTrackPostRender "$postAlsoKind" "$postAlsoMember" "$postAlsoSession" "$postDir/also.$postAlsoAt" "$postAlsoDir/lines" ${postAlsoFields[@]+"${postAlsoFields[@]}"} || postRc=$?
+			AgentsEventTrackPostOriginInto postAlsoOrigin "$postAlsoSession" || postRc=$?
+			AgentsEventTrackPostRender "$postAlsoKind" "$postAlsoMember" "$postAlsoSession" "$postDir/also.$postAlsoAt" "$postAlsoDir/lines" ${postAlsoFields[@]+"${postAlsoFields[@]}"} ${postAlsoOrigin:+"origin=$postAlsoOrigin"} || postRc=$?
 			for postAlsoFile in "$postDir/also.$postAlsoAt"/*.blocks ; do
 				[ ! -f "$postAlsoFile" ] || postAlsoParts+=( "$postAlsoFile" )
 			done
@@ -255,7 +280,7 @@ AgentsEventTrackPostSend(){ ## record dir
 	## follows it goes there.
 	## The session the post belongs to, as `--session-id` gave it, else the run's own (the one the send log keeps): `[session: <id>]` on a read, which says whose launch a post is.
 	local postMetaSession="${postSession:-${harnessSessionId:-${MDAT_SPAWN_SESSION_ID:-}}}"
-	local postMetadata="{\"event_type\":\"magic_sender\",\"event_payload\":{\"sender\":\"$postMember\",\"tracking\":\"$postKind\"${postMetaSession:+,\"session\":\"$postMetaSession\"}}}"
+	local postMetadata="{\"event_type\":\"magic_sender\",\"event_payload\":{\"sender\":\"$postMember\",\"tracking\":\"$postKind\"${postMetaSession:+,\"session\":\"$postMetaSession\"}${postOrigin:+,\"origin\":\"$postOrigin\"}}}"
 	## A post into a thread goes to the comms-cache outbox of that thread's communication channel (AgentsTools.CommsCache.include),
 	## each part as its chat.postMessage payload, and the call returns: the one comms loop pushes it. Only a root post, whose ts
 	## opens the thread, is sent here and waited for.

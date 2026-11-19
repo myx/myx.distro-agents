@@ -1,0 +1,110 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.EpicDecisions.include -- the `## Decisions of the active epics` section, which every work-duty scan prints and
+## --supervise-epics prints for a rig, so the rulings of an epic are read before anyone acts on it. Sourced; functions only.
+## An epic is active while an item of the board's running, pending, blocked or review state names it, in `epic:`, `spawned-by:`,
+## `references:` or `tracks:`. magic-coordinator reads every active epic; any other member those of the items it owns or takes part in.
+## The text changes only where a Decisions section, a title or the set of epics does, so it wakes no idle Wait by itself.
+##
+
+## The bytes one epic's Decisions may take in the section; MDAT_EPIC_DECISIONS_CAP_BYTES overrides it. Past it, the newest go first.
+agentsEpicDecisionsCapBytes=16384
+
+## The section, a blank line before it, or nothing where no active epic is the member's. An empty member reads as magic-coordinator.
+AgentsToolsEpicDecisionsSection(){ ## member
+	local epicMember="${1:-magic-coordinator}" epicItems=() epicNames epicName epicCap="${MDAT_EPIC_DECISIONS_CAP_BYTES:-$agentsEpicDecisionsCapBytes}"
+	case "$epicCap" in ''|0|*[!0123456789]*) epicCap="$agentsEpicDecisionsCapBytes" ;; esac
+	type AgentsToolsBoardItemsInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemDecisions.include"
+	AgentsToolsBoardItemsInto epicItems "" running pending blocked review || return 1
+	[ ${#epicItems[@]} -gt 0 ] || return 0
+	## One pass over the frontmatter of every active item: the epic names of the items the member may read.
+	epicNames="$( LC_ALL=C awk -v who="$epicMember" '
+		function listHas( listText, wantName,    partCount, partIdx, listPart ) {
+			partCount = split( listText, listPart, "[ ,]+" ) ;
+			for ( partIdx = 1 ; partIdx <= partCount ; partIdx++ ) { if ( listPart[partIdx] == wantName ) { return 1 ; } }
+			return 0 ;
+		}
+		FNR == 1 { fenceCount = 0 ; ownerText = "" ; partsText = "" ; linkText = "" ; }
+		$0 == "---" {
+			if ( ++fenceCount < 2 ) { next ; }
+			if ( who == "magic-coordinator" || listHas( ownerText, who ) || listHas( partsText, who ) ) {
+				linkCount = split( linkText, linkPart, "[ ,]+" ) ;
+				for ( linkIdx = 1 ; linkIdx <= linkCount ; linkIdx++ ) {
+					linkName = linkPart[linkIdx] ; sub( /\.md$/, "", linkName ) ;
+					if ( linkName ~ /^epic-blueprint-[A-Za-z0-9._-]+$/ ) { print linkName ; }
+				}
+			}
+			nextfile ;
+		}
+		fenceCount != 1 { nextfile ; }
+		index( $0, "owner: " ) == 1 { ownerText = substr( $0, 8 ) ; next ; }
+		index( $0, "participants: " ) == 1 { partsText = substr( $0, 15 ) ; next ; }
+		/^(epic|spawned-by|references|tracks): / { linkText = linkText " " substr( $0, index( $0, ": " ) + 2 ) ; }
+	' "${epicItems[@]}" | LC_ALL=C sort -u )"
+	[ -n "$epicNames" ] || return 0
+	if [ "$epicMember" = magic-coordinator ] ; then
+		printf '\n## Decisions of the active epics\n\nscope: every epic an item of the running, pending, blocked or review state names\n'
+	else
+		printf '\n## Decisions of the active epics\n\nscope: the epics named by the active items %s owns or takes part in\n' "$epicMember"
+	fi
+	type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+	while IFS= read -r epicName ; do
+		## The vault reader's text, then the section the Decisions reader finds (agentsDecisionsOwnAwk), down to the next heading or rule.
+		DistroAgentsTools --intern-op-vault-item-read "$epicName" 2> /dev/null < /dev/null | LC_ALL=C awk -v epicName="$epicName" -v capBytes="$epicCap" \
+			-v ownMarker="<!-- decisions-of: $epicName -->" "$agentsDecisionsOwnAwk"'
+			function entryNewer( leftIdx, rightIdx ) {
+				return ( entryStamp[leftIdx] > entryStamp[rightIdx] ) || ( entryStamp[leftIdx] == entryStamp[rightIdx] && leftIdx > rightIdx ) ;
+			}
+			{ line[NR] = $0 ; }
+			END {
+				if ( NR == 0 ) { printf "\n### %s\n\n(the vault holds no epic of this name that could be read)\n", epicName ; exit ; }
+				titleText = "" ; inFront = 0 ;
+				for ( lineIdx = 1 ; lineIdx <= NR ; lineIdx++ ) {
+					if ( lineIdx == 1 && line[lineIdx] == "---" ) { inFront = 1 ; continue ; }
+					if ( inFront ) { if ( line[lineIdx] == "---" ) { inFront = 0 ; } continue ; }
+					if ( line[lineIdx] ~ /^# / ) { titleText = substr( line[lineIdx], 3 ) ; break ; }
+				}
+				printf "\n### %s (%s)\n\n", ( titleText != "" ? titleText : "no title" ), epicName ;
+				sectionStart = decisionsOwn( NR, ownMarker ) ;
+				if ( ! sectionStart ) { print "(no `## Decisions` section)" ; exit ; }
+				firstLine = sectionStart + 1 ; lastLine = sectionStart ;
+				for ( lineIdx = sectionStart + 1 ; lineIdx <= NR ; lineIdx++ ) {
+					if ( line[lineIdx] ~ /^##? / || line[lineIdx] == "---" ) { break ; }
+					if ( line[lineIdx] !~ /^[ \t]*$/ ) { lastLine = lineIdx ; }
+				}
+				while ( firstLine <= lastLine && ( line[firstLine] ~ /^[ \t]*$/ || index( line[firstLine], "<!-- decisions-of: " ) == 1 ) ) { firstLine++ ; }
+				if ( firstLine > lastLine ) { print "(no decision yet)" ; exit ; }
+				totalBytes = 0 ;
+				for ( lineIdx = firstLine ; lineIdx <= lastLine ; lineIdx++ ) { totalBytes += length( line[lineIdx] ) + 1 ; }
+				if ( totalBytes <= capBytes + 0 ) { for ( lineIdx = firstLine ; lineIdx <= lastLine ; lineIdx++ ) { print line[lineIdx] ; } exit ; }
+				## Past the cap: a `- ` line opens a decision, with the lines under it; the newest first, by the date it opens with, else the later place.
+				entryCount = 0 ;
+				for ( lineIdx = firstLine ; lineIdx <= lastLine ; lineIdx++ ) {
+					if ( entryCount == 0 || line[lineIdx] ~ /^- / ) {
+						entryCount++ ; entryFirst[entryCount] = lineIdx ; entryStamp[entryCount] = "" ;
+						if ( match( line[lineIdx], /^- [0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]( [0-9][0-9]:[0-9][0-9])?/ ) ) { entryStamp[entryCount] = substr( line[lineIdx], RSTART + 2, RLENGTH - 2 ) ; }
+					}
+					if ( line[lineIdx] !~ /^[ \t]*$/ ) { entryLast[entryCount] = lineIdx ; }
+				}
+				for ( entryIdx = 1 ; entryIdx <= entryCount ; entryIdx++ ) {
+					entryOrder[entryIdx] = entryIdx ;
+					for ( sortIdx = entryIdx ; sortIdx > 1 && entryNewer( entryOrder[sortIdx], entryOrder[sortIdx - 1] ) ; sortIdx-- ) {
+						swapIdx = entryOrder[sortIdx] ; entryOrder[sortIdx] = entryOrder[sortIdx - 1] ; entryOrder[sortIdx - 1] = swapIdx ;
+					}
+				}
+				printf "Newest first: the section is %d bytes, past the cap of %d.\n\n", totalBytes, capBytes ;
+				usedBytes = 0 ; shownCount = 0 ;
+				for ( sortIdx = 1 ; sortIdx <= entryCount ; sortIdx++ ) {
+					entryIdx = entryOrder[sortIdx] ; entryBytes = 0 ;
+					for ( lineIdx = entryFirst[entryIdx] ; lineIdx <= entryLast[entryIdx] ; lineIdx++ ) { entryBytes += length( line[lineIdx] ) + 1 ; }
+					if ( shownCount > 0 && usedBytes + entryBytes > capBytes + 0 ) { break ; }
+					for ( lineIdx = entryFirst[entryIdx] ; lineIdx <= entryLast[entryIdx] ; lineIdx++ ) { print line[lineIdx] ; }
+					usedBytes += entryBytes ; shownCount++ ;
+				}
+				printf "\n(%d of %d decisions cut, the oldest: the whole section is the `## Decisions` of the vault item, read by `DistroAgentsItems.fn.sh --get-vault-item %s`)\n", entryCount - shownCount, entryCount, epicName ;
+			}'
+	done <<< "$epicNames"
+	return 0
+}

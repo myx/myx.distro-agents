@@ -18,6 +18,8 @@
 ##   4. A member that is not eligible costs no Slack read: the team channel is read only for members whose flag allows (the budget itself is AgentsScheduleBudgetCheck's).
 ##   5. LEARNING. With learning on, a session that ended since the last look gets one inquiry into magic-librarian's inbox, once; with it off, none, and
 ##      none later; none for a session of the first look (a history is no news), and none for a session whose only member is magic-librarian.
+##      A session that finishes by its verdict alone, with no run started or ended, is learned on the next pass; a sync that changes no review
+##      item runs no look.
 ## Offline, rig tree only.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
@@ -66,7 +68,7 @@ rigFinished(){ ## session, member, status
 }
 ## Learning is on from the start, and a session has ended before the loop first looks.
 printf 'MDAT_SCHEDULE_LEARNING=on\n' >> "$rigWs/.local/.agents/magic-team.agent.env"
-rigFinished rig-hist-$rigTag keeper-rig-05 spawn-succeeded
+rigFinished rig-hist-${rigTag}hist keeper-rig-05 spawn-succeeded
 
 echo "-- 0. the work-duty routine itself --"
 rigDutyFile="$rigPackage/skillset/magic-team/magic-team/magic-team.work-duty.routine.md"
@@ -130,33 +132,74 @@ rigDispatch --override-flag overtime
 rigOneRun end6 ; rigWaitStarts
 rigAssert "with overtime, no second start: its duty is on already" "$( rigSaid end6 'work-duty: started the duty of magic-coordinator' )" "0"
 rigAssert "...and it is the coordinator's own duty routine, which the others have none of" "$( rigRecordsOf magic-coordinator.work-duty.routine.md ):$( rigRecordsOf magic-team.work-duty.routine.md | LC_ALL=C awk '{ print ( $1 > 0 ) ? "team-duties-too" : "none" }' )" "1:team-duties-too"
+## The day after, the holds of the evening's failed starts have ended on the rig's clock, so the coordinator's duty may take the first pass's one start:
+## the demand is answered by one of two passes, a second apart.
 rigAt $(( rigMon13 + 86400 ))
 rigOneRun back1 ; rigWaitStarts
-rigAssert "worktime again: the demand of keeper-rig-04 is answered" "$( rigSaid back1 'work-duty: started the duty of keeper-rig-04' )" "1"
+rigAt $(( rigMon13 + 86401 ))
+rigOneRun back1b ; rigWaitStarts
+rigAssert "worktime again: the demand of keeper-rig-04 is answered" "$(( $( rigSaid back1 'work-duty: started the duty of keeper-rig-04' ) + $( rigSaid back1b 'work-duty: started the duty of keeper-rig-04' ) ))" "1"
 
 echo "-- 5. learning --"
 rigInquiries(){ ## session id -- the inquiries of the librarian's inbox that are about that session
 	LC_ALL=C ls "$rigData/inboxes/magic-librarian/incoming" 2> /dev/null | LC_ALL=C grep -c -F -- "-learning-$1.md" || :
 }
-rigAssert "learning was on at the first look, and the session that had ended before it is history: marked, no inquiry (the sessions the loop started itself ended since, and have theirs)" "$( rigInquiries rig-hist-$rigTag ):$( [ -e "$rigWs/.local/agents/schedule/learned/rig-hist-$rigTag" ] && printf marked )" "0:marked"
+rigAssert "learning was on at the first look, and the session that had ended before it is history: marked, no inquiry (the sessions the loop started itself ended since, and have theirs)" "$( rigInquiries rig-hist-${rigTag}hist ):$( [ -e "$rigWs/.local/agents/schedule/learned/rig-hist-${rigTag}hist" ] && printf marked )" "0:marked"
+## EACH RIG SESSION HAS A NAME OF ITS OWN, as a real session id is: its learning inquiry's title ("analyse session <id>") shares too few words
+## with another's to be taken for the same subject, so each is its own inquiry, never appended to an open one (--upsert-inbox-inquiry).
 ## Only a session with something to learn from is analysed: a reflection filed from it, or a learn mark on it. Each ended session below has the mark,
 ## so what decides is the learning flag and the members of the session.
 rigLearnMark(){ ## session -- the learn mark on that session
 	mkdir -p "$rigWs/.local/agents/sessions/$1" && : > "$rigWs/.local/agents/sessions/$1/learn"
 }
-rigFinished rig-new-$rigTag keeper-rig-06 spawn-succeeded ; rigLearnMark rig-new-$rigTag
-rigFinished rig-lib-$rigTag magic-librarian spawn-succeeded ; rigLearnMark rig-lib-$rigTag
+rigFinished rig-new-${rigTag}new keeper-rig-06 spawn-succeeded ; rigLearnMark rig-new-${rigTag}new
+rigFinished rig-lib-${rigTag}lib magic-librarian spawn-succeeded ; rigLearnMark rig-lib-${rigTag}lib
 rigOneRun learnA
-rigAssert "a session that ended since, learning on: one inquiry into magic-librarian's inbox, and a line says so" "$( rigInquiries rig-new-$rigTag ):$( rigSaid learnA "learning: session rig-new-$rigTag ended: one inquiry to magic-librarian" )" "1:1"
-rigAssert "the inquiry names the session and holds the words of the template" "$( LC_ALL=C grep -l -F "rig-new-$rigTag" "$rigData"/inboxes/magic-librarian/incoming/inquiry-*-learning-rig-new-* | wc -l | tr -d ' ' ):$( LC_ALL=C grep -q 'retro' "$rigData"/inboxes/magic-librarian/incoming/inquiry-*-learning-rig-new-* && printf words )" "1:words"
-rigAssert "a session whose only member is magic-librarian gets none" "$( rigInquiries rig-lib-$rigTag )" "0"
+rigAssert "a session that ended since, learning on: one inquiry into magic-librarian's inbox, and a line says so" "$( rigInquiries rig-new-${rigTag}new ):$( rigSaid learnA "learning: session rig-new-${rigTag}new ended: one inquiry to magic-librarian" )" "1:1"
+rigAssert "the inquiry names the session and holds the words of the template" "$( LC_ALL=C grep -l -F "rig-new-${rigTag}new" "$rigData"/inboxes/magic-librarian/incoming/inquiry-*-learning-rig-new-* | wc -l | tr -d ' ' ):$( LC_ALL=C grep -q 'retro' "$rigData"/inboxes/magic-librarian/incoming/inquiry-*-learning-rig-new-* && printf words )" "1:words"
+rigAssert "a session whose only member is magic-librarian gets none" "$( rigInquiries rig-lib-${rigTag}lib )" "0"
 rigDispatch --override-flag --no learning
-rigFinished rig-off-$rigTag keeper-rig-07 spawn-succeeded ; rigLearnMark rig-off-$rigTag
+rigFinished rig-off-${rigTag}off keeper-rig-07 spawn-succeeded ; rigLearnMark rig-off-${rigTag}off
 rigOneRun learnB
-rigAssert "the next iteration sends no second one for the first, and none for a session that ended with learning off" "$( rigInquiries rig-new-$rigTag ):$( rigInquiries rig-off-$rigTag )" "1:0"
+rigAssert "the next iteration sends no second one for the first, and none for a session that ended with learning off" "$( rigInquiries rig-new-${rigTag}new ):$( rigInquiries rig-off-${rigTag}off )" "1:0"
 rigDispatch --override-flag learning
 rigOneRun learnC
-rigAssert "...and none later, when learning is on again" "$( rigInquiries rig-new-$rigTag ):$( rigInquiries rig-off-$rigTag )" "1:0"
+rigAssert "...and none later, when learning is on again" "$( rigInquiries rig-new-${rigTag}new ):$( rigInquiries rig-off-${rigTag}off )" "1:0"
+## A SESSION THAT ENDS WHILE NONE STARTS IS LEARNED WITHIN ONE PASS: its record, open at one look, is closed in place -- no record made, no
+## entry of its folder changed -- and the next pass, a minute on, looks again, its started list moved.
+rigFinished rig-end-${rigTag}end keeper-rig-08 spawn-started ; rigLearnMark rig-end-${rigTag}end
+rigOneRun learnD
+rigFinished rig-end-${rigTag}end keeper-rig-08 spawn-succeeded
+rigAt $(( rigMon13 + 86400 + 60 ))
+rigOneRun learnE
+rigAssert "a session closed in place while no other starts is learned by the next pass: one inquiry" "$( rigInquiries rig-end-${rigTag}end )" "1"
+## A SESSION THAT FINISHES BY A VERDICT ALONE IS LEARNED ON THE NEXT PASS: its run ended and handed back, so the session awaits review at one look;
+## the verdict takes the park mark away and moves the handback item out of the board's review state, and nothing else changes.
+## The park mark is placed where the session store names it (a live handback wait is its only writer); the handback item goes on the board through
+## the items layer, and the verdict is the park mark's own clearing at the record's close and the board's own move out of review.
+rigFinished rig-park-${rigTag}park keeper-rig-09 spawn-succeeded ; rigLearnMark rig-park-${rigTag}park
+rigOwnerStore AgentsSessionMarkerFileInto rigParkMark "rig-park-${rigTag}park" parked && : > "$rigParkMark" || rigRefuse "could not place the park mark"
+printf -- '---\ntype: task\nowner: keeper-rig-09\n---\n\n# rig handback\n' | rigOwnerBoardPut review task-20261019T0900Z-rig-park-handback.md || rigRefuse "could not put the handback item in review"
+rigAt $(( rigMon13 + 86400 + 120 ))
+rigOneRun learnF
+rigAssert "a session parked for its verdict is not learned while it waits" "$( rigInquiries rig-park-${rigTag}park )" "0"
+sleep 1
+( rigOwnerStoreFns && . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnProxyClose.include" > /dev/null 2>&1 && AgentsToolsSpawnProxyParkClear "$rigSp/rig-park-${rigTag}park/rig-park-${rigTag}park.spawn.md" ) || rigRefuse "could not clear the park mark"
+rigOwnerBoardMove review processed task-20261019T0900Z-rig-park-handback.md || rigRefuse "could not move the handback item out of review"
+rigAt $(( rigMon13 + 86400 + 180 ))
+rigOneRun learnG
+rigAssert "a session that finishes by its verdict alone is learned on the next pass: one inquiry" "$( rigInquiries rig-park-${rigTag}park )" "1"
+## A SYNC THAT CHANGES NO REVIEW RUNS NO LOOK: a team-data sync moves the review folder's own clock with every item as it was. The look, when it runs,
+## writes what it saw to learned/.started, so a pass that skips it leaves that file as it was.
+rigOwnerBoardWrite review task-20261019T0901Z-rig-standing-review.md -- '---\ntype: task\nowner: keeper-rig-09\n---\n\n# rig review\n' || rigRefuse "could not put a standing review item"
+rigAt $(( rigMon13 + 86400 + 240 ))
+rigOneRun learnH
+rigSeenBefore="$( LC_ALL=C stat -f '%m' "$rigWs/.local/agents/schedule/learned/.started" 2> /dev/null || LC_ALL=C stat -c '%Y' "$rigWs/.local/agents/schedule/learned/.started" )"
+sleep 1
+: > "$rigData/board/review/.rig-sync" && rm -f "$rigData/board/review/.rig-sync"
+rigAt $(( rigMon13 + 86400 + 300 ))
+rigOneRun learnI
+rigAssert "a sync-style touch of the review folder, with no review changed, runs no look" "$( LC_ALL=C stat -f '%m' "$rigWs/.local/agents/schedule/learned/.started" 2> /dev/null || LC_ALL=C stat -c '%Y' "$rigWs/.local/agents/schedule/learned/.started" )" "$rigSeenBefore"
 
 echo "-- 6. a failing configuration check starts nothing --"
 ## Two days on, the autorun of keeper-rig-01.auto is due again; without any Slack token the check fails, and the iteration fails with it.
@@ -172,9 +215,9 @@ rigOneRun nocheck ; rigWaitStarts
 rigAssert "the iteration fails and says why, and says that the schedule's starts are skipped" "$rigOneRc:$( rigSaid nocheck 'configuration check FAILED' ):$( rigSaid nocheck "the schedule's starts are skipped" )" "1:1:1"
 rigAssert "nothing was started: the routine that is due, and the duty of a member with work to do" "$( rigSaid nocheck 'autorun: started' ):$( rigSaid nocheck 'work-duty: started' ):$( rigRecordsOf keeper-rig-01.auto.routine.md ):$( rigDutyCount keeper-rig-04 )" "0:0:$rigAutoBefore:$rigDutyBefore"
 cp "$rigDir/team.env.kept" "$rigWs/.local/.agents/magic-team.agent.env" ; cp "$rigDir/coord.env.kept" "$rigWs/.local/.agents/magic-coordinator.agent.env"
-## Every start fails in this rig (no agent CLI), and a failed start holds its key for ten minutes by the real mtime of its .hold file. The rig's
-## clock lies before that mtime, so the hold would never end here: the routine's own hold and failure count are taken out, as ten minutes would.
-rm -f "$rigWs/.local/agents/schedule/starting/keeper-rig-01.auto.routine.md.hold" "$rigWs/.local/agents/schedule/starting/keeper-rig-01.auto.routine.md.fails"
+## Every start fails in this rig (no agent CLI) and holds its key for ten minutes on the rig's clock, which dates the start marks. The clock
+## runs eleven minutes on, past any hold the routine's last start left, so the hold ends as the pass reads it.
+rigAt $(( rigMon13 + 2 * 86400 + 660 ))
 rigOneRun withcheck ; rigWaitStarts
 rigAssert "once the check passes the very next iteration starts what is due" "$rigOneRc:$( rigSaid withcheck 'configuration check passed' ):$( rigSaid withcheck 'autorun: started keeper-rig-01.auto.routine.md' )" "0:1:1"
 

@@ -204,7 +204,7 @@ AgentsWaitProbeSlack(){
 	if [ "$probeThread" = "false" ] && [ "$probeCached" != "0" ] ; then
 		probeQuickRc=0
 		type AgentsToolsMemberCommsSlackRun > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/slack/AgentsTools.MemberCommsSlack.include"
-		probeQuick="$( AgentsToolsMemberCommsSlackRun --intern-op-comms-slack-read ${probeArgs[@]+"${probeArgs[@]}"} 2> /dev/null < /dev/null )" || probeQuickRc=$?
+		probeQuick="$( AgentsToolsMemberCommsSlackRun --intern-op-comms-slack-read ${probeArgs[@]+"${probeArgs[@]}"} 2> "$probeOut.err" < /dev/null )" || probeQuickRc=$?
 		if [ "$probeQuickRc" = 0 ] ; then
 			probeQuickRest="${#probeQuick}:${probeQuick: -120}"
 			probeConvKey="$probeOut@$probeTarget/${probeAsBot:-}/${probeQuickRest//[[:space:]]/_}"
@@ -218,6 +218,9 @@ AgentsWaitProbeSlack(){
 	## capture returns on pipe EOF rather than on the process that holds it.
 	if [ "$probeQuickRc" = 0 ] ; then
 		printf '%s\n' "$probeQuick" > "$probeOut.read" ; : > "$probeOut.err"
+	elif [ "$probeThread" = "false" ] ; then
+		## The quick read was this probe's one read of the conversation, so its failure stands: one read bound per unread source.
+		probeRc="$probeQuickRc"
 	else
 	type AgentsToolsMemberCommsSlackRun > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/slack/AgentsTools.MemberCommsSlack.include"
 	AgentsToolsMemberCommsSlackRun --intern-op-comms-slack-read ${probeArgs[@]+"${probeArgs[@]}"} \

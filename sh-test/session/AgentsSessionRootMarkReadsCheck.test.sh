@@ -88,16 +88,16 @@ rigAssert "control, a member's post with no reaction reports none" "$( LC_ALL=C 
 echo "-- 4. the comms cache takes the root as history --"
 : > "$rigTmp/index"
 : > "$rigTmp/names"
-LC_ALL=C awk -v channel="$rigChannel" -v where="$rigChannel:$rigRootTs" -v origin=slack -v seen=- -v historyBefore=0 \
-	-v startLine=1 -v startNo=1 -v chatOut="$rigTmp/chat" -v indexOut="$rigTmp/idx" \
-	-f "$rigImportAwk" "$rigTmp/index" "$rigTmp/names" "$rigTmp/render" 2> /dev/null || :
+chatOut="$rigTmp/chat" indexOut="$rigTmp/idx" LC_ALL=C awk -v channel="$rigChannel" -v where="$rigChannel:$rigRootTs" -v origin=slack -v seen=- -v historyBefore=0 \
+	-v startLine=1 -v startNo=1 \
+	-f "$rigImportAwk" "$rigTmp/index" "$rigTmp/index" "$rigTmp/names" "$rigTmp/render" 2> /dev/null || :
 rigAssert "the root is recorded as history" "$( LC_ALL=C awk -F'\t' -v want="$rigRootTs" '$2 == want { print $4 ; }' "$rigTmp/idx" 2> /dev/null )" "history"
 rigAssert "the person's message beside it is a message" "$( LC_ALL=C awk -F'\t' -v want="$rigPersonTs" '$2 == want { print $4 ; }' "$rigTmp/idx" 2> /dev/null )" "slack"
 ## A change to the root's reactions alone adds no block, once the root is held: the second import writes no index line.
 : > "$rigTmp/idx2"
-LC_ALL=C awk -v channel="$rigChannel" -v where="$rigChannel:$rigRootTs" -v origin=slack -v seen=- -v historyBefore=0 \
-	-v startLine=1 -v startNo=1 -v chatOut=/dev/null -v indexOut="$rigTmp/idx2" \
-	-f "$rigImportAwk" "$rigTmp/idx" "$rigTmp/names" "$rigTmp/render" 2> /dev/null || :
+chatOut=/dev/null indexOut="$rigTmp/idx2" LC_ALL=C awk -v channel="$rigChannel" -v where="$rigChannel:$rigRootTs" -v origin=slack -v seen=- -v historyBefore=0 \
+	-v startLine=1 -v startNo=1 \
+	-f "$rigImportAwk" "$rigTmp/idx" "$rigTmp/index" "$rigTmp/names" "$rigTmp/render" 2> /dev/null || :
 rigAssert "and a second import of the same rendering adds no block" "$( LC_ALL=C grep -c . "$rigTmp/idx2" 2> /dev/null || : )" "0"
 
 printf 'SESSION_ROOT_MARK_READS: %s (%d assertions, %d failed, offline, rig tree only)\n' \

@@ -6,6 +6,9 @@ requires-session-kind: standalone
 tracking-item: required
 runs-at: none
 review-by: inherit
+deliverables: the readback of the feature and its gaps
+deliverables: a test for each statement of the spec, red against live and green on the sandbox
+deliverables: the apply report
 ---
 # magic-team.epic-build.routine — the actual procedure
 
@@ -63,7 +66,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
 1. **readback-and-gaps**: Read the feature, its Settled lines, the ground rules that name it, and the code it touches. Where the epic is silent, send each gap with its proposed reading, before
 building that part. Build only the parts the gap does not touch until it is
 answered.
-2. **sandbox**: Build and test in your own scratch, in the session sandbox. Write a test for each statement of the spec, red against live first for the stated reason, then green.
+2. **sandbox**: Build and test in your own scratch, in the session sandbox. Write a test for each statement of the spec, red against live first for the stated reason, then green. `magic-tester` prepares each of these tests.
 3. **gate**: Send the coordinator the conformance gate, in the compact form (the
 gate's form, filled by the tooling). The gate carries the diff path, and each
 statement mapped to `file:line`. It carries the tests, red on live then green.
@@ -98,6 +101,7 @@ All statements apply at the same time, always. These rules override a participan
 - After sending the gate, end the turn; never idle in a long `Wait` for the coordinator.
 - A mechanical step is one plain run of the tooling; a tool unsafe to use is fixed itself, never wrapped.
 - Keep `event-track` current as the routine runs.
+- A red test comes before any implementation, and `magic-tester` prepares it. A test written after the change tests the change, not the fault.
 
 # Routine-specific tooling
 

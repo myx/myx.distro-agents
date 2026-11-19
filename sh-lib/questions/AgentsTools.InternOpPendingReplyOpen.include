@@ -161,6 +161,12 @@
 			echo "$MDSC_CMD: ⛔ ERROR: can't put the pending-reply record in place: $pendingRoot/$pendingId.md" >&2
 			set +e ; return 1
 		}
+		## The pending-replies registry is rebuilt whole now, so its readers -- the coordinator's work-duty scan among them -- see the new ask
+		## with no walk of the store. A failed rebuild leaves the ask asked; the next open, close or session read rebuilds it.
+		if [ "$pendingRoot" = "$MMDAPP/.local/agents/pending" ] ; then
+			type AgentsToolsRegistryRebuild > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
+			AgentsToolsRegistryRebuild pending-replies > /dev/null 2>&1 || :
+		fi
 		## The question joins its session's stored wait now, so an answer is collected even when the asking call is cut off.
 		if [ -n "$pendingSession" ] && [ -n "$pendingOwner" ] ; then
 			local pendingWaitErr

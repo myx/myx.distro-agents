@@ -103,6 +103,8 @@ AgentsWaitProbeAsk(){
 			'# '*) break ;;
 		esac
 	done < "$probeRecord"
+	type AgentsToolsAskAnsweringAccountsInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.AskThread.include"
+	[ -z "$probeAddressees" ] || AgentsToolsAskAnsweringAccountsInto probeAddressees "$probeAddressees"
 	[ "$probeStatus" != "reply-pending" ] || probeFollow=""
 	## Answered through the team operation.
 	[ "$probeStatus" = "reply-pending" ] || [ -z "$probeBySession" ] || probeByOperation=1

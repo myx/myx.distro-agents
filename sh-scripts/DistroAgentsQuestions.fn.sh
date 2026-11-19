@@ -49,7 +49,7 @@ DistroAgentsQuestions(){
 	[ -z "$frontDone" ] || return "$frontRc"
 	case "$1" in
 
-		--amend-pending-reply|--read-pending-reply)
+		--amend-pending-reply|--read-pending-reply|--reconcile-answered-status)
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.MemberPendingReply.include"
 			return $?
 		;;

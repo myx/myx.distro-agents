@@ -85,12 +85,11 @@ rigAssert "a person's reply, numbered for the other question: not taken" "$( rig
 rigAssert "a person's reply, numbered in small letters with a colon" "$( rigRead 1 open "$rigReply q1: beta, the lint" )" "$rigReply beta, the lint#"
 rigAssert "a person's reply of several lines, numbered: every line of it" "$( rigRead 2 open "$rigReply Q2 gamma" 'because it is last' )" "$rigReply gamma#because it is last#"
 rigAssert "and no line of it for the other question" "$( rigRead 1 open "$rigReply Q2 gamma" 'because it is last' )" ""
-rigAssert "a person's reply with no number answers the latest question above it" "$( rigRead 2 open "$rigReply beta" )" "$rigReply beta#"
-rigAssert "and not the one before" "$( rigRead 1 open "$rigReply beta" )" ""
-rigAssert "a person's reply with no number, after the latest question closed: set aside" "$( rigRead 1 1700000005 "$rigReply beta" )" "UNMATCHED-REPLY $rigReply beta#"
-rigAssert "a person's reply of several lines, set aside: every line of it is marked" "$( rigRead 1 1700000005 "$rigReply thanks" 'beta' '' 'and more' )" "UNMATCHED-REPLY $rigReply thanks#UNMATCHED-REPLY beta#UNMATCHED-REPLY #UNMATCHED-REPLY and more#"
-rigAssert "and the reply after it is read on its own" "$( rigRead 1 1700000005 "$rigReply thanks" 'beta' "$rigLater Q1 gamma" 'as said' )" "UNMATCHED-REPLY $rigReply thanks#UNMATCHED-REPLY beta#$rigLater gamma#as said#"
-rigAssert "an arrow in a person's own words is no header: the reply has no number" "$( rigRead 1 open "$rigReply see a → b. Q1 beta" ):$( rigRead 2 open "$rigReply see a → b. Q1 beta" )" ":$rigReply see a → b. Q1 beta#"
+rigAssert "a person's reply with no number, the other question open too: neither takes it" "$( rigRead 2 open "$rigReply beta" ):$( rigRead 1 open "$rigReply beta" )" ":"
+rigAssert "a person's reply with no number, the other question closed before it: the only open one takes it" "$( rigRead 1 1700000005 "$rigReply beta" )" "$rigReply beta#"
+rigAssert "a person's reply of several lines, taken by the only open question: every line of it" "$( rigRead 1 1700000005 "$rigReply thanks" 'beta' '' 'and more' )" "$rigReply thanks#beta##and more#"
+rigAssert "and the reply after it is read on its own" "$( rigRead 1 1700000005 "$rigReply thanks" 'beta' "$rigLater Q1 gamma" 'as said' )" "$rigReply thanks#beta#$rigLater gamma#as said#"
+rigAssert "an arrow in a person's own words is no header: the reply has no number, and with both open neither takes it" "$( rigRead 1 open "$rigReply see a → b. Q1 beta" ):$( rigRead 2 open "$rigReply see a → b. Q1 beta" )" ":"
 
 ## A member's reply: the number is the first word after the send header.
 rigAssert "a member's reply, numbered for this question: taken, header kept, number dropped" "$( rigRead 1 open "$rigReply $rigHeader Q1 beta" )" "$rigReply $rigHeader beta#"
@@ -101,11 +100,11 @@ rigAssert "the header on a line of its own, the number on the next: taken" "$( r
 rigAssert "and no line of it for the other question" "$( rigRead 2 open "$rigReply $rigHeader" 'Q1 beta' 'and a note' )" ""
 rigAssert "with every line under it" "$( rigRead 1 open "$rigReply $rigHeader" 'Q1 beta' 'and a note' )" "$rigReply $rigHeader#beta#and a note#"
 rigAssert "an empty line between the header and the number changes nothing" "$( rigRead 1 open "$rigReply $rigHeader" '' 'Q1 beta' ):$( rigRead 2 open "$rigReply $rigHeader" '' 'Q1 beta' )" "$rigReply $rigHeader##beta#:"
-rigAssert "a member's reply with no number answers the latest question above it, as before" "$( rigRead 2 open "$rigReply $rigHeader beta" ):$( rigRead 1 open "$rigReply $rigHeader beta" )" "$rigReply $rigHeader beta#:"
-rigAssert "the same with its header on a line of its own" "$( rigRead 2 open "$rigReply $rigHeader" 'beta' ):$( rigRead 1 open "$rigReply $rigHeader" 'beta' )" "$rigReply $rigHeader#beta#:"
-rigAssert "a member's reply with no number, after the latest question closed: set aside" "$( rigRead 1 1700000005 "$rigReply $rigHeader beta" )" "UNMATCHED-REPLY $rigReply $rigHeader beta#"
-rigAssert "the same with its header on a line of its own: both lines marked" "$( rigRead 1 1700000005 "$rigReply $rigHeader" 'beta' )" "UNMATCHED-REPLY $rigReply $rigHeader#UNMATCHED-REPLY beta#"
-rigAssert "a header with nothing under it is a reply with no number" "$( rigRead 2 open "$rigReply $rigHeader" ):$( rigRead 1 open "$rigReply $rigHeader" )" "$rigReply $rigHeader#:"
+rigAssert "a member's reply with no number, the other question open too: neither takes it" "$( rigRead 2 open "$rigReply $rigHeader beta" ):$( rigRead 1 open "$rigReply $rigHeader beta" )" ":"
+rigAssert "the same with its header on a line of its own" "$( rigRead 2 open "$rigReply $rigHeader" 'beta' ):$( rigRead 1 open "$rigReply $rigHeader" 'beta' )" ":"
+rigAssert "a member's reply with no number, the other question closed before it: the only open one takes it" "$( rigRead 1 1700000005 "$rigReply $rigHeader beta" )" "$rigReply $rigHeader beta#"
+rigAssert "the same with its header on a line of its own: both lines" "$( rigRead 1 1700000005 "$rigReply $rigHeader" 'beta' )" "$rigReply $rigHeader#beta#"
+rigAssert "a header with nothing under it is a reply with no number: with both open, neither takes it" "$( rigRead 2 open "$rigReply $rigHeader" ):$( rigRead 1 open "$rigReply $rigHeader" )" ":"
 rigAssert "a reply after a member's is read on its own: the one numbered for this question" "$( rigRead 1 open "$rigReply $rigHeader" 'Q2 gamma' "$rigLater Q1 beta" )" "$rigLater beta#"
 rigAssert "and the member's, for the question it names" "$( rigRead 2 open "$rigReply $rigHeader" 'Q2 gamma' "$rigLater Q1 beta" )" "$rigReply $rigHeader#gamma#"
 rigAssert "a reply after a header with nothing under it is read on its own too" "$( rigRead 1 open "$rigReply $rigHeader" "$rigLater $rigHeader Q1 beta" )" "$rigLater $rigHeader beta#"
@@ -234,10 +233,13 @@ rigSharedFirst="" rigSharedSecond=""
 rigSharedStart(){ ## scenario name, the answer form's fields (may be empty)
 	rigStart "$1"
 	rigSharedThread '000101'
-	rigCall 30 "{\"to\":\"CRIG00001:1700000001.000001\",\"address_to\":\"URIGOWNER\",\"question\":\"Which check first?\",$2\"wait\":false}"
+	## A post is one call of seconds, and many on a machine whose test lanes are all busy: its guard is minutes, and a call it kills says so.
+	rigCall 120 "{\"to\":\"CRIG00001:1700000001.000001\",\"address_to\":\"URIGOWNER\",\"question\":\"Which check first?\",$2\"wait\":false}"
+	[ "$rigKilled" = no ] || rigRefuse "the call that posts the first question ran past its 120 s guard and was killed"
 	rigSharedFirst="$( rigWaitId )"
 	rigSharedThread '000101 000201'
-	rigCall 30 "{\"to\":\"CRIG00001:1700000001.000001\",\"address_to\":\"URIGOWNER\",\"question\":\"Which check last?\",$2\"wait\":false}"
+	rigCall 120 "{\"to\":\"CRIG00001:1700000001.000001\",\"address_to\":\"URIGOWNER\",\"question\":\"Which check last?\",$2\"wait\":false}"
+	[ "$rigKilled" = no ] || rigRefuse "the call that posts the second question ran past its 120 s guard and was killed"
 	rigSharedSecond="$( rigWaitId )"
 	[ -n "$rigSharedFirst" ] && [ -n "$rigSharedSecond" ] && [ "$rigSharedFirst" != "$rigSharedSecond" ] || rigRefuse "the rig did not leave two questions in one thread"
 	[ "$( rigFieldOf "$rigSharedFirst" question-tag ):$( rigFieldOf "$rigSharedSecond" question-tag )" = "Q1:Q2" ] || rigRefuse "the rig did not number the two questions Q1 and Q2"
@@ -297,7 +299,8 @@ echo "-- one question alone in its thread: a reply starting with its own number 
 rigAloneStart(){ ## scenario name
 	rigStart "$1"
 	rigSharedThread '000101'
-	rigCall 30 "{\"to\":\"CRIG00001:1700000001.000001\",\"address_to\":\"URIGOWNER\",\"question\":\"Which check first?\",$rigOptions\"wait\":false}"
+	rigCall 120 "{\"to\":\"CRIG00001:1700000001.000001\",\"address_to\":\"URIGOWNER\",\"question\":\"Which check first?\",$rigOptions\"wait\":false}"
+	[ "$rigKilled" = no ] || rigRefuse "the call that posts the question ran past its 120 s guard and was killed"
 	rigSharedFirst="$( rigWaitId )"
 	[ -n "$rigSharedFirst" ] && [ "$( rigFieldOf "$rigSharedFirst" question-tag )" = "Q1" ] || rigRefuse "the rig did not leave one question numbered Q1 in the thread"
 }

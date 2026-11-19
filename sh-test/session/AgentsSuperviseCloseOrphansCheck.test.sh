@@ -13,9 +13,18 @@
 ##   7. THE NEXT --execute ENDS IT WITH KILL: it reads `killed`, its process is gone, and the note has gone with it.
 ##   8. A NOTE NAMING ANOTHER PROCESS IS NOT OBEYED: it is removed, the row reads `would-close`, and nothing is signalled.
 ##   9. A NOTE WHOSE PROCESS HAS GONE IS CLEARED by the next pass, which reads no row and signals nothing.
+##  10. A PROCESS THAT OUTLIVES KILL reads `survived-kill`, and its note stays for the next pass. A real process cannot outlive KILL,
+##      so the began reader's ps is a stand-in for that one pass (check-fixtures/supervise-close-orphans.ps.stub.sh): the KILL is real.
+##  11. A RIG UNDER NO RECORD THE WRITER NAMES CLOSED IS KEPT, with no row and no signal: a record with no status line, a status the
+##      writer gives no closed run (spawn-awaiting-review), and a sandbox with no record. Its control: a record still spawn-started.
+##  12. A SESSION'S CONTROL THREAD THAT OUTLIVED ITS SESSION is closed with TERM only: its pid and start match, its log is quiet past the
+##      no-run limit, and every record of its session is closed. It reads would-close, then closed, or still-alive on every pass, never KILL.
+##      Kept with no row: a session with an open record, one with no record, a fresh log, a start mismatch, the supervising session's own.
 ## Red before the operation: each call is refused as an invalid option, so 1 to 4 fail. Red before the harder signal: no pass writes a
 ## note and no pass sends KILL, so 5 to 8 fail, and 8's first assertion fails because the owner's note call is not there to write one.
 ## Red before the note sweep: a note whose process ended on its own stands for ever, so 9 fails.
+## Red before the closed-status rule: each of 11's rigs but the started one reads would-close, then closed, and its process is gone.
+## Red before the session close: none of 12's threads has a row, and the one that answers TERM is never sent it.
 ## Offline: the tool from the package under test, over a rig workspace; the control threads are sleepers, ended at the end.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
@@ -29,7 +38,7 @@ rigRefuse(){
 . "$rigPackage/sh-test/check-fixtures/rig-processes.include.sh" || exit 1
 rigTmp="$( rigTempDir AgentsSuperviseCloseOrphansCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
-trap 'chmod -R u+wX -- "$rigTmp" 2> /dev/null ; rigProcSignal TERM "${rigPidA:-0}" || : ; rigProcSignal TERM "${rigPidB:-0}" || : ; rigProcSignal KILL "${rigPidC:-0}" || : ; rigProcSignal TERM "${rigPidD:-0}" || : ; rigProcSignal KILL "${rigPidE:-0}" || : ; rm -rf -- "$rigTmp"' EXIT
+trap 'chmod -R u+wX -- "$rigTmp" 2> /dev/null ; rigProcSignal TERM "${rigPidA:-0}" || : ; rigProcSignal TERM "${rigPidB:-0}" || : ; rigProcSignal KILL "${rigPidC:-0}" || : ; rigProcSignal TERM "${rigPidD:-0}" || : ; rigProcSignal KILL "${rigPidE:-0}" || : ; rigProcSignal KILL "${rigPidF:-0}" || : ; for rigEach in ${rigPidsK:-} ; do rigProcSignal TERM "$rigEach" || : ; done ; for rigEach in ${rigPidsS:-} ; do rigProcSignal KILL "$rigEach" || : ; done ; rm -rf -- "$rigTmp"' EXIT
 trap 'exit 1' INT TERM
 case "$rigPackage" in
 	*/myx/myx.distro-agents) rigOrigin="${rigPackage%/myx/myx.distro-agents}" ;;
@@ -83,9 +92,9 @@ rigClosedRun(){ ## the spawn id -- its output folder, its closed record and its 
 rigClose(){ ## the workspace, the options...
 	local ws="$1" ; shift
 	## A supervisor write runs as magic-coordinator's session, as the hands check calls one.
-	env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp" PATH="/usr/bin:/bin:/usr/sbin:/sbin" \
+	env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp" PATH="${rigClosePath:-/usr/bin:/bin:/usr/sbin:/sbin}" RIG_SURVIVOR="${rigSurvivor:-}" RIG_SURVIVOR_BEGAN="${rigSurvivorBegan:-}" \
 		MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDLT_ORIGIN="$rigOrigin" MDLT_OPTION="--run-from-path $rigOrigin" MDSC_CMD=AgentDispatcherTools \
-		MDAT_SKILLSET_ROOT="$rigSkills" MDAT_TEAM_DATA_COMMIT_THREAD=off MDAT_COMMS_READER=off MDAT_COLLECT_THREAD=off MDAT_SPAWN_AGENT=magic-coordinator \
+		MDAT_SKILLSET_ROOT="$rigSkills" MDAT_TEAM_DATA_COMMIT_THREAD=off MDAT_COMMS_READER=off MDAT_COLLECT_THREAD=off MDAT_SPAWN_AGENT=magic-coordinator ${rigOwnSession:+"MDAT_SPAWN_SESSION_ID=$rigOwnSession"} \
 		MDAT_SUPERVISE_RIG_WALK_SECONDS=0 \
 		bash "$rigFn" --supervise-close-orphans --workspace "$ws" "$@" 2>&1
 }
@@ -171,6 +180,98 @@ rigAssert "its process has gone before the pass" "$( ps -o stat= -p "$rigPidE" 2
 rigOut="$( rigClose "$rigWs" )"
 rigAssert "a pass reads no row for it" "$( rigRow "$rigOut" rig-gijk )" "absent"
 rigAssert "and its note is cleared" "$( [ -f "$rigNoteG" ] && echo kept || echo none )" "none"
+
+echo "-- 10. a process that outlives KILL reads survived-kill, and its note stays --"
+rigClosedRun rig-lmno
+rigDeafThread "$rigAgents/spawned/rig-lmno/sessions/run-a/output/control/pid" ; rigPidF="$rigLastPid"
+rigNoteF="$rigAgents/spawned/rig-lmno/sessions/run-a/output/control/pid.term"
+rigOut="$( rigClose "$rigWs" --execute )"
+rigAssert "the deaf one reads still-alive first" "$( rigRow "$rigOut" rig-lmno )" "still-alive"
+rigAssert "and a note stands for it" "$( [ -f "$rigNoteF" ] && echo kept || echo none )" "kept"
+mkdir -p "$rigTmp/bin" || exit 1
+cp "$rigPackage/sh-test/check-fixtures/supervise-close-orphans.ps.stub.sh" "$rigTmp/bin/ps" && chmod +x "$rigTmp/bin/ps" || rigRefuse "the stand-in ps fixture is missing from the package"
+rigSurvivorBegan="$( LC_ALL=C awk '{ print $2 }' "$rigNoteF" 2> /dev/null )"
+[ -n "$rigSurvivorBegan" ] || rigRefuse "the note names no began moment, so the stand-in has nothing to show"
+rigOut="$( rigClosePath="$rigTmp/bin:/usr/bin:/bin:/usr/sbin:/sbin" rigSurvivor="$rigPidF" rigSurvivorBegan="$rigSurvivorBegan" rigClose "$rigWs" --execute )"
+rigAssert "the pass whose reader still sees it after KILL reads survived-kill" "$( rigRow "$rigOut" rig-lmno )" "survived-kill"
+rigAssert "and its note stays for the next pass" "$( [ -f "$rigNoteF" ] && echo kept || echo none )" "kept"
+rigWaitF=0
+while [ "$rigWaitF" -lt 20 ] && [ "$( ps -o stat= -p "$rigPidF" 2> /dev/null | LC_ALL=C grep -c '[^Z ]' )" != 0 ] ; do sleep 0.1 ; rigWaitF=$(( rigWaitF + 1 )) ; done
+rigAssert "the KILL was real: the host's own ps finds the process gone" "$( ps -o stat= -p "$rigPidF" 2> /dev/null | LC_ALL=C grep -c '[^Z ]' )" "0"
+
+echo "-- 11. a rig under no record the writer names closed is kept: no row, no signal --"
+rigPidsK=""
+for rigSpid in rig-nost rig-word rig-none rig-open ; do
+	mkdir -p "$rigAgents/spawned/$rigSpid/sessions/run-a/output/control" || exit 1
+	rigControlThread "$rigAgents/spawned/$rigSpid/sessions/run-a/output/control/pid" began ; rigPidsK="$rigPidsK $rigLastPid"
+done
+printf -- '---\nsession-id: rig-nost\nspawn-id: rig-nost\nowner: rig-keeper\nstarted-at: 2026-11-06 10:00 +0000\n---\n' > "$rigAgents/spawned/rig-nost/rig-nost.spawn.md"
+printf -- '---\nsession-id: rig-word\nspawn-id: rig-word\nowner: rig-keeper\nstatus: spawn-awaiting-review\nstarted-at: 2026-11-06 10:00 +0000\n---\n' > "$rigAgents/spawned/rig-word/rig-word.spawn.md"
+printf -- '---\nsession-id: rig-open\nspawn-id: rig-open\nowner: rig-keeper\nstatus: spawn-started\nstarted-at: 2026-11-06 10:00 +0000\n---\n' > "$rigAgents/spawned/rig-open/rig-open.spawn.md"
+rigOut="$( rigClose "$rigWs" )"
+rigAssert "the readout still sees the rigs: the mismatched one reads kept-mismatch" "$( rigRow "$rigOut" rig-bmis )" "kept-mismatch"
+for rigSpid in rig-nost rig-word rig-none rig-open ; do
+	rigAssert "the readout gives $rigSpid no row" "$( rigRow "$rigOut" "$rigSpid" )" "absent"
+done
+rigOut="$( rigClose "$rigWs" --execute )"
+for rigSpid in rig-nost rig-word rig-none rig-open ; do
+	rigAssert "--execute gives $rigSpid no row" "$( rigRow "$rigOut" "$rigSpid" )" "absent"
+done
+for rigEach in $rigPidsK ; do
+	rigAssert "and no signal reached its process $rigEach" "$( kill -0 "$rigEach" 2> /dev/null && echo alive || echo gone )" "alive"
+done
+
+echo "-- 12. a session's control thread that outlived its session is closed with TERM only --"
+rigPidsS=""
+rigSessionThread(){ ## session id, deaf (yes|no), log age in minutes, its record's status or none
+	mkdir -p "$rigAgents/sessions/$1/control" || exit 1
+	if [ "$2" = yes ] ; then sh -c 'trap "" TERM ; exec sleep 300' > /dev/null 2>&1 & else python3 -I -B -c 'import time; time.sleep(300)' > /dev/null 2>&1 & fi
+	rigLastPid="$!" ; rigProcNote "$rigLastPid" ; rigPidsS="$rigPidsS $rigLastPid"
+	sleep 0.3
+	rigProcBegan "$rigLastPid" > "$rigAgents/sessions/$1/control/pid"
+	: > "$rigAgents/sessions/$1/control/log"
+	touch -t "$( date -r $(( $( date +%s ) - 60 * $3 )) '+%Y%m%d%H%M' 2> /dev/null || date -d "$3 minutes ago" '+%Y%m%d%H%M' )" "$rigAgents/sessions/$1/control/log" || exit 1
+	[ "$4" = none ] || { mkdir -p "$rigAgents/spawned/$1" && printf -- '---\nsession-id: %s\nspawn-id: %s\nowner: rig-keeper\nstatus: %s\nstarted-at: 2026-11-06 10:00 +0000\n---\n' "$1" "$1" "$4" > "$rigAgents/spawned/$1/$1.spawn.md" ; } || exit 1
+}
+rigCtlRow(){ ## the output, the session id -- that row's verdict, or `absent`
+	local row
+	row="$( printf '%s\n' "$1" | LC_ALL=C awk -v id="$2" '$1 == "control-stuck" && $3 == id { print $NF ; exit }' )"
+	printf '%s' "${row:-absent}"
+}
+rigAlive(){ ## pid -- alive or gone, a process the host still runs and not one ended and uncollected
+	[ "$( ps -o stat= -p "$1" 2> /dev/null | LC_ALL=C grep -c '[^Z ]' )" != 0 ] && echo alive || echo gone
+}
+rigSessionThread rig-sq01 no 120 spawn-succeeded ; rigPidSq="$rigLastPid"
+rigSessionThread rig-sd01 yes 120 spawn-failed ; rigPidSd="$rigLastPid"
+rigSessionThread rig-so01 no 120 spawn-started
+rigSessionThread rig-sn01 no 120 none
+rigSessionThread rig-sf01 no 1 spawn-succeeded
+rigSessionThread rig-sm01 no 120 spawn-succeeded
+rigSessionThread rig-sw01 no 120 spawn-ended-without-close
+printf '%s Mon_Jan__1_00:00:00_2001\n' "$( LC_ALL=C awk '{ print $1 }' "$rigAgents/sessions/rig-sm01/control/pid" )" > "$rigAgents/sessions/rig-sm01/control/pid"
+rigOut="$( rigOwnSession=rig-sw01 rigClose "$rigWs" )"
+rigAssert "the readout names the quiet thread of a closed session would-close" "$( rigCtlRow "$rigOut" rig-sq01 )" "would-close"
+rigAssert "and the one that will ignore TERM the same" "$( rigCtlRow "$rigOut" rig-sd01 )" "would-close"
+for rigSid in rig-so01 rig-sn01 rig-sf01 rig-sm01 rig-sw01 ; do
+	rigAssert "the readout gives $rigSid no row" "$( rigCtlRow "$rigOut" "$rigSid" )" "absent"
+done
+for rigEach in $rigPidsS ; do
+	rigAssert "the readout signals nothing: $rigEach lives" "$( rigAlive "$rigEach" )" "alive"
+done
+rigOut="$( rigOwnSession=rig-sw01 rigClose "$rigWs" --execute )"
+rigAssert "--execute closes it with TERM" "$( rigCtlRow "$rigOut" rig-sq01 )" "closed"
+rigAssert "and its process is gone" "$( rigAlive "$rigPidSq" )" "gone"
+rigAssert "the one that ignores TERM reads still-alive" "$( rigCtlRow "$rigOut" rig-sd01 )" "still-alive"
+for rigSid in rig-so01 rig-sn01 rig-sf01 rig-sm01 rig-sw01 ; do
+	rigAssert "--execute gives $rigSid no row" "$( rigCtlRow "$rigOut" "$rigSid" )" "absent"
+done
+rigOut="$( rigOwnSession=rig-sw01 rigClose "$rigWs" --execute )"
+rigAssert "the next --execute reads it still-alive again" "$( rigCtlRow "$rigOut" rig-sd01 )" "still-alive"
+rigAssert "and sends no KILL: its process lives" "$( rigAlive "$rigPidSd" )" "alive"
+rigAssert "the closed one has no row" "$( rigCtlRow "$rigOut" rig-sq01 )" "absent"
+for rigEach in $rigPidsS ; do
+	[ "$rigEach" = "$rigPidSq" ] || rigAssert "no thread but the closed one was ended: $rigEach lives" "$( rigAlive "$rigEach" )" "alive"
+done
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ SUPERVISE CLOSE ORPHANS CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2

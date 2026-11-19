@@ -135,6 +135,9 @@ rigNoteSet advance-finished "2026-10-19 14:00 +0300" $(( rigNow - 150 ))
 rigAssert "at 0, no wait: still no pass" "$( rigRun n15 )" "0:0"
 
 echo "-- 7. control: the same loop does start a routine that has a time --"
+## Every start fails in this rig (no agent CLI) and holds its key for ten minutes on the rig's clock, which dates the start marks.
+## The clock runs a week on, past every hold the iterations above left, the Saturday's included.
+rigAt $(( rigNow + 7 * 86400 ))
 rigRun n16 > /dev/null
 rigAssert "the autorun routine of the rig is started by the same iteration" "$( rigRecordsOf keeper-rig-01.auto.routine.md )" "1"
 rigAssert "the advance routine says runs-at: none" "$( LC_ALL=C grep -c -x 'runs-at: none' "$rigPackage/skillset/magic-team/magic-team/magic-team.advance.routine.md" 2> /dev/null || :)" "1"

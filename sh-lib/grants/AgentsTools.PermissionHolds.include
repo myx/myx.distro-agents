@@ -35,10 +35,8 @@
 ## Sourced, never run. Functions only.
 ##
 
-## THE TEAM FLOOR'S TOOLS: the one place they are named. The tooling origin's own project.inf
-## declares them too, as `--magic-team:` rows (AgentsToolsPermissionOriginFloorTools); a tool
-## either seat names is the floor, so the code list answers alone only where the origin names none.
-agentsPermissionFloorTools=" Skill SendMessage Wait SubagentHandback AskUserQuestion AskQuestion ConfirmReadback EscalateDecision RequestPermission ProposeApprove ToolSearch ListAgents TaskOutput TaskStop PushNotification SessionTranscriptAppend ReportFindings ListMcpResourcesTool ReadMcpResourceTool ReadMcpResourceDirTool "
+## THE TEAM FLOOR'S TOOLS are declared by the tooling origin's project.inf and read from there alone
+## (AgentsToolsPermissionOriginFloorTools): no list of them is kept in code.
 ## The file tools a path permission speaks for, and the ones of them that only read.
 agentsPermissionFileTools=" Read Edit Write Execute Grep Glob "
 agentsPermissionReadTools=" Read Grep Glob "
@@ -59,13 +57,18 @@ agentsPermissionSingleAsks=1
 
 ## Whether a permission entry may name a tool: one of the list above; a tool of the team
 ## floor, which every member holds already; or a tool of an MCP server, named by its own
-## name, `mcp__<server>__<tool>`, and on no list. Taken as written: `read` is no tool.
+## name, `mcp__<server>__<tool>`, and on no list. Taken as written: `read` is no tool. A floor
+## that cannot be read fails it, said, and never answers as if the floor named no tool.
 AgentsToolsPermissionEntryToolKnown(){ ## tool name
 	case "$1" in
 		''|*[[:space:]]*) return 1 ;;
 		mcp__?*__?*) return 0 ;;
 	esac
-	case "$agentsPermissionEntryTools$agentsPermissionFloorTools" in
+	case "$agentsPermissionEntryTools" in
+		*" $1 "*) return 0 ;;
+	esac
+	AgentsToolsPermissionOriginFloorTools || return 1
+	case "$agentsPermissionOriginFloorTools" in
 		*" $1 "*) return 0 ;;
 	esac
 	return 1
@@ -256,11 +259,11 @@ AgentsToolsPermissionFloorRoots(){ ## workspace, member, read|write, session id 
 	return 0
 }
 
-## The tooling origin's own floor tools, as the distro declares them (S21.20, item 20n): the
-## `--magic-team:permissions:workspace:*:allow-tool:*:<tool>` rows of the package MDLT_ORIGIN holds.
-## That is the workspace's tooling origin, never a `.local` copy of the package. Read through the distro
-## door, as Grants reads the same declares, and once per run: empty where the origin names none, so the
-## code list above answers alone. A named workspace is read for itself and is not kept, which is how a
+## THE TEAM FLOOR'S TOOLS, as the distro declares them: the `magic-team:permissions:workspace:*:allow-tool:*:<tool>`
+## rows of the tooling package in the workspace MDLT_ORIGIN belongs to, as ` <tool> <tool> ` in
+## agentsPermissionOriginFloorTools. Read through the distro door, as Grants reads the same declares, and
+## once per run, a failure too. A floor that reads empty is a failure, said, rc 1: no caller may treat
+## it as a floor naming no tool. A named workspace is read for itself and is not kept, which is how a
 ## check asks it about a workspace of its own.
 agentsPermissionOriginFloorTools="" agentsPermissionOriginFloorRead=""
 AgentsToolsPermissionOriginFloorTools(){ ## workspace holding the origin (optional)
@@ -268,16 +271,26 @@ AgentsToolsPermissionOriginFloorTools(){ ## workspace holding the origin (option
 	if [ -n "${1:-}" ] ; then
 		originWs="${1%/}"
 	else
-		[ -z "$agentsPermissionOriginFloorRead" ] || return 0
-		agentsPermissionOriginFloorRead=1
+		case "$agentsPermissionOriginFloorRead" in
+			1) return 0 ;;
+			0) return 1 ;;
+		esac
 		case "${MDLT_ORIGIN:-}" in
 			*/source) originWs="${MDLT_ORIGIN%/source}" ;;
 			*/.local) originWs="${MDLT_ORIGIN%/.local}" ;;
-			*) return 0 ;;
 		esac
 	fi
-	type AgentsDistroDeclaresCut > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/distro/AgentsTools.DistroDoor.include"
-	agentsPermissionOriginFloorTools="$( AgentsDistroDeclaresCut "$originWs" '--magic-team:permissions:workspace:*:allow-tool:*' 2> /dev/null | LC_ALL=C awk '$1 == "myx/myx.distro-agents" && $2 != "" { n = split( $2, floorField, ":" ) ; printf "%s ", floorField[n] }' )"
+	agentsPermissionOriginFloorTools=""
+	if [ -n "$originWs" ] ; then
+		type AgentsDistroDeclaresCut > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/distro/AgentsTools.DistroDoor.include"
+		agentsPermissionOriginFloorTools="$( AgentsDistroDeclaresCut "$originWs" 'magic-team:permissions:workspace:*:allow-tool:*' 2> /dev/null | LC_ALL=C awk '$1 == "myx/myx.distro-agents" && $2 != "" { n = split( $2, floorField, ":" ) ; floorList = floorList " " floorField[n] } END { if ( floorList != "" ) print floorList " " }' )"
+	fi
+	if [ -z "$agentsPermissionOriginFloorTools" ] ; then
+		[ -n "${1:-}" ] || agentsPermissionOriginFloorRead=0
+		echo "⛔ ERROR: the team floor tools were not read: the declares of ${originWs:-the tooling origin ${MDLT_ORIGIN:-unset}} hold no magic-team:permissions:workspace:*:allow-tool:*: row of myx/myx.distro-agents, so the floor grants nothing and every decision that needs it is refused. Check the tooling package's declares, and refresh the distro declares index of a workspace with no source." >&2
+		return 1
+	fi
+	[ -n "${1:-}" ] || agentsPermissionOriginFloorRead=1
 	return 0
 }
 
@@ -908,12 +921,9 @@ AgentsToolsPermissionHolds(){ ## member, tool, natural target, session id (optio
 	case "$holdTool" in
 		cred|spend) ;;
 		*)
-			## (a) the floor's tools: the tooling origin's own declares first, then the code list.
-			AgentsToolsPermissionOriginFloorTools
+			## (a) the floor's tools, as the tooling origin declares them. A floor that cannot be read refuses the call.
+			AgentsToolsPermissionOriginFloorTools || return 1
 			case "$agentsPermissionOriginFloorTools" in
-				*" $holdTool "*) printf 'floor' ; return 0 ;;
-			esac
-			case "$agentsPermissionFloorTools" in
 				*" $holdTool "*) printf 'floor' ; return 0 ;;
 			esac
 			## (b) standing rows, then (a) the floor's files, as the grants index unrolled them

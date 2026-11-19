@@ -144,15 +144,6 @@ AgentsHarnessAskResolve(){ ## pending reply id, kind, question tag, wait output,
 		## A read that still says UNCLASSIFIED, the word before it, means the same.
 		[ -n "$askVerdict" ] && [ "$askVerdict" != "UNCLASSIFIED" ] || askVerdict="RETURNED"
 	fi
-	## In a thread several questions share, a reply with no number that came after the latest
-	## question above it was already answered answers none of them: it goes back to the
-	## asker as RETURNED, with the record open, as a typed kind's would.
-	if [ "$toolKind" = "question" ] && [ "$askOutcome" = "RECEIVED" ] \
-		&& printf '%s\n' "$askWaitOut" | LC_ALL=C grep -q '^UNMATCHED-REPLY ' \
-		&& ! printf '%s\n' "$askWaitOut" | LC_ALL=C grep -q -E '^([0-9]+\.[0-9]+ \| |reaction on the question: )' ; then
-		askVerdict="RETURNED"
-		askReason="a reply with no question number came after the latest question above it was already answered, so it answers none -- a reply to this question starts with the plain text ${askTag:-its number}"
-	fi
 	case "$askOutcome:$toolKind:$askVerdict" in
 		RECEIVED:*:*)
 			## An answer of ANY kind -- a plain question, a decision, a readback, a permission,

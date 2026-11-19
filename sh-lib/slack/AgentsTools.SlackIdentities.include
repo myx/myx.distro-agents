@@ -126,10 +126,10 @@ AgentsToolsCommsSlackMentionUserId(){
 		memberId="$( printf '%s\n' "$authResp" | LC_ALL=C awk -v path=user_id -v optional=1 -v dialect=slack -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" )" || memberId=""
 	elif [ "$1" = "human-owner" ] ; then
 		memberId="$( DistroAgentsToolsResolveTarget human-owner | sed -n 's/^CHANNEL=//p' )" || memberId=""
-		## Only a user id is an account. A DM conversation id is not one, and
+		## Only a user id, U… or W…, is an account. A DM conversation id is not one, and
 		## the member degrades to plain text rather than mentioning a channel.
 		case "$memberId" in
-			U[A-Z0-9][A-Z0-9]*) ;;
+			[UW][A-Z0-9][A-Z0-9]*) ;;
 			*) memberId="" ;;
 		esac
 	fi

@@ -21,6 +21,7 @@
 ##      again. And an answer given to a run whose item already sits in processed works on it: the item goes back
 ##      to review, with its reason, and the answer goes on as for review; and so does one whose item a
 ##      close left in running or in processed, which is where a run its close did not reach is found (S6.34).
+##   A death with no live reviewer is asked of magic-coordinator (AgentsSessionControlDeathCheck), so here it answers.
 ##   4. AN ANSWER THAT COULD NOT BE CARRIED OUT IS THE REVIEWER'S AGAIN: the death stays unsettled, the line of the
 ##      death keeps the failed answer with its moment and its reason, and the same reviewer is asked again, once
 ##      for each failure, with what was not carried out and why and the same four options. Nothing is tried again
@@ -458,7 +459,7 @@ rigDeath d-wait d-wait keeper-rig human-owner
 ## that call, so the assertion below reads a read that was made, never one still in flight.
 rigOne d-wait ; rigSettle d-wait ; rigOne d-wait ; rigSettle d-wait ; rigSettle d-wait
 rigAssert "with no reply nothing is done: the record is open, the line holds no answer, the read of its thread was made, and no run was started or ended" \
-	"$( rigAsks d-wait ):$( rigDeadLine d-wait d-wait | LC_ALL=C grep -c -F -- 'answer=' ):$( LC_ALL=C grep -c '^conversations.replies ' "$rigSlack/calls" | LC_ALL=C awk '{ print ( $1 >= 1 ) ? "read" : "not-read" }' ):$( rigLaunches ):$( rigHeader d-wait status )" "human-owner;:0:read:0:spawn-started"
+	"$( rigAsks d-wait ):$( rigDeadLine d-wait d-wait | LC_ALL=C grep -c -F -- 'answer=' ):$( LC_ALL=C grep -c '^conversations.replies ' "$rigSlack/calls" | LC_ALL=C awk '{ print ( $1 >= 1 ) ? "read" : "not-read" }' ):$( rigLaunches ):$( rigHeader d-wait status )" "magic-coordinator;:0:read:0:spawn-started"
 ## A reply of the one who was asked, in the thread of the question: read by the call apart, where every answer is read.
 rigWaitTs="$( LC_ALL=C sed -n 's/^question-ts: //p' "$rigPending/$( rigAskId d-wait d-wait ).md" )"
 printf '{"ok":true,"messages":[{"ts":"%s","user":"URIGBOT01","text":"the question"},{"ts":"%s","user":"URIGOWNER","text":"close"}],"has_more":false}\n' "$rigWaitTs" "$(( ${rigWaitTs%%.*} + 5 )).000001" > "$rigSlack/replies.json"
@@ -472,7 +473,7 @@ rigDeath d-wdrn d-wdrn keeper-rig human-owner
 rigCall --intern-op-pending-reply-close "$( rigAskId d-wdrn d-wdrn )" --if-open --status withdrawn --withdrawn-by magic-coordinator --withdraw-reason "the rig takes it back" --no-decision --context rig > /dev/null 2>&1 < /dev/null
 rigCarry d-wdrn d-wdrn
 rigAssert "a question that was withdrawn is not asked again: the line says so and the death is settled, one question was posted, and nothing was started" \
-	"$( rigDeadLine d-wdrn d-wdrn | LC_ALL=C tr ' ' '\n' | LC_ALL=C grep -c -x -F -- 'how=withdrawn' ):$( rigQuestions d-wdrn ):$( rigLaunches )" "1:URIGOWNER - human-owner;:0"
+	"$( rigDeadLine d-wdrn d-wdrn | LC_ALL=C tr ' ' '\n' | LC_ALL=C grep -c -x -F -- 'how=withdrawn' ):$( rigQuestions d-wdrn ):$( rigLaunches )" "1:CRIG00001 - magic-coordinator;:0"
 ## The read of the thread, under a thread: on its period, and a read that hangs holds no tick.
 rigItem item-d-rdb d-rdb human-owner
 rigStand '' ; rigRdShell="$rigStandPid"
@@ -519,7 +520,7 @@ rigAnswer d-res d-res resume ; rigCarry d-res d-res
 rigWaitFor 20 rigStateIs d-res running
 rigResNew="$( LC_ALL=C sed -n 's/^spawn-id: //p' "$rigData/board/running/item-d-res.md" 2> /dev/null | LC_ALL=C sed -n '1p' )"
 rigAssert "a run that cannot be resumed is started as a new process, and the thread of the question says so; the restart of the executor keeps the session: a run of its own id, in the old session, and the session reads running" \
-	"$( rigLines 'as a new process from its brief: its context could not be resumed' d-res ):$( [ -n "$rigResNew" ] && [ "$rigResNew" != "d-res" ] && echo new-run ):$( LC_ALL=C grep -c -x -F -- "$rigResNew d-res brief" "$rigTmp/launches" ):$( LC_ALL=C sed -n 's/^session-id: //p' "$rigSp"/*/"$rigResNew.spawn.md" 2> /dev/null | LC_ALL=C sed -n '1p' ):$( rigState d-res )" "DRIG00001 thread human-owner;:new-run:1:d-res:running"
+	"$( rigLines 'as a new process from its brief: its context could not be resumed' d-res ):$( [ -n "$rigResNew" ] && [ "$rigResNew" != "d-res" ] && echo new-run ):$( LC_ALL=C grep -c -x -F -- "$rigResNew d-res brief" "$rigTmp/launches" ):$( LC_ALL=C sed -n 's/^session-id: //p' "$rigSp"/*/"$rigResNew.spawn.md" 2> /dev/null | LC_ALL=C sed -n '1p' ):$( rigState d-res )" "DRIG00001 thread magic-coordinator;:new-run:1:d-res:running"
 ## A TRUE RESUME, through the death path: the dead run ran in the universal harness and kept its context, as the
 ## harness keeps one, a context.jsonl in its sandbox whose header names the run. The rig's console stands in for the
 ## harness: given a context to resume it marks that it loaded it, as the harness does before its first request.
@@ -550,7 +551,7 @@ rigDeath d-ctxb d-ctxb keeper-rig human-owner "${rigHarnessRun}session-thread: C
 rigAnswer d-ctxb d-ctxb resume ; rigCarry d-ctxb d-ctxb
 rigCtxbNew="$( LC_ALL=C sed -n 's/^spawn-id: //p' "$rigData/board/running/item-d-ctxb.md" 2> /dev/null | LC_ALL=C sed -n '1p' )"
 rigAssert "a kept context that cannot be resumed falls back to a new process from the brief, and the note says so with the reason" \
-	"$( LC_ALL=C grep -c -x -F -- "$rigCtxbNew d-ctxb brief" "$rigTmp/launches" ):$( rigLines 'as a new process from its brief: its context could not be resumed (the kept context belongs to session another-run, not d-ctxb)' d-ctxb ):$( rigDeadLine d-ctxb d-ctxb | LC_ALL=C tr ' ' '\n' | LC_ALL=C grep -c -x -F -- 'how=resume' )" "1:DRIG00001 thread human-owner;:1"
+	"$( LC_ALL=C grep -c -x -F -- "$rigCtxbNew d-ctxb brief" "$rigTmp/launches" ):$( rigLines 'as a new process from its brief: its context could not be resumed (the kept context belongs to session another-run, not d-ctxb)' d-ctxb ):$( rigDeadLine d-ctxb d-ctxb | LC_ALL=C tr ' ' '\n' | LC_ALL=C grep -c -x -F -- 'how=resume' )" "1:DRIG00001 thread magic-coordinator;:1"
 
 echo "-- 4. an answer that could not be carried out is the reviewer's again --"
 ## A start that fails after its item was returned: the console of the rig is gone.
@@ -563,8 +564,8 @@ rigAssert "a restart that fails is not a dead mark: the death stays unsettled an
 	"$( rigDeadSettled d-fail d-fail && echo settled || echo unsettled ):$( rigState d-fail ):$( rigDeadLine d-fail d-fail | LC_ALL=C tr ' ' '\n' | LC_ALL=C grep -c -E '^not=fresh,[0-9T:Z-]+,item-d-fail,.+$' ):$( rigItemIn item-d-fail ):$(( $( rigLaunches ) - rigFailLaunches ))" "unsettled:member-dead:1:review:0"
 rigFailBody="$( LC_ALL=C grep -F -- 'Decision' "$rigSlack/bodies" 2> /dev/null | LC_ALL=C grep -F -- '`d-fail`' | LC_ALL=C sed -n '2p' )"
 rigAssert "the same reviewer is asked again, once: a second question, which says which answer was not carried out and why, names the item that is back in review, and offers the same four options; and the requesting side's note says that the reviewer is asked again" \
-	"$( rigQuestions d-fail ):$( rigMarks d-fail d-fail asked ):$( rigAsks d-fail ):$( printf '%s' "$rigFailBody" | LC_ALL=C grep -c -F -- 'The answer `fresh` about keeper-rig' ):$( printf '%s' "$rigFailBody" | LC_ALL=C grep -c -F -- 'was not carried out: ' ):$( printf '%s' "$rigFailBody" | LC_ALL=C grep -c -F -- 'Its item `item-d-fail` is back in review' ):$( printf '%s' "$rigFailBody" | LC_ALL=C awk '{ print ( index( $0, "1️⃣ resume:" ) && index( $0, "2️⃣ fresh:" ) && index( $0, "3️⃣ close:" ) && index( $0, "4️⃣ " ) ) ? "four" : "not-four" ; exit }' ):$( rigLines 'human-owner is asked again what to do' d-fail )" \
-	"URIGOWNER - human-owner;URIGOWNER - human-owner;:2:human-owner;:1:1:1:four:DRIG00001 thread human-owner;"
+	"$( rigQuestions d-fail ):$( rigMarks d-fail d-fail asked ):$( rigAsks d-fail ):$( printf '%s' "$rigFailBody" | LC_ALL=C grep -c -F -- 'The answer `fresh` about keeper-rig' ):$( printf '%s' "$rigFailBody" | LC_ALL=C grep -c -F -- 'was not carried out: ' ):$( printf '%s' "$rigFailBody" | LC_ALL=C grep -c -F -- 'Its item `item-d-fail` is back in review' ):$( printf '%s' "$rigFailBody" | LC_ALL=C awk '{ print ( index( $0, "1️⃣ resume:" ) && index( $0, "2️⃣ fresh:" ) && index( $0, "3️⃣ close:" ) && index( $0, "4️⃣ " ) ) ? "four" : "not-four" ; exit }' ):$( rigLines 'magic-coordinator is asked again what to do' d-fail )" \
+	"CRIG00001 - magic-coordinator;CRIG00001 - magic-coordinator;:2:magic-coordinator;:1:1:1:four:DRIG00001 thread magic-coordinator;"
 mv "$rigTmp/console.kept" "$rigWs/DistroAgentsConsole.sh"
 rigTen=0
 while [ "$rigTen" -lt 4 ] ; do rigOne d-fail ; rigSettle d-fail ; rigTen=$(( rigTen + 1 )) ; done
@@ -580,13 +581,13 @@ rigStand d-twice ; rigTwice="$rigStandPid"
 rigTwiceLaunches="$( rigLaunches )"
 rigAnswer d-twice d-twice fresh ; rigCarry d-twice d-twice
 rigAssert "nothing is started while a process still runs as the run it would replace: no launch, the answer is said not to be carried out, with why, the death stays unsettled, its record open, and its reviewer is asked again" \
-	"$(( $( rigLaunches ) - rigTwiceLaunches )):$( rigLines 'was not carried out: a process still runs as the run it would replace' d-twice | LC_ALL=C tr ';' '\n' | LC_ALL=C grep -c -F -- 'thread human-owner' ):$( rigDeadSettled d-twice d-twice && echo settled || echo unsettled ):$( rigHeader d-twice status ):$( rigMarks d-twice d-twice asked )" "0:1:unsettled:spawn-started:2"
+	"$(( $( rigLaunches ) - rigTwiceLaunches )):$( rigLines 'was not carried out: a process still runs as the run it would replace' d-twice | LC_ALL=C tr ';' '\n' | LC_ALL=C grep -c -F -- 'thread magic-coordinator' ):$( rigDeadSettled d-twice d-twice && echo settled || echo unsettled ):$( rigHeader d-twice status ):$( rigMarks d-twice d-twice asked )" "0:1:unsettled:spawn-started:2"
 rigAnswer d-twice d-twice fresh ; rigCarry d-twice d-twice
 rigTwiceThird="$( LC_ALL=C grep -F -- 'Decision' "$rigSlack/bodies" 2> /dev/null | LC_ALL=C grep -F -- '`d-twice`' | LC_ALL=C sed -n '3p' | LC_ALL=C grep -c -F -- 'times in a row' )"
 rigAnswer d-twice d-twice fresh ; rigCarry d-twice d-twice
 rigTwiceFourth="$( LC_ALL=C grep -F -- 'Decision' "$rigSlack/bodies" 2> /dev/null | LC_ALL=C grep -F -- '`d-twice`' | LC_ALL=C sed -n '4p' )"
 rigAssert "the same answer failed three times in a row for the same reason: the fourth question says so in the first line of what it asks, and still asks; the third did not say it" \
-	"$rigTwiceThird:$( printf '%s' "$rigTwiceFourth" | LC_ALL=C grep -c -F -- '\n\n`fresh` has now failed 3 times in a row, each time for the same reason.\nThe answer `fresh` about keeper-rig' ):$( rigMarks d-twice d-twice asked ):$( rigMarks d-twice d-twice not ):$( rigAsks d-twice ):$(( $( rigLaunches ) - rigTwiceLaunches ))" "0:1:4:3:human-owner;:0"
+	"$rigTwiceThird:$( printf '%s' "$rigTwiceFourth" | LC_ALL=C grep -c -F -- '\n\n`fresh` has now failed 3 times in a row, each time for the same reason.\nThe answer `fresh` about keeper-rig' ):$( rigMarks d-twice d-twice asked ):$( rigMarks d-twice d-twice not ):$( rigAsks d-twice ):$(( $( rigLaunches ) - rigTwiceLaunches ))" "0:1:4:3:magic-coordinator;:0"
 rigProcSignal TERM "$rigTwice" ; rigWaitFor 10 rigEnded "$rigTwice"
 rigAnswer d-twice d-twice close ; rigCarry d-twice d-twice
 rigAssert "and another answer to the fourth question settles it" "$( rigDeadLine d-twice d-twice | LC_ALL=C tr ' ' '\n' | LC_ALL=C grep -c -x -F -- 'how=close' ):$( rigHeader d-twice status )" "1:spawn-ended-without-close"
@@ -597,7 +598,7 @@ rigDeath d-close c-sess keeper-rig human-owner
 rigCloseLaunches="$( rigLaunches )"
 rigAnswer c-sess d-close close ; rigCarry c-sess d-close ; rigOne c-sess ; rigWaitFor 10 rigStateIs c-sess running
 rigAssert "close takes the end as final: the record of the dead run is closed as ended without close, its item is processed, no run is started, it is said once, and the session reads running again" \
-	"$( rigHeader d-close status ):$( rigItemIn item-d-close ):$(( $( rigLaunches ) - rigCloseLaunches )):$( rigLines 'that died stays ended: its record is closed' d-close ):$( rigState c-sess )" "spawn-ended-without-close:processed:0:DRIG00001 thread human-owner;:running"
+	"$( rigHeader d-close status ):$( rigItemIn item-d-close ):$(( $( rigLaunches ) - rigCloseLaunches )):$( rigLines 'that died stays ended: its record is closed' d-close ):$( rigState c-sess )" "spawn-ended-without-close:processed:0:DRIG00001 thread magic-coordinator;:running"
 rigDeath d-last d-last keeper-rig human-owner
 rigAnswer d-last d-last close ; rigCarry d-last d-last ; rigOne d-last ; rigWaitFor 10 rigStateIs d-last finished
 rigAssert "close on the last run of a session ends it: its record is closed, its item is processed, and the state reads finished" \
@@ -608,7 +609,7 @@ rigOwnerBoardReady || rigRefuse "the board could not be made ready to be written
 mv "$rigData/board/running/item-d-done.md" "$rigData/board/processed/item-d-done.md"
 rigAnswer d-done d-done close ; rigCarry d-done d-done
 rigAssert "close on a death whose item already sits in processed settles the death, leaves the item in processed, and names it as accepted" \
-	"$( rigHeader d-done status ):$( rigDeadSettled d-done d-done && echo settled || echo unsettled ):$( rigItemIn item-d-done ):$( rigLines 'and its item `item-d-done` is accepted' d-done )" "spawn-ended-without-close:settled:processed:DRIG00001 thread human-owner;"
+	"$( rigHeader d-done status ):$( rigDeadSettled d-done d-done && echo settled || echo unsettled ):$( rigItemIn item-d-done ):$( rigLines 'and its item `item-d-done` is accepted' d-done )" "spawn-ended-without-close:settled:processed:DRIG00001 thread magic-coordinator;"
 ## A verdict that starts the member again on an item already accepted: the item goes back to review
 ## with its reason, and the answer goes on as for review -- the return of an item in review.
 rigDeath d-proc d-proc keeper-rig human-owner
@@ -638,7 +639,7 @@ rigDeath d-kill d-kill keeper-rig human-owner
 rigAnswer d-kill d-kill "$rigFourth" ; rigCarry d-kill d-kill
 rigWaitFor 10 rigEnded "$rigKOne" ; rigWaitFor 10 rigEnded "$rigKTwo"
 rigAssert "the answer that ends the session ends every live run of it: both processes are gone, their records say who killed them, the record of the dead run is closed, it is said once, and the death is settled" \
-	"$( rigEnded "$rigKOne" && rigEnded "$rigKTwo" && echo both-gone ):$( LC_ALL=C grep -l -x -F -- 'killed-by: rig' "$rigSp/k-one/k-one.spawn.md" "$rigSp/k-two/k-two.spawn.md" 2> /dev/null | LC_ALL=C grep -c . ):$( rigHeader d-kill status ):$( rigLines 'what still lived of it was killed' d-kill ):$( rigDeadLine d-kill d-kill | LC_ALL=C tr ' ' '\n' | LC_ALL=C grep -c -x -F -- "how=$rigFourth" )" "both-gone:2:spawn-ended-without-close:DRIG00001 thread human-owner;:1"
+	"$( rigEnded "$rigKOne" && rigEnded "$rigKTwo" && echo both-gone ):$( LC_ALL=C grep -l -x -F -- 'killed-by: rig' "$rigSp/k-one/k-one.spawn.md" "$rigSp/k-two/k-two.spawn.md" 2> /dev/null | LC_ALL=C grep -c . ):$( rigHeader d-kill status ):$( rigLines 'what still lived of it was killed' d-kill ):$( rigDeadLine d-kill d-kill | LC_ALL=C tr ' ' '\n' | LC_ALL=C grep -c -x -F -- "how=$rigFourth" )" "both-gone:2:spawn-ended-without-close:DRIG00001 thread magic-coordinator;:1"
 rigAssert "every post of the rig was made as the team bot, and none under another account" \
 	"$( LC_ALL=C awk '$1 == "chat.postMessage" && $2 != "rig-bot-token-TEAM" { otherCount++ } END { print otherCount + 0 }' "$rigSlack/calls" )" "0"
 

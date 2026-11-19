@@ -51,7 +51,7 @@ owning namespace `keeper-*`'s domain knowledge, or in the relevant repo's own
 
 ## `DeployProjectSsh.fn.sh` real invocation — the pieces `--help` alone doesn't give you
 
-- **`--project` and `--select-projects` are two entrypoints, not two spellings.** The sourced caller calls `DeployProjectsSsh`, defined at `DeployProjectSsh.fn.sh:348`. Its `--*)` arm sends the arguments to `Distro ListDistroProjects` at `:380`, which refuses options after `--project`. So a direct `--project <p> --prepare-full --save-full-script` works only through the command-line caller. That caller runs `DeployProjectSsh.fn.sh`, whose executable tail at `:783` calls `DeployProjectsSsh`, defined at `:488`.
+- **`--project` and `--select-projects` are two entrypoints, not two spellings.** The sourced caller calls `DeployProjectsSsh`, defined at `DeployProjectSsh.fn.sh:348`. Its `--*)` arm sends the arguments to `Distro ListDistroProjects` at `:380`, which refuses options after `--project`. So a direct `--project <p> --prepare-full --save-full-script` works only through the command-line caller. That caller runs `DeployProjectSsh.fn.sh`, whose executable tail at `:783` calls `DeployProjectSsh`, defined at `:488`.
 - By hand the tool is called as `DeployProjectSsh.fn.sh`. A deploy needs no knowledge of how the scripts work inside: read the command's `--help` and its examples, and run it.
 - Project selection takes the project selector with the project's own name: `DeployProjectSsh.fn.sh --select-projects <name> --prepare-full --deploy-full`. The `--help` example is an example, never a ceiling.
 - **Which workspace root (`MMDAPP`) the console runs from matters, independent of correct selection syntax.** A workspace whose own `.local/source-cache`/`.local/output-cache` index covers

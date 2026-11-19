@@ -62,19 +62,19 @@ What a box's lines are regarding. Every post comes from the bot: a title names a
 ## member
 
 ```
-{{title}}:bust_in_silhouette: {{member}}
+{{title}}:bust_in_silhouette: {{member}}[[/{{origin}}]]
 {{subtitle}}{{date}}
 {{date-format}}{date_short_pretty} at {time}
-👤 *{{member}}*[[ · {{span}}]]
+👤 *{{member}}*[[/{{origin}}]][[ · {{span}}]]
 ```
 
 ## run
 
 ```
-{{title}}:bust_in_silhouette: {{member}}[[ (run `{{run}}`)]]
+{{title}}:bust_in_silhouette: {{member}}[[/{{origin}}]][[ (run `{{run}}`)]]
 {{subtitle}}{{date}}
 {{date-format}}{date_short_pretty} at {time}
-👤 *{{member}}*[[ (run `{{run}}`)]][[ · {{span}}]]
+👤 *{{member}}*[[/{{origin}}]][[ (run `{{run}}`)]][[ · {{span}}]]
 ```
 
 ## session
@@ -101,28 +101,22 @@ What a box's lines are regarding. Every post comes from the bot: a title names a
 
 ```
 {{subject:session}}
-🚀 session start — by *{{started-by}}*
-{{context}}[[<{{session-thread-link}}|session thread in magic-team>]][[session thread: `{{session-thread}}`]]
+🚀 session start — by *{{started-by}}*[[ · <{{session-thread-link}}|🧵 thread>]][[ · 🧵 `{{session-thread}}`]]
 {{subject:run}}
-▶️ run start[[ — {{what}}]][[ · joined session `{{joined-session}}`]]
-[[task: {{task-title}}]][[ · `{{task-item}}`]][[ · `{{task-dispatch}}`]]
+▶️ run start[[ — {{what}}]][[ · joined `{{joined-session}}`]]
+[[📋 {{task-title}}]][[ · `{{task-item}}`]][[ · `{{task-dispatch}}`]]
 [[{{task-text}}]]
-[[cli: {{cli}}]][[ · runs: {{runs}}]][[ · tier: {{tier}}]][[ · wait: {{wait}}]]
-[[routine: `{{routine}}`]][[ · dispatch: `{{dispatch}}`]][[ · resume: `{{resume}}`]]
-{{context}}[[parent: `{{parent-spawn-id}}`]][[ · tracking: `{{tracking-name}}`]]
-{{context}}[[where: {{host}}]][[ / {{workspace}}]][[ · started: {{started-at}}]]
-{{context}}[[member's workspace: {{member-workspace}}]][[ · paying workspace: {{paying-workspace}}]]
+[[🤖 {{cli}}]][[ · runs: {{runs}}]][[ · tier: {{tier}}]][[ · wait: {{wait}}]][[ · routine: `{{routine}}`]][[ · dispatch: `{{dispatch}}`]][[ · resume: `{{resume}}`]]
+{{context}}[[parent: `{{parent-spawn-id}}`]][[ · tracking: `{{tracking-name}}`]][[ · 🖥 {{host}}]][[ / {{workspace}}]][[ · started: {{started-at}}]][[ · member's: {{member-workspace}}]][[ · paying: {{paying-workspace}}]]
 ```
 
 ## end
 
 ```
 {{subject:run}}
-🏁 run end
-[[outcome: {{outcome}}]][[ · exit: {{exit-code}}]][[ · launched: {{launched}}]]
-[[tokens: {{tokens}}]]
-[[cli: {{cli}}]][[ · armed: {{armed}}]][[ · setup: {{setup}}]]
-[[timed out after: {{timed-out-after}}s]]
+🏁 run end[[ · {{outcome}}]][[ · exit {{exit-code}}]][[ · launched: {{launched}}]][[ · ⏱ timed out after {{timed-out-after}}s]]
+[[🪙 {{tokens}}]]
+[[🤖 {{cli}}]][[ · armed: {{armed}}]][[ · setup: {{setup}}]]
 {{context}}[[ended: {{ended-at}}]]
 ```
 
@@ -145,44 +139,35 @@ What a box's lines are regarding. Every post comes from the bot: a title names a
 
 ```
 {{subject:system}}
-🚫 refusal[[: {{what}}]]
-[[tool: `{{tool}}`]][[ · target: `{{target}}`]]
-[[member: {{caller}}]]
+🚫 refusal[[: {{what}}]][[ · `{{tool}}`]][[ → `{{target}}`]][[ · 👤 {{caller}}]]
 [[reason: {{reason}}]]
-{{context}}[[refusal-id: `{{refusal-id}}`]]
-{{context}}[[dispatch: `{{dispatch}}`]][[ · entry: `{{entry}}`]]
-{{context}}[[where: {{host}}]][[ / {{workspace}}]]
+{{context}}[[refusal-id: `{{refusal-id}}`]][[ · dispatch: `{{dispatch}}`]][[ · entry: `{{entry}}`]][[ · 🖥 {{host}}]][[ / {{workspace}}]]
 ```
 
 ## grant
 
 ```
 {{subject:system}}
-✅ permission granted[[: {{what}}]]
-[[tool: `{{tool}}`]][[ · target: `{{target}}`]]
-[[granted by: {{by}}]][[ · member: {{caller}}]][[ · asked: {{asked}}]][[ · scope: {{scope}}]]
-{{context}}[[refusal-id: `{{refusal-id}}`]]
-{{context}}[[where: {{host}}]][[ / {{workspace}}]]
+✅ permission granted[[: {{what}}]][[ · `{{tool}}`]][[ → `{{target}}`]]
+[[granted by: {{by}}]][[ · 👤 {{caller}}]][[ · asked: {{asked}}]][[ · scope: {{scope}}]]
+{{context}}[[refusal-id: `{{refusal-id}}`]][[ · 🖥 {{host}}]][[ / {{workspace}}]]
 ```
 
 ## denial
 
 ```
 {{subject:system}}
-❌ permission denied[[: {{what}}]]
-[[tool: `{{tool}}`]][[ · target: `{{target}}`]]
-[[denied by: {{by}}]][[ · member: {{caller}}]][[ · asked: {{asked}}]]
-{{context}}[[refusal-id: `{{refusal-id}}`]]
-{{context}}[[where: {{host}}]][[ / {{workspace}}]]
+❌ permission denied[[: {{what}}]][[ · `{{tool}}`]][[ → `{{target}}`]]
+[[denied by: {{by}}]][[ · 👤 {{caller}}]][[ · asked: {{asked}}]]
+{{context}}[[refusal-id: `{{refusal-id}}`]][[ · 🖥 {{host}}]][[ / {{workspace}}]]
 ```
 
 ## error
 
 ```
 {{subject:system}}
-⛔ error[[: {{what}}]]
-[[detail: {{detail}}]]
-{{context}}[[where: {{host}}]][[ · at: {{at}}]]
+⛔ error[[: {{what}}]][[ — {{detail}}]]
+{{context}}[[🖥 {{host}}]][[ · at: {{at}}]]
 ```
 
 ## activity
@@ -481,7 +466,7 @@ The short text every post carries beside its boxes: what a notification shows, a
 - rule: The `{{target}}` of a `refusal`, a `grant` and a `denial` is shown by its location root, `<place>:<relative path>`, where it lies in a registered place, and then no absolute path is shown beside it; where it lies in none it is shown as given. The record keeps the exact target.
 - rule: A `refusal`, a `grant` and a `denial` each name every member involved that its records hold, each in its own labelled field: `{{caller}}`, the member whose call it was, which is the one party a refusal record holds; on a grant or a denial `{{by}}`, who answered, and `{{asked}}`, who was asked, where that is not who answered. Each is shown as a name: a member's, or for a Slack account the name the team's account cache holds. They come from the refusal and pending-reply records, never from a lookup over the network.
 - rule: An operation template is one `## <name>` heading under `# Operations` and the one line in the fenced block after it.
-- rule: `{{member}}` is the member the post is about, and the identity it posts under, except in a member block's title and header, where it is that block's member. `{{run}}` is the first 8 characters of the id of the run the post is about: the id the post is given, a spawn's own, or a session's own where it is no spawn. `{{span}}` in a plain-text header is the time of its block's first and last operation, each a Slack date token (`AgentsSlackDate.awk`), so each reader sees it in their own timezone, its fallback the UTC time.
+- rule: `{{member}}` is the member the post is about, and the identity it posts under, except in a member block's title and header, where it is that block's member. `{{origin}}` is the routine of the run the post is about, short (`work-duty`), read from that run's record: it follows the member in that member's own titles and headers, as the member send's author line has it, and never in another member's block. `{{run}}` is the first 8 characters of the id of the run the post is about: the id the post is given, a spawn's own, or a session's own where it is no spawn. `{{span}}` in a plain-text header is the time of its block's first and last operation, each a Slack date token (`AgentsSlackDate.awk`), so each reader sees it in their own timezone, its fallback the UTC time.
 - rule: Every other `{{<name>}}` is a field: one the caller gives, on a kind's line; one of the operation, on an operation's line. Text in `[[ … ]]` is kept only when every slot in it has a value. No field is ever shown as a placeholder: a field with no value, or given as `-`, is simply not shown. A slot outside `[[ … ]]` is required: a kind's line with one empty is left out, as is a kind's line with nothing left; on an operation's line it reads as nothing. A line whose first field was left out opens with the next one, not with its ` · ` or ` / `.
 - rule: The line `{{operations}}` becomes the operations, one line each, in the order given; a block with no such line takes them at its end. An operation joins the block before it when its subject is the same, and opens a new block, its own box, when it is not. A run of operations about the same subject, an immediate one (below) too, shares one box.
 - rule: An operation is one transcript line `<time> <KIND> key=value …` with the `> ` body lines after it. A TOOL line renders by the template named for its tool (an `mcp__<server>__` prefix dropped), a line of `AskUserQuestion`, the second name of the four tools that ask, by the template of the tool of its kind (`ConfirmReadback` for a readback, `EscalateDecision` for a decision, `RequestPermission` for a permission) and by `AskQuestion` when its kind is not known, by `tool error` or `tool refused` when it came out so, and by `tool` when its tool has none. A message event (MSG-OUT, HANDBACK, WAIT-RESULT, DISMISSED, ASK, ANSWER, SPAWN) next to the TOOL line of its call joins it, so one call is one line; alone, it renders by its tool's template. A Wait's DISMISSED renders by `Wait`; an ENDING by `DISMISSED`; a RESULT with outcome=error by `ERROR`; any other KIND by its own template, else by `event`. Any other line is a `text` operation. A body line is never posted itself.

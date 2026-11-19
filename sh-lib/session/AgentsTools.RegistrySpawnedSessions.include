@@ -72,10 +72,40 @@ AgentsToolsRegistryHousekeepingDue(){
 	return 0
 }
 
+## THE REGISTRY IS DATED WITH THE STORE'S STAMP IT WAS BUILT AGAINST, read before the walk (AgentsSpawnedStoreStampInto): its mtime is that
+## stamp, so a reader rebuilds it where the two differ (AgentsToolsSpawnedRegistryFile). A stamp of the current second is not kept: the
+## registry is dated a second before it, which no later stamp is. Set in UTC, so no daylight-saving hour reads two ways.
+## One rebuild at a time, under the lock named as its hook, from the stamp's read to the date set: an older walk never lands over a newer
+## one. A rebuild that finds the registry dated with the stamp as it stands, once it holds the lock, has nothing to do. rc 1 where the lock
+## was not taken in 30 s, or the registry could not be written.
 AgentsToolsRegistrySpawnedSessionsRebuild(){
+	local rebuildStamp="" rebuildDate="" rebuildNow="" rebuildOwn="" rebuildLock="" rebuildStatus=0
 	type AgentsToolsRegistryWrite > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
+	type AgentsSpawnedStoreStampInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include"
+	type AgentsToolsLocalLockTake > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.LocalLock.include"
 	AgentsToolsRegistryHousekeepingDue
-	AgentsToolsRegistryWrite spawned-sessions AgentsToolsRegistrySpawnedSessionsRows
+	AgentsToolsLocalLockTake registry-spawned-sessions 30 "the spawned-sessions registry" || return 1
+	rebuildLock="$agentsLocalLockPath"
+	## The clock is read before the stamp, so a stamp older than it was read in a second already gone.
+	rebuildNow="$( date +%s )" || rebuildNow=""
+	AgentsSpawnedStoreStampInto rebuildStamp "$MMDAPP"
+	case "$rebuildStamp:$rebuildNow" in *[!0123456789:]*|:*|*:) rebuildStamp="" ;; esac
+	rebuildOwn="$( LC_ALL=C stat -f '%m' "$MMDAPP/.local/agents/spawned-sessions.registry" 2> /dev/null || LC_ALL=C stat -c '%Y' "$MMDAPP/.local/agents/spawned-sessions.registry" 2> /dev/null )" || rebuildOwn=""
+	if [ -n "$rebuildStamp" ] && [ "$rebuildOwn" = "$rebuildStamp" ] ; then
+		AgentsToolsLocalLockGive "$rebuildLock"
+		return 0
+	fi
+	if AgentsToolsRegistryWrite spawned-sessions AgentsToolsRegistrySpawnedSessionsRows ; then
+		if [ -n "$rebuildStamp" ] ; then
+			[ "$rebuildStamp" -lt "$rebuildNow" ] || rebuildStamp=$(( rebuildStamp - 1 ))
+			rebuildDate="$( TZ=UTC0 date -r "$rebuildStamp" '+%Y%m%d%H%M.%S' 2> /dev/null || TZ=UTC0 date -d "@$rebuildStamp" '+%Y%m%d%H%M.%S' 2> /dev/null )" || rebuildDate=""
+			[ -z "$rebuildDate" ] || TZ=UTC0 touch -t "$rebuildDate" "$MMDAPP/.local/agents/spawned-sessions.registry" 2> /dev/null || :
+		fi
+	else
+		rebuildStatus=1
+	fi
+	AgentsToolsLocalLockGive "$rebuildLock"
+	return "$rebuildStatus"
 }
 
 ## Sessions view: the same extended rows (tracking session parent host owner status

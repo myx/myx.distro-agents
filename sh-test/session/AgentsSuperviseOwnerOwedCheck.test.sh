@@ -10,6 +10,8 @@
 ##   4. a message of another account alone yields no line
 ##   5. the team channel's own messages are read, and its threads with them
 ##   6. the scan's header carries the kind, and the scan reaches it with no service call
+##   8. his message answered only by the local copy of our reply, in a thread folder no pull made, yields no line: that folder's
+##      own `slack-local-thread` line names it; the same copy in a folder with no line leaves the message owed
 ## Red before the kind: no `owner-owed` line at all. Offline: the store is the check's own, and nothing is requested.
 set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
@@ -94,6 +96,15 @@ rigThread "slack-$rigTeam-$(( rigNow - 6300 )).000100" "$rigTeam" "$(( rigNow - 
 ## conversation is read from its own `.state.txt`, as the cache-to-inbox transfer reads it.
 rigConv "slack-bot-D0RIGNAME9" "D0RIGREAL9" magic-coordinator
 rigMsg "slack-bot-D0RIGNAME9" 202611 "$(( rigNow - 6200 )).000100" "$rigOwner" 'RIG-OWED-NAMEMISMATCH names its pulling line'
+## 8. Answered only by the local copy of our reply, in a thread folder no pull made, written by the store's own post writer; the
+## control, the same copy in a folder the writer was given no thread for.
+rigConv "slack-bot-D0RIGLOCL1" "D0RIGLOCL1" magic-coordinator
+rigLocalAt="$(( rigNow - 6100 )).000100" rigBareAt="$(( rigNow - 6050 )).000100"
+rigMsg "slack-bot-D0RIGLOCL1" 202611 "$rigLocalAt" "$rigOwner" 'RIG-OWED-LOCAL answered by a local copy alone'
+rigMsg "slack-bot-D0RIGLOCL1" 202611 "$rigBareAt" "$rigOwner" 'RIG-OWED-BARE answered in a folder with no line'
+( MMDAPP="$rigWs" ; . "$rigPkg/sh-lib/comms/AgentsTools.CommsCache.include" \
+	&& AgentsToolsCommsCachePostStore "$rigStore/slack-bot-D0RIGLOCL1-$rigLocalAt" magic-coordinator 'RIG-LOCAL-REPLY' "D0RIGLOCL1:$rigLocalAt" true \
+	&& AgentsToolsCommsCachePostStore "$rigStore/slack-bot-D0RIGLOCL1-$rigBareAt" magic-coordinator 'RIG-LOCAL-BARE' ) > /dev/null 2>&1 || rigRefuse "the store's post writer could not write the local copies"
 ## 0. A channel that is neither the team channel nor a direct one.
 rigMsg "slack-CRIGTRACK1" 202611 "$(( rigNow - 6500 )).000100" "$rigOwner" 'RIG-OWED-OUTSIDE another channel'
 
@@ -141,6 +152,10 @@ rigAssert "the folder whose name and pulling line differ is read from the pullin
 	"$( rigOwed RIG-OWED-NAMEMISMATCH | LC_ALL=C awk '{ print $3 }' )" "D0RIGREAL9:$(( rigNow - 6200 )).000100"
 rigAssert "its thread's unanswered message yields its own line" "$( rigOwed RIG-OWED-THREADED | LC_ALL=C awk '{ print $3 }' )" \
 	"$rigTeam:$(( rigNow - 6600 )).000100"
+
+echo "-- 8. a local copy of our reply, in a thread folder no pull made --"
+rigAssert "his message answered only by our local copy in its thread yields no line" "$( rigOwed RIG-OWED-LOCAL )" ""
+rigAssert "control: the same copy in a folder that names no thread leaves him owed" "$( rigOwed RIG-OWED-BARE | LC_ALL=C awk '{ print $3 }' )" "D0RIGLOCL1:$rigBareAt"
 
 echo "-- 6. the kind is the scanner's own, and no service is reached --"
 rigAssert "the scan's header lists the kind" \

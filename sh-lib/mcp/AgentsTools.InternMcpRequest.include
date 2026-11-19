@@ -494,6 +494,8 @@ case "$1" in
 				## passed as an argument. Not a harness tool; withheld through another server by the
 				## branch below, so membership alone says this name is a secondary tool.
 				mcpIsSecondaryTool=''
+				## The list of the secondary tools is defined in the front table's help include, so it is loaded before the list is read.
+				type AgentsToolsFrontSyntaxLines > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.FrontTable.Help.include"
 				case "$mcpToolName" in
 					''|*'"'*|*'\'*) ;;
 					*)
@@ -502,6 +504,8 @@ case "$1" in
 						esac
 					;;
 				esac
+				## The gates below ask the front table for a secondary tool's rows, on the served path and the secondary arm alike.
+				[ -z "$mcpIsSecondaryTool" ] || type AgentsToolsFrontKnows > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.FrontTable.include"
 
 				## Bash is listed, described as harness-only, but not served: a call that
 				## names it is told where to run commands instead of being refused with
@@ -545,6 +549,12 @@ case "$1" in
 				## child, and a $( ) capture waits on the pipe's writers rather than on
 				## the process -- so the output goes to a file and the pid is waited on,
 				## the same shape the execute path below already uses for the same reason.
+				## A secondary tool the floor also serves passes the secondary gate first: a tool a member holds never reaches
+				## another file's operation, nor an option inside a line, through the harness arm below.
+				elif [ -n "$mcpIsSecondaryTool" ] && [ -n "$mcpIsHarnessTool" ] && [ -n "$mcpSecondaryOp" ] \
+					&& ! AgentsToolsFrontKnows "$mcpToolName" "$mcpSecondaryOp" && [ -z "$( AgentsToolsFrontSyntaxLines "$mcpToolName" "$mcpSecondaryOp" operation-word )" ] ; then
+					AgentsMcpSendError "$mcpId" -32602 "$mcpToolName: not an operation of that tool file, or not one: $mcpSecondaryOp"
+
 				elif [ -n "$mcpIsHarnessTool" ] ; then
 					## Lifted RAW out of the request and handed over unchanged: these
 					## bytes are already escaped for JSON, and escaping them again
@@ -673,12 +683,12 @@ case "$1" in
 				## DistroAgentsTools, which serves a file's other operations nowhere but its own. The operation may
 				## fork a service client, so its output goes to a file and the pid is waited on, never a $( ) capture.
 				elif [ -n "$mcpIsSecondaryTool" ] ; then
+					type AgentsToolsFrontSyntaxLines > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.FrontTable.Help.include"
 					if [ -z "$mcpSecondaryOp" ] ; then
 						AgentsMcpSendError "$mcpId" -32602 "$mcpToolName requires a non-empty 'operation': the operation to run, such as --slack-send-message."
-					## A name of the front table, or one the tool file's own syntax lines carry: an operation the
-					## file serves as its own has no row to be found by.
-					type AgentsToolsFrontSyntaxLines > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.FrontTable.Help.include"
-					elif ! AgentsToolsFrontKnows "$mcpToolName" "$mcpSecondaryOp" && [ -z "$( AgentsToolsFrontSyntaxLines "$mcpToolName" "$mcpSecondaryOp" )" ] ; then
+					## A name of the front table, or the operation word of one of the tool file's own syntax lines: an operation the
+					## file serves as its own has no row to be found by, and an option inside a line is no operation.
+					elif ! AgentsToolsFrontKnows "$mcpToolName" "$mcpSecondaryOp" && [ -z "$( AgentsToolsFrontSyntaxLines "$mcpToolName" "$mcpSecondaryOp" operation-word )" ] ; then
 						AgentsMcpSendError "$mcpId" -32602 "$mcpToolName: not an operation of that tool file, or not one: $mcpSecondaryOp"
 					elif AgentsMcpTaskUsable ; then
 						## A task underneath, as execute is (AgentsTools.ToolTask.include).

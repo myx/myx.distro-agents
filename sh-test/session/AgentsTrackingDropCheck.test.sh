@@ -98,8 +98,8 @@ rigAssert "...and the hand-back of a run keeper-addr launched is news to nobody 
 
 echo "-- 3. the chat file: what is addressed to a run is news, the rest of the tooling's is history --"
 : > "$rigScn/index.empty" ; : > "$rigScn/names.empty"
-LC_ALL=C awk -v channel=CRIG00001 -v where=CRIG00001:1792422000.000001 -v origin=slack -v seen=- -v historyBefore=0 -v startLine=1 -v startNo=1 -v chatOut="$rigScn/chat.out" -v indexOut="$rigScn/chat.index" \
-	-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsSessionChatImport.awk" "$rigScn/index.empty" "$rigScn/names.empty" "$rigScn/rendered" > /dev/null
+chatOut="$rigScn/chat.out" indexOut="$rigScn/chat.index" LC_ALL=C awk -v channel=CRIG00001 -v where=CRIG00001:1792422000.000001 -v origin=slack -v seen=- -v historyBefore=0 -v startLine=1 -v startNo=1 \
+	-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsSessionChatImport.awk" "$rigScn/index.empty" "$rigScn/index.empty" "$rigScn/names.empty" "$rigScn/rendered" > /dev/null
 rigOrigin(){ ## ts -- the origin the index keeps for the message
 	LC_ALL=C awk -F '\t' -v want="$1" '$2 == want { print $4 ; exit }' "$rigScn/chat.index"
 }

@@ -53,7 +53,7 @@ AgentsToolsGrantsHoldsDir(){ ## folder
 ## and, as before, the readable member directories and the reference read roots. All of
 ## source/** is no floor's: magic-librarian holds a standing read of it, every other member
 ## the namespace grants declared for it. The members this package carries hold their standing
-## grants as `--magic-team:` directives of its project.inf (AgentsToolsGrantsDeclaredText).
+## grants as `magic-team:` directives of its project.inf (AgentsToolsGrantsDeclaredText).
 ## magic-librarian's other one is a standing write by approval of the .md files of the team
 ## members' skills this machine holds, where they are its to change
 ## (AgentsToolsGrantsMemberSkills): it is never asked for the access, and each change of one
@@ -438,12 +438,12 @@ AgentsToolsGrantsDeclaredText(){ ## declaring workspace root, op name for messag
 	local declNamespace="" declWorkspace="" declFloor="" declDirectory="" declProject="" declTesting="" declScope declLines declLine declSel declRest
 	local declVerb declPerm declMember declGlob declRoot declOne declTag declTagRoot declPattern declLocal=""
 	declName="${declWs##*/}"
-	## The floor directives of the packages installed under .local/myx, `<package folder> <rest>`: read through the distro door
+	## The permissions directives of the packages installed under .local/myx, `<package folder> <rest>`: read through the distro door
 	## (AgentsDistroDeclaresCut), never from the distro tooling's index or project.inf, which are the tooling's own. A read that
-	## fails is a fault, said, and no row may be dropped on its strength.
+	## fails is a fault, said, and no row may be dropped on its strength. Only the tooling package's rows are kept below.
 	if AgentsToolsGrantsHoldsDir "$declWs/.local/myx" ; then
 		type AgentsDistroDeclaresCut > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/distro/AgentsTools.DistroDoor.include"
-		declLocal="$( AgentsDistroDeclaresCut "$declWs" '--magic-team:permissions:workspace' )" \
+		declLocal="$( AgentsDistroDeclaresCut "$declWs" 'magic-team:permissions:workspace' )" \
 			|| { echo "⛔ ERROR: $declOp: COULD-NOT-CHECK declared grants: the distro tooling could not list the declares of $declWs" >&2 ; return 2 ; }
 		declLocal="$( printf '%s\n' "$declLocal" | LC_ALL=C awk -v pkg="$declWs/.local/myx/" 'NF { n = split( $1, id, "/" ) ; print pkg id[n] " " $2 }' )"
 		[ -z "$declLocal" ] || declLocal="$declLocal"$'\n'
@@ -465,26 +465,26 @@ AgentsToolsGrantsDeclaredText(){ ## declaring workspace root, op name for messag
 	if [ -n "$declSelected" ] ; then
 		declNamespace="$( MDSC_SELECT_PROJECTS="$declSelected" Distro ListDistroDeclares --select-from-env --filter-and-cut 'magic-team:permissions:namespace' )" || declStatus=$?
 		declWorkspace="$( MDSC_SELECT_PROJECTS="$declSelected" Distro ListDistroDeclares --select-from-env --filter-and-cut 'magic-team:permissions:workspace' )" || declStatus=$?
-		declFloor="$( MDSC_SELECT_PROJECTS="$declSelected" Distro ListDistroDeclares --select-from-env --filter-and-cut '--magic-team:permissions:workspace' )" || declStatus=$?
 		declDirectory="$( MDSC_SELECT_PROJECTS="$declSelected" Distro ListDistroDeclares --select-from-env --filter-and-cut 'magic-team:permissions:directory' )" || declStatus=$?
 		declProject="$( MDSC_SELECT_PROJECTS="$declSelected" Distro ListDistroDeclares --select-from-env --unroll-filter-and-cut 'magic-team:permissions:project:' cat )" || declStatus=$?
 		declTesting="$( AgentsToolsTestingDirectiveRows "$declSelected" "$declOp" )" || declStatus=$?
 	fi
-	## The floor directives, `--magic-team:`, of a named member, from source and .local alike; the `*` ones still reference agentsPermissionFloorTools.
-	declFloor="$( printf '%s\n%s\n' "$declFloor" "$declLocal" | LC_ALL=C awk 'NF { split( $2, floorField, ":" ) ; if ( floorField[3] != "*" ) print ; }' )"
-	declWorkspace="$declWorkspace"$'\n'"$declFloor"
+	## The tooling package's rows, from source and .local alike, each once: a named member's are standing rows, appended last. Its
+	## member `*` rows are the team floor and no registry row: the tools through AgentsToolsPermissionOriginFloorTools, the writes in the index.
+	declFloor="$( printf '%s\n%s\n' "$declWorkspace" "$declLocal" | LC_ALL=C awk '$1 ~ /(^|\/)myx\.distro-agents$/ && !floorSeen[$2]++ { split( $2, floorField, ":" ) ; if ( floorField[3] != "*" ) print ; }' )"
+	declWorkspace="$( printf '%s\n' "$declWorkspace" | LC_ALL=C awk '$1 !~ /(^|\/)myx\.distro-agents$/' )"$'\n'"$declFloor"
 	if [ "$declSelectStatus" != "0" ] ; then
 		echo "⛔ ERROR: $declOp: COULD-NOT-CHECK declared grants: ListDistroProjects --select-all exited $declSelectStatus for workspace $declWs" >&2
 		declTrusted=2
 	elif [ -z "$declSelected" ] && [ -z "$declFloor" ] ; then
 		## Neither a project nor an installed package declares a grant: a state, not a fault, said, nothing removed.
-		echo "# $declOp: workspace $declWs has no distro project in source/ and no package under .local/myx with a --magic-team: floor directive, so none declares a grant -- nothing is removed" >&2
+		echo "# $declOp: workspace $declWs has no distro project in source/ and no package under .local/myx with a magic-team: floor directive, so none declares a grant -- nothing is removed" >&2
 		return 3
 	elif [ "$declStatus" != "0" ] ; then
 		echo "⛔ ERROR: $declOp: COULD-NOT-CHECK declared grants: ListDistroDeclares exited $declStatus for workspace $declWs" >&2
 		declTrusted=2
 	elif [ -z "$declFloor" ] ; then
-		echo "# $declOp: workspace $declWs: no --magic-team: floor directive in source/ or under .local/myx, so it declares no floor rows of magic-architect and magic-tester" >&2
+		echo "# $declOp: workspace $declWs: no magic-team: floor directive in source/ or under .local/myx, so it declares no floor rows of magic-architect and magic-tester" >&2
 	fi
 	## `<verb>:<member>[:<glob>]`, cut on the first colon each time so a glob keeps its own.
 	## allow-write and allow-read are one path grant, Edit(...) or Read(...); allow-tool a

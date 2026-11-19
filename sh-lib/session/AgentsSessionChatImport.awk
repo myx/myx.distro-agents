@@ -2,10 +2,10 @@
 
 # Turns one rendering of a Slack thread or conversation (AgentsSlackMessagesFormat.awk: a head line
 # `<ts> | <user> |<annotations> <text>` for each message, and the lines under it) into the blocks the session chat
-# file keeps (AgentsTools.SessionChat.include), for the messages it does not hold yet. It writes the blocks to -v chatOut
-# and their index lines to -v indexOut, and prints nothing; the caller appends both under the file's lock.
-# Files, in this order: the session's index (or an empty file), the table of Slack user ids to names (the
-# mention-id cache, `name=id=...`, or an empty file), the rendering.
+# file keeps (AgentsTools.SessionChat.include), for the messages it does not hold yet. It writes the blocks to
+# ENVIRON["chatOut"] and their index lines to ENVIRON["indexOut"], and prints nothing; the caller appends both under the file's lock.
+# Files, in this order: the session's index (or an empty file), its stamps (or an empty file), the table of Slack user
+# ids to names (the mention-id cache, `name=id=...`, or an empty file), the rendering.
 #
 #   -v channel         the conversation the rendering is of (a message is known by <channel>:<ts>, so one held is never held twice)
 #   -v where           <channel>:<thread>, the `where` of every block, as the index keeps it
@@ -14,7 +14,6 @@
 #   -v historyBefore   epoch seconds: a message at or before it is history -- there for whoever reads the thread, never new
 #                      to a floor -- and 0 for none
 #   -v startLine       the line the first new header will be at in the chat file; -v startNo the number of the first new block
-#   -v chatOut, -v indexOut
 #
 # From is the sender the tooling recorded on the message (`[sender: X]`) or else the Slack account, named by the table where
 # it is there. To is the people the tooling's own header addressed (`... -> *_name_*.`), `all` where it names none; the
@@ -65,6 +64,8 @@ function addresseesOf(headText,   rest, found, name) {
 function flush(   bodyLast, at, text, header, arrow, toPart, endPos, to, firstText, hasHeader) {
 	if ( ! pending ) { return ; }
 	pending = 0 ;
+	# Our own post as the comms cache stored it before Slack had it (`[local: <id>]`, ts <epoch>.000000) is no Slack message: it is held by its Slack ts.
+	if ( msgLocal && msgTs ~ /\.000000$/ ) { return ; }
 	key = channel ":" msgTs ;
 	if ( key in held ) { return ; }
 	held[key] = 1 ;
@@ -112,6 +113,8 @@ function flush(   bodyLast, at, text, header, arrow, toPart, endPos, to, firstTe
 
 BEGIN {
 	historyBefore += 0 ;
+	chatOut = ENVIRON["chatOut"] ;
+	indexOut = ENVIRON["indexOut"] ;
 }
 
 # 1: the index. A message is known by its conversation and its ts.
@@ -120,17 +123,29 @@ FILENAME == ARGV[1] {
 	conv = field[3] ;
 	sub(/:.*$/, "", conv) ;
 	held[conv ":" field[2]] = 1 ;
+	blockWhere[field[1]] = field[3] ;
 	next ;
 }
 
-# 2: the table of Slack accounts and their names.
+# 2: the stamps, `<block> <ts> <conversation:thread> <seen>`: a message the run sent is held by the ts Slack gave it.
 FILENAME == ARGV[2] {
+	split($0, field, "\t") ;
+	if ( field[3] != "" && field[3] != "-" ) { blockWhere[field[1]] = field[3] ; }
+	if ( field[2] == "" || field[2] == "-" ) { next ; }
+	conv = blockWhere[field[1]] ;
+	sub(/:.*$/, "", conv) ;
+	held[conv ":" field[2]] = 1 ;
+	next ;
+}
+
+# 3: the table of Slack accounts and their names.
+FILENAME == ARGV[3] {
 	split($0, field, "=") ;
 	if ( field[1] != "" && field[2] != "" && field[2] != "-" ) { nameOf[field[2]] = field[1] ; }
 	next ;
 }
 
-# 3: the rendering.
+# 4: the rendering.
 /^[0-9]+\.[0-9]+ \| / {
 	flush() ;
 	pending = 1 ;
@@ -142,6 +157,7 @@ FILENAME == ARGV[2] {
 	sub(/^[^|]*\|/, "", rest) ;
 	msgSender = "" ;
 	msgTracking = "" ;
+	msgLocal = 0 ;
 	while ( match(rest, /^ \[[^]]*\]/) ) {
 		ann = substr(rest, RSTART + 1, RLENGTH - 1) ;
 		rest = substr(rest, RSTART + RLENGTH) ;
@@ -150,6 +166,7 @@ FILENAME == ARGV[2] {
 			sub(/^\[tracking: /, "", msgTracking) ;
 			sub(/\]$/, "", msgTracking) ;
 		}
+		if ( ann ~ /^\[local: / ) { msgLocal = 1 ; }
 		if ( ann ~ /^\[sender: / ) {
 			msgSender = ann ;
 			sub(/^\[sender: /, "", msgSender) ;

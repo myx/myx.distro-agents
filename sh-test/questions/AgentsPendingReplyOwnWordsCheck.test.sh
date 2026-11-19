@@ -7,8 +7,8 @@
 ## AgentsPendingReplyAnswerText.awk, the recorded answer, and
 ## AgentsPendingReplyClarifications.awk, what is kept with it.
 ## A COMMENT WHOLE: a line belongs to the reply above it whatever it starts with -- `# `,
-## `reaction on the question: `, `UNMATCHED-REPLY ` -- and only the head of a next reply, set
-## aside or not, ends a reply. So the answer is a reply's first line that is no quote even when
+## `reaction on the question: `, `AMBIGUOUS-REPLY ` -- and only the head of a next reply ends a
+## reply. So the answer is a reply's first line that is no quote even when
 ## a line like those stands before it, and every line after it is kept. The wait's own lines
 ## are told from a person's by where they stand, never by how they start.
 ## Two parts. The filter and the two readers alone, over rendered replies. Then the places
@@ -81,8 +81,8 @@ rigAssert "the formatter's own annotation ahead of the header stays" "$( rigWord
 rigAssert "a person's reply is left as it is, an arrow in its own words too" "$( rigWords "$rigReply yes, keep it" 'see a → b. fine' "$rigLater see a → b. fine" )" "$rigReply yes, keep it#see a → b. fine#$rigLater see a → b. fine#"
 rigAssert "a header quoted under a reply is that reply's own line" "$( rigWords "$rigReply as the coordinator wrote:" "$rigHeader go on" )" "$rigReply as the coordinator wrote:#$rigHeader go on#"
 rigAssert "a line that is no reply is left as it is" \
-	"$( rigWords 'reaction on the question: [reactions: +1 x1 (URIGOWNER)]' "UNMATCHED-REPLY $rigReply $rigHeader late" '# pending reply 1 is closed: reply-received' )" \
-	"reaction on the question: [reactions: +1 x1 (URIGOWNER)]#UNMATCHED-REPLY $rigReply $rigHeader late## pending reply 1 is closed: reply-received#"
+	"$( rigWords 'reaction on the question: [reactions: +1 x1 (URIGOWNER)]' "AMBIGUOUS-REPLY $rigReply $rigHeader late" '# pending reply 1 is closed: reply-received' )" \
+	"reaction on the question: [reactions: +1 x1 (URIGOWNER)]#AMBIGUOUS-REPLY $rigReply $rigHeader late## pending reply 1 is closed: reply-received#"
 
 echo "-- ahead of the two readers: the answer is the answer, a clarification is never the header --"
 rigAnswerOf(){ ## rendered lines... -> the answer text
@@ -108,22 +108,15 @@ rigAssert "control: a person's clarifications are read as before" \
 	"1700000001.000200|URIGOWNER|but rename it first#1700000001.000300|URIGOWNER|to report-final#"
 
 echo "-- the two readers: a line belongs to the reply above it, whatever it starts with --"
-rigAssert "a comment is kept whole: lines that start like a heading, a reaction line and a set-aside mark are the person's own" \
-	"$( rigClarifyOf 1700000001.000200 "$rigReply yes, keep it" '# why' 'reaction on the question: I saw it' 'UNMATCHED-REPLY is a word I use' 'it is the final one' "$rigLater rename it" '# to' 'report-final' )" \
-	"1700000001.000200|URIGOWNER|# why / reaction on the question: I saw it / UNMATCHED-REPLY is a word I use / it is the final one#1700000001.000300|URIGOWNER|rename it / # to / report-final#"
-rigAssert "only a next reply ends one: a reply set aside is not kept, none of its lines, and the reply after it is kept whole" \
-	"$( rigClarifyOf 1700000001.000200 "$rigReply yes, keep it" 'and why' 'UNMATCHED-REPLY 1700000001.000250 | URIGOWNER | late words' 'UNMATCHED-REPLY # under them' "$rigLater after it" '# with a heading' )" \
-	"1700000001.000200|URIGOWNER|and why#1700000001.000300|URIGOWNER|after it / # with a heading#"
+rigAssert "a comment is kept whole: lines that start like a heading, a reaction line and an ambiguous-reply mark are the person's own" \
+	"$( rigClarifyOf 1700000001.000200 "$rigReply yes, keep it" '# why' 'reaction on the question: I saw it' 'AMBIGUOUS-REPLY is a word I use' 'it is the final one' "$rigLater rename it" '# to' 'report-final' )" \
+	"1700000001.000200|URIGOWNER|# why / reaction on the question: I saw it / AMBIGUOUS-REPLY is a word I use / it is the final one#1700000001.000300|URIGOWNER|rename it / # to / report-final#"
 rigAssert "the lines ahead of the first reply are the question's own, and no comment" \
 	"$( rigClarifyOf 1700000001.000101 'reaction on the question: [reactions: +1 x1 (URIGOWNER)]' "$rigReply yes, keep it" '# why' )" \
 	"1700000001.000200|URIGOWNER|yes, keep it / # why#"
 rigAssert "the answer is the first line that is no quote, a heading too" "$( rigAnswerOf "$rigReply &gt; May the rig keep it?" '# Yes' 'keep it' )" "# Yes"
 rigAssert "and what follows that line is what is kept with it" "$( rigClarifyOf 1700000001.000200 "$rigReply &gt; May the rig keep it?" '# Yes' 'keep it' )" "1700000001.000200|URIGOWNER|keep it#"
 rigAssert "a heading under the answer leaves the answer as it is" "$( rigAnswerOf "$rigReply yes, keep it" '# why' 'it is the final one' )" "yes, keep it"
-rigAssert "the first reply ends at a reply set aside: one that is all quote gives its first line, never the other's" \
-	"$( rigAnswerOf "$rigReply &gt; May the rig keep it?" 'UNMATCHED-REPLY 1700000001.000250 | URIGOWNER | late words' 'UNMATCHED-REPLY yes' )" "&gt; May the rig keep it?"
-rigAssert "a reply set aside ahead of the first reply is passed over" \
-	"$( rigAnswerOf 'UNMATCHED-REPLY 1700000001.000150 | URIGOWNER | late words' 'UNMATCHED-REPLY no' "$rigReply yes, keep it" )" "yes, keep it"
 
 rigCalls(){ ## method
 	LC_ALL=C awk -v wantMethod="$1" '$0 == wantMethod { hitCount++ ; } END { print hitCount + 0 ; }' "$RIG_CURL_LOG" 2>/dev/null || printf 'no-such-log'

@@ -5,6 +5,7 @@ maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 requires-session-kind: standalone
 input-scan-def: none
 review-by: inherit
+deliverables: a verdict carried by checks shown able to fail, against the done criteria and against what was asked
 runs-at: none
 ---
 # magic-team.verify.routine — the actual procedure

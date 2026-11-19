@@ -6,6 +6,7 @@ requires-session-kind: standalone
 start-context: any
 input-scan-def: permission-escalation
 review-by: inherit
+deliverables: a verdict on each open permission ask the input scan lists
 runs-at: none
 ---
 # magic-coordinator.permission-escalation.routine — the actual procedure

@@ -24,9 +24,11 @@
 📘 syntax: AgentDispatcherTools.fn.sh --request-permission-set [--team-member <team-member>] <item> (--entry <tool[,tool...]:target>... [--purpose <text>])... [--scope task|session] [--session-id <id>] [--participant <member>]...
 📘 syntax: AgentDispatcherTools.fn.sh --spawn-run [--select-workspace <place-name>] (--routine <selector>|--routine-default) [<DistroAgentsDispatcher.fn.sh --spawn-session options>]
 📘 syntax: AgentDispatcherTools.fn.sh --supervise-scan [--workspace <path>]... [--since <epoch>]
+📘 syntax: AgentDispatcherTools.fn.sh --supervise-epics [--workspace <path>] [--member <name>]
 📘 syntax: AgentDispatcherTools.fn.sh --supervise-resume [--workspace <path>]...
 📘 syntax: AgentDispatcherTools.fn.sh --supervise-read <run-id> [--tail <lines>] [--thread-lines <lines>] [--no-thread] [--no-checklist] [--log] [--workspace <path>]
 📘 syntax: AgentDispatcherTools.fn.sh --supervise-guide <run-id> [--text <text>|--from-file <path>] [--workspace <path>]
+📘 syntax: AgentDispatcherTools.fn.sh --supervise-reload-due <run-id> --file <changed file> [--workspace <path>]
 📘 syntax: AgentDispatcherTools.fn.sh --supervise-checklist-add <run-id> (--item <text>)... [--workspace <path>]
 📘 syntax: AgentDispatcherTools.fn.sh --supervise-fault <run-id> --owner <member> --title <one line> [--from-file <path>] [--workspace <path>]
 📘 syntax: AgentDispatcherTools.fn.sh --supervise-close-orphans [--execute] [--workspace <path>]...
@@ -145,11 +147,26 @@
 			`orphan-ask`, `parent-ask` (an open question to the owner whose asking
 			run's parent is a live coordinator's, so the parent can settle it),
 			`msg`, `track`, `dead`, `run` (where each live run stands, with its
-			verdict active, waiting or stuck), `stall` (a run silent past the
+			verdict active, waiting, stuck or dismissed-silent), `stall` (a run silent past the
 			bound with items still pending on its own CheckList), `idle-done`,
 			`no-plan`, `stale-plan` and `control-stuck`. A run's age is its own
 			activity mark, else its transcript's last tool line, never a file's
 			date. The bound is `MDAT_SUPERVISE_STALL_SECONDS`, 600 by default.
+			`dismissed-silent` is a run its session told DISMISSED after its last
+			round, with no round since for `MDAT_SUPERVISE_DISMISSED_SILENT_SECONDS`,
+			600 by default. The scan only shows it: nothing ends the run.
+
+		--supervise-epics [--workspace <path>] [--member <name>]
+			The Decisions of the active epics of a rig, the section its work-duty
+			scans print: each epic an item of the running, pending, blocked or
+			review state names in `epic:`, `spawned-by:`, `references:` or
+			`tracks:`, with its title and its whole `## Decisions`, read through
+			the vault reader. Read it before an order goes to a duty there. With
+			`--member`, exactly what that member's duty prints: the epics of the
+			items it owns or takes part in, every one for magic-coordinator. One
+			epic's Decisions past `MDAT_EPIC_DECISIONS_CAP_BYTES` bytes (16384 by
+			default) show the newest first, and say how many were cut and where
+			the rest is read. With no epic it prints one line, `none: ...`. Read only.
 
 		--supervise-resume [--workspace <path>]...
 			The runs that ended with no handback, resumed once the fixed sleep
@@ -179,6 +196,11 @@
 			session chat file. The text is the standard input where neither
 			option gives it; an empty one is refused.
 
+		--supervise-reload-due <run-id> --file <changed file> [--workspace <path>]
+			Marks the run for a reload: its next Wait answers RELOAD first, every
+			round, naming the changed file, until a whole read of its own Skill
+			clears the mark and records skill.loaded.
+
 		--supervise-checklist-add <run-id> (--item <text>)... [--workspace <path>]
 			Pending items added at the end of that run's own CheckList, under the
 			list's own lock, and noted in `<member>.checklist.md.added` so the
@@ -206,6 +228,12 @@
 			process ended on its own. The pid is checked against the process
 			before any signal, and the note the same way: one naming another pid,
 			or another began moment, is removed and nothing is signalled on it.
+			A session's control thread that outlived its session, the scan's
+			`control-stuck`, reads `control-stuck <workspace> <id> pid=<pid>
+			<verdict>`: alive as its pid file says, its log quiet past the
+			no-run limit, every record of its session closed, and not the
+			supervising session's own. It is sent TERM only: `would-close`,
+			then `closed`, or `still-alive` on every pass, never KILL.
 
 		--supervise-copy <from-run-id> <source-path> <to-run-id> <destination-path>
 			One file copied from one run's sandbox to another's, always a real copy

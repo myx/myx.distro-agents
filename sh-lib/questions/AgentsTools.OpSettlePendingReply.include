@@ -81,11 +81,41 @@
 			esac
 			## The close moved the now-withdrawn record to closed/ (retention, T9): read its post fields from there.
 			[ -f "$settleFile" ] || settleFile="$MMDAPP/.local/agents/pending/closed/$settleId.md"
-			## Said in the question's own thread, under the identity it was asked with, so the
-			## person knows it needs no answer. Best effort: the record is already closed.
-			local settleChannel settleThread settleNote
+			local settleChannel settleThread settleNote settleSession settleChat settleAsked settleIdentity="" settleRead settleUser settleKept="" settleUpdate
 			settleChannel="$( AgentsToolsPendingReplyField "$settleFile" channel )"
 			settleThread="$( AgentsToolsPendingReplyField "$settleFile" thread-ts )"
+			## Its asker is told in its own session chat, whatever becomes of the post.
+			settleSession="$( AgentsToolsPendingReplyField "$settleFile" session-id )"
+			case "$settleSession" in ''|none|-|.|..|*/*) ;; *)
+				type AgentsSessionKnown > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+				type AgentsToolsSessionChatAppend > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include"
+				if AgentsSessionKnown "$settleSession" ; then
+					settleChat="$( AgentsSessionThread "$settleSession" )" ; case "$settleChat" in ''|-) settleChat="local" ;; esac
+					printf 'Your question %s is withdrawn%s. It takes no answer, and it has left your Wait set.\n' "$settleId" "${settleSaid:+: $settleSaid}" \
+						| AgentsToolsSessionChatAppend "$settleSession" tooling "$( AgentsToolsPendingReplyField "$settleFile" owner )" - "$settleChat" own > /dev/null 2>&1 || :
+				fi
+			;; esac
+			## A question nobody but its asking identity replied to or reacted on is deleted from the conversation, and nothing is posted.
+			if [ -n "$settleChannel" ] && [ "$settleThread" = "$( AgentsToolsPendingReplyField "$settleFile" question-ts )" ] && [ "$( AgentsToolsPendingReplyField "$settleFile" kind )" != "proposal" ] ; then
+				settleAsked=" $( AgentsToolsPendingReplyField "$settleFile" asking-accounts ) "
+				[ "$( AgentsToolsPendingReplyField "$settleFile" ask-identity )" != "bot" ] || settleIdentity="--identity-bot"
+				type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+				settleRead="$( DistroAgentsTools --slack-read --team-member "$settleMember" "$settleChannel:$settleThread" --thread $settleIdentity 2> /dev/null | LC_ALL=C grep '^{' | head -1 )" || settleRead=""
+				case "$settleRead" in *'"ok":true'*) ;; *) settleKept="unread" ;; esac
+				[ "$settleAsked" != "  " ] || settleKept="no asking account"
+				for settleUser in $( printf '%s' "$settleRead" | LC_ALL=C grep -oE '"(user|users|reply_users)":(\[[^]]*\]|"[A-Z0-9]+")' | LC_ALL=C grep -oE '[UW][A-Z0-9]{4,}' ) ; do
+					case "$settleAsked" in *" $settleUser "*) ;; *) settleKept="engaged" ;; esac
+				done
+				settleUpdate="$( AgentsToolsPendingReplyField "$settleFile" revision-ts )"
+				if [ -z "$settleKept" ] \
+					&& { [ -z "$settleUpdate" ] || [ "$settleUpdate" = "$settleThread" ] || DistroAgentsTools --slack-delete-message --team-member "$settleMember" "$settleChannel:$settleUpdate" $settleIdentity > /dev/null 2>&1 ; } \
+					&& DistroAgentsTools --slack-delete-message --team-member "$settleMember" "$settleChannel:$settleThread" $settleIdentity > /dev/null 2>&1 ; then
+					printf 'WITHDRAWN %s\n' "$settleId"
+					return 0
+				fi
+			fi
+			## Said in the question's own thread, under the identity it was asked with, so the
+			## person knows it needs no answer. Best effort: the record is already closed.
 			if [ -n "$settleChannel" ] && [ -n "$settleThread" ] ; then
 				## It carries the addressee of the question it withdraws, as the question named it.
 				local settleArgs=( "$settleMember" "$settleChannel:$settleThread" --from-stdin ) settleTo

@@ -198,6 +198,15 @@ AgentDispatcherTools(){
 			return "$scanRc"
 		;;
 
+
+		## [--workspace <path>] [--member <name>]: the Decisions of the active epics of a rig, the section its work-duty scans print. Read only.
+		--supervise-epics)
+			shift
+			AgentsToolsSurfaceCaller --supervise-epics read || return 1
+			type AgentsToolsSuperviseEpics > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/supervise/AgentsTools.SuperviseEpics.include"
+			AgentsToolsSuperviseEpics "$@"
+			return $?
+		;;
 		## [--workspace <path>]...: the runs that ended with no handback, resumed once the fixed sleep has passed, one line each.
 		--supervise-resume)
 			shift
@@ -222,6 +231,15 @@ AgentDispatcherTools(){
 			AgentsToolsSurfaceCaller --supervise-guide write || return 1
 			type AgentsToolsSuperviseGuide > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/supervise/AgentsTools.SuperviseGuide.include"
 			AgentsToolsSuperviseGuide "$@"
+			return $?
+		;;
+
+		## <run-id> --file <changed file>: the run's reload mark, which its next Wait answers first until it reloads its Skill.
+		--supervise-reload-due)
+			shift
+			AgentsToolsSurfaceCaller --supervise-reload-due write || return 1
+			type AgentsToolsSuperviseReloadDue > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/supervise/AgentsTools.SuperviseGuide.include"
+			AgentsToolsSuperviseReloadDue "$@"
 			return $?
 		;;
 

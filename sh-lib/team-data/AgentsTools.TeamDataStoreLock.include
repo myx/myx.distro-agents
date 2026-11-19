@@ -113,7 +113,7 @@ AgentsToolsTeamDataStoreLockTake(){ ## tries, label
 		sleep 1
 	done
 	[ -n "$takeNoClobber" ] || set +C
-	echo "⚠️ WARNING: ${MDSC_CMD:-the tooling}: $takeLabel: the store lock stayed held by $( cat "$takeLock" 2> /dev/null ) for ${takeTries}s" >&2
+	echo "⚠️ WARNING: ${MDSC_CMD:-the tooling}: $takeLabel: the store lock stayed held by $( cat "$takeLock" 2> /dev/null ) for ${takeTries}s: $( ps -o args= -p "$takeHolder" 2> /dev/null | cut -c1-160 )" >&2
 	return 1
 }
 

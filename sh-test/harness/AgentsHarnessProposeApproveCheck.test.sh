@@ -244,10 +244,9 @@ rigAssert "only the replies after the live proposal reply are read, and every re
 	"$( printf '%s\n' 'reaction on the question: [reactions: x x1 (URIGOWNER)]' '1700000001.000150 | URIGOWNER | an old comment' 'its second line' '1700000001.000300 | URIGOWNER | a new comment' 'and more' \
 		| LC_ALL=C awk -v sinceTs=1700000001.000201 -f "$rigHere/slack/AgentsSlackThreadAnswersSince.awk" | LC_ALL=C tr '\n' '|' )" \
 	"reaction on the question: [reactions: x x1 (URIGOWNER)]|1700000001.000300 | URIGOWNER | a new comment|and more|"
-## The two readers over one thread rendering, so the marking of a set-aside reply is the one the
-## first of them prints: the answers to the question of 1700000001.000101, in a thread it shares
-## with a question asked after it and closed since, then what stands after the live proposal
-## reply of 1700000002.500000.
+## The two readers over one thread rendering: the answers to the question of 1700000001.000101, in a thread it
+## shares with a question asked after it and closed before these replies, so a reply with no number is the only
+## open question's, read whole; then what stands after the live proposal reply of 1700000002.500000.
 rigSinceTag="Q1"
 rigSince(){ ## the rendered thread after its first two messages, a line each
 	{
@@ -260,21 +259,15 @@ rigSince(){ ## the rendered thread after its first two messages, a line each
 rigOld='1700000002.000100 | URIGOWNER |'
 rigLive='1700000002.500000 | URIGSELF1 | the live proposal reply'
 rigNew='1700000003.000100 | URIGOWNER |'
-rigAssert "the thread reader marks every line of a reply it sets aside" \
-	"$( rigSince "$rigNew a new comment" 'its second line' | LC_ALL=C tr '|' '\n' | LC_ALL=C grep -c '^UNMATCHED-REPLY ' )" 2
-rigAssert "a set-aside reply of several lines: read whole after the live proposal reply, ignored whole before it" \
+rigAssert "a reply with no number, the only open question's: read whole after the live proposal reply, ignored whole before it" \
 	"$( rigSince "$rigOld an old comment" 'its second line' '# its third line' "$rigLive" "$rigNew a new comment" 'its second line' '# its third line' )" \
-	"reaction on the question: [reactions: x x1 (URIGOWNER)]|UNMATCHED-REPLY $rigNew a new comment|UNMATCHED-REPLY its second line|UNMATCHED-REPLY # its third line|"
-rigAssert "a set-aside reply under a reply that is ignored is still read whole" \
+	"reaction on the question: [reactions: x x1 (URIGOWNER)]|$rigNew a new comment|its second line|# its third line|"
+rigAssert "a reply after one that is ignored is still read whole" \
 	"$( rigSince "$rigOld Q1 an old numbered comment" 'its second line' "$rigLive" "$rigNew a new comment" 'its second line' )" \
-	"reaction on the question: [reactions: x x1 (URIGOWNER)]|UNMATCHED-REPLY $rigNew a new comment|UNMATCHED-REPLY its second line|"
-rigAssert "a set-aside reply above a reply that is read is still ignored whole" \
+	"reaction on the question: [reactions: x x1 (URIGOWNER)]|$rigNew a new comment|its second line|"
+rigAssert "a reply above one that is read is still ignored whole" \
 	"$( rigSince "$rigOld an old comment" 'its second line' "$rigLive" "$rigNew Q1 a new numbered comment" 'its second line' )" \
 	"reaction on the question: [reactions: x x1 (URIGOWNER)]|$rigNew a new numbered comment|its second line|"
-rigAssert "a reply marked on its head line alone, as before, goes the same way with the lines under it" \
-	"$( printf '%s\n' "UNMATCHED-REPLY $rigOld an old comment" 'its second line' "UNMATCHED-REPLY $rigNew a new comment" 'its second line' \
-		| LC_ALL=C awk -v sinceTs=1700000002.500000 -f "$rigHere/slack/AgentsSlackThreadAnswersSince.awk" | LC_ALL=C tr '\n' '|' )" \
-	"UNMATCHED-REPLY $rigNew a new comment|its second line|"
 rigSinceTag=""
 ## A line that reads as one of the thread reader's own marks comes from it one space in (ownLine).
 rigAssert "with no reply set aside, as a proposal's own thread reads: a line goes with its reply whatever it starts with" \
@@ -497,7 +490,7 @@ rigAssert "declared, announced, dispatched and defined: the four sites agree" \
 rigAssert "the table names it, with its kind, template and own parameters" \
 	"$( AgentsToolsAskToolRow mcp__myx_distro__ProposeApprove && printf '%s|%s|%s|%s|%s' "$agentsAskRowName" "$agentsAskRowKind" "$agentsAskRowTemplate" "$agentsAskRowForm" "$agentsAskRowArgs" )" \
 	"ProposeApprove|proposal|propose-approve.post.format.md|approve|question proposal document task_ref"
-rigAssert "it is a tool of the team floor"             "$( LC_ALL=C grep -c -E '^agentsPermissionFloorTools=".* ProposeApprove .*"$' "$rigHere/grants/AgentsTools.PermissionHolds.include" )" 1
+rigAssert "it is a tool of the team floor"             "$( LC_ALL=C grep -c -E '^[[:space:]]*magic-team:permissions:workspace:\*:allow-tool:\*:ProposeApprove \\$' "$rigHere/../project.inf" )" 1
 
 rigUnknown="$( cat "$rigTmp"/*/curl.log 2>/dev/null | LC_ALL=C awk '$0 ~ /^url:/ || $0 == "no-method" { hitCount++ ; } END { print hitCount + 0 ; }' )"
 rigAssert "no request went anywhere but a Slack method" "$rigUnknown" 0

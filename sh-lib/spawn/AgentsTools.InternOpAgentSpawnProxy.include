@@ -1620,6 +1620,8 @@ case "$1" in
 			AgentsSessionRunHeadersInto "$parentSessionId" parentPrefixWord=cache-prefix prefixRoutine=routine || :
 			if [ "$parentPrefixWord" = routine ] ; then spawnCachePrefix="$parentPrefixWord" ; else prefixRoutine="" ; fi
 		fi
+		## Written by the store's own writer, which moves the store's stamp (AgentsSpawnRecordWrite): the block runs in a subshell, so nothing it sets is kept.
+		type AgentsSpawnRecordWrite > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
 		{
 			printf '%s\n' "---"
 			## `session-id` is the coworking session's own shared identifier now,
@@ -1736,7 +1738,7 @@ case "$1" in
 			[ -z "$trackedItemName" ] || printf 'spawned-by: %s\n' "${trackedItemName%.md}"
 			printf '%s\n' "---"
 			printf '\n# Spawn session: %s\n' "$MDAT_SPAWN_SESSION_ID"
-		} > "$sandboxTracking" || {
+		} | AgentsSpawnRecordWrite "$sandboxTracking" || {
 			echo "$MDSC_CMD: agent-spawn-proxy: ⛔ ERROR: can't write the session tracking file: $sandboxTracking" >&2
 			type AgentsToolsRoutineLockUnlock > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/routine/AgentsTools.RoutineLock.include"
 			[ "$routineLockTaken" != "yes" ] || AgentsToolsRoutineLockUnlock "$routineLockDoc" "$sessionId" "the start of $routineRecorded failed" || :

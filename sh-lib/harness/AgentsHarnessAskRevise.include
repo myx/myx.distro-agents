@@ -110,8 +110,24 @@ AgentsHarnessAskRevise(){ ## record file, options given (empty: unchanged), sele
 	if [ -z "$askBody" ] ; then
 		printf 'ERROR: %s: the changed post could not be filled from its template, so nothing was posted and pending reply %s stands as it was. What the fill reported follows:\n%s\n' "$harnessAskName" "$toolPendingId" "$( cat "$harnessScratch/ask-post.err" 2>/dev/null )" ; return 1
 	fi
-	revOut="$( harnessSendProse="$( AgentsHarnessAskProse )" AgentsHarnessToolSendMessage "$askChannel:$askThreadTs" "$askBody" "$revAsBot" "$toolAddressTo" "" true )"
-	revTs="$( printf '%s\n' "$revOut" | LC_ALL=C sed -n 's/^SENT_MESSAGE_TS=//p' | head -1 )"
+	## A question in its own thread that nobody but its asker replied to or reacted on is edited in place; nothing new is posted.
+	local revInPlace="" revRead revUser revAsked
+	if [ "$askThreadTs" = "$askTs" ] && [ "$toolKind" != "proposal" ] ; then
+		revAsked=" $( AgentsHarnessAskRecordField "$toolPendingId" asking-accounts ) "
+		revRead="$( "$BASH" "$revTools" --slack-read --team-member "$harnessAgent" "$askChannel:$askTs" --thread $( [ "$revAsBot" != "true" ] || printf -- '--identity-bot' ) 2> /dev/null | LC_ALL=C grep '^{' | head -1 )" || revRead=""
+		case "$revRead" in *'"ok":true'*) [ "$revAsked" = "  " ] || revInPlace="yes" ;; esac
+		for revUser in $( printf '%s' "$revRead" | LC_ALL=C grep -oE '"(user|users|reply_users)":(\[[^]]*\]|"[A-Z0-9]+")' | LC_ALL=C grep -oE '[UW][A-Z0-9]{4,}' ) ; do
+			case "$revAsked" in *" $revUser "*) ;; *) revInPlace="" ;; esac
+		done
+	fi
+	if [ -n "$revInPlace" ] ; then
+		revOut="$( printf '%s' "$askBody" | "$BASH" "$revTools" --intern-op-comms-slack-send-message "$harnessAgent" "$askChannel" --update-ts "$askTs" --from-stdin \
+			$( [ "$revAsBot" != "true" ] || printf -- '--identity-bot' ) ${toolAddressTo:+--address-to "$toolAddressTo"} 2>&1 )"
+		case "$revOut" in *'"ok":true'*) revTs="$askTs" ;; *) revTs="" ;; esac
+	else
+		revOut="$( harnessSendProse="$( AgentsHarnessAskProse )" AgentsHarnessToolSendMessage "$askChannel:$askThreadTs" "$askBody" "$revAsBot" "$toolAddressTo" "" true )"
+		revTs="$( printf '%s\n' "$revOut" | LC_ALL=C sed -n 's/^SENT_MESSAGE_TS=//p' | head -1 )"
+	fi
 	case "$revOut" in ERROR:*) revTs="" ;; esac
 	## Over the plain-language floor: a correction to make, passed on as it is. The question
 	## stands as it was asked until the corrected one is posted.
@@ -121,11 +137,11 @@ AgentsHarnessAskRevise(){ ## record file, options given (empty: unchanged), sele
 	fi
 	revNew=" $( AgentsHarnessAskSeedNames | LC_ALL=C tr '\n' ' ' )"
 	if [ "$askThreadTs" = "$askTs" ] ; then
-		if [ -n "$revPrev" ] ; then
+		if [ -n "$revPrev" ] && [ "$revPrev" != "$askTs" ] ; then
 			## One live update under the root: the one before it goes, under the identity that posted it.
 			"$BASH" "$revTools" --slack-delete-message --team-member "$harnessAgent" "$askChannel:$revPrev" $( [ "$revAsBot" != "true" ] || printf -- '--identity-bot' ) > /dev/null 2>&1 \
 				|| printf 'WARNING: %s: the update before this one, %s:%s, could not be removed, so the thread holds two.\n' "$harnessAskName" "$askChannel" "$revPrev" >&2
-		elif AgentsToolsAskKindRow "$toolKind" ; then
+		elif [ -z "$revInPlace" ] && AgentsToolsAskKindRow "$toolKind" ; then
 			AgentsHarnessAskReact "$askChannel:$askTs" "$revAsBot" add $( ASKP_BLOCK="Marks/superseded" AgentsToolsAskPostFill block "$agentsAskRowTemplate" "" 2> /dev/null )
 		fi
 		## The emoji under the root follow the live version: those that no longer answer go,

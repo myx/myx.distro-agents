@@ -41,8 +41,8 @@ AgentsToolsManagerKillMark(){ ## spawn record file, who, when
 	markBody="$( LC_ALL=C awk -v opsFile="$markOps" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsBoardItemHeaderOpsApply.awk" < "$1" 2>/dev/null )" || markBody=""
 	rm -f "$markOps"
 	[ -n "$markBody" ] || return 1
-	{ printf '%s\n' "$markBody" > "$1.killed.$$" && mv -f "$1.killed.$$" "$1" ; } 2>/dev/null || { rm -f "$1.killed.$$" ; return 1 ; }
-	return 0
+	type AgentsSpawnRecordWrite > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+	printf '%s\n' "$markBody" | AgentsSpawnRecordWrite "$1"
 }
 
 ## The ordered ending of a killed run, recorded where the tooling records every ending it
@@ -431,6 +431,9 @@ AgentsToolsManagerSessionFinish(){ ## the operation as it was called, the id, "r
 		## that run asked, and leaves the questions of its session and of its other runs waiting.
 		case "$finishIds${finishWhole:+$finishSession }" in *" $finishAsker "*) ;; *) continue ;; esac
 		finishAsk="${finishKey%.md}"
+		## A QUESTION WAITING ON THE HUMAN-OWNER OUTLIVES THE RUN THAT ASKED IT: it is the coordinator's question to him on this rig,
+		## and the next coordinator run reads his answer when it comes. Ending a run never withdraws it.
+		case " $finishRest " in *" reply_from_human-owner "*) printf 'dismiss\t%s\t%s\t%s\tkept-for-owner\n' "$finishSession" "$finishAsk" "$finishAsker" ; continue ;; esac
 		if [ -n "$finishPlan" ] ; then
 			printf 'dismiss\t%s\t%s\t%s\twould-dismiss\n' "$finishSession" "$finishAsk" "$finishAsker"
 			finishDismissed=$(( finishDismissed + 1 ))

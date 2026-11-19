@@ -102,9 +102,9 @@ rigKeeper(){ rigRow member keeper-myx 📐 Sage Bourne cronjob keeper ws-rig her
 	rigRow info skillset-path myx/util.workspace-rig/skillset/keeper-myx
 	rigRow bullet Description source-content_authority_for_the_rig.
 	rigRow bullet Name Sage_Bourne.
-	rigRow session "$rigS1" daily_of_Monday running 2026-10-12_16:57_+0000 - 3 running=2,finished=1
+	rigRow session "$rigS1" daily_of_Monday running 2026-10-12_16:57_+0000 - 3 running=2,finished=1 - - - '' - - - active
 	rigRow run "$rigS1" "$rigS1" keeper-myx spawn-started running running 2026-10-12_16:57_+0000 - rig-host ws-rig working
-	rigRow session "$rigS2" - finished 2026-10-11_14:28_+0000 2026-10-11_14:51_+0000 1 finished=1
+	rigRow session "$rigS2" - finished 2026-10-11_14:28_+0000 2026-10-11_14:51_+0000 1 finished=1 - - - '' - - - closed
 	rigRow run "$rigS2" "$rigS2" keeper-myx spawn-succeeded no-process finished 2026-10-11_14:28_+0000 2026-10-11_14:51_+0000 rig-host ws-rig -
 	rigRow grant standing write '/rig/ws-rig/source/myx/**' 'ws-rig:source/myx/**' ws-rig:namespace none
 	rigRow grant session read '/rig/other/**' - pass-0007_by_magic-coordinator 2026-10-14_10:00_+0000
@@ -125,12 +125,12 @@ rigKeeper(){ rigRow member keeper-myx 📐 Sage Bourne cronjob keeper ws-rig her
 	rigRow info workspace /rig/ws-rig
 } > "$rigF/rows.--manager-team-member-read --full human-owner"
 rigOld(){
-	rigRow session "$rigS1" daily_of_Monday running 2026-10-12_16:57_+0000 - 1 running=1
+	rigRow session "$rigS1" daily_of_Monday running 2026-10-12_16:57_+0000 - 1 running=1 - - - '' - - - active
 	rigRow run "$rigS1" "$rigS1" keeper-myx spawn-started running running 2026-10-12_16:57_+0000 - rig-host ws-rig working
 }
 { rigOld ; rigRow counters 1 0 1 0 3 0.42 ; } > "$rigF/rows"
 {
-	rigRow session "$rigNew" the_index running 2026-10-13_02:30_+0000 - 1 running=1
+	rigRow session "$rigNew" the_index running 2026-10-13_02:30_+0000 - 1 running=1 - - - '' - - - active
 	rigRow run "$rigNew" "$rigNew" keeper-myx spawn-started running running 2026-10-13_02:30_+0000 - rig-host ws-rig working
 	rigOld
 	rigRow counters 2 0 2 0 3 0.42

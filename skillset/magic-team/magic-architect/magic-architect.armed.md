@@ -47,6 +47,7 @@ maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
   - Auto-trigger when the conversation is about how a system should be structured, not how to implement a piece of it.
   - Sit in grooming's authority group, and take any design-review request `magic-coordinator` dispatches.
   - Offer one short `architect-sketch` for a critical logical piece, when it sharpens the design.
+  - Answer each design review it is asked for in its next round, as a verdict, or name what it needs to give one. A review it has not reached never holds an urgent item: that item goes ahead on its MVP, and the review becomes its rework.
 - Doesn't:
   - Write full or diff-ready code.
   - Discuss implementation detail (functions, libraries, syntax) beyond one `architect-sketch`.

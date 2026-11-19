@@ -204,7 +204,7 @@ AgentsToolsDecisionsNorm(){ ## text
 ## decisionsEnd() the section's last non-blank line before the next heading.
 agentsDecisionsOwnAwk='
 	function struckBase( s ) {
-		sub( / \[struck by [^]]*\]$/, "", s ) ;
+		while ( sub( / \[(struck by|confirmed by|backfilled) [^]]*\]$/, "", s ) ) { }
 		return s ;
 	}
 	function decisionsOwn( n, marker,    i, inFm, inFence, sawBrief, marked, legacy ) {
@@ -257,16 +257,14 @@ agentsDecisionsKeepAwk="$agentsDecisionsOwnAwk"'
 			bodyLast = decisionsEnd( bodyCount, bodyStart ) ;
 			for ( i = bodyStart + 1 ; i <= bodyLast ; i++ ) { if ( line[i] ~ /^- / ) { carried[++carriedCount] = struckBase( line[i] ) ; } }
 		}
-		## A DECISION LANDS ONLY THROUGH ITS CONFIRMED READBACK, never through a body: a line the body brings that is not recorded is a fake,
-		## and so is a recorded line the body changes -- struck, unstruck or reworded. Only the line of the decisions writer
-		## (MDAT_DECISIONS_LINE, AgentsToolsDecisionsAppend) and the mark of a strike (MDAT_DECISIONS_MARK, AgentsToolsDecisionsStrike) pass.
+		## A body brings no unrecorded decision line and changes no recorded one; only the writer and the mark of a strike do.
 		allowLine = ENVIRON["MDAT_DECISIONS_LINE"] ; allowMark = ENVIRON["MDAT_DECISIONS_MARK"] ;
 		for ( j = 1 ; j <= carriedCount ; j++ ) {
-			known = 0 ;
-			for ( i = 1 ; i <= recordedCount ; i++ ) { if ( recorded[i] == carried[j] ) { known = 1 ; } }
-			if ( known || ( allowLine != "" && ( carried[j] == allowLine || carried[j] == "- " allowLine ) ) ) { continue ; }
+			isRecorded = 0 ;
+			for ( i = 1 ; i <= recordedCount ; i++ ) { if ( recorded[i] == carried[j] ) { isRecorded = 1 ; } }
+			if ( isRecorded || ( allowLine != "" && ( carried[j] == allowLine || carried[j] == "- " allowLine ) ) ) { continue ; }
 			printf "⛔ ERROR: %s: %s: this write brings a decision line that was never recorded, so nothing was written. A decision lands only through its confirmed readback: --record-decision <item> --kind <kind> --text <its text> --with <the one it was made with>. The line: %s\n", cmdName, keepLabel, carried[j] > "/dev/stderr" ;
-			forged++ ;
+			forgedCount++ ;
 		}
 		if ( bodyStart > 0 ) {
 			for ( i = 1 ; i <= keptCount ; i++ ) {
@@ -276,11 +274,10 @@ agentsDecisionsKeepAwk="$agentsDecisionsOwnAwk"'
 					if ( bodyLine[j] !~ /^- / || bodyLine[j] == keptLine[i] || struckBase( bodyLine[j] ) != keptBase ) { continue ; }
 					if ( allowMark != "" && substr( bodyLine[j], length( bodyLine[j] ) - length( allowMark ) + 1 ) == allowMark ) { continue ; }
 					printf "⛔ ERROR: %s: %s: this write changes a recorded decision, so nothing was written. A decision is struck only through --record-decision <item> --strike <line> --reason <why> --with <party>. The line: %s\n", cmdName, keepLabel, keptLine[i] > "/dev/stderr" ;
-					forged++ ;
+					forgedCount++ ;
 				}
 			}
 		}
-		if ( forged > 0 ) { exit 1 ; }
 		if ( keepMode == "edit" ) {
 			for ( i = 1 ; i <= recordedCount ; i++ ) {
 				storedTimes = 0 ; carriedTimes = 0 ;
@@ -290,8 +287,8 @@ agentsDecisionsKeepAwk="$agentsDecisionsOwnAwk"'
 				printf "⛔ ERROR: %s: %s: this write would drop a recorded decision, so nothing was written: %s\n", cmdName, keepLabel, recorded[i] > "/dev/stderr" ;
 				dropped++ ;
 			}
-			if ( dropped > 0 ) { exit 1 ; }
 		}
+		if ( forgedCount > 0 || dropped > 0 ) { exit 1 ; }
 		if ( recordedCount == 0 ) {
 			for ( i = 1 ; i <= bodyCount ; i++ ) { print bodyLine[i] ; }
 			exit 0 ;
@@ -337,7 +334,7 @@ AgentsToolsDecisionsKeep(){ ## stored item path, mode (keep|edit), label
 	## A new item has no recorded decisions, so every decision line its body brings is refused: it is read against an empty one.
 	[ -f "$keepPath" ] || keepPath=/dev/null
 	LC_ALL=C MDAT_KEEP_STORED="$keepPath" awk -v keepMode="$keepMode" -v keepLabel="$keepLabel" \
-		-v cmdName="${MDSC_CMD:-board-upsert-move-edit}" -v marker="$( markerName="${keepPath##*/}" ; printf '<!-- decisions-of: %s -->\n' "${markerName%.md}" )" \
+		-v cmdName="${MDSC_CMD:-board-upsert-move-edit}" -v marker="$( markerName="${3:-${keepPath##*/}}" ; printf '<!-- decisions-of: %s -->\n' "${markerName%.md}" )" \
 		"$agentsDecisionsKeepAwk" "$keepPath" -
 }
 
@@ -643,9 +640,100 @@ AgentsToolsDecisionsFromPending(){ ## pending id, record file, status, amend (1 
 		dashes == 1 { colon = index($0, ": ") ; if ( colon > 1 ) { printf "%s\t%s\n", substr($0, 1, colon - 1), substr($0, colon + 2) ; } next ; }
 		dashes >= 2 && $0 !~ /^#/ && $0 !~ /^[ \t]*$/ { printf "first\t%s\n", $0 ; exit ; }
 	' "$decFile" 2>/dev/null )
-	## A DECISION'S OWN READBACK LANDS THE DECISION, and writes nothing else (AgentsToolsDecisionFromReadback).
+	## A decision's own readback lands that decision, or goes up where its party cannot decide, and writes nothing else.
 	if [ -n "$( AgentsToolsDecisionReadbackSlot "$decFile" decision-kind )" ] ; then
-		AgentsToolsDecisionFromReadback "$decId" "$decFile" "$decStatus" "$decItem" "$decVerdict"
+		[ "$decStatus" = reply-received ] && [ -n "$decItem" ] || return 0
+		case "$decVerdict" in yes|edit) ;; *) return 0 ;; esac
+		decDocument="$( AgentsToolsDecisionsItemPath "$decItem" 2> /dev/null )" || decDocument=""
+		[ -z "$decDocument" ] || ! LC_ALL=C grep -q -F -- "(readback $decId," "$decDocument" 2> /dev/null || return 0
+		local decOwner decText decSource decUp decAsk=() decOut decSentUp
+		## A review applies its list line by line, or goes up with it where its answerer holds no rights over the item.
+		if [ "$( AgentsToolsDecisionReadbackSlot "$decFile" decision-kind )" = review ] ; then
+			[ -n "$decDocument" ] && ! LC_ALL=C grep -q -F -- "readback $decId," "$decDocument" 2> /dev/null || return 0
+			[ -z "$( AgentsToolsDecisionReadbackSlot "$decFile" escalated )" ] || return 0
+			local revOwner revRows revNumber revAction revLine revKind revText revAt revSent
+			revOwner="$( AgentsToolsDecisionsField "$decFile" owner )" ; revAt="$( date -u +%Y-%m-%dT%H:%MZ )"
+			## The plan is the readback's decision-strike slot, kept escaped on one line; an edit's numbered words change its actions.
+			revRows="$( MDAT_REVIEW_EDIT="$( [ "$decVerdict" != edit ] || printf '%s' "$decVerdictText" )" LC_ALL=C awk '
+				index( $0, "decision-strike\t" ) == 1 {
+					rawValue = substr( $0, 17 ) ; plainText = "" ;
+					for ( charAt = 1 ; charAt <= length( rawValue ) ; charAt++ ) {
+						oneChar = substr( rawValue, charAt, 1 ) ;
+						if ( oneChar == "\\" && charAt < length( rawValue ) ) { charAt++ ; oneChar = substr( rawValue, charAt, 1 ) ; if ( oneChar == "n" ) { oneChar = "\n" ; } }
+						plainText = plainText oneChar ;
+					}
+					rowCount = split( plainText, planRow, "\n" ) ;
+				}
+				END {
+					editText = ENVIRON["MDAT_REVIEW_EDIT"] ;
+					while ( match( editText, /[0-9]+[ .:)-]*(prune|confirm|re-ask)/ ) ) {
+						editPair = substr( editText, RSTART, RLENGTH ) ; editText = substr( editText, RSTART + RLENGTH ) ;
+						editNumber = editPair ; sub( /[^0-9].*$/, "", editNumber ) ;
+						editAction = editPair ; sub( /^[0-9]+[ .:)-]*/, "", editAction ) ;
+						wantAction[ editNumber + 0 ] = editAction ;
+					}
+					for ( rowAt = 1 ; rowAt <= rowCount ; rowAt++ ) {
+						if ( split( planRow[rowAt], rowField, "\t" ) < 3 || rowField[2] !~ /^(prune|confirm|re-ask)$/ ) { continue ; }
+						rowNumber = rowField[1] ; rowAction = rowField[2] ;
+						rowLine = substr( planRow[rowAt], length( rowField[1] ) + length( rowField[2] ) + 3 ) ;
+						if ( ( rowNumber + 0 ) in wantAction ) { rowAction = wantAction[ rowNumber + 0 ] ; }
+						printf "%s\t%s\t%s\n", rowNumber, rowAction, rowLine ;
+					}
+				}
+			' "${decFile%.md}.fields" 2> /dev/null )"
+			[ -n "$revRows" ] || { echo "${MDSC_CMD:-pending-reply-close}: ⚠️ WARNING: review readback $decId holds no list, so nothing changed on $decItem" >&2 ; return 0 ; }
+			type AgentsToolsPermissionIsHumanOwner > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionHolds.include"
+			if ! AgentsToolsPermissionIsHumanOwner "${decBy:-}" && ! AgentsToolsDecisionAccountDecides "${decBy:-}" "$decDocument" ; then
+				decOut="$( env -u CLAUDE_CODE_SESSION_ID -u MDAT_SESSION_ID MDAT_SPAWN_SESSION_ID="$( AgentsToolsDecisionsField "$decFile" session-id )" MDAT_SPAWN_AGENT="$revOwner" \
+					MDAT_DECISIONS_REVIEW_PLAN="$revRows" \
+					"$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --record-decision --team-member "$revOwner" "$decItem" --review --with human-owner \
+					--source "confirmed by ${decBy:-unknown} in readback $decId" 2>&1 < /dev/null )" \
+					|| echo "${MDSC_CMD:-pending-reply-close}: ⚠️ WARNING: review readback $decId was answered by ${decBy:-nobody}, who holds no rights over $decItem, and it did not go up: $( printf '%s\n' "$decOut" | LC_ALL=C grep -m1 -E 'ERROR' )" >&2
+				revSent="$( printf '%s\n' "$decOut" | LC_ALL=C sed -n 's/^DECISION-ASKED \([^ ]*\) .*/\1/p' | head -1 )"
+				[ -z "$revSent" ] || printf 'escalated\t%s\n' "$revSent" >> "${decFile%.md}.fields" || :
+				return 0
+			fi
+			while IFS=$'\t' read -r revNumber revAction revLine <&3 ; do
+				case "$revAction" in
+					confirm)
+						AgentsToolsDecisionsStrike "$revOwner" "$decItem" "$revLine" "confirmed in review" "" " [confirmed by ${decBy:-unknown}: readback $decId, at $revAt]" > /dev/null \
+							|| echo "${MDSC_CMD:-pending-reply-close}: ⚠️ WARNING: review readback $decId: line $revNumber of $decItem was not confirmed" >&2
+					;;
+					prune|re-ask)
+						AgentsToolsDecisionsStrike "$revOwner" "$decItem" "$revLine" "$( [ "$revAction" = prune ] && echo 'pruned: no confirmation behind it' || echo 'asked again: no confirmation behind it' )" "readback $decId, confirmed by ${decBy:-unknown} at $revAt" > /dev/null \
+							|| { echo "${MDSC_CMD:-pending-reply-close}: ⚠️ WARNING: review readback $decId: line $revNumber of $decItem was not struck" >&2 ; continue ; }
+						[ "$revAction" = re-ask ] || continue
+						revKind="$( printf '%s\n' "$revLine" | LC_ALL=C awk '{ sub( /:$/, "", $4 ) ; print $4 ; }' )"
+						revText="${revLine#- * * * }" ; revText="${revText%% (*}"
+						env -u CLAUDE_CODE_SESSION_ID -u MDAT_SESSION_ID MDAT_SPAWN_SESSION_ID="$( AgentsToolsDecisionsField "$decFile" session-id )" MDAT_SPAWN_AGENT="$revOwner" \
+							"$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --record-decision --team-member "$revOwner" "$decItem" --kind "$revKind" --text "$revText" \
+							--with "${decTo:-human-owner}" --source "asked again from review readback $decId" > /dev/null 2>&1 < /dev/null \
+							|| echo "${MDSC_CMD:-pending-reply-close}: ⚠️ WARNING: review readback $decId: line $revNumber of $decItem is struck, but its text was not asked again" >&2
+					;;
+				esac
+			done 3<<< "$revRows"
+			return 0
+		fi
+		decOwner="$( AgentsToolsDecisionsField "$decFile" owner )"
+		decText="$( AgentsToolsDecisionReadbackSlot "$decFile" understood )"
+		decSource="$( AgentsToolsDecisionReadbackSlot "$decFile" decision-source )"
+		decUp="$( AgentsToolsDecisionReadbackSlot "$decFile" decision-escalate )"
+		if [ -n "$( AgentsToolsDecisionReadbackSlot "$decFile" decision-strike )" ] ; then
+			decAsk=( --strike "$( AgentsToolsDecisionReadbackSlot "$decFile" decision-strike )" --reason "$decText" --readback "$decId" ${decSource:+--source "$decSource"} )
+		elif [ -n "$decUp" ] ; then
+			[ -z "$( AgentsToolsDecisionReadbackSlot "$decFile" escalated )" ] || return 0
+			[ "$decVerdict" != edit ] || decText="$decVerdictText"
+			[ -n "$decText" ] || { echo "${MDSC_CMD:-pending-reply-close}: ⚠️ WARNING: readback $decId was edited with no words of the edit, so nothing went up" >&2 ; return 0 ; }
+			decAsk=( --kind "$( AgentsToolsDecisionReadbackSlot "$decFile" decision-kind )" --text "$decText" --with "$decUp" --source "confirmed by ${decBy:-unknown} in readback $decId${decSource:+, $decSource}" )
+		else
+			decAsk=( --kind "$( AgentsToolsDecisionReadbackSlot "$decFile" decision-kind )" --text "$decText" --readback "$decId" ${decSource:+--source "$decSource"} )
+		fi
+		decOut="$( env -u CLAUDE_CODE_SESSION_ID -u MDAT_SESSION_ID MDAT_SPAWN_SESSION_ID="$( AgentsToolsDecisionsField "$decFile" session-id )" MDAT_SPAWN_AGENT="$decOwner" \
+			"$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --record-decision --team-member "$decOwner" "$decItem" "${decAsk[@]}" 2>&1 < /dev/null )" \
+			|| echo "${MDSC_CMD:-pending-reply-close}: ⚠️ WARNING: readback $decId is closed with $decVerdict, but it did not land on $decItem: $( printf '%s\n' "$decOut" | LC_ALL=C grep -m1 -E 'ERROR|CORRECTION' )" >&2
+		## A decision sent up keeps the readback it went up as, so it goes up once.
+		decSentUp="$( printf '%s\n' "$decOut" | LC_ALL=C sed -n 's/^DECISION-ASKED \([^ ]*\) .*/\1/p' | head -1 )"
+		[ -z "$decUp" ] || [ -z "$decSentUp" ] || printf 'escalated\t%s\n' "$decSentUp" >> "${decFile%.md}.fields" || :
 		return 0
 	fi
 	decWho="${decBy:-${decTo:-unknown}}"
@@ -708,35 +796,35 @@ AgentsToolsDecisionJsonText(){ ## text
 	printf '"%s"' "$jsonText"
 }
 
-## A DECISION IS ASKED BEFORE IT IS RECORDED: its exact text goes to the one it was made with as a readback (ConfirmReadback, on
-## the item), and its answer lands it (AgentsToolsDecisionFromReadback), whoever reads that answer and whenever. With no wait the
-## readback joins the caller's waits and the call returns at once; with --wait the call waits for the answer. One closing line:
-## DECISION-RECORDED, DECISION-ASKED (still open), or DECISION-NOT-RECORDED with what to do next. rc 1 where nothing was asked.
+## A decision asked before it is recorded: its exact text read back to its party, whose answer lands it (AgentsToolsDecisionsFromPending).
+## One closing line: DECISION-RECORDED, DECISION-ASKED, DECISION-ESCALATED or DECISION-NOT-RECORDED. rc 1 where nothing was asked.
 ## A contact decides a decision itself where the team gives it the rights over the team's work: tier-admin or tier-owner, its
 ## team-wide tier read from its record. A board item names no project, so a project's own tier is not read yet. rc 0 where it decides.
-AgentsToolsDecisionPartyDecides(){ ## party, written contact:<id> for a contact
+AgentsToolsDecisionPartyDecides(){ ## party, written contact:<id> for a contact, item path (its projects and products are the scopes read)
+	local pdScope
 	case "$1" in contact:?*) ;; *) return 1 ;; esac
 	type AgentsToolsContactsStore > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/contacts/AgentsTools.ContactsRecord.include"
 	type AgentsToolsContactsTierFor > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/contacts/AgentsTools.ContactsTiers.include"
 	AgentsToolsContactsSlug "${1#contact:}" 2> /dev/null || return 1
 	AgentsToolsContactsStore decision-readback 2> /dev/null || return 1
 	AgentsToolsContactsPersonRead "$contactsPersons/${1#contact:}.md" || return 1
-	case "$( AgentsToolsContactsTierFor "" )" in tier-admin|tier-owner) return 0 ;; esac
+	for pdScope in "" $( [ ! -f "${2:-}" ] || LC_ALL=C awk 'NR == 1 && $0 == "---" { inFm = 1 ; next ; } inFm && $0 == "---" { exit ; } inFm && /^(projects|products): / { sub( /^[a-z]+: /, "" ) ; gsub( /,/, " " ) ; print ; }' "$2" ) ; do
+		case "$( AgentsToolsContactsTierFor "$pdScope" )" in tier-admin|tier-owner) return 0 ;; esac
+	done
 	return 1
 }
 
 ## The same for the account that answered a readback: the contact whose `slack-id` it is, by its tier. rc 0 where it decides.
-AgentsToolsDecisionAccountDecides(){ ## account
+AgentsToolsDecisionAccountDecides(){ ## account, item path (its projects and products are the scopes read)
 	local adFile
 	[ -n "$1" ] || return 1
 	type AgentsToolsContactsStore > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/contacts/AgentsTools.ContactsRecord.include"
-	type AgentsToolsContactsTierFor > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/contacts/AgentsTools.ContactsTiers.include"
 	AgentsToolsContactsStore decision-readback 2> /dev/null || return 1
 	for adFile in "$contactsPersons"/*.md ; do
 		[ -f "$adFile" ] || continue
 		LC_ALL=C grep -q -x -F -- "slack-id: $1" "$adFile" 2> /dev/null || continue
-		AgentsToolsContactsPersonRead "$adFile" || continue
-		case "$( AgentsToolsContactsTierFor "" )" in tier-admin|tier-owner) return 0 ;; esac
+		adFile="${adFile##*/}"
+		! AgentsToolsDecisionPartyDecides "contact:${adFile%.md}" "${2:-}" || return 0
 	done
 	return 1
 }
@@ -745,25 +833,30 @@ AgentsToolsDecisionAccountDecides(){ ## account
 AgentsToolsDecisionReadbackOpen(){ ## member, item, kind, text, source (may be empty), party, wait (true|false), the line to strike (strike only)
 	local roItem="${2##*/}" roJson roOut roId roFile roStatus roVerdict roBy roPath="" roTitle=""
 	roItem="${roItem%.md}"
-	## The person reads the item by its heading; its id goes in the context, which the plain-language floor leaves to ids.
+	## The person reads the item by its heading; its id goes in the context.
 	roPath="$( AgentsToolsDecisionsItemPath "$roItem" 2> /dev/null )" || roPath=""
 	[ -z "$roPath" ] || roTitle="$( LC_ALL=C awk '/^# / { sub( /^# +/, "" ) ; print ; exit ; }' "$roPath" 2> /dev/null )"
 	roTitle="${roTitle:-the task in the context}"
-	## WHO CAN DECIDE IT HIMSELF: the human-owner always, a member that is a party of the item, and a contact the team gives the
-	## rights over its work (AgentsToolsDecisionPartyDecides). Anyone else still confirms the readback, and is told that once
-	## confirmed it goes up to the human-owner, who decides it (AgentsToolsDecisionFromReadback). A strike's confirmer is checked
-	## by --strike itself.
+	## The human-owner, a party of the item and a contact with rights decide it; anyone else confirms, and it goes up to him.
 	local roEscalate=""
-	if [ -z "${8:-}" ] && [ "$6" != human-owner ] && ! { [ -n "$roPath" ] && AgentsToolsItemIsParty "$roPath" "$6" ; } && ! AgentsToolsDecisionPartyDecides "$6" ; then
+	## The human-owner decides, by name or by his own account on this workspace (SLACK_CHANNEL_HUMAN_OWNER): a party that is his account is him.
+	type AgentsToolsPermissionIsHumanOwner > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionHolds.include"
+	if { [ -z "${8:-}" ] || [ "$3" = review ] ; } && ! AgentsToolsPermissionIsHumanOwner "$6" && ! { [ "$3" != review ] && [ -n "$roPath" ] && AgentsToolsItemIsParty "$roPath" "$6" ; } && ! AgentsToolsDecisionPartyDecides "$6" "$roPath" ; then
 		roEscalate="human-owner"
 	fi
 	roJson="{\"to\":$( AgentsToolsDecisionJsonText "$6" ),\"address_to\":$( AgentsToolsDecisionJsonText "$6" )"
-	if [ -n "${8:-}" ] ; then
+	if [ -n "${8:-}" ] && [ "$3" != review ] ; then
 		roJson="$roJson,\"question\":$( AgentsToolsDecisionJsonText "May a decision on $roTitle be dropped, for the reason below?" )"
 		roJson="$roJson,\"context\":$( AgentsToolsDecisionJsonText "Board item $roItem. The decision to drop: $8" )"
 		roJson="$roJson,\"understood\":$( AgentsToolsDecisionJsonText "$4" )"
 		roJson="$roJson,\"source\":$( AgentsToolsDecisionJsonText "${5:-the strike $1 asks on $roTitle}" )"
 		roJson="$roJson,\"will_do\":$( AgentsToolsDecisionJsonText "Mark that decision struck on the task with this reason, naming you and the time. Nothing is deleted. A no keeps it." )"
+	elif [ "$3" = review ] ; then
+		roJson="$roJson,\"question\":$( AgentsToolsDecisionJsonText "Which of these unconfirmed decisions on $roTitle stand?" )"
+		roJson="$roJson,\"context\":$( AgentsToolsDecisionJsonText "Board item $roItem. No line below has a confirmed readback behind it. Each line carries the action proposed for it: confirm keeps it as yours, prune strikes it, and re-ask strikes it and asks its text again." )"
+		roJson="$roJson,\"understood\":$( AgentsToolsDecisionJsonText "$4" )"
+		roJson="$roJson,\"source\":$( AgentsToolsDecisionJsonText "${5:-the review $1 asks on $roTitle}" )"
+		roJson="$roJson,\"will_do\":$( AgentsToolsDecisionJsonText "yes: each line gets its listed action. edit: name the lines to change, such as 3 confirm, 5 prune, and the rest get their listed action. no: nothing changes.${roEscalate:+ You do not hold the rights over this task, so once you answer, the list goes to the $roEscalate to decide.}" )"
 	else
 		roJson="$roJson,\"question\":$( AgentsToolsDecisionJsonText "Is this the decision on $roTitle, as you made it?" )"
 		roJson="$roJson,\"context\":$( AgentsToolsDecisionJsonText "Board item $roItem." )"
@@ -779,7 +872,7 @@ AgentsToolsDecisionReadbackOpen(){ ## member, item, kind, text, source (may be e
 	roOut="$( printf '%s' "$roJson" | env MDAT_ASK_DECISION_KIND="$3" MDAT_ASK_DECISION_ITEM="$roItem" MDAT_ASK_DECISION_SOURCE="${5:-}" MDAT_ASK_DECISION_STRIKE="${8:-}" MDAT_ASK_DECISION_ESCALATE="$roEscalate" MDAT_SPAWN_AGENT="$1" \
 		"$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsUniversalHarness.sh" --intern-tool ConfirmReadback )"
 	printf '%s\n' "$roOut"
-	## Asked means recorded: a readback is a pending reply from its post on. With no record, nothing was asked, and the harness said why.
+	## Asked means recorded: with no record, nothing was asked, and the harness said why above.
 	roId="$( printf '%s\n' "$roOut" | LC_ALL=C grep -o -E '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}' | head -1 )"
 	type AgentsToolsPendingRecordPath > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.Authority.include"
 	if [ -z "$roId" ] || ! roFile="$( AgentsToolsPendingRecordPath "$roId" )" ; then
@@ -802,54 +895,6 @@ AgentsToolsDecisionReadbackOpen(){ ## member, item, kind, text, source (may be e
 	return 0
 }
 
-## THE READBACK OF A DECISION, CLOSED, LANDS THAT DECISION: one --record-decision with --readback naming it, run as the member
-## that asked and in its session, whoever closed the readback -- that member's own wait, another reader, the console -- and
-## whether or not the asking run still lives. The gate of --record-decision checks it as it checks any call. A confirm lands the
-## text that was read back, an edit the words of the edit. A deny, a withdrawal or no answer known lands nothing: a decision not
-## confirmed is no decision. One already on the item is not recorded again. Best effort: a refusal is said on stderr, never undoes the close.
-AgentsToolsDecisionFromReadback(){ ## pending id, record file, status, item, verdict
-	local drOwner drSession drText drSource drKind drPath drOut
-	[ "$3" = reply-received ] && [ -n "$4" ] || return 0
-	case "$5" in yes|edit) ;; *) return 0 ;; esac
-	drPath="$( AgentsToolsDecisionsItemPath "$4" 2> /dev/null )" || drPath=""
-	if [ -n "$drPath" ] && LC_ALL=C grep -q -F -- "(readback $1," "$drPath" 2> /dev/null ; then
-		return 0
-	fi
-	drKind="$( AgentsToolsDecisionReadbackSlot "$2" decision-kind )"
-	drText="$( AgentsToolsDecisionReadbackSlot "$2" understood )"
-	drSource="$( AgentsToolsDecisionReadbackSlot "$2" decision-source )"
-	drOwner="$( AgentsToolsDecisionsField "$2" owner )"
-	drSession="$( AgentsToolsDecisionsField "$2" session-id )"
-	local drStrike="" drEscalate="" drFinal="" drBy=""
-	drStrike="$( AgentsToolsDecisionReadbackSlot "$2" decision-strike )"
-	drEscalate="$( AgentsToolsDecisionReadbackSlot "$2" decision-escalate )"
-	## CONFIRMED BY ONE WHO CANNOT DECIDE IT: it goes up, once, as a readback of what was confirmed to the one who can, and that
-	## readback's answer lands it. Nothing is recorded here.
-	if [ -n "$drEscalate" ] && [ -z "$drStrike" ] ; then
-		[ -z "$( AgentsToolsDecisionReadbackSlot "$2" escalated )" ] || return 0
-		drFinal="$drText" ; [ "$5" != edit ] || drFinal="$( AgentsToolsDecisionsField "$2" verdict-text )"
-		drBy="$( AgentsToolsDecisionsField "$2" answered-by )"
-		[ -n "$drFinal" ] || { echo "${MDSC_CMD:-pending-reply-close}: ⚠️ WARNING: readback $1 was edited with no words of the edit, so nothing went to the $drEscalate" >&2 ; return 0 ; }
-		drOut="$( env -u CLAUDE_CODE_SESSION_ID -u MDAT_SESSION_ID ${drSession:+MDAT_SPAWN_SESSION_ID="$drSession"} MDAT_SPAWN_AGENT="$drOwner" \
-			"$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --record-decision --team-member "$drOwner" "$4" \
-			--kind "$drKind" --text "$drFinal" --with "$drEscalate" --source "confirmed by ${drBy:-unknown} in readback $1${drSource:+, $drSource}" 2>&1 < /dev/null )" || :
-		drFinal="$( printf '%s\n' "$drOut" | LC_ALL=C sed -n 's/^DECISION-ASKED \([^ ]*\) .*/\1/p' | head -1 )"
-		if [ -n "$drFinal" ] ; then
-			printf 'escalated\t%s\n' "$drFinal" >> "${2%.md}.fields" || :
-		else
-			echo "${MDSC_CMD:-pending-reply-close}: ⚠️ WARNING: readback $1 is confirmed, but it did not go to the $drEscalate: $( printf '%s\n' "$drOut" | LC_ALL=C grep -m1 -E 'ERROR|CORRECTION' )" >&2
-		fi
-		return 0
-	fi
-	## A strike's readback strikes its line, with the reason it read back; any other lands its decision.
-	if [ -n "$drStrike" ] ; then set -- "$@" --strike "$drStrike" --reason "$drText" ; else set -- "$@" --kind "$drKind" --text "$drText" ; fi
-	drOut="$( env -u CLAUDE_CODE_SESSION_ID -u MDAT_SESSION_ID ${drSession:+MDAT_SPAWN_SESSION_ID="$drSession"} MDAT_SPAWN_AGENT="$drOwner" \
-		"$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --record-decision --team-member "$drOwner" "$4" \
-		"${@:6}" --readback "$1" ${drSource:+--source "$drSource"} 2>&1 < /dev/null )" \
-		|| echo "${MDSC_CMD:-pending-reply-close}: ⚠️ WARNING: readback $1 is closed with $5, but its decision was not recorded on $4: $( printf '%s\n' "$drOut" | LC_ALL=C grep -m1 'ERROR' )" >&2
-	return 0
-}
-
 ## The open items that wait on an ask by name, one a line: those of the backlog and the active states whose `condition:` or
 ## `blocked-on:` names its id, but the items named (the one the ask is filed on and the one that item tracks, which their own
 ## append covers). One awk pass, no process per item.
@@ -866,6 +911,98 @@ AgentsToolsDecisionsWaitersOf(){ ## ask id, item name the ask is filed on (may b
 	' "${waitItems[@]}" 2> /dev/null || :
 }
 
+## The line an answered ask appends to a status, `<id> answered <verdict> by <who> at <time>`, from its closed record: an amended
+## one's correction, its giver and its moment. rc 1, printing nothing, for a record with no verdict: unanswered, withdrawn or unknown.
+AgentsToolsDecisionsStatusLine(){ ## pending id, record file
+	local lineKey lineValue lineStatus="" lineVerdict="" lineBy="" lineAt="" lineAmendBy="" lineAmendAt=""
+	while IFS=$'\t' read -r lineKey lineValue ; do
+		case "$lineKey" in
+			status) lineStatus="$lineValue" ;;
+			verdict) lineVerdict="$lineValue" ;;
+			answered-by) lineBy="$lineValue" ;;
+			resolved-at) lineAt="$lineValue" ;;
+			amended-by) lineAmendBy="$lineValue" ;;
+			amended-at) lineAmendAt="$lineValue" ;;
+		esac
+	done < <( LC_ALL=C awk '$0 == "---" { if ( ++dashes == 2 ) { exit ; } next ; } dashes == 1 { colon = index( $0, ": " ) ; if ( colon > 1 ) { printf "%s\t%s\n", substr( $0, 1, colon - 1 ), substr( $0, colon + 2 ) ; } }' "$2" 2> /dev/null )
+	[ "$lineStatus" = reply-received ] && [ -n "$lineVerdict" ] || return 1
+	printf '%s answered %s by %s at %s' "$1" "$( AgentsToolsDecisionsOneLine "$lineVerdict" 160 )" "${lineAmendBy:-${lineBy:-unknown}}" "${lineAmendAt:-${lineAt:-unknown}}"
+}
+
+## The open items whose `status:` or `condition:` names an ask, one `<item path><TAB><first eight characters of its id>` a line: an
+## id whole or by its short form alike, standing as its own word; only <id>'s where one is given. One awk pass over the backlog and
+## the active states.
+AgentsToolsDecisionsStatusNamers(){ ## ask id (empty for every one)
+	local namerItems
+	type AgentsToolsBoardReady > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.BoardStates.include"
+	AgentsToolsBoardItemsInto namerItems "" backlog $agentsBoardActiveStates || return 0
+	[ "${#namerItems[@]}" -gt 0 ] || return 0
+	LC_ALL=C awk -v wantHead="${1:0:8}" '
+		FNR == 1 { fence = 0 ; }
+		$0 == "---" { fence++ ; if ( fence > 1 ) { nextfile ; } next ; }
+		fence == 1 && ( index( $0, "status: " ) == 1 || index( $0, "condition: " ) == 1 ) {
+			restText = " " substr( $0, index( $0, ": " ) + 2 ) " " ;
+			while ( match( restText, /[^A-Za-z0-9][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][^A-Za-z0-9]/ ) ) {
+				idHead = substr( restText, RSTART + 1, 8 ) ;
+				restText = substr( restText, RSTART + 9 ) ;
+				if ( wantHead != "" && idHead != wantHead ) { continue ; }
+				if ( ! ( ( FILENAME SUBSEP idHead ) in seenPair ) ) { seenPair[ FILENAME SUBSEP idHead ] = 1 ; printf "%s\t%s\n", FILENAME, idHead ; }
+			}
+		}
+	' "${namerItems[@]}" 2> /dev/null || :
+}
+
+## One line appended to an open item's `status:` through the board writer: never a move and never a body edit, and nothing where
+## the status already holds that line. Prints `STATUS-ANSWERED <item> <state> <id>`; with <dry> set it writes nothing and prints
+## `STATUS-STALE <item> <state> <id>`. rc 1 where the edit failed.
+AgentsToolsDecisionsStatusAppend(){ ## item path, the line, pending id, dry (1 or empty)
+	local statName="${1##*/}" statPath="$1" statState statOld statLock="" statRc=0
+	case "$( AgentsToolsDecisionsField "$statPath" status )" in *"$2"*) return 0 ;; esac
+	statState="${statPath%/*}" ; statState="${statState##*/}"
+	if [ -n "${4:-}" ] ; then
+		printf 'STATUS-STALE %s %s %s\n' "${statName%.md}" "$statState" "$3"
+		return 0
+	fi
+	type AgentsToolsBoardReady > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.BoardStates.include"
+	. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.LocalLock.include"
+	AgentsToolsLocalLockTake "decisions-${statName%.md}" 30 "the Decisions of $statName" && statLock="$agentsLocalLockPath" \
+		|| echo "⚠️ WARNING: ${MDSC_CMD:-status-append}: the lock on $statName could not be taken; writing its status without it" >&2
+	## Read under the lock: the item may have left the open states, or have the line from another writer, since it was found.
+	statPath="$( AgentsToolsDecisionsItemPath "$statName" )" || { [ -z "$statLock" ] || AgentsToolsLocalLockGive "$statLock" ; return 1 ; }
+	statState="${statPath%/*}" ; statState="${statState##*/}"
+	statOld="$( AgentsToolsDecisionsField "$statPath" status )"
+	case " backlog $agentsBoardActiveStates " in *" $statState "*) ;; *) [ -z "$statLock" ] || AgentsToolsLocalLockGive "$statLock" ; return 0 ;; esac
+	case "$statOld" in *"$2"*) [ -z "$statLock" ] || AgentsToolsLocalLockGive "$statLock" ; return 0 ;; esac
+	type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+	DistroAgentsTools --intern-op-board-upsert-move-edit "$statState" "$statName" --from-state:"$statState" \
+		--header:upsert:status:"${statOld:+$statOld | }$2" --context "${MDSC_CMD:-status-append}" --log-verb:updated > /dev/null 2>&1 < /dev/null || statRc=$?
+	[ -z "$statLock" ] || AgentsToolsLocalLockGive "$statLock"
+	if [ "$statRc" != 0 ] ; then
+		echo "${MDSC_CMD:-status-append}: ⛔ ERROR: the board edit of $statName failed, so its status still lacks: $2" >&2
+		return 1
+	fi
+	printf 'STATUS-ANSWERED %s %s %s\n' "${statName%.md}" "$statState" "$3"
+}
+
+## AN ANSWER REACHES THE STATUS OF EVERY OPEN ITEM THAT NAMES ITS ASK: its record's own `item:`, and each item whose `status:` or
+## `condition:` names its id, gets its line (AgentsToolsDecisionsStatusAppend). Best effort: a failed edit is said, and never undoes the close.
+AgentsToolsDecisionsStatusFromPending(){ ## pending id, record file
+	local fromLine fromItem fromPath fromHead fromDone=" "
+	fromLine="$( AgentsToolsDecisionsStatusLine "$1" "$2" )" || return 0
+	type AgentsToolsBoardReady > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.BoardStates.include"
+	fromItem="$( AgentsToolsDecisionsField "$2" item )"
+	if [ -n "$fromItem" ] && AgentsToolsBoardItemInStates "$fromItem" backlog $agentsBoardActiveStates && fromPath="$( AgentsToolsDecisionsItemPath "$fromItem" )" ; then
+		fromDone=" $fromPath "
+		AgentsToolsDecisionsStatusAppend "$fromPath" "$fromLine" "$1" > /dev/null || :
+	fi
+	while IFS=$'\t' read -r fromPath fromHead ; do
+		case "$fromDone" in *" $fromPath "*) continue ;; esac
+		fromDone="$fromDone$fromPath "
+		AgentsToolsDecisionsStatusAppend "$fromPath" "$fromLine" "$1" > /dev/null || :
+	done < <( AgentsToolsDecisionsStatusNamers "$1" )
+	return 0
+}
+
 ## One clarification or correction on a question's answer, as a `clarification` line on the
 ## Decisions of the item the question belongs to: who wrote it, its text, and the question it
 ## is on by its pending id. Best effort, as for the answer line: a record with no item records
@@ -875,6 +1012,8 @@ AgentsToolsDecisionsClarification(){ ## pending id, record file, author, text, m
 	[ -f "$2" ] || return 0
 	clItem="$( AgentsToolsDecisionsField "$2" item )"
 	[ -n "$clItem" ] || return 0
+	## The asking account's own posts in the thread are the ask itself, never a clarification.
+	case " $( AgentsToolsDecisionsField "$2" asking-accounts ) " in *" ${3:-unknown} "*) return 0 ;; esac
 	clTag="$( AgentsToolsDecisionsField "$2" question-tag )"
 	clChannel="$( AgentsToolsDecisionsField "$2" channel )"
 	type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
@@ -964,13 +1103,16 @@ agentsDecisionsStrikeAwk="$agentsDecisionsOwnAwk"'
 	{ line[NR] = $0 ; }
 	END {
 		base = ENVIRON["MDAT_DECISIONS_BASE"] ; mark = ENVIRON["MDAT_DECISIONS_MARK"] ; marker = ENVIRON["MDAT_DECISIONS_MARKER"] ;
+		## A line named with its backfill suffix is the same line.
+		base = struckBase( base ) ;
 		start = ( marker == "" ? 0 : decisionsOwn( NR, marker ) ) ;
 		if ( ! start ) { printf "⛔ ERROR: %s: no Decisions section, so no line was struck\n", ENVIRON["MDAT_DECISIONS_CMD"] > "/dev/stderr" ; exit 1 ; }
 		last = decisionsEnd( NR, start ) ;
 		for ( i = start + 1 ; i <= last ; i++ ) {
 			if ( line[i] !~ /^- / ) { continue ; }
 			if ( struckBase( line[i] ) != base ) { continue ; }
-			if ( line[i] != base ) { printf "⛔ ERROR: %s: that line is already struck\n", ENVIRON["MDAT_DECISIONS_CMD"] > "/dev/stderr" ; exit 1 ; }
+			if ( line[i] ~ / \[struck by [^]]*\]$/ ) { printf "⛔ ERROR: %s: that line is already struck\n", ENVIRON["MDAT_DECISIONS_CMD"] > "/dev/stderr" ; exit 1 ; }
+			if ( index( mark, " [confirmed by " ) == 1 && line[i] ~ / \[confirmed by [^]]*\]$/ ) { printf "⛔ ERROR: %s: that line is already confirmed\n", ENVIRON["MDAT_DECISIONS_CMD"] > "/dev/stderr" ; exit 1 ; }
 			line[i] = line[i] mark ; found = 1 ;
 		}
 		if ( ! found ) { printf "⛔ ERROR: %s: no line of its Decisions is exactly that text, so nothing was struck\n", ENVIRON["MDAT_DECISIONS_CMD"] > "/dev/stderr" ; exit 1 ; }
@@ -982,16 +1124,17 @@ agentsDecisionsStrikeAwk="$agentsDecisionsOwnAwk"'
 ## so a correction reads beside what it corrects. rc 1 when the item is not on the board, no line of its
 ## own Decisions is exactly that text, or the edit failed; prints `DECISION-STRUCK <item> <state>`. The dismissed line
 ## names its source: the readback that confirmed the strike, who confirmed it and when, so that readback strikes once.
-AgentsToolsDecisionsStrike(){ ## who, item, the exact line, the reason, source (the confirming readback)
+AgentsToolsDecisionsStrike(){ ## who, item, the exact line, the reason, source (the confirming readback), the confirmation mark to set instead of a strike
 	local strikeWho="$1" strikeItem="$2" strikeLine strikeWhy="${3:-}" strikeText="${4:-}"
-	strikeLine="$( AgentsToolsDecisionsOneLine "$3" 300 )" ; strikeWhy="$( AgentsToolsDecisionsOneLine "$4" 160 )"
+	## The line is matched whole, as long as it is: a cut copy matches no stored line.
+	strikeLine="${3//$'\n'/ }" ; strikeWhy="$( AgentsToolsDecisionsOneLine "$4" 160 )"
 	strikeWho="$( AgentsToolsDecisionsOneLine "$strikeWho" 80 )" ; strikeWho="${strikeWho%% *}"
 	local strikePath strikeState strikeName strikeLock="" strikeRc=0 strikeMark
 	[ -n "$strikeLine" ] || { echo "$MDSC_CMD: ⛔ ERROR: the line to strike is empty, so nothing was struck" >&2 ; return 1 ; }
 	[ -n "$strikeWhy" ] || { echo "$MDSC_CMD: ⛔ ERROR: --reason is required to strike a recorded line" >&2 ; return 1 ; }
 	strikePath="$( AgentsToolsDecisionsItemPath "$strikeItem" )" || { echo "$MDSC_CMD: ⛔ ERROR: no board item $strikeItem in any board state, so nothing was struck" >&2 ; return 1 ; }
 	strikeName="${strikePath##*/}"
-	strikeMark=" [struck by ${strikeWho:-unknown}: $strikeWhy]"
+	strikeMark="${6:- [struck by ${strikeWho:-unknown}: $strikeWhy]}"
 	. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.LocalLock.include"
 	AgentsToolsLocalLockTake "decisions-${strikeName%.md}" 30 "the Decisions of $strikeName" && strikeLock="$agentsLocalLockPath" \
 		|| echo "⚠️ WARNING: $MDSC_CMD: the Decisions lock on $strikeName could not be taken; striking without it" >&2
@@ -1008,6 +1151,10 @@ AgentsToolsDecisionsStrike(){ ## who, item, the exact line, the reason, source (
 		echo "$MDSC_CMD: ⛔ ERROR: the board edit of $strikeName failed, so no line was struck" >&2
 		return 1
 	fi
+	if [ -n "${6:-}" ] ; then
+		printf 'DECISION-CONFIRMED %s %s\n' "${strikeName%.md}" "$strikeState"
+		return 0
+	fi
 	## The mark stays in place, and one dismissed line records the text, the reason and who struck it.
 	AgentsToolsDecisionsAppend "$strikeWho" "$strikeName" dismissed "the line struck: $strikeLine -- ${strikeWhy}" "${5:-strike confirmed}" "" "" > /dev/null \
 		|| echo "⚠️ WARNING: $MDSC_CMD: $strikeName carries the strike, but its dismissed line was not recorded" >&2
@@ -1016,9 +1163,33 @@ AgentsToolsDecisionsStrike(){ ## who, item, the exact line, the reason, source (
 	## caller is told how to put it to the one it was made with.
 	case "$strikeLine" in
 		*"(readback "*", confirmed by "*) ;;
+		*"(his message slack:"*", by "*) ;;
 		*) printf 'NEXT: the struck line had no confirmed readback, so it was never a decision. Where it still binds, ask it again: --record-decision %s --kind <clarification|resolved|dismissed> --text "<its text>" --with <the one it was made with>\n' "${strikeName%.md}" ;;
 	esac
 	return 0
+}
+
+## HIS OWN MESSAGE IS HIS DECISION (owner 2026-11-19): where the source's first part names a Slack message, `slack:<channel>:<ts>`,
+## that the comms cache holds and whose author is the human-owner's own account here, it prints the provenance
+## `his message slack:<channel>:<ts>, by <account> at <time>`, rc 0. Anything else, or a message the cache does not hold, is rc 1.
+AgentsToolsDecisionSourceOwnerMessage(){ ## source
+	local somFirst="${1%%,*}" somRest somChannel somTs somLine="" somUser="" somDir somAt
+	case "$somFirst" in slack:*:*) ;; *) return 1 ;; esac
+	somRest="${somFirst#slack:}" ; somChannel="${somRest%%:*}" ; somTs="${somRest#*:}"
+	case "$somChannel" in ''|*[!A-Za-z0-9]*) return 1 ;; esac
+	case "$somTs" in ''|*[!0-9.]*) return 1 ;; esac
+	for somDir in "${MMDAPP:-}"/.local/cache/comms/slack/slack-*"$somChannel"* ; do
+		[ -d "$somDir" ] || continue
+		somLine="$( LC_ALL=C awk -v ts="$somTs" 'index( $0, ts " | " ) == 1 { print ; exit ; }' "$somDir"/*/messages.txt 2> /dev/null )"
+		[ -n "$somLine" ] || continue
+		somUser="${somLine#"$somTs | "}" ; somUser="${somUser%% |*}"
+		break
+	done
+	case "$somUser" in ''|*[!A-Z0-9]*) return 1 ;; esac
+	type AgentsToolsPermissionIsHumanOwner > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionHolds.include"
+	AgentsToolsPermissionIsHumanOwner "$somUser" || return 1
+	somAt="$( LC_ALL=C date -u -r "${somTs%%.*}" +%Y-%m-%dT%H:%MZ 2> /dev/null || LC_ALL=C date -u -d "@${somTs%%.*}" +%Y-%m-%dT%H:%MZ 2> /dev/null )"
+	printf 'his message %s, by %s at %s\n' "$somFirst" "$somUser" "${somAt:-unknown}"
 }
 
 ## AgentsToolsDecisionsAppend, and then the same line on the item it `tracks:` (the task a

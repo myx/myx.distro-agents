@@ -167,11 +167,12 @@ BEGIN {
 
 	## The parts of the template's post, each the value of the slot of its name. All of them
 	## are filled before any is set, so none is filled from another, in whatever order they come.
+	## A part with a required slot empty has no value: the post's own marks then keep or refuse it.
 	for ( partKey in ttHas ) {
 		if ( index( partKey, "Parts" SUBSEP ) != 1 ) { continue ; }
-		partText = ttFill( ttBlock[partKey] ) ;
-		if ( ttRequiredEmpty > 0 ) { askFail( 4, "the slot {{" ttRequiredName "}} is required and has no value" ) ; }
-		partFilled[substr( partKey, length( "Parts" SUBSEP ) + 1 )] = partText ;
+		partName = substr( partKey, length( "Parts" SUBSEP ) + 1 ) ;
+		partFilled[partName] = ttFill( ttBlock[partKey] ) ;
+		if ( ttRequiredEmpty > 0 ) { partFilled[partName] = "" ; partMissing[partName] = ttRequiredName ; }
 	}
 	for ( partName in partFilled ) { askSlot[partName] = partFilled[partName] ; }
 
@@ -183,6 +184,8 @@ BEGIN {
 		askSlot["kind-title"] = ttFill( titleLine ) ;
 	}
 	body = ttFill( postText ) ;
+	## A part refused is named by the field it lacks, as the call gave the fields.
+	if ( ttRequiredName in partMissing ) { ttRequiredName = partMissing[ttRequiredName] ; }
 	if ( ttRequiredEmpty > 0 ) { askFail( 4, "the slot {{" ttRequiredName "}} is required and has no value" ) ; }
 	sub( /[ \t\n]+$/, "", body ) ;
 	print body ;

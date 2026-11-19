@@ -752,8 +752,8 @@ User steps are in [docs/installation.md](docs/installation.md).
   the HOME skills folder, or a link there into this workspace's own source tree. A skill linked in
   from another workspace is still asked as today.
 
-  The `--magic-team:permissions:workspace:` lines of its project.inf are read from the declares index,
-  like the `magic-team:` ones. They are the floor directives of the members this package carries. They
+  The `magic-team:permissions:workspace:` lines of its project.inf are read through the distro door: off the source project.inf as it stands,
+  or from the installed distro where the workspace has no source, like the other `magic-team:` ones. They are the floor directives of the members this package carries. They
   name magic-architect's WebFetch and WebSearch, and magic-tester's read of
   `source/**/{sh-test,test,tests}/**` and `.local/myx/**` in every tooling workspace. They name its
   write of `**` in `*-testbed` ones too. The same lines are read off the `project.inf` of each package
@@ -761,8 +761,11 @@ User steps are in [docs/installation.md](docs/installation.md).
   with neither holds them only through the registry of one that has them; `--make-agents-indices`
   says so.
 
-  The `--magic-team:` lines of member `*` are not read: they name the code floor
-  (`agentsPermissionFloorTools`). Then comes `grants.index`, every workspace's registry fully unrolled
+  The lines of member `*` in this package's project.inf are the team floor, and no registry row. Its
+  `allow-tool` ones are the floor's tools. `AgentsToolsPermissionOriginFloorTools` reads them from the
+  declares of the workspace `MDLT_ORIGIN` belongs to, through that door and nowhere else: no list of them is kept in
+  code. A floor that reads empty is refused, said, and no decision treats it as a floor naming no tool.
+  A member `*` row of any other package is a standing row of every member. Then comes `grants.index`, every workspace's registry fully unrolled
   per member, with the places' ceilings, deepest first. It carries the floor:
   - a write of `.local/temp/**` in every tooling workspace;
   - where agents are installed, a read of `source/**/{MAGIC.md,README.md}` and `source/**/docs/**.md`,
@@ -927,7 +930,10 @@ User view: [docs/use.md](docs/use.md#running-the-agents-console).
   <tokens>`. It holds the stored state beside the one derived at this call.
   The thread is `alive`, `gone` or `none`, measured at the call and stored
   nowhere. It ends with the tokens of the session (`sessions/<spawn
-  id>/tokens`, summed by `AgentsManagerSessionTokens.awk`). The last field of the `counters` row is the full name of the host, asked once
+  id>/tokens`, summed by `AgentsManagerSessionTokens.awk`). The last field of a `session` row is its phase, `active`, `ended` or
+  `closed`: the one rule of an active session, which `--active` and the console's lists both take as it is
+  (`AgentsManagerSessionRows.awk`). An `unknown-foreign` session, another host's, is `closed` at both doors, a live one too:
+  nothing can be done with it from this host. The last field of the `counters` row is the full name of the host, asked once
   and kept in `$HOME/.agents/magic-team/host-full-name`. Every other host
   field of the tooling stays the short name.
 - **`--manager-session-read --session-id <id> [--run]`** shows one session, or with `--run` one run of
@@ -1549,6 +1555,10 @@ User view: [docs/use.md](docs/use.md#running-the-agents-console).
 - **`--spawn-session`** resolves the routine once and spawns the executors, or the
   explicit members, async with `--dispatch-doc:create`. The first starts the
   session, and the rest join by its `SESSION_ID=`.
+  A coworking routine's session always holds a `magic-coordinator` instance as
+  its executor. Where the members started do not name it, it is seated first; in
+  a partitioned run each child seats its own once its member started it; a join
+  adds none.
   A `<type>-*` in the routine's executors or the caller's also partitions the
   run, as do two or more members the caller names. That gives one session per
   member under an agent-less parent, whose id is the `SESSION_ID=`. The parent carries `reports-to:` the caller's `<session>:<member>`, else
@@ -2257,8 +2267,8 @@ contracts are here.
   dispatcher asks a caller check for (`--magic-`, `--client-`, `--manager-`),
   that check itself is asked. It is asked for each member and for a call from
   no member's session. For the tools, it is the tool rows of the grants index,
-  which carry what the projects declare in `project.inf`, the `--magic-team:`
-  floor directives included. A family no check is asked for, and a tool no row names, is
+  which carry what the projects declare in `project.inf`, the `magic-team:`
+  floor directives of named members included. A family no check is asked for, and a tool no row names, is
   everyone's, gated per call. The same inputs give the same bytes: no date or time, members and files in byte
   order, operations in their help's order. It is rebuilt the way the grants index is. With no argument the op writes it, whatever it held, through a temp beside it
   and a rename. `--ensure` makes the grants index current. It rebuilds the
@@ -4235,12 +4245,15 @@ op's own option arm.
   (`AgentsToolsEscalationAskDirect`). A click under the post or a reply in its thread answers first, as it always
   did. A conversation several questions share is never read that way. An
   unnumbered reply there belongs to no question it cannot be told from. A thread several questions share is one the asker named. There a reply
-  starting another `Q<n>` answers that one. An unnumbered reply answers the
-  latest question above it while open. It answers none after that question is
-  closed (`resolved-epoch`). A reply that would answer one already closed, while another is still open, is
-  set aside. Every line of it and the lines under it print marked
-  `UNMATCHED-REPLY`. So its reader returns it `RETURNED`, rather than letting
-  another asker take it.
+  starting another `Q<n>` answers that one. An unnumbered reply answers a
+  question only where no other stood open in the thread when it came, posted
+  above it and not yet closed (`resolved-epoch`). Where several did, no question
+  takes it: the escalation reader gets its head marked `AMBIGUOUS-REPLY`, and
+  `AgentsToolsEscalationWhichAsk` posts one line in the thread, once a reply,
+  asking its author which ask it answers. A reply naming one, or a click on that
+  ask's own post, settles it. The human-owner's account always answers, after any
+  member addressee (`AgentsToolsAskAnsweringAccountsInto`), and the account that
+  posted a question never answers it.
   `AgentsToolsAskThreadOthers` feeds the others to `AgentsSlackThreadAnswers.awk`.
 - **`AgentsSlackThreadAnswers.awk`** skips a member's own send header first
   (`memberSendHeaderLength`, `AgentsDismissalMatch.awk`). It does so on the
@@ -4570,6 +4583,11 @@ op's own option arm.
   routine, oldest first. `--intern-op-permission-escalation-input-scan` reads
   every known workspace's, each ask read against its own (`MMDAPP` set in a
   subshell). The record also keeps `task-ref:` and `reason:`.
+- **The coordinator's work-duty scan lists the open asks addressed to magic-coordinator**, of any kind and any owner, under
+  `## open asks addressed to magic-coordinator`. It reads the kept `pending-replies` registry: the ask rows with status `reply-pending` and
+  blocked-on `reply_from_magic-coordinator`. It never walks the store. An ask's open and its close rebuild that registry
+  (`AgentsToolsRegistryRebuild pending-replies`), so a new ask is listed at once and the duty's wait wakes on it.
+  `AgentsWorkDutyCoordinatorScanCheck` holds it.
 - **`RequestPermission` itself takes `entries`** (`Tool,Tool:<place or
   folder>/**`, one `purpose:` line covering the entries above it). So it
   becomes one Permission set for the asking member's own task. No `to` is
@@ -4669,6 +4687,11 @@ Each instrument states what it proves and its red recipe in its own header. What
   rule this replaces is `mkdir $MMDAPP/.local/temp/suite-run.lock` around a run, and it is kept on both sides: a lock
   taken by hand shuts every lane, and so does the lock of a runner from before the lanes, which writes no
   `lanes: yes`. `AgentsRunTestsQueueCheck` section 9 and `AgentsRunTestsLeakCheck` section 8 hold all of it.
+- **Nobody sits on a wait.** A run that must wait for its turn, and was not given `--wait`, starts a run of itself
+  detached, which takes its very ticket over, so the line keeps its order. The call then names the ticket and the run
+  folder, and returns 75 with no result yet: `progress.txt` there fills as checks end, `summary.txt` comes once the run
+  has ended, and `runner.log` holds its own lines. A caller that needs the verdict in the same call, as the retest drain
+  does, passes `--wait`. `AgentsRunTestsNoWaitCheck` holds it.
 - **The retest queue is machine-wide too**, beside the suite queue at
   `$HOME/.agents/magic-team/retest-queue` (`AgentsTools.MemberRetest.include`), shared by the live tree
   and every scratch copy. A session that changed something asks for what to retest and goes on:
@@ -5187,3 +5210,81 @@ Standing decisions of the human-owner. Each holds until he changes it.
 - **That answer is read from `.local/agents/pending/answers/<session>.epoch`.** The ask store's own close writes it, and never lowers it. So a run that has its verdict and is applying is never ended mid-apply.
 - **`AgentsToolsPendingReplyAnswersSeed` writes those files once, from every answered record.** That covers the answers closed before the measure existed. It is a one-off at the change, never a schedule step. A session with no file reads as no answer, so its limit counts from review entry as before.
 - **A record's frontmatter field is read with `AgentsToolsFrontmatterKey`, never an inline awk.** Two inline copies of the session-id read stood in this package, and the SOLID gate reported them as a P4 duplicate. `AgentsTools.Grants.include` and `AgentsTools.InternOpPendingReplyClose.include` both call it now.
+
+## The scan prints the live SOLID gate's kept reading as `solid-delta`
+
+- **`--supervise-scan` reads the live SOLID gate's kept reading, and prints it as one `solid-delta` line a workspace.**
+- **The marker is `<workspace>/.local/agents/solid-gate.last`, four lines: `total`, `at`, `zero-at` and `package`.** It sits under `.local/agents`, beside the tooling's other `.last` measures.
+- **One writer and one reader carry it.** `AgentsToolsSolidGateMarkerWrite` writes the marker and `AgentsToolsSuperviseSolidDelta` reads it, both in `sh-lib/supervise/AgentsTools.SuperviseSolidDelta.include`.
+- **A later run that reads rows leaves `zero-at` standing.** The delta then spans every file the tree has moved since it last read 0.
+- **The gate keeps the reading only under `--record <workspace>`.** `sh-test/solid/AgentsSolidBreachScan.sh` then writes the marker, and exits 1 where it cannot.
+- **A scan never runs the gate.** It reads four lines and runs one `find`; the gate itself costs about 30 s over the package.
+- **A workspace with no marker prints no line at all.** An absent `solid-delta` is a gate that never kept a reading, never a clean tree.
+- **A tree that never read 0 prints `zero=none files=0`**, rather than naming every file it holds.
+- **A marker naming a folder this host cannot read prints its age with `-unread` after it.** That is never a zero, which would read as a clean tree.
+
+## A voice clip is read only where the local AI feature is installed
+
+- **A voice clip is read into text only where the local AI feature is installed on the machine.**
+- **The reader is `sh-lib/comms/AgentsTools.VoiceTranscript.include`.** It tests `${MDCI_FILES_PATH:-/usr/local/mdci-files}/local-ai/mdci-local-ai` with `-x`, at `:36-37`.
+- **The deploy puts that command at the tested path.** `setup.feature-local-ai` syncs `data/local-ai` to `/usr/local/mdci-files/local-ai`. Its `1.install` and `2.check` fragments read the same expression.
+- **The source tree holds the very file the deploy would place.** That is `mdci-packages-myx/setup.feature-local-ai/data/local-ai/mdci-local-ai`. A probe of it answers about the tree that holds it, never about a machine.
+- **Where the command is absent, the annotation reads `[voice: untranscribed]`.** One line on stderr names the feature.
+- **The untranscribed state is kept beside the clip.** It is at `.local/agents/schedule/voice/<member>/<file-id>`, so no later poll looks it up again.
+- **One clip is transcribed once.** Its words live in that same file, as the seen reactions live in `schedule/seen`.
+
+## A workspace's own namespaces (`--list-places`)
+
+- `DistroAgentsKnowledge --list-places` prints a fourth tab-separated column for a workspace place: its own namespaces, by the mdci convention. A place with none prints its three columns, as before, so readers of three columns keep working.
+- First choice: the namespaces whose `util.repository-<namespace>` project the workspace's `source` holds. That project is the namespace's whole maintainer.
+- Second guess, marked `~`: the namespace folders of its `util.workspace-*` projects, such as `~myx` for `myx/util.workspace-myx.devops`.
+- A workspace may hold several namespaces. ws-2017 (myx-work) holds ten while it is split.
+- A declared maintainer directive, read before both conventions, is planned in grooming: `inquiry-20261118T1749Z-grooming-namespace-maintainer-directive`.
+- Another namespace's tree is read in its own workspace, through `--get-place-path <workspace>/<relative>`. A copy of it in your own workspace is not its tree.
+
+## Stage origins for a check
+
+- A check runs on an origin made of real copies: `myx.distro-agents` plus its six sibling packages, `myx.distro-.local`, `myx.distro-system`, `myx.distro-source`, `myx.distro-deploy`, `myx.distro-remote` and `myx.common`, each by `cp -RL`. That is about 108 MB.
+- A package-only origin gives false results: a check that reaches a sibling fails on `No such file`, and with no config there is no remote.
+- A copy of the whole `source/myx` tree is 1.6 GB, and 49 such copies filled scratch to 62.9 GB. Never copy it whole.
+- An origin holds no link into a source tree. Check with `find <origin> -type l` before the run, and remove the origin once its run is read.
+- A pair runs red then green in one job, so it holds one ticket of the machine's test line at a time.
+
+## An ended run's next step goes by `--return-review`
+
+- A run that handed back has ended. Its next step, a gate verdict included, reaches it only by `--return-review <item> --message <step>`, which restarts it in its own conversation.
+- A message to the ended run's session thread is stored and read by nobody, whatever the send reports.
+- Before writing to a run, read its state: `--supervise-read <run>` shows `END outcome=...` once it has ended.
+
+## The spawned/ store's stamp
+
+For developers of this package. Every list kept against the spawned/ store keys on one stamp, so no reader walks the store to learn whether it changed.
+
+- **The stamp is spawned/ itself: its mtime.** `AgentsSpawnedStoreStampInto` (`sh-lib/session/AgentsTools.StartedRecords.include`) reads it with one stat and no walk. No other file holds it.
+- **Two store functions move it, and nothing else writes a record.** Both live in `sh-lib/session/AgentsTools.SessionStore.include`, and each touches spawned/ only after its rename or `rm` succeeded.
+  - `AgentsSpawnRecordWrite <run|record path> [folder] [text]`: every create, rewrite and close, the record's whole text on stdin, in one rename, mode 644. A run id writes `spawned/<folder, else the run>/<run>.spawn.md`. A path must lie in a spawned/ store. Given a text, the record is replaced only while it still holds that text.
+  - `AgentsSpawnRecordRemove <folder>`: every removal of a folder of spawned/, with its records.
+- **What the stamp means.** It changes after the tooling creates, rewrites, closes or removes any record.
+  - A reader holding an equal stamp may conclude that no tooling write happened since it took its key, and nothing more.
+  - False positives are allowed: a moved stamp may mean nothing this reader cares about changed.
+- **How a reader keeps a key.**
+  - Compare by inequality only, never by order or `-nt`.
+  - An empty or unreadable stamp means walk.
+  - Read the clock first, then the stamp, and keep the key only where the stamp is older than that clock. Mtime has a 1 s resolution, so a write later in the stamp's own second leaves it as it was.
+- **The readers.**
+  - `AgentsToolsSpawnedSessionRecords`: `records.kept` of the session, first line `stamp:<stamp>`.
+  - `AgentsToolsSpawnedStartedRecords`: `schedule/started.records`, its TTL as well.
+  - `AgentsToolsCommsActivityPass`: a variable of the comms thread, for its idle shortcut.
+  - The spawned-sessions registry: `AgentsToolsRegistrySpawnedSessionsRebuild` sets its mtime to the stamp it was built against, in UTC. A stamp not kept dates it one second earlier, which no later stamp equals. `AgentsToolsSpawnedRegistryFile` rebuilds it where the two differ.
+- **The safety net.** `AgentsToolsAdvanceSpawnHousekeeping` checks every record in its pass over the store. A record newer than the stamp is reported as a missed write, and the stamp is then touched.
+- **The checks.** `sh-test/session/AgentsSpawnedStoreStampCheck.test.sh` fails on any `>`, `>>`, `mv`, `cp` or `rm` onto a record or a folder of spawned/ outside the two functions, and rigs the readers. `AgentsHotPathWalksCheck` lists no stamp walk.
+- **Gotcha: the static check knows a record parameter only by its function's comment.** Name such a parameter a spawn record, run record, parent record or tracking file in the `## ` comment of the function line.
+
+## A live team-data thread shows parent 1, and the store lock is held only for a pass
+
+- **A `--intern-team-data-commit --run` process has parent 1 by construction.** `AgentsToolsOnDemandThreadStart` forks the thread in a background subshell and returns without waiting (`sh-lib/common/AgentsTools.OnDemandThread.include:117`). The thread then takes `/dev/null` as its input and a log of its own (`sh-lib/team-data/AgentsTools.InternTeamDataCommit.include:80`). The shell that started it ends, so the thread is reparented to 1.
+- **`thread.lock` and `store.lock` answer different questions.** `thread.lock` holds `<pid> <start>` of the living thread for its whole life, so one held for half an hour is normal. `store.lock` is the git lock, taken for one commit pass and given back at its end (`sh-lib/team-data/AgentsTools.TeamDataCommit.include:85`, `:90`, `:134`, `:139`).
+- **Two parent-1 threads are not a wedge, and one store gets one thread.** Each thread holds its own store's `request.fifo` and `thread.log` open, so its descriptors name the store it serves. Read them with `lsof -a -p <pid> | grep team-data-commit` before calling two threads a conflict: they are usually two stores.
+- **A long-lived parent-1 thread is not a wedge on its own.** The thread ends by itself once no request came for `MDAT_TEAM_DATA_COMMIT_IDLE_SECONDS` (60), so one alive for many minutes is serving requests or is stuck. `ps` alone cannot tell the two apart. Read `store.lock` beside `ps`.
+- **The fault is a `store.lock` whose holder still answers `ps` after minutes and is never seen absent.** A healthy pair leaves the lock absent between passes.
+- **Measured 2026-11-19, 15:42 to 15:53.** Two parent-1 threads were alive, started 15:03 and 15:12. `lsof` showed one serving this workspace's store and the other another workspace's. On this workspace's store, `store.lock` existed at 15:42 with mtime 15:42, and its holder was not read then. It was absent at six samples five seconds apart from 15:43. At 15:46 it held the 95028 thread at three samples four seconds apart. `thread.lock` held 95028 without a break throughout.

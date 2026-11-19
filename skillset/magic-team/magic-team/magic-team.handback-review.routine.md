@@ -5,6 +5,7 @@ maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 requires-session-kind: standalone
 input-scan-def: none
 review-by: inherit
+deliverables: a verdict on the item in review, which ends or continues its work
 runs-at: none
 ---
 # magic-team.handback-review.routine — the actual procedure

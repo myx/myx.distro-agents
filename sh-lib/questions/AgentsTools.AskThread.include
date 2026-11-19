@@ -43,6 +43,17 @@ AgentsToolsAskThreadStanding(){ ## channel, question ts
 	printf '%s\t%s\n' "$standTag" "$standTotal"
 }
 
+## The accounts that answer an ask: the ones it was addressed to, then the human-owner's own, whose direct word wins at once (magic-team.basic.md).
+AgentsToolsAskAnsweringAccountsInto(){ ## variable, the ask's addressees
+	local answeringOwner=""
+	type AgentsSlackIdentityId > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/slack/AgentsTools.SlackIdentities.include"
+	answeringOwner="$( AgentsSlackIdentityId human-owner 2> /dev/null )" || answeringOwner=""
+	case " $2 " in
+		*" ${answeringOwner:-$2} "*) printf -v "$1" '%s' "$2" ;;
+		*) printf -v "$1" '%s' "$2${2:+ }$answeringOwner" ;;
+	esac
+}
+
 ## Prints, space-separated, "<question ts>/<state>" for every OTHER question the thread of
 ## the question at <channel>:<question ts> has held. <state> is `open` while its record
 ## waits, the epoch second it was closed at, or `closed` for a record closed before that

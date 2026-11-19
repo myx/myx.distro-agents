@@ -94,7 +94,7 @@ rigFeedR2(){ ## count -- that many lines of the tester, a second apart
 rigLogR3(){ rigRow log "$rigR3" keeper-myx 'starting keeper-myx' ; rigRow log "$rigR3" keeper-myx '  -> tool: read the index — Read' ; rigRow log "$rigR3" keeper-myx '  answering: done.' ; }
 {
 	rigSessionS1 ; rigRunS1 ; rigRunR2 ; rigRunR3 ; rigRunR4
-	rigRow session "$rigS2" - finished 2026-10-11_14:28_+0000 2026-10-11_14:51_+0000 1 finished=1
+	rigRow session "$rigS2" - finished 2026-10-11_14:28_+0000 2026-10-11_14:51_+0000 1 finished=1 - - - '' - - - closed
 	rigRow run "$rigS2" "$rigS2" magic-devops spawn-succeeded no-process finished 2026-10-11_14:28_+0000 2026-10-11_14:51_+0000 rig-host ws-rig -
 	rigRow counters 1 0 1 1 3 0.42
 } > "$rigF/rows"
@@ -103,7 +103,7 @@ rigLogR3(){ rigRow log "$rigR3" keeper-myx 'starting keeper-myx' ; rigRow log "$
 { rigSessionS1 ; rigDispatchS1 ; rigRunR2 ; rigStoreR2 ; } > "$rigF/rows.--manager-session-read --session-id $rigR2 --run"
 { rigSessionS1 ; rigDispatchS1 ; rigRunR3 ; rigStoreR3 ; } > "$rigF/rows.--manager-session-read --session-id $rigR3 --run"
 {
-	rigRow session "$rigS2" - finished 2026-10-11_14:28_+0000 2026-10-11_14:51_+0000 1 finished=1
+	rigRow session "$rigS2" - finished 2026-10-11_14:28_+0000 2026-10-11_14:51_+0000 1 finished=1 - - - '' - - - closed
 	rigRow dispatch "$rigS2" no-record - - - - - -
 	rigRow tokens "$rigS2" 90 0 0 10 1 0 final 0
 	rigRow run "$rigS2" "$rigS2" magic-devops spawn-succeeded no-process finished 2026-10-11_14:28_+0000 2026-10-11_14:51_+0000 rig-host ws-rig -

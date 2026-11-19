@@ -249,7 +249,7 @@ AgentsToolsSpawnProxyShellNote(){ ## -- keeps `<pid> <start>` of the shell it is
 	return 0
 }
 AgentsToolsSpawnProxyRunRecord(){ ## pid of the console process just started
-	local runFile="${MDAT_SPAWN_SANDBOX_ROOT:-}/${MDAT_SPAWN_SESSION_ID:-}.spawn.md" runStart runOps runBody runSeen runNow runTries=0
+	local runFile="${MDAT_SPAWN_SANDBOX_ROOT:-}/${MDAT_SPAWN_SESSION_ID:-}.spawn.md" runStart runOps runBody runSeen runTries=0
 	[ -n "${MDAT_SPAWN_SANDBOX_ROOT:-}" ] && [ -n "${MDAT_SPAWN_SESSION_ID:-}" ] && [ -f "$runFile" ] || return 0
 	case "${1:-}" in ''|*[!0123456789]*) return 0 ;; esac
 	type AgentsToolsRunProcessStart > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunProcesses.include"
@@ -262,19 +262,17 @@ AgentsToolsSpawnProxyRunRecord(){ ## pid of the console process just started
 		[ -z "$runStart" ] || printf 'upsert\trun-process\t%s %s\n' "$1" "$runStart"
 		[ -z "${agentsSpawnProxyShellIs:-}" ] || printf 'upsert\tsupervisor-process\t%s\n' "$agentsSpawnProxyShellIs"
 	} > "$runOps" 2> /dev/null || return 0
+	type AgentsSpawnRecordWrite > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
 	while [ "$runTries" -lt 3 ] ; do
 		runTries=$(( runTries + 1 ))
 		runSeen="" ; IFS= read -r -d '' runSeen < "$runFile" 2> /dev/null || :
 		[ -n "$runSeen" ] || break
 		runBody="$( printf '%s' "$runSeen" | LC_ALL=C awk -v opsFile="$runOps" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsBoardItemHeaderOpsApply.awk" 2> /dev/null )" || runBody=""
 		[ -n "$runBody" ] || break
-		printf '%s\n' "$runBody" 2> /dev/null > "$runFile.run.$$" || break
-		runNow="" ; IFS= read -r -d '' runNow < "$runFile" 2> /dev/null || :
-		[ "$runNow" = "$runSeen" ] || continue
-		mv -f "$runFile.run.$$" "$runFile" 2> /dev/null
-		break
+		## Moved in only where the record is still what was read: another process may be writing it too.
+		printf '%s\n' "$runBody" | AgentsSpawnRecordWrite "$runFile" "" "$runSeen" && break
 	done
-	rm -f "$runOps" "$runFile.run.$$"
+	rm -f "$runOps"
 	return 0
 }
 
@@ -288,7 +286,7 @@ AgentsToolsSpawnProxyRunRecord(){ ## pid of the console process just started
 ## does whoever comes after a closer that was ended half way; never a record cut short.
 ## rc 0 closed; rc 1 where this try could not close it, the record as it was.
 AgentsToolsSpawnProxyCloseSandboxOnce(){ ## tracking file, outcome, exit code, end reason (optional)
-	local sandboxFile="$1" sandboxOutcome="$2" sandboxExit="$3" sandboxEndReason="${4:-}" sandboxOps sandboxBody sandboxAside sandboxReason="" sandboxRestarts="" sandboxRefused=""
+	local sandboxFile="$1" sandboxOutcome="$2" sandboxExit="$3" sandboxEndReason="${4:-}" sandboxOps sandboxBody sandboxReason="" sandboxRestarts="" sandboxRefused=""
 	[ -f "$sandboxFile" ] || return 1
 	## A RECORD THAT HAS SETTLED IS LEFT AS IT IS (S6.26): a close ends a run that still runs. The accept of a
 	## review settles its run, and that run's own supervising shell closes it again a moment later, with the
@@ -359,11 +357,9 @@ AgentsToolsSpawnProxyCloseSandboxOnce(){ ## tracking file, outcome, exit code, e
 	sandboxBody="$( LC_ALL=C awk -v opsFile="$sandboxOps" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsBoardItemHeaderOpsApply.awk" < "$sandboxFile" )" || sandboxBody=""
 	rm -f "$sandboxOps"
 	[ -n "$sandboxBody" ] || return 1
-	## Aside and then one rename, with the mode the record has: the name by mktemp, since its
-	## supervising shell and an advance pass may close one record at the same moment.
-	sandboxAside="$( mktemp "$sandboxFile.close.XXXXXX" 2> /dev/null )" || return 1
-	{ cp -p "$sandboxFile" "$sandboxAside" && printf '%s\n' "$sandboxBody" > "$sandboxAside" && mv -f "$sandboxAside" "$sandboxFile" ; } 2> /dev/null \
-		|| { rm -f "$sandboxAside" ; return 1 ; }
+	## One rename by the store's own writer, its temp named by mktemp: its supervising shell and an advance pass may close one record at once.
+	type AgentsSpawnRecordWrite > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+	printf '%s\n' "$sandboxBody" | AgentsSpawnRecordWrite "$sandboxFile" || return 1
 	## A RUN STOPPED ON THE PROVIDER'S USAGE LIMIT is flagged in its own store, from the same
 	## reason the record keeps: the one wording the session list, the Dashboard and the end
 	## notice show, with the date the provider said it reopens. ONLY A REFUSAL THE HARNESS KEPT IS

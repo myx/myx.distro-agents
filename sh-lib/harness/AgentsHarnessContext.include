@@ -231,6 +231,13 @@ AgentsHarnessContextToolMeta(){ ## tool name, call id, result, preset outcome
 		[ -n "${harnessToolRunMs:-}" ] || { IFS= read -r harnessToolRunMs < "$harnessScratch/tool.run.ms" ; } 2> /dev/null || :
 		rm -f "$harnessScratch/tool.run.ms" 2> /dev/null || :
 	fi
+	## A WRAPPED TOOL'S SPAN, under its call's id (AgentsHarnessTaskBody): taken for the call it names only, and taken away either way.
+	if [ -n "${harnessScratch:-}" ] && [ -f "$harnessScratch/tool.run.ms.call" ] ; then
+		local metaCallId="" metaCallMs=""
+		{ read -r metaCallId metaCallMs < "$harnessScratch/tool.run.ms.call" ; } 2> /dev/null || :
+		[ -n "${harnessToolRunMs:-}" ] || [ "$metaCallId" != "$2" ] || harnessToolRunMs="$metaCallMs"
+		rm -f "$harnessScratch/tool.run.ms.call" 2> /dev/null || :
+	fi
 	## MACHINERY TIME (the owner's pace ruling): what the tooling spent around the call, which is the call's whole time less what the
 	## call itself ran -- the Bash child's run (AgentsHarnessToolsBash sets harnessToolRunMs around its wait), the Wait's own waiting
 	## (AgentsHarnessWait sets it from the seconds waited). A tool that sets nothing is all machinery. The pace gate reads mach_ms.

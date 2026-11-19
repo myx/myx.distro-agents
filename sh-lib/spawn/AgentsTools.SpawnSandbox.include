@@ -150,14 +150,14 @@ AgentsToolsHousekeepingReport(){ ## member, lines
 
 ## THE CONTROL THREADS OF TEST RIGS LEFT INSIDE SPAWN SANDBOXES, `<sandbox><TAB><pid><TAB><began><TAB><its pid file inside the sandbox>` a line,
 ## from every `output/**/control/pid` there whose first word is a number. The walk of the spawn store to depth 14 ran minutes under load, so
-## its list is kept in schedule/supervise.rig-pids and reread within MDAT_SUPERVISE_RIG_WALK_SECONDS (900, 0 for every call). A kept list
-## delays a new rig's row by at most that bound, and its caller still tests the pid and the record.
+## its list is kept in schedule/supervise.rig-pids and reread within MDAT_SUPERVISE_RIG_WALK_SECONDS (900, 0 for a walk in every call). A list past
+## that bound is renewed by one walk in the background while the call answers from the list it has; its caller still tests the pid and the record.
 AgentsSessionRigControlRows(){
 	local rigKept="${MMDAPP:-/nonexistent}/.local/agents/schedule/supervise.rig-pids" rigStore=""
 	[ -n "${MMDAPP:-}" ] || return 0
 	type AgentsSpawnedStoreDirInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
 	AgentsSpawnedStoreDirInto rigStore "$MMDAPP" || return 0
-	local rigTtl="${MDAT_SUPERVISE_RIG_WALK_SECONDS:-900}" rigAt=0 rigFile rigPid rigRest rigSandbox
+	local rigTtl="${MDAT_SUPERVISE_RIG_WALK_SECONDS:-900}" rigAt=0 rigFile rigPid rigRest rigSandbox rigWalker="" rigWalk=yes
 	case "$rigTtl" in ''|*[!0123456789]*) rigTtl=900 ;; esac
 	if [ "$rigTtl" -gt 0 ] && [ -f "$rigKept" ] ; then
 		rigAt="$( stat -f %m "$rigKept" 2> /dev/null || stat -c %Y "$rigKept" 2> /dev/null )" || rigAt=0
@@ -168,8 +168,34 @@ AgentsSessionRigControlRows(){
 		## The kept list is replaced after every walk, whatever find's status: in a store that changes while it is walked, find
 		## nearly always meets a file that went away and exits 1, and a list kept only on success was never renewed (MEL's was a day
 		## old, so every scan walked for minutes). A list short of a vanished path is safe: the caller tests each pid and record.
-		find "$MMDAPP/.local/agents/spawned" -mindepth 6 -maxdepth 14 \( -name .git -o -name node_modules \) -prune -o -path '*/output/*' -path '*/control/pid' -type f -print 2> /dev/null > "$rigKept.tmp"
-		mv -f "$rigKept.tmp" "$rigKept" 2> /dev/null
+		## ONE WALK, two ways to run it: with a TTL it runs in the background, one at a time (rig-pids.walk holds the walker's pid, and a
+		## lock whose walker is gone is taken over); with TTL 0 it runs at once, with no lock, and this call waits for it.
+		if [ "$rigTtl" -gt 0 ] ; then
+			{ read -r rigWalker < "$rigKept.walk/pid" ; } 2> /dev/null || rigWalker=""
+			case "$rigWalker" in ''|*[!0123456789]*) ;; *) kill -0 "$rigWalker" 2> /dev/null || rm -rf "$rigKept.walk" ;; esac
+			mkdir "$rigKept.walk" 2> /dev/null || rigWalk=""
+		fi
+		if [ -n "$rigWalk" ] ; then
+			## ONLY A SANDBOX THAT CAN HOLD A RIG NOT YET SEEN IS WALKED: one with a started run, one with a record written since a TTL before the last
+			## walk's start, one the kept list names, and one with no record. A finished sandbox past that was walked whole after it ended. The kept
+			## list carries its walk's start as its time, so the next walk reads that bound from it.
+			( rigStart="$( date '+%Y%m%d%H%M.%S' )"
+				type AgentsToolsSpawnedRecordRows > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include"
+				rigWalkNames=()
+				rigNames="$( find "$MMDAPP/.local/agents/spawned" -mindepth 1 -maxdepth 1 -type d 2> /dev/null )"
+				while IFS= read -r rigOne ; do
+					[ -z "$rigOne" ] || rigWalkNames+=( "$rigOne" )
+				done <<< "$( AgentsToolsSpawnedRecordRows "$MMDAPP" status | RIG_NAMES="$rigNames" RIG_KEPT="$rigKept" RIG_STORE="$rigStore/" \
+					LC_ALL=C awk -F '\t' -v since="$(( rigAt - rigTtl ))" '
+					BEGIN { while ( ( getline keptLine < ENVIRON["RIG_KEPT"] ) > 0 ) if ( index( keptLine, ENVIRON["RIG_STORE"] ) == 1 ) { keptName = substr( keptLine, length( ENVIRON["RIG_STORE"] ) + 1 ) ; sub( /\/.*/, "", keptName ) ; listed[keptName] = 1 ; } }
+					{ recorded[$1] = 1 ; if ( $4 == "spawn-started" || $3 + 0 >= since + 0 ) open[$1] = 1 ; }
+					END { count = split( ENVIRON["RIG_NAMES"], dirName, "\n" ) ; for ( at = 1 ; at <= count ; at++ ) { sub( /.*\//, "", dirName[at] ) ; if ( dirName[at] != "" && ( !( dirName[at] in recorded ) || ( dirName[at] in open ) || ( dirName[at] in listed ) ) ) print dirName[at] ; } }' )"
+				: > "$rigKept.tmp"
+				[ ${#rigWalkNames[@]} -eq 0 ] || ( cd "$rigStore" && find "${rigWalkNames[@]}" -mindepth 5 -maxdepth 13 \( -name .git -o -name node_modules \) -prune -o -path '*/output/*' -path '*/control/pid' -type f -print 2> /dev/null ) \
+					| RIG_STORE="$rigStore/" LC_ALL=C awk '{ print ENVIRON["RIG_STORE"] $0 ; }' > "$rigKept.tmp"
+				mv -f "$rigKept.tmp" "$rigKept" ; touch -t "$rigStart" "$rigKept" ; [ "$rigTtl" -eq 0 ] || rm -rf "$rigKept.walk" ) > /dev/null 2>&1 < /dev/null &
+			if [ "$rigTtl" -eq 0 ] ; then wait "$!" 2> /dev/null || : ; else printf '%s\n' "$!" > "$rigKept.walk/pid" 2> /dev/null ; fi
+		fi
 	fi
 	[ -f "$rigKept" ] || return 0
 	while IFS= read -r rigFile ; do

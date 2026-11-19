@@ -9,6 +9,7 @@ Read this for board states, the item lifecycle, garbage collection and the board
 
 - Who actually reads/writes the board
 - States
+- `condition` and `recheck-date`
 - General item lifecycle
 - GC (garbage collection)
 - Process-Flow, the board dynamics
@@ -53,6 +54,20 @@ Every move into `board-blocked` carries an `execution-receipt`.
 **Uncommitted work never blocks.** Waiting for the human-owner's commit is a `board-blocked` reason only once the whole project is finished and verified.
 
 **A Slack-originated item's message gets its outcome reaction** once the item resolves: ✅ for a positive outcome, a fitting negative emoji otherwise. The resolving step writes a clear resolution. `magic-coordinator`'s `check-pending-comms-actions` procedure reacts later.
+
+## `condition` and `recheck-date`
+
+- `condition:` states what an item waits for. Its first word says whether the wait stands:
+  - `unmet: <what it waits for>` — the wait stands.
+  - `met: <date-time>: <what settled it>` — the wait is over.
+  - `none: <why>` — the item waits for nothing.
+- Any other first word reads as `unmet`. Prose that sounds settled still holds the item.
+- `recheck-date` is always when the next iteration is due. Whether that iteration asks again depends on the routine, the document type and the member's instructions.
+- On a `board-pending` item, a `recheck-date` says when to re-check its `unmet` condition, and nothing else.
+- A `recheck-date` not yet due holds the start of an approved `board-pending` item only beside an `unmet` condition. Beside `met`, `none` or no condition, the start pass ignores it. It ignores a date it cannot read too.
+- An `unmet` condition with no `recheck-date` holds no start. The date is the hold, and the condition says whether the date stands.
+- A hold on a `board-pending` item writes both: the `unmet` condition and the date.
+- A write into `board-pending` that sets a `recheck-date` beside no `unmet` condition is refused. A date the item carries there is dropped.
 
 ## General item lifecycle
 
