@@ -277,7 +277,10 @@ AgentsToolsDispatcherRecord(){ ## the operation as it was called, its arguments.
 ## a record writes), the stretch's start as DISPATCH_SINCE_MINUTES or as DISPATCH_SINCE with DISPATCH_ZONE, and DISPATCH_UNTIL_MINUTES.
 AgentsToolsDispatcherHistory(){
 	local historyRecords historyLib="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib"
-	historyRecords="$( find "$MMDAPP/.local/agents/spawned" -mindepth 2 -maxdepth 2 -type f -name '*.spawn.md' 2> /dev/null | LC_ALL=C sort )"
+	## THE RECORDS COME FROM A GLOB, NEVER FROM A WALK: one level of sandboxes is the shell's own listing, so no `find` process
+	## reads the store. Measured 2026-11-20 over three alternating rounds at load 123: the glob 1012, 634 and 576 ms, the walk
+	## 4203, 1657 and 1270 ms for the same records, and the two lists are identical.
+	historyRecords="$( printf '%s\n' "$MMDAPP"/.local/agents/spawned/*/*.spawn.md 2> /dev/null | LC_ALL=C grep -v '[*]' | LC_ALL=C sort -u )"
 	[ -n "$historyRecords" ] || return 1
 	printf '%s\n' "$historyRecords" | LC_ALL=C awk -f "$historyLib/manager/AgentsManagerDateMinutes.awk" -f "$historyLib/schedule/AgentsDispatcherCompleted.awk"
 }

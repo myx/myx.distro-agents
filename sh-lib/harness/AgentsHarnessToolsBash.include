@@ -102,7 +102,11 @@ AgentsHarnessProcessPost(){ ## session, handle, thread, address to, [--again], s
 ## the sentence, the output lines -- sent on fd 3 to a sender that posts them one at a time and in order, so a slow send moves no due time.
 AgentsHarnessProcessReporter(){ ## session, handle, wrapper pid, thread, address to
 	local repSession="$1" repDir="${MMDAPP:-/nonexistent}/.local/agents/sessions/$1/processes" repHandle="$2" repPid="$3" repThread="$4" repCaller="$5"
-	local repAlive="${MDAT_PROCESS_ALIVE_SECONDS:-600}" repIdle="${MDAT_PROCESS_INPUT_IDLE_SECONDS:-30}" repPoll="${MDAT_PROCESS_POLL_SECONDS:-1}"
+	local repAlive="${MDAT_PROCESS_ALIVE_SECONDS:-600}" repIdle="${MDAT_PROCESS_INPUT_IDLE_SECONDS:-30}" repPoll="${MDAT_PROCESS_POLL_SECONDS:-5}"
+	## A REPORTER'S NAP FORKS NOTHING (owner 2026-11-20): it polled once a second with a `sleep` (and more) in every background job. It now
+	## polls every MDAT_PROCESS_POLL_SECONDS (default 5) and naps with the builtin `read -t` on a fifo nobody writes.
+	local repNap="$repDir/$repHandle.nap"
+	[ -p "$repNap" ] || mkfifo "$repNap" 2> /dev/null || :
 	local repNow repStart repGrew repPosted repSize="" repAsked="" repBytes repStatus repLines repEnd="" repFile repLastByte repPrompt
 	local repSendTo repSendAgain repSendSentence repSendLines repSendPid
 	set +e
@@ -117,7 +121,7 @@ AgentsHarnessProcessReporter(){ ## session, handle, wrapper pid, thread, address
 			repSendPid=$!
 			while kill -0 "$repSendPid" 2> /dev/null ; do
 				[ ! -f "$repDir/$repHandle.closed" ] || break
-				sleep "$repPoll"
+				{ if [ -p "$repNap" ] ; then read -r -t "$repPoll" <> "$repNap" 2> /dev/null || : ; else sleep "$repPoll" ; fi ; }
 			done
 			if kill -0 "$repSendPid" 2> /dev/null ; then kill -TERM -- -"$repSendPid" 2> /dev/null ; fi
 			wait "$repSendPid"
@@ -128,12 +132,12 @@ AgentsHarnessProcessReporter(){ ## session, handle, wrapper pid, thread, address
 		[ ! -f "$repDir/$repHandle.closed" ] || { exec 3>&- ; return 0 ; }
 		if [ -f "$repDir/$repHandle.status" ] ; then repEnd=status ; break ; fi
 		if ! kill -0 "$repPid" 2> /dev/null ; then
-			sleep "$repPoll"
+			{ if [ -p "$repNap" ] ; then read -r -t "$repPoll" <> "$repNap" 2> /dev/null || : ; else sleep "$repPoll" ; fi ; }
 			[ ! -f "$repDir/$repHandle.closed" ] || { exec 3>&- ; return 0 ; }
 			if [ -f "$repDir/$repHandle.status" ] ; then repEnd=status ; else repEnd=gone ; fi
 			break
 		fi
-		sleep "$repPoll"
+		{ if [ -p "$repNap" ] ; then read -r -t "$repPoll" <> "$repNap" 2> /dev/null || : ; else sleep "$repPoll" ; fi ; }
 		## a stop made during the sleep ends the reporter before it posts
 		[ ! -f "$repDir/$repHandle.closed" ] || { exec 3>&- ; return 0 ; }
 		repNow="$( date +%s )"
@@ -702,7 +706,10 @@ AgentsHarnessToolBashRun(){ ## cwd, command, timeout, detach, handle, stop, offs
 		## with it. (Signalling the one pid killed the wrapper and left its children writing.)
 		## The wrapper is disowned so bash never reports its going on this call's own streams.
 		set -m
+		## A forked subshell inherits the fds bash saved at 10 and above for a redirection, which an exec would close: one is the write end
+		## of the caller's capture pipe, so the call could not return while the process lived. The wrapper and the reporter close them first.
 		( set +m
+		  exec 10>&- 11>&- 12>&- 13>&- 14>&- 15>&- 16>&- 17>&- 18>&- 19>&-
 		  processStatus=0
 		  if [ -n "$toolStdin" ] ; then
 			( cd "$toolCwd" && set -e && eval "$toolCommand" ) < "$processDir/$toolHandle.in" > "$processDir/$toolHandle.out" 2> "$processDir/$toolHandle.err" &
@@ -725,7 +732,7 @@ AgentsHarnessToolBashRun(){ ## cwd, command, timeout, detach, handle, stop, offs
 		processReportThread="${processReportThread%% *}"
 		rm -f "$processDir/$toolHandle.report" "$processDir/$toolHandle.report.prose"
 		if [ -n "$processReportThread" ] ; then
-			( AgentsHarnessProcessReporter "$processSession" "$toolHandle" "$processPid" "$processReportThread" "$( AgentsHarnessCallerMember 2> /dev/null )" ) > /dev/null 2>&1 < /dev/null &
+			( exec 10>&- 11>&- 12>&- 13>&- 14>&- 15>&- 16>&- 17>&- 18>&- 19>&- ; AgentsHarnessProcessReporter "$processSession" "$toolHandle" "$processPid" "$processReportThread" "$( AgentsHarnessCallerMember 2> /dev/null )" ) > /dev/null 2>&1 < /dev/null &
 			disown "$!" 2> /dev/null || :
 			processReportNote="Its progress and its end are posted as notices into the session's event-track thread."
 		else

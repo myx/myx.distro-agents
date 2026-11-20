@@ -994,7 +994,7 @@ case "$1" in
 			printf '%s\n' "$MDSC_CMD --intern-session-control -- the control thread of one coworking session: a shell process of the tooling that watches the runs of the session and keeps its state. No agent: a tick reads local files and the process list, and nothing else." >&2
 			printf '%s\n' "" >&2
 			printf '%s\n' "  $MDSC_CMD --intern-session-control --run --session-id <id>" >&2
-			printf '%s\n' "      The thread: takes the lock of the session, ticks every SESSION_CONTROL_TICK_SECONDS (default 5), and ends by itself only once the session is finished." >&2
+			printf '%s\n' "      The thread: takes the lock of the session, ticks every SESSION_CONTROL_TICK_SECONDS (default 15), and ends by itself only once the session is finished." >&2
 			printf '%s\n' "      A second start for the same session is refused while the first lives. TERM ends it in order; a hangup, an interrupt and the end of whatever started it do not." >&2
 			printf '%s\n' "" >&2
 			printf '%s\n' "  $MDSC_CMD --intern-session-control --one --session-id <id>" >&2
@@ -1156,7 +1156,7 @@ case "$1" in
 
 		local controlTick
 		type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/settings/AgentsTools.ConfigOption.include"
-		controlTick="$( AgentsToolsConfigOption magic-team --select-default SESSION_CONTROL_TICK_SECONDS 5 2> /dev/null )" || controlTick=5
+		controlTick="$( AgentsToolsConfigOption magic-team --select-default SESSION_CONTROL_TICK_SECONDS 15 2> /dev/null )" || controlTick=15
 		case "$controlTick" in ''|*[!0123456789]*) controlTick=5 ;; esac
 		[ "$controlTick" -gt 0 ] || controlTick=5
 

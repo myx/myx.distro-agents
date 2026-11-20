@@ -232,12 +232,14 @@ rigAssert "a member folder is read by the floor"           "$( rigHolds magic-te
 rigAssert "a keeper's own domain is standing rwe"          "$( rigHolds keeper-myx Edit "$rigWs/KEEP/a/b.txt" ):$( rigHolds keeper-myx Execute "$rigWs/KEEP/run.sh" ):$( rigHolds keeper-myx Read "$rigWs/KEEP/.env" )" "HOLDS standing:HOLDS standing:HOLDS standing"
 rigAssert "nobody else's domain is held by it"             "$( rigHolds keeper-myx Write "$rigWs/DEV/x" )" "NOT-HOLDS"
 rigAssert "a .. out of a domain is never covered"          "$( rigHolds keeper-myx Write "$rigWs/KEEP/../ELSE/x" )" "NOT-HOLDS"
-rigAssert "a standing tool row holds its prefix"           "$( rigHolds keeper-myx WebFetch https://docs.rig.example/a/b )" "HOLDS standing"
-## Rows are machine-wide (every workspace HOME's pointers name), and magic-architect holds any
-## URL by its bare row: the prefix row is a keeper's, read off the rig's own rows alone, under a rig HOME.
-rigAssert "and not beyond it"                              "$( HOME="$rigTmp" rigHolds keeper-myx WebFetch https://other.rig.example/ )" "NOT-HOLDS"
+## WebFetch is a floor tool: the origin's project.inf declares the wildcard row
+## `magic-team:permissions:workspace:*:allow-tool:*:WebFetch`, so every member holds it for every
+## target, and the floor answers ahead of any standing WebFetch row. What a standing row alone gives
+## is measured on WebSearch, which no floor row grants (the bare row below).
+rigAssert "a floor tool is held at its every target"       "$( rigHolds keeper-myx WebFetch https://docs.rig.example/a/b )" "HOLDS floor"
+rigAssert "and past a standing row's own prefix"           "$( HOME="$rigTmp" rigHolds keeper-myx WebFetch https://other.rig.example/ )" "HOLDS floor"
 rigAssert "a bare tool row holds any target"               "$( rigHolds magic-architect WebSearch 'any query' )" "HOLDS standing"
-rigAssert "another member does not hold WebFetch"          "$( rigHolds magic-developer WebFetch https://docs.rig.example/a )" "NOT-HOLDS"
+rigAssert "another member holds it, and nothing wider"     "$( rigHolds magic-developer WebFetch https://docs.rig.example/a ):$( rigHolds magic-developer WebSearch 'any query' )" "HOLDS floor:NOT-HOLDS"
 rigAssert "cred starts with no member"                     "$( rigHolds magic-architect cred prod-db ):$( rigHolds magic-coordinator spend 100usd )" "NOT-HOLDS:NOT-HOLDS"
 rigAssert "the human-owner holds everything"               "$( rigHolds human-owner cred prod-db ):$( rigHolds URIGOWNER Write /anywhere )" "HOLDS human-owner:HOLDS human-owner"
 rigHelperScript AgentsTools.InternOpPermission.include AgentsToolsPermissionHoldersPrint Write "$rigWs/DEV/a" --session-id rig-tester | rigOp --intern-mcp-execute

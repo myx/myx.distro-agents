@@ -75,13 +75,32 @@ AgentsToolsCoordinatorSpawnAllowed(){ ## operation
 ## AgentsHarnessToolAgent (AgentsHarnessSpawn.include), made as the member this call is made as.
 AgentsToolsCoordinatorSpawn(){ ## operation, arguments...
 	local spawnForm spawnMember spawnCli="" spawnName="" spawnSession="" spawnConversation="" spawnDescription="" spawnNew="" spawnSettings="" spawnPrompt spawnOut spawnPromptFile=""
+	local spawnOp="$1" spawnPlace="" spawnTake="" spawnWord
+	local spawnArgs=()
+	## --spawn-run is called straight, past the front door's common options, so a --select-workspace anywhere in the call is taken out here.
+	## The session form hands the place to --spawn-session as its first option, where that tool's own common options read it.
+	shift
+	for spawnWord in "$@" ; do
+		if [ -n "$spawnTake" ] ; then spawnPlace="$spawnWord" ; spawnTake="" ; continue ; fi
+		case "$spawnWord" in
+			--select-workspace) spawnTake=1 ;;
+			--select-workspace=*) spawnPlace="${spawnWord#--select-workspace=}" ;;
+			*) spawnArgs[${#spawnArgs[@]}]="$spawnWord" ;;
+		esac
+	done
+	set -- "$spawnOp" ${spawnArgs[@]+"${spawnArgs[@]}"}
 	spawnForm="$( AgentsToolsCoordinatorSpawnForm "$@" )" || { echo "AgentDispatcherTools: ⛔ ERROR: --spawn-run: give --routine <selector> (or --routine-default) to start a coworking session, or a member name with the prompt on stdin to start a member -- nothing was done" >&2 ; return 1 ; }
 	AgentsToolsCoordinatorSpawnAllowed "$1" || return 1
 	shift
 	if [ "$spawnForm" = session ] ; then
-		"$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsDispatcher.fn.sh" --spawn-session "$@"
+		if [ -n "$spawnPlace" ] ; then
+			"$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsDispatcher.fn.sh" --spawn-session --select-workspace "$spawnPlace" "$@"
+		else
+			"$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsDispatcher.fn.sh" --spawn-session "$@"
+		fi
 		return $?
 	fi
+	[ -z "$spawnPlace" ] || { echo "AgentDispatcherTools: ⛔ ERROR: --spawn-run: --select-workspace is taken by the session form (--routine or --routine-default) only. A member start runs in this workspace. Nothing was done." >&2 ; return 1 ; }
 	spawnMember="$1" ; shift
 	while [ $# -gt 0 ] ; do
 		case "$1" in

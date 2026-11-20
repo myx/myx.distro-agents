@@ -376,6 +376,10 @@ def _buildLocked(indexDir, modelDir, modelStamp, sections):
             rows[at]["vector"] = [float(value) for value in vector]
     # A vanished row is one whose id the pass no longer produces: a changed row is re-embedded, never deleted.
     deleted = len(set(storedRows) - set(row["section-id"] for row in rows))
+    # Nothing to embed and nothing gone: the stored table already is this build, so it is not dropped and rewritten (owner 2026-11-20).
+    if not rebuild and not needsEmbed and deleted == 0 and "sections" in db.list_tables().tables:
+        sys.stdout.write("built: %d section(s), unchanged\n" % len(rows))
+        return 0
     if "sections" in db.list_tables().tables:
         db.drop_table("sections")
     if rows:

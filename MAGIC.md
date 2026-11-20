@@ -841,7 +841,7 @@ User view: [docs/installation.md](docs/installation.md#workspace-restrictions-op
   hook record with its class, and entry keys. The refusal wording lives in the hook script. The script's
   last arm denies loudly, since no decision reads as allow.
 - **The reroute set carries only tools whose native-call test passes** in
-  `sh-test/AgentsHarnessNativeCallCheck.test.sh`, because the twin becomes the only path. `AskUserQuestion`
+  `sh-test/harness/AgentsHarnessNativeCallCheck.test.sh`, because the twin becomes the only path. `AskUserQuestion`
   and `PushNotification` are off it (different argument shapes). `Bash` is on it with twin `execute`;
   native `timeout` (ms) and `run_in_background` differ from `execute`'s `timeout` (s) and `background`,
   awaiting a ruling. Removing a tool stops new installs writing it; an existing entry stays, so the
@@ -3699,7 +3699,7 @@ flag would be a silent no-op there -- refused instead, same shape as the
   the summary after them. A restart comes near the service's real window: the threshold is the window
   less the output limit (`AgentsUniversalHarness.sh`). A threshold under half
   the window is warned of. A native client's compaction
-  replaces the history with a summary, so the floor a spawned member loaded may be gone. `client-hooks/floor-after-compact.sh` tells it to load the floor again:
+  replaces the history with a summary, so the floor a spawned member loaded may be gone. `sh-lib/client-hooks/floor-after-compact.sh` tells it to load the floor again:
   - Claude Code: a SessionStart hook with the matcher `compact` prints a pointer
     on stdout. It is a native record of the client tool policy, installed with
     the others.
@@ -3740,7 +3740,7 @@ flag would be a silent no-op there -- refused instead, same shape as the
   ahead of the steps; from no sandbox the result follows the steps. A scan
   that fails stops nothing, and the file says so. A call from no member's
   session for a routine that declares a scan is refused.
-- **A routine's keys are read by the tooling, and `contracts/routine.contract.format.md` is the one list of
+- **A routine's keys are read by the tooling, and `magic-team/contracts/routine.contract.format.md` is the one list of
   them.** The validator is `--intern-doc-validate routine`, which `DistroAgentsTesting.fn.sh
   --skillset-validate-routine` stubs. `requires-session-kind:` (mandatory, no default) names a kind of the list the
   tooling owns. With it the routine inherits from the kind's routine: one
@@ -4549,7 +4549,7 @@ op's own option arm.
   other than `spawn-started` (`AgentsToolsGrantsSessionEnded`, builtins only). Checked on read (`AgentsToolsPermissionGrantScan`,
   and the matching session row of the session index, since a joined store's end touches nothing);
   the rebuild drops them. A session with no spawn record ends by its client's `SessionEnd` hook
-  (`client-hooks/root-session-end.sh`, class `native`). That is a root
+  (`sh-lib/client-hooks/root-session-end.sh`, class `native`). That is a root
   session: the human-owner's own, or an interactive native console. The hook
   writes `sessions/<id>/ended` plus a store touch, marks its open asks
   `--mark-ended`, and puts END in its transcript. A `SessionStart` resume
@@ -4661,7 +4661,7 @@ op's own option arm.
   RETURNED` with the reason.
 - **Attended only for an interactive Claude Code client**: `CLAUDE_CODE_ENTRYPOINT` `cli` or
   `claude-vscode`, no `MDAT_SESSION_UNATTENDED=true`, no spawn id. To admit a new surface, add it to the
-  `case` in `AgentsHarnessUnattended` and in `client-hooks/permission-request-escalation.sh`. An
+  `case` in `AgentsHarnessUnattended` and in `sh-lib/client-hooks/permission-request-escalation.sh`. An
   unattended session never Writes/Edits the team store or session store.
 - **The boundary is honest agents with an audit trail.** All of this is plain local state; `execute` can
   write any of it.
@@ -4741,13 +4741,13 @@ Each instrument states what it proves and its red recipe in its own header. What
   `while : ; do sleep 1 ; done` burns a wake-up a second for as long as it
   lives, and it lives past its check whenever the check is killed. It blocks on
   a read of a pipe instead, with the check holding the writing end
-  (`check-fixtures/rig-blocking-stand-in.include.sh`, `rigBlockingStandIn`): the
+  (`sh-test/check-fixtures/rig-blocking-stand-in.include.sh`, `rigBlockingStandIn`): the
   kernel closes that end when the check's process ends, however it ends, and
   the stand-in exits by itself. No trap is relied on for it.
 - **Four rig traps make a check lie.** A stand-in session needs `--session-id <id>` on its own command
   line, because the registry finds a session by it, and `bash -c 'sleep N'` alone execs the sleep and
   loses the flag: `bash -c 'sleep 600; :' <id> --session-id <id>` keeps bash in place
-  (`check-fixtures/manager-screen.live-rig.include.sh`). A liveness answer is served from
+  (`sh-test/check-fixtures/manager-screen.live-rig.include.sh`). A liveness answer is served from
   `.local/agents/liveness/` for `AGENTS_LIVENESS_TTL` seconds, 30 by default, so a check that starts a
   stand-in and reads at once fails by timing: settle first, or read again. A scratch origin holds only the
   levelled packages, so a test that reads another package fails for no reason of the change: compare each
@@ -4755,7 +4755,7 @@ Each instrument states what it proves and its red recipe in its own header. What
   `.local/agents/spawned/.housekeeping.txt` breaks every "nothing else was written" assertion: treat it as
   baseline, or assert on content rather than on the file set.
 - **A check run by hand stands in the machine's line of test runs.**
-  `rigTempDir` (`check-fixtures/rig-temp.include.sh`) takes a ticket in
+  `rigTempDir` (`sh-test/check-fixtures/rig-temp.include.sh`) takes a ticket in
   `$HOME/.agents/magic-team/suite-queue` before it makes its folder, the same
   line `AgentsRunTests.sh` stands in, so one check runs at a time however it was
   started. Six sessions running `bash <check>.test.sh` at once, around the
@@ -4800,7 +4800,7 @@ Each instrument states what it proves and its red recipe in its own header. What
   that same process. Process ids come round within about a minute here while
   tests run, so a kept number can belong to a stranger by then. `AgentsTestSignalsCheck` holds the helper. It is also the guard that fails on
   a new `kill`, `pkill` or `killall` in the tests that is not on its list. Its
-  list holds `member/AgentsWaitOwnPostRepliesCheck.test.sh` (`@probed`,
+  list holds `sh-test/member/AgentsWaitOwnPostRepliesCheck.test.sh` (`@probed`,
   `@own-watch`) as it holds `AgentsHarnessWaitCheck`.
 - **Wired into `--owner-setup-scaleway --check`**: `HARNESS_PARSES`,
   `AgentsHarnessSelfCheck.test.awk` (four sites per tool; text match, so it
@@ -4818,8 +4818,8 @@ Each instrument states what it proves and its red recipe in its own header. What
 - **`AgentsHarnessContainmentCheck.test.sh` is wired into nothing** and runs only by hand. It tests
   `AgentsHarnessResolveDir` and `AgentsHarnessPathAllowed` together, in both polarities.
 - **The manager screen's tests** here are every `sh-test/AgentsManagerScreen*Check.test.sh`, 31 of them, all
-  through the driver `check-fixtures/manager-screen.driver.py` and the stand-in dispatcher
-  `check-fixtures/manager-screen.tools.stub.sh`.
+  through the driver `sh-test/check-fixtures/manager-screen.driver.py` and the stand-in dispatcher
+  `sh-test/check-fixtures/manager-screen.tools.stub.sh`.
   `AgentsManagerSessionListCheck`, `AgentsManagerSessionReadCheck`
   and `AgentsManagerSessionTranscriptReadCheck` are the three session operations' own.
   `AgentsManagerRoutineListCheck`, `AgentsManagerSpawnMemberCheck` and `AgentsManagerConfigDigestCheck`
@@ -4828,7 +4828,7 @@ Each instrument states what it proves and its red recipe in its own header. What
   `--manager-*` reads are named with them in section 10.
   `AgentsSpawnReferenceOnlyCheck` is the no-start-for-a-reference-only-member rule's own. The screen
   starts on Manuals (Help), so a screen check that needs the first root selected says `root dashboard`.
-  `check-fixtures/rig-distro-workspace.include.sh` builds the distro workspace a check needs for
+  `sh-test/check-fixtures/rig-distro-workspace.include.sh` builds the distro workspace a check needs for
   `ListDistroProjects`; `AgentsManagerManualReadCheck` is its first user.
 - **A screen check passes against the stand-in dispatcher, so a dummy passes too.** Nothing in those 31
   checks calls a real operation, so they prove the screen's own drawing and nothing downstream. A real
@@ -4850,7 +4850,7 @@ Each instrument states what it proves and its red recipe in its own header. What
   `$MMDAPP/.local/temp/team`, `.../member/<member>`, `.../task/<member>`.
 - **Other offline checks** are `AgentsSlackBlocksLinkifyCheck`,
   `AgentsSlackBareUrlLinkCheck` (through a real send with
-  `check-fixtures/slack-send-identity-check.curl.stub.sh`),
+  `sh-test/check-fixtures/slack-send-identity-check.curl.stub.sh`),
   `AgentsEmailHtmlPartCheck` (build-only), `AgentsSessionContextReadsCheck`
   (fake Slack and fake `imaplib`). Also offline are
   `AgentsSlackRateLimitCheck`, `AgentsCoordinatorStateNoteCheck`,

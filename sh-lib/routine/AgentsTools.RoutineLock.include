@@ -635,7 +635,10 @@ AgentsToolsRoutineSessionStateUpdate(){ ## the operation's arguments
 	for updOne in $( printf '%s' "$updValue" | LC_ALL=C tr ',' ' ' ) ; do
 		updParsed="$( AgentsToolsRoutineLockParse "$updOne" )" || continue
 		updCount=$(( updCount + 1 ))
-		if [ -z "$updDocument" ] || [ "${updParsed#*$'\t'}" = "$updDocument" ] ; then
+		## A CALLER NAMES THE NOTE, AND THE DISPATCH OFTEN NAMES THE WHOLE LOCK: `--document` is written from the routine's own
+		## `routine-lock-document:` line in a dispatch, which is `inbox:<member>:<note>.md`. Both are the one document this
+		## session locked, so both are matched, and a comparison against the note alone refused its own lock.
+		if [ -z "$updDocument" ] || [ "${updParsed#*$'\t'}" = "$updDocument" ] || [ "$updOne" = "$updDocument" ] ; then
 			[ -n "$updPick" ] && [ -z "$updDocument" ] && { updPick="MANY" ; break ; }
 			updPick="$updOne"
 		fi

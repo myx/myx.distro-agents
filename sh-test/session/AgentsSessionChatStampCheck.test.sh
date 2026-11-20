@@ -89,19 +89,37 @@ rigResolved="$( AgentsToolsSessionChatResolve "$rigDir/session.chat.index" "$rig
 rigAssert "the block is one line still, over two seen lines" "$( printf '%s\n' "$rigResolved" | LC_ALL=C awk -F'\t' '$1 == 2' | wc -l | LC_ALL=C tr -d ' ' )" 1
 rigAssert "and it carries both members, in the order they were marked" "$( printf '%s\n' "$rigResolved" | LC_ALL=C awk -F'\t' '$1 == 2 { print $6 }' )" "keeper-rig,magic-tester"
 
-echo "-- 6c. the render is kept, and a second read with neither input moved runs nothing --"
+echo "-- 6c. the render is kept once it settles, and an append inside its own second rebuilds it --"
+rigInode(){ ## file -- its inode, which a rebuild changes where mtime may not
+	stat -f %i "$1" 2> /dev/null || stat -c %i "$1" 2> /dev/null
+}
 rigKept=""
 AgentsToolsSessionChatReadPath "$rigSess" && rigKept="${agentsSessionChatReadPath:-}"
 rigAssert "a render was made" "$( [ -n "$rigKept" ] && echo yes || echo no )" yes
 AgentsToolsSessionChatReadPathDone
 rigAssert "the render is one kept file a session" "${rigKept##*/}" "session.chat.resolved"
-rigKeptMtime="$( stat -f %m "$rigKept" 2> /dev/null || stat -c %Y "$rigKept" 2> /dev/null )"
-sleep 1
-rigSecond=""
-AgentsToolsSessionChatReadPath "$rigSess" && rigSecond="${agentsSessionChatReadPath:-}"
+## THE TIE PROPERTY: an append inside the render's own whole second must force a rebuild. The index grows, and the
+## guard cannot tell that from the same-second case, so it rebuilds. Inode, not mtime: a rebuild inside one second keeps it.
+rigTieInode="$( rigInode "$rigKept" )"
+printf 'a third message\n' | AgentsToolsSessionChatAppend "$rigSess" keeper-rig all 1794900100.000400 "C0RIG:1794900100.000400" own > /dev/null
+rigTie=""
+AgentsToolsSessionChatReadPath "$rigSess" && rigTie="${agentsSessionChatReadPath:-}"
 AgentsToolsSessionChatReadPathDone
-rigAssert "a second read takes the same render" "$rigSecond" "$rigKept"
-rigAssert "and writes it not at all" "$( stat -f %m "$rigKept" 2> /dev/null || stat -c %Y "$rigKept" 2> /dev/null )" "$rigKeptMtime"
+rigAssert "an append in the render own second forces a rebuild" "$( [ "$( rigInode "$rigKept" )" != "$rigTieInode" ] && echo rebuilt || echo kept )" rebuilt
+rigAssert "and the render then holds a row for the appended block" "$( { wc -l < "$rigTie" ; } 2> /dev/null | LC_ALL=C tr -d ' ' )" "$( { wc -l < "$rigDir/session.chat.index" ; } 2> /dev/null | LC_ALL=C tr -d ' ' )"
+## THE SETTLE PROPERTY: once a read has settled the render a whole second newer than its inputs, further quiet reads
+## leave it alone. Two of them, so one lucky pass is not the evidence.
+sleep 1
+AgentsToolsSessionChatReadPath "$rigSess" > /dev/null && AgentsToolsSessionChatReadPathDone
+rigSettledInode="$( rigInode "$rigKept" )"
+sleep 1
+for rigQuietRound in 1 2 ; do
+	rigQuiet=""
+	AgentsToolsSessionChatReadPath "$rigSess" && rigQuiet="${agentsSessionChatReadPath:-}"
+	AgentsToolsSessionChatReadPathDone
+	rigAssert "quiet read $rigQuietRound takes the settled render" "$rigQuiet" "$rigKept"
+	rigAssert "and writes it not at all, by inode" "$( rigInode "$rigKept" )" "$rigSettledInode"
+done
 
 echo "-- 7. a session with no stamps resolves to its index exactly as it was --"
 mkdir -p "$rigDir/../rig-plain" || exit 1

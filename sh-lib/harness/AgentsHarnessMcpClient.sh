@@ -175,8 +175,15 @@ AgentsHarnessMcpRun(){ ## server name, wall-clock bound in whole seconds, awaite
 	{
 		cat "$harnessScratch/mcp.req"
 		runPoll=0.05
+		## A WHOLE-SECOND NAP FORKS NOTHING (owner 2026-11-20): a long call (a Wait of minutes) polled here with a `sleep` process every second, in
+		## every live run. From one second on the nap is the builtin `read -t` on a fifo nobody writes, which times out without a process. The
+		## fractions before it stay `sleep`: bash 3.2 takes whole seconds only.
+		[ -p "$harnessScratch/mcp.nap" ] || mkfifo "$harnessScratch/mcp.nap" 2> /dev/null || :
 		while [ ! -f "$harnessScratch/mcp.exited" ] && ! AgentsHarnessMcpReply "$runWant" ; do
-			sleep "$runPoll" 2>/dev/null || sleep 1
+			case "$runPoll" in
+				0.*) sleep "$runPoll" 2>/dev/null || sleep 1 ;;
+				*) if [ -p "$harnessScratch/mcp.nap" ] ; then read -r -t "$runPoll" <> "$harnessScratch/mcp.nap" 2> /dev/null || : ; else sleep "$runPoll" ; fi ;;
+			esac
 			case "$runPoll" in
 				0.05) runPoll=0.1 ;;
 				0.1) runPoll=0.2 ;;

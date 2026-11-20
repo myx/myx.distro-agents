@@ -905,7 +905,7 @@ AgentsToolsScheduleAutorun(){
 ## `.local/agents/schedule/pace.measure` as `<epoch> <window> <median> <count>`. A caller reads that file, one read and no walk; the verdict is worked out
 ## from the measure on each call, so a threshold of the caller's own (MDAT_TOOL_PACE_MS) still applies. 0 takes the measure on every call, as the checks do.
 AgentsToolsSchedulePaceText(){ ## -- one line: what was read, and what it decides
-	local paceLimit="${MDAT_TOOL_PACE_MS:-4000}" paceWindow="${MDAT_TOOL_PACE_WINDOW_SECONDS:-300}" paceTtl="${MDAT_TOOL_PACE_CACHE_SECONDS:-60}" paceFile paceCount paceMedian paceRecord paceLive
+	local paceLimit="${MDAT_TOOL_PACE_MS:-4000}" paceWindow="${MDAT_TOOL_PACE_WINDOW_SECONDS:-300}" paceTtl="${MDAT_TOOL_PACE_CACHE_SECONDS:-60}" paceFile paceCount paceMedian paceRecord paceRegistry paceRun
 	local paceCache="$MMDAPP/.local/agents/schedule/pace.measure" paceNow="" paceAt="" paceWin="" paceHeld="" paceTemp
 	case "$paceLimit" in ''|*[!0123456789]*|0) paceLimit=4000 ;; esac
 	case "$paceWindow" in ''|*[!0123456789]*|0) paceWindow=300 ;; esac
@@ -928,14 +928,17 @@ AgentsToolsSchedulePaceText(){ ## -- one line: what was read, and what it decide
 	## call itself ran (a Bash child's run, a Wait's waiting); dur_ms only where a record predates it. Of the LIVE runs alone, those whose
 	## spawn record says spawn-started: a stopped rig reads "no live run", never a fast pace. Within the window by the record's own
 	## clock (ms), so no call older than the window counts. One awk a file, no grep and no sed.
-	paceMedian="$( LC_ALL=C find "$MMDAPP/.local/agents/spawned" -mindepth 2 -maxdepth 2 -name 'context*.jsonl' -mmin "-$(( ( paceWindow + 59 ) / 60 ))" 2> /dev/null \
-		| while IFS= read -r paceFile ; do
-			paceLive=""
-			for paceRecord in "${paceFile%/*}"/*.spawn.md ; do
-				[ -f "$paceRecord" ] || continue
-				LC_ALL=C grep -q -x -F 'status: spawn-started' "$paceRecord" 2> /dev/null && { paceLive=yes ; break ; }
-			done
-			[ -n "$paceLive" ] || continue
+	## THE LIVE RUNS COME FROM THE REGISTRY, NEVER FROM A WALK OF THE STORE: `spawned-sessions.registry` lists every run's record
+	## with its status, and its `spawn-started` rows are the population this measure wants. A walk of 1,150 sandboxes was most of
+	## this pass's cost.
+	type AgentsToolsSpawnedRegistryFile > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include"
+	paceRegistry="$( AgentsToolsSpawnedRegistryFile "$MMDAPP" 2> /dev/null )" || paceRegistry=""
+	paceMedian="$( { [ ! -f "$paceRegistry" ] || LC_ALL=C awk '$6 == "spawn-started" { print $2 }' "$paceRegistry" 2> /dev/null ; } \
+		| while IFS= read -r paceRun ; do
+			## A LIVE RUN'S CONTEXT IS ITS SANDBOX'S BY CONVENTION: no record names it, and every live run read carries
+			## `context.jsonl` there. A sandbox with none contributes nothing, which is what the walk missed too.
+			paceFile="$MMDAPP/.local/agents/spawned/$paceRun/context.jsonl"
+			[ -f "$paceFile" ] || continue
 			LC_ALL=C awk -v floor="$(( ( paceNow - paceWindow ) * 1000 ))" '
 				{
 					if ( ! match( $0, /"ms":[0-9]+/ ) ) { next } ; ms = substr( $0, RSTART + 5, RLENGTH - 5 ) + 0 ; if ( ms < floor ) { next }
@@ -2189,6 +2192,17 @@ AgentsToolsScheduleStartPending(){
 	AgentsToolsSchedulePassFlagsInto pendFlags
 	case "$pendFlags" in *"worktime: yes"*|*"overtime: yes"*|*"emergency: yes"*) pendOpen=yes ;; esac
 	type AgentsToolsBoardItemsInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemDecisions.include" ; local pendFileItems ; AgentsToolsBoardItemsInto pendFileItems "" "pending"
+	## THE QUEUE'S ORDER: emergency items first, then urgent ones, then the rest, each group in the board's own order (owner 2026-11-20).
+	if [ ${#pendFileItems[@]} -gt 1 ] ; then
+		local pendOrdered=() pendTier pendItem pendItemMark
+		for pendTier in emergency urgent other ; do
+			for pendItem in "${pendFileItems[@]}" ; do
+				pendItemMark="$( LC_ALL=C awk 'NR == 1 && $0 == "---" { inside = 1 ; next } inside && $0 == "---" { exit } inside && /^mark:/ { sub( /^mark: */, "" ) ; print ; exit }' "$pendItem" 2> /dev/null )"
+				case "$pendTier:$pendItemMark" in emergency:emergency|urgent:urgent) pendOrdered+=( "$pendItem" ) ;; other:emergency|other:urgent) ;; other:*) pendOrdered+=( "$pendItem" ) ;; esac
+			done
+		done
+		pendFileItems=( "${pendOrdered[@]}" )
+	fi
 	## A KEPT VERDICT GOES WITH ITS ITEM: one whose item is no pending item any more, moved on or gone, is removed, so the kept verdicts
 	## are one file a pending item at most, and the store never only grows.
 	pendSeen=" ${pendFileItems[*]+${pendFileItems[*]##*/}} "
@@ -2249,7 +2263,9 @@ AgentsToolsScheduleStartPending(){
 		[ -n "${pendMembers// /}" ] || continue
 		## ONE SESSION PER MEMBER UNLESS THE MACHINE IS FAST: a member that runs a session already gets another only while the median tool call is 5 s or
 		## less, or for an urgent or emergency item, or while the emergency flag is on. Otherwise the item waits in pending.
-		[ -z "$pendHeld" ] || case "$pendMark" in urgent|emergency) ;; *) pendHeld=said ; continue ;; esac
+		## URGENT IS AN ORDER, NOT A PASS (owner 2026-11-20): an urgent item waits for the pace like any item and only goes first in the queue
+		## (the order below). Only an emergency item starts whatever the pace.
+		[ -z "$pendHeld" ] || case "$pendMark" in emergency) ;; *) pendHeld=said ; continue ;; esac
 		[ "$pendOpen" = yes ] || case "$pendMark" in urgent|emergency) ;; *) continue ;; esac
 		case "$pendMark" in
 			urgent|emergency) ;;

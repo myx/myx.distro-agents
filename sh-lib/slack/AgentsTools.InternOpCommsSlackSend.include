@@ -1538,10 +1538,12 @@ blocks|verbatim|caller|stdin file"
 		fi
 		## STORED ONCE, AT POST TIME (S1 item 11): before Slack is called, the message our tooling posts is a line of the cache with a
 		## local id of its own, whether it goes now or waits in an outbox. Its ts is recorded against that id once Slack answers.
-		local postLocalId=""
+		## THE STORE'S OWN FOLDER IS KEPT: the link's resolve uses the ts Slack answered, the store's uses threadTs, so they differ.
+		local postLocalId="" postStoreDir=""
 		if [ -z "$updateTs" ] && [ -n "${channel:-}" ] ; then
 			type AgentsToolsCommsCachePostStore > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsCache.include"
 			AgentsToolsCommsCacheSlackDir "$memberName" "$( [ "$sendIdentity" = "bot" ] && printf true || printf false )" "$channel" "${threadTs:-}" 2> /dev/null || agentsCommsCacheDir=""
+			postStoreDir="${agentsCommsCacheDir:-}"
 			[ -z "${agentsCommsCacheDir:-}" ] || postLocalId="$( AgentsToolsCommsCachePostStore "$agentsCommsCacheDir" "$memberName" "$chatBody" "${threadTs:+$channel:$threadTs}" "$( [ "$sendIdentity" = "bot" ] && printf true || printf false )" 2> /dev/null )" || postLocalId=""
 		fi
 		## THE RECEIVING SESSION'S CHAT FILE IS ITS PRIMARY CHANNEL (S12.15, AgentsToolsSessionChatDeliverCopy): a message into the thread
@@ -1814,7 +1816,8 @@ blocks|verbatim|caller|stdin file"
 			## reference that says which Slack message it became.
 			if [ -n "$postLocalId" ] && [ -n "$sentTs" ] ; then
 				type AgentsToolsCommsCachePostLink > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsCache.include"
-				AgentsToolsCommsCacheSlackDir "$memberName" "$( [ "$sendIdentity" = "bot" ] && printf true || printf false )" "${sentChannel#client:}" "${sentThreadTs:-}" 2> /dev/null || :
+				[ -n "$postStoreDir" ] || AgentsToolsCommsCacheSlackDir "$memberName" "$( [ "$sendIdentity" = "bot" ] && printf true || printf false )" "${sentChannel#client:}" "${sentThreadTs:-}" 2> /dev/null || :
+				[ -z "$postStoreDir" ] || agentsCommsCacheDir="$postStoreDir"
 				[ -z "${agentsCommsCacheDir:-}" ] || AgentsToolsCommsCachePostLink "$agentsCommsCacheDir" "$memberName" "$postLocalId" "" "$sentTs" "$chatBody" || :
 			fi
 			## Its copies in the receiving sessions' files take the same ts, and keep their thread (AgentsToolsSessionChatDeliverStamp).

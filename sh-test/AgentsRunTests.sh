@@ -984,6 +984,8 @@ AgentsRunOneTest(){ ## test name, timeout seconds -- one task line of the run li
 		exec python3 -I -B "$runSlotKeeper" take "$runSlotDir" "$runSlotDefault" 8 "$runDir/slot-wait.said" "$runDir/$oneName.started" "$runTestLock" "$runOwnFolder" "$oneTimeout" "$BASH" "$( AgentsRunTestPath "$oneName" )"
 	) 8>&2 > "$runDir/$oneName.log" 2>&1 &
 	onePid=$!
+	## THE CHECK'S OWN TREES ARE MARKED BY ITS START (owner 2026-11-20): what it makes after this mark, named after it, is its own to remove.
+	: > "$runDir/$oneName.begin" 2> /dev/null || :
 	wait "$onePid" || oneRc=$?
 	python3 -I -B "$runSlotKeeper" give "$runSlotDir" "$onePid" 2>/dev/null || :
 	## its time is counted from when it got its slot, not from when it asked
@@ -1011,6 +1013,18 @@ AgentsRunOneTest(){ ## test name, timeout seconds -- one task line of the run li
 	[ -z "$oneEnded" ] || printf 'ended-by=time-limit\n' >> "$runDir/$oneName.receipt"
 	[ -z "$oneKept" ] || printf '%s\n' "$oneKept" >> "$runDir/$oneName.receipt"
 	if [ "$oneRc" = 0 ] ; then
+		## A PASSED CHECK LEAVES NO TREE BEHIND (owner 2026-11-20): its temp trees, named after it in the two places checks write (.local/temp and
+		## .local/agents/scratch/sh-test) and made after its begin mark, are removed, unless a live process still names one, as a second copy
+		## of the same check running beside it does. A failed check keeps its trees for reading.
+		if [ -f "$runDir/$oneName.begin" ] ; then
+			local cleanProcs cleanEntry
+			cleanProcs="$( ps -axo command= 2> /dev/null )"
+			while IFS= read -r cleanEntry ; do
+				[ -n "$cleanEntry" ] || continue
+				case "$cleanProcs" in *"${cleanEntry##*/}"*) continue ;; esac
+				rm -rf -- "$cleanEntry" 2> /dev/null || :
+			done <<< "$( find "${MMDAPP%/}/.local/temp" "${MMDAPP%/}/.local/agents/scratch/sh-test" -mindepth 1 -maxdepth 1 \( -name "$oneName.*" -o -name "$oneName-*" \) -newer "$runDir/$oneName.begin" 2> /dev/null )"
+		fi
 		printf 'PASS  %-48s %4ss  %s\n' "$oneName" "$(( oneEnd - oneStart ))" "$oneLast"
 	else
 		printf 'FAIL  %-48s %4ss  rc=%s  %s%s\n' "$oneName" "$(( oneEnd - oneStart ))" "$oneRc" "${oneEnded:+$oneEnded -- }" "$oneLast"

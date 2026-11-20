@@ -152,7 +152,7 @@ AgentsToolsKnowledgeStoreRetire(){ ## the arguments after the operation word
 AgentsToolsKnowledgeIndexBuild(){ ## the arguments after the operation word: none
 	[ $# -eq 0 ] || { AgentsToolsKnowledgeStoreRefuse "--knowledge-index-build takes no arguments, got: $1" ; return 1 ; }
 	type AgentsToolsKnowledgeFiles > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/knowledge/AgentsTools.Knowledge.include"
-	local buildPython="" buildModel="" buildRoot="" buildData="${MDAT_DATA_ROOT%/}" buildSections=""
+	local buildPython="" buildModel="" buildRoot="" buildData="${MDAT_DATA_ROOT%/}" buildSections="" buildFiles="" buildListSum="" buildStamp=""
 	## THE ONE PLACE THE INDEX'S PATHS ARE SPELLED is the place include, and this operation asks it: the build's own root, and the stamp
 	## a finished build leaves. Loaded before either is asked, so the call never depends on what a caller loaded first.
 	type AgentsToolsKnowledgeIndexRoot > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/knowledge/AgentsTools.KnowledgeIndexPlace.include"
@@ -160,16 +160,28 @@ AgentsToolsKnowledgeIndexBuild(){ ## the arguments after the operation word: non
 	buildPython="$( AgentsToolsKnowledgeStorePython )" || { AgentsToolsKnowledgeStoreRefuse "the knowledge store is not installed; run --install-knowledge-store first" ; return 1 ; }
 	buildModel="$( AgentsToolsKnowledgeIndexModel )" || { AgentsToolsKnowledgeStoreRefuse "the embedding model of the store does not stand; run --install-knowledge-store first" ; return 1 ; }
 	buildRoot="$( AgentsToolsKnowledgeIndexRoot )"
-	buildSections="$( {
+	buildStamp="$( AgentsToolsKnowledgeIndexStamp built )"
+	buildFiles="$( {
 		AgentsToolsKnowledgeFiles --add-source-docs --add-board-items --add-vault-items --
 		[ ! -d "$buildData/inboxes" ] || find "$buildData/inboxes" -type f -name '*.md' 2> /dev/null | LC_ALL=C sort
-	} | LC_ALL=C awk '!seen[$0]++' | LC_ALL=C awk -v format=index -v wsRoot="${MMDAPP%/}/" -v dataRoot="$buildData/" \
+	} | LC_ALL=C awk '!seen[$0]++' )"
+	## NOTHING CHANGED, NOTHING IS BUILT (owner 2026-11-20): files change about one a minute, yet every build re-split every file and
+	## rewrote the whole table. The stamp's first line is the digest of the sorted file list, so a move or a removal changes it, since a
+	## move keeps its mtime. With the same list and no file newer than the stamp, the stamp is renewed and nothing is read or written.
+	buildListSum="$( printf '%s\n' "$buildFiles" | LC_ALL=C sort | shasum 2> /dev/null | cut -c1-40 )"
+	if [ -f "$buildStamp" ] && [ -n "$buildListSum" ] && [ "$( sed -n 1p "$buildStamp" 2> /dev/null )" = "$buildListSum" ] \
+		&& [ -z "$( printf '%s\0' $buildFiles | xargs -0 -n 200 sh -c 'find "$@" -prune -newer "$0" -print' "$buildStamp" 2> /dev/null | head -1 )" ] ; then
+		touch "$buildStamp" 2> /dev/null || :
+		printf 'built: unchanged, nothing read\n'
+		return 0
+	fi
+	buildSections="$( printf '%s\n' "$buildFiles" | LC_ALL=C awk -v format=index -v wsRoot="${MMDAPP%/}/" -v dataRoot="$buildData/" \
 		-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/knowledge/AgentsKnowledgeScan.awk" )" || { AgentsToolsKnowledgeStoreRefuse "the sections could not be read; nothing was built" ; return 1 ; }
 	printf '%s' "$buildSections" | "$buildPython" -W ignore "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/knowledge/AgentsKnowledgeStore.py" build \
 		--index "$buildRoot" --model-dir "${buildModel%%$'\n'*}" --model-stamp "${buildModel#*$'\n'}" || return 1
 	## THE STAMP OF A FINISHED BUILD, written only here: the refresh reads it against the one a write leaves, and a build that
 	## refused above has written nothing, so the next pass tries again.
-	: > "$( AgentsToolsKnowledgeIndexStamp built )" 2> /dev/null || :
+	printf '%s\n' "$buildListSum" > "$buildStamp" 2> /dev/null || :
 	return 0
 }
 

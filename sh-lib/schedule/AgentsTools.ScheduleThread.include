@@ -36,6 +36,9 @@ AgentsToolsScheduleThreadDir(){
 
 ## When the last pass began, on this thread's own clock: it is one process, and this is the state it holds.
 agentsScheduleThreadLastPass=-100000
+## THE END OF THE LAST PASS (owner 2026-11-20): the thread rests MDAT_SCHEDULE_PASS_REST_SECONDS (default: the gap) after a pass ends, so a pass
+## longer than its gap never starts the next one at once and the thread is never busy all the time.
+agentsScheduleThreadPassEnd=-100000
 
 ## WHETHER THE THREAD IS WANTED NOW, set in agentsScheduleThreadKeep (yes|no): a flag that keeps duties is on (worktime, overtime, emergency), or a member's own
 ## overtime is (`--override-flag overtime --member <m>` is no line of the rig's flags), or worktime begins within thirty minutes, so the thread is alive at
@@ -89,7 +92,9 @@ AgentsToolsScheduleThreadPass(){
 	## itself looks first and ends the thread (serveEnd is the serve loop's, set here as the loop calls this). A pass
 	## outside the loop, --one or a check's stand-in, has no folder to lose and runs.
 	[ -z "${serveFolder:-}" ] || [ -d "$serveFolder" ] || { serveEnd="its folder is gone" ; return 0 ; }
-	if [ $(( SECONDS - agentsScheduleThreadLastPass )) -ge "$agentsScheduleThreadGap" ] ; then
+	local passRest="${MDAT_SCHEDULE_PASS_REST_SECONDS:-$agentsScheduleThreadGap}"
+	case "$passRest" in ''|*[!0123456789]*) passRest="$agentsScheduleThreadGap" ;; esac
+	if [ $(( SECONDS - agentsScheduleThreadLastPass )) -ge "$agentsScheduleThreadGap" ] && [ $(( SECONDS - agentsScheduleThreadPassEnd )) -ge "$passRest" ] ; then
 		agentsScheduleThreadLastPass="$SECONDS"
 		## Each step's seconds, so a pass over its gap says where its time went: the loop's own steps in agentsSchedulePassTimes, then this thread's.
 		local passAt passTimes
@@ -108,6 +113,7 @@ AgentsToolsScheduleThreadPass(){
 		## THE LAST PASS'S TIMES ARE KEPT, every pass, in the thread's own folder (last-pass.times, one line, written over): a pass under its gap prints
 		## no line, and its steps are read there. A thread outside the loop, a check's stand-in, has no folder and keeps nothing.
 		[ -z "${serveFolder:-}" ] || [ ! -d "$serveFolder" ] || printf '%s took %ss -- %s\n' "$( date -u +%Y-%m-%dT%H:%M:%SZ )" "$(( SECONDS - agentsScheduleThreadLastPass ))" "$passTimes" > "$serveFolder/last-pass.times" 2> /dev/null || :
+		agentsScheduleThreadPassEnd="$SECONDS"
 	fi
 	[ "${agentsScheduleThreadKeep:-no}" != yes ] || return 2
 	return 0
@@ -149,6 +155,13 @@ AgentsToolsScheduleThreadKnowledgeKeep(){
 	## A build stands, it is newer than anything wanted, and it sits inside the bound: nothing to do, at two stats and one find.
 	## `built` newer than `wanted` is the test, never "not older": a write and a build inside the same second cannot be ordered by
 	## mtime, and a build that may have missed the write is no reason to skip one.
+	## A BUILD YOUNGER THAN THE MINIMUM STANDS (owner 2026-11-20): writes come all the time, so "wanted is newer" alone rebuilt the index
+	## every pass. Inside MDAT_SCHEDULE_KNOWLEDGE_INDEX_MIN_SECONDS (default 1800) of the last build nothing is rebuilt, whatever was written.
+	local keepMin="${MDAT_SCHEDULE_KNOWLEDGE_INDEX_MIN_SECONDS:-1800}"
+	case "$keepMin" in ''|*[!0123456789]*) keepMin=1800 ;; esac
+	if [ -f "$keepBuilt" ] && [ "$keepMin" -gt 0 ] && [ -z "$( find "$keepBuilt" -mmin +$(( keepMin / 60 )) 2> /dev/null )" ] ; then
+		return 0
+	fi
 	if [ -f "$keepBuilt" ] \
 		&& { [ ! -f "$keepWanted" ] || [ "$keepBuilt" -nt "$keepWanted" ] ; } \
 		&& [ -z "$( find "$keepBuilt" -mmin +$(( keepEvery / 60 )) 2> /dev/null )" ] ; then
