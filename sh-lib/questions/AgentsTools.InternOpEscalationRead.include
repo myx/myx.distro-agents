@@ -17,7 +17,8 @@
 			readback|decision|permission|permission-set|proposal|review|change) ;;
 			## A plain question with an answer form (select) carries a verdict too.
 			''|question)
-				[ -n "$( AgentsToolsEscalationField "$readFile" select )" ] || {
+				type AgentsToolsPendingReplyAnswerForm > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.PendingReplyOptionAsk.include"
+				[ -n "$( AgentsToolsPendingReplyAnswerForm "$readFile" )" ] || {
 					echo "$MDSC_CMD: ⛔ ERROR: $readId is not an escalation (kind ${readKind:-question}), so it carries no verdict" >&2
 					set +e ; return 1
 				}

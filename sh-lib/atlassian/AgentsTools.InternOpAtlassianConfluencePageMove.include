@@ -1,0 +1,61 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+## AgentsTools.InternOpAtlassianConfluencePageMove.include -- the operation `--intern-op-atlassian-confluence-page-move`, sourced by AgentsTools.InternOpAtlassianCall.include with the operation's arguments.
+## A page's parent is set on REST v1 only: PUT /wiki/rest/api/content/<id>/move/append/<parent>,
+## where `append` makes the page a child of the target. v2's page update carries no parent field.
+## The move is read back through v2, so an answer on stdout says where the page really is.
+	type AgentsToolsAtlassianCall > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/atlassian/AgentsTools.AtlassianRequest.include"
+		shift
+		local confPMMember="" confPMPageId="" confPMParentId="" confPMContext="intern-op-atlassian-confluence-page-move"
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--member|--page-id|--parent-id|--context)
+					if [ -z "${2:-}" ] ; then
+						printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confPMContext: $1 value missing" >&2
+						set +e ; return 1
+					fi
+					case "$1" in
+						--member)    confPMMember="$2" ;;
+						--page-id)   confPMPageId="$2" ;;
+						--parent-id) confPMParentId="$2" ;;
+						--context)   confPMContext="$2" ;;
+					esac
+					shift 2
+				;;
+				*)
+					printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confPMContext: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		if [ -z "$confPMMember" ] || [ -z "$confPMPageId" ] || [ -z "$confPMParentId" ] ; then
+			printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confPMContext: syntax is --member <team-member> --page-id <page-id> --parent-id <parent-page-id> [--context <caller>] -- the page moves under that identity, so it must be an identity allowed to edit both pages" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsAtlassianAssertNumber "$confPMPageId" "<page-id>" "$confPMContext" || { set +e ; return 1 ; }
+		AgentsToolsAtlassianAssertNumber "$confPMParentId" "<parent-page-id>" "$confPMContext" || { set +e ; return 1 ; }
+		local confPMMoveRc=0
+		AgentsToolsAtlassianCall "$confPMMember" confluence PUT "/wiki/rest/api/content/$( AgentsToolsAtlassianUrlEncode "$confPMPageId" )/move/append/$( AgentsToolsAtlassianUrlEncode "$confPMParentId" )" "$confPMContext" "" > /dev/null || confPMMoveRc=$?
+		if [ "$confPMMoveRc" -ne 0 ] ; then
+			set +e ; return "$confPMMoveRc"
+		fi
+		## Read back what stored, never what the move's own answer said.
+		local confPMReadBody confPMReadRc=0
+		confPMReadBody="$( AgentsToolsAtlassianCall "$confPMMember" confluence GET "/wiki/api/v2/pages/$( AgentsToolsAtlassianUrlEncode "$confPMPageId" )" "$confPMContext" "" )" || confPMReadRc=$?
+		if [ "$confPMReadRc" -ne 0 ] ; then
+			printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confPMContext: UNKNOWN -- the move was sent, and the read-back of page $confPMPageId failed (rc=$confPMReadRc), so where the page sits cannot be told. Read the page before acting again: a second move to the same parent changes nothing" >&2
+			set +e ; return 3
+		fi
+		local confPMFieldAwk="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk"
+		local confPMReadParent="$( printf '%s\n' "$confPMReadBody" | LC_ALL=C awk -v path=parentId -v optional=1 -v dialect=atlassian -f "$confPMFieldAwk" 2>/dev/null )"
+		printf 'PAGE_ID\tTITLE\tPARENT_ID\n'
+		printf '%s\t%s\t%s\n' \
+			"$confPMPageId" \
+			"$( printf '%s\n' "$confPMReadBody" | LC_ALL=C awk -v path=title -v optional=1 -v dialect=atlassian -f "$confPMFieldAwk" 2>/dev/null )" \
+			"${confPMReadParent:--}"
+		if [ "$confPMReadParent" != "$confPMParentId" ] ; then
+			printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confPMContext: UNKNOWN -- the move was sent, and page $confPMPageId reads back under ${confPMReadParent:-no parent} rather than $confPMParentId, so it did not land where it was sent. Read both pages before acting again" >&2
+			set +e ; return 3
+		fi
+		return 0

@@ -136,6 +136,10 @@ case "$1" in
 		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/atlassian/AgentsTools.InternOpAtlassianConfluencePageDelete.include"
 	;;
 
+	--intern-op-atlassian-confluence-page-move)
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/atlassian/AgentsTools.InternOpAtlassianConfluencePageMove.include"
+	;;
+
 	--intern-op-atlassian-*)
 		printf '%s\n' "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
 		set +e ; return 1

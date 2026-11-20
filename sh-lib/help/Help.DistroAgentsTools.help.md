@@ -39,6 +39,7 @@
 📘 syntax: DistroAgentsAtlassian.fn.sh --confluence-page-update [--team-member <team-member>] <page-id> --version <n> --title <text> --status <value> (--body-storage <html>|--body-storage-from-stdin|--body-storage-from-file <path>) [--space-id <numeric-id>]
 📘 syntax: DistroAgentsAtlassian.fn.sh --confluence-comment-add [--team-member <team-member>] <page-id> (--body-storage <html>|--body-storage-from-stdin|--body-storage-from-file <path>) [--parent-comment-id <id>]
 📘 syntax: DistroAgentsAtlassian.fn.sh --confluence-page-delete [--team-member <team-member>] <page-id>
+📘 syntax: DistroAgentsAtlassian.fn.sh --confluence-page-move [--team-member <team-member>] <page-id> --parent-id <parent-page-id>
 📘 syntax: DistroAgentsTools.fn.sh --client-comms-confluence-space-list [--team-member <team-member>] [--cursor <value>]
 📘 syntax: DistroAgentsTools.fn.sh --client-comms-confluence-page-read [--team-member <team-member>] <page-id> [--format storage|atlas_doc_format] [--version <n>]
 📘 syntax: DistroAgentsTools.fn.sh --client-comms-confluence-page-search [--team-member <team-member>] <cql> [--limit <n>]
@@ -1774,6 +1775,24 @@
 			missing <team-member>/<page-id>, is refused with 1,
 			naming the missing parameter. Deletes under that
 			identity, only where it may. <page-id> must be numeric.
+
+		--confluence-page-move [--team-member <team-member>] <page-id> --parent-id <parent-page-id>
+			Runs only as `magic-coordinator`; any other name is refused
+			with 1. Puts that page under that parent, so it becomes that
+			page's child. Both ids must be numeric.
+
+			Only the parent changes. The title, the body and the
+			version stay as they were, and no body is sent. Confluence's
+			v2 page update carries no parent field, so this is the v1
+			`PUT /wiki/rest/api/content/<id>/move/append/<parent>`.
+
+			The page is read back through v2 after the move, and that
+			read-back is what is printed: `PAGE_ID`, `TITLE`,
+			`PARENT_ID`. **3**: UNKNOWN -- the move was sent, and the
+			read-back failed or showed another parent, so read both
+			pages before sending it again. **8**: the page or its new
+			parent is missing, or this identity does not see it. **9**:
+			refused, and nothing moved.
 
 			Never purges a page -- a deleted page reads back as
 			status 8 (a 404 under the default view); nothing here

@@ -477,7 +477,7 @@ case "$1" in
 		## post under one name and one alias, and the owner could not tell which spoke. The origin travels in the metadata here
 		## and in the author line below, as `@alias/origin`, a form `memberSendHeaderLength` accepts (`@[^ ]+`) and the mention
 		## converter skips (a slash is outside a member name).
-		local sendOrigin="" sendOriginRecord="" sendOriginLine="" sendOriginN=0
+		local sendOrigin="" sendOriginRecord="" sendOriginLine="" sendOriginN=0 sendStackFrame=""
 		if [ -n "${MDAT_SPAWN_SESSION_ID:-}" ] ; then
 			## Its own sandbox record: a spawned run keeps one there. A session minted by a root harness keeps none, so its routine is
 			## the one its mint wrote in the session's own folder. Both are one file at a known path: a send is a call path, and it
@@ -486,14 +486,19 @@ case "$1" in
 			[ -f "$sendOriginRecord" ] || sendOriginRecord=""
 			[ -z "$sendOriginRecord" ] || while IFS= read -r sendOriginLine && [ "$sendOriginN" -lt 60 ] ; do
 				sendOriginN=$(( sendOriginN + 1 ))
+				## THE FRAME IN FORCE, NEVER THE LINE THE START WROTE (S6.27): `routine:` names the routine the run started on, and a switch
+				## records itself in the stack alone, so a run that replaced its routine kept posting under the one it left. The last
+				## `current` frame is the routine the run is on now, and it ends the read.
 				case "$sendOriginLine" in
-					'routine: '*) sendOrigin="${sendOriginLine#routine: }" ; break ;;
+					'routine: '*) [ -n "$sendOrigin" ] || sendOrigin="${sendOriginLine#routine: }" ;;
+					'routine-stack: '*':current'*) sendStackFrame="${sendOriginLine#routine-stack: }" ; sendStackFrame="${sendStackFrame%:current}" ; break ;;
 				esac
 			done < "$sendOriginRecord"
 			if [ -z "$sendOrigin" ] ; then
 				type AgentsToolsRootHarnessRoutineInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/routine/AgentsTools.RoutineRootHarness.include"
 				AgentsToolsRootHarnessRoutineInto sendOrigin "$MDAT_SPAWN_SESSION_ID" "${MMDAPP:-}" || sendOrigin=""
 			fi
+			[ -z "$sendStackFrame" ] || sendOrigin="$sendStackFrame"
 			sendOrigin="${sendOrigin%.routine.md}" ; sendOrigin="${sendOrigin#*.}"
 			case "$sendOrigin" in *[!A-Za-z0-9._-]*) sendOrigin="" ;; esac
 		else

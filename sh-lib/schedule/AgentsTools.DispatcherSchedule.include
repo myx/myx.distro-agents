@@ -855,6 +855,18 @@ AgentsToolsScheduleSpawnReport(){
 	return 0
 }
 
+## Whether this workspace may start anything at all: rc 1, with the reason on stderr once a pass, where it keeps no team data. A start
+## there makes a run whose board, inbox and note writes are refused and whose own spawns fail with no agent launched, so the step starts
+## nothing. The reason is said once, by the first guarded step of the pass: five identical refusals tell a reader nothing more than one.
+AgentsToolsScheduleStartsAllowed(){
+	type AgentsToolsTeamDataGateOpen > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataGate.include"
+	AgentsToolsTeamDataGateOpen && return 0
+	[ -z "${agentsScheduleStartsRefused:-}" ] || return 1
+	agentsScheduleStartsRefused=yes
+	printf 'schedule: nothing is started this pass: this workspace keeps no team data, so every start here is a run whose board, inbox and note writes are refused and whose own spawns fail\n' >&2
+	return 1
+}
+
 ## --- the autorun ---
 
 ## Every routine file with a runs-at is asked whether it is due (AgentsToolsScheduleDue); a routine that is due is started through the
@@ -864,6 +876,7 @@ AgentsToolsScheduleSpawnReport(){
 ## runs-at is reported as an error and started nothing: an absent key is invalid, never a quiet skip.
 AgentsToolsScheduleAutorun(){
 	local autoMember autoDir autoFile autoName autoRunsAt autoOut autoRc autoExecutors autoLine
+	AgentsToolsScheduleStartsAllowed || return 0
 	while IFS=$'\t' read -r autoMember autoDir ; do
 		[ -n "$autoDir" ] || continue
 		for autoFile in "$autoDir"/*.routine.md ; do
@@ -1754,7 +1767,10 @@ AgentsToolsScheduleDutyOrder(){
 }
 
 AgentsToolsScheduleWorkDuty(){
-	local dutyFlags dutyWork=no dutyCoordinator=no dutyMember dutyDir dutyAllowed dutyRecord dutyLook="" dutyLookOut="" dutyWhy="" dutyWarmAt="" dutyStale dutyPace="" dutyOwners dutyUrgent="" dutyMagic="" dutyNow dutyVacation dutyInbox=""
+	local dutyFlags dutyWork=no dutyCoordinator=no dutyMember dutyDir dutyAllowed dutyInHours=no dutyRecord dutyLook="" dutyLookOut="" dutyWhy="" dutyWarmAt="" dutyStale dutyPace="" dutyOwners dutyUrgent="" dutyMagic="" dutyNow dutyVacation dutyInbox=""
+	## A step called alone is a pass of its own, so its one refusal line is its own too (AgentsToolsScheduleStartsAllowed).
+	[ -n "${agentsSchedulePassNow:-}" ] || agentsScheduleStartsRefused=""
+	AgentsToolsScheduleStartsAllowed || return 0
 	## THE PACE IS READ ONCE A PASS (S12.13), before any start is decided, and said in one line: a person can then tell a slow machine from a
 	## stopped schedule. It gates a start; it is never a load average and never a count of what runs.
 	## Each part's seconds in agentsScheduleDutyTimes, for the pass's line of a pass over its gap: the step is the largest of a pass.
@@ -1786,7 +1802,7 @@ AgentsToolsScheduleWorkDuty(){
 	dutyTimes="$dutyTimes, stale $(( SECONDS - dutyAt ))s" ; dutyAt="$SECONDS"
 	AgentsToolsSchedulePassFlagsInto dutyFlags
 	## Team overtime is a duty out of hours for the magic members alone; emergency is the coordinator, and a member only for its own urgent-tier pending task.
-	case "$dutyFlags" in *"worktime: yes"*) dutyWork=yes ; dutyCoordinator=yes ;; esac
+	case "$dutyFlags" in *"worktime: yes"*) dutyWork=yes ; dutyCoordinator=yes ; dutyInHours=yes ;; esac
 	case "$dutyFlags" in *"overtime: yes"*) dutyMagic=yes ; dutyCoordinator=yes ;; esac
 	case "$dutyFlags" in *"emergency: yes"*) dutyCoordinator=yes ; [ "$dutyWork" = yes ] || dutyUrgent=yes ;; esac
 	## The owners of the pending board items, dispatch-* aside, read once a pass; in emergency out of hours, of the urgent tier alone.
@@ -1879,7 +1895,7 @@ AgentsToolsScheduleWorkDuty(){
 			## Out of its flags: a tag (a mention, a DM) newer than its pointer into the tagged source, and nothing else.
 			agentsScheduleTagsSub=tags-person AgentsToolsScheduleTagNews "$dutyMember" || continue
 		fi
-		if AgentsToolsScheduleSpawn "work-duty.$dutyMember" --session-thread:event-track --routine "$( AgentsToolsScheduleDutyRoutine "$dutyMember" "$dutyDir" "$dutyAllowed" )" "$dutyMember" ; then
+		if AgentsToolsScheduleSpawn "work-duty.$dutyMember" --session-thread:event-track --routine "$( AgentsToolsScheduleDutyRoutine "$dutyMember" "$dutyDir" "$dutyInHours" )" "$dutyMember" ; then
 			mkdir -p "$MMDAPP/.local/agents/schedule/duty" 2> /dev/null && date +%s > "$MMDAPP/.local/agents/schedule/duty/$dutyMember"
 			AgentsToolsScheduleTagCarry "$dutyMember"
 			AgentsToolsScheduleTagGive "$dutyMember"
@@ -1905,6 +1921,7 @@ AgentsToolsScheduleWorkDuty(){
 ## inbox work; out of it the advance routine, the one-shot handling block, is started instead. Never fatal; one line for each thing done.
 AgentsToolsScheduleImportantEmergency(){
 	local markFlags markWork=no markFile markMark markImportant="" markEmergency="" markEmergencyItem=""
+	AgentsToolsScheduleStartsAllowed || return 0
 	AgentsToolsSchedulePassFlagsInto markFlags
 	case "$markFlags" in *"worktime: yes"*) markWork=yes ;; esac
 	type AgentsToolsInboxFilesInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/inbox/AgentsTools.InboxPlace.include"
@@ -1960,6 +1977,7 @@ AgentsToolsScheduleEmergencyConfirm(){ ## the emergency item's file name
 agentsScheduleSupervisionRoutine="magic-coordinator.supervision-session.routine.md"
 AgentsToolsScheduleSupervision(){ ## --
 	local supFlags supOn=no supLive supRecord supSpawn supNewest supNewestAt supStat="" supWait supNow supDismissed
+	AgentsToolsScheduleStartsAllowed || return 0
 	type AgentsToolsSpawnedRecordsOfRoutine > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/schedule/AgentsTools.StartedRecords.include"
 	AgentsToolsSchedulePassFlagsInto supFlags
 	case "$supFlags" in *"supervised: yes"*) supOn=yes ;; esac
@@ -2177,6 +2195,7 @@ AgentsToolsScheduleVerifyStale(){ ## item file name, the item's file (may be emp
 AgentsToolsScheduleStartPending(){
 	local pendFile pendName pendNow pendRecheck pendEpoch pendRoutine pendRc pendMembers pendOut pendMark pendOne pendFast="" pendFlags pendOpen=no pendHeld="" pendGo=""
 	local pendLine pendFence pendSeen pendRestart pendOwner pendCondition
+	AgentsToolsScheduleStartsAllowed || return 0
 	type AgentsToolsRecheckConditionUnmet > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.RecheckDate.include"
 	type AgentsToolsBoardItemHandler > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.BoardItemHandler.include"
 	## The pace gate holds this start as it holds a duty start: a slow machine gets no new session. An urgent or emergency item starts
@@ -2350,6 +2369,8 @@ AgentsToolsScheduleLoop(){
 	## ONE CLOCK A PASS (call-path audit row 9): the steps below read agentsSchedulePassNow where it is set, and fork a date of
 	## their own only when called alone. A pass is seconds long; one second of drift inside it changes no decision.
 	agentsSchedulePassNow="$( date +%s )"
+	## The pass's own one-line refusal where this workspace keeps no team data: cleared here, so each pass says it once.
+	agentsScheduleStartsRefused=""
 	## ONE START PER PASS, across the duties and the pending items: set by the start that happens, read by the starts after it in this pass.
 	agentsSchedulePassStarted=""
 	## Each step's seconds in agentsSchedulePassTimes, `<step> <n>s` comma-separated, for the thread's line of a pass over its gap.

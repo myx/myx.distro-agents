@@ -5,7 +5,8 @@
 ## AgentsTools.StartedRecords.include -- the schedule's record lists: which runs are started, which are work-duty runs, and the
 ## runs of one routine. A list is read from the spawn store once in its time to live and kept in `.local/agents/schedule/`, so
 ## a schedule pass reads a file where it used to grep every record.
-## The walk of the store is the session store's own, in `sh-lib/session/AgentsTools.StartedRecords.include`.
+## The walk of the store is the session store's own, in `sh-lib/session/AgentsTools.StartedRecords.include`, through the started index
+## its writers keep, so a read is the records that are started and not the store.
 ## Inside a schedule pass the clock is the pass's own (agentsSchedulePassNow), so a list is read once a pass however long the pass runs.
 ## Sourced, never run. Functions only.
 ##
@@ -78,7 +79,7 @@ AgentsToolsSpawnedRecordsOfRoutine(){ ## routine file name, cache name -- the pa
 ## AND the stamp is the one it was kept with, so a record made, closed or removed since refreshes the list at once, as the per-session
 ## list does. A stamp of the pass's own second or later is not kept, and an empty one always walks.
 AgentsToolsSpawnedStartedRecords(){ ## -- the paths of the started records, a line each
-	local startedCache="$MMDAPP/.local/agents/schedule/started.records" startedTtl="${MDAT_STARTED_RECORDS_SECONDS:-30}" startedAt="" startedKept="" startedStamp="" startedNow="" startedList="" startedTemp startedPaths=()
+	local startedCache="$MMDAPP/.local/agents/schedule/started.records" startedTtl="${MDAT_STARTED_RECORDS_SECONDS:-30}" startedAt="" startedKept="" startedStamp="" startedNow="" startedList="" startedTemp
 	case "$startedTtl" in ''|*[!0123456789]*) startedTtl=30 ;; esac
 	type AgentsSpawnedStoreStampInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include"
 	## The clock before the stamp, so a stamp older than it was read in a second already gone.
@@ -97,8 +98,8 @@ AgentsToolsSpawnedStartedRecords(){ ## -- the paths of the started records, a li
 			;;
 		esac
 	fi
-	AgentsToolsSpawnedAllRecordsInto startedPaths "$MMDAPP" || startedPaths=()
-	startedList="$( LC_ALL=C grep -l -x -F 'status: spawn-started' ${startedPaths[@]+"${startedPaths[@]}"} /dev/null 2> /dev/null )" || startedList=""
+	type AgentsSpawnedStartedRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include"
+	startedList="$( AgentsSpawnedStartedRecords "$MMDAPP" )" || startedList=""
 	case "$startedStamp:$startedNow" in *[!0123456789:]*|:*|*:) startedTtl=0 ;; *) [ "$startedStamp" -lt "$startedNow" ] || startedTtl=0 ;; esac
 	if [ "$startedTtl" -gt 0 ] && mkdir -p "${startedCache%/*}" 2> /dev/null && startedTemp="$( mktemp "$startedCache.XXXXXX" 2> /dev/null )" ; then
 		{ printf '%s %s\n' "${startedNow:-$( date +%s )}" "$startedStamp" ; [ -z "$startedList" ] || printf '%s\n' "$startedList" ; } > "$startedTemp" 2> /dev/null \

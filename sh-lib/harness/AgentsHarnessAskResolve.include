@@ -123,8 +123,15 @@ AgentsHarnessAskResolve(){ ## pending reply id, kind, question tag, wait output,
 	fi
 	## A typed kind's verdict is read and applied by the escalation operation, the one place that does it.
 	## A plain question with an answer form (select) takes its verdict the same way.
-	local askVerdict="" askReadLines="" askReason="" askForm=""
-	[ "$toolKind" != "question" ] || askForm="$( AgentsHarnessAskRecordField "$askPendingId" select )"
+	local askVerdict="" askReadLines="" askReason="" askForm="" askRecord=""
+	## An ask that offers answers of its own takes only one of them, whatever its `select` field
+	## says (AgentsTools.PendingReplyOptionAsk.include). A closed record is read where it lies.
+	if [ "$toolKind" = "question" ] ; then
+		type AgentsToolsPendingReplyAnswerForm > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.PendingReplyOptionAsk.include"
+		askRecord="$MMDAPP/.local/agents/pending/$askPendingId.md"
+		[ -f "$askRecord" ] || askRecord="$MMDAPP/.local/agents/pending/closed/$askPendingId.md"
+		askForm="$( AgentsToolsPendingReplyAnswerForm "$askRecord" )"
+	fi
 	if { [ "$toolKind" != "question" ] || [ -n "$askForm" ] ; } && [ "$askOutcome" = "RECEIVED" ] ; then
 		askReadLines="$( AgentsHarnessEscalationRead "$askPendingId" )"
 		## The one place that reads a verdict could not read the thread: nothing is known about how

@@ -44,7 +44,7 @@ case "$1" in
 		return $?
 	;;
 
-	--jira-issue-search|--jira-comment-read|--jira-issue-create|--jira-issue-update|--jira-issue-transition|--jira-comment-add|--jira-issue-link-page|--jira-issue-delete|--jira-project-delete|--confluence-page-search|--confluence-comment-read|--confluence-page-create|--confluence-space-create|--confluence-page-update|--confluence-comment-add|--confluence-page-delete)
+	--jira-issue-search|--jira-comment-read|--jira-issue-create|--jira-issue-update|--jira-issue-transition|--jira-comment-add|--jira-issue-link-page|--jira-issue-delete|--jira-project-delete|--confluence-page-search|--confluence-comment-read|--confluence-page-create|--confluence-space-create|--confluence-page-update|--confluence-page-move|--confluence-comment-add|--confluence-page-delete)
 		local fwdOp="${1#--}" fwdSecondFlag="" fwdSecondLabel="" fwdRestKind="" fwdStubValues="" fwdStubNoValues="" fwdMemberTail=""
 		shift
 		case "$fwdOp" in
@@ -62,6 +62,7 @@ case "$1" in
 			confluence-page-create) fwdRestKind=stub ; fwdStubValues='--space --space-id --title --parent-id --body-storage --body-storage-from-file' ; fwdStubNoValues='--body-storage-from-stdin' ; fwdMemberTail=' -- the client-facing write is --client-comms-confluence-page-create' ;;
 			confluence-space-create) fwdRestKind=stub ; fwdStubValues='--key --name --description' ; fwdMemberTail=" -- a space is the site's own top-level container, so only the coordinator creates one" ;;
 			confluence-page-update) fwdSecondFlag=--page-id ; fwdSecondLabel='<page-id>' ; fwdRestKind=stub ; fwdStubValues='--version --title --status --space-id --body-storage --body-storage-from-file' ; fwdStubNoValues='--body-storage-from-stdin' ; fwdMemberTail=' -- the client-facing write is --client-comms-confluence-page-update' ;;
+			confluence-page-move) fwdSecondFlag=--page-id ; fwdSecondLabel='<page-id>' ; fwdRestKind=stub ; fwdStubValues='--parent-id' ; fwdMemberTail=' -- a page move has no client-facing twin' ;;
 			confluence-comment-add) fwdSecondFlag=--page-id ; fwdSecondLabel='<page-id>' ; fwdRestKind=stub ; fwdStubValues='--body-storage --body-storage-from-file --parent-comment-id' ; fwdStubNoValues='--body-storage-from-stdin' ; fwdMemberTail=' -- the client-facing write is --client-comms-confluence-comment-add' ;;
 			confluence-page-delete) fwdSecondFlag=--page-id ; fwdSecondLabel='<page-id>' ; fwdRestKind=none ; fwdMemberTail=' -- the client-facing write is --client-comms-confluence-page-delete' ;;
 		esac

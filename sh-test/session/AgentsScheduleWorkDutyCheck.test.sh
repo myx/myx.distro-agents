@@ -11,6 +11,8 @@
 ##   6. A `dispatch-*` pending item is never the reason a member starts. That one rule is declared and is NOT met: see the row that names it.
 ##   7. A member with a duty already running is left alone.
 ##   8. OUT OF WORKTIME WITH NO FLAG ON the coordinator alone is started, on demand: its off-duty. The keepers wait.
+##   9. A WORKSPACE THAT KEEPS NO TEAM DATA starts nothing, and says why: its board, inbox and note writes are refused there,
+##      and its spawns fail with no agent launched. Its control is the row after it, the same pass in a team rig.
 ## Offline: no clock is faked, no workspace is read, and the spawner is a counter.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
@@ -27,6 +29,10 @@ trap 'exit 1' INT TERM
 rigData="$rigTmp/data" rigMembers="$rigTmp/members" rigSpawned="$rigTmp/spawned"
 for m in keeper-rig-one keeper-rig-two magic-coordinator ; do mkdir -p "$rigMembers/$m" ; printf "status: active\n" > "$rigMembers/$m/SKILL.md" ; printf '# armed\n' > "$rigMembers/$m/$m.armed.md" ; done
 mkdir -p "$rigMembers/keeper-rig-one" "$rigMembers/keeper-rig-two" "$rigSpawned" "$rigTmp/home" || exit 1
+## The coordinator holds both duty routines, as the real member does: the hours alone then decide which one its duty runs.
+for rigOne in magic-coordinator.off-duty.routine.md magic-coordinator.work-duty.routine.md ; do
+	printf -- '---\ntype: routine\n---\n\nrig\n' > "$rigMembers/magic-coordinator/$rigOne" || exit 1
+done
 rigBoardStates "$rigData" pending || exit 1
 
 rigPassCount=0
@@ -53,17 +59,22 @@ rigNoPending(){ rm -f "$rigData/board/pending"/*.md ; }
 ##   the spawner counts its calls in RIG_CALLS and always answers success;
 ##   the roster is the two rig members;
 ##   a duty record exists only where RIG_DUTY names the member.
+## The workspace mode the rows run in, read by the gate's own reader: this rig keeps no settings file, so the mode is the
+## environment's default (MDAT_WORKSPACE_MODE) and row 9 alone runs where the team data is not kept. File-global on purpose.
+rigModeWord=team-rig
 rigRun(){ ## -- the reasons the pass stated, from RIG_CALLS, and the line of each
 	: > "$rigTmp/calls"
 	: > "$rigTmp/run.out"
+	: > "$rigTmp/reasons"
 	## THE SCHEDULE STARTS ONE DUTY A PASS, so the pass runs three times, a pass for each member there is; a member started in one pass holds its duty in the next.
 	for rigPassNo in 1 2 3 ; do
 	env -i PATH="/usr/bin:/bin:/usr/sbin:/sbin" MDLT_ORIGIN="$MDLT_ORIGIN" \
 		RIG_FLAGS="$rigTmp/flags" RIG_CALLS="$rigTmp/calls" RIG_MEMBERS="$rigMembers" RIG_DUTY="$rigTmp/duty" \
-		RIG_DATA="$rigData" RIG_SPAWNED="$rigSpawned" \
+		RIG_DATA="$rigData" RIG_SPAWNED="$rigSpawned" RIG_MODE="$rigModeWord" RIG_REASONS="$rigTmp/reasons" \
 		bash -c '
 			MMDAPP="${RIG_DATA%/data}" ; export MMDAPP
 			MDAT_DATA_ROOT="$RIG_DATA" ; export MDAT_DATA_ROOT
+			MDAT_WORKSPACE_MODE="$RIG_MODE" ; export MDAT_WORKSPACE_MODE
 			set +e +u
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/schedule/AgentsTools.DispatcherSchedule.include" > /dev/null 2>&1
 			## The include defines every helper this pass calls, so the stand-ins go in AFTER it is sourced, never before.
@@ -74,18 +85,21 @@ rigRun(){ ## -- the reasons the pass stated, from RIG_CALLS, and the line of eac
 			AgentsToolsScheduleDmTags(){ return 0 ; }
 			AgentsToolsScheduleTagNews(){ return 1 ; }
 			AgentsToolsTeamMemberDirectoryText(){ for m in keeper-rig-one keeper-rig-two magic-coordinator ; do printf "%s\t%s/%s\n" "$m" "$RIG_MEMBERS" "$m" ; done ; }
-			AgentsToolsScheduleDutyRoutine(){ printf "magic-team.work-duty.routine.md\n" ; }
-			AgentsToolsScheduleSpawn(){ printf "%s\n" "$1" >> "$RIG_CALLS" ; return 0 ; }
+			## The real resolver is measured, never stood in: the folder of the member decides which routine its duty runs.
+			AgentsToolsScheduleSpawn(){ printf "%s\t%s\n" "$1" "$4" >> "$RIG_CALLS" ; return 0 ; }
 			AgentsToolsScheduleTagCarry(){ return 0 ; }
 			AgentsToolsScheduleDemand(){ return 0 ; }
 			AgentsToolsScheduleDutyRestartDue(){ return 1 ; }
 			AgentsToolsScheduleWorkDutyRecord(){ { [ -s "$RIG_DUTY" ] && [ "$( cat "$RIG_DUTY" )" = "$1" ] ; } || LC_ALL=C grep -q -x -F "work-duty.$1" "$RIG_CALLS" 2> /dev/null && { printf "%s/rig.spawn.md\n" "$RIG_SPAWNED" ; return 0 ; } ; return 1 ; }
 			AgentsToolsScheduleDutyLifetime(){ return 0 ; }
-			AgentsToolsScheduleWorkDuty 2> /dev/null
+			AgentsToolsScheduleWorkDuty 2>> "$RIG_REASONS"
 		' > "$rigTmp/run.out" 2> /dev/null
 	done
 	## In the order the pass started them (S12.24), never sorted: the order is part of what the rows read.
-	printf '%s' "$( LC_ALL=C grep -E '^work-duty\.' "$rigTmp/calls" 2> /dev/null | LC_ALL=C sed 's/^work-duty\.//' | LC_ALL=C tr '\n' ' ' )"
+	printf '%s' "$( LC_ALL=C grep -E '^work-duty\.' "$rigTmp/calls" 2> /dev/null | LC_ALL=C cut -f1 | LC_ALL=C sed 's/^work-duty\.//' | LC_ALL=C tr '\n' ' ' )"
+}
+rigRoutineOf(){ ## member -- the routine its start was given, from the last call of the run
+	LC_ALL=C awk -F '\t' -v want="work-duty.$1" '$1 == want { got = $2 } END { print got }' "$rigTmp/calls" 2> /dev/null
 }
 rigFlags(){ ## the flag lines the pass will read
 	printf '%s\n' "$@" > "$rigTmp/flags"
@@ -143,6 +157,26 @@ rigAssert "worktime off, overtime and emergency off: only the coordinator is sta
 rigOutOfTime ; rigNoPending ; rigDuty magic-coordinator
 rigAssert "a coordinator whose duty already runs is not started again, and no keeper is" "$( rigRun )" ""
 rm -f "$rigTmp/duty"
+
+echo "-- 9. a workspace that keeps no team data --"
+rigModeWord=just-agents ; rigInWorktime ; rigNoPending
+rigAssert "in worktime a workspace that keeps no team data starts nothing" "$( rigRun )" ""
+## The refusal is said once a pass (AgentsToolsScheduleStartsAllowed), and rigRun runs three passes, so the count is the three.
+rigAssert "and says why, once a pass" \
+	"$( LC_ALL=C grep -c -F 'schedule: nothing is started this pass' "$rigTmp/reasons" 2> /dev/null )" "3"
+rigAssert "and the reason names the cause, which is the missing team data" \
+	"$( LC_ALL=C grep -c -F 'this workspace keeps no team data' "$rigTmp/reasons" 2> /dev/null )" "3"
+rigModeWord=team-rig
+rigInWorktime ; rigNoPending
+rigAssert "CONTROL: the same pass in the team rig starts them" "$( rigRun )" "magic-coordinator keeper-rig-one keeper-rig-two "
+
+## WHICH ROUTINE THE HOURS GIVE, from the start itself: the resolver is the real one, and the call site is what is measured.
+rigOutOfTime ; rigNoPending
+rigAssert "the coordinator's duty is started" "$( rigRun )" "magic-coordinator "
+rigAssert "out of worktime it runs its off-duty routine" "$( rigRoutineOf magic-coordinator )" "magic-coordinator.off-duty.routine.md"
+rigInWorktime ; rigNoPending
+rigAssert "CONTROL: in worktime its duty is started" "$( rigRun )" "magic-coordinator keeper-rig-one keeper-rig-two "
+rigAssert "in worktime it runs its work-duty routine" "$( rigRoutineOf magic-coordinator )" "magic-coordinator.work-duty.routine.md"
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ SCHEDULE WORK DUTY CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount ))" >&2 ; exit 1

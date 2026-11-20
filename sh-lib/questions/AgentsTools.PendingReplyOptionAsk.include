@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+## AgentsTools.PendingReplyOptionAsk.include -- an ask's answers, and the one rule that gives them:
+## an ask that offers answers of its own is a disambiguation ask, whatever its fields say.
+##
+## Its `select` field is no witness for that. A revise back to free text removes the field and
+## leaves the options standing beside the record (AgentsTools.InternOpPendingReplyRevise.include),
+## so that record still asks a question whose answers are its options. A reply naming none of them
+## is RETURNED there, never kept as the answer, which is what the one reader of a reply's verdict
+## already does for a question of the `one` form (AgentsEscalationVerdict.awk).
+##
+## Definitions only. Every place that decides between reading a reply as a verdict and keeping it
+## as typed asks this file for the form, so the rule cannot differ from one path to the next.
+
+## The answer form to read this ask's reply by: its `select` where it has one, else `one` where it
+## offers options of its own, else nothing -- a free-text ask, which takes the reply as typed.
+AgentsToolsPendingReplyAnswerForm(){ ## record file
+	local formValue=""
+	if [ -f "$1" ] ; then
+		formValue="$( LC_ALL=C awk '
+			$0 == "---" { dashes++ ; if ( dashes == 2 ) { exit } ; next }
+			dashes == 1 && index( $0, "select: " ) == 1 { print substr( $0, 9 ) ; exit }
+		' "$1" 2> /dev/null )"
+	fi
+	if [ -n "$formValue" ] ; then printf '%s\n' "$formValue" ; return 0 ; fi
+	[ -s "${1%.md}.options" ] || return 0
+	printf 'one\n'
+}

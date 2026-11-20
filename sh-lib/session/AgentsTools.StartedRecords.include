@@ -104,6 +104,24 @@ AgentsToolsSpawnedAllRecordsInto(){ ## array variable, workspace (default MMDAPP
 	return 0
 }
 
+## THE STARTED RECORDS, read from the index the store's writers keep (`<spawned>/.started-records`), never from a walk of the store: a
+## line whose record no longer says `spawn-started` is dropped here. Where no index exists yet, one walk writes it.
+AgentsSpawnedStartedRecords(){ ## workspace (default MMDAPP) -- the paths of the started records, a line each
+	local startedWs="${1:-${MMDAPP:-/nonexistent}}" startedIndex startedPaths=() startedList=""
+	startedIndex="${startedWs%/}/.local/agents/spawned/.started-records"
+	if [ ! -f "$startedIndex" ] ; then
+		AgentsToolsSpawnedAllRecordsInto startedPaths "$startedWs" || startedPaths=()
+		startedList="$( LC_ALL=C grep -l -x -F 'status: spawn-started' ${startedPaths[@]+"${startedPaths[@]}"} /dev/null 2> /dev/null )" || startedList=""
+		[ -z "$startedList" ] || printf '%s\n' "$startedList" > "$startedIndex" 2> /dev/null
+	fi
+	[ ! -s "$startedIndex" ] || LC_ALL=C awk '
+		FNR == 1 { fence = 0 }
+		$0 == "---" { if ( ++fence > 1 ) nextfile ; next }
+		fence == 1 && index( $0, "status: " ) == 1 { if ( substr( $0, 9 ) == "spawn-started" ) print FILENAME ; nextfile }
+	' $( cat "$startedIndex" ) 2> /dev/null || :
+	return 0
+}
+
 ## EVERY RUN RECORD'S HEADERS IN ONE READ OF THEM ALL, `<sandbox><TAB><record name><TAB><last write, epoch><TAB><value>...` a record: the
 ## values of the keys asked, in order, each the first line of its key in the record's first frontmatter block, empty where it has none.
 ## One stat and one awk over the records the walk above hands, never a process a record.

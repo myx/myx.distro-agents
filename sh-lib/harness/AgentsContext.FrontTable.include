@@ -113,6 +113,7 @@ DistroAgentsAtlassian	--confluence-comment-add	coordinator
 DistroAgentsAtlassian	--confluence-comment-read	member
 DistroAgentsAtlassian	--confluence-page-create	coordinator
 DistroAgentsAtlassian	--confluence-page-delete	coordinator
+DistroAgentsAtlassian	--confluence-page-move	coordinator
 DistroAgentsAtlassian	--confluence-page-read	member
 DistroAgentsAtlassian	--confluence-page-search	member
 DistroAgentsAtlassian	--confluence-page-update	coordinator

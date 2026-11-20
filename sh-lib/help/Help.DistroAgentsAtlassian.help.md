@@ -2,6 +2,7 @@
 📘 syntax: DistroAgentsAtlassian.fn.sh --confluence-comment-read [--team-member <team-member>] <page-id>
 📘 syntax: DistroAgentsAtlassian.fn.sh --confluence-page-create [--team-member <team-member>] (--space <key>|--space-id <numeric-id>) --title <text> (--body-storage <html>|--body-storage-from-stdin|--body-storage-from-file <path>) [--parent-id <id>]
 📘 syntax: DistroAgentsAtlassian.fn.sh --confluence-page-delete [--team-member <team-member>] <page-id>
+📘 syntax: DistroAgentsAtlassian.fn.sh --confluence-page-move [--team-member <team-member>] <page-id> --parent-id <parent-page-id>
 📘 syntax: DistroAgentsAtlassian.fn.sh --confluence-page-search [--team-member <team-member>] <cql> [--limit <n>]
 📘 syntax: DistroAgentsAtlassian.fn.sh --confluence-page-update [--team-member <team-member>] <page-id> --version <n> --title <text> --status <value> (--body-storage <html>|--body-storage-from-stdin|--body-storage-from-file <path>) [--space-id <numeric-id>]
 📘 syntax: DistroAgentsAtlassian.fn.sh --confluence-space-create [--team-member <team-member>] --key <space-key> --name <text> [--description <text>]
@@ -106,6 +107,24 @@
 
 		--confluence-page-delete <page-id>
 			Deletes one page.
+
+		--confluence-page-move <page-id> --parent-id <parent-page-id>
+			Puts one page under that parent, which makes it that page's
+			child. Only the parent changes: the title, the body and the
+			version stay as they were.
+
+			Confluence's v2 page update carries no parent field, so the
+			move is the v1 `PUT /wiki/rest/api/content/<id>/move/append/<parent>`.
+			The page is then read back through v2, and the read-back is
+			what is printed: `PAGE_ID`, `TITLE`, `PARENT_ID`.
+
+			Returns 0 when the page reads back under that parent. **3**:
+			UNKNOWN -- the move was sent, and the read-back failed or
+			showed another parent. Both pages are then read before
+			anything is sent again. **8**: the page or the parent is
+			missing, or this identity may not see it. **9**: refused,
+			so nothing moved and a retry of the same call changes
+			nothing. Every other status means the move was not sent.
 
 		--confluence-comment-read <page-id>
 			Prints the comments of one page.

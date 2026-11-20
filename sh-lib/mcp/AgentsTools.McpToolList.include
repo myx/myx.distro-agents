@@ -25,7 +25,10 @@ AgentsToolsMcpToolListRender(){ ## dir
 	[ -n "$renderDir" ] || return 1
 	[ ! -f "$renderDir/ready" ] || return 0
 	type AgentsToolsUnservedMcpEntries > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessUnserved.include"
-	renderNames="$( printf '%s' "$agentsUnservedOnMcp" | LC_ALL=C tr '\n' ' ' )"
+	[ -n "${agentsFrontSecondary:-}" ] || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.FrontTable.Help.include"
+	## The secondary tools are on the harness wire too, and the secondary mirror serves them: the floor leaves them out, so each is listed once.
+	## A client may refuse a list that names a tool twice: DeepSeek Harness drops the whole server.
+	renderNames="$( printf '%s\n%s' "$agentsUnservedOnMcp" "$agentsFrontSecondary" | LC_ALL=C tr '\n' ' ' )"
 	renderTmp="$( mktemp -d "${renderDir%/*}/.tools.XXXXXX" 2>/dev/null )" || return 1
 	if [ -z "${MDAT_MCP_SERVED_MARKER:-}" ] ; then
 		renderUnserved="$( AgentsToolsUnservedMcpEntries )"

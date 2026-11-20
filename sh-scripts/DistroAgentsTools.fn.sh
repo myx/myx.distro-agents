@@ -891,7 +891,7 @@ case "$selfPath" in
 		## file the internal write is refused, whoever calls it, the console included. The generic call writes with any method but GET.
 		agentsWriteOp=""
 		case "$1" in
-			--intern-op-atlassian-confluence-space-create|--intern-op-atlassian-confluence-page-create|--intern-op-atlassian-confluence-page-update|--intern-op-atlassian-confluence-comment-add|--intern-op-atlassian-confluence-page-delete|--intern-op-atlassian-jira-issue-create|--intern-op-atlassian-jira-issue-update|--intern-op-atlassian-jira-issue-transition|--intern-op-atlassian-jira-comment-add|--intern-op-atlassian-jira-issue-link-page|--intern-op-atlassian-jira-issue-delete|--intern-op-atlassian-jira-project-delete)
+			--intern-op-atlassian-confluence-space-create|--intern-op-atlassian-confluence-page-create|--intern-op-atlassian-confluence-page-update|--intern-op-atlassian-confluence-page-move|--intern-op-atlassian-confluence-comment-add|--intern-op-atlassian-confluence-page-delete|--intern-op-atlassian-jira-issue-create|--intern-op-atlassian-jira-issue-update|--intern-op-atlassian-jira-issue-transition|--intern-op-atlassian-jira-comment-add|--intern-op-atlassian-jira-issue-link-page|--intern-op-atlassian-jira-issue-delete|--intern-op-atlassian-jira-project-delete)
 				agentsWriteOp="${1#--}"
 			;;
 			--intern-op-atlassian-call)

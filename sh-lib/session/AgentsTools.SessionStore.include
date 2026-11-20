@@ -481,7 +481,7 @@ AgentsSessionDiscard(){ ## session
 ## record then left as it was. A record named outside a spawned/ store, `<workspace>/.local/agents/spawned/<folder>/<run>.spawn.md`, where
 ## every reader looks and the stamp is, is refused, and the refusal says so on stderr.
 AgentsSpawnRecordWrite(){ ## run or record path, folder (empty: the run's own), the record as it must still stand (optional)
-	local writeRecord="${1:-}" writeTemp writeNow="" writeWhy=""
+	local writeRecord="${1:-}" writeTemp writeIndex writeNow="" writeWhy=""
 	case "$writeRecord" in
 		*/../*|*/./*) writeWhy="its path holds a . or .. part" ;;
 		*/*.spawn.md) ;;
@@ -502,7 +502,20 @@ AgentsSpawnRecordWrite(){ ## run or record path, folder (empty: the run's own), 
 	if cat > "$writeTemp" 2> /dev/null && chmod 644 "$writeTemp" 2> /dev/null ; then
 		[ $# -lt 3 ] || { IFS= read -r -d '' writeNow < "$writeRecord" 2> /dev/null || : ; }
 		if [ $# -lt 3 ] || [ "$writeNow" = "$3" ] ; then
-			mv -f "$writeTemp" "$writeRecord" 2> /dev/null && { touch "${writeRecord%/*/*}" 2> /dev/null || : ; return 0 ; }
+			if mv -f "$writeTemp" "$writeRecord" 2> /dev/null ; then
+				touch "${writeRecord%/*/*}" 2> /dev/null || :
+				writeIndex="${writeRecord%/*/*}/.started-records"
+				type AgentsToolsFrontmatterKey > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.FrontmatterKey.include"
+				if writeTemp="$( mktemp "$writeIndex.XXXXXX" 2> /dev/null )" ; then
+					if { [ ! -f "$writeIndex" ] || LC_ALL=C grep -v -x -F -- "$writeRecord" "$writeIndex" 2> /dev/null || : ; } > "$writeTemp" 2> /dev/null ; then
+						[ "$( AgentsToolsFrontmatterKey "$writeRecord" status )" != "spawn-started" ] || printf '%s\n' "$writeRecord" >> "$writeTemp" 2> /dev/null
+						mv -f "$writeTemp" "$writeIndex" 2> /dev/null || rm -f "$writeTemp" 2> /dev/null
+					else
+						rm -f "$writeTemp" 2> /dev/null
+					fi
+				fi
+				return 0
+			fi
 		fi
 	fi
 	rm -f "$writeTemp" 2> /dev/null
@@ -512,7 +525,7 @@ AgentsSpawnRecordWrite(){ ## run or record path, folder (empty: the run's own), 
 ## Removes one folder of spawned/ with every record in it, the write permission a record may have lost given back first, then moves the
 ## store's stamp. rc 1 where the folder stayed.
 AgentsSpawnRecordRemove(){ ## folder
-	local removeFolder
+	local removeFolder removeIndex removeTemp
 	case "${1:-}" in ''|-|.|..|-*|*/*|*[[:space:]]*) return 1 ;; esac
 	[ -n "${MMDAPP:-}" ] || return 1
 	printf -v removeFolder '%s/%s/%s' "$MMDAPP" "$agentsSpawnedStoreLeaf" "$1"
@@ -521,6 +534,14 @@ AgentsSpawnRecordRemove(){ ## folder
 	rm -rf -- "$removeFolder" 2> /dev/null || :
 	[ ! -e "$removeFolder" ] || return 1
 	touch "${removeFolder%/*}" 2> /dev/null || :
+	removeIndex="${removeFolder%/*}/.started-records"
+	if [ -f "$removeIndex" ] && removeTemp="$( mktemp "$removeIndex.XXXXXX" 2> /dev/null )" ; then
+		if LC_ALL=C awk -v gone="${removeFolder}/" 'index( $0, gone ) != 1' "$removeIndex" > "$removeTemp" 2> /dev/null ; then
+			mv -f "$removeTemp" "$removeIndex" 2> /dev/null || rm -f "$removeTemp" 2> /dev/null
+		else
+			rm -f "$removeTemp" 2> /dev/null
+		fi
+	fi
 	return 0
 }
 

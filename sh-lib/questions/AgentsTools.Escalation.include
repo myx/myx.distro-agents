@@ -939,6 +939,11 @@ AgentsToolsEscalationThreadVerdict(){ ## member, record file, pending id, channe
 	local threadAlso=""
 	[ "$threadLive" = "$threadQuestion" ] || [ "$threadRoot" != "$threadQuestion" ] || threadAlso="$threadQuestion"
 	threadKind="$( AgentsToolsEscalationField "$threadFile" kind )"
+	## An ask that offers answers of its own takes only one of them, whatever its `select` field
+	## says (AgentsTools.PendingReplyOptionAsk.include).
+	type AgentsToolsPendingReplyAnswerForm > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.PendingReplyOptionAsk.include"
+	local threadForm=""
+	threadForm="$( AgentsToolsPendingReplyAnswerForm "$threadFile" )"
 	## A proposal is answered on its root alone: the clicks under its root, never those under
 	## the proposal reply, and the replies after that reply (AgentsSlackThreadAnswersSince.awk).
 	local threadSince=""
@@ -993,7 +998,7 @@ AgentsToolsEscalationThreadVerdict(){ ## member, record file, pending id, channe
 			| MDAT_VERDICT_WORDS=1 MDAT_VERDICT_KIND="${threadKind:-question}" MDAT_VERDICT_OPTIONS="$threadOptions" MDAT_VERDICT_AUTHORS="$threadAuthors" \
 				MDAT_VERDICT_FOLDER="$( AgentsToolsEscalationFolderOffered "$threadFile" )" MDAT_VERDICT_PROJECT="$( AgentsToolsEscalationFolderOffered "$threadFile" project )" \
 				MDAT_VERDICT_CONTACT="$( AgentsToolsEscalationFolderOffered "$threadFile" contact )" \
-				MDAT_VERDICT_SELECT="$( AgentsToolsEscalationField "$threadFile" select )" MDAT_VERDICT_ASKING="$( AgentsToolsEscalationField "$threadFile" asking-accounts )" \
+				MDAT_VERDICT_SELECT="$threadForm" MDAT_VERDICT_ASKING="$( AgentsToolsEscalationField "$threadFile" asking-accounts )" \
 				LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsEscalationVerdict.awk" 2>/dev/null )" || threadVerdict=""
 		[ -z "$threadNoVerdict" ] || [ -z "$threadVerdict" ] || threadVerdict="RETURNED"$'\t'$'\t'
 		## The verdict reader's third field is the reply it was read from; the line ends at the author.
@@ -1143,11 +1148,12 @@ AgentsToolsEscalationAskDirect(){ ## record file, channel
 AgentsToolsEscalationTypedVerdict(){ ## record file, the line as typed
 	local typedOptions="" typedOut=""
 	[ ! -f "${1%.md}.options" ] || typedOptions="$( cat "${1%.md}.options" )"
+	type AgentsToolsPendingReplyAnswerForm > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.PendingReplyOptionAsk.include"
 	typedOut="$( printf '1.000001 | CONSOLE | %s\n' "${2//$'\n'/ }" \
 		| MDAT_VERDICT_WORDS=1 MDAT_VERDICT_KIND="$( AgentsToolsEscalationField "$1" kind )" MDAT_VERDICT_OPTIONS="$typedOptions" MDAT_VERDICT_AUTHORS="CONSOLE" \
 			MDAT_VERDICT_FOLDER="$( AgentsToolsEscalationFolderOffered "$1" )" MDAT_VERDICT_PROJECT="$( AgentsToolsEscalationFolderOffered "$1" project )" \
 			MDAT_VERDICT_CONTACT="$( AgentsToolsEscalationFolderOffered "$1" contact )" \
-			MDAT_VERDICT_SELECT="$( AgentsToolsEscalationField "$1" select )" MDAT_VERDICT_ASKING="" \
+			MDAT_VERDICT_SELECT="$( AgentsToolsPendingReplyAnswerForm "$1" )" MDAT_VERDICT_ASKING="" \
 			LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsEscalationVerdict.awk" 2>/dev/null )" || typedOut=""
 	typedOut="${typedOut%%$'\t'*}"
 	case "$typedOut" in ''|RETURNED) return 0 ;; esac
