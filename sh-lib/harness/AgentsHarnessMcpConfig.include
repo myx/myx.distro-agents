@@ -101,6 +101,28 @@ AgentsHarnessMcpSpecAdd(){ ## name, command, env pair count, key, value, ..., ar
 	harnessMcpSpecNames="${harnessMcpSpecNames:+$harnessMcpSpecNames$'\n'}$addName"
 }
 
+## The myx.common MCP server script, one path, or non-zero where no place holds it: the
+## command `myx.common which` when that command is on the PATH, else $MYXROOT, else the
+## workspace's own installed tarball. The PATH answers only in a console session, and an
+## install run outside one still has to name this server.
+AgentsHarnessMcpCommonServerScript(){ ## workspace
+	local mcpResPath="" mcpResCand
+	if command -v myx.common > /dev/null 2>&1 ; then
+		mcpResPath="$( myx.common which lib/agentMcpServer 2>/dev/null )" || mcpResPath=""
+	fi
+	[ -n "$mcpResPath" ] || mcpResPath="${MYXROOT:+$MYXROOT/bin/lib/agentMcpServer.Common}"
+	if [ ! -x "$mcpResPath" ] ; then
+		mcpResPath=""
+		for mcpResCand in "$1/.local/myx/myx.common"/*/host/tarball/share/myx.common/bin/lib/agentMcpServer.Common ; do
+			[ -x "$mcpResCand" ] || continue
+			mcpResPath="$mcpResCand"
+			break
+		done
+	fi
+	[ -n "$mcpResPath" ] || return 1
+	printf '%s\n' "$mcpResPath"
+}
+
 ## THE PRIMARY COMPOSITION: the servers --install-vscode-integrations registers for this
 ## workspace, with the same command, args and env it writes, each only where its server
 ## script is executable. The tooling is $MDLT_ORIGIN and the data is $MMDAPP: both servers
@@ -109,7 +131,7 @@ AgentsHarnessMcpSpecAdd(){ ## name, command, env pair count, key, value, ..., ar
 AgentsHarnessMcpServersPrimary(){
 	AgentsHarnessMcpSpecReset
 	local mcpCommonServer=""
-	mcpCommonServer="$( command -v myx.common >/dev/null 2>&1 && myx.common which lib/agentMcpServer 2>/dev/null )" || mcpCommonServer=""
+	mcpCommonServer="$( AgentsHarnessMcpCommonServerScript "$MMDAPP" )" || mcpCommonServer=""
 	[ ! -x "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" ] || AgentsHarnessMcpSpecAdd "myx.distro" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" 2 MMDAPP "$MMDAPP" MDLT_ORIGIN "$MDLT_ORIGIN" --intern-mcp-server --run
 	[ ! -x "$mcpCommonServer" ] || AgentsHarnessMcpSpecAdd "myx.common" "$mcpCommonServer" 2 MMDAPP "$MMDAPP" MDLT_ORIGIN "$MDLT_ORIGIN" --run
 	return 0

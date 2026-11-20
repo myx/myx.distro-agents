@@ -866,6 +866,10 @@ User view: [docs/installation.md](docs/installation.md#workspace-restrictions-op
 - **A hand-wired entry is recognised by its key** and adopted as the policy's own, with its script
   replaced.
 
+- **The DeepSeek Harness app is covered by a bridge plugin, which this op installs.** The app has no per-tool hook seam of its own, so `sh-lib/harness/AgentsHarnessDshHooks.include` installs `@deepseek-ai/dsh-hooks-claude-code` into the desktop profile with pnpm.
+  It then writes one managed row in the home patch naming this workspace's `.claude/settings.json` as the bridge's `configPath`. The app reaches every hook above through that row.
+  Where the PATH holds no pnpm the step uses the copy the app ships in its own runtime, and fails where neither is there. The plugin version is pinned to the app's own.
+
 ## 10. The agents console
 
 User view: [docs/use.md](docs/use.md#running-the-agents-console).

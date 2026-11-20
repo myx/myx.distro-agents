@@ -117,7 +117,7 @@ rigRun(){ ## home, arguments...
 rigStepLines(){ ## -- this run's lines that name the harness, the step's own
 	LC_ALL=C grep -F -- 'DeepSeek Harness' "$rigTmp/err" || :
 }
-rigRowValue(){ ## patch file -- the myx-distro row as serverName|transport|command|args|MMDAPP|failOnStartupError
+rigRowValue(){ ## patch file -- the myx-distro row as serverName|transport|command|args|MMDAPP|MDLT_ORIGIN|failOnStartupError
 	[ -f "$1" ] || return 0
 	case "$rigYaml" in
 		ruby)
@@ -131,7 +131,7 @@ if doc.is_a?(Array)
       next unless entry.is_a?(Hash) && entry["id"] == "myx-distro-mcp"
       c = entry["config"].is_a?(Hash) ? entry["config"] : {}
       e = c["env"].is_a?(Hash) ? c["env"] : {}
-      rows << [c["serverName"], c["transport"], c["command"], Array(c["args"]).join(" "), e["MMDAPP"], c["failOnStartupError"].to_s].join("|")
+      rows << [c["serverName"], c["transport"], c["command"], Array(c["args"]).join(" "), e["MMDAPP"], e["MDLT_ORIGIN"], c["failOnStartupError"].to_s].join("|")
     end
   end
 end
@@ -151,7 +151,7 @@ if isinstance(doc, list):
                     c = entry.get("config") or {}
                     e = c.get("env") or {}
                     rows.append("|".join([str(c.get("serverName")), str(c.get("transport")), str(c.get("command")),
-                        " ".join(c.get("args") or []), str(e.get("MMDAPP")), str(c.get("failOnStartupError")).lower()]))
+                        " ".join(c.get("args") or []), str(e.get("MMDAPP")), str(e.get("MDLT_ORIGIN")), str(c.get("failOnStartupError")).lower()]))
 print("\n".join(rows))
 ' "$1"
 		;;
@@ -166,7 +166,7 @@ if command -v ruby > /dev/null 2>&1 && ruby -ryaml -e 'exit 0' > /dev/null 2>&1 
 elif command -v python3 > /dev/null 2>&1 && python3 -c 'import yaml' > /dev/null 2>&1 ; then
 	rigYaml="python3"
 fi
-rigWantRow="myx-distro|stdio|$rigWs/.local/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh|--intern-mcp-server --run|$rigWs|false"
+rigWantRow="myx-distro|stdio|$rigWs/.local/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh|--intern-mcp-server --run|$rigWs|$rigToolOrigin|false"
 rigRowAssert(){ ## label, patch file
 	if [ -n "$rigYaml" ] ; then
 		rigAssert "$1" "$( rigRowValue "$2" )" "$rigWantRow"
@@ -184,7 +184,7 @@ rigAssert "the step's own lines carry no absolute path"                  "$( rig
 rigAssert "the row is in the file once"                                  "$( rigCount "$rigPatch" '    - id: myx-distro-mcp' )" 1
 rigAssert "its command is the workspace's own installed tool"            "$( rigCount "$rigPatch" "        command: '$rigWs/.local/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh'" )" 1
 rigAssert "its env names the workspace"                                  "$( rigCount "$rigPatch" "          MMDAPP: '$rigWs'" )" 1
-rigAssert "it carries no other workspace's env"                          "$( rigHolds "$rigPatch" 'MDLT_ORIGIN' )" 0
+rigAssert "and the origin, as the .mcp.json row names it"                "$( rigCount "$rigPatch" "          MDLT_ORIGIN: '$rigToolOrigin'" )" 1
 rigRowAssert "the merged file is valid YAML and the row says what it must" "$rigPatch"
 
 echo "-- 2. a second run changes nothing and says so --"
@@ -217,6 +217,7 @@ rigAssert "and its own content is kept"                                  "$( rig
 rigAssert "our row is still written once"                                "$( rigCount "$rigPatch" '    - id: myx-distro-mcp' )" 1
 rigAssert "its command is the workspace's own again"                     "$( rigCount "$rigPatch" "        command: '$rigWs/.local/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh'" )" 1
 rigAssert "its env names the workspace again"                            "$( rigCount "$rigPatch" "          MMDAPP: '$rigWs'" )" 1
+rigAssert "and the origin again"                                         "$( rigCount "$rigPatch" "          MDLT_ORIGIN: '$rigToolOrigin'" )" 1
 rigAssert "no old value is left"                                         "$( rigHolds "$rigPatch" "$rigOldWs" )" 0
 rigAssert "the one managed block is replaced, not duplicated"            "$( rigHolds "$rigPatch" 'managed block, replaced on update' )" 1
 rigRowAssert "the merged file is valid YAML and the row says what it must" "$rigPatch"

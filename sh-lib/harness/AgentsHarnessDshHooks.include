@@ -1,0 +1,130 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+## AgentsHarnessDshHooks.include -- the DeepSeek Harness app's own hook seam, installed by
+## --install-workspace-restrictions. The app runs no per-tool hook of its own: the seam is
+## the plugin @deepseek-ai/dsh-hooks-claude-code, which runs a Claude Code hooks config on
+## the app's interception points. So this step pins that config to the settings file the
+## same op writes, and the hooks reach the app exactly as they reach the *-native clients.
+##
+## TWO FILES, BOTH THE APP'S: a dependency in the profile's package.json, materialized by
+## pnpm into the profile, and one managed row in $HOME/.dsh/cordis.patch.yml -- the same
+## home patch the myx-distro MCP row lives in. The row carries no `projectDir`, so
+## CLAUDE_PROJECT_DIR follows the session's own directory, which is why every namespace
+## folder carries the `.claude` clone.
+##
+## NO PACKAGE MANAGER BRINGS NO PLUGIN: pnpm on the PATH answers first, else the pnpm the
+## app ships in its own runtime, else the step refuses. A hook that silently does not run
+## reads as allow, so a step that cannot finish states its reason and fails.
+##
+## The version is the one verified against the app of the same version; a newer app takes
+## its own, and this line is where that is recorded.
+
+agentsDshHooksPackage="@deepseek-ai/dsh-hooks-claude-code"
+agentsDshHooksVersion="0.2.1-rc.3"
+agentsDshHooksRowId="myx-hooks-bridge"
+agentsDshHooksPatchBegin="# >>> myx.distro-agents: ${agentsDshHooksRowId} row for DeepSeek Harness -- managed block, replaced on update >>>"
+agentsDshHooksPatchEnd="# <<< myx.distro-agents: ${agentsDshHooksRowId} row for DeepSeek Harness <<<"
+
+## Installs the bridge for one workspace. Silent success where the app is not installed:
+## a machine without it gets the rest of the restrictions and no hook seam.
+AgentsHarnessDshHooksInstall(){ ## workspace
+	local dshWorkspace="$1" dshHome dshProfile dshSettings dshPatch dshPnpm dshNode dshPnpmCjs dshRc=0
+
+	if [ -z "${HOME:-}" ] || [ ! -d "$HOME/.dsh" ] ; then
+		echo "# DeepSeek Harness is not installed there -- its hook seam is unchanged" >&2
+		return 0
+	fi
+	dshHome="$HOME/.dsh"
+	dshProfile="$dshHome/profiles/desktop"
+	if [ ! -d "$dshProfile" ] ; then
+		echo "⛔ ERROR: DeepSeek Harness holds no desktop profile at $dshProfile -- start the app once, then re-run this install" >&2
+		return 1
+	fi
+	dshSettings="$dshWorkspace/.claude/settings.json"
+	if [ ! -f "$dshSettings" ] ; then
+		echo "⛔ ERROR: no hooks config to bridge, $dshSettings does not exist -- the settings merge above must write it first" >&2
+		return 1
+	fi
+
+	## pnpm on the PATH first, as the app's own plugin manager does; else the copy the app
+	## ships in its runtime, under the one install location the app has on this platform.
+	dshPnpm="$( command -v pnpm 2>/dev/null )" || dshPnpm=""
+	dshNode=""
+	dshPnpmCjs=""
+	if [ -z "$dshPnpm" ] ; then
+		dshNode="/Applications/DeepSeek Harness.app/Contents/Resources/runtime/primary-runtime/dependencies/node/bin/node"
+		dshPnpmCjs="/Applications/DeepSeek Harness.app/Contents/Resources/runtime/primary-runtime/dependencies/pnpm/bin/pnpm.cjs"
+		if [ ! -x "$dshNode" ] || [ ! -f "$dshPnpmCjs" ] ; then
+			echo "⛔ ERROR: no pnpm to install the DeepSeek Harness hook bridge: none on the PATH, and none in the app's own runtime" >&2
+			echo "   fix with: install pnpm, then re-run this install" >&2
+			return 1
+		fi
+	fi
+
+	if [ -d "$dshProfile/node_modules/$agentsDshHooksPackage" ] ; then
+		echo "# the DeepSeek Harness hook bridge is installed already: $agentsDshHooksPackage" >&2
+	else
+		if [ -n "$dshPnpm" ] ; then
+			"$dshPnpm" --dir "$dshProfile" add "$agentsDshHooksPackage@$agentsDshHooksVersion" >&2 || dshRc=$?
+		else
+			"$dshNode" "$dshPnpmCjs" --dir "$dshProfile" add "$agentsDshHooksPackage@$agentsDshHooksVersion" >&2 || dshRc=$?
+		fi
+		if [ "$dshRc" != "0" ] ; then
+			echo "⛔ ERROR: the DeepSeek Harness hook bridge could not be installed: pnpm exited $dshRc -- the app runs no hooks until it is" >&2
+			return 1
+		fi
+	fi
+
+	dshPatch="$dshHome/cordis.patch.yml"
+	{
+		printf '%s\n' "$agentsDshHooksPatchBegin"
+		printf '%s\n' '- insert:'
+		printf '%s\n' "    - id: $agentsDshHooksRowId"
+		printf '%s\n' "      name: '$agentsDshHooksPackage'"
+		printf '%s\n' '      config:'
+		printf '%s\n' "        configPath: '$( printf '%s' "$dshSettings" | LC_ALL=C sed "s/'/''/g" )'"
+		printf '%s\n' "$agentsDshHooksPatchEnd"
+	} > "$dshProfile/.cordis-row.yml.tmp" || return 1
+
+	if [ -f "$dshPatch" ] ; then
+		LC_ALL=C awk -v begin="$agentsDshHooksPatchBegin" -v end="$agentsDshHooksPatchEnd" -v block="$dshProfile/.cordis-row.yml.tmp" '
+			$0 == begin { while ((getline row < block) > 0) print row ; close(block) ; wrote = 1 ; inBlock = 1 ; next }
+			$0 == end { inBlock = 0 ; next }
+			inBlock { next }
+			{ print }
+			END { if (!wrote) { while ((getline row < block) > 0) print row ; close(block) ; } }
+		' "$dshPatch" > "$dshPatch.tmp" || dshRc=$?
+	else
+		cat "$dshProfile/.cordis-row.yml.tmp" > "$dshPatch.tmp" || dshRc=$?
+	fi
+	rm -f "$dshProfile/.cordis-row.yml.tmp"
+	if [ "$dshRc" != "0" ] ; then
+		echo "⛔ ERROR: the DeepSeek Harness home patch could not be written -- its hook seam is unchanged" >&2
+		rm -f "$dshPatch.tmp"
+		return 1
+	fi
+	if cmp -s "$dshPatch.tmp" "$dshPatch" 2>/dev/null ; then
+		rm -f "$dshPatch.tmp"
+		echo "# the DeepSeek Harness hook seam is already current: $( basename "$dshPatch" )" >&2
+	else
+		if ! mv -f "$dshPatch.tmp" "$dshPatch" ; then
+			echo "⛔ ERROR: the DeepSeek Harness home patch could not be installed -- its hook seam is unchanged" >&2
+			rm -f "$dshPatch.tmp"
+			return 1
+		fi
+		echo "🪝 the DeepSeek Harness hook seam installed: $agentsDshHooksPackage runs $dshSettings" >&2
+	fi
+
+	## Read back before reporting: a row that landed in the wrong place and a package the
+	## profile cannot resolve both read as a clean install otherwise.
+	if [ ! -d "$dshProfile/node_modules/$agentsDshHooksPackage" ] ; then
+		echo "⛔ ERROR: $agentsDshHooksPackage is not installed in $dshProfile -- the app runs no hooks" >&2
+		return 1
+	fi
+	if [ "$( LC_ALL=C grep -c -x -F -- "    - id: $agentsDshHooksRowId" "$dshPatch" 2>/dev/null || : )" != "1" ] ; then
+		echo "⛔ ERROR: the home patch does not carry $agentsDshHooksRowId exactly once -- the app mounts no bridge" >&2
+		return 1
+	fi
+	return 0
+}

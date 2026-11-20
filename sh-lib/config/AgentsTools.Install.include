@@ -350,11 +350,15 @@ AgentsToolsInstallDshPatchValue(){ ## text
 ## Writes the row, marker comments included, to a file. The `- insert:` item is the shape
 ## DSH's own hand install used and the shape the brief fixes.
 AgentsToolsInstallDshPatchRow(){ ## workspace, file
-	local rowWorkspace="$1" rowFile="$2" rowCommand rowRoot
+	local rowWorkspace="$1" rowFile="$2" rowCommand rowRoot rowOrigin
 	AgentsToolsInstallDshPatchValue "$rowWorkspace/.local/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 	rowCommand="$agentsDshValue"
 	AgentsToolsInstallDshPatchValue "$rowWorkspace"
 	rowRoot="$agentsDshValue"
+	## The origin is named here as the .mcp.json rows name it, so the two published
+	## shapes of one server cannot disagree.
+	AgentsToolsInstallDshPatchValue "$MDLT_ORIGIN"
+	rowOrigin="$agentsDshValue"
 	{
 		printf '%s\n' "$agentsDshPatchBegin"
 		printf '%s\n' '- insert:'
@@ -369,6 +373,7 @@ AgentsToolsInstallDshPatchRow(){ ## workspace, file
 		printf '%s\n' '          - --run'
 		printf '%s\n' '        env:'
 		printf '%s\n' "          MMDAPP: $rowRoot"
+		printf '%s\n' "          MDLT_ORIGIN: $rowOrigin"
 		printf '%s\n' '        failOnStartupError: false'
 		printf '%s\n' "$agentsDshPatchEnd"
 	} > "$rowFile"

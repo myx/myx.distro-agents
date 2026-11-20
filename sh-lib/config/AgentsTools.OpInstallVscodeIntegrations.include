@@ -39,11 +39,12 @@
 
 		echo "# workspace: $workspace" >&2
 
-		## The tooling's own myx.common, found by `myx.common which`, as AgentsHarnessMcpServersPrimary composes it.
+		## The tooling's own myx.common, from the one resolver AgentsHarnessMcpServersPrimary
+		## composes with, so an install run outside a console still names this server.
 		local mcpRoot="" serverScript=""
-		mcpRoot="$( command -v myx.common >/dev/null 2>&1 && myx.common which lib/agentMcpServer 2>/dev/null )" || mcpRoot=""
-		mcpRoot="${mcpRoot%/bin/lib/agentMcpServer.Common}"
-		[ ! -x "$mcpRoot/bin/lib/agentMcpServer.Common" ] || serverScript="$mcpRoot/bin/lib/agentMcpServer.Common"
+		type AgentsHarnessMcpCommonServerScript > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessMcpConfig.include"
+		serverScript="$( AgentsHarnessMcpCommonServerScript "$workspace" )" || serverScript=""
+		mcpRoot="${serverScript%/bin/lib/agentMcpServer.Common}"
 
 		local vscodeMcpDir="$workspace/.vscode"
 		mkdir -p "$vscodeMcpDir"

@@ -358,5 +358,10 @@
 			set +e ; return 1
 		fi
 
+		## The DeepSeek Harness app reaches none of the hooks above on its own: its seam is
+		## the bridge plugin, and this step installs it and pins it to this settings file.
+		type AgentsHarnessDshHooksInstall > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessDshHooks.include"
+		AgentsHarnessDshHooksInstall "$workspace" || { set +e ; return 1 ; }
+
 		echo "✅ workspace restrictions $restrictionsState: $settingsFile" >&2
 		return 0
