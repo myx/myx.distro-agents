@@ -405,6 +405,54 @@ AgentsToolsInstallDshPatchId(){ ## line
 	return 0
 }
 
+## THE ROW NAMES A PLUGIN, SO THE PROFILE MUST CARRY IT: DSH mounts an inserted entry from
+## the profile's own dependencies, as the hook bridge beside it is mounted. A row written
+## without that dependency leaves the app mounting nothing, which reads from inside a chat
+## exactly like a server that is configured and disconnected. The version is the one the
+## app's other plugins carry, so one app upgrade moves them together.
+agentsDshMcpClientPackage="@deepseek-ai/dsh-mcp-client"
+agentsDshMcpClientVersion="0.2.1-rc.3"
+
+## Installs the app's MCP client plugin into the desktop profile. Silent where the app holds
+## no profile yet: that machine gets the rest of the integrations and no MCP row.
+AgentsToolsInstallDshMcpClient(){ ## dsh home
+	local mcpHome="$1" mcpProfile mcpPnpm mcpNode mcpPnpmCjs mcpRc=0
+
+	mcpProfile="$mcpHome/profiles/desktop"
+	if [ ! -d "$mcpProfile" ] ; then
+		echo "# DeepSeek Harness holds no desktop profile yet -- its MCP client plugin is not installed" >&2
+		return 0
+	fi
+	if [ -d "$mcpProfile/node_modules/$agentsDshMcpClientPackage" ] ; then
+		echo "# the DeepSeek Harness MCP client plugin is installed already: $agentsDshMcpClientPackage" >&2
+		return 0
+	fi
+
+	mcpPnpm="$( command -v pnpm 2>/dev/null )" || mcpPnpm=""
+	if [ -n "$mcpPnpm" ] ; then
+		"$mcpPnpm" --dir "$mcpProfile" add "$agentsDshMcpClientPackage@$agentsDshMcpClientVersion" >&2 || mcpRc=$?
+	else
+		mcpNode="/Applications/DeepSeek Harness.app/Contents/Resources/runtime/primary-runtime/dependencies/node/bin/node"
+		mcpPnpmCjs="/Applications/DeepSeek Harness.app/Contents/Resources/runtime/primary-runtime/dependencies/pnpm/bin/pnpm.cjs"
+		if [ ! -x "$mcpNode" ] || [ ! -f "$mcpPnpmCjs" ] ; then
+			echo "⛔ ERROR: no pnpm to install the DeepSeek Harness MCP client plugin: none on the PATH, and none in the app's own runtime" >&2
+			return 1
+		fi
+		"$mcpNode" "$mcpPnpmCjs" --dir "$mcpProfile" add "$agentsDshMcpClientPackage@$agentsDshMcpClientVersion" >&2 || mcpRc=$?
+	fi
+	if [ "$mcpRc" != "0" ] ; then
+		echo "⛔ ERROR: the DeepSeek Harness MCP client plugin could not be installed: pnpm exited $mcpRc -- the app mounts no MCP server row until it is" >&2
+		return 1
+	fi
+
+	## Read back before reporting: a package the profile cannot resolve reads as a clean install.
+	if [ ! -d "$mcpProfile/node_modules/$agentsDshMcpClientPackage" ] ; then
+		echo "⛔ ERROR: $agentsDshMcpClientPackage is not installed in $mcpProfile -- the app mounts no MCP server row" >&2
+		return 1
+	fi
+	return 0
+}
+
 ## The DSH home-patch write, called by --install-vscode-integrations itself: no name of its
 ## own and no option of its own. One argument, the workspace whose MCP server the row mounts.
 AgentsToolsInstallDshHomePatch(){ ## workspace
@@ -437,6 +485,8 @@ AgentsToolsInstallDshHomePatch(){ ## workspace
 	fi
 	patchDsHome="$HOME/.dsh"
 	patchFile="$patchDsHome/cordis.patch.yml"
+	## The plugin before the row that names it: a row the profile cannot resolve mounts nothing.
+	AgentsToolsInstallDshMcpClient "$patchDsHome" || return 1
 
 	(
 		umask 022

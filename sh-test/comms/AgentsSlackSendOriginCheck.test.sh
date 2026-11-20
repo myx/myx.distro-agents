@@ -59,6 +59,26 @@ rigAssert "a spawned run's own record is read, and its routine stands in the aut
 	"$( rigSend MDAT_SPAWN_SESSION_ID="$rigSession" MDAT_SPAWN_SANDBOX_ROOT="$rigSandbox" MDAT_SPAWN_AGENT=magic-coordinator )" \
 	'🐭 *_magic-coordinator_* @dispatchr (coworking) → this conversation.'
 
+echo "-- a routine switched inside the run: the label is the frame in force, never the one the start recorded --"
+rigReset
+printf '%s\n' '---' "session-id: $rigSession" 'owner: magic-coordinator' \
+	'routine: magic-coordinator.off-duty.routine.md' \
+	'routine-stack: magic-coordinator.off-duty.routine.md:open' \
+	'routine-stack: magic-coordinator.work-duty.routine.md:current' \
+	'---' > "$rigSandbox/$rigSession.spawn.md"
+rigAssert "the frame in force labels the post, not the routine line the start wrote" \
+	"$( rigSend MDAT_SPAWN_SESSION_ID="$rigSession" MDAT_SPAWN_SANDBOX_ROOT="$rigSandbox" MDAT_SPAWN_AGENT=magic-coordinator )" \
+	'🐭 *_magic-coordinator_* @dispatchr (work-duty) → this conversation.'
+
+echo "-- the stack is read where the record carries no routine line at all --"
+rigReset
+printf '%s\n' '---' "session-id: $rigSession" 'owner: magic-coordinator' \
+	'routine-stack: magic-coordinator.supervision-session.routine.md:current' \
+	'---' > "$rigSandbox/$rigSession.spawn.md"
+rigAssert "a stack with no routine line still labels the post" \
+	"$( rigSend MDAT_SPAWN_SESSION_ID="$rigSession" MDAT_SPAWN_SANDBOX_ROOT="$rigSandbox" MDAT_SPAWN_AGENT=magic-coordinator )" \
+	'🐭 *_magic-coordinator_* @dispatchr (supervision-session) → this conversation.'
+
 echo "-- an adopted root-harness session: its record is in the store, and its routine is the one its mint kept --"
 rigReset
 mkdir -p "$rigWs/.local/agents/spawned/$rigSession" "$rigWs/.local/agents/sessions/$rigSession"
