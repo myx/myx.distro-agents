@@ -353,7 +353,7 @@ AgentsToolsArtifactGooglePublish(){
 	## Images go inline; every other given file is uploaded beside the document and linked.
 	while IFS=$'\t' read -r linkName linkUse ; do
 		[ -n "$linkName" ] && [ "$linkUse" != img ] || continue
-		linkPath="$( printf '%s\n' "$artFiles" | LC_ALL=C awk -v want="$linkName" 'NF { n = $0 ; sub( /.*\//, "", n ) ; if ( n == want ) { print ; exit ; } }' )"
+		linkPath="$( printf '%s\n' "$artFiles" | LC_ALL=C awk -v want="$linkName" 'NF { n = $0 ; sub( /.*\//, "", n ) ; if ( n == want ) { print ; exit ; } ; }' )"
 		AgentsToolsArtifactGoogleUpload "$linkPath" "$artFilePrefix - $linkName" "$folderId" || return $?
 		AgentsToolsArtifactGoogleShare "$artUploadedId" "$linkName" || :
 		links="$links$linkName"$'\t'"$artUploadedUrl"$'\n'

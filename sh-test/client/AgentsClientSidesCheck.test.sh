@@ -173,7 +173,7 @@ rigN(){ ## file, fixed text -- how many lines hold it
 	LC_ALL=C grep -c -F -- "$2" "$1" 2> /dev/null || :
 }
 rigLines(){ ## file -- how many lines it has
-	LC_ALL=C awk 'END { print NR + 0 }' "$1" 2> /dev/null
+	LC_ALL=C awk 'END { print NR + 0 ; }' "$1" 2> /dev/null
 }
 rigText(){ ## -- the text field of the first posted body, escapes as sent
 	LC_ALL=C sed -n '1s/^{"channel":"[^"]*","text":"//; 1s/","blocks":.*//; 1s/"}$//; 1p' "$rigTmp/bodies"
@@ -182,7 +182,7 @@ rigChannel(){ ## -- the channel of the first posted body
 	LC_ALL=C sed -n '1s/^{"channel":"\([^"]*\)".*/\1/p' "$rigTmp/bodies"
 }
 rigTokens(){ ## method... -- the distinct tokens those methods were called with, sorted, space separated; every method when none is named
-	LC_ALL=C awk -v want=" $* " 'want == "  " || index( want, " " $1 " " ) { print $2 }' "$rigTmp/calls" | LC_ALL=C sort -u | LC_ALL=C tr '\n' ' '
+	LC_ALL=C awk -v want=" $* " 'want == "  " || index( want, " " $1 " " ) { print $2 ; }' "$rigTmp/calls" | LC_ALL=C sort -u | LC_ALL=C tr '\n' ' '
 }
 rigOurs(){ ## -- how many calls used a token of our own team: its bot, or the coordinator's own account
 	LC_ALL=C grep -c -E ' rig-(bot-token-HERE|user-token-COORD|user-token-KHERE)$' "$rigTmp/calls" || :
@@ -191,7 +191,7 @@ rigTheirs(){ ## -- how many calls used a token a client holds for its other orga
 	LC_ALL=C grep -c -E ' rig-(user-token-ACME|bot-token-MELOWN)$' "$rigTmp/calls" || :
 }
 rigElsewhere(){ ## -- how many calls used anything of the other workspace
-	LC_ALL=C grep -c 'THERE' "$rigTmp/calls" "$rigTmp/bodies" | LC_ALL=C awk -F: '{ n += $2 } END { print n + 0 }'
+	LC_ALL=C grep -c 'THERE' "$rigTmp/calls" "$rigTmp/bodies" | LC_ALL=C awk -F: '{ n += $2 ; } END { print n + 0 ; }'
 }
 rigHinted(){ ## the --client- operation that was run, the address refused, its alias -- how many lines of the last call refuse that address in that operation, naming its --member- twin
 	rigN "$rigTmp/err" "'$2' is refused in $1: for '${3:-$2}', $rigHint --${1#--client-comms-} operation $rigHintEnd."
@@ -227,7 +227,7 @@ rigAssert "its help offers both families: the member operations and the client o
 rigRun --member-help --team-member keeper-here
 rigAssert "control: a member that is no client is offered no client operation" "$rigRc $( rigN "$rigTmp/out" 'DistroAgentsTools.fn.sh --client-comms-' ) $( [ "$( rigN "$rigTmp/out" 'DistroAgentsSlack.fn.sh --slack-send-message ' )" -gt 0 ] && printf member || printf none )" "0 0 member"
 rigRun --client-comms-jira-board-list --team-member client-acme
-rigAssert "a --client-* Jira operation runs here: the site and the user this workspace's scope holds for the client" "$rigRc $( LC_ALL=C awk '$1 == "http" { print $2, $3 }' "$rigTmp/calls" ) $( LC_ALL=C awk '$1 == "http" { print $2 ; exit }' "$rigTmp/envs" )" "0 jira-acme.invalid us@acme.invalid MMDAPP=$rigWork/ws-here"
+rigAssert "a --client-* Jira operation runs here: the site and the user this workspace's scope holds for the client" "$rigRc $( LC_ALL=C awk '$1 == "http" { print $2, $3 ; }' "$rigTmp/calls" ) $( LC_ALL=C awk '$1 == "http" { print $2 ; exit ; }' "$rigTmp/envs" )" "0 jira-acme.invalid us@acme.invalid MMDAPP=$rigWork/ws-here"
 
 echo "-- 2. a --member-* operation of a client reaches our own team, whatever the client holds --"
 rigRun --slack-send-message --team-member client-acme magic-team RIG-BODY
@@ -252,7 +252,7 @@ rigAssert "a conversation of the other organisation named with no marker in a --
 rigRun --slack-delete-message --team-member client-acme CACME00001:1700000001.000101
 rigAssert "and where it is not found there, the error says the side the call was on, and how the other organisation is reached" "$( rigN "$rigTmp/err" "THIS CALL USED the Slack here.slack.invalid, by the settings of the workspace $rigWork/ws-here (the workspace this operation runs in) -- this call is on our own organisation's side, where client-acme has no Slack settings of its own: what it holds is the other organisation's, read in a --client-* operation or for a client:<addressee> address" )" 1
 rigRun --slack-profile-get --team-member client-acme
-rigAssert "an operation that needs the member's own account finds none on our side, and says which side it is on" "$( [ "$rigRc" -ne 0 ] && printf refused || printf done ) $( rigN "$rigTmp/err" 'this call is on our own organisation'"'"'s side, where client-acme has no Slack settings of its own' | LC_ALL=C awk '{ print ( $1 > 0 ) ? "said" : "silent" }' ) $( rigTheirs )" "refused said 0"
+rigAssert "an operation that needs the member's own account finds none on our side, and says which side it is on" "$( [ "$rigRc" -ne 0 ] && printf refused || printf done ) $( rigN "$rigTmp/err" 'this call is on our own organisation'"'"'s side, where client-acme has no Slack settings of its own' | LC_ALL=C awk '{ print ( $1 > 0 ) ? "said" : "silent" ; }' ) $( rigTheirs )" "refused said 0"
 
 echo "-- 3. a --client-* operation reaches the other organisation, under what the client itself holds for it --"
 rigRun --client-comms-slack-send-message --team-member client-acme CACME00001 RIG-BODY
@@ -264,14 +264,14 @@ rigAssert "with no persona row in this workspace either, the send there is refus
 printf '%s\n' 'magic-coordinator 🐭 Magic Vane dispatchr' >> "$rigWork/ws-here/.local/agents/team-members-names.registry"
 rigRun --client-comms-slack-send-message --team-member client-acme CACME00001 RIG-BODY
 rigAssert "no call used a token of our own team, and none anything of the other workspace" "$( rigOurs ) $( rigElsewhere )" "0 0"
-rigAssert "it ran in the workspace it was called from" "$( LC_ALL=C awk '$1 == "chat.postMessage" { print $2 ; exit }' "$rigTmp/envs" )" "MMDAPP=$rigWork/ws-here"
+rigAssert "it ran in the workspace it was called from" "$( LC_ALL=C awk '$1 == "chat.postMessage" { print $2 ; exit ; }' "$rigTmp/envs" )" "MMDAPP=$rigWork/ws-here"
 rigAssert "what the send reports as its conversation carries the client: marker, so what is given it next reaches the same side" "$( rigSent CHANNEL ) $( rigSent TS )" "client:CACME00001 1700000001.000101"
 rigRun --client-comms-slack-send-message --team-member client-acme UACMEPERSON RIG-BODY
 rigAssert "to a person of the other organisation, by id: the same token, and the person addressed" "$rigRc $( rigTokens chat.postMessage )$( rigText )" '0 rig-user-token-ACME 🐭 *_Magic Vane_* @dispatchr → <@UACMEPERSON>.\nRIG-BODY'
 rigRun --client-comms-slack-send-message --team-member client-mel CACME00001 --identity-bot RIG-BODY
 rigAssert "a client that holds a bot token of its own posts under that one, never our team's bot" "$rigRc $( rigTokens chat.postMessage )$( rigOurs )" "0 rig-bot-token-MELOWN 0"
 rigRun --client-comms-slack-send-message --team-member client-acme CACME00001 --identity-bot RIG-BODY
-rigAssert "a client that holds no bot token of its own is refused the bot identity there: our team's bot does not stand in, and nothing is posted" "$rigRc $( rigLines "$rigTmp/bodies" ) $( rigOurs ) $( rigN "$rigTmp/err" 'this call is on the side of the other organisation, where only the settings client-acme itself holds are read, never the team'"'"'s' | LC_ALL=C awk '{ print ( $1 > 0 ) ? "said" : "silent" }' )" "1 0 0 said"
+rigAssert "a client that holds no bot token of its own is refused the bot identity there: our team's bot does not stand in, and nothing is posted" "$rigRc $( rigLines "$rigTmp/bodies" ) $( rigOurs ) $( rigN "$rigTmp/err" 'this call is on the side of the other organisation, where only the settings client-acme itself holds are read, never the team'"'"'s' | LC_ALL=C awk '{ print ( $1 > 0 ) ? "said" : "silent" ; }' )" "1 0 0 said"
 rigRun --client-comms-slack-send-message --team-member client-acme CNOTLISTD RIG-BODY
 rigAssert "a recipient the client's contacts do not list is refused by the outbound contact gate, as before, and nothing is posted" "$rigRc $( rigLines "$rigTmp/bodies" )" "1 0"
 rigRun --client-comms-slack-read --team-member client-acme CACME00001 --oldest 1
@@ -466,7 +466,7 @@ rigAssert "with nothing in its thread yet, the wait on it reads that thread unde
 ## the answer exists in the other organisation's Slack only: the thread as the client's token reads it
 printf '{"ok":true,"messages":[{"ts":"1700000001.000101","user":"URIGACME","text":"question"},{"ts":"1700000002.000200","user":"UACMEPERSON","text":"yes, go on"}],"has_more":false}\n' > "$rigTmp/thread.rig-user-token-ACME.json"
 rigToolAs client-acme Wait "{\"sources\":\"ask:$rigAsked\",\"timeout\":0}"
-rigAssert "once the person answers there, the wait returns that answer, read under the client's token" "$( LC_ALL=C sed -n '1p' "$rigTmp/out" ) $( rigN "$rigTmp/out" 'yes, go on' | LC_ALL=C awk '{ print ( $1 > 0 ) ? "answer" : "none" }' ) $( rigTokens conversations.replies )" "WAIT-RESULT: RECEIVED answer rig-user-token-ACME "
+rigAssert "once the person answers there, the wait returns that answer, read under the client's token" "$( LC_ALL=C sed -n '1p' "$rigTmp/out" ) $( rigN "$rigTmp/out" 'yes, go on' | LC_ALL=C awk '{ print ( $1 > 0 ) ? "answer" : "none" ; }' ) $( rigTokens conversations.replies )" "WAIT-RESULT: RECEIVED answer rig-user-token-ACME "
 rigAssert "and its record is closed as answered, by that person" "$( rigPendingField "$rigAsked" status ) $( rigPendingField "$rigAsked" answered-by )" "reply-received UACMEPERSON"
 rm -f "$rigTmp/thread.rig-user-token-ACME.json"
 rigPendingDrop
@@ -476,7 +476,7 @@ rigAssert "AskQuestion as a client to the human-owner: posted in our own Slack, 
 printf '{"ok":true,"messages":[{"ts":"1700000001.000101","user":"URIGCOORD","text":"question"},{"ts":"1700000002.000200","user":"UHEREOWNER","text":"yes, here too"}],"has_more":false}\n' > "$rigTmp/thread.rig-bot-token-HERE.json"
 cp "$rigTmp/thread.rig-bot-token-HERE.json" "$rigTmp/thread.rig-user-token-COORD.json"
 rigToolAs client-acme Wait "{\"sources\":\"ask:$rigAsked\",\"timeout\":0}"
-rigAssert "its answer is read in our own Slack, and no token the client holds is used" "$( LC_ALL=C sed -n '1p' "$rigTmp/out" ) $( rigN "$rigTmp/out" 'yes, here too' | LC_ALL=C awk '{ print ( $1 > 0 ) ? "answer" : "none" }' ) $( rigTheirs )" "WAIT-RESULT: RECEIVED answer 0"
+rigAssert "its answer is read in our own Slack, and no token the client holds is used" "$( LC_ALL=C sed -n '1p' "$rigTmp/out" ) $( rigN "$rigTmp/out" 'yes, here too' | LC_ALL=C awk '{ print ( $1 > 0 ) ? "answer" : "none" ; }' ) $( rigTheirs )" "WAIT-RESULT: RECEIVED answer 0"
 rm -f "$rigTmp"/thread.*.json
 ## RequestPermission asks through the same one send and the same record. It needs a refused call on record, and who
 ## may grant one is the permission store's own rule, held by its own checks, so it is not asked here.
@@ -502,14 +502,14 @@ rigRc=0
 rigAssert "its session is launched by the console of the workspace it was called from, on the view of the workspace it is set up in" "$rigRc $( cat "$rigTmp/launched.HERE" 2> /dev/null | LC_ALL=C sed "s|$rigWork/||" ) $( cat "$rigTmp/roots.HERE" 2> /dev/null | LC_ALL=C sed "s|$rigWork/||" ) [$( cat "$rigTmp/launched.THERE" 2> /dev/null )]" "0 ws-here client-acme=ws-there/.local/agents/members []"
 rigAssert "its session thread is opened in our own Slack by our team's bot, though the client holds a token of its own" "$( rigTokens chat.postMessage )$( rigChannel ) $( rigTheirs ) $( rigElsewhere )" "rig-bot-token-HERE CHERE0001 0 0"
 rigClientRecord="$( LC_ALL=C grep -l -x 'owner: client-acme' "$rigWork/ws-here"/.local/agents/spawned/*/*.spawn.md 2> /dev/null | LC_ALL=C grep -v '/rig-session-client/' | LC_ALL=C sed -n 1p )"
-rigAssert "its record is kept here and says the three workspaces of the run as any invited member's does: executed and paid here, its member's the one it is set up in" "$( LC_ALL=C awk -F': ' '$1 == "executing-workspace" { e = $2 } $1 == "paying-workspace" { p = $2 } $1 == "member-workspace" { m = $2 } END { printf "%s/%s/%s", e, p, m }' "$rigClientRecord" 2> /dev/null ) $( ls "$rigWork/ws-there/.local/agents/spawned" 2> /dev/null | LC_ALL=C awk 'END { print NR + 0 }' )" "ws-here/ws-here/ws-there 0"
+rigAssert "its record is kept here and says the three workspaces of the run as any invited member's does: executed and paid here, its member's the one it is set up in" "$( LC_ALL=C awk -F': ' '$1 == "executing-workspace" { e = $2 ; } $1 == "paying-workspace" { p = $2 ; } $1 == "member-workspace" { m = $2 ; } END { printf "%s/%s/%s", e, p, m ; }' "$rigClientRecord" 2> /dev/null ) $( ls "$rigWork/ws-there/.local/agents/spawned" 2> /dev/null | LC_ALL=C awk 'END { print NR + 0 ; }' )" "ws-here/ws-here/ws-there 0"
 
 echo "-- 9. static: the side is said in one place, and the settings are read by it --"
 rigAssert "the side is set where a --client-* operation is dispatched, once" "$( LC_ALL=C grep -c -F -e '--client-*) local -x MDAT_COMMS_SIDE=client MDAT_COMMS_OP="$1" ;;' "$rigTool" || : )" 1
 rigAssert "a --member- Slack operation says our own side itself, once, whatever it was called under" "$( LC_ALL=C grep -c -F -e 'local -x MDAT_COMMS_SIDE=own MDAT_COMMS_OP=""' "$rigHere/slack/AgentsTools.MemberCommsSlack.include" || : )" 1
 rigAssert "the two questions every reader of a member's own Slack settings asks are defined once, in the Slack include" "$( LC_ALL=C grep -c -E '^AgentsToolsSlack(OwnSettingsApply|ClientSide)\(\)\{' "$rigSlackInclude" || : ) $( cat "$rigHere"/*/*.include "$rigHere"/*/*.sh | LC_ALL=C grep -c -E '^AgentsToolsSlack(OwnSettingsApply|ClientSide)\(\)\{' || : )" "2 2"
 rigAssert "every file of the package that reads a member's own Slack user token by the member's name asks the first of them" "$( for rigFile in "$rigHere"/*/*.include ; do LC_ALL=C grep -q -E -e 'AgentsToolsConfigOption "\$[A-Za-z]*" --select SLACK_USER_TOKEN' "$rigFile" || continue ; LC_ALL=C grep -q 'AgentsToolsCommsOwnSettingsApply' "$rigFile" || printf '%s ' "${rigFile##*/}" ; done )" ""
-rigAssert "control: the same search does find files that read it" "$( for rigFile in "$rigHere"/*/*.include ; do LC_ALL=C grep -q -E -e 'AgentsToolsConfigOption "\$[A-Za-z]*" --select SLACK_USER_TOKEN' "$rigFile" && printf 'x' ; done | LC_ALL=C awk '{ print ( length( $0 ) >= 5 ) ? "found" : "blind" }' )" found
+rigAssert "control: the same search does find files that read it" "$( for rigFile in "$rigHere"/*/*.include ; do LC_ALL=C grep -q -E -e 'AgentsToolsConfigOption "\$[A-Za-z]*" --select SLACK_USER_TOKEN' "$rigFile" && printf 'x' ; done | LC_ALL=C awk '{ print ( length( $0 ) >= 5 ) ? "found" : "blind" ; }' )" found
 rigAssert "the spawn proxy has no arm of its own for a client-* member" "$( LC_ALL=C grep -v '^[[:space:]]*#' "$rigSpawnInclude" | LC_ALL=C grep -c -F -e 'client-*)' || : )" 0
 if [ "$rigFails" -ne 0 ] ; then
 	echo "⛔ CLIENT SIDES CHECK FAILED: $rigFails of $(( rigPasses + rigFails )) assertion(s)" >&2 ; exit 1

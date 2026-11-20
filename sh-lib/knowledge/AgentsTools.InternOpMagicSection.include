@@ -91,7 +91,7 @@ AgentsToolsMagicSectionUpsert(){ ## MAGIC.md path, heading, body text
 		}
 	' "$upsertPath" 2>&1 > "$upsertTemp" )" || { rm -f "$upsertTemp" ; echo "$MDSC_CMD: --magic-section-upsert: ⛔ ERROR: the file could not be read whole: $upsertPath -- nothing was written" >&2 ; return 1 ; }
 	## A trailing blank the awk may leave twice at the end is cut to one.
-	LC_ALL=C awk '{ lines[NR] = $0 } END { last = NR ; while ( last > 1 && lines[last] == "" && lines[last - 1] == "" ) last-- ; for ( i = 1 ; i <= last ; i++ ) print lines[i] }' "$upsertTemp" > "$upsertTemp.2" 2> /dev/null && mv -f "$upsertTemp.2" "$upsertTemp" || { rm -f "$upsertTemp" "$upsertTemp.2" ; echo "$MDSC_CMD: --magic-section-upsert: ⛔ ERROR: the temp beside $upsertPath could not be written -- nothing was written" >&2 ; return 1 ; }
+	LC_ALL=C awk '{ lines[NR] = $0 ; } END { last = NR ; while ( last > 1 && lines[last] == "" && lines[last - 1] == "" ) last-- ; for ( i = 1 ; i <= last ; i++ ) print lines[i] ; }' "$upsertTemp" > "$upsertTemp.2" 2> /dev/null && mv -f "$upsertTemp.2" "$upsertTemp" || { rm -f "$upsertTemp" "$upsertTemp.2" ; echo "$MDSC_CMD: --magic-section-upsert: ⛔ ERROR: the temp beside $upsertPath could not be written -- nothing was written" >&2 ; return 1 ; }
 	chmod --reference="$upsertPath" "$upsertTemp" 2> /dev/null || chmod "$( LC_ALL=C stat -f '%Lp' "$upsertPath" 2> /dev/null || echo 644 )" "$upsertTemp" 2> /dev/null || :
 	mv -f "$upsertTemp" "$upsertPath" || { rm -f "$upsertTemp" ; echo "$MDSC_CMD: --magic-section-upsert: ⛔ ERROR: $upsertPath could not be replaced -- nothing was written" >&2 ; return 1 ; }
 	case "$upsertWord" in

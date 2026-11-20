@@ -89,11 +89,11 @@ AgentsHarnessDshHooksInstall(){ ## workspace
 
 	if [ -f "$dshPatch" ] ; then
 		LC_ALL=C awk -v begin="$agentsDshHooksPatchBegin" -v end="$agentsDshHooksPatchEnd" -v block="$dshProfile/.cordis-row.yml.tmp" '
-			$0 == begin { while ((getline row < block) > 0) print row ; close(block) ; wrote = 1 ; inBlock = 1 ; next }
-			$0 == end { inBlock = 0 ; next }
-			inBlock { next }
-			{ print }
-			END { if (!wrote) { while ((getline row < block) > 0) print row ; close(block) ; } }
+			$0 == begin { while ((getline row < block) > 0) print row ; close(block) ; wrote = 1 ; inBlock = 1 ; next ; }
+			$0 == end { inBlock = 0 ; next ; }
+			inBlock { next ; }
+			{ print ; }
+			END { if (!wrote) { while ((getline row < block) > 0) print row ; close(block) ; } ; }
 		' "$dshPatch" > "$dshPatch.tmp" || dshRc=$?
 	else
 		cat "$dshProfile/.cordis-row.yml.tmp" > "$dshPatch.tmp" || dshRc=$?

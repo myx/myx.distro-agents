@@ -207,7 +207,7 @@ AgentsToolsContactsCollectContact(){ ## the operation, its arguments...
 		local colScopeEntry colScopeOld colScopeNew
 		while IFS= read -r colScopeEntry ; do
 			[ -n "$colScopeEntry" ] || continue
-			colScopeOld="$( printf '%s' "$crScopeTiers" | LC_ALL=C tr ',' '\n' | LC_ALL=C awk -F= -v s="${colScopeEntry%%=*}" '$1 == s { print $2 }' )"
+			colScopeOld="$( printf '%s' "$crScopeTiers" | LC_ALL=C tr ',' '\n' | LC_ALL=C awk -F= -v s="${colScopeEntry%%=*}" '$1 == s { print $2 ; }' )"
 			[ "$colScopeOld" = "${colScopeEntry#*=}" ] && continue
 			colScopeNew="$( printf '%s' "$crScopeTiers" | LC_ALL=C tr ',' '\n' | LC_ALL=C awk -F= -v s="${colScopeEntry%%=*}" 'NF && $1 != s' | LC_ALL=C tr '\n' ',' )"
 			crScopeTiers="$colScopeNew$colScopeEntry"

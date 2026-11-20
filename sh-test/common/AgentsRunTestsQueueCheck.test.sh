@@ -166,10 +166,10 @@ rigSlots(){ ## kind (H: held, W: asked for) -- how many the slot state lists
 	LC_ALL=C grep -c "^$1 " "$rigWorkers/state" 2> /dev/null || :
 }
 rigBegun(){ ## -- the tests that have begun and not ended, by the shared log, space separated
-	LC_ALL=C awk '$1 == "BEGIN" { on[$2] = 1 ; order[++n] = $2 } $1 == "END" { delete on[$2] } END { for ( i = 1 ; i <= n ; i++ ) if ( order[i] in on ) printf "%s ", order[i] }' "$rigTmp/log"
+	LC_ALL=C awk '$1 == "BEGIN" { on[$2] = 1 ; order[++n] = $2 ; } $1 == "END" { delete on[$2] ; } END { for ( i = 1 ; i <= n ; i++ ) if ( order[i] in on ) printf "%s ", order[i] ; }' "$rigTmp/log"
 }
 rigMostAtOnce(){ ## -- the most tests that were running at one time, by the shared log
-	LC_ALL=C awk '$1 == "BEGIN" { n++ ; if ( n > most ) most = n } $1 == "END" { n-- } END { print most + 0 }' "$rigTmp/log"
+	LC_ALL=C awk '$1 == "BEGIN" { n++ ; if ( n > most ) most = n ; } $1 == "END" { n-- ; } END { print most + 0 ; }' "$rigTmp/log"
 }
 rigUntilBegun(){ ## how many -- waits until that many tests have begun in all, up to four minutes; rc 1 when they never do
 	local begunLeft=1200
@@ -431,7 +431,7 @@ rigRun q -w 3 RigTiny ; rigEnd "$rigLast"
 rigAssert "started in the same second or not, each run has a folder of its own for its list and its logs" "$( LC_ALL=C sed -n 's/.*run folder: //p' "$rigTmp/p.out" "$rigTmp/q.out" | LC_ALL=C sort -u | LC_ALL=C grep -c . || : )" 2
 rigAssert "all six ran, and at no time were more than the budget running at once" "$rigRcP $rigRc $( LC_ALL=C grep -c '^END ' "$rigTmp/log" ) $( rigMostAtOnce )" "0 0 6 2"
 rigAssert "every slot was given back" "$( rigSlots H ) $( rigSlots W )" "0 0"
-rigAssert "every test ran at a lowered priority, nice 10 or lower still" "$( LC_ALL=C awk '$1 == "NICE" { n++ ; if ( $3 + 0 < 10 ) bad++ } END { printf "%d %d", n, bad }' "$rigTmp/log" )" "6 0"
+rigAssert "every test ran at a lowered priority, nice 10 or lower still" "$( LC_ALL=C awk '$1 == "NICE" { n++ ; if ( $3 + 0 < 10 ) bad++ ; } END { printf "%d %d", n, bad ; }' "$rigTmp/log" )" "6 0"
 ## A slot whose process is gone comes back by itself: a holder that never ran here, then one that was killed with its runner.
 rigFresh ; rigBudget 1
 rigDead="$( rigDeadPid )"
@@ -522,7 +522,7 @@ rigUntil 'BEGIN b' "$rigTmp/log" || rigRefuse "the second run never began beside
 rigAssert "with two lanes, the second run begins while the first still runs: two tests at once, and neither said it waits" \
 	"$( rigMostAtOnce ) $( rigWaits a )$( rigWaits b )" "2 00"
 rigAssert "each holds a lane of its own, so no lane is taken twice" \
-	"$( rigLaneHolders | LC_ALL=C awk '{ print NF }' )" 2
+	"$( rigLaneHolders | LC_ALL=C awk '{ print NF ; }' )" 2
 rigAssert "and the two tests' names are the ones the log holds at once" \
 	"$( rigBegun | LC_ALL=C wc -w | LC_ALL=C tr -d ' ' )" 2
 rigLet a ; rigLet b ; rigEnd "$rigPidA" ; rigEnd "$rigPidB"
@@ -823,7 +823,7 @@ chmod +x "$rigTmp/shim/sed" "$rigTmp/shim/sleep" ; : > "$rigTmp/shim.log"
 PATH="$rigTmp/shim:$PATH" rigRun b ; rigPidB=$rigLast
 rigLeft=600 ; while [ "$rigLeft" -gt 0 ] && [ "$( LC_ALL=C grep -c -E '^SLEEP ([5-9]|[1-9][0-9]+)$' "$rigTmp/shim.log" )" -lt 3 ] ; do sleep 0.2 ; rigLeft=$(( rigLeft - 1 )) ; done
 ## the seds of the second pass: between the first and the second pause of the line's own length
-rigPassSeds="$( LC_ALL=C awk '/^SLEEP ([5-9]|[1-9][0-9]+)$/ { pauses++ ; next } pauses == 1 && $0 == "SED" { n++ } END { print n + 0 }' "$rigTmp/shim.log" )"
+rigPassSeds="$( LC_ALL=C awk '/^SLEEP ([5-9]|[1-9][0-9]+)$/ { pauses++ ; next ; } pauses == 1 && $0 == "SED" { n++ ; } END { print n + 0 ; }' "$rigTmp/shim.log" )"
 rigPause="$( LC_ALL=C sed -n 's/^SLEEP \([5-9]\)$/\1/p;s/^SLEEP \([1-9][0-9]*\)$/\1/p' "$rigTmp/shim.log" | LC_ALL=C sed -n 1p )"
 ## the pass's own reads (the lanes, the first ticket named) take a few; a sed pair for each of the twenty tickets would take 40 more
 rigAssert "one pass twenty tickets back starts no sed for each ticket ahead: fewer than 40 in all" "$( [ "$rigPassSeds" -lt 40 ] && printf fewer || printf "$rigPassSeds" )" fewer

@@ -30,7 +30,7 @@ type AgentsSettingsScopeHas > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-a
 AgentsToolsManagerFeatureDeclared(){ ## -- `<name><TAB><folder>` a line, the features this workspace's distro declares
 	type AgentsDistroDeclaresCut > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/distro/AgentsTools.DistroDoor.include"
 	AgentsDistroDeclaresCut "${MMDAPP%/}" 'mdci-installable:feature' 2> /dev/null | LC_ALL=C awk -v origin="$MDLT_ORIGIN" '
-		NF >= 2 && $2 != "" && !( $2 in seen ) { seen[$2] = 1 ; print $2 "\t" origin "/" $1 }' || :
+		NF >= 2 && $2 != "" && !( $2 in seen ) { seen[$2] = 1 ; print $2 "\t" origin "/" $1 ; }' || :
 }
 AgentsToolsManagerFeatureDir(){ ## feature -- its folder: the project that declares it, else the folder of its name under the features' root
 	local dirName dirFolder
@@ -80,43 +80,43 @@ AgentsToolsManagerFeatureCheck(){ ## feature
 AgentsToolsManagerFeatureRows(){ ## feature
 	LC_ALL=C awk -v feature="$1" -v command="DistroAgentsTools.fn.sh --manager-feature-part" '
 		function norm( text ) {
-			if ( text == "installed" ) { return "installed" }
-			if ( text == "not installed" ) { return "not-installed" }
-			if ( text == "broken" ) { return "broken" }
-			if ( text == "not supported here" ) { return "unsupported" }
+			if ( text == "installed" ) { return "installed" ; }
+			if ( text == "not installed" ) { return "not-installed" ; }
+			if ( text == "broken" ) { return "broken" ; }
+			if ( text == "not supported here" ) { return "unsupported" ; }
 			return "broken"
 		}
-		function field( text ) { gsub( /[ \t]+/, "_", text ) ; return ( text == "" ) ? "-" : text }
+		function field( text ) { gsub( /[ \t]+/, "_", text ) ; return ( text == "" ) ? "-" : text ; }
 		## the three commands of a row by its state: an install of what is not there, an update of what is there or broken (its install again), an uninstall of what is there or broken
 		function commands( state, part,   target ) {
 			target = feature " " part
-			if ( state == "not-installed" ) { return command " install " target "\t-\t-" }
-			if ( state == "installed" || state == "broken" ) { return "-\t" command " update " target "\t" command " uninstall " target }
+			if ( state == "not-installed" ) { return command " install " target "\t-\t-" ; }
+			if ( state == "installed" || state == "broken" ) { return "-\t" command " update " target "\t" command " uninstall " target ; }
 			return "-\t-\t-"
 		}
 		{
 			at = index( $0, ": " )
-			if ( at == 0 ) { next }
+			if ( at == 0 ) { next ; }
 			key = substr( $0, 1, at - 1 ) ; value = substr( $0, at + 2 )
 			## The state is the first line whose value is a state word, wherever the check puts it (THE STATE LINE, above).
 			lines++
-			if ( first == "" && ( value == "installed" || value == "not installed" || value == "broken" || value == "not supported here" ) ) { first = value ; next }
+			if ( first == "" && ( value == "installed" || value == "not installed" || value == "broken" || value == "not supported here" ) ) { first = value ; next ; }
 			values[key] = value
-			if ( key ~ /^part\..*\.part$/ ) { id = substr( key, 6, length( key ) - 10 ) ; ids[++count] = id }
-			if ( key ~ /^engine\.[a-z]+\.state$/ ) { detail = detail ( detail == "" ? "" : "; " ) substr( key, 1, length( key ) - 6 ) "=" value ; next }
-			if ( key ~ /^detail/ || key == "profile" || key == "platform" || key == "home" || key == "versions" || key == "model" || key == "why" || key == "query" || key == "host.profile" || key == "host.os" ) { detail = detail ( detail == "" ? "" : "; " ) key "=" value }
+			if ( key ~ /^part\..*\.part$/ ) { id = substr( key, 6, length( key ) - 10 ) ; ids[++count] = id ; }
+			if ( key ~ /^engine\.[a-z]+\.state$/ ) { detail = detail ( detail == "" ? "" : "; " ) substr( key, 1, length( key ) - 6 ) "=" value ; next ; }
+			if ( key ~ /^detail/ || key == "profile" || key == "platform" || key == "home" || key == "versions" || key == "model" || key == "why" || key == "query" || key == "host.profile" || key == "host.os" ) { detail = detail ( detail == "" ? "" : "; " ) key "=" value ; }
 		}
 		END {
-			if ( lines == 0 ) { first = "broken" ; detail = "the check printed nothing" }
-			else if ( first == "" ) { first = "broken" ; detail = detail ( detail == "" ? "" : "; " ) "the check named no state" }
+			if ( lines == 0 ) { first = "broken" ; detail = "the check printed nothing" ; }
+			else if ( first == "" ) { first = "broken" ; detail = detail ( detail == "" ? "" : "; " ) "the check named no state" ; }
 			state = norm( first )
 			disk = "-" ; memory = "-" ; running = "-"
-			if ( ( "disk_bytes" in values ) ) { disk = values["disk_bytes"] }
-			if ( ( "size" in values ) ) { size = values["size"] ; sub( / MB$/, "", size ) ; if ( size ~ /^[0-9]+$/ ) { disk = size * 1048576 } }
+			if ( ( "disk_bytes" in values ) ) { disk = values["disk_bytes"] ; }
+			if ( ( "size" in values ) ) { size = values["size"] ; sub( / MB$/, "", size ) ; if ( size ~ /^[0-9]+$/ ) { disk = size * 1048576 ; } ; }
 			if ( count > 0 ) {
 				running = "no" ; memory = 0
-				for ( n = 1 ; n <= count ; n++ ) { if ( values["part." ids[n] ".running"] == "yes" ) { running = "yes" ; memory += values["part." ids[n] ".memory_bytes"] } }
-				if ( running == "no" ) { memory = "-" }
+				for ( n = 1 ; n <= count ; n++ ) { if ( values["part." ids[n] ".running"] == "yes" ) { running = "yes" ; memory += values["part." ids[n] ".memory_bytes"] ; } ; }
+				if ( running == "no" ) { memory = "-" ; }
 				printf "feature\t%s\t-\t%s\t%s\t%s\t%s\t-\t-\t-\t%s\n", feature, state, disk, memory, running, field( detail )
 				for ( n = 1 ; n <= count ; n++ ) {
 					id = ids[n] ; pstate = norm( values["part." id ".state"] )
@@ -135,30 +135,30 @@ AgentsToolsManagerFeatureRows(){ ## feature
 AgentsToolsManagerFeaturePartState(){ ## feature, part
 	LC_ALL=C awk -v feature="$1" -v part="$2" '
 		function norm( text ) {
-			if ( text == "installed" ) { return "installed" }
-			if ( text == "not installed" ) { return "not-installed" }
-			if ( text == "not supported here" ) { return "unsupported" }
+			if ( text == "installed" ) { return "installed" ; }
+			if ( text == "not installed" ) { return "not-installed" ; }
+			if ( text == "not supported here" ) { return "unsupported" ; }
 			return "broken"
 		}
 		{
-			at = index( $0, ": " ) ; if ( at == 0 ) { next }
+			at = index( $0, ": " ) ; if ( at == 0 ) { next ; }
 			key = substr( $0, 1, at - 1 ) ; value = substr( $0, at + 2 )
 			lines++
-			if ( first == "" && ( value == "installed" || value == "not installed" || value == "broken" || value == "not supported here" ) ) { first = value ; next }
-			if ( key ~ /^part\..*\.part$/ ) { parts[substr( key, 6, length( key ) - 10 )] = value ; anyparts = 1 }
-			if ( key == "part." part ".state" ) { found = norm( value ) }
+			if ( first == "" && ( value == "installed" || value == "not installed" || value == "broken" || value == "not supported here" ) ) { first = value ; next ; }
+			if ( key ~ /^part\..*\.part$/ ) { parts[substr( key, 6, length( key ) - 10 )] = value ; anyparts = 1 ; }
+			if ( key == "part." part ".state" ) { found = norm( value ) ; }
 		}
 		END {
-			if ( anyparts ) { if ( found == "" ) { exit 1 } print found ; exit 0 }
+			if ( anyparts ) { if ( found == "" ) { exit 1 ; } print found ; exit 0 ; }
 			one = feature ; sub( /^setup\.feature-/, "", one )
-			if ( part != one || lines == 0 ) { exit 1 }
+			if ( part != one || lines == 0 ) { exit 1 ; }
 			print norm( first )
 		}'
 }
 
 ## The value of one key of a check or plan text, on standard input: the first line that has it.
 AgentsToolsManagerFeatureValue(){ ## key
-	LC_ALL=C awk -v wanted="$1" '{ at = index( $0, ": " ) ; if ( at > 0 && substr( $0, 1, at - 1 ) == wanted ) { print substr( $0, at + 2 ) ; found = 1 ; exit } } END { exit ( found ? 0 : 1 ) }'
+	LC_ALL=C awk -v wanted="$1" '{ at = index( $0, ": " ) ; if ( at > 0 && substr( $0, 1, at - 1 ) == wanted ) { print substr( $0, at + 2 ) ; found = 1 ; exit ; } ; } END { exit ( found ? 0 : 1 ) ; }'
 }
 
 ## One refusal line, rc 1: nothing was done.

@@ -59,7 +59,7 @@ rigRun(){ ## result prefix, VAR=value..., --, words... -- one call of the tool; 
 	rigRc=$?
 }
 rigLine(){ ## name, file -- the value of the line `name: value`, as printed ("<none>" where there is no such line)
-	LC_ALL=C awk -v want="$1: " 'index( $0, want ) == 1 { print substr( $0, length( want ) + 1 ) ; found = 1 ; exit } index( $0, substr( want, 1, length( want ) - 1 ) ) == 1 && length( $0 ) == length( want ) - 1 { print "" ; found = 1 ; exit } END { if ( ! found ) print "<none>" }' "$2"
+	LC_ALL=C awk -v want="$1: " 'index( $0, want ) == 1 { print substr( $0, length( want ) + 1 ) ; found = 1 ; exit ; } index( $0, substr( want, 1, length( want ) - 1 ) ) == 1 && length( $0 ) == length( want ) - 1 { print "" ; found = 1 ; exit ; } END { if ( ! found ) print "<none>" ; }' "$2"
 }
 rigHas(){ ## fixed text, file -- how many lines of the file hold it
 	LC_ALL=C grep -c -F -- "$1" "$2" || :
@@ -203,7 +203,7 @@ rigRunNeeds "$rigTmp/p4" -- --librarian-rig-needs-session --session-id
 rigAssert "neither the variable nor the option: refused naming the option, and the operation does not run" "$( rigHas 'needs --session-id: no MDAT_SESSION_ID in this context' "$rigTmp/p1.err" ) $( rigHas 'invalid option: --librarian-rig-needs-session' "$rigTmp/p1.err" ) $( [ ! -s "$rigTmp/p1.out" ] && printf none )" "1 0 none"
 rigAssert "the variable alone, and the option alone, are enough: the call goes on to the dispatcher" "$( rigHas 'needs --session-id' "$rigTmp/p2.err" ) $( rigHas 'invalid option: --librarian-rig-needs-session' "$rigTmp/p2.err" ) $( rigHas 'needs --session-id' "$rigTmp/p3.err" ) $( rigHas 'invalid option: --librarian-rig-needs-session' "$rigTmp/p3.err" )" "0 1 0 1"
 rigAssert "an option without a value is no value" "$( rigHas 'takes a value' "$rigTmp/p4.err" ) $( rigHas 'invalid option: --librarian-rig-needs-session' "$rigTmp/p4.err" )" "1 0"
-rigAssert "control: the same operation under the real manual does not need it, and the implied context-show runs with no session at all" "$( rigLine session-id "$rigTmp/a1.out" | LC_ALL=C awk '{ print ( $0 == "" ? "empty" : $0 ) }' ) $( rigHas 'needs --session-id' "$rigTmp/a1.err" )" "empty 0"
+rigAssert "control: the same operation under the real manual does not need it, and the implied context-show runs with no session at all" "$( rigLine session-id "$rigTmp/a1.out" | LC_ALL=C awk '{ print ( $0 == "" ? "empty" : $0 ) ; }' ) $( rigHas 'needs --session-id' "$rigTmp/a1.err" )" "empty 0"
 
 if [ "$rigFails" -ne 0 ] ; then
 	echo "⛔ COMMON OPTIONS CHECK FAILED: $rigFails of $(( rigPasses + rigFails )) assertion(s)" >&2 ; exit 1

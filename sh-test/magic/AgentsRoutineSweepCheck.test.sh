@@ -36,7 +36,7 @@ rigAssert(){ ## what is asserted, got, want
 	fi
 }
 rigFront(){ ## file -- its first frontmatter block
-	LC_ALL=C awk 'NR == 1 && $0 != "---" { exit } NR > 1 && $0 == "---" { exit } NR > 1 { print }' "$1"
+	LC_ALL=C awk 'NR == 1 && $0 != "---" { exit ; } NR > 1 && $0 == "---" { exit ; } NR > 1 { print ; }' "$1"
 }
 ## The files failing a rule, by their names below the skillset, joined by spaces.
 rigFailing(){ ## rule function
@@ -56,7 +56,7 @@ rigKeys(){ ## file -- rc 0 where the frontmatter carries the new keys and none o
 		&& ! printf '%s\n' "$keysFront" | LC_ALL=C grep -q -E '^(session|default-for-session-kind|requires): '
 }
 rigNoScanOp(){ ## file -- rc 0 where its body, below the frontmatter, names no input-scan operation (the frontmatter declares scans: `input-scan-def: <scan>`)
-	! LC_ALL=C awk 'NR == 1 && $0 == "---" { inFront = 1 ; next } inFront && $0 == "---" { inFront = 0 ; next } ! inFront { print }' "$1" | LC_ALL=C grep -q -E -- '--[a-z-]+-input-scan\b'
+	! LC_ALL=C awk 'NR == 1 && $0 == "---" { inFront = 1 ; next ; } inFront && $0 == "---" { inFront = 0 ; next ; } ! inFront { print ; }' "$1" | LC_ALL=C grep -q -E -- '--[a-z-]+-input-scan\b'
 }
 rigControl(){ ## file -- rc 0 where it has a frontmatter block and a # Steps heading, as every routine does today
 	[ -n "$( rigFront "$1" )" ] && LC_ALL=C grep -q -x '# Steps' "$1"

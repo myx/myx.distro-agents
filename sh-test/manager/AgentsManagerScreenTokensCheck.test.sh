@@ -64,8 +64,8 @@ rigCase(){ ## name -- a fresh rig: the Dashboard with the group of the tokens an
 	for rigOne in "day day" "preset preset" "credential credential" "agent member" "routine routine" "weekday weekday" "hour hour" ; do
 		rigRows "${rigOne#* }" | LC_ALL=C sed 's/^/&/' > "$MANAGER_SCREEN_RIG/rows.--manager-stats-tokens --by ${rigOne#* }"
 		## what the tooling prints with --share: the same rows with the share and the peak share after them (the stand-in gives 0 0 but for the day), and with --average the averages
-		rigRows "${rigOne#* }" | LC_ALL=C awk -F'\t' -v OFS='\t' '{ print $0, 0, 0 }' > "$MANAGER_SCREEN_RIG/rows.--manager-stats-tokens --by ${rigOne#* } --share"
-		rigRows "${rigOne#* }" | LC_ALL=C awk -F'\t' -v OFS='\t' '{ r = $3 + 0 ; print $1, $2, $3, ( r ? int($4 / r) : 0 ), ( r ? int($5 / r) : 0 ), ( r ? int($6 / r) : 0 ), ( r ? int($7 / r) : 0 ), 0, 0 }' > "$MANAGER_SCREEN_RIG/rows.--manager-stats-tokens --by ${rigOne#* } --share --average"
+		rigRows "${rigOne#* }" | LC_ALL=C awk -F'\t' -v OFS='\t' '{ print $0, 0, 0 ; }' > "$MANAGER_SCREEN_RIG/rows.--manager-stats-tokens --by ${rigOne#* } --share"
+		rigRows "${rigOne#* }" | LC_ALL=C awk -F'\t' -v OFS='\t' '{ r = $3 + 0 ; print $1, $2, $3, ( r ? int($4 / r) : 0 ), ( r ? int($5 / r) : 0 ), ( r ? int($6 / r) : 0 ), ( r ? int($7 / r) : 0 ), 0, 0 ; }' > "$MANAGER_SCREEN_RIG/rows.--manager-stats-tokens --by ${rigOne#* } --share --average"
 	done
 	## the day, with the shares of the `in` tokens the tooling would print: 1000 and 3000 of 4000 (25 and 75), of the largest (33 and 100); the averages, which the stand-in picks apart from what a division would give (777 and 333, not 500 and 250)
 	printf 'tokens\t2026-10-18\t4\t1000\t2000000\t300000\t4000\t25\t33\ntokens\t2026-10-19\t6\t3000\t6000000\t900000\t12000\t75\t100\n' > "$MANAGER_SCREEN_RIG/rows.--manager-stats-tokens --by day --share"
@@ -244,4 +244,4 @@ keys RIGHT RIGHT RIGHT
 turn
 get downed
 RIGSCRIPT
-rigAssert "the hour chart is wider than the pane, so it PANS: viewLeft is not 0 after RIGHT" "$( rigVal tall.viewWidth | LC_ALL=C awk '$1 > 0 { print 1 }' ):$( rigVal downed.viewLeft | LC_ALL=C awk '{ print ( $1 > 0 ) }' )" "1:1"
+rigAssert "the hour chart is wider than the pane, so it PANS: viewLeft is not 0 after RIGHT" "$( rigVal tall.viewWidth | LC_ALL=C awk '$1 > 0 { print 1 ; }' ):$( rigVal downed.viewLeft | LC_ALL=C awk '{ print ( $1 > 0 ) ; }' )" "1:1"

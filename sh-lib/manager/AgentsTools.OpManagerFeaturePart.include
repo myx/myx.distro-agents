@@ -65,17 +65,17 @@
 				partRamNeed="$( printf '%s\n' "$partPlan" | AgentsToolsManagerFeatureValue plan.ram_need_bytes )" || partRamNeed="-"
 				partRam="$( printf '%s\n' "$partPlan" | AgentsToolsManagerFeatureValue plan.ram_bytes )" || partRam="-"
 				[ "$( printf '%s\n' "$partPlan" | AgentsToolsManagerFeatureValue plan.blocked )" != "yes" ] || { partBlocked="yes" ; partWhy="$( printf '%s\n' "$partPlan" | AgentsToolsManagerFeatureValue plan.why )" ; }
-				partNeed="$( printf '%s\n' "$partPlan" | LC_ALL=C awk -F': ' '$1 ~ /^plan\.(package|model|remove|present)$/ { printf "%s %s\n", substr( $1, 6 ), substr( $0, length( $1 ) + 3 ) }' )"
+				partNeed="$( printf '%s\n' "$partPlan" | LC_ALL=C awk -F': ' '$1 ~ /^plan\.(package|model|remove|present)$/ { printf "%s %s\n", substr( $1, 6 ), substr( $0, length( $1 ) + 3 ) ; }' )"
 			;;
 			*)
 				partHome="$( printf '%s\n' "$partCheck" | AgentsToolsManagerFeatureValue home )" || partHome="$MMDAPP"
 				## the space is that of the nearest folder that exists, for the home of a feature that is not installed is not there yet
 				partEach="${partHome:-$MMDAPP}"
 				while [ ! -d "$partEach" ] && [ "$partEach" != "/" ] && [ "$partEach" != "." ] ; do partEach="$( dirname "$partEach" )" ; done
-				partFree="$( df -Pk "$partEach" 2> /dev/null | LC_ALL=C awk 'NR == 2 { print $4 * 1024 }' )" || partFree="-"
+				partFree="$( df -Pk "$partEach" 2> /dev/null | LC_ALL=C awk 'NR == 2 { print $4 * 1024 ; }' )" || partFree="-"
 				case "$partAction" in
 					uninstall)
-						partReclaim="$( printf '%s\n' "$partCheck" | AgentsToolsManagerFeatureValue size | LC_ALL=C awk '{ print $1 * 1048576 }' )"
+						partReclaim="$( printf '%s\n' "$partCheck" | AgentsToolsManagerFeatureValue size | LC_ALL=C awk '{ print $1 * 1048576 ; }' )"
 						partNeed="remove the folder of the feature: ${partHome:-unknown}"
 					;;
 					*) partNeed="the feature's own install fragment, which asks the embedded Python of the local tools and fetches the packages and the model it pins; what stands at the pinned versions is kept" ;;

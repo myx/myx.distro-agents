@@ -211,7 +211,7 @@ rigRecord(){ ## n (default: the newest)
 }
 rigId(){ local idFile ; idFile="$( rigRecord "${1:-}" )" ; idFile="${idFile##*/}" ; printf '%s' "${idFile%.md}" ; }
 rigField(){ ## field, record n (default: the newest)
-	LC_ALL=C awk -v key="$1" '$0 == "---" { if ( ++dashes == 2 ) { exit ; } next ; } dashes == 1 && index( $0, key ": " ) == 1 { print substr( $0, length( key ) + 3 ) ; found = 1 ; exit ; } END { if ( ! found ) { print "none" ; } }' "$( rigRecord "${2:-}" )" 2> /dev/null || printf 'no-record'
+	LC_ALL=C awk -v key="$1" '$0 == "---" { if ( ++dashes == 2 ) { exit ; } next ; } dashes == 1 && index( $0, key ": " ) == 1 { print substr( $0, length( key ) + 3 ) ; found = 1 ; exit ; } END { if ( ! found ) { print "none" ; } ; }' "$( rigRecord "${2:-}" )" 2> /dev/null || printf 'no-record'
 }
 ## The prompt as it was posted: the body its record keeps.
 rigPromptBody(){ LC_ALL=C awk 'seenBody { print ; next ; } $0 == "# Question asked" { seenBody = 1 ; getline ; }' "$( rigRecord "${1:-}" )" 2> /dev/null ; }
@@ -462,8 +462,8 @@ rigAssert "the text it changes is gone: nothing is applied" "$( rigReadLine 'CHA
 
 echo "-- 7. a long change: shown cut, with how much is not shown and where the whole diff is kept --"
 rigStart long
-LC_ALL=C awk 'BEGIN { for ( lineNo = 1 ; lineNo <= 200 ; lineNo++ ) { printf "line %d\n", lineNo ; } }' > "$rigWs/held/long.md"
-rigLong="$( LC_ALL=C awk 'BEGIN { for ( lineNo = 1 ; lineNo <= 200 ; lineNo++ ) { printf "LINE %d\\n", lineNo ; } }' )"
+LC_ALL=C awk 'BEGIN { for ( lineNo = 1 ; lineNo <= 200 ; lineNo++ ) { printf "line %d\n", lineNo ; } ; }' > "$rigWs/held/long.md"
+rigLong="$( LC_ALL=C awk 'BEGIN { for ( lineNo = 1 ; lineNo <= 200 ; lineNo++ ) { printf "LINE %d\\n", lineNo ; } ; }' )"
 rigTool "$rigDir/write" Write '{"file_path":"'"$rigWs/held/long.md"'","content":"'"$rigLong"'"}'
 rigKept="$( rigKeptDir )"
 rigAssert "the Write is held, and its result says how much of the diff is shown" "$( rigFirst write )" \

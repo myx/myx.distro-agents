@@ -532,9 +532,9 @@ rigWiden(){ ## -- the fixtures of the case in place: the list and each read of a
 	for widenFile in "$MANAGER_SCREEN_RIG/rows" "$MANAGER_SCREEN_RIG"/rows.--manager-session-read* ; do
 		[ -f "$widenFile" ] || continue
 		LC_ALL=C awk -F'\t' '
-			$1 == "session" { stored = ( $4 == "running" ? "running\t2026-10-12_16:58_+0000\talive" : "finished\t2026-10-11_14:51_+0000\tnone" ) ; print $0 "\t" stored ; sessionId = $2 ; next }
-			{ print }
-			$1 == "dispatch" { print "control\t" sessionId "\t" stored "\t" ( stored ~ /alive$/ ? "4242" : "-" ) }
+			$1 == "session" { stored = ( $4 == "running" ? "running\t2026-10-12_16:58_+0000\talive" : "finished\t2026-10-11_14:51_+0000\tnone" ) ; print $0 "\t" stored ; sessionId = $2 ; next ; }
+			{ print ; }
+			$1 == "dispatch" { print "control\t" sessionId "\t" stored "\t" ( stored ~ /alive$/ ? "4242" : "-" ) ; }
 		' "$widenFile" > "$widenFile.wide" && mv -f "$widenFile.wide" "$widenFile"
 	done
 }
@@ -575,14 +575,14 @@ RIGSCRIPT
 rigDrawnEight="$( rigWideDrawn eight )"
 rigDrawnEleven="$( rigWideDrawn eleven wide )"
 rigAssert "control: the fixtures of the second case hold the wider session rows and a control row in each read of a session, and the first holds none" \
-	"$( cat "$rigTmp/eleven/rows" "$rigTmp/eleven"/rows.--manager-session-read* | LC_ALL=C awk -F'\t' '$1 == "session" { rows++ ; if ( NF == 11 ) wide++ } $1 == "control" && NF == 6 { control++ } END { print rows + 0 ":" wide + 0 ":" control + 0 }' ) $( cat "$rigTmp/eight/rows" "$rigTmp/eight"/rows.--manager-session-read* | LC_ALL=C awk -F'\t' '$1 == "session" && NF != 8 { wide++ } $1 == "control" { control++ } END { print wide + 0 ":" control + 0 }' )" "7:7:5 0:0"
-rigAssert "control: the screen was driven through a session, an agent of it and a second session, read each, and drew each pane" "$( printf '%s\n' "$rigDrawnEight" | LC_ALL=C grep -c -e '^s|' -e '^r|' -e '^n|' | LC_ALL=C awk '{ print ( $1 >= 120 ) ? "drawn" : "not drawn: " $1 }' ) $( printf '%s\n' "$rigDrawnEight" | LC_ALL=C grep -c -F -- 'The daily of Monday:' | LC_ALL=C awk '{ print ( $1 >= 1 ) ? "read" : "not read" }' ) $( printf '%s\n' "$rigDrawnEight" | LC_ALL=C grep -c 'DRIVER-FAILED' )" "drawn read 0"
+	"$( cat "$rigTmp/eleven/rows" "$rigTmp/eleven"/rows.--manager-session-read* | LC_ALL=C awk -F'\t' '$1 == "session" { rows++ ; if ( NF == 11 ) wide++ ; } $1 == "control" && NF == 6 { control++ ; } END { print rows + 0 ":" wide + 0 ":" control + 0 ; }' ) $( cat "$rigTmp/eight/rows" "$rigTmp/eight"/rows.--manager-session-read* | LC_ALL=C awk -F'\t' '$1 == "session" && NF != 8 { wide++ ; } $1 == "control" { control++ ; } END { print wide + 0 ":" control + 0 ; }' )" "7:7:5 0:0"
+rigAssert "control: the screen was driven through a session, an agent of it and a second session, read each, and drew each pane" "$( printf '%s\n' "$rigDrawnEight" | LC_ALL=C grep -c -e '^s|' -e '^r|' -e '^n|' | LC_ALL=C awk '{ print ( $1 >= 120 ) ? "drawn" : "not drawn: " $1 ; }' ) $( printf '%s\n' "$rigDrawnEight" | LC_ALL=C grep -c -F -- 'The daily of Monday:' | LC_ALL=C awk '{ print ( $1 >= 1 ) ? "read" : "not read" ; }' ) $( printf '%s\n' "$rigDrawnEight" | LC_ALL=C grep -c 'DRIVER-FAILED' )" "drawn read 0"
 rigDrawnBut(){ ## a drawing -- its lines but for the line control of the pane of a session, but for how many writes a drawing took, since that line is drawn in the colour of its state, and but for how many times the screen was drawn, which is as many as the turns it waited for a call, by the clock of the host
 	printf '%s\n' "$1" | LC_ALL=C grep -v -e '^[sn]|│ control  ' -e '^[srn]\.frames=' -e '^[srn]\.puts='
 }
 rigAssert "without them the line control of a session says - of what no row tells, and an agent has no such line" "$( printf '%s\n' "$rigDrawnEight" | LC_ALL=C grep -c -e '^s|│ control  -  ' ) $( printf '%s\n' "$rigDrawnEight" | LC_ALL=C grep -c -e '^n|│ control  -  ' ) $( printf '%s\n' "$rigDrawnEight" "$rigDrawnEleven" | LC_ALL=C grep -c -e '^r|│ control ' )" "1 1 0"
 rigAssert "with them it says what the read of the session gave: a thread that lives with its pid, one that ended in order, and the state each stored" "$( printf '%s\n' "$rigDrawnEleven" | LC_ALL=C grep -c -F -e 's|│ control  alive, pid 4242; stored running, set 2026-10-12 16:58 +0000 (9h ago)  ' ) $( printf '%s\n' "$rigDrawnEleven" | LC_ALL=C grep -c -F -e 'n|│ control  none; stored finished, set 2026-10-11 14:51 +0000 (35h ago)  ' )" "1 1"
-rigAssert "nothing else changes: but for that one line of the pane of a session, the screen asks the same reads and draws and reports cell for cell what it did without them" "$( [ "$( rigDrawnBut "$rigDrawnEleven" )" = "$( rigDrawnBut "$rigDrawnEight" )" ] && echo same || { echo differs ; diff <( rigDrawnBut "$rigDrawnEight" ) <( rigDrawnBut "$rigDrawnEleven" ) | head -6 ; } ) $( cmp -s "$rigTmp/eight/calls" "$rigTmp/eleven/calls" && echo same-calls || { echo DIFF ; diff "$rigTmp/eight/calls" "$rigTmp/eleven/calls" | head -6 | tr '\n' ';' ; } ) $( LC_ALL=C grep -c -e '--manager-session-read' "$rigTmp/eleven/calls" | LC_ALL=C awk '{ print ( $1 >= 3 ) ? "reads" : "no reads: " $1 }' )" "same same-calls reads"
+rigAssert "nothing else changes: but for that one line of the pane of a session, the screen asks the same reads and draws and reports cell for cell what it did without them" "$( [ "$( rigDrawnBut "$rigDrawnEleven" )" = "$( rigDrawnBut "$rigDrawnEight" )" ] && echo same || { echo differs ; diff <( rigDrawnBut "$rigDrawnEight" ) <( rigDrawnBut "$rigDrawnEleven" ) | head -6 ; } ) $( cmp -s "$rigTmp/eight/calls" "$rigTmp/eleven/calls" && echo same-calls || { echo DIFF ; diff "$rigTmp/eight/calls" "$rigTmp/eleven/calls" | head -6 | tr '\n' ';' ; } ) $( LC_ALL=C grep -c -e '--manager-session-read' "$rigTmp/eleven/calls" | LC_ALL=C awk '{ print ( $1 >= 3 ) ? "reads" : "no reads: " $1 ; }' )" "same same-calls reads"
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ MANAGER SCREEN PANE CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

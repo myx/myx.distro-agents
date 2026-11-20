@@ -102,10 +102,10 @@ rigSame(){ ## result name, result name -- `same` where rc and stdout are the sam
 	fi
 }
 rigSessions(){ ## result name -- the session rows of its stdout as `<id>=<state>`, in order
-	LC_ALL=C awk -F'\t' '$1 == "session" { printf "%s=%s ", $2, $4 }' "$rigTmp/$1.out"
+	LC_ALL=C awk -F'\t' '$1 == "session" { printf "%s=%s ", $2, $4 ; }' "$rigTmp/$1.out"
 }
 rigHas(){ ## result name, kind -- how many rows of that kind its stdout has
-	LC_ALL=C awk -F'\t' -v want="$2" '$1 == want { n++ } END { print n + 0 }' "$rigTmp/$1.out"
+	LC_ALL=C awk -F'\t' -v want="$2" '$1 == want { n++ ; } END { print n + 0 ; }' "$rigTmp/$1.out"
 }
 
 echo "-- 1. the lists are the manager list --"
@@ -137,7 +137,7 @@ rigAssert "--kind goes with --active-sessions: the active ones of that kind, a f
 ## rig-rc-b failed at 2026-10-19_12:00_+0300, the registry's minute 29873340: one minute on, it still stands, ended
 rigNow=29873341 ; rigCall kindEnded "$rigDispatcher" --active-sessions --kind standalone ; rigNow=""
 rigAssert "a failed session that ended a minute ago still stands among the active ones, its phase ended, the others active" \
-	"$( LC_ALL=C awk -F'\t' '$1 == "session" { printf "%s=%s:%s ", $2, $4, $NF }' "$rigTmp/kindEnded.out" )" "rig-rc-d=unclosed:active rig-rc-b=failed:ended rig-s-solo=unclosed:active "
+	"$( LC_ALL=C awk -F'\t' '$1 == "session" { printf "%s=%s:%s ", $2, $4, $NF ; }' "$rigTmp/kindEnded.out" )" "rig-rc-d=unclosed:active rig-rc-b=failed:ended rig-s-solo=unclosed:active "
 rigCall kindWaiting "$rigDispatcher" --waiting-sessions --kind coworking
 rigAssert "--kind goes with --waiting-sessions: the waiting ones of that kind"                   "$( rigSessions kindWaiting )" "rig-s-cow=waiting "
 rigAssert "a kept session keeps its runs and the counters row"                                   "$( rigHas kindCow run ):$( rigHas kindCow counters )" "2:1"
@@ -169,16 +169,16 @@ rigAssert "a word it does not know is refused, rc 1, nothing printed"           
 
 echo "-- 6. --routine-completed --"
 rigCall done1 "$rigDispatcher" --routine-completed rig-member.report.routine.md --since "2026-10-19 09:00"
-rigAssert "a run of the routine closed spawn-succeeded after the time: rc 0, the run printed"     "$( cat "$rigTmp/done1.rc" ):$( LC_ALL=C awk -F'\t' '$1 == "run" { print $2, $3, $5 }' "$rigTmp/done1.out" )" "0:rig-rc-a rig-rc-a spawn-succeeded"
+rigAssert "a run of the routine closed spawn-succeeded after the time: rc 0, the run printed"     "$( cat "$rigTmp/done1.rc" ):$( LC_ALL=C awk -F'\t' '$1 == "run" { print $2, $3, $5 ; }' "$rigTmp/done1.out" )" "0:rig-rc-a rig-rc-a spawn-succeeded"
 rigCall done2 "$rigDispatcher" --routine-completed rig-member.report.routine.md --since "2026-10-19 09:30"
-rigAssert "closed at the time itself counts"                                                      "$( cat "$rigTmp/done2.rc" ):$( LC_ALL=C awk -F'\t' '$1 == "run" { print $3 }' "$rigTmp/done2.out" )" "0:rig-rc-a"
+rigAssert "closed at the time itself counts"                                                      "$( cat "$rigTmp/done2.rc" ):$( LC_ALL=C awk -F'\t' '$1 == "run" { print $3 ; }' "$rigTmp/done2.out" )" "0:rig-rc-a"
 rigCall done3 "$rigDispatcher" --routine-completed rig-member.report.routine.md --since "2026-10-19 09:31"
 rigAssert "none since: rc 1, a NOT-COMPLETED line names the routine and the time; the run that failed, the one still open and the one before the time are none" \
 	"$( cat "$rigTmp/done3.rc" ):$( LC_ALL=C grep -c '^NOT-COMPLETED: rig-member.report.routine.md since 2026-10-19 09:31' "$rigTmp/done3.out" ):$( rigHas done3 run )" "1:1:0"
 rigCall done4 "$rigDispatcher" --routine-completed rig-member.other.routine.md --since "2026-10-19 09:00"
-rigAssert "a routine of its own: the run of that routine, not another's"                          "$( cat "$rigTmp/done4.rc" ):$( LC_ALL=C awk -F'\t' '$1 == "run" { print $3 }' "$rigTmp/done4.out" )" "0:rig-rc-c"
+rigAssert "a routine of its own: the run of that routine, not another's"                          "$( cat "$rigTmp/done4.rc" ):$( LC_ALL=C awk -F'\t' '$1 == "run" { print $3 ; }' "$rigTmp/done4.out" )" "0:rig-rc-c"
 rigCall done5 "$rigDispatcher" --routine-completed report --since "2026-10-19 09:00"
-rigAssert "the routine is named as --routine names one: a part of its file name"                  "$( cat "$rigTmp/done5.rc" ):$( LC_ALL=C awk -F'\t' '$1 == "run" { print $3 }' "$rigTmp/done5.out" )" "0:rig-rc-a"
+rigAssert "the routine is named as --routine names one: a part of its file name"                  "$( cat "$rigTmp/done5.rc" ):$( LC_ALL=C awk -F'\t' '$1 == "run" { print $3 ; }' "$rigTmp/done5.out" )" "0:rig-rc-a"
 rigCall done6 "$rigDispatcher" --routine-completed rig-member.report.routine.md --since "yesterday"
 rigAssert "a time that is not YYYY-MM-DD HH:MM is refused, rc 1"                                  "$( cat "$rigTmp/done6.rc" ):$( wc -c < "$rigTmp/done6.out" | tr -d ' ' )" "1:0"
 rigCall done7 "$rigDispatcher" --routine-completed rig-member.report.routine.md
@@ -190,7 +190,7 @@ echo "-- 7. refusal and help --"
 rigCall unknown "$rigDispatcher" --no-such-operation
 rigAssert "an operation the file does not know is refused, rc 1"                                  "$( cat "$rigTmp/unknown.rc" ):$( LC_ALL=C grep -c 'invalid option' "$rigTmp/unknown.err" )" "1:1"
 for rigOp in --all-sessions --active-sessions --waiting-sessions --session-record --routine-completed ; do
-	rigAssert "$rigOp has its help entry, as the Dispatcher's operation" "$( LC_ALL=C grep -c -E "^		$rigOp( |\$)" "$rigHelp" ):$( LC_ALL=C awk -v op="$rigOp" '$1 == op { on = 1 ; next } on && /DistroAgentsDispatcher.fn.sh/ { found = 1 } on && /^		--/ { on = 0 } END { print found + 0 }' "$rigHelp" )" "1:1"
+	rigAssert "$rigOp has its help entry, as the Dispatcher's operation" "$( LC_ALL=C grep -c -E "^		$rigOp( |\$)" "$rigHelp" ):$( LC_ALL=C awk -v op="$rigOp" '$1 == op { on = 1 ; next ; } on && /DistroAgentsDispatcher.fn.sh/ { found = 1 ; } on && /^		--/ { on = 0 ; } END { print found + 0 ; }' "$rigHelp" )" "1:1"
 done
 
 if [ "$rigFailCount" -ne 0 ] ; then

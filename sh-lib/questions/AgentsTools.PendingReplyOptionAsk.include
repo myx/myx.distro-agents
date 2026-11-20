@@ -19,8 +19,8 @@ AgentsToolsPendingReplyAnswerForm(){ ## record file
 	local formValue=""
 	if [ -f "$1" ] ; then
 		formValue="$( LC_ALL=C awk '
-			$0 == "---" { dashes++ ; if ( dashes == 2 ) { exit } ; next }
-			dashes == 1 && index( $0, "select: " ) == 1 { print substr( $0, 9 ) ; exit }
+			$0 == "---" { dashes++ ; if ( dashes == 2 ) { exit ; } ; next ; }
+			dashes == 1 && index( $0, "select: " ) == 1 { print substr( $0, 9 ) ; exit ; }
 		' "$1" 2> /dev/null )"
 	fi
 	if [ -n "$formValue" ] ; then printf '%s\n' "$formValue" ; return 0 ; fi

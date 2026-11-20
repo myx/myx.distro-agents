@@ -524,7 +524,7 @@
 				if ! AgentsWaitSameFile "$waitDir/base.$roundIndex" "$waitDir/now.$roundIndex" \
 					&& { LC_ALL=C grep -q '[^[:space:]]' "$waitDir/now.$roundIndex" 2> /dev/null || case " $agentsWaitKindEmptyBaseline slack " in *" $roundKind "*) false ;; *) true ;; esac ; } \
 					&& case " $agentsWaitKindArrivalsOnly " in
-						*" $roundKind "*) LC_ALL=C awk 'FILENAME == ARGV[1] { seen[$0] = 1 ; next } !( $0 in seen ) { added = 1 ; exit } END { exit !added }' "$waitDir/base.$roundIndex" "$waitDir/now.$roundIndex" ;;
+						*" $roundKind "*) LC_ALL=C awk 'FILENAME == ARGV[1] { seen[$0] = 1 ; next ; } !( $0 in seen ) { added = 1 ; exit ; } END { exit !added ; }' "$waitDir/base.$roundIndex" "$waitDir/now.$roundIndex" ;;
 						*) true ;;
 					esac \
 					&& { [ "$roundKind" != "replies" ] || LC_ALL=C grep -q -E -e '^[0-9]+\.[0-9]+ \| ' -e '^reactions on your post ' "$waitDir/now.$roundIndex" 2> /dev/null ; } ; then

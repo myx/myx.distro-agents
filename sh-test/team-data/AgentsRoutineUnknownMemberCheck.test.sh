@@ -28,7 +28,7 @@ rigAssert(){ ## what is asserted, got, want
 }
 rigValidate(){ ## executors value, invitees value, optional maintainers value -> the validator's rows with the file name cut off, one line a row joined by |
 	local copy="$rigTmp/magic-team.rig-copy.routine.md"
-	LC_ALL=C awk -v ex="$1" -v inv="$2" -v mt="${3:-}" 'NR == 1 && $0 == "---" { fm = 1 ; print ; next } fm && $0 == "---" { fm = 0 } fm && index( $0, "executors: " ) == 1 { print "executors: " ex ; next } fm && index( $0, "invitees: " ) == 1 { print "invitees: " inv ; next } fm && mt != "" && index( $0, "maintainers: " ) == 1 { print "maintainers: " mt ; next } { print }' "$rigSource" > "$copy"
+	LC_ALL=C awk -v ex="$1" -v inv="$2" -v mt="${3:-}" 'NR == 1 && $0 == "---" { fm = 1 ; print ; next ; } fm && $0 == "---" { fm = 0 ; } fm && index( $0, "executors: " ) == 1 { print "executors: " ex ; next ; } fm && index( $0, "invitees: " ) == 1 { print "invitees: " inv ; next ; } fm && mt != "" && index( $0, "maintainers: " ) == 1 { print "maintainers: " mt ; next ; } { print ; }' "$rigSource" > "$copy"
 	( cd "$rigWs" && env -i HOME="$rigTmp" PATH="/usr/bin:/bin:/usr/sbin:/sbin" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rigMembers" bash "$rigTool" --intern-doc-validate routine "$copy" 2>&1 ) \
 		| LC_ALL=C grep -E '\.routine\.md:[0-9]+: ' | LC_ALL=C sed 's|^[^ ]*: ||' | LC_ALL=C tr '\n' '|'
 }

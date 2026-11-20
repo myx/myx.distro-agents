@@ -120,10 +120,10 @@ sh-test/check-fixtures/rig-owner-writes.include.sh:116|a pending item as old dat
 rows(){
 	## foreign-package
 	LC_ALL=C grep -rnoE --include='*.include' --include='*.sh' --include='*.py' --include='*.awk' -e '\$MDLT_ORIGIN/myx/myx\.common/' sh-lib sh-scripts |
-		LC_ALL=C awk -F: '{ m = $3 ; sub(/.*\/myx\//, "", m) ; sub(/\/$/, "", m) ; printf "foreign-package\t%s:%s\tpath into %s\n", $1, $2, m }'
+		LC_ALL=C awk -F: '{ m = $3 ; sub(/.*\/myx\//, "", m) ; sub(/\/$/, "", m) ; printf "foreign-package\t%s:%s\tpath into %s\n", $1, $2, m ; }'
 	LC_ALL=C grep -rnE --include='*.include' --include='*.sh' -e '\b(LocalTools[A-Za-z]+|DistroLocal[A-Za-z]+)\b' sh-lib sh-scripts |
 		allowed="$allowedForeignFunctions" LC_ALL=C awk -F: '
-			BEGIN { n = split(ENVIRON["allowed"], allowedLines, "\n") ; for (allowedAt = 1 ; allowedAt <= n ; allowedAt++) { if (allowedLines[allowedAt] == "") continue ; allowedName = allowedLines[allowedAt] ; sub(/\|.*/, "", allowedName) ; allowedFn[allowedName] = 1 ; } }
+			BEGIN { n = split(ENVIRON["allowed"], allowedLines, "\n") ; for (allowedAt = 1 ; allowedAt <= n ; allowedAt++) { if (allowedLines[allowedAt] == "") continue ; allowedName = allowedLines[allowedAt] ; sub(/\|.*/, "", allowedName) ; allowedFn[allowedName] = 1 ; } ; }
 			{
 				line = $0 ; sub(/^[^:]*:[^:]*:/, "", line)
 				if (line ~ /^[[:space:]]*#/) next
@@ -148,9 +148,9 @@ rows(){
 		stores="$stores" sessionParts="$sessionParts" LC_ALL=C awk '
 			BEGIN {
 				n = split(ENVIRON["stores"], storeLines, "\n")
-				for (s = 1 ; s <= n ; s++) { k = split(storeLines[s], w, " ") ; storePat[s] = w[1] ; storeOwner[s] = w[2] ; storeName[s] = w[1] ; gsub(/\\/, "", storeName[s]) ; storeAlso[s] = " " ; for (j = 2 ; j <= k ; j++) storeAlso[s] = storeAlso[s] w[j] " " }
+				for (s = 1 ; s <= n ; s++) { k = split(storeLines[s], w, " ") ; storePat[s] = w[1] ; storeOwner[s] = w[2] ; storeName[s] = w[1] ; gsub(/\\/, "", storeName[s]) ; storeAlso[s] = " " ; for (j = 2 ; j <= k ; j++) storeAlso[s] = storeAlso[s] w[j] " " ; }
 				partN = split(ENVIRON["sessionParts"], partLines, "\n")
-				for (j = 1 ; j <= partN ; j++) { split(partLines[j], w, " ") ; partPat[j] = "^(" w[1] ")$" ; partOwner[j] = w[2] ; partLabel[j] = w[3] }
+				for (j = 1 ; j <= partN ; j++) { split(partLines[j], w, " ") ; partPat[j] = "^(" w[1] ")$" ; partOwner[j] = w[2] ; partLabel[j] = w[3] ; }
 			}
 			## sessionOwners: for each `sessions/<id>/<part>` in the code, the part owner and the label a row names, one `owner\tlabel`
 			## a line. The id is one path segment, a `${...}` read whole so a `:-/` default inside it does not end it.
@@ -158,11 +158,11 @@ rows(){
 				rest = code ; out = ""
 				while (match(rest, /sessions\//)) {
 					rest = substr(rest, RSTART + RLENGTH) ; i = 1 ; depth = 0
-					while (i <= length(rest)) { c = substr(rest, i, 1) ; if (c == "{") depth++ ; else if (c == "}" && depth > 0) depth-- ; else if (depth == 0 && c ~ /[\/ \t;|&()<>]/) break ; i++ }
+					while (i <= length(rest)) { c = substr(rest, i, 1) ; if (c == "{") depth++ ; else if (c == "}" && depth > 0) depth-- ; else if (depth == 0 && c ~ /[\/ \t;|&()<>]/) break ; i++ ; }
 					owner = "session" ; label = ""
 					if (substr(rest, i, 1) == "/") {
 						seg = substr(rest, i + 1) ; sub(/[\/ \t;|&()<>].*/, "", seg)
-						for (j = 1 ; j <= partN ; j++) if (seg ~ partPat[j]) { owner = partOwner[j] ; label = partLabel[j] ; break }
+						for (j = 1 ; j <= partN ; j++) if (seg ~ partPat[j]) { owner = partOwner[j] ; label = partLabel[j] ; break ; }
 					}
 					out = out owner "\t" label "\n"
 				}
@@ -173,7 +173,7 @@ rows(){
 				for (i = 1 ; i <= length(text) ; i++) {
 					c = substr(text, i, 1)
 					if (q == "" && c == "#" && prev ~ /[ \t;&|()]/) break
-					if (c == "\\" && q != "\x27") { out = out c substr(text, i + 1, 1) ; i++ ; prev = "x" ; continue }
+					if (c == "\\" && q != "\x27") { out = out c substr(text, i + 1, 1) ; i++ ; prev = "x" ; continue ; }
 					if (q == "" && (c == "\"" || c == "\x27")) q = c
 					else if (q != "" && c == q) q = ""
 					else out = out c
@@ -215,7 +215,7 @@ rows(){
 			}'
 	## duplicate: an awk program of 80+ characters, one row per extra file carrying it
 	LC_ALL=C grep -rnoE "awk [^|]{0,40}'[^']{80,}'" sh-lib --include='*.include' --include='*.sh' |
-		LC_ALL=C awk -F: '{ f = $1 ; l = $2 ; $1 = "" ; $2 = "" ; t = $0 ; sub(/^[^'"'"']*/, "", t) ; if (!(t in first)) first[t] = f ":" l ; else if (index(first[t], f ":") != 1) printf "duplicate\t%s:%s\tsame awk program as %s\n", f, l, first[t] }'
+		LC_ALL=C awk -F: '{ f = $1 ; l = $2 ; $1 = "" ; $2 = "" ; t = $0 ; sub(/^[^'"'"']*/, "", t) ; if (!(t in first)) first[t] = f ":" l ; else if (index(first[t], f ":") != 1) printf "duplicate\t%s:%s\tsame awk program as %s\n", f, l, first[t] ; }'
 	## the internal contracts: unreached calls, silent loads, optional calls, dual use, duplicate definitions, dead functions
 	python3 "$scanHere/AgentsSolidContracts.py" "$root"
 	## trivial: a function or variable that is inlined, with what makes it one
@@ -231,20 +231,20 @@ rows(){
 					reasonedSite[reasonedWord[1]] = 1
 				}
 			}
-			!(( $1 ":" $2 ) in reasonedSite) { printf "fabricated\t%s:%s\twrites a store the code reads\n", $1, $2 }'
+			!(( $1 ":" $2 ) in reasonedSite) { printf "fabricated\t%s:%s\twrites a store the code reads\n", $1, $2 ; }'
 }
 prioritise(){
-	LC_ALL=C awk -F'\t' 'BEGIN { p["foreign-package"] = "P1" ; p["foreign-store"] = "P2" ; p["duplicate"] = "P4" ; p["trivial"] = "P4" ; p["fabricated"] = "P5" ; p["unreached"] = "P0" ; p["silent-load"] = "P0" ; p["optional-call"] = "P0" ; p["dual-use"] = "P0" ; p["undefined-call"] = "P0" ; p["guard-target"] = "P0" ; p["guard-name"] = "P0" ; p["guarded-op"] = "P0" ; p["load-missing"] = "P0" ; p["duplicate-def"] = "P4" ; p["dead"] = "P6" } { print p[$1] "\t" $0 }' | LC_ALL=C sort -t "$(printf '\t')" -k1,1 -s
+	LC_ALL=C awk -F'\t' 'BEGIN { p["foreign-package"] = "P1" ; p["foreign-store"] = "P2" ; p["duplicate"] = "P4" ; p["trivial"] = "P4" ; p["fabricated"] = "P5" ; p["unreached"] = "P0" ; p["silent-load"] = "P0" ; p["optional-call"] = "P0" ; p["dual-use"] = "P0" ; p["undefined-call"] = "P0" ; p["guard-target"] = "P0" ; p["guard-name"] = "P0" ; p["guarded-op"] = "P0" ; p["load-missing"] = "P0" ; p["duplicate-def"] = "P4" ; p["dead"] = "P6" ; } { print p[$1] "\t" $0 ; }' | LC_ALL=C sort -t "$(printf '\t')" -k1,1 -s
 }
 if [ -n "$summary" ] || [ -n "$recordWs" ] ; then
 	scanRows="$( rows | prioritise )"
-	printf '%s\n' "$scanRows" | LC_ALL=C awk -F'\t' 'NF { n[$1 " " $2]++ ; t++ ; split($3, f, "/") ; d[$1 " " $2 " " f[1] "/" f[2]]++ } END { for (c in n) printf "class %s %d\n", c, n[c] ; for (k in d) printf "where %s %d\n", k, d[k] ; printf "total %d\n", t + 0 }' | LC_ALL=C sort -k1,1 -k2,2
+	printf '%s\n' "$scanRows" | LC_ALL=C awk -F'\t' 'NF { n[$1 " " $2]++ ; t++ ; split($3, f, "/") ; d[$1 " " $2 " " f[1] "/" f[2]]++ ; } END { for (c in n) printf "class %s %d\n", c, n[c] ; for (k in d) printf "where %s %d\n", k, d[k] ; printf "total %d\n", t + 0 ; }' | LC_ALL=C sort -k1,1 -k2,2
 else
 	rows | prioritise
 fi
 ## THE READING KEPT FOR THE SUPERVISOR, through that store's own writer. A marker not kept is a failed run, never a silent one.
 if [ -n "$recordWs" ] ; then
-	scanTotal="$( printf '%s\n' "$scanRows" | LC_ALL=C awk 'NF { t++ } END { print t + 0 }' )"
+	scanTotal="$( printf '%s\n' "$scanRows" | LC_ALL=C awk 'NF { t++ ; } END { print t + 0 ; }' )"
 	. "$scanHere/../../sh-lib/supervise/AgentsTools.SuperviseSolidDelta.include"
 	AgentsToolsSolidGateMarkerWrite "$recordWs" "$scanTotal" "$( pwd -P )" \
 		|| { echo "⛔ ERROR: AgentsSolidBreachScan.sh: the reading could not be kept at ${recordWs%/}/.local/agents/solid-gate.last" >&2 ; exit 1 ; }

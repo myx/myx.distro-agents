@@ -33,7 +33,7 @@ rigAssert(){ ## what is asserted, got, want
 harnessHere="$rigPkg/sh-lib"
 . "$rigContextLib" > /dev/null 2>&1 || rigRefuse "the context include would not load"
 type AgentsTranscriptOutcomeOf > /dev/null 2>&1 || . "$rigPkg/sh-lib/session/AgentsTools.SessionTranscript.include" > /dev/null 2>&1 || rigRefuse "the transcript include would not load"
-eval "$( LC_ALL=C awk '/^AgentsHarnessTaskBody\(\)/ { on = 1 } on { print } on && /^}/ { exit }' "$rigRunLib" )"
+eval "$( LC_ALL=C awk '/^AgentsHarnessTaskBody\(\)/ { on = 1 ; } on { print ; } on && /^}/ { exit ; }' "$rigRunLib" )"
 type AgentsHarnessTaskBody > /dev/null 2>&1 || rigRefuse "the task body was not found in $rigRunLib"
 ## The stand-in tool: it ran 3000 ms, and keeps that span as every tool does.
 AgentsHarnessRunToolNow(){ AgentsHarnessToolRunMsKeep 3000 ; harnessResult="done" ; }

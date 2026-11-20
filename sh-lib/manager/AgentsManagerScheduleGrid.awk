@@ -24,7 +24,7 @@ function dayIn( days, name,    parts, count, at, inWeekend ) {
 # Whether an override holds at some time in [from, to): `on` always, `until E` while E is later than from.
 function holds( setting, from, to,    until ) {
 	if ( setting == "on" ) return 1
-	if ( setting ~ /^until [0-9]+$/ ) { until = substr( setting, 7 ) + 0 ; return until > from }
+	if ( setting ~ /^until [0-9]+$/ ) { until = substr( setting, 7 ) + 0 ; return until > from ; }
 	return 0
 }
 

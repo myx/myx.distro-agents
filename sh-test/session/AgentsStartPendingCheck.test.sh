@@ -89,13 +89,13 @@ rigReset
 rigItem task-a.md 'approved-by: human-owner' 'owner: magic-developer'
 rigItem task-b.md 'approved-by: human-owner' 'owner: magic-tester' 'mark: urgent'
 rigMedian=9000 ; rigRunPass
-rigAssert "on a slow machine an urgent item starts whatever the pace, and the one with no mark waits" "$( rigSpawned ):$( awk '{ print $NF }' "$rigSpawnLog" )" "1:magic-tester"
+rigAssert "on a slow machine an urgent item starts whatever the pace, and the one with no mark waits" "$( rigSpawned ):$( awk '{ print $NF ; }' "$rigSpawnLog" )" "1:magic-tester"
 
 rigReset
 rigItem task-a.md 'approved-by: human-owner' 'owner: magic-developer'
 rigRunPass
-rigAssert "a fast machine starts an approved item, once, with its routine and its member" "$( rigSpawned ):$( awk '{ print $1, $2, $3, $4 }' "$rigSpawnLog" )" "1:pending.task-a --routine magic-team.verify.routine.md --description"
-rigAssert "the spawn names the member as its last word" "$( awk '{ print $NF }' "$rigSpawnLog" )" "magic-developer"
+rigAssert "a fast machine starts an approved item, once, with its routine and its member" "$( rigSpawned ):$( awk '{ print $1, $2, $3, $4 ; }' "$rigSpawnLog" )" "1:pending.task-a --routine magic-team.verify.routine.md --description"
+rigAssert "the spawn names the member as its last word" "$( awk '{ print $NF ; }' "$rigSpawnLog" )" "magic-developer"
 rigAssert "the item was moved to running first (the first call), by the items tool, from pending" "$( head -1 "$rigItemsLog" | cut -c1-100 )" "--advance-to-running --team-member magic-coordinator task-a.md --from-state:pending"
 
 rigReset
@@ -113,7 +113,7 @@ rigReset
 rigEpic epic-blueprint-20261102T0000Z-rig.md 'approved-by: human-owner (rig-session, 2026-11-02T09:00:00Z)' 'approved-at: 2026-11-02 11:00 +0200'
 rigItem task-a.md 'epic: epic-blueprint-20261102T0000Z-rig' 'owner: magic-developer'
 rigRunPass
-rigAssert "an item whose epic carries a go is started, and moved to running first" "$( rigSpawned ):$( awk '{ print $NF }' "$rigSpawnLog" ):$( [ -f "$rigItemsLog" ] && LC_ALL=C awk 'NR == 1 { print $1, $2, $3 }' "$rigItemsLog" || echo untouched )" "1:magic-developer:--advance-to-running --team-member magic-coordinator"
+rigAssert "an item whose epic carries a go is started, and moved to running first" "$( rigSpawned ):$( awk '{ print $NF ; }' "$rigSpawnLog" ):$( [ -f "$rigItemsLog" ] && LC_ALL=C awk 'NR == 1 { print $1, $2, $3 ; }' "$rigItemsLog" || echo untouched )" "1:magic-developer:--advance-to-running --team-member magic-coordinator"
 rigReset
 rigEpic epic-blueprint-20261102T0000Z-rig.md ''
 rigItem task-a.md 'epic: epic-blueprint-20261102T0000Z-rig' 'owner: magic-developer'
@@ -151,7 +151,7 @@ rigReset
 rigDutyMembers="magic-developer"
 rigItem task-a.md 'approved-by: human-owner' 'owner: magic-coordinator' 'restart-session: magic-developer, magic-tester'
 rigRunPass
-rigAssert "an item with a restart-session group is started, since its group does not own it: both members, as two words" "$( rigSpawned ):$( awk '{ print $(NF-1) " " $NF }' "$rigSpawnLog" )" "1:magic-developer magic-tester"
+rigAssert "an item with a restart-session group is started, since its group does not own it: both members, as two words" "$( rigSpawned ):$( awk '{ print $(NF-1) " " $NF ; }' "$rigSpawnLog" )" "1:magic-developer magic-tester"
 rigReset
 rigDutyMembers="magic-developer"
 rigItem task-a.md 'approved-by: human-owner' 'owner: keeper-myx'
@@ -186,12 +186,12 @@ rigRunMembers="magic-tester"
 rigItem task-a.md 'approved-by: human-owner' 'owner: magic-tester'
 rigItem task-b.md 'approved-by: human-owner' 'owner: magic-developer'
 rigMedian=6000 ; rigRunPass
-rigAssert "an item the rules leave is no hold on the next: the first is left at 6 s, the second is started" "$( rigSpawned ):$( awk '{ print $NF }' "$rigSpawnLog" )" "1:magic-developer"
+rigAssert "an item the rules leave is no hold on the next: the first is left at 6 s, the second is started" "$( rigSpawned ):$( awk '{ print $NF ; }' "$rigSpawnLog" )" "1:magic-developer"
 rigReset
 rigItem task-a.md 'approved-by: human-owner' 'owner: magic-developer'
 rigItem task-b.md 'approved-by: human-owner' 'owner: magic-tester'
 rigRunPass
-rigAssert "one item is started a pass, the oldest by name" "$( rigSpawned ):$( awk '{ print $NF }' "$rigSpawnLog" )" "1:magic-developer"
+rigAssert "one item is started a pass, the oldest by name" "$( rigSpawned ):$( awk '{ print $NF ; }' "$rigSpawnLog" )" "1:magic-developer"
 
 ## OUT OF WORKTIME ONLY THE COORDINATOR RUNS: with worktime, overtime and emergency off, only an urgent or emergency item is started.
 rigReset
@@ -209,7 +209,7 @@ rigWorktime=no
 rigItem task-a.md 'approved-by: human-owner' 'owner: magic-developer' 'mark: important'
 rigItem task-b.md 'approved-by: human-owner' 'owner: magic-tester' 'mark: emergency'
 rigRunPass
-rigAssert "worktime off: an important item waits, the emergency one after it is started" "$( rigSpawned ):$( awk '{ print $NF }' "$rigSpawnLog" )" "1:magic-tester"
+rigAssert "worktime off: an important item waits, the emergency one after it is started" "$( rigSpawned ):$( awk '{ print $NF ; }' "$rigSpawnLog" )" "1:magic-tester"
 
 ## A VERIFY ONLY AFTER NEW WORK, ITS VERDICT KEPT UNTIL THE ITEM CHANGES: read off the records once, then off the kept verdict while the item is unchanged.
 rigReset

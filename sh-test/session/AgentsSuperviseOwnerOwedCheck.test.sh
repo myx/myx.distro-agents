@@ -121,9 +121,9 @@ rigOut="$( rigScan )"
 
 echo "-- 0. the control: the store is the check's own, and another channel is not read --"
 rigAssert "control: the rig's cache holds message files the reading can open" \
-	"$( LC_ALL=C cat "$rigStore"/*/[0-9][0-9][0-9][0-9][0-9][0-9]/messages.txt 2> /dev/null | LC_ALL=C grep -c -- '^[0-9]' | LC_ALL=C awk '$1 > 0 { print "held" }' )" held
+	"$( LC_ALL=C cat "$rigStore"/*/[0-9][0-9][0-9][0-9][0-9][0-9]/messages.txt 2> /dev/null | LC_ALL=C grep -c -- '^[0-9]' | LC_ALL=C awk '$1 > 0 { print "held" ; }' )" held
 rigAssert "control the other way: the same reading prints nothing where no message of his stands" \
-	"$( printf '%s\n' "$rigOut" | LC_ALL=C awk '$1 == "owner-owed" && $3 ~ /D0RIGEMPT1/ { print "line" }' )" ""
+	"$( printf '%s\n' "$rigOut" | LC_ALL=C awk '$1 == "owner-owed" && $3 ~ /D0RIGEMPT1/ { print "line" ; }' )" ""
 rigAssert "a channel that is neither the team channel nor a direct one yields no line" "$( rigOwed RIG-OWED-OUTSIDE )" ""
 
 echo "-- 1. his unanswered message in his own conversation --"
@@ -137,7 +137,7 @@ echo "-- 2. a reply after it removes the line --"
 rigAssert "no line for the message another account answered" "$( rigOwed RIG-OWED-TWO )" ""
 
 echo "-- 3. a reply before it does not --"
-rigAssert "the line stands, and names his own message by its conversation and ts" "$( rigOwed RIG-OWED-THREE | LC_ALL=C awk '{ print $3 }' )" \
+rigAssert "the line stands, and names his own message by its conversation and ts" "$( rigOwed RIG-OWED-THREE | LC_ALL=C awk '{ print $3 ; }' )" \
 	"D0RIGBEFR1:$(( rigNow - 8000 )).000100"
 
 echo "-- 4. a message of another account alone --"
@@ -147,15 +147,15 @@ echo "-- 5. the team channel and its threads --"
 rigAssert "the channel's answered message yields no line" "$( rigOwed 'RIG-OWED-FIVE answered' )" ""
 rigAssert "his channel message its own thread folder answers yields no line" "$( rigOwed RIG-OWED-FIVE-THREADED )" ""
 rigAssert "his channel message whose thread answers nothing still yields its line" \
-	"$( rigOwed RIG-OWED-FIVE-LONELY | LC_ALL=C awk '{ print $3 }' )" "$rigTeam:$(( rigNow - 6300 )).000100"
+	"$( rigOwed RIG-OWED-FIVE-LONELY | LC_ALL=C awk '{ print $3 ; }' )" "$rigTeam:$(( rigNow - 6300 )).000100"
 rigAssert "the folder whose name and pulling line differ is read from the pulling line" \
-	"$( rigOwed RIG-OWED-NAMEMISMATCH | LC_ALL=C awk '{ print $3 }' )" "D0RIGREAL9:$(( rigNow - 6200 )).000100"
-rigAssert "its thread's unanswered message yields its own line" "$( rigOwed RIG-OWED-THREADED | LC_ALL=C awk '{ print $3 }' )" \
+	"$( rigOwed RIG-OWED-NAMEMISMATCH | LC_ALL=C awk '{ print $3 ; }' )" "D0RIGREAL9:$(( rigNow - 6200 )).000100"
+rigAssert "its thread's unanswered message yields its own line" "$( rigOwed RIG-OWED-THREADED | LC_ALL=C awk '{ print $3 ; }' )" \
 	"$rigTeam:$(( rigNow - 6600 )).000100"
 
 echo "-- 8. a local copy of our reply, in a thread folder no pull made --"
 rigAssert "his message answered only by our local copy in its thread yields no line" "$( rigOwed RIG-OWED-LOCAL )" ""
-rigAssert "control: the same copy in a folder that names no thread leaves him owed" "$( rigOwed RIG-OWED-BARE | LC_ALL=C awk '{ print $3 }' )" "D0RIGLOCL1:$rigBareAt"
+rigAssert "control: the same copy in a folder that names no thread leaves him owed" "$( rigOwed RIG-OWED-BARE | LC_ALL=C awk '{ print $3 ; }' )" "D0RIGLOCL1:$rigBareAt"
 
 echo "-- 6. the kind is the scanner's own, and no service is reached --"
 rigAssert "the scan's header lists the kind" \

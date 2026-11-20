@@ -34,14 +34,14 @@ AgentsToolsBoardDispatchRunsTableInto(){ ## variable, team data root
 	done
 	[ "${#runsFiles[@]}" -gt 0 ] || return 0
 	printf -v "$runsVar" '%s' "$( LC_ALL=C awk "$agentsBoardDispatchEpochAwk"'
-		function flush() { if ( owner != "" && start >= 0 ) { print owner "\t" start "\t" ( end >= 0 ? end : 9999999999 ) } owner = "" ; start = -1 ; end = -1 ; inHead = 0 }
-		FNR == 1 { flush() ; if ( $0 == "---" ) inHead = 1 ; next }
-		inHead && $0 == "---" { inHead = 0 ; next }
-		inHead && index($0, "owner: ") == 1 { owner = substr($0, 8) }
-		inHead && index($0, "started-at: ") == 1 { start = epochOf(substr($0, 13)) }
-		inHead && index($0, "resolved-at: ") == 1 { end = epochOf(substr($0, 14)) }
-		inHead && index($0, "processed-at: ") == 1 && end < 0 { end = epochOf(substr($0, 15)) }
-		END { flush() }' ${runsFiles[@]+"${runsFiles[@]}"} )"
+		function flush() { if ( owner != "" && start >= 0 ) { print owner "\t" start "\t" ( end >= 0 ? end : 9999999999 ) ; } owner = "" ; start = -1 ; end = -1 ; inHead = 0 ; }
+		FNR == 1 { flush() ; if ( $0 == "---" ) inHead = 1 ; next ; }
+		inHead && $0 == "---" { inHead = 0 ; next ; }
+		inHead && index($0, "owner: ") == 1 { owner = substr($0, 8) ; }
+		inHead && index($0, "started-at: ") == 1 { start = epochOf(substr($0, 13)) ; }
+		inHead && index($0, "resolved-at: ") == 1 { end = epochOf(substr($0, 14)) ; }
+		inHead && index($0, "processed-at: ") == 1 && end < 0 { end = epochOf(substr($0, 15)) ; }
+		END { flush() ; }' ${runsFiles[@]+"${runsFiles[@]}"} )"
 	return 0
 }
 

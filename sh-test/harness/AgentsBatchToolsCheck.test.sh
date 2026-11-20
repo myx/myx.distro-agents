@@ -157,9 +157,9 @@ print(reply["mode"] + " " + "|".join(entry["tool"] + ":" + entry["status"] for e
 
 echo "-- 10. an unknown mode, or an unknown tool among the calls, is refused and nothing runs --"
 rigMcp r1 "{\"mode\":\"sequence-sometimes\",\"calls\":[{\"tool\":\"execute\",\"arguments\":{\"command\":\"touch $rigFix/marks/refused.mode\"}}]}"
-rigAssert "an unknown mode: refused, naming it, and the call did not run" "$( LC_ALL=C grep -c -F 'sequence-sometimes' "$rigTmp/r1.out" | LC_ALL=C awk '{ print ( $1 >= 1 ) ? "named" : "unnamed" }' ):$( [ -e "$rigFix/marks/refused.mode" ] && printf ran || printf not-run )" "named:not-run"
+rigAssert "an unknown mode: refused, naming it, and the call did not run" "$( LC_ALL=C grep -c -F 'sequence-sometimes' "$rigTmp/r1.out" | LC_ALL=C awk '{ print ( $1 >= 1 ) ? "named" : "unnamed" ; }' ):$( [ -e "$rigFix/marks/refused.mode" ] && printf ran || printf not-run )" "named:not-run"
 rigMcp r2 "{\"mode\":\"sequence-all-through\",\"calls\":[{\"tool\":\"execute\",\"arguments\":{\"command\":\"touch $rigFix/marks/refused.tool\"}},{\"tool\":\"NoSuchRigTool\",\"arguments\":{}}]}"
-rigAssert "an unknown tool: refused, naming it, and no call ran" "$( LC_ALL=C grep -c -F 'NoSuchRigTool' "$rigTmp/r2.out" | LC_ALL=C awk '{ print ( $1 >= 1 ) ? "named" : "unnamed" }' ):$( [ -e "$rigFix/marks/refused.tool" ] && printf ran || printf not-run )" "named:not-run"
+rigAssert "an unknown tool: refused, naming it, and no call ran" "$( LC_ALL=C grep -c -F 'NoSuchRigTool' "$rigTmp/r2.out" | LC_ALL=C awk '{ print ( $1 >= 1 ) ? "named" : "unnamed" ; }' ):$( [ -e "$rigFix/marks/refused.tool" ] && printf ran || printf not-run )" "named:not-run"
 
 echo "-- 11. --mdat-output-format json on the operations behind the tools --"
 mkdir -p "$rigTmp/skills/magic-tester" "$rigTmp/.local/agents/pending"
@@ -184,8 +184,8 @@ rigAssert "an operation that implements no tool prints exactly as without it" "$
 ## The list beside the option is the operations the harness runs through the dispatcher, but its settings read, and
 ## the one behind execute: each word the harness's own functions run is on it, and nothing else is.
 rigHarnessOps="$( LC_ALL=C awk '
-	/^AgentsHarness[A-Za-z]*\(\) *\{/ { inside = 1 ; next }
-	/^}/ { inside = 0 ; next }
+	/^AgentsHarness[A-Za-z]*\(\) *\{/ { inside = 1 ; next ; }
+	/^}/ { inside = 0 ; next ; }
 	inside && /DistroAgentsTools(\.fn\.sh"?)? +--/ {
 		line = $0
 		while ( match( line, /DistroAgentsTools(\.fn\.sh"?)? +--[a-z][a-z0-9-]+/ ) ) {

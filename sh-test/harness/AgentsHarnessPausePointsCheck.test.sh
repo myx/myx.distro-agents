@@ -123,7 +123,7 @@ rigExecute(){ ## the flag stands at the start, and a background job lifts it two
 }
 : > "$rigRun/paused"
 rigAssert "a call made while the flag stands, and lifted inside the wait, is refused with PAUSED, and nothing ran" \
-	"$( rigExecute | LC_ALL=C awk '/PAUSED/ { paused = 1 } /RIG-RAN/ { ran = 1 } END { print ( paused && ! ran ? "refused-nothing-ran" : "held-or-ran:" paused ":" ran ) }' )" \
+	"$( rigExecute | LC_ALL=C awk '/PAUSED/ { paused = 1 ; } /RIG-RAN/ { ran = 1 ; } END { print ( paused && ! ran ? "refused-nothing-ran" : "held-or-ran:" paused ":" ran ) ; }' )" \
 	"refused-nothing-ran"
 rm -f "$rigRun/paused"
 rigAssert "the control: with no flag standing, the same call runs its script" "$( rigExecute | LC_ALL=C grep -c 'RIG-RAN' )" "1"

@@ -61,7 +61,7 @@ rigAssert "one line per section, in the order of the report" "$( LC_ALL=C sed -n
 echo "-- not traced --"
 rigScan plain
 rigAssert "nothing is said when it is unset" "$( LC_ALL=C grep -c '^scan-trace: ' "$rigTmp/plain.err" )" 0
-rigAssert "the report is the same with and without" "$( LC_ALL=C grep -v -e '^tokens' "$rigTmp/traced.out" | cksum ):$( LC_ALL=C grep -c . "$rigTmp/traced.out" | LC_ALL=C awk '{ print ( $1 > 10 ) ? "full" : "short" }' )" "$( LC_ALL=C grep -v -e '^tokens' "$rigTmp/plain.out" | cksum ):full"
+rigAssert "the report is the same with and without" "$( LC_ALL=C grep -v -e '^tokens' "$rigTmp/traced.out" | cksum ):$( LC_ALL=C grep -c . "$rigTmp/traced.out" | LC_ALL=C awk '{ print ( $1 > 10 ) ? "full" : "short" ; }' )" "$( LC_ALL=C grep -v -e '^tokens' "$rigTmp/plain.out" | cksum ):full"
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ WORK DUTY SCAN TRACE CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

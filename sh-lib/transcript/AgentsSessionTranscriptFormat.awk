@@ -31,8 +31,8 @@ function stlJsonStringEnd(afterQuote,   byteIndex, byteCount, currentChar, isEsc
 	isEscaped = 0
 	for (byteIndex = 1; byteIndex <= byteCount; byteIndex++) {
 		currentChar = substr(afterQuote, byteIndex, 1)
-		if (isEscaped) { isEscaped = 0 ; continue }
-		if (currentChar == "\\") { isEscaped = 1 ; continue }
+		if (isEscaped) { isEscaped = 0 ; continue ; }
+		if (currentChar == "\\") { isEscaped = 1 ; continue ; }
 		if (currentChar == "\"") return byteIndex - 1
 	}
 	return -1
@@ -43,13 +43,13 @@ function stlJsonUnescape(rawValue,   outValue, byteIndex, byteCount, currentChar
 	byteCount = length(rawValue)
 	for (byteIndex = 1; byteIndex <= byteCount; byteIndex++) {
 		currentChar = substr(rawValue, byteIndex, 1)
-		if (currentChar != "\\" || byteIndex == byteCount) { outValue = outValue currentChar ; continue }
+		if (currentChar != "\\" || byteIndex == byteCount) { outValue = outValue currentChar ; continue ; }
 		byteIndex++
 		currentChar = substr(rawValue, byteIndex, 1)
 		if (currentChar == "n") outValue = outValue "\n"
 		else if (currentChar == "t") outValue = outValue "\t"
 		else if (currentChar == "r") outValue = outValue "\r"
-		else if (currentChar == "u") { outValue = outValue "?" ; byteIndex += 4 }
+		else if (currentChar == "u") { outValue = outValue "?" ; byteIndex += 4 ; }
 		else outValue = outValue currentChar
 	}
 	return outValue
@@ -378,7 +378,7 @@ function stlNow(   seedWas) {
 	return seedWas
 }
 
-stlStandalone != "" { stlInput = stlInput $0 "\n" ; next }
+stlStandalone != "" { stlInput = stlInput $0 "\n" ; next ; }
 
 END {
 	if (stlStandalone == "tool") {

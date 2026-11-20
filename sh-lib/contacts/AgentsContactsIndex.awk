@@ -11,8 +11,8 @@
 #            conversation id, an e-mail); no name and no handle. -v team=<scope> keeps the Slack coordinates of that team.
 # The record is read as the tool writes it: front matter lines `key: value`, the values of a coordinate a list `a, b`, a Slack entry `<team>:<value>`.
 
-function lower(text) { return tolower(text) }
-function trim(text) { sub(/^[ \t]+/, "", text) ; sub(/[ \t]+$/, "", text) ; return text }
+function lower(text) { return tolower(text) ; }
+function trim(text) { sub(/^[ \t]+/, "", text) ; sub(/[ \t]+$/, "", text) ; return text ; }
 function inlist(list, item,    count, parts, at) {
 	count = split(list, parts, /, */)
 	for (at = 1 ; at <= count ; at++) if (lower(trim(parts[at])) == lower(item)) return 1
@@ -85,13 +85,13 @@ function flush(    matched) {
 	## The last column is the language the person prefers (- for none recorded), kept last so every reader of the columns before it is unchanged.
 	printf "contact\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n", id, name, orgOf(), reached, matched, (scopeTiers == "" ? "-" : scopeTiers), (language == "" ? "-" : language)
 }
-function orgOf() { return (recOrg == "none" ? "" : recOrg) }
-BEGIN { mode = (mode == "" ? "all" : mode) ; want = lower(want) ; reset() }
-FNR == 1 { flush() ; reset() }
+function orgOf() { return (recOrg == "none" ? "" : recOrg) ; }
+BEGIN { mode = (mode == "" ? "all" : mode) ; want = lower(want) ; reset() ; }
+FNR == 1 { flush() ; reset() ; }
 {
-	if (FNR == 1) { if ($0 == "---") front = 1 ; next }
+	if (FNR == 1) { if ($0 == "---") front = 1 ; next ; }
 	if (front == 1) {
-		if ($0 == "---") { front = 2 ; next }
+		if ($0 == "---") { front = 2 ; next ; }
 		at = index($0, ": ")
 		if (at == 0) next
 		key = substr($0, 1, at - 1) ; value = substr($0, at + 2)
@@ -108,4 +108,4 @@ FNR == 1 { flush() ; reset() }
 		else if (key == "language") language = value
 	}
 }
-END { flush() }
+END { flush() ; }

@@ -75,7 +75,7 @@ rigWriter(){ ## result prefix, stdin file, words... -- one call of DistroAgentsT
 	rigRc=$?
 }
 rigField(){ ## key -- a front matter field of the state note
-	LC_ALL=C awk -v want="$1: " 'NR == 1 { next } $0 == "---" { exit } index( $0, want ) == 1 { print substr( $0, length( want ) + 1 ) ; exit }' "$rigNote"
+	LC_ALL=C awk -v want="$1: " 'NR == 1 { next ; } $0 == "---" { exit ; } index( $0, want ) == 1 { print substr( $0, length( want ) + 1 ) ; exit ; }' "$rigNote"
 }
 rigWrite(){ ## the state note as a session leaves it
 	printf -- '---\ntype: note\nfrom: magic-coordinator\ndate: 2026-08-09\nowner: magic-coordinator\nstate: heartbeat-finished\nrecheck-date: 2026-01-01 00:00 +0000\nsession-id: rig-pass-0\ntoday-stage: grooming-dispatched\nlast-iteration-date: 2026-10-19\nlast-iteration-timestamp: 2026-10-19T08:00:00Z\n---\n\nLast iteration: rig.\n\n# Day notes\n\nkeep this line\n' > "$rigNote"

@@ -107,7 +107,7 @@ rigStarts(){ ## file, line start
 	LC_ALL=C awk -v wantHead="$2" 'index( $0, wantHead ) == 1 { hitCount++ ; } END { print hitCount + 0 ; }' "$1" 2>/dev/null || printf 'no-such-file'
 }
 rigVerdictLine(){
-	LC_ALL=C awk '/^VERDICT: / { print ; found = 1 ; exit ; } END { if ( ! found ) { print "no-verdict-line" ; } }' "$rigScenarioDir/out"
+	LC_ALL=C awk '/^VERDICT: / { print ; found = 1 ; exit ; } END { if ( ! found ) { print "no-verdict-line" ; } ; }' "$rigScenarioDir/out"
 }
 rigRefusal(){ ## output file -> the refusal id it printed
 	LC_ALL=C sed -n 's/^REFUSAL-ID: \(refusal-[0-9a-f-]*\)$/\1/p' "$1" | head -1
@@ -127,7 +127,7 @@ rigRecordFile(){ ## which, counting from 1
 	rigRecordFiles | LC_ALL=C sed -n "${1:-1}p"
 }
 rigRecordField(){ ## field, which record (default the first)
-	LC_ALL=C awk -v key="$1" '$0 == "---" { if ( ++dashes == 2 ) { exit ; } next ; } dashes == 1 && index( $0, key ": " ) == 1 { print substr( $0, length( key ) + 3 ) ; found = 1 ; exit ; } END { if ( ! found ) { print "none" ; } }' "$( rigRecordFile "${2:-1}" )" 2>/dev/null || printf 'no-record'
+	LC_ALL=C awk -v key="$1" '$0 == "---" { if ( ++dashes == 2 ) { exit ; } next ; } dashes == 1 && index( $0, key ": " ) == 1 { print substr( $0, length( key ) + 3 ) ; found = 1 ; exit ; } END { if ( ! found ) { print "none" ; } ; }' "$( rigRecordFile "${2:-1}" )" 2>/dev/null || printf 'no-record'
 }
 rigRecordId(){ ## which record (default the first)
 	local recordId
@@ -142,7 +142,7 @@ rigSetFile(){ ## which record (default the first)
 ## The text a post, or an edit of one, carries: the JSON string of its body, as sent.
 rigTextOf(){ ## body file
 	[ -f "$1" ] || { printf 'no-such-file' ; return 0 ; }
-	LC_ALL=C awk '{ at = index( $0, "\"text\":\"" ) ; if ( ! at ) { next ; } rest = substr( $0, at + 8 ) ; end = 0 ; marks[1] = "\",\"thread_ts\":" ; marks[2] = "\",\"ts\":" ; marks[3] = "\",\"blocks\":" ; for ( markNo = 1 ; markNo <= 3 ; markNo++ ) { markAt = index( rest, marks[markNo] ) ; if ( markAt > 0 && ( end == 0 || markAt < end ) ) { end = markAt ; } } if ( end > 0 ) { print substr( rest, 1, end - 1 ) ; } exit ; }' "$1"
+	LC_ALL=C awk '{ at = index( $0, "\"text\":\"" ) ; if ( ! at ) { next ; } rest = substr( $0, at + 8 ) ; end = 0 ; marks[1] = "\",\"thread_ts\":" ; marks[2] = "\",\"ts\":" ; marks[3] = "\",\"blocks\":" ; for ( markNo = 1 ; markNo <= 3 ; markNo++ ) { markAt = index( rest, marks[markNo] ) ; if ( markAt > 0 && ( end == 0 || markAt < end ) ) { end = markAt ; } ; } if ( end > 0 ) { print substr( rest, 1, end - 1 ) ; } exit ; }' "$1"
 }
 ## Whether that text holds one line exactly: the line stands between two line breaks of it.
 rigTextLine(){ ## body file, line
@@ -153,7 +153,7 @@ rigTextLine(){ ## body file, line
 }
 ## How often that text holds one piece of text.
 rigTextCount(){ ## body file, text
-	rigTextOf "$1" | LC_ALL=C awk -v want="$2" '{ rest = $0 ; while ( ( at = index( rest, want ) ) > 0 ) { hitCount++ ; rest = substr( rest, at + length( want ) ) ; } } END { print hitCount + 0 ; }'
+	rigTextOf "$1" | LC_ALL=C awk -v want="$2" '{ rest = $0 ; while ( ( at = index( rest, want ) ) > 0 ) { hitCount++ ; rest = substr( rest, at + length( want ) ) ; } ; } END { print hitCount + 0 ; }'
 }
 
 rigBotToken="rig-bot-token-TEAM"
@@ -290,7 +290,7 @@ rigAskOne(){ ## refusal id, optional quiet seconds
 ## Whether the session holds a grant for one call: the first word after GRANT:, or none.
 rigGranted(){ ## tool, path
 	rigOp --intern-op-permission-grant-read "$rigMember" --session-id "$rigSession" --tool "$1" --target "$2"
-	LC_ALL=C sed -n 's/^GRANT: \([a-z]*\) .*$/\1/p' "$rigScenarioDir/op.out" | head -1 | LC_ALL=C awk '{ print ; found = 1 ; } END { if ( ! found ) { print "none" ; } }'
+	LC_ALL=C sed -n 's/^GRANT: \([a-z]*\) .*$/\1/p' "$rigScenarioDir/op.out" | head -1 | LC_ALL=C awk '{ print ; found = 1 ; } END { if ( ! found ) { print "none" ; } ; }'
 }
 ## The emoji of the tooling's own on one post: "<placed, in order>|<taken off, in order>".
 rigEmoji(){ ## which post
@@ -313,7 +313,7 @@ rigLogged(){ ## tool, target
 ## "<entry>|<as a post shows it>", or "none".
 rigFolderOf(){ ## refusal id
 	rigOp --intern-op-permission-folder "$rigMember" --session-id "$rigSession" --refusal-id "$1"
-	LC_ALL=C awk '/^ENTRY: / { entry = substr( $0, 8 ) ; } /^SHOWN: / { shown = substr( $0, 8 ) ; } END { if ( entry == "" ) { print "none" ; } else { print entry "|" shown ; } }' "$rigScenarioDir/op.out"
+	LC_ALL=C awk '/^ENTRY: / { entry = substr( $0, 8 ) ; } /^SHOWN: / { shown = substr( $0, 8 ) ; } END { if ( entry == "" ) { print "none" ; } else { print entry "|" shown ; } ; }' "$rigScenarioDir/op.out"
 }
 
 
@@ -333,7 +333,7 @@ rigAllows(){ ## contact id -- the allows: of its record
 ## What the chain says of a contact for one call in one session: the first words after GRANT:, or none.
 rigContactGranted(){ ## contact id, session, tool, target
 	rigOp --intern-op-permission-grant-read "contact:$1" --session-id "$2" --tool "$3" --target "$4"
-	LC_ALL=C sed -n 's/^GRANT: \([a-z]*\) .*$/\1/p' "$rigScenarioDir/op.out" | head -1 | LC_ALL=C awk '{ print ; found = 1 ; } END { if ( ! found ) { print "none" ; } }'
+	LC_ALL=C sed -n 's/^GRANT: \([a-z]*\) .*$/\1/p' "$rigScenarioDir/op.out" | head -1 | LC_ALL=C awk '{ print ; found = 1 ; } END { if ( ! found ) { print "none" ; } ; }'
 }
 
 echo "-- a permission asked for a contact, answered by a click on 👤: the contact itself is granted --"

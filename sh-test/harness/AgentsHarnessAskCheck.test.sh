@@ -384,14 +384,14 @@ rigVerdict "an unreadable thread -- ERROR naming the pending record, never a sil
 
 ## The VERDICT line of the result, or none.
 rigVerdictLine(){
-	LC_ALL=C awk '/^VERDICT: / { print ; found = 1 ; exit ; } END { if ( ! found ) { print "no-verdict-line" ; } }' "$rigScenarioDir/out"
+	LC_ALL=C awk '/^VERDICT: / { print ; found = 1 ; exit ; } END { if ( ! found ) { print "no-verdict-line" ; } ; }' "$rigScenarioDir/out"
 }
 rigRecordVerdict(){
 	## Open first, then the retained-closed record, where an answered one lives.
 	local recordFile
 	for recordFile in "$rigScenarioDir/ws/.local/agents/pending"/*.md "$rigScenarioDir/ws/.local/agents/pending/closed"/*.md ; do
 		[ -f "$recordFile" ] || continue
-		LC_ALL=C awk -F': ' '$1 == "verdict" { print $2 ; found = 1 ; exit ; } END { if ( ! found ) { print "no-verdict" ; } }' "$recordFile"
+		LC_ALL=C awk -F': ' '$1 == "verdict" { print $2 ; found = 1 ; exit ; } END { if ( ! found ) { print "no-verdict" ; } ; }' "$recordFile"
 		return 0
 	done
 	printf 'no-record'

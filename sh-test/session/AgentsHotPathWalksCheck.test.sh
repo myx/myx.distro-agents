@@ -95,30 +95,30 @@ rigWalks(){ ## file (relative to the package)
 	LC_ALL=C awk -v file="$1" '
 ## The walk reader: one walk of a store however its path is written. Each store reference is
 ## A walk is matched by function; a top-level walk keeps an empty function.
-/^[A-Za-z_][A-Za-z0-9_]*\(\)[ \t]*\{/ { fn = $0 ; sub( /\(\).*/, "", fn ) ; next }
-/^\}/ { fn = "" ; next }
-/^[ \t]*(#|type )/ { next }
+/^[A-Za-z_][A-Za-z0-9_]*\(\)[ \t]*\{/ { fn = $0 ; sub( /\(\).*/, "", fn ) ; next ; }
+/^\}/ { fn = "" ; next ; }
+/^[ \t]*(#|type )/ { next ; }
 
 {
 
 	n = $0
 
 	## spawned store walks.
-	if ( n ~ /spawned"?\/\*\/\*\.spawn\.md|spawned"?\/\*\/"?\*\.spawn|[Ss]pawned"\*\/\*\.spawn\.md|find "?\$[{A-Za-z_}:-]*\/?\.local\/agents\/spawned|find "\$[A-Za-z]+Agents"\/spawned/ ) { print file "|" fn ; next }
-	if ( n ~ /spawned"?\/\*\/"? *(;|do)/ ) { print file "|" fn ; next }
+	if ( n ~ /spawned"?\/\*\/\*\.spawn\.md|spawned"?\/\*\/"?\*\.spawn|[Ss]pawned"\*\/\*\.spawn\.md|find "?\$[{A-Za-z_}:-]*\/?\.local\/agents\/spawned|find "\$[A-Za-z]+Agents"\/spawned/ ) { print file "|" fn ; next ; }
+	if ( n ~ /spawned"?\/\*\/"? *(;|do)/ ) { print file "|" fn ; next ; }
 	## A stat, ls or test that takes a glob over every folder of a store: one syscall per folder, on each call.
-	if ( n ~ /(^|[^A-Za-z0-9_.-])(stat|ls|test|\[)[ \t][^|;]*(spawned|agents\/sessions|inboxes|board)"?\/\*\/"?([ )\x27]|$)/ ) { print file "|" fn ; next }
+	if ( n ~ /(^|[^A-Za-z0-9_.-])(stat|ls|test|\[)[ \t][^|;]*(spawned|agents\/sessions|inboxes|board)"?\/\*\/"?([ )\x27]|$)/ ) { print file "|" fn ; next ; }
 	## A helper whose whole job is such a walk is a walk at each of its callers, where the cost lands.
-	if ( n ~ /AgentsSpawnedStoreNewestInto([^A-Za-z]|$)/ ) { print file "|" fn ; next }
+	if ( n ~ /AgentsSpawnedStoreNewestInto([^A-Za-z]|$)/ ) { print file "|" fn ; next ; }
 	## board store walks.
-	if ( n ~ /board"?\/(\*|[a-z-]+|"?\$[a-zA-Z{}:-]+"?)\/[a-z.-]*\*[a-z.-]*\.md|board"?\/\*\/"?\*[" ;]|find "?\$\{?MDAT_DATA_ROOT[^ ]*board/ ) { print file "|" fn ; next }
+	if ( n ~ /board"?\/(\*|[a-z-]+|"?\$[a-zA-Z{}:-]+"?)\/[a-z.-]*\*[a-z.-]*\.md|board"?\/\*\/"?\*[" ;]|find "?\$\{?MDAT_DATA_ROOT[^ ]*board/ ) { print file "|" fn ; next ; }
 	## session-store and inbox walks; a case pattern or a one-file glob is none.
-	if ( n ~ /agents\/sessions"?\/\*\/[^ ]*\)/ ) { next }
-	if ( n ~ /sessions"?\/\*\/[a-z.]*\/?"?\$/ ) { next }
-	if ( n ~ /inboxes"?\/\*\/[^ ]*\)|inboxes"?\/[A-Za-z0-9_.-]+(\/[A-Za-z0-9_.-]+)?"?\/\*[^ ]*\)/ ) { next }
-	if ( n ~ /agents\/sessions"?\/\*\/|inboxes"?\/\*\/|inboxes"?\/[A-Za-z0-9_.-]+(\/[A-Za-z0-9_.-]+)?"?\/\*|find "?\$\{?MMDAPP[^ ]*\/(sessions|inboxes)|find "?\$\{?MDAT_DATA_ROOT[^ ]*inboxes/ ) { print file "|" fn ; next }
+	if ( n ~ /agents\/sessions"?\/\*\/[^ ]*\)/ ) { next ; }
+	if ( n ~ /sessions"?\/\*\/[a-z.]*\/?"?\$/ ) { next ; }
+	if ( n ~ /inboxes"?\/\*\/[^ ]*\)|inboxes"?\/[A-Za-z0-9_.-]+(\/[A-Za-z0-9_.-]+)?"?\/\*[^ ]*\)/ ) { next ; }
+	if ( n ~ /agents\/sessions"?\/\*\/|inboxes"?\/\*\/|inboxes"?\/[A-Za-z0-9_.-]+(\/[A-Za-z0-9_.-]+)?"?\/\*|find "?\$\{?MMDAPP[^ ]*\/(sessions|inboxes)|find "?\$\{?MDAT_DATA_ROOT[^ ]*inboxes/ ) { print file "|" fn ; next ; }
 	## registry rebuilds over the spawned store, read whole by design.
-	if ( n ~ /AgentsToolsRegistrySpawnedSessionsRebuild|AgentsToolsRegistrySpawnedSessionsRows([^A-Za-z]|$)|AgentsToolsRegistryRenderSpawnedSessions([^A-Za-z]|$)/ ) { print file "|" fn }
+	if ( n ~ /AgentsToolsRegistrySpawnedSessionsRebuild|AgentsToolsRegistrySpawnedSessionsRows([^A-Za-z]|$)|AgentsToolsRegistryRenderSpawnedSessions([^A-Za-z]|$)/ ) { print file "|" fn ; }
 }
 	' "$rigPackage/$1"
 }
@@ -133,23 +133,23 @@ while IFS= read -r rigFile ; do
 	rigWalks "$rigFile" >> "$rigTmp/walks"
 done < "$rigTmp/files"
 rigGuard="$( LC_ALL=C awk -F'|' '
-	FILENAME == ARGV[1] { if ( $0 == "" ) next ; want[$1 "|" $2] = $3 + 0 ; reason[$1 "|" $2] = $4 ; next }
-	{ got[$0]++ }
+	FILENAME == ARGV[1] { if ( $0 == "" ) next ; want[$1 "|" $2] = $3 + 0 ; reason[$1 "|" $2] = $4 ; next ; }
+	{ got[$0]++ ; }
 	END {
-		for ( key in got ) { if ( ! ( key in want ) ) print "NOT ON THE LIST: " key " (" got[key] " walk(s))" }
-		for ( key in want ) { if ( ( key in got ? got[key] : 0 ) != want[key] ) print "LIST: " key " holds " ( key in got ? got[key] : 0 ) " walk(s), the list says " want[key] }
+		for ( key in got ) { if ( ! ( key in want ) ) print "NOT ON THE LIST: " key " (" got[key] " walk(s))" ; }
+		for ( key in want ) { if ( ( key in got ? got[key] : 0 ) != want[key] ) print "LIST: " key " holds " ( key in got ? got[key] : 0 ) " walk(s), the list says " want[key] ; }
 	}
 ' "$rigTmp/list" "$rigTmp/walks" | LC_ALL=C sort )"
 rigAssert "every read of every run record is on the list, and every row stands in the code as often as it says" "${rigGuard:-none}" none
-rigAssert "every row's reason is a named one" "$( LC_ALL=C awk -F'|' 'FNR == NR { named[$1] = 1 ; next } { if ( ! ( $4 in named ) ) bad++ } END { print bad + 0 }' "$rigTmp/reasons" "$rigTmp/list" )" 0
-rigAssert "every named reason is used by a row" "$( LC_ALL=C awk -F'|' 'FNR == NR { used[$4] = 1 ; next } { if ( ! ( $1 in used ) ) bad++ } END { print bad + 0 }' "$rigTmp/list" "$rigTmp/reasons" )" 0
+rigAssert "every row's reason is a named one" "$( LC_ALL=C awk -F'|' 'FNR == NR { named[$1] = 1 ; next ; } { if ( ! ( $4 in named ) ) bad++ ; } END { print bad + 0 ; }' "$rigTmp/reasons" "$rigTmp/list" )" 0
+rigAssert "every named reason is used by a row" "$( LC_ALL=C awk -F'|' 'FNR == NR { used[$4] = 1 ; next ; } { if ( ! ( $1 in used ) ) bad++ ; } END { print bad + 0 ; }' "$rigTmp/list" "$rigTmp/reasons" )" 0
 printf 'the debt: %s walk(s) on a call path, %s kept, %s behind an index, %s registry rebuilds, %s housekeeping, %s one-off\n' \
-	"$( LC_ALL=C awk -F'|' '$4 == "@call-path" { n += $3 } END { print n + 0 }' "$rigTmp/list" )" \
-	"$( LC_ALL=C awk -F'|' '$4 == "@kept" { n += $3 } END { print n + 0 }' "$rigTmp/list" )" \
-	"$( LC_ALL=C awk -F'|' '$4 == "@fallback" { n += $3 } END { print n + 0 }' "$rigTmp/list" )" \
-	"$( LC_ALL=C awk -F'|' '$4 == "@rebuild" { n += $3 } END { print n + 0 }' "$rigTmp/list" )" \
-	"$( LC_ALL=C awk -F'|' '$4 == "@housekeeping" { n += $3 } END { print n + 0 }' "$rigTmp/list" )" \
-	"$( LC_ALL=C awk -F'|' '$4 == "@one-off" { n += $3 } END { print n + 0 }' "$rigTmp/list" )"
+	"$( LC_ALL=C awk -F'|' '$4 == "@call-path" { n += $3 ; } END { print n + 0 ; }' "$rigTmp/list" )" \
+	"$( LC_ALL=C awk -F'|' '$4 == "@kept" { n += $3 ; } END { print n + 0 ; }' "$rigTmp/list" )" \
+	"$( LC_ALL=C awk -F'|' '$4 == "@fallback" { n += $3 ; } END { print n + 0 ; }' "$rigTmp/list" )" \
+	"$( LC_ALL=C awk -F'|' '$4 == "@rebuild" { n += $3 ; } END { print n + 0 ; }' "$rigTmp/list" )" \
+	"$( LC_ALL=C awk -F'|' '$4 == "@housekeeping" { n += $3 ; } END { print n + 0 ; }' "$rigTmp/list" )" \
+	"$( LC_ALL=C awk -F'|' '$4 == "@one-off" { n += $3 ; } END { print n + 0 ; }' "$rigTmp/list" )"
 
 echo "-- 2. control lines: the reader finds a walk in each store-path shape and no one-file glob or case pattern --"
 mkdir -p "$rigTmp/probe/sh-lib"

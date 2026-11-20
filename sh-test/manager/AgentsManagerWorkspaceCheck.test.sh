@@ -62,12 +62,12 @@ rigRun --manager-workspace-read
 rigAssert "the call ends 0, with no error and no warning" "$rigRc $( rigTroubles )" "0 0"
 rigAssert "the workspace's own facts, the installed subsystems, the agents block and the members that belong to the workspace, byte for byte (the commands block is held below)" "$( LC_ALL=C awk -F'\t' '!( $2 == "commands" )' "$rigTmp/out" > "$rigTmp/out.nocommands" ; rigFlat "$rigTmp/out.nocommands" )" \
 	"fact - name ws-here/fact - path $rigWs/fact - tooling elsewhere/fact - tooling-path $MDLT_ORIGIN/fact - account $rigAccount/block packages Installed_Subsystems 4/item packages .local subsystem installed - -/item packages system subsystem installed - -/item packages remote subsystem installed - -/item packages agents subsystem installed - -/block agents Agents 3/fact agents mode team-rig/fact agents entered-by $rigAccount/fact agents team-data yes/item agents mode setting team-rig the_settings_of_the_team @scopes/agents:magic-team/item agents team-data store yes the_team_data @teamdata/item agents sessions sessions 0_recorded Activity @activity/block team Team_Members 3/item team keeper-rig keeper source-symlink $rigTmp/skill-source/keeper-rig @team/keeper-rig/item team keeper-two keeper local-copy $rigWs/.local/agents/members/keeper-two @team/keeper-two/item team odd-one odd not-in-registry $rigWs/.local/agents/members/odd-one @team/odd-one/"
-rigAssert "the installed subsystems are those --manager-subsystem-list reads installed: one list" "$( LC_ALL=C awk -F'\t' '$1 == "item" && $2 == "packages" { printf "%s ", $3 }' "$rigTmp/out" )" "$( rigRun --manager-subsystem-list ; LC_ALL=C awk -F'\t' '$3 == "installed" { printf "%s ", $2 }' "$rigTmp/out" )"
-rigAssert "the members are those the read of a place prints for this workspace: one function" "$( rigRun --manager-workspace-read ; LC_ALL=C awk -F'\t' '$1 == "item" && $2 == "team" { printf "%s/%s/%s/%s ", $3, $4, $5, $6 }' "$rigTmp/out" )" "$( rigRun --manager-place-read ws-here ; LC_ALL=C awk -F'\t' '$1 == "member" { printf "%s/%s/%s/%s ", $2, $3, $5, $6 }' "$rigTmp/out" )"
+rigAssert "the installed subsystems are those --manager-subsystem-list reads installed: one list" "$( LC_ALL=C awk -F'\t' '$1 == "item" && $2 == "packages" { printf "%s ", $3 ; }' "$rigTmp/out" )" "$( rigRun --manager-subsystem-list ; LC_ALL=C awk -F'\t' '$3 == "installed" { printf "%s ", $2 ; }' "$rigTmp/out" )"
+rigAssert "the members are those the read of a place prints for this workspace: one function" "$( rigRun --manager-workspace-read ; LC_ALL=C awk -F'\t' '$1 == "item" && $2 == "team" { printf "%s/%s/%s/%s ", $3, $4, $5, $6 ; }' "$rigTmp/out" )" "$( rigRun --manager-place-read ws-here ; LC_ALL=C awk -F'\t' '$1 == "member" { printf "%s/%s/%s/%s ", $2, $3, $5, $6 ; }' "$rigTmp/out" )"
 
-rigAssert "the commands block holds the commands of the workspace, the same its palette gets: one function, as the list of them prints" "$( rigRun --manager-workspace-read ; LC_ALL=C awk -F'\t' '$1 == "item" && $2 == "commands" { printf "%s/%s/%s ", $3, $4, $7 }' "$rigTmp/out" )" "$( rigRun --manager-workspace-command-list ; LC_ALL=C awk -F'\t' '$1 == "command" { printf "%s/%s/- ", $2, $4 }' "$rigTmp/out" )"
-rigAssert "the block says how many, and every command is ready with its package" "$( rigRun --manager-workspace-read ; LC_ALL=C awk -F'\t' '$1 == "block" && $2 == "commands" { printf "%s ", $4 } $1 == "item" && $2 == "commands" { n++ ; if ( $5 == "ready" && $6 ~ /^myx[.]distro-/ ) ok++ } END { print ( n == ok ? "all-ready" : "not-ready" ) }' "$rigTmp/out" )" "5 all-ready"
-rigAssert "the list of the commands has one row each: command, name, package, how it runs" "$( rigRun --manager-workspace-command-list ; LC_ALL=C awk -F'\t' 'NF == 4 && $1 == "command" { n++ } END { print n }' "$rigTmp/out" )" "5"
+rigAssert "the commands block holds the commands of the workspace, the same its palette gets: one function, as the list of them prints" "$( rigRun --manager-workspace-read ; LC_ALL=C awk -F'\t' '$1 == "item" && $2 == "commands" { printf "%s/%s/%s ", $3, $4, $7 ; }' "$rigTmp/out" )" "$( rigRun --manager-workspace-command-list ; LC_ALL=C awk -F'\t' '$1 == "command" { printf "%s/%s/- ", $2, $4 ; }' "$rigTmp/out" )"
+rigAssert "the block says how many, and every command is ready with its package" "$( rigRun --manager-workspace-read ; LC_ALL=C awk -F'\t' '$1 == "block" && $2 == "commands" { printf "%s ", $4 ; } $1 == "item" && $2 == "commands" { n++ ; if ( $5 == "ready" && $6 ~ /^myx[.]distro-/ ) ok++ ; } END { print ( n == ok ? "all-ready" : "not-ready" ) ; }' "$rigTmp/out" )" "5 all-ready"
+rigAssert "the list of the commands has one row each: command, name, package, how it runs" "$( rigRun --manager-workspace-command-list ; LC_ALL=C awk -F'\t' 'NF == 4 && $1 == "command" { n++ ; } END { print n ; }' "$rigTmp/out" )" "5"
 rigRun --manager-workspace-command-run "🛠️_Update_Local_Tools" extra
 rigAssert "a run takes one command: more words are refused, nothing is run" "$rigRc $( LC_ALL=C grep -c -F -- 'syntax is' "$rigTmp/err" )" "1 1"
 rigRun --manager-workspace-command-run no-such-command
@@ -78,10 +78,10 @@ mkdir -p "$rigTmp/ws-src" "$rigTmp/ws-dot"
 rigCopyTree "$MDLT_ORIGIN" "$rigTmp/ws-src/source" ; rigCopyTree "$MDLT_ORIGIN" "$rigTmp/ws-dot/.local"
 rigRoot="$rigTmp/ws-src" rigOrigin="$rigTmp/ws-src/source"
 rigRun --manager-workspace-read
-rigAssert "an origin that is the workspace's source tree reads source" "$rigRc $( LC_ALL=C awk -F'\t' '$1 == "fact" && $2 == "-" && ( $3 == "tooling" || $3 == "tooling-path" ) { printf "%s=%s ", $3, $4 }' "$rigTmp/out" )" "0 tooling=source tooling-path=$rigTmp/ws-src/source "
+rigAssert "an origin that is the workspace's source tree reads source" "$rigRc $( LC_ALL=C awk -F'\t' '$1 == "fact" && $2 == "-" && ( $3 == "tooling" || $3 == "tooling-path" ) { printf "%s=%s ", $3, $4 ; }' "$rigTmp/out" )" "0 tooling=source tooling-path=$rigTmp/ws-src/source "
 rigRoot="$rigTmp/ws-dot" rigOrigin="$rigTmp/ws-dot/.local"
 rigRun --manager-workspace-read
-rigAssert "an origin that is the workspace's .local reads .local" "$rigRc $( LC_ALL=C awk -F'\t' '$1 == "fact" && $2 == "-" && ( $3 == "tooling" || $3 == "tooling-path" ) { printf "%s=%s ", $3, $4 }' "$rigTmp/out" )" "0 tooling=.local tooling-path=$rigTmp/ws-dot/.local "
+rigAssert "an origin that is the workspace's .local reads .local" "$rigRc $( LC_ALL=C awk -F'\t' '$1 == "fact" && $2 == "-" && ( $3 == "tooling" || $3 == "tooling-path" ) { printf "%s=%s ", $3, $4 ; }' "$rigTmp/out" )" "0 tooling=.local tooling-path=$rigTmp/ws-dot/.local "
 rigRoot="$rigWs" rigOrigin="$MDLT_ORIGIN"
 
 echo "-- 3. the mode --"
@@ -90,7 +90,7 @@ for rigOne in "team-rig yes" "just-agents no" "rig-client no" "none-of-them no" 
 	rigMode="${rigOne% *}" ; [ "$rigMode" != "none-of-them" ] || rigMode="junk"
 	rigRun --manager-workspace-read
 	rigWant="${rigOne% *}" ; [ "$rigWant" != "none-of-them" ] || rigWant="just-agents"
-	[ "$( LC_ALL=C awk -F'\t' '$1 == "fact" && $2 == "agents" && ( $3 == "mode" || $3 == "team-data" ) { printf "%s=%s ", $3, $4 }' "$rigTmp/out" )" = "mode=$rigWant team-data=${rigOne#* } " ] || rigBad="$rigBad [$rigOne]"
+	[ "$( LC_ALL=C awk -F'\t' '$1 == "fact" && $2 == "agents" && ( $3 == "mode" || $3 == "team-data" ) { printf "%s=%s ", $3, $4 ; }' "$rigTmp/out" )" = "mode=$rigWant team-data=${rigOne#* } " ] || rigBad="$rigBad [$rigOne]"
 done
 rigMode="team-rig"
 rigAssert "a team rig keeps team data; Just Agents, a rig client and a value that is none of the three (which reads Just Agents) keep none" "${rigBad:- all as the mode reader says}" " all as the mode reader says"

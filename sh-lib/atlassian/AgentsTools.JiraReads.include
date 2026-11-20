@@ -31,7 +31,7 @@ AgentsToolsJiraAgileRead() {
 			printf '%s\n' "# $agileContext: more: unknown -- this response carried no readable $agileArray array, so the rows on this page cannot be counted. That is NOT a confirmation that the page is complete" >&2
 			return 0
 		fi
-		[ -z "$agileRows" ] || agileCount="$( printf '%s\n' "$agileRows" | LC_ALL=C awk 'END { print NR }' )"
+		[ -z "$agileRows" ] || agileCount="$( printf '%s\n' "$agileRows" | LC_ALL=C awk 'END { print NR ; }' )"
 		case "$agileTotal" in
 			''|*[!0123456789]*)
 				printf '%s\n' "# $agileContext: more: unknown -- this response carried no numeric total, so whether rows exist beyond the $agileCount here cannot be told from it. That is NOT a confirmation that the page is complete" >&2

@@ -35,8 +35,8 @@ rigEndRigStarted(){
 	for rigRecordFile in "$rigWs/.local/agents/spawned"/*/*.spawn.md ; do
 		[ -f "$rigRecordFile" ] || continue
 		for rigRecordPid in $( LC_ALL=C awk '
-			$0 == "---" { if ( ++fence > 1 ) exit ; next }
-			fence != 1 { next }
+			$0 == "---" { if ( ++fence > 1 ) exit ; next ; }
+			fence != 1 { next ; }
 			index( $0, "run-process: " ) == 1 || index( $0, "supervisor-process: " ) == 1 {
 				split( substr( $0, index( $0, ": " ) + 2 ), beganAt, " " ) ; print beganAt[1]
 			}' "$rigRecordFile" 2> /dev/null ) ; do
@@ -206,7 +206,7 @@ rigAssert "the run was launched" "$( [ -f "$rigTmp/brief.keeper-rig-01" ] && pri
 rigStartedNow="$( LC_ALL=C grep -l -E '^routine: [A-Za-z0-9-]+\.work-duty\.routine\.md$' "$rigWs/.local/agents/spawned"/*/*.spawn.md 2> /dev/null | LC_ALL=C wc -l | LC_ALL=C tr -d ' ' )"
 printf '  NOTE  this round made %s duty record(s)\n' "$rigStartedNow"
 rigAssert "its session root is posted in the owner's conversation, once for each duty started, and none in the team channel" "$( rigPostedTo DRIGOWNER01 ):$( rigPostedTo CRIG00001 )" "$rigStartedNow:0"
-rigAssert "that post is made under the team bot's token" "$( LC_ALL=C awk '$1 == "chat.postMessage" { print $2 }' "$rigTmp/calls" | LC_ALL=C sort -u | LC_ALL=C tr '\n' ' ' )" "rig-bot-token-TEAM "
+rigAssert "that post is made under the team bot's token" "$( LC_ALL=C awk '$1 == "chat.postMessage" { print $2 ; }' "$rigTmp/calls" | LC_ALL=C sort -u | LC_ALL=C tr '\n' ' ' )" "rig-bot-token-TEAM "
 
 echo "-- 2. the record names both threads, each in its own conversation --"
 rigAssert "its session thread is in the owner's conversation" "$( rigHeader "$rigRecordOne" session-thread | LC_ALL=C sed 's/:.*//' )" "DRIGOWNER01"

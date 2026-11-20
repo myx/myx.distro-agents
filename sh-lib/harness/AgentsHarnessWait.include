@@ -420,7 +420,7 @@ AgentsHarnessWaitFloorRewind(){ ## the sources the Wait named, the wait result f
 	if [ -z "$fwTarget" ] ; then
 		printf 'NOTE: no return to the checkpoint on this floor wait: this duty holds no opening or armed snapshot.\n' ; return 0
 	fi
-	fwRow="$( printf '%s\n' "${harnessSnapshots:-}" | LC_ALL=C awk -F '\t' -v want="$fwTarget" '$1 == want { print $4 " " $5 ; exit }' )"
+	fwRow="$( printf '%s\n' "${harnessSnapshots:-}" | LC_ALL=C awk -F '\t' -v want="$fwTarget" '$1 == want { print $4 " " $5 ; exit ; }' )"
 	type AgentsHarnessCheckpointSum > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessCheckpoint.include"
 	fwSum="$( AgentsHarnessCheckpointSum )"
 	if [ -z "$fwRow" ] || [ "$fwRow" != "$fwSum" ] ; then

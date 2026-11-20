@@ -59,17 +59,17 @@ OPS
 ## where that page holds no line for the operation.
 rigWanted(){ ## help directory, operation, page name -- the bullet
 	LC_ALL=C awk -v op="--$2" '
-		index($0, "📘 syntax: ") == 1 { line = $0 ; sub(/^📘 syntax: /, "", line) ; n = split(line, w, " ") ; if (w[2] == op) { printf "- `%s`\n", line ; exit } }
+		index($0, "📘 syntax: ") == 1 { line = $0 ; sub(/^📘 syntax: /, "", line) ; n = split(line, w, " ") ; if (w[2] == op) { printf "- `%s`\n", line ; exit ; } ; }
 	' "$1/$3" 2> /dev/null
 }
 ## The routine's own tooling block as its text reaches the prefix: the last `Tooling operations` heading, whose
 ## level the mix raises by one, and the lines under it to the next heading.
 rigBlock(){ ## mixed text, where to write the block
 	LC_ALL=C awk '
-		/^#+ Tooling operations$/ { inside = 1 ; block = "" ; next }
-		inside && /^#/ { seen = block ; inside = 0 ; next }
-		inside { block = block $0 "\n" }
-		END { printf "%s", ( inside || seen != "" ) ? ( inside ? block : seen ) : "" }
+		/^#+ Tooling operations$/ { inside = 1 ; block = "" ; next ; }
+		inside && /^#/ { seen = block ; inside = 0 ; next ; }
+		inside { block = block $0 "\n" ; }
+		END { printf "%s", ( inside || seen != "" ) ? ( inside ? block : seen ) : "" ; }
 	' "$1" > "$2" || :
 }
 ## One row for each of the six lines a text does not carry exactly once: absent, repeated, or written in a form its
@@ -97,7 +97,7 @@ rigRowCount(){ ## text file, help directory -- how many lines it faults on
 
 echo "-- 1. the routine asks for its text in the prefix --"
 rigAssert "the routine declares cache-prefix: routine" \
-	"$( LC_ALL=C awk 'NR == 1 { next } $0 == "---" { exit } /^cache-prefix: / { sub(/^cache-prefix: /, "") ; print ; exit }' "$rigRoutine" )" "routine"
+	"$( LC_ALL=C awk 'NR == 1 { next ; } $0 == "---" { exit ; } /^cache-prefix: / { sub(/^cache-prefix: /, "") ; print ; exit ; }' "$rigRoutine" )" "routine"
 
 echo "-- 2. the six lines are copied from their help pages --"
 rigBlock "$rigRoutine" "$rigTmp/own-block"
@@ -134,7 +134,7 @@ LC_ALL=C awk '
 	index($0, "📘 syntax: ") == 1 && index($0, ".fn.sh --update-routine-state ") {
 		line = $0 ; at = index(line, " [--edit-patch-from-stdin|--from-file <path>]") ; if (at > 0) line = substr(line, 1, at - 1) ; print line ; next
 	}
-	{ print }
+	{ print ; }
 ' "$rigHelp/Help.DistroAgentsSession.help.md" > "$rigTmp/seed-page" || exit 1
 cp "$rigTmp/seed-page" "$rigTmp/help/Help.DistroAgentsSession.help.md" || exit 1
 rigAssert "the seed took: that page's line for the operation is the narrowed one" \

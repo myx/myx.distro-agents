@@ -59,20 +59,20 @@ rigTroubles(){ LC_ALL=C grep -E -- 'ERROR|WARNING' "$rigTmp/err" | LC_ALL=C grep
 rigFlat(){ LC_ALL=C tr '\t' ' ' < "$1" | LC_ALL=C tr '\n' '/' ; }
 rigMode(){ stat -f '%Lp' "$1" 2> /dev/null || stat -c '%a' "$1" ; }
 rigPrint(){ ## public file -- the fingerprint of it
-	"$rigKeygen" -l -f "$1" | LC_ALL=C awk '{ print $2 }'
+	"$rigKeygen" -l -f "$1" | LC_ALL=C awk '{ print $2 ; }'
 }
 rigPrivate="$rigHome/.ssh/id_ed25519"
 
 echo "-- 1. generate: a pair where there is none --"
 rigRun --manager-keys-list
-rigAssert "before it, the key for git is absent" "$( LC_ALL=C awk -F'\t' '$1 == "key" && $2 == "deploy" { print $10 }' "$rigTmp/out" )" "absent"
+rigAssert "before it, the key for git is absent" "$( LC_ALL=C awk -F'\t' '$1 == "key" && $2 == "deploy" { print $10 ; }' "$rigTmp/out" )" "absent"
 rigRun --manager-keys-generate deploy
 rigAssert "the call ends 0, with no error, and prints one row: generated, the key, its private file, its type and its fingerprint" "$rigRc $( rigTroubles ) $( rigFlat "$rigTmp/out" )" "0 0 generated deploy $rigPrivate ssh-ed25519 $( rigPrint "$rigPrivate.pub" )/"
 rigAssert "the pair is in the ssh home of the account: the home mode 700, the private file 600, the public file 644" "$( rigMode "$rigHome/.ssh" ) $( rigMode "$rigPrivate" ) $( rigMode "$rigPrivate.pub" )" "700 600 644"
 rigAssert "it is ed25519 with no passphrase, its comment <account>@<host>" "$( cut -d ' ' -f 1 "$rigPrivate.pub" ) $( cut -d ' ' -f 3 "$rigPrivate.pub" ) $( "$rigKeygen" -y -P '' -f "$rigPrivate" > /dev/null 2>&1 && echo opens )" "ssh-ed25519 $rigUser@$rigHostName opens"
 rigAssert "nothing of the private key is in what the call printed" "$( LC_ALL=C grep -c -F -e 'PRIVATE KEY' -e "$( sed -n 2p "$rigPrivate" )" "$rigTmp/all" )" "0"
 rigRun --manager-keys-list
-rigAssert "the list now reads it present, and the key the tools connect out with, which is the same file by default, too" "$( LC_ALL=C awk -F'\t' '$1 == "key" && ( $2 == "deploy" || $2 == "outgoing" ) { printf "%s:%s ", $2, $10 }' "$rigTmp/out" )" "deploy:present outgoing:present "
+rigAssert "the list now reads it present, and the key the tools connect out with, which is the same file by default, too" "$( LC_ALL=C awk -F'\t' '$1 == "key" && ( $2 == "deploy" || $2 == "outgoing" ) { printf "%s:%s ", $2, $10 ; }' "$rigTmp/out" )" "deploy:present outgoing:present "
 rigSumBefore="$( cksum "$rigPrivate" "$rigPrivate.pub" )"
 rigRun --manager-keys-generate deploy
 rigAssert "where a file of it is there already it refuses, says how to replace it, and changes nothing" "$rigRc $( wc -c < "$rigTmp/out" | LC_ALL=C tr -d ' ' ) $( LC_ALL=C grep -c -F -- '--manager-keys-regenerate' "$rigTmp/err" ) $( [ "$( cksum "$rigPrivate" "$rigPrivate.pub" )" = "$rigSumBefore" ] && echo same )" "1 0 1 same"

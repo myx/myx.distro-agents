@@ -43,7 +43,7 @@ DistroAgentsKnowledge
 DistroAgentsTesting'
 
 AgentsToolsFrontSummary(){ ## entry function name
-	printf '%s\n' "$agentsFrontSummary" | LC_ALL=C awk -F'\t' -v key="$1" '$1 == key { print $2 ; exit }'
+	printf '%s\n' "$agentsFrontSummary" | LC_ALL=C awk -F'\t' -v key="$1" '$1 == key { print $2 ; exit ; }'
 }
 
 AgentsToolsFrontHelp(){ ## entry function name, what the tool is
@@ -77,7 +77,7 @@ AgentsToolsFrontSyntaxLines(){ ## entry function name, a name or a prefix (optio
 				}
 				if ( ! wantNamed ) next
 			}
-			if ( form == "first-form" ) { if ( op in listed ) next ; listed[op] = 1 }
+			if ( form == "first-form" ) { if ( op in listed ) next ; listed[op] = 1 ; }
 			print line
 		}' "$synManual"
 }

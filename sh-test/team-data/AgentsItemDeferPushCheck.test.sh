@@ -48,7 +48,7 @@ rigAssert(){ ## what is asserted, got, want
 	else printf '  FAIL  %s\n        got:  %s\n        want: %s\n' "$1" "$2" "$3" ; rigFailCount=$(( rigFailCount + 1 )) ; fi
 }
 rigPushes(){ ## fixed text in the caller's words -- how many `git push` calls such a caller made
-	LC_ALL=C awk -F'\t' -v who="$1" '$3 ~ /(^| )push( |$)/ && index( $2, who ) { n++ } END { print n + 0 }' "$rigBin/git.log" 2> /dev/null
+	LC_ALL=C awk -F'\t' -v who="$1" '$3 ~ /(^| )push( |$)/ && index( $2, who ) { n++ ; } END { print n + 0 ; }' "$rigBin/git.log" 2> /dev/null
 }
 rigRun(){ ## result name, thread setting (on|off), shell text run with the item writer loaded -- in the rig, under one env -i
 	( cd "$rigWs" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp/home" PATH="$rigBin:/usr/bin:/bin:/usr/sbin:/sbin" GIT_CONFIG_NOSYSTEM=1 MYXROOT="$rigMyxRoot" \

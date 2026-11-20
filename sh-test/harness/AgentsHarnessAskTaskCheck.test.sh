@@ -87,8 +87,8 @@ echo "-- 2. the argument filler --"
 rigFilled="$( ( . "$rigWire" ; printf '%s\n' "$harnessToolsJson" ) | LC_ALL=C awk -f "$rigFillAwk" )"
 rigBackgroundOf(){ ## tool name -- yes, no, or no-such-tool
 	printf '%s\n' "$rigFilled" | LC_ALL=C awk -v want="\"name\":\"$1\"" '
-		index( $0, want ) > 0 { found = 1 ; print ( index( $0, "\"background\":" ) ? "yes" : "no" ) ; exit }
-		END { if ( ! found ) { print "no-such-tool" ; } }'
+		index( $0, want ) > 0 { found = 1 ; print ( index( $0, "\"background\":" ) ? "yes" : "no" ) ; exit ; }
+		END { if ( ! found ) { print "no-such-tool" ; } ; }'
 }
 for rigAskTool in AskQuestion ConfirmReadback EscalateDecision RequestPermission ProposeApprove ; do
 	rigAssert "the schema of $rigAskTool carries background" "$( rigBackgroundOf "$rigAskTool" )" "yes"

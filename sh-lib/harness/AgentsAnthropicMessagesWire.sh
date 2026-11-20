@@ -148,7 +148,7 @@ AgentsWireAssistantToolCallsRecord(){ ## the core's assembled calls (this wire d
 	while [ "$recordIdx" -lt "$recordCount" ] ; do
 		recordId="$( printf '%s\n' "$harnessResponse" | LC_ALL=C awk -v path="content.$recordIdx.id" -v optional=1 -f "$harnessHere/harness/AgentsHarnessJsonField.awk" 2>/dev/null )" || recordId=""
 		recordName=""
-		[ -z "$recordId" ] || recordName="$( printf '%s\n' "$2" | LC_ALL=C awk -F'\t' -v want="$recordId" '$1 == want { print $2 ; exit }' )" || recordName=""
+		[ -z "$recordId" ] || recordName="$( printf '%s\n' "$2" | LC_ALL=C awk -F'\t' -v want="$recordId" '$1 == want { print $2 ; exit ; }' )" || recordName=""
 		if [ -z "$recordName" ] ; then
 			recordRaw="$( printf '%s\n' "$harnessResponse" | LC_ALL=C awk -v path="content.$recordIdx" -v mode=raw -f "$harnessHere/harness/AgentsHarnessJsonField.awk" 2>/dev/null )" || recordRaw=""
 		else

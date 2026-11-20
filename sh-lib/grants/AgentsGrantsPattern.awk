@@ -32,12 +32,12 @@ function grantsGlobPattern( g,    i, n, c, out, j ) {
 	out = "" ; n = length( g )
 	for ( i = 1 ; i <= n ; i++ ) {
 		c = substr( g, i, 1 )
-		if ( substr( g, i, 4 ) == "/**/" ) { out = out "@(/|/*/)" ; i += 3 ; continue }
-		if ( substr( g, i ) == "/**" ) { out = out "@(|/*)" ; break }
-		if ( substr( g, i, 2 ) == "**" ) { out = out "*" ; i++ ; continue }
-		if ( c == "*" ) { out = out "*([!/])" ; continue }
-		if ( c == "?" ) { out = out "[!/]" ; continue }
-		if ( c == "[" && ( j = index( substr( g, i + 1 ), "]" ) ) > 1 ) { out = out "[" substr( g, i + 1, j - 1 ) "]" ; i += j ; continue }
+		if ( substr( g, i, 4 ) == "/**/" ) { out = out "@(/|/*/)" ; i += 3 ; continue ; }
+		if ( substr( g, i ) == "/**" ) { out = out "@(|/*)" ; break ; }
+		if ( substr( g, i, 2 ) == "**" ) { out = out "*" ; i++ ; continue ; }
+		if ( c == "*" ) { out = out "*([!/])" ; continue ; }
+		if ( c == "?" ) { out = out "[!/]" ; continue ; }
+		if ( c == "[" && ( j = index( substr( g, i + 1 ), "]" ) ) > 1 ) { out = out "[" substr( g, i + 1, j - 1 ) "]" ; i += j ; continue ; }
 		out = out grantsLiteralChar( c )
 	}
 	return out

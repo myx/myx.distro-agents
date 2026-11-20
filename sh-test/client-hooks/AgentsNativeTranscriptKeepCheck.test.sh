@@ -83,9 +83,9 @@ printf '{"type":"assistant","message":"two"}\n' >> "$rigLog"
 rigRun end "$( rigPayload "$rigId" "$rigLog" SessionEnd )"
 rigAssert "end copies the log that grew"                                              "$( rigSame "$rigLog" "$rigCopy" )" same
 cp -p "$rigCopy" "$rigTmp/copy.before"
-rigInodeBefore="$( ls -i "$rigCopy" | awk '{ print $1 }' )"
+rigInodeBefore="$( ls -i "$rigCopy" | awk '{ print $1 ; }' )"
 rigRun keep "$( rigPayload "$rigId" "$rigLog" Stop )"
-rigAssert "a log no longer than the copy leaves the copy as it was, not written over"  "$( rigSame "$rigCopy" "$rigTmp/copy.before" ):$( [ "$( ls -i "$rigCopy" | awk '{ print $1 }' )" = "$rigInodeBefore" ] && printf same-file || printf rewritten )" same:same-file
+rigAssert "a log no longer than the copy leaves the copy as it was, not written over"  "$( rigSame "$rigCopy" "$rigTmp/copy.before" ):$( [ "$( ls -i "$rigCopy" | awk '{ print $1 ; }' )" = "$rigInodeBefore" ] && printf same-file || printf rewritten )" same:same-file
 rm -f "$rigLog"
 rigRun end "$( rigPayload "$rigId" "$rigLog" SessionEnd )"
 rigAssert "a log that went is not missed from the copy, and the hook is quiet"        "$( rigSame "$rigCopy" "$rigTmp/copy.before" ):$rigRc:$( wc -c < "$rigTmp/hook.out" | tr -d ' ' )" same:0:0
@@ -127,7 +127,7 @@ rigAssert "control: the same payload, as it should be, copies"                  
 echo "-- 4. the client tool policy --"
 rigRecords="$( env -i PATH="/usr/bin:/bin" MDLT_ORIGIN="$MDLT_ORIGIN" MMDAPP="$MMDAPP" bash -c '. "$1/client/AgentsTools.ClientToolPolicy.include" && AgentsToolsClientToolPolicyHookRecords' rig "$rigHere" 2> /dev/null )"
 rigRecordOf(){ ## arg -- the policy's record of the hook with that argument
-	printf '%s\n' "$rigRecords" | LC_ALL=C awk -F '\t' -v arg="$1" '$5 == "native-transcript-keep.sh" && $6 == arg { print ; exit }'
+	printf '%s\n' "$rigRecords" | LC_ALL=C awk -F '\t' -v arg="$1" '$5 == "native-transcript-keep.sh" && $6 == arg { print ; exit ; }'
 }
 rigAssert "SessionStart: the pointer, a native record, no matcher, no timeout"        "$( rigRecordOf start | LC_ALL=C tr '\t' '|' )" "SessionStart|native|.claude/hooks/native-transcript-keep.sh start||native-transcript-keep.sh|start"
 rigAssert "Stop: the copy at the end of a turn"                                        "$( rigRecordOf keep | LC_ALL=C tr '\t' '|' )" "Stop|native|.claude/hooks/native-transcript-keep.sh keep||native-transcript-keep.sh|keep"

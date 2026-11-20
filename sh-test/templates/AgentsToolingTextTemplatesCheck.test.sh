@@ -156,7 +156,7 @@ rigAssert "the task of a report: the task in words leads, the names of its item 
 rigAssert "with the task as a handback gives it: on a line of its own under them" \
 	"$( ASKP_F_task_title='Rework the rig widget' ASKP_F_task_names='`task-rig`' ASKP_F_task_given='Check the rig.' rigBlock "$rigReport" Lines/task )" $'Rework the rig widget · `task-rig`\nCheck the rig.'
 rigAssert "no report block starts a line with a slot that holds an identifier" \
-	"$( LC_ALL=C awk '/^# Skeleton/ { on = 1 } /^# Severity/ { on = 0 } on && /^(\[\[)?`?\{\{(task-names|session-id|request-id|run)\}\}/ { hitCount++ } END { print hitCount + 0 }' "$rigHere/templates/$rigReport" )" 0
+	"$( LC_ALL=C awk '/^# Skeleton/ { on = 1 ; } /^# Severity/ { on = 0 ; } on && /^(\[\[)?`?\{\{(task-names|session-id|request-id|run)\}\}/ { hitCount++ ; } END { print hitCount + 0 ; }' "$rigHere/templates/$rigReport" )" 0
 rigAssert "a value is placed as it is: a slot mark, a group mark, an ampersand and a backslash in it pass through" \
 	"$( ASKP_F_member='k' ASKP_F_reason='a {{slot}} [[group]] & \1 %s' rigBlock "$rigNote" Ask/withdrawn | head -1 )" 'Withdrawn by k: a {{slot}} [[group]] & \1 %s'
 
@@ -228,7 +228,7 @@ rigOp(){ ## operation and its arguments
 ## The body of the scenario's n-th post: the text it carries, as sent, after its author line.
 rigBodyOf(){ ## post number
 	[ -f "$rigScenarioDir/post.$1" ] || { printf 'no-such-post' ; return 0 ; }
-	LC_ALL=C awk '{ at = index( $0, "\"text\":\"" ) ; if ( ! at ) { next ; } rest = substr( $0, at + 8 ) ; end = 0 ; marks[1] = "\",\"thread_ts\":" ; marks[2] = "\",\"ts\":" ; marks[3] = "\",\"blocks\":" ; for ( markNo = 1 ; markNo <= 3 ; markNo++ ) { markAt = index( rest, marks[markNo] ) ; if ( markAt > 0 && ( end == 0 || markAt < end ) ) { end = markAt ; } } if ( end > 0 ) { rest = substr( rest, 1, end - 1 ) ; } headEnd = index( rest, "\\n" ) ; print ( headEnd ? substr( rest, headEnd + 2 ) : rest ) ; exit ; }' "$rigScenarioDir/post.$1"
+	LC_ALL=C awk '{ at = index( $0, "\"text\":\"" ) ; if ( ! at ) { next ; } rest = substr( $0, at + 8 ) ; end = 0 ; marks[1] = "\",\"thread_ts\":" ; marks[2] = "\",\"ts\":" ; marks[3] = "\",\"blocks\":" ; for ( markNo = 1 ; markNo <= 3 ; markNo++ ) { markAt = index( rest, marks[markNo] ) ; if ( markAt > 0 && ( end == 0 || markAt < end ) ) { end = markAt ; } ; } if ( end > 0 ) { rest = substr( rest, 1, end - 1 ) ; } headEnd = index( rest, "\\n" ) ; print ( headEnd ? substr( rest, headEnd + 2 ) : rest ) ; exit ; }' "$rigScenarioDir/post.$1"
 }
 rigPosts(){
 	cat "$rigScenarioDir/posts" 2>/dev/null || printf 0
@@ -306,7 +306,7 @@ rigAssert "a task with no words to say it: no Task label, and never the name of 
 rigTaskTool SubagentHandback '{"task":"Check the rig.","outcome":"The rig holds."}'
 rigAssert "a handback there: the task as the call gave it, alone" "$( rigBodyOf 6 )" '# 🏁 Handback\n\n**🗂 Task**\nCheck the rig.\n\n**📦 Outcome**\nThe rig holds.'
 rigAssert "no line of these posts starts with the name of an item" \
-	"$( for rigPostNo in 1 2 3 4 5 6 ; do rigBodyOf "$rigPostNo" ; printf '\\n' ; done | LC_ALL=C awk '{ lineCount = split( $0, lineOf, /\\n/ ) ; for ( lineNo = 1 ; lineNo <= lineCount ; lineNo++ ) { if ( lineOf[lineNo] ~ /^`?(task|dispatch)-[0-9]/ ) { hitCount++ ; } } } END { print hitCount + 0 ; }' )" 0
+	"$( for rigPostNo in 1 2 3 4 5 6 ; do rigBodyOf "$rigPostNo" ; printf '\\n' ; done | LC_ALL=C awk '{ lineCount = split( $0, lineOf, /\\n/ ) ; for ( lineNo = 1 ; lineNo <= lineCount ; lineNo++ ) { if ( lineOf[lineNo] ~ /^`?(task|dispatch)-[0-9]/ ) { hitCount++ ; } ; } ; } END { print hitCount + 0 ; }' )" 0
 
 echo "-- from the copy with marked templates: what is posted is the template's --"
 rigStart reports-marked "$rigOrigin"

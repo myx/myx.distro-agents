@@ -66,8 +66,8 @@ BEGIN { fenced = 0 ; h1Count = 0 ; lastRank = 0 ; firstSection = 0 ; lastH2 = 0 
 
 ## A vault epic opens with a frontmatter block, which is no part of the epic: its lines are skipped, and the title is the first
 ## line after it. A plain epic file has no such block and opens with its title.
-FNR == 1 && $0 == "---" { frontOpen = 1 ; next }
-frontOpen { if ($0 == "---") frontOpen = 0 ; next }
+FNR == 1 && $0 == "---" { frontOpen = 1 ; next ; }
+frontOpen { if ($0 == "---") frontOpen = 0 ; next ; }
 titleDone == 0 { titleDone = 1 ; if ($0 !~ /^# ./) row(FNR, "epic-title", "the first line is not `# <title>`") ; }
 
 $0 ~ /^```/ { fenced = !fenced ; next ; }

@@ -137,20 +137,20 @@ rigCommitCount(){ git -C "$rigData" rev-list --count HEAD ; }
 ## the number of them. A committer thread's call names that thread, never the writer's operation.
 rigCallsIn(){ ## writer operation word, log file -- how many
 	LC_ALL=C awk -F'\t' -v op="$1" '
-		$3 !~ /(^| )add( |$)|(^| )commit( |$)/ { next }
-		index( $2, op ) > 0 { n++ }
-		END { print n + 0 }
+		$3 !~ /(^| )add( |$)|(^| )commit( |$)/ { next ; }
+		index( $2, op ) > 0 { n++ ; }
+		END { print n + 0 ; }
 	' "$2" 2> /dev/null || printf '0'
 }
 rigCallsByWriter(){ rigCallsIn "$1" "$rigBin/git.log" ; }
-rigAnyCalls(){ LC_ALL=C awk -F'\t' '$3 ~ /(^| )add( |$)|(^| )commit( |$)/ { n++ } END { print n + 0 }' "$rigBin/git.log" 2> /dev/null || printf '0' ; }
+rigAnyCalls(){ LC_ALL=C awk -F'\t' '$3 ~ /(^| )add( |$)|(^| )commit( |$)/ { n++ ; } END { print n + 0 ; }' "$rigBin/git.log" 2> /dev/null || printf '0' ; }
 rigGitRefuse=0 rigGitFailFirst=0 rigEnvExtra=()
 rigThreadLock="$rigData/.git/team-data-commit/thread.lock"
 rigThreadLog="$rigData/.git/team-data-commit/thread.log"
 rigOwedFile="$rigWs/.local/agents/team-data-commit.owed"
 rigCount(){ ## file, fixed text -- how many lines hold it
 	[ -f "$1" ] || { printf '0' ; return 0 ; }
-	LC_ALL=C awk -v s="$2" 'index( $0, s ) > 0 { n++ } END { print n + 0 }' "$1"
+	LC_ALL=C awk -v s="$2" 'index( $0, s ) > 0 { n++ ; } END { print n + 0 ; }' "$1"
 }
 rigCommitted(){ LC_ALL=C git -C "$rigData" log --format=%s -1 -- "$1" 2> /dev/null | LC_ALL=C grep -c . ; }
 rigOwed(){ ## how many paths the store still owes a commit for
@@ -361,7 +361,7 @@ rigSmallRc="$( rigLogBound "$rigLogSmall" )"
 rigAssert "7. E3 self-test: a log under the 128 KiB bound is not cut" "$rigSmallRc" "rc=1"
 rigAssert "7. E3 self-test: and it is left as it was" "$( LC_ALL=C grep -c 'RIG-SMALL-' "$rigLogSmall" )" 2
 rigLogBig="$rigTmp/thread-big.log"
-LC_ALL=C awk 'BEGIN { for ( i = 1 ; i <= 8000 ; i++ ) printf "RIG-BIG-%05d a line of the thread log, long enough to grow it past the bound\n", i }' > "$rigLogBig"
+LC_ALL=C awk 'BEGIN { for ( i = 1 ; i <= 8000 ; i++ ) printf "RIG-BIG-%05d a line of the thread log, long enough to grow it past the bound\n", i ; }' > "$rigLogBig"
 rigBigBefore="$( LC_ALL=C wc -c < "$rigLogBig" | LC_ALL=C tr -d ' ' )"
 rigBigRc="$( rigLogBound "$rigLogBig" )"
 rigBigAfter="$( LC_ALL=C wc -c < "$rigLogBig" | LC_ALL=C tr -d ' ' )"

@@ -27,7 +27,7 @@ AgentsToolsLibrarianSkillsetSize(){ ## the operation as it was called, then the 
 	done
 	sizeDirectory="$( AgentsToolsTeamMemberDirectoryText | LC_ALL=C sort )"
 	for sizeName in $sizeWanted ; do
-		printf '%s\n' "$sizeDirectory" | LC_ALL=C awk -F'\t' -v want="$sizeName" '$1 == want { found = 1 } END { exit ( found ? 0 : 1 ) }' || {
+		printf '%s\n' "$sizeDirectory" | LC_ALL=C awk -F'\t' -v want="$sizeName" '$1 == want { found = 1 ; } END { exit ( found ? 0 : 1 ) ; }' || {
 			echo "⛔ ERROR: $MDSC_CMD $sizeOp: $sizeName is no registered team member -- nothing was printed" >&2
 			return 1
 		}
@@ -42,7 +42,7 @@ AgentsToolsLibrarianSkillsetSize(){ ## the operation as it was called, then the 
 			sizeBytes="$( LC_ALL=C wc -c < "$sizeDir/$sizeFile" | LC_ALL=C tr -d ' ' )"
 			sizeNul="$( LC_ALL=C tr -d '\000' < "$sizeDir/$sizeFile" | LC_ALL=C wc -c | LC_ALL=C tr -d ' ' )"
 			if [ "$sizeNul" = "$sizeBytes" ] ; then
-				sizeLines="$( LC_ALL=C awk 'END { print NR + 0 }' "$sizeDir/$sizeFile" )"
+				sizeLines="$( LC_ALL=C awk 'END { print NR + 0 ; }' "$sizeDir/$sizeFile" )"
 				sizeMemberLines=$(( sizeMemberLines + sizeLines ))
 			else
 				sizeLines="-"

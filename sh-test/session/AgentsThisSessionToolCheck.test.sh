@@ -71,7 +71,7 @@ rigScene(){ ## scenario name
 rigChatFirst(){ LC_ALL=C sed -n '1s/^[^ ]* //p' "$rigChat/session.chat" 2> /dev/null ; }
 ## How many lines the chat file held at the moment of a post: the fake curl records it, so a post
 ## whose message was recorded first is told from one recorded after.
-rigHeldAtPost(){ LC_ALL=C awk -v want="${1:-1}" '$1 == want { print $2 ; exit }' "$rigScn/at-post" 2> /dev/null ; }
+rigHeldAtPost(){ LC_ALL=C awk -v want="${1:-1}" '$1 == want { print $2 ; exit ; }' "$rigScn/at-post" 2> /dev/null ; }
 ## How many posts the fake curl answered.
 rigPosts(){ cat "$rigScn/posts" 2> /dev/null || printf '0' ; }
 
@@ -95,7 +95,7 @@ rigCall(){ ## name, arguments json, role
 	rigRc="$callRc"
 }
 rigFirst(){ LC_ALL=C awk 'NR == 1 { print ; exit ; }' "$rigOut" ; }
-rigLines(){ LC_ALL=C awk 'END { print NR + 0 }' "$rigOut" ; }
+rigLines(){ LC_ALL=C awk 'END { print NR + 0 ; }' "$rigOut" ; }
 rigOutHolds(){ ## fixed text -- how many lines of the result hold it
 	LC_ALL=C grep -c -F -- "$1" "$rigOut" 2> /dev/null || :
 }
@@ -118,7 +118,7 @@ rigAssert "with the words as its text, and nowhere else as a target" "$( LC_ALL=
 rigAssert "recorded in the session chat file, from the member, to all" "$( rigChatFirst )" "rig-member -> all:"
 rigAssert "the chat file holds the message itself"                  "$( LC_ALL=C grep -c -x -F 'RIG-TOOL-ONE hello' "$rigChat/session.chat" )" 1
 rigAssert "and it was recorded BEFORE the post went out"            "$( [ "$( rigHeldAtPost 1 )" -gt 0 ] 2> /dev/null && printf first || printf after )" first
-rigAssert "indexed by the session thread"                           "$( LC_ALL=C awk -F'\t' '$1 == 1 { print $3 }' "$rigChat/session.chat.index" )" "$rigThread"
+rigAssert "indexed by the session thread"                           "$( LC_ALL=C awk -F'\t' '$1 == 1 { print $3 ; }' "$rigChat/session.chat.index" )" "$rigThread"
 
 echo "-- 2. and it returns a clear result --"
 rigAssert "one line, naming the thread, the message in it and the member" "$( rigFirst )" "POSTED to your own session thread $rigThread at CRIG00001:1760000000.000101 as rig-member, and recorded in the session chat file first, then posted."

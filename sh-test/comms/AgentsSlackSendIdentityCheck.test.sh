@@ -48,7 +48,7 @@ rigSend(){ ## member, target, send options...
 	sendOut="$( cd "$rigWs" && env -u MDAT_DATA_ROOT RIG_SCENARIO="$rigTmp" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" \
 		bash "$rigTool" --slack-send-message --team-member "$1" "$2" "${@:3}" RIG-BODY-MARKER 2>&1 )" \
 		|| { printf 'send-failed: %s' "$( printf '%s\n' "$sendOut" | grep 'ERROR' | head -1 )" ; return 0 ; }
-	LC_ALL=C awk '$1 == "chat.postMessage" { print $2 ; exit }' "$rigTmp/calls"
+	LC_ALL=C awk '$1 == "chat.postMessage" { print $2 ; exit ; }' "$rigTmp/calls"
 }
 
 rigFails=0 rigPasses=0
@@ -85,7 +85,7 @@ rigOwnerSend(){ ## member -- "<rc>:<tokens that posted>:<posts to the owner's ac
 	: > "$rigTmp/calls" ; : > "$rigTmp/bodies"
 	ownerOut="$( cd "$rigWs" && env -u MDAT_DATA_ROOT RIG_SCENARIO="$rigTmp" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" \
 		bash "$rigTool" --slack-send-message --team-member "$1" human-owner RIG-BODY-MARKER 2>&1 )" || ownerRc=$?
-	printf '%s:%s:%s:%s' "$ownerRc" "$( LC_ALL=C awk '$1 == "chat.postMessage" { printf "%s%s", sep, $2 ; sep = "," }' "$rigTmp/calls" )" \
+	printf '%s:%s:%s:%s' "$ownerRc" "$( LC_ALL=C awk '$1 == "chat.postMessage" { printf "%s%s", sep, $2 ; sep = "," ; }' "$rigTmp/calls" )" \
 		"$( LC_ALL=C grep -c -F '{"channel":"URIGOWNER",' "$rigTmp/bodies" )" "$( printf '%s\n' "$ownerOut" | LC_ALL=C grep -c "magic-coordinator's user account" )"
 }
 rigAssert "no flag, a member with no account to human-owner: one post, the team bot's, to the owner's own account, and nothing said of another member's account" \
@@ -178,7 +178,7 @@ rigSendAs(){ ## acting member, send op, member, target -- the token it posted un
 	case "$sendOut" in
 		*'this session acts as'*) printf 'refused, %s posted' "$( rigPostCount )" ; return 0 ;;
 	esac
-	LC_ALL=C awk '$1 == "chat.postMessage" { print $2 ; exit }' "$rigTmp/calls"
+	LC_ALL=C awk '$1 == "chat.postMessage" { print $2 ; exit ; }' "$rigTmp/calls"
 }
 rigAssert "a session sending as another member through --member-comms-* is refused" \
 	"$( rigSendAs keeper-myx --slack-send-message --team-member magic-coordinator magic-team )" "refused, 0 posted"

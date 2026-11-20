@@ -59,8 +59,8 @@ rigStart(){ ## words... -- one call from the rig workspace, as the console user 
 ## How the screen was started by the last call: `none`, or `screen` and the words after its workspace and tools.
 rigStarted(){
 	LC_ALL=C awk -F'\t' -v wantScreen="$rigScreen" -v wantWs="$rigWs" -v wantTool="$rigTool" '
-		$1 == "start" { starts++ ; if ( $4 == wantScreen && $5 == "--workspace" && $6 == wantWs && $7 == "--tools" && $8 == wantTool ) { said = "screen" ; for ( f = 9 ; f <= NF ; f++ ) said = said " " $f } else said = "other-start" }
-		END { print ( starts == 0 ) ? "none" : ( starts == 1 ? said : "starts:" starts ) }' "$rigTmp/starts"
+		$1 == "start" { starts++ ; if ( $4 == wantScreen && $5 == "--workspace" && $6 == wantWs && $7 == "--tools" && $8 == wantTool ) { said = "screen" ; for ( f = 9 ; f <= NF ; f++ ) said = said " " $f ; } else said = "other-start" ; }
+		END { print ( starts == 0 ) ? "none" : ( starts == 1 ? said : "starts:" starts ) ; }' "$rigTmp/starts"
 }
 
 echo "-- 1. --manager starts the screen, and ends with its status --"
@@ -75,7 +75,7 @@ rigAssert "the style is handed on as it was given"           "$rigRc:$( rigStart
 
 echo "-- 3. a word --manager does not take is refused before anything starts --"
 rigStart --manager --rig-no-such-word
-rigAssert "refused, naming --manager, and nothing started"   "$( [ "$rigRc" -ne 0 ] && printf refused || printf accepted ):$( LC_ALL=C grep -c -F -- '--manager' "$rigTmp/err" | LC_ALL=C awk '{ print ( $1 >= 1 ) ? "named" : "unnamed" }' ):$( rigStarted )" "refused:named:none"
+rigAssert "refused, naming --manager, and nothing started"   "$( [ "$rigRc" -ne 0 ] && printf refused || printf accepted ):$( LC_ALL=C grep -c -F -- '--manager' "$rigTmp/err" | LC_ALL=C awk '{ print ( $1 >= 1 ) ? "named" : "unnamed" ; }' ):$( rigStarted )" "refused:named:none"
 
 echo "-- 4. --intern-manager is no operation any more --"
 rigStart --intern-manager

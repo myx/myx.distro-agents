@@ -126,13 +126,13 @@ rigRowOf(){ ## selector -- that routine's row in the last list output
 	LC_ALL=C awk -F'\t' -v wantName="$1" '$1 == "routine" && $2 == wantName { print ; }' "$rigTmp/out"
 }
 rigFieldOf(){ ## selector, field number -- that field of its row, TABs kept out of it
-	rigRowOf "$1" | LC_ALL=C awk -F'\t' -v field="$2" '{ print $field }'
+	rigRowOf "$1" | LC_ALL=C awk -F'\t' -v field="$2" '{ print $field ; }'
 }
 
 echo "-- 1. the routine list shows the contract as written, and reads the three words --"
 rigRun "$rigOp"
 rigAssert "the call ends 0, with no error and no warning" "$rigRc $( LC_ALL=C grep -E -- 'ERROR|WARNING' "$rigTmp/err" | LC_ALL=C grep -c -v -F -- 'SystemContext.SetInputSpec' || : )" "0 0"
-rigAssert "a row for every routine file: the team's four contract words, and the standing keyword" "$( LC_ALL=C awk -F'\t' '$1 == "routine" { n++ } END { print n + 0 }' "$rigTmp/out" )" "7"
+rigAssert "a row for every routine file: the team's four contract words, and the standing keyword" "$( LC_ALL=C awk -F'\t' '$1 == "routine" { n++ ; } END { print n + 0 ; }' "$rigTmp/out" )" "7"
 ## THE CONTRACT IS THE FILE'S OWN LINE, never the members it expands to: the console offers choices from it, so
 ## the glob is what a reader must see.
 rigAssert "executors shows client-*, warden-* and client-? exactly as the files write them" \
@@ -148,7 +148,7 @@ rigAssert "a warden-* with no member reads not startable, and its reason names t
 rigAssert "a client-? reads not startable too even with two members available, says the members are asked for, and names the type in its reason" \
 	"$( rigFieldOf magic-coordinator.one.routine.md 4 ) $( rigFieldOf magic-coordinator.one.routine.md 10 ) $( rigFieldOf magic-coordinator.one.routine.md 9 | LC_ALL=C grep -c -F -- 'client' || : )" "not-startable members 1"
 rigAssert "the participants' words are no part of the start word: the invitees globs neither start nor block a routine whose executors is one member" \
-	"$( LC_ALL=C awk -F'\t' '$3 == "magic-coordinator" && $2 ~ /\.(receivers|noneinv|oneinv|present)\.routine\.md$/ { printf "%s=%s ", $4, $10 }' "$rigTmp/out" )" "startable=- startable=- startable=- startable=- "
+	"$( LC_ALL=C awk -F'\t' '$3 == "magic-coordinator" && $2 ~ /\.(receivers|noneinv|oneinv|present)\.routine\.md$/ { printf "%s=%s ", $4, $10 ; }' "$rigTmp/out" )" "startable=- startable=- startable=- startable=- "
 
 echo "-- 2. the validator holds the same tokens --"
 rigCheck(){ ## routine file name -- rc in rigRc, the rows in check.out
@@ -168,7 +168,7 @@ rigCheck magic-coordinator.present.routine.md
 rigAssert "invitees: all-present-members is still the participants' keyword, no fault" "$rigRc $( wc -c < "$rigTmp/check.out" | LC_ALL=C tr -d ' ' )" "0 0"
 rigCheck magic-coordinator.wardens.routine.md
 rigAssert "executors: warden-* with no member is refused: rc 1, one row on line 3, the executors rule, naming the type warden and telling the writer to name the members" \
-	"$rigRc $( LC_ALL=C awk -F': ' 'NF >= 2 { n++ } END { print n + 0 }' "$rigTmp/check.out" ) $( LC_ALL=C grep -c -E '\.routine\.md:3: executors: .*type warden.*name the members instead' "$rigTmp/check.out" || : )" "1 1 1"
+	"$rigRc $( LC_ALL=C awk -F': ' 'NF >= 2 { n++ ; } END { print n + 0 ; }' "$rigTmp/check.out" ) $( LC_ALL=C grep -c -E '\.routine\.md:3: executors: .*type warden.*name the members instead' "$rigTmp/check.out" || : )" "1 1 1"
 rigCheck magic-coordinator.noneinv.routine.md
 rigAssert "invitees: warden-* with no member is refused too -- the participants' header fails on NONE as executors does -- naming the type and what to pass" \
 	"$rigRc $( LC_ALL=C grep -c -E '\.routine\.md:5: invitees: .*type warden.*name the members instead' "$rigTmp/check.out" || : )" "1 1"
@@ -176,9 +176,9 @@ rigAssert "invitees: warden-* with no member is refused too -- the participants'
 echo "-- 3. the session spawner resolves them, and says the members it resolved --"
 rigSpawn magic-coordinator.clients.routine.md
 rigAssert "client-* with two members and none named starts by itself: rc 0, an agent-less parent session, one child session per member, and both members in MEMBERS=" \
-	"$rigRc $( LC_ALL=C awk -F= '$1 == "SESSION_ID" && $2 != "" { print "session" }' "$rigTmp/start.out" ) $( LC_ALL=C awk -F= '$1 == "MEMBERS" { print $2 }' "$rigTmp/start.out" ) $( LC_ALL=C awk -F= '$1 == "CHILDREN" { print NF }' "$rigTmp/start.out" )" \
+	"$rigRc $( LC_ALL=C awk -F= '$1 == "SESSION_ID" && $2 != "" { print "session" ; }' "$rigTmp/start.out" ) $( LC_ALL=C awk -F= '$1 == "MEMBERS" { print $2 ; }' "$rigTmp/start.out" ) $( LC_ALL=C awk -F= '$1 == "CHILDREN" { print NF ; }' "$rigTmp/start.out" )" \
 	"0 session client-acme client-ndm 2"
-rigPartitionId="$( LC_ALL=C awk -F= '$1 == "SESSION_ID" { print $2 ; exit }' "$rigTmp/start.out" )"
+rigPartitionId="$( LC_ALL=C awk -F= '$1 == "SESSION_ID" { print $2 ; exit ; }' "$rigTmp/start.out" )"
 rigPartitionRecord="$rigWs/.local/agents/spawned/$rigPartitionId/$rigPartitionId.spawn.md"
 rigLeft=60
 while [ -n "$rigPartitionId" ] && [ -f "$rigPartitionRecord" ] && LC_ALL=C grep -q -x 'status: spawn-started' "$rigPartitionRecord" && [ "$rigLeft" -gt 0 ] ; do sleep 1 ; rigLeft=$(( rigLeft - 1 )) ; done
@@ -194,11 +194,11 @@ rigAssert "client-? is never auto-selected, even with two members available: rc 
 	"$rigRc $( LC_ALL=C grep -c '^SESSION_ID=' "$rigTmp/start.out" || : ) $( LC_ALL=C grep -c -F -- 'name the one member to start' "$rigTmp/start.err" || : ) $( LC_ALL=C grep -c -x -e '  client-ndm' -e '  client-acme' "$rigTmp/start.err" || : )" "1 0 1 2"
 rigSpawn magic-coordinator.one.routine.md client-acme
 rigAssert "client-? asked with one member named starts exactly that member, and MEMBERS= carries it" \
-	"$rigRc $( LC_ALL=C awk -F= '$1 == "MEMBERS" { print $2 }' "$rigTmp/start.out" )" "0 client-acme"
+	"$rigRc $( LC_ALL=C awk -F= '$1 == "MEMBERS" { print $2 ; }' "$rigTmp/start.out" )" "0 client-acme"
 ## The choice is the caller's, not the directory's: the other member of the type is not in the session.
 rigSpawn magic-coordinator.one.routine.md client-ndm
 rigAssert "the same routine asked with the other member starts the other member: the choice, not the first of the type" \
-	"$rigRc $( LC_ALL=C awk -F= '$1 == "MEMBERS" { print $2 }' "$rigTmp/start.out" )" "0 client-ndm"
+	"$rigRc $( LC_ALL=C awk -F= '$1 == "MEMBERS" { print $2 ; }' "$rigTmp/start.out" )" "0 client-ndm"
 
 echo "-- 4. the slots a form offers, by the same rule, and the facts-only list --"
 rigSlots(){ ## selector -- its slot rows, TABs shown as |, one line

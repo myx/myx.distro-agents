@@ -74,7 +74,7 @@
 					fi
 					agileFeatureRows="$( printf '%s\n' "$agileFeatureBody" | LC_ALL=C awk -v array=features -v want=boardFeature,state -v mode=records -v dialect=atlassian -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" 2>/dev/null )" || agileFeatureRowsRc=$?
 					local agileSprintState=""
-					[ "$agileFeatureRowsRc" -ne 0 ] || agileSprintState="$( printf '%s\n' "$agileFeatureRows" | LC_ALL=C awk -F '\t' '$1 == "SPRINTS" { print $2 ; exit }' )"
+					[ "$agileFeatureRowsRc" -ne 0 ] || agileSprintState="$( printf '%s\n' "$agileFeatureRows" | LC_ALL=C awk -F '\t' '$1 == "SPRINTS" { print $2 ; exit ; }' )"
 					case "$agileSprintState" in
 						ENABLED) ;;
 						DISABLED)

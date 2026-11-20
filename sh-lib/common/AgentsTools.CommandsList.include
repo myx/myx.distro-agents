@@ -30,7 +30,7 @@ AgentsToolsCommandsList(){ ## --names (optional)
 	for listFolder in \
 		"$MDLT_ORIGIN/myx/myx.distro-.local/sh-scripts" "$MDLT_ORIGIN/myx/myx.distro-system/sh-scripts" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts" \
 		"$MDLT_ORIGIN/myx/myx.distro-deploy/sh-scripts" "$MDLT_ORIGIN/myx/myx.distro-source/sh-scripts" "$MDLT_ORIGIN/myx/myx.distro-remote/sh-scripts" \
-		$( [ -z "${MMDAPP:-}" ] || [ ! -f "$MMDAPP/.local/distro-commands.txt" ] || LC_ALL=C awk '$3 != "" { print $3 }' "$MMDAPP/.local/distro-commands.txt" ) ; do
+		$( [ -z "${MMDAPP:-}" ] || [ ! -f "$MMDAPP/.local/distro-commands.txt" ] || LC_ALL=C awk '$3 != "" { print $3 ; }' "$MMDAPP/.local/distro-commands.txt" ) ; do
 		[ -d "$listFolder" ] || continue
 		for listFile in "$listFolder"/* ; do
 			[ -f "$listFile" ] || continue

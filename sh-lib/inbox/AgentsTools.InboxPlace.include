@@ -146,7 +146,7 @@ AgentsToolsInboxStrayRepair(){ ## member, given name
 	fi
 	local strayCompare=""
 	strayCompare="$( LC_ALL=C awk '
-		FNR == 1 { fileNo++ ; inHdr = 0 ; if ( $0 == "---" ) { inHdr = 1 ; next ; } }
+		FNR == 1 { fileNo++ ; inHdr = 0 ; if ( $0 == "---" ) { inHdr = 1 ; next ; } ; }
 		inHdr { if ( $0 == "---" ) { inHdr = 0 ; } ; next ; }
 		fileNo == 1 { first[++firstCount] = $0 ; next ; }
 		{ second[++secondCount] = $0 ; }
@@ -156,7 +156,7 @@ AgentsToolsInboxStrayRepair(){ ## member, given name
 				if ( first[i] == second[i] ) continue ;
 				differingLine[++shown] = i ;
 			}
-			if ( shown == 0 ) { printf "SAME\n" ; exit }
+			if ( shown == 0 ) { printf "SAME\n" ; exit ; }
 			printf "lines" ;
 			for ( j = 1 ; j <= shown && j <= 3 ; j++ ) printf "%s%d", ( j > 1 ? ", " : " " ), differingLine[j]
 			if ( shown > 3 ) printf " and %d more", shown - 3
@@ -228,7 +228,7 @@ AgentsToolsInboxLockNoteNames(){
 		find -L "$lockRoot" -name '*.routine.md' -type f 2> /dev/null
 	done <<< "$( AgentsToolsTeamMemberDirectoryText )" \
 		| LC_ALL=C tr '\n' '\0' | LC_ALL=C xargs -0 grep -h '^routine-lock-document:' 2> /dev/null \
-		| LC_ALL=C awk '{ sub( /^routine-lock-document: */, "" ) ; n = split( $0, lockValues, /[ ,]+/ ) ; for ( i = 1 ; i <= n ; i++ ) { lockName = lockValues[i] ; sub( /.*:/, "", lockName ) ; if ( lockName ~ /^note-.*\.md$/ && !seenName[lockName]++ ) print lockName ; } }'
+		| LC_ALL=C awk '{ sub( /^routine-lock-document: */, "" ) ; n = split( $0, lockValues, /[ ,]+/ ) ; for ( i = 1 ; i <= n ; i++ ) { lockName = lockValues[i] ; sub( /.*:/, "", lockName ) ; if ( lockName ~ /^note-.*\.md$/ && !seenName[lockName]++ ) print lockName ; } ; }'
 }
 
 ## Whether a note is a routine's lock note: by the index of the routines' own declarations, or by the convention's name, which also

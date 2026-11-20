@@ -122,7 +122,7 @@ rigAssert "his word in the ask's own thread is read, carried out, and is the tie
 ## ONE ANSWER SETS A TIER ONCE (S6.36). His answer's own action is run again: the answer he already gave must set no second tier, and the second
 ## run must refuse. The run above is what stamps it acted on, so the stamp is read here too.
 echo "-- 3b. his answer is used once: its action run again writes nothing --"
-rigAssert "the answer his first run used is stamped as acted on" "$( LC_ALL=C grep -c '^acted-at: ' "$rigWs/.local/questions/$rigAsk.md" "$rigWs/.local/agents/pending/closed/$rigAsk.md" 2> /dev/null | LC_ALL=C awk -F: '{ t = t + $2 } END { print t + 0 }' )" 1
+rigAssert "the answer his first run used is stamped as acted on" "$( LC_ALL=C grep -c '^acted-at: ' "$rigWs/.local/questions/$rigAsk.md" "$rigWs/.local/agents/pending/closed/$rigAsk.md" 2> /dev/null | LC_ALL=C awk -F: '{ t = t + $2 ; } END { print t + 0 ; }' )" 1
 ## The same answer run again: the record must not be set from it a second time.
 rigAuth="$rigAsk"
 rigRun "$rigTmp/a2" "$rigTools" --intern-op-contact-tier-apply bob-one --by keeper-x
@@ -193,13 +193,13 @@ rigAssert "an older record with an organisation and no tier reads as tier-contac
 
 ## The scope tiers in the reads: the last field of a row, and a filter by scope or by scope=tier.
 rigRun "$rigTmp/c8" "$rigTool" --all-contacts
-rigAssert "--all-contacts: carol-one's row ends in her scope tiers, erin-one's in -" "$( LC_ALL=C awk -F'\t' '$2 == "carol-one" { print $7 }' "$rigTmp/c8.out" ) $( LC_ALL=C awk -F'\t' '$2 == "erin-one" { print $7 }' "$rigTmp/c8.out" )" "ndmp=tier-admin,rmm2=tier-admin -"
+rigAssert "--all-contacts: carol-one's row ends in her scope tiers, erin-one's in -" "$( LC_ALL=C awk -F'\t' '$2 == "carol-one" { print $7 ; }' "$rigTmp/c8.out" ) $( LC_ALL=C awk -F'\t' '$2 == "erin-one" { print $7 ; }' "$rigTmp/c8.out" )" "ndmp=tier-admin,rmm2=tier-admin -"
 rigRun "$rigTmp/c9" "$rigTool" --all-contacts --scope ndmp
 rigAssert "--all-contacts --scope ndmp keeps the contacts holding that scope, and only them" "$( LC_ALL=C cut -f2 "$rigTmp/c9.out" | LC_ALL=C tr '\n' ' ' )" "carol-one "
 rigRun "$rigTmp/c10" "$rigTool" --all-contacts --scope rmm2=tier-client
 rigAssert "--scope rmm2=tier-client keeps nobody, as her rmm2 tier is tier-admin" "$( LC_ALL=C grep -c '^contact' "$rigTmp/c10.out" || true )" 0
 rigRun "$rigTmp/c11" "$rigTool" --find-contact carol-one --scope rmm2=tier-admin
-rigAssert "--find-contact with --scope rmm2=tier-admin finds her, matched on id, scope tiers last" "$( LC_ALL=C awk -F'\t' '{ print $2 " " $6 " " $7 }' "$rigTmp/c11.out" )" "carol-one id ndmp=tier-admin,rmm2=tier-admin"
+rigAssert "--find-contact with --scope rmm2=tier-admin finds her, matched on id, scope tiers last" "$( LC_ALL=C awk -F'\t' '{ print $2 " " $6 " " $7 ; }' "$rigTmp/c11.out" )" "carol-one id ndmp=tier-admin,rmm2=tier-admin"
 
 ## How an ask to a tier closes: the first answer for tier-owner, a quorum for tier-admin, stuck where no quorum can come.
 rigClose(){ ## tier, holders, answers... -- what the decision prints

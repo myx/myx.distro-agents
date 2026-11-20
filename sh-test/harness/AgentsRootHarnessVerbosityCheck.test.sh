@@ -258,22 +258,22 @@ rigHeaders(){ ## chat file -- how many header lines it holds, `no-file` when the
 }
 rigHeader(){ ## chat file, N -- the Nth header line without its time
 	[ -f "$1" ] || { printf 'no-file' ; return 0 ; }
-	LC_ALL=C awk -v want="$2" '/^[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9]Z .* -> .*:$/ { count++ ; if ( count == want ) { sub(/^[^ ]* /, "") ; print ; exit ; } }' "$1"
+	LC_ALL=C awk -v want="$2" '/^[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9]Z .* -> .*:$/ { count++ ; if ( count == want ) { sub(/^[^ ]* /, "") ; print ; exit ; } ; }' "$1"
 }
 rigBody(){ ## chat file, N -- the body of the Nth block, blank lines trimmed at its end
 	[ -f "$1" ] || { printf 'no-file' ; return 0 ; }
 	LC_ALL=C awk -v want="$2" '
-		/^[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9]Z .* -> .*:$/ { count++ ; inBlock = ( count == want ) ; if ( inBlock ) { next ; } }
-		inBlock { lines[++n] = $0 }
-		END { while ( n > 0 && lines[n] == "" ) { n-- ; } for ( i = 1 ; i <= n ; i++ ) { print lines[i] ; } }' "$1"
+		/^[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9]Z .* -> .*:$/ { count++ ; inBlock = ( count == want ) ; if ( inBlock ) { next ; } ; }
+		inBlock { lines[++n] = $0 ; }
+		END { while ( n > 0 && lines[n] == "" ) { n-- ; } for ( i = 1 ; i <= n ; i++ ) { print lines[i] ; } ; }' "$1"
 }
 rigIndex(){ ## chat file, N -- its index line, fields 1..6 tab-separated, space-joined
 	[ -f "$1.index" ] || { printf 'no-index' ; return 0 ; }
-	LC_ALL=C awk -F'\t' -v want="$2" '$1 == want { print $1, $2, $3, $4, $6 ; found = 1 ; exit ; } END { if ( ! found ) { print "no-such-block" ; } }' "$1.index"
+	LC_ALL=C awk -F'\t' -v want="$2" '$1 == want { print $1, $2, $3, $4, $6 ; found = 1 ; exit ; } END { if ( ! found ) { print "no-such-block" ; } ; }' "$1.index"
 }
 rigIndexField(){ ## chat file, N, field 2..6 -- that field of the block's index line
 	[ -f "$1.index" ] || { printf 'no-index' ; return 0 ; }
-	LC_ALL=C awk -F'\t' -v want="$2" -v field="$3" '$1 == want { print $field ; found = 1 ; exit ; } END { if ( ! found ) { print "no-such-block" ; } }' "$1.index"
+	LC_ALL=C awk -F'\t' -v want="$2" -v field="$3" '$1 == want { print $field ; found = 1 ; exit ; } END { if ( ! found ) { print "no-such-block" ; } ; }' "$1.index"
 }
 rigChats(){ ## workspace -- every session chat file in it, one a line
 	find "$1/.local/agents/sessions" -name 'session.chat' -type f 2> /dev/null | LC_ALL=C sort || :
@@ -591,7 +591,7 @@ rigFullThread="$( rigThreadOf "$rigValueWs" "$rigFullSession" session.thread )"
 rigAssert "a session thread is created in the team channel, and recorded as the session's" "$( printf '%s' "${rigFullThread%%:*}" )" "CRIG00001"
 rigAssert "the dispatch hands that thread to the helper" "$( rigTextCount "$rigDispatch" -x -F -- "session_thread_ts: $rigFullThread" )" 1
 rigAssert "the session thread's root is a top-level post in the team channel, seeded by the tooling" \
-	"$( rigCallLine "$rigValueScn" chat.postMessage CRIG00001 | LC_ALL=C awk '$3 == "-" { print "root" ; found = 1 ; exit ; } END { if ( ! found ) { print "none" ; } }' )" "root"
+	"$( rigCallLine "$rigValueScn" chat.postMessage CRIG00001 | LC_ALL=C awk '$3 == "-" { print "root" ; found = 1 ; exit ; } END { if ( ! found ) { print "none" ; } ; }' )" "root"
 rigValueLabel="full"
 rigHandback "$rigFullSession" "$rigSpawnId"
 rigAssert "the helper's handback is served without error, on the session thread" \

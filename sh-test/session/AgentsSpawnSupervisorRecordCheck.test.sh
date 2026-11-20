@@ -187,7 +187,7 @@ rigAsk(){ ## record file
 		printf "%s rc=%s" "$askWord" "$?"
 	' rig-ask "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunProcesses.include" "$1" 2>> "$rigTmp/ask.err" )
 }
-rigAskErrors(){ LC_ALL=C awk 'END { print NR + 0 }' "$rigTmp/ask.err" ; }
+rigAskErrors(){ LC_ALL=C awk 'END { print NR + 0 ; }' "$rigTmp/ask.err" ; }
 rigRunKept(){ [ -n "$( rigHeader "$rigRecord" run-process )" ] ; }
 rigRunNames(){ [ "$( rigHeader "$rigRecord" run-process )" = "$1" ] ; } ## `<pid> <start>`
 rigRecordClosed(){ case "$( rigHeader "$rigRecord" status )" in spawn-started|'') return 1 ;; esac ; }
@@ -213,7 +213,7 @@ rigStart(){ ## scenario, `handback` where its first launch leaves one (then no r
 ## Whether a process is the shell that made the header change of the scenario's close.
 rigClosedBy(){ ## pid
 	[ -n "$1" ] && [ -s "$rigDir/closed.by" ] || { printf 'no: nothing says who closed it, or no process is named' ; return 0 ; }
-	LC_ALL=C awk -v wantPid="$1" '$1 == wantPid || $2 == wantPid { closedHit = 1 } { closedSaid = closedSaid " [" $0 "]" } END { if ( closedHit ) { print "yes" } else { print "no: the close was made under" closedSaid } }' "$rigDir/closed.by"
+	LC_ALL=C awk -v wantPid="$1" '$1 == wantPid || $2 == wantPid { closedHit = 1 ; } { closedSaid = closedSaid " [" $0 "]" ; } END { if ( closedHit ) { print "yes" ; } else { print "no: the close was made under" closedSaid ; } ; }' "$rigDir/closed.by"
 }
 
 echo "-- 1. a start that does not wait --"
@@ -376,9 +376,9 @@ rigAssert "the record keeps that close, and names the process the launch kept" "
 echo "-- 6. --manager-session-read prints the header among the headers of a closed run --"
 rigClosedId="${rigClosedRecord##*/}" ; rigClosedId="${rigClosedId%.spawn.md}"
 ( cd "$rigWs" && rigEnv "$rigTmp" bash "$rigTool" --manager-session-read --session-id "$rigClosedId" --run > "$rigTmp/read.out" 2> "$rigTmp/read.err" < /dev/null )
-[ "$( LC_ALL=C awk -F'\t' '$1 == "run" { readRuns++ } END { print readRuns + 0 }' "$rigTmp/read.out" )" = 1 ] || rigRefuse "--manager-session-read printed no run of $rigClosedId, so no header row would be measured: $( head -2 "$rigTmp/read.err" | LC_ALL=C tr '\n' ' ' )"
+[ "$( LC_ALL=C awk -F'\t' '$1 == "run" { readRuns++ ; } END { print readRuns + 0 ; }' "$rigTmp/read.out" )" = 1 ] || rigRefuse "--manager-session-read printed no run of $rigClosedId, so no header row would be measured: $( head -2 "$rigTmp/read.err" | LC_ALL=C tr '\n' ' ' )"
 rigAssert "the read of that run prints its supervisor-process as the record holds it, beside its run-process" \
-	"$( LC_ALL=C awk -F'\t' -v wantRun="$rigClosedId" '$1 == "header" && $2 == wantRun && ( $3 == "supervisor-process" || $3 == "run-process" ) { printf "%s=%s ", $3, ( $4 != "" ? "named" : "empty" ) ; if ( $3 == "supervisor-process" ) { shellSaid = $4 } } END { printf "/ %s", shellSaid }' "$rigTmp/read.out" )" \
+	"$( LC_ALL=C awk -F'\t' -v wantRun="$rigClosedId" '$1 == "header" && $2 == wantRun && ( $3 == "supervisor-process" || $3 == "run-process" ) { printf "%s=%s ", $3, ( $4 != "" ? "named" : "empty" ) ; if ( $3 == "supervisor-process" ) { shellSaid = $4 ; } ; } END { printf "/ %s", shellSaid ; }' "$rigTmp/read.out" )" \
 	"run-process=named supervisor-process=named / $rigClosedShell"
 
 if [ "$rigFails" -ne 0 ] ; then

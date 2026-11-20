@@ -41,7 +41,7 @@ rigPostRc=0
 rigPosts=0
 AgentsToolsSessionCommsPost(){ ## session, the retry file
 	rigPosts=$(( rigPosts + 1 ))
-	rigPosted="$rigPosted$( LC_ALL=C awk 'held { print ; next } /^-$/ { held = 1 }' "$2" | LC_ALL=C tr '\n' '/' ) "
+	rigPosted="$rigPosted$( LC_ALL=C awk 'held { print ; next ; } /^-$/ { held = 1 ; }' "$2" | LC_ALL=C tr '\n' '/' ) "
 	return "$rigPostRc"
 }
 AgentsToolsSessionCommsDir(){ return 1 ; }

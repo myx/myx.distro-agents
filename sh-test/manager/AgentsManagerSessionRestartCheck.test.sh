@@ -79,12 +79,12 @@ rigRun(){ ## tool arguments... -- rc in rigRc, stdout in out, stderr in err
 		bash "$rigTool" "$@" ) > "$rigTmp/out" 2> "$rigTmp/err" < /dev/null || rigRc=$?
 }
 rigRows(){ ## kind -- those rows of the last stdout, TAB as a space
-	LC_ALL=C awk -F'\t' -v kind="$1" '$1 == kind { gsub( /\t/, " " ) ; print }' "$rigTmp/out"
+	LC_ALL=C awk -F'\t' -v kind="$1" '$1 == kind { gsub( /\t/, " " ) ; print ; }' "$rigTmp/out"
 }
 rigHead(){ ## kind, how many fields -- the first fields of those rows, TAB as a space
-	LC_ALL=C awk -F'\t' -v kind="$1" -v count="$2" '$1 == kind { line = $1 ; for ( at = 2 ; at <= count ; at++ ) line = line " " $at ; print line }' "$rigTmp/out"
+	LC_ALL=C awk -F'\t' -v kind="$1" -v count="$2" '$1 == kind { line = $1 ; for ( at = 2 ; at <= count ; at++ ) line = line " " $at ; print line ; }' "$rigTmp/out"
 }
-rigCurls(){ [ -f "$rigTmp/curl.calls" ] && LC_ALL=C awk 'END { print NR + 0 }' "$rigTmp/curl.calls" || printf 0 ; }
+rigCurls(){ [ -f "$rigTmp/curl.calls" ] && LC_ALL=C awk 'END { print NR + 0 ; }' "$rigTmp/curl.calls" || printf 0 ; }
 
 echo "-- 1. a run that still lives is not touched --"
 rigRun --manager-session-restart --session-id sess-one
@@ -98,12 +98,12 @@ rigAssert "one restart row, no-item" "$rigRc [$( rigRows restart | LC_ALL=C tr '
 echo "-- 3. a finished run with a board item reaches the restart path --"
 rigRun --manager-session-restart --session-id run-a --run
 rigAssert "rc 0, one restart row of that run, failed on this rig, the detail naming the item and the restart's own RETURN line" \
-	"$rigRc [$( rigHead restart 5 )] $( rigRows restart | LC_ALL=C awk '{ print ( $6 == "dispatch-rig-run-a:" ) ? "item" : "no-item:" $6 }' ) $( rigRows restart | LC_ALL=C grep -c -F 'not restarted' )" "0 [restart sess-one run-a keeper-rig failed] item 1"
+	"$rigRc [$( rigHead restart 5 )] $( rigRows restart | LC_ALL=C awk '{ print ( $6 == "dispatch-rig-run-a:" ) ? "item" : "no-item:" $6 ; }' ) $( rigRows restart | LC_ALL=C grep -c -F 'not restarted' )" "0 [restart sess-one run-a keeper-rig failed] item 1"
 rigAssert "no request was made of Slack" "$( rigCurls )" "0"
 
 echo "-- 4. a session's id takes its founding run; an id nobody has, and one that is no name --"
 rigRun --manager-session-restart --session-id sess-two
-rigAssert "the founding run of the session, finished, is the one started again: its row names it and its item" "$rigRc [$( rigHead restart 5 )] $( rigRows restart | LC_ALL=C awk '{ print ( $6 == "dispatch-rig-sess-two:" ) ? "item" : "no-item:" $6 }' )" "0 [restart sess-two sess-two magic-coordinator failed] item"
+rigAssert "the founding run of the session, finished, is the one started again: its row names it and its item" "$rigRc [$( rigHead restart 5 )] $( rigRows restart | LC_ALL=C awk '{ print ( $6 == "dispatch-rig-sess-two:" ) ? "item" : "no-item:" $6 ; }' )" "0 [restart sess-two sess-two magic-coordinator failed] item"
 rigRun --manager-session-restart --session-id sess-none
 rigAssert "one none row, rc 0" "$rigRc [$( rigRows none | LC_ALL=C cut -d' ' -f1,2 )]" "0 [none sess-none]"
 rigRun --manager-session-restart --session-id '../x'

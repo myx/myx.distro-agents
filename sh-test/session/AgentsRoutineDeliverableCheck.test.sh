@@ -59,7 +59,7 @@ rigAssert(){ ## what, got, want
 	fi
 }
 rigVerdict(){ ## routine file, site
-	AgentsToolsRoutineRequirement deliverables "$2" "$1" | LC_ALL=C awk -F'\t' '{ print $1 }'
+	AgentsToolsRoutineRequirement deliverables "$2" "$1" | LC_ALL=C awk -F'\t' '{ print $1 ; }'
 }
 rigWrite "$rigTmp/plain.routine.md" 'deliverables: the decisions, in a named document
 '
@@ -74,10 +74,10 @@ rigAssert "2. the refusal names the item" \
 rigAssert "3. the same declaration is refused at spawn" "$( rigVerdict "$rigTmp/separated.routine.md" spawn )" reject
 ## The carry's own round trip, taken from the two sites that do it: the join (AgentsReviewToReview) and the split
 ## (AgentsReviewPromptPost). A checker that only passed on its own fixture would report green on a broken carry.
-rigJoined="$( printf '%s\n' 'the decisions, in decisions-2026-11-17.md' 'the options weighed' | LC_ALL=C awk 'BEGIN { ORS = "" } { printf "%s%s", ( NR > 1 ? "; " : "" ), $0 }' )"
+rigJoined="$( printf '%s\n' 'the decisions, in decisions-2026-11-17.md' 'the options weighed' | LC_ALL=C awk 'BEGIN { ORS = "" ; } { printf "%s%s", ( NR > 1 ? "; " : "" ), $0 ; }' )"
 rigAssert "4. two plain items join onto one line" "$rigJoined" 'the decisions, in decisions-2026-11-17.md; the options weighed'
 rigAssert "4. and read back as the same two" "$( printf '%s\n' "$rigJoined" | LC_ALL=C tr ';' '\n' | LC_ALL=C grep -c . )" 2
-rigJoinedBad="$( printf '%s\n' 'the decisions, in decisions-2026-11-17.md' 'the options weighed; each with its cost' | LC_ALL=C awk 'BEGIN { ORS = "" } { printf "%s%s", ( NR > 1 ? "; " : "" ), $0 }' )"
+rigJoinedBad="$( printf '%s\n' 'the decisions, in decisions-2026-11-17.md' 'the options weighed; each with its cost' | LC_ALL=C awk 'BEGIN { ORS = "" ; } { printf "%s%s", ( NR > 1 ? "; " : "" ), $0 ; }' )"
 rigAssert "5. control: one item holding a separator reads back as three" "$( printf '%s\n' "$rigJoinedBad" | LC_ALL=C tr ';' '\n' | LC_ALL=C grep -c . )" 3
 rigAssert "6. control: a routine declaring none validates" "$( rigVerdict "$rigTmp/none.routine.md" save )" validate
 ## The validator asks the same evaluator at save, so the row of one is the row of the other.

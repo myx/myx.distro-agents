@@ -32,10 +32,10 @@ AgentsToolsMorningReviewStoredTs(){ ## member
 	storedTarget="$( AgentsToolsMorningReviewStatePath "$1" )"
 	[ -f "$storedTarget" ] || return 3
 	storedTs="$( LC_ALL=C awk '
-		NR == 1 && $0 == "---" { inFm = 1 ; sawFm = 1 ; next }
-		inFm && $0 == "---" { inFm = 0 ; closed = 1 ; exit }
-		inFm && index($0, "last_reviewed_ts:") == 1 { v = substr($0, 18) ; gsub(/^[ \t]+|[ \t]+$/, "", v) }
-		END { if (!sawFm || !closed) exit 1 ; if (v == "") exit 3 ; print v }
+		NR == 1 && $0 == "---" { inFm = 1 ; sawFm = 1 ; next ; }
+		inFm && $0 == "---" { inFm = 0 ; closed = 1 ; exit ; }
+		inFm && index($0, "last_reviewed_ts:") == 1 { v = substr($0, 18) ; gsub(/^[ \t]+|[ \t]+$/, "", v) ; }
+		END { if (!sawFm || !closed) exit 1 ; if (v == "") exit 3 ; print v ; }
 	' "$storedTarget" )" || return $?
 	case "$storedTs" in
 		''|*[!0-9]*) return 1 ;;
@@ -122,8 +122,8 @@ case "$1" in
 				;;
 				*)
 					printf '%s\n' "$mrRegistryText" | LC_ALL=C awk '
-						NF == 13 { seen[$2] = 1 ; if ($12 == "running" || $13 == "waiting") live[$2] = 1 }
-						END { for (s in seen) if (!(s in live) && s != "-") print s }
+						NF == 13 { seen[$2] = 1 ; if ($12 == "running" || $13 == "waiting") live[$2] = 1 ; }
+						END { for (s in seen) if (!(s in live) && s != "-") print s ; }
 					' > "$mrEndedFile"
 				;;
 			esac
@@ -160,8 +160,8 @@ case "$1" in
 				mrPartial="$mrPartial**NOTE:** partial -- no skillset root, so the changed files are not listed"$'\n'
 			type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 			elif mrListed="$( DistroAgentsTools --librarian-list-team-files-dates 2>/dev/null )" ; then
-				mrChanged="$( printf '%s\n' "$mrListed" | LC_ALL=C awk -v since="$mrSinceLocal" 'length($0) > 21 && substr($0, 1, 19) > since { print substr($0, 22) }' )"
-				[ -z "$mrChanged" ] || mrChangedN="$( printf '%s\n' "$mrChanged" | LC_ALL=C awk 'END { print NR }' )"
+				mrChanged="$( printf '%s\n' "$mrListed" | LC_ALL=C awk -v since="$mrSinceLocal" 'length($0) > 21 && substr($0, 1, 19) > since { print substr($0, 22) ; }' )"
+				[ -z "$mrChanged" ] || mrChangedN="$( printf '%s\n' "$mrChanged" | LC_ALL=C awk 'END { print NR ; }' )"
 				if [ "$mrChangedN" -gt "$mrFilesCap" ] ; then
 					printf 'changed: %s (capped, %s shown)\n' "$mrChangedN" "$mrFilesCap"
 				else

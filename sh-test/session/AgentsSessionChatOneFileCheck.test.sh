@@ -178,18 +178,18 @@ rigHeaders(){ ## chat file -- how many header lines it holds, `no-file` when the
 }
 rigHeader(){ ## chat file, N -- the Nth header line without its time
 	[ -f "$1" ] || { printf 'no-file' ; return 0 ; }
-	LC_ALL=C awk -v want="$2" '/^[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9]Z .* -> .*:$/ { count++ ; if ( count == want ) { sub(/^[^ ]* /, "") ; print ; exit ; } }' "$1"
+	LC_ALL=C awk -v want="$2" '/^[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9]Z .* -> .*:$/ { count++ ; if ( count == want ) { sub(/^[^ ]* /, "") ; print ; exit ; } ; }' "$1"
 }
 rigBody(){ ## chat file, N -- the body of the Nth block, blank lines trimmed at its end
 	[ -f "$1" ] || { printf 'no-file' ; return 0 ; }
 	LC_ALL=C awk -v want="$2" '
-		/^[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9]Z .* -> .*:$/ { count++ ; inBlock = ( count == want ) ; if ( inBlock ) { next ; } }
-		inBlock { lines[++n] = $0 }
-		END { while ( n > 0 && lines[n] == "" ) { n-- ; } for ( i = 1 ; i <= n ; i++ ) { print lines[i] ; } }' "$1"
+		/^[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9]Z .* -> .*:$/ { count++ ; inBlock = ( count == want ) ; if ( inBlock ) { next ; } ; }
+		inBlock { lines[++n] = $0 ; }
+		END { while ( n > 0 && lines[n] == "" ) { n-- ; } for ( i = 1 ; i <= n ; i++ ) { print lines[i] ; } ; }' "$1"
 }
 rigIndex(){ ## chat file, N -- its index line, fields 1..6 tab-separated, space-joined
 	[ -f "$1.index" ] || { printf 'no-index' ; return 0 ; }
-	LC_ALL=C awk -F'\t' -v want="$2" '$1 == want { print $1, $2, $3, $4, $5, $6 ; found = 1 ; exit ; } END { if ( ! found ) { print "no-such-block" ; } }' "$1.index"
+	LC_ALL=C awk -F'\t' -v want="$2" '$1 == want { print $1, $2, $3, $4, $5, $6 ; found = 1 ; exit ; } END { if ( ! found ) { print "no-such-block" ; } ; }' "$1.index"
 }
 rigIndexCount(){ ## chat file -- how many index lines it has
 	[ -f "$1.index" ] || { printf 'no-index' ; return 0 ; }
@@ -305,7 +305,7 @@ rigPre=()
 rigDirect "$rigS2Sc" --manager-session-message --session-id "$rigS2Session" < "$rigS2/message" > "$rigS2/local.out" 2> "$rigS2/local.err"
 rigS2LocalRc=$?
 rigAssert "the console's message succeeds" "$rigS2LocalRc" 0
-rigAssert "its row says it was recorded in the chat file, as a block" "$( LC_ALL=C awk -F'\t' '{ print $1, $2, $3, $4, $5, $6 }' "$rigS2/local.out" )" "message $rigS2Session $rigConsole all chat-file 1"
+rigAssert "its row says it was recorded in the chat file, as a block" "$( LC_ALL=C awk -F'\t' '{ print $1, $2, $3, $4, $5, $6 ; }' "$rigS2/local.out" )" "message $rigS2Session $rigConsole all chat-file 1"
 rigAssert "a note says nothing is posted and the members read it there" "$( LC_ALL=C grep -c "session $rigS2Session has no Slack thread, so the message is recorded in its chat file only (block 1) and nothing is posted; its members read it there" "$rigS2/local.err" )" 1
 rigAssert "no Slack call is made for a message with no external channel" "$( rigSlackCalls "$rigS2Sc" )" 0
 rigAssert "no inbox file is left for a writer" "$( ls "$( rigSessionDir "$rigS2Ws" "$rigS2Session" )/chat.inbox" 2> /dev/null | LC_ALL=C grep -c '\.msg$' || : )" 0
@@ -337,7 +337,7 @@ rigAssert "its body is the Slack message, whole" "$( rigBody "$rigS2Chat" 2 )" "
 rigAssert "its index line carries the ts and the conversation:thread the copy got" "$( rigIndex "$rigS2Chat" 2 )" "2 1760000000.000101 CRIG00001:1760000000.000101 own 4 -"
 rigAssert "one index line a block" "$( rigIndexCount "$rigS2Chat" )" 2
 rigAssert "the two kinds differ where they must: ts, conversation, origin" \
-	"$( LC_ALL=C awk -F'\t' '{ print $2, $3, $4 }' "$rigS2Chat.index" | LC_ALL=C tr '\n\t' '/ ' )" "- local console/1760000000.000101 CRIG00001:1760000000.000101 own/"
+	"$( LC_ALL=C awk -F'\t' '{ print $2, $3, $4 ; }' "$rigS2Chat.index" | LC_ALL=C tr '\n\t' '/ ' )" "- local console/1760000000.000101 CRIG00001:1760000000.000101 own/"
 rigAssert "one session chat file and no per-kind file" "$( rigChats "$rigS2Ws" | LC_ALL=C grep -c . )" 1
 rigAssert "it is the session's one file, whatever the kind" "$( rigChats "$rigS2Ws" )" "$rigS2Chat"
 rigAssert "the Slack body is in that file and in no other file of the workspace" "$( rigHolders "$rigS2Ws" "$rigS2Slack" )" "$rigS2Chat"

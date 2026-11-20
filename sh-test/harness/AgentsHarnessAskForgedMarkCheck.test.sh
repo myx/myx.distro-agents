@@ -346,7 +346,7 @@ rigWaitCall(){ ## guard seconds, tool, argument object -- one served tool call o
 }
 rigWaitField(){ ## field of the question's record
 	{ cat "$rigWaitWs/.local/agents/pending/$rigWaitId.md" "$rigWaitWs/.local/agents/pending/closed/$rigWaitId.md" 2>/dev/null \
-		| LC_ALL=C awk -v key="$1" '$0 == "---" { if ( ++dashes == 2 ) { exit ; } next ; } dashes == 1 && index( $0, key ": " ) == 1 { print substr( $0, length( key ) + 3 ) ; found = 1 ; exit ; } END { if ( ! found ) { print "none" ; } }' ; } || printf 'no-record'
+		| LC_ALL=C awk -v key="$1" '$0 == "---" { if ( ++dashes == 2 ) { exit ; } next ; } dashes == 1 && index( $0, key ": " ) == 1 { print substr( $0, length( key ) + 3 ) ; found = 1 ; exit ; } END { if ( ! found ) { print "none" ; } ; }' ; } || printf 'no-record'
 }
 printf '{"ok":true,"messages":[{"ts":"1700000001.000101","user":"URIGSELF1","text":"the question"}],"has_more":false}\n' > "$rigWaitDir/replies.json"
 rigWaitCall 30 AskQuestion '{"to":"magic-team","address_to":"URIGOWNER","question":"May the rig delete its report file?","wait":false}'
@@ -427,7 +427,7 @@ revRecord(){ ## -- the newest record, open or retained-closed (a closed one move
 	{ ls -tr "$revWs/.local/agents/pending"/*.md "$revWs/.local/agents/pending/closed"/*.md 2> /dev/null ; ls -tr "$revWs/.local/agents/pending/closed"/*.md 2> /dev/null ; } | tail -1 ; }
 revId(){ local idFile ; idFile="$( revRecord )" ; idFile="${idFile##*/}" ; printf '%s' "${idFile%.md}" ; }
 revField(){ ## field
-	LC_ALL=C awk -v key="$1" '$0 == "---" { if ( ++dashes == 2 ) { exit ; } next ; } dashes == 1 && index( $0, key ": " ) == 1 { print substr( $0, length( key ) + 3 ) ; found = 1 ; exit ; } END { if ( ! found ) { print "none" ; } }' "$( revRecord )" 2> /dev/null || printf 'no-record'
+	LC_ALL=C awk -v key="$1" '$0 == "---" { if ( ++dashes == 2 ) { exit ; } next ; } dashes == 1 && index( $0, key ": " ) == 1 { print substr( $0, length( key ) + 3 ) ; found = 1 ; exit ; } END { if ( ! found ) { print "none" ; } ; }' "$( revRecord )" 2> /dev/null || printf 'no-record'
 }
 revLoc(){ ## -- the board state holding the scenario's item
 	local stateDir

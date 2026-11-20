@@ -32,9 +32,9 @@ trap 'rm -rf -- "$rigTmp"' EXIT
 ## column one. A cut that finds no such function refuses, so a stage that reached nothing never reports a result.
 rigCut(){ ## function name, the file to write
 	LC_ALL=C awk -v want="$1" '
-		$0 == want "(){" || $0 ~ ( "^" want "\\(\\)\\{" ) { inside = 1 }
-		inside { print }
-		inside && $0 == "}" { done = 1 ; exit }
+		$0 == want "(){" || $0 ~ ( "^" want "\\(\\)\\{" ) { inside = 1 ; }
+		inside { print ; }
+		inside && $0 == "}" { done = 1 ; exit ; }
 		END { exit ( done ? 0 : 1 ) ; }
 	' "$rigRunner" > "$2" || rigRefuse "the runner holds no whole function named $1"
 	[ -s "$2" ] || rigRefuse "the function $1 was cut to an empty file"

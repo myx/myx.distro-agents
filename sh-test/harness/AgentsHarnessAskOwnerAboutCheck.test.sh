@@ -53,11 +53,11 @@ rigFirstLine(){
 rigPostedLines(){ ## post number
 	[ -f "$rigScenarioDir/post.$1" ] || return 0
 	LC_ALL=C awk '{
-		at = index( $0, "\"text\":\"" ) ; if ( ! at ) { exit } ;
+		at = index( $0, "\"text\":\"" ) ; if ( ! at ) { exit ; } ;
 		rest = substr( $0, at + 8 ) ;
 		end = 0 ;
 		marks[1] = "\",\"thread_ts\":" ; marks[2] = "\",\"ts\":" ; marks[3] = "\",\"blocks\":" ;
-		for ( markNo = 1 ; markNo <= 3 ; markNo++ ) { markAt = index( rest, marks[markNo] ) ; if ( markAt > 0 && ( end == 0 || markAt < end ) ) { end = markAt ; } }
+		for ( markNo = 1 ; markNo <= 3 ; markNo++ ) { markAt = index( rest, marks[markNo] ) ; if ( markAt > 0 && ( end == 0 || markAt < end ) ) { end = markAt ; } ; }
 		if ( end > 0 ) { rest = substr( rest, 1, end - 1 ) ; }
 		gsub( /\\n/, "\n", rest ) ;
 		print rest ;
@@ -65,18 +65,18 @@ rigPostedLines(){ ## post number
 }
 ## Where a post first carries a word, counting from 1, or 0 where it carries none.
 rigLineOf(){ ## post number, word
-	LC_ALL=C awk -v wantWord="$2" 'index( $0, wantWord ) { print NR ; found = 1 ; exit } END { if ( ! found ) { print 0 } }' <<< "$( rigPostedLines "$1" )"
+	LC_ALL=C awk -v wantWord="$2" 'index( $0, wantWord ) { print NR ; found = 1 ; exit ; } END { if ( ! found ) { print 0 ; } ; }' <<< "$( rigPostedLines "$1" )"
 }
 ## How many lines of a post carry a word.
 rigTimes(){ ## post number, word
-	LC_ALL=C awk -v wantWord="$2" 'index( $0, wantWord ) { hitCount++ } END { print hitCount + 0 }' <<< "$( rigPostedLines "$1" )"
+	LC_ALL=C awk -v wantWord="$2" 'index( $0, wantWord ) { hitCount++ ; } END { print hitCount + 0 ; }' <<< "$( rigPostedLines "$1" )"
 }
 rigPosts(){ ## method
 	[ -f "$rigScenarioDir/calls" ] || { printf '0' ; return 0 ; }
-	LC_ALL=C awk -v wantMethod="$1" '$1 == wantMethod { hitCount++ } END { print hitCount + 0 }' "$rigScenarioDir/calls" 2>/dev/null || printf 'no-such-log'
+	LC_ALL=C awk -v wantMethod="$1" '$1 == wantMethod { hitCount++ ; } END { print hitCount + 0 ; }' "$rigScenarioDir/calls" 2>/dev/null || printf 'no-such-log'
 }
 rigVerdictLine(){
-	LC_ALL=C awk '/^VERDICT: / { print ; found = 1 ; exit } END { if ( ! found ) { print "no-verdict-line" } }' "$rigScenarioDir/out"
+	LC_ALL=C awk '/^VERDICT: / { print ; found = 1 ; exit ; } END { if ( ! found ) { print "no-verdict-line" ; } ; }' "$rigScenarioDir/out"
 }
 ## The shape the refusal names, as the check reads it out of the line: `<a shape>` or `none`.
 rigRefusalShape(){ ## the call's output file
@@ -88,7 +88,7 @@ rigRefusalShape(){ ## the call's output file
 			sub( / \(.*/, "", said ) ;
 			print said ; found = 1 ; exit ;
 		}
-		END { if ( ! found ) { print "none" } }
+		END { if ( ! found ) { print "none" ; } ; }
 	' "$1"
 }
 

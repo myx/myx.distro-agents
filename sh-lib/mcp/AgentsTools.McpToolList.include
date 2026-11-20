@@ -21,19 +21,17 @@ AgentsToolsMcpToolListSplice(){ ## array text
 ## Renders the three pieces into <dir>/served, unserved and secondary, then <dir>/ready: written in a folder of its own and moved into place, so a reader sees all of
 ## them or none, and a second renderer finds it done. A server reached through another server (MDAT_MCP_SERVED_MARKER) serves none of them.
 AgentsToolsMcpToolListRender(){ ## dir
-	local renderDir="$1" renderTmp="" renderServed="" renderUnserved="" renderSecondary="" renderNames=""
+	local renderDir="$1" renderTmp="" renderServed="" renderUnserved="" renderSecondary=""
 	[ -n "$renderDir" ] || return 1
 	[ ! -f "$renderDir/ready" ] || return 0
 	type AgentsToolsUnservedMcpEntries > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessUnserved.include"
-	[ -n "${agentsFrontSecondary:-}" ] || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.FrontTable.Help.include"
-	## The secondary tools are on the harness wire too, and the secondary mirror serves them: the floor leaves them out, so each is listed once.
-	## A client may refuse a list that names a tool twice: DeepSeek Harness drops the whole server.
-	renderNames="$( printf '%s\n%s' "$agentsUnservedOnMcp" "$agentsFrontSecondary" | LC_ALL=C tr '\n' ' ' )"
+	type AgentsToolsFrontSyntaxLines > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.FrontTable.Help.include"
+	## The secondary mirror serves the tools of agentsFrontSecondary, so the floor leaves them out: a client may drop a server that names a tool twice.
 	renderTmp="$( mktemp -d "${renderDir%/*}/.tools.XXXXXX" 2>/dev/null )" || return 1
 	if [ -z "${MDAT_MCP_SERVED_MARKER:-}" ] ; then
 		renderUnserved="$( AgentsToolsUnservedMcpEntries )"
 		## CheckList is ALWAYS served: no gate, no permission check and no hook decides it; it refuses only at execution, where it has no place to write.
-		renderServed="$( bash "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessMcpMirror.sh" "" "$renderNames" )" || renderServed=''
+		renderServed="$( bash "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessMcpMirror.sh" "" "${agentsUnservedOnMcp//$'\n'/ } ${agentsFrontSecondary//$'\n'/ }" )" || renderServed=''
 		if renderServed="$( AgentsToolsMcpToolListSplice "$renderServed" )" ; then : ; else
 			printf '%s\n' "${MDSC_CMD:-mcp}: mcp-server: ⛔ ERROR: the harness tool floor did not render, so ONLY 'execute' is served for this run. The mirror's own error is above; repair the declaration it names in sh-lib/harness/AgentsOpenAiChatWire.sh." >&2
 			renderServed=''

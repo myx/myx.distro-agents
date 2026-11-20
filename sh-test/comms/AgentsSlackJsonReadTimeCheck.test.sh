@@ -168,11 +168,11 @@ for rigLine in \
 	LC_ALL=C awk $rigArgs -f "$rigTest/check-fixtures/$rigName.legacy.awk" < "$rigBody" > "$rigTmp/old.out" 2> "$rigTmp/old.err" || rigOldRc=$?
 	LC_ALL=C awk $rigArgs -f "$rigEngine" -f "$rigHere/slack/$rigName.awk" < "$rigBody" > "$rigTmp/new.out" 2> "$rigTmp/new.err" || rigNewRc=$?
 	rigAssert "$rigName: stdout as before" \
-		"$( LC_ALL=C cksum < "$rigTmp/new.out" | LC_ALL=C awk '{ print $1 "-" $2 }' )" \
-		"$( LC_ALL=C cksum < "$rigTmp/old.out" | LC_ALL=C awk '{ print $1 "-" $2 }' )"
+		"$( LC_ALL=C cksum < "$rigTmp/new.out" | LC_ALL=C awk '{ print $1 "-" $2 ; }' )" \
+		"$( LC_ALL=C cksum < "$rigTmp/old.out" | LC_ALL=C awk '{ print $1 "-" $2 ; }' )"
 	rigAssert "$rigName: stderr and status as before" \
-		"$( LC_ALL=C cksum < "$rigTmp/new.err" | LC_ALL=C awk '{ print $1 "-" $2 }' )/$rigNewRc" \
-		"$( LC_ALL=C cksum < "$rigTmp/old.err" | LC_ALL=C awk '{ print $1 "-" $2 }' )/$rigOldRc"
+		"$( LC_ALL=C cksum < "$rigTmp/new.err" | LC_ALL=C awk '{ print $1 "-" $2 ; }' )/$rigNewRc" \
+		"$( LC_ALL=C cksum < "$rigTmp/old.err" | LC_ALL=C awk '{ print $1 "-" $2 ; }' )/$rigOldRc"
 done
 fi
 

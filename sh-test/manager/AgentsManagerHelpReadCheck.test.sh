@@ -53,7 +53,7 @@ rigErrors(){ ## -- how many lines of the last stderr say ERROR or ASSERT, but fo
 	LC_ALL=C grep -E 'ERROR|ASSERT' "$rigTmp/err" | LC_ALL=C grep -c -v -F -- 'SystemContext.SetInputSpec' || :
 }
 rigNames(){ ## file -- the names of the operations its entries head, the manual's own form: a tab, a tab, the name; each once, sorted
-	LC_ALL=C awk '/^## / { inOptions = ($0 ~ /^##  Options:/) } inOptions && /^\t\t--/ { split(substr($0, 3), parts, " ") ; print parts[1] }' "$1" | LC_ALL=C sort -u
+	LC_ALL=C awk '/^## / { inOptions = ($0 ~ /^##  Options:/) ; } inOptions && /^\t\t--/ { split(substr($0, 3), parts, " ") ; print parts[1] ; }' "$1" | LC_ALL=C sort -u
 }
 
 echo "-- 1. first what a user calls: every syntax line of the help, but those of the families the read leaves out --"
@@ -61,10 +61,10 @@ rigRun
 rigBareRc="$rigRc"
 LC_ALL=C grep '^📘' "$rigTmp/err" > "$rigTmp/bare"
 rigRun "$rigRead"
-LC_ALL=C awk 'NF == 0 { exit } { print }' "$rigTmp/out" > "$rigTmp/first"
-LC_ALL=C awk 'seen { print } NF == 0 { seen = 1 }' "$rigTmp/out" > "$rigTmp/rest"
+LC_ALL=C awk 'NF == 0 { exit ; } { print ; }' "$rigTmp/out" > "$rigTmp/first"
+LC_ALL=C awk 'seen { print ; } NF == 0 { seen = 1 ; }' "$rigTmp/out" > "$rigTmp/rest"
 LC_ALL=C sed -n 's/^echo "\(📘 syntax: DistroAgentsTools\.fn\.sh .*\)" >&2$/\1/p' "$rigHelpInclude" | LC_ALL=C awk '!seen[$0]++' > "$rigTmp/syntax"
-rigAssert "rc 0, no error, and each of its first lines a syntax line of the help, once, in the help's order" "$rigRc $( rigErrors ) $( LC_ALL=C grep -c '' "$rigTmp/first" | LC_ALL=C awk '{ print ( $1 > 20 ) }' ) $( LC_ALL=C grep -x -F -f "$rigTmp/first" "$rigTmp/syntax" | cmp -s - "$rigTmp/first" && echo same || echo differs )" "0 0 1 same"
+rigAssert "rc 0, no error, and each of its first lines a syntax line of the help, once, in the help's order" "$rigRc $( rigErrors ) $( LC_ALL=C grep -c '' "$rigTmp/first" | LC_ALL=C awk '{ print ( $1 > 20 ) ; }' ) $( LC_ALL=C grep -x -F -f "$rigTmp/first" "$rigTmp/syntax" | cmp -s - "$rigTmp/first" && echo same || echo differs )" "0 0 1 same"
 rigAssert "the bare call is as it was: rc 1, its default syntax, a member's entry point among it" "$rigBareRc $( LC_ALL=C grep -c -F -e 'fn.sh --member-help [--team-member <team-member>]' -e 'fn.sh --agents-config-option' "$rigTmp/bare" )" "1 2"
 rigAssert "in: an --owner-* operation, and every entry point of the bare call but a member's" "$( LC_ALL=C grep -c -F -e 'fn.sh --owner-workspace-list' "$rigTmp/first" ) $( LC_ALL=C grep -v -F -e 'fn.sh --member-' "$rigTmp/bare" | LC_ALL=C grep -c -v -x -F -f "$rigTmp/first" )" "1 0"
 rigAssert "out: a member's operation and a librarian's, as the owner said, and an internal one" "$( LC_ALL=C grep -c -F -e 'fn.sh --member-' -e 'fn.sh [--member-' "$rigTmp/first" ) $( LC_ALL=C grep -c -F -e 'fn.sh --librarian-' "$rigTmp/first" ) $( LC_ALL=C grep -c -F -e 'fn.sh --intern-' -e 'fn.sh [--intern-' "$rigTmp/first" )" "0 0 0"
@@ -96,13 +96,13 @@ for rigPkg in "$rigHere"/help/* ; do
 	[ "${rigPkg##*/}" != "Help.DistroAgentsTools.include" ] || continue
 	rigCopyTree "$rigPkg" "$rigOrigin/myx/myx.distro-agents/sh-lib/help/${rigPkg##*/}"
 done
-LC_ALL=C awk '{ print } $0 == "\t--help-syntax)" { count = split("owner intern client librarian", rigFamilies, " ") ; for (i = 1; i <= count; i++) printf "echo \"📘 syntax: DistroAgentsTools.fn.sh --%s-rig-probe\" >&2\n", rigFamilies[i] }' \
+LC_ALL=C awk '{ print ; } $0 == "\t--help-syntax)" { count = split("owner intern client librarian", rigFamilies, " ") ; for (i = 1; i <= count; i++) printf "echo \"📘 syntax: DistroAgentsTools.fn.sh --%s-rig-probe\" >&2\n", rigFamilies[i] ; }' \
 	"$rigHelpInclude" > "$rigOrigin/myx/myx.distro-agents/sh-lib/help/Help.DistroAgentsTools.include"
 rigPre=( "MDLT_ORIGIN=$rigOrigin" "MDLT_OPTION=--run-from-path $rigOrigin" )
 rigRun "$rigRead"
 rigPre=()
-LC_ALL=C awk 'NF == 0 { exit } { print }' "$rigTmp/out" > "$rigTmp/first.rig"
-LC_ALL=C awk 'seen { print } NF == 0 { seen = 1 }' "$rigTmp/out" > "$rigTmp/rest.rig"
+LC_ALL=C awk 'NF == 0 { exit ; } { print ; }' "$rigTmp/out" > "$rigTmp/first.rig"
+LC_ALL=C awk 'seen { print ; } NF == 0 { seen = 1 ; }' "$rigTmp/out" > "$rigTmp/rest.rig"
 rigAssert "an --owner-* operation in; an --intern-*, a --client-* and a --librarian-* one out; all four among every operation after" "$rigRc $( rigErrors ) $( LC_ALL=C grep -c -F -- '-rig-probe' "$rigHelpInclude" ) $( for rigFamily in owner intern client librarian ; do LC_ALL=C grep -c -x -F -- "📘 syntax: DistroAgentsTools.fn.sh --$rigFamily-rig-probe" "$rigTmp/first.rig" ; done | LC_ALL=C tr '\n' ' ' )$( LC_ALL=C grep -c -F -- '-rig-probe' "$rigTmp/rest.rig" )" "0 0 0 1 0 0 0 4"
 
 echo "-- 3. then every operation, its syntax lines and its entry, as --member-help gives those of a member --"
@@ -112,19 +112,19 @@ rigAssert "every syntax line of the include that names an operation, once" "$( [
 rigNames "$rigHelpMd" > "$rigTmp/names.md"
 { printf '##  Options:\n' ; cat "$rigTmp/rest" ; } > "$rigTmp/rest.md"
 rigNames "$rigTmp/rest.md" > "$rigTmp/names.read"
-rigAssert "an entry for every operation the manual has one for, and for no other" "$( LC_ALL=C grep -c '' "$rigTmp/names.md" | LC_ALL=C awk '{ print ( $1 > 100 ) }' ) $( cmp -s "$rigTmp/names.md" "$rigTmp/names.read" && echo same || echo differs )" "1 same"
-rigAssert "each entry with its text as the manual gives it: its own and that of --member-help" "$( LC_ALL=C grep -c -x -F -e "$( printf '\t\t--manager-help-read' )" -e "$( printf '\t\t--member-help [--team-member <team-member>]' )" "$rigTmp/rest" ) $( LC_ALL=C grep -c -F -e 'every operation of the manual' "$rigTmp/rest" | LC_ALL=C awk '{ print ( $1 > 0 ) }' )" "2 1"
+rigAssert "an entry for every operation the manual has one for, and for no other" "$( LC_ALL=C grep -c '' "$rigTmp/names.md" | LC_ALL=C awk '{ print ( $1 > 100 ) ; }' ) $( cmp -s "$rigTmp/names.md" "$rigTmp/names.read" && echo same || echo differs )" "1 same"
+rigAssert "each entry with its text as the manual gives it: its own and that of --member-help" "$( LC_ALL=C grep -c -x -F -e "$( printf '\t\t--manager-help-read' )" -e "$( printf '\t\t--member-help [--team-member <team-member>]' )" "$rigTmp/rest" ) $( LC_ALL=C grep -c -F -e 'every operation of the manual' "$rigTmp/rest" | LC_ALL=C awk '{ print ( $1 > 0 ) ; }' )" "2 1"
 
 echo "-- 3b. last the chapters of the help file but its options, a row a line --"
 LC_ALL=C awk -F'\t' '$1 == "chapter" && $2 == "head"' "$rigTmp/rest" | LC_ALL=C cut -f3- > "$rigTmp/head.read"
 LC_ALL=C awk -F'\t' '$1 == "chapter" && $2 == "foot"' "$rigTmp/rest" | LC_ALL=C cut -f3- > "$rigTmp/foot.read"
 rigOptionsAt="$( LC_ALL=C grep -n -x -F '##  Options:' "$rigHelpMd" | LC_ALL=C cut -d: -f1 )"
-rigAfterAt="$( LC_ALL=C awk -v at="$rigOptionsAt" 'NR > at && /^## / { print NR ; exit }' "$rigHelpMd" )"
-rigSyntaxTo="$( LC_ALL=C awk '!/^📘 syntax:/ { print NR - 1 ; exit }' "$rigHelpMd" )"
+rigAfterAt="$( LC_ALL=C awk -v at="$rigOptionsAt" 'NR > at && /^## / { print NR ; exit ; }' "$rigHelpMd" )"
+rigSyntaxTo="$( LC_ALL=C awk '!/^📘 syntax:/ { print NR - 1 ; exit ; }' "$rigHelpMd" )"
 LC_ALL=C sed -n "$(( rigSyntaxTo + 1 )),${rigOptionsAt}p" "$rigHelpMd" > "$rigTmp/head.md"
 LC_ALL=C sed -n "${rigAfterAt},\$p" "$rigHelpMd" > "$rigTmp/foot.md"
 rigAssert "the chapter rows stand last, each a row of three fields, head or foot" \
-	"$( LC_ALL=C awk -F'\t' 'seen && $1 != "chapter" { bad++ } $1 == "chapter" { seen = 1 ; rows++ ; if ( $2 != "head" && $2 != "foot" ) bad++ } END { print ( rows > 0 ) ? "rows" : "none", bad + 0 }' "$rigTmp/rest" )" "rows 0"
+	"$( LC_ALL=C awk -F'\t' 'seen && $1 != "chapter" { bad++ ; } $1 == "chapter" { seen = 1 ; rows++ ; if ( $2 != "head" && $2 != "foot" ) bad++ ; } END { print ( rows > 0 ) ? "rows" : "none", bad + 0 ; }' "$rigTmp/rest" )" "rows 0"
 rigAssert "head: the lines of the file after its syntax lines to the heading of its options, the last of them, as written" \
 	"$( [ "$rigOptionsAt" -gt "$rigSyntaxTo" ] && [ "$rigSyntaxTo" -gt 100 ] && echo found ) $( cmp -s "$rigTmp/head.md" "$rigTmp/head.read" && echo same || echo differs ) $( tail -1 "$rigTmp/head.read" )" "found same ##  Options:"
 rigAssert "foot: the lines after its options, from the heading of the next chapter to the end, as written" \

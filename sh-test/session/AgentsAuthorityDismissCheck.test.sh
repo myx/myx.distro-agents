@@ -87,7 +87,7 @@ rigMapOwnerTo(){ ## account -- the console account an owner is mapped to
 }
 rigMapOwnerTo rig-owner-account
 rigThreadOf(){ ## session
-	printf 'CAUTH0001:1700000002.0002%02d' "$( printf '%s' "$1" | LC_ALL=C cksum | LC_ALL=C awk '{ print $1 % 100 }' )"
+	printf 'CAUTH0001:1700000002.0002%02d' "$( printf '%s' "$1" | LC_ALL=C cksum | LC_ALL=C awk '{ print $1 % 100 ; }' )"
 }
 rigRunNo=0
 rigRun(){ ## variable to set, session, member, start-context, reports-to (empty: none) -- a run: its record and its live process
@@ -285,7 +285,7 @@ rigSeenMark
 rigOp --manager-session-kill --session-id "$rigOwned5" --run
 rigSettle
 rigAssert "at once: exit 0, no PENDING, and the run is gone"   "$rigOpRc:$( rigPendingId ):$( rigAlive "$rigOwned5Pid" )" "0::gone"
-rigAssert "no confirmation is asked, and nothing is posted to the owner" "$( [ -n "$( rigNewRequest )" ] && printf asked || printf none ):$( cat "$rigTmp"/post.* 2> /dev/null | LC_ALL=C grep -c -F 'URIGOWNER' | LC_ALL=C awk '{ print ( $1 >= 1 ) ? "posted" : "not-posted" }' )" "none:not-posted"
+rigAssert "no confirmation is asked, and nothing is posted to the owner" "$( [ -n "$( rigNewRequest )" ] && printf asked || printf none ):$( cat "$rigTmp"/post.* 2> /dev/null | LC_ALL=C grep -c -F 'URIGOWNER' | LC_ALL=C awk '{ print ( $1 >= 1 ) ? "posted" : "not-posted" ; }' )" "none:not-posted"
 rigMapOwnerTo rig-owner-account
 
 echo "-- 6. --escalate-wait: approved by the holder, or the timeout --"

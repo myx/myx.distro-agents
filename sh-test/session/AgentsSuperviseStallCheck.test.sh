@@ -97,8 +97,8 @@ rigScan(){ ## extra NAME=value words...
 }
 rigKind(){ printf '%s\n' "$rigOut" | LC_ALL=C awk -v want="$1" '$1 == want' ; }   ## kind -- its lines
 rigKindHas(){ rigKind "$1" | LC_ALL=C grep -c -F -- "$2" ; }                    ## kind, text -- lines holding it
-rigStallLine(){ printf '%s\n' "$rigOut" | LC_ALL=C awk -v want="$1" '$1 == "stall" && $3 == want { print ; exit }' ; } ## run id -- its stall line
-rigRunWord(){ printf '%s\n' "$rigOut" | LC_ALL=C awk -v want="$1" -v at="$2" '$1 == "run" && $3 == want { print $at ; exit }' ; }
+rigStallLine(){ printf '%s\n' "$rigOut" | LC_ALL=C awk -v want="$1" '$1 == "stall" && $3 == want { print ; exit ; }' ; } ## run id -- its stall line
+rigRunWord(){ printf '%s\n' "$rigOut" | LC_ALL=C awk -v want="$1" -v at="$2" '$1 == "run" && $3 == want { print $at ; exit ; }' ; }
 
 ## THE RIG'S RUNS. A run silent in its Wait for an hour with two items still pending is the stall. Its controls are that
 ## silence with nothing pending, and that pending work inside the bound. One run is working rather than waiting, so the

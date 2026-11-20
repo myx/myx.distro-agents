@@ -158,7 +158,7 @@ rigHolds(){ ## member, tool, target
 	head -1 "$rigTmp/op.out"
 }
 rigLineOf(){ ## prefix
-	LC_ALL=C awk -v wantPrefix="$1" 'index( $0, wantPrefix ) == 1 { print ; found = 1 ; exit ; } END { if ( ! found ) { print "no-" wantPrefix "line" ; } }' "$rigTmp/out"
+	LC_ALL=C awk -v wantPrefix="$1" 'index( $0, wantPrefix ) == 1 { print ; found = 1 ; exit ; } END { if ( ! found ) { print "no-" wantPrefix "line" ; } ; }' "$rigTmp/out"
 }
 
 echo "-- the floor and the standing rows: an allowed read passes and records nothing --"

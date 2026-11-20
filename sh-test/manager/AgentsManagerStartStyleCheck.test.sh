@@ -74,15 +74,15 @@ rigHanded(){ ## -- what the last start handed the screen after its workspace and
 	LC_ALL=C awk -F'\t' -v wantScreen="$rigScreen" -v wantWs="$rigWs" -v wantTool="$rigTool" '
 		$1 == "start" {
 			starts++
-			if ( $2 != "-I" || $3 != "-B" || $4 != wantScreen || $5 != "--workspace" || $6 != wantWs || $7 != "--tools" || $8 != wantTool ) { said = "other-start" ; next }
+			if ( $2 != "-I" || $3 != "-B" || $4 != wantScreen || $5 != "--workspace" || $6 != wantWs || $7 != "--tools" || $8 != wantTool ) { said = "other-start" ; next ; }
 			said = ""
 			for ( field = 9 ; field <= NF ; field++ ) said = said ( said == "" ? "" : " " ) $field
 			if ( said == "" ) said = "nothing"
 		}
-		END { print ( starts == 1 ) ? said : "starts:" starts + 0 }' "$rigTmp/starts"
+		END { print ( starts == 1 ) ? said : "starts:" starts + 0 ; }' "$rigTmp/starts"
 }
 rigSeen(){ ## -- the variable of the environment as the screen saw it in the last start, `none` where it was not set
-	LC_ALL=C awk -F'\t' '$1 == "environment" { print $2 }' "$rigTmp/starts"
+	LC_ALL=C awk -F'\t' '$1 == "environment" { print $2 ; }' "$rigTmp/starts"
 }
 rigSave(){ ## value -- the style the user saved, written by hand; with no value, nothing saved
 	rm -rf "${rigOwn%/*}"
@@ -101,7 +101,7 @@ rigSave
 rigTreeBefore="$( rigTree )"
 rigStart
 rigAssert "the screen is started once, for the rig workspace, with the tool as its way to the tooling, and no style is handed on" "$rigRc $( rigHanded ) $( rigSeen )" "0 nothing none"
-rigAssert "another user's saved style and the one in the workspace's own settings file are not taken, and the start wrote nothing" "$( LC_ALL=C grep -c -x -e "$rigKey=bw" "$rigWs/.local/home/rig-other-user/MDLT.settings.env" "$rigWs/.local/MDLT.settings.env" | LC_ALL=C awk -F: '{ n += $2 } END { print n + 0 }' ) $( rigTree )" "2 $rigTreeBefore"
+rigAssert "another user's saved style and the one in the workspace's own settings file are not taken, and the start wrote nothing" "$( LC_ALL=C grep -c -x -e "$rigKey=bw" "$rigWs/.local/home/rig-other-user/MDLT.settings.env" "$rigWs/.local/MDLT.settings.env" | LC_ALL=C awk -F: '{ n += $2 ; } END { print n + 0 ; }' ) $( rigTree )" "2 $rigTreeBefore"
 
 echo "-- 2. the user's saved style is the look of the next start --"
 for rigOne in tv-blue:tv-blue nu-system:nu-system bw-light:bw-light magic:nu-gray bw:bw-system tv:tv-system tv-light:tv-gray ; do
@@ -167,7 +167,7 @@ rigAssert "and a bare word" "$( rigRefusedStart )" "1 0 1"
 
 echo "-- 6b. the spacers of the screen's lists: the console user's MDLT_MANAGER_SPACERS of .local --"
 rigSpacers(){ ## -- MDLT_MANAGER_SPACERS as the screen saw it in the last start, `none` where it was not set
-	LC_ALL=C awk -F'\t' '$1 == "spacers" { print $2 }' "$rigTmp/starts"
+	LC_ALL=C awk -F'\t' '$1 == "spacers" { print $2 ; }' "$rigTmp/starts"
 }
 rigSave
 rigStart
@@ -183,7 +183,7 @@ rigSave
 
 echo "-- 6c. the mouse of the screen: the console user's MDLT_MANAGER_MOUSE of .local, beside the spacers --"
 rigMouse(){ ## -- MDLT_MANAGER_MOUSE as the screen saw it in the last start, `none` where it was not set
-	LC_ALL=C awk -F'\t' '$1 == "mouse" { print $2 }' "$rigTmp/starts"
+	LC_ALL=C awk -F'\t' '$1 == "mouse" { print $2 ; }' "$rigTmp/starts"
 }
 rigStart
 rigAssert "with nothing saved and nothing in the environment the screen is given no such setting: its mouse is on" "$rigRc $( rigHanded ) $( rigMouse )" "0 nothing none"

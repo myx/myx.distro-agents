@@ -35,7 +35,7 @@ function tixJsonString( text,    at, size, ch, out, next1 ) {
 		if ( ch == "\\" && at < size ) {
 			next1 = substr( text, ++at, 1 )
 			if ( next1 == "n" || next1 == "t" || next1 == "r" ) out = out " "
-			else if ( next1 == "u" ) { out = out "\\u" }
+			else if ( next1 == "u" ) { out = out "\\u" ; }
 			else out = out next1
 			continue
 		}
@@ -51,9 +51,9 @@ function tixReadHelp( file, help,    line, part, op, words, zone, entryOp, colle
 	opCount[file] = 0 ; summary[file] = "" ; zone = "syntax" ; entryOp = "" ; collecting = 0 ; text = "" ; lastHead = 0
 	if ( help == "" ) return
 	while ( ( getline line < help ) > 0 ) {
-		if ( line ~ /^##  Summary:/ ) { zone = "summary" ; text = "" ; continue }
-		if ( line ~ /^##  Options:/ ) { zone = "options" ; continue }
-		if ( line ~ /^##  / ) { tixEntryEnd( file, entryOp, text ) ; entryOp = "" ; zone = "other" ; continue }
+		if ( line ~ /^##  Summary:/ ) { zone = "summary" ; text = "" ; continue ; }
+		if ( line ~ /^##  Options:/ ) { zone = "options" ; continue ; }
+		if ( line ~ /^##  / ) { tixEntryEnd( file, entryOp, text ) ; entryOp = "" ; zone = "other" ; continue ; }
 		if ( zone == "syntax" ) {
 			if ( index( line, "📘 syntax: " ) != 1 ) continue
 			part = substr( line, length( "📘 syntax: " ) + 1 )
@@ -70,14 +70,14 @@ function tixReadHelp( file, help,    line, part, op, words, zone, entryOp, colle
 		}
 		if ( zone == "summary" ) {
 			if ( summary[file] != "" ) continue
-			if ( line ~ /^[ \t]*$/ ) { if ( text != "" ) summary[file] = tixSentence( text ) ; continue }
+			if ( line ~ /^[ \t]*$/ ) { if ( text != "" ) summary[file] = tixSentence( text ) ; continue ; }
 			text = text " " line
 			continue
 		}
 		if ( zone != "options" ) continue
 		if ( line ~ /^\t\t--/ ) {
 			op = line ; sub( /^\t\t/, "", op ) ; sub( /[ \t].*$/, "", op )
-			if ( lastHead ) { entryOp = entryOp " " op ; continue }
+			if ( lastHead ) { entryOp = entryOp " " op ; continue ; }
 			tixEntryEnd( file, entryOp, text )
 			entryOp = op ; text = "" ; collecting = 1 ; lastHead = 1
 			continue
@@ -86,8 +86,8 @@ function tixReadHelp( file, help,    line, part, op, words, zone, entryOp, colle
 		if ( entryOp == "" || ! collecting ) continue
 		## The entry's first paragraph; one that starts with an option of its own is no
 		## description, and a `--` inside the paragraph is part of its text.
-		if ( line ~ /^[ \t]*$/ ) { if ( text != "" ) collecting = 0 ; continue }
-		if ( text == "" && line ~ /^\t\t\t--/ ) { collecting = 0 ; continue }
+		if ( line ~ /^[ \t]*$/ ) { if ( text != "" ) collecting = 0 ; continue ; }
+		if ( text == "" && line ~ /^\t\t\t--/ ) { collecting = 0 ; continue ; }
 		text = text " " line
 	}
 	tixEntryEnd( file, entryOp, text )
@@ -149,12 +149,12 @@ function ttSlot( name ) {
 	return ""
 }
 function tixBlock( name ) {
-	if ( ! ( ( "Skeleton" SUBSEP name ) in ttHas ) ) { tixFailed = 3 ; return }
+	if ( ! ( ( "Skeleton" SUBSEP name ) in ttHas ) ) { tixFailed = 3 ; return ; }
 	print ttFill( ttBlock["Skeleton", name] )
 }
 
 BEGIN {
-	if ( ! ttRead( ARGV[1] ) ) { exit 3 }
+	if ( ! ttRead( ARGV[1] ) ) { exit 3 ; }
 	for ( need = split( "head member shell shell-file shell-file-bare op op-bare family-held family-console family-closed calls call call-held", needs, " " ) ; need > 0 ; need-- )
 		if ( ! ( ( "Skeleton" SUBSEP needs[need] ) in ttHas ) ) exit 3
 	dataFile = ENVIRON["TIX_DATA"]
@@ -162,18 +162,18 @@ BEGIN {
 	while ( ( got = ( getline row < dataFile ) ) > 0 ) {
 		fieldCount = split( row, f, "\t" )
 		if ( f[1] == "member" && f[2] != "" ) member[++memberCount] = f[2]
-		else if ( f[1] == "shell" ) { shellFile[++shellCount] = f[2] ; shellCommand[shellCount] = f[3] ; shellHelp[shellCount] = f[4] ; shellSummary[shellCount] = f[5] }
+		else if ( f[1] == "shell" ) { shellFile[++shellCount] = f[2] ; shellCommand[shellCount] = f[3] ; shellHelp[shellCount] = f[4] ; shellSummary[shellCount] = f[5] ; }
 		else if ( f[1] == "coordop" ) coordOp[f[2]] = 1
-		else if ( f[1] == "calls" ) { harnessTools = f[2] ; mcpTools = f[3] }
+		else if ( f[1] == "calls" ) { harnessTools = f[2] ; mcpTools = f[3] ; }
 		else if ( f[1] == "may" ) {
 			checked[f[2]] = 1 ; may[f[2], f[3]] = ( f[4] == "yes" )
 			if ( f[4] == "yes" && f[3] != "" ) mayList[f[2], ++mayCount[f[2]]] = f[3]
 		}
-		else if ( f[1] == "holds" ) { holds[f[2], f[3]] = 1 ; holdList[f[2], ++holdCount[f[2]]] = f[3] }
+		else if ( f[1] == "holds" ) { holds[f[2], f[3]] = 1 ; holdList[f[2], ++holdCount[f[2]]] = f[3] ; }
 	}
 	if ( got < 0 ) exit 4
 	close( dataFile )
-	for ( s = 1 ; s <= shellCount ; s++ ) { tixReadHelp( shellFile[s], shellHelp[s] ) ; if ( shellSummary[s] != "" ) summary[shellFile[s]] = shellSummary[s] }
+	for ( s = 1 ; s <= shellCount ; s++ ) { tixReadHelp( shellFile[s], shellHelp[s] ) ; if ( shellSummary[s] != "" ) summary[shellFile[s]] = shellSummary[s] ; }
 	tixReadTools( harnessTools ) ; tixReadTools( mcpTools )
 
 	tixBlock( "head" )
@@ -183,21 +183,21 @@ BEGIN {
 		tixBlock( "shell" )
 		for ( s = 1 ; s <= shellCount ; s++ ) {
 			curFile = shellFile[s] ; curCommand = shellCommand[s] ; curSummary = summary[curFile]
-			if ( shellHelp[s] == "" || opCount[curFile] == 0 ) { tixBlock( "shell-file-bare" ) ; continue }
+			if ( shellHelp[s] == "" || opCount[curFile] == 0 ) { tixBlock( "shell-file-bare" ) ; continue ; }
 			tixBlock( "shell-file" )
 			split( "", familyShown )
 			for ( o = 1 ; o <= opCount[curFile] ; o++ ) {
 				curOp = opName[curFile, o] ; curFamily = opFamily[curFile, o]
 				if ( ! ( curFamily in checked ) || may[curFamily, curMember] ) {
-					if ( ( curFile, curOp ) in entry ) { curText = entry[curFile, curOp] ; tixBlock( "op" ) }
+					if ( ( curFile, curOp ) in entry ) { curText = entry[curFile, curOp] ; tixBlock( "op" ) ; }
 					else tixBlock( "op-bare" )
 					continue
 				}
 				if ( curFamily in familyShown ) continue
 				familyShown[curFamily] = 1
 				curCount = familyCount[curFile, curFamily]
-				if ( curFamily == "coordinator" ) { curFamilyText = "the coordinator\047s own operations" ; curHint = "" }
-				else { curFamilyText = "`" curFamily "*`" ; curHint = " " curFamily }
+				if ( curFamily == "coordinator" ) { curFamilyText = "the coordinator\047s own operations" ; curHint = "" ; }
+				else { curFamilyText = "`" curFamily "*`" ; curHint = " " curFamily ; }
 				split( "", owners ) ; ownerCount = 0
 				for ( k = 1 ; k <= mayCount[curFamily] ; k++ ) owners[++ownerCount] = mayList[curFamily, k]
 				curOwners = tixJoin( owners, ownerCount )
@@ -209,7 +209,7 @@ BEGIN {
 		tixBlock( "calls" )
 		for ( t = 1 ; t <= toolCount ; t++ ) {
 			curTool = toolName[t] ; curText = toolText[curTool]
-			if ( ! holdCount[curTool] || ( ( curTool, curMember ) in holds ) || ( ( curTool, "*" ) in holds ) ) { tixBlock( "call" ) ; continue }
+			if ( ! holdCount[curTool] || ( ( curTool, curMember ) in holds ) || ( ( curTool, "*" ) in holds ) ) { tixBlock( "call" ) ; continue ; }
 			split( "", owners ) ; ownerCount = 0
 			for ( k = 1 ; k <= holdCount[curTool] ; k++ ) owners[++ownerCount] = holdList[curTool, k]
 			curOwners = tixJoin( owners, ownerCount )

@@ -55,7 +55,7 @@ AgentsToolsSeenReact(){ ## member, <conversation>:<ts> of the message
 	type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 	## The account the member's own reaction runs as, where this workspace already knows it: the cache the send and the
 	## wait both read. It names the account in the log, and makes no request of its own.
-	seenAccount="$( LC_ALL=C awk '$2 ~ /^U[A-Z0-9]+$/ { print $2 ; exit }' "$MMDAPP/.local/cache/comms/slack/.user-id-$seenMember.txt" 2> /dev/null )" || seenAccount=""
+	seenAccount="$( LC_ALL=C awk '$2 ~ /^U[A-Z0-9]+$/ { print $2 ; exit ; }' "$MMDAPP/.local/cache/comms/slack/.user-id-$seenMember.txt" 2> /dev/null )" || seenAccount=""
 	for seenIdentity in user bot ; do
 		seenRc=0
 		seenDiag="$( { DistroAgentsTools --intern-op-comms-slack-react "$seenMember" "$seenTarget" eyes \

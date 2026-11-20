@@ -132,7 +132,7 @@ AgentsHarnessAskAnswerBody(){ ## wait output, pending reply id
 				$0 == "# --- what that source holds now follows ---" { inBody = 1 ; heldAny = 0 ; next ; }
 				$0 == "# --- end ---" { lastLine() ; inBody = 0 ; next ; }
 				inBody { if ( heldAny ) { print heldLine ; } heldLine = $0 ; heldAny = 1 ; }
-				END { if ( inBody ) { lastLine() ; } }'
+				END { if ( inBody ) { lastLine() ; } ; }'
 		;;
 		*) printf '%s\n' "$1" | LC_ALL=C grep -v -E '^(# |WAIT-|NEXT: |ASK-RESULT: )' || : ;;
 	esac

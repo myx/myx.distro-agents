@@ -84,7 +84,7 @@ rigAssert(){ ## what is asserted, got, want
 		printf '  FAIL  %s\n        got:  %s\n        want: %s\n' "$1" "$2" "$3" ; rigFailCount=$(( rigFailCount + 1 ))
 	fi
 }
-rigReads(){ [ -f "$rigScn/calls" ] || { printf '0\n' ; return 0 ; } ; LC_ALL=C awk '$1 == "conversations.history" { n++ } END { print n + 0 }' "$rigScn/calls" ; }
+rigReads(){ [ -f "$rigScn/calls" ] || { printf '0\n' ; return 0 ; } ; LC_ALL=C awk '$1 == "conversations.history" { n++ ; } END { print n + 0 ; }' "$rigScn/calls" ; }
 rigFileIn(){ ## file, needle -- yes where the file holds the needle
 	case "$( LC_ALL=C cat "$1" 2> /dev/null )" in *"$2"*) printf 'yes' ;; *) printf 'no' ;; esac
 }
@@ -105,7 +105,7 @@ rigIngestPass(){ ## the budget
 }
 
 echo "-- 0. the control: the rig's store holds the channel sources this check wrote, and the fake records every call --"
-rigAssert "three conversation sources" "$( LC_ALL=C awk '$1 == "slack-conversation" { n++ } END { print n + 0 }' "$rigStore"/*/.state.txt )" 3
+rigAssert "three conversation sources" "$( LC_ALL=C awk '$1 == "slack-conversation" { n++ ; } END { print n + 0 ; }' "$rigStore"/*/.state.txt )" 3
 rigAssert "and not one channel was read yet" "$( rigReads )" 0
 
 echo "-- 1. a due channel source is ingested, and its pointer is the last id it wrote --"
@@ -116,7 +116,7 @@ rigAssert "it read one channel" "$( rigReads )" 1
 rigAssert "the first source of the list holds its message" "$( rigEventCount slack-CRIGONE001 )" 1
 rigAssert "its pointer is that event's own id" "$( rigPointer slack-CRIGONE001 )" "$( rigEvents slack-CRIGONE001 | LC_ALL=C cut -f1 | LC_ALL=C sed -n '1p' )"
 rigAssert "and it is the EventIdentifier form" \
-	"$( rigPointer slack-CRIGONE001 | LC_ALL=C awk '$0 ~ /^[0-9]{8}T[0-9]{9}Z-[0-9]{6}[0-9A-F]{3}$/ { n++ } END { print n + 0 }' )" 1
+	"$( rigPointer slack-CRIGONE001 | LC_ALL=C awk '$0 ~ /^[0-9]{8}T[0-9]{9}Z-[0-9]{6}[0-9A-F]{3}$/ { n++ ; } END { print n + 0 ; }' )" 1
 
 echo "-- 2. a source whose state has not moved since its ingest is not read again, and one pulled since it is read again --"
 rigIngestPass 0

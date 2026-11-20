@@ -221,12 +221,12 @@ function parseTool( text,    at, oneWord ) {
 }
 
 function firstBody(    bodyNo ) {
-	for ( bodyNo = 1 ; bodyNo <= curBodyCount ; bodyNo++ ) { if ( curBody[bodyNo] !~ /^[ \t]*$/ ) { return curBody[bodyNo] ; } }
+	for ( bodyNo = 1 ; bodyNo <= curBodyCount ; bodyNo++ ) { if ( curBody[bodyNo] !~ /^[ \t]*$/ ) { return curBody[bodyNo] ; } ; }
 	return "" ;
 }
 
 function bodyValue( prefix,    bodyNo ) {
-	for ( bodyNo = 1 ; bodyNo <= curBodyCount ; bodyNo++ ) { if ( index( curBody[bodyNo], prefix ) == 1 ) { return substr( curBody[bodyNo], length( prefix ) + 1 ) ; } }
+	for ( bodyNo = 1 ; bodyNo <= curBodyCount ; bodyNo++ ) { if ( index( curBody[bodyNo], prefix ) == 1 ) { return substr( curBody[bodyNo], length( prefix ) + 1 ) ; } ; }
 	return "" ;
 }
 

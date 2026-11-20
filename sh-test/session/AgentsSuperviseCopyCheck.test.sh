@@ -54,7 +54,7 @@ rigAssert(){ ## what is asserted, got, want
 	fi
 }
 rigField(){ ## output, the leading word, the field number -- that word of the first such row
-	printf '%s\n' "$1" | LC_ALL=C awk -v want="$2" -v at="$3" -F'\t' '$1 == want { print $at ; exit }'
+	printf '%s\n' "$1" | LC_ALL=C awk -v want="$2" -v at="$3" -F'\t' '$1 == want { print $at ; exit ; }'
 }
 ## `-ef` is the shell's own answer to "are these one file", and it needs no stat(1): `stat` differs by platform, and its
 ## `bsd || gnu` retry is forbidden by this package's MAGIC.md. The count of names is read off `ls -i` instead, which is
@@ -64,8 +64,8 @@ rigSameFile(){ ## two paths -- yes where the shell says they are one file
 }
 rigLinks(){ ## path -- how many names that inode has in its own folder
 	local rigWant
-	rigWant="$( LC_ALL=C ls -i "$1" 2> /dev/null | LC_ALL=C awk '{ print $1 }' )" || rigWant=""
-	LC_ALL=C ls -i "$( dirname "$1" )" 2> /dev/null | LC_ALL=C awk -v want="$rigWant" '$1 == want { n++ } END { print n + 0 }'
+	rigWant="$( LC_ALL=C ls -i "$1" 2> /dev/null | LC_ALL=C awk '{ print $1 ; }' )" || rigWant=""
+	LC_ALL=C ls -i "$( dirname "$1" )" 2> /dev/null | LC_ALL=C awk -v want="$rigWant" '$1 == want { n++ ; } END { print n + 0 ; }'
 }
 rigWritable(){ ## folder -- yes where a write bit is on for its owner
 	[ -w "$1" ] && printf yes || printf no

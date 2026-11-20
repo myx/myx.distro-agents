@@ -158,7 +158,7 @@ rigAssert "the receiver stops on SIGTERM, rc 0, nothing on stderr" "$rigSocketRc
 rigAssert "control: the mention's body reached the filing tool" "$( LC_ALL=C grep -c -F "$rigMarker" "$rigTmp/scenario/filed.log" 2>/dev/null )" 1
 rigSocketRows(){ LC_ALL=C awk -F'\t' '$3 == "socket"' "$rigLog" ; }
 rigAssert "its rows are in this UTC month's comms-slack-send.YYYY-MM.log, one per event" "$( rigSocketRows | rigLines /dev/stdin )" 9
-rigAssert "every row has the eight columns" "$( rigSocketRows | LC_ALL=C awk -F'\t' 'NF != 8 { bad++ } END { print bad + 0 ; }' )" 0
+rigAssert "every row has the eight columns" "$( rigSocketRows | LC_ALL=C awk -F'\t' 'NF != 8 { bad++ ; } END { print bad + 0 ; }' )" 0
 rigAssert "member is the app scope, target socket, identity app, session '-'" \
 	"$( rigSocketRows | LC_ALL=C awk -F'\t' '{ print ($1 ~ /^[0-9]{8}T[0-9]{6}Z$/) " " $2 " " $3 " " $5 " " $8 ; }' | LC_ALL=C sort -u )" "1 magic-team socket app -"
 rigAssert "column 6 is the event kind, in order" "$( rigSocketRows | LC_ALL=C awk -F'\t' '{ printf "%s%s", (NR > 1 ? " " : ""), $6 ; }' )" \

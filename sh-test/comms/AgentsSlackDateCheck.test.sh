@@ -150,7 +150,7 @@ rigAssert "a token in a paragraph is a date element between its text" \
 	'[{"type":"rich_text","elements":[{"type":"rich_text_section","elements":[{"type":"text","text":"asked "},{"type":"date","timestamp":1791525750,"format":"{date_num} {time}","fallback":"2026-10-09 06:02 UTC"},{"type":"text","text":", reminder 1"}]}]}]'
 rigBlocks "- from <!date^1893456060^{time_secs}|00:01:00 UTC>–<!date^1893456074^{time_secs}|00:01:14 UTC>" > "$rigTmp/blocks.range"
 rigAssert "a range in a list item is two date elements" \
-	"$( LC_ALL=C grep -o '"type":"date"' "$rigTmp/blocks.range" | LC_ALL=C awk 'END { print NR }' ):$( rigHolds "$rigTmp/blocks.range" '{"type":"date","timestamp":1893456074,"format":"{time_secs}","fallback":"00:01:14 UTC"}' )" 2:yes
+	"$( LC_ALL=C grep -o '"type":"date"' "$rigTmp/blocks.range" | LC_ALL=C awk 'END { print NR ; }' ):$( rigHolds "$rigTmp/blocks.range" '{"type":"date","timestamp":1893456074,"format":"{time_secs}","fallback":"00:01:14 UTC"}' )" 2:yes
 { printf '%s\n' "in code \`$rigOwn\` it stays" '```' "$rigOwn" '```' ; } | LC_ALL=C awk -f "$rigLib/slack/AgentsSlackBlocksBuild.awk" > "$rigTmp/blocks.code"
 ## Each wanted element in a variable first: bash 3.2 brace-expands a double-quoted `{a,b}` written inside "$( )".
 rigCodeSpan='{"type":"text","text":"'"$rigOwn"'","style":{"code":true}}'
@@ -194,7 +194,7 @@ COMMS_USER_HANDLES=$'U0TESTER\ttester' LC_ALL=C awk -v kind=slack -v source=rig 
 rigAssert "the session-context scan: no raw control string, the text with its fallback" \
 	"$rigRc:$( LC_ALL=C grep -c -F '!date^' "$rigTmp/thread.items" ):$( LC_ALL=C grep -c -x -F 'text: yes, since 2026-10-09 06:02 UTC | fine' "$rigTmp/thread.items" )" 0:0:1
 rigAssert "it still reads who a message with a token is from and for: the send header, and a mention" \
-	"$( LC_ALL=C awk '/^## slack-message CRIG:1791525800/ { on = 1 } on && /^(author|addressees): / { printf "%s|", $0 } on && /^$/ { exit }' "$rigTmp/thread.items" ):$( LC_ALL=C awk '/^## slack-message CRIG:1791525830/ { on = 1 } on && /^addressees: / { print ; exit }' "$rigTmp/thread.items" )" \
+	"$( LC_ALL=C awk '/^## slack-message CRIG:1791525800/ { on = 1 ; } on && /^(author|addressees): / { printf "%s|", $0 ; } on && /^$/ { exit ; }' "$rigTmp/thread.items" ):$( LC_ALL=C awk '/^## slack-message CRIG:1791525830/ { on = 1 ; } on && /^addressees: / { print ; exit ; }' "$rigTmp/thread.items" )" \
 	'author: magic-coordinator|addressees: magic-tester|:addressees: U0TESTER (tester)'
 printf '%s\n' "{\"ok\":true,\"messages\":{\"total\":1,\"paging\":{\"count\":20,\"total\":1,\"page\":1,\"pages\":1},\"matches\":[{\"ts\":\"1791525810.000100\",\"user\":\"U0OWNER\",\"text\":\"yes, since $rigOwn\",\"permalink\":\"https://rig.slack.com/archives/CRIG/p1791525810000100\"}]}}" > "$rigTmp/search.json"
 rigAssert "a search's lines: the fallback" \
@@ -229,7 +229,7 @@ rigRender(){ ## kind, out dir, lines file, name=value...
 }
 ## Every `<!date` a post holds, and how many of them are whole tokens of the helper's shape.
 rigTokens(){ ## files...
-	cat "$@" | LC_ALL=C awk '{ rest = $0 ; while ( ( at = index( rest, "<!date" ) ) > 0 ) { opened++ ; rest = substr( rest, at ) ; if ( match( rest, /^<!date\^[0-9]+\^[^|<>^]+\|[0-9: -]+ UTC>/ ) ) { whole++ ; } rest = substr( rest, 7 ) ; } } END { print opened + 0 ":" whole + 0 }'
+	cat "$@" | LC_ALL=C awk '{ rest = $0 ; while ( ( at = index( rest, "<!date" ) ) > 0 ) { opened++ ; rest = substr( rest, at ) ; if ( match( rest, /^<!date\^[0-9]+\^[^|<>^]+\|[0-9: -]+ UTC>/ ) ) { whole++ ; } rest = substr( rest, 7 ) ; } ; } END { print opened + 0 ":" whole + 0 ; }'
 }
 rigStarted="$( rigToken '2030-01-01 00:00 +0000' date-time )"
 rigRender start "$rigTmp/k-start" /dev/null cli=rig-cli host=rig-host workspace=rig-ws started-at="$rigStarted" what='<!here> & co'
@@ -249,18 +249,18 @@ rigRender error "$rigTmp/k-foreign" /dev/null what=x detail='<!date^1893456000^{
 rigAssert "a value's token with a link, or with another token string, is escaped as any value is" "$( rigTokens "$rigTmp/k-foreign"/*.plain.* ):$( cat "$rigTmp/k-foreign"/*.plain.* | LC_ALL=C grep -c -F '&lt;!date^1893456000^{date_long}|2030-01-01 00:00 UTC&gt;' )" 0:0:1
 rigAssert "in its boxes too, where the one token left is the box's own subtitle date" "$( rigTokens "$rigTmp/k-foreign"/*.blocks ):$( cat "$rigTmp/k-foreign"/*.blocks | LC_ALL=C grep -c -F '&lt;!date^1893456000^{date_long}|2030-01-01 00:00 UTC&gt;' )" 1:1:1
 ## A line too long for one post is cut: the token at its end goes whole or not at all.
-rigLongHost="$( LC_ALL=C awk 'BEGIN { for ( n = 1 ; n <= 3770 ; n++ ) printf "h" }' )"
+rigLongHost="$( LC_ALL=C awk 'BEGIN { for ( n = 1 ; n <= 3770 ; n++ ) printf "h" ; }' )"
 rigRender error "$rigTmp/k-cut" /dev/null what=x host="$rigLongHost" at="$rigStarted"
 rigCutTokens="$( rigTokens "$rigTmp/k-cut"/* )"
 rigAssert "a line cut by length never ends inside a token" "$( [ "${rigCutTokens%%:*}" = "${rigCutTokens##*:}" ] && printf whole || printf "cut $rigCutTokens" )" whole
 rigRender error "$rigTmp/k-fit" /dev/null what=x host=rig-host at="$rigStarted"
 rigAssert "control: the same line, short, keeps its token, in its plain text and, beside the subtitle's, in its boxes" "$( rigTokens "$rigTmp/k-fit"/*.plain.* ):$( rigTokens "$rigTmp/k-fit"/*.blocks )" 1:1:2:2
 ## Many lines, many posts: every token in every part is whole.
-LC_ALL=C awk 'BEGIN { for ( n = 1 ; n <= 400 ; n++ ) { printf "2030-01-01T00:%02d:%02dZ TOOL Read path=/a/long/enough/path/file-number-%03d.md -> ok 10B/1L 1ms\n", int( n / 60 ), n % 60, n ; if ( n % 7 == 0 ) printf "2030-01-01T00:%02d:%02dZ VERDICT item=rig-item-%03d by=magic-tester text=\"accepted\"\n", int( n / 60 ), n % 60, n } }' > "$rigTmp/lines.long"
+LC_ALL=C awk 'BEGIN { for ( n = 1 ; n <= 400 ; n++ ) { printf "2030-01-01T00:%02d:%02dZ TOOL Read path=/a/long/enough/path/file-number-%03d.md -> ok 10B/1L 1ms\n", int( n / 60 ), n % 60, n ; if ( n % 7 == 0 ) printf "2030-01-01T00:%02d:%02dZ VERDICT item=rig-item-%03d by=magic-tester text=\"accepted\"\n", int( n / 60 ), n % 60, n ; } ; }' > "$rigTmp/lines.long"
 rigRender feed "$rigTmp/k-long" "$rigTmp/lines.long"
 rigLongTokens="$( rigTokens "$rigTmp/k-long"/* )"
 rigAssert "a post cut into parts: several parts, tokens in them, and every one whole" \
-	"$( [ "$( ls "$rigTmp/k-long" | LC_ALL=C awk 'END { print NR }' )" -gt 2 ] && printf several || printf few ):$( [ "${rigLongTokens%%:*}" -gt 0 ] && [ "${rigLongTokens%%:*}" = "${rigLongTokens##*:}" ] && printf whole || printf "cut $rigLongTokens" )" several:whole
+	"$( [ "$( ls "$rigTmp/k-long" | LC_ALL=C awk 'END { print NR ; }' )" -gt 2 ] && printf several || printf few ):$( [ "${rigLongTokens%%:*}" -gt 0 ] && [ "${rigLongTokens%%:*}" = "${rigLongTokens##*:}" ] && printf whole || printf "cut $rigLongTokens" )" several:whole
 ## What a Wait received, read back from Slack, with a token in it: the line says the fallback.
 printf '%s\n' '2030-01-01T00:09:08Z TOOL Wait sources=slack:C1:1.2 -> ok 1298B/18L 1m05s' '2030-01-01T00:09:08Z WAIT-RESULT' '> WAIT-RESULT: RECEIVED' \
 	"> 1791464999.000100 | U0RIGUSER | since $rigOwn ok" > "$rigTmp/lines.wait"

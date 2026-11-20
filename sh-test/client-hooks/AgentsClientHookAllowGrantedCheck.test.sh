@@ -128,7 +128,7 @@ rigAssert "Monitor is rerouted: the policy names it, and the reroute hook sends 
 	"$( env -i PATH=/usr/bin:/bin MDLT_ORIGIN="$MDLT_ORIGIN" bash -c '. "'"$rigHere"'/client/AgentsTools.ClientToolPolicy.include" ; AgentsToolsClientToolPolicyRerouteToolNames' | LC_ALL=C grep -c -x Monitor ):$( printf '{}' | env -i HOME="$rigTmp/home" PATH=/usr/bin:/bin bash "$rigReroute" Monitor | LC_ALL=C grep -c '"permissionDecision": "deny"' ):$( printf '{}' | env -i HOME="$rigTmp/home" PATH=/usr/bin:/bin bash "$rigReroute" Monitor | LC_ALL=C grep -c 'method mcp__myx_distro__Wait' )" "1:1:1"
 
 echo "-- 5. our own harness never runs it --"
-rigAssert "the policy states it, class native" "$( env -i PATH=/usr/bin:/bin MDLT_ORIGIN="$MDLT_ORIGIN" bash -c '. "'"$rigHere"'/client/AgentsTools.ClientToolPolicy.include" ; AgentsToolsClientToolPolicyHookRecords' | LC_ALL=C awk -F'\t' '$5 == "allow-granted-native-tool.sh" { print $1 ":" $2 ":" $4 }' )" "PreToolUse:native:Read|Edit|Write|MultiEdit|NotebookEdit|Grep|Glob"
+rigAssert "the policy states it, class native" "$( env -i PATH=/usr/bin:/bin MDLT_ORIGIN="$MDLT_ORIGIN" bash -c '. "'"$rigHere"'/client/AgentsTools.ClientToolPolicy.include" ; AgentsToolsClientToolPolicyHookRecords' | LC_ALL=C awk -F'\t' '$5 == "allow-granted-native-tool.sh" { print $1 ":" $2 ":" $4 ; }' )" "PreToolUse:native:Read|Edit|Write|MultiEdit|NotebookEdit|Grep|Glob"
 rigAssert "and the harness hook list leaves it out, with no fault" "$( env -i PATH=/usr/bin:/bin MDLT_ORIGIN="$MDLT_ORIGIN" bash -c '
 	. "'"$rigHere"'/client/AgentsTools.ClientToolPolicy.include" ; . "'"$rigHere"'/harness/AgentsHarnessHooksLoad.include"
 	harnessHooksList="" harnessHooksFault="" harnessHooksSkipped=0

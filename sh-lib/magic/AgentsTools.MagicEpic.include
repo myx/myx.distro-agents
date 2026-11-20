@@ -31,11 +31,11 @@
 ## line the span opens on, the id taken off it. Printed, one line.
 AgentsToolsMagicEpicDoneText(){ ## file, the span's first line, its last line, the id
 	LC_ALL=C awk -v spanFirst="$2" -v spanLast="$3" -v idText="$4" '
-		NR < spanFirst || NR > spanLast { next }
-		NR == spanFirst { title = $0 ; sub( /^#+ /, "", title ) ; if ( index( title, idText " " ) == 1 ) title = substr( title, length( idText ) + 2 ) ; sub( /^[-:] /, "", title ) ; next }
-		$0 ~ /^Status: / { next }
-		NF { held = $0 ; sub( /^[[:space:]]*\*\*Settled [^*]*\*\*[[:space:]]*/, "", held ) }
-		END { print ( held != "" ? held : title ) }
+		NR < spanFirst || NR > spanLast { next ; }
+		NR == spanFirst { title = $0 ; sub( /^#+ /, "", title ) ; if ( index( title, idText " " ) == 1 ) title = substr( title, length( idText ) + 2 ) ; sub( /^[-:] /, "", title ) ; next ; }
+		$0 ~ /^Status: / { next ; }
+		NF { held = $0 ; sub( /^[[:space:]]*\*\*Settled [^*]*\*\*[[:space:]]*/, "", held ) ; }
+		END { print ( held != "" ? held : title ) ; }
 	' "$1"
 }
 
@@ -46,31 +46,31 @@ AgentsToolsMagicEpicDoneText(){ ## file, the span's first line, its last line, t
 AgentsToolsMagicEpicPlace(){ ## the epic file, the id, the operation as the caller's own message shows it
 	local placeOut=""
 	placeOut="$( EPIC_ID="$2" EPIC_FILE="$1" PLACE_OP="$3" LC_ALL=C awk -v cmdText="$MDSC_CMD" '
-		function headingName(textIn,   rest) { rest = textIn ; sub( /^#+ /, "", rest ) ; sub( /[ \t].*$/, "", rest ) ; return rest }
-		function idShaped(textIn) { return textIn ~ /^S[0-9]+(\.[0-9]+)?$/ }
-		function fault(textIn) { printf "⛔ ERROR: %s %s: %s in %s\n", cmdText, ENVIRON["PLACE_OP"], textIn, ENVIRON["EPIC_FILE"] > "/dev/stderr" ; exit 1 }
+		function headingName(textIn,   rest) { rest = textIn ; sub( /^#+ /, "", rest ) ; sub( /[ \t].*$/, "", rest ) ; return rest ; }
+		function idShaped(textIn) { return textIn ~ /^S[0-9]+(\.[0-9]+)?$/ ; }
+		function fault(textIn) { printf "⛔ ERROR: %s %s: %s in %s\n", cmdText, ENVIRON["PLACE_OP"], textIn, ENVIRON["EPIC_FILE"] > "/dev/stderr" ; exit 1 ; }
 		BEGIN {
 			idText = ENVIRON["EPIC_ID"] ; dotAt = 0 ;
-			for (at = length( idText ) ; at > 0 ; at--) if ( substr( idText, at, 1 ) == "." ) { dotAt = at ; break }
+			for (at = length( idText ) ; at > 0 ; at--) if ( substr( idText, at, 1 ) == "." ) { dotAt = at ; break ; }
 			featureText = ( dotAt ? substr( idText, 1, dotAt - 1 ) : idText ) ;
 			itemText = ( dotAt ? substr( idText, dotAt + 1 ) : "" ) ;
 			fenced = 0 ; spaceText = "" ; spaceLevel = 0 ; headCount = 0 ; headFirst = 0 ; headLast = 0 ; headLevel = 0 ;
 			itemTotal = 0 ; itemFirst = 0 ; itemLast = 0 ; itemOpen = 0 ;
 		}
 		{
-			if ( index( $0, "```" ) == 1 ) { fenced = ! fenced ; next }
-			if ( fenced ) { next }
-			if ( itemOpen && $0 ~ /^[ \t]/ ) { itemLast = FNR ; next }
+			if ( index( $0, "```" ) == 1 ) { fenced = ! fenced ; next ; }
+			if ( fenced ) { next ; }
+			if ( itemOpen && $0 ~ /^[ \t]/ ) { itemLast = FNR ; next ; }
 			itemOpen = 0
 			if ( match( $0, /^#+ / ) ) {
 				level = RLENGTH - 1 ; nameText = headingName( $0 ) ;
-				if ( headFirst > 0 && headLast == 0 && level <= headLevel ) { headLast = FNR - 1 }
-				if ( idShaped( nameText ) ) { spaceText = nameText ; spaceLevel = level }
-				else if ( spaceText != "" && level <= spaceLevel ) { spaceText = "" }
-				if ( nameText == idText ) { if ( headFirst == 0 ) { headFirst = FNR ; headLevel = level } ; headCount++ }
+				if ( headFirst > 0 && headLast == 0 && level <= headLevel ) { headLast = FNR - 1 ; }
+				if ( idShaped( nameText ) ) { spaceText = nameText ; spaceLevel = level ; }
+				else if ( spaceText != "" && level <= spaceLevel ) { spaceText = "" ; }
+				if ( nameText == idText ) { if ( headFirst == 0 ) { headFirst = FNR ; headLevel = level ; } ; headCount++ ; }
 				next
 			}
-			if ( itemText != "" && spaceText == featureText && $0 ~ ( "^" itemText "[.][ \t]" ) ) { itemTotal++ ; itemFirst = FNR ; itemLast = FNR ; itemOpen = 1 }
+			if ( itemText != "" && spaceText == featureText && $0 ~ ( "^" itemText "[.][ \t]" ) ) { itemTotal++ ; itemFirst = FNR ; itemLast = FNR ; itemOpen = 1 ; }
 		}
 		END {
 			if ( headCount > 1 ) fault( ( itemText == "" ? "feature " : "item " ) idText " must stand exactly once" )
@@ -79,7 +79,7 @@ AgentsToolsMagicEpicPlace(){ ## the epic file, the id, the operation as the call
 				if ( itemTotal > 0 ) printf "⚠️ WARNING: %s %s: %s stands as a heading at line %d and as item %s of %s at line %d -- the heading is the one used\n", cmdText, ENVIRON["PLACE_OP"], idText, headFirst, itemText, featureText, itemFirst > "/dev/stderr"
 				printf "heading %d %d\n", headFirst, headLast ; exit 0
 			}
-			if ( itemTotal == 1 ) { printf "item %d %d\n", itemFirst, itemLast ; exit 0 }
+			if ( itemTotal == 1 ) { printf "item %d %d\n", itemFirst, itemLast ; exit 0 ; }
 			fault( ( itemText == "" ? "feature " : "item " ) idText " must stand exactly once" )
 		}
 	' "$1" )" || return 1
@@ -218,17 +218,17 @@ case "$1" in
 					## The line goes through the environment, never -v, which decodes a backslash in it (MAGIC.md section 3).
 					EPIC_LINE="$statusDoneLine" LC_ALL=C awk -v spanFirst="${statusSpan%% *}" -v spanLast="${statusSpan##* }" '
 						function emit(lineIn) { print lineIn ; lastBlank = ( lineIn ~ /^[ \t]*$/ ) ; }
-						BEGIN { line = ENVIRON["EPIC_LINE"] ; seenDone = 0 ; lastBlank = 0 ; heldBlank = 0 }
+						BEGIN { line = ENVIRON["EPIC_LINE"] ; seenDone = 0 ; lastBlank = 0 ; heldBlank = 0 ; }
 						{
-							if ( $0 == "## Done" ) { seenDone = 1 }
-							if ( NR >= spanFirst && NR <= spanLast ) { next }
+							if ( $0 == "## Done" ) { seenDone = 1 ; }
+							if ( NR >= spanFirst && NR <= spanLast ) { next ; }
 							## The blank line the closed item leaves behind goes only where one does not already stand.
-							if ( NR == spanLast + 1 && $0 ~ /^[ \t]*$/ ) { heldBlank = 1 ; next }
-							if ( heldBlank && ! lastBlank ) { emit( "" ) }
+							if ( NR == spanLast + 1 && $0 ~ /^[ \t]*$/ ) { heldBlank = 1 ; next ; }
+							if ( heldBlank && ! lastBlank ) { emit( "" ) ; }
 							heldBlank = 0
 							emit( $0 )
 						}
-						END { if ( ! seenDone ) { emit( "" ) ; emit( "## Done" ) } ; emit( line ) }
+						END { if ( ! seenDone ) { emit( "" ) ; emit( "## Done" ) ; } ; emit( line ) ; }
 					' "$epicFile" > "$statusTemp" || { rm -f -- "$statusTemp" ; set +e ; return 1 ; }
 					LC_ALL=C grep -q -F -x -- "$statusDoneLine" "$statusTemp" || { rm -f -- "$statusTemp" ; echo "⛔ ERROR: $MDSC_CMD --epic-update --set-status: the line is not in $epicShown after the write -- nothing was closed" >&2 ; set +e ; return 1 ; }
 					AgentsToolsMagicEpicPut "$statusTemp" "$epicFile" "$epicVaultName" || { set +e ; return 1 ; }
@@ -240,8 +240,8 @@ case "$1" in
 				## last, so a file without one gets it at its own end.
 				if [ "$featureStatus" = done ] ; then
 					statusItemCount="$( LC_ALL=C awk -v spanFirst="${statusSpan%% *}" -v spanLast="${statusSpan##* }" '
-						NR > spanFirst && NR <= spanLast && $0 ~ /^[0-9]+\. / { count++ }
-						END { print count + 0 }
+						NR > spanFirst && NR <= spanLast && $0 ~ /^[0-9]+\. / { count++ ; }
+						END { print count + 0 ; }
 					' "$epicFile" )"
 					[ "$statusItemCount" -eq 0 ] || {
 						echo "⛔ ERROR: $MDSC_CMD --epic-update --set-status: feature $featureId holds $statusItemCount open item(s) -- close each by its own id first: <feature-id>.<n> done <text...>" >&2
@@ -251,13 +251,13 @@ case "$1" in
 					statusDoneLine="- $featureId: $statusDoneText"
 					statusTemp="$( AgentsToolsMagicEpicTemp )" || { set +e ; return 1 ; }
 					EPIC_LINE="$statusDoneLine" LC_ALL=C awk -v spanFirst="${statusSpan%% *}" -v spanLast="${statusSpan##* }" '
-						BEGIN { line = ENVIRON["EPIC_LINE"] ; seenDone = 0 }
+						BEGIN { line = ENVIRON["EPIC_LINE"] ; seenDone = 0 ; }
 						{
-							if ( $0 == "## Done" ) { seenDone = 1 }
-							if ( NR >= spanFirst && NR <= spanLast ) { next }
+							if ( $0 == "## Done" ) { seenDone = 1 ; }
+							if ( NR >= spanFirst && NR <= spanLast ) { next ; }
 							print
 						}
-						END { if ( ! seenDone ) { print "" ; print "## Done" } ; print line }
+						END { if ( ! seenDone ) { print "" ; print "## Done" ; } ; print line ; }
 					' "$epicFile" > "$statusTemp" || { rm -f -- "$statusTemp" ; set +e ; return 1 ; }
 					LC_ALL=C grep -q -F -x -- "$statusDoneLine" "$statusTemp" || { rm -f -- "$statusTemp" ; echo "⛔ ERROR: $MDSC_CMD --epic-update --set-status: the line is not in $epicShown after the write -- nothing was closed" >&2 ; set +e ; return 1 ; }
 					AgentsToolsMagicEpicPut "$statusTemp" "$epicFile" "$epicVaultName" || { set +e ; return 1 ; }
@@ -266,12 +266,12 @@ case "$1" in
 				fi
 				statusTemp="$( AgentsToolsMagicEpicTemp )" || { set +e ; return 1 ; }
 				EPIC_LINE="Status: $featureStatus" LC_ALL=C awk -v spanFirst="${statusSpan%% *}" -v spanLast="${statusSpan##* }" '
-					BEGIN { new = ENVIRON["EPIC_LINE"] ; placed = 0 }
+					BEGIN { new = ENVIRON["EPIC_LINE"] ; placed = 0 ; }
 					{
 						## A feature with no Status: line gets it at the end of its span, and one that has it keeps its place.
-						if ( NR > spanFirst && NR <= spanLast && $0 ~ /^Status: / ) { print new ; placed = 1 ; next }
+						if ( NR > spanFirst && NR <= spanLast && $0 ~ /^Status: / ) { print new ; placed = 1 ; next ; }
 						print
-						if ( NR == spanLast && ! placed ) { print new ; print "" ; placed = 1 }
+						if ( NR == spanLast && ! placed ) { print new ; print "" ; placed = 1 ; }
 					}
 				' "$epicFile" > "$statusTemp" || { rm -f -- "$statusTemp" ; set +e ; return 1 ; }
 					AgentsToolsMagicEpicPut "$statusTemp" "$epicFile" "$epicVaultName" || { set +e ; return 1 ; }
@@ -299,11 +299,11 @@ case "$1" in
 				settledLine="$settledText"
 				settledTemp="$( AgentsToolsMagicEpicTemp )" || { set +e ; return 1 ; }
 				EPIC_LINE="$settledLine" LC_ALL=C awk -v spanFirst="${settledSpan%% *}" -v spanLast="${settledSpan##* }" '
-					BEGIN { line = ENVIRON["EPIC_LINE"] ; placed = 0 }
+					BEGIN { line = ENVIRON["EPIC_LINE"] ; placed = 0 ; }
 					{
 						## A feature with no Status: line gets the settlement before the span ends, not only at the end of the file.
-						if ( NR > spanFirst && NR <= spanLast && $0 ~ /^Status: / ) { print $0 ; print "" ; print line ; placed = 1 ; next }
-						if ( NR == spanLast && ! placed ) { print "" ; print line ; placed = 1 }
+						if ( NR > spanFirst && NR <= spanLast && $0 ~ /^Status: / ) { print $0 ; print "" ; print line ; placed = 1 ; next ; }
+						if ( NR == spanLast && ! placed ) { print "" ; print line ; placed = 1 ; }
 						print
 					}
 				' "$epicFile" > "$settledTemp" || { rm -f -- "$settledTemp" ; set +e ; return 1 ; }
@@ -381,7 +381,7 @@ case "$1" in
 					printf '%s REFUSED: no valid epic-blueprint name, so no read and no write reaches it\n' "${listFile##*/}"
 					continue
 				fi
-				listCount="$( LC_ALL=C awk 'index( $0, "## " ) == 1 { n++ } END { print n + 0 }' "$listFile" )"
+				listCount="$( LC_ALL=C awk 'index( $0, "## " ) == 1 { n++ ; } END { print n + 0 ; }' "$listFile" )"
 				printf '%s %s sections\n' "${listFile##*/}" "$listCount"
 			done
 			[ "$listFound" = yes ] || printf 'EPIC-LIST: no epic item in %s/vault\n' "$MDAT_DATA_ROOT"
@@ -399,7 +399,7 @@ case "$1" in
 		for listFile in "$listDir"/*.epic.md ; do
 			[ -f "$listFile" ] || continue
 			listFound=yes
-			listCount="$( LC_ALL=C awk 'index( $0, "## " ) == 1 { n++ } END { print n + 0 }' "$listFile" )"
+			listCount="$( LC_ALL=C awk 'index( $0, "## " ) == 1 { n++ ; } END { print n + 0 ; }' "$listFile" )"
 			printf '%s %s sections\n' "${listFile##*/}" "$listCount"
 		done
 		[ "$listFound" = yes ] || printf 'EPIC-LIST: no epic file in %s\n' "$listDir"

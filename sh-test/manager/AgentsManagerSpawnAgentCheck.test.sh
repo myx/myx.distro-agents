@@ -63,7 +63,7 @@ rigRun "$rigOp"
 rigStdin=/dev/null ; rigPre=()
 rigWaitFor 20 rigNoted
 rigAssert "the call ends 0 with no error and no warning" "$rigRc $( rigTroubles )" "0 0"
-rigAssert "one row: spawn-agent, a pid, and that the configured CLI is used" "$( LC_ALL=C awk -F'\t' '{ print $1, ($2 ~ /^[0-9]+$/ ? "pid" : "nopid"), $3 }' "$rigTmp/out" )" "spawn-agent pid configured"
+rigAssert "one row: spawn-agent, a pid, and that the configured CLI is used" "$( LC_ALL=C awk -F'\t' '{ print $1, ($2 ~ /^[0-9]+$/ ? "pid" : "nopid"), $3 ; }' "$rigTmp/out" )" "spawn-agent pid configured"
 rigAssert "the console got --cli-configured and --non-interactive, and no word of the prompt as an argument" "[$( rigField args )]" "[--cli-configured --non-interactive]"
 rigAssert "the prompt reached its standard input" "[$( rigField stdin )]" "[say the word of the rig]"
 rigAssert "the console was told the run is bare, and given an empty member, not none" "$( rigField bare ) $( rigField agent )" "true []"

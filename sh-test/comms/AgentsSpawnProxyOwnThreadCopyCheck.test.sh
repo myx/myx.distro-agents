@@ -37,7 +37,7 @@ printf '%s\n' "$rigThread" > "$rigWs/.local/agents/sessions/$rigSession/session.
 rigPassCount=0
 rigFailCount=0
 rigAssert(){ if [ "$2" = "$3" ] ; then rigPassCount=$(( rigPassCount + 1 )) ; else rigFailCount=$(( rigFailCount + 1 )) ; printf '  FAIL  %s\n        got:  %s\n        want: %s\n' "$1" "$2" "$3" ; fi ; }
-rigDeliveredCount(){ LC_ALL=C awk -F'\t' '$4 == "delivered" { n++ } END { print n + 0 }' "$rigWs/.local/agents/sessions/$rigSession/session.chat.index" 2>/dev/null ; }
+rigDeliveredCount(){ LC_ALL=C awk -F'\t' '$4 == "delivered" { n++ ; } END { print n + 0 ; }' "$rigWs/.local/agents/sessions/$rigSession/session.chat.index" 2>/dev/null ; }
 rigNotice(){ ## extra NAME=value words (empty for before)
 	: > "$rigTmp/bodies"
 	( cd "$rigWs" && env -i PATH="$rigTmp/bin:/usr/bin:/bin" HOME="$rigTmp" RIG_SCENARIO="$rigTmp" MMDAPP="$rigWs" MYXROOT="${MYXROOT:-/usr/local/share/myx.common}" \

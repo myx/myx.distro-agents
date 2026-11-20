@@ -32,7 +32,7 @@ AgentsToolsSolidGateMarkerWrite(){ ## workspace path, total, package root -- the
 	## has moved since it was last clean.
 	gateZero="-"
 	if [ -s "$gateMarker" ] ; then
-		gateZero="$( LC_ALL=C awk '$1 == "zero-at" { print $2 ; exit }' "$gateMarker" )" || gateZero="-"
+		gateZero="$( LC_ALL=C awk '$1 == "zero-at" { print $2 ; exit ; }' "$gateMarker" )" || gateZero="-"
 		case "$gateZero" in ''|-) gateZero="-" ;; esac
 	fi
 	[ "$gateTotal" != 0 ] || gateZero="$gateNow"
@@ -47,11 +47,11 @@ AgentsToolsSuperviseSolidDelta(){ ## workspace path, now (epoch) -- one `solid-d
 	local deltaAtEpoch deltaZeroEpoch deltaAtAge="-" deltaZeroAge="none" deltaCount=0 deltaPaths="" deltaListed deltaPath deltaSince
 	deltaMarker="${deltaWs}/.local/agents/solid-gate.last"
 	[ -s "$deltaMarker" ] || return 0
-	deltaTotal="$( LC_ALL=C awk '$1 == "total" { print $2 ; exit }' "$deltaMarker" )" || deltaTotal=""
+	deltaTotal="$( LC_ALL=C awk '$1 == "total" { print $2 ; exit ; }' "$deltaMarker" )" || deltaTotal=""
 	case "$deltaTotal" in ''|*[!0123456789]*) return 0 ;; esac
-	deltaAt="$( LC_ALL=C awk '$1 == "at" { print $2 ; exit }' "$deltaMarker" )" || deltaAt=""
-	deltaZero="$( LC_ALL=C awk '$1 == "zero-at" { print $2 ; exit }' "$deltaMarker" )" || deltaZero=""
-	deltaPackage="$( LC_ALL=C awk '$1 == "package" { print $2 ; exit }' "$deltaMarker" )" || deltaPackage=""
+	deltaAt="$( LC_ALL=C awk '$1 == "at" { print $2 ; exit ; }' "$deltaMarker" )" || deltaAt=""
+	deltaZero="$( LC_ALL=C awk '$1 == "zero-at" { print $2 ; exit ; }' "$deltaMarker" )" || deltaZero=""
+	deltaPackage="$( LC_ALL=C awk '$1 == "package" { print $2 ; exit ; }' "$deltaMarker" )" || deltaPackage=""
 	if [ -n "$deltaAt" ] ; then
 		deltaAtEpoch="$( AgentsToolsSolidGateEpochOf "$deltaAt" )" || deltaAtEpoch=""
 		case "$deltaAtEpoch" in ''|*[!0123456789]*) ;; *) deltaAtAge="$(( ( deltaNow - deltaAtEpoch ) / 60 ))m" ;; esac

@@ -144,7 +144,7 @@ AgentsToolsSpawnSandboxFolderState(){ ## folder name, item stem going away
 	AgentsToolsBoardItemsInto boardFiles
 	[ ${#boardFiles[@]} -gt 0 ] || { echo removable ; return 0 ; }
 	if LC_ALL=C awk -v wantIds="$spawnIds" -v skipStem="$skipStem" '
-		BEGIN { idCount = split( wantIds, idParts, " " ) ; for ( idIndex = 1 ; idIndex <= idCount ; idIndex++ ) { idSet[idParts[idIndex]] = 1 ; } }
+		BEGIN { idCount = split( wantIds, idParts, " " ) ; for ( idIndex = 1 ; idIndex <= idCount ; idIndex++ ) { idSet[idParts[idIndex]] = 1 ; } ; }
 		FNR == 1 { fmCount = 0 ; fileBase = FILENAME ; sub( /^.*\//, "", fileBase ) ; skipFile = ( fileBase == skipStem ".md" ) ; }
 		skipFile { next ; }
 		$0 == "---" { fmCount++ ; next ; }

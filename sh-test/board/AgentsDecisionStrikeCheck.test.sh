@@ -54,7 +54,7 @@ rigToolsOp(){ ## output name, arguments... -- one call of the tools dispatcher i
 		bash "$rigToolsFn" "$@" ) > "$rigTmp/$opOut" 2> "$rigTmp/$opOut.err" || rigRc=$?
 }
 rigSection(){ ## item file -> its Decisions lines, in file order
-	LC_ALL=C awk '/^## Decisions[ \t]*$/ { on = 1 ; next } on && /^##? / { on = 0 } on && /^- / { print }' "$1"
+	LC_ALL=C awk '/^## Decisions[ \t]*$/ { on = 1 ; next ; } on && /^##? / { on = 0 ; } on && /^- / { print ; }' "$1"
 }
 rigLine(){ ## the recorded line holding this text, whole
 	rigSection "$rigData/board/running/$rigTask.md" | LC_ALL=C grep -F -- "$1" | head -1

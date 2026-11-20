@@ -19,10 +19,10 @@ AgentsToolsCheckListSectionItems(){
 ## its `## <feature> - <title>` section, which any heading ends. Nothing where the feature stands not once in that file.
 AgentsToolsCheckListEpicFeatureItems(){ ## epic file, feature id
 	[ -f "$1" ] || return 0
-	[ "$( LC_ALL=C awk -v want="## $2 " 'index( $0, want ) == 1 { n++ } END { print n + 0 }' "$1" )" -eq 1 ] || return 0
+	[ "$( LC_ALL=C awk -v want="## $2 " 'index( $0, want ) == 1 { n++ ; } END { print n + 0 ; }' "$1" )" -eq 1 ] || return 0
 	LC_ALL=C awk -v feat="$2" '
-		index( $0, "## " feat " " ) == 1 { inFeature = 1 ; next }
-		inFeature && /^#+/ { exit }
+		index( $0, "## " feat " " ) == 1 { inFeature = 1 ; next ; }
+		inFeature && /^#+/ { exit ; }
 		inFeature && /^[0-9]+\. / {
 			itemText = $0 ; sub( /^[0-9]+\. +/, "", itemText ) ; sub( /[ \t\r]+$/, "", itemText )
 			if ( itemText != "" ) print itemText
@@ -35,7 +35,7 @@ AgentsToolsCheckListEpicFeatureItems(){ ## epic file, feature id
 AgentsToolsCheckListEpicItems(){ ## the workspace the text may name the epic file under
 	local epicText epicToken epicPath epicIds epicPlace epicRest
 	epicText="$( cat )"
-	epicToken="$( printf '%s\n' "$epicText" | LC_ALL=C awk 'match( $0, /[-A-Za-z0-9_.\/]+\.epic\.md/ ) { print substr( $0, RSTART, RLENGTH ) ; exit }' )"
+	epicToken="$( printf '%s\n' "$epicText" | LC_ALL=C awk 'match( $0, /[-A-Za-z0-9_.\/]+\.epic\.md/ ) { print substr( $0, RSTART, RLENGTH ) ; exit ; }' )"
 	[ -n "$epicToken" ] || return 0
 	epicPath=""
 	case "$epicToken" in
@@ -63,11 +63,11 @@ AgentsToolsCheckListEpicItems(){ ## the workspace the text may name the epic fil
 			}
 		}
 	' )"
-	if [ "$( printf '%s\n' "$epicIds" | LC_ALL=C awk 'NF { n++ } END { print n + 0 }' )" -ne 1 ] ; then
+	if [ "$( printf '%s\n' "$epicIds" | LC_ALL=C awk 'NF { n++ ; } END { print n + 0 ; }' )" -ne 1 ] ; then
 		[ -z "$epicIds" ] || echo "agent-spawn-proxy: ⚠️ WARNING: this dispatch names more than one epic feature, so its open work seeds nothing" >&2
 		return 0
 	fi
-	[ "$( LC_ALL=C awk -v want="## $epicIds " 'index( $0, want ) == 1 { n++ } END { print n + 0 }' "$epicPath" )" -eq 1 ] || epicIds="${epicIds%.*}"
+	[ "$( LC_ALL=C awk -v want="## $epicIds " 'index( $0, want ) == 1 { n++ ; } END { print n + 0 ; }' "$epicPath" )" -eq 1 ] || epicIds="${epicIds%.*}"
 	AgentsToolsCheckListEpicFeatureItems "$epicPath" "$epicIds"
 }
 
@@ -83,7 +83,7 @@ AgentsToolsCheckListEpicItems(){ ## the workspace the text may name the epic fil
 AgentsToolsCheckListRoutineSteps(){ ## session id, spawn id, the member names (a line each, may be empty)
 	CHECKLIST_MEMBERS="${3:-}" LC_ALL=C awk -v sessionId="$1" -v spawnId="$2" '
 		function level( headLine,   levelNo ) { levelNo = 0 ; while ( substr( headLine, levelNo + 1, 1 ) == "#" ) levelNo++ ; return levelNo ; }
-		BEGIN { memberCount = split( ENVIRON["CHECKLIST_MEMBERS"], memberOne, "\n" ) ; for ( i = 1 ; i <= memberCount ; i++ ) { gsub( /^[ \t]+|[ \t]+$/, "", memberOne[i] ) ; if ( memberOne[i] != "" ) member[memberOne[i]] = 1 } }
+		BEGIN { memberCount = split( ENVIRON["CHECKLIST_MEMBERS"], memberOne, "\n" ) ; for ( i = 1 ; i <= memberCount ; i++ ) { gsub( /^[ \t]+|[ \t]+$/, "", memberOne[i] ) ; if ( memberOne[i] != "" ) member[memberOne[i]] = 1 ; } ; }
 		/^#+ / {
 			headLevel = level( $0 ) ; headText = substr( $0, headLevel + 2 ) ;
 			if ( headLevel == 1 ) {

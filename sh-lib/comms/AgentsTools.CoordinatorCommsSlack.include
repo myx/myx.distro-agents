@@ -459,7 +459,7 @@ AgentsToolsCommsSlackConversationsRoster(){ ## <team-member> [options] | --print
 		## fails to name (gone, or a lookup error) is left unmapped, not a failure
 		## of the roster: the join below already reads an unmapped id as "-".
 		local rosterCounterpartyIds=""
-		rosterCounterpartyIds="$( printf '%s\n' "$rosterLines" | LC_ALL=C awk -F '\t' '$4 != "" && !seen[$4]++ { print $4 }' )"
+		rosterCounterpartyIds="$( printf '%s\n' "$rosterLines" | LC_ALL=C awk -F '\t' '$4 != "" && !seen[$4]++ { print $4 ; }' )"
 		local rosterHandles="" rosterInfoId rosterInfoResp rosterInfoName
 		for rosterInfoId in $rosterCounterpartyIds ; do
 			## The caller's own bound, where one was handed down. A scan that sets

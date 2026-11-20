@@ -108,7 +108,7 @@ rigPostsIn(){ ## thread ts suffix, text
 }
 ## The one line of the result that starts with a prefix, or a value saying there is none.
 rigLineOf(){ ## prefix
-	LC_ALL=C awk -v wantPrefix="$1" 'index( $0, wantPrefix ) == 1 { print ; found = 1 ; exit ; } END { if ( ! found ) { print "no-" wantPrefix "line" ; } }' "$rigScenarioDir/out"
+	LC_ALL=C awk -v wantPrefix="$1" 'index( $0, wantPrefix ) == 1 { print ; found = 1 ; exit ; } END { if ( ! found ) { print "no-" wantPrefix "line" ; } ; }' "$rigScenarioDir/out"
 }
 ## The record of the scenario's one ask of a kind, and one field of a record.
 rigRecordOf(){ ## kind
@@ -125,7 +125,7 @@ rigField(){ ## pending id, field
 	## A closed record leaves the live store for pending/closed/ (AgentsTools.InternOpPendingReply.include).
 	local fieldRecord="$rigScenarioDir/ws/.local/agents/pending/$1.md"
 	[ -f "$fieldRecord" ] || fieldRecord="$rigScenarioDir/ws/.local/agents/pending/closed/$1.md"
-	LC_ALL=C awk -v key="$2" '$0 == "---" { if ( ++dashes == 2 ) { exit ; } next ; } dashes == 1 && index( $0, key ": " ) == 1 { print substr( $0, length( key ) + 3 ) ; found = 1 ; exit ; } END { if ( ! found ) { print "none" ; } }' "$fieldRecord" 2>/dev/null || printf 'no-record'
+	LC_ALL=C awk -v key="$2" '$0 == "---" { if ( ++dashes == 2 ) { exit ; } next ; } dashes == 1 && index( $0, key ": " ) == 1 { print substr( $0, length( key ) + 3 ) ; found = 1 ; exit ; } END { if ( ! found ) { print "none" ; } ; }' "$fieldRecord" 2>/dev/null || printf 'no-record'
 }
 rigRefusal(){ ## output file -> the refusal id it printed
 	LC_ALL=C sed -n 's/^REFUSAL-ID: \(refusal-[0-9a-f-]*\)$/\1/p' "$1" | head -1

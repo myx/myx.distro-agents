@@ -78,7 +78,7 @@ AgentsToolsSessionRoutineStackRecord(){ ## session id
 		stackFrames="$( LC_ALL=C anchor="$1" awk '
 			NR == 1 { if ( $0 != "---" ) exit 1 ; next ; }
 			$0 == "---" { exit ( mine ? 0 : 1 ) ; }
-			index( $0, "session-id: " ) == 1 { if ( substr( $0, 13 ) == ENVIRON["anchor"] ) { mine = 1 } ; next ; }
+			index( $0, "session-id: " ) == 1 { if ( substr( $0, 13 ) == ENVIRON["anchor"] ) { mine = 1 ; } ; next ; }
 			mine && index( $0, "routine-stack: " ) == 1 { print ; }
 		' "$stackRecord" 2> /dev/null )" || continue
 		[ -z "$stackFrames" ] || { printf '%s\n' "$stackRecord" ; return 0 ; }
@@ -93,7 +93,7 @@ AgentsToolsSessionRoutineStackRecord(){ ## session id
 AgentsToolsSessionRoutineStackLines(){ ## session id
 	local stackRecord
 	stackRecord="$( AgentsToolsSessionRoutineStackRecord "$1" )" || return 0
-	LC_ALL=C awk '$0 == "---" { if ( ++dashes == 2 ) exit ; next } dashes == 1 && index( $0, "routine-stack: " ) == 1 { print }' "$stackRecord" 2> /dev/null
+	LC_ALL=C awk '$0 == "---" { if ( ++dashes == 2 ) exit ; next ; } dashes == 1 && index( $0, "routine-stack: " ) == 1 { print ; }' "$stackRecord" 2> /dev/null
 	return 0
 }
 
@@ -120,21 +120,21 @@ AgentsToolsRoutineStackMoved(){ ## verb, the routine file a push, replace or ret
 			frameName[++frameCount] = name ; frameState[frameCount] = state
 		}
 		function emit( i ) { printf "%s:%s\n", frameName[i], frameState[i] ; }
-		{ if ( $0 != "" ) splitFrame( $0 ) }
+		{ if ( $0 != "" ) splitFrame( $0 ) ; }
 		END {
 			if ( verb == "push" || verb == "replace" ) {
-				if ( frameCount > 0 ) { frameState[frameCount] = ( verb == "push" ? "open" : "skipped" ) }
+				if ( frameCount > 0 ) { frameState[frameCount] = ( verb == "push" ? "open" : "skipped" ) ; }
 				frameName[++frameCount] = want ; frameState[frameCount] = "current"
 			} else if ( verb == "return" || verb == "return-to" ) {
 				target = 0
-				for ( i = frameCount - 1 ; i >= 1 ; i-- ) { if ( verb == "return" || frameName[i] == want ) { target = i ; break } }
-				if ( target == 0 ) { exit 1 }
-				for ( i = target + 1 ; i <= frameCount ; i++ ) { if ( frameState[i] != "skipped" ) { frameState[i] = "done" } }
+				for ( i = frameCount - 1 ; i >= 1 ; i-- ) { if ( verb == "return" || frameName[i] == want ) { target = i ; break ; } ; }
+				if ( target == 0 ) { exit 1 ; }
+				for ( i = target + 1 ; i <= frameCount ; i++ ) { if ( frameState[i] != "skipped" ) { frameState[i] = "done" ; } ; }
 				frameState[target] = "current"
 			} else if ( verb != "rewind" ) {
 				exit 1
 			}
-			for ( i = 1 ; i <= frameCount ; i++ ) { emit( i ) }
+			for ( i = 1 ; i <= frameCount ; i++ ) { emit( i ) ; }
 		}
 	'
 }
@@ -149,15 +149,15 @@ AgentsToolsRoutineStackFrameClosed(){ ## session id, the item whose accept close
 	closedLines="$( AgentsToolsSessionRoutineStackLines "$closedSession" | LC_ALL=C sed -n 's/^routine-stack: //p' )"
 	[ -n "$closedLines" ] || { printf '0\n' ; return 0 ; }
 	closedNew="$( printf '%s\n' "$closedLines" | LC_ALL=C awk '
-		{ frame[NR] = $0 }
+		{ frame[NR] = $0 ; }
 		END {
 			for ( i = NR ; i >= 1 ; i-- ) {
-				if ( frame[i] ~ /:current$/ ) { sub( /:current$/, ":done", frame[i] ) ; break }
+				if ( frame[i] ~ /:current$/ ) { sub( /:current$/, ":done", frame[i] ) ; break ; }
 			}
-			for ( i = 1 ; i <= NR ; i++ ) { print frame[i] }
+			for ( i = 1 ; i <= NR ; i++ ) { print frame[i] ; }
 		}
 	' )" || return 1
-	closedLive="$( printf '%s\n' "$closedNew" | LC_ALL=C awk '/:(current|open)$/ { n++ } END { print n + 0 }' )"
+	closedLive="$( printf '%s\n' "$closedNew" | LC_ALL=C awk '/:(current|open)$/ { n++ ; } END { print n + 0 ; }' )"
 	if [ "$closedLive" != 0 ] ; then
 		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.LocalLock.include"
 		AgentsToolsLocalLockTake "routine-stack-$closedSession" 30 "the routine stack of $closedSession" || return 1
@@ -182,11 +182,11 @@ AgentsToolsRoutineStackFrameClosed(){ ## session id, the item whose accept close
 AgentsToolsRoutineStackFrameRow(){ ## record path
 	local frameText frameMoved frameEpoch
 	frameText="$( LC_ALL=C awk '
-		function instantOf( line,   at, value ) { at = index( line, " at: " ) ; if ( at == 0 ) { return "" } ; value = substr( line, at + 5 ) ; sub( / by: .*/, "", value ) ; return value }
-		$0 == "---" { if ( ++dashes == 2 ) { exit } ; next }
-		dashes != 1 { next }
-		index( $0, "routine-stack: " ) == 1 { frame[++frameCount] = substr( $0, 16 ) ; next }
-		index( $0, "started-at: " ) == 1 && started == "" { started = substr( $0, 13 ) ; next }
+		function instantOf( line,   at, value ) { at = index( line, " at: " ) ; if ( at == 0 ) { return "" ; } ; value = substr( line, at + 5 ) ; sub( / by: .*/, "", value ) ; return value ; }
+		$0 == "---" { if ( ++dashes == 2 ) { exit ; } ; next ; }
+		dashes != 1 { next ; }
+		index( $0, "routine-stack: " ) == 1 { frame[++frameCount] = substr( $0, 16 ) ; next ; }
+		index( $0, "started-at: " ) == 1 && started == "" { started = substr( $0, 13 ) ; next ; }
 		index( $0, "routine-stack-" ) == 1 {
 			verb = $1 ; sub( /:$/, "", verb ) ; sub( /^routine-stack-/, "", verb )
 			movedName[++moveCount] = $2 ; movedVerb[moveCount] = verb ; movedAt[moveCount] = instantOf( $0 )
@@ -194,7 +194,7 @@ AgentsToolsRoutineStackFrameRow(){ ## record path
 		END {
 			top = "-" ; open = 0
 			for ( i = 1 ; i <= frameCount ; i++ ) {
-				if ( frame[i] ~ /:current$/ ) { top = frame[i] ; sub( /:current$/, "", top ) }
+				if ( frame[i] ~ /:current$/ ) { top = frame[i] ; sub( /:current$/, "", top ) ; }
 				if ( frame[i] ~ /:open$/ ) open++
 			}
 			repeat = 0 ; when = ""
@@ -251,15 +251,15 @@ AgentsToolsBoardAcceptFrameClosed(){ ## item path, the item file name
 AgentsToolsRoutineStackRecordText(){ ## the text of the record on standard input
 	LC_ALL=C awk '
 		function putFrames(   count, one, at ) {
-			if ( placed ) { return }
+			if ( placed ) { return ; }
 			count = split( ENVIRON["STACK_FRAMES_NEW"], one, "\n" )
-			for ( at = 1 ; at <= count ; at++ ) { if ( one[at] != "" ) { printf "routine-stack: %s\n", one[at] } }
+			for ( at = 1 ; at <= count ; at++ ) { if ( one[at] != "" ) { printf "routine-stack: %s\n", one[at] ; } ; }
 			placed = 1
 		}
-		NR == 1 && $0 == "---" { inFront = 1 ; print ; next }
-		inFront && $0 == "---" { putFrames() ; if ( ENVIRON["STACK_MOVE_LINE"] != "" ) { print ENVIRON["STACK_MOVE_LINE"] } ; print ; inFront = 0 ; next }
-		inFront && index( $0, "routine-stack: " ) == 1 { putFrames() ; next }
-		{ print }
+		NR == 1 && $0 == "---" { inFront = 1 ; print ; next ; }
+		inFront && $0 == "---" { putFrames() ; if ( ENVIRON["STACK_MOVE_LINE"] != "" ) { print ENVIRON["STACK_MOVE_LINE"] ; } ; print ; inFront = 0 ; next ; }
+		inFront && index( $0, "routine-stack: " ) == 1 { putFrames() ; next ; }
+		{ print ; }
 	'
 }
 
@@ -365,7 +365,7 @@ AgentsToolsRoutineStackMove(){ ## the verb, the routine file a push, replace or 
 	## Stage 3 of the result: the steps of the frame as its run reads them, and the step a moved run starts at. A rewind
 	## runs the steps of the frame again from the first; any other move starts at the first step its own list has not closed.
 	if [ -n "$moveStepList" ] ; then
-		moveSteps="$( printf '%s\n' "$moveStepList" | LC_ALL=C awk 'BEGIN { ORS = "" } { printf "%s%s", ( NR > 1 ? ", " : "" ), $0 }' )"
+		moveSteps="$( printf '%s\n' "$moveStepList" | LC_ALL=C awk 'BEGIN { ORS = "" ; } { printf "%s%s", ( NR > 1 ? ", " : "" ), $0 ; }' )"
 		if [ "$moveVerb" = "rewind" ] ; then
 			moveStart="${moveSteps%%,*}"
 		else
@@ -383,7 +383,7 @@ AgentsToolsRoutineStackMove(){ ## the verb, the routine file a push, replace or 
 			|| echo "$MDSC_CMD: ⚠️ WARNING: --routine-stack $moveVerb: the move is recorded, and it could not be posted into the session's event-track thread" >&2
 	fi
 	printf 'OK: --routine-stack %s: %s is in force in session %s (%s frame(s)).\n' \
-		"$moveVerb" "$moveTopName" "$moveSession" "$( printf '%s\n' "$moveNew" | LC_ALL=C awk 'END { print NR + 0 }' )"
+		"$moveVerb" "$moveTopName" "$moveSession" "$( printf '%s\n' "$moveNew" | LC_ALL=C awk 'END { print NR + 0 ; }' )"
 	[ -z "$moveSteps" ] || printf '  steps: %s\n' "$moveSteps"
 	[ -z "$moveDropped" ] || printf '  checklist: %s\n' "$moveDropped"
 	[ -z "$moveStart" ] || printf '  start at: %s\n' "$moveStart"

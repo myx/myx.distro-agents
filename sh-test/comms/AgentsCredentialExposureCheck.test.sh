@@ -137,7 +137,7 @@ rigAssert "and it was removed after" "$( ls -1 "$rigHarnessDir/.local/agents/scr
 ( cd "$rigHarnessDir" && printf '{"pattern":"*","path":"%s"}' "$rigHarnessDir" | env -u MDAT_DATA_ROOT -u MDAT_SPAWN_SESSION_ID HOME="$rigTmp/home" \
 	MMDAPP="$rigHarnessDir" MDLT_ORIGIN="$MDLT_ORIGIN" bash "$rigHere/harness/AgentsUniversalHarness.sh" --intern-tool Glob \
 	--access-read-root "$rigHarnessDir" --access-write-root "$rigHarnessDir" ) > "$rigHarnessDir/served.out" 2> "$rigHarnessDir/served.err" || :
-rigAssert "a served call ran" "$( LC_ALL=C grep -c -F "$rigHarnessDir/out" "$rigHarnessDir/served.out" | LC_ALL=C awk '{ print ( $1 >= 1 ) ? "ran" : "not-run" }' )" ran
+rigAssert "a served call ran" "$( LC_ALL=C grep -c -F "$rigHarnessDir/out" "$rigHarnessDir/served.out" | LC_ALL=C awk '{ print ( $1 >= 1 ) ? "ran" : "not-run" ; }' )" ran
 rigAssert "and left no scratch in the workspace's scratch folder" \
 	"$( ls -1 "$rigHarnessDir/.local/agents/scratch" 2>/dev/null | LC_ALL=C grep -c '^AgentsUniversalHarness\.' )" 0
 ## With no workspace there is no scratch, and no call: never a fall back to the system's temp folder.

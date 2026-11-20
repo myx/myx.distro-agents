@@ -34,10 +34,10 @@ function storedPost(line,   fieldCount, field, first, tag, at, rest, text) {
 		tag = substr(rest, 1, at - 1)
 		text = substr(rest, at + 2)
 		if (text != "") heldLocalText[tag] = esc(text)
-		if (first ~ /^[0-9]+\.[0-9]+$/) { heldMsg[first] = 1 ; heldText[first] = (text != "" ? esc(text) : heldLocalText[tag]) ; heldLocalTs[tag] = first }
+		if (first ~ /^[0-9]+\.[0-9]+$/) { heldMsg[first] = 1 ; heldText[first] = (text != "" ? esc(text) : heldLocalText[tag]) ; heldLocalTs[tag] = first ; }
 		return
 	}
-	if (first ~ /^[0-9]+\.[0-9]+$/) { heldMsg[first] = 1 ; heldText[first] = esc(text) }
+	if (first ~ /^[0-9]+\.[0-9]+$/) { heldMsg[first] = 1 ; heldText[first] = esc(text) ; }
 }
 
 ## One stored event folded into what a new read is compared against: which messages are held, their text
@@ -45,16 +45,16 @@ function storedPost(line,   fieldCount, field, first, tag, at, rest, text) {
 ## files and the unfurl targets.
 function storedEvent(line, dir,   col, n, kind, mid, text) {
 	n = split(line, col, "\t")
-	if (n < 16) { storedPost(line) ; return }
+	if (n < 16) { storedPost(line) ; return ; }
 	kind = col[2] ; mid = col[3]
-	if (kind == "msg" || kind == "post") { heldMsg[mid] = 1 ; heldText[mid] = storedText(col[7], dir, col[16]) ; return }
-	if (kind == "edit") { heldText[mid] = storedText(col[7], dir, col[16]) ; return }
-	if (kind == "rx") { heldMark[mid, col[4], col[7]] = 1 ; return }
-	if (kind == "rx-") { delete heldMark[mid, col[4], col[7]] ; return }
-	if (kind == "thr") { heldThr[mid] = col[5] "\036" col[6] ; return }
-	if (kind == "thru") { heldThru[mid, col[4]] = 1 ; return }
-	if (kind == "fl") { heldFl[mid, col[5]] = 1 ; return }
-	if (kind == "att") { heldAtt[mid, col[5]] = 1 ; return }
+	if (kind == "msg" || kind == "post") { heldMsg[mid] = 1 ; heldText[mid] = storedText(col[7], dir, col[16]) ; return ; }
+	if (kind == "edit") { heldText[mid] = storedText(col[7], dir, col[16]) ; return ; }
+	if (kind == "rx") { heldMark[mid, col[4], col[7]] = 1 ; return ; }
+	if (kind == "rx-") { delete heldMark[mid, col[4], col[7]] ; return ; }
+	if (kind == "thr") { heldThr[mid] = col[5] "\036" col[6] ; return ; }
+	if (kind == "thru") { heldThru[mid, col[4]] = 1 ; return ; }
+	if (kind == "fl") { heldFl[mid, col[5]] = 1 ; return ; }
+	if (kind == "att") { heldAtt[mid, col[5]] = 1 ; return ; }
 }
 
 ## A stored body as the line would have carried it: the escaped column, or the body file's own text escaped
@@ -84,30 +84,30 @@ function renderedBody(idx,   text) {
 }
 
 function jfNodeHook(path, nodeType, nodeValue, fromPos, toPos,   idx, rest, after, j, num, field) {
-	if (path == "ok") { apiOk = nodeValue ; apiOkSeen = 1 ; return }
-	if (path == "error") { apiError = nodeValue ; return }
+	if (path == "ok") { apiOk = nodeValue ; apiOkSeen = 1 ; return ; }
+	if (path == "error") { apiError = nodeValue ; return ; }
 	if (index(path, "messages.") != 1) return
 	rest = substr(path, length("messages.") + 1)
 	idx = rest
 	sub(/\..*/, "", idx)
 	if (idx !~ /^[0-9]+$/) return
 	if (idx + 1 > msgCount) msgCount = idx + 1
-	if (rest == idx ".ts") { tsOf[idx] = nodeValue ; return }
-	if (rest == idx ".user") { userOf[idx] = nodeValue ; return }
-	if (rest == idx ".bot_id") { botOf[idx] = nodeValue ; return }
-	if (rest == idx ".subtype") { subOf[idx] = nodeValue ; return }
-	if (rest == idx ".thread_ts") { threadTsOf[idx] = nodeValue ; return }
-	if (rest == idx ".text") { textOf[idx] = nodeValue ; return }
-	if (rest == idx ".reply_count") { replyCountOf[idx] = nodeValue ; return }
-	if (rest == idx ".latest_reply") { latestReplyOf[idx] = nodeValue ; return }
+	if (rest == idx ".ts") { tsOf[idx] = nodeValue ; return ; }
+	if (rest == idx ".user") { userOf[idx] = nodeValue ; return ; }
+	if (rest == idx ".bot_id") { botOf[idx] = nodeValue ; return ; }
+	if (rest == idx ".subtype") { subOf[idx] = nodeValue ; return ; }
+	if (rest == idx ".thread_ts") { threadTsOf[idx] = nodeValue ; return ; }
+	if (rest == idx ".text") { textOf[idx] = nodeValue ; return ; }
+	if (rest == idx ".reply_count") { replyCountOf[idx] = nodeValue ; return ; }
+	if (rest == idx ".latest_reply") { latestReplyOf[idx] = nodeValue ; return ; }
 	if (index(rest, idx ".") != 1) return
 	after = substr(rest, length(idx) + 2)
-	if (after == "edited.user") { editedByOf[idx] = nodeValue ; return }
-	if (after == "metadata.event_payload.sender") { senderOf[idx] = nodeValue ; return }
-	if (after == "metadata.event_payload.author_run") { authorRunOf[idx] = nodeValue ; return }
-	if (after == "metadata.event_payload.addressee_run") { addresseeRunOf[idx] = nodeValue ; return }
-	if (after == "metadata.event_payload.tracking") { trackingOf[idx] = nodeValue ; return }
-	if (after == "metadata.event_payload.session") { sessionOf[idx] = nodeValue ; return }
+	if (after == "edited.user") { editedByOf[idx] = nodeValue ; return ; }
+	if (after == "metadata.event_payload.sender") { senderOf[idx] = nodeValue ; return ; }
+	if (after == "metadata.event_payload.author_run") { authorRunOf[idx] = nodeValue ; return ; }
+	if (after == "metadata.event_payload.addressee_run") { addresseeRunOf[idx] = nodeValue ; return ; }
+	if (after == "metadata.event_payload.tracking") { trackingOf[idx] = nodeValue ; return ; }
+	if (after == "metadata.event_payload.session") { sessionOf[idx] = nodeValue ; return ; }
 	if (index(after, "blocks.") == 1 && after ~ /\.text$/) {
 		j = substr(after, length("blocks.") + 1) ; sub(/\..*/, "", j)
 		if (j !~ /^[0-9]+$/) return
@@ -115,7 +115,7 @@ function jfNodeHook(path, nodeType, nodeValue, fromPos, toPos,   idx, rest, afte
 		blockLastOf[idx] = j
 		return
 	}
-	if (index(after, "reply_users.") == 1) { replyUsersOf[idx] = replyUsersOf[idx] " " nodeValue ; return }
+	if (index(after, "reply_users.") == 1) { replyUsersOf[idx] = replyUsersOf[idx] " " nodeValue ; return ; }
 	if (index(after, "reactions.") == 1) {
 		rest = substr(after, length("reactions.") + 1) ; j = rest ; sub(/\..*/, "", j)
 		if (j !~ /^[0-9]+$/) return
@@ -150,8 +150,8 @@ function jfNodeHook(path, nodeType, nodeValue, fromPos, toPos,   idx, rest, afte
 
 ## How many children of one nested array a message carries: awk 3 has no per-key count of its own, and a
 ## parallel name per array is one more thing to get wrong.
-function extCount(kind, idx) { return (extCountOf[kind, idx] == "" ? 0 : extCountOf[kind, idx]) }
-function extSet(kind, idx, value) { extCountOf[kind, idx] = value }
+function extCount(kind, idx) { return (extCountOf[kind, idx] == "" ? 0 : extCountOf[kind, idx]) ; }
+function extSet(kind, idx, value) { extCountOf[kind, idx] = value ; }
 
 ## The message id an unfurl points at, from Slack's own `/p<digits>` form (`…/p1793394716507419`).
 function unfurlTarget(url,   digits) {
@@ -161,7 +161,7 @@ function unfurlTarget(url,   digits) {
 	return digits
 }
 
-{ jfConsumeText($0) }
+{ jfConsumeText($0) ; }
 
 END {
 	if (apiOkSeen && apiOk == "false") {

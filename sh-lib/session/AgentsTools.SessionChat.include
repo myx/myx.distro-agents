@@ -82,7 +82,7 @@ AgentsToolsSessionChatNewestInto(){ ## variable, session, conversation:thread
 	printf -v "$1" '%s' 0
 	case "${2:-}" in ''|.|..|*/*|*[[:space:]]*) return 0 ;; esac
 	AgentsToolsSessionChatReadPath "$2" || return 0
-	newestValue="$( LC_ALL=C awk -F'\t' -v where="${3:-}" '$3 == where { split($2, part, ".") ; if ( ( part[1] + 0 ) > newest ) { newest = part[1] + 0 ; } } END { print newest + 0 ; }' "$agentsSessionChatReadPath" 2> /dev/null )" || newestValue=0
+	newestValue="$( LC_ALL=C awk -F'\t' -v where="${3:-}" '$3 == where { split($2, part, ".") ; if ( ( part[1] + 0 ) > newest ) { newest = part[1] + 0 ; } ; } END { print newest + 0 ; }' "$agentsSessionChatReadPath" 2> /dev/null )" || newestValue=0
 	AgentsToolsSessionChatReadPathDone
 	printf -v "$1" '%s' "${newestValue:-0}"
 	return 0
@@ -108,7 +108,7 @@ AgentsToolsSessionChatMessagesToSince(){ ## member, since epoch, since ISO stamp
 	done <<< "$( stat -f '%m %N' "${MMDAPP:-/nonexistent}/.local/agents/sessions"/*/session.chat 2> /dev/null || stat -c '%Y %n' "${MMDAPP:-/nonexistent}/.local/agents/sessions"/*/session.chat 2> /dev/null )"
 	[ ${#toChats[@]} -gt 0 ] || return 0
 	LC_ALL=C awk -v since="$3" -v member="$1" '
-		FNR == 1 { chatSession = FILENAME ; sub( /\/[^\/]*$/, "", chatSession ) ; sub( /.*\//, "", chatSession ) }
+		FNR == 1 { chatSession = FILENAME ; sub( /\/[^\/]*$/, "", chatSession ) ; sub( /.*\//, "", chatSession ) ; }
 		/^20[0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9:]+Z [a-z-]+ -> / {
 			chatTo = $0 ; sub( /^[^ ]+ [^ ]+ -> /, "", chatTo )
 			if ( index( chatTo, ":" ) == 0 ) next
@@ -127,9 +127,9 @@ AgentsToolsSessionChatLastMessage(){ ## session
 	lastChat="$( AgentsToolsSessionChatDir "${1:-}" )" || return 0
 	[ -f "$lastChat/$agentsSessionChatName" ] || return 0
 	tail -n 40 "$lastChat/$agentsSessionChatName" 2> /dev/null | LC_ALL=C awk '
-		/^20[0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9:]+Z / { who = $2 ; text = $0 ; sub(/^.*-> [^ ]*: */, "", text) ; seen = 1 ; next }
-		seen && text == "" && $0 != "" { text = $0 }
-		END { if (seen) print who ": " text }
+		/^20[0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9:]+Z / { who = $2 ; text = $0 ; sub(/^.*-> [^ ]*: */, "", text) ; seen = 1 ; next ; }
+		seen && text == "" && $0 != "" { text = $0 ; }
+		END { if (seen) print who ": " text ; }
 	'
 }
 
@@ -328,13 +328,13 @@ AgentsToolsSessionChatResolve(){ ## the index file, the stamps file
 	LC_ALL=C awk -F'\t' -v OFS='\t' '
 		FILENAME == ARGV[1] {
 			stampNo[$1] = 1
-			if ( $2 != "" && $2 != "-" ) { stampTs[$1] = $2 }
-			if ( $3 != "" && $3 != "-" ) { stampWhere[$1] = $3 }
+			if ( $2 != "" && $2 != "-" ) { stampTs[$1] = $2 ; }
+			if ( $3 != "" && $3 != "-" ) { stampWhere[$1] = $3 ; }
 			if ( $4 != "" && $4 != "-" ) {
 				seenCount = split($4, seenList, ",")
 				for ( seenAt = 1 ; seenAt <= seenCount ; seenAt++ ) {
-					if ( seenList[seenAt] == "" ) { continue }
-					if ( index("," stampSeen[$1] ",", "," seenList[seenAt] ",") > 0 ) { continue }
+					if ( seenList[seenAt] == "" ) { continue ; }
+					if ( index("," stampSeen[$1] ",", "," seenList[seenAt] ",") > 0 ) { continue ; }
 					stampSeen[$1] = ( stampSeen[$1] == "" ? seenList[seenAt] : stampSeen[$1] "," seenList[seenAt] )
 				}
 			}
@@ -343,9 +343,9 @@ AgentsToolsSessionChatResolve(){ ## the index file, the stamps file
 		{
 			effectiveSeen = $6
 			if ( $1 in stampNo ) {
-				if ( stampWhere[$1] != "" && stampWhere[$1] != "-" ) { $3 = stampWhere[$1] }
-				if ( stampTs[$1] != "" ) { $2 = stampTs[$1] }
-				if ( stampSeen[$1] != "" ) { effectiveSeen = ( effectiveSeen == "-" || effectiveSeen == "" ) ? stampSeen[$1] : effectiveSeen "," stampSeen[$1] }
+				if ( stampWhere[$1] != "" && stampWhere[$1] != "-" ) { $3 = stampWhere[$1] ; }
+				if ( stampTs[$1] != "" ) { $2 = stampTs[$1] ; }
+				if ( stampSeen[$1] != "" ) { effectiveSeen = ( effectiveSeen == "-" || effectiveSeen == "" ) ? stampSeen[$1] : effectiveSeen "," stampSeen[$1] ; }
 			}
 			print $1 OFS $2 OFS $3 OFS $4 OFS $5 OFS ( effectiveSeen == "" ? "-" : effectiveSeen )
 		}' "$resolveStamps" "$resolveIndex"
@@ -552,7 +552,7 @@ AgentsToolsSessionChatPointer(){ ## session, reader
 	local pointerDir pointerValue pointerMember
 	pointerMember="$( AgentsToolsSessionChatPointerMember "$2" )"
 	if [ -n "$pointerMember" ] && [ -f "$MMDAPP/.local/agents/member-pointers/$pointerMember.pointers" ] ; then
-		if pointerValue="$( LC_ALL=C awk -F'\t' -v want="$2" '$1 == want { value = $2 ; found = 1 ; } END { if ( found ) { print value ; } else { exit 1 ; } }' "$MMDAPP/.local/agents/member-pointers/$pointerMember.pointers" 2> /dev/null )" ; then
+		if pointerValue="$( LC_ALL=C awk -F'\t' -v want="$2" '$1 == want { value = $2 ; found = 1 ; } END { if ( found ) { print value ; } else { exit 1 ; } ; }' "$MMDAPP/.local/agents/member-pointers/$pointerMember.pointers" 2> /dev/null )" ; then
 			printf '%s' "$pointerValue"
 			return 0
 		fi
@@ -560,7 +560,7 @@ AgentsToolsSessionChatPointer(){ ## session, reader
 	[ -n "${1:-}" ] || return 1
 	pointerDir="$( AgentsToolsSessionChatDir "$1" )" || return 1
 	[ -f "$pointerDir/$agentsSessionChatName.pointers" ] || return 1
-	pointerValue="$( LC_ALL=C awk -F'\t' -v want="$2" '$1 == want { value = $2 ; found = 1 ; } END { if ( found ) { print value ; } else { exit 1 ; } }' "$pointerDir/$agentsSessionChatName.pointers" 2> /dev/null )" || return 1
+	pointerValue="$( LC_ALL=C awk -F'\t' -v want="$2" '$1 == want { value = $2 ; found = 1 ; } END { if ( found ) { print value ; } else { exit 1 ; } ; }' "$pointerDir/$agentsSessionChatName.pointers" 2> /dev/null )" || return 1
 	printf '%s' "$pointerValue"
 }
 
@@ -595,7 +595,7 @@ AgentsToolsSessionChatPointerSetDirect(){ ## session, reader, value, max (option
 		{ [ ! -f "$pointerFile" ] || cat "$pointerFile" ; } 2> /dev/null | LC_ALL=C awk -F'\t' -v OFS='\t' -v want="$2" -v value="$3" -v onlyForward="${4:-}" '
 			$1 == want { found = 1 ; if ( onlyForward == "max" && ( $2 + 0 ) > ( value + 0 ) ) { print ; } else { print want, value ; } next ; }
 			{ print ; }
-			END { if ( ! found ) { print want, value ; } }' >| "$pointerTmp" 2> /dev/null \
+			END { if ( ! found ) { print want, value ; } ; }' >| "$pointerTmp" 2> /dev/null \
 			&& mv -f "$pointerTmp" "$pointerFile" 2> /dev/null || rm -f "$pointerTmp"
 	fi
 	AgentsToolsSessionChatLockGive
@@ -775,8 +775,8 @@ AgentsToolsSessionChatSeen(){ ## session, member, block number...
 	seenRows="$( SEEN_NUMBERS="$seenNumbers" LC_ALL=C awk -F'\t' -v member="$seenMember" '
 		$1 + 0 > 0 && index(ENVIRON["SEEN_NUMBERS"], " " $1 " ") > 0 {
 			seenCount = split($6, seenList, ",") ; seenHas = 0 ;
-			for ( seenAt = 1 ; seenAt <= seenCount ; seenAt++ ) { if ( seenList[seenAt] == member ) { seenHas = 1 ; } }
-			if ( ! seenHas ) { printf "%s\t%s\t%s\t%s\n", $1, $2, $3, member }
+			for ( seenAt = 1 ; seenAt <= seenCount ; seenAt++ ) { if ( seenList[seenAt] == member ) { seenHas = 1 ; } ; }
+			if ( ! seenHas ) { printf "%s\t%s\t%s\t%s\n", $1, $2, $3, member ; }
 		}' "$seenFile" 2> /dev/null )" || seenRows=""
 	[ -z "$seenRows" ] || printf '%s\n' "$seenRows" >> "$seenDir/$agentsSessionChatName.stamps" 2> /dev/null
 	AgentsToolsSessionChatLockGive

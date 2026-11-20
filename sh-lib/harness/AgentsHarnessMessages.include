@@ -128,7 +128,7 @@ AgentsHarnessToolSendMessageRun(){ ## target, message, as bot, address to, broad
 	## nothing owed, the run's own session thread. A handback keeps its own route.
 	if [ -z "$toolTarget" ] && [ "$toolNext" = "reply" ] ; then
 		local owedNewest=""
-		owedNewest="$( LC_ALL=C awk -F '\t' '$2 ~ /^slack:[A-Z0-9]+:[0-9.]+$/ { last = $2 } END { if ( last != "" ) print substr( last, 7 ) }' "$MMDAPP/.local/agents/schedule/owed/$harnessAgent" 2> /dev/null )" || owedNewest=""
+		owedNewest="$( LC_ALL=C awk -F '\t' '$2 ~ /^slack:[A-Z0-9]+:[0-9.]+$/ { last = $2 ; } END { if ( last != "" ) print substr( last, 7 ) ; }' "$MMDAPP/.local/agents/schedule/owed/$harnessAgent" 2> /dev/null )" || owedNewest=""
 		if [ -n "$owedNewest" ] ; then
 			toolTarget="$owedNewest"
 			toolShown="$owedNewest (the thread of the newest message you were asked in)"

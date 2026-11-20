@@ -87,9 +87,9 @@ rigHas(){ ## name, fixed string -- how many lines of the output hold it
 rigSteps(){ ## name, heading -- the names of the steps of one section of the output (the engine's form: a mixin named `<section> of <file stem>`), joined: the numbered
 	## root steps `N. **name**` of a routine's own, and the sections of depth 3 and below of the kind's
 	LC_ALL=C awk -v want="$2" '
-		/^# / { on = ( $0 == want ) ; next }
-		on && /^###+ / { name = $0 ; sub( /^#+ /, "", name ) ; printf "%s%s", sep, name ; sep = " " ; next }
-		on && /^[0-9]+\. \*\*[^*]+\*\*/ { name = $0 ; sub( /^[0-9]+\. \*\*/, "", name ) ; sub( /\*\*.*$/, "", name ) ; printf "%s%s", sep, name ; sep = " " }
+		/^# / { on = ( $0 == want ) ; next ; }
+		on && /^###+ / { name = $0 ; sub( /^#+ /, "", name ) ; printf "%s%s", sep, name ; sep = " " ; next ; }
+		on && /^[0-9]+\. \*\*[^*]+\*\*/ { name = $0 ; sub( /^[0-9]+\. \*\*/, "", name ) ; sub( /\*\*.*$/, "", name ) ; printf "%s%s", sep, name ; sep = " " ; }
 	' "$rigTmp/$1.out"
 }
 

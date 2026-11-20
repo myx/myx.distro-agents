@@ -69,14 +69,14 @@ rigBound(){ ## scenario name -- the bound the wait inside the call ran to
 }
 rigWireShape(){ ## scenario name
 	LC_ALL=C awk '
-		!/^\{"jsonrpc":"2\.0",.*\}$/ { bad = 1 }
-		/"id":2,/ { done = 1 ; next }
+		!/^\{"jsonrpc":"2\.0",.*\}$/ { bad = 1 ; }
+		/"id":2,/ { done = 1 ; next ; }
 		/notifications\/progress/ {
-			if ( done ) { bad = 1 }
+			if ( done ) { bad = 1 ; }
 			v = $0 ; sub(/.*"progress":/, "", v) ; sub(/[^0-9].*/, "", v)
-			if ( v + 0 <= last ) { bad = 1 } ; last = v + 0
+			if ( v + 0 <= last ) { bad = 1 ; } ; last = v + 0
 		}
-		END { print ( bad ? "broken" : "whole" ) }' "$rigTmp/$1.wire"
+		END { print ( bad ? "broken" : "whole" ) ; }' "$rigTmp/$1.wire"
 }
 
 echo "-- no progressToken: no frame, the safe bound --"

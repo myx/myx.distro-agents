@@ -79,7 +79,7 @@ rigTitle(){ ## tag -- the top border of the left pane
 	printf '%s\n' "$rigOut" | LC_ALL=C grep "^$1|" | LC_ALL=C sed -n '2p' | LC_ALL=C sed -E -e 's/(┐|╗).*$//'
 }
 rigView(){ ## tag, the word at the end of its longest line -- [wrap]/[cut] of the title, how many lines of the pane end in the mark of a cut text, whether the word is in view
-	printf '%s %s %s' "$( rigTitle "$1" | LC_ALL=C grep -o -e '\[wrap\]' -e '\[cut\]' | head -1 )" "$( rigPane "$1" | LC_ALL=C sed 's/  *$//' | LC_ALL=C grep -c '…$' || : )" "$( rigPane "$1" | LC_ALL=C grep -c -F -- "$2" | LC_ALL=C awk '{ print ( $1 > 0 ) }' )"
+	printf '%s %s %s' "$( rigTitle "$1" | LC_ALL=C grep -o -e '\[wrap\]' -e '\[cut\]' | head -1 )" "$( rigPane "$1" | LC_ALL=C sed 's/  *$//' | LC_ALL=C grep -c '…$' || : )" "$( rigPane "$1" | LC_ALL=C grep -c -F -- "$2" | LC_ALL=C awk '{ print ( $1 > 0 ) ; }' )"
 }
 ## each view: wrapped, then cut (w, the left window's own, with the keys there), then scrolled sideways, then wrapped again
 rigToggle(){ ## tag
@@ -127,7 +127,7 @@ for rigCaseOf in "store:a summary with a table of its own, a store's folders:END
 		"raw:the same text raw:ENDPARA" "members:a table of the left pane, the members, under their summary:ENDMEMBER" "grants:a table of the left pane, a member's grants:ENDCOVERS" "help:a member's help:ENDHELP" ; do
 	rigTag="${rigCaseOf%%:*}" ; rigRest="${rigCaseOf#*:}" ; rigWhat="${rigRest%:*}" ; rigWord="${rigRest##*:}"
 	rigAssert "$rigWhat: wrapped, nothing cut and $rigWord in view; cut, a line each, out of view, and the pane scrolls sideways" \
-		"$( rigView "${rigTag}on" "$rigWord" ) | $( rigView "${rigTag}off" "$rigWord" | LC_ALL=C sed 's/ [0-9]* / /' ) | $( printf '%s\n' "$rigOut" | LC_ALL=C sed -n "s/^${rigTag}pan.viewLeft=//p" | LC_ALL=C awk '{ print ( $1 > 0 ) }' )" \
+		"$( rigView "${rigTag}on" "$rigWord" ) | $( rigView "${rigTag}off" "$rigWord" | LC_ALL=C sed 's/ [0-9]* / /' ) | $( printf '%s\n' "$rigOut" | LC_ALL=C sed -n "s/^${rigTag}pan.viewLeft=//p" | LC_ALL=C awk '{ print ( $1 > 0 ) ; }' )" \
 		"[wrap] 0 1 | [cut] 0 | 1"
 done
 echo "-- the header of a table stays over its rows: scrolled down, and scrolled sideways with its columns --"
@@ -163,7 +163,7 @@ rigAt(){ ## tag, line of the body counted from 1, text -- the cell the text star
 	rigPane "$1" | LC_ALL=C sed -n "${2}p" | "$rigPython" -I -B -c 'import sys; line = sys.stdin.read(); print(line.find(sys.argv[1]))' "$3"
 }
 rigAssert "at the top the header is the first line of the pane, scrolled down it still is, over rows far from the first; cut and scrolled sideways it moves with its columns, SIZE over the sizes" \
-	"$( rigPane top | LC_ALL=C sed -n '1p' | LC_ALL=C awk '{ print $1 }' ) $( rigFirst down | LC_ALL=C awk '{ print $1, $2 }' ) $( rigPane down | LC_ALL=C sed -n '2p' | LC_ALL=C grep -c 'item-01' ) $( rigVal side.viewTop | LC_ALL=C awk '{ print ( $1 > 0 ) }' ) $( rigVal side.viewLeft | LC_ALL=C awk '{ print ( $1 > 0 ) }' ) $( [ "$( rigAt side 1 SIZE )" = "$( rigAt side 2 100B )" ] && [ "$( rigAt side 1 SIZE )" -ge 0 ] && echo over || echo apart )" \
+	"$( rigPane top | LC_ALL=C sed -n '1p' | LC_ALL=C awk '{ print $1 ; }' ) $( rigFirst down | LC_ALL=C awk '{ print $1, $2 ; }' ) $( rigPane down | LC_ALL=C sed -n '2p' | LC_ALL=C grep -c 'item-01' ) $( rigVal side.viewTop | LC_ALL=C awk '{ print ( $1 > 0 ) ; }' ) $( rigVal side.viewLeft | LC_ALL=C awk '{ print ( $1 > 0 ) ; }' ) $( [ "$( rigAt side 1 SIZE )" = "$( rigAt side 2 100B )" ] && [ "$( rigAt side 1 SIZE )" -ge 0 ] && echo over || echo apart )" \
 	"NAME NAME SIZE 0 1 1 over"
 rigAssert "nothing was drawn past a pane" "$( printf '%s\n' "$rigOut" | LC_ALL=C grep -c 'DRIVER-FAILED\|Traceback' || : )" "0"
 

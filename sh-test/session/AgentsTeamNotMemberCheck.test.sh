@@ -231,7 +231,7 @@ rigAssert "--manager-spawn-member refuses in the same line, under its own name, 
 	"$rigRc $( wc -c < "$rigTmp/out" | LC_ALL=C tr -d ' ' ) $( rigRefused --manager-spawn-member ) $( rigErrors ) $( rigMade ) / $( rigStores )" "1 0 1 1 $rigMadeBefore / $rigStoresBefore"
 rigRun --manager-routine-list
 rigRowOf(){ ## selector -- that routine's row in the last output: its <start>, its <executors>, its <reason> and what it needs
-	LC_ALL=C awk -F'\t' -v wantName="$1" '$1 == "routine" && $2 == wantName { print $4, $5, $9, $10 }' "$rigTmp/out"
+	LC_ALL=C awk -F'\t' -v wantName="$1" '$1 == "routine" && $2 == wantName { print $4, $5, $9, $10 ; }' "$rigTmp/out"
 }
 rigAssert "--manager-routine-list: a routine whose executors are magic-team is any member's, as before: not-startable by itself, and it needs members" \
 	"$rigRc | $( rigRowOf keeper-myx.anyone.routine.md )" "0 | not-startable magic-team its_executors,_magic-team,_is_any_member:_the_session_spawner_starts_it_only_with_members_named members"
@@ -239,11 +239,11 @@ rigAssert "one whose executors list holds the team beside a member reads not-sta
 	"$( rigRowOf keeper-myx.mixed.routine.md ) | $( rigRowOf keeper-myx.solo.routine.md )" "not-startable keeper-myx,_magic-team its_executor_magic-team_is_the_team_itself_and_no_member_of_it,_which_is_never_started - | startable keeper-myx - -"
 rigRun --manager-team-member-list
 rigAssert "--manager-team-member-list keeps the team's row, as it keeps an identity record's, and its status says what it is: the-team, where its SKILL.md says active; a member's status is its file's" \
-	"$rigRc $( LC_ALL=C awk -F'\t' '$1 == "member" && ( $2 == "magic-team" || $2 == "human-owner" || $2 == "keeper-myx" ) { printf "%s=%s ", $2, $10 }' "$rigTmp/out" )" "0 human-owner=reference-only keeper-myx=active magic-team=the-team "
+	"$rigRc $( LC_ALL=C awk -F'\t' '$1 == "member" && ( $2 == "magic-team" || $2 == "human-owner" || $2 == "keeper-myx" ) { printf "%s=%s ", $2, $10 ; }' "$rigTmp/out" )" "0 human-owner=reference-only keeper-myx=active magic-team=the-team "
 rigAssert "the registry of the members, rebuilt by that call from this workspace's own store, keeps the team's row as it keeps each member's, and the rules file has none" \
-	"$( LC_ALL=C awk '{ printf "%s ", $1 }' "$rigWs/.local/agents/team-members.registry" 2> /dev/null )" "human-owner keeper-myx magic-coordinator magic-team "
+	"$( LC_ALL=C awk '{ printf "%s ", $1 ; }' "$rigWs/.local/agents/team-members.registry" 2> /dev/null )" "human-owner keeper-myx magic-coordinator magic-team "
 rigRun --manager-team-member-read magic-team
-rigAssert "the read of the team shows it the same way" "$rigRc $( LC_ALL=C awk -F'\t' '$1 == "member" { print $2, $10 }' "$rigTmp/out" )" "0 magic-team the-team"
+rigAssert "the read of the team shows it the same way" "$rigRc $( LC_ALL=C awk -F'\t' '$1 == "member" { print $2, $10 ; }' "$rigTmp/out" )" "0 magic-team the-team"
 
 echo "-- 6. a message to the team --"
 rigPostsBefore="$( LC_ALL=C grep -c '^chat.postMessage ' "$rigSc/calls" 2> /dev/null || : )"
@@ -259,7 +259,7 @@ rigCode(){ ## include name -- its lines that are no comment
 rigAssert "one function says what the team is, defined once, in the include of the member directory, beside the one check of a start" \
 	"$( cat "$rigHere"/*/*.include "$rigHere"/*/*.sh | LC_ALL=C grep -c -E '^AgentsToolsTeamMemberIsTeam\(\)\{' || : ) $( LC_ALL=C grep -c -E '^AgentsToolsTeamMember(IsTeam|StartCheck)\(\)\{' "$rigHere/team-data/AgentsTools.TeamRegistry.include" || : )" "1 2"
 rigAssert "the refusal's line is written once, in that check, which asks that function" \
-	"$( cat "$rigHere"/*/*.include "$rigHere"/*/*.sh | LC_ALL=C grep -c -F -- 'is the team itself and no member of it, and the team is never started' || : ) $( rigCode AgentsTools.TeamRegistry.include | LC_ALL=C awk '/^AgentsToolsTeamMemberStartCheck\(\)\{/ { inCheck = 1 } inCheck && /AgentsToolsTeamMemberIsTeam "/ { asked++ } inCheck && /^\}/ { inCheck = 0 } END { print asked + 0 }' )" "1 1"
+	"$( cat "$rigHere"/*/*.include "$rigHere"/*/*.sh | LC_ALL=C grep -c -F -- 'is the team itself and no member of it, and the team is never started' || : ) $( rigCode AgentsTools.TeamRegistry.include | LC_ALL=C awk '/^AgentsToolsTeamMemberStartCheck\(\)\{/ { inCheck = 1 ; } inCheck && /AgentsToolsTeamMemberIsTeam "/ { asked++ ; } inCheck && /^\}/ { inCheck = 0 ; } END { print asked + 0 ; }' )" "1 1"
 rigAssert "no starter asks what the team is, or names it, itself: the proxy, --spawn-session, --manager-spawn-member and the spawn relay each ask the one check of a start, once" \
 	"$( for rigFile in InternOpAgentSpawnProxy MagicSpawnSession ManagerSpawn MagicCoordinatorState ; do printf '%s:%s ' "$( rigCode "AgentsTools.$rigFile.include" | LC_ALL=C grep -c -e 'AgentsToolsTeamMemberStartCheck "' || : )" "$( rigCode "AgentsTools.$rigFile.include" | LC_ALL=C grep -c -e 'AgentsToolsTeamMemberIsTeam' || : )" ; done )" "1:0 1:0 1:0 1:0 "
 rigAssert "--manager-routine-list and --manager-team-member-list ask that function, once each, and neither names the team" \

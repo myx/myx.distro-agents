@@ -515,7 +515,7 @@ AgentsToolsRoutineStateWrite(){ ## the inbox member, the note, the operation (fo
 		return 1
 	fi
 	## No Windows line endings in front of the frontmatter and body split below.
-	stateContent="$( printf '%s\n' "$stateContent" | LC_ALL=C awk '{ sub(/\r$/, "") ; print }' )"
+	stateContent="$( printf '%s\n' "$stateContent" | LC_ALL=C awk '{ sub(/\r$/, "") ; print ; }' )"
 	lockFields="$( LC_ALL=C awk '
 		NR==1 { if ($0=="---") { inFM=1 ; } ; next ; }
 		inFM {
@@ -671,10 +671,10 @@ AgentsToolsRoutineSessionStateUpdate(){ ## the operation's arguments
 	local updContent
 	if [ -n "$updHeaders" ] ; then
 		updContent="$( HDR_OPS="$updHeaders" LC_ALL=C awk '
-			BEGIN { count = split( ENVIRON["HDR_OPS"], rows, "\n" ) ; for ( i = 1 ; i <= count ; i++ ) { if ( rows[i] == "" ) { continue ; } split( rows[i], f, "\t" ) ; if ( f[1] == "upsert" ) { up[f[2]] = f[3] ; order[++n] = f[2] ; } else { del[f[2]] = 1 ; } } }
+			BEGIN { count = split( ENVIRON["HDR_OPS"], rows, "\n" ) ; for ( i = 1 ; i <= count ; i++ ) { if ( rows[i] == "" ) { continue ; } split( rows[i], f, "\t" ) ; if ( f[1] == "upsert" ) { up[f[2]] = f[3] ; order[++n] = f[2] ; } else { del[f[2]] = 1 ; } ; } ; }
 			NR == 1 { if ( $0 != "---" ) { bad = 1 ; exit ; } inFm = 1 ; print ; next ; }
 			inFm && $0 == "---" {
-				for ( i = 1 ; i <= n ; i++ ) { if ( ! ( order[i] in seen ) && ! ( order[i] in del ) ) { print order[i] ": " up[order[i]] ; seen[order[i]] = 1 ; } }
+				for ( i = 1 ; i <= n ; i++ ) { if ( ! ( order[i] in seen ) && ! ( order[i] in del ) ) { print order[i] ": " up[order[i]] ; seen[order[i]] = 1 ; } ; }
 				inFm = 0 ; print ; next ;
 			}
 			inFm {
@@ -683,7 +683,7 @@ AgentsToolsRoutineSessionStateUpdate(){ ## the operation's arguments
 				if ( key in up ) { if ( key in seen ) { next ; } print key ": " up[key] ; seen[key] = 1 ; next ; }
 			}
 			{ print ; }
-			END { if ( bad ) { exit 1 ; } }
+			END { if ( bad ) { exit 1 ; } ; }
 		' "$updPath" )" || { echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools} $updOp: $updNote has no frontmatter block to edit" >&2 ; return 1 ; }
 	elif [ "$updMode" = "patch" ] ; then
 		updContent="$( printf '%s%s' "$( cat )" "$( cat "$updPath" )" | python3 "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsBoardItemPatchApply.py" "$updOp" )" || return 1

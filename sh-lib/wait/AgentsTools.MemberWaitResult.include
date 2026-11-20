@@ -194,7 +194,7 @@ type AgentsSlackIdentityId > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-ag
 		[ -z "$seenFailed" ] || echo "# ERROR: the seen reaction (eyes) failed on ${seenFailed% }, so those messages show no sign that they were read"
 		[ -z "$waitNeverRead" ] || echo "WAIT-NEVER-READ: ${waitNeverRead% }"
 		## A source denied for want of a permission: an error, said apart from the sources never read.
-		[ -z "$waitPermissionErrors" ] || printf '%s' "$waitPermissionErrors" | LC_ALL=C awk 'NF { print "WAIT-SOURCE-ERROR: " $0 }' 
+		[ -z "$waitPermissionErrors" ] || printf '%s' "$waitPermissionErrors" | LC_ALL=C awk 'NF { print "WAIT-SOURCE-ERROR: " $0 ; }' 
 		if [ -n "$waitMode" ] ; then
 			echo "# filters: sources=${waitSources% } floors=${waitFloorsUsed% } addressee=${waitAddressee% } include-own=$waitIncludeOwn"
 			if [ "$waitMode" = "default" ] ; then
@@ -254,7 +254,7 @@ type AgentsSlackIdentityId > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-ag
 						waitHitIndex="${waitHit%%=*}"
 						waitHitKind="${waitHit#*=}" ; waitHitKind="${waitHitKind%%:*}"
 						case "$waitHitKind" in slack|channel|thread|dms|mentions|replies) ;; *) continue ;; esac
-						for waitSenderId in $( LC_ALL=C grep -o -E '^[0-9]+\.[0-9]+ \| U[A-Z0-9]+ \|' "$waitDir/addr.$waitHitIndex" 2> /dev/null | LC_ALL=C awk '{ print $3 }' | LC_ALL=C sort -u | head -8 ) ; do
+						for waitSenderId in $( LC_ALL=C grep -o -E '^[0-9]+\.[0-9]+ \| U[A-Z0-9]+ \|' "$waitDir/addr.$waitHitIndex" 2> /dev/null | LC_ALL=C awk '{ print $3 ; }' | LC_ALL=C sort -u | head -8 ) ; do
 							[ "$waitSenderId" != "$waitSenderOwner" ] || continue
 							! LC_ALL=C grep -q "^$waitSenderId$waitSenderTab" "$waitSenderMap" || continue
 							waitSenderRow="$( "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsContacts.fn.sh" --find-contact "$waitSenderId" 2> /dev/null | head -1 )" || waitSenderRow=""
@@ -266,7 +266,7 @@ type AgentsSlackIdentityId > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-ag
 								fi
 							;; esac
 							case "$waitSenderRow" in
-								contact"$waitSenderTab"*) printf '%s\t%s\n' "$waitSenderId" "$( printf '%s' "$waitSenderRow" | LC_ALL=C awk -F'\t' -v id="$waitSenderId" '{ print $3 ", " $4 ", contact " $2 ( $8 != "" && $8 != "-" ? ", writes in " $8 : "" ) ( $NF == "recorded-now" ? ", first contact: recorded now from the Slack profile alone (tier-contact where it has an organisation); DistroAgentsContacts.fn.sh --contacted-by " id " gives the rules and the next step" : "" ) }' )" >> "$waitSenderMap" ;;
+								contact"$waitSenderTab"*) printf '%s\t%s\n' "$waitSenderId" "$( printf '%s' "$waitSenderRow" | LC_ALL=C awk -F'\t' -v id="$waitSenderId" '{ print $3 ", " $4 ", contact " $2 ( $8 != "" && $8 != "-" ? ", writes in " $8 : "" ) ( $NF == "recorded-now" ? ", first contact: recorded now from the Slack profile alone (tier-contact where it has an organisation); DistroAgentsContacts.fn.sh --contacted-by " id " gives the rules and the next step" : "" ) ; }' )" >> "$waitSenderMap" ;;
 							esac
 						done
 						LC_ALL=C awk -v map="$waitSenderMap" -v owner="$waitSenderOwner" -f "$waitSenderMark" < "$waitDir/addr.$waitHitIndex" > "$waitDir/addr.$waitHitIndex.sender" 2> /dev/null && mv -f "$waitDir/addr.$waitHitIndex.sender" "$waitDir/addr.$waitHitIndex" 2> /dev/null || rm -f "$waitDir/addr.$waitHitIndex.sender"
@@ -288,13 +288,13 @@ type AgentsSlackIdentityId > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-ag
 						case "$waitHitKind" in
 							slack|channel|thread)
 								LC_ALL=C awk -v given="$waitChatGiven" -v conv="$( AgentsWaitAddressConv "$memberName" "${waitHit#*=}" )" '
-									BEGIN { while ( ( getline line < given ) > 0 ) { seen[line] = 1 ; } }
+									BEGIN { while ( ( getline line < given ) > 0 ) { seen[line] = 1 ; } ; }
 									function convOf( word ) { sub(/:.*$/, "", word) ; return ( word ~ /^[CDG][A-Z0-9]+$/ ) ? word : conv ; }
-									/^# in / || /^# via slack:/ { conv = convOf( $3 ) ; drop = 0 ; print ; next }
-									/^# / { drop = 0 ; print ; next }
-									/^[0-9]+\.[0-9]+ \| / { drop = ( ( conv ":" $1 ) in seen ) ; if ( ! drop ) { kept++ ; } }
-									! drop { print }
-									END { exit ( kept > 0 ? 0 : 3 ) }
+									/^# in / || /^# via slack:/ { conv = convOf( $3 ) ; drop = 0 ; print ; next ; }
+									/^# / { drop = 0 ; print ; next ; }
+									/^[0-9]+\.[0-9]+ \| / { drop = ( ( conv ":" $1 ) in seen ) ; if ( ! drop ) { kept++ ; } ; }
+									! drop { print ; }
+									END { exit ( kept > 0 ? 0 : 3 ) ; }
 								' "$waitDir/addr.$waitHitIndex" > "$waitDir/addr.$waitHitIndex.given" 2> /dev/null
 								case "$?" in
 									0) mv -f "$waitDir/addr.$waitHitIndex.given" "$waitDir/addr.$waitHitIndex" ; waitGivenHits="$waitGivenHits $waitHit" ;;
@@ -321,7 +321,7 @@ type AgentsSlackIdentityId > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-ag
 								LC_ALL=C awk '
 									/^# via / { if ( open ) { print "# --- end ---" ; } print "# arrived on: " substr($0, 7) ; print "# --- what that source holds now follows ---" ; open = 1 ; next ; }
 									{ print ( $0 ~ /^(WAIT-|# --- |# arrived on: )/ ? " " $0 : $0 ) ; }
-									END { if ( open ) { print "# --- end ---" ; } }' "$waitDir/addr.$waitHitIndex"
+									END { if ( open ) { print "# --- end ---" ; } ; }' "$waitDir/addr.$waitHitIndex"
 							else
 								echo "# arrived on: ${waitHit#*=}"
 								echo "# --- what that source holds now follows ---"
@@ -401,7 +401,7 @@ type AgentsSlackIdentityId > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-ag
 					for waitHit in $waitHits ; do
 						waitHitIndex="${waitHit%%=*}"
 						case "${waitHit#*=}" in slack:*|tagged:*) ;; *) continue ;; esac
-						waitLastTs="$( LC_ALL=C awk '/^[0-9]+\.[0-9]+ \| / { if ( ts == "" || $1 + 0 > ts + 0 ) { ts = $1 ; } } END { if (ts != "") print ts; }' "$waitDir/now.$waitHitIndex" )"
+						waitLastTs="$( LC_ALL=C awk '/^[0-9]+\.[0-9]+ \| / { if ( ts == "" || $1 + 0 > ts + 0 ) { ts = $1 ; } ; } END { if (ts != "") print ts; }' "$waitDir/now.$waitHitIndex" )"
 						type AgentsToolsSessionChatPointerSet > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include"
 						[ -z "$waitLastTs" ] || AgentsToolsSessionChatPointerSet "$collectKey" "collect:$memberName:${waitHit#*=}" "$waitLastTs"
 					done

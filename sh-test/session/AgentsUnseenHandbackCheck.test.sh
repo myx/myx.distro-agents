@@ -66,7 +66,7 @@ rigItem dispatch-20261102T0030Z-unseen magic-tester "$(( rigNow - 600 ))"
 rigOut="$( rigScan )"
 rigAssert "the scan raises it, once"                   "$( printf '%s' "$rigOut" | LC_ALL=C grep -c 'REVIEW-UNSEEN: dispatch-20261102T0030Z-unseen.md waited' )" 1
 rigAssert "the line names the reviewer told"           "$( printf '%s' "$rigOut" | LC_ALL=C grep -c 'told to magic-tester' )" 1
-rigAssert "the reviewer was sent one message"          "$( LC_ALL=C awk 'index( $0, "chat.postMessage" ) { found++ } END { print found + 0 }' "$rigTmp/curl.log" )" 1
+rigAssert "the reviewer was sent one message"          "$( LC_ALL=C awk 'index( $0, "chat.postMessage" ) { found++ ; } END { print found + 0 ; }' "$rigTmp/curl.log" )" 1
 rigAssert "the item stays in review"                   "$( [ -f "$rigData/board/review/dispatch-20261102T0030Z-unseen.md" ] && printf review || printf moved )" review
 
 echo "-- 2. a control: a handback inside the limit is left alone, and a raised one is not raised twice --"
@@ -75,7 +75,7 @@ rigItem dispatch-20261102T0030Z-fresh magic-tester "$rigNow"
 rigOut2="$( rigScan )"
 rigAssert "the fresh handback raises nothing"          "$( printf '%s' "$rigOut2" | LC_ALL=C grep -c 'REVIEW-UNSEEN: dispatch-20261102T0030Z-fresh' )" 0
 rigAssert "the raised one is not raised again"         "$( printf '%s' "$rigOut2" | LC_ALL=C grep -c 'REVIEW-UNSEEN: dispatch-20261102T0030Z-unseen' )" 0
-rigAssert "and nothing more was sent"                  "$( LC_ALL=C awk 'index( $0, "chat.postMessage" ) { found++ } END { print found + 0 }' "$rigTmp/curl.log" )" 0
+rigAssert "and nothing more was sent"                  "$( LC_ALL=C awk 'index( $0, "chat.postMessage" ) { found++ ; } END { print found + 0 ; }' "$rigTmp/curl.log" )" 0
 
 echo "-- 3. an item whose reviewer is a person is raised to the coordinator --"
 rigItem dispatch-20261102T0030Z-person human-owner "$(( rigNow - 600 ))"

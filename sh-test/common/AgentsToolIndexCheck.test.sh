@@ -72,7 +72,7 @@ rigListed(){ ## file, name, owner
 	local listedLines
 	listedLines="$( LC_ALL=C grep -F -- "$2" "$1" 2> /dev/null )"
 	if [ -n "$( printf '%s\n' "$listedLines" | LC_ALL=C grep -F -- "$3" | LC_ALL=C grep -E -e 'ask' -e '--help-syntax' )" ] ; then printf hinted ; return 0 ; fi
-	if [ -n "$( printf '%s\n' "$listedLines" | LC_ALL=C awk -v name="$2" '{ at = index( $0, name ) ; rest = substr( $0, at + length( name ) ) ; if ( split( rest, words, /[ \t]+/ ) >= 4 ) { print ; exit } }' )" ] ; then printf described ; return 0 ; fi
+	if [ -n "$( printf '%s\n' "$listedLines" | LC_ALL=C awk -v name="$2" '{ at = index( $0, name ) ; rest = substr( $0, at + length( name ) ) ; if ( split( rest, words, /[ \t]+/ ) >= 4 ) { print ; exit ; } ; }' )" ] ; then printf described ; return 0 ; fi
 	printf absent
 }
 rigFamilyHinted(){ ## file, family prefix, owner -- whether a line names the family with its owner and a hint

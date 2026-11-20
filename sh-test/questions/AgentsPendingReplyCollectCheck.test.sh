@@ -446,7 +446,7 @@ rigAssert "control: a bad severity is refused, no post"   "$( rigPosts )$( rigFi
 rigLiveItem="task-20261008T1500Z-rig-live"
 rigLinked(){ ## id, question ts, tag, session
 	rigRecord "$1" "$2" "$3" "$4" ""
-	LC_ALL=C awk -v item="$rigLiveItem" '{ print } $0 == "host: rig" { print "item: " item }' "$rigScenarioDir/ws/.local/agents/pending/$1.md" > "$rigScenarioDir/linked.tmp" \
+	LC_ALL=C awk -v item="$rigLiveItem" '{ print ; } $0 == "host: rig" { print "item: " item ; }' "$rigScenarioDir/ws/.local/agents/pending/$1.md" > "$rigScenarioDir/linked.tmp" \
 		&& mv -f "$rigScenarioDir/linked.tmp" "$rigScenarioDir/ws/.local/agents/pending/$1.md"
 	:  ## the store folders are made by the write that fills them
 	rigOwnerData="$rigScenarioDir/data" rigOwnerBoardWrite blocked "$rigLiveItem.md" -- '---\ntype: task\nowner: %s\ncondition: has the human-owner answered pending reply %s?\n---\n\n# Rig live task\n' "$rigMember" "$1"
@@ -457,7 +457,7 @@ rigSpawnSession(){ ## session, status, spawn id
 		> "$rigScenarioDir/ws/.local/agents/spawned/$1/$3.spawn.md"
 }
 rigDecisionLines(){
-	LC_ALL=C awk '/^## Decisions[ \t]*$/ { on = 1 ; next } on && /^##? / { on = 0 } on && /^- / { n++ } END { print n + 0 }' "$rigScenarioDir/data/board/blocked/$rigLiveItem.md"
+	LC_ALL=C awk '/^## Decisions[ \t]*$/ { on = 1 ; next ; } on && /^##? / { on = 0 ; } on && /^- / { n++ ; } END { print n + 0 ; }' "$rigScenarioDir/data/board/blocked/$rigLiveItem.md"
 }
 rigNotes(){
 	ls "$rigScenarioDir/data/inboxes/$rigMember/incoming/" 2>/dev/null | LC_ALL=C grep -c -E '^note-.*-answer-' || :

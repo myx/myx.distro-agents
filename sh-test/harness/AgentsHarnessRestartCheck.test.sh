@@ -165,7 +165,7 @@ rigTextStream "$rigScenarioDir/res.3" RIG-FINAL-MARKER stop 20
 rigRun 1000 3
 rigSpawnRoot="" rigSpawnId=""
 rigAssert "the restart was recorded beside the run record" "$( cat "$rigScenarioDir/rig-restart-run.restarts" 2>/dev/null | LC_ALL=C wc -l | LC_ALL=C tr -d ' ' )" 1
-rigAssert "with its number and the threshold it restarted at" "$( LC_ALL=C awk '{ print $1, $2 }' "$rigScenarioDir/rig-restart-run.restarts" 2>/dev/null )" "1 1000"
+rigAssert "with its number and the threshold it restarted at" "$( LC_ALL=C awk '{ print $1, $2 ; }' "$rigScenarioDir/rig-restart-run.restarts" 2>/dev/null )" "1 1000"
 rigVerdict "each restart is kept beside the run record"
 
 ## THE STATE THE RUN KEEPS ON DISK COMES BACK WITH THE HANDOVER (the human-owner's ruling): the fresh leg's first messages carry the run's CheckList file

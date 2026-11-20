@@ -162,7 +162,7 @@ AgentsHarnessPrefetchRoutineText(){
 }
 
 AgentsHarnessPrefetchRecordKey(){ ## record file, key -- the value of a line of its front matter
-	LC_ALL=C awk -v key="$2" 'NR == 1 { if ( $0 != "---" ) exit ; next } $0 == "---" { exit } index( $0, key ": " ) == 1 { print substr( $0, length( key ) + 3 ) ; exit }' "$1" 2> /dev/null
+	LC_ALL=C awk -v key="$2" 'NR == 1 { if ( $0 != "---" ) exit ; next ; } $0 == "---" { exit ; } index( $0, key ": " ) == 1 { print substr( $0, length( key ) + 3 ) ; exit ; }' "$1" 2> /dev/null
 }
 
 ## The text of the Member+ layer: the member's reference files (reference/*.md, in the order of their names), merged into one text with
@@ -382,7 +382,7 @@ AgentsHarnessToolSkill(){ ## name, file, list, offset, limit, skill, args, secti
 		if [ ! -r "$skillPath" ] ; then
 			printf 'ERROR: Skill: not readable (permission denied): %s\n' "$skillPath" ; return 0
 		fi
-		skillPluginData="$( [ -z "$pluginRoot" ] || LC_ALL=C awk -v pluginName="$skillPrefix" '{ if ( match($0, /"marketplace_name":"[^"]*"/) ) { pluginId = pluginName "@" substr($0, RSTART + 20, RLENGTH - 21) ; gsub(/[^A-Za-z0-9_-]/, "-", pluginId) ; printf "%s/.claude/plugins/data/%s", ENVIRON["HOME"], pluginId ; exit ; } }' "$pluginRoot.meta.json" 2>/dev/null )"
+		skillPluginData="$( [ -z "$pluginRoot" ] || LC_ALL=C awk -v pluginName="$skillPrefix" '{ if ( match($0, /"marketplace_name":"[^"]*"/) ) { pluginId = pluginName "@" substr($0, RSTART + 20, RLENGTH - 21) ; gsub(/[^A-Za-z0-9_-]/, "-", pluginId) ; printf "%s/.claude/plugins/data/%s", ENVIRON["HOME"], pluginId ; exit ; } ; }' "$pluginRoot.meta.json" 2>/dev/null )"
 		## Values through ENVIRON, which -v would backslash-decode. Arguments go in first and
 		## are never expanded again; the CLAUDE variables are replaced after them, as the
 		## docs define. SESSION_ID, EFFORT, PROJECT_DIR and ! commands have no value here and
@@ -399,7 +399,7 @@ AgentsHarnessToolSkill(){ ## name, file, list, offset, limit, skill, args, secti
 		local skillMember="${skillDir##*/}" skillTeamDir="" skillMixins=()
 		if [ -f "$skillDir/$skillMember.basic.md" ] && [ -f "$skillDir/$skillMember.armed.md" ] \
 			&& [ "$( head -c 6 "$harnessScratch/skill.out" )" != "ERROR:" ] \
-			&& [ "$( LC_ALL=C awk 'NR == 1 { if ( $0 != "---" ) exit ; next } $0 == "---" { exit } /^status:[ \t]*reference-only[ \t\r]*$/ { print "yes" ; exit }' "$skillPath" )" != yes ] ; then
+			&& [ "$( LC_ALL=C awk 'NR == 1 { if ( $0 != "---" ) exit ; next ; } $0 == "---" { exit ; } /^status:[ \t]*reference-only[ \t\r]*$/ { print "yes" ; exit ; }' "$skillPath" )" != yes ] ; then
 			type AgentsToolsMergeMdFiles > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsTools.InternMergeMdFiles.include"
 			skillMixins=( --mixin "$skillDir/$skillMember.basic.md" "$skillMember.basic.md" --mixin "$skillDir/$skillMember.armed.md" "$skillMember.armed.md" )
 			if [ "$skillMember" != magic-team ] ; then

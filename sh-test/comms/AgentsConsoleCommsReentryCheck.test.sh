@@ -190,11 +190,11 @@ rigAssert "and the include reaches the stub itself, its own missing-credential l
 ## one: that is the fault S6.23 names. Read from the file's text, so an arm that regains the shape is caught before a run.
 rigArmShiftGuards(){ ## file, arm name -- how many such guards that arm holds
 	LC_ALL=C awk -v arm="$2" '
-		{ line = $0 ; sub( /^[ \t]+/, "", line ) }
-		index( line, "--" arm ")" ) == 1 { inside = 1 ; next }
-		inside && line ~ /^;;/ { exit }
-		inside && line !~ /^##/ && line ~ /shift \|\| \{/ { guards++ }
-		END { print guards + 0 }
+		{ line = $0 ; sub( /^[ \t]+/, "", line ) ; }
+		index( line, "--" arm ")" ) == 1 { inside = 1 ; next ; }
+		inside && line ~ /^;;/ { exit ; }
+		inside && line !~ /^##/ && line ~ /shift \|\| \{/ { guards++ ; }
+		END { print guards + 0 ; }
 	' "$1"
 }
 

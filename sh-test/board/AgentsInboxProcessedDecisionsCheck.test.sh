@@ -49,7 +49,7 @@ rigWhere(){ ## prints the item's live path, incoming or processed
 	fi
 }
 rigDecisions(){ ## item file -> its Decisions section lines, in file order
-	LC_ALL=C awk '/^## Decisions[ \t]*$/ { on = 1 ; next } on && /^##? / { on = 0 } on && /^- / { print }' "$1" 2>/dev/null
+	LC_ALL=C awk '/^## Decisions[ \t]*$/ { on = 1 ; next ; } on && /^##? / { on = 0 ; } on && /^- / { print ; }' "$1" 2>/dev/null
 }
 ## A fresh note carrying one recorded decision line.
 rigSeeded(){ ## item stamp, decision text
@@ -100,7 +100,7 @@ echo "== 5. CONTROL DIRECTION: a plain mark, which writes no body of its own =="
 rigSeeded 1204 "RIG-NOTE-DECISION-F must stand."
 rigRun m5 --mark-inbox-processed "$rigItem"
 rigAssert "a plain mark succeeds"                    "$rigRc" 0
-rigAssert "the stamp is written"                     "$( LC_ALL=C awk 'NR == 1 { next } $0 == "---" { exit } index($0, "processed-at: ") == 1 { print 1 ; exit }' "$( rigWhere )" )" 1
+rigAssert "the stamp is written"                     "$( LC_ALL=C awk 'NR == 1 { next ; } $0 == "---" { exit ; } index($0, "processed-at: ") == 1 { print 1 ; exit ; }' "$( rigWhere )" )" 1
 rigAssert "and the decision stands"                  "$( rigDecisions "$( rigWhere )" | LC_ALL=C grep -c 'RIG-NOTE-DECISION-F must stand\.' )" 1
 
 printf '\n'

@@ -167,7 +167,7 @@ rigAssert "the spawn launched" "$( printf '%s\n' "$rigOut" | grep -c '^LAUNCHED=
 rigAssert "a bare command line: a run that starts its own session, and no parent session is recorded" "$( rigNewest start-context ):$( rigNewest parent-session-id )" "spawned:"
 rigAssert "it reports to the person whose account started it at the console" "$( rigNewest "$rigReportsTo" )" "user-$( id -un )"
 rigAssert "the opening is posted once, under the bot token" \
-	"$( LC_ALL=C awk '$1 == "chat.postMessage" { print $2 }' "$rigTmp/calls" )" rig-bot-token-TEAM
+	"$( LC_ALL=C awk '$1 == "chat.postMessage" { print $2 ; }' "$rigTmp/calls" )" rig-bot-token-TEAM
 rigAssert "the opening is the session's own post, seeded by the tooling: no author line, no addressee, and the default title of a raw spawn with a member" \
 	"$( grep -c '→' "$rigTmp/bodies" ) $( rigOpeners '"text":"🧵 Session *keeper-myx, standalone ' ) $( LC_ALL=C grep -c -F '"sender":"magic-team","tracking":"session-root"' "$rigTmp/bodies" )" "0 1 1"
 rigFirstSession="$( rigNewest session-id )"

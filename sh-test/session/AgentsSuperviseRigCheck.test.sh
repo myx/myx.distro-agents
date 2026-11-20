@@ -68,7 +68,7 @@ printf '%s\n' '#!/bin/sh' '## cli-configured MDAT_SPAWN_LAUNCH_MARKER --cli) -- 
 cp "$rigRig/DistroAgentsConsole.sh" "$rigHere/DistroAgentsConsole.sh"
 chmod +x "$rigRig/DistroAgentsConsole.sh" "$rigHere/DistroAgentsConsole.sh"
 : > "$rigTmp/launches"
-rigLaunches(){ LC_ALL=C awk 'END { print NR + 0 }' "$rigTmp/launches" ; }
+rigLaunches(){ LC_ALL=C awk 'END { print NR + 0 ; }' "$rigTmp/launches" ; }
 
 rigPass=0 ; rigFail=0
 rigAssert(){ ## what is asserted, got, want

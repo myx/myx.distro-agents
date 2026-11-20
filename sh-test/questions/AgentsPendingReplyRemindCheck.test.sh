@@ -560,7 +560,7 @@ rigRecord ask-rounds $(( 31 * 60 )) human-owner
 rigThreadOf ask-rounds
 : > "$rigScenarioDir/post-refuse"
 rigWait wait "" --wait-source ask:ask-rounds --wait-timeout 12 --wait-poll-interval 1
-rigAssert "more than one round was polled"                 "$( LC_ALL=C sed -n 's/^# waited: .*, \([0-9]*\) poll round(s).*/\1/p' "$rigScenarioDir/wait" | LC_ALL=C awk '{ print ( $1 >= 2 ) ? "yes" : "no:" $1 }' )" yes
+rigAssert "more than one round was polled"                 "$( LC_ALL=C sed -n 's/^# waited: .*, \([0-9]*\) poll round(s).*/\1/p' "$rigScenarioDir/wait" | LC_ALL=C awk '{ print ( $1 >= 2 ) ? "yes" : "no:" $1 ; }' )" yes
 rigAssert "and the reminder was tried once"                "$( rigTries )" 1
 rigAssert "a send that failed is said in the log, and stamps no stage" "$( rigHolds "$rigScenarioDir/wait.err" '# --wait-for-input: FAILED ask-rounds human-owner | ' ):$( rigField ask-rounds reminders ):$( rigField ask-rounds reminder-30m )" yes::
 ## A send that fails can take a minute to say so, so a wait does not try that ask again for half an hour.

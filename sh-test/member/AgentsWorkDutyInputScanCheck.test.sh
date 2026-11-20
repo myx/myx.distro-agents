@@ -121,8 +121,8 @@ rigAssert "with no member it says its syntax"                        "$( cat "$r
 
 echo "-- 2. the settings catalogue holds WAIT_COLLECT_SECONDS --"
 rigCall digest --manager-config-digest
-rigAssert "the digest prints it as a line of the CLI's workspace settings, beside WAIT_ROUND_SECONDS" "$( LC_ALL=C awk -F'\t' '$1 == "line" && $2 == "cli" && $3 == "workspace" && ( $4 == "WAIT_COLLECT_SECONDS" || $4 == "WAIT_ROUND_SECONDS" ) { print $4 }' "$rigDir/digest.out" | LC_ALL=C sort | LC_ALL=C tr '\n' ' ' )" "WAIT_COLLECT_SECONDS WAIT_ROUND_SECONDS "
-rigAssert "set to what the rig set, a whole number of seconds"        "$( LC_ALL=C awk -F'\t' '$1 == "line" && $2 == "cli" && $3 == "workspace" && $4 == "WAIT_COLLECT_SECONDS" { print $5 " " $6 }' "$rigDir/digest.out" )" "set 3"
+rigAssert "the digest prints it as a line of the CLI's workspace settings, beside WAIT_ROUND_SECONDS" "$( LC_ALL=C awk -F'\t' '$1 == "line" && $2 == "cli" && $3 == "workspace" && ( $4 == "WAIT_COLLECT_SECONDS" || $4 == "WAIT_ROUND_SECONDS" ) { print $4 ; }' "$rigDir/digest.out" | LC_ALL=C sort | LC_ALL=C tr '\n' ' ' )" "WAIT_COLLECT_SECONDS WAIT_ROUND_SECONDS "
+rigAssert "set to what the rig set, a whole number of seconds"        "$( LC_ALL=C awk -F'\t' '$1 == "line" && $2 == "cli" && $3 == "workspace" && $4 == "WAIT_COLLECT_SECONDS" { print $5 " " $6 ; }' "$rigDir/digest.out" )" "set 3"
 
 echo "-- 3. the team channel is collected over the window --"
 rigScene window 3

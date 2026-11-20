@@ -222,7 +222,7 @@ rigAt "$rigMon13"
 rigClearRecords
 rigListRow(){ ## name -- the autorun, valid and would-start fields (13 to 17) of that routine's row of --manager-routine-list
 	rigRun "$rigTool" --manager-routine-list
-	LC_ALL=C awk -F'\t' -v want="rig-member.$1.routine.md" '$1 == "routine" && $2 == want { print $13 "|" $14 "|" $15 "|" $16 "|" $17 }' "$rigTmp/out"
+	LC_ALL=C awk -F'\t' -v want="rig-member.$1.routine.md" '$1 == "routine" && $2 == want { print $13 "|" $14 "|" $15 "|" $16 "|" $17 ; }' "$rigTmp/out"
 }
 rigRoutine bad "soon"
 rigAssert "a routine with an autorun that is due now: it runs by itself, at its days and time, follows none, is valid, and a start now would be accepted" "$( rigListRow r )" "yes|workdays_09:00|-|yes|yes"

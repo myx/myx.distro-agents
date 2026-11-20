@@ -203,7 +203,7 @@ if command -v git > /dev/null 2>&1 ; then
 		&& rigGit add -A && rigGit commit -q -m seed || rigRefuse "could not seed the tracked root"
 	RIG_DATA="$rigT" rigOp "$rigTmp/t1" --mark-inbox-processed --team-member rig-member note-20261006T0930Z-tracked.md
 	rigAssert "the mark succeeds"                      "$( cat "$rigTmp/t1.rc" )" 0
-	rigAssert "and is committed as processed"          "$( rigGit log -1 --format=%s ):$( rigGit status --porcelain | LC_ALL=C awk 'END { print NR }' )" "* processed: --mark-inbox-processed:0"
+	rigAssert "and is committed as processed"          "$( rigGit log -1 --format=%s ):$( rigGit status --porcelain | LC_ALL=C awk 'END { print NR ; }' )" "* processed: --mark-inbox-processed:0"
 	rigAssert "the committed item carries the stamp, in processed/" "$( rigGit show HEAD:inboxes/rig-member/processed/note-20261006T0930Z-tracked.md | LC_ALL=C grep -c '^processed-at: ' )" 1
 	rigAssert "and incoming/ holds it no more, committed"  "$( rigGit ls-tree -r --name-only HEAD | LC_ALL=C grep -c -x 'inboxes/rig-member/incoming/note-20261006T0930Z-tracked.md' )" 0
 	rigCommits="$( rigGit rev-list --count HEAD )"
@@ -211,7 +211,7 @@ if command -v git > /dev/null 2>&1 ; then
 	rigAssert "an edit that changes no byte succeeds, no commit" "$( cat "$rigTmp/t1b.rc" ):$(( $( rigGit rev-list --count HEAD ) - rigCommits ))" "0:0"
 	RIG_DATA="$rigT" rigOp "$rigTmp/t2" --intern-team-data-final-gc-deletion rig-member
 	rigAssert "the GC deletes the old marked item"     "$( cat "$rigTmp/t2.rc" ):$( rigIs "$rigT/inboxes/rig-member/processed/note-20200101T0000Z-tracked-old.md" )" "0:none"
-	rigAssert "and commits the deletion"               "$( rigGit log -1 --format=%s ):$( rigGit status --porcelain | LC_ALL=C awk 'END { print NR }' )" "- team-data-final-gc-deletion:0"
+	rigAssert "and commits the deletion"               "$( rigGit log -1 --format=%s ):$( rigGit status --porcelain | LC_ALL=C awk 'END { print NR ; }' )" "- team-data-final-gc-deletion:0"
 else
 	echo "  SKIP  git not on PATH"
 fi

@@ -47,8 +47,8 @@ rigSecret="rig-bot-token-SECRET0123456789abcdef"
 mkdir -p "$rigFix" "$rigTmp/.local/.agents" "$rigTmp/home"
 printf 'SLACK_BOT_TOKEN=%s\n' "$rigSecret" > "$rigTmp/.local/.agents/magic-team.agent.env"
 ## The long file: 400 numbered lines of about 50 bytes, its first line marked; the short one: 40 such lines.
-LC_ALL=C awk 'BEGIN { print "RIG-FIRST-LINE of the long result" ; for ( n = 2 ; n <= 400 ; n++ ) printf "rig line %04d of the long result, padded to length\n", n }' > "$rigFix/long.txt"
-LC_ALL=C awk 'BEGIN { print "RIG-FIRST-LINE of the short result" ; for ( n = 2 ; n <= 40 ; n++ ) printf "rig line %04d of the short result, padded to length\n", n }' > "$rigFix/short.txt"
+LC_ALL=C awk 'BEGIN { print "RIG-FIRST-LINE of the long result" ; for ( n = 2 ; n <= 400 ; n++ ) printf "rig line %04d of the long result, padded to length\n", n ; }' > "$rigFix/long.txt"
+LC_ALL=C awk 'BEGIN { print "RIG-FIRST-LINE of the short result" ; for ( n = 2 ; n <= 40 ; n++ ) printf "rig line %04d of the short result, padded to length\n", n ; }' > "$rigFix/short.txt"
 { cat "$rigFix/long.txt" ; printf 'the token is %s\n' "$rigSecret" ; } > "$rigFix/long-secret.txt"
 { cat "$rigFix/short.txt" ; printf 'the token is %s\n' "$rigSecret" ; } > "$rigFix/short-secret.txt"
 
@@ -99,7 +99,7 @@ rigAssert "it names a file holding the result"                "$( [ -n "$rigLong
 rigAssert "it gives the file's size, in bytes and in lines"   "$( [ -n "$rigLongFile" ] && LC_ALL=C grep -q -w -- "$( LC_ALL=C wc -c < "$rigLongFile" | LC_ALL=C tr -d ' ' )" "$rigTmp/long.out" && LC_ALL=C grep -q -w -- "$( LC_ALL=C wc -l < "$rigLongFile" | LC_ALL=C tr -d ' ' )" "$rigTmp/long.out" && printf sized || printf not-sized )" sized
 ## The preview: the whole lines of the result that fit in 1 KB, or its first 10 lines, whichever is more, never over 3.5 KB (halved 2026-11-10).
 rigPreviewLines(){ ## file -- how many lines the preview of that result holds
-	LC_ALL=C awk '{ total += length( $0 ) + 1 ; if ( total <= 1024 ) fit = NR } END { print ( fit > 10 ) ? fit : 10 }' "$1"
+	LC_ALL=C awk '{ total += length( $0 ) + 1 ; if ( total <= 1024 ) fit = NR ; } END { print ( fit > 10 ) ? fit : 10 ; }' "$1"
 }
 rigPreviewEnds(){ ## reply name, result file -- `ends-right` where the reply holds the preview's last line and not the line after it
 	local endsAt endsLast endsNext
@@ -124,7 +124,7 @@ rigAssert "the whole result: its first and its last line"     "$( LC_ALL=C grep 
 
 echo "-- 3. the caller reaches it --"
 rigServe back Read "{\"file_path\":\"${rigLongFile:-/nonexistent}\",\"offset\":1,\"limit\":3}"
-rigAssert "a served Read of it by line range gives its first line" "$( rigHasBody back 'RIG-FIRST-LINE of the long result' | LC_ALL=C awk '{ print ( $1 >= 1 ) ? "reached" : "not-reached" }' )" reached
+rigAssert "a served Read of it by line range gives its first line" "$( rigHasBody back 'RIG-FIRST-LINE of the long result' | LC_ALL=C awk '{ print ( $1 >= 1 ) ? "reached" : "not-reached" ; }' )" reached
 
 echo "-- 4. through MCP, the JSON reply carries only the reference --"
 rigMcp mlong execute "{\"command\":\"cat '$rigFix/long.txt'\"}"
@@ -154,7 +154,7 @@ env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp/home" PATH="$rigLoopDir/bin:/u
 	> "$rigLoopDir/out" 2> "$rigLoopDir/err" < /dev/null || :
 [ -s "$rigLoopDir/req.2" ] || rigRefuse "the loop never gave the model the tool's result, so nothing below would be measured: $( tail -3 "$rigLoopDir/err" | LC_ALL=C tr '\n' ' ' )"
 rigAssert "the tool result the model is given holds none of the body past the preview" "$( LC_ALL=C grep -c -F 'rig line 0399 of the long result' "$rigLoopDir/req.2" || : )" 0
-rigAssert "and names the file in the loop session's folder"    "$( LC_ALL=C grep -c -F "$rigTmp/.local/agents/sessions/rig-long-loop/" "$rigLoopDir/req.2" | LC_ALL=C awk '{ print ( $1 >= 1 ) ? "named" : "none" }' )" named
+rigAssert "and names the file in the loop session's folder"    "$( LC_ALL=C grep -c -F "$rigTmp/.local/agents/sessions/rig-long-loop/" "$rigLoopDir/req.2" | LC_ALL=C awk '{ print ( $1 >= 1 ) ? "named" : "none" ; }' )" named
 
 echo "-- 6. control: a result below the threshold is returned whole, with no file --"
 rigServe short Read "{\"file_path\":\"$rigFix/short.txt\"}"
@@ -191,7 +191,7 @@ rigAssert "through MCP, with an offset alone: whole, no file"         "$( rigWho
 ## Sized from the byte cap the served Read keeps (AgentsHarnessReadCap.include, or MDAT_READ_CAP_BYTES): 1500 lines, each longer than cap/1500 bytes, so the file is over the cap.
 . "$rigHere/harness/AgentsHarnessReadCap.include" || rigRefuse "the read cap of the package is missing: sh-lib/harness/AgentsHarnessReadCap.include"
 rigCap="${MDAT_READ_CAP_BYTES:-$agentsReadCapMcp}"
-LC_ALL=C awk -v cap="$rigCap" 'BEGIN { width = int( cap / 1500 ) + 12 ; for ( n = 1 ; n <= 1500 ; n++ ) { line = sprintf( "rig line %04d of the big result, padded to length ", n ) ; while ( length( line ) < width ) line = line "x" ; print line } }' > "$rigFix/big.txt"
+LC_ALL=C awk -v cap="$rigCap" 'BEGIN { width = int( cap / 1500 ) + 12 ; for ( n = 1 ; n <= 1500 ; n++ ) { line = sprintf( "rig line %04d of the big result, padded to length ", n ) ; while ( length( line ) < width ) line = line "x" ; print line ; } ; }' > "$rigFix/big.txt"
 rigMcp mbig Read "{\"file_path\":\"$rigFix/big.txt\",\"limit\":2000}"
 rigAssert "through MCP, a range over Read's own cap: cut by Read at a whole line, naming the offset to continue, and not kept" \
 	"$( rigHasBody mbig 'KEPT:' ) $( rigHasBody mbig 'continue with offset' ) $( [ "$( rigBytes mbig )" -gt $(( rigCap * 8 / 10 )) ] && [ "$( rigBytes mbig )" -lt $(( rigCap * 12 / 10 )) ] && printf within || printf "bytes:$( rigBytes mbig )" )" "0 1 within"

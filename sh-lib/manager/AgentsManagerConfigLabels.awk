@@ -40,7 +40,7 @@ BEGIN {
 }
 
 declaring {
-	if ( $0 == "\034" ) { declaring = 0 ; next }
+	if ( $0 == "\034" ) { declaring = 0 ; next ; }
 	count = split( $0, part, "|" )
 	if ( count < 4 || part[1] == "" || part[4] == "" ) next
 	rows++
@@ -84,12 +84,12 @@ $1 == "line" {
 	}
 	## The lines of a group are kept until its last, so that its row can count them.
 	if ( groupHas && ( $2 != groupSubject || $3 != groupName ) ) flushGroup()
-	if ( !groupHas ) { groupHas = 1 ; groupSubject = $2 ; groupName = $3 ; groupCount = 0 }
+	if ( !groupHas ) { groupHas = 1 ; groupSubject = $2 ; groupName = $3 ; groupCount = 0 ; }
 	groupRows[++groupCount] = held
 	next
 }
 
-END { if ( full ) flushGroup() }
+END { if ( full ) flushGroup() ; }
 
 ## The row of a group and then its lines, as they were kept.
 function flushGroup(    at, number ) {
@@ -107,7 +107,7 @@ function groupOf( subject, group,    at ) {
 	return 0
 }
 
-{ print }
+{ print ; }
 
 ## Whether a word of a row of the declaration fits a word of a line: `*` fits any, a word
 ## that ends with `*` every word that begins so, any other word itself alone.
@@ -150,7 +150,7 @@ function worded( text, key ) {
 function rowOf( subject, group, key, own,    at ) {
 	for ( at = 1 ; at <= rows ; at++ ) {
 		if ( rowSubject[at] != subject ) continue
-		if ( rowGroup[at] == "" && rowKey[at] == "" ) { if ( !own ) continue }
+		if ( rowGroup[at] == "" && rowKey[at] == "" ) { if ( !own ) continue ; }
 		else if ( own || !fits( rowGroup[at], group ) || !fits( rowKey[at], key ) ) continue
 		return at
 	}

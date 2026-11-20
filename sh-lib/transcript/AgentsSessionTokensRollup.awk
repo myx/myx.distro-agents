@@ -101,7 +101,7 @@ function rlVisit(itemName, depthLeft,   pairKey, pairParts, childName) {
 	}
 }
 
-{ if ($0 != "") rlReadFile($0) }
+{ if ($0 != "") rlReadFile($0) ; }
 
 END {
 	wantCount = split(want, wantList, /[ \t\n]+/)

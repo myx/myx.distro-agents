@@ -93,10 +93,10 @@ rigPointerSet(){ ## reader, value
 	( export MMDAPP="$rigWs" ; . "$rigHere/session/AgentsTools.SessionChat.include" && AgentsToolsSessionChatPointerSet "$rigSession" "$1" "$2" )
 }
 rigPointer(){ ## reader
-	LC_ALL=C awk -F'\t' -v want="$1" '$1 == want { print $2 ; found = 1 ; } END { if ( ! found ) { print "none" ; } }' "$rigChat/session.chat.pointers" 2> /dev/null || printf 'no-pointers'
+	LC_ALL=C awk -F'\t' -v want="$1" '$1 == want { print $2 ; found = 1 ; } END { if ( ! found ) { print "none" ; } ; }' "$rigChat/session.chat.pointers" 2> /dev/null || printf 'no-pointers'
 }
 rigSeenOf(){ ## block number -- the seen field of its index line
-	LC_ALL=C awk -F'\t' -v want="$1" '$1 == want { print $6 ; found = 1 ; } END { if ( ! found ) { print "no-such-block" ; } }' "$rigChat/session.chat.index" 2> /dev/null || printf 'no-index'
+	LC_ALL=C awk -F'\t' -v want="$1" '$1 == want { print $6 ; found = 1 ; } END { if ( ! found ) { print "no-such-block" ; } ; }' "$rigChat/session.chat.index" 2> /dev/null || printf 'no-index'
 }
 ## The thread as the wait scenes leave it: block 1 is old, and the pointer of the member is just past it.
 rigSeedWait(){
@@ -177,7 +177,7 @@ rigAssert "it posts, once"                                          "$rigRc:$( c
 rigAssert "to the session thread: its channel and its thread ts"    "$( LC_ALL=C grep -c -F -e '"channel":"CRIG00001"' -e '"thread_ts":"1760000000.000050"' "$rigScn/post.1" )" 1
 rigAssert "with the words as its text"                              "$( LC_ALL=C grep -c 'RIG-POST-ONE hello' "$rigScn/post.1" )" 1
 rigAssert "recorded first in the session chat file, from the member, to all" "$( LC_ALL=C sed -n '1s/^[^ ]* //p' "$rigChat/session.chat" )" "rig-member -> all:"
-rigAssert "and indexed by the session thread"                       "$( LC_ALL=C awk -F'\t' '$1 == 1 { print $3 }' "$rigChat/session.chat.index" )" "$rigThread"
+rigAssert "and indexed by the session thread"                       "$( LC_ALL=C awk -F'\t' '$1 == 1 { print $3 ; }' "$rigChat/session.chat.index" )" "$rigThread"
 printf 'RIG-POST-TWO from stdin\n' > "$rigScn/stdin.txt"
 rigStdin="$rigScn/stdin.txt"
 rigCall post-2 rig-member executor --post-session-channel --address-to rig-part --from-stdin
@@ -348,7 +348,7 @@ rigAssert "from no spawned session: a plain line"                   "$rigD5Rc:$(
 
 echo "-- 7. the line of it, and the help --"
 rigBlockOf(){ ## routine file -- the lines of its # Routine-specific tooling block
-	LC_ALL=C awk '/^# Routine-specific tooling$/ { inBlock = 1 ; next } /^# / { inBlock = 0 } inBlock { print }' "$1"
+	LC_ALL=C awk '/^# Routine-specific tooling$/ { inBlock = 1 ; next ; } /^# / { inBlock = 0 ; } inBlock { print ; }' "$1"
 }
 for rigKind in coworking standalone ; do
 	rigAssert "the $rigKind routine's tooling block names --get-session-thread [--own]" "$( rigBlockOf "$rigPackage/skillset/magic-team/magic-team/magic-team.$rigKind.routine.md" | LC_ALL=C grep -c -x -F -e '- `--get-session-thread [--own]`' )" 1

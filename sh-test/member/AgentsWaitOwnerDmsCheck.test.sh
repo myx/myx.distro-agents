@@ -75,7 +75,7 @@ rigDefault rig-owner-dms
 rigAssert "a message typed in the member's own DM with the owner is returned" "$( rigHas RIG-IN-USER-DM )" "1"
 rigAssert "a message typed in the bot's DM with the owner, where the asks are posted, is returned as well" "$( rigHas RIG-IN-BOT-DM )" "1"
 rigAssert "each conversation is named before its messages, so a reply goes back to the one it was read from" "$( LC_ALL=C grep -c -E '^# in DOWNER(USER1|BOT01)' "$rigTmp/out" || : )" "2"
-rigAssert "every message a person wrote that the Wait returned got the eyes reaction at once, each in its own conversation, without the agent asking" "$( LC_ALL=C awk '$4 == "eyes" { printf "%s ", $2 }' "$rigScenario/reactions" 2> /dev/null | LC_ALL=C tr ' ' '\n' | LC_ALL=C sort | LC_ALL=C tr '\n' ' ' )" "DOWNERBOT01 DOWNERUSER1 "
+rigAssert "every message a person wrote that the Wait returned got the eyes reaction at once, each in its own conversation, without the agent asking" "$( LC_ALL=C awk '$4 == "eyes" { printf "%s ", $2 ; }' "$rigScenario/reactions" 2> /dev/null | LC_ALL=C tr ' ' '\n' | LC_ALL=C sort | LC_ALL=C tr '\n' ' ' )" "DOWNERBOT01 DOWNERUSER1 "
 rigAssert "and no error in the header" "$( LC_ALL=C grep -c '^# ERROR: the seen reaction' "$rigTmp/out" || : )" "0"
 rigDefault rig-owner-dms
 rigAssert "the next Wait of the session returns neither again" "$( rigHas RIG-IN-USER-DM ) $( rigHas RIG-IN-BOT-DM )" "0 0"
@@ -106,7 +106,7 @@ rigCollect(){ ## session -- one collect over the member's own DM with the owner
 		bash "$rigTools" --wait-for-input --team-member "$rigMember" --wait-collect 3 --wait-source slack:DOWNERUSER1 ) > "$rigTmp/out" 2> "$rigTmp/err"
 }
 rigEyesCount(){ ## ts -- the eyes the fake curl logged on that message
-	LC_ALL=C awk -v ts="$1" '$3 == ts && $4 == "eyes" { n++ } END { print n + 0 }' "$rigScenario/reactions" 2> /dev/null || printf 0
+	LC_ALL=C awk -v ts="$1" '$3 == ts && $4 == "eyes" { n++ ; } END { print n + 0 ; }' "$rigScenario/reactions" 2> /dev/null || printf 0
 }
 rigCollectTs="$(( $( date +%s ) + 11 )).000101"
 printf '{"ok":true,"messages":[{"ts":"%s","user":"URIGOWNER","text":"RIG-COLLECTED"}],"has_more":false}\n' "$rigCollectTs" > "$rigScenario/history.DOWNERUSER1.json"

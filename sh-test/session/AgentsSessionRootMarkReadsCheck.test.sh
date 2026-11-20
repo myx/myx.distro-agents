@@ -65,7 +65,7 @@ echo "-- 2. no seen reaction for it --"
 ## and ts, for a message a person wrote.
 rigSeen(){ ## rendering file
 	LC_ALL=C awk -v channel="$rigChannel" '
-		/^[0-9]+\.[0-9]+ \| / { split( $0, f, " \\| " ) ; if ( f[2] ~ /^[UW][A-Z0-9]+$/ ) { print channel ":" $1 ; } }' "$1" 2> /dev/null
+		/^[0-9]+\.[0-9]+ \| / { split( $0, f, " \\| " ) ; if ( f[2] ~ /^[UW][A-Z0-9]+$/ ) { print channel ":" $1 ; } ; }' "$1" 2> /dev/null
 }
 rigAssert "the served rendering gives the person's ts and no root ts" "$( rigSeen "$rigTmp/kept" | LC_ALL=C tr '\n' ' ' )" "$rigChannel:$rigPersonTs "
 echo "-- controls: the same reading without the drop does see the root --"

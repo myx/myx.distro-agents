@@ -92,16 +92,16 @@ rigOp(){ ## name, args... -- --intern-source-collect with them
 	rigRunTool "$opName" --intern-source-collect "$@"
 }
 rigWord(){ ## name -- the first word of what the operation said
-	LC_ALL=C awk 'NR == 1 { print $1 }' "$rigDir/$1.out"
+	LC_ALL=C awk 'NR == 1 { print $1 ; }' "$rigDir/$1.out"
 }
 rigPidOf(){ ## name -- the pid a start said
-	LC_ALL=C awk 'NR == 1 && ( $1 == "started" || $1 == "alive" ) && $2 ~ /^[0-9]+$/ { print $2 }' "$rigDir/$1.out"
+	LC_ALL=C awk 'NR == 1 && ( $1 == "started" || $1 == "alive" ) && $2 ~ /^[0-9]+$/ { print $2 ; }' "$rigDir/$1.out"
 }
 rigNote(){ ## pid -- noted for the end of this check
 	[ -z "$1" ] || { rigProcNote "$1" ; rigStarted="$rigStarted $1" ; }
 }
 rigLockPid(){
-	cat "$rigDir/ws/.local/agents/collect/thread.lock" 2> /dev/null | LC_ALL=C awk '{ print $1 }'
+	cat "$rigDir/ws/.local/agents/collect/thread.lock" 2> /dev/null | LC_ALL=C awk '{ print $1 ; }'
 }
 rigWaitFor(){ ## seconds*2, command... -- waits until the command succeeds
 	local waitMax="$1" waitN=0
@@ -175,12 +175,12 @@ rigDaemon="$( rigPidOf proc-start )"
 rigNote "$rigDaemon"
 rigAssert "a start says it started a process" "$( rigWord proc-start )" started
 rigWaitFor 20 test -e "$rigDir/ws/.local/agents/collect/thread.lock"
-rigAssert "the lock names it: its pid, and when it began" "$( rigLockPid ):$( cat "$rigDir/ws/.local/agents/collect/thread.lock" 2> /dev/null | LC_ALL=C awk 'NF == 2 { print "two" }' )" "${rigDaemon:-none}:two"
+rigAssert "the lock names it: its pid, and when it began" "$( rigLockPid ):$( cat "$rigDir/ws/.local/agents/collect/thread.lock" 2> /dev/null | LC_ALL=C awk 'NF == 2 { print "two" ; }' )" "${rigDaemon:-none}:two"
 rigAssert "it shows in the process list as its operation, a process of its own" "$( LC_ALL=C ps -ww -o args= -p "${rigDaemon:-0}" 2> /dev/null | LC_ALL=C grep -c -F -e '--intern-source-collect --run' )" 1
 rigAssert "it is no run of any session, by the rule that tells a run" "$( cd "$rigDir/ws" && MDLT_ORIGIN="$MDLT_ORIGIN" bash -c ". '$rigHere/team-data/AgentsTools.Registries.include' ; . '$rigHere/run/AgentsTools.RunProcesses.include' ; . '$rigHere/run/AgentsTools.RunState.include' ; . '$rigHere/run/AgentsTools.RunLeft.include' ; . '$rigHere/run/AgentsTools.RunRecords.include' ; ps -ww -o pid=,args= -p ${rigDaemon:-0} | AgentsToolsRunWords | wc -l | tr -d ' '" )" 0
 rigWaitFor 40 rigHasNotes rig-member 2
 rigAssert "it collects by itself: the mail is in the inbox of the member" "$( rigNotes rig-member )" "2"
-rigAssert "bounded as the scan bounds it: since the day before the member's stored sweep position, not the backlog of years" "$( rigCount "$rigFix/imap.log" '^UID SEARCH UNSEEN SINCE 08-Oct-2026$' | LC_ALL=C awk '{ print ( $1 >= 1 ) ? "bounded" : "unbounded" }' )" bounded
+rigAssert "bounded as the scan bounds it: since the day before the member's stored sweep position, not the backlog of years" "$( rigCount "$rigFix/imap.log" '^UID SEARCH UNSEEN SINCE 08-Oct-2026$' | LC_ALL=C awk '{ print ( $1 >= 1 ) ? "bounded" : "unbounded" ; }' )" bounded
 rigAssert "its log says it started, and the start line names its process" "$( LC_ALL=C grep -c 'the source collector runs as pid' "$rigDir/ws/.local/agents/collect/thread.log" ):$( LC_ALL=C grep -c 'a start of the source collector is made: pid' "$rigDir/ws/.local/agents/collect/thread.log" )" "1:1"
 rigOp proc-again --start
 rigAssert "a second start is told it lives, and starts nothing" "$( rigWord proc-again ):$( rigPidOf proc-again )" "alive:${rigDaemon:-none}"
@@ -243,10 +243,10 @@ printf '801 unseen\n802 unseen\n803 unseen\n' > "$rigFix/mailbox"
 rigOp one-git --one --force
 rigAssert "a pass of three mails is one commit, holding the three notes" "$rigRc:$(( $( git -C "$rigDir/ws/.local/agents/team-data-root" rev-list --count HEAD ) - 1 )):$( git -C "$rigDir/ws/.local/agents/team-data-root" show --name-only --format= HEAD | LC_ALL=C grep -c -- '-email-u80[123]\.md' )" "0:1:3"
 rigOp mode-none
-rigAssert "no mode: a usage, and a failure" "$( [ "$rigRc" != 0 ] && printf failed ):$( LC_ALL=C grep -c -F -e '--run' "$rigDir/mode-none.err" | LC_ALL=C awk '{ print ( $1 > 0 ) ? "usage" : "none" }' )" "failed:usage"
+rigAssert "no mode: a usage, and a failure" "$( [ "$rigRc" != 0 ] && printf failed ):$( LC_ALL=C grep -c -F -e '--run' "$rigDir/mode-none.err" | LC_ALL=C awk '{ print ( $1 > 0 ) ? "usage" : "none" ; }' )" "failed:usage"
 rigAssert "the main loop checks it on every iteration, as it checks the control threads" "$( LC_ALL=C grep -c -F 'AgentsToolsCollectThreadCheck main-loop' "$rigHere/magic/AgentsTools.InternMainLoop.include" )" 1
 rigAssert "the runner of the checks keeps it from every test" "$( LC_ALL=C grep -c -F 'export MDAT_COLLECT_THREAD=off' "$rigPackage/sh-test/AgentsRunTests.sh" )" 1
-rigAssert "the rig fixture that ends threads knows its start line and its lock" "$( LC_ALL=C grep -c -F -e 'collect/thread.log' -e 'collect/thread.lock' "$rigFixtures/rig-control-threads.include.sh" | LC_ALL=C awk '{ print ( $1 >= 2 ) ? "yes" : "no" }' )" yes
+rigAssert "the rig fixture that ends threads knows its start line and its lock" "$( LC_ALL=C grep -c -F -e 'collect/thread.log' -e 'collect/thread.lock' "$rigFixtures/rig-control-threads.include.sh" | LC_ALL=C awk '{ print ( $1 >= 2 ) ? "yes" : "no" ; }' )" yes
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ COLLECT THREAD CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

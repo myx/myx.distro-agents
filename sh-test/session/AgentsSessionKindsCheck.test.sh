@@ -91,7 +91,7 @@ rigAssert(){ ## what is asserted, got, want
 	fi
 }
 rigFront(){ ## file -- its first frontmatter block
-	LC_ALL=C awk 'NR == 1 && $0 != "---" { exit } NR > 1 && $0 == "---" { exit } NR > 1 { print }' "$1" 2> /dev/null
+	LC_ALL=C awk 'NR == 1 && $0 != "---" { exit ; } NR > 1 && $0 == "---" { exit ; } NR > 1 { print ; }' "$1" 2> /dev/null
 }
 rigReset(){
 	rm -f "$rigTmp"/brief.*

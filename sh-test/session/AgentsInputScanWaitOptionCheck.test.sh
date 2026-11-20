@@ -72,7 +72,7 @@ rigSumOf(){ ## file -- the sum of its bytes, as a wait keeps the sum of a report
 	LC_ALL=C cksum < "$1" 2> /dev/null | LC_ALL=C awk '{ print $1 "-" $2 ; }'
 }
 rigPointerOf(){ ## scan -- the pointer the run's session holds for the scan of keeper-rig, or none
-	cat "$rigTmp/pointers.seen" 2> /dev/null | LC_ALL=C awk -F '\t' -v want="scan:$1:keeper-rig" '$1 == want { print $2 ; found = 1 ; exit ; } END { if ( ! found ) { print "none" ; } }'
+	cat "$rigTmp/pointers.seen" 2> /dev/null | LC_ALL=C awk -F '\t' -v want="scan:$1:keeper-rig" '$1 == want { print $2 ; found = 1 ; exit ; } END { if ( ! found ) { print "none" ; } ; }'
 }
 rigFirst(){ ## file -- its first line
 	LC_ALL=C sed -n 1p "$1" 2> /dev/null

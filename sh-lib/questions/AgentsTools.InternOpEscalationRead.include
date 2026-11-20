@@ -147,7 +147,7 @@
 		## acknowledge the answer ON that message (:eyes:) and not on the question's own post. A verdict
 		## read from a forward's thread names a message of another conversation, so the close is given
 		## none there -- a reaction in the question's channel on that ts would be in the wrong channel.
-		[ -n "$readForward" ] || readAnswerTs="$( printf '%s\n' "$readOut" | LC_ALL=C awk -F'\t' '$1 == "ANSWER-TS" { print $2 ; exit }' )"
+		[ -n "$readForward" ] || readAnswerTs="$( printf '%s\n' "$readOut" | LC_ALL=C awk -F'\t' '$1 == "ANSWER-TS" { print $2 ; exit ; }' )"
 		local readApplied="" readApplyRc=0
 		readApplied="$( AgentsToolsEscalationApply "$readFile" "$readId" "${readVerdict%%$'\t'*}" "$readText" "${readVerdict#*$'\t'}" "" "" "$readFloor" "$readForward" "$readAnswerTs" )" || readApplyRc=$?
 		case "$readApplyRc" in

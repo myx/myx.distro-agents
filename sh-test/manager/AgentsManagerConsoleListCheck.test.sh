@@ -120,7 +120,7 @@ rigWhole(){ ## file, text -- how many lines of the file are that text, whole
 	LC_ALL=C grep -c -x -F -- "$2" "$1" 2> /dev/null || :
 }
 rigKeys(){ ## -- the keys of the rows of the last output, in their order, in one line
-	LC_ALL=C awk -F'\t' '$1 == "console" { printf "%s ", $2 }' "$rigTmp/out"
+	LC_ALL=C awk -F'\t' '$1 == "console" { printf "%s ", $2 ; }' "$rigTmp/out"
 }
 rigMachine(){ ## -- every file of the rig, each with the sum of its bytes, as one sum
 	( cd "$rigTmp" && find ws home skills -type f | LC_ALL=C sort | while IFS= read -r machineFile ; do printf '%s %s\n' "$machineFile" "$( cksum < "$machineFile" )" ; done ) | cksum
@@ -225,16 +225,16 @@ rigHelpInclude="$rigHere/help/Help.DistroAgentsTools.include"
 rigHelpMd="$rigHere/help/Help.DistroAgentsTools.help.md"
 rigSyntax="📘 syntax: DistroAgentsTools.fn.sh $rigOp"
 rigEntry(){ ## -- the operation's entry in the help.md, from under its heading to the next operation's
-	LC_ALL=C awk -v head="$( printf '\t\t%s' "$rigOp" )" '$0 == head { on = 1 ; next } on && /^\t\t--/ { exit } on { print }' "$rigHelpMd"
+	LC_ALL=C awk -v head="$( printf '\t\t%s' "$rigOp" )" '$0 == head { on = 1 ; next ; } on && /^\t\t--/ { exit ; } on { print ; }' "$rigHelpMd"
 }
 rigAssert "the operation has its syntax echo, its syntax line and its entry, once each, and in no other form" "$( LC_ALL=C grep -c -x -F -- "echo \"$rigSyntax\" >&2" "$rigHelpInclude" || : ) $( LC_ALL=C grep -c -x -F -- "$rigSyntax" "$rigHelpMd" || : ) $( LC_ALL=C grep -c -x -F -- "$( printf '\t\t%s' "$rigOp" )" "$rigHelpMd" || : ) $( LC_ALL=C grep -c -F -- "syntax: DistroAgentsTools.fn.sh $rigOp" "$rigHelpInclude" || : ) $( LC_ALL=C grep -c -F -- "syntax: DistroAgentsTools.fn.sh $rigOp" "$rigHelpMd" || : )" "1 1 1 1 1"
 rigForm="$( rigEntry | LC_ALL=C sed -n -e 's/^[[:space:]]*`\(console <.*\)`$/\1/p' )"
 rigAssert "its entry gives the form of a row" "$rigForm" "console <key> <group> <label> <terminal> <directory> <word>..."
 rigRun "$rigOp"
 rigAssert "and every row printed has the six fields that form names and at least one word of a command, none of them empty" \
-	"$( LC_ALL=C awk -F'\t' '{ rows++ ; if ( NF < 7 ) bad++ ; for ( fieldAt = 1 ; fieldAt <= NF ; fieldAt++ ) if ( $fieldAt == "" ) bad++ ; } END { printf "%s:%s", ( rows > 0 ? "rows" : "none" ), bad + 0 }' "$rigTmp/out" )" "rows:0"
-rigAssert "the entry names the three groups, the word of <terminal>, the keys that are no CLI's, and how a CLI is started" "$( for rigWord in shell agents distro terminal bash source local deploy remote 'DistroAgentsConsole.sh --cli <name>' ; do rigEntry | LC_ALL=C grep -c -F -- "\`$rigWord\`" | LC_ALL=C awk '{ printf "%s", ( $1 > 0 ) ? "y" : "n" }' ; done )" "yyyyyyyyyy"
-rigAssert "control: the entry was cut up to the next operation's heading, and holds its own text" "$( rigEntry | LC_ALL=C grep -c -F -- 'TAB-separated' || : ) $( rigEntry | LC_ALL=C awk 'END { print ( NR > 0 && NR < 70 ) ? "cut" : "not cut: " NR " lines" }' )" "1 cut"
+	"$( LC_ALL=C awk -F'\t' '{ rows++ ; if ( NF < 7 ) bad++ ; for ( fieldAt = 1 ; fieldAt <= NF ; fieldAt++ ) if ( $fieldAt == "" ) bad++ ; } END { printf "%s:%s", ( rows > 0 ? "rows" : "none" ), bad + 0 ; }' "$rigTmp/out" )" "rows:0"
+rigAssert "the entry names the three groups, the word of <terminal>, the keys that are no CLI's, and how a CLI is started" "$( for rigWord in shell agents distro terminal bash source local deploy remote 'DistroAgentsConsole.sh --cli <name>' ; do rigEntry | LC_ALL=C grep -c -F -- "\`$rigWord\`" | LC_ALL=C awk '{ printf "%s", ( $1 > 0 ) ? "y" : "n" ; }' ; done )" "yyyyyyyyyy"
+rigAssert "control: the entry was cut up to the next operation's heading, and holds its own text" "$( rigEntry | LC_ALL=C grep -c -F -- 'TAB-separated' || : ) $( rigEntry | LC_ALL=C awk 'END { print ( NR > 0 && NR < 70 ) ? "cut" : "not cut: " NR " lines" ; }' )" "1 cut"
 rigRun --help-syntax
 rigAssert "--help-syntax prints its line, once" "$rigRc $( LC_ALL=C grep -c -x -F -- "$rigSyntax" "$rigTmp/err" || : )" "0 1"
 

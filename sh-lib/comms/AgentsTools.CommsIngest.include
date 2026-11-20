@@ -163,7 +163,7 @@ AgentsCommsIngestSlack(){ ## member, the channel id, [--as-bot] [--floor <slack 
 	## markers, and the wait reads this marker every tick, so its own DM read comes now rather than at its slow gap. Another channel is no wake.
 	case "$ingestChannel" in
 		D*)
-			case "$( LC_ALL=C awk -F'\t' '$1 == "msg" { n++ } END { print n + 0 }' "$ingestRows" 2> /dev/null )" in
+			case "$( LC_ALL=C awk -F'\t' '$1 == "msg" { n++ ; } END { print n + 0 ; }' "$ingestRows" 2> /dev/null )" in
 				''|0) ;;
 				*)
 					type AgentsToolsWakeTouch > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/wait/AgentsTools.WakeMarker.include"
@@ -262,7 +262,7 @@ AgentsCommsIngestSlackTs(){ ## the last id seen
 		yearValue = substr(stamp, 1, 4) + 0 ; monthValue = substr(stamp, 5, 2) + 0 ; dayValue = substr(stamp, 7, 2) + 0
 		hourValue = substr(stamp, 10, 2) + 0 ; minuteValue = substr(stamp, 12, 2) + 0 ; secondValue = substr(stamp, 14, 2) + 0
 		milliValue = substr(stamp, 16, 3) + 0
-		if (monthValue <= 2) { yearValue-- ; monthValue += 12 }
+		if (monthValue <= 2) { yearValue-- ; monthValue += 12 ; }
 		eraValue = int(yearValue / 400) ; yearOfEra = yearValue - eraValue * 400
 		dayOfEra = int((153 * (monthValue - 3) + 2) / 5) + dayValue - 1
 		dayCount = eraValue * 146097 + yearOfEra * 365 + int(yearOfEra / 4) - int(yearOfEra / 100) + dayOfEra - 719468

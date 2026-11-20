@@ -44,7 +44,7 @@ rigOp(){ ## output name, arguments... -- one call of the questions tool in this 
 		bash "$rigTool" "$@" ) > "$rigTmp/$opOut" 2> "$rigTmp/$opOut.err" || rigRc=$?
 }
 rigSection(){ ## item file -> its Decisions lines, in file order
-	LC_ALL=C awk '/^## Decisions[ \t]*$/ { on = 1 ; next } on && /^##? / { on = 0 } on && /^- / { print }' "$1"
+	LC_ALL=C awk '/^## Decisions[ \t]*$/ { on = 1 ; next ; } on && /^##? / { on = 0 ; } on && /^- / { print ; }' "$1"
 }
 ## A closed readback, as the questions store keeps one: the one a decision was made with answered it.
 rigConfirmed(){ ## pending id, item, understood text, who answered

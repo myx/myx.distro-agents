@@ -259,7 +259,7 @@ function parseInlineMarkdown(line,   n, i, j, k, c, closeIdx, spanText, runLen, 
 		if (c == "`") {
 			closeIdx = 0
 			k = i + 1
-			while (k <= n) { if (substr(line, k, 1) == "`") { closeIdx = k ; break } ; k++ ; }
+			while (k <= n) { if (substr(line, k, 1) == "`") { closeIdx = k ; break ; } ; k++ ; }
 			spanText = (closeIdx > 0) ? substr(line, i + 1, closeIdx - i - 1) : ""
 			if (spanText != "") { addTok("code", spanText, "", 0) ; i = closeIdx + 1 ; continue ; }
 			addTok("text", c, "", 0) ; i++

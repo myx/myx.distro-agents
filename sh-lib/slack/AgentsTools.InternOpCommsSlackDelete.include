@@ -136,7 +136,7 @@ case "$1" in
 				local replyCount="" replyRc=0
 				replyCount="$( printf '%s\n' "$threadResponse" | LC_ALL=C awk -v mode=records -v array=messages -v want=ts,reply_count -v dialect=slack \
 					-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" \
-					| LC_ALL=C awk -F'\t' -v wantTs="$threadTs" '{ if ( ($1 "") == ( wantTs "" ) ) { print $2 ; found = 1 ; exit ; } } END { if ( ! found ) { exit 1 ; } }' )" || replyRc=$?
+					| LC_ALL=C awk -F'\t' -v wantTs="$threadTs" '{ if ( ($1 "") == ( wantTs "" ) ) { print $2 ; found = 1 ; exit ; } ; } END { if ( ! found ) { exit 1 ; } ; }' )" || replyRc=$?
 				if [ "$threadCallRc" != "0" ] || [ "$replyRc" != "0" ] ; then
 					printf 'DELETE_TARGET=%s\n' "$oneTarget"
 					printf '%s\n' DELETE_STATE=unverified-thread

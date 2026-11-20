@@ -154,7 +154,7 @@ rigCloseRecord(){ ## pending id, extra header lines
 		!done && $0 == "status: reply-pending" { print "status: reply-received" ; next ; }
 		!done && /^(owner|ask-identity): / && index(extra, substr($0, 1, index($0, ":"))) { next ; }
 		!done && $0 == "---" && seen++ { printf "%s", extra ; done = 1 ; }
-		{ print }
+		{ print ; }
 	' "$closeFile" > "$closeFile.tmp" && mv -f "$closeFile.tmp" "$closeFile"
 }
 

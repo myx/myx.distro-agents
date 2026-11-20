@@ -73,11 +73,11 @@ AgentsSessionSandboxChecklist(){ ## sandbox, member
 	fi
 	[ ${#listFiles[@]} -gt 0 ] || { printf 'no\t-\t0\tno\t\n' ; return 0 ; }
 	LC_ALL=C awk -v ownList="$listDir/${2:-}.checklist.md" -v listKept="$listKept" -v listAt="${listAt:--}" '
-		/^- \[ \]/ { anyOpen = 1 }
-		FILENAME != ownList { next }
-		/^- \[ \] / { openCount++ }
-		/^- \[~\] / && doingText == "" { doingText = $0 ; sub( /^- \[~\] /, "", doingText ) ; sub( / \(in progress: .*/, "", doingText ) }
-		END { printf "%s\t%s\t%d\t%s\t%s\n", listKept, listAt, openCount, ( anyOpen ? "yes" : "no" ), doingText }
+		/^- \[ \]/ { anyOpen = 1 ; }
+		FILENAME != ownList { next ; }
+		/^- \[ \] / { openCount++ ; }
+		/^- \[~\] / && doingText == "" { doingText = $0 ; sub( /^- \[~\] /, "", doingText ) ; sub( / \(in progress: .*/, "", doingText ) ; }
+		END { printf "%s\t%s\t%d\t%s\t%s\n", listKept, listAt, openCount, ( anyOpen ? "yes" : "no" ), doingText ; }
 	' "${listFiles[@]}" 2> /dev/null
 }
 
@@ -187,9 +187,9 @@ AgentsSessionRigControlRows(){
 					[ -z "$rigOne" ] || rigWalkNames+=( "$rigOne" )
 				done <<< "$( AgentsToolsSpawnedRecordRows "$MMDAPP" status | RIG_NAMES="$rigNames" RIG_KEPT="$rigKept" RIG_STORE="$rigStore/" \
 					LC_ALL=C awk -F '\t' -v since="$(( rigAt - rigTtl ))" '
-					BEGIN { while ( ( getline keptLine < ENVIRON["RIG_KEPT"] ) > 0 ) if ( index( keptLine, ENVIRON["RIG_STORE"] ) == 1 ) { keptName = substr( keptLine, length( ENVIRON["RIG_STORE"] ) + 1 ) ; sub( /\/.*/, "", keptName ) ; listed[keptName] = 1 ; } }
+					BEGIN { while ( ( getline keptLine < ENVIRON["RIG_KEPT"] ) > 0 ) if ( index( keptLine, ENVIRON["RIG_STORE"] ) == 1 ) { keptName = substr( keptLine, length( ENVIRON["RIG_STORE"] ) + 1 ) ; sub( /\/.*/, "", keptName ) ; listed[keptName] = 1 ; } ; }
 					{ recorded[$1] = 1 ; if ( $4 == "spawn-started" || $3 + 0 >= since + 0 ) open[$1] = 1 ; }
-					END { count = split( ENVIRON["RIG_NAMES"], dirName, "\n" ) ; for ( at = 1 ; at <= count ; at++ ) { sub( /.*\//, "", dirName[at] ) ; if ( dirName[at] != "" && ( !( dirName[at] in recorded ) || ( dirName[at] in open ) || ( dirName[at] in listed ) ) ) print dirName[at] ; } }' )"
+					END { count = split( ENVIRON["RIG_NAMES"], dirName, "\n" ) ; for ( at = 1 ; at <= count ; at++ ) { sub( /.*\//, "", dirName[at] ) ; if ( dirName[at] != "" && ( !( dirName[at] in recorded ) || ( dirName[at] in open ) || ( dirName[at] in listed ) ) ) print dirName[at] ; } ; }' )"
 				: > "$rigKept.tmp"
 				[ ${#rigWalkNames[@]} -eq 0 ] || ( cd "$rigStore" && find "${rigWalkNames[@]}" -mindepth 5 -maxdepth 13 \( -name .git -o -name node_modules \) -prune -o -path '*/output/*' -path '*/control/pid' -type f -print 2> /dev/null ) \
 					| RIG_STORE="$rigStore/" LC_ALL=C awk '{ print ENVIRON["RIG_STORE"] $0 ; }' > "$rigKept.tmp"

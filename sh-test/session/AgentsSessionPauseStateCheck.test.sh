@@ -99,10 +99,10 @@ rigStateOf(){ ## run id -- its row's derived state, through the registry's one r
 	( cd "$rigWs" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp" PATH="$rigTmp/bin:/usr/bin:/bin:/usr/sbin:/sbin" \
 		MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
 		bash -c '. "$1" ; AgentsToolsRegistryRenderSpawnedSessions agents' rig "$rigPkg/sh-lib/session/AgentsTools.RegistrySpawnedSessions.include" ) 2>&1 \
-		| LC_ALL=C awk -v want="$1" 'NF == 13 && $8 == want { print $13 }' | head -1
+		| LC_ALL=C awk -v want="$1" 'NF == 13 && $8 == want { print $13 ; }' | head -1
 }
 rigCounters(){ ## -- the sessions the console counts as paused: the counters row of --manager-session-list
-	rigCall --manager-session-list | LC_ALL=C awk -F'\t' '$1 == "counters" { print $3 }'
+	rigCall --manager-session-list | LC_ALL=C awk -F'\t' '$1 == "counters" { print $3 ; }'
 }
 
 rigRun pause-sess pause-sess
@@ -118,7 +118,7 @@ rigAssert "the console's counter of paused sessions starts at zero" "$( rigCount
 
 echo "-- 1. a pause writes the flag of its id, and a resume removes it --"
 rigPaused="$( rigCall --manager-session-pause --session-id pause-sess )"
-rigAssert "the pause prints one row naming the id and the file it wrote" "$( printf '%s\n' "$rigPaused" | LC_ALL=C awk -F'\t' '$1 == "pause" { print $1, $2 }' )" "pause pause-sess"
+rigAssert "the pause prints one row naming the id and the file it wrote" "$( printf '%s\n' "$rigPaused" | LC_ALL=C awk -F'\t' '$1 == "pause" { print $1, $2 ; }' )" "pause pause-sess"
 rigAssert "and the flag stands in the session's folder" "$( [ -f "$rigAgents/sessions/pause-sess/paused" ] && echo stands || echo absent )" "stands"
 rigAssert "its one line is the moment and who asked, a UTC stamp and a word" \
 	"$( LC_ALL=C awk 'NF == 2 { stamp = ( $1 ~ /^20[0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9]Z$/ ) ; print ( stamp && $2 != "" ? "stamped" : "bad" ) ; }' "$rigAgents/sessions/pause-sess/paused" )" "stamped"
@@ -132,7 +132,7 @@ echo "-- 5. the console's counter counts the sessions that hold one --"
 rigAssert "one paused session is counted" "$( rigCounters )" "1"
 
 echo "-- 1. resume removes it, and a second resume is no fault --"
-rigAssert "the resume prints one row" "$( rigCall --manager-session-resume --session-id pause-sess | LC_ALL=C awk -F'\t' '$1 == "resume" { print $1 }' )" "resume"
+rigAssert "the resume prints one row" "$( rigCall --manager-session-resume --session-id pause-sess | LC_ALL=C awk -F'\t' '$1 == "resume" { print $1 ; }' )" "resume"
 rigAssert "the flag is gone" "$( [ -f "$rigAgents/sessions/pause-sess/paused" ] && echo stands || echo absent )" "absent"
 rigAssert "a resume of a session that is not paused ends well" "$( rigCall --manager-session-resume --session-id pause-sess > /dev/null 2>&1 && echo ok || echo refused )" "ok"
 rigAssert "the run reads its own word again" "$( rigStateOf pause-sess )" "thinking"
@@ -153,8 +153,8 @@ rigAssert "and no flag was made anywhere for either" "$( ls "$rigAgents/sessions
 
 echo "-- 4. ListAgents shows the word, and its own filter keeps the paused runs --"
 rigCall --manager-session-pause --session-id pause-lone > /dev/null 2>&1 || :
-rigAssert "a row of a paused run carries the word paused" "$( rigList '{"view":"agents"}' | LC_ALL=C awk -v want=pause-lone '$1 == want && $NF == "paused" { n++ } END { print n + 0 }' )" "1"
-rigAssert "--state paused keeps the paused run and drops the others" "$( rigList '{"view":"agents","state":"paused"}' | LC_ALL=C awk 'NF == 13 { print $1 }' | LC_ALL=C sort | tr '\n' ' ' )" "pause-lone "
+rigAssert "a row of a paused run carries the word paused" "$( rigList '{"view":"agents"}' | LC_ALL=C awk -v want=pause-lone '$1 == want && $NF == "paused" { n++ ; } END { print n + 0 ; }' )" "1"
+rigAssert "--state paused keeps the paused run and drops the others" "$( rigList '{"view":"agents","state":"paused"}' | LC_ALL=C awk 'NF == 13 { print $1 ; }' | LC_ALL=C sort | tr '\n' ' ' )" "pause-lone "
 rigAssert "and the refusal of a word it does not know names the pause among its states" "$( rigList '{"view":"agents","state":"nonsense"}' | LC_ALL=C grep -c '^ERROR: state must be.*paused' )" "1"
 rigCall --manager-session-resume --session-id pause-lone > /dev/null 2>&1 || :
 

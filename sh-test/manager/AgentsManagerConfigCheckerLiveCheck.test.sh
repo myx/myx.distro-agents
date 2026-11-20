@@ -33,14 +33,14 @@ rigAssert(){ ## what is asserted, got, want
 
 echo "-- 1. every domain answers, in the one order, each row a known state --"
 rigAssert "the call ends 0 though a check may fail: a diagnosis that finds a setting wrong is a row, not an error" "$rigRc" "0"
-rigAssert "every domain answers, domain by domain in the order of the operation" "$( printf '%s\n' "$rigOut" | LC_ALL=C awk -F'\t' '$1 == "check" && !seen[$2]++ { printf "%s ", $2 }' )" "claude copilot grok scaleway slack storage "
-rigAssert "each row has eight fields, and each state is one of ok, warn, fail, skipped" "$( printf '%s\n' "$rigOut" | LC_ALL=C awk -F'\t' '$1 == "check" { if ( NF != 8 ) bad++ ; if ( $6 != "ok" && $6 != "warn" && $6 != "fail" && $6 != "skipped" ) bad++ } END { print bad + 0 }' )" "0"
-rigAssert "the two domains whose check asks outside the machine are each one skipped row, left out and not started" "$( printf '%s\n' "$rigOut" | LC_ALL=C awk -F'\t' '$1 == "check" && ($2 == "claude" || $2 == "slack") { printf "%s:%s ", $2, $6 }' )" "claude:skipped slack:skipped "
+rigAssert "every domain answers, domain by domain in the order of the operation" "$( printf '%s\n' "$rigOut" | LC_ALL=C awk -F'\t' '$1 == "check" && !seen[$2]++ { printf "%s ", $2 ; }' )" "claude copilot grok scaleway slack storage "
+rigAssert "each row has eight fields, and each state is one of ok, warn, fail, skipped" "$( printf '%s\n' "$rigOut" | LC_ALL=C awk -F'\t' '$1 == "check" { if ( NF != 8 ) bad++ ; if ( $6 != "ok" && $6 != "warn" && $6 != "fail" && $6 != "skipped" ) bad++ ; } END { print bad + 0 ; }' )" "0"
+rigAssert "the two domains whose check asks outside the machine are each one skipped row, left out and not started" "$( printf '%s\n' "$rigOut" | LC_ALL=C awk -F'\t' '$1 == "check" && ($2 == "claude" || $2 == "slack") { printf "%s:%s ", $2, $6 ; }' )" "claude:skipped slack:skipped "
 
 echo "-- 2. the one summing row, the last --"
-rigAssert "the summary sums every row: ok, warn, fail and skipped add up to the checks" "$( printf '%s\n' "$rigOut" | LC_ALL=C awk -F'\t' '$1 == "summary" { print ( ($2 + 0) == ($3 + $4 + $5 + $6) ) }' )" "1"
-rigAssert "it counts every domain's rows, so at least six, one a domain" "$( printf '%s\n' "$rigOut" | LC_ALL=C awk -F'\t' '$1 == "summary" { print ( ($2 + 0) >= 6 ) }' )" "1"
-rigAssert "and it is the last row, after every check row, naming the seconds it took" "$( printf '%s\n' "$rigOut" | LC_ALL=C awk -F'\t' '$1 == "summary" { print $1, NF, ( ($7 + 0) >= 0 ) }' | LC_ALL=C tail -1 ) $( printf '%s\n' "$rigOut" | LC_ALL=C awk -F'\t' '{ last = $1 } END { print last }' )" "summary 7 1 summary"
+rigAssert "the summary sums every row: ok, warn, fail and skipped add up to the checks" "$( printf '%s\n' "$rigOut" | LC_ALL=C awk -F'\t' '$1 == "summary" { print ( ($2 + 0) == ($3 + $4 + $5 + $6) ) ; }' )" "1"
+rigAssert "it counts every domain's rows, so at least six, one a domain" "$( printf '%s\n' "$rigOut" | LC_ALL=C awk -F'\t' '$1 == "summary" { print ( ($2 + 0) >= 6 ) ; }' )" "1"
+rigAssert "and it is the last row, after every check row, naming the seconds it took" "$( printf '%s\n' "$rigOut" | LC_ALL=C awk -F'\t' '$1 == "summary" { print $1, NF, ( ($7 + 0) >= 0 ) ; }' | LC_ALL=C tail -1 ) $( printf '%s\n' "$rigOut" | LC_ALL=C awk -F'\t' '{ last = $1 ; } END { print last ; }' )" "summary 7 1 summary"
 
 echo "-- 3. read-only, and the run folder gone after --"
 rigAssert "the checker names the owner's read-only check alone, no apply and no set of its own" "$( LC_ALL=C grep -c -F -- '"--owner-setup-$runName" --check' "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.ManagerCheck.include" ) $( LC_ALL=C grep -c -F -e '"--owner-setup-$runName" --apply' -e '"--owner-setup-$runName" --set' "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.ManagerCheck.include" )" "1 0"

@@ -302,7 +302,7 @@ keys LEFT LEFT LEFT
 get root5
 RIGSCRIPT
 rigDepth(){ ## path -- how many levels it has
-	[ -n "$1" ] && printf '%s\n' "$1" | LC_ALL=C awk -F/ '{ print NF }' || echo 0
+	[ -n "$1" ] && printf '%s\n' "$1" | LC_ALL=C awk -F/ '{ print NF ; }' || echo 0
 }
 rigAssert "control: the list stands four levels down (Magic-Team, Team Members, the member, its folder), on a row in the middle of its page, not on its first row" "$( rigDepth "$( rigVal deep.path )" ) $( [ "$( rigVal deep.index )" -gt 1 ] && echo middle || echo "first: $( rigVal deep.index )" ) $( rigVal deep.focus )" "4 middle list"
 rigAssert "Left from the middle of the list pages it up, as PgUp does, and climbs nowhere" "$( rigDepth "$( rigVal paged.path )" ) $( [ "$( rigVal paged.index )" -lt "$( rigVal deep.index )" ] && echo up || echo "not up: $( rigVal paged.index ) of $( rigVal deep.index )" ) $( rigVal paged.focus )" "4 up list"

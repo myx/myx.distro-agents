@@ -135,7 +135,7 @@ AgentsHarnessContextBegin(){ ## from (default 0)
 			"$( AgentsHarnessContextEscape "$( AgentsHarnessContextMachine )" )" "$harnessContextLeg" "$harnessContextFrom" "$( date -u +%Y-%m-%dT%H:%M:%SZ )" \
 			"${agentsWirePromptCacheKey:-}" "${agentsWireSystemSharedBytes:-0}" "$( AgentsHarnessContextEscape "$harnessPrompt" )"
 		printf '{"type":"system","text":"%s"}\n' "$( AgentsHarnessContextSystemJson )"
-		printf '{"type":"tools","cksum":"%s","bytes":%s}\n' "$( printf '%s' "$beginTools" | LC_ALL=C cksum | LC_ALL=C awk '{ print $1 }' )" "$( printf '%s' "$beginTools" | LC_ALL=C wc -c | tr -d ' ' )"
+		printf '{"type":"tools","cksum":"%s","bytes":%s}\n' "$( printf '%s' "$beginTools" | LC_ALL=C cksum | LC_ALL=C awk '{ print $1 ; }' )" "$( printf '%s' "$beginTools" | LC_ALL=C wc -c | tr -d ' ' )"
 		while [ "$beginIndex" -lt "${#harnessMessages[@]}" ] ; do
 			case "${harnessMessages[$beginIndex]}" in
 				'{"role":"assistant"'*) beginKind=assistant ; harnessContextLastAssistant=$(( beginIndex + 1 )) ;;
@@ -362,7 +362,7 @@ AgentsHarnessContextResume(){
 		agentsWirePromptCacheKey="$resumeKey"
 	fi
 	resumeTools="$( sed -n 3p "$resumeFile" | LC_ALL=C awk -v path=cksum -v optional=1 -f "$harnessHere/harness/AgentsHarnessJsonField.awk" 2>/dev/null )" || resumeTools=""
-	[ "$resumeTools" = "$( AgentsHarnessContextToolsJson | LC_ALL=C cksum | LC_ALL=C awk '{ print $1 }' )" ] \
+	[ "$resumeTools" = "$( AgentsHarnessContextToolsJson | LC_ALL=C cksum | LC_ALL=C awk '{ print $1 ; }' )" ] \
 		|| echo "${harnessWarn}⚠️  WARNING:${harnessOff} $harnessSelfName: the tool set differs from the one the context was kept with -- resuming anyway, but the prompt cache will not cover the tools" >&2
 	## The corrections are the new user turn; the task a later restart re-renders keeps both.
 	resumeTask="$( AgentsHarnessContextHeader "$resumeFile" task )"

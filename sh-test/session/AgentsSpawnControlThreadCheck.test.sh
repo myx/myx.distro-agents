@@ -219,7 +219,7 @@ rigEnded(){ ## pid -- it is no process any more, collected by its starter or not
 rigNoThread(){ [ "$( rigThreads "$1" )" = "0" ] ; } ## session id
 rigListed(){ ## session id -- how the list of sessions shows it: its number of runs, their count by state, and its thread
 	( cd "$rigWs" && rigEnv "$rigTmp" bash "$rigTool" --manager-session-list ) 2> /dev/null \
-		| LC_ALL=C awk -F'\t' -v wantId="$1" '$1 == "session" && $2 == wantId { print $7 ":" $8 ":" $11 }'
+		| LC_ALL=C awk -F'\t' -v wantId="$1" '$1 == "session" && $2 == wantId { print $7 ":" $8 ":" $11 ; }'
 }
 rigWarned(){ ## log file -- how many of its lines warn of a control thread
 	LC_ALL=C grep -c -F 'WARNING: the control thread of session ' "$1" 2> /dev/null || :
@@ -233,7 +233,7 @@ rigRunStarted(){ ## scenario
 	[ -n "$rigLog" ] && [ -n "$rigSession" ] || rigRefuse "the spawn of scenario $1 printed no session or no log: $( LC_ALL=C grep -h -m1 ERROR "$rigDir/proxy.out" "$rigDir/proxy.err" 2> /dev/null | LC_ALL=C grep -v -F 'SystemContext.SetInputSpec' | head -1 )"
 	rigRun="$( basename "$( dirname "$rigLog" )" )"
 	rigWaitFor 60 test -s "$rigDir/first.$rigRun.began" || rigRefuse "the stand-in console never started in scenario $1: $( LC_ALL=C grep -h -m1 ERROR "$rigDir/proxy.out" "$rigDir/proxy.err" "$rigLog" 2> /dev/null | LC_ALL=C grep -v -F 'SystemContext.SetInputSpec' | head -1 )"
-	rigRecord="$( LC_ALL=C awk -v wantRun="$rigRun" '$2 == wantRun { print $3 ; exit }' "$rigDir/launches" )"
+	rigRecord="$( LC_ALL=C awk -v wantRun="$rigRun" '$2 == wantRun { print $3 ; exit ; }' "$rigDir/launches" )"
 	rigConsole="$( LC_ALL=C sed -n '1p' "$rigDir/first.$rigRun.began" )"
 	rigWaitFor 20 rigRunKept || rigRefuse "the proxy kept no process on the record of its run in scenario $1"
 	rigSessions="$rigSessions $rigSession"
@@ -269,7 +269,7 @@ rigAssert "a control thread runs for the session of that run: the pid file of th
 	"$( [ -n "$rigLoneThread" ] && echo held ):$( rigThreads "$rigLone" )" "held:1"
 rigAssert "it shows in the process list by the tooling script, its operation and its session" \
 	"$( rigArgs "${rigLoneThread:-0}" | LC_ALL=C grep -c -F -- "$rigTool --intern-session-control --run --session-id $rigLone" )" "1"
-rigShellPid="$( rigHeader "$rigRecord" supervisor-process | LC_ALL=C awk '{ print $1 }' )"
+rigShellPid="$( rigHeader "$rigRecord" supervisor-process | LC_ALL=C awk '{ print $1 ; }' )"
 rigAssert "it is in a process group of its own: not that of the shell that supervises the run, which started it, nor the one this check runs in" \
 	"$( [ -n "$rigLoneThread" ] && [ "$( rigGroup "$rigLoneThread" )" = "$rigLoneThread" ] && echo own ):$( [ -n "$rigShellPid" ] && [ "$( rigGroup "${rigLoneThread:-0}" )" != "$( rigGroup "$rigShellPid" )" ] && echo apart-from-the-shell ):$( [ "$( rigGroup "${rigLoneThread:-0}" )" != "$( rigGroup "$$" )" ] && echo apart-from-the-check )" "own:apart-from-the-shell:apart-from-the-check"
 rigAssert "the log of the thread holds the one start that was made, with that process" "$( rigMade "$rigLone" ):$( LC_ALL=C grep -c -F -- "is made: pid ${rigLoneThread:-none}, begun " "$rigStores/$rigLone/control/log" 2> /dev/null )" "1:1"
@@ -280,7 +280,7 @@ rigAssert "and the log of the run holds no warning of it" "$( rigWarned "$rigLog
 
 echo "-- 2. a member that joins a session whose thread lives starts nothing --"
 rigAsLone=( "MDAT_SPAWN_SESSION_ID=$rigLone" "MDAT_SPAWN_AGENT=rig-member-a" "MDAT_SESSION_ID=$rigLone" )
-rigPidPrint="$( ls -i "$rigStores/$rigLone/control/pid" | LC_ALL=C awk '{ print $1 }' ):$( cat "$rigStores/$rigLone/control/pid" )"
+rigPidPrint="$( ls -i "$rigStores/$rigLone/control/pid" | LC_ALL=C awk '{ print $1 ; }' ):$( cat "$rigStores/$rigLone/control/pid" )"
 ## A member that joins is another member than the one whose run holds the session: a member runs
 ## once in a session (F6.9), and a second start of the same one there is refused.
 rigStartMember=rig-member-c
@@ -288,7 +288,7 @@ rigStart join-live "${rigAsLone[@]}"
 rigStartMember=""
 rigAssert "control: the member joined that session, as a run of its own" "$( rigHeader "$rigRecord" session-id ):$( [ "$rigRun" != "$rigLone" ] && echo another-run )" "$rigLone:another-run"
 rigAssert "nothing was started: the pid file is as it was, one thread shows, and the log holds its one start" \
-	"$( ls -i "$rigStores/$rigLone/control/pid" | LC_ALL=C awk '{ print $1 }' ):$( cat "$rigStores/$rigLone/control/pid" ) $( rigThreads "$rigLone" ) $( rigMade "$rigLone" )" "$rigPidPrint 1 1"
+	"$( ls -i "$rigStores/$rigLone/control/pid" | LC_ALL=C awk '{ print $1 ; }' ):$( cat "$rigStores/$rigLone/control/pid" ) $( rigThreads "$rigLone" ) $( rigMade "$rigLone" )" "$rigPidPrint 1 1"
 rigAssert "a thread that lives is no error: the log of the run that joined holds no warning, and the list counts two runs and one thread" "$( rigWarned "$rigLog" ):$( rigListed "$rigLone" )" "0:2:running=2:alive"
 
 echo "-- 3. a member that joins a session whose thread is gone starts it again --"
@@ -322,7 +322,7 @@ rigAssert "the member starts all the same: the spawn printed STATUS=started, its
 	"$( LC_ALL=C grep -c -x -F 'STATUS=started' "$rigDir/proxy.out" ):$( [ -n "$( rigProcBegan "${rigConsole%% *}" )" ] && echo console ):$( rigHeader "$rigRecord" session-id ):$( rigHeader "$rigRecord" status )" "1:console:$rigParent:spawn-started"
 rigAssert "one line of the run's log warns that the thread of that session could not be started, and says why; no process was started for it" \
 	"$( rigWarned "$rigLog" ):$( LC_ALL=C grep -c -F -- "⚠️ WARNING: the control thread of session $rigParent could not be started: the log of the thread could not be written: $rigStores/$rigParent/control/log" "$rigLog" ):$( rigThreads "$rigParent" )" "1:1:0"
-rigAssert "and neither the stdout nor the stderr of the spawn says anything of it" "$( LC_ALL=C grep -c -i -F 'control thread' "$rigDir/proxy.out" "$rigDir/proxy.err" | LC_ALL=C awk -F: '{ total += $NF } END { print total + 0 }' )" "0"
+rigAssert "and neither the stdout nor the stderr of the spawn says anything of it" "$( LC_ALL=C grep -c -i -F 'control thread' "$rigDir/proxy.out" "$rigDir/proxy.err" | LC_ALL=C awk -F: '{ total += $NF ; } END { print total + 0 ; }' )" "0"
 rm -f "$rigStores/$rigParent/control"
 ## Another member than the run started just before in that session, which still runs there.
 rigStartMember=rig-member-c
@@ -337,9 +337,9 @@ rigDir="$rigTmp/waited" ; mkdir -p "$rigDir"
 ( cd "$rigWs" && rigEnv "$rigDir" bash "$rigTool" --intern-op-agent-spawn-proxy rig-member-a --dispatch-doc:create --wait --session-new --context rig-control-thread <<< "RIG-BRIEF" > "$rigDir/proxy.out" 2> "$rigDir/proxy.err" ) &
 rigWaitedCall=$!
 rigWaitFor 60 test -s "$rigDir/launches" || rigRefuse "the stand-in console of the waited start never started: $( LC_ALL=C grep -h -m1 ERROR "$rigDir/proxy.err" 2> /dev/null | LC_ALL=C grep -v -F 'SystemContext.SetInputSpec' | head -1 )"
-rigWaited="$( LC_ALL=C awk '{ print $2 ; exit }' "$rigDir/launches" )"
+rigWaited="$( LC_ALL=C awk '{ print $2 ; exit ; }' "$rigDir/launches" )"
 rigSessions="$rigSessions $rigWaited"
-rigWaitedRecord="$( LC_ALL=C awk '{ print $3 ; exit }' "$rigDir/launches" )"
+rigWaitedRecord="$( LC_ALL=C awk '{ print $3 ; exit ; }' "$rigDir/launches" )"
 sleep 2
 rigAssert "control: the start its caller waits on opened a session of its own, and its run is under way" "$( rigHeader "$rigWaitedRecord" session-id ):$( rigHeader "$rigWaitedRecord" status )" "$rigWaited:spawn-started"
 rigAssert "no control thread is started for it: no process, and no control folder in the folder of its session" \
@@ -364,7 +364,7 @@ rigWaitFor 60 rigTrioUp
 rigSessions="$rigSessions $rigTrio"
 rigWaitFor 20 rigHeld "$rigTrio"
 rigAssert "control: three members were started, each a run of that one session" \
-	"$( LC_ALL=C grep -c -x -F 'MEMBERS=rig-member-a rig-member-b rig-member-c' "$rigDir/proxy.out" ):$( LC_ALL=C awk '$1 == "first" { print $3 }' "$rigDir/launches" | while IFS= read -r rigEach ; do rigHeader "$rigEach" session-id ; done | LC_ALL=C grep -c -x -F -- "$rigTrio" )" "1:3"
+	"$( LC_ALL=C grep -c -x -F 'MEMBERS=rig-member-a rig-member-b rig-member-c' "$rigDir/proxy.out" ):$( LC_ALL=C awk '$1 == "first" { print $3 ; }' "$rigDir/launches" | while IFS= read -r rigEach ; do rigHeader "$rigEach" session-id ; done | LC_ALL=C grep -c -x -F -- "$rigTrio" )" "1:3"
 rigAssert "one control thread runs for the session, and its pid file stands in the folder of the session" \
 	"$( rigThreads "$rigTrio" ):$( [ -n "$( rigHolder "$rigTrio" )" ] && echo held ):$( [ -f "$rigStores/$rigTrio/control/pid" ] && echo pid )" "1:held:pid"
 rigAssert "it was started once: the log of the thread holds one start, and no line of a start the lock refused" \
@@ -399,7 +399,7 @@ rigAssert "control: a lone run with its thread, and the session reads running" "
 printf '%s\n' '{"to":"session-current","outcome":"the rig step is done"}' > "$rigDir/handback"
 : > "$rigDir/release"
 rigWaitFor 90 rigRecordClosed
-rigAssert "the run hands back and ends, and its supervising shell closes the record" "$( rigHeader "$rigRecord" status ):$( LC_ALL=C awk '{ printf "%s ", $1 }' "$rigDir/launches" )" "spawn-succeeded:first "
+rigAssert "the run hands back and ends, and its supervising shell closes the record" "$( rigHeader "$rigRecord" status ):$( LC_ALL=C awk '{ printf "%s ", $1 ; }' "$rigDir/launches" )" "spawn-succeeded:first "
 rigWaitFor 30 rigStateIs "$rigEnds" finished
 rigWaitFor 20 rigNoThread "$rigEnds"
 rigAssert "the session reads finished, and no control thread is left: no process, no pid file and no lock" \
@@ -421,8 +421,8 @@ rigLetAllGo
 rigControlThreadsEnd "$rigTmp"
 sleep 1
 rigAssert "every thread this check started is ended: no process of this host shows as a thread of one of its sessions" \
-	"$( for rigEach in $rigSessions ; do rigThreads "$rigEach" ; done | LC_ALL=C awk '{ total += $1 } END { print total + 0 }' ):$( printf '%s\n' $rigSessions | LC_ALL=C sort -u | LC_ALL=C awk 'END { print ( NR >= 6 ) ? "six-or-more-sessions" : NR }' )" "0:six-or-more-sessions"
-rigAssert "control: the rig knew the threads it ended, by the starts their logs hold and by their pid files" "$( LC_ALL=C awk 'NF == 2 && ! said[$1]++ { count++ } END { print ( count >= 5 ) ? "five-or-more" : count + 0 }' "$rigTmp/threads.notes" 2> /dev/null )" "five-or-more"
+	"$( for rigEach in $rigSessions ; do rigThreads "$rigEach" ; done | LC_ALL=C awk '{ total += $1 ; } END { print total + 0 ; }' ):$( printf '%s\n' $rigSessions | LC_ALL=C sort -u | LC_ALL=C awk 'END { print ( NR >= 6 ) ? "six-or-more-sessions" : NR ; }' )" "0:six-or-more-sessions"
+rigAssert "control: the rig knew the threads it ended, by the starts their logs hold and by their pid files" "$( LC_ALL=C awk 'NF == 2 && ! said[$1]++ { count++ ; } END { print ( count >= 5 ) ? "five-or-more" : count + 0 ; }' "$rigTmp/threads.notes" 2> /dev/null )" "five-or-more"
 
 if [ "$rigFails" -ne 0 ] ; then
 	echo "⛔ SPAWN CONTROL THREAD CHECK FAILED: $rigFails of $(( rigPasses + rigFails )) assertion(s)" >&2 ; exit 1

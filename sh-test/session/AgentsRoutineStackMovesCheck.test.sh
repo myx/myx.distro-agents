@@ -114,22 +114,22 @@ rigCall(){ ## name, then the operation and its arguments
 rigFrames(){
 	env -i HOME="$rigTmp/home" PATH="$PATH" MMDAPP="$rigWs" MDLT_ORIGIN="$rigOrigin" MDAT_DATA_ROOT="$rigScn/data" \
 		bash -c '. "$1" ; AgentsToolsSessionRoutineStackLines "$2"' rig "$rigHere/routine/AgentsTools.RoutineStack.include" "$rigSession" 2> /dev/null \
-		| LC_ALL=C sed -n 's/^routine-stack: //p' | LC_ALL=C awk 'BEGIN { ORS = "" } { printf "%s%s", ( NR > 1 ? " → " : "" ), $0 }'
+		| LC_ALL=C sed -n 's/^routine-stack: //p' | LC_ALL=C awk 'BEGIN { ORS = "" ; } { printf "%s%s", ( NR > 1 ? " → " : "" ), $0 ; }'
 }
 ## The move lines the record holds, one a line in the order the record keeps them.
 rigMoveLines(){
-	LC_ALL=C awk '$0 == "---" { n++ ; if ( n > 1 ) exit ; next } n == 1 && index( $0, "routine-stack-" ) == 1' "$rigRecord" 2> /dev/null
+	LC_ALL=C awk '$0 == "---" { n++ ; if ( n > 1 ) exit ; next ; } n == 1 && index( $0, "routine-stack-" ) == 1' "$rigRecord" 2> /dev/null
 }
 ## The same, joined by a vertical bar, for one line of an assertion.
 rigMoves(){
-	rigMoveLines | LC_ALL=C awk 'BEGIN { ORS = "" } { printf "%s%s", ( NR > 1 ? "|" : "" ), $0 }'
+	rigMoveLines | LC_ALL=C awk 'BEGIN { ORS = "" ; } { printf "%s%s", ( NR > 1 ? "|" : "" ), $0 ; }'
 }
 ## The same lines with their own `at:` taken out, so an assertion compares what a move says and not when it was made.
 rigMovesNoInstant(){
-	rigMoveLines | LC_ALL=C sed -E 's/ at: [0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2} [+-][0-9]{4} / /' | LC_ALL=C awk 'BEGIN { ORS = "" } { printf "%s%s", ( NR > 1 ? "|" : "" ), $0 }'
+	rigMoveLines | LC_ALL=C sed -E 's/ at: [0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2} [+-][0-9]{4} / /' | LC_ALL=C awk 'BEGIN { ORS = "" ; } { printf "%s%s", ( NR > 1 ? "|" : "" ), $0 ; }'
 }
 rigHeader(){ ## header -- one header of the record
-	LC_ALL=C awk -v want="$1" '$0 == "---" { if ( ++n > 1 ) exit ; next } n == 1 && index( $0, want ": " ) == 1 { print substr( $0, length( want ) + 3 ) ; exit }' "$rigRecord" 2> /dev/null
+	LC_ALL=C awk -v want="$1" '$0 == "---" { if ( ++n > 1 ) exit ; next ; } n == 1 && index( $0, want ": " ) == 1 { print substr( $0, length( want ) + 3 ) ; exit ; }' "$rigRecord" 2> /dev/null
 }
 rigOutHolds(){ LC_ALL=C grep -c -F -- "$1" "$rigOut" 2> /dev/null || : ; }
 rigErrHolds(){ LC_ALL=C grep -c -F -- "$1" "$rigErr" 2> /dev/null || : ; }
@@ -164,21 +164,21 @@ rigAssert "the named frame is current, and every frame above it ends" "$( rigFra
 
 echo "-- 6. the move lines stand in the record in the order they were made --"
 rigAssert "five moves, five lines, each with its by: and reason" \
-	"$( rigMoves | LC_ALL=C tr '|' '\n' | LC_ALL=C awk 'BEGIN { ORS = "" } { n++ ; if ( index( $0, " by: chair reason: " ) == 0 ) bad++ } END { printf "%d lines, %d without by: and reason", n, bad + 0 }' )" \
+	"$( rigMoves | LC_ALL=C tr '|' '\n' | LC_ALL=C awk 'BEGIN { ORS = "" ; } { n++ ; if ( index( $0, " by: chair reason: " ) == 0 ) bad++ ; } END { printf "%d lines, %d without by: and reason", n, bad + 0 ; }' )" \
 	"5 lines, 0 without by: and reason"
 rigAssert "and the lines name the four verbs in the order of the moves" \
-	"$( rigMoveLines | LC_ALL=C awk 'BEGIN { ORS = "" } { sub( /:$/, "", $1 ) ; printf "%s%s", ( NR > 1 ? "," : "" ), $1 }' )" \
+	"$( rigMoveLines | LC_ALL=C awk 'BEGIN { ORS = "" ; } { sub( /:$/, "", $1 ) ; printf "%s%s", ( NR > 1 ? "," : "" ), $1 ; }' )" \
 	"routine-stack-push,routine-stack-replace,routine-stack-rewind,routine-stack-return,routine-stack-return"
 
 echo "-- 7. the frames' own lines are the frames alone --"
 rigAssert "the record still holds three frame lines, and no move line reads as a frame" \
-	"$( LC_ALL=C awk '$0 == "---" { n++ ; if ( n > 1 ) exit ; next } n == 1 && index( $0, "routine-stack: " ) == 1 { c++ } END { print c + 0 }' "$rigRecord" )" 3
+	"$( LC_ALL=C awk '$0 == "---" { n++ ; if ( n > 1 ) exit ; next ; } n == 1 && index( $0, "routine-stack: " ) == 1 { c++ ; } END { print c + 0 ; }' "$rigRecord" )" 3
 rigAssert "the reader of the frames takes them alone, never a move line" \
 	"$( rigFrames | LC_ALL=C grep -c -E 'routine-stack-(push|replace|rewind|return)' )" 0
 
 echo "-- 8. each move posts into the session's event-track thread --"
 rigAssert "the moves were posted: one event-track post for the first move" \
-	"$( LC_ALL=C grep -c -F 'routine-stack-push' "$rigScn"/post.* 2> /dev/null | LC_ALL=C awk '{ s += $1 } END { printf "%d", ( s > 0 ? 1 : 0 ) }' )" 1
+	"$( LC_ALL=C grep -c -F 'routine-stack-push' "$rigScn"/post.* 2> /dev/null | LC_ALL=C awk '{ s += $1 ; } END { printf "%d", ( s > 0 ? 1 : 0 ) ; }' )" 1
 rigAssert "and the post names the move it records"          "$( LC_ALL=C grep -l -F 'routine-stack-push: rig-b.routine.md' "$rigScn"/post.* 2> /dev/null | LC_ALL=C grep -c . )" 1
 
 echo "-- 9. control: a routine name the resolver does not know is refused --"
@@ -244,7 +244,7 @@ rigAssert "and it reads that frame's instant as an epoch, never a date to parse 
 rigSettle(){ ## -- rc 0 once no process of this rig is left, rc 1 at the bound
 	local settleLeft=90
 	while [ "$settleLeft" -gt 0 ] ; do
-		[ "$( ps -A -ww -o args= 2>/dev/null | LC_ALL=C awk -v rig="$rigTmp" 'index( $0, rig ) && !/awk/ { n++ } END { print n + 0 }' )" != "0" ] || return 0
+		[ "$( ps -A -ww -o args= 2>/dev/null | LC_ALL=C awk -v rig="$rigTmp" 'index( $0, rig ) && !/awk/ { n++ ; } END { print n + 0 ; }' )" != "0" ] || return 0
 		sleep 1 ; settleLeft=$(( settleLeft - 1 ))
 	done
 	return 1

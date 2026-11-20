@@ -90,7 +90,7 @@ rigRun(){ ## -- the reasons the pass stated, from RIG_CALLS, and the line of eac
 			AgentsToolsScheduleTagCarry(){ return 0 ; }
 			AgentsToolsScheduleDemand(){ return 0 ; }
 			AgentsToolsScheduleDutyRestartDue(){ return 1 ; }
-			AgentsToolsScheduleWorkDutyRecord(){ { [ -s "$RIG_DUTY" ] && [ "$( cat "$RIG_DUTY" )" = "$1" ] ; } || LC_ALL=C grep -q -x -F "work-duty.$1" "$RIG_CALLS" 2> /dev/null && { printf "%s/rig.spawn.md\n" "$RIG_SPAWNED" ; return 0 ; } ; return 1 ; }
+			AgentsToolsScheduleWorkDutyRecord(){ { [ -s "$RIG_DUTY" ] && [ "$( cat "$RIG_DUTY" )" = "$1" ] ; } || LC_ALL=C awk -F "\t" -v want="work-duty.$1" \"\$1 == want { seen = 1 } END { exit ( seen ? 0 : 1 ) }\" "$RIG_CALLS" && { printf "%s/rig.spawn.md\n" "$RIG_SPAWNED" ; return 0 ; } ; return 1 ; }
 			AgentsToolsScheduleDutyLifetime(){ return 0 ; }
 			AgentsToolsScheduleWorkDuty 2>> "$RIG_REASONS"
 		' > "$rigTmp/run.out" 2> /dev/null
@@ -99,7 +99,7 @@ rigRun(){ ## -- the reasons the pass stated, from RIG_CALLS, and the line of eac
 	printf '%s' "$( LC_ALL=C grep -E '^work-duty\.' "$rigTmp/calls" 2> /dev/null | LC_ALL=C cut -f1 | LC_ALL=C sed 's/^work-duty\.//' | LC_ALL=C tr '\n' ' ' )"
 }
 rigRoutineOf(){ ## member -- the routine its start was given, from the last call of the run
-	LC_ALL=C awk -F '\t' -v want="work-duty.$1" '$1 == want { got = $2 } END { print got }' "$rigTmp/calls" 2> /dev/null
+	LC_ALL=C awk -F '\t' -v want="work-duty.$1" '$1 == want { got = $2 ; } END { print got ; }' "$rigTmp/calls" 2> /dev/null
 }
 rigFlags(){ ## the flag lines the pass will read
 	printf '%s\n' "$@" > "$rigTmp/flags"

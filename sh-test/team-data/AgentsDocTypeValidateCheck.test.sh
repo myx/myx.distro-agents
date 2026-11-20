@@ -78,10 +78,10 @@ rigKindFaultsSeen=""
 ## the same document. The contract decides, never a number in this file: the count of contracts moves as kinds are added.
 rigKeyRows(){ ## contract file -- how many key rows its Keys section names
 	LC_ALL=C awk '
-		/^## Keys$/ { inKeys = 1 ; next }
-		inKeys && /^## / { inKeys = 0 }
-		inKeys && /^\| `[^`]+` \|/ { rows++ }
-		END { print rows + 0 }
+		/^## Keys$/ { inKeys = 1 ; next ; }
+		inKeys && /^## / { inKeys = 0 ; }
+		inKeys && /^\| `[^`]+` \|/ { rows++ ; }
+		END { print rows + 0 ; }
 	' "$1"
 }
 for rigContract in "$rigTemplates"/*-item.*.contract.format.md ; do

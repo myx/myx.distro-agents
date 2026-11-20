@@ -80,7 +80,7 @@ type AgentsToolsManagerSessionFinish > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx
 			killRows="$( AgentsToolsSessionControlRequestKill "$killOp" "$killId" "$killOwn" )" || killRc=$?
 			[ -z "$killRows" ] || printf '%s\n' "$killRows"
 			[ "$killRc" = 0 ] || { set +e ; return 1 ; }
-			killEnded="$( printf '%s\n' "$killRows" | LC_ALL=C awk -F'\t' '$1 == "kill" && ( $5 == "ended" || $5 == "killed" ) { rowsEnded++ } END { print rowsEnded + 0 }' )"
+			killEnded="$( printf '%s\n' "$killRows" | LC_ALL=C awk -F'\t' '$1 == "kill" && ( $5 == "ended" || $5 == "killed" ) { rowsEnded++ ; } END { print rowsEnded + 0 ; }' )"
 		fi
 		AgentsToolsManagerSessionFinish "$killOp" "$killId" "$killOwn" "$killPlan" "$killEnded" || { set +e ; return 1 ; }
 		return 0

@@ -101,7 +101,7 @@ rigAssert "the drain runs the test in the subfolder for the requests that named 
 echo "-- 3. the package: nothing but a check ends in .test.sh, and every check has a name of its own --"
 rigAssert "no fixture of check-fixtures/ ends in .test.sh: each is named by its type" \
 	"$( cd "$rigPackage/sh-test/check-fixtures" && ls | LC_ALL=C grep '\.test\.sh$' | LC_ALL=C tr '\n' ' ' )" ""
-rigAssert "control: check-fixtures/ is read, and holds fixtures" "$( ls "$rigPackage/sh-test/check-fixtures" | LC_ALL=C awk 'END { print ( NR >= 10 ) ? "fixtures" : NR }' )" "fixtures"
+rigAssert "control: check-fixtures/ is read, and holds fixtures" "$( ls "$rigPackage/sh-test/check-fixtures" | LC_ALL=C awk 'END { print ( NR >= 10 ) ? "fixtures" : NR ; }' )" "fixtures"
 rigAssert "no two checks of sh-test and its subfolders share a name" \
 	"$( cd "$rigPackage/sh-test" && ls *.test.sh */*.test.sh 2> /dev/null | LC_ALL=C sed 's|.*/||' | LC_ALL=C sort | LC_ALL=C uniq -d | LC_ALL=C tr '\n' ' ' )" ""
 rigAssert "nothing stands in sh-test itself but the runner and its timing instrument: every check is in the folder of the sh-lib system it is about" \

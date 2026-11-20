@@ -58,7 +58,7 @@ rigScan(){ ## member -- the scan of that member
 		MDAT_DATA_ROOT="$rigData" MDAT_SKILLSET_ROOT="$rigTmp/skills" MDAT_WAIT_REMIND=off MDAT_WAIT_POLL_SECONDS=1 python3 -I -B "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-exec.py" --alarm 120 -- bash "$rigTool" --intern-op-work-duty-input-scan "$1" --session-id rig-session 2> /dev/null < /dev/null )
 }
 rigSection(){ ## text -- the lines of the external owners' section
-	printf '%s\n' "$1" | LC_ALL=C awk '/^## External owners/ { on = 1 ; next } /^## / { on = 0 } on && NF'
+	printf '%s\n' "$1" | LC_ALL=C awk '/^## External owners/ { on = 1 ; next ; } /^## / { on = 0 ; } on && NF'
 }
 rigItem inboxes/magic-coordinator/incoming note-20261019T0100Z-rig-own.md magic-coordinator "" new
 rigItem inboxes/magic-coordinator/incoming note-20261019T0101Z-rig-ext-new.md "human-owner" "" new
@@ -92,7 +92,7 @@ echo "-- 4. no marker, and a scan twice --"
 rm -f "$rigWs/.local/agents/schedule/duty/magic-coordinator"
 rigAll="$( rigSection "$( rigScan magic-coordinator )" | LC_ALL=C awk -F'\t' 'NF == 4' | wc -l | tr -d ' ' )"
 rigAssert "with no duty started yet, every such item is due: the five" "$rigAll" 5
-rigAssert "a scan twice in a row reads the same (the external owners' and the asks' sections)" "$( rigScan magic-coordinator | LC_ALL=C awk '/^## External owners/ { on = 1 } /^## Slack/ { on = 0 } on' | cksum ):" "$( rigScan magic-coordinator | LC_ALL=C awk '/^## External owners/ { on = 1 } /^## Slack/ { on = 0 } on' | cksum ):"
+rigAssert "a scan twice in a row reads the same (the external owners' and the asks' sections)" "$( rigScan magic-coordinator | LC_ALL=C awk '/^## External owners/ { on = 1 ; } /^## Slack/ { on = 0 ; } on' | cksum ):" "$( rigScan magic-coordinator | LC_ALL=C awk '/^## External owners/ { on = 1 ; } /^## Slack/ { on = 0 ; } on' | cksum ):"
 
 echo "-- 5. the board sections --"
 rigItem board/pending task-20261019T0108Z-rig-due.md keeper-rig "2020-01-01 00:00 +0000" old
@@ -100,7 +100,7 @@ rigCoord="$( rigScan magic-coordinator )"
 rigKeeper="$( rigScan keeper-rig )"
 rigAssert "the coordinator's scan has the board digest, the review items, the rechecks due and the dependencies" "$( printf '%s\n' "$rigCoord" | LC_ALL=C grep -c -x -e '## board digest' -e '## review items addressed to advance.routine' -e '## recheck dates due' -e '## board dependencies' -e '(none recomputed yet)' )" 5
 rigAssert "a keeper's scan has none of them" "$( printf '%s\n' "$rigKeeper" | LC_ALL=C grep -c -e '^## board digest' -e '^## recheck dates due' -e '^## board dependencies' || : )" 0
-rigDue="$( printf '%s\n' "$rigCoord" | LC_ALL=C awk '/^## recheck dates due/ { on = 1 ; next } /^## / { on = 0 } on && NF' )"
+rigDue="$( printf '%s\n' "$rigCoord" | LC_ALL=C awk '/^## recheck dates due/ { on = 1 ; next ; } /^## / { on = 0 ; } on && NF' )"
 rigAssert "the recheck-date that has arrived is listed with its date, and the one ahead is not" "$( printf '%s\n' "$rigDue" | LC_ALL=C grep -c -x -F -e '- pending/task-20261019T0108Z-rig-due.md recheck-date 2020-01-01 00:00 +0000 last-round-at -' ):$( printf '%s\n' "$rigDue" | LC_ALL=C grep -c -F 'rig-ext-future' || : )" "1:0"
 rigAssert "the items of the active states are in the digest" "$( printf '%s\n' "$rigCoord" | LC_ALL=C grep -c -x -e '## running/task-20261019T0106Z-rig-member.md' -e '## pending/task-20261019T0105Z-rig-contact.md' -e '## blocked/approval-20261019T0104Z-rig-ext-future.md' )" 3
 rm -f "$rigWs/.local/agents/board-dependencies.last"
@@ -118,7 +118,7 @@ rigReadback="$( printf 'my reading\n' | rigAsk --intern-op-pending-reply-open ma
 rigClosed="$( printf 'a question\n' | rigAsk --intern-op-pending-reply-open keeper-rig --to magic-coordinator --kind question --address-to magic-coordinator | head -1 )"
 [ -n "$rigDeath" ] && [ -n "$rigReadback" ] && [ -n "$rigClosed" ] || rigRefuse "the open op gave no record id"
 rigAsk --intern-op-pending-reply-close "$rigClosed" --if-open --status reply-received --verdict fine > /dev/null
-rigAsks="$( rigScan magic-coordinator | LC_ALL=C awk '/^## open asks addressed to magic-coordinator$/ { on = 1 ; next } /^## / { on = 0 } on && NF' )"
+rigAsks="$( rigScan magic-coordinator | LC_ALL=C awk '/^## open asks addressed to magic-coordinator$/ { on = 1 ; next ; } /^## / { on = 0 ; } on && NF' )"
 rigAssert "an open death ask of keeper-rig is listed" "$( printf '%s\n' "$rigAsks" | LC_ALL=C grep -c -x -F -e "- $rigDeath.md owner keeper-rig session -" || : )" 1
 rigAssert "an open readback of another member is listed" "$( printf '%s\n' "$rigAsks" | LC_ALL=C grep -c -x -F -e "- $rigReadback.md owner magic-rig session -" || : )" 1
 rigAssert "a closed one is not listed" "$( printf '%s\n' "$rigAsks" | LC_ALL=C grep -c -F -e "$rigClosed" || : )" 0

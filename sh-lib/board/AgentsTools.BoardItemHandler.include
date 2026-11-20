@@ -85,7 +85,7 @@ AgentsToolsRoutineHandles(){ ## routine file, type
 			line = substr($0, 10) ; n = split(line, part, ",") ;
 			for (idx = 1 ; idx <= n ; idx++) { gsub(/^[ \t]+|[ \t]+$/, "", part[idx]) ; if (part[idx] == want) hit = 1 ; }
 		}
-		END { exit hit ? 0 : 1 }
+		END { exit hit ? 0 : 1 ; }
 	' "$1"
 }
 
@@ -215,13 +215,13 @@ AgentsToolsBoardLiveHolders(){
 	done < <( AgentsToolsSpawnedStartedRecords 2> /dev/null )
 	[ "${#holdersFiles[@]}" -gt 0 ] || return 0
 	LC_ALL=C awk '
-		FNR == 1 { fm = 0 ; owner = "" ; sid = "" ; spawn = "" ; status = "" ; ended = 0 }
-		$0 == "---" { if (++fm == 2 && status == "spawn-started" && !ended) printf "%s\t%s\t%s\n", owner, spawn, sid ; next }
-		fm == 1 && index($0, "owner: ") == 1 { owner = substr($0, 8) }
-		fm == 1 && index($0, "session-id: ") == 1 { sid = substr($0, 13) }
-		fm == 1 && index($0, "spawn-id: ") == 1 { spawn = substr($0, 11) }
-		fm == 1 && index($0, "status: ") == 1 { status = substr($0, 9) }
-		fm == 1 && index($0, "exit-code: ") == 1 { ended = 1 }
+		FNR == 1 { fm = 0 ; owner = "" ; sid = "" ; spawn = "" ; status = "" ; ended = 0 ; }
+		$0 == "---" { if (++fm == 2 && status == "spawn-started" && !ended) printf "%s\t%s\t%s\n", owner, spawn, sid ; next ; }
+		fm == 1 && index($0, "owner: ") == 1 { owner = substr($0, 8) ; }
+		fm == 1 && index($0, "session-id: ") == 1 { sid = substr($0, 13) ; }
+		fm == 1 && index($0, "spawn-id: ") == 1 { spawn = substr($0, 11) ; }
+		fm == 1 && index($0, "status: ") == 1 { status = substr($0, 9) ; }
+		fm == 1 && index($0, "exit-code: ") == 1 { ended = 1 ; }
 	' ${holdersFiles[@]+"${holdersFiles[@]}"} 2> /dev/null
 }
 
@@ -237,8 +237,8 @@ AgentsToolsBoardItemHolders(){ ## item file -- the live runs of the owner and th
 	fi
 	[ -n "$holdRows" ] || return 0
 	LC_ALL=C awk -F '\t' -v members="$holdMembers" -v session="$holdSession" '
-		BEGIN { n = split(members, part, ",") ; for (i = 1 ; i <= n ; i++) { one = part[i] ; gsub(/^[ \t]+|[ \t]+$/, "", one) ; if (one != "") want[one] = 1 } }
-		($1 in want) && (session == "" || $3 == session || $2 == session) { print }
+		BEGIN { n = split(members, part, ",") ; for (i = 1 ; i <= n ; i++) { one = part[i] ; gsub(/^[ \t]+|[ \t]+$/, "", one) ; if (one != "") want[one] = 1 ; } ; }
+		($1 in want) && (session == "" || $3 == session || $2 == session) { print ; }
 	' <<< "$holdRows" | AgentsToolsBoardItemHoldersNotGone
 }
 
@@ -254,7 +254,7 @@ AgentsToolsBoardItemRoundMay(){ ## item file -- rc 0 may run a round on it; rc 4
 				[ "$roundSession" != "$roundSpawn" ] && [ "$roundSession" != "$roundHolderSession" ] || return 0
 			done <<< "$roundHolders"
 		fi
-		printf 'the item is held by the live run of %s: one writer, so this caller (%s) runs no round on it\n' "$( printf '%s' "$roundHolders" | LC_ALL=C awk -F'\t' '{ printf "%s%s (%s)", sep, $1, $2 ; sep = ", " }' )" "${roundMember:-no member}"
+		printf 'the item is held by the live run of %s: one writer, so this caller (%s) runs no round on it\n' "$( printf '%s' "$roundHolders" | LC_ALL=C awk -F'\t' '{ printf "%s%s (%s)", sep, $1, $2 ; sep = ", " ; }' )" "${roundMember:-no member}"
 		return 4
 	fi
 	[ "$roundMember" = magic-coordinator ] && return 0

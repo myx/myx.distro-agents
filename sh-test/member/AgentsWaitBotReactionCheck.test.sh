@@ -95,7 +95,7 @@ echo "-- 1. a reaction the tooling places under the bot identity keeps the bot's
 rigRun --slack-react magic-team CRIG00001:1760000000.000001 eyes --identity-bot
 rigAssert "the reaction operation succeeded" "$( [ -s "$rigTmp/run.out" ] && printf answered || printf refused )" answered
 rigAssert "the bot's own account is kept where the wait reads our accounts" \
-	"$( LC_ALL=C awk '$2 ~ /^U[A-Z0-9]+$/ { print $2 }' "$rigWs/.local/cache/comms/slack/.user-id-magic-team.txt" 2> /dev/null )" "URIGBOT01"
+	"$( LC_ALL=C awk '$2 ~ /^U[A-Z0-9]+$/ { print $2 ; }' "$rigWs/.local/cache/comms/slack/.user-id-magic-team.txt" 2> /dev/null )" "URIGBOT01"
 
 echo "-- 2. the wait's own read carries it --"
 rigAssert "the accounts the wait reads hold the bot's own" \

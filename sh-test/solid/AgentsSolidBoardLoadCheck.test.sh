@@ -46,8 +46,8 @@ scanExemptCount="$( LC_ALL=C grep -cF "$scanExemptMark" "$scanTool" )" || :
 [ "$scanExemptCount" = 1 ] || scanRefuse "the exemption this check removes appears $scanExemptCount times in $scanTool, so its red arm would prove nothing"
 scanRedTool="$scanBuilt/sh-test/solid/AgentsSolidBreachScan.sh"
 LC_ALL=C awk -v mark="$scanExemptMark" '
-	index($0, mark) == 0 { print ; next }
-	{ line = $0 ; sub(/ && word !~ \/sh-lib\$\//, "", line) ; print line }' "$scanTool" > "$scanRedTool" || scanRefuse "the red copy could not be written"
+	index($0, mark) == 0 { print ; next ; }
+	{ line = $0 ; sub(/ && word !~ \/sh-lib\$\//, "", line) ; print line ; }' "$scanTool" > "$scanRedTool" || scanRefuse "the red copy could not be written"
 ! LC_ALL=C grep -qF "$scanExemptMark" "$scanRedTool" || scanRefuse "the red copy still carries the exemption"
 chmod +x "$scanRedTool" || scanRefuse "the red copy could not be made executable"
 
@@ -61,7 +61,7 @@ scanAssert(){ ## what is asserted, got, want
 	fi
 }
 scanRowsOf(){ ## rows, file -- the foreign-store rows naming that file, `<file>:<line>` joined by `; `
-	LC_ALL=C awk -F'\t' -v want="$2" '$2 == "foreign-store" && index($3, want ":") == 1 { printf "%s%s", rowSep, $3 ; rowSep = "; " }' <<< "$1"
+	LC_ALL=C awk -F'\t' -v want="$2" '$2 == "foreign-store" && index($3, want ":") == 1 { printf "%s%s", rowSep, $3 ; rowSep = "; " ; }' <<< "$1"
 }
 scanRun(){ ## scan, package -- its rows, or a refusal when it printed none of its own accord
 	bash "$1" "$2" 2> "$scanRig/scan.err"
@@ -92,7 +92,7 @@ scanAssert "the store read stays a row in the red arm, so the two arms differ by
 
 echo "-- 4. the exemption clears loads alone, not every board line of the concern --"
 scanAssert "the green arm's rows carry no board load, and do carry the store read" \
-	"$( LC_ALL=C awk -F'\t' '$2 == "foreign-store" { n++ } END { print n + 0 }' <<< "$scanRows" )" 1
+	"$( LC_ALL=C awk -F'\t' '$2 == "foreign-store" { n++ ; } END { print n + 0 ; }' <<< "$scanRows" )" 1
 
 if [ "$scanFailCount" -ne 0 ] ; then
 	echo "⛔ SOLID BOARD LOAD CHECK FAILED: $scanFailCount of $(( scanPassCount + scanFailCount )) assertion(s)" >&2

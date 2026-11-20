@@ -128,7 +128,7 @@ rigRun(){ ## the file standard input is, tool arguments... -- one dispatcher cal
 	rigRc=0
 	( cd "$rigWs" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" RIG_SCENARIO="$rigSc" ${rigPre[@]+"${rigPre[@]}"} \
 		bash "$rigTool" "$@" ) > "$rigTmp/out" 2> "$rigTmp/err" < "$runInput" || rigRc=$?
-	rigId="$( LC_ALL=C awk -F'\t' '$1 == "spawn" { print $2 ; exit }' "$rigTmp/out" )"
+	rigId="$( LC_ALL=C awk -F'\t' '$1 == "spawn" { print $2 ; exit ; }' "$rigTmp/out" )"
 }
 rigErrors(){ ## -- how many lines of the last stderr are an error, but for the one every rig of this package gets
 	LC_ALL=C grep -e 'ERROR' -e 'ASSERT' "$rigTmp/err" | LC_ALL=C grep -c -v -F -- 'SystemContext.SetInputSpec' || :
@@ -161,15 +161,15 @@ rigRecord(){ ## run id -- the spawn record of that run
 	printf '%s\n' "$rigWs/.local/agents/spawned/$1/$1.spawn.md"
 }
 rigHeader(){ ## run id, header -- that header of the run's record
-	LC_ALL=C awk -v wantHeader="$2" '$0 == "---" { if ( ++fm > 1 ) exit ; next } fm == 1 && index( $0, wantHeader ": " ) == 1 { print substr( $0, length( wantHeader ) + 3 ) ; exit }' "$( rigRecord "$1" )" 2> /dev/null
+	LC_ALL=C awk -v wantHeader="$2" '$0 == "---" { if ( ++fm > 1 ) exit ; next ; } fm == 1 && index( $0, wantHeader ": " ) == 1 { print substr( $0, length( wantHeader ) + 3 ) ; exit ; }' "$( rigRecord "$1" )" 2> /dev/null
 }
 rigPromptOf(){ ## brief file -- the prompt in it: what stands between the spawn brief block and the sandbox lines
 	LC_ALL=C awk '
-		! past && $0 == "When done, hand back and Wait until dismissed." { past = 1 ; first = 1 ; next }
-		past && first { first = 0 ; if ( $0 == "" ) next }
-		past && $0 == "## Your sandbox" { exit }
-		past { held[++n] = $0 }
-		END { if ( n > 0 && held[n] == "" ) n-- ; for ( i = 1 ; i <= n ; i++ ) print held[i] }
+		! past && $0 == "When done, hand back and Wait until dismissed." { past = 1 ; first = 1 ; next ; }
+		past && first { first = 0 ; if ( $0 == "" ) next ; }
+		past && $0 == "## Your sandbox" { exit ; }
+		past { held[++n] = $0 ; }
+		END { if ( n > 0 && held[n] == "" ) n-- ; for ( i = 1 ; i <= n ; i++ ) print held[i] ; }
 	' "$1"
 }
 rigItemNamed(){ ## item name -- whether it is named as a dispatch item of the spawn proxy
@@ -192,29 +192,29 @@ echo "-- 1. the member gets the prompt, in a session of its own --"
 rigMadeBefore="$( rigMadeSettled )"
 rigRun "$rigTmp/prompt.two" "$rigOp" keeper-myx
 rigFirst="$rigId"
-rigAssert "the start ends 0 with no error, and prints one line: a spawn row of five fields that names the member" "$rigRc $( rigErrors ) $( LC_ALL=C awk -F'\t' 'END { print NR }' "$rigTmp/out" ) $( LC_ALL=C awk -F'\t' '{ print $1, NF, $3 }' "$rigTmp/out" )" "0 0 1 spawn 5 keeper-myx"
+rigAssert "the start ends 0 with no error, and prints one line: a spawn row of five fields that names the member" "$rigRc $( rigErrors ) $( LC_ALL=C awk -F'\t' 'END { print NR ; }' "$rigTmp/out" ) $( LC_ALL=C awk -F'\t' '{ print $1, NF, $3 ; }' "$rigTmp/out" )" "0 0 1 spawn 5 keeper-myx"
 rigWaitFor 30 test -s "$rigSc/done.$rigFirst" || rigRefuse "the stand-in console never ran for the first start: $( rigFirstError "$rigTmp/err" )"
 rigAssert "a member started alone from the console has a control thread: the spawner made one start of the thread of its session, which the log of that thread holds" \
 	"$( LC_ALL=C grep -c -E -- " a start of the control thread of session $rigFirst is made: pid [0-9]+" "$rigWs/.local/agents/sessions/$rigFirst/control/log" 2> /dev/null )" "1"
-rigAssert "the console was started as that member, in the workspace the console is in" "$( LC_ALL=C awk '{ print $1 }' "$rigSc/who.$rigFirst" ) $( cat "$rigSc/where.$rigFirst" )" "keeper-myx $rigWs"
+rigAssert "the console was started as that member, in the workspace the console is in" "$( LC_ALL=C awk '{ print $1 ; }' "$rigSc/who.$rigFirst" ) $( cat "$rigSc/where.$rigFirst" )" "keeper-myx $rigWs"
 rigAssert "it received the prompt in its brief, both lines, whole and in order" "$( rigPromptOf "$rigSc/brief.$rigFirst" )" "$( cat "$rigTmp/prompt.two" )"
 rigAssert "behind the spawn brief block of the standing default routine, which names the member and its duty file" \
 	"$( head -1 "$rigSc/brief.$rigFirst" ) $( LC_ALL=C grep -c -x -F 'read-and-obey: read keeper-myx.armed.md and magic-team.coworking.routine.md through the skillset reader, in full, before you act. Obey them.' "$rigSc/brief.$rigFirst" )" "SPAWN-PREPARE-BRIEF: keeper-myx 1"
 rigAssert "the id printed is the run's own id and its session's: the session is the member's own, and new" \
-	"$( LC_ALL=C awk '{ print $2 }' "$rigSc/who.$rigFirst" ) $( rigHeader "$rigFirst" session-id ) $( rigHeader "$rigFirst" spawn-id )" "$rigFirst $rigFirst $rigFirst"
+	"$( LC_ALL=C awk '{ print $2 ; }' "$rigSc/who.$rigFirst" ) $( rigHeader "$rigFirst" session-id ) $( rigHeader "$rigFirst" spawn-id )" "$rigFirst $rigFirst $rigFirst"
 rigAssert "its record names the member as its owner and the routine its session runs, and no session it was started from" \
 	"$( rigHeader "$rigFirst" owner ) $( rigHeader "$rigFirst" routine ) $( rigHeader "$rigFirst" parent-spawn-id )" "keeper-myx magic-team.coworking.routine.md none"
-rigItem="$( LC_ALL=C awk -F'\t' '{ print $5 }' "$rigTmp/out" )"
+rigItem="$( LC_ALL=C awk -F'\t' '{ print $5 ; }' "$rigTmp/out" )"
 rigItemPath="$( find "$rigData/board" -type f -name "$rigItem" 2> /dev/null | head -1 )"
 rigAssert "it made a dispatch item, the one the row names, whose brief holds the prompt" \
 	"$( rigItemNamed "$rigItem" ) $( [ -n "$rigItemPath" ] && LC_ALL=C grep -c -x -F -e 'first line of the prompt' -e 'second line of it' "$rigItemPath" )" "named 2"
-rigAssert "with no name given the row's name is the member and its routine with the session's short id, and the record keeps that same title" "$( LC_ALL=C awk -F'\t' '{ print $4 }' "$rigTmp/out" ) [$( rigHeader "$rigFirst" session-comment )]" "keeper-myx,_coworking_($( printf '%s' "$rigFirst" | cut -c1-8 )) [keeper-myx, coworking ($( printf '%s' "$rigFirst" | cut -c1-8 ))]"
+rigAssert "with no name given the row's name is the member and its routine with the session's short id, and the record keeps that same title" "$( LC_ALL=C awk -F'\t' '{ print $4 ; }' "$rigTmp/out" ) [$( rigHeader "$rigFirst" session-comment )]" "keeper-myx,_coworking_($( printf '%s' "$rigFirst" | cut -c1-8 )) [keeper-myx, coworking ($( printf '%s' "$rigFirst" | cut -c1-8 ))]"
 rigAssert "one sandbox, one run store, one item and one console more than before" "$rigMadeBefore -> $( rigMade )" "0 0 0 0 -> 1 1 1 1"
 
 echo "-- 2. the name given is on the record --"
 rigRun "$rigTmp/prompt.two" "$rigOp" keeper-myx --session-name-or-comment "fix the index" --description "the index went stale"
 rigNamed="$rigId"
-rigAssert "the start ends 0, and its row carries the name as a registry writes it" "$rigRc $( LC_ALL=C awk -F'\t' '{ print $1, NF, $3, $4 }' "$rigTmp/out" )" "0 spawn 5 keeper-myx fix_the_index_($( printf '%s' "$rigId" | cut -c1-8 ))"
+rigAssert "the start ends 0, and its row carries the name as a registry writes it" "$rigRc $( LC_ALL=C awk -F'\t' '{ print $1, NF, $3, $4 ; }' "$rigTmp/out" )" "0 spawn 5 keeper-myx fix_the_index_($( printf '%s' "$rigId" | cut -c1-8 ))"
 rigAssert "the spawn record of the run holds that text, with its short id, and the description given" "[$( rigHeader "$rigNamed" session-comment )] [$( rigHeader "$rigNamed" description )]" "[fix the index ($( printf '%s' "$rigNamed" | cut -c1-8 ))] [the index went stale]"
 rigAssert "it is another session than the first: each start is a session of its own" "$( [ -n "$rigNamed" ] && [ "$rigNamed" != "$rigFirst" ] && echo another ) $( rigHeader "$rigNamed" session-id | LC_ALL=C grep -c -x -F -- "$rigNamed" )" "another 1"
 rigWaitFor 30 test -s "$rigSc/done.$rigNamed"
@@ -236,7 +236,7 @@ rigOdd="$rigId"
 rigWaitFor 30 test -s "$rigSc/done.$rigOdd"
 rigPromptOf "$rigSc/brief.$rigOdd" > "$rigTmp/prompt.odd.got" 2> /dev/null
 rigAssert "a quote, a %, a backslash, a dollar, a back quote, a tab and a first line that starts with - reach the console byte for byte" "$rigRc $( cmp -s "$rigTmp/prompt.odd" "$rigTmp/prompt.odd.got" && echo same || echo other )" "0 same"
-rigAssert "control: the prompt holds each of them" "$( for rigMark in '"' '%' '\' '$HOME' '`' "$rigTab" ; do LC_ALL=C grep -c -F -- "$rigMark" "$rigTmp/prompt.odd" | LC_ALL=C awk '{ printf "%s", ( $1 > 0 ) ? "y" : "n" }' ; done ) $( head -c 1 "$rigTmp/prompt.odd" )" "yyyyyy -"
+rigAssert "control: the prompt holds each of them" "$( for rigMark in '"' '%' '\' '$HOME' '`' "$rigTab" ; do LC_ALL=C grep -c -F -- "$rigMark" "$rigTmp/prompt.odd" | LC_ALL=C awk '{ printf "%s", ( $1 > 0 ) ? "y" : "n" ; }' ; done ) $( head -c 1 "$rigTmp/prompt.odd" )" "yyyyyy -"
 rigRun /dev/null "$rigOp" keeper-myx --from-file "$rigTmp/prompt.odd"
 rigOddFile="$rigId"
 rigWaitFor 30 test -s "$rigSc/done.$rigOddFile"
@@ -269,10 +269,10 @@ rigAssert "the refusal is the one check every start makes, asked here once: the 
 	"$( LC_ALL=C grep -v '^[[:space:]]*#' "$rigHere/manager/AgentsTools.ManagerSpawn.include" 2> /dev/null | LC_ALL=C grep -c -e 'AgentsToolsTeamMemberStartCheck "' || : ) $( LC_ALL=C grep -v '^[[:space:]]*#' "$rigHere/manager/AgentsTools.ManagerSpawn.include" 2> /dev/null | LC_ALL=C grep -c -e 'reference-only' -e 'SKILL\.md' -e 'identity record' || : )" "1 0"
 printf -- '---\nname: keeper-ref\nstatus: active\n---\n\n# keeper-ref\n' > "$rigSkills/keeper-ref/SKILL.md"
 rigRun "$rigTmp/prompt.two" "$rigOp" keeper-ref
-rigAssert "control: the same member with status: active is started" "$rigRc $( LC_ALL=C awk -F'\t' '{ print $1, $3 }' "$rigTmp/out" )" "0 spawn keeper-ref"
+rigAssert "control: the same member with status: active is started" "$rigRc $( LC_ALL=C awk -F'\t' '{ print $1, $3 ; }' "$rigTmp/out" )" "0 spawn keeper-ref"
 [ -z "$rigId" ] || rigWaitFor 30 test -s "$rigSc/done.$rigId"
 rigRun "$rigTmp/prompt.two" "$rigOp" magic-coordinator
-rigAssert "and so is a member with no SKILL.md at all: nothing says it is not to be started" "$( [ -e "$rigSkills/magic-coordinator/SKILL.md" ] && echo has-skill-file || echo no-skill-file ) $rigRc $( LC_ALL=C awk -F'\t' '{ print $1, $3 }' "$rigTmp/out" )" "no-skill-file 0 spawn magic-coordinator"
+rigAssert "and so is a member with no SKILL.md at all: nothing says it is not to be started" "$( [ -e "$rigSkills/magic-coordinator/SKILL.md" ] && echo has-skill-file || echo no-skill-file ) $rigRc $( LC_ALL=C awk -F'\t' '{ print $1, $3 ; }' "$rigTmp/out" )" "no-skill-file 0 spawn magic-coordinator"
 [ -z "$rigId" ] || rigWaitFor 30 test -s "$rigSc/done.$rigId"
 
 echo "-- 6. a name that is no member is refused --"
@@ -288,10 +288,10 @@ rigAssert "no member at all: one line with the syntax" "$rigRc $( rigWhole "$rig
 echo "-- 7. the member is resolved as every operation that names one resolves it --"
 rigRun "$rigTmp/prompt.two" "$rigOp" keeper-there
 rigInvited="$rigId"
-rigAssert "a member set up only in another workspace of the machine is started: rc 0, its row names it" "$rigRc $( rigErrors ) $( LC_ALL=C awk -F'\t' '{ print $1, NF, $3 }' "$rigTmp/out" )" "0 0 spawn 5 keeper-there"
+rigAssert "a member set up only in another workspace of the machine is started: rc 0, its row names it" "$rigRc $( rigErrors ) $( LC_ALL=C awk -F'\t' '{ print $1, NF, $3 ; }' "$rigTmp/out" )" "0 0 spawn 5 keeper-there"
 rigWaitFor 30 test -s "$rigSc/done.$rigInvited" || rigRefuse "the stand-in console never ran for the invited member: $( rigFirstError "$rigTmp/err" )"
 rigAssert "by the console of the workspace it was asked from, as that member, on the member set of the workspace it is set up in" \
-	"$( cat "$rigSc/where.$rigInvited" ) $( LC_ALL=C awk '{ print $1, $3 }' "$rigSc/who.$rigInvited" )" "$rigWs keeper-there $rigThereSkills"
+	"$( cat "$rigSc/where.$rigInvited" ) $( LC_ALL=C awk '{ print $1, $3 ; }' "$rigSc/who.$rigInvited" )" "$rigWs keeper-there $rigThereSkills"
 rigAssert "its record is in the workspace it was asked from, and names the member's own" "$( [ -f "$( rigRecord "$rigInvited" )" ] && echo here ) $( ls "$rigThere/.local/agents" | LC_ALL=C grep -c -x spawned || : ) $( rigHeader "$rigInvited" member-workspace )" "here 0 ws-there"
 rigAssert "it received the prompt, behind a brief block that names it" "$( head -1 "$rigSc/brief.$rigInvited" ) | $( rigPromptOf "$rigSc/brief.$rigInvited" | head -1 )" "SPAWN-PREPARE-BRIEF: keeper-there | first line of the prompt"
 rigMadeBefore="$( rigMadeSettled )"
@@ -323,13 +323,13 @@ rigAssert "standard input and a file together are refused: the prompt has one so
 rigRun "$rigTmp/prompt.two" "$rigOp" keeper-myx --session-name-or-comment
 rigAssert "an option with no value is refused by name" "$rigRc $( rigWhole "$rigTmp/err" "⛔ ERROR: DistroAgentsTools $rigOp: --session-name-or-comment requires <text>" ) $( rigErrors ) [$( rigMade )]" "1 1 1 [$rigMadeBefore]"
 rigRun "$rigTmp/prompt.two" "$rigOp" keeper-myx --from-stdin
-rigAssert "--from-stdin says what the default is: the prompt is standard input" "$rigRc $( LC_ALL=C awk -F'\t' '{ print $1, $3 }' "$rigTmp/out" )" "0 spawn keeper-myx"
+rigAssert "--from-stdin says what the default is: the prompt is standard input" "$rigRc $( LC_ALL=C awk -F'\t' '{ print $1, $3 ; }' "$rigTmp/out" )" "0 spawn keeper-myx"
 [ -z "$rigId" ] || rigWaitFor 30 test -s "$rigSc/done.$rigId"
 
 echo "-- 9b. the kinds of start of the Launchpad --"
 rigRun /dev/null "$rigOp" keeper-myx --kind standalone --goal "land the index change" --session-name-or-comment "standalone one"
 rigStand="$rigId"
-rigAssert "standalone: rc 0, one row, the standalone routine on the record, and the goal is the prompt, with no standard input read" "$rigRc $( LC_ALL=C awk -F'\t' 'END { print NR }' "$rigTmp/out" ) $( rigHeader "$rigStand" routine ) $( rigHeader "$rigStand" owner )" "0 1 magic-team.standalone.routine.md keeper-myx"
+rigAssert "standalone: rc 0, one row, the standalone routine on the record, and the goal is the prompt, with no standard input read" "$rigRc $( LC_ALL=C awk -F'\t' 'END { print NR ; }' "$rigTmp/out" ) $( rigHeader "$rigStand" routine ) $( rigHeader "$rigStand" owner )" "0 1 magic-team.standalone.routine.md keeper-myx"
 rigWaitFor 30 test -s "$rigSc/done.$rigStand"
 rigAssert "the member received the goal whole, behind the brief block of that routine" "$( rigPromptOf "$rigSc/brief.$rigStand" ) | $( head -1 "$rigSc/brief.$rigStand" )" "land the index change | SPAWN-PREPARE-BRIEF: keeper-myx"
 rigMadeBefore="$( rigMadeSettled )"
@@ -337,10 +337,10 @@ rigRun /dev/null "$rigOp" keeper-myx --kind standalone --also magic-coordinator 
 rigAssert "standalone is one member: --also is refused with nothing started" "$rigRc $( rigWhole "$rigTmp/err" "⛔ ERROR: DistroAgentsTools $rigOp: --also joins more members to a coworking session, and a standalone start has one member -- nothing was started" ) [$( rigMade )]" "1 1 [$rigMadeBefore]"
 rigRun /dev/null "$rigOp" keeper-myx --kind coworking --also magic-coordinator,keeper-there --goal "three of us" --session-name-or-comment "crew"
 rigCrew="$rigId"
-rigAssert "coworking with --also: rc 0 and one row each, the first member's, then the others', all of the one session" "$rigRc $( LC_ALL=C awk -F'\t' '{ printf "%s:%s:%s ", $1, $3, ( $2 == first ? "same" : ( NR == 1 ? "own" : "other" ) ) ; if ( NR == 1 ) { first = $2 } }' "$rigTmp/out" )" "0 spawn:keeper-myx:own spawn:magic-coordinator:same spawn:keeper-there:same "
+rigAssert "coworking with --also: rc 0 and one row each, the first member's, then the others', all of the one session" "$rigRc $( LC_ALL=C awk -F'\t' '{ printf "%s:%s:%s ", $1, $3, ( $2 == first ? "same" : ( NR == 1 ? "own" : "other" ) ) ; if ( NR == 1 ) { first = $2 ; } ; }' "$rigTmp/out" )" "0 spawn:keeper-myx:own spawn:magic-coordinator:same spawn:keeper-there:same "
 rigWaitFor 30 test -s "$rigSc/done.$rigCrew"
-rigAssert "the others joined the session by its id, none started one: three records carry it, one of each member, all of the routine of a coworking session" "$( LC_ALL=C grep -l -x "session-id: $rigCrew" "$rigWs"/.local/agents/spawned/*/*.spawn.md | while IFS= read -r rigJ ; do printf '%s/%s\n' "$( LC_ALL=C awk -F': ' '$1 == "owner" { print $2 ; exit }' "$rigJ" )" "$( LC_ALL=C awk -F': ' '$1 == "routine" { print $2 ; exit }' "$rigJ" )" ; done | LC_ALL=C sort | tr '\n' ' ' )" "keeper-myx/magic-team.coworking.routine.md keeper-there/magic-team.coworking.routine.md magic-coordinator/magic-team.coworking.routine.md "
-rigAssert "each of the three received the goal" "$( for rigWho in keeper-myx keeper-there magic-coordinator ; do rigJ="$( LC_ALL=C grep -l -x "session-id: $rigCrew" "$rigWs"/.local/agents/spawned/*/*.spawn.md | while IFS= read -r rigF ; do [ "$( LC_ALL=C awk -F': ' '$1 == "owner" { print $2 ; exit }' "$rigF" )" = "$rigWho" ] && basename "$rigF" .spawn.md ; done )" ; rigWaitFor 30 test -s "$rigSc/brief.$rigJ" ; rigPromptOf "$rigSc/brief.$rigJ" ; done | tr '\n' '|' )" "three of us|three of us|three of us|"
+rigAssert "the others joined the session by its id, none started one: three records carry it, one of each member, all of the routine of a coworking session" "$( LC_ALL=C grep -l -x "session-id: $rigCrew" "$rigWs"/.local/agents/spawned/*/*.spawn.md | while IFS= read -r rigJ ; do printf '%s/%s\n' "$( LC_ALL=C awk -F': ' '$1 == "owner" { print $2 ; exit ; }' "$rigJ" )" "$( LC_ALL=C awk -F': ' '$1 == "routine" { print $2 ; exit ; }' "$rigJ" )" ; done | LC_ALL=C sort | tr '\n' ' ' )" "keeper-myx/magic-team.coworking.routine.md keeper-there/magic-team.coworking.routine.md magic-coordinator/magic-team.coworking.routine.md "
+rigAssert "each of the three received the goal" "$( for rigWho in keeper-myx keeper-there magic-coordinator ; do rigJ="$( LC_ALL=C grep -l -x "session-id: $rigCrew" "$rigWs"/.local/agents/spawned/*/*.spawn.md | while IFS= read -r rigF ; do [ "$( LC_ALL=C awk -F': ' '$1 == "owner" { print $2 ; exit ; }' "$rigF" )" = "$rigWho" ] && basename "$rigF" .spawn.md ; done )" ; rigWaitFor 30 test -s "$rigSc/brief.$rigJ" ; rigPromptOf "$rigSc/brief.$rigJ" ; done | tr '\n' '|' )" "three of us|three of us|three of us|"
 rigMadeBefore="$( rigMadeSettled )"
 rigRun "$rigTmp/prompt.two" "$rigOp" keeper-myx --also keeper-nowhere
 rigAssert "a member that is none among the others starts nobody, the first member neither" "$rigRc $( rigWhole "$rigTmp/err" "⛔ ERROR: DistroAgentsTools $rigOp: no such team member: keeper-nowhere -- nothing was started" ) [$( rigMade )]" "1 1 [$rigMadeBefore]"
@@ -357,7 +357,7 @@ rigAssert "a goal of blanks is an empty prompt" "$rigRc $( rigWhole "$rigTmp/err
 
 rigRun "$rigTmp/prompt.two" "$rigOp" keeper-myx --kind free
 rigFree="$rigId"
-rigAssert "free: rc 0, one row; no routine on the record and no brief block of a session kind: the prompt is the brief" "$rigRc $( LC_ALL=C awk -F'\t' 'END { print NR }' "$rigTmp/out" ) [$( rigHeader "$rigFree" routine )]" "0 1 []"
+rigAssert "free: rc 0, one row; no routine on the record and no brief block of a session kind: the prompt is the brief" "$rigRc $( LC_ALL=C awk -F'\t' 'END { print NR ; }' "$rigTmp/out" ) [$( rigHeader "$rigFree" routine )]" "0 1 []"
 rigWaitFor 30 test -s "$rigSc/done.$rigFree"
 rigAssert "the member got its prompt, whole, behind no SPAWN-PREPARE-BRIEF block" "$( LC_ALL=C grep -c -x -F -e 'first line of the prompt' -e 'second line of it' "$rigSc/brief.$rigFree" ) $( LC_ALL=C grep -c '^SPAWN-PREPARE-BRIEF: ' "$rigSc/brief.$rigFree" || : )" "2 0"
 rigMadeBefore="$( rigMadeSettled )"
@@ -371,7 +371,7 @@ rigPre=( "RIG_RUN=90" )
 rigRun /dev/null "$rigOp" keeper-myx --kind work-duty --session-name-or-comment "duty"
 rigPre=()
 rigDuty="$rigId"
-rigAssert "work-duty: rc 0 with standard input empty and no goal, one row, the duty routine of the team on the record" "$rigRc $( LC_ALL=C awk -F'\t' 'END { print NR }' "$rigTmp/out" ) $( rigHeader "$rigDuty" routine ) $( rigHeader "$rigDuty" owner )" "0 1 magic-team.work-duty.routine.md keeper-myx"
+rigAssert "work-duty: rc 0 with standard input empty and no goal, one row, the duty routine of the team on the record" "$rigRc $( LC_ALL=C awk -F'\t' 'END { print NR ; }' "$rigTmp/out" ) $( rigHeader "$rigDuty" routine ) $( rigHeader "$rigDuty" owner )" "0 1 magic-team.work-duty.routine.md keeper-myx"
 rigWaitFor 30 test -s "$rigSc/who.$rigDuty" || rigRefuse "the stand-in console never ran for the work-duty: $( rigFirstError "$rigTmp/err" )"
 rigMadeBefore="$( rigMade )"
 rigRun /dev/null "$rigOp" keeper-myx --kind work-duty
@@ -382,7 +382,7 @@ rigAssert "a work-duty is one member's: --also is refused" "$rigRc $( rigWhole "
 rigWaitFor 30 test -s "$rigSc/done.$rigDuty"
 rigWaitFor 60 rigClosed "$rigDuty"
 rigRun /dev/null "$rigOp" keeper-myx --kind work-duty --goal "the scope: the board only"
-rigAssert "control: once that duty ended, a new one starts, with the goal as its comments or scope" "$rigRc $( LC_ALL=C awk -F'\t' '{ print $1, $3 }' "$rigTmp/out" )" "0 spawn keeper-myx"
+rigAssert "control: once that duty ended, a new one starts, with the goal as its comments or scope" "$rigRc $( LC_ALL=C awk -F'\t' '{ print $1, $3 ; }' "$rigTmp/out" )" "0 spawn keeper-myx"
 [ -z "$rigId" ] || rigWaitFor 30 test -s "$rigSc/done.$rigId"
 rigAssert "the start of a work-duty is the proxy's, as every start: the operation names no routine file but the standalone routine, and asks the duty routine of the scheduler's own function" \
 	"$( LC_ALL=C grep -v '^[[:space:]]*#' "$rigHere/manager/AgentsTools.ManagerSpawn.include" | LC_ALL=C grep -c -e 'AgentsToolsScheduleDutyRoutine ' -e 'AgentsToolsScheduleWorkDutyRecord ' || : ) $( LC_ALL=C grep -v '^[[:space:]]*#' "$rigHere/manager/AgentsTools.ManagerSpawn.include" | LC_ALL=C grep -c -e 'work-duty.routine.md' || : )" "3 0"
@@ -415,11 +415,11 @@ rigPassPid=$!
 rigPassGroup="$rigPassPid"
 set +m
 rigProcNote "$rigPassPid"
-rigPassStarted(){ [ -s "$rigTmp/pass.out" ] && [ -s "$rigSc/pid.$( LC_ALL=C awk -F'\t' '$1 == "spawn" { print $2 ; exit }' "$rigTmp/pass.out" )" ] ; }
+rigPassStarted(){ [ -s "$rigTmp/pass.out" ] && [ -s "$rigSc/pid.$( LC_ALL=C awk -F'\t' '$1 == "spawn" { print $2 ; exit ; }' "$rigTmp/pass.out" )" ] ; }
 rigWaitFor 40 rigPassStarted || rigRefuse "the stand-in console never started for the start from a bare console: $( rigFirstError "$rigTmp/pass.err" )"
-rigLone="$( LC_ALL=C awk -F'\t' '$1 == "spawn" { print $2 ; exit }' "$rigTmp/pass.out" )"
+rigLone="$( LC_ALL=C awk -F'\t' '$1 == "spawn" { print $2 ; exit ; }' "$rigTmp/pass.out" )"
 rigLoneAlive(){ kill -0 "$( cat "$rigSc/pid.$rigLone" 2> /dev/null || echo 999999 )" 2> /dev/null && printf alive || printf gone ; }
-rigAssert "the caller had no session id in its environment, and was returned to at once: its row is there while the member runs" "$( LC_ALL=C awk -F'\t' '{ print $1, $3, $4 }' "$rigTmp/pass.out" ) $( rigLoneAlive ) $( rigHeader "$rigLone" parent-spawn-id )" "spawn keeper-myx outlives_its_starter_($( printf '%s' "$rigLone" | cut -c1-8 )) alive none"
+rigAssert "the caller had no session id in its environment, and was returned to at once: its row is there while the member runs" "$( LC_ALL=C awk -F'\t' '{ print $1, $3, $4 ; }' "$rigTmp/pass.out" ) $( rigLoneAlive ) $( rigHeader "$rigLone" parent-spawn-id )" "spawn keeper-myx outlives_its_starter_($( printf '%s' "$rigLone" | cut -c1-8 )) alive none"
 rigOwnGroup="$( ps -o pgid= -p $$ | tr -d ' ' )"
 rigLoneGroup="$( cat "$rigSc/pgid.$rigLone" 2> /dev/null || printf none )"
 rigAssert "the member's run is in a process group of its own, not its starter's and not this check's" \
@@ -438,19 +438,19 @@ rigHelpInclude="$rigHere/help/Help.DistroAgentsTools.include"
 rigHelpMd="$rigHere/help/Help.DistroAgentsTools.help.md"
 rigSyntax="📘 syntax: DistroAgentsTools.fn.sh $rigOp $rigSyntaxWords"
 rigEntry(){ ## -- the operation's entry in the help.md, from under its heading to the next operation's
-	LC_ALL=C awk -v head="$( printf '\t\t%s %s' "$rigOp" "$rigSyntaxWords" )" '$0 == head { on = 1 ; next } on && /^\t\t--/ { exit } on { print }' "$rigHelpMd"
+	LC_ALL=C awk -v head="$( printf '\t\t%s %s' "$rigOp" "$rigSyntaxWords" )" '$0 == head { on = 1 ; next ; } on && /^\t\t--/ { exit ; } on { print ; }' "$rigHelpMd"
 }
 rigAssert "the operation has its syntax echo, its syntax line and its entry, once each, and in no other form" "$( LC_ALL=C grep -c -x -F -- "echo \"$rigSyntax\" >&2" "$rigHelpInclude" || : ) $( LC_ALL=C grep -c -x -F -- "$rigSyntax" "$rigHelpMd" || : ) $( LC_ALL=C grep -c -x -F -- "$( printf '\t\t%s %s' "$rigOp" "$rigSyntaxWords" )" "$rigHelpMd" || : ) $( LC_ALL=C grep -c -F -- "syntax: DistroAgentsTools.fn.sh $rigOp" "$rigHelpInclude" || : ) $( LC_ALL=C grep -c -F -- "syntax: DistroAgentsTools.fn.sh $rigOp" "$rigHelpMd" || : )" "1 1 1 1 1"
 rigForm="$( rigEntry | LC_ALL=C sed -n -e 's/^[[:space:]]*`\(spawn <.*>\)`$/\1/p' )"
 rigAssert "its entry gives the form of the row" "$rigForm" "spawn <session-id> <member> <name> <dispatch-item>"
-rigAssert "and the row a start printed has exactly the fields that form names" "$( LC_ALL=C awk -F'\t' -v wantFields="$( printf '%s\n' "$rigForm" | LC_ALL=C awk '{ print NF }' )" '{ rows++ ; if ( NF != wantFields ) bad++ ; } END { printf "%s:%s", ( rows > 0 ? "rows" : "none" ), bad + 0 }' "$rigTmp/pass.out" )" "rows:0"
-rigAssert "the entry names the status that refuses a member, the member it gives as one, and the operation whose brief block the member gets" "$( for rigWord in 'status: reference-only' human-owner '--spawn-session --routine-default' ; do rigEntry | LC_ALL=C grep -c -F -- "\`$rigWord\`" | LC_ALL=C awk '{ printf "%s", ( $1 > 0 ) ? "y" : "n" }' ; done )" "yyy"
-rigAssert "control: the entry was cut up to the next operation's heading, and holds its own text" "$( rigEntry | LC_ALL=C grep -c -F -- 'TAB-separated' || : ) $( rigEntry | LC_ALL=C awk 'END { print ( NR > 0 && NR < 60 ) ? "cut" : "not cut: " NR " lines" }' )" "1 cut"
+rigAssert "and the row a start printed has exactly the fields that form names" "$( LC_ALL=C awk -F'\t' -v wantFields="$( printf '%s\n' "$rigForm" | LC_ALL=C awk '{ print NF ; }' )" '{ rows++ ; if ( NF != wantFields ) bad++ ; } END { printf "%s:%s", ( rows > 0 ? "rows" : "none" ), bad + 0 ; }' "$rigTmp/pass.out" )" "rows:0"
+rigAssert "the entry names the status that refuses a member, the member it gives as one, and the operation whose brief block the member gets" "$( for rigWord in 'status: reference-only' human-owner '--spawn-session --routine-default' ; do rigEntry | LC_ALL=C grep -c -F -- "\`$rigWord\`" | LC_ALL=C awk '{ printf "%s", ( $1 > 0 ) ? "y" : "n" ; }' ; done )" "yyy"
+rigAssert "control: the entry was cut up to the next operation's heading, and holds its own text" "$( rigEntry | LC_ALL=C grep -c -F -- 'TAB-separated' || : ) $( rigEntry | LC_ALL=C awk 'END { print ( NR > 0 && NR < 60 ) ? "cut" : "not cut: " NR " lines" ; }' )" "1 cut"
 rigRun /dev/null --help-syntax
 rigAssert "--help-syntax prints its line, once" "$rigRc $( LC_ALL=C grep -c -x -F -- "$rigSyntax" "$rigTmp/err" || : )" "0 1"
 
 echo "-- 13. nothing but the rig's own Slack was asked --"
-rigAssert "every request of this check went to the fake curl, and each was a Slack method" "$( [ -s "$rigSc/calls" ] && echo asked ) $( LC_ALL=C awk '$1 == "" { bad++ } END { print bad + 0 }' "$rigSc/calls" 2> /dev/null )" "asked 0"
+rigAssert "every request of this check went to the fake curl, and each was a Slack method" "$( [ -s "$rigSc/calls" ] && echo asked ) $( LC_ALL=C awk '$1 == "" { bad++ ; } END { print bad + 0 ; }' "$rigSc/calls" 2> /dev/null )" "asked 0"
 
 ## The runs started here close their records apart from this check: waited for, so none writes into a tree that is gone.
 rigLeft=90

@@ -16,8 +16,8 @@ function tsAfter(one, two,   oneSec, twoSec, oneFrac, twoFrac) {
 	if (two == "") return 1
 	oneSec = one ; sub(/\..*/, "", oneSec) ; twoSec = two ; sub(/\..*/, "", twoSec)
 	if (oneSec + 0 != twoSec + 0) return (oneSec + 0 > twoSec + 0)
-	oneFrac = "000000" ; if (index(one, ".")) { oneFrac = substr(one, index(one, ".") + 1) ; oneFrac = substr(oneFrac "000000", 1, 6) }
-	twoFrac = "000000" ; if (index(two, ".")) { twoFrac = substr(two, index(two, ".") + 1) ; twoFrac = substr(twoFrac "000000", 1, 6) }
+	oneFrac = "000000" ; if (index(one, ".")) { oneFrac = substr(one, index(one, ".") + 1) ; oneFrac = substr(oneFrac "000000", 1, 6) ; }
+	twoFrac = "000000" ; if (index(two, ".")) { twoFrac = substr(two, index(two, ".") + 1) ; twoFrac = substr(twoFrac "000000", 1, 6) ; }
 	return (oneFrac + 0 > twoFrac + 0)
 }
 
@@ -44,7 +44,7 @@ FNR == 1 {
 	readPulling()
 }
 
-owedConv == "" { next }
+owedConv == "" { next ; }
 
 {
 	owedAt = index($0, " | ") ; if (owedAt == 0) next
@@ -56,7 +56,7 @@ owedConv == "" { next }
 	owedText = substr(owedRest, owedAt + 3)
 	if (owedWho == "") next
 	owedKey = owedConv "\037" owedThread
-	if (owedWho != owner) { if (tsAfter(owedTs, owedOther[owedKey])) owedOther[owedKey] = owedTs ; next }
+	if (owedWho != owner) { if (tsAfter(owedTs, owedOther[owedKey])) owedOther[owedKey] = owedTs ; next ; }
 	owedOwn = owedConv "\037" owedTs
 	if (!(owedOwn in owedSeen)) {
 		owedSeen[owedOwn] = ++owedCount

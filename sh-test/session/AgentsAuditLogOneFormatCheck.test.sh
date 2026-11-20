@@ -86,7 +86,7 @@ set +u
 . "$rigHere/event-track/AgentsTools.EventTrackThread.include"
 set -u
 rigHas(){ ## file, fixed text -- 1 when some line holds it
-	LC_ALL=C grep -c -F -- "$2" "$1" 2> /dev/null | LC_ALL=C awk '{ print ( $1 > 0 ) ? 1 : 0 }'
+	LC_ALL=C grep -c -F -- "$2" "$1" 2> /dev/null | LC_ALL=C awk '{ print ( $1 > 0 ) ? 1 : 0 ; }'
 }
 
 echo "-- 1. a round's ROUND line is in the audit file as soon as the round is synced (S12.5) --"
@@ -175,10 +175,10 @@ AgentsHarnessContextSync tool "$( AgentsHarnessContextToolMeta 'SubagentHandback
 AgentsHarnessContextSync tool "$( AgentsHarnessContextToolMeta 'SubagentHandback' 'rig-order-call' 'rig handed back' '' )"
 AgentsTranscriptMilestone "$rigOrderSid" "rig order, nothing new"
 rigOrderOf(){ ## file, kind word -- the line number of that kind's first line, 0 for none
-	LC_ALL=C awk -v kind="$2" 'index( $0, " " kind " " ) > 0 { print NR ; found = 1 ; exit } END { if ( ! found ) print 0 }' "$1" 2> /dev/null || printf '0'
+	LC_ALL=C awk -v kind="$2" 'index( $0, " " kind " " ) > 0 { print NR ; found = 1 ; exit ; } END { if ( ! found ) print 0 ; }' "$1" 2> /dev/null || printf '0'
 }
 rigKindCount(){ ## file, kind word -- how many lines hold it
-	LC_ALL=C awk -v kind="$2" 'index( $0, " " kind " " ) > 0 { n++ } END { print n + 0 }' "$1" 2> /dev/null || printf '0'
+	LC_ALL=C awk -v kind="$2" 'index( $0, " " kind " " ) > 0 { n++ ; } END { print n + 0 ; }' "$1" 2> /dev/null || printf '0'
 }
 rigOrderVerdict(){ ## file -- first-tool-after-review | first-review-after-tool | review-missing | tool-missing
 	local vReview vTool

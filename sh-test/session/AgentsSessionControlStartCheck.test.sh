@@ -192,10 +192,10 @@ rigThreads(){ ## short name of a session -- how many processes of this host show
 	## beside it: a thread is counted once, by the process of that command line whose parent has another one.
 	## The command line looked for is handed in the environment, so this reader's own never holds it.
 	"$rigTmp/bin/ps.real" -A -ww -o pid=,ppid=,args= 2> /dev/null | RIG_THREAD_ARGS="DistroAgentsTools.fn.sh --intern-session-control --run --session-id $( rigId "$1" )" LC_ALL=C awk '
-		BEGIN { want = ENVIRON["RIG_THREAD_ARGS"] }
-		{ line = $0 ; sub( /^[ \t]*[0-9]+[ \t]+[0-9]+[ \t]+/, "", line ) ; at = length( line ) - length( want ) + 1 }
-		at >= 1 && substr( line, at ) == want && ( at == 1 || substr( line, at - 1, 1 ) ~ /[ \/]/ ) { parent[$1] = $2 }
-		END { n = 0 ; for ( p in parent ) if ( !( parent[p] in parent ) ) n++ ; print n }'
+		BEGIN { want = ENVIRON["RIG_THREAD_ARGS"] ; }
+		{ line = $0 ; sub( /^[ \t]*[0-9]+[ \t]+[0-9]+[ \t]+/, "", line ) ; at = length( line ) - length( want ) + 1 ; }
+		at >= 1 && substr( line, at ) == want && ( at == 1 || substr( line, at - 1, 1 ) ~ /[ \/]/ ) { parent[$1] = $2 ; }
+		END { n = 0 ; for ( p in parent ) if ( !( parent[p] in parent ) ) n++ ; print n ; }'
 }
 rigArgs(){ ## pid -- its command line
 	"$rigTmp/bin/ps.real" -ww -o args= -p "$1" 2> /dev/null
@@ -248,8 +248,8 @@ rigAssert "it shows in the process list by the tooling script, its operation and
 	"$( rigArgs "$rigA" | LC_ALL=C grep -c -F -- "$rigTool --intern-session-control --run --session-id $( rigId a )" )" "1"
 rigAssert "it is in a process group of its own, not the one this check runs in" "$( [ -n "$rigA" ] && [ "$( rigGroup "$rigA" )" = "$rigA" ] && echo own || echo "[$( rigGroup "${rigA:-0}" )]" ):$( [ -n "$rigA" ] && [ "$( rigGroup "$rigA" )" != "$( rigGroup "$$" )" ] && echo apart || echo shared )" "own:apart"
 rigAssert "the lock the dead thread left is taken over, and the log of the thread says whose it was" \
-	"$( { if [ -L "$rigStores/$( rigId a )/control/lock" ] ; then readlink "$rigStores/$( rigId a )/control/lock" ; else cat "$rigStores/$( rigId a )/control/lock" 2> /dev/null ; fi ; } | LC_ALL=C awk '{ print $1 }' ):$( rigLogHas a "took over the lock of pid $rigGonePid, which is gone" )" "$rigA:1"
-rigAssert "the log holds the one start, with the process it made and when that process began" "$( rigMade a ):$( rigLogHas a "is made: pid $rigA, begun $( rigProcBegan "$rigA" | LC_ALL=C awk '{ print $2 }' )" )" "1:1"
+	"$( { if [ -L "$rigStores/$( rigId a )/control/lock" ] ; then readlink "$rigStores/$( rigId a )/control/lock" ; else cat "$rigStores/$( rigId a )/control/lock" 2> /dev/null ; fi ; } | LC_ALL=C awk '{ print $1 ; }' ):$( rigLogHas a "took over the lock of pid $rigGonePid, which is gone" )" "$rigA:1"
+rigAssert "the log holds the one start, with the process it made and when that process began" "$( rigMade a ):$( rigLogHas a "is made: pid $rigA, begun $( rigProcBegan "$rigA" | LC_ALL=C awk '{ print $2 ; }' )" )" "1:1"
 rigWaitFor 10 rigStateIs a running
 rigAssert "the thread watches: the state of the session reads running" "$( rigState a )" "running"
 rigProcNoteFrom "$rigStores/$( rigId a )/control/pid"
@@ -257,11 +257,11 @@ rigProcSignal HUP "$rigA" ; sleep 1
 rigAssert "a hangup does not end it" "thread:$( rigHolder a )" "${rigA:+thread}:$rigA"
 
 echo "-- 2. a thread that lives is left alone --"
-rigPidPrint="$( ls -i "$rigStores/$( rigId a )/control/pid" | LC_ALL=C awk '{ print $1 }' ):$( cat "$rigStores/$( rigId a )/control/pid" )"
+rigPidPrint="$( ls -i "$rigStores/$( rigId a )/control/pid" | LC_ALL=C awk '{ print $1 ; }' ):$( cat "$rigStores/$( rigId a )/control/pid" )"
 rigRun "$rigOp" --session-id "$( rigId a )"
 rigAssert "a session whose thread is alive: alive with its process, status 0, no error" "$rigRc:$( rigTroubles ):$( rigRows ):$( rigOut )" "0:0:1:control|$( rigId a )|alive|$rigA|-"
 rigAssert "nothing was started: the pid file is as it was, one thread shows, and the log holds its one start" \
-	"$( ls -i "$rigStores/$( rigId a )/control/pid" | LC_ALL=C awk '{ print $1 }' ):$( cat "$rigStores/$( rigId a )/control/pid" ) $( rigThreads a ) $( rigMade a )" "$rigPidPrint 1 1"
+	"$( ls -i "$rigStores/$( rigId a )/control/pid" | LC_ALL=C awk '{ print $1 ; }' ):$( cat "$rigStores/$( rigId a )/control/pid" ) $( rigThreads a ) $( rigMade a )" "$rigPidPrint 1 1"
 rigRun "$rigOp" --session-id "$( rigId a2 )"
 rigAssert "the own id of a run that joined a session names that session" "$rigRc:$( rigOut )" "0:control|$( rigId a )|alive|$rigA|-"
 
@@ -317,7 +317,7 @@ rigAssert "a finished session needs none: not-needed, status 0, no folder made a
 ## answers that the session needs none removes those two, and nothing else.
 rigListed(){ ## short name of a session -- the word the list of sessions shows for its control thread
 	rigRun --manager-session-list
-	LC_ALL=C awk -F'\t' -v wantId="$( rigId "$1" )" '$1 == "session" && $2 == wantId { print $11 }' "$rigTmp/out"
+	LC_ALL=C awk -F'\t' -v wantId="$( rigId "$1" )" '$1 == "session" && $2 == wantId { print $11 ; }' "$rigTmp/out"
 }
 rigStand '' ; rigLeftPid="$rigStandPid" ; rigLeft="$( rigProcBegan "$rigLeftPid" )"
 rigProcSignal KILL "$rigLeftPid" ; rigWaitFor 10 rigEnded "$rigLeftPid"
@@ -373,7 +373,7 @@ done
 wait
 cat "$rigTmp/twice.1.out" "$rigTmp/twice.2.out" > "$rigTmp/out" ; cp "$rigTmp/out" "$rigTmp/out.kept.twice"
 rigAssert "two calls at the same moment for one session with no thread: one thread runs, one call started it and the other is told it is alive, both naming that process" \
-	"$( rigThreads h ):$( LC_ALL=C awk -F'\t' '{ print $3 }' "$rigTmp/out" | LC_ALL=C sort | LC_ALL=C tr '\n' ' ' ):$( LC_ALL=C awk -F'\t' '{ print $4 }' "$rigTmp/out" | LC_ALL=C sort -u | LC_ALL=C grep -c . ):$( [ "$( rigHolder h )" = "$( LC_ALL=C awk -F'\t' 'NR == 1 { print $4 }' "$rigTmp/out" )" ] && echo holder )" "1:alive started :1:holder"
+	"$( rigThreads h ):$( LC_ALL=C awk -F'\t' '{ print $3 ; }' "$rigTmp/out" | LC_ALL=C sort | LC_ALL=C tr '\n' ' ' ):$( LC_ALL=C awk -F'\t' '{ print $4 ; }' "$rigTmp/out" | LC_ALL=C sort -u | LC_ALL=C grep -c . ):$( [ "$( rigHolder h )" = "$( LC_ALL=C awk -F'\t' 'NR == 1 { print $4 ; }' "$rigTmp/out" )" ] && echo holder )" "1:alive started :1:holder"
 
 echo "-- 7. a thread that cannot be started says why --"
 rigRec i i i "$rigHost" spawn-started '' ; rigStand i
@@ -434,7 +434,7 @@ mkdir -p "$rigStores/$( rigId k )"
 rigCall k
 rigK="$( LC_ALL=C sed -n '1s/^started //p' "$rigTmp/fn.out" )"
 rigAssert "it answers started with the process, status 0, and at once, though what it started goes on for minutes; the job control of its caller is as it was" \
-	"$( LC_ALL=C sed -n '1s/ [0-9][0-9]*$/ PID/p' "$rigTmp/fn.out" ):$( LC_ALL=C sed -n '2p' "$rigTmp/fn.out" | LC_ALL=C awk '{ print $1, $2, ( $4 <= 3 ? "at-once" : $4 ), $5, $6 }' )" "started PID:rc 0 at-once monitor off"
+	"$( LC_ALL=C sed -n '1s/ [0-9][0-9]*$/ PID/p' "$rigTmp/fn.out" ):$( LC_ALL=C sed -n '2p' "$rigTmp/fn.out" | LC_ALL=C awk '{ print $1, $2, ( $4 <= 3 ? "at-once" : $4 ), $5, $6 ; }' )" "started PID:rc 0 at-once monitor off"
 rigWaitFor 10 test -f "$rigTmp/stand-in.$rigK"
 rigProcNoteFrom <( rigControlThreadNotes "$rigTmp" )
 rigAssert "what it started is the tooling script with the operation and the session as its arguments, alive, in a process group of its own" \
@@ -451,10 +451,10 @@ rigAssert "a hangup does not end what it started" "$( rigEnded "$rigK" && echo e
 rigProcBegan "$rigK" > "$rigStores/$( rigId k )/control/pid"
 rigCall k
 rigAssert "while a thread lives it starts nothing and answers alive, which is no error" \
-	"$( LC_ALL=C sed -n '1p' "$rigTmp/fn.out" ):$( LC_ALL=C sed -n '2p' "$rigTmp/fn.out" | LC_ALL=C awk '{ print $1, $2 }' ):$( ls "$rigTmp"/stand-in.* 2> /dev/null | LC_ALL=C grep -c . ):$( rigMade k )" "alive $rigK:rc 0:1:1"
+	"$( LC_ALL=C sed -n '1p' "$rigTmp/fn.out" ):$( LC_ALL=C sed -n '2p' "$rigTmp/fn.out" | LC_ALL=C awk '{ print $1, $2 ; }' ):$( ls "$rigTmp"/stand-in.* 2> /dev/null | LC_ALL=C grep -c . ):$( rigMade k )" "alive $rigK:rc 0:1:1"
 rigCall nothing
 rigAssert "an id that names nothing is refused, no process is started, and no folder is made for it" \
-	"$( LC_ALL=C sed -n '1p' "$rigTmp/fn.out" ):$( LC_ALL=C sed -n '2p' "$rigTmp/fn.out" | LC_ALL=C awk '{ print $1, $2 }' ):$( ls "$rigTmp"/stand-in.* 2> /dev/null | LC_ALL=C grep -c . ):$( [ -e "$rigStores/$( rigId nothing )" ] && echo folder || echo none )" \
+	"$( LC_ALL=C sed -n '1p' "$rigTmp/fn.out" ):$( LC_ALL=C sed -n '2p' "$rigTmp/fn.out" | LC_ALL=C awk '{ print $1, $2 ; }' ):$( ls "$rigTmp"/stand-in.* 2> /dev/null | LC_ALL=C grep -c . ):$( [ -e "$rigStores/$( rigId nothing )" ] && echo folder || echo none )" \
 	"failed - '$( rigId nothing )' names no session of this workspace: no folder of a session has that name, and no record carries it as its session-id:rc 1:1:none"
 ## A session a client founded: no folder under its id yet, and a record of a member carries it.
 rigRec m m1 m "$rigHost" spawn-started ''
@@ -483,13 +483,13 @@ rigHelpInclude="$rigHere/help/Help.DistroAgentsTools.include"
 rigHelpMd="$rigHere/help/Help.DistroAgentsTools.help.md"
 rigSyntaxLine="📘 syntax: DistroAgentsTools.fn.sh $rigOp $rigSyntax"
 rigEntry(){ ## -- the operation's entry in the help.md, from under its heading to the next operation's
-	LC_ALL=C awk -v head="$( printf '\t\t%s %s' "$rigOp" "$rigSyntax" )" '$0 == head { on = 1 ; next } on && /^\t\t--/ { exit } on { print }' "$rigHelpMd"
+	LC_ALL=C awk -v head="$( printf '\t\t%s %s' "$rigOp" "$rigSyntax" )" '$0 == head { on = 1 ; next ; } on && /^\t\t--/ { exit ; } on { print ; }' "$rigHelpMd"
 }
 rigAssert "the operation has its syntax echo, its syntax line and its entry, once each, and in no other form" "$( LC_ALL=C grep -c -x -F -- "echo \"$rigSyntaxLine\" >&2" "$rigHelpInclude" || : ) $( LC_ALL=C grep -c -x -F -- "$rigSyntaxLine" "$rigHelpMd" || : ) $( LC_ALL=C grep -c -x -F -- "$( printf '\t\t%s %s' "$rigOp" "$rigSyntax" )" "$rigHelpMd" || : ) $( LC_ALL=C grep -c -F -- "syntax: DistroAgentsTools.fn.sh $rigOp" "$rigHelpInclude" || : ) $( LC_ALL=C grep -c -F -- "syntax: DistroAgentsTools.fn.sh $rigOp" "$rigHelpMd" || : )" "1 1 1 1 1"
 rigForm="$( rigEntry | LC_ALL=C sed -n -e 's/^[[:space:]]*`\(control <.*>\)`$/\1/p' )"
 rigAssert "its entry gives the form of a row" "$rigForm" "control <session-id> <outcome> <pid> <reason>"
-rigAssert "and every row this check was given has exactly the fields its form names, the first of them control" "$( cat "$rigTmp"/out.kept.* 2> /dev/null | LC_ALL=C awk -F'\t' -v wantFields="$( printf '%s\n' "$rigForm" | LC_ALL=C awk '{ print NF }' )" '{ rows++ ; if ( $1 != "control" || NF != wantFields ) bad++ ; } END { printf "%s:%s", ( rows > 0 ? "rows" : "none" ), bad + 0 }' )" "rows:0"
-rigAssert "the entry names each outcome, the log of a thread, and the two other callers of the check" "$( for rigWord in started alive not-needed not-started control/log --all --session-id ; do rigEntry | LC_ALL=C grep -c -F -- "\`$rigWord\`" | LC_ALL=C awk '{ printf "%s", ( $1 > 0 ) ? "y" : "n" }' ; done ) $( rigEntry | LC_ALL=C tr '\n\t' '  ' | LC_ALL=C tr -s ' ' | LC_ALL=C grep -c -F -e 'The advance lock take and each iteration of the main loop make that same check.' )" "yyyyyyy 1"
+rigAssert "and every row this check was given has exactly the fields its form names, the first of them control" "$( cat "$rigTmp"/out.kept.* 2> /dev/null | LC_ALL=C awk -F'\t' -v wantFields="$( printf '%s\n' "$rigForm" | LC_ALL=C awk '{ print NF ; }' )" '{ rows++ ; if ( $1 != "control" || NF != wantFields ) bad++ ; } END { printf "%s:%s", ( rows > 0 ? "rows" : "none" ), bad + 0 ; }' )" "rows:0"
+rigAssert "the entry names each outcome, the log of a thread, and the two other callers of the check" "$( for rigWord in started alive not-needed not-started control/log --all --session-id ; do rigEntry | LC_ALL=C grep -c -F -- "\`$rigWord\`" | LC_ALL=C awk '{ printf "%s", ( $1 > 0 ) ? "y" : "n" ; }' ; done ) $( rigEntry | LC_ALL=C tr '\n\t' '  ' | LC_ALL=C tr -s ' ' | LC_ALL=C grep -c -F -e 'The advance lock take and each iteration of the main loop make that same check.' )" "yyyyyyy 1"
 rigRun --help-syntax
 rigAssert "--help-syntax prints its line, once" "$rigRc $( LC_ALL=C grep -c -x -F -- "$rigSyntaxLine" "$rigTmp/err" || : )" "0 1"
 rigCode(){ ## file -- its lines that are no comment
@@ -563,7 +563,7 @@ rigGuarded="$( rigGuard "$rigPackage/sh-test" )"
 rigAssert "every check of the package that names one of those operations sources the fixture and ends the threads of its rig in its EXIT trap" \
 	"$( printf '%s\n' "$rigGuarded" | LC_ALL=C grep -c '^NOT ENDED: ' ):$( printf '%s\n' "$rigGuarded" | LC_ALL=C grep '^NOT ENDED: ' | LC_ALL=C tr '\n' ' ' )" "0:"
 rigAssert "control: the guard read the checks, and found those that name one: ten or more, this one, the advance lock's, the main loop's and three of the spawner's among them" \
-	"$( printf '%s\n' "$rigGuarded" | LC_ALL=C sed -n 's/^named: //p' | LC_ALL=C awk '{ print ( $1 >= 10 ) ? "ten-or-more" : $1 }' ):$( for rigName in AgentsSessionControlStartCheck AgentsSessionControlScanCheck AgentsSessionControlMainLoopCheck AgentsAdvanceInputScanStatesCheck AgentsMainLoopConfigCheck AgentsSpawnDetachCheck AgentsMagicSpawnSessionCheck AgentsManagerSpawnMemberCheck ; do LC_ALL=C grep -v '^[[:space:]]*#' "$rigPackage"/sh-test/{,*/}"$rigName.test.sh" 2> /dev/null | LC_ALL=C grep -q -E -e "$rigGuardOps" && printf y || printf n ; done )" "ten-or-more:yyyyyyyy"
+	"$( printf '%s\n' "$rigGuarded" | LC_ALL=C sed -n 's/^named: //p' | LC_ALL=C awk '{ print ( $1 >= 10 ) ? "ten-or-more" : $1 ; }' ):$( for rigName in AgentsSessionControlStartCheck AgentsSessionControlScanCheck AgentsSessionControlMainLoopCheck AgentsAdvanceInputScanStatesCheck AgentsMainLoopConfigCheck AgentsSpawnDetachCheck AgentsMagicSpawnSessionCheck AgentsManagerSpawnMemberCheck ; do LC_ALL=C grep -v '^[[:space:]]*#' "$rigPackage"/sh-test/{,*/}"$rigName.test.sh" 2> /dev/null | LC_ALL=C grep -q -E -e "$rigGuardOps" && printf y || printf n ; done )" "ten-or-more:yyyyyyyy"
 ## Made to fail: a check that takes the advance lock and ends nothing, one that sources the fixture and never calls it,
 ## and beside them one that does both, one that names the operation in a comment alone, and one that names none;
 ## and one in a subfolder, where the runner finds tests too, that takes the advance lock and ends nothing.
@@ -602,7 +602,7 @@ rigProcSignalWithChildren KILL $rigStarted
 sleep 1
 rigAssert "every thread this check started is ended: no process of this host shows as a thread of one of its sessions" \
 	"$( "$rigTmp/bin/ps.real" -A -ww -o args= 2> /dev/null | LC_ALL=C grep -c -E -- "--intern-session-control --run --session-id [a-z0-9]+-$rigTag\$" || : )" "0"
-rigAssert "and every process a start of it made, with every stand-in" "$( rigLives(){ local livesCount=0 livesPid ; for livesPid in "$@" ; do rigEnded "$livesPid" || livesCount=$(( livesCount + 1 )) ; done ; printf '%s' "$livesCount" ; } ; rigLives $( LC_ALL=C awk 'NF == 2 { print $1 }' "$rigTmp/threads.notes" 2> /dev/null ) $rigStarted )" "0"
+rigAssert "and every process a start of it made, with every stand-in" "$( rigLives(){ local livesCount=0 livesPid ; for livesPid in "$@" ; do rigEnded "$livesPid" || livesCount=$(( livesCount + 1 )) ; done ; printf '%s' "$livesCount" ; } ; rigLives $( LC_ALL=C awk 'NF == 2 { print $1 ; }' "$rigTmp/threads.notes" 2> /dev/null ) $rigStarted )" "0"
 rigAssert "no request was made" "$( [ -e "$rigTmp/curl.calls" ] && echo called || echo none )" "none"
 
 if [ "$rigFails" -ne 0 ] ; then

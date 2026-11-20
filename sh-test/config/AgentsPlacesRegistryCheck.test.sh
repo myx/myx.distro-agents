@@ -78,10 +78,10 @@ rigCut(){ ## -- stdin with the rig tree written T
 	LC_ALL=C sed "s|$rigTmp|T|g"
 }
 rigLocal(){ ## workspace name -- its local rows, name:kind:ceiling:path:declared-by, sorted, one line
-	LC_ALL=C awk -F'\t' '{ print $1 ":" $2 ":" $3 ":" $4 ":" $5 }' "$rigTmp/$1/.local/agents/directories.registry" 2>/dev/null | rigCut | LC_ALL=C sort | LC_ALL=C tr '\n' ' '
+	LC_ALL=C awk -F'\t' '{ print $1 ":" $2 ":" $3 ":" $4 ":" $5 ; }' "$rigTmp/$1/.local/agents/directories.registry" 2>/dev/null | rigCut | LC_ALL=C sort | LC_ALL=C tr '\n' ' '
 }
 rigShared(){ ## -- the machine pointers of rigRunHome, name:workspace basename, sorted, one line
-	LC_ALL=C awk -F'\t' '{ w = $2 ; sub( /.*\//, "", w ) ; print $1 ":" w }' "$rigRunHome/.agents/magic-team/directories.registry" 2>/dev/null | LC_ALL=C sort | LC_ALL=C tr '\n' ' '
+	LC_ALL=C awk -F'\t' '{ w = $2 ; sub( /.*\//, "", w ) ; print $1 ":" w ; }' "$rigRunHome/.agents/magic-team/directories.registry" 2>/dev/null | LC_ALL=C sort | LC_ALL=C tr '\n' ' '
 }
 rigN(){ ## file, fixed text -- how many lines hold it
 	LC_ALL=C grep -c -F -- "$2" "$1" 2>/dev/null || :
@@ -168,9 +168,9 @@ rigAssert "a local row wins the bare name, the other is name@workspace, and no w
 	"$( printf '%s' "$rigTwoList" | LC_ALL=C tr ' ' '\n' | LC_ALL=C grep '^shared-name' | LC_ALL=C cut -d: -f1,4 | LC_ALL=C tr '\n' ' ' ) $( rigN "$rigTmp/err" 'WARNING' )" "shared-name:T/dir-a shared-name@ws-three:T/dir-b  0"
 
 echo "-- 4. registration, the earlier list, and the readers --"
-rigWsArm="$( LC_ALL=C awk '/^\t--make-workspace-integrations\)/ { on = 1 } on { print } on && /^\t;;/ { exit }' "$rigHere/config/AgentsTools.Make.include" )"
+rigWsArm="$( LC_ALL=C awk '/^\t--make-workspace-integrations\)/ { on = 1 ; } on { print ; } on && /^\t;;/ { exit ; }' "$rigHere/config/AgentsTools.Make.include" )"
 rigAssert "every update registers the workspace: --make-workspace-integrations runs the registration, then the member homes after the part of the install that writes the member registry" \
-	"$( printf '%s\n' "$rigWsArm" | LC_ALL=C awk '/DistroAgentsTools --intern-directory-register / { a = NR } /DistroAgentsTools --install-workspace-integrations / && !b { b = NR } /DistroAgentsTools --intern-member-home-register / { c = NR } END { print ( a > 0 && a < b && b < c ) ? "ordered" : "not ordered" }' )" ordered
+	"$( printf '%s\n' "$rigWsArm" | LC_ALL=C awk '/DistroAgentsTools --intern-directory-register / { a = NR ; } /DistroAgentsTools --install-workspace-integrations / && !b { b = NR ; } /DistroAgentsTools --intern-member-home-register / { c = NR ; } END { print ( a > 0 && a < b && b < c ) ? "ordered" : "not ordered" ; }' )" ordered
 ## The row counts the operations that register a workspace. The install reads the registry file to place a path in a rig (AgentsToolsInstallRigWorkspacePlace), and reading it registers nothing, so the file name is not what the row looks for.
 rigAssert "the member install registers no workspace" "$( LC_ALL=C grep -c -e '--owner-workspace-upsert' -e '--intern-directory-register' "$rigHere/config/AgentsTools.Install.include" )" 0
 rigAssert "the * grant expansion walks the known workspace roots, this workspace first" "$( LC_ALL=C grep -c 'agentsGrantsRoots="$( LocalToolsPlacesWorkspaceRoots "$regWs" )"' "$rigHere/grants/AgentsTools.Grants.include" )" 1
@@ -339,7 +339,7 @@ rigHomesKept="$( LC_ALL=C grep -e '^keeper-srcloc' -e '^keeper-loc' "$rigHomes" 
 
 echo "-- 8. a workspace without agents --"
 rigAssert "its declared members are registered under its own root, as source-declared" \
-	"$( LC_ALL=C awk -F'\t' '$3 == "source-declared" { print $1 ":" $2 ":" $4 ":" $5 }' "$rigReg" | rigCut | LC_ALL=C sort | LC_ALL=C tr '\n' ' ' )" \
+	"$( LC_ALL=C awk -F'\t' '$3 == "source-declared" { print $1 ":" $2 ":" $4 ":" $5 ; }' "$rigReg" | rigCut | LC_ALL=C sort | LC_ALL=C tr '\n' ' ' )" \
 	"keeper-inst:T/ws-side:rig/rig-proj/skillset/keeper-inst:T/ws-side/source/rig/rig-proj/skillset/keeper-inst keeper-side:T/ws-side:rig/rig-proj/skillset/keeper-side:T/ws-side/source/rig/rig-proj/skillset/keeper-side "
 rigAssert "said once for that workspace" "$( rigN "$rigTmp/err" "$rigTmp/ws-side has no agents installed: 2 declared member(s) registered" )" 1
 rigAssert "nothing is installed there" "$( ls -A "$rigTmp/ws-side" "$rigTmp/ws-side/.local" 2>/dev/null | LC_ALL=C grep -c -x -e agents -e .claude -e .agents -e DistroAgentsConsole.sh )" 0

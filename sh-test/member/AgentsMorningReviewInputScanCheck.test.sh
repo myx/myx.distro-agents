@@ -98,7 +98,7 @@ rigAssert "changed files capped at 20"                "$( rigLine 'changed:' )" 
 rigAssert "twenty file names shown"                   "$( LC_ALL=C grep -c '^magic-[a-z]*/' "$rigTmp/out" )" 20
 rigAssert "a file older than the cut-off is not listed" "$( rigHas 'rig-old.md' )" no
 rigAssert "output under 6 KB"                         "$( [ "$( wc -c < "$rigTmp/out" )" -lt 6144 ] && echo yes || echo no )" yes
-rigNext="$( LC_ALL=C awk '/^next: / { print $2 ; exit }' "$rigTmp/out" )"
+rigNext="$( LC_ALL=C awk '/^next: / { print $2 ; exit ; }' "$rigTmp/out" )"
 
 echo "-- an item in review that names no reviewer, whose run has a record here --"
 ## Its review falls to where that run reports to, so it is no shape fault; one whose spawn-id
@@ -130,7 +130,7 @@ rigAssert "the scan's next: line names the state update" "$( rigRun --intern-op-
 rigRecord="$rigData/inboxes/magic-coordinator/incoming/note-20261008T000000Z-morning-review-state.md"
 printf -- '---\ntype: note\nfrom: magic-coordinator\nowner: magic-coordinator\nlast_reviewed_ts: %s\n---\n\nrig\n' "$rigNext" > "$rigRecord"
 rigRun --intern-op-morning-review-input-scan magic-coordinator
-rigAssert "the next scan reads the stored cut-off"    "$( LC_ALL=C awk '/^since: / { print $2, $NF ; exit }' "$rigTmp/out" )" "$rigNext stored"
+rigAssert "the next scan reads the stored cut-off"    "$( LC_ALL=C awk '/^since: / { print $2, $NF ; exit ; }' "$rigTmp/out" )" "$rigNext stored"
 rigAssert "nothing changed since then"                "$( rigLine 'changed:' )" "changed: 0"
 rigRun --intern-op-morning-review-input-scan magic-librarian
 rigAssert "another caller keeps its own cut-off"      "$( rigHas 'default, 7 days' )" yes

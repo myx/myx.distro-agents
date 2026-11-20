@@ -137,7 +137,7 @@ AgentsToolsManagerKeysTrusted(){
 	LC_ALL=C awk '
 		/^[ \t]*(#|$)/ { next ; }
 		{
-			for ( at = 1 ; at < NF ; at++ ) { if ( $at ~ /^(ssh-|ecdsa-|sk-)/ ) { break ; } }
+			for ( at = 1 ; at < NF ; at++ ) { if ( $at ~ /^(ssh-|ecdsa-|sk-)/ ) { break ; } ; }
 			if ( at >= NF || $at !~ /^(ssh-|ecdsa-|sk-)/ || $(at + 1) !~ /^[A-Za-z0-9+\/=]+$/ ) { next ; }
 			comment = "" ;
 			for ( rest = at + 2 ; rest <= NF ; rest++ ) { comment = comment ( comment == "" ? "" : " " ) $rest ; }
@@ -149,7 +149,7 @@ AgentsToolsManagerKeysTrusted(){
 ## The `key` row of one trusted key, as the row of an own key has it: always `present`, the line as it stands in the file (type, key, comment).
 AgentsToolsManagerKeysTrustedRow(){ ## n, type, key, comment
 	local trustedPrint trustedLabel trustedShort="$3" trustedLine="$2 $3${4:+ $4}"
-	trustedPrint="$( printf '%s\n' "$2 $3" | ssh-keygen -l -f - 2> /dev/null | LC_ALL=C awk '{ print $2 ; exit }' )" || trustedPrint=""
+	trustedPrint="$( printf '%s\n' "$2 $3" | ssh-keygen -l -f - 2> /dev/null | LC_ALL=C awk '{ print $2 ; exit ; }' )" || trustedPrint=""
 	trustedLabel="${4:-Trusted Key $1}"
 	[ "${#trustedShort}" -le 24 ] || trustedShort="${3:0:12}...${3: -8}"
 	printf 'key\ttrusted-%s\t%s\ttrusted\t%s\t%s\t%s\t%s\t%s\tpresent\t%s\n' "$1" "$( AgentsToolsManagerKeysField "$trustedLabel" )" \
@@ -203,7 +203,7 @@ AgentsToolsManagerKeysRow(){ ## key, label, group, what it is for, public file
 	if AgentsToolsManagerKeysPublic "$5" ; then
 		rowState="present"
 		rowPaste="$( AgentsToolsManagerKeysPaste "$3" )"
-		rowPrint="$( ssh-keygen -l -f "$5" 2> /dev/null | LC_ALL=C awk '{ print $2 ; exit }' )" || rowPrint=""
+		rowPrint="$( ssh-keygen -l -f "$5" 2> /dev/null | LC_ALL=C awk '{ print $2 ; exit ; }' )" || rowPrint=""
 		rowShort="$keysText"
 		[ "${#keysText}" -le 24 ] || rowShort="${keysText:0:12}...${keysText: -8}"
 	fi
@@ -263,7 +263,7 @@ AgentsToolsManagerKeysDone(){ ## what happened, key, private file
 	local doneType="-" doneFinger="-" keysLine keysType keysText
 	if AgentsToolsManagerKeysPublic "$3.pub" ; then
 		doneType="$keysType"
-		doneFinger="$( ssh-keygen -l -f "$3.pub" 2> /dev/null | LC_ALL=C awk '{ print $2 ; exit }' )" || doneFinger=""
+		doneFinger="$( ssh-keygen -l -f "$3.pub" 2> /dev/null | LC_ALL=C awk '{ print $2 ; exit ; }' )" || doneFinger=""
 	fi
 	printf '%s\t%s\t%s\t%s\t%s\n' "$1" "$2" "$( AgentsToolsManagerKeysField "$3" )" "$doneType" "${doneFinger:--}"
 }
@@ -302,7 +302,7 @@ AgentsToolsManagerKeysTrustedLine(){
 ## The fingerprint of a public key given by its type and its key, as ssh-keygen gives it; `-` where it cannot.
 AgentsToolsManagerKeysTrustedFinger(){ ## type, key
 	local fingerPrint
-	fingerPrint="$( printf '%s %s\n' "$1" "$2" | ssh-keygen -l -f - 2> /dev/null | LC_ALL=C awk '{ print $2 ; exit }' )" || fingerPrint=""
+	fingerPrint="$( printf '%s %s\n' "$1" "$2" | ssh-keygen -l -f - 2> /dev/null | LC_ALL=C awk '{ print $2 ; exit ; }' )" || fingerPrint=""
 	printf '%s' "${fingerPrint:--}"
 }
 

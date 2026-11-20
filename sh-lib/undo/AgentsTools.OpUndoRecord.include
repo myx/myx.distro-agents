@@ -69,7 +69,7 @@
 					[ ! -f "$undoRecDir/$undoRecOp" ] || mv -f "$undoRecDir/$undoRecOp" "$undoRecDir/parts/1/$undoRecOp" || { echo "⛔ ERROR: $MDSC_CMD --undo-record: could not keep the first part" >&2 ; set +e ; return 1 ; }
 				done
 			fi
-			undoRecPartN="$( AgentsToolsUndoPartDirs "$undoRecDir" | LC_ALL=C awk -F'\t' '$1 > top { top = $1 } END { print top + 0 }' )"
+			undoRecPartN="$( AgentsToolsUndoPartDirs "$undoRecDir" | LC_ALL=C awk -F'\t' '$1 > top { top = $1 ; } END { print top + 0 ; }' )"
 			undoRecPartN=$(( undoRecPartN + 1 ))
 			undoRecPartDir="$undoRecDir/parts/$undoRecPartN"
 			mkdir -p "$undoRecPartDir" || { echo "⛔ ERROR: $MDSC_CMD --undo-record: could not keep part $undoRecPartN" >&2 ; set +e ; return 1 ; }

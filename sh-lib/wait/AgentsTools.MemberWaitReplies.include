@@ -183,8 +183,8 @@ AgentsWaitRepliesLookRead(){ ## the same arguments
 				function secOf(v) { sub(/\..*$/, "", v) ; return ( v == "" ? 0 : v + 0 ) ; }
 				function fracOf(v) { if ( v !~ /\./ ) { return "000000" ; } sub(/^[^.]*\./, "", v) ; return substr(v "000000", 1, 6) ; }
 				function newer(a, b) { return ( secOf(a) > secOf(b) || ( secOf(a) == secOf(b) && fracOf(a) > fracOf(b) ) ) ; }
-				{ split($1, where, ":") ; if ( where[1] == channel && where[2] == $2 && newer($2, after) && ( best == "" || newer(best, $2) ) ) { best = $2 } }
-				END { print best }' 2> /dev/null <<< "$( AgentsOwnPostsLines "$waitSessionId" )" )" || lookUntil=""
+				{ split($1, where, ":") ; if ( where[1] == channel && where[2] == $2 && newer($2, after) && ( best == "" || newer(best, $2) ) ) { best = $2 ; } ; }
+				END { print best ; }' 2> /dev/null <<< "$( AgentsOwnPostsLines "$waitSessionId" )" )" || lookUntil=""
 			if [ -n "$lookUntil" ] ; then
 				LC_ALL=C awk -v untilTs="$lookUntil" '
 					function secOf(v) { sub(/\..*$/, "", v) ; return ( v == "" ? 0 : v + 0 ) ; }

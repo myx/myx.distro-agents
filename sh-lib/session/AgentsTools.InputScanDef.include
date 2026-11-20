@@ -104,7 +104,7 @@ AgentsToolsInputScanCacheFile(){ ## scan words (one a line), session or spawn id
 	[ -n "$cacheScope" ] || return 1
 	cacheDir="${MMDAPP%/}/.local/.agents/cache/input-scan/$cacheScope"
 	mkdir -p "$cacheDir" 2> /dev/null || return 1
-	printf '%s/%s\n' "$cacheDir" "$( printf '%s\n' "$1" "${MDAT_SCAN_SEED_QUIET:-}" | LC_ALL=C cksum | LC_ALL=C awk '{ print $1 "-" $2 }' )"
+	printf '%s/%s\n' "$cacheDir" "$( printf '%s\n' "$1" "${MDAT_SCAN_SEED_QUIET:-}" | LC_ALL=C cksum | LC_ALL=C awk '{ print $1 "-" $2 ; }' )"
 }
 ## The call the words make, from its cache where one is there and under 300 seconds old, else run for real and
 ## kept there. $4 is the stdout file, $5 the stderr file (emptied on a cache hit, nothing having run to fail).
@@ -132,16 +132,16 @@ AgentsToolsInputScanCachedCall(){ ## scan words (one a line), session or spawn i
 ## starts the run, and a report is never taken for empty on a guess: the mistake can only be a start.
 AgentsToolsInputScanReportEmpty(){ ## the report file
 	LC_ALL=C awk '
-		/^[[:space:]]*$/ { next }
-		/^#/ { next }
-		/^\(none\)$/ { next }
-		/^scope: / { next }
-		/^cap: / { next }
-		/^\*\*NOTE:\*\* no new / { next }
-		/^Nothing new/ { next }
-		/^[0-9]+\.[0-9]+ \| [^|]*\|\[fyi: / { next }
-		{ found = 1 ; exit }
-		END { exit ( found ? 1 : 0 ) }' "$1" 2> /dev/null
+		/^[[:space:]]*$/ { next ; }
+		/^#/ { next ; }
+		/^\(none\)$/ { next ; }
+		/^scope: / { next ; }
+		/^cap: / { next ; }
+		/^\*\*NOTE:\*\* no new / { next ; }
+		/^Nothing new/ { next ; }
+		/^[0-9]+\.[0-9]+ \| [^|]*\|\[fyi: / { next ; }
+		{ found = 1 ; exit ; }
+		END { exit ( found ? 1 : 0 ) ; }' "$1" 2> /dev/null
 }
 
 ## One scan of a definition line run, its report into a file; a scan that fails leaves its failure in the report, which is input to whoever starts on it.
@@ -244,7 +244,7 @@ AgentsToolsInputScanDefSeed(){ ## definition line, scan, team member, session id
 
 ## The scans a set of definition lines names, joined by `, `: what the brief says ran.
 AgentsToolsInputScanDefNames(){ ## definition lines (one a line)
-	printf '%s\n' "$1" | LC_ALL=C awk 'NF > 0 && $1 != "none" { printf "%s%s", sep, $1 ; sep = ", " } END { if ( sep != "" ) printf "\n" }'
+	printf '%s\n' "$1" | LC_ALL=C awk 'NF > 0 && $1 != "none" { printf "%s%s", sep, $1 ; sep = ", " ; } END { if ( sep != "" ) printf "\n" ; }'
 }
 
 ## The scans run for a start, their results in one file: each line of the definition in order, then the member, session

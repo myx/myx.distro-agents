@@ -72,7 +72,7 @@ AgentsEventTrackPostRender(){ ## kind, member, session id, out dir, lines file, 
 	## the member root and the home it was read from, and read again where any of them is another.
 	if [ "${agentsEventTrackPostRenderMemo:-}" != "${MMDAPP:-}|${MDAT_SKILLSET_ROOT:-}|${HOME:-}" ] || [ $(( SECONDS - agentsEventTrackPostSeconds0 )) -ge 300 ] ; then
 		agentsEventTrackPostUsers=""
-		agentsEventTrackPostUsers="$( AgentsSlackIdentityPairs | LC_ALL=C awk '{ printf " %s", $0 }' )"
+		agentsEventTrackPostUsers="$( AgentsSlackIdentityPairs | LC_ALL=C awk '{ printf " %s", $0 ; }' )"
 		agentsEventTrackPostMembers=" $( [ -z "${MDAT_SKILLSET_ROOT:-}" ] || AgentsToolsTeamMemberDirectoryText 2>/dev/null | LC_ALL=C cut -f1 | tr '\n' ' ' )"
 		agentsEventTrackPostEpoch0="$( date +%s )" ; agentsEventTrackPostSeconds0="$SECONDS"
 		agentsEventTrackPostRenderMemo="${MMDAPP:-}|${MDAT_SKILLSET_ROOT:-}|${HOME:-}"
@@ -152,7 +152,7 @@ AgentsEventTrackPostPack(){ ## out dir, .blocks files...
 	for packPart in "$@" ; do
 		packBody="$( cat "$packPart" )"
 		packBody="${packBody#[}" ; packBody="${packBody%]}"
-		packWeightOne="$( LC_ALL=C awk '{ n += gsub( /\{"type":"(container|section|context|divider|header|actions|image|rich_text)"/, "&" ) } END { print n + 0 }' "$packPart" )"
+		packWeightOne="$( LC_ALL=C awk '{ n += gsub( /\{"type":"(container|section|context|divider|header|actions|image|rich_text)"/, "&" ) ; } END { print n + 0 ; }' "$packPart" )"
 		packTextOne="$( cat "${packPart%.blocks}.text" 2> /dev/null )"
 		if [ -n "$packBlocks" ] && [ $(( packWeight + packWeightOne )) -gt 50 ] ; then AgentsEventTrackPostPackFlush ; fi
 		packBlocks="$packBlocks${packBlocks:+,}$packBody"
@@ -223,7 +223,7 @@ AgentsEventTrackPostSend(){ ## record dir
 	mkdir -p "$postDir/posts"
 	local postDirPosts="$postDir/posts"
 	## What the log row says of the window: how many lines it held and how many parts it was cut into, so a window that passes Slack's size limit shows.
-	postLineCount="$( LC_ALL=C awk 'END { print NR + 0 }' "$postRec/lines" )"
+	postLineCount="$( LC_ALL=C awk 'END { print NR + 0 ; }' "$postRec/lines" )"
 	## The origin is of the run the post is about: the one --session-id gave, else the calling run.
 	local postOrigin=""
 	AgentsEventTrackPostOriginInto postOrigin "${postSession:-${harnessSessionId:-${MDAT_SPAWN_SESSION_ID:-}}}" || postRc=$?
@@ -246,7 +246,7 @@ AgentsEventTrackPostSend(){ ## record dir
 				done < "$postAlsoDir/fields"
 			fi
 			mkdir -p "$postDir/also.$postAlsoAt"
-			postLineCount=$(( postLineCount + $( LC_ALL=C awk 'END { print NR + 0 }' "$postAlsoDir/lines" ) ))
+			postLineCount=$(( postLineCount + $( LC_ALL=C awk 'END { print NR + 0 ; }' "$postAlsoDir/lines" ) ))
 			AgentsEventTrackPostOriginInto postAlsoOrigin "$postAlsoSession" || postRc=$?
 			AgentsEventTrackPostRender "$postAlsoKind" "$postAlsoMember" "$postAlsoSession" "$postDir/also.$postAlsoAt" "$postAlsoDir/lines" ${postAlsoFields[@]+"${postAlsoFields[@]}"} ${postAlsoOrigin:+"origin=$postAlsoOrigin"} || postRc=$?
 			for postAlsoFile in "$postDir/also.$postAlsoAt"/*.blocks ; do

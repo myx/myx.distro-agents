@@ -257,7 +257,7 @@ rigWhole(){ ## file, text -- how many lines of the file are that text, whole
 }
 rigPrint(){ ## file -- its inode and the sum of its bytes; no-file where there is none
 	[ -f "$1" ] || { printf 'no-file\n' ; return 0 ; }
-	printf '%s:%s\n' "$( ls -i "$1" | LC_ALL=C awk '{ print $1 ; exit }' )" "$( cksum < "$1" | LC_ALL=C tr -s ' \t' '-' )"
+	printf '%s:%s\n' "$( ls -i "$1" | LC_ALL=C awk '{ print $1 ; exit ; }' )" "$( cksum < "$1" | LC_ALL=C tr -s ' \t' '-' )"
 }
 rigOthers(){ ## -- every file of the workspace we run from but the registries a call here rebuilds and the grants index, each with the sum of its bytes, as one sum
 	( cd "$rigWs" && find . -type f ! -name team-members.registry ! -name spawned-sessions.registry ! -name pending-replies.registry ! -name 'grants.index*' ! -name 'permissions*.registry' ! -name ps-args.txt | LC_ALL=C sort | while IFS= read -r othersFile ; do printf '%s %s\n' "$othersFile" "$( cksum < "$othersFile" )" ; done ) | cksum
@@ -272,18 +272,18 @@ rigWant="$( {
 } )"
 rigAssert "the call ends 0, with no error and no warning" "$rigRc $( rigTroubles )" "0 0"
 rigAssert "the whole output, byte for byte: the member registry holds three members and a rules file, and the list prints three rows, in the registry's order, each with its mark, its names and its alias" "$( rigShown < "$rigTmp/out" )" "$rigWant"
-rigAssert "a member that is not to be started is marked: the SKILL.md of human-owner says reference-only and its row says so; the other rows say active" "$( rigRows member | LC_ALL=C awk '{ printf "%s=%s ", $2, $10 }' )" "human-owner=reference-only magic-coordinator=active keeper-rig=active "
-rigAssert "a member with no names shows -: the names registry holds - for the three names of human-owner, and so does its row" "$( LC_ALL=C awk '$1 == "human-owner" { print $3, $4, $5 }' "$rigNames" ) / $( rigRowOf member human-owner | LC_ALL=C awk '{ print $4, $5, $6 }' )" "- - - / - - -"
-rigAssert "the prefix group of each member is its kind" "$( rigRows member | LC_ALL=C awk '{ printf "%s ", $7 }' )" "human magic keeper "
-rigAssert "a member with a run that has a live process reads running, and one whose runs have none reads no-process" "$( rigRowOf member keeper-rig | LC_ALL=C awk '{ print $11 }' ) $( rigRowOf member magic-coordinator | LC_ALL=C awk '{ print $11 }' )" "running no-process"
+rigAssert "a member that is not to be started is marked: the SKILL.md of human-owner says reference-only and its row says so; the other rows say active" "$( rigRows member | LC_ALL=C awk '{ printf "%s=%s ", $2, $10 ; }' )" "human-owner=reference-only magic-coordinator=active keeper-rig=active "
+rigAssert "a member with no names shows -: the names registry holds - for the three names of human-owner, and so does its row" "$( LC_ALL=C awk '$1 == "human-owner" { print $3, $4, $5 ; }' "$rigNames" ) / $( rigRowOf member human-owner | LC_ALL=C awk '{ print $4, $5, $6 ; }' )" "- - - / - - -"
+rigAssert "the prefix group of each member is its kind" "$( rigRows member | LC_ALL=C awk '{ printf "%s ", $7 ; }' )" "human magic keeper "
+rigAssert "a member with a run that has a live process reads running, and one whose runs have none reads no-process" "$( rigRowOf member keeper-rig | LC_ALL=C awk '{ print $11 ; }' ) $( rigRowOf member magic-coordinator | LC_ALL=C awk '{ print $11 ; }' )" "running no-process"
 : > "$rigTmp/ps.list" ; rigPsChanged
 rigRun "$rigListOp"
-rigAssert "with no live process no member reads running: alive is measured now, by the process list" "$rigRc $( rigRows member | LC_ALL=C awk '$11 == "running" { n++ } END { print n + 0 }' )" "0 0"
+rigAssert "with no live process no member reads running: alive is measured now, by the process list" "$rigRc $( rigRows member | LC_ALL=C awk '$11 == "running" { n++ ; } END { print n + 0 ; }' )" "0 0"
 rigLive run-k1 run-f1
-rigAssert "every row has thirteen fields, the last the member's own skillset folder, its link in the member set followed (the owner: \"WHERE - can show <workspace place name>:<project-path>\"), and no line is of another kind" "$( LC_ALL=C awk -F'\t' '{ if ( $1 != "member" || NF != 13 ) bad++ ; } END { print NR ":" bad + 0 }' "$rigTmp/out" )" "3:0"
+rigAssert "every row has thirteen fields, the last the member's own skillset folder, its link in the member set followed (the owner: \"WHERE - can show <workspace place name>:<project-path>\"), and no line is of another kind" "$( LC_ALL=C awk -F'\t' '{ if ( $1 != "member" || NF != 13 ) bad++ ; } END { print NR ":" bad + 0 ; }' "$rigTmp/out" )" "3:0"
 
 echo "-- 2. a reader that passes by updates the registry, and writes nothing else --"
-rigAssert "the registry team-members is written, with its four columns in each of its three rows" "$( LC_ALL=C awk 'NF == 4 { whole++ } END { print NR ":" whole + 0 }' "$rigAgents/team-members.registry" )" "3:3"
+rigAssert "the registry team-members is written, with its four columns in each of its three rows" "$( LC_ALL=C awk 'NF == 4 { whole++ ; } END { print NR ":" whole + 0 ; }' "$rigAgents/team-members.registry" )" "3:3"
 rigOthersBefore="$( rigOthers )"
 TZ=UTC touch -t 202610010000.00 "$rigAgents/team-members.registry"
 rigMemberAt "$rigWs" keeper-new active 'description: A member added since the last rebuild.'
@@ -292,25 +292,25 @@ rigAssert "control: the member registry got a row after team-members was last bu
 rigOthersAdded="$( rigOthers )"
 rigRun "$rigListOp"
 rigAssert "a member added since the last rebuild has its row, with - for the names no registry holds of it yet" "$rigRc $( rigRowOf member keeper-new )" "0 member keeper-new - - - - keeper ws-here here active no-process 🔏 $( rigMemberDir "$rigWs" keeper-new )"
-rigAssert "and its row in the registry file, which the call rebuilt" "$( LC_ALL=C awk '$1 == "keeper-new" { print $2, $3 }' "$rigAgents/team-members.registry" )" "ws-here source-symlink"
+rigAssert "and its row in the registry file, which the call rebuilt" "$( LC_ALL=C awk '$1 == "keeper-new" { print $2, $3 ; }' "$rigAgents/team-members.registry" )" "ws-here source-symlink"
 rigAssert "nothing else of the workspace was written by the list: every other file is as it was" "$( rigOthers )" "$rigOthersAdded"
 rigAssert "the names registry is read as it lies: the list did not rebuild it" "$( LC_ALL=C grep -c -e '^keeper-new ' "$rigNames" )" "0"
 ## The added member is taken out again: the rig holds its three members from here on.
 LC_ALL=C grep -v -e '^keeper-new'"$rigTab" "$rigAgents/members.registry" > "$rigTmp/members.kept" && cat "$rigTmp/members.kept" > "$rigAgents/members.registry"
 rm -rf "$( rigMemberDir "$rigWs" keeper-new )" "$rigAgents/members/keeper-new"
 rigRun "$rigListOp"
-rigAssert "a member taken out of the member registry is no row any more" "$rigRc $( rigRows member | LC_ALL=C awk '{ printf "%s ", $2 }' )" "0 human-owner magic-coordinator keeper-rig "
+rigAssert "a member taken out of the member registry is no row any more" "$rigRc $( rigRows member | LC_ALL=C awk '{ printf "%s ", $2 ; }' )" "0 human-owner magic-coordinator keeper-rig "
 rigAssert "control: the workspace is as it was before the member was added" "$( rigOthers )" "$rigOthersBefore"
 
 echo "-- 3. the list goes on with no names registry --"
 mv "$rigNames" "$rigNames.aside"
 rigRun "$rigListOp"
-rigAssert "with no team-members-names registry the status is 0 and each member is printed with - for its mark and its names" "$rigRc $( rigRows member | LC_ALL=C awk '{ printf "%s:%s,%s,%s,%s ", $2, $3, $4, $5, $6 }' )" "0 human-owner:-,-,-,- magic-coordinator:-,-,-,- keeper-rig:-,-,-,- "
+rigAssert "with no team-members-names registry the status is 0 and each member is printed with - for its mark and its names" "$rigRc $( rigRows member | LC_ALL=C awk '{ printf "%s:%s,%s,%s,%s ", $2, $3, $4, $5, $6 ; }' )" "0 human-owner:-,-,-,- magic-coordinator:-,-,-,- keeper-rig:-,-,-,- "
 rigAssert "one note says so, on standard error, with no error and no warning" "$( LC_ALL=C grep -c -F -- "# DistroAgentsTools $rigListOp: no names registry is at $rigNames" "$rigTmp/err" || : ) $( LC_ALL=C grep -c -F -- "$rigListOp" "$rigTmp/err" || : ) $( rigTroubles )" "1 1 0"
-rigAssert "the rest of each row stands: its kind, its workspace, its status and whether it is alive" "$( rigRowOf member keeper-rig | LC_ALL=C awk '{ print $7, $8, $9, $10, $11 }' )" "keeper ws-here here active running"
+rigAssert "the rest of each row stands: its kind, its workspace, its status and whether it is alive" "$( rigRowOf member keeper-rig | LC_ALL=C awk '{ print $7, $8, $9, $10, $11 ; }' )" "keeper ws-here here active running"
 rigAssert "and the list did not make the registry it found missing" "$( [ -e "$rigNames" ] && echo made || echo none )" "none"
 rigRun "$rigReadOp" keeper-rig
-rigAssert "the read of a member goes on the same way: its row with - for its mark and its names, one note under its own name, status 0" "$rigRc $( rigRowOf member keeper-rig | LC_ALL=C awk '{ printf "%s,%s,%s,%s %s", $3, $4, $5, $6, $10 }' ) $( LC_ALL=C grep -c -F -- "# DistroAgentsTools $rigReadOp: no names registry is at $rigNames" "$rigTmp/err" || : ) $( rigTroubles )" "0 -,-,-,- active 1 0"
+rigAssert "the read of a member goes on the same way: its row with - for its mark and its names, one note under its own name, status 0" "$rigRc $( rigRowOf member keeper-rig | LC_ALL=C awk '{ printf "%s,%s,%s,%s %s", $3, $4, $5, $6, $10 ; }' ) $( LC_ALL=C grep -c -F -- "# DistroAgentsTools $rigReadOp: no names registry is at $rigNames" "$rigTmp/err" || : ) $( rigTroubles )" "0 -,-,-,- active 1 0"
 mv "$rigNames.aside" "$rigNames"
 
 echo "-- 4. a member set up only in another workspace on this machine is a member here too --"
@@ -363,11 +363,11 @@ rigWant="$( {
 } )"
 rigAssert "the call ends 0, with no error and no warning" "$rigRc $( rigTroubles )" "0 0"
 rigAssert "the whole output, byte for byte: this workspace's own members first, then each member the machine knows that is set up only elsewhere, and a rules file of neither workspace is a row" "$( rigShown < "$rigTmp/out" )" "$rigWant"
-rigAssert "a member set up only in another workspace is listed, with the name of that workspace and the word elsewhere; its names are those of that workspace's own registry, which this workspace's holds no row of" "$( rigRowOf member keeper-far | LC_ALL=C awk '{ print $8, $9, $4, $5, $6 }' ) $( LC_ALL=C grep -c -e '^keeper-far ' "$rigNames" )" "ws-far elsewhere Far Keeper farkeep 0"
-rigAssert "a run of it in a session of this workspace makes it read running here" "$( rigRowOf member keeper-far | LC_ALL=C awk '{ print $11 }' )" "running"
-rigAssert "a client's row holds what its registry row holds, which is its persona's names" "$( rigRowOf member client-rig | LC_ALL=C awk '{ print $3, $4, $5, $6 }' ) / $( rigRowOf member magic-coordinator | LC_ALL=C awk '{ print $3, $4, $5, $6 }' )" "🐭 Magic Vane dispatchr / 🐭 Magic Vane dispatchr"
-rigAssert "a member whose workspace is not on this machine, and one whose workspace the machine does not know, are listed as not-present, never dropped and never called a member of here" "$( rigRowOf member keeper-gone | LC_ALL=C awk '{ print $8, $9, $10 }' ) / $( rigRowOf member keeper-lost | LC_ALL=C awk '{ print $8, $9, $10 }' )" "- not-present - / - not-present -"
-rigAssert "this workspace's registry still holds its own members only" "$( LC_ALL=C awk '{ printf "%s ", $1 }' "$rigAgents/team-members.registry" )" "human-owner magic-coordinator keeper-rig "
+rigAssert "a member set up only in another workspace is listed, with the name of that workspace and the word elsewhere; its names are those of that workspace's own registry, which this workspace's holds no row of" "$( rigRowOf member keeper-far | LC_ALL=C awk '{ print $8, $9, $4, $5, $6 ; }' ) $( LC_ALL=C grep -c -e '^keeper-far ' "$rigNames" )" "ws-far elsewhere Far Keeper farkeep 0"
+rigAssert "a run of it in a session of this workspace makes it read running here" "$( rigRowOf member keeper-far | LC_ALL=C awk '{ print $11 ; }' )" "running"
+rigAssert "a client's row holds what its registry row holds, which is its persona's names" "$( rigRowOf member client-rig | LC_ALL=C awk '{ print $3, $4, $5, $6 ; }' ) / $( rigRowOf member magic-coordinator | LC_ALL=C awk '{ print $3, $4, $5, $6 ; }' )" "🐭 Magic Vane dispatchr / 🐭 Magic Vane dispatchr"
+rigAssert "a member whose workspace is not on this machine, and one whose workspace the machine does not know, are listed as not-present, never dropped and never called a member of here" "$( rigRowOf member keeper-gone | LC_ALL=C awk '{ print $8, $9, $10 ; }' ) / $( rigRowOf member keeper-lost | LC_ALL=C awk '{ print $8, $9, $10 ; }' )" "- not-present - / - not-present -"
+rigAssert "this workspace's registry still holds its own members only" "$( LC_ALL=C awk '{ printf "%s ", $1 ; }' "$rigAgents/team-members.registry" )" "human-owner magic-coordinator keeper-rig "
 rigAssert "nothing of the other workspace was written: its two registries are the files they were" "$( cat "$rigFar/.local/agents/team-members-names.registry" "$rigFar/.local/agents/team-members.registry" | cksum )" "$( printf '%s\n' 'keeper-far 🛰️ Far Keeper farkeep' 'client-rig 🐭 Magic Vane dispatchr' 'keeper-far ws-far source-symlink myx/pkg/skillset/keeper-far' 'client-rig ws-far origin-symlink myx/pkg/skillset/client-rig' | cksum )"
 
 echo "-- 4a. the icon of each member is the last field of its row --"
@@ -378,12 +378,12 @@ rigMemberRow "$rigIndex" "$rigTmp/gone/ws-gone" warden-rig source-symlink
 rigMemberRow "$rigIndex" "$rigTmp/gone/ws-gone" scribe-rig source-symlink
 rigRun "$rigListOp"
 rigIcons(){ ## -- each member of the last output with the last field of its row
-	rigRows member | LC_ALL=C awk '{ printf "%s=%s ", $2, $12 }'
+	rigRows member | LC_ALL=C awk '{ printf "%s=%s ", $2, $12 ; }'
 }
 rigAssert "each row ends with the icon the member table of the installer shows that member with, the icon of its prefix group: the human-owner, a magic member, a keeper, a client, a partner, a warden, and a name of no group" "$rigRc $( rigIcons )" "0 human-owner=👤 magic-coordinator=🤖 keeper-rig=🔏 keeper-far=🔏 client-rig=👥 keeper-gone=🔏 keeper-lost=🔏 partner-rig=👫 warden-rig=🔏 scribe-rig=🤖 "
-rigAssert "a member with a mark of its own keeps the mark where it was, and its icon is that table's, which shows no mark" "$( rigRowOf member magic-coordinator | LC_ALL=C awk '{ print $3, $12 }' ) / $( rigRowOf member human-owner | LC_ALL=C awk '{ print $3, $12 }' )" "$( LC_ALL=C awk '$1 == "magic-coordinator" { print $2 }' "$rigNames" ) 🤖 / :own: 👤"
+rigAssert "a member with a mark of its own keeps the mark where it was, and its icon is that table's, which shows no mark" "$( rigRowOf member magic-coordinator | LC_ALL=C awk '{ print $3, $12 ; }' ) / $( rigRowOf member human-owner | LC_ALL=C awk '{ print $3, $12 ; }' )" "$( LC_ALL=C awk '$1 == "magic-coordinator" { print $2 ; }' "$rigNames" ) 🤖 / :own: 👤"
 rigAssert "the icons are those of the one list of them, which the installer's table reads: there is no second list" "$( rigIcons )" "$( . "$rigHere/team-data/AgentsTools.TeamRegistry.include" ; rigRows member | while read -r rigIconKind rigIconName rigIconRest ; do printf '%s=%s ' "$rigIconName" "$( AgentsToolsTeamMemberKindIcon "$rigIconName" )" ; done )"
-rigAssert "every row has thirteen fields: the icon and the skillset folder at the end, and each field before them stands where it stood" "$( LC_ALL=C awk -F'\t' '{ if ( $1 != "member" || NF != 13 ) bad++ ; } END { print NR ":" bad + 0 }' "$rigTmp/out" ) $( rigRowOf member keeper-far | LC_ALL=C awk '{ print $7, $8, $9, $10, $11 }' )" "10:0 keeper ws-far elsewhere active running"
+rigAssert "every row has thirteen fields: the icon and the skillset folder at the end, and each field before them stands where it stood" "$( LC_ALL=C awk -F'\t' '{ if ( $1 != "member" || NF != 13 ) bad++ ; } END { print NR ":" bad + 0 ; }' "$rigTmp/out" ) $( rigRowOf member keeper-far | LC_ALL=C awk '{ print $7, $8, $9, $10, $11 ; }' )" "10:0 keeper ws-far elsewhere active running"
 LC_ALL=C grep -v -e '^partner-rig'"$rigTab" -e '^warden-rig'"$rigTab" -e '^scribe-rig'"$rigTab" "$rigIndex" > "$rigTmp/index.kept" && cat "$rigTmp/index.kept" > "$rigIndex"
 
 echo "-- 5. the read: one member's information --"
@@ -408,7 +408,7 @@ cp "$rigTmp/out" "$rigTmp/digest.scopes"
 rigSettingRows(){ ## scope -- the lines the digest printed for that scope, each as a setting row of this workspace
 	LC_ALL=C awk -F'\t' -v OFS='\t' -v wantScope="$1" '$1 == "line" && $2 == "scopes" && $3 == wantScope { print "setting", $4, $5, $6, "ws-here" ; }' "$rigTmp/digest.scopes"
 }
-[ "$( rigSettingRows keeper-rig | LC_ALL=C awk 'END { print NR + 0 }' )" = 8 ] || rigRefuse "the digest of the rig does not print the eight keys of the scope of keeper-rig, so the setting rows would be checked against nothing"
+[ "$( rigSettingRows keeper-rig | LC_ALL=C awk 'END { print NR + 0 ; }' )" = 8 ] || rigRefuse "the digest of the rig does not print the eight keys of the scope of keeper-rig, so the setting rows would be checked against nothing"
 [ -s "$rigTmp/grants.keeper-rig" ] || rigRefuse "the rig holds no grant of keeper-rig, its floor among them, so the grant rows would be checked against nothing"
 rigRun "$rigReadOp" keeper-rig
 rigWant="$( {
@@ -429,28 +429,28 @@ rigWant="$( {
 } )"
 rigAssert "the call ends 0, with no error and no warning" "$rigRc $( rigTroubles )" "0 0"
 rigAssert "the whole output, byte for byte: its row, its information, its bullets, its sessions, its grants and its settings" "$( rigShown < "$rigTmp/out" )" "$rigWant"
-rigAssert "one member shows its description and its status: the description of its SKILL.md, folded over two lines there, and the status in its row" "$( rigRowOf info description | LC_ALL=C awk '{ print $3 }' ) $( rigRowOf member keeper-rig | LC_ALL=C awk '{ print $10 }' )" "The_rig's_keeper:_keeps_the_rig,_and_nothing_else. active"
-rigAssert "and the bullets of its basic.md, one that runs over two lines whole; a rule with no colon after its name and a line with a name in its middle are no bullets" "$( rigRows bullet | LC_ALL=C awk '{ printf "%s ", $2 }' ) $( rigRows bullet | LC_ALL=C awk '$2 == "Description" { print $3 }' )" "Description Name Alias Unicode_character  keeper_of_the_rig_—_keeps_what_the_rig_holds."
-rigAssert "one member shows the sessions it is in, the live ones first: the session where its run is alive stands before the newer one where its run is closed, which the session list prints first" "$( rigRows session | LC_ALL=C awk '{ printf "%s ", $2 }' )/ $( LC_ALL=C awk -F'\t' '$1 == "session" { printf "%s ", $2 }' "$rigTmp/sessions.list" )" "sess-live sess-done / sess-done sess-live sess-other "
-rigAssert "each session is followed by the member's own runs in it and by no other member's, and a session it has no run in is not printed" "$( rigRows run | LC_ALL=C awk '{ printf "%s:%s:%s:%s ", $2, $3, $4, $6 }' ) $( rigRows session | LC_ALL=C awk '$2 == "sess-other" { n++ } END { print n + 0 }' )" "sess-live:run-k1:keeper-rig:running sess-done:run-k2:keeper-rig:gone  0"
-rigAssert "its grants are the rows the permission list prints for it, its floor among them" "$( rigRows grant | LC_ALL=C awk 'END { print ( NR > 0 ) ? "rows" : "none" }' ) $( rigRows grant | LC_ALL=C awk '$2 == "floor" { n++ } END { print ( n > 0 ) ? "floor" : "no-floor" }' ) $( LC_ALL=C grep -c -e "^grant$rigTab" "$rigTmp/out" )" "rows floor $( LC_ALL=C awk 'END { print NR + 0 }' "$rigTmp/grants.keeper-rig" )"
-rigAssert "its settings are the lines the digest of settings prints for its scope, each with the state and the value the digest gives it" "$( rigRows setting | LC_ALL=C awk '{ printf "%s ", $2 }' ) $( LC_ALL=C grep -e "^setting$rigTab" "$rigTmp/out" | rigShown | cksum )" "SLACK_USER_TOKEN CONFLUENCE_SPACE XAI_API_KEY SLACK_BOT_TOKEN WEB_ALLOW_PREFIXES ODD_SETTING JIRA_SITE TEAM_DATA_GIT_REMOTE  $( rigSettingRows keeper-rig | rigShown | cksum )"
+rigAssert "one member shows its description and its status: the description of its SKILL.md, folded over two lines there, and the status in its row" "$( rigRowOf info description | LC_ALL=C awk '{ print $3 ; }' ) $( rigRowOf member keeper-rig | LC_ALL=C awk '{ print $10 ; }' )" "The_rig's_keeper:_keeps_the_rig,_and_nothing_else. active"
+rigAssert "and the bullets of its basic.md, one that runs over two lines whole; a rule with no colon after its name and a line with a name in its middle are no bullets" "$( rigRows bullet | LC_ALL=C awk '{ printf "%s ", $2 ; }' ) $( rigRows bullet | LC_ALL=C awk '$2 == "Description" { print $3 ; }' )" "Description Name Alias Unicode_character  keeper_of_the_rig_—_keeps_what_the_rig_holds."
+rigAssert "one member shows the sessions it is in, the live ones first: the session where its run is alive stands before the newer one where its run is closed, which the session list prints first" "$( rigRows session | LC_ALL=C awk '{ printf "%s ", $2 ; }' )/ $( LC_ALL=C awk -F'\t' '$1 == "session" { printf "%s ", $2 ; }' "$rigTmp/sessions.list" )" "sess-live sess-done / sess-done sess-live sess-other "
+rigAssert "each session is followed by the member's own runs in it and by no other member's, and a session it has no run in is not printed" "$( rigRows run | LC_ALL=C awk '{ printf "%s:%s:%s:%s ", $2, $3, $4, $6 ; }' ) $( rigRows session | LC_ALL=C awk '$2 == "sess-other" { n++ ; } END { print n + 0 ; }' )" "sess-live:run-k1:keeper-rig:running sess-done:run-k2:keeper-rig:gone  0"
+rigAssert "its grants are the rows the permission list prints for it, its floor among them" "$( rigRows grant | LC_ALL=C awk 'END { print ( NR > 0 ) ? "rows" : "none" ; }' ) $( rigRows grant | LC_ALL=C awk '$2 == "floor" { n++ ; } END { print ( n > 0 ) ? "floor" : "no-floor" ; }' ) $( LC_ALL=C grep -c -e "^grant$rigTab" "$rigTmp/out" )" "rows floor $( LC_ALL=C awk 'END { print NR + 0 ; }' "$rigTmp/grants.keeper-rig" )"
+rigAssert "its settings are the lines the digest of settings prints for its scope, each with the state and the value the digest gives it" "$( rigRows setting | LC_ALL=C awk '{ printf "%s ", $2 ; }' ) $( LC_ALL=C grep -e "^setting$rigTab" "$rigTmp/out" | rigShown | cksum )" "SLACK_USER_TOKEN CONFLUENCE_SPACE XAI_API_KEY SLACK_BOT_TOKEN WEB_ALLOW_PREFIXES ODD_SETTING JIRA_SITE TEAM_DATA_GIT_REMOTE  $( rigSettingRows keeper-rig | rigShown | cksum )"
 rigAssert "one member shows its settings by key: a token's key reads secret-set with its value in the form of a credential, and the value stands whole nowhere in what the call printed, on either stream" "$( rigRowOf setting SLACK_USER_TOKEN ) $( cat "$rigTmp/out" "$rigTmp/err" | LC_ALL=C grep -c -F -e "$rigSecretSlack" -e "$rigSecretSlackOld" || : )" "setting SLACK_USER_TOKEN secret-set $( rigMask "$rigSecretSlack" ) ws-here 0"
-rigAssert "a key the owner setup's catalogue marks secret reads the same, and a key that is none of the credentials shows its value" "$( rigRowOf setting XAI_API_KEY | LC_ALL=C awk '{ print $3, $4 }' ) / $( rigRowOf setting ODD_SETTING | LC_ALL=C awk '{ print $3, $4 }' ) $( cat "$rigTmp/out" "$rigTmp/err" | LC_ALL=C grep -c -F -e "$rigSecretXai" || : )" "secret-set $( rigMask "$rigSecretXai" ) / set $rigPlainOdd 0"
-rigAssert "a key known to be no secret shows its value, a space in it written _ and an = in it kept" "$( rigRowOf setting CONFLUENCE_SPACE | LC_ALL=C awk '{ print $3, $4 }' ) $( rigRowOf setting WEB_ALLOW_PREFIXES | LC_ALL=C awk '{ print $3, $4 }' ) $( rigRowOf setting JIRA_SITE | LC_ALL=C awk '{ print $3, $4 }' )" "set RIG_SPACE set https://docs.rig.invalid/a?b=c_https://rig.invalid/ set jira-here.rig.invalid"
-rigAssert "a plain key whose value carries a password inside a URL is no credential here: the member read masks per key, so its value stands as it is, the URL with it (the digest in full, which the settings views read, masks the password alone)" "$( rigRowOf setting TEAM_DATA_GIT_REMOTE | LC_ALL=C awk '{ print $3, $4 }' )" "set https://rig:$rigPlainUrl@git.rig.invalid/team.git"
-rigAssert "a secret with no value reads secret-missing, a key written twice is one row, and a comment is no setting" "$( rigRowOf setting SLACK_BOT_TOKEN | LC_ALL=C awk '{ print $3 }' ) $( rigRows setting | LC_ALL=C awk '$2 == "SLACK_USER_TOKEN" { n++ } END { print n + 0 }' ) $( rigRows setting | LC_ALL=C awk 'END { print NR + 0 }' )" "secret-missing 1 8"
+rigAssert "a key the owner setup's catalogue marks secret reads the same, and a key that is none of the credentials shows its value" "$( rigRowOf setting XAI_API_KEY | LC_ALL=C awk '{ print $3, $4 ; }' ) / $( rigRowOf setting ODD_SETTING | LC_ALL=C awk '{ print $3, $4 ; }' ) $( cat "$rigTmp/out" "$rigTmp/err" | LC_ALL=C grep -c -F -e "$rigSecretXai" || : )" "secret-set $( rigMask "$rigSecretXai" ) / set $rigPlainOdd 0"
+rigAssert "a key known to be no secret shows its value, a space in it written _ and an = in it kept" "$( rigRowOf setting CONFLUENCE_SPACE | LC_ALL=C awk '{ print $3, $4 ; }' ) $( rigRowOf setting WEB_ALLOW_PREFIXES | LC_ALL=C awk '{ print $3, $4 ; }' ) $( rigRowOf setting JIRA_SITE | LC_ALL=C awk '{ print $3, $4 ; }' )" "set RIG_SPACE set https://docs.rig.invalid/a?b=c_https://rig.invalid/ set jira-here.rig.invalid"
+rigAssert "a plain key whose value carries a password inside a URL is no credential here: the member read masks per key, so its value stands as it is, the URL with it (the digest in full, which the settings views read, masks the password alone)" "$( rigRowOf setting TEAM_DATA_GIT_REMOTE | LC_ALL=C awk '{ print $3, $4 ; }' )" "set https://rig:$rigPlainUrl@git.rig.invalid/team.git"
+rigAssert "a secret with no value reads secret-missing, a key written twice is one row, and a comment is no setting" "$( rigRowOf setting SLACK_BOT_TOKEN | LC_ALL=C awk '{ print $3 ; }' ) $( rigRows setting | LC_ALL=C awk '$2 == "SLACK_USER_TOKEN" { n++ ; } END { print n + 0 ; }' ) $( rigRows setting | LC_ALL=C awk 'END { print NR + 0 ; }' )" "secret-missing 1 8"
 rigRun "$rigReadOp" --full keeper-rig
-rigAssert "asked with --full, as the console reads, a password inside a URL under a key that is no credential is masked alone, the URL standing, and its row reads secret-set; a credential reads as it does without" "$( rigRowOf setting TEAM_DATA_GIT_REMOTE | LC_ALL=C awk '{ print $3, $4 }' ) $( rigRowOf setting SLACK_USER_TOKEN | LC_ALL=C awk '{ print $3, $4 }' )" "secret-set https://rig:$( rigMask "$rigPlainUrl" )@git.rig.invalid/team.git secret-set $( rigMask "$rigSecretSlack" )"
+rigAssert "asked with --full, as the console reads, a password inside a URL under a key that is no credential is masked alone, the URL standing, and its row reads secret-set; a credential reads as it does without" "$( rigRowOf setting TEAM_DATA_GIT_REMOTE | LC_ALL=C awk '{ print $3, $4 ; }' ) $( rigRowOf setting SLACK_USER_TOKEN | LC_ALL=C awk '{ print $3, $4 ; }' )" "secret-set https://rig:$( rigMask "$rigPlainUrl" )@git.rig.invalid/team.git secret-set $( rigMask "$rigSecretSlack" )"
 rigOthersRead="$( rigOthers )"
 rigScopeBefore="$( rigPrint "$rigWs/.local/.agents/keeper-rig.agent.env" )"
 rigRun "$rigReadOp" keeper-rig
 rigAssert "a read writes nothing but the registries it rebuilds: every other file of the workspace is as it was, the scope it read among them" "$rigRc $( rigOthers ) $( rigPrint "$rigWs/.local/.agents/keeper-rig.agent.env" )" "0 $rigOthersRead $rigScopeBefore"
 
 rigRun "$rigReadOp" magic-coordinator
-rigAssert "a description written on its own line of the frontmatter is read too; a member with no scope has no setting row; none of its runs is alive, so its sessions come in the order of the session list" "$rigRc $( rigRowOf info description | LC_ALL=C awk '{ print $3 }' ) $( rigRows setting | LC_ALL=C awk 'END { print NR + 0 }' ) $( rigRows session | LC_ALL=C awk '{ printf "%s ", $2 }' )" "0 The_rig's_coordinator,_on_one_line. 0 sess-done sess-live sess-other "
+rigAssert "a description written on its own line of the frontmatter is read too; a member with no scope has no setting row; none of its runs is alive, so its sessions come in the order of the session list" "$rigRc $( rigRowOf info description | LC_ALL=C awk '{ print $3 ; }' ) $( rigRows setting | LC_ALL=C awk 'END { print NR + 0 ; }' ) $( rigRows session | LC_ALL=C awk '{ printf "%s ", $2 ; }' )" "0 The_rig's_coordinator,_on_one_line. 0 sess-done sess-live sess-other "
 rigRun "$rigReadOp" human-owner
-rigAssert "a reference-only member is read like any other, and marked: its row says so, and it is in no session" "$rigRc $( rigRowOf member human-owner | LC_ALL=C awk '{ print $10, $11 }' ) $( rigRows session | LC_ALL=C awk 'END { print NR + 0 }' ) $( rigRowOf info description | LC_ALL=C awk '{ print $3 }' )" "0 reference-only no-process 0 Reference-only_record_of_the_rig's_owner."
+rigAssert "a reference-only member is read like any other, and marked: its row says so, and it is in no session" "$rigRc $( rigRowOf member human-owner | LC_ALL=C awk '{ print $10, $11 ; }' ) $( rigRows session | LC_ALL=C awk 'END { print NR + 0 ; }' ) $( rigRowOf info description | LC_ALL=C awk '{ print $3 ; }' )" "0 reference-only no-process 0 Reference-only_record_of_the_rig's_owner."
 
 echo "-- 6. the read of a member set up only in another workspace --"
 rigRun "$rigReadOp" keeper-far
@@ -470,12 +470,12 @@ rigWant="$( {
 } )"
 rigAssert "the call ends 0, with no error and no warning: the operation asks where the member is set up itself, the dispatcher bringing none for this family" "$rigRc $( rigTroubles )" "0 0"
 rigAssert "the whole output, byte for byte: its files are read where it is set up, its home is the machine's, its link is its row of that workspace's registry as it lies, and its sessions are this workspace's" "$( rigShown < "$rigTmp/out" )" "$rigWant"
-rigAssert "its settings of a system this workspace holds none of are named, each by its key alone, as elsewhere, with the name of the workspace they are read from; a system this workspace holds a key of is read here alone, and a key of no system is never read from there" "$( rigRows setting | LC_ALL=C awk '{ printf "%s:%s:%s@%s ", $2, $3, $4, $5 }' ) $( rigRows setting | LC_ALL=C awk '$2 == "WHERE_KEY" { n++ } END { print n + 0 }' )" "SLACK_USER_TOKEN:secret-set:$( rigMask "$rigSecretFarHere" )@ws-here JIRA_SITE:elsewhere:-@ws-far JIRA_API_TOKEN:elsewhere:-@ws-far  0"
+rigAssert "its settings of a system this workspace holds none of are named, each by its key alone, as elsewhere, with the name of the workspace they are read from; a system this workspace holds a key of is read here alone, and a key of no system is never read from there" "$( rigRows setting | LC_ALL=C awk '{ printf "%s:%s:%s@%s ", $2, $3, $4, $5 ; }' ) $( rigRows setting | LC_ALL=C awk '$2 == "WHERE_KEY" { n++ ; } END { print n + 0 ; }' )" "SLACK_USER_TOKEN:secret-set:$( rigMask "$rigSecretFarHere" )@ws-here JIRA_SITE:elsewhere:-@ws-far JIRA_API_TOKEN:elsewhere:-@ws-far  0"
 rigAssert "no value of either workspace's scope stands in what the call printed, on either stream" "$( cat "$rigTmp/out" "$rigTmp/err" | LC_ALL=C grep -c -F -e "$rigSecretFarHere" -e "$rigSecretFarThere" -e "$rigSecretFarJira" -e "$rigSecretFarWhere" -e 'jira.rig.invalid' || : )" "0"
 rigRun "$rigReadOp" client-rig
-rigAssert "a client's read says whose names its row holds: its persona, in one more line of its information" "$rigRc $( rigRowOf info persona | LC_ALL=C awk '{ print $3 }' ) $( rigRowOf info link-kind | LC_ALL=C awk '{ print $3 }' )" "0 magic-coordinator origin-symlink"
+rigAssert "a client's read says whose names its row holds: its persona, in one more line of its information" "$rigRc $( rigRowOf info persona | LC_ALL=C awk '{ print $3 ; }' ) $( rigRowOf info link-kind | LC_ALL=C awk '{ print $3 ; }' )" "0 magic-coordinator origin-symlink"
 rigRun "$rigReadOp" keeper-rig
-rigAssert "control: a member that is no client has no such line" "$rigRc $( rigRows info | LC_ALL=C awk '$2 == "persona" { n++ } END { print n + 0 }' )" "0 0"
+rigAssert "control: a member that is no client has no such line" "$rigRc $( rigRows info | LC_ALL=C awk '$2 == "persona" { n++ ; } END { print n + 0 ; }' )" "0 0"
 
 echo "-- 7. what the read refuses --"
 rigRefused(){ ## -- the status, the bytes on stdout and the count of error lines of the last call
@@ -494,7 +494,7 @@ rigMemberRow "$rigIndex" "$rigFar" keeper-hollow source-symlink
 rigRun "$rigReadOp" keeper-hollow
 rigAssert "and one whose workspace is reached and holds no folder of it in its member set" "$( rigRefused ) $( LC_ALL=C grep -c -F -- "member 'keeper-hollow' is set up in no workspace that can be reached from $rigWs" "$rigTmp/err" || : )" "1 0 1 1"
 rigRun "$rigListOp"
-rigAssert "the list still names it, as not-present" "$rigRc $( rigRowOf member keeper-hollow | LC_ALL=C awk '{ print $8, $9, $10 }' )" "0 - not-present -"
+rigAssert "the list still names it, as not-present" "$rigRc $( rigRowOf member keeper-hollow | LC_ALL=C awk '{ print $8, $9, $10 ; }' )" "0 - not-present -"
 LC_ALL=C grep -v -e '^keeper-hollow'"$rigTab" "$rigIndex" > "$rigTmp/index.kept" && cat "$rigTmp/index.kept" > "$rigIndex"
 rigRun "$rigReadOp" --full
 rigAssert "--full with no member is refused as no member is" "$( rigRefused ) $( rigWhole "$rigTmp/err" "⛔ ERROR: DistroAgentsTools $rigReadOp: syntax is <team-member>, got no team member" )" "1 0 1 1"
@@ -554,7 +554,7 @@ rigHelpMd="$rigHere/help/Help.DistroAgentsTools.help.md"
 rigListSyntax="📘 syntax: DistroAgentsTools.fn.sh $rigListOp"
 rigReadSyntax="📘 syntax: DistroAgentsTools.fn.sh $rigReadOp [--full] <team-member>"
 rigEntry(){ ## heading -- that operation's entry in the help.md, from under its heading to the next operation's
-	LC_ALL=C awk -v head="$( printf '\t\t%s' "$1" )" '$0 == head { on = 1 ; next } on && /^\t\t--/ { exit } on { print }' "$rigHelpMd"
+	LC_ALL=C awk -v head="$( printf '\t\t%s' "$1" )" '$0 == head { on = 1 ; next ; } on && /^\t\t--/ { exit ; } on { print ; }' "$rigHelpMd"
 }
 rigForm(){ ## heading, row kind -- the form line of that row in that entry, its back quotes and its indent taken off
 	rigEntry "$1" | LC_ALL=C sed -n -e 's/^[[:space:]]*`\('"$2"' <.*>\)`$/\1/p'
@@ -566,13 +566,13 @@ rigAssert "the entry of the list gives the form of its row" "$( rigForm "$rigLis
 rigAssert "the entry of the read gives the form of each of its rows that is its own, and names the two operations whose rows it prints" "$( rigForm "$rigReadOp [--full] <team-member>" info ) | $( rigForm "$rigReadOp [--full] <team-member>" bullet ) | $( rigForm "$rigReadOp [--full] <team-member>" grant ) | $( rigForm "$rigReadOp [--full] <team-member>" setting ) | $( rigEntry "$rigReadOp [--full] <team-member>" | LC_ALL=C grep -c -F -e '`--manager-session-list`' || : ) $( rigEntry "$rigReadOp [--full] <team-member>" | LC_ALL=C grep -c -F -e '`--list-permissions`' || : ) $( rigEntry "$rigReadOp [--full] <team-member>" | LC_ALL=C grep -c -F -e '`--manager-team-member-list`' || : )" \
 	"info <name> <value> | bullet <name> <text> | grant <kind> <access> <target> <place> <origin> <ends> | setting <key> <state> <value> <workspace> | 1 1 1"
 rigFieldsBad(){ ## row kind, form -- how many rows of that kind in the last output have another count of fields than the form names, behind whether there was any
-	LC_ALL=C awk -F'\t' -v wantKind="$1" -v wantFields="$( printf '%s\n' "$2" | LC_ALL=C awk '{ print NF }' )" '$1 == wantKind { rows++ ; if ( NF != wantFields ) bad++ ; } END { printf "%s:%s ", ( rows > 0 ? "rows" : "none" ), bad + 0 }' "$rigTmp/out"
+	LC_ALL=C awk -F'\t' -v wantKind="$1" -v wantFields="$( printf '%s\n' "$2" | LC_ALL=C awk '{ print NF ; }' )" '$1 == wantKind { rows++ ; if ( NF != wantFields ) bad++ ; } END { printf "%s:%s ", ( rows > 0 ? "rows" : "none" ), bad + 0 ; }' "$rigTmp/out"
 }
 rigRun "$rigListOp"
 rigAssert "every row the list prints has exactly the fields its form names" "$( rigFieldsBad member "$rigMemberForm" )" "rows:0 "
 rigRun "$rigReadOp" keeper-rig
-rigAssert "and so has every row the read prints: its own, and those of the session list by that operation's forms" "$( rigFieldsBad member "$rigMemberForm" ; for rigKind in info bullet grant setting ; do rigFieldsBad "$rigKind" "$( rigForm "$rigReadOp [--full] <team-member>" "$rigKind" )" ; done ; for rigKind in session run ; do rigFieldsBad "$rigKind" "$( rigForm '--manager-session-list [--active]' "$rigKind" )" ; done ) $( LC_ALL=C awk -F'\t' '$1 != "member" && $1 != "info" && $1 != "bullet" && $1 != "session" && $1 != "run" && $1 != "grant" && $1 != "setting" { other++ } END { print other + 0 }' "$rigTmp/out" )" "rows:0 rows:0 rows:0 rows:0 rows:0 rows:0 rows:0  0"
-rigAssert "the entries name the registries read, the three words of where a member is set up, and what a setting reads as" "$( for rigWord in team-members team-members-names here elsewhere not-present reference-only running no-process ; do rigEntry "$rigListOp" | LC_ALL=C grep -c -F -- "\`$rigWord\`" | LC_ALL=C awk '{ printf "%s", ( $1 > 0 ) ? "y" : "n" }' ; done ) $( for rigWord in --manager-config-digest set missing secret-set secret-missing elsewhere ; do rigEntry "$rigReadOp [--full] <team-member>" | LC_ALL=C grep -c -F -- "\`$rigWord\`" | LC_ALL=C awk '{ printf "%s", ( $1 > 0 ) ? "y" : "n" }' ; done )" "yyyyyyyy yyyyyy"
+rigAssert "and so has every row the read prints: its own, and those of the session list by that operation's forms" "$( rigFieldsBad member "$rigMemberForm" ; for rigKind in info bullet grant setting ; do rigFieldsBad "$rigKind" "$( rigForm "$rigReadOp [--full] <team-member>" "$rigKind" )" ; done ; for rigKind in session run ; do rigFieldsBad "$rigKind" "$( rigForm '--manager-session-list [--active]' "$rigKind" )" ; done ) $( LC_ALL=C awk -F'\t' '$1 != "member" && $1 != "info" && $1 != "bullet" && $1 != "session" && $1 != "run" && $1 != "grant" && $1 != "setting" { other++ ; } END { print other + 0 ; }' "$rigTmp/out" )" "rows:0 rows:0 rows:0 rows:0 rows:0 rows:0 rows:0  0"
+rigAssert "the entries name the registries read, the three words of where a member is set up, and what a setting reads as" "$( for rigWord in team-members team-members-names here elsewhere not-present reference-only running no-process ; do rigEntry "$rigListOp" | LC_ALL=C grep -c -F -- "\`$rigWord\`" | LC_ALL=C awk '{ printf "%s", ( $1 > 0 ) ? "y" : "n" ; }' ; done ) $( for rigWord in --manager-config-digest set missing secret-set secret-missing elsewhere ; do rigEntry "$rigReadOp [--full] <team-member>" | LC_ALL=C grep -c -F -- "\`$rigWord\`" | LC_ALL=C awk '{ printf "%s", ( $1 > 0 ) ? "y" : "n" ; }' ; done )" "yyyyyyyy yyyyyy"
 rigAssert "control: each entry was cut up to the next operation's heading" "$( rigEntry "$rigListOp" | LC_ALL=C grep -c -F -- "$rigReadOp [--full] <team-member>" || : ) $( rigEntry "$rigReadOp [--full] <team-member>" | LC_ALL=C grep -c -e '^		--' || : )" "0 0"
 rigRun --help-syntax
 rigAssert "--help-syntax prints both lines, once each" "$rigRc $( LC_ALL=C grep -c -x -F -- "$rigListSyntax" "$rigTmp/err" || : ) $( LC_ALL=C grep -c -x -F -- "$rigReadSyntax" "$rigTmp/err" || : )" "0 1 1"
@@ -583,8 +583,8 @@ rigLeaks=0
 for rigSecret in $rigSecrets ; do
 	[ "$( LC_ALL=C grep -c -F -e "$rigSecret" "$rigTmp/all.printed" || : )" = 0 ] || rigLeaks=$(( rigLeaks + 1 ))
 done
-rigAssert "control: every secret of the rig stands in a scope file of a workspace a call here read the settings of" "$( for rigSecret in $rigSecrets ; do cat "$rigWs/.local/.agents"/*.agent.env "$rigFar/.local/.agents"/*.agent.env | LC_ALL=C grep -c -F -e "$rigSecret" | LC_ALL=C awk '{ printf "%s", ( $1 > 0 ) ? "y" : "n" }' ; done )" "yyyyyyy"
-rigAssert "no secret of the rig stands whole anywhere in what the calls of this check printed, on either stream" "$rigLeaks of $( LC_ALL=C awk 'END { print ( NR > 100 ) ? "many-lines" : "too-few-lines" }' "$rigTmp/all.printed" )" "0 of many-lines"
+rigAssert "control: every secret of the rig stands in a scope file of a workspace a call here read the settings of" "$( for rigSecret in $rigSecrets ; do cat "$rigWs/.local/.agents"/*.agent.env "$rigFar/.local/.agents"/*.agent.env | LC_ALL=C grep -c -F -e "$rigSecret" | LC_ALL=C awk '{ printf "%s", ( $1 > 0 ) ? "y" : "n" ; }' ; done )" "yyyyyyy"
+rigAssert "no secret of the rig stands whole anywhere in what the calls of this check printed, on either stream" "$rigLeaks of $( LC_ALL=C awk 'END { print ( NR > 100 ) ? "many-lines" : "too-few-lines" ; }' "$rigTmp/all.printed" )" "0 of many-lines"
 rigAssert "no run of this check issued a request" "$( [ -e "$rigTmp/curl.calls" ] && wc -l < "$rigTmp/curl.calls" | LC_ALL=C tr -d ' ' || echo 0 )" "0"
 
 if [ "$rigFails" -ne 0 ] ; then

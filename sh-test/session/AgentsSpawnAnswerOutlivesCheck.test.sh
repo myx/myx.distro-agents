@@ -90,7 +90,7 @@ rigHeader(){ ## record file, header -- its value in the frontmatter, empty where
 	LC_ALL=C awk -v want="$2" '$0 == "---" { if ( ++dashes > 1 ) exit ; next ; } dashes == 1 && index( $0, want ": " ) == 1 { print substr( $0, length( want ) + 3 ) ; exit ; }' "$1" 2> /dev/null
 }
 rigBlockLine(){ ## block heading under `# Reasons` -- the one line of its code fence in the note template
-	LC_ALL=C awk -v head="## $1" '$0 == head { on = 1 ; next } on && /^```/ { fence = ! fence ; next } on && fence && NF { print ; exit }' "$rigPackage/sh-lib/templates/$rigNote" 2> /dev/null
+	LC_ALL=C awk -v head="## $1" '$0 == head { on = 1 ; next ; } on && /^```/ { fence = ! fence ; next ; } on && fence && NF { print ; exit ; }' "$rigPackage/sh-lib/templates/$rigNote" 2> /dev/null
 }
 rigPosts(){ ## the posts made so far
 	LC_ALL=C grep -c 'chat.postMessage' "$rigTmp/curl.log" 2> /dev/null || printf '0'

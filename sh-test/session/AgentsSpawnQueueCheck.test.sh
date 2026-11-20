@@ -86,7 +86,7 @@ rigLimit=""
 rigOut="$( rigFn AgentsToolsSpawnQueue "2 2" magic-team.coworking.routine.md "keeper-a keeper-b" "the description" "the task text" )"
 rigItem="$( printf '%s\n' "$rigOut" | LC_ALL=C sed -n 's/^SPAWN_QUEUE_ITEM=//p' )"
 rigAssert "the answer says it is queued, names the inquiry and the duty's session" "$( printf '%s\n' "$rigOut" | LC_ALL=C grep -c -e '^0:SPAWN_QUEUED=true$' ):$( printf '%s\n' "$rigItem" | LC_ALL=C grep -c '^inquiry-[0-9TZ]*-queued-spawn-[0-9]*$' ):$( printf '%s\n' "$rigOut" | LC_ALL=C grep -c '^SPAWN_QUEUE_CHECKLIST=rig-duty-session:magic-coordinator$' )" "1:1:1"
-rigAssert "the inquiry was filed to the coordinator, under the item's name" "$( LC_ALL=C awk -F'|' -v item="$rigItem" '{ print $1 "|" ( $2 == item ".md" ? "named" : "other" ) }' "$rigTmp/filed.log" )" "magic-coordinator|named"
+rigAssert "the inquiry was filed to the coordinator, under the item's name" "$( LC_ALL=C awk -F'|' -v item="$rigItem" '{ print $1 "|" ( $2 == item ".md" ? "named" : "other" ) ; }' "$rigTmp/filed.log" )" "magic-coordinator|named"
 rigAssert "its text carries the routine, the members, the description and the task" "$( LC_ALL=C grep -c -e 'routine: magic-team.coworking.routine.md' -e 'members: keeper-a keeper-b' -e 'description: the description' -e '^the task text$' "$rigTmp/filed.text" )" "4"
 rigAssert "the duty's list holds one pending item naming the inquiry" "$( LC_ALL=C grep -c -F -e "- [ ] queued spawn of magic-team.coworking.routine.md: start it when a run ends ($rigItem)" "$rigSp/magic-coordinator.checklist.md" 2> /dev/null )" "1"
 

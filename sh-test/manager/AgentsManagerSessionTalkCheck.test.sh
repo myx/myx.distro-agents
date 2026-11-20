@@ -183,9 +183,9 @@ printf '  \n\t\n' > "$rigTmp/message.blank"
 echo "-- 1. a message to a session that has a thread --"
 rigRun "$rigTmp/message.odd" "$rigMessageOp" --session-id s-thread
 rigAssert "it ends 0 with no error, and prints one message row: the session, the sender, all, how, and the name it was left under" \
-	"$rigRc $( rigErrors ) $( LC_ALL=C awk -F'\t' 'END { print NR }' "$rigTmp/out" ) $( LC_ALL=C awk -F'\t' '{ print $1, NF, $2, $3, $4, $5 }' "$rigTmp/out" )" "0 0 1 message 6 s-thread $rigAcct all thread"
-rigAssert "the sender is the account at the console as a name takes it, in small letters: user-<account>, and no member's" "$( LC_ALL=C awk -F'\t' '{ print $3 }' "$rigTmp/out" )" "$rigAcct"
-rigAssert "one message stands in the inbox of the session, the row names it" "$( rigInbox s-thread ) $( LC_ALL=C awk -F'\t' '{ print $6 }' "$rigTmp/out" | LC_ALL=C grep -c -x -F -- "$( rigInboxFile s-thread | LC_ALL=C sed 's#.*/##' )" )" "1 1"
+	"$rigRc $( rigErrors ) $( LC_ALL=C awk -F'\t' 'END { print NR ; }' "$rigTmp/out" ) $( LC_ALL=C awk -F'\t' '{ print $1, NF, $2, $3, $4, $5 ; }' "$rigTmp/out" )" "0 0 1 message 6 s-thread $rigAcct all thread"
+rigAssert "the sender is the account at the console as a name takes it, in small letters: user-<account>, and no member's" "$( LC_ALL=C awk -F'\t' '{ print $3 ; }' "$rigTmp/out" )" "$rigAcct"
+rigAssert "one message stands in the inbox of the session, the row names it" "$( rigInbox s-thread ) $( LC_ALL=C awk -F'\t' '{ print $6 ; }' "$rigTmp/out" | LC_ALL=C grep -c -x -F -- "$( rigInboxFile s-thread | LC_ALL=C sed 's#.*/##' )" )" "1 1"
 rigAssert "its header is <from> -> <to>: and its body is the message byte for byte: a quote, a %, a backslash, a dollar, a back quote, and a line that starts with -" \
 	"$( head -1 "$( rigInboxFile s-thread )" ) $( tail -n +2 "$( rigInboxFile s-thread )" | cmp -s - "$rigTmp/message.odd" && echo same || echo other )" "$rigAcct -> all: same"
 rigCalls(){ ## -- how many posts the fake curl was asked for
@@ -196,22 +196,22 @@ rigAssert "nothing is posted by the operation itself: the writer does it, and no
 
 echo "-- 2. to the participants --"
 rigRun "$rigTmp/message.one" "$rigMessageOp" --session-id s-thread --to keeper-rig
-rigAssert "one participant: the row and the header name it" "$rigRc $( LC_ALL=C awk -F'\t' '{ print $4 }' "$rigTmp/out" ) $( ls -t "$rigAgents/sessions/s-thread/chat.inbox"/*.msg | head -1 | { read -r inboxLast ; head -1 "$inboxLast" ; } )" "0 keeper-rig $rigAcct -> keeper-rig:"
+rigAssert "one participant: the row and the header name it" "$rigRc $( LC_ALL=C awk -F'\t' '{ print $4 ; }' "$rigTmp/out" ) $( ls -t "$rigAgents/sessions/s-thread/chat.inbox"/*.msg | head -1 | { read -r inboxLast ; head -1 "$inboxLast" ; } )" "0 keeper-rig $rigAcct -> keeper-rig:"
 rigRun "$rigTmp/message.one" "$rigMessageOp" --session-id s-thread --to keeper-rig --to keeper-two --to keeper-rig
-rigAssert "two, each once, joined by a comma, in the order given" "$rigRc $( LC_ALL=C awk -F'\t' '{ print $4 }' "$rigTmp/out" )" "0 keeper-rig,keeper-two"
+rigAssert "two, each once, joined by a comma, in the order given" "$rigRc $( LC_ALL=C awk -F'\t' '{ print $4 ; }' "$rigTmp/out" )" "0 keeper-rig,keeper-two"
 rigBefore="$( rigInbox s-thread )"
 rigRun "$rigTmp/message.one" "$rigMessageOp" --session-id s-thread --to keeper-nobody
-rigAssert "a name that is no participant of the session is refused in one line that lists them, with nothing left" "$rigRc $( rigErrors ) $( LC_ALL=C grep -c -e 'keeper-nobody is no participant of session s-thread (its participants: ' -e 'keeper-rig' -e 'keeper-two' -e 'magic-coordinator) -- nothing was left' "$rigTmp/err" | LC_ALL=C awk '{ print ( $1 >= 1 ) ? 1 : 0 }' ) $( wc -c < "$rigTmp/out" | LC_ALL=C tr -d ' ' ) $( rigInbox s-thread ):$rigBefore" "1 1 1 0 $rigBefore:$rigBefore"
+rigAssert "a name that is no participant of the session is refused in one line that lists them, with nothing left" "$rigRc $( rigErrors ) $( LC_ALL=C grep -c -e 'keeper-nobody is no participant of session s-thread (its participants: ' -e 'keeper-rig' -e 'keeper-two' -e 'magic-coordinator) -- nothing was left' "$rigTmp/err" | LC_ALL=C awk '{ print ( $1 >= 1 ) ? 1 : 0 ; }' ) $( wc -c < "$rigTmp/out" | LC_ALL=C tr -d ' ' ) $( rigInbox s-thread ):$rigBefore" "1 1 1 0 $rigBefore:$rigBefore"
 
 echo "-- 3. a session with a folder and no thread: the chat file alone --"
 rigRun "$rigTmp/message.odd" "$rigMessageOp" --session-id s-local
-rigAssert "the row says the chat file, and the block it was recorded as" "$rigRc $( rigErrors ) $( LC_ALL=C awk -F'\t' '{ print $1, $2, $3, $4, $5, $6 }' "$rigTmp/out" )" "0 0 message s-local $rigAcct all chat-file 1"
+rigAssert "the row says the chat file, and the block it was recorded as" "$rigRc $( rigErrors ) $( LC_ALL=C awk -F'\t' '{ print $1, $2, $3, $4, $5, $6 ; }' "$rigTmp/out" )" "0 0 message s-local $rigAcct all chat-file 1"
 rigAssert "a note on standard error says that nothing is posted and the members read it in the chat file" "$( LC_ALL=C grep -c 'session s-local has no Slack thread, so the message is recorded in its chat file only (block 1) and nothing is posted; its members read it there' "$rigTmp/err" )" "1"
 rigAssert "the chat file holds it: the header from the account to all, the body byte for byte" "$( LC_ALL=C sed -n '1s/^[0-9T:Z-]* //p' "$rigAgents/sessions/s-local/session.chat" ) $( LC_ALL=C sed -n '2,$p' "$rigAgents/sessions/s-local/session.chat" | LC_ALL=C sed '$d' | cmp -s - "$rigTmp/message.odd" && echo same || echo other )" "$rigAcct -> all: same"
-rigAssert "its index line says it has no ts, that its conversation is local, and that it came from the console" "$( LC_ALL=C awk -F'\t' '{ print $1, $2, $3, $4 }' "$rigAgents/sessions/s-local/session.chat.index" )" "1 - local console"
+rigAssert "its index line says it has no ts, that its conversation is local, and that it came from the console" "$( LC_ALL=C awk -F'\t' '{ print $1, $2, $3, $4 ; }' "$rigAgents/sessions/s-local/session.chat.index" )" "1 - local console"
 rigAssert "nothing is left in an inbox, and no call was made to Slack" "$( rigInbox s-local ) $( rigCalls )" "0 0"
 rigRun "$rigTmp/message.one" "$rigMessageOp" --session-id s-local --to keeper-rig
-rigAssert "a second is the second block, to the participant" "$rigRc $( LC_ALL=C awk -F'\t' '{ print $4, $6 }' "$rigTmp/out" ) $( LC_ALL=C awk -F'\t' 'END { print NR }' "$rigAgents/sessions/s-local/session.chat.index" )" "0 keeper-rig 2 2"
+rigAssert "a second is the second block, to the participant" "$rigRc $( LC_ALL=C awk -F'\t' '{ print $4, $6 ; }' "$rigTmp/out" ) $( LC_ALL=C awk -F'\t' 'END { print NR ; }' "$rigAgents/sessions/s-local/session.chat.index" )" "0 keeper-rig 2 2"
 
 ## A session whose only record has no member has no reader: a message left in its chat file would be reported delivered and read by nobody (epic S10.22).
 rigRec s-agentless s-agentless "-" spawn-succeeded "$rigHost" "" ; rigFolder s-agentless ""
@@ -221,7 +221,7 @@ rigAssert "a session with no run of a member is refused, and says why, and nothi
 ## records that name the session as their parent-session-id.
 rigRec s-lead-parent s-lead-parent "-" spawn-succeeded "$rigHost" "" ; rigFolder s-lead-parent ""
 rigRec s-lead-run s-lead-run keeper-rig spawn-started "$rigHost" ""
-LC_ALL=C awk 'NR == 1 { print ; print "parent-session-id: s-lead-parent" ; next } { print }' "$rigAgents/spawned/s-lead-run/s-lead-run.spawn.md" > "$rigAgents/spawned/s-lead-run/s-lead-run.spawn.md.next" && mv -f "$rigAgents/spawned/s-lead-run/s-lead-run.spawn.md.next" "$rigAgents/spawned/s-lead-run/s-lead-run.spawn.md"
+LC_ALL=C awk 'NR == 1 { print ; print "parent-session-id: s-lead-parent" ; next ; } { print ; }' "$rigAgents/spawned/s-lead-run/s-lead-run.spawn.md" > "$rigAgents/spawned/s-lead-run/s-lead-run.spawn.md.next" && mv -f "$rigAgents/spawned/s-lead-run/s-lead-run.spawn.md.next" "$rigAgents/spawned/s-lead-run/s-lead-run.spawn.md"
 rigRun "$rigTmp/message.one" "$rigMessageOp" --session-id s-lead-parent
 rigAssert "the refusal names the run the session started, by its member and its own session id" "$rigRc $( LC_ALL=C grep -c 'it started keeper-rig in session s-lead-run' "$rigTmp/err" )" "1 1"
 
@@ -254,36 +254,36 @@ echo "-- 5. magic-coordinator joined into a session --"
 rigMadeBefore="$( rigMade )"
 rigRun /dev/null "$rigJoinOp" --session-id s-thread
 rigAssert "a finished session with a thread: ends 0 with no error and one join row, of the session, the coordinator and the dispatch item" \
-	"$rigRc $( rigErrors ) $( LC_ALL=C awk -F'\t' 'END { print NR }' "$rigTmp/out" ) $( LC_ALL=C awk -F'\t' '{ print $1, NF, $2, $3 }' "$rigTmp/out" ) $( LC_ALL=C awk -F'\t' '{ print $4 }' "$rigTmp/out" | LC_ALL=C grep -c '^dispatch-.*spawn-proxy.*\.md$' )" "0 0 1 join 4 s-thread magic-coordinator 1"
+	"$rigRc $( rigErrors ) $( LC_ALL=C awk -F'\t' 'END { print NR ; }' "$rigTmp/out" ) $( LC_ALL=C awk -F'\t' '{ print $1, NF, $2, $3 ; }' "$rigTmp/out" ) $( LC_ALL=C awk -F'\t' '{ print $4 ; }' "$rigTmp/out" | LC_ALL=C grep -c '^dispatch-.*spawn-proxy.*\.md$' )" "0 0 1 join 4 s-thread magic-coordinator 1"
 rigWaitFor 30 test "$( ls "$rigSc" | LC_ALL=C grep -c '^done\.' )" -ge 1
 rigAssert "a session that has the thread needs no note: the joining is announced in it, and nothing is said of a place instead" \
 	"$( LC_ALL=C grep -c -e '# DistroAgentsTools --manager-session-join' -e 'WARNING: no session thread' "$rigTmp/err" )" "0"
 rigNewRec="$( LC_ALL=C grep -l -x 'start-context: joined' "$rigAgents"/spawned/*/*.spawn.md 2> /dev/null | head -1 )"
 rigBrief="$( ls "$rigSc"/brief.* 2> /dev/null | head -1 )"
-rigAssert "one console was started more, as magic-coordinator, in the session it was joined into: it joined, and did not start a session of its own" "$( rigMade ) / $( LC_ALL=C awk '{ print $1, $2 }' "${rigBrief/brief./who.}" 2> /dev/null )" "${rigMadeBefore% *} 1 / magic-coordinator s-thread"
+rigAssert "one console was started more, as magic-coordinator, in the session it was joined into: it joined, and did not start a session of its own" "$( rigMade ) / $( LC_ALL=C awk '{ print $1, $2 ; }' "${rigBrief/brief./who.}" 2> /dev/null )" "${rigMadeBefore% *} 1 / magic-coordinator s-thread"
 rigAssert "the new record names the session as its own and says that it joined" "$( LC_ALL=C grep -c -x -e 'session-id: s-thread' -e 'start-context: joined' -e 'owner: magic-coordinator' "$rigNewRec" 2> /dev/null || : )" "3"
 rigAssert "the task it starts on is the template's block, filled: the account at the console, the session, and the words of the finished state" \
 	"$( LC_ALL=C grep -c -x -F -e "You are joined, by Rig.Acct_7 at the console, to the session s-thread. Assess it, unblock it interactively, and report." -e "The session has ended: every participant of it has finished." -e "When you are done, post your report in the thread, hand back, and Wait until dismissed." "$rigBrief" )" "3"
 rigAssert "and the line its joining says in the thread is the other block" "$( LC_ALL=C grep -c -F 'assess the session, unblock it interactively and report' "$rigSc/bodies" 2> /dev/null || : )" "1"
 for rigWords in "Assess it, unblock it interactively, and report." "has ended: every participant" "assess the session, unblock it interactively and report" ; do
 	rigAssert "no text of the task is written in the code: '$rigWords' stands in the template and not in the include or the screen" \
-		"$( LC_ALL=C grep -c -F -- "$rigWords" "$rigHere/templates/tooling-note.post.format.md" ) $( LC_ALL=C grep -c -F -- "$rigWords" "$rigHere/manager/AgentsTools.ManagerSessionTalk.include" "$rigHere/manager/AgentsManagerScreen.Talk.py" 2> /dev/null | LC_ALL=C awk -F: '{ n += $NF } END { print n + 0 }' )" "1 0"
+		"$( LC_ALL=C grep -c -F -- "$rigWords" "$rigHere/templates/tooling-note.post.format.md" ) $( LC_ALL=C grep -c -F -- "$rigWords" "$rigHere/manager/AgentsTools.ManagerSessionTalk.include" "$rigHere/manager/AgentsManagerScreen.Talk.py" 2> /dev/null | LC_ALL=C awk -F: '{ n += $NF ; } END { print n + 0 ; }' )" "1 0"
 done
 rigRun /dev/null "$rigJoinOp" --session-id s-stuck
-rigAssert "a stuck session (an open record, nothing alive) is joined too" "$rigRc $( LC_ALL=C awk -F'\t' '{ print $1, $2, $3 }' "$rigTmp/out" )" "0 join s-stuck magic-coordinator"
+rigAssert "a stuck session (an open record, nothing alive) is joined too" "$rigRc $( LC_ALL=C awk -F'\t' '{ print $1, $2, $3 ; }' "$rigTmp/out" )" "0 join s-stuck magic-coordinator"
 rigWaitFor 30 test "$( ls "$rigSc" | LC_ALL=C grep -c '^done\.' )" -ge 2
 rigAssert "its task says it is stuck" "$( LC_ALL=C grep -l -x -F 'The session is stuck: a run of it is still open, and no process carries it.' "$rigSc"/brief.* 2> /dev/null | LC_ALL=C grep -c . )" "1"
 rigRun /dev/null "$rigJoinOp" --session-id s-wait
-rigAssert "and one that waits" "$rigRc $( LC_ALL=C awk -F'\t' '{ print $1, $2, $3 }' "$rigTmp/out" )" "0 join s-wait magic-coordinator"
+rigAssert "and one that waits" "$rigRc $( LC_ALL=C awk -F'\t' '{ print $1, $2, $3 ; }' "$rigTmp/out" )" "0 join s-wait magic-coordinator"
 rigWaitFor 30 test "$( ls "$rigSc" | LC_ALL=C grep -c '^done\.' )" -ge 3
 
 echo "-- 6. a session it is not offered for --"
 rigMadeBefore="$( rigMade )"
 rigRun /dev/null "$rigJoinOp" --session-id s-run
-rigAssert "a session that reads running is joined too (sketch 5.4: any session; a stuck one keeps its process): one join row" "$rigRc $( LC_ALL=C awk -F'\t' '{ print $1, $2, $3 }' "$rigTmp/out" )" "0 join s-run magic-coordinator"
+rigAssert "a session that reads running is joined too (sketch 5.4: any session; a stuck one keeps its process): one join row" "$rigRc $( LC_ALL=C awk -F'\t' '{ print $1, $2, $3 ; }' "$rigTmp/out" )" "0 join s-run magic-coordinator"
 rigWaitFor 30 test "$( ls "$rigSc" | LC_ALL=C grep -c '^done\.' )" -ge 4
 rigRun /dev/null "$rigJoinOp" --session-id s-broke
-rigAssert "a session whose runs all died on their start is joined too (sketch 5.4: any session): one join row" "$rigRc $( LC_ALL=C awk -F'\t' '{ print $1, $2, $3 }' "$rigTmp/out" )" "0 join s-broke magic-coordinator"
+rigAssert "a session whose runs all died on their start is joined too (sketch 5.4: any session): one join row" "$rigRc $( LC_ALL=C awk -F'\t' '{ print $1, $2, $3 ; }' "$rigTmp/out" )" "0 join s-broke magic-coordinator"
 rigWaitFor 30 test "$( ls "$rigSc" | LC_ALL=C grep -c '^done\.' )" -ge 5
 rigAssert "its task says it failed" "$( LC_ALL=C grep -l -x -F 'The session has failed: every run of it died on its start.' "$rigSc"/brief.* 2> /dev/null | LC_ALL=C grep -c . )" "1"
 rigMadeBefore="$( rigMade )"
@@ -291,7 +291,7 @@ rigRun /dev/null "$rigJoinOp" --session-id s-foreign
 rigAssert "one of another host: refused, and says what it reads" "$rigRc $( LC_ALL=C grep -c 'session s-foreign reads unknown-foreign, which is none of finished, running, starting, waiting, unclosed and failed, the states it is offered for -- nothing was started' "$rigTmp/err" ) [$( rigMade )]" "1 1 [$rigMadeBefore]"
 rigJoinedBefore="$( LC_ALL=C grep -c -F 'assess the session, unblock it interactively and report' "$rigSc/bodies" 2> /dev/null || : )"
 rigRun /dev/null "$rigJoinOp" --session-id s-nothread
-rigAssert "one with no Slack thread: joined all the same, on the session's own id" "$rigRc $( LC_ALL=C awk -F'\t' '{ print $1, $2, $3 }' "$rigTmp/out" )" "0 join s-nothread magic-coordinator"
+rigAssert "one with no Slack thread: joined all the same, on the session's own id" "$rigRc $( LC_ALL=C awk -F'\t' '{ print $1, $2, $3 ; }' "$rigTmp/out" )" "0 join s-nothread magic-coordinator"
 rigWaitFor 30 test "$( ls "$rigSc" | LC_ALL=C grep -c '^done\.' )" -ge 5
 ## The member IS in the session, thread or none: a record of its run, in the session's own sandbox, that names s-nothread, names
 ## magic-coordinator and says that it joined. Its console was started in s-nothread, never in a session of its own.
@@ -303,14 +303,14 @@ rigAssert "the member is in the session: a record of its run names s-nothread, n
 	"$( LC_ALL=C grep -c -x -e 'session-id: s-nothread' -e 'start-context: joined' -e 'owner: magic-coordinator' "${rigNothreadRec:-/nonexistent}" 2> /dev/null || : )" "3"
 rigNothreadSpawn="${rigNothreadRec##*/}" ; rigNothreadSpawn="${rigNothreadSpawn%.spawn.md}"
 rigAssert "its console was started in s-nothread, and not in a session of its own" \
-	"$( LC_ALL=C awk '{ print $1, $2 }' "${rigSc:?}/who.${rigNothreadSpawn:?}" 2> /dev/null )" "magic-coordinator s-nothread"
+	"$( LC_ALL=C awk '{ print $1, $2 ; }' "${rigSc:?}/who.${rigNothreadSpawn:?}" 2> /dev/null )" "magic-coordinator s-nothread"
 ## The announcement: the start opens the thread the session had none of, in the team's channel, and says the joining there as a reply --
 ## exactly as it does for a session that already had one. Neither is a post of the joining line on its own.
 rigAssert "the session now keeps a thread its start opened in the team's channel, the place the joining is announced" \
-	"$( LC_ALL=C awk -F: 'NF == 2 && $1 != "" && $2 != "" { print "thread" ; exit }' "$rigAgents/sessions/s-nothread/session.thread" 2> /dev/null )" "thread"
+	"$( LC_ALL=C awk -F: 'NF == 2 && $1 != "" && $2 != "" { print "thread" ; exit ; }' "$rigAgents/sessions/s-nothread/session.thread" 2> /dev/null )" "thread"
 rigAssert "the joining line is announced in that opened thread: one more joined line than before, a reply, not a post on its own" \
 	"$( LC_ALL=C awk -v before="$rigJoinedBefore" -v text='assess the session, unblock it interactively and report' \
-		'index($0, text) { n++ ; if (index($0, "\"thread_ts\":\"1.000001\"")) reply = 1 } END { printf "%d %s", n - before, ( reply ? "reply" : "not-a-reply" ) }' "$rigSc/bodies" )" "1 reply"
+		'index($0, text) { n++ ; if (index($0, "\"thread_ts\":\"1.000001\"")) reply = 1 ; } END { printf "%d %s", n - before, ( reply ? "reply" : "not-a-reply" ) ; }' "$rigSc/bodies" )" "1 reply"
 rigAssert "and a note on standard error says the session had no thread, that the start opened one, and where the join was recorded" \
 	"$( LC_ALL=C grep -c -e 'session s-nothread had no Slack thread, so its start opened one (DRIG00001:' "$rigTmp/err" ) $( LC_ALL=C grep -c -e 'its join is recorded in the record of its run and in its dispatch item (dispatch-' "$rigTmp/err" ) $( rigErrors )" "1 1 0"
 ## The thread the proxy opened for the joined threadless session is written after the join returns; let it land before the next baseline.
@@ -327,7 +327,7 @@ rigRun "$rigTmp/message.one" "$rigMessageOp" --session-id s-thread
 rigAssert "a call from inside a member's session is refused as every operation of the family is, and leaves nothing" "$rigRc $( rigErrors ) $( wc -c < "$rigTmp/out" | LC_ALL=C tr -d ' ' )" "1 1 0"
 rigPre=()
 rigAssert "the operations are one arm of the family's dispatch, ahead of its own arm for sessions, and one include" \
-	"$( LC_ALL=C grep -c -F -e '--manager-session-message|--manager-session-join)' "$rigHere/manager/AgentsTools.Manager.include" ) $( LC_ALL=C awk '/--manager-session-message\|--manager-session-join\)/ { a = NR } /^\t--manager-session-\*\)/ { b = NR } END { print ( a && b && a < b ) ? "ahead" : "wrong" }' "$rigHere/manager/AgentsTools.Manager.include" ) $( [ -f "$rigHere/manager/AgentsTools.ManagerSessionTalk.include" ] && echo include )" "1 ahead include"
+	"$( LC_ALL=C grep -c -F -e '--manager-session-message|--manager-session-join)' "$rigHere/manager/AgentsTools.Manager.include" ) $( LC_ALL=C awk '/--manager-session-message\|--manager-session-join\)/ { a = NR ; } /^\t--manager-session-\*\)/ { b = NR ; } END { print ( a && b && a < b ) ? "ahead" : "wrong" ; }' "$rigHere/manager/AgentsTools.Manager.include" ) $( [ -f "$rigHere/manager/AgentsTools.ManagerSessionTalk.include" ] && echo include )" "1 ahead include"
 rigHelp="$rigHere/help/Help.DistroAgentsTools.help.md"
 rigAssert "each has its syntax line in both places of the help, and an entry" "$( for rigOne in message join ; do printf '%s%s%s ' "$( LC_ALL=C grep -c -e "^📘 syntax: DistroAgentsTools.fn.sh --manager-session-$rigOne" "$rigHelp" )" "$( LC_ALL=C grep -c -e "syntax: DistroAgentsTools.fn.sh --manager-session-$rigOne" "$rigHere/help/Help.DistroAgentsTools.include" )" "$( LC_ALL=C grep -c -e "^		--manager-session-$rigOne" "$rigHelp" )" ; done )" "111 111 "
 rigAssert "the entries give the row forms the output is checked against" \

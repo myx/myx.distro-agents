@@ -153,7 +153,7 @@ rigCall MDAT_SPAWN_AGENT=magic-coordinator bash -c 'exec bash "$0" --intern-tool
 rigWaitFor 20 rigEnded "$rigFa"
 rigAssert "TaskStop of the founder, through its dispatch item: its process is ended, and the thread, whose command line carries that id, lives, holds its session, and its log knows no end" \
 	"$( rigEnded "$rigFa" && echo stopped || echo runs ):$( rigThreadIs fa-run "$rigThreadA" )" "stopped:alive:holds:0"
-rigAssert "control: both stops were made and said so" "$( LC_ALL=C grep -c -e 'STOPPED' -e 'TERM was sent' "$rigTmp/stop-pa.out" "$rigTmp/stop-fa.out" | LC_ALL=C awk -F: '$NF >= 1 { saidCount++ } END { print saidCount + 0 }' )" "2"
+rigAssert "control: both stops were made and said so" "$( LC_ALL=C grep -c -e 'STOPPED' -e 'TERM was sent' "$rigTmp/stop-pa.out" "$rigTmp/stop-fa.out" | LC_ALL=C awk -F: '$NF >= 1 { saidCount++ ; } END { print saidCount + 0 ; }' )" "2"
 
 echo "-- 2. a kill from the console leaves the control thread of the session alive --"
 rigRec fb-run fb-run keeper-rig ; rigStand fb-run ; rigFb="$rigStandPid"

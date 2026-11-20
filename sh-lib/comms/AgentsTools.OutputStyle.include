@@ -78,7 +78,7 @@ AgentsToolsOutputStyleRefusal(){ ## acting member, declared group, destination, 
 			printf '%s\n' "$styleFaults" | LC_ALL=C awk -F'\t' -v gating=" $gatingPredicates " '
 				NF >= 2 && index( gating, " " $1 " " ) > 0 { printf "- %s: %s\n", $1, $2 ; next ; }
 				NF >= 2 { kept[++keptTotal] = $1 ": " $2 ; }
-				END { for ( keptIndex = 1 ; keptIndex <= keptTotal ; keptIndex++ ) { printf "- reported only, this does not hold the message back: %s\n", kept[keptIndex] ; } }
+				END { for ( keptIndex = 1 ; keptIndex <= keptTotal ; keptIndex++ ) { printf "- reported only, this does not hold the message back: %s\n", kept[keptIndex] ; } ; }
 			' >&2
 			echo "NEXT: rewrite the sentences or paragraphs named above and send the message again" >&2
 		else

@@ -220,7 +220,7 @@ rigTableHead="$( rigTableLine '' MEMBER RUN STATUS KIND WHERE )"
 rigPaneUnder(){ ## tag, text, count -- that many lines of the left pane of that screen from the one that is exactly the text, each between brackets, each icon of the fixture written as its two cells
 	printf '%s\n' "$rigOut" | LC_ALL=C grep "^$1|" | LC_ALL=C sed -e "s/^$1|//" -e 's/^│/ /' -e 's/^║/ /' -e 's/│.*$//' -e 's/║.*$//' -e 's/▲.*$//' -e 's/▼.*$//' -e 's/▒.*$//' -e 's/■.*$//' -e 's/  *$//' \
 		| LC_ALL=C sed -e 's/👤/##/' -e 's/🤖/##/' -e 's/🔏/##/' -e 's/⚒️/##/' \
-		| LC_ALL=C awk -v text="$2" -v count="$3" '$0 == text && !n { n = count } n > 0 { printf "[%s]", $0 ; n-- }'
+		| LC_ALL=C awk -v text="$2" -v count="$3" '$0 == text && !n { n = count ; } n > 0 { printf "[%s]", $0 ; n-- ; }'
 }
 rigCase list
 rigSize="227 40"
@@ -277,7 +277,7 @@ rigAssert "a member that is a folder has the mark of one at the right edge of it
 rigAssert "each name starts at the same cell in every row: under an icon of two cells, under one that a variation selector makes wide, and in a row with no icon, which the operation printed before it gave one" \
 	"[$( rigIconCells row2 | rigMarked )][$( rigIconCells row5 | rigMarked )][$( rigIconCells row6 )]" \
 	"[ ## human-owner][ ## keeper-far][    keeper-gone]"
-rigAssert "the icon drawn is the last field of the member's row and nothing else: its mark is drawn nowhere in the list" "[$( rigVal row2 | LC_ALL=C sed 's/ human-owner.*$//' )][$( rigVal row5 | LC_ALL=C sed 's/ keeper-far.*$//' )] $( rigScreenHolds u ':myx:' ) $( rigScreenHolds u "$( LC_ALL=C awk -F'\t' '$2 == "keeper-far" { print $3 }' "$rigF/rows.--manager-team-member-list" )" )" "[ 👤][ ⚒️] 0 0"
+rigAssert "the icon drawn is the last field of the member's row and nothing else: its mark is drawn nowhere in the list" "[$( rigVal row2 | LC_ALL=C sed 's/ human-owner.*$//' )][$( rigVal row5 | LC_ALL=C sed 's/ keeper-far.*$//' )] $( rigScreenHolds u ':myx:' ) $( rigScreenHolds u "$( LC_ALL=C awk -F'\t' '$2 == "keeper-far" { print $3 ; }' "$rigF/rows.--manager-team-member-list" )" )" "[ 👤][ ⚒️] 0 0"
 rigAssert "one with a live run stands out; one nobody is started as, and one whose workspace cannot be reached, show plainer; the other members are plain" "$( rigLooks k 6 162 162 )$( rigLooks k 4 162 162 )$( rigLooks k 8 162 162 )$( rigLooks k 5 162 166 )$( rigLooks k 7 162 162 )" "BDD......"
 rigAssert "a list pane at its smallest, 18 cells inside its frame, shows the icon and the name, a name too long for it cut with the mark of a cut text; nothing was drawn past a pane at any width" \
 	"$(( $( rigVal tiny.listWidth ) - 2 )) [$( rigIconCells tinyRow3 | rigMarked )][$( rigIconCells tinyRow4 | rigMarked )] $( rigVal tiny.spills ) $( rigVal mid.spills ) $( rigVal narrow.spills )" \
@@ -534,7 +534,7 @@ show top
 RIGSCRIPT
 rigSize=""
 rigTeamLine="$( printf '%s\n' "$rigOut" | LC_ALL=C grep '^u|' | LC_ALL=C grep -n -F 'magic-team' | LC_ALL=C sed -e 's/:.*$//' | head -1 )"
-rigAssert "the row of the team itself is listed, and the table of the left pane gives it the status word its row gives" "$( rigVal t.selected ) $( rigScreenHolds u ' magic-team ' | LC_ALL=C awk '{ print ( $1 > 0 ) }' ) $( rigScreenHolds top 'magic-team         -        the-team  team' )" "magic-team 1 1"
+rigAssert "the row of the team itself is listed, and the table of the left pane gives it the status word its row gives" "$( rigVal t.selected ) $( rigScreenHolds u ' magic-team ' | LC_ALL=C awk '{ print ( $1 > 0 ) ; }' ) $( rigScreenHolds top 'magic-team         -        the-team  team' )" "magic-team 1 1"
 rigAssert "it shows plainer, as every member that is not started from here" "$( printf '%s\n' "$rigOut" | LC_ALL=C sed -n 's/^k|//p' | LC_ALL=C sed -n "${rigTeamLine:-1}p" | LC_ALL=C cut -c162-162 )" "D"
 rigAssert "n on it starts nothing: the status line says why, in the words of its row" "[$( rigVal no.dialog )] [$( rigVal no.notice )] $( rigCalled '--manager-spawn-member magic-team' )" "[] [Start: magic-team is not started: its status is the-team: nobody is started as this member] 0"
 rigAssert "the dialog of a start, titled by the member and listing those that are started from here, does not offer that row" "$( rigVal first.selected ) [$( rigVal dlg.dialog )] $( printf '%s\n' "$rigOut" | LC_ALL=C grep '^pbox|' | LC_ALL=C grep -c -F 'keeper-myx' ) $( printf '%s\n' "$rigOut" | LC_ALL=C grep '^pbox|' | LC_ALL=C grep -c -F 'magic-team' ) $( printf '%s\n' "$rigOut" | LC_ALL=C grep '^pbox|' | LC_ALL=C grep -c -F 'human-owner' )" "keeper-myx [prompt:prompt|] 2 0 0"

@@ -133,10 +133,10 @@ rigN(){ ## file, fixed text -- how many lines hold it
 	LC_ALL=C grep -c -F -- "$2" "$1" 2> /dev/null || :
 }
 rigLines(){ ## file -- how many lines it has
-	LC_ALL=C awk 'END { print NR + 0 }' "$1" 2> /dev/null
+	LC_ALL=C awk 'END { print NR + 0 ; }' "$1" 2> /dev/null
 }
 rigCalls(){ ## -- the calls of the last run, in their order, joined by "; "
-	LC_ALL=C awk '{ printf "%s%s", ( NR > 1 ? "; " : "" ), $0 }' "$rigTmp/calls"
+	LC_ALL=C awk '{ printf "%s%s", ( NR > 1 ? "; " : "" ), $0 ; }' "$rigTmp/calls"
 }
 rigFrom(){ ## whose -- how many calls of the last run carried a setting of that owner
 	LC_ALL=C grep -c -i -F -- "$1" "$rigTmp/calls" || :
@@ -215,7 +215,7 @@ for rigOp in "${rigOps[@]}" ; do
 	rigAssert "no call carried a setting of either workspace's own team" "$( rigTeams )" 0
 done
 rigRun --client-comms-trello-whoami client-ndm
-rigAssert "the call itself is made from the workspace everything is run from: only the settings are read from the other" "$( LC_ALL=C awk '{ print $2 ; exit }' "$rigTmp/envs" )" "MMDAPP=$rigWork/ws-here"
+rigAssert "the call itself is made from the workspace everything is run from: only the settings are read from the other" "$( LC_ALL=C awk '{ print $2 ; exit ; }' "$rigTmp/envs" )" "MMDAPP=$rigWork/ws-here"
 rigAssert "the workspace the client is set up in is only read: nothing is written under its .local" "$( rigTreeSum ws-there )" "$rigSumThere"
 rigAssert "and nothing of those systems is written into this workspace's scope of the client" "$( rigHeldHere )" 0
 
@@ -289,7 +289,7 @@ rigAssert "and the workspace the client is set up in is only read by both" "$( r
 rigRun --client-comms-slack-read client-ndm CNDM00001 --oldest 1
 rigAssert "after the sweeps the client's Slack is still read from the workspace it is set up in" "$rigRc $( rigCalls )" "0 slack conversations.history rig-user-token-NDMTHERE"
 rigRun --client-operation-run magic-coordinator --client-comms-email-mark-seen client-ndm 41
-rigAssert "magic-coordinator's own operation, run as the client, marks a message in the mailbox the client holds where it is set up, and says once which settings are read from there" "$rigRc $( LC_ALL=C awk '{ print $1, $2, $3, $4, $5 }' "$rigTmp/calls" ) $( rigN "$rigTmp/err" "holds no settings of its own in" )" "0 imap imap-ndmthere.invalid us@ndmthere.invalid UID STORE 1"
+rigAssert "magic-coordinator's own operation, run as the client, marks a message in the mailbox the client holds where it is set up, and says once which settings are read from there" "$rigRc $( LC_ALL=C awk '{ print $1, $2, $3, $4, $5 ; }' "$rigTmp/calls" ) $( rigN "$rigTmp/err" "holds no settings of its own in" )" "0 imap imap-ndmthere.invalid us@ndmthere.invalid UID STORE 1"
 rigSettings NDMHERE SLACK EMAIL TRELLO | rigScopeOf ws-here client-ndm
 rigRun --intern-op-client-sweep-input-scan client-ndm
 rigAssert "control: where this workspace holds the client's Slack settings, the sweep reads them and persists the workspace it resolved here, as before" "$( rigN "$rigTmp/out" 'identity: slack URIGNDMHERE (config: client-ndm)' ) $( rigN "$rigTmp/out" 'SLACK_WORKSPACE_DOMAIN: OK (resolved rig.invalid)' ) $( rigN "$rigWork/ws-here/.local/.agents/client-ndm.agent.env" 'SLACK_WORKSPACE_DOMAIN=rig.invalid' ) $( rigFrom NDMTHERE )" "1 1 1 0"
@@ -357,9 +357,9 @@ rigRun --agents-config-option magic-team --delete JIRA_SITE
 rigAssert "control: nor does a delete in the team's own scope, which is never read from another workspace" "$rigRc $( rigBegun )" "0 0"
 
 echo "-- 9. static --"
-rigAssert "the line of a delete is said where a setting is deleted, after the delete, which is the sibling package's own, unchanged" "$( LC_ALL=C awk '/--delete\|--delete-if\)/ { on = 1 } on && /LocalTools.Config.include/ && ! deleted { deleted = NR } on && /AgentsToolsMemberSettingsBorrowBegunSay "\$optionScope" "\$optionKey" "\$agentsConfigOptionElsewhere"/ && ! said { said = NR } END { print ( deleted && said && deleted < said ) ? "deleted-then-said" : "not" }' "$rigTool" )" deleted-then-said
-rigAssert "the line of a write is said where a setting is written, after the write, and the write is the sibling package's own, unchanged" "$( LC_ALL=C awk '/--upsert\|--upsert-from-stdin\|--upsert-if\)/ { on = 1 } on && /LocalTools.Config.include/ && ! wrote { wrote = NR } on && /AgentsToolsMemberSettingsBorrowEndedSay "\$optionScope" "\$optionKey" "\$optionThere"/ && ! said { said = NR } END { print ( wrote && said && wrote < said ) ? "written-then-said" : "not" }' "$rigTool" )" written-then-said
-rigAssert "the one place the tooling persists a setting it resolved asks first whether that scope's system is read from elsewhere" "$( LC_ALL=C awk '/AgentsToolsConfigOptionElsewhere "\$callingMember" "\$resolveWorkspaceKey"/ && ! asked { asked = NR } /--agents-config-option "\$callingMember" --upsert "\$resolveWorkspaceKey"/ && ! wrote { wrote = NR } END { print ( asked && wrote && asked < wrote ) ? "asked-first" : "not" }' "$rigHere/config/AgentsTools.InternOpCheckConfigs.include" )" asked-first
+rigAssert "the line of a delete is said where a setting is deleted, after the delete, which is the sibling package's own, unchanged" "$( LC_ALL=C awk '/--delete\|--delete-if\)/ { on = 1 ; } on && /LocalTools.Config.include/ && ! deleted { deleted = NR ; } on && /AgentsToolsMemberSettingsBorrowBegunSay "\$optionScope" "\$optionKey" "\$agentsConfigOptionElsewhere"/ && ! said { said = NR ; } END { print ( deleted && said && deleted < said ) ? "deleted-then-said" : "not" ; }' "$rigTool" )" deleted-then-said
+rigAssert "the line of a write is said where a setting is written, after the write, and the write is the sibling package's own, unchanged" "$( LC_ALL=C awk '/--upsert\|--upsert-from-stdin\|--upsert-if\)/ { on = 1 ; } on && /LocalTools.Config.include/ && ! wrote { wrote = NR ; } on && /AgentsToolsMemberSettingsBorrowEndedSay "\$optionScope" "\$optionKey" "\$optionThere"/ && ! said { said = NR ; } END { print ( wrote && said && wrote < said ) ? "written-then-said" : "not" ; }' "$rigTool" )" written-then-said
+rigAssert "the one place the tooling persists a setting it resolved asks first whether that scope's system is read from elsewhere" "$( LC_ALL=C awk '/AgentsToolsConfigOptionElsewhere "\$callingMember" "\$resolveWorkspaceKey"/ && ! asked { asked = NR ; } /--agents-config-option "\$callingMember" --upsert "\$resolveWorkspaceKey"/ && ! wrote { wrote = NR ; } END { print ( asked && wrote && asked < wrote ) ? "asked-first" : "not" ; }' "$rigHere/config/AgentsTools.InternOpCheckConfigs.include" )" asked-first
 rigAssert "and it is the only place the tooling writes a setting of a scope by a name it was handed" "$( cat "$rigHere"/*/*.include | LC_ALL=C grep -v '^[[:space:]]*#' | LC_ALL=C grep -c -E -e 'DistroAgentsTools --agents-config-option "\$[A-Za-z]+" --upsert "\$' || : )" 1
 if [ "$rigFails" -ne 0 ] ; then
 	echo "⛔ CLIENT SETTINGS FALLBACK CHECK FAILED: $rigFails of $(( rigPasses + rigFails )) assertion(s)" >&2 ; exit 1

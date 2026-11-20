@@ -52,13 +52,13 @@ rigRun(){ ## tool arguments... -- rc in rigRc, stdout in out, stderr in err
 		bash "$rigTool" "$@" ) > "$rigTmp/out" 2> "$rigTmp/err" < /dev/null || rigRc=$?
 }
 rigRows(){ ## kind -- those rows of the last stdout, TAB as a space, sorted by the run
-	LC_ALL=C awk -F'\t' -v kind="$1" '$1 == kind { gsub( /\t/, " " ) ; print }' "$rigTmp/out" | LC_ALL=C sort -k3,3
+	LC_ALL=C awk -F'\t' -v kind="$1" '$1 == kind { gsub( /\t/, " " ) ; print ; }' "$rigTmp/out" | LC_ALL=C sort -k3,3
 }
 rigMark(){ ## spawn id -- who the mark names, or `none`
 	cat "$rigWs/.local/agents/sessions/$1/dismissed" 2> /dev/null || printf 'none'
 }
 rigChat(){ ## session id -- how many DISMISSED blocks the session's chat holds, over every file of its folder
-	LC_ALL=C grep -r -c -x 'DISMISSED' "$rigWs/.local/agents/sessions/$1" 2> /dev/null | LC_ALL=C awk -F: '{ n += $NF } END { print n + 0 }'
+	LC_ALL=C grep -r -c -x 'DISMISSED' "$rigWs/.local/agents/sessions/$1" 2> /dev/null | LC_ALL=C awk -F: '{ n += $NF ; } END { print n + 0 ; }'
 }
 
 echo "-- 1. a session's id stops every live run of it --"
@@ -71,7 +71,7 @@ rigAssert "the other session is untouched" "$( rigMark sess-two ) $( rigMark run
 
 echo "-- 2. the same call again --"
 rigRun --manager-session-stop --session-id sess-one
-rigAssert "each run reads already-dismissed, and no new block is written" "$rigRc [$( rigRows stop | LC_ALL=C awk '{ print $NF }' | LC_ALL=C tr '\n' ' ' )] $( rigChat sess-one )" "0 [already-dismissed already-dismissed ] 2"
+rigAssert "each run reads already-dismissed, and no new block is written" "$rigRc [$( rigRows stop | LC_ALL=C awk '{ print $NF ; }' | LC_ALL=C tr '\n' ' ' )] $( rigChat sess-one )" "0 [already-dismissed already-dismissed ] 2"
 
 echo "-- 3. --run takes the id as one run's own --"
 rigRun --manager-session-stop --session-id run-x --run

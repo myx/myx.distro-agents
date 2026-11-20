@@ -239,7 +239,7 @@ AgentsToolsEscalationForwardPost(){ ## record file, request id, forwarded by, wh
 	fi
 	fpOut="$( {
 		printf '%s\n\n' "$fpLead"
-		LC_ALL=C awk 'seenBody { print ; next } /^# Question asked$/ { seenBody = 1 }' "$fpFile"
+		LC_ALL=C awk 'seenBody { print ; next ; } /^# Question asked$/ { seenBody = 1 ; }' "$fpFile"
 	type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 	} | DistroAgentsTools --intern-op-comms-slack-send-message "$fpBy" human-owner --identity-bot --address-to human-owner --from-stdin 2>&1 )" || {
 		echo "$MDSC_CMD: ⛔ ERROR: the forward could not be posted, so $fpId is still answered only where it was asked: $( LC_ALL=C grep -m1 '⛔' <<< "$fpOut" )" >&2
@@ -472,8 +472,8 @@ AgentsToolsEscalationNoteSet(){ ## note file, key, value, ...
 	done
 	{
 		[ ! -f "$noteFile" ] || NOTE_KEYS="$noteKeys" LC_ALL=C awk '
-			BEGIN { keyTotal = split( ENVIRON["NOTE_KEYS"], keyList, "\n" ) ; for ( keyIndex = 1 ; keyIndex <= keyTotal ; keyIndex++ ) { if ( keyList[keyIndex] != "" ) { dropKey[keyList[keyIndex]] = 1 ; } } }
-			{ lineKey = $0 ; sub( /: .*$/, "", lineKey ) ; if ( ! ( lineKey in dropKey ) ) { print ; } }' "$noteFile"
+			BEGIN { keyTotal = split( ENVIRON["NOTE_KEYS"], keyList, "\n" ) ; for ( keyIndex = 1 ; keyIndex <= keyTotal ; keyIndex++ ) { if ( keyList[keyIndex] != "" ) { dropKey[keyList[keyIndex]] = 1 ; } ; } ; }
+			{ lineKey = $0 ; sub( /: .*$/, "", lineKey ) ; if ( ! ( lineKey in dropKey ) ) { print ; } ; }' "$noteFile"
 		printf '%s' "$noteNew"
 	} > "$noteFile.$$.tmp" 2>/dev/null && mv -f "$noteFile.$$.tmp" "$noteFile" 2>/dev/null || { rm -f "$noteFile.$$.tmp" 2>/dev/null ; return 1 ; }
 }
@@ -985,7 +985,7 @@ AgentsToolsEscalationThreadVerdict(){ ## member, record file, pending id, channe
 			threadDirect="$( DistroAgentsTools --intern-op-comms-slack-read "$threadMember" "$threadChannel" --oldest "$threadLive" \
 				${threadAsBot:+--identity-bot} 2> /dev/null )" || threadDirectRc=$?
 			if [ "$threadDirectRc" = "0" ] ; then
-				threadAnswers="$( printf '%s\n' "$threadDirect" | LC_ALL=C awk 'NR == 1 && /^## target=/ { next ; } { print }' \
+				threadAnswers="$( printf '%s\n' "$threadDirect" | LC_ALL=C awk 'NR == 1 && /^## target=/ { next ; } { print ; }' \
 					| LC_ALL=C awk -v rootTs="$threadLive" -v askingUsers="$( AgentsToolsEscalationField "$threadFile" asking-accounts )" -v fromUsers="$threadAuthors" \
 						-v mode=conversation -v callerName="$threadMember" -v includeOwn=0 \
 						-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsDismissalMatch.awk" \
@@ -1035,7 +1035,7 @@ AgentsToolsEscalationFloor(){ ## thread verdict output
 			fa = a ; sub( /^[^.]*\.?/, "", fa ) ; fb = b ; sub( /^[^.]*\.?/, "", fb ) ;
 			return ( sa + 0 > sb + 0 || ( sa + 0 == sb + 0 && substr( fa "000000", 1, 6 ) > substr( fb "000000", 1, 6 ) ) ) ;
 		}
-		$1 == "ANSWER-TS" || $1 == "CLARIFY" { if ( top == "" || newer( $2, top ) ) { top = $2 ; } }
+		$1 == "ANSWER-TS" || $1 == "CLARIFY" { if ( top == "" || newer( $2, top ) ) { top = $2 ; } ; }
 		END { print top ; }'
 }
 

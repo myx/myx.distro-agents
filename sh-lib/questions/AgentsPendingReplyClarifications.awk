@@ -54,7 +54,7 @@ function firstUnquoted( line, n,    i, text, inFence, rest, closeAt ) {
 function flush(    from, i, text ) {
 	if ( curTs != "" ) {
 		from = 1 ;
-		if ( curIsAnswer ) { from = firstUnquoted( curLine, curCount ) + 1 ; if ( from == 1 ) { from = curCount + 1 ; } }
+		if ( curIsAnswer ) { from = firstUnquoted( curLine, curCount ) + 1 ; if ( from == 1 ) { from = curCount + 1 ; } ; }
 		text = "" ;
 		for ( i = from ; i <= curCount ; i++ ) {
 			if ( curLine[i] ~ /^[ \t]*$/ ) { continue ; }

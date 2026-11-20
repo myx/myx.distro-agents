@@ -67,7 +67,7 @@ rigLiveRun(){ ## session id, the member that runs there
 	rigProcNote "$livePid"
 	disown "$livePid" 2> /dev/null || :
 	local liveBegan
-	liveBegan="$( PATH="$rigProcPath" ps -o lstart= -p "$livePid" 2> /dev/null | PATH="$rigProcPath" LC_ALL=C awk 'NF { $1 = $1 ; gsub( / /, "_" ) ; print ; exit }' )"
+	liveBegan="$( PATH="$rigProcPath" ps -o lstart= -p "$livePid" 2> /dev/null | PATH="$rigProcPath" LC_ALL=C awk 'NF { $1 = $1 ; gsub( / /, "_" ) ; print ; exit ; }' )"
 	[ -n "$liveBegan" ] || rigRefuse "the live run stand-in did not start, so nothing below would be measured"
 	mkdir -p "$rigSpawned/$1"
 	printf -- '---\nsession-id: %s\nspawn-id: %s\nparent-spawn-id: none\ntracking-name: %s\nhost: %s\nowner: %s\nstatus: spawn-started\nrun-process: %s %s\n---\n\n# rig live run\n' \

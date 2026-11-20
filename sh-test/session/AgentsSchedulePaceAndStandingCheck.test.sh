@@ -86,7 +86,7 @@ rigCalls r1 9000 9000 9000 9000 9000 9000 9000 9000
 rigKept2="$( MDAT_TOOL_PACE_CACHE_SECONDS=60 AgentsToolsSchedulePaceText )"
 rigAssert "the first call takes the measure: five calls, a median of 3 s" "$rigKept1" "pace: 3.0s machinery a call, 5 calls in 5 minutes -- under 4s, a duty start is allowed"
 rigAssert "a call within the TTL reads the kept measure and not the new calls" "$rigKept2" "$rigKept1"
-rigAssert "the kept measure is a file of one line, the epoch, the window, the median and the count" "$( LC_ALL=C awk 'END { print NR ":" NF }' "$rigWs/.local/agents/schedule/pace.measure" )" "1:4"
+rigAssert "the kept measure is a file of one line, the epoch, the window, the median and the count" "$( LC_ALL=C awk 'END { print NR ":" NF ; }' "$rigWs/.local/agents/schedule/pace.measure" )" "1:4"
 rigAssert "a TTL of 0 takes the measure again and sees the new calls" "$( MDAT_TOOL_PACE_CACHE_SECONDS=0 AgentsToolsSchedulePaceText | sed 's/.*, \([0-9]*\) calls.*/\1/' )" "8"
 rm -f "$rigWs/.local/agents/schedule/pace.measure"
 rigAssert "with the kept file gone, the next call takes the measure at once" "$( MDAT_TOOL_PACE_CACHE_SECONDS=60 AgentsToolsSchedulePaceText | sed 's/.*, \([0-9]*\) calls.*/\1/' )" "8"

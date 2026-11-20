@@ -121,7 +121,7 @@ rigOut="$( rigRun "" "RIG-TASK-TEXT" --routine rigcowork rig-member-a rig-member
 rigAssert "partitioned into two children"                "$( printf '%s\n' "$rigOut" | sed -n 's/^CHILDREN=//p' | wc -w | tr -d ' ' )" 2
 rigLeft=10 ; while [ "$( grep -c . "$rigTmp/started" 2> /dev/null )" -lt 4 ] && [ "$rigLeft" -gt 0 ] ; do sleep 1 ; rigLeft=$(( rigLeft - 1 )) ; done
 rigAssert "each member and one coordinator per child started" "$( grep -c '^rig-member-a ' "$rigTmp/started" ):$( grep -c '^rig-member-b ' "$rigTmp/started" ):$( grep -c '^magic-coordinator ' "$rigTmp/started" )" "1:1:2"
-rigAssert "each coordinator sits in a child of its own"  "$( awk '$1 == "magic-coordinator" { print $2 }' "$rigTmp/started" | sort -u | grep -c . )" 2
+rigAssert "each coordinator sits in a child of its own"  "$( awk '$1 == "magic-coordinator" { print $2 ; }' "$rigTmp/started" | sort -u | grep -c . )" 2
 rigReset
 
 echo "-- standalone routine, spawned from the console: not added --"

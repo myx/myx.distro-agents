@@ -113,7 +113,7 @@ rigCreates(){ ## -- how many creates the fake site was asked to make
 	rigCalls | LC_ALL=C grep -c 'POST /rest/api/3/issue' || :
 }
 rigForeign(){ ## -- how many logged calls went to a host that does not end `.invalid`
-	rigCalls | LC_ALL=C awk '$1 !~ /\.invalid$/ { n++ } END { print n + 0 }'
+	rigCalls | LC_ALL=C awk '$1 !~ /\.invalid$/ { n++ ; } END { print n + 0 ; }'
 }
 rigContactsRecord(){ ## id, the words of --collect-contact after it
 	local recordId="$1" ; shift
@@ -179,14 +179,14 @@ rigAssert "with learning on it is put to him, and the create is refused" \
 rigAssert "and nothing was written for it"        "$( rigCreated | LC_ALL=C grep -c '{' )" 1
 rigAssert "and one ask stands open, to him"       "$( rigPendings )" 1
 rigAssert "the ask is posted in his own conversation, names the contact and the project, and asks once" \
-	"$( LC_ALL=C awk '$0 == "address-to: human-owner" { addressee = 1 } $0 == "request-of: dave" { of = 1 } index( $0, "request-what: the Jira assignment of RIG to the contact dave" ) == 1 { what = 1 } END { printf "%d:%d", addressee + 0, of + what }' "$rigWs"/.local/questions/*.md 2> /dev/null )" "1:2"
+	"$( LC_ALL=C awk '$0 == "address-to: human-owner" { addressee = 1 ; } $0 == "request-of: dave" { of = 1 ; } index( $0, "request-what: the Jira assignment of RIG to the contact dave" ) == 1 { what = 1 ; } END { printf "%d:%d", addressee + 0, of + what ; }' "$rigWs"/.local/questions/*.md 2> /dev/null )" "1:2"
 rigCreate "$rigTmp/l3" --assignee dave
 rigAssert "asking again the same assignment joins the one ask, and asks him nothing new" \
 	"$rigRc:$( rigPendings )" "1:1"
 ## A TIER-CLIENT CONTACT, ITS TIER SET AS THE HUMAN-OWNER SETS IT: his act is the record's own `tier:` line, and this check stands in
 ## for it by writing that line, since no other account may set a tier.
 rigContactsRecord erin --name "Erin" --email alice@rig.invalid
-LC_ALL=C awk '{ print ; if ( $0 == "display-name: Erin" ) { print "tier: tier-client" } }' "$rigData/contacts/persons/erin.md" > "$rigData/contacts/persons/erin.md.new" \
+LC_ALL=C awk '{ print ; if ( $0 == "display-name: Erin" ) { print "tier: tier-client" ; } ; }' "$rigData/contacts/persons/erin.md" > "$rigData/contacts/persons/erin.md.new" \
 	&& mv -f "$rigData/contacts/persons/erin.md.new" "$rigData/contacts/persons/erin.md" || rigRefuse "the tier-client tier line could not be written"
 rigCreate "$rigTmp/l5" --assignee erin
 rigAssert "a tier-client contact goes through, whatever learning says, and asks him nothing" \

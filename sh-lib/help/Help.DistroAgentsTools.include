@@ -37,7 +37,7 @@ case "$1:${2:-}" in
 	--help-syntax:?*)
 		local helpSyntaxWant="$2" helpSyntaxLines
 		helpSyntaxLines="$( LC_ALL=C awk -v want="$helpSyntaxWant" '
-			/^##/ { exit }
+			/^##/ { exit ; }
 			index( $0, "📘 syntax: " ) == 1 {
 				wordCount = split( substr( $0, length( "📘 syntax: " ) + 1 ), words, " " ) ; wantNamed = 0
 				for ( wordAt = 2 ; wordAt <= wordCount ; wordAt++ ) {

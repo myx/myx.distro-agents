@@ -139,7 +139,7 @@ rigRun(){ ## further harness arguments
 	[ "$( cat "$rigDir/round" )" != 0 ] || rigRefuse "the harness issued no request at all -- its stderr: $( head -5 "$rigDir/err" )"
 }
 rigHeld(){ ## the names of the snapshots the run's store holds, in order, space-joined
-	LC_ALL=C awk -F '\t' 'NF { printf "%s%s", sep, $1 ; sep = " " }' "$rigStore/snapshots" 2> /dev/null
+	LC_ALL=C awk -F '\t' 'NF { printf "%s%s", sep, $1 ; sep = " " ; }' "$rigStore/snapshots" 2> /dev/null
 }
 
 echo "-- 1. push, work, rewind: the request after the rewind is the request after the push --"
@@ -155,7 +155,7 @@ rigAssert "the request after the rewind is the request after the push, byte for 
 rigAssert "the work between is not in the conversation any more"                         "$( rigCount "$rigDir/req.3" 'RIG-WORK' ):$( rigCount "$rigDir/req.4" 'RIG-WORK' )" 1:0
 rigAssert "but the file it wrote is still there: only the conversation returns"           "$( cat "$rigDir/work.txt" 2> /dev/null )" RIG-WORK
 rigAssert "the run says what it did"                                                     "$( rigIn "$( cat "$rigDir/err" )" 'snapshot opening -- count, 3 message(s)' ):$( rigIn "$( cat "$rigDir/err" )" 'rewound' )" yes:yes
-rigAssert "the first request holds the prefetch block, so the armed snapshot is the init kind"  "$( rigCount "$rigDir/req.1" 'RIG-A-ARMED-BODY' ):$( LC_ALL=C awk -F '\t' '$1 == "armed" { print $2 ":" $3 }' "$rigStore/snapshots" )" 1:init:0
+rigAssert "the first request holds the prefetch block, so the armed snapshot is the init kind"  "$( rigCount "$rigDir/req.1" 'RIG-A-ARMED-BODY' ):$( LC_ALL=C awk -F '\t' '$1 == "armed" { print $2 ":" $3 ; }' "$rigStore/snapshots" )" 1:init:0
 
 echo "-- 2. a rewind to armed: the very first request again --"
 rigScene to-armed rigsolo
@@ -172,7 +172,7 @@ rigToolStream "$rigDir/res.1" Skill '{"name":"rig-a","file":"rig-a.armed.md"}'
 rigToolStream "$rigDir/res.2" Write "$( rigWorkJson two.txt )"
 rigToolStream "$rigDir/res.3" Bash "$( rigOp --executor-checkpoint-rewind armed )"
 rigTextStream "$rigDir/res.4" RIG-DONE ; rigRun ; rigPrefetch="on"
-rigAssert "armed is the end of the round of the read: count kind, three messages"         "$( LC_ALL=C awk -F '\t' '$1 == "armed" { print $2 ":" $3 }' "$rigStore/snapshots" )" count:3
+rigAssert "armed is the end of the round of the read: count kind, three messages"         "$( LC_ALL=C awk -F '\t' '$1 == "armed" { print $2 ":" $3 ; }' "$rigStore/snapshots" )" count:3
 rigAssert "the request after the rewind is the request after the read, byte for byte"    "$( rigSame "$rigDir/req.2" "$rigDir/req.4" )" same
 
 echo "-- 4. a snapshot asked in a round of two calls is made after both have their results --"
@@ -181,7 +181,7 @@ rigToolStream "$rigDir/res.1" Bash "$( rigOp --executor-checkpoint-push both )" 
 rigToolStream "$rigDir/res.2" Write "$( rigWorkJson later.txt )"
 rigToolStream "$rigDir/res.3" Bash "$( rigOp --executor-checkpoint-rewind both )"
 rigTextStream "$rigDir/res.4" RIG-DONE ; rigRun
-rigAssert "the snapshot holds the first message, the turn and both results: four messages"  "$( LC_ALL=C awk -F '\t' '$1 == "both" { print $3 }' "$rigStore/snapshots" )" 4
+rigAssert "the snapshot holds the first message, the turn and both results: four messages"  "$( LC_ALL=C awk -F '\t' '$1 == "both" { print $3 ; }' "$rigStore/snapshots" )" 4
 rigAssert "the request after the push holds both results"                                "$( rigCount "$rigDir/req.2" '"type":"tool_result"' )" 2
 rigAssert "and the request after the rewind is that request, byte for byte"              "$( rigSame "$rigDir/req.2" "$rigDir/req.4" )" same
 
@@ -199,7 +199,7 @@ rigToolStream "$rigDir/res.1" Bash "$( rigOp --executor-checkpoint-push a )"
 rigToolStream "$rigDir/res.2" Bash "$( rigOp --executor-checkpoint-push b )"
 rigToolStream "$rigDir/res.3" Bash "$( rigOp --executor-checkpoint-push a )"
 rigTextStream "$rigDir/res.4" RIG-DONE ; rigRun
-rigAssert "a name held again replaces the older one, and goes to the top"                "$( rigHeld ):$( LC_ALL=C awk -F '\t' '$1 == "a" { print $3 }' "$rigStore/snapshots" )" "armed b a:7"
+rigAssert "a name held again replaces the older one, and goes to the top"                "$( rigHeld ):$( LC_ALL=C awk -F '\t' '$1 == "a" { print $3 ; }' "$rigStore/snapshots" )" "armed b a:7"
 rigScene exit rigsolo
 rigToolStream "$rigDir/res.1" Bash "$( rigOp --executor-checkpoint-push a )"
 rigToolStream "$rigDir/res.2" Bash "$( rigOp --executor-checkpoint-exit )"

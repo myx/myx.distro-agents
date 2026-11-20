@@ -112,7 +112,7 @@ rigNumbers(){ ## text tag -- the numbers at the start of the numbered rows in vi
 	printf '%s\n' "$rigOut" | "$rigPython" -I -B "$rigTmp/left.py" numbers "$1" -
 }
 rigNumberOf(){ ## marked text -- the number the row starts with
-	printf '%s\n' "$1" | LC_ALL=C awk '{ print $1 }'
+	printf '%s\n' "$1" | LC_ALL=C awk '{ print $1 ; }'
 }
 
 echo "-- 1, 2, 3, 4. a table of eighty-one rows --"
@@ -181,17 +181,17 @@ RIGSCRIPT
 rigAssert "control: the table of the members is the left window, which has the keys, and holds more rows than it shows" "$( rigVal read.focus ) $( [ "$( rigVal read.viewLines )" -gt 60 ] && echo long || echo "short: $( rigVal read.viewLines )" )" "view long"
 rigAssert "by default no row is highlighted, also after the keys of the paging scrolled it" "$( rigMarked a aR ) / $( rigMarked a2 a2R ) / $( rigVal read.viewTop )" "none / none / 0"
 rigAssert "the selection is as wide as the table is, wrapped and cut: from its first column to its last, not the width of the pane (F11.0: a background never protrudes); the pane is wider, 83 cells" "$( rigExtent b bR ) / $( rigExtent bw bwR )" "2 47 / 2 47"
-rigFirstRow="$( rigNumbers b | LC_ALL=C awk '{ print $1 }' )"
+rigFirstRow="$( rigNumbers b | LC_ALL=C awk '{ print $1 ; }' )"
 rigAssert "Enter puts the cursor on the top visible row, drawn as the selection is: one row, the first one in view" "$( rigNumberOf "$( rigMarked b bR )" ) $( rigMarked b bR | LC_ALL=C grep -c -F ' // ' )" "$rigFirstRow 0"
 rigAssert "the arrows move it a row at a time" "$( rigNumberOf "$( rigMarked c cR )" ) $( rigNumberOf "$( rigMarked d dR )" ) $( rigNumberOf "$( rigMarked e eR )" )" "$(( rigFirstRow + 1 )) $(( rigFirstRow + 3 )) $(( rigFirstRow + 2 ))"
-rigRowName="$( rigMarked e eR | LC_ALL=C awk '{ print $2 }' )"
+rigRowName="$( rigMarked e eR | LC_ALL=C awk '{ print $2 ; }' )"
 rigAssert "Enter on that row opens it whole in the information dialog, titled by its first cell, one head: cell line for each column" \
 	"$( rigVal dialog.dialogTitle ) | $( rigVal dialog.dialogHolds | LC_ALL=C grep -c -F "MEMBER: $rigRowName" ) $( rigVal dialog.dialogHolds | LC_ALL=C grep -c -F ' / STATUS: ' ) $( rigVal dialog.dialogHolds | LC_ALL=C grep -c -F 'KIND: ' )" "$rigRowName | 1 1 1"
-rigAssert "Esc closes the dialog, and the cursor stays on its row" "[$( rigVal closed.dialogTitle )] $( rigMarked f fR | LC_ALL=C awk '{ print $2 }' )" "[] $rigRowName"
+rigAssert "Esc closes the dialog, and the cursor stays on its row" "[$( rigVal closed.dialogTitle )] $( rigMarked f fR | LC_ALL=C awk '{ print $2 ; }' )" "[] $rigRowName"
 rigAssert "Esc leaves the cursor, back to reading, and the left window keeps the keys" "$( rigMarked g gR ) $( rigVal left.focus )" "none view"
-rigAssert "with the cursor on, Space pages the pane and the cursor comes to the top row in view" "$( rigNumberOf "$( rigMarked h hR )" ) $( rigNumbers h | LC_ALL=C awk '{ print $1 }' )" "$( rigNumbers h | LC_ALL=C awk '{ print $1 " " $1 }' )"
-rigAssert "End goes to the bottom of the table: the cursor is in view, on the top row of the last page" "$( rigNumberOf "$( rigMarked i iR )" ) $( rigNumbers i | LC_ALL=C awk '{ print $1 }' )" "$( rigNumbers i | LC_ALL=C awk '{ print $1 " " $1 }' )"
-rigAssert "Home goes to the top: the cursor comes to the last row in view, as the pane went up" "$( rigNumberOf "$( rigMarked j jR )" )" "$( rigNumbers j | LC_ALL=C awk '{ print $NF }' )"
+rigAssert "with the cursor on, Space pages the pane and the cursor comes to the top row in view" "$( rigNumberOf "$( rigMarked h hR )" ) $( rigNumbers h | LC_ALL=C awk '{ print $1 ; }' )" "$( rigNumbers h | LC_ALL=C awk '{ print $1 " " $1 ; }' )"
+rigAssert "End goes to the bottom of the table: the cursor is in view, on the top row of the last page" "$( rigNumberOf "$( rigMarked i iR )" ) $( rigNumbers i | LC_ALL=C awk '{ print $1 ; }' )" "$( rigNumbers i | LC_ALL=C awk '{ print $1 " " $1 ; }' )"
+rigAssert "Home goes to the top: the cursor comes to the last row in view, as the pane went up" "$( rigNumberOf "$( rigMarked j jR )" )" "$( rigNumbers j | LC_ALL=C awk '{ print $NF ; }' )"
 rigAssert "and after more paging and Esc the table is read again with no row highlighted" "$( rigMarked k kR )" "none"
 
 echo "-- 6. a left window that is no table: Enter does nothing --"

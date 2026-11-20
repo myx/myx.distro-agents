@@ -92,11 +92,11 @@ rigNote "$rigDaily" "daily-finished"
 rigSpawn daily
 rigAssert "the start runs" "$rigRc:$( [ -e "$rigTmp/brief.magic-coordinator" ] && echo briefed || echo none )" "0:briefed"
 rigAssert "live: the note is daily-running with a session id" "$( rigField "$rigTmp/seen.$rigDaily" state ):$( [ -n "$( rigField "$rigTmp/seen.$rigDaily" session-id )" ] && echo id || echo none )" "daily-running:id"
-rigAssert "the brief's Routine lock section holds first-today: yes" "$( LC_ALL=C awk '/^## Routine lock/ { on = 1 ; next } on && /^first-today: / { print ; exit }' "$rigTmp/brief.magic-coordinator" )" "first-today: yes"
+rigAssert "the brief's Routine lock section holds first-today: yes" "$( LC_ALL=C awk '/^## Routine lock/ { on = 1 ; next ; } on && /^first-today: / { print ; exit ; }' "$rigTmp/brief.magic-coordinator" )" "first-today: yes"
 rigAssert "after: daily-finished with today's last-close-date" "$( rigField "$rigInbox/$rigDaily" state ):$( rigField "$rigInbox/$rigDaily" last-close-date )" "daily-finished:$( date +%Y-%m-%d )"
 echo "-- 3. the next start of the day --"
 rigSpawn daily
-rigAssert "is told first-today: no" "$( LC_ALL=C awk '/^## Routine lock/ { on = 1 ; next } on && /^first-today: / { print ; exit }' "$rigTmp/brief.magic-coordinator" )" "first-today: no"
+rigAssert "is told first-today: no" "$( LC_ALL=C awk '/^## Routine lock/ { on = 1 ; next ; } on && /^first-today: / { print ; exit ; }' "$rigTmp/brief.magic-coordinator" )" "first-today: no"
 echo "-- 4. two locks --"
 rigNote "$rigGrooming" "grooming-finished" ; rigNote "$rigAdvance" "advance-finished"
 rigSpawn both

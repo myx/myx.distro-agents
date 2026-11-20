@@ -133,10 +133,10 @@ rigItemPath(){ ## item name
 }
 rigHeader(){ ## item path, header -- its value, or `-`
 	LC_ALL=C awk -v wantField="$2" '
-		NR == 1 && $0 != "---" { exit }
-		$0 == "---" { dashes++ ; if ( dashes == 2 ) { exit } ; next }
-		index( $0, wantField ": " ) == 1 { print substr( $0, length( wantField ) + 3 ) ; found = 1 ; exit }
-		END { if ( ! found ) { print "-" } }
+		NR == 1 && $0 != "---" { exit ; }
+		$0 == "---" { dashes++ ; if ( dashes == 2 ) { exit ; } ; next ; }
+		index( $0, wantField ": " ) == 1 { print substr( $0, length( wantField ) + 3 ) ; found = 1 ; exit ; }
+		END { if ( ! found ) { print "-" ; } ; }
 	' "$1"
 }
 rigGrantRead(){ ## member, session, tool, path -- what grants it, as the grant read says, or empty
@@ -205,7 +205,7 @@ rigAssert "the warning names the item the brief named" \
 rigBrief="RIG-TASK-TEXT"
 
 echo "-- 7. the wire's Agent declaration carries the argument, so a caller can pass it --"
-rigDeclaration="$( LC_ALL=C awk '/\{"type":"function","function":\{"name":"Agent",/ { print ; exit }' "$rigHere/harness/AgentsOpenAiChatWire.sh" )"
+rigDeclaration="$( LC_ALL=C awk '/\{"type":"function","function":\{"name":"Agent",/ { print ; exit ; }' "$rigHere/harness/AgentsOpenAiChatWire.sh" )"
 [ -n "$rigDeclaration" ] || rigRefuse "the wire declares no Agent tool, so the served schema was not measured"
 rigAssert "the Agent declaration is reached, and its arguments carry tracked_item beside session_id" \
 	"$( printf '%s' "$rigDeclaration" | LC_ALL=C grep -c '"session_id"' ):$( printf '%s' "$rigDeclaration" | LC_ALL=C grep -c '"tracked_item"' )" "1:1"

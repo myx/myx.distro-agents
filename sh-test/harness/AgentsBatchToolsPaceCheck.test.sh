@@ -87,7 +87,7 @@ rigBatchCalls(){ ## how many calls, the calls list -- the record meta the batch 
 }
 ## The numbers of a record's per-call field, one a line; nothing where the record carries none.
 rigCalls(){ ## meta
-	printf '%s' "$1" | LC_ALL=C awk '{ if ( ! match( $0, /"calls_mach_ms":\[[0-9,]*\]/ ) ) exit ; list = substr( $0, RSTART + 17, RLENGTH - 18 ) ; count = split( list, part, "," ) ; for ( at = 1 ; at <= count ; at++ ) if ( part[at] != "" ) print part[at] }'
+	printf '%s' "$1" | LC_ALL=C awk '{ if ( ! match( $0, /"calls_mach_ms":\[[0-9,]*\]/ ) ) exit ; list = substr( $0, RSTART + 17, RLENGTH - 18 ) ; count = split( list, part, "," ) ; for ( at = 1 ; at <= count ; at++ ) if ( part[at] != "" ) print part[at] ; }'
 }
 
 echo "-- 1. a batch of three calls reads as three calls, each at its own tooling time --"
@@ -96,7 +96,7 @@ case "$rigMeta" in *'"tool":"BatchTools"'*) ;; *) rigRefuse "the batch left no r
 rigValues="$( rigCalls "$rigMeta" )"
 rigAssert "the batch's record carries one value for each of its three calls" "$( printf '%s\n' "$rigValues" | LC_ALL=C grep -c . )" 3
 rigAssert "each value is that call's own span, 1 s, 2 s and 3 s, within the second the record keeps: $( printf '%s' "$rigValues" | LC_ALL=C tr '\n' ' ' )" \
-	"$( printf '%s\n' "$rigValues" | LC_ALL=C awk -v spans="1 2 3" 'BEGIN { count = split( spans, span, " " ) } { at++ ; if ( at > count ) next ; if ( $1 < span[at] * 1000 || $1 > ( span[at] + 1 ) * 1000 ) bad = 1 } END { print ( bad || at != count ) ? "off" : "near" }' )" near
+	"$( printf '%s\n' "$rigValues" | LC_ALL=C awk -v spans="1 2 3" 'BEGIN { count = split( spans, span, " " ) ; } { at++ ; if ( at > count ) next ; if ( $1 < span[at] * 1000 || $1 > ( span[at] + 1 ) * 1000 ) bad = 1 ; } END { print ( bad || at != count ) ? "off" : "near" ; }' )" near
 rigRecord BatchTools "$rigMeta" > "$rigWs/.local/agents/spawned/rig-run/context.jsonl"
 rigBatchPace="$( rigPace )"
 case "$rigBatchPace" in
@@ -111,9 +111,9 @@ rigKeptValues="$( rigCalls "$rigKeptMeta" )"
 rigWholeMeta="$( rigBatchSpan "4keep-0" )"
 rigWholeValues="$( rigCalls "$rigWholeMeta" )"
 rigAssert "the call's tooling time is its 4 s span less the 3 s it ran, so under 2 s: $( printf '%s' "$rigKeptValues" )" \
-	"$( printf '%s\n' "$rigKeptValues" | LC_ALL=C awk '{ print ( $1 >= 0 && $1 <= 2000 ) ? "under" : "off:" $1 }' )" under
+	"$( printf '%s\n' "$rigKeptValues" | LC_ALL=C awk '{ print ( $1 >= 0 && $1 <= 2000 ) ? "under" : "off:" $1 ; }' )" under
 rigAssert "control: the same 4 s span with nothing kept reads its whole span or more: $( printf '%s' "$rigWholeValues" )" \
-	"$( printf '%s\n' "$rigWholeValues" | LC_ALL=C awk '{ print ( $1 >= 3000 ) ? "whole" : "off:" $1 }' )" whole
+	"$( printf '%s\n' "$rigWholeValues" | LC_ALL=C awk '{ print ( $1 >= 3000 ) ? "whole" : "off:" $1 ; }' )" whole
 rigAssert "the harness call body keeps what its call ran where the engine reads it" \
 	"$( LC_ALL=C grep -c -F '${2%.args}.ran' "$rigPkg/sh-lib/harness/AgentsHarnessBatch.include" 2> /dev/null || : )" 1
 
@@ -139,7 +139,7 @@ printf '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"BatchToo
 	bash "$rigPkg/sh-scripts/DistroAgentsTools.fn.sh" --intern-mcp-server --run ) > "$rigWs/mcp.wire" 2> /dev/null
 rigAssert "the served batch ran both of its calls" "$( LC_ALL=C grep -o -F 'BATCH-ENTRY: ' "$rigWs/mcp.wire" | LC_ALL=C grep -c . )" 2
 rigAssert "the store holds a row for each call, and none for the batch" \
-	"$( LC_ALL=C awk '{ print $3 }' "$rigWs/.local/agents/schedule/pace.mcp" 2> /dev/null | LC_ALL=C sort | LC_ALL=C tr '\n' ' ' )" "Read Read "
+	"$( LC_ALL=C awk '{ print $3 ; }' "$rigWs/.local/agents/schedule/pace.mcp" 2> /dev/null | LC_ALL=C sort | LC_ALL=C tr '\n' ' ' )" "Read Read "
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ BATCH TOOLS PACE CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

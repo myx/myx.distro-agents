@@ -259,7 +259,7 @@ AgentsHarnessCheckListMembers(){
 		printf '%s\n' "$checkListMember"
 		( . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include" && AgentsToolsSpawnedSessionRecords "$checkListSession" own 2> /dev/null ) \
 			| while IFS= read -r membersFile ; do [ -n "$membersFile" ] && [ -f "$membersFile" ] && printf '%s\n' "$membersFile" ; done \
-			| LC_ALL=C xargs -n 200 awk 'FNR == 1 { fence = 0 } $0 == "---" { fence++ ; if ( fence > 1 ) nextfile ; next } fence == 1 && index( $0, "owner: " ) == 1 { owner = substr( $0, 8 ) ; if ( owner != "" && owner != "-" ) print owner ; nextfile }' 2> /dev/null
+			| LC_ALL=C xargs -n 200 awk 'FNR == 1 { fence = 0 ; } $0 == "---" { fence++ ; if ( fence > 1 ) nextfile ; next ; } fence == 1 && index( $0, "owner: " ) == 1 { owner = substr( $0, 8 ) ; if ( owner != "" && owner != "-" ) print owner ; nextfile ; }' 2> /dev/null
 		for membersFile in "$checkListFolder"/*.checklist.md ; do
 			[ -f "$membersFile" ] || continue
 			membersFile="${membersFile##*/}"
@@ -309,9 +309,9 @@ AgentsHarnessCheckListShown(){ ## the list file
 	shownStore="$( AgentsToolsCheckListSourcesPath "$shownFile" )"
 	[ -n "$shownStore" ] && [ -f "$shownStore" ] || shownStore="/dev/null"
 	CHECKLIST_STORE="$shownStore" LC_ALL=C awk '
-		function itemText( line ) { sub( /^- \[[ x~]\] /, "", line ) ; sub( / \(due: [^)]*\)$/, "", line ) ; sub( / \(in progress: .*$/, "", line ) ; return line }
-		FILENAME == ENVIRON["CHECKLIST_STORE"] { at = index( $0, "\t" ) ; if ( at > 1 ) { mark[substr( $0, at + 1 )] = substr( $0, 1, at - 1 ) } ; next }
-		{ if ( $0 ~ /^- \[[ x~]\] / ) { text = itemText( $0 ) ; if ( ( text in mark ) && mark[text] != "own" ) { print $0 " [" mark[text] "]" ; next } } ; print }
+		function itemText( line ) { sub( /^- \[[ x~]\] /, "", line ) ; sub( / \(due: [^)]*\)$/, "", line ) ; sub( / \(in progress: .*$/, "", line ) ; return line ; }
+		FILENAME == ENVIRON["CHECKLIST_STORE"] { at = index( $0, "\t" ) ; if ( at > 1 ) { mark[substr( $0, at + 1 )] = substr( $0, 1, at - 1 ) ; } ; next ; }
+		{ if ( $0 ~ /^- \[[ x~]\] / ) { text = itemText( $0 ) ; if ( ( text in mark ) && mark[text] != "own" ) { print $0 " [" mark[text] "]" ; next ; } ; } ; print ; }
 	' "$shownStore" "$shownFile" 2> /dev/null
 }
 

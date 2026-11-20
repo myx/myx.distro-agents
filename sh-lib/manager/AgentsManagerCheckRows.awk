@@ -51,7 +51,7 @@ function flush() {
 	have = 0
 }
 
-/^## / { flush() ; section = substr( $0, 4 ) ; next }
+/^## / { flush() ; section = substr( $0, 4 ) ; next ; }
 
 /^[A-Z][A-Z0-9_]*: (OK|WARN|FAIL)( |$)/ {
 	flush()
@@ -80,6 +80,6 @@ have && /^[ \t]+[^ \t]/ {
 	next
 }
 
-/^[^ \t]/ { flush() }
+/^[^ \t]/ { flush() ; }
 
-END { flush() }
+END { flush() ; }

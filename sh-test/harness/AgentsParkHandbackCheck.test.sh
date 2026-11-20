@@ -152,7 +152,7 @@ rigToolStream "$rigDir/res.1" SubagentHandback '{"outcome":"rig work done","task
 rigStream "$rigDir/res.2" RIG-ASKED-AGAIN
 rigRun
 rigAssert "the run ended"                                "$rigRunStatus" 0
-rigAssert "the handback was posted at least once"      "$( LC_ALL=C awk 'index( $0, "chat.postMessage" ) { posted++ } END { print ( posted > 0 ? 1 : 0 ) }' "$rigDir/slack.calls" )" 1
+rigAssert "the handback was posted at least once"      "$( LC_ALL=C awk 'index( $0, "chat.postMessage" ) { posted++ ; } END { print ( posted > 0 ? 1 : 0 ) ; }' "$rigDir/slack.calls" )" 1
 rigAssert "the model was asked once, and asked no more"  "$( cat "$rigDir/round" )" 1
 rigAssert "the run left a park mark"                     "$( [ -f "$rigStore/parked" ] && printf yes || printf no )" yes
 

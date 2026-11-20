@@ -53,7 +53,7 @@ rigStub=0
 "$rigTool" --tester-skillset-validate-routine "$rigTmp/no-front-matter.routine.md" > "$rigTmp/stub.out" 2> "$rigTmp/stub.err" || rigStub=$?
 rigAssert "the stub is one of the family, never refused as no operation" "$( LC_ALL=C grep -c 'is no testing operation' "$rigTmp/stub.err" )" "0"
 rigAssert "and it reports the validator's own row for that file" \
-	"$( LC_ALL=C grep -c 'frontmatter:' "$rigTmp/stub.out" "$rigTmp/stub.err" 2> /dev/null | LC_ALL=C awk -F: '{ s += $2 } END { print s + 0 }' )" "1"
+	"$( LC_ALL=C grep -c 'frontmatter:' "$rigTmp/stub.out" "$rigTmp/stub.err" 2> /dev/null | LC_ALL=C awk -F: '{ s += $2 ; } END { print s + 0 ; }' )" "1"
 
  echo "-- 3. a name outside the family is refused --"
 rigOutside=0

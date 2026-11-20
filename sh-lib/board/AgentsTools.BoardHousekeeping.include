@@ -70,7 +70,7 @@ AgentsToolsPendingAskHousekeeping(){ ## stale hours, calling member
 		case "$askSession" in
 			''|-) askQuiet=$(( askHours * 60 )) ;;
 			*)
-				case "$( printf '%s\n' "$askLive" | LC_ALL=C awk -v want="$askSession" '$1 == want { print $2 ; exit }' )" in
+				case "$( printf '%s\n' "$askLive" | LC_ALL=C awk -v want="$askSession" '$1 == want { print $2 ; exit ; }' )" in
 					no-process|session-ended) askQuiet=15 ;;
 					no-spawn-record) askQuiet=$(( askHours * 60 )) ;;
 					*) continue ;;
@@ -265,8 +265,8 @@ AgentsToolsAdvanceSpawnHousekeeping(){ ## stale hours, calling member, [no-threa
 		esac
 		## The live column is the twelfth word and the state the thirteenth (S27.4): a live run reads its activity word, never `running`.
 		sessionKind="$( printf '%s\n' "$measureText" | LC_ALL=C awk -v wantSession="$reviewId" '
-			NF == 13 && $2 == wantSession { sawRow = 1 ; if ( $12 == "running" || $13 == "waiting" ) { sawLive = 1 ; } }
-			END { if ( sawLive ) { print "live" ; } else if ( sawRow ) { print "ended" ; } }
+			NF == 13 && $2 == wantSession { sawRow = 1 ; if ( $12 == "running" || $13 == "waiting" ) { sawLive = 1 ; } ; }
+			END { if ( sawLive ) { print "live" ; } else if ( sawRow ) { print "ended" ; } ; }
 		' )"
 		case "$sessionKind:$reviewId" in
 			live:*) continue ;;
@@ -299,7 +299,7 @@ AgentsToolsAdvanceSpawnHousekeeping(){ ## stale hours, calling member, [no-threa
 	## ended it when the session did. That folder is the harness's own part, so this pass names each session the rows above say has nothing alive and the
 	## harness ends what it holds, telling one line a process it ended.
 	type AgentsHarnessProcessLeftoversEnd > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessToolsBash.include"
-	for leftoverSession in $( printf '%s\n' "$measureText" | LC_ALL=C awk 'NF == 13 && ($12 == "gone" || $12 == "remote") && $6 ~ /^spawn-/ && $8 != "-" { print $2 }' | LC_ALL=C sort -u ) ; do
+	for leftoverSession in $( printf '%s\n' "$measureText" | LC_ALL=C awk 'NF == 13 && ($12 == "gone" || $12 == "remote") && $6 ~ /^spawn-/ && $8 != "-" { print $2 ; }' | LC_ALL=C sort -u ) ; do
 		leftoverEnded="$( AgentsHarnessProcessLeftoversEnd "$leftoverSession" )" || leftoverEnded=""
 		[ -z "$leftoverEnded" ] || printf '%s\n' "$leftoverEnded"
 		while IFS= read -r leftoverLine ; do

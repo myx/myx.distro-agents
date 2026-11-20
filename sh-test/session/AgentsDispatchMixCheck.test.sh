@@ -47,16 +47,16 @@ rigDispatch(){ ## sandbox, out name
 ## Every non-blank, non-heading line of a file that the merged text does not hold, one a line: the detector of the third claim, and one that
 ## answers for a line planted nowhere as readily as for a real one.
 rigLostLines(){ ## source file, merged text
-	LC_ALL=C awk 'NR == 1 && $0 == "---" { fm = 1 ; next } fm { if ( $0 == "---" ) { fm = 0 } ; next } /^#+ / { next } $0 == "" { next } { print }' "$1" \
+	LC_ALL=C awk 'NR == 1 && $0 == "---" { fm = 1 ; next ; } fm { if ( $0 == "---" ) { fm = 0 ; } ; next ; } /^#+ / { next ; } $0 == "" { next ; } { print ; }' "$1" \
 		| while IFS= read -r rigLine ; do LC_ALL=C grep -qxF -- "$rigLine" "$2" || printf '%s\n' "$rigLine" ; done
 }
 ## The captions of a merged text's headings, one a line, in order.
 rigCaptions(){ ## merged text
-	LC_ALL=C awk '/^#+ / { sub( /^#+ /, "" ) ; print }' "$1"
+	LC_ALL=C awk '/^#+ / { sub( /^#+ /, "" ) ; print ; }' "$1"
 }
 ## The headings whose level sits more than one below the heading above them: a merge that reworks levels never makes such a jump.
 rigLevelJumps(){ ## merged text
-	LC_ALL=C awk '/^#+ / { l = 0 ; s = $0 ; while ( substr( s, l + 1, 1 ) == "#" ) l++ ; if ( prev > 0 && l > prev + 1 ) printf "%s at %d after %d\n", $0, l, prev ; prev = l }' "$1"
+	LC_ALL=C awk '/^#+ / { l = 0 ; s = $0 ; while ( substr( s, l + 1, 1 ) == "#" ) l++ ; if ( prev > 0 && l > prev + 1 ) printf "%s at %d after %d\n", $0, l, prev ; prev = l ; }' "$1"
 }
 
 echo "-- 0. control: the lost-line detector can fail --"

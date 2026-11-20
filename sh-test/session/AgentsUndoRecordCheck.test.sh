@@ -56,7 +56,7 @@ rigAssert(){ ## what is asserted, got, want
 }
 rigHost="$( hostname -s 2>/dev/null || echo unknown )"
 AgentsToolsUndoFieldRig(){ ## record id, key
-	LC_ALL=C awk -v key="$2" '$0 == "---" { exit } index( $0, key ": " ) == 1 { print substr( $0, length( key ) + 3 ) ; exit }' \
+	LC_ALL=C awk -v key="$2" '$0 == "---" { exit ; } index( $0, key ": " ) == 1 { print substr( $0, length( key ) + 3 ) ; exit ; }' \
 		"$rigWs/.local/agents/sessions/rigrun/undo/$1/record" 2> /dev/null
 }
 
@@ -112,7 +112,7 @@ rigAnswer(){ ## record id, verdict (accept|reject|rework), his words (may be emp
 	mkdir -p "$rigWs/.local/agents/pending"
 	printf -- '---\nstatus: reply-received\nowner: rig-member\nkind: undo\nverdict: %s%s\nanswered-by: %s\n---\n\n# Question asked\n\nthe prompt\n' \
 		"$2" "${3:+ -- $3}" "$answerBy" > "$rigWs/.local/agents/pending/$answerAsk.md"
-	LC_ALL=C awk -v line="ask: $answerAsk" 'BEGIN { done = 0 } index( $0, "ask: " ) == 1 { if ( ! done ) { print line ; done = 1 } ; next } { print } END { if ( ! done ) print line }' \
+	LC_ALL=C awk -v line="ask: $answerAsk" 'BEGIN { done = 0 ; } index( $0, "ask: " ) == 1 { if ( ! done ) { print line ; done = 1 ; } ; next ; } { print ; } END { if ( ! done ) print line ; }' \
 		"$answerRecord" > "$answerRecord.new" && mv -f "$answerRecord.new" "$answerRecord"
 }
 rigRecord(){ ## the file as it stood, the file as the act left it, the live file -- record id in rigId
@@ -120,14 +120,14 @@ rigRecord(){ ## the file as it stood, the file as the act left it, the live file
 	printf '%s\n' "$2" > "$rigTmp/result.txt"
 	printf '%s\n' "$2" > "$rigRun/output/live.txt"
 	rigToolCall --undo-record file-write "$rigRun/output/live.txt" --base "$rigTmp/base.txt" --result "$rigTmp/result.txt" --session-id rigrun
-	rigId="$( LC_ALL=C awk '/^RECORDED /{ print $2 ; exit }' "$rigTmp/call.out" )" || rigId=""
+	rigId="$( LC_ALL=C awk '/^RECORDED /{ print $2 ; exit ; }' "$rigTmp/call.out" )" || rigId=""
 }
 
 echo "-- 1. a record, and the hold it writes --"
 rigNew record
 rigRecord one two
 rigAssert "a file act is recorded, and its state is open" \
-	"$( LC_ALL=C awk '/^RECORDED /{ print ( $3 == "open" ? "open" : $3 ) ; exit }' "$rigTmp/call.out" )" "open"
+	"$( LC_ALL=C awk '/^RECORDED /{ print ( $3 == "open" ? "open" : $3 ) ; exit ; }' "$rigTmp/call.out" )" "open"
 rigAssert "the hold in the acting run's sandbox names that record" \
 	"$( LC_ALL=C grep -c "^rigrun/$rigId\$" "$rigRun/undo.hold" 2>/dev/null || : )" 1
 rigAssert "the record keeps the base the inverse puts back" \
@@ -151,7 +151,7 @@ echo "-- 3. a kind the tree cannot run is recorded refused, and holds nothing --
 rigNew refuse
 rigToolCall --undo-record item-trash dispatch-rig.md --session-id rigrun
 rigAssert "the record says refused, and says why" \
-	"$( LC_ALL=C awk '/^RECORDED /{ print $3 ; exit }' "$rigTmp/call.out" ):$( LC_ALL=C grep -c 'refused:' "$rigTmp/call.out" )" "refused:1"
+	"$( LC_ALL=C awk '/^RECORDED /{ print $3 ; exit ; }' "$rigTmp/call.out" ):$( LC_ALL=C grep -c 'refused:' "$rigTmp/call.out" )" "refused:1"
 rigAssert "a refused record writes no hold" "$( [ -f "$rigRun/undo.hold" ] && printf held || printf none )" "none"
 
 echo "-- 4. the dry run --"
@@ -175,7 +175,7 @@ rigAnswer "$rigId" reject
 rigToolCall --undo-run "$rigId" --session-id rigrun
 rigAssert "the base is put back" "$( cat "$rigRun/output/live.txt" )" "one"
 rigAssert "the record closes as done, and the hold it made is released" \
-	"$( LC_ALL=C awk '$0 == "---" { exit } index( $0, "state: " ) == 1 { print substr( $0, 8 ) ; exit }' "$rigWs/.local/agents/sessions/rigrun/undo/$rigId/record" ):$( [ -f "$rigRun/undo.hold" ] && printf held || printf released )" "done:released"
+	"$( LC_ALL=C awk '$0 == "---" { exit ; } index( $0, "state: " ) == 1 { print substr( $0, 8 ) ; exit ; }' "$rigWs/.local/agents/sessions/rigrun/undo/$rigId/record" ):$( [ -f "$rigRun/undo.hold" ] && printf held || printf released )" "done:released"
 rigToolCall --undo-run "$rigId" --session-id rigrun
 rigAssert "a second run takes no step twice" \
 	"$( LC_ALL=C grep -c '^made' "$rigWs/.local/agents/sessions/rigrun/undo/$rigId/steps" ):$( LC_ALL=C grep -c 'nothing to do' "$rigTmp/call.out" )" "1:1"
@@ -185,7 +185,7 @@ rigNew purge
 rigRecord one two
 rigToolCall --undo-purge "$rigId" --session-id rigrun
 rigAssert "a purge with no answer is refused, and the record and its hold stand" \
-	"$rigRc:$( LC_ALL=C awk '$0 == "---" { exit } index( $0, "state: " ) == 1 { print substr( $0, 8 ) ; exit }' "$rigWs/.local/agents/sessions/rigrun/undo/$rigId/record" ):$( [ -f "$rigRun/undo.hold" ] && printf held || printf released )" "1:open:held"
+	"$rigRc:$( LC_ALL=C awk '$0 == "---" { exit ; } index( $0, "state: " ) == 1 { print substr( $0, 8 ) ; exit ; }' "$rigWs/.local/agents/sessions/rigrun/undo/$rigId/record" ):$( [ -f "$rigRun/undo.hold" ] && printf held || printf released )" "1:open:held"
 rigAnswer "$rigId" accept "" rig-member
 rigToolCall --undo-purge "$rigId" --session-id rigrun
 rigAssert "an answer that is not his is refused, and nothing is released" \
@@ -196,7 +196,7 @@ rigAssert "his reject does not carry a purge" "$rigRc" 1
 rigAnswer "$rigId" accept
 rigToolCall --undo-purge "$rigId" --session-id rigrun
 rigAssert "an accept closes the record, and the hold it made is released" \
-	"$( LC_ALL=C awk '$0 == "---" { exit } index( $0, "state: " ) == 1 { print substr( $0, 8 ) ; exit }' "$rigWs/.local/agents/sessions/rigrun/undo/$rigId/record" ):$( [ -f "$rigRun/undo.hold" ] && printf held || printf released )" "accepted:released"
+	"$( LC_ALL=C awk '$0 == "---" { exit ; } index( $0, "state: " ) == 1 { print substr( $0, 8 ) ; exit ; }' "$rigWs/.local/agents/sessions/rigrun/undo/$rigId/record" ):$( [ -f "$rigRun/undo.hold" ] && printf held || printf released )" "accepted:released"
 
 echo "-- 7. the rework --"
 rigNew rework
@@ -204,7 +204,7 @@ rigRecord one two
 rigAnswer "$rigId" rework "" 
 rigToolCall --undo-rework "$rigId" --session-id rigrun
 rigAssert "a rework with no words is no verdict, and nothing moves" \
-	"$rigRc:$( LC_ALL=C awk '$0 == "---" { exit } index( $0, "state: " ) == 1 { print substr( $0, 8 ) ; exit }' "$rigWs/.local/agents/sessions/rigrun/undo/$rigId/record" )" "1:open"
+	"$rigRc:$( LC_ALL=C awk '$0 == "---" { exit ; } index( $0, "state: " ) == 1 { print substr( $0, 8 ) ; exit ; }' "$rigWs/.local/agents/sessions/rigrun/undo/$rigId/record" )" "1:open"
 rigAnswer "$rigId" rework "do it as a copy first, and tell me"
 rigToolCall --undo-rework "$rigId" --session-id rigrun
 rigAssert "his words are kept as he wrote them, and the record moves to rework-asked" \
@@ -223,7 +223,7 @@ while [ "$rigCutLineNo" -le 200 ] ; do
 done
 cp "$rigTmp/result-long.txt" "$rigRun/output/live.txt"
 rigToolCall --undo-record file-write "$rigRun/output/live.txt" --base "$rigTmp/base-long.txt" --result "$rigTmp/result-long.txt" --session-id rigrun
-rigId="$( LC_ALL=C awk '/^RECORDED /{ print $2 ; exit }' "$rigTmp/call.out" )" || rigId=""
+rigId="$( LC_ALL=C awk '/^RECORDED /{ print $2 ; exit ; }' "$rigTmp/call.out" )" || rigId=""
 rigCutLine="$( LC_ALL=C grep -m1 'The diff is cut here:' "$rigDir/post.1" 2> /dev/null )"
 rigCutTotal="$( printf '%s' "$rigCutLine" | LC_ALL=C sed -n 's/.*of its \([0-9][0-9]*\) lines are not shown.*/\1/p' )"
 rigKeptTotal="$( LC_ALL=C wc -l < "$rigWs/.local/agents/sessions/rigrun/undo/$rigId/change.diff" | LC_ALL=C tr -d ' ' )"
@@ -261,7 +261,7 @@ rigAssert "each part keeps its own base and result" \
 	"$( cat "$rigWs/.local/agents/sessions/rigrun/undo/$rigChangeId/parts/2/base" ):$( cat "$rigWs/.local/agents/sessions/rigrun/undo/$rigChangeId/parts/2/result" )" "one:two"
 printf 'three\n' > "$rigRun/output/solo.txt" ; printf 'three\n' > "$rigTmp/result-solo.txt"
 rigToolCall --undo-record file-write "$rigRun/output/solo.txt" --base "$rigTmp/base-two.txt" --result "$rigTmp/result-solo.txt" --session-id rigrun
-rigSoloId="$( LC_ALL=C awk '/^RECORDED /{ print $2 ; exit }' "$rigTmp/call.out" )" || rigSoloId=""
+rigSoloId="$( LC_ALL=C awk '/^RECORDED /{ print $2 ; exit ; }' "$rigTmp/call.out" )" || rigSoloId=""
 rigAssert "a record with no parts folder reads as one part, its own folder -- the fallback" \
 	"$( ( MDSC_CMD=rig MDLT_ORIGIN="$MDLT_ORIGIN" MMDAPP="$rigWs" ; . "$rigPackage/sh-lib/undo/AgentsTools.UndoRecord.include" rig ; AgentsToolsUndoPartDirs "$rigWs/.local/agents/sessions/rigrun/undo/$rigSoloId" ) 2>&1 | LC_ALL=C tr '\t' ':' )" \
 	"1:$rigWs/.local/agents/sessions/rigrun/undo/$rigSoloId"
@@ -276,7 +276,7 @@ printf 'two\n' > "$rigRun/output/part-two.txt"
 rigAnswer "$rigChangeId" reject
 rigToolCall --undo-run "$rigChangeId" --session-id rigrun
 rigAssert "the run puts each part back, and records each step once under its part's key" \
-	"$( cat "$rigRun/output/live.txt" ):$( cat "$rigRun/output/part-two.txt" ):$( LC_ALL=C awk -F'\t' '$1 == "made" { printf "%s ", $2 }' "$rigWs/.local/agents/sessions/rigrun/undo/$rigChangeId/steps" )" "one:one:1.1 2.1 "
+	"$( cat "$rigRun/output/live.txt" ):$( cat "$rigRun/output/part-two.txt" ):$( LC_ALL=C awk -F'\t' '$1 == "made" { printf "%s ", $2 ; }' "$rigWs/.local/agents/sessions/rigrun/undo/$rigChangeId/steps" )" "one:one:1.1 2.1 "
 
 echo "-- 11. the settle arm, its gate, and the epic's own path --"
 rigNew settle
@@ -310,7 +310,7 @@ rigEpicSettle(){ ## record id, feature id, words
 }
 rigEpicSettle "$rigId" S13.19 "judged by the epic"
 rigAssert "the epic's own path keeps the pair on the change and lands the verdict" \
-	"$rigRc:$( AgentsToolsUndoFieldRig "$rigId" epic ):$( AgentsToolsUndoFieldRig "$rigId" feature ):$( LC_ALL=C awk -F'\t' '{ printf "%s|%s|%s", $1, $2, $4 }' "$rigWs/.local/agents/sessions/rigrun/undo/$rigId/verdict" 2> /dev/null )" \
+	"$rigRc:$( AgentsToolsUndoFieldRig "$rigId" epic ):$( AgentsToolsUndoFieldRig "$rigId" feature ):$( LC_ALL=C awk -F'\t' '{ printf "%s|%s|%s", $1, $2, $4 ; }' "$rigWs/.local/agents/sessions/rigrun/undo/$rigId/verdict" 2> /dev/null )" \
 	"0:epic-rig.md:S13.19:settled|magic-coordinator|judged by the epic"
 rigAssert "a change every part of which is settled closes settled, and its hold goes" \
 	"$( AgentsToolsUndoFieldRig "$rigId" state ):$( [ -f "$rigRun/undo.hold" ] && printf held || printf released )" "settled:released"

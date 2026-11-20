@@ -39,7 +39,7 @@ rigGrooming="$rigSkillset/magic-team/magic-team.grooming.routine.md"
 rigDaily="$rigSkillset/magic-coordinator/magic-coordinator.daily.routine.md"
 rigRetro="$rigSkillset/magic-coordinator/magic-coordinator.retro.routine.md"
 rigKeys(){ ## file -- its autorun keys, in a line
-	LC_ALL=C awk 'NR == 1 { next } $0 == "---" { exit } /^(runs-at|runs-after): / { printf "%s | ", $0 }' "$1"
+	LC_ALL=C awk 'NR == 1 { next ; } $0 == "---" { exit ; } /^(runs-at|runs-after): / { printf "%s | ", $0 ; }' "$1"
 }
 
 echo "-- 1. the declarations --"
@@ -91,7 +91,7 @@ rigAssert "Saturday: none of the three is due, workdays being the days" "$( rigD
 
 echo "-- 4. the daily spawns no morning review --"
 rigAssert "no spawn-morning-review in the daily or the librarian's routine" "$( LC_ALL=C grep -c 'spawn-morning-review' "$rigDaily" "$rigReview" | LC_ALL=C tr '\n' ' ' )" "$rigDaily:0 $rigReview:0 "
-rigAssert "the steps of the daily are numbered from 1, one after another" "$( LC_ALL=C awk '/^# Steps/ { on = 1 ; next } /^# / { on = 0 } on && /^[0-9]+\. \*\*/ { n++ ; split( $0, a, "." ) ; if ( a[1] + 0 != n ) bad++ } END { print n + 0, bad + 0 }' "$rigDaily" )" "9 0"
+rigAssert "the steps of the daily are numbered from 1, one after another" "$( LC_ALL=C awk '/^# Steps/ { on = 1 ; next ; } /^# / { on = 0 ; } on && /^[0-9]+\. \*\*/ { n++ ; split( $0, a, "." ) ; if ( a[1] + 0 != n ) bad++ ; } END { print n + 0, bad + 0 ; }' "$rigDaily" )" "9 0"
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ ROUTINE AUTORUN DECLARED CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

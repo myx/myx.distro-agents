@@ -320,7 +320,7 @@ rigFresh
 : > "$rigTmp/limits.log"
 rigAsk "$rigTmp/q11a" --by rig-first --why 'the line is long' RigOne ; rigIdA="$rigId"
 rigOp "$rigTmp/d11" --retest-drain
-rigAssert "the test a drain runs is handed a lane wait well past the runner's own 900s bound" "$( LC_ALL=C sed -n '$p' "$rigTmp/limits.log" | LC_ALL=C awk '{ print ( $1 + 0 >= 3600 ) ? "long" : "short" }' )" "long"
+rigAssert "the test a drain runs is handed a lane wait well past the runner's own 900s bound" "$( LC_ALL=C sed -n '$p' "$rigTmp/limits.log" | LC_ALL=C awk '{ print ( $1 + 0 >= 3600 ) ? "long" : "short" ; }' )" "long"
 rigAssert "and its request passes, never answered NOT RUN for a line it gave up on" "$( rigLine "$rigTmp/d11" "$rigIdA" | LC_ALL=C cut -d' ' -f1-3 )" "RETEST <id> PASS"
 : > "$rigTmp/limits.log"
 rigLane=1234

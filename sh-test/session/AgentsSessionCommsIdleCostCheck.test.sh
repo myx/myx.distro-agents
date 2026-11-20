@@ -57,7 +57,7 @@ mkdir -p "$rigTmp/shim" "$rigTmp/bin" "$rigTmp/skills/keeper-rig" || exit 1
 printf 'keeper-rig\n' > "$rigTmp/skills/keeper-rig/keeper-rig.basic.md"
 cp "$rigFixtures/session-comms.curl.stub.sh" "$rigTmp/bin/curl" || rigRefuse "the fake curl fixture is missing"
 chmod +x "$rigTmp/bin/curl"
-LC_ALL=C awk '{ n = split( $0, w, /[^A-Za-z0-9_.-]+/ ) ; for ( i = 1 ; i <= n ; i++ ) if ( w[i] != "" ) print w[i] }' \
+LC_ALL=C awk '{ n = split( $0, w, /[^A-Za-z0-9_.-]+/ ) ; for ( i = 1 ; i <= n ; i++ ) if ( w[i] != "" ) print w[i] ; }' \
 	"$rigHere"/sh-lib/session/AgentsTools.SessionComms.include "$rigHere"/sh-lib/session/AgentsTools.InternSessionComms.include \
 	"$rigHere"/sh-lib/session/AgentsTools.SessionControlStart.include "$rigHere"/sh-lib/comms/AgentsTools.CommsCache.include 2> /dev/null \
 	| LC_ALL=C sort -u > "$rigTmp/words.txt" || exit 1
@@ -166,9 +166,9 @@ rigRun "$rigDir/f2" 26 long
 rigClosedOver=$(( $( rigCount "$rigDir/f2" ) - $( rigCount "$rigDir/f1" ) ))
 [ "$rigClosedOver" -le 20 ] || printf '  the words a run forked with the closed ones beside it:\n%s\n' "$( LC_ALL=C sort "$rigDir/f2" | LC_ALL=C uniq -c | LC_ALL=C sort -rn | head -8 )"
 rigAssert "six hundred closed sessions add no fork to an idle pass" "$( [ "$rigClosedOver" -le 20 ] && printf yes || printf '%s forks' "$rigClosedOver" )" yes
-rigAssert "the reader's list names the live session"                 "$( LC_ALL=C awk '{ print $1 }' "$rigWs/.local/agents/comms/sessions" 2> /dev/null | LC_ALL=C tr '\n' ' ' )" "${rigSess##*/} "
+rigAssert "the reader's list names the live session"                 "$( LC_ALL=C awk '{ print $1 ; }' "$rigWs/.local/agents/comms/sessions" 2> /dev/null | LC_ALL=C tr '\n' ' ' )" "${rigSess##*/} "
 rigAssert "and no closed one"                                       "$( rigHits "$rigWs/.local/agents/comms/sessions" 'rig-gone' )" 0
-rigAssert "no thread of a closed session is read"                     "$( LC_ALL=C awk '$2 == "conversations.replies" && $3 == "CRIGSES02" { c++ } END { print c + 0 }' "$rigDir/api.log" )" 0
+rigAssert "no thread of a closed session is read"                     "$( LC_ALL=C awk '$2 == "conversations.replies" && $3 == "CRIGSES02" { c++ ; } END { print c + 0 ; }' "$rigDir/api.log" )" 0
 
 echo "-- 4. the list is kept by the sessions --"
 rigScene list 0
@@ -198,7 +198,7 @@ rigSend "RIG-QUEUED-BODY"
 rigSendEnv=""
 rigAssert "a post to a live session's thread is queued for the reader" "$( rigHits "$rigDir/send.err" 'queued as block' )" 1
 rigPush
-rigAssert "the pusher posted it"                                     "$( LC_ALL=C awk '$2 == "chat.postMessage" { c++ } END { print c + 0 }' "$rigDir/api.log" )" 1
+rigAssert "the pusher posted it"                                     "$( LC_ALL=C awk '$2 == "chat.postMessage" { c++ ; } END { print c + 0 ; }' "$rigDir/api.log" )" 1
 rigAssert "and said nothing about a failure that never happened"      "$( rigHits "$rigWs/.local/agents/comms/log" 'could not be posted when it was sent' )" 0
 ## A post that really failed, waiting in a channel's outbox with its own reason: posted by the pusher, it says exactly that, once.
 ## The record is written as a failed send leaves it (AgentsToolsCommsCacheOutboxAppend), so this needs no five attempts of a real one.
@@ -207,7 +207,7 @@ bash -c ". '$rigHere/sh-lib/session/AgentsTools.SessionComms.include' || exit 9 
 	|| rigRefuse "the rig could not write a failed post into a channel's outbox"
 rigAssert "a post that really failed waits with its own reason"      "$( rigHits "$rigWs/.local/cache/comms/slack/slack-CRIGSES01-$rigRoot/outbox.messages.txt" 'no ok:true after 5 attempts' )" 1
 rigPush
-rigAssert "the pusher posted it"                                     "$( LC_ALL=C awk '$2 == "chat.postMessage" { c++ } END { print c + 0 }' "$rigDir/api.log" )" 1
+rigAssert "the pusher posted it"                                     "$( LC_ALL=C awk '$2 == "chat.postMessage" { c++ ; } END { print c + 0 ; }' "$rigDir/api.log" )" 1
 rigAssert "and said it had failed, once"                             "$( rigHits "$rigWs/.local/agents/comms/log" 'could not be posted when it was sent' )" 1
 
 if [ "$rigFail" -ne 0 ] ; then

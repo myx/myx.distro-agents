@@ -27,7 +27,7 @@ chmod 640 "$rigMagic"
 
 echo "-- 1. an existing section's body is replaced, the rest stands --"
 rigAssert "the update is said"                   "$( rigOp --magic-section-upsert "$rigMagic" --section Purpose --text 'New purpose.' )" "MAGIC-SECTION: updated Purpose in $rigMagic"
-rigAssert "the new body stands under its heading" "$( LC_ALL=C awk '/^## Purpose$/ { p = 1 ; next } /^## / { p = 0 } p && NF' "$rigMagic" | LC_ALL=C tr '\n' '|' )" "New purpose.|"
+rigAssert "the new body stands under its heading" "$( LC_ALL=C awk '/^## Purpose$/ { p = 1 ; next ; } /^## / { p = 0 ; } p && NF' "$rigMagic" | LC_ALL=C tr '\n' '|' )" "New purpose.|"
 rigAssert "the other sections stand"             "$( LC_ALL=C grep -c -x -e '# rig project' -e 'The title paragraph.' -e '## Layout' -e '- a folder' "$rigMagic" ):$( LC_ALL=C grep -c 'Old purpose' "$rigMagic" )" "4:0"
 rigAssert "the mode is kept"                     "$( LC_ALL=C stat -f '%Lp' "$rigMagic" 2> /dev/null || LC_ALL=C stat -c '%a' "$rigMagic" )" "640"
 

@@ -217,7 +217,7 @@ rigDir8="$rigTmp/thread8"
 mkdir -p "$rigDir8"
 export RIG_TICK_FILE="$rigTmp/ticks8"
 rigSaid8="$( . "$rigInc" ; . "$rigOwner" ; AgentsToolsOnDemandThreadStart "$rigDir8" --intern-team-data-commit --one )"
-rigAssert "8. a start with no thread there starts one" "$( printf '%s\n' "$rigSaid8" | LC_ALL=C awk 'NR == 1 { print $1 }' )" started
+rigAssert "8. a start with no thread there starts one" "$( printf '%s\n' "$rigSaid8" | LC_ALL=C awk 'NR == 1 { print $1 ; }' )" started
 rigWaitForFifo "$rigDir8"
 ## The started process holds the start's claim until it ends. Its operation serves another folder, so it ends, and the thread below takes the lock it left.
 rigPid8="$( printf '%s\n' "$rigSaid8" | LC_ALL=C sed -n '1s/^started //p' )"
@@ -233,7 +233,7 @@ rigThreadPids="$rigThreadPids $!" ; rigProcNote "${rigThreadPids##* }"
 rigWaited=0
 while [ "$rigWaited" -lt 20 ] && [ "$( rigLocks "$rigDir8" )" != 1 ] ; do sleep 1 ; rigWaited=$(( rigWaited + 1 )) ; done
 rigAssert "8. a start over a living thread says alive" \
-	"$( . "$rigInc" ; AgentsToolsOnDemandThreadStart "$rigDir8" --intern-team-data-commit --one | LC_ALL=C awk '{ print $1 }' )" alive
+	"$( . "$rigInc" ; AgentsToolsOnDemandThreadStart "$rigDir8" --intern-team-data-commit --one | LC_ALL=C awk '{ print $1 ; }' )" alive
 rigThreadsStop
 
 echo "-- 9. the team data's first use: a request fifo and the commit reaching the store --"
@@ -331,7 +331,7 @@ printf '#!/bin/sh\nexit 1\n' > "$rigTmp/bin11/ps"
 chmod +x "$rigTmp/bin11/ps"
 printf '%s %s\n' "$$" "Sun_Nov__1_00:00:00_2026" > "$rigDir11/thread.lock"
 rigAssert "11. a lock that cannot be told reads as a failed start, not an alive one" \
-	"$( PATH="$rigTmp/bin11:$PATH" ; . "$rigInc" ; . "$rigOwner" ; AgentsToolsOnDemandThreadStart "$rigDir11" --intern-team-data-commit --one | LC_ALL=C awk '{ print $1 }' )" "failed"
+	"$( PATH="$rigTmp/bin11:$PATH" ; . "$rigInc" ; . "$rigOwner" ; AgentsToolsOnDemandThreadStart "$rigDir11" --intern-team-data-commit --one | LC_ALL=C awk '{ print $1 ; }' )" "failed"
 rigAssert "11. and nothing was started there" "$([ -p "$rigDir11/request.fifo" ] && printf fifo || printf none)" none
 
 echo "-- 12. a lock whose holder is gone is taken over, and the start says so (S12.14) --"

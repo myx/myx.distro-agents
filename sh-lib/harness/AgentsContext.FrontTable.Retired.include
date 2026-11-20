@@ -191,7 +191,7 @@ agentsFrontRetired='--magic-advance-batch-outcome	DistroAgentsItems.fn.sh --adva
 ## What an old name was replaced by: its refusal line, or nothing for a name that was never one.
 AgentsToolsFrontRetired(){ ## name
 	local retiredNow
-	retiredNow="$( printf '%s\n' "$agentsFrontRetired" | LC_ALL=C awk -F'\t' -v op="$1" '$1 == op { print $2 ; exit }' )"
+	retiredNow="$( printf '%s\n' "$agentsFrontRetired" | LC_ALL=C awk -F'\t' -v op="$1" '$1 == op { print $2 ; exit ; }' )"
 	[ -n "$retiredNow" ] || return 1
 	case "$retiredNow" in
 		\(*) printf '%s: ⛔ ERROR: %s is retired: %s\n' "${MDSC_CMD:-DistroAgentsTools}" "$1" "${retiredNow#(}" | LC_ALL=C sed 's/)$//' ;;

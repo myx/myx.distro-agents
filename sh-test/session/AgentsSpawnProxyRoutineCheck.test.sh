@@ -195,7 +195,7 @@ rigRoutineTail="-- the dispatch's --routine parameter: run it as this pass's pay
 rigRoutineFile="magic-coordinator.advance.routine.md"
 printf -- '---\nexecutors: magic-coordinator\nmaintainers: magic-coordinator\nrequires-session-kind: standalone\n---\n# rig advance routine fixture\n' > "$rigSkills/magic-coordinator/$rigRoutineFile"
 rigLineNo(){ ## file, fixed text at the start of a line -- the number of the first such line, or none
-	LC_ALL=C awk -v want="$2" 'index($0, want) == 1 { print NR ; found = 1 ; exit } END { if ( ! found ) print "none" }' "$1"
+	LC_ALL=C awk -v want="$2" 'index($0, want) == 1 { print NR ; found = 1 ; exit ; } END { if ( ! found ) print "none" ; }' "$1"
 }
 
 echo "-- --intern-root-harness through the real proxy: the packet names the payload routine --"
@@ -240,7 +240,7 @@ rigExpect "$rigModeNon" "$rigRoutineLine"
 rigAssert "non-interactive with a routine: the include returns 0"  "$rigStubRc" 0
 rigAssert "the packet is exactly mode line, routine line, one blank line, the unchanged brief" "$( cmp -s "$rigTmp/stub.stdin" "$rigTmp/stub.expect" && echo identical || echo different )" identical
 rigAssert "the proxy gets the raw selector, --session-thread and --wait, in that order" "$( cat "$rigTmp/stub.args" )" "--spawn-prompt magic-coordinator --session-thread:event-track --routine advance --wait"
-rigAssert "the brief's own sections are all in the packet"       "$( for rigSec in SPAWN-REQUEST GOAL CONTEXT WAIT ; do LC_ALL=C grep -c -e "^$rigSec" -e "^## $rigSec" -e "^# $rigSec" "$rigTmp/stub.stdin" | LC_ALL=C awk '{ printf "%s ", ( $1 > 0 ? "yes" : "no" ) }' ; done )" "yes yes yes yes "
+rigAssert "the brief's own sections are all in the packet"       "$( for rigSec in SPAWN-REQUEST GOAL CONTEXT WAIT ; do LC_ALL=C grep -c -e "^$rigSec" -e "^## $rigSec" -e "^# $rigSec" "$rigTmp/stub.stdin" | LC_ALL=C awk '{ printf "%s ", ( $1 > 0 ? "yes" : "no" ) ; }' ; done )" "yes yes yes yes "
 rigStubRun "$rigStubRoot" --intern-root-harness --routine advance
 rigExpect "$rigModeInt" "$rigRoutineLine"
 rigAssert "interactive with a routine: the packet carries the routine line too" "$( cmp -s "$rigTmp/stub.stdin" "$rigTmp/stub.expect" && echo identical || echo different )" identical
@@ -331,7 +331,7 @@ rigSpawn "RIG-TASK-TEXT" --routine magic-team.rigworkduty.work-duty.routine.md >
 rigAssert "the dispatch opens with the work-duty static head"  "$( head -1 "$rigTmp/brief" )" "## Work-duty dispatch -- the routine and the member static guidance, the same bytes for every run of this member"
 rigAssert "the routine follows in it, once"                     "$( LC_ALL=C grep -c -x -F 'RIG-WORK-DUTY-ROUTINE.' "$rigTmp/brief" )" 1
 rigAssert "the member's reference guidance follows the routine" "$( LC_ALL=C grep -c -x -F 'RIG-REFERENCE-GUIDANCE' "$rigTmp/brief" )" 1
-rigAssert "and the run's variables are last, after both"        "$( LC_ALL=C awk '/^RIG-REFERENCE-GUIDANCE$/ { ref = NR } /^## This run -- its own variables$/ { vars = NR } END { print ( ref && vars && vars > ref ) ? "after" : "before" }' "$rigTmp/brief" )" after
+rigAssert "and the run's variables are last, after both"        "$( LC_ALL=C awk '/^RIG-REFERENCE-GUIDANCE$/ { ref = NR ; } /^## This run -- its own variables$/ { vars = NR ; } END { print ( ref && vars && vars > ref ) ? "after" : "before" ; }' "$rigTmp/brief" )" after
 rigAssert "the variables name the session, the spawn and the start time"  "$( LC_ALL=C grep -c -E '^(session-id|spawn-id|started-at): ' "$rigTmp/brief" )" 3
 rigAssert "an ordinary routine spawn carries no work-duty dispatch"  "$( rigSpawn "RIG-TASK-TEXT" --routine magic-team.coworking.routine.md > /dev/null ; LC_ALL=C grep -c '^## Work-duty dispatch --' "$rigTmp/brief" )" 0
 

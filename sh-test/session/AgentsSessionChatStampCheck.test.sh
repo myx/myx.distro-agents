@@ -50,7 +50,7 @@ AgentsToolsSessionChatStamp "$rigSess" 2 1794900000.000200 "C0RIG:1794900000.000
 rigAssert "the index is byte for byte as it was after a stamp" "$( rigIndexBytes )" "$rigBefore"
 rigAssert "and its mtime is unmoved, so the write this stage removes is really gone" "$( stat -f %m "$rigDir/session.chat.index" 2> /dev/null || stat -c %Y "$rigDir/session.chat.index" 2> /dev/null )" "$rigIndexMtime"
 rigAssert "and the stamps file holds one line" "$( rigStampsLines )" 1
-rigAssert "the line names that block and its ts" "$( LC_ALL=C awk -F'\t' '$1 == 2 && $2 == "1794900000.000200" { print "yes" }' "$rigDir/session.chat.stamps" 2> /dev/null )" yes
+rigAssert "the line names that block and its ts" "$( LC_ALL=C awk -F'\t' '$1 == 2 && $2 == "1794900000.000200" { print "yes" ; }' "$rigDir/session.chat.stamps" 2> /dev/null )" yes
 AgentsToolsSessionChatStamp "$rigSess" 1 1794800000.000300 "C0RIG:1794800000.000300"
 rigAssert "a second stamp leaves the index as it was too" "$( rigIndexBytes )" "$rigBefore"
 rigAssert "and the stamps file holds two lines" "$( rigStampsLines )" 2
@@ -79,15 +79,15 @@ rigAssert "the stamped block is the floor's" "$( printf '%s\n' "$rigFloor" | LC_
 echo "-- 6. the resolved index carries each block once, with the stamp's fields over the index's --"
 rigResolved="$( AgentsToolsSessionChatResolve "$rigDir/session.chat.index" "$rigDir/session.chat.stamps" )"
 rigAssert "the resolved index holds one line a block" "$( printf '%s\n' "$rigResolved" | LC_ALL=C grep -c . )" 2
-rigAssert "the stamped block carries the stamp's ts" "$( printf '%s\n' "$rigResolved" | LC_ALL=C awk -F'\t' '$1 == 2 { print $2 }' )" 1794900000.000200
-rigAssert "and the seen mark the stamps added" "$( printf '%s\n' "$rigResolved" | LC_ALL=C awk -F'\t' '$1 == 2 { print $6 }' )" keeper-rig
-rigAssert "and the index itself still carries neither" "$( LC_ALL=C awk -F'\t' '$1 == 2 { print $2 }' "$rigDir/session.chat.index" )" -
+rigAssert "the stamped block carries the stamp's ts" "$( printf '%s\n' "$rigResolved" | LC_ALL=C awk -F'\t' '$1 == 2 { print $2 ; }' )" 1794900000.000200
+rigAssert "and the seen mark the stamps added" "$( printf '%s\n' "$rigResolved" | LC_ALL=C awk -F'\t' '$1 == 2 { print $6 ; }' )" keeper-rig
+rigAssert "and the index itself still carries neither" "$( LC_ALL=C awk -F'\t' '$1 == 2 { print $2 ; }' "$rigDir/session.chat.index" )" -
 
 echo "-- 6b. two members marked on one block are both carried, which last-wins would drop --"
 AgentsToolsSessionChatSeen "$rigSess" magic-tester 2
 rigResolved="$( AgentsToolsSessionChatResolve "$rigDir/session.chat.index" "$rigDir/session.chat.stamps" )"
 rigAssert "the block is one line still, over two seen lines" "$( printf '%s\n' "$rigResolved" | LC_ALL=C awk -F'\t' '$1 == 2' | wc -l | LC_ALL=C tr -d ' ' )" 1
-rigAssert "and it carries both members, in the order they were marked" "$( printf '%s\n' "$rigResolved" | LC_ALL=C awk -F'\t' '$1 == 2 { print $6 }' )" "keeper-rig,magic-tester"
+rigAssert "and it carries both members, in the order they were marked" "$( printf '%s\n' "$rigResolved" | LC_ALL=C awk -F'\t' '$1 == 2 { print $6 ; }' )" "keeper-rig,magic-tester"
 
 echo "-- 6c. the render is kept once it settles, and an append inside its own second rebuilds it --"
 rigInode(){ ## file -- its inode, which a rebuild changes where mtime may not

@@ -87,7 +87,7 @@ rigOut="$( rigScan )"
 
 echo "-- 1. a frame above a live frame, unmoved past the bound, is frame-stall with open=1 --"
 rigAssert "the unmoved upper frame reads frame-stall" "$( rigKindOf frame-stall rigupper | LC_ALL=C wc -l | LC_ALL=C tr -d ' ' )" 1
-rigAssert "naming its routine and open=1" "$( rigKindOf frame-stall rigupper | LC_ALL=C awk '{ print $5, $NF }' )" "rig-top.routine.md open=1"
+rigAssert "naming its routine and open=1" "$( rigKindOf frame-stall rigupper | LC_ALL=C awk '{ print $5, $NF ; }' )" "rig-top.routine.md open=1"
 
 echo "-- 2. a base frame is never frame-stall --"
 rigAssert "the two-hour base frame reads no frame-stall" "$( rigKindOf frame-stall rigbase0 | LC_ALL=C wc -l | LC_ALL=C tr -d ' ' )" 0

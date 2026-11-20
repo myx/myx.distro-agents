@@ -44,7 +44,7 @@ rigWho(){ ## the thread -- the verdict and its author the readers give Q7, `-` w
 	printf '%s' "$1" | LC_ALL=C awk -v rootTs=1700000200.000001 -v askingUsers="UBOT" -v fromUsers="rig-member UOWNER" -v tag="Q7" -v threadCount=1 -v others="" \
 		-f "$rigHere/questions/AgentsDismissalMatch.awk" -f "$rigHere/slack/AgentsSlackThreadAnswers.awk" 2> /dev/null \
 		| MDAT_VERDICT_KIND=question MDAT_VERDICT_SELECT=one MDAT_VERDICT_OPTIONS="$rigOptions" MDAT_VERDICT_AUTHORS="rig-member UOWNER" MDAT_VERDICT_ASKING="UBOT" \
-			LC_ALL=C awk -f "$rigHere/questions/AgentsEscalationVerdict.awk" 2> /dev/null | LC_ALL=C awk -F'\t' '$1 != "" && $1 != "RETURNED" { print $1 "/" $2 ; found = 1 ; exit } END { if ( ! found ) print "-" }'
+			LC_ALL=C awk -f "$rigHere/questions/AgentsEscalationVerdict.awk" 2> /dev/null | LC_ALL=C awk -F'\t' '$1 != "" && $1 != "RETURNED" { print $1 "/" $2 ; found = 1 ; exit ; } END { if ( ! found ) print "-" ; }'
 }
 rigRoot='1700000200.000001 | UBOT | [reactions: one x1 (UBOT)] [reactions: two x1 (UBOT)] [sender: magic-devops] # :question: Question Q7'
 rigAssert "the account that posted the ask never answers it: the option emoji it placed, one and two, are no verdict" "$( rigWho "$rigRoot"$'\n' )" "-"

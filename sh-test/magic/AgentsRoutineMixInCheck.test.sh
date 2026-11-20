@@ -55,31 +55,31 @@ rigAssert(){ ## what is asserted, got, want
 ## The names of the steps of a section of the kind's own file, in order: its sections below the heading (## and deeper), a space between them.
 rigFileSteps(){ ## file, heading
 	LC_ALL=C awk -v want="$2" '
-		/^# / { on = ( $0 == want ) ; next }
-		on && /^##+ / { name = $0 ; sub( /^#+ /, "", name ) ; printf "%s%s", sep, name ; sep = " " }
+		/^# / { on = ( $0 == want ) ; next ; }
+		on && /^##+ / { name = $0 ; sub( /^#+ /, "", name ) ; printf "%s%s", sep, name ; sep = " " ; }
 	' "$1" 2> /dev/null
 }
 ## The names of the steps of one section of a mixed text, in order: the sections of depth 3 and below (the kind's steps, the engine's form) and the
 ## numbered root steps `N. **name**` (a routine's own), a space between them. The section is named by its whole heading line.
 rigSteps(){ ## file, heading
 	LC_ALL=C awk -v want="$2" '
-		/^# / { on = ( $0 == want ) ; next }
-		on && /^###+ / { name = $0 ; sub( /^#+ /, "", name ) ; printf "%s%s", sep, name ; sep = " " ; next }
-		on && /^[0-9]+\. \*\*[^*]+\*\*/ { name = $0 ; sub( /^[0-9]+\. \*\*/, "", name ) ; sub( /\*\*.*$/, "", name ) ; printf "%s%s", sep, name ; sep = " " }
+		/^# / { on = ( $0 == want ) ; next ; }
+		on && /^###+ / { name = $0 ; sub( /^#+ /, "", name ) ; printf "%s%s", sep, name ; sep = " " ; next ; }
+		on && /^[0-9]+\. \*\*[^*]+\*\*/ { name = $0 ; sub( /^[0-9]+\. \*\*/, "", name ) ; sub( /\*\*.*$/, "", name ) ; printf "%s%s", sep, name ; sep = " " ; }
 	' "$1" 2> /dev/null
 }
 rigLine(){ ## file, heading -- the line number of that heading, or 0
-	LC_ALL=C grep -n -x -F -- "$2" "$1" 2> /dev/null | LC_ALL=C sed -n '1s/:.*//p' | LC_ALL=C awk '{ print ( $1 == "" ) ? 0 : $1 }'
+	LC_ALL=C grep -n -x -F -- "$2" "$1" 2> /dev/null | LC_ALL=C sed -n '1s/:.*//p' | LC_ALL=C awk '{ print ( $1 == "" ) ? 0 : $1 ; }'
 }
 ## The same without one step and everything under it (a skipped group takes its steps with it).
 rigFileStepsWithout(){ ## file, heading, step
 	LC_ALL=C awk -v want="$2" -v skip="$3" '
-		/^# / { on = ( $0 == want ) ; skipping = 0 ; next }
+		/^# / { on = ( $0 == want ) ; skipping = 0 ; next ; }
 		on && /^##+ / {
 			name = $0 ; level = match( $0, /[^#]/ ) - 1 ; sub( /^#+ /, "", name )
-			if ( skipping && level <= skipLevel ) { skipping = 0 }
-			if ( name == skip ) { skipping = 1 ; skipLevel = level }
-			if ( ! skipping ) { printf "%s%s", sep, name ; sep = " " }
+			if ( skipping && level <= skipLevel ) { skipping = 0 ; }
+			if ( name == skip ) { skipping = 1 ; skipLevel = level ; }
+			if ( ! skipping ) { printf "%s%s", sep, name ; sep = " " ; }
 		}
 	' "$1" 2> /dev/null
 }

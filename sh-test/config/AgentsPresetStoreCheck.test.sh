@@ -99,7 +99,7 @@ rigAssert "the block is a file of its own, among the scopes"                    
 rigAssert "in the mode of a scope (660)"                                          "$( LC_ALL=C ls -l "$rigAgents/preset-mel-claude.agent.env" | LC_ALL=C cut -c1-10 )" "-rw-rw----"
 rigAssert "the reader of the scopes reads its key"                                "$( rigGet mel-claude PRESET_CLI_SERVICE )" claude
 rigRun --manager-config-digest scopes
-rigAssert "the digest lists it as a scope of its own, with its key and value"      "$( LC_ALL=C awk -F'\t' '$1 == "line" && $2 == "scopes" && $3 == "preset-mel-claude" && $4 == "PRESET_CLI_SERVICE" { print $5, $6 }' "$rigTmp/run.out" )" "set claude"
+rigAssert "the digest lists it as a scope of its own, with its key and value"      "$( LC_ALL=C awk -F'\t' '$1 == "line" && $2 == "scopes" && $3 == "preset-mel-claude" && $4 == "PRESET_CLI_SERVICE" { print $5, $6 ; }' "$rigTmp/run.out" )" "set claude"
 
 echo "-- B. the CLI service: the eleven, no other --"
 rigNine=0
@@ -207,8 +207,8 @@ rigAssert "a preset on standard-v1 takes both of its credentials"               
 rigAssert "and refuses a credential of another CLI service"                        "$( rigSet mel-standard XAI_API_KEY "$rigSecretC" )" 1
 rigAssert "an extending preset takes the credentials of the inherited service"    "$( rigSet mel-claude-sonnet PRESET_EXTEND mel-claude )$( rigSet mel-claude-sonnet CLAUDE_CODE_OAUTH_TOKEN "$rigSecretB" )$( rigSet mel-claude-sonnet SCALEWAY_GEMMA "$rigSecretC" )" 001
 rigRun --manager-config-digest scopes
-rigAssert "the digest shows a credential of a preset in the one form (first quarter, then *)" "$( LC_ALL=C awk -F'\t' '$1 == "line" && $3 == "preset-mel-claude" && $4 == "ANTHROPIC_API_KEY" { print $5 }' "$rigTmp/run.out" )" "secret-set"
-rigAssert "the digest does not give the extra spawn line a credential's form"        "$( LC_ALL=C awk -F'\t' '$1 == "line" && $3 == "preset-mel-model" && $4 == "PRESET_EXTRA_SPAWN_LINE" { print $5 }' "$rigTmp/run.out" )" "set"
+rigAssert "the digest shows a credential of a preset in the one form (first quarter, then *)" "$( LC_ALL=C awk -F'\t' '$1 == "line" && $3 == "preset-mel-claude" && $4 == "ANTHROPIC_API_KEY" { print $5 ; }' "$rigTmp/run.out" )" "secret-set"
+rigAssert "the digest does not give the extra spawn line a credential's form"        "$( LC_ALL=C awk -F'\t' '$1 == "line" && $3 == "preset-mel-model" && $4 == "PRESET_EXTRA_SPAWN_LINE" { print $5 ; }' "$rigTmp/run.out" )" "set"
 
 echo "-- H. a preset key stands in a preset; every other key and scope is written as it was --"
 printf 'SPAWN_CLI_SERVICE=claude\n' > "$rigAgents/magic-team.agent.env" ; printf '# member\n' > "$rigAgents/keeper-rig.agent.env"

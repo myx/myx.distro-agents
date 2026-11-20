@@ -191,7 +191,7 @@ rigWaitFor "$rigTmp/brief.rig-member-a" || rigRefuse "rig-member-a's own console
 rigParentRecord="$( LC_ALL=C grep -l -x -F 'agent-less: true' "$rigWs/.local/agents/spawned"/*/*.spawn.md 2>/dev/null | head -1 )"
 rigChild="$( LC_ALL=C sed -n 's/^children: //p' "$rigParentRecord" 2>/dev/null )"
 rigAssert "the call fails, its parent record names the one child started, and the error names it too" \
-	"$rigRc $( printf '%s\n' "$rigChild" | LC_ALL=C awk '{ print NF }' ) $( printf '%s\n' "$rigOut" | LC_ALL=C grep -c -F -- "watches the children already started, and closes over them: $rigChild" ) $( LC_ALL=C grep -c -E '^run-process: [0-9]+ ' "$rigParentRecord" 2>/dev/null )" "1 1 1 1"
+	"$rigRc $( printf '%s\n' "$rigChild" | LC_ALL=C awk '{ print NF ; }' ) $( printf '%s\n' "$rigOut" | LC_ALL=C grep -c -F -- "watches the children already started, and closes over them: $rigChild" ) $( LC_ALL=C grep -c -E '^run-process: [0-9]+ ' "$rigParentRecord" 2>/dev/null )" "1 1 1 1"
 rigLeft=30 ; while LC_ALL=C grep -q -x -F 'status: spawn-started' "$rigParentRecord" 2>/dev/null && [ "$rigLeft" -gt 0 ] ; do sleep 1 ; rigLeft=$(( rigLeft - 1 )) ; done
 rigAssert "and its watcher closes it over that child, failed, the failed start kept" "$( LC_ALL=C sed -n 's/^status: //p' "$rigParentRecord" ) $( LC_ALL=C sed -n 's/^start-failed: //p' "$rigParentRecord" )" "spawn-failed rig-member-c"
 chmod -R u+w -- "$rigWs/.local/agents/spawned" 2>/dev/null ; rm -rf "$rigWs/.local/agents/spawned" "$rigSkills/rig-member-c"
@@ -225,11 +225,11 @@ rigOut="$( rigRun "RIG-TASK-TEXT" --routine-default --workers 1 rig-member-a rig
 rigSessionId="$( printf '%s\n' "$rigOut" | LC_ALL=C awk -F= '$1 == "SESSION_ID" { print $2 ; }' )"
 rigParentRecord="$rigWs/.local/agents/spawned/$rigSessionId/$rigSessionId.spawn.md"
 rigAssert "one child is started, the other is queued on the record and named so" \
-	"$( printf '%s\n' "$rigOut" | LC_ALL=C sed -n 's/^CHILDREN=//p' | LC_ALL=C awk '{ print NF }' ) $( printf '%s\n' "$rigOut" | LC_ALL=C sed -n 's/^PENDING=//p' ) $( LC_ALL=C sed -n 's/^workers: //p' "$rigParentRecord" )" "1 rig-member-b 1"
+	"$( printf '%s\n' "$rigOut" | LC_ALL=C sed -n 's/^CHILDREN=//p' | LC_ALL=C awk '{ print NF ; }' ) $( printf '%s\n' "$rigOut" | LC_ALL=C sed -n 's/^PENDING=//p' ) $( LC_ALL=C sed -n 's/^workers: //p' "$rigParentRecord" )" "1 rig-member-b 1"
 ## The close's own post follows the status by a moment, so the record is read once both are there.
 rigLeft=40 ; while { LC_ALL=C grep -q -x -F 'status: spawn-started' "$rigParentRecord" 2>/dev/null || ! LC_ALL=C sed -n 's/^posted: //p' "$rigParentRecord" | LC_ALL=C grep -q -w -F end ; } && [ "$rigLeft" -gt 0 ] ; do sleep 1 ; rigLeft=$(( rigLeft - 1 )) ; done
 rigAssert "the watcher starts the queued one once the first closes, then closes the parent over both, each post marked once" \
-	"$( LC_ALL=C sed -n 's/^status: //p' "$rigParentRecord" ) $( LC_ALL=C grep -l -x -F "parent-session-id: $rigSessionId" "$rigWs/.local/agents/spawned"/*/*.spawn.md 2>/dev/null | LC_ALL=C grep -c . ) $( LC_ALL=C grep -c -x 'pending: *' "$rigParentRecord" ) $( LC_ALL=C sed -n 's/^posted: //p' "$rigParentRecord" | LC_ALL=C tr ' ' '\n' | LC_ALL=C sed 's/:.*//' | LC_ALL=C sort | LC_ALL=C uniq -c | LC_ALL=C awk '{ printf "%s=%s ", $2, $1 }' )" \
+	"$( LC_ALL=C sed -n 's/^status: //p' "$rigParentRecord" ) $( LC_ALL=C grep -l -x -F "parent-session-id: $rigSessionId" "$rigWs/.local/agents/spawned"/*/*.spawn.md 2>/dev/null | LC_ALL=C grep -c . ) $( LC_ALL=C grep -c -x 'pending: *' "$rigParentRecord" ) $( LC_ALL=C sed -n 's/^posted: //p' "$rigParentRecord" | LC_ALL=C tr ' ' '\n' | LC_ALL=C sed 's/:.*//' | LC_ALL=C sort | LC_ALL=C uniq -c | LC_ALL=C awk '{ printf "%s=%s ", $2, $1 ; }' )" \
 	"spawn-succeeded 2 1 closed=2 end=1 start=1 started=1 "
 chmod -R u+w -- "$rigWs/.local/agents/spawned" 2>/dev/null ; rm -rf "$rigWs/.local/agents/spawned"
 ## The caller's own thread is the parent's, recorded before the first child starts (S5 item 1).
@@ -254,7 +254,7 @@ rigSessionId="$( printf '%s\n' "$rigOut" | LC_ALL=C awk -F= '$1 == "SESSION_ID" 
 rigParentRecord="$rigWs/.local/agents/spawned/$rigSessionId/$rigSessionId.spawn.md"
 rigLeft=40 ; while LC_ALL=C grep -q -x -F 'status: spawn-started' "$rigParentRecord" 2>/dev/null && [ "$rigLeft" -gt 0 ] ; do sleep 1 ; rigLeft=$(( rigLeft - 1 )) ; done
 rigAssert "one member and two scopes, one repeated: two children under one agent-less parent, each record naming its scope" \
-	"$( printf '%s\n' "$rigOut" | LC_ALL=C sed -n 's/^CHILDREN=//p' | LC_ALL=C awk '{ print NF }' ) $( LC_ALL=C sed -n 's/^scope: //p' $( LC_ALL=C grep -l -x -F "parent-session-id: $rigSessionId" "$rigWs/.local/agents/spawned"/*/*.spawn.md 2>/dev/null ) 2>/dev/null | LC_ALL=C sort | LC_ALL=C tr '\n' '|' )" \
+	"$( printf '%s\n' "$rigOut" | LC_ALL=C sed -n 's/^CHILDREN=//p' | LC_ALL=C awk '{ print NF ; }' ) $( LC_ALL=C sed -n 's/^scope: //p' $( LC_ALL=C grep -l -x -F "parent-session-id: $rigSessionId" "$rigWs/.local/agents/spawned"/*/*.spawn.md 2>/dev/null ) 2>/dev/null | LC_ALL=C sort | LC_ALL=C tr '\n' '|' )" \
 	"2 ns one|ns-two|"
 rigAssert "the brief of a scoped child names its scope, and the parent closes over both" \
 	"$( LC_ALL=C grep -c -x -E 'scope: (ns one|ns-two)' "$rigTmp/brief.rig-member-a" 2>/dev/null ) $( LC_ALL=C sed -n 's/^status: //p' "$rigParentRecord" )" "1 spawn-succeeded"

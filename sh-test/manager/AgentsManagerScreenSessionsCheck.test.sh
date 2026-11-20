@@ -321,7 +321,7 @@ keys LEFT$( rigKeys PGUP 20 )
 get first
 RIGSCRIPT
 rigCpuMark after
-rigSecondsTaken="$( LC_ALL=C awk 'function sec( word,   part ) { split( word, part, /[ms]/ ) ; return part[1] * 60 + part[2] } FNR == 2 { total[ FILENAME ] = sec( $1 ) + sec( $2 ) } END { print int( total[ ARGV[ 2 ] ] - total[ ARGV[ 1 ] ] ) }' "$rigTmp/cpu.before" "$rigTmp/cpu.after" )"
+rigSecondsTaken="$( LC_ALL=C awk 'function sec( word,   part ) { split( word, part, /[ms]/ ) ; return part[1] * 60 + part[2] ; } FNR == 2 { total[ FILENAME ] = sec( $1 ) + sec( $2 ) ; } END { print int( total[ ARGV[ 2 ] ] - total[ ARGV[ 1 ] ] ) ; }' "$rigTmp/cpu.before" "$rigTmp/cpu.after" )"
 rigAssert "the pane has thirty lines, and the level five hundred sessions under its first row" "$( rigVal a.listHeight ) $( rigVal a.rows )" "29 501"
 rigAssert "four hundred times Down moves the selection four hundred rows, with its row in view" "$( rigVal moved.index ) $( rigVal moved.top ) [$( rigVal movedRow )]" "400 372 [>session 101            finished ►]"
 rigAssert "PageDown reaches the last one"                            "$( rigVal last.index ) $( rigVal last.top ) [$( rigVal lastRow )]" "500 472 [>session 001            finished ►]"
@@ -335,10 +335,10 @@ echo "-- a session row of eight fields still draws, and the three more fields ch
 ## now: one with a stored state and a live control thread, one whose thread is gone, one that ended in order, and
 ## two that never had one. The `run` rows and the row of counters are as they were.
 LC_ALL=C awk -F'\t' '
-	$1 != "session" { print ; next }
-	{ sessionNo++ ; print $0 "\t" ( sessionNo == 1 ? "running\t2026-10-12_16:58_+0300\talive" : sessionNo == 2 ? "member-dead\t2026-10-12_09:40_+0300\tgone" : sessionNo == 3 ? "finished\t2026-10-11_14:51_+0300\tnone" : "-\t-\tnone" ) }
+	$1 != "session" { print ; next ; }
+	{ sessionNo++ ; print $0 "\t" ( sessionNo == 1 ? "running\t2026-10-12_16:58_+0300\talive" : sessionNo == 2 ? "member-dead\t2026-10-12_09:40_+0300\tgone" : sessionNo == 3 ? "finished\t2026-10-11_14:51_+0300\tnone" : "-\t-\tnone" ) ; }
 ' "$rigTmp/five.rows" > "$rigTmp/wide.rows"
-rigAssert "control: each of the five session rows of the fixture has eleven fields now, and every other row is as it was" "$( LC_ALL=C awk -F'\t' '$1 == "session" { rows++ ; if ( NF == 11 ) wide++ } END { print rows + 0 ":" wide + 0 }' "$rigTmp/wide.rows" ) $( LC_ALL=C grep -v '^session' "$rigTmp/wide.rows" | cmp -s - <( LC_ALL=C grep -v '^session' "$rigTmp/five.rows" ) && echo same )" "5:5 same"
+rigAssert "control: each of the five session rows of the fixture has eleven fields now, and every other row is as it was" "$( LC_ALL=C awk -F'\t' '$1 == "session" { rows++ ; if ( NF == 11 ) wide++ ; } END { print rows + 0 ":" wide + 0 ; }' "$rigTmp/wide.rows" ) $( LC_ALL=C grep -v '^session' "$rigTmp/wide.rows" | cmp -s - <( LC_ALL=C grep -v '^session' "$rigTmp/five.rows" ) && echo same )" "5:5 same"
 rigWideDrawn(){ ## the fixture -- what the screen draws of it: the list, the left pane of a session, its level, the left pane of an agent, and of a closed session
 	rigCase "wide-$1" "$1"
 	rigScript <<'RIGSCRIPT'
@@ -369,9 +369,9 @@ RIGSCRIPT
 }
 rigDrawnEight="$( rigWideDrawn five.rows )"
 rigDrawnEleven="$( rigWideDrawn wide.rows )"
-rigAssert "control: the screen was driven through the list, a session, its level and an agent, and drew each" "$( printf '%s\n' "$rigDrawnEight" | LC_ALL=C grep -c -e '^l|' -e '^s|' -e '^i|' -e '^t|' -e '^u|' | LC_ALL=C awk '{ print ( $1 >= 200 ) ? "drawn" : "not drawn: " $1 }' ) $( printf '%s\n' "$rigDrawnEight" | LC_ALL=C sed -n 's/^a\.rows=//p' ) $( printf '%s\n' "$rigDrawnEight" | LC_ALL=C sed -n 's/^in\.path=//p' ) $( printf '%s\n' "$rigDrawnEight" | LC_ALL=C grep -c 'DRIVER-FAILED' )" "drawn 5 magic-team/activity/active-sessions/$rigS1 0"
+rigAssert "control: the screen was driven through the list, a session, its level and an agent, and drew each" "$( printf '%s\n' "$rigDrawnEight" | LC_ALL=C grep -c -e '^l|' -e '^s|' -e '^i|' -e '^t|' -e '^u|' | LC_ALL=C awk '{ print ( $1 >= 200 ) ? "drawn" : "not drawn: " $1 ; }' ) $( printf '%s\n' "$rigDrawnEight" | LC_ALL=C sed -n 's/^a\.rows=//p' ) $( printf '%s\n' "$rigDrawnEight" | LC_ALL=C sed -n 's/^in\.path=//p' ) $( printf '%s\n' "$rigDrawnEight" | LC_ALL=C grep -c 'DRIVER-FAILED' )" "drawn 5 magic-team/activity/active-sessions/$rigS1 0"
 rigLeftOf(){ ## a drawing -- its lines as they are, but of each line of a screen the left pane alone, without the spaces at its end, and of that nothing where it speaks of a control thread, nor anything of the left pane of the list (l), whose table of the sessions marks a thread that is gone; how many lines the pane holds is left out, and how many writes a drawing took, since the line of a control thread is drawn in the colour of its state, and how many times the screen was drawn, which is as many as the turns it waited for a call, by the clock of the host
-	printf '%s\n' "$1" | LC_ALL=C grep -v -e '\.viewLines=' -e '\.frames=' -e '\.puts=' | LC_ALL=C awk '{ rest = substr( $0, 6 ) ; cutAt = index( rest, "│" ) ; if ( substr( $0, 2, 1 ) != "|" || substr( $0, 3, 3 ) != "│" || ! cutAt ) { print ; next } leftText = substr( $0, 1, 5 ) substr( rest, 1, cutAt - 1 ) ; sub( / +$/, "", leftText ) ; if ( leftText ~ /control/ || substr( $0, 1, 1 ) == "l" ) leftText = substr( $0, 1, 5 ) ; print leftText }'
+	printf '%s\n' "$1" | LC_ALL=C grep -v -e '\.viewLines=' -e '\.frames=' -e '\.puts=' | LC_ALL=C awk '{ rest = substr( $0, 6 ) ; cutAt = index( rest, "│" ) ; if ( substr( $0, 2, 1 ) != "|" || substr( $0, 3, 3 ) != "│" || ! cutAt ) { print ; next ; } leftText = substr( $0, 1, 5 ) substr( rest, 1, cutAt - 1 ) ; sub( / +$/, "", leftText ) ; if ( leftText ~ /control/ || substr( $0, 1, 1 ) == "l" ) leftText = substr( $0, 1, 5 ) ; print leftText ; }'
 }
 rigListOf(){ ## a drawing -- of each line of a screen the list alone, after the tag of its screen, without the spaces at its end
 	printf '%s\n' "$1" | LC_ALL=C grep '^[a-z]|.*│║' | LC_ALL=C sed -e 's/^\(..\).*│║/\1/' -e 's/ *║|$//'
@@ -386,10 +386,10 @@ echo "-- a session one of whose runs the provider refused for its usage limit --
 ## the operation prints now: its tokens, and the usage-limit flag -- the one wording with the date
 ## it reopens, on the session of the waiting run, `-` on every other. The `run` rows are as they were.
 LC_ALL=C awk -F'\t' '
-	$1 != "session" { print ; next }
-	{ sessionNo++ ; print $0 "\t" ( sessionNo == 2 ? "100\tstopped on the provider usage limit: reopens 2026-11-01 00:00 UTC" : "-\t-" ) }
+	$1 != "session" { print ; next ; }
+	{ sessionNo++ ; print $0 "\t" ( sessionNo == 2 ? "100\tstopped on the provider usage limit: reopens 2026-11-01 00:00 UTC" : "-\t-" ) ; }
 ' "$rigTmp/wide.rows" > "$rigTmp/limit.rows"
-rigAssert "control: the one flagged session row has thirteen fields, and every other row is as it was" "$( LC_ALL=C awk -F'\t' '$1 == "session" { rows++ ; if ( NF == 13 && $13 != "-" ) flagged++ } END { print rows + 0 ":" flagged + 0 }' "$rigTmp/limit.rows" ) $( LC_ALL=C grep -v '^session' "$rigTmp/limit.rows" | cmp -s - <( LC_ALL=C grep -v '^session' "$rigTmp/wide.rows" ) && echo same )" "5:1 same"
+rigAssert "control: the one flagged session row has thirteen fields, and every other row is as it was" "$( LC_ALL=C awk -F'\t' '$1 == "session" { rows++ ; if ( NF == 13 && $13 != "-" ) flagged++ ; } END { print rows + 0 ":" flagged + 0 ; }' "$rigTmp/limit.rows" ) $( LC_ALL=C grep -v '^session' "$rigTmp/limit.rows" | cmp -s - <( LC_ALL=C grep -v '^session' "$rigTmp/wide.rows" ) && echo same )" "5:1 same"
 rigCase limit limit.rows
 rigScript <<'RIGSCRIPT'
 size 120 40

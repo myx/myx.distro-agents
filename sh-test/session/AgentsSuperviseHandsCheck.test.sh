@@ -153,7 +153,7 @@ rigRow(){ ## output, the leading word -- how many rows begin with it
 	printf '%s\n' "$1" | LC_ALL=C awk -v want="$2" '$1 == want' | LC_ALL=C wc -l | LC_ALL=C tr -d ' '
 }
 rigField(){ ## output, the leading word, the field number -- that word of the first such row
-	printf '%s\n' "$1" | LC_ALL=C awk -v want="$2" -v at="$3" -F'\t' '$1 == want { print $at ; exit }'
+	printf '%s\n' "$1" | LC_ALL=C awk -v want="$2" -v at="$3" -F'\t' '$1 == want { print $at ; exit ; }'
 }
 rigClean(){ ## none -- whether the rig store holds anything uncommitted under audit/
 	[ -n "$( git -C "$rigData" status --porcelain -- audit 2> /dev/null )" ] && printf dirty || printf clean
@@ -231,7 +231,7 @@ rigAssert "the fault names the run, its member, its session and its item" "$rigF
 rigAssert "and carries the evidence it was filed with" \
 	"$( LC_ALL=C grep -c -F -e 'the check fails at row 3' -e 'stack: line 44' "$rigData/inboxes/magic-tester/incoming/$rigFault" )" "2"
 rigAssert "the item's Decisions link the fault to the run" \
-	"$( LC_ALL=C awk -v fault="$rigFault" -v run="$rigRun" 'index( $0, fault ) && index( $0, "blocks run " run ) { n++ } END { print n + 0 }' "$rigData/board/review/dispatch-rig-item.md" )" "1"
+	"$( LC_ALL=C awk -v fault="$rigFault" -v run="$rigRun" 'index( $0, fault ) && index( $0, "blocks run " run ) { n++ ; } END { print n + 0 ; }' "$rigData/board/review/dispatch-rig-item.md" )" "1"
 rigAssert "and the link names the item" "$( rigField "$rigOut" linked 2 )" "dispatch-rig-item"
 
 echo "-- 6. the transcripts nobody committed reach a commit --"
@@ -243,7 +243,7 @@ rigAssert "and commits nothing" "$( rigClean )" "dirty"
 rigOut="$( rigCall --supervise-commit-transcripts )" ; rigRc=$?
 rigAssert "the sweep commits it" "$rigRc $( rigField "$rigOut" commit 2 )" "0 audit/2026-11/session-rig-$rigRun.log"
 rigAssert "and the store is clean under audit/ after it" "$( rigClean )" "clean"
-rigAssert "a second sweep finds nothing to commit" "$( rigCall --supervise-commit-transcripts | LC_ALL=C awk '$1 == "commit" { print $2 ; exit }' )" "none"
+rigAssert "a second sweep finds nothing to commit" "$( rigCall --supervise-commit-transcripts | LC_ALL=C awk '$1 == "commit" { print $2 ; exit ; }' )" "none"
 rigAssert "the transcript the sweep committed holds its seed and its sweep, and no more" \
 	"$( git -C "$rigData" log --oneline -- "audit/2026-11/session-rig-$rigRun.log" | LC_ALL=C wc -l | LC_ALL=C tr -d ' ' )" "2"
 rigAssert "and the transcript nobody touched is left at its one commit" \

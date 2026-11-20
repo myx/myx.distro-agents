@@ -109,7 +109,7 @@ rigResult(){ ## label
 rigFrames(){
 	env -i HOME="$rigTmp/home" PATH="$PATH" MMDAPP="$rigWs" MDLT_ORIGIN="$rigOrigin" MDAT_DATA_ROOT="$rigScn/data" \
 		bash -c '. "$1" ; AgentsToolsSessionRoutineStackLines "$2"' rig "$rigHere/routine/AgentsTools.RoutineStack.include" "$rigSession" 2> /dev/null \
-		| LC_ALL=C sed -n 's/^routine-stack: //p' | LC_ALL=C awk 'BEGIN { ORS = "" } { printf "%s%s", ( NR > 1 ? " → " : "" ), $0 }'
+		| LC_ALL=C sed -n 's/^routine-stack: //p' | LC_ALL=C awk 'BEGIN { ORS = "" ; } { printf "%s%s", ( NR > 1 ? " → " : "" ), $0 ; }'
 }
 rigListSum(){ LC_ALL=C cksum < "$rigList" 2> /dev/null ; }
 rigOutHolds(){ LC_ALL=C grep -c -F -- "$1" "$rigOut" 2> /dev/null || : ; }
@@ -173,7 +173,7 @@ rigAssert "and it starts past the step the member's own list has closed" "$( rig
 rigSettle(){ ## -- rc 0 once no process of this rig is left, rc 1 at the bound
 	local settleLeft=90
 	while [ "$settleLeft" -gt 0 ] ; do
-		[ "$( ps -A -ww -o args= 2>/dev/null | LC_ALL=C awk -v rig="$rigTmp" 'index( $0, rig ) && !/awk/ { n++ } END { print n + 0 }' )" != "0" ] || return 0
+		[ "$( ps -A -ww -o args= 2>/dev/null | LC_ALL=C awk -v rig="$rigTmp" 'index( $0, rig ) && !/awk/ { n++ ; } END { print n + 0 ; }' )" != "0" ] || return 0
 		sleep 1 ; settleLeft=$(( settleLeft - 1 ))
 	done
 	return 1

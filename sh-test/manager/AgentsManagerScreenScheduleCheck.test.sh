@@ -95,13 +95,13 @@ RIGSCRIPT
 rigAssert "Magic-Team holds Schedule after Routines" "$( rigVal team | LC_ALL=C tr ' ' '\n' | LC_ALL=C grep -x -e routines -e schedule | LC_ALL=C tr '\n' ' ' )" "routines schedule "
 rigAssert "a row for each flag, in the order of the operation" "$( rigVal ids )" ".. worktime weekend holidays emergency overtime learning supervised"
 rigAssert "the schedule and the autorun are read once each, and nothing else is asked" "$( rigCalled '--manager-schedule-read' ) $( rigCalled '--manager-routine-list --facts-only' )" "1 1"
-rigAssert "the flags now: each with its answer and what it is from, an override with its time left" "$( rigHolds s 'worktime' ) $( rigHolds s 'yes (3600 seconds left)' ) $( rigHolds s 'no (default)' | LC_ALL=C awk '{ print ( $1 > 0 ) }' )" "3 1 1"
+rigAssert "the flags now: each with its answer and what it is from, an override with its time left" "$( rigHolds s 'worktime' ) $( rigHolds s 'yes (3600 seconds left)' ) $( rigHolds s 'no (default)' | LC_ALL=C awk '{ print ( $1 > 0 ) ; }' )" "3 1 1"
 rigAssert "how long to the next switch and what changes: the seconds as they were given, in words" "$( rigHolds s 'next switch' ) $( rigHolds s 'worktime starts in 5h 57m' )" "1 1"
 rigAssert "the week: several columns an hour, the hours across the top of each block of hours the pane's width allows" "$( rigHolds s '00    01    02' ) $( rigHolds s '12    13    14' )" "1 1"
 rigAssert "each cell has the mark of its flag and its glyph: worktime W, the weekend E, a line a day in each block" "$( rigHolds s 'sat  E░░░░ E░░░░ E░░░░' ) $( rigHolds s 'mon  W████ W████ W████' ) $( rigHolds s 'mon  ····· ····· ·····' )" "2 1 1"
 rigAssert "an hour that holds several flags is drawn by the strongest of them" "$( rigHolds s 'tue  !!!!! W████ W████' )" "1"
 ## the table of the routines that start by themselves is in the order they start, a routine that runs after another right under it
-rigOrder="$( printf '%s\n' "$rigOut" | LC_ALL=C grep '^s|' | LC_ALL=C grep -o -e 'owner\.[a-z]*  *\(daily\|workdays\|after\)[^│]*' | LC_ALL=C awk '{ print $1 }' | LC_ALL=C tr '\n' ' ' )"
+rigOrder="$( printf '%s\n' "$rigOut" | LC_ALL=C grep '^s|' | LC_ALL=C grep -o -e 'owner\.[a-z]*  *\(daily\|workdays\|after\)[^│]*' | LC_ALL=C awk '{ print $1 ; }' | LC_ALL=C tr '\n' ' ' )"
 rigAssert "the autorun table: by the time they start, a routine that runs after another right after its predecessor, and the one that never starts by itself not in it" "$rigOrder" "owner.bravo owner.delta owner.alpha owner.charlie "
 echo "-- a narrower pane gives the cells fewer columns: they follow the width --"
 rigCase narrow

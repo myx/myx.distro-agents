@@ -121,7 +121,7 @@ rigRecordOf(){ ## session id -- its record file
 ## ---- 1. the session and its recorded participants ----
 echo "-- 1. the executor starts, and the participants are named in the report and on the record --"
 rigOut="$( printf 'RIG-TASK-TEXT\n' | rigRun --routine-default --participants 'rig-member-b,rig-member-c' rig-member-a )"
-rigSessionId="$( printf '%s\n' "$rigOut" | LC_ALL=C awk -F= '$1 == "SESSION_ID" { print $2 ; exit }' )"
+rigSessionId="$( printf '%s\n' "$rigOut" | LC_ALL=C awk -F= '$1 == "SESSION_ID" { print $2 ; exit ; }' )"
 rigAssert "a session id is reported"                     "$( [ -n "$rigSessionId" ] && printf yes || printf no )" yes
 rigAssert "the report names the participants it was given" "$( printf '%s\n' "$rigOut" | LC_ALL=C grep -c -x -F 'PARTICIPANTS=rig-member-b rig-member-c' )" 1
 rigRecord="$( rigRecordOf "$rigSessionId" )"

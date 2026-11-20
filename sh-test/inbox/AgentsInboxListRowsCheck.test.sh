@@ -48,7 +48,7 @@ rigList(){ ## out file, arguments... -- one listing call; rc into <out>.rc
 }
 ## A row is a line whose first tab field is the folder's own state word: the header line and any prose are none.
 rigRows(){ ## out file -- its rows only
-	LC_ALL=C awk -F'\t' '$1 == "incoming" || $1 == "processed" { print }' "$1" 2> /dev/null
+	LC_ALL=C awk -F'\t' '$1 == "incoming" || $1 == "processed" { print ; }' "$1" 2> /dev/null
 }
 rigRowCount(){ ## out file, state word
 	rigRows "$1" | LC_ALL=C grep -c "^$2" || :
@@ -65,7 +65,7 @@ rigAssert "and holds no row, the option not being given"         "$( rigRows "$r
 rigList "$rigTmp/l2" --list-inbox-items --of rig-member --include-processed
 rigAssert "with --include-processed it succeeds"                 "$( cat "$rigTmp/l2.rc" )" 0
 rigAssert "and holds one row per processed item, three"          "$( rigRowCount "$rigTmp/l2" processed )" 3
-rigAssert "each row naming its own item"                         "$( rigRows "$rigTmp/l2" | LC_ALL=C awk -F'\t' '{ print $2 }' | LC_ALL=C sort | LC_ALL=C tr '\n' ' ' )" "note-20261101T0900Z-one.md note-20261101T0900Z-three.md note-20261101T0900Z-two.md "
+rigAssert "each row naming its own item"                         "$( rigRows "$rigTmp/l2" | LC_ALL=C awk -F'\t' '{ print $2 ; }' | LC_ALL=C sort | LC_ALL=C tr '\n' ' ' )" "note-20261101T0900Z-one.md note-20261101T0900Z-three.md note-20261101T0900Z-two.md "
 
 echo "-- 2. a suffix-less entry beside a real one: the real one is still a row --"
 printf 'a name that is no item\n' > "$rigInbox/incoming/reflection-20261030T0000Z-suffixless"

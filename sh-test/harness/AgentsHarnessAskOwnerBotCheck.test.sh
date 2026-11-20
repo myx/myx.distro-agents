@@ -106,7 +106,7 @@ rigPostedAs(){ ## post number
 	cat "$rigScenarioDir/posted-as.$1" 2>/dev/null || printf 'no-such-post'
 }
 rigVerdictLine(){
-	LC_ALL=C awk '/^VERDICT: / { print ; found = 1 ; exit ; } END { if ( ! found ) { print "no-verdict-line" ; } }' "$rigScenarioDir/out"
+	LC_ALL=C awk '/^VERDICT: / { print ; found = 1 ; exit ; } END { if ( ! found ) { print "no-verdict-line" ; } ; }' "$rigScenarioDir/out"
 }
 rigRecordFile(){
 	local recordFile
@@ -116,7 +116,7 @@ rigRecordFile(){
 	printf '%s' "$rigScenarioDir/no-record"
 }
 rigRecordField(){ ## field
-	LC_ALL=C awk -v key="$1" '$0 == "---" { if ( ++dashes == 2 ) { exit ; } next ; } dashes == 1 && index( $0, key ": " ) == 1 { print substr( $0, length( key ) + 3 ) ; found = 1 ; exit ; } END { if ( ! found ) { print "none" ; } }' "$( rigRecordFile )" 2>/dev/null || printf 'no-record'
+	LC_ALL=C awk -v key="$1" '$0 == "---" { if ( ++dashes == 2 ) { exit ; } next ; } dashes == 1 && index( $0, key ": " ) == 1 { print substr( $0, length( key ) + 3 ) ; found = 1 ; exit ; } END { if ( ! found ) { print "none" ; } ; }' "$( rigRecordFile )" 2>/dev/null || printf 'no-record'
 }
 rigRecordId(){
 	local recordId

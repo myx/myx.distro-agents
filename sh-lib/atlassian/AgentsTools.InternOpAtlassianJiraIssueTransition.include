@@ -55,12 +55,12 @@
 			set +e ; return 1
 		fi
 		local jiraITMatchedIds jiraITMatchCount
-		jiraITMatchedIds="$( printf '%s\n' "$jiraITRows" | LC_ALL=C awk -F'\t' -v want="$jiraITToStatus" '$3 == want { print $1 }' )"
+		jiraITMatchedIds="$( printf '%s\n' "$jiraITRows" | LC_ALL=C awk -F'\t' -v want="$jiraITToStatus" '$3 == want { print $1 ; }' )"
 		jiraITMatchCount=0
-		[ -z "$jiraITMatchedIds" ] || jiraITMatchCount="$( printf '%s\n' "$jiraITMatchedIds" | LC_ALL=C awk 'END { print NR }' )"
+		[ -z "$jiraITMatchedIds" ] || jiraITMatchCount="$( printf '%s\n' "$jiraITMatchedIds" | LC_ALL=C awk 'END { print NR ; }' )"
 		if [ "$jiraITMatchCount" -eq 0 ] ; then
 			printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraITContext: no transition leads to a status named exactly '$jiraITToStatus' from issue $jiraITKey's own current status -- nothing was changed. Transitions available from here (action -> destination status):" >&2
-			printf '%s\n' "$jiraITRows" | LC_ALL=C awk -F'\t' '{ print "#   " $2 " -> " $3 }' >&2
+			printf '%s\n' "$jiraITRows" | LC_ALL=C awk -F'\t' '{ print "#   " $2 " -> " $3 ; }' >&2
 			set +e ; return 1
 		fi
 		if [ "$jiraITMatchCount" -gt 1 ] ; then

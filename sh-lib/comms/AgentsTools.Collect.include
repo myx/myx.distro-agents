@@ -53,7 +53,7 @@ AgentsToolsCollectStateSet(){ ## kind, member, key, value, ...
 	{ [ ! -f "$setPath" ] || cat "$setPath" ; } | SET_PAIRS="$setPairs" LC_ALL=C awk '
 		BEGIN { count = split( ENVIRON["SET_PAIRS"], rows, "\n" ) ; for ( i = 1 ; i <= count ; i++ ) { if ( rows[i] == "" ) { continue ; } split( rows[i], f, "\t" ) ; want[f[1]] = f[2] ; order[++n] = f[1] ; } ; }
 		{ key = $1 ; if ( key in want ) { if ( ! ( key in done ) && want[key] != "" ) { print key " " want[key] ; } done[key] = 1 ; next ; } print ; }
-		END { for ( i = 1 ; i <= n ; i++ ) { if ( ! ( order[i] in done ) && want[order[i]] != "" ) { print order[i] " " want[order[i]] ; done[order[i]] = 1 ; } } ; }
+		END { for ( i = 1 ; i <= n ; i++ ) { if ( ! ( order[i] in done ) && want[order[i]] != "" ) { print order[i] " " want[order[i]] ; done[order[i]] = 1 ; } ; } ; }
 	' > "$setTmp" && mv -f "$setTmp" "$setPath" || { rm -f "$setTmp" ; return 1 ; }
 	return 0
 }
@@ -230,7 +230,7 @@ AgentsToolsCollectMail(){ ## member, since
 		return 1
 	fi
 	mailPass=""
-	mailUids="$( printf '%s\n' "$mailOut" | LC_ALL=C awk '{ sub( /\r$/, "" ) ; } /^\* SEARCH/ { seen = 1 ; for ( i = 3 ; i <= NF ; i++ ) { print $i ; } } END { if ( ! seen ) { exit 1 ; } }' )" || {
+	mailUids="$( printf '%s\n' "$mailOut" | LC_ALL=C awk '{ sub( /\r$/, "" ) ; } /^\* SEARCH/ { seen = 1 ; for ( i = 3 ; i <= NF ; i++ ) { print $i ; } ; } END { if ( ! seen ) { exit 1 ; } ; }' )" || {
 		agentsCollectWhy="the IMAP session returned no search answer"
 		rm -rf "$mailWork"
 		return 1

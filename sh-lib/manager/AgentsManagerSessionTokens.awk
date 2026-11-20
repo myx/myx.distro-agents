@@ -43,7 +43,7 @@ function tokensOfRun(spawnId, tokenWords,    tokenText, tokenAt, tokenKnown) {
 	tokenText = storeFact(spawnId, "tokens") ;
 	if (split(tokenText, tokenWords, " ") < 4) { for (tokenAt = 1 ; tokenAt <= 4 ; tokenAt++) tokenWords[tokenAt] = "-" ; }
 	tokenKnown = 1 ;
-	for (tokenAt = 1 ; tokenAt <= 4 ; tokenAt++) { if (tokenWords[tokenAt] !~ /^[0-9]+$/) { tokenWords[tokenAt] = "-" ; tokenKnown = 0 ; } }
+	for (tokenAt = 1 ; tokenAt <= 4 ; tokenAt++) { if (tokenWords[tokenAt] !~ /^[0-9]+$/) { tokenWords[tokenAt] = "-" ; tokenKnown = 0 ; } ; }
 	return tokenKnown ;
 }
 

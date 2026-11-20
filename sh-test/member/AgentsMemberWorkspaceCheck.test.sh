@@ -238,7 +238,7 @@ rigN(){ ## file, fixed text -- how many lines hold it
 	LC_ALL=C grep -c -F -- "$2" "$1" 2> /dev/null || :
 }
 rigLines(){ ## file -- how many lines it has
-	LC_ALL=C awk 'END { print NR + 0 }' "$1" 2> /dev/null
+	LC_ALL=C awk 'END { print NR + 0 ; }' "$1" 2> /dev/null
 }
 rigText(){ ## -- the text field of the first posted body, escapes as sent
 	LC_ALL=C sed -n '1s/^{"channel":"[^"]*","text":"//; 1s/","blocks":.*//; 1s/"}$//; 1p' "$rigTmp/bodies"
@@ -247,16 +247,16 @@ rigChannel(){ ## -- the channel of the first posted body
 	LC_ALL=C sed -n '1s/^{"channel":"\([^"]*\)".*/\1/p' "$rigTmp/bodies"
 }
 rigTokens(){ ## -- the token of every chat.postMessage, space separated
-	LC_ALL=C awk '$1 == "chat.postMessage" { printf "%s ", $2 }' "$rigTmp/calls"
+	LC_ALL=C awk '$1 == "chat.postMessage" { printf "%s ", $2 ; }' "$rigTmp/calls"
 }
 rigHistoryToken(){ ## -- the token of every conversations.history or conversations.replies call, space separated
-	LC_ALL=C awk '$1 == "conversations.history" || $1 == "conversations.replies" { printf "%s ", $2 }' "$rigTmp/calls"
+	LC_ALL=C awk '$1 == "conversations.history" || $1 == "conversations.replies" { printf "%s ", $2 ; }' "$rigTmp/calls"
 }
 rigEnvOf(){ ## method, field -- that field of the first logged call of that method
-	LC_ALL=C awk -v m="$1" -v f="$2" '$1 == m { for ( i = 2 ; i <= NF ; i++ ) { if ( index( $i, f "=" ) == 1 ) { print substr( $i, length( f ) + 2 ) ; exit } } }' "$rigTmp/envs"
+	LC_ALL=C awk -v m="$1" -v f="$2" '$1 == m { for ( i = 2 ; i <= NF ; i++ ) { if ( index( $i, f "=" ) == 1 ) { print substr( $i, length( f ) + 2 ) ; exit ; } ; } ; }' "$rigTmp/envs"
 }
 rigEnvLine(){ ## method -- the whole environment line of the first logged call of that method
-	LC_ALL=C awk -v m="$1" '$1 == m { print ; exit }' "$rigTmp/envs"
+	LC_ALL=C awk -v m="$1" '$1 == m { print ; exit ; }' "$rigTmp/envs"
 }
 rigHelpNames(){ ## armed file -- how many lines of the last call's stderr name that file as the one a help read
 	rigN "$rigTmp/err" "($1)"
@@ -645,9 +645,9 @@ rigAssert "under the names of the persona member's row in this workspace's regis
 rigAssert "it ran in the workspace it was called from, and the team's bot and the other workspace's token for the client were not used" "$( rigEnvOf chat.postMessage MMDAPP ) $( rigN "$rigTmp/calls" 'rig-bot-token' ) $( rigN "$rigTmp/calls" 'NDMTHERE' )" "$rigWork/ws-here 0 0"
 rigAssert "the workspace the client is set up in is left as it was: nothing written under its .local" "$( rigTreeSum ws-there )" "$rigSumThere"
 rigRunIn ws-here --client-comms-jira-board-list --team-member client-ndm
-rigAssert "a --client-* Jira operation runs here too: the call goes to the site this workspace's scope holds for the client, as that scope's user"  "$rigRc $( LC_ALL=C awk '$1 == "http" { print $2, $3 }' "$rigTmp/calls" ) $( rigEnvOf http MMDAPP )" "0 jira-here.invalid ndm-here@rig.invalid $rigWork/ws-here"
+rigAssert "a --client-* Jira operation runs here too: the call goes to the site this workspace's scope holds for the client, as that scope's user"  "$rigRc $( LC_ALL=C awk '$1 == "http" { print $2, $3 ; }' "$rigTmp/calls" ) $( rigEnvOf http MMDAPP )" "0 jira-here.invalid ndm-here@rig.invalid $rigWork/ws-here"
 rigRunIn ws-rig --client-comms-jira-board-list --team-member client-ndm
-rigAssert "from a workspace the index has no row for: its own scope's site" "$( LC_ALL=C awk '$1 == "http" { print $2, $3 }' "$rigTmp/calls" )" "jira-rig.invalid rig@rig.invalid"
+rigAssert "from a workspace the index has no row for: its own scope's site" "$( LC_ALL=C awk '$1 == "http" { print $2, $3 ; }' "$rigTmp/calls" )" "jira-rig.invalid rig@rig.invalid"
 rigRunIn ws-rig --client-comms-slack-send-message --team-member client-ndm CRIG000001 RIG-BODY
 rigAssert "and there its own token and row for the client" "$( rigTokens )$( rigChannel ) $( rigText )" 'rig-user-token-NDMRIG CRIG000001 🐭 *_Rig Persona_* @rigalias → @here.\nRIG-BODY'
 rigIndexOff
@@ -693,10 +693,10 @@ rigSettleCount(){ ## label, count -- wait up to 20 seconds for that console to h
 	while countSeen="$( LC_ALL=C grep -c . "$rigTmp/roots.$1" 2> /dev/null )" ; [ "${countSeen:-0}" -lt "$2" ] && [ "$countLeft" -gt 0 ] ; do sleep 1 ; countLeft=$(( countLeft - 1 )) ; done
 }
 rigBoardItems(){ ## workspace -- how many dispatch items that workspace's board holds
-	find "$rigWork/$1/.local/agents/team-data-root/board" -name 'dispatch-*.md' 2> /dev/null | LC_ALL=C awk 'END { print NR + 0 }'
+	find "$rigWork/$1/.local/agents/team-data-root/board" -name 'dispatch-*.md' 2> /dev/null | LC_ALL=C awk 'END { print NR + 0 ; }'
 }
 rigSpawnedCount(){ ## workspace -- how many spawn records of a member that workspace holds, an agent-less parent's not counted
-	( cd "$rigWork/$1/.local/agents/spawned" 2> /dev/null && LC_ALL=C grep -L -x -F 'agent-less: true' */*.md 2> /dev/null | LC_ALL=C awk 'END { print NR + 0 }' ) || printf 0
+	( cd "$rigWork/$1/.local/agents/spawned" 2> /dev/null && LC_ALL=C grep -L -x -F 'agent-less: true' */*.md 2> /dev/null | LC_ALL=C awk 'END { print NR + 0 ; }' ) || printf 0
 }
 
 echo "-- 9. the spawn proxy starts an invited member's session in the workspace it was called from --"
@@ -778,7 +778,7 @@ while [ ! -s "$rigTmp/start.true" ] && [ "$rigRetryLeft" -gt 0 ] ; do sleep 1 ; 
 rigAssert "a launch with no handback is retried once"                     "$rigRc $( ls "$rigTmp" | LC_ALL=C grep -c '^start\.' || : )" "0 2"
 rigAssert "the retry gets the launch's own workspace, session id, session thread, CLI args and member set root" "$( cat "$rigTmp/start.true" 2> /dev/null )" "$( cat "$rigTmp/start.launch" 2> /dev/null )"
 rigAssert "which are the workspace it was called from, the asked-for CLI and the member's own workspace view" "$( LC_ALL=C cut -d'|' -f1,4,5 "$rigTmp/start.true" 2> /dev/null | LC_ALL=C sed "s|$rigWork/||g" )" "ws-here|--cli rig-service --non-interactive|ws-there/.local/agents/members"
-rigAssert "with a session id and a session thread carried, not empty"   "$( LC_ALL=C awk -F'|' '{ print ( $2 != "" && $3 != "" ) ? "carried" : "empty" }' "$rigTmp/start.true" 2> /dev/null )" carried
+rigAssert "with a session id and a session thread carried, not empty"   "$( LC_ALL=C awk -F'|' '{ print ( $2 != "" && $3 != "" ) ? "carried" : "empty" ; }' "$rigTmp/start.true" 2> /dev/null )" carried
 rm -f "$rigTmp"/start.*
 rigConsole ws-here HERE
 
@@ -858,10 +858,10 @@ rigSpawnDocIn(){ ## workspace, member, source and dispatch document args... -- r
 }
 rigThree(){ ## record or board item -- its executing, paying and member's workspace, and how many lines hold each: e/p/m n/n/n
 	LC_ALL=C awk -F': ' '
-		$1 == "executing-workspace" { e = $2 ; en++ }
-		$1 == "paying-workspace" { p = $2 ; pn++ }
-		$1 == "member-workspace" { m = $2 ; mn++ }
-		END { printf "%s/%s/%s %d/%d/%d", e, p, m, en, pn, mn }' "$1" 2> /dev/null
+		$1 == "executing-workspace" { e = $2 ; en++ ; }
+		$1 == "paying-workspace" { p = $2 ; pn++ ; }
+		$1 == "member-workspace" { m = $2 ; mn++ ; }
+		END { printf "%s/%s/%s %d/%d/%d", e, p, m, en, pn, mn ; }' "$1" 2> /dev/null
 }
 rigRecordOf(){ ## workspace, member -- the newest spawn record of that member kept in that workspace
 	local recordFiles
@@ -943,7 +943,7 @@ rigSpawnIn ws-here keeper-here --spawn-settings-workspace ws-there
 rigAssert "one task (--spawn-settings-workspace): its CLI service, tier and credential are read from the workspace named, and a setting that is no spawn setting still from the one we run from" "$rigRc $( rigPaid )" "0 there/there/there/here"
 rigAssert "the session is still started here, on this workspace's view, by this workspace's console" "$( rigLaunched ) $( LC_ALL=C sed -n 's/^owner: //p' "$( rigRecordOf ws-here keeper-here )" )" "HERE=ws-here keeper-here"
 rigAssert "its record is kept here and says which workspace pays, and the CLI resolved there" "$( rigSpawnedCount ws-here ) $( rigSpawnedCount ws-there ) $( rigThree "$( rigRecordOf ws-here keeper-here )" ) $( LC_ALL=C sed -n 's/^cli: //p' "$( rigRecordOf ws-here keeper-here )" )" "1 0 ws-here/ws-there/ws-here 1/1/1 grok"
-rigAssert "its session thread and its tracking posts are this workspace's own Slack, by this team's bot" "$( LC_ALL=C awk '$1 == "chat.postMessage" { print $2 }' "$rigTmp/calls" | LC_ALL=C sort -u | LC_ALL=C tr '\n' ' ' )$( rigChannel ) $( rigN "$rigTmp/calls" 'token-THERE' )" "rig-bot-token-HERE CHERE0001 0"
+rigAssert "its session thread and its tracking posts are this workspace's own Slack, by this team's bot" "$( LC_ALL=C awk '$1 == "chat.postMessage" { print $2 ; }' "$rigTmp/calls" | LC_ALL=C sort -u | LC_ALL=C tr '\n' ' ' )$( rigChannel ) $( rigN "$rigTmp/calls" 'token-THERE' )" "rig-bot-token-HERE CHERE0001 0"
 rigAssert "its start post says the paying workspace, after where it runs" "$( rigStartContext )" "where: <host> / ws-here · started: <date> · paying workspace: ws-there"
 rigAssert "the workspace that pays is only read: nothing is written under its .local" "$( rigTreeSum ws-there )" "$rigSumThere"
 rigSpawnIn ws-here keeper-there --spawn-settings-workspace ws-third
@@ -1006,7 +1006,7 @@ rigRc=0
 ( cd "$rigWork/ws-here" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWork/ws-here" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" RIG_SCENARIO="$rigTmp" MDAT_SPAWN_SETTINGS_WORKSPACE="$rigWork/ws-third" \
 	bash "$rigTool" --intern-op-agent-spawn-proxy keeper-multi --dispatch-doc:none --wait --context rig-ws-invited ) > "$rigTmp/out" 2> "$rigTmp/err" <<< "RIG-TASK-TEXT" || rigRc=$?
 rigAssert "a spawn made from a session paid from elsewhere inherits that payer: nothing named for it, so the workspace that paid its session pays" "$rigRc $( rigPaid )" "0 third/third/third/here"
-rigAssert "and the child carries that payer, because it is another workspace than the one spawning" "$( rigRoots HERE | LC_ALL=C awk '{ for ( i = 1 ; i <= NF ; i++ ) if ( $i ~ /^MDAT_SPAWN_SETTINGS_WORKSPACE=/ ) n++ } END { print n + 0 }' )" 1
+rigAssert "and the child carries that payer, because it is another workspace than the one spawning" "$( rigRoots HERE | LC_ALL=C awk '{ for ( i = 1 ; i <= NF ; i++ ) if ( $i ~ /^MDAT_SPAWN_SETTINGS_WORKSPACE=/ ) n++ ; } END { print n + 0 ; }' )" 1
 rigRc=0
 ( cd "$rigWork/ws-here" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWork/ws-here" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" RIG_SCENARIO="$rigTmp" MDAT_SPAWN_SETTINGS_WORKSPACE="$rigWork/ws-third" \
 	bash "$rigTool" --intern-op-agent-spawn-proxy keeper-multi --spawn-settings-workspace ws-there --dispatch-doc:none --wait --context rig-ws-invited ) > "$rigTmp/out" 2> "$rigTmp/err" <<< "RIG-TASK-TEXT" || rigRc=$?
@@ -1014,7 +1014,7 @@ rigAssert "the flag wins over the payer the session inherited" "$rigRc $( rigPai
 rigRc=0
 ( cd "$rigWork/ws-here" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWork/ws-here" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" RIG_SCENARIO="$rigTmp" MDAT_SPAWN_SETTINGS_WORKSPACE="$rigWork/ws-here" \
 	bash "$rigTool" --intern-op-agent-spawn-proxy keeper-multi --dispatch-doc:none --wait --context rig-ws-invited ) > "$rigTmp/out" 2> "$rigTmp/err" <<< "RIG-TASK-TEXT" || rigRc=$?
-rigAssert "inheriting this workspace's own path pays here and writes nothing into the child, so a spawn of it into another workspace pays there" "$rigRc $( rigPaid ) $( rigRoots HERE | LC_ALL=C awk '{ for ( i = 1 ; i <= NF ; i++ ) if ( $i ~ /^MDAT_SPAWN_SETTINGS_WORKSPACE=/ ) n++ } END { print n + 0 }' )" "0 here/here/here/here 0"
+rigAssert "inheriting this workspace's own path pays here and writes nothing into the child, so a spawn of it into another workspace pays there" "$rigRc $( rigPaid ) $( rigRoots HERE | LC_ALL=C awk '{ for ( i = 1 ; i <= NF ; i++ ) if ( $i ~ /^MDAT_SPAWN_SETTINGS_WORKSPACE=/ ) n++ ; } END { print n + 0 ; }' )" "0 here/here/here/here 0"
 rigRc=0
 ( cd "$rigWork/ws-here" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWork/ws-here" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" RIG_SCENARIO="$rigTmp" MDAT_SPAWN_SETTINGS_WORKSPACE="$rigWork/gone/ws-gone" \
 	bash "$rigTool" --intern-op-agent-spawn-proxy keeper-multi --dispatch-doc:none --wait --context rig-ws-invited ) > "$rigTmp/out" 2> "$rigTmp/err" <<< "RIG-TASK-TEXT" || rigRc=$?
@@ -1119,9 +1119,9 @@ rigAssert "SendMessage as an invited member with no identity of its own in eithe
 rigToolIn ws-here "$( rigView ws-here )" keeper-here SendMessage '{"to":"magic-team","message":"RIG-BODY"}'
 rigAssert "control: SendMessage as a member set up in the current workspace: its own token and channel" "$( rigTokens )$( rigChannel )" 'rig-user-token-KHERE CHERE0001'
 rigToolIn ws-here "$( rigView ws-there )" keeper-there Wait '{"sources":"slack:magic-team","timeout":0}'
-rigAssert "Wait as an invited member: the long poll ran under its own identity, and under the root of the workspace its session runs in" "$( LC_ALL=C awk '$1 ~ /^conversations/ { print $2 ; exit }' "$rigTmp/calls" ) $( rigEnvOf conversations.history MMDAPP | LC_ALL=C sed "s|$rigWork/||" )" 'rig-user-token-KTHERE ws-here'
+rigAssert "Wait as an invited member: the long poll ran under its own identity, and under the root of the workspace its session runs in" "$( LC_ALL=C awk '$1 ~ /^conversations/ { print $2 ; exit ; }' "$rigTmp/calls" ) $( rigEnvOf conversations.history MMDAPP | LC_ALL=C sed "s|$rigWork/||" )" 'rig-user-token-KTHERE ws-here'
 rigToolIn ws-here "$( rigView ws-here )" keeper-here Wait '{"sources":"slack:magic-team","timeout":0}'
-rigAssert "control: Wait as a member set up in the current workspace"     "$( LC_ALL=C awk '$1 ~ /^conversations/ { print $2 ; exit }' "$rigTmp/calls" ) $( rigEnvOf conversations.history MMDAPP | LC_ALL=C sed "s|$rigWork/||" )" 'rig-user-token-KHERE ws-here'
+rigAssert "control: Wait as a member set up in the current workspace"     "$( LC_ALL=C awk '$1 ~ /^conversations/ { print $2 ; exit ; }' "$rigTmp/calls" ) $( rigEnvOf conversations.history MMDAPP | LC_ALL=C sed "s|$rigWork/||" )" 'rig-user-token-KHERE ws-here'
 ## Every ask to the human-owner is the team bot's post in the bot's conversation with him, whoever asks: an invited
 ## member's own account, read from the workspace it is set up in, posts none of it. The bot is that of the workspace
 ## its session runs in, and so is the human-owner; nothing of the team of the workspace it is set up in is used.
@@ -1134,7 +1134,7 @@ rigAssert "AskQuestion as an invited member is posted in that workspace's own co
 rigToolIn ws-here "$( rigView ws-there )" client-ndm SendMessage '{"to":"magic-team","message":"RIG-BODY"}'
 rigAssert "SendMessage as a client set up in another workspace: a tool with no marker reaches our own team, the bot and channel of the workspace its session runs in"  "$( rigTokens )$( rigChannel ) $( rigN "$rigTmp/calls" 'NDM' )" 'rig-bot-token-HERE CHERE0001 0'
 rigToolIn ws-here "$( rigView ws-there )" client-ndm Wait '{"sources":"slack:magic-team","timeout":0}'
-rigAssert "Wait as a client set up in another workspace: the long poll ran under the token and the root of the workspace its session runs in" "$( LC_ALL=C awk '$1 ~ /^conversations/ { print $2 ; exit }' "$rigTmp/calls" ) $( rigEnvOf conversations.history MMDAPP | LC_ALL=C sed "s|$rigWork/||" )" 'rig-bot-token-HERE ws-here'
+rigAssert "Wait as a client set up in another workspace: the long poll ran under the token and the root of the workspace its session runs in" "$( LC_ALL=C awk '$1 ~ /^conversations/ { print $2 ; exit ; }' "$rigTmp/calls" ) $( rigEnvOf conversations.history MMDAPP | LC_ALL=C sed "s|$rigWork/||" )" 'rig-bot-token-HERE ws-here'
 rigSpawnedBefore="$( rigSpawnedCount ws-here )" ; rigBoardBeforeHere="$( rigBoardItems ws-here )"
 rigToolIn ws-here "$( rigView ws-here )" keeper-here Agent '{"agent":"keeper-there","prompt":"RIG-TASK-TEXT"}' ; rigSettle HERE
 rigAssert "Agent naming an invited member: its session is launched in the calling workspace, on the member's own workspace view"  "$( rigLaunched ) $( rigRoots HERE )" "HERE=ws-here keeper-there=ws-there/.local/agents/members"
@@ -1161,7 +1161,7 @@ rigArgs(){ ## [start] -- what the console was started with at that start (launch
 	cat "$rigTmp/args.HERE.${1:-launch}" 2> /dev/null
 }
 rigAsked(){ ## record -- the workspace that paid for it and the service it was started on by name: paying/asked, - for none
-	LC_ALL=C awk -F': ' '$1 == "paying-workspace" { p = $2 } $1 == "cli-asked" { a = $2 } END { printf "%s/%s", ( p == "" ? "-" : p ), ( a == "" ? "-" : a ) }' "$1" 2> /dev/null
+	LC_ALL=C awk -F': ' '$1 == "paying-workspace" { p = $2 ; } $1 == "cli-asked" { a = $2 ; } END { printf "%s/%s", ( p == "" ? "-" : p ), ( a == "" ? "-" : a ) ; }' "$1" 2> /dev/null
 }
 rigBriefReader(){ ## file -- which harness a brief in it was built for, by its skillset-reader line: own, native, both or none
 	local readerOwn readerNative
@@ -1251,7 +1251,7 @@ rigPayClear
 rigConsole ws-here HERE
 
 echo "-- 12. static: where a member's workspace is looked up, and not --"
-rigDispatchEntry="$( LC_ALL=C awk '/^DistroAgentsTools\(\)\{/ { on = 1 } on { print } on && /^\t\. "\$MDLT_ORIGIN\/myx\/myx.distro-agents\/sh-lib\/harness\/AgentsContext.UseAgentsTools.include"/ { exit }' "$rigTool" )"
+rigDispatchEntry="$( LC_ALL=C awk '/^DistroAgentsTools\(\)\{/ { on = 1 ; } on { print ; } on && /^\t\. "\$MDLT_ORIGIN\/myx\/myx.distro-agents\/sh-lib\/harness\/AgentsContext.UseAgentsTools.include"/ { exit ; }' "$rigTool" )"
 rigAssert "control: the dispatcher's entry was cut out, up to the context include"  "$( printf '%s\n' "$rigDispatchEntry" | LC_ALL=C grep -c 'AgentsContext.UseAgentsTools.include' || : )" 1
 rigAssert "the entry brings once, before the context include, for every member alike: it resolves no workspace itself and has no arm of its own for a client-* member" "$( printf '%s\n' "$rigDispatchEntry" | LC_ALL=C grep -c "$rigBringFn \"\$2\" \"\$1\"" || : ) $( printf '%s\n' "$rigDispatchEntry" | LC_ALL=C grep -c "$rigResolveFn \"" || : ) $( printf '%s\n' "$rigDispatchEntry" | LC_ALL=C grep -c -F -e 'client-*)' || : )" "1 0 0"
 rigExclusion="$( printf '%s\n' "$rigDispatchEntry" | LC_ALL=C grep -F -e '|*:|*:-*) ;;' | LC_ALL=C sed -e 's/^[[:space:]]*//' -e 's/) ;;$//' )"
@@ -1267,8 +1267,8 @@ rigAssert "the bring is called from the dispatcher entry, the door of the tool f
 rigAssert "the spawn proxy launches the console of the workspace it runs in, with MMDAPP set to it, and names no other workspace to start a spawn in" "$( [ "$( LC_ALL=C grep -c 'MMDAPP="\$MMDAPP".*"\$MMDAPP/DistroAgentsConsole.sh"' "$rigSpawnInclude" || : )" -gt 0 ] && printf launches-here || printf blind ) $( LC_ALL=C grep -c 'spawnWorkspace' "$rigSpawnInclude" || : )" "launches-here 0"
 rigAssert "which is the workspace it was called from for every member, a client-* member too: MMDAPP is never set in the file, only handed to what it starts" "$( LC_ALL=C grep -v '^[[:space:]]*#' "$rigSpawnInclude" | LC_ALL=C grep -v 'env MMDAPP=' | LC_ALL=C grep -c -E '(^|[^A-Za-z_"$])MMDAPP=' || : ) $( LC_ALL=C grep -v '^[[:space:]]*#' "$rigSpawnInclude" | LC_ALL=C grep -c -F -e 'client-*)' || : )" "0 0"
 rigAssert "the --intern-mcp-execute workspace arm uses the shared switch function, and the include defines it once" "$( LC_ALL=C grep -c "$rigSwitchFn \"\$2\"" "$rigTool" || : ) $( LC_ALL=C grep -c "^$rigSwitchFn(){" "$rigResolveInclude" || : )" "1 1"
-rigAssert "the switch unsets the distro index variables, MDSC_ID by prefix"  "$( rigFnText="$( LC_ALL=C awk -v n="$rigSwitchFn" 'index( $0, n "(){" ) == 1 { on = 1 } on { print } on && /^}/ { exit }' "$rigResolveInclude" )" ; printf '%s\n' "$rigFnText" | LC_ALL=C grep -c -E 'unset MDSC_OPTION MDSC_INMODE MDSC_SOURCE MDSC_CACHED MDSC_OUTPUT MDSC_MEMORY|\$\{!MDSC_ID\*\}' || : )" 2
-rigAssert "the switch never touches the tooling origin"                   "$( LC_ALL=C awk -v n="$rigSwitchFn" 'index( $0, n "(){" ) == 1 { on = 1 } on { print } on && /^}/ { exit }' "$rigResolveInclude" | LC_ALL=C grep -c 'MDLT_ORIGIN' || : )" 0
+rigAssert "the switch unsets the distro index variables, MDSC_ID by prefix"  "$( rigFnText="$( LC_ALL=C awk -v n="$rigSwitchFn" 'index( $0, n "(){" ) == 1 { on = 1 ; } on { print ; } on && /^}/ { exit ; }' "$rigResolveInclude" )" ; printf '%s\n' "$rigFnText" | LC_ALL=C grep -c -E 'unset MDSC_OPTION MDSC_INMODE MDSC_SOURCE MDSC_CACHED MDSC_OUTPUT MDSC_MEMORY|\$\{!MDSC_ID\*\}' || : )" 2
+rigAssert "the switch never touches the tooling origin"                   "$( LC_ALL=C awk -v n="$rigSwitchFn" 'index( $0, n "(){" ) == 1 { on = 1 ; } on { print ; } on && /^}/ { exit ; }' "$rigResolveInclude" | LC_ALL=C grep -c 'MDLT_ORIGIN' || : )" 0
 rigAssert "control: the same pattern finds an origin line in a sample"      "$( printf 'unset MDLT_ORIGIN\n' | LC_ALL=C grep -c 'MDLT_ORIGIN' || : )" 1
 
 echo "-- 13. the member set root after a switch: a workspace's own index view holds its own members only --"

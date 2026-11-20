@@ -75,7 +75,7 @@ rigAssert "the call ends 0, with no error, and lists the six in order: .local th
 	"0 0 subsystem .local installed base no no no/subsystem system installed shared no no no/subsystem deploy installed - no yes yes/subsystem source missing - yes no no/subsystem remote installed - no yes yes/subsystem agents installed console no no yes/"
 rm -rf "$rigWs/.local/myx/myx.distro-system"
 rigRun --manager-subsystem-list
-rigAssert "a subsystem whose copy is not there reads missing, and system has no command whether it is there or not" "$( LC_ALL=C awk -F'\t' '$2 == "system" { print $3, $5, $6 }' "$rigTmp/out" )" "missing no no"
+rigAssert "a subsystem whose copy is not there reads missing, and system has no command whether it is there or not" "$( LC_ALL=C awk -F'\t' '$2 == "system" { print $3, $5, $6 ; }' "$rigTmp/out" )" "missing no no"
 mkdir -p "$rigWs/.local/myx/myx.distro-system/sh-scripts"
 rigRun --manager-subsystem-list extra
 rigAssert "a word after it is refused" "$rigRc $( wc -c < "$rigTmp/out" | LC_ALL=C tr -d ' ' )" "1 0"

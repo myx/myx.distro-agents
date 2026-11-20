@@ -73,7 +73,7 @@ AgentsToolsSpawnProxySessionNotice(){ ## thread or conversation, the member it i
 	## The send refuses with rc 1 for every fault, so its words are all there is: the one exact line
 	## it prints for a member with no Slack DM, that member named, anchored at both ends.
 	elif noticeNoDm="--slack-send-message: NO-SLACK-DM: team member '$noticeThread' has no Slack DM channel of its own" \
-			LC_ALL=C awk 'index( $0, "⛔ ERROR: " ) == 1 && length( $0 ) > length( ENVIRON["noticeNoDm"] ) && substr( $0, length( $0 ) - length( ENVIRON["noticeNoDm"] ) + 1 ) == ENVIRON["noticeNoDm"] { found = 1 } END { exit found ? 0 : 1 }' "$noticeOut" 2> /dev/null \
+			LC_ALL=C awk 'index( $0, "⛔ ERROR: " ) == 1 && length( $0 ) > length( ENVIRON["noticeNoDm"] ) && substr( $0, length( $0 ) - length( ENVIRON["noticeNoDm"] ) + 1 ) == ENVIRON["noticeNoDm"] { found = 1 ; } END { exit found ? 0 : 1 ; }' "$noticeOut" 2> /dev/null \
 		&& AgentsToolsTeamMemberDirectory "$noticeThread" > /dev/null 2>&1 ; then
 		## Told to a member with no Slack DM of its own: in its inbox, a hand-off it reads later, as
 		## a member's own send to it is (AgentsHarnessToolSendMessage).
@@ -250,7 +250,7 @@ AgentsToolsSpawnProxyEndNotice(){ ## the run's record, what its closer saw of a 
 	endAt="$( AgentsToolsFrontmatterKey "$endRecord" killed-at )"
 	endStop="$( printf '%s' "$endEvents" | LC_ALL=C awk '
 		$2 == "ENDING" && index( $0, " text=\"taskstop: " ) > 0 { stopBy = "" ; if ( match( $0, / by=[^ ]+/ ) ) { stopBy = substr( $0, RSTART + 4, RLENGTH - 4 ) ; } stopLine = $1 " " stopBy ; }
-		END { if ( stopLine != "" ) { print stopLine ; } }
+		END { if ( stopLine != "" ) { print stopLine ; } ; }
 	' )" || endStop=""
 	if [ -n "$endLimit" ] ; then
 		## A refusal is why it stopped, whatever else its record or transcript holds.

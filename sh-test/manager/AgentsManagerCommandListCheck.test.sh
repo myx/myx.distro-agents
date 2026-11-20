@@ -87,7 +87,7 @@ rigNames(){ ## file -- its names, the first field of each line
 	LC_ALL=C cut -f1 "$1"
 }
 rigPathOf(){ ## name -- the path the last list gives that name
-	LC_ALL=C awk -F'\t' -v name="$1" '$1 == name { print $2 }' "$rigTmp/out"
+	LC_ALL=C awk -F'\t' -v name="$1" '$1 == name { print $2 ; }' "$rigTmp/out"
 }
 
 echo "-- 1. the commands the completion gathers, by their base names --"
@@ -95,7 +95,7 @@ rigBefore="$( rigTree )"
 rigRun "$rigOp"
 rigAssert "it ends rc 0, and writes nothing to stderr but the tooling's own lines" "$rigRc $( LC_ALL=C grep -v -e '^AgentsContext' -e '^SystemContext' -e 'Working in:' "$rigTmp/err" | LC_ALL=C grep -c . || : )" "0 0"
 rigAssert "every line is one base name with its extension, as a user types it, a TAB, and a path or a dash: no blank" \
-	"$( LC_ALL=C awk -F'\t' '{ lines++ ; if ( NF != 2 || $1 !~ /^[^\/ \t]+\.fn\.sh$/ || ( $2 != "-" && $2 !~ /^\// ) ) bad++ ; } END { printf "%s:%s", ( lines > 3 ? "lines" : "few" ), bad + 0 }' "$rigTmp/out" )" "lines:0"
+	"$( LC_ALL=C awk -F'\t' '{ lines++ ; if ( NF != 2 || $1 !~ /^[^\/ \t]+\.fn\.sh$/ || ( $2 != "-" && $2 !~ /^\// ) ) bad++ ; } END { printf "%s:%s", ( lines > 3 ? "lines" : "few" ), bad + 0 ; }' "$rigTmp/out" )" "lines:0"
 rigNames "$rigTmp/out" > "$rigTmp/names"
 rigAssert "the project-declared commands of the index are there, one that no filter of Distro's own completion keeps among them, and a name two projects declare stands once" \
 	"$( rigWhole "$rigTmp/names" ScreenTo.fn.sh ) $( rigWhole "$rigTmp/names" JumpRig.fn.sh )" "1 1"

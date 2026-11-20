@@ -23,7 +23,7 @@ AgentsToolsEpicDecisionsSection(){ ## member
 	epicNames="$( LC_ALL=C awk -v who="$epicMember" '
 		function listHas( listText, wantName,    partCount, partIdx, listPart ) {
 			partCount = split( listText, listPart, "[ ,]+" ) ;
-			for ( partIdx = 1 ; partIdx <= partCount ; partIdx++ ) { if ( listPart[partIdx] == wantName ) { return 1 ; } }
+			for ( partIdx = 1 ; partIdx <= partCount ; partIdx++ ) { if ( listPart[partIdx] == wantName ) { return 1 ; } ; }
 			return 0 ;
 		}
 		FNR == 1 { fenceCount = 0 ; ownerText = "" ; partsText = "" ; linkText = "" ; }

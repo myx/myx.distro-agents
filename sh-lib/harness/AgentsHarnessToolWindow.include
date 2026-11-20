@@ -44,5 +44,5 @@ DistroAgentsTesting	120	a test round that runs a suite'
 
 ## The window of one tool in seconds, or nothing where the table does not name it.
 AgentsHarnessToolWindowSeconds(){ ## tool name
-	printf '%s\n' "$agentsHarnessToolWindow" | LC_ALL=C awk -F'\t' -v key="$1" '$1 == key { print $2 ; exit }'
+	printf '%s\n' "$agentsHarnessToolWindow" | LC_ALL=C awk -F'\t' -v key="$1" '$1 == key { print $2 ; exit ; }'
 }

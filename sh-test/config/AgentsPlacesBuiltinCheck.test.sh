@@ -123,7 +123,7 @@ rigRun --owner-workspace-list
 rigAssert "the owner's list holds both, with their folders"   "$rigRc:$( LC_ALL=C grep '^\.' "$rigTmp/out" | rigCut | LC_ALL=C tr '\t\n' ' |' )" "0:.skillset-.local directory read-write T/ws-main/.local/agents/members present|.skillset-shared directory read-write T/home/.claude/skills present|"
 rigAssert "a permission shows its target by the name"         "$( rigSays --intern-op-permission-place magic-coordinator "$rigSkills/keeper-local/a.md" )" "0:.skillset-shared:keeper-local/a.md|"
 rigRun --intern-op-permission-holds magic-coordinator Read "$rigSkills/keeper-local/a.md"
-rigAssert "the grants index holds both as places, read-write" "$( LC_ALL=C awk -F'\t' '$1 == "*" && $2 == "ceiling" && index( $6, "." ) == 1 { print $6 " " $5 }' "$rigMain/.local/agents/grants.index" 2> /dev/null | LC_ALL=C sort | LC_ALL=C tr '\n' '|' )" ".skillset-.local read-write|.skillset-shared read-write|"
+rigAssert "the grants index holds both as places, read-write" "$( LC_ALL=C awk -F'\t' '$1 == "*" && $2 == "ceiling" && index( $6, "." ) == 1 { print $6 " " $5 ; }' "$rigMain/.local/agents/grants.index" 2> /dev/null | LC_ALL=C sort | LC_ALL=C tr '\n' '|' )" ".skillset-.local read-write|.skillset-shared read-write|"
 
 ## ---------------------------------------------------------------- never a row
 echo "-- 3. a row cannot take a name that starts with a dot --"

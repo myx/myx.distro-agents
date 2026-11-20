@@ -845,13 +845,13 @@ if [ -n "$MDAT_SPAWN_SESSION_ID" ] ; then
 						[ -z "$DagcResumeWhy" ] || break
 					done
 					DAGC_RESUME_RECORD="${MDAT_SPAWN_SANDBOX_ROOT:-${MMDAPP:-}/.local/agents/spawned}/$MDAT_SPAWN_SESSION_ID/$MDAT_SPAWN_SESSION_ID.spawn.md"
-					[ -n "$DagcResumeWhy" ] || DagcResumeWhy="$( LC_ALL=C awk '$0 == "---" { if ( ++fence > 1 ) { exit } ; next } fence == 1 && index( $0, "end-reason: " ) == 1 { print substr( $0, 13 ) ; exit }' "$DAGC_RESUME_RECORD" 2>/dev/null )"
+					[ -n "$DagcResumeWhy" ] || DagcResumeWhy="$( LC_ALL=C awk '$0 == "---" { if ( ++fence > 1 ) { exit ; } ; next ; } fence == 1 && index( $0, "end-reason: " ) == 1 { print substr( $0, 13 ) ; exit ; }' "$DAGC_RESUME_RECORD" 2>/dev/null )"
 					## A run that died before its harness kept anything has neither, and its own log does: the
 					## last line of it that reports a fault, which is the one that ended that run. The console's
 					## own refusal is written into that same log after it, and is never read as a cause.
 					if [ -z "$DagcResumeWhy" ] ; then
-						DAGC_RESUME_LOG="$( LC_ALL=C awk '$0 == "---" { if ( ++fence > 1 ) { exit } ; next } fence == 1 && index( $0, "output-file: " ) == 1 { print substr( $0, 14 ) ; exit }' "$DAGC_RESUME_RECORD" 2>/dev/null )"
-						[ ! -s "$DAGC_RESUME_LOG" ] || DagcResumeWhy="$( LC_ALL=C awk '( index( $0, "⛔ ERROR" ) > 0 || $0 ~ /: line [0-9]+: / ) && index( $0, "MDAT_SPAWN_RESUME is true" ) == 0 { fault = $0 } END { print fault }' "$DAGC_RESUME_LOG" 2>/dev/null )"
+						DAGC_RESUME_LOG="$( LC_ALL=C awk '$0 == "---" { if ( ++fence > 1 ) { exit ; } ; next ; } fence == 1 && index( $0, "output-file: " ) == 1 { print substr( $0, 14 ) ; exit ; }' "$DAGC_RESUME_RECORD" 2>/dev/null )"
+						[ ! -s "$DAGC_RESUME_LOG" ] || DagcResumeWhy="$( LC_ALL=C awk '( index( $0, "⛔ ERROR" ) > 0 || $0 ~ /: line [0-9]+: / ) && index( $0, "MDAT_SPAWN_RESUME is true" ) == 0 { fault = $0 ; } END { print fault ; }' "$DAGC_RESUME_LOG" 2>/dev/null )"
 					fi
 					echo "⛔ ERROR: DistroAgentsConsole: MDAT_SPAWN_RESUME is true but '$DAGC_CLI' has no --resume flag and no kept context at $DAGC_RESUME_CONTEXT -- refusing rather than starting a session that would look resumed and is not one. Why the run ended: ${DagcResumeWhy:-nothing recorded a reason for its end}" >&2
 					exit 1

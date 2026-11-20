@@ -71,7 +71,7 @@ rigCache(){ ## member, read|wrote|nothing|none -- the log of its run: an older l
 		nothing) printf '%s\n' '   shared prefix -- round 1 read 4100 tokens from the cache' '   some work' '   shared prefix -- round 1 cached nothing: the prefix is under the model minimum, or its markers were not honoured' '   more work' > "$cacheLog" ;;
 		none) printf '%s\n' '   some work' '   more work' > "$cacheLog" ;;
 	esac
-	LC_ALL=C grep -v '^output-file: ' "$cacheRecord" | LC_ALL=C awk -v outlog="$cacheLog" '{ print } /^status: / { print "output-file: " outlog }' > "$cacheRecord.next" && mv -f "$cacheRecord.next" "$cacheRecord"
+	LC_ALL=C grep -v '^output-file: ' "$cacheRecord" | LC_ALL=C awk -v outlog="$cacheLog" '{ print ; } /^status: / { print "output-file: " outlog ; }' > "$cacheRecord.next" && mv -f "$cacheRecord.next" "$cacheRecord"
 }
 rigTold(){ ## run name, member -- how many lines of that iteration say the member's duty is told to go
 	local toldSpawn

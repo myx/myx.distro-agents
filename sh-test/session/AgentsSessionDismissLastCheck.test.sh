@@ -76,7 +76,7 @@ rigScene(){ ## scene name, limit or deliberate
 	[ "$2" = limit ] && rigSince=1000 || rigSince="$( date +%s )"
 }
 rigThreadOf(){ ## session
-	printf 'CDISM0001:1700000002.0002%02d' "$( printf '%s' "$1" | LC_ALL=C cksum | LC_ALL=C awk '{ print $1 % 100 }' )"
+	printf 'CDISM0001:1700000002.0002%02d' "$( printf '%s' "$1" | LC_ALL=C cksum | LC_ALL=C awk '{ print $1 % 100 ; }' )"
 }
 ## A session's thread: its opener, then what a scene adds (each message led by a comma).
 rigThread(){ ## session, extra messages JSON or empty

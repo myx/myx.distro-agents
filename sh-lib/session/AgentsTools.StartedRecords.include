@@ -36,7 +36,7 @@ AgentsToolsDutyKeptStale(){ ## the kept session id
 	case "${1:-}" in ''|*/*|.|..) return 1 ;; esac
 	staleRecord="${MMDAPP:-}/.local/agents/spawned/$1/$1.spawn.md"
 	[ -f "$staleRecord" ] || return 1
-	staleDay="$( LC_ALL=C awk 'NR > 1 && $0 == "---" { exit } index( $0, "started-at: " ) == 1 { print substr( $0, 13, 10 ) ; exit }' "$staleRecord" 2> /dev/null )"
+	staleDay="$( LC_ALL=C awk 'NR > 1 && $0 == "---" { exit ; } index( $0, "started-at: " ) == 1 { print substr( $0, 13, 10 ) ; exit ; }' "$staleRecord" 2> /dev/null )"
 	case "$staleDay" in [0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]) ;; *) return 1 ;; esac
 	[ "$staleDay" != "$( date '+%Y-%m-%d' )" ]
 }
@@ -71,10 +71,10 @@ AgentsToolsSpawnedSessionRecords(){ ## session, kind (own|parent|any)
 		AgentsSpawnedStoreStampInto sessionStamp "$MMDAPP"
 		case "$sessionStamp:$sessionNow" in *[!0123456789:]*|:*|*:) sessionStamp="" ;; esac
 		sessionList="$( LC_ALL=C awk -v want="$sessionId" '
-			FNR == 1 { fence = 0 ; own = "" ; parent = "" }
-			$0 == "---" { fence++ ; if ( fence > 1 ) { if ( own == want ) print "own\t" FILENAME ; else if ( parent == want ) print "parent\t" FILENAME ; nextfile } ; next }
-			fence == 1 && index( $0, "session-id: " ) == 1 && own == "" { own = substr( $0, 13 ) }
-			fence == 1 && index( $0, "parent-session-id: " ) == 1 && parent == "" { parent = substr( $0, 20 ) }
+			FNR == 1 { fence = 0 ; own = "" ; parent = "" ; }
+			$0 == "---" { fence++ ; if ( fence > 1 ) { if ( own == want ) print "own\t" FILENAME ; else if ( parent == want ) print "parent\t" FILENAME ; nextfile ; } ; next ; }
+			fence == 1 && index( $0, "session-id: " ) == 1 && own == "" { own = substr( $0, 13 ) ; }
+			fence == 1 && index( $0, "parent-session-id: " ) == 1 && parent == "" { parent = substr( $0, 20 ) ; }
 		' "$sessionRoot"/*/*.spawn.md 2> /dev/null )" || sessionList=""
 		## Kept only in a session folder that exists: a folder made here for an id that names nothing would be taken for a session.
 		if [ -n "$sessionStamp" ] && [ "$sessionStamp" -lt "$sessionNow" ] && [ -d "${sessionCache%/*}" ] && sessionTemp="$( mktemp "$sessionCache.XXXXXX" 2> /dev/null )" ; then
@@ -115,9 +115,9 @@ AgentsSpawnedStartedRecords(){ ## workspace (default MMDAPP) -- the paths of the
 		[ -z "$startedList" ] || printf '%s\n' "$startedList" > "$startedIndex" 2> /dev/null
 	fi
 	[ ! -s "$startedIndex" ] || LC_ALL=C awk '
-		FNR == 1 { fence = 0 }
-		$0 == "---" { if ( ++fence > 1 ) nextfile ; next }
-		fence == 1 && index( $0, "status: " ) == 1 { if ( substr( $0, 9 ) == "spawn-started" ) print FILENAME ; nextfile }
+		FNR == 1 { fence = 0 ; }
+		$0 == "---" { if ( ++fence > 1 ) nextfile ; next ; }
+		fence == 1 && index( $0, "status: " ) == 1 { if ( substr( $0, 9 ) == "spawn-started" ) print FILENAME ; nextfile ; }
 	' $( cat "$startedIndex" ) 2> /dev/null || :
 	return 0
 }
@@ -140,13 +140,13 @@ AgentsToolsSpawnedRecordRows(){ ## workspace (empty: MMDAPP), key...
 			print line
 			split( "", keyValue ) ; record = ""
 		}
-		BEGIN { keyCount = split( keys, keyName, " " ) }
-		! statRead { if ( $0 == "=" ) statRead = 1 ; else { at = index( $0, " " ) ; writtenAt[ substr( $0, at + 1 ) ] = substr( $0, 1, at - 1 ) } ; next }
-		FNR == 1 { flush() ; record = FILENAME ; fence = 0 }
-		$0 == "---" { if ( ++fence > 1 ) { flush() ; nextfile } ; next }
-		fence != 1 { next }
-		{ for ( at = 1 ; at <= keyCount ; at++ ) if ( !( at in keyValue ) && index( $0, keyName[at] ": " ) == 1 ) keyValue[at] = substr( $0, length( keyName[at] ) + 3 ) }
-		END { flush() }
+		BEGIN { keyCount = split( keys, keyName, " " ) ; }
+		! statRead { if ( $0 == "=" ) statRead = 1 ; else { at = index( $0, " " ) ; writtenAt[ substr( $0, at + 1 ) ] = substr( $0, 1, at - 1 ) ; } ; next ; }
+		FNR == 1 { flush() ; record = FILENAME ; fence = 0 ; }
+		$0 == "---" { if ( ++fence > 1 ) { flush() ; nextfile ; } ; next ; }
+		fence != 1 { next ; }
+		{ for ( at = 1 ; at <= keyCount ; at++ ) if ( !( at in keyValue ) && index( $0, keyName[at] ": " ) == 1 ) keyValue[at] = substr( $0, length( keyName[at] ) + 3 ) ; }
+		END { flush() ; }
 	' - "${rowsRecords[@]}"
 }
 

@@ -54,7 +54,7 @@ rigAdd(){ ## repository, path...
 	local addRepo="$1" ; shift
 	( cd "$addRepo" && GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1 git add -A -- "$@" )
 }
-rigLongSubject="$( LC_ALL=C awk 'BEGIN { for ( i = 1 ; i <= 300 ; i++ ) printf "%s", substr("abcdefghij", ( i % 10 ) + 1, 1) }' )"
+rigLongSubject="$( LC_ALL=C awk 'BEGIN { for ( i = 1 ; i <= 300 ; i++ ) printf "%s", substr("abcdefghij", ( i % 10 ) + 1, 1) ; }' )"
 
 ## The workspace repository: four commits, one file deleted, one subject far over 200.
 rigInit "$rigWs"
@@ -69,7 +69,7 @@ printf 'plain\n' > "$rigRoot2/plain.txt"
 rigInit "$rigOutside" ; printf 'o\n' > "$rigOutside/o.txt" ; rigAdd "$rigOutside" o.txt ; rigGit "$rigOutside" "2026-03-03T08:00:00 +0000" "outside commit"
 ln -s "$rigOutside" "$rigWs/link-out" ; ln -s "$rigRoot1" "$rigWs/link-root"
 
-rigC1="$( cd "$rigWs" && git log --format='%H%x09%s' | LC_ALL=C awk -F'\t' '$2 == "first commit" { print $1 }' )"
+rigC1="$( cd "$rigWs" && git log --format='%H%x09%s' | LC_ALL=C awk -F'\t' '$2 == "first commit" { print $1 ; }' )"
 rigAssert "control: the rig workspace repository has the 3 commits that touch a.txt" "$( cd "$rigWs" && git log --format=%s -- a.txt | LC_ALL=C tr '\n' '|' )" "third commit|second commit|first commit|"
 rigAssert "control: the root repository has its one commit"               "$( cd "$rigRoot1" && git log --format=%s | LC_ALL=C tr '\n' '|' )" "root commit|"
 
@@ -87,16 +87,16 @@ rigBlocks(){ ## prefix -- the number of `## ` block headings on stdout
 	LC_ALL=C grep -c '^## ' "$1.out" || :
 }
 rigCommits(){ ## prefix -- the number of commit lines on stdout: lines with exactly three tabs
-	LC_ALL=C awk -F'\t' 'NF == 4 { n++ } END { print n + 0 }' "$1.out"
+	LC_ALL=C awk -F'\t' 'NF == 4 { n++ ; } END { print n + 0 ; }' "$1.out"
 }
 rigOther(){ ## prefix -- stdout lines that are neither a heading, a commit line nor blank: the truncation line
-	LC_ALL=C awk -F'\t' '$0 !~ /^## / && NF != 4 && $0 != "" { n++ } END { print n + 0 }' "$1.out"
+	LC_ALL=C awk -F'\t' '$0 !~ /^## / && NF != 4 && $0 != "" { n++ ; } END { print n + 0 ; }' "$1.out"
 }
 rigSubjects(){ ## prefix -- the subject field of every commit line, joined
-	LC_ALL=C awk -F'\t' 'NF == 4 { printf "%s|", $4 }' "$1.out"
+	LC_ALL=C awk -F'\t' 'NF == 4 { printf "%s|", $4 ; }' "$1.out"
 }
 rigErrLines(){ ## prefix -- stderr lines that are not the tool's own context start-up noise
-	LC_ALL=C grep -v -e '^SystemContext' -e '^AgentsContext' -e '⛔ ERROR: SystemContext' "$1.err" 2> /dev/null | LC_ALL=C awk 'END { print NR }'
+	LC_ALL=C grep -v -e '^SystemContext' -e '^AgentsContext' -e '⛔ ERROR: SystemContext' "$1.err" 2> /dev/null | LC_ALL=C awk 'END { print NR ; }'
 }
 rigOpErrors(){ ## prefix -- the operation's own error lines
 	LC_ALL=C grep -c "⛔ ERROR: DistroAgentsKnowledge $rigOpName" "$1.err" || :
@@ -215,14 +215,14 @@ rigAssert "and the order of the paths does not matter"                       "$(
 
 echo "-- 11. the shape of a commit line --"
 rigRun "$rigTmp/r11" a.txt
-rigAssert "four tab separated fields: date, author, hash, subject"         "$( LC_ALL=C awk -F'\t' 'NF == 4 { n++ } END { print n + 0 }' "$rigTmp/r11.out" )" 3
-rigAssert "the date is YYYY-MM-DD HH:MM +ZZZZ on every line"               "$( LC_ALL=C awk -F'\t' 'NF == 4 && $1 ~ /^[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9] [0-9][0-9]:[0-9][0-9] [+-][0-9][0-9][0-9][0-9]$/ { n++ } END { print n + 0 }' "$rigTmp/r11.out" )" 3
-rigAssert "the oldest commit's date, exactly"                              "$( LC_ALL=C awk -F'\t' 'NF == 4 && $4 == "first commit" { print $1 }' "$rigTmp/r11.out" )" "2026-03-01 10:00 +0000"
-rigAssert "the author is the commit's author"                              "$( LC_ALL=C awk -F'\t' 'NF == 4 && $2 != "Rig Author" { n++ } END { print n + 0 }' "$rigTmp/r11.out" )" 0
-rigAssert "the hash field is the start of the real commit hash"            "$( LC_ALL=C awk -F'\t' -v full="$rigC1" 'NF == 4 && $4 == "first commit" && length($3) >= 7 && substr(full, 1, length($3)) == $3 { n++ } END { print n + 0 }' "$rigTmp/r11.out" )" 1
+rigAssert "four tab separated fields: date, author, hash, subject"         "$( LC_ALL=C awk -F'\t' 'NF == 4 { n++ ; } END { print n + 0 ; }' "$rigTmp/r11.out" )" 3
+rigAssert "the date is YYYY-MM-DD HH:MM +ZZZZ on every line"               "$( LC_ALL=C awk -F'\t' 'NF == 4 && $1 ~ /^[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9] [0-9][0-9]:[0-9][0-9] [+-][0-9][0-9][0-9][0-9]$/ { n++ ; } END { print n + 0 ; }' "$rigTmp/r11.out" )" 3
+rigAssert "the oldest commit's date, exactly"                              "$( LC_ALL=C awk -F'\t' 'NF == 4 && $4 == "first commit" { print $1 ; }' "$rigTmp/r11.out" )" "2026-03-01 10:00 +0000"
+rigAssert "the author is the commit's author"                              "$( LC_ALL=C awk -F'\t' 'NF == 4 && $2 != "Rig Author" { n++ ; } END { print n + 0 ; }' "$rigTmp/r11.out" )" 0
+rigAssert "the hash field is the start of the real commit hash"            "$( LC_ALL=C awk -F'\t' -v full="$rigC1" 'NF == 4 && $4 == "first commit" && length($3) >= 7 && substr(full, 1, length($3)) == $3 { n++ ; } END { print n + 0 ; }' "$rigTmp/r11.out" )" 1
 rigRun "$rigTmp/r11b" long.txt
-rigAssert "a subject over 200 characters is cut: a prefix of it, at most 200" "$( LC_ALL=C awk -F'\t' -v full="$rigLongSubject" 'NF == 4 { print ( length($4) <= 200 && length($4) >= 197 && substr(full, 1, length($4)) == $4 ) ? "cut" : "wrong:" length($4) }' "$rigTmp/r11b.out" )" cut
-rigAssert "control: a short subject is not touched"                        "$( LC_ALL=C awk -F'\t' 'NF == 4 && $4 == "first commit" { n++ } END { print n + 0 }' "$rigTmp/r11.out" )" 1
+rigAssert "a subject over 200 characters is cut: a prefix of it, at most 200" "$( LC_ALL=C awk -F'\t' -v full="$rigLongSubject" 'NF == 4 { print ( length($4) <= 200 && length($4) >= 197 && substr(full, 1, length($4)) == $4 ) ? "cut" : "wrong:" length($4) ; }' "$rigTmp/r11b.out" )" cut
+rigAssert "control: a short subject is not touched"                        "$( LC_ALL=C awk -F'\t' 'NF == 4 && $4 == "first commit" { n++ ; } END { print n + 0 ; }' "$rigTmp/r11.out" )" 1
 
 echo "-- 12. the repository is byte-unchanged --"
 rigBefore="$( rigTreeSum "$rigWs" ) $( rigTreeSum "$rigRoot1" )"

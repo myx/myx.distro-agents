@@ -27,7 +27,7 @@ AgentsToolsManagerWorkspaceAgents(){
 	if AgentsToolsTeamDataGateOpen ; then LocalToolsManagerWorkspaceFact team-data yes ; else LocalToolsManagerWorkspaceFact team-data no ; fi
 	LocalToolsManagerWorkspaceItem mode setting "${agentsMode:-just-agents}" "the settings of the team" "@scopes/agents:magic-team"
 	if AgentsToolsTeamDataGateOpen ; then LocalToolsManagerWorkspaceItem team-data store yes "the team data" "@teamdata" ; else LocalToolsManagerWorkspaceItem team-data store no "the team data" "@teamdata" ; fi
-	agentsSessions="$( LC_ALL=C awk -v ws="${MMDAPP%/}" 'BEGIN { sub( /.*\//, "", ws ) } NF >= 11 && $11 == ws { id = ( $2 == "-" ) ? $1 : $2 ; if ( !seen[id]++ ) n++ } END { print n + 0 }' "$( AgentsToolsManagerPlaceSessions )" 2> /dev/null )" || agentsSessions=0
+	agentsSessions="$( LC_ALL=C awk -v ws="${MMDAPP%/}" 'BEGIN { sub( /.*\//, "", ws ) ; } NF >= 11 && $11 == ws { id = ( $2 == "-" ) ? $1 : $2 ; if ( !seen[id]++ ) n++ ; } END { print n + 0 ; }' "$( AgentsToolsManagerPlaceSessions )" 2> /dev/null )" || agentsSessions=0
 	LocalToolsManagerWorkspaceItem sessions sessions "${agentsSessions:-0} recorded" "Activity" "@activity"
 	return 0
 }

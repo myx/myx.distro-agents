@@ -26,7 +26,7 @@ rigAssert(){ ## what is asserted, got, want
 	fi
 }
 rigSum(){ ## file -- the checksum the level keeps, as levelled.sums holds it
-	LC_ALL=C cksum < "$1" | LC_ALL=C awk '{ print $1 "-" $2 }'
+	LC_ALL=C cksum < "$1" | LC_ALL=C awk '{ print $1 "-" $2 ; }'
 }
 
 ## The rig: a builder workspace (the lock lives under its .local/temp), a repository OUTSIDE it, and this work's scratch.
@@ -183,7 +183,7 @@ rigRename ; rigOp "$rigTmp/ren.out" apply --repository "$rigRepo" --scratch "$ri
 rigAssert "the new path stands, both sources are gone" \
 	"$( [ -f "$rigLiveE/c.txt" ] && printf new )$( [ -e "$rigLiveD/c.txt" ] || printf '%s' -old )$( [ -e "$rigLiveD/b.txt" ] || printf '%s' -removed )" "new-old-removed"
 rigAssert "the removals come after every write" \
-	"$( LC_ALL=C awk '/^put in place/ { p = NR } /^removed:/ && !r { r = NR } END { print ( p && r && p < r ) ? "after" : "before" }' "$rigTmp/ren.out" )" after
+	"$( LC_ALL=C awk '/^put in place/ { p = NR ; } /^removed:/ && !r { r = NR ; } END { print ( p && r && p < r ) ? "after" : "before" ; }' "$rigTmp/ren.out" )" after
 rigAssert "each step is in the record" \
 	"$( LC_ALL=C awk -F'\t' 'NF == 3 && ( $1 " " $2 == "put p/e/c.txt" || $1 " " $2 == "removed p/d/b.txt" || $1 " " $2 == "removed p/d/c.txt" ) { n++ ; } END { print n + 0 ; }' "$rigScratch/applied-steps.txt" 2> /dev/null )" 3
 rigAssert "the removal and the renamed file are read back by their absolute paths" \

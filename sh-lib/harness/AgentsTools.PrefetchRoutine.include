@@ -41,8 +41,8 @@ AgentsToolsPrefetchRoutineUnchanged(){ ## routine file path, [file name, checksu
 	if [ -z "$unchangedName" ] ; then
 		unchangedMarker="$( AgentsToolsPrefetchMarkerFile )" || return 1
 		[ -f "$unchangedMarker" ] || return 1
-		unchangedName="$( LC_ALL=C awk 'index( $0, "routine: " ) == 1 { print substr( $0, 10 ) ; exit }' "$unchangedMarker" )"
-		unchangedSum="$( LC_ALL=C awk 'index( $0, "routine-sum: " ) == 1 { print substr( $0, 14 ) ; exit }' "$unchangedMarker" )"
+		unchangedName="$( LC_ALL=C awk 'index( $0, "routine: " ) == 1 { print substr( $0, 10 ) ; exit ; }' "$unchangedMarker" )"
+		unchangedSum="$( LC_ALL=C awk 'index( $0, "routine-sum: " ) == 1 { print substr( $0, 14 ) ; exit ; }' "$unchangedMarker" )"
 	fi
 	[ -n "$unchangedName" ] && [ -n "$unchangedSum" ] && [ "${1##*/}" = "$unchangedName" ] || return 1
 	type AgentsToolsSpawnRoutineMixText > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnRoutine.include" || return 1

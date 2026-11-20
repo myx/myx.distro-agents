@@ -87,7 +87,7 @@ AgentsToolsToolIndexData(){ ## workspace
 		type AgentsToolsFrontSummary > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.FrontTable.Help.include"
 		printf 'shell\t%s\t%s\t%s\t%s\n' "${dataFile##*/}" "$dataStem" "$dataHelp" "$( AgentsToolsFrontSummary "$dataStem" )"
 	done | LC_ALL=C sort -u
-	AgentsToolsFrontNamesOf coordinator | LC_ALL=C sort -u | LC_ALL=C awk '{ print "coordop\t" $0 }'
+	AgentsToolsFrontNamesOf coordinator | LC_ALL=C sort -u | LC_ALL=C awk '{ print "coordop\t" $0 ; }'
 	printf 'calls\t%s\t%s\n' "$agentsToolIndexHere/harness/AgentsOpenAiChatWire.sh" "$agentsToolIndexHere/mcp/AgentsTools.InternMcpRequest.include"
 	for dataFamily in coordinator --client- --manager- ; do
 		while IFS= read -r dataMember ; do

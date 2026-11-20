@@ -158,7 +158,7 @@ rigBlocks(){ ## how many header lines the chat file holds
 }
 rigNth(){ ## the Nth header line of the chat file, without its time
 	[ -f "$rigChat" ] || { printf 'no-file' ; return 0 ; }
-	LC_ALL=C awk -v want="$1" '/^[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9]Z .* -> .*:$/ { count++ ; if ( count == want ) { sub(/^[^ ]* /, "") ; print ; exit ; } }' "$rigChat"
+	LC_ALL=C awk -v want="$1" '/^[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9]Z .* -> .*:$/ { count++ ; if ( count == want ) { sub(/^[^ ]* /, "") ; print ; exit ; } ; }' "$rigChat"
 }
 rigBody(){ ## the first body line of block N
 	[ -f "$rigChat" ] || { printf 'no-file' ; return 0 ; }
@@ -166,7 +166,7 @@ rigBody(){ ## the first body line of block N
 }
 rigIndex(){ ## ts, where and origin of block N
 	[ -f "$rigChat.index" ] || { printf 'no-index' ; return 0 ; }
-	LC_ALL=C awk -F'\t' -v want="$1" '$1 == want { print $2 " " $3 " " $4 ; found = 1 ; exit ; } END { if ( ! found ) { print "no-such-block" ; } }' "$rigChat.index"
+	LC_ALL=C awk -F'\t' -v want="$1" '$1 == want { print $2 " " $3 " " $4 ; found = 1 ; exit ; } END { if ( ! found ) { print "no-such-block" ; } ; }' "$rigChat.index"
 }
 rigCalls(){ ## method -- how many calls of it the log holds
 	LC_ALL=C awk -v want="$1" '$2 == want { count++ ; } END { print count + 0 ; }' "$rigDir/api.log"
@@ -204,7 +204,7 @@ rigOp pass-1 --one < /dev/null
 rigAssert "a pass over the live sessions ends well"                    "$rigRc" 0
 rigAssert "the thread was read once, as the team bot, from the start"  "$( rigCalls conversations.replies ):$( rigLastCall conversations.replies 6 ):$( rigLastCall conversations.replies 5 )" "1:rig-bot-token-TEAM:-"
 rigAssert "three blocks: the root, and the two replies"                "$( rigBlocks )" 3
-rigAssert "the one from before the launch is history, the others come as slack" "$( rigIndex 1 | LC_ALL=C awk '{ print $3 }' )/$( rigIndex 2 | LC_ALL=C awk '{ print $3 }' )/$( rigIndex 3 | LC_ALL=C awk '{ print $3 }' )" "history/slack/slack"
+rigAssert "the one from before the launch is history, the others come as slack" "$( rigIndex 1 | LC_ALL=C awk '{ print $3 ; }' )/$( rigIndex 2 | LC_ALL=C awk '{ print $3 ; }' )/$( rigIndex 3 | LC_ALL=C awk '{ print $3 ; }' )" "history/slack/slack"
 rigAssert "from is the sender the tooling recorded"                    "$( rigNth 2 )" "keeper-old -> all:"
 rigAssert "and the body is its text"                                   "$( rigBody 2 )" "RIG-REPLY-ONE"
 rigAssert "the floor of the executor is the two replies, not the root" "$( rigFloor keeper-exec | LC_ALL=C tr '\n' ' ' )" "0 newest= "
@@ -273,9 +273,9 @@ rigAssert "two posts wait, in the order they were sent"                "$( LC_AL
 printf 'rate:2\n' > "$rigDir/post-script"
 rigPass rate-1
 ## The push already took the outbox aside as outbox.pushing.txt, the first record kept for the retry the rate limit asked for.
-rigAssert "Slack says wait: the first is left for later, and the outbox keeps both" "$( rigCalls chat.postMessage ):$( LC_ALL=C wc -l < "${rigOutbox%/*}/outbox.pushing.txt" | LC_ALL=C tr -d ' ' ):$( LC_ALL=C awk '{ print $3 }' "${rigOutbox%/*}/.push.txt" 2> /dev/null )" "11:2:1"
+rigAssert "Slack says wait: the first is left for later, and the outbox keeps both" "$( rigCalls chat.postMessage ):$( LC_ALL=C wc -l < "${rigOutbox%/*}/outbox.pushing.txt" | LC_ALL=C tr -d ' ' ):$( LC_ALL=C awk '{ print $3 ; }' "${rigOutbox%/*}/.push.txt" 2> /dev/null )" "11:2:1"
 rigPushNow="$( date +%s )"
-rigAssert "the moment to try again is kept, two seconds on"             "$( LC_ALL=C awk -v now="$rigPushNow" '{ print ( $2 >= now + 1 && $2 <= now + 3 ? "ok" : "bad:" $2 ) }' "${rigOutbox%/*}/.push.txt" 2> /dev/null )" ok
+rigAssert "the moment to try again is kept, two seconds on"             "$( LC_ALL=C awk -v now="$rigPushNow" '{ print ( $2 >= now + 1 && $2 <= now + 3 ? "ok" : "bad:" $2 ) ; }' "${rigOutbox%/*}/.push.txt" 2> /dev/null )" ok
 rigPass rate-2
 rigAssert "a push inside it posts nothing"                             "$( rigCalls chat.postMessage )" 11
 printf '%s\n' "0 0 0" > "${rigOutbox%/*}/.push.txt"
@@ -288,8 +288,8 @@ rigLive
 printf 'RIG-CONSOLE-BODY' | { cd "$rigDir/ws" && env MDAT_COMMS_READER=off "PATH=$rigPath" "MMDAPP=$rigDir/ws" "MDLT_ORIGIN=$MDLT_ORIGIN" "MDAT_SKILLSET_ROOT=$rigTmp/skills" bash "$rigTool" --intern-session-comms --inject --session-id "$rigSession" --from keeper-rig --to keeper-addr ; } > "$rigDir/inject.out" 2> "$rigDir/inject.err"
 rigAssert "a message is left for the session in its inbox"             "$( ls "$rigSessDir/chat.inbox" 2> /dev/null | LC_ALL=C grep -c '\.msg$' ):$( LC_ALL=C head -1 "$rigSessDir/chat.inbox"/*.msg 2> /dev/null )" "1:keeper-rig -> keeper-addr:"
 rigPass inject-1
-rigAssert "a pass takes it: recorded as the console's, from and to as left" "$( rigNth 1 ):$( rigBody 1 ):$( rigIndex 1 | LC_ALL=C awk '{ print $3 }' )" "keeper-rig -> keeper-addr::RIG-CONSOLE-BODY:console"
-rigAssert "posted to the session thread, and stamped"                  "$( rigCalls chat.postMessage ):$( LC_ALL=C grep -c -F -e RIG-CONSOLE-BODY -e "\"thread_ts\":\"$rigRoot\"" "$rigDir/post.1" ):$( rigIndex 1 | LC_ALL=C awk '{ print $1 " " $2 }' )" "1:1:1760000000.000101 CRIGSES01:$rigRoot"
+rigAssert "a pass takes it: recorded as the console's, from and to as left" "$( rigNth 1 ):$( rigBody 1 ):$( rigIndex 1 | LC_ALL=C awk '{ print $3 ; }' )" "keeper-rig -> keeper-addr::RIG-CONSOLE-BODY:console"
+rigAssert "posted to the session thread, and stamped"                  "$( rigCalls chat.postMessage ):$( LC_ALL=C grep -c -F -e RIG-CONSOLE-BODY -e "\"thread_ts\":\"$rigRoot\"" "$rigDir/post.1" ):$( rigIndex 1 | LC_ALL=C awk '{ print $1 " " $2 ; }' )" "1:1:1760000000.000101 CRIGSES01:$rigRoot"
 rigAssert "and the inbox is empty"                                     "$( ls "$rigSessDir/chat.inbox" | LC_ALL=C wc -l | LC_ALL=C tr -d ' ' )" 0
 printf 'RIG-NOBODY-BODY' | { cd "$rigDir/ws" && env MDAT_COMMS_READER=off "PATH=$rigPath" "MMDAPP=$rigDir/ws" "MDLT_ORIGIN=$MDLT_ORIGIN" "MDAT_SKILLSET_ROOT=$rigTmp/skills" bash "$rigTool" --intern-session-comms --inject --session-id "$rigSession" --from nobody-here ; } > /dev/null 2> /dev/null
 rigPass inject-2
@@ -306,7 +306,7 @@ rigScene inject-start
 printf 'RIG-AUTO-BODY' | rigOp inject-start-1 --inject --session-id "$rigSession" --from keeper-rig
 rigWaited=0
 while [ "$rigWaited" -lt 40 ] && [ "$( rigBlocks )" != "1" ] ; do sleep 0.5 ; rigWaited=$(( rigWaited + 1 )) ; done
-rigDaemon4="$( cat "$rigDir/ws/.local/agents/comms/lock" 2> /dev/null | LC_ALL=C awk '{ print $1 }' )"
+rigDaemon4="$( cat "$rigDir/ws/.local/agents/comms/lock" 2> /dev/null | LC_ALL=C awk '{ print $1 ; }' )"
 [ -z "$rigDaemon4" ] || { rigProcNote "$rigDaemon4" ; rigStarted="$rigStarted $rigDaemon4" ; }
 rigAssert "an inject starts the reader where none lives, which sends the message" "$( LC_ALL=C grep -c -E 'the reader: (started|alive) ' "$rigDir/inject-start-1.err" ):$( rigBlocks ):$( rigBody 1 )" "1:1:RIG-AUTO-BODY"
 rigProcSignal TERM "${rigDaemon4:-0}"
@@ -344,11 +344,11 @@ rigScene order
 mkdir -p "$rigDir/ws/.local/agents/comms/looked"
 printf '%s 30\n' "$(( $( date +%s ) - 5 ))" > "$rigDir/ws/.local/agents/comms/looked/rig-a"
 printf '%s 30\n' "$(( $( date +%s ) - 100 ))" > "$rigDir/ws/.local/agents/comms/looked/rig-c"
-rigAssert "a pass reaches the session looked at longest ago first, and one never read before all, so the budget goes round" "$( printf 'rig-a CT1:1.1\nrig-b CT2:2.2\nrig-c CT3:3.3\n' | rigFn 'AgentsToolsSessionCommsOrder' | LC_ALL=C awk '{ printf "%s=%s ", $1, $2 }' )" "rig-b=CT2:2.2 rig-c=CT3:3.3 rig-a=CT1:1.1 "
+rigAssert "a pass reaches the session looked at longest ago first, and one never read before all, so the budget goes round" "$( printf 'rig-a CT1:1.1\nrig-b CT2:2.2\nrig-c CT3:3.3\n' | rigFn 'AgentsToolsSessionCommsOrder' | LC_ALL=C awk '{ printf "%s=%s ", $1, $2 ; }' )" "rig-b=CT2:2.2 rig-c=CT3:3.3 rig-a=CT1:1.1 "
 rigScene gaps
 rigLive
 rigGap(){ ## the gap kept for the scene's session
-	LC_ALL=C awk '{ print $2 }' "$rigDir/ws/.local/agents/comms/looked/$rigSession" 2> /dev/null
+	LC_ALL=C awk '{ print $2 ; }' "$rigDir/ws/.local/agents/comms/looked/$rigSession" 2> /dev/null
 }
 rigPass gaps-0
 rigAssert "a pass that brought something in: back to 3"                "$( rigGap )" 3
@@ -382,20 +382,20 @@ rigAssert "a start says it started a process"                          "$( [ -n 
 [ -z "$rigDaemon" ] || { rigProcNote "$rigDaemon" ; rigStarted="$rigStarted $rigDaemon" ; }
 rigWaited=0
 while [ "$rigWaited" -lt 20 ] && [ ! -e "$rigDir/ws/.local/agents/comms/lock" ] ; do sleep 0.5 ; rigWaited=$(( rigWaited + 1 )) ; done
-rigAssert "the lock names it: its pid, and when it began"              "$( cat "$rigDir/ws/.local/agents/comms/lock" 2> /dev/null | LC_ALL=C awk '{ print $1 }' ):$( cat "$rigDir/ws/.local/agents/comms/lock" 2> /dev/null | LC_ALL=C awk 'NF == 2 { print "two" }' )" "${rigDaemon:-none}:two"
+rigAssert "the lock names it: its pid, and when it began"              "$( cat "$rigDir/ws/.local/agents/comms/lock" 2> /dev/null | LC_ALL=C awk '{ print $1 ; }' ):$( cat "$rigDir/ws/.local/agents/comms/lock" 2> /dev/null | LC_ALL=C awk 'NF == 2 { print "two" ; }' )" "${rigDaemon:-none}:two"
 rigAssert "it shows in the process list as its operation, a process of its own" "$( LC_ALL=C ps -ww -o args= -p "${rigDaemon:-0}" 2> /dev/null | LC_ALL=C grep -c -F -e '--intern-session-comms --run' )" 1
 rigAssert "it is no run of any session, by the rule that tells a run"   "$( cd "$rigDir/ws" && MDLT_ORIGIN="$MDLT_ORIGIN" bash -c ". '$rigHere/team-data/AgentsTools.Registries.include' ; . '$rigHere/run/AgentsTools.RunProcesses.include' ; . '$rigHere/run/AgentsTools.RunState.include' ; . '$rigHere/run/AgentsTools.RunLeft.include' ; . '$rigHere/run/AgentsTools.RunRecords.include' ; ps -ww -o pid=,args= -p ${rigDaemon:-0} | AgentsToolsRunWords | wc -l | tr -d ' '" )" 0
 rigOp proc-again --start < /dev/null
 rigAssert "a second start is told it lives, and starts nothing"        "$( LC_ALL=C head -1 "$rigDir/proc-again.out" )" "alive ${rigDaemon:-none}"
 rigWaited=0
 while [ "$rigWaited" -lt 40 ] && [ "$( rigBlocks )" = "no-file" ] ; do sleep 0.5 ; rigWaited=$(( rigWaited + 1 )) ; done
-rigAssert "it reads the thread by itself: the root is in the file, as history" "$( rigBlocks ):$( rigIndex 1 | LC_ALL=C awk '{ print $3 }' )" "1:history"
+rigAssert "it reads the thread by itself: the root is in the file, as history" "$( rigBlocks ):$( rigIndex 1 | LC_ALL=C awk '{ print $3 ; }' )" "1:history"
 rigThreadData "$( rigMsg "$rigRoot" URIGOWNER RIG-ROOT "$rigRoot" )" "$( rigMsg "$(( $( date +%s ) - 1 )).000001" URIGHUM1 RIG-WHILE-IT-RUNS "$rigRoot" )"
 : > "$rigSessDir/session.chat.waiting"
 rigWaited=0
 while [ "$rigWaited" -lt 40 ] && [ "$( rigBlocks )" != "2" ] ; do sleep 0.5 ; rigWaited=$(( rigWaited + 1 )) ; done
 rigAssert "and what the thread says while it runs"                     "$( rigBlocks ):$( rigBody 2 )" "2:RIG-WHILE-IT-RUNS"
-rigAssert "its log says it started"                                    "$( LC_ALL=C grep -c 'the communications reader' "$rigDir/ws/.local/agents/comms/log" 2> /dev/null | LC_ALL=C awk '{ print ( $1 > 0 ) ? "yes" : "no" }' )" yes
+rigAssert "its log says it started"                                    "$( LC_ALL=C grep -c 'the communications reader' "$rigDir/ws/.local/agents/comms/log" 2> /dev/null | LC_ALL=C awk '{ print ( $1 > 0 ) ? "yes" : "no" ; }' )" yes
 rigProcSignal TERM "${rigDaemon:-0}"
 rigWaited=0
 while [ "$rigWaited" -lt 30 ] && [ -e "$rigDir/ws/.local/agents/comms/lock" ] ; do sleep 0.5 ; rigWaited=$(( rigWaited + 1 )) ; done
@@ -406,8 +406,8 @@ rigOp proc-take --start < /dev/null
 rigDaemon2="$( LC_ALL=C sed -n 's/^started \([0-9][0-9]*\)$/\1/p' "$rigDir/proc-take.out" | head -1 )"
 [ -z "$rigDaemon2" ] || { rigProcNote "$rigDaemon2" ; rigStarted="$rigStarted $rigDaemon2" ; }
 rigWaited=0
-while [ "$rigWaited" -lt 20 ] && [ "$( cat "$rigDir/ws/.local/agents/comms/lock" 2> /dev/null | LC_ALL=C awk '{ print $1 }' )" != "${rigDaemon2:-none}" ] ; do sleep 0.5 ; rigWaited=$(( rigWaited + 1 )) ; done
-rigAssert "a lock whose holder is gone is taken over"                  "$( cat "$rigDir/ws/.local/agents/comms/lock" 2> /dev/null | LC_ALL=C awk '{ print $1 }' )" "${rigDaemon2:-none}"
+while [ "$rigWaited" -lt 20 ] && [ "$( cat "$rigDir/ws/.local/agents/comms/lock" 2> /dev/null | LC_ALL=C awk '{ print $1 ; }' )" != "${rigDaemon2:-none}" ] ; do sleep 0.5 ; rigWaited=$(( rigWaited + 1 )) ; done
+rigAssert "a lock whose holder is gone is taken over"                  "$( cat "$rigDir/ws/.local/agents/comms/lock" 2> /dev/null | LC_ALL=C awk '{ print $1 ; }' )" "${rigDaemon2:-none}"
 rigProcSignal TERM "${rigDaemon2:-0}"
 ## A reader that ends on a change of its code starts again at once, with the lock given up and taken by the new one (MDAT_COMMS_CODE_EXTRA names a file of the rig
 ## that stands for its code: one newer than the lock ends it, as the includes do).
@@ -421,16 +421,16 @@ rigOpEnv=""
 rigDaemon3="$( LC_ALL=C sed -n 's/^started \([0-9][0-9]*\)$/\1/p' "$rigDir/recode-start.out" | head -1 )"
 [ -z "$rigDaemon3" ] || { rigProcNote "$rigDaemon3" ; rigStarted="$rigStarted $rigDaemon3" ; }
 rigWaited=0
-while [ "$rigWaited" -lt 20 ] && [ "$( cat "$rigDir/ws/.local/agents/comms/lock" 2> /dev/null | LC_ALL=C awk '{ print $1 }' )" != "${rigDaemon3:-none}" ] ; do sleep 0.5 ; rigWaited=$(( rigWaited + 1 )) ; done
+while [ "$rigWaited" -lt 20 ] && [ "$( cat "$rigDir/ws/.local/agents/comms/lock" 2> /dev/null | LC_ALL=C awk '{ print $1 ; }' )" != "${rigDaemon3:-none}" ] ; do sleep 0.5 ; rigWaited=$(( rigWaited + 1 )) ; done
 sleep 1
 : > "$rigCodeFile"
 rigWaited=0
 while [ "$rigWaited" -lt 160 ] ; do
-	rigNow3="$( cat "$rigDir/ws/.local/agents/comms/lock" 2> /dev/null | LC_ALL=C awk '{ print $1 }' )"
+	rigNow3="$( cat "$rigDir/ws/.local/agents/comms/lock" 2> /dev/null | LC_ALL=C awk '{ print $1 ; }' )"
 	{ [ -n "$rigNow3" ] && [ "$rigNow3" != "${rigDaemon3:-none}" ] ; } && break
 	sleep 0.5 ; rigWaited=$(( rigWaited + 1 ))
 done
-rigDaemon4="$( cat "$rigDir/ws/.local/agents/comms/lock" 2> /dev/null | LC_ALL=C awk '{ print $1 }' )"
+rigDaemon4="$( cat "$rigDir/ws/.local/agents/comms/lock" 2> /dev/null | LC_ALL=C awk '{ print $1 ; }' )"
 [ -z "$rigDaemon4" ] || { rigProcNote "$rigDaemon4" ; rigStarted="$rigStarted $rigDaemon4" ; }
 rigAssert "a reader that ends on a change of its code is replaced at once: the lock names a new process" "$( { [ -n "$rigDaemon4" ] && [ "$rigDaemon4" != "${rigDaemon3:-none}" ] ; } && printf new || printf same )" new
 rigAssert "the old process is gone, the new one lives" "$( rigProcStill "${rigDaemon3:-0}" | LC_ALL=C wc -l | LC_ALL=C tr -d ' ' ):$( rigProcStill "${rigDaemon4:-0}" | LC_ALL=C wc -l | LC_ALL=C tr -d ' ' )" "0:1"
@@ -447,7 +447,7 @@ while [ "$rigWaited" -lt 40 ] && [ -n "$( rigProcStill "${rigDaemon3:-0}" )" ] ;
 rigAssert "with no live session for the time set, it ends by itself, and gives its lock back" "$( rigProcStill "${rigDaemon3:-0}" | LC_ALL=C wc -l | LC_ALL=C tr -d ' ' ):$( [ -e "$rigDir/ws/.local/agents/comms/lock" ] && printf held || printf given )" "0:given"
 rigAssert "and says why in its log"                                    "$( LC_ALL=C grep -c 'no live session' "$rigDir/ws/.local/agents/comms/log" 2> /dev/null )" 1
 rigOp mode-none < /dev/null
-rigAssert "no mode: a usage, and a failure"                            "$( [ "$rigRc" != 0 ] && printf failed ):$( LC_ALL=C grep -c -F -e '--run' "$rigDir/mode-none.err" | LC_ALL=C awk '{ print ( $1 > 0 ) ? "usage" : "none" }' )" "failed:usage"
+rigAssert "no mode: a usage, and a failure"                            "$( [ "$rigRc" != 0 ] && printf failed ):$( LC_ALL=C grep -c -F -e '--run' "$rigDir/mode-none.err" | LC_ALL=C awk '{ print ( $1 > 0 ) ? "usage" : "none" ; }' )" "failed:usage"
 
 echo "-- 5b. a pass that reads nothing starts nothing --"
 ## The instrument: a DEBUG trap that writes a line for each command run in a subshell, and shims first on PATH that write a line for each
@@ -488,7 +488,7 @@ rigAssert "the budget at its end: refused, and no subshell, no program, and the 
 	"$( rigCounted "AgentsToolsSessionCommsBudgetTake $rigNow5 && echo taken || echo full" ) $( LC_ALL=C grep -c . "$rigDir/ws/.local/agents/comms/calls" )" "full 0 20"
 : > "$rigDir/ws/.local/agents/comms/calls"
 rigAssert "control: under the budget a read is taken and counted" \
-	"$( rigCounted "AgentsToolsSessionCommsBudgetTake $rigNow5 && echo taken || echo full" | LC_ALL=C awk '{ print $1 }' ) $( cat "$rigDir/ws/.local/agents/comms/calls" )" "taken $rigNow5"
+	"$( rigCounted "AgentsToolsSessionCommsBudgetTake $rigNow5 && echo taken || echo full" | LC_ALL=C awk '{ print $1 ; }' ) $( cat "$rigDir/ws/.local/agents/comms/calls" )" "taken $rigNow5"
 rigAssert "the activity pass with no run started: a pass after the one that listed starts nothing" \
 	"$( rigCounted "AgentsToolsCommsActivityPass $rigNow5 ; : > \"\$RIG_FORKS\" ; AgentsToolsCommsActivityPass $(( rigNow5 + 20 )) ; echo listed-once" )" "listed-once 0"
 
@@ -567,7 +567,7 @@ rigAssert "an outage at the push keeps both in the outbox, and the floor still h
 printf '' > "$rigDir/post-script"
 rm -f "${rigOutbox%/*}/.push.txt" 2> /dev/null || :
 rigPush queued-ok
-rigAssert "when Slack answers, the copy arrives in the order sent: block 1 has the earlier ts" "$( LC_ALL=C awk -F'\t' '$1 == 1 { a = $2 } $1 == 2 { b = $2 } END { print ( a != "-" && b != "-" && a < b ) ? "in-order" : "a=" a " b=" b }' "$rigChat.index" )" "in-order"
+rigAssert "when Slack answers, the copy arrives in the order sent: block 1 has the earlier ts" "$( LC_ALL=C awk -F'\t' '$1 == 1 { a = $2 ; } $1 == 2 { b = $2 ; } END { print ( a != "-" && b != "-" && a < b ) ? "in-order" : "a=" a " b=" b ; }' "$rigChat.index" )" "in-order"
 rigScene queued-x
 rigLive
 rigCommsLock
@@ -578,10 +578,10 @@ printf '%s\n' "$rigOtherThread" > "$rigOtherDir/session.thread"
 printf '' > "$rigDir/post-script"
 rigSendAsync "QX-ONE" "$rigOtherThread"
 rigAssert "a send into another session's thread is queued too, no Slack call made" "$rigRc:$( LC_ALL=C grep -c '"queued":true' "$rigDir/send.out" ):$( rigCalls chat.postMessage )" "0:1:0"
-rigAssert "the other session's file holds it at once, from the start in its own thread, no ts" "$( LC_ALL=C awk -F'\t' '$1 == 1 { print $2 " " $3 " " $4 }' "$rigOtherDir/session.chat.index" )" "- $rigOtherThread delivered"
+rigAssert "the other session's file holds it at once, from the start in its own thread, no ts" "$( LC_ALL=C awk -F'\t' '$1 == 1 { print $2 " " $3 " " $4 ; }' "$rigOtherDir/session.chat.index" )" "- $rigOtherThread delivered"
 rigAssert "the sender's block has the thread already, and the copies' rows are kept for the writer" "$( rigIndex 1 ):$( ls "$rigSessDir/chat.copies" 2> /dev/null | LC_ALL=C tr '\n' ' ' )" "- $rigOtherThread own:1 "
 rigPush queued-x-ok
-rigAssert "after the writer's post the copy has the ts too, and the rows are gone" "$( LC_ALL=C awk -F'\t' '$1 == 1 { print ( $2 != "-" ) ? "has-ts" : "no-ts" }' "$rigOtherDir/session.chat.index" ):$( ls "$rigSessDir/chat.copies" 2> /dev/null | LC_ALL=C grep -c . || : )" "has-ts:0"
+rigAssert "after the writer's post the copy has the ts too, and the rows are gone" "$( LC_ALL=C awk -F'\t' '$1 == 1 { print ( $2 != "-" ) ? "has-ts" : "no-ts" ; }' "$rigOtherDir/session.chat.index" ):$( ls "$rigSessDir/chat.copies" 2> /dev/null | LC_ALL=C grep -c . || : )" "has-ts:0"
 
 echo "-- 8. the places --"
 rigProxy="$rigHere/spawn/AgentsTools.InternOpAgentSpawnProxy.include"

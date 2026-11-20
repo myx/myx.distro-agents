@@ -182,7 +182,7 @@ rigField(){ ## field, pending id (default: the newest open record's)
 	else
 		fieldFile="$( rigRecord )"
 	fi
-	LC_ALL=C awk -v key="$1" '$0 == "---" { if ( ++dashes == 2 ) { exit ; } next ; } dashes == 1 && index( $0, key ": " ) == 1 { print substr( $0, length( key ) + 3 ) ; found = 1 ; exit ; } END { if ( ! found ) { print "none" ; } }' "$fieldFile" 2> /dev/null || printf 'no-record'
+	LC_ALL=C awk -v key="$1" '$0 == "---" { if ( ++dashes == 2 ) { exit ; } next ; } dashes == 1 && index( $0, key ": " ) == 1 { print substr( $0, length( key ) + 3 ) ; found = 1 ; exit ; } END { if ( ! found ) { print "none" ; } ; }' "$fieldFile" 2> /dev/null || printf 'no-record'
 }
 ## The prompt's own thread as Slack returns it: the prompt with the reactions a scenario puts
 ## on it, then the replies. The tooling's own three emoji, placed by the bot, are always there.

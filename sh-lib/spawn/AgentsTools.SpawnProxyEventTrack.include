@@ -211,12 +211,12 @@ AgentsToolsSpawnProxyEventTrackBatch(){ ## thread, member, output file
 		## reference/shell.md) hard-fails to parse either of those two shapes,
 		## confirmed by running this exact program against a sample log.
 		batchRead="$( tail -n +"$(( lastLineCount + 1 ))" "$batchLog" 2>/dev/null | LC_ALL=C awk '
-			{ n++ }
+			{ n++ ; }
 			index( $0, "  -> tool: " ) == 1 ||
 				index( $0, "  <- tool result" ) == 1 ||
 				( substr( $0, 1, 3 ) == "   " && substr( $0, 4, 1 ) != " " &&
-				  substr( $0, 4, 4 ) != "🧠" ) { print }
-			END { printf "\037%d\n", n + 0 }
+				  substr( $0, 4, 4 ) != "🧠" ) { print ; }
+			END { printf "\037%d\n", n + 0 ; }
 		' )"
 		batchNew="${batchRead##*$'\037'}"
 		case "$batchNew" in ''|*[!0123456789]*) continue ;; esac

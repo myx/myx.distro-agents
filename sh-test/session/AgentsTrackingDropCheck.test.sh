@@ -58,7 +58,7 @@ printf 'a member speaks to @keeper-addr' | rigTooling --slack-send-message --tea
 rigAssert "three posts were made" "$( ls "$rigScn"/post.* 2> /dev/null | LC_ALL=C grep -c . )" "3"
 rigAssert "the DISMISSED of the tooling, addressed, and the note of the tooling carry the mark" "$( LC_ALL=C grep -c -F '"tracking":"tooling"' "$rigScn/post.1" ):$( LC_ALL=C grep -c -F '"tracking":"tooling"' "$rigScn/post.2" )" "1:1"
 rigAssert "a member's own send does not" "$( LC_ALL=C grep -c -F '"tracking"' "$rigScn/post.3" )" "0"
-rigAssert "all three name the sender in the metadata still" "$( LC_ALL=C grep -c -F '"sender":"keeper-rig"' "$rigScn/post.1" "$rigScn/post.2" "$rigScn/post.3" | LC_ALL=C awk -F: '{ n += $2 } END { print n }' )" "3"
+rigAssert "all three name the sender in the metadata still" "$( LC_ALL=C grep -c -F '"sender":"keeper-rig"' "$rigScn/post.1" "$rigScn/post.2" "$rigScn/post.3" | LC_ALL=C awk -F: '{ n += $2 ; } END { print n ; }' )" "3"
 
 echo "-- 2. the readers drop what the tooling posted, and keep what is for the reader --"
 rigMessage(){ ## ts, post file -- a Slack message made of a payload of a post: a read of the channel answers it
@@ -86,7 +86,7 @@ printf '{"ok":true,"messages":[%s,%s,%s,%s,%s,%s,%s,%s],"has_more":false}\n' \
 	"$( rigTracked 1792422595.000700 'RIG-HAND-HOME done @keeper-addr' handback rig-home )" \
 	"$( rigTracked 1792422595.000800 'RIG-ACTIVITY of a run @keeper-addr' activity rig-home )" > "$rigScn/history-body"
 rigTooling --intern-op-comms-slack-read keeper-addr magic-team --oldest 1792422000 > "$rigScn/rendered.raw"
-LC_ALL=C awk '/^[0-9]+\.[0-9]+ \| / { shown = 1 } shown { print }' "$rigScn/rendered.raw" > "$rigScn/rendered"
+LC_ALL=C awk '/^[0-9]+\.[0-9]+ \| / { shown = 1 ; } shown { print ; }' "$rigScn/rendered.raw" > "$rigScn/rendered"
 rigAssert "the read shows the marks: [tracking: tooling] on two posts, [tracking: ...] and [session: ...] on the event-track ones" "$( LC_ALL=C grep -c -F '[tracking: tooling]' "$rigScn/rendered" ):$( LC_ALL=C grep -c -F '[session: rig-away]' "$rigScn/rendered" )" "2:2"
 rigDrop keeper-addr "$rigScn/rendered" > "$rigScn/for.addr"
 rigAssert "for keeper-addr, who the DISMISSED is addressed to: it stays" "$( LC_ALL=C grep -c 'DISMISSED' "$rigScn/for.addr" )" "1"
@@ -101,7 +101,7 @@ echo "-- 3. the chat file: what is addressed to a run is news, the rest of the t
 chatOut="$rigScn/chat.out" indexOut="$rigScn/chat.index" LC_ALL=C awk -v channel=CRIG00001 -v where=CRIG00001:1792422000.000001 -v origin=slack -v seen=- -v historyBefore=0 -v startLine=1 -v startNo=1 \
 	-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsSessionChatImport.awk" "$rigScn/index.empty" "$rigScn/index.empty" "$rigScn/names.empty" "$rigScn/rendered" > /dev/null
 rigOrigin(){ ## ts -- the origin the index keeps for the message
-	LC_ALL=C awk -F '\t' -v want="$1" '$2 == want { print $4 ; exit }' "$rigScn/chat.index"
+	LC_ALL=C awk -F '\t' -v want="$1" '$2 == want { print $4 ; exit ; }' "$rigScn/chat.index"
 }
 rigAssert "the DISMISSED addressed to a run is news to its floor (origin slack)" "$( rigOrigin 1792422595.000100 )" "slack"
 rigAssert "the note of the tooling addressed to nobody is history" "$( rigOrigin 1792422595.000200 )" "history"

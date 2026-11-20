@@ -64,7 +64,7 @@ rigDisagreement(){ ## workspace holding the tooling origin
 }
 ## The Declares block of a project.inf, as a project of the rig carries it.
 rigDeclares(){ ## project.inf path
-	LC_ALL=C awk '/^Declares:/ { inBlock = 1 } inBlock && !/^Declares:/ && /^[A-Za-z]+:/ { exit } inBlock { print }' "$1"
+	LC_ALL=C awk '/^Declares:/ { inBlock = 1 ; } inBlock && !/^Declares:/ && /^[A-Za-z]+:/ { exit ; } inBlock { print ; }' "$1"
 }
 ## A workspace of this rig whose one source project is the tooling package, over the declares given:
 ## what the distro door reads, and nothing else of the workspace. Nothing is installed under its
@@ -85,22 +85,22 @@ rigAssert "control: the instrument sees a full seat, not two empty ones" "$( rig
 rigAssert "control: the declared seat is not empty" "$( [ "$( rigDeclaredSeat < "$rigOriginInf" | LC_ALL=C grep -c . )" -gt 0 ] && printf full || printf empty )" "full"
 
 echo "-- 2. control: a workspace whose declares drop a tool is reported by name --"
-rigDropped="$( rigWorkspace dropped "$( rigDeclares "$rigOriginInf" | LC_ALL=C awk '!/:Wait \\$/ { print }' )" )" || rigRefuse "the dropped tool's workspace could not be made"
+rigDropped="$( rigWorkspace dropped "$( rigDeclares "$rigOriginInf" | LC_ALL=C awk '!/:Wait \\$/ { print ; }' )" )" || rigRefuse "the dropped tool's workspace could not be made"
 rigAssert "the tool the origin no longer names is reported" "$( rigDisagreement "$rigDropped" | head -1 )" ""
 rigAssert "and it is the one that was dropped" "$( rigDisagreement "$rigDropped" | tail -1 )" "Wait"
 
 echo "-- 3. control: a workspace whose declares add a tool is reported by name --"
-rigAdded="$( rigWorkspace added "$( rigDeclares "$rigOriginInf" | LC_ALL=C awk '{ print } /allow-tool:[*]:Skill \\$/ { print "\tmagic-team:permissions:workspace:*:allow-tool:*:RigExtraFloorTool \\" }' )" )" || rigRefuse "the added tool's workspace could not be made"
+rigAdded="$( rigWorkspace added "$( rigDeclares "$rigOriginInf" | LC_ALL=C awk '{ print ; } /allow-tool:[*]:Skill \\$/ { print "\tmagic-team:permissions:workspace:*:allow-tool:*:RigExtraFloorTool \\" ; }' )" )" || rigRefuse "the added tool's workspace could not be made"
 rigAssert "a tool the origin names and the code does not is reported" "$( rigDisagreement "$rigAdded" | head -1 )" "RigExtraFloorTool"
 rigAssert "and nothing is reported the other way" "$( rigDisagreement "$rigAdded" | tail -1 )" ""
 
 echo "-- 4. the seat is the workspace's own source project, never an installed copy under its .local --"
 mkdir -p "$rigOriginWs/.local/myx/myx.distro-agents" || rigRefuse "the installed copy's folder could not be made"
-printf 'Name: myx.distro-agents\n%s\n' "$( rigDeclares "$rigOriginInf" | LC_ALL=C awk '{ print } /allow-tool:[*]:Skill \\$/ { print "\tmagic-team:permissions:workspace:*:allow-tool:*:RigLocalOnlyTool \\" }' )" > "$rigOriginWs/.local/myx/myx.distro-agents/project.inf" || rigRefuse "the installed copy could not be written"
+printf 'Name: myx.distro-agents\n%s\n' "$( rigDeclares "$rigOriginInf" | LC_ALL=C awk '{ print ; } /allow-tool:[*]:Skill \\$/ { print "\tmagic-team:permissions:workspace:*:allow-tool:*:RigLocalOnlyTool \\" ; }' )" > "$rigOriginWs/.local/myx/myx.distro-agents/project.inf" || rigRefuse "the installed copy could not be written"
 rigAssert "a row only an installed copy holds is not a floor tool" "$( rigOriginSeat "$rigOriginWs" | LC_ALL=C grep -c 'RigLocalOnlyTool' )" "0"
 
 echo "-- 5. a floor that reads empty fails the read, and a full one does not --"
-rigEmpty="$( rigWorkspace empty "$( rigDeclares "$rigOriginInf" | LC_ALL=C awk '!/allow-tool:[*]:/ { print }' )" )" || rigRefuse "the empty floor's workspace could not be made"
+rigEmpty="$( rigWorkspace empty "$( rigDeclares "$rigOriginInf" | LC_ALL=C awk '!/allow-tool:[*]:/ { print ; }' )" )" || rigRefuse "the empty floor's workspace could not be made"
 rigRead(){ ## workspace -- "<the reader's rc>:<how many lines of stderr say the floor was not read>"
 	local readRc=0 readErr
 	readErr="$( export MMDAPP="$1" ; bash -c '. "$1/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionHolds.include" ; AgentsToolsPermissionOriginFloorTools "$2"' _ "$rigOrigin" "$1" 2>&1 > /dev/null )" || readRc=$?

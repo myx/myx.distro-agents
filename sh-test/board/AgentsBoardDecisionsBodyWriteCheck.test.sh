@@ -49,7 +49,7 @@ rigRun(){ ## dispatcher-fn, outname, args...
 		bash "$rigFn" "$@" ) > "$rigOut/$opOut.out" 2> "$rigOut/$opOut.err" || rigRc=$?
 }
 rigDecisions(){ ## item file -> its Decisions section lines, in file order
-	LC_ALL=C awk '/^## Decisions[ \t]*$/ { on = 1 ; next } on && /^##? / { on = 0 } on && /^- / { print }' "$1" 2>/dev/null
+	LC_ALL=C awk '/^## Decisions[ \t]*$/ { on = 1 ; next ; } on && /^##? / { on = 0 ; } on && /^- / { print ; }' "$1" 2>/dev/null
 }
 ## The whole document writer B hands over, with real newlines. A second argument
 ## appends a Decisions block the writer built itself.
@@ -114,14 +114,14 @@ rigAssert "and the decision survives that patch"    "$( rigDecisions "$( rigItem
 
 echo "== 6. a script that cuts the Decisions section off =="
 rigSeeded 1005 "RIG-DECISION-H must stand."
-rigRun "$rigToolsFn" b6 --intern-op-board-upsert-move-edit running "$rigItem.md" --from-state:running --edit-script-from-stdin:awk --context rig <<< '/^## Decisions/ { exit } { print }'
+rigRun "$rigToolsFn" b6 --intern-op-board-upsert-move-edit running "$rigItem.md" --from-state:running --edit-script-from-stdin:awk --context rig <<< '/^## Decisions/ { exit ; } { print ; }'
 rigAssert "CLAIM 10: the script write is refused"   "$( [ "$rigRc" -ne 0 ] && printf refused || printf taken )" refused
 rigAssert "CLAIM 11: the refusal names the line"    "$( LC_ALL=C grep -c 'RIG-DECISION-H must stand\.' "$rigOut/b6.err" )" 1
 rigAssert "the decision survives untouched"         "$( rigDecisions "$( rigItemPath )" | LC_ALL=C grep -c 'RIG-DECISION-H must stand\.' )" 1
 
 echo "== 7. CONTROL DIRECTION: a script that appends a section =="
 rigSeeded 1006 "RIG-DECISION-I must stand."
-rigRun "$rigToolsFn" b7 --intern-op-board-upsert-move-edit running "$rigItem.md" --from-state:running --edit-script-from-stdin:awk --context rig <<< '{ print } END { print "" ; print "## Notes" ; print "" ; print "A later section." }'
+rigRun "$rigToolsFn" b7 --intern-op-board-upsert-move-edit running "$rigItem.md" --from-state:running --edit-script-from-stdin:awk --context rig <<< '{ print ; } END { print "" ; print "## Notes" ; print "" ; print "A later section." ; }'
 rigAssert "a section-appending script is accepted"  "$rigRc" 0
 rigAssert "its section is stored"                   "$( LC_ALL=C grep -c '^A later section\.$' "$( rigItemPath )" )" 1
 rigAssert "and the decision survives it"            "$( rigDecisions "$( rigItemPath )" | LC_ALL=C grep -c 'RIG-DECISION-I must stand\.' )" 1

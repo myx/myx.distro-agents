@@ -89,7 +89,7 @@ rigNow(){ ## name -- whether the MCP reply's field holds the host's time at the 
 	if [ -n "$nowValue" ] && { [ "$nowValue" = "$( cat "$rigTmp/$1.before" )" ] || [ "$nowValue" = "$( cat "$rigTmp/$1.after" )" ] ; } ; then printf now ; else printf '%s' "${nowValue:-none}" ; fi
 }
 rigOffset(){ ## name -- the offset the MCP reply's field carries
-	rigItem "$1" date text | LC_ALL=C grep -o -E "$rigForm" | head -1 | LC_ALL=C awk '{ print $NF }'
+	rigItem "$1" date text | LC_ALL=C grep -o -E "$rigForm" | head -1 | LC_ALL=C awk '{ print $NF ; }'
 }
 
 rigServe glob UTC Glob "{\"pattern\":\"*.txt\",\"path\":\"$rigFix\"}"
@@ -127,7 +127,7 @@ echo "-- 5. a served call prints no current-date, and a Wait's TIMEOUT is its on
 for rigName in glob read wait ; do
 	rigAssert "$rigName: no current-date in its output"       "$( rigDates "$rigName" )" 0
 done
-rigAssert "Glob still lists the file, Read still gives its line" "$( LC_ALL=C grep -c -F "$rigFix/a.txt" "$rigTmp/glob.out" | LC_ALL=C awk '{ print ( $1 >= 1 ) }' ) $( LC_ALL=C grep -c -F 'rig line' "$rigTmp/read.out" | LC_ALL=C awk '{ print ( $1 >= 1 ) }' )" "1 1"
+rigAssert "Glob still lists the file, Read still gives its line" "$( LC_ALL=C grep -c -F "$rigFix/a.txt" "$rigTmp/glob.out" | LC_ALL=C awk '{ print ( $1 >= 1 ) ; }' ) $( LC_ALL=C grep -c -F 'rig line' "$rigTmp/read.out" | LC_ALL=C awk '{ print ( $1 >= 1 ) ; }' )" "1 1"
 rigAssert "the Wait's TIMEOUT is its own line, its NEXT: part last" "$( LC_ALL=C sed -n '1s/^WAIT-RESULT: TIMEOUT ([0-9][0-9]*s) NEXT: run --idle-wait, if you are waiting for new work or a dismissal$/the-line/p' "$rigTmp/wait.out" )" "the-line"
 
 echo "-- 6. in the harness's own model loop, the tool message holds the result and, beside it, the field --"
@@ -148,7 +148,7 @@ env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp/home" PATH="$rigLoopDir/bin:/u
 	> "$rigLoopDir/out" 2> "$rigLoopDir/err" < /dev/null || :
 [ -s "$rigLoopDir/req.2" ] || rigRefuse "the loop never gave the model the tool's result, so nothing below would be measured: $( tail -3 "$rigLoopDir/err" | LC_ALL=C tr '\n' ' ' )"
 rigToolMsg="$( LC_ALL=C grep -o -E '\{"role":"tool","tool_call_id":"rig-call-1","content":\[[^]]*\]\}' "$rigLoopDir/req.2" | head -1 )"
-rigAssert "control: the model is given the Glob's result"     "$( printf '%s' "$rigToolMsg" | LC_ALL=C grep -c -F "$rigFix/a.txt" | LC_ALL=C awk '{ print ( $1 >= 1 ) ? "given" : "not-given" }' )" given
+rigAssert "control: the model is given the Glob's result"     "$( printf '%s' "$rigToolMsg" | LC_ALL=C grep -c -F "$rigFix/a.txt" | LC_ALL=C awk '{ print ( $1 >= 1 ) ? "given" : "not-given" ; }' )" given
 rigAssert "as the first text part of the tool message, the field as the second and last" \
 	"$( printf '%s' "$rigToolMsg" | LC_ALL=C grep -c -E "^\{\"role\":\"tool\",\"tool_call_id\":\"rig-call-1\",\"content\":\[\{\"type\":\"text\",\"text\":\"[^\"]*a\.txt\"\},\{\"type\":\"text\",\"text\":\"$rigForm\"\}\]\}\$" )" 1
 rigAssert "and it is the only field the model's request holds"  "$( LC_ALL=C grep -o -E "$rigForm" "$rigLoopDir/req.2" | LC_ALL=C grep -c . || : )" 1

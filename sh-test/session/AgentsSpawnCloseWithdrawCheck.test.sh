@@ -119,7 +119,7 @@ rigAsked(){ ## pending id, header -- its value, from the live store or from the 
 	fi
 }
 rigBlockLine(){ ## block heading under `# Reasons` -- the one line of its code fence in the note template
-	LC_ALL=C awk -v head="## $1" '$0 == head { on = 1 ; next } on && /^```/ { fence = ! fence ; next } on && fence && NF { print ; exit }' "$rigPackage/sh-lib/templates/$rigNote" 2> /dev/null
+	LC_ALL=C awk -v head="## $1" '$0 == head { on = 1 ; next ; } on && /^```/ { fence = ! fence ; next ; } on && fence && NF { print ; exit ; }' "$rigPackage/sh-lib/templates/$rigNote" 2> /dev/null
 }
 rigHeader(){ ## record file, header -- its value in the frontmatter, empty where absent
 	[ -f "$1" ] || return 0
@@ -131,7 +131,7 @@ rigRows(){ ## row kind -- the rows of that kind in the last stdout, one a line
 rigState(){ ## session id, further words of the list -- the state its session row reads, `not-listed` where it has none
 	( cd "$rigWs" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" PATH="$rigTmp/bin:/usr/bin:/bin:/usr/sbin:/sbin" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" \
 		MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rigSkills" bash "$rigTool" --manager-session-list ${2:-} ) > "$rigTmp/out" 2> "$rigTmp/err" < /dev/null
-	LC_ALL=C awk -F'\t' -v wantId="$1" '$1 == "session" && $2 == wantId { print $4 ; found = 1 } END { if ( ! found ) print "not-listed" }' "$rigTmp/out"
+	LC_ALL=C awk -F'\t' -v wantId="$1" '$1 == "session" && $2 == wantId { print $4 ; found = 1 ; } END { if ( ! found ) print "not-listed" ; }' "$rigTmp/out"
 }
 
 echo "-- 1. a run that ends with a question of its own open withdraws it --"
@@ -171,13 +171,13 @@ rigAssert "the review prompt about the run is still open, with the same asking i
 echo "-- 3. the state follows the store: an open ask waits, and nothing is hidden --"
 rigAssert "the session reads finished once its only run has ended, and the open ask is counted where nothing is hidden (S21.4: an open question does not hold a session whose runs have all ended)" \
 	"$( rigState "$rigRunId" ) $( rigState "$rigRunId" --active ) $( rigHeader "$rigRecord" status )" "finished not-listed spawn-succeeded"
-rigAssert "and the counters count that one open ask, from the store" "$( rigRows counters | LC_ALL=C awk '{ print $6 }' ) $( LC_ALL=C grep -l -x -F 'status: reply-pending' "$rigPend"/*.md 2> /dev/null | LC_ALL=C wc -l | LC_ALL=C tr -d ' ' )" "1 1"
+rigAssert "and the counters count that one open ask, from the store" "$( rigRows counters | LC_ALL=C awk '{ print $6 ; }' ) $( LC_ALL=C grep -l -x -F 'status: reply-pending' "$rigPend"/*.md 2> /dev/null | LC_ALL=C wc -l | LC_ALL=C tr -d ' ' )" "1 1"
 ( rigRun --settle-pending-reply rig-member "$rigReview" --reason "the review prompt no longer needs an answer in this check" --withdraw ) > /dev/null || \
 	echo "   (the withdraw of the review prompt reported: $( LC_ALL=C tr '\n' ' ' < "$rigTmp/err" 2> /dev/null ))" >&2
 rigAssert "the review prompt is withdrawn by the one withdraw, and the store holds no open ask at all" \
 	"$( rigAsked "$rigReview" status ) $( LC_ALL=C grep -l -x -F 'status: reply-pending' "$rigPend"/*.md 2> /dev/null | LC_ALL=C wc -l | LC_ALL=C tr -d ' ' )" "withdrawn 0"
 rigAssert "the same session now reads finished, and has left the active ones, because nothing waits -- not because a reader ignores an open ask" \
-	"$( rigState "$rigRunId" ) $( rigState "$rigRunId" --active ) $( rigRows counters | LC_ALL=C awk '{ print $6 }' )" "finished not-listed 0"
+	"$( rigState "$rigRunId" ) $( rigState "$rigRunId" --active ) $( rigRows counters | LC_ALL=C awk '{ print $6 ; }' )" "finished not-listed 0"
 
 echo "-- 4. the words are the template's --"
 rigAssert "the reason block exists in the note template, once, and its line is not written in the tooling" \

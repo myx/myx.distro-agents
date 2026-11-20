@@ -379,7 +379,7 @@ rigAssert "RequestPermission with no parent: the one line, nothing posted" "$( r
 ## The sources of a wait as a set: the Wait orders them by their check interval (S5.7), which is the
 ## Wait's own business, so a row compares the words sorted, on both sides.
 rigSorted(){ ## words...
-	printf '%s\n' "$*" | LC_ALL=C awk '{ for ( i = 1 ; i <= NF ; i++ ) print $i }' | LC_ALL=C sort | LC_ALL=C tr '\n' ' ' | LC_ALL=C sed 's/ $//'
+	printf '%s\n' "$*" | LC_ALL=C awk '{ for ( i = 1 ; i <= NF ; i++ ) print $i ; }' | LC_ALL=C sort | LC_ALL=C tr '\n' ' ' | LC_ALL=C sed 's/ $//'
 }
 rigWaited(){ ## session id (default: the spawn's)
 	rigSorted "$( LC_ALL=C sed -n 's/^sources: //p' "$rigScenarioDir/ws/.local/agents/sessions/${1:-rig-child-id}/wait/state" 2>/dev/null )"

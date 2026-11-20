@@ -78,7 +78,7 @@ rigAssert "hook answers nothing (allow)" "$rigOut" ""
 
 echo "-- 6. the hook is native-only, and the harness hook list leaves it out --"
 rigAssert "policy: class native, matcher Edit|Write|MultiEdit" \
-	"$( env -i PATH=/usr/bin:/bin MDLT_ORIGIN="$MDLT_ORIGIN" bash -c '. "'"$rigHere"'/client/AgentsTools.ClientToolPolicy.include" ; AgentsToolsClientToolPolicyHookRecords' | LC_ALL=C awk -F'\t' '$5 == "document-contract-guard.sh" { print $1 ":" $2 ":" $4 }' )" \
+	"$( env -i PATH=/usr/bin:/bin MDLT_ORIGIN="$MDLT_ORIGIN" bash -c '. "'"$rigHere"'/client/AgentsTools.ClientToolPolicy.include" ; AgentsToolsClientToolPolicyHookRecords' | LC_ALL=C awk -F'\t' '$5 == "document-contract-guard.sh" { print $1 ":" $2 ":" $4 ; }' )" \
 	"PreToolUse:native:Edit|Write|MultiEdit"
 rigAssert "harness list leaves it out, no fault" "$( env -i PATH=/usr/bin:/bin MDLT_ORIGIN="$MDLT_ORIGIN" bash -c '
 	. "'"$rigHere"'/client/AgentsTools.ClientToolPolicy.include" ; . "'"$rigHere"'/harness/AgentsHarnessHooksLoad.include"

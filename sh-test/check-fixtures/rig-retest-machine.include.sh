@@ -41,7 +41,7 @@ rigMachineSetup(){
 rigDirective(){ ## sh-test path or `off`, [host glob, default *] -- the rig's package as the package is, with a testing directive naming that sh-test folder of it (the folders eligible for the testing system), or none
 	local directiveFile="$rigLive/myx/myx.distro-agents/project.inf" directiveTemp
 	directiveTemp="$( mktemp "$directiveFile.XXXXXX" )" || return 1
-	LC_ALL=C awk -v line="$( [ "$1" = off ] || printf '\tmagic-team:testing:myx.distro-agents:%s:%s \\' "$1" "${2:-*}" )" '{ print } /^Declares: \\$/ && line != "" { print line }' "$rigPackage/project.inf" > "$directiveTemp" && mv -f "$directiveTemp" "$directiveFile"
+	LC_ALL=C awk -v line="$( [ "$1" = off ] || printf '\tmagic-team:testing:myx.distro-agents:%s:%s \\' "$1" "${2:-*}" )" '{ print ; } /^Declares: \\$/ && line != "" { print line ; }' "$rigPackage/project.inf" > "$directiveTemp" && mv -f "$directiveTemp" "$directiveFile"
 }
 rigTake(){ ## folder below the origin, folder below the rig's tree -- that folder copied whole, links followed, .git left out
 	mkdir -p "$rigLive/$2" && tar -C "$MDLT_ORIGIN/$1" --exclude .git -chf - . 2> /dev/null | tar -C "$rigLive/$2" -xf - 2> /dev/null

@@ -44,7 +44,7 @@ rigOpen(){ ## session id or empty -- opens a question, prints its id
 		--channel CRIG00001 --question-ts 1700000000.000100 --thread-ts 1700000000.000100 --addressees URIGOWNER --asking-accounts ' URIGSELF1 ' 2> "$rigTmp/open.err" )
 }
 rigLines(){ ## session, source -- how many times the source stands in the `sources:` line of the session's stored wait
-	LC_ALL=C awk -v want="$2" '$1 == "sources:" { for ( fieldNo = 2 ; fieldNo <= NF ; fieldNo++ ) if ( $fieldNo == want ) hits++ } END { print hits + 0 }' "$rigWs/.local/agents/sessions/$1/wait/state" 2> /dev/null || printf 0
+	LC_ALL=C awk -v want="$2" '$1 == "sources:" { for ( fieldNo = 2 ; fieldNo <= NF ; fieldNo++ ) if ( $fieldNo == want ) hits++ ; } END { print hits + 0 ; }' "$rigWs/.local/agents/sessions/$1/wait/state" 2> /dev/null || printf 0
 }
 
 echo "-- 1. a question opened for a session joins its stored wait at once --"

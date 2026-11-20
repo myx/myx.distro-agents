@@ -156,7 +156,7 @@ sleep 300 > /dev/null 2>&1 < /dev/null &
 rigNewerPid=$!
 rigPids="$rigPids $rigNewerPid"
 sleep 1
-rigNewerStart="$( { LC_ALL=C ps -o lstart= -p "$rigNewerPid" 2> /dev/null ; } | LC_ALL=C awk 'NF { $1 = $1 ; gsub( / /, "_" ) ; print ; exit }' )"
+rigNewerStart="$( { LC_ALL=C ps -o lstart= -p "$rigNewerPid" 2> /dev/null ; } | LC_ALL=C awk 'NF { $1 = $1 ; gsub( / /, "_" ) ; print ; exit ; }' )"
 [ -n "$rigNewerStart" ] || rigRefuse "a process of this host could not be named with when it began"
 rigRecord rigdead2 keeper-rig spawn-succeeded "spawns: item-held
 cli: deepseek
@@ -167,7 +167,7 @@ rigRecord rignewer keeper-rig spawn-started "run-process: $rigNewerPid $rigNewer
 cli: deepseek
 cli-setting: mel-deepseek-flash+-"
 ## The item is the dead run's, and its own `spawn-id` now names the newer run: the case the guard is for.
-LC_ALL=C awk '{ if ( $0 == "spawn-id: rigdead2" ) { print "spawn-id: rignewer" ; next ; } ; print }' "$rigData/board/review/item-held.md" \
+LC_ALL=C awk '{ if ( $0 == "spawn-id: rigdead2" ) { print "spawn-id: rignewer" ; next ; } ; print ; }' "$rigData/board/review/item-held.md" \
 	| rigStoreItem "$rigData" board review item-held.md || rigRefuse "the item of the newer run could not be written"
 sleep 1
 

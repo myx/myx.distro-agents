@@ -60,12 +60,12 @@ AgentsToolsManagerTeamDataItems(){ ## store, folder (`-`: the store itself), the
 	## one count of the bytes of them all, and in the same pass the front matter of each; a
 	## name's own whitespace reads `_`, and so does a value's, an absent one `-`
 	itemRows="$( { wc -c -- ${itemFiles[@]+"${itemFiles[@]}"} 2> /dev/null || : ; } | LC_ALL=C awk -v OFS='\t' -v store="$1" -v folder="$2" -v at="${3%/}/" '
-		function field( value ) { gsub( /[ \t]+/, "_", value ) ; return value == "" ? "-" : value }
+		function field( value ) { gsub( /[ \t]+/, "_", value ) ; return value == "" ? "-" : value ; }
 		function front( path,    line, count, key ) {
 			split( "", fronts ) ; count = 0
 			while ( ( getline line < path ) > 0 ) {
 				count++
-				if ( count == 1 ) { if ( line != "---" ) break ; continue }
+				if ( count == 1 ) { if ( line != "---" ) break ; continue ; }
 				if ( line == "---" || count > 200 ) break
 				if ( match( line, /^(type|status|owner|date):/ ) ) {
 					key = substr( line, 1, RLENGTH - 1 ) ; line = substr( line, RLENGTH + 1 ) ; sub( /^[ \t]+/, "", line ) ; sub( /[ \t\r]+$/, "", line )
@@ -76,8 +76,8 @@ AgentsToolsManagerTeamDataItems(){ ## store, folder (`-`: the store itself), the
 		}
 		{ bytes = $1 ; name = $0 ; sub( /^[ \t]*[0-9]+[ \t]/, "", name ) ; if ( index( name, at ) != 1 ) next ; front( name ) ; name = substr( name, length( at ) + 1 )
 		  gsub( /[ \t]/, "_", name ) ; stamp = "-" ; if ( match( name, /[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]T[0-9][0-9][0-9][0-9]/ ) ) stamp = substr( name, RSTART, RLENGTH )
-		  print stamp, "item", store, folder, name, bytes, stamp, field( fronts[ "type" ] ), field( fronts[ "status" ] ), field( fronts[ "owner" ] ), field( fronts[ "date" ] ) }' | LC_ALL=C sort -t "$( printf '\t' )" -k1,1r -k5,5 | LC_ALL=C awk -F'\t' '
-		$1 == "-" { rest = rest substr( $0, 3 ) "\n" ; next } { print substr( $0, index( $0, "\t" ) + 1 ) } END { printf "%s", rest }' )"
+		  print stamp, "item", store, folder, name, bytes, stamp, field( fronts[ "type" ] ), field( fronts[ "status" ] ), field( fronts[ "owner" ] ), field( fronts[ "date" ] ) ; }' | LC_ALL=C sort -t "$( printf '\t' )" -k1,1r -k5,5 | LC_ALL=C awk -F'\t' '
+		$1 == "-" { rest = rest substr( $0, 3 ) "\n" ; next ; } { print substr( $0, index( $0, "\t" ) + 1 ) ; } END { printf "%s", rest ; }' )"
 	return 0
 }
 
@@ -219,15 +219,15 @@ case "$1" in
 		printf 'store\tcontacts\tpresent\t%s\t%s\n' "$( ls "$contactsRoot/organisations/"*.md 2> /dev/null | wc -l | tr -d ' ' )" "$( ls "$contactsRoot/persons/"*.md 2> /dev/null | wc -l | tr -d ' ' )"
 		LC_ALL=C awk -v orgDir="$contactsRoot/organisations/" 'function emit() { if ( !n ) return
 				if ( kind == "organisation" ) printf "organisation\t%s\t%s\t%s\n", id, nm, dom
-				else printf "contact\t%s\t%s\t%s\t%s\t%s\t%s\n", id, ( nm != "" ? nm : id ), ( org != "" ? org : "-" ), ( mail != "" ? mail : "-" ), ( owner == "yes" ? "human-owner" : ( tier != "" ? tier : ( org != "" && org != "none" ? "tier-contact" : "-" ) ) ), ( scopes != "" ? scopes : "-" ) }
-			FNR == 1 { emit() ; n = 1 ; hdr = 0 ; id = "" ; nm = "" ; org = "" ; mail = "" ; tier = "" ; scopes = "" ; dom = "" ; owner = "" ; kind = ( index( FILENAME, orgDir ) == 1 ? "organisation" : "contact" ) }
-			/^---$/ { hdr++ ; next }
-			hdr != 1 { next }
-			/^contact-id: / { id = substr( $0, 13 ) } /^organisation-id: / { id = substr( $0, 18 ) }
-			/^display-name: / { nm = substr( $0, 15 ) } /^organisation: / { org = substr( $0, 15 ) }
-			/^email: / { mail = substr( $0, 8 ) } /^tier: / { tier = substr( $0, 7 ) } /^scope-tiers: / { scopes = substr( $0, 14 ) }
-			/^domain: / { dom = substr( $0, 9 ) } /^is-owner: / { owner = substr( $0, 11 ) }
-			END { emit() }' "$contactsRoot/organisations/"*.md "$contactsRoot/persons/"*.md 2> /dev/null
+				else printf "contact\t%s\t%s\t%s\t%s\t%s\t%s\n", id, ( nm != "" ? nm : id ), ( org != "" ? org : "-" ), ( mail != "" ? mail : "-" ), ( owner == "yes" ? "human-owner" : ( tier != "" ? tier : ( org != "" && org != "none" ? "tier-contact" : "-" ) ) ), ( scopes != "" ? scopes : "-" ) ; }
+			FNR == 1 { emit() ; n = 1 ; hdr = 0 ; id = "" ; nm = "" ; org = "" ; mail = "" ; tier = "" ; scopes = "" ; dom = "" ; owner = "" ; kind = ( index( FILENAME, orgDir ) == 1 ? "organisation" : "contact" ) ; }
+			/^---$/ { hdr++ ; next ; }
+			hdr != 1 { next ; }
+			/^contact-id: / { id = substr( $0, 13 ) ; } /^organisation-id: / { id = substr( $0, 18 ) ; }
+			/^display-name: / { nm = substr( $0, 15 ) ; } /^organisation: / { org = substr( $0, 15 ) ; }
+			/^email: / { mail = substr( $0, 8 ) ; } /^tier: / { tier = substr( $0, 7 ) ; } /^scope-tiers: / { scopes = substr( $0, 14 ) ; }
+			/^domain: / { dom = substr( $0, 9 ) ; } /^is-owner: / { owner = substr( $0, 11 ) ; }
+			END { emit() ; }' "$contactsRoot/organisations/"*.md "$contactsRoot/persons/"*.md 2> /dev/null
 		return 0
 	;;
 

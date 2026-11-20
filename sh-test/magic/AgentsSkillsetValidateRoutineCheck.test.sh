@@ -110,7 +110,7 @@ rigAssert "the complete routine carries none of tracking-item:, operations:, sta
 
 ## The complete routine with extra frontmatter lines (a line a key, `\n` between them), as a routine of the given name.
 rigWith(){ ## name, frontmatter lines
-	EXTRA="$2" LC_ALL=C awk '{ print } $0 == "requires-session-kind: coworking" { printf "%s\n", ENVIRON["EXTRA"] }' "$( rigFile complete )" > "$rigTmp/routines/magic-tester.$1.routine.md"
+	EXTRA="$2" LC_ALL=C awk '{ print ; } $0 == "requires-session-kind: coworking" { printf "%s\n", ENVIRON["EXTRA"] ; }' "$( rigFile complete )" > "$rigTmp/routines/magic-tester.$1.routine.md"
 }
 rigWithRun(){ ## name, frontmatter lines -- one run of it
 	rigWith "$1" "$2" ; rigRun "$( rigFile "$1" )"

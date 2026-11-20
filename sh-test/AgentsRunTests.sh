@@ -1181,7 +1181,7 @@ AgentsRunStallEnd(){ ## seconds the run has stood still -- the note of it, for t
 	## be another process's.
 	endSelf="$( exec sh -c 'echo "$PPID"' )"
 	ps -A -o pid= -o ppid= -o comm= 2>/dev/null | LC_ALL=C awk -v root="$$" -v self="$endSelf" '
-		{ ppid[ $1 ] = $2 ; name[ $1 ] = $3 }
+		{ ppid[ $1 ] = $2 ; name[ $1 ] = $3 ; }
 		END {
 			for ( pid in ppid ) {
 				if ( pid == self || pid == root ) continue

@@ -53,11 +53,11 @@ rigOutcome(){ ## result file, item filename, outcome, receipt
 	printf '%s' "$?" > "$opOut.rc"
 }
 rigField(){ ## item filename, field
-	LC_ALL=C awk -v want="$2" 'index($0, want ": ") == 1 { print substr($0, length(want) + 3) ; exit }' "$rigData/board/running/$1"
+	LC_ALL=C awk -v want="$2" 'index($0, want ": ") == 1 { print substr($0, length(want) + 3) ; exit ; }' "$rigData/board/running/$1"
 }
 ## The field set to a value, in place, so a document can be aged past a window.
 rigFieldStamp(){ ## item path, field, value
-	RIG_SET="$3" LC_ALL=C awk -v want="$2" 'index($0, want ": ") == 1 { print want ": " ENVIRON["RIG_SET"] ; next } { print }' "$1" > "$1.stamp" \
+	RIG_SET="$3" LC_ALL=C awk -v want="$2" 'index($0, want ": ") == 1 { print want ": " ENVIRON["RIG_SET"] ; next ; } { print ; }' "$1" > "$1.stamp" \
 		&& mv -f "$1.stamp" "$1"
 }
 

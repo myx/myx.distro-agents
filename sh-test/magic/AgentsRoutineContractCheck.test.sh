@@ -45,11 +45,11 @@ rigAssert(){ ## what is asserted, got, want
 	fi
 }
 rigFront(){ ## file -- its first frontmatter block
-	LC_ALL=C awk 'NR == 1 && $0 != "---" { exit } NR > 1 && $0 == "---" { exit } NR > 1 { print }' "$1"
+	LC_ALL=C awk 'NR == 1 && $0 != "---" { exit ; } NR > 1 && $0 == "---" { exit ; } NR > 1 { print ; }' "$1"
 }
 ## The Frontmatter entry as the contract writes it: its own line and the indented sub-bullets under it, since the keys stand
 ## across them (mandatory on one, optional on the next), and a reader of the contract reads the entry, not one line of it.
-rigFrontLine="$( LC_ALL=C awk '/^- Frontmatter[^:]*:/ { grab = 1 ; print ; next } grab && /^[ \t]+/ { print ; next } { grab = 0 }' "$rigContract" )"
+rigFrontLine="$( LC_ALL=C awk '/^- Frontmatter[^:]*:/ { grab = 1 ; print ; next ; } grab && /^[ \t]+/ { print ; next ; } { grab = 0 ; }' "$rigContract" )"
 rigHas(){ ## text, fixed string -- yes or no
 	if printf '%s\n' "$1" | LC_ALL=C grep -q -F -- "$2" ; then printf 'yes' ; else printf 'no' ; fi
 }
@@ -93,7 +93,7 @@ printf 'rig\n' > "$rigTmp/skills/keeper-rig/keeper-rig.basic.md" ; printf 'rig\n
 printf -- '---\ntype: routine\nexecutors: keeper-rig\nmaintainers: keeper-rig\ninvitees: \nrequires-session-kind: coworking\n---\n# keeper-rig.alpha.routine — the actual procedure\n\n# Opening steps\n\n# Steps\n\n# Closure steps\n\n# Routine'"'"'s local procedures\n' > "$rigTmp/skills/keeper-rig/keeper-rig.alpha.routine.md"
 ( cd "$rigWs" && env -i HOME="$rigTmp/home" USER=rigacct PATH="/usr/bin:/bin:/usr/sbin:/sbin" MMDAPP="$rigWs" MDLT_ORIGIN="$rigOrigin" MDLT_OPTION="--run-from-path $rigOrigin" \
 	MDAT_SKILLSET_ROOT="$rigTmp/skills" bash "$rigTool" --manager-routine-list ) > "$rigTmp/list" 2> "$rigTmp/list.err" < /dev/null
-rigAssert "its row is listed, and its session field holds coworking" "$( LC_ALL=C awk -F'\t' '$1 == "routine" && $2 == "keeper-rig.alpha.routine.md" { print "listed", $6 }' "$rigTmp/list" )" "listed coworking"
+rigAssert "its row is listed, and its session field holds coworking" "$( LC_ALL=C awk -F'\t' '$1 == "routine" && $2 == "keeper-rig.alpha.routine.md" { print "listed", $6 ; }' "$rigTmp/list" )" "listed coworking"
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ ROUTINE CONTRACT CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

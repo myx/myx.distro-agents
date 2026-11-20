@@ -106,7 +106,7 @@ rigPostsIn(){ ## thread ts suffix, text
 }
 ## The one line of the result that starts with a prefix, or a value saying there is none.
 rigLineOf(){ ## prefix
-	LC_ALL=C awk -v wantPrefix="$1" 'index( $0, wantPrefix ) == 1 { print ; found = 1 ; exit ; } END { if ( ! found ) { print "no-" wantPrefix "line" ; } }' "$rigScenarioDir/out"
+	LC_ALL=C awk -v wantPrefix="$1" 'index( $0, wantPrefix ) == 1 { print ; found = 1 ; exit ; } END { if ( ! found ) { print "no-" wantPrefix "line" ; } ; }' "$rigScenarioDir/out"
 }
 ## The record of the scenario's one ask of a kind, and one field of a record.
 rigRecordOf(){ ## kind
@@ -128,7 +128,7 @@ rigFieldFile(){ ## pending id -- its record's path, live or retained-closed
 	printf '%s' "$rigFieldPath"
 }
 rigField(){ ## pending id, field
-	LC_ALL=C awk -v key="$2" '$0 == "---" { if ( ++dashes == 2 ) { exit ; } next ; } dashes == 1 && index( $0, key ": " ) == 1 { print substr( $0, length( key ) + 3 ) ; found = 1 ; exit ; } END { if ( ! found ) { print "none" ; } }' "$( rigFieldFile "$1" )" 2>/dev/null || printf 'no-record'
+	LC_ALL=C awk -v key="$2" '$0 == "---" { if ( ++dashes == 2 ) { exit ; } next ; } dashes == 1 && index( $0, key ": " ) == 1 { print substr( $0, length( key ) + 3 ) ; found = 1 ; exit ; } END { if ( ! found ) { print "none" ; } ; }' "$( rigFieldFile "$1" )" 2>/dev/null || printf 'no-record'
 }
 rigRefusal(){ ## output file -> the refusal id it printed
 	LC_ALL=C sed -n 's/^REFUSAL-ID: \(refusal-[0-9a-f-]*\)$/\1/p' "$1" | head -1
@@ -283,7 +283,7 @@ rigOpLeft=45
 while kill -0 "$rigOpPid" 2>/dev/null && [ "$rigOpLeft" -gt 0 ] ; do sleep 1 ; rigOpLeft=$(( rigOpLeft - 1 )) ; done
 if kill -0 "$rigOpPid" 2>/dev/null ; then
 	pkill -TERM -P "$rigOpPid" 2>/dev/null ; kill -TERM "$rigOpPid" 2>/dev/null
-	"$RIG_PS_REAL" -A -o pid=,command= | LC_ALL=C awk -v want="file:$rigScenarioDir/quiet.txt" 'index( $0, want ) { print $1 }' | while read -r rigOpLeft ; do kill -TERM "$rigOpLeft" 2>/dev/null ; done
+	"$RIG_PS_REAL" -A -o pid=,command= | LC_ALL=C awk -v want="file:$rigScenarioDir/quiet.txt" 'index( $0, want ) { print $1 ; }' | while read -r rigOpLeft ; do kill -TERM "$rigOpLeft" 2>/dev/null ; done
 	printf 'rig: the wait did not come back within 45s, and was stopped\n' > "$rigScenarioDir/op.out"
 fi
 wait "$rigOpPid" 2>/dev/null || :
@@ -297,12 +297,12 @@ rigRoundSet 2
 rigCall 45 Wait "{\"sources\":\"file:$rigScenarioDir/quiet.txt\",\"timeout\":14400}"
 ## THE CHECKLIST LINE IS THE GATE'S AND NO PART OF THE RESULT (epic 20261026 line 426), so it stands beside the one line.
 rigAssert "one line and no more: nothing arrived, and Wait mode=continue goes on" \
-	"$rigKilled:$( LC_ALL=C awk '! /^(WAIT-NEVER-READ|CHECKLIST): / { n++ } END { print n + 0 ; }' "$rigScenarioDir/out" ):$( LC_ALL=C sed -n 's/^WAIT-RESULT: TIMEOUT ([0-9][0-9]*s) NEXT: run --idle-wait, if you are waiting for new work or a dismissal$/the-line/p' "$rigScenarioDir/out" )" "no:1:the-line"
+	"$rigKilled:$( LC_ALL=C awk '! /^(WAIT-NEVER-READ|CHECKLIST): / { n++ ; } END { print n + 0 ; }' "$rigScenarioDir/out" ):$( LC_ALL=C sed -n 's/^WAIT-RESULT: TIMEOUT ([0-9][0-9]*s) NEXT: run --idle-wait, if you are waiting for new work or a dismissal$/the-line/p' "$rigScenarioDir/out" )" "no:1:the-line"
 ## The lines themselves, where the count is not one: a red row that names the extra line is a finding, one that gives a number is a riddle.
-[ "$( LC_ALL=C awk '! /^(WAIT-NEVER-READ|CHECKLIST): / { n++ } END { print n + 0 ; }' "$rigScenarioDir/out" )" = 1 ] || LC_ALL=C sed 's/^/        out: /' "$rigScenarioDir/out" >&2
+[ "$( LC_ALL=C awk '! /^(WAIT-NEVER-READ|CHECKLIST): / { n++ ; } END { print n + 0 ; }' "$rigScenarioDir/out" )" = 1 ] || LC_ALL=C sed 's/^/        out: /' "$rigScenarioDir/out" >&2
 rigCall 45 Wait '{"mode":"continue"}'
 rigAssert "and going on is the same one line again" \
-	"$rigKilled:$( LC_ALL=C awk '! /^(WAIT-NEVER-READ|CHECKLIST): / { n++ } END { print n + 0 ; }' "$rigScenarioDir/out" ):$( LC_ALL=C sed -n 's/^WAIT-RESULT: TIMEOUT ([0-9][0-9]*s) NEXT: run --idle-wait, if you are waiting for new work or a dismissal$/the-line/p' "$rigScenarioDir/out" )" "no:1:the-line"
+	"$rigKilled:$( LC_ALL=C awk '! /^(WAIT-NEVER-READ|CHECKLIST): / { n++ ; } END { print n + 0 ; }' "$rigScenarioDir/out" ):$( LC_ALL=C sed -n 's/^WAIT-RESULT: TIMEOUT ([0-9][0-9]*s) NEXT: run --idle-wait, if you are waiting for new work or a dismissal$/the-line/p' "$rigScenarioDir/out" )" "no:1:the-line"
 printf 'RIG-ARRIVAL\n' > "$rigScenarioDir/quiet.txt"
 rigCall 45 Wait '{"mode":"continue"}'
 rigAssert "an arrival is returned as before, whatever the round" "$rigKilled:$( rigFirstLine "$rigScenarioDir/out" ):$( rigHolds "$rigScenarioDir/out" 'RIG-ARRIVAL' )" "no:WAIT-RESULT: RECEIVED:yes"

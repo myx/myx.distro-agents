@@ -109,19 +109,19 @@ echo "-- a state that is not of the one list is refused, and a name that only lo
 rigOp "$rigDir/x1" --intern-op-board-upsert-move-edit rig-no-state "$rigItem" --from-state:review --context rig
 rigOp "$rigDir/x2" --intern-op-board-upsert-move-edit "review parked" "$rigItem" --from-state:review --context rig
 rigOp "$rigDir/x3" --intern-op-board-upsert-move-edit parked "$rigItem" --from-state:"review parked" --context rig
-rigAssert "each is refused by name, and nothing is made"     "$( cat "$rigDir/x1.rc" "$rigDir/x2.rc" "$rigDir/x3.rc" ) $( LC_ALL=C grep -c -e 'invalid to-state: rig-no-state' -e 'invalid to-state: review parked' -e 'invalid state: review parked' "$rigDir/x1.err" "$rigDir/x2.err" "$rigDir/x3.err" | LC_ALL=C awk -F: '{ n += $NF } END { print n + 0 }' ) $( [ -e "$rigStore/board/rig-no-state" ] && printf made || printf none )" "111 3 none"
+rigAssert "each is refused by name, and nothing is made"     "$( cat "$rigDir/x1.rc" "$rigDir/x2.rc" "$rigDir/x3.rc" ) $( LC_ALL=C grep -c -e 'invalid to-state: rig-no-state' -e 'invalid to-state: review parked' -e 'invalid state: review parked' "$rigDir/x1.err" "$rigDir/x2.err" "$rigDir/x3.err" | LC_ALL=C awk -F: '{ n += $NF ; } END { print n + 0 ; }' ) $( [ -e "$rigStore/board/rig-no-state" ] && printf made || printf none )" "111 3 none"
 
 echo "-- a read with no board makes nothing --"
 rigScenario read
 mkdir -p "$rigStore"
 rigOp "$rigDir/s" --intern-op-session-context-scan magic-coordinator --all-types --context rig
 rigAssert "a scan of every state ends well"                  "$( cat "$rigDir/s.rc" )" 0
-rigAssert "and says no fault of a folder"                    "$( LC_ALL=C grep -c -i -e 'no such file' -e 'no such board state' "$rigDir/s" "$rigDir/s.err" | LC_ALL=C awk -F: '{ n += $NF } END { print n + 0 }' )" 0
+rigAssert "and says no fault of a folder"                    "$( LC_ALL=C grep -c -i -e 'no such file' -e 'no such board state' "$rigDir/s" "$rigDir/s.err" | LC_ALL=C awk -F: '{ n += $NF ; } END { print n + 0 ; }' )" 0
 rigOp "$rigDir/d" --manager-dashboard-read team-data
 rigAssert "the dashboard's team data block ends well"        "$( cat "$rigDir/d.rc" )" 0
 rigAssert "with no board figure, for there is no item"       "$( LC_ALL=C grep -c 'board-' "$rigDir/d" || : )" 0
 rigOp "$rigDir/r" --state-note-read --team-member magic-coordinator
-rigAssert "a read of an item of the board that is not there names no folder fault" "$( LC_ALL=C grep -c -i -e 'no such file' -e 'no such board state' "$rigDir/r" "$rigDir/r.err" | LC_ALL=C awk -F: '{ n += $NF } END { print n + 0 }' )" 0
+rigAssert "a read of an item of the board that is not there names no folder fault" "$( LC_ALL=C grep -c -i -e 'no such file' -e 'no such board state' "$rigDir/r" "$rigDir/r.err" | LC_ALL=C awk -F: '{ n += $NF ; } END { print n + 0 ; }' )" 0
 rigAssert "none of the reads made a board"                   "$( [ -e "$rigStore/board" ] && printf made || printf none )" none
 
 echo "-- a state added to the one list has its folder with no further code --"

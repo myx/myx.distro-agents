@@ -51,7 +51,7 @@ rigAssert(){ ## what is asserted, got, want
 	fi
 }
 rigRun(){ ## the commands of the driver on standard input, after the ones every case starts with: a list of sixty sessions that run, entered (Active Sessions of Activity); what it printed is kept in rigOut
-	rigOut="$( { printf 'size 120 40\ntable list:pending none\ntable view:magic-team/activity/active-sessions:record none\nsessions %s\nroot active-sessions\nkeys ENTER\nturn\n' "$( awk 'BEGIN { for ( i = 1 ; i <= 60 ; i++ ) printf "r%03d=n%03d ", i, i }' )" ; cat ; } | "$rigPython" -I -B "$rigDriver" "$rigScreen" script 2>&1 )" || rigOut="$rigOut"$'\n'"DRIVER-FAILED rc=$?"
+	rigOut="$( { printf 'size 120 40\ntable list:pending none\ntable view:magic-team/activity/active-sessions:record none\nsessions %s\nroot active-sessions\nkeys ENTER\nturn\n' "$( awk 'BEGIN { for ( i = 1 ; i <= 60 ; i++ ) printf "r%03d=n%03d ", i, i ; }' )" ; cat ; } | "$rigPython" -I -B "$rigDriver" "$rigScreen" script 2>&1 )" || rigOut="$rigOut"$'\n'"DRIVER-FAILED rc=$?"
 }
 rigVal(){ ## name -- the value of the first `<name>=` line
 	printf '%s\n' "$rigOut" | LC_ALL=C sed -n "s/^$1=//p" | head -1

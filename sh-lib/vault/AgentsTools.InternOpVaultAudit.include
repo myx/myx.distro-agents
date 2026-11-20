@@ -209,19 +209,19 @@ case "$1" in
 			[ -f "$renFile" ] && [ ! -L "$renFile" ] || continue
 			renTmp="$( mktemp "$renFile.XXXXXX" )" || continue
 			if REN_OLD="$renOldBase" REN_NEW="$renNewBase" LC_ALL=C awk '
-				BEGIN { o = ENVIRON["REN_OLD"] ; n = ENVIRON["REN_NEW"] ; changed = 0 }
+				BEGIN { o = ENVIRON["REN_OLD"] ; n = ENVIRON["REN_NEW"] ; changed = 0 ; }
 				{
 					line = $0 ; out = ""
 					while ( ( at = index( line, o ) ) > 0 ) {
 						before = ( at > 1 ) ? substr( line, at - 1, 1 ) : ""
 						after = substr( line, at + length( o ), 1 )
-						if ( before !~ /[A-Za-z0-9_-]/ && after !~ /[A-Za-z0-9_-]/ ) { out = out substr( line, 1, at - 1 ) n ; changed = 1 }
-						else { out = out substr( line, 1, at - 1 + length( o ) ) }
+						if ( before !~ /[A-Za-z0-9_-]/ && after !~ /[A-Za-z0-9_-]/ ) { out = out substr( line, 1, at - 1 ) n ; changed = 1 ; }
+						else { out = out substr( line, 1, at - 1 + length( o ) ) ; }
 						line = substr( line, at + length( o ) )
 					}
 					print out line
 				}
-				END { exit changed ? 0 : 1 }' "$renFile" > "$renTmp" ; then
+				END { exit changed ? 0 : 1 ; }' "$renFile" > "$renTmp" ; then
 				mv -f "$renTmp" "$renFile" && { renChanged=( ${renChanged[@]+"${renChanged[@]}"} "$renFile" ) ; renCount=$(( renCount + 1 )) ; }
 			else
 				rm -f "$renTmp"

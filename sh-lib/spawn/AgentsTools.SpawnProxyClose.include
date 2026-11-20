@@ -342,7 +342,7 @@ AgentsToolsSpawnProxyCloseSandboxOnce(){ ## tracking file, outcome, exit code, e
 		## the session read prints it with the record's other headers; each restart's own time
 		## and threshold stay in the marker, and the transcript keeps its RESTART line.
 		if [ -s "${sandboxFile%.spawn.md}.restarts" ] ; then
-			sandboxRestarts="$( LC_ALL=C awk 'NF { counted++ } END { print counted + 0 }' "${sandboxFile%.spawn.md}.restarts" 2> /dev/null )"
+			sandboxRestarts="$( LC_ALL=C awk 'NF { counted++ ; } END { print counted + 0 ; }' "${sandboxFile%.spawn.md}.restarts" 2> /dev/null )"
 			case "$sandboxRestarts" in ''|0|*[!0123456789]*) ;; *) printf 'upsert\trestarts\t%s\n' "$sandboxRestarts" ;; esac
 		fi
 		## Every refusal this run hit, not only the one that ended it (sketch 3.6): the count
@@ -350,7 +350,7 @@ AgentsToolsSpawnProxyCloseSandboxOnce(){ ## tracking file, outcome, exit code, e
 		## (AgentsHarnessRefusalKeep). A run the harness never flagged, or one no harness ran,
 		## carries no such header, the same shape `restarts` already has.
 		if [ -s "${sandboxFile%.spawn.md}.refused-log" ] ; then
-			sandboxRefused="$( LC_ALL=C awk 'NF { counted++ } END { print counted + 0 }' "${sandboxFile%.spawn.md}.refused-log" 2> /dev/null )"
+			sandboxRefused="$( LC_ALL=C awk 'NF { counted++ ; } END { print counted + 0 ; }' "${sandboxFile%.spawn.md}.refused-log" 2> /dev/null )"
 			case "$sandboxRefused" in ''|0|*[!0123456789]*) ;; *) printf 'upsert\trefused\t%s\n' "$sandboxRefused" ;; esac
 		fi
 	} > "$sandboxOps" || { rm -f "$sandboxOps" ; return 1 ; }
@@ -411,7 +411,7 @@ AgentsToolsSpawnProxyWithdrawAsks(){ ## tracking file
 	[ "${#askFiles[@]}" -gt 0 ] || return 0
 	## The open ones, with the member that asked each: its record read once, its header fields only.
 	askList="$( LC_ALL=C awk '
-		FNR == 1 { dashes = 0 ; status = "" ; kind = "" ; owner = "" ; name = FILENAME ; sub( /^.*\//, "", name ) ; sub( /\.md$/, "", name ) }
+		FNR == 1 { dashes = 0 ; status = "" ; kind = "" ; owner = "" ; name = FILENAME ; sub( /^.*\//, "", name ) ; sub( /\.md$/, "", name ) ; }
 		$0 == "---" {
 			if ( ++dashes == 2 ) {
 				sub( /[[:space:]]+$/, "", owner ) ;
@@ -421,9 +421,9 @@ AgentsToolsSpawnProxyWithdrawAsks(){ ## tracking file
 			}
 			next ;
 		}
-		dashes == 1 && index( $0, "status: " ) == 1 { status = substr( $0, 9 ) }
-		dashes == 1 && index( $0, "kind: " ) == 1 { kind = substr( $0, 7 ) }
-		dashes == 1 && index( $0, "owner: " ) == 1 { owner = substr( $0, 8 ) }
+		dashes == 1 && index( $0, "status: " ) == 1 { status = substr( $0, 9 ) ; }
+		dashes == 1 && index( $0, "kind: " ) == 1 { kind = substr( $0, 7 ) ; }
+		dashes == 1 && index( $0, "owner: " ) == 1 { owner = substr( $0, 8 ) ; }
 	' ${askFiles[@]+"${askFiles[@]}"} 2> /dev/null )" || askList=""
 	[ -n "$askList" ] || return 0
 	## Why a question is withdrawn: a line of the note template's `# Reasons`, never a text written here.

@@ -115,8 +115,8 @@ rigWithOut="$rigOut"
 rigRun without without
 rigWithoutOut="$rigOut"
 rigOut="$rigWithOut"
-rigAssert "the pane shows the post (the lines with the emoji are there)" "$( printf '%s\n' "$rigOut" | LC_ALL=C grep '^pane|' | LC_ALL=C grep -c -F -e '1️⃣' -e '📋' -e '❓' -e '🇳🇿' )" "$( printf '%s\n' "$rigOut" | LC_ALL=C grep '^pane|' | LC_ALL=C grep -c -F -e '1️⃣' -e '📋' -e '❓' -e '🇳🇿' | LC_ALL=C awk '{ print ( $1 >= 4 ) ? $1 : "fewer than four lines" }' )"
-rigAssert "the border of the left window stands on one cell in every row, with the emoji and without them" "$( printf '%s\n' "$rigWithOut" | "$rigPython" -I -B "$rigTmp/measure.py" border pane ) / $( printf '%s\n' "$rigWithoutOut" | "$rigPython" -I -B "$rigTmp/measure.py" border pane )" "$( printf '%s\n' "$rigWithoutOut" | "$rigPython" -I -B "$rigTmp/measure.py" border pane | LC_ALL=C awk '{ print ( NF == 1 ) ? $1 " / " $1 : "not one cell: " $0 }' )"
+rigAssert "the pane shows the post (the lines with the emoji are there)" "$( printf '%s\n' "$rigOut" | LC_ALL=C grep '^pane|' | LC_ALL=C grep -c -F -e '1️⃣' -e '📋' -e '❓' -e '🇳🇿' )" "$( printf '%s\n' "$rigOut" | LC_ALL=C grep '^pane|' | LC_ALL=C grep -c -F -e '1️⃣' -e '📋' -e '❓' -e '🇳🇿' | LC_ALL=C awk '{ print ( $1 >= 4 ) ? $1 : "fewer than four lines" ; }' )"
+rigAssert "the border of the left window stands on one cell in every row, with the emoji and without them" "$( printf '%s\n' "$rigWithOut" | "$rigPython" -I -B "$rigTmp/measure.py" border pane ) / $( printf '%s\n' "$rigWithoutOut" | "$rigPython" -I -B "$rigTmp/measure.py" border pane )" "$( printf '%s\n' "$rigWithoutOut" | "$rigPython" -I -B "$rigTmp/measure.py" border pane | LC_ALL=C awk '{ print ( NF == 1 ) ? $1 " / " $1 : "not one cell: " $0 ; }' )"
 rigAssert "no text was put past the end of a line, with the emoji" "$( printf '%s\n' "$rigWithOut" | LC_ALL=C sed -n 's/^w.spills=//p' | head -1 )" "0"
 rigAssert "no row is wider with the emoji than the same rows without them, by the terminal's own count" "$( printf '%s\n' "$rigWithOut" | "$rigPython" -I -B "$rigTmp/measure.py" widest pane )" "$( printf '%s\n' "$rigWithoutOut" | "$rigPython" -I -B "$rigTmp/measure.py" widest pane )"
 
@@ -154,9 +154,9 @@ whole, same = m.markdownFitted(["short", "line"], {1: [(0, 4, 1)]}, 40)
 print(whole == ["short", "line"], same == {1: [(0, 4, 1)]})
 RIGMD
 )"
-rigAssert "every line is held to the window (39 cells at most), longer ones broken between words, the looks of the first piece kept, a line that fits left as it was" "$( printf '%s\n' "$rigMd" | head -1 | LC_ALL=C awk '{ print ( $1 <= 39 ) ? "fits" : "wider " $1 }' ) $( printf '%s\n' "$rigMd" | head -1 | LC_ALL=C cut -d' ' -f2- )" "fits True True True"
+rigAssert "every line is held to the window (39 cells at most), longer ones broken between words, the looks of the first piece kept, a line that fits left as it was" "$( printf '%s\n' "$rigMd" | head -1 | LC_ALL=C awk '{ print ( $1 <= 39 ) ? "fits" : "wider " $1 ; }' ) $( printf '%s\n' "$rigMd" | head -1 | LC_ALL=C cut -d' ' -f2- )" "fits True True True"
 rigAssert "and a text that fits comes back as it was, with its looks" "$( printf '%s\n' "$rigMd" | tail -1 )" "True True"
-rigAssert "a table cell with emoji is broken to its width by the count of the screen: no line wider than the table, none cut where it should be broken, every word of it there" "$( printf '%s\n' "$rigMd" | sed -n 2p | LC_ALL=C awk '{ print ( $1 <= 34 ) ? "fits " $2 " " $3 : "wider " $1 }' )" "fits 0 True"
+rigAssert "a table cell with emoji is broken to its width by the count of the screen: no line wider than the table, none cut where it should be broken, every word of it there" "$( printf '%s\n' "$rigMd" | sed -n 2p | LC_ALL=C awk '{ print ( $1 <= 34 ) ? "fits " $2 " " $3 : "wider " $1 ; }' )" "fits 0 True"
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ MANAGER SCREEN EMOJI WIDTH CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

@@ -51,7 +51,7 @@ rigSendOp(){ ## text, target -> the member's send, as the member
 		MDLT_ORIGIN="$MDLT_ORIGIN" RIG_CURL_LOG="$rigLog" bash "$rigTool" --intern-op-comms-slack-send-message keeper-myx "$2" --identity-bot --from-stdin ) > "$rigTmp/send.out" 2> "$rigTmp/send.err"
 }
 rigPosts(){ ## -> the chat.postMessage lines of the log, "<second>\t<text>"
-	LC_ALL=C awk -F'\t' '$2 == "chat.postMessage" { print $1 "\t" $3 }' "$rigLog"
+	LC_ALL=C awk -F'\t' '$2 == "chat.postMessage" { print $1 "\t" $3 ; }' "$rigLog"
 }
 
 ## ONE TRACKING POST WAITS IN THE CHANNEL'S OUTBOX: queued, not sent, as a post of the tooling waits behind a sender.
@@ -61,30 +61,30 @@ MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" bash -c '
 	. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/event-track/AgentsTools.EventTrackSend.include"
 	queue="$( AgentsToolsEventTrackSendDir CRIGTRACK )" && AgentsToolsEventTrackSendAppend "$queue" keeper-myx notice "" event-track CRIGTRACK "" "$1/fields" "$1/lines"' rig "$rigTmp/src" > /dev/null \
 	|| rigRefuse "the rig could not queue a post"
-rigAssert "control: one post waits in the outbox, nothing was sent" "$( find "$rigQueue" -mindepth 1 -maxdepth 1 -type d -name '[0-9]*' | LC_ALL=C awk 'END { print NR + 0 }' ):$( rigPosts | LC_ALL=C awk 'END { print NR + 0 }' )" "1:0"
+rigAssert "control: one post waits in the outbox, nothing was sent" "$( find "$rigQueue" -mindepth 1 -maxdepth 1 -type d -name '[0-9]*' | LC_ALL=C awk 'END { print NR + 0 ; }' ):$( rigPosts | LC_ALL=C awk 'END { print NR + 0 ; }' )" "1:0"
 
 rigSendOp "rig direct message one" event-track
-rigAssert "the send ends 0" "$( LC_ALL=C grep -c 'ok\|SENT_MESSAGE' "$rigTmp/send.err" "$rigTmp/send.out" | LC_ALL=C awk -F: '{ n += $2 } END { print ( n > 0 ? "answered" : "silent" ) }' )" "answered"
+rigAssert "the send ends 0" "$( LC_ALL=C grep -c 'ok\|SENT_MESSAGE' "$rigTmp/send.err" "$rigTmp/send.out" | LC_ALL=C awk -F: '{ n += $2 ; } END { print ( n > 0 ? "answered" : "silent" ) ; }' )" "answered"
 rigAssert "the queued post went first and the member's message after it: two posts, in that order" \
-	"$( rigPosts | LC_ALL=C awk -F'\t' 'NR == 1 && index( $2, "rig-queued-notice" ) { first = "queued" } NR == 2 && index( $2, "rig direct message one" ) { second = "direct" } END { print NR ":" first ":" second }' )" "2:queued:direct"
+	"$( rigPosts | LC_ALL=C awk -F'\t' 'NR == 1 && index( $2, "rig-queued-notice" ) { first = "queued" ; } NR == 2 && index( $2, "rig direct message one" ) { second = "direct" ; } END { print NR ":" first ":" second ; }' )" "2:queued:direct"
 rigAssert "the two are no closer than the 7 s window" \
-	"$( rigPosts | LC_ALL=C awk -F'\t' 'NR == 1 { at = $1 } NR == 2 { print ( $1 - at >= 7 ? "paced" : "too-close:" ( $1 - at ) ) }' )" "paced"
+	"$( rigPosts | LC_ALL=C awk -F'\t' 'NR == 1 { at = $1 ; } NR == 2 { print ( $1 - at >= 7 ? "paced" : "too-close:" ( $1 - at ) ) ; }' )" "paced"
 rigAssert "the outbox left empty, the moment of the member's post noted" \
-	"$( find "$rigQueue" -mindepth 1 -maxdepth 1 -type d -name '[0-9]*' | LC_ALL=C awk 'END { print NR + 0 }' ):$( [ -s "$rigQueue/last-send" ] && printf noted || printf missing )" "0:noted"
+	"$( find "$rigQueue" -mindepth 1 -maxdepth 1 -type d -name '[0-9]*' | LC_ALL=C awk 'END { print NR + 0 ; }' ):$( [ -s "$rigQueue/last-send" ] && printf noted || printf missing )" "0:noted"
 rigLastSeen="$( cat "$rigQueue/last-send" 2> /dev/null )"
-rigSecondAt="$( rigPosts | LC_ALL=C awk -F'\t' 'NR == 2 { print $1 }' )"
+rigSecondAt="$( rigPosts | LC_ALL=C awk -F'\t' 'NR == 2 { print $1 ; }' )"
 rigAssert "the noted moment is that of the member's post, within a second" "$( [ -n "$rigLastSeen" ] && [ -n "$rigSecondAt" ] && [ "$(( rigLastSeen - rigSecondAt ))" -le 1 ] && [ "$(( rigLastSeen - rigSecondAt ))" -ge 0 ] && printf same || printf "last=$rigLastSeen second=$rigSecondAt" )" "same"
 
-rigBefore="$( rigPosts | LC_ALL=C awk 'END { print NR + 0 }' )"
+rigBefore="$( rigPosts | LC_ALL=C awk 'END { print NR + 0 ; }' )"
 rigSendOp "rig direct message two" event-track
 rigAssert "the next send waits its window from the member's post: no closer than 7 s" \
-	"$( rigPosts | LC_ALL=C awk -F'\t' -v skip="$rigBefore" 'NR == skip { at = $1 } NR == skip + 1 { print ( $1 - at >= 7 ? "paced" : "too-close:" ( $1 - at ) ) }' )" "paced"
+	"$( rigPosts | LC_ALL=C awk -F'\t' -v skip="$rigBefore" 'NR == skip { at = $1 ; } NR == skip + 1 { print ( $1 - at >= 7 ? "paced" : "too-close:" ( $1 - at ) ) ; }' )" "paced"
 
 echo "-- a send into another channel notes nothing --"
 rigTeamBefore="$( cat "$rigQueue/last-send" 2> /dev/null )"
 rigSendOp "rig team message" magic-team
 rigAssert "magic-team: posted, and the event-track moment unchanged" \
-	"$( rigPosts | LC_ALL=C awk -F'\t' 'index( $2, "rig team message" ) { n++ } END { print n + 0 }' ):$( [ "$( cat "$rigQueue/last-send" 2> /dev/null )" = "$rigTeamBefore" ] && printf unchanged || printf changed )" "1:unchanged"
+	"$( rigPosts | LC_ALL=C awk -F'\t' 'index( $2, "rig team message" ) { n++ ; } END { print n + 0 ; }' ):$( [ "$( cat "$rigQueue/last-send" 2> /dev/null )" = "$rigTeamBefore" ] && printf unchanged || printf changed )" "1:unchanged"
 
 if [ "$rigFails" -gt 0 ] ; then
 	echo "⛔ EVENT TRACK MEMBER SEND CHECK FAILED: $rigFails of $(( rigFails + rigPasses )) assertion(s)" >&2

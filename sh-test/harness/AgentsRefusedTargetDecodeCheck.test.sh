@@ -153,7 +153,7 @@ rigAssert "a refusal id was issued"                      "$( [ "${rigStoredId#re
 rigAssert "the record holds the readable target"         "$( rigHolds "$rigStoredFile" "target: $rigNaturalTarget" )" yes
 rigAssert "the record holds no escaped colon"            "$( rigHolds "$rigStoredFile" "%3A" )" no
 rigFn --intern-op-permission-grant-open rig-granter --session-id rig-session-4 --refusal-id "$rigStoredId" --kind session > /dev/null
-rigAssert "the grants file keeps its colon-delimited shape" "$( awk -F: '{ print NF }' "$rigScenarioDir/ws/.local/agents/sessions/rig-session-4/grants" | head -1 )" 6
+rigAssert "the grants file keeps its colon-delimited shape" "$( awk -F: '{ print NF ; }' "$rigScenarioDir/ws/.local/agents/sessions/rig-session-4/grants" | head -1 )" 6
 rigAssert "a grant matches the natural target" \
 	"$( rigFn --intern-op-permission-grant-read "$rigMember" --session-id rig-session-4 --tool WebFetch --target "$rigNaturalTarget" | cut -c1-14 )" "GRANT: session"
 
@@ -164,7 +164,7 @@ rigNastyTarget='a:b,c%3Ad e|f'
 rigNastyId="$( rigFn --intern-op-permission-refusal-log "$rigMember" --session-id rig-session-5 --tool Bash --target "$rigNastyTarget" | head -1 )"
 rigFn --intern-op-permission-grant-open rig-granter --session-id rig-session-5 --refusal-id "$rigNastyId" --kind session > /dev/null
 rigAssert "a nasty target keeps the grants line at six fields" \
-	"$( awk -F: '{ print NF }' "$rigScenarioDir/ws/.local/agents/sessions/rig-session-5/grants" | head -1 )" 6
+	"$( awk -F: '{ print NF ; }' "$rigScenarioDir/ws/.local/agents/sessions/rig-session-5/grants" | head -1 )" 6
 rigAssert "a grant matches the nasty natural target" \
 	"$( rigFn --intern-op-permission-grant-read "$rigMember" --session-id rig-session-5 --tool Bash --target "$rigNastyTarget" | cut -c1-14 )" "GRANT: session"
 rigAssert "it does not match the target its escaped text looks like" \

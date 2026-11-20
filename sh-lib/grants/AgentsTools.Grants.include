@@ -229,15 +229,15 @@ AgentsToolsGrantsIndexWrite(){ ## workspace
 	## new folder is swapped into place before the index is renamed, so a slice is never newer
 	## than its index.
 	if ! ( umask 022 ; writeSliceNew="$writeSliceNew" LC_ALL=C awk -F'\t' '
-		BEGIN { writeSlicePass = 1 ; writeSliceMemberCount = 0 ; writeSliceOutDir = ENVIRON["writeSliceNew"] }
-		FNR == 1 && NR > 1 { writeSlicePass = 2 ; next }
+		BEGIN { writeSlicePass = 1 ; writeSliceMemberCount = 0 ; writeSliceOutDir = ENVIRON["writeSliceNew"] ; }
+		FNR == 1 && NR > 1 { writeSlicePass = 2 ; next ; }
 		writeSlicePass == 1 {
-			if ( FNR > 1 && $1 != "*" && $1 != "end" && ! ( $1 in writeSliceSeen ) ) { writeSliceSeen[$1] = 1 ; writeSliceMember[++writeSliceMemberCount] = $1 }
+			if ( FNR > 1 && $1 != "*" && $1 != "end" && ! ( $1 in writeSliceSeen ) ) { writeSliceSeen[$1] = 1 ; writeSliceMember[++writeSliceMemberCount] = $1 ; }
 			next
 		}
 		{
 			if ( $1 == "end" ) next
-			if ( $1 == "*" ) { for ( writeSliceI = 1 ; writeSliceI <= writeSliceMemberCount ; writeSliceI++ ) print $0 >> ( writeSliceOutDir "/" writeSliceMember[writeSliceI] ) ; next }
+			if ( $1 == "*" ) { for ( writeSliceI = 1 ; writeSliceI <= writeSliceMemberCount ; writeSliceI++ ) print $0 >> ( writeSliceOutDir "/" writeSliceMember[writeSliceI] ) ; next ; }
 			print $0 >> ( writeSliceOutDir "/" $1 )
 		}
 	' "$writeTemp" "$writeTemp" ) ; then
@@ -412,7 +412,7 @@ AgentsToolsTestingFolders(){ ## workspace root, op name for messages
 	foldersSelected="$( Distro ListDistroProjects --select-all )" || { echo "⛔ ERROR: $foldersOp: COULD-NOT-CHECK the testing directives: ListDistroProjects --select-all failed for workspace $foldersWs" >&2 ; return 2 ; }
 	[ -n "$foldersSelected" ] || return 3
 	foldersRows="$( AgentsToolsTestingDirectiveRows "$foldersSelected" "$foldersOp" )" || { echo "⛔ ERROR: $foldersOp: COULD-NOT-CHECK the testing directives: ListDistroDeclares failed for workspace $foldersWs" >&2 ; return 2 ; }
-	[ -z "$foldersRows" ] || printf '%s\n' "$foldersRows" | LC_ALL=C awk -F'\t' -v ws="$foldersWs" 'NF == 2 { print ws "/source/" $1 "/" $2 }'
+	[ -z "$foldersRows" ] || printf '%s\n' "$foldersRows" | LC_ALL=C awk -F'\t' -v ws="$foldersWs" 'NF == 2 { print ws "/source/" $1 "/" $2 ; }'
 }
 
 ## One declaring workspace's grants, read off its project.inf as it stands, and the floor
@@ -445,7 +445,7 @@ AgentsToolsGrantsDeclaredText(){ ## declaring workspace root, op name for messag
 		type AgentsDistroDeclaresCut > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/distro/AgentsTools.DistroDoor.include"
 		declLocal="$( AgentsDistroDeclaresCut "$declWs" 'magic-team:permissions:workspace' )" \
 			|| { echo "⛔ ERROR: $declOp: COULD-NOT-CHECK declared grants: the distro tooling could not list the declares of $declWs" >&2 ; return 2 ; }
-		declLocal="$( printf '%s\n' "$declLocal" | LC_ALL=C awk -v pkg="$declWs/.local/myx/" 'NF { n = split( $1, id, "/" ) ; print pkg id[n] " " $2 }' )"
+		declLocal="$( printf '%s\n' "$declLocal" | LC_ALL=C awk -v pkg="$declWs/.local/myx/" 'NF { n = split( $1, id, "/" ) ; print pkg id[n] " " $2 ; }' )"
 		[ -z "$declLocal" ] || declLocal="$declLocal"$'\n'
 	fi
 	if [ -d "$declWs/source" ] ; then

@@ -77,13 +77,13 @@ rigRun(){ ## out-name, args...
 ## One member's own part of a sweep document.
 rigPart(){ ## out-name, member
 	LC_ALL=C awk -v want="# Incoming Communications Sweep -- $2" '
-		/^# Incoming Communications Sweep -- / { inPart = ( $0 == want ) }
-		inPart { print }
+		/^# Incoming Communications Sweep -- / { inPart = ( $0 == want ) ; }
+		inPart { print ; }
 	' "$rigTmp/$1.out"
 }
 ## The team part: everything before the first client heading.
 rigTeamPart(){ ## out-name
-	LC_ALL=C awk '/^# Incoming Communications Sweep -- client-/ { exit } { print }' "$rigTmp/$1.out"
+	LC_ALL=C awk '/^# Incoming Communications Sweep -- client-/ { exit ; } { print ; }' "$rigTmp/$1.out"
 }
 rigHas(){ ## text, fixed string
 	case "$1" in *"$2"*) printf yes ;; *) printf no ;; esac
@@ -166,7 +166,7 @@ rigLatency=1 ; rigLeg=1
 rigRun bounded --intern-op-sweep-input-scan magic-coordinator
 rigAssert "a leg past its bound reports the bound it stopped at"  "$( rigHas "$( cat "$rigTmp/bounded.out" )" 'leg-bound: 1 s (ENV_MAGIC_SWEEP_SLACK_LEG_SECONDS)' )" yes
 rigAssert "and names the sources it did not reach"              "$( rigHas "$( cat "$rigTmp/bounded.out" )" 'not-reached: ' )" yes
-rigAssert "and the count it gives is not zero"                   "$( LC_ALL=C awk '$1 == "not-reached:" { print ( $2 + 0 > 0 ? "yes" : "no" ) ; exit }' "$rigTmp/bounded.out" )" yes
+rigAssert "and the count it gives is not zero"                   "$( LC_ALL=C awk '$1 == "not-reached:" { print ( $2 + 0 > 0 ? "yes" : "no" ) ; exit ; }' "$rigTmp/bounded.out" )" yes
 rigLatency=0 ; rigLeg=240
 rigRun unbounded --intern-op-sweep-input-scan magic-coordinator
 rigAssert "control: the same rig inside its bound reports no bound" "$( rigHas "$( cat "$rigTmp/unbounded.out" )" 'leg-bound: ' )" no

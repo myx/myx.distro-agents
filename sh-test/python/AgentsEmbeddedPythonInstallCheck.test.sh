@@ -49,7 +49,7 @@ rigBin="$rigTmp/bin" ; rigFixtures="$rigTmp/fixtures" ; rigPinned="0.13.1"
 mkdir -p "$rigBin" "$rigFixtures" "$rigTmp/cwd"
 for rigStub in curl uname ldd ; do cp "$rigFixDir/embedded-python-install.$rigStub.stub.sh" "$rigBin/$rigStub" && chmod +x "$rigBin/$rigStub" ; done
 rigSha(){ ## file -- its sha256
-	if command -v sha256sum > /dev/null 2>&1 ; then sha256sum "$1" | LC_ALL=C awk '{ print $1 }' ; else shasum -a 256 "$1" | LC_ALL=C awk '{ print $1 }' ; fi
+	if command -v sha256sum > /dev/null 2>&1 ; then sha256sum "$1" | LC_ALL=C awk '{ print $1 ; }' ; else shasum -a 256 "$1" | LC_ALL=C awk '{ print $1 ; }' ; fi
 }
 rigRelease(){ ## version, triple [star|wrong|none|junk] -- the release folder of a fixture: the archive of the stub uv and the .sha256 beside it
 	local ver="$1" triple="$2" form="${3:-}" dir="$rigFixtures/$1"
@@ -90,13 +90,13 @@ rigEmbedded="embedded-python"
 echo "-- 1. the operation stands apart, its include in a folder of its own, its help as a pair --"
 rigAssert "the include stands in sh-lib/python/, and nothing of its name at the root of sh-lib" "$( [ -f "$rigInclude" ] && printf include ) $( ls "$rigPkg/sh-lib" | LC_ALL=C grep -c 'EmbeddedPython' | LC_ALL=C sed -e 's/^[1-9][0-9]*$/at-root/' )" "include 0"
 rigAssert "the dispatcher has one arm for it, which includes that file" "$( LC_ALL=C grep -c -x -e '[[:space:]]*--install-embedded-python)' "$rigTool" ) $( LC_ALL=C grep -c -F -e '. "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/python/LocalTools.EmbeddedPython.include"' "$rigTool" )" "1 1"
-rigAssert "the --install-distro-* arm holds nothing of it" "$( LC_ALL=C awk '/^[[:space:]]*--install-distro-\*\)/ { on = 1 } /^[[:space:]]*--upgrade-installed-tools\)/ { on = 0 } on && /embedded/ { n++ } END { print n + 0 }' "$rigTool" )" "0"
+rigAssert "the --install-distro-* arm holds nothing of it" "$( LC_ALL=C awk '/^[[:space:]]*--install-distro-\*\)/ { on = 1 ; } /^[[:space:]]*--upgrade-installed-tools\)/ { on = 0 ; } on && /embedded/ { n++ ; } END { print n + 0 ; }' "$rigTool" )" "0"
 rigAssert "its help is a pair beside the others: the manual and the include" "$( [ -f "$rigPkg/sh-lib/help/Help.DistroLocalTools-install-embedded-python.help.md" ] && printf manual ) $( [ -f "$rigPkg/sh-lib/help/Help.DistroLocalTools-install-embedded-python.include" ] && printf include )" "manual include"
 rigAssert "the manual has the package's shape: two syntax lines, then Summary, Arguments, Options, Notes and Examples" "$( LC_ALL=C grep -c -e '^📘 syntax: DistroLocalTools.fn.sh --install-embedded-python' -e '^##  Summary:' -e '^##  Arguments:' -e '^##  Options:' -e '^##  Notes:' -e '^##  Examples:' "$rigPkg/sh-lib/help/Help.DistroLocalTools-install-embedded-python.help.md" 2> /dev/null )" "7"
 rigAssert "the package's manual and its command list name the operation, and the list links its manual" "$( LC_ALL=C grep -c -F -e '--install-embedded-python' "$rigPkg/sh-lib/help/Help.DistroLocalTools.help.md" | LC_ALL=C sed -e 's/^[1-9][0-9]*$/manual/' ) $( LC_ALL=C grep -c -F -e '--install-embedded-python' "$rigPkg/docs/commands.md" | LC_ALL=C sed -e 's/^[1-9][0-9]*$/list/' ) $( LC_ALL=C grep -c -F -e 'Help.DistroLocalTools-install-embedded-python.help.md' "$rigPkg/docs/commands.md" | LC_ALL=C sed -e 's/^[1-9][0-9]*$/link/' )" "manual list link"
 rigNew help Linux x86_64
 rigRun --install-embedded-python --help
-rigAssert "--help prints the manual: rc 0, both options, and the systems refused" "$rigRc $( LC_ALL=C grep -c -F -e '--uv-version' -e '--from-folder' -e 'FreeBSD' "$rigDir/err" "$rigDir/out" | LC_ALL=C awk -F: '{ n += $2 } END { print ( n >= 3 ) ? "all" : "missing" }' ) $( rigCurls ) $( rigTree "$rigDir/ws/.local" )" "0 all 0 "
+rigAssert "--help prints the manual: rc 0, both options, and the systems refused" "$rigRc $( LC_ALL=C grep -c -F -e '--uv-version' -e '--from-folder' -e 'FreeBSD' "$rigDir/err" "$rigDir/out" | LC_ALL=C awk -F: '{ n += $2 ; } END { print ( n >= 3 ) ? "all" : "missing" ; }' ) $( rigCurls ) $( rigTree "$rigDir/ws/.local" )" "0 all 0 "
 rigNew mixed Linux x86_64
 rigRun --install-distro-source --install-embedded-python
 rigAssert "it does not combine with --install-distro-*: refused, invalid option, nothing written" "$( [ "$rigRc" -ne 0 ] && printf refused ) $( LC_ALL=C grep -c -F 'invalid option' "$rigDir/err" | LC_ALL=C sed -e 's/^[1-9][0-9]*$/said/' ) $( rigCurls ) $( rigTree "$rigDir/ws/.local" )" "refused said 0 "
@@ -141,7 +141,7 @@ rigNew py Linux x86_64
 rigRun --install-embedded-python
 rigBase="$rigDir/ws/.local/$rigEmbedded"
 rigMinor="$( LC_ALL=C sed -n 's/^CALL python install //p' "$rigDir/uv.log" | head -1 )"
-rigAssert "uv installs one Python, of a minor that is 3.12 or later" "$( LC_ALL=C grep -c '^CALL python install ' "$rigDir/uv.log" ) $( printf '%s' "$rigMinor" | LC_ALL=C awk -F. 'NF == 2 && $1 == 3 && $2 >= 12 { print "ok" }' )" "1 ok"
+rigAssert "uv installs one Python, of a minor that is 3.12 or later" "$( LC_ALL=C grep -c '^CALL python install ' "$rigDir/uv.log" ) $( printf '%s' "$rigMinor" | LC_ALL=C awk -F. 'NF == 2 && $1 == 3 && $2 >= 12 { print "ok" ; }' )" "1 ok"
 rigAssert "UV_NO_MODIFY_PATH is set, so that no shell file is edited" "$( LC_ALL=C grep -c -x 'UV_NO_MODIFY_PATH=1' "$rigDir/uv.log" )" "1"
 rigOut=""
 for rigVarName in UV_PYTHON_INSTALL_DIR UV_CACHE_DIR UV_TOOL_DIR UV_TOOL_BIN_DIR UV_PYTHON_BIN_DIR UV_PYTHON_CACHE_DIR "$rigTmpVar" ; do

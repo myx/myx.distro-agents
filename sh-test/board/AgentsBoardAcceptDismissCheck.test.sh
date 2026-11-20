@@ -138,7 +138,7 @@ rigAssert "and nothing was posted to it"                   "$( rigPosts )" 0
 rigAssert "the session chat file records it"               "$( LC_ALL=C grep -c 'DISMISSED' "$rigWs/.local/agents/sessions/$rigLiveSpawn/session.chat" 2> /dev/null || : )" 1
 ## The block as the child's Wait would read it, judged by the one dismissal rule that Wait uses.
 rigAssert "the child's Wait reads the block as its dismissal" \
-	"$( { printf 'WAIT-RESULT: RECEIVED\n' ; LC_ALL=C awk '{ if ( $0 ~ /^# via / ) { if ( open ) { print "# --- end ---" } ; print "# arrived on: " substr($0, 7) ; print "# --- what that source holds now follows ---" ; open = 1 ; next } ; print } END { if ( open ) { print "# --- end ---" } }' "$rigWs/.local/agents/sessions/$rigLiveSpawn/session.chat" ; } | dismissalMember=keeper-myx LC_ALL=C awk -f "$rigLib/questions/AgentsDismissalMatch.awk" -f "$rigLib/harness/AgentsHarnessWaitDismissed.awk" > /dev/null && echo dismissed )" dismissed
+	"$( { printf 'WAIT-RESULT: RECEIVED\n' ; LC_ALL=C awk '{ if ( $0 ~ /^# via / ) { if ( open ) { print "# --- end ---" ; } ; print "# arrived on: " substr($0, 7) ; print "# --- what that source holds now follows ---" ; open = 1 ; next ; } ; print ; } END { if ( open ) { print "# --- end ---" ; } ; }' "$rigWs/.local/agents/sessions/$rigLiveSpawn/session.chat" ; } | dismissalMember=keeper-myx LC_ALL=C awk -f "$rigLib/questions/AgentsDismissalMatch.awk" -f "$rigLib/harness/AgentsHarnessWaitDismissed.awk" > /dev/null && echo dismissed )" dismissed
 rigAssert "it dismisses no other member"                   \
 	"$( { printf 'WAIT-RESULT: RECEIVED\n' ; cat "$rigWs/.local/agents/sessions/$rigLiveSpawn/session.chat" ; } | dismissalMember=magic-tester LC_ALL=C awk -f "$rigLib/questions/AgentsDismissalMatch.awk" -f "$rigLib/harness/AgentsHarnessWaitDismissed.awk" > /dev/null && echo dismissed )" ""
 
@@ -213,7 +213,7 @@ rigRecordWithStack(){ ## spawn-id, the routine-stack lines
 	} > "$rigSpawned/$1/$1.spawn.md"
 }
 rigFramesOf(){ ## spawn id -- the frames its record holds, joined
-	LC_ALL=C awk '$0 == "---" { if ( ++d == 2 ) exit ; next } d == 1 && index( $0, "routine-stack: " ) == 1 { printf "%s%s", ( n++ ? " -> " : "" ), substr( $0, 16 ) }' "$rigSpawned/$1/$1.spawn.md" 2> /dev/null
+	LC_ALL=C awk '$0 == "---" { if ( ++d == 2 ) exit ; next ; } d == 1 && index( $0, "routine-stack: " ) == 1 { printf "%s%s", ( n++ ? " -> " : "" ), substr( $0, 16 ) ; }' "$rigSpawned/$1/$1.spawn.md" 2> /dev/null
 }
 ## Both stand-in runs go into the rig's process list before the first accept, because the tooling keeps a
 ## read of that list for 10 s: a pid added between two calls is invisible to the second.

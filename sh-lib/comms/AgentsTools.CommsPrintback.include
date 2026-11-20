@@ -316,7 +316,7 @@ AgentsToolsCommsPrintbackNoticeDigest(){ ## session, member
 		digestText="$( LC_ALL=C awk -F'\t' -v OFS='\t' -v where="printback:$digestSession" -v member="$digestMember" -v newIndex="$digestNew" '
 			function hasSeen(list,   at, parts, count) {
 				count = split(list, parts, ",") ;
-				for (at = 1 ; at <= count ; at++) { if (parts[at] == member) { return 1 ; } }
+				for (at = 1 ; at <= count ; at++) { if (parts[at] == member) { return 1 ; } ; }
 				return 0 ;
 			}
 			FILENAME == ARGV[1] {
@@ -324,7 +324,7 @@ AgentsToolsCommsPrintbackNoticeDigest(){ ## session, member
 				no[count] = $1 ; ts[count] = $2 ; wh[count] = $3 ; org[count] = $4 ; line[count] = $5 ; sn[count] = $6 ;
 				next ;
 			}
-			{ body[FNR] = $0 ; if (FNR > last) { last = FNR } }
+			{ body[FNR] = $0 ; if (FNR > last) { last = FNR ; } ; }
 			END {
 				for (at = 1 ; at <= count ; at++) {
 					if (wh[at] != where || org[at] != "notice" || hasSeen(sn[at])) {

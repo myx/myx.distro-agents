@@ -58,7 +58,7 @@ echo "-- 3. the two readers agree --"
 rigAssert "the same tool names, in the same order" "$( cmp -s "$rigTmp/sourced.names" "$rigTmp/mirror.names" && printf same || printf differ )" "same"
 
 echo "-- 4. the control: one ASCII apostrophe breaks the sourced form --"
-LC_ALL=C awk 'done == 0 && index( $0, "\342\200\231" ) { sub( /\342\200\231/, "\047" ) ; done = 1 } { print }' "$rigWire" > "$rigTmp/broken-wire.sh"
+LC_ALL=C awk 'done == 0 && index( $0, "\342\200\231" ) { sub( /\342\200\231/, "\047" ) ; done = 1 ; } { print ; }' "$rigWire" > "$rigTmp/broken-wire.sh"
 rigAssert "the copy holds one ASCII apostrophe more than the file" "$(( $( tr -cd "'" < "$rigTmp/broken-wire.sh" | wc -c ) - $( tr -cd "'" < "$rigWire" | wc -c ) ))" "1"
 rigSourced "$rigTmp/broken-wire.sh" broken
 rigAssert "the sourced copy no longer parses" "$( rigNames "$rigTmp/broken.json" | LC_ALL=C sed -n 1p )" "broken"

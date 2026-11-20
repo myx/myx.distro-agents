@@ -62,7 +62,7 @@ rigDispatcher(){ ## the operation and its words
 }
 ## THE THREAD THE STOP ENDS: a sleeper of this check's own, noted before it is written to the lock, so only that process is signalled.
 rigThreadLockLine(){ ## the pid -- `<pid> <start>` as the tooling's own reader gives it
-	printf '%s %s\n' "$1" "$( printf '%s\n' "$1" | MDLT_ORIGIN="$rigOrigin" bash -c '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunProcesses.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunState.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunLeft.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunRecords.include" ; AgentsToolsRunProcessesBegan' | LC_ALL=C awk '{ print $2 }' )"
+	printf '%s %s\n' "$1" "$( printf '%s\n' "$1" | MDLT_ORIGIN="$rigOrigin" bash -c '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunProcesses.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunState.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunLeft.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunRecords.include" ; AgentsToolsRunProcessesBegan' | LC_ALL=C awk '{ print $2 ; }' )"
 }
 rigThread(){ ## the lock line to write
 	python3 -I -B -c 'import time; time.sleep(180)' > /dev/null 2>&1 &

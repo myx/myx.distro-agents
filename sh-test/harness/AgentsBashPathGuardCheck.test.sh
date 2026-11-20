@@ -112,7 +112,7 @@ rigGuard(){ ## mode, list file, then the files -- a reader that could not read s
 			return 0 ;
 		}
 		function guardNamed( text,    nameAt ) {
-			for ( nameAt = 1 ; nameAt <= guardNameTotal ; nameAt++ ) { if ( index( text, "\"$" guardName[nameAt] "\"" ) ) { return 1 ; } }
+			for ( nameAt = 1 ; nameAt <= guardNameTotal ; nameAt++ ) { if ( index( text, "\"$" guardName[nameAt] "\"" ) ) { return 1 ; } ; }
 			return 0 ;
 		}
 		BEGIN { guardNameTotal = split( guardNames, guardName, " " ) ; }

@@ -32,7 +32,7 @@ AgentsToolsManagerPresetNames(){
 
 ## How many variables a scope file holds.
 AgentsToolsManagerPresetKeys(){ ## workspace root, scope -- how many keys the scope holds
-	AgentsSettingsKeyNames "$1" "$2" | LC_ALL=C awk 'END { printf "%d", NR }'
+	AgentsSettingsKeyNames "$1" "$2" | LC_ALL=C awk 'END { printf "%d", NR ; }'
 }
 
 case "$1" in

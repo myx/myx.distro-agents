@@ -42,7 +42,7 @@ function isCont(ch) {
 		else if (b1 >= 240 && b1 <= 244) seqLen = 4
 		valid = (seqLen > 0) && (i + seqLen - 1 <= ln)
 		if (valid) {
-			for (k = 1; k < seqLen; k++) if (!isCont(substr(line, i + k, 1))) { valid = 0 ; break }
+			for (k = 1; k < seqLen; k++) if (!isCont(substr(line, i + k, 1))) { valid = 0 ; break ; }
 		}
 		if (valid && seqLen == 3) {
 			b2 = ord[substr(line, i + 1, 1)]

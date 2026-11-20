@@ -46,7 +46,7 @@ AgentsSessionThread(){ ## session
 	if [ -z "$threadValue" ] ; then
 		printf -v threadRecord '%s/%s/%s/%s.spawn.md' "${MMDAPP%/}" "$agentsSpawnedStoreLeaf" "$threadSession" "$threadSession"
 		if [ -f "$threadRecord" ] ; then
-			threadValue="$( LC_ALL=C awk '$0 == "---" { if ( ++fence > 1 ) exit ; next } fence == 1 && index( $0, "session-thread: " ) == 1 { print substr( $0, 17 ) ; exit }' "$threadRecord" 2> /dev/null )"
+			threadValue="$( LC_ALL=C awk '$0 == "---" { if ( ++fence > 1 ) exit ; next ; } fence == 1 && index( $0, "session-thread: " ) == 1 { print substr( $0, 17 ) ; exit ; }' "$threadRecord" 2> /dev/null )"
 		fi
 		case "$threadValue" in [A-Z]*:[0-9]*.[0-9]*) printf '%s\n' "$threadValue" > "$threadHere/session.thread" 2> /dev/null || : ;; *) threadValue="" ;; esac
 	fi
@@ -68,7 +68,7 @@ AgentsSessionHasDeathRecord(){ ## session
 }
 AgentsSessionRunDead(){ ## session, run
 	[ -n "${2:-}" ] && AgentsSessionHasDeathRecord "${1:-}" || return 1
-	LC_ALL=C awk -v want="$2" '$1 == want { found = 1 ; exit } END { exit ( found ? 0 : 1 ) }' "${MMDAPP:-/nonexistent}/.local/agents/sessions/$1/control/dead" 2> /dev/null
+	LC_ALL=C awk -v want="$2" '$1 == want { found = 1 ; exit ; } END { exit ( found ? 0 : 1 ) ; }' "${MMDAPP:-/nonexistent}/.local/agents/sessions/$1/control/dead" 2> /dev/null
 }
 AgentsSessionDeathSessions(){
 	local deathFile deathSession
@@ -133,7 +133,7 @@ AgentsSessionRunClosed(){ ## session, run (`-` or empty: the session itself)
 	case "$closedWant" in ''|-) closedWant="${1:-}" ;; esac
 	AgentsSessionMarkerFileInto closedFile "${1:-}" control/closed || return 1
 	[ -e "$closedFile" ] || return 1
-	LC_ALL=C awk -v want="$closedWant" '$1 == want { found = 1 ; exit } END { exit ( found ? 0 : 1 ) }' "$closedFile" 2> /dev/null
+	LC_ALL=C awk -v want="$closedWant" '$1 == want { found = 1 ; exit ; } END { exit ( found ? 0 : 1 ) ; }' "$closedFile" 2> /dev/null
 }
 AgentsSessionCloseRun(){ ## session, run (`-`: the session itself), who, when
 	local closeFile closeRun="${2:-}"
@@ -428,7 +428,7 @@ AgentsSessionLogHandbackIdle(){ ## run, session (may be empty)
 	local idleLog="${MMDAPP:-/nonexistent}/$agentsSessionStoreLeaf/${1:-}/session.log"
 	case "${1:-}" in ''|-|.|..|*/*|*[[:space:]]*) return 1 ;; esac
 	[ -f "$idleLog" ] || idleLog="${MMDAPP:-/nonexistent}/$agentsSessionStoreLeaf/${2:-}/session.log"
-	LC_ALL=C awk '/📦 SubagentHandback/ { seen = 1 ; busy = 0 ; next } /^   [^ ]+ +[A-Za-z]/ && !/ Wait / && !/prompt cache/ { busy = 1 } END { exit ( seen && ! busy ) ? 0 : 1 }' "$idleLog" 2> /dev/null
+	LC_ALL=C awk '/📦 SubagentHandback/ { seen = 1 ; busy = 0 ; next ; } /^   [^ ]+ +[A-Za-z]/ && !/ Wait / && !/prompt cache/ { busy = 1 ; } END { exit ( seen && ! busy ) ? 0 : 1 ; }' "$idleLog" 2> /dev/null
 }
 
 ## The epoch of the last write of a run's session log, into the named variable: the run's own log, else its session's. rc 1 where it has none.
@@ -456,8 +456,8 @@ AgentsSessionFeedLinesSince(){ ## since epoch, since ISO stamp
 	done <<< "$( stat -f '%m %N' "${MMDAPP:-/nonexistent}/$agentsSessionStoreLeaf"/*/feed.posting 2> /dev/null || stat -c '%Y %n' "${MMDAPP:-/nonexistent}/$agentsSessionStoreLeaf"/*/feed.posting 2> /dev/null )"
 	[ ${#feedFeeds[@]} -gt 0 ] || return 0
 	feedMembers="$feedMembers" LC_ALL=C awk -v since="$2" '
-		BEGIN { rosterCount = split( ENVIRON["feedMembers"], rosterLine, "\n" ) ; for ( at = 1 ; at <= rosterCount ; at++ ) { split( rosterLine[at], rosterPair, " " ) ; memberOf[rosterPair[1]] = rosterPair[2] ; } }
-		FNR == 1 { feedSession = FILENAME ; sub( /\/feed\.posting$/, "", feedSession ) ; sub( /.*\//, "", feedSession ) }
+		BEGIN { rosterCount = split( ENVIRON["feedMembers"], rosterLine, "\n" ) ; for ( at = 1 ; at <= rosterCount ; at++ ) { split( rosterLine[at], rosterPair, " " ) ; memberOf[rosterPair[1]] = rosterPair[2] ; } ; }
+		FNR == 1 { feedSession = FILENAME ; sub( /\/feed\.posting$/, "", feedSession ) ; sub( /.*\//, "", feedSession ) ; }
 		/^20[0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9:]+Z / && $1 >= since { print feedSession "\t" ( feedSession in memberOf ? memberOf[feedSession] : "-" ) "\t" $0 ; }
 	' "${feedFeeds[@]}"
 }
@@ -549,9 +549,9 @@ AgentsSpawnRecordRemove(){ ## folder
 AgentsSessionFolderStartedRecords(){ ## spawned folder name
 	case "${1:-}" in ''|-|.|..|*/*|*[[:space:]]*) return 0 ;; esac
 	LC_ALL=C awk '
-		FNR == 1 { fence = 0 }
-		$0 == "---" { if ( ++fence > 1 ) nextfile ; next }
-		fence == 1 && index( $0, "status: " ) == 1 { if ( substr( $0, 9 ) == "spawn-started" ) print FILENAME ; nextfile }
+		FNR == 1 { fence = 0 ; }
+		$0 == "---" { if ( ++fence > 1 ) nextfile ; next ; }
+		fence == 1 && index( $0, "status: " ) == 1 { if ( substr( $0, 9 ) == "spawn-started" ) print FILENAME ; nextfile ; }
 	' "${MMDAPP:-/nonexistent}/$agentsSpawnedStoreLeaf/$1"/*.spawn.md 2> /dev/null || :
 	return 0
 }

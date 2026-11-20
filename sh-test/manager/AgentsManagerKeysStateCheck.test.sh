@@ -47,7 +47,7 @@ rigRun(){ ## stdin-string, tool arguments... -- one dispatcher call from the rig
 }
 rigTroubles(){ LC_ALL=C grep -E -- 'ERROR|WARNING' "$rigTmp/err" | LC_ALL=C grep -c -v -F -- 'SystemContext.SetInputSpec' || : ; }
 rigFlat(){ LC_ALL=C tr '\t' ' ' < "$1" | LC_ALL=C tr '\n' '/' ; }
-rigRegRows(){ LC_ALL=C awk -F'\t' '{ printf "%s=%s ", $1, $2 }' "$rigReg" ; }
+rigRegRows(){ LC_ALL=C awk -F'\t' '{ printf "%s=%s ", $1, $2 ; }' "$rigReg" ; }
 
 echo "-- 1. state of an empty registry --"
 rigRun "" --manager-keys-state

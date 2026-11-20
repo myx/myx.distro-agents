@@ -96,7 +96,7 @@
 		## which would wipe the document on write with no error at all
 		## (measured; see MAGIC.md). $target itself is never touched here --
 		## it is always written by this same tooling and is always LF.
-		content="$( printf '%s\n' "$content" | LC_ALL=C awk '{ sub(/\r$/, "") ; print }' )"
+		content="$( printf '%s\n' "$content" | LC_ALL=C awk '{ sub(/\r$/, "") ; print ; }' )"
 		## Preserve the lock-owned frontmatter fields (type/from/date/owner/
 		## state/recheck-date/session-id) exactly as they currently stand --
 		## never hand-named, so a lock-side field added later survives too.

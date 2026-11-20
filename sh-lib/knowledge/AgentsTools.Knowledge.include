@@ -45,7 +45,7 @@ AgentsToolsKnowledgeFiles(){ ## sources, -- selector words...
 			*" --add-source-docs"*)
 				{
 					while IFS= read -r filesRepo ; do [ -z "$filesRepo" ] || printf '%s\n' "$filesWs/source/$filesRepo" ; done <<< "$filesIds"
-					for filesRepo in $( printf '%s\n' "$filesIds" | LC_ALL=C awk -F/ 'NF > 1 && !seen[$1]++ { print $1 }' ) ; do
+					for filesRepo in $( printf '%s\n' "$filesIds" | LC_ALL=C awk -F/ 'NF > 1 && !seen[$1]++ { print $1 ; }' ) ; do
 						for filesFolder in "$filesWs/source/$filesRepo"/util.repository-* ; do [ -d "$filesFolder" ] && printf '%s\n' "$filesFolder" ; done
 					done
 					for filesFolder in "$filesWs"/source/*/util.workspace-* ; do [ -d "$filesFolder" ] && printf '%s\n' "$filesFolder" ; done
@@ -203,9 +203,9 @@ AgentsToolsKnowledgeRun(){ ## format (md|json), arguments...
 		## the team data through the tooling and hold no file grant on it, so that test dropped every board hit.
 		if [ -n "$knowIndex" ] ; then
 			knowIndexText="$( printf '%s' "$knowQuery" | LC_ALL=C awk '
-				/^kw / { sub( /^kw /, "" ) ; printf "%s%s", ( done++ ? " " : "" ), $0 ; next }
-				{ other = 1 }
-				END { if ( other ) { exit 1 } ; }' )" || knowIndex=""
+				/^kw / { sub( /^kw /, "" ) ; printf "%s%s", ( done++ ? " " : "" ), $0 ; next ; }
+				{ other = 1 ; }
+				END { if ( other ) { exit 1 ; } ; }' )" || knowIndex=""
 		fi
 		if [ -n "$knowIndex" ] ; then
 			mkdir -p "$MMDAPP/.local/temp" || exit 1
@@ -295,10 +295,10 @@ $knowStoreOut"
 		## One source after the other, in the order read: a mixin for the lines ahead of its first heading (every headed section left out), and one for the captions
 		## that answer. A caption is a glob to the engine, so its own `*`, `?` and `[` become `?`.
 		knowGroups="$( printf '%s\n' "$knowRows" | LC_ALL=C awk -F'\t' '
-			!seenPath[$1]++ { order[++count] = $1 ; ref[$1] = $2 }
-			$4 == "" { pre[$1] = 1 ; next }
-			!seenCaption[$1, $4]++ { caps[$1] = caps[$1] ( caps[$1] == "" ? "" : "\037" ) $4 }
-			END { for ( at = 1 ; at <= count ; at++ ) { path = order[at] ; printf "%s\t%s\t%d\t%s\n", path, ref[path], ( path in pre ), caps[path] } }' )"
+			!seenPath[$1]++ { order[++count] = $1 ; ref[$1] = $2 ; }
+			$4 == "" { pre[$1] = 1 ; next ; }
+			!seenCaption[$1, $4]++ { caps[$1] = caps[$1] ( caps[$1] == "" ? "" : "\037" ) $4 ; }
+			END { for ( at = 1 ; at <= count ; at++ ) { path = order[at] ; printf "%s\t%s\t%d\t%s\n", path, ref[path], ( path in pre ), caps[path] ; } ; }' )"
 		while IFS=$'\t' read -r knowPath knowRef knowPre knowCaps ; do
 			[ -n "$knowPath" ] || continue
 			[ "$knowPre" != 1 ] || knowArgs+=( --mixin --section-exclude '*' "$knowPath" "$knowRef" )

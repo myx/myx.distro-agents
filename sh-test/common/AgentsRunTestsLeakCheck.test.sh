@@ -95,7 +95,7 @@ rigRun(){ ## the runner's own options, then the test names -- its output in rigO
 }
 rigVerdict(){ ## test name -- PASS or FAIL, the word its summary line starts with
 	[ -n "$rigFolder" ] || return 0
-	LC_ALL=C awk -v want="$1" '$1 == "PASS" || $1 == "FAIL" { if ( $2 == want ) { print $1 ; exit } }' "$rigFolder/summary.txt" 2> /dev/null
+	LC_ALL=C awk -v want="$1" '$1 == "PASS" || $1 == "FAIL" { if ( $2 == want ) { print $1 ; exit ; } ; }' "$rigFolder/summary.txt" 2> /dev/null
 }
 rigReceipt(){ ## test name -- the rc its receipt holds
 	LC_ALL=C sed -n 's/^rc=//p' "$rigFolder/$1.receipt" 2> /dev/null | LC_ALL=C sed -n 1p
@@ -104,7 +104,7 @@ rigPidWord(){ ## value -- `pid` where it is a process id, `no-pid` otherwise
 	case "$1" in ''|*[!0123456789]*) printf 'no-pid' ;; *) printf 'pid' ;; esac
 }
 rigNamedPid(){ ## test name -- the first pid on a `leak-pids:` line of its log
-	LC_ALL=C sed -n 's/^leak-pids: *//p' "$rigFolder/$1.log" 2> /dev/null | LC_ALL=C awk 'NF { print $1 ; exit }'
+	LC_ALL=C sed -n 's/^leak-pids: *//p' "$rigFolder/$1.log" 2> /dev/null | LC_ALL=C awk 'NF { print $1 ; exit ; }'
 }
 rigNamedLines(){ ## test name, text -- how many lines of its log hold that text
 	LC_ALL=C grep -c -F -e "$2" "$rigFolder/$1.log" 2> /dev/null || :
@@ -114,7 +114,7 @@ rigAlive(){ ## pid -- `alive` or `gone`; a value that is no pid is `no-pid`
 	kill -0 "$1" 2> /dev/null && printf alive || printf gone
 }
 rigLeft(){ ## mark -- the pids of the processes with that mark in their command line, read at this moment, on one line
-	ps -A -o pid= -o command= 2> /dev/null | LC_ALL=C awk -v leakMark="$1" 'index( $0, leakMark ) && !index( $0, "awk" ) { printf "%s ", $1 }'
+	ps -A -o pid= -o command= 2> /dev/null | LC_ALL=C awk -v leakMark="$1" 'index( $0, leakMark ) && !index( $0, "awk" ) { printf "%s ", $1 ; }'
 }
 rigEndMarked(){ ## mark -- ends what is left of that mark, read at this very moment, and only while it is that same process
 	rigBlockingStandInEnd $( rigLeft "$1" )
@@ -164,7 +164,7 @@ echo "-- 6. the guard: no file of sh-test spins a stand-in round a sleep, in a l
 ## `:` or a bare wait, then `sleep 1`, then `done` -- is the same spinner and went unseen. A loop is flagged when its
 ## body holds nothing but waits: every line of it is blank, a comment, a bare `:`, a `sleep` or a nested `do`/`done`.
 rigSpinAwk='
-	{ line[NR] = $0 }
+	{ line[NR] = $0 ; }
 	END {
 		for ( n = 1 ; n <= NR ; n++ ) {
 			if ( line[n] ~ /^[[:space:]]*#/ ) continue
@@ -177,7 +177,7 @@ rigSpinAwk='
 				for ( m = n + 1 ; m <= NR ; m++ ) {
 					if ( line[m] ~ /^[[:space:]]*#/ ) continue
 					if ( line[m] ~ /(^|[[:space:]])(while|until)[[:space:]]/ && line[m] ~ /do[[:space:]]*;?[[:space:]]*$/ ) depth++
-					if ( line[m] ~ /^[[:space:]]*done([[:space:]]|;|$)/ ) { depth-- ; if ( depth == 0 ) { closed = m ; break ; } ; continue }
+					if ( line[m] ~ /^[[:space:]]*done([[:space:]]|;|$)/ ) { depth-- ; if ( depth == 0 ) { closed = m ; break ; } ; continue ; }
 					body = body line[m] "\n"
 				}
 			}
@@ -225,7 +225,7 @@ printf '%s\n' \
 	'## a comment: while : ; do sleep 1 ; done' \
 	> "$rigTmp/spin.sh"
 rigAssert "control: the guard flags a bare-wait loop in either layout, and neither a bounded poll nor a polling loop nor a comment" \
-	"$( LC_ALL=C awk "$rigSpinAwk" "$rigTmp/spin.sh" | LC_ALL=C awk -F'\t' '{ printf "%s ", $1 }' | LC_ALL=C sed 's/ $//' )" "1 2 5"
+	"$( LC_ALL=C awk "$rigSpinAwk" "$rigTmp/spin.sh" | LC_ALL=C awk -F'\t' '{ printf "%s ", $1 ; }' | LC_ALL=C sed 's/ $//' )" "1 2 5"
 
 echo "-- 7. the keeper runs on the python this machine has, not only on the one on PATH --"
 ## The fault this pins, 2026-11-03: the keeper called os.waitid, which the machine's /usr/bin/python3 (3.9.6) does not have.
@@ -246,7 +246,7 @@ rigPyOut="$( cd "$rigWs" && env -i HOME="$rigHome" PATH="$rigPyPath" MMDAPP="$ri
 	RIG_SHARED="$rigTmp" RIG_MARK="$rigMark" bash "$rigPkg/sh-test/AgentsRunTests.sh" -w 1 -t 60 RigQuiet 2>&1 )" || rigPyRc=$?
 rigPyFolder="$( printf '%s\n' "$rigPyOut" | LC_ALL=C sed -n 's/^# AgentsRunTests\.sh: .* run folder: //p' | LC_ALL=C sed -n 1p )"
 rigAssert "a passing test reports PASS under that python, with the run's own status 0" \
-	"$( printf '%s\n' "$rigPyOut" | LC_ALL=C awk '$1 == "PASS" && $2 == "RigQuiet" { n++ } END { print n + 0 }' ):$rigPyRc" "1:0"
+	"$( printf '%s\n' "$rigPyOut" | LC_ALL=C awk '$1 == "PASS" && $2 == "RigQuiet" { n++ ; } END { print n + 0 ; }' ):$rigPyRc" "1:0"
 rigAssert "and no traceback of the keeper is in its log" \
 	"$( LC_ALL=C grep -c 'Traceback' "${rigPyFolder:-/nonexistent}/RigQuiet.log" 2> /dev/null || : )" 0
 

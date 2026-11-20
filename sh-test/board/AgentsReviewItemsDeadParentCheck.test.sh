@@ -71,7 +71,7 @@ rigParentStart(){ ## session id the stand-in runs as
 	rigParentPid=$!
 	rigProcNote "$rigParentPid"
 	disown "$rigParentPid" 2> /dev/null || :
-	rigParentChild="$( PATH="$rigProcPath" ps -o lstart= -p "$rigParentPid" 2> /dev/null | PATH="$rigProcPath" LC_ALL=C awk 'NF { $1 = $1 ; gsub( / /, "_" ) ; print ; exit }' )"
+	rigParentChild="$( PATH="$rigProcPath" ps -o lstart= -p "$rigParentPid" 2> /dev/null | PATH="$rigProcPath" LC_ALL=C awk 'NF { $1 = $1 ; gsub( / /, "_" ) ; print ; exit ; }' )"
 . "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-writes.include.sh" || exit 1
 rigOwnerWs="${rigWs:-$rigTmp/ws}" rigOwnerData="${rigData:-${rigD:-${rigStore:-${rigOut:-$rigTmp/data}}}}" rigOwnerHome="${rigHome:-$rigTmp/home}" rigOwnerSkills="${rigSkills:-$rigTmp/skills}"
 rigOwnerBoardReady
@@ -121,13 +121,13 @@ rigScan(){
 }
 ## The section under test, its heading and its own lines only.
 rigSection(){
-	LC_ALL=C awk '/^## review items addressed to advance.routine$/ { on = 1 ; next } /^## / { on = 0 } on && NF' "$rigTmp/scan.out"
+	LC_ALL=C awk '/^## review items addressed to advance.routine$/ { on = 1 ; next ; } /^## / { on = 0 ; } on && NF' "$rigTmp/scan.out"
 }
 rigLists(){ ## item stem -- listed|absent
 	rigSection | LC_ALL=C grep -q -F -- "$1" && printf listed || printf absent
 }
 rigLine(){ ## item stem -- its whole listed line, or nothing
-	rigSection | LC_ALL=C awk -v want="$1" 'index( $0, want ) > 0 { print ; exit }'
+	rigSection | LC_ALL=C awk -v want="$1" 'index( $0, want ) > 0 { print ; exit ; }'
 }
 ## Whether a line lists that item with exactly that reason. The item's name is the discriminator; the `.md`
 ## the caller prints after it is the caller's own formatting and is read either way.

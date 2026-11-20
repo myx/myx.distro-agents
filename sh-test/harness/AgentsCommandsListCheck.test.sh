@@ -39,14 +39,14 @@ rigList(){ ## words...
 
 echo "-- 1. the family's commands, with their paths --"
 rigList > "$rigTmp/list"
-rigAssert "DistroAgentsTools is listed with the family's own path, not the index's shadow" "$( LC_ALL=C awk -F'\t' '$1 == "DistroAgentsTools" { print $2 }' "$rigTmp/list" )" "$rigTool"
+rigAssert "DistroAgentsTools is listed with the family's own path, not the index's shadow" "$( LC_ALL=C awk -F'\t' '$1 == "DistroAgentsTools" { print $2 ; }' "$rigTmp/list" )" "$rigTool"
 rigAssert "the agents' and the deploy's commands are in it" "$( LC_ALL=C grep -c -e '^DistroAgentsItems	' -e '^DeployProjectSsh	' "$rigTmp/list" )" 2
-rigAssert "a family command that is no .fn.sh is listed"    "$( LC_ALL=C awk -F'\t' '$1 == "workspace-install.sh" { print $2 }' "$rigTmp/list" )" "$MDLT_ORIGIN/myx/myx.distro-.local/sh-scripts/workspace-install.sh"
+rigAssert "a family command that is no .fn.sh is listed"    "$( LC_ALL=C awk -F'\t' '$1 == "workspace-install.sh" { print $2 ; }' "$rigTmp/list" )" "$MDLT_ORIGIN/myx/myx.distro-.local/sh-scripts/workspace-install.sh"
 rigAssert "each name once"                                  "$( LC_ALL=C cut -f 1 "$rigTmp/list" | LC_ALL=C sort | LC_ALL=C uniq -d | LC_ALL=C wc -l | LC_ALL=C tr -d ' ' )" 0
 
 echo "-- 2. the prepared index's commands --"
-rigAssert "the project command of the index is listed"      "$( LC_ALL=C awk -F'\t' '$1 == "RigCustom" { print $2 }' "$rigTmp/list" )" "$rigWs/source/rig/one/sh-scripts/RigCustom.fn.sh"
-rigAssert "a command of the index that is no .fn.sh is listed" "$( LC_ALL=C awk -F'\t' '$1 == "RigPlain.sh" { print $2 }' "$rigTmp/list" )" "$rigWs/source/rig/one/sh-scripts/RigPlain.sh"
+rigAssert "the project command of the index is listed"      "$( LC_ALL=C awk -F'\t' '$1 == "RigCustom" { print $2 ; }' "$rigTmp/list" )" "$rigWs/source/rig/one/sh-scripts/RigCustom.fn.sh"
+rigAssert "a command of the index that is no .fn.sh is listed" "$( LC_ALL=C awk -F'\t' '$1 == "RigPlain.sh" { print $2 ; }' "$rigTmp/list" )" "$rigWs/source/rig/one/sh-scripts/RigPlain.sh"
 rigAssert "a file of the index the shell does not run is not listed" "$( LC_ALL=C awk -F'\t' '$1 == "RigNote.txt"' "$rigTmp/list" | LC_ALL=C wc -l | LC_ALL=C tr -d ' ' )" 0
 rigAssert "the list is sorted by name"                      "$( LC_ALL=C cut -f 1 "$rigTmp/list" | LC_ALL=C sort -c 2>&1 | LC_ALL=C wc -l | LC_ALL=C tr -d ' ' )" 0
 

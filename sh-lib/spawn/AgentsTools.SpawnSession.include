@@ -510,7 +510,7 @@ case "$1" in
 				[ -z "$partitionReports" ] || printf 'reports-to: %s\n' "$partitionReports"
 				[ -z "$partitionMember" ] || printf 'parent-member: %s\n' "$partitionMember"
 				printf 'agent-less: %s\n' "true"
-				[ -z "$recordNotes" ] || printf '%s' "$recordNotes" | LC_ALL=C awk -F'\t' 'NF >= 2 { printf "%s: %s\n", $1, $2 }'
+				[ -z "$recordNotes" ] || printf '%s' "$recordNotes" | LC_ALL=C awk -F'\t' 'NF >= 2 { printf "%s: %s\n", $1, $2 ; }'
 				printf 'workers: %s\n' "${partitionWorkers:-$agentsSpawnSessionParentWorkers}"
 				printf 'pending: %s\n' "$partitionQueue"
 				printf 'children:\n'

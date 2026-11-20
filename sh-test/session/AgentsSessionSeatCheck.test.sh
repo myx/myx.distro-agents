@@ -76,7 +76,7 @@ rigTag="${rigTmp##*.}"
 rigPost="Could the librarian check the README of the board, please?"
 ## A session's thread: its opener, then one post of a person after every Wait's since, then what a scene adds.
 rigThreadOf(){ ## session
-	printf 'CSEAT0001:1700000002.0002%02d' "$( printf '%s' "$1" | LC_ALL=C cksum | LC_ALL=C awk '{ print $1 % 100 }' )"
+	printf 'CSEAT0001:1700000002.0002%02d' "$( printf '%s' "$1" | LC_ALL=C cksum | LC_ALL=C awk '{ print $1 % 100 ; }' )"
 }
 rigSession(){ ## session, extra messages JSON (each led by a comma) or empty
 	local sessionThread

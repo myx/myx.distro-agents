@@ -133,7 +133,7 @@ rigLastSubject(){ "$rigRealGit" -C "$rigData" log -1 --format=%s 2> /dev/null ; 
 ## must make too. HEAD is not that read, so a check built on HEAD cannot see the defect it would guard.
 rigRecordSubject(){ "$rigRealGit" -C "$rigData" log -1 --format=%s -- "audit" 2> /dev/null ; }
 ## Add and commit calls whose calling process's own words hold the fixed text given.
-rigCallsBy(){ LC_ALL=C awk -F'\t' -v want="$1" 'index( $2, want ) > 0 { n++ } END { print n + 0 }' "$rigGitLog" 2> /dev/null || printf '0' ; }
+rigCallsBy(){ LC_ALL=C awk -F'\t' -v want="$1" 'index( $2, want ) > 0 { n++ ; } END { print n + 0 ; }' "$rigGitLog" 2> /dev/null || printf '0' ; }
 rigAnyCalls(){ LC_ALL=C wc -l < "$rigGitLog" 2> /dev/null | LC_ALL=C tr -d ' ' || printf '0' ; }
 ## The state the claim left its record in, read off the record's own frontmatter; `none` when no record is there.
 rigRecordState(){
@@ -141,7 +141,7 @@ rigRecordState(){
 	recordCount="$( ls "$rigData/audit"/artifact-*.md 2> /dev/null | LC_ALL=C wc -l | LC_ALL=C tr -d ' ' )"
 	[ "$recordCount" = 1 ] || { printf '%s records' "$recordCount" ; return 0 ; }
 	recordFile="$( ls "$rigData/audit"/artifact-*.md 2> /dev/null )"
-	LC_ALL=C awk '$0 == "---" { if ( ++fence > 1 ) exit ; next } fence == 1 && index( $0, "state: " ) == 1 { print substr( $0, 8 ) ; exit }' "$recordFile" 2> /dev/null
+	LC_ALL=C awk '$0 == "---" { if ( ++fence > 1 ) exit ; next ; } fence == 1 && index( $0, "state: " ) == 1 { print substr( $0, 8 ) ; exit ; }' "$recordFile" 2> /dev/null
 }
 
 echo "-- 1. the instrument: a commit of the rig's own is seen, with the process that made it --"

@@ -151,7 +151,7 @@ rigAssert "an id is one users.info call for that id" "$( rigUsersInfoCalls )|$( 
 rigAssert "and it costs no directory fetch at all" "$( rigUsersListCalls )" 0
 rigAssert "and the page being empty changes nothing" "$( printf '%s' "$rigOut" | grep -c '^USER_MATCH|URIGPERSON1|URIGPERSON1|rig.person|rig.person|Rig Person|rig.person@rig.example$' )" 1
 rigAssert "its row carries the name, the real name and the e-mail, so no reader looks an id up" \
-	"$( printf '%s' "$rigOut" | LC_ALL=C awk -F '|' '$1 == "USER_MATCH" && $2 == "URIGPERSON1" { printf "%s/%s/%s/%s", $4, $5, $6, $7 }' )" \
+	"$( printf '%s' "$rigOut" | LC_ALL=C awk -F '|' '$1 == "USER_MATCH" && $2 == "URIGPERSON1" { printf "%s/%s/%s/%s", $4, $5, $6, $7 ; }' )" \
 	"rig.person/rig.person/Rig Person/rig.person@rig.example"
 rigAssert "a found id prints no SEARCH_HINT line" "$( printf '%s' "$rigOut" | grep -c '^SEARCH_HINT|' )" 0
 rigAssert "and the call still ends 0" "$rigRc" 0

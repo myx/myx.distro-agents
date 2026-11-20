@@ -124,7 +124,7 @@ rigTextCount(){ ## text, then the grep options and the pattern -- matching lines
 	printf '%s' "${rigCountText:-0}"
 }
 rigLineCount(){ ## text -- its non-empty lines, 0 when none
-	printf '%s\n' "$1" | LC_ALL=C awk 'NF { count++ } END { print count + 0 }'
+	printf '%s\n' "$1" | LC_ALL=C awk 'NF { count++ ; } END { print count + 0 ; }'
 }
 
 ## ---- wire readers, as the root-session checks read their servers ----
@@ -236,17 +236,17 @@ rigThreadOf(){ ## workspace, session, record name -- the recorded thread, `none`
 }
 rigIndexField(){ ## chat file, block, field 1..6 -- that field of the block's index line
 	[ -f "$1.index" ] || { printf 'no-index' ; return 0 ; }
-	LC_ALL=C awk -F'\t' -v want="$2" -v field="$3" '$1 == want { print $field ; found = 1 ; exit ; } END { if ( ! found ) { print "no-such-block" ; } }' "$1.index"
+	LC_ALL=C awk -F'\t' -v want="$2" -v field="$3" '$1 == want { print $field ; found = 1 ; exit ; } END { if ( ! found ) { print "no-such-block" ; } ; }' "$1.index"
 }
 rigNoticeCount(){ ## workspace, session -- index blocks recorded as notices on the printback channel
 	local rigNoticeIndex=""
 	rigNoticeIndex="$( rigIndexFile "$1" "$2" )"
 	[ -f "$rigNoticeIndex" ] || { printf 0 ; return 0 ; }
-	LC_ALL=C awk -F'\t' -v where="printback:$2" '$3 == where && $4 == "notice" { count++ } END { print count + 0 }' "$rigNoticeIndex"
+	LC_ALL=C awk -F'\t' -v where="printback:$2" '$3 == where && $4 == "notice" { count++ ; } END { print count + 0 ; }' "$rigNoticeIndex"
 }
 rigPrintbackCount(){ ## chat file -- index lines whose conversation is a printback channel
 	[ -f "$1.index" ] || { printf 0 ; return 0 ; }
-	LC_ALL=C awk -F'\t' '$3 ~ /^printback:/ { count++ } END { print count + 0 }' "$1.index"
+	LC_ALL=C awk -F'\t' '$3 ~ /^printback:/ { count++ ; } END { print count + 0 ; }' "$1.index"
 }
 rigNoticeBody(){ ## workspace, session, notice number (1-based among the notice blocks) -- its body, one line
 	local rigBodyIndex="" rigBodyChat=""
@@ -254,9 +254,9 @@ rigNoticeBody(){ ## workspace, session, notice number (1-based among the notice 
 	rigBodyChat="$( rigChatFile "$1" "$2" )"
 	[ -f "$rigBodyIndex" ] && [ -f "$rigBodyChat" ] || { printf 'no-file' ; return 0 ; }
 	LC_ALL=C awk -F'\t' -v where="printback:$2" -v want="$3" '
-		FILENAME == ARGV[1] { if ( $3 == where && $4 == "notice" ) { seen++ ; if ( seen == want ) { head = $5 ; found = 1 } } next }
-		found && FNR >= head { if ( FNR == head ) { body = "" ; next } if ( $0 ~ /^[ \t]*$/ ) { if ( body != "" ) { exit } next } body = ( body == "" ) ? $0 : body " " $0 }
-		END { print ( body == "" ) ? "no-body" : body }
+		FILENAME == ARGV[1] { if ( $3 == where && $4 == "notice" ) { seen++ ; if ( seen == want ) { head = $5 ; found = 1 ; } ; } next ; }
+		found && FNR >= head { if ( FNR == head ) { body = "" ; next ; } if ( $0 ~ /^[ \t]*$/ ) { if ( body != "" ) { exit ; } next ; } body = ( body == "" ) ? $0 : body " " $0 ; }
+		END { print ( body == "" ) ? "no-body" : body ; }
 	' "$rigBodyIndex" "$rigBodyChat"
 }
 rigWaitNotices(){ ## workspace, session, count, tries -- yes when the chat index has that many notice blocks

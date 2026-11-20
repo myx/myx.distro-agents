@@ -32,27 +32,27 @@ rigAssert(){ ## what is asserted, got, want
 ## The number of the step that carries a named step, in the `# Steps` region, or `none`.
 rigStepNumber(){ ## routine file, step name
 	LC_ALL=C awk -v wantName="$2" '
-		/^# Steps$/ { inSteps = 1 ; next }
-		inSteps && /^# / { exit }
+		/^# Steps$/ { inSteps = 1 ; next ; }
+		inSteps && /^# / { exit ; }
 		inSteps && /^[0-9]+\. \*\*/ {
 			stepNumber = $0 ; sub( /\..*/, "", stepNumber )
-			if ( index( $0, "**" wantName "**" ) > 0 ) { print stepNumber ; found = 1 ; exit }
+			if ( index( $0, "**" wantName "**" ) > 0 ) { print stepNumber ; found = 1 ; exit ; }
 		}
-		END { if ( ! found ) { print "none" ; } }
+		END { if ( ! found ) { print "none" ; } ; }
 	' "$1"
 }
 ## The tab-separated tabs of the numbered step region: the step's own tabs and its numbered sub-tabs.
 rigStepLines(){ ## routine file, step number
 	LC_ALL=C awk -v wantStep="$2" '
-		/^# Steps$/ { inSteps = 1 ; next }
-		inSteps && /^# / { exit }
+		/^# Steps$/ { inSteps = 1 ; next ; }
+		inSteps && /^# / { exit ; }
 		inSteps && /^[0-9]+\. / {
-			if ( taking ) { exit }
+			if ( taking ) { exit ; }
 			stepNumber = $0 ; sub( /\..*/, "", stepNumber )
-			if ( stepNumber + 0 == wantStep + 0 ) { taking = 1 }
+			if ( stepNumber + 0 == wantStep + 0 ) { taking = 1 ; }
 			next
 		}
-		taking { print }
+		taking { print ; }
 	' "$1"
 }
 

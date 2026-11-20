@@ -75,10 +75,10 @@ AgentsToolsRegistryMeasureRows "$RIG_ROWS" '' '' 17 '' > /dev/null || exit 1
 printf '%s\n' "$measuredDated" \
 	| MDAT_MANAGER_CONTROL='' LC_ALL=C awk -v loadAverage=- \
 		-f "$RIG_TOKENS" -f "$RIG_MINUTES" -f "$RIG_ROWSAWK" \
-		<( printf '%s\n' "$measuredDated" | LC_ALL=C awk '{ print $8 ; print $2 }' | AgentsSessionRunFacts tokens usage-limit chapter ) \
+		<( printf '%s\n' "$measuredDated" | LC_ALL=C awk '{ print $8 ; print $2 ; }' | AgentsSessionRunFacts tokens usage-limit chapter ) \
 		"$RIG_AGENTS/pending-replies.registry" - \
 	| LC_ALL=C cut -f6- \
-	| LC_ALL=C awk -F'\t' -v want="$rigA1" '$1 == "session" && $2 == want { print $4 "|" $13 }'
+	| LC_ALL=C awk -F'\t' -v want="$rigA1" '$1 == "session" && $2 == want { print $4 "|" $13 ; }'
 RIGROW
 cat > "$rigTmp/notice.sh" <<'RIGNOTICE'
 ## record path -- the end notice of one run, as it was posted

@@ -101,13 +101,13 @@ rigWhole(){ ## file, text -- how many lines of the file are that text, whole
 }
 rigPrint(){ ## file -- its inode and the sum of its bytes; no-file where there is none
 	[ -f "$1" ] || { printf 'no-file\n' ; return 0 ; }
-	printf '%s:%s\n' "$( ls -i "$1" | LC_ALL=C awk '{ print $1 ; exit }' )" "$( cksum < "$1" | LC_ALL=C tr -s ' \t' '-' )"
+	printf '%s:%s\n' "$( ls -i "$1" | LC_ALL=C awk '{ print $1 ; exit ; }' )" "$( cksum < "$1" | LC_ALL=C tr -s ' \t' '-' )"
 }
 rigOthers(){ ## -- every file of the rig workspace and its team data but the two session registries, each with the sum of its bytes, as one sum
 	( cd "$rigTmp" && find ws data -type f ! -name spawned-sessions.registry ! -name pending-replies.registry ! -name ps-args.txt | LC_ALL=C sort | while IFS= read -r othersFile ; do printf '%s %s\n' "$othersFile" "$( cksum < "$othersFile" )" ; done ) | cksum
 }
 rigFeed(){ ## -- the feed rows of the last output as `<time> <spawn-id> <text>`, a line each
-	LC_ALL=C awk -F'\t' '$1 == "feed" { print $2, $3, $7 }' "$rigTmp/out"
+	LC_ALL=C awk -F'\t' '$1 == "feed" { print $2, $3, $7 ; }' "$rigTmp/out"
 }
 
 ## THE STORES. A session of three: its founder and a member wrote lines in turn, and a second member has a session
@@ -201,11 +201,11 @@ rigAssert "and a --tail that ends on a head line gives that line alone" "$rigRc 
 
 echo "-- 2. a transcript in two parts --"
 rigRun "$rigOp" --session-id run-p --tail 10
-rigAssert "control: the second part holds three lines, and the first nine" "$( LC_ALL=C awk 'END { print NR }' "$rigData/audit/session-p.log" ) $( LC_ALL=C awk 'END { print NR }' "$rigData/audit/session-p-part2.log" )" "9 3"
-rigAssert "--tail 10 holds the last seven lines of the first part, then the three of the second, in their order" "$rigRc $( LC_ALL=C awk -F'\t' '$1 == "feed" { text = $7 ; sub( / · in .*/, "", text ) ; printf "%s|", text }' "$rigTmp/out" )" "0 🧠 round 2|🧠 round 3|🧠 round 4|🧠 round 5|🧠 round 6|🧠 round 7|🔹 roll|🔹 continued|🧠 round 8|🧠 round 9|"
-rigAssert "its source is the transcript, named by its first part" "$( LC_ALL=C awk -F'\t' '$1 == "source" { print $2, $4, $5 }' "$rigTmp/out" )" "run-p transcript $rigData/audit/session-p.log"
+rigAssert "control: the second part holds three lines, and the first nine" "$( LC_ALL=C awk 'END { print NR ; }' "$rigData/audit/session-p.log" ) $( LC_ALL=C awk 'END { print NR ; }' "$rigData/audit/session-p-part2.log" )" "9 3"
+rigAssert "--tail 10 holds the last seven lines of the first part, then the three of the second, in their order" "$rigRc $( LC_ALL=C awk -F'\t' '$1 == "feed" { text = $7 ; sub( / · in .*/, "", text ) ; printf "%s|", text ; }' "$rigTmp/out" )" "0 🧠 round 2|🧠 round 3|🧠 round 4|🧠 round 5|🧠 round 6|🧠 round 7|🔹 roll|🔹 continued|🧠 round 8|🧠 round 9|"
+rigAssert "its source is the transcript, named by its first part" "$( LC_ALL=C awk -F'\t' '$1 == "source" { print $2, $4, $5 ; }' "$rigTmp/out" )" "run-p transcript $rigData/audit/session-p.log"
 rigRun "$rigOp" --session-id run-p
-rigAssert "with no --tail the whole of a short transcript is read, both parts: twelve lines" "$rigRc $( LC_ALL=C awk -F'\t' '$1 == "feed" { rows++ } END { print rows + 0 }' "$rigTmp/out" )" "0 12"
+rigAssert "with no --tail the whole of a short transcript is read, both parts: twelve lines" "$rigRc $( LC_ALL=C awk -F'\t' '$1 == "feed" { rows++ ; } END { print rows + 0 ; }' "$rigTmp/out" )" "0 12"
 
 echo "-- 3. the lines of a session, in the order of their times --"
 rigRun "$rigOp" --session-id sess-t
@@ -221,13 +221,13 @@ rigAssert "the whole output, byte for byte: a source for each of the three runs,
 	printf 'feed\t2026-10-13T07:00:05Z\tsess-t\tmagic-coordinator\tmember\tmagic-coordinator\t🧠 round 1 · in 2 · cache 15 · out 7\n'
 	printf 'feed\t2026-10-13T07:00:06Z\trun-m\tkeeper-rig\tmember\tkeeper-rig\t🧠 round 1 · in 3 · cache 20 · out 9\n'
 } )"
-rigAssert "the lines of the two members come in turn, as they were written, and the newest is the last line of the output" "$( LC_ALL=C awk -F'\t' '$1 == "feed" { printf "%s ", $4 }' "$rigTmp/out" )/ $( tail -n 1 "$rigTmp/out" | LC_ALL=C cut -f2 )" "magic-coordinator keeper-rig magic-coordinator keeper-rig magic-coordinator keeper-rig / 2026-10-13T07:00:06Z"
+rigAssert "the lines of the two members come in turn, as they were written, and the newest is the last line of the output" "$( LC_ALL=C awk -F'\t' '$1 == "feed" { printf "%s ", $4 ; }' "$rigTmp/out" )/ $( tail -n 1 "$rigTmp/out" | LC_ALL=C cut -f2 )" "magic-coordinator keeper-rig magic-coordinator keeper-rig magic-coordinator keeper-rig / 2026-10-13T07:00:06Z"
 rigRun "$rigOp" --session-id sess-t --tail 2
-rigAssert "where the runs of a session are cut, its lines start where every run's are held: the founder's last two start at :03 and the member's at :04, so the lines start at :04, and no run is shown with a gap" "$rigRc $( rigFeed | LC_ALL=C awk '{ printf "%s:%s ", $1, $2 }' )" "0 2026-10-13T07:00:04Z:run-m 2026-10-13T07:00:05Z:sess-t 2026-10-13T07:00:06Z:run-m "
+rigAssert "where the runs of a session are cut, its lines start where every run's are held: the founder's last two start at :03 and the member's at :04, so the lines start at :04, and no run is shown with a gap" "$rigRc $( rigFeed | LC_ALL=C awk '{ printf "%s:%s ", $1, $2 ; }' )" "0 2026-10-13T07:00:04Z:run-m 2026-10-13T07:00:05Z:sess-t 2026-10-13T07:00:06Z:run-m "
 rigRun "$rigOp" --session-id sess-t --run
-rigAssert "--run reads the founder alone, whose id is its session's: its source and its lines, and no other run's" "$rigRc $( LC_ALL=C awk -F'\t' '$1 == "source" { sources = sources $2 " " } $1 == "feed" { rows[$3]++ } $1 == "log" { logs++ } END { printf "%s/ %s %s %s", sources, rows["sess-t"] + 0, rows["run-m"] + 0, logs + 0 }' "$rigTmp/out" )" "0 sess-t / 3 0 0"
+rigAssert "--run reads the founder alone, whose id is its session's: its source and its lines, and no other run's" "$rigRc $( LC_ALL=C awk -F'\t' '$1 == "source" { sources = sources $2 " " ; } $1 == "feed" { rows[$3]++ ; } $1 == "log" { logs++ ; } END { printf "%s/ %s %s %s", sources, rows["sess-t"] + 0, rows["run-m"] + 0, logs + 0 ; }' "$rigTmp/out" )" "0 sess-t / 3 0 0"
 rigRun "$rigOp" --session-id run-m
-rigAssert "the own id of a member that joined shows that run alone" "$rigRc $( LC_ALL=C awk -F'\t' '$1 == "source" { printf "%s ", $2 } $1 == "feed" { rows[$3]++ } END { for ( key in rows ) printf "%s=%s", key, rows[key] }' "$rigTmp/out" )" "0 run-m run-m=3"
+rigAssert "the own id of a member that joined shows that run alone" "$rigRc $( LC_ALL=C awk -F'\t' '$1 == "source" { printf "%s ", $2 ; } $1 == "feed" { rows[$3]++ ; } END { for ( key in rows ) printf "%s=%s", key, rows[key] ; }' "$rigTmp/out" )" "0 run-m run-m=3"
 
 echo "-- 4. a run with no transcript, and the raw log on request --"
 rigRun "$rigOp" --session-id run-l --tail 4
@@ -240,7 +240,7 @@ rigAssert "a run with no transcript shows its session log: the first line says t
 	printf 'log\trun-l\tkeeper-rig\tlast\\rline\n'
 } )"
 rigAssert "a token in a session log is not printed: [redacted] stands in its place, and the log itself still holds it" "$( LC_ALL=C grep -c -F -- "$rigToken" "$rigTmp/out" || : ) $( LC_ALL=C grep -c -F -- '[redacted]' "$rigTmp/out" || : ) $( LC_ALL=C grep -c -F -- "$rigToken" "$rigStores/run-l/session.log" || : )" "0 1 1"
-rigAssert "every row has the fields of its kind: 5 of a source, 4 of a log" "$( LC_ALL=C awk -F'\t' '{ want = ( $1 == "source" ) ? 5 : ( $1 == "log" ) ? 4 : -1 ; if ( NF != want ) bad++ ; } END { print NR ":" bad + 0 }' "$rigTmp/out" )" "5:0"
+rigAssert "every row has the fields of its kind: 5 of a source, 4 of a log" "$( LC_ALL=C awk -F'\t' '{ want = ( $1 == "source" ) ? 5 : ( $1 == "log" ) ? 4 : -1 ; if ( NF != want ) bad++ ; } END { print NR ":" bad + 0 ; }' "$rigTmp/out" )" "5:0"
 rigRun "$rigOp" --session-id run-w
 rigAssert "a run with both shows its transcript: a wait with its result and what it waited on, a message out with its first line, its ampersand and angle brackets as they were written, and a token in a command [redacted]" "$rigRc $( cat "$rigTmp/out" )" "0 $( {
 	printf 'source\trun-w\tkeeper-rig\ttranscript\t%s\n' "$rigData/audit/session-w.log"
@@ -257,7 +257,7 @@ rigAssert "a run with neither says so in its source row, and has no further row"
 rigRun "$rigOp" --session-id run-g
 rigAssert "a pointer to a transcript that is gone is no transcript: the session log is given" "$rigRc $( LC_ALL=C tr '\t' ' ' < "$rigTmp/out" | LC_ALL=C tr '\n' '|' )" "0 source run-g keeper-rig session-log $rigStores/run-g/session.log|log run-g keeper-rig what is left of it|"
 rigRun "$rigOp" --session-id sess-t --log
-rigAssert "--log on a session gives the raw log of each run that has one, run by run, and says none of the others" "$rigRc $( LC_ALL=C awk -F'\t' '$1 == "source" { printf "%s:%s ", $2, $4 } $1 == "log" { printf "[%s] ", $4 } $1 == "feed" { printf "FEED " }' "$rigTmp/out" )" "0 sess-t:none run-m:none run-q:session-log [the first line of the tester] [its second line] "
+rigAssert "--log on a session gives the raw log of each run that has one, run by run, and says none of the others" "$rigRc $( LC_ALL=C awk -F'\t' '$1 == "source" { printf "%s:%s ", $2, $4 ; } $1 == "log" { printf "[%s] ", $4 ; } $1 == "feed" { printf "FEED " ; }' "$rigTmp/out" )" "0 sess-t:none run-m:none run-q:session-log [the first line of the tester] [its second line] "
 
 echo "-- 5. an id that names nothing, and what the operation takes --"
 rigRun "$rigOp" --session-id no-such-id
@@ -276,7 +276,7 @@ rigRun "$rigOp" --session-id run-a --raw
 rigAssert "and so is an argument it does not take" "$rigRc $( wc -c < "$rigTmp/out" | LC_ALL=C tr -d ' ' ) $( rigWhole "$rigTmp/err" "⛔ ERROR: DistroAgentsTools $rigOp: syntax is $rigSyntaxTail, got: --raw" )" "1 0 1"
 
 echo "-- 6. it only reads --"
-rigAssert "nothing of the workspace or of the team data was written by any call so far but the two registries, and no scratch file is left but the tooling's 10 s kept process list" "$( rigOthers ) $( find "$rigWs/.local/temp" -type f ! -name ps-args.txt 2> /dev/null | LC_ALL=C awk 'END { print NR + 0 }' )" "$rigOthersBefore 0"
+rigAssert "nothing of the workspace or of the team data was written by any call so far but the two registries, and no scratch file is left but the tooling's 10 s kept process list" "$( rigOthers ) $( find "$rigWs/.local/temp" -type f ! -name ps-args.txt 2> /dev/null | LC_ALL=C awk 'END { print NR + 0 ; }' )" "$rigOthersBefore 0"
 rigRegBefore="$( rigPrint "$rigAgents/spawned-sessions.registry" ) $( rigPrint "$rigAgents/pending-replies.registry" )"
 rigRun "$rigOp" --session-id sess-t
 rigAssert "a call that finds the registries fresh rewrites neither" "$rigRc $( rigPrint "$rigAgents/spawned-sessions.registry" ) $( rigPrint "$rigAgents/pending-replies.registry" )" "0 $rigRegBefore"
@@ -297,21 +297,21 @@ RIGLINES
 TZ=UTC touch -t 202610010000.00 "$rigSp/sess-t/run-j.spawn.md" "$rigSp/sess-t" "$rigSp"
 rigJoinNewer="none-newer"
 for rigJoinPath in "$rigSp" "$rigSp/sess-t" "$rigSp/sess-t/run-j.spawn.md" ; do [ ! "$rigJoinPath" -nt "$rigAgents/spawned-sessions.registry" ] || rigJoinNewer="newer:$rigJoinPath" ; done
-rigAssert "control: the member's record stands in the session's own folder, nothing there is newer than the registry, and the registry holds the session and not the member" "$( ls "$rigSp/sess-t" | LC_ALL=C tr '\n' ' ' )$rigJoinNewer $( LC_ALL=C awk '$2 == "sess-t" { rows++ } $8 == "run-j" { joined++ } END { print rows + 0 ":" joined + 0 }' "$rigAgents/spawned-sessions.registry" )" "run-j.spawn.md sess-t.spawn.md none-newer 3:0"
+rigAssert "control: the member's record stands in the session's own folder, nothing there is newer than the registry, and the registry holds the session and not the member" "$( ls "$rigSp/sess-t" | LC_ALL=C tr '\n' ' ' )$rigJoinNewer $( LC_ALL=C awk '$2 == "sess-t" { rows++ ; } $8 == "run-j" { joined++ ; } END { print rows + 0 ":" joined + 0 ; }' "$rigAgents/spawned-sessions.registry" )" "run-j.spawn.md sess-t.spawn.md none-newer 3:0"
 rigRun "$rigOp" --session-id sess-t
 rigAssert "a member that joined a running session after the registry was built is in the next read of that session, with its feed: its source row, and its lines after the others, in the order of their times" \
-	"$rigRc $( LC_ALL=C awk -F'\t' '$1 == "source" { printf "%s:%s ", $2, $4 }' "$rigTmp/out" )/ $( rigFeed | LC_ALL=C awk '$2 == "run-j"' | LC_ALL=C tr '\n' '|' ) $( LC_ALL=C awk -F'\t' '$1 == "feed" { rows++ } END { print rows + 0 }' "$rigTmp/out" )" \
+	"$rigRc $( LC_ALL=C awk -F'\t' '$1 == "source" { printf "%s:%s ", $2, $4 ; }' "$rigTmp/out" )/ $( rigFeed | LC_ALL=C awk '$2 == "run-j"' | LC_ALL=C tr '\n' '|' ) $( LC_ALL=C awk -F'\t' '$1 == "feed" { rows++ ; } END { print rows + 0 ; }' "$rigTmp/out" )" \
 	"0 sess-t:transcript run-m:transcript run-q:session-log run-j:transcript / 2026-10-13T07:00:07Z run-j ▶️ run start|2026-10-13T07:00:08Z run-j 🧠 round 1 · in 1 · cache 0 · out 1| 8"
 rigRegBefore="$( rigPrint "$rigAgents/spawned-sessions.registry" ) $( rigPrint "$rigAgents/pending-replies.registry" )"
 rigRun "$rigOp" --session-id sess-t
-rigAssert "and the read after it rewrites no registry" "$rigRc $( LC_ALL=C awk -F'\t' '$1 == "source" { rows++ } END { print rows + 0 }' "$rigTmp/out" ) $( rigPrint "$rigAgents/spawned-sessions.registry" ) $( rigPrint "$rigAgents/pending-replies.registry" )" "0 4 $rigRegBefore"
+rigAssert "and the read after it rewrites no registry" "$rigRc $( LC_ALL=C awk -F'\t' '$1 == "source" { rows++ ; } END { print rows + 0 ; }' "$rigTmp/out" ) $( rigPrint "$rigAgents/spawned-sessions.registry" ) $( rigPrint "$rigAgents/pending-replies.registry" )" "0 4 $rigRegBefore"
 
 echo "-- 7. the help pair --"
 rigHelpInclude="$rigHere/help/Help.DistroAgentsTools.include"
 rigHelpMd="$rigHere/help/Help.DistroAgentsTools.help.md"
 rigSyntax="📘 syntax: DistroAgentsTools.fn.sh $rigOp $rigSyntaxTail"
 rigEntry(){ ## -- the operation's entry in the help.md, from under its heading to the next operation's
-	LC_ALL=C awk -v head="$( printf '\t\t%s %s' "$rigOp" "$rigSyntaxTail" )" '$0 == head { on = 1 ; next } on && /^\t\t--/ { exit } on { print }' "$rigHelpMd"
+	LC_ALL=C awk -v head="$( printf '\t\t%s %s' "$rigOp" "$rigSyntaxTail" )" '$0 == head { on = 1 ; next ; } on && /^\t\t--/ { exit ; } on { print ; }' "$rigHelpMd"
 }
 rigAssert "the operation has its syntax echo, its syntax line and its entry, once each, and in no other form" "$( LC_ALL=C grep -c -x -F -- "echo \"$rigSyntax\" >&2" "$rigHelpInclude" || : ) $( LC_ALL=C grep -c -x -F -- "$rigSyntax" "$rigHelpMd" || : ) $( LC_ALL=C grep -c -x -F -- "$( printf '\t\t%s %s' "$rigOp" "$rigSyntaxTail" )" "$rigHelpMd" || : ) $( LC_ALL=C grep -c -F -- "syntax: DistroAgentsTools.fn.sh $rigOp " "$rigHelpInclude" || : ) $( LC_ALL=C grep -c -F -- "syntax: DistroAgentsTools.fn.sh $rigOp " "$rigHelpMd" || : )" "1 1 1 1 1"
 rigForm(){ ## row kind -- the form line of that row in the entry, its back quotes and its indent taken off
@@ -323,11 +323,11 @@ rigKindsBad=""
 for rigCall in "sess-t" "run-w" "run-l" "sess-t --log" ; do
 	rigRun "$rigOp" --session-id $rigCall
 	for rigKind in source log feed ; do
-		rigKindsBad="$rigKindsBad$( LC_ALL=C awk -F'\t' -v wantKind="$rigKind" -v wantFields="$( rigForm "$rigKind" | LC_ALL=C awk '{ print NF }' )" '$1 == wantKind && NF != wantFields { bad++ } $1 != "source" && $1 != "log" && $1 != "feed" { bad++ } END { if ( bad ) printf " [%s: %s rows]", wantKind, bad }' "$rigTmp/out" )"
+		rigKindsBad="$rigKindsBad$( LC_ALL=C awk -F'\t' -v wantKind="$rigKind" -v wantFields="$( rigForm "$rigKind" | LC_ALL=C awk '{ print NF ; }' )" '$1 == wantKind && NF != wantFields { bad++ ; } $1 != "source" && $1 != "log" && $1 != "feed" { bad++ ; } END { if ( bad ) printf " [%s: %s rows]", wantKind, bad ; }' "$rigTmp/out" )"
 	done
 done
 rigAssert "and every row printed has exactly the fields its form names, and no line is of another kind" "${rigKindsBad:-each as its form}" "each as its form"
-rigAssert "the entry says how a free text is written, the kinds of a source, the boxes of a line, what --tail counts and what --log gives" "$( for rigWord in '\t' '\\' '\r' '[redacted]' 'transcript' 'session-log' 'none' 'member' 'run' 'session' 'system' '--tail' '--log' '--run' ; do rigEntry | LC_ALL=C grep -c -F -- "\`$rigWord\`" | LC_ALL=C awk '{ printf "%s", ( $1 > 0 ) ? "y" : "n" }' ; done )" "yyyyyyyyyyyyyy"
+rigAssert "the entry says how a free text is written, the kinds of a source, the boxes of a line, what --tail counts and what --log gives" "$( for rigWord in '\t' '\\' '\r' '[redacted]' 'transcript' 'session-log' 'none' 'member' 'run' 'session' 'system' '--tail' '--log' '--run' ; do rigEntry | LC_ALL=C grep -c -F -- "\`$rigWord\`" | LC_ALL=C awk '{ printf "%s", ( $1 > 0 ) ? "y" : "n" ; }' ; done )" "yyyyyyyyyyyyyy"
 rigAssert "control: the entry was cut up to the next operation's heading" "$( rigEntry | LC_ALL=C grep -c -F -- 'TAB-separated' || : ) $( rigEntry | LC_ALL=C grep -c -e '^		--' || : )" "1 0"
 rigRun --help-syntax
 rigAssert "--help-syntax prints its line, once" "$rigRc $( LC_ALL=C grep -c -x -F -- "$rigSyntax" "$rigTmp/err" || : )" "0 1"

@@ -204,10 +204,10 @@ echo "-- 3. another row is kept, and a row of ours with old values is replaced i
 	printf '%s\n' '        keep: me'
 } >> "$rigPatch"
 rigOldWs="$rigTmp/moved-workspace"
-LC_ALL=C awk -v old="$rigOldWs" 'BEGIN { q = sprintf("%c", 39) }
-	/^        command: / { print "        command: " q old "/DistroAgentsTools.fn.sh" q ; next }
-	/^          MMDAPP: / { print "          MMDAPP: " q old q ; next }
-	{ print }
+LC_ALL=C awk -v old="$rigOldWs" 'BEGIN { q = sprintf("%c", 39) ; }
+	/^        command: / { print "        command: " q old "/DistroAgentsTools.fn.sh" q ; next ; }
+	/^          MMDAPP: / { print "          MMDAPP: " q old q ; next ; }
+	{ print ; }
 ' "$rigPatch" > "$rigPatch.corrupt" && mv "$rigPatch.corrupt" "$rigPatch"
 rigAssert "control: the row now holds the old workspace's values"        "$( rigHolds "$rigPatch" "$rigOldWs" )" 2
 rigRun "$rigHome" --make-workspace-integrations --quiet

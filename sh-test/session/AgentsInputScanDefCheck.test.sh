@@ -88,7 +88,7 @@ rigSumOf(){ ## file -- the sum of its bytes, as a wait keeps the sum of a report
 	LC_ALL=C cksum < "$1" 2> /dev/null | LC_ALL=C awk '{ print $1 "-" $2 ; }'
 }
 rigPointerOf(){ ## scan -- the pointer the run's session holds for the scan of keeper-rig, or none
-	cat "$rigTmp/pointers.seen" 2> /dev/null | LC_ALL=C awk -F '\t' -v want="scan:$1:keeper-rig" '$1 == want { print $2 ; found = 1 ; exit ; } END { if ( ! found ) { print "none" ; } }'
+	cat "$rigTmp/pointers.seen" 2> /dev/null | LC_ALL=C awk -F '\t' -v want="scan:$1:keeper-rig" '$1 == want { print $2 ; found = 1 ; exit ; } END { if ( ! found ) { print "none" ; } ; }'
 }
 rigFirst(){ ## file -- its first line
 	LC_ALL=C sed -n 1p "$1" 2> /dev/null
@@ -159,7 +159,7 @@ rigSeedUnit(){ ## definition line, the text the spawner's run printed, [names-on
 	( env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp" PATH="$PATH" MMDAPP="$rigTmp/seed-ws" MDLT_ORIGIN="$MDLT_ORIGIN" RIG_LINE="$1" RIG_RUN_TEXT="$2" RIG_RUN_FILE="$rigTmp/seed-run.out" RIG_NAMES_RC="${3:-0}" ${RIG_SESSION+RIG_SESSION="$RIG_SESSION"} \
 		bash "$rigTmp/seed-unit.sh" ) > /dev/null 2>&1
 	## A pointer is its reader's, the member's (member-pointers/<member>.pointers); the session's own file is read too.
-	cat "$rigTmp/seed-ws/.local/agents/sessions/seed-unit-session/session.chat.pointers" "$rigTmp/seed-ws/.local/agents/member-pointers"/*.pointers 2> /dev/null | LC_ALL=C awk -F '\t' '$1 == "scan:permission-escalation:keeper-rig" { print $2 ; found = 1 ; exit ; } END { if ( ! found ) { print "none" ; } }'
+	cat "$rigTmp/seed-ws/.local/agents/sessions/seed-unit-session/session.chat.pointers" "$rigTmp/seed-ws/.local/agents/member-pointers"/*.pointers 2> /dev/null | LC_ALL=C awk -F '\t' '$1 == "scan:permission-escalation:keeper-rig" { print $2 ; found = 1 ; exit ; } END { if ( ! found ) { print "none" ; } ; }'
 }
 printf 'NAMES-ONLY-VIEW\n' > "$rigTmp/seed-names.txt" ; printf 'OPTIONS-VIEW\n' > "$rigTmp/seed-options.txt"
 rigAssert "a bare line: the pointer is the sum of the report the spawner printed"                  "$( rigSeedUnit 'permission-escalation' 'OPTIONS-VIEW' )" "$( rigSumOf "$rigTmp/seed-options.txt" )"

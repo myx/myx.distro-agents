@@ -73,7 +73,7 @@ rigControlThreadsEnd(){ ## dir...
 	[ -n "$endNotes" ] || return 0
 	rigProcNoted="$rigProcNoted${rigProcNoted:+
 }$endNotes"
-	endPids="$( printf '%s\n' "$endNotes" | PATH="$rigProcPath" LC_ALL=C awk '! endSaid[$1]++ { print $1 }' )" || endPids=""
+	endPids="$( printf '%s\n' "$endNotes" | PATH="$rigProcPath" LC_ALL=C awk '! endSaid[$1]++ { print $1 ; }' )" || endPids=""
 	rigProcSignalWithChildren KILL $endPids
 	return 0
 }

@@ -102,25 +102,25 @@ rigFirstUserBlock(){ ## request file -- the escaped text of the first user conte
 	LC_ALL=C sed -e 's/.*"role":"user","content":\[{"type":"text","text":"//' -e 's/","cache_control".*//' "$1"
 }
 rigMemberLayer(){ ## request file -- the member layer at the start of the first user block, before the prefetch block; rig path neutralised
-	rigFirstUserBlock "$1" | LC_ALL=C awk '{ at = index( $0, "\\n\\n## Your role" ) ; if ( at > 0 ) $0 = substr( $0, 1, at - 1 ) ; print }' | LC_ALL=C sed -e "s#$rigTmp#<rig>#g"
+	rigFirstUserBlock "$1" | LC_ALL=C awk '{ at = index( $0, "\\n\\n## Your role" ) ; if ( at > 0 ) $0 = substr( $0, 1, at - 1 ) ; print ; }' | LC_ALL=C sed -e "s#$rigTmp#<rig>#g"
 }
 rigMarkers(){ ## file -- how many cache markers the request carries, plain and hourly alike
 	LC_ALL=C grep -o '"cache_control":{"type":"ephemeral"' "$1" | wc -l | tr -d ' '
 }
 rigHourlyTool(){ ## file -- the tool whose marker asks the hour, in the tools array alone
 	LC_ALL=C awk '
-		{ text = text $0 }
+		{ text = text $0 ; }
 		END {
 			mark = "\"cache_control\":{\"type\":\"ephemeral\",\"ttl\":\"1h\"}"
 			from = index( text, "\"tools\":[" )
 			stop = index( text, "\"tool_choice\"" )
-			if ( from == 0 || stop == 0 || stop <= from ) { print "no-tools" ; exit }
+			if ( from == 0 || stop == 0 || stop <= from ) { print "no-tools" ; exit ; }
 			at = index( substr( text, from, stop - from ), mark )
-			if ( at == 0 ) { print "no-hourly-marker" ; exit }
+			if ( at == 0 ) { print "no-hourly-marker" ; exit ; }
 			head = substr( text, from, at - 1 )
 			nameAt = 0 ; cursor = 1
-			while ( ( step = index( substr( head, cursor ), "{\"name\":\"" ) ) > 0 ) { nameAt = cursor + step - 1 ; cursor = nameAt + 1 }
-			if ( nameAt == 0 ) { print "no-name" ; exit }
+			while ( ( step = index( substr( head, cursor ), "{\"name\":\"" ) ) > 0 ) { nameAt = cursor + step - 1 ; cursor = nameAt + 1 ; }
+			if ( nameAt == 0 ) { print "no-name" ; exit ; }
 			rest = substr( head, nameAt + 9 )
 			print substr( rest, 1, index( rest, "\"" ) - 1 )
 		}
@@ -463,8 +463,8 @@ echo "-- 7. the chat-completions wire: the same text as one string --"
 rigWire="OpenAiChat"
 rigScene chat shared ; rigRecord "" "" ; rigChatTextStream "$rigDir/res.1" RIG-DONE ; rigRun rig-a yes
 rigAssert "the user message is one string: the read, then the task"                        "$( rigIn "$( cat "$rigDir/req.1" )" 'RIG-A-ARMED-BODY' ):$( rigIn "$( cat "$rigDir/req.1" )" 'RIG-TASK-MARKER"}' ):$( rigCount "$rigDir/req.1" 'cache_control' )" yes:yes:0
-rigAssert "in that order"                                                                  "$( LC_ALL=C awk 'BEGIN { RS = "\001" } { a = index( $0, "RIG-A-ARMED-BODY" ) ; b = index( $0, "RIG-TASK-MARKER" ) ; print ( a > 0 && b > a ) ? "ordered" : "not" }' "$rigDir/req.1" )" ordered
-rigAssert "the run's own roots are in the user message between the read and the task, and the system message names neither the sandbox nor the spawn"  "$( LC_ALL=C awk 'BEGIN { RS = "\001" } { u = index( $0, "\"role\":\"user\"" ) ; a = index( $0, "RIG-A-ARMED-BODY" ) ; r = index( $0, "sessions/rig-spawn-one/results" ) ; b = index( $0, "RIG-TASK-MARKER" ) ; print ( u > 0 && a > u && r > a && b > r && index( substr( $0, 1, u ), "rig-spawn-one" ) == 0 && index( substr( $0, 1, u ), "/sandbox" ) == 0 ) ? "ordered" : "not" }' "$rigDir/req.1" )" ordered
+rigAssert "in that order"                                                                  "$( LC_ALL=C awk 'BEGIN { RS = "\001" ; } { a = index( $0, "RIG-A-ARMED-BODY" ) ; b = index( $0, "RIG-TASK-MARKER" ) ; print ( a > 0 && b > a ) ? "ordered" : "not" ; }' "$rigDir/req.1" )" ordered
+rigAssert "the run's own roots are in the user message between the read and the task, and the system message names neither the sandbox nor the spawn"  "$( LC_ALL=C awk 'BEGIN { RS = "\001" ; } { u = index( $0, "\"role\":\"user\"" ) ; a = index( $0, "RIG-A-ARMED-BODY" ) ; r = index( $0, "sessions/rig-spawn-one/results" ) ; b = index( $0, "RIG-TASK-MARKER" ) ; print ( u > 0 && a > u && r > a && b > r && index( substr( $0, 1, u ), "rig-spawn-one" ) == 0 && index( substr( $0, 1, u ), "/sandbox" ) == 0 ) ? "ordered" : "not" ; }' "$rigDir/req.1" )" ordered
 rigAssert "the team's basic file is in the system message once"                            "$( rigCount "$rigDir/req.1" 'RIG-TEAM-COMMON-LINE' )" 1
 rigWire="AnthropicMessages"
 
@@ -472,7 +472,7 @@ echo "-- 8. two spawns of one member: the same bytes through the prefetch marker
 ## What is of one run alone -- its sandbox and results roots, the sentence of a spawned session, the MCP note -- is not in the system text: it is
 ## the task block's, after the marker, so the system text and the prefetch block are the same for every spawn of a member (the input token cache).
 rigPfEnd(){ ## request file -- the byte at which the marker that ends the prefetch block ends
-	LC_ALL=C awk 'BEGIN { RS = "\001" ; mark = "\"cache_control\":{\"type\":\"ephemeral\"" } { m = index( $0, "\"messages\":[" ) ; k = index( substr( $0, m ), mark ) ; print m + k - 1 + length( mark ) - 1 }' "$1"
+	LC_ALL=C awk 'BEGIN { RS = "\001" ; mark = "\"cache_control\":{\"type\":\"ephemeral\"" ; } { m = index( $0, "\"messages\":[" ) ; k = index( substr( $0, m ), mark ) ; print m + k - 1 + length( mark ) - 1 ; }' "$1"
 }
 rigTask="$rigBrief"$'\n'"RIG-TASK-ONE"
 rigSpawn="rig-spawn-two" rigSession="rig-session-two" rigTz="Pacific/Kiritimati"
@@ -485,7 +485,7 @@ rigSpawn="rig-spawn-one" rigSession="" rigTz="" rigRoot="" ; rigTask="RIG-TASK-M
 rigPfEndOne="$( rigPfEnd "$rigTwinOne/req.1" )" ; rigPfEndTwo="$( rigPfEnd "$rigTwinTwo/req.1" )"
 head -c "$rigPfEndOne" "$rigTwinOne/req.1" > "$rigTmp/twin.head.1" ; head -c "$rigPfEndTwo" "$rigTwinTwo/req.1" > "$rigTmp/twin.head.2"
 tail -c +"$(( rigPfEndOne + 1 ))" "$rigTwinOne/req.1" > "$rigTmp/twin.task.1" ; tail -c +"$(( rigPfEndTwo + 1 ))" "$rigTwinTwo/req.1" > "$rigTmp/twin.task.2"
-rigDiffAt="$( cmp -l "$rigTwinOne/req.1" "$rigTwinTwo/req.1" 2> /dev/null | head -1 | LC_ALL=C awk '{ print $1 }' )"
+rigDiffAt="$( cmp -l "$rigTwinOne/req.1" "$rigTwinTwo/req.1" 2> /dev/null | head -1 | LC_ALL=C awk '{ print $1 ; }' )"
 rigAssert "both runs end normally, and each is a spawned session of its own: not the same session, sandbox or zone"  "$rigRunStatus:$rigTwoStatus:$( [ "$rigTwinOne/sandbox" != "$rigTwinTwo/sandbox" ] && printf apart )" 0:0:apart
 rigAssert "the first message is two blocks with three markers, the same in both"                  "$( rigMarkers "$rigTwinOne/req.1" ):$( rigMarkers "$rigTwinTwo/req.1" ):$( [ "$rigPfEndOne" = "$rigPfEndTwo" ] && printf same )" 3:3:same
 rigAssert "the two requests are the same bytes through the marker that ends the prefetch block"  "$( cmp -s "$rigTmp/twin.head.1" "$rigTmp/twin.head.2" && printf same || printf differ )" same

@@ -17,7 +17,7 @@
 		;; esac
 		case "$1" in
 			trusted-[0123456789]*)
-				readFile="$( AgentsToolsManagerKeysTrusted | LC_ALL=C awk -F'|' -v want="${1#trusted-}" '$1 == want { print ; exit }' )"
+				readFile="$( AgentsToolsManagerKeysTrusted | LC_ALL=C awk -F'|' -v want="${1#trusted-}" '$1 == want { print ; exit ; }' )"
 				if [ -z "$readFile" ] ; then
 					echo "⛔ ERROR: $MDSC_CMD $readOp: no key is named '$1' -- nothing is shown. The keys are those ${readOp%-read}-list prints" >&2
 					set +e ; return 1

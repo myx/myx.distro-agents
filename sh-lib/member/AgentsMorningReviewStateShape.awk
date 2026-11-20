@@ -27,12 +27,12 @@ BEGIN {
 	nKeys = split("type status condition blocked-by recheck-date review-by session-id processed-at", keys, " ")
 	endedFile = ENVIRON["mrShapeEndedFile"]
 	if (endedFile != "") {
-		while ((getline line < endedFile) > 0) { if (line != "") ended[line] = 1 }
+		while ((getline line < endedFile) > 0) { if (line != "") ended[line] = 1 ; }
 		close(endedFile)
 	}
 	runsFile = ENVIRON["mrShapeRunsFile"]
 	if (runsFile != "") {
-		while ((getline line < runsFile) > 0) { if (line != "") runs[line] = 1 }
+		while ((getline line < runsFile) > 0) { if (line != "") runs[line] = 1 ; }
 		close(runsFile)
 	}
 	for (a = 1; a < ARGC; a++) {
@@ -44,7 +44,7 @@ BEGIN {
 		while ((getline line < path) > 0) {
 			lineNo++
 			sub(/\r$/, "", line)
-			if (lineNo == 1) { if (line == "---") { inFm = 1 ; hasFm = 1 ; continue } else break }
+			if (lineNo == 1) { if (line == "---") { inFm = 1 ; hasFm = 1 ; continue ; } else break ; }
 			if (line == "---") break
 			k = line ; sub(/:.*/, "", k)
 			if (k == line || k ~ /[ \t]/) continue

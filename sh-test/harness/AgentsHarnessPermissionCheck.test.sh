@@ -356,7 +356,7 @@ rigAskPermission(){ ## session id, refusal id, reply text
 	rigTool "$1" RequestPermission "{\"to\":\"magic-team\",\"question\":\"May this task write the refused file?\",\"address_to\":\"URIGOWNER\",\"refusal_id\":\"$2\",\"reason\":\"the task report goes there\",\"task_ref\":\"dispatch-rig\"}"
 }
 rigLineOf(){ ## prefix
-	LC_ALL=C awk -v wantPrefix="$1" 'index( $0, wantPrefix ) == 1 { print ; found = 1 ; exit ; } END { if ( ! found ) { print "no-" wantPrefix "line" ; } }' "$rigScenarioDir/out"
+	LC_ALL=C awk -v wantPrefix="$1" 'index( $0, wantPrefix ) == 1 { print ; found = 1 ; exit ; } END { if ( ! found ) { print "no-" wantPrefix "line" ; } ; }' "$rigScenarioDir/out"
 }
 
 ## ---------------------------------------------------------------------------

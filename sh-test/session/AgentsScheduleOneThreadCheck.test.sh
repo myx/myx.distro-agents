@@ -93,7 +93,7 @@ rigStarted="$rigStarted $!"
 ## line that follows the lock by a moment is waited for, never asserted on the instant.
 rigLeft=150
 while [ "$rigLeft" -gt 0 ] && [ ! -s "$rigSch/thread.lock" ] ; do sleep 0.1 ; rigLeft=$(( rigLeft - 1 )) ; done
-rigSchThread="$( LC_ALL=C awk '{ print $1 }' "$rigSch/thread.lock" 2> /dev/null )"
+rigSchThread="$( LC_ALL=C awk '{ print $1 ; }' "$rigSch/thread.lock" 2> /dev/null )"
 rigStarted="$rigStarted $rigSchThread"
 rigLeft=150
 while [ "$rigLeft" -gt 0 ] && ! LC_ALL=C grep -q -F 'the thread runs as pid' "$rigSch/thread.log" 2> /dev/null ; do sleep 0.1 ; rigLeft=$(( rigLeft - 1 )) ; done

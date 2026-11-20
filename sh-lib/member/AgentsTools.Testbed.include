@@ -23,7 +23,7 @@ agentsTestbedKeys="project script functionality keywords rig documents resources
 
 ## One key of a registered test; nothing for a key it lacks.
 AgentsToolsTestbedGet(){ ## test id, key
-	LC_ALL=C awk -v want="$2: " 'NR == 1 { if ( $0 != "---" ) exit ; next } $0 == "---" { exit } index( $0, want ) == 1 { print substr( $0, length( want ) + 1 ) ; exit }' "$MMDAPP/.local/agents/testing/tests/$1.md" 2> /dev/null
+	LC_ALL=C awk -v want="$2: " 'NR == 1 { if ( $0 != "---" ) exit ; next ; } $0 == "---" { exit ; } index( $0, want ) == 1 { print substr( $0, length( want ) + 1 ) ; exit ; }' "$MMDAPP/.local/agents/testing/tests/$1.md" 2> /dev/null
 }
 
 ## A test's file written whole and put in place by one rename: the arguments are `key value` pairs after the id, in the order they are to stand.
@@ -73,7 +73,7 @@ AgentsToolsTestbedOptions(){ ## the operation, its arguments after the test id..
 
 ## One value of the parsed options: nothing for a key not given.
 AgentsToolsTestbedValue(){ ## key
-	printf '%s' "$testbedValues" | LC_ALL=C awk -F'\t' -v want="$1" '$1 == want { print $2 ; exit }'
+	printf '%s' "$testbedValues" | LC_ALL=C awk -F'\t' -v want="$1" '$1 == want { print $2 ; exit ; }'
 }
 
 ## The file of a script, as given: an absolute path, or one below the project's folder of the source, or below the workspace. Printed; rc 1 for none.
@@ -260,15 +260,15 @@ AgentsToolsTestbedRuns(){ ## the number of run folders to look at
 	## The newest by the run folder's own stamp, never by its path: two roots' paths sort apart from their stamps.
 	runsFound="$( { ls -d "$MMDAPP/.local/temp/mdat-tests"/2*/ 2> /dev/null
 		[ -z "${MDAT_SPAWN_SANDBOX_ROOT:-}" ] || ls -d "$MDAT_SPAWN_SANDBOX_ROOT/output/mdat-tests"/2*/ 2> /dev/null ; } \
-		| LC_ALL=C awk '{ n = $0 ; sub( /\/$/, "", n ) ; sub( /^.*\//, "", n ) ; print n "\t" $0 }' | LC_ALL=C sort -r | head -"$1" | LC_ALL=C cut -f2 )"
+		| LC_ALL=C awk '{ n = $0 ; sub( /\/$/, "", n ) ; sub( /^.*\//, "", n ) ; print n "\t" $0 ; }' | LC_ALL=C sort -r | head -"$1" | LC_ALL=C cut -f2 )"
 	[ -n "$runsFound" ] || return 0
 	for runsDir in $runsFound ; do
 		LC_ALL=C grep -H -e '^rc=' -e '^seconds=' "$runsDir"*.receipt 2> /dev/null
 	done | LC_ALL=C awk -F: '
 		{ file = $1 ; key = $2 ; sub( /^.*\//, "", file ) ; name = file ; sub( /\.receipt$/, "", name ) ; run = $1 ; sub( /\/[^\/]*$/, "", run ) ; sub( /^.*\//, "", run ) ; val = $0 ; sub( /^[^=]*=/, "", val ) ;
 		  if ( $2 ~ /^rc=/ ) rcOf[name SUBSEP run] = val ; else if ( $2 ~ /^seconds=/ ) secOf[name SUBSEP run] = val ;
-		  seen[name SUBSEP run] = 1 }
-		END { for ( k in seen ) { split( k, p, SUBSEP ) ; print p[1] "\t" p[2] "\t" ( k in rcOf ? rcOf[k] : "-" ) "\t" ( k in secOf ? secOf[k] : "-" ) } }' | LC_ALL=C sort -t "$(printf '\t')" -k1,1 -k2,2r
+		  seen[name SUBSEP run] = 1 ; }
+		END { for ( k in seen ) { split( k, p, SUBSEP ) ; print p[1] "\t" p[2] "\t" ( k in rcOf ? rcOf[k] : "-" ) "\t" ( k in secOf ? secOf[k] : "-" ) ; } ; }' | LC_ALL=C sort -t "$(printf '\t')" -k1,1 -k2,2r
 }
 
 ## --test-list [--project <p>] [--namespace <n>] [--keyword <k>]: the registered tests that answer, with their stats and a short run history, as rows:
@@ -299,12 +299,12 @@ AgentsToolsTestbedList(){ ## the operation, its arguments...
 		listPassed="" listRuns=""
 	fi
 	for listId in $listIds ; do
-		listLine="$( printf '%s\n' "$listPassed" | LC_ALL=C awk -v id="$listId" '$1 == id { print $2 ; exit }' )"
+		listLine="$( printf '%s\n' "$listPassed" | LC_ALL=C awk -v id="$listId" '$1 == id { print $2 ; exit ; }' )"
 		listTotal=$(( listTotal + 1 )) ; [ -z "$listLine" ] || [ "$listLine" = "-" ] || listPassedCount=$(( listPassedCount + 1 ))
 		printf 'test\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t' "$listId" "$( AgentsToolsTestbedGet "$listId" project )" "$( AgentsToolsTestbedGet "$listId" functionality )" "$( AgentsToolsTestbedGet "$listId" keywords )" \
 			"$( AgentsToolsTestbedGet "$listId" nightly )" "${listLine:--}" "$( AgentsToolsTestbedGet "$listId" invalidated-at )"
-		printf '%s\n' "$listRuns" | LC_ALL=C awk -F'\t' -v id="$listId" '$1 == id { runs++ ; if ( $3 == "0" ) passes++ ; else fails++ } END { printf "%d\t%d\t%d\n", runs, passes, fails }'
-		printf '%s\n' "$listRuns" | LC_ALL=C awk -F'\t' -v id="$listId" '$1 == id && shown < 3 { shown++ ; printf "run\t%s\t%s\t%s\t%s\n", $1, $2, ( $3 == "0" ? "PASS" : "FAIL" ), $4 }'
+		printf '%s\n' "$listRuns" | LC_ALL=C awk -F'\t' -v id="$listId" '$1 == id { runs++ ; if ( $3 == "0" ) passes++ ; else fails++ ; } END { printf "%d\t%d\t%d\n", runs, passes, fails ; }'
+		printf '%s\n' "$listRuns" | LC_ALL=C awk -F'\t' -v id="$listId" '$1 == id && shown < 3 { shown++ ; printf "run\t%s\t%s\t%s\t%s\n", $1, $2, ( $3 == "0" ? "PASS" : "FAIL" ), $4 ; }'
 	done
 	printf 'tests\t%s\t%s\t%s\n' "$listTotal" "$listPassedCount" "$(( listTotal - listPassedCount ))"
 	## A zero with no registry counts the registry, not the tests on disk: said apart, on stderr, so the table stays as it is.
@@ -354,7 +354,7 @@ AgentsToolsTestbedRun(){ ## the operation, its arguments...
 			runIds="$( printf '%s\n' "$runRows" | LC_ALL=C cut -f1 | tr '\n' ' ' )"
 			runPassed="$( AgentsToolsTestbedPassed $runIds )"
 			runPick="$( printf '%s\n' "$runRows" | AGENTS_TESTBED_PASSED="$runPassed" LC_ALL=C awk -F'\t' '
-				BEGIN { n = split( ENVIRON["AGENTS_TESTBED_PASSED"], passedLines, "\n" ) ; for ( i = 1; i <= n; i++ ) { split( passedLines[i], word, " " ) ; if ( word[1] != "" && word[2] != "" && word[2] != "-" ) passedOn[word[1]] = 1 ; } }
+				BEGIN { n = split( ENVIRON["AGENTS_TESTBED_PASSED"], passedLines, "\n" ) ; for ( i = 1; i <= n; i++ ) { split( passedLines[i], word, " " ) ; if ( word[1] != "" && word[2] != "" && word[2] != "-" ) passedOn[word[1]] = 1 ; } ; }
 				$1 != "" && !( $1 in passedOn ) { print $2 "\t" $1 ; }' | LC_ALL=C sort | LC_ALL=C sed -n 1p | LC_ALL=C cut -f2 )"
 			if [ -z "$runPick" ] ; then
 				echo "# $MDSC_CMD $runOp: every registered test has passed on the state it would run on now -- nothing is put in the queue" >&2

@@ -46,7 +46,7 @@ rigWalk(){ ## ttl
 		set +e +u
 		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandbox.include" > /dev/null 2>&1
 		AgentsSessionRigControlRows
-	' 2> /dev/null | LC_ALL=C awk -F'\t' '{ print $1 "/" $4 }'
+	' 2> /dev/null | LC_ALL=C awk -F'\t' '{ print $1 "/" $4 ; }'
 }
 rigOut="$( rigWalk 900 )"
 rigAssert "the first call answers from no list, without waiting on the walk" "$rigOut" ""

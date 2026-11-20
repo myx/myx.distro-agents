@@ -75,14 +75,14 @@ rigRun(){ ## file, then the arguments -- the output in call.out, rc as rigRc, th
 ## in -- `SystemContext: ...`, the tooling's own line and never the help -- and is the one line that is neither.
 rigShape(){ ## file name
 	rigS="$( LC_ALL=C awk -v name="$1.fn.sh" '
-		index( $0, "📘 syntax: " ) == 1 { if ( index( $0, "📘 syntax: " name " " ) == 1 ) own++ ; else other++ ; next }
-		index( $0, name ": ⛔ ERROR: invalid option" ) == 1 { refusal++ ; next }
-		/^  --/ { helpLines++ ; next }
-		index( $0, name ": " ) == 1 { helpLines++ ; next }
-		index( $0, "SystemContext: " ) == 1 { next }
-		/^[[:space:]]*$/ { next }
-		{ rest++ }
-		END { printf "%d %d %d %d %d %d\n", own, other, refusal, helpLines, rest, ( NR > 0 ? 1 : 0 ) }' "$rigTmp/call.out" )"
+		index( $0, "📘 syntax: " ) == 1 { if ( index( $0, "📘 syntax: " name " " ) == 1 ) own++ ; else other++ ; next ; }
+		index( $0, name ": ⛔ ERROR: invalid option" ) == 1 { refusal++ ; next ; }
+		/^  --/ { helpLines++ ; next ; }
+		index( $0, name ": " ) == 1 { helpLines++ ; next ; }
+		index( $0, "SystemContext: " ) == 1 { next ; }
+		/^[[:space:]]*$/ { next ; }
+		{ rest++ ; }
+		END { printf "%d %d %d %d %d %d\n", own, other, refusal, helpLines, rest, ( NR > 0 ? 1 : 0 ) ; }' "$rigTmp/call.out" )"
 	rigOwn="$( printf '%s' "$rigS" | LC_ALL=C cut -d' ' -f1 )"
 	rigOtherSyntax="$( printf '%s' "$rigS" | LC_ALL=C cut -d' ' -f2 )"
 	rigRefusal="$( printf '%s' "$rigS" | LC_ALL=C cut -d' ' -f3 )"

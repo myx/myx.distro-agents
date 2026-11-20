@@ -62,7 +62,7 @@ rigAssert(){ ## what is asserted, got, want
 	fi
 }
 rigHas(){ ## file, fixed text -- 1 when some line holds it
-	LC_ALL=C grep -c -F -- "$2" "$1" 2>/dev/null | awk '{ print ( $1 > 0 ) ? 1 : 0 }'
+	LC_ALL=C grep -c -F -- "$2" "$1" 2>/dev/null | awk '{ print ( $1 > 0 ) ? 1 : 0 ; }'
 }
 ## A transcript's lines with the timestamp, duration, size and paths taken out, in order.
 rigNorm(){ ## file
@@ -141,7 +141,7 @@ rigSys="$( sed -n 2p "$rigCtx" )" ; rigSys="${rigSys#\{\"type\":\"system\",\"tex
 rigReqSys="${rigReq2#*\"system\":\"}" ; rigReqSys="${rigReqSys%%\",\"tools\":*}"
 rigAssert "the system text is the request's, byte for byte" "$( [ "$rigSys" = "$rigReqSys" ] && echo same || echo differ )" same
 rigReqTools="${rigReq2#*\"tools\":}" ; rigReqTools="${rigReqTools%%,\"tool_choice\":*}"
-rigAssert "the tools reference is the cksum of the request's tools" "$( sed -n 3p "$rigCtx" | LC_ALL=C awk -v path=cksum -f "$rigHere/harness/AgentsHarnessJsonField.awk" )" "$( printf '%s' "$rigReqTools" | LC_ALL=C cksum | awk '{ print $1 }' )"
+rigAssert "the tools reference is the cksum of the request's tools" "$( sed -n 3p "$rigCtx" | LC_ALL=C awk -v path=cksum -f "$rigHere/harness/AgentsHarnessJsonField.awk" )" "$( printf '%s' "$rigReqTools" | LC_ALL=C cksum | awk '{ print $1 ; }' )"
 rigAssert "the thinking block and its signature are kept" "$( rigHas "$rigTmp/x1/rec.2" '{"type":"thinking","thinking":"RIG-THINK-MARKER\n","signature":"RIG-SIGNATURE-MARKER"}' )" 1
 rigAssert "the tool result keeps its tool_use id" "$( rigHas "$rigTmp/x1/rec.3" '"tool_use_id":"toolu_RIG"' )" 1
 rigAssert "the answer is kept as the assistant turn it was" "$( cat "$rigTmp/x1/rec.4" )" '{"role":"assistant","content":[{"type":"text","text":"RIG-FINAL-MARKER"}]}'
@@ -225,7 +225,7 @@ rigSysOf(){ ## request file -- the system field as sent
 	LC_ALL=C sed -e 's/.*"system"://' -e 's/,"tools":\[.*//' "$1"
 }
 rigAssert "the system field of the resumed request is the original's, byte for byte"  "$( [ "$( rigSysOf "$rigS4/req.1" )" = "$( rigSysOf "$rigS5/req.1" )" ] && echo same || echo differ )" same
-rigMarkEnd=$(( $( LC_ALL=C awk 'BEGIN { RS = "\001" ; mark = "\"cache_control\":{\"type\":\"ephemeral\"" } { m = index( $0, "\"role\":\"user\"" ) ; k = index( substr( $0, m ), mark ) ; print m + k - 1 + length( mark ) - 1 }' "$rigS4/req.1" ) ))
+rigMarkEnd=$(( $( LC_ALL=C awk 'BEGIN { RS = "\001" ; mark = "\"cache_control\":{\"type\":\"ephemeral\"" ; } { m = index( $0, "\"role\":\"user\"" ) ; k = index( substr( $0, m ), mark ) ; print m + k - 1 + length( mark ) - 1 ; }' "$rigS4/req.1" ) ))
 head -c "$rigMarkEnd" "$rigS4/req.1" > "$rigTmp/orig.head" ; head -c "$rigMarkEnd" "$rigS5/req.1" > "$rigTmp/resumed.head"
 rigAssert "the resumed request is the original through the member block's marker, byte for byte (the body's opening, system, tools and member)"  "$( cmp -s "$rigTmp/orig.head" "$rigTmp/resumed.head" && [ "$rigMarkEnd" -gt 150 ] && echo same || echo differ )" same
 rigToolsOf(){ ## request file -- the tools field as sent
@@ -440,7 +440,7 @@ sleep 5
 rigAssert "a refusal does not send the open post: nothing new went 5 s on" "$( rigPosts )" 1
 sleep 8
 rigAssert "the window ended: one post, the Read first and the refusal last" \
-	"$( rigPosts ):$( LC_ALL=C awk '/^POST /{ n++ ; next } n == 2 && /^2030/ { printf "%s ", $3 }' "$rigSlack" )" "2:Read Edit "
+	"$( rigPosts ):$( LC_ALL=C awk '/^POST /{ n++ ; next ; } n == 2 && /^2030/ { printf "%s ", $3 ; }' "$rigSlack" )" "2:Read Edit "
 rigAssert "the posted lines are gone from the buffer" "$( cat "$rigFeed" "$rigFeed.posting" 2>/dev/null | LC_ALL=C grep -c 'path=/x' )" 0
 printf '2030-01-01T00:01:02Z ROUND n=4 in=1 cache-read=2 cache-write=0 out=3\n' >> "$rigFeed"
 printf '2030-01-01T00:01:03Z RESTART n=1 summary=10B\n' >> "$rigFeed"
@@ -448,7 +448,7 @@ sleep 5
 rigAssert "a ROUND line and a session event (a restart) wait in the open post, as ordinary lines do" "$( rigPosts )" 2
 sleep 8
 rigAssert "the window ended: the ROUND and the RESTART go in one post" \
-	"$( rigPosts ):$( LC_ALL=C awk '/^POST /{ n++ ; next } n == 3 && /^2030/ { printf "%s ", $2 }' "$rigSlack" )" "3:ROUND RESTART "
+	"$( rigPosts ):$( LC_ALL=C awk '/^POST /{ n++ ; next ; } n == 3 && /^2030/ { printf "%s ", $2 ; }' "$rigSlack" )" "3:ROUND RESTART "
 printf '2030-01-01T00:01:04Z TOOL Glob pattern=* -> ok 1B/1L 1ms\n' >> "$rigFeed"
 sleep 5
 rigProcSignal TERM "$rigFeedPid" ; wait "$rigFeedPid" 2>/dev/null
@@ -457,8 +457,8 @@ rigAssert "what is still open is posted when the poster is stopped" "$( rigPosts
 ## feed's switch (AgentsTools.EventTrackThread.include), which stays, and holds no line.
 rigAssert "and no feed buffer is left behind once all of it is posted" "$( ls "$rigWs/.local/agents/sessions/$rigSidF" | LC_ALL=C grep -c -x -e 'feed' -e 'feed\.posting' ):$( [ -s "$rigWs/.local/agents/sessions/$rigSidF/feed.open" ] && printf lines || printf empty )" "0:empty"
 rigAssert "strict order: every line the feed got was posted once, in the order it came" \
-	"$( LC_ALL=C awk '/^2030|^20[0-9][0-9]-/ { printf "%s ", $2 }' "$rigSlack" )" "VERDICT TOOL TOOL ROUND RESTART TOOL "
-rigAssert "one at a time: each send ended before the next began" "$( LC_ALL=C grep -e '^POST ' -e '^SENT$' "$rigSlack" | LC_ALL=C awk '{ printf "%s ", $1 }' )" "POST SENT POST SENT POST SENT POST SENT "
+	"$( LC_ALL=C awk '/^2030|^20[0-9][0-9]-/ { printf "%s ", $2 ; }' "$rigSlack" )" "VERDICT TOOL TOOL ROUND RESTART TOOL "
+rigAssert "one at a time: each send ended before the next began" "$( LC_ALL=C grep -e '^POST ' -e '^SENT$' "$rigSlack" | LC_ALL=C awk '{ printf "%s ", $1 ; }' )" "POST SENT POST SENT POST SENT POST SENT "
 : > "$rigSlack"
 rigOpenLeft="$( AgentsEventTrackFeedPost magic-tester "CRIG:9.9" "$( for rigI in 1 2 3 4 5 ; do printf '2030-01-01T00:02:0%sZ TOOL Read path=/a/long/enough/path%s -> ok\n' "$rigI" "$rigI" ; done ; printf '2030-01-01T00:02:06Z ERROR boom\n' )" "$rigSidF" 1 )"
 rigAssert "the lines, an error among them, go to the post op whole at the window's end, as one post (the op cuts it to size), nothing left open" \

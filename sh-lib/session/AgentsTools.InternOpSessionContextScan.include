@@ -402,7 +402,7 @@ case "$1" in
 					## A file that has left its state folder since it was listed is skipped, exactly as the
 					## per-item read below skips it: housekeeping moves a running item to review on every handback.
 					[ -f "$f" ] || continue
-					ownerVal="$( LC_ALL=C awk '/^owner: / { sub(/^owner: /, "") ; print ; exit }' "$f" )"
+					ownerVal="$( LC_ALL=C awk '/^owner: / { sub(/^owner: /, "") ; print ; exit ; }' "$f" )"
 					[ "$ownerVal" = "$owner" ] || continue
 				fi
 
@@ -565,8 +565,8 @@ case "$1" in
 			type AgentsToolsBoardItemHandler > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.BoardItemHandler.include"
 			handlerRc=0 ; handlerOut="$( AgentsToolsBoardItemHandler "$f" 2> /dev/null )" || handlerRc=$?
 			case "$handlerRc" in
-				0) printf 'handler-routine (resolved): %s (%s)\n' "$( printf '%s' "$handlerOut" | LC_ALL=C awk -F'\t' '{ print $2 ; exit }' )" "$( printf '%s' "$handlerOut" | LC_ALL=C awk -F'\t' '{ print $3 ; exit }' )" ;;
-				3) printf 'handler-routine (resolved): FLAGGED %s -- nothing runs\n' "$( printf '%s' "$handlerOut" | LC_ALL=C awk -F'\t' '$1 == "flag" { printf "%s%s", sep, $2 ; sep = "," }' )" ;;
+				0) printf 'handler-routine (resolved): %s (%s)\n' "$( printf '%s' "$handlerOut" | LC_ALL=C awk -F'\t' '{ print $2 ; exit ; }' )" "$( printf '%s' "$handlerOut" | LC_ALL=C awk -F'\t' '{ print $3 ; exit ; }' )" ;;
+				3) printf 'handler-routine (resolved): FLAGGED %s -- nothing runs\n' "$( printf '%s' "$handlerOut" | LC_ALL=C awk -F'\t' '$1 == "flag" { printf "%s%s", sep, $2 ; sep = "," ; }' )" ;;
 			esac
 			## WHO HOLDS THE ITEM, as the DOCUMENT says it and never as the asker does: one view field, a
 			## function of the item and its live runs alone, so the holder, another member and the
@@ -575,7 +575,7 @@ case "$1" in
 			type AgentsToolsBoardItemHolders > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.BoardItemHandler.include"
 			boardHeldRows="$( AgentsToolsBoardItemHolders "$f" 2> /dev/null )" || :
 			if [ -n "$boardHeldRows" ] ; then
-				printf 'held (by %s)\n' "$( printf '%s' "$boardHeldRows" | LC_ALL=C awk -F'\t' '{ printf "%s%s (%s)", sep, $1, $2 ; sep = ", " }' )"
+				printf 'held (by %s)\n' "$( printf '%s' "$boardHeldRows" | LC_ALL=C awk -F'\t' '{ printf "%s%s (%s)", sep, $1, $2 ; sep = ", " ; }' )"
 			fi
 			[ -z "$boardTokenRows" ] || AgentsSessionTokensRollupText "$( AgentsSessionTokensRollupRowOf "$boardTokenRows" "$base" )" tokens-total
 			printf '\n'

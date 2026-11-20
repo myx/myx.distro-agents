@@ -235,7 +235,7 @@ agentsDecisionsOwnAwk='
 ## body second. It takes the own section of each by the reader's own functions, so a line the
 ## reader sees is a line this keeps. A refusal exits before anything reaches stdout.
 agentsDecisionsKeepAwk="$agentsDecisionsOwnAwk"'
-	{ if ( FILENAME == ENVIRON["MDAT_KEEP_STORED"] ) { storedLine[++storedCount] = $0 ; } else { bodyLine[++bodyCount] = $0 ; } }
+	{ if ( FILENAME == ENVIRON["MDAT_KEEP_STORED"] ) { storedLine[++storedCount] = $0 ; } else { bodyLine[++bodyCount] = $0 ; } ; }
 	END {
 		bodyEnd = bodyCount ;
 		while ( bodyEnd > 0 && bodyLine[bodyEnd] ~ /^[ \t]*$/ ) { bodyEnd-- ; }
@@ -247,7 +247,7 @@ agentsDecisionsKeepAwk="$agentsDecisionsOwnAwk"'
 		if ( storedStart > 0 ) {
 			storedLast = decisionsEnd( storedCount, storedStart ) ;
 			for ( i = storedStart ; i <= storedLast ; i++ ) { keptLine[++keptCount] = line[i] ; }
-			for ( i = storedStart + 1 ; i <= storedLast ; i++ ) { if ( line[i] ~ /^- / ) { recorded[++recordedCount] = struckBase( line[i] ) ; } }
+			for ( i = storedStart + 1 ; i <= storedLast ; i++ ) { if ( line[i] ~ /^- / ) { recorded[++recordedCount] = struckBase( line[i] ) ; } ; }
 		}
 		if ( bodyCount > 0 ) {
 			for ( i = 1 ; i <= bodyCount ; i++ ) { line[i] = bodyLine[i] ; }
@@ -255,13 +255,13 @@ agentsDecisionsKeepAwk="$agentsDecisionsOwnAwk"'
 		}
 		if ( bodyStart > 0 ) {
 			bodyLast = decisionsEnd( bodyCount, bodyStart ) ;
-			for ( i = bodyStart + 1 ; i <= bodyLast ; i++ ) { if ( line[i] ~ /^- / ) { carried[++carriedCount] = struckBase( line[i] ) ; } }
+			for ( i = bodyStart + 1 ; i <= bodyLast ; i++ ) { if ( line[i] ~ /^- / ) { carried[++carriedCount] = struckBase( line[i] ) ; } ; }
 		}
 		## A body brings no unrecorded decision line and changes no recorded one; only the writer and the mark of a strike do.
 		allowLine = ENVIRON["MDAT_DECISIONS_LINE"] ; allowMark = ENVIRON["MDAT_DECISIONS_MARK"] ;
 		for ( j = 1 ; j <= carriedCount ; j++ ) {
 			isRecorded = 0 ;
-			for ( i = 1 ; i <= recordedCount ; i++ ) { if ( recorded[i] == carried[j] ) { isRecorded = 1 ; } }
+			for ( i = 1 ; i <= recordedCount ; i++ ) { if ( recorded[i] == carried[j] ) { isRecorded = 1 ; } ; }
 			if ( isRecorded || ( allowLine != "" && ( carried[j] == allowLine || carried[j] == "- " allowLine ) ) ) { continue ; }
 			printf "⛔ ERROR: %s: %s: this write brings a decision line that was never recorded, so nothing was written. A decision lands only through its confirmed readback: --record-decision <item> --kind <kind> --text <its text> --with <the one it was made with>. The line: %s\n", cmdName, keepLabel, carried[j] > "/dev/stderr" ;
 			forgedCount++ ;
@@ -281,8 +281,8 @@ agentsDecisionsKeepAwk="$agentsDecisionsOwnAwk"'
 		if ( keepMode == "edit" ) {
 			for ( i = 1 ; i <= recordedCount ; i++ ) {
 				storedTimes = 0 ; carriedTimes = 0 ;
-				for ( j = 1 ; j <= recordedCount ; j++ ) { if ( recorded[j] == recorded[i] ) { storedTimes++ ; } }
-				for ( j = 1 ; j <= carriedCount ; j++ ) { if ( carried[j] == recorded[i] ) { carriedTimes++ ; } }
+				for ( j = 1 ; j <= recordedCount ; j++ ) { if ( recorded[j] == recorded[i] ) { storedTimes++ ; } ; }
+				for ( j = 1 ; j <= carriedCount ; j++ ) { if ( carried[j] == recorded[i] ) { carriedTimes++ ; } ; }
 				if ( carriedTimes >= storedTimes ) { continue ; }
 				printf "⛔ ERROR: %s: %s: this write would drop a recorded decision, so nothing was written: %s\n", cmdName, keepLabel, recorded[i] > "/dev/stderr" ;
 				dropped++ ;
@@ -295,7 +295,7 @@ agentsDecisionsKeepAwk="$agentsDecisionsOwnAwk"'
 		}
 		for ( j = 1 ; j <= carriedCount ; j++ ) {
 			known = 0 ;
-			for ( i = 1 ; i <= recordedCount ; i++ ) { if ( recorded[i] == carried[j] ) { known = 1 ; } }
+			for ( i = 1 ; i <= recordedCount ; i++ ) { if ( recorded[i] == carried[j] ) { known = 1 ; } ; }
 			if ( ! known ) { extra[++extraCount] = carried[j] ; }
 		}
 		if ( bodyStart > 0 ) {
@@ -347,7 +347,7 @@ AgentsToolsDecisionsLines(){ ## item path, cap
 			start = decisionsOwn( NR, marker ) ;
 			if ( ! start ) { exit ; }
 			last = decisionsEnd( NR, start ) ;
-			for ( i = start + 1 ; i <= last ; i++ ) { if ( line[i] ~ /^- / ) { found[++n] = line[i] ; } }
+			for ( i = start + 1 ; i <= last ; i++ ) { if ( line[i] ~ /^- / ) { found[++n] = line[i] ; } ; }
 			for ( i = n ; i >= 1 && shown < cap + 0 ; i-- ) { print found[i] ; shown++ ; }
 		}
 	' "$1" 2> /dev/null
@@ -439,10 +439,10 @@ AgentsToolsDecisionsTrackingOwners(){ ## item name (with or without .md)
 	AgentsToolsBoardItemsInto trackItems "dispatch-" || return 0
 	[ "${#trackItems[@]}" -gt 0 ] || return 0
 	LC_ALL=C awk -v item="$trackName" '
-		FNR == 1 { fence = 0 ; owner = "" ; tracks = "" }
-		$0 == "---" { fence++ ; if ( fence > 1 ) { if ( tracks == item || tracks == item ".md" ) print owner ; nextfile } ; next }
-		fence == 1 && index( $0, "owner: " ) == 1 && owner == "" { owner = substr( $0, 8 ) }
-		fence == 1 && index( $0, "tracks: " ) == 1 && tracks == "" { tracks = substr( $0, 9 ) }
+		FNR == 1 { fence = 0 ; owner = "" ; tracks = "" ; }
+		$0 == "---" { fence++ ; if ( fence > 1 ) { if ( tracks == item || tracks == item ".md" ) print owner ; nextfile ; } ; next ; }
+		fence == 1 && index( $0, "owner: " ) == 1 && owner == "" { owner = substr( $0, 8 ) ; }
+		fence == 1 && index( $0, "tracks: " ) == 1 && tracks == "" { tracks = substr( $0, 9 ) ; }
 	' ${trackItems[@]+"${trackItems[@]}"} 2> /dev/null || :
 }
 
@@ -600,7 +600,7 @@ AgentsToolsItemIsParty(){ ## item path, member
 		fm == 1 && ( index( $0, "spawns: " ) == 1 || index( $0, "spawned-by: " ) == 1 ) {
 			links = $0 ; sub( /^[a-z-]+: /, "", links ) ; gsub( / /, "", links ) ;
 			n = split( links, part, "," ) ;
-			for ( i = 1 ; i <= n ; i++ ) { one = part[i] ; sub( /\.md$/, "", one ) ; if ( one == item ) { linked = 1 ; } }
+			for ( i = 1 ; i <= n ; i++ ) { one = part[i] ; sub( /\.md$/, "", one ) ; if ( one == item ) { linked = 1 ; } ; }
 		}
 		END { exit ( found ? 0 : 1 ) ; }
 	' ${ipRecords[@]+"${ipRecords[@]}"} /dev/null 2> /dev/null && return 0
@@ -659,7 +659,7 @@ AgentsToolsDecisionsFromPending(){ ## pending id, record file, status, amend (1 
 					rawValue = substr( $0, 17 ) ; plainText = "" ;
 					for ( charAt = 1 ; charAt <= length( rawValue ) ; charAt++ ) {
 						oneChar = substr( rawValue, charAt, 1 ) ;
-						if ( oneChar == "\\" && charAt < length( rawValue ) ) { charAt++ ; oneChar = substr( rawValue, charAt, 1 ) ; if ( oneChar == "n" ) { oneChar = "\n" ; } }
+						if ( oneChar == "\\" && charAt < length( rawValue ) ) { charAt++ ; oneChar = substr( rawValue, charAt, 1 ) ; if ( oneChar == "n" ) { oneChar = "\n" ; } ; }
 						plainText = plainText oneChar ;
 					}
 					rowCount = split( plainText, planRow, "\n" ) ;
@@ -924,7 +924,7 @@ AgentsToolsDecisionsStatusLine(){ ## pending id, record file
 			amended-by) lineAmendBy="$lineValue" ;;
 			amended-at) lineAmendAt="$lineValue" ;;
 		esac
-	done < <( LC_ALL=C awk '$0 == "---" { if ( ++dashes == 2 ) { exit ; } next ; } dashes == 1 { colon = index( $0, ": " ) ; if ( colon > 1 ) { printf "%s\t%s\n", substr( $0, 1, colon - 1 ), substr( $0, colon + 2 ) ; } }' "$2" 2> /dev/null )
+	done < <( LC_ALL=C awk '$0 == "---" { if ( ++dashes == 2 ) { exit ; } next ; } dashes == 1 { colon = index( $0, ": " ) ; if ( colon > 1 ) { printf "%s\t%s\n", substr( $0, 1, colon - 1 ), substr( $0, colon + 2 ) ; } ; }' "$2" 2> /dev/null )
 	[ "$lineStatus" = reply-received ] && [ -n "$lineVerdict" ] || return 1
 	printf '%s answered %s by %s at %s' "$1" "$( AgentsToolsDecisionsOneLine "$lineVerdict" 160 )" "${lineAmendBy:-${lineBy:-unknown}}" "${lineAmendAt:-${lineAt:-unknown}}"
 }

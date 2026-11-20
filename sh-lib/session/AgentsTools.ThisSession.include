@@ -315,7 +315,7 @@ AgentsToolsThisSessionCheckpoint(){ ## push|rewind|exit, then the operation's ar
 	checkpointStore="$MMDAPP/.local/agents/sessions/$MDAT_SPAWN_SESSION_ID"
 	mkdir -p "$checkpointStore" 2> /dev/null || { echo "$MDSC_CMD: ⛔ ERROR: $checkpointWord: $checkpointStore could not be made. Nothing was done." >&2 ; return 1 ; }
 	if [ "$checkpointOp" = rewind ] ; then
-		checkpointHeld="$( LC_ALL=C awk -F '\t' 'NF { print $1 }' "$checkpointStore/snapshots" 2> /dev/null | LC_ALL=C tr '\n' ' ' )"
+		checkpointHeld="$( LC_ALL=C awk -F '\t' 'NF { print $1 ; }' "$checkpointStore/snapshots" 2> /dev/null | LC_ALL=C tr '\n' ' ' )"
 		if [ -z "$checkpointHeld" ] ; then
 			echo "$MDSC_CMD: ⛔ ERROR: $checkpointWord: this run holds no snapshot to return to. Nothing was done." >&2
 			return 1
@@ -375,7 +375,7 @@ AgentsToolsThisSessionFloorRemove(){ ## the operation's arguments
 	floorPointers="$floorDir/$agentsSessionChatName.pointers"
 	if [ -f "$floorPointers" ] ; then
 		floorTemp="$( mktemp "$floorPointers.tmp.XXXXXX" )" || floorTemp=""
-		LC_ALL=C awk -F'\t' -v member="$floorMember" '$1 != "read:" member { print }' "$floorPointers" > "$floorTemp" 2>/dev/null && chmod 644 "$floorTemp" && mv -f "$floorTemp" "$floorPointers"
+		LC_ALL=C awk -F'\t' -v member="$floorMember" '$1 != "read:" member { print ; }' "$floorPointers" > "$floorTemp" 2>/dev/null && chmod 644 "$floorTemp" && mv -f "$floorTemp" "$floorPointers"
 		[ -z "$floorTemp" ] || rm -f -- "$floorTemp"
 	fi
 	AgentsOwnPostsClear "${thisSessionKey}"
@@ -444,7 +444,7 @@ AgentsToolsThisSessionIdleWait(){ ## the operation's arguments
 	type AgentsSessionChecklistOpenInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.CheckListSeed.include"
 	AgentsSessionChecklistOpenInto idleBusy "$MDAT_SPAWN_SESSION_ID" "$MDAT_SPAWN_AGENT"
 	if [ -n "$idleBusy" ] ; then
-		idleBusyCount="$( LC_ALL=C awk 'END { print NR }' <<< "$idleBusy" )"
+		idleBusyCount="$( LC_ALL=C awk 'END { print NR ; }' <<< "$idleBusy" )"
 		printf 'CHECKLIST: %s pending. Work or close them, then run --idle-wait again -- it returns at once while an item is pending.\n%s\n' "$idleBusyCount" "$idleBusy"
 		return 0
 	fi
@@ -491,7 +491,7 @@ AgentsToolsThisSessionIdleWait(){ ## the operation's arguments
 	fi
 	## The checkpoint it returns to, where it returns at all: `opening` where the run holds it, else `armed`.
 	if [ -z "$idleSignal" ] ; then
-		idleHeld=" $( LC_ALL=C awk -F '\t' 'NF { print $1 }' "$idleStore/snapshots" 2> /dev/null | LC_ALL=C tr '\n' ' ' )"
+		idleHeld=" $( LC_ALL=C awk -F '\t' 'NF { print $1 ; }' "$idleStore/snapshots" 2> /dev/null | LC_ALL=C tr '\n' ' ' )"
 		case "$idleHeld" in
 			*" opening "*) idleTarget=opening ;;
 			*" armed "*) idleTarget=armed ;;
@@ -711,8 +711,8 @@ AgentsToolsThisSessionRuns(){ ## the operation's arguments (none)
 	runsRows="$( AgentsToolsManagerSessionRows --all-sessions "" )" || return 1
 	runsKinds="$( AgentsToolsDispatcherKinds "$runsRows" )"
 	runsBound="$( AgentsToolsDispatcherSubSessions "$runsSession" | LC_ALL=C sort -u )"
-	runsPublic="$( printf '%s\n' "$runsKinds" | LC_ALL=C awk -F'\t' '$2 == "coworking" { print $1 }' )"
-	runsOwn="$( printf '%s\n' "$runsRows" | LC_ALL=C awk -F'\t' -v who="$runsMember" '$1 == "run" && $4 == who { print $2 }' )"
+	runsPublic="$( printf '%s\n' "$runsKinds" | LC_ALL=C awk -F'\t' '$2 == "coworking" { print $1 ; }' )"
+	runsOwn="$( printf '%s\n' "$runsRows" | LC_ALL=C awk -F'\t' -v who="$runsMember" '$1 == "run" && $4 == who { print $2 ; }' )"
 	runsKept="$( { printf '%s\n' "$runsBound" "$runsPublic" "$runsOwn" ; } | LC_ALL=C sort -u )"
 	printf '%s\n' "$runsRows" | DISPATCH_KEPT="$runsKept" LC_ALL=C awk -F'\t' '
 		BEGIN {

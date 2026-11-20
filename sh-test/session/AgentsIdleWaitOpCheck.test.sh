@@ -91,10 +91,10 @@ rigOp(){ ## operation word, then its arguments -- the call as a member's shell m
 	rigOut="$( cat "$rigTmp/out" )" ; rigErr="$( cat "$rigTmp/err" )"
 }
 rigRequests(){ ## the requests written, joined with ; between
-	LC_ALL=C awk 'NF { printf "%s%s", sep, $0 ; sep = ";" }' "$rigStore/checkpoint.request" 2> /dev/null
+	LC_ALL=C awk 'NF { printf "%s%s", sep, $0 ; sep = ";" ; }' "$rigStore/checkpoint.request" 2> /dev/null
 }
 rigMark(){ ## the activity word the run's own mark holds
-	LC_ALL=C awk '{ print $3 }' "$rigStore/activity" 2> /dev/null
+	LC_ALL=C awk '{ print $3 ; }' "$rigStore/activity" 2> /dev/null
 }
 
 echo "-- 1. the syntax --"

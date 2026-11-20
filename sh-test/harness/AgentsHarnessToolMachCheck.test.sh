@@ -42,7 +42,7 @@ echo "-- the span a tool keeps from inside its subshell reaches its record --"
 rigAssert "kept by AgentsHarnessToolRunMsKeep in the subshell: the 15 s it ran are not machinery" \
 	"$( rigBand "$( rigMeta 'rigOut="$( AgentsHarnessToolRunMsKeep 15000 ; printf ok )"' )" 15000 )" subtracted
 rigAssert "and it is read once: the next call, keeping nothing, is all machinery" \
-	"$( rigMeta 'rigOut="$( AgentsHarnessToolRunMsKeep 15000 ; printf ok )" ; AgentsHarnessContextToolMeta Wait call-0 x "" > /dev/null' | LC_ALL=C awk '{ print ( $1 == $2 ) ? "all" : "subtracted" }' )" all
+	"$( rigMeta 'rigOut="$( AgentsHarnessToolRunMsKeep 15000 ; printf ok )" ; AgentsHarnessContextToolMeta Wait call-0 x "" > /dev/null' | LC_ALL=C awk '{ print ( $1 == $2 ) ? "all" : "subtracted" ; }' )" all
 echo "-- the controls --"
 rigAssert "control: a variable alone set in the subshell is lost, and the call is all machinery" \
 	"$( rigBand "$( rigMeta 'rigOut="$( harnessToolRunMs=15000 ; printf ok )"' )" 15000 )" all

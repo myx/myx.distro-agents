@@ -65,7 +65,7 @@ rigCall(){ ## the function and its words -- the include read for its definitions
 		bash -c '. "$1" ; shift ; "$@"' rig "$rigInclude" "$@" 2>&1
 }
 rigField(){ ## rows, kind, key, field number -- one field of the row of that kind that carries that key (a session's id, a run's spawn id)
-	printf '%s\n' "$1" | LC_ALL=C awk -F'\t' -v kind="$2" -v key="$3" -v at="$4" '( kind == "session" && $1 == "session" && $2 == key ) || ( kind == "run" && $1 == "run" && $3 == key ) { print $at ; exit }'
+	printf '%s\n' "$1" | LC_ALL=C awk -F'\t' -v kind="$2" -v key="$3" -v at="$4" '( kind == "session" && $1 == "session" && $2 == key ) || ( kind == "run" && $1 == "run" && $3 == key ) { print $at ; exit ; }'
 }
 
 echo "-- the rig: four sessions, six runs in the first --"
@@ -88,7 +88,7 @@ rigRun sess-C done-C spawn-succeeded "" "Ended"
 rigRun sess-D park-D spawn-succeeded "" "Handed_back" ; rigPark park-D
 sleep 2
 rigOut="$( rigCall AgentsToolsManagerSessionRows --manager-session-list )"
-rigCount="$( printf '%s\n' "$rigOut" | LC_ALL=C awk -F'\t' '$1 == "session" { n++ } END { print n + 0 }' )"
+rigCount="$( printf '%s\n' "$rigOut" | LC_ALL=C awk -F'\t' '$1 == "session" { n++ ; } END { print n + 0 ; }' )"
 rigAssert "the list reads the four sessions of the rig" "$rigCount" "4"
 
 echo "-- 1. a run's activity comes from the registry's state word, never from a milestone --"
@@ -106,12 +106,12 @@ rigAssert "sess-A, with runs at work, reads running" "$( rigField "$rigOut" sess
 rigAssert "sess-B, its runs ended or parked, reads awaiting-review and not finished" "$( rigField "$rigOut" session sess-B 4 )" "awaiting-review"
 rigAssert "sess-D, its only run handed back, reads awaiting-review" "$( rigField "$rigOut" session sess-D 4 )" "awaiting-review"
 rigAssert "sess-C, every run ended, reads finished" "$( rigField "$rigOut" session sess-C 4 )" "finished"
-rigActive="$( rigCall AgentsToolsManagerSessionRows --manager-session-active active | LC_ALL=C awk -F'\t' '$1 == "session" { printf "%s ", $2 }' )"
+rigActive="$( rigCall AgentsToolsManagerSessionRows --manager-session-active active | LC_ALL=C awk -F'\t' '$1 == "session" { printf "%s ", $2 ; }' )"
 rigAssert "the active list keeps the sessions awaiting review and leaves the finished one out" "$( printf '%s\n' $rigActive | LC_ALL=C sort | LC_ALL=C tr '\n' ' ' )" "sess-A sess-B sess-D "
 
 echo "-- 4. the counters row counts the agents that work and that wait --"
 rigAssert "two agents work (thinking, in-tool) and two wait (a Wait, an ask); a run awaiting review is neither" \
-	"$( printf '%s\n' "$rigOut" | LC_ALL=C awk -F'\t' '$1 == "counters" { print $4 " " $5 }' )" "2 2"
+	"$( printf '%s\n' "$rigOut" | LC_ALL=C awk -F'\t' '$1 == "counters" { print $4 " " $5 ; }' )" "2 2"
 
 echo "-- 5. the title and the chapter --"
 rigAssert "the title a session's records carry is its name" "$( rigField "$rigOut" session sess-A 3 ) | $( rigField "$rigOut" session sess-B 3 )" "Rig_work | Parked_only"

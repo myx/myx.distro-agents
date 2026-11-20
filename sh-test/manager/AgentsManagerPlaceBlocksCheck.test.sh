@@ -44,7 +44,7 @@ rigAssert "the field of a row is written once: LocalToolsManagerField is defined
 
 echo "-- 2. the list and the arm --"
 rigList="$rigHere/config/place-blocks.list"
-rigAssert "the list names the three kinds in order, each reader a function of the include the line names" "$( LC_ALL=C awk -F'\t' '$1 == "block" { printf "%s=%s ", $2, $3 }' "$rigList" )" "sessions=AgentsToolsManagerPlaceSessions stands=AgentsToolsManagerPlaceStands members=AgentsToolsManagerPlaceMembers "
+rigAssert "the list names the three kinds in order, each reader a function of the include the line names" "$( LC_ALL=C awk -F'\t' '$1 == "block" { printf "%s=%s ", $2, $3 ; }' "$rigList" )" "sessions=AgentsToolsManagerPlaceSessions stands=AgentsToolsManagerPlaceStands members=AgentsToolsManagerPlaceMembers "
 rigBad=""
 while IFS=$'\t' read -r rigLine rigKind rigReader rigInclude ; do
 	[ "$rigLine" = "block" ] || continue
@@ -90,8 +90,8 @@ rigBare(){ ## op words -- the same include run with no list at all
 	( cd "$rigTmp/ws" && env -i HOME="$rigTmp/home" PATH="/usr/bin:/bin:/usr/sbin:/sbin" MMDAPP="$rigTmp/ws" MDLT_ORIGIN="$MDLT_ORIGIN" MDSC_CMD=rig \
 		bash -c 'set -- "$@" ; f() { . "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/manager/LocalTools.ManagerPlace.include" ; } ; f "$@"' rig "$@" 2> /dev/null < /dev/null )
 }
-rigAssert "with the agents' blocks the workspace counts its session and the read prints its member and its consoles" "$( rigOp --manager-place-list | LC_ALL=C awk -F'\t' '$2 == "ws-rig" { printf "sessions=%s ", $9 }' ) $( rigOp --manager-place-read ws-rig | LC_ALL=C awk -F'\t' '$1 == "member" || ( $1 == "stands" && $2 == "console" ) { what = $2 ; if ( $2 == "console" ) what = $3 ; printf "%s:%s ", $1, what }' )" "sessions=1  stands:DistroAgentsConsole.sh member:keeper-rig "
-rigAssert "with none: the sessions column reads -, and the read prints the consoles of the workspace and no member and no member home" "$( rigBare --manager-place-list | LC_ALL=C awk -F'\t' '$2 == "ws-rig" { printf "sessions=%s ", $9 }' ) $( rigBare --manager-place-read ws-rig | LC_ALL=C awk -F'\t' '$1 == "member" || ( $1 == "stands" && $2 == "console" ) { what = $2 ; if ( $2 == "console" ) what = $3 ; printf "%s:%s ", $1, what }' )" "sessions=-  stands:DistroAgentsConsole.sh "
+rigAssert "with the agents' blocks the workspace counts its session and the read prints its member and its consoles" "$( rigOp --manager-place-list | LC_ALL=C awk -F'\t' '$2 == "ws-rig" { printf "sessions=%s ", $9 ; }' ) $( rigOp --manager-place-read ws-rig | LC_ALL=C awk -F'\t' '$1 == "member" || ( $1 == "stands" && $2 == "console" ) { what = $2 ; if ( $2 == "console" ) what = $3 ; printf "%s:%s ", $1, what ; }' )" "sessions=1  stands:DistroAgentsConsole.sh member:keeper-rig "
+rigAssert "with none: the sessions column reads -, and the read prints the consoles of the workspace and no member and no member home" "$( rigBare --manager-place-list | LC_ALL=C awk -F'\t' '$2 == "ws-rig" { printf "sessions=%s ", $9 ; }' ) $( rigBare --manager-place-read ws-rig | LC_ALL=C awk -F'\t' '$1 == "member" || ( $1 == "stands" && $2 == "console" ) { what = $2 ; if ( $2 == "console" ) what = $3 ; printf "%s:%s ", $1, what ; }' )" "sessions=-  stands:DistroAgentsConsole.sh "
 
 printf '\nTOTAL: %d passed, %d failed\n' "$rigPasses" "$rigFails"
 [ "$rigFails" = 0 ]

@@ -66,7 +66,7 @@ AgentsToolsMonitoringHealth(){ ## workspace (default MMDAPP)
 		healthLoad="$( sysctl -n vm.loadavg 2> /dev/null | LC_ALL=C tr -d '{}' | LC_ALL=C sed 's/^ *//;s/ *$//' )" || healthLoad=""
 	fi
 	AgentsToolsMonitoringLine health "$healthName" machine-load "${healthLoad:-unknown}" "1 5 15 minutes"
-	healthDisk="$( df -Pk "$healthWs" 2> /dev/null | LC_ALL=C awk 'NR == 2 { printf "%s free, %s used", $4 * 1024, $5 }' )" || healthDisk=""
+	healthDisk="$( df -Pk "$healthWs" 2> /dev/null | LC_ALL=C awk 'NR == 2 { printf "%s free, %s used", $4 * 1024, $5 ; }' )" || healthDisk=""
 	AgentsToolsMonitoringLine health "$healthName" machine-disk "${healthDisk:-unknown}" "bytes"
 
 	## THE RIG DAEMONS: the schedule thread and the communications reader, by their locks; a lock whose holder is gone is an alarm.

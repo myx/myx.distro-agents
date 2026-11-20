@@ -27,12 +27,12 @@
 		deleteMode="$( AgentsToolsManagerKeysMode "$deleteFile" )"
 		deleteTmp="$( mktemp "$deleteFile.delete.XXXXXX" 2> /dev/null )" || { echo "⛔ ERROR: $MDSC_CMD $deleteOp: a file for the new authorized keys could not be made beside it -- nothing was changed" >&2 ; set +e ; return 1 ; }
 		if ! LC_ALL=C awk -v n="$deleteN" '
-			/^[ \t]*(#|$)/ { print ; next }
+			/^[ \t]*(#|$)/ { print ; next ; }
 			{
-				for ( at = 1 ; at < NF ; at++ ) { if ( $at ~ /^(ssh-|ecdsa-|sk-)/ ) { break } }
+				for ( at = 1 ; at < NF ; at++ ) { if ( $at ~ /^(ssh-|ecdsa-|sk-)/ ) { break ; } ; }
 				if ( at < NF && $at ~ /^(ssh-|ecdsa-|sk-)/ && $(at + 1) ~ /^[A-Za-z0-9+\/=]+$/ ) {
 					total++
-					if ( total == n ) { next }
+					if ( total == n ) { next ; }
 				}
 				print
 			}' "$deleteFile" > "$deleteTmp" ; then

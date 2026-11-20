@@ -972,7 +972,7 @@ rigAssert "a stop without force, of a run whose tool command ignores the polite 
 ## force, as the result of the first said to call it, the command gets the hard kill.
 rigHungKept="$rigWs/.local/agents/sessions/rig-hung-ts-$$/stop.left"
 rigAssert "what the stop left is kept in the run's store: the command, by its pid and when it began, and nothing else" \
-	"$( LC_ALL=C awk 'END { print NR + 0 }' "$rigHungKept" 2> /dev/null ):$( LC_ALL=C awk -v wantPid="$rigHungTool" '$1 == wantPid && NF == 2 { hit++ } END { print hit + 0 }' "$rigHungKept" 2> /dev/null )" 1:1
+	"$( LC_ALL=C awk 'END { print NR + 0 ; }' "$rigHungKept" 2> /dev/null ):$( LC_ALL=C awk -v wantPid="$rigHungTool" '$1 == wantPid && NF == 2 { hit++ ; } END { print hit + 0 ; }' "$rigHungKept" 2> /dev/null )" 1:1
 rigEnv=( MDAT_SPAWN_AGENT=magic-coordinator )
 rigTool "$rigTmp/e4h2" TaskStop "{\"task_id\":\"rig-hung-ts-$$\",\"force\":true}"
 rigEnv=()

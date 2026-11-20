@@ -80,7 +80,7 @@ rigHeader(){ ## header -- its value in the run record, or `-` where it has none
 	local headerFile headerValue
 	headerFile="$( rigRecord )"
 	[ -n "$headerFile" ] || { printf 'no-record' ; return 0 ; }
-	headerValue="$( LC_ALL=C awk -v wantField="$1" 'NR == 1 && $0 != "---" { exit } $0 == "---" { dashes++ ; if (dashes == 2) exit ; next } index($0, wantField ": ") == 1 { print substr($0, length(wantField) + 3) ; exit }' "$headerFile" )"
+	headerValue="$( LC_ALL=C awk -v wantField="$1" 'NR == 1 && $0 != "---" { exit ; } $0 == "---" { dashes++ ; if (dashes == 2) exit ; next ; } index($0, wantField ": ") == 1 { print substr($0, length(wantField) + 3) ; exit ; }' "$headerFile" )"
 	printf '%s' "${headerValue:--}"
 }
 

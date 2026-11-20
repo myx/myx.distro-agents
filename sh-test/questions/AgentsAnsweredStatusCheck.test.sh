@@ -83,11 +83,11 @@ rigAsk(){ ## result name, item (may be empty)
 ## One frontmatter field of a rig file, a pending record found in its closed/ folder too.
 rigField(){ ## file, field
 	[ -f "$1" ] || set -- "${1%/*}/closed/${1##*/}" "$2"
-	LC_ALL=C awk -v key="$2" 'NR > 1 && $0 == "---" { exit } index($0, key ": ") == 1 { print substr($0, length(key) + 3) ; exit }' "$1"
+	LC_ALL=C awk -v key="$2" 'NR > 1 && $0 == "---" { exit ; } index($0, key ": ") == 1 { print substr($0, length(key) + 3) ; exit ; }' "$1"
 }
 ## The body of an item: every line after its frontmatter.
 rigBody(){ ## item file
-	LC_ALL=C awk 'fence >= 2 { print ; next } $0 == "---" { fence++ }' "$1"
+	LC_ALL=C awk 'fence >= 2 { print ; next ; } $0 == "---" { fence++ ; }' "$1"
 }
 ## The lines an operation printed that start with the word given, one per line, in order.
 rigLines(){ ## result file, word

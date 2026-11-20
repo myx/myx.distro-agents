@@ -119,7 +119,7 @@ rigAssert "the send posts once" "$( rigPosts )" "1"
 rigAssert "the receiving session's chat file holds the DISMISSED, from the sender to its member" "$( rigBlocks "$rigDuty/session.chat" "$rigLead" "$rigHelper" DISMISSED )" "1"
 rigAssert "as a delivered block on that session's thread, with the ts Slack gave the post" "$( rigIndex "$rigDuty/session.chat.index" 1 )" "1760000000.000101 $rigChannel:$rigDutyTs delivered"
 rigAssert "the sender's own record is as it was: one block, in its own session" \
-	"$( LC_ALL=C wc -l < "$rigWs/.local/agents/sessions/rig-root-sess/session.chat.index" 2> /dev/null | LC_ALL=C tr -d ' ' ):$( rigIndex "$rigWs/.local/agents/sessions/rig-root-sess/session.chat.index" 1 | LC_ALL=C awk '{ print $3 }' )" "1:own"
+	"$( LC_ALL=C wc -l < "$rigWs/.local/agents/sessions/rig-root-sess/session.chat.index" 2> /dev/null | LC_ALL=C tr -d ' ' ):$( rigIndex "$rigWs/.local/agents/sessions/rig-root-sess/session.chat.index" 1 | LC_ALL=C awk '{ print $3 ; }' )" "1:own"
 
 echo "-- 2. the run's Wait returns DISMISSED from that file, while its read of the thread from Slack fails --"
 rigTool wait-duty Wait "$rigHelper" rig-duty-run rig-duty-sess "$rigDutyTs" "{\"timeout\":\"6\",\"mode\":\"default\",\"sources\":\"slack:$rigChannel:$rigDutyTs:conversation\"}"
@@ -154,7 +154,7 @@ rigAssert "and no other run of the member" "$( dismissalMember="$rigLead" dismis
 echo "-- 5. a session of another workspace of the machine --"
 rigSend send-far "$rigFarTs" "$rigHelper" DISMISSED
 rigAssert "its chat file holds the copy" "$( rigBlocks "$rigFar/.local/agents/sessions/rig-far-sess/session.chat" "$rigLead" "$rigHelper" DISMISSED )" "1"
-rigAssert "on its own thread, origin delivered" "$( rigIndex "$rigFar/.local/agents/sessions/rig-far-sess/session.chat.index" 1 | LC_ALL=C awk '{ print $2 " " $3 }' )" "$rigChannel:$rigFarTs delivered"
+rigAssert "on its own thread, origin delivered" "$( rigIndex "$rigFar/.local/agents/sessions/rig-far-sess/session.chat.index" 1 | LC_ALL=C awk '{ print $2 " " $3 ; }' )" "$rigChannel:$rigFarTs delivered"
 
 echo "-- 6. the controls --"
 rigDeliveredBefore="$( cat "$rigWs"/.local/agents/sessions/*/session.chat.index "$rigFar"/.local/agents/sessions/*/session.chat.index 2> /dev/null | LC_ALL=C awk -F'\t' '$4 == "delivered"' | LC_ALL=C wc -l | LC_ALL=C tr -d ' ' )"

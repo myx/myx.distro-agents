@@ -26,7 +26,7 @@ if ! type AgentsToolsUndoHoldState >/dev/null 2>&1 ; then
 
 	## The state word a record's own `record` file carries, or empty.
 	AgentsToolsUndoHoldRecordState(){ ## record folder
-		LC_ALL=C awk '$0 == "---" { exit } index( $0, "state: " ) == 1 { print substr( $0, 8 ) ; exit }' "$1/record" 2> /dev/null
+		LC_ALL=C awk '$0 == "---" { exit ; } index( $0, "state: " ) == 1 { print substr( $0, 8 ) ; exit ; }' "$1/record" 2> /dev/null
 	}
 
 	## One word for what a marker says: `absent` where there is none, `held` where every line

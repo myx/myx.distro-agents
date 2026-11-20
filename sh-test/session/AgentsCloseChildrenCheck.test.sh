@@ -58,7 +58,7 @@ rigMark(){ ## spawn id -- what its tooling dismissal mark holds, or `none`
 }
 rigCountIn(){ ## file, text -- how many lines of the file hold the text, 0 where the file is not there
 	if [ ! -f "$1" ] ; then printf '0' ; return 0 ; fi
-	LC_ALL=C awk -v want="$2" 'index( $0, want ) { found++ } END { print found + 0 }' "$1"
+	LC_ALL=C awk -v want="$2" 'index( $0, want ) { found++ ; } END { print found + 0 ; }' "$1"
 }
 rigLive(){ ## spawn id -- a stand-in process carrying the id, in the host process list
 	python3 -I -B -c 'import time; time.sleep(600)' -- --session-id "$1" > /dev/null 2>&1 &

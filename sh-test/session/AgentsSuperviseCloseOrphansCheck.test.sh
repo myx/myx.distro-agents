@@ -100,7 +100,7 @@ rigClose(){ ## the workspace, the options...
 }
 rigRow(){ ## the output, the spawn id -- that row's verdict, or `absent`
 	local row
-	row="$( printf '%s\n' "$1" | LC_ALL=C awk -v id="$2" '$1 == "rig-orphan" && $3 == id { print $NF ; exit }' )"
+	row="$( printf '%s\n' "$1" | LC_ALL=C awk -v id="$2" '$1 == "rig-orphan" && $3 == id { print $NF ; exit ; }' )"
 	printf '%s' "${row:-absent}"
 }
 
@@ -142,8 +142,8 @@ rigOut="$( rigClose "$rigWs" --execute )"
 rigAssert "it reads still-alive" "$( rigRow "$rigOut" rig-cdef )" "still-alive"
 rigAssert "and it is not ended: its process lives" "$( kill -0 "$rigPidC" 2> /dev/null && echo alive || echo gone )" "alive"
 rigAssert "a note stands beside that rig's pid file" "$( [ -f "$rigNoteC" ] && echo kept || echo none )" "kept"
-rigAssert "and it names the process the pid file names" "$( LC_ALL=C awk '{ print $1 }' "$rigNoteC" 2> /dev/null )" "$rigPidC"
-rigAssert "and with the began moment the tooling reads for it" "$( LC_ALL=C awk '{ print $2 }' "$rigNoteC" 2> /dev/null )" "$( printf '%s\n' "$rigPidC" | AgentsToolsRunProcessesBegan | LC_ALL=C awk '{ print $2 }' )"
+rigAssert "and it names the process the pid file names" "$( LC_ALL=C awk '{ print $1 ; }' "$rigNoteC" 2> /dev/null )" "$rigPidC"
+rigAssert "and with the began moment the tooling reads for it" "$( LC_ALL=C awk '{ print $2 ; }' "$rigNoteC" 2> /dev/null )" "$( printf '%s\n' "$rigPidC" | AgentsToolsRunProcessesBegan | LC_ALL=C awk '{ print $2 ; }' )"
 
 echo "-- 6. the readout says it would be killed, and signals nothing --"
 rigOut="$( rigClose "$rigWs" )"
@@ -190,7 +190,7 @@ rigAssert "the deaf one reads still-alive first" "$( rigRow "$rigOut" rig-lmno )
 rigAssert "and a note stands for it" "$( [ -f "$rigNoteF" ] && echo kept || echo none )" "kept"
 mkdir -p "$rigTmp/bin" || exit 1
 cp "$rigPackage/sh-test/check-fixtures/supervise-close-orphans.ps.stub.sh" "$rigTmp/bin/ps" && chmod +x "$rigTmp/bin/ps" || rigRefuse "the stand-in ps fixture is missing from the package"
-rigSurvivorBegan="$( LC_ALL=C awk '{ print $2 }' "$rigNoteF" 2> /dev/null )"
+rigSurvivorBegan="$( LC_ALL=C awk '{ print $2 ; }' "$rigNoteF" 2> /dev/null )"
 [ -n "$rigSurvivorBegan" ] || rigRefuse "the note names no began moment, so the stand-in has nothing to show"
 rigOut="$( rigClosePath="$rigTmp/bin:/usr/bin:/bin:/usr/sbin:/sbin" rigSurvivor="$rigPidF" rigSurvivorBegan="$rigSurvivorBegan" rigClose "$rigWs" --execute )"
 rigAssert "the pass whose reader still sees it after KILL reads survived-kill" "$( rigRow "$rigOut" rig-lmno )" "survived-kill"
@@ -235,7 +235,7 @@ rigSessionThread(){ ## session id, deaf (yes|no), log age in minutes, its record
 }
 rigCtlRow(){ ## the output, the session id -- that row's verdict, or `absent`
 	local row
-	row="$( printf '%s\n' "$1" | LC_ALL=C awk -v id="$2" '$1 == "control-stuck" && $3 == id { print $NF ; exit }' )"
+	row="$( printf '%s\n' "$1" | LC_ALL=C awk -v id="$2" '$1 == "control-stuck" && $3 == id { print $NF ; exit ; }' )"
 	printf '%s' "${row:-absent}"
 }
 rigAlive(){ ## pid -- alive or gone, a process the host still runs and not one ended and uncollected
@@ -248,7 +248,7 @@ rigSessionThread rig-sn01 no 120 none
 rigSessionThread rig-sf01 no 1 spawn-succeeded
 rigSessionThread rig-sm01 no 120 spawn-succeeded
 rigSessionThread rig-sw01 no 120 spawn-ended-without-close
-printf '%s Mon_Jan__1_00:00:00_2001\n' "$( LC_ALL=C awk '{ print $1 }' "$rigAgents/sessions/rig-sm01/control/pid" )" > "$rigAgents/sessions/rig-sm01/control/pid"
+printf '%s Mon_Jan__1_00:00:00_2001\n' "$( LC_ALL=C awk '{ print $1 ; }' "$rigAgents/sessions/rig-sm01/control/pid" )" > "$rigAgents/sessions/rig-sm01/control/pid"
 rigOut="$( rigOwnSession=rig-sw01 rigClose "$rigWs" )"
 rigAssert "the readout names the quiet thread of a closed session would-close" "$( rigCtlRow "$rigOut" rig-sq01 )" "would-close"
 rigAssert "and the one that will ignore TERM the same" "$( rigCtlRow "$rigOut" rig-sd01 )" "would-close"

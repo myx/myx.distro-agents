@@ -133,7 +133,7 @@ rigAssert "no runs table is left behind"                     "$( ls -d "$MMDAPP/
 
 echo "-- 7. the owner names the rig of what no run placed --"
 rigRun just-agents AgentsToolsStrayStoreReturn "$rigJ2" --inbox-to rig-two > "$rigTmp/plan4"
-rigAssert "the ambiguous and the unmatched go to the named rig" "$( LC_ALL=C grep -e 'inquiry-ambiguous.md' -e 'inquiry-none.md' "$rigTmp/plan4" | LC_ALL=C awk -F'\t' '{ print $1 ":" ( index($3, "/rig-two/team-data/inboxes/") ? "rig-two" : $3 ) }' | LC_ALL=C sort -u | LC_ALL=C tr '\n' ' ' )" "move:rig-two "
+rigAssert "the ambiguous and the unmatched go to the named rig" "$( LC_ALL=C grep -e 'inquiry-ambiguous.md' -e 'inquiry-none.md' "$rigTmp/plan4" | LC_ALL=C awk -F'\t' '{ print $1 ":" ( index($3, "/rig-two/team-data/inboxes/") ? "rig-two" : $3 ) ; }' | LC_ALL=C sort -u | LC_ALL=C tr '\n' ' ' )" "move:rig-two "
 rigAssert "the plan moved nothing"                           "$( [ -f "$rigStore2/inboxes/magic-tester/incoming/inquiry-none.md" ] && printf yes || printf no )" yes
 rigRun just-agents AgentsToolsStrayStoreReturn "$rigJ2" --apply --inbox-to rig-two > "$rigTmp/apply4"
 rigAssert "applied, both stand at rig-two"                   "$( [ -f "$rigTwo/rig-two/team-data/inboxes/magic-tester/incoming/inquiry-ambiguous.md" ] && [ -f "$rigTwo/rig-two/team-data/inboxes/magic-tester/incoming/inquiry-none.md" ] && [ -z "$( ls "$rigStore2/inboxes/magic-tester/incoming" )" ] && printf yes || printf no )" yes

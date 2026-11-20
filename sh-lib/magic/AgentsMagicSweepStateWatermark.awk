@@ -14,7 +14,7 @@
 #   rc 3 -- a frontmatter block carrying no position for this key or fallback
 #           (in list mode: no per-source position at all).
 #   rc 1 -- no frontmatter block at all.
-BEGIN { want = "last_swept_ts:" ; keyed = ( key != "" ) ; listing = ( mode == "list" ) }
+BEGIN { want = "last_swept_ts:" ; keyed = ( key != "" ) ; listing = ( mode == "list" ) ; }
 NR == 1 && $0 == "---" { inFront = 1 ; sawFront = 1 ; next ; }
 inFront && $0 == "---" { inFront = 0 ; next ; }
 inFront && listing && match($0, /^source-.*-last-swept-ts:/) {
@@ -23,7 +23,7 @@ inFront && listing && match($0, /^source-.*-last-swept-ts:/) {
 	gsub(/^[ \t]+|[ \t]+$/, "", value)
 	gsub(/^"|"$/, "", value)
 	sourceKey = substr(mark, length("source-") + 1, length(mark) - length("source-") - length("-last-swept-ts:"))
-	if ( sourceKey != "" && value != "" ) { rows[++n] = sourceKey "\t" value }
+	if ( sourceKey != "" && value != "" ) { rows[++n] = sourceKey "\t" value ; }
 	next
 }
 inFront && !listing && keyed && index($0, "source-" key "-last-swept-ts:") == 1 {

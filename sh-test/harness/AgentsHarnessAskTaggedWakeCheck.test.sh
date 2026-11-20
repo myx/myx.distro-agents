@@ -93,7 +93,7 @@ rigHolds(){ ## file, text
 rigField(){ ## record file, field
 	local fieldFile="$1"
 	[ -f "$fieldFile" ] || { printf 'no-record' ; return 0 ; }
-	LC_ALL=C awk -v key="$2" '$0 == "---" { if ( ++dashes == 2 ) { exit ; } next ; } dashes == 1 && index( $0, key ": " ) == 1 { print substr( $0, length( key ) + 3 ) ; found = 1 ; exit ; } END { if ( ! found ) { print "none" ; } }' "$fieldFile" 2>/dev/null || printf 'no-record'
+	LC_ALL=C awk -v key="$2" '$0 == "---" { if ( ++dashes == 2 ) { exit ; } next ; } dashes == 1 && index( $0, key ": " ) == 1 { print substr( $0, length( key ) + 3 ) ; found = 1 ; exit ; } END { if ( ! found ) { print "none" ; } ; }' "$fieldFile" 2>/dev/null || printf 'no-record'
 }
 
 ## One scenario: its own workspace, its own fake Slack folder, its own session. The asker's session runs a

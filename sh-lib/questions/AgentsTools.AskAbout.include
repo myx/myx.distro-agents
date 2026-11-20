@@ -57,7 +57,7 @@ if ! type AgentsToolsAskAboutLine > /dev/null 2>&1 ; then
 			{
 				wordTotal = split( $0, wordList, " " ) ;
 				for ( wordNo = 1 ; wordNo <= wordTotal ; wordNo++ ) {
-					if ( wordList[wordNo] ~ /^[~]?\// ) { print wordList[wordNo] ; exit }
+					if ( wordList[wordNo] ~ /^[~]?\// ) { print wordList[wordNo] ; exit ; }
 				}
 			}
 		' )"
@@ -69,7 +69,7 @@ if ! type AgentsToolsAskAboutLine > /dev/null 2>&1 ; then
 			{
 				wordTotal = split( $0, wordList, " " ) ;
 				for ( wordNo = 1 ; wordNo <= wordTotal ; wordNo++ ) {
-					if ( wordList[wordNo] ~ /^[A-Za-z0-9_.-]+\.[A-Za-z0-9]+:[0-9]+[,.:;]?$/ ) { print wordList[wordNo] ; exit }
+					if ( wordList[wordNo] ~ /^[A-Za-z0-9_.-]+\.[A-Za-z0-9]+:[0-9]+[,.:;]?$/ ) { print wordList[wordNo] ; exit ; }
 				}
 			}
 		' )"
@@ -93,10 +93,10 @@ if ! type AgentsToolsAskAboutLine > /dev/null 2>&1 ; then
 				for ( wordNo = 1 ; wordNo <= wordTotal ; wordNo++ ) {
 					word = wordList[wordNo] ;
 					gsub( /[][(),.:;]/ , "", word ) ;
-					if ( word ~ /^[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]-[0-9a-f][0-9a-f][0-9a-f][0-9a-f]-[0-9a-f][0-9a-f][0-9a-f][0-9a-f]-[0-9a-f][0-9a-f][0-9a-f][0-9a-f]-[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]$/ ) { print word ; exit }
-					if ( word ~ /^[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]$/ && word ~ /[a-f]/ ) { print word ; exit }
-					if ( word !~ /^(ask|refusal|task|dispatch|epic|inquiry|interview|note|reflection|warning|transcript|session|board)-/ ) { continue }
-					if ( word ~ /-[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][TZ]/ || word ~ /-[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]($|-)/ ) { print word ; exit }
+					if ( word ~ /^[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]-[0-9a-f][0-9a-f][0-9a-f][0-9a-f]-[0-9a-f][0-9a-f][0-9a-f][0-9a-f]-[0-9a-f][0-9a-f][0-9a-f][0-9a-f]-[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]$/ ) { print word ; exit ; }
+					if ( word ~ /^[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]$/ && word ~ /[a-f]/ ) { print word ; exit ; }
+					if ( word !~ /^(ask|refusal|task|dispatch|epic|inquiry|interview|note|reflection|warning|transcript|session|board)-/ ) { continue ; }
+					if ( word ~ /-[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][TZ]/ || word ~ /-[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]($|-)/ ) { print word ; exit ; }
 				}
 			}
 		' )"
@@ -116,10 +116,10 @@ if ! type AgentsToolsAskAboutLine > /dev/null 2>&1 ; then
 				for ( wordNo = 1 ; wordNo <= wordTotal ; wordNo++ ) {
 					word = wordList[wordNo] ; bare = word ; gsub( /[][(),.:;?]/ , "", bare ) ;
 					said = word ;
-					if ( bare ~ /^[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]-[0-9a-f][0-9a-f][0-9a-f][0-9a-f]-[0-9a-f][0-9a-f][0-9a-f][0-9a-f]-[0-9a-f][0-9a-f][0-9a-f][0-9a-f]-[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]$/ ) { said = "that one" }
-					else if ( bare ~ /^[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]$/ && bare ~ /[a-f]/ ) { said = "that one" }
+					if ( bare ~ /^[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]-[0-9a-f][0-9a-f][0-9a-f][0-9a-f]-[0-9a-f][0-9a-f][0-9a-f][0-9a-f]-[0-9a-f][0-9a-f][0-9a-f][0-9a-f]-[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]$/ ) { said = "that one" ; }
+					else if ( bare ~ /^[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]$/ && bare ~ /[a-f]/ ) { said = "that one" ; }
 					else if ( bare ~ /^(ask|refusal|task|dispatch|epic|inquiry|interview|note|reflection|warning|transcript|session|board)-/ ) {
-						if ( bare ~ /-[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][TZ]/ || bare ~ /-[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]($|-)/ ) { said = "that one" }
+						if ( bare ~ /-[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][TZ]/ || bare ~ /-[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]($|-)/ ) { said = "that one" ; }
 					}
 					out = out ( out == "" ? "" : " " ) said ;
 				}

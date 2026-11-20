@@ -6,8 +6,8 @@
 #   tokens    one row for each day, member, routine, preset and credential: day member routine preset credential runs in cache-read cache-write out
 # The order of the rows is the caller's (sort). Times are compared as written, to the minute.
 
-function stamp(text) { return substr( text, 1, 16 ) }
-BEGIN { FS = "\t" ; OFS = "\t" }
+function stamp(text) { return substr( text, 1, 16 ) ; }
+BEGIN { FS = "\t" ; OFS = "\t" ; }
 {
 	run = $1 ; member = $3 ; routine = $4 ; status = $5 ; started = $6 ; day = $8 ; preset = $12 ; credential = $13
 	tin = $14 + 0 ; tcr = $15 + 0 ; tcw = $16 + 0 ; tout = $17 + 0
@@ -17,14 +17,14 @@ BEGIN { FS = "\t" ; OFS = "\t" }
 		next
 	}
 	rRuns[routine]++ ; rIn[routine] += tin ; rCr[routine] += tcr ; rCw[routine] += tcw ; rOut[routine] += tout
-	if ( status == "spawn-succeeded" ) { rOk[routine]++ } else if ( status == "spawn-failed" ) { rBad[routine]++ } else if ( status == "spawn-started" ) { rRun[routine]++ }
-	if ( started != "-" && stamp( started ) >= rLast[routine] ) { rLast[routine] = stamp( started ) ; rLastStatus[routine] = status }
-	if ( status == "spawn-succeeded" && started != "-" && stamp( started ) >= rLastOk[routine] ) { rLastOk[routine] = stamp( started ) }
+	if ( status == "spawn-succeeded" ) { rOk[routine]++ ; } else if ( status == "spawn-failed" ) { rBad[routine]++ ; } else if ( status == "spawn-started" ) { rRun[routine]++ ; }
+	if ( started != "-" && stamp( started ) >= rLast[routine] ) { rLast[routine] = stamp( started ) ; rLastStatus[routine] = status ; }
+	if ( status == "spawn-succeeded" && started != "-" && stamp( started ) >= rLastOk[routine] ) { rLastOk[routine] = stamp( started ) ; }
 	if ( index( "," rMembers[routine] ",", "," member "," ) == 0 ) { rMembers[routine] = rMembers[routine] ( rMembers[routine] == "" ? "" : "," ) member }
 }
 END {
 	if ( want == "tokens" ) {
-		for ( key in tRuns ) { print key, tRuns[key], tIn[key], tCr[key], tCw[key], tOut[key] }
+		for ( key in tRuns ) { print key, tRuns[key], tIn[key], tCr[key], tCw[key], tOut[key] ; }
 		exit
 	}
 	for ( routine in rRuns ) {

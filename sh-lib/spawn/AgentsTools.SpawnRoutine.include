@@ -24,7 +24,7 @@ AgentsToolsSpawnRoutineKinds(){
 
 ## The file of a kind's bundled routine. rc 1, and nothing printed, for a word that is no kind.
 AgentsToolsSpawnRoutineKindRoutine(){ ## kind
-	AgentsToolsSpawnRoutineKinds | LC_ALL=C awk -F'\t' -v kind="$1" '$1 == kind { print $2 ; found = 1 ; exit } END { exit found ? 0 : 1 ; }'
+	AgentsToolsSpawnRoutineKinds | LC_ALL=C awk -F'\t' -v kind="$1" '$1 == kind { print $2 ; found = 1 ; exit ; } END { exit found ? 0 : 1 ; }'
 }
 
 ## --routine-default's own resolution: the routine of the coworking kind, by the list above. Prints
@@ -127,14 +127,14 @@ AgentsToolsSpawnRoutineMixText(){ ## routine file path
 ## the cached prefix).
 AgentsToolsSpawnRoutineIncludes(){ ## routine file path
 	LC_ALL=C awk '
-		FNR == 1 { fm = ( $0 == "---" ) ; next }
-		fm && $0 == "---" { exit }
+		FNR == 1 { fm = ( $0 == "---" ) ; next ; }
+		fm && $0 == "---" { exit ; }
 		fm && index( $0, "includes: " ) == 1 {
 			line = substr( $0, 11 ) ; colon = index( line, ": " )
 			if ( colon == 0 ) next
 			name = substr( line, 1, colon - 1 ) ; rest = substr( line, colon + 2 )
 			n = split( rest, parts, "," )
-			for ( i = 1 ; i <= n ; i++ ) { sub( /^[ \t]+/, "", parts[i] ) ; sub( /[ \t]+$/, "", parts[i] ) ; if ( parts[i] != "" ) print name "\t" parts[i] }
+			for ( i = 1 ; i <= n ; i++ ) { sub( /^[ \t]+/, "", parts[i] ) ; sub( /[ \t]+$/, "", parts[i] ) ; if ( parts[i] != "" ) print name "\t" parts[i] ; }
 		}
 	' "$1" 2> /dev/null
 }
@@ -173,9 +173,9 @@ AgentsToolsSpawnRoutineMixAdd(){ ## file, section, filter words...
 ## section of the procedure. The mix-in below is driven by this list, so a routine section no slot of the eight names is still in its mixed text.
 AgentsToolsSpawnRoutineSectionsOwn(){ ## routine file path
 	LC_ALL=C awk '
-		NR == 1 && $0 == "---" { fm = 1 ; next }
-		fm && $0 == "---" { fm = 0 ; next }
-		fm { next }
+		NR == 1 && $0 == "---" { fm = 1 ; next ; }
+		fm && $0 == "---" { fm = 0 ; next ; }
+		fm { next ; }
 		/^# / {
 			name = substr( $0, 3 ) ; sub( /[ \t]+$/, "", name )
 			if (++titled == 1) next
@@ -331,7 +331,7 @@ AgentsToolsSpawnRoutineContractExecutorsInvitees(){ ## contract-check output (it
 AgentsToolsSpawnRoutineTypeMembers(){ ## the `<type>-*`/`<type>-?` token
 	local typePrefix="${1%%-*}"
 	AgentsToolsTeamMemberDirectoryText | LC_ALL=C awk -F'\t' -v prefix="$typePrefix-" \
-		'$1 != "magic-team" && index( $1, prefix ) == 1 { print $1 }'
+		'$1 != "magic-team" && index( $1, prefix ) == 1 { print $1 ; }'
 }
 
 ## Whether a member is among `all-present-members`: a default work-duty doer, and one who
@@ -407,8 +407,8 @@ AgentsToolsSpawnRoutineNearestMember(){ ## word
 			}
 			return prev[lb]
 		}
-		$1 != "" { d = edits( word, $1 ) ; if ( best == "" || d < bestD ) { best = $1 ; bestD = d } }
-		END { if ( best == "" ) exit 1 ; print best }'
+		$1 != "" { d = edits( word, $1 ) ; if ( best == "" || d < bestD ) { best = $1 ; bestD = d ; } ; }
+		END { if ( best == "" ) exit 1 ; print best ; }'
 }
 
 ## The roster a routine's own executors value names, for a start with no member named: one

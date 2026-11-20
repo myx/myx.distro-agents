@@ -24,8 +24,8 @@
 		setFree="$( printf '%s\n' "$setCheck" | AgentsToolsManagerFeatureValue host.free_bytes )" || setFree="-"
 		## THE SET: the speech model, the chat model that is the default of the profile (every chat model with --all), and the LanceDB embedding model where that feature is here.
 		setLine="$( LC_ALL=C awk -F'\t' -v profile="$setProfile" -v all="$setAll" '
-			/^#/ || NF < 6 { next }
-			$2 == "stt" { print "setup.feature-local-ai\t" $1 "\tstt\t" ( $6 ~ /\*$/ ? "yes" : "no" ) ; next }
+			/^#/ || NF < 6 { next ; }
+			$2 == "stt" { print "setup.feature-local-ai\t" $1 "\tstt\t" ( $6 ~ /\*$/ ? "yes" : "no" ) ; next ; }
 			$2 == "chat" {
 				mine = 0 ; count = split( $6, listed, "," )
 				for ( at = 1 ; at <= count ; at++ ) if ( listed[at] == profile "*" ) mine = 1
@@ -35,7 +35,7 @@
 			setLine="${setLine:+$setLine$'\n'}setup.feature-lancedb"$'\t'"lancedb"$'\t'"embedding"$'\t'"yes"
 		fi
 		[ -n "$setLine" ] || { AgentsToolsManagerFeatureRefuse "$setOp" "the list of models names none for the profile $setProfile" ; set +e ; return 1 ; }
-		setCount="$( printf '%s\n' "$setLine" | LC_ALL=C awk 'END { print NR + 0 }' )"
+		setCount="$( printf '%s\n' "$setLine" | LC_ALL=C awk 'END { print NR + 0 ; }' )"
 		printf 'set\t%s\t%s\t%s\n' "$setProfile" "$setCount" "$( [ -n "$setAll" ] && printf all || printf profile )"
 		while IFS=$'\t' read -r setFeature setPart setKind setIsDefault ; do
 			[ -n "$setPart" ] || continue

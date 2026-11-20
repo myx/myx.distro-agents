@@ -84,7 +84,7 @@ rigConsoleRun(){ ## the console's mode, the session to resume (may be empty), "l
 	) > "$rigTmp/out" 2> "$rigTmp/err" || rigRc=$?
 }
 rigStarts(){ ## -- how many times the console was started in the last run
-	LC_ALL=C awk 'END { print NR + 0 }' "$rigTmp/console.log"
+	LC_ALL=C awk 'END { print NR + 0 ; }' "$rigTmp/console.log"
 }
 rigStart(){ ## which -- that start of the last run, as the console recorded it
 	LC_ALL=C sed -n "${1}p" "$rigTmp/console.log"
@@ -93,7 +93,7 @@ rigGiven(){ ## the session to resume (may be empty), the prompt -- the line a st
 	printf 'workspace=%s root=%s/.local/agents/members session=rig-session thread=C1:2.3 conversations=C9:8.7 resume-from=%s args=[--cli rig-cli --tier rig --non-interactive] prompt=[%s]' "$rigWs" "$rigWs" "$1" "$2"
 }
 rigRecords(){ ## -- what the last run recorded on the item, its lines joined by " # "
-	LC_ALL=C awk '{ printf "%s%s", ( NR > 1 ? " # " : "" ), $0 }' "$rigTmp/records"
+	LC_ALL=C awk '{ printf "%s%s", ( NR > 1 ? " # " : "" ), $0 ; }' "$rigTmp/records"
 }
 rigResumed='magic-tester rig-item.md review: restart: resumed (from rig-old-session) [RESTART rig-new]'
 

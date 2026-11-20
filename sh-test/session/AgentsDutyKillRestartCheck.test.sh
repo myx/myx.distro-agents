@@ -90,7 +90,7 @@ rigRecord "$rigDuty" rigduty01 magic-coordinator spawn-started "$rigHost" "$rigR
 
 echo "-- 1. a live run --"
 rigAssert "a live run reads alive, rc 0" "$( rigFn AgentsToolsLivenessOf rigduty01 "$rigDuty" )" "0:alive"
-rigAssert "its reading is kept as alive and an epoch" "$( LC_ALL=C awk '{ print $1 ( $2 ~ /^[0-9]+$/ ? " epoch" : " none" ) }' "$rigWs/.local/agents/liveness/rigduty01" 2> /dev/null )" "alive epoch"
+rigAssert "its reading is kept as alive and an epoch" "$( LC_ALL=C awk '{ print $1 ( $2 ~ /^[0-9]+$/ ? " epoch" : " none" ) ; }' "$rigWs/.local/agents/liveness/rigduty01" 2> /dev/null )" "alive epoch"
 rigAssert "the duty scan finds the record" "$( rigFn AgentsToolsScheduleWorkDutyRecord magic-coordinator | LC_ALL=C sed 's|^0:.*/||' )" "rigduty01.spawn.md"
 rigAssert "the stale close says nothing and leaves it open" "$( rigFn AgentsToolsScheduleDutyStaleClose "$rigDuty" ):$( rigStatus "$rigDuty" )" "0::spawn-started"
 
@@ -98,9 +98,9 @@ echo "-- 2. the kill --"
 rigKill "$rigRun" "$rigShell"
 rigAssert "inside the TTL the reading is served as measured" "$( rigFn AgentsToolsLivenessOf rigduty01 "$rigDuty" )" "0:alive"
 ## The TTL passes: the reading's epoch is set back ten minutes, so nothing here waits on a clock.
-LC_ALL=C awk -v then="$(( $( date +%s ) - 600 ))" '{ print $1, then }' "$rigWs/.local/agents/liveness/rigduty01" > "$rigWs/.local/agents/liveness/rigduty01.next" && mv -f "$rigWs/.local/agents/liveness/rigduty01.next" "$rigWs/.local/agents/liveness/rigduty01"
+LC_ALL=C awk -v then="$(( $( date +%s ) - 600 ))" '{ print $1, then ; }' "$rigWs/.local/agents/liveness/rigduty01" > "$rigWs/.local/agents/liveness/rigduty01.next" && mv -f "$rigWs/.local/agents/liveness/rigduty01.next" "$rigWs/.local/agents/liveness/rigduty01"
 rigAssert "past the TTL it is gone, rc 0" "$( rigFn AgentsToolsLivenessOf rigduty01 "$rigDuty" )" "0:gone"
-rigAssert "and kept as gone" "$( LC_ALL=C awk '{ print $1 }' "$rigWs/.local/agents/liveness/rigduty01" )" "gone"
+rigAssert "and kept as gone" "$( LC_ALL=C awk '{ print $1 ; }' "$rigWs/.local/agents/liveness/rigduty01" )" "gone"
 rigAssert "the record still says spawn-started" "$( rigStatus "$rigDuty" )" "spawn-started"
 rigAssert "yet the duty scan finds no live duty" "$( rigFn AgentsToolsScheduleWorkDutyRecord magic-coordinator | LC_ALL=C sed 's|^\([0-9]*\):.*|\1|' )" "1"
 

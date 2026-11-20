@@ -142,7 +142,7 @@ rigAssert "the review-by of the ended reviewer's item is magic-coordinator" "$( 
 rigAssert "the live session's control thread is started"     "$( rigControl rig-live2 )" started
 
 echo "-- 4. its housekeeping goes to the tooling log, none to its output --"
-rigAssert "housekeeping lines in the tooling log"            "$( LC_ALL=C grep -c '^housekeeping: ' "$rigTmp/tooling.log" | LC_ALL=C awk '{ print ( $1 >= 1 ) ? "logged" : "none" }' )" logged
+rigAssert "housekeeping lines in the tooling log"            "$( LC_ALL=C grep -c '^housekeeping: ' "$rigTmp/tooling.log" | LC_ALL=C awk '{ print ( $1 >= 1 ) ? "logged" : "none" ; }' )" logged
 rigAssert "and none on the lock's standard output"           "$( LC_ALL=C grep -c 'housekeeping' "$rigTmp/lock" || : )" 0
 
 echo "-- 5. the main loop does it at every iteration --"

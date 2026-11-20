@@ -32,7 +32,7 @@ rigAssert(){ ## what is asserted, got, want
 	else printf '  FAIL  %s\n        got:  %s\n        want: %s\n' "$1" "$2" "$3" ; rigFails=$(( rigFails + 1 )) ; fi
 }
 rigNames(){ ## -- the leaf names of the links on stdin, in one line
-	LC_ALL=C awk -F'\t' '{ n = split( $1, p, "/" ) ; print p[n] }' | LC_ALL=C sort | LC_ALL=C tr '\n' ' ' | LC_ALL=C sed 's/ $//'
+	LC_ALL=C awk -F'\t' '{ n = split( $1, p, "/" ) ; print p[n] ; }' | LC_ALL=C sort | LC_ALL=C tr '\n' ' ' | LC_ALL=C sed 's/ $//'
 }
 
 echo "-- the rule held: a link is refused only where its slot lies in a sandbox, a session folder or a test tree AND its target resolves inside a source tree. Any other link is made, a handle link into the session's own .run folder among them --"
@@ -53,8 +53,8 @@ ln -s "$rigTmp/sandbox/hop-one" "$rigTmp/sandbox/hop-two"
 rigFound="$( AgentsToolsSandboxLinkScan "$rigRoots" "$rigTmp/sandbox" )" ; rigRc=$?
 rigAssert "the scan finds the eight links that reach a root, by name" "$( printf '%s\n' "$rigFound" | rigNames )" "abs-file abs-folder abs-gone hop-one hop-two rel-deep rel-dotdot second-root"
 rigAssert "and says rc 1" "$rigRc" 1
-rigAssert "a finding holds the link, the target as written and the resolved target" "$( printf '%s\n' "$rigFound" | LC_ALL=C awk -F'\t' -v want="$rigTmp/source/pkg/file" '$1 ~ /\/abs-file$/ { print NF " " ( $2 == want ) " " ( $3 == want ) }' )" "3 1 1"
-rigAssert "a link reaching the root through another link names the real file it ends at" "$( printf '%s\n' "$rigFound" | LC_ALL=C awk -F'\t' -v want="$rigTmp/source/pkg/file" '$1 ~ /\/hop-two$/ { print ( $3 == want ) ? "ends-at-file" : $3 }' )" "ends-at-file"
+rigAssert "a finding holds the link, the target as written and the resolved target" "$( printf '%s\n' "$rigFound" | LC_ALL=C awk -F'\t' -v want="$rigTmp/source/pkg/file" '$1 ~ /\/abs-file$/ { print NF " " ( $2 == want ) " " ( $3 == want ) ; }' )" "3 1 1"
+rigAssert "a link reaching the root through another link names the real file it ends at" "$( printf '%s\n' "$rigFound" | LC_ALL=C awk -F'\t' -v want="$rigTmp/source/pkg/file" '$1 ~ /\/hop-two$/ { print ( $3 == want ) ? "ends-at-file" : $3 ; }' )" "ends-at-file"
 
 echo "-- 2. a link that stays in the sandbox, or leaves to a place that is no source, is no finding --"
 ln -s "$rigTmp/clean/real.txt" "$rigTmp/clean/abs-inside"
@@ -89,7 +89,7 @@ while IFS= read -r rigCandidate ; do
 done <<< "$( AgentsToolsSourceRoots )"
 rigAssert "control: a real source root and a real file in it are there to aim at" "$( [ -d "$rigReal" ] && [ -f "$rigRealFile" ] && printf some || printf none )" some
 mkdir -p "$rigTmp/guard"
-rigDepth="$( printf '%s' "$rigTmp/guard" | LC_ALL=C awk -F/ '{ print NF - 1 }' )"
+rigDepth="$( printf '%s' "$rigTmp/guard" | LC_ALL=C awk -F/ '{ print NF - 1 ; }' )"
 rigUp="$( i=0 ; while [ "$i" -lt "$rigDepth" ] ; do printf '../' ; i=$(( i + 1 )) ; done )"
 ## The roots below are a rig's own, so that a copy of a whole folder is small: the function reads them through AgentsToolsSourceRoots.
 mkdir -p "$rigTmp/fake/pkg" ; printf 'one\n' > "$rigTmp/fake/pkg/file"
@@ -177,7 +177,7 @@ echo "-- 6. live: this workspace's sandboxes, session folders and test trees --"
 rigLiveRoots="$( AgentsToolsSourceRoots )"
 rigAssert "control: the live roots are not empty, so the scan below has something to find" "$( [ -n "$rigLiveRoots" ] && printf some || printf none )" some
 rigLive="$( AgentsToolsSandboxLinkScan "$rigLiveRoots" "$MMDAPP/.local/agents/spawned" "$MMDAPP/.local/agents/sessions" "$MMDAPP/.local/agents/scratch" "$MMDAPP/.local/temp" "$MMDAPP/output" )" || :
-rigAssert "no link of a sandbox, a session folder or a test tree reaches a source tree" "$( printf '%s' "$rigLive" | LC_ALL=C awk -F'\t' 'NF { n++ ; if ( n <= 5 ) s = s $1 " -> " $3 " ; " } END { print n + 0 " link(s) " s }' )" "0 link(s) "
+rigAssert "no link of a sandbox, a session folder or a test tree reaches a source tree" "$( printf '%s' "$rigLive" | LC_ALL=C awk -F'\t' 'NF { n++ ; if ( n <= 5 ) s = s $1 " -> " $3 " ; " ; } END { print n + 0 " link(s) " s ; }' )" "0 link(s) "
 
 if [ "$rigFails" -ne 0 ] ; then
 	echo "⛔ SANDBOX LINK CHECK FAILED: $rigFails of $(( rigPasses + rigFails )) assertion(s)" >&2 ; exit 1

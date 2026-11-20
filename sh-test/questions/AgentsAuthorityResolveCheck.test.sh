@@ -181,9 +181,9 @@ rigRefusal(){ ## authority it must name
 	local refusalText
 	refusalText="$( cat "$rigTmp/op.out" "$rigTmp/op.err" 2> /dev/null )"
 	if [ "$rigOpRc" -eq 0 ] ; then printf 'acted:exit-0' ; return 0 ; fi
-	printf 'refused:%s:%s:%s' "$( printf '%s' "$refusalText" | LC_ALL=C grep -c -F -- "$1" | LC_ALL=C awk '{ print ( $1 >= 1 ) ? "names-it" : "names-not" }' )" \
-		"$( printf '%s' "$refusalText" | LC_ALL=C grep -c -F -- '--escalate-wait' | LC_ALL=C awk '{ print ( $1 >= 1 ) ? "wait" : "no-wait" }' )" \
-		"$( printf '%s' "$refusalText" | LC_ALL=C grep -c -F -- '--escalate-enqueue' | LC_ALL=C awk '{ print ( $1 >= 1 ) ? "enqueue" : "no-enqueue" }' )"
+	printf 'refused:%s:%s:%s' "$( printf '%s' "$refusalText" | LC_ALL=C grep -c -F -- "$1" | LC_ALL=C awk '{ print ( $1 >= 1 ) ? "names-it" : "names-not" ; }' )" \
+		"$( printf '%s' "$refusalText" | LC_ALL=C grep -c -F -- '--escalate-wait' | LC_ALL=C awk '{ print ( $1 >= 1 ) ? "wait" : "no-wait" ; }' )" \
+		"$( printf '%s' "$refusalText" | LC_ALL=C grep -c -F -- '--escalate-enqueue' | LC_ALL=C awk '{ print ( $1 >= 1 ) ? "enqueue" : "no-enqueue" ; }' )"
 }
 rigRefusedAs(){ ## authority -- the string rigRefusal gives for a right refusal
 	printf 'refused:names-it:wait:enqueue'
@@ -333,7 +333,7 @@ rigSeenMark
 rigOp --manager-pending-reply-answer --id "$rigPend" --answer drop
 rigAssert "not at once: the original is untouched"            "$( rigStatus "$rigPend" )" "reply-pending:"
 rigConfirm="$( rigNewRequest )"
-rigAssert "a confirmation is posted to the owner's own channel" "$( [ -n "$rigConfirm" ] && printf made || printf none ):$( rigOwnerPosts "$rigAcct" | LC_ALL=C awk '{ print ( $1 >= 1 ) ? "posted" : "not-posted" }' )" "made:posted"
+rigAssert "a confirmation is posted to the owner's own channel" "$( [ -n "$rigConfirm" ] && printf made || printf none ):$( rigOwnerPosts "$rigAcct" | LC_ALL=C awk '{ print ( $1 >= 1 ) ? "posted" : "not-posted" ; }' )" "made:posted"
 rigAssert "the confirmation goes as a readback"               "$( rigRequest "$rigConfirm" | LC_ALL=C cut -d' ' -f1 )" readback
 rigConfirmTs="$( rigField "$( rigRecordOf "$rigConfirm" )" question-ts 2> /dev/null )"
 if [ -n "$rigConfirmTs" ] ; then
@@ -404,7 +404,7 @@ rigOp --manager-pending-reply-answer --id "$rigPend" --answer move --escalate-en
 rigChoice="$( rigPendingId )"
 rigAssert "a request to the reports-to, the tester's run in its session" "$( rigRequest "$rigChoice" | LC_ALL=C sed 's/^[^ ]* //' )" "rig-cow:magic-tester"
 rigAssert "a choice, not a permission: its kind is decision, and its options are the question's" \
-	"$( rigRequest "$rigChoice" | LC_ALL=C cut -d' ' -f1 ):$( LC_ALL=C grep -c -E '(keep|drop|move)' "$( rigRecordOf "$rigChoice" )" 2> /dev/null | LC_ALL=C awk '{ print ( $1 >= 3 ) ? "options" : "no-options" }' )" "decision:options"
+	"$( rigRequest "$rigChoice" | LC_ALL=C cut -d' ' -f1 ):$( LC_ALL=C grep -c -E '(keep|drop|move)' "$( rigRecordOf "$rigChoice" )" 2> /dev/null | LC_ALL=C awk '{ print ( $1 >= 3 ) ? "options" : "no-options" ; }' )" "decision:options"
 ## No `to`: an escalation that names no other target goes to the run's reports-to (F6.8). It always waits: bounded here.
 printf '{"question":"Which of keep, drop or move is right for the developer file?","options":"keep: keep the file\\ndrop: drop it\\nmove: move it","timeout":2}' > "$rigTmp/escalate.args"
 rigSeenMark
@@ -441,7 +441,7 @@ if [ -n "$rigTextTs" ] && [ -n "$rigTextThread" ] ; then
 fi
 rigOp --intern-op-pending-reply-collect --ended --context rig-authority
 rigAssert "after the sweep, the request holds the holder's text, and the original is answered with it" \
-	"$( rigField "$( rigRecordOf "$rigText" )" chosen ):$( rigField "$( rigRecordOf "$rigTextPend" )" status ):$( LC_ALL=C grep -c -F 'the holder text' "$( rigRecordOf "$rigTextPend" )" | LC_ALL=C awk '{ print ( $1 >= 1 ) ? "its-text" : "not-its-text" }' )" \
+	"$( rigField "$( rigRecordOf "$rigText" )" chosen ):$( rigField "$( rigRecordOf "$rigTextPend" )" status ):$( LC_ALL=C grep -c -F 'the holder text' "$( rigRecordOf "$rigTextPend" )" | LC_ALL=C awk '{ print ( $1 >= 1 ) ? "its-text" : "not-its-text" ; }' )" \
 	"the holder text:reply-received:its-text"
 
 echo "-- 14. --escalate-wait --escalate-stop: approved acts, Cancel withdraws the request, Enqueue leaves it pending for the sweep --"
@@ -502,7 +502,7 @@ rigDismissAsk rig-tester magic-tester
 rigThreadReply "$rigReq" allow-session
 rigCollect
 rigAssert "reply allow-session: read, and the dismissal acted" "$( rigOf "$rigReq" verdict ):$( rigOf "$rigOrig" status )" "allow-session:reply-received"
-rigAssert "it gave the requester the authority over the session while it lives: a grant of its refusal, by session" "$( LC_ALL=C grep -c "^session:authority:magic-coordinator:" "$rigWs/.local/agents/sessions/rig-cow/grants" 2> /dev/null | LC_ALL=C awk '{ print ( $1 >= 1 ) ? "granted" : "none" }' )" granted
+rigAssert "it gave the requester the authority over the session while it lives: a grant of its refusal, by session" "$( LC_ALL=C grep -c "^session:authority:magic-coordinator:" "$rigWs/.local/agents/sessions/rig-cow/grants" 2> /dev/null | LC_ALL=C awk '{ print ( $1 >= 1 ) ? "granted" : "none" ; }' )" granted
 rigAsk rig-tester magic-tester question --select yes-no
 rigSeenMark
 rigOp --manager-pending-reply-answer --id "$rigPend" --answer yes
@@ -624,7 +624,7 @@ rigThreadOpen "$rigY1Req"
 ## Two progress lines are waited for, not a fixed time: on a loaded host the looks between them take longer.
 rigProgressTwice(){ [ "$( LC_ALL=C grep -c -E "^waiting [0-9]+s, [0-9]+ checks, 0 errors \(request $rigY1Req\)" "$rigTmp/y1.err" 2> /dev/null )" -ge 2 ] ; }
 rigWaitFor 60 rigProgressTwice
-rigAssert "it prints a progress line now and then: how long it has waited, how many looks it made, how many failed" "$( LC_ALL=C grep -c -E "^waiting [0-9]+s, [0-9]+ checks, 0 errors \(request $rigY1Req\)" "$rigTmp/y1.err" | LC_ALL=C awk '{ print ( $1 >= 2 ) ? "repeated" : "only " $1 }' )" "repeated"
+rigAssert "it prints a progress line now and then: how long it has waited, how many looks it made, how many failed" "$( LC_ALL=C grep -c -E "^waiting [0-9]+s, [0-9]+ checks, 0 errors \(request $rigY1Req\)" "$rigTmp/y1.err" | LC_ALL=C awk '{ print ( $1 >= 2 ) ? "repeated" : "only " $1 ; }' )" "repeated"
 ## the first wait is pending; a second request for another session, and a third, are posted at once: nothing is held across a wait
 rigPosts1="$( cat "$rigTmp/posts" 2> /dev/null || echo 0 )"
 rigWaitAsk "$rigTmp/y2" rig-asks-u keeper-myx

@@ -104,9 +104,9 @@ AgentsToolsContactAssertKnown(){ ## <team-member> --tool <bare-op-name, no leadi
 		assertOwn="$assertOwn"$'\n'"$( AgentsToolsConfigOption "$assertOwnName" --select EMAIL_USER 2>/dev/null )"
 	done <<< "$( AgentsToolsTeamMemberDirectoryText )"
 	if printf '%s\n' "$assertOwn" | LC_ALL=C awk -v want="$assertTarget" '
-		function trim(s) { sub(/^[ \t\r]+/, "", s) ; sub(/[ \t\r]+$/, "", s) ; return tolower(s) }
-		{ own = trim($0) ; if ( own != "" && own == trim(want) ) { found = 1 ; exit } }
-		END { exit found ? 0 : 1 }
+		function trim(s) { sub(/^[ \t\r]+/, "", s) ; sub(/[ \t\r]+$/, "", s) ; return tolower(s) ; }
+		{ own = trim($0) ; if ( own != "" && own == trim(want) ) { found = 1 ; exit ; } ; }
+		END { exit found ? 0 : 1 ; }
 	' ; then
 		return 0
 	fi
@@ -118,7 +118,7 @@ AgentsToolsContactAssertKnown(){ ## <team-member> --tool <bare-op-name, no leadi
 	## approval covers only what the human-owner actually saw -- a
 	## changed message to the same recipient needs its own approval.
 	local assertDigest assertBoundTarget
-	assertDigest="$( printf '%s' "$assertMessage" | LC_ALL=C cksum | LC_ALL=C awk '{ print $1 }' )"
+	assertDigest="$( printf '%s' "$assertMessage" | LC_ALL=C cksum | LC_ALL=C awk '{ print $1 ; }' )"
 	assertBoundTarget="$assertTarget#msg-$assertDigest"
 	## The checks this gate made, in the order above: one wording for the
 	## recorded reason and the ERROR alike.

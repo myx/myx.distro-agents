@@ -74,7 +74,7 @@ rigRun(){ ## run id, member, status (spawn-started where not given) -- its recor
 ## The record's own run-process line, as the launcher writes it: the pid and the moment it began.
 rigLaunched(){ ## run id, pid
 	local begun
-	begun="$( LC_ALL=C ps -o lstart= -p "$2" 2> /dev/null | LC_ALL=C awk 'NF { $1 = $1 ; gsub( / /, "_" ) ; print ; exit }' )" || begun=""
+	begun="$( LC_ALL=C ps -o lstart= -p "$2" 2> /dev/null | LC_ALL=C awk 'NF { $1 = $1 ; gsub( / /, "_" ) ; print ; exit ; }' )" || begun=""
 	[ -n "$begun" ] || rigRefuse "the stand-in process named no start: $2"
 	printf 'run-process: %s %s\n' "$2" "$begun" >> "$rigAgents/spawned/$1/$1.spawn.md"
 }
@@ -116,10 +116,10 @@ rigScan(){
 		bash -c 'if [ -n "$RIG_INCLUDE" ] ; then . "$RIG_INCLUDE" ; AgentsToolsSuperviseScan --workspace "$1" ; else exec bash "$2" --supervise-scan --workspace "$1" ; fi' rig "$rigWs" "$rigFn" 2>&1
 }
 rigLine(){ ## run id -- its `run` line
-	printf '%s\n' "$rigOut" | LC_ALL=C awk -v want="$1" '$1 == "run" && $3 == want { print }' | head -1
+	printf '%s\n' "$rigOut" | LC_ALL=C awk -v want="$1" '$1 == "run" && $3 == want { print ; }' | head -1
 }
 rigWord(){ ## run id, field number -- that word of its `run` line
-	rigLine "$1" | LC_ALL=C awk -v want="$2" '{ print $want }'
+	rigLine "$1" | LC_ALL=C awk -v want="$2" '{ print $want ; }'
 }
 rigKind(){ ## kind -- how many lines of that kind
 	printf '%s\n' "$rigOut" | LC_ALL=C awk -v want="$1" '$1 == want' | wc -l | tr -d ' '
@@ -172,7 +172,7 @@ rigRun rigclose magic-developer spawn-succeeded
 rigMark rigclose 60 "tool Wait"
 rigTool rigclose 60 Wait
 rigStand rigclose
-rigLaunched rigclose "$( LC_ALL=C ps -A -ww -o pid=,args= | LC_ALL=C awk -v want="--session-id rigclose" 'index( $0, want ) { print $1 ; exit }' )"
+rigLaunched rigclose "$( LC_ALL=C ps -A -ww -o pid=,args= | LC_ALL=C awk -v want="--session-id rigclose" 'index( $0, want ) { print $1 ; exit ; }' )"
 rigRun riggone magic-developer spawn-succeeded
 rigPast "$rigAgents/spawned/riggone/riggone.spawn.md"
 ## A parked run and a dismissed run: each handed back, no process, an old record.

@@ -492,7 +492,7 @@ AgentsHarnessArmNoteBatch(){ ## batch arguments JSON, batch result
 		if [ "$( AgentsToolsBatchArg "$1" "calls.$noteAt.tool" )" = Skill ] ; then
 			case "$2" in
 				'{'*) noteText="" ; [ "$( AgentsToolsBatchArg "$2" "entries.$noteAt.status" )" != ok ] || noteText="$( AgentsToolsBatchArg "$2" "entries.$noteAt.result" )" ;;
-				*) noteText="$( printf '%s\n' "$2" | LC_ALL=C awk -v want="$(( noteAt + 1 ))" '/^BATCH-ENTRY: / { on = ( $2 == want && $4 == "ok" ) ; next } /^BATCH-RESULT: / { on = 0 } on' )" ;;
+				*) noteText="$( printf '%s\n' "$2" | LC_ALL=C awk -v want="$(( noteAt + 1 ))" '/^BATCH-ENTRY: / { on = ( $2 == want && $4 == "ok" ) ; next ; } /^BATCH-RESULT: / { on = 0 ; } on' )" ;;
 			esac
 			[ -z "$noteText" ] || AgentsHarnessArmNote Skill "$( AgentsToolsBatchArg "$1" "calls.$noteAt.arguments" raw )" "$noteText"
 		fi

@@ -78,12 +78,12 @@ AgentsToolsPendingReplyOpenAt(){ ## channel, the message's ts
 		FNR == 1 { if ( found ) { exit ; } fileId = FILENAME ; sub( /^.*\//, "", fileId ) ; sub( /\.md$/, "", fileId ) ; status = "" ; channel = "" ; questionTs = "" ; revisionTs = "" ; threadTs = "" ; stop = 0 ; }
 		stop { next ; }
 		/^# / { stop = 1 ; next ; }
-		index( $0, "status: " ) == 1 { status = substr( $0, 9 ) ; next }
-		index( $0, "channel: " ) == 1 { channel = substr( $0, 10 ) ; next }
-		index( $0, "question-ts: " ) == 1 { questionTs = substr( $0, 14 ) ; next }
-		index( $0, "revision-ts: " ) == 1 { revisionTs = substr( $0, 14 ) ; next }
-		index( $0, "thread-ts: " ) == 1 { threadTs = substr( $0, 12 ) ; next }
-		END { if ( ! found ) { decide() ; } }
+		index( $0, "status: " ) == 1 { status = substr( $0, 9 ) ; next ; }
+		index( $0, "channel: " ) == 1 { channel = substr( $0, 10 ) ; next ; }
+		index( $0, "question-ts: " ) == 1 { questionTs = substr( $0, 14 ) ; next ; }
+		index( $0, "revision-ts: " ) == 1 { revisionTs = substr( $0, 14 ) ; next ; }
+		index( $0, "thread-ts: " ) == 1 { threadTs = substr( $0, 12 ) ; next ; }
+		END { if ( ! found ) { decide() ; } ; }
 	' "$@"
 }
 
@@ -156,12 +156,12 @@ AgentsToolsPendingReplyAnswersSeed(){ ## no argument
 		printf '%s\n' "$seedEpoch" > "$seedRoot/answers/$seedSession.epoch" 2> /dev/null || continue
 		seedWritten=$(( seedWritten + 1 ))
 	done <<< "$( LC_ALL=C awk '
-		FNR == 1 { fence = 0 ; thisSession = "" ; status = "" ; resolved = "" }
-		$0 == "---" { fence++ ; if ( fence > 1 ) { if ( status == "reply-received" && thisSession != "" && resolved != "" && resolved > best[thisSession] ) { best[thisSession] = resolved ; } ; nextfile } ; next }
-		fence == 1 && index( $0, "session-id: " ) == 1 { thisSession = substr( $0, 13 ) ; next }
-		fence == 1 && index( $0, "status: " ) == 1 { status = substr( $0, 9 ) ; next }
-		fence == 1 && index( $0, "resolved-epoch: " ) == 1 { resolved = substr( $0, 17 ) ; next }
-		END { for ( one in best ) { print one, best[one] ; } }
+		FNR == 1 { fence = 0 ; thisSession = "" ; status = "" ; resolved = "" ; }
+		$0 == "---" { fence++ ; if ( fence > 1 ) { if ( status == "reply-received" && thisSession != "" && resolved != "" && resolved > best[thisSession] ) { best[thisSession] = resolved ; } ; nextfile ; } ; next ; }
+		fence == 1 && index( $0, "session-id: " ) == 1 { thisSession = substr( $0, 13 ) ; next ; }
+		fence == 1 && index( $0, "status: " ) == 1 { status = substr( $0, 9 ) ; next ; }
+		fence == 1 && index( $0, "resolved-epoch: " ) == 1 { resolved = substr( $0, 17 ) ; next ; }
+		END { for ( one in best ) { print one, best[one] ; } ; }
 	' "$seedRoot"/*.md "$seedRoot/closed"/*.md 2> /dev/null )"
 	printf '%s\n' "$seedWritten"
 	return 0

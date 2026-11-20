@@ -155,7 +155,7 @@ AgentsToolsSpawnConversationHistory(){ ## output file, member, threads (space-se
 				&& LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" \
 				-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/slack/AgentsSlackMessagesFormat.awk" < "$historyRead" > "$historyRead.fmt" 2>/dev/null ; then
 				LC_ALL=C awk -v max="$historyMax" -v member="$historyMember" '
-					{ line[NR] = $0 ; if ( $0 ~ /^[0-9]+\.[0-9]+ \| / ) { head[++heads] = NR ; } }
+					{ line[NR] = $0 ; if ( $0 ~ /^[0-9]+\.[0-9]+ \| / ) { head[++heads] = NR ; } ; }
 					END {
 						if ( heads == 0 ) { print "(no messages)" ; exit ; }
 						from = ( heads > max ) ? head[heads - max + 1] : head[1]

@@ -75,7 +75,7 @@ case "$1" in
 			while IFS= read -r endChild ; do
 				case "$endChild" in ''|*[!0-9]*) continue ;; esac
 				AgentsToolsMcpServerEndDescendants "$endChild"
-			done <<< "$( ps -ax -o pid=,ppid= 2> /dev/null | LC_ALL=C awk -v parent="$1" '$2 == parent { print $1 }' )"
+			done <<< "$( ps -ax -o pid=,ppid= 2> /dev/null | LC_ALL=C awk -v parent="$1" '$2 == parent { print $1 ; }' )"
 			kill -TERM "$1" 2> /dev/null || :
 		}
 		## Ends every request still in flight: one kept as `<pid> <start>`, signalled only while its pid is still the process that began then.

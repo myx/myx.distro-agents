@@ -49,4 +49,4 @@ function answer() {
 	next ;
 }
 count > 0 { line[++count] = $0 ; }
-END { if ( count > 0 && ! done ) { answer() ; } }
+END { if ( count > 0 && ! done ) { answer() ; } ; }

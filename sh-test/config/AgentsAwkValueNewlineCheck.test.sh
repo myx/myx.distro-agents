@@ -22,18 +22,18 @@ rigAssert(){ ## what is asserted, got, want
 ## cannot stand in the program's own text.
 rigScan(){ ## files...
 	LC_ALL=C awk '
-		BEGIN { q = sprintf( "%c", 39 ) ; nlToken = "$" q "\\n" q }
+		BEGIN { q = sprintf( "%c", 39 ) ; nlToken = "$" q "\\n" q ; }
 		## The word an assignment gives: up to the first blank or ; outside quotes and $( ), as the shell ends it.
 		function wordOf( text,   at, ch, inDouble, inSingle, depth ) {
 			inDouble = 0 ; inSingle = 0 ; depth = 0
 			for ( at = 1 ; at <= length( text ) ; at++ ) {
 				ch = substr( text, at, 1 )
-				if ( inSingle ) { if ( ch == q ) inSingle = 0 ; continue }
-				if ( ch == "\\" ) { at++ ; continue }
-				if ( ch == "\"" ) { inDouble = ! inDouble ; continue }
-				if ( ch == "$" && substr( text, at + 1, 1 ) == "(" ) { depth++ ; at++ ; continue }
-				if ( ch == ")" && depth > 0 ) { depth-- ; continue }
-				if ( ch == q && ! inDouble ) { inSingle = 1 ; continue }
+				if ( inSingle ) { if ( ch == q ) inSingle = 0 ; continue ; }
+				if ( ch == "\\" ) { at++ ; continue ; }
+				if ( ch == "\"" ) { inDouble = ! inDouble ; continue ; }
+				if ( ch == "$" && substr( text, at + 1, 1 ) == "(" ) { depth++ ; at++ ; continue ; }
+				if ( ch == ")" && depth > 0 ) { depth-- ; continue ; }
+				if ( ch == q && ! inDouble ) { inSingle = 1 ; continue ; }
 				if ( ! inDouble && depth == 0 && ( ch == " " || ch == "\t" || ch == ";" || ch == ")" ) ) return substr( text, 1, at - 1 )
 			}
 			return text
@@ -42,7 +42,7 @@ rigScan(){ ## files...
 			for ( siteAt = 1 ; siteAt <= siteCount ; siteAt++ ) if ( siteVar[ siteAt ] in newlineVar ) print siteWhere[ siteAt ] " " siteName[ siteAt ] " variable:" siteVar[ siteAt ]
 			siteCount = 0 ; split( "", newlineVar )
 		}
-		FNR == 1 { settle() }
+		FNR == 1 { settle() ; }
 		{
 			line = $0
 			## A variable given a newline: `name=` or `name+=`, its value holding the token and no cut at a newline.
@@ -78,19 +78,19 @@ rigScan(){ ## files...
 				siteCount++ ; siteWhere[ siteCount ] = FILENAME ":" FNR ; siteName[ siteCount ] = name ; siteVar[ siteCount ] = var
 			}
 		}
-		END { settle() }
+		END { settle() ; }
 	' "$@"
 }
 ## Red: a planted file of each shape, beside one that cuts its value at a newline and one fed a single line.
 rigQ="'"
 {
 	printf '%s\n' "rigLive=\"\$( printf x )\""
-	printf '%s\n' "rigTracked=\"\$( LC_ALL=C awk -v live=\$${rigQ}\\n${rigQ}\"\$rigLive\"\$${rigQ}\\n${rigQ} '{ print }' x )\""
+	printf '%s\n' "rigTracked=\"\$( LC_ALL=C awk -v live=\$${rigQ}\\n${rigQ}\"\$rigLive\"\$${rigQ}\\n${rigQ} '{ print ; }' x )\""
 	printf '%s\n' "rigList=\"one\"\$${rigQ}\\n${rigQ}\"two\""
-	printf '%s\n' "LC_ALL=C awk -v names=\"\$rigList\" '{ print }' x"
+	printf '%s\n' "LC_ALL=C awk -v names=\"\$rigList\" '{ print ; }' x"
 	printf '%s\n' "rigCut=\"\${rigList%%\$${rigQ}\\n${rigQ}*}\""
-	printf '%s\n' "LC_ALL=C awk -v first=\"\$rigCut\" '{ print }' x"
-	printf '%s\n' "LC_ALL=C awk -v one=\"\$rigLive\" '{ print }' x"
+	printf '%s\n' "LC_ALL=C awk -v first=\"\$rigCut\" '{ print ; }' x"
+	printf '%s\n' "LC_ALL=C awk -v one=\"\$rigLive\" '{ print ; }' x"
 } > "$rigTmp/Planted.include"
 rigPlanted="$( rigScan "$rigTmp/Planted.include" | LC_ALL=C sed "s|$rigTmp/||" )"
 rigAssert "red: the old SuperviseBoard form, a \$'\\n' literal in the value, is found" "$( printf '%s\n' "$rigPlanted" | LC_ALL=C grep -c -x -F 'Planted.include:2 live literal' )" "1"

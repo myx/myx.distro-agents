@@ -79,11 +79,11 @@ rigHeaders(){ ## how many header lines the chat file holds
 }
 rigNth(){ ## the Nth header line of the chat file, without its time
 	[ -f "$rigChat" ] || { printf 'no-file' ; return 0 ; }
-	LC_ALL=C awk -v want="$1" '/^[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9]Z .* -> .*:$/ { count++ ; if ( count == want ) { sub(/^[^ ]* /, "") ; print ; exit ; } }' "$rigChat"
+	LC_ALL=C awk -v want="$1" '/^[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9]Z .* -> .*:$/ { count++ ; if ( count == want ) { sub(/^[^ ]* /, "") ; print ; exit ; } ; }' "$rigChat"
 }
 rigIndex(){ ## the index line of block N
 	[ -f "$rigChat.index" ] || { printf 'no-index' ; return 0 ; }
-	LC_ALL=C awk -F'\t' -v want="$1" '$1 == want { print $2 " " $3 ; found = 1 ; exit ; } END { if ( ! found ) { print "no-such-block" ; } }' "$rigChat.index"
+	LC_ALL=C awk -F'\t' -v want="$1" '$1 == want { print $2 " " $3 ; found = 1 ; exit ; } END { if ( ! found ) { print "no-such-block" ; } ; }' "$rigChat.index"
 }
 rigPayload(){ ## the Nth payload posted
 	cat "$rigScene/post.$1" 2>/dev/null || printf 'no-payload'
@@ -98,7 +98,7 @@ rigAssert "the send succeeds"                                  "$( cat "$rigScen
 rigAssert "the chat file is in the session's folder, one block" "$( [ -f "$rigChat" ] && printf 'file:' ; rigHeaders )" "file:1"
 rigAssert "the header is <iso-time> <from> -> <to>:"            "$( LC_ALL=C head -1 "$rigChat" | LC_ALL=C sed 's/^[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9]Z //' )" "keeper-rig -> keeper-addr:"
 rigAssert "the time is UTC, to the second"                     "$( LC_ALL=C head -1 "$rigChat" | LC_ALL=C grep -c -E '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z ' )" 1
-rigAssert "the body is the Markdown the sender wrote"           "$( LC_ALL=C sed -n '2,$p' "$rigChat" | LC_ALL=C awk 'NF || seen { seen = 1 ; lines[++n] = $0 ; } END { while ( n > 0 && lines[n] == "" ) { n-- ; } for ( i = 1 ; i <= n ; i++ ) { print lines[i] ; } }' )" "$BODY"
+rigAssert "the body is the Markdown the sender wrote"           "$( LC_ALL=C sed -n '2,$p' "$rigChat" | LC_ALL=C awk 'NF || seen { seen = 1 ; lines[++n] = $0 ; } END { while ( n > 0 && lines[n] == "" ) { n-- ; } for ( i = 1 ; i <= n ; i++ ) { print lines[i] ; } ; }' )" "$BODY"
 rigAssert "no Slack shape in the file: no arrow, no bold addressee" "$( LC_ALL=C grep -c -e '→' -e '\*_' "$rigChat" )" 0
 rigSceneMake record-all rig-chat-2
 rigSend keeper-rig magic-team "RIG-NO-ADDRESSEE"

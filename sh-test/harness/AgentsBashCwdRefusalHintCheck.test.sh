@@ -41,7 +41,7 @@ rigCall(){ ## argument object, call name
 		> "$rigTmp/$2.out" 2> "$rigTmp/$2.err" || :
 }
 rigHasId(){ ## call name
-	LC_ALL=C grep -c -E '^REFUSAL-ID: (refusal-|none --)' "$rigTmp/$1.out" "$rigTmp/$1.err" 2> /dev/null | LC_ALL=C awk -F: '{ s += $2 } END { print s + 0 }'
+	LC_ALL=C grep -c -E '^REFUSAL-ID: (refusal-|none --)' "$rigTmp/$1.out" "$rigTmp/$1.err" 2> /dev/null | LC_ALL=C awk -F: '{ s += $2 ; } END { print s + 0 ; }'
 }
 
 echo "-- 1. a detached call with a cwd outside the roots carries a REFUSAL-ID --"

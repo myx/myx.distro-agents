@@ -16,7 +16,7 @@ rigOrphanGroup riggroup
 ## The control: a record whose kept leader is a process that still lives, and is no run of the scan's.
 rigRunEnded riglead magic-developer
 rigStand riglead
-rigLaunched riglead "$( LC_ALL=C ps -A -ww -o pid=,args= | LC_ALL=C awk -v want="--session-id riglead" 'index( $0, want ) { print $1 ; exit }' )"
+rigLaunched riglead "$( LC_ALL=C ps -A -ww -o pid=,args= | LC_ALL=C awk -v want="--session-id riglead" 'index( $0, want ) { print $1 ; exit ; }' )"
 ## The control: a kept leader number a stranger holds, and no process of that group.
 rigRunEnded rigreus magic-developer
 rigRunProcess rigreus "1 1_rig_unused"

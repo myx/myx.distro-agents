@@ -31,7 +31,7 @@
 				if [ -z "$slotsOut" ] ; then
 					printf 'slot\t%s\t%s\tnone\n' "$slotsSide" "$slotsEntry"
 				else
-					printf 'slot\t%s\t%s\t%s\t%s\n' "$slotsSide" "$slotsEntry" "$slotsKind" "$( printf '%s\n' "$slotsOut" | LC_ALL=C awk 'NF { printf "%s%s", ( n++ ? "\t" : "" ), $0 } END { printf "\n" }' )"
+					printf 'slot\t%s\t%s\t%s\t%s\n' "$slotsSide" "$slotsEntry" "$slotsKind" "$( printf '%s\n' "$slotsOut" | LC_ALL=C awk 'NF { printf "%s%s", ( n++ ? "\t" : "" ), $0 ; } END { printf "\n" ; }' )"
 				fi
 			done
 		done

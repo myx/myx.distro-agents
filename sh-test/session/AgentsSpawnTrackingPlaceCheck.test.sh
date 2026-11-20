@@ -121,7 +121,7 @@ rigRecord(){ ## header
 	local recordFile
 	for recordFile in "$rigWs/.local/agents/spawned"/*/"$( cat "$rigTmp/last-spawn" 2> /dev/null || printf none ).spawn.md" ; do
 		[ -f "$recordFile" ] || continue
-		LC_ALL=C awk -v wantHeader="$1" '$0 == "---" { if ( ++dashes == 2 ) { exit ; } next ; } dashes == 1 && index( $0, wantHeader ": " ) == 1 { print substr( $0, length( wantHeader ) + 3 ) ; found = 1 ; exit ; } END { if ( ! found ) { print "none" ; } }' "$recordFile"
+		LC_ALL=C awk -v wantHeader="$1" '$0 == "---" { if ( ++dashes == 2 ) { exit ; } next ; } dashes == 1 && index( $0, wantHeader ": " ) == 1 { print substr( $0, length( wantHeader ) + 3 ) ; found = 1 ; exit ; } END { if ( ! found ) { print "none" ; } ; }' "$recordFile"
 		return 0
 	done
 	printf 'no-record'
@@ -165,7 +165,7 @@ rigLive(){ ## spawn id
 	for liveRecord in "$rigWs/.local/agents/spawned"/*/"$1.spawn.md" ; do
 		[ -f "$liveRecord" ] || continue
 		liveTemp="$( mktemp "$liveRecord.XXXXXX" )" || rigRefuse "no temp beside the record of $1"
-		LC_ALL=C awk '$0 == "---" { dashes++ } dashes == 1 && index( $0, "status: " ) == 1 { $0 = "status: spawn-started" } { print }' "$liveRecord" > "$liveTemp" && mv -f "$liveTemp" "$liveRecord"
+		LC_ALL=C awk '$0 == "---" { dashes++ ; } dashes == 1 && index( $0, "status: " ) == 1 { $0 = "status: spawn-started" ; } { print ; }' "$liveRecord" > "$liveTemp" && mv -f "$liveTemp" "$liveRecord"
 	done
 	bash -c 'sleep 1800 ; :' rig-run --session-id "$1" > /dev/null 2>&1 < /dev/null &
 	rigLivePids="$rigLivePids $!" ; rigProcNote "$!"

@@ -92,7 +92,7 @@ tier-contact: adds conversation, public information and consultation, nothing lo
 tier-client: adds talking about what the team does, a little help and small research
 tier-admin: adds what affects the board, dispatches jobs and asks for internal information, with several able to answer for a quorum
 tier-owner: the highest. Asked last, only when every lower step cannot settle it; the answer then overrides any other answer or quorum at once"
-	askOptions="$( printf '%s\n' "$askOptions" | LC_ALL=C awk -v want="$askTier" -F: '$1 == want { print $0 " (recommended)" ; next } { print }' )"
+	askOptions="$( printf '%s\n' "$askOptions" | LC_ALL=C awk -v want="$askTier" -F: '$1 == want { print $0 " (recommended)" ; next ; } { print ; }' )"
 	askQuestion="Set the tier of the contact $askId${askScope:+ for the scope $askScope}? $askBy proposes $askTier, marked recommended below."
 	askText="$( ASKP_F_question="$askQuestion" ASKP_OPTIONS="$askOptions" AgentsToolsAskPostFill post ask-question.post.format.md one 2> /dev/null )" || askText=""
 	[ -n "$askText" ] || { echo "$MDSC_CMD: ⛔ ERROR: $askOp: the ask about the tier of $askId could not be filled from its template, so nothing was asked" >&2 ; return 1 ; }
@@ -191,19 +191,19 @@ AgentsToolsContactsTierClosing(){ ## tier, holders, answers...
 	case "$closeHolders" in ''|*[!0123456789]*|0) echo "$MDSC_CMD: ⛔ ERROR: tier closing: the holders are a number above 0: $closeHolders" >&2 ; return 1 ;; esac
 	case "$closeTier" in tier-admin|tier-owner) ;; *) echo "$MDSC_CMD: ⛔ ERROR: tier closing: only tier-admin and tier-owner close an ask by their own rule: $closeTier" >&2 ; return 1 ;; esac
 	printf '%s\n' "$@" | LC_ALL=C awk -v tier="$closeTier" -v holders="$closeHolders" '
-		NF == 0 { next }
+		NF == 0 { next ; }
 		{ at = index( $0, "=" ) ; if ( at == 0 ) next ; who = substr( $0, 1, at - 1 ) ; what = substr( $0, at + 1 ) ; if ( who == "" || what == "" ) next
 		  isOwner = ( tier == "tier-owner" || who ~ /@tier-owner$/ ) ; sub( /@tier-[a-z]+$/, "", who )
 		  if ( isOwner && firstOwner == "" ) firstOwner = what
 		  if ( ! ( who in verdict ) ) order[ ++given ] = who
-		  verdict[who] = what }
+		  verdict[who] = what ; }
 		END {
-			if ( firstOwner != "" ) { print "closed " firstOwner ; exit }
-			if ( given == 0 ) { print "open" ; exit }
+			if ( firstOwner != "" ) { print "closed " firstOwner ; exit ; }
+			if ( given == 0 ) { print "open" ; exit ; }
 			quorum = int( holders / 2 ) + 1
 			for ( n = 1 ; n <= given ; n++ ) count[verdict[order[n]]]++
 			best = "" ; for ( one in count ) if ( count[one] >= quorum && ( best == "" || count[one] > count[best] ) ) best = one
-			if ( best != "" ) { print "closed " best ; exit }
+			if ( best != "" ) { print "closed " best ; exit ; }
 			left = holders - given ; top = 0 ; for ( one in count ) if ( count[one] > top ) top = count[one]
 			print ( top + left >= quorum ) ? "open" : "stuck"
 		}'

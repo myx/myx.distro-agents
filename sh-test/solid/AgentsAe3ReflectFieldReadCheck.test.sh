@@ -59,9 +59,9 @@ mkdir -p "$rigTmp/tree/ru/myx/ae3/reflect" "$rigTmp/planted/ru/myx/ae3/reflect" 
 echo "-- the two arms, both compiled from the tree's own source --"
 cp "$rigSource" "$rigTmp/tree/ru/myx/ae3/reflect/ValueReflectionImpl.java" || rigRefuse "the tree's own source could not be read"
 LC_ALL=C awk '
-	$0 == "\t\t\t\tif (existing != null && !(existing instanceof HandlerForGetterAndSetter)) {" { print "\t\t\t\tif (existing != null) {" ; seen++ ; next }
-	{ print }
-	END { if ( seen == 0 ) { print "AGENTS-AE3-REFLECT-FIELD-READ: the source holds no guard clause to take out, so the planted arm is the source as it stands" > "/dev/stderr" } }
+	$0 == "\t\t\t\tif (existing != null && !(existing instanceof HandlerForGetterAndSetter)) {" { print "\t\t\t\tif (existing != null) {" ; seen++ ; next ; }
+	{ print ; }
+	END { if ( seen == 0 ) { print "AGENTS-AE3-REFLECT-FIELD-READ: the source holds no guard clause to take out, so the planted arm is the source as it stands" > "/dev/stderr" ; } ; }
 ' "$rigSource" > "$rigTmp/planted/ru/myx/ae3/reflect/ValueReflectionImpl.java" || rigRefuse "the planted copy could not be written"
 ae3Compile "$rigCpCompile" "$rigTmp/tree/ru/myx/ae3/reflect/ValueReflectionImpl.java" "$rigTmp/tree-bin" || rigRefuse "the tree's source did not compile"
 ae3Compile "$rigCpCompile" "$rigTmp/planted/ru/myx/ae3/reflect/ValueReflectionImpl.java" "$rigTmp/planted-bin" || rigRefuse "the planted source did not compile"

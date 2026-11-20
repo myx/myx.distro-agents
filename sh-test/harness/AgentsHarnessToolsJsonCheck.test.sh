@@ -86,7 +86,7 @@ fi
 
 ## What the self-check sees: envelopes matched as text, never parsed.
 checkTextCount="$( printf '%s\n' "$checkToolsJson" | LC_ALL=C awk '
-	{ envelopeCount += gsub(/\{"type":"function","function":\{"name":"/, "&") }
+	{ envelopeCount += gsub(/\{"type":"function","function":\{"name":"/, "&") ; }
 	END { print envelopeCount + 0 ; }
 ' )"
 

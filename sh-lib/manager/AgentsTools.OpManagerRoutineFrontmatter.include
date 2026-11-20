@@ -16,8 +16,8 @@
 			set +e ; return 1
 		}
 		LC_ALL=C awk '
-			NR == 1 && $0 == "---" { fm = 1 ; next }
-			fm && $0 == "---" { exit }
+			NR == 1 && $0 == "---" { fm = 1 ; next ; }
+			fm && $0 == "---" { exit ; }
 			fm {
 				at = index( $0, ": " )
 				if ( at == 0 ) next

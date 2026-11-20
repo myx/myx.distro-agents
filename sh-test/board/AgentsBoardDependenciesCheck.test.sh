@@ -137,7 +137,7 @@ rigAssert "and the report names what it wrote this time" "$( LC_ALL=C grep -c -x
 sleep 1
 rigGit mv board/running/task-rig-new.md board/review/task-rig-new.md && rigGit commit -q -m "rig: moved"
 rigRun "$rigTmp/r6" AgentsToolsBoardDependencies
-rigAssert "an item that moved makes it recompute too, and nothing is left to write" "$( wc -c < "$rigTmp/r6" | tr -d ' ' ):$( LC_ALL=C grep -c 'task-rig-new' "$rigReport" | LC_ALL=C awk '{ print ( $1 > 0 ) ? "named" : "none" }' )" "0:named"
+rigAssert "an item that moved makes it recompute too, and nothing is left to write" "$( wc -c < "$rigTmp/r6" | tr -d ' ' ):$( LC_ALL=C grep -c 'task-rig-new' "$rigReport" | LC_ALL=C awk '{ print ( $1 > 0 ) ? "named" : "none" ; }' )" "0:named"
 
 echo "-- 6. a wave item whose feature reads done in its epic goes to review, whatever wrote the Done --"
 printf '# rig epic\n\n## S1 - one\n\n1. item one\n2. item two\n\n## S3 - three\n\n## Done\n\n- S1.2: the second item holds now.\n- S3: the third feature holds now.\n' \

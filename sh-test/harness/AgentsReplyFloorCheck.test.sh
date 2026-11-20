@@ -78,7 +78,7 @@ rigMcp m3 "$rigClient" execute '{"command":"echo RIG-RESULT-THREE"}'
 rigAssert "the one after finds nothing new: only the date beside the result" "$( rigHas m3 RIG-NEW-ONE ):$( rigParts m3 )" "0:2"
 rigAppend "$rigClient" keeper-old all 1760000000.000102 "CRIGFLR01:1760000000.000010" slack "RIG-NEW-TWO"
 rigAppend "$rigClient" magic-coordinator all 1760000000.000103 "CRIGFLR01:1760000000.000010" own "RIG-OWN the caller's own"
-LC_ALL=C awk 'BEGIN { printf "RIG-LONG-START " ; for ( n = 1 ; n <= 600 ; n++ ) printf "word%04d ", n ; printf "RIG-LONG-END" }' > "$rigTmp/long.txt"
+LC_ALL=C awk 'BEGIN { printf "RIG-LONG-START " ; for ( n = 1 ; n <= 600 ; n++ ) printf "word%04d ", n ; printf "RIG-LONG-END" ; }' > "$rigTmp/long.txt"
 rigAppend "$rigClient" keeper-old all 1760000000.000104 "CRIGFLR01:1760000000.000010" slack "$( cat "$rigTmp/long.txt" )"
 rigMcp m4 "$rigClient" execute '{"command":"echo RIG-RESULT-FOUR"}'
 rigAssert "the executor: every message of the thread, but not its own (magic-coordinator is the caller)" "$( rigHas m4 RIG-NEW-TWO ):$( rigHas m4 'RIG-OWN' )" "1:0"

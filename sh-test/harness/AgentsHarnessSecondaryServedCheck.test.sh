@@ -89,7 +89,7 @@ done
 
 ## Every name served over MCP, from the mirror the server renders its own catalogue with.
 rigMcpNames="$( bash "$rigMirror" 2>/dev/null | LC_ALL=C awk '
-	{ line = $0 ; while (match(line, /\{"name":"[A-Za-z]+"/)) { part = substr(line, RSTART, RLENGTH) ; sub(/.*"name":"/, "", part) ; sub(/"$/, "", part) ; print part ; line = substr(line, RSTART + RLENGTH) } }
+	{ line = $0 ; while (match(line, /\{"name":"[A-Za-z]+"/)) { part = substr(line, RSTART, RLENGTH) ; sub(/.*"name":"/, "", part) ; sub(/"$/, "", part) ; print part ; line = substr(line, RSTART + RLENGTH) ; } ; }
 ' )"
 ## One name a word, so the membership test below reads both lists the same way. An empty mirror is not
 ## a rig that could not reach its subject: the mirror is half of what the parity assertion is about, so

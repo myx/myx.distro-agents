@@ -130,7 +130,7 @@ rigHolds(){ ## file, text
 	LC_ALL=C grep -q -F -- "$2" "$1" && printf 'yes' || printf 'no'
 }
 rigVerdictLine(){
-	LC_ALL=C awk '/^VERDICT: / { print ; found = 1 ; exit ; } END { if ( ! found ) { print "no-verdict-line" ; } }' "$rigScenarioDir/out"
+	LC_ALL=C awk '/^VERDICT: / { print ; found = 1 ; exit ; } END { if ( ! found ) { print "no-verdict-line" ; } ; }' "$rigScenarioDir/out"
 }
 ## The scenario's one record: its file, its id, one header field of it, and how many of its
 ## lines hold a text.
@@ -147,7 +147,7 @@ rigRecordId(){
 	printf '%s' "${recordId%.md}"
 }
 rigRecordField(){ ## field
-	LC_ALL=C awk -v key="$1" '$0 == "---" { if ( ++dashes == 2 ) { exit ; } next ; } dashes == 1 && index( $0, key ": " ) == 1 { print substr( $0, length( key ) + 3 ) ; found = 1 ; exit ; } END { if ( ! found ) { print "none" ; } }' "$( rigRecordFile )" 2>/dev/null || printf 'no-record'
+	LC_ALL=C awk -v key="$1" '$0 == "---" { if ( ++dashes == 2 ) { exit ; } next ; } dashes == 1 && index( $0, key ": " ) == 1 { print substr( $0, length( key ) + 3 ) ; found = 1 ; exit ; } END { if ( ! found ) { print "none" ; } ; }' "$( rigRecordFile )" 2>/dev/null || printf 'no-record'
 }
 rigRecordLines(){ ## fixed text -> how many lines of the record hold it
 	LC_ALL=C grep -c -F -- "$1" "$( rigRecordFile )" 2>/dev/null || :

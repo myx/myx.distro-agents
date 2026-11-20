@@ -350,7 +350,7 @@ AgentsToolsManagerTeamMemberReadRows(){ ## the operation as it was called, membe
 	## as the list of sessions printed them; those where a run of it is alive come first.
 	readSessions="$( printf '%s\n' "$sessionRows" | LC_ALL=C awk -F'\t' -v wantMember="$readMember" '
 		$1 == "session" { sessionRow[$2] = $0 ; sessionOf[++sessionTotal] = $2 ; next ; }
-		$1 == "run" && $4 == wantMember { sessionRuns[$2] = sessionRuns[$2] $0 "\n" ; if ( $6 == "running" ) { sessionLive[$2] = 1 ; } }
+		$1 == "run" && $4 == wantMember { sessionRuns[$2] = sessionRuns[$2] $0 "\n" ; if ( $6 == "running" ) { sessionLive[$2] = 1 ; } ; }
 		END {
 			for ( livePass = 1 ; livePass >= 0 ; livePass-- ) {
 				for ( sessionAt = 1 ; sessionAt <= sessionTotal ; sessionAt++ ) {
@@ -366,7 +366,7 @@ AgentsToolsManagerTeamMemberReadRows(){ ## the operation as it was called, membe
 		echo "⛔ ERROR: $MDSC_CMD $readOp: the grants of $readMember could not be listed -- nothing is shown" >&2
 		return 1
 	}
-	readGrants="$( printf '%s\n' "$readGrants" | LC_ALL=C awk -F'\t' -v OFS='\t' 'NF { for ( fieldAt = 1 ; fieldAt <= NF ; fieldAt++ ) { gsub( /[ ]+/, "_", $fieldAt ) ; if ( $fieldAt == "" ) { $fieldAt = "-" ; } } print "grant", $0 ; }' )" || readGrants=""
+	readGrants="$( printf '%s\n' "$readGrants" | LC_ALL=C awk -F'\t' -v OFS='\t' 'NF { for ( fieldAt = 1 ; fieldAt <= NF ; fieldAt++ ) { gsub( /[ ]+/, "_", $fieldAt ) ; if ( $fieldAt == "" ) { $fieldAt = "-" ; } ; } print "grant", $0 ; }' )" || readGrants=""
 	readSettings="$( AgentsToolsManagerTeamMemberSettingRows "$readMember" "$placedSetUp" )" || {
 		echo "⛔ ERROR: $MDSC_CMD $readOp: the settings of $readMember could not be read -- nothing is shown" >&2
 		return 1

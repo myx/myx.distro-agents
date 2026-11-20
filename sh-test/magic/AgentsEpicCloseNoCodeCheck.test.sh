@@ -32,15 +32,15 @@ rigAssert(){ ## what is asserted, got, want
 ## Every line of one numbered step, its continuation lines included, from the step's line up to the next step.
 rigStepLines(){ ## routine file, step number
 	LC_ALL=C awk -v wantStep="$2" '
-		/^# Steps$/ { inSteps = 1 ; next }
-		inSteps && /^# / { exit }
+		/^# Steps$/ { inSteps = 1 ; next ; }
+		inSteps && /^# / { exit ; }
 		inSteps && /^[0-9]+\. / {
-			if ( taking ) { exit }
+			if ( taking ) { exit ; }
 			stepNumber = $0 ; sub( /\..*/, "", stepNumber )
-			if ( stepNumber + 0 == wantStep + 0 ) { taking = 1 ; print ; next }
+			if ( stepNumber + 0 == wantStep + 0 ) { taking = 1 ; print ; next ; }
 			next
 		}
-		taking { print }
+		taking { print ; }
 	' "$1"
 }
 ## How many of steps 1 to 4 carry the skip, and whether step 5 does.
@@ -67,7 +67,7 @@ rigAssert "pack-delete carries no skip of its own" \
 	"$( rigStepLines "$rigRoutine" 5 | LC_ALL=C grep -c 'Skipped for an epic that changes no code' )" 0
 
 echo "-- 4. the routine's own rule names pack-delete for such an epic --"
-rigRule="$( LC_ALL=C awk '/^# Routine.s local rules$/ { inRules = 1 ; next } inRules && /^# / { exit } inRules { print }' "$rigRoutine" )"
+rigRule="$( LC_ALL=C awk '/^# Routine.s local rules$/ { inRules = 1 ; next ; } inRules && /^# / { exit ; } inRules { print ; }' "$rigRoutine" )"
 rigAssert "a rule says such an epic skips steps 1 to 4" "$( printf '%s\n' "$rigRule" | LC_ALL=C grep -c 'skips steps 1 to 4' )" 1
 rigAssert "and the same rule names pack-delete as what it runs" "$( printf '%s\n' "$rigRule" | LC_ALL=C grep -c 'runs \*\*pack-delete\*\*' )" 1
 

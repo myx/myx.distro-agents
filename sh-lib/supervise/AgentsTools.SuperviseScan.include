@@ -134,7 +134,7 @@ AgentsToolsSuperviseScan(){
 	## THE PROCESS LIST IS ANSWERED FOR EVERY RECORD AT ONCE, never once a record: `scanLive` the ids a process answers for, and
 	## `scanBegan` every process with the moment it began, the form a record's `run-process:` is kept in.
 	scanLive="$( printf '%s\n' "$scanPs" | AgentsToolsRunWords )" || scanLive=""
-	scanBegan="$( printf '%s\n' "$scanPs" | LC_ALL=C awk 'NF { print $1 }' | AgentsToolsRunProcessesBegan )" || scanBegan=""
+	scanBegan="$( printf '%s\n' "$scanPs" | LC_ALL=C awk 'NF { print $1 ; }' | AgentsToolsRunProcessesBegan )" || scanBegan=""
 	for scanWs in ${scanWorkspaces[@]+"${scanWorkspaces[@]}"} ; do
 		scanRigOwner="$( AgentsToolsSuperviseRigOwner "$scanWs" )" || scanRigOwner=""
 		scanAgents="$scanWs/.local/agents"
@@ -150,11 +150,11 @@ AgentsToolsSuperviseScan(){
 		scanNoiseThreads=""
 		if [ -f "${scanAskFiles[0]}" ] ; then
 			scanNoiseThreads="$( LC_ALL=C awk -v statusKey="status: " -v threadKey="thread-ts: " '
-				FNR == 1 { fence = 0 ; status = "" ; threadTs = "" }
-				$0 == "---" { fence++ ; if ( fence == 2 && status == "reply-pending" && threadTs != "" ) count[ threadTs ]++ ; next }
-				fence == 1 && index( $0, statusKey ) == 1 { status = substr( $0, length( statusKey ) + 1 ) ; next }
-				fence == 1 && index( $0, threadKey ) == 1 { threadTs = substr( $0, length( threadKey ) + 1 ) ; next }
-				END { for ( oneTs in count ) if ( count[ oneTs ] > 1 ) print oneTs }
+				FNR == 1 { fence = 0 ; status = "" ; threadTs = "" ; }
+				$0 == "---" { fence++ ; if ( fence == 2 && status == "reply-pending" && threadTs != "" ) count[ threadTs ]++ ; next ; }
+				fence == 1 && index( $0, statusKey ) == 1 { status = substr( $0, length( statusKey ) + 1 ) ; next ; }
+				fence == 1 && index( $0, threadKey ) == 1 { threadTs = substr( $0, length( threadKey ) + 1 ) ; next ; }
+				END { for ( oneTs in count ) if ( count[ oneTs ] > 1 ) print oneTs ; }
 			' "${scanAskFiles[@]}" 2> /dev/null )" || scanNoiseThreads=""
 		fi
 		type AgentsToolsPendingReplyField > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.PendingReplyRecords.include"
@@ -191,7 +191,7 @@ AgentsToolsSuperviseScan(){
 			## AN OPEN ASK SOMEONE HAS ALREADY ANSWERED IN WORDS: a reply that does not start with an option is kept as a clarification
 			## and the ask stays open, so the answer waits unread. Its line carries the newest of them, for the coordinator to close the
 			## ask with those words where they settle it.
-			scanClar="$( LC_ALL=C awk '/^## Clarifications/ { on = 1 ; next } /^## / { on = 0 } on && /^- / { last = $0 } END { print last }' "$scanFile" )"
+			scanClar="$( LC_ALL=C awk '/^## Clarifications/ { on = 1 ; next ; } /^## / { on = 0 ; } on && /^- / { last = $0 ; } END { print last ; }' "$scanFile" )"
 			[ -z "$scanClar" ] || printf 'ask-clarified %s %s %s\n' "${scanWs##*/}" "$( basename "$scanFile" .md | cut -c1-8 )" "$( printf '%s' "${scanClar#- }" | cut -c1-160 )"
 			## AN ASK TO THE OWNER THAT ITS OWN PARENT CAN SETTLE (S13.2). The asking run's record names the session that
 			## started it; where that parent is a live magic-coordinator's, the question never needed the owner. Every other
@@ -212,7 +212,7 @@ AgentsToolsSuperviseScan(){
 			## one lookup. A scan's cost is then the records' own, however many questions the owner holds.
 			scanAskSid="$( LC_ALL=C sed -n 's/^session-id: //p' "$scanFile" | head -1 )"
 			scanAskFound="$( printf '%s\n' "$scanTable" | LC_ALL=C awk -F'\t' -v one="$scanAskSid" '
-				$4 != "" { parentOf[ $4 ] = $9 ; ownerOf[ $4 ] = $6 }
+				$4 != "" { parentOf[ $4 ] = $9 ; ownerOf[ $4 ] = $6 ; }
 				END {
 					parentSid = parentOf[ one ]
 					if ( parentSid == "" || !( parentSid in ownerOf ) ) exit
@@ -232,8 +232,8 @@ AgentsToolsSuperviseScan(){
 			scanSinceIso="$( date -u -r "$scanSince" +%Y-%m-%dT%H:%M:%SZ 2> /dev/null )"
 			## One post shows once: each participant's chat holds its own copy of it.
 			MMDAPP="$scanWs" AgentsToolsSessionChatMessagesToSince magic-coordinator "$scanSince" "$scanSinceIso" | LC_ALL=C awk -F'\t' -v ws="${scanWs##*/}" '
-				$3 ~ /^Process process-[0-9]+ ended with exit status/ { next }
-				{ key = "from " $2 ": " substr( $3, 1, 160 ) ; if ( !seen[key]++ ) print "msg " ws " " substr( $1, 1, 8 ) " " key }
+				$3 ~ /^Process process-[0-9]+ ended with exit status/ { next ; }
+				{ key = "from " $2 ": " substr( $3, 1, 160 ) ; if ( !seen[key]++ ) print "msg " ws " " substr( $1, 1, 8 ) " " key ; }
 			'
 			## The event-track thread of each run, from its local copy: what needs a look, never the routine rounds, waits or good tool calls.
 			## One event shows once: the same post lands in several runs' copies, and repeats within one.
@@ -349,7 +349,7 @@ AgentsToolsSuperviseScan(){
 			## Where the run stands (S13.18): its tool and its age, its latest message, its item in progress, its pause, its open asks.
 			scanAsks=0
 			if [ -n "$scanAskSet" ] ; then
-				scanAsks="$( printf '%s' "$scanAskSet" | LC_ALL=C awk -v one="$scanSpid" -v two="$scanSid" '$0 == one || ( two != "" && $0 == two ) { n++ } END { print n + 0 }' )" || scanAsks=0
+				scanAsks="$( printf '%s' "$scanAskSet" | LC_ALL=C awk -v one="$scanSpid" -v two="$scanSid" '$0 == one || ( two != "" && $0 == two ) { n++ ; } END { print n + 0 ; }' )" || scanAsks=0
 			fi
 			## A chat holds every message in full, so its owner reads its tail and never the file.
 			scanMsg="$( MMDAPP="$scanWs" AgentsToolsSessionChatLastMessage "$scanStoreId" )" || scanMsg=""
@@ -447,9 +447,9 @@ AgentsToolsSuperviseScan(){
 		## session, so the process list is read once a workspace, never once a thread (it was 70 reads on MEL, most of the scan).
 		type AgentsToolsSessionControlLive > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionControlStart.include"
 		scanCtlRows="$( MMDAPP="$scanWs" AgentsSessionControlPidRows )"
-		scanCtlLive=$'\n'"$( printf '%s\n' "$scanCtlRows" | LC_ALL=C cut -f1 | MMDAPP="$scanWs" AgentsToolsSessionControlLive 2> /dev/null | LC_ALL=C awk '{ print $1 }' )"$'\n'
+		scanCtlLive=$'\n'"$( printf '%s\n' "$scanCtlRows" | LC_ALL=C cut -f1 | MMDAPP="$scanWs" AgentsToolsSessionControlLive 2> /dev/null | LC_ALL=C awk '{ print $1 ; }' )"$'\n'
 		## The sessions that own a record still open, from the table read once above, never a read of each session's records.
-		scanCtlOpen=$'\n'"$( printf '%s\n' "$scanTable" | LC_ALL=C awk -F'\t' '$7 == "spawn-started" && $5 != "" { print $5 }' )"$'\n'
+		scanCtlOpen=$'\n'"$( printf '%s\n' "$scanTable" | LC_ALL=C awk -F'\t' '$7 == "spawn-started" && $5 != "" { print $5 ; }' )"$'\n'
 		while IFS="$scanTab" read -r scanCtlSid scanCtlPid ; do
 			[ -n "$scanCtlSid" ] || continue
 			case "$scanCtlLive" in *$'\n'"$scanCtlSid"$'\n'*) ;; *) continue ;; esac
@@ -519,8 +519,8 @@ AgentsToolsSuperviseScan(){
 		## One awk over the record table and two sets read once, never a process a record: `scanGroupPids` every process id,
 		## `scanGroupIds` every group id. A leader pid still among the living is another group's now, so it is no finding.
 		scanGroupPs="$( ps -A -o pid=,pgid= 2> /dev/null )" || scanGroupPs=""
-		scanGroupPids=$'\n'"$( printf '%s\n' "$scanGroupPs" | LC_ALL=C awk 'NF { print $1 }' )"$'\n'
-		scanGroupIds=$'\n'"$( printf '%s\n' "$scanGroupPs" | LC_ALL=C awk 'NF { print $2 }' )"$'\n'
+		scanGroupPids=$'\n'"$( printf '%s\n' "$scanGroupPs" | LC_ALL=C awk 'NF { print $1 ; }' )"$'\n'
+		scanGroupIds=$'\n'"$( printf '%s\n' "$scanGroupPs" | LC_ALL=C awk 'NF { print $2 ; }' )"$'\n'
 		printf '%s\n' "$scanTable" | MDAT_SCAN_LIVE="$scanLive" MDAT_SCAN_PIDS="$scanGroupPids" MDAT_SCAN_GROUPS="$scanGroupIds" \
 			LC_ALL=C awk -F'\t' -v ws="${scanWs##*/}" -v now="$scanNow" '
 			BEGIN {

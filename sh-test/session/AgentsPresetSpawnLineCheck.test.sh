@@ -109,7 +109,7 @@ echo "-- 2. a preset with a line: once, as a line of its own, after the standing
 rigOut="$( rigSpawn "RIG-TASK-TEXT" keeper-myx "rig-base" )"
 rigAssert "the launch succeeded"                                  "$( printf '%s\n' "$rigOut" | grep -c '^LAUNCHED=true$' )" 1
 rigAssert "the line is in the dispatch, as a whole line, once"    "$( LC_ALL=C grep -c -x -F -- 'RIG-BASE-LINE do not paraphrase the tool names.' "$rigTmp/brief" )" 1
-rigAssert "after the standing text of the spawn"                  "$( LC_ALL=C awk '/^## Staying on the task/ { stay = NR } /^RIG-BASE-LINE/ { line = NR } END { print ( stay > 0 && line > stay ) ? "after" : "not after" }' "$rigTmp/brief" )" after
+rigAssert "after the standing text of the spawn"                  "$( LC_ALL=C awk '/^## Staying on the task/ { stay = NR ; } /^RIG-BASE-LINE/ { line = NR ; } END { print ( stay > 0 && line > stay ) ? "after" : "not after" ; }' "$rigTmp/brief" )" after
 
 echo "-- 3. an extension inherits it; its own stands ahead --"
 rigSpawn "RIG-TASK-TEXT" keeper-myx "rig-ext" > /dev/null

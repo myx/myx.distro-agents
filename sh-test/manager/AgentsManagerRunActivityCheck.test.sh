@@ -84,7 +84,7 @@ printf '%s\n' "$rigTmp/ask-data" > "$rigAskDir/data-root"
 rigAskTurn(){ ## tool name -- the last milestone of the run after that tool's start
 	MMDAPP="$rigAskWs" MDAT_SPAWN_SESSION_ID="$rigAskSid" MDAT_DATA_ROOT="$rigTmp/ask-data" \
 		bash -c '. "$1" ; AgentsTranscriptToolStart "$2"' _ "$rigTranscript" "$1" > /dev/null 2>&1
-	awk '{ $1 = "" ; print }' "$rigAskDir/milestones" 2> /dev/null | tail -1
+	awk '{ $1 = "" ; print ; }' "$rigAskDir/milestones" 2> /dev/null | tail -1
 }
 rigAssert "an ask about to block writes ask going idle, as a Wait writes wait going idle: that line is what the console reads" "$( rigAskTurn AskQuestion )" " ask going idle"
 rigAssert "a tool that waits on nobody writes no milestone of its own" "$( rigAskTurn Read )" " ask going idle"
@@ -97,7 +97,7 @@ mkdir -p "$rigBareDir" "$rigTmp/bare-data"
 rigBareTurn(){ ## tool name -- the last milestone after that tool's start, for a run with no transcript
 	MMDAPP="$rigBareWs" MDAT_SPAWN_SESSION_ID="$rigBareSid" MDAT_DATA_ROOT="$rigTmp/bare-data" \
 		bash -c '. "$1" ; AgentsTranscriptToolStart "$2"' _ "$rigTranscript" "$1" > /dev/null 2>&1
-	awk '{ $1 = "" ; print }' "$rigBareDir/milestones" 2> /dev/null | tail -1
+	awk '{ $1 = "" ; print ; }' "$rigBareDir/milestones" 2> /dev/null | tail -1
 }
 rigAssert "a run with no transcript of its own still records that it went into a Wait: that line is the console's only record" "$( rigBareTurn Wait )" " wait going idle"
 rigAssert "and the console calls it waiting from that line alone" "$( MMDAPP="$rigBareWs" bash -c '. "$1" ; AgentsToolsManagerRunActivity "$2" "$3"' _ "$rigInclude" "$rigBareSid" "$rigStat" )" waiting

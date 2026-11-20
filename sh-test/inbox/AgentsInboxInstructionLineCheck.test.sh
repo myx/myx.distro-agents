@@ -69,16 +69,16 @@ rigCall(){ ## result name, the operation's words...
 ## A section runs from its own heading to the next inbox-section heading.
 rigSectionEnds(){ ## file, section heading
 	LC_ALL=C awk -v sec="$2" -v want="$rigInstruction" '
-		$0 == sec { inside = 1 ; last = "" ; seen = 1 ; next }
-		inside && /^## (Active Inbox Inquiry Items|Current Inbox Reflections|Current Inbox Notes|Other Inbox Items|Additional Inbox)/ { inside = 0 ; next }
-		inside && /^$/ { next }
-		inside { last = $0 }
-		END { if ( !seen ) { print "nosection" ; exit } ; print ( last == want ) ? 1 : 0 }
+		$0 == sec { inside = 1 ; last = "" ; seen = 1 ; next ; }
+		inside && /^## (Active Inbox Inquiry Items|Current Inbox Reflections|Current Inbox Notes|Other Inbox Items|Additional Inbox)/ { inside = 0 ; next ; }
+		inside && /^$/ { next ; }
+		inside { last = $0 ; }
+		END { if ( !seen ) { print "nosection" ; exit ; } ; print ( last == want ) ? 1 : 0 ; }
 	' "$rigDir/$1.out"
 }
 ## Whether a result's last non-blank line is the instruction: 1 where it is, else 0.
 rigLastLineIs(){ ## result name
-	LC_ALL=C awk -v want="$rigInstruction" 'NF { last = $0 } END { print ( last == want ) ? 1 : 0 }' "$rigDir/$1.out" 2> /dev/null
+	LC_ALL=C awk -v want="$rigInstruction" 'NF { last = $0 ; } END { print ( last == want ) ? 1 : 0 ; }' "$rigDir/$1.out" 2> /dev/null
 }
 ## How many times the instruction line stands anywhere in a result.
 rigInstructionCount(){ ## result name
@@ -120,11 +120,11 @@ rigCall wait1 --wait-for-input --team-member rig-member --wait-source inbox:rig-
 rigAssert "the wait returned on the item"                          "$( rigResult wait1 ):$( cat "$rigDir/wait1.rc" )" "RECEIVED:0"
 rigAssert "the item is delivered"                                  "$( LC_ALL=C grep -c -x 'note-20261101T0101Z-rig-two.md' "$rigDir/wait1.out" )" 1
 rigAssert "the block ends with the instruction"                    "$( LC_ALL=C awk -v want="$rigInstruction" '
-	/^# --- end ---$/ { if ( inside ) { print ( last == want ) ? 1 : 0 ; done = 1 ; exit } }
-	/^$/ { next }
-	/^# / { next }
-	{ last = $0 ; inside = 1 }
-	END { if ( !done ) { print "noend" } }' "$rigDir/wait1.out" )" 1
+	/^# --- end ---$/ { if ( inside ) { print ( last == want ) ? 1 : 0 ; done = 1 ; exit ; } ; }
+	/^$/ { next ; }
+	/^# / { next ; }
+	{ last = $0 ; inside = 1 ; }
+	END { if ( !done ) { print "noend" ; } ; }' "$rigDir/wait1.out" )" 1
 
 echo "-- 5. the Wait: an empty inbox is no arrival --"
 rm -f "$rigData/inboxes/rig-member/incoming"/*.md

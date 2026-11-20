@@ -135,7 +135,7 @@ rigGrantRead(){ ## member, session, tool, target
 ## The text a post, or an edit of one, carries: the JSON string of its body, as sent.
 rigTextOf(){ ## body file
 	[ -f "$1" ] || { printf 'no-such-file' ; return 0 ; }
-	LC_ALL=C awk '{ at = index( $0, "\"text\":\"" ) ; if ( ! at ) { next ; } rest = substr( $0, at + 8 ) ; end = 0 ; marks[1] = "\",\"thread_ts\":" ; marks[2] = "\",\"ts\":" ; marks[3] = "\",\"blocks\":" ; for ( markNo = 1 ; markNo <= 3 ; markNo++ ) { markAt = index( rest, marks[markNo] ) ; if ( markAt > 0 && ( end == 0 || markAt < end ) ) { end = markAt ; } } if ( end > 0 ) { print substr( rest, 1, end - 1 ) ; } exit ; }' "$1"
+	LC_ALL=C awk '{ at = index( $0, "\"text\":\"" ) ; if ( ! at ) { next ; } rest = substr( $0, at + 8 ) ; end = 0 ; marks[1] = "\",\"thread_ts\":" ; marks[2] = "\",\"ts\":" ; marks[3] = "\",\"blocks\":" ; for ( markNo = 1 ; markNo <= 3 ; markNo++ ) { markAt = index( rest, marks[markNo] ) ; if ( markAt > 0 && ( end == 0 || markAt < end ) ) { end = markAt ; } ; } if ( end > 0 ) { print substr( rest, 1, end - 1 ) ; } exit ; }' "$1"
 }
 ## What an edit must carry: the text the post was sent with, less its how-to-answer part.
 rigClosedOf(){ ## the body file of the post

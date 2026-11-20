@@ -225,7 +225,7 @@ rigAssert "its folder is under that workspace's .local/agents/sessions" "$( rigD
 rigAssert "the token mint printed is kept there"                  "$( rigFileYes "$rustWs/.local/agents/sessions/$rustId/root-session.token" )" yes
 rigAssert "the server keeps the session in its own store under .local/temp" "$( rigFileYes "$rustStore" )" yes
 rigAssert "and that store holds the id and the token, on one line" \
-	"$( [ -s "$rustStore" ] && LC_ALL=C awk -v want="$rustId" 'NF == 2 && $1 == want { held = 1 } END { print ( held ? "yes" : "no" ) }' "$rustStore" || : )" yes
+	"$( [ -s "$rustStore" ] && LC_ALL=C awk -v want="$rustId" 'NF == 2 && $1 == want { held = 1 ; } END { print ( held ? "yes" : "no" ) ; }' "$rustStore" || : )" yes
 
 ## ---- 3. the run is recorded, so the console shows the session ----
 echo "-- 3. the session's run is recorded for the console, with the server's process as its run --"

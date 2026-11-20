@@ -115,7 +115,7 @@ rigOp --upsert-inbox-inquiry magic-coordinator inquiry-20261116T1002Z-rig-merge-
 rigAssert "the merge is stored and the call succeeds" "$rigRc" 0
 rigAssert "the success notice is said" "$( rigSaid x 'instead of a second item' )" 1
 rigAssert "the target holds both filings, the second under an Added heading" "$( rigHolds "$rigTarget" 'The first filing.' ):$( rigHolds "$rigTarget" 'The second filing.' ):$( rigHolds "$rigTarget" '## Added ' )" "yes:yes:yes"
-rigAssert "the target keeps its own frontmatter, one block, its type and author" "$( LC_ALL=C awk '$0 == "---" { n++ } END { print n + 0 }' "$rigTarget" ):$( rigHolds "$rigTarget" 'type: inquiry' ):$( rigHolds "$rigTarget" 'from: rig-member' )" "2:yes:yes"
+rigAssert "the target keeps its own frontmatter, one block, its type and author" "$( LC_ALL=C awk '$0 == "---" { n++ ; } END { print n + 0 ; }' "$rigTarget" ):$( rigHolds "$rigTarget" 'type: inquiry' ):$( rigHolds "$rigTarget" 'from: rig-member' )" "2:yes:yes"
 rigAssert "and still no second item of the merged filing's name" "$( rigIn inquiry-20261116T1002Z-rig-merge-subject.md )" no
 
 if [ "$rigFailCount" -ne 0 ] ; then

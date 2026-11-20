@@ -32,19 +32,19 @@ AgentsToolsMemberSlackSenderMark(){
 	local markStore="${MDAT_DATA_ROOT:-${MMDAPP%/}/.local/agents/team-data-root}/contacts/persons" markKnown="" markNew=""
 	markLoad(){
 		[ -d "$markStore" ] || return 0
-		LC_ALL=C awk 'FNR == 1 { if ( n ) emit() ; n = 1 ; id = "" ; nm = "" ; org = "" ; lang = "" ; ids = "" ; hdr = 0 }
-			/^---$/ { hdr++ ; next }
-			hdr == 1 && /^contact-id: / { id = substr( $0, 13 ) }
-			hdr == 1 && /^display-name: / { nm = substr( $0, 15 ) }
-			hdr == 1 && /^organisation: / { org = substr( $0, 15 ) }
-			hdr == 1 && /^language: / { lang = substr( $0, 11 ) }
-			hdr == 1 && /^slack-id: / { ids = ids " " substr( $0, 11 ) }
-			function emit(   k, m, parts, v ) { m = split( ids, parts, /[ ,]+/ ) ; for ( k = 1 ; k <= m ; k++ ) { v = parts[k] ; sub( /^[^:]*:/, "", v ) ; if ( v ~ /^U[A-Z0-9]+$/ ) printf "%s\t%s, %s, contact %s%s\n", v, ( nm != "" ? nm : id ), ( org != "" ? org : "no organisation" ), id, ( lang != "" && lang != "-" ? ", writes in " lang : "" ) } }
-			END { if ( n ) emit() }' "$markStore"/*.md 2> /dev/null || :
+		LC_ALL=C awk 'FNR == 1 { if ( n ) emit() ; n = 1 ; id = "" ; nm = "" ; org = "" ; lang = "" ; ids = "" ; hdr = 0 ; }
+			/^---$/ { hdr++ ; next ; }
+			hdr == 1 && /^contact-id: / { id = substr( $0, 13 ) ; }
+			hdr == 1 && /^display-name: / { nm = substr( $0, 15 ) ; }
+			hdr == 1 && /^organisation: / { org = substr( $0, 15 ) ; }
+			hdr == 1 && /^language: / { lang = substr( $0, 11 ) ; }
+			hdr == 1 && /^slack-id: / { ids = ids " " substr( $0, 11 ) ; }
+			function emit(   k, m, parts, v ) { m = split( ids, parts, /[ ,]+/ ) ; for ( k = 1 ; k <= m ; k++ ) { v = parts[k] ; sub( /^[^:]*:/, "", v ) ; if ( v ~ /^U[A-Z0-9]+$/ ) printf "%s\t%s, %s, contact %s%s\n", v, ( nm != "" ? nm : id ), ( org != "" ? org : "no organisation" ), id, ( lang != "" && lang != "-" ? ", writes in " lang : "" ) ; } ; }
+			END { if ( n ) emit() ; }' "$markStore"/*.md 2> /dev/null || :
 	}
 	markKnown="$( markLoad )"
 	## A PERSON WITH NO RECORD IS RECORDED HERE, ON CONTACT, by --contacted-by (its Slack profile), once; the store is read again after.
-	for markId in $( printf '%s\n' "$markIn" | { LC_ALL=C grep -o -E '^[0-9]+\.[0-9]+ \| U[A-Z0-9]+ \|' | LC_ALL=C awk '{ print $3 }' ; printf '%s\n' "$markIn" | LC_ALL=C grep -o -E '"user":"U[A-Z0-9]+"' | LC_ALL=C sed 's/^"user":"//; s/"$//' ; } | LC_ALL=C sort -u ) ; do
+	for markId in $( printf '%s\n' "$markIn" | { LC_ALL=C grep -o -E '^[0-9]+\.[0-9]+ \| U[A-Z0-9]+ \|' | LC_ALL=C awk '{ print $3 ; }' ; printf '%s\n' "$markIn" | LC_ALL=C grep -o -E '"user":"U[A-Z0-9]+"' | LC_ALL=C sed 's/^"user":"//; s/"$//' ; } | LC_ALL=C sort -u ) ; do
 		[ "$markId" != "$markOwner" ] || continue
 		case "$markOwn" in *" $markId "*) continue ;; esac
 		printf '%s\n' "$markKnown" | LC_ALL=C grep -q "^$markId"$'\t' && continue
@@ -53,10 +53,10 @@ AgentsToolsMemberSlackSenderMark(){
 		"$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsContacts.fn.sh" --contacted-by "$markId" > /dev/null 2>&1 < /dev/null && markNew="$markNew $markId"
 	done
 	[ -z "$markNew" ] || markKnown="$( markLoad )"
-	for markId in $( printf '%s\n' "$markIn" | { LC_ALL=C grep -o -E '^[0-9]+\.[0-9]+ \| U[A-Z0-9]+ \|' | LC_ALL=C awk '{ print $3 }' ; printf '%s\n' "$markIn" | LC_ALL=C grep -o -E '"user":"U[A-Z0-9]+"' | LC_ALL=C sed 's/^"user":"//; s/"$//' ; } | LC_ALL=C sort -u ) ; do
+	for markId in $( printf '%s\n' "$markIn" | { LC_ALL=C grep -o -E '^[0-9]+\.[0-9]+ \| U[A-Z0-9]+ \|' | LC_ALL=C awk '{ print $3 ; }' ; printf '%s\n' "$markIn" | LC_ALL=C grep -o -E '"user":"U[A-Z0-9]+"' | LC_ALL=C sed 's/^"user":"//; s/"$//' ; } | LC_ALL=C sort -u ) ; do
 		[ "$markId" != "$markOwner" ] || continue
 		case "$markOwn" in *" $markId "*) continue ;; esac
-		markRow="$( printf '%s\n' "$markKnown" | LC_ALL=C awk -F'\t' -v id="$markId" '$1 == id { print $2 ; exit }' )"
+		markRow="$( printf '%s\n' "$markKnown" | LC_ALL=C awk -F'\t' -v id="$markId" '$1 == id { print $2 ; exit ; }' )"
 		case " $markNew " in *" $markId "*) markRow="${markRow:+$markRow, first contact: recorded now from the Slack profile alone (tier-contact where it has an organisation); DistroAgentsContacts.fn.sh --contacted-by $markId gives the rules and the next step}" ;; esac
 		if [ -z "$markRow" ] ; then
 			markHeld="$( AgentsToolsContactsNotAddedGet "$markId" 2> /dev/null )" || markHeld=""
@@ -66,13 +66,13 @@ AgentsToolsMemberSlackSenderMark(){
 	done
 	if printf '%s' "$markIn" | LC_ALL=C grep -q '"user":"U' ; then
 		## A raw JSON read: the record goes beside the account, as a JSON string the reader cannot miss.
-		printf '%s\n' "$markIn" | LC_ALL=C awk -v map="$markMap" 'BEGIN { FS = "\t" ; while ( ( getline line < map ) > 0 ) { split( line, f, "\t" ) ; gsub( /["\\]/, "", f[2] ) ; rec[f[1]] = f[2] } ; FS = " " }
+		printf '%s\n' "$markIn" | LC_ALL=C awk -v map="$markMap" 'BEGIN { FS = "\t" ; while ( ( getline line < map ) > 0 ) { split( line, f, "\t" ) ; gsub( /["\\]/, "", f[2] ) ; rec[f[1]] = f[2] ; } ; FS = " " ; }
 			{ out = "" ; s = $0
 			  while ( match( s, /"user":"U[A-Z0-9]+"/ ) ) {
 				id = substr( s, RSTART + 8, RLENGTH - 9 ) ; out = out substr( s, 1, RSTART + RLENGTH - 1 )
 				if ( id in rec ) out = out ",\"user_record\":\"" rec[id] "\""
-				s = substr( s, RSTART + RLENGTH ) }
-			  print out s }' 2> /dev/null || printf '%s\n' "$markIn"
+				s = substr( s, RSTART + RLENGTH ) ; }
+			  print out s ; }' 2> /dev/null || printf '%s\n' "$markIn"
 	else
 		LC_ALL=C grep -v 'not added to the contacts' "$markMap" > "$markMap.known" 2> /dev/null || :
 		printf '%s\n' "$markIn" | LC_ALL=C awk -v map="$markMap.known" -v owner="$markOwner" -f "$markAwk" 2> /dev/null || printf '%s\n' "$markIn"
@@ -157,7 +157,7 @@ AgentsToolsSlackReactionSignals(){ ## the Slack response
 			## Any other is no class of ours: the posting run sees it and decides what it means.
 			*) sigKind=other ;;
 		esac
-		sigSession="$( LC_ALL=C awk -F '\t' -v want="ts=$sigTs" 'index( $7 " ", want " " ) { s = $NF } END { print s }' "$sigLog" 2> /dev/null )"
+		sigSession="$( LC_ALL=C awk -F '\t' -v want="ts=$sigTs" 'index( $7 " ", want " " ) { s = $NF ; } END { print s ; }' "$sigLog" 2> /dev/null )"
 		case "$sigSession" in ''|-|*/*) continue ;; esac
 		AgentsSessionKnown "$sigSession" || continue
 		## Who reacted: the human-owner, a team member (by the mention cache), or a contact by the highest of its tiers.
@@ -168,11 +168,11 @@ AgentsToolsSlackReactionSignals(){ ## the Slack response
 		elif [ -n "$sigMember" ] ; then
 			sigTier="member $sigMember"
 		else
-			sigTier="$( LC_ALL=C awk -v want="$sigUser" 'FNR == 1 { hdr = 0 ; hit = 0 ; t = "" ; o = "" ; sc = "" }
-				/^---$/ { hdr++ ; if ( hdr == 2 && hit ) { if ( t == "" && o != "" ) t = "tier-contact" ; print t " " sc ; exit } ; next }
-				hdr == 1 && /^slack-id: / && index( $0, ":" want ) { hit = 1 }
-				hdr == 1 && /^tier: / { t = substr( $0, 7 ) } hdr == 1 && /^organisation: / { o = substr( $0, 15 ) }
-				hdr == 1 && /^scope-tiers: / { sc = substr( $0, 14 ) }' "$sigStore"/*.md 2> /dev/null )"
+			sigTier="$( LC_ALL=C awk -v want="$sigUser" 'FNR == 1 { hdr = 0 ; hit = 0 ; t = "" ; o = "" ; sc = "" ; }
+				/^---$/ { hdr++ ; if ( hdr == 2 && hit ) { if ( t == "" && o != "" ) t = "tier-contact" ; print t " " sc ; exit ; } ; next ; }
+				hdr == 1 && /^slack-id: / && index( $0, ":" want ) { hit = 1 ; }
+				hdr == 1 && /^tier: / { t = substr( $0, 7 ) ; } hdr == 1 && /^organisation: / { o = substr( $0, 15 ) ; }
+				hdr == 1 && /^scope-tiers: / { sc = substr( $0, 14 ) ; }' "$sigStore"/*.md 2> /dev/null )"
 			case "$sigTier" in *tier-owner*) sigTier=tier-owner ;; *tier-admin*) sigTier=tier-admin ;; *tier-client*) sigTier=tier-client ;; *) sigTier="" ;; esac
 		fi
 		## THE LEARNING SIGNAL, by the learning flag (long-term): with it on, tier-client and above; off, tier-owner and the human-owner.
@@ -197,7 +197,7 @@ AgentsToolsSlackReactionSignals(){ ## the Slack response
 		case " $sigTo " in *" $sigUser "*) sigCounts=yes ;; esac
 		[ -n "$sigCounts" ] || continue
 		AgentsSessionToldHas "$sigSession" "$sigTs $sigEmoji $sigUser" && continue
-		sigPoster="$( LC_ALL=C awk -F '\t' -v want="ts=$sigTs" 'index( $7 " ", want " " ) { m = $2 } END { print m }' "$sigLog" 2> /dev/null )"
+		sigPoster="$( LC_ALL=C awk -F '\t' -v want="ts=$sigTs" 'index( $7 " ", want " " ) { m = $2 ; } END { print m ; }' "$sigLog" 2> /dev/null )"
 		type AgentsToolsSessionChatAppend > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include"
 		## A REACTION ON THE QUESTION OF AN OPEN ASK IS ITS ANSWER, never a reaction of no class: the record still pending whose question-ts
 		## is this post's names the ask, and a number emoji names the option. The run is told to take the verdict now, with the one call that

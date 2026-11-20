@@ -71,7 +71,7 @@ rigSummary(){ ## test name -- the FAIL line of that test, empty where it has non
 }
 rigVerdictOf(){ ## test name -- PASS, FAIL or FIXED, the word its own line of the summary starts with, empty where it has no line
 	[ -n "$rigFolder" ] || return 0
-	LC_ALL=C awk -v want="$1" '$2 == want { print $1 ; exit }' "$rigFolder/summary.txt" 2> /dev/null
+	LC_ALL=C awk -v want="$1" '$2 == want { print $1 ; exit ; }' "$rigFolder/summary.txt" 2> /dev/null
 }
 rigTotals(){ ## -- the last line of the summary, as it is, with the wall clock and what it says nothing of taken off it
 	[ -n "$rigFolder" ] || return 0
@@ -105,7 +105,7 @@ rigAssert "it counts as OWNED and nothing is UNOWNED" "$( rigCounts )" "OWNED 1 
 echo "-- 3. a green test with a row is FIXED: a stale row is seen, and never hidden as a pass --"
 rigAssert "the green test is FIXED, and no PASS line of its own" "$( rigVerdictOf RigGreen )$( rigSummary RigGreen )" FIXED
 rigAssert "it is printed FIXED, with the row to take out" \
-	"$( LC_ALL=C awk -v want=RigGreen '$2 == want { printf "%s %s", $1, $2 }' "$rigFolder/summary.txt" 2> /dev/null )" "FIXED RigGreen"
+	"$( LC_ALL=C awk -v want=RigGreen '$2 == want { printf "%s %s", $1, $2 ; }' "$rigFolder/summary.txt" 2> /dev/null )" "FIXED RigGreen"
 rigAssert "and it is counted FIXED" "$( rigCounts )" "OWNED 1 UNOWNED 0 FIXED 1"
 
 echo "-- 4. the last line counts the totals as they are --"

@@ -57,9 +57,9 @@ rigReach(){ ## file, helper, helper's include -- rc 1 where the include is not o
 			}
 			close( FILE )
 		}
-		/^[A-Za-z_][A-Za-z0-9_]*\(\)/ { fnLine = NR ; fnGuard = 0 }
-		{ if ( index( $0, OWNER ) > 0 && $0 !~ /^[ \t]*#/ ) { if ( l ~ /^(type|\.) / ) { } ; if ( $0 ~ /^[ \t]+\. / || $0 ~ /^[ \t]+type / ) fnGuard = 1 } }
-		/^[ \t]*#/ { next }
+		/^[A-Za-z_][A-Za-z0-9_]*\(\)/ { fnLine = NR ; fnGuard = 0 ; }
+		{ if ( index( $0, OWNER ) > 0 && $0 !~ /^[ \t]*#/ ) { if ( l ~ /^(type|\.) / ) { } ; if ( $0 ~ /^[ \t]+\. / || $0 ~ /^[ \t]+type / ) fnGuard = 1 ; } ; }
+		/^[ \t]*#/ { next ; }
 		{
 			line = $0
 			while ( match( line, "[A-Za-z_][A-Za-z0-9_]*" ) > 0 ) {
@@ -106,9 +106,9 @@ LC_ALL=C cut -f2 "$rigHelpers" | LC_ALL=C sort -u | while IFS= read -r rigOwnerR
 	rigOwnerFile="$rigHere/$rigOwnerRel"
 	[ -f "$rigOwnerFile" ] || continue
 	LC_ALL=C awk -F'\t' -v FILE="$rigOwnerFile" -v REL="$rigOwnerRel" -v MAP="$rigTmp/defines.tsv" -v OUT="$rigTmp/helperGaps.tsv" '
-		BEGIN { while ( ( getline l < MAP ) > 0 ) { split( l, p, "\t" ) ; if ( p[1] != "" ) { if ( p[1] in owner ) owner[p[1]] = "AMBIGUOUS" ; else owner[p[1]] = p[2] } } ; fnLine = 0 ; fileScope = 0 }
-		/^[A-Za-z_][A-Za-z0-9_]*\(\)/ { fnLine = NR }
-		{ whole = whole "\n" $0 }
+		BEGIN { while ( ( getline l < MAP ) > 0 ) { split( l, p, "\t" ) ; if ( p[1] != "" ) { if ( p[1] in owner ) owner[p[1]] = "AMBIGUOUS" ; else owner[p[1]] = p[2] ; } ; } ; fnLine = 0 ; fileScope = 0 ; }
+		/^[A-Za-z_][A-Za-z0-9_]*\(\)/ { fnLine = NR ; }
+		{ whole = whole "\n" $0 ; }
 		END {
 			while ( ( getline l < FILE ) > 0 ) {
 				if ( l ~ /^[ \t]*#/ ) continue

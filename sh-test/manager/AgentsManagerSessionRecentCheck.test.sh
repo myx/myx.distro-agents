@@ -71,10 +71,10 @@ rigRows(){ ## the clock in minutes, then `active` or nothing
 }
 ## Whether one session's row stands in a list, by its id.
 rigHas(){ ## the rows, the session id
-	printf '%s\n' "$1" | LC_ALL=C awk -F'\t' -v want="$2" '$1 == "session" && $2 == want { print "listed" ; exit }'
+	printf '%s\n' "$1" | LC_ALL=C awk -F'\t' -v want="$2" '$1 == "session" && $2 == want { print "listed" ; exit ; }'
 }
 rigStateOf(){ ## the rows, the session id
-	printf '%s\n' "$1" | LC_ALL=C awk -F'\t' -v want="$2" '$1 == "session" && $2 == want { print $4 ; exit }'
+	printf '%s\n' "$1" | LC_ALL=C awk -F'\t' -v want="$2" '$1 == "session" && $2 == want { print $4 ; exit ; }'
 }
 
 echo "-- the rig: one session that ended one minute ago, one that ended ten minutes ago --"

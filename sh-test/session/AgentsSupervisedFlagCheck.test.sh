@@ -73,9 +73,9 @@ rigReadSchedule(){ ## -- the console's own read of the schedule, in the rig
 		bash "$rigPackage/sh-scripts/DistroAgentsTools.fn.sh" --manager-schedule-read ) 2>&1 < /dev/null
 }
 rigFlagLine(){ ## flag -- its line of --current-flags
-	rigDispatchFlag --current-flags | LC_ALL=C awk -v want="$1" 'index( $0, want ": " ) == 1 { print ; exit }'
+	rigDispatchFlag --current-flags | LC_ALL=C awk -v want="$1" 'index( $0, want ": " ) == 1 { print ; exit ; }'
 }
-rigFlagNames(){ rigDispatchFlag --current-flags | LC_ALL=C awk -F': ' '/^(worktime|weekend|holidays|emergency|overtime|learning|supervised): / { printf "%s ", $1 }' ; }
+rigFlagNames(){ rigDispatchFlag --current-flags | LC_ALL=C awk -F': ' '/^(worktime|weekend|holidays|emergency|overtime|learning|supervised): / { printf "%s ", $1 ; }' ; }
 rigSettingOf(){ ## key -- the rig's own stored value, or -
 	local settingValue
 	settingValue="$( LC_ALL=C sed -n "s/^$1=//p" "$rigWs/.local/.agents/magic-team.agent.env" 2> /dev/null | head -1 )"
@@ -84,7 +84,7 @@ rigSettingOf(){ ## key -- the rig's own stored value, or -
 rigSuperRecords(){ LC_ALL=C grep -l -x "routine: $rigRoutine" "$rigSp"/*/*.spawn.md 2> /dev/null | wc -l | tr -d ' ' ; }
 rigSuperRecord(){ LC_ALL=C grep -l -x "routine: $rigRoutine" "$rigSp"/*/*.spawn.md 2> /dev/null | head -1 ; }
 rigHeader(){ ## record, key -- that field of the record's frontmatter
-	LC_ALL=C awk -v want="$2" '$0 == "---" { if ( ++n > 1 ) exit ; next } n == 1 && index( $0, want ": " ) == 1 { print substr( $0, length( want ) + 3 ) ; exit }' "$1" 2> /dev/null
+	LC_ALL=C awk -v want="$2" '$0 == "---" { if ( ++n > 1 ) exit ; next ; } n == 1 && index( $0, want ": " ) == 1 { print substr( $0, length( want ) + 3 ) ; exit ; }' "$1" 2> /dev/null
 }
 ## THE RECORD MADE LIVE, as a run that still works: a stand-in process named in the rig's own process list, its store
 ## saying it sits in its Wait, and a dismissible thread. The record is written whole rather than edited, so the fields a
@@ -130,11 +130,11 @@ rigReadOff="$( rigReadSchedule )"
 rigDispatchFlag --override-flag supervised > /dev/null
 rigReadOn="$( rigReadSchedule )"
 rigAssert "a flag row for each flag, supervised the last of the seven" \
-	"$( printf '%s\n' "$rigReadOff" | LC_ALL=C awk -F'\t' '$1 == "flag" { printf "%s ", $2 }' )" "worktime weekend holidays emergency overtime learning supervised "
+	"$( printf '%s\n' "$rigReadOff" | LC_ALL=C awk -F'\t' '$1 == "flag" { printf "%s ", $2 ; }' )" "worktime weekend holidays emergency overtime learning supervised "
 rigAssert "the row reads no with the flag off and yes with it on" \
-	"$( printf '%s\n' "$rigReadOff" | LC_ALL=C awk -F'\t' '$1 == "flag" && $2 == "supervised" { printf "%s", $3 }' ):$( printf '%s\n' "$rigReadOn" | LC_ALL=C awk -F'\t' '$1 == "flag" && $2 == "supervised" { printf "%s", $3 }' )" "no:yes"
+	"$( printf '%s\n' "$rigReadOff" | LC_ALL=C awk -F'\t' '$1 == "flag" && $2 == "supervised" { printf "%s", $3 ; }' ):$( printf '%s\n' "$rigReadOn" | LC_ALL=C awk -F'\t' '$1 == "flag" && $2 == "supervised" { printf "%s", $3 ; }' )" "no:yes"
 rigAssert "the grid holds it in the hours to come" \
-	"$( printf '%s\n' "$rigReadOn" | LC_ALL=C awk -F'\t' '$1 == "cell" && $4 ~ /supervised/ { n++ } END { print ( n > 100 ? "most-cells" : n + 0 ) }' )" "most-cells"
+	"$( printf '%s\n' "$rigReadOn" | LC_ALL=C awk -F'\t' '$1 == "cell" && $4 ~ /supervised/ { n++ ; } END { print ( n > 100 ? "most-cells" : n + 0 ) ; }' )" "most-cells"
 rigDispatchFlag --override-flag --no supervised > /dev/null
 
 echo "-- 4. flag off: the loop starts no supervisor --"

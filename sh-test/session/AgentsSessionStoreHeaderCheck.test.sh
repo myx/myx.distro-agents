@@ -49,10 +49,10 @@ scanNames(){
 			sub(/[ \t]*\(\).*/, "", w)
 			return w
 		}
-		{ d = defName($0) ; if (d != "") { def[d] = 1 ; next } ; n = docName($0) ; if (n != "") doc[n] = 1 }
+		{ d = defName($0) ; if (d != "") { def[d] = 1 ; next ; } ; n = docName($0) ; if (n != "") doc[n] = 1 ; }
 		END {
 			for (n in doc) {
-				if (want == "documented") { print n ; continue }
+				if (want == "documented") { print n ; continue ; }
 				if (n in def) continue
 				print n
 			}

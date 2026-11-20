@@ -153,7 +153,7 @@ cp -R "$rigStats" "$rigTmp/stats.kept"
 rm -rf "$rigStats"
 rigRun "$rigTmp/c2" --rebuild-stats
 rigAssert "deleted and rebuilt from the run records: every index is equal to what it was (the free test)" "$( for rigI in runs routines tokens ; do cmp -s "$rigStats/$rigI.index" "$rigTmp/stats.kept/$rigI.index" && printf 'same ' || printf 'DIFF ' ; done)" "same same same "
-LC_ALL=C awk -F'\t' -v OFS='\t' '$1 == "run-a1" { $14 = 999 } { print }' "$rigStats/runs.index" > "$rigTmp/runs.edited" && cp "$rigTmp/runs.edited" "$rigStats/runs.index"
+LC_ALL=C awk -F'\t' -v OFS='\t' '$1 == "run-a1" { $14 = 999 ; } { print ; }' "$rigStats/runs.index" > "$rigTmp/runs.edited" && cp "$rigTmp/runs.edited" "$rigStats/runs.index"
 rigRun "$rigTmp/c3" --stats-check
 rigAssert "a hand edit of an index: rc 1, the file named, the rows that differ shown" "$rigRc $( rigHas 'STATS-CHECK: runs.index differs from the rebuild' "$rigTmp/c3.out" ) $( LC_ALL=C grep -c '^< run-a1' "$rigTmp/c3.out" )" "1 1 1"
 rigRun "$rigTmp/c4" --rebuild-stats

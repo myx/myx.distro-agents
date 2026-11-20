@@ -82,7 +82,7 @@ rigOp(){ ## operation word, then its arguments; env words before `--` (rigEnv) -
 	rigOut="$( cat "$rigTmp/out" )" ; rigErr="$( cat "$rigTmp/err" )"
 }
 rigRequests(){ ## the requests written, space-joined with ; between
-	LC_ALL=C awk 'NF { printf "%s%s", sep, $0 ; sep = ";" }' "$rigStore/checkpoint.request" 2> /dev/null
+	LC_ALL=C awk 'NF { printf "%s%s", sep, $0 ; sep = ";" ; }' "$rigStore/checkpoint.request" 2> /dev/null
 }
 
 echo "-- 1. the syntax --"

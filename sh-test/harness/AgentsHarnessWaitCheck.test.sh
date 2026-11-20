@@ -157,7 +157,7 @@ rigRoundsOf(){ ## stdout file -- the poll rounds the operation reports
 ## pass on a set that lost a source of its own or kept one it should not.
 rigSourcesLine(){ ## stdout file
 	[ -f "$1" ] || { printf 'no-such-output' ; return 0 ; }
-	LC_ALL=C awk '/^# sources: / { line = $0 ; found = 1 } END { if ( ! found ) { line = "no-sources-line" } print line }' "$1"
+	LC_ALL=C awk '/^# sources: / { line = $0 ; found = 1 ; } END { if ( ! found ) { line = "no-sources-line" ; } print line ; }' "$1"
 }
 
 ## Requests that are not this rig's own Slack-shaped ones. The defaults a session wait
@@ -166,7 +166,7 @@ rigSourcesLine(){ ## stdout file
 ## shape of the log instead of by the log being empty.
 rigSlackEscapes(){ ## log file
 	[ -f "$1" ] || { printf 'no-such-log' ; return 0 ; }
-	LC_ALL=C awk '$0 ~ /^url:/ || $0 == "no-method" { hitCount++ } END { print hitCount + 0 }' "$1"
+	LC_ALL=C awk '$0 ~ /^url:/ || $0 == "no-method" { hitCount++ ; } END { print hitCount + 0 ; }' "$1"
 }
 
 ## A bound reported as a token rather than a bare number, so a failure prints what
@@ -495,8 +495,8 @@ rigVerdict "a floor ahead of the present -- ERROR at second zero, rc 1, and the 
 ##    so counting probe functions would call that helper a twelfth kind.
 ## ---------------------------------------------------------------------------
 rigOp list-sources "$rigMember" --wait-list-sources
-rigKindsNamed="$( LC_ALL=C awk '/^agentsWaitSourceKinds="/ { line = $0 ; sub(/^[^"]*"/, "", line) ; sub(/".*/, "", line) ; kindCount = split(line, kindWord, " ") ; for ( kindAt = 1 ; kindAt <= kindCount ; kindAt++ ) { print kindWord[kindAt] } }' "$rigInclude" | LC_ALL=C sort | tr '\n' ' ' )"
-rigKindsListed="$( LC_ALL=C awk -F'\t' 'NF == 2 { print $1 }' "$rigOpOut" | LC_ALL=C sort | tr '\n' ' ' )"
+rigKindsNamed="$( LC_ALL=C awk '/^agentsWaitSourceKinds="/ { line = $0 ; sub(/^[^"]*"/, "", line) ; sub(/".*/, "", line) ; kindCount = split(line, kindWord, " ") ; for ( kindAt = 1 ; kindAt <= kindCount ; kindAt++ ) { print kindWord[kindAt] ; } ; }' "$rigInclude" | LC_ALL=C sort | tr '\n' ' ' )"
+rigKindsListed="$( LC_ALL=C awk -F'\t' 'NF == 2 { print $1 ; }' "$rigOpOut" | LC_ALL=C sort | tr '\n' ' ' )"
 rigProbesListed="$( LC_ALL=C awk -F'\t' 'NF == 2 { listedCount++ ; } END { print listedCount + 0 ; }' "$rigOpOut" )"
 rigKindsCount="$( printf '%s' "$rigKindsNamed" | LC_ALL=C awk '{ print NF + 0 ; }' )"
 rigAssert "the marker line opens stdout"                "$( rigMarker "$rigOpOut" )" "WAIT-RESULT: RECEIVED"
@@ -790,7 +790,7 @@ rigNewIn(){ ## output basename, then arguments -- under the scenario's own sessi
 ## The Nth line of a file, or a token saying why there is none.
 rigNth(){ ## file, line number
 	[ -f "$1" ] || { printf 'no-such-output' ; return 0 ; }
-	LC_ALL=C awk -v wantLine="$2" 'NR == wantLine { print ; found = 1 ; exit ; } END { if ( ! found ) { print "no-such-line" ; } }' "$1"
+	LC_ALL=C awk -v wantLine="$2" 'NR == wantLine { print ; found = 1 ; exit ; } END { if ( ! found ) { print "no-such-line" ; } ; }' "$1"
 }
 ## How many lines OPEN with a text.
 rigOpens(){ ## file, text
@@ -819,13 +819,13 @@ rigNewStateFile(){ ## session id
 rigReactionOrder(){ ## "<ts> <name>"
 	LC_ALL=C awk -v wantLine="$1" '
 		FILENAME == ARGV[1] {
-			if ( $0 == "reactions.add" ) { reactCount++ ; reactAt[reactCount] = FNR }
-			if ( $0 == "conversations.replies" && firstRead == 0 ) { firstRead = FNR }
+			if ( $0 == "reactions.add" ) { reactCount++ ; reactAt[reactCount] = FNR ; }
+			if ( $0 == "conversations.replies" && firstRead == 0 ) { firstRead = FNR ; }
 			next
 		}
 		FILENAME == ARGV[2] {
 			lineCount++
-			if ( $0 == wantLine && hit == 0 ) { hit = lineCount }
+			if ( $0 == wantLine && hit == 0 ) { hit = lineCount ; }
 		}
 		END {
 			if ( ! hit ) { print "absent" ; }
@@ -1393,7 +1393,7 @@ rigSlackReads(){ ## the fake Slack's own count of thread reads in this scenario
 rigDivArriveAfterRead(){ ## log file, reads wanted, arrival file, text
 	( rigDivWaited=0
 	  while [ "$rigDivWaited" -lt 600 ] ; do
-		rigDivSeen="$( LC_ALL=C awk '$0 == "conversations.replies" { seenCount++ } END { print seenCount + 0 }' "$1" 2>/dev/null || printf 0 )"
+		rigDivSeen="$( LC_ALL=C awk '$0 == "conversations.replies" { seenCount++ ; } END { print seenCount + 0 ; }' "$1" 2>/dev/null || printf 0 )"
 		[ "${rigDivSeen:-0}" -lt "$2" ] || break
 		sleep 0.2
 		rigDivWaited=$(( rigDivWaited + 1 ))

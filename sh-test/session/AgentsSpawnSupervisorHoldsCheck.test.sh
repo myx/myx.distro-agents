@@ -404,7 +404,7 @@ rigNo=0 ; while [ "$rigNo" -lt 40 ] ; do echo channel_not_found ; rigNo=$(( rigN
 rigWaitFor 90 test -s "$rigDir/retry.began" || rigRefuse "the handback retry of scenario close-order never started its console"
 rigRetryNamed(){ [ "$( rigHeader "$rigRecord" run-process )" = "$( head -1 "$rigDir/retry.began" )" ] ; }
 rigWaitFor 20 rigRetryNamed
-rigRecordFile(){ ls -i "$rigRecord" 2> /dev/null | LC_ALL=C awk '{ print $1 ; exit }' ; }
+rigRecordFile(){ ls -i "$rigRecord" 2> /dev/null | LC_ALL=C awk '{ print $1 ; exit ; }' ; }
 rigFileBefore="$( rigRecordFile )"
 : > "$rigDir/release-retry"
 rigWaitFor 60 rigRecordClosed
@@ -414,10 +414,10 @@ rigAssert "the close puts the record in place by one rename: another file than t
 	"$( [ -n "$rigFileBefore" ] && [ "$( rigRecordFile )" != "$rigFileBefore" ] && printf renamed || printf written-over )" "renamed"
 rigWaitFor 60 rigHasEnded "$rigShell"
 rigAssert "every call to Slack after the run ended, the lines of a missing handback, the end post and the finish flag, found the record closed and the item in review" \
-	"$( LC_ALL=C awk '{ orderAll++ ; if ( $1 == "chat.postMessage" ) { orderPosts++ } if ( $2 ~ /^spawn-(succeeded|failed)$/ && $3 == "review" ) { orderAfter++ } } END { printf "%s:%s", ( orderPosts >= 3 ? "posts-tried" : orderPosts + 0 " posts tried" ), ( orderAll > 0 && orderAll == orderAfter ? "all-after-the-close" : orderAfter + 0 " of " orderAll + 0 " after the close" ) }' "$rigDir/order" 2> /dev/null )" \
+	"$( LC_ALL=C awk '{ orderAll++ ; if ( $1 == "chat.postMessage" ) { orderPosts++ ; } if ( $2 ~ /^spawn-(succeeded|failed)$/ && $3 == "review" ) { orderAfter++ ; } ; } END { printf "%s:%s", ( orderPosts >= 3 ? "posts-tried" : orderPosts + 0 " posts tried" ), ( orderAll > 0 && orderAll == orderAfter ? "all-after-the-close" : orderAfter + 0 " of " orderAll + 0 " after the close" ) ; }' "$rigDir/order" 2> /dev/null )" \
 	"posts-tried:all-after-the-close"
 rigAssert "the bound of the handback retry is ended with the sleep it stood in: nothing of it is left in the run's group" \
-	"$( "$rigTmp/bin/ps.real" -axww -o pgid=,command= | LC_ALL=C awk -v runGroup="${rigShell%% *}" '$1 == runGroup && $2 == "sleep" && $3 == "180" { boundLeft++ } END { print boundLeft + 0 }' )" "0"
+	"$( "$rigTmp/bin/ps.real" -axww -o pgid=,command= | LC_ALL=C awk -v runGroup="${rigShell%% *}" '$1 == runGroup && $2 == "sleep" && $3 == "180" { boundLeft++ ; } END { print boundLeft + 0 ; }' )" "0"
 rigStart close-twice first
 echo 1 > "$rigDir/close-fails"
 : > "$rigDir/release-first"
@@ -444,17 +444,17 @@ rigProcSignal TERM "${rigShell%% *}"
 rigWaitFor 10 rigHasEnded "$rigShell"
 rigAssert "a polite end sent to it then ends it, as it ends any process" "$( rigHasEnded "$rigShell" && printf shell-gone || printf shell-alive )" "shell-gone"
 rigAssert "whatever the supervising shell called itself read nothing of its caller: the standard input of each such git is /dev/null" \
-	"$( LC_ALL=C awk -v shellPid="${rigShell%% *}" '$1 == shellPid || $2 == shellPid { gitOwn++ ; if ( $3 == "null" ) { gitNull++ } } END { if ( ! gitOwn ) { print "no git called by the shell" } else if ( gitOwn == gitNull ) { print "none-of-its-caller" } else { print gitNull + 0 " of " gitOwn " read /dev/null" } }' "$rigDir/git.calls" 2> /dev/null )" \
+	"$( LC_ALL=C awk -v shellPid="${rigShell%% *}" '$1 == shellPid || $2 == shellPid { gitOwn++ ; if ( $3 == "null" ) { gitNull++ ; } ; } END { if ( ! gitOwn ) { print "no git called by the shell" ; } else if ( gitOwn == gitNull ) { print "none-of-its-caller" ; } else { print gitNull + 0 " of " gitOwn " read /dev/null" ; } ; }' "$rigDir/git.calls" 2> /dev/null )" \
 	"none-of-its-caller"
 
 echo "-- 8. the helpers a shell keeps for the whole run are signalled only while each is still the process it started --"
 ## The helpers under a process: the copies of the proxy it started, which are the poster of the feed and the poller
 ## of the launch, and the reader of the log a waiting shell starts.
 rigHelpers(){ ## the process that started them
-	"$rigTmp/bin/ps.real" -axww -o pid=,ppid=,command= | LC_ALL=C awk -v leadPid="$1" '$2 == leadPid && ( index( $0, "--intern-op-agent-spawn-proxy" ) || ( $3 == "tail" && $4 == "-n" ) ) { print $1 }'
+	"$rigTmp/bin/ps.real" -axww -o pid=,ppid=,command= | LC_ALL=C awk -v leadPid="$1" '$2 == leadPid && ( index( $0, "--intern-op-agent-spawn-proxy" ) || ( $3 == "tail" && $4 == "-n" ) ) { print $1 ; }'
 }
-rigHelpersAre(){ [ "$( rigHelpers "$1" | LC_ALL=C awk 'END { print NR + 0 }' )" = "$2" ] ; } ## the process that started them, how many
-rigHelpersStill(){ rigProcStill $rigHelperPids | LC_ALL=C awk 'END { print NR + 0 }' ; }
+rigHelpersAre(){ [ "$( rigHelpers "$1" | LC_ALL=C awk 'END { print NR + 0 ; }' )" = "$2" ] ; } ## the process that started them, how many
+rigHelpersStill(){ rigProcStill $rigHelperPids | LC_ALL=C awk 'END { print NR + 0 ; }' ; }
 mkdir -p "$rigTmp/helpers"
 : > "$rigTmp/helpers/no-launch-marker"
 rigStart helpers first

@@ -209,10 +209,10 @@ rigAssert "what was started is one line of the housekeeping report, which names 
 rigAssert "and no line of the scan's output or of its errors" "$( LC_ALL=C grep -c -F -e 'control thread' -e 'housekeeping' "$rigTmp/first.out" "$rigTmp/first.err" | LC_ALL=C tr '\n' ' ' | LC_ALL=C sed 's/[^ ]*://g' ):$( rigTroubles first )" "0 0 :0"
 
 echo "-- 3. a scan leaves a live thread alone, and its output is as it was --"
-rigPidPrint="$( ls -i "$rigStores/$( rigId a )/control/pid" | LC_ALL=C awk '{ print $1 }' ):$( cat "$rigStores/$( rigId a )/control/pid" )"
+rigPidPrint="$( ls -i "$rigStores/$( rigId a )/control/pid" | LC_ALL=C awk '{ print $1 ; }' ):$( cat "$rigStores/$( rigId a )/control/pid" )"
 rigScan second
 rigAssert "the thread of that session runs: a second scan leaves its pid file as it was, one thread, one start in its log" \
-	"$rigRc:$( ls -i "$rigStores/$( rigId a )/control/pid" | LC_ALL=C awk '{ print $1 }' ):$( cat "$rigStores/$( rigId a )/control/pid" ) $( rigThreads a ) $( rigMade a )" "0:$rigPidPrint 1 1"
+	"$rigRc:$( ls -i "$rigStores/$( rigId a )/control/pid" | LC_ALL=C awk '{ print $1 ; }' ):$( cat "$rigStores/$( rigId a )/control/pid" ) $( rigThreads a ) $( rigMade a )" "0:$rigPidPrint 1 1"
 rigAssert "with none to start the report holds no line of it" "$( rigHk second | LC_ALL=C grep -c . )" "0"
 rigAssert "what the scan prints on standard output is byte for byte the same with a thread to start and with none" "$( cmp -s "$rigTmp/first.out" "$rigTmp/second.out" && echo same || echo different ):$( [ -s "$rigTmp/first.out" ] && echo printed )" "same:printed"
 

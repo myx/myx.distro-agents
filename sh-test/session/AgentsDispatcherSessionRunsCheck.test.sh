@@ -82,8 +82,8 @@ rigCall(){ ## result name, member (empty for none), session (empty for none)
 }
 ## The session ids its stdout names, one per line, in the order printed: the `session` rows' second
 ## field, and the `run` rows' second field, so a session printed only through a run row is still seen.
-rigSessions(){ LC_ALL=C awk -F'\t' '$1 == "session" || $1 == "run" { print $2 }' "$1" 2> /dev/null | LC_ALL=C sort -u ; }
-rigRuns(){ LC_ALL=C awk -F'\t' '$1 == "run" { print $3 }' "$1" 2> /dev/null | LC_ALL=C sort -u ; }
+rigSessions(){ LC_ALL=C awk -F'\t' '$1 == "session" || $1 == "run" { print $2 ; }' "$1" 2> /dev/null | LC_ALL=C sort -u ; }
+rigRuns(){ LC_ALL=C awk -F'\t' '$1 == "run" { print $3 ; }' "$1" 2> /dev/null | LC_ALL=C sort -u ; }
 rigOutcome(){ cat "$rigTmp/$1.rc" ; }
 rigRowCount(){ LC_ALL=C grep -c -E '^(session|run)	' "$1" 2> /dev/null || : ; }
 
@@ -106,7 +106,7 @@ rigAssert "the coworking session of the other member is printed" "$( rigSessions
 
 echo "-- 5. another member's private session is never printed --"
 rigAssert "the other member's private session is not printed" "$( rigSessions "$rigTmp/own.out" | LC_ALL=C grep -c -x -F 'rig-other-private' )" 0
-rigAssert "and neither is a run of it" "$( LC_ALL=C awk -F'\t' '$1 == "run" && $3 == "rig-other-private-run" { n++ } END { print n + 0 }' "$rigTmp/own.out" )" 0
+rigAssert "and neither is a run of it" "$( LC_ALL=C awk -F'\t' '$1 == "run" && $3 == "rig-other-private-run" { n++ ; } END { print n + 0 ; }' "$rigTmp/own.out" )" 0
 rigCall other rig-other rig-other-private
 rigAssert "control: the other member does see its own private session" "$( rigSessions "$rigTmp/other.out" | LC_ALL=C grep -c -x -F 'rig-other-private' )" 1
 

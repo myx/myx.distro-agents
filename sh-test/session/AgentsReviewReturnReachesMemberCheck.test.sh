@@ -106,7 +106,7 @@ printf '{"ok":true,"messages":[%s,%s,%s],"has_more":false}\n' \
 	"$( rigMessage 1792422595.000200 "$rigScn/post.2" )" \
 	"$( rigMessage 1792422595.000300 "$rigScn/post.3" )" > "$rigScn/history.CRIG00002.json"
 rigTooling --intern-op-comms-slack-read keeper-addr "CRIG00002" --oldest 1792422000 > "$rigScn/rendered.raw"
-LC_ALL=C awk '/^[0-9]+\.[0-9]+ \| / { shown = 1 } shown { print }' "$rigScn/rendered.raw" > "$rigScn/rendered"
+LC_ALL=C awk '/^[0-9]+\.[0-9]+ \| / { shown = 1 ; } shown { print ; }' "$rigScn/rendered.raw" > "$rigScn/rendered"
 rigAssert "the read rendered all three posts"          "$( rigCount "$rigScn/rendered" '[tracking: tooling]' )" 3
 rigDrop keeper-addr "$rigScn/rendered" > "$rigScn/for.addr"
 rigAssert "for the member it is addressed to, the return stays" "$( rigCount "$rigScn/for.addr" "$rigItem" )" 1

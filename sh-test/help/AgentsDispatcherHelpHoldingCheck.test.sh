@@ -58,7 +58,7 @@ rigAssert "and the copy still carries the other syntax lines, so the removal was
 echo "-- 5. each body names its flag --"
 ## One option's body: the lines after its own heading line, up to the next option's heading.
 rigBody(){ ## the file, the heading as it stands after its two tabs
-	LC_ALL=C awk -v want="$2" 'on && /^\t\t[^\t]/ { exit } on { print } $0 == "\t\t" want { on = 1 }' "$1"
+	LC_ALL=C awk -v want="$2" 'on && /^\t\t[^\t]/ { exit ; } on { print ; } $0 == "\t\t" want { on = 1 ; }' "$1"
 }
 ## How often a word stands, whole, in one body.
 rigBodyWord(){ ## the file, the heading, the word
@@ -71,11 +71,11 @@ rigAssert "control: both bodies are found, each of more than one line" \
 rigAssert "the --current-flags body names holding" "$( rigBodyWord "$rigHelp" "$rigFlagsHead" holding )" 1
 rigAssert "the --override-flag body names planned-maintenance" "$( rigBodyWord "$rigHelp" "$rigOverHead" planned-maintenance )" 1
 rigCopyFlags="$rigTmp/manual-without-holding-in-current-flags.md"
-LC_ALL=C awk -v want="$rigFlagsHead" 'on && /^\t\t[^\t]/ { on = 0 } on { gsub( /holding, /, "" ) } { print } $0 == "\t\t" want { on = 1 }' "$rigHelp" > "$rigCopyFlags" || exit 1
+LC_ALL=C awk -v want="$rigFlagsHead" 'on && /^\t\t[^\t]/ { on = 0 ; } on { gsub( /holding, /, "" ) ; } { print ; } $0 == "\t\t" want { on = 1 ; }' "$rigHelp" > "$rigCopyFlags" || exit 1
 rigAssert "the reader fails with holding taken out of that body, and the word still stands elsewhere in the copy" \
 	"$( rigBodyWord "$rigCopyFlags" "$rigFlagsHead" holding ):$( [ "$( LC_ALL=C grep -c -w holding "$rigCopyFlags" )" -gt 0 ] && printf elsewhere || printf nowhere )" "0:elsewhere"
 rigCopyOver="$rigTmp/manual-without-planned-maintenance-in-override-flag.md"
-LC_ALL=C awk -v want="$rigOverHead" 'on && /^\t\t[^\t]/ { on = 0 } on { gsub( /planned-maintenance/, "" ) } { print } $0 == "\t\t" want { on = 1 }' "$rigHelp" > "$rigCopyOver" || exit 1
+LC_ALL=C awk -v want="$rigOverHead" 'on && /^\t\t[^\t]/ { on = 0 ; } on { gsub( /planned-maintenance/, "" ) ; } { print ; } $0 == "\t\t" want { on = 1 ; }' "$rigHelp" > "$rigCopyOver" || exit 1
 rigAssert "the reader fails with planned-maintenance taken out of that body" "$( rigBodyWord "$rigCopyOver" "$rigOverHead" planned-maintenance )" 0
 
 if [ "$rigFailCount" -ne 0 ] ; then

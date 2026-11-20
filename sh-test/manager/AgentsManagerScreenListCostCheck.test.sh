@@ -95,16 +95,16 @@ quietTurns(){
 rigOverlaps(){
 	LC_ALL=C awk '
 		$0 ~ /--manager-session-list$/ {
-			if ( $1 == "START" ) { if ( open ) { print "open since " openAt " ; another at " $2 ; bad = 1 } ; open = 1 ; openAt = $2 }
-			else if ( $1 == "END" ) { open = 0 }
+			if ( $1 == "START" ) { if ( open ) { print "open since " openAt " ; another at " $2 ; bad = 1 ; } ; open = 1 ; openAt = $2 ; }
+			else if ( $1 == "END" ) { open = 0 ; }
 		}
-		END { if ( !bad ) print "none" }
+		END { if ( !bad ) print "none" ; }
 	' "$MANAGER_SCREEN_RIG/stamps" | LC_ALL=C sed -n 1p
 }
 rigPassSpans(){ ## every pass' span, oldest first, as `<start>..<end>`, for the reader of a failure
 	LC_ALL=C awk '
-		$0 ~ /--manager-session-list$/ { if ( $1 == "START" ) { start = $2 } else { printf "%s..%s ", start, $2 } }
-		END { printf "\n" }
+		$0 ~ /--manager-session-list$/ { if ( $1 == "START" ) { start = $2 ; } else { printf "%s..%s ", start, $2 ; } ; }
+		END { printf "\n" ; }
 	' "$MANAGER_SCREEN_RIG/stamps"
 }
 

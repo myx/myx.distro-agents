@@ -221,7 +221,7 @@ if ! type AgentsToolsEventTrackSendDir > /dev/null 2>&1 ; then
 		sendPaceLast="$( AgentsToolsEventTrackSendLastAt "$1" )"
 		sendPaceStart="$sendPaceLast"
 		if [ -n "${2:-}" ] && [ -f "$2/meta" ] ; then
-			sendPaceKind="$( LC_ALL=C awk -F'\t' 'NR == 1 { print $2 ; exit }' "$2/meta" 2> /dev/null )"
+			sendPaceKind="$( LC_ALL=C awk -F'\t' 'NR == 1 { print $2 ; exit ; }' "$2/meta" 2> /dev/null )"
 		fi
 		case "$sendPaceKind" in feed) ;; *)
 			sendPaceArrived="$( AgentsToolsEventTrackSendArrivedAt "${2:-}" )"

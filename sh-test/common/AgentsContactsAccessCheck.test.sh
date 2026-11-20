@@ -143,7 +143,7 @@ rigOp "$rigTmp/h9" --intern-op-permission-grant-open human-owner --session-id se
 rigOp "$rigTmp/h10" --intern-op-permission-grant-read contact:alice-one --session-id sess-zz --tool Read --target /rig/projects/one/two.md
 rigAssert "a folder pattern covers what lies under it; the entry has the target's colons and commas escaped, and the chain reads it back" "$rigRc $( LC_ALL=C cat "$rigTmp/h10.out" ) $( rigKey "$rigPerson/alice-one.md" allows | LC_ALL=C tr ',' '\n' | LC_ALL=C grep -c . )" "0 GRANT: contact alice-one 2"
 ## an entry whose signer does not hold what it names counts for nothing
-LC_ALL=C awk '$0 ~ /^allows: / { print $0 ",contact:Edit:/rig/secret.md:keeper-x:20261020T000000Z" ; next ; } { print }' "$rigPerson/alice-one.md" > "$rigTmp/alice.forged" && cp "$rigTmp/alice.forged" "$rigPerson/alice-one.md"
+LC_ALL=C awk '$0 ~ /^allows: / { print $0 ",contact:Edit:/rig/secret.md:keeper-x:20261020T000000Z" ; next ; } { print ; }' "$rigPerson/alice-one.md" > "$rigTmp/alice.forged" && cp "$rigTmp/alice.forged" "$rigPerson/alice-one.md"
 rigOp "$rigTmp/h11" --intern-op-permission-grant-read contact:alice-one --session-id sess-zz --tool Edit --target /rig/secret.md
 rigAssert "an entry signed by a member that holds nothing of what it names is ignored" "$rigRc $( LC_ALL=C grep -c . "$rigTmp/h11.out" )" "1 0"
 

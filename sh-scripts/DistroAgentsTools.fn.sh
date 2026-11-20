@@ -652,7 +652,7 @@ DistroAgentsTools(){
 			## The tool files (the table of sh-lib/harness/AgentsContext.FrontTable.include) are commands of the script, as DistroAgentsTools is: each stands
 			## as a function that loads its file at its first call.
 			type AgentsToolsFrontAny > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.FrontTable.include"
-			for execFile in $( printf '%s\n' "$agentsFrontTable" | LC_ALL=C awk -F'\t' 'NF == 3 && $1 !~ /^--/ { print $1 }' | LC_ALL=C sort -u ) ; do
+			for execFile in $( printf '%s\n' "$agentsFrontTable" | LC_ALL=C awk -F'\t' 'NF == 3 && $1 !~ /^--/ { print $1 ; }' | LC_ALL=C sort -u ) ; do
 				type "$execFile" > /dev/null 2>&1 || eval "$execFile(){ unset -f $execFile ; . \"\$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/$execFile.fn.sh\" ; $execFile \"\$@\" ; }"
 			done
 			## The console's own command path, so a command is called by its name (epic S12.25).

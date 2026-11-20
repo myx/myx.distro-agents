@@ -24,7 +24,7 @@ AgentsToolsCommsSlackMemberPresentationRow(){ ## member, registry file
 	[ -f "$2" ] || return 1
 	LC_ALL=C awk -v who="$1" '
 		$1 == who {
-			for ( fieldIndex = 2 ; fieldIndex <= 5 ; fieldIndex++ ) { if ( $fieldIndex == "-" ) { $fieldIndex = "" ; } }
+			for ( fieldIndex = 2 ; fieldIndex <= 5 ; fieldIndex++ ) { if ( $fieldIndex == "-" ) { $fieldIndex = "" ; } ; }
 			gsub( /_/, " ", $3 ) ;
 			gsub( /_/, " ", $4 ) ;
 			printf "%s\t%s\t%s\t%s\n", $2, $3, $4, $5 ;
@@ -302,7 +302,7 @@ case "$1" in
 			case " $* " in *" --told "*) dutyTold="argv" ;; esac
 			if [ -z "$dutyTold" ] && [ -n "${MDAT_SPAWN_SESSION_ID:-}" ] && [ -f "${MDAT_SPAWN_SANDBOX_ROOT:-}/${MDAT_SPAWN_SESSION_ID:-}.spawn.md" ] \
 				&& LC_ALL=C grep -q -x 'day-first: yes' "$MDAT_SPAWN_SANDBOX_ROOT/$MDAT_SPAWN_SESSION_ID.spawn.md" 2> /dev/null \
-				&& ! LC_ALL=C awk -F '\t' -v run="$MDAT_SPAWN_SESSION_ID" '$3 == "magic-team" && $NF == run { found = 1 ; exit } END { exit found ? 0 : 1 }' "$MMDAPP/.local/agents/comms-slack-send.$( date -u +%Y-%m ).log" 2> /dev/null ; then
+				&& ! LC_ALL=C awk -F '\t' -v run="$MDAT_SPAWN_SESSION_ID" '$3 == "magic-team" && $NF == run { found = 1 ; exit ; } END { exit found ? 0 : 1 ; }' "$MMDAPP/.local/agents/comms-slack-send.$( date -u +%Y-%m ).log" 2> /dev/null ; then
 				dutyTold="day-first"
 			fi
 			if [ -z "$dutyTold" ] ; then
@@ -435,7 +435,7 @@ case "$1" in
 					if [ -z "$threadTs" ] ; then
 						case " $* " in *" --update-ts "*) ;; *)
 							local outsideOwed=""
-							outsideOwed="$( LC_ALL=C awk -F '\t' -v want="slack:$channel:" 'index( $2, want ) == 1 { last = $2 } END { if ( last != "" ) print last }' "$MMDAPP/.local/agents/schedule/owed/$memberName" 2> /dev/null )" || outsideOwed=""
+							outsideOwed="$( LC_ALL=C awk -F '\t' -v want="slack:$channel:" 'index( $2, want ) == 1 { last = $2 ; } END { if ( last != "" ) print last ; }' "$MMDAPP/.local/agents/schedule/owed/$memberName" 2> /dev/null )" || outsideOwed=""
 							if [ -n "$outsideOwed" ] ; then
 								threadTs="${outsideOwed##*:}"
 								echo "# $MDSC_CMD --slack-send-message: the person asked in the thread $outsideOwed, so this message goes there." >&2
@@ -654,15 +654,15 @@ case "$1" in
 		local slackFormatRegistry="markdown|converter|body|argv stdin file
 blocks|verbatim|caller|stdin file"
 		local formatEntry formatValidSet formatBlocksGen formatTextGen formatBodySources
-		formatValidSet="$( printf '%s\n' "$slackFormatRegistry" | LC_ALL=C awk -F'|' 'NF { printf "%s%s", sep, $1 ; sep="|" }' )"
-		formatEntry="$( printf '%s\n' "$slackFormatRegistry" | LC_ALL=C awk -F'|' -v want="$format" '$1 == want { print ; exit }' )"
+		formatValidSet="$( printf '%s\n' "$slackFormatRegistry" | LC_ALL=C awk -F'|' 'NF { printf "%s%s", sep, $1 ; sep="|" ; }' )"
+		formatEntry="$( printf '%s\n' "$slackFormatRegistry" | LC_ALL=C awk -F'|' -v want="$format" '$1 == want { print ; exit ; }' )"
 		if [ -z "$formatEntry" ] ; then
 			echo "⛔ ERROR: $MDSC_CMD --slack-send-message: unrecognized --format '$format' -- accepted: $formatValidSet" >&2
 			set +e ; return 1
 		fi
-		formatBlocksGen="$( printf '%s\n' "$formatEntry" | LC_ALL=C awk -F'|' '{ print $2 }' )"
-		formatTextGen="$( printf '%s\n' "$formatEntry" | LC_ALL=C awk -F'|' '{ print $3 }' )"
-		formatBodySources="$( printf '%s\n' "$formatEntry" | LC_ALL=C awk -F'|' '{ print $4 }' )"
+		formatBlocksGen="$( printf '%s\n' "$formatEntry" | LC_ALL=C awk -F'|' '{ print $2 ; }' )"
+		formatTextGen="$( printf '%s\n' "$formatEntry" | LC_ALL=C awk -F'|' '{ print $3 ; }' )"
+		formatBodySources="$( printf '%s\n' "$formatEntry" | LC_ALL=C awk -F'|' '{ print $4 ; }' )"
 		case " $formatBodySources " in
 			*" $bodySourceKind "*) ;;
 			*)
@@ -1209,7 +1209,7 @@ blocks|verbatim|caller|stdin file"
 				set +e ; return 1
 			fi
 			local blocksTrimmed
-			blocksTrimmed="$( printf '%s' "$blocksJson" | LC_ALL=C awk 'BEGIN{RS="\004"} { gsub(/^[ \t\r\n]+/, ""); gsub(/[ \t\r\n]+$/, ""); printf "%s", $0 }' )"
+			blocksTrimmed="$( printf '%s' "$blocksJson" | LC_ALL=C awk 'BEGIN{RS="\004" ; } { gsub(/^[ \t\r\n]+/, ""); gsub(/[ \t\r\n]+$/, ""); printf "%s", $0 ; }' )"
 			case "$blocksTrimmed" in
 				'['*']')
 				;;
@@ -1232,9 +1232,9 @@ blocks|verbatim|caller|stdin file"
 			bareIds="$( printf '%s\n' "$rawText" | LC_ALL=C grep -o -E '(^|[^@<A-Z0-9])[UW][A-Z0-9]{8,}([^A-Z0-9>]|$)' | LC_ALL=C grep -o -E '[UW][A-Z0-9]{8,}' | sort -u )"
 			for bareId in $bareIds ; do
 				bareSaid=""
-				bareRow="$( "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsContacts.fn.sh" --find-contact "$bareId" 2> /dev/null | LC_ALL=C awk -F '\t' '$1 == "contact" { print ; exit }' )" || bareRow=""
+				bareRow="$( "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsContacts.fn.sh" --find-contact "$bareId" 2> /dev/null | LC_ALL=C awk -F '\t' '$1 == "contact" { print ; exit ; }' )" || bareRow=""
 				if [ -n "$bareRow" ] ; then
-					bareSaid="$( printf '%s\n' "$bareRow" | LC_ALL=C awk -F '\t' '{ printf "%s%s", $3, ( $4 != "" && $4 != "-" ? ", " $4 : "" ) }' )"
+					bareSaid="$( printf '%s\n' "$bareRow" | LC_ALL=C awk -F '\t' '{ printf "%s%s", $3, ( $4 != "" && $4 != "-" ? ", " $4 : "" ) ; }' )"
 				fi
 				[ -n "$bareSaid" ] || bareSaid="an account with no record"
 				rawText="$( printf '%s\n' "$rawText" | LC_ALL=C awk -v id="$bareId" -v said="$bareSaid" '
@@ -1243,7 +1243,7 @@ blocks|verbatim|caller|stdin file"
 						while ( ( at = index( s, id ) ) > 0 ) {
 							before = substr( s, 1, at - 1 ) ; after = substr( s, at + length( id ) )
 							pre = ( at > 1 ? substr( s, at - 1, 1 ) : "" ) ; post = substr( after, 1, 1 )
-							if ( pre ~ /[@<A-Z0-9]/ || post ~ /[A-Z0-9>]/ ) { out = out before id ; s = after ; continue }
+							if ( pre ~ /[@<A-Z0-9]/ || post ~ /[A-Z0-9>]/ ) { out = out before id ; s = after ; continue ; }
 							out = out before said ; s = after
 						}
 						print out s
@@ -1457,15 +1457,15 @@ blocks|verbatim|caller|stdin file"
 			[ -f "$migOld" ] || return 0
 			mkdir "$migLock" 2>/dev/null || return 0
 			## Only when no monthly file exists yet for any month the old file holds.
-			for migMonth in $( LC_ALL=C awk -F'\t' '$1 ~ /^[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]T/ { m = substr($1, 1, 4) "-" substr($1, 5, 2) ; if (!(m in seen)) { seen[m] = 1 ; print m } }' "$migOld" ) ; do
+			for migMonth in $( LC_ALL=C awk -F'\t' '$1 ~ /^[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]T/ { m = substr($1, 1, 4) "-" substr($1, 5, 2) ; if (!(m in seen)) { seen[m] = 1 ; print m ; } ; }' "$migOld" ) ; do
 				[ ! -e "$sendLogDir/comms-slack-send.$migMonth.log" ] || { rmdir "$migLock" 2>/dev/null ; return 0 ; }
 			done
 			## A line whose time is unreadable stays with the month of the line before it,
 			## or of the first readable line when it leads the file.
 			LC_ALL=C awk -F'\t' -v dir="$sendLogDir" '
-				$1 ~ /^[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]T/ { m = substr($1, 1, 4) "-" substr($1, 5, 2) }
-				m == "" { held[++h] = $0 ; next }
-				{ f = dir "/comms-slack-send." m ".log" ; for (i = 1 ; i <= h ; i++) print held[i] >> f ; h = 0 ; print >> f }
+				$1 ~ /^[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]T/ { m = substr($1, 1, 4) "-" substr($1, 5, 2) ; }
+				m == "" { held[++h] = $0 ; next ; }
+				{ f = dir "/comms-slack-send." m ".log" ; for (i = 1 ; i <= h ; i++) print held[i] >> f ; h = 0 ; print >> f ; }
 			' "$migOld" && mv -f "$migOld" "$migOld.migrated"
 			rmdir "$migLock" 2>/dev/null
 			return 0

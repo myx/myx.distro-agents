@@ -227,7 +227,7 @@ rigTitle(){ ## tag -- the top border of the left pane
 	printf '%s\n' "$rigOut" | LC_ALL=C grep "^$1|" | LC_ALL=C sed -n '2p'
 }
 rigHas(){ ## tag, text -- 1 where the left pane holds the text, else 0
-	rigPane "$1" | LC_ALL=C grep -c -F -- "$2" | LC_ALL=C awk '{ print ( $1 > 0 ) }'
+	rigPane "$1" | LC_ALL=C grep -c -F -- "$2" | LC_ALL=C awk '{ print ( $1 > 0 ) ; }'
 }
 rigRoles(){ ## tag, text -- the looks, by their roles, of the first line of the left pane that holds the text
 	printf '%s\n' "$rigOut" | "$rigPython" -I -B -c '
@@ -244,13 +244,13 @@ for number, line in enumerate(shown):
 ' "$1" "$2"
 }
 rigRole(){ ## tag, text, role letter -- 1 where the line that holds the text has a cell of that look
-	rigRoles "$1" "$2" | LC_ALL=C grep -c -F -- "$3" | LC_ALL=C awk '{ print ( $1 > 0 ) }'
+	rigRoles "$1" "$2" | LC_ALL=C grep -c -F -- "$3" | LC_ALL=C awk '{ print ( $1 > 0 ) ; }'
 }
 rigHeading(){ ## tag, text -- 1 where a line of the left pane is that text alone, else 0
-	rigPane "$1" | LC_ALL=C sed 's/  *$//' | LC_ALL=C grep -c -x -F -- "$2" | LC_ALL=C awk '{ print ( $1 > 0 ) }'
+	rigPane "$1" | LC_ALL=C sed 's/  *$//' | LC_ALL=C grep -c -x -F -- "$2" | LC_ALL=C awk '{ print ( $1 > 0 ) ; }'
 }
 rigFirstHas(){ ## tag, pattern -- 1 where the first line of the left pane holds it (an extended expression), else 0
-	rigPane "$1" | head -1 | LC_ALL=C grep -c -E -- "$2" | LC_ALL=C awk '{ print ( $1 > 0 ) }'
+	rigPane "$1" | head -1 | LC_ALL=C grep -c -E -- "$2" | LC_ALL=C awk '{ print ( $1 > 0 ) ; }'
 }
 rigStatus(){ ## tag -- the last line of that screen, the status line
 	printf '%s\n' "$rigOut" | LC_ALL=C grep "^$1|" | tail -1
@@ -262,7 +262,7 @@ rigCountAt(){ ## tag, text -- where the text stands on that screen: bottom:<how 
 	if [ "$countAll" = 0 ] ; then echo none ; elif [ "$countAll" = "$countBottom" ] ; then echo "bottom:$countAll" ; else echo "lines:$countAll" ; fi
 }
 rigLineOf(){ ## tag, text -- the number of the line of the left pane that holds the text, or 0
-	rigPane "$1" | LC_ALL=C grep -n -F -- "$2" | head -1 | LC_ALL=C sed 's/:.*//' | LC_ALL=C awk '{ print $1 + 0 } END { if ( NR == 0 ) print 0 }'
+	rigPane "$1" | LC_ALL=C grep -n -F -- "$2" | head -1 | LC_ALL=C sed 's/:.*//' | LC_ALL=C awk '{ print $1 + 0 ; } END { if ( NR == 0 ) print 0 ; }'
 }
 
 echo "-- Sessions, Launchpad, a session --"

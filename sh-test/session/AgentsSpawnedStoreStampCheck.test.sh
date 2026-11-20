@@ -67,16 +67,16 @@ function isRecord( word, kind,   name, plain ) {
 	if ( kind == "rm" && plain ~ /agents\/spawned/ ) return 1
 	return 0
 }
-function isEnd( word ) { return word ~ /^(;|;;|&&|\|\||\||\}|\)|then|do|done|fi|else)$/ || word ~ /^[0-9]*>/ }
-function report( ) { if ( fn != "AgentsSpawnRecordWrite" && fn != "AgentsSpawnRecordRemove" ) print FILENAME "|" fn "|" FNR }
-FNR == 1 { fn = "" ; scope = FILENAME SUBSEP "" ; split( "", recordParam ) ; inSingle = 0 ; inDouble = 0 ; depth = 0 }
+function isEnd( word ) { return word ~ /^(;|;;|&&|\|\||\||\}|\)|then|do|done|fi|else)$/ || word ~ /^[0-9]*>/ ; }
+function report( ) { if ( fn != "AgentsSpawnRecordWrite" && fn != "AgentsSpawnRecordRemove" ) print FILENAME "|" fn "|" FNR ; }
+FNR == 1 { fn = "" ; scope = FILENAME SUBSEP "" ; split( "", recordParam ) ; inSingle = 0 ; inDouble = 0 ; depth = 0 ; }
 /^[A-Za-z_][A-Za-z0-9_]*\(\)[ \t]*\{/ {
 	fn = $0 ; sub( /\(\).*/, "", fn ) ; scope = FILENAME SUBSEP fn ; split( "", recordParam )
-	paramText = $0 ; if ( sub( /^[^#]*##[ \t]*/, "", paramText ) ) { paramCount = split( paramText, paramName, /, */ ) ; for ( at = 1 ; at <= paramCount ; at++ ) if ( paramName[at] ~ /spawn record|run record|parent record|tracking file/ ) recordParam[at] = 1 }
+	paramText = $0 ; if ( sub( /^[^#]*##[ \t]*/, "", paramText ) ) { paramCount = split( paramText, paramName, /, */ ) ; for ( at = 1 ; at <= paramCount ; at++ ) if ( paramName[at] ~ /spawn record|run record|parent record|tracking file/ ) recordParam[at] = 1 ; }
 	next
 }
-/^\}/ { fn = "" ; scope = FILENAME SUBSEP "" ; split( "", recordParam ) ; next }
-/^[ \t]*#/ { next }
+/^\}/ { fn = "" ; scope = FILENAME SUBSEP "" ; split( "", recordParam ) ; next ; }
+/^[ \t]*#/ { next ; }
 {
 	split( "", words ) ; wordCount = splitWords( $0, words )
 	for ( at = 1 ; at <= wordCount ; at++ ) {
@@ -94,15 +94,15 @@ FNR == 1 { fn = "" ; scope = FILENAME SUBSEP "" ; split( "", recordParam ) ; inS
 			if ( words[at + 3] ~ /\.spawn\.md"?$/ ) recordVar[scope, words[at + 1]] = 1
 			else if ( words[at + 3] ~ /spawned"?\/\*\/"?$|Root"?\/\*\/"?$/ && $0 ~ /spawn/ ) folderVar[scope, words[at + 1]] = 1
 		}
-		if ( ( word == ">" || word == ">>" ) && at < wordCount && isRecord( words[at + 1], "write" ) ) { report( ) ; break }
-		if ( word ~ /^>>?"/ && isRecord( substr( word, index( word, "\"" ) ), "write" ) ) { report( ) ; break }
+		if ( ( word == ">" || word == ">>" ) && at < wordCount && isRecord( words[at + 1], "write" ) ) { report( ) ; break ; }
+		if ( word ~ /^>>?"/ && isRecord( substr( word, index( word, "\"" ) ), "write" ) ) { report( ) ; break ; }
 		if ( word == "mv" || word == "cp" ) {
 			last = "" ; for ( scanAt = at + 1 ; scanAt <= wordCount && ! isEnd( words[scanAt] ) ; scanAt++ ) if ( words[scanAt] !~ /^-/ ) last = words[scanAt]
-			if ( last != "" && isRecord( last, "write" ) ) { report( ) ; break }
+			if ( last != "" && isRecord( last, "write" ) ) { report( ) ; break ; }
 		}
 		if ( word == "rm" ) {
 			hit = 0 ; for ( scanAt = at + 1 ; scanAt <= wordCount && ! isEnd( words[scanAt] ) ; scanAt++ ) if ( words[scanAt] !~ /^-/ && isRecord( words[scanAt], "rm" ) ) hit = 1
-			if ( hit ) { report( ) ; break }
+			if ( hit ) { report( ) ; break ; }
 		}
 	}
 }
@@ -124,7 +124,7 @@ ProbeVariable(){
 	local probeRecord="$MMDAPP/.local/agents/spawned/$1/$1.spawn.md" probeTemp
 	probeTemp="$( mktemp "$probeRecord.XXXXXX" )"
 	printf '%s\n' "$( awk '
-		{ print "it" }
+		{ print "it" ; }
 	' "$probeRecord" )" > "$probeTemp" && mv -f "$probeTemp" "$probeRecord"
 }
 ProbeParameter(){ ## spawn record file, value

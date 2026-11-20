@@ -95,7 +95,7 @@ AgentsToolsSessionCommsPost(){ ## session, the retry file -- the stub post: coun
 }
 rigBoxDir="$rigTmp/box"
 rigReset(){ rm -rf "$rigBoxDir" "$rigPostLog" ; mkdir -p "$rigBoxDir" ; rigCalls=0 rigFailAt=0 ; }
-rigBoxesPosted(){ [ -f "$rigPostLog" ] && awk '{ n += $1 } END { print n + 0 }' "$rigPostLog" || printf '0' ; }
+rigBoxesPosted(){ [ -f "$rigPostLog" ] && awk '{ n += $1 ; } END { print n + 0 ; }' "$rigPostLog" || printf '0' ; }
 rigMessages(){ [ -f "$rigPostLog" ] && wc -l < "$rigPostLog" | tr -d ' ' || printf '0' ; }
 
 rigReset

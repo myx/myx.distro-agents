@@ -20,8 +20,8 @@ BEGIN {
 	for (i = 1 ; i <= nh ; i++) headWant[headOrder[i]] = 1
 }
 
-NR == 1 && $0 == "---" { inFront = 1 ; next }
-inFront && $0 == "---" { inFront = 0 ; next }
+NR == 1 && $0 == "---" { inFront = 1 ; next ; }
+inFront && $0 == "---" { inFront = 0 ; next ; }
 
 inFront {
 	pos = index($0, ": ")
@@ -42,7 +42,7 @@ inFront {
 			for (j = 1 ; j <= m ; j++) {
 				part = parts[j]
 				gsub(/^[ \t]+|[ \t]+$/, "", part)
-				if (part != "") { incNameBuf[++incN] = incName ; incSectionBuf[incN] = part }
+				if (part != "") { incNameBuf[++incN] = incName ; incSectionBuf[incN] = part ; }
 			}
 		}
 	}
@@ -54,7 +54,7 @@ inFront {
 	if (index($0, "references: ") == 1) {
 		ref = substr($0, length("references: ") + 1)
 		gsub(/^[ \t]+|[ \t]+$/, "", ref)
-		if (ref != "") { refBuf[++refN] = ref ; refLineBuf[refN] = NR }
+		if (ref != "") { refBuf[++refN] = ref ; refLineBuf[refN] = NR ; }
 	}
 	if (index($0, "input-scan-def: ") == 1) {
 		raw = substr($0, length("input-scan-def: ") + 1)
@@ -69,7 +69,7 @@ inFront {
 }
 
 # Outside the frontmatter: the root headings, outside code fences.
-$0 ~ /^```/ { fence = !fence ; next }
+$0 ~ /^```/ { fence = !fence ; next ; }
 !fence && substr($0, 1, 2) == "# " {
 	heading = substr($0, 3)
 	if (heading in headWant) {

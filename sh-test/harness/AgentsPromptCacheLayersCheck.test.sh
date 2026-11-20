@@ -176,7 +176,7 @@ rigSystemBytes(){ ## request file -- everything before the first message: model,
 	head -c "$( rigSystemEnd "$1" )" "$1"
 }
 rigDiffAt(){ ## request file, request file -- the 0-based byte of their first difference
-	cmp -l "$1" "$2" 2>/dev/null | head -1 | LC_ALL=C awk '{ print $1 - 1 }'
+	cmp -l "$1" "$2" 2>/dev/null | head -1 | LC_ALL=C awk '{ print $1 - 1 ; }'
 }
 rigTeamEnd(){ ## request file -- the first byte of the member label, where the team layer ends
 	LC_ALL=C grep -b -o -F -- '## Your role -- the same for every session of ' "$1" 2>/dev/null | head -1 | LC_ALL=C cut -d: -f1

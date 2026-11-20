@@ -74,9 +74,9 @@ AgentsToolsStrayStoreInboxRig(){ ## from, date, the tables folder
 		[ -f "$inboxTable" ] || continue
 		## The two values go in with -v, so BEGIN has them: an assignment after the program is made only when the file is reached.
 		if LC_ALL=C awk -F'\t' -v who="$inboxFrom" -v when="$inboxDate" "$agentsBoardDispatchEpochAwk"'
-			BEGIN { at = epochOf(when) ; if ( at < 0 ) exit 1 }
-			$1 == who && $2 + 0 <= at && at <= $3 + 0 { hit = 1 ; exit }
-			END { exit ( hit ? 0 : 1 ) }' "$inboxTable" ; then
+			BEGIN { at = epochOf(when) ; if ( at < 0 ) exit 1 ; }
+			$1 == who && $2 + 0 <= at && at <= $3 + 0 { hit = 1 ; exit ; }
+			END { exit ( hit ? 0 : 1 ) ; }' "$inboxTable" ; then
 			[ -z "$inboxFound" ] || { printf 'ambiguous\n' ; return 0 ; }
 			inboxFound="${inboxTable##*/}"
 		fi

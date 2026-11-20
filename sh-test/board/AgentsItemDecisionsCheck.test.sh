@@ -68,10 +68,10 @@ rigOp(){ ## output name, op, arguments... (stdin passes through); RIG_AGENT, whe
 }
 rigField(){ ## file, field
 	[ -f "$1" ] || set -- "${1%/*}/closed/${1##*/}" "$2"
-	LC_ALL=C awk -v key="$2" 'NR > 1 && $0 == "---" { exit } index($0, key ": ") == 1 { print substr($0, length(key) + 3) ; exit }' "$1"
+	LC_ALL=C awk -v key="$2" 'NR > 1 && $0 == "---" { exit ; } index($0, key ": ") == 1 { print substr($0, length(key) + 3) ; exit ; }' "$1"
 }
 rigSection(){ ## item file -> its Decisions lines, in file order
-	LC_ALL=C awk '/^## Decisions[ \t]*$/ { on = 1 ; next } on && /^##? / { on = 0 } on && /^- / { print }' "$1"
+	LC_ALL=C awk '/^## Decisions[ \t]*$/ { on = 1 ; next ; } on && /^##? / { on = 0 ; } on && /^- / { print ; }' "$1"
 }
 . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemDecisions.include"
 ## A closed readback, as the questions store keeps one: the one a decision was made with answered it.
@@ -167,12 +167,12 @@ echo "-- shown first: conversation.md and a named-item scan --"
 ' rig "$rigBoard/blocked/$rigTask.md" ) 2> /dev/null
 rigConv="$rigTmp/ws/.local/agents/spawned/rig-spawn-1/input/conversation.md"
 rigAssert "conversation.md shows the Decisions"   "$( rigHolds "$rigConv" "### Decisions (from $rigTask)" )" yes
-rigAssert "ahead of the threads"                  "$( LC_ALL=C awk '/^### Decisions \(from / { d = NR } /^## Thread / { t = NR } END { print ( d && t && d < t ) ? "first" : "not first" }' "$rigConv" )" first
-rigAssert "newest first"                          "$( LC_ALL=C awk '/^### Decisions \(from / { on = 1 ; next } on && /^- / { print ; exit }' "$rigConv" | LC_ALL=C grep -c ' answer: Q1 ' )" 1
+rigAssert "ahead of the threads"                  "$( LC_ALL=C awk '/^### Decisions \(from / { d = NR ; } /^## Thread / { t = NR ; } END { print ( d && t && d < t ) ? "first" : "not first" ; }' "$rigConv" )" first
+rigAssert "newest first"                          "$( LC_ALL=C awk '/^### Decisions \(from / { on = 1 ; next ; } on && /^- / { print ; exit ; }' "$rigConv" | LC_ALL=C grep -c ' answer: Q1 ' )" 1
 rigAssert "never under a heading that collides"   "$( LC_ALL=C grep -c '^## Decisions' "$rigConv" )" 0
 rigOp scan1 --intern-op-session-context-scan "$rigMember" --state blocked --all-types --item "$rigTask.md" --context rig
 rigAssert "the named-item scan shows them"        "$( rigHolds "$rigTmp/scan1" "### Decisions (from $rigTask)" )" yes
-rigAssert "right under the item heading"          "$( LC_ALL=C awk -v want="## blocked/$rigTask.md" '$0 == want { getline ; print ; exit }' "$rigTmp/scan1" | cut -c1-24 )" "### Decisions (from task"
+rigAssert "right under the item heading"          "$( LC_ALL=C awk -v want="## blocked/$rigTask.md" '$0 == want { getline ; print ; exit ; }' "$rigTmp/scan1" | cut -c1-24 )" "### Decisions (from task"
 
 echo "-- clarifications on an answer, and a withdrawn ask, reach the item --"
 printf '1700000009.000200\tURIGOWNER\tonly the clause in section 4\n1700000009.000300\tURIGOWNER\tand keep the signature page\n' | rigOp clar1 --intern-op-pending-reply-clarify "$rigId1" --from-stdin
@@ -225,7 +225,7 @@ rigAssert "a member record on a dispatch: both"   "$( LC_ALL=C grep -c '^DECISIO
 
 echo "-- only the item's own section: never a quoted copy --"
 rigAssert "the brief's quotes are untouched"      "$( diff <( LC_ALL=C sed -n '/^## Brief/,/^## Result/p' "$rigTmp/dispA.before" ) <( LC_ALL=C sed -n '/^## Brief/,/^## Result/p' "$rigBoard/running/$rigDispA.md" ) > /dev/null && echo same || echo changed )" same
-rigAssert "its own section is new, at the end"    "$( LC_ALL=C awk -v m="<!-- decisions-of: $rigDispA -->" '$0 == m { at = NR } END { print ( at > 0 ) ? "marked" : "none" }' "$rigBoard/running/$rigDispA.md" )" marked
+rigAssert "its own section is new, at the end"    "$( LC_ALL=C awk -v m="<!-- decisions-of: $rigDispA -->" '$0 == m { at = NR ; } END { print ( at > 0 ) ? "marked" : "none" ; }' "$rigBoard/running/$rigDispA.md" )" marked
 rigAssert "the read takes no quoted line"         "$( AgentsToolsDecisionsLines "$rigBoard/running/$rigDispA.md" 30 | LC_ALL=C grep -c QUOTED )" 0
 rigAssert "and both own lines"                    "$( AgentsToolsDecisionsLines "$rigBoard/running/$rigDispA.md" 30 | wc -l | tr -d ' ' )" 2
 rigLegacy="task-20261008T1404Z-rig-legacy"
@@ -256,7 +256,7 @@ rigEsc 33333333-0000-0000-0000-000000000003 reply-pending rig-session-g "" ""
 rigOp fwd2 --forward-escalation --team-member magic-coordinator 33333333-0000-0000-0000-000000000003
 rigAssert "answered in a closed record: not forwarded" "$( head -1 "$rigTmp/fwd2" )" "ESCALATION: 33333333-0000-0000-0000-000000000003 answered-earlier"
 rigAssert "it prints that record's answer"        "$( sed -n 2p "$rigTmp/fwd2" )" "EARLIER-RECORD 33333333-0000-0000-0000-000000000002 | option-a | URIGOWNER | 2026-10-08 12:05 +0300"
-rigAssert "nothing was posted, nothing recorded"  "$( LC_ALL=C grep -c 'chat.postMessage' "$RIG_CURL_LOG" )/$( LC_ALL=C grep -c '^forward-ts: ' "$rigStore/33333333-0000-0000-0000-000000000001.md" "$rigStore/33333333-0000-0000-0000-000000000003.md" | LC_ALL=C awk -F: '{ s += $NF } END { print s }' )" "$rigCurlBefore/0"
+rigAssert "nothing was posted, nothing recorded"  "$( LC_ALL=C grep -c 'chat.postMessage' "$RIG_CURL_LOG" )/$( LC_ALL=C grep -c '^forward-ts: ' "$rigStore/33333333-0000-0000-0000-000000000001.md" "$rigStore/33333333-0000-0000-0000-000000000003.md" | LC_ALL=C awk -F: '{ s += $NF ; } END { print s ; }' )" "$rigCurlBefore/0"
 rigAssert "both stay open"                        "$( rigField "$rigStore/33333333-0000-0000-0000-000000000001.md" status )/$( rigField "$rigStore/33333333-0000-0000-0000-000000000003.md" status )" reply-pending/reply-pending
 
 echo "-- who records: the item's own parties, as themselves --"
@@ -366,7 +366,7 @@ rigDecWaited(){ ## reply text, output name, op, arguments...
 rigDecOp dask1 --record-decision --team-member "$rigMember" "$rigAsked" --kind resolved --text "The rig asks before it records." --with human-owner
 rigDid1="$( rigAskedId dask1 )"
 rigAssert "asked: nothing recorded yet, and said so" "$rigRc:$( rigAskedLines ):$( LC_ALL=C grep -c "^DECISION-ASKED $rigDid1 human-owner: " "$rigTmp/dask1" )" 0:0:1
-rigAssert "a readback on the item, keeping its kind" "$( rigField "$rigStore/$rigDid1.md" kind ):$( rigField "$rigStore/$rigDid1.md" item ):$( rigField "$rigStore/$rigDid1.md" status ):$( LC_ALL=C awk -F'\t' '$1 == "decision-kind" { print $2 }' "$rigStore/$rigDid1.fields" 2> /dev/null )" "readback:$rigAsked:reply-pending:resolved"
+rigAssert "a readback on the item, keeping its kind" "$( rigField "$rigStore/$rigDid1.md" kind ):$( rigField "$rigStore/$rigDid1.md" item ):$( rigField "$rigStore/$rigDid1.md" status ):$( LC_ALL=C awk -F'\t' '$1 == "decision-kind" { print $2 ; }' "$rigStore/$rigDid1.fields" 2> /dev/null )" "readback:$rigAsked:reply-pending:resolved"
 rigAssert "the exact text is what was posted"        "$( LC_ALL=C grep -c -F 'The rig asks before it records.' "$RIG_SCENARIO/post.$( cat "$RIG_SCENARIO/posts" 2> /dev/null )" 2> /dev/null )" 1
 rigAnswerAsked "yes"
 ## Its asker is gone: another member's read of the thread takes the answer, and the decision lands.
@@ -410,7 +410,7 @@ printf '# 🔁 Readback\n\nConfirm my reading.\n\n**📥 What I understood**\nTh
 rigEscId="$( head -1 "$rigTmp/esc1" )"
 [ -f "$rigStore/$rigEscId.md" ] || rigRefuse "the escalating readback was not opened: $( cat "$rigTmp/esc1.err" )"
 rigDecOp esc2 --intern-op-pending-reply-close "$rigEscId" --if-open --status reply-received --verdict yes --answered-by URIGCONTACT
-rigEscNew="$( cat "$rigStore/$rigEscId.fields" "$rigStore/closed/$rigEscId.fields" 2> /dev/null | LC_ALL=C awk -F'\t' '$1 == "escalated" { print $2 ; exit }' )"
+rigEscNew="$( cat "$rigStore/$rigEscId.fields" "$rigStore/closed/$rigEscId.fields" 2> /dev/null | LC_ALL=C awk -F'\t' '$1 == "escalated" { print $2 ; exit ; }' )"
 rigAssert "confirmed, it goes up and records nothing" "$( rigSection "$rigBoard/running/$rigEsc.md" | wc -l | tr -d ' ' ):$( [ -n "$rigEscNew" ] && rigField "$rigStore/$rigEscNew.md" status ):$( rigField "$rigStore/$rigEscNew.md" item ):$( LC_ALL=C grep -c '^decision-escalate' "$rigStore/$rigEscNew.fields" 2> /dev/null )" "0:reply-pending:$rigEsc:0"
 rigAnswerAsked "yes"
 rigDecOp esc3 --intern-op-escalation-read magic-coordinator "$rigEscNew"

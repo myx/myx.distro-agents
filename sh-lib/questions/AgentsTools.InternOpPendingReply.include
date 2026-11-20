@@ -39,11 +39,11 @@ AgentsToolsPendingReplyFloorNotice(){ ## record file, pending id, verdict (may b
 	AgentsSessionKnown "$noticeSession" || return 1
 	## The question: the first line of text under `# Question asked` that is no heading.
 	noticeQuestion="$( LC_ALL=C awk '
-		$0 == "---" { dashes++ ; next }
-		dashes < 2 { next }
-		$0 == "# Question asked" { inQuestion = 1 ; next }
-		inQuestion && /^#/ { next }
-		inQuestion && /[^[:space:]]/ { print ; exit }
+		$0 == "---" { dashes++ ; next ; }
+		dashes < 2 { next ; }
+		$0 == "# Question asked" { inQuestion = 1 ; next ; }
+		inQuestion && /^#/ { next ; }
+		inQuestion && /[^[:space:]]/ { print ; exit ; }
 	' "$1" 2> /dev/null | cut -c1-300 )" || noticeQuestion=""
 	noticeBody="ASK-ANSWERED $2 (${noticeKind:-question})"
 	[ "${5:-}" != "amended" ] || noticeBody="ASK-AMENDED $2 (${noticeKind:-question}): the answer given before is replaced by this one"

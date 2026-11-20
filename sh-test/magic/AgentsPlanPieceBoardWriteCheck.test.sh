@@ -40,15 +40,15 @@ rigAssert(){ ## what is asserted, got, want
 ## One numbered step of a region, its own numbering removed, up to the next one.
 rigStepText(){ ## routine file, region heading, step number
 	LC_ALL=C awk -v wantStep="$2" -v region="$1" '
-		$0 == region { inRegion = 1 ; next }
-		inRegion && /^# / { exit }
+		$0 == region { inRegion = 1 ; next ; }
+		inRegion && /^# / { exit ; }
 		inRegion && /^[0-9]+\. / {
-			if ( taking ) { exit }
+			if ( taking ) { exit ; }
 			stepNumber = $0 ; sub( /\..*/, "", stepNumber )
-			if ( stepNumber + 0 == wantStep + 0 ) { taking = 1 ; print }
+			if ( stepNumber + 0 == wantStep + 0 ) { taking = 1 ; print ; }
 			next
 		}
-		taking { print }
+		taking { print ; }
 	' "$3"
 }
 ## The closure step that hands an approved piece over, and the words it uses for the operation and the writer.
@@ -87,11 +87,11 @@ rigLoc(){ ## bare item filename -- which board/<state>/ holds it, or not-found
 }
 rigField(){ ## item filename, header name -- the value of that frontmatter line, or none
 	local fieldFile="$rigData/board/$( rigLoc "$1" )/$1"
-	LC_ALL=C awk -v want="$2" '$0 == "---" { if ( ++fm == 2 ) exit ; next } fm == 1 && index( $0, want ": " ) == 1 { print substr( $0, length( want ) + 3 ) ; found = 1 ; exit } END { if ( ! found ) print "none" }' "$fieldFile" 2> /dev/null
+	LC_ALL=C awk -v want="$2" '$0 == "---" { if ( ++fm == 2 ) exit ; next ; } fm == 1 && index( $0, want ": " ) == 1 { print substr( $0, length( want ) + 3 ) ; found = 1 ; exit ; } END { if ( ! found ) print "none" ; }' "$fieldFile" 2> /dev/null
 }
 rigBody(){ ## item filename -- the text under its frontmatter
 	local bodyFile="$rigData/board/$( rigLoc "$1" )/$1"
-	LC_ALL=C awk '$0 == "---" { if ( ++fm == 2 ) taking = 1 ; next } taking && NF { print }' "$bodyFile" 2> /dev/null
+	LC_ALL=C awk '$0 == "---" { if ( ++fm == 2 ) taking = 1 ; next ; } taking && NF { print ; }' "$bodyFile" 2> /dev/null
 }
 rigBoardFiles(){ ## -- how many items the store holds at all
 	LC_ALL=C find "$rigData/board" -type f 2> /dev/null | LC_ALL=C wc -l | LC_ALL=C tr -d ' '
@@ -116,7 +116,7 @@ rigAssert "and names no writer" "$( rigStepText "# Closure steps" 1 "$rigRoutine
 echo "-- 4. the writer runs that very operation, and the piece lands in board-pending --"
 ## The operation is taken from the routine's own words, never spelled here as well: a routine that renames it is
 ## driven by the new name, and one that names an operation the tooling does not hold fails here rather than passing.
-rigOp="$( rigHandOffOp "$rigRoutine" | LC_ALL=C awk '{ print $1 }' )"
+rigOp="$( rigHandOffOp "$rigRoutine" | LC_ALL=C awk '{ print $1 ; }' )"
 rigRun "$rigTmp/c1" magic-coordinator "$rigOp" "$rigPieceItem" --owner-header-value magic-developer \
 	--header:upsert:spawned-by:"${rigPlanItem%.md}" --header:upsert:approved-by:"$rigApprover" \
 	--header:upsert:approved-at:"2026-11-03 09:00 +0200" --upsert-body:'Piece A: the check that proves it.'

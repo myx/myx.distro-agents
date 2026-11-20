@@ -61,7 +61,7 @@ rigSection(){ ## text -- the epic section, from its heading to the next section,
 		$0 == "## Decisions of the active epics" { on = 1 ; }
 		on && /^## / && $0 != "## Decisions of the active epics" { on = 0 ; }
 		on { kept[++n] = $0 ; }
-		END { while ( n > 0 && kept[n] == "" ) { n-- ; } for ( i = 1 ; i <= n ; i++ ) { print kept[i] ; } }'
+		END { while ( n > 0 && kept[n] == "" ) { n-- ; } for ( i = 1 ; i <= n ; i++ ) { print kept[i] ; } ; }'
 }
 rigCount(){ ## text, fixed line -- how many lines are exactly it
 	printf '%s\n' "$1" | LC_ALL=C grep -c -x -F -- "$2" || :
@@ -117,7 +117,7 @@ rigAssert "--member keeper-other: one none line" "$( rigRun "$rigSurface" --supe
 
 echo "-- 5. past the cap --"
 rigCapped="$( RIG_CAP=$(( ${#rigLine35} + 1 + ${#rigLine33} + 1 )) rigRun "$rigSurface" --supervise-epics --member keeper-rig )"
-rigCappedA="$( printf '%s\n' "$rigCapped" | LC_ALL=C awk -v want="### The rig epic A ($rigEpicA)" '$0 == want { on = 1 ; next } on && /^### / { on = 0 } on && /^- / { print }' )"
+rigCappedA="$( printf '%s\n' "$rigCapped" | LC_ALL=C awk -v want="### The rig epic A ($rigEpicA)" '$0 == want { on = 1 ; next ; } on && /^### / { on = 0 ; } on && /^- / { print ; }' )"
 rigAssert "the two newest decisions, the newest first, and no other" "$rigCappedA" "$rigLine35"$'\n'"$rigLine33"
 rigAssert "the line counting the cut ones" "$( printf '%s\n' "$rigCapped" | LC_ALL=C grep -c -F "(3 of 5 decisions cut, the oldest: the whole section is the \`## Decisions\` of the vault item, read by \`DistroAgentsItems.fn.sh --get-vault-item $rigEpicA\`)" || : )" 1
 

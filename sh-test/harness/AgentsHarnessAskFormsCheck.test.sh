@@ -62,7 +62,7 @@ rigCalls(){ ## method
 	LC_ALL=C awk -v wantMethod="$1" '$0 == wantMethod { hitCount++ ; } END { print hitCount + 0 ; }' "$RIG_CURL_LOG" 2>/dev/null || printf 'no-such-log'
 }
 rigVerdictLine(){
-	LC_ALL=C awk '/^VERDICT: / { print ; found = 1 ; exit ; } END { if ( ! found ) { print "no-verdict-line" ; } }' "$rigScenarioDir/out"
+	LC_ALL=C awk '/^VERDICT: / { print ; found = 1 ; exit ; } END { if ( ! found ) { print "no-verdict-line" ; } ; }' "$rigScenarioDir/out"
 }
 rigRecordFile(){
 	local recordFile
@@ -79,7 +79,7 @@ rigRecordCount(){
 	printf '%s' "$recordCount"
 }
 rigRecordField(){ ## field
-	LC_ALL=C awk -v key="$1" '$0 == "---" { if ( ++dashes == 2 ) { exit ; } next ; } dashes == 1 && index( $0, key ": " ) == 1 { print substr( $0, length( key ) + 3 ) ; found = 1 ; exit ; } END { if ( ! found ) { print "none" ; } }' "$( rigRecordFile )" 2>/dev/null || printf 'no-record'
+	LC_ALL=C awk -v key="$1" '$0 == "---" { if ( ++dashes == 2 ) { exit ; } next ; } dashes == 1 && index( $0, key ": " ) == 1 { print substr( $0, length( key ) + 3 ) ; found = 1 ; exit ; } END { if ( ! found ) { print "none" ; } ; }' "$( rigRecordFile )" 2>/dev/null || printf 'no-record'
 }
 rigRecordId(){
 	local recordId
@@ -94,7 +94,7 @@ rigReacted(){ ## reactions|reactions.removed, ts suffix
 ## The text a post, or an edit of one, carries: the JSON string of its body, as sent.
 rigTextOf(){ ## body file
 	[ -f "$1" ] || { printf 'no-such-file' ; return 0 ; }
-	LC_ALL=C awk '{ at = index( $0, "\"text\":\"" ) ; if ( ! at ) { next ; } rest = substr( $0, at + 8 ) ; end = 0 ; marks[1] = "\",\"thread_ts\":" ; marks[2] = "\",\"ts\":" ; marks[3] = "\",\"blocks\":" ; for ( markNo = 1 ; markNo <= 3 ; markNo++ ) { markAt = index( rest, marks[markNo] ) ; if ( markAt > 0 && ( end == 0 || markAt < end ) ) { end = markAt ; } } if ( end > 0 ) { print substr( rest, 1, end - 1 ) ; } exit ; }' "$1"
+	LC_ALL=C awk '{ at = index( $0, "\"text\":\"" ) ; if ( ! at ) { next ; } rest = substr( $0, at + 8 ) ; end = 0 ; marks[1] = "\",\"thread_ts\":" ; marks[2] = "\",\"ts\":" ; marks[3] = "\",\"blocks\":" ; for ( markNo = 1 ; markNo <= 3 ; markNo++ ) { markAt = index( rest, marks[markNo] ) ; if ( markAt > 0 && ( end == 0 || markAt < end ) ) { end = markAt ; } ; } if ( end > 0 ) { print substr( rest, 1, end - 1 ) ; } exit ; }' "$1"
 }
 ## What an edit must carry: the text the post was sent with, less its How to answer part. Of a
 ## permission the line that names its refusal stands after that part, and stays.
@@ -489,7 +489,7 @@ rigWaitId(){ ## -> the pending id the last call left to wait on
 	LC_ALL=C sed -n 's/^WAIT-ID: ask://p' "$rigScenarioDir/out" | head -1
 }
 rigFieldOf(){ ## pending id, field
-	LC_ALL=C awk -v key="$2" '$0 == "---" { if ( ++dashes == 2 ) { exit ; } next ; } dashes == 1 && index( $0, key ": " ) == 1 { print substr( $0, length( key ) + 3 ) ; found = 1 ; exit ; } END { if ( ! found ) { print "none" ; } }' \
+	LC_ALL=C awk -v key="$2" '$0 == "---" { if ( ++dashes == 2 ) { exit ; } next ; } dashes == 1 && index( $0, key ": " ) == 1 { print substr( $0, length( key ) + 3 ) ; found = 1 ; exit ; } END { if ( ! found ) { print "none" ; } ; }' \
 		"$( [ -f "$rigScenarioDir/ws/.local/agents/pending/$1.md" ] && printf '%s' "$rigScenarioDir/ws/.local/agents/pending/$1.md" || printf '%s' "$rigScenarioDir/ws/.local/agents/pending/closed/$1.md" )" 2>/dev/null || printf 'no-record'
 }
 ## The shared thread as it reads once both questions and the first one's update are in it,

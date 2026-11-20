@@ -34,7 +34,7 @@
 			}
 			## What the routine's `operations:` finds against its executors is said and refuses nothing: the row predicts another system's refusal.
 			requirementVerdict="$( AgentsToolsRoutineRequirement operations spawn "$routineFilePath" )" || :
-			printf '%s\n' "$requirementVerdict" | LC_ALL=C awk -F'\t' -v routine="$routineRecorded" '$1 == "reject" || $1 == "help" { print "⚠️ REPORT: " routine ": " $2 }' >&2 || :
+			printf '%s\n' "$requirementVerdict" | LC_ALL=C awk -F'\t' -v routine="$routineRecorded" '$1 == "reject" || $1 == "help" { print "⚠️ REPORT: " routine ": " $2 ; }' >&2 || :
 			## WHETHER THE RUN'S ITEM IS REVIEWED is the routine's say (`review-by:`, its own else its kind routine's, F6.5): `none`
 			## disables the review, `inherit` leaves it to where the run reports to, any other value is the reviewer. A reviewer
 			## its caller named (--review-by) stands, as the more specific.

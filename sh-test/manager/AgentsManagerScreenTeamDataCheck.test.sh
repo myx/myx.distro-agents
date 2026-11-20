@@ -195,7 +195,7 @@ rigAssert "and the numbers are those of the roots alone: Team Data has none, Lau
 rigAssert "selected, its summary says as its caption that the team data is there and its size, then where it is and the mode of the workspace" "$( rigHolds on '│Team data: there, 77.5M.' ) $( rigHolds on '│ root    /rig/ws/team-data' ) $( rigHolds on '│ mode    Team Rig, saved for the workspace; a full team rig' )" "1 1 1"
 rigAssert "its git state, nicely, as facts under a heading: where it stands and what it tracks, ahead and behind, what is not committed, each in the look of its level, and its last commit" "$( rigHolds on '│Git ' ) $( rigHolds on '│ branch       main, tracking origin/main' ) $( rigHolds on '│ ahead        2' ) $( rigHolds on '│ behind       1' ) $( rigHolds on '│ uncommitted  3' ) $( rigHolds on '│ last commit  2h 5m ago: the last change' )" "1 1 1 1 1 1"
 rigAssert "then the remote and the branch of the team data, its board by state as a table, and the main loop as a table, judged on a full team rig" "$( rigHolds on '│ remote  git@rig.invalid:team-data.git' ) $( rigHolds on "│ branch  not set: the tooling's own" ) $( rigHolds on '│  running  43' ) $( rigHolds on '│Main loop ' ) $( rigHolds on 'Main Loop Last Outcome          failed  (bad)' )" "1 1 1 1 1"
-rigAssert "focused, it read its blocks of the dashboard, its git state among them, and the digest of the settings, as they are called" "$( rigWords '[--manager-dashboard-read][team-data][team-data-git][loop]' | LC_ALL=C awk '{ print ( $1 > 0 ) }' ) $( rigWords '[--manager-config-digest][--full]' | LC_ALL=C awk '{ print ( $1 > 0 ) }' )" "1 1"
+rigAssert "focused, it read its blocks of the dashboard, its git state among them, and the digest of the settings, as they are called" "$( rigWords '[--manager-dashboard-read][team-data][team-data-git][loop]' | LC_ALL=C awk '{ print ( $1 > 0 ) ; }' ) $( rigWords '[--manager-config-digest][--full]' | LC_ALL=C awk '{ print ( $1 > 0 ) ; }' )" "1 1"
 rigAssert "entered, it holds Operations, its three stores and its blocks: the team data, its git state and the main loop" "$( rigVal in.path ) $( rigVal in.rows ) $( rigFolderHolds in ' Operations ' ) $( rigHolds in ' Team Data Git' ) $( rigHolds in ' Main Loop' ) $( rigHolds in ' The Machine' )" "magic-team/teamdata 8 1 1 3 0"
 
 echo "-- 2. the main loop by the mode of the workspace --"
@@ -357,7 +357,7 @@ spend idle 25
 get after
 RIGSCRIPT
 rigAssert "a palette-sized output ended with status 0 and left the dialog open for OK" "$( rigVal ended.dialog ) $( rigVal ended.dialogHolds | LC_ALL=C grep -c -F 'Ended with status 0' )" "output:ok| 1"
-rigAssert "left open for five seconds (25 turns of 0.2 s) it took under one second of the processor, no work in proportion to its lines at each turn" "$( rigVal idle.cpu | LC_ALL=C awk '{ print ( $1 < 1.0 ) ? "quiet" : "busy " $1 }' ) $( rigVal after.dialog )" "quiet output:ok|"
+rigAssert "left open for five seconds (25 turns of 0.2 s) it took under one second of the processor, no work in proportion to its lines at each turn" "$( rigVal idle.cpu | LC_ALL=C awk '{ print ( $1 < 1.0 ) ? "quiet" : "busy " $1 ; }' ) $( rigVal after.dialog )" "quiet output:ok|"
 
 echo "-- 7. past the lines it keeps the tail is current, and streaming them costs a bounded time --"
 rigCase past rig agents
@@ -378,7 +378,7 @@ get ended
 show ended
 RIGSCRIPT
 rigAssert "5300 lines in two bursts, a second apart, ended with status 0: the dialog shows the last line written, not the tail it had drawn at 5000" "$( rigHolds ended 'past: THE LAST LINE' ) $( rigHolds ended 'Ended with status 0' ) $( rigHolds ended 'past: line 5300' )" "1 1 1"
-rigAssert "and streaming them took under 1.8 seconds of the processor (0.8 as built, 3.1 when every chunk wrapped all the lines again): each line is broken once, when it comes" "$( printf '%s\n%s\n' "$( rigVal before.cpu )" "$( rigVal after.cpu )" | LC_ALL=C awk 'NR == 1 { first = $1 } NR == 2 { print ( $1 - first < 1.8 ) ? "bounded" : "spent " ( $1 - first ) }' )" "bounded"
+rigAssert "and streaming them took under 1.8 seconds of the processor (0.8 as built, 3.1 when every chunk wrapped all the lines again): each line is broken once, when it comes" "$( printf '%s\n%s\n' "$( rigVal before.cpu )" "$( rigVal after.cpu )" | LC_ALL=C awk 'NR == 1 { first = $1 ; } NR == 2 { print ( $1 - first < 1.8 ) ? "bounded" : "spent " ( $1 - first ) ; }' )" "bounded"
 
 echo "-- 8. the margins of a dialog: 4 cells from the sides and a line from the bars where the terminal holds it with them, none where it cannot; the big one capped at 190 by 56 --"
 ## before F11.0 the big dialog stood 2 cells from each side and against the bars (no line); F11.0: two cells and one line more

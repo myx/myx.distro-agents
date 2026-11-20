@@ -115,7 +115,7 @@ AgentsToolsLibrarianSourceCopy(){ ## member
 	type AgentsToolsTeamLocalFile > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamRegistry.include"
 	for copyFile in "$( AgentsToolsTeamLocalFile "$MMDAPP" members.registry )" "${HOME:-}/.agents/magic-team/members.registry" ; do
 		[ -f "$copyFile" ] || continue
-		copyRows="$copyRows$( LC_ALL=C awk -F'\t' -v who="$1" 'NF >= 5 && $1 == who { print $3 "\t" $5 }' "$copyFile" )"$'\n'
+		copyRows="$copyRows$( LC_ALL=C awk -F'\t' -v who="$1" 'NF >= 5 && $1 == who { print $3 "\t" $5 ; }' "$copyFile" )"$'\n'
 	done
 	while IFS=$'\t' read -r copyKind copyDir ; do
 		[ -n "$copyKind" ] || continue
@@ -556,7 +556,7 @@ AgentsToolsLibrarianProduceEdit(){ ## target file, op, request file
 		echo "$MDSC_CMD: ⛔ ERROR: $2: the request holds no old and new string -- nothing was saved" >&2
 		return 1
 	fi
-	editCount="$( AGENTS_LIB_OLD="$( cat "$editOld" ; printf x )" LC_ALL=C awk 'BEGIN { RS = "\001" ; old = ENVIRON["AGENTS_LIB_OLD"] ; old = substr( old, 1, length( old ) - 1 ) ; } { rest = $0 ; while ( ( at = index( rest, old ) ) > 0 ) { n++ ; rest = substr( rest, at + length( old ) ) ; } } END { print n + 0 ; }' "$1" )"
+	editCount="$( AGENTS_LIB_OLD="$( cat "$editOld" ; printf x )" LC_ALL=C awk 'BEGIN { RS = "\001" ; old = ENVIRON["AGENTS_LIB_OLD"] ; old = substr( old, 1, length( old ) - 1 ) ; } { rest = $0 ; while ( ( at = index( rest, old ) ) > 0 ) { n++ ; rest = substr( rest, at + length( old ) ) ; } ; } END { print n + 0 ; }' "$1" )"
 	if [ "$editCount" != 1 ] ; then
 		rm -f "$editOld" "$editNew" "$editOut"
 		if [ "$editCount" = 0 ] ; then echo "$MDSC_CMD: ⛔ ERROR: $2: the old string is not in the file as it is now -- nothing was saved" >&2

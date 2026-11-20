@@ -111,7 +111,7 @@ AgentsToolsManagerSessionRows(){ ## the operation as it was called, "active" for
 	type AgentsSessionRunFacts > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
 	printf '%s' "$measuredDated" \
 		| MDAT_MANAGER_CONTROL="$( AgentsToolsManagerSessionControls )" LC_ALL=C awk -v activeOnly="${rowsActive:+1}" -v learnOnly="$rowsLearn" -v loadAverage="$( AgentsToolsManagerLoadAverage )" -v hostName="$( AgentsToolsManagerHostName )" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerSessionTokens.awk" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerDateMinutes.awk" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerSessionRows.awk" \
-			<( printf '%s\n' "$measuredDated" | LC_ALL=C awk '{ print $8 ; print $2 }' | AgentsSessionRunFacts tokens usage-limit chapter ) "$rowsPending" - \
+			<( printf '%s\n' "$measuredDated" | LC_ALL=C awk '{ print $8 ; print $2 ; }' | AgentsSessionRunFacts tokens usage-limit chapter ) "$rowsPending" - \
 		| LC_ALL=C sort -t "$rowsTab" -k1,1nr -k2,2n -k3,3n -k4,4n -k5,5n \
 		| LC_ALL=C cut -f6-
 }
@@ -257,7 +257,7 @@ AgentsToolsManagerSessionScope(){ ## the operation as it was called, the id, "ru
 	type AgentsSessionRunFacts > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
 	scopeListed="$( printf '%s' "$scopeMeasured" \
 		| MDAT_MANAGER_CONTROL="$scopeControl" LC_ALL=C awk -v loadAverage="-" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerSessionTokens.awk" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerDateMinutes.awk" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerSessionRows.awk" \
-			<( printf '%s\n' "$scopeMeasured" | LC_ALL=C awk '{ print $8 ; print $2 }' | AgentsSessionRunFacts tokens usage-limit chapter ) "$scopePending" - \
+			<( printf '%s\n' "$scopeMeasured" | LC_ALL=C awk '{ print $8 ; print $2 ; }' | AgentsSessionRunFacts tokens usage-limit chapter ) "$scopePending" - \
 		| LC_ALL=C sort -t "$scopeTab" -k1,1nr -k2,2n -k3,3n -k4,4n -k5,5n \
 		| LC_ALL=C cut -f6- )"
 	scopeListed=${scopeListed%counters"$scopeTab"*}
@@ -287,7 +287,7 @@ AgentsToolsManagerSessionChecklistRows(){ ## session id
 			listRecord="$( AgentsToolsSpawnRecord "$listSpawn" )"
 			[ -n "$listRecord" ] || continue
 			printf '%s\n' "$listRecord"
-		done <<< "$( MDAT_LIST_SESSION="$1" LC_ALL=C awk '$2 == ENVIRON["MDAT_LIST_SESSION"] && $8 != "" && $8 != "-" { print $8 }' "$MMDAPP/.local/agents/spawned-sessions.registry" 2> /dev/null )"
+		done <<< "$( MDAT_LIST_SESSION="$1" LC_ALL=C awk '$2 == ENVIRON["MDAT_LIST_SESSION"] && $8 != "" && $8 != "-" { print $8 ; }' "$MMDAPP/.local/agents/spawned-sessions.registry" 2> /dev/null )"
 		printf '%s\n' "$listSessions/$1/-"
 	} | {
 		local listFile listMember listLine listSeen=" "

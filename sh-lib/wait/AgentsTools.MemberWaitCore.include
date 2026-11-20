@@ -131,7 +131,7 @@ AgentsWaitFloorAdvance(){ ## session, source (slack:<channel>:<ts>:conversation)
 	[ -n "$advanceCurrent" ] || return 0
 	AgentsWaitTsNewer "$3" "$advanceCurrent" || return 0
 	advanceTmp="$( mktemp "$advanceFile.XXXXXX" 2> /dev/null )" || return 0
-	LC_ALL=C awk -v want="$2" -v ts="$3" '$1 == "floor" && $2 == want { $3 = ts } { print }' "$advanceFile" >| "$advanceTmp" 2> /dev/null \
+	LC_ALL=C awk -v want="$2" -v ts="$3" '$1 == "floor" && $2 == want { $3 = ts ; } { print ; }' "$advanceFile" >| "$advanceTmp" 2> /dev/null \
 		&& mv -f "$advanceTmp" "$advanceFile" 2> /dev/null || rm -f "$advanceTmp"
 	return 0
 }

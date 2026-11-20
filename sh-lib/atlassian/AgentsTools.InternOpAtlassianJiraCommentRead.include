@@ -68,7 +68,7 @@
 		local jiraCRTotal="$( printf '%s\n' "$jiraCRBody" | LC_ALL=C awk -v path=total -v optional=1 -v dialect=atlassian -f "$jiraCRFieldAwk" 2>/dev/null )"
 		local jiraCRRespStart="$( printf '%s\n' "$jiraCRBody" | LC_ALL=C awk -v path=startAt -v optional=1 -v dialect=atlassian -f "$jiraCRFieldAwk" 2>/dev/null )"
 		local jiraCREmitted=0
-		[ -z "$jiraCRRows" ] || jiraCREmitted="$( printf '%s\n' "$jiraCRRows" | LC_ALL=C awk 'END { print NR }' )"
+		[ -z "$jiraCRRows" ] || jiraCREmitted="$( printf '%s\n' "$jiraCRRows" | LC_ALL=C awk 'END { print NR ; }' )"
 		case "$jiraCRTotal" in
 			''|*[!0123456789]*)
 				printf '%s\n' "# $jiraCRContext: more: unknown -- this response carried no numeric total, so whether issue $jiraCRKey has comments beyond these $jiraCREmitted cannot be told from it. That is NOT a confirmation that the list is complete" >&2

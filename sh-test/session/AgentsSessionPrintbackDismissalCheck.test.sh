@@ -233,21 +233,21 @@ rigHeaders(){ ## chat file -- how many header lines it holds, `no-file` when the
 }
 rigHeader(){ ## chat file, N -- the Nth header line without its time
 	[ -f "$1" ] || { printf 'no-file' ; return 0 ; }
-	LC_ALL=C awk -v want="$2" '/^[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9]Z .* -> .*:$/ { count++ ; if ( count == want ) { sub(/^[^ ]* /, "") ; print ; exit ; } }' "$1"
+	LC_ALL=C awk -v want="$2" '/^[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9]Z .* -> .*:$/ { count++ ; if ( count == want ) { sub(/^[^ ]* /, "") ; print ; exit ; } ; }' "$1"
 }
 rigBody(){ ## chat file, N -- the body of the Nth block, blank lines trimmed at its end
 	[ -f "$1" ] || { printf 'no-file' ; return 0 ; }
 	LC_ALL=C awk -v want="$2" '
-		/^[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9]Z .* -> .*:$/ { count++ ; inBlock = ( count == want ) ; if ( inBlock ) { next ; } }
-		inBlock { lines[++n] = $0 }
-		END { while ( n > 0 && lines[n] == "" ) { n-- ; } for ( i = 1 ; i <= n ; i++ ) { print lines[i] ; } }' "$1"
+		/^[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9]Z .* -> .*:$/ { count++ ; inBlock = ( count == want ) ; if ( inBlock ) { next ; } ; }
+		inBlock { lines[++n] = $0 ; }
+		END { while ( n > 0 && lines[n] == "" ) { n-- ; } for ( i = 1 ; i <= n ; i++ ) { print lines[i] ; } ; }' "$1"
 }
 rigIndex(){ ## chat file, N -- its index line, fields 1..6 tab-separated, space-joined
 	[ -f "$1.index" ] || { printf 'no-index' ; return 0 ; }
-	LC_ALL=C awk -F'\t' -v want="$2" '$1 == want { print $1, $2, $3, $4, $5, $6 ; found = 1 ; exit ; } END { if ( ! found ) { print "no-such-block" ; } }' "$1.index"
+	LC_ALL=C awk -F'\t' -v want="$2" '$1 == want { print $1, $2, $3, $4, $5, $6 ; found = 1 ; exit ; } END { if ( ! found ) { print "no-such-block" ; } ; }' "$1.index"
 }
 rigIndexKind(){ ## chat file, N -- its index line without the header line number: block, ts, conversation, origin, seen
-	LC_ALL=C awk -F'\t' -v want="$2" '$1 == want { print $1, $2, $3, $4, $6 ; found = 1 ; exit ; } END { if ( ! found ) { print "no-such-block" ; } }' "$1.index" 2> /dev/null
+	LC_ALL=C awk -F'\t' -v want="$2" '$1 == want { print $1, $2, $3, $4, $6 ; found = 1 ; exit ; } END { if ( ! found ) { print "no-such-block" ; } ; }' "$1.index" 2> /dev/null
 }
 rigIndexCount(){ ## chat file -- how many index lines it has
 	[ -f "$1.index" ] || { printf 'no-index' ; return 0 ; }
@@ -413,7 +413,7 @@ rigAssert "the session keeps one chat file, the mint's" "$( rigChats "$rigWs" )"
 ## and the report is block 2. Nothing else of this check moves.
 rigAssert "it holds the join notice and the report: two blocks" "$( rigHeaders "$rigChat" )" 2
 rigAssert "the first is the join notice, recorded on the printback channel" \
-	"$( rigIndexKind "$rigChat" 1 | LC_ALL=C awk '{ print $4 }' )" "notice"
+	"$( rigIndexKind "$rigChat" 1 | LC_ALL=C awk '{ print $4 ; }' )" "notice"
 rigAssert "the report's header names the helper and the root" "$( rigHeader "$rigChat" 2 )" "$rigHelperMember -> $rigRootMember:"
 rigAssert "the body is the handback, the report in it" "$( rigTextCount "$( rigBody "$rigChat" 2 )" -F -- "$rigReportBody" )" 1
 rigAssert "the report's index names the conversation as the printback channel-id, origin printback" \

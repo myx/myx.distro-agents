@@ -13,14 +13,14 @@ AgentsToolsContactsNotAddedFresh(){ ## prints the floor epoch: entries newer tha
 	freshNow="$( date +%s )"
 	freshOrg="$( LC_ALL=C ls -t "${MDAT_DATA_ROOT:-${MMDAPP%/}/.local/agents/team-data-root}/contacts/organisations/"*.md 2> /dev/null | head -1 )"
 	[ -z "$freshOrg" ] || freshOrg="$( stat -f %m "$freshOrg" 2> /dev/null || stat -c %Y "$freshOrg" 2> /dev/null || echo 0 )"
-	LC_ALL=C awk -v a="$(( freshNow - 43200 ))" -v b="${freshOrg:-0}" 'BEGIN { print ( a > b ? a : b ) }'
+	LC_ALL=C awk -v a="$(( freshNow - 43200 ))" -v b="${freshOrg:-0}" 'BEGIN { print ( a > b ? a : b ) ; }'
 }
 
 AgentsToolsContactsNotAddedGet(){ ## id -- prints the held profile (may be empty), rc 1 where none holds
 	local getFile getFloor
 	getFile="${MMDAPP:-/nonexistent}/.local/agents/contacts-not-added.tsv" ; [ -f "$getFile" ] || return 1
 	getFloor="$( AgentsToolsContactsNotAddedFresh )"
-	LC_ALL=C awk -F '\t' -v id="$1" -v floor="$getFloor" '$1 == id && $2 > floor { print $3 ; found = 1 ; exit } END { exit found ? 0 : 1 }' "$getFile" 2> /dev/null
+	LC_ALL=C awk -F '\t' -v id="$1" -v floor="$getFloor" '$1 == id && $2 > floor { print $3 ; found = 1 ; exit ; } END { exit found ? 0 : 1 ; }' "$getFile" 2> /dev/null
 }
 
 AgentsToolsContactsNotAddedPut(){ ## id, profile
@@ -90,7 +90,7 @@ AgentsToolsContactsContactedBy(){ ## the operation, its arguments...
 				local byProfileMail="" byProfileOrg=""
 				byProfileMail="$( printf '%s\n' "$byProfileResp" | LC_ALL=C awk -v path=user.profile.email -v optional=1 -v dialect=slack -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" 2> /dev/null )" || byProfileMail=""
 				case "$byProfileMail" in ?*@?*.?*)
-					byProfileOrg="$( LC_ALL=C awk -v want="$( printf '%s' "${byProfileMail##*@}" | LC_ALL=C tr 'ABCDEFGHIJKLMNOPQRSTUVWXYZ' 'abcdefghijklmnopqrstuvwxyz' )" 'FNR == 1 { org = "" } /^organisation-id: / { org = substr( $0, 18 ) } /^domain: / { m = split( tolower( substr( $0, 9 ) ), ds, /[ ,]+/ ) ; for ( k = 1 ; k <= m ; k++ ) if ( ds[k] == want && org != "" ) { print org ; exit } }' "${contactsPersons%/persons}/organisations/"*.md 2> /dev/null )" || byProfileOrg=""
+					byProfileOrg="$( LC_ALL=C awk -v want="$( printf '%s' "${byProfileMail##*@}" | LC_ALL=C tr 'ABCDEFGHIJKLMNOPQRSTUVWXYZ' 'abcdefghijklmnopqrstuvwxyz' )" 'FNR == 1 { org = "" ; } /^organisation-id: / { org = substr( $0, 18 ) ; } /^domain: / { m = split( tolower( substr( $0, 9 ) ), ds, /[ ,]+/ ) ; for ( k = 1 ; k <= m ; k++ ) if ( ds[k] == want && org != "" ) { print org ; exit ; } ; }' "${contactsPersons%/persons}/organisations/"*.md 2> /dev/null )" || byProfileOrg=""
 				;; esac
 				## OR IMPLIED: a member, guests included (someone let them in), never a bot, of the Slack workspace this call reads in, the team's own or a client-*
 				## member's, is an organisation contact by that alone. Its organisation is the one whose record names that workspace's domain,
@@ -103,7 +103,7 @@ AgentsToolsContactsContactedBy(){ ## the operation, its arguments...
 						byProfileMember1="workspace"
 						if [ -z "$byProfileOrg" ] ; then
 							byWsDomain="$( AgentsToolsContactsSlackTeam "$byProfileMember" )"
-							[ -z "$byWsDomain" ] || byProfileOrg="$( LC_ALL=C awk -v want="$byWsDomain.slack.com" 'FNR == 1 { org = "" } /^organisation-id: / { org = substr( $0, 18 ) } index( tolower( $0 ), want ) && org != "" { print org ; exit }' "${contactsPersons%/persons}/organisations/"*.md 2> /dev/null )" || byProfileOrg=""
+							[ -z "$byWsDomain" ] || byProfileOrg="$( LC_ALL=C awk -v want="$byWsDomain.slack.com" 'FNR == 1 { org = "" ; } /^organisation-id: / { org = substr( $0, 18 ) ; } index( tolower( $0 ), want ) && org != "" { print org ; exit ; }' "${contactsPersons%/persons}/organisations/"*.md 2> /dev/null )" || byProfileOrg=""
 						fi
 					fi
 				fi

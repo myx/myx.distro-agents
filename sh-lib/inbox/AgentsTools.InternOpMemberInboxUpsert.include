@@ -234,12 +234,12 @@ case "$1" in
 		## FIRST line is one of the five keys this writer stamps below -- so a body opening with ordinary prose, even
 		## prose that reads `note: ...`, is left exactly as it is. The caller's own keys then satisfy the defaults.
 		content="$( printf '%s\n' "$content" | LC_ALL=C awk '
-			BEGIN { hdrKey = "^(type|from|date|owner|document-contract):" ; inHdr = 0 ; done = 0 }
-			NR == 1 && $0 !~ hdrKey { done = 1 }
-			done { print ; next }
-			inHdr == 0 { print "---" ; inHdr = 1 }
-			$0 ~ hdrKey { print ; next }
-			{ print "---" ; done = 1 ; if ( $0 != "" ) print "" ; print ; next }
+			BEGIN { hdrKey = "^(type|from|date|owner|document-contract):" ; inHdr = 0 ; done = 0 ; }
+			NR == 1 && $0 !~ hdrKey { done = 1 ; }
+			done { print ; next ; }
+			inHdr == 0 { print "---" ; inHdr = 1 ; }
+			$0 ~ hdrKey { print ; next ; }
+			{ print "---" ; done = 1 ; if ( $0 != "" ) print "" ; print ; next ; }
 			END { if (inHdr && !done) print "---" ; }
 		' )" || { set +e ; return 1 ; }
 

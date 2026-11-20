@@ -117,18 +117,18 @@ rigToolNames(){ ## file -- the names of the declared tools in the order of the r
 }
 rigHourlyTool(){ ## file -- the tool whose marker asks the hour, in the tools array alone
 	LC_ALL=C awk '
-		{ text = text $0 }
+		{ text = text $0 ; }
 		END {
 			mark = "\"cache_control\":{\"type\":\"ephemeral\",\"ttl\":\"1h\"}"
 			from = index( text, "\"tools\":[" )
 			stop = index( text, "\"tool_choice\"" )
-			if ( from == 0 || stop == 0 || stop <= from ) { print "no-tools" ; exit }
+			if ( from == 0 || stop == 0 || stop <= from ) { print "no-tools" ; exit ; }
 			at = index( substr( text, from, stop - from ), mark )
-			if ( at == 0 ) { print "no-hourly-marker" ; exit }
+			if ( at == 0 ) { print "no-hourly-marker" ; exit ; }
 			head = substr( text, from, at - 1 )
 			nameAt = 0 ; cursor = 1
-			while ( ( step = index( substr( head, cursor ), "{\"name\":\"" ) ) > 0 ) { nameAt = cursor + step - 1 ; cursor = nameAt + 1 }
-			if ( nameAt == 0 ) { print "no-name" ; exit }
+			while ( ( step = index( substr( head, cursor ), "{\"name\":\"" ) ) > 0 ) { nameAt = cursor + step - 1 ; cursor = nameAt + 1 ; }
+			if ( nameAt == 0 ) { print "no-name" ; exit ; }
 			rest = substr( head, nameAt + 9 )
 			print substr( rest, 1, index( rest, "\"" ) - 1 )
 		}
@@ -165,7 +165,7 @@ rigAssert "one marker stands in the messages: the member's own block"           
 rigToolNames "$rigA/req.1" > "$rigTmp/names.a" ; rigToolNames "$rigB/req.1" > "$rigTmp/names.b"
 rigAssert "the floor's tools are in the order of their names"                       "$( LC_ALL=C sort -c "$rigTmp/names.a" 2>&1 && printf sorted )" sorted
 rigAssert "and there are many of them, the same in both requests"                   "$( [ "$( wc -l < "$rigTmp/names.a" | tr -d ' ' )" -gt 20 ] && cmp -s "$rigTmp/names.a" "$rigTmp/names.b" && printf same )" same
-rigDiffAt="$( cmp -l "$rigA/req.1" "$rigB/req.1" 2>/dev/null | head -1 | LC_ALL=C awk '{ print $1 }' )"
+rigDiffAt="$( cmp -l "$rigA/req.1" "$rigB/req.1" 2>/dev/null | head -1 | LC_ALL=C awk '{ print $1 ; }' )"
 rigCommonPart="$( head -c "$(( ${rigDiffAt:-1} - 1 ))" "$rigA/req.1" )"
 rigThrough="$( rigIn "$rigCommonPart" 'RIG-TEAM-COMMON-LINE one two' )$( rigIn "$rigCommonPart" 'Use the given tools to accomplish the request' )"
 rigAssert "two members' requests are the same bytes through the team layer and the whole tool floor" "$rigThrough" yesyes

@@ -64,10 +64,10 @@ rigHeads(){ ## result name -- its heading lines, joined by |
 		/^[ \t]*(```|~~~)/ {
 			run = $0 ; sub( /^[ \t]*/, "", run ) ; at = substr( run, 1, 1 ) ; len = 0 ;
 			while ( substr( run, len + 1, 1 ) == at ) len++ ;
-			if ( !fenced ) { fenced = 1 ; fencedAt = at ; fencedLen = len } else if ( at == fencedAt && len >= fencedLen ) { fenced = 0 } ;
+			if ( !fenced ) { fenced = 1 ; fencedAt = at ; fencedLen = len ; } else if ( at == fencedAt && len >= fencedLen ) { fenced = 0 ; } ;
 			next ;
 		}
-		!fenced && /^#+ / { printf "%s|", $0 }
+		!fenced && /^#+ / { printf "%s|", $0 ; }
 	' "$rigTmp/$1.out" 2> /dev/null | LC_ALL=C sed 's/|$//'
 }
 rigHas(){ ## result name, fixed text -- yes or no
@@ -110,13 +110,13 @@ rigMerge m5 --do-index --mixin "$rigTmp/md/alpha.md" "Section A" --mixin "$rigTm
 rigAssert "the first heading is Contents, at the prefix level" "$( rigHeads m5 | LC_ALL=C cut -d'|' -f1 )" "# Contents"
 rigAssert "it lists the captions in order, nested by depth, none past the limit" \
 	"$( LC_ALL=C awk '
-		/^#+ / { n++ ; if ( n == 2 ) exit ; next }
+		/^#+ / { n++ ; if ( n == 2 ) exit ; next ; }
 		n == 1 && /^[ \t]*[-*+] / {
 			indent = match( $0, /[^ \t]/ ) - 1 ; text = $0 ; sub( /^[ \t]*[-*+] +/, "", text ) ; gsub( /[][]/, "", text ) ; sub( /\(.*$/, "", text )
 			count++ ; ind[ count ] = indent ; cap[ count ] = text ; widths[ indent ] = 1
 		}
 		END {
-			for ( w in widths ) { rank = 0 ; for ( v in widths ) if ( v + 0 < w + 0 ) rank++ ; depth[ w ] = rank }
+			for ( w in widths ) { rank = 0 ; for ( v in widths ) if ( v + 0 < w + 0 ) rank++ ; depth[ w ] = rank ; }
 			for ( i = 1 ; i <= count ; i++ ) printf "%d:%s|", depth[ ind[ i ] ], cap[ i ]
 		}' "$rigTmp/m5.out" )" \
 	"0:Section A|1:Alpha one|2:Alpha two|0:Section B|1:Beta top|2:Beta under|"
@@ -129,7 +129,7 @@ rigAssert "include: only the matching section is kept"        "$( rigHas m7 'kep
 
 echo "-- 7. a plain file argument is refused --"
 rigMerge m8 "$rigTmp/md/alpha.md"
-rigAssert "refused, naming --mixin, nothing printed"          "$( [ "$( cat "$rigTmp/m8.rc" )" -ne 0 ] && printf refused || printf accepted ):$( LC_ALL=C grep -c -F -- '--mixin' "$rigTmp/m8.err" | LC_ALL=C awk '{ print ( $1 >= 1 ) ? "names" : "silent" }' ):$( [ -s "$rigTmp/m8.out" ] && printf printed || printf empty )" "refused:names:empty"
+rigAssert "refused, naming --mixin, nothing printed"          "$( [ "$( cat "$rigTmp/m8.rc" )" -ne 0 ] && printf refused || printf accepted ):$( LC_ALL=C grep -c -F -- '--mixin' "$rigTmp/m8.err" | LC_ALL=C awk '{ print ( $1 >= 1 ) ? "names" : "silent" ; }' ):$( [ -s "$rigTmp/m8.out" ] && printf printed || printf empty )" "refused:names:empty"
 
 echo "-- 8. a consumer: a default skill load serves the member's and the team's files as one bundle, no SKILL.md --"
 mkdir -p "$rigTmp/skills/rig-member" "$rigTmp/skills/magic-team"

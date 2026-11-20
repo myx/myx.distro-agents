@@ -81,8 +81,8 @@ rigOp(){ ## the call as a member's shell makes it
 	rigRc=$?
 	rigOut="$( cat "$rigTmp/out" )" ; rigErr="$( cat "$rigTmp/err" )"
 }
-rigRequests(){ LC_ALL=C awk 'NF { printf "%s%s", sep, $0 ; sep = ";" }' "$rigStore/checkpoint.request" 2> /dev/null ; }
-rigMark(){ LC_ALL=C awk '{ print $3 }' "$rigStore/activity" 2> /dev/null ; }
+rigRequests(){ LC_ALL=C awk 'NF { printf "%s%s", sep, $0 ; sep = ";" ; }' "$rigStore/checkpoint.request" 2> /dev/null ; }
+rigMark(){ LC_ALL=C awk '{ print $3 ; }' "$rigStore/activity" 2> /dev/null ; }
 
 echo "-- 1. a participant of a coworking session has it --"
 rigBind cowork ; rigHarnessRun yes ; rigOp --idle-wait

@@ -31,7 +31,7 @@ rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 ## THE RIG ENDS WHAT IT STARTED: the event-id thread the pass starts is a process of its own, noted as it begins and signalled the one
 ## safe way sh-test signals a process it did not start.
 rigThreadPids(){
-	LC_ALL=C awk '/the thread runs as pid/ { for (i = 1 ; i < NF ; i++) if ($i == "pid") { print $(i + 1) } }' \
+	LC_ALL=C awk '/the thread runs as pid/ { for (i = 1 ; i < NF ; i++) if ($i == "pid") { print $(i + 1) ; } ; }' \
 		"$rigWs/.local/cache/comms/.event-id/thread.log" 2> /dev/null | LC_ALL=C tr -d ':,' | LC_ALL=C awk '/^[0-9]+$/'
 }
 rigEndThreads(){
@@ -128,9 +128,9 @@ rigAssert "and no store was made" "$( [ -e "$rigWs/.local/cache/comms/slack" ] &
 echo "-- 2. a pass writes the events its read holds, and moves the pointer --"
 rigIngest --intern-comms-ingest --run keeper-rig CRIG00001
 rigAssert "the pass ran" "$?" 0
-rigAssert "it wrote its message" "$( rigEvents | LC_ALL=C awk -F'\t' '$2 == "msg" { n++ } END { print n + 0 }' )" 1
+rigAssert "it wrote its message" "$( rigEvents | LC_ALL=C awk -F'\t' '$2 == "msg" { n++ ; } END { print n + 0 ; }' )" 1
 rigAssert "the pointer names the file's last id" "$( rigPointer )" "$( rigLastId )"
-rigAssert "and the pointer is the EventIdentifier form" "$( rigPointer | LC_ALL=C awk '$0 ~ /^[0-9]{8}T[0-9]{9}Z-[0-9]{6}[0-9A-F]{3}$/ { n++ } END { print n + 0 }' )" 1
+rigAssert "and the pointer is the EventIdentifier form" "$( rigPointer | LC_ALL=C awk '$0 ~ /^[0-9]{8}T[0-9]{9}Z-[0-9]{6}[0-9A-F]{3}$/ { n++ ; } END { print n + 0 ; }' )" 1
 
 echo "-- 3. the ids come from the event-id thread, which ran for the pass --"
 rigThreadStarts(){ LC_ALL=C grep -c -F -e "the thread runs as pid" "$rigWs/.local/cache/comms/.event-id/thread.log" 2> /dev/null | LC_ALL=C tr -d ' ' ; }

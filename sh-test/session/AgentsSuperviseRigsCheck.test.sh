@@ -86,7 +86,7 @@ rigRigs(){ ## none
 		rig "$rigRigA" 2>&1
 }
 rigReached(){ ## a scan's whole output -- the workspaces whose `dead` finding it printed, in its order, each once, space-separated
-	printf '%s\n' "$1" | LC_ALL=C awk '$1 == "dead" && NF > 2 { print $2 }' | LC_ALL=C awk '!seen[$0]++ { printf "%s%s", ( n++ ? " " : "" ), $0 }'
+	printf '%s\n' "$1" | LC_ALL=C awk '$1 == "dead" && NF > 2 { print $2 ; }' | LC_ALL=C awk '!seen[$0]++ { printf "%s%s", ( n++ ? " " : "" ), $0 ; }'
 }
 
 echo "-- 1. the no-argument scan covers every rig of the fixture --"
@@ -114,7 +114,7 @@ echo "-- 4. one owner function states the rigs and each rig's own owner account 
 rigTable="$( rigRigs )"
 rigAssert "both rigs are listed, each beside its own account" \
 	"$( printf '%s\n' "$rigTable" | LC_ALL=C awk -F'\t' -v a="$rigRigA" -v b="$rigRigB" \
-		'$1 == a { first = $2 } $1 == b { second = $2 } END { print first "/" second }' )" \
+		'$1 == a { first = $2 ; } $1 == b { second = $2 ; } END { print first "/" second ; }' )" \
 	"$rigOwnerA/$rigOwnerB"
 rigAssert "and the workspace that is no rig is not one of them" \
 	"$( printf '%s\n' "$rigTable" | LC_ALL=C grep -c -F "$rigFlat" )" "0"
@@ -123,7 +123,7 @@ rigAssert "and the workspace that is no rig is not one of them" \
 rigToolTable="$( rigOp --supervise-rigs )"
 rigAssert "--supervise-rigs prints the same two rigs, each beside its own account" \
 	"$( printf '%s\n' "$rigToolTable" | LC_ALL=C awk -F'\t' -v a="$rigRigA" -v b="$rigRigB" \
-		'$1 == a { first = $2 } $1 == b { second = $2 } END { print first "/" second }' )" \
+		'$1 == a { first = $2 ; } $1 == b { second = $2 ; } END { print first "/" second ; }' )" \
 	"$rigOwnerA/$rigOwnerB"
 
 echo "-- 5. the control: the same third workspace, made a team rig, is scanned --"

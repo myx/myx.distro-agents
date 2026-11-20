@@ -17,7 +17,7 @@
 AgentsToolsSuperviseStaleRules(){ ## workspace, now, table, skillset dir
 	local staleWs="$1" staleNow="$2" staleDir="${4:-$MDLT_ORIGIN/myx/myx.distro-agents/skillset}" staleOpen staleOldest staleFile staleNewest
 	local staleFiles=()
-	staleOpen="$( printf '%s\n' "$3" | LC_ALL=C awk -F'\t' '$7 == "spawn-started" && $5 != "" && $3 ~ /^[0-9]+$/ { print $3, $5, $6 }' | LC_ALL=C sort -n )"
+	staleOpen="$( printf '%s\n' "$3" | LC_ALL=C awk -F'\t' '$7 == "spawn-started" && $5 != "" && $3 ~ /^[0-9]+$/ { print $3, $5, $6 ; }' | LC_ALL=C sort -n )"
 	[ -n "$staleOpen" ] || return 0
 	staleOldest="${staleOpen%% *}"
 	while IFS= read -r staleFile ; do
@@ -28,5 +28,5 @@ AgentsToolsSuperviseStaleRules(){ ## workspace, now, table, skillset dir
 	staleNewest="$( { stat -c '%Y' "${staleFiles[@]}" 2> /dev/null || stat -f '%m' "${staleFiles[@]}" 2> /dev/null ; } | LC_ALL=C sort -n | LC_ALL=C tail -1 )"
 	case "$staleNewest" in ''|*[!0123456789]*) return 0 ;; esac
 	printf '%s\n' "$staleOpen" | LC_ALL=C awk -v ws="${staleWs##*/}" -v now="$staleNow" -v newest="$staleNewest" '
-		$1 < newest && !seen[$2]++ { printf "stale-rules %s %s %s started=%dh changed=%dm\n", ws, substr( $2, 1, 8 ), $3, int( ( now - $1 ) / 3600 ), int( ( now - newest ) / 60 ) }'
+		$1 < newest && !seen[$2]++ { printf "stale-rules %s %s %s started=%dh changed=%dm\n", ws, substr( $2, 1, 8 ), $3, int( ( now - $1 ) / 3600 ), int( ( now - newest ) / 60 ) ; }'
 }

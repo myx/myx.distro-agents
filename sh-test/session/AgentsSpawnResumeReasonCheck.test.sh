@@ -86,8 +86,8 @@ printf '%s\n' '# console: rig access roots' \
 	'# console: rig access roots' > "$rigDir/ws/.local/agents/sessions/$rigRun/session.log"
 ## The record's own header, rewritten with its output-file inside the frontmatter, where the console reads it.
 LC_ALL=C awk -v logPath="$rigDir/ws/.local/agents/sessions/$rigRun/session.log" '
-	$0 == "---" && ++fence == 2 { print "output-file: " logPath }
-	{ print }
+	$0 == "---" && ++fence == 2 { print "output-file: " logPath ; }
+	{ print ; }
 ' "$rigSand/$rigRun.spawn.md" > "$rigSand/$rigRun.spawn.next" && mv -f "$rigSand/$rigRun.spawn.next" "$rigSand/$rigRun.spawn.md"
 rigConsoleResume
 rigAssert "with neither marker nor end-reason the refusal names the last line of the run's own log that reports a fault" \

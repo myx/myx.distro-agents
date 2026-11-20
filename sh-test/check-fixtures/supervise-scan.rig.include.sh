@@ -105,7 +105,7 @@ rigStand(){ ## run id -- a process carrying the id, so the run reads live
 
 rigLaunched(){ ## run id, pid -- the record's own run-process line, inside its frontmatter, as the launcher writes it
 	local begun
-	begun="$( LC_ALL=C ps -o lstart= -p "$2" 2> /dev/null | LC_ALL=C awk 'NF { $1 = $1 ; gsub( / /, "_" ) ; print ; exit }' )" || begun=""
+	begun="$( LC_ALL=C ps -o lstart= -p "$2" 2> /dev/null | LC_ALL=C awk 'NF { $1 = $1 ; gsub( / /, "_" ) ; print ; exit ; }' )" || begun=""
 	[ -n "$begun" ] || rigRefuse "the stand-in process named no start: $2"
 	rigRunProcess "$1" "$2 $begun"
 }
@@ -114,8 +114,8 @@ rigRunProcess(){ ## run id, the kept `<pid> <start>` -- one more frontmatter lin
 	local recordFile="$rigAgents/spawned/$1/$1.spawn.md" tmpFile
 	tmpFile="$( mktemp "$recordFile.XXXXXX" )" || rigRefuse "no temp beside the record: $recordFile"
 	LC_ALL=C awk -v line="run-process: $2" '
-		$0 == "---" { fence++ ; if ( fence == 2 && !wrote ) { print line ; wrote = 1 } ; print ; next }
-		{ print }
+		$0 == "---" { fence++ ; if ( fence == 2 && !wrote ) { print line ; wrote = 1 ; } ; print ; next ; }
+		{ print ; }
 	' "$recordFile" > "$tmpFile" || rigRefuse "the record could not be rewritten: $1"
 	mv -f "$tmpFile" "$recordFile"
 }
@@ -136,7 +136,7 @@ rigRunEnded(){ ## run id, member -- a record whose run has ended, as a closed on
 
 rigControl(){ ## session id, pid -- a control thread's pid file, naming the process and when it began
 	local begun
-	begun="$( LC_ALL=C ps -o lstart= -p "$2" 2> /dev/null | LC_ALL=C awk 'NF { $1 = $1 ; gsub( / /, "_" ) ; print ; exit }' )" || begun=""
+	begun="$( LC_ALL=C ps -o lstart= -p "$2" 2> /dev/null | LC_ALL=C awk 'NF { $1 = $1 ; gsub( / /, "_" ) ; print ; exit ; }' )" || begun=""
 	mkdir -p "$rigAgents/sessions/$1/control" || rigRefuse "the control folder could not be made: $1"
 	printf '%s %s\n' "$2" "$begun" > "$rigAgents/sessions/$1/control/pid"
 	: > "$rigAgents/sessions/$1/control/state"
@@ -175,7 +175,7 @@ else:
 	groupPid="$!"
 	rigGroups="${rigGroups:-} $groupPid"
 	disown "$groupPid" 2> /dev/null || :
-	rigRunProcess "$1" "$groupPid $( LC_ALL=C ps -o lstart= -p "$groupPid" 2> /dev/null | LC_ALL=C awk 'NF { $1 = $1 ; gsub( / /, "_" ) ; print ; exit }' )"
+	rigRunProcess "$1" "$groupPid $( LC_ALL=C ps -o lstart= -p "$groupPid" 2> /dev/null | LC_ALL=C awk 'NF { $1 = $1 ; gsub( / /, "_" ) ; print ; exit ; }' )"
 	sleep 2
 }
 

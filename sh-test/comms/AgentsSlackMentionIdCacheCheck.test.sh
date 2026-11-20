@@ -84,10 +84,10 @@ rigRows(){ ## -- the cache rows after the header, joined
 	LC_ALL=C tail -n +2 "$rigCache" | LC_ALL=C tr '\n' '|'
 }
 rigMode(){ ## path
-	LC_ALL=C ls -l "$1" | LC_ALL=C awk '{ print substr($1, 1, 10) }'
+	LC_ALL=C ls -l "$1" | LC_ALL=C awk '{ print substr($1, 1, 10) ; }'
 }
 rigOldReader(){ ## member -- the reader this cache had before the columns
-	LC_ALL=C awk -F= -v who="$1" '$1 == who { c = $2 } END { print c }' "$rigCache"
+	LC_ALL=C awk -F= -v who="$1" '$1 == who { c = $2 ; } END { print c ; }' "$rigCache"
 }
 
 rigWorld
@@ -165,7 +165,7 @@ rigAssert "a row without columns never matches, nor does a - row, by the member'
 rigAssert "a row with too few columns never matches, even where a column holds the name"   "$( rigCall AgentsToolsCommsSlackMentionFindByName shortrow ; cat "$rigTmp/fn.out" )" ""
 rigAssert "a partial name does not match"                                "$( rigCall AgentsToolsCommsSlackMentionFindByName magic ; cat "$rigTmp/fn.out" )" ""
 rigAssert "it reads the cache and nothing else: no Slack call was made"  "$( rigCalls )" ""
-rigAssert "the include holds the function in a few lines on the cache alone: lines between its heading and its closing brace" "$( LC_ALL=C awk '/^AgentsToolsCommsSlackMentionFindByName\(\)/ { on = 1 } on { n++ } on && /^}/ { print n ; exit }' "${rigSendInclude%/*}/AgentsTools.SlackIdentities.include" )" 3
+rigAssert "the include holds the function in a few lines on the cache alone: lines between its heading and its closing brace" "$( LC_ALL=C awk '/^AgentsToolsCommsSlackMentionFindByName\(\)/ { on = 1 ; } on { n++ ; } on && /^}/ { print n ; exit ; }' "${rigSendInclude%/*}/AgentsTools.SlackIdentities.include" )" 3
 
 if [ "$rigFails" -ne 0 ] ; then
 	echo "⛔ SLACK MENTION ID CACHE CHECK FAILED: $rigFails of $(( rigPasses + rigFails )) assertion(s)" >&2 ; exit 1

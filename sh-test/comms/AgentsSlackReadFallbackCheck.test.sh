@@ -88,7 +88,7 @@ rigRun(){ ## environment words..., then the tool arguments after `--` -- one dis
 	( cd "$rigWs" && env -u MDAT_DATA_ROOT -u MDAT_SPAWN_SESSION_ID -u MDAT_SPAWN_AGENT -u CLAUDE_CODE_SESSION_ID -u MDAT_SESSION_THREAD RIG_SCENARIO="$rigTmp" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" ${runEnv[@]+"${runEnv[@]}"} bash "$rigTool" "$@" ) > "$rigTmp/out" 2> "$rigTmp/err" || rigRc=$?
 }
 rigCalls(){ ## method -- the identities that method was called under, in order, comma-separated
-	LC_ALL=C awk -v want="$1" '$1 == want { printf "%s%s", sep, $2 ; sep = "," }' "$rigTmp/calls"
+	LC_ALL=C awk -v want="$1" '$1 == want { printf "%s%s", sep, $2 ; sep = "," ; }' "$rigTmp/calls"
 }
 
 echo "-- 1. a send that fell back to the bot, then a read of its thread --"
@@ -105,7 +105,7 @@ echo "-- 1b. a reply, whose thread the bot cannot see --"
 rigRun -- --slack-send-message --team-member magic-coordinator DRIG00001:1700000000.000100 "RIG-REPLY"
 rigAssert "a reply into a thread the bot sees: the user cannot reach the conversation, the bot posts it" "$rigRc $( rigCalls chat.postMessage )" "0 user,bot"
 rigRun -- --slack-send-message --team-member magic-coordinator DOTHER0001:1700000000.000100 "RIG-REPLY"
-rigAssert "a reply into a thread whose parent is in another conversation than the bot can see: an error, and nothing posted under the bot" "$( [ "$rigRc" != 0 ] && echo failed ) $( rigCalls chat.postMessage ) $( LC_ALL=C grep -c 'NOT posted\|nothing was posted' "$rigTmp/err" | LC_ALL=C awk '{ print ( $1 > 0 ) ? "said" : "silent" }' )" "failed user said"
+rigAssert "a reply into a thread whose parent is in another conversation than the bot can see: an error, and nothing posted under the bot" "$( [ "$rigRc" != 0 ] && echo failed ) $( rigCalls chat.postMessage ) $( LC_ALL=C grep -c 'NOT posted\|nothing was posted' "$rigTmp/err" | LC_ALL=C awk '{ print ( $1 > 0 ) ? "said" : "silent" ; }' )" "failed user said"
 
 echo "-- 2. a whole conversation --"
 rigRun -- --slack-read --team-member magic-coordinator DRIG00001 --oldest 1
@@ -119,7 +119,7 @@ echo "-- 4. --identity-bot asked, and a conversation no identity reaches --"
 rigRun -- --slack-read --team-member magic-coordinator DRIG00001:1700000000.000100 --thread --identity-bot
 rigAssert "--identity-bot is final: one call, the bot's" "$rigRc $( rigCalls conversations.replies )" "0 bot"
 rigRun -- --slack-read --team-member magic-coordinator DNONE0001:1700000000.000100 --thread
-rigAssert "neither identity reaches it: both are asked, once, and the exit is 1 with Slack's error" "$rigRc $( rigCalls conversations.replies ) $( LC_ALL=C grep -c 'channel_not_found' "$rigTmp/err" | LC_ALL=C awk '{ print ( $1 > 0 ) ? "said" : "silent" }' )" "1 user,bot said"
+rigAssert "neither identity reaches it: both are asked, once, and the exit is 1 with Slack's error" "$rigRc $( rigCalls conversations.replies ) $( LC_ALL=C grep -c 'channel_not_found' "$rigTmp/err" | LC_ALL=C awk '{ print ( $1 > 0 ) ? "said" : "silent" ; }' )" "1 user,bot said"
 
 echo "-- 5. a thread the bot started in its own direct conversation --"
 rigRun -- --slack-read --team-member magic-coordinator DTHREAD001:1700000000.000100 --thread

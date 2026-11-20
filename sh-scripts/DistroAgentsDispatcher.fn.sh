@@ -204,10 +204,10 @@ DistroAgentsDispatcher(){
 				stopList="$( DistroAgentsDispatcher --active-sessions --scope all 2>&1 )" || {
 					echo "⛔ ERROR: $MDSC_CMD $stopOp: no session was ended, since the live sessions could not be listed: $( printf '%s\n' "$stopList" | LC_ALL=C grep -m 1 -E 'ERROR|REFUS' | LC_ALL=C cut -c1-300 )" >&2 ; return 1
 				}
-				for stopId in $( printf '%s\n' "$stopList" | LC_ALL=C awk -F'\t' '$1 == "session" && $4 != "failed" && $4 != "finished" { print $2 }' ) ; do
+				for stopId in $( printf '%s\n' "$stopList" | LC_ALL=C awk -F'\t' '$1 == "session" && $4 != "failed" && $4 != "finished" { print $2 ; }' ) ; do
 					## THE SOFT STOP FIRST, THE CONSOLE KILL ONLY FOR WHAT DID NOT GO (S12.15's still-needed line): a dismissed run ends itself at its
 					## next Wait with its handback given, so no handback is skipped where a dismissal would have done.
-					if ( DistroAgentsTools --manager-session-stop --session-id "$stopId" ) | LC_ALL=C awk -F'\t' '$1 == "stop" && ( $5 == "dismissed" || $5 == "already-dismissed" ) { soft = 1 } END { exit ( soft ? 0 : 1 ) }' ; then
+					if ( DistroAgentsTools --manager-session-stop --session-id "$stopId" ) | LC_ALL=C awk -F'\t' '$1 == "stop" && ( $5 == "dismissed" || $5 == "already-dismissed" ) { soft = 1 ; } END { exit ( soft ? 0 : 1 ) ; }' ; then
 						stopSoft="$stopSoft $stopId"
 					else
 						stopKill="$stopKill $stopId"
@@ -216,7 +216,7 @@ DistroAgentsDispatcher(){
 				## A SESSION WITH NO RUN ALIVE ON THIS HOST CANNOT END ITSELF: only one that has is owed the bounded wait, and the rest go straight to the
 				## console kill. A run's liveness is its own row's process column: `running` is a process of this host, and the record's status is no reading of it.
 				for stopId in $stopSoft ; do
-					if printf '%s\n' "$stopList" | LC_ALL=C awk -F'\t' -v wantId="$stopId" '$1 == "run" && $2 == wantId && $6 == "running" { alive = 1 } END { exit ( alive ? 0 : 1 ) }' ; then
+					if printf '%s\n' "$stopList" | LC_ALL=C awk -F'\t' -v wantId="$stopId" '$1 == "run" && $2 == wantId && $6 == "running" { alive = 1 ; } END { exit ( alive ? 0 : 1 ) ; }' ; then
 						stopWait="$stopWait $stopId"
 					else
 						stopKill="$stopKill $stopId"
@@ -227,7 +227,7 @@ DistroAgentsDispatcher(){
 					sleep 5 ; stopWaited=$(( stopWaited + 5 )) ; stopLeft=""
 					stopList="$( DistroAgentsDispatcher --active-sessions --scope all 2>&1 )" || break
 					for stopId in $stopWait ; do
-						printf '%s\n' "$stopList" | LC_ALL=C awk -F'\t' -v wantId="$stopId" '$1 == "run" && $2 == wantId && $6 == "running" { live = 1 } END { exit ( live ? 1 : 0 ) }' \
+						printf '%s\n' "$stopList" | LC_ALL=C awk -F'\t' -v wantId="$stopId" '$1 == "run" && $2 == wantId && $6 == "running" { live = 1 ; } END { exit ( live ? 1 : 0 ) ; }' \
 							|| stopLeft="$stopLeft $stopId"
 					done
 					stopWait="$stopLeft"
@@ -271,7 +271,7 @@ DistroAgentsDispatcher(){
 			closeList="$( DistroAgentsDispatcher --all-sessions --scope all 2>&1 )" || {
 				echo "⛔ ERROR: $MDSC_CMD $closeOp: nothing was closed, since the sessions could not be listed: $( printf '%s\n' "$closeList" | LC_ALL=C grep -m 1 -E 'ERROR|REFUS' | LC_ALL=C cut -c1-300 )" >&2 ; return 1
 			}
-			for closeId in $( printf '%s\n' "$closeList" | LC_ALL=C awk -F'\t' '$1 == "session" && $4 == "failed" { print $2 }' ) ; do
+			for closeId in $( printf '%s\n' "$closeList" | LC_ALL=C awk -F'\t' '$1 == "session" && $4 == "failed" { print $2 ; }' ) ; do
 				closeAll=$(( closeAll + 1 ))
 				if ( DistroAgentsTools --manager-session-kill --session-id "$closeId" ) | LC_ALL=C grep '^finish' ; then
 					closeDone=$(( closeDone + 1 ))

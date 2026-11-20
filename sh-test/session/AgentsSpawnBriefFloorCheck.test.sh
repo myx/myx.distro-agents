@@ -22,20 +22,20 @@ rigTmp="$( mktemp -d "$MMDAPP/.local/agents/scratch/sh-test/AgentsSpawnBriefFloo
 trap 'rm -rf -- "$rigTmp"' EXIT
 ## The block as the filler emits it: from SPAWN-PREPARE-BRIEF to its closing line, its tags stripped.
 LC_ALL=C awk '
-	/^SPAWN-PREPARE-BRIEF: / { inBlock = 1 ; print ; next }
-	!inBlock { next }
-	$0 == "When done, hand back and Wait until dismissed." { print ; exit }
-	{ sub( /^\[(own|native|lock|scan)\] /, "" ) ; print }
+	/^SPAWN-PREPARE-BRIEF: / { inBlock = 1 ; print ; next ; }
+	!inBlock { next ; }
+	$0 == "When done, hand back and Wait until dismissed." { print ; exit ; }
+	{ sub( /^\[(own|native|lock|scan)\] /, "" ) ; print ; }
 ' "$rigTemplate" > "$rigTmp/block"
 ## Each measure prints `within` when it holds, else the offending size and words.
 rigSentences(){ ## line -- its sentences, one a line
-	printf '%s\n' "$1" | LC_ALL=C awk '{ gsub( /\{\{[a-z-]+\}\}/, "slot" ) ; gsub( /\[(own|native|lock|scan)\]/, "" ) ; n = split( $0, s, /[.!?]( |$)/ ) ; for ( i = 1 ; i <= n ; i++ ) { if ( s[i] != "" ) print s[i] } }'
+	printf '%s\n' "$1" | LC_ALL=C awk '{ gsub( /\{\{[a-z-]+\}\}/, "slot" ) ; gsub( /\[(own|native|lock|scan)\]/, "" ) ; n = split( $0, s, /[.!?]( |$)/ ) ; for ( i = 1 ; i <= n ; i++ ) { if ( s[i] != "" ) print s[i] ; } ; }'
 }
 rigWithin(){ ## limit, sentence... -- within, or over with its size
 	local bound="$1" ; shift
 	local sentence words
 	for sentence in "$@" ; do
-		words="$( printf '%s' "$sentence" | LC_ALL=C awk '{ print NF + 0 }' )"
+		words="$( printf '%s' "$sentence" | LC_ALL=C awk '{ print NF + 0 ; }' )"
 		[ "$words" -le "$bound" ] || { printf 'over: %s words: %s\n' "$words" "$sentence" ; return 0 ; }
 	done
 	printf 'within\n'
@@ -49,34 +49,34 @@ rigLongestSentence(){ ## file -- the longest sentence's verdict against the 25-w
 }
 rigPerLine(){ ## file, limit -- the worst line's sentence count against the limit
 	LC_ALL=C awk -v bound="$2" '
-		{ n = split( $0, s, /[.!?]( |$)/ ) ; if ( $0 == "" ) n = 0 ; if ( n > most ) most = n }
-		END { printf "%s\n", ( most <= bound ) ? "within" : "over: " most " sentences" }' "$1"
+		{ n = split( $0, s, /[.!?]( |$)/ ) ; if ( $0 == "" ) n = 0 ; if ( n > most ) most = n ; }
+		END { printf "%s\n", ( most <= bound ) ? "within" : "over: " most " sentences" ; }' "$1"
 }
 rigPerRun(){ ## file, limit -- the longest paragraph of prose, its sentences against the limit
 	LC_ALL=C awk -v bound="$2" '
-		/^- / { if ( run > most ) most = run ; run = 0 ; next }
-		$0 == "" { if ( run > most ) most = run ; run = 0 ; next }
-		/^#/ { if ( run > most ) most = run ; run = 0 ; next }
-		/^\{\{[a-z-]+\}\}$/ { if ( run > most ) most = run ; run = 0 ; next }
-		{ run = run + split( $0, s, /[.!?]( |$)/ ) }
-		END { if ( run > most ) most = run ; printf "%s\n", ( most <= bound ) ? "within" : "over: " most " sentences" }' "$1"
+		/^- / { if ( run > most ) most = run ; run = 0 ; next ; }
+		$0 == "" { if ( run > most ) most = run ; run = 0 ; next ; }
+		/^#/ { if ( run > most ) most = run ; run = 0 ; next ; }
+		/^\{\{[a-z-]+\}\}$/ { if ( run > most ) most = run ; run = 0 ; next ; }
+		{ run = run + split( $0, s, /[.!?]( |$)/ ) ; }
+		END { if ( run > most ) most = run ; printf "%s\n", ( most <= bound ) ? "within" : "over: " most " sentences" ; }' "$1"
 }
 rigListItems(){ ## file -- each list item's sentences, as the sentences of one item
 	LC_ALL=C awk '
-		/^- / { sub( /^- /, "" ) ; gsub( /\{\{[a-z-]+\}\}/, "slot" ) ; gsub( /\[(own|native|lock|scan)\]/, "" ) ; print }
+		/^- / { sub( /^- /, "" ) ; gsub( /\{\{[a-z-]+\}\}/, "slot" ) ; gsub( /\[(own|native|lock|scan)\]/, "" ) ; print ; }
 	' "$1"
 }
 rigListItemSentences(){ ## file -- every list item split into its sentences, within the 20-word cap each
 	local items=() item
 	while IFS= read -r item ; do
 		[ -z "$item" ] || items+=( $(
-			printf '%s\n' "$item" | LC_ALL=C awk '{ n = split( $0, s, /[.!?]( |$)/ ) ; for ( i = 1 ; i <= n ; i++ ) { if ( s[i] != "" ) print s[i] } }'
+			printf '%s\n' "$item" | LC_ALL=C awk '{ n = split( $0, s, /[.!?]( |$)/ ) ; for ( i = 1 ; i <= n ; i++ ) { if ( s[i] != "" ) print s[i] ; } ; }'
 		) )
 	done < <( rigListItems "$1" )
 	rigWithin 20 ${items[@]+"${items[@]}"}
 }
 rigCount(){ ## file -- the sentences of a file, and the list items it holds
-	LC_ALL=C awk '/^- / { items++ } { n = split( $0, s, /[.!?]( |$)/ ) ; if ( $0 == "" ) n = 0 ; sentences = sentences + n } END { print sentences + 0 ":" items + 0 }' "$1"
+	LC_ALL=C awk '/^- / { items++ ; } { n = split( $0, s, /[.!?]( |$)/ ) ; if ( $0 == "" ) n = 0 ; sentences = sentences + n ; } END { print sentences + 0 ":" items + 0 ; }' "$1"
 }
 rigAssert "the block was read whole, to its closing line" "$( tail -1 "$rigTmp/block" )" "When done, hand back and Wait until dismissed."
 rigAssert "no sentence of it is over 25 words" "$( rigLongestSentence "$rigTmp/block" )" within

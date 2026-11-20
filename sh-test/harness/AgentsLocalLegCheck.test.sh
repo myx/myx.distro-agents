@@ -67,7 +67,7 @@ check "the operation is in the table of the tool files, in DistroAgentsKnowledge
 check "the tool file calls the leg's read, with the rc passed through" \
 	"$( LC_ALL=C grep -c 'AgentsLocalHarness.sh" --list-models' "$rigPackage/sh-scripts/DistroAgentsKnowledge.fn.sh" )" 1
 check "its syntax line stands in the help, in the list and in the manual" \
-	"$( LC_ALL=C grep -c -F -e 'DistroAgentsKnowledge.fn.sh --local-models-list' "$rigPackage/sh-lib/help/Help.DistroAgentsTools.include" "$rigPackage/sh-lib/help/Help.DistroAgentsTools.help.md" | LC_ALL=C awk -F: '{ n += $NF } END { print n }' )" 2
+	"$( LC_ALL=C grep -c -F -e 'DistroAgentsKnowledge.fn.sh --local-models-list' "$rigPackage/sh-lib/help/Help.DistroAgentsTools.include" "$rigPackage/sh-lib/help/Help.DistroAgentsTools.help.md" | LC_ALL=C awk -F: '{ n += $NF ; } END { print n ; }' )" 2
 
 if [ "$fail" = 0 ] ; then printf 'LOCAL_LEG: OK (%s assertions, offline)\n' "$pass" ; exit 0 ; fi
 printf '⛔ LOCAL_LEG CHECK FAILED: %s of %s assertion(s)\n' "$fail" "$(( pass + fail ))" ; exit 1

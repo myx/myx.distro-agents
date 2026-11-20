@@ -51,15 +51,15 @@ rigAssert(){ ## what is asserted, got, want
 }
 rigStepText(){ ## routine file, step number -- that numbered step of `# Steps`, its numbering removed
 	LC_ALL=C awk -v wantStep="$2" '
-		/^# Steps$/ { inSteps = 1 ; next }
-		inSteps && /^# / { exit }
+		/^# Steps$/ { inSteps = 1 ; next ; }
+		inSteps && /^# / { exit ; }
 		inSteps && /^[0-9]+\. / {
-			if ( taking ) { exit }
+			if ( taking ) { exit ; }
 			stepNumber = $0 ; sub( /\..*/, "", stepNumber )
-			if ( stepNumber + 0 == wantStep + 0 ) { taking = 1 ; print }
+			if ( stepNumber + 0 == wantStep + 0 ) { taking = 1 ; print ; }
 			next
 		}
-		taking { print }
+		taking { print ; }
 	' "$1"
 }
 
@@ -103,7 +103,7 @@ rigCalls(){ ## -- the calls the fake site logged, one a line, or none
 	LC_ALL=C cat "$rigState/calls" 2> /dev/null || :
 }
 rigForeignCalls(){ ## -- how many logged calls went to a host that does not end `.invalid`
-	rigCalls | LC_ALL=C awk '$1 !~ /\.invalid$/ { n++ } END { print n + 0 }'
+	rigCalls | LC_ALL=C awk '$1 !~ /\.invalid$/ { n++ ; } END { print n + 0 ; }'
 }
 
 rigReportItem="investigation-20261103T0700Z-rig.md" rigMarker="RIG-ANSWER-7788" rigPageTitle="Investigation report: the rig matter"
@@ -138,7 +138,7 @@ printf -- '---\ndocument-contract: vault-item.investigation-report\ntype: invest
 rigItemsCall "$rigTmp/v1" magic-tester --upsert-vault-investigation-report "$rigReportItem" --from-file "$rigTmp/report.md"
 rigAssert "the report is written as its own contract's document" "$rigRc:$( [ -f "$rigData/vault/$rigReportItem" ] && printf stored || printf missing )" "0:stored"
 rigItemsCall "$rigTmp/v2" magic-tester --get-vault-item "$rigReportItem"
-rigReportBody="$( LC_ALL=C awk '$0 == "---" { if ( ++fm == 2 ) taking = 1 ; next } taking { print }' "$rigData/vault/$rigReportItem" )"
+rigReportBody="$( LC_ALL=C awk '$0 == "---" { if ( ++fm == 2 ) taking = 1 ; next ; } taking { print ; }' "$rigData/vault/$rigReportItem" )"
 printf '%s\n' "$rigReportBody" > "$rigTmp/report-body"
 rigAssert "and reads back holding its answer" "$( LC_ALL=C grep -c -F -- "$rigMarker" "$rigTmp/report-body" )" 1
 rigSiteCall "$rigTmp/p1" magic-coordinator --confluence-page-create --space TEAM --title "$rigPageTitle" --body-storage-from-file "$rigTmp/report-body"
@@ -174,7 +174,7 @@ rigSiteCall "$rigTmp/r2" magic-tester --jira-comment-read "$rigIssueKey"
 rigSiteCall "$rigTmp/r3" magic-tester --confluence-page-search 'type = page'
 rigSiteCall "$rigTmp/r4" magic-tester --confluence-comment-read 12345
 rigAssert "the other three reads pass both gates for a tester" \
-	"$( LC_ALL=C grep -c -e "magic-coordinator's only" -e 'runs only as magic-coordinator' "$rigTmp/r2.err" "$rigTmp/r3.err" "$rigTmp/r4.err" | LC_ALL=C awk -F: '{ n += $2 } END { print n + 0 }' )" 0
+	"$( LC_ALL=C grep -c -e "magic-coordinator's only" -e 'runs only as magic-coordinator' "$rigTmp/r2.err" "$rigTmp/r3.err" "$rigTmp/r4.err" | LC_ALL=C awk -F: '{ n += $2 ; } END { print n + 0 ; }' )" 0
 rigSiteCall "$rigTmp/r5" magic-tester --jira-issue-delete "$rigIssueKey"
 rigAssert "a tester's delete is still refused" "$( [ "$rigRc" != 0 ] && printf refused || printf allowed ):$( rigCalls | LC_ALL=C grep -c -i 'DELETE' )" refused:0
 
@@ -184,7 +184,7 @@ rigAssert "a tester's page create is refused" "$( [ "$rigRc" != 0 ] && printf re
 rigSiteCall "$rigTmp/w2" magic-tester --jira-issue-create --project RIG --issuetype Task --summary 'not mine'
 rigAssert "a tester's task create is refused" "$( [ "$rigRc" != 0 ] && printf refused || printf allowed )" refused
 rigAssert "and each refusal names the member whose write it is" \
-	"$( LC_ALL=C grep -c -e "is magic-coordinator's only" "$rigTmp/w1.err" "$rigTmp/w2.err" | LC_ALL=C awk -F: '{ n += $2 } END { print n + 0 }' )" 2
+	"$( LC_ALL=C grep -c -e "is magic-coordinator's only" "$rigTmp/w1.err" "$rigTmp/w2.err" | LC_ALL=C awk -F: '{ n += $2 ; } END { print n + 0 ; }' )" 2
 
 echo "-- 10. control: with no Confluence identity the page is refused and nothing is sent --"
 rigCallsBefore="$( rigCalls | LC_ALL=C wc -l | LC_ALL=C tr -d ' ' )"
@@ -256,6 +256,7 @@ rigDirectWrite --intern-op-atlassian-confluence-page-create --member magic-coord
 rigDirectWrite --intern-op-atlassian-confluence-page-update --member magic-coordinator --page-id 1001 --version 2 --title 'direct' --status current --body-storage '<p>x</p>'
 rigDirectWrite --intern-op-atlassian-confluence-comment-add --member magic-coordinator --page-id 1001 --body-storage '<p>x</p>'
 rigDirectWrite --intern-op-atlassian-confluence-page-delete --member magic-coordinator --page-id 1001
+rigDirectWrite --intern-op-atlassian-confluence-page-move --member magic-coordinator --page-id 1001 --parent-id 1002
 rigDirectWrite --intern-op-atlassian-jira-issue-create --member magic-coordinator --project RIG --issuetype Task --summary 'direct'
 rigDirectWrite --intern-op-atlassian-jira-issue-update --member magic-coordinator --issue-key RIG-9 --fields-json '{"summary":"direct"}'
 rigDirectWrite --intern-op-atlassian-jira-issue-transition --member magic-coordinator --issue-key RIG-9 --to-status Done

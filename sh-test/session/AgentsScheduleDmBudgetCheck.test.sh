@@ -130,7 +130,7 @@ rigBegan="$SECONDS"
 rigOut="$( rigLook 60 no rig-a rig-b rig-c )"
 rigTook=$(( SECONDS - rigBegan ))
 rigAssert "the six reads are all served" "$( printf '%s\n' "$rigOut" | grep -c '^reads=6$' )" "1"
-rigAssert "never more than four at once, and more than one" "$( printf '%s\n' "$rigOut" | sed -n 's/^rosters=[0-9]* most=//p' | awk '{ print ( $1 > 1 && $1 <= 4 ) ? "two to four" : "most " $1 }' )" "two to four"
+rigAssert "never more than four at once, and more than one" "$( printf '%s\n' "$rigOut" | sed -n 's/^rosters=[0-9]* most=//p' | awk '{ print ( $1 > 1 && $1 <= 4 ) ? "two to four" : "most " $1 ; }' )" "two to four"
 rigAssert "the look takes under the six seconds of reads one after another" "$( [ "$rigTook" -lt 6 ] && echo under || echo "took $rigTook s" )" "under"
 
 ## 8. The roster is kept: a second look calls none, a forced look reads it again.
@@ -151,7 +151,7 @@ for rigM in rig-a rig-b ; do { printf '%s\n' 1794228800 ; LC_ALL=C sed 1d "$rigT
 rigOut="$( RIG_KEEP_ROSTER=yes rigLook 60 no rig-a rig-b )"
 rigAssert "with rosters past their hour every conversation is still read in the look" "$( printf '%s\n' "$rigOut" | grep -c '^reads=4$' )" "1"
 rigWaited=0 ; while ls -d "$rigTmp/.local/agents/schedule/dm-roster"/.*.reading > /dev/null 2>&1 && [ "$rigWaited" -lt 20 ] ; do sleep 1 ; rigWaited=$(( rigWaited + 1 )) ; done
-rigAssert "each roster is read again beside the look, and kept with a fresh first line" "$( for rigM in rig-a rig-b ; do head -1 "$rigTmp/.local/agents/schedule/dm-roster/$rigM" ; done | awk '$1 > 1794228800 { n++ } END { print n + 0 }' )" "2"
+rigAssert "each roster is read again beside the look, and kept with a fresh first line" "$( for rigM in rig-a rig-b ; do head -1 "$rigTmp/.local/agents/schedule/dm-roster/$rigM" ; done | awk '$1 > 1794228800 { n++ ; } END { print n + 0 ; }' )" "2"
 
 printf '%s: %s passed, %s failed\n' "${0##*/}" "$rigPassCount" "$rigFailCount"
 [ "$rigFailCount" = 0 ]

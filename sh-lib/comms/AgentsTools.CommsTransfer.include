@@ -68,7 +68,7 @@ AgentsCommsTransferSources(){ ## the list path, the store folder
 
 ## THE READERS the kept list names, one a line, sorted and made distinct: what the thread's own pass walks.
 AgentsCommsTransferMembers(){ ## the list path
-	LC_ALL=C awk -F'\t' 'NF { if (!( $1 in seen )) { seen[$1] = 1 ; print $1 } }' "$1" 2> /dev/null
+	LC_ALL=C awk -F'\t' 'NF { if (!( $1 in seen )) { seen[$1] = 1 ; print $1 ; } ; }' "$1" 2> /dev/null
 }
 
 ## THE POINTER FILE, WRITTEN WHOLE through a temp beside it, as the ingest writes its own. Its body is the caller's, and its first
@@ -169,7 +169,7 @@ AgentsCommsTransferSlack(){ ## member
 			passMonth="${passFile%/events.txt}" ; passMonth="${passMonth##*/}"
 			[ "$passMonth" \< "${passCursor:0:6}" ] && continue
 			passRows="$( LC_ALL=C awk -v pointer="$passCursor" -v myId="$passId" \
-				-v target="$( LC_ALL=C awk 'NF == 4 && $1 ~ /^slack-/ { print $2 ; exit }' "$passPath/.state.txt" 2> /dev/null )" \
+				-v target="$( LC_ALL=C awk 'NF == 4 && $1 ~ /^slack-/ { print $2 ; exit ; }' "$passPath/.state.txt" 2> /dev/null )" \
 				-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsCommsTransferEvents.awk" "$passFile" 2> /dev/null )" \
 				|| { echo "⛔ ERROR: the transfer could not read $passFile" >&2 ; set +e ; return 1 ; }
 			[ -n "$passRows" ] || continue
@@ -187,7 +187,7 @@ AgentsCommsTransferSlack(){ ## member
 						{
 							printf '## slack-message %s:%s\n' "$passChannel" "$passMessage"
 							printf 'source: slack\nchannel: %s\nts: %s\n\n' "$passChannel" "$passMessage"
-							printf '%s\n' "$passText" | LC_ALL=C awk '{ gsub(/\\037/, "\n") ; gsub(/\\036/, "\t") ; print }'
+							printf '%s\n' "$passText" | LC_ALL=C awk '{ gsub(/\\037/, "\n") ; gsub(/\\036/, "\t") ; print ; }'
 						} > "$passWork" 2> /dev/null || { rm -f "$passWork" ; echo "⛔ ERROR: the transfer could not write its working file" >&2 ; set +e ; return 1 ; }
 						type AgentsToolsCollectItemWrite > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.Collect.include"
 						## THE WRITE'S OWN TOOL, in this shell: the collect item write sources it inside its pipeline's left side,

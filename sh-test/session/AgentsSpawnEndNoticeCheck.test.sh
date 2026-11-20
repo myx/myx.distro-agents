@@ -214,13 +214,13 @@ rigNotes(){ ## scenario folder, fixed text
 			if ( match( $0, /"channel":"[^"]*"/ ) ) { noteChannel = substr( $0, RSTART + 11, RLENGTH - 12 ) ; }
 			if ( match( $0, /"thread_ts":"[^"]*"/ ) ) { noteThread = substr( $0, RSTART + 13, RLENGTH - 14 ) ; }
 			arrowAt = index( $0, "→ " ) ;
-			if ( arrowAt > 0 ) { noteRest = substr( $0, arrowAt + length( "→ " ) ) ; noteEnd = index( noteRest, ".\\n" ) ; if ( noteEnd > 0 ) { noteWhom = substr( noteRest, 1, noteEnd - 1 ) ; } }
+			if ( arrowAt > 0 ) { noteRest = substr( $0, arrowAt + length( "→ " ) ) ; noteEnd = index( noteRest, ".\\n" ) ; if ( noteEnd > 0 ) { noteWhom = substr( noteRest, 1, noteEnd - 1 ) ; } ; }
 			print noteChannel, noteThread, noteWhom ;
 		}
 	' "$1/bodies" 2> /dev/null
 }
 rigNoteCount(){ ## scenario folder, fixed text -- how many such posts
-	rigNotes "$1" "$2" | LC_ALL=C awk 'END { print NR + 0 }'
+	rigNotes "$1" "$2" | LC_ALL=C awk 'END { print NR + 0 ; }'
 }
 ## The whole text of the one such post, after its author line, as it was sent.
 rigNoteText(){ ## scenario folder, fixed text
@@ -230,7 +230,7 @@ rigNoteText(){ ## scenario folder, fixed text
 			textAt = index( $0, "\"text\":\"" ) ; if ( ! textAt ) { next ; }
 			textRest = substr( $0, textAt + 8 ) ; textEnd = 0 ;
 			textMarks[1] = "\",\"thread_ts\":" ; textMarks[2] = "\",\"blocks\":" ; textMarks[3] = "\",\"metadata\":" ;
-			for ( markNo = 1 ; markNo <= 3 ; markNo++ ) { markAt = index( textRest, textMarks[markNo] ) ; if ( markAt > 0 && ( textEnd == 0 || markAt < textEnd ) ) { textEnd = markAt ; } }
+			for ( markNo = 1 ; markNo <= 3 ; markNo++ ) { markAt = index( textRest, textMarks[markNo] ) ; if ( markAt > 0 && ( textEnd == 0 || markAt < textEnd ) ) { textEnd = markAt ; } ; }
 			if ( textEnd > 0 ) { textRest = substr( textRest, 1, textEnd - 1 ) ; }
 			headEnd = index( textRest, "\\n" ) ; print ( headEnd ? substr( textRest, headEnd + 2 ) : textRest ) ; exit ;
 		}
@@ -324,7 +324,7 @@ printf '%s\n' '{"outcome":"the rig step is done"}' > "$rigDir/handback-first"
 rigLetGo
 rigEnded
 rigAssert "control: its handback was posted in the thread of the session that requested it, and its item entered review by it" \
-	"$( rigNotes "$rigDir" 'the rig step is done' | LC_ALL=C awk '{ print $1, $2 }' ):$( LC_ALL=C sed -n 's/^review-reason: //p' "$rigData/board/review/$rigItem.md" 2> /dev/null )" "${rigParentThread%%:*} ${rigParentThread#*:}:handback"
+	"$( rigNotes "$rigDir" 'the rig step is done' | LC_ALL=C awk '{ print $1, $2 ; }' ):$( LC_ALL=C sed -n 's/^review-reason: //p' "$rigData/board/review/$rigItem.md" 2> /dev/null )" "${rigParentThread%%:*} ${rigParentThread#*:}:handback"
 rigAssert "the run then ends: no note of its end is posted, there or anywhere" "$( rigNoteCount "$rigDir" 'ended its run' ):$( rigHeader "$rigRecord" status )" "0:spawn-succeeded"
 rigStart handed-elsewhere "${rigAsParent[@]}" --session-new
 printf '%s\n' '{"to":"session-current","outcome":"the rig step is done"}' > "$rigDir/handback-first"
@@ -332,7 +332,7 @@ rigOwnThread="$( rigHeader "$rigRecord" session-thread )"
 rigLetGo
 rigEnded
 rigAssert "control: a run that hands back in its own session thread: its handback stands there, not in the thread of the session that requested it" \
-	"$( rigNotes "$rigDir" 'the rig step is done' | LC_ALL=C awk '{ print $2 }' )" "${rigOwnThread#*:}"
+	"$( rigNotes "$rigDir" 'the rig step is done' | LC_ALL=C awk '{ print $2 ; }' )" "${rigOwnThread#*:}"
 rigAssert "its end is told in the thread of the session that requested it, addressed to the member that requested it" "$( rigNotes "$rigDir" 'ended its run' )" "${rigParentThread%%:*} ${rigParentThread#*:} $rigToB"
 rigAssert "in words of its own: that it ended, and that its handback is in another thread" "$( rigNoteText "$rigDir" 'ended its run' )" "🏁 rig-member-a ended its run \`$( rigShort )\`. Its handback was posted in another thread, not in this one."
 ## As seen on a live run of a native CLI: its handback stands in the thread, and its output shows the call in a
@@ -343,7 +343,7 @@ printf '%s\n' '{"outcome":"the rig step is done"}' > "$rigDir/handback-first"
 rigLetGo
 rigEnded
 rigAssert "control: a run whose handback stands in the thread of its session, while its output shows that call as a native log does: the output holds no line a pattern reads as a handback, and the close does not resume the run for one" \
-	"$( rigNotes "$rigDir" 'the rig step is done' | LC_ALL=C awk '{ print $1, $2 }' ):$( LC_ALL=C grep -c -E '📦 SubagentHandback|^  -> tool: (mcp__myx_distro__)?SubagentHandback' "$rigLog" ):$( LC_ALL=C awk '{ printf "%s ", $1 }' "$rigDir/launches" )" "${rigParentThread%%:*} ${rigParentThread#*:}:0:first "
+	"$( rigNotes "$rigDir" 'the rig step is done' | LC_ALL=C awk '{ print $1, $2 ; }' ):$( LC_ALL=C grep -c -E '📦 SubagentHandback|^  -> tool: (mcp__myx_distro__)?SubagentHandback' "$rigLog" ):$( LC_ALL=C awk '{ printf "%s ", $1 ; }' "$rigDir/launches" )" "${rigParentThread%%:*} ${rigParentThread#*:}:0:first "
 rigAssert "no message in that thread says that it posted no handback, or that it ended: its handback stands there" "$( rigNoteCount "$rigDir" 'posted no handback' ):$( rigNoteCount "$rigDir" 'ended its run' ):$( rigHeader "$rigRecord" status )" "0:0:spawn-succeeded"
 rigAssert "nor does a box in the tracking thread say that none was posted" "$( LC_ALL=C grep -c -F 'none posted' "$rigDir/bodies" 2> /dev/null )" "0"
 rigNativeRun="$( rigRunId )" ; rigNativeLog="$rigLog"
@@ -371,7 +371,7 @@ rigEnded
 rigAssert "it ends with no handback: one message, in the bot's direct conversation with the human-owner, in no thread, addressed to him" "$( rigNotes "$rigDir" "$rigMissing" )" "URIGOWNER - 👤 *_human-owner_* <@URIGOWNER>"
 rigAssert "its words: the same fact, and that no session requested the run, with the name of its session" "$( rigNoteText "$rigDir" "$rigMissing" )" \
 	"📦 rig-member-a ended its run \`$( rigShort )\` $rigMissing No session requested this run, so its end is told here. Its session: the rig's own errand."
-rigAssert "it is no ask: no record of a question is opened, and nothing is placed under it" "$( ls "$rigWs/.local/agents/pending" 2> /dev/null | LC_ALL=C awk 'END { print NR + 0 }' ):$( LC_ALL=C grep -c '^reactions.add .*' "$rigDir/calls" 2> /dev/null )" "0:1"
+rigAssert "it is no ask: no record of a question is opened, and nothing is placed under it" "$( ls "$rigWs/.local/agents/pending" 2> /dev/null | LC_ALL=C awk 'END { print NR + 0 ; }' ):$( LC_ALL=C grep -c '^reactions.add .*' "$rigDir/calls" 2> /dev/null )" "0:1"
 rigAssert "and its record is closed, its item in review" "$( rigHeader "$rigRecord" status ):$( rigItemIn "$rigItem" )" "spawn-succeeded:review"
 
 echo "-- 4b. a run that reports to a member is told in that member's own conversation: its inbox, where it has no Slack DM --"
@@ -383,7 +383,7 @@ printf -- '---\nsession-id: %s\nspawn-id: %s\nparent-spawn-id: none\n%s: rig-mem
 printf '%s\n' ". \"\$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandbox.include\" ; AgentsToolsSpawnProxyEndNotice '$rigSp/$rigToMember/$rigToMember.spawn.md' missing ; printf 'SAID=%s\\n' \"\$agentsSpawnProxyEndNoticeSaid\"" \
 	| rigEnv "$rigTmp/s4b" bash "$rigTool" --intern-mcp-execute > "$rigTmp/s4b/out" 2>&1
 rigAssert "told once, in the inbox of the member it reports to, and in no conversation" \
-	"$( LC_ALL=C grep -c -x 'SAID=posted' "$rigTmp/s4b/out" ):$( LC_ALL=C grep -l -F -- "${rigToMember:0:8}" "$rigData/inboxes/rig-member-b/incoming"/inquiry-*.md 2> /dev/null | LC_ALL=C awk 'END { print NR + 0 }' ):$( rigNoteCount "$rigTmp/s4b" "${rigToMember:0:8}" )" "1:1:0"
+	"$( LC_ALL=C grep -c -x 'SAID=posted' "$rigTmp/s4b/out" ):$( LC_ALL=C grep -l -F -- "${rigToMember:0:8}" "$rigData/inboxes/rig-member-b/incoming"/inquiry-*.md 2> /dev/null | LC_ALL=C awk 'END { print NR + 0 ; }' ):$( rigNoteCount "$rigTmp/s4b" "${rigToMember:0:8}" )" "1:1:0"
 
 echo "-- 4c. a run that reports to no one is told to no one --"
 rigToNone="rtn4c$$x"
@@ -393,7 +393,7 @@ printf -- '---\nsession-id: %s\nspawn-id: %s\nparent-spawn-id: none\n%s: none\nt
 printf '%s\n' ". \"\$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandbox.include\" ; AgentsToolsSpawnProxyEndNotice '$rigSp/$rigToNone/$rigToNone.spawn.md' missing ; printf 'SAID=%s\\n' \"\$agentsSpawnProxyEndNoticeSaid\"" \
 	| rigEnv "$rigTmp/s4c" bash "$rigTool" --intern-mcp-execute > "$rigTmp/s4c/out" 2>&1
 rigAssert "nothing said, nothing posted, nothing left in an inbox" \
-	"$( LC_ALL=C grep -c -x 'SAID=none' "$rigTmp/s4c/out" ):$( rigNoteCount "$rigTmp/s4c" "${rigToNone:0:8}" ):$( LC_ALL=C grep -l -F -- "${rigToNone:0:8}" "$rigData"/inboxes/*/incoming/inquiry-*.md 2> /dev/null | LC_ALL=C awk 'END { print NR + 0 }' )" "1:0:0"
+	"$( LC_ALL=C grep -c -x 'SAID=none' "$rigTmp/s4c/out" ):$( rigNoteCount "$rigTmp/s4c" "${rigToNone:0:8}" ):$( LC_ALL=C grep -l -F -- "${rigToNone:0:8}" "$rigData"/inboxes/*/incoming/inquiry-*.md 2> /dev/null | LC_ALL=C awk 'END { print NR + 0 ; }' )" "1:0:0"
 
 echo "-- 4d. a run stopped on the provider's usage limit is told with the date it reopens --"
 ## The provider's own message is the fixture (AgentsHarnessRefusalKeep keeps it beside the record),
@@ -412,7 +412,7 @@ rigAssert "the close keeps the provider's reason on the record, and the one word
 	"$( rigHeader "$rigSp/$rigLimitRun/$rigLimitRun.spawn.md" end-reason ):$( cat "$rigWs/.local/agents/sessions/$rigLimitRun/usage-limit" 2> /dev/null )" \
 	"$( cat "$rigLimitFixture" ):$rigLimitText"
 rigAssert "the end is told once, in the inbox of the member the run reports to" \
-	"$( LC_ALL=C grep -c -x 'SAID=posted' "$rigTmp/s4d/out" ):$( LC_ALL=C grep -l -F -- "${rigLimitRun:0:8}" "$rigData/inboxes/rig-member-b/incoming"/inquiry-*.md 2> /dev/null | LC_ALL=C awk 'END { print NR + 0 }' )" "1:1"
+	"$( LC_ALL=C grep -c -x 'SAID=posted' "$rigTmp/s4d/out" ):$( LC_ALL=C grep -l -F -- "${rigLimitRun:0:8}" "$rigData/inboxes/rig-member-b/incoming"/inquiry-*.md 2> /dev/null | LC_ALL=C awk 'END { print NR + 0 ; }' )" "1:1"
 rigAssert "its words: that it stopped on the provider usage limit, and the date it reopens, as the template's line" \
 	"$( LC_ALL=C grep -h -F -- "The run \`${rigLimitRun:0:8}\` of rig-member-a $rigLimitText." "$rigData/inboxes/rig-member-b/incoming"/inquiry-*.md 2> /dev/null | head -1 )" \
 	"⏳ The run \`${rigLimitRun:0:8}\` of rig-member-a $rigLimitText."
@@ -465,20 +465,20 @@ rigStart killed "${rigAsParent[@]}" --session-new
 rigConsoleGrant
 rigConsole "$rigDir/kill.out" --manager-session-kill --session-id "$( rigRunId )" --run
 rigAssert "control: the console's user kills the run, and its record holds who and when" \
-	"$( LC_ALL=C awk -F'\t' '$1 == "kill" { print $5 }' "$rigDir/kill.out" ):$( rigHeader "$rigRecord" killed-by ):$( rigHeader "$rigRecord" killed-at | LC_ALL=C grep -c -x -E '[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2} [+-][0-9]{4}' )" "ended:rig:1"
+	"$( LC_ALL=C awk -F'\t' '$1 == "kill" { print $5 ; }' "$rigDir/kill.out" ):$( rigHeader "$rigRecord" killed-by ):$( rigHeader "$rigRecord" killed-at | LC_ALL=C grep -c -x -E '[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2} [+-][0-9]{4}' )" "ended:rig:1"
 rigEnded
 rigAssert "its supervising shell closes it as failed, and tells the thread of the session that requested it, addressed to the member that requested it" \
 	"$( rigHeader "$rigRecord" status ):$( rigNotes "$rigDir" "$rigKilledWords" )" "spawn-failed:${rigParentThread%%:*} ${rigParentThread#*:} $rigToB"
 rigAssert "the note says that the run was killed, and by whom, and when" \
 	"$( rigNoteText "$rigDir" "$rigKilledWords" | LC_ALL=C sed -E 's/<!date\^[0-9]+\^[^|]*\|[^>]*>/WHEN/' )" "🛑 The run \`$( rigShort )\` of rig-member-a $rigKilledWords, WHEN."
-rigAssert "a killed run gets one note: none of a missing handback beside it, and it was launched once" "$( rigNoteCount "$rigDir" "$rigKilledWords" ):$( rigNoteCount "$rigDir" 'posted no handback' ):$( LC_ALL=C awk 'END { print NR + 0 }' "$rigDir/launches" )" "1:0:1"
+rigAssert "a killed run gets one note: none of a missing handback beside it, and it was launched once" "$( rigNoteCount "$rigDir" "$rigKilledWords" ):$( rigNoteCount "$rigDir" 'posted no handback' ):$( LC_ALL=C awk 'END { print NR + 0 ; }' "$rigDir/launches" )" "1:0:1"
 ## Killed after it handed back: its handback stands in the thread of the requesting session, and it runs on.
 rigStart killed-handed "${rigAsParent[@]}" --session-new
 printf '%s\n' '{"outcome":"the rig step is done"}' | ( cd "$rigWs" && rigEnv "$rigDir" MDAT_SPAWN_AGENT=rig-member-a "MDAT_SPAWN_SESSION_ID=$( rigRunId )" "MDAT_SPAWN_SANDBOX_ROOT=${rigRecord%/*}" \
 	bash "$rigHarness" --intern-tool SubagentHandback ) > "$rigDir/handback.out" 2>&1
 printf '📦 SubagentHandback\n' >> "$rigLog"
 rigAssert "control: the run handed back in the thread of the session that requested it, and still runs" \
-	"$( rigNotes "$rigDir" 'the rig step is done' | LC_ALL=C awk '{ print $1, $2 }' ):$( rigIsStill "$( head -1 "$rigDir/first.began" )" && printf run-alive || printf run-gone )" "${rigParentThread%%:*} ${rigParentThread#*:}:run-alive"
+	"$( rigNotes "$rigDir" 'the rig step is done' | LC_ALL=C awk '{ print $1, $2 ; }' ):$( rigIsStill "$( head -1 "$rigDir/first.began" )" && printf run-alive || printf run-gone )" "${rigParentThread%%:*} ${rigParentThread#*:}:run-alive"
 rigConsoleGrant
 rigConsole "$rigDir/kill.out" --manager-session-kill --session-id "$( rigRunId )" --run
 rigWaitFor 180 rigRecordClosed ; rigWaitFor 180 rigHasEnded "$rigShell"

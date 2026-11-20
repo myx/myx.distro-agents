@@ -60,16 +60,16 @@ rigOp(){ ## result file, operation and its arguments...
 ## The tree a scan's board section names in its `scope:` line, and nothing else. The tree is
 ## the line's tail, so a path holding a space needs no quoting.
 rigScanTree(){ ## scan output file
-	LC_ALL=C awk '/^scope: board\// && /, tree: / { sub( /^.*, tree: /, "" ) ; print ; exit }' "$1" 2> /dev/null
+	LC_ALL=C awk '/^scope: board\// && /, tree: / { sub( /^.*, tree: /, "" ) ; print ; exit ; }' "$1" 2> /dev/null
 }
 ## The line number of the first item block of a scan's output, or 0 for none.
 rigFirstItemLine(){ ## scan output file, state
-	LC_ALL=C awk -v want="## $2/" 'index( $0, want ) == 1 { print NR ; exit } END { if ( NR == 0 ) print 0 }' "$1" 2> /dev/null
+	LC_ALL=C awk -v want="## $2/" 'index( $0, want ) == 1 { print NR ; exit ; } END { if ( NR == 0 ) print 0 ; }' "$1" 2> /dev/null
 }
 ## The tree a board move's success line names, whatever verb it logs under. The move logs
 ## `wrote` by default and whatever `--log-verb:<verb>` names, so the verb is not matched.
 rigWriteTree(){ ## move output file
-	LC_ALL=C awk '/^# .*board-upsert-move-edit: [a-z]+ / && /, tree: / { sub( /^.*, tree: /, "" ) ; print ; exit }' "$1" 2> /dev/null
+	LC_ALL=C awk '/^# .*board-upsert-move-edit: [a-z]+ / && /, tree: / { sub( /^.*, tree: /, "" ) ; print ; exit ; }' "$1" 2> /dev/null
 }
 
 echo "-- 1 and 4. the sweep's own scan shape names the board section --"
@@ -86,7 +86,7 @@ rigAssert "the sweep's scan emits the section heading" \
 echo "-- 2. the scope line prints with the items, before the first of them --"
 rigAssert "the scope line names the tree the scan read" "$( rigScanTree "$rigTmp/scan" )" "$rigData/board"
 rigAssert "and it stands before the first item block" \
-	"$( LC_ALL=C awk '/^scope: board\// && /, tree: / { scopeAt = NR } index( $0, "## running/" ) == 1 && !itemAt { itemAt = NR } END { print ( scopeAt && itemAt && scopeAt < itemAt ) ? "before" : "not-before" }' "$rigTmp/scan" )" before
+	"$( LC_ALL=C awk '/^scope: board\// && /, tree: / { scopeAt = NR ; } index( $0, "## running/" ) == 1 && !itemAt { itemAt = NR ; } END { print ( scopeAt && itemAt && scopeAt < itemAt ) ? "before" : "not-before" ; }' "$rigTmp/scan" )" before
 
 echo "-- 3 and 4. the write names the tree, under a verb other than wrote --"
 rigOp "$rigTmp/move" --intern-op-board-upsert-move-edit review "$rigItem" --from-state:running \

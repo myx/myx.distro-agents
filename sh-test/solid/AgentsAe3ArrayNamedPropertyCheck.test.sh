@@ -49,7 +49,7 @@ rigAssert(){ ## what is asserted, got, want
 }
 rigValue(){ ## log file, what the probe called the shape, the field wanted -- its value, or `none`
 	LC_ALL=C sed -n "s/^.*PROBE-BACK $2: //p" "$1" 2> /dev/null | LC_ALL=C sed -n 1p \
-		| LC_ALL=C awk -v want="$3=" '{ for ( eachField = 1 ; eachField <= NF ; eachField++ ) if ( index( $eachField, want ) == 1 ) { print substr( $eachField, length( want ) + 1 ) ; exit } }'
+		| LC_ALL=C awk -v want="$3=" '{ for ( eachField = 1 ; eachField <= NF ; eachField++ ) if ( index( $eachField, want ) == 1 ) { print substr( $eachField, length( want ) + 1 ) ; exit ; } ; }'
 }
 
 rigCpCompile="$( ae3CompilePath "$rigTree" )"
@@ -60,10 +60,10 @@ mkdir -p "$rigTmp/tree/ru/myx/ae3/xml" "$rigTmp/planted/ru/myx/ae3/xml" "$rigTmp
 echo "-- the two arms, both compiled from the tree's own source --"
 cp "$rigSource" "$rigTmp/tree/ru/myx/ae3/xml/Xml.java" || rigRefuse "the tree's own source could not be read"
 LC_ALL=C awk '
-	$0 == "\t\t\t\tfor (final Iterator<String> iterator = array.baseKeysOwn(); iterator.hasNext();) {" { skip = 1 ; seen++ ; next }
-	skip == 1 { if ( $0 == "\t\t\t\t}" ) { skip = 0 } ; next }
-	{ print }
-	END { if ( seen == 0 ) { print "AGENTS-AE3-ARRAY-NAMED-PROPERTY: the source holds no guarded loop to lift out, so the planted arm is the source as it stands" > "/dev/stderr" } }
+	$0 == "\t\t\t\tfor (final Iterator<String> iterator = array.baseKeysOwn(); iterator.hasNext();) {" { skip = 1 ; seen++ ; next ; }
+	skip == 1 { if ( $0 == "\t\t\t\t}" ) { skip = 0 ; } ; next ; }
+	{ print ; }
+	END { if ( seen == 0 ) { print "AGENTS-AE3-ARRAY-NAMED-PROPERTY: the source holds no guarded loop to lift out, so the planted arm is the source as it stands" > "/dev/stderr" ; } ; }
 ' "$rigSource" > "$rigTmp/planted/ru/myx/ae3/xml/Xml.java" || rigRefuse "the planted copy could not be written"
 ae3Compile "$rigCpCompile" "$rigTmp/tree/ru/myx/ae3/xml/Xml.java" "$rigTmp/tree-bin" || rigRefuse "the tree's source did not compile"
 ae3Compile "$rigCpCompile" "$rigTmp/planted/ru/myx/ae3/xml/Xml.java" "$rigTmp/planted-bin" || rigRefuse "the planted source did not compile"

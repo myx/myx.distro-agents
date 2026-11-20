@@ -46,7 +46,7 @@ rigTask(){ ## file name, the lines after owner
 	printf '%s\n' '---' 'document-contract: board-item.task' 'type: task' 'from: keeper-rig' 'date: 2026-10-01 10:00 +0300' 'owner: keeper-rig' "$@" '---' '# Task: a matter' '' 'The work.' > "$rigD/$taskName"
 }
 ## The contract of the rig: the package's task contract with the key as a row beside review-by, and the form listed.
-LC_ALL=C awk '{ print } /^\| `review-by` \|/ { print "| `handler-routine` | optional | member | `routine` | The routine that runs this item'"'"'s next iteration, in place of its type'"'"'s default. |" }' \
+LC_ALL=C awk '{ print ; } /^\| `review-by` \|/ { print "| `handler-routine` | optional | member | `routine` | The routine that runs this item'"'"'s next iteration, in place of its type'"'"'s default. |" }' \
 	"$rigTemplates/board-item.task.contract.format.md" > "$rigSkills/magic-team/contracts/board-item.task.contract.format.md"
 printf -- '---\nexecutors: keeper-rig\nmaintainers: keeper-rig\nrequires-session-kind: standalone\n---\n# a rig routine\n' > "$rigSkills/magic-team/magic-team.rigchange.routine.md"
 rigName=task-20261001T1000Z-a-matter.md

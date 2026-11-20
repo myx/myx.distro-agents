@@ -157,7 +157,7 @@ AgentsWaitProbeSlack(){
 			function secOf(v) { sub(/\..*$/, "", v) ; return ( v == "" ? 0 : v + 0 ) ; }
 			function fracOf(v) { if ( v !~ /\./ ) { return "000000" ; } sub(/^[^.]*\./, "", v) ; return substr(v "000000", 1, 6) ; }
 			/^# in / { pending = $0 ; next ; }
-			/^[0-9]+\.[0-9]+ \| / { keep = ( secOf($1) > secOf(floorTs) || ( secOf($1) == secOf(floorTs) && fracOf($1) > fracOf(floorTs) ) ) ; if ( keep && pending != "" ) { print pending ; pending = "" ; } }
+			/^[0-9]+\.[0-9]+ \| / { keep = ( secOf($1) > secOf(floorTs) || ( secOf($1) == secOf(floorTs) && fracOf($1) > fracOf(floorTs) ) ) ; if ( keep && pending != "" ) { print pending ; pending = "" ; } ; }
 			keep { print ; }' < "$probeOut.rendered" 2>> "$probeOut.err" )" || return 2
 		AgentsWaitPut "$probeOut" "${probeNext:+$probeNext$'\n'}" || return 2
 		return 0
@@ -476,7 +476,7 @@ AgentsWaitTaggedPart(){ ## member, where, what, floor, the rendering, the tags r
 	if [ -s "$partOut" ] && [ -n "${8:-}" ] ; then
 		LC_ALL=C awk -v mark="[fyi: ${8}]" '
 			match( $0, /^[0-9]+\.[0-9]+ \| [^|]*\|/ ) { $0 = substr( $0, 1, RSTART + RLENGTH - 1 ) mark substr( $0, RSTART + RLENGTH ) ; }
-			{ print }' "$partOut" > "$partOut.fyi" && mv -f "$partOut.fyi" "$partOut" || return 1
+			{ print ; }' "$partOut" > "$partOut.fyi" && mv -f "$partOut.fyi" "$partOut" || return 1
 	fi
 	if [ -s "$partOut" ] ; then
 		if [ -n "${8:-}" ] ; then
@@ -485,7 +485,7 @@ AgentsWaitTaggedPart(){ ## member, where, what, floor, the rendering, the tags r
 		if [ "${7:-0}" = "1" ] ; then
 			## Shown by the source that reads the conversation. The ts of the newest is kept, for the pointer, as a head line would be.
 			printf '# in %s: tagged there, and shown among its messages under the source that reads it\n' "$2" || return 1
-			LC_ALL=C awk '/^[0-9]+\.[0-9]+ \| / { ts = $1 ; } END { if ( ts != "" ) { print ts " | tagged | (see the source that reads this conversation)" ; } }' "$partOut" || return 1
+			LC_ALL=C awk '/^[0-9]+\.[0-9]+ \| / { ts = $1 ; } END { if ( ts != "" ) { print ts " | tagged | (see the source that reads this conversation)" ; } ; }' "$partOut" || return 1
 		else
 			{ printf '# in %s\n' "$2" ; cat "$partOut" ; } || return 1
 		fi

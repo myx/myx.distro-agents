@@ -104,7 +104,7 @@ function jfNodeHook(path, nodeType, nodeValue, fromPos, toPos,   idx, rest, msgI
 	if (msgIdx + 1 > msgCount) msgCount = msgIdx + 1
 }
 
-{ jfConsumeText($0) }
+{ jfConsumeText($0) ; }
 
 END {
 	## A BEGIN-time refusal must not be re-decided here by the outcome tests

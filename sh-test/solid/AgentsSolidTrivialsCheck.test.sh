@@ -74,11 +74,11 @@ rigRows(){ ## package root -- the trivial rows the detector prints for it
 }
 rigKept(){ ## package root, name -- the reason the detector leaves that name out
 	python3 -I -B "$rigDetector" "$1" --explain 2>&1 > /dev/null |
-		LC_ALL=C awk -F'\t' -v want="$2" '$1 == "kept" && index($3, " " want) == index($3, " ") { print $4 }'
+		LC_ALL=C awk -F'\t' -v want="$2" '$1 == "kept" && index($3, " " want) == index($3, " ") { print $4 ; }'
 }
 rigRowOf(){ ## package root, name -- `function` or `variable` where the detector rowed that name, empty where it did not
 	python3 -I -B "$rigDetector" "$1" 2> /dev/null |
-		LC_ALL=C awk -F'\t' -v want="$2" '{ d = $3 ; sub(/^[a-z]+ /, "", d) ; sub(/:.*/, "", d) ; if (d == want) { print $3 ; exit } }' |
+		LC_ALL=C awk -F'\t' -v want="$2" '{ d = $3 ; sub(/^[a-z]+ /, "", d) ; sub(/:.*/, "", d) ; if (d == want) { print $3 ; exit ; } ; }' |
 		LC_ALL=C sed -e 's/^\([a-z]*\) .*/\1/'
 }
 
@@ -153,7 +153,7 @@ echo "-- 6. the scan's classes: trivial at P4, every other class where it was --
 rigClassOf(){ ## class -- the priority the scan gives it, from its own table
 	LC_ALL=C grep -o 'p\["[a-z-]*"\] = "P[0-9]"' "$rigScan" |
 		LC_ALL=C sed -e 's/^p\["//' -e 's/"\] = "/ /' -e 's/"$//' |
-		LC_ALL=C awk -v want="$1" '$1 == want { print $2 ; exit }'
+		LC_ALL=C awk -v want="$1" '$1 == want { print $2 ; exit ; }'
 }
 rigAssert "trivial is a class of the scan" "$( rigClassOf trivial )" "P4"
 rigAssert "trivial sits beside duplicate" "$( rigClassOf duplicate )" "P4"
@@ -163,7 +163,7 @@ rigAssert "foreign-store keeps P2" "$( rigClassOf foreign-store )" "P2"
 rigAssert "dead keeps P6" "$( rigClassOf dead )" "P6"
 rigAssert "the scan runs the detector on its own root, and a trivial reaches its rows" \
 	"$( MDLT_ORIGIN="$rigPkg/.." bash "$rigScan" "$rigBuilt" 2> /dev/null |
-		LC_ALL=C awk -F'\t' -v want="SolidTrivialVersionLine" '$2 == "trivial" && index($4, want) { print "row" ; exit }' )" row
+		LC_ALL=C awk -F'\t' -v want="SolidTrivialVersionLine" '$2 == "trivial" && index($4, want) { print "row" ; exit ; }' )" row
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ SOLID TRIVIALS CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2

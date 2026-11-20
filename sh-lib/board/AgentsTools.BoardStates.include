@@ -129,18 +129,18 @@ AgentsToolsBoardItemDue(){ ## item file...
 					printf "%s\x1c%s\x1c%s\x1c%s\x1c%s\n", path, state, recheck, lastRound, condition ;
 				}
 				FNR == 1 {
-					if (seenPath != "") { dueRow(seenPath, seenState, seenRecheck, seenLast, seenCondition) } ;
+					if (seenPath != "") { dueRow(seenPath, seenState, seenRecheck, seenLast, seenCondition) ; } ;
 					fm = 0 ; seenPath = FILENAME ; seenState = "" ; seenRecheck = "" ; seenLast = "" ; seenCondition = "" ; conditionSeen = 0 ;
 					pathDepth = split(FILENAME, pathPart, "/") ;
-					if (pathDepth > 1) { seenState = pathPart[pathDepth - 1] } ;
-					if ($0 == "---") { fm = 1 } ;
+					if (pathDepth > 1) { seenState = pathPart[pathDepth - 1] ; } ;
+					if ($0 == "---") { fm = 1 ; } ;
 					next ;
 				}
-				fm == 1 && $0 == "---" { fm = 0 ; next } ;
-				fm == 1 && index($0, "recheck-date: ") == 1 { seenRecheck = substr($0, 15) ; next } ;
-				fm == 1 && index($0, "last-round-at: ") == 1 { seenLast = substr($0, 16) ; next } ;
-				fm == 1 && ! conditionSeen && index($0, "condition: ") == 1 { conditionSeen = 1 ; seenCondition = substr($0, 12) ; next } ;
-				END { if (seenPath != "") { dueRow(seenPath, seenState, seenRecheck, seenLast, seenCondition) } } ;
+				fm == 1 && $0 == "---" { fm = 0 ; next ; } ;
+				fm == 1 && index($0, "recheck-date: ") == 1 { seenRecheck = substr($0, 15) ; next ; } ;
+				fm == 1 && index($0, "last-round-at: ") == 1 { seenLast = substr($0, 16) ; next ; } ;
+				fm == 1 && ! conditionSeen && index($0, "condition: ") == 1 { conditionSeen = 1 ; seenCondition = substr($0, 12) ; next ; } ;
+				END { if (seenPath != "") { dueRow(seenPath, seenState, seenRecheck, seenLast, seenCondition) ; } ; } ;
 			' ${dueRead[@]+"${dueRead[@]}"}
 		)" || return 2
 	fi

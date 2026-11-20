@@ -52,7 +52,7 @@ rigEffort(){ ## none form, effort -- what the wire is given: reasoning effort, t
 ## THE HARD MARGIN (the human-owner's rule, AgentsHarnessLimits.include): the restart comes no later than the window less the
 ## output and less 5% of the window, whatever set the threshold. An expected "window output threshold ..." takes that cap.
 rigCap(){ ## "window output threshold rest..."
-	printf '%s\n' "$1" | LC_ALL=C awk '{ cap = $1 - $2 - int( $1 * 5 / 100 ) ; if ( $3 + 0 > cap ) { $3 = cap ; } print }'
+	printf '%s\n' "$1" | LC_ALL=C awk '{ cap = $1 - $2 - int( $1 * 5 / 100 ) ; if ( $3 + 0 > cap ) { $3 = cap ; } print ; }'
 }
 rigCase(){ ## wrapper, table, model, want "window output threshold noneform"
 	rigAssert "$1: $3" "$( rigJudge "$2" "$3" )" "$( rigCap "$4" )"
@@ -119,15 +119,15 @@ echo "-- 2. the preset's size, and the operator's --"
 for rigWrapper in claude:claude-opus-5-5:1000000:128000 copilot:gpt-5.6-sol:272000:32768 deepseek:deepseek-flash:1048576:32768 grok:grok-4.3:1000000:30000 scaleway:gemma-3-27b-it:40000:8192 standard-v1:qwen3-8b:32768:8192 ; do
 	IFS=: read -r rigName rigModel rigWindow rigOutput <<< "$rigWrapper"
 	case "$rigName" in claude) rigT="$rigClaude" ;; copilot) rigT="$rigCopilot" ;; deepseek) rigT="$rigDeepseek" ;; grok) rigT="$rigGrok" ;; scaleway) rigT="$rigScaleway" ;; *) rigT="$rigStandard" ;; esac
-	rigAssert "$rigName: the preset's 50000 is the threshold, the family's window and output stay" "$( rigJudge "$rigT" "$rigModel" PRESET_CONTEXT_MAX_SIZE=50000 | LC_ALL=C awk '{ print $1, $2, $3 }' )" "$( rigCap "$rigWindow $rigOutput 50000" )"
-	rigAssert "$rigName: the operator's 40000 stands ahead of the preset's" "$( rigJudge "$rigT" "$rigModel" PRESET_CONTEXT_MAX_SIZE=50000 MDAT_HARNESS_CONTEXT_TOKENS=40000 | LC_ALL=C awk '{ print $3 }' )" "$( rigCap "$rigWindow $rigOutput 40000" | LC_ALL=C awk '{ print $3 }' )"
+	rigAssert "$rigName: the preset's 50000 is the threshold, the family's window and output stay" "$( rigJudge "$rigT" "$rigModel" PRESET_CONTEXT_MAX_SIZE=50000 | LC_ALL=C awk '{ print $1, $2, $3 ; }' )" "$( rigCap "$rigWindow $rigOutput 50000" )"
+	rigAssert "$rigName: the operator's 40000 stands ahead of the preset's" "$( rigJudge "$rigT" "$rigModel" PRESET_CONTEXT_MAX_SIZE=50000 MDAT_HARNESS_CONTEXT_TOKENS=40000 | LC_ALL=C awk '{ print $3 ; }' )" "$( rigCap "$rigWindow $rigOutput 40000" | LC_ALL=C awk '{ print $3 ; }' )"
 done
 
 echo "-- 3. a model of no family is refused, with the families listed (the hosted legs; standard-v1, local and scaleway give the default of section 1 instead) --"
 for rigName in claude copilot deepseek grok ; do
 	case "$rigName" in claude) rigT="$rigClaude" ;; copilot) rigT="$rigCopilot" ;; deepseek) rigT="$rigDeepseek" ;; grok) rigT="$rigGrok" ;; scaleway) rigT="$rigScaleway" ;; *) rigT="$rigStandard" ;; esac
 	rigOut="$( rigJudge "$rigT" mystery-model-9 )"
-	rigFirst="$( printf '%s\n' "$rigT" | LC_ALL=C awk -F'|' 'NR == 1 { print $1 }' )"
+	rigFirst="$( printf '%s\n' "$rigT" | LC_ALL=C awk -F'|' 'NR == 1 { print $1 ; }' )"
 	rigRefusal="no: $rigOut"
 	case "$rigOut" in
 		REFUSED*mystery-model-9*"$rigFirst"*) rigRefusal=yes ;;

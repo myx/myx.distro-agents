@@ -210,7 +210,7 @@ rigRecord magic-team.rigroutine.routine.md ; rigTextStream "$rigDir/res.1" RIG-D
 rigAssert "the run ends normally" "$rigRunStatus" 0
 rigAssert "the reference text is in the first message" "$( rigIn "$( rigReq 1 )" 'RIG-REFERENCE-CRAFT' )" yes
 rigAssert "beside the armed file, which comes first" \
-	"$( rigIn "$( rigReq 1 )" 'RIG-A-ARMED-BODY' ):$( LC_ALL=C awk 'BEGIN { RS = "\001" } { a = index( $0, "RIG-A-ARMED-BODY" ) ; b = index( $0, "RIG-REFERENCE-CRAFT" ) ; print ( a > 0 && b > a ) ? "after" : "not" }' "$rigDir/req.1" )" "yes:after"
+	"$( rigIn "$( rigReq 1 )" 'RIG-A-ARMED-BODY' ):$( LC_ALL=C awk 'BEGIN { RS = "\001" ; } { a = index( $0, "RIG-A-ARMED-BODY" ) ; b = index( $0, "RIG-REFERENCE-CRAFT" ) ; print ( a > 0 && b > a ) ? "after" : "not" ; }' "$rigDir/req.1" )" "yes:after"
 rigAssert "it is read as a file inside the rig-a skill folder" "$( rigIn "$( rigReq 1 )" 'rig-ref.md' )" yes
 
 echo "-- 2. it is kept, and a later read of that very file is answered in one line --"

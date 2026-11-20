@@ -60,7 +60,7 @@ rigIndex(){ cat "$rigWs/.local/agents/sessions/$rigSession/session.chat.index" 2
 echo "-- 1. the record is a message delivered into the session --"
 rigScene thread CRIGSES01:1000.000001
 rigRecord
-rigAssert "one block, its conversation the session thread and its origin delivered" "$( rigIndex | LC_ALL=C awk -F'\t' '{ print NR ":" $3 ":" $4 }' )" "1:CRIGSES01:1000.000001:delivered"
+rigAssert "one block, its conversation the session thread and its origin delivered" "$( rigIndex | LC_ALL=C awk -F'\t' '{ print NR ":" $3 ":" $4 ; }' )" "1:CRIGSES01:1000.000001:delivered"
 rigAssert "its header names both runs" "$( LC_ALL=C grep -c -F -e "[author-run=$rigAuthor]" "$rigWs/.local/agents/sessions/$rigSession/session.chat" ):$( LC_ALL=C grep -c -F -e "[addressee-run=$rigTarget]" "$rigWs/.local/agents/sessions/$rigSession/session.chat" )" "1:1"
 
 echo "-- 2. the addressed run's floor delivers it, and it dismisses that run --"
@@ -74,7 +74,7 @@ rigAssert "the author's own run is not dismissed" "$( rigDismisses "$rigAuthor" 
 echo "-- 4. a session with no thread: the printback channel --"
 rigScene nothread ""
 rigRecord
-rigAssert "the record is on the session's printback channel" "$( rigIndex | LC_ALL=C awk -F'\t' '{ print $3 ":" $4 }' )" "printback:$rigSession:delivered"
+rigAssert "the record is on the session's printback channel" "$( rigIndex | LC_ALL=C awk -F'\t' '{ print $3 ":" $4 ; }' )" "printback:$rigSession:delivered"
 rigFloor="$( rigFloorOf "$rigTarget" )"
 rigAssert "and the addressed run's floor delivers it, as a dismissal" "$( printf '%s\n' "$rigFloor" | LC_ALL=C grep -c -x 'DISMISSED' ):$( rigDismisses "$rigTarget" "$rigFloor" )" "1:yes"
 

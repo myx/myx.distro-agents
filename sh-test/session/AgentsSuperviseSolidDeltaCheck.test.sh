@@ -49,10 +49,10 @@ rigOwnerWs="$rigTmp/ownerws"
 mkdir -p "$rigOwnerWs" || rigRefuse "the owner's workspace could not be made"
 AgentsToolsSolidGateMarkerWrite "$rigOwnerWs" 0 "$rigPkgTree" || rigRefuse "the owner refused to keep a zero reading"
 rigOwnerMarker="$rigOwnerWs/.local/agents/solid-gate.last"
-rigKeptZero="$( LC_ALL=C awk '$1 == "zero-at" { print $2 }' "$rigOwnerMarker" )"
+rigKeptZero="$( LC_ALL=C awk '$1 == "zero-at" { print $2 ; }' "$rigOwnerMarker" )"
 rigAssert "a reading of 0 records the instant it read 0" "$( [ -n "$rigKeptZero" ] && [ "$rigKeptZero" != "-" ] && echo kept )" kept
 AgentsToolsSolidGateMarkerWrite "$rigOwnerWs" 5 "$rigPkgTree" || rigRefuse "the owner refused to keep a reading of rows"
-rigAssert "a later reading of rows leaves that instant standing" "$( LC_ALL=C awk '$1 == "zero-at" { print $2 }' "$rigOwnerMarker" )" "$rigKeptZero"
-rigAssert "and keeps the total it was given" "$( LC_ALL=C awk '$1 == "total" { print $2 }' "$rigOwnerMarker" )" "5"
+rigAssert "a later reading of rows leaves that instant standing" "$( LC_ALL=C awk '$1 == "zero-at" { print $2 ; }' "$rigOwnerMarker" )" "$rigKeptZero"
+rigAssert "and keeps the total it was given" "$( LC_ALL=C awk '$1 == "total" { print $2 ; }' "$rigOwnerMarker" )" "5"
 
 rigScanDone

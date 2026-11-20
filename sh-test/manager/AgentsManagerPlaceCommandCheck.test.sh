@@ -163,7 +163,7 @@ for rigPair in source:SourceTools deploy:DeployTools remote:RemoteTools agents:A
 		"$( cmp -s "$rigTmp/golden.${rigPair%%:*}" "$rigTmp/tasks.${rigPair%%:*}" && echo same || echo differs ) $( wc -c < "$rigTmp/tasks.err" | LC_ALL=C tr -d ' ' )" "same 0"
 done
 rigAssert "each package declares its commands once, in its own list: how many, and those that run with the whole terminal, the consoles" \
-	"$( for rigPkg in source deploy remote agents ; do LC_ALL=C awk -F'\t' -v pkg="$rigPkg" '/^#/ || !NF { next } { all++ ; if ( NF != 3 || ( $2 != "output" && $2 != "terminal" ) ) bad++ ; if ( $2 == "terminal" ) term = term "," $1 } END { printf "%s=%d/%d%s ", pkg, all, bad + 0, term }' "$( rigListPath "$rigPkg" "$MDLT_ORIGIN" )" 2> /dev/null || printf '%s=none ' "$rigPkg" ; done )" \
+	"$( for rigPkg in source deploy remote agents ; do LC_ALL=C awk -F'\t' -v pkg="$rigPkg" '/^#/ || !NF { next ; } { all++ ; if ( NF != 3 || ( $2 != "output" && $2 != "terminal" ) ) bad++ ; if ( $2 == "terminal" ) term = term "," $1 ; } END { printf "%s=%d/%d%s ", pkg, all, bad + 0, term ; }' "$( rigListPath "$rigPkg" "$MDLT_ORIGIN" )" 2> /dev/null || printf '%s=none ' "$rigPkg" ; done )" \
 	"source=5/0,🖥️ Start Source Console deploy=2/0,🖥️ Start Deploy Console remote=1/0,🖥️ Start Remote Console agents=1/0,🤖 Start Agents Console "
 rigAssert "no fragment writes a task of its own: each is made from its package's list by the one emitter" \
 	"$( for rigPair in source:SourceTools deploy:DeployTools remote:RemoteTools agents:AgentsTools ; do rigFile="$( rigFragment "$MDLT_ORIGIN" "${rigPair%%:*}" "${rigPair#*:}" )" ; printf '%s:%s ' "$( LC_ALL=C grep -c -e '"label"' -e '"command"' "$rigFile" || : )" "$( LC_ALL=C grep -c -F -e 'SourceTools.Make.VSCodeTasksFromWorkspaceCommands.include' "$rigFile" || : )" ; done )" "0:1 0:1 0:1 0:1 "
@@ -239,9 +239,9 @@ rigRun "$rigListOp" ws-here
 rigAssert "this workspace: the commands of myx.distro-source, then of each package whose console at its root is executable, in the palette's order, a row each, whitespace of a name as _" \
 	"$rigRc $( LC_ALL=C grep '^command' "$rigTmp/out" | LC_ALL=C tr '\t\n' ' |' )" \
 	"0 command 🧪_Rig_Output myx.distro-source output|command 🧪_Rig_\"Quoted\"_\\_Back myx.distro-source output|command 🧪_Rig_Deploy myx.distro-deploy output|command 🧪_Rig_Terminal myx.distro-agents terminal|"
-rigAssert "it begins with whether it is the workspace the call runs in, and how many sessions name it" "$( LC_ALL=C awk -F'\t' '$1 == "here" || $1 == "sessions" { printf "%s=%s ", $1, $2 }' "$rigTmp/out" )" "here=yes sessions=- "
+rigAssert "it begins with whether it is the workspace the call runs in, and how many sessions name it" "$( LC_ALL=C awk -F'\t' '$1 == "here" || $1 == "sessions" { printf "%s=%s ", $1, $2 ; }' "$rigTmp/out" )" "here=yes sessions=- "
 rigRun "$rigListOp" ws-far
-rigAssert "a workspace other than the one the call runs in says so" "$( LC_ALL=C awk -F'\t' '$1 == "here" { printf "%s=%s ", $1, $2 }' "$rigTmp/out" )" "here=no "
+rigAssert "a workspace other than the one the call runs in says so" "$( LC_ALL=C awk -F'\t' '$1 == "here" { printf "%s=%s ", $1, $2 ; }' "$rigTmp/out" )" "here=no "
 rigAssert "a workspace with no console at its root has the commands of myx.distro-source alone" "$rigRc $( LC_ALL=C grep '^command' "$rigTmp/out" | LC_ALL=C cut -f2 | LC_ALL=C tr '\n' ' ' )" "0 🧪_Rig_Output 🧪_Rig_\"Quoted\"_\\_Back "
 rigRun "$rigListOp" docs
 rigAssert "a directory has none, and that is no error" "$rigRc $( wc -c < "$rigTmp/out" | LC_ALL=C tr -d ' ' ) $( rigSaid )" "0 0 0"

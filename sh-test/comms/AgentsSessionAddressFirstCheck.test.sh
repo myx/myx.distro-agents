@@ -208,15 +208,15 @@ rigHeaders(){ ## chat file -- how many header lines it holds, `no-file` when the
 rigBody(){ ## chat file, N -- the body of the Nth block, blank lines trimmed at its end
 	[ -f "$1" ] || { printf 'no-file' ; return 0 ; }
 	LC_ALL=C awk -v want="$2" '
-		/^[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9]Z .* -> .*:$/ { count++ ; inBlock = ( count == want ) ; if ( inBlock ) { next ; } }
-		inBlock { lines[++n] = $0 }
-		END { while ( n > 0 && lines[n] == "" ) { n-- ; } for ( i = 1 ; i <= n ; i++ ) { print lines[i] ; } }' "$1"
+		/^[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9]Z .* -> .*:$/ { count++ ; inBlock = ( count == want ) ; if ( inBlock ) { next ; } ; }
+		inBlock { lines[++n] = $0 ; }
+		END { while ( n > 0 && lines[n] == "" ) { n-- ; } for ( i = 1 ; i <= n ; i++ ) { print lines[i] ; } ; }' "$1"
 }
 rigBlockOf(){ ## chat file, fixed text -- the number of the one block whose body holds it
 	[ -f "$1" ] || return 0
 	LC_ALL=C awk -v marker="$2" '
-		/^[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9]Z .* -> .*:$/ { count++ ; next }
-		count > 0 && index($0, marker) > 0 { print count ; exit }' "$1"
+		/^[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9]Z .* -> .*:$/ { count++ ; next ; }
+		count > 0 && index($0, marker) > 0 { print count ; exit ; }' "$1"
 }
 rigIndexField(){ ## chat file, N, field 1..6 -- that field of the block's line in the RESOLVED index
 	## A STAMP IS ITS OWN LINE (S1 item 11): the ts and the conversation of a post go into session.chat.stamps, and
@@ -225,7 +225,7 @@ rigIndexField(){ ## chat file, N, field 1..6 -- that field of the block's line i
 	[ -f "$1.index" ] || { printf 'no-index' ; return 0 ; }
 	( type AgentsToolsSessionChatResolve > /dev/null 2>&1 || . "$rigRigPackage/sh-lib/session/AgentsTools.SessionChat.include" ; \
 		AgentsToolsSessionChatResolve "$1.index" "$1.stamps" ) \
-		| LC_ALL=C awk -F'\t' -v want="$2" -v field="$3" '$1 == want { print $field ; found = 1 ; exit ; } END { if ( ! found ) { print "no-such-block" ; } }'
+		| LC_ALL=C awk -F'\t' -v want="$2" -v field="$3" '$1 == want { print $field ; found = 1 ; exit ; } END { if ( ! found ) { print "no-such-block" ; } ; }'
 }
 rigChats(){ ## workspace -- every session chat file in it, one a line
 	find "$1/.local/agents/sessions" -name 'session.chat' -type f 2> /dev/null | LC_ALL=C sort || :
@@ -285,13 +285,13 @@ rigLogRows(){ ## workspace, target, channel, member (optional) -- how many log l
 	local rigLogPath=""
 	rigLogPath="$( rigLogFile "$1" )"
 	[ -n "$rigLogPath" ] || { printf 0 ; return 0 ; }
-	LC_ALL=C awk -F'\t' -v wantTarget="$2" -v wantChannel="$3" -v wantMember="${4:-}" '($3 == wantTarget && $4 == wantChannel) && (wantMember == "" || $2 == wantMember) { rows++ } END { print rows + 0 }' "$rigLogPath"
+	LC_ALL=C awk -F'\t' -v wantTarget="$2" -v wantChannel="$3" -v wantMember="${4:-}" '($3 == wantTarget && $4 == wantChannel) && (wantMember == "" || $2 == wantMember) { rows++ ; } END { print rows + 0 ; }' "$rigLogPath"
 }
 rigLogLine(){ ## workspace, target, channel, member (optional) -- the send log's line naming them, `none` when absent
 	local rigLogPath=""
 	rigLogPath="$( rigLogFile "$1" )"
 	[ -n "$rigLogPath" ] || { printf 'no-log' ; return 0 ; }
-	LC_ALL=C awk -F'\t' -v wantTarget="$2" -v wantChannel="$3" -v wantMember="${4:-}" '($3 == wantTarget && $4 == wantChannel) && (wantMember == "" || $2 == wantMember) { print ; found = 1 ; exit } END { if ( ! found ) { print "no-such-line" ; } }' "$rigLogPath"
+	LC_ALL=C awk -F'\t' -v wantTarget="$2" -v wantChannel="$3" -v wantMember="${4:-}" '($3 == wantTarget && $4 == wantChannel) && (wantMember == "" || $2 == wantMember) { print ; found = 1 ; exit ; } END { if ( ! found ) { print "no-such-line" ; } ; }' "$rigLogPath"
 }
 
 ## ---- the rig's own workspaces, mint and spawn ----

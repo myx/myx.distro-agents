@@ -102,11 +102,11 @@ rigFile(){ ## name -- the file that name builds
 }
 rigLines(){ ## file -- its lines; no-file where there is none
 	[ -f "$1" ] || { printf 'no-file\n' ; return 0 ; }
-	LC_ALL=C awk 'END { print NR + 0 }' "$1"
+	LC_ALL=C awk 'END { print NR + 0 ; }' "$1"
 }
 rigRows(){ ## registry name, first column -- how many rows of that registry's file carry it; no-file where there is none
 	[ -f "$( rigFile "$1" )" ] || { printf 'no-file\n' ; return 0 ; }
-	LC_ALL=C awk -v want="$2" '$1 == want { n++ } END { print n + 0 }' "$( rigFile "$1" )"
+	LC_ALL=C awk -v want="$2" '$1 == want { n++ ; } END { print n + 0 ; }' "$( rigFile "$1" )"
 }
 rigHolds(){ ## round word -- for each of the four registries, in their order, how many of that round's records it holds: the board item last
 	printf '%s %s %s %s %s\n' "$( rigRows team-members "keeper-$1" )" "$( rigRows team-members-names "keeper-$1" )" "$( rigRows spawned-sessions "s-$1" )" "$( rigRows pending-replies "ask-$1.md" )" "$( rigRows pending-replies "task-$1.md" )"
@@ -120,7 +120,7 @@ rigSizes(){ ## -- the lines of the four registries, in their order
 ## changes even where its bytes do not.
 rigPrint(){ ## name
 	[ -f "$( rigFile "$1" )" ] || { printf 'no-file\n' ; return 0 ; }
-	printf '%s:%s\n' "$( ls -i "$( rigFile "$1" )" | LC_ALL=C awk '{ print $1 ; exit }' )" "$( cksum < "$( rigFile "$1" )" | LC_ALL=C tr -s ' \t' '-' )"
+	printf '%s:%s\n' "$( ls -i "$( rigFile "$1" )" | LC_ALL=C awk '{ print $1 ; exit ; }' )" "$( cksum < "$( rigFile "$1" )" | LC_ALL=C tr -s ' \t' '-' )"
 }
 rigPrints(){ ## -- the prints of every file a name builds here, in the build's order
 	local printsOut="" printsName
@@ -131,7 +131,7 @@ rigChanged(){ ## prints taken before -- which names have another print now, in t
 	local changedOut="" changedName changedNo=0 changedWas
 	for changedName in $rigFiled ; do
 		changedNo=$(( changedNo + 1 ))
-		changedWas="$( printf '%s\n' "$1" | LC_ALL=C awk -v no="$changedNo" '{ print $no }' )"
+		changedWas="$( printf '%s\n' "$1" | LC_ALL=C awk -v no="$changedNo" '{ print $no ; }' )"
 		[ "$( rigPrint "$changedName" )" = "$changedWas" ] || changedOut="$changedOut${changedOut:+ }$changedName"
 	done
 	printf '%s\n' "${changedOut:-none}"
@@ -290,7 +290,7 @@ rigMake
 rigAssert "control: with no name the same stores are built" "$rigRc $( rigHolds five )" "0 1 1 1 1 1"
 
 echo "-- 6. the callers inside the package: the build once, with no name --"
-rigWsArm="$( LC_ALL=C awk '/^\t--make-workspace-integrations\)/ { on = 1 } on { print } on && /^\t;;/ { exit }' "$rigMakeInclude" )"
+rigWsArm="$( LC_ALL=C awk '/^\t--make-workspace-integrations\)/ { on = 1 ; } on { print ; } on && /^\t;;/ { exit ; }' "$rigMakeInclude" )"
 rigAssert "control: the arm of --make-workspace-integrations was cut out of the make include" "$( printf '%s\n' "$rigWsArm" | LC_ALL=C grep -c -F -- 'DistroAgentsTools --intern-member-home-register' || : )" "1"
 rigAssert "it calls the build once, as a whole line with no name, and the earlier name not at all" "$( printf '%s\n' "$rigWsArm" | LC_ALL=C grep -c -x -F -- "$( printf '\t\t' )DistroAgentsTools $rigOne || { set +e ; return 1 ; }" || : ) $( printf '%s\n' "$rigWsArm" | LC_ALL=C grep -v '^[[:space:]]*#' | LC_ALL=C grep -c -E -- '--make-(harness|agents)-indices' || : )" "1 1"
 rigAssert "in this order: the places, the console command, the install's first part, the member homes, the build, the install's second part, the restrictions" \
@@ -299,7 +299,7 @@ rigAssert "in this order: the places, the console command, the install's first p
 ## The syntax lines the help include prints (sh-lib/help/, in this glob since the folder move) are no caller.
 rigAssert "no caller inside the package names a list where it means the build: no call of either name is followed by two names" \
 	"$( cat "$rigHere"/*/*.include "$rigHere"/*/*.sh "$rigPackage"/sh-scripts/*.sh "$rigBuilders"/*.sh | LC_ALL=C grep -v -e '^[[:space:]]*#' -e '^echo "📘 syntax: ' | LC_ALL=C grep -c -E -- 'DistroAgentsTools(\.fn\.sh)? --make-(harness|agents)-indices[[:space:]]+[^|&;[:space:]]+[[:space:]]+[^|&;[:space:]]' || : )" "0"
-rigAssert "the install step that makes the roots asks for the one index that holds them, by its one name: in the copilot access step of the install include, once, after it has made a root" "$( LC_ALL=C awk '/^\t--install-copilot-access-fragment\)/ { on = 1 } on { print } on && /^\t;;/ { exit }' "$rigHere/config/AgentsTools.Install.include" | LC_ALL=C grep -c -F -- 'DistroAgentsTools --make-harness-indices harness.roots' || : ) $( LC_ALL=C grep -c -F -- 'DistroAgentsTools --make-harness-indices harness.roots' "$rigHere/config/AgentsTools.Install.include" || : ) $( LC_ALL=C grep -c -F -- 'if [ "$createdCount" -gt 0 ] && [ "$workspace" = "$( cd "$MMDAPP" && pwd )" ] ; then' "$rigHere/config/AgentsTools.Install.include" || : )" "1 1 1"
+rigAssert "the install step that makes the roots asks for the one index that holds them, by its one name: in the copilot access step of the install include, once, after it has made a root" "$( LC_ALL=C awk '/^\t--install-copilot-access-fragment\)/ { on = 1 ; } on { print ; } on && /^\t;;/ { exit ; }' "$rigHere/config/AgentsTools.Install.include" | LC_ALL=C grep -c -F -- 'DistroAgentsTools --make-harness-indices harness.roots' || : ) $( LC_ALL=C grep -c -F -- 'DistroAgentsTools --make-harness-indices harness.roots' "$rigHere/config/AgentsTools.Install.include" || : ) $( LC_ALL=C grep -c -F -- 'if [ "$createdCount" -gt 0 ] && [ "$workspace" = "$( cd "$MMDAPP" && pwd )" ] ; then' "$rigHere/config/AgentsTools.Install.include" || : )" "1 1 1"
 rigAssert "control: the same reader does find a call that names a list, and takes one name for no list" "$( printf '\t\tDistroAgentsTools --make-harness-indices grants members || x\nDistroAgentsTools.fn.sh --make-agents-indices team-members\n\t\tDistroAgentsTools --make-harness-indices harness.roots || x\n\t\tDistroAgentsTools --make-harness-indices || x\n' | LC_ALL=C grep -c -E -- 'DistroAgentsTools(\.fn\.sh)? --make-(harness|agents)-indices[[:space:]]+[^|&;[:space:]]+[[:space:]]+[^|&;[:space:]]' || : )" "1"
 rigAssert "the source-prepare build has one builder that makes the indices: its call is the bare script name and the operation, with no name" \
 	"$( ls "$rigBuilders" | LC_ALL=C tr '\n' ' ' )$( LC_ALL=C grep -c -x -F -- "DistroAgentsTools.fn.sh $rigOne" "$rigBuilders/1201-agents-indices.sh" || : ) $( cat "$rigBuilders"/*.sh | LC_ALL=C grep -v '^[[:space:]]*#' | LC_ALL=C grep -c -F -- 'DistroAgentsTools' || : )" "1201-agents-indices.sh 1202-harness-indices.sh 1 1"
@@ -355,19 +355,19 @@ rigIntBytes(){ ## -- the bytes of every file of the build in that workspace, a l
 	done
 }
 rigIntLine(){ ## fixed text -- the number of the last line of the run's stderr that holds it; 0 where none does
-	LC_ALL=C awk -v want="$1" 'index( $0, want ) { at = NR } END { print at + 0 }' "$rigTmp/int.err"
+	LC_ALL=C awk -v want="$1" 'index( $0, want ) { at = NR ; } END { print at + 0 ; }' "$rigTmp/int.err"
 }
 rigIntCount(){ ## fixed text -- how many lines of the run's stderr hold it
 	LC_ALL=C grep -c -F -- "$1" "$rigTmp/int.err" || :
 }
 rigIntMembers(){ ## -- the members this workspace's member registry holds, rules rows left out
-	LC_ALL=C awk -F'\t' -v ws="$rigIntWs" '$2 == ws && $3 != "rules-symlink" && !( $1 in seen ) { seen[$1] = 1 ; n++ } END { print n + 0 }' "$rigIntAgents/members.registry" 2> /dev/null
+	LC_ALL=C awk -F'\t' -v ws="$rigIntWs" '$2 == ws && $3 != "rules-symlink" && !( $1 in seen ) { seen[$1] = 1 ; n++ ; } END { print n + 0 ; }' "$rigIntAgents/members.registry" 2> /dev/null
 }
 rigIntCurrent(){ ## -- whether a build run right now changes a byte of any of the eleven files: current where it changes none
 	local currentBefore
 	currentBefore="$( rigIntBytes )"
 	rigInt "$rigOne"
-	if [ "$rigRc" = 0 ] && [ "$( rigIntBytes )" = "$currentBefore" ] ; then printf 'current\n' ; else printf 'not current: rc %s, changed: %s\n' "$rigRc" "$( rigIntBytes | LC_ALL=C grep -v -x -F -- "$currentBefore" | LC_ALL=C awk '{ print $1 }' | LC_ALL=C tr '\n' ' ' )" ; fi
+	if [ "$rigRc" = 0 ] && [ "$( rigIntBytes )" = "$currentBefore" ] ; then printf 'current\n' ; else printf 'not current: rc %s, changed: %s\n' "$rigRc" "$( rigIntBytes | LC_ALL=C grep -v -x -F -- "$currentBefore" | LC_ALL=C awk '{ print $1 ; }' | LC_ALL=C tr '\n' ' ' )" ; fi
 }
 rigIntOrder(){ ## -- whether the run went: member links, then the one build, then the readers of the indices
 	local orderLinks orderBuildFirst orderBuildLast orderPermissions orderCopilot
@@ -386,7 +386,7 @@ rigAssert "a first install ends 0, with no error" "$rigRc $( rigIntCount '⛔ ER
 rigAssert "it makes the indices in one step: each registry is noted once, by the one operation, and the install ends once" "$( for rigName in $rigRegistries ; do rigIntCount "# DistroAgentsTools $rigOne: wrote $rigIntAgents/$rigName.registry (" ; done | LC_ALL=C tr '\n' ' ' )$( rigIntCount "$rigEarlier" ) $( rigIntCount '✅ workspace integrations installed' )" "1 1 1 1 0 1"
 rigAssert "the member links come first, then the build, then what reads the indices: the permissions and the copilot access" "$( rigIntOrder )" "ordered"
 rigAssert "the copilot access step made the team's own root, which did not exist when the build ran, and wrote the roots index again after it: twice in this run, and resolved in the file" \
-	"$( [ -f "$rigIntWs/.local/temp/team/MAGIC.md" ] && echo made ) $( rigIntCount 'harness roots index written: .local/agents/harness.roots.index' ) $( LC_ALL=C awk -F'\t' -v root="$rigIntWs/.local/temp/team" '$2 == root && $3 == "" { n++ } END { print n + 0 }' "$rigIntAgents/harness.roots.index" )" "made 2 0"
+	"$( [ -f "$rigIntWs/.local/temp/team/MAGIC.md" ] && echo made ) $( rigIntCount 'harness roots index written: .local/agents/harness.roots.index' ) $( LC_ALL=C awk -F'\t' -v root="$rigIntWs/.local/temp/team" '$2 == root && $3 == "" { n++ ; } END { print n + 0 ; }' "$rigIntAgents/harness.roots.index" )" "made 2 0"
 rigIntInstalled="$( rigIntMembers )"
 rigAssert "control: the install linked members, and wrote the member registry the member registries are made from" "$( [ "$rigIntInstalled" -gt 0 ] && echo members || echo "none: $rigIntInstalled" )" "members"
 rigAssert "at the end of the first install the two member registries hold every member just installed, and the two session registries are there with no rows" "$( rigLines "$rigIntAgents/team-members.registry" ) $( rigLines "$rigIntAgents/team-members-names.registry" ) $( rigLines "$rigIntAgents/spawned-sessions.registry" ) $( rigLines "$rigIntAgents/pending-replies.registry" )" "$rigIntInstalled $rigIntInstalled 0 0"
@@ -432,8 +432,8 @@ while [ "$rigAtOnceRound" -lt 3 ] ; do
 	done
 	cmp -s "$rigTmp/want.spawned" "$( rigFile spawned-sessions )" && cmp -s "$rigTmp/want.pending" "$( rigFile pending-replies )" || rigAtOnceBroken=$(( rigAtOnceBroken + 1 ))
 done
-rigAssert "control: the stores the runs read are of some size" "$( LC_ALL=C awk 'END { print ( NR > 150 ) ? "over 150" : NR }' "$rigTmp/want.spawned" ) $( LC_ALL=C awk 'END { print ( NR > 150 ) ? "over 150" : NR }' "$rigTmp/want.pending" )" "over 150 over 150"
-rigAssert "three rounds, a build and two rebuilding processes at once: every one ends 0, with no error and no warning, the rebuilding processes silent" "$rigAtOnceFailed $( rigTroubles "$rigTmp"/at-once.*.err ) $( cat "$rigTmp"/at-once.*.[12].err | LC_ALL=C awk 'END { print NR + 0 }' )" "0 0 0"
+rigAssert "control: the stores the runs read are of some size" "$( LC_ALL=C awk 'END { print ( NR > 150 ) ? "over 150" : NR ; }' "$rigTmp/want.spawned" ) $( LC_ALL=C awk 'END { print ( NR > 150 ) ? "over 150" : NR ; }' "$rigTmp/want.pending" )" "over 150 over 150"
+rigAssert "three rounds, a build and two rebuilding processes at once: every one ends 0, with no error and no warning, the rebuilding processes silent" "$rigAtOnceFailed $( rigTroubles "$rigTmp"/at-once.*.err ) $( cat "$rigTmp"/at-once.*.[12].err | LC_ALL=C awk 'END { print NR + 0 ; }' )" "0 0 0"
 rigAssert "each build noted both session registries" "$( cat "$rigTmp"/at-once.*.build.err | LC_ALL=C grep -c -F -- "wrote $( rigFile spawned-sessions ) (" || : ) $( cat "$rigTmp"/at-once.*.build.err | LC_ALL=C grep -c -F -- "wrote $( rigFile pending-replies ) (" || : )" "3 3"
 rigAssert "after every round both files are whole: byte for byte what the rows functions print for the stores" "$rigAtOnceBroken" "0"
 rigAssert "and no temp name is left beside the files" "$( ls "$rigAgents" | LC_ALL=C grep -c -E -- '\.(registry|index)\.' || : )" "0"
@@ -452,8 +452,8 @@ rigWriterFile="$rigWriter/ws/.local/agents/probe.registry"
 		while [ ! -e "$1" ] && [ "$waitNo" -lt 150 ] ; do waitNo=$(( waitNo + 1 )) ; sleep 0.2 ; done
 		[ -e "$1" ]
 	}
-	rigRowsSlowShort(){ : > "$rigWriter/slow.started" ; rigWait "$rigWriter/fast.done" ; LC_ALL=C awk 'BEGIN { for ( i = 1 ; i <= 3 ; i++ ) { print "short-row-" i " a b c d e f" ; } }' ; }
-	rigRowsFastLong(){ LC_ALL=C awk 'BEGIN { for ( i = 1 ; i <= 2000 ; i++ ) { print "long-row-" i " a b c d e f" ; } }' ; }
+	rigRowsSlowShort(){ : > "$rigWriter/slow.started" ; rigWait "$rigWriter/fast.done" ; LC_ALL=C awk 'BEGIN { for ( i = 1 ; i <= 3 ; i++ ) { print "short-row-" i " a b c d e f" ; } ; }' ; }
+	rigRowsFastLong(){ LC_ALL=C awk 'BEGIN { for ( i = 1 ; i <= 2000 ; i++ ) { print "long-row-" i " a b c d e f" ; } ; }' ; }
 	( printf '%s\n' "$$" > "$rigWriter/slow.shell" ; AgentsToolsRegistryWrite probe rigRowsSlowShort 2> "$rigWriter/slow.err" ; printf '%s\n' "$?" > "$rigWriter/slow.rc" ) &
 	rigWait "$rigWriter/slow.started"
 	( printf '%s\n' "$$" > "$rigWriter/fast.shell" ; AgentsToolsRegistryWrite probe rigRowsFastLong 2> "$rigWriter/fast.err" ; printf '%s\n' "$?" > "$rigWriter/fast.rc" ) &
@@ -462,12 +462,12 @@ rigWriterFile="$rigWriter/ws/.local/agents/probe.registry"
 	: > "$rigWriter/fast.done"
 	wait
 ) > /dev/null 2>&1
-rigAssert "control: both rebuilds ran, in subshells of one shell, and the second put its 2000 rows in place while the first waited" "$( cat "$rigWriter/slow.shell" "$rigWriter/fast.shell" 2> /dev/null | LC_ALL=C sort -u | LC_ALL=C awk 'END { print NR + 0 }' ) $( [ -e "$rigWriter/slow.started" ] && echo started ) $( rigLines "$rigWriter/after-fast.copy" )" "1 started 2000"
+rigAssert "control: both rebuilds ran, in subshells of one shell, and the second put its 2000 rows in place while the first waited" "$( cat "$rigWriter/slow.shell" "$rigWriter/fast.shell" 2> /dev/null | LC_ALL=C sort -u | LC_ALL=C awk 'END { print NR + 0 ; }' ) $( [ -e "$rigWriter/slow.started" ] && echo started ) $( rigLines "$rigWriter/after-fast.copy" )" "1 started 2000"
 rigAssert "neither is a false failure: both end 0" "$( cat "$rigWriter/slow.rc" 2> /dev/null ) $( cat "$rigWriter/fast.rc" 2> /dev/null )" "0 0"
 rigAssert "the file in place is whole: the rows of the rebuild that renamed last, and no line of any other shape" "$( rigLines "$rigWriterFile" ) $( LC_ALL=C grep -c -E -- '^short-row-[0-9]+ a b c d e f$' "$rigWriterFile" || : ) $( LC_ALL=C grep -c -v -E -- '^short-row-[0-9]+ a b c d e f$' "$rigWriterFile" || : )" "3 3 0"
 rigAssert "and no temp file is left beside it" "$( ls "$rigWriter/ws/.local/agents" | LC_ALL=C tr '\n' ' ' )" "probe.registry "
 rigWriterBody(){ ## include file, function -- that function's lines
-	LC_ALL=C awk -v head="$2(){" 'index( $0, head ) == 1 { on = 1 } on { print } on && /^}/ { exit }' "$( ls -d "$rigHere"/*/"$1" "$rigHere"/../../myx.distro-.local/sh-lib/*/"$1" 2> /dev/null | head -1 )"
+	LC_ALL=C awk -v head="$2(){" 'index( $0, head ) == 1 { on = 1 ; } on { print ; } on && /^}/ { exit ; }' "$( ls -d "$rigHere"/*/"$1" "$rigHere"/../../myx.distro-.local/sh-lib/*/"$1" 2> /dev/null | head -1 )"
 }
 rigWriterBad=""
 for rigWriterAt in "AgentsTools.Registries.include AgentsToolsRegistryWrite" "AgentsTools.TeamRegistry.include AgentsToolsTeamMemberIndexWrite" "AgentsTools.Grants.include AgentsToolsGrantsIndexWrite" "AgentsTools.Grants.include AgentsToolsGrantsSessionEnsure" "AgentsHarnessHooksLoad.include AgentsHarnessHooksIndexWrite" "AgentsHarnessMcpConfig.include AgentsHarnessMcpIndexWrite" ; do
@@ -475,7 +475,7 @@ for rigWriterAt in "AgentsTools.Registries.include AgentsToolsRegistryWrite" "Ag
 	[ "$( printf '%s\n' "$rigWriterText" | LC_ALL=C grep -c -F -- 'mktemp "' || : ) $( printf '%s\n' "$rigWriterText" | LC_ALL=C grep -v '^[[:space:]]*#' | LC_ALL=C grep -c -F -- '$$' || : )" = "1 0" ] || rigWriterBad="$rigWriterBad [$rigWriterAt]"
 done
 rigAssert "every writer of a registry or an index that holds no lock makes its temp name by mktemp, once, and none by the shell's process id" "${rigWriterBad:-each by mktemp}" "each by mktemp"
-rigMakeArm="$( LC_ALL=C awk '/^\t--make-agents-indices\|--make-harness-indices\)/ { on = 1 } on { print } on && /^\t;;/ { exit }' "$rigMakeInclude" )"
+rigMakeArm="$( LC_ALL=C awk '/^\t--make-agents-indices\|--make-harness-indices\)/ { on = 1 ; } on { print ; } on && /^\t;;/ { exit ; }' "$rigMakeInclude" )"
 rigAssert "and so does the one operation's own arm, for the harness's two indexes it writes itself" "$( printf '%s\n' "$rigMakeArm" | LC_ALL=C grep -c -F -- 'mktemp "' || : ) $( printf '%s\n' "$rigMakeArm" | LC_ALL=C grep -v '^[[:space:]]*#' | LC_ALL=C grep -c -F -- '$$' || : )" "1 0"
 rigAssert "control: a writer that does hold a lock is found by the same reader, with its temp name as it was" "$( rigWriterBody LocalTools.Places.include LocalToolsPlacesSharedUpdate | LC_ALL=C grep -c -F -- 'LocalToolsPlacesLockTake' || : ) $( rigWriterBody LocalTools.Places.include LocalToolsPlacesSharedUpdate | LC_ALL=C grep -c -F -- '.tmp.$$' || : )" "1 2"
 
@@ -484,7 +484,7 @@ rigAssert "the registries are one list, a name a line, in the order they are bui
 	"$( rigWriterBody AgentsTools.Registries.include AgentsToolsRegistryList | LC_ALL=C grep -E -- '^([[:space:]]*printf .* ")?[a-z-]+"?$' | LC_ALL=C sed -e 's/^.* "//' -e 's/"$//' | LC_ALL=C tr '\n' ' ' )" \
 	"team-members team-members-names spawned-sessions pending-replies "
 rigAssert "each is rebuilt by its owner's hook, declared in the package's hook registry with the rebuild function of its name" \
-	"$( LC_ALL=C awk '$1 ~ /^registry-/ { sub( /^registry-/, "", $1 ) ; printf "%s %s ", $1, $2 }' "$rigHere/hooks.registry" )" \
+	"$( LC_ALL=C awk '$1 ~ /^registry-/ { sub( /^registry-/, "", $1 ) ; printf "%s %s ", $1, $2 ; }' "$rigHere/hooks.registry" )" \
 	"team-members AgentsToolsRegistryTeamMembersRebuild team-members-names AgentsToolsRegistryTeamMembersNamesRebuild spawned-sessions AgentsToolsRegistrySpawnedSessionsRebuild pending-replies AgentsToolsRegistryPendingRepliesRebuild "
 rigAssert "the include has one writer call a registry, four in all, each from the rebuild function of that registry" \
 	"$( LC_ALL=C grep -c -E -- '^[[:space:]]+AgentsToolsRegistryWrite [a-z-]+ AgentsToolsRegistry[A-Za-z]+Rows$' "$rigRegInclude" || : ) $( LC_ALL=C grep -c -F -- 'AgentsToolsRegistryWrite ' "$rigRegInclude" || : ) $( LC_ALL=C grep -c -E -- '^AgentsToolsRegistry(TeamMembers|TeamMembersNames|SpawnedSessions|PendingReplies)Rebuild\(\)\{$' "$rigRegInclude" || : )" "4 4 4"
@@ -495,7 +495,7 @@ echo "-- 10. the help pair --"
 rigHelpInclude="$rigHere/help/Help.DistroAgentsTools.include"
 rigHelpMd="$rigHere/help/Help.DistroAgentsTools.help.md"
 rigEntry(){ ## operation -- its entry in the help.md, from under its heading to the next operation's
-	LC_ALL=C awk -v head="$( printf '\t\t%s [<name>...]' "$1" )" '$0 == head { on = 1 ; next } on && /^\t\t--/ { exit } on { print }' "$rigHelpMd"
+	LC_ALL=C awk -v head="$( printf '\t\t%s [<name>...]' "$1" )" '$0 == head { on = 1 ; next ; } on && /^\t\t--/ { exit ; } on { print ; }' "$rigHelpMd"
 }
 rigHelpBad=""
 for rigName in "$rigOne" "$rigEarlier" ; do

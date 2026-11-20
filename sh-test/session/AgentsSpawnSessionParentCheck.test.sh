@@ -51,7 +51,7 @@ rigRecord(){ ## dir-id, session-id, status, extra lines
 	printf -- '---\ntype: spawn\nstatus: %s\nsession-id: %s\n%s---\n\n# %s\n' "$recStatus" "$recSession" "$recRest" "$recId" > "$rigSpawned/$recId/$recId.spawn.md"
 }
 rigHeader(){ ## record file, header
-	LC_ALL=C awk -v want="$2" '$0 == "---" { n++ ; if ( n > 1 ) exit ; next } n == 1 && index( $0, want ": " ) == 1 { print substr( $0, length( want ) + 3 ) ; exit }' "$1" 2> /dev/null || :
+	LC_ALL=C awk -v want="$2" '$0 == "---" { n++ ; if ( n > 1 ) exit ; next ; } n == 1 && index( $0, want ": " ) == 1 { print substr( $0, length( want ) + 3 ) ; exit ; }' "$1" 2> /dev/null || :
 }
 rigRunParent(){ ## parent dir-id -- starts the parent loop in the background, prints its pid
 	( MMDAPP="$rigTmp" MDLT_ORIGIN="$MDLT_ORIGIN" bash -c '. "$1" > /dev/null 2>&1 ; AgentsToolsSpawnSessionParent "$2"' _ "$rigInclude" "$1" > /dev/null 2>&1 & printf '%s' "$!" )
@@ -82,7 +82,7 @@ rigAssert "the parent is still open while its child runs" "$( rigHeader "$rigSpa
 echo "-- 2. it closes once the child has ended --"
 kill "$rigChildPid" 2> /dev/null || : ; wait "$rigChildPid" 2> /dev/null || :
 rigChildPids=""
-LC_ALL=C awk '{ if ( $0 == "status: spawn-started" ) print "status: spawn-succeeded" ; else print }' "$rigSpawned/one-child/one-child.spawn.md" > "$rigSpawned/one-child/one-child.spawn.md.tmp" && mv -f "$rigSpawned/one-child/one-child.spawn.md.tmp" "$rigSpawned/one-child/one-child.spawn.md"
+LC_ALL=C awk '{ if ( $0 == "status: spawn-started" ) print "status: spawn-succeeded" ; else print ; }' "$rigSpawned/one-child/one-child.spawn.md" > "$rigSpawned/one-child/one-child.spawn.md.tmp" && mv -f "$rigSpawned/one-child/one-child.spawn.md.tmp" "$rigSpawned/one-child/one-child.spawn.md"
 rigWaitFor "the parent to close" 20 "grep -q '^status: spawn-succeeded$' '$rigSpawned/parent-b/parent-b.spawn.md'"
 rigAssert "the parent closes as succeeded" "$( rigHeader "$rigSpawned/parent-b/parent-b.spawn.md" status )" "spawn-succeeded"
 kill "$rigParentPid" 2> /dev/null || :
@@ -101,7 +101,7 @@ rigParentPid2="$( rigRunParent parent-c )"
 sleep 2
 kill "$rigChildPid2" 2> /dev/null || : ; wait "$rigChildPid2" 2> /dev/null || :
 rigChildPids=""
-LC_ALL=C awk '{ if ( $0 == "status: spawn-started" ) print "status: spawn-failed" ; else print }' "$rigSpawned/two-child/two-child.spawn.md" > "$rigSpawned/two-child/two-child.spawn.md.tmp" && mv -f "$rigSpawned/two-child/two-child.spawn.md.tmp" "$rigSpawned/two-child/two-child.spawn.md"
+LC_ALL=C awk '{ if ( $0 == "status: spawn-started" ) print "status: spawn-failed" ; else print ; }' "$rigSpawned/two-child/two-child.spawn.md" > "$rigSpawned/two-child/two-child.spawn.md.tmp" && mv -f "$rigSpawned/two-child/two-child.spawn.md.tmp" "$rigSpawned/two-child/two-child.spawn.md"
 rigWaitFor "the parent to close" 20 "grep -q '^status: spawn-failed$' '$rigSpawned/parent-c/parent-c.spawn.md'"
 rigAssert "a failed child closes its parent as failed" "$( rigHeader "$rigSpawned/parent-c/parent-c.spawn.md" status )" "spawn-failed"
 kill "$rigParentPid2" 2> /dev/null || :

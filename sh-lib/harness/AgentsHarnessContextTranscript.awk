@@ -185,13 +185,13 @@ function ctxRenderTool(headText, tsText, recordText,   toolName, callId, durMs, 
 	ctxLine++
 	if (mode == "validate") {
 		if (ctxBad != "") next
-		if (jfParseText($0) != 0) { ctxBad = "line " ctxLine " is not one JSON object" ; next }
-		if (ctxLine == 1 && jfLeaf["type"] != "context") { ctxBad = "line 1 is not the context header" ; next }
-		if (ctxLine == 2 && jfLeaf["type"] != "system") { ctxBad = "line 2 is not the system text" ; next }
-		if (ctxLine == 3 && jfLeaf["type"] != "tools") { ctxBad = "line 3 is not the tools reference" ; next }
+		if (jfParseText($0) != 0) { ctxBad = "line " ctxLine " is not one JSON object" ; next ; }
+		if (ctxLine == 1 && jfLeaf["type"] != "context") { ctxBad = "line 1 is not the context header" ; next ; }
+		if (ctxLine == 2 && jfLeaf["type"] != "system") { ctxBad = "line 2 is not the system text" ; next ; }
+		if (ctxLine == 3 && jfLeaf["type"] != "tools") { ctxBad = "line 3 is not the tools reference" ; next ; }
 		if (ctxLine <= 3) next
-		if (jfLeaf["type"] != "message") { ctxBad = "line " ctxLine " is not a message" ; next }
-		if (jfLeaf["n"] + 0 != ctxMessages + 1) { ctxBad = "line " ctxLine " is message " jfLeaf["n"] ", expected " (ctxMessages + 1) ; next }
+		if (jfLeaf["type"] != "message") { ctxBad = "line " ctxLine " is not a message" ; next ; }
+		if (jfLeaf["n"] + 0 != ctxMessages + 1) { ctxBad = "line " ctxLine " is message " jfLeaf["n"] ", expected " (ctxMessages + 1) ; next ; }
 		if (!(("record") in jfLeafSeen) && !(("record_text") in jfLeafSeen) && index($0, ",\"record\":") == 0) { ctxBad = "line " ctxLine " carries no record" ; next }
 		ctxMessages++
 		next
@@ -224,7 +224,7 @@ function ctxRenderTool(headText, tsText, recordText,   toolName, callId, durMs, 
 END {
 	if (mode == "validate") {
 		if (ctxBad == "" && ctxLine < 3) ctxBad = "the file holds " ctxLine " of its 3 head lines"
-		if (ctxBad != "") { print ctxBad ; exit 1 }
+		if (ctxBad != "") { print ctxBad ; exit 1 ; }
 		print ctxMessages
 		exit 0
 	}

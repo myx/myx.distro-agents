@@ -120,7 +120,7 @@ rigStand(){ ## spawn id (may be empty)
 }
 rigUnlist(){ ## spawn id -- its run ends: the stand-in that ran as it, and its line of the rig's process list
 	local unlistPids
-	unlistPids="$( LC_ALL=C awk -v wantId="$1" '$2 == "claude" { for ( wordAt = 3 ; wordAt < NF ; wordAt++ ) { if ( $wordAt == "--session-id" && $( wordAt + 1 ) == wantId ) { print $1 ; } } }' "$rigTmp/ps.list" )"
+	unlistPids="$( LC_ALL=C awk -v wantId="$1" '$2 == "claude" { for ( wordAt = 3 ; wordAt < NF ; wordAt++ ) { if ( $wordAt == "--session-id" && $( wordAt + 1 ) == wantId ) { print $1 ; } ; } ; }' "$rigTmp/ps.list" )"
 	[ -z "$unlistPids" ] || rigProcSignal TERM $unlistPids
 	LC_ALL=C grep -v -F -- " --session-id $1 " "$rigTmp/ps.list" > "$rigTmp/ps.list.new" ; mv -f "$rigTmp/ps.list.new" "$rigTmp/ps.list"
 }
@@ -182,7 +182,7 @@ rigSaid(){ ## fixed text -- how many lines of the last stderr hold it
 }
 rigPrint(){ ## file -- its inode, the sum of its bytes and its time; no-file where there is none
 	[ -f "$1" ] || { printf 'no-file\n' ; return 0 ; }
-	printf '%s:%s:%s\n' "$( ls -i "$1" | LC_ALL=C awk '{ print $1 ; exit }' )" "$( cksum < "$1" | LC_ALL=C tr -s ' \t' '-' )" "$( ls -l -T "$1" 2> /dev/null | LC_ALL=C awk '{ print $6 $7 $8 $9 }' || ls -l --full-time "$1" | LC_ALL=C awk '{ print $6 $7 }' )"
+	printf '%s:%s:%s\n' "$( ls -i "$1" | LC_ALL=C awk '{ print $1 ; exit ; }' )" "$( cksum < "$1" | LC_ALL=C tr -s ' \t' '-' )" "$( ls -l -T "$1" 2> /dev/null | LC_ALL=C awk '{ print $6 $7 $8 $9 ; }' || ls -l --full-time "$1" | LC_ALL=C awk '{ print $6 $7 ; }' )"
 }
 rigControl(){ ## session id -- the names in its control folder, a space between them
 	( cd "$rigStores/$1/control" 2> /dev/null && ls -A | LC_ALL=C sort | LC_ALL=C tr '\n' ' ' | LC_ALL=C sed 's/ $//' )
@@ -271,7 +271,7 @@ rigUnlist s-live
 rigStatusOf "$rigLive"
 rigAssert "the last run closes its record: at the next tick the state reads finished, and the thread has ended with status 0" "$rigGot:$( rigState s-live )" "0:finished"
 rigAssert "the change left the state whole, put in place by a rename, and no pid file, no lock and no temp file beside it" \
-	"$( wc -l < "$rigLiveState" | LC_ALL=C tr -d ' ' ):$( [ "$( ls -i "$rigLiveState" | LC_ALL=C awk '{ print $1 ; exit }' )" != "${rigLivePrint%%:*}" ] && echo another-inode || echo same-inode ):$( rigControl s-live )" "3:another-inode:log state"
+	"$( wc -l < "$rigLiveState" | LC_ALL=C tr -d ' ' ):$( [ "$( ls -i "$rigLiveState" | LC_ALL=C awk '{ print $1 ; exit ; }' )" != "${rigLivePrint%%:*}" ] && echo another-inode || echo same-inode ):$( rigControl s-live )" "3:another-inode:log state"
 
 echo "-- 4. the period of the tick is the setting --"
 ## No other thread of this check runs now: every such question to the rig's ps is a tick of this one thread.
@@ -309,7 +309,7 @@ rigWaitFor 20 rigHolds s-far "$rigFar" || rigRefuse "the thread of s-far did not
 rigWaitFor 10 rigLogSays s-far 'is a run of another host (elsewhere)'
 sleep 3
 rigAssert "a thread over such a session says so once in its log, writes no state, and stays: nothing but a finished session or TERM ends it" \
-	"$( rigLives "$rigFar" ):[$( rigState s-far )]:$( rigLogHas s-far 'every record still open is a run of another host (elsewhere)' ):$( rigLogHas s-far 'finished' | LC_ALL=C awk '{ print ( $1 == 1 ) ? "only-in-not-called-finished" : $1 }' )" "1:[]:1:only-in-not-called-finished"
+	"$( rigLives "$rigFar" ):[$( rigState s-far )]:$( rigLogHas s-far 'every record still open is a run of another host (elsewhere)' ):$( rigLogHas s-far 'finished' | LC_ALL=C awk '{ print ( $1 == 1 ) ? "only-in-not-called-finished" : $1 ; }' )" "1:[]:1:only-in-not-called-finished"
 rigRec s-far s-far s-far s-far elsewhere spawn-ended-without-close "$rigClosed"
 rigStatusOf "$rigFar"
 rigAssert "once that record is closed, as the advance pass closes one by its age, the thread writes finished and ends" "$rigGot:$( rigState s-far ):$( rigControl s-far )" "0:finished:log state"
@@ -325,7 +325,7 @@ rigAssert "control: while its run lives that session reads running" "$( rigState
 rigProcSignal TERM "$rigDeadRun" ; rigWaitFor 10 rigEnded "$rigDeadRun"
 rigOne s-dead
 rigAssert "its process gone and its record still open: the state is left as it was, word and date, and no word of a death is written" \
-	"$rigRc:$( rigPrint "$rigStores/s-dead/control/state" ):$( rigSaid 'the state is left as it is, running' ):$( LC_ALL=C grep -c -F -- 'member-dead' "$rigStores/s-dead/control/state" "$rigStores/s-dead/control/log" | LC_ALL=C awk -F: '{ total += $NF } END { print total + 0 }' )" "0:$rigDeadPrint:1:0"
+	"$rigRc:$( rigPrint "$rigStores/s-dead/control/state" ):$( rigSaid 'the state is left as it is, running' ):$( LC_ALL=C grep -c -F -- 'member-dead' "$rigStores/s-dead/control/state" "$rigStores/s-dead/control/log" | LC_ALL=C awk -F: '{ total += $NF ; } END { print total + 0 ; }' )" "0:$rigDeadPrint:1:0"
 rigThread dead s-dead ; rigDead="$rigThreadPid"
 rigWaitFor 20 rigHolds s-dead "$rigDead" || rigRefuse "the thread of s-dead did not start: $( LC_ALL=C tr '\n' ' ' < "$rigTmp/dead.err" | cut -c1-600 )"
 rigWaitFor 10 rigLogSays s-dead 'record(s) are still open'

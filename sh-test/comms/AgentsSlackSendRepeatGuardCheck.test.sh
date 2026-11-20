@@ -75,7 +75,7 @@ rigAssert "a call with no session is not judged, twice"          "$( rigRc "$rig
 
 echo "-- the run keeps its last fifty sends --"
 rigRecent="$rigWs/.local/agents/sessions/rig-session-1/sent.recent"
-rigAssert "sent.recent of the run holds its sends, three columns each" "$( LC_ALL=C awk -F'\t' 'NF != 3 { bad++ } END { print NR " " bad + 0 }' "$rigRecent" )" "2 0"
+rigAssert "sent.recent of the run holds its sends, three columns each" "$( LC_ALL=C awk -F'\t' 'NF != 3 { bad++ ; } END { print NR " " bad + 0 ; }' "$rigRecent" )" "2 0"
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ SLACK SEND REPEAT GUARD CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

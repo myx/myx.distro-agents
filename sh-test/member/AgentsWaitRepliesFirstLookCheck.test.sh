@@ -107,7 +107,7 @@ rigRecord(){ ## record lines, newest first
 	printf '%s\n' "$@" > "$rigChat/last-own-post"
 }
 rigField(){ ## line, field
-	LC_ALL=C awk -v wantLine="$1" -v wantField="$2" 'NR == wantLine { print $wantField ; found = 1 ; exit ; } END { if ( ! found ) { print "no-such-line" ; } }' "$rigChat/last-own-post" 2> /dev/null
+	LC_ALL=C awk -v wantLine="$1" -v wantField="$2" 'NR == wantLine { print $wantField ; found = 1 ; exit ; } END { if ( ! found ) { print "no-such-line" ; } ; }' "$rigChat/last-own-post" 2> /dev/null
 }
 ## A floor field of a record line, said by the run's own beginning: none, the post's own ts, the run's start or later, or older.
 ## Given the post's ts as a third word, it answers yes or no instead: is the floor that very ts.
@@ -217,7 +217,7 @@ rigRecord "CRIGDM001:$rigPost $rigPost URIGADDR1 - - 0 - 0"
 rigWait quiet 3
 rigAssert "a thread whose messages all predate the run: TIMEOUT"          "$( rigFirstLine )" "WAIT-RESULT: TIMEOUT"
 rigAssert "and nothing was delivered"                                     "$( rigHolds 'RIG-OLD-REPLY' )" no
-rigAssert "and nothing was marked"                                        "$( LC_ALL=C awk 'NF { hitCount++ } END { print hitCount + 0 }' "$rigDir/reactions" )" 0
+rigAssert "and nothing was marked"                                        "$( LC_ALL=C awk 'NF { hitCount++ ; } END { print hitCount + 0 ; }' "$rigDir/reactions" )" 0
 
 ## ---------------------------------------------------------------------------
 ## 3. A reply that arrives while the run works still arrives (no loss by the new floor).

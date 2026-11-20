@@ -51,7 +51,7 @@ rigRun(){ ## result file, command...
 	printf '%s' "$?" > "$rigOut.rc"
 }
 rigStatus(){ ## record path
-	LC_ALL=C awk 'NR > 1 && $0 == "---" { exit } NR > 1 { print }' "$1" 2> /dev/null | LC_ALL=C sed -n 's/^status: //p' | head -1
+	LC_ALL=C awk 'NR > 1 && $0 == "---" { exit ; } NR > 1 { print ; }' "$1" 2> /dev/null | LC_ALL=C sed -n 's/^status: //p' | head -1
 }
 rigOutcomeLine(){ ## record path, header
 	LC_ALL=C sed -n "s/^$2: //p" "$1" 2> /dev/null | head -1

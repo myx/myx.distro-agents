@@ -364,7 +364,7 @@ PENDING-REPLIES: 4
 RIGASKS
 } > "$rigTmp/four.asks"
 rigOne(){ ## id -- the lines the list prints of that one ask, and the empty line after them
-	LC_ALL=C awk -v id="$1" '$0 == "PENDING-REPLY: " id { on = 1 } on { print } on && $0 == "" { exit }' "$rigTmp/four.asks"
+	LC_ALL=C awk -v id="$1" '$0 == "PENDING-REPLY: " id { on = 1 ; } on { print ; } on && $0 == "" { exit ; }' "$rigTmp/four.asks"
 }
 rigStoredFile(){ ## id -- where the stand-in keeps what the read of that ask by its id prints
 	printf '%s' "$rigTmp/stored/rows.--read-pending-reply --team-member magic-coordinator $1"

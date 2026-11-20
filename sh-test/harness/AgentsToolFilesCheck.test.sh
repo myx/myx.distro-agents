@@ -66,8 +66,8 @@ rigTable="$( . "$rigInclude" && printf '%s\n' "$agentsFrontTable" )"
 printf '%s\n' "$rigTable" > "$rigTmp/table"
 rigRows="$( LC_ALL=C grep -c . "$rigTmp/table" )"
 [ "$rigRows" -ge 100 ] 2> /dev/null || rigRefuse "the table holds too few lines to be read right: $rigRows"
-rigAssert "every line of the table has three fields, a name and an audience" "$( LC_ALL=C awk -F'\t' 'NF != 3 || $1 == "" || $2 !~ /^--/ || ( $3 != "member" && $3 != "coordinator" ) { bad++ } END { print bad + 0 }' "$rigTmp/table" )" 0
-rigAssert "no name is given twice" "$( LC_ALL=C awk -F'\t' '{ print $2 }' "$rigTmp/table" | LC_ALL=C sort | LC_ALL=C uniq -d | LC_ALL=C tr '\n' ' ' )" ""
+rigAssert "every line of the table has three fields, a name and an audience" "$( LC_ALL=C awk -F'\t' 'NF != 3 || $1 == "" || $2 !~ /^--/ || ( $3 != "member" && $3 != "coordinator" ) { bad++ ; } END { print bad + 0 ; }' "$rigTmp/table" )" 0
+rigAssert "no name is given twice" "$( LC_ALL=C awk -F'\t' '{ print $2 ; }' "$rigTmp/table" | LC_ALL=C sort | LC_ALL=C uniq -d | LC_ALL=C tr '\n' ' ' )" ""
 rigMissing=""
 for rigKey in $( LC_ALL=C cut -f1 "$rigTmp/table" | LC_ALL=C sort -u ) ; do
 	[ -f "$rigPackage/sh-scripts/$rigKey.fn.sh" ] || rigMissing="$rigMissing $rigKey"
@@ -164,7 +164,7 @@ rigExecute="$( printf '%s\n' 'for rigF in DistroAgentsItems DistroAgentsMail Dis
 rigAssert "every tool file of the table is a command of an execute script" "$rigExecute" "DistroAgentsItems DistroAgentsMail DistroAgentsSession AgentDispatcherTools "
 
 ## 10. a name that moved to another tool file: the old file keeps it as a stub
-rigAssert "the table gives --settle-pending-reply to DistroAgentsSession and --request-permission-set to AgentDispatcherTools, and DistroAgentsQuestions neither" "$( LC_ALL=C awk -F'\t' '$2 == "--settle-pending-reply" || $2 == "--request-permission-set" { printf "%s:%s ", $1, $2 }' "$rigTmp/table" )" "DistroAgentsSession:--settle-pending-reply AgentDispatcherTools:--request-permission-set "
+rigAssert "the table gives --settle-pending-reply to DistroAgentsSession and --request-permission-set to AgentDispatcherTools, and DistroAgentsQuestions neither" "$( LC_ALL=C awk -F'\t' '$2 == "--settle-pending-reply" || $2 == "--request-permission-set" { printf "%s:%s ", $1, $2 ; }' "$rigTmp/table" )" "DistroAgentsSession:--settle-pending-reply AgentDispatcherTools:--request-permission-set "
 rigStubs="$( . "$rigInclude" && AgentsToolsFrontKnows DistroAgentsQuestions --settle-pending-reply && AgentsToolsFrontKnows DistroAgentsQuestions --request-permission-set && printf 'known:' ; . "$rigInclude" && AgentsToolsFrontStubOwner DistroAgentsQuestions --settle-pending-reply )"
 rigAssert "the old file still knows both names, and the stub row names the new owner" "$rigStubs" "known:DistroAgentsSession"
 rigAssert "a name the old file never had is not a stub" "$( . "$rigInclude" && AgentsToolsFrontKnows DistroAgentsQuestions --rig-no-such-operation && printf yes || printf no )" no

@@ -155,7 +155,7 @@ AgentsToolsRegistryMeasureRows(){ ## spawned-sessions registry file, this host (
 	## A session id holding a backslash is left out of that set (a `-v` would read the
 	## backslash as an escape), so the function itself answers for that one, as it always did.
 	backslashOpen="
-$( LC_ALL=C awk '$2 ~ /\\/ { print $2 }' "$measuredFile" 2> /dev/null | LC_ALL=C sort -u | while IFS= read -r backslashId ; do AgentsToolsRegistryPendingSessionOpen "$backslashId" && printf '%s\n' "$backslashId" ; done )
+$( LC_ALL=C awk '$2 ~ /\\/ { print $2 ; }' "$measuredFile" 2> /dev/null | LC_ALL=C sort -u | while IFS= read -r backslashId ; do AgentsToolsRegistryPendingSessionOpen "$backslashId" && printf '%s\n' "$backslashId" ; done )
 "
 	## The starts the main loop has in hand (schedule/starting/<key> with no <key>.rc yet): a run of one of them whose record is
 	## open and whose process is not seen yet is `starting`, not `unclosed`. The key is work-duty.<member> or the routine file.
@@ -361,9 +361,9 @@ $( LC_ALL=C awk '$2 ~ /\\/ { print $2 }' "$measuredFile" 2> /dev/null | LC_ALL=C
 			}
 		' "$measuredFile" 2> /dev/null )" || measuredAll="Afalse"
 	measuredAny="${measuredAll%%$'\n'*}" ; measuredAny="${measuredAny#A}"
-	measuredRows="$( printf '%s\n' "$measuredAll" | LC_ALL=C awk '/^R / { sub( /^R /, "" ) ; print }' )
+	measuredRows="$( printf '%s\n' "$measuredAll" | LC_ALL=C awk '/^R / { sub( /^R /, "" ) ; print ; }' )
 "
-	measuredDated="$( printf '%s\n' "$measuredAll" | LC_ALL=C awk '/^D / { sub( /^D /, "" ) ; print }' )
+	measuredDated="$( printf '%s\n' "$measuredAll" | LC_ALL=C awk '/^D / { sub( /^D /, "" ) ; print ; }' )
 "
 	return 0
 }

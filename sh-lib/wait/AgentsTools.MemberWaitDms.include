@@ -138,7 +138,7 @@ AgentsWaitProbeDms(){
 	AgentsWaitOwnFile "$probeOut" || return 2
 	[ "$probeParts" -eq 0 ] || [ "$probeFailed" -lt "$probeParts" ] || return 2
 	local probeNewestText=""
-	probeNewestText="$( LC_ALL=C awk '/^[0-9]+\.[0-9]+ \| / { if ( ts == "" || $1 + 0 > ts + 0 ) ts = $1 } END { if ( ts != "" ) print ts }' "$probeOut" 2> /dev/null )" || probeNewestText=""
+	probeNewestText="$( LC_ALL=C awk '/^[0-9]+\.[0-9]+ \| / { if ( ts == "" || $1 + 0 > ts + 0 ) ts = $1 ; } END { if ( ts != "" ) print ts ; }' "$probeOut" 2> /dev/null )" || probeNewestText=""
 	## Written only where it differs (AgentsWaitPut): a quiet tick writes no file.
 	AgentsWaitPut "$probeOut.newest" "${probeNewestText:+$probeNewestText$'\n'}" || :
 	[ -z "${probeQuickKey:-}" ] || agentsWaitConvSeen="${agentsWaitConvSeen:-} $probeQuickKey"

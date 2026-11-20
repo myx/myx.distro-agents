@@ -58,7 +58,7 @@ echo "-- 1. the include puts the family's scripts on the path --"
 rigAssert "a clean PATH does not resolve the name"   "$( rigResolve without DistroAgentsTools.fn.sh )" none
 rigAssert "with the include, the name resolves"      "$( rigResolve with DistroAgentsTools.fn.sh )" "$rigWant"
 rigAssert "the .local scripts stand before the agents'" "$( env -i PATH="$rigPath" MDLT_ORIGIN="$rigOrigin" MMDAPP="$rigTmp/ws" bash -c '. "$1" ; printf "%s" "$PATH"' _ "$rigInclude" 2> /dev/null \
-	| LC_ALL=C awk -F: -v l="$rigOrigin/myx/myx.distro-.local/sh-scripts" -v a="$rigOrigin/myx/myx.distro-agents/sh-scripts" '{ for (i = 1 ; i <= NF ; i++) { if ($i == l && !pl) pl = i ; if ($i == a && !pa) pa = i } } END { print ( pl && pa && pl < pa ) ? "yes" : "no" }' )" yes
+	| LC_ALL=C awk -F: -v l="$rigOrigin/myx/myx.distro-.local/sh-scripts" -v a="$rigOrigin/myx/myx.distro-agents/sh-scripts" '{ for (i = 1 ; i <= NF ; i++) { if ($i == l && !pl) pl = i ; if ($i == a && !pa) pa = i ; } ; } END { print ( pl && pa && pl < pa ) ? "yes" : "no" ; }' )" yes
 rigAssert "a project command of the prepared index resolves" "$( rigResolve with RigCustom.fn.sh )" "$rigCustom"
 rigAssert "a second sourcing appends nothing"       "$( env -i PATH="$rigPath" MDLT_ORIGIN="$rigOrigin" MMDAPP="$rigTmp/ws" bash -c '. "$1" ; one="$PATH" ; . "$1" ; [ "$one" = "$PATH" ] && printf same || printf grew' _ "$rigInclude" 2> /dev/null )" same
 ## Read, not timed (the hot-path rule): a line of the include that substitutes a command, pipes, or tests a folder is a cost per call.

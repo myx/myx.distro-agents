@@ -68,7 +68,7 @@ rigAssert "the key is not held" "$( rigHeld )" "free"
 echo "-- 2. the third failure escalates once and holds the key --"
 AgentsToolsScheduleStartFailed "$rigKey" "$rigFailure"
 rigAssert "one escalation" "$rigEscalations" "1"
-rigAssert "with the key, the count and the failure's error line" "$( LC_ALL=C awk -F'\t' '{ print $1 "/" $2 "/" ( index( $3, "the brief file is missing" ) > 0 ? "why" : "nowhy" ) }' "$rigTmp/escalated" 2> /dev/null )" "$rigKey/3/why"
+rigAssert "with the key, the count and the failure's error line" "$( LC_ALL=C awk -F'\t' '{ print $1 "/" $2 "/" ( index( $3, "the brief file is missing" ) > 0 ? "why" : "nowhy" ) ; }' "$rigTmp/escalated" 2> /dev/null )" "$rigKey/3/why"
 rigAssert "the key is held" "$( rigHeld )" "held"
 
 echo "-- 3. a fourth failure escalates no second time --"

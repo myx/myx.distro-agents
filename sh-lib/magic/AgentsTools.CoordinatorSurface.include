@@ -104,12 +104,12 @@ AgentsToolsSurfaceOrders(){
 	ordersNote="$( AgentsToolsSurfaceNotePath )"
 	[ -f "$ordersNote" ] || return 0
 	LC_ALL=C awk -v heading="$agentsSurfaceHeading" '
-		$0 == heading { on = 1 ; next }
-		on && /^# / { on = 0 }
+		$0 == heading { on = 1 ; next ; }
+		on && /^# / { on = 0 ; }
 		on && /^- / {
 			line = substr( $0, 3 ) ; count = split( line, parts, " \\| " )
-			if ( count < 4 ) { next }
-			text = parts[4] ; for ( at = 5 ; at <= count ; at++ ) { text = text " | " parts[at] }
+			if ( count < 4 ) { next ; }
+			text = parts[4] ; for ( at = 5 ; at <= count ; at++ ) { text = text " | " parts[at] ; }
 			set = parts[2] ; sub( /^set /, "", set ) ; expires = parts[3] ; sub( /^expires-at: /, "", expires )
 			printf "%s\t%s\t%s\t%s\n", parts[1], set, expires, text
 		}
@@ -140,7 +140,7 @@ AgentsToolsSurfaceStanding(){ ## the operation, its arguments...
 	for standingFile in ${standingFiles[@]+"${standingFiles[@]}"} ; do
 		case "${standingFile##*/}" in note-*.md) ;; *) continue ;; esac
 		[ "$( LC_ALL=C awk 'NR == 1 { if ( $0 != "---" ) exit ; next ; } $0 == "---" { exit ; } $0 == "standing: yes" { print "yes" ; exit ; }' "$standingFile" )" = yes ] || continue
-		standingHead="$( LC_ALL=C awk 'dashes >= 2 && /^# / { print substr( $0, 3 ) ; exit ; } $0 == "---" { dashes++ }' "$standingFile" )"
+		standingHead="$( LC_ALL=C awk 'dashes >= 2 && /^# / { print substr( $0, 3 ) ; exit ; } $0 == "---" { dashes++ ; }' "$standingFile" )"
 		printf 'note\t%s\t%s\n' "${standingFile##*/}" "${standingHead:-$standingFile}"
 	done
 	while IFS=$'\t' read -r standingId standingSet standingExpires standingText ; do
@@ -158,8 +158,8 @@ AgentsToolsSurfaceStanding(){ ## the operation, its arguments...
 AgentsToolsSurfaceBriefText(){
 	local briefRows briefLine
 	briefRows="$( AgentsToolsSurfaceStanding briefing 2> /dev/null | LC_ALL=C awk -F'\t' '
-		$1 == "order" { printf "- order %s%s: %s\n", $2, ( $4 == "none" ? "" : " (until " $4 ")" ), $5 }
-		$1 == "note" { printf "- note %s: %s\n", $2, $3 }' )" || briefRows=""
+		$1 == "order" { printf "- order %s%s: %s\n", $2, ( $4 == "none" ? "" : " (until " $4 ")" ), $5 ; }
+		$1 == "note" { printf "- note %s: %s\n", $2, $3 ; }' )" || briefRows=""
 	[ -n "$briefRows" ] || briefRows="(none in force)"
 	printf '%s' "$briefRows"
 }
@@ -193,13 +193,13 @@ AgentsToolsSurfaceLockGive(){ ## the operation
 ## The note with only its `# Standing directives` section changed: the section's lines (given in the environment as SURFACE_LINES) replace it, or are appended.
 AgentsToolsSurfaceRewrite(){ ## the note path
 	SURFACE_LINES="$SURFACE_LINES" LC_ALL=C awk -v heading="$agentsSurfaceHeading" '
-		BEGIN { new = ENVIRON["SURFACE_LINES"] }
-		$0 == heading { on = 1 ; seen = 1 ; print ; print "" ; if ( new != "" ) { print new ; print "" } ; next }
-		on && /^# / { on = 0 }
-		on { next }
-		{ print }
-		END { if ( ! seen && new != "" ) { print "" ; print heading ; print "" ; print new } }
-	' "$1" | LC_ALL=C awk '{ if ( $0 == "" ) { blanks++ ; next } while ( blanks > 0 ) { print "" ; blanks-- } blanks = 0 ; print }'
+		BEGIN { new = ENVIRON["SURFACE_LINES"] ; }
+		$0 == heading { on = 1 ; seen = 1 ; print ; print "" ; if ( new != "" ) { print new ; print "" ; } ; next ; }
+		on && /^# / { on = 0 ; }
+		on { next ; }
+		{ print ; }
+		END { if ( ! seen && new != "" ) { print "" ; print heading ; print "" ; print new ; } ; }
+	' "$1" | LC_ALL=C awk '{ if ( $0 == "" ) { blanks++ ; next ; } while ( blanks > 0 ) { print "" ; blanks-- ; } blanks = 0 ; print ; }'
 }
 
 ## The whole write: the lock, then the orders read AGAIN under it (another session may have held the note and the section may have changed while this waited), the
@@ -208,13 +208,13 @@ AgentsToolsSurfaceStateWrite(){ ## the operation, wait seconds, set|end, id, the
 	local writeOp="$1" writeWait="$2" writeMode="$3" writeId="$4" writeLine="${5:-}" writeNote writeRc=0 writeContent writeHad writeKept
 	AgentsToolsSurfaceLockTake "$writeOp" "directive-$writeMode" "$writeWait" || return 1
 	writeNote="$( AgentsToolsSurfaceNotePath )"
-	writeHad="$( AgentsToolsSurfaceOrders | LC_ALL=C awk -F'\t' -v want="$writeId" '$1 == want { n++ } END { print n + 0 }' )"
+	writeHad="$( AgentsToolsSurfaceOrders | LC_ALL=C awk -F'\t' -v want="$writeId" '$1 == want { n++ ; } END { print n + 0 ; }' )"
 	if [ "$writeMode" = end ] && [ "$writeHad" = 0 ] ; then
 		AgentsToolsSurfaceLockGive "$writeOp"
 		echo "$MDSC_CMD: ⛔ ERROR: $writeOp: no directive $writeId stands in the state-note" >&2
 		return 1
 	fi
-	writeKept="$( AgentsToolsSurfaceOrders | LC_ALL=C awk -F'\t' -v skip="$writeId" '$1 != skip { printf "- %s | set %s | expires-at: %s | %s\n", $1, $2, $3, $4 }' )"
+	writeKept="$( AgentsToolsSurfaceOrders | LC_ALL=C awk -F'\t' -v skip="$writeId" '$1 != skip { printf "- %s | set %s | expires-at: %s | %s\n", $1, $2, $3, $4 ; }' )"
 	[ "$writeMode" != set ] || writeKept="${writeKept:+$writeKept$'\n'}$writeLine"
 	export SURFACE_LINES="$writeKept"
 	writeContent="$( AgentsToolsSurfaceRewrite "$writeNote" )" || writeRc=1
@@ -278,7 +278,7 @@ AgentsToolsSurfaceDirectiveEnd(){ ## the operation, its arguments...
 	AgentsToolsSurfaceCaller "$endOp" write || return 1
 	[ -n "$endId" ] || { echo "$MDSC_CMD: ⛔ ERROR: $endOp: --id is needed" >&2 ; return 1 ; }
 	case "$endWait" in ''|*[!0123456789]*) echo "$MDSC_CMD: ⛔ ERROR: $endOp: --wait is whole seconds: $endWait" >&2 ; return 1 ;; esac
-	endAt="$( AgentsToolsSurfaceOrders | LC_ALL=C awk -F'\t' -v want="$endId" '$1 == want { n++ } END { print n + 0 }' )"
+	endAt="$( AgentsToolsSurfaceOrders | LC_ALL=C awk -F'\t' -v want="$endId" '$1 == want { n++ ; } END { print n + 0 ; }' )"
 	[ "$endAt" != 0 ] || { echo "$MDSC_CMD: ⛔ ERROR: $endOp: no directive $endId stands in the state-note" >&2 ; return 1 ; }
 	AgentsToolsSurfaceStateWrite "$endOp" "$endWait" end "$endId" || return 1
 	printf 'DIRECTIVE: %s ended\n' "$endId"

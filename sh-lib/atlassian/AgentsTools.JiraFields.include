@@ -105,7 +105,7 @@ AgentsToolsJiraAssigneeAccountId() { ## <team-member>, <assignee>, <project>, <c
 	## The site answers one bare array here, and the package reader takes one object, so the body is wrapped
 	## under one key before it is read.
 	assigneeId="$( AgentsToolsAtlassianCall "$assigneeMember" jira GET "/rest/api/3/user/assignable/search?query=$( AgentsToolsAtlassianUrlEncode "$assigneeMail" )&project=$( AgentsToolsAtlassianUrlEncode "$assigneeProject" )" "$assigneeContext" "" \
-		| LC_ALL=C awk '{ held = held $0 } END { if ( substr( held, 1, 1 ) == "[" ) { print "{\"users\":" held "}" } else { print held } }' \
+		| LC_ALL=C awk '{ held = held $0 ; } END { if ( substr( held, 1, 1 ) == "[" ) { print "{\"users\":" held "}" ; } else { print held ; } ; }' \
 		| LC_ALL=C awk -v array=users -v want=accountId -v mode=records -v dialect=atlassian -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" 2> /dev/null | LC_ALL=C sed -n 1p )" || assigneeId=""
 	case "$assigneeId" in
 		'') printf '%s\n' "⛔ ERROR: $MDSC_CMD --$assigneeContext: the site knows no account assignable in $assigneeProject for the contact $assigneeWant ($assigneeMail), so nothing was written -- give --assignee another contact, or add that account to the project" >&2 ; return 1 ;;

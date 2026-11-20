@@ -23,9 +23,9 @@ AgentsToolsCheckListSourcesList(){ ## the list file
 	sourcesStore="$( AgentsToolsCheckListSourcesPath "$1" )"
 	[ -n "$sourcesStore" ] && [ -f "$sourcesStore" ] || sourcesStore="/dev/null"
 	CHECKLIST_STORE="$sourcesStore" LC_ALL=C awk '
-		function itemText( line ) { sub( /^- \[[ x~]\] /, "", line ) ; sub( / \(due: [^)]*\)$/, "", line ) ; sub( / \(in progress: .*$/, "", line ) ; sub( / \[step\]$/, "", line ) ; sub( / \[parent\]$/, "", line ) ; return line }
-		FILENAME == ENVIRON["CHECKLIST_STORE"] { at = index( $0, "\t" ) ; if ( at > 1 ) { mark[substr( $0, at + 1 )] = substr( $0, 1, at - 1 ) } ; next }
-		/^- \[[ x~]\] / { text = itemText( $0 ) ; print ( text in mark ? mark[text] : "own" ) }
+		function itemText( line ) { sub( /^- \[[ x~]\] /, "", line ) ; sub( / \(due: [^)]*\)$/, "", line ) ; sub( / \(in progress: .*$/, "", line ) ; sub( / \[step\]$/, "", line ) ; sub( / \[parent\]$/, "", line ) ; return line ; }
+		FILENAME == ENVIRON["CHECKLIST_STORE"] { at = index( $0, "\t" ) ; if ( at > 1 ) { mark[substr( $0, at + 1 )] = substr( $0, 1, at - 1 ) ; } ; next ; }
+		/^- \[[ x~]\] / { text = itemText( $0 ) ; print ( text in mark ? mark[text] : "own" ) ; }
 	' "$sourcesStore" "$1" 2> /dev/null
 }
 
@@ -41,16 +41,16 @@ AgentsToolsCheckListSourcesMark(){ ## the list file, the step names (a line each
 	: >> "$sourcesStore" 2> /dev/null || return 1
 	sourcesTemp="$( mktemp "$sourcesStore.XXXXXX" 2> /dev/null )" || return 1
 	CHECKLIST_STORE="$sourcesStore" CHECKLIST_STEPS="${2:-}" CHECKLIST_ADDED="${3:-}" LC_ALL=C awk '
-		function itemText( line ) { sub( /^- \[[ x~]\] /, "", line ) ; sub( / \(due: [^)]*\)$/, "", line ) ; sub( / \(in progress: .*$/, "", line ) ; sub( / \[step\]$/, "", line ) ; sub( / \[parent\]$/, "", line ) ; return line }
-		FILENAME == ENVIRON["CHECKLIST_STORE"] { at = index( $0, "\t" ) ; if ( at > 1 ) { heldLine[++heldCount] = $0 ; heldText[heldCount] = substr( $0, at + 1 ) } ; next }
-		/^- \[[ x~]\] / { itemNo++ ; itemLine[itemNo] = itemText( $0 ) }
+		function itemText( line ) { sub( /^- \[[ x~]\] /, "", line ) ; sub( / \(due: [^)]*\)$/, "", line ) ; sub( / \(in progress: .*$/, "", line ) ; sub( / \[step\]$/, "", line ) ; sub( / \[parent\]$/, "", line ) ; return line ; }
+		FILENAME == ENVIRON["CHECKLIST_STORE"] { at = index( $0, "\t" ) ; if ( at > 1 ) { heldLine[++heldCount] = $0 ; heldText[heldCount] = substr( $0, at + 1 ) ; } ; next ; }
+		/^- \[[ x~]\] / { itemNo++ ; itemLine[itemNo] = itemText( $0 ) ; }
 		END {
-			for ( at = 1 ; at <= itemNo ; at++ ) { present[itemLine[at]] = 1 }
-			for ( at = 1 ; at <= heldCount ; at++ ) { if ( heldText[at] in present ) { print heldLine[at] ; marked[heldText[at]] = 1 } }
+			for ( at = 1 ; at <= itemNo ; at++ ) { present[itemLine[at]] = 1 ; }
+			for ( at = 1 ; at <= heldCount ; at++ ) { if ( heldText[at] in present ) { print heldLine[at] ; marked[heldText[at]] = 1 ; } ; }
 			for ( at = 1 ; at <= itemNo ; at++ ) {
-				if ( itemLine[at] in marked ) { continue }
-				if ( index( "\n" ENVIRON["CHECKLIST_STEPS"] "\n", "\n" itemLine[at] "\n" ) ) { print "step\t" itemLine[at] ; continue }
-				if ( index( "\n" ENVIRON["CHECKLIST_ADDED"] "\n", "\n" itemLine[at] "\n" ) ) { print "parent\t" itemLine[at] ; continue }
+				if ( itemLine[at] in marked ) { continue ; }
+				if ( index( "\n" ENVIRON["CHECKLIST_STEPS"] "\n", "\n" itemLine[at] "\n" ) ) { print "step\t" itemLine[at] ; continue ; }
+				if ( index( "\n" ENVIRON["CHECKLIST_ADDED"] "\n", "\n" itemLine[at] "\n" ) ) { print "parent\t" itemLine[at] ; continue ; }
 				print "own\t" itemLine[at]
 			}
 		}
@@ -77,26 +77,26 @@ AgentsToolsCheckListReplace(){ ## the list file, the step names of the routine n
 	replaceMarkTemp="$( mktemp "$replaceStore.XXXXXX" 2> /dev/null )" || replaceMarkTemp=""
 	replaceShape="$( CHECKLIST_STEPS="${2:-}" CHECKLIST_MARKS="$( AgentsToolsCheckListSourcesList "$replaceFile" )" \
 		CHECKLIST_LIST_OUT="$replaceTemp" CHECKLIST_MARKS_OUT="$replaceMarkTemp" LC_ALL=C awk '
-		function itemText( line ) { sub( /^- \[[ x~]\] /, "", line ) ; sub( / \(due: [^)]*\)$/, "", line ) ; sub( / \(in progress: .*$/, "", line ) ; sub( / \[step\]$/, "", line ) ; sub( / \[parent\]$/, "", line ) ; return line }
+		function itemText( line ) { sub( /^- \[[ x~]\] /, "", line ) ; sub( / \(due: [^)]*\)$/, "", line ) ; sub( / \(in progress: .*$/, "", line ) ; sub( / \[step\]$/, "", line ) ; sub( / \[parent\]$/, "", line ) ; return line ; }
 		{
-			if ( $0 ~ /^- \[[ x~]\] / ) { itemNo++ ; itemLine[itemNo] = $0 ; itemSay[itemNo] = itemText( $0 ) ; next }
+			if ( $0 ~ /^- \[[ x~]\] / ) { itemNo++ ; itemLine[itemNo] = $0 ; itemSay[itemNo] = itemText( $0 ) ; next ; }
 			otherLine[++otherNo] = $0
 		}
 		END {
 			markCount = split( ENVIRON["CHECKLIST_MARKS"], markLine, "\n" )
-			for ( at = 1 ; at <= itemNo ; at++ ) { itemMark[at] = ( at <= markCount && markLine[at] != "" ) ? markLine[at] : "own" }
-			for ( at = 1 ; at <= itemNo ; at++ ) { if ( itemMark[at] != "step" ) { kept[itemSay[at]] = 1 ; keptCount++ } }
+			for ( at = 1 ; at <= itemNo ; at++ ) { itemMark[at] = ( at <= markCount && markLine[at] != "" ) ? markLine[at] : "own" ; }
+			for ( at = 1 ; at <= itemNo ; at++ ) { if ( itemMark[at] != "step" ) { kept[itemSay[at]] = 1 ; keptCount++ ; } ; }
 			stepCount = split( ENVIRON["CHECKLIST_STEPS"], stepLine, "\n" )
 			stepOut = "" ; markOut = ""
 			for ( at = 1 ; at <= stepCount ; at++ ) {
-				if ( stepLine[at] == "" || ( stepLine[at] in kept ) || ( stepLine[at] in added ) ) { continue }
+				if ( stepLine[at] == "" || ( stepLine[at] in kept ) || ( stepLine[at] in added ) ) { continue ; }
 				added[stepLine[at]] = 1 ; addedCount++
 				stepOut = stepOut "- [ ] " stepLine[at] "\n"
 				markOut = markOut "step\t" stepLine[at] "\n"
 			}
-			for ( at = 1 ; at <= otherNo ; at++ ) { bodyOut = bodyOut otherLine[at] "\n" }
+			for ( at = 1 ; at <= otherNo ; at++ ) { bodyOut = bodyOut otherLine[at] "\n" ; }
 			for ( at = 1 ; at <= itemNo ; at++ ) {
-				if ( itemMark[at] == "step" ) { droppedCount++ ; continue }
+				if ( itemMark[at] == "step" ) { droppedCount++ ; continue ; }
 				bodyOut = bodyOut itemLine[at] "\n"
 				markOut = markOut itemMark[at] "\t" itemSay[at] "\n"
 			}

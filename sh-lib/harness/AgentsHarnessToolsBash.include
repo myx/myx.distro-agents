@@ -55,11 +55,11 @@ AgentsHarnessProcessClosedAt(){ ## session, handle -- "outBytes errBytes", nothi
 AgentsHarnessProcessRender(){ ## session, handle, out cap, err cap -- the prefixed rendering on stdout
 	local renderDir="${MMDAPP:-/nonexistent}/.local/agents/sessions/$1/processes" renderHandle="$2" renderOut="$3" renderErr="$4"
 	if [ -n "$renderOut" ] ; then
-		[ ! -f "$renderDir/$renderHandle.out" ] || head -c "$renderOut" "$renderDir/$renderHandle.out" 2> /dev/null | LC_ALL=C awk '{ print ">" $0 }'
-		[ ! -f "$renderDir/$renderHandle.err" ] || head -c "$renderErr" "$renderDir/$renderHandle.err" 2> /dev/null | LC_ALL=C awk '{ print "!" $0 }'
+		[ ! -f "$renderDir/$renderHandle.out" ] || head -c "$renderOut" "$renderDir/$renderHandle.out" 2> /dev/null | LC_ALL=C awk '{ print ">" $0 ; }'
+		[ ! -f "$renderDir/$renderHandle.err" ] || head -c "$renderErr" "$renderDir/$renderHandle.err" 2> /dev/null | LC_ALL=C awk '{ print "!" $0 ; }'
 	else
-		[ ! -f "$renderDir/$renderHandle.out" ] || LC_ALL=C awk '{ print ">" $0 }' "$renderDir/$renderHandle.out" 2> /dev/null
-		[ ! -f "$renderDir/$renderHandle.err" ] || LC_ALL=C awk '{ print "!" $0 }' "$renderDir/$renderHandle.err" 2> /dev/null
+		[ ! -f "$renderDir/$renderHandle.out" ] || LC_ALL=C awk '{ print ">" $0 ; }' "$renderDir/$renderHandle.out" 2> /dev/null
+		[ ! -f "$renderDir/$renderHandle.err" ] || LC_ALL=C awk '{ print "!" $0 ; }' "$renderDir/$renderHandle.err" 2> /dev/null
 	fi
 }
 
@@ -827,8 +827,8 @@ AgentsHarnessToolBashRun(){ ## cwd, command, timeout, detach, handle, stop, offs
 	## detached read does: stdout's lines first, then stderr's, each marked.
 	if [ -n "$toolOutputMode" ] ; then
 		## This call's own two streams, prefixed as a detached read prefixes them: the scratch folder is no session's processes folder.
-		LC_ALL=C awk '{ print ">" $0 }' "$harnessScratch/run.out" 2> /dev/null
-		LC_ALL=C awk '{ print "!" $0 }' "$harnessScratch/run.err" 2> /dev/null
+		LC_ALL=C awk '{ print ">" $0 ; }' "$harnessScratch/run.out" 2> /dev/null
+		LC_ALL=C awk '{ print "!" $0 ; }' "$harnessScratch/run.err" 2> /dev/null
 	else
 		cat "$harnessScratch/run.out"
 	fi
@@ -842,8 +842,8 @@ AgentsHarnessToolBashRun(){ ## cwd, command, timeout, detach, handle, stop, offs
 AgentsHarnessBashReadOnly(){ ## command
 	printf '%s' "$1" | LC_ALL=C awk '
 		BEGIN { split( "ls cat head tail grep rg find wc echo printf stat file pwd", r, " " ) ; for ( i in r ) reads[r[i]] = 1
-		        split( "head tail wc sort uniq cut tr column nl grep", f, " " ) ; for ( i in f ) feeds[f[i]] = 1 }
-		{ all = all $0 "\n" }
+		        split( "head tail wc sort uniq cut tr column nl grep", f, " " ) ; for ( i in f ) feeds[f[i]] = 1 ; }
+		{ all = all $0 "\n" ; }
 		END {
 			if ( all ~ /[<>]|\$\(|`|(^|[ ;&|])(for|while|until|if|case|function)[ ;]|-delete|-exec|-execdir|sed -i|xargs/ ) exit 1
 			n = split( all, parts, /;|&&|\|\||\n/ ) ; seen = 0
@@ -853,7 +853,7 @@ AgentsHarnessBashReadOnly(){ ## command
 				for ( q = 1 ; q <= m ; q++ ) {
 					seg = pipes[q] ; gsub( /^[ \t]+/, "", seg ) ; split( seg, w, /[ \t]+/ )
 					if ( q == 1 && w[1] == "cd" && m == 1 ) continue
-					if ( q == 1 ) { if ( w[1] == "sed" ) { if ( w[2] != "-n" ) exit 1 } else if ( !( w[1] in reads ) ) exit 1 }
+					if ( q == 1 ) { if ( w[1] == "sed" ) { if ( w[2] != "-n" ) exit 1 ; } else if ( !( w[1] in reads ) ) exit 1 ; }
 					else if ( !( w[1] in feeds ) ) exit 1
 					seen = 1
 				}

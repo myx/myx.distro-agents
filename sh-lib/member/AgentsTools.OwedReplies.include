@@ -30,7 +30,7 @@ AgentsToolsOwedRepliesNote(){ ## member, now (epoch)
 	AgentsToolsOwedRepliesFile "$1" || { cat > /dev/null ; return 0 ; }
 	case "$owedNow" in ''|*[!0123456789]*) owedNow="$( date +%s )" ;; esac
 	owedNew="$( LC_ALL=C awk -v now="$owedNow" -v known="$owedFile" '
-		BEGIN { while ( ( getline line < known ) > 0 ) { split( line, f, "\t" ) ; have[f[2]] = 1 } close( known ) }
+		BEGIN { while ( ( getline line < known ) > 0 ) { split( line, f, "\t" ) ; have[f[2]] = 1 ; } close( known ) ; }
 		/^[0-9]+\.[0-9]+ \| [^|]+ \| / {
 			if ( index( $0, "[tracking:" ) || index( $0, "[author-run:" ) || index( $0, "[addressee-run:" ) || index( $0, "[sender:" ) ) next
 			if ( !match( $0, /\[reply-to: [a-z]+:[^]]+\]/ ) ) next
@@ -53,7 +53,7 @@ AgentsToolsOwedRepliesClear(){ ## member, service, conversation, thread ts (may 
 	[ -s "$owedFile" ] || return 0
 	case "$owedConv" in D*) owedDm=yes ;; esac
 	owedKept="$( LC_ALL=C awk -F'\t' -v key="${2:-slack}:$owedConv:$owedThread" -v conv="${2:-slack}:$owedConv:" -v dm="$owedDm" '
-		{ if ( $2 == key ) next ; if ( dm == "yes" && index( $2, conv ) == 1 ) next ; print }' "$owedFile" )"
+		{ if ( $2 == key ) next ; if ( dm == "yes" && index( $2, conv ) == 1 ) next ; print ; }' "$owedFile" )"
 	printf '%s\n' "$owedKept" | LC_ALL=C awk 'NF' > "$owedFile.tmp" 2> /dev/null && mv -f "$owedFile.tmp" "$owedFile" 2> /dev/null || :
 	return 0
 }
@@ -67,7 +67,7 @@ AgentsToolsOwedRepliesPrint(){ ## member, now (epoch)
 	case "$owedNow" in ''|*[!0123456789]*) owedNow="$( date +%s )" ;; esac
 	case "$owedAfter" in ''|*[!0123456789]*) owedAfter=1800 ;; esac
 	LC_ALL=C sort -n "$owedFile" | LC_ALL=C awk -F'\t' -v now="$owedNow" -v after="$owedAfter" '
-		( now - $1 ) >= after { n++ ; lines = lines sprintf( "- %dm %s %s: %s\n", ( now - $1 ) / 60, $2, $3, $4 ) }
-		END { if ( n ) printf "OWED REPLIES: %d, each answered in its own thread, at the address shown; a send elsewhere does not close it\n%s", n, lines }'
+		( now - $1 ) >= after { n++ ; lines = lines sprintf( "- %dm %s %s: %s\n", ( now - $1 ) / 60, $2, $3, $4 ) ; }
+		END { if ( n ) printf "OWED REPLIES: %d, each answered in its own thread, at the address shown; a send elsewhere does not close it\n%s", n, lines ; }'
 	return 0
 }

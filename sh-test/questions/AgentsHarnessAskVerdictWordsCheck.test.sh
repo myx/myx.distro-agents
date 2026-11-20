@@ -271,7 +271,7 @@ rigToolRecord(){
 	printf '%s' "$rigToolDir/no-record"
 }
 rigToolField(){ ## field of the scenario's one record
-	LC_ALL=C awk -v key="$1" '$0 == "---" { if ( ++dashes == 2 ) { exit ; } next ; } dashes == 1 && index( $0, key ": " ) == 1 { print substr( $0, length( key ) + 3 ) ; found = 1 ; exit ; } END { if ( ! found ) { print "none" ; } }' "$( rigToolRecord )" 2>/dev/null || printf 'no-record'
+	LC_ALL=C awk -v key="$1" '$0 == "---" { if ( ++dashes == 2 ) { exit ; } next ; } dashes == 1 && index( $0, key ": " ) == 1 { print substr( $0, length( key ) + 3 ) ; found = 1 ; exit ; } END { if ( ! found ) { print "none" ; } ; }' "$( rigToolRecord )" 2>/dev/null || printf 'no-record'
 }
 ## What the member reads and what the record keeps, of the answer and the later reply:
 ## "<verdict line>|<words line>|<how many of the five lines he wrote are in the output>|<record: verdict>|<record: words>|<how many of the two messages it keeps>".
@@ -414,7 +414,7 @@ revStart(){ ## scenario name
 revRecord(){ ls -tr "$revWs/.local/agents/pending"/*.md "$revWs/.local/agents/pending/closed"/*.md 2> /dev/null | tail -1 ; }
 revId(){ local idFile ; idFile="$( revRecord )" ; idFile="${idFile##*/}" ; printf '%s' "${idFile%.md}" ; }
 revField(){ ## field
-	LC_ALL=C awk -v key="$1" '$0 == "---" { if ( ++dashes == 2 ) { exit ; } next ; } dashes == 1 && index( $0, key ": " ) == 1 { print substr( $0, length( key ) + 3 ) ; found = 1 ; exit ; } END { if ( ! found ) { print "none" ; } }' "$( revRecord )" 2> /dev/null || printf 'no-record'
+	LC_ALL=C awk -v key="$1" '$0 == "---" { if ( ++dashes == 2 ) { exit ; } next ; } dashes == 1 && index( $0, key ": " ) == 1 { print substr( $0, length( key ) + 3 ) ; found = 1 ; exit ; } END { if ( ! found ) { print "none" ; } ; }' "$( revRecord )" 2> /dev/null || printf 'no-record'
 }
 revLoc(){ ## -- the board state holding the scenario's item
 	local stateDir

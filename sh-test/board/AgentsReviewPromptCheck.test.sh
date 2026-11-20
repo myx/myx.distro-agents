@@ -193,7 +193,7 @@ rigRecord(){ ## n (default: the newest)
 }
 rigId(){ local idFile ; idFile="$( rigRecord "${1:-}" )" ; idFile="${idFile##*/}" ; printf '%s' "${idFile%.md}" ; }
 rigField(){ ## field, record n (default: the newest)
-	LC_ALL=C awk -v key="$1" '$0 == "---" { if ( ++dashes == 2 ) { exit ; } next ; } dashes == 1 && index( $0, key ": " ) == 1 { print substr( $0, length( key ) + 3 ) ; found = 1 ; exit ; } END { if ( ! found ) { print "none" ; } }' "$( rigRecord "${2:-}" )" 2> /dev/null || printf 'no-record'
+	LC_ALL=C awk -v key="$1" '$0 == "---" { if ( ++dashes == 2 ) { exit ; } next ; } dashes == 1 && index( $0, key ": " ) == 1 { print substr( $0, length( key ) + 3 ) ; found = 1 ; exit ; } END { if ( ! found ) { print "none" ; } ; }' "$( rigRecord "${2:-}" )" 2> /dev/null || printf 'no-record'
 }
 ## The prompt as it was posted: the body its record keeps.
 rigPromptBody(){ LC_ALL=C awk 'seenBody { print ; next ; } $0 == "# Question asked" { seenBody = 1 ; getline ; }' "$( rigRecord "${1:-}" )" 2> /dev/null ; }
@@ -469,7 +469,7 @@ rigHandback "rig work done"
 rigPendId="$( rigId )"
 rigOp "$rigDir/read" --manager-pending-reply-read --id "$rigPendId"
 rigAssert "the read says beforehand that only his own verdicts are taken, each of them" \
-	"$( LC_ALL=C awk -F'\t' '$1 == "answer" { printf "%s=%s ", $3, $4 }' "$rigDir/read" )" "accept=settles return=settles reject=settles "
+	"$( LC_ALL=C awk -F'\t' '$1 == "answer" { printf "%s=%s ", $3, $4 ; }' "$rigDir/read" )" "accept=settles return=settles reject=settles "
 rigOp "$rigDir/answer" --manager-pending-reply-answer --id "$rigPendId" --answer accept
 rigAssert "his accept, typed at the console, is applied"     "$( cat "$rigDir/answer.rc" ):$( rigLoc ):$( rigField status ):$( rigField verdict ):$( rigField answered-by )" \
 	"0:processed:reply-received:accept:$rigConsole"
@@ -503,7 +503,7 @@ rigHandback "rig work done"
 rigPendId="$( rigId )"
 rigOp "$rigDir/read" --manager-pending-reply-read --id "$rigPendId"
 rigAssert "the read says it is not taken from a console account that is not his" \
-	"$( LC_ALL=C awk -F'\t' '$1 == "answer" { printf "%s=%s ", $3, $4 }' "$rigDir/read" )" "accept=not-taken return=not-taken reject=not-taken "
+	"$( LC_ALL=C awk -F'\t' '$1 == "answer" { printf "%s=%s ", $3, $4 ; }' "$rigDir/read" )" "accept=not-taken return=not-taken reject=not-taken "
 rigOp "$rigDir/answer" --manager-pending-reply-answer --id "$rigPendId" --answer accept
 rigAssert "an answer from any other account is never just a refusal: it goes to the human-owner as a confirmation, and the review stays open meanwhile" \
 	"$( cat "$rigDir/answer.rc" ):$( LC_ALL=C grep -c -F "is the human-owner's own" "$rigDir/answer" ):$( rigField status ):$( rigField verdict ):$( LC_ALL=C grep -c -F 'PENDING ' "$rigDir/answer" )" "0:0:reply-pending:none:1"
@@ -515,7 +515,7 @@ rigAssert "the confirmation is its own message to the human-owner, naming the co
 	"$( rigPostsWith 'the accept of the review of' ):$( rigHas "$rigConfirmPost" "$rigItem" ):$( rigHas "$rigConfirmPost" 'user-' ):$( rigHas "$rigConfirmPost" '"channel":"URIGOWNER"' )" "1:yes:yes:yes"
 ## HIS NO LEAVES IT OPEN, HIS YES GIVES IT: the confirmation is a request in the questions store; his reply in its thread is read by the sweep (--intern-op-pending-reply-collect).
 rigReqId="$( LC_ALL=C sed -n 's/^PENDING \([^ ]*\) .*/\1/p' "$rigDir/answer" | head -1 )"
-rigReqTs="$( LC_ALL=C awk '/^question-ts: / { print $2 ; exit }' "$rigWs/.local/questions/$rigReqId.md" 2> /dev/null )"
+rigReqTs="$( LC_ALL=C awk '/^question-ts: / { print $2 ; exit ; }' "$rigWs/.local/questions/$rigReqId.md" 2> /dev/null )"
 [ -n "$rigReqId" ] && [ -n "$rigReqTs" ] || rigRefuse "the confirmation of the console verdict was not recorded as a request, so his answer could not be measured"
 printf '{"ok":true,"messages":[{"ts":"%s","user":"URIGBOT01","text":"confirm?"},{"ts":"1700000700.000003","user":"URIGOWNER","text":"yes, go on","thread_ts":"%s"}],"has_more":false}\n' "$rigReqTs" "$rigReqTs" > "$rigDir/replies.$rigReqTs.json"
 rigOp "$rigDir/sweep" --intern-op-pending-reply-collect --ended --context rig-console-verdict
@@ -528,7 +528,7 @@ rigHandback "rig work done"
 rigPendId="$( rigId )"
 rigOp "$rigDir/answer" --manager-pending-reply-answer --id "$rigPendId" --answer accept
 rigReqId="$( LC_ALL=C sed -n 's/^PENDING \([^ ]*\) .*/\1/p' "$rigDir/answer" | head -1 )"
-rigReqTs="$( LC_ALL=C awk '/^question-ts: / { print $2 ; exit }' "$rigWs/.local/questions/$rigReqId.md" 2> /dev/null )"
+rigReqTs="$( LC_ALL=C awk '/^question-ts: / { print $2 ; exit ; }' "$rigWs/.local/questions/$rigReqId.md" 2> /dev/null )"
 [ -n "$rigReqId" ] && [ -n "$rigReqTs" ] || rigRefuse "the second confirmation was not recorded as a request"
 printf '{"ok":true,"messages":[{"ts":"%s","user":"URIGBOT01","text":"confirm?"},{"ts":"1700000700.000003","user":"URIGOWNER","text":"no","thread_ts":"%s"}],"has_more":false}\n' "$rigReqTs" "$rigReqTs" > "$rigDir/replies.$rigReqTs.json"
 rigOp "$rigDir/sweep" --intern-op-pending-reply-collect --ended --context rig-console-verdict

@@ -114,7 +114,7 @@ rigDigest(){ ## -- the digest of the rig board, with the rig skillset
 }
 rigOut="$( rigDigest )"
 rigLineOf(){ ## item name -- the resolved line under the item's heading
-	printf '%s\n' "$rigOut" | LC_ALL=C awk -v want="$1" 'index($0, "## pending/" want) == 1 { on = 1 ; next } /^## / { on = 0 } on && /^handler-routine \(resolved\):/ { print ; exit }'
+	printf '%s\n' "$rigOut" | LC_ALL=C awk -v want="$1" 'index($0, "## pending/" want) == 1 { on = 1 ; next ; } /^## / { on = 0 ; } on && /^handler-routine \(resolved\):/ { print ; exit ; }'
 }
 rigAssert "an item with no handler: the default of its type, as the default" "$( rigLineOf proposal-20261028T0100Z-rig-plain.md )" "handler-routine (resolved): magic-team.discuss.routine.md (default)"
 rigAssert "an item with a handler of its own: that routine, as the handler"  "$( rigLineOf task-20261028T0101Z-rig-chosen.md )" "handler-routine (resolved): magic-team.investigate.routine.md (handler)"
@@ -153,7 +153,7 @@ rigRoundAs(){ ## session id, item -- the round check as that caller, rc and the 
 	local roundOut roundRc=0
 	roundOut="$( env -i HOME="$rigTmp/home" PATH="/usr/bin:/bin:/usr/sbin:/sbin" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rigSkills" MDAT_SPAWN_SESSION_ID="$1" \
 		bash -c '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.BoardItemHandler.include" ; AgentsToolsBoardItemHandler "$@"' rig "$2" --for-round 2> /dev/null )" || roundRc=$?
-	printf '%s:%s' "$roundRc" "$( printf '%s' "$roundOut" | LC_ALL=C awk -F'\t' '{ printf "%s%s", sep, $1 ":" $2 ; sep = "," }' )"
+	printf '%s:%s' "$roundRc" "$( printf '%s' "$roundOut" | LC_ALL=C awk -F'\t' '{ printf "%s%s", sep, $1 ":" $2 ; sep = "," ; }' )"
 }
 printf '%s\n' '---' 'type: proposal' 'owner: keeper-rig' '---' '# held' | rigOwnerBoardPut pending proposal-20261028T0120Z-rig-held.md
 rigAssert "a live owner run is the writer: its round runs" "$( rigRoundAs rig-sess-owner "$rigStore/board/pending/proposal-20261028T0120Z-rig-held.md" )" "0:routine:magic-team.discuss.routine.md"
@@ -169,7 +169,7 @@ rigReal(){ ## fn and arguments -- the function against the package skillset alon
 	env -i HOME="$rigTmp/home" PATH="/usr/bin:/bin:/usr/sbin:/sbin" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" \
 		bash -c '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.BoardItemHandler.include" ; "$@"' rig "$@" 2> /dev/null | LC_ALL=C tr '\t\n' '| '
 }
-rigAssert "the real table lists every running board type, each with a gate column" "$( rigReal AgentsToolsBoardTypeTable | LC_ALL=C tr ' ' '\n' | LC_ALL=C awk -F'|' 'NF == 3 && ($3 == "yes" || $3 == "no") { n++ } END { print (n >= 9) ? "ok" : "short:" n + 0 }' )" "ok"
+rigAssert "the real table lists every running board type, each with a gate column" "$( rigReal AgentsToolsBoardTypeTable | LC_ALL=C tr ' ' '\n' | LC_ALL=C awk -F'|' 'NF == 3 && ($3 == "yes" || $3 == "no") { n++ ; } END { print (n >= 9) ? "ok" : "short:" n + 0 ; }' )" "ok"
 printf '%s\n' '---' 'type: task' 'owner: keeper-rig' '---' '# a task' | rigOwnerBoardPut pending task-20261028T0130Z-rig-real.md
 rigAssert "a task of the real package runs the verify routine at its default" "$( rigReal AgentsToolsBoardItemHandler "$rigStore/board/pending/task-20261028T0130Z-rig-real.md" )" "routine|magic-team.verify.routine.md|default "
 rigAssert "the real skillset knows the routines of the table" "$( for rigName in magic-team.verify.routine magic-team.discuss.routine magic-team.proposal.routine magic-team.interview.routine ; do rigReal AgentsToolsRoutineFileOf "$rigName" ; done | LC_ALL=C tr ' ' '\n' | LC_ALL=C grep -c 'skillset/magic-team/magic-team/magic-team\.' )" "4"
@@ -182,7 +182,7 @@ rigDigestAs(){ ## session id -- the digest of the rig board, as that caller
 		MDLT_OPTION="--run-from-path $MDLT_ORIGIN" bash "$rigFn" --intern-op-session-context-scan magic-coordinator --state pending --all-types --context rig 2> /dev/null < /dev/null || :
 }
 rigHeldLine(){ ## digest text, item name -- the `held` line under the item's heading
-	printf '%s\n' "$1" | LC_ALL=C awk -v want="$2" 'index($0, "## pending/" want) == 1 { on = 1 ; next } /^## / { on = 0 } on && /^held / { print ; exit }'
+	printf '%s\n' "$1" | LC_ALL=C awk -v want="$2" 'index($0, "## pending/" want) == 1 { on = 1 ; next ; } /^## / { on = 0 ; } on && /^held / { print ; exit ; }'
 }
 rigOut="$( rigDigestAs rig-sess-coord )"
 rigAssert "an item a live run holds shows the holder, for the coordinator" "$( rigHeldLine "$rigOut" proposal-20261028T0120Z-rig-held.md )" "held (by keeper-rig (rig-sess-owner))"

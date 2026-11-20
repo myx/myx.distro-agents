@@ -67,9 +67,9 @@ rigAcquire(){ ## the tag this call is logged under, the status the inner step an
 ## How many acquires stood inside the gate at once, as the log records it: a begin opens one, an end closes one.
 rigPeakInside(){
 	LC_ALL=C awk '
-		$1 == "begin" { inside++ ; if ( inside > peak ) { peak = inside } ; next }
-		$1 == "end" { inside-- ; next }
-		END { print peak + 0 }
+		$1 == "begin" { inside++ ; if ( inside > peak ) { peak = inside ; } ; next ; }
+		$1 == "end" { inside-- ; next ; }
+		END { print peak + 0 ; }
 	' "$rigTmp/log/calls" 2> /dev/null
 }
 ## A gate that is never given back makes a later acquire wait its own 600 seconds, so every acquire here is bounded: the check says

@@ -77,7 +77,7 @@ AgentsTranscriptLastTool(){ ## session id
 		[ -z "$lastPart" ] || lastParts+=( "$lastPart" )
 	done <<< "$( AgentsTranscriptParts "$1" )"
 	[ ${#lastParts[@]} -gt 0 ] || return 0
-	LC_ALL=C awk '$2 == "TOOL" { at = $1 ; name = $3 } END { if ( at != "" ) print at " " name }' "${lastParts[@]}"
+	LC_ALL=C awk '$2 == "TOOL" { at = $1 ; name = $3 ; } END { if ( at != "" ) print at " " name ; }' "${lastParts[@]}"
 }
 
 ## The last lines of a run's transcript over all its parts: first its base file, then the lines. rc 1 where the run keeps none.
@@ -320,7 +320,7 @@ AgentsTranscriptToolDone(){ ## tool name, arguments JSON, result, source, outcom
 	## Counted by awk, not by a pattern substitution: bash 3.2 takes quadratic time on a big result.
 	[ -n "$doneComment" ] || doneComment="${agentsTranscriptRoundText:0:400}"
 	doneLine="$( printf '%s' "$doneArgs" | STL_TS="$( date -u +%Y-%m-%dT%H:%M:%SZ )" STL_TOOL="$doneTool" STL_OUTCOME="$doneOutcome" \
-		STL_FIRST="${doneFirst:0:400}" STL_BYTES="${#doneResult}" STL_LINES="$( printf '%s' "$doneResult" | awk 'END { print NR + 0 }' )" STL_DUR_MS="$doneDur" STL_COMMENT="$doneComment" \
+		STL_FIRST="${doneFirst:0:400}" STL_BYTES="${#doneResult}" STL_LINES="$( printf '%s' "$doneResult" | awk 'END { print NR + 0 ; }' )" STL_DUR_MS="$doneDur" STL_COMMENT="$doneComment" \
 		awk -v stlStandalone=tool -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/transcript/AgentsSessionTranscriptFormat.awk" 2>/dev/null )" || doneLine=""
 	[ -n "$doneLine" ] || return 0
 	if [ "$doneSource" = "mcp" ] ; then
@@ -589,7 +589,7 @@ AgentsSessionTokensHeaderUpdate(){ ## session id
 	type AgentsToolsBoardItemInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemDecisions.include"
 	AgentsToolsBoardItemInto updatePath "$updateItem" || :
 	[ -n "$updatePath" ] || return 0
-	updateNow="$( LC_ALL=C awk 'NR == 1 && $0 != "---" { exit } NR > 1 && $0 == "---" { exit } NR > 1 && index( $0, "tokens: " ) == 1 { print substr( $0, 9 ) ; exit }' "$updatePath" 2>/dev/null )"
+	updateNow="$( LC_ALL=C awk 'NR == 1 && $0 != "---" { exit ; } NR > 1 && $0 == "---" { exit ; } NR > 1 && index( $0, "tokens: " ) == 1 { print substr( $0, 9 ) ; exit ; }' "$updatePath" 2>/dev/null )"
 	[ "$updateNow" != "$updateValue" ] || return 0
 	updateItem="${updatePath##*/}"
 	updateState="${updatePath%/*}"
@@ -621,7 +621,7 @@ AgentsSessionTokensRollupRows(){ ## item name...
 
 ## One row of AgentsSessionTokensRollupRows output, by item name; empty for none.
 AgentsSessionTokensRollupRowOf(){ ## rows, item name
-	printf '%s\n' "$1" | LC_ALL=C awk -F'\t' -v item="${2%.md}" '$1 == item { print ; exit }'
+	printf '%s\n' "$1" | LC_ALL=C awk -F'\t' -v item="${2%.md}" '$1 == item { print ; exit ; }'
 }
 
 ## One display line from a rollup row: `tokens: in=... out=... (incl. N sub-sessions)`.
@@ -674,9 +674,9 @@ agentsReplyLongBytes=4096
 AgentsTranscriptReplyRef(){ ## file, the file a Read read (optional)
 	[ -f "$1" ] || return 1
 	LC_ALL=C awk -v refPath="$1" -v refOrigin="${2:-}" -v refBytes="$( LC_ALL=C wc -c < "$1" | tr -d ' ' )" -v refLines="$( LC_ALL=C wc -l < "$1" | tr -d ' ' )" '
-		{ total += length( $0 ) + 1 ; if ( NR > 10 && total > 3584 ) { exit } ; if ( total <= 1024 ) { fit = NR } ; if ( total <= 3584 ) { cap = NR } ; kept[ NR ] = $0 ; seen = NR ; }
+		{ total += length( $0 ) + 1 ; if ( NR > 10 && total > 3584 ) { exit ; } ; if ( total <= 1024 ) { fit = NR ; } ; if ( total <= 3584 ) { cap = NR ; } ; kept[ NR ] = $0 ; seen = NR ; }
 		END {
-			shown = ( fit > 10 ) ? fit : 10 ; if ( shown > seen ) { shown = seen } ; if ( shown > cap ) { shown = cap } ;
+			shown = ( fit > 10 ) ? fit : 10 ; if ( shown > seen ) { shown = seen ; } ; if ( shown > cap ) { shown = cap ; } ;
 			for ( n = 1 ; n <= shown ; n++ ) { print kept[ n ] ; }
 			if ( shown == 0 && seen > 0 ) {
 				print substr( kept[ 1 ], 1, 1024 )
@@ -725,10 +725,10 @@ AgentsTranscriptReplyLong(){ ## tool name, result text, the file a Read read (op
 	fi
 	case "$2" in
 		*$'\n'*)
-			tail -n 5 "$longFile" | LC_ALL=C awk -v closing="$agentsReplyClosing" '{ line[ NR ] = $0 } END {
-				from = NR + 1 ; while ( from > 1 && line[ from - 1 ] ~ closing ) { from-- }
-				if ( from > NR && length( line[ NR ] ) <= 512 ) { from = NR }
-				for ( n = from ; n <= NR ; n++ ) { print line[ n ] }
+			tail -n 5 "$longFile" | LC_ALL=C awk -v closing="$agentsReplyClosing" '{ line[ NR ] = $0 ; } END {
+				from = NR + 1 ; while ( from > 1 && line[ from - 1 ] ~ closing ) { from-- ; }
+				if ( from > NR && length( line[ NR ] ) <= 512 ) { from = NR ; }
+				for ( n = from ; n <= NR ; n++ ) { print line[ n ] ; }
 			}'
 		;;
 	esac
@@ -782,10 +782,10 @@ AgentsTranscriptReplyFloor(){
 	  [ $(( floorNow - floorLooked )) -ge 15 ] || exit 0
 	  if AgentsToolsCommsCacheState "$agentsCommsCacheDir" ; then
 		floorSeen="$( LC_ALL=C awk -F'\t' -v where="$floorThread" '
-			function secOf(v) { sub(/\..*$/, "", v) ; return ( v == "" ? 0 : v + 0 ) }
-			function fracOf(v) { if ( v !~ /\./ ) { return "000000" } ; sub(/^[^.]*\./, "", v) ; return substr(v "000000", 1, 6) }
-			$3 == where && ( secOf($2) > secOf(best) || ( secOf($2) == secOf(best) && fracOf($2) > fracOf(best) ) ) { best = $2 }
-			END { print best }' <<< "$( AgentsToolsSessionChatResolvedStream "$floorKey" 2> /dev/null )" 2> /dev/null )" || floorSeen=""
+			function secOf(v) { sub(/\..*$/, "", v) ; return ( v == "" ? 0 : v + 0 ) ; }
+			function fracOf(v) { if ( v !~ /\./ ) { return "000000" ; } ; sub(/^[^.]*\./, "", v) ; return substr(v "000000", 1, 6) ; }
+			$3 == where && ( secOf($2) > secOf(best) || ( secOf($2) == secOf(best) && fracOf($2) > fracOf(best) ) ) { best = $2 ; }
+			END { print best ; }' <<< "$( AgentsToolsSessionChatResolvedStream "$floorKey" 2> /dev/null )" 2> /dev/null )" || floorSeen=""
 		## What the session holds is where its cache is served from: its newest block, else the moment of its first import, which is
 		## the line the importer draws between history and what is new to it. Nothing older is brought in.
 		if [ -z "$floorSeen" ] ; then floorSeen="$( AgentsToolsSessionChatPointer "$floorKey" "import:$floorThread" )" || floorSeen=0 ; fi

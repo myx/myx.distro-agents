@@ -26,7 +26,7 @@
 # general-purpose formatter: only understands the flat messages[] array
 # shape Slack's own API actually returns.
 
-BEGIN { msgCount = 0; apiOk = "true"; apiOkSeen = 0; jfLibrary = 1 ; jfLax = 1 }
+BEGIN { msgCount = 0; apiOk = "true"; apiOkSeen = 0; jfLibrary = 1 ; jfLax = 1 ; }
 
 ## A text with every Slack date token in it, `<!date^<epoch>^<token string>|<fallback>>`,
 ## as its fallback text: what a reader of this rendering can use, where the raw control
@@ -151,7 +151,7 @@ function jfNodeHook(path, nodeType, nodeValue, fromPos, toPos,   idx, rest, afte
 		if (!(idx in attachCountPerMsg) || jNum + 1 > attachCountPerMsg[idx]) attachCountPerMsg[idx] = jNum + 1
 		afterJ = substr(afterReactions, length(j) + 2)
 		if (afterJ == "text") attachTextOf[idx, j] = nodeValue
-		else if (afterJ == "from_url" || afterJ == "original_url") { if (!((idx, j) in attachUrlOf) || afterJ == "from_url") attachUrlOf[idx, j] = nodeValue }
+		else if (afterJ == "from_url" || afterJ == "original_url") { if (!((idx, j) in attachUrlOf) || afterJ == "from_url") attachUrlOf[idx, j] = nodeValue ; }
 		return
 	}
 	if (index(afterIdx, "reactions.") == 1) {
@@ -172,7 +172,7 @@ function jfNodeHook(path, nodeType, nodeValue, fromPos, toPos,   idx, rest, afte
 	}
 }
 
-{ jfConsumeText($0) }
+{ jfConsumeText($0) ; }
 
 ## Prints oldest-first (chronological), sorted on ts rather than taken from
 ## the body's own order: conversations.history returns newest-first and

@@ -113,7 +113,7 @@ rigStarts(){ ## file, line start
 	LC_ALL=C awk -v wantHead="$2" 'index( $0, wantHead ) == 1 { hitCount++ ; } END { print hitCount + 0 ; }' "$1" 2>/dev/null || printf 'no-such-file'
 }
 rigVerdictLine(){
-	LC_ALL=C awk '/^VERDICT: / { print ; found = 1 ; exit ; } END { if ( ! found ) { print "no-verdict-line" ; } }' "$rigScenarioDir/out"
+	LC_ALL=C awk '/^VERDICT: / { print ; found = 1 ; exit ; } END { if ( ! found ) { print "no-verdict-line" ; } ; }' "$rigScenarioDir/out"
 }
 rigRefusal(){ ## output file -> the refusal id it printed
 	LC_ALL=C sed -n 's/^REFUSAL-ID: \(refusal-[0-9a-f-]*\)$/\1/p' "$1" | head -1
@@ -133,7 +133,7 @@ rigRecordFile(){ ## which, counting from 1
 	rigRecordFiles | LC_ALL=C sed -n "${1:-1}p"
 }
 rigRecordField(){ ## field, which record (default the first)
-	LC_ALL=C awk -v key="$1" '$0 == "---" { if ( ++dashes == 2 ) { exit ; } next ; } dashes == 1 && index( $0, key ": " ) == 1 { print substr( $0, length( key ) + 3 ) ; found = 1 ; exit ; } END { if ( ! found ) { print "none" ; } }' "$( rigRecordFile "${2:-1}" )" 2>/dev/null || printf 'no-record'
+	LC_ALL=C awk -v key="$1" '$0 == "---" { if ( ++dashes == 2 ) { exit ; } next ; } dashes == 1 && index( $0, key ": " ) == 1 { print substr( $0, length( key ) + 3 ) ; found = 1 ; exit ; } END { if ( ! found ) { print "none" ; } ; }' "$( rigRecordFile "${2:-1}" )" 2>/dev/null || printf 'no-record'
 }
 rigRecordId(){ ## which record (default the first)
 	local recordId
@@ -248,7 +248,7 @@ rigAsk(){ ## refusal id, the question, optional quiet seconds
 ## Whether the session holds a grant for one write: the first word after GRANT:, or none.
 rigGranted(){ ## path
 	rigOp --intern-op-permission-grant-read "$rigMember" --session-id "$rigSession" --tool Write --target "$1"
-	LC_ALL=C sed -n 's/^GRANT: \([a-z]*\) .*$/\1/p' "$rigScenarioDir/op.out" | head -1 | LC_ALL=C awk '{ print ; found = 1 ; } END { if ( ! found ) { print "none" ; } }'
+	LC_ALL=C sed -n 's/^GRANT: \([a-z]*\) .*$/\1/p' "$rigScenarioDir/op.out" | head -1 | LC_ALL=C awk '{ print ; found = 1 ; } END { if ( ! found ) { print "none" ; } ; }'
 }
 ## The emoji of the tooling's own on the first post: "<placed, in order>|<taken off, in order>".
 rigEmoji(){

@@ -89,7 +89,7 @@ rigUrlPassword="$( rigValue urlpwRIGh 40 5 )"
 ( cd "$rigWs" && env -i HOME="$rigTmp/home" PATH="$rigTmp/bin:/usr/bin:/bin:/usr/sbin:/sbin" MMDAPP="$rigWs" MDLT_ORIGIN="$rigOrigin" MDLT_OPTION="--run-from-path $rigOrigin" \
 	MDAT_SKILLSET_ROOT="$rigTmp/skills" bash "$rigTool" --manager-config-digest --full ) > "$rigTmp/out.full" 2> "$rigTmp/err.full" < /dev/null
 rigShown(){ ## subject, group, key -- the value field of that line, `absent` where no such line; in the digest in full where rigFull is set
-	LC_ALL=C awk -F'\t' -v wantSubject="$1" -v wantGroup="$2" -v wantKey="$3" '$1 == "line" && $2 == wantSubject && $3 == wantGroup && $4 == wantKey { print $6 ; found = 1 ; exit } END { if ( !found ) print "absent" }' "$rigTmp/out${rigFull:+.full}"
+	LC_ALL=C awk -F'\t' -v wantSubject="$1" -v wantGroup="$2" -v wantKey="$3" '$1 == "line" && $2 == wantSubject && $3 == wantGroup && $4 == wantKey { print $6 ; found = 1 ; exit ; } END { if ( !found ) print "absent" ; }' "$rigTmp/out${rigFull:+.full}"
 }
 
 echo "-- control: the digest lists each credential of the scope --"
@@ -115,10 +115,10 @@ rigAssert "2 characters read **, 3 read *** in the scope"        "$( rigShown sc
 rigAssert "and the same form on the CLI's own line, under the one scaleway credential" "$( rigShown cli scaleway SCALEWAY_API_KEY )" "**"
 
 echo "-- 8. a password inside a URL: that part alone is masked, in the digest in full --"
-rigAssert "not in full, the mask is per key: a key that is no credential shows its value as it is, the password with it, and reads set" "$( rigShown scopes magic-team WEB_ALLOW_PREFIXES ) $( LC_ALL=C awk -F'\t' '$1 == "line" && $2 == "scopes" && $4 == "WEB_ALLOW_PREFIXES" { print $5 }' "$rigTmp/out" )" "https://rigbot:$rigUrlPassword@docs.rig.example/api/_https://plain.rig.example/ set"
+rigAssert "not in full, the mask is per key: a key that is no credential shows its value as it is, the password with it, and reads set" "$( rigShown scopes magic-team WEB_ALLOW_PREFIXES ) $( LC_ALL=C awk -F'\t' '$1 == "line" && $2 == "scopes" && $4 == "WEB_ALLOW_PREFIXES" { print $5 ; }' "$rigTmp/out" )" "https://rigbot:$rigUrlPassword@docs.rig.example/api/_https://plain.rig.example/ set"
 rigFull=1
 rigAssert "in full, in the form of a credential; the URL stands, and so does a second beside it" "$( rigShown scopes magic-team WEB_ALLOW_PREFIXES )" "https://rigbot:$( rigMask "$rigUrlPassword" )@docs.rig.example/api/_https://plain.rig.example/"
-rigAssert "and the line reads secret-set, as a credential's does" "$( LC_ALL=C awk -F'\t' '$1 == "line" && $2 == "scopes" && $4 == "WEB_ALLOW_PREFIXES" { print $5 }' "$rigTmp/out.full" )" "secret-set"
+rigAssert "and the line reads secret-set, as a credential's does" "$( LC_ALL=C awk -F'\t' '$1 == "line" && $2 == "scopes" && $4 == "WEB_ALLOW_PREFIXES" { print $5 ; }' "$rigTmp/out.full" )" "secret-set"
 rigAssert "in full a credential of a key is shown the same as not in full" "$( rigShown scopes magic-team JIRA_API_TOKEN )" "$( rigMask "$rigJira" )"
 rigFull=""
 

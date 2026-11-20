@@ -114,7 +114,7 @@ AgentsToolsRunRecordedSupervisor(){ ## spawn record file
 		fenceCount != 1 { next ; }
 		index( $0, "host: " ) == 1 && ! hostSeen++ { hostNamed = substr( $0, 7 ) ; next ; }
 		index( $0, "supervisor-process: " ) == 1 && ! shellSeen++ { shellNamed = substr( $0, 21 ) ; }
-		END { if ( fenceCount > 1 && hostSeen && hostNamed == ENVIRON["MDAT_REGISTRY_THIS_HOST"] ) { print shellNamed ; } }
+		END { if ( fenceCount > 1 && hostSeen && hostNamed == ENVIRON["MDAT_REGISTRY_THIS_HOST"] ) { print shellNamed ; } ; }
 	' "${1:-}" 2>/dev/null )" || supervisorNamed=""
 	supervisorPid="${supervisorNamed%% *}" ; supervisorStart="${supervisorNamed#* }"
 	case "$supervisorPid" in ''|*[!0123456789]*) printf 'unknown\n' ; return 0 ;; esac
@@ -150,7 +150,7 @@ AgentsToolsRunningSpawns(){ ## spawned-sessions registry file, process list text
 		$8 != "-" && $4 == thisHost && $6 != "spawn-succeeded" && $6 != "spawn-failed" && $6 != "spawn-ended-without-close" { print "? " $8 ; }
 	' - "$1" 2>/dev/null )" || runningLines=""
 	## The rows to ask a record about, both kinds, and then the records themselves, read in one pass each.
-	runningAsked="$( printf '%s\n' "$runningLines" | LC_ALL=C awk '$1 == "?" || $1 == "=" { print $2 }' )" || runningAsked=""
+	runningAsked="$( printf '%s\n' "$runningLines" | LC_ALL=C awk '$1 == "?" || $1 == "=" { print $2 ; }' )" || runningAsked=""
 	if [ -n "$runningAsked" ] ; then
 		for runningId in $runningAsked ; do
 			type AgentsSessionRunRecordInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
@@ -278,7 +278,7 @@ AgentsToolsLivenessOf(){ ## spawn id, its record file (may be empty)
 			fenceCount != 1 { next ; }
 			index( $0, "host: " ) == 1 && ! hostSeen++ { hostNamed = substr( $0, 7 ) ; next ; }
 			index( $0, "run-process: " ) == 1 && ! runSeen++ { runNamed = substr( $0, 14 ) ; }
-			END { if ( fenceCount > 1 && hostSeen && hostNamed == ENVIRON["MDAT_LIVE_HOST"] && runNamed ~ /^[0-9]+ [^ ]+$/ ) { print "named" ; } }
+			END { if ( fenceCount > 1 && hostSeen && hostNamed == ENVIRON["MDAT_LIVE_HOST"] && runNamed ~ /^[0-9]+ [^ ]+$/ ) { print "named" ; } ; }
 		' "$liveRecord" 2> /dev/null )" || liveNamed=""
 		[ "$liveNamed" = named ] || { printf 'unknown\n' ; return 2 ; }
 		liveWord=gone
@@ -336,9 +336,9 @@ AgentsToolsRunProcesses(){ ## spawn id, its record file (found by the id where n
 	ps -A -o pid=,ppid= 2>/dev/null | MDAT_REGISTRY_RUN_OWN="$procOwn" MDAT_REGISTRY_RUN_OTHERS="$procOthers" LC_ALL=C awk -v askingPid="$procAsking" '
 		BEGIN {
 			ownTotal = split( ENVIRON["MDAT_REGISTRY_RUN_OWN"], ownList, /[ \n]+/ ) ;
-			for ( ownAt = 1 ; ownAt <= ownTotal ; ownAt++ ) { if ( ownList[ownAt] != "" ) { ownRun[ownList[ownAt]] = 1 ; } }
+			for ( ownAt = 1 ; ownAt <= ownTotal ; ownAt++ ) { if ( ownList[ownAt] != "" ) { ownRun[ownList[ownAt]] = 1 ; } ; }
 			otherTotal = split( ENVIRON["MDAT_REGISTRY_RUN_OTHERS"], otherList, /[ \n]+/ ) ;
-			for ( otherAt = 1 ; otherAt <= otherTotal ; otherAt++ ) { if ( otherList[otherAt] != "" ) { otherRun[otherList[otherAt]] = 1 ; } }
+			for ( otherAt = 1 ; otherAt <= otherTotal ; otherAt++ ) { if ( otherList[otherAt] != "" ) { otherRun[otherList[otherAt]] = 1 ; } ; }
 		}
 		{ parentOf[$1] = $2 ; pidList[++pidTotal] = $1 ; }
 		END {
@@ -451,7 +451,7 @@ AgentsToolsRunGroupLeft(){ ## the group id, the members kept as `<pid> <start>` 
 	ps -A -o pid=,ppid=,pgid= 2>/dev/null | MDAT_REGISTRY_GROUP_STILL="$leftStill" LC_ALL=C awk -v groupId="$1" '
 		BEGIN {
 			stillTotal = split( ENVIRON["MDAT_REGISTRY_GROUP_STILL"], stillList, /[ \n]+/ ) ;
-			for ( stillAt = 1 ; stillAt <= stillTotal ; stillAt++ ) { if ( stillList[stillAt] != "" ) { leftOf[stillList[stillAt]] = 1 ; print stillList[stillAt] ; } }
+			for ( stillAt = 1 ; stillAt <= stillTotal ; stillAt++ ) { if ( stillList[stillAt] != "" ) { leftOf[stillList[stillAt]] = 1 ; print stillList[stillAt] ; } ; }
 		}
 		{ parentOf[$1] = $2 ; groupOf[$1] = $3 ; pidList[++pidTotal] = $1 ; }
 		END {

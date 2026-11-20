@@ -199,7 +199,7 @@ rigRun --all --force
 rigRun --report-stale
 rigAssert "a source just checked is not stale" "$rigRc:$( rigCount "$rigTmp/out" '^stale: ' )" "0:0"
 rigNow="$( cat "$rigTmp/now.epoch" )"
-LC_ALL=C awk -v old="$(( rigNow - 7000 ))" '$1 == "checked-at" { print "checked-at " old ; next } { print }' "$rigState/mail.rig-member.state" > "$rigState/mail.rig-member.state.new" && mv "$rigState/mail.rig-member.state.new" "$rigState/mail.rig-member.state"
+LC_ALL=C awk -v old="$(( rigNow - 7000 ))" '$1 == "checked-at" { print "checked-at " old ; next ; } { print ; }' "$rigState/mail.rig-member.state" > "$rigState/mail.rig-member.state.new" && mv "$rigState/mail.rig-member.state.new" "$rigState/mail.rig-member.state"
 rigRun --report-stale
 rigAssert "one checked twenty TTLs ago is" "$rigRc:$( rigCount "$rigTmp/out" '^stale: mail:rig-member \(' ):$( rigCount "$rigTmp/out" '^stale: trello:rig-member' ):$( rigCount "$rigFix/imap.log" '^CONNECT ' )" "0:1:0:0"
 rm -f "$rigState/trello.rig-member.state"

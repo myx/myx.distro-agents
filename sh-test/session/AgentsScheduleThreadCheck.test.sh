@@ -154,7 +154,7 @@ rigRecordUp(){ ## routine file name
 	return 1
 }
 rigStartsSaid(){ ## name -- how many starts the pass reported, in either stream
-	LC_ALL=C grep -c -F 'autorun: started' "$rigDir/$1.out" "$rigDir/$1.err" 2> /dev/null | LC_ALL=C awk -F: '{ s += $2 } END { print s + 0 }'
+	LC_ALL=C grep -c -F 'autorun: started' "$rigDir/$1.out" "$rigDir/$1.err" 2> /dev/null | LC_ALL=C awk -F: '{ s += $2 ; } END { print s + 0 ; }'
 }
 
 echo "-- 1. the operation --"

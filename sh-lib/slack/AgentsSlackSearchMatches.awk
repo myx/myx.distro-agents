@@ -196,7 +196,7 @@ function jfNodeHook(path, nodeType, nodeValue, fromPos, toPos,   idx, rest, afte
 ## The WHOLE input is walked once, never line by line: a
 ## pretty-printed body must parse exactly like the single-line one Slack sends
 ## today, and picking a line is the same class of accident as picking a match.
-{ jfDocLine($0) ; docSeen = 1 }
+{ jfDocLine($0) ; docSeen = 1 ; }
 
 END {
 	if (cutoff == "") {

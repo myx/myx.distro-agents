@@ -22,15 +22,15 @@ case "${2:-}" in --apply) rigApply=yes ;; esac
 
 ## One item's frontmatter `status: ` line count, and whether it has one at all.
 rigHasKey(){ ## item file
-	LC_ALL=C awk 'NR == 1 && $0 != "---" { exit } NR > 1 && $0 == "---" { exit } index($0, "status: ") == 1 { found = 1 } END { exit found ? 0 : 1 }' "$1"
+	LC_ALL=C awk 'NR == 1 && $0 != "---" { exit ; } NR > 1 && $0 == "---" { exit ; } index($0, "status: ") == 1 { found = 1 ; } END { exit found ? 0 : 1 ; }' "$1"
 }
 ## The item without its frontmatter `status: ` line, on stdout.
 rigWithoutKey(){ ## item file
 	LC_ALL=C awk '
-		NR == 1 && $0 != "---" { body = 1 }
-		NR > 1 && $0 == "---" { body = 1 }
-		!body && index($0, "status: ") == 1 { next }
-		{ print }
+		NR == 1 && $0 != "---" { body = 1 ; }
+		NR > 1 && $0 == "---" { body = 1 ; }
+		!body && index($0, "status: ") == 1 { next ; }
+		{ print ; }
 	' "$1"
 }
 

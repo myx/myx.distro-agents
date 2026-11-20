@@ -444,7 +444,7 @@ rigAssert "with the lines not wrapped the width is not a limit: two spaces" "$( 
 
 echo "-- 2. a value that wraps: the other columns are reassessed, the row takes the fewest lines --"
 for rigN in 1 2 3 4 ; do
-	rigAssert "case $rigN: the lines the table takes and the lines of its cells, the fewest any split of its width gives, and no line wider than the pane" "$( rigGot fewest.$rigN )" "$( rigGot fewest.$rigN | LC_ALL=C awk -F: '{ print $2 ":" $2 ":fits" }' )"
+	rigAssert "case $rigN: the lines the table takes and the lines of its cells, the fewest any split of its width gives, and no line wider than the pane" "$( rigGot fewest.$rigN )" "$( rigGot fewest.$rigN | LC_ALL=C awk -F: '{ print $2 ":" $2 ":fits" ; }' )"
 done
 
 echo "-- 3. one empty line between the rows of the full view, where the table fits both ways with it --"
@@ -502,7 +502,7 @@ rigPane(){ ## tag -- the lines of the left pane of that screen, the spaces at th
 	printf '%s\n' "$rigOut" | LC_ALL=C grep "^$1|" | LC_ALL=C sed -e "s/^$1|//" -e 's/^│//' -e 's/^║//' -e 's/│.*$//' -e 's/║.*$//' -e 's/▲.*$//' -e 's/▼.*$//' -e 's/▒.*$//' -e 's/■.*$//' -e 's/  *$//'
 }
 rigPaneUnder(){ ## tag, text, count -- that many lines of the left pane from the one that is exactly the text, each between brackets
-	rigPane "$1" | LC_ALL=C awk -v text="$2" -v count="$3" '$0 == text && !n { n = count } n > 0 { printf "[%s]", $0 ; n-- }'
+	rigPane "$1" | LC_ALL=C awk -v text="$2" -v count="$3" '$0 == text && !n { n = count ; } n > 0 { printf "[%s]", $0 ; n-- ; }'
 }
 rigTableLine(){ ## number, name, run, status, kind, where -- one line of the table of the members as the fixture gives it, two spaces between the columns
 	printf ' %-1s  %-17s  %-7s  %-8s  %-6s  %s' "$@" | LC_ALL=C sed 's/  *$//'

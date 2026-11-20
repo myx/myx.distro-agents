@@ -68,7 +68,7 @@ rigBegan(){ ## pid -- "<pid> <when it began>", or nothing
 	rigProcBegan "$1"
 }
 rigStarted(){ ## pid -- the start column a record keeps after the pid
-	rigProcBegan "$1" | LC_ALL=C awk '{ print $2 }'
+	rigProcBegan "$1" | LC_ALL=C awk '{ print $2 ; }'
 }
 ## The pass, as the advance lock take runs it: one call, its report on stdout.
 rigPass_(){ ## the measured rows it is given

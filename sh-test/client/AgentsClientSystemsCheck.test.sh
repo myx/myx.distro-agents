@@ -142,10 +142,10 @@ rigN(){ ## file, fixed text -- how many lines hold it
 	LC_ALL=C grep -c -F -- "$2" "$1" 2> /dev/null || :
 }
 rigLines(){ ## file -- how many lines it has
-	LC_ALL=C awk 'END { print NR + 0 }' "$1" 2> /dev/null
+	LC_ALL=C awk 'END { print NR + 0 ; }' "$1" 2> /dev/null
 }
 rigCalls(){ ## -- the calls of the last run, in their order, joined by "; "
-	LC_ALL=C awk '{ printf "%s%s", ( NR > 1 ? "; " : "" ), $0 }' "$rigTmp/calls"
+	LC_ALL=C awk '{ printf "%s%s", ( NR > 1 ? "; " : "" ), $0 ; }' "$rigTmp/calls"
 }
 rigOurs(){ ## -- how many calls of the last run carried a setting of our own team: a member's or the shared scope's
 	LC_ALL=C grep -c -E 'here\.invalid|KHERE|TEAM' "$rigTmp/calls" || :
@@ -197,12 +197,12 @@ rigAssert "an operation with no marker is our own side too: the same line, and n
 
 echo "-- 2. the --client-* operation of the same name reaches the other organisation, with what the client itself holds --"
 rigRun --client-comms-email-check --team-member client-ndm
-rigAssert "its mailbox check is the mailbox the client holds, in the workspace it was called from" "$rigRc $( rigCalls ) $( LC_ALL=C awk '{ print $2 ; exit }' "$rigTmp/envs" )" "0 imap imap-ndm.invalid us@ndm.invalid STATUS INBOX (UNSEEN); imap imap-ndm.invalid us@ndm.invalid UID SEARCH UNSEEN MMDAPP=$rigWork/ws-here"
+rigAssert "its mailbox check is the mailbox the client holds, in the workspace it was called from" "$rigRc $( rigCalls ) $( LC_ALL=C awk '{ print $2 ; exit ; }' "$rigTmp/envs" )" "0 imap imap-ndm.invalid us@ndm.invalid STATUS INBOX (UNSEEN); imap imap-ndm.invalid us@ndm.invalid UID SEARCH UNSEEN MMDAPP=$rigWork/ws-here"
 rigAssert "no call carried a setting of our own team, and none anything of the other workspace" "$( rigOurs ) $( rigElsewhere )" "0 0"
 rigRun --client-comms-email-read --team-member client-ndm 41
 rigAssert "its read of one message is of that mailbox" "$rigRc $( rigCalls ) $( rigN "$rigTmp/out" 'RIG MESSAGE' )" "0 imap-read imap-ndm.invalid us@ndm.invalid 41 1"
 rigRun --client-comms-email-mark-seen --team-member client-ndm 41
-rigAssert "its mark of one message is in that mailbox" "$rigRc $( LC_ALL=C awk '{ print $1, $2, $3, $4, $5 }' "$rigTmp/calls" )" "0 imap imap-ndm.invalid us@ndm.invalid UID STORE"
+rigAssert "its mark of one message is in that mailbox" "$rigRc $( LC_ALL=C awk '{ print $1, $2, $3, $4, $5 ; }' "$rigTmp/calls" )" "0 imap imap-ndm.invalid us@ndm.invalid UID STORE"
 rigRun --client-comms-email-send --team-member client-ndm person@ndm.invalid -- 'Rig subject' -- 'Rig body.'
 rigAssert "its mail to a listed contact of its own is sent from that mailbox" "$rigRc $( rigCalls )" "0 smtp smtp-ndm.invalid us@ndm.invalid person@ndm.invalid"
 rigRun --client-comms-email-send --team-member client-ndm stranger@ndm.invalid -- 'Rig subject' -- 'Rig body.'
@@ -251,7 +251,7 @@ done
 
 echo "-- 5. control: a member of our own team is as it was --"
 rigRun --email-check --team-member keeper-here
-rigAssert "its mailbox check is its own mailbox" "$rigRc $( LC_ALL=C awk 'NR == 1 { print $1, $2, $3 }' "$rigTmp/calls" ) $( rigLines "$rigTmp/calls" )" "0 imap imap-keeper.here.invalid us@keeper.here.invalid 2"
+rigAssert "its mailbox check is its own mailbox" "$rigRc $( LC_ALL=C awk 'NR == 1 { print $1, $2, $3 ; }' "$rigTmp/calls" ) $( rigLines "$rigTmp/calls" )" "0 imap imap-keeper.here.invalid us@keeper.here.invalid 2"
 rigRun --google-whoami --team-member keeper-here
 rigAssert "its Google lookup is its own account" "$rigRc $( rigCalls )" "0 google whoami rig-google-client-KHERE"
 rigRun --jira-board-list --team-member keeper-here
@@ -265,11 +265,11 @@ rigAssert "and in Jira a member of ours holding none of its own reaches this wor
 
 echo "-- 6. magic-coordinator reaches the client side through --client-operation-run; a --magic-comms-* operation given a client is our own side --"
 rigRun --client-operation-run magic-coordinator --client-comms-email-mark-seen client-ndm 41
-rigAssert "its mark of a message as client-ndm, through its own operation, is in the mailbox the client holds" "$rigRc $( LC_ALL=C awk '{ print $1, $2, $3, $4, $5 }' "$rigTmp/calls" )" "0 imap imap-ndm.invalid us@ndm.invalid UID STORE"
+rigAssert "its mark of a message as client-ndm, through its own operation, is in the mailbox the client holds" "$rigRc $( LC_ALL=C awk '{ print $1, $2, $3, $4, $5 ; }' "$rigTmp/calls" )" "0 imap imap-ndm.invalid us@ndm.invalid UID STORE"
 rigRun --email-mark-seen --team-member client-ndm 41
 rigAssert "the mark of a message given a client is our own side, where a client holds no mail settings: the one line, naming --client-comms-email-mark-seen, and no call" "$rigRc $( rigLines "$rigTmp/calls" ) $( rigN "$rigTmp/err" "⛔ ERROR: DistroAgentsTools --email-mark-seen: client-ndm has no mail settings on our own organisation's side: what it holds is the other organisation's. For the other organisation use --client-comms-email-mark-seen." )" "1 0 1"
 rigRun --email-mark-seen --team-member keeper-here 41
-rigAssert "control: as a member of our own team it is that member's mailbox" "$rigRc $( LC_ALL=C awk '{ print $1, $2, $3 }' "$rigTmp/calls" )" "0 imap imap-keeper.here.invalid us@keeper.here.invalid"
+rigAssert "control: as a member of our own team it is that member's mailbox" "$rigRc $( LC_ALL=C awk '{ print $1, $2, $3 ; }' "$rigTmp/calls" )" "0 imap imap-keeper.here.invalid us@keeper.here.invalid"
 rigRun --client-operation-run magic-coordinator --client-comms-trello-post-comment client-ndm 5f0000000000000000000c01 'Rig comment.'
 rigAssert "its Trello comment as client-ndm, through its own operation, is under the account the client holds" "$rigRc $( rigCalls )" "0 trello cards/5f0000000000000000000c01/actions/comments rig-trello-key-NDM"
 rigRun --trello-post-comment --team-member client-ndm 5f0000000000000000000c01 'Rig comment.'
@@ -294,7 +294,7 @@ rigAssert "a client is offered the client operations of mail, Trello and Google,
 rigRun --member-help --team-member keeper-here
 rigAssert "control: a member that is no client is offered none of them" "$rigRc $( rigN "$rigTmp/out" 'DistroAgentsTools.fn.sh --client-comms-' )" "0 0"
 for rigFamily in email trello google ; do
-	rigInclude="$rigHere/$rigFamily/AgentsTools.MemberComms$( printf '%s' "$rigFamily" | LC_ALL=C awk '{ print toupper( substr( $0, 1, 1 ) ) substr( $0, 2 ) }' ).include"
+	rigInclude="$rigHere/$rigFamily/AgentsTools.MemberComms$( printf '%s' "$rigFamily" | LC_ALL=C awk '{ print toupper( substr( $0, 1, 1 ) ) substr( $0, 2 ) ; }' ).include"
 	rigAssert "every --client-comms-$rigFamily-* operation the code holds has its syntax line, and no syntax line names one the code does not hold" "$( rigNames "$rigInclude" "$rigFamily" | LC_ALL=C tr '\n' ' ' )" "$( rigNames "$rigHelpInclude" "$rigFamily" | LC_ALL=C tr '\n' ' ' )"
 	rigAssert "and each has its entry in the manual" "$( rigNames "$rigInclude" "$rigFamily" | while IFS= read -r rigName ; do LC_ALL=C grep -q -e "^		$rigName \[--team-member <team-member>\]" "$rigManual" || printf '%s ' "$rigName" ; done )" ""
 	rigAssert "control: the search does find operations of that family in the code" "$( [ "$( rigNames "$rigInclude" "$rigFamily" | rigLines /dev/stdin )" -ge 3 ] && printf found || printf blind )" found
@@ -305,8 +305,8 @@ rigAssert "the questions every reader of a member's own settings asks are define
 rigAssert "the Slack include asks the same two questions directly: no name of its own hands on to them" "$( LC_ALL=C grep -c -E -e '^AgentsToolsSlack(OwnSettingsApply|ClientSide)[(][)]' "$rigHere/slack/AgentsTools.CommsSlack.include" || : )" "0"
 rigAssert "a --member- operation of each of the five systems says our own side itself, once, whatever it was called under" "$( for rigFamily in Email Trello Google Jira Confluence ; do LC_ALL=C grep -c -F -e 'local -x MDAT_COMMS_SIDE=own MDAT_COMMS_OP=""' "$rigHere"/*/AgentsTools.MemberComms$rigFamily.include || : ; done | LC_ALL=C tr '\n' ' ' )" "1 1 1 1 1 "
 rigAssert "every file of the package that reads a member's own mail, Trello or Google secret by the member's name asks the side, or says it itself for a client" "$( for rigFile in "$rigHere"/*/*.include ; do LC_ALL=C grep -q -E -e 'AgentsToolsConfigOption "\$[A-Za-z]*" --select (EMAIL_APP_PASSWORD|TRELLO_TOKEN|GOOGLE_REFRESH_TOKEN)' "$rigFile" || continue ; LC_ALL=C grep -q -E -e 'AgentsToolsComms(OwnSideCheck|OwnSettingsApply)|:client-\*\) local -x MDAT_COMMS_SIDE=client' "$rigFile" || printf '%s ' "${rigFile##*/}" ; done )" ""
-rigAssert "control: the same search does find files that read them" "$( for rigFile in "$rigHere"/*/*.include ; do LC_ALL=C grep -q -E -e 'AgentsToolsConfigOption "\$[A-Za-z]*" --select (EMAIL_APP_PASSWORD|TRELLO_TOKEN|GOOGLE_REFRESH_TOKEN)' "$rigFile" && printf 'x' ; done | LC_ALL=C awk '{ print ( length( $0 ) >= 4 ) ? "found" : "blind" }' )" found
-rigAssert "the one reader of a member's Jira and Confluence settings asks it before it reads them" "$( LC_ALL=C awk '/AgentsToolsCommsOwnSettingsApply "\$actingMember"/ && ! asked { asked = NR } /--select "\$\{keyPrefix\}_SITE"/ && ! read { read = NR } END { print ( asked && read && asked < read ) ? "asked-first" : "not" }' "$rigHere/atlassian/AgentsTools.AtlassianRequest.include" )" asked-first
+rigAssert "control: the same search does find files that read them" "$( for rigFile in "$rigHere"/*/*.include ; do LC_ALL=C grep -q -E -e 'AgentsToolsConfigOption "\$[A-Za-z]*" --select (EMAIL_APP_PASSWORD|TRELLO_TOKEN|GOOGLE_REFRESH_TOKEN)' "$rigFile" && printf 'x' ; done | LC_ALL=C awk '{ print ( length( $0 ) >= 4 ) ? "found" : "blind" ; }' )" found
+rigAssert "the one reader of a member's Jira and Confluence settings asks it before it reads them" "$( LC_ALL=C awk '/AgentsToolsCommsOwnSettingsApply "\$actingMember"/ && ! asked { asked = NR ; } /--select "\$\{keyPrefix\}_SITE"/ && ! read { read = NR ; } END { print ( asked && read && asked < read ) ? "asked-first" : "not" ; }' "$rigHere/atlassian/AgentsTools.AtlassianRequest.include" )" asked-first
 rigAssert "a client's own document stays where its own settings name it: the publish says the client side itself, once" "$( LC_ALL=C grep -c -F -e 'client-*) local -x MDAT_COMMS_SIDE=client ;;' "$rigHere/common/AgentsTools.InternArtifact.include" || : )" 1
 rigAssert "a coordinator comms operation says our own side itself, once, whoever the member it is given is, and none says the client side" "$( LC_ALL=C grep -c -F -e 'local -x MDAT_COMMS_SIDE=client' "$rigHere/comms/AgentsTools.CoordinatorComms.include" || : ) $( LC_ALL=C grep -c -F -e '--*) local -x MDAT_COMMS_SIDE=own MDAT_COMMS_OP="$1" ;;' "$rigHere/comms/AgentsTools.CoordinatorComms.include" || : )" "0 1"
 if [ "$rigFails" -ne 0 ] ; then

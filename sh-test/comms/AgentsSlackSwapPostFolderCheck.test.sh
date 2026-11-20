@@ -84,7 +84,7 @@ rigRun(){ ## the tool arguments -- one dispatcher call from the rig workspace; r
 	( cd "$rigWs" && env -u MDAT_DATA_ROOT -u MDAT_SPAWN_SESSION_ID -u MDAT_SPAWN_AGENT -u CLAUDE_CODE_SESSION_ID -u MDAT_SESSION_THREAD RIG_SCENARIO="$rigTmp" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" bash "$rigTool" "$@" ) > "$rigTmp/out" 2> "$rigTmp/err" || rigRc=$?
 }
 rigCalls(){ ## method -- the identities that method was called under, in order, comma-separated
-	LC_ALL=C awk -v want="$1" '$1 == want { printf "%s%s", sep, $2 ; sep = "," }' "$rigTmp/calls"
+	LC_ALL=C awk -v want="$1" '$1 == want { printf "%s%s", sep, $2 ; sep = "," ; }' "$rigTmp/calls"
 }
 rigUserDir="$rigWs/.local/cache/comms/slack/slack-CRIG00001"
 rigWrongDir="$rigWs/.local/cache/comms/slack/slack-CRIG00001-1700000000.000100"
@@ -99,7 +99,7 @@ rigAssert "control: the send swaps to the bot, as the swap exists to do" "$rigRc
 rigAssert "control: the folder the send resolved holds the post's own line already" "$( [ -z "$( LC_ALL=C grep -rl 'RIG-SWAP-REPLY' "$rigUserDir" 2> /dev/null | head -1 )" ] && echo absent || echo present )" "present"
 rigAssert "that one folder holds both the line and its link, two lines together" "$( rigLines "$rigUserDir" )" "2"
 rigAssert "the link line, whose first field is the ts Slack gave, sits in that same folder" "$( cat "$rigUserDir"/[0-9][0-9][0-9][0-9][0-9][0-9]/messages.txt 2> /dev/null | LC_ALL=C grep -c '^1700000000\.000100 |' || : )" "1"
-rigAssert "and no folder named by the second resolve holds a line of this post" "$( LC_ALL=C grep -rc 'RIG-SWAP-REPLY' "$rigWrongDir" 2> /dev/null | LC_ALL=C awk -F: '{ n += $2 } END { print n + 0 }' )" "0"
+rigAssert "and no folder named by the second resolve holds a line of this post" "$( LC_ALL=C grep -rc 'RIG-SWAP-REPLY' "$rigWrongDir" 2> /dev/null | LC_ALL=C awk -F: '{ n += $2 ; } END { print n + 0 ; }' )" "0"
 
 if [ "$rigFails" -ne 0 ] ; then
 	echo "⛔ SLACK SWAP POST FOLDER CHECK FAILED: $rigFails of $(( rigPasses + rigFails )) assertion(s)" >&2 ; exit 1

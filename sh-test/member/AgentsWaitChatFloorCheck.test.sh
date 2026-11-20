@@ -147,10 +147,10 @@ rigReads(){ ## method, channel, optional ts
 	LC_ALL=C awk -v wantMethod="$1" -v wantChannel="$2" -v wantTs="${3:-}" '$1 == wantMethod && $2 == wantChannel && ( wantTs == "" || $3 == wantTs ) { hitCount++ ; } END { print hitCount + 0 ; }' "$rigDir/api.log"
 }
 rigIndexOf(){ ## ts -- origin and seen of the index line of that message
-	LC_ALL=C awk -F'\t' -v want="$1" '$2 == want { print $4 " " $6 ; found = 1 ; exit ; } END { if ( ! found ) { print "none" ; } }' "$rigChat/session.chat.index" 2> /dev/null || printf 'no-index'
+	LC_ALL=C awk -F'\t' -v want="$1" '$2 == want { print $4 " " $6 ; found = 1 ; exit ; } END { if ( ! found ) { print "none" ; } ; }' "$rigChat/session.chat.index" 2> /dev/null || printf 'no-index'
 }
 rigPointer(){ ## reader
-	LC_ALL=C awk -F'\t' -v want="$1" '$1 == want { print $2 ; found = 1 ; } END { if ( ! found ) { print "none" ; } }' "$rigChat/session.chat.pointers" 2> /dev/null || printf 'no-pointers'
+	LC_ALL=C awk -F'\t' -v want="$1" '$1 == want { print $2 ; found = 1 ; } END { if ( ! found ) { print "none" ; } ; }' "$rigChat/session.chat.pointers" 2> /dev/null || printf 'no-pointers'
 }
 rigSeed(){ ## the thread of the session: its root before the launch, a reply of a person after it
 	rigThreadData CRIGSES01 "$(( rigNow - 400 )).000001" \

@@ -308,9 +308,9 @@ rigAssert "through the existing forward"                   "$( [ -n "$( rigField
 rigAssert "one post was made for it"                       "$(( $( rigCalls chat.postMessage ) - rigPosts >= 1 ))" 1
 rigForwardTs="$( rigField "$rigWs/.local/agents/pending/$rigPend.md" forward-ts )"
 rigAssert "the request is posted to the human-owner with why it came up, and its three answer emoji are placed under it" \
-	"$( LC_ALL=C grep -l -F 'The answer in this thread is the verdict for this request. magic-coordinator does not hold Write on `' "$rigTmp"/post.[0-9]* 2>/dev/null | LC_ALL=C awk 'END { print NR }' ):$( LC_ALL=C awk -v want="$rigForwardTs" '$1 == want { printf "%s ", $2 ; }' "$rigTmp/reactions" 2>/dev/null )" "1:x one repeat "
+	"$( LC_ALL=C grep -l -F 'The answer in this thread is the verdict for this request. magic-coordinator does not hold Write on `' "$rigTmp"/post.[0-9]* 2>/dev/null | LC_ALL=C awk 'END { print NR ; }' ):$( LC_ALL=C awk -v want="$rigForwardTs" '$1 == want { printf "%s ", $2 ; }' "$rigTmp/reactions" 2>/dev/null )" "1:x one repeat "
 rigAssert "and it shows the human-owner no request id" \
-	"$( LC_ALL=C grep -l -F 'The answer in this thread is the verdict' "$rigTmp"/post.[0-9]* 2>/dev/null | LC_ALL=C xargs grep -l -F -- "$rigPend" 2>/dev/null | LC_ALL=C awk 'END { print NR }' )" 0
+	"$( LC_ALL=C grep -l -F 'The answer in this thread is the verdict' "$rigTmp"/post.[0-9]* 2>/dev/null | LC_ALL=C xargs grep -l -F -- "$rigPend" 2>/dev/null | LC_ALL=C awk 'END { print NR ; }' )" 0
 rigAssert "its record says it waits on the human-owner"    "$( rigField "$rigWs/.local/agents/pending/$rigPend.md" blocked-on )" "reply from human-owner"
 ## A holder that is not running in this session is never chosen: nobody there would see the request.
 rigDead rig-dev
@@ -779,7 +779,7 @@ rigAssert "who asks and where, and how to answer, said once with whom an allow r
 	"$( LC_ALL=C awk '$0 == "**🙋 Asked by**" { on = 1 ; next ; } on { print ; }' "$rigTmp/set.body" | LC_ALL=C tr '\n' '|' )" \
 	"magic-coordinator · $rigSetHost / ${rigWs##*/}||**✅ How to answer**|- click ❌ to deny, or 🔓 to allow the set: an allow gives these to every participant listed|- or reply \`allow-set\`, \`deny\`, or \`edit:\` followed by the change|- the word first; a comment after a comma, or on the next lines|"
 rigAssert "the post that went out is that body, to the human-owner" \
-	"$( LC_ALL=C grep -l -F 'rig-ws:SETP/**' "$rigTmp"/post.[0-9]* 2>/dev/null | LC_ALL=C awk 'END { print NR }' ):$( rigField "$rigWs/.local/agents/pending/$rigSetId.md" kind ):$( rigField "$rigWs/.local/agents/pending/$rigSetId.md" address-to )" "1:permission-set:human-owner"
+	"$( LC_ALL=C grep -l -F 'rig-ws:SETP/**' "$rigTmp"/post.[0-9]* 2>/dev/null | LC_ALL=C awk 'END { print NR ; }' ):$( rigField "$rigWs/.local/agents/pending/$rigSetId.md" kind ):$( rigField "$rigWs/.local/agents/pending/$rigSetId.md" address-to )" "1:permission-set:human-owner"
 rigAssert "the record keeps every entry exactly as asked, with its exact target, and each purpose with its place" \
 	"$( LC_ALL=C grep -c -x -F "entry: Write:$rigWs/SETP/**" "$rigWs/.local/agents/pending/$rigSetId.set" ):$( LC_ALL=C grep -c '^entry: ' "$rigWs/.local/agents/pending/$rigSetId.set" ):$( LC_ALL=C grep -c -x -F "purpose: $rigWs/SETP/**"$'\t''need to read some files' "$rigWs/.local/agents/pending/$rigSetId.set" ):$( LC_ALL=C grep -c -x -F "purpose: $rigWs/SETQ/**"$'\t''want to update vars there' "$rigWs/.local/agents/pending/$rigSetId.set" ):$( LC_ALL=C grep -c '^purpose: ' "$rigWs/.local/agents/pending/$rigSetId.set" )" "1:8:1:1:2"
 RIG_OP_SESSION=rig-human rigOp --answer-escalation --team-member human-owner "$rigSetId" allow-set
@@ -812,7 +812,7 @@ RIG_OP_AGENT=""
 rigSetId="$( LC_ALL=C sed -n 's/^PERMISSION-SET: asked //p' "$rigTmp/op.out" )"
 rigSetBody "$rigSetId" > "$rigTmp/set.body"
 rigAssert "an item with no title and no session: its name, its participant and who asks, and no heading with nothing under it" \
-	"$( LC_ALL=C grep -c -x -F '`task-rig-bare`' "$rigTmp/set.body" ):$( LC_ALL=C grep -c -e 'Session' -e ' · host ' "$rigTmp/set.body" ):$( LC_ALL=C grep -c -x -F -- '- magic-tester' "$rigTmp/set.body" ):$( LC_ALL=C awk '/^\*\*/ { head = 1 ; next ; } head && /^$/ { empty++ ; } { head = 0 ; } END { print empty + 0 }' "$rigTmp/set.body" )" "1:0:1:0"
+	"$( LC_ALL=C grep -c -x -F '`task-rig-bare`' "$rigTmp/set.body" ):$( LC_ALL=C grep -c -e 'Session' -e ' · host ' "$rigTmp/set.body" ):$( LC_ALL=C grep -c -x -F -- '- magic-tester' "$rigTmp/set.body" ):$( LC_ALL=C awk '/^\*\*/ { head = 1 ; next ; } head && /^$/ { empty++ ; } { head = 0 ; } END { print empty + 0 ; }' "$rigTmp/set.body" )" "1:0:1:0"
 ## The session's thread is a link where the workspace's address is configured.
 printf 'SLACK_WORKSPACE_DOMAIN=rig-team.slack.com\n' >> "$rigWs/.local/.agents/magic-team.agent.env"
 rigSetId="$( rigSetAsk dispatch-rig-set --entry "Read:$rigWs/SETT/**" --scope task --session-id rig-set "${rigSetThree[@]}" )"
@@ -1116,7 +1116,7 @@ RIG_OP_AGENT="" RIG_OP_SESSION=""
 
 echo "-- an agent-less parent is no live run of its owner --"
 rigSpawnRecord rig-al-parent magic-architect ""
-printf 'agent-less: true\n' | LC_ALL=C awk 'NR == FNR { add = $0 ; next } FNR > 1 && $0 == "---" && ! done { print add ; done = 1 } { print }' - "$rigWs/.local/agents/spawned/rig-cow/rig-al-parent.spawn.md" > "$rigTmp/al.md" && mv "$rigTmp/al.md" "$rigWs/.local/agents/spawned/rig-cow/rig-al-parent.spawn.md"
+printf 'agent-less: true\n' | LC_ALL=C awk 'NR == FNR { add = $0 ; next ; } FNR > 1 && $0 == "---" && ! done { print add ; done = 1 ; } { print ; }' - "$rigWs/.local/agents/spawned/rig-cow/rig-al-parent.spawn.md" > "$rigTmp/al.md" && mv "$rigTmp/al.md" "$rigWs/.local/agents/spawned/rig-cow/rig-al-parent.spawn.md"
 rigLive rig-al-parent
 rigHelperScript AgentsTools.InternOpPermission.include AgentsToolsPermissionSessionRunning rig-cow | rigOp --intern-mcp-execute
 rigAssert "the session's running members leave out the owner of an agent-less parent" "$( LC_ALL=C grep -c -x magic-architect "$rigTmp/op.out" ) $( LC_ALL=C grep -c -x magic-developer "$rigTmp/op.out" )" "0 1"

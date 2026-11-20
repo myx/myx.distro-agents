@@ -29,10 +29,10 @@ AgentsToolsBoardDependenciesFindings(){
 	local depRoot="$MDAT_DATA_ROOT/board"
 	[ -d "$depRoot" ] || return 0
 	LC_ALL=C awk -v active="$agentsBoardDependenciesActive" '
-		function trimText(s) { sub(/^[ \t]+/, "", s) ; sub(/[ \t]+$/, "", s) ; return s }
-		function bare(s) { s = trimText(s) ; sub(/\.md$/, "", s) ; return s }
-		function has(list, one,   n, parts, i) { n = split(list, parts, ",") ; for (i = 1 ; i <= n ; i++) if (bare(parts[i]) == one) return 1 ; return 0 }
-		function addTo(list, one) { return (list == "" ? one : list "," one) }
+		function trimText(s) { sub(/^[ \t]+/, "", s) ; sub(/[ \t]+$/, "", s) ; return s ; }
+		function bare(s) { s = trimText(s) ; sub(/\.md$/, "", s) ; return s ; }
+		function has(list, one,   n, parts, i) { n = split(list, parts, ",") ; for (i = 1 ; i <= n ; i++) if (bare(parts[i]) == one) return 1 ; return 0 ; }
+		function addTo(list, one) { return (list == "" ? one : list "," one) ; }
 		function visit(node, path,   n, parts, i, next_, cyc, m, arr, k) {
 			color[node] = 1
 			n = split(blocks[node], parts, ",")
@@ -44,28 +44,28 @@ AgentsToolsBoardDependenciesFindings(){
 					cyc = ""
 					for (k = 1 ; k <= m ; k++) if (arr[k] == next_ || cyc != "") cyc = (cyc == "" ? arr[k] : cyc " -> " arr[k])
 					cyc = cyc " -> " next_
-					if (!(cyc in seenCycle)) { seenCycle[cyc] = 1 ; print "CYCLE\t" cyc }
+					if (!(cyc in seenCycle)) { seenCycle[cyc] = 1 ; print "CYCLE\t" cyc ; }
 				} else if (color[next_] == 0) visit(next_, path " " next_)
 			}
 			color[node] = 2
 		}
-		BEGIN { na = split(active, activeList, " ") ; for (i = 1 ; i <= na ; i++) isActive[activeList[i]] = 1 }
+		BEGIN { na = split(active, activeList, " ") ; for (i = 1 ; i <= na ; i++) isActive[activeList[i]] = 1 ; }
 		FNR == 1 {
 			infm = ($0 == "---")
 			n = split(FILENAME, p, "/") ; name = p[n] ; sub(/\.md$/, "", name) ; st = p[n - 1]
 			state[name] = st ; blocks[name] = "" ; bby[name] = ""
 			next
 		}
-		infm && $0 == "---" { infm = 0 ; next }
-		infm && index($0, "blocks: ") == 1 { blocks[name] = trimText(substr($0, 9)) }
-		infm && index($0, "blocked-by: ") == 1 { bby[name] = trimText(substr($0, 13)) }
+		infm && $0 == "---" { infm = 0 ; next ; }
+		infm && index($0, "blocks: ") == 1 { blocks[name] = trimText(substr($0, 9)) ; }
+		infm && index($0, "blocked-by: ") == 1 { bby[name] = trimText(substr($0, 13)) ; }
 		END {
 			for (a in state) {
 				if (!(state[a] in isActive)) continue
 				n = split(blocks[a], parts, ",")
 				for (i = 1 ; i <= n ; i++) {
 					b = bare(parts[i]) ; if (b == "" || !(b in state) || b == a) continue
-					if (!has(bby[b], a)) { bby[b] = addTo(bby[b], a) ; touched[b SUBSEP "blocked-by"] = 1 }
+					if (!has(bby[b], a)) { bby[b] = addTo(bby[b], a) ; touched[b SUBSEP "blocked-by"] = 1 ; }
 				}
 			}
 			for (b in state) {
@@ -73,7 +73,7 @@ AgentsToolsBoardDependenciesFindings(){
 				n = split(bby[b], parts, ",")
 				for (i = 1 ; i <= n ; i++) {
 					a = bare(parts[i]) ; if (a == "" || !(a in state) || a == b) continue
-					if (!has(blocks[a], b)) { blocks[a] = addTo(blocks[a], b) ; touched[a SUBSEP "blocks"] = 1 }
+					if (!has(blocks[a], b)) { blocks[a] = addTo(blocks[a], b) ; touched[a SUBSEP "blocks"] = 1 ; }
 				}
 			}
 			for (key in touched) {
@@ -85,10 +85,10 @@ AgentsToolsBoardDependenciesFindings(){
 			indep = 0
 			for (a in state) {
 				if (!(state[a] in isActive)) continue
-				if (blocks[a] == "" && bby[a] == "") { if (state[a] == "blocked") print "UNLINKED\t" a ; else indep++ ; continue }
+				if (blocks[a] == "" && bby[a] == "") { if (state[a] == "blocked") print "UNLINKED\t" a ; else indep++ ; continue ; }
 				live = ""
 				n = split(bby[a], parts, ",")
-				for (i = 1 ; i <= n ; i++) { x = bare(parts[i]) ; if (x != "" && (x in state) && (state[x] in isActive)) live = addTo(live, x) }
+				for (i = 1 ; i <= n ; i++) { x = bare(parts[i]) ; if (x != "" && (x in state) && (state[x] in isActive)) live = addTo(live, x) ; }
 				if (live != "") print "WAITING\t" a "\t" live
 				else {
 					if (blocks[a] != "") print "FIRST\t" a
@@ -132,13 +132,13 @@ AgentsToolsBoardDependencies(){
 	local depWave depWaveState depWaveItem depWaveEpic depWaveId depWavePath depWaveDone="" depWaveRead=" " depWaveFrom depWaveLine
 	depWave="$( LC_ALL=C awk '
 		function flush() { if ( item != "" && epic != "" && !index( marks, "feature " id " reads done in " epic ) ) print st "\t" item "\t" epic "\t" id ; }
-		FNR == 1 { flush() ; n = split( FILENAME, p, "/" ) ; item = p[n] ; st = p[n - 1] ; epic = "" ; id = "" ; marks = "" }
+		FNR == 1 { flush() ; n = split( FILENAME, p, "/" ) ; item = p[n] ; st = p[n - 1] ; epic = "" ; id = "" ; marks = "" ; }
 		epic == "" && /^([-*] )?Tracking document: [^,]+, feature S[0-9]+(\.[0-9]+)?[ \t]*$/ {
 			line = $0 ; sub( /^([-*] )?Tracking document: /, "", line ) ; sub( /[ \t]+$/, "", line )
 			epic = line ; sub( /, feature .*$/, "", epic ) ; id = line ; sub( /^.*, feature /, "", id ) ; next
 		}
-		index( $0, " reads done in " ) { marks = marks "\n" $0 }
-		END { flush() }
+		index( $0, " reads done in " ) { marks = marks "\n" $0 ; }
+		END { flush() ; }
 	' "$MDAT_DATA_ROOT"/board/pending/*.md "$MDAT_DATA_ROOT"/board/blocked/*.md 2> /dev/null )"
 	while IFS=$'\t' read -r depWaveState depWaveItem depWaveEpic depWaveId ; do
 		[ -n "$depWaveItem" ] || continue
@@ -155,7 +155,7 @@ AgentsToolsBoardDependencies(){
 					depWavePath="$( AgentsToolsVaultItemPath "${depWaveEpic%.md}.md" 2> /dev/null )" || depWavePath=""
 				;; esac ;;
 			esac
-			[ -z "$depWavePath" ] || [ ! -f "$depWavePath" ] || depWaveDone="$depWaveDone$( LC_ALL=C awk -v epic="$depWaveEpic" '/^## / { done = ( $0 ~ /^## Done[ \t]*$/ ) ; next } done && /^- S[0-9]/ { print epic "\t" $0 }' "$depWavePath" 2> /dev/null )"$'\n'
+			[ -z "$depWavePath" ] || [ ! -f "$depWavePath" ] || depWaveDone="$depWaveDone$( LC_ALL=C awk -v epic="$depWaveEpic" '/^## / { done = ( $0 ~ /^## Done[ \t]*$/ ) ; next ; } done && /^- S[0-9]/ { print epic "\t" $0 ; }' "$depWavePath" 2> /dev/null )"$'\n'
 		;; esac
 		depWaveLine=""
 		while IFS=$'\t' read -r depWaveFrom depWaveLine ; do
@@ -189,13 +189,13 @@ AgentsToolsBoardDependencies(){
 	depStamp="$( date -u +%Y-%m-%dT%H:%M:%SZ )"
 	{
 		printf '## board dependencies (recomputed %s)\n\n' "$depStamp"
-		printf 'cycles: %s\n' "$( printf '%s\n' "$depFindings" | LC_ALL=C sed -n 's/^CYCLE\t//p' | LC_ALL=C awk 'NF { printf "%s%s", sep, $0 ; sep = "; " } END { if ( sep == "" ) printf "none" }' )"
-		printf 'must happen first: %s\n' "$( printf '%s\n' "$depFindings" | LC_ALL=C sed -n 's/^FIRST\t//p' | LC_ALL=C tr '\n' ' ' | LC_ALL=C sed 's/ $//' | LC_ALL=C awk '{ print ( NF ? $0 : "none" ) }' )"
+		printf 'cycles: %s\n' "$( printf '%s\n' "$depFindings" | LC_ALL=C sed -n 's/^CYCLE\t//p' | LC_ALL=C awk 'NF { printf "%s%s", sep, $0 ; sep = "; " ; } END { if ( sep == "" ) printf "none" ; }' )"
+		printf 'must happen first: %s\n' "$( printf '%s\n' "$depFindings" | LC_ALL=C sed -n 's/^FIRST\t//p' | LC_ALL=C tr '\n' ' ' | LC_ALL=C sed 's/ $//' | LC_ALL=C awk '{ print ( NF ? $0 : "none" ) ; }' )"
 		printf 'waiting (item <- blockers still on the board):\n'
-		printf '%s\n' "$depFindings" | LC_ALL=C awk -F'\t' '$1 == "WAITING" { printf "- %s <- %s\n", $2, $3 ; n++ } END { if ( n == 0 ) printf "- none\n" }'
-		printf 'blocked with no blocker on the board: %s\n' "$( printf '%s\n' "$depFindings" | LC_ALL=C sed -n 's/^OUTSIDE\t//p' | LC_ALL=C tr '\n' ' ' | LC_ALL=C sed 's/ $//' | LC_ALL=C awk '{ print ( NF ? $0 : "none" ) }' )"
-		printf 'blocked with no recorded edge: %s\n' "$( printf '%s\n' "$depFindings" | LC_ALL=C sed -n 's/^UNLINKED\t//p' | LC_ALL=C tr '\n' ' ' | LC_ALL=C sed 's/ $//' | LC_ALL=C awk '{ print ( NF ? $0 : "none" ) }' )"
-		printf 'independent: %s\n' "$( printf '%s\n' "$depFindings" | LC_ALL=C awk -F'\t' '$1 == "INDEPENDENT" { print $2 }' )"
+		printf '%s\n' "$depFindings" | LC_ALL=C awk -F'\t' '$1 == "WAITING" { printf "- %s <- %s\n", $2, $3 ; n++ ; } END { if ( n == 0 ) printf "- none\n" ; }'
+		printf 'blocked with no blocker on the board: %s\n' "$( printf '%s\n' "$depFindings" | LC_ALL=C sed -n 's/^OUTSIDE\t//p' | LC_ALL=C tr '\n' ' ' | LC_ALL=C sed 's/ $//' | LC_ALL=C awk '{ print ( NF ? $0 : "none" ) ; }' )"
+		printf 'blocked with no recorded edge: %s\n' "$( printf '%s\n' "$depFindings" | LC_ALL=C sed -n 's/^UNLINKED\t//p' | LC_ALL=C tr '\n' ' ' | LC_ALL=C sed 's/ $//' | LC_ALL=C awk '{ print ( NF ? $0 : "none" ) ; }' )"
+		printf 'independent: %s\n' "$( printf '%s\n' "$depFindings" | LC_ALL=C awk -F'\t' '$1 == "INDEPENDENT" { print $2 ; }' )"
 		if [ -n "$depFixed" ] ; then
 			printf 'written by the tooling this time:\n'
 			printf '%s' "$depFixed" | LC_ALL=C sed 's/^/- /'

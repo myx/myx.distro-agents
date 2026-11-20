@@ -113,7 +113,7 @@ rigRecordFile(){
 ## One field of one line of the record: line number, field number.
 rigField(){ ## line, field
 	[ -f "$( rigRecordFile )" ] || { printf 'no-record' ; return 0 ; }
-	LC_ALL=C awk -v wantLine="$1" -v wantField="$2" 'NR == wantLine { print $wantField ; found = 1 ; exit ; } END { if ( ! found ) { print "no-such-line" ; } }' "$( rigRecordFile )"
+	LC_ALL=C awk -v wantLine="$1" -v wantField="$2" 'NR == wantLine { print $wantField ; found = 1 ; exit ; } END { if ( ! found ) { print "no-such-line" ; } ; }' "$( rigRecordFile )"
 }
 ## Every line of the record due again: the check time (field 8) back to the start of time.
 rigDue(){

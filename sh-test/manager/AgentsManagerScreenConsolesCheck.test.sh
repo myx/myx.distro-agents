@@ -321,8 +321,8 @@ rigTraced(){
 		for ( at = 1 ; at <= NF ; at++ ) {
 			if ( $at == "up" ) { phase = 1 ; before = mouse "/" other ; continue ; }
 			if ( $at == "end" ) { phase = 2 ; continue ; }
-			if ( $at == "on" || $at == "off" ) { mouse = $at ; if ( phase == 1 ) { during++ ; } if ( phase == 2 && $at == "on" ) { afterOn = 1 ; } }
-			if ( $at == "in" || $at == "out" ) { other = $at ; if ( phase == 1 ) { during++ ; } if ( phase == 2 && $at == "in" ) { afterIn = 1 ; } }
+			if ( $at == "on" || $at == "off" ) { mouse = $at ; if ( phase == 1 ) { during++ ; } if ( phase == 2 && $at == "on" ) { afterOn = 1 ; } ; }
+			if ( $at == "in" || $at == "out" ) { other = $at ; if ( phase == 1 ) { during++ ; } if ( phase == 2 && $at == "in" ) { afterIn = 1 ; } ; }
 			if ( phase == 2 && afterIn && ( $at == "said" || $at == "wide" || $at == "narrow" ) ) { after = after " " $at ; }
 		}
 		print "up at " before ", " during + 0 " while it ran, then" ( afterIn ? " in" : "" ) ( afterOn ? " on" : "" ) after ", at the end " mouse "/" other ;

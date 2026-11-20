@@ -91,15 +91,15 @@
 			[ "$inquiryWord" = "--from-file" ] && inquiryAt=1
 		done
 		if [ -n "$inquirySource" ] && [ -f "$inquirySource" ] && [ -n "${MDAT_DATA_ROOT:-}" ] && [ -n "$inquiryFrom" ] && [ -d "$MDAT_DATA_ROOT/inboxes/${1:-}/incoming" ] ; then
-			inquiryNewTitle="$( LC_ALL=C awk '/^# / { print substr( $0, 3 ) ; exit }' "$inquirySource" )"
+			inquiryNewTitle="$( LC_ALL=C awk '/^# / { print substr( $0, 3 ) ; exit ; }' "$inquirySource" )"
 			[ -z "$inquiryNewTitle" ] || inquirySame="$( LC_ALL=C awk -v want="$inquiryNewTitle" -v from="$inquiryFrom" -v self="${2:-}" '
-				function words( t, set,   n, i, w ) { t = tolower( t ) ; gsub( /[^a-z0-9]+/, " ", t ) ; n = split( t, w, " " ) ; for ( i = 1 ; i <= n ; i++ ) if ( length( w[i] ) > 2 ) set[w[i]] = 1 }
-				function jac(   k, i, u ) { i = 0 ; u = 0 ; for ( k in A ) { u++ ; if ( k in B ) i++ } ; for ( k in B ) if ( !( k in A ) ) u++ ; return u ? i / u : 0 }
-				BEGIN { words( want, A ) }
-				FNR == 1 { hdr = 0 ; fr = "" ; ty = "" ; name = FILENAME ; sub( /.*\//, "", name ) }
-				/^---$/ { hdr++ ; next }
-				hdr == 1 && /^from: / { fr = substr( $0, 7 ) } hdr == 1 && /^type: / { ty = substr( $0, 7 ) }
-				hdr >= 2 && /^# / { if ( fr == from && ty == "inquiry" && name != self ) { delete B ; words( substr( $0, 3 ), B ) ; if ( jac() >= 0.7 ) { print name ; exit } } nextfile }
+				function words( t, set,   n, i, w ) { t = tolower( t ) ; gsub( /[^a-z0-9]+/, " ", t ) ; n = split( t, w, " " ) ; for ( i = 1 ; i <= n ; i++ ) if ( length( w[i] ) > 2 ) set[w[i]] = 1 ; }
+				function jac(   k, i, u ) { i = 0 ; u = 0 ; for ( k in A ) { u++ ; if ( k in B ) i++ ; } ; for ( k in B ) if ( !( k in A ) ) u++ ; return u ? i / u : 0 ; }
+				BEGIN { words( want, A ) ; }
+				FNR == 1 { hdr = 0 ; fr = "" ; ty = "" ; name = FILENAME ; sub( /.*\//, "", name ) ; }
+				/^---$/ { hdr++ ; next ; }
+				hdr == 1 && /^from: / { fr = substr( $0, 7 ) ; } hdr == 1 && /^type: / { ty = substr( $0, 7 ) ; }
+				hdr >= 2 && /^# / { if ( fr == from && ty == "inquiry" && name != self ) { delete B ; words( substr( $0, 3 ), B ) ; if ( jac() >= 0.7 ) { print name ; exit ; } ; } nextfile ; }
 			' "$MDAT_DATA_ROOT/inboxes/${1:-}/incoming/"inquiry-*.md 2> /dev/null )" || inquirySame=""
 			if [ -n "$inquirySame" ] ; then
 				mkdir -p "$MMDAPP/.local/temp" 2> /dev/null
@@ -110,7 +110,7 @@
 					## creation facts (the contract refuses that). The new filing adds its body only: no frontmatter of its own, and not its title line.
 					{ LC_ALL=C cat "$MDAT_DATA_ROOT/inboxes/${1:-}/incoming/$inquirySame"
 					  printf '\n## Added %s\n\n' "$( date '+%Y-%m-%d %H:%M %z' )"
-					  LC_ALL=C awk 'NR == 1 && $0 == "---" { front = 1 ; next } front { if ( $0 == "---" ) front = 0 ; next } done || !/^# / { print ; next } { done = 1 }' "$inquirySource" ; } > "$inquiryMerged"
+					  LC_ALL=C awk 'NR == 1 && $0 == "---" { front = 1 ; next ; } front { if ( $0 == "---" ) front = 0 ; next ; } done || !/^# / { print ; next ; } { done = 1 ; }' "$inquirySource" ; } > "$inquiryMerged"
 					local inquiryRebuilt=() inquiryNextIsSource=""
 					for inquiryWord in "$@" ; do
 						if [ -n "$inquiryNextIsSource" ] ; then inquiryRebuilt+=( "$inquiryMerged" ) ; inquiryNextIsSource="" ; continue ; fi

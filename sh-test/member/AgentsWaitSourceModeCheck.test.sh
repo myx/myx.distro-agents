@@ -59,7 +59,7 @@ mkdir -p "$rigDir/ws/.local/.agents" "$rigDir/ws/.local/temp" "$rigDir/ws/.local
 	rigKey="$rigSession"
 	rigHistory
 }
-rigLong="$( LC_ALL=C awk 'BEGIN { printf "RIG-X-LONG-START " ; for ( n = 1 ; n <= 1500 ; n++ ) printf "word%04d ", n ; printf "RIG-X-LONG-END" }' )"
+rigLong="$( LC_ALL=C awk 'BEGIN { printf "RIG-X-LONG-START " ; for ( n = 1 ; n <= 1500 ; n++ ) printf "word%04d ", n ; printf "RIG-X-LONG-END" ; }' )"
 rigHistory(){ ## the conversation: a short message and a long one, then optionally a third
 	printf '{"ok":true,"messages":[{"ts":"%s.000001","user":"URIGOTHER","text":"RIG-X-SMALL a short one"},{"ts":"%s.000001","user":"URIGOTHER","text":"%s"}%s],"has_more":false}\n' \
 		"$(( rigNow - 90 ))" "$(( rigNow - 80 ))" "$rigLong" "${1:-}" > "$rigDir/history.CRIGXXX01.json"
@@ -117,7 +117,7 @@ rigAssert "the index cache file keeps the short forms, a line each" "$( LC_ALL=C
 
 echo "-- 3. full --"
 rigScene full
-rigMid="$( LC_ALL=C awk 'BEGIN { printf "RIG-X-MID-START " ; for ( n = 1 ; n <= 500 ; n++ ) printf "mid%04d ", n ; printf "RIG-X-MID-END" }' )"
+rigMid="$( LC_ALL=C awk 'BEGIN { printf "RIG-X-MID-START " ; for ( n = 1 ; n <= 500 ; n++ ) printf "mid%04d ", n ; printf "RIG-X-MID-END" ; }' )"
 rigHistory ",{\"ts\":\"$(( rigNow - 70 )).000001\",\"user\":\"URIGOTHER\",\"text\":\"$rigMid\"}"
 rigWait full-1 --wait-source "$( rigSource full )" --wait-since-utime "$(( rigNow - 120 ))" --wait-timeout 4
 rigAssert "RECEIVED, the short message whole"                      "$( rigFirst ):$( rigHolds 'RIG-X-SMALL a short one' )" "WAIT-RESULT: RECEIVED:yes"
@@ -126,7 +126,7 @@ rigAssert "the long message, over the threshold, is a preview: its start, not it
 rigAssert "only that one is a file of its own"                     "$( rigFiles "$( rigKept )" )" 1
 rigAssert "the file is the long message, whole"                    "$( LC_ALL=C grep -c 'RIG-X-LONG-END' "$( rigKept )/$(( rigNow - 80 )).000001.md" )" 1
 rigAssert "the return names that file, its size and its lines, once" "$( LC_ALL=C grep -c -E "^  \[kept: $( rigKept )/[0-9.]+\.md, [0-9]+ bytes, [0-9]+ lines" "$rigOut" )" 1
-rigAssert "the return is the F2.4 preview and the rest whole: well under the long result"  "$( LC_ALL=C wc -c < "$rigOut" | LC_ALL=C tr -d ' ' | LC_ALL=C awk '{ print ( $1 < 12000 ) ? "short" : "long:" $1 }' )" short
+rigAssert "the return is the F2.4 preview and the rest whole: well under the long result"  "$( LC_ALL=C wc -c < "$rigOut" | LC_ALL=C tr -d ' ' | LC_ALL=C awk '{ print ( $1 < 12000 ) ? "short" : "long:" $1 ; }' )" short
 rigAssert "the index cache file holds each message once, the kept one with its file" "$( LC_ALL=C wc -l < "$( rigIndexFile )" | LC_ALL=C tr -d ' ' ):$( LC_ALL=C grep -c -F -- " -> $( rigKept )/" "$( rigIndexFile )" )" "3:1"
 rigWait full-2 --wait-source "$( rigSource full )" --wait-since-utime "$(( rigNow - 120 ))" --wait-timeout 4
 rigAssert "served again, the index stays at one line a message, one file"  "$( LC_ALL=C wc -l < "$( rigIndexFile )" | LC_ALL=C tr -d ' ' ):$( rigFiles "$( rigKept )" )" "3:1"

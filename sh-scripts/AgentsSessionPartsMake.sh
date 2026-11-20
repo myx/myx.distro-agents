@@ -45,7 +45,7 @@ HEADER
 ## Each block whole, from the store include, in its own order; then the store's names, swapped for this file's, so no name is
 ## defined in two files and a reader can tell which of the two builders it holds.
 makeText="$( makeHeader="$makeHeader" LC_ALL=C awk -v want="$makeBlocks" '
-	BEGIN { count = split(want, block, " ") ; for (at = 1 ; at <= count ; at++) wanted[block[at]] = 1 ; printed = 0 }
+	BEGIN { count = split(want, block, " ") ; for (at = 1 ; at <= count ; at++) wanted[block[at]] = 1 ; printed = 0 ; }
 	/^[A-Za-z_][A-Za-z0-9_]*(\(\)|=)/ {
 		name = $0 ; sub(/[\(\)=].*/, "", name)
 		if (name in wanted) {
@@ -56,10 +56,10 @@ makeText="$( makeHeader="$makeHeader" LC_ALL=C awk -v want="$makeBlocks" '
 			next
 		}
 	}
-	!inside { next }
-	{ print }
-	$0 == "}" { inside = 0 }
-	END { printf "" }
+	!inside { next ; }
+	{ print ; }
+	$0 == "}" { inside = 0 ; }
+	END { printf "" ; }
 ' "$makeStore" )"
 [ -n "$makeText" ] || { echo "⛔ ERROR: AgentsSessionPartsMake: $makeStore gave none of: $makeBlocks" >&2 ; exit 1; }
 makeText="$( printf '%s\n%s\n' "$makeHeader" "$makeText" | LC_ALL=C sed -e 's/agentsSessionStoreLeaf/agentsSessionPartsLeaf/g' \

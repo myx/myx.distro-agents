@@ -60,7 +60,7 @@ LC_ALL=C grep -q -F 'invalid option: --manager' "$rigTmp/out" && rigStart --inte
 ## whichever package of the family holds it: what this check holds is that python is started on a file there, and
 ## never on one at the top of a sh-lib.
 rigAssert "python is started on a file in sh-lib/manager/, with the workspace and the tools" \
-	"$( LC_ALL=C awk -F'\t' -v wantWs="$rigWs" -v wantTool="$rigTool" '$1 == "start" { for ( f = 2 ; f <= NF ; f++ ) if ( $f ~ /\.py$/ ) script = $f ; ws = 0 ; tools = 0 ; for ( f = 2 ; f < NF ; f++ ) { if ( $f == "--workspace" && $(f+1) == wantWs ) ws = 1 ; if ( $f == "--tools" && $(f+1) == wantTool ) tools = 1 } ; print ( index( script, "/sh-lib/manager/" ) > 0 ? "manager-folder" : "elsewhere:" script ) ( ws ? " workspace" : "" ) ( tools ? " tools" : "" ) ; exit }' "$rigTmp/starts" )" "manager-folder workspace tools"
+	"$( LC_ALL=C awk -F'\t' -v wantWs="$rigWs" -v wantTool="$rigTool" '$1 == "start" { for ( f = 2 ; f <= NF ; f++ ) if ( $f ~ /\.py$/ ) script = $f ; ws = 0 ; tools = 0 ; for ( f = 2 ; f < NF ; f++ ) { if ( $f == "--workspace" && $(f+1) == wantWs ) ws = 1 ; if ( $f == "--tools" && $(f+1) == wantTool ) tools = 1 ; } ; print ( index( script, "/sh-lib/manager/" ) > 0 ? "manager-folder" : "elsewhere:" script ) ( ws ? " workspace" : "" ) ( tools ? " tools" : "" ) ; exit ; }' "$rigTmp/starts" )" "manager-folder workspace tools"
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ MANAGER SCREEN FOLDER CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

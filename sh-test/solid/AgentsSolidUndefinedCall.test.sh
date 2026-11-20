@@ -73,7 +73,7 @@ cat > "$rigPkg/sh-lib/fixture/awk-caller.include" <<'FIX'
 AgentsFixtureAwkCaller(){ ## -- an awk program's if is no branch of the shell
 	if [ -n "${1:-}" ] ; then
 		type AgentsFixtureLoadedWork > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/fixture/defs.include"
-		LC_ALL=C awk 'BEGIN { if ( 1 ) { print "x" ; } else { print "y" ; } }'
+		LC_ALL=C awk 'BEGIN { if ( 1 ) { print "x" ; } else { print "y" ; } ; }'
 		AgentsFixtureLoadedWork "$1"
 	fi
 	## Below the block. The awk program's if and else above it added no branch.

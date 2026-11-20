@@ -649,7 +649,7 @@
 				local rcOwned rcEntry rcName rcType rcRel rcPath rcSlot rcTmp
 				rcOwned="$(
 					LC_ALL=C awk -F'\t' -v w="$workspace" '
-						$2 == w && NF >= 5 { printf "%s\t%s\t%s\n", $1, $3, $5 }
+						$2 == w && NF >= 5 { printf "%s\t%s\t%s\n", $1, $3, $5 ; }
 					' "$registryFile"
 				)" || {
 					echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: registry read failed while listing $workspace's entries -- removing NOTHING" >&2

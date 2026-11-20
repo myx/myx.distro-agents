@@ -91,7 +91,7 @@ AgentsToolsSuperviseCloseOrphans(){ ## [--execute] [--workspace <path>]...
 		type AgentsToolsSpawnedSessionRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include"
 		type AgentsToolsFrontmatterKey > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.FrontmatterKey.include"
 		closeCtlRows="$( MMDAPP="$closeWs" AgentsSessionControlPidRows )"
-		closeCtlLive=$'\n'"$( printf '%s\n' "$closeCtlRows" | LC_ALL=C cut -f1 | MMDAPP="$closeWs" AgentsToolsSessionControlLive 2> /dev/null | LC_ALL=C awk '{ print $1 }' )"$'\n'
+		closeCtlLive=$'\n'"$( printf '%s\n' "$closeCtlRows" | LC_ALL=C cut -f1 | MMDAPP="$closeWs" AgentsToolsSessionControlLive 2> /dev/null | LC_ALL=C awk '{ print $1 ; }' )"$'\n'
 		while IFS="$closeTab" read -r closeSid closePid ; do
 			[ -n "$closeSid" ] || continue
 			case "$closeCtlLive" in *$'\n'"$closeSid"$'\n'*) ;; *) continue ;; esac
@@ -112,7 +112,7 @@ AgentsToolsSuperviseCloseOrphans(){ ## [--execute] [--workspace <path>]...
 				kill -TERM "$closePid" 2> /dev/null || :
 				closeWait=0
 				while [ "$closeWait" -lt 20 ] && kill -0 "$closePid" 2> /dev/null ; do sleep 0.1 ; closeWait=$(( closeWait + 1 )) ; done
-				case $'\n'"$( printf '%s\n' "$closeSid" | MMDAPP="$closeWs" AgentsToolsSessionControlLive 2> /dev/null | LC_ALL=C awk '{ print $1 }' )"$'\n' in
+				case $'\n'"$( printf '%s\n' "$closeSid" | MMDAPP="$closeWs" AgentsToolsSessionControlLive 2> /dev/null | LC_ALL=C awk '{ print $1 ; }' )"$'\n' in
 					*$'\n'"$closeSid"$'\n'*) closeVerdict="still-alive" ;;
 					*) closeVerdict="closed" ;;
 				esac

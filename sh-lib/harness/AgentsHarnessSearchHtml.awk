@@ -63,13 +63,13 @@ function target(href,    at, cut) {
 	return href
 }
 
-{ body = body $0 "\n" }
+{ body = body $0 "\n" ; }
 
 END {
 	rest = body
 	while ( ( at = index(rest, "class=\"result__a\"") ) > 0 ) {
 		tagStart = 0
-		for ( i = at ; i > 0 ; i-- ) if ( substr(rest, i, 2) == "<a" ) { tagStart = i ; break }
+		for ( i = at ; i > 0 ; i-- ) if ( substr(rest, i, 2) == "<a" ) { tagStart = i ; break ; }
 		tagEnd = at + index(substr(rest, at), ">") - 1
 		tag = substr(rest, tagStart, tagEnd - tagStart + 1)
 		closing = index(substr(rest, tagEnd + 1), "</a>")

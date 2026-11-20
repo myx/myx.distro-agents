@@ -52,7 +52,7 @@ if ! type AgentsToolsUndoKinds >/dev/null 2>&1 ; then
 	}
 
 	AgentsToolsUndoKindRow(){ ## kind
-		AgentsToolsUndoKinds | LC_ALL=C awk -F'\t' -v want="$1" '$1 == want { print ; found = 1 ; exit } END { exit ( found ? 0 : 1 ) }'
+		AgentsToolsUndoKinds | LC_ALL=C awk -F'\t' -v want="$1" '$1 == want { print ; found = 1 ; exit ; } END { exit ( found ? 0 : 1 ) ; }'
 	}
 
 	## One value of a record's own `record` file, or empty.
@@ -70,8 +70,8 @@ if ! type AgentsToolsUndoKinds >/dev/null 2>&1 ; then
 		[ -f "$undoSetFile" ] || : > "$undoSetFile" || return 1
 		undoSetTmp="$( mktemp "$undoSetFile.XXXXXX" 2> /dev/null )" || return 1
 		LC_ALL=C awk -v key="$2" -v value="$3" '
-			{ if ( index( $0, key ": " ) == 1 ) { if ( !wrote ) { print key ": " value ; wrote = 1 } ; next } print }
-			END { if ( !wrote ) print key ": " value }
+			{ if ( index( $0, key ": " ) == 1 ) { if ( !wrote ) { print key ": " value ; wrote = 1 ; } ; next ; } print ; }
+			END { if ( !wrote ) print key ": " value ; }
 		' "$undoSetFile" > "$undoSetTmp" || { rm -f "$undoSetTmp" ; return 1 ; }
 		mv -f "$undoSetTmp" "$undoSetFile"
 	}
@@ -98,7 +98,7 @@ if ! type AgentsToolsUndoKinds >/dev/null 2>&1 ; then
 	## A part's verdict word, or empty where the epic has judged nothing about it yet.
 	AgentsToolsUndoPartVerdict(){ ## part folder
 		[ -f "$1/verdict" ] || return 0
-		LC_ALL=C awk 'NR == 1 { print $1 ; exit }' "$1/verdict" 2> /dev/null
+		LC_ALL=C awk 'NR == 1 { print $1 ; exit ; }' "$1/verdict" 2> /dev/null
 	}
 
 	## One part's verdict, written beside and renamed on: the word, who gave it, when, and the words

@@ -156,13 +156,13 @@ rigScope(){ ## member, KEY=value lines... -- the same, then the registries are r
 	rigBuild
 }
 rigIndexRow(){ ## member -- that member's row of team-members-names, fields joined by |
-	LC_ALL=C awk -v OFS='|' -v who="$1" '$1 == who { $1 = $1 ; print }' "$rigNamesFile" 2> /dev/null
+	LC_ALL=C awk -v OFS='|' -v who="$1" '$1 == who { $1 = $1 ; print ; }' "$rigNamesFile" 2> /dev/null
 }
 rigDashes(){ ## member -- how many of its first, family and alias fields are -
-	LC_ALL=C awk -v who="$1" '$1 == who { for ( i = 3 ; i <= 5 ; i++ ) { if ( $i == "-" ) { n++ ; } } } END { print n + 0 }' "$rigNamesFile" 2> /dev/null
+	LC_ALL=C awk -v who="$1" '$1 == who { for ( i = 3 ; i <= 5 ; i++ ) { if ( $i == "-" ) { n++ ; } ; } ; } END { print n + 0 ; }' "$rigNamesFile" 2> /dev/null
 }
 rigIndexSet(){ ## member, field number (2 mark, 3 first, 4 family, 5 alias), value -- one field of team-members-names edited by hand
-	LC_ALL=C awk -v who="$1" -v col="$2" -v val="$3" '$1 == who { $col = val } { print }' "$rigNamesFile" > "$rigNamesFile.hand" && mv "$rigNamesFile.hand" "$rigNamesFile"
+	LC_ALL=C awk -v who="$1" -v col="$2" -v val="$3" '$1 == who { $col = val ; } { print ; }' "$rigNamesFile" > "$rigNamesFile.hand" && mv "$rigNamesFile.hand" "$rigNamesFile"
 }
 rigSend(){ ## member, target, send options... -- one send; rc in rigRc, stderr in $rigTmp/err, calls and bodies of this send alone
 	: > "$rigTmp/calls" ; rm -f "$rigTmp/bodies" ; touch "$rigTmp/bodies"
@@ -203,16 +203,16 @@ rigPosts(){ ## -- how many chat.postMessage calls this send made
 	LC_ALL=C grep -c '^chat.postMessage ' "$rigTmp/calls" || :
 }
 rigPostToken(){ ## -- the token of the first chat.postMessage
-	LC_ALL=C awk '$1 == "chat.postMessage" { print $2 ; exit }' "$rigTmp/calls"
+	LC_ALL=C awk '$1 == "chat.postMessage" { print $2 ; exit ; }' "$rigTmp/calls"
 }
 rigNoCalls(){ ## -- how many Slack calls the last send made
-	LC_ALL=C awk 'END { print NR }' "$rigTmp/calls"
+	LC_ALL=C awk 'END { print NR ; }' "$rigTmp/calls"
 }
 rigNoBodies(){ ## -- how many bodies the last send posted
-	LC_ALL=C awk 'END { print NR }' "$rigTmp/bodies"
+	LC_ALL=C awk 'END { print NR ; }' "$rigTmp/bodies"
 }
 rigLines(){ ## file -- how many lines it has
-	LC_ALL=C awk 'END { print NR + 0 }' "$1" 2> /dev/null
+	LC_ALL=C awk 'END { print NR + 0 ; }' "$1" 2> /dev/null
 }
 rigWarnsOf(){ ## fixed text -- how many build warning lines hold it
 	LC_ALL=C grep '^⚠️ WARNING: ' "$rigTmp/build.err" 2> /dev/null | LC_ALL=C grep -c -F -- "$1" || :
@@ -358,10 +358,10 @@ rigAssert "external send from a user token meeting channel_not_found: one post o
 rigAssert "no post was made under the shared bot token"                    "$( LC_ALL=C grep -c 'chat.postMessage rig-bot-token-TEAM' "$rigTmp/calls" || : )" 0
 printf 'channel_not_found\nok\n' > "$rigTmp/post-answers"
 rigSend keeper-myx magic-team
-rigAssert "control: an internal send retries once under the shared bot and succeeds" "$( rigPosts ) $rigRc $( LC_ALL=C awk '$1 == "chat.postMessage" { printf "%s ", $2 }' "$rigTmp/calls" )" "2 0 rig-user-token-KEEPER rig-bot-token-TEAM "
+rigAssert "control: an internal send retries once under the shared bot and succeeds" "$( rigPosts ) $rigRc $( LC_ALL=C awk '$1 == "chat.postMessage" { printf "%s ", $2 ; }' "$rigTmp/calls" )" "2 0 rig-user-token-KEEPER rig-bot-token-TEAM "
 printf 'channel_not_found\nok\n' > "$rigTmp/post-answers"
 rigSendOut client-mel CRIG00001
-rigAssert "an external send whose client has its own bot token may swap to that one, with the same payload" "$( rigPosts ) $rigRc $( LC_ALL=C awk '$1 == "chat.postMessage" { printf "%s ", $2 }' "$rigTmp/calls" ) $( rigBodyHas 'Magic Vane' ) $( rigBodyHas 'client-mel' )" "2 0 rig-user-token-MEL rig-bot-token-MEL  2 0"
+rigAssert "an external send whose client has its own bot token may swap to that one, with the same payload" "$( rigPosts ) $rigRc $( LC_ALL=C awk '$1 == "chat.postMessage" { printf "%s ", $2 ; }' "$rigTmp/calls" ) $( rigBodyHas 'Magic Vane' ) $( rigBodyHas 'client-mel' )" "2 0 rig-user-token-MEL rig-bot-token-MEL  2 0"
 : > "$rigTmp/post-answers"
 
 echo "-- 11. a client row equals the persona row, whatever the client holds --"
@@ -387,7 +387,7 @@ rigAssert "no bullet is written into the client's basic.md by a build or a send"
 rigAssert "control: that file does hold a Name line of its own to begin with, the decoy" "$( LC_ALL=C grep -c 'Client Decoy' "$rigSkills/client-ndm/client-ndm.basic.md" || : )" 1
 rigBullets client-mel '' '' 🦊
 rigBuild
-rigAssert "the persona's mark, not the client's own, is the client's mark"  "$( rigIndexRow client-mel | LC_ALL=C awk -F'|' '{ print $2 }' )" '🐭'
+rigAssert "the persona's mark, not the client's own, is the client's mark"  "$( rigIndexRow client-mel | LC_ALL=C awk -F'|' '{ print $2 ; }' )" '🐭'
 rigSendOut client-ndm CRIG00001 --address-to client-mel
 rigAssert "an addressee client reads under the persona's row, which is its own row"   "$( rigText )" '🐭 *_Magic Vane_* @dispatchr → 🐭 *_Magic Vane_* @dispatchr.\nRIG-BODY'
 rigLinkDrop client-mel ; rigBuild
@@ -585,8 +585,8 @@ rigAssert "a linked member with only a SKILL.md and no basic.md: all dashes" "$(
 rigAssert "a member with a shortcode and a unicode character: the shortcode is the mark" "$( rigIndexRow keeper-sh )" 'keeper-sh|:hammer:|Hammer|Hand|hh'
 rigAssert "a member with bullets but no path in this workspace has no row in either file" "$( LC_ALL=C grep -c 'keeper-notlinked' "$rigNamesFile" "$rigMembersFile" | LC_ALL=C tr '\n' ' ' )" "$rigNamesFile:0 $rigMembersFile:0 "
 rigAssert "the row count: one per member linked in this workspace, in both files" "$( rigLines "$rigNamesFile" ) $( rigLines "$rigMembersFile" )" "21 21"
-rigAssert "every names row has exactly five whitespace-separated fields, no header" "$( LC_ALL=C awk 'NF != 5 { bad++ } END { print bad + 0 }' "$rigNamesFile" )" 0
-rigAssert "every team-members row has exactly four"                        "$( LC_ALL=C awk 'NF != 4 { bad++ } END { print bad + 0 }' "$rigMembersFile" )" 0
+rigAssert "every names row has exactly five whitespace-separated fields, no header" "$( LC_ALL=C awk 'NF != 5 { bad++ ; } END { print bad + 0 ; }' "$rigNamesFile" )" 0
+rigAssert "every team-members row has exactly four"                        "$( LC_ALL=C awk 'NF != 4 { bad++ ; } END { print bad + 0 ; }' "$rigMembersFile" )" 0
 rigAssert "a team-members row is member, workspace, link kind, path"       "$( LC_ALL=C grep '^client-ndm ' "$rigMembersFile" )" "client-ndm $rigWsName source-symlink myx/pkg/skillset/client-ndm"
 rigAssert "the decoy SKILL.md names are in no row"                         "$( LC_ALL=C grep -c -i 'decoy' "$rigNamesFile" || : )" 0
 rigAssert "the warnings are in the package style on stderr, seventeen in all, and no error, no earlier style" "$( LC_ALL=C grep -c '^⚠️ WARNING: DistroAgentsTools --make-agents-indices: member ' "$rigTmp/build.err" || : ) $( LC_ALL=C grep -c 'ERROR: DistroAgentsTools' "$rigTmp/build.err" || : ) $( LC_ALL=C grep -c '🙋' "$rigTmp/build.err" || : )" "17 0 0"
@@ -605,7 +605,7 @@ rigAssert "and both registries are as they were"                           "$( c
 rigLinkDrop keeper-w1 ; rigLinkDrop keeper-w3
 rigBuild
 rigAssert "a rebuild is whole: a member that lost its path has no row in either file, the others stay" "$( rigIndexRow keeper-w1 )$( LC_ALL=C grep -c 'keeper-w3' "$rigMembersFile" || : ) $( rigLines "$rigNamesFile" ) $( rigLines "$rigMembersFile" )" "0 19 19"
-rigAssert "control: the same build prints no error and no leftover temporary file" "$rigBuildRc $( LC_ALL=C grep -c 'ERROR: DistroAgentsTools' "$rigTmp/build.err" || : ) $( ls "$rigAgentsDir" | LC_ALL=C awk 'END { print NR }' )" "0 0 13"
+rigAssert "control: the same build prints no error and no leftover temporary file" "$rigBuildRc $( LC_ALL=C grep -c 'ERROR: DistroAgentsTools' "$rigTmp/build.err" || : ) $( ls "$rigAgentsDir" | LC_ALL=C awk 'END { print NR ; }' )" "0 0 13"
 cp "$rigLinkedFile" "$rigTmp/linked.keep"
 rm -rf "$rigAgentsDir" ; printf 'not a directory\n' > "$rigAgentsDir"
 rigBuild
@@ -613,7 +613,7 @@ rigAssert "registries that cannot be written (the folder is a file): exit 1, eac
 rm -f "$rigAgentsDir" ; mkdir -p "$rigAgentsDir" ; chmod 555 "$rigAgentsDir"
 rigBuild
 rigAssert "a folder that cannot be written into: exit 1, each path named"  "$rigBuildRc $( rigN "$rigTmp/build.err" "could not write $rigMembersFile" ) $( rigN "$rigTmp/build.err" "could not write $rigNamesFile" )" "1 1 1"
-rigAssert "and it left no file"                                            "$( ls "$rigAgentsDir" | LC_ALL=C awk 'END { print NR }' )" 0
+rigAssert "and it left no file"                                            "$( ls "$rigAgentsDir" | LC_ALL=C awk 'END { print NR ; }' )" 0
 chmod 755 "$rigAgentsDir"
 cp "$rigTmp/linked.keep" "$rigLinkedFile"
 rigBuild
@@ -743,10 +743,10 @@ rigWorld
 
 echo "-- 18. static: the send reads team-members-names, the persona is named in one place --"
 rigNamers(){ ## file, pattern -- the functions holding a non-comment line that matches the pattern, one line, sorted
-	LC_ALL=C awk -v pat="$2" '/^case "\$1" in/ { fn = "(send dispatcher arm)" } /^[A-Za-z0-9_]+\(\)[ \t]*\{/ { fn = $1 ; sub(/\(\).*/, "", fn) } $0 ~ pat && $0 !~ /^[ \t]*#/ && fn != "" { print fn }' "$1" | LC_ALL=C sort -u | LC_ALL=C tr '\n' ' '
+	LC_ALL=C awk -v pat="$2" '/^case "\$1" in/ { fn = "(send dispatcher arm)" ; } /^[A-Za-z0-9_]+\(\)[ \t]*\{/ { fn = $1 ; sub(/\(\).*/, "", fn) ; } $0 ~ pat && $0 !~ /^[ \t]*#/ && fn != "" { print fn ; }' "$1" | LC_ALL=C sort -u | LC_ALL=C tr '\n' ' '
 }
 rigFnCut(){ ## file, function name -- that function's text, from its first line to its closing brace
-	LC_ALL=C awk -v name="$2" 'index( $0, name "(){" ) == 1 { on = 1 } on { print } on && /^}/ { exit }' "$1"
+	LC_ALL=C awk -v name="$2" 'index( $0, name "(){" ) == 1 { on = 1 ; } on { print ; } on && /^}/ { exit ; }' "$1"
 }
 rigAssert "the Slack include names no basic.md path in code"               "$( rigNamers "$rigInclude" '[.]basic[.]md' )" ""
 rigAssert "the registries include names a basic.md path in the marks function and the Name bullet function only" "$( rigNamers "$rigRegInclude" '[.]basic[.]md' )" "AgentsToolsCommsSlackMemberMarks AgentsToolsRegistryMemberNameBullet "
@@ -766,7 +766,7 @@ rigAssert "the Slack include holds no assignment of it"                    "$( L
 printf 'registryPersonaMember="a"\nregistryPersonaMember="b"\n' > "$rigTmp/sample.include"
 rigAssert "control: a sample with two assignments counts two"              "$( LC_ALL=C grep -c '^registryPersonaMember=' "$rigTmp/sample.include" || : )" 2
 rigAssert "the earlier index include, its file name, its functions and its builder are gone" "$( cat "$rigHere"/*/*.include | LC_ALL=C grep -c -E 'member-presentation|AgentsToolsMemberIndex|AgentsTools[.]MemberIndex|slackPersonaMember|AgentsToolsCommsSlackPersonaMarks|AgentsToolsCommsSlackMemberDefaults|AgentsToolsCommsSlackPresentationInvalid|AgentsToolsCommsSlackMemberName' || : ) $( [ -e "$rigHere/AgentsTools.MemberIndex.include" ] && printf present || printf absent ) $( [ -e "$rigHere/AgentsToolsCommsSlackMemberName.awk" ] && printf present || printf absent ) $( [ -e "$rigPackage/builders/source-prepare/1000-make-member-index.sh" ] && printf present || printf absent )" "0 absent absent absent"
-rigAssert "control: the same read of all includes does find a function that is there" "$( cat "$rigHere"/*/*.include | LC_ALL=C grep -c -E 'AgentsToolsCommsSlackMemberPresentation|AgentsToolsRegistryAgentsIndicesBuild' | LC_ALL=C awk '{ print ( $1 > 0 ) ? "found" : "blind" }' )" found
+rigAssert "control: the same read of all includes does find a function that is there" "$( cat "$rigHere"/*/*.include | LC_ALL=C grep -c -E 'AgentsToolsCommsSlackMemberPresentation|AgentsToolsRegistryAgentsIndicesBuild' | LC_ALL=C awk '{ print ( $1 > 0 ) ? "found" : "blind" ; }' )" found
 rigAssert "the marks function is defined in the registries include, not the Slack include" "$( LC_ALL=C grep -c '^AgentsToolsCommsSlackMemberMarks(){' "$rigRegInclude" || : ) $( LC_ALL=C grep -c '^AgentsToolsCommsSlackMemberMarks(){' "$rigInclude" || : )" "1 0"
 rigMarksFn="$( rigFnCut "$rigRegInclude" AgentsToolsCommsSlackMemberMarks )"
 rigAssert "the marks function is byte for byte as recorded (cksum, bytes)" "$( printf '%s\n' "$rigMarksFn" | cksum )" "45624737 261"
@@ -787,14 +787,14 @@ rigAssert "and nothing of it is under sh-lib"                              "$( [
 rigAssert "the builder runs the build once, as the bare agents script name, with no name of a part"  "$( rigN "$rigBuilder" "DistroAgentsTools.fn.sh" ) $( LC_ALL=C grep -c -x -F -- "DistroAgentsTools.fn.sh $rigBuilderCall" "$rigBuilder" || : )" "1 1"
 rigAssert "the Local Tools script holds no call of the build, in any spelling" "$( LC_ALL=C grep -c -E -- 'make-agents-indices|1201-agents-indices|agents-indices' "$rigLocalTools" || : )" 0
 rigAssert "control: the same pattern does find the build's name in a sample"  "$( printf 'x --make-agents-indices\n' > "$rigTmp/sample.sh" ; LC_ALL=C grep -c -E -- 'make-agents-indices|agents-indices' "$rigTmp/sample.sh" || : )" 1
-rigWsArm="$( LC_ALL=C awk '/^\t--make-workspace-integrations\)/ { on = 1 } on { print } on && /^\t;;/ { exit }' "$rigMakeInclude" )"
+rigWsArm="$( LC_ALL=C awk '/^\t--make-workspace-integrations\)/ { on = 1 ; } on { print ; } on && /^\t;;/ { exit ; }' "$rigMakeInclude" )"
 rigAssert "control: the make-workspace-integrations arm was cut out of the Make include, with its two calls of the install, one a part" "$( printf '%s\n' "$rigWsArm" | LC_ALL=C grep -c -F -- '--install-workspace-integrations' || : )" 2
 rigAssert "the arm calls the build once"                                   "$( printf '%s\n' "$rigWsArm" | LC_ALL=C grep -v '^[[:space:]]*#' | LC_ALL=C grep -c -F -- "$rigBuilderCall" || : )" 1
 rigAssert "the call is a whole line, with the failure return and no \"\$@\""  "$( printf '%s\n' "$rigWsArm" | LC_ALL=C grep -c -x -F -- "$( printf '\t\t' )DistroAgentsTools $rigBuilderCall || { set +e ; return 1 ; }" || : )" 1
-rigFirstCall="$( printf '%s\n' "$rigWsArm" | LC_ALL=C awk '/^\t\tDistroAgentsTools / && $2 != "--intern-directory-register" { print $2 ; exit }' )"
-rigAssert "the arm starts with the places registration, which the grants read, then the console command" "$( printf '%s\n' "$rigWsArm" | LC_ALL=C awk '/^\t\tDistroAgentsTools / { print $2 ; exit }' ) $rigFirstCall" "--intern-directory-register --make-console-command"
-rigAssert "and the build comes after the part of the install that writes the member registry and after the member homes, and before the part that reads the indices" "$( printf '%s\n' "$rigWsArm" | LC_ALL=C awk '/DistroAgentsTools --install-workspace-integrations / { if ( !first ) first = NR ; else second = NR } /DistroAgentsTools --intern-member-home-register / { homes = NR } /DistroAgentsTools --make-(harness|agents)-indices / { build = NR } END { print ( first && first < homes && homes < build && build < second ) ? "ordered" : "not ordered" }' )" ordered
-rigAssert "control: a sample with the build ahead of the install is not ordered" "$( printf '\t\tDistroAgentsTools --make-harness-indices || x\n\t\tDistroAgentsTools --install-workspace-integrations "$@" || x\n\t\tDistroAgentsTools --intern-member-home-register || x\n\t\tDistroAgentsTools --install-workspace-integrations "$@" || x\n' | LC_ALL=C awk '/DistroAgentsTools --install-workspace-integrations / { if ( !first ) first = NR ; else second = NR } /DistroAgentsTools --intern-member-home-register / { homes = NR } /DistroAgentsTools --make-(harness|agents)-indices / { build = NR } END { print ( first && first < homes && homes < build && build < second ) ? "ordered" : "not ordered" }' )" "not ordered"
+rigFirstCall="$( printf '%s\n' "$rigWsArm" | LC_ALL=C awk '/^\t\tDistroAgentsTools / && $2 != "--intern-directory-register" { print $2 ; exit ; }' )"
+rigAssert "the arm starts with the places registration, which the grants read, then the console command" "$( printf '%s\n' "$rigWsArm" | LC_ALL=C awk '/^\t\tDistroAgentsTools / { print $2 ; exit ; }' ) $rigFirstCall" "--intern-directory-register --make-console-command"
+rigAssert "and the build comes after the part of the install that writes the member registry and after the member homes, and before the part that reads the indices" "$( printf '%s\n' "$rigWsArm" | LC_ALL=C awk '/DistroAgentsTools --install-workspace-integrations / { if ( !first ) first = NR ; else second = NR ; } /DistroAgentsTools --intern-member-home-register / { homes = NR ; } /DistroAgentsTools --make-(harness|agents)-indices / { build = NR ; } END { print ( first && first < homes && homes < build && build < second ) ? "ordered" : "not ordered" ; }' )" ordered
+rigAssert "control: a sample with the build ahead of the install is not ordered" "$( printf '\t\tDistroAgentsTools --make-harness-indices || x\n\t\tDistroAgentsTools --install-workspace-integrations "$@" || x\n\t\tDistroAgentsTools --intern-member-home-register || x\n\t\tDistroAgentsTools --install-workspace-integrations "$@" || x\n' | LC_ALL=C awk '/DistroAgentsTools --install-workspace-integrations / { if ( !first ) first = NR ; else second = NR ; } /DistroAgentsTools --intern-member-home-register / { homes = NR ; } /DistroAgentsTools --make-(harness|agents)-indices / { build = NR ; } END { print ( first && first < homes && homes < build && build < second ) ? "ordered" : "not ordered" ; }' )" "not ordered"
 rigRunBuilder(){ ## agents scripts directory on the path or none -- the builder run as the source-prepare build runs it, the rig workspace as the workspace; rc in rigRc
 	rigRc=0
 	( cd "$rigWs" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" PATH="${1:+$1:}$PATH" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rigSkills" sh "$rigBuilder" ) > "$rigTmp/out" 2> "$rigTmp/err" < /dev/null || rigRc=$?

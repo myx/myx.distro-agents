@@ -182,18 +182,18 @@ rigHeaders(){ ## chat file -- how many header lines it holds, `no-file` when the
 }
 rigHeader(){ ## chat file, N -- the Nth header line without its time
 	[ -f "$1" ] || { printf 'no-file' ; return 0 ; }
-	LC_ALL=C awk -v want="$2" '/^[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9]Z .* -> .*:$/ { count++ ; if ( count == want ) { sub(/^[^ ]* /, "") ; print ; exit ; } }' "$1"
+	LC_ALL=C awk -v want="$2" '/^[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9]Z .* -> .*:$/ { count++ ; if ( count == want ) { sub(/^[^ ]* /, "") ; print ; exit ; } ; }' "$1"
 }
 rigBody(){ ## chat file, N -- the body of the Nth block, blank lines trimmed at its end
 	[ -f "$1" ] || { printf 'no-file' ; return 0 ; }
 	LC_ALL=C awk -v want="$2" '
-		/^[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9]Z .* -> .*:$/ { count++ ; inBlock = ( count == want ) ; if ( inBlock ) { next ; } }
-		inBlock { lines[++n] = $0 }
-		END { while ( n > 0 && lines[n] == "" ) { n-- ; } for ( i = 1 ; i <= n ; i++ ) { print lines[i] ; } }' "$1"
+		/^[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9]Z .* -> .*:$/ { count++ ; inBlock = ( count == want ) ; if ( inBlock ) { next ; } ; }
+		inBlock { lines[++n] = $0 ; }
+		END { while ( n > 0 && lines[n] == "" ) { n-- ; } for ( i = 1 ; i <= n ; i++ ) { print lines[i] ; } ; }' "$1"
 }
 rigIndex(){ ## chat file, N -- its index line, fields 1..6 tab-separated, space-joined
 	[ -f "$1.index" ] || { printf 'no-index' ; return 0 ; }
-	LC_ALL=C awk -F'\t' -v want="$2" '$1 == want { print $1, $2, $3, $4, $5, $6 ; found = 1 ; exit ; } END { if ( ! found ) { print "no-such-block" ; } }' "$1.index"
+	LC_ALL=C awk -F'\t' -v want="$2" '$1 == want { print $1, $2, $3, $4, $5, $6 ; found = 1 ; exit ; } END { if ( ! found ) { print "no-such-block" ; } ; }' "$1.index"
 }
 rigIndexCount(){ ## chat file -- how many index lines it has
 	[ -f "$1.index" ] || { printf 'no-index' ; return 0 ; }

@@ -120,7 +120,7 @@ function jfNodeHook(path, nodeType, nodeValue, fromPos, toPos,   idx, rest) {
 	next
 }
 
-{ linesSeen++ ; jfConsumeText($0) }
+{ linesSeen++ ; jfConsumeText($0) ; }
 
 # One call per document: from END for the only/last document, and from the
 # marker rule above for every document before the last. `channel`, the

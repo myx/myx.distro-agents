@@ -577,9 +577,9 @@ AgentsToolsContextScanComms(){
 						## paging was bounded by -- two different cut-offs over one read is
 						## how a message ends up fetched and then silently dropped.
 						if [ -z "$parseFail" ] && [ -n "$fetchFloor" ] && [ -n "$parseBlocks" ] ; then
-							parseAll="$( printf '%s\n' "$parseBlocks" | LC_ALL=C awk '/^## / { n++ } END { print n + 0 }' )" || parseAll=-1
+							parseAll="$( printf '%s\n' "$parseBlocks" | LC_ALL=C awk '/^## / { n++ ; } END { print n + 0 ; }' )" || parseAll=-1
 							parseBlocks="$( printf '%s\n' "$parseBlocks" | LC_ALL=C awk -v cut="$fetchFloor" -v ctx=0 "$commsCutoffTrimAwkProgram" )" || parseFail="trim"
-							parseKept="$( printf '%s\n' "$parseBlocks" | LC_ALL=C awk '/^## / { n++ } END { print n + 0 }' )" || parseKept=-1
+							parseKept="$( printf '%s\n' "$parseBlocks" | LC_ALL=C awk '/^## / { n++ ; } END { print n + 0 ; }' )" || parseKept=-1
 						fi
 						if [ -n "$parseFail" ] ; then
 							printf '%s\n' "$parseFail" > "$sourcePrefetchDir/fail.$1"
@@ -601,7 +601,7 @@ AgentsToolsContextScanComms(){
 									## away by a de-duplication later. Two sources finding one thread
 									## hold two floors for it, and the read that follows has to choose
 									## between them instead of being handed one and told nothing.
-									printf '%s\n' "$parseFound" | LC_ALL=C awk -v stalePath="$sourcePrefetchDir/stale.$1" -v srcIndex="$1" '$1 == "stale" { print $2 > stalePath ; next } NF >= 2 { print srcIndex "\t" $1 "\t" $2 ; next } NF { print srcIndex "\t" $1 }' | sort -u > "$sourcePrefetchDir/threads.$1"
+									printf '%s\n' "$parseFound" | LC_ALL=C awk -v stalePath="$sourcePrefetchDir/stale.$1" -v srcIndex="$1" '$1 == "stale" { print $2 > stalePath ; next ; } NF >= 2 { print srcIndex "\t" $1 "\t" $2 ; next ; } NF { print srcIndex "\t" $1 ; }' | sort -u > "$sourcePrefetchDir/threads.$1"
 								fi
 							else
 								printf 'discovery\n' > "$sourcePrefetchDir/disc.$1"
@@ -796,7 +796,7 @@ AgentsToolsContextScanComms(){
 					local fetchRaw fetchJson fetchBlocks
 					local dtIdentity=""
 					if [ -n "$identityMap" ] ; then
-						dtIdentity="$( LC_ALL=C awk -v ch="$dtChannel" '$1 == ch { print $2 ; exit }' <<< "$identityMap" )"
+						dtIdentity="$( LC_ALL=C awk -v ch="$dtChannel" '$1 == ch { print $2 ; exit ; }' <<< "$identityMap" )"
 					fi
 					## Same paging bound as the watched-source read above: a long
 					## thread is paged to its end, but only back as far as the floor
@@ -907,12 +907,12 @@ AgentsToolsContextScanComms(){
 						t = $1 ; f = $3 ; o = $4
 						k = tskey(f)
 						if (k == "") next
-						if (!(t in seen)) { seen[t] = 1 ; order[++n] = t ; kfloor[t] = k ; floor[t] = f ; origin[t] = o ; next }
-						if (k < kfloor[t]) { kfloor[t] = k ; floor[t] = f ; origin[t] = o }
+						if (!(t in seen)) { seen[t] = 1 ; order[++n] = t ; kfloor[t] = k ; floor[t] = f ; origin[t] = o ; next ; }
+						if (k < kfloor[t]) { kfloor[t] = k ; floor[t] = f ; origin[t] = o ; }
 					}
-					END { for (i = 1 ; i <= n ; i++) printf "%s\t%s\t%s\n", order[i], floor[order[i]], origin[order[i]] }
+					END { for (i = 1 ; i <= n ; i++) printf "%s\t%s\t%s\n", order[i], floor[order[i]], origin[order[i]] ; }
 				' | LC_ALL=C sort )" || threadFloors=""
-				[ -z "$threadFloors" ] || threadOwnFloors="$( printf '%s\n' "$threadFloors" | LC_ALL=C awk -F '\t' '$3 != "pass cut-off" { n++ } END { print n + 0 }' )" || threadOwnFloors=0
+				[ -z "$threadFloors" ] || threadOwnFloors="$( printf '%s\n' "$threadFloors" | LC_ALL=C awk -F '\t' '$3 != "pass cut-off" { n++ ; } END { print n + 0 ; }' )" || threadOwnFloors=0
 
 				## KNOWN-STALE THREADS ARE ASSESSED, NOT READ. A thread the history
 				## shows with its latest reply at or before the cut-off holds nothing
@@ -923,7 +923,7 @@ AgentsToolsContextScanComms(){
 				local staleOnlyCount=0
 				if [ ${#staleTargets[@]} -gt 0 ] ; then
 					staleOnlyCount="$( { printf '%s\n' "$uniqueThreads" | LC_ALL=C sed 's/^/T /' ; printf '%s\n' ${staleTargets[@]+"${staleTargets[@]}"} | LC_ALL=C sort -u | LC_ALL=C sed 's/^/S /' ; } \
-						| LC_ALL=C awk '$1 == "T" { t[$2] = 1 ; next } $1 == "S" && $2 != "" && !($2 in t) { n++ } END { print n + 0 }' )" || staleOnlyCount=0
+						| LC_ALL=C awk '$1 == "T" { t[$2] = 1 ; next ; } $1 == "S" && $2 != "" && !($2 in t) { n++ ; } END { print n + 0 ; }' )" || staleOnlyCount=0
 				fi
 
 				## THE DISPLAY CAP BOUNDS THE READS TOO. The rendering below shows at
@@ -939,7 +939,7 @@ AgentsToolsContextScanComms(){
 				## could exceed the cap at all; below it every target is read.
 				local threadOrder="" threadCapEngaged="false" threadCapped=0 threadCappedSet=$'\n'
 				local threadUniqueCount=0
-				[ -z "$uniqueThreads" ] || threadUniqueCount="$( printf '%s\n' "$uniqueThreads" | LC_ALL=C awk 'NF { n++ } END { print n + 0 }' )"
+				[ -z "$uniqueThreads" ] || threadUniqueCount="$( printf '%s\n' "$uniqueThreads" | LC_ALL=C awk 'NF { n++ ; } END { print n + 0 ; }' )"
 				if [ $(( sourceBlockCount + threadUniqueCount )) -gt "$sessionContextCapIm" ] ; then
 					threadCapEngaged="true"
 				fi
@@ -975,7 +975,7 @@ AgentsToolsContextScanComms(){
 						}
 						passCut = ENVIRON["PASS_CUTOFF"]
 					}
-					NF { idx++ ; if ($1 in late) { kn++ ; kt[kn] = $1 ; ki[kn] = idx ; } else { printf "%s\t%s\t-\t%s\t%s\n", idx, $1, (($1 in floorOf) ? floorOf[$1] : passCut), (($1 in originOf) ? originOf[$1] : "pass cut-off") ; } }
+					NF { idx++ ; if ($1 in late) { kn++ ; kt[kn] = $1 ; ki[kn] = idx ; } else { printf "%s\t%s\t-\t%s\t%s\n", idx, $1, (($1 in floorOf) ? floorOf[$1] : passCut), (($1 in originOf) ? originOf[$1] : "pass cut-off") ; } ; }
 					END {
 						for (x = 2; x <= kn; x++) {
 							v = kt[x] ; w = ki[x] ; j = x - 1

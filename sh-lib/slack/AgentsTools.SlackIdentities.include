@@ -35,16 +35,16 @@ AgentsSlackIdentityRows(){
 	LC_ALL=C awk 'index( $0, "=" ) > 1' "$rowsFile"
 }
 AgentsSlackIdentityId(){ ## member
-	AgentsSlackIdentityRows | LC_ALL=C awk -F= -v who="$1" '$1 == who && $2 != "-" && $2 != "" { print $2 ; exit }'
+	AgentsSlackIdentityRows | LC_ALL=C awk -F= -v who="$1" '$1 == who && $2 != "-" && $2 != "" { print $2 ; exit ; }'
 }
 AgentsSlackIdentityMember(){ ## user id, --not-owner to pass the human-owner by
-	AgentsSlackIdentityRows | LC_ALL=C awk -F= -v id="$1" -v notOwner="${2:-}" '$2 == id && !( notOwner != "" && $1 == "human-owner" ) { print $1 ; exit }'
+	AgentsSlackIdentityRows | LC_ALL=C awk -F= -v id="$1" -v notOwner="${2:-}" '$2 == id && !( notOwner != "" && $1 == "human-owner" ) { print $1 ; exit ; }'
 }
 AgentsSlackIdentityTeamIds(){
-	AgentsSlackIdentityRows | LC_ALL=C awk -F= '$2 ~ /^U[A-Z0-9]+$/ { print $2 }'
+	AgentsSlackIdentityRows | LC_ALL=C awk -F= '$2 ~ /^U[A-Z0-9]+$/ { print $2 ; }'
 }
 AgentsSlackIdentityOwnIds(){
-	{ AgentsSlackIdentityTeamIds ; LC_ALL=C awk '$2 ~ /^U[A-Z0-9]+$/ { print $2 }' "${MMDAPP:-/nonexistent}/.local/cache/comms/slack"/.user-id-*.txt 2> /dev/null ; } | LC_ALL=C awk 'NF && !seen[$0]++'
+	{ AgentsSlackIdentityTeamIds ; LC_ALL=C awk '$2 ~ /^U[A-Z0-9]+$/ { print $2 ; }' "${MMDAPP:-/nonexistent}/.local/cache/comms/slack"/.user-id-*.txt 2> /dev/null ; } | LC_ALL=C awk 'NF && !seen[$0]++'
 }
 AgentsSlackIdentityKnown(){ ## user id
 	[ -n "$1" ] && [ -n "$( AgentsSlackIdentityMember "$1" )" ]
@@ -53,7 +53,7 @@ AgentsSlackIdentityOwn(){ ## user id
 	[ -n "$1" ] && AgentsSlackIdentityOwnIds | LC_ALL=C grep -qxF -- "$1"
 }
 AgentsSlackIdentityPairs(){
-	AgentsSlackIdentityRows | LC_ALL=C awk -F= '$1 ~ /^[A-Za-z0-9_.-]+$/ && $2 ~ /^[A-Z0-9]+$/ { print $2 "=" $1 }'
+	AgentsSlackIdentityRows | LC_ALL=C awk -F= '$1 ~ /^[A-Za-z0-9_.-]+$/ && $2 ~ /^[A-Z0-9]+$/ { print $2 "=" $1 ; }'
 }
 
 ## The account columns of one cache row: "handle=real name=display name=workspace

@@ -40,14 +40,14 @@ AgentsSettingsRead(){ ## workspace, scope, the setting reader's arguments
 }
 AgentsSettingsKeyNames(){ ## workspace, scope, prefix (may be empty)
 	AgentsSettingsScopeHas "$1" "$2" || return 0
-	AgentsSettingsRead "$1" "$2" --select-all | LC_ALL=C awk -v p="${3:-}" '{ k = $0 ; sub( /=.*/, "", k ) } index( k, p ) == 1 && !( k in seen ) { seen[k] = 1 ; print k }'
+	AgentsSettingsRead "$1" "$2" --select-all | LC_ALL=C awk -v p="${3:-}" '{ k = $0 ; sub( /=.*/, "", k ) ; } index( k, p ) == 1 && !( k in seen ) { seen[k] = 1 ; print k ; }'
 }
 ## Kept as the store's predicate for one key: every caller must ask it, never repeat the read and the emptiness test.
 AgentsSettingsHoldsKeys(){ ## workspace, scope, prefix
 	[ -n "$( AgentsSettingsKeyNames "$1" "$2" "$3" )" ]
 }
 AgentsSettingsKeyNamesJoined(){ ## workspace, scope, prefix, a key to leave out (may be empty)
-	AgentsSettingsKeyNames "$1" "$2" "$3" | LC_ALL=C awk -v out="${4:-}" '$0 != out { printf "%s%s", ( n++ ? ", " : "" ), $0 }'
+	AgentsSettingsKeyNames "$1" "$2" "$3" | LC_ALL=C awk -v out="${4:-}" '$0 != out { printf "%s%s", ( n++ ? ", " : "" ), $0 ; }'
 }
 AgentsSettingsScopeCreate(){ ## workspace, scope -- an empty scope, as the setting reader makes one: the folder 770, the file 660
 	mkdir -p "${1%/}/.local/.agents" && chmod 770 "${1%/}/.local/.agents" && ( umask 007 ; : > "${1%/}/.local/.agents/$2.agent.env" ) && chmod 660 "${1%/}/.local/.agents/$2.agent.env"

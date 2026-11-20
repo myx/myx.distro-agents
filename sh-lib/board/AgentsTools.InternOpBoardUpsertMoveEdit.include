@@ -324,7 +324,7 @@ case "$1" in
 				## An item already closed and only being filed by housekeeping is no close of a live item.
 				if [ "$isCreate" != "true" ] && [ "$fromState" != "processed" ] ; then
 					local closeCondition=""
-					closeCondition="$( printf '%s\n' "$body" | LC_ALL=C awk 'NR == 1 { if ( $0 != "---" ) exit ; next } $0 == "---" { exit } index( $0, "condition: " ) == 1 { print substr( $0, 12 ) ; exit }' )"
+					closeCondition="$( printf '%s\n' "$body" | LC_ALL=C awk 'NR == 1 { if ( $0 != "---" ) exit ; next ; } $0 == "---" { exit ; } index( $0, "condition: " ) == 1 { print substr( $0, 12 ) ; exit ; }' )"
 					if [ "$fromState" = "parked" ] ; then
 						echo "$MDSC_CMD: board-upsert-move-edit: ⛔ ERROR: ${itemName%.md} is parked, so it is not closed: a parked item waits for its condition, and the move that releases it comes first" >&2
 						set +e ; return 1
@@ -437,7 +437,7 @@ case "$1" in
 		## with the one the item holds, under a lock per item, and a change by anyone else refuses the write. A change is recorded on the item's Decisions.
 		local handlerLock="" handlerOld="" handlerNew="" handlerWhy="" handlerChanged=""
 		type AgentsToolsBoardItemKey > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.BoardItemHandler.include"
-		handlerNew="$( printf '%s\n' "$body" | LC_ALL=C awk 'NR == 1 { if ($0 != "---") exit ; next } $0 == "---" { exit } index($0, "handler-routine: ") == 1 { print substr($0, 18) ; exit }' )"
+		handlerNew="$( printf '%s\n' "$body" | LC_ALL=C awk 'NR == 1 { if ($0 != "---") exit ; next ; } $0 == "---" { exit ; } index($0, "handler-routine: ") == 1 { print substr($0, 18) ; exit ; }' )"
 		if [ "$isCreate" != "true" ] ; then handlerOld="$( AgentsToolsBoardItemKey "$sourcePath" handler-routine )" ; fi
 		if [ "$handlerNew" != "$handlerOld" ] ; then
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.LocalLock.include"
@@ -488,7 +488,7 @@ case "$1" in
 		case $'\n'"$body" in
 			*$'\n'"references: "*)
 				local seatSession=""
-				seatSession="$( printf '%s\n' "$body" | LC_ALL=C awk '/^session-id: / { print substr( $0, 13 ) ; exit }' )"
+				seatSession="$( printf '%s\n' "$body" | LC_ALL=C awk '/^session-id: / { print substr( $0, 13 ) ; exit ; }' )"
 				case "$seatSession" in ''|*/*|.|..) ;; *)
 					type AgentsToolsGrantsStoreTouch > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.Grants.include"
 					AgentsToolsGrantsStoreTouch "$seatSession" "$MMDAPP" > /dev/null 2>&1 || :

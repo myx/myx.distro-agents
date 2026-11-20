@@ -70,7 +70,7 @@ case " $* " in
 	*" -A "*)
 		case "$*" in *ppid=*) exec "${0%/*}/ps.real" "$@" ;; esac
 		rigPsList="${0%/*}/../ps.list"
-		rigPsPids="$( LC_ALL=C awk '{ printf "%s%s", ( NR > 1 ? "," : "" ), $1 }' "$rigPsList" 2> /dev/null )"
+		rigPsPids="$( LC_ALL=C awk '{ printf "%s%s", ( NR > 1 ? "," : "" ), $1 ; }' "$rigPsList" 2> /dev/null )"
 		[ -n "$rigPsPids" ] || exit 0
 		rigPsWith=no ; case "$*" in *pid=*) rigPsWith=yes ;; esac
 		LC_ALL=C "${0%/*}/ps.real" -o pid=,lstart= -p "$rigPsPids" 2> /dev/null | LC_ALL=C awk -v withPid="$rigPsWith" '
@@ -236,7 +236,7 @@ rigLive other-holds-a "claude --add-dir $rigSp/run-a/input --session-id run-othe
 rigLive tooling-names-a "bash $rigTool --intern-op-agent-spawn-proxy keeper-rig --session-id run-a"
 rigLive here-as-far-b "claude --verbose --session-id far-b --agent rig-member the brief"
 rigEvery="sess-one run-a run-b sess-two run-x run-y sess-three other-holds-a tooling-names-a here-as-far-b"
-rigAssert "control: every stand-in of the rig runs, and the rig's process list holds each under its own pid" "$( rigAlive $rigEvery ) $( ps -A -ww -o pid=,args= | LC_ALL=C awk 'END { print NR + 0 }' )" "10 10"
+rigAssert "control: every stand-in of the rig runs, and the rig's process list holds each under its own pid" "$( rigAlive $rigEvery ) $( ps -A -ww -o pid=,args= | LC_ALL=C awk 'END { print NR + 0 ; }' )" "10 10"
 
 echo "-- 1. a run's own id ends that run alone, the ending recorded first under the name of the console's user --"
 rigRun "$rigOp" --session-id run-a
@@ -301,10 +301,10 @@ rigLive join-late
 sleep 1
 touch "$rigAgents/spawned-sessions.registry"
 rigAssert "control: the registry as it lies holds the founder and no row of the member that joined since, and is newer than its record and than the folder of the sandboxes" \
-	"$( LC_ALL=C awk '$2 == "sess-join" { printf "%s ", $8 }' "$rigAgents/spawned-sessions.registry" )/ $( [ "$rigSp/sess-join/join-late.spawn.md" -nt "$rigAgents/spawned-sessions.registry" ] && echo record-newer ) $( [ "$rigSp" -nt "$rigAgents/spawned-sessions.registry" ] && echo folder-newer )" "sess-join /  "
+	"$( LC_ALL=C awk '$2 == "sess-join" { printf "%s ", $8 ; }' "$rigAgents/spawned-sessions.registry" )/ $( [ "$rigSp/sess-join/join-late.spawn.md" -nt "$rigAgents/spawned-sessions.registry" ] && echo record-newer ) $( [ "$rigSp" -nt "$rigAgents/spawned-sessions.registry" ] && echo folder-newer )" "sess-join /  "
 rigRun "$rigOp" --session-id sess-join
 rigAssert "the session is ended whole: the member that joined since has its row, and both processes are gone" \
-	"$rigRc $( rigOut | LC_ALL=C awk '{ printf "%s:%s ", $3, $5 }' )/ $( rigAlive sess-join join-late )" "0 sess-join:ended join-late:ended / 0"
+	"$rigRc $( rigOut | LC_ALL=C awk '{ printf "%s:%s ", $3, $5 ; }' )/ $( rigAlive sess-join join-late )" "0 sess-join:ended join-late:ended / 0"
 
 echo "-- 5. a session with no live run is said to have none --"
 rigMarksBefore="$( cat "$rigSp"/*/*.spawn.md | cksum )"
@@ -318,7 +318,7 @@ rigRun "$rigOp" --session-id done-b
 rigAssert "a run that is not alive, named by its own id: its row, a note, and status 0" "$rigRc $( rigOut ) $( rigWhole "$rigTmp/err" "# DistroAgentsTools $rigOp: run done-b is not alive on this host, so nothing was signalled" )" \
 	"0 kill sess-done done-b keeper-rig closed spawn-failed - - 1"
 rigAssert "each run is named once in control/closed of its session, and each record is marked once, by the first call" \
-	"$( LC_ALL=C awk '{ printf "%s:%s ", $1, $2 }' "$rigStores/sess-done/control/closed" 2> /dev/null ) $( rigHeader "$rigSp/sess-done/sess-done.spawn.md" killed-by ) $( rigHeader "$rigSp/sess-done/done-b.spawn.md" killed-by ) $( LC_ALL=C grep -c '^killed-by: ' "$rigSp/sess-done/done-b.spawn.md" )" "sess-done:rig done-b:rig  rig rig 1"
+	"$( LC_ALL=C awk '{ printf "%s:%s ", $1, $2 ; }' "$rigStores/sess-done/control/closed" 2> /dev/null ) $( rigHeader "$rigSp/sess-done/sess-done.spawn.md" killed-by ) $( rigHeader "$rigSp/sess-done/done-b.spawn.md" killed-by ) $( LC_ALL=C grep -c '^killed-by: ' "$rigSp/sess-done/done-b.spawn.md" )" "sess-done:rig done-b:rig  rig rig 1"
 rigMarksBefore="$( cat "$rigSp"/*/*.spawn.md | cksum )"
 
 echo "-- 6. a run of another host is not signalled --"
@@ -375,7 +375,7 @@ rigRec sess-noword run-noword sess-noword "$rigHost" keeper-rig spawn-started 60
 rigAssert "control: no line of the rig's process list runs as that spawn, or holds its id" "$( LC_ALL=C grep -c -F -- 'run-noword' "$rigTmp/ps.list" )" "0"
 rigRun "$rigOp" --session-id run-noword
 rigAssert "it is ended: the process its record names and the process that one started, both in its row" \
-	"$rigRc $( rigOut | LC_ALL=C awk '{ print $1, $2, $3, $4, $5, $6, $8 }' ) $( rigOut | LC_ALL=C awk '{ print $7 }' | LC_ALL=C tr ',' '\n' | LC_ALL=C sort -n | LC_ALL=C tr '\n' ' ' ) $( rigAlive stand-console stand-own )" \
+	"$rigRc $( rigOut | LC_ALL=C awk '{ print $1, $2, $3, $4, $5, $6, $8 ; }' ) $( rigOut | LC_ALL=C awk '{ print $7 ; }' | LC_ALL=C tr ',' '\n' | LC_ALL=C sort -n | LC_ALL=C tr '\n' ' ' ) $( rigAlive stand-console stand-own )" \
 	"0 kill sess-noword run-noword keeper-rig ended spawn-started - $( printf '%s\n%s\n' "$( rigPid stand-console )" "$rigStandOwn" | LC_ALL=C sort -n | LC_ALL=C tr '\n' ' ' ) 0"
 rigAssert "a process it started that runs as another spawn is another member's run: not signalled" "$( rigAlive stand-other )" "1"
 ## The same pid begun at another time is another process, and is never signalled.
@@ -416,9 +416,9 @@ rigRec sess-tree run-tree sess-tree "$rigHost" keeper-rig spawn-started 62 ""
 rigAssert "control: the run, the three processes under it, the hung one two deep, and the member it brought in with its supervisor all run" "$( rigAlive tree-cli tree-server tree-tool tree-hung tree-supervisor tree-brought )" "6"
 rigRun "$rigOp" --session-id run-tree
 rigAssert "the run is ended with what it started: its helper server, its tool command, and that command's own child that hangs, which took the hard kill" \
-	"$rigRc $( rigOut | LC_ALL=C awk '{ print $1, $2, $3, $4, $5, $6, $8 }' ) $( rigAlive tree-cli tree-server tree-tool tree-hung )" "0 kill sess-tree run-tree keeper-rig killed spawn-started - 0"
+	"$rigRc $( rigOut | LC_ALL=C awk '{ print $1, $2, $3, $4, $5, $6, $8 ; }' ) $( rigAlive tree-cli tree-server tree-tool tree-hung )" "0 kill sess-tree run-tree keeper-rig killed spawn-started - 0"
 rigAssert "its row names each process that was signalled: the four, and no other" \
-	"$( rigOut | LC_ALL=C awk '{ print $7 }' | LC_ALL=C tr ',' '\n' | LC_ALL=C sort -n | LC_ALL=C tr '\n' ' ' )" "$( for rigName in cli server tool hung ; do rigPid "tree-$rigName" ; done | LC_ALL=C sort -n | LC_ALL=C tr '\n' ' ' )"
+	"$( rigOut | LC_ALL=C awk '{ print $7 ; }' | LC_ALL=C tr ',' '\n' | LC_ALL=C sort -n | LC_ALL=C tr '\n' ' ' )" "$( for rigName in cli server tool hung ; do rigPid "tree-$rigName" ; done | LC_ALL=C sort -n | LC_ALL=C tr '\n' ' ' )"
 rigAssert "a member the run brought in is a run of its own, and the shell that supervises it is that run's: both stand under the killed run, and both live on" "$( rigAlive tree-supervisor tree-brought )" "2"
 
 echo "-- 9c. what a stop left of a run is kept in the run's store, and a kill ends it --"
@@ -441,7 +441,7 @@ printf '{"task_id":"run-left"}\n' > "$rigTmp/stop.args"
 ( cd "$rigWs" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rigSkills" \
 	RIG_TMP="$rigTmp" RIG_SCENARIO="$rigTmp" MDAT_SPAWN_AGENT=magic-coordinator bash "$rigHere/harness/AgentsUniversalHarness.sh" --intern-tool TaskStop < "$rigTmp/stop.args" ) > "$rigTmp/stop.out" 2>&1
 rigAssert "control: a stop without force ends the run's own process and says that the command is still running, and the run's store keeps it, by its pid and when it began" \
-	"$( LC_ALL=C grep -c '^STOP-RESULT: STILL-RUNNING' "$rigTmp/stop.out" ) $( rigAlive left-run ) $( rigAlive left-tool ) $( LC_ALL=C awk -v wantPid="$( rigPid left-tool )" '$1 == wantPid && NF == 2 { hit++ } END { print NR ":" hit + 0 }' "$rigStores/run-left/stop.left" 2> /dev/null )" "1 0 1 1:1"
+	"$( LC_ALL=C grep -c '^STOP-RESULT: STILL-RUNNING' "$rigTmp/stop.out" ) $( rigAlive left-run ) $( rigAlive left-tool ) $( LC_ALL=C awk -v wantPid="$( rigPid left-tool )" '$1 == wantPid && NF == 2 { hit++ ; } END { print NR ":" hit + 0 ; }' "$rigStores/run-left/stop.left" 2> /dev/null )" "1 0 1 1:1"
 rigRun "$rigOp" --session-id run-left
 rigAssert "a kill of that run after the stop ends what the stop left: its row says so, the command is gone, and nothing is kept any more" \
 	"$rigRc $( rigOut ) $( rigAlive left-tool ) $( [ -e "$rigStores/run-left/stop.left" ] && echo kept || echo cleared )" "0 kill sess-left run-left keeper-rig killed spawn-started $( rigPid left-tool ) - 0 cleared"
@@ -486,7 +486,7 @@ rm -f "$rigTmp/wrapper.said"
 ( cd "$rigWs" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rigSkills" RIG_TMP="$rigTmp" RIG_SCENARIO="$rigTmp" \
 	bash -c 'printf "%s %s %s\n" "$$" "$( LC_ALL=C "$RIG_TMP/bin/ps.real" -o lstart= -p $$ | LC_ALL=C awk "NF { \$1 = \$1 ; gsub( / /, \"_\" ) ; print ; exit ; }" )" "bash -c the-console-wrapper --manager-session-kill --session-id run-w" >> "$RIG_TMP/ps.list" ; bash "$0" --manager-session-kill --session-id run-w > "$RIG_TMP/out" 2> "$RIG_TMP/err" ; echo "rc $?" > "$RIG_TMP/wrapper.said"' "$rigTool" ) < /dev/null > /dev/null 2>&1
 rigAssert "the process that called the operation, whose own line reads as a run of that id, is not signalled: it goes on, and the run itself is ended" \
-	"$( cat "$rigTmp/wrapper.said" 2> /dev/null ) $( rigOut | LC_ALL=C awk '{ print $3, $5, $7 }' ) $( rigAlive run-w )" "rc 0 run-w ended $( rigPid run-w ) 0"
+	"$( cat "$rigTmp/wrapper.said" 2> /dev/null ) $( rigOut | LC_ALL=C awk '{ print $3, $5, $7 ; }' ) $( rigAlive run-w )" "rc 0 run-w ended $( rigPid run-w ) 0"
 LC_ALL=C grep -v -e 'the-console-wrapper' "$rigTmp/ps.list" > "$rigTmp/ps.list.next" && mv "$rigTmp/ps.list.next" "$rigTmp/ps.list"
 
 echo "-- 13. the caller rule of the family: never from inside a member's session --"
@@ -499,7 +499,7 @@ rigPre=()
 ## The row reads the kill row's own outcome word, never the byte count of stdout: a byte count moves with
 ## every column the row gains, so it reports a change of format as a change of behaviour.
 rigAssert "from inside a member's session acting as magic-coordinator, the kill is accepted and the run ended: it is exempt by the owner's ruling, and the run itself is ended" \
-	"$rigRc $( LC_ALL=C awk -F'\t' '$1 == "kill" && ( $5 == "ended" || $5 == "killed" ) { n++ } END { print n + 0 }' "$rigTmp/out" ) $( LC_ALL=C grep -c -F -- "a --manager-* operation is the console's own, never run from inside a member's session" "$rigTmp/err" ) $( rigAlive sess-three ) $( rigHeader "$rigSp/sess-three/sess-three.spawn.md" killed-by )" "0 1 0 0 rig"
+	"$rigRc $( LC_ALL=C awk -F'\t' '$1 == "kill" && ( $5 == "ended" || $5 == "killed" ) { n++ ; } END { print n + 0 ; }' "$rigTmp/out" ) $( LC_ALL=C grep -c -F -- "a --manager-* operation is the console's own, never run from inside a member's session" "$rigTmp/err" ) $( rigAlive sess-three ) $( rigHeader "$rigSp/sess-three/sess-three.spawn.md" killed-by )" "0 1 0 0 rig"
 
 echo "-- 14. through the real spawn proxy: the supervising shell closes the record, and a killed run is not started again --"
 ## The stand-in console of the proxy's own runs: it keeps each launch, its pid and when it began, and runs until
@@ -566,7 +566,7 @@ rigSpawn kill-bare none with-word
 rm -f "$rigStores/$rigSpawnId/transcript"
 rigRun "$rigOp" --session-id "$rigSpawnId" --run
 rigAssert "a run the proxy started, with no dispatch item and no transcript, found by its own word: ended, and said so" \
-	"$rigRc $( rigOut | LC_ALL=C awk '{ print $1, $3, $4, $5, $6, $8 }' ) $( rigConsoleAlive )" "0 kill $rigSpawnId rig-member-a ended spawn-started - gone"
+	"$rigRc $( rigOut | LC_ALL=C awk '{ print $1, $3, $4, $5, $6, $8 ; }' ) $( rigConsoleAlive )" "0 kill $rigSpawnId rig-member-a ended spawn-started - gone"
 rigWaitFor 60 rigRecordClosed
 rigAssert "its supervising shell saw it end and closed its record as failed, the mark of the kill still on it" \
 	"$( rigHeader "$rigSpawnRecord" status ) $( rigHeader "$rigSpawnRecord" killed-by ) $( rigHeader "$rigSpawnRecord" killed-at | LC_ALL=C grep -c -x -E "$rigStamped" ) $( [ -n "$( rigHeader "$rigSpawnRecord" resolved-at )" ] && echo resolved )" "spawn-failed rig 1 resolved"
@@ -577,7 +577,7 @@ rigAssert "the handback retry did not start the run again: it was launched once,
 rigSpawn kill-noitem none ""
 rigRun "$rigOp" --session-id "$rigSpawnId"
 rigAssert "a run with no session word, by the process its record names: ended, the id of a lone run being its session's too" \
-	"$rigRc $( rigOut | LC_ALL=C awk '{ print $1, $2, $3, $5, $8 }' ) $( rigConsoleAlive )" "0 kill $rigSpawnId $rigSpawnId ended - gone"
+	"$rigRc $( rigOut | LC_ALL=C awk '{ print $1, $2, $3, $5, $8 ; }' ) $( rigConsoleAlive )" "0 kill $rigSpawnId $rigSpawnId ended - gone"
 rigWaitFor 60 rigRecordClosed
 rigAssert "its transcript holds the ending under the name of the console's user, its record is closed as failed, and it was launched once" \
 	"$( LC_ALL=C grep -h -c -E '^[0-9TZ:-]+ ENDING kind=dismissed by=rig text="manager-kill: ' "$rigData"/audit/*/session-*"${rigSpawnId:0:8}"*.log 2> /dev/null | head -1 ) $( rigHeader "$rigSpawnRecord" status ) $( rigLaunches )" "1 spawn-failed first "
@@ -592,7 +592,7 @@ read -r rigConsolePid rigConsoleBegan < "$rigDir/console.pid"
 rigAssert "control: the run's supervising shell started its console and leads the process group the run and what it started are in, so a signal to that group would end the shell that closes the record" \
 	"$( [ -n "$rigShell" ] && [ "$( ps -o ppid= -p "$rigConsolePid" | LC_ALL=C tr -d ' ' )" = "$rigShell" ] && echo started-by-it ) $( for rigName in "$rigConsolePid" "$( rigPid kill-item-server )" "$( rigPid kill-item-hung )" "$rigShell" ; do [ "$( ps -o pgid= -p "$rigName" | LC_ALL=C tr -d ' ' )" = "$rigShell" ] && printf 'in-its-group ' ; done )" "started-by-it in-its-group in-its-group in-its-group in-its-group "
 rigRun "$rigOp" --session-id "$rigSpawnId"
-rigAssert "a run with a dispatch item: ended, and its row names the item" "$rigRc $( rigOut | LC_ALL=C awk '{ print $1, $3, $5, $8 }' ) $( rigConsoleAlive )" "0 kill $rigSpawnId ended $rigKillItem gone"
+rigAssert "a run with a dispatch item: ended, and its row names the item" "$rigRc $( rigOut | LC_ALL=C awk '{ print $1, $3, $5, $8 ; }' ) $( rigConsoleAlive )" "0 kill $rigSpawnId ended $rigKillItem gone"
 rigAssert "what its console had started is gone with it: the helper server, the tool command and that command's own child" "$( rigAlive kill-item-server kill-item-tool kill-item-hung )" "0"
 rigItemInReview(){ [ -f "$rigData/board/review/$rigKillItem.md" ] ; }
 rigWaitFor 60 rigRecordClosed ; rigWaitFor 40 rigItemInReview
@@ -605,7 +605,7 @@ rigHelpInclude="$rigHere/help/Help.DistroAgentsTools.include"
 rigHelpMd="$rigHere/help/Help.DistroAgentsTools.help.md"
 rigSyntaxLine="📘 syntax: DistroAgentsTools.fn.sh $rigOp $rigSyntax"
 rigEntry(){ ## -- the operation's entry in the help.md, from under its heading to the next operation's
-	LC_ALL=C awk -v head="$( printf '\t\t%s %s' "$rigOp" "$rigSyntax" )" '$0 == head { on = 1 ; next } on && /^\t\t--/ { exit } on { print }' "$rigHelpMd"
+	LC_ALL=C awk -v head="$( printf '\t\t%s %s' "$rigOp" "$rigSyntax" )" '$0 == head { on = 1 ; next ; } on && /^\t\t--/ { exit ; } on { print ; }' "$rigHelpMd"
 }
 rigAssert "the operation has its syntax echo, its syntax line and its entry, once each, and in no other form" "$( LC_ALL=C grep -c -x -F -- "echo \"$rigSyntaxLine\" >&2" "$rigHelpInclude" || : ) $( LC_ALL=C grep -c -x -F -- "$rigSyntaxLine" "$rigHelpMd" || : ) $( LC_ALL=C grep -c -x -F -- "$( printf '\t\t%s %s' "$rigOp" "$rigSyntax" )" "$rigHelpMd" || : ) $( LC_ALL=C grep -c -F -- "syntax: DistroAgentsTools.fn.sh $rigOp" "$rigHelpInclude" || : ) $( LC_ALL=C grep -c -F -- "syntax: DistroAgentsTools.fn.sh $rigOp" "$rigHelpMd" || : )" "1 1 1 1 1"
 rigForm="$( rigEntry | LC_ALL=C sed -n -e 's/^[[:space:]]*`\(kill <.*>\)`$/\1/p' )"
@@ -615,8 +615,8 @@ rigFormOf(){ ## row kind -- the form line of that row in the entry
 }
 rigAssert "and the forms of the rows that say what the kill of a session finished" "$( rigFormOf dismiss ) | $( rigFormOf close ) | $( rigFormOf finish )" \
 	"dismiss <session-id> <pending-id> <asker> <outcome> | close <session-id> <spawn-id> <member> <outcome> <item> | finish <session-id> <ended> <dismissed> <closed> <state>"
-rigAssert "and every row this check was given has exactly the fields its form names, each kind its own, and is of one of the four kinds" "$( for rigKind in kill close finish ; do cat "$rigTmp"/out.kept.* 2> /dev/null | LC_ALL=C awk -F'\t' -v wantKind="$rigKind" -v wantFields="$( rigFormOf "$rigKind" | LC_ALL=C awk '{ print NF }' )" '$1 == wantKind { rows++ ; if ( NF != wantFields ) bad++ ; } END { printf "%s:%s ", ( rows > 0 ? "rows" : "none" ), bad + 0 }' ; done ) $( cat "$rigTmp"/out.kept.* 2> /dev/null | LC_ALL=C awk -F'\t' '$1 != "kill" && $1 != "dismiss" && $1 != "close" && $1 != "finish" { other++ } END { print other + 0 }' )" "rows:0 rows:0 rows:0  0"
-rigAssert "the entry names each outcome, the two marks of the record, the reason of the ending and the two signals" "$( for rigWord in ended killed not-ended closed no-process other-host no-spawn-id host-unrecorded killed-by killed-at manager-kill ; do rigEntry | LC_ALL=C grep -c -F -- "\`$rigWord\`" | LC_ALL=C awk '{ printf "%s", ( $1 > 0 ) ? "y" : "n" }' ; done ) $( rigEntry | LC_ALL=C grep -c -w -e 'TERM' -e 'KILL' | LC_ALL=C awk '{ print ( $1 > 0 ) ? "y" : "n" }' )" "yyyyyyyyyyy y"
+rigAssert "and every row this check was given has exactly the fields its form names, each kind its own, and is of one of the four kinds" "$( for rigKind in kill close finish ; do cat "$rigTmp"/out.kept.* 2> /dev/null | LC_ALL=C awk -F'\t' -v wantKind="$rigKind" -v wantFields="$( rigFormOf "$rigKind" | LC_ALL=C awk '{ print NF ; }' )" '$1 == wantKind { rows++ ; if ( NF != wantFields ) bad++ ; } END { printf "%s:%s ", ( rows > 0 ? "rows" : "none" ), bad + 0 ; }' ; done ) $( cat "$rigTmp"/out.kept.* 2> /dev/null | LC_ALL=C awk -F'\t' '$1 != "kill" && $1 != "dismiss" && $1 != "close" && $1 != "finish" { other++ ; } END { print other + 0 ; }' )" "rows:0 rows:0 rows:0  0"
+rigAssert "the entry names each outcome, the two marks of the record, the reason of the ending and the two signals" "$( for rigWord in ended killed not-ended closed no-process other-host no-spawn-id host-unrecorded killed-by killed-at manager-kill ; do rigEntry | LC_ALL=C grep -c -F -- "\`$rigWord\`" | LC_ALL=C awk '{ printf "%s", ( $1 > 0 ) ? "y" : "n" ; }' ; done ) $( rigEntry | LC_ALL=C grep -c -w -e 'TERM' -e 'KILL' | LC_ALL=C awk '{ print ( $1 > 0 ) ? "y" : "n" ; }' )" "yyyyyyyyyyy y"
 rigRun --help-syntax
 rigAssert "--help-syntax prints its line, once" "$rigRc $( LC_ALL=C grep -c -x -F -- "$rigSyntaxLine" "$rigTmp/err" || : )" "0 1"
 
@@ -656,10 +656,10 @@ rigAsked(){ ## pending id, header -- its value in the record of that question, o
 }
 rigStateOf(){ ## session id, further words of the list -- the state its row of the list of sessions reads, `not-listed` where it has none
 	( cd "$rigWs" && env -i MDAT_MANAGER_NOW_MINUTES=99999999999 MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rigSkills" RIG_TMP="$rigTmp" RIG_SCENARIO="$rigTmp" \
-		bash "$rigTool" --manager-session-list ${2:-} ) 2> /dev/null < /dev/null | LC_ALL=C awk -F'\t' -v wantId="$1" '$1 == "session" && $2 == wantId { print $4 ; found = 1 } END { if ( ! found ) print "not-listed" }'
+		bash "$rigTool" --manager-session-list ${2:-} ) 2> /dev/null < /dev/null | LC_ALL=C awk -F'\t' -v wantId="$1" '$1 == "session" && $2 == wantId { print $4 ; found = 1 ; } END { if ( ! found ) print "not-listed" ; }'
 }
 rigRowsOf(){ ## row kind -- the rows of that kind in the last stdout, TAB written as a space, a `/` between them
-	LC_ALL=C awk -F'\t' -v wantKind="$1" '$1 == wantKind { gsub( /\t/, " " ) ; printf "%s%s", ( said++ ? " / " : "" ), $0 }' "$rigTmp/out"
+	LC_ALL=C awk -F'\t' -v wantKind="$1" '$1 == wantKind { gsub( /\t/, " " ) ; printf "%s%s", ( said++ ? " / " : "" ), $0 ; }' "$rigTmp/out"
 }
 rigPosted(){ ## text -- how many bodies posted so far hold it
 	LC_ALL=C grep -c -F -- "$1" "$rigTmp/bodies" 2> /dev/null || :
@@ -676,7 +676,7 @@ rigQuestion fin-wait ; rigAskTwo="$rigPend"
 rigAssert "control: a session whose one record is open and nothing runs behind it reads waiting on the two questions of it that still wait, and is among the active ones" "$( rigStateOf fin-wait ) $( rigStateOf fin-wait --active ) $( rigAsked "$rigAskOne" status ) $( rigAsked "$rigAskTwo" status )" "waiting waiting reply-pending reply-pending"
 rigRun "$rigOp" --session-id fin-wait
 rigAssert "the kill of a session with nothing alive is no refusal: status 0, its run told as it stands, each question dismissed, its record closed, and a last row that sums it: nothing ended, two dismissed, one closed, finished" \
-	"$rigRc $( rigTroublesButPost ) $( rigRowsOf kill ) | $( LC_ALL=C awk -F'\t' '$1 == "dismiss" { gsub( /\t/, " " ) ; print }' "$rigTmp/out" | LC_ALL=C sed -e "s/$rigAskOne/ASK-ONE/" -e "s/$rigAskTwo/ASK-TWO/" | LC_ALL=C sort | LC_ALL=C tr '\n' '/' ) | $( rigRowsOf close ) | $( rigRowsOf finish )" \
+	"$rigRc $( rigTroublesButPost ) $( rigRowsOf kill ) | $( LC_ALL=C awk -F'\t' '$1 == "dismiss" { gsub( /\t/, " " ) ; print ; }' "$rigTmp/out" | LC_ALL=C sed -e "s/$rigAskOne/ASK-ONE/" -e "s/$rigAskTwo/ASK-TWO/" | LC_ALL=C sort | LC_ALL=C tr '\n' '/' ) | $( rigRowsOf close ) | $( rigRowsOf finish )" \
 	"0 0 kill fin-wait fin-wait magic-coordinator closed spawn-started - - | dismiss fin-wait ASK-ONE fin-wait dismissed/dismiss fin-wait ASK-TWO fin-wait dismissed/ | close fin-wait fin-wait magic-coordinator closed - | finish fin-wait 0 2 1 finished"
 rigAssert "each question is withdrawn through the one dismissal of the console: by console:rig, with the reason that its session was killed from the console and by whom, and its trace is in its thread" \
 	"$( rigAsked "$rigAskOne" status ) $( rigAsked "$rigAskTwo" status ) $( rigAsked "$rigAskOne" withdrawn-by ) [$( rigAsked "$rigAskTwo" withdraw-reason )] $( rigPosted 'the session was killed from the console by rig' )" \
@@ -687,7 +687,7 @@ mkdir -p "$rigSp/fin-own"
 printf -- '---\nsession-id: fin-own\nspawn-id: fin-own\ntracking-name: fin-own\nhost: %s\nworkspace: rigws\nowner: magic-coordinator\nstatus: spawn-started\nstarted-at: 2026-10-13 09:40 +0300\nreports-to: %s\ndeath-told: 2026-10-13 09:41 +0300\n---\n\n# Spawn session: fin-own\n' "$rigHost" "$rigConsoleUser" > "$rigSp/fin-own/fin-own.spawn.md"
 rigQuestion fin-own ; rigAskOwn="$rigPend"
 LC_ALL=C sed -e 's/^blocked-on: .*/blocked-on: reply from human-owner/' "$rigAgents/pending/$rigAskOwn.md" > "$rigTmp/own.md" && mv -f "$rigTmp/own.md" "$rigAgents/pending/$rigAskOwn.md"
-LC_ALL=C awk -v want="$rigAskOwn.md" 'BEGIN { OFS = " " } $1 == want { $6 = "reply_from_human-owner" } { print }' "$rigAgents/pending-replies.registry" > "$rigTmp/own.reg" && mv -f "$rigTmp/own.reg" "$rigAgents/pending-replies.registry"
+LC_ALL=C awk -v want="$rigAskOwn.md" 'BEGIN { OFS = " " ; } $1 == want { $6 = "reply_from_human-owner" ; } { print ; }' "$rigAgents/pending-replies.registry" > "$rigTmp/own.reg" && mv -f "$rigTmp/own.reg" "$rigAgents/pending-replies.registry"
 rigRun "$rigOp" --session-id fin-own
 rigAssert "a question waiting on the human-owner is kept by the kill of its session, and says so" \
 	"$( rigRowsOf dismiss | LC_ALL=C sed "s/$rigAskOwn/ASK-OWN/" ) $( rigAsked "$rigAskOwn" status )" "dismiss fin-own ASK-OWN fin-own kept-for-owner reply-pending"
@@ -717,28 +717,28 @@ rigAssert "a running session with a question: its run is ended, its question dis
 rigAssert "its ending is recorded once, and it is told as a run that was killed, which it was" \
 	"$( rigDecisions "$rigData/board/review/dispatch-rig-fin-run.md" "rig dismissed: $rigEndText \\(fin-run\\)" ) $( rigEndings fin-run "ENDING item=dispatch-rig-fin-run kind=dismissed by=rig text=\"$rigEndText\"" ) $( LC_ALL=C grep -F -- 'fin-run' "$rigTmp/bodies" | LC_ALL=C grep -c -F -- 'was killed from the console by rig' ) $( rigAsked "$rigAskRun" status ) $( rigStateOf fin-run )" "1 1 1 withdrawn finished"
 ## NEVER TWICE: a second kill finds nothing left.
-rigPostsBefore="$( LC_ALL=C awk 'END { print NR + 0 }' "$rigTmp/calls" )"
+rigPostsBefore="$( LC_ALL=C awk 'END { print NR + 0 ; }' "$rigTmp/calls" )"
 rigRun "$rigOp" --session-id fin-run
 rigAssert "a second kill of the same session finds nothing left and says so with zeros, status 0: nothing is dismissed, closed, recorded or told a second time" \
-	"$rigRc $( rigRowsOf kill ) | $( rigRowsOf dismiss ) | $( rigRowsOf close ) | $( rigRowsOf finish ) | $( rigDecisions "$rigData/board/review/dispatch-rig-fin-run.md" "rig dismissed: $rigEndText \\(fin-run\\)" ) $(( $( LC_ALL=C awk 'END { print NR + 0 }' "$rigTmp/calls" ) - rigPostsBefore ))" \
+	"$rigRc $( rigRowsOf kill ) | $( rigRowsOf dismiss ) | $( rigRowsOf close ) | $( rigRowsOf finish ) | $( rigDecisions "$rigData/board/review/dispatch-rig-fin-run.md" "rig dismissed: $rigEndText \\(fin-run\\)" ) $(( $( LC_ALL=C awk 'END { print NR + 0 ; }' "$rigTmp/calls" ) - rigPostsBefore ))" \
 	"0 kill fin-run fin-run magic-coordinator closed spawn-ended-without-close - - |  |  | finish fin-run 0 0 0 finished | 1 0"
 ## A FINISHED SESSION with nothing pending.
 rigRec fin-done fin-done fin-done "$rigHost" magic-coordinator spawn-succeeded 43 "resolved-at: 2026-10-13 09:50 +0300"
 rigRun "$rigOp" --session-id fin-done
-rigAssert "a session that is finished with nothing pending answers with its run as it stands and the summing row, zeros, status 0" "$rigRc $( rigRowsOf kill ) | $( rigRowsOf finish ) | $( LC_ALL=C awk 'END { print NR + 0 }' "$rigTmp/out" )" \
+rigAssert "a session that is finished with nothing pending answers with its run as it stands and the summing row, zeros, status 0" "$rigRc $( rigRowsOf kill ) | $( rigRowsOf finish ) | $( LC_ALL=C awk 'END { print NR + 0 ; }' "$rigTmp/out" )" \
 	"0 kill fin-done fin-done magic-coordinator closed spawn-succeeded - - | finish fin-done 0 0 0 finished | 2"
 ## THE PLAN: the same rows, and nothing done.
 rigRec fin-plan fin-plan fin-plan "$rigHost" magic-coordinator spawn-started 44 "spawns: dispatch-rig-fin-plan"
 rigRec fin-plan plan-b fin-plan "$rigHost" keeper-rig spawn-started 45 ""
 rigItem dispatch-rig-fin-plan fin-plan fin-plan ; rigTranscript fin-plan ; rigLive fin-plan
 rigQuestion plan-b ; rigAskPlan="$rigPend"
-rigPostsBefore="$( LC_ALL=C awk 'END { print NR + 0 }' "$rigTmp/calls" )"
+rigPostsBefore="$( LC_ALL=C awk 'END { print NR + 0 ; }' "$rigTmp/calls" )"
 rigRun "$rigOp" --session-id fin-plan --plan
 rigAssert "--plan prints what a kill would do, in the rows a kill prints, and a last row that sums it with the state as it is now: one run to end, one question to dismiss, two records to close" \
 	"$rigRc $( rigTroubles ) $( rigRowsOf kill ) | $( rigRowsOf dismiss | LC_ALL=C sed "s/$rigAskPlan/ASK-PLAN/" ) | $( rigRowsOf close ) | $( rigRowsOf finish )" \
 	"0 0 kill fin-plan fin-plan magic-coordinator would-end spawn-started $( rigPid fin-plan ) - / kill fin-plan plan-b keeper-rig no-process spawn-started - - | dismiss fin-plan ASK-PLAN plan-b would-dismiss | close fin-plan fin-plan magic-coordinator would-close - / close fin-plan plan-b keeper-rig would-close - | finish fin-plan 1 1 2 running"
 rigAssert "and does nothing: the run lives, the question waits, both records are open and unmarked, nothing was posted" \
-	"$( rigAlive fin-plan ) $( rigAsked "$rigAskPlan" status ) $( rigHeader "$rigSp/fin-plan/fin-plan.spawn.md" status ) $( rigHeader "$rigSp/fin-plan/plan-b.spawn.md" status ) [$( rigHeader "$rigSp/fin-plan/fin-plan.spawn.md" killed-by )] $(( $( LC_ALL=C awk 'END { print NR + 0 }' "$rigTmp/calls" ) - rigPostsBefore )) $( rigStateOf fin-plan )" \
+	"$( rigAlive fin-plan ) $( rigAsked "$rigAskPlan" status ) $( rigHeader "$rigSp/fin-plan/fin-plan.spawn.md" status ) $( rigHeader "$rigSp/fin-plan/plan-b.spawn.md" status ) [$( rigHeader "$rigSp/fin-plan/fin-plan.spawn.md" killed-by )] $(( $( LC_ALL=C awk 'END { print NR + 0 ; }' "$rigTmp/calls" ) - rigPostsBefore )) $( rigStateOf fin-plan )" \
 	"1 reply-pending spawn-started spawn-started [] 0 running"
 ## ONE RUN ALONE: as before, and the questions that very run asked are dismissed with it.
 rigQuestion fin-plan ; rigAskFounder="$rigPend"
@@ -746,14 +746,14 @@ rigRec fin-plan plan-c fin-plan "$rigHost" keeper-rig spawn-started 46 "" ; rigL
 rigQuestion plan-c ; rigAskPart="$rigPend"
 rigRun "$rigOp" --session-id plan-c --run
 rigAssert "the kill of one run ends that run and dismisses the questions that very run asked, with the reason that the run that asked was killed; no record is closed and no sum is printed" \
-	"$rigRc $( rigRowsOf kill | LC_ALL=C awk '{ print $2, $3, $5 }' ) | $( rigRowsOf dismiss | LC_ALL=C sed "s/$rigAskPart/ASK-PART/" ) | $( rigRowsOf close ) | $( rigRowsOf finish ) | [$( rigAsked "$rigAskPart" withdraw-reason )]" \
+	"$rigRc $( rigRowsOf kill | LC_ALL=C awk '{ print $2, $3, $5 ; }' ) | $( rigRowsOf dismiss | LC_ALL=C sed "s/$rigAskPart/ASK-PART/" ) | $( rigRowsOf close ) | $( rigRowsOf finish ) | [$( rigAsked "$rigAskPart" withdraw-reason )]" \
 	"0 fin-plan plan-c ended | dismiss fin-plan ASK-PART plan-c dismissed |  |  | [the run that asked it was killed from the console by rig]"
 rigAssert "the other runs of its session and their questions are as they were: the founder lives, its question and that of the run with no process wait, and the record of the killed run is left open" \
 	"$( rigAlive fin-plan ) $( rigAsked "$rigAskFounder" status ) $( rigAsked "$rigAskPlan" status ) $( rigHeader "$rigSp/fin-plan/plan-c.spawn.md" status ) $( rigStateOf fin-plan )" "1 reply-pending reply-pending spawn-started running"
 rigRun "$rigOp" --session-id fin-plan
 rigAssert "and the kill of that whole session then ends its founder, dismisses the two questions that are left, closes its three records and leaves it finished" \
 	"$rigRc $( rigRowsOf finish ) $( rigAsked "$rigAskFounder" status ) $( rigAsked "$rigAskPlan" status ) $( rigStateOf fin-plan ) $( rigStateOf fin-plan --active )" "0 finish fin-plan 1 2 3 finished withdrawn withdrawn finished not-listed"
-rigAssert "every row of what a kill finished has the fields its form names: the rows of the questions it dismissed too" "$( cat "$rigTmp"/out.kept.* 2> /dev/null | LC_ALL=C awk -F'\t' -v wantFields="$( rigFormOf dismiss | LC_ALL=C awk '{ print NF }' )" '$1 == "dismiss" { rows++ ; if ( NF != wantFields ) bad++ ; } END { printf "%s:%s", ( rows > 0 ? "rows" : "none" ), bad + 0 }' )" "rows:0"
+rigAssert "every row of what a kill finished has the fields its form names: the rows of the questions it dismissed too" "$( cat "$rigTmp"/out.kept.* 2> /dev/null | LC_ALL=C awk -F'\t' -v wantFields="$( rigFormOf dismiss | LC_ALL=C awk '{ print NF ; }' )" '$1 == "dismiss" { rows++ ; if ( NF != wantFields ) bad++ ; } END { printf "%s:%s", ( rows > 0 ? "rows" : "none" ), bad + 0 ; }' )" "rows:0"
 
 echo "-- 18. a run with no spawn-id in its record is finished like any other: closed, or the call says it could not --"
 rigRecBare(){ ## sandbox folder, file stem, session id, owner, started-at (a date and a time) -- the record of a run written with no spawn-id: it is found by its session
@@ -796,7 +796,7 @@ rigRec chk-ns chk-ns chk-ns "$rigHost" magic-coordinator spawn-succeeded 20 "res
 rigRec chk-ns chk-b chk-ns "$rigHost" magic-devops spawn-succeeded 21 "resolved-at: 2026-10-13 09:41 +0300"
 printf -- '- [x] an item done\n- [ ] an item not yet\n' > "$rigSp/chk-ns/magic-coordinator.checklist.md"
 rigAssert "control: a session whose records are all closed, with a checklist in its folder, reads finished, and is not among the active ones" "$( rigStateOf chk-ns ) $( rigStateOf chk-ns --active )" "finished not-listed"
-rigAssert "the checklist is no run of the session: its list names the two runs of the records and no other" "$( cd "$rigWs" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rigSkills" RIG_TMP="$rigTmp" RIG_SCENARIO="$rigTmp" bash "$rigTool" --manager-session-list 2> /dev/null < /dev/null | LC_ALL=C awk -F'\t' '$1 == "session" && $2 == "chk-ns" { print $7 }' )" "2"
+rigAssert "the checklist is no run of the session: its list names the two runs of the records and no other" "$( cd "$rigWs" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rigSkills" RIG_TMP="$rigTmp" RIG_SCENARIO="$rigTmp" bash "$rigTool" --manager-session-list 2> /dev/null < /dev/null | LC_ALL=C awk -F'\t' '$1 == "session" && $2 == "chk-ns" { print $7 ; }' )" "2"
 rigRun "$rigOp" --session-id chk-ns
 rigAssert "the kill of it ends well: status 0 and nothing else said, nothing ended, dismissed or closed, the session finished" \
 	"$rigRc $( rigTroubles ) | $( rigRowsOf close ) | $( rigRowsOf finish )" "0 0 |  | finish chk-ns 0 0 0 finished"
@@ -816,8 +816,8 @@ rigRec old-ns old-b old-ns "$rigHost" magic-devops spawn-succeeded 24 "resolved-
 printf -- '- [x] an item done\n' > "$rigSp/old-ns/magic-coordinator.checklist.md"
 rigStateOf old-ns > /dev/null
 printf 'old-ns - - - - - - - - - - - - - - -\n' >> "$rigAgents/spawned-sessions.registry"
-rigAssert "control: the registry holds the old row of the checklist, a run with no session-id" "$( LC_ALL=C awk '$1 == "old-ns" && $2 == "-" { rows++ } END { print rows + 0 }' "$rigAgents/spawned-sessions.registry" )" "1"
-rigAssert "the session reads finished at once, and the old row is gone from the registry" "$( rigStateOf old-ns ) $( LC_ALL=C awk '$1 == "old-ns" && $2 == "-" { rows++ } END { print rows + 0 }' "$rigAgents/spawned-sessions.registry" )" "finished 0"
+rigAssert "control: the registry holds the old row of the checklist, a run with no session-id" "$( LC_ALL=C awk '$1 == "old-ns" && $2 == "-" { rows++ ; } END { print rows + 0 ; }' "$rigAgents/spawned-sessions.registry" )" "1"
+rigAssert "the session reads finished at once, and the old row is gone from the registry" "$( rigStateOf old-ns ) $( LC_ALL=C awk '$1 == "old-ns" && $2 == "-" { rows++ ; } END { print rows + 0 ; }' "$rigAgents/spawned-sessions.registry" )" "finished 0"
 printf 'old-ns - - - - - - - - - - - - - - -\n' >> "$rigAgents/spawned-sessions.registry"
 rigRun "$rigOp" --session-id old-ns
 rigAssert "its kill, on the registry as the earlier build left it: status 0 and nothing else said, the sum of zeros, finished" \
@@ -831,7 +831,7 @@ LC_ALL=C sed -i.bak "s/^reports-to: .*/reports-to: keeper-other/" "$rigSp/own-ns
 rigLive own-run
 rigCallsBefore="$( wc -l < "$rigTmp/calls" | LC_ALL=C tr -d ' ' )"
 rigRun "$rigOp" --session-id own-ns
-rigAssert "a console mapped to no owner ends it at the first try: status 0, the run ended, its process gone" "$rigRc $( rigRowOf own-run | LC_ALL=C awk '{ print $5 }' ) $( rigAlive own-run )" "0 ended 0"
+rigAssert "a console mapped to no owner ends it at the first try: status 0, the run ended, its process gone" "$rigRc $( rigRowOf own-run | LC_ALL=C awk '{ print $5 ; }' ) $( rigAlive own-run )" "0 ended 0"
 rigAssert "and nobody was asked: no request was opened, nothing said PENDING, no Slack call was made" "$( LC_ALL=C grep -c 'PENDING' "$rigTmp/out" || : ) $(( $( wc -l < "$rigTmp/calls" | LC_ALL=C tr -d ' ' ) - rigCallsBefore ))" "0 0"
 
 echo "-- 20. a failed run with no process left is closed by the kill, and reads finished --"
@@ -844,11 +844,11 @@ rigRun "$rigOp" --session-id fail-ns
 rigAssert "its kill closes the run: status 0, nothing else said, its row closed, and the sum finished" \
 	"$rigRc $( rigTroubles ) $( rigRowsOf kill ) | $( rigRowsOf finish )" "0 0 kill fail-ns fail-ns magic-coordinator closed spawn-failed - - | finish fail-ns 0 0 0 finished"
 rigAssert "control/closed of the session names the run, by whom and when, and its record is marked" \
-	"$( LC_ALL=C awk '{ print $1, $2 }' "$rigStores/fail-ns/control/closed" 2> /dev/null ) $( LC_ALL=C awk '{ $1 = "" ; $2 = "" ; sub( /^  /, "" ) ; print }' "$rigStores/fail-ns/control/closed" 2> /dev/null | LC_ALL=C grep -c -x -E "$rigStamped" ) $( rigHeader "$rigSp/fail-ns/fail-ns.spawn.md" killed-by )" "fail-ns rig 1 rig"
+	"$( LC_ALL=C awk '{ print $1, $2 ; }' "$rigStores/fail-ns/control/closed" 2> /dev/null ) $( LC_ALL=C awk '{ $1 = "" ; $2 = "" ; sub( /^  /, "" ) ; print ; }' "$rigStores/fail-ns/control/closed" 2> /dev/null | LC_ALL=C grep -c -x -E "$rigStamped" ) $( rigHeader "$rigSp/fail-ns/fail-ns.spawn.md" killed-by )" "fail-ns rig 1 rig"
 rigAssert "the session reads finished, and has left the active ones" "$( rigStateOf fail-ns ) $( rigStateOf fail-ns --active )" "finished not-listed"
 rigRun "$rigOp" --session-id fail-ns
 rigAssert "a second kill names it no second time and marks it no second time" \
-	"$rigRc $( rigRowsOf kill ) | $( LC_ALL=C awk 'END { print NR + 0 }' "$rigStores/fail-ns/control/closed" ) $( LC_ALL=C grep -c '^killed-by: ' "$rigSp/fail-ns/fail-ns.spawn.md" ) $( rigStateOf fail-ns )" "0 kill fail-ns fail-ns magic-coordinator closed spawn-failed - - | 1 1 finished"
+	"$rigRc $( rigRowsOf kill ) | $( LC_ALL=C awk 'END { print NR + 0 ; }' "$rigStores/fail-ns/control/closed" ) $( LC_ALL=C grep -c '^killed-by: ' "$rigSp/fail-ns/fail-ns.spawn.md" ) $( rigStateOf fail-ns )" "0 kill fail-ns fail-ns magic-coordinator closed spawn-failed - - | 1 1 finished"
 
 if [ "$rigFails" -ne 0 ] ; then
 	echo "⛔ MANAGER SESSION KILL CHECK FAILED: $rigFails of $(( rigPasses + rigFails )) assertion(s)" >&2 ; exit 1

@@ -28,7 +28,7 @@ SolidNegativeKnown(){ ## word
 
 ## Kept: its body is a pipeline, not one simple command.
 SolidNegativePipe(){ ## file
-	LC_ALL=C grep -c . "$1" | LC_ALL=C awk '{ print $1 }'
+	LC_ALL=C grep -c . "$1" | LC_ALL=C awk '{ print $1 ; }'
 }
 
 ## Kept: two statements.

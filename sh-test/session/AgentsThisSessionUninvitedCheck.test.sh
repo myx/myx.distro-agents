@@ -89,7 +89,7 @@ rigCall(){ ## name, arguments json, role
 		python3 -I -B "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-exec.py" --alarm 120 -- bash "$rigHarness" --intern-tool ThisSession ) > "$rigOut" 2> "$rigErr" || callRc=$?
 	rigRc="$callRc"
 }
-rigLines(){ LC_ALL=C awk 'END { print NR + 0 }' "$rigOut" ; }
+rigLines(){ LC_ALL=C awk 'END { print NR + 0 ; }' "$rigOut" ; }
 ## The rig's origin stands outside the rig's workspace, so SystemContext announces itself on its own line
 ## (myx.distro-system sh-lib/SystemContext.include). That line is the rig's, and production has none: the origin
 ## stands under the workspace there. Everything else on stdout is the operation's own.
@@ -135,7 +135,7 @@ rigCall list-4 '{"operation":"get-uninvited-participants"}' nosession
 rigAssert "refused, with ERROR, and no list in its place"           "$( rigOutHolds 'ERROR:' ):$( rigOutHolds 'rig-member' )" "1:0"
 
 echo "-- 5. it only reads --"
-rigAssert "no Slack call was made, and nothing was posted"          "$( LC_ALL=C awk 'END { print NR + 0 }' "$rigScn/calls" ):$( [ -f "$rigScn/posts" ] && printf posted || printf none )" "0:none"
+rigAssert "no Slack call was made, and nothing was posted"          "$( LC_ALL=C awk 'END { print NR + 0 ; }' "$rigScn/calls" ):$( [ -f "$rigScn/posts" ] && printf posted || printf none )" "0:none"
 
 if [ "$rigFailCount" != 0 ] ; then
 	printf 'RESULT: FAIL (%s passed, %s failed)\n' "$rigPassCount" "$rigFailCount"

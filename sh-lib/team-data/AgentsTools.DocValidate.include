@@ -103,7 +103,7 @@ AgentsToolsDocValidateVaultTypes(){
 ## all one word (`epic-blueprint`), so the leading token (`AgentsToolsItemNameType`) is not the type word.
 AgentsToolsDocValidateVaultItemWord(){ ## item file name
 	local itemWord
-	itemWord="$( AgentsToolsDocValidateVaultTypes | LC_ALL=C awk -F'\t' -v itemName="$1" 'index( itemName, $1 "-" ) == 1 && length( $1 ) > length( best ) { best = $1 } END { print best ; }' )"
+	itemWord="$( AgentsToolsDocValidateVaultTypes | LC_ALL=C awk -F'\t' -v itemName="$1" 'index( itemName, $1 "-" ) == 1 && length( $1 ) > length( best ) { best = $1 ; } END { print best ; }' )"
 	[ -n "$itemWord" ] || return 1
 	printf '%s\n' "$itemWord"
 }
@@ -226,7 +226,7 @@ AgentsToolsDocValidateGate(){ ## op, label, store, name, before, mode, rules
 	fi
 	[ -z "$gateContract" ] || gateAfterRows="$gateAfterRows$( printf '%s\n' "$gateAfter" | AgentsToolsDocValidateTypeRows "$gateContract" "$gateName" | LC_ALL=C cut -f 2- )"
 	if [ -n "$gateLogSkip" ] && [ -n "$gateAfterRows" ] ; then
-		gateAfterRows="$( printf '%s' "$gateAfterRows" | LC_ALL=C awk -v skip="$gateLogSkip" 'BEGIN { n = split( skip, s, " " ) ; for ( i = 1 ; i <= n ; i++ ) drop[s[i]]++ } !( $1 in drop )' )"
+		gateAfterRows="$( printf '%s' "$gateAfterRows" | LC_ALL=C awk -v skip="$gateLogSkip" 'BEGIN { n = split( skip, s, " " ) ; for ( i = 1 ; i <= n ; i++ ) drop[s[i]]++ ; } !( $1 in drop )' )"
 	fi
 	## The faults the item has now, by rule and text.
 	gateBeforeIds=""

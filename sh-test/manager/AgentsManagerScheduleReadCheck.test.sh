@@ -31,10 +31,10 @@ rigRead(){ ## name, optional arguments -> the output in $rigTmp/<name>.out, the 
 	( cd "$rigTmp/$1" && env -u MDAT_SPAWN_AGENT -u MDAT_SPAWN_SESSION_ID -u CLAUDE_CODE_SESSION_ID MMDAPP="$rigTmp/$1" MDLT_ORIGIN="$MDLT_ORIGIN" bash "$rigTool" --manager-schedule-read "${@:2}" ) > "$rigTmp/$1.out" 2> "$rigTmp/$1.err" || rigRc=$?
 }
 rigCell(){ ## name, weekday, hour -> the flags of that cell
-	LC_ALL=C awk -F'\t' -v day="$2" -v hour="$3" '$1 == "cell" && $2 == day && $3 == hour { print $4 }' "$rigTmp/$1.out"
+	LC_ALL=C awk -F'\t' -v day="$2" -v hour="$3" '$1 == "cell" && $2 == day && $3 == hour { print $4 ; }' "$rigTmp/$1.out"
 }
 rigRow(){ ## name, row name, second field -> that row's line
-	LC_ALL=C awk -F'\t' -v row="$2" -v key="${3:-}" '$1 == row && ( key == "" || $2 == key ) { print ; exit }' "$rigTmp/$1.out"
+	LC_ALL=C awk -F'\t' -v row="$2" -v key="${3:-}" '$1 == row && ( key == "" || $2 == key ) { print ; exit ; }' "$rigTmp/$1.out"
 }
 
 rigNow="$( date +%s )"
@@ -47,14 +47,14 @@ rigBefore="$( find "$rigTmp/set" -type f | LC_ALL=C sort | xargs cksum )"
 rigRead set
 rigAssert "it ends 0, and its stdout is rows only" "$rigRc:$( LC_ALL=C grep -c -v -E '^(now|flag|switch|cell)	' "$rigTmp/set.out" )" "0:0"
 rigAssert "the rows are now, eight flags and the vacation entry row, one switch and 168 cells, in that order of kinds" \
-	"$( LC_ALL=C awk -F'\t' '{ if ( $1 != last ) { kinds = kinds ( kinds == "" ? "" : " " ) $1 ; last = $1 } count[$1]++ } END { print kinds ":" count["now"] ":" count["flag"] ":" count["switch"] ":" count["cell"] }' "$rigTmp/set.out" )" \
+	"$( LC_ALL=C awk -F'\t' '{ if ( $1 != last ) { kinds = kinds ( kinds == "" ? "" : " " ) $1 ; last = $1 ; } count[$1]++ ; } END { print kinds ":" count["now"] ":" count["flag"] ":" count["switch"] ":" count["cell"] ; }' "$rigTmp/set.out" )" \
 	"now flag switch cell:1:9:1:168"
-rigAssert "the flags are worktime, weekend, holidays, holding, emergency, overtime, learning, supervised, then the vacation entry row" "$( LC_ALL=C awk -F'\t' '$1 == "flag" { printf "%s ", $2 }' "$rigTmp/set.out" )" "worktime weekend holidays holding emergency overtime learning supervised vacation "
+rigAssert "the flags are worktime, weekend, holidays, holding, emergency, overtime, learning, supervised, then the vacation entry row" "$( LC_ALL=C awk -F'\t' '$1 == "flag" { printf "%s ", $2 ; }' "$rigTmp/set.out" )" "worktime weekend holidays holding emergency overtime learning supervised vacation "
 rigAssert "now names the zone the settings give" "$( rigRow set now | LC_ALL=C cut -f5 )" "UTC"
 rigAssert "an override with a TTL reads yes with its seconds left" \
 	"$( rigRow set flag emergency | LC_ALL=C cut -f3 ):$( rigRow set flag emergency | LC_ALL=C cut -f4 | LC_ALL=C grep -c 'seconds left' )" "yes:1"
 rigAssert "the nearest change is the end of the emergency, within its 90 seconds" \
-	"$( rigRow set switch | LC_ALL=C awk -F'\t' '{ if ( $3 == "emergency-ends" && $2 >= 1 && $2 <= 90 ) print "emergency-ends"; else print $0 }' )" "emergency-ends"
+	"$( rigRow set switch | LC_ALL=C awk -F'\t' '{ if ( $3 == "emergency-ends" && $2 >= 1 && $2 <= 90 ) print "emergency-ends"; else print $0 ; }' )" "emergency-ends"
 rigAssert "a work day: nothing before 09, worktime from 09 to 17, nothing from 18" "$( rigCell set mon 08 ):$( rigCell set mon 09 ):$( rigCell set mon 17 ):$( rigCell set mon 18 )" "-:worktime:worktime:-"
 rigAssert "a weekend day holds weekend in every hour" "$( rigCell set sat 00 ):$( rigCell set sun 23 )" "weekend:weekend"
 rigNew mem "MDAT_SCHEDULE_TIMEZONE=UTC
@@ -66,20 +66,20 @@ rigAssert "the vacation entry row says it is set per member" "$( rigRow mem flag
 rigAssert "a member whose vacation is set has a row of its own, yes with no end" "$( rigRow mem flag vacation:magic-tester | LC_ALL=C cut -f3,4 | LC_ALL=C tr '\t' ' ' )" "yes -"
 rigAssert "a member whose overtime has an end reads yes with its seconds left" \
 	"$( rigRow mem flag overtime:magic-tester | LC_ALL=C cut -f3 ):$( rigRow mem flag overtime:magic-tester | LC_ALL=C cut -f4 | LC_ALL=C grep -c 'seconds left' )" "yes:1"
-rigAssert "a member with no flag set has no row" "$( LC_ALL=C awk -F'\t' '$1 == "flag" && $2 ~ /:magic-developer$/ { count++ } END { print count + 0 }' "$rigTmp/mem.out" )" "0"
+rigAssert "a member with no flag set has no row" "$( LC_ALL=C awk -F'\t' '$1 == "flag" && $2 ~ /:magic-developer$/ { count++ ; } END { print count + 0 ; }' "$rigTmp/mem.out" )" "0"
 rigNew ot "MDAT_SCHEDULE_TIMEZONE=UTC
 MDAT_SCHEDULE_OVERTIME=on
 "
 rigRead ot
 rigAssert "an override with no end reads yes, and is in the hours to come, the end of the week too" \
-	"$( rigRow ot flag overtime | LC_ALL=C cut -f3 ):$( LC_ALL=C awk -F'\t' '$1 == "cell" && $4 ~ /overtime/ { count++ } END { print ( count > 140 ? "most-cells" : count ) }' "$rigTmp/ot.out" )" "yes:most-cells"
+	"$( rigRow ot flag overtime | LC_ALL=C cut -f3 ):$( LC_ALL=C awk -F'\t' '$1 == "cell" && $4 ~ /overtime/ { count++ ; } END { print ( count > 140 ? "most-cells" : count ) ; }' "$rigTmp/ot.out" )" "yes:most-cells"
 rigAssert "nothing was written to the workspace" "$( find "$rigTmp/set" -type f | LC_ALL=C sort | xargs cksum )" "$rigBefore"
 
 rigNew day "MDAT_SCHEDULE_TIMEZONE=UTC
 MDAT_SCHEDULE_HOLIDAYS=on
 "
 rigRead day
-rigToday="$( LC_ALL=C awk -F'\t' '$1 == "now" { print $3 }' "$rigTmp/day.out" )"
+rigToday="$( LC_ALL=C awk -F'\t' '$1 == "now" { print $3 ; }' "$rigTmp/day.out" )"
 rigOther=""
 for rigName in mon tue wed thu fri ; do [ "$rigName" = "$rigToday" ] || { rigOther="$rigName" ; break ; } done
 rigAssert "a holiday: worktime reads no (holiday), and the work days to come hold no worktime" \

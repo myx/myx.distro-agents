@@ -48,7 +48,7 @@ rigView(){ ## the registry's agent view, and its session view
 		bash -c '. "$1" ; AgentsToolsRegistryRenderSpawnedSessions "$2"' rig "$rigPkg/sh-lib/session/AgentsTools.RegistrySpawnedSessions.include" "$1" 2>&1
 }
 rigStateOf(){ ## view output, spawn id -- the state column of that row
-	printf '%s\n' "$1" | LC_ALL=C awk -v want="$2" '$8 == want { print $13 }' | head -1
+	printf '%s\n' "$1" | LC_ALL=C awk -v want="$2" '$8 == want { print $13 ; }' | head -1
 }
 
 echo "-- 1. a parked run's record reads parked in the view (S27.2) --"
@@ -58,7 +58,7 @@ rigRecord rig-done rig-done-$$ spawn-succeeded
 rigOut="$( rigView agents )"
 rigAssert "the parked row reads parked"                   "$( rigStateOf "$rigOut" "rig-parked-$$" )" "parked"
 rigAssert "the settled row still reads finished"          "$( rigStateOf "$rigOut" "rig-done-$$" )" "finished"
-rigAssert "the session view reads it too"                 "$( rigView sessions | LC_ALL=C awk 'index( $0, "parked" ) { found++ } END { print found + 0 }' )" 1
+rigAssert "the session view reads it too"                 "$( rigView sessions | LC_ALL=C awk 'index( $0, "parked" ) { found++ ; } END { print found + 0 ; }' )" 1
 
 echo "-- 2. a control: the mark taken away leaves it finished again --"
 rm -f "$rigWs/.local/agents/sessions/rig-parked-$$/parked"

@@ -109,7 +109,7 @@ rigBroken="$( rigGood | LC_ALL=C sed '/^requires-session-kind: coworking$/d' )"
 
 ## A document text, JSON-escaped: every real newline becomes the two characters \n.
 rigJson(){ ## text
-	printf '%s' "$1" | LC_ALL=C awk '{ if (NR>1) printf "\\n" ; gsub(/\\/,"\\\\") ; gsub(/"/,"\\\"") ; printf "%s", $0 }'
+	printf '%s' "$1" | LC_ALL=C awk '{ if (NR>1) printf "\\n" ; gsub(/\\/,"\\\\") ; gsub(/"/,"\\\"") ; printf "%s", $0 ; }'
 }
 
 rigServer(){ ## id -- run the payload on stdin through the served harness
@@ -127,7 +127,7 @@ rigEditArgs(){ ## path, old, new
 }
 
 echo "-- 1. the registry names routine, refusing, with its contract present --"
-rigAssert "registry row" "$( LC_ALL=C awk -F'\t' '$1 == "routine" && $3 == "refusing" { print $2 ":" $4 }' "$rigRegistry" )" ".routine.md:routine.contract.format.md"
+rigAssert "registry row" "$( LC_ALL=C awk -F'\t' '$1 == "routine" && $3 == "refusing" { print $2 ":" $4 ; }' "$rigRegistry" )" ".routine.md:routine.contract.format.md"
 rigAssert "contract file present" "$( [ -f "$rigContract" ] && printf yes || printf no )" yes
 
 echo "-- 2. a Write that introduces a required-key fault is refused, the file unchanged --"

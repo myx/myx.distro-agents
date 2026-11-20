@@ -61,7 +61,7 @@ AgentsToolsCommsSlackSearchAnswer(){
 				fi
 				grandMatches=$(( grandMatches + pageInRange ))
 				grandReplies=$(( grandReplies + pageReplies ))
-				if [ -n "$pageOldest" ] && [ "$( LC_ALL=C awk -v a="$pageOldest" -v b="$cutoffEpoch" 'BEGIN{print (a+0 < b+0) ? "below" : "above"}' )" = "below" ] ; then
+				if [ -n "$pageOldest" ] && [ "$( LC_ALL=C awk -v a="$pageOldest" -v b="$cutoffEpoch" 'BEGIN{print (a+0 < b+0) ? "below" : "above" ; }' )" = "below" ] ; then
 					break
 				fi
 				if [ -z "$pagesTotal" ] || [ "$pageNum" -ge "$pagesTotal" ] ; then

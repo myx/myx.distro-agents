@@ -56,5 +56,5 @@ printf 'SWEEP_TIMING: rc=%s seconds=%s calls=%s mdat-left=%s (latency %ss, %s DM
 	"$instRc" "$(( instEnd - instStart ))" "$( wc -l < "$instTmp/calls.log" 2>/dev/null | tr -d ' ' )" "$instLeft" \
 	"$instLatency" "$instDms" "$instClients"
 ## The calls by Slack method, most frequent first: where the time went.
-[ ! -f "$instTmp/calls.log" ] || LC_ALL=C awk '{ n[$2]++ } END { for (m in n) printf("SWEEP_CALLS: %5d %s\n", n[m], m) }' "$instTmp/calls.log" | LC_ALL=C sort -k2,2nr -k3
+[ ! -f "$instTmp/calls.log" ] || LC_ALL=C awk '{ n[$2]++ ; } END { for (m in n) printf("SWEEP_CALLS: %5d %s\n", n[m], m) ; }' "$instTmp/calls.log" | LC_ALL=C sort -k2,2nr -k3
 [ -z "${INST_KEEP:-}" ] || { mkdir -p "$INST_KEEP" && cp "$instTmp/out" "$instTmp/err" "$INST_KEEP/" 2>/dev/null ; }

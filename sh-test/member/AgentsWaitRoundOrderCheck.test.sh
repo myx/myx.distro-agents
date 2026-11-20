@@ -87,7 +87,7 @@ rigCall(){ ## name, bound, sources... -- one Wait of a session of its own
 }
 rigSources(){ LC_ALL=C sed -n 's/^# sources: //p' "$rigTmp/$1.out" | head -1 ; }
 rigIndexIn(){ ## name, source -- where a source stands in the reported order, 1-based, 0 when absent
-	rigSources "$1" | LC_ALL=C tr ' ' '\n' | LC_ALL=C awk -v want="$2" '$0 == want { print n + 1 ; exit } { n++ }'
+	rigSources "$1" | LC_ALL=C tr ' ' '\n' | LC_ALL=C awk -v want="$2" '$0 == want { print n + 1 ; exit ; } { n++ ; }'
 }
 rigCallsOf(){ LC_ALL=C grep -c -F -- "$2" "$rigScenario/calls.log" 2> /dev/null || : ; }
 

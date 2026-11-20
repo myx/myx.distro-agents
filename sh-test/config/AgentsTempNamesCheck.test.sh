@@ -206,7 +206,7 @@ rigAssert "control: the shell files of the package are read, the console templat
 	"$( [ "$( wc -l < "$rigTmp/shell-files" | LC_ALL=C tr -d ' ' )" -ge 100 ] && echo many ) $( LC_ALL=C grep -c -x -F -e 'sh-lib/manager/AgentsConsoleShellScript.template.sh' -e 'sh-scripts/DistroAgentsTools.fn.sh' -e 'builders/source-prepare/1201-agents-indices.sh' "$rigTmp/shell-files" || : )" "many 3"
 rigGuardOut="$( cd "$rigPackage" && rigGuard "$rigTmp/list" $( cat "$rigTmp/shell-files" ) )"
 rigAssert "every \$\$ of the shell files is on the list, and every line of the list stands in the code as often as it says (a new temp name is made by mktemp, or listed with the reason two writers of one shell cannot share it)" "${rigGuardOut:-none}" "none"
-rigAssert "every line of the list gives its reason" "$( LC_ALL=C awk -F'|' 'length( $4 ) < 20 { short++ } END { print NR " lines, " short + 0 " without a reason" }' "$rigTmp/list" )" "$( wc -l < "$rigTmp/list" | LC_ALL=C tr -d ' ' ) lines, 0 without a reason"
+rigAssert "every line of the list gives its reason" "$( LC_ALL=C awk -F'|' 'length( $4 ) < 20 { short++ ; } END { print NR " lines, " short + 0 " without a reason" ; }' "$rigTmp/list" )" "$( wc -l < "$rigTmp/list" | LC_ALL=C tr -d ' ' ) lines, 0 without a reason"
 ## control: the reader does find a new name, takes a listed one, and reads no comment and no escaped dollar
 mkdir -p "$rigTmp/probe/sh-lib"
 printf '%s\n' '	## a comment that says $$ is not read' '	echo "an escaped dollar before a name: \$$name"' '	probeOld="$probeFile.tmp.$$"' '	probeNew="$MMDAPP/.local/temp/mdat-probe-new.$$"' > "$rigTmp/probe/sh-lib/Probe.include"
@@ -263,7 +263,7 @@ rigPair(){ ## scenario folder, the temp name held, script -- then optional NAME=
 }
 ## `<shells> <calls held together> <rc of one> <rc of the other>`: one shell for both, both held at the read, both ended 0.
 rigPairMet(){ ## scenario folder
-	printf '%s %s %s %s' "$( cat "$1/a.shell" "$1/b.shell" 2> /dev/null | LC_ALL=C sort -u | LC_ALL=C awk 'END { print NR + 0 }' )" \
+	printf '%s %s %s %s' "$( cat "$1/a.shell" "$1/b.shell" 2> /dev/null | LC_ALL=C sort -u | LC_ALL=C awk 'END { print NR + 0 ; }' )" \
 		"$( ls "$1/hold" 2> /dev/null | LC_ALL=C grep -c '^arrived\.' || : )" "$( cat "$1/a.rc" 2> /dev/null )" "$( cat "$1/b.rc" 2> /dev/null )"
 }
 rigLeft(){ ## name -- how many temp files of that name are left in the workspace
@@ -287,7 +287,7 @@ rigOwnerInboxWrite rig-member "note-rig-alpha.md" -- '---\ntype: note\n---\n\n# 
 rigOwnerInboxWrite rig-member "note-rig-beta.md" -- '---\ntype: note\n---\n\n# Rig note beta\n'
 rigPair "$rigTmp/inbox" mdat-inbox-to-processed-headers "$( rigCall a 'DistroAgentsTools --intern-op-inbox-to-processed rig-member note-rig-alpha.md --header:upsert:rig-word:alpha' ; rigCall b 'DistroAgentsTools --intern-op-inbox-to-processed rig-member note-rig-beta.md --header:upsert:rig-word:beta' ; echo wait )"
 rigAssert "control: both ran in subshells of one shell, stood at the read of their header changes together, and ended 0" "$( rigPairMet "$rigTmp/inbox" )" "1 2 0 0"
-rigAssert "each item carries its own change and is marked" "$( rigField "$rigData/inboxes/rig-member/processed/note-rig-alpha.md" rig-word ) $( rigField "$rigData/inboxes/rig-member/processed/note-rig-beta.md" rig-word ) $( LC_ALL=C grep -l '^processed-at: ' "$rigData/inboxes/rig-member/processed/note-rig-alpha.md" "$rigData/inboxes/rig-member/processed/note-rig-beta.md" 2> /dev/null | LC_ALL=C awk 'END { print NR + 0 }' )" "alpha beta 2"
+rigAssert "each item carries its own change and is marked" "$( rigField "$rigData/inboxes/rig-member/processed/note-rig-alpha.md" rig-word ) $( rigField "$rigData/inboxes/rig-member/processed/note-rig-beta.md" rig-word ) $( LC_ALL=C grep -l '^processed-at: ' "$rigData/inboxes/rig-member/processed/note-rig-alpha.md" "$rigData/inboxes/rig-member/processed/note-rig-beta.md" 2> /dev/null | LC_ALL=C awk 'END { print NR + 0 ; }' )" "alpha beta 2"
 rigAssert "and no temp file is left" "$( rigLeft mdat-inbox-to-processed-headers )" "0"
 
 echo "-- 3c. two new inbox items at once --"
@@ -344,7 +344,7 @@ rigTrack="$rigTmp/track" ; mkdir -p "$rigTrack/ws/.local/agents/sessions" "$rigT
 	( rigTrackTs=2222.000002 ; printf '%s\n' "$$" > "$rigTrack/b.shell" ; AgentsToolsEventTrackThreadPost rig-other rig-session-b --kind start < /dev/null ; printf '%s %s\n' "$?" "$agentsEventTrackPost" > "$rigTrack/b.result" ) &
 	wait
 ) > "$rigTrack/run.out" 2>&1
-rigAssert "control: both posts ran in subshells of one shell and stood posted together" "$( cat "$rigTrack/a.shell" "$rigTrack/b.shell" 2> /dev/null | LC_ALL=C sort -u | LC_ALL=C awk 'END { print NR + 0 }' ) $( ls "$rigTrack" | LC_ALL=C grep -c '^posted\.' || : )" "1 2"
+rigAssert "control: both posts ran in subshells of one shell and stood posted together" "$( cat "$rigTrack/a.shell" "$rigTrack/b.shell" 2> /dev/null | LC_ALL=C sort -u | LC_ALL=C awk 'END { print NR + 0 ; }' ) $( ls "$rigTrack" | LC_ALL=C grep -c '^posted\.' || : )" "1 2"
 rigAssert "each took its own post for its own" "$( cat "$rigTrack/a.result" 2> /dev/null ) | $( cat "$rigTrack/b.result" 2> /dev/null )" "0 C0RIGTRACK:1111.000001 | 0 C0RIGTRACK:2222.000002"
 rigAssert "and each session's thread is the one its own post opened" "$( cat "$rigTrack/ws/.local/agents/sessions/rig-session-a/event-track.thread" 2> /dev/null ) $( cat "$rigTrack/ws/.local/agents/sessions/rig-session-b/event-track.thread" 2> /dev/null )" "C0RIGTRACK:1111.000001 C0RIGTRACK:2222.000002"
 rigAssert "and no temp file is left" "$( ls "$rigTrack/ws/.local/temp" 2> /dev/null | LC_ALL=C grep -c -F -- mdat-event-track-post || : )" "0"

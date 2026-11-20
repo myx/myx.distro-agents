@@ -86,7 +86,7 @@ rigAssert "the configuration check of the loop ran before the schedule's lines" 
 ## The predecessor completed: the record the spawner made is closed as a well-ended run, today.
 for rigRecord in $( LC_ALL=C grep -l -x 'routine: keeper-rig-01.auto.routine.md' "$rigSp"/*/*.spawn.md ) ; do
 	LC_ALL=C sed -i.bak -e 's/^status: .*/status: spawn-succeeded/' -e '/^resolved-at: /d' "$rigRecord" && rm -f "$rigRecord.bak"
-	LC_ALL=C awk '{ print } /^started-at: / { sub( /^started-at: /, "" ) ; print "resolved-at: " $0 }' "$rigRecord" > "$rigRecord.next" && mv -f "$rigRecord.next" "$rigRecord"
+	LC_ALL=C awk '{ print ; } /^started-at: / { sub( /^started-at: /, "" ) ; print "resolved-at: " $0 ; }' "$rigRecord" > "$rigRecord.next" && mv -f "$rigRecord.next" "$rigRecord"
 done
 rigAt $(( rigMon13 + 60 ))
 rigOneRun second ; rigWaitStarts
@@ -131,7 +131,7 @@ rigAssert "out of worktime the coordinator alone runs: with an item for it, its 
 rigDispatch --override-flag overtime
 rigOneRun end6 ; rigWaitStarts
 rigAssert "with overtime, no second start: its duty is on already" "$( rigSaid end6 'work-duty: started the duty of magic-coordinator' )" "0"
-rigAssert "...and it is the coordinator's own duty routine, which the others have none of" "$( rigRecordsOf magic-coordinator.work-duty.routine.md ):$( rigRecordsOf magic-team.work-duty.routine.md | LC_ALL=C awk '{ print ( $1 > 0 ) ? "team-duties-too" : "none" }' )" "1:team-duties-too"
+rigAssert "...and it is the coordinator's own duty routine, which the others have none of" "$( rigRecordsOf magic-coordinator.work-duty.routine.md ):$( rigRecordsOf magic-team.work-duty.routine.md | LC_ALL=C awk '{ print ( $1 > 0 ) ? "team-duties-too" : "none" ; }' )" "1:team-duties-too"
 ## The day after, the holds of the evening's failed starts have ended on the rig's clock, so the coordinator's duty may take the first pass's one start:
 ## the demand is answered by one of two passes, a second apart.
 rigAt $(( rigMon13 + 86400 ))

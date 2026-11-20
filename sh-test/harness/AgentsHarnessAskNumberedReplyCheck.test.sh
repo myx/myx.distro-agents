@@ -140,7 +140,7 @@ rigHolds(){ ## file, text
 	esac
 }
 rigVerdictLine(){
-	LC_ALL=C awk '/^VERDICT: / { print ; found = 1 ; exit ; } END { if ( ! found ) { print "no-verdict-line" ; } }' "$rigScenarioDir/out"
+	LC_ALL=C awk '/^VERDICT: / { print ; found = 1 ; exit ; } END { if ( ! found ) { print "no-verdict-line" ; } ; }' "$rigScenarioDir/out"
 }
 rigWaitId(){ ## -> the pending id the last call left to wait on
 	LC_ALL=C sed -n 's/^WAIT-ID: ask://p' "$rigScenarioDir/out" | head -1
@@ -156,7 +156,7 @@ rigRecordFile(){ ## pending id -- its record's path, open or retained-closed
 	printf '%s' "$rigScenarioDir/ws/.local/agents/pending/$1.md"
 }
 rigFieldOf(){ ## pending id, field
-	LC_ALL=C awk -v key="$2" '$0 == "---" { if ( ++dashes == 2 ) { exit ; } next ; } dashes == 1 && index( $0, key ": " ) == 1 { print substr( $0, length( key ) + 3 ) ; found = 1 ; exit ; } END { if ( ! found ) { print "none" ; } }' \
+	LC_ALL=C awk -v key="$2" '$0 == "---" { if ( ++dashes == 2 ) { exit ; } next ; } dashes == 1 && index( $0, key ": " ) == 1 { print substr( $0, length( key ) + 3 ) ; found = 1 ; exit ; } END { if ( ! found ) { print "none" ; } ; }' \
 		"$( rigRecordFile "$1" )" 2>/dev/null || printf 'no-record'
 }
 

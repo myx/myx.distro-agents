@@ -91,10 +91,10 @@ printf '1793600000 %s\n' "$rigOtherId" > "$rigStore/.user-id-$rigOther.txt"
 
 rigStoreEvents(){ for rigFile in "$rigStore"/*/[0-9][0-9][0-9][0-9][0-9][0-9]/events.txt ; do [ -f "$rigFile" ] && LC_ALL=C cat "$rigFile" ; done ; }
 rigPointerFile(){ printf '%s\n' "$rigPointerDir/$1.txt" ; }
-rigMark(){ LC_ALL=C awk '$1 == "pointer" { print $2 ; exit }' "$( rigPointerFile "$1" )" 2> /dev/null ; }
-rigCursors(){ LC_ALL=C awk '$1 == "source" { print $2 }' "$( rigPointerFile "$1" )" 2> /dev/null | LC_ALL=C wc -l | LC_ALL=C tr -d ' ' ; }
+rigMark(){ LC_ALL=C awk '$1 == "pointer" { print $2 ; exit ; }' "$( rigPointerFile "$1" )" 2> /dev/null ; }
+rigCursors(){ LC_ALL=C awk '$1 == "source" { print $2 ; }' "$( rigPointerFile "$1" )" 2> /dev/null | LC_ALL=C wc -l | LC_ALL=C tr -d ' ' ; }
 rigCursorOf(){ ## member, the source folder's own name
-	LC_ALL=C awk -v key="$2" '$1 == "source" && $2 == key { print $3 ; exit }' "$( rigPointerFile "$1" )" 2> /dev/null
+	LC_ALL=C awk -v key="$2" '$1 == "source" && $2 == key { print $3 ; exit ; }' "$( rigPointerFile "$1" )" 2> /dev/null
 }
 rigItems(){ ls -1 "$rigData/inboxes/$1/incoming" 2> /dev/null ; }
 rigItemCount(){ rigItems "$1" | LC_ALL=C awk 'NF' | LC_ALL=C wc -l | LC_ALL=C tr -d ' ' ; }
@@ -112,7 +112,7 @@ rigPass(){ ## member -- the pass's rc
 
 echo "-- 0. the control: the rig's store holds the events this check wrote --"
 rigAssert "the store holds 7 events" "$( rigStoreEvents | LC_ALL=C awk 'NF' | LC_ALL=C wc -l | LC_ALL=C tr -d ' ' )" 7
-rigAssert "and every id is the EventIdentifier form" "$( rigStoreEvents | LC_ALL=C cut -f1 | LC_ALL=C awk '$0 ~ /^[0-9]{8}T[0-9]{9}Z-[0-9]{6}[0-9A-F]{3}$/ { n++ } END { print n + 0 }' )" 7
+rigAssert "and every id is the EventIdentifier form" "$( rigStoreEvents | LC_ALL=C cut -f1 | LC_ALL=C awk '$0 ~ /^[0-9]{8}T[0-9]{9}Z-[0-9]{6}[0-9A-F]{3}$/ { n++ ; } END { print n + 0 ; }' )" 7
 
 echo "-- 1. a reader with no pointer gets one cursor a source, each its newest ingested id, and hands over nothing --"
 rigPass "$rigReader"
@@ -208,10 +208,10 @@ rigAssert "the direct conversation's cursor moved to it" "$( rigCursorOf "$rigRe
 rigAssert "while the reader's mark stayed on the newer id" "$( rigMark "$rigReader" )" 20261110T100500000Z-000006A01
 
 echo "-- 11. the pointer file is \`pointer <id>\` and one \`source <key> <id>\` a source --"
-rigAssert "its first line is the reader's mark" "$( head -1 "$( rigPointerFile "$rigReader" )" | LC_ALL=C awk '$1 == "pointer" { print "yes" ; exit }' )" yes
+rigAssert "its first line is the reader's mark" "$( head -1 "$( rigPointerFile "$rigReader" )" | LC_ALL=C awk '$1 == "pointer" { print "yes" ; exit ; }' )" yes
 rigAssert "its other lines are cursors, one a source" "$( rigCursors "$rigReader" )" 2
 rigAssert "every id in it is the EventIdentifier form" \
-	"$( LC_ALL=C awk '{ id = ( $1 == "pointer" ) ? $2 : $3 ; n++ ; if (id ~ /^[0-9]{8}T[0-9]{9}Z-[0-9]{6}[0-9A-F]{3}$/) ok++ } END { print ( n == ok ) ? "all" : n - ok }' "$( rigPointerFile "$rigReader" )" )" all
+	"$( LC_ALL=C awk '{ id = ( $1 == "pointer" ) ? $2 : $3 ; n++ ; if (id ~ /^[0-9]{8}T[0-9]{9}Z-[0-9]{6}[0-9A-F]{3}$/) ok++ ; } END { print ( n == ok ) ? "all" : n - ok ; }' "$( rigPointerFile "$rigReader" )" )" all
 rigAssert "and its moment is this pass's" \
 	"$( [ -n "$( find "$( rigPointerFile "$rigReader" )" -newer "$rigStore/$rigDmName/.ingest.txt" 2> /dev/null )" ] && printf newer || printf older )" newer
 

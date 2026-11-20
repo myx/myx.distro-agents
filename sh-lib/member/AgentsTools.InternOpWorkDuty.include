@@ -219,13 +219,13 @@ case "$1" in
 			## tooling as another's to answer; the names come from the mention cache. It is collected over the window, so it alone wakes nothing.
 			type AgentsToolsSessionChatPointer > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include"
 			LC_ALL=C awk -v member="$workMember" -v memberId="$( AgentsSlackIdentityId "$workMember" 2> /dev/null )" -v pairs="$( AgentsSlackIdentityPairs | LC_ALL=C tr '\n' ' ' )" '
-				BEGIN { n = split( pairs, pair, " " ) ; for ( i = 1 ; i <= n ; i++ ) { split( pair[i], one, "=" ) ; nameOf[one[1]] = one[2] ; } }
+				BEGIN { n = split( pairs, pair, " " ) ; for ( i = 1 ; i <= n ; i++ ) { split( pair[i], one, "=" ) ; nameOf[one[1]] = one[2] ; } ; }
 				/^# arrived on: / { shown = 1 ; team = ( index( $0, "slack:magic-team" ) > 0 ) ; }
 				/^# in / { team = 0 ; }
 				!shown || $0 ~ /^# (--- what that source holds now follows ---|--- end ---)$/ || $0 ~ /^(WAIT-|# returned: )/ { next ; }
 				team && /^[0-9]+\.[0-9]+ \| / && index( $0, "<@" ) > 0 && ( memberId == "" || index( $0, "<@" memberId ">" ) == 0 ) && index( $0, "@" member ) == 0 {
 					names = "" ; rest = $0
-					while ( match( rest, /<@[A-Z0-9]+>/ ) ) { mentioned = substr( rest, RSTART + 2, RLENGTH - 3 ) ; names = names ( names == "" ? "" : ", " ) ( mentioned in nameOf ? nameOf[mentioned] : mentioned ) ; rest = substr( rest, RSTART + RLENGTH ) }
+					while ( match( rest, /<@[A-Z0-9]+>/ ) ) { mentioned = substr( rest, RSTART + 2, RLENGTH - 3 ) ; names = names ( names == "" ? "" : ", " ) ( mentioned in nameOf ? nameOf[mentioned] : mentioned ) ; rest = substr( rest, RSTART + RLENGTH ) ; }
 					print "# addressed to " names ": for your knowledge, not yours to answer"
 				}
 				{ print ; }' "$workWork/collect.out"

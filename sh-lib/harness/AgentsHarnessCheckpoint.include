@@ -187,7 +187,7 @@ AgentsHarnessRewindTo(){ ## name, dispatch text ('' for none)
 ## own next step is the caller's to say. One reader of the shape, so the arrival and the quiet texts drop the same line.
 AgentsHarnessIdleDropNext(){ ## the Wait result
 	printf '%s\n' "$1" | LC_ALL=C awk '
-		{ idleLine[NR] = $0 }
+		{ idleLine[NR] = $0 ; }
 		END {
 			idleLast = NR ;
 			if ( idleLast == 0 ) exit ;

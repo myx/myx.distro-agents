@@ -94,17 +94,17 @@ echo "-- 1b. @here only where the caller means it --"
 rigSend "$rigTmp/l" CRIGCHAN01:1700000000.000001 "Ответ в ветке."
 rigPostsSoFar=$(( rigPostsSoFar + 1 ))
 rigAssert "a channel-thread reply naming nobody: posted, addressed to the author of the message it answers, no @here" \
-	"$( cat "$rigTmp/l.rc" ) $( LC_ALL=C grep -c 'URIGJULIA1' "$rigTmp/scenario/posts.log" | LC_ALL=C awk '{ print ( $1 > 0 ) }' ) $( LC_ALL=C grep -c 'here' "$rigTmp/scenario/posts.log" ) $( rigPosts )" "0 1 0 $rigPostsSoFar"
+	"$( cat "$rigTmp/l.rc" ) $( LC_ALL=C grep -c 'URIGJULIA1' "$rigTmp/scenario/posts.log" | LC_ALL=C awk '{ print ( $1 > 0 ) ; }' ) $( LC_ALL=C grep -c 'here' "$rigTmp/scenario/posts.log" ) $( rigPosts )" "0 1 0 $rigPostsSoFar"
 : > "$rigTmp/scenario/posts.log"
 rigSend "$rigTmp/m" CRIGCHAN01 "A post to the channel."
 rigPostsSoFar=$(( rigPostsSoFar + 1 ))
 rigAssert "a top-level post naming nobody: posted, headed to this conversation, no @here" \
-	"$( cat "$rigTmp/m.rc" ) $( LC_ALL=C grep -c 'this conversation' "$rigTmp/scenario/posts.log" | LC_ALL=C awk '{ print ( $1 > 0 ) }' ) $( LC_ALL=C grep -c 'here' "$rigTmp/scenario/posts.log" ) $( rigPosts )" "0 1 0 $rigPostsSoFar"
+	"$( cat "$rigTmp/m.rc" ) $( LC_ALL=C grep -c 'this conversation' "$rigTmp/scenario/posts.log" | LC_ALL=C awk '{ print ( $1 > 0 ) ; }' ) $( LC_ALL=C grep -c 'here' "$rigTmp/scenario/posts.log" ) $( rigPosts )" "0 1 0 $rigPostsSoFar"
 : > "$rigTmp/scenario/posts.log"
 rigSend "$rigTmp/n" CRIGCHAN01 "Everyone: the release is out." --address-to @here
 rigPostsSoFar=$(( rigPostsSoFar + 1 ))
 rigAssert "--address-to @here, said by the caller: posted with the broadcast" \
-	"$( cat "$rigTmp/n.rc" ) $( LC_ALL=C grep -c '"range":"here"' "$rigTmp/scenario/posts.log" | LC_ALL=C awk '{ print ( $1 > 0 ) }' ) $( rigPosts )" "0 1 $rigPostsSoFar"
+	"$( cat "$rigTmp/n.rc" ) $( LC_ALL=C grep -c '"range":"here"' "$rigTmp/scenario/posts.log" | LC_ALL=C awk '{ print ( $1 > 0 ) ; }' ) $( rigPosts )" "0 1 $rigPostsSoFar"
 
 echo "-- 1c. a contact addressed by its id --"
 ## A contact's id names that person's Slack account from the record; a record with no Slack id is refused, never guessed.
@@ -112,7 +112,7 @@ echo "-- 1c. a contact addressed by its id --"
 rigSend "$rigTmp/o" CRIGCHAN01:1700000000.000001 "Ответ." --address-to julia-magic-team
 rigPostsSoFar=$(( rigPostsSoFar + 1 ))
 rigAssert "--address-to <contact id>: posted, addressed to the account its record holds" \
-	"$( cat "$rigTmp/o.rc" ) $( LC_ALL=C grep -c '"user_id":"URIGJULIA1"' "$rigTmp/scenario/posts.log" | LC_ALL=C awk '{ print ( $1 > 0 ) }' ) $( rigPosts )" "0 1 $rigPostsSoFar"
+	"$( cat "$rigTmp/o.rc" ) $( LC_ALL=C grep -c '"user_id":"URIGJULIA1"' "$rigTmp/scenario/posts.log" | LC_ALL=C awk '{ print ( $1 > 0 ) ; }' ) $( rigPosts )" "0 1 $rigPostsSoFar"
 rigContactSeed "$rigTmp/data" magic-team ilya - ilya@rig.invalid || exit 1
 rigSend "$rigTmp/p" CRIGCHAN01 "Сообщение." --address-to ilya-magic-team
 rigAssert "a message, not a reply, --address-to <contact id> whose record holds no Slack id: refused, nothing posted" \

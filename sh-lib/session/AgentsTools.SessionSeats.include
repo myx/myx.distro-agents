@@ -285,7 +285,7 @@ AgentsToolsSessionParticipantsUninvited(){ ## session id
 		uninvitedRecord=""
 	done
 	[ -n "$uninvitedRecord" ] || return 1
-	LC_ALL=C awk '$0 == "---" { n++ ; if ( n > 1 ) exit ; next } n == 1 && /^participants: / { found = 1 } END { exit !found }' "$uninvitedRecord" 2> /dev/null || return 1
+	LC_ALL=C awk '$0 == "---" { n++ ; if ( n > 1 ) exit ; next ; } n == 1 && /^participants: / { found = 1 ; } END { exit !found ; }' "$uninvitedRecord" 2> /dev/null || return 1
 	type AgentsToolsFrontmatterKey > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.FrontmatterKey.include"
 	uninvitedLine="$( AgentsToolsFrontmatterKey "$uninvitedRecord" participants )"
 	for uninvitedOne in $uninvitedLine ; do

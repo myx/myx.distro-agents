@@ -33,7 +33,7 @@ for rigReader in AgentsToolsManagerFeatureRows AgentsToolsManagerFeaturePartStat
 	eval "$rigText"
 done
 rigRowsField(){ ## check text, field number -- that field of the feature row, or `none` where the reader printed no row
-	printf '%s\n' "$1" | AgentsToolsManagerFeatureRows setup.feature-lancedb | LC_ALL=C awk -F'\t' -v want="$2" '$1 == "feature" { print $want ; found = 1 ; exit } END { if ( ! found ) { print "none" ; } }'
+	printf '%s\n' "$1" | AgentsToolsManagerFeatureRows setup.feature-lancedb | LC_ALL=C awk -F'\t' -v want="$2" '$1 == "feature" { print $want ; found = 1 ; exit ; } END { if ( ! found ) { print "none" ; } ; }'
 }
 rigPartState(){ ## check text, feature, part -- the part's state, or `refused` where the reader turns the part away
 	printf '%s\n' "$1" | AgentsToolsManagerFeaturePartState "$2" "$3" 2> /dev/null || printf 'refused'

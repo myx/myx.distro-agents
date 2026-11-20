@@ -95,10 +95,10 @@ rigSession(){ ## spawn-id, item file name, the routine-stack lines
 	printf -- '---\ntype: dispatch\nowner: keeper-myx\nstatus: dispatch-succeeded\nreview-by: human-owner\nspawn-id: %s\n---\n\n# rig dispatch\n' "$1" | rigOwnerBoardPut running "$2"
 }
 rigFramesOf(){ ## spawn id -- the frames its record holds, joined
-	LC_ALL=C awk '$0 == "---" { if ( ++d == 2 ) exit ; next } d == 1 && index( $0, "routine-stack: " ) == 1 { printf "%s%s", ( n++ ? " -> " : "" ), substr( $0, 16 ) }' "$rigSpawned/$1/$1.spawn.md" 2> /dev/null
+	LC_ALL=C awk '$0 == "---" { if ( ++d == 2 ) exit ; next ; } d == 1 && index( $0, "routine-stack: " ) == 1 { printf "%s%s", ( n++ ? " -> " : "" ), substr( $0, 16 ) ; }' "$rigSpawned/$1/$1.spawn.md" 2> /dev/null
 }
 rigHeader(){ ## state, item file name, key
-	LC_ALL=C awk -v want="$3: " '$0 == "---" { if ( ++d == 2 ) exit ; next } d == 1 && index( $0, want ) == 1 { print substr( $0, length( want ) + 1 ) ; exit }' "$rigData/board/$1/$2" 2> /dev/null
+	LC_ALL=C awk -v want="$3: " '$0 == "---" { if ( ++d == 2 ) exit ; next ; } d == 1 && index( $0, want ) == 1 { print substr( $0, length( want ) + 1 ) ; exit ; }' "$rigData/board/$1/$2" 2> /dev/null
 }
 rigDlv="rig-dlv-$$-a1b2"
 rigPlain="rig-plain-$$-c3d4"
@@ -134,7 +134,7 @@ echo "-- 5. deliverables with review-by: none are refused at save and at spawn -
 printf -- '---\nreview-by: none\ndeliverables: the decision, in a named document\n---\n\n# rig unjudged\n' > "$rigTmp/unjudged.routine.md"
 printf -- '---\nreview-by: none\n---\n\n# rig unreviewed\n' > "$rigTmp/unreviewed.routine.md"
 rigVerdict(){ ## routine file, phase -- the verdict word of the review-by requirement
-	( MMDAPP="$rigWs" ; . "$rigLib/routine/AgentsTools.RoutineRequirements.include" && AgentsToolsRoutineRequirement review-by "$2" "$1" 2> /dev/null ) | LC_ALL=C awk -F'\t' 'NR == 1 { print $1 }'
+	( MMDAPP="$rigWs" ; . "$rigLib/routine/AgentsTools.RoutineRequirements.include" && AgentsToolsRoutineRequirement review-by "$2" "$1" 2> /dev/null ) | LC_ALL=C awk -F'\t' 'NR == 1 { print $1 ; }'
 }
 rigAssert "deliverables with review-by: none are refused at save" "$( rigVerdict "$rigTmp/unjudged.routine.md" save )" reject
 rigAssert "and at spawn" "$( rigVerdict "$rigTmp/unjudged.routine.md" spawn )" reject

@@ -283,7 +283,7 @@ AgentsToolsPermissionOriginFloorTools(){ ## workspace holding the origin (option
 	agentsPermissionOriginFloorTools=""
 	if [ -n "$originWs" ] ; then
 		type AgentsDistroDeclaresCut > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/distro/AgentsTools.DistroDoor.include"
-		agentsPermissionOriginFloorTools="$( AgentsDistroDeclaresCut "$originWs" 'magic-team:permissions:workspace:*:allow-tool:*' 2> /dev/null | LC_ALL=C awk '$1 == "myx/myx.distro-agents" && $2 != "" { n = split( $2, floorField, ":" ) ; floorList = floorList " " floorField[n] } END { if ( floorList != "" ) print floorList " " }' )"
+		agentsPermissionOriginFloorTools="$( AgentsDistroDeclaresCut "$originWs" 'magic-team:permissions:workspace:*:allow-tool:*' 2> /dev/null | LC_ALL=C awk '$1 == "myx/myx.distro-agents" && $2 != "" { n = split( $2, floorField, ":" ) ; floorList = floorList " " floorField[n] ; } END { if ( floorList != "" ) print floorList " " ; }' )"
 	fi
 	if [ -z "$agentsPermissionOriginFloorTools" ] ; then
 		[ -n "${1:-}" ] || agentsPermissionOriginFloorRead=0

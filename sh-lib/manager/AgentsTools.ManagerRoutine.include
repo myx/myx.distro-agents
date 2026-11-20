@@ -98,9 +98,9 @@ AgentsToolsManagerRoutineFactsOnly(){ ## the operation as it was called
 		function head( file, key,   line, held, inHead ) {
 			held = "" ; inHead = 0
 			while ( ( getline line < file ) > 0 ) {
-				if ( inHead == 0 ) { if ( line == "---" ) { inHead = 1 } ; continue }
-				if ( line == "---" ) { break }
-				if ( index( line, key ": " ) == 1 ) { held = substr( line, length( key ) + 3 ) ; break }
+				if ( inHead == 0 ) { if ( line == "---" ) { inHead = 1 ; } ; continue ; }
+				if ( line == "---" ) { break ; }
+				if ( index( line, key ": " ) == 1 ) { held = substr( line, length( key ) + 3 ) ; break ; }
 			}
 			close( file )
 			return held
@@ -109,12 +109,12 @@ AgentsToolsManagerRoutineFactsOnly(){ ## the operation as it was called
 			inFront = 0
 			while ( ( getline line < file ) > 0 ) {
 				if ( inFront == 0 ) {
-					if ( line == "---" ) { inFront = 1 ; continue }
-					if ( index( line, "# " ) == 1 ) { close( file ) ; return line == "# Summary" ? "" : substr( line, 3 ) }
+					if ( line == "---" ) { inFront = 1 ; continue ; }
+					if ( index( line, "# " ) == 1 ) { close( file ) ; return line == "# Summary" ? "" : substr( line, 3 ) ; }
 					continue
 				}
-				if ( line == "---" ) { inFront = 2 ; continue }
-				if ( inFront == 2 && index( line, "# " ) == 1 ) { close( file ) ; return line == "# Summary" ? "" : substr( line, 3 ) }
+				if ( line == "---" ) { inFront = 2 ; continue ; }
+				if ( inFront == 2 && index( line, "# " ) == 1 ) { close( file ) ; return line == "# Summary" ? "" : substr( line, 3 ) ; }
 			}
 			close( file )
 			return ""
@@ -123,10 +123,10 @@ AgentsToolsManagerRoutineFactsOnly(){ ## the operation as it was called
 			name = $2 ; sub( /^.*\//, "", name )
 			execs = head( $2, "executors" ) ; gsub( /^[ \t]+|[ \t]+$/, "", execs )
 			kind = head( $2, "requires-session-kind" ) ; gsub( /^[ \t]+|[ \t]+$/, "", kind )
-			if ( kind == "coworking" ) { session = "coworking" } else { session = "" }
+			if ( kind == "coworking" ) { session = "coworking" ; } else { session = "" ; }
 			auto = head( $2, "runs-at" )
 			after = head( $2, "runs-after" )
-			if ( auto == "" || auto == "none" ) { autoField = "no" } else { autoField = "yes" }
+			if ( auto == "" || auto == "none" ) { autoField = "no" ; } else { autoField = "yes" ; }
 			## The start and what it needs, from the executors alone: the session spawner remains the
 			## decider at the start itself, so a file whose contract is broken reads startable here
 			## and is refused there with its own reason. The full list, which asks the contract, the
@@ -184,7 +184,7 @@ AgentsToolsManagerRoutineRows(){ ## the operation as it was called
 		{
 			file = $0 ; title = "" ; at = "" ; after = "" ; inFront = 0
 			while (( getline line < file ) > 0) {
-				if (line == "---") { inFront = ( inFront ? 0 : 1 ) ; continue }
+				if (line == "---") { inFront = ( inFront ? 0 : 1 ) ; continue ; }
 				if (inFront) {
 					if (at == "" && index(line, "runs-at: ") == 1) at = substr(line, 10)
 					else if (after == "" && index(line, "runs-after: ") == 1) after = substr(line, 13)

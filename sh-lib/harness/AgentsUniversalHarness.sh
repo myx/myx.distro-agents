@@ -1422,7 +1422,7 @@ if [ -n "$harnessNeedsMcp" ] ; then
 		for harnessOpsTool in $( printf '%s' "$harnessToolsJson" | LC_ALL=C grep -o '"name":"DistroAgents[A-Za-z]*"' | LC_ALL=C sed 's/"name":"//; s/"$//' | LC_ALL=C sort -u ) ; do
 			[ -f "$harnessHere/help/Help.$harnessOpsTool.help.md" ] || continue
 			## Every operation's whole syntax line, as its manual gives it (each once), joined by "; ": the shared cache holds it for every run.
-			harnessOpsList="$( LC_ALL=C sed -n "s/^📘 syntax: $harnessOpsTool\.fn\.sh \(--[a-z0-9-].*\)$/\1/p" "$harnessHere/help/Help.$harnessOpsTool.help.md" | LC_ALL=C grep -v '^--help' | LC_ALL=C awk '!seen[$0]++ { gsub( /\\/, "\\\\" ) ; gsub( /"/, "\\\"" ) ; out = out ( out == "" ? "" : "; " ) $0 } END { printf "%s", out }' )"
+			harnessOpsList="$( LC_ALL=C sed -n "s/^📘 syntax: $harnessOpsTool\.fn\.sh \(--[a-z0-9-].*\)$/\1/p" "$harnessHere/help/Help.$harnessOpsTool.help.md" | LC_ALL=C grep -v '^--help' | LC_ALL=C awk '!seen[$0]++ { gsub( /\\/, "\\\\" ) ; gsub( /"/, "\\\"" ) ; out = out ( out == "" ? "" : "; " ) $0 ; } END { printf "%s", out ; }' )"
 			[ -n "$harnessOpsList" ] || continue
 			harnessOpsFirst="${harnessOpsList%% *}"
 			harnessToolsJson="$( printf '%s' "$harnessToolsJson" | LC_ALL=C awk -v tool="$harnessOpsTool" -v ops="$harnessOpsList" -v first="$harnessOpsFirst" '
@@ -1431,8 +1431,8 @@ if [ -n "$harnessNeedsMcp" ] ; then
 				  if ( at ) { head = substr( $0, 1, at + length( key ) - 1 ) ; rest = substr( $0, at + length( key ) )
 				    sub( /such as --slack-read/, "such as " first, rest )
 				    sub( /Give the operation with its leading --/, "Its operations, each with its arguments: " ops ". Give the operation with its leading --", rest )
-				    $0 = head rest }
-				  print }' )"
+				    $0 = head rest ; }
+				  print ; }' )"
 		done
 		unset harnessOpsTool harnessOpsList harnessOpsFirst
 	fi
@@ -2043,7 +2043,7 @@ while : ; do
 		## refusal is temporary. A leg whose transport writes no headers reads an empty one.
 		## The number after the protocol is the status: a carriage return after it is the transport's line ending, never part of it.
 		harnessStatus=""
-		[ ! -s "$harnessScratch/stream.headers" ] || harnessStatus="$( LC_ALL=C awk 'NR == 1 { sub( /\r$/, "", $2 ) ; print $2 }' "$harnessScratch/stream.headers" 2>/dev/null )" || harnessStatus=""
+		[ ! -s "$harnessScratch/stream.headers" ] || harnessStatus="$( LC_ALL=C awk 'NR == 1 { sub( /\r$/, "", $2 ) ; print $2 ; }' "$harnessScratch/stream.headers" 2>/dev/null )" || harnessStatus=""
 
 		## A complete, non-streaming error body is a refusal, not a disconnect. Two things
 		## can make it worth another attempt: an auth-class refusal on a leg that exchanges
@@ -2260,7 +2260,7 @@ while : ; do
 		AgentsSessionDispatchItemInto restartItem "${MDAT_SPAWN_SESSION_ID:-}" || restartItem=""
 		if [ -n "$restartItem" ] ; then
 			restartItemPath="$( AgentsHarnessDispatchItemPath "$restartItem" 2> /dev/null )" || restartItemPath=""
-			[ -z "$restartItemPath" ] || [ ! -f "$restartItemPath" ] || restartDecisions="$( LC_ALL=C awk '/^## Decisions/ { on = 1 } on { print }' "$restartItemPath" 2> /dev/null | LC_ALL=C tail -n 40 )"
+			[ -z "$restartItemPath" ] || [ ! -f "$restartItemPath" ] || restartDecisions="$( LC_ALL=C awk '/^## Decisions/ { on = 1 ; } on { print ; }' "$restartItemPath" 2> /dev/null | LC_ALL=C tail -n 40 )"
 		fi
 		[ -z "$restartState" ] || printf -v harnessSummary '%s\n\nYour CheckList as the tooling keeps it now (%s), the record that outlives a leg:\n%s' "$harnessSummary" "$checkListMember.checklist.md" "$restartState"
 		[ -z "$restartDecisions" ] || printf -v harnessSummary '%s\n\nThe Decisions of your dispatch item %s, as recorded:\n%s' "$harnessSummary" "$restartItem" "$restartDecisions"
@@ -2354,7 +2354,7 @@ while : ; do
 			quitFolder="$( AgentsHarnessCheckListPlace && printf '%s' "$checkListFolder" )" || quitFolder=""
 		fi
 		if [ -n "$quitFolder" ] ; then
-			quitHash="$( printf '%s' "$quitOpen" | LC_ALL=C cksum | LC_ALL=C awk '{ print $1 "-" $2 }' )"
+			quitHash="$( printf '%s' "$quitOpen" | LC_ALL=C cksum | LC_ALL=C awk '{ print $1 "-" $2 ; }' )"
 			quitStored="" quitLeft=5 quitAttempt=1
 			[ ! -f "$quitFolder/checklist.quit-attempt" ] || IFS= read -r quitStored < "$quitFolder/checklist.quit-attempt" || :
 			case "$quitStored" in
@@ -2372,7 +2372,7 @@ while : ; do
 				quitContinue=1
 			fi
 			if [ -n "$quitContinue" ] ; then
-				quitPendingCount="$( LC_ALL=C awk 'END { print NR }' <<< "$quitOpen" )"
+				quitPendingCount="$( LC_ALL=C awk 'END { print NR ; }' <<< "$quitOpen" )"
 				harnessMessages+=( "$( AgentsWireUserRecord "$( printf "This session's CheckList still holds %s pending item(s), and a plain reply ends the run with them open. Do one of three things, then carry on: close each item you have finished with CheckList, mark the one you are working on in progress, or hand back with checklist_pending_count=%s listing them as unfinished. This is attempt %s of 5 on this same list, and at 0 the run ends with the items still open for the reviewer." "$quitPendingCount" "$quitPendingCount" "$quitAttempt" )" )" )
 				continue
 			fi

@@ -95,15 +95,15 @@ AgentsToolsDocGuardValidateText(){ ## kind, shown path, text
 ## identity and keeps each surviving full row, so the message names the rule and the line.
 AgentsToolsDocGuardDelta(){ ## before rows, after rows, path -- one `rule TAB full row` per fault the write introduces
 	GPATH="$3" LC_ALL=C awk '
-		FNR == 1 { fileNo++ }
+		FNR == 1 { fileNo++ ; }
 		{
 			id = $0
 			pathPrefix = ENVIRON["GPATH"] ":"
 			if (index(id, pathPrefix) == 1) id = substr(id, length(pathPrefix) + 1)
 			sub(/^[0-9]+: /, "", id)
 			rule = id ; sub(/:.*$/, "", rule)
-			if (fileNo == 1) { have[id]++ ; next }
-			if (have[id] > 0) { have[id]-- ; next }
+			if (fileNo == 1) { have[id]++ ; next ; }
+			if (have[id] > 0) { have[id]-- ; next ; }
 			print rule "\t" $0
 		}
 	' <( printf '%s\n' "$1" ) <( printf '%s\n' "$2" )

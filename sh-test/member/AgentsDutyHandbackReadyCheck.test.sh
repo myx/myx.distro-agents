@@ -72,7 +72,7 @@ rigHolds(){ ## result name, text -- yes or no
 }
 
 rigSection(){ ## result name -- the lines of the report's `Handbacks ready for the duty` section (the board digest of a coordinator names every review item, so only that section tells whose they are)
-	LC_ALL=C awk '/^## Handbacks ready for the duty/ { on = 1 ; next } on && /^## / { exit } on { print }' "$rigTmp/$1.out"
+	LC_ALL=C awk '/^## Handbacks ready for the duty/ { on = 1 ; next ; } on && /^## / { exit ; } on { print ; }' "$rigTmp/$1.out"
 }
 
 echo "-- 1. the first wait reads the report --"

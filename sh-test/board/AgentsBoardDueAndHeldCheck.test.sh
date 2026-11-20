@@ -139,7 +139,7 @@ rigScan(){ ## session id
 }
 ## The `held` line under one item's heading of a scan's text, or nothing.
 rigHeldLine(){ ## scan text, item name
-	printf '%s\n' "$1" | LC_ALL=C awk -v want="$2" '/^## / { on = ( index($0, "/" want) > 0 ) ; next } on && /^held / { print ; exit }'
+	printf '%s\n' "$1" | LC_ALL=C awk -v want="$2" '/^## / { on = ( index($0, "/" want) > 0 ) ; next ; } on && /^held / { print ; exit ; }'
 }
 ## The due section of the coordinator's scan, printed on its own: the section the work-duty scan prints,
 ## called from the include that holds it, as sh-test/check-fixtures/board-round-scan.rig.sh calls the
@@ -150,7 +150,7 @@ rigDueSection(){
 	env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" PATH="$rigTmp/bin:/usr/bin:/bin" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" \
 		MDLT_ORIGIN="$rigOrigin" MDLT_OPTION="--run-from-path $rigOrigin" MDAT_SKILLSET_ROOT="$rigSkills" $rigThreadsOff \
 		bash -c '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.BoardRoundScan.include" || exit 90 ; AgentsToolsBoardRecheckDueSection' rig \
-		| LC_ALL=C awk '/^## recheck dates due/ { on = 1 ; next } /^## / { on = 0 } on && NF'
+		| LC_ALL=C awk '/^## recheck dates due/ { on = 1 ; next ; } /^## / { on = 0 ; } on && NF'
 }
 
 rigWindowSeconds="$( rigWindow )"
@@ -219,7 +219,7 @@ rigItem running task-20261104T1010Z-rig-proof.md "owner: keeper-rig"
 rigOp "$rigTmp/proof" rig-session --advance-batch-outcome --team-member magic-coordinator --items:task-20261104T1010Z-rig-proof.md:advanced:round-one
 rigAssert "the round's proof is recorded" "$( cat "$rigTmp/proof.rc" )" 0
 rigAssert "and it stamps last-round-at with a date-time the one ISO reader reads" \
-	"$( LC_ALL=C awk '/^last-round-at: /{ print substr($0, 16) ; exit }' "$rigData/board/running/task-20261104T1010Z-rig-proof.md" | LC_ALL=C awk -f "$rigOrigin/myx/myx.distro-.local/sh-lib/output/LocalIsoToEpoch.awk" 2> /dev/null | LC_ALL=C awk '{ print ( $1 ~ /^[0-9]+$/ ) ? "read" : "unread" }' )" read
+	"$( LC_ALL=C awk '/^last-round-at: /{ print substr($0, 16) ; exit ; }' "$rigData/board/running/task-20261104T1010Z-rig-proof.md" | LC_ALL=C awk -f "$rigOrigin/myx/myx.distro-.local/sh-lib/output/LocalIsoToEpoch.awk" 2> /dev/null | LC_ALL=C awk '{ print ( $1 ~ /^[0-9]+$/ ) ? "read" : "unread" ; }' )" read
 rigAssert "and the document is then not due until the window passes" "$( rigDue "$rigData/board/running/task-20261104T1010Z-rig-proof.md" )" not-due
 rigItem running task-20261104T1011Z-rig-edit.md "owner: keeper-rig"
 rigOp "$rigTmp/edit" rig-session --intern-op-board-upsert-move-edit running task-20261104T1011Z-rig-edit.md --from-state:running \
@@ -288,15 +288,15 @@ rigOp "$rigTmp/r2" rig-session --advance-batch-outcome --team-member magic-coord
 rigAssert "a second, different proof inside the same window is refused" "$( cat "$rigTmp/r2.rc" )" 1
 rigAssert "and the refusal says the window is what holds it" \
 	"$( LC_ALL=C grep -c -F 'this window' "$rigTmp/r2" || : )" 1
-RIG_OLD="$( rigStamp "$(( 0 - rigWindowSeconds - 120 ))" )" LC_ALL=C awk '/^last-round-at: /{ print "last-round-at: " ENVIRON["RIG_OLD"] ; next } { print }' "$rigData/board/running/task-20261104T1070Z-rig-r1.md" > "$rigTmp/r1.aged"
+RIG_OLD="$( rigStamp "$(( 0 - rigWindowSeconds - 120 ))" )" LC_ALL=C awk '/^last-round-at: /{ print "last-round-at: " ENVIRON["RIG_OLD"] ; next ; } { print ; }' "$rigData/board/running/task-20261104T1070Z-rig-r1.md" > "$rigTmp/r1.aged"
 mv -f "$rigTmp/r1.aged" "$rigData/board/running/task-20261104T1070Z-rig-r1.md"
 rigAssert "the window has passed over that document, whose receipt still says r1" \
-	"$( LC_ALL=C awk '/^execution-receipt: /{ print substr($0, 20) ; exit }' "$rigData/board/running/task-20261104T1070Z-rig-r1.md" )" "inline:r1"
+	"$( LC_ALL=C awk '/^execution-receipt: /{ print substr($0, 20) ; exit ; }' "$rigData/board/running/task-20261104T1070Z-rig-r1.md" )" "inline:r1"
 rigAssert "the document is due again once the window has passed" "$( rigDue "$rigData/board/running/task-20261104T1070Z-rig-r1.md" )" due
 rigOp "$rigTmp/r3" rig-session --advance-batch-outcome --team-member magic-coordinator --items:task-20261104T1070Z-rig-r1.md:advanced:inline:r3
 rigAssert "so the next round's proof lands, with its own receipt" "$( cat "$rigTmp/r3.rc" )" 0
 rigAssert "and the item now carries that round's receipt" \
-	"$( LC_ALL=C awk '/^execution-receipt: /{ print substr($0, 20) ; exit }' "$rigData/board/running/task-20261104T1070Z-rig-r1.md" )" "inline:r3"
+	"$( LC_ALL=C awk '/^execution-receipt: /{ print substr($0, 20) ; exit ; }' "$rigData/board/running/task-20261104T1070Z-rig-r1.md" )" "inline:r3"
 rigItem blocked task-20261104T1071Z-rig-moved.md "owner: keeper-rig"
 rigOp "$rigTmp/moved1" rig-session --advance-batch-outcome --team-member magic-coordinator --items:task-20261104T1071Z-rig-moved.md:advanced:inline:m1
 rigAssert "a document records one round, then a plain move carries its headers with it" "$( cat "$rigTmp/moved1.rc" )" 0

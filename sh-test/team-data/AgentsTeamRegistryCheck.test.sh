@@ -76,13 +76,13 @@ rigRun --install-skillset-symlinks > "$rigTmp/install.out" 2>&1
 rigAssert "the install wrote the member index" "$( LC_ALL=C grep -c 'member index written' "$rigTmp/install.out" )" 1
 rigAssert "no registry file in any vendor link folder" "$( ls -a "$rigWs/.claude/skills" "$rigWs/.agents/skills" 2>/dev/null | LC_ALL=C grep -c 'linked\.' )" 0
 rigAssert "the workspace registry: one row per bundled member, rules row included" \
-	"$( LC_ALL=C awk -F'\t' -v r="$rigWs" '$2 == r && NF == 5 && $3 != "rules-symlink" { print $1 }' "$rigWs/.local/agents/members.registry" | LC_ALL=C sort -u )" "$rigBundled"
+	"$( LC_ALL=C awk -F'\t' -v r="$rigWs" '$2 == r && NF == 5 && $3 != "rules-symlink" { print $1 ; }' "$rigWs/.local/agents/members.registry" | LC_ALL=C sort -u )" "$rigBundled"
 rigAssert "its rows carry the member directory" \
-	"$( LC_ALL=C awk -F'\t' '$1 == "magic-team" { print $5 }' "$rigWs/.local/agents/members.registry" )" "$rigBundle/magic-team"
+	"$( LC_ALL=C awk -F'\t' '$1 == "magic-team" { print $5 ; }' "$rigWs/.local/agents/members.registry" )" "$rigBundle/magic-team"
 rigRun --install-skillset-symlinks --scope user-home > "$rigTmp/install-home.out" 2>&1
 rigAssert "no registry file in any home vendor folder" "$( ls -a "$rigHome/.claude/skills" "$rigHome/.agents/skills" "$rigHome/.copilot/skills" 2>/dev/null | LC_ALL=C grep -c 'linked\.' )" 0
 rigAssert "the machine-wide registry: this workspace's rows added, the other's kept" \
-	"$( LC_ALL=C awk -F'\t' -v r="$rigWs" '$2 == r { n++ } $2 != r { o++ } END { print n + 0, o + 0 }' "$rigShared" )" "$( printf '%s\n' "$rigBundled" | LC_ALL=C grep -c . ) 3"
+	"$( LC_ALL=C awk -F'\t' -v r="$rigWs" '$2 == r { n++ ; } $2 != r { o++ ; } END { print n + 0, o + 0 ; }' "$rigShared" )" "$( printf '%s\n' "$rigBundled" | LC_ALL=C grep -c . ) 3"
 
 echo "-- the member index: this workspace's own members only, each name once --"
 rigIndex="$rigWs/.local/agents/members.index"
@@ -91,7 +91,7 @@ rigAssert "own members, in the index" \
 rigAssert "the index holds only this workspace's own rows" \
 	"$( LC_ALL=C awk -F'\t' '$3 != r' r="$rigWs" "$rigIndex" | LC_ALL=C grep -c . )" 0
 rigAssert "the bundled magic-coordinator wins over the other workspace's copy" \
-	"$( LC_ALL=C awk -F'\t' '$1 == "magic-coordinator" { print $2 }' "$rigIndex" )" "$rigBundle/magic-coordinator"
+	"$( LC_ALL=C awk -F'\t' '$1 == "magic-coordinator" { print $2 ; }' "$rigIndex" )" "$rigBundle/magic-coordinator"
 rigAssert "a member only another workspace publishes has no row in the index" \
 	"$( LC_ALL=C awk -F'\t' '$1 == "keeper-rig"' "$rigIndex" | LC_ALL=C grep -c . )" 0
 rigAssert "each name once" "$( cut -f1 "$rigIndex" | LC_ALL=C sort | uniq -d | LC_ALL=C grep -c . )" 0
@@ -140,13 +140,13 @@ rigAssert "control: readable members hold this workspace's own" \
 	"$( rigMembers readable | LC_ALL=C grep -c "$rigBundle/magic-coordinator" )" 1
 ( . "$rigHere/team-data/AgentsTools.TeamRegistry.include" ; HOME="$rigHome" AgentsToolsTeamMemberIndexWrite "$rigWs" )
 rigAssert "a rebuilt index still ignores the vendor folders" \
-	"$( LC_ALL=C awk -F'\t' '$1 == "magic-coordinator" { print $2 }' "$rigIndex" )" "$rigBundle/magic-coordinator"
+	"$( LC_ALL=C awk -F'\t' '$1 == "magic-coordinator" { print $2 ; }' "$rigIndex" )" "$rigBundle/magic-coordinator"
 
 echo "-- the resolver, the grants, the tags and the workspace list read the new files --"
 rigAssert "the user-home install registers no workspace: registration is the update's own step" "$( ls "$rigHome/.agents/magic-team" 2>/dev/null | LC_ALL=C grep -c -e directories -e known-workspaces )" 0
 rigRun --owner-workspace-upsert "$rigOther" >/dev/null 2>&1
 rigAssert "the upsert writes this workspace's own registry: its own row, then the owner row" \
-	"$( LC_ALL=C awk -F'\t' '{ printf "%s:%s:%s ", $1, $2, $5 }' "$rigWs/.local/agents/directories.registry" 2>/dev/null )" "ws-here:workspace:workspace ws-other:workspace:owner "
+	"$( LC_ALL=C awk -F'\t' '{ printf "%s:%s:%s ", $1, $2, $5 ; }' "$rigWs/.local/agents/directories.registry" 2>/dev/null )" "ws-here:workspace:workspace ws-other:workspace:owner "
 rigAssert "and the machine-wide pointers name both, under this workspace's root" "$( LC_ALL=C awk -F'\t' -v r="$rigWs" '$2 == r' "$rigHome/.agents/magic-team/directories.registry" 2>/dev/null | LC_ALL=C grep -c . )" 2
 rigAssert "and no list is written beside the vendor links" "$( [ -e "$rigHome/.claude/skills/.human-owner.workspaces.md" ] && printf yes || printf no )" no
 rigAssert "the resolver switches to the workspace publishing the member's source" \
@@ -198,7 +198,7 @@ rigSlotRun(){ ## workspace, origin -- one user-home pass into the rig slots; out
 		' > "$rigTmp/slot.out" 2>&1 || rigSlotRc=$?
 }
 rigSlotRows(){ ## member -- that member's rows in the slot HOME's registry: workspace basename and kind
-	LC_ALL=C awk -F'\t' -v m="$1" '$1 == m { w = $2 ; sub( /.*\//, "", w ) ; print w ":" $3 }' "$rigSlotHome/.agents/magic-team/members.registry" 2>/dev/null | LC_ALL=C sort | LC_ALL=C tr '\n' ' '
+	LC_ALL=C awk -F'\t' -v m="$1" '$1 == m { w = $2 ; sub( /.*\//, "", w ) ; print w ":" $3 ; }' "$rigSlotHome/.agents/magic-team/members.registry" 2>/dev/null | LC_ALL=C sort | LC_ALL=C tr '\n' ' '
 }
 rigSrcBundle="$rigSrcWs/source/myx/myx.distro-agents/skillset/magic-team"
 rigSlotRun "$rigSrcWs" "$rigSrcWs/source"
@@ -280,7 +280,7 @@ rigAssert "control: the install ran, rc 0" "$rigGrantRc $( LC_ALL=C grep -c 'cla
 ## A namespace grant applies in every tooling workspace: `.` and `*` both name the one
 ## namespace here, so one row each in gws-one and gws-two, the same row never twice.
 rigAssert "control: allow-write rows for every scope, its selectors resolved" \
-	"$( LC_ALL=C awk -F: '$1 == "keeper-w" { print $3 }' "$rigGReg" | LC_ALL=C sort | uniq -c | LC_ALL=C awk '{ printf "%s:%s ", $2, $1 }' )" "namespace:2 project:1 workspace:4 "
+	"$( LC_ALL=C awk -F: '$1 == "keeper-w" { print $3 ; }' "$rigGReg" | LC_ALL=C sort | uniq -c | LC_ALL=C awk '{ printf "%s:%s ", $2, $1 ; }' )" "namespace:2 project:1 workspace:4 "
 rigAssert "a namespace grant applies in every tooling workspace" \
 	"$( LC_ALL=C grep -c -F -e "keeper-w:gws-one:namespace:Edit(/$rigG1/source/rig/**)" -e "keeper-w:gws-one:namespace:Edit(/$rigG2/source/rig/**)" "$rigGReg" )" 2
 rigAssert "allow-read rows are the allow-write rows, scope by scope and root by root, the verb aside" \
@@ -288,7 +288,7 @@ rigAssert "allow-read rows are the allow-write rows, scope by scope and root by 
 rigAssert "every allow-read row is Read, none Edit or Write" \
 	"$( LC_ALL=C awk -F: '$1 == "keeper-r" || $1 == "keeper-o"' "$rigGReg" | LC_ALL=C grep -c ':Read(' ) $( LC_ALL=C awk -F: '$1 == "keeper-r" || $1 == "keeper-o"' "$rigGReg" | LC_ALL=C grep -c -e ':Edit(' -e ':Write(' )" "8 0"
 rigAssert "control: the provenance tags span own, explicit and wildcard" \
-	"$( LC_ALL=C awk -F: '$1 == "keeper-w" { print $3 }' "$rigGTags" | LC_ALL=C sort -u | LC_ALL=C tr '\n' ' ' )" "explicit own wildcard "
+	"$( LC_ALL=C awk -F: '$1 == "keeper-w" { print $3 ; }' "$rigGTags" | LC_ALL=C sort -u | LC_ALL=C tr '\n' ' ' )" "explicit own wildcard "
 rigAssert "allow-read roots are tagged as the allow-write roots are" \
 	"$( rigGrantRows "$rigGTags" keeper-r )" "$( rigGrantRows "$rigGTags" keeper-w )"
 rigAssert "a lone allow-read is one Read row, for its own member" \

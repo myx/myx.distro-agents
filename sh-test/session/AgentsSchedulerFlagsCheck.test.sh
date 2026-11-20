@@ -93,7 +93,7 @@ rigSetting(){ ## key -- the stored value, `-` where none
 }
 rigFlag(){ ## flag -- its line of --current-flags
 	rigRun "$rigDispatcher" --current-flags
-	printf '%s' "$rigOut" | LC_ALL=C awk -v want="$1" 'index( $0, want ": " ) == 1 { print ; exit }'
+	printf '%s' "$rigOut" | LC_ALL=C awk -v want="$1" 'index( $0, want ": " ) == 1 { print ; exit ; }'
 }
 rigStore(){ ## -- the settings file of the rig, as its sum
 	[ -f "$rigWs/.local/.agents/magic-team.agent.env" ] && cksum < "$rigWs/.local/.agents/magic-team.agent.env" || printf 'none'

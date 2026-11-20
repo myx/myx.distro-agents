@@ -132,21 +132,21 @@ rigScan(){ ## -- the supervisor's scan of this rig
 		MDAT_SKILLSET_ROOT="$rigSkills" bash "$rigScanFn" --supervise-scan --workspace "$rigWs" ) 2>&1
 }
 rigRunWord(){ ## run id, field -- that field of its `run` line
-	rigScan | LC_ALL=C awk -v want="$1" -v field="$2" '$1 == "run" && $3 == want { print $field }' | head -1
+	rigScan | LC_ALL=C awk -v want="$1" -v field="$2" '$1 == "run" && $3 == want { print $field ; }' | head -1
 }
 rigDerived(){ ## run id -- the registry's own word for it
 	rigWantRun="$1"
 	( cd "$rigWs" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" PATH="$rigTmp/bin:/usr/bin:/bin:/usr/sbin:/sbin" \
 		MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
 		bash -c '. "$1" ; AgentsToolsRegistryRenderSpawnedSessions agents' rig "$rigPkg/sh-lib/session/AgentsTools.RegistrySpawnedSessions.include" ) 2>&1 \
-		| LC_ALL=C awk -v want="$rigWantRun" 'NF == 13 && $8 == want { print $13 }' | head -1
+		| LC_ALL=C awk -v want="$rigWantRun" 'NF == 13 && $8 == want { print $13 ; }' | head -1
 }
 rigJudged(){ ## session id -- what the control thread's own judging says of it
 	( cd "$rigWs" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" PATH="$rigTmp/bin:/usr/bin:/bin:/usr/sbin:/sbin" \
 		MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
 		bash -c '. "$1" ; . "$2" ; AgentsToolsRegistryRenderSpawnedSessions agents | LC_ALL=C awk "NF == 13 && \$2 != \"-\"" | AgentsToolsSessionControlJudged' \
 			rig "$rigPkg/sh-lib/session/AgentsTools.RegistrySpawnedSessions.include" "$rigPkg/sh-lib/session/AgentsTools.SessionControlStart.include" ) 2>&1 \
-		| LC_ALL=C awk -v want="$1" '$1 == want { print $2 }' | head -1
+		| LC_ALL=C awk -v want="$1" '$1 == want { print $2 ; }' | head -1
 }
 rigReacted(){ LC_ALL=C tr '\n' ' ' < "$rigSlack/react" 2> /dev/null || : ; }
 rigSection(){ : > "$rigSlack/react" ; }
@@ -165,8 +165,8 @@ rigAssert "and its old tool call is what the scan says of it" "$( rigRunWord fre
 
 echo "-- 1. the pause operation writes the flag every reader above asks --"
 rigPauseRow="$( rigCall "$rigTool" --manager-session-pause --session-id pause-sess )"
-rigAssert "the pause names the flag it wrote" "$( printf '%s\n' "$rigPauseRow" | LC_ALL=C awk -F'\t' '$1 == "pause" { print $1 }' )" "pause"
-rigAssert "and that is the file the readers ask of" "$( printf '%s\n' "$rigPauseRow" | LC_ALL=C awk -F'\t' '$1 == "pause" { print $3 }' | LC_ALL=C sed "s|$rigWs|WS|" )" "WS/.local/agents/sessions/pause-sess/paused"
+rigAssert "the pause names the flag it wrote" "$( printf '%s\n' "$rigPauseRow" | LC_ALL=C awk -F'\t' '$1 == "pause" { print $1 ; }' )" "pause"
+rigAssert "and that is the file the readers ask of" "$( printf '%s\n' "$rigPauseRow" | LC_ALL=C awk -F'\t' '$1 == "pause" { print $3 ; }' | LC_ALL=C sed "s|$rigWs|WS|" )" "WS/.local/agents/sessions/pause-sess/paused"
 
 echo "-- 2b. S13.18's paused signal and verdict --"
 rigAssert "the scan reads the run a pause holds as paused" "$( rigRunWord pausrun 8 )" "paused=yes"
@@ -229,7 +229,7 @@ rigAssert "the scan says the session is paused" "$( rigDutyScan | LC_ALL=C grep 
 
 echo "-- 7. a resume clears it everywhere --"
 rigResumeRow="$( rigCall "$rigTool" --manager-session-resume --session-id pause-sess )"
-rigAssert "the resume says a flag stood, and removed it" "$( printf '%s\n' "$rigResumeRow" | LC_ALL=C awk -F'\t' '$1 == "resume" { print $1, $4 }' )" "resume resumed"
+rigAssert "the resume says a flag stood, and removed it" "$( printf '%s\n' "$rigResumeRow" | LC_ALL=C awk -F'\t' '$1 == "resume" { print $1, $4 ; }' )" "resume resumed"
 rigAssert "the scan reads the run as it reads the control now: not paused, and its own old tool call again" "$( rigRunWord pausrun 8 ):$( rigRunWord pausrun 5 )" "paused=no:$( rigRunWord freerun 5 )"
 rigAssert "the registry derives its own activity word again" "$( rigDerived pausrun )" "tool"
 rigSection

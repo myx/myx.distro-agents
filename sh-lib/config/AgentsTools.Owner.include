@@ -1127,6 +1127,7 @@ case "$1" in
 						"$setupLibDir/mcp/AgentsMcpJsonEscape.awk" \
 						"$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsRegistryHeaderRows.awk" \
 						"$setupTestDir/harness/AgentsHarnessSelfCheck.test.awk" \
+						"$setupTestDir/mcp/AgentsMcpToolListShape.test.awk" \
 						"$setupTestDir/harness/AgentsHarnessAwkAxiom.test.awk" 2>&1 )" || setupAxiomRc=$?
 					if [ "$setupAxiomRc" = "0" ] ; then
 						echo "HARNESS_AWK_AXIOM: OK (every awk this leg loads)"

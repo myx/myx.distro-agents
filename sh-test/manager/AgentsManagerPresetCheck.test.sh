@@ -44,7 +44,7 @@ rigRun(){ ## tool arguments... -- one dispatcher call from the rig workspace; rc
 		bash "$rigTool" "$@" ) > "$rigTmp/out" 2> "$rigTmp/err" <<< "${rigInput:-}" || rigRc=$?
 }
 rigKeyRow(){ ## key -- the fields of that key's row in the last output after its name: state, kind, takes (cut)
-	LC_ALL=C awk -F'\t' -v key="$1" '$1 == "key" && $2 == key { printf "%s|%s|%s", $3, $7, substr( $8, 1, 40 ) }' "$rigTmp/out"
+	LC_ALL=C awk -F'\t' -v key="$1" '$1 == "key" && $2 == key { printf "%s|%s|%s", $3, $7, substr( $8, 1, 40 ) ; }' "$rigTmp/out"
 }
 rigChosen(){ ## member, the tier asked -- the spawner's own choice of the preset, from the rig workspace
 	( cd "$rigWs" && env -i HOME="$rigTmp/home" PATH="/usr/bin:/bin:/usr/sbin:/sbin" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDSC_CMD=rig \
@@ -57,7 +57,7 @@ rigEffective(){ ## preset, key
 
 echo "-- 1. the list --"
 rigRun --manager-preset-list
-rigAssert "each preset with what it extends and comes to, and by whom it is used" "$( LC_ALL=C awk -F'\t' '{ printf "%s ext=%s svc=%s model=%s eff=%s used=%s / ", $3, $8, $9, $10, $11, $12 }' "$rigTmp/out" )" \
+rigAssert "each preset with what it extends and comes to, and by whom it is used" "$( LC_ALL=C awk -F'\t' '{ printf "%s ext=%s svc=%s model=%s eff=%s used=%s / ", $3, $8, $9, $10, $11, $12 ; }' "$rigTmp/out" )" \
 	"Agents:_preset-rig-base ext=- svc=claude model=- eff=- used=preset-rig-ext_preset-rig-opus / Agents:_preset-rig-ext ext=rig-base svc=claude model=low eff=- used=magic-team / Agents:_preset-rig-opus ext=rig-base svc=claude model=high eff=high used=- / "
 
 echo "-- 2. the variables of a preset by their kinds --"
@@ -68,19 +68,19 @@ rigAssert "a preset that extends: the CLI service is locked, with why; the paren
 rigRun --manager-scope-read agents:preset-rig-base
 rigAssert "a preset that extends none: the CLI service a choice of the ten, no credential locked; the credentials of claude offered; the model a text" "$( rigKeyRow PRESET_CLI_SERVICE | LC_ALL=C cut -c1-60 ) $( rigKeyRow ANTHROPIC_API_KEY ) $( rigKeyRow PRESET_MODEL_OR_MACRO )" \
 	"set|choice|claude=claude,copilot=copilot,grok=grok, missing|text|- missing|text|-"
-rigAssert "a credential offered is one, by its type" "$( LC_ALL=C awk -F'\t' '$1 == "key" && $2 == "ANTHROPIC_API_KEY" { print $5 }' "$rigTmp/out" )" "credential"
+rigAssert "a credential offered is one, by its type" "$( LC_ALL=C awk -F'\t' '$1 == "key" && $2 == "ANTHROPIC_API_KEY" { print $5 ; }' "$rigTmp/out" )" "credential"
 
 echo "-- 3. the tiers --"
 rigRun --manager-scope-read agents:magic-team
-rigAssert "the team's three tiers: set or missing, each of the kind tier, taking the presets, then after a slash the efforts" "$( LC_ALL=C awk -F'\t' '$1 == "key" && $2 ~ /^SPAWN_TIER_/ { efforts = $8 ; sub( /^[^\/]*\//, "", efforts ) ; presets = $8 ; sub( /\/.*$/, "", presets ) ; printf "%s:%s:%s:%s ", $2, $3, $7, efforts ; if ( presets ~ /rig-base/ && presets !~ /:/ ) held++ } END { print held + 0 }' "$rigTmp/out" )" "SPAWN_TIER_LOW:set:tier:none,low,normal,high SPAWN_TIER_NORMAL:set:tier:none,low,normal,high SPAWN_TIER_HIGH:missing:tier:none,low,normal,high 3"
+rigAssert "the team's three tiers: set or missing, each of the kind tier, taking the presets, then after a slash the efforts" "$( LC_ALL=C awk -F'\t' '$1 == "key" && $2 ~ /^SPAWN_TIER_/ { efforts = $8 ; sub( /^[^\/]*\//, "", efforts ) ; presets = $8 ; sub( /\/.*$/, "", presets ) ; printf "%s:%s:%s:%s ", $2, $3, $7, efforts ; if ( presets ~ /rig-base/ && presets !~ /:/ ) held++ ; } END { print held + 0 ; }' "$rigTmp/out" )" "SPAWN_TIER_LOW:set:tier:none,low,normal,high SPAWN_TIER_NORMAL:set:tier:none,low,normal,high SPAWN_TIER_HIGH:missing:tier:none,low,normal,high 3"
 rigRun --manager-scope-read agents:keeper-myx
 rigAssert "a member that holds no file of settings is a scope for its tiers: three missing tiers; the id is none of the listed scopes" "$( rigKeyRow SPAWN_TIER_NORMAL ) $( rigRun --manager-scope-list ; LC_ALL=C grep -c 'keeper-myx' "$rigTmp/out" || : )" "missing|tier|rig-base,rig-ext,rig-opus/none,low,norma 0"
 rigRun --manager-preset-tiers
-rigAssert "the tiers listed: the team first with its three, then each member to start" "$( LC_ALL=C awk -F'\t' '{ printf "%s %s %s %s %s / ", $2, $3, $8, $9, $10 }' "$rigTmp/out" )" "agents:magic-team Team rig-ext rig-ext - / agents:keeper-myx keeper-myx - - - / agents:magic-coordinator magic-coordinator - - - / "
-rigAssert "each tier row carries what the shell's AgentsToolsPresetChosenLine answered, so the console computes no fallback" "$( LC_ALL=C awk -F'\t' '$1 == "tier" && $2 == "agents:magic-team" { printf "%s %s %s %s %s %s", $11, $12, $13, $14, $15, $16 }' "$rigTmp/out" )" "rig-ext set rig-ext set rig-ext uses_the_normal_tier,_used_for_all_tiers"
+rigAssert "the tiers listed: the team first with its three, then each member to start" "$( LC_ALL=C awk -F'\t' '{ printf "%s %s %s %s %s / ", $2, $3, $8, $9, $10 ; }' "$rigTmp/out" )" "agents:magic-team Team rig-ext rig-ext - / agents:keeper-myx keeper-myx - - - / agents:magic-coordinator magic-coordinator - - - / "
+rigAssert "each tier row carries what the shell's AgentsToolsPresetChosenLine answered, so the console computes no fallback" "$( LC_ALL=C awk -F'\t' '$1 == "tier" && $2 == "agents:magic-team" { printf "%s %s %s %s %s %s", $11, $12, $13, $14, $15, $16 ; }' "$rigTmp/out" )" "rig-ext set rig-ext set rig-ext uses_the_normal_tier,_used_for_all_tiers"
 printf '# a note, no variable\n' > "$rigAgents/keeper-myx.agent.env"
 rigRun --manager-preset-tiers
-rigAssert "a member whose file holds no variable has the count 0 on one line, one row each, and no complaint on the error stream" "$( LC_ALL=C awk -F'\t' '$2 == "agents:keeper-myx" { printf "%s/%s/%s", NF, $4, $5 }' "$rigTmp/out" ) $( wc -l < "$rigTmp/out" | LC_ALL=C tr -d ' ' ) $( LC_ALL=C grep -c -F 'integer expression' "$rigTmp/err" || : )" "16/0/no 3 0"
+rigAssert "a member whose file holds no variable has the count 0 on one line, one row each, and no complaint on the error stream" "$( LC_ALL=C awk -F'\t' '$2 == "agents:keeper-myx" { printf "%s/%s/%s", NF, $4, $5 ; }' "$rigTmp/out" ) $( wc -l < "$rigTmp/out" | LC_ALL=C tr -d ' ' ) $( LC_ALL=C grep -c -F 'integer expression' "$rigTmp/err" || : )" "16/0/no 3 0"
 rm -f "$rigAgents/keeper-myx.agent.env"
 
 echo "-- 4. the writes go through the setting reader --"

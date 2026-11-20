@@ -181,7 +181,7 @@ rigRc(){ cat "$rigTmp/$1.rc" 2> /dev/null ; }
 rigRows(){ ## label...
 	local rowsLabel
 	for rowsLabel in "$@" ; do cat "$rigTmp/$rowsLabel.out" 2> /dev/null ; done \
-		| LC_ALL=C awk -F'\t' '$1 == "kill" && NF == 8 { print $2 "," $3 "," $4 "," $5 "," $6 }' | LC_ALL=C sort | LC_ALL=C tr '\n' ' '
+		| LC_ALL=C awk -F'\t' '$1 == "kill" && NF == 8 { print $2 "," $3 "," $4 "," $5 "," $6 ; }' | LC_ALL=C sort | LC_ALL=C tr '\n' ' '
 }
 rigSaid(){ ## label, a whole line of what the call said -- how often it stands there
 	LC_ALL=C grep -c -x -F -- "$2" "$rigTmp/$1.err" 2> /dev/null || :
@@ -256,7 +256,7 @@ rigAsk ka --session-id ka-run
 rigAssert "the id of the session: status 0, and the rows of step one, one for each of its three runs" "$( rigRc ka ) $( rigRows ka )" \
 	"0 ka-run,ka-run,keeper-rig,ended,spawn-started ka-run,ka-three,magic-coordinator,ended,spawn-started ka-run,ka-two,keeper-myx,ended,spawn-started "
 rigAssert "each row names the process that was signalled, and the three processes are gone" \
-	"$( LC_ALL=C awk -F'\t' '$1 == "kill" { print $7 }' "$rigTmp/ka.out" | LC_ALL=C sort -n | LC_ALL=C tr '\n' ' ' ):$( rigLives "$rigKa1" "$rigKa2" "$rigKa3" )" \
+	"$( LC_ALL=C awk -F'\t' '$1 == "kill" { print $7 ; }' "$rigTmp/ka.out" | LC_ALL=C sort -n | LC_ALL=C tr '\n' ' ' ):$( rigLives "$rigKa1" "$rigKa2" "$rigKa3" )" \
 	"$( printf '%s\n' "$rigKa1" "$rigKa2" "$rigKa3" | LC_ALL=C sort -n | LC_ALL=C tr '\n' ' ' ):ended ended ended"
 rigAssert "the call says in one line that the thread carried it out, and not that it did so itself" \
 	"$( rigSaid ka "# DistroAgentsTools $rigOp: carried out by the control thread of session ka-run, pid $rigThreadA" ):$( rigSays ka 'carried out directly' )" "1:0"
@@ -448,7 +448,7 @@ rigThread kk-run ; rigThreadK="$rigThreadPid"
 rigWaitFor 10 rigStateIs kk-run running
 rigAsk kk --session-id kk-run
 rigAssert "a run the polite end does not end, and a bound of one second for the kill: the call of the thread is ended at its bound and answers failed, and the console carries the kill out itself, to its end" \
-	"$( rigRc kk ) $( rigRows kk ):$( rigLives "$rigKk1" ):$( rigOutcome kk-run 'result: failed' ):$( LC_ALL=C grep -c -F -- 'reason: it did not end within its bound of 1 seconds, and was ended' "$rigStores/kk-run/control/outcome" 2> /dev/null ):$( rigSays kk "the control thread of session kk-run, pid $rigThreadK, did not carry the request out (failed: it did not end within its bound of 1 seconds, and was ended" ):$( rigSays kk ', so the kill is carried out directly' ):$( LC_ALL=C awk -F'\t' '$1 == "finish" { print $3, $6 }' "$rigTmp/kk.out" )" \
+	"$( rigRc kk ) $( rigRows kk ):$( rigLives "$rigKk1" ):$( rigOutcome kk-run 'result: failed' ):$( LC_ALL=C grep -c -F -- 'reason: it did not end within its bound of 1 seconds, and was ended' "$rigStores/kk-run/control/outcome" 2> /dev/null ):$( rigSays kk "the control thread of session kk-run, pid $rigThreadK, did not carry the request out (failed: it did not end within its bound of 1 seconds, and was ended" ):$( rigSays kk ', so the kill is carried out directly' ):$( LC_ALL=C awk -F'\t' '$1 == "finish" { print $3, $6 ; }' "$rigTmp/kk.out" )" \
 	"0 kk-run,kk-run,keeper-rig,killed,spawn-started :ended:1:1:1:1:1 finished"
 rigRec kl-run kl-run keeper-rig ; rigStand kl-run ; rigKl1="$rigStandPid"
 rigThread kl-run ; rigThreadL="$rigThreadPid"

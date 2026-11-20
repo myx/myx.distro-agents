@@ -75,7 +75,7 @@ AgentsToolsSuperviseCommitTranscripts(){ ## [--workspace <path>] [--dry-run]
 	## WHAT THE SWEEP LEFT: the same read again, after the commit. A path still there is owed, and said so, so a caller never reads
 	## a row as a commit that did not land.
 	[ "$commitDry" = yes ] || [ "${#commitPaths[@]}" -eq 0 ] || {
-		commitLeft="$( AgentsToolsSuperviseChangedTranscripts "$commitRoot" | LC_ALL=C awk 'END { print NR + 0 }' )"
+		commitLeft="$( AgentsToolsSuperviseChangedTranscripts "$commitRoot" | LC_ALL=C awk 'END { print NR + 0 ; }' )"
 		[ "$commitLeft" -eq 0 ] || { echo "$MDSC_CMD: ⛔ ERROR: --supervise-commit-transcripts: $commitLeft transcript(s) under $commitRoot/audit are still uncommitted, and are owed" >&2 ; return 1 ; }
 	}
 	return 0

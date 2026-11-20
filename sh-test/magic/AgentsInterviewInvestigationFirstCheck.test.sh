@@ -32,15 +32,15 @@ rigAssert(){ ## what is asserted, got, want
 ## The text of `# Steps` from one numbered step up to the next, the step's own numbering removed.
 rigStepText(){ ## routine file, step number
 	LC_ALL=C awk -v wantStep="$2" '
-		/^# Steps$/ { inSteps = 1 ; next }
-		inSteps && /^# / { exit }
+		/^# Steps$/ { inSteps = 1 ; next ; }
+		inSteps && /^# / { exit ; }
 		inSteps && /^[0-9]+\. / {
-			if ( taking ) { exit }
+			if ( taking ) { exit ; }
 			stepNumber = $0 ; sub( /\..*/, "", stepNumber )
-			if ( stepNumber + 0 == wantStep + 0 ) { taking = 1 ; print }
+			if ( stepNumber + 0 == wantStep + 0 ) { taking = 1 ; print ; }
 			next
 		}
-		taking { print }
+		taking { print ; }
 	' "$1"
 }
 

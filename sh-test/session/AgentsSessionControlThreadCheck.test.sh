@@ -122,7 +122,7 @@ rigStand(){ ## spawn id (may be empty)
 }
 rigUnlist(){ ## spawn id -- its run ends: the stand-in that ran as it, and its line of the rig's process list
 	local unlistPids
-	unlistPids="$( LC_ALL=C awk -v wantId="$1" '$2 == "claude" { for ( wordAt = 3 ; wordAt < NF ; wordAt++ ) { if ( $wordAt == "--session-id" && $( wordAt + 1 ) == wantId ) { print $1 ; } } }' "$rigTmp/ps.list" )"
+	unlistPids="$( LC_ALL=C awk -v wantId="$1" '$2 == "claude" { for ( wordAt = 3 ; wordAt < NF ; wordAt++ ) { if ( $wordAt == "--session-id" && $( wordAt + 1 ) == wantId ) { print $1 ; } ; } ; }' "$rigTmp/ps.list" )"
 	[ -z "$unlistPids" ] || rigProcSignal TERM $unlistPids
 	LC_ALL=C grep -v -F -- " --session-id $1 " "$rigTmp/ps.list" > "$rigTmp/ps.list.new" ; mv -f "$rigTmp/ps.list.new" "$rigTmp/ps.list"
 }
@@ -202,7 +202,7 @@ rigErrorCount(){
 }
 rigPrint(){ ## file -- its inode and the sum of its bytes; no-file where there is none
 	[ -f "$1" ] || { printf 'no-file\n' ; return 0 ; }
-	printf '%s:%s\n' "$( ls -i "$1" | LC_ALL=C awk '{ print $1 ; exit }' )" "$( cksum < "$1" | LC_ALL=C tr -s ' \t' '-' )"
+	printf '%s:%s\n' "$( ls -i "$1" | LC_ALL=C awk '{ print $1 ; exit ; }' )" "$( cksum < "$1" | LC_ALL=C tr -s ' \t' '-' )"
 }
 rigTree(){ ## -- every folder, file and link under the rig's .local/agents, each file with the sum of its bytes, as one sum
 	( cd "$rigAgents" && find . | LC_ALL=C sort | while IFS= read -r treeName ; do
@@ -289,7 +289,7 @@ printf '%s %s\n' "$rigA" "$rigALine" >> "$rigTmp/ps.list"
 rigAssert "control: the rig's process list holds the thread's own command line, with --session-id and the id of its session" "$( LC_ALL=C grep -c -F -- "$rigOp --run --session-id sess-quiet" "$rigTmp/ps.list" )" "1"
 rigRun --manager-session-list
 rigAssert "with its thread in the process list, the list of sessions shows no run of that session as running" \
-	"$rigRc:$( LC_ALL=C awk -F'\t' '$1 == "session" && $2 == "sess-quiet" { print $4 } $1 == "run" && $2 == "sess-quiet" { print $6 }' "$rigTmp/out" | LC_ALL=C tr '\n' ' ' )" "0:unclosed gone "
+	"$rigRc:$( LC_ALL=C awk -F'\t' '$1 == "session" && $2 == "sess-quiet" { print $4 ; } $1 == "run" && $2 == "sess-quiet" { print $6 ; }' "$rigTmp/out" | LC_ALL=C tr '\n' ' ' )" "0:unclosed gone "
 rigAssert "the one rule of a live run reads nothing from the thread's command line" \
 	"$( printf '%s %s\n' "$rigQ" "$rigQLine" | ( PATH="$rigProcPath" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunProcesses.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunState.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunLeft.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunRecords.include" ; AgentsToolsRunWords ) | LC_ALL=C grep -c . )" "0"
 sleep 3
@@ -453,7 +453,7 @@ fi
 rigRec sess-e sess-e sess-e sess-e "$rigHost" spawn-started ''
 rigStand sess-e ; rigRunE="$rigStandPid"
 mkdir -p "$rigStores/sess-e/control"
-LC_ALL=C awk 'BEGIN { for ( lineAt = 1 ; lineAt <= 4000 ; lineAt++ ) { printf "2026-10-13T00:00:00Z old line %05d of a log that grew and grew and grew\n", lineAt ; } }' > "$rigStores/sess-e/control/log"
+LC_ALL=C awk 'BEGIN { for ( lineAt = 1 ; lineAt <= 4000 ; lineAt++ ) { printf "2026-10-13T00:00:00Z old line %05d of a log that grew and grew and grew\n", lineAt ; } ; }' > "$rigStores/sess-e/control/log"
 rigLogBefore="$( wc -c < "$rigStores/sess-e/control/log" | LC_ALL=C tr -d ' ' )"
 rigThread e sess-e ; rigE="$rigThreadPid"
 rigWaitFor 20 rigHolds sess-e "$rigE" || rigRefuse "the thread of sess-e did not start: $( LC_ALL=C tr '\n' ' ' < "$rigTmp/e.err" | cut -c1-600 )"
@@ -463,7 +463,7 @@ rigAssert "control: the log the thread found was over the bound" "$( [ "$rigLogB
 rigAssert "a log over 128 KiB is cut back to its last 64 KiB: whole lines, the newest kept, and one line that says so" \
 	"$( [ "$rigLogAfter" -le 70000 ] && [ "$rigLogAfter" -ge 60000 ] && echo cut || echo "$rigLogAfter" ):$( LC_ALL=C sed -n '1p' "$rigStores/sess-e/control/log" | LC_ALL=C grep -c -E '^2026-10-13T00:00:00Z old line [0-9]{5} of a log that grew and grew and grew$' ):$( rigLogHas sess-e 'old line 04000 ' ):$( rigLogHas sess-e 'old line 00001 ' ):$( rigLogHas sess-e 'the log had grown over 128 KiB and holds its last 64 KiB now' )" "cut:1:1:0:1"
 rigAssert "and the thread goes on writing to the log that is there now: its start is in it, and its next tick is right" \
-	"$( rigLogHas sess-e "the control thread of session sess-e runs as pid $rigE" ):$( rigTickRight sess-e "$rigE" ):$( rigLogHas sess-e 'session sess-e: running: a run of the session is alive on this host' | LC_ALL=C awk '{ print ( $1 >= 2 ) ? "said" : $1 }' )" "1:there, and right:said"
+	"$( rigLogHas sess-e "the control thread of session sess-e runs as pid $rigE" ):$( rigTickRight sess-e "$rigE" ):$( rigLogHas sess-e 'session sess-e: running: a run of the session is alive on this host' | LC_ALL=C awk '{ print ( $1 >= 2 ) ? "said" : $1 ; }' )" "1:there, and right:said"
 
 ## ITS OWN SHELL ENDS WITHOUT ITS DOING: a signal that cannot be ignored and that it has no care for, the limit of
 ## processor time, as any fault that ends a shell. The thread is put back in place: the same process, by exec.

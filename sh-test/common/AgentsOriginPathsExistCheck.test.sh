@@ -71,7 +71,7 @@ rigFormsReader="$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-or
 rigShells=()
 while IFS= read -r rigShell ; do rigShells+=( "$rigShell" ) ; done < "$rigTmp/shells"
 ( cd "$MDLT_ORIGIN/myx" && python3 -I -B "$rigFormsReader" "${rigShells[@]}" ) > "$rigTmp/forms" || rigRefuse "the forms reader could not read every shell file of the packages"
-rigAssert "control: the shell files of the packages are read"  "$( LC_ALL=C grep -c . "$rigTmp/shells" | LC_ALL=C awk '{ print ( $1 >= 100 ) ? "read" : "only " $1 }' )" read
+rigAssert "control: the shell files of the packages are read"  "$( LC_ALL=C grep -c . "$rigTmp/shells" | LC_ALL=C awk '{ print ( $1 >= 100 ) ? "read" : "only " $1 ; }' )" read
 rigAssert "every include of a package's sh-lib file spells myx/<package>/sh-lib/<file> after \$MDLT_ORIGIN: the sites in another form ($( LC_ALL=C grep -c . "$rigTmp/forms" ))" "[$( LC_ALL=C tr '\n' '|' < "$rigTmp/forms" | LC_ALL=C sed 's/|$//' )]" "[]"
 printf '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.Member.include"\n. "$rigLib/AgentsTools.Member.include"\n## . "$rigLib/AgentsTools.Member.include"\n. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-lib/member/AgentsTools.Member.include"\n. "$MYXROOT/bin/lib/parallel.Common"\n. "$( dirname $0 )/../sh-lib/member/AgentsTools.Member.include"\n' > "$rigTmp/forms-probe.sh"
 rigAssert "control: the reader passes the one form and its default, lists a variable-built and a script-relative include, and no comment and no other file" "$( python3 -I -B "$rigFormsReader" "$rigTmp/forms-probe.sh" | LC_ALL=C sed 's/^[^:]*://' | LC_ALL=C tr '\n' '|' )" '2: "$rigLib/AgentsTools.Member.include"|6: "$( dirname $0 )/../sh-lib/member/AgentsTools.Member.include"|'
@@ -87,7 +87,7 @@ mkdir -p "$rigTmp/ws/.local"
 	printf "rc=%s replies=%s\n" "$completeRc" "${#COMPREPLY[@]}"
 ' ) > "$rigTmp/complete.out" 2> "$rigTmp/complete.err" < /dev/null
 rigAssert "tab completion of Local: no missing-file error"   "$( LC_ALL=C grep -c -i -e 'No such file' -e 'not found' "$rigTmp/complete.err" )" 0
-rigAssert "and it answers with completions, exit 0"          "$( LC_ALL=C sed -n 's/^rc=\([0-9]*\) replies=\([0-9]*\)$/\1 \2/p' "$rigTmp/complete.out" | LC_ALL=C awk '{ print ( $1 == 0 && $2 >= 1 ) ? "completes" : "rc " $1 ", " $2 " replies" }' )" completes
+rigAssert "and it answers with completions, exit 0"          "$( LC_ALL=C sed -n 's/^rc=\([0-9]*\) replies=\([0-9]*\)$/\1 \2/p' "$rigTmp/complete.out" | LC_ALL=C awk '{ print ( $1 == 0 && $2 >= 1 ) ? "completes" : "rc " $1 ", " $2 " replies" ; }' )" completes
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ ORIGIN PATHS EXIST CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

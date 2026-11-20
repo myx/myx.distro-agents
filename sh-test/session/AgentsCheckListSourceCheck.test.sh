@@ -107,7 +107,7 @@ rigScene(){
 	rigList="${rigRecord%/*}/$rigMember.checklist.md"
 	## THE PARENT OF THE RUN: the append below is the parent's own, so the record names one; the tooling wrote the record
 	## and a rig may add the line its own scenario needs (another check's record is written whole by the same reading).
-	LC_ALL=C awk '$0 == "---" { if ( ++dashes == 2 ) { print "parent-session-id: rig-parent" } } { print }' "$rigRecord" > "$rigRecord.new" \
+	LC_ALL=C awk '$0 == "---" { if ( ++dashes == 2 ) { print "parent-session-id: rig-parent" ; } ; } { print ; }' "$rigRecord" > "$rigRecord.new" \
 		&& mv -f "$rigRecord.new" "$rigRecord"
 	printf -- '---\nspawn-id: rig-parent\nsession-id: rig-parent\nowner: %s\nparent-session-id: none\n---\n' "$rigMember" \
 		> "$rigWs/.local/agents/spawned/rig-parent.spawn.md"
@@ -175,7 +175,7 @@ rigAssert "the replace is made: rc 0 and an OK line"       "$rigRc:$( LC_ALL=C g
 rigAssert "the replaced routine's step items are gone"     "$( LC_ALL=C grep -c -e '^- \[ \] rig-a-one' -e '^- \[ \] rig-a-two' "$rigList" )" 0
 rigAssert "the new routine's steps are on the list, pending" "$( LC_ALL=C grep -c -e '^- \[ \] rig-b-one' -e '^- \[ \] rig-b-two' "$rigList" )" 2
 rigAssert "they stand before everything that was kept, in the routine's order" \
-	"$( LC_ALL=C grep -e '^- \[ \] ' -e '^- \[x\] ' -e '^- \[~\] ' "$rigList" | LC_ALL=C awk 'BEGIN { ORS = "" } { sub( /^- \[[ x~]\] /, "", $0 ) ; printf "%s%s", ( NR > 1 ? "|" : "" ), $0 }' )" \
+	"$( LC_ALL=C grep -e '^- \[ \] ' -e '^- \[x\] ' -e '^- \[~\] ' "$rigList" | LC_ALL=C awk 'BEGIN { ORS = "" ; } { sub( /^- \[[ x~]\] /, "", $0 ) ; printf "%s%s", ( NR > 1 ? "|" : "" ), $0 ; }' )" \
 	"rig-b-one|rig-b-two|RIG-BRIEF-STEP|RIG-ARG-STEP|RIG-OWN-ITEM|RIG-ADDED-ITEM"
 rigAssert "the parent's item stays, with its source"       "$( LC_ALL=C grep -c -x -F -- '- [ ] RIG-BRIEF-STEP' "$rigList" )" 1
 rigAssert "the parent's add stays too"                     "$( LC_ALL=C grep -c -x -F -- '- [ ] RIG-ADDED-ITEM' "$rigList" )" 1
@@ -207,7 +207,7 @@ rigAssert "and the routine's own step stands beside it"     "$( LC_ALL=C grep -c
 echo "-- 9. a member that writes its own read back keeps its items' sources --"
 rigRead="$( rigCall run '{}' )"
 rigAssert "the read shows the parent's item with its source" "$( rigItems "$rigRead" | LC_ALL=C grep -c -x -F -- '- [ ] RIG-BRIEF-STEP [parent]' )" 1
-rigEcho="$( printf '%s\n' "$rigRead" | LC_ALL=C awk '/^- \[[ x~]\] / { line = $0 ; sub( /^- \[[ x~]\] /, "", line ) ; printf "{\"content\":\"%s\",\"status\":\"pending\",\"activeForm\":\"Echo\"},", line }' )"
+rigEcho="$( printf '%s\n' "$rigRead" | LC_ALL=C awk '/^- \[[ x~]\] / { line = $0 ; sub( /^- \[[ x~]\] /, "", line ) ; printf "{\"content\":\"%s\",\"status\":\"pending\",\"activeForm\":\"Echo\"},", line ; }' )"
 rigCall run "{\"todos\":[${rigEcho%,}]}" > /dev/null
 rigAssert "an echoed read writes no suffix into an item's text" "$( LC_ALL=C grep -c '\[step\]\|\[parent\]' "$rigList" )" 0
 rigAssert "and the items' sources are still what they were"  "$( rigItems "$( rigCall run '{}' )" | LC_ALL=C grep -c -x -F -- '- [ ] RIG-BRIEF-STEP [parent]' )" 1
@@ -217,7 +217,7 @@ rigAssert "and the items' sources are still what they were"  "$( rigItems "$( ri
 rigSettle(){
 	local settleLeft=90
 	while [ "$settleLeft" -gt 0 ] ; do
-		[ "$( ps -A -ww -o args= 2>/dev/null | LC_ALL=C awk -v rig="$rigTmp" 'index( $0, rig ) && !/awk/ { n++ } END { print n + 0 }' )" != "0" ] || return 0
+		[ "$( ps -A -ww -o args= 2>/dev/null | LC_ALL=C awk -v rig="$rigTmp" 'index( $0, rig ) && !/awk/ { n++ ; } END { print n + 0 ; }' )" != "0" ] || return 0
 		sleep 1 ; settleLeft=$(( settleLeft - 1 ))
 	done
 	return 1

@@ -118,7 +118,7 @@ rigLive(){ ## member, idle|working -- the run of that member's duty in the rig: 
 	## The item goes back to running as dispatch-started, which is what a live duty's item is, so the stand-in is a live duty in every record the tooling reads.
 	local liveStem liveItem liveField liveState
 	for liveField in spawns spawned-by ; do
-		liveStem="$( LC_ALL=C awk -v wantHeader="$liveField" '$0 == "---" { fmCount++ ; if ( fmCount > 1 ) exit ; next } fmCount == 1 && index( $0, wantHeader ": " ) == 1 { print substr( $0, length( wantHeader ) + 3 ) ; exit }' "$liveRecord" 2> /dev/null )"
+		liveStem="$( LC_ALL=C awk -v wantHeader="$liveField" '$0 == "---" { fmCount++ ; if ( fmCount > 1 ) exit ; next ; } fmCount == 1 && index( $0, wantHeader ": " ) == 1 { print substr( $0, length( wantHeader ) + 3 ) ; exit ; }' "$liveRecord" 2> /dev/null )"
 		[ -n "$liveStem" ] || continue
 		for liveItem in "$rigData"/board/processed/"${liveStem%.md}.md" "$rigData"/board/archived/"${liveStem%.md}.md" ; do
 			[ -f "$liveItem" ] || continue
@@ -130,7 +130,7 @@ rigLive(){ ## member, idle|working -- the run of that member's duty in the rig: 
 	done
 	if ! LC_ALL=C grep -q '^session-thread: ' "$liveRecord" ; then
 		: "${liveRecord:?liveRecord is not set -- nothing was written}"
-		LC_ALL=C awk '{ print } /^status: / { print "session-thread: CRIG00001:1760000000.0000" NR }' "$liveRecord" > "$liveRecord.next" && mv -f "$liveRecord.next" "$liveRecord"
+		LC_ALL=C awk '{ print ; } /^status: / { print "session-thread: CRIG00001:1760000000.0000" NR ; }' "$liveRecord" > "$liveRecord.next" && mv -f "$liveRecord.next" "$liveRecord"
 	fi
 	rigLiveDoorOpen || return 1
 	rigLiveFifo="$rigLiveDoor" bash -c 'exec 0<"$rigLiveFifo" ; IFS= read -r rigLiveLine ; exit 0' runner 5>&- > /dev/null 2>&1 < /dev/null &

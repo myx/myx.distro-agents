@@ -33,7 +33,7 @@ AgentsToolsCommsEmailResolveAddress(){ ## channel-id, bare address or declared n
 		*:*) AgentsToolsCommsEmailAddress "$resolveValue" ; return $? ;;
 		*@*) printf '%s\n' "$resolveValue" ; return 0 ;;
 	esac
-	resolveAddress="$( AgentsToolsCommsChannelResolveDeclared "$resolveValue" | LC_ALL=C awk 'index( $0, "email:" ) == 1 { print substr( $0, 7 ) ; exit }' )"
+	resolveAddress="$( AgentsToolsCommsChannelResolveDeclared "$resolveValue" | LC_ALL=C awk 'index( $0, "email:" ) == 1 { print substr( $0, 7 ) ; exit ; }' )"
 	[ -n "$resolveAddress" ] || return 1
 	printf '%s\n' "$resolveAddress"
 }
@@ -94,10 +94,10 @@ AgentsToolsCommsEmailCacheServe(){ ## cache folder, floor uid
 	for serveDir in "$serveFolder"/[0-9][0-9][0-9][0-9][0-9][0-9] ; do
 		[ -f "$serveDir/messages.txt" ] || continue
 		LC_ALL=C awk -v floorUid="${serveFloor:-0}" -v dir="$serveDir" '
-			$1 + 0 <= floorUid + 0 { next }
+			$1 + 0 <= floorUid + 0 { next ; }
 			{
 				print
-				if ( index($0, " [body: " $1 ".body.txt]") ) { body = dir "/" $1 ".body.txt" ; while ( ( getline line < body ) > 0 ) { print line } ; close(body) }
+				if ( index($0, " [body: " $1 ".body.txt]") ) { body = dir "/" $1 ".body.txt" ; while ( ( getline line < body ) > 0 ) { print line ; } ; close(body) ; }
 			}' "$serveDir/messages.txt"
 	done
 }

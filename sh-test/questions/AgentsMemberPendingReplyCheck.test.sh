@@ -125,10 +125,10 @@ rigRecordFile(){ ## id
 	printf '%s' "$rigRec"
 }
 rigStatus(){ ## id
-	LC_ALL=C awk -F': ' '$1 == "status" { print $2 ; exit }' "$( rigRecordFile "$1" )"
+	LC_ALL=C awk -F': ' '$1 == "status" { print $2 ; exit ; }' "$( rigRecordFile "$1" )"
 }
 rigField(){ ## id, field
-	LC_ALL=C awk -v key="$2" 'index($0, key ": ") == 1 { print substr($0, length(key) + 3) ; exit }' "$( rigRecordFile "$1" )"
+	LC_ALL=C awk -v key="$2" 'index($0, key ": ") == 1 { print substr($0, length(key) + 3) ; exit ; }' "$( rigRecordFile "$1" )"
 }
 
 echo "-- read: the member's own open records --"
@@ -440,7 +440,7 @@ rigAskerOf(){ ## output name, ask number -- the asker-live value of that ask's b
 		$0 == wantHead { inBlock = 1 ; next ; }
 		inBlock && index( $0, "PENDING-REPLY: " ) == 1 { exit ; }
 		inBlock && index( $0, "asker-live: " ) == 1 { print substr( $0, 13 ) ; found = 1 ; exit ; }
-		END { if ( ! found ) { print "absent" ; } }
+		END { if ( ! found ) { print "absent" ; } ; }
 	' "$rigTmp/$1"
 }
 rigOp2 askers --read-pending-reply --team-member magic-tester

@@ -102,7 +102,7 @@
 					[ -n "$teamFloorKey" ] && [ -n "$teamFloorTs" ] || continue
 					sourceFloorArgs+=( --comms-source-floor "$teamFloorKey" "$teamFloorTs" )
 				done <<< "$teamFloorRows"
-				echo "# $MDSC_CMD --intern-op-sweep-input-scan: $callingMember: $( printf '%s\n' "$teamFloorRows" | LC_ALL=C awk 'NF { n++ } END { print n + 0 }' ) source(s) resume from a position of their own" >&2
+				echo "# $MDSC_CMD --intern-op-sweep-input-scan: $callingMember: $( printf '%s\n' "$teamFloorRows" | LC_ALL=C awk 'NF { n++ ; } END { print n + 0 ; }' ) source(s) resume from a position of their own" >&2
 			fi
 		fi
 

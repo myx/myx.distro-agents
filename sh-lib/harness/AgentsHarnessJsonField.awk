@@ -344,7 +344,7 @@ function jfEmit(leafPath, leafValue, leafType, fromPos) {
 ## are jfSlice(fromPos, jfPos) while the call runs, so a reader that prints an
 ## object keeps the body's own text, never a re-serialisation of it.
 function jfNodeAdd(nodePath, nodeType, nodeValue, fromPos) {
-	if (jfOn) { jfNodeHook(nodePath, nodeType, nodeValue, fromPos, jfPos) ; return }
+	if (jfOn) { jfNodeHook(nodePath, nodeType, nodeValue, fromPos, jfPos) ; return ; }
 	jfNodeN++
 	jfNodePath[jfNodeN] = nodePath
 	jfNodeType[jfNodeN] = nodeType

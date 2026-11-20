@@ -110,7 +110,7 @@ rigAssert "and the baseline has moved on, so a quiet continue waits" \
 printf -- '- [ ] One more\n' >> "$rigList"
 rigOut="$( rigWait 5 --wait-continue )"
 rigAssert "the arrival carries the due item's line before the rest" \
-	"$( LC_ALL=C awk '/^due\t/ { print "due-first" ; exit }' <<< "$rigOut" )" "due-first"
+	"$( LC_ALL=C awk '/^due\t/ { print "due-first" ; exit ; }' <<< "$rigOut" )" "due-first"
 rigAssert "and the overdue item is in that line" \
 	"$( LC_ALL=C grep -c -F -e 'due	- [ ] Overdue (due: 2020-01-01 00:00 +0000)' <<< "$rigOut" )" "1"
 rigAssert "with the other open items after it" \

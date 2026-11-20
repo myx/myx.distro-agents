@@ -95,7 +95,7 @@
 			fi
 			## CRLF strip: HTTP headers end CR-LF, and a trailing CR would ride
 			## into the last scope name and silently never match.
-			grantedRaw="$( LC_ALL=C awk 'BEGIN{IGNORECASE=1} /^x-oauth-scopes:/ { sub(/^[^:]*:[ \t]*/, "") ; gsub(/\r/, "") ; print ; exit }' <<< "$scopeDump" )"
+			grantedRaw="$( LC_ALL=C awk 'BEGIN{IGNORECASE=1 ; } /^x-oauth-scopes:/ { sub(/^[^:]*:[ \t]*/, "") ; gsub(/\r/, "") ; print ; exit ; }' <<< "$scopeDump" )"
 			if [ -z "$grantedRaw" ] ; then
 				echo "slack-scopes[$identity]: could-not-check"
 				echo "  note: no x-oauth-scopes header in the auth.test response -- grants unknown, NOT empty"

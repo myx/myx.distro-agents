@@ -42,7 +42,7 @@ AgentsToolsPermissionSetShown(){ ## places `<target><TAB><place>` lines (may be 
 ## `<tool><TAB><place as shown><TAB><note>` lines; stdout: `<place><TAB><tools><TAB><note>`.
 AgentsToolsPermissionSetGroup(){
 	LC_ALL=C awk -F'\t' -v toolOrder="Read Grep Glob Edit Write NotebookEdit Execute WebFetch WebSearch cred" '
-		BEGIN { orderTotal = split( toolOrder, orderList, " " ) ; for ( orderNo = 1 ; orderNo <= orderTotal ; orderNo++ ) { ranked[orderList[orderNo]] = 1 ; } }
+		BEGIN { orderTotal = split( toolOrder, orderList, " " ) ; for ( orderNo = 1 ; orderNo <= orderTotal ; orderNo++ ) { ranked[orderList[orderNo]] = 1 ; } ; }
 		NF >= 2 && $1 != "" {
 			groupKey = $2 SUBSEP $3 ;
 			if ( ! ( groupKey in groupSeen ) ) { groupSeen[groupKey] = 1 ; groupKeys[++groupTotal] = groupKey ; groupPlace[groupKey] = $2 ; groupNote[groupKey] = $3 ; }

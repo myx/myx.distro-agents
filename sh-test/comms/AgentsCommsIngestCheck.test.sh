@@ -37,7 +37,7 @@ rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 ## THE THREAD THE RIG STARTS IS THE RIG'S TO END. Its idle bound is short, so it goes by itself; one still there is noted
 ## and signalled the one safe way sh-test signals a process it did not start.
 rigThreadPids(){
-	LC_ALL=C awk '/the thread runs as pid/ { for (i = 1 ; i < NF ; i++) if ($i == "pid") { print $(i + 1) } }' \
+	LC_ALL=C awk '/the thread runs as pid/ { for (i = 1 ; i < NF ; i++) if ($i == "pid") { print $(i + 1) ; } ; }' \
 		"$rigWs/.local/cache/comms/.event-id/thread.log" 2> /dev/null | LC_ALL=C tr -d ':,' | LC_ALL=C awk '/^[0-9]+$/'
 }
 rigEndThreads(){
@@ -63,7 +63,7 @@ printf 'SLACK_USER_TOKEN=rig-user-token-RIG\n' > "$rigWs/.local/.agents/keeper-r
 printf '0\n' > "$rigScn/pass"
 ## A 5,000-byte text, made once: over the 2,000-byte threshold, and with no TAB and no backslash in it, so the escapes of
 ## the form play no part in this check's answer.
-LC_ALL=C awk 'BEGIN { for (i = 0 ; i < 5000 ; i++) printf "x" ; printf "\n" }' > "$rigScn/longtext"
+LC_ALL=C awk 'BEGIN { for (i = 0 ; i < 5000 ; i++) printf "x" ; printf "\n" ; }' > "$rigScn/longtext"
 
 ## A Slack-shaped fake curl of this check's own: what it answers is $rigScn/pass, so the only difference between two passes
 ## is the one this check is making. `gone` is the same read with its mark taken away, and `long` is one message over the cap.
@@ -133,7 +133,7 @@ rigIngest(){ ## the output files of the pass -- the ingest's rc
 }
 rigEvents(){ LC_ALL=C cat "$1"/[0-9][0-9][0-9][0-9][0-9][0-9]/events.txt 2> /dev/null ; }
 rigEventCount(){ rigEvents "$rigCacheDir" | LC_ALL=C awk 'NF' | LC_ALL=C wc -l | LC_ALL=C tr -d ' ' ; }
-rigKinds(){ rigEvents "$rigCacheDir" | LC_ALL=C awk -F'\t' '{ print $2 }' | LC_ALL=C sort | LC_ALL=C uniq | LC_ALL=C tr '\n' ' ' | LC_ALL=C sed 's/ $//' ; }
+rigKinds(){ rigEvents "$rigCacheDir" | LC_ALL=C awk -F'\t' '{ print $2 ; }' | LC_ALL=C sort | LC_ALL=C uniq | LC_ALL=C tr '\n' ' ' | LC_ALL=C sed 's/ $//' ; }
 
 echo "-- 1. a first pass writes the events its read holds --"
 printf 'first\n' > "$rigScn/pass"
@@ -145,10 +145,10 @@ rigAssert "the store holds five events" "$( rigEventCount )" 5
 
 echo "-- 2. every event has its own id, and the file's order is its ids' order --"
 rigIds="$( rigEvents "$rigCacheDir" | LC_ALL=C cut -f1 )"
-rigAssert "every id is 29 characters" "$( printf '%s\n' "$rigIds" | LC_ALL=C awk 'length($0) != 29 { n++ } END { print n + 0 }' )" 0
+rigAssert "every id is 29 characters" "$( printf '%s\n' "$rigIds" | LC_ALL=C awk 'length($0) != 29 { n++ ; } END { print n + 0 ; }' )" 0
 rigAssert "no two ids are the same" "$( printf '%s\n' "$rigIds" | LC_ALL=C sort -u | LC_ALL=C wc -l | LC_ALL=C tr -d ' ' )" 5
 rigAssert "the file's order is plain string order of its ids" "$( printf '%s\n' "$rigIds" | LC_ALL=C sort | cmp -s - <( printf '%s\n' "$rigIds" ) && printf sorted || printf unsorted )" sorted
-rigAssert "every id carries the EventIdentifier date-time part" "$( printf '%s\n' "$rigIds" | LC_ALL=C awk '$0 !~ /^[0-9]{8}T[0-9]{9}Z-[0-9]{6}[0-9A-F]{3}$/ { n++ } END { print n + 0 }' )" 0
+rigAssert "every id carries the EventIdentifier date-time part" "$( printf '%s\n' "$rigIds" | LC_ALL=C awk '$0 !~ /^[0-9]{8}T[0-9]{9}Z-[0-9]{6}[0-9A-F]{3}$/ { n++ ; } END { print n + 0 ; }' )" 0
 
 echo "-- 3. the pointer is the last id in the file --"
 rigAssert "the pointer names the file's last event" "$( LC_ALL=C cat "$rigCacheDir/.ingest.txt" 2> /dev/null )" "$( printf '%s\n' "$rigIds" | LC_ALL=C tail -1 )"
@@ -163,19 +163,19 @@ rigEarlier="$( rigEvents "$rigCacheDir" | LC_ALL=C cut -f1 )"
 printf 'again\n' > "$rigScn/pass"
 rigIngest
 rigAssert "the second pass ran" "$?" 0
-rigLater="$( rigEvents "$rigCacheDir" | LC_ALL=C awk -F'\t' '$3 == "1793600009.000001" { print $1 }' )"
+rigLater="$( rigEvents "$rigCacheDir" | LC_ALL=C awk -F'\t' '$3 == "1793600009.000001" { print $1 ; }' )"
 rigAssert "the second pass wrote its one new message" "$( printf '%s\n' "$rigLater" | LC_ALL=C awk 'NF' | LC_ALL=C wc -l | LC_ALL=C tr -d ' ' )" 1
 ## THE ORDER COMES FROM THE THREAD, ONE WAY OR THE OTHER: inside one millisecond the sequence carries on past what the
 ## earlier batch used, and a thread whose clock has turned starts again at nought under a later millisecond.
 rigAssert "and the later id either carries the sequence on or takes a later millisecond" "$( rigEvents "$rigCacheDir" | LC_ALL=C awk -F'\t' -v second="$rigLater" '
-	$1 == second { newMs = substr($1, 1, 19) ; newSeq = substr($1, 21, 6) + 0 ; next }
-	{ thisMs = substr($1, 1, 19) ; if (thisMs > lastMs) lastMs = thisMs ; lastSeq = substr($1, 21, 6) + 0 }
+	$1 == second { newMs = substr($1, 1, 19) ; newSeq = substr($1, 21, 6) + 0 ; next ; }
+	{ thisMs = substr($1, 1, 19) ; if (thisMs > lastMs) lastMs = thisMs ; lastSeq = substr($1, 21, 6) + 0 ; }
 	END {
-		if (newMs == "" || lastMs == "") { print "broken" ; exit }
-		if (newMs == lastMs) { print (newSeq == lastSeq + 1 ? "ordered" : "broken") ; exit }
+		if (newMs == "" || lastMs == "") { print "broken" ; exit ; }
+		if (newMs == lastMs) { print (newSeq == lastSeq + 1 ? "ordered" : "broken") ; exit ; }
 		print (newMs > lastMs && newSeq == 0 ? "ordered" : "broken")
 	}' )" ordered
-rigAssert "every id of the later pass is greater than every id of the earlier one" "$( printf '%s\n' "$rigLater" | LC_ALL=C awk -v floor="$( printf '%s\n' "$rigEarlier" | LC_ALL=C sort | LC_ALL=C tail -1 )" '{ if (!($0 > floor)) bad = 1 } END { print (bad ? "no" : "yes") }' )" yes
+rigAssert "every id of the later pass is greater than every id of the earlier one" "$( printf '%s\n' "$rigLater" | LC_ALL=C awk -v floor="$( printf '%s\n' "$rigEarlier" | LC_ALL=C sort | LC_ALL=C tail -1 )" '{ if (!($0 > floor)) bad = 1 ; } END { print (bad ? "no" : "yes") ; }' )" yes
 rigAssert "and no id of the two passes repeats" "$( rigEvents "$rigCacheDir" | LC_ALL=C cut -f1 | LC_ALL=C sort | LC_ALL=C uniq -d | LC_ALL=C wc -l | LC_ALL=C tr -d ' ' )" 0
 
 echo "-- 3d. the Slack floor steps back by one read's bound, so a straddling message is re-read --"
@@ -230,9 +230,9 @@ echo "-- 8. a text over the threshold is cut to a head, and its body is the file
 printf 'long\n' > "$rigScn/pass"
 rm -rf "$rigWs/.local/cache/comms"
 rigIngest
-rigLongRow="$( rigEvents "$rigCacheDir" | LC_ALL=C awk -F'\t' '$2 == "msg" { print ; exit }' )"
-rigBodyName="$( printf '%s' "$rigLongRow" | LC_ALL=C awk -F'\t' '{ print $16 }' )"
-rigHead="$( printf '%s' "$rigLongRow" | LC_ALL=C awk -F'\t' '{ print $7 }' )"
+rigLongRow="$( rigEvents "$rigCacheDir" | LC_ALL=C awk -F'\t' '$2 == "msg" { print ; exit ; }' )"
+rigBodyName="$( printf '%s' "$rigLongRow" | LC_ALL=C awk -F'\t' '{ print $16 ; }' )"
+rigHead="$( printf '%s' "$rigLongRow" | LC_ALL=C awk -F'\t' '{ print $7 ; }' )"
 rigBodyFile="$( LC_ALL=C find "$rigCacheDir" -name "$rigBodyName" 2> /dev/null | LC_ALL=C head -1 )"
 rigAssert "the line names a body file" "$( [ -n "$rigBodyName" ] && printf named || printf none )" named
 rigAssert "the body file is there, in the same month folder" "$( [ -n "$rigBodyFile" ] && printf there || printf absent )" there

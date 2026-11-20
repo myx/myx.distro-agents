@@ -73,7 +73,7 @@ rigRun(){ ## input file, command and arguments... -- the command with the rig PA
 rigPath="$rigStubs:/usr/bin:/bin:/usr/sbin:/sbin"
 rigNoEngines="/usr/bin:/bin:/usr/sbin:/sbin"
 rigKv(){ ## key -- the value of that key in the last standard output
-	LC_ALL=C awk -v wanted="$1" '{ at = index( $0, ": " ) ; if ( at > 0 && substr( $0, 1, at - 1 ) == wanted ) { print substr( $0, at + 2 ) ; exit } }' "$rigTmp/out"
+	LC_ALL=C awk -v wanted="$1" '{ at = index( $0, ": " ) ; if ( at > 0 && substr( $0, 1, at - 1 ) == wanted ) { print substr( $0, at + 2 ) ; exit ; } ; }' "$rigTmp/out"
 }
 rigTree(){ ## -- every file under the data folder with its size, sorted: what a read must leave as it is
 	( cd "$rigData" && find . -type f -exec wc -c {} + | LC_ALL=C sort | LC_ALL=C tr -s ' ' )
@@ -89,7 +89,7 @@ rigAssert "chat-a is whole: installed, its bytes on disk and expected, the memor
 rigAssert "chat-b is not: broken, with its reason, the file it has and the file it should have, and it does not run" "$( rigKv part.chat-b.state ) | $( rigKv part.chat-b.why ) | $( rigKv part.chat-b.disk_bytes ) $( rigKv part.chat-b.expected_bytes ) $( rigKv part.chat-b.running )" "broken | the file size differs from the manifest | 150 200 no"
 rigAssert "stt-a is not there: not installed, nothing on disk, the memory it would take (its file), not running" "$( rigKv part.stt-a.state ) $( rigKv part.stt-a.disk_bytes ) $( rigKv part.stt-a.memory_bytes ) $( rigKv part.stt-a.running )" "not installed 0 50 no"
 rigAssert "every model of the manifest has its six keys, and the engines say what they are" "$( LC_ALL=C grep -c '^part\.[a-z0-9-]*\.\(part\|state\|disk_bytes\|expected_bytes\|memory_bytes\|running\): ' "$rigTmp/out" ) $( rigKv engine.chat.state ) $( rigKv engine.stt.state ) $( rigKv engine.stt.path )" "24 running absent none"
-rigAssert "the host and the data folder: the folder is the rig's, set up, with the profile and the bytes free" "$( rigKv host.data | LC_ALL=C sed "s|^$rigData\$|rig|" ) $( rigKv setup ) $( rigKv host.profile ) $( rigKv host.free_bytes | LC_ALL=C awk '{ print ( $1 > 0 ) ? "free" : "none" }' )" "rig yes shared-cpu free"
+rigAssert "the host and the data folder: the folder is the rig's, set up, with the profile and the bytes free" "$( rigKv host.data | LC_ALL=C sed "s|^$rigData\$|rig|" ) $( rigKv setup ) $( rigKv host.profile ) $( rigKv host.free_bytes | LC_ALL=C awk '{ print ( $1 > 0 ) ? "free" : "none" ; }' )" "rig yes shared-cpu free"
 rigAssert "every line is key: value, and nothing but them is on standard output" "$( LC_ALL=C grep -c -v '^[A-Za-z0-9._-]*: ' "$rigTmp/out" || : )" "0"
 rigAssert "a check changes nothing" "$( rigTree | LC_ALL=C cksum )" "$( printf '%s\n' "$rigTreeBefore" | LC_ALL=C cksum )"
 rm -f "$rigData/models/chat-b.gguf" "$rigData/state/chat-b.ok" "$rigData/state/chat-a.ok"
@@ -117,7 +117,7 @@ echo "-- 3. the plans --"
 rigTreeBefore="$( rigTree )"
 rigRun /dev/null "$rigTool" install --dry-run --parse chat-engine chat-b
 rigAssert "install: the engine that is there, the model that is not, the download, the memory the model wants (its file and a sixth), the space and the memory of the host, not blocked" "$rigRc | $( rigKv plan.present ) | $( rigKv plan.model ) | $( rigKv plan.download_bytes ) $( rigKv plan.ram_need_bytes ) $( rigKv plan.blocked )" "0 | engine chat | chat-b 200 | 200 233 no"
-rigAssert "and the free space and the memory are numbers" "$( rigKv plan.free_bytes | LC_ALL=C awk '{ print ( $1 > 0 ) ? "n" : "x" }' )$( rigKv plan.ram_bytes | LC_ALL=C awk '{ print ( $1 > 0 ) ? "n" : "x" }' )" "nn"
+rigAssert "and the free space and the memory are numbers" "$( rigKv plan.free_bytes | LC_ALL=C awk '{ print ( $1 > 0 ) ? "n" : "x" ; }' )$( rigKv plan.ram_bytes | LC_ALL=C awk '{ print ( $1 > 0 ) ? "n" : "x" ; }' )" "nn"
 rigRun /dev/null "$rigTool" install --parse chat-a chat-b
 rigAssert "a model that is installed is said to be there and not fetched again: --parse is a plan and implies --dry-run" "$( rigKv plan.present ) | $( rigKv plan.model ) | $( rigKv plan.download_bytes )" "model chat-a | chat-b 200 | 200"
 rigRun /dev/null "$rigTool" install --dry-run --parse huge

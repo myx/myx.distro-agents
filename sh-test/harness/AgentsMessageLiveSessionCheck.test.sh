@@ -35,7 +35,7 @@ sleep 20 & rigBgPid=$!
 rigProcNote "$rigBgPid"
 trap 'rigProcSignal KILL "$rigBgPid" ; wait "$rigBgPid" 2>/dev/null ; rm -rf -- "$rigTmp"' EXIT
 sleep 0.3
-rigBgStart="$( LC_ALL=C ps -o lstart= -p "$rigBgPid" 2> /dev/null | LC_ALL=C awk '{ $1 = $1 ; gsub(/ /, "_") ; print }' )"
+rigBgStart="$( LC_ALL=C ps -o lstart= -p "$rigBgPid" 2> /dev/null | LC_ALL=C awk '{ $1 = $1 ; gsub(/ /, "_") ; print ; }' )"
 rigHost="$( hostname -s 2> /dev/null )"
 
 mkdir -p "$rigTmp/.local/agents/spawned/spawnA" "$rigTmp/.local/temp"

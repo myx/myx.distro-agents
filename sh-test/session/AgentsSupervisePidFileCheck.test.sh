@@ -76,7 +76,7 @@ rigOut="$( rigScan "$rigWs" )"
 rigAssert "the closed run's live control thread is reported as a rig orphan" \
 	"$( printf '%s\n' "$rigOut" | LC_ALL=C grep -c "^rig-orphan ${rigWs##*/} rig-clos pid=$rigCtlPidA " )" 1
 rigAssert "and the folder the run was left in is named, without the workspace prefix" \
-	"$( printf '%s\n' "$rigOut" | LC_ALL=C grep '^rig-orphan ' | LC_ALL=C awk '{ print $NF }' )" 'sessions/run-a/output/control/pid'
+	"$( printf '%s\n' "$rigOut" | LC_ALL=C grep '^rig-orphan ' | LC_ALL=C awk '{ print $NF ; }' )" 'sessions/run-a/output/control/pid'
 
 echo "-- 2. and it is quiet while nothing is alive --"
 rigProcSignal TERM "$rigCtlPidA" || :

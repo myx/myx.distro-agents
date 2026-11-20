@@ -250,7 +250,7 @@ AgentsToolsRetestCopy(){ ## batch folder, number of the copy, its source root, 1
 			[ -n "$copyTest" ] || continue
 			printf '%s before %s\n' "$copyTest" "$copyWhen" >> "$copyWork/$copyNo.outcome"
 		done < "$copyWork/$copyNo.passed"
-		LC_ALL=C awk -v skipFile="$copyWork/$copyNo.passed" 'BEGIN { while ( ( getline oneLine < skipFile ) > 0 ) { split( oneLine, oneWord, " " ) ; skip[oneWord[1]] = 1 } } !($0 in skip)' "$copyWork/$copyNo.every" >> "$copyWork/$copyNo.tests"
+		LC_ALL=C awk -v skipFile="$copyWork/$copyNo.passed" 'BEGIN { while ( ( getline oneLine < skipFile ) > 0 ) { split( oneLine, oneWord, " " ) ; skip[oneWord[1]] = 1 ; } ; } !($0 in skip)' "$copyWork/$copyNo.every" >> "$copyWork/$copyNo.tests"
 	fi
 	## each test once, and only the tests the copy holds
 	LC_ALL=C sort -u "$copyWork/$copyNo.tests" | while IFS= read -r copyTest ; do
@@ -365,12 +365,12 @@ AgentsToolsRetestDrain(){ ## operation, its arguments... -- everything that wait
 					done < "$drainWork/$drainNo.passed"
 					LC_ALL=C awk -v skipFile="$drainWork/$drainNo.passed" -v ranFile="$drainWork/$drainNo.ran" '
 						BEGIN {
-							while ( ( getline oneLine < skipFile ) > 0 ) { split( oneLine, oneWord, " " ) ; skip[oneWord[1]] = 1 }
+							while ( ( getline oneLine < skipFile ) > 0 ) { split( oneLine, oneWord, " " ) ; skip[oneWord[1]] = 1 ; }
 							while ( ( getline oneLine < ranFile ) > 0 ) ran[oneLine] = 1
 						}
 						!($0 in skip) && !($0 in ran)' "$drainWork/$drainNo.every" > "$drainWork/$drainNo.want"
 					else
-					LC_ALL=C sed -n "s/^test: //p" "$drainRequest" 2> /dev/null | LC_ALL=C awk -v ranFile="$drainWork/$drainNo.ran" 'BEGIN { while ( ( getline oneLine < ranFile ) > 0 ) ran[oneLine] = 1 } !($0 in ran)' | LC_ALL=C sort -u > "$drainWork/$drainNo.want"
+					LC_ALL=C sed -n "s/^test: //p" "$drainRequest" 2> /dev/null | LC_ALL=C awk -v ranFile="$drainWork/$drainNo.ran" 'BEGIN { while ( ( getline oneLine < ranFile ) > 0 ) ran[oneLine] = 1 ; } !($0 in ran)' | LC_ALL=C sort -u > "$drainWork/$drainNo.want"
 				fi
 				: > "$drainWork/$drainNo.run"
 				while IFS= read -r drainTest ; do
@@ -429,7 +429,7 @@ AgentsToolsRetestResult(){ ## operation, request id... -- where each request sta
 			printf 'RETEST %s RUNNING -- asked by %s about %s: it is in the batch being run -- %s\n' "$resultId" "$( LC_ALL=C sed -n "s/^by: //p" "$resultFile" 2> /dev/null | LC_ALL=C sed -n 1p )" "$( LC_ALL=C sed -n "s/^about: //p" "$resultFile" 2> /dev/null | LC_ALL=C sed -n 1p )" "$( LC_ALL=C sed -n "s/^why: //p" "$resultFile" 2> /dev/null | LC_ALL=C sed -n 1p )"
 		elif [ -f "$retestStore/waiting/$resultId.request" ] ; then
 			resultFile="$retestStore/waiting/$resultId.request"
-			resultAhead="$( ls "$retestStore/waiting" 2> /dev/null | LC_ALL=C grep '\.request$' | LC_ALL=C awk -v own="$resultId.request" '$0 < own { n++ } END { print n + 0 }' )"
+			resultAhead="$( ls "$retestStore/waiting" 2> /dev/null | LC_ALL=C grep '\.request$' | LC_ALL=C awk -v own="$resultId.request" '$0 < own { n++ ; } END { print n + 0 ; }' )"
 			printf 'RETEST %s WAITING -- asked by %s about %s: the next batch takes it, with %s request(s) that came before it -- %s\n' "$resultId" "$( LC_ALL=C sed -n "s/^by: //p" "$resultFile" 2> /dev/null | LC_ALL=C sed -n 1p )" "$( LC_ALL=C sed -n "s/^about: //p" "$resultFile" 2> /dev/null | LC_ALL=C sed -n 1p )" "$resultAhead" "$( LC_ALL=C sed -n "s/^why: //p" "$resultFile" 2> /dev/null | LC_ALL=C sed -n 1p )"
 		else
 			printf 'RETEST %s UNKNOWN -- no request of that id is in the queue of this machine (%s); a finished one is kept seven days\n' "$resultId" "$retestStore"

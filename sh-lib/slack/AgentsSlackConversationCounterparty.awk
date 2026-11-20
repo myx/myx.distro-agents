@@ -64,7 +64,7 @@ function jfNodeHook(path, nodeType, nodeValue, fromPos, toPos) {
 	if (path == "channel.user") { counterparty = nodeValue; return; }
 }
 
-{ jfConsumeText($0) }
+{ jfConsumeText($0) ; }
 
 END {
 	if (apiOkSeen && apiOk == "false") {

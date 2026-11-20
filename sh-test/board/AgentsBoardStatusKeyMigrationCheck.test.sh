@@ -39,10 +39,10 @@ rigAssert(){ ## what is asserted, got, want
 ## How many frontmatter `status: ` lines a file carries: the body is not the frontmatter.
 rigFmKeyCount(){ ## item file
 	LC_ALL=C awk '
-		NR == 1 && $0 != "---" { body = 1 }
-		NR > 1 && $0 == "---" { body = 1 }
-		!body && index($0, "status: ") == 1 { n++ }
-		END { print n + 0 }
+		NR == 1 && $0 != "---" { body = 1 ; }
+		NR > 1 && $0 == "---" { body = 1 ; }
+		!body && index($0, "status: ") == 1 { n++ ; }
+		END { print n + 0 ; }
 	' "$1"
 }
 
@@ -91,10 +91,10 @@ rigAssert "the close stamps resolved-at, which is now the open-run test" \
 echo "-- 4. controls: the probes answer both ways --"
 printf -- '---\ntype: task\nstatus: planted\n---\nbody\n' > "$rigTmp/planted.md"
 rigAssert "control: the key probe finds a planted key" \
-	"$( LC_ALL=C awk 'NR == 1 && $0 != "---" { exit } NR > 1 && $0 == "---" { exit } index($0, "status: ") == 1 { print "found" ; exit }' "$rigTmp/planted.md" )" found
+	"$( LC_ALL=C awk 'NR == 1 && $0 != "---" { exit ; } NR > 1 && $0 == "---" { exit ; } index($0, "status: ") == 1 { print "found" ; exit ; }' "$rigTmp/planted.md" )" found
 printf -- '---\ntype: task\n---\nstatus: in the body only\n' > "$rigTmp/bodyonly.md"
 rigAssert "control: and reports a key in the body only as absent from the frontmatter" \
-	"$( LC_ALL=C awk 'NR == 1 && $0 != "---" { exit } NR > 1 && $0 == "---" { exit } index($0, "status: ") == 1 { print "found" ; exit }' "$rigTmp/bodyonly.md" )" ""
+	"$( LC_ALL=C awk 'NR == 1 && $0 != "---" { exit ; } NR > 1 && $0 == "---" { exit ; } index($0, "status: ") == 1 { print "found" ; exit ; }' "$rigTmp/bodyonly.md" )" ""
 printf 'x="$( AgentsToolsFrontmatterKey "$itemPath" status )" = dispatch-started\n' > "$rigTmp/reader.md"
 rigAssert "control: the code probe finds a reader where it is planted" \
 	"$( LC_ALL=C grep -c 'itemPath" status )" = dispatch-started' "$rigTmp/reader.md" )" 1

@@ -645,7 +645,7 @@ case "$1" in
 					inBlock { held = held $0 "\n" ; if ( $0 == "When done, hand back and Wait until dismissed." ) { inBlock = 0 ; held = "" ; } next ; }
 					{ print ; }
 					## A block that never closed was no block of the tooling: it is measured after all.
-					END { if ( inBlock ) { printf "%s", held ; } }
+					END { if ( inBlock ) { printf "%s", held ; } ; }
 				' | AgentsToolsOutputStyleRefusal "$callerName" "" "spawn brief $itemName" "" none || :
 			;;
 			board)
@@ -1652,7 +1652,7 @@ case "$1" in
 			## What the start warned of (the help verb), one line each, counted from the records.
 			[ -z "$startWarnings" ] || printf '%s' "$startWarnings"
 			## A refusal a permission overrode (AgentsToolsRoutineOverride), one line each.
-			[ -z "$routineOverrides" ] || printf '%s' "$routineOverrides" | LC_ALL=C awk 'NF { print "override: " $0 }'
+			[ -z "$routineOverrides" ] || printf '%s' "$routineOverrides" | LC_ALL=C awk 'NF { print "override: " $0 ; }'
 			[ -z "$parentSession" ] || printf 'parent-session-id: %s\n' "$parentSession"
 			[ -z "$reportsTo" ] || printf '%s: %s\n' "$agentsRunRouteField" "$reportsTo"
 			## The member that made this spawn call, where one is known: who a handback of this

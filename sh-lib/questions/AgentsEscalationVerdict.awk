@@ -227,8 +227,8 @@ BEGIN {
 		sub( / -- .*$/, "", chosenText ) ;
 		chosenTotal = split( lowered( chosenText ), chosenWords, " " ) ;
 		for ( chosenIndex = 1 ; chosenIndex <= chosenTotal ; chosenIndex++ ) {
-			for ( clickIndex = 1 ; clickIndex <= clickTotal ; clickIndex++ ) { if ( clickVerdict[clickIndex] == chosenWords[chosenIndex] ) { print clickName[clickIndex] ; } }
-			if ( clickTotal == 0 ) { for ( numberIndex = 1 ; numberIndex <= numberTotal && numberIndex <= 10 ; numberIndex++ ) { if ( numberWord[numberIndex] == chosenWords[chosenIndex] ) { print numberNames[numberIndex] ; } } }
+			for ( clickIndex = 1 ; clickIndex <= clickTotal ; clickIndex++ ) { if ( clickVerdict[clickIndex] == chosenWords[chosenIndex] ) { print clickName[clickIndex] ; } ; }
+			if ( clickTotal == 0 ) { for ( numberIndex = 1 ; numberIndex <= numberTotal && numberIndex <= 10 ; numberIndex++ ) { if ( numberWord[numberIndex] == chosenWords[chosenIndex] ) { print numberNames[numberIndex] ; } ; } ; }
 		}
 		exit 0 ;
 	}
@@ -278,7 +278,7 @@ function manyOf( text,    words, wordTotal, wordIndex, oneWord, numberIndex, tak
 		sub( /[.!;:]+$/, "", oneWord ) ;
 		numberIndex = 0 ;
 		if ( oneWord in optionSet ) {
-			for ( numberIndex = 1 ; numberIndex <= numberTotal ; numberIndex++ ) { if ( numberWord[numberIndex] == oneWord ) { break ; } }
+			for ( numberIndex = 1 ; numberIndex <= numberTotal ; numberIndex++ ) { if ( numberWord[numberIndex] == oneWord ) { break ; } ; }
 		}
 		if ( numberIndex < 1 || numberIndex > numberTotal ) { numberIndex = numberOf( oneWord ) ; }
 		if ( numberIndex == 0 ) { return "" ; }

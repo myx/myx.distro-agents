@@ -617,9 +617,9 @@ rigAssert "control: the files of sh-test are read, the runner, the fixtures and 
 rigGuardOut="$( cd "$rigTest" && rigGuard "$rigTmp/list" $( cat "$rigTmp/files" ) )"
 rigAssert "every signal of sh-test outside the helper is on the list, and every line of the list stands in the code as often as it says (a signal to a pid that was kept goes through the helper, or is listed with the reason its target cannot be gone and its number given again)" "${rigGuardOut:-none}" "none"
 rigAssert "every line of the list gives its reason: one of the named ones, or one written out" \
-	"$( LC_ALL=C awk -F'|' 'FNR == NR { reasonNamed[$1] = 1 ; next ; } { if ( substr( $4, 1, 1 ) == "@" ? ! ( $4 in reasonNamed ) : length( $4 ) < 20 ) { bad++ ; } } END { print FNR + 0 " lines, " bad + 0 " without a reason" ; }' "$rigTmp/reasons" "$rigTmp/list" )" "$( wc -l < "$rigTmp/list" | LC_ALL=C tr -d ' ' ) lines, 0 without a reason"
+	"$( LC_ALL=C awk -F'|' 'FNR == NR { reasonNamed[$1] = 1 ; next ; } { if ( substr( $4, 1, 1 ) == "@" ? ! ( $4 in reasonNamed ) : length( $4 ) < 20 ) { bad++ ; } ; } END { print FNR + 0 " lines, " bad + 0 " without a reason" ; }' "$rigTmp/reasons" "$rigTmp/list" )" "$( wc -l < "$rigTmp/list" | LC_ALL=C tr -d ' ' ) lines, 0 without a reason"
 rigToolingList > "$rigTmp/tooling.list"
-rigAssert "and every named reason is used, by the list of the checks or by the list of the tooling below, and says why" "$( cat "$rigTmp/list" "$rigTmp/tooling.list" | LC_ALL=C awk -F'|' 'FILENAME == "-" { reasonUsed[$4] = 1 ; next ; } { if ( ! ( $1 in reasonUsed ) || length( $2 ) < 20 ) { bad++ ; } } END { print bad + 0 ; }' - "$rigTmp/reasons" )" 0
+rigAssert "and every named reason is used, by the list of the checks or by the list of the tooling below, and says why" "$( cat "$rigTmp/list" "$rigTmp/tooling.list" | LC_ALL=C awk -F'|' 'FILENAME == "-" { reasonUsed[$4] = 1 ; next ; } { if ( ! ( $1 in reasonUsed ) || length( $2 ) < 20 ) { bad++ ; } ; } END { print bad + 0 ; }' - "$rigTmp/reasons" )" 0
 ## CONTROL LINES: the reader does find a new signal, in each shape, takes a listed one, and reads no probe, no comment, no other text
 mkdir -p "$rigTmp/probe/check-fixtures"
 printf '%s\n' '	## a comment that says kill "$probePid" is not read' \
@@ -656,7 +656,7 @@ rigAssert "control: the files of the tooling are read, the harness, the spawn pr
 rigToolingOut="$( cd "$rigPackage" && rigGuard "$rigTmp/tooling.list" $( cat "$rigTmp/tooling.files" ) )"
 rigAssert "every signal of the tooling is on its list, and every line of the list stands in the code as often as it says (a signal sent after a wait keeps its process by when it began, or is listed with where its target comes from)" "${rigToolingOut:-none}" "none"
 rigAssert "every line of that list gives its reason: one of the named ones, or one written out" \
-	"$( LC_ALL=C awk -F'|' 'FNR == NR { reasonNamed[$1] = 1 ; next ; } { if ( substr( $4, 1, 1 ) == "@" ? ! ( $4 in reasonNamed ) : length( $4 ) < 20 ) { bad++ ; } } END { print FNR + 0 " lines, " bad + 0 " without a reason" ; }' "$rigTmp/reasons" "$rigTmp/tooling.list" )" "$( wc -l < "$rigTmp/tooling.list" | LC_ALL=C tr -d ' ' ) lines, 0 without a reason"
+	"$( LC_ALL=C awk -F'|' 'FNR == NR { reasonNamed[$1] = 1 ; next ; } { if ( substr( $4, 1, 1 ) == "@" ? ! ( $4 in reasonNamed ) : length( $4 ) < 20 ) { bad++ ; } ; } END { print FNR + 0 " lines, " bad + 0 " without a reason" ; }' "$rigTmp/reasons" "$rigTmp/tooling.list" )" "$( wc -l < "$rigTmp/tooling.list" | LC_ALL=C tr -d ' ' ) lines, 0 without a reason"
 ## What is left unsafe in the tooling is said so on its line, and counted here: a place that is made safe changes its
 ## text, so its line and this count go with it, and a new one cannot be added quietly as one more of them.
 rigAssert "what is left by the number alone says so: the places not safe, and those not proved, by their lines and how often they stand" \

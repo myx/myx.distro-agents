@@ -35,7 +35,7 @@ rigWait(){ ## mark line (empty: no mark), the sources of the wait, the run's own
 		MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_SPAWN_SESSION_ID=rig-run MDAT_SPAWN_AGENT=keeper-x \
 		bash -c '. "$1" ; . "$2" ; AgentsWaitActivityIdle "$3"' rig "$rigPkg/sh-lib/spawn/AgentsTools.SpawnSandbox.include" "$rigPkg/sh-lib/wait/AgentsTools.MemberWait.include" "$2" > /dev/null 2>&1
 	[ -f "$rigMark" ] || { echo "no mark" ; return 0 ; }
-	LC_ALL=C awk '{ w = $0 ; sub(/^[^ ]* [^ ]* /, "", w) ; print $1 " " w }' "$rigMark"
+	LC_ALL=C awk '{ w = $0 ; sub(/^[^ ]* [^ ]* /, "", w) ; print $1 " " w ; }' "$rigMark"
 }
 
 echo "-- a wait on its floor alone is idle --"

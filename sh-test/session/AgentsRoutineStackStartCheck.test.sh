@@ -101,7 +101,7 @@ rigStack(){
 	local recordFile
 	recordFile="$( rigNewestRecord )"
 	[ -n "$recordFile" ] || return 0
-	LC_ALL=C awk '$0 == "---" { n++ ; if ( n > 1 ) exit ; next } n == 1 && index( $0, "routine-stack: " ) == 1 { print substr( $0, 16 ) }' "$recordFile"
+	LC_ALL=C awk '$0 == "---" { n++ ; if ( n > 1 ) exit ; next ; } n == 1 && index( $0, "routine-stack: " ) == 1 { print substr( $0, 16 ) ; }' "$recordFile"
 }
 ## The stack line of the opening post the last spawn posted, as the body carries it, or none.
 rigPostStack(){
@@ -118,7 +118,7 @@ rigAssert(){ ## what is asserted, got, want
 	fi
 }
 rigJoined(){ ## text -- the lines of it, joined by |, for one assertion line
-	printf '%s' "$1" | LC_ALL=C awk 'BEGIN { ORS = "" } { print ( NR > 1 ? "|" : "" ) $0 }'
+	printf '%s' "$1" | LC_ALL=C awk 'BEGIN { ORS = "" ; } { print ( NR > 1 ? "|" : "" ) $0 ; }'
 }
 
 echo "-- a chain of three: three frames, the first current --"
@@ -192,7 +192,7 @@ rigAssert "the frames of a session are read from the record that names it, not o
 rigSettle(){ ## -- rc 0 once no process of this rig is left, rc 1 at the bound
 	local settleLeft=60
 	while [ "$settleLeft" -gt 0 ] ; do
-		[ "$( ps -A -ww -o args= 2>/dev/null | LC_ALL=C awk '/rig-routine-stack/ && !/awk/ { n++ } END { print n + 0 }' )" != "0" ] || return 0
+		[ "$( ps -A -ww -o args= 2>/dev/null | LC_ALL=C awk '/rig-routine-stack/ && !/awk/ { n++ ; } END { print n + 0 ; }' )" != "0" ] || return 0
 		sleep 1 ; settleLeft=$(( settleLeft - 1 ))
 	done
 	return 1

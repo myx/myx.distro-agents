@@ -57,10 +57,10 @@ AgentsToolsCommsEmailCacheFile "$rigMailbox" 201 202610 rig@rig.invalid "First" 
 rigAssert "still one line for that UID" "$( LC_ALL=C grep -c '^201 | ' "$rigMailbox/202610/messages.txt" )" 1
 
 echo "-- a body over the cap keeps its line short and names its body file --"
-LC_ALL=C awk 'BEGIN { for ( i = 0 ; i < 4000 ; i++ ) { print "line " i " of a long mail" } }' > "$rigTmp/big.eml"
+LC_ALL=C awk 'BEGIN { for ( i = 0 ; i < 4000 ; i++ ) { print "line " i " of a long mail" ; } ; }' > "$rigTmp/big.eml"
 AgentsToolsCommsEmailCacheFile "$rigMailbox" 204 202611 rig@rig.invalid "A long one" "$rigTmp/big.eml"
 rigAssert "the line is capped and names its body" "$( LC_ALL=C grep -o '\[body: 204.body.txt\]' "$rigMailbox/202611/messages.txt" )" "[body: 204.body.txt]"
-rigAssert "and is no longer than the cap allows" "$( LC_ALL=C awk '/^204 \| / { print ( length($0) <= 2100 ? "short" : "long" ) }' "$rigMailbox/202611/messages.txt" )" short
+rigAssert "and is no longer than the cap allows" "$( LC_ALL=C awk '/^204 \| / { print ( length($0) <= 2100 ? "short" : "long" ) ; }' "$rigMailbox/202611/messages.txt" )" short
 
 echo "-- the whole body is kept, byte for byte --"
 rigAssert "the body file is the mail's own text" "$( LC_ALL=C wc -c < "$rigMailbox/202611/204.body.txt" | LC_ALL=C tr -d ' ' )" "$( LC_ALL=C wc -c < "$rigTmp/big.eml" | LC_ALL=C tr -d ' ' )"

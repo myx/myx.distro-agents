@@ -35,7 +35,7 @@ rigRoster(){ ## executors value -> "<rc>:<reason with the tab as a bar>"
 for rigRoutine in magic-team.readme-gap magic-team.file-comment-gap ; do
 	rigFile="$rigSkills/magic-team/$rigRoutine.routine.md"
 	[ -f "$rigFile" ] || rigRefuse "the routine is not in the skillset: $rigFile"
-	rigExecutors="$( LC_ALL=C awk 'NR == 1 && $0 == "---" { fm = 1 ; next } fm && $0 == "---" { exit } fm && index( $0, "executors: " ) == 1 { print substr( $0, 12 ) ; exit }' "$rigFile" )"
+	rigExecutors="$( LC_ALL=C awk 'NR == 1 && $0 == "---" { fm = 1 ; next ; } fm && $0 == "---" { exit ; } fm && index( $0, "executors: " ) == 1 { print substr( $0, 12 ) ; exit ; }' "$rigFile" )"
 	rigTypes="$( printf '%s' "$rigExecutors" | LC_ALL=C tr ',' '\n' | LC_ALL=C sed 's/^ *//;s/ *$//' | LC_ALL=C sed -n 's/-[*?]$//p' | LC_ALL=C tr '\n' ' ' )"
 	rigAssert "$rigRoutine: its executors name a choice for each type, and no wildcard (executors: $rigExecutors)" \
 		"$( printf '%s' "$rigExecutors" | LC_ALL=C grep -c -e '-\*' ):$( printf '%s' "$rigExecutors" | LC_ALL=C tr ',' '\n' | LC_ALL=C grep -c -e '-?' ):$( printf '%s' "$rigTypes" | LC_ALL=C wc -w | LC_ALL=C tr -d ' ' )" \

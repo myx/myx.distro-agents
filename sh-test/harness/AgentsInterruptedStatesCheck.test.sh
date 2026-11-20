@@ -51,7 +51,7 @@ printf -- '---\nname: rig-a\n---\nmember skill\n' > "$rigTmp/skills/rig-a/SKILL.
 ## A process this check starts and signals later is noted with when it began, and is signalled only while its pid is
 ## still that process. Whatever a case left running is ended on the way out, and the rig goes with it.
 rigUnder(){ ## pid -- every process under it now, one on a line
-	ps -A -o pid= -o ppid= 2> /dev/null | LC_ALL=C awk -v root="$1" '{ ppid[ $1 ] = $2 } END { for ( pid in ppid ) { top = pid ; hops = 0 ; while ( ( top in ppid ) && top != root && hops++ < 64 ) top = ppid[ top ] ; if ( top == root && pid != root ) print pid } }'
+	ps -A -o pid= -o ppid= 2> /dev/null | LC_ALL=C awk -v root="$1" '{ ppid[ $1 ] = $2 ; } END { for ( pid in ppid ) { top = pid ; hops = 0 ; while ( ( top in ppid ) && top != root && hops++ < 64 ) top = ppid[ top ] ; if ( top == root && pid != root ) print pid ; } ; }'
 }
 rigStop(){ ## pid of a background job of this shell that is running
 	kill -KILL "$1" $( rigUnder "$1" ) 2> /dev/null ; wait "$1" 2> /dev/null

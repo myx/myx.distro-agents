@@ -43,7 +43,7 @@ rigPids=""
 ## rigLoop runs inside a command substitution, so nothing it notes reaches this shell's own trap. The notes are
 ## taken for this shell's own, and then ONE signal covers the loop pids and the stand-ins together: $rigPids holds
 ## the stand-ins alone, so the loop pids are read from the note file and named in that same call.
-rigStopAll(){ rigLoops="$( PATH="$rigProcPath" LC_ALL=C awk 'NF == 2 && $1 ~ /^[0-9]+$/ { print $1 }' "$rigTmp/loops.note" 2> /dev/null )" ; rigProcNoteFrom "$rigTmp/loops.note" 2> /dev/null ; rigProcSignalWithChildren KILL $rigLoops $rigPids ; rm -rf -- "$rigTmp" ; }
+rigStopAll(){ rigLoops="$( PATH="$rigProcPath" LC_ALL=C awk 'NF == 2 && $1 ~ /^[0-9]+$/ { print $1 ; }' "$rigTmp/loops.note" 2> /dev/null )" ; rigProcNoteFrom "$rigTmp/loops.note" 2> /dev/null ; rigProcSignalWithChildren KILL $rigLoops $rigPids ; rm -rf -- "$rigTmp" ; }
 trap 'rigControlThreadsEnd "$rigTmp" ; rigStopAll' EXIT
 rigWs="$rigTmp/ws"
 rigData="$rigTmp/data"
@@ -87,7 +87,7 @@ rigStandIn(){ ## spawn id -- starts it; sets rigStandPid, and keeps it for the t
 	rigPids="$rigPids $rigStandPid"
 }
 rigStarted(){ ## pid -- the start word a record keeps for it
-	LC_ALL=C ps -o lstart= -p "$1" 2> /dev/null | LC_ALL=C awk 'NF { $1 = $1 ; gsub( / /, "_" ) ; print ; exit }'
+	LC_ALL=C ps -o lstart= -p "$1" 2> /dev/null | LC_ALL=C awk 'NF { $1 = $1 ; gsub( / /, "_" ) ; print ; exit ; }'
 }
 rigAlive(){ kill -0 "$1" 2> /dev/null && printf alive || printf gone ; }
 rigRecord(){ ## session id, spawn id, status, extra header lines

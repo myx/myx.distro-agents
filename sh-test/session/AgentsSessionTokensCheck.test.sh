@@ -48,7 +48,7 @@ rigAssert(){ ## what is asserted, got, want
 }
 rigCommits(){ git -C "$rigStore" rev-list --count HEAD ; }
 rigHeader(){ ## item path, header name
-	LC_ALL=C awk -v want="$2: " 'NR > 1 && $0 == "---" { exit } index( $0, want ) == 1 { print substr( $0, length( want ) + 1 ) ; exit }' "$1"
+	LC_ALL=C awk -v want="$2: " 'NR > 1 && $0 == "---" { exit ; } index( $0, want ) == 1 { print substr( $0, length( want ) + 1 ) ; exit ; }' "$1"
 }
 rigItem(){ ## state, name, header lines...
 	local itemState="$1" itemName="$2"
@@ -116,9 +116,9 @@ rigAssert "the event-track closing post, the end kind, carries the session's tot
 echo "-- board lines: the scan, the active items, the to-processed close --"
 rigScan="$( "$rigFn" --intern-op-session-context-scan magic-tester --state backlog --state review --state running --all-types \
 	--no-inbox-inquiry --no-inbox-reflections --no-inbox-notes --no-inbox-other --no-slack --no-email --no-trello --no-board-related --context rig 2>/dev/null )"
-rigAssert "a scanned item carries its totals" "$( printf '%s\n' "$rigScan" | LC_ALL=C awk '/^## backlog\/task-20261008T1000Z-rig.md$/ { on = 1 } on && /^tokens-total: / { print ; exit }' )" \
+rigAssert "a scanned item carries its totals" "$( printf '%s\n' "$rigScan" | LC_ALL=C awk '/^## backlog\/task-20261008T1000Z-rig.md$/ { on = 1 ; } on && /^tokens-total: / { print ; exit ; }' )" \
 	'tokens-total: in=1111 cache-read=222 cache-write=333 out=1444 (incl. 3 sub-sessions)'
-rigAssert "an item with none carries no line" "$( printf '%s\n' "$rigScan" | LC_ALL=C awk '/^## backlog\/task-20261008T1003Z-other.md$/ { on = 1 ; next } /^## / { on = 0 } on && /^tokens-total: / { print "line" }' )" ""
+rigAssert "an item with none carries no line" "$( printf '%s\n' "$rigScan" | LC_ALL=C awk '/^## backlog\/task-20261008T1003Z-other.md$/ { on = 1 ; next ; } /^## / { on = 0 ; } on && /^tokens-total: / { print "line" ; }' )" ""
 rigBeat="$( set +u ; MDSC_CMD=rig ; . "$rigHere/magic/AgentsTools.CoordinatorReads.include" ; AgentsToolsBoardActiveItems )"
 rigAssert "an active-item line carries its totals" "$( printf '%s\n' "$rigBeat" | LC_ALL=C grep '^running/dispatch-20261008T1000Z-rig-a.md' )" \
 	'running/dispatch-20261008T1000Z-rig-a.md -- tokens: in=1100 cache-read=200 cache-write=300 out=1400 (incl. 1 sub-session)'
@@ -158,7 +158,7 @@ rigAssert "START names member, service, parent and item" "$( LC_ALL=C grep -c " 
 rigAssert "the stream's lines are there" "$( LC_ALL=C grep -c 'TOOL Glob pattern="\*.md" path=/p -> ok 9B/2L' "$rigT" )$( LC_ALL=C grep -c ' RESULT outcome=ok' "$rigT" )" 11
 rigAssert "END carries outcome, exit and the session's tokens" "$( LC_ALL=C grep -c ' END outcome=succeeded exit=0 tokens="in=10 cache-read=1000 cache-write=100 out=40"' "$rigT" )" 1
 rigAssert "the dispatch item's tokens header, as the CLI reported its usage" "$( rigHeader "$rigStore/board/review/$rigDispatch" tokens )" 'in=10 cache-read=1000 cache-write=100 out=40'
-rigAssert "milestones: start (with its steps) and end" "$( awk '{ print $2 }' "$rigWs/.local/agents/sessions/$rigSpawn/milestones" | tr '\n' '|' )" 'start|end|'
+rigAssert "milestones: start (with its steps) and end" "$( awk '{ print $2 ; }' "$rigWs/.local/agents/sessions/$rigSpawn/milestones" | tr '\n' '|' )" 'start|end|'
 rigAssert "two transcript commits, one per milestone" "$( git -C "$rigStore" log --format=%s -n "$(( $( rigCommits ) - rigBefore ))" | LC_ALL=C grep -c "session transcript" )" 2
 rigAssert "and the store is clean" "$( git -C "$rigStore" status --porcelain --untracked-files=all )" ""
 

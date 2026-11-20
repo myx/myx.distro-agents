@@ -49,7 +49,7 @@ while [ "$rigWaited" -lt 20 ] && [ "$( rigCount )" = 0 ] ; do sleep 1 ; rigWaite
 rigAssert "the server answered initialize"                 "$( LC_ALL=C grep -c -F '"id":1,"result"' "$rigTmp/out" )" 1
 rigAssert "the sleeping command runs under a request"       "$( rigCount )" 1
 rigInflight="$( ls "$rigTmp"/ws/.local/temp/agent-mcp.*/inflight/ 2> /dev/null | wc -l | tr -d ' ' )"
-rigAssert "the sleeping request alone is in flight, pid and start" "$rigInflight:$( cat "$rigTmp"/ws/.local/temp/agent-mcp.*/inflight/2 2> /dev/null | LC_ALL=C awk '{ print ( $1 ~ /^[0-9]+$/ && $2 != "" ) ? "pid-and-start" : "other" }' )" "1:pid-and-start"
+rigAssert "the sleeping request alone is in flight, pid and start" "$rigInflight:$( cat "$rigTmp"/ws/.local/temp/agent-mcp.*/inflight/2 2> /dev/null | LC_ALL=C awk '{ print ( $1 ~ /^[0-9]+$/ && $2 != "" ) ? "pid-and-start" : "other" ; }' )" "1:pid-and-start"
 
 echo "-- 2. the server ends: the handler and its sleep end with it --"
 rigProcSignal TERM "$rigServer"
@@ -84,7 +84,7 @@ exec 3>&-
 sleep 1
 rigAssert "control: the second server is gone"                   "$( kill -0 "$rigServer2" 2> /dev/null && printf alive || printf gone )" gone
 rigAssert "control: without the end, the sleeping command is left running" "$( rigCount2 )" 1
-rigLeft="$( ps -ax -o pid=,command= 2> /dev/null | LC_ALL=C grep -F "sleep $rigMark2" | LC_ALL=C grep -v -F 'grep -F' | LC_ALL=C awk '{ print $1 }' )"
+rigLeft="$( ps -ax -o pid=,command= 2> /dev/null | LC_ALL=C grep -F "sleep $rigMark2" | LC_ALL=C grep -v -F 'grep -F' | LC_ALL=C awk '{ print $1 ; }' )"
 [ -z "$rigLeft" ] || { rigProcNote $rigLeft ; rigProcSignal TERM $rigLeft ; }
 sleep 1
 rigAssert "control: the leftover is ended by this check"         "$( rigCount2 )" 0

@@ -41,7 +41,7 @@ BEGIN {
 	greatest = ""
 }
 
-NF < 16 { next }
+NF < 16 { next ; }
 
 {
 	if (greatest == "" || $1 > greatest) greatest = $1

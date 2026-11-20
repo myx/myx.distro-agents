@@ -49,7 +49,7 @@ cat > "$rigOrigin/myx/myx.distro-system/sh-scripts/ListDistroDeclares.fn.sh" <<'
 #!/usr/bin/env bash
 ListDistroDeclares(){
 	[ "$1" = --all-filter-and-cut ] && [ -f "$RIG_STATE/declares" ] || return 0
-	LC_ALL=C awk -v f="${2%:}:" 'index( $2, f ) == 1 { print $1 " " substr( $2, length( f ) + 1 ) }' "$RIG_STATE/declares"
+	LC_ALL=C awk -v f="${2%:}:" 'index( $2, f ) == 1 { print $1 " " substr( $2, length( f ) + 1 ) ; }' "$RIG_STATE/declares"
 }
 case "$0" in */ListDistroDeclares.fn.sh) ListDistroDeclares "$@" ;; esac
 SH
@@ -109,14 +109,14 @@ rigErr(){ ## text -- how many lines of the last stderr hold it
 	LC_ALL=C grep -c -F -- "$1" "$rigTmp/err" || :
 }
 rigRow(){ ## kind, id or part (field 2/3 match), fields to cut -- one row of the last stdout, those fields, spaced
-	LC_ALL=C awk -F'\t' -v kind="$1" -v who="$2" '$1 == kind && ( $2 == who || $3 == who || $4 == who ) { print ; exit }' "$rigTmp/out" | LC_ALL=C cut -f"$3" | LC_ALL=C tr '\t' ' '
+	LC_ALL=C awk -F'\t' -v kind="$1" -v who="$2" '$1 == kind && ( $2 == who || $3 == who || $4 == who ) { print ; exit ; }' "$rigTmp/out" | LC_ALL=C cut -f"$3" | LC_ALL=C tr '\t' ' '
 }
 rigAi_="setup.feature-local-ai" rigDb_="setup.feature-lancedb"
 rigCmd="DistroAgentsTools.fn.sh --manager-feature-part"
 
 echo "-- 1. the list --"
 rigRun "" --manager-feature-list
-rigAssert "the features and the parts: the lancedb feature, the local AI feature, and a row for each of the four models, each of eleven fields" "$rigRc $( LC_ALL=C awk -F'\t' '{ print $1 ":" NF }' "$rigTmp/out" | LC_ALL=C tr '\n' ' ' )" "0 feature:11 feature:11 part:11 part:11 part:11 part:11 "
+rigAssert "the features and the parts: the lancedb feature, the local AI feature, and a row for each of the four models, each of eleven fields" "$rigRc $( LC_ALL=C awk -F'\t' '{ print $1 ":" NF ; }' "$rigTmp/out" | LC_ALL=C tr '\n' ' ' )" "0 feature:11 feature:11 part:11 part:11 part:11 part:11 "
 rigAssert "local AI, from its check: broken as its first line says, the bytes on disk, the memory of the parts that run (116 and 60), running, and no command of its own" "$( rigRow feature "$rigAi_" 2-11 | LC_ALL=C cut -d' ' -f1-8 )" "setup.feature-local-ai - broken 5000 176 yes - -"
 rigAssert "its detail is the host and the profile, whitespace read _" "$( rigRow feature "$rigAi_" 11 )" "host.os=FreeBSD;_host.profile=shared-cpu"
 ## S7.25: the local console's own tool answers the same list, through the same include, so its `Optional Features` is not empty.
@@ -133,10 +133,10 @@ mkdir -p "$rigExtra/host/install" "$rigExtra/data"
 rigMake "$rigExtra/host/install/feature-extra.check.txt" '#!/bin/sh' 'echo "CHECK extra FILES=${MDCI_FILES_PATH:-}" >> "$RIG_STATE/calls"' 'printf "extra: installed\nplatform: rig\n"' 'exit 0'
 printf 'myx/mdci-packages-myx/feature.extra mdci-installable:feature:feature.extra\nmyx/mdci-packages-myx/setup.feature-lancedb mdci-installable:feature:setup.feature-lancedb\n' > "$rigState/declares"
 rigRun "" --manager-feature-list
-rigAssert "a declared feature is listed, from its own folder, and the declared lancedb once" "$rigRc $( LC_ALL=C awk -F'\t' '$1 == "feature" { print $2 }' "$rigTmp/out" | LC_ALL=C sort | LC_ALL=C tr '\n' ' ' ) $( LC_ALL=C grep -c 'CHECK extra FILES=.*/feature.extra/data' "$rigState/calls" )" "0 feature.extra setup.feature-lancedb setup.feature-local-ai  1"
+rigAssert "a declared feature is listed, from its own folder, and the declared lancedb once" "$rigRc $( LC_ALL=C awk -F'\t' '$1 == "feature" { print $2 ; }' "$rigTmp/out" | LC_ALL=C sort | LC_ALL=C tr '\n' ' ' ) $( LC_ALL=C grep -c 'CHECK extra FILES=.*/feature.extra/data' "$rigState/calls" )" "0 feature.extra setup.feature-lancedb setup.feature-local-ai  1"
 rm -f "$rigState/declares"
 rigRun "" --manager-feature-list
-rigAssert "with no declares the folders alone are listed: the extra feature is not among them" "$rigRc $( LC_ALL=C awk -F'\t' '$1 == "feature" { print $2 }' "$rigTmp/out" | LC_ALL=C sort | LC_ALL=C tr '\n' ' ' )" "0 setup.feature-lancedb setup.feature-local-ai "
+rigAssert "with no declares the folders alone are listed: the extra feature is not among them" "$rigRc $( LC_ALL=C awk -F'\t' '$1 == "feature" { print $2 ; }' "$rigTmp/out" | LC_ALL=C sort | LC_ALL=C tr '\n' ' ' )" "0 setup.feature-lancedb setup.feature-local-ai "
 rm -rf "$rigExtra"
 rigReset
 rigRun "" --manager-feature-list
@@ -214,7 +214,7 @@ printf 'lancedb: not installed\nplatform: macOS arm64\nhome: /rig/lancedb\n' > "
 cp "$rigTmp/db.check.canned" "$rigState/db.after-install"
 rigRun "" --manager-feature-part install "$rigDb_" lancedb --yes
 rigAssert "LanceDB: its install fragment, with the workspace and the origin, and nothing for local AI; the plan names no download it does not know; installed after" "$rigRc | $( rigNoCalls | LC_ALL=C sed -e "s|$rigOrigin|ORIGIN|g" -e "s|$rigWs|WS|g" ) | $( rigRow plan lancedb 5-6 ) | $( LC_ALL=C grep '^done' "$rigTmp/out" | LC_ALL=C tr '\t' ' ' )" "0 | INSTALL db WS=WS ORIGIN=ORIGIN| | - - | done install setup.feature-lancedb lancedb installed"
-rigAssert "the space it reports is a number: that of the nearest folder that is there" "$( rigRow plan lancedb 7 | LC_ALL=C awk '{ print ( $1 > 0 ) ? "n" : "x" }' )" "n"
+rigAssert "the space it reports is a number: that of the nearest folder that is there" "$( rigRow plan lancedb 7 | LC_ALL=C awk '{ print ( $1 > 0 ) ? "n" : "x" ; }' )" "n"
 cp "$rigTmp/db.check.canned" "$rigState/db.check"
 : > "$rigState/calls"
 printf 'lancedb: not installed\nplatform: macOS arm64\nhome: /rig/lancedb\n' > "$rigState/db.after-uninstall"
@@ -308,7 +308,7 @@ done
 rigRun "" --help-syntax --manager-feature-
 rigAssert "--help-syntax of the family prints the six lines" "$rigRc $( LC_ALL=C grep -c 'syntax: DistroAgentsTools.fn.sh --manager-feature-' "$rigTmp/err" || : )" "0 6"
 rigEntry(){ ## operation -- its entry in the help.md, from under its heading to the next operation
-	LC_ALL=C awk -v op="$1" 'index( $0, "\t\t" op ) == 1 && ( length( $0 ) == length( op ) + 2 || substr( $0, length( op ) + 3, 1 ) == " " ) { on = 1 ; next } on && /^\t\t--/ { exit } on { print }' "$rigHelpMd"
+	LC_ALL=C awk -v op="$1" 'index( $0, "\t\t" op ) == 1 && ( length( $0 ) == length( op ) + 2 || substr( $0, length( op ) + 3, 1 ) == " " ) { on = 1 ; next ; } on && /^\t\t--/ { exit ; } on { print ; }' "$rigHelpMd"
 }
 rigAssert "the entry of the list gives the form of the row, and the entry of the part the forms of its plan and its done" "$( rigEntry --manager-feature-list | LC_ALL=C grep -c -F '<feature|part> <feature> <part> <state> <disk-bytes> <memory-bytes> <running> <install> <update> <uninstall> <detail>' ) $( rigEntry --manager-feature-part | LC_ALL=C grep -c -F -e 'plan <action> <feature> <part> <download-bytes> <reclaim-bytes> <free-bytes> <ram-need-bytes> <ram-bytes> <blocked> <why>' -e 'done <action> <feature> <part> <state>' )" "1 2"
 
@@ -319,7 +319,7 @@ printf '%s\n' '# id	part	family	params	quant	profiles	file	size_bytes	sha256	url
 rigReset
 rigRun "" --manager-feature-models
 rigAssert "no argument: the profile of the host (shared-cpu), its default chat model, the speech model and LanceDB; rows set, model and total; nothing called but the checks" \
-	"$rigRc | $( LC_ALL=C awk -F'\t' '$1 == "set" || $1 == "model" || $1 == "total" { print $1 ":" NF }' "$rigTmp/out" | LC_ALL=C tr '\n' ' ' ) | $( rigNoCalls )" "0 | set:4 model:7 model:7 model:7 total:4  | "
+	"$rigRc | $( LC_ALL=C awk -F'\t' '$1 == "set" || $1 == "model" || $1 == "total" { print $1 ":" NF ; }' "$rigTmp/out" | LC_ALL=C tr '\n' ' ' ) | $( rigNoCalls )" "0 | set:4 model:7 model:7 model:7 total:4  | "
 rigAssert "the set row names the profile, the number of parts and that it is the profile's own" "$( LC_ALL=C grep '^set' "$rigTmp/out" | LC_ALL=C tr '\t' ' ' )" "set shared-cpu 3 profile"
 rigAssert "each model row: its feature, part, kind, state, bytes and whether it is the profile's default" "$( LC_ALL=C grep '^model' "$rigTmp/out" | LC_ALL=C cut -f2- | LC_ALL=C tr '\t' ' ' | LC_ALL=C tr '\n' '|' )" \
 	"$rigAi_ stt-a stt not-installed 50 yes|$rigAi_ chat-a chat installed 100 yes|$rigDb_ lancedb embedding installed - yes|"

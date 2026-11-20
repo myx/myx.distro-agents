@@ -74,8 +74,8 @@ AgentsToolsSpawnRoutineResolve(){
 }
 AgentsToolsRoutineKeyOwn(){
 	case "$2" in
-		runs-at) LC_ALL=C awk -F': ' '/^runs-at: / { print $2 ; exit }' "$1" ;;
-		runs-after) LC_ALL=C awk -F': ' '/^runs-after: / { print $2 ; exit }' "$1" ;;
+		runs-at) LC_ALL=C awk -F': ' '/^runs-at: / { print $2 ; exit ; }' "$1" ;;
+		runs-after) LC_ALL=C awk -F': ' '/^runs-after: / { print $2 ; exit ; }' "$1" ;;
 	esac
 }
 AgentsToolsScheduleTimeSeconds(){ printf '%s\n' "$(( ( 10#${1%%:*} * 60 + 10#${1#*:} ) * 60 ))" ; }
@@ -125,7 +125,7 @@ rigRecord done-two rig-predecessor.routine.md spawn-succeeded '09:05' '09:30'
 rigAssert "the successor becomes due, naming the run it follows" \
 	"$( rigDueFor rig-successor.routine.md | LC_ALL=C sed -e '1s/^DUE: rig-successor.routine.md$/DUE: rig-successor.routine.md/' -e '2d' )" 'DUE: rig-successor.routine.md'
 rigAssert "and the run it follows is the one that closed" \
-	"$( rigDueFor rig-successor.routine.md | LC_ALL=C awk '$1 == "AFTER:" { print $2 }' )" 'rig-predecessor.routine.md'
+	"$( rigDueFor rig-successor.routine.md | LC_ALL=C awk '$1 == "AFTER:" { print $2 ; }' )" 'rig-predecessor.routine.md'
 
 echo "-- 5. a run still open is no completion either --"
 rm -rf "$rigWs/.local/agents/spawned"/*

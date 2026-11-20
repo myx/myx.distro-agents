@@ -57,7 +57,7 @@ AgentsToolsManagerCheckRows(){ ## folder, the domains wanted, the bound in secon
 	local rowsName rowsLabel rowsFound
 	for rowsName in $agentsManagerCheckDomains ; do
 		case " $2 " in *" $rowsName "*) ;; *) continue ;; esac
-		rowsLabel="$( printf '%s' "$rowsName" | LC_ALL=C awk '{ print toupper( substr( $0, 1, 1 ) ) substr( $0, 2 ) "_Check" }' )"
+		rowsLabel="$( printf '%s' "$rowsName" | LC_ALL=C awk '{ print toupper( substr( $0, 1, 1 ) ) substr( $0, 2 ) "_Check" ; }' )"
 		if [ -e "$1/$rowsName.late" ] ; then
 			printf 'check\t%s\t-\t-\t%s\tskipped\tthe_check_did_not_end_within_%s_seconds\t-\n' "$rowsName" "$rowsLabel" "$3"
 		elif [ ! -e "$1/$rowsName.out" ] ; then
@@ -162,7 +162,7 @@ case "$1" in
 		runRows="$( AgentsToolsManagerCheckRows "$runFolder" "$runWanted" "$runSeconds" )"
 		rm -rf -- "$runFolder"
 		[ -z "$runRows" ] || printf '%s\n' "$runRows"
-		printf '%s\n' "$runRows" | LC_ALL=C awk -F'\t' -v OFS='\t' -v took="$(( SECONDS - runBegan ))" '$1 == "check" { checks++ ; state[$6]++ } END { print "summary", checks + 0, state["ok"] + 0, state["warn"] + 0, state["fail"] + 0, state["skipped"] + 0, took }'
+		printf '%s\n' "$runRows" | LC_ALL=C awk -F'\t' -v OFS='\t' -v took="$(( SECONDS - runBegan ))" '$1 == "check" { checks++ ; state[$6]++ ; } END { print "summary", checks + 0, state["ok"] + 0, state["warn"] + 0, state["fail"] + 0, state["skipped"] + 0, took ; }'
 		return 0
 	;;
 

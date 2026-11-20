@@ -86,7 +86,7 @@ AgentsToolsSessionRoutineFile(){ ## session id
 AgentsToolsRoutineDeliverablesInForce(){ ## session id
 	local dlSession="$1" dlFrame="" dlPath=""
 	type AgentsToolsSessionRoutineStackLines > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/routine/AgentsTools.RoutineStack.include"
-	dlFrame="$( AgentsToolsSessionRoutineStackLines "$dlSession" | LC_ALL=C awk '$0 ~ /:current$/ { name = $0 ; sub( /^routine-stack: /, "", name ) ; sub( /:current$/, "", name ) } END { if ( name != "" ) print name }' )"
+	dlFrame="$( AgentsToolsSessionRoutineStackLines "$dlSession" | LC_ALL=C awk '$0 ~ /:current$/ { name = $0 ; sub( /^routine-stack: /, "", name ) ; sub( /:current$/, "", name ) ; } END { if ( name != "" ) print name ; }' )"
 	if [ -n "$dlFrame" ] ; then
 		type AgentsToolsSpawnRoutineResolve > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnRoutine.include"
 		dlPath="$( AgentsToolsSpawnRoutineResolve "$dlFrame" 2> /dev/null )" || dlPath=""
@@ -115,7 +115,7 @@ AgentsToolsRoutineOperationWords(){
 		/^\t\t--[a-z0-9]/ && /\)[ \t]*$/ {
 			arm = $0 ; sub( /^[ \t]+/, "", arm ) ; sub( /\)[ \t]*$/, "", arm ) ;
 			n = split( arm, alts, "|" ) ;
-			for ( i = 1 ; i <= n ; i++ ) { word = alts[i] ; sub( /\*$/, "", word ) ; if ( word ~ /^--/ ) { print word ; } }
+			for ( i = 1 ; i <= n ; i++ ) { word = alts[i] ; sub( /\*$/, "", word ) ; if ( word ~ /^--/ ) { print word ; } ; }
 		}
 	' "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 }
@@ -148,7 +148,7 @@ AgentsToolsRoutineStartAsk(){ ## the member the run is, the routine file, the re
 	warnFile="$MMDAPP/.local/cache/agents/routine-start-warnings.txt"
 	warnKey="$3:${2%.routine.md}"
 	mkdir -p "${warnFile%/*}" 2> /dev/null || :
-	warnCount="$( LC_ALL=C awk -v k="$warnKey" '$1 == k { print $2 + 0 ; exit }' "$warnFile" 2> /dev/null )" || warnCount=""
+	warnCount="$( LC_ALL=C awk -v k="$warnKey" '$1 == k { print $2 + 0 ; exit ; }' "$warnFile" 2> /dev/null )" || warnCount=""
 	warnCount=$(( ${warnCount:-0} + 1 ))
 	if { LC_ALL=C awk -v k="$warnKey" '$1 != k' "$warnFile" 2> /dev/null ; printf '%s %s\n' "$warnKey" "$warnCount" ; } > "$warnFile.new" 2> /dev/null \
 		&& mv "$warnFile.new" "$warnFile" 2> /dev/null ; then : ; else rm -f "$warnFile.new" ; warnCount=1 ; fi

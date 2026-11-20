@@ -216,8 +216,8 @@ AgentsToolsDispatcherSessions(){ ## the operation as it was called, its argument
 	fi
 	case "$sessionsScope" in
 		all) scopeAll=yes ;;
-		own) keptScope="$( printf '%s\n' "$sessionsRows" | LC_ALL=C awk -F'\t' -v who="$scopeActing" '$1 == "run" && $4 == who { print $2 }' | LC_ALL=C sort -u )" ;;
-		member) keptScope="$( printf '%s\n' "$sessionsRows" | LC_ALL=C awk -F'\t' -v who="$sessionsScopeMember" '$1 == "run" && $4 == who { print $2 }' | LC_ALL=C sort -u )" ;;
+		own) keptScope="$( printf '%s\n' "$sessionsRows" | LC_ALL=C awk -F'\t' -v who="$scopeActing" '$1 == "run" && $4 == who { print $2 ; }' | LC_ALL=C sort -u )" ;;
+		member) keptScope="$( printf '%s\n' "$sessionsRows" | LC_ALL=C awk -F'\t' -v who="$sessionsScopeMember" '$1 == "run" && $4 == who { print $2 ; }' | LC_ALL=C sort -u )" ;;
 		this-session) keptScope="$( AgentsToolsDispatcherSubSessions "$scopeSession" | LC_ALL=C sort -u )" ;;
 	esac
 	sessionsKept="$keptKind"

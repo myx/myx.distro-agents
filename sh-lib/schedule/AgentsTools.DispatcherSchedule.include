@@ -867,6 +867,19 @@ AgentsToolsScheduleStartsAllowed(){
 	return 1
 }
 
+## A RUN THAT IS NO DUTY AND HAS NOTHING PENDING IS TOLD TO GO (owner's ruling, 2026-11-20): the reported session sat idling with its
+## list reading done, and nothing ended it. The kept started list is read once a pass, and each run is decided by AgentsToolsScheduleIdleNoWorkEnd.
+AgentsToolsScheduleIdleRunsEnd(){
+	local idleRun
+	AgentsToolsScheduleStartingAllowed || return 0
+	while IFS= read -r idleRun ; do
+		[ -n "$idleRun" ] && [ -f "$idleRun" ] || continue
+		[ "$( AgentsToolsFrontmatterKey "$idleRun" status )" = "spawn-started" ] || continue
+		AgentsToolsScheduleIdleNoWorkEnd "$idleRun" || :
+	done <<< "$( type AgentsToolsSpawnedStartedRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/schedule/AgentsTools.StartedRecords.include" ; AgentsToolsSpawnedStartedRecords )"
+	return 0
+}
+
 ## --- the autorun ---
 
 ## Every routine file with a runs-at is asked whether it is due (AgentsToolsScheduleDue); a routine that is due is started through the
@@ -946,7 +959,7 @@ AgentsToolsSchedulePaceText(){ ## -- one line: what was read, and what it decide
 	## this pass's cost.
 	type AgentsToolsSpawnedRegistryFile > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include"
 	paceRegistry="$( AgentsToolsSpawnedRegistryFile "$MMDAPP" 2> /dev/null )" || paceRegistry=""
-	paceMedian="$( { [ ! -f "$paceRegistry" ] || LC_ALL=C awk '$6 == "spawn-started" { print $2 }' "$paceRegistry" 2> /dev/null ; } \
+	paceMedian="$( { [ ! -f "$paceRegistry" ] || LC_ALL=C awk '$6 == "spawn-started" { print $2 ; }' "$paceRegistry" 2> /dev/null ; } \
 		| while IFS= read -r paceRun ; do
 			## A LIVE RUN'S CONTEXT IS ITS SANDBOX'S BY CONVENTION: no record names it, and every live run read carries
 			## `context.jsonl` there. A sandbox with none contributes nothing, which is what the walk missed too.
@@ -954,10 +967,10 @@ AgentsToolsSchedulePaceText(){ ## -- one line: what was read, and what it decide
 			[ -f "$paceFile" ] || continue
 			LC_ALL=C awk -v floor="$(( ( paceNow - paceWindow ) * 1000 ))" '
 				{
-					if ( ! match( $0, /"ms":[0-9]+/ ) ) { next } ; ms = substr( $0, RSTART + 5, RLENGTH - 5 ) + 0 ; if ( ms < floor ) { next }
+					if ( ! match( $0, /"ms":[0-9]+/ ) ) { next ; } ; ms = substr( $0, RSTART + 5, RLENGTH - 5 ) + 0 ; if ( ms < floor ) { next ; }
 					## A WAIT WAITS BY DESIGN: its minutes are the pause it was asked for, not the machinery around a call (MDV read 907 s a call on one
 					## Wait of 15 minutes). Its record is left out of the pace, as execute is.
-					if ( index( $0, "\"tool\":\"Wait\"" ) ) { next }
+					if ( index( $0, "\"tool\":\"Wait\"" ) ) { next ; }
 					## A BATCH IS ITS CALLS: each counted once at its own tooling time, and the batch itself counting nothing.
 					if ( match( $0, /"calls_mach_ms":\[[0-9,]*\]/ ) ) {
 						split( substr( $0, RSTART + 17, RLENGTH - 18 ), callMach, "," )
@@ -965,11 +978,11 @@ AgentsToolsSchedulePaceText(){ ## -- one line: what was read, and what it decide
 						next
 					}
 					## A batch record of the older shape carries its whole span as one call, which is what the ruling forbids: it is no call.
-					if ( index( $0, "\"tool\":\"BatchTools\"" ) ) { next }
-					if ( match( $0, /"mach_ms":[0-9]+/ ) ) { print substr( $0, RSTART + 10, RLENGTH - 10 ) ; next }
-					if ( match( $0, /"dur_ms":[0-9]+/ ) ) { print substr( $0, RSTART + 9, RLENGTH - 9 ) }
+					if ( index( $0, "\"tool\":\"BatchTools\"" ) ) { next ; }
+					if ( match( $0, /"mach_ms":[0-9]+/ ) ) { print substr( $0, RSTART + 10, RLENGTH - 10 ) ; next ; }
+					if ( match( $0, /"dur_ms":[0-9]+/ ) ) { print substr( $0, RSTART + 9, RLENGTH - 9 ) ; }
 				}' "$paceFile" 2> /dev/null
-		done | { cat ; [ ! -f "$MMDAPP/.local/agents/schedule/pace.mcp" ] || LC_ALL=C awk -v floor="$(( paceNow - paceWindow ))" '$1 >= floor && $3 != "Wait" { print $2 }' "$MMDAPP/.local/agents/schedule/pace.mcp" 2> /dev/null ; } | LC_ALL=C sort -n | LC_ALL=C awk '{ call[NR] = $1 } END { if ( NR == 0 ) { printf "- 0\n" ; exit } ; printf "%s %s\n", call[int( (NR + 1) / 2 )], NR }' )"
+		done | { cat ; [ ! -f "$MMDAPP/.local/agents/schedule/pace.mcp" ] || LC_ALL=C awk -v floor="$(( paceNow - paceWindow ))" '$1 >= floor && $3 != "Wait" { print $2 ; }' "$MMDAPP/.local/agents/schedule/pace.mcp" 2> /dev/null ; } | LC_ALL=C sort -n | LC_ALL=C awk '{ call[NR] = $1 ; } END { if ( NR == 0 ) { printf "- 0\n" ; exit ; } ; printf "%s %s\n", call[int( (NR + 1) / 2 )], NR ; }' )"
 	## Kept for the next callers: written beside, then moved in, so a reader never sees half of it.
 	case "$paceMedian" in
 		''|*[!0123456789\ -]*) ;;
@@ -1088,13 +1101,13 @@ AgentsToolsScheduleDutyRestartDue(){ ## member
 	local dueRows dueMine dueLine
 	type AgentsToolsSpawnedDutyRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/schedule/AgentsTools.StartedRecords.include"
 	dueRows="$( AgentsToolsSpawnedDutyRecords | LC_ALL=C tr '\n' '\0' | LC_ALL=C xargs -0 awk '
-		FNR == 1 { if ( NR > 1 && name != "" ) print name "\t" owner "\t" status ; name = FILENAME ; owner = "" ; status = "" ; fence = 0 }
-		$0 == "---" { fence++ ; next }
-		fence == 1 && index( $0, "owner: " ) == 1 && owner == "" { owner = substr( $0, 8 ) }
-		fence == 1 && index( $0, "status: " ) == 1 && status == "" { status = substr( $0, 9 ) }
-		END { if ( name != "" ) print name "\t" owner "\t" status }
+		FNR == 1 { if ( NR > 1 && name != "" ) print name "\t" owner "\t" status ; name = FILENAME ; owner = "" ; status = "" ; fence = 0 ; }
+		$0 == "---" { fence++ ; next ; }
+		fence == 1 && index( $0, "owner: " ) == 1 && owner == "" { owner = substr( $0, 8 ) ; }
+		fence == 1 && index( $0, "status: " ) == 1 && status == "" { status = substr( $0, 9 ) ; }
+		END { if ( name != "" ) print name "\t" owner "\t" status ; }
 	' 2> /dev/null )" || dueRows=""
-	dueMine="$( printf '%s\n' "$dueRows" | LC_ALL=C awk -F'\t' -v member="$1" '$2 == member && $3 != "" && $3 != "spawn-started" { print $1 }' )"
+	dueMine="$( printf '%s\n' "$dueRows" | LC_ALL=C awk -F'\t' -v member="$1" '$2 == member && $3 != "" && $3 != "spawn-started" { print $1 ; }' )"
 	if [ -n "$dueMine" ] ; then
 		case "$dueStat" in
 			bsd) dueLine="$( printf '%s\n' "$dueMine" | LC_ALL=C tr '\n' '\0' | LC_ALL=C xargs -0 stat -f '%m %N' 2> /dev/null | LC_ALL=C sort -rn | LC_ALL=C sed -n '1p' )" ;;
@@ -1214,7 +1227,7 @@ AgentsToolsScheduleTeamTags(){ ## the members to look for, spaced; force (yes|no
 	for teamMember in $1 ; do teamIdList="$teamIdList $teamMember=$( AgentsSlackIdentityId "$teamMember" )" ; done
 	type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 	teamOut="$( DistroAgentsTools --intern-op-comms-slack-read magic-coordinator magic-team --oldest "$teamFloor" 2> /dev/null < /dev/null )" || teamOut=""
-	teamNewest="$( printf '%s\n' "$teamOut" | LC_ALL=C awk -v floor="$teamFloor" '/^[0-9]+\.[0-9]+ \| / { if ( $1 + 0 > floor + 0 ) { newest = $1 } } END { print newest }' )"
+	teamNewest="$( printf '%s\n' "$teamOut" | LC_ALL=C awk -v floor="$teamFloor" '/^[0-9]+\.[0-9]+ \| / { if ( $1 + 0 > floor + 0 ) { newest = $1 ; } ; } END { print newest ; }' )"
 	for teamMember in $1 ; do
 		teamId="${teamIdList#* $teamMember=}" ; teamId="${teamId%% *}"
 		## WHAT THE TOOLING POSTED ITSELF IS NO MENTION (AgentsToolsTrackingDrop). The member's own post is no
@@ -1224,10 +1237,10 @@ AgentsToolsScheduleTeamTags(){ ## the members to look for, spaced; force (yes|no
 		teamHit="$( printf '%s\n' "$teamOut" | AgentsToolsTrackingDrop "$teamMember" | MEMBER="$teamMember" MEMBER_ID="$teamId" FLOOR="$teamFloor" LC_ALL=C awk '
 			/^[0-9]+\.[0-9]+ \| / {
 				if ( $1 + 0 <= ENVIRON["FLOOR"] + 0 ) next
-				if ( ENVIRON["MEMBER_ID"] != "" && index( $0, "<@" ENVIRON["MEMBER_ID"] ">" ) > 0 ) { hit = $1 ; if ( index( $0, "[sender: " ) == 0 && $0 !~ /:[a-z0-9_+-]+: \*_[a-z0-9-]+_\*/ ) human = $1 }
-				else if ( index( $0, "@" ENVIRON["MEMBER"] ) > 0 ) { hit = $1 ; if ( index( $0, "[sender: " ) == 0 && $0 !~ /:[a-z0-9_+-]+: \*_[a-z0-9-]+_\*/ ) human = $1 }
+				if ( ENVIRON["MEMBER_ID"] != "" && index( $0, "<@" ENVIRON["MEMBER_ID"] ">" ) > 0 ) { hit = $1 ; if ( index( $0, "[sender: " ) == 0 && $0 !~ /:[a-z0-9_+-]+: \*_[a-z0-9-]+_\*/ ) human = $1 ; }
+				else if ( index( $0, "@" ENVIRON["MEMBER"] ) > 0 ) { hit = $1 ; if ( index( $0, "[sender: " ) == 0 && $0 !~ /:[a-z0-9_+-]+: \*_[a-z0-9-]+_\*/ ) human = $1 ; }
 			}
-			END { print hit "\t" human }' )"
+			END { print hit "\t" human ; }' )"
 		AgentsToolsScheduleTagNote "$teamMember" "${teamHit%%$'\t'*}" "${teamHit#*$'\t'}"
 	done
 	if teamTemp="$( mktemp "$teamStore/team-channel.XXXXXX" 2> /dev/null )" ; then
@@ -1276,7 +1289,7 @@ AgentsToolsScheduleBoardDemand(){
 	for boardFile in ${boardFiles[@]+"${boardFiles[@]}"} ; do
 		[ ! "$boardFile" -nt "$boardNote" ] || return 0
 	done
-	boardRows="$( LC_ALL=C awk 'FNR == 1 { fm = ( $0 == "---" ) ; next } fm && $0 == "---" { fm = 0 ; next } fm && index( $0, "recheck-date: " ) == 1 { print substr( $0, 15 ) }' ${boardFiles[@]+"${boardFiles[@]}"} 2> /dev/null | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/output/LocalIsoToEpoch.awk" 2> /dev/null )"
+	boardRows="$( LC_ALL=C awk 'FNR == 1 { fm = ( $0 == "---" ) ; next ; } fm && $0 == "---" { fm = 0 ; next ; } fm && index( $0, "recheck-date: " ) == 1 { print substr( $0, 15 ) ; }' ${boardFiles[@]+"${boardFiles[@]}"} 2> /dev/null | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/output/LocalIsoToEpoch.awk" 2> /dev/null )"
 	while IFS= read -r boardEpoch ; do
 		case "$boardEpoch" in ''|*[!0123456789]*) continue ;; esac
 		[ "$boardEpoch" -gt "$boardBase" ] && [ "$boardEpoch" -le "$boardNow" ] && return 0
@@ -1472,11 +1485,11 @@ AgentsToolsScheduleDmTags(){ ## the members within their flags to look for, spac
 	## Both lists made first: with no member due the program below writes neither, and a loop must find each to read nothing from.
 	: > "$dmWork/cut" ; : > "$dmWork/reads" ; : > "$dmWork/jobs.keyed"
 	DM_WORK="$dmWork" LC_ALL=C awk -F'\t' -v OFS='\t' '
-		{ key = ( $3 == "bot" ? "bot\t" $2 : "user\t" $1 "\t" $2 ) }
-		!( key in idx ) { idx[key] = ++n ; conv[n] = $2 ; ident[n] = $3 ; who[n] = $1 ; low[n] = $5 }
-		( $5 "" ) < ( low[idx[key]] "" ) { low[idx[key]] = $5 }
-		{ print idx[key], $0 > ( ENVIRON["DM_WORK"] "/jobs.keyed" ) }
-		END { for ( i = 1 ; i <= n ; i++ ) print i, conv[i], ident[i], who[i], low[i] > ( ENVIRON["DM_WORK"] "/reads" ) }' "$dmWork/jobs"
+		{ key = ( $3 == "bot" ? "bot\t" $2 : "user\t" $1 "\t" $2 ) ; }
+		!( key in idx ) { idx[key] = ++n ; conv[n] = $2 ; ident[n] = $3 ; who[n] = $1 ; low[n] = $5 ; }
+		( $5 "" ) < ( low[idx[key]] "" ) { low[idx[key]] = $5 ; }
+		{ print idx[key], $0 > ( ENVIRON["DM_WORK"] "/jobs.keyed" ) ; }
+		END { for ( i = 1 ; i <= n ; i++ ) print i, conv[i], ident[i], who[i], low[i] > ( ENVIRON["DM_WORK"] "/reads" ) ; }' "$dmWork/jobs"
 	dmPids=""
 	type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 	while IFS=$'\t' read -r rIdx rConv rIdentity rWho rFloor ; do
@@ -1515,7 +1528,7 @@ AgentsToolsScheduleDmTags(){ ## the members within their flags to look for, spac
 				if ( $1 + 0 > newest + 0 ) newest = $1
 				if ( index( $0, "[sender: " ) == 0 && $3 != ENVIRON["DM_AUTH"] && $3 != ENVIRON["DM_ID"] && $0 !~ /:[a-z0-9_+-]+: \*_[a-z0-9-]+_\*/ && $1 + 0 > human + 0 ) human = $1
 			}
-			END { print newest "\t" human "\t" passed }' )"
+			END { print newest "\t" human "\t" passed ; }' )"
 		printf '%s\t%s\n' "$jMember" "$jRead" > "$dmWork/read.$dmJob"
 	done < "$dmWork/jobs.keyed"
 	## 3. THE MEMBERS, each from its reads, in the order they were asked for.
@@ -1537,7 +1550,7 @@ AgentsToolsScheduleDmTags(){ ## the members within their flags to look for, spac
 				if ( ( $3 "" ) > ( human "" ) ) human = $3
 				if ( ( $4 "" ) > ( passed "" ) ) passed = $4
 			}
-			END { print newest "\t" human "\t" passed }' )"
+			END { print newest "\t" human "\t" passed ; }' )"
 		dmNewest="${dmTotals%%$'\t'*}" ; dmPassed="${dmTotals##*$'\t'}" ; dmHuman="${dmTotals#*$'\t'}" ; dmHuman="${dmHuman%$'\t'*}"
 		if [ -n "$dmNewest" ] ; then
 			agentsScheduleDmNewest="$dmNewest"
@@ -1599,6 +1612,37 @@ AgentsToolsScheduleDismiss(){ ## spawn record, why (a clause of the line printed
 	return 0
 }
 
+## A DUTY THAT IS NO LONGER THE RIGHT ONE IS TOLD TO GO (owner's ruling, 2026-11-20, reading A): an off-duty run exists out of the hours
+## only, so a pass whose flags allow a work-duty dismisses it. A work-duty in worktime is left alone: it is built to keep waiting, and
+## AgentsToolsScheduleDutyLifetime keeps it, its idle bound included. rc 0 where the record was told to go.
+AgentsToolsScheduleOffDutyEnd(){ ## the duty's spawn record, whether the flags allow a work-duty (yes|no)
+	local endRecord="$1" endAllowed="$2" endRoutine=""
+	[ "$endAllowed" = yes ] || return 1
+	endRoutine="$( AgentsToolsFrontmatterKey "$endRecord" routine )"
+	case "$endRoutine" in *.off-duty.routine.md) ;; *) return 1 ;; esac
+	AgentsToolsScheduleDismiss "$endRecord" "the flags allow a work-duty now, so this off-duty run is ended"
+}
+
+## THE ONE RULE FOR A RUN THAT IS NO DUTY (owner's ruling, 2026-11-20, the addition to reading A): a run whose routine is no duty kind and
+## whose own CheckList holds nothing pending is told to go. That is the reported session: it sat with its list reading done and nothing
+## ended it. The list alone decides here. Whether the run is idle is AgentsToolsScheduleDismiss's own test, made once for every dismissal,
+## and it writes no marker on a run that is still working, so the decision is taken again on the next pass.
+AgentsToolsScheduleIdleNoWorkEnd(){ ## the run's spawn record
+	local idleRecord="$1" idleSpawn idleMember idleList="" idleSession=""
+	idleSpawn="${idleRecord##*/}" ; idleSpawn="${idleSpawn%.spawn.md}"
+	type AgentsToolsDutyRoutineIs > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/routine/AgentsTools.DutyRoutine.include"
+	AgentsToolsDutyRoutineIs "$( AgentsToolsFrontmatterKey "$idleRecord" routine )" && return 1
+	## AN OPEN ASK OF ITS OWN IS WORK: the run waits on an answer, and its question ends that wait.
+	idleSession="$( AgentsToolsFrontmatterKey "$idleRecord" session-id )"
+	case "$idleSession" in ''|*[!A-Za-z0-9._-]*) idleSession="$idleSpawn" ;; esac
+	LC_ALL=C grep -l -x -F "session-id: $idleSession" "$MMDAPP/.local/agents/pending/"*.md 2> /dev/null | LC_ALL=C grep -q . && return 1
+	idleMember="$( AgentsToolsFrontmatterKey "$idleRecord" owner )"
+	type AgentsSessionChecklistOpenInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.CheckListSeed.include"
+	AgentsSessionChecklistOpenInto idleList "$idleSpawn" "$idleMember"
+	[ -z "$idleList" ] || return 1
+	AgentsToolsScheduleDismiss "$idleRecord" "its work is done: its list holds nothing pending and it waits"
+}
+
 ## Whether a member of the roster is a standing member, one that holds a work-duty: a magic or keeper member that is not the team itself and not a
 ## reference-only record. A partner, warden or client member holds no duty: it is tasked or invited when needed, and its run ends with its task.
 ## A member whose directory holds no armed skill, `<member>.armed.md`, holds none either: the grants make a directory for a member name
@@ -1656,6 +1700,8 @@ AgentsToolsScheduleInSession(){ ## the duty's spawn record, member
 ## Idle: since the first `wait going idle` line of the stretch that ends its milestones.
 AgentsToolsScheduleDutyLifetime(){ ## the duty's spawn record, member, whether the flags allow (yes|no), whether the member is on vacation (yes|no)
 	local lifeRecord="$1" lifeMember="$2" lifeAllowed="$3" lifeVacation="${4:-no}" lifeSpawn lifeStat="" lifeSince lifeIdle lifeLimit="" lifeWhy
+	## AN OFF-DUTY RUN ENDS ONCE THE FLAGS ALLOW A WORK-DUTY: it exists out of the hours only (owner's ruling, 2026-11-20).
+	AgentsToolsScheduleOffDutyEnd "$lifeRecord" "$lifeAllowed" && return 0
 	local lifeCacheRound lifeCacheLife lifeCacheTurns lifeNow lifeOffset lifeDay lifeInto lifeNextStart lifeKeep=""
 	lifeSpawn="${lifeRecord##*/}" ; lifeSpawn="${lifeSpawn%.spawn.md}"
 	## A MEMBER ON VACATION HOLDS NO DUTY: the duty that stands is told to go now, and takes it at its next Wait, as every dismissal is taken.
@@ -1761,8 +1807,8 @@ AgentsToolsScheduleStartedDutyRecords(){
 ## duties starts the coordinator's before a keeper's. One awk, no sort: the rows are few.
 AgentsToolsScheduleDutyOrder(){
 	LC_ALL=C awk -F'\t' '
-		{ if ( $1 == "magic-coordinator" ) first[++f] = $0 ; else if ( index( $1, "magic-" ) == 1 ) second[++s] = $0 ; else rest[++r] = $0 }
-		END { for ( i = 1 ; i <= f ; i++ ) print first[i] ; for ( i = 1 ; i <= s ; i++ ) print second[i] ; for ( i = 1 ; i <= r ; i++ ) print rest[i] }
+		{ if ( $1 == "magic-coordinator" ) first[++f] = $0 ; else if ( index( $1, "magic-" ) == 1 ) second[++s] = $0 ; else rest[++r] = $0 ; }
+		END { for ( i = 1 ; i <= f ; i++ ) print first[i] ; for ( i = 1 ; i <= s ; i++ ) print second[i] ; for ( i = 1 ; i <= r ; i++ ) print rest[i] ; }
 	'
 }
 
@@ -2087,7 +2133,7 @@ AgentsToolsScheduleLearning(){
 	local learnReview=() learnSpawned=""
 	AgentsSpawnedStoreDirInto learnSpawned "$MMDAPP" || learnSpawned=""
 	learnStarted="$( [ -z "$learnSpawned" ] || { cd "$learnSpawned" 2> /dev/null && printf '%s\n' * ; } )"
-	learnStarted="$learnStarted"$'\n'"$( LC_ALL=C awk '$2 == "ask" && $5 == "reply-pending" { print $1 }' "$( AgentsToolsRegistryFile pending-replies )" 2> /dev/null | LC_ALL=C sort )"
+	learnStarted="$learnStarted"$'\n'"$( LC_ALL=C awk '$2 == "ask" && $5 == "reply-pending" { print $1 ; }' "$( AgentsToolsRegistryFile pending-replies )" 2> /dev/null | LC_ALL=C sort )"
 	AgentsToolsBoardStateFoldersInto learnReview review || learnReview=()
 	for learnClock in ${learnReview[@]+"${learnReview[@]}"} ; do
 		learnStarted="$learnStarted"$'\n'"$( LC_ALL=C stat -f '%m %N' "$learnClock"/*.md 2> /dev/null || LC_ALL=C stat -c '%Y %n' "$learnClock"/*.md 2> /dev/null )"
@@ -2111,7 +2157,7 @@ AgentsToolsScheduleLearning(){
 		## A session ended by order (control/closed), a start that died or a run closed from the console, holds nothing to learn from.
 		type AgentsSessionMarked > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
 		! AgentsSessionMarked "$learnId" control/closed || continue
-		learnMembers="$( printf '%s\n' "$learnRows" | LC_ALL=C awk -F'\t' -v want="$learnId" '$1 == "run" && $2 == want { print $4 }' | LC_ALL=C sort -u )"
+		learnMembers="$( printf '%s\n' "$learnRows" | LC_ALL=C awk -F'\t' -v want="$learnId" '$1 == "run" && $2 == want { print $4 ; }' | LC_ALL=C sort -u )"
 		learnOnly=yes
 		for learnMember in $learnMembers ; do
 			[ "$learnMember" = magic-librarian ] || learnOnly=no
@@ -2180,7 +2226,7 @@ AgentsToolsScheduleVerifyStale(){ ## item file name, the item's file (may be emp
 	AgentsToolsSpawnedAllRecordsInto staleRecords
 	staleNewest="$( LC_ALL=C grep -l -F "Board item $1" ${staleRecords[@]+"${staleRecords[@]}"} /dev/null 2> /dev/null \
 		| while IFS= read -r staleRecord ; do
-			LC_ALL=C awk 'NR > 1 && $0 == "---" { exit } index( $0, "started-at: " ) == 1 { at = substr( $0, 13 ) } index( $0, "routine: " ) == 1 { r = substr( $0, 10 ) } END { if ( at != "" ) printf "%s\t%s\n", at, r }' "$staleRecord" 2> /dev/null
+			LC_ALL=C awk 'NR > 1 && $0 == "---" { exit ; } index( $0, "started-at: " ) == 1 { at = substr( $0, 13 ) ; } index( $0, "routine: " ) == 1 { r = substr( $0, 10 ) ; } END { if ( at != "" ) printf "%s\t%s\n", at, r ; }' "$staleRecord" 2> /dev/null
 		done | LC_ALL=C sort | tail -1 )"
 	staleWord=fresh
 	case "${staleNewest#*$'\t'}" in *.verify.routine.md*) staleWord=stale ;; esac
@@ -2216,7 +2262,7 @@ AgentsToolsScheduleStartPending(){
 		local pendOrdered=() pendTier pendItem pendItemMark
 		for pendTier in emergency urgent other ; do
 			for pendItem in "${pendFileItems[@]}" ; do
-				pendItemMark="$( LC_ALL=C awk 'NR == 1 && $0 == "---" { inside = 1 ; next } inside && $0 == "---" { exit } inside && /^mark:/ { sub( /^mark: */, "" ) ; print ; exit }' "$pendItem" 2> /dev/null )"
+				pendItemMark="$( LC_ALL=C awk 'NR == 1 && $0 == "---" { inside = 1 ; next ; } inside && $0 == "---" { exit ; } inside && /^mark:/ { sub( /^mark: */, "" ) ; print ; exit ; }' "$pendItem" 2> /dev/null )"
 				case "$pendTier:$pendItemMark" in emergency:emergency|urgent:urgent) pendOrdered+=( "$pendItem" ) ;; other:emergency|other:urgent) ;; other:*) pendOrdered+=( "$pendItem" ) ;; esac
 			done
 		done
@@ -2389,6 +2435,7 @@ AgentsToolsScheduleLoop(){
 	loopAt="$SECONDS" ; AgentsToolsScheduleAutorun ; agentsSchedulePassTimes="$agentsSchedulePassTimes, autorun $(( SECONDS - loopAt ))s"
 	loopAt="$SECONDS" ; AgentsToolsScheduleWorkDuty ; agentsSchedulePassTimes="$agentsSchedulePassTimes, work-duty $(( SECONDS - loopAt ))s${agentsScheduleDutyTimes:+ [$agentsScheduleDutyTimes]}"
 	loopAt="$SECONDS" ; AgentsToolsScheduleStartPending ; agentsSchedulePassTimes="$agentsSchedulePassTimes, start-pending $(( SECONDS - loopAt ))s"
+	loopAt="$SECONDS" ; AgentsToolsScheduleIdleRunsEnd ; agentsSchedulePassTimes="$agentsSchedulePassTimes, idle-runs $(( SECONDS - loopAt ))s"
 	loopAt="$SECONDS" ; AgentsToolsScheduleRetestDrain ; agentsSchedulePassTimes="$agentsSchedulePassTimes, retest-drain $(( SECONDS - loopAt ))s"
 	loopAt="$SECONDS" ; AgentsToolsScheduleSupervision ; agentsSchedulePassTimes="$agentsSchedulePassTimes, supervision $(( SECONDS - loopAt ))s"
 	loopAt="$SECONDS" ; AgentsToolsScheduleImportantEmergency ; agentsSchedulePassTimes="$agentsSchedulePassTimes, important-emergency $(( SECONDS - loopAt ))s"

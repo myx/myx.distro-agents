@@ -84,9 +84,9 @@
 				set +e ; return 1
 			fi
 			local confPCSpaceMatches confPCSpaceMatchCount
-			confPCSpaceMatches="$( printf '%s\n' "$confPCSpaceRows" | LC_ALL=C awk -F'\t' -v want="$confPCSpaceKey" '$2 == want { print $1 }' )"
+			confPCSpaceMatches="$( printf '%s\n' "$confPCSpaceRows" | LC_ALL=C awk -F'\t' -v want="$confPCSpaceKey" '$2 == want { print $1 ; }' )"
 			confPCSpaceMatchCount=0
-			[ -z "$confPCSpaceMatches" ] || confPCSpaceMatchCount="$( printf '%s\n' "$confPCSpaceMatches" | LC_ALL=C awk 'END { print NR }' )"
+			[ -z "$confPCSpaceMatches" ] || confPCSpaceMatchCount="$( printf '%s\n' "$confPCSpaceMatches" | LC_ALL=C awk 'END { print NR ; }' )"
 			if [ "$confPCSpaceMatchCount" -ne 1 ] ; then
 				printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confPCContext: space key '$confPCSpaceKey' resolved to $confPCSpaceMatchCount ids as $confPCMember, not exactly one -- nothing was created. A 0 usually means this identity cannot see that space or the key is wrong; pass --space-id directly if the numeric id is already known" >&2
 				set +e ; return 1

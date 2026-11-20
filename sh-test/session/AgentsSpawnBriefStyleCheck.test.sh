@@ -43,12 +43,12 @@ rigFaults(){ ## textGroup, file -- how many fault lines the one checker prints, 
 ## lines dropped and the emitted harness's tags stripped.
 rigBlock(){ ## harness (own|native), output file
 	LC_ALL=C awk -v want="$1" '
-		/^SPAWN-PREPARE-BRIEF: / { inBlock = 1 ; print ; next }
-		!inBlock { next }
-		/^When done, hand back/ { print ; exit }
-		/^\[native\] / { if ( want == "native" ) { sub( /^\[native\] /, "" ) ; print } ; next }
-		/^\[own\] / { if ( want == "own" ) { sub( /^\[own\] /, "" ) ; print } ; next }
-		{ sub( /^\[(lock|scan)\] /, "" ) ; print }
+		/^SPAWN-PREPARE-BRIEF: / { inBlock = 1 ; print ; next ; }
+		!inBlock { next ; }
+		/^When done, hand back/ { print ; exit ; }
+		/^\[native\] / { if ( want == "native" ) { sub( /^\[native\] /, "" ) ; print ; } ; next ; }
+		/^\[own\] / { if ( want == "own" ) { sub( /^\[own\] /, "" ) ; print ; } ; next ; }
+		{ sub( /^\[(lock|scan)\] /, "" ) ; print ; }
 	' "$rigTemplate" > "$2"
 }
 rigBlock own "$rigTmp/own"
@@ -80,7 +80,7 @@ rigAssert "it still says how to ask, and names the owner" \
 echo "-- 3. the instrument is shown able to fail --"
 printf '%s\n' 'One clause; another clause.' > "$rigTmp/bad-semicolon"
 rigAssert "a semicolon is reported, with a non-zero status" "$( rigFaults brief "$rigTmp/bad-semicolon" )" "1 1"
-LC_ALL=C awk 'BEGIN { for ( i = 1 ; i <= 30 ; i++ ) { printf "%s ", "word" } ; printf "\n" }' > "$rigTmp/bad-long"
+LC_ALL=C awk 'BEGIN { for ( i = 1 ; i <= 30 ; i++ ) { printf "%s ", "word" ; } ; printf "\n" ; }' > "$rigTmp/bad-long"
 rigAssert "an over-long sentence is reported" "$( rigFaults brief "$rigTmp/bad-long" )" "1 1"
 printf 'When done, hand back; then Wait until dismissed.\n' > "$rigTmp/live-closing"
 printf 'to ask for more: call RequestPermission naming the tool or path and why; the human-owner decides.\n' > "$rigTmp/live-ask"

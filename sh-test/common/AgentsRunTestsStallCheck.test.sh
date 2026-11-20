@@ -37,7 +37,7 @@ rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 ## Only what this shell started and knows to be running still is ever signalled, with what is under it, read at
 ## that moment: a pid kept from earlier may be another process's by now.
 rigUnder(){ ## pid -- every process under it now, one on a line
-	ps -A -o pid= -o ppid= 2> /dev/null | LC_ALL=C awk -v root="$1" '{ ppid[ $1 ] = $2 } END { for ( pid in ppid ) { top = pid ; hops = 0 ; while ( ( top in ppid ) && top != root && hops++ < 64 ) top = ppid[ top ] ; if ( top == root && pid != root ) print pid } }'
+	ps -A -o pid= -o ppid= 2> /dev/null | LC_ALL=C awk -v root="$1" '{ ppid[ $1 ] = $2 ; } END { for ( pid in ppid ) { top = pid ; hops = 0 ; while ( ( top in ppid ) && top != root && hops++ < 64 ) top = ppid[ top ] ; if ( top == root && pid != root ) print pid ; } ; }'
 }
 rigStop(){ ## pid of a background job of this shell that is running -- it and everything under it ended at once, a stopped process too
 	kill -KILL "$1" $( rigUnder "$1" ) 2> /dev/null ; wait "$1" 2> /dev/null
@@ -131,10 +131,10 @@ rigUntilCount(){ ## BEGIN or END, how many, seconds -- waits until that many tes
 	done
 }
 rigBegun(){ ## -- the tests that have begun and not ended, by the shared log, in the order they began, space separated
-	LC_ALL=C awk '$1 == "BEGIN" { on[$2] = 1 ; order[++n] = $2 } $1 == "END" { delete on[$2] } END { for ( i = 1 ; i <= n ; i++ ) if ( order[i] in on ) printf "%s ", order[i] }' "$rigTmp/log"
+	LC_ALL=C awk '$1 == "BEGIN" { on[$2] = 1 ; order[++n] = $2 ; } $1 == "END" { delete on[$2] ; } END { for ( i = 1 ; i <= n ; i++ ) if ( order[i] in on ) printf "%s ", order[i] ; }' "$rigTmp/log"
 }
 rigMostAtOnce(){ ## -- the most tests that were running at one time, by the shared log
-	LC_ALL=C awk '$1 == "BEGIN" { n++ ; if ( n > most ) most = n } $1 == "END" { n-- } END { print most + 0 }' "$rigTmp/log"
+	LC_ALL=C awk '$1 == "BEGIN" { n++ ; if ( n > most ) most = n ; } $1 == "END" { n-- ; } END { print most + 0 ; }' "$rigTmp/log"
 }
 rigBegins(){ ## from, to -- the tests of those places in the order they began, on one line; sorted where told, for tests that begin at once
 	LC_ALL=C sed -n 's/^BEGIN //p' "$rigTmp/log" | LC_ALL=C sed -n "$1,$2p" | { if [ "${3:-}" = sorted ] ; then LC_ALL=C sort ; else cat ; fi ; } | LC_ALL=C tr '\n' ' ' | LC_ALL=C sed 's/ $//'
@@ -190,7 +190,7 @@ rigAssert "it says so in one line, with how long a test may take and the margin 
 rigAssert "the line names the tests that never ran, and the one that started and never ended" "$( rigSaid b ' Never ran, 2 of 3 test(s): RigTiny2 RigTiny3. Started and never ended, 1: RigTiny1. What did end is in ' )" 1
 rigAssert "the summary holds the same: no result for any of the three, and the count of each kind" "$( LC_ALL=C grep -c '^FAIL RigTiny[123] rc=none$' "$rigFolderB/summary.txt" 2> /dev/null || : ) $( LC_ALL=C grep -c -x 'STALLED  never ran 2  never ended 1' "$rigFolderB/summary.txt" 2> /dev/null || : ) $( LC_ALL=C tail -n 1 "$rigFolderB/summary.txt" 2> /dev/null | LC_ALL=C sed 's/  WALL .*//' )" "3 1 TOTAL 3  PASS 0  FAIL 3"
 rigAssert "the note in the run folder names them too" "$( LC_ALL=C grep -e '^never-ran=' -e '^never-ended=' "$rigFolderB/stalled.txt" 2> /dev/null | LC_ALL=C tr '\n' ' ' | LC_ALL=C sed 's/ $//' )" "never-ran=RigTiny2 RigTiny3 never-ended=RigTiny1"
-rigAssert "it stood for longer than a test may take and the margin, and was not ended before" "$( LC_ALL=C awk -F= '$1 == "stood-still" { print ( $2 > 14 ) ? "longer" : "sooner: " $2 }' "$rigFolderB/stalled.txt" 2> /dev/null )" "longer"
+rigAssert "it stood for longer than a test may take and the margin, and was not ended before" "$( LC_ALL=C awk -F= '$1 == "stood-still" { print ( $2 > 14 ) ? "longer" : "sooner: " $2 ; }' "$rigFolderB/stalled.txt" 2> /dev/null )" "longer"
 rigAssert "nothing of the run is left: the worker that was stopped is gone" "$( [ -n "$rigWorkerStart" ] && [ "$( ps -o lstart= -p "$rigWorkerPid" 2> /dev/null )" = "$rigWorkerStart" ] && printf there || printf gone )" "gone"
 ## A run that only takes long: three tests one after another, each held five seconds, longer in all than a test may
 ## take and the margin, and at no time that long with nothing changing.

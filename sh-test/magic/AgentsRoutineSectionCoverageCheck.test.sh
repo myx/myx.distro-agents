@@ -58,7 +58,7 @@ rigText(){ ## skillset root, routine selector, out name
 ## The `# ` sections of a routine file that the mixin list does not name, one a line: the title line, a source index and a title's own
 ## sub-title are no section of the procedure.
 rigUnnamedSections(){ ## routine file
-	LC_ALL=C awk 'NR == 1 && $0 == "---" { fm = 1 ; next } fm { if ( $0 == "---" ) { fm = 0 } ; next } /^# / { print substr( $0, 3 ) }' "$1" \
+	LC_ALL=C awk 'NR == 1 && $0 == "---" { fm = 1 ; next ; } fm { if ( $0 == "---" ) { fm = 0 ; } ; next ; } /^# / { print substr( $0, 3 ) ; }' "$1" \
 		| while IFS= read -r rigHead ; do
 			case "$rigHead" in
 				Contents|*"— the actual procedure") continue ;;
@@ -74,7 +74,7 @@ rigLosses(){ ## routine file, mixed text
 }
 ## A count of a routine file's `# ` sections named in the mixin list, so the control can name a routine that is all eight.
 rigNamedCount(){ ## routine file
-	LC_ALL=C awk 'NR == 1 && $0 == "---" { fm = 1 ; next } fm { if ( $0 == "---" ) { fm = 0 } ; next } /^# / { print substr( $0, 3 ) }' "$1" \
+	LC_ALL=C awk 'NR == 1 && $0 == "---" { fm = 1 ; next ; } fm { if ( $0 == "---" ) { fm = 0 ; } ; next ; } /^# / { print substr( $0, 3 ) ; }' "$1" \
 		| while IFS= read -r rigHead ; do printf '%s\n' "$rigMixinSections" | LC_ALL=C grep -qxF -- "$rigHead" && printf 'one\n' ; done | LC_ALL=C grep -c . || :
 }
 

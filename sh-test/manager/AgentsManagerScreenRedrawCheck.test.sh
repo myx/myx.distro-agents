@@ -67,7 +67,7 @@ rigVt(){ ## the emulation, narrow or wide, the steps, then settings of the envir
 		"$rigPython" -I -B "$rigVt" "$rigScreen" inner "$rigTmp/dump.json" -- --workspace "$rigTmp/ws-rig" --tools "$rigTmp/tools" < "$rigTmp/steps" 2>&1 )"
 }
 rigClean(){ ## the checks of the run that found a cell of the terminal that is not what the screen drew, as `<step>:<cells>`, or `none`
-	printf '%s\n' "$rigOut" | LC_ALL=C awk -F'=' '/\.differ=/ { checks++ ; if ( $2 != "0" ) { sub(/\.differ$/, "", $1) ; bad = bad " " $1 ":" $2 } } END { print ( checks ? ( bad == "" ? "none" : substr(bad, 2) ) : "no-check" ) }'
+	printf '%s\n' "$rigOut" | LC_ALL=C awk -F'=' '/\.differ=/ { checks++ ; if ( $2 != "0" ) { sub(/\.differ$/, "", $1) ; bad = bad " " $1 ":" $2 ; } ; } END { print ( checks ? ( bad == "" ? "none" : substr(bad, 2) ) : "no-check" ) ; }'
 }
 
 ## The team as the owner's views have it: each member's icon, and in its view the line of its Unicode character, its
@@ -239,13 +239,13 @@ for rigEmulation in narrow wide ; do
 		"$( rigVal 'await.Magic-Team_(Agents)' ) $( rigVal await.magic-devops ) $( rigVal await.long-log ) $( rigVal await.line_49 ) $( rigVal end.rc )" "yes yes yes yes 0"
 	rigAssert "$rigEmulation: after every step every cell of the terminal is what the screen drew last" "$( rigClean )" "none"
 	rigAssert "$rigEmulation: so no mark of the selection, no line of a frame and no shade of a scroll bar stands anywhere it was not drawn" \
-		"$( printf '%s\n' "$rigOut" | LC_ALL=C awk -F'=' '/\.(marks|frames|shades)=/ && !/^idle\./ { sum += $2 } END { print sum + 0 }' )" "0"
+		"$( printf '%s\n' "$rigOut" | LC_ALL=C awk -F'=' '/\.(marks|frames|shades)=/ && !/^idle\./ { sum += $2 ; } END { print sum + 0 ; }' )" "0"
 	rigAssert "$rigEmulation: the bar moved over a menu item by item changes no character, each item the same text at every step, and the look of two items a move, the one it left and the one it came to" \
 		"$( printf '%s\n' "$rigOut" | LC_ALL=C awk '/^m[012]\.item\./ { split($0, kv, "=") ; split(kv[1], key, ".") ; text = kv[2] ; sub(/@[0-9,]*$/, "", text) ; looks = kv[2] ; sub(/^.*@/, "", looks)
-			if ( ( key[3] in seen ) && seen[key[3]] != text ) { moved++ } ; seen[key[3]] = text ; look[substr(key[1], 2) + 0, key[3]] = looks ; items[key[3]] = 1 }
-			END { out = moved + 0 ; for ( step = 1 ; step <= 2 ; step++ ) { changed = 0 ; for ( item in items ) { if ( look[step, item] != look[step - 1, item] ) { changed++ } } ; out = out " " changed } ; print out }' )" "0 2 2"
+			if ( ( key[3] in seen ) && seen[key[3]] != text ) { moved++ ; } ; seen[key[3]] = text ; look[substr(key[1], 2) + 0, key[3]] = looks ; items[key[3]] = 1 ; }
+			END { out = moved + 0 ; for ( step = 1 ; step <= 2 ; step++ ) { changed = 0 ; for ( item in items ) { if ( look[step, item] != look[step - 1, item] ) { changed++ ; } ; } ; out = out " " changed ; } ; print out ; }' )" "0 2 2"
 	rigAssert "$rigEmulation: a quiet tick sends the clock and nothing else: under a hundred bytes a second" \
-		"$( printf '%s\n' "$rigOut" | LC_ALL=C awk -F'=' '/^idle\.bytes=/ { print ( $2 > 0 && $2 < 300 ) ? "yes" : "no: " $2 }' )" "yes"
+		"$( printf '%s\n' "$rigOut" | LC_ALL=C awk -F'=' '/^idle\.bytes=/ { print ( $2 > 0 && $2 < 300 ) ? "yes" : "no: " $2 ; }' )" "yes"
 done
 
 echo "-- the end: nothing of the screen stays, the cursor at the start of an empty line, a failure said after it --"
@@ -326,16 +326,16 @@ rigVt narrow "$( printf '%s\n' "$rigSteps" 'check dialogs' 'keys \x18' 'end end'
 rigButtons="$( printf '%s\n' "$rigOut" | LC_ALL=C awk '
 	/^d[0-9]+\.[0-9]+\.button\./ { split($0, kv, "=") ; split(kv[1], key, ".") ; tag = key[1] "." key[2] ; text = kv[2] ; sub(/@[0-9,]*$/, "", text) ; looks = kv[2] ; sub(/^.*@/, "", looks)
 		button[tag, key[4]] = looks ; buttons[tag] = buttons[tag] " " key[4] ; dialogs[key[1]] = 1
-		if ( ( key[1], key[4] ) in texts && texts[key[1], key[4]] != text ) { moved++ } ; texts[key[1], key[4]] = text
-		if ( text ~ /»/ ) { marks[tag]++ } ; tagged[tag] = 1 }
-	/^d[0-9]+\.[0-9]+\.focus=/ { split($0, kv, "=") ; split(kv[1], key, ".") ; focus[key[1] "." key[2]] = kv[2] }
+		if ( ( key[1], key[4] ) in texts && texts[key[1], key[4]] != text ) { moved++ ; } ; texts[key[1], key[4]] = text
+		if ( text ~ /»/ ) { marks[tag]++ ; } ; tagged[tag] = 1 ; }
+	/^d[0-9]+\.[0-9]+\.focus=/ { split($0, kv, "=") ; split(kv[1], key, ".") ; focus[key[1] "." key[2]] = kv[2] ; }
 	END {
-		for ( tag in tagged ) { if ( marks[tag] + 0 == 0 ) { unmarked++ } ; if ( marks[tag] + 0 > 1 ) { marked++ } }
-		for ( tag in buttons ) { if ( focus[tag] != "None" ) { focused[button[tag, focus[tag]]] = 1 ; split(tag, part, ".") ; reached[part[1]] = 1 } }
-		for ( tag in buttons ) { n = split(buttons[tag], list, " ") ; for ( i = 1 ; i <= n ; i++ ) { if ( list[i] != focus[tag] && ( button[tag, list[i]] in focused ) ) { lookalike++ } } }
-		looks = 0 ; for ( one in focused ) { looks++ }
-		count = 0 ; for ( one in dialogs ) { count++ } ; steps = 0 ; for ( one in reached ) { steps++ }
-		print count " dialogs, " steps " with the keys on a button at a step, " looks " look of the keys, " ( lookalike + 0 ) " other buttons in it, " ( moved + 0 ) " moved, " ( unmarked + 0 ) " defaults unmarked, " ( marked + 0 ) " others marked" }' )"
+		for ( tag in tagged ) { if ( marks[tag] + 0 == 0 ) { unmarked++ ; } ; if ( marks[tag] + 0 > 1 ) { marked++ ; } ; }
+		for ( tag in buttons ) { if ( focus[tag] != "None" ) { focused[button[tag, focus[tag]]] = 1 ; split(tag, part, ".") ; reached[part[1]] = 1 ; } ; }
+		for ( tag in buttons ) { n = split(buttons[tag], list, " ") ; for ( i = 1 ; i <= n ; i++ ) { if ( list[i] != focus[tag] && ( button[tag, list[i]] in focused ) ) { lookalike++ ; } ; } ; }
+		looks = 0 ; for ( one in focused ) { looks++ ; }
+		count = 0 ; for ( one in dialogs ) { count++ ; } ; steps = 0 ; for ( one in reached ) { steps++ ; }
+		print count " dialogs, " steps " with the keys on a button at a step, " looks " look of the keys, " ( lookalike + 0 ) " other buttons in it, " ( moved + 0 ) " moved, " ( unmarked + 0 ) " defaults unmarked, " ( marked + 0 ) " others marked" ; }' )"
 rigAssert "in each of the dialogs, Tab after Tab: one look of the keys, worn by the button that has them and no other; no button moves; one default has its marks and no other (the first button, or the one that cancels while the first is greyed for a required input)" \
 	"$rigButtons" "$rigDialogs dialogs, $rigDialogs with the keys on a button at a step, 1 look of the keys, 0 other buttons in it, 0 moved, 0 defaults unmarked, 0 others marked"
 rigAssert "and nothing of them stays when the last has closed" "$( rigClean )" "none"

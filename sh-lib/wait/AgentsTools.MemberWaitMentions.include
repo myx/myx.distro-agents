@@ -260,15 +260,15 @@ AgentsWaitProbeMentions(){
 			split( $0, head, " " ) ; keep = ( head[1] + 0 > after + 0 )
 			if ( keep && match( $0, / \[in [A-Z0-9]+\]/ ) ) {
 				ch = substr( $0, RSTART + 5, RLENGTH - 6 ) ; th = ""
-				if ( match( $0, /\[thread-reply of [0-9.]+\]/ ) ) { th = substr( $0, RSTART + 17, RLENGTH - 18 ) }
-				if ( index( covered, " " ch " " ) || ( th != "" && index( covered, " " ch ":" th " " ) ) ) { keep = 0 }
+				if ( match( $0, /\[thread-reply of [0-9.]+\]/ ) ) { th = substr( $0, RSTART + 17, RLENGTH - 18 ) ; }
+				if ( index( covered, " " ch " " ) || ( th != "" && index( covered, " " ch ":" th " " ) ) ) { keep = 0 ; }
 			}
 			if ( keep && match( $0, / \[in [A-Z0-9]+\]/ ) ) {
 				where = substr( $0, RSTART + 5, RLENGTH - 6 ) ; $0 = substr( $0, 1, RSTART - 1 ) substr( $0, RSTART + RLENGTH )
-				if ( where != last ) { print "# in " where ; last = where }
+				if ( where != last ) { print "# in " where ; last = where ; }
 			}
 		}
-		keep { print }' "$probeOut.found" 2> /dev/null )" || return 2
+		keep { print ; }' "$probeOut.found" 2> /dev/null )" || return 2
 	## A mention the member already received through a session thread it takes part in is left out (AgentsWaitSessionReceivedDrop.awk).
 	if [ -n "$probeKept" ] && [ -s "${MMDAPP:-/nonexistent}/.local/agents/schedule/seen/$probeMember.session" ] ; then
 		probeKept="$( printf '%s\n' "$probeKept" | SEEN_SESSION_FILE="$MMDAPP/.local/agents/schedule/seen/$probeMember.session" LC_ALL=C awk \
@@ -325,17 +325,17 @@ AgentsWaitAddressedAsks(){ ## member, floor (a ts or epoch seconds; empty for no
 	[ ! -f "$askShown" ] || askShownList=" $( LC_ALL=C tr '\n' ' ' < "$askShown" 2> /dev/null ) "
 	for askFile in $( LC_ALL=C grep -l -x 'status: reply-pending' "${MMDAPP:-/nonexistent}/.local/agents/pending/"*.md 2> /dev/null ) ; do
 		[ -f "$askFile" ] || continue
-		askHead="$( LC_ALL=C awk 'NR == 1 && /^---$/ { f = 1 ; next } f && /^---$/ { exit } f' "$askFile" 2> /dev/null )" || continue
+		askHead="$( LC_ALL=C awk 'NR == 1 && /^---$/ { f = 1 ; next ; } f && /^---$/ { exit ; } f' "$askFile" 2> /dev/null )" || continue
 		case "$askHead" in *"status: reply-pending"*) ;; *) continue ;; esac
 		case " $( printf '%s\n' "$askHead" | LC_ALL=C sed -n 's/^address-to: //p' ) " in *" $askMember "*) ;; *) continue ;; esac
 		[ "$( printf '%s\n' "$askHead" | LC_ALL=C sed -n 's/^owner: //p' )" != "$askMember" ] || continue
 		askTs="$( printf '%s\n' "$askHead" | LC_ALL=C sed -n 's/^question-ts: //p' )"
 		case "$askTs" in [0-9]*.[0-9]*) ;; *) continue ;; esac
-		if [ -n "$askFloor" ] && ! LC_ALL=C awk -v t="$askTs" -v f="$askFloor" 'BEGIN { exit ( t + 0 > f + 0 ) ? 0 : 1 }' ; then
+		if [ -n "$askFloor" ] && ! LC_ALL=C awk -v t="$askTs" -v f="$askFloor" 'BEGIN { exit ( t + 0 > f + 0 ) ? 0 : 1 ; }' ; then
 			case "$askShownList" in *" ${askFile##*/} "*) continue ;; esac
 		fi
 		case "$askShownList" in *" ${askFile##*/} "*) ;; *) { mkdir -p "${askShown%/*}" && printf '%s\n' "${askFile##*/}" >> "$askShown" ; } 2> /dev/null || : ;; esac
-		askLine="$( LC_ALL=C awk '/^# .*Question/ { q = 1 ; next } q && NF { print ; exit }' "$askFile" 2> /dev/null | cut -c1-300 )"
+		askLine="$( LC_ALL=C awk '/^# .*Question/ { q = 1 ; next ; } q && NF { print ; exit ; }' "$askFile" 2> /dev/null | cut -c1-300 )"
 		printf '# in %s:%s\n' "$( printf '%s\n' "$askHead" | LC_ALL=C sed -n 's/^channel: //p' )" "$( printf '%s\n' "$askHead" | LC_ALL=C sed -n 's/^thread-ts: //p' )"
 		printf '%s | %s | [ask: %s] %s\n' "$askTs" "$( printf '%s\n' "$askHead" | LC_ALL=C sed -n 's/^owner: //p' )" "${askFile##*/}" "$askLine"
 	done

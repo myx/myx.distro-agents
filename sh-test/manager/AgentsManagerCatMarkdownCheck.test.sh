@@ -94,7 +94,7 @@ rigAssert "an option that needs a number says so, and nothing is rendered" "$( s
 
 echo "-- 2. with a width, the text form --"
 rigTable(){ ## the options... -- the lines of the table in the output, from its header to the line before its fence
-	rigCatMd "$@" | LC_ALL=C awk '/^Name / { on = 1 } /^$/ { on = 0 } on'
+	rigCatMd "$@" | LC_ALL=C awk '/^Name / { on = 1 ; } /^$/ { on = 0 ; } on'
 }
 rigAssert "a table that fits is as it was" "$( rigTable --width 120 | rigSum )" "$( rigTable | rigSum )"
 cat > "$rigTmp/narrow.txt" <<'RIGNARROW'
@@ -115,19 +115,19 @@ for rigW in 30 31 32 33 34 35 36 38 40 44 48 52 56 60 66 72 80 90 100 ; do
 	[ "$rigMax" -le "$rigW" ] || rigWidest="$rigWidest $rigW:$rigMax"
 done
 rigAssert "at every width from 30 to 100 no line of the table is wider than it" "[$rigWidest]" "[]"
-rigAssert "the rest of the text is as it was: nothing before the table or after it is reflowed" "$( rigCatMd --width 50 | LC_ALL=C awk '/^Name / { skip = 1 } !skip' | rigSum ) $( rigCatMd --width 50 | LC_ALL=C awk '/^echo / { on = 1 } on' | rigSum )" "$( rigCatMd | LC_ALL=C awk '/^Name / { skip = 1 } !skip' | rigSum ) $( rigCatMd | LC_ALL=C awk '/^echo / { on = 1 } on' | rigSum )"
+rigAssert "the rest of the text is as it was: nothing before the table or after it is reflowed" "$( rigCatMd --width 50 | LC_ALL=C awk '/^Name / { skip = 1 ; } !skip' | rigSum ) $( rigCatMd --width 50 | LC_ALL=C awk '/^echo / { on = 1 ; } on' | rigSum )" "$( rigCatMd | LC_ALL=C awk '/^Name / { skip = 1 ; } !skip' | rigSum ) $( rigCatMd | LC_ALL=C awk '/^echo / { on = 1 ; } on' | rigSum )"
 rigAssert "--height is given and changes nothing" "$( rigCatMd --width 50 --height 7 | rigSum )" "$( rigCatMd --width 50 | rigSum )"
 
 echo "-- 3. the codes of a terminal --"
 rigEsc="$( printf '\033' )"
-rigNarrowAnsi="$( rigCatMd --force-tty --width 50 | LC_ALL=C awk '/Name/ { on = 1 } /^$/ { on = 0 } on' )"
+rigNarrowAnsi="$( rigCatMd --force-tty --width 50 | LC_ALL=C awk '/Name/ { on = 1 ; } /^$/ { on = 0 ; } on' )"
 rigAssert "the header is bold, its borders and the rules are grey: the codes of the table and no other" "$( printf '%s\n' "$rigNarrowAnsi" | LC_ALL=C grep -c "${rigEsc}\[1mName${rigEsc}\[0m" ) $( printf '%s\n' "$rigNarrowAnsi" | LC_ALL=C grep -c "${rigEsc}\[90m" ) $( printf '%s\n' "$rigNarrowAnsi" | LC_ALL=C grep -c -e "${rigEsc}\[3[0-79]m" -e "${rigEsc}\[4[0-79]m" -e "${rigEsc}\[9[1-7]m" )" "1 9 0"
 rigAssert "with the codes removed it is the plain table" "$( printf '%s\n' "$rigNarrowAnsi" | LC_ALL=C sed "s/${rigEsc}\[[0-9;]*m//g" | rigSum )" "$( rigSum < "$rigTmp/narrow.txt" )"
-rigAssert "NO_COLOR leaves every code out, also when they are forced, and with no width" "$( NO_COLOR=1 rigCatMd --force-tty --width 50 | LC_ALL=C grep -c "$rigEsc" ) $( NO_COLOR=1 rigCatMd --force-tty | LC_ALL=C grep -c "$rigEsc" ) $( NO_COLOR='' rigCatMd --force-tty | LC_ALL=C grep -c "$rigEsc" | LC_ALL=C tr -d '\n' | LC_ALL=C awk '{ print ($1 > 0 ? "codes" : "none") }' )" "0 0 codes"
+rigAssert "NO_COLOR leaves every code out, also when they are forced, and with no width" "$( NO_COLOR=1 rigCatMd --force-tty --width 50 | LC_ALL=C grep -c "$rigEsc" ) $( NO_COLOR=1 rigCatMd --force-tty | LC_ALL=C grep -c "$rigEsc" ) $( NO_COLOR='' rigCatMd --force-tty | LC_ALL=C grep -c "$rigEsc" | LC_ALL=C tr -d '\n' | LC_ALL=C awk '{ print ($1 > 0 ? "codes" : "none") ; }' )" "0 0 codes"
 
 echo "-- 4. for a program, with a width --"
 rigSpans(){ rigCatMd --spans --width 40 "$@" ; }
-rigAssert "the header is in the look head and the borders in the look rule, as the table is broken in the columns" "$( rigSpans | LC_ALL=C awk -F'\t' '/^Name / { print $2 }' )" "0+4+head,5+5+rule,10+4+head,24+5+rule,29+6+head"
+rigAssert "the header is in the look head and the borders in the look rule, as the table is broken in the columns" "$( rigSpans | LC_ALL=C awk -F'\t' '/^Name / { print $2 ; }' )" "0+4+head,5+5+rule,10+4+head,24+5+rule,29+6+head"
 cat > "$rigTmp/rules.py" <<'RIGRULES'
 import sys
 rules = 0
@@ -138,7 +138,7 @@ for line in sys.stdin.read().split("\n"):
 print(rules)
 RIGRULES
 rigAssert "a rule is a line of its own: one under the header, one above the row that wraps and one under it, none between rows of one line" "$( rigSpans | "$rigPython" -I -B "$rigTmp/rules.py" )" "3"
-rigAssert "every line outside the table is as it was for a program, at the same width (the checksums are those of the lines before the table and after it from before)" "$( rigSpans | LC_ALL=C awk '/^Name / { skip = 1 } !skip' | rigSum ) $( rigSpans | LC_ALL=C awk '/^echo / { on = 1 } on' | rigSum )" "570410441:791 1902349282:131"
+rigAssert "every line outside the table is as it was for a program, at the same width (the checksums are those of the lines before the table and after it from before)" "$( rigSpans | LC_ALL=C awk '/^Name / { skip = 1 ; } !skip' | rigSum ) $( rigSpans | LC_ALL=C awk '/^echo / { on = 1 ; } on' | rigSum )" "570410441:791 1902349282:131"
 rigAssert "a table that fits is as it was for a program (the checksum is that of the whole from before)" "$( rigCatMd --spans --width 120 | rigSum )" "2137385058:1687"
 rigAssert "with --no-wrap it keeps its width" "$( rigCatMd --spans --width 40 --no-wrap | rigSum )" "$( rigCatMd --spans | rigSum )"
 
@@ -171,9 +171,9 @@ rigPty(){ ## columns, term, words... -- the output of the renderer on a terminal
 }
 export RIG_DOC="$rigTmp/doc.md"
 rigMaxTable(){ ## the widest line of the table in the output on its stdin
-	LC_ALL=C sed "s/$( printf '\033' )\[[0-9;]*m//g" | LC_ALL=C awk '/^Name/ { on = 1 } /^$/ { on = 0 } on' | "$rigPython" -I -B -c 'import sys; print(max(len(line.rstrip("\n")) for line in sys.stdin))'
+	LC_ALL=C sed "s/$( printf '\033' )\[[0-9;]*m//g" | LC_ALL=C awk '/^Name/ { on = 1 ; } /^$/ { on = 0 ; } on' | "$rigPython" -I -B -c 'import sys; print(max(len(line.rstrip("\n")) for line in sys.stdin))'
 }
-rigAssert "with no width given a table is fitted to the terminal's own, 44 columns here, in the codes of a terminal that has colours" "$( rigPty 44 xterm-256color | rigMaxTable ) $( rigPty 44 xterm-256color | LC_ALL=C grep -c "$rigEsc" | LC_ALL=C awk '{ print ($1 > 0 ? "codes" : "none") }' )" "44 codes"
+rigAssert "with no width given a table is fitted to the terminal's own, 44 columns here, in the codes of a terminal that has colours" "$( rigPty 44 xterm-256color | rigMaxTable ) $( rigPty 44 xterm-256color | LC_ALL=C grep -c "$rigEsc" | LC_ALL=C awk '{ print ($1 > 0 ? "codes" : "none") ; }' )" "44 codes"
 rigAssert "the width given is the one it takes, not the terminal's" "$( rigPty 44 xterm-256color --width 60 | rigMaxTable )" "$( rigTable --width 60 | rigMaxTable )"
 rigAssert "a terminal with no colours gets the same table, plain" "$( rigPty 44 dumb | rigMaxTable ) $( rigPty 44 dumb | LC_ALL=C grep -c "$rigEsc" )" "44 0"
 rigAssert "--strip-all on a terminal is plain too, and NO_COLOR leaves the codes out" "$( rigPty 44 xterm-256color --strip-all | LC_ALL=C grep -c "$rigEsc" ) $( NO_COLOR=1 rigPty 44 xterm-256color | LC_ALL=C grep -c "$rigEsc" )" "0 0"
@@ -201,7 +201,7 @@ rigAwks=""
 for rigName in awk gawk mawk nawk original-awk ; do
 	command -v "$rigName" > /dev/null 2>&1 && rigAwks="$rigAwks $rigName"
 done
-command -v busybox > /dev/null 2>&1 && busybox awk 'BEGIN { exit 0 }' > /dev/null 2>&1 && rigAwks="$rigAwks busybox-awk"
+command -v busybox > /dev/null 2>&1 && busybox awk 'BEGIN { exit 0 ; }' > /dev/null 2>&1 && rigAwks="$rigAwks busybox-awk"
 rigAwkRun(){ ## awk word, awk options -- the awk over the text with the options of the renderer
 	local rigWho="$1" ; shift
 	case "$rigWho" in

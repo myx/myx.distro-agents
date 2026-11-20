@@ -68,7 +68,7 @@ rigAssert "and 0 for a report that claims no apply" "$rigIncludeRc:[$rigIncludeF
 echo "-- 7. only the two fault kinds are named --"
 rigRun 'applied: style.css.tpl:1314'
 rigAssert "the kinds are the scope's two" \
-	"$( printf '%s\n' "$rigFaults" | LC_ALL=C awk -F: '{ print $1 }' | LC_ALL=C sort -u | LC_ALL=C tr '\n' ' ' )" "applied-without-absolute-path applied-without-read-back "
+	"$( printf '%s\n' "$rigFaults" | LC_ALL=C awk -F: '{ print $1 ; }' | LC_ALL=C sort -u | LC_ALL=C tr '\n' ' ' )" "applied-without-absolute-path applied-without-read-back "
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ APPLY REPORT PREDICATE CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

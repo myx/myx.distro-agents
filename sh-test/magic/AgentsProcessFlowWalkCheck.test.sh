@@ -70,11 +70,11 @@ rigHas(){ ## fixed text, file -- how many lines of the file hold it
 	LC_ALL=C grep -c -F -- "$1" "$2" 2> /dev/null || :
 }
 rigSeen(){ ## scan file, item filename -- the state folder the scan's board digest shows the item under, or none
-	LC_ALL=C awk -v want="$2" '/^## [a-z]+\// { name = substr( $0, 4 ) ; split( name, part, "/" ) ; if ( part[2] == want ) { print part[1] ; found = 1 ; exit } } END { if ( ! found ) print "none" }' "$1" 2> /dev/null
+	LC_ALL=C awk -v want="$2" '/^## [a-z]+\// { name = substr( $0, 4 ) ; split( name, part, "/" ) ; if ( part[2] == want ) { print part[1] ; found = 1 ; exit ; } ; } END { if ( ! found ) print "none" ; }' "$1" 2> /dev/null
 }
 rigField(){ ## item filename, header name -- the value of that frontmatter line, or none
 	local fieldFile="$rigData/board/$( rigLoc "$1" )/$1"
-	LC_ALL=C awk -v want="$2" '$0 == "---" { if ( ++fm == 2 ) exit ; next } fm == 1 && index( $0, want ": " ) == 1 { print substr( $0, length( want ) + 3 ) ; found = 1 ; exit } END { if ( ! found ) print "none" }' "$fieldFile" 2> /dev/null
+	LC_ALL=C awk -v want="$2" '$0 == "---" { if ( ++fm == 2 ) exit ; next ; } fm == 1 && index( $0, want ": " ) == 1 { print substr( $0, length( want ) + 3 ) ; found = 1 ; exit ; } END { if ( ! found ) print "none" ; }' "$fieldFile" 2> /dev/null
 }
 
 rigProject="project-20261102T2300Z-walk.md" rigChildA="task-20261102T2301Z-walk-a.md" rigChildB="task-20261102T2302Z-walk-b.md"

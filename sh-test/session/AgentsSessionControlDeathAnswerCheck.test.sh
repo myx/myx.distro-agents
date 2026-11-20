@@ -79,7 +79,7 @@ rigCleanup(){
 		case "$cleanFile" in *.result) continue ;; esac
 		[ -f "$cleanFile" ] || continue
 		rigProcNoteFrom "$cleanFile"
-		rigProcSignalWithChildren KILL $( LC_ALL=C awk 'NF == 2 && $1 ~ /^[0-9]+$/ { print $1 }' "$cleanFile" 2> /dev/null )
+		rigProcSignalWithChildren KILL $( LC_ALL=C awk 'NF == 2 && $1 ~ /^[0-9]+$/ { print $1 ; }' "$cleanFile" 2> /dev/null )
 	done
 	rigProcSignalWithChildren KILL $rigStarted
 }
@@ -284,10 +284,10 @@ rigLogHas(){ ## session id, fixed text -- how many lines of its log hold it
 rigLogSays(){ [ "$( rigLogHas "$1" "$2" )" -ge 1 ] ; } ## session id, fixed text
 ## The lines of control/dead: how many, for one run or for every run; the line of one run; and whether it holds a mark.
 rigDeadLines(){ ## session id, run id (every run where not given)
-	LC_ALL=C awk -v wantRun="${2:-}" 'NF && ( wantRun == "" || $1 == wantRun ) { lineCount++ } END { print lineCount + 0 }' "$rigStores/$1/control/dead" 2> /dev/null || printf '0\n'
+	LC_ALL=C awk -v wantRun="${2:-}" 'NF && ( wantRun == "" || $1 == wantRun ) { lineCount++ ; } END { print lineCount + 0 ; }' "$rigStores/$1/control/dead" 2> /dev/null || printf '0\n'
 }
 rigDeadLine(){ ## session id, run id -- its line, the moments it holds written as WHEN
-	LC_ALL=C awk -v wantRun="$2" '$1 == wantRun { print ; exit }' "$rigStores/$1/control/dead" 2> /dev/null | LC_ALL=C sed 's/=[0-9]\{4\}-[0-9]\{2\}-[0-9]\{2\}T[0-9:]*Z/=WHEN/g'
+	LC_ALL=C awk -v wantRun="$2" '$1 == wantRun { print ; exit ; }' "$rigStores/$1/control/dead" 2> /dev/null | LC_ALL=C sed 's/=[0-9]\{4\}-[0-9]\{2\}-[0-9]\{2\}T[0-9:]*Z/=WHEN/g'
 }
 rigDeadIs(){ [ "$( rigDeadLines "$1" "$2" )" = "1" ] ; } ## session id, run id
 rigDeadSettled(){ case " $( rigDeadLine "$1" "$2" ) " in *" settled="*) return 0 ;; esac ; return 1 ; } ## session id, run id
@@ -317,9 +317,9 @@ rigPosts(){ ## fixed text, a second fixed text (may be empty), a text it must no
 			if ( match( $0, /"channel":"[^"]*"/ ) ) { noteChannel = substr( $0, RSTART + 11, RLENGTH - 12 ) ; }
 			if ( match( $0, /"thread_ts":"[^"]*"/ ) ) { noteThread = substr( $0, RSTART + 13, RLENGTH - 14 ) ; }
 			arrowAt = index( $0, "→ " ) ;
-			if ( arrowAt > 0 ) { noteRest = substr( $0, arrowAt + length( "→ " ) ) ; noteEnd = index( noteRest, ".\\n" ) ; if ( noteEnd > 0 ) { noteWhom = substr( noteRest, 1, noteEnd - 1 ) ; } }
+			if ( arrowAt > 0 ) { noteRest = substr( $0, arrowAt + length( "→ " ) ) ; noteEnd = index( noteRest, ".\\n" ) ; if ( noteEnd > 0 ) { noteWhom = substr( noteRest, 1, noteEnd - 1 ) ; } ; }
 			## the name alone, as the author line shows it between its marks
-			nameAt = index( noteWhom, "*_" ) ; if ( nameAt > 0 ) { noteWhom = substr( noteWhom, nameAt + 2 ) ; nameEnd = index( noteWhom, "_*" ) ; if ( nameEnd > 0 ) { noteWhom = substr( noteWhom, 1, nameEnd - 1 ) ; } }
+			nameAt = index( noteWhom, "*_" ) ; if ( nameAt > 0 ) { noteWhom = substr( noteWhom, nameAt + 2 ) ; nameEnd = index( noteWhom, "_*" ) ; if ( nameEnd > 0 ) { noteWhom = substr( noteWhom, 1, nameEnd - 1 ) ; } ; }
 			print noteChannel, noteThread, noteWhom ;
 		}
 	' "$rigSlack/bodies" 2> /dev/null
@@ -340,7 +340,7 @@ rigSaid(){ ## fixed text -- how many lines of the last stderr hold it
 	LC_ALL=C grep -c -F -- "$1" "$rigTmp/err" || :
 }
 rigGoneNotes(){ ## session id, run id -- how many lines of control/gone note that run
-	LC_ALL=C awk -v wantRun="$2" '$1 == wantRun && $2 ~ /^[0-9]+$/ { noteCount++ } END { print noteCount + 0 }' "$rigStores/$1/control/gone" 2> /dev/null || printf '0\n'
+	LC_ALL=C awk -v wantRun="$2" '$1 == wantRun && $2 ~ /^[0-9]+$/ { noteCount++ ; } END { print noteCount + 0 ; }' "$rigStores/$1/control/gone" 2> /dev/null || printf '0\n'
 }
 
 ## What a record names as a supervising shell that is gone: a process of this check that has ended, with when it began.
@@ -415,7 +415,7 @@ rigCarry(){ ## session id, run id
 	return 1
 }
 rigLines(){ ## fixed text, run id -- the posts that hold both: `<conversation> <thread> <whom>`, a `;` after each
-	rigPosts "$1" "\`$2\`" | LC_ALL=C awk '{ print $1, ( $2 == "-" ? "-" : "thread" ), $3 }' | LC_ALL=C tr '\n' ';'
+	rigPosts "$1" "\`$2\`" | LC_ALL=C awk '{ print $1, ( $2 == "-" ? "-" : "thread" ), $3 ; }' | LC_ALL=C tr '\n' ';'
 }
 rigInside(){ ## lines of a script, run inside the tooling's own context in the rig workspace
 	printf '%s\n' "$@" | rigCall --intern-mcp-execute 2> "$rigTmp/inside.err"
@@ -459,7 +459,7 @@ rigDeath d-wait d-wait keeper-rig human-owner
 ## that call, so the assertion below reads a read that was made, never one still in flight.
 rigOne d-wait ; rigSettle d-wait ; rigOne d-wait ; rigSettle d-wait ; rigSettle d-wait
 rigAssert "with no reply nothing is done: the record is open, the line holds no answer, the read of its thread was made, and no run was started or ended" \
-	"$( rigAsks d-wait ):$( rigDeadLine d-wait d-wait | LC_ALL=C grep -c -F -- 'answer=' ):$( LC_ALL=C grep -c '^conversations.replies ' "$rigSlack/calls" | LC_ALL=C awk '{ print ( $1 >= 1 ) ? "read" : "not-read" }' ):$( rigLaunches ):$( rigHeader d-wait status )" "magic-coordinator;:0:read:0:spawn-started"
+	"$( rigAsks d-wait ):$( rigDeadLine d-wait d-wait | LC_ALL=C grep -c -F -- 'answer=' ):$( LC_ALL=C grep -c '^conversations.replies ' "$rigSlack/calls" | LC_ALL=C awk '{ print ( $1 >= 1 ) ? "read" : "not-read" ; }' ):$( rigLaunches ):$( rigHeader d-wait status )" "magic-coordinator;:0:read:0:spawn-started"
 ## A reply of the one who was asked, in the thread of the question: read by the call apart, where every answer is read.
 rigWaitTs="$( LC_ALL=C sed -n 's/^question-ts: //p' "$rigPending/$( rigAskId d-wait d-wait ).md" )"
 printf '{"ok":true,"messages":[{"ts":"%s","user":"URIGBOT01","text":"the question"},{"ts":"%s","user":"URIGOWNER","text":"close"}],"has_more":false}\n' "$rigWaitTs" "$(( ${rigWaitTs%%.*} + 5 )).000001" > "$rigSlack/replies.json"
@@ -506,7 +506,7 @@ rigFreshNew="$( LC_ALL=C sed -n 's/^spawn-id: //p' "$rigData/board/running/item-
 rigAssert "fresh starts a new process on the same brief: the record of the dead run is closed as ended without close, its item is back in running under a new run of the same session, and the console was started once, with no resume" \
 	"$( rigHeader d-fresh status ):$( rigItemIn item-d-fresh ):$( [ -n "$rigFreshNew" ] && [ "$rigFreshNew" != "d-fresh" ] && echo new-run ):$( LC_ALL=C grep -c -x -F -- "$rigFreshNew s-req brief" "$rigTmp/launches" ):$( LC_ALL=C grep -c -F -- 'restart: new-process (a fresh start was asked for)' "$rigData/board/running/item-d-fresh.md" )" "spawn-ended-without-close:running:new-run:1:1"
 rigAssert "the member that is started again is told why, in its brief, and what was done is told once to the one who answered, in the thread of the question, where its member was asked, and in the thread of the session it reports to" \
-	"$( LC_ALL=C grep -c -F -- 'Your run died, and magic-coordinator answered `fresh`' "$rigTmp/brief.$rigFreshNew" 2> /dev/null | LC_ALL=C awk '{ print ( $1 >= 1 ) ? "told" : "not-told" }' ):$( rigLines 'from its brief, with no context. magic-coordinator answered `fresh`' d-fresh )" "told:DRIG00001 thread magic-coordinator;${rigReqThread%%:*} thread magic-coordinator;"
+	"$( LC_ALL=C grep -c -F -- 'Your run died, and magic-coordinator answered `fresh`' "$rigTmp/brief.$rigFreshNew" 2> /dev/null | LC_ALL=C awk '{ print ( $1 >= 1 ) ? "told" : "not-told" ; }' ):$( rigLines 'from its brief, with no context. magic-coordinator answered `fresh`' d-fresh )" "told:DRIG00001 thread magic-coordinator;${rigReqThread%%:*} thread magic-coordinator;"
 rigFreshLaunches="$( rigLaunches )"
 rigTen=0
 while [ "$rigTen" -lt 6 ] ; do rigOne s-req ; sleep 1 ; rigTen=$(( rigTen + 1 )) ; done
@@ -541,7 +541,7 @@ rigAnswer d-ctx d-ctx resume ; rigCarry d-ctx d-ctx
 rigWaitFor 20 rigStateIs d-ctx running
 rigCtxNew="$( LC_ALL=C sed -n 's/^spawn-id: //p' "$rigData/board/running/item-d-ctx.md" 2> /dev/null | LC_ALL=C sed -n '1p' )"
 rigAssert "resume starts the member again FROM its kept context, in the same session: the console is started once, with that context and not with the brief, the item records that it resumed from the dead run, and what it is given to go on with says why it is started again" \
-	"$( LC_ALL=C grep -c -x -F -- "$rigCtxNew d-ctx context:$rigSp/d-ctx/context.jsonl" "$rigTmp/launches" ):$( LC_ALL=C grep -c -F -- " d-ctx brief" "$rigTmp/launches" ):$( LC_ALL=C grep -c -F -- 'restart: resumed-context (from d-ctx)' "$rigData/board/running/item-d-ctx.md" ):$( LC_ALL=C grep -c -F -- 'Your run died, and magic-coordinator answered `resume`' "$rigTmp/brief.$rigCtxNew" 2> /dev/null | LC_ALL=C awk '{ print ( $1 >= 1 ) ? "told" : "not-told" }' )" "1:0:1:told"
+	"$( LC_ALL=C grep -c -x -F -- "$rigCtxNew d-ctx context:$rigSp/d-ctx/context.jsonl" "$rigTmp/launches" ):$( LC_ALL=C grep -c -F -- " d-ctx brief" "$rigTmp/launches" ):$( LC_ALL=C grep -c -F -- 'restart: resumed-context (from d-ctx)' "$rigData/board/running/item-d-ctx.md" ):$( LC_ALL=C grep -c -F -- 'Your run died, and magic-coordinator answered `resume`' "$rigTmp/brief.$rigCtxNew" 2> /dev/null | LC_ALL=C awk '{ print ( $1 >= 1 ) ? "told" : "not-told" ; }' )" "1:0:1:told"
 rigAssert "and the record, the item, the state and the two notes are as they should be: the dead run's record closed as ended without close, the item in running under a new run, the death settled, the session running again, and one line that says it resumed from the context it kept, to the one who answered and to the session that requested the run" \
 	"$( rigHeader d-ctx status ):$( rigItemIn item-d-ctx ):$( [ -n "$rigCtxNew" ] && [ "$rigCtxNew" != "d-ctx" ] && echo new-run ):$( rigDeadLine d-ctx d-ctx | LC_ALL=C tr ' ' '\n' | LC_ALL=C grep -c -x -F -- 'how=resume' ):$( rigState d-ctx ):$( rigLines 'from the context it kept. magic-coordinator answered `resume`' d-ctx )" "spawn-ended-without-close:running:new-run:1:running:DRIG00001 thread magic-coordinator;${rigReqThread%%:*} thread magic-coordinator;"
 ## Its sibling: the kept context is another session's, so it cannot be resumed.
@@ -564,7 +564,7 @@ rigAssert "a restart that fails is not a dead mark: the death stays unsettled an
 	"$( rigDeadSettled d-fail d-fail && echo settled || echo unsettled ):$( rigState d-fail ):$( rigDeadLine d-fail d-fail | LC_ALL=C tr ' ' '\n' | LC_ALL=C grep -c -E '^not=fresh,[0-9T:Z-]+,item-d-fail,.+$' ):$( rigItemIn item-d-fail ):$(( $( rigLaunches ) - rigFailLaunches ))" "unsettled:member-dead:1:review:0"
 rigFailBody="$( LC_ALL=C grep -F -- 'Decision' "$rigSlack/bodies" 2> /dev/null | LC_ALL=C grep -F -- '`d-fail`' | LC_ALL=C sed -n '2p' )"
 rigAssert "the same reviewer is asked again, once: a second question, which says which answer was not carried out and why, names the item that is back in review, and offers the same four options; and the requesting side's note says that the reviewer is asked again" \
-	"$( rigQuestions d-fail ):$( rigMarks d-fail d-fail asked ):$( rigAsks d-fail ):$( printf '%s' "$rigFailBody" | LC_ALL=C grep -c -F -- 'The answer `fresh` about keeper-rig' ):$( printf '%s' "$rigFailBody" | LC_ALL=C grep -c -F -- 'was not carried out: ' ):$( printf '%s' "$rigFailBody" | LC_ALL=C grep -c -F -- 'Its item `item-d-fail` is back in review' ):$( printf '%s' "$rigFailBody" | LC_ALL=C awk '{ print ( index( $0, "1️⃣ resume:" ) && index( $0, "2️⃣ fresh:" ) && index( $0, "3️⃣ close:" ) && index( $0, "4️⃣ " ) ) ? "four" : "not-four" ; exit }' ):$( rigLines 'magic-coordinator is asked again what to do' d-fail )" \
+	"$( rigQuestions d-fail ):$( rigMarks d-fail d-fail asked ):$( rigAsks d-fail ):$( printf '%s' "$rigFailBody" | LC_ALL=C grep -c -F -- 'The answer `fresh` about keeper-rig' ):$( printf '%s' "$rigFailBody" | LC_ALL=C grep -c -F -- 'was not carried out: ' ):$( printf '%s' "$rigFailBody" | LC_ALL=C grep -c -F -- 'Its item `item-d-fail` is back in review' ):$( printf '%s' "$rigFailBody" | LC_ALL=C awk '{ print ( index( $0, "1️⃣ resume:" ) && index( $0, "2️⃣ fresh:" ) && index( $0, "3️⃣ close:" ) && index( $0, "4️⃣ " ) ) ? "four" : "not-four" ; exit ; }' ):$( rigLines 'magic-coordinator is asked again what to do' d-fail )" \
 	"CRIG00001 - magic-coordinator;CRIG00001 - magic-coordinator;:2:magic-coordinator;:1:1:1:four:DRIG00001 thread magic-coordinator;"
 mv "$rigTmp/console.kept" "$rigWs/DistroAgentsConsole.sh"
 rigTen=0
@@ -631,7 +631,7 @@ rigAssert "case 1: a resume on an item its run left in processed is carried out,
 	"running:new-run:settled:0"
 ## The fourth answer, which ends the session: the executor is dead, two participants live. Its word is the note
 ## template's own, the first word of the fourth line of the options of the question.
-rigFourth="$( LC_ALL=C awk '$0 == "## options" { inBlock = 1 ; next } inBlock && substr( $0, 1, 3 ) == "```" { if ( ++fenceCount == 2 ) { exit } next } inBlock && fenceCount == 1 { if ( ++optionCount == 4 ) { sub( /:.*$/, "" ) ; print ; exit } }' "$rigPackage/sh-lib/templates/tooling-note.post.format.md" )"
+rigFourth="$( LC_ALL=C awk '$0 == "## options" { inBlock = 1 ; next ; } inBlock && substr( $0, 1, 3 ) == "```" { if ( ++fenceCount == 2 ) { exit ; } next ; } inBlock && fenceCount == 1 { if ( ++optionCount == 4 ) { sub( /:.*$/, "" ) ; print ; exit ; } ; }' "$rigPackage/sh-lib/templates/tooling-note.post.format.md" )"
 [ -n "$rigFourth" ] || rigRefuse "the fourth option of the question could not be read from the note template"
 rigRec k-one d-kill keeper-myx spawn-started '' ; rigStand k-one ; rigKOne="$rigStandPid"
 rigRec k-two d-kill keeper-myx spawn-started '' ; rigStand k-two ; rigKTwo="$rigStandPid"
@@ -641,7 +641,7 @@ rigWaitFor 10 rigEnded "$rigKOne" ; rigWaitFor 10 rigEnded "$rigKTwo"
 rigAssert "the answer that ends the session ends every live run of it: both processes are gone, their records say who killed them, the record of the dead run is closed, it is said once, and the death is settled" \
 	"$( rigEnded "$rigKOne" && rigEnded "$rigKTwo" && echo both-gone ):$( LC_ALL=C grep -l -x -F -- 'killed-by: rig' "$rigSp/k-one/k-one.spawn.md" "$rigSp/k-two/k-two.spawn.md" 2> /dev/null | LC_ALL=C grep -c . ):$( rigHeader d-kill status ):$( rigLines 'what still lived of it was killed' d-kill ):$( rigDeadLine d-kill d-kill | LC_ALL=C tr ' ' '\n' | LC_ALL=C grep -c -x -F -- "how=$rigFourth" )" "both-gone:2:spawn-ended-without-close:DRIG00001 thread magic-coordinator;:1"
 rigAssert "every post of the rig was made as the team bot, and none under another account" \
-	"$( LC_ALL=C awk '$1 == "chat.postMessage" && $2 != "rig-bot-token-TEAM" { otherCount++ } END { print otherCount + 0 }' "$rigSlack/calls" )" "0"
+	"$( LC_ALL=C awk '$1 == "chat.postMessage" && $2 != "rig-bot-token-TEAM" { otherCount++ ; } END { print otherCount + 0 ; }' "$rigSlack/calls" )" "0"
 
 echo ""
 if [ "$rigFails" -ne 0 ] ; then

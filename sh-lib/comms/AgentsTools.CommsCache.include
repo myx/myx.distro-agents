@@ -62,7 +62,7 @@ AgentsToolsCommsCacheSlackAccount(){ ## member, as bot (true|false)
 }
 
 ## The UTC month of an epoch, YYYYMM, by arithmetic: no date process per message.
-agentsCommsMonthAwk='function monthOf(t,  z, era, doe, yoe, y, doy, mp, m) { z = int(t / 86400) + 719468 ; era = int(z / 146097) ; doe = z - era * 146097 ; yoe = int((doe - int(doe / 1460) + int(doe / 36524) - int(doe / 146096)) / 365) ; y = yoe + era * 400 ; doy = doe - (365 * yoe + int(yoe / 4) - int(yoe / 100)) ; mp = int((5 * doy + 2) / 153) ; m = mp + (mp < 10 ? 3 : -9) ; if (m <= 2) { y++ } ; return sprintf("%04d%02d", y, m) }'
+agentsCommsMonthAwk='function monthOf(t,  z, era, doe, yoe, y, doy, mp, m) { z = int(t / 86400) + 719468 ; era = int(z / 146097) ; doe = z - era * 146097 ; yoe = int((doe - int(doe / 1460) + int(doe / 36524) - int(doe / 146096)) / 365) ; y = yoe + era * 400 ; doy = doe - (365 * yoe + int(yoe / 4) - int(yoe / 100)) ; mp = int((5 * doy + 2) / 153) ; m = mp + (mp < 10 ? 3 : -9) ; if (m <= 2) { y++ ; } ; return sprintf("%04d%02d", y, m) ; }'
 
 ## A READ MARKS ITS CHANNEL AS OF INTEREST: .local/cache/comms/.interest/<service>-<id> holds `<epoch> <ttl>`, the read that marked it and
 ## the TTL it reads at. It is rewritten at most once an hour (owner 2026-10-29), and at once for a reader that needs a shorter TTL, by the
@@ -302,7 +302,7 @@ AgentsToolsCommsCachePostStore(){ ## cache folder, member, the text, the thread 
 	type AgentsCommsEventIdNext > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsIngest.include"
 	storeId="$( AgentsCommsEventIdNext 1 )" || return 1
 	case "$storeId" in [0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]T*) ;; *) return 1 ;; esac
-	storeMonth="$( LC_ALL=C awk -v t="$storeAt" "$agentsCommsMonthAwk"' BEGIN { print monthOf(t + 0) }' )" || return 1
+	storeMonth="$( LC_ALL=C awk -v t="$storeAt" "$agentsCommsMonthAwk"' BEGIN { print monthOf(t + 0) ; }' )" || return 1
 	AgentsToolsCommsCachePostAppend "$1" "$storeMonth" "$storeAt.000000" "$2" "$storeId" "$3" || return 1
 	case "${4:-}" in
 		?*:?*) [ -e "$1/.state.txt" ] || ( set -C ; printf '%s\n%s\n%s\n' '- - -' "## target=$4 channel=${4%%:*}" "slack-local-thread $4 $2 ${5:-false}" > "$1/.state.txt" ) 2> /dev/null || : ;;
@@ -332,7 +332,7 @@ AgentsToolsCommsCachePostLink(){ ## cache folder, member, local id, the post's o
 	local linkMonth linkAt="${4:-}"
 	case "$5" in [0-9][0-9]*.[0-9][0-9][0-9][0-9][0-9][0-9]) ;; *) return 1 ;; esac
 	case "$linkAt" in ''|*[!0-9]*|*.*) linkAt="$( date +%s )" ;; esac
-	linkMonth="$( LC_ALL=C awk -v t="${5%%.*}" "$agentsCommsMonthAwk"' BEGIN { print monthOf(t + 0) }' )" || return 1
+	linkMonth="$( LC_ALL=C awk -v t="${5%%.*}" "$agentsCommsMonthAwk"' BEGIN { print monthOf(t + 0) ; }' )" || return 1
 	AgentsToolsCommsCachePostAppend "$1" "$linkMonth" "$5" "$2" "$3" "${6:-}"
 }
 
@@ -475,7 +475,7 @@ AgentsToolsCommsCacheSlackFile(){ ## member, cache folder, message ts, file id, 
 	local fileMonth fileName="${5:-file}" filePath
 	case "$4" in F[A-Z0-9]*) ;; *) return 1 ;; esac
 	case "$4" in *[!A-Z0-9]*) return 1 ;; esac
-	fileMonth="$( LC_ALL=C awk -v t="${3%%.*}" "$agentsCommsMonthAwk"' BEGIN { print monthOf(t + 0) }' )" || return 1
+	fileMonth="$( LC_ALL=C awk -v t="${3%%.*}" "$agentsCommsMonthAwk"' BEGIN { print monthOf(t + 0) ; }' )" || return 1
 	fileName="${fileName//[!A-Za-z0-9._-]/_}"
 	filePath="$2/$fileMonth/$4.$fileName"
 	if [ ! -s "$filePath" ] ; then
@@ -602,7 +602,7 @@ AgentsToolsCommsCacheState(){ ## cache folder
 AgentsToolsCommsCacheServe(){ ## cache folder, floor ts, head|nohead
 	local serveMonth serveDir serveName serveFiles=()
 	AgentsToolsCommsCacheState "$1" || return 1
-	serveMonth="$( LC_ALL=C awk -v t="${2%%.*}" "$agentsCommsMonthAwk"' BEGIN { print monthOf(t + 0) }' )" || return 1
+	serveMonth="$( LC_ALL=C awk -v t="${2%%.*}" "$agentsCommsMonthAwk"' BEGIN { print monthOf(t + 0) ; }' )" || return 1
 	for serveDir in "$1"/[0-9][0-9][0-9][0-9][0-9][0-9] ; do
 		[ -f "$serveDir/messages.txt" ] || continue
 		serveName="${serveDir##*/}"
@@ -613,7 +613,7 @@ AgentsToolsCommsCacheServe(){ ## cache folder, floor ts, head|nohead
 	LC_ALL=C awk -v floorTs="${2:-0}" '
 		function secOf(v) { sub(/\..*$/, "", v) ; return ( v == "" ? 0 : v + 0 ) ; }
 		function fracOf(v) { if ( v !~ /\./ ) { return "000000" ; } sub(/^[^.]*\./, "", v) ; return substr(v "000000", 1, 6) ; }
-		function past(at) { return ( secOf(heldFirst[at]) > secOf(floorTs) || ( secOf(heldFirst[at]) == secOf(floorTs) && fracOf(heldFirst[at]) > fracOf(floorTs) ) ) }
+		function past(at) { return ( secOf(heldFirst[at]) > secOf(floorTs) || ( secOf(heldFirst[at]) == secOf(floorTs) && fracOf(heldFirst[at]) > fracOf(floorTs) ) ) ; }
 		FNR == 1 { dir = FILENAME ; sub(/\/[^\/]*$/, "", dir) ; }
 		{
 			heldCount++
@@ -626,29 +626,29 @@ AgentsToolsCommsCacheServe(){ ## cache folder, floor ts, head|nohead
 				if ( closeAt > 0 ) {
 					heldTag[heldCount] = substr(rest, 1, closeAt - 1)
 					heldText[heldCount] = substr(rest, closeAt + 2)
-					if ( $1 ~ /^[0-9]+\.[0-9]+$/ ) { linkedTs[$1] = 1 }
-					if ( heldText[heldCount] != "" && ! ( heldTag[heldCount] in tagText ) ) { tagText[heldTag[heldCount]] = heldCount }
+					if ( $1 ~ /^[0-9]+\.[0-9]+$/ ) { linkedTs[$1] = 1 ; }
+					if ( heldText[heldCount] != "" && ! ( heldTag[heldCount] in tagText ) ) { tagText[heldTag[heldCount]] = heldCount ; }
 				}
 			}
 		}
 		END {
 			for ( i = 1 ; i <= heldCount ; i++ ) {
-				if ( ! past(i) ) { continue }
-				if ( heldTag[i] == "" ) { if ( heldFirst[i] in linkedTs ) { continue } }
+				if ( ! past(i) ) { continue ; }
+				if ( heldTag[i] == "" ) { if ( heldFirst[i] in linkedTs ) { continue ; } ; }
 				else {
-					if ( heldTag[i] in served ) { continue }
+					if ( heldTag[i] in served ) { continue ; }
 					served[heldTag[i]] = 1
-					if ( heldText[i] == "" ) { textAt = tagText[heldTag[i]] ; if ( textAt == "" ) { continue } }
-					else { textAt = i }
+					if ( heldText[i] == "" ) { textAt = tagText[heldTag[i]] ; if ( textAt == "" ) { continue ; } ; }
+					else { textAt = i ; }
 				}
 				if ( index(heldLine[textAt == "" ? i : textAt], " [body: " heldFirst[textAt == "" ? i : textAt] ".body.txt]") ) {
 					bodyDir = heldDir[textAt == "" ? i : textAt] ; bodyName = heldFirst[textAt == "" ? i : textAt] ".body.txt"
-					while ( ( getline line < (bodyDir "/" bodyName) ) > 0 ) { print line }
+					while ( ( getline line < (bodyDir "/" bodyName) ) > 0 ) { print line ; }
 					close(bodyDir "/" bodyName)
 					continue
 				}
-				if ( heldTag[i] == "" || textAt == i ) { line = heldLine[i] }
-				else { line = heldFirst[i] " | " heldWho[i] " | [local: " heldTag[i] "] " heldText[textAt] }
+				if ( heldTag[i] == "" || textAt == i ) { line = heldLine[i] ; }
+				else { line = heldFirst[i] " | " heldWho[i] " | [local: " heldTag[i] "] " heldText[textAt] ; }
 				gsub(/\037/, "\n", line) ; print line
 			}
 		}' ${serveFiles[@]+"${serveFiles[@]}"}
@@ -671,7 +671,7 @@ AgentsToolsCommsCacheMerge(){ ## cache folder, fresh read, covered from (ts), no
 		NR == 1 && /^## target=/ { next ; }
 		/^[0-9]+\.[0-9]+ \| / { if ( rec != "" ) { print rec ; } split($0, f, " ") ; rec = monthOf(f[1] + 0) "\t" f[1] "\t" $0 ; next ; }
 		rec != "" { rec = rec "\037" $0 ; }
-		END { if ( rec != "" ) { print rec ; } }' "$2" > "$mergeRecs" || { rm -f "$mergeRecs" ; return 1 ; }
+		END { if ( rec != "" ) { print rec ; } ; }' "$2" > "$mergeRecs" || { rm -f "$mergeRecs" ; return 1 ; }
 	for mergeMonth in $( LC_ALL=C cut -f1 "$mergeRecs" | LC_ALL=C sort -u ) ; do mkdir -p "$1/$mergeMonth" 2> /dev/null || { rm -f "$mergeRecs" ; return 1 ; } ; done
 	## THE COMMON CASE APPENDS: where every fresh message is newer than the newest held, each is added to the end of its month's
 	## file and nothing is rewritten.
@@ -679,7 +679,7 @@ AgentsToolsCommsCacheMerge(){ ## cache folder, fresh read, covered from (ts), no
 	if [ -n "$agentsCommsCacheNewest" ] && LC_ALL=C sort -t "$tab" -k2,2n "$mergeRecs" | LC_ALL=C awk -F'\t' -v newest="$agentsCommsCacheNewest" -v dir="$1" -v cap="$agentsCommsCacheLineCap" '
 		function secOf(v) { sub(/\..*$/, "", v) ; return ( v == "" ? 0 : v + 0 ) ; }
 		function fracOf(v) { if ( v !~ /\./ ) { return "000000" ; } sub(/^[^.]*\./, "", v) ; return substr(v "000000", 1, 6) ; }
-		{ n++ ; month[n] = $1 ; ts[n] = $2 ; line[n] = substr($0, length($1) + length($2) + 3) ; if ( !( secOf($2) > secOf(newest) || ( secOf($2) == secOf(newest) && fracOf($2) > fracOf(newest) ) ) ) { older = 1 ; exit ; } }
+		{ n++ ; month[n] = $1 ; ts[n] = $2 ; line[n] = substr($0, length($1) + length($2) + 3) ; if ( !( secOf($2) > secOf(newest) || ( secOf($2) == secOf(newest) && fracOf($2) > fracOf(newest) ) ) ) { older = 1 ; exit ; } ; }
 		END {
 			if ( older ) { exit 1 ; }
 			for ( i = 1 ; i <= n ; i++ ) {
@@ -704,9 +704,9 @@ AgentsToolsCommsCacheMerge(){ ## cache folder, fresh read, covered from (ts), no
 			## A body that already holds this text is left alone: a re-merge rewrites no long message.
 			function putBody(path, whole,   have, one) {
 				have = ""
-				while ( ( getline one < path ) > 0 ) { have = ( have == "" ? one : have "\n" one ) }
+				while ( ( getline one < path ) > 0 ) { have = ( have == "" ? one : have "\n" one ) ; }
 				close(path)
-				if ( have == whole ) { return }
+				if ( have == whole ) { return ; }
 				printf "%s\n", whole > path ; close(path)
 			}
 			$1 == prev { next ; }
@@ -735,7 +735,7 @@ AgentsToolsCommsCacheMerge(){ ## cache folder, fresh read, covered from (ts), no
 ## so a repeated search inside that TTL asks Slack nothing. The signature is the question itself -- target, query, cut-off,
 ## page bound and shape -- so two callers asking the same thing share one answer, and any difference names another.
 AgentsToolsCommsCacheSearchSignature(){ ## target, query, cutoff, max pages, pretty
-	printf '%s|%s|%s|%s|%s\n' "$1" "$2" "$3" "$4" "$5" | LC_ALL=C cksum | LC_ALL=C awk '{ printf "%s-%s\n", $1, $2 }'
+	printf '%s|%s|%s|%s|%s\n' "$1" "$2" "$3" "$4" "$5" | LC_ALL=C cksum | LC_ALL=C awk '{ printf "%s-%s\n", $1, $2 ; }'
 }
 
 ## The answer a signature holds, printed, where its state is younger than the TTL: the caller prints nothing of its own and

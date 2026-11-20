@@ -56,7 +56,7 @@ for rigPair in $rigDefaults ; do
 done
 
 echo "-- 2. the console's model export, as the console runs it --"
-rigFunction="$( LC_ALL=C awk '/^DagcHarnessModelExport\(\)\{/ { on = 1 } on { print } on && /^}/ { exit }' "$rigTemplate" )"
+rigFunction="$( LC_ALL=C awk '/^DagcHarnessModelExport\(\)\{/ { on = 1 ; } on { print ; } on && /^}/ { exit ; }' "$rigTemplate" )"
 rigAssert "the console defines it"                                          "$( printf '%s' "$rigFunction" | LC_ALL=C grep -c -e '^DagcHarnessModelExport(){' )" 1
 rigExport(){ ## env assignments for the call -- `light=<value|unset> main=<value|unset>` after the function ran
 	( cd "$rigWs" && env -i HOME="$rigTmp/home" PATH="/usr/bin:/bin:/usr/sbin:/sbin" MMDAPP="$rigWs" MDLT_ORIGIN="$rigOrigin" MDLT_OPTION="--run-from-path $rigOrigin" MDAT_SKILLSET_ROOT="$rigTmp/skills" "$@" \
@@ -79,13 +79,13 @@ printf 'SPAWN_TIER_LOW=rig-sonnet\n' >> "$rigAgents/magic-team.agent.env"
 rigAssert "the light tier's model is the light model's name"                  "$( rigExport )" "light=claude-sonnet-5-5 main=unset"
 
 echo "-- 3. where the console calls it --"
-rigAssert "the call is for a harness leg, in the console, once"               "$( LC_ALL=C awk '/^if DagcCliIsLeg "\$DAGC_CLI" ; then$/ { gate = NR } /^\tDagcHarnessModelExport$/ { if ( gate == NR - 1 ) found ++ ; else stray ++ } END { print found + 0, stray + 0 }' "$rigTemplate" )" "1 0"
-rigAssert "after the credentials are exported"                                "$( LC_ALL=C awk '/^for DAGC_CREDENTIAL_NAME in \$DAGC_CLI_CREDENTIALS ; do$/ { credentials = NR } /^\tDagcHarnessModelExport$/ { call = NR } END { print ( credentials > 0 && call > credentials ) ? "after" : "not after" }' "$rigTemplate" )" after
+rigAssert "the call is for a harness leg, in the console, once"               "$( LC_ALL=C awk '/^if DagcCliIsLeg "\$DAGC_CLI" ; then$/ { gate = NR ; } /^\tDagcHarnessModelExport$/ { if ( gate == NR - 1 ) found ++ ; else stray ++ ; } END { print found + 0, stray + 0 ; }' "$rigTemplate" )" "1 0"
+rigAssert "after the credentials are exported"                                "$( LC_ALL=C awk '/^for DAGC_CREDENTIAL_NAME in \$DAGC_CLI_CREDENTIALS ; do$/ { credentials = NR ; } /^\tDagcHarnessModelExport$/ { call = NR ; } END { print ( credentials > 0 && call > credentials ) ? "after" : "not after" ; }' "$rigTemplate" )" after
 rigAssert "a vendor CLI is passed no model option"                            "$( LC_ALL=C grep -c -e '--model' "$rigTemplate" )" 0
 rigAssert "the harness gate takes light, normal, heavy as it did"             "$( LC_ALL=C grep -c -F -e 'light|normal|heavy) harnessTier="$2" ;;' "$rigPackage/sh-lib/harness/AgentsUniversalHarness.sh" )" 1
 
 echo "-- 4. the console's export of the lifetime the preset asks of the input cache (F10.7) --"
-rigFunction="$( LC_ALL=C awk '/^DagcHarnessCacheTimeExport\(\)\{/ { on = 1 } on { print } on && /^}/ { exit }' "$rigTemplate" )"
+rigFunction="$( LC_ALL=C awk '/^DagcHarnessCacheTimeExport\(\)\{/ { on = 1 ; } on { print ; } on && /^}/ { exit ; }' "$rigTemplate" )"
 rigAssert "the console defines it"                                          "$( printf '%s' "$rigFunction" | LC_ALL=C grep -c -e '^DagcHarnessCacheTimeExport(){' )" 1
 rigTimeExport(){ ## env assignments for the call -- `time=<value|unset>` after the function ran
 	( cd "$rigWs" && env -i HOME="$rigTmp/home" PATH="/usr/bin:/bin:/usr/sbin:/sbin" MMDAPP="$rigWs" MDLT_ORIGIN="$rigOrigin" MDLT_OPTION="--run-from-path $rigOrigin" MDAT_SKILLSET_ROOT="$rigTmp/skills" "$@" \
@@ -107,10 +107,10 @@ rigAssert "a preset that asks nothing: none, a parent's dropped"               "
 rigAssert "a caller-named service is no preset's: none"                        "$( rigTimeExport MDAT_SPAWN_PRESET=-claude HARNESS_INPUT_CACHE_TIME=1h )" "time=unset"
 printf 'SPAWN_TIER_NORMAL=rig-hour\n' >> "$rigAgents/magic-team.agent.env"
 rigAssert "the team's tier setting is the preset where the spawn names none"   "$( rigTimeExport )" "time=1h"
-rigAssert "the call is for a harness leg, in the console, once, beside the models" "$( LC_ALL=C awk '/^if DagcCliIsLeg "\$DAGC_CLI" ; then$/ { gate = NR } /^\tDagcHarnessCacheTimeExport$/ { if ( gate > 0 && gate == NR - 2 ) found ++ ; else stray ++ } END { print found + 0 " " stray + 0 }' "$rigTemplate" )" "1 0"
+rigAssert "the call is for a harness leg, in the console, once, beside the models" "$( LC_ALL=C awk '/^if DagcCliIsLeg "\$DAGC_CLI" ; then$/ { gate = NR ; } /^\tDagcHarnessCacheTimeExport$/ { if ( gate > 0 && gate == NR - 2 ) found ++ ; else stray ++ ; } END { print found + 0 " " stray + 0 ; }' "$rigTemplate" )" "1 0"
 
 echo "-- 5. the console's export of the restart threshold the preset names --"
-rigFunction="$( LC_ALL=C awk '/^DagcHarnessContextExport\(\)\{/ { on = 1 } on { print } on && /^}/ { exit }' "$rigTemplate" )"
+rigFunction="$( LC_ALL=C awk '/^DagcHarnessContextExport\(\)\{/ { on = 1 ; } on { print ; } on && /^}/ { exit ; }' "$rigTemplate" )"
 rigAssert "the console defines it"                                          "$( printf '%s' "$rigFunction" | LC_ALL=C grep -c -e '^DagcHarnessContextExport(){' )" 1
 rigContextExport(){ ## env assignments for the call -- `context=<value|unset>` after the function ran
 	( cd "$rigWs" && env -i HOME="$rigTmp/home" PATH="/usr/bin:/bin:/usr/sbin:/sbin" MMDAPP="$rigWs" MDLT_ORIGIN="$rigOrigin" MDLT_OPTION="--run-from-path $rigOrigin" MDAT_SKILLSET_ROOT="$rigTmp/skills" "$@" \
@@ -131,10 +131,10 @@ rigAssert "a preset that names none: none, a parent's dropped"                "$
 rigAssert "a caller-named service is no preset's: none"                       "$( rigContextExport MDAT_SPAWN_PRESET=-claude PRESET_CONTEXT_MAX_SIZE=1 )" "context=unset"
 printf 'SPAWN_TIER_NORMAL=rig-context\n' >> "$rigAgents/magic-team.agent.env"
 rigAssert "the team's tier setting is the preset where the spawn names none"   "$( rigContextExport )" "context=200000"
-rigAssert "the call is for a harness leg, in the console, once, beside the models and the cache" "$( LC_ALL=C awk '/^if DagcCliIsLeg "\$DAGC_CLI" ; then$/ { gate = NR } /^\tDagcHarnessContextExport$/ { if ( gate > 0 && gate == NR - 3 ) found ++ ; else stray ++ } END { print found + 0 " " stray + 0 }' "$rigTemplate" )" "1 0"
+rigAssert "the call is for a harness leg, in the console, once, beside the models and the cache" "$( LC_ALL=C awk '/^if DagcCliIsLeg "\$DAGC_CLI" ; then$/ { gate = NR ; } /^\tDagcHarnessContextExport$/ { if ( gate > 0 && gate == NR - 3 ) found ++ ; else stray ++ ; } END { print found + 0 " " stray + 0 ; }' "$rigTemplate" )" "1 0"
 
 echo "-- 6. the console's export of the endpoint the preset names --"
-rigFunction="$( LC_ALL=C awk '/^DagcHarnessEndpointExport\(\)\{/ { on = 1 } on { print } on && /^}/ { exit }' "$rigTemplate" )"
+rigFunction="$( LC_ALL=C awk '/^DagcHarnessEndpointExport\(\)\{/ { on = 1 ; } on { print ; } on && /^}/ { exit ; }' "$rigTemplate" )"
 rigAssert "the console defines it"                                          "$( printf '%s' "$rigFunction" | LC_ALL=C grep -c -e '^DagcHarnessEndpointExport(){' )" 1
 rigEndpointExport(){ ## env assignments for the call -- `endpoint=<value|unset>` after the function ran
 	( cd "$rigWs" && env -i HOME="$rigTmp/home" PATH="/usr/bin:/bin:/usr/sbin:/sbin" MMDAPP="$rigWs" MDLT_ORIGIN="$rigOrigin" MDLT_OPTION="--run-from-path $rigOrigin" MDAT_SKILLSET_ROOT="$rigTmp/skills" "$@" \
@@ -155,7 +155,7 @@ rigAssert "a preset that names none: none, a parent's dropped"                "$
 rigAssert "a caller-named service is no preset's: none"                       "$( rigEndpointExport MDAT_SPAWN_PRESET=-claude HARNESS_ENDPOINT_URL=https://leak.invalid/v1 )" "endpoint=unset"
 printf 'SPAWN_TIER_NORMAL=rig-endpoint\n' >> "$rigAgents/magic-team.agent.env"
 rigAssert "the team's tier setting is the preset where the spawn names none"   "$( rigEndpointExport )" "endpoint=https://rig-endpoint.invalid/v1"
-rigAssert "the call is for a harness leg, in the console, once, beside the four" "$( LC_ALL=C awk '/^if DagcCliIsLeg "\$DAGC_CLI" ; then$/ { gate = NR } /^\tDagcHarnessEndpointExport$/ { if ( gate > 0 && gate == NR - 5 ) found ++ ; else stray ++ } END { print found + 0 " " stray + 0 }' "$rigTemplate" )" "1 0"
+rigAssert "the call is for a harness leg, in the console, once, beside the four" "$( LC_ALL=C awk '/^if DagcCliIsLeg "\$DAGC_CLI" ; then$/ { gate = NR ; } /^\tDagcHarnessEndpointExport$/ { if ( gate > 0 && gate == NR - 5 ) found ++ ; else stray ++ ; } END { print found + 0 " " stray + 0 ; }' "$rigTemplate" )" "1 0"
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ PRESET MODEL CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

@@ -239,7 +239,7 @@ AgentsToolsTeamDataCheckoutRepairRun(){
 		repairDirty="" repairOther=""
 		repairDirty="$( git -C "$repoRoot" status --porcelain --untracked-files=all -- . 2>/dev/null )"
 		if [ -n "$repairDirty" ] ; then
-			repairOther="$( printf '%s\n' "$repairDirty" | LC_ALL=C awk '{ p = $NF ; if ( p !~ /^audit\// ) print }' )"
+			repairOther="$( printf '%s\n' "$repairDirty" | LC_ALL=C awk '{ p = $NF ; if ( p !~ /^audit\// ) print ; }' )"
 			if [ -z "$repairOther" ] && git -C "$repoRoot" add -A -- audit 2> /dev/null && git -C "$repoRoot" commit -q -m "* audit transcripts of the live sessions, committed by the repair" 2> /dev/null ; then
 				echo "TEAM-DATA-REPAIR: the live audit transcripts were committed by the repair, so it could run"
 			else

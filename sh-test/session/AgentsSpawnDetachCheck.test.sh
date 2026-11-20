@@ -158,7 +158,7 @@ rigPosters(){
 	local postersLead
 	postersLead="$( LC_ALL=C sed -n 's/^PID=//p' "$rigDir/proxy.out" 2>/dev/null | head -1 )"
 	[ -n "$postersLead" ] || return 0
-	ps -axww -o pid=,ppid=,command= | LC_ALL=C awk -v lead="$postersLead" '$2 == lead && index( $0, "--intern-op-agent-spawn-proxy" ) { print $1 }'
+	ps -axww -o pid=,ppid=,command= | LC_ALL=C awk -v lead="$postersLead" '$2 == lead && index( $0, "--intern-op-agent-spawn-proxy" ) { print $1 ; }'
 }
 rigOnePoster(){ [ "$( rigPosters | wc -l | tr -d ' ' )" = 1 ] ; }
 ## Whether the line the console wrote into its run's feed was posted.
@@ -359,7 +359,7 @@ mkdir -p "$rigDir" "$rigWs/.local/agents/sessions/rig-poster-hup"
 		kill -0 "$rigPoster" 2>/dev/null && { echo alive ; rigProcSignal KILL "$rigPoster" ; } || echo gone
 	' rig-console > "$rigDir/poster.after" 2> "$rigDir/caller.err" )
 rigAssert "the hangup ends it"                          "$( cat "$rigDir/poster.after" 2>/dev/null )" gone
-rigAssert "and the line it held open is posted"         "$( LC_ALL=C grep -c -F 'open-at-the-hangup' "$rigDir/bodies" 2>/dev/null | awk '{ print ( $1 > 0 ) ? "yes" : "no" }' )" yes
+rigAssert "and the line it held open is posted"         "$( LC_ALL=C grep -c -F 'open-at-the-hangup' "$rigDir/bodies" 2>/dev/null | awk '{ print ( $1 > 0 ) ? "yes" : "no" ; }' )" yes
 rigTracking off
 
 echo "-- the spawner run as a function: the caller's own job control is left as it was found --"

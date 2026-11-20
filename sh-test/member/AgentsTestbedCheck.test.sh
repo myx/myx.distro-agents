@@ -68,7 +68,7 @@ rigHas(){ ## fixed text, file -- how many lines of the file hold it
 	LC_ALL=C grep -c -F -- "$1" "$2" || :
 }
 rigRow(){ ## list output, test id, column -- that column of the test's row: 3 project, 4 functionality, 5 keywords, 6 nightly, 7 passed, 8 invalidated-at, 9 runs, 10 passes, 11 fails
-	LC_ALL=C awk -F'\t' -v id="$2" -v col="$3" '$1 == "test" && $2 == id { print $col ; exit }' "$1"
+	LC_ALL=C awk -F'\t' -v id="$2" -v col="$3" '$1 == "test" && $2 == id { print $col ; exit ; }' "$1"
 }
 rigBegin=$( date +%s )
 
@@ -146,7 +146,7 @@ rigAssert "it is RigOne, registered first, asked by the console user, with the p
 rigTools "$rigTmp/d6" --retest-drain
 rigAssert "the batch runs it, once" "$rigRc [$( rigBegun )]" "0 [live:RigOne]"
 rigTesting "$rigTmp/l6" --test-list
-rigAssert "the list now says RigOne passed on this state (a date, not a dash), one run, one pass, no fail, and shows the run; the other has not" "$( [ "$( rigRow "$rigTmp/l6.out" RigOne 7 )" != - ] && printf passed ) $( rigRow "$rigTmp/l6.out" RigOne 9 ) $( rigRow "$rigTmp/l6.out" RigOne 10 ) $( rigRow "$rigTmp/l6.out" RigOne 11 ) $( LC_ALL=C awk -F'\t' '$1 == "run" && $2 == "RigOne" && $4 == "PASS" { n++ } END { print n + 0 }' "$rigTmp/l6.out" ) $( rigRow "$rigTmp/l6.out" RigTwo 7 ) $( LC_ALL=C tail -n 1 "$rigTmp/l6.out" | LC_ALL=C tr '\t' '|' )" "passed 1 1 0 1 - tests|2|1|1"
+rigAssert "the list now says RigOne passed on this state (a date, not a dash), one run, one pass, no fail, and shows the run; the other has not" "$( [ "$( rigRow "$rigTmp/l6.out" RigOne 7 )" != - ] && printf passed ) $( rigRow "$rigTmp/l6.out" RigOne 9 ) $( rigRow "$rigTmp/l6.out" RigOne 10 ) $( rigRow "$rigTmp/l6.out" RigOne 11 ) $( LC_ALL=C awk -F'\t' '$1 == "run" && $2 == "RigOne" && $4 == "PASS" { n++ ; } END { print n + 0 ; }' "$rigTmp/l6.out" ) $( rigRow "$rigTmp/l6.out" RigTwo 7 ) $( LC_ALL=C tail -n 1 "$rigTmp/l6.out" | LC_ALL=C tr '\t' '|' )" "passed 1 1 0 1 - tests|2|1|1"
 rigTesting "$rigTmp/o6b" --run-oldest-untested
 rigIdB="$( LC_ALL=C sed -n 1p "$rigTmp/o6b.out" )"
 rigAssert "the next oldest untested is the other: RigOne has passed" "$rigRc $( rigField "$rigQueue/waiting/$rigIdB.request" test )" "0 RigTwo"
@@ -211,7 +211,7 @@ rigTesting "$rigTmp/e5" --run-oldest-untested
 rigIdG="$( LC_ALL=C sed -n 1p "$rigTmp/e5.out" )"
 rigAssert "and the oldest untested is again one of it: RigTwo" "$rigRc $( rigField "$rigQueue/waiting/$rigIdG.request" test )" "0 RigTwo"
 rigTools "$rigTmp/d6h" --retest-drain
-rigAssert "one reader of the verb: only the grants' include cuts magic-team:testing out of the declares, and the testbed calls it" "$( LC_ALL=C grep -rl -F "filter-and-cut 'magic-team:testing'" "$rigPackage/sh-lib" | LC_ALL=C sed 's#.*/##' | LC_ALL=C tr '\n' ' ' )$( LC_ALL=C grep -c 'AgentsToolsTestingFolders' "$rigPackage/sh-lib/member/AgentsTools.Testbed.include" | LC_ALL=C awk '$1 > 0 { print "called" }' )" "AgentsTools.Grants.include called"
+rigAssert "one reader of the verb: only the grants' include cuts magic-team:testing out of the declares, and the testbed calls it" "$( LC_ALL=C grep -rl -F "filter-and-cut 'magic-team:testing'" "$rigPackage/sh-lib" | LC_ALL=C sed 's#.*/##' | LC_ALL=C tr '\n' ' ' )$( LC_ALL=C grep -c 'AgentsToolsTestingFolders' "$rigPackage/sh-lib/member/AgentsTools.Testbed.include" | LC_ALL=C awk '$1 > 0 { print "called" ; }' )" "AgentsTools.Grants.include called"
 
 echo "-- nothing registered --"
 rigFresh

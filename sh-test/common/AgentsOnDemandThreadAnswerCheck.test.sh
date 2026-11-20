@@ -88,7 +88,7 @@ rigAssert "3. the thread records the bound in force in its folder" \
 	"$( cat "$rigTmp/bound/thread.idle" 2> /dev/null )" 17
 rigStartOut="$( . "$rigInc" ; AgentsToolsOnDemandThreadStart "$rigTmp/bound" --intern-team-data-commit --run )"
 rigAssert "3. a start over a living thread answers alive" \
-	"$( printf '%s\n' "$rigStartOut" | LC_ALL=C head -1 | LC_ALL=C awk '{ print $1 }' )" alive
+	"$( printf '%s\n' "$rigStartOut" | LC_ALL=C head -1 | LC_ALL=C awk '{ print $1 ; }' )" alive
 rigAssert "3. and names the bound in force, saying it discarded its own" \
 	"$( printf '%s\n' "$rigStartOut" | LC_ALL=C grep -c -F 'bound 17s' || : )" 1
 rigThreadsStop

@@ -55,7 +55,7 @@ AgentsToolsSpawnSessionRecordNote(){ ## spawn record file
 	[ -f "$noteFile" ] || return 1
 	type AgentsSpawnRecordWrite > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include" || return 1
 	noteOps="$( mktemp "$noteFile.ops.XXXXXX" )" || return 1
-	LC_ALL=C awk -F'\t' 'NF >= 2 { printf "upsert\t%s\t%s\n", $1, $2 }' > "$noteOps"
+	LC_ALL=C awk -F'\t' 'NF >= 2 { printf "upsert\t%s\t%s\n", $1, $2 ; }' > "$noteOps"
 	while [ "$noteTries" -lt 3 ] ; do
 		noteTries=$(( noteTries + 1 ))
 		noteSeen="" ; IFS= read -r -d '' noteSeen < "$noteFile" 2> /dev/null || :

@@ -149,7 +149,7 @@ rigSnap(){ ## rig name -- every file of that rig's workspace and data root with 
 	## And the advance lock note, which each pass takes afresh: the lock's own record, not what the pass does.
 	( cd "$rigTmp/$1" && find ws data -type f ! -path '*/control/*' ! -name 'note-20260809T154715Z-advance-state-and-lock.md' | LC_ALL=C sort | while IFS= read -r snapFile ; do
 		case "$snapFile" in
-			*/spawned-sessions.registry) printf '%s %s\n' "$snapFile" "$( LC_ALL=C awk 'NF >= 16 { $15 = "" ; $16 = "" } { print }' "$snapFile" | cksum )" ;;
+			*/spawned-sessions.registry) printf '%s %s\n' "$snapFile" "$( LC_ALL=C awk 'NF >= 16 { $15 = "" ; $16 = "" ; } { print ; }' "$snapFile" | cksum )" ;;
 			*) printf '%s %s\n' "$snapFile" "$( cksum < "$snapFile" )" ;;
 		esac
 	done )
@@ -184,13 +184,13 @@ rigLoc(){ ## item filename -- which board/<state>/ of the current rig holds it, 
 	printf 'not-found'
 }
 rigHeader(){ ## file, header name -- that header's value, or absent
-	LC_ALL=C awk -v want="$2" 'NR == 1 && $0 != "---" { exit } NR > 1 && $0 == "---" { exit } index($0, want ": ") == 1 { print substr($0, length(want) + 3) ; found = 1 ; exit } END { if ( ! found ) print "absent" }' "$1" 2> /dev/null || printf 'absent'
+	LC_ALL=C awk -v want="$2" 'NR == 1 && $0 != "---" { exit ; } NR > 1 && $0 == "---" { exit ; } index($0, want ": ") == 1 { print substr($0, length(want) + 3) ; found = 1 ; exit ; } END { if ( ! found ) print "absent" ; }' "$1" 2> /dev/null || printf 'absent'
 }
 rigHasLine(){ ## file, whole line -- yes or no
 	LC_ALL=C grep -q -x -F -- "$2" "$1" 2> /dev/null && printf yes || printf no
 }
 rigSection(){ ## scan output file, heading text -- the lines of that ## section
-	LC_ALL=C awk -v want="## $2" '$0 == want { on = 1 ; next } /^## / { on = 0 } on' "$1"
+	LC_ALL=C awk -v want="## $2" '$0 == want { on = 1 ; next ; } /^## / { on = 0 ; } on' "$1"
 }
 rigPresent(){ ## path -- present or gone
 	[ -e "$1" ] || [ -L "$1" ] && printf present || printf gone
@@ -232,7 +232,7 @@ rigDone(){ ## session id, exit code, armed, extra header lines -- a closed recor
 	rigSandbox "$1" "$rigHost" spawn-succeeded "exit-code: $2"$'\n'"armed: $3${4:+$'\n'$4}"
 }
 rigRegRow(){ ## scan output file, tracking name -- "status state" of that row of the spawned sessions section
-	rigSection "$1" 'spawned sessions' | LC_ALL=C awk -v want="$2" '$1 == want && NF >= 13 { print $6 " " $NF ; found = 1 ; exit } END { if ( ! found ) print "no-row" }'
+	rigSection "$1" 'spawned sessions' | LC_ALL=C awk -v want="$2" '$1 == want && NF >= 13 { print $6 " " $NF ; found = 1 ; exit ; } END { if ( ! found ) print "no-row" ; }'
 }
 rigSum(){ ## file -- its checksum
 	cksum < "$1"
@@ -412,7 +412,7 @@ rigCheck "control: dead, sessions/<id>/ written 5 minutes ago: open"      "$( ri
 rigCheck "control: and its item stays in running"                         "$( rigLoc dispatch-rig-sessnew.md )" running
 echo "   nothing on stdout or stderr"
 rigCheck "an acting pass prints no housekeeping text on stdout, its lock's nor its scan's" "$( cat "$rigTmp/b2.s1.lock" "$rigTmp/b2.s1" | LC_ALL=C grep -c -i -E 'housekeeping|^closed |closed the record' || : )" 0
-rigCheck "with fd 4 closed, the acting pass's housekeeping lines are on its lock's stderr (the daemon line)" "$( [ "$( rigHk "$rigTmp/b2.s1.lock.err" | LC_ALL=C awk 'END { print NR }' )" -ge 5 ] && printf yes || printf no )" yes
+rigCheck "with fd 4 closed, the acting pass's housekeeping lines are on its lock's stderr (the daemon line)" "$( [ "$( rigHk "$rigTmp/b2.s1.lock.err" | LC_ALL=C awk 'END { print NR ; }' )" -ge 5 ] && printf yes || printf no )" yes
 rigCheck "control: apart from those lines, its stderr is byte-identical to a pass with nothing to do" "$( rigSameNoHk "$rigTmp/b2.s1.lock.err" "$rigTmp/b1e.s1.lock.err" )" same
 rigCheck "and the second pass puts no housekeeping line on stderr"        "$( cat "$rigTmp/b2.s2.lock.err" "$rigTmp/b2.s2.err" | LC_ALL=C grep -c '^housekeeping: ' || : )" 0
 echo "   a close and the reviewer rewrite in the same scan"
@@ -495,7 +495,7 @@ rigPass "$rigTmp/b6.s1"
 rigCheck "no thread record: the pass still succeeds and closes the dispatch" "$( rigLoc dispatch-rig-d1.md )" review
 rigCheck "no thread record: nothing is posted, the sandbox file notwithstanding"                              "$( rigPosts "$rigTmp/b6/scenario" )" 0
 rigCheck "no thread file: apart from the daemon lines stderr is that of a pass with nothing to do, so no error" "$( rigSameNoHk "$rigTmp/b6.s1.lock.err" "$rigTmp/b1e.s1.lock.err" )" same
-rigCheck "no thread file: the daemon lines are still on stderr"          "$( rigHk "$rigTmp/b6.s1.lock.err" | LC_ALL=C awk 'END { print NR }' )" 3
+rigCheck "no thread file: the daemon lines are still on stderr"          "$( rigHk "$rigTmp/b6.s1.lock.err" | LC_ALL=C awk 'END { print NR ; }' )" 3
 rigExtraEnv=()
 
 echo "-- the daemon line: file descriptor 4 carries each report line, and never the agent's output --"
@@ -505,7 +505,7 @@ rigLines(){ ## scenario dir -- the housekeeping: lines of the posted box, sorted
 rigPostSetup b7 yes
 rigFd4="$rigTmp/b7.fd4" ; : > "$rigFd4"
 rigPass "$rigTmp/b7.s1"
-rigCheck "the acting pass wrote 3 lines on fd 4"                          "$( LC_ALL=C awk 'END { print NR }' "$rigFd4" )" 3
+rigCheck "the acting pass wrote 3 lines on fd 4"                          "$( LC_ALL=C awk 'END { print NR ; }' "$rigFd4" )" 3
 rigCheck "they are the same lines the event-track stub got"               "$( LC_ALL=C sort "$rigFd4" | cmp -s - <( rigLines "$rigTmp/b7/scenario" ) && printf same || printf different )" same
 rigCheck "control: the stub did get a post"                               "$( rigPosts "$rigTmp/b7/scenario" )" 1
 rigCheck "stdout carries none of them"                                    "$( cat "$rigTmp/b7.s1.lock" "$rigTmp/b7.s1" | LC_ALL=C grep -c 'housekeeping: ' || : )" 0
@@ -551,9 +551,9 @@ if [ -n "$rigDl" ] ; then
 	bash -c 'MDSC_CMD=rig ; . "$1" ; AgentsToolsDaemonLine "housekeeping: probe"' rig "$rigDl" 4> "$rigTmp/dl.fd4" 2> "$rigTmp/dl.err.open" > "$rigTmp/dl.out.open"
 	rigCheck "control: with fd 4 open, the line is on fd 4"               "$( LC_ALL=C grep -c -x 'housekeeping: probe' "$rigTmp/dl.fd4" || : )" 1
 	rigCheck "with fd 4 closed, the line is on stderr"                    "$( LC_ALL=C grep -c -x 'housekeeping: probe' "$rigTmp/dl.err.closed" || : )" 1
-	rigCheck "with fd 4 closed, stderr holds that line and nothing else"  "$( LC_ALL=C awk 'END { print NR }' "$rigTmp/dl.err.closed" )" 1
-	rigCheck "with fd 4 closed, stdout stays empty"                       "$( LC_ALL=C awk 'END { print NR }' "$rigTmp/dl.out.closed" )" 0
-	rigCheck "with fd 4 open, stderr and stdout stay empty"               "$( LC_ALL=C awk 'END { print NR }' "$rigTmp/dl.err.open" "$rigTmp/dl.out.open" )" 0
+	rigCheck "with fd 4 closed, stderr holds that line and nothing else"  "$( LC_ALL=C awk 'END { print NR ; }' "$rigTmp/dl.err.closed" )" 1
+	rigCheck "with fd 4 closed, stdout stays empty"                       "$( LC_ALL=C awk 'END { print NR ; }' "$rigTmp/dl.out.closed" )" 0
+	rigCheck "with fd 4 open, stderr and stdout stay empty"               "$( LC_ALL=C awk 'END { print NR ; }' "$rigTmp/dl.err.open" "$rigTmp/dl.out.open" )" 0
 fi
 
 echo "   the wrapper keeps fd 4 on the caller's stderr"
@@ -562,10 +562,10 @@ rigSites(){ ## file, fixed text that marks a launch site -- "sites in-order": 4>
 	LC_ALL=C awk -v mark="$2" '
 		index($0, mark) {
 			sites++ ; a = index($0, "4>&2") ; b1 = index($0, "2>&") ; b2 = index($0, "2>>")
-			b = b1 ; if ( b == 0 || ( b2 > 0 && b2 < b ) ) { b = b2 }
-			if ( a > 0 && b > 0 && a < b ) { ordered++ }
+			b = b1 ; if ( b == 0 || ( b2 > 0 && b2 < b ) ) { b = b2 ; }
+			if ( a > 0 && b > 0 && a < b ) { ordered++ ; }
 		}
-		END { printf "%d %d", sites, ordered }' "$1"
+		END { printf "%d %d", sites, ordered ; }' "$1"
 }
 rigCheck "the 6 execute and background launch sites (each with and without --workspace) each have 4>&2 before their stderr redirection" "$( rigSites "$rigMcp" '--intern-mcp-execute' )" "6 6"
 rigDir4="$rigTmp/fd4wrap" ; mkdir -p "$rigDir4"
@@ -574,20 +574,20 @@ rigCheck "mini-rig, 4>&2 first: the result file holds out and err only"   "$( LC
 rigCheck "mini-rig, 4>&2 first: the outer stderr holds diag"              "$( LC_ALL=C tr '\n' ' ' < "$rigDir4/outer1" )" "diag "
 bash -c '( sh -c "echo out ; echo err >&2 ; echo diag >&4" ) > "$1" 2>&1 4>&2' rig "$rigDir4/f2" 2> "$rigDir4/outer2"
 rigCheck "control, order reversed: diag lands in the result file, so the rig can fail" "$( LC_ALL=C grep -c -x diag "$rigDir4/f2" || : )" 1
-rigCheck "control, order reversed: the outer stderr is empty"             "$( LC_ALL=C awk 'END { print NR }' "$rigDir4/outer2" )" 0
+rigCheck "control, order reversed: the outer stderr is empty"             "$( LC_ALL=C awk 'END { print NR ; }' "$rigDir4/outer2" )" 0
 
 echo "   a spawned child never inherits fd 4"
 rigSpawnInc="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.InternOpAgentSpawnProxy.include"
 rigCheck "the 4 console launch sites that redirect their own output each close fd 4 with 4>&-" "$( LC_ALL=C awk '
-	index($0, "AgentsToolsSpawnConsoleLaunch MDAT_SKILLSET_ROOT=") && index($0, "\"${spawnCliArgs[@]}\"") && index($0, "\"$spawnContext\" >") > 0 { sites++ ; if ( index($0, "4>&-") > 0 ) { closed++ } }
-	END { printf "%d %d", sites, closed }' "$rigSpawnInc" )" "4 4"
+	index($0, "AgentsToolsSpawnConsoleLaunch MDAT_SKILLSET_ROOT=") && index($0, "\"${spawnCliArgs[@]}\"") && index($0, "\"$spawnContext\" >") > 0 { sites++ ; if ( index($0, "4>&-") > 0 ) { closed++ ; } ; }
+	END { printf "%d %d", sites, closed ; }' "$rigSpawnInc" )" "4 4"
 rigCheck "the fifth, the detached subshell's console, sits in a subshell whose closing line closes fd 4" "$( LC_ALL=C grep -c -F ') >> "$outputFile" 2>&1 4>&- &' "$rigSpawnInc" || : )" 1
 ## The session log takes the handback retry's appended lines while the close steps still hold it:
 ## a writer at its own offset would overwrite them, so every writer appends.
 rigCheck "every writer of the session log appends: three appending, none truncating" "$( LC_ALL=C awk '
-	index($0, ">> \"$outputFile\"") > 0 { appending++ }
-	index($0, "> \"$outputFile\"") > 0 && index($0, ">> \"$outputFile\"") == 0 { truncating++ }
-	END { printf "%d %d", appending, truncating }' "$rigSpawnInc" )" "3 0"
+	index($0, ">> \"$outputFile\"") > 0 { appending++ ; }
+	index($0, "> \"$outputFile\"") > 0 && index($0, ">> \"$outputFile\"") == 0 { truncating++ ; }
+	END { printf "%d %d", appending, truncating ; }' "$rigSpawnInc" )" "3 0"
 rigNew b10 ; rigSp="$rigW/.local/agents/spawned"
 mkdir -p "$rigW/.local/.agents" "$rigTmp/b10/skills/rig-member" "$rigTmp/b10/home" "$rigW/source/rigrepo/rigpkg"
 printf 'SPAWN_TIER_NORMAL=rig-cli\n' > "$rigW/.local/.agents/magic-team.agent.env" ; printf 'PRESET_CLI_SERVICE=rig-cli\n' > "$rigW/.local/.agents/preset-rig-cli.agent.env"
@@ -673,7 +673,7 @@ rigAsync term "echo \"\$\$\" > '$rigTmp/b10/console.pid' ; exec sleep 120"
 rigWaitLoop=0
 while [ "$rigWaitLoop" -lt 60 ] && [ ! -s "$rigTmp/b10/console.pid" ] ; do sleep 0.5 ; rigWaitLoop=$(( rigWaitLoop + 1 )) ; done
 [ -s "$rigTmp/b10/console.pid" ] || rigRefuse "the stand-in console never ran: $( tail -3 "$rigTmp/b10/async-term.err" )"
-rigCheck "the process the record names is the console the launcher started" "$( rigHeader "$rigAsyncRecord" run-process | LC_ALL=C awk '{ print $1 }' )" "$( cat "$rigTmp/b10/console.pid" )"
+rigCheck "the process the record names is the console the launcher started" "$( rigHeader "$rigAsyncRecord" run-process | LC_ALL=C awk '{ print $1 ; }' )" "$( cat "$rigTmp/b10/console.pid" )"
 rigCheck "a live run with no session word on its command line, and in no process list of the rig, is running by that process" \
 	"$( LC_ALL=C grep -c -F -- "$( cat "$rigTmp/b10/console.pid" ) " "$rigTmp/ps.list" ):$( rigAsyncRuns )" "0:running"
 kill -TERM "$( cat "$rigTmp/b10/console.pid" )" 2> /dev/null
@@ -686,7 +686,7 @@ rigPostSetup b11 yes
 rigExtraEnv+=( RIG_MODE=fail )
 rigPass "$rigTmp/b11.s1"
 rigCheck "the post is refused by the fake Slack and the pass still succeeds, closing the dispatch" "$( rigLoc dispatch-rig-d1.md )" review
-rigCheck "the daemon lines are still on stderr"                           "$( rigHk "$rigTmp/b11.s1.lock.err" | LC_ALL=C awk 'END { print NR }' )" 3
+rigCheck "the daemon lines are still on stderr"                           "$( rigHk "$rigTmp/b11.s1.lock.err" | LC_ALL=C awk 'END { print NR ; }' )" 3
 rigCheck "and no error line besides the known context noise"              "$( rigNoHk "$rigTmp/b11.s1.lock.err" | cmp -s - <( rigNoHk "$rigTmp/b1e.s1.lock.err" ) && printf same || printf different )" same
 rigExtraEnv=()
 
@@ -779,7 +779,7 @@ cat > "$rigArms" <<'RIGARMS'
 		--rig-daemon) . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandbox.include" ; AgentsToolsDaemonLine "housekeeping: rig-daemon" ; echo "daemon-op-stdout" ; return 0 ;;
 RIGARMS
 rigDisp="$rigTool2"
-LC_ALL=C awk -v armsFile="$rigArms" '{ print } !done && $0 == "\tcase \"$1\" in" { while ( ( getline armLine < armsFile ) > 0 ) { print armLine } ; done = 1 }' "$rigDisp" > "$rigDisp.new" && mv "$rigDisp.new" "$rigDisp" && chmod +x "$rigDisp"
+LC_ALL=C awk -v armsFile="$rigArms" '{ print ; } !done && $0 == "\tcase \"$1\" in" { while ( ( getline armLine < armsFile ) > 0 ) { print armLine ; } ; done = 1 ; }' "$rigDisp" > "$rigDisp.new" && mv "$rigDisp.new" "$rigDisp" && chmod +x "$rigDisp"
 rigCheck "control: the throwaway op is in the rig copy's dispatcher"      "$( LC_ALL=C grep -c -e '--rig-daemon)' "$rigDisp" || : )" 1
 rigNew s2
 rigS2(){ ## result prefix, fd4 (open|closed), arguments... -- one call; <prefix>.out .err .fd4 .rc
@@ -807,7 +807,7 @@ rigCheck "fd 4 closed: and never on stdout"                               "$( ri
 rigCheck "fd 4 closed: stdout is the op's own line and nothing else"      "$( LC_ALL=C grep -c . "$rigTmp/s2l.out" || : )" 1
 echo "   the daemon line function alone, under /bin/sh, bash 3.2, bash --posix and dash (fd 4 closed, a file, read-only)"
 rigDlFn="$rigTmp/daemonline.fn.sh"
-LC_ALL=C awk '/^AgentsToolsDaemonLine\(\)/ { on = 1 } on { print } on && /^}/ { exit }' "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandbox.include" > "$rigDlFn"
+LC_ALL=C awk '/^AgentsToolsDaemonLine\(\)/ { on = 1 ; } on { print ; } on && /^}/ { exit ; }' "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandbox.include" > "$rigDlFn"
 rigCheck "control: the function text was cut out of the include"          "$( LC_ALL=C grep -c '^AgentsToolsDaemonLine()' "$rigDlFn" || : )" 1
 printf 'unchanged\n' > "$rigTmp/dl.ro"
 rigDlRun(){ ## label, fd 4 mode (closed|file|ro), shell and its options... -- <label>.out .err .status; the shell's own status line says it lived on
@@ -826,15 +826,15 @@ for rigDlSpec in "sh:/bin/sh" "bash:$rigDlBash" "bash-posix:$rigDlBash --posix" 
 	[ -x "${rigDlCmd%% *}" ] || { rigCheck "${rigDlCmd%% *} exists on this machine" no yes ; continue ; }
 	rigDlRun "$rigDlName.c" closed $rigDlCmd
 	rigCheck "[$rigDlName] fd 4 closed: the line is on stderr once"        "$( LC_ALL=C grep -c -x 'housekeeping: probe' "$rigTmp/dl.$rigDlName.c.err" || : )" 1
-	rigCheck "[$rigDlName] fd 4 closed: nothing on stdout"                 "$( LC_ALL=C awk 'END { print NR }' "$rigTmp/dl.$rigDlName.c.out" )" 0
+	rigCheck "[$rigDlName] fd 4 closed: nothing on stdout"                 "$( LC_ALL=C awk 'END { print NR ; }' "$rigTmp/dl.$rigDlName.c.out" )" 0
 	rigCheck "[$rigDlName] fd 4 closed: status 0 and the shell is alive"   "$( cat "$rigTmp/dl.$rigDlName.c.status" 2> /dev/null )" "status=0 alive"
 	rigDlRun "$rigDlName.f" file $rigDlCmd
 	rigCheck "[$rigDlName] fd 4 open to a file: the line is in the file once" "$( LC_ALL=C grep -c -x 'housekeeping: probe' "$rigTmp/dl.$rigDlName.f.rw" || : )" 1
-	rigCheck "[$rigDlName] fd 4 open to a file: nothing on stdout or stderr" "$( LC_ALL=C awk 'END { print NR }' "$rigTmp/dl.$rigDlName.f.out" "$rigTmp/dl.$rigDlName.f.err" )" 0
+	rigCheck "[$rigDlName] fd 4 open to a file: nothing on stdout or stderr" "$( LC_ALL=C awk 'END { print NR ; }' "$rigTmp/dl.$rigDlName.f.out" "$rigTmp/dl.$rigDlName.f.err" )" 0
 	rigCheck "[$rigDlName] fd 4 open to a file: status 0 and alive"        "$( cat "$rigTmp/dl.$rigDlName.f.status" 2> /dev/null )" "status=0 alive"
 	rigDlRun "$rigDlName.r" ro $rigDlCmd
 	rigCheck "[$rigDlName] fd 4 read-only: the line is on stderr once"     "$( LC_ALL=C grep -c -x 'housekeeping: probe' "$rigTmp/dl.$rigDlName.r.err" || : )" 1
-	rigCheck "[$rigDlName] fd 4 read-only: nothing on stdout"              "$( LC_ALL=C awk 'END { print NR }' "$rigTmp/dl.$rigDlName.r.out" )" 0
+	rigCheck "[$rigDlName] fd 4 read-only: nothing on stdout"              "$( LC_ALL=C awk 'END { print NR ; }' "$rigTmp/dl.$rigDlName.r.out" )" 0
 	rigCheck "[$rigDlName] fd 4 read-only: status 0 and alive"             "$( cat "$rigTmp/dl.$rigDlName.r.status" 2> /dev/null )" "status=0 alive"
 done
 rigCheck "and the read-only file was left as it was"                       "$( cat "$rigTmp/dl.ro" )" unchanged
@@ -858,7 +858,7 @@ rigMcpClose
 echo "   the withdrawn filter's names are gone from the package"
 rigNameA="MDAT_TOOLS_""NESTED" ; rigNameB="MDAT_MCP_STDERR_""MERGE"
 rigNameScan(){ ## directory -- how many files under it carry either name, this check's own file excluded
-	LC_ALL=C grep -r -l --exclude-dir=.git --exclude='AgentsAdvanceInputScanStatesCheck.test.sh' -e "$rigNameA" -e "$rigNameB" "$1" 2> /dev/null | LC_ALL=C awk 'END { print NR }'
+	LC_ALL=C grep -r -l --exclude-dir=.git --exclude='AgentsAdvanceInputScanStatesCheck.test.sh' -e "$rigNameA" -e "$rigNameB" "$1" 2> /dev/null | LC_ALL=C awk 'END { print NR ; }'
 }
 mkdir -p "$rigTmp/namectl" ; printf 'x %s y\n' "$rigNameA" > "$rigTmp/namectl/probe.txt"
 rigCheck "control: the same scan finds a name in a temp file that carries it" "$( rigNameScan "$rigTmp/namectl" )" 1

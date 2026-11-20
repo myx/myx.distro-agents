@@ -112,7 +112,7 @@ rigAssert "control: before its end it is listed among the running sessions" "$( 
 touch -t 202001010000 "$rigSessions/$rigRoot/grants" "$rigTmp/ref-2020"
 touch -t 202001010001 "$rigTmp/ref-2020-later"
 rigHookRun end "$( rigPayload SessionEnd "$rigRoot" ',"reason":"prompt_input_exit"' )"
-rigAssert "the hook exits 0 and says nothing on stdout" "$rigHookRc $( LC_ALL=C awk 'END { print NR + 0 }' "$rigTmp/hook.out" )" "0 0"
+rigAssert "the hook exits 0 and says nothing on stdout" "$rigHookRc $( LC_ALL=C awk 'END { print NR + 0 ; }' "$rigTmp/hook.out" )" "0 0"
 rigAssert "the marker names the reason" "$( LC_ALL=C sed -n 's/^reason: //p' "$rigSessions/$rigRoot/ended" 2> /dev/null )" prompt_input_exit
 rigAssert "the store was touched, so every index joining it rebuilds" "$( [ "$rigSessions/$rigRoot/grants" -nt "$rigTmp/ref-2020-later" ] && printf touched || printf stale )" touched
 rigAssert "the session now reads as ended, and its session grant no longer counts" "$( rigEnded "$rigRoot" ) $( rigScan "$rigRoot" )" "ended none"
@@ -143,7 +143,7 @@ rigAssert "a fork source leaves it: a fork is a new id" "$( rigEnded "$rigLone" 
 rigHookRun resume "$( rigPayload SessionStart "rig-other-$$-ee" ',"source":"resume"' )"
 rigAssert "a resume of another id leaves it: only the same id is reopened" "$( rigEnded "$rigLone" )" ended
 rigHookRun resume "$( rigPayload SessionStart "$rigLone" ',"source":"resume"' )"
-rigAssert "a resume removes it, and says nothing on stdout" "$( rigEnded "$rigLone" ) $rigHookRc $( LC_ALL=C awk 'END { print NR + 0 }' "$rigTmp/hook.out" )" "open 0 0"
+rigAssert "a resume removes it, and says nothing on stdout" "$( rigEnded "$rigLone" ) $rigHookRc $( LC_ALL=C awk 'END { print NR + 0 ; }' "$rigTmp/hook.out" )" "open 0 0"
 
 echo "-- 4. installed under the workspace .claude/hooks with no MMDAPP: it finds its workspace by its own place --"
 mkdir -p "$rigWs/.claude/hooks"

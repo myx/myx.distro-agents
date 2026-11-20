@@ -93,15 +93,15 @@ hookTokensWrite(){ ## log
 	tokensFile="$hookFolder/tokens"
 	tokensTmp="$( mktemp "$tokensFile.XXXXXX" 2> /dev/null )" || return 0
 	LC_ALL=C awk '
-		function num(key,    at, rest) { at = index(usage, "\"" key "\":") ; if (at == 0) return 0 ; rest = substr(usage, at + length(key) + 3) ; sub(/^ */, "", rest) ; return rest + 0 }
+		function num(key,    at, rest) { at = index(usage, "\"" key "\":") ; if (at == 0) return 0 ; rest = substr(usage, at + length(key) + 3) ; sub(/^ */, "", rest) ; return rest + 0 ; }
 		index($0, "\"type\":\"assistant\"") && index($0, "\"usage\":{") {
 			if (!match($0, /"id":"msg_[^"]*"/)) next
 			msgId = substr($0, RSTART, RLENGTH)
 			usage = substr($0, index($0, "\"usage\":{"))
-			if (!(msgId in seen)) { seen[msgId] = 1 ; order[++count] = msgId }
+			if (!(msgId in seen)) { seen[msgId] = 1 ; order[++count] = msgId ; }
 			tin[msgId] = num("input_tokens") ; tcr[msgId] = num("cache_read_input_tokens") ; tcw[msgId] = num("cache_creation_input_tokens") ; tout[msgId] = num("output_tokens")
 		}
-		END { for (i = 1 ; i <= count ; i++) { k = order[i] ; a += tin[k] ; b += tcr[k] ; c += tcw[k] ; d += tout[k] } ; if (count > 0) printf "%d %d %d %d\n", a, b, c, d }
+		END { for (i = 1 ; i <= count ; i++) { k = order[i] ; a += tin[k] ; b += tcr[k] ; c += tcw[k] ; d += tout[k] ; } ; if (count > 0) printf "%d %d %d %d\n", a, b, c, d ; }
 	' "$1" > "$tokensTmp" 2> /dev/null && [ -s "$tokensTmp" ] && mv -f "$tokensTmp" "$tokensFile" 2> /dev/null || rm -f "$tokensTmp"
 	return 0
 }

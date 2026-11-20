@@ -52,10 +52,10 @@ rigView(){ ## the registry's agent view
 		bash -c '. "$1" ; AgentsToolsRegistryRenderSpawnedSessions agents' rig "$rigPkg/sh-lib/session/AgentsTools.RegistrySpawnedSessions.include" 2>&1
 }
 rigStateOf(){ ## view output, spawn id
-	printf '%s\n' "$1" | LC_ALL=C awk -v want="$2" '$8 == want { print $13 }' | head -1
+	printf '%s\n' "$1" | LC_ALL=C awk -v want="$2" '$8 == want { print $13 ; }' | head -1
 }
 rigLiveOf(){ ## view output, spawn id -- the process column
-	printf '%s\n' "$1" | LC_ALL=C awk -v want="$2" '$8 == want { print $12 }' | head -1
+	printf '%s\n' "$1" | LC_ALL=C awk -v want="$2" '$8 == want { print $12 ; }' | head -1
 }
 
 echo "-- 1. a live run reads the word its own mark carries (S27.4) --"

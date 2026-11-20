@@ -34,8 +34,8 @@ rigRealBefore="$( cksum < "$HOME/.ssh/authorized_keys" 2> /dev/null || echo none
 "$rigKeygen" -q -t ed25519 -N '' -C rig-trust-one -f "$rigTmp/trust-one" < /dev/null > /dev/null 2>&1 || rigRefuse "a made-up key could not be made"
 "$rigKeygen" -q -t ed25519 -N '' -C rig-trust-two -f "$rigTmp/trust-two" < /dev/null > /dev/null 2>&1 || rigRefuse "a made-up key could not be made"
 rigOne="$( cat "$rigTmp/trust-one.pub" )" ; rigTwo="$( cat "$rigTmp/trust-two.pub" )"
-rigOnePrint="$( "$rigKeygen" -l -f "$rigTmp/trust-one.pub" | LC_ALL=C awk '{ print $2 }' )"
-rigTwoPrint="$( "$rigKeygen" -l -f "$rigTmp/trust-two.pub" | LC_ALL=C awk '{ print $2 }' )"
+rigOnePrint="$( "$rigKeygen" -l -f "$rigTmp/trust-one.pub" | LC_ALL=C awk '{ print $2 ; }' )"
+rigTwoPrint="$( "$rigKeygen" -l -f "$rigTmp/trust-two.pub" | LC_ALL=C awk '{ print $2 ; }' )"
 rigFile="$rigHome/.ssh/authorized_keys"
 rigFails=0 rigPasses=0
 rigAssert(){ ## what is asserted, got, want
@@ -59,12 +59,12 @@ rigRunIn(){ ## text, tool arguments... -- one dispatcher call, with that text as
 rigFlat(){ LC_ALL=C tr '\t' ' ' < "$1" | LC_ALL=C tr '\n' '/' ; }
 rigMode(){ stat -f '%Lp' "$1" 2> /dev/null || stat -c '%a' "$1" ; }
 rigKeys(){ ## what the list reads of the trusted group: key:state over the rows
-	LC_ALL=C awk -F'\t' '$1 == "key" && $4 == "trusted" { printf "%s:%s ", $2, $10 }' "$rigTmp/out"
+	LC_ALL=C awk -F'\t' '$1 == "key" && $4 == "trusted" { printf "%s:%s ", $2, $10 ; }' "$rigTmp/out"
 }
 
 echo "-- 1. trust-add: a line appended to the account's authorized keys --"
 rigRun --manager-keys-list
-rigAssert "before it, the trusted group has no key and says why" "$( LC_ALL=C awk -F'\t' '$1 == "group" && $2 == "trusted" { print $3, $5 }' "$rigTmp/out" )" "0 no_authorized_keys_file_stands_at_$( printf '%s' "$rigFile" | LC_ALL=C tr ' ' '_' )"
+rigAssert "before it, the trusted group has no key and says why" "$( LC_ALL=C awk -F'\t' '$1 == "group" && $2 == "trusted" { print $3, $5 ; }' "$rigTmp/out" )" "0 no_authorized_keys_file_stands_at_$( printf '%s' "$rigFile" | LC_ALL=C tr ' ' '_' )"
 rigRunIn "$rigOne"$'\n' --manager-keys-trust-add
 rigAssert "the call ends 0, with no error, and prints one row: added, its number, the file, its type and its fingerprint" "$rigRc $( rigFlat "$rigTmp/out" )" "0 added trusted-1 $rigFile ssh-ed25519 $rigOnePrint/"
 rigAssert "the file is the account's own, in its ssh home: the folder 700, the file 600" "$( rigMode "$rigHome/.ssh" ) $( rigMode "$rigFile" )" "700 600"
@@ -90,7 +90,7 @@ echo "-- 3. trust-delete: the one line removed, the rest as it stands --"
 printf '\n# kept comment\nrestrict,pty ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAINOTHINGATALL00000000000000000000000000000000000000000000000000 kept-option\n%s\n' "$rigOne" > "$rigFile"
 chmod 600 "$rigFile"
 rigRun --manager-keys-list
-rigAssert "the list counts the keys it holds, the options line among them, the blank and the comment not" "$( LC_ALL=C awk -F'\t' '$1 == "key" && $4 == "trusted" { printf "%s ", $2 }' "$rigTmp/out" )" "trusted-1 trusted-2 "
+rigAssert "the list counts the keys it holds, the options line among them, the blank and the comment not" "$( LC_ALL=C awk -F'\t' '$1 == "key" && $4 == "trusted" { printf "%s ", $2 ; }' "$rigTmp/out" )" "trusted-1 trusted-2 "
 rigRun --manager-keys-trust-delete trusted-2
 rigAssert "trusted-2, the key rig-trust-one, is removed: one row deleted, and the blank, the comment and the options line stay as they stand" "$rigRc $( rigFlat "$rigTmp/out" )" "0 deleted trusted-2 $rigFile ssh-ed25519 $rigOnePrint/"
 rigAssert "the file now holds the blank, the comment and the options line alone" "$( LC_ALL=C tr '\n' '|' < "$rigFile" )" "|# kept comment|restrict,pty ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAINOTHINGATALL00000000000000000000000000000000000000000000000000 kept-option|"

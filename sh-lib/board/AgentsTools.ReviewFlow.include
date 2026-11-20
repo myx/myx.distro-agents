@@ -179,7 +179,7 @@ AgentsReviewToReview(){ ## who, item file name, kind (handback|review), reason w
 		type AgentsToolsRoutineDeliverablesInForce > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/routine/AgentsTools.RoutineRequirements.include"
 		toDeliverables="$( AgentsToolsRoutineDeliverablesInForce "$toSpawn" )"
 		if [ -n "$toDeliverables" ] ; then
-			toDeliverableOps=( --header:upsert:deliverables:"$( printf '%s\n' "$toDeliverables" | LC_ALL=C awk 'BEGIN { ORS = "" } { printf "%s%s", ( NR > 1 ? "; " : "" ), $0 }' )" )
+			toDeliverableOps=( --header:upsert:deliverables:"$( printf '%s\n' "$toDeliverables" | LC_ALL=C awk 'BEGIN { ORS = "" ; } { printf "%s%s", ( NR > 1 ? "; " : "" ), $0 ; }' )" )
 		fi
 	fi
 	if ! AgentsReviewTools --intern-op-board-upsert-move-edit review "$toItem" --from-state:running \
@@ -853,7 +853,7 @@ AgentsReviewPromptText(){ ## thread verdict output
 	printf '%s\n' "$1" | LC_ALL=C awk -F'\t' '
 		NR == 1 { restAt = index( $1, " -- " ) ; if ( restAt > 0 ) { textAll = substr( $1, restAt + 4 ) ; } next ; }
 		$1 == "CLARIFY" { textOne = $0 ; sub( /^CLARIFY\t[^\t]*\t[^\t]*\t/, "", textOne ) ; textAll = textAll ( textAll == "" ? "" : " / " ) textOne ; }
-		END { if ( textAll != "" ) { print textAll ; } }'
+		END { if ( textAll != "" ) { print textAll ; } ; }'
 }
 
 ## One open review prompt closed with no verdict of its own: its record withdrawn, with who

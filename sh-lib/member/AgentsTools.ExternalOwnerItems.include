@@ -19,7 +19,7 @@ type AgentsToolsTeamMemberDirectoryText > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/
 ## `changed` or, for `all`, `-`. `due` (the default) keeps the items that are due; `all` every one.
 AgentsToolsExternalOwnerRows(){ ## due|all
 	local extWhich="${1:-due}" extMarker="${MMDAPP%/}/.local/agents/schedule/duty/magic-coordinator" extMembers extFiles extState extFile extRow extOwner extRecheck extEpoch extNow extWhy extChanged=""
-	extMembers="$( AgentsToolsTeamMemberDirectoryText 2> /dev/null | LC_ALL=C awk -F'\t' '$1 != "human-owner" { print $1 }' )"
+	extMembers="$( AgentsToolsTeamMemberDirectoryText 2> /dev/null | LC_ALL=C awk -F'\t' '$1 != "human-owner" { print $1 ; }' )"
 	extFiles=()
 	type AgentsToolsInboxFilesInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/inbox/AgentsTools.InboxPlace.include"
 	local extInbox=() extOne

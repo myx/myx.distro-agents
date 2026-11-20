@@ -96,7 +96,7 @@ AgentsToolsWorkDutyDispatchVariables(){ ## session id, spawn id, started-at, sca
 		if [ "$dutyCap" -gt 0 ] ; then
 			dutyShown="$( head -c "$dutyCap" "$dutyScan" 2> /dev/null )"
 			[ "$dutyBytes" -le "$dutyCap" ] 2> /dev/null || dutyShown="${dutyShown%$'\n'*}"
-			dutyShownLines="$( printf '%s\n' "$dutyShown" | LC_ALL=C awk 'END { print NR }' )"
+			dutyShownLines="$( printf '%s\n' "$dutyShown" | LC_ALL=C awk 'END { print NR ; }' )"
 			if [ "$dutyBytes" -le "$dutyCap" ] 2> /dev/null ; then
 				printf '\n## The input scan of this start, whole (input/%s): read it here, never again by a tool\n\n' "$dutyScanName"
 			else

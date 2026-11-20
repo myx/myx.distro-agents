@@ -160,7 +160,7 @@ rigRun(){ ## further harness arguments
 	[ "$( cat "$rigDir/round" )" != 0 ] || rigRefuse "the harness issued no request at all -- its stderr: $( head -5 "$rigDir/err" )"
 }
 rigHeld(){ ## the names of the snapshots the run's store holds, in order, space-joined
-	LC_ALL=C awk -F '\t' 'NF { printf "%s%s", sep, $1 ; sep = " " }' "$rigStore/snapshots" 2> /dev/null
+	LC_ALL=C awk -F '\t' 'NF { printf "%s%s", sep, $1 ; sep = " " ; }' "$rigStore/snapshots" 2> /dev/null
 }
 rigOther(){ ## how many calls to anything but the model the rig refused
 	[ -f "$rigDir/curl.other.log" ] && wc -l < "$rigDir/curl.other.log" | tr -d ' ' || printf 0

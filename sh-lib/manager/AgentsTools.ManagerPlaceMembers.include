@@ -31,9 +31,9 @@ AgentsToolsManagerPlaceMembers(){ ## the path of the place, its state
 	membersRows="$( MDAT_MANAGER_PLACE_HOMES="${HOME:-}/.agents/magic-team/member-homes.registry" LC_ALL=C awk -F'\t' -v OFS='\t' -v place="${1%/}" -v placeReal="${membersReal:-${1%/}}" '
 		BEGIN {
 			homes = ENVIRON["MDAT_MANAGER_PLACE_HOMES"]
-			while ( homes != "" && ( getline line < homes ) > 0 ) { split( line, part, "\t" ) ; sub( /\/+$/, "", part[2] ) ; home[part[1]] = part[2] }
+			while ( homes != "" && ( getline line < homes ) > 0 ) { split( line, part, "\t" ) ; sub( /\/+$/, "", part[2] ) ; home[part[1]] = part[2] ; }
 		}
-		function field( text ) { gsub( /[ \t]+/, "_", text ) ; return ( text == "" ) ? "-" : text }
+		function field( text ) { gsub( /[ \t]+/, "_", text ) ; return ( text == "" ) ? "-" : text ; }
 		NR == FNR {
 			if ( NF >= 3 && $1 != "" ) {
 				root = $2 ; sub( /\/+$/, "", root )

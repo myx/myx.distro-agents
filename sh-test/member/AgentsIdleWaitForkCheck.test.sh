@@ -35,7 +35,7 @@ rigFail(){
 ## The shim: every name the Wait include can start, which is an executable of this machine,
 ## answered by a wrapper that records the name and then runs the real one.
 mkdir -p "$rigTmp/shim" || exit 1
-LC_ALL=C awk '{ n = split( $0, w, /[^A-Za-z0-9_.-]+/ ) ; for ( i = 1 ; i <= n ; i++ ) if ( w[i] != "" ) print w[i] }' \
+LC_ALL=C awk '{ n = split( $0, w, /[^A-Za-z0-9_.-]+/ ) ; for ( i = 1 ; i <= n ; i++ ) if ( w[i] != "" ) print w[i] ; }' \
 	"$rigPackage"/sh-lib/member/AgentsTools.MemberWait*.include | sort -u > "$rigTmp/words.txt" || exit 1
 rigShimmed=0
 while read -r rigWord ; do
@@ -92,7 +92,7 @@ rigForks="$(( $( wc -l < "$rigTmp/forks2" ) - $( wc -l < "$rigTmp/forks1" ) ))"
 ## A one-off cost of a call's own start may fall in either window natively, so a single process either way is no
 ## tick. A per-round cost cannot hide inside it: the two windows are at least eight rounds apart.
 [ "$rigForks" -le 1 ] \
-	|| rigFail "one idle Wait started $rigForks more processes over $rigTicks further poll rounds, and a quiet tick is to start none: the nap is forking again. What it started: $( LC_ALL=C awk 'NR > 0 { n[ $0 ]++ } END { for ( w in n ) printf "%s x%s ", w, n[w] }' "$rigTmp/forks2" )"
+	|| rigFail "one idle Wait started $rigForks more processes over $rigTicks further poll rounds, and a quiet tick is to start none: the nap is forking again. What it started: $( LC_ALL=C awk 'NR > 0 { n[ $0 ]++ ; } END { for ( w in n ) printf "%s x%s ", w, n[w] ; }' "$rigTmp/forks2" )"
 
 ## SECTION 3: a wait whose caller is gone ends, and says so.
 : > "$rigTmp/orphan.out"

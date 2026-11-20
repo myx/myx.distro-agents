@@ -114,10 +114,10 @@ rigAssert "a routine selected shows its title and its facts, its state and its l
 rigAssert "the routine itself is shown rendered under its facts and its frontmatter: its heading, the Markdown of its text without its marks, and not the verdicts the read carries" "$( rigHolds s 'The routine' ) $( rigHolds s 'Daily meeting' ) $( rigHolds s 'bold' ) $( rigHolds s '**' ) $( rigHolds s 'verdicts of the routine' )" "1 1 1 0 0"
 rigAssert "Enter starts the routine, as s does: the slots of the routine are asked first, then its launch form opens" "$( rigCalled '--manager-routine-slots magic-coordinator.daily.routine.md' ) [$( rigVal started.dialog )]" "1 [routine:task|]"
 rigAssert "the frontmatter of the routine selected is read through the tooling, once, and shown as facts under its own heading: the screen parses no text of the file; a value stays as printed" \
-	"$( rigCalled '--manager-routine-frontmatter magic-coordinator/magic-coordinator.daily.routine.md' ):$( rigHolds s 'frontmatter' | LC_ALL=C awk '{ print ( $1 > 0 ) }' ):$( rigHolds s 'runs-at' ):$( rigHolds s 'workdays 10:00' ):$( rigHolds s 'work_duty_def' )" "1:1:1:1:1"
+	"$( rigCalled '--manager-routine-frontmatter magic-coordinator/magic-coordinator.daily.routine.md' ):$( rigHolds s 'frontmatter' | LC_ALL=C awk '{ print ( $1 > 0 ) ; }' ):$( rigHolds s 'runs-at' ):$( rigHolds s 'workdays 10:00' ):$( rigHolds s 'work_duty_def' )" "1:1:1:1:1"
 rigAssert "the listing was read once for it, the frontmatter's own facts" "$( rigCalled '--manager-routine-list --facts-only' )" "1"
 ## R15: the summary of the routine selected states its verdicts, read for it alone.
-rigAssert "the selected routine's summary states its verdicts" "$( rigHolds s 'startable' | LC_ALL=C awk '{ print ( $1 > 0 ) }' ):$( rigHolds s 'valid' | LC_ALL=C awk '{ print ( $1 > 0 ) }' )" "1:1"
+rigAssert "the selected routine's summary states its verdicts" "$( rigHolds s 'startable' | LC_ALL=C awk '{ print ( $1 > 0 ) ; }' ):$( rigHolds s 'valid' | LC_ALL=C awk '{ print ( $1 > 0 ) ; }' )" "1:1"
 rigScript <<'RIGSCRIPT'
 turn
 at @routines

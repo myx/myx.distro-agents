@@ -112,7 +112,7 @@ turn
 show sessionsShown
 RIGSCRIPT
 [ "$( rigScreenHolds rootShown 'Magic-Team (Agents)' )" -ge 1 ] 2> /dev/null || rigRefuse "the root list was never drawn, so nothing below would be measured: $( printf '%s\n' "$rigOut" | LC_ALL=C grep -m2 -e DRIVER-FAILED -e Traceback -e Error )"
-rigAssert "Launchpad is named, and not Launch / Spawn" "$( rigScreenHolds sessionsShown 'Launchpad' | LC_ALL=C awk '{ print ( $1 >= 1 ) ? "named" : "unnamed" }' ):$( rigScreenHolds sessionsShown 'Launch / Spawn' )" "named:0"
+rigAssert "Launchpad is named, and not Launch / Spawn" "$( rigScreenHolds sessionsShown 'Launchpad' | LC_ALL=C awk '{ print ( $1 >= 1 ) ? "named" : "unnamed" ; }' ):$( rigScreenHolds sessionsShown 'Launch / Spawn' )" "named:0"
 rigAssert "the root list names Consoles, and not Consoles (Tools)" "$( printf '%s\n' "$rigOut" | LC_ALL=C grep '^rootShown|' | LC_ALL=C grep -c -E ' Consoles  ' ):$( rigScreenHolds rootShown 'Consoles (Tools)' )" "1:0"
 rigAssert "the menu names neither old name"                   "$( rigScreenHolds menu 'Launch / Spawn' ):$( rigScreenHolds menu 'Consoles (Tools)' )" "0:0"
 
@@ -161,8 +161,8 @@ print( "%d %d %d %d" % ( filled[0], len(inside) - 1 - filled[-1], min( len(r) - 
 rigMarginsGot="$( rigMargins 2> /dev/null )"
 ## The box before F11.0, measured 2026-10-18: one blank line above the text, none below its buttons, one blank column
 ## at its left. One line and two columns more than that each.
-rigAssert "at least two blank lines above the text, and one below the buttons" "$( printf '%s' "$rigMarginsGot" | LC_ALL=C awk '{ print ( $1 >= 2 && $2 >= 1 ) ? "roomy" : "tight " $1 " " $2 }' )" roomy
-rigAssert "at least three blank columns at each side of the text" "$( printf '%s' "$rigMarginsGot" | LC_ALL=C awk '{ print ( $3 >= 3 && $4 >= 3 ) ? "roomy" : "tight " $3 " " $4 }' )" roomy
+rigAssert "at least two blank lines above the text, and one below the buttons" "$( printf '%s' "$rigMarginsGot" | LC_ALL=C awk '{ print ( $1 >= 2 && $2 >= 1 ) ? "roomy" : "tight " $1 " " $2 ; }' )" roomy
+rigAssert "at least three blank columns at each side of the text" "$( printf '%s' "$rigMarginsGot" | LC_ALL=C awk '{ print ( $3 >= 3 && $4 >= 3 ) ? "roomy" : "tight " $3 " " $4 ; }' )" roomy
 
 echo "-- 5. spacers between groups of the root list --"
 rigCase spacers

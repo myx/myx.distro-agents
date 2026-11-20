@@ -142,7 +142,7 @@ printf '{"ok":true,"messages":[{"ts":"%s","user":"URIGOWNER","text":"RIG-M3"},{"
 	RIG_SCENARIO="$rigScenario" MDAT_WAIT_REMIND=off MDAT_SLACK_THREAD_CACHE_SECONDS=0 MMDAPP="$rigWs" \
 	bash "$rigTools" --wait-for-input --team-member "$rigMember" --wait-default --wait-session-id "rig-miss-posts" --wait-timeout 12 --wait-poll-interval 1 ) > "$rigTmp/out" 2> "$rigTmp/err"
 rigUnder(){ ## message marker -- the posts whose heading the marker stands under, comma-separated
-	LC_ALL=C awk -v mark="$1" '/^# replies to your post / { post = $NF ; sub(/^.*:/, "", post) } index( $0, mark ) { printf "%s%s", sep, post ; sep = "," }' "$rigTmp/out"
+	LC_ALL=C awk -v mark="$1" '/^# replies to your post / { post = $NF ; sub(/^.*:/, "", post) ; } index( $0, mark ) { printf "%s%s", sep, post ; sep = "," ; }' "$rigTmp/out"
 }
 rigAssert "M1 stands once, under the first post, the latest one above it" "$( rigUnder RIG-M1 )" "$p1"
 rigAssert "M2 stands once, under the second post" "$( rigUnder RIG-M2 )" "$p2"
@@ -181,7 +181,7 @@ mkdir -p "$rigStateDir"
 printf 'sources: replies:rig-miss-floors slack:magic-team\naddressee: \ninclude-own: false\nfloor slack:magic-team 1700000100.000001\nfloor slack:CGONE0001 1700000200.000001\nfloor slack:human-owner 1700000300.000001\n' > "$rigStateDir/state"
 rigStart="$( date +%s )"
 rigDefault rig-miss-floors
-rigAssert "the floor of a source of the stored set is used; a source that comes back after a gap starts at the wait's start, not at a stale floor stored for it" "$( LC_ALL=C sed -n 's/^# filters: .*floors=\(.*\) addressee=.*$/\1/p' "$rigTmp/out" | LC_ALL=C tr ' ' '\n' | LC_ALL=C awk -F= -v start="$rigStart" '$1 == "slack:magic-team" { printf "kept=%s ", $2 } $1 == "slack:human-owner" { printf "back=%s", ( $2 + 0 >= start - 2 ) ? "start" : "stale" }' )" "kept=1700000100.000001 back=start"
+rigAssert "the floor of a source of the stored set is used; a source that comes back after a gap starts at the wait's start, not at a stale floor stored for it" "$( LC_ALL=C sed -n 's/^# filters: .*floors=\(.*\) addressee=.*$/\1/p' "$rigTmp/out" | LC_ALL=C tr ' ' '\n' | LC_ALL=C awk -F= -v start="$rigStart" '$1 == "slack:magic-team" { printf "kept=%s ", $2 ; } $1 == "slack:human-owner" { printf "back=%s", ( $2 + 0 >= start - 2 ) ? "start" : "stale" ; }' )" "kept=1700000100.000001 back=start"
 rigAssert "a floor stored for a source that is not in the set is dropped when the state is written" "$( LC_ALL=C grep -c 'slack:CGONE0001' "$rigStateDir/state" || : )" "0"
 
 if [ "$rigFails" -ne 0 ] ; then

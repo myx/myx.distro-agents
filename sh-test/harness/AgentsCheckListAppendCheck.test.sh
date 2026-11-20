@@ -49,7 +49,7 @@ rigCall(){ ## caller spawn id, caller member, the JSON arguments -- the tool's w
 }
 rigLines(){ ## file -- its lines as one word, each joined by ` | `
 	[ -f "$1" ] || { printf 'no-file' ; return 0 ; }
-	LC_ALL=C awk '{ printf "%s%s", ( n++ ? " | " : "" ), $0 }' "$1"
+	LC_ALL=C awk '{ printf "%s%s", ( n++ ? " | " : "" ), $0 ; }' "$1"
 }
 rigHead(){ ## text -- its first word
 	printf '%s' "${1%%:*}"

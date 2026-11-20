@@ -100,7 +100,7 @@ rigWords(){ ## text -- how many starts of the stand-in had exactly these words, 
 }
 rigUnder(){ ## tag, text, count -- that many lines of the left pane of that screen from the one that is exactly the text, each between brackets, without the spaces at their ends
 	printf '%s\n' "$rigOut" | LC_ALL=C grep "^$1|" | LC_ALL=C sed -E -e "s/^$1\|(│|║)//" -e 's/(│|║).*$//' -e 's/  *$//' \
-		| LC_ALL=C awk -v text="$2" -v count="$3" '$0 == text && !n { n = count } n > 0 { printf "[%s]", $0 ; n-- }'
+		| LC_ALL=C awk -v text="$2" -v count="$3" '$0 == text && !n { n = count ; } n > 0 { printf "[%s]", $0 ; n-- ; }'
 }
 rigItemLine(){ ## the words of a row of the table of a folder's items, in the columns the fixture gives it -- that row as the table draws it
 	printf ' %-24s %-4s %-16s %-10s %-7s %s' "$@"
@@ -282,13 +282,13 @@ RIGSCRIPT
 rigAssert "a member is a folder, with the mark of one; one whose workspace cannot be reached is none" "$( rigFolderHolds on '>keeper-rig ' ) $( rigFolderHolds on ' keeper-far ' ) $( rigHolds on ' keeper-far ' )" "1 0 1"
 rigAssert "its own summary shows its basic information alone: nothing of its settings or its grants, no table of them" "$( rigHolds on 'its settings' ) $( rigHolds on 'its grants' ) $( rigHolds on ' COVERS ' ) $( rigHolds on 'ws:source/**/README.md' ) $( rigHolds on '│for       A rig keeper' )" "0 0 0 0 1"
 rigAssert "inside it: Permissions, Skillset Files, Sessions, Member Settings and Member Help, each a folder" "$( rigVal in.path ) $( rigVal in.rows ) $( rigFolderHolds in ' Permissions ' ) $( rigFolderHolds in ' Skillset Files ' ) $( rigFolderHolds in ' Sessions ' ) $( rigFolderHolds in ' Member Settings ' ) $( rigFolderHolds in ' Member Help ' )" "magic-team/team/keeper-rig 6 1 1 1 1 1"
-rigAssert "Permissions selected: no count above its grants, how many rows in the frame, from the read of the member" "$( rigHolds perms '3 grants' ) $( rigHolds perms ' 3 rows ' ) $( rigWords '[--manager-team-member-read][--full][keeper-rig]' | LC_ALL=C awk '{ print ( $1 > 0 ) }' )" "0 1 1"
+rigAssert "Permissions selected: no count above its grants, how many rows in the frame, from the read of the member" "$( rigHolds perms '3 grants' ) $( rigHolds perms ' 3 rows ' ) $( rigWords '[--manager-team-member-read][--full][keeper-rig]' | LC_ALL=C awk '{ print ( $1 > 0 ) ; }' )" "0 1 1"
 rigAssert "its grants as the table of the member's own summary, the pane's first line its header, then a heading for each kind and a row for each grant; no hint stands before it" \
 	"[$( rigFirst perms )] $( rigUnder perms "$( rigGrantLine 22 COVERS ACCESS FROM ENDS )" 7 ) $( rigHolds perms 'Enter opens them' )" \
 	"[$( rigGrantLine 22 COVERS ACCESS FROM ENDS | LC_ALL=C sed 's/  *$//' )] [$( rigGrantLine 22 COVERS ACCESS FROM ENDS )][ floor (2)][$( rigGrantLine 22 'ws:source/**/README.md' read floor none )][][$( rigGrantLine 22 'ws:.local/temp/**' write floor none )][ standing (1)][$( rigGrantLine 22 'ws:source/x/**' write ws:workspace none )] 0"
 rigAssert "inside, its grants are a table under a heading for each kind" "$( rigHolds grant ' COVERS ' ) $( rigHolds grant ' ACCESS ' ) $( rigHolds grant ' floor (2)' ) $( rigHolds grant ' standing (1)' ) $( rigVal grant.selectedLabel )" "1 1 1 1 ws:source/**/README.md"
 rigAssert "a selected grant shows whole: the path it covers and the rule of its location" "$( rigHolds grant '│covers    /rig/ws/source/**/README.md' ) $( rigHolds grant '│rule      ws:source/**/README.md' ) $( rigHolds grant '│from      floor' )" "1 1 1"
-rigAssert "a skillset file selected shows whole, read by the member and its path" "$( rigHolds file '│The rig keeper' ) $( rigWords '[--manager-team-member-files][keeper-rig]' | LC_ALL=C awk '{ print ( $1 > 0 ) }' ) $( rigWords '[--manager-team-member-files][keeper-rig][SKILL.md]' )" "1 1 1"
+rigAssert "a skillset file selected shows whole, read by the member and its path" "$( rigHolds file '│The rig keeper' ) $( rigWords '[--manager-team-member-files][keeper-rig]' | LC_ALL=C awk '{ print ( $1 > 0 ) ; }' ) $( rigWords '[--manager-team-member-files][keeper-rig][SKILL.md]' )" "1 1 1"
 rigAssert "one that is no text says so and is never read" "$( rigHolds icon '│resources/icon.png: 1.4K, no text: it is not shown.' ) $( rigWords '[--manager-team-member-files][keeper-rig][resources/icon.png]' )" "1 0"
 rigAssert "Sessions selected: the sessions it is in, how many rows in the frame and no count above them; Enter on one opens it in the tree of the member, and does not jump to Activity" "$( rigHolds sessions '1 session:' ) $( rigHolds sessions ' 1 row ' ) $( rigVal jumped.path )" "0 1 magic-team/team/keeper-rig/sessions/sess-1"
 
@@ -332,7 +332,7 @@ rigAssert "a narrower one leaves out whole each column after it that still does 
 	"$( rigVal narrow.viewWidth ) $( rigUnder narrow "$( rigGrantTight 22 COVERS ACCESS )" 3 ) $( rigVal narrow.spills ) $( rigHolds narrow '…' )" \
 	"31 [$( rigGrantTight 22 COVERS ACCESS )][ floor (2)][$( rigGrantTight 22 'ws:source/**/README.md' read )] 0 0"
 rigAssert "with the lines not wrapped the table is whole, its first column uncut, and the pane scrolls sideways to the columns after it" \
-	"$( rigVal cut.wrap ) $( rigHolds cut ' ws:source/**/README.md  read' ) $( rigHolds cut "$( printf '%-12s  %s' ws:workspace none )" ) $( rigVal panned.viewLeft | LC_ALL=C awk '{ print ( $1 > 0 ) }' ) $( rigHolds panned "$( printf '%-12s  %s' floor none )" ) $( rigHolds panned "$( printf '%-12s  %s' ws:workspace none )" )" \
+	"$( rigVal cut.wrap ) $( rigHolds cut ' ws:source/**/README.md  read' ) $( rigHolds cut "$( printf '%-12s  %s' ws:workspace none )" ) $( rigVal panned.viewLeft | LC_ALL=C awk '{ print ( $1 > 0 ) ; }' ) $( rigHolds panned "$( printf '%-12s  %s' floor none )" ) $( rigHolds panned "$( printf '%-12s  %s' ws:workspace none )" )" \
 	"no 1 0 1 2 1"
 
 echo "-- 2c. Skillset Files selected: every file as a table, its path, its size and whether it is text --"
@@ -418,9 +418,9 @@ keys DOWN
 show none
 RIGSCRIPT
 rigAssert "Member Help selected shows the text of the help before its first option, the member's syntax lines, then the chapters after the options, in that order, and no block of an operation" \
-	"$( rigHolds whole '│📘 syntax: DistroAgentsTools.fn.sh --member-help <team-member>' ) $( rigHolds whole 'HEAD-TEXT-OF-THE-HELP before the summary.' ) $( rigHolds whole 'FOOT-TEXT-OF-THE-HELP after the options.' ) $( rigHolds whole 'Read-only. Prints its help.' ) $( rigHolds whole 'Its second line.' ) $( printf '%s\n' "$rigOut" | LC_ALL=C grep '^whole|' | LC_ALL=C awk '/HEAD-TEXT/ { a = NR } /--console-list/ && !b { b = NR } /FOOT-TEXT/ { c = NR } END { print ( a && a < b && b < c ) ? "in-order" : "out-of-order" }' )" \
+	"$( rigHolds whole '│📘 syntax: DistroAgentsTools.fn.sh --member-help <team-member>' ) $( rigHolds whole 'HEAD-TEXT-OF-THE-HELP before the summary.' ) $( rigHolds whole 'FOOT-TEXT-OF-THE-HELP after the options.' ) $( rigHolds whole 'Read-only. Prints its help.' ) $( rigHolds whole 'Its second line.' ) $( printf '%s\n' "$rigOut" | LC_ALL=C grep '^whole|' | LC_ALL=C awk '/HEAD-TEXT/ { a = NR ; } /--console-list/ && !b { b = NR ; } /FOOT-TEXT/ { c = NR ; } END { print ( a && a < b && b < c ) ? "in-order" : "out-of-order" ; }' )" \
 	"1 1 1 0 0 in-order"
-rigAssert "the syntax lines are the member's, by --member-help, and the chapters are read by --manager-help-read" "$( rigWords '[--member-help][--team-member][keeper-rig]' | LC_ALL=C awk '{ print ( $1 > 0 ) }' ) $( rigWords '[--manager-help-read]' | LC_ALL=C awk '{ print ( $1 > 0 ) }' )" "1 1"
+rigAssert "the syntax lines are the member's, by --member-help, and the chapters are read by --manager-help-read" "$( rigWords '[--member-help][--team-member][keeper-rig]' | LC_ALL=C awk '{ print ( $1 > 0 ) ; }' ) $( rigWords '[--manager-help-read]' | LC_ALL=C awk '{ print ( $1 > 0 ) ; }' )" "1 1"
 rigAssert "the examples of the help, a paragraph whose first line is a comment of the shell, show as they are written, as --help prints them: a comment is no heading, a fence and runs of blanks are kept" \
 	"$( rigHolds whole '│        # Start the rig,' ) $( rigHolds whole '│        # then stop it' ) $( rigHolds whole '│        ```' ) $( rigHolds whole '│        rig  --start   now' ) $( rigHolds whole '│        Start the rig,' ) $( rigHolds whole '━' )" "1 1 2 1 0 0"
 rigAssert "the chapters are Markdown: a heading without its marks, strong words without theirs, the text under a heading as a paragraph" "$( rigHolds whole '│ Summary:' ) $( rigHolds whole '│ Notes:' ) $( rigHolds whole '##' ) $( rigHolds whole '**' ) $( rigHolds whole '│        The rig tool, in short.' )" "1 1 0 0 1"

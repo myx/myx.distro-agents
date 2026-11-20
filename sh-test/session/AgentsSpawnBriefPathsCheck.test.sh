@@ -46,7 +46,7 @@ PATH="$rigTmp/bin:$PATH"
 rigProbe(){ ## brief, the run's own input folder, the sandbox root -- `ok|missing<TAB>token<TAB>resolved`, one per path
 	LC_ALL=C awk -v own="$2" -v box="$3" '
 	function emit(where, token, path) {
-		if (token in seen) { return }
+		if (token in seen) { return ; }
 		seen[token] = 1
 		printf "%s\t%s\t%s\n", where, token, path
 	}
@@ -57,12 +57,12 @@ rigProbe(){ ## brief, the run's own input folder, the sandbox root -- `ok|missin
 			named = word[i]
 			## The full stop that ends a sentence is no part of the name it ends.
 			sub(/^[.,]+/, "", named) ; sub(/[.,]+$/, "", named)
-			if (named ~ /^input\/[A-Za-z0-9_.\/-]+\.md$/) { emit("box", named, box "/" named) }
-			if (named ~ /^[A-Za-z0-9_.-]+\.md$/) { last = named ; continue }
+			if (named ~ /^input\/[A-Za-z0-9_.\/-]+\.md$/) { emit("box", named, box "/" named) ; }
+			if (named ~ /^[A-Za-z0-9_.-]+\.md$/) { last = named ; continue ; }
 			## The name stands right before the words that place it, and nowhere else on the line.
 			if (named == "your" && last != "") {
-				if (word[i + 1] == "own" && word[i + 2] == "input" && word[i + 3] == "folder") { emit("own", last, own "/" last) ; last = "" ; continue }
-				if (word[i + 1] == "sandbox") { emit("box", last, box "/" last) ; last = "" ; continue }
+				if (word[i + 1] == "own" && word[i + 2] == "input" && word[i + 3] == "folder") { emit("own", last, own "/" last) ; last = "" ; continue ; }
+				if (word[i + 1] == "sandbox") { emit("box", last, box "/" last) ; last = "" ; continue ; }
 			}
 		}
 	}' "$1" | LC_ALL=C sort -u | while IFS=$'\t' read -r rigWhere rigToken rigPath ; do

@@ -122,7 +122,7 @@ AgentsToolsManagerDashboardSessionMeasured(){
 	type AgentsSessionRunFacts > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
 	printf '%s' "$measuredDated" \
 		| MDAT_MANAGER_CONTROL="$rowsControl" LC_ALL=C awk -v loadAverage="-" -v hostName="-" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerSessionTokens.awk" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerDateMinutes.awk" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerSessionRows.awk" \
-			<( printf '%s\n' "$measuredDated" | LC_ALL=C awk '{ print $8 ; print $2 }' | AgentsSessionRunFacts tokens usage-limit chapter ) "$rowsPending" - \
+			<( printf '%s\n' "$measuredDated" | LC_ALL=C awk '{ print $8 ; print $2 ; }' | AgentsSessionRunFacts tokens usage-limit chapter ) "$rowsPending" - \
 		| LC_ALL=C cut -f6-
 	return 0
 }
@@ -511,11 +511,11 @@ AgentsToolsManagerDashboardStores(){ ## team data root
 	else
 		if [ -d "$storesRoot/audit" ] ; then
 			storesAudit="$( cd "$storesRoot/audit" 2> /dev/null && for storesItems in * */* ; do [ -f "$storesItems" ] && printf '%s\n' "$storesItems" ; done | LC_ALL=C awk -v month="$storesMonth" '
-				{ items++ ; name = $0 ; folder = "" ; if ( index( name, "/" ) ) { folder = substr( name, 1, index( name, "/" ) - 1 ) ; sub( /^[^\/]*\//, "", name ) }
+				{ items++ ; name = $0 ; folder = "" ; if ( index( name, "/" ) ) { folder = substr( name, 1, index( name, "/" ) - 1 ) ; sub( /^[^\/]*\//, "", name ) ; }
 				  stamp = "" ; if ( match( name, /[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]T[0-9][0-9][0-9][0-9]/ ) ) stamp = substr( name, RSTART, RLENGTH )
 				  if ( stamp > newest ) newest = stamp
-				  if ( folder == month || ( folder == "" && stamp != "" && substr( stamp, 1, 4 ) "-" substr( stamp, 5, 2 ) == month ) ) inMonth++ }
-				END { printf "%d %d %s\n", items, inMonth, ( newest == "" ? "-" : newest ) }' )" || storesAudit="- - -"
+				  if ( folder == month || ( folder == "" && stamp != "" && substr( stamp, 1, 4 ) "-" substr( stamp, 5, 2 ) == month ) ) inMonth++ ; }
+				END { printf "%d %d %s\n", items, inMonth, ( newest == "" ? "-" : newest ) ; }' )" || storesAudit="- - -"
 		fi
 		type AgentsToolsVaultFilesInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/vault/AgentsTools.VaultPlace.include"
 		AgentsToolsVaultFilesInto storesVaultFiles "" storesNewest
@@ -562,7 +562,7 @@ AgentsToolsManagerDashboardTeamDataGit(){
 			gitUpstream="$( git -C "$gitRoot" rev-parse --abbrev-ref --symbolic-full-name '@{u}' 2> /dev/null )" || gitUpstream="-"
 			gitAhead="-" ; gitBehind="-"
 			[ "${gitUpstream:--}" = "-" ] || read -r gitAhead gitBehind <<< "$( git -C "$gitRoot" rev-list --left-right --count 'HEAD...@{u}' 2> /dev/null )" || :
-			gitDirty="$( git -C "$gitRoot" status --porcelain -- . 2> /dev/null | LC_ALL=C awk 'END { print NR }' )" || gitDirty="-"
+			gitDirty="$( git -C "$gitRoot" status --porcelain -- . 2> /dev/null | LC_ALL=C awk 'END { print NR ; }' )" || gitDirty="-"
 			read -r gitEpoch gitSubject <<< "$( git -C "$gitRoot" log -1 --format='%ct %s' 2> /dev/null )" || :
 			gitWords="yes ${gitBranch:--} ${gitUpstream:--} ${gitAhead:--} ${gitBehind:--} ${gitDirty:--} ${gitEpoch:--} ${gitSubject:-}"
 		fi

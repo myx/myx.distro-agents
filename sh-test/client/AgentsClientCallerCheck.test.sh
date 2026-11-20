@@ -136,10 +136,10 @@ rigN(){ ## file, fixed text -- how many lines hold it
 	LC_ALL=C grep -c -F -- "$2" "$1" 2> /dev/null || :
 }
 rigLines(){ ## file -- how many lines it has
-	LC_ALL=C awk 'END { print NR + 0 }' "$1" 2> /dev/null
+	LC_ALL=C awk 'END { print NR + 0 ; }' "$1" 2> /dev/null
 }
 rigCalls(){ ## -- the calls of the last run, in their order, joined by "; "
-	LC_ALL=C awk '{ printf "%s%s", ( NR > 1 ? "; " : "" ), $0 }' "$rigTmp/calls"
+	LC_ALL=C awk '{ printf "%s%s", ( NR > 1 ? "; " : "" ), $0 ; }' "$rigTmp/calls"
 }
 rigFrom(){ ## whose -- how many calls of the last run carried a setting of that owner
 	LC_ALL=C grep -c -i -F -- "$1" "$rigTmp/calls" || :
@@ -358,7 +358,7 @@ rigAssert "the same for a mail it would send: the line, and nothing is sent" "$r
 rigRun --trello-post-comment --team-member client-ndm 5f0000000000000000000c01 Rig-comment.
 rigAssert "Trello, where our side holds nothing for a client either: the same line for the comment, naming --client-operation-run with its --client-* operation, and nothing is posted" "$rigRc $( rigLines "$rigTmp/calls" ) $( rigErrors ) $( rigWhole "$rigTmp/err" "⛔ ERROR: DistroAgentsTrello --trello-post-comment: client-ndm has no Trello settings on our own organisation's side: what it holds is the other organisation's. For the other organisation use --client-operation-run magic-coordinator --client-comms-trello-post-comment client-ndm." )" "1 0 1 1"
 rigRun --client-operation-run magic-coordinator --client-comms-email-mark-seen client-ndm 41
-rigAssert "and what the line names does mark the message in the mailbox the client holds" "$rigRc $( LC_ALL=C awk '{ print $1, $2, $3, $4, $5 }' "$rigTmp/calls" )" "0 imap imap-ndmhere.invalid us@ndmhere.invalid UID STORE"
+rigAssert "and what the line names does mark the message in the mailbox the client holds" "$rigRc $( LC_ALL=C awk '{ print $1, $2, $3, $4, $5 ; }' "$rigTmp/calls" )" "0 imap imap-ndmhere.invalid us@ndmhere.invalid UID STORE"
 rigPre=( MDAT_SPAWN_AGENT=client-ndm )
 rigRun --email-mark-seen --team-member client-ndm 41
 rigAssert "control: the client's own --member-* operation says that line as it did, naming the --client-* operation that is its own" "$rigRc $( rigLines "$rigTmp/calls" ) $( rigWhole "$rigTmp/err" "⛔ ERROR: DistroAgentsTools --email-mark-seen: $rigSideLine --client-comms-email-mark-seen." )" "1 0 1"
@@ -380,13 +380,13 @@ rigAssert "magic-coordinator's help offers the operation: its syntax line, and i
 rigRun --member-help --team-member client-ndm
 rigAssert "a client's help does not offer it" "$rigRc $( cat "$rigTmp/out" "$rigTmp/err" | LC_ALL=C grep -c -F -e '--client-operation-run' )" "0 0"
 rigAssert "no help text says magic-coordinator calls a --client-* operation, in the client's name or otherwise" "$( cat "$rigHere"/help/Help.DistroAgentsTools.help.md "$rigHere"/help/Help.DistroAgentsTools.include | LC_ALL=C grep -c -e 'magic-coordinator in its' -e 'by magic-coordinator' -e "in the client's name" )" 0
-rigAssert "control: the manual does say who a --client-* operation is called by" "$( LC_ALL=C grep -c -e "member's own session; any other session" -e 'own session; any other' "$rigHere/help/Help.DistroAgentsTools.help.md" | LC_ALL=C awk '{ print ( $1 >= 1 ) ? "said" : "silent" }' )" said
+rigAssert "control: the manual does say who a --client-* operation is called by" "$( LC_ALL=C grep -c -e "member's own session; any other session" -e 'own session; any other' "$rigHere/help/Help.DistroAgentsTools.help.md" | LC_ALL=C awk '{ print ( $1 >= 1 ) ? "said" : "silent" ; }' )" said
 
 echo "-- 12. static: the rule is asked in one place, and the new operation has no check of its own --"
 rigAssert "where a --client-* operation is dispatched, once, and defined once" "$( LC_ALL=C grep -c -F -e '--client-*) AgentsToolsClientCallerCheck "${2:-}" "${1#--}" || { set +e ; return 1 ; } ;;' "$rigTool" || : ) $( cat "$rigHere"/*/*.include "$rigHere"/*/*.sh | LC_ALL=C grep -c -E '^[[:space:]]*AgentsToolsClientCallerCheck\(\)\{' || : )" "1 1"
-rigAssert "and in no stub: no --client-* arm of the package carries a check of its own on who calls" "$( for rigFile in "$rigHere"/*/AgentsTools.*.include ; do LC_ALL=C awk '/^[[:space:]]*--client-[a-z|*-]*\)/ { on = 1 } on && /^[[:space:]]*--(member|intern|magic)-[a-z|*-]*\)/ { on = 0 } on && /AgentsToolsActingMemberCheck|AgentsToolsMagicCallerCheck/ { n++ } END { if ( n ) print FILENAME ": " n }' "$rigFile" ; done | LC_ALL=C sed 's|.*/||' | LC_ALL=C tr '\n' ' ' )" ""
+rigAssert "and in no stub: no --client-* arm of the package carries a check of its own on who calls" "$( for rigFile in "$rigHere"/*/AgentsTools.*.include ; do LC_ALL=C awk '/^[[:space:]]*--client-[a-z|*-]*\)/ { on = 1 ; } on && /^[[:space:]]*--(member|intern|magic)-[a-z|*-]*\)/ { on = 0 ; } on && /AgentsToolsActingMemberCheck|AgentsToolsMagicCallerCheck/ { n++ ; } END { if ( n ) print FILENAME ": " n ; }' "$rigFile" ; done | LC_ALL=C sed 's|.*/||' | LC_ALL=C tr '\n' ' ' )" ""
 ## The control counts the --client-* operations those arms name, not the arm lines: one arm may name many of them (AgentsTools.ClientComms.include).
-rigAssert "control: the same search does find the arms of the client stubs" "$( for rigFile in "$rigHere"/*/AgentsTools.*.include ; do LC_ALL=C grep -E '^[[:space:]]*--client-[a-z|*-]*\)' "$rigFile" | LC_ALL=C grep -o -E -- '--client-[a-z*-]+' ; done | LC_ALL=C awk '{ n++ } END { print ( n >= 25 ) ? "found" : "blind " n + 0 }' )" found
+rigAssert "control: the same search does find the arms of the client stubs" "$( for rigFile in "$rigHere"/*/AgentsTools.*.include ; do LC_ALL=C grep -E '^[[:space:]]*--client-[a-z|*-]*\)' "$rigFile" | LC_ALL=C grep -o -E -- '--client-[a-z*-]+' ; done | LC_ALL=C awk '{ n++ ; } END { print ( n >= 25 ) ? "found" : "blind " n + 0 ; }' )" found
 rigAssert "the rule passes the named client's own session and the console, and no other member by name" "$( LC_ALL=C grep -c -F -e "case \"\$checkActing\" in ''|\"\$1\") return 0 ;; esac" "$rigHere/member/AgentsTools.CallerCheck.include" || : ) $( LC_ALL=C grep -c -F -e '|magic-coordinator) return 0' "$rigHere/member/AgentsTools.CallerCheck.include" || : )" "1 0"
 rigAssert "--client-operation-run asks nothing of its own about who calls: it is an operation of the coordinator's own, asked in the door of the tool files, once" "$( LC_ALL=C grep -c -E 'AgentsTools(ActingMember|MagicCaller|ClientCaller)Check[^A-Za-z]*\"' "$rigHere/client/AgentsTools.ClientOperationRun.include" || : ) $( LC_ALL=C grep -c -F -e 'AgentsToolsMagicCallerCheck "${1#--}" || { set +e ; frontDone=yes ; frontRc=1 ; return 0 ; }' "$rigHere/harness/AgentsContext.FrontDoor.include" || : )" "0 1"
 rigAssert "no coordinator comms operation takes the client side from the member it is given: the family says our own side itself, once" "$( LC_ALL=C grep -c -F -e 'local -x MDAT_COMMS_SIDE=client' "$rigHere/comms/AgentsTools.CoordinatorComms.include" || : ) $( LC_ALL=C grep -c -F -e '--*) local -x MDAT_COMMS_SIDE=own MDAT_COMMS_OP="$1" ;;' "$rigHere/comms/AgentsTools.CoordinatorComms.include" || : )" "0 1"

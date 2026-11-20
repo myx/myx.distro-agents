@@ -1776,6 +1776,22 @@
 			naming the missing parameter. Deletes under that
 			identity, only where it may. <page-id> must be numeric.
 
+			Never purges a page -- a deleted page reads back as
+			status 8 (a 404 under the default view); nothing here
+			restores a page.
+
+			Returns 0 when deleted, nothing on stdout. **3**: UNKNOWN
+			-- the delete may still have taken effect; read the page
+			before acting again, never repeat blindly. **9**:
+			refused -- not deleted, retrying won't help. Every other
+			status also means not deleted. A 404 (status 8) does NOT
+			establish absence -- it also covers a page this account
+			may not delete.
+
+			A failure prints one stderr line: the mark, this
+			operation's name, the status, and Confluence's body
+			verbatim.
+
 		--confluence-page-move [--team-member <team-member>] <page-id> --parent-id <parent-page-id>
 			Runs only as `magic-coordinator`; any other name is refused
 			with 1. Puts that page under that parent, so it becomes that
@@ -1793,22 +1809,6 @@
 			pages before sending it again. **8**: the page or its new
 			parent is missing, or this identity does not see it. **9**:
 			refused, and nothing moved.
-
-			Never purges a page -- a deleted page reads back as
-			status 8 (a 404 under the default view); nothing here
-			restores a page.
-
-			Returns 0 when deleted, nothing on stdout. **3**: UNKNOWN
-			-- the delete may still have taken effect; read the page
-			before acting again, never repeat blindly. **9**:
-			refused -- not deleted, retrying won't help. Every other
-			status also means not deleted. A 404 (status 8) does NOT
-			establish absence -- it also covers a page this account
-			may not delete.
-
-			A failure prints one stderr line: the mark, this
-			operation's name, the status, and Confluence's body
-			verbatim.
 
 		--client-comms-confluence-space-list [--team-member <team-member>] [--cursor <value>]
 			Runs only as a `client-*` member, under that member's own

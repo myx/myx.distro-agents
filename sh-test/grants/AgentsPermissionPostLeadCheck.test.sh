@@ -56,7 +56,7 @@ rigHolds(){ ## file, text
 	esac
 }
 rigVerdictLine(){
-	LC_ALL=C awk '/^VERDICT: / { print ; found = 1 ; exit ; } END { if ( ! found ) { print "no-verdict-line" ; } }' "$rigScenarioDir/out"
+	LC_ALL=C awk '/^VERDICT: / { print ; found = 1 ; exit ; } END { if ( ! found ) { print "no-verdict-line" ; } ; }' "$rigScenarioDir/out"
 }
 rigRecordFile(){
 	local recordFile
@@ -76,7 +76,7 @@ rigRefusal(){ ## output file -> the refusal id it printed
 ## The text a post, or an edit of one, carries: the JSON string of its body, as sent.
 rigTextOf(){ ## body file
 	[ -f "$1" ] || { printf 'no-such-file' ; return 0 ; }
-	LC_ALL=C awk '{ at = index( $0, "\"text\":\"" ) ; if ( ! at ) { next ; } rest = substr( $0, at + 8 ) ; end = 0 ; marks[1] = "\",\"thread_ts\":" ; marks[2] = "\",\"ts\":" ; marks[3] = "\",\"blocks\":" ; for ( markNo = 1 ; markNo <= 3 ; markNo++ ) { markAt = index( rest, marks[markNo] ) ; if ( markAt > 0 && ( end == 0 || markAt < end ) ) { end = markAt ; } } if ( end > 0 ) { print substr( rest, 1, end - 1 ) ; } exit ; }' "$1"
+	LC_ALL=C awk '{ at = index( $0, "\"text\":\"" ) ; if ( ! at ) { next ; } rest = substr( $0, at + 8 ) ; end = 0 ; marks[1] = "\",\"thread_ts\":" ; marks[2] = "\",\"ts\":" ; marks[3] = "\",\"blocks\":" ; for ( markNo = 1 ; markNo <= 3 ; markNo++ ) { markAt = index( rest, marks[markNo] ) ; if ( markAt > 0 && ( end == 0 || markAt < end ) ) { end = markAt ; } ; } if ( end > 0 ) { print substr( rest, 1, end - 1 ) ; } exit ; }' "$1"
 }
 ## The first line of a permission post, under its title: what the person is asked to allow.
 rigLeadOf(){ ## body file
@@ -91,7 +91,7 @@ rigLeadOf(){ ## body file
 rigUnderTitle(){ ## body file, text
 	local underText
 	underText="$( rigTextOf "$1" )"
-	printf '%s\n' "${underText#*'# 🔐 Permission'}" | LC_ALL=C awk -v want="$2" '{ rest = $0 ; while ( ( at = index( rest, want ) ) > 0 ) { hitCount++ ; rest = substr( rest, at + length( want ) ) ; } } END { print hitCount + 0 ; }'
+	printf '%s\n' "${underText#*'# 🔐 Permission'}" | LC_ALL=C awk -v want="$2" '{ rest = $0 ; while ( ( at = index( rest, want ) ) > 0 ) { hitCount++ ; rest = substr( rest, at + length( want ) ) ; } ; } END { print hitCount + 0 ; }'
 }
 ## What stands under `Why this task needs it`, up to the next heading.
 rigWhyOf(){ ## body file
@@ -104,7 +104,7 @@ rigWhyOf(){ ## body file
 }
 ## How many times a text stands in the text of a post.
 rigTimesIn(){ ## body file, text
-	rigTextOf "$1" | LC_ALL=C awk -v want="$2" '{ rest = $0 ; while ( ( at = index( rest, want ) ) > 0 ) { hitCount++ ; rest = substr( rest, at + length( want ) ) ; } } END { print hitCount + 0 ; }'
+	rigTextOf "$1" | LC_ALL=C awk -v want="$2" '{ rest = $0 ; while ( ( at = index( rest, want ) ) > 0 ) { hitCount++ ; rest = substr( rest, at + length( want ) ) ; } ; } END { print hitCount + 0 ; }'
 }
 
 ## The posts of a scenario that are permission requests, known by their title. A post is found

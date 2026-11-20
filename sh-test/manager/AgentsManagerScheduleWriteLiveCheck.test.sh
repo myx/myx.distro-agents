@@ -53,14 +53,14 @@ rigRun(){ ## the operation and its words; prints what it printed and sets rigRc,
 }
 rigRead(){ ## a flag's answer in --manager-schedule-read, by its name
 	rigRun --manager-schedule-read
-	LC_ALL=C awk -v want="$1" -F'\t' '$1 == "flag" && $2 == want { print $3 ; exit }' <<< "$rigOut"
+	LC_ALL=C awk -v want="$1" -F'\t' '$1 == "flag" && $2 == want { print $3 ; exit ; }' <<< "$rigOut"
 }
 
 ## ---- the four calls, each with the state it must leave ----
 ## The weekend flag answers whether today is one of the weekend's days, so the check names today: the read's own `now` row
 ## gives the weekday, and the weekend is set to it. That keeps the flag assertion true on any day of the week.
 rigRun --manager-schedule-read
-rigToday="$( LC_ALL=C awk -F'\t' '$1 == "now" { print $3 ; exit }' <<< "$rigOut" )"
+rigToday="$( LC_ALL=C awk -F'\t' '$1 == "now" { print $3 ; exit ; }' <<< "$rigOut" )"
 case "$rigToday" in mon|tue|wed|thu|fri|sat|sun) rigTodayOk="yes" ;; *) rigTodayOk="no" ;; esac
 rigAssert "the schedule read names today's weekday, so the weekend can be set to it" "$rigTodayOk" "yes"
 rigRun --manager-schedule-set-weekend "$rigToday"
@@ -80,13 +80,13 @@ rigAssert "set-worktime answers exit 0" "$rigRc" "0"
 ## window (AgentsManagerScheduleGrid / --manager-schedule-read). The window is read off those cells, which is the shape the
 ## screen draws.
 rigRun --manager-schedule-read
-rigCells="$( LC_ALL=C awk -F'\t' '$1 == "cell" && $2 == "mon" && $4 == "worktime" { printf "%s ", $3 }' <<< "$rigOut" )"
+rigCells="$( LC_ALL=C awk -F'\t' '$1 == "cell" && $2 == "mon" && $4 == "worktime" { printf "%s ", $3 ; }' <<< "$rigOut" )"
 rigAssert "and the read then puts Monday's working cells at 07:00 through 22:00, not the default window" "$rigCells" "07 08 09 10 11 12 13 14 15 16 17 18 19 20 21 22 "
 
 rigRun --manager-schedule-set-worktime 25:00 23:00 workdays
 rigAssert "a worktime of 25:00 is refused with exit 1" "$rigRc" "1"
 rigRun --manager-schedule-read
-rigCells="$( LC_ALL=C awk -F'\t' '$1 == "cell" && $2 == "mon" && $4 == "worktime" { printf "%s ", $3 }' <<< "$rigOut" )"
+rigCells="$( LC_ALL=C awk -F'\t' '$1 == "cell" && $2 == "mon" && $4 == "worktime" { printf "%s ", $3 ; }' <<< "$rigOut" )"
 rigAssert "and the window the read gives is still the good one" "$rigCells" "07 08 09 10 11 12 13 14 15 16 17 18 19 20 21 22 "
 
 rigRun --manager-schedule-override-flag worktime

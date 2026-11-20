@@ -75,7 +75,7 @@ rigAssert "after TERM the server itself is gone" "$4" no
 printf -- '-- 2. the check is able to fail --\n'
 mkdir -p "$rigTmp/seeded/myx.common/bin/lib" || exit 1
 rigSeeded="$rigTmp/seeded/myx.common/bin/lib/agentMcpServer.Common"
-awk '{ if ( $0 == "\t\tAgentMcpEndDescendants \"$endPid\"" ) { print "\t\tpkill -TERM -P \"$endPid\" 2>/dev/null || true" ; print "\t\tkill -TERM \"$endPid\" 2>/dev/null || true" } else print }' "$rigServer" > "$rigSeeded" || exit 1
+awk '{ if ( $0 == "\t\tAgentMcpEndDescendants \"$endPid\"" ) { print "\t\tpkill -TERM -P \"$endPid\" 2>/dev/null || true" ; print "\t\tkill -TERM \"$endPid\" 2>/dev/null || true" ; } else print ; }' "$rigServer" > "$rigSeeded" || exit 1
 rigAssert "the seeded copy is not the server as it stands: the descendant walk is gone from it" "$( grep -c -F 'AgentMcpEndDescendants "$endPid"' "$rigSeeded" || : )" 0
 sh -n "$rigSeeded" 2> /dev/null && sh -n "$rigServer" 2> /dev/null && rigParses=yes || rigParses=no
 rigAssert "both the seeded copy and the server parse as sh" "$rigParses" yes

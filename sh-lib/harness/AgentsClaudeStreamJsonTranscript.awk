@@ -64,7 +64,7 @@ function stjAppend(blockText) {
 	if (++stjWrites >= 200) {
 		close(stjPath)
 		stjResolve()
-		if (stjPath == "") { stjOn = 0 ; return }
+		if (stjPath == "") { stjOn = 0 ; return ; }
 	}
 	print blockText >> stjPath
 	fflush(stjPath)
@@ -73,7 +73,7 @@ function stjAppend(blockText) {
 	## what this run needs and empty while the feed is off.
 	## Opened for each write: the poster takes the feed whole by renaming it, and a write
 	## through a handle kept open would land in the feed it took.
-	if (stjFeed != "") { print blockText >> stjFeed ; close(stjFeed) }
+	if (stjFeed != "") { print blockText >> stjFeed ; close(stjFeed) ; }
 }
 
 function stjStamp() {
@@ -172,7 +172,7 @@ function stjValueEnd(lineText, fromAt,   scanAt, scanChar, depthCount, inString,
 		}
 		if (scanChar == "\"") inString = 1
 		else if (scanChar == "{" || scanChar == "[") depthCount++
-		else if (scanChar == "}" || scanChar == "]") { depthCount-- ; if (depthCount == 0) return scanAt }
+		else if (scanChar == "}" || scanChar == "]") { depthCount-- ; if (depthCount == 0) return scanAt ; }
 	}
 	return 0
 }
@@ -194,7 +194,7 @@ function stjAssistant(lineText,   headText, contentAt, messageId, messageError, 
 		stjMsgIn = 0 ; stjMsgCr = 0 ; stjMsgCw = 0 ; stjMsgOut = 0
 	}
 	## The latest usage snapshot of this message stands: output grows as it streams.
-	if (stjUsage(lineText)) { stjMsgIn = stjUsageIn ; stjMsgCr = stjUsageCr ; stjMsgCw = stjUsageCw ; stjMsgOut = stjUsageOut }
+	if (stjUsage(lineText)) { stjMsgIn = stjUsageIn ; stjMsgCr = stjUsageCr ; stjMsgCw = stjUsageCw ; stjMsgOut = stjUsageOut ; }
 	cursorAt = 1
 	while (1) {
 		restText = substr(lineText, cursorAt)
@@ -288,7 +288,7 @@ function stjResult(lineText,   resultText, turnsText, isError) {
 	isError = (lineText ~ /"is_error":true/)
 	turnsText = stlJsonScalar(lineText, "num_turns")
 	## The run's own totals are authoritative over the per-round sum.
-	if (stjUsage(lineText)) { stjRunIn = stjUsageIn ; stjRunCr = stjUsageCr ; stjRunCw = stjUsageCw ; stjRunOut = stjUsageOut }
+	if (stjUsage(lineText)) { stjRunIn = stjUsageIn ; stjRunCr = stjUsageCr ; stjRunCw = stjUsageCw ; stjRunOut = stjUsageOut ; }
 	stjTokensWrite()
 	resultText = stlJsonStr(lineText, "result")
 	## An error the CLI ended on is its result, or its own `errors`, kept in full (16 KB).
