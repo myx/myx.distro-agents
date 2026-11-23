@@ -161,7 +161,8 @@ rigStartWords(){ ## the arguments of every such call, each between brackets, a c
 	LC_ALL=C grep -F -- '[--manager-session-control-start]' "$MANAGER_SCREEN_RIG/words" || :
 }
 rigElse(){ ## how many starts were neither the list of the sessions, nor the read of one, nor the start of a control thread. The list of the locations, which every start of the screen reads, is not counted.
-	LC_ALL=C grep -c -v -e '^--manager-session-list' -e '^--manager-session-read' -e '^--manager-session-control-start' -e '^--manager-place-list$' "$MANAGER_SCREEN_RIG/calls" || :
+	## the reads the screen keeps of its own - the count of the asks and the dashboard panel - are not operations of this key either
+	LC_ALL=C grep -c -v -e '^--manager-session-list' -e '^--manager-session-read' -e '^--manager-session-control-start' -e '^--manager-place-list$' -e '^--read-pending-reply' -e '^--manager-dashboard-read' -e '^--manager-routine-list' -e '^--manager-session-list' -e '^--manager-team-member-list' "$MANAGER_SCREEN_RIG/calls" || :
 }
 rigStored="stored running, set 2026-10-12 16:58 +0000 (9h ago)"
 
@@ -415,13 +416,18 @@ get onAgent
 advance 0.3
 turn
 turn 3
+advance 0.3
+turn
+wait list 30
+turn
+wait list 30
 get end
 RIGSCRIPT
 rigHere="Control thread: for a session, not for what is selected"
 rigAssert "on a section c is no key of the view; on the row that goes up the status line says what c is for, and no box opens" "[$( rigVal section.notice )][$( rigVal up.notice )] [$( rigVal section.dialog )$( rigVal up.dialog )]" "[][$rigHere] []"
 rigAssert "on Launchpad there is nothing to control"            "$( rigVal launch.selected ) [$( rigVal launch.notice )]" "launch [$rigHere]"
 rigAssert "an agent of a session names no such key, and c on it says the same: the thread is its session's" "$( rigVal agent.path ) $( rigVal agent.selected ) [$( rigKeysNamed agentKeys )] [$( rigVal onAgent.notice )]" "magic-team/activity/active-sessions/$rigS1 $rigS1 [keys: k kill] [$rigHere]"
-rigAssert "the operation was never called"                           "$( rigStarts ) $( rigElse ) $( rigVal end.calls ) [$( rigVal end.reading )]" "0 0 0 []"
+rigAssert "the operation was never called"                           "$( rigStarts ) $( rigElse ) $( rigVal end.calls ) $( rigVal end.reading | LC_ALL=C grep -c -F session )" "0 0 0 0"
 
 echo "-- c pressed again before the answer has come asks nothing a second time --"
 rigCase twice

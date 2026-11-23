@@ -81,16 +81,18 @@ AgentsSessionSandboxChecklist(){ ## sandbox, member
 	' "${listFiles[@]}" 2> /dev/null
 }
 
-## A member's CheckList in a spawn sandbox, its lines: first the name of the file it is kept in, then each line. rc 1 where there is none.
+## A member's CheckList in a spawn sandbox, its lines: first the name of the file it is kept in, then each line as a reader of
+## the list sees it (the store owner's tagged form). rc 1 where there is none.
 AgentsSessionSandboxChecklistLines(){ ## sandbox, member
-	local linesStore="" linesFile="" linesOne
+	local linesStore="" linesFile=""
 	case "${1:-}:${2:-}" in :*|*:|*/*|-:*|*:-|.:*|..:*|*:.|*:..) return 1 ;; esac
 	type AgentsSpawnedStoreDirInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.Paths.include"
 	AgentsSpawnedStoreDirInto linesStore "${MMDAPP:-}" || return 1
 	printf -v linesFile '%s/%s/%s.checklist.md' "$linesStore" "${1:-}" "${2:-}"
 	[ -f "$linesFile" ] || return 1
 	printf '%s\n' "$linesFile"
-	while IFS= read -r linesOne || [ -n "$linesOne" ] ; do printf '%s\n' "$linesOne" ; done < "$linesFile"
+	type AgentsToolsCheckListSourcesTagged > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.CheckListSources.include"
+	AgentsToolsCheckListSourcesTagged "$linesFile"
 	return 0
 }
 
@@ -109,9 +111,10 @@ AgentsSessionSandboxLogTail(){ ## sandbox, session, lines
 	return 1
 }
 
-## The CheckList the calling run keeps: first its member, then its lines. The one under its native session's store, else under its spawn's sandbox.
+## The CheckList the calling run keeps: first its member, then its lines as a reader of the list sees them (the store owner's
+## tagged form). The one under its native session's store, else under its spawn's sandbox.
 AgentsSessionOwnChecklistLines(){ ## native session id (may be empty), spawn sandbox (may be empty)
-	local ownSessionStore="" ownSpawnStore="" ownList ownLine ownMember
+	local ownSessionStore="" ownSpawnStore="" ownList ownMember
 	type AgentsSessionStoreDirInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.Paths.include"
 	AgentsSessionStoreDirInto ownSessionStore "${MMDAPP:-}" || ownSessionStore="/nonexistent/.local/agents/sessions"
 	AgentsSpawnedStoreDirInto ownSpawnStore "${MMDAPP:-}" || ownSpawnStore="/nonexistent/.local/agents/spawned"
@@ -119,7 +122,8 @@ AgentsSessionOwnChecklistLines(){ ## native session id (may be empty), spawn san
 		[ -f "$ownList" ] || continue
 		ownMember="${ownList##*/}"
 		printf '%s\n' "${ownMember%.checklist.md}"
-		while IFS= read -r ownLine || [ -n "$ownLine" ] ; do printf '%s\n' "$ownLine" ; done < "$ownList"
+		type AgentsToolsCheckListSourcesTagged > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.CheckListSources.include"
+		AgentsToolsCheckListSourcesTagged "$ownList"
 		return 0
 	done
 	return 0

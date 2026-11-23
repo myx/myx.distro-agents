@@ -1280,6 +1280,13 @@ def participantRows(state, path):
             break
     ## A LEVEL REACHED WITHOUT ITS LIST READ, as a path jumps straight into it, takes the session from the store the screen keeps: the rows of the level above
     ## it were never asked for, and the pane would be empty.
+    ## A FOLDER ENTERED BY ITS PATH HAS ITS SESSION ONE LEVEL HIGHER: the parent is the session's own folder, whose list is the agents, so the session row
+    ## that carries the runs is in the section's list, named by the folder above this one.
+    if found is None and len(path) >= 2:
+        for one in listedRows(state, path[:-2]) or ():
+            if one["id"] == path[-2] and one.get("session"):
+                found = one
+                break
     if found is None:
         found = sessionRowOf(state, path[-1])
     if found is None:

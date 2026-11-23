@@ -1543,7 +1543,10 @@ if [ -n "$harnessToolOnly" ] ; then
 		fi
 		harnessExitClean=1 ; exit 0
 	fi
-	harnessToolOnlyArgs="$( cat )"
+	## A builtin read, not a capture: a capture forks a process per served call. The trailing newlines
+	## are stripped as the capture strips them, so the value the readers below see is unchanged.
+	harnessToolOnlyArgs="" ; IFS= read -r -d '' harnessToolOnlyArgs || :
+	while : ; do case "$harnessToolOnlyArgs" in *$'\n') harnessToolOnlyArgs="${harnessToolOnlyArgs%$'\n'}" ;; *) break ;; esac ; done
 	[ -n "$harnessToolOnlyArgs" ] || harnessToolOnlyArgs="{}"
 	AgentsTranscriptToolStart "$harnessToolOnlyName" || :
 	AgentsHarnessAnnounceTool "$harnessToolOnlyName" "$harnessToolOnlyArgs"
@@ -2303,7 +2306,10 @@ while : ; do
 		## Top-level code of the harness, not a function: no `local` here, or bash ends the leg with "local: can only be used in a function".
 		restartState="" restartLine="" restartDecisions="" restartItem="" restartItemPath=""
 		if AgentsHarnessCheckListPlace 2> /dev/null && [ -s "$checkListFolder/$checkListMember.checklist.md" ] ; then
-			restartState="$( LC_ALL=C head -c 12000 "$checkListFolder/$checkListMember.checklist.md" 2> /dev/null )" || restartState=""
+			## The list as a reader of it sees it, still cut at the same length: the fresh leg is told which items it may drop and
+			## which it may not, in the one tagged form the CheckList read carries.
+			type AgentsToolsCheckListSourcesTagged > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.CheckListSources.include"
+			restartState="$( AgentsToolsCheckListSourcesTagged "$checkListFolder/$checkListMember.checklist.md" | LC_ALL=C head -c 12000 )" || restartState=""
 		fi
 		type AgentsSessionDispatchItemInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.BoardDispatchRuns.include"
 		AgentsSessionDispatchItemInto restartItem "${MDAT_SPAWN_SESSION_ID:-}" || restartItem=""

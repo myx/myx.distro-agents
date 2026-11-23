@@ -78,13 +78,14 @@ function routineExecutorsMemberList( value,   entries, count, entryAt, splitPart
 ## The answer for a shell caller: the mode is `mode`, passed with -v, the value EXECUTORS_VALUE and the member
 ## EXECUTORS_MEMBER. A caller that preloads this file for its functions passes no mode, and nothing is printed.
 BEGIN {
-	if ( mode == "" ) exit 0
-	if ( mode == "entries" ) {
+	## NO MODE IS A PRELOAD: the caller's own program runs and this file only defines the functions. It used to `exit 0` here, which ended the
+	## caller's awk as well - the fast reader of the routines printed no row at all, and every screen that read that list said "none".
+	if ( mode == "" ) { }
+	else if ( mode == "entries" ) {
 		count = routineExecutorsEntries( ENVIRON["EXECUTORS_VALUE"], entries )
 		for ( entryAt = 1 ; entryAt <= count ; entryAt++ ) { split( entries[entryAt], splitParts, "\034" ) ; printf "%s\t%s\n", splitParts[1], splitParts[2] }
 		exit 0
 	}
-	if ( mode == "params" ) { print routineExecutorsParams( ENVIRON["EXECUTORS_VALUE"], ENVIRON["EXECUTORS_MEMBER"] ) ; exit 0 }
-	print routineExecutorsMemberList( ENVIRON["EXECUTORS_VALUE"] )
-	exit 0
+	else if ( mode == "params" ) { print routineExecutorsParams( ENVIRON["EXECUTORS_VALUE"], ENVIRON["EXECUTORS_MEMBER"] ) ; exit 0 }
+	else { print routineExecutorsMemberList( ENVIRON["EXECUTORS_VALUE"] ) ; exit 0 }
 }

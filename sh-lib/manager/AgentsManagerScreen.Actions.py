@@ -22,6 +22,9 @@ def callWords(callName, callId="", sessionName=""):
 ## selected now where `about` names none.
 def askCall(state, actionName, callId, words, inputText, about=None):
     key = "action:%s:%s" % (actionName, callId) if not (about or {}).get("escalation") else "action:%s:%s:%s" % (actionName, about["escalation"], callId)
+    ## ONE ACTION ONCE: a key pressed again before its answer has come asks nothing a second time - the call of that key is already queued or out.
+    if any(call.get("key") == key for call in state.calls):
+        return
     state.calls.append({"key": key, "words": words, "input": inputText})
     told = {"viewKey": viewKeyOf(state)}
     told.update(about or {})
@@ -157,12 +160,11 @@ def applyCall(state, result):
     state.noticeOf = None
     state.answer = {"key": about["viewKey"], "lines": [title] + lines} if about["viewKey"] == viewKeyOf(state) else None
     readNow(state, standToo=True)
-    ## A SESSION THE ACTION CHANGED IS SHOWN FROM A LIST THAT WAS READ BEFORE IT: the section stands on the one list read, so that read is asked again
-    ## for the change to be visible - the action's own read is the item's, not the list's.
-    if "sessions" in (state.rows or {}) or any(key.startswith("list:") and "activity" in key for key in state.rows):
-        for key in ("list:activity",):
-            if key in state.levelsOf or any(other.startswith(key) for other in state.levelsOf):
-                state.forced.add(key)
+    ## THE LIST THAT SHOWED THE ITEM IS ASKED AGAIN: the action changed what the list would say of it, and the level stands on that one read (the
+    ## section's own key is an alias, so the read it names is the one to ask).
+    shown = listReadOf(state.path)
+    if shown is not None:
+        state.forced.add(shown[0])
 
 
 ## An answer, reject, dismissal or kill refused for the authority it needs (F6.10, the status

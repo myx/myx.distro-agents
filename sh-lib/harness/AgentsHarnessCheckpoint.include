@@ -44,7 +44,7 @@
 ## arrival or the keepalive the same way. Any request after an idle one, in the same round, is dropped: it was made for a conversation
 ## that is no more.
 ##
-## Files, in the run's own store (sessions/<spawn id>/): `snapshots` (the stack as it stands now, a line each: name, kind, count, tools
+## Files, in the run's own session folder: `snapshots` (the stack as it stands now, a line each: name, kind, count, tools
 ## checksum, system checksum, time, tab-separated), `checkpoint.request` (what the executor asked, a line each: push <name>, rewind
 ## [<name>], exit, idle <timeout or -> [<source> ...]), `checkpoint.dispatch` (the input a rewind is given, whole). Nothing here is team
 ## data.

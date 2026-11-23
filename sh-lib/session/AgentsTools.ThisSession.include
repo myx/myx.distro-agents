@@ -416,7 +416,7 @@ AgentsToolsThisSessionSingleParticipant(){ ## routine file path
 
 AgentsToolsThisSessionIdleWait(){ ## the operation's arguments
 	local idleBound="" idleRoutine idleFile="" idleLine idleScan idleWord idleSources="" idleStore idleHeld idleTarget="" idleShown idleTail idleQuiet=""
-	local idleBusy="" idleBusyCount idleMark idleSignal=""
+	local idleBusy="" idleBusyCount idleMark idleSignal="" idleGateList="" idleParents=""
 	while [ $# -gt 0 ] ; do
 		case "$1" in
 			--wait-timeout)
@@ -442,6 +442,18 @@ AgentsToolsThisSessionIdleWait(){ ## the operation's arguments
 	## THE GATE: what the run's own list still holds is work, and it is given back at once, so a list is the queue here as it is at a Wait.
 	## The item naming --idle-wait is the recurring wait-for-more one and is done by this call, so it passes.
 	type AgentsSessionChecklistOpenInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.CheckListSeed.include"
+	## A MANDATORY ITEM IS NO WAIT'S: the parent's items are read here, before the wait-item exemption below, so an item reading
+	## "wait for more" that a parent set still holds this run. Nothing is waited on and no request is written.
+	AgentsSessionChecklistFileInto idleGateList "${MDAT_SPAWN_SESSION_ID}" "$MDAT_SPAWN_AGENT" || idleGateList=""
+	if [ -n "$idleGateList" ] && [ -f "$idleGateList" ] ; then
+		type AgentsToolsCheckListSourcesOpenParents > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.CheckListSources.include"
+		idleParents="$( AgentsToolsCheckListSourcesOpenParents "$idleGateList" )"
+		if [ -n "$idleParents" ] ; then
+			printf 'REFUSED: --idle-wait: this run'"'"'s CheckList holds %s mandatory item(s) its parent set, and they are still open.\nNothing was waited on, and no wait was requested.\nClose each with CheckList, writing the same text with status completed:\n%s\n' \
+				"$( LC_ALL=C awk 'END { print NR ; }' <<< "$idleParents" )" "$idleParents"
+			return 0
+		fi
+	fi
 	AgentsSessionChecklistOpenInto idleBusy "$MDAT_SPAWN_SESSION_ID" "$MDAT_SPAWN_AGENT"
 	if [ -n "$idleBusy" ] ; then
 		idleBusyCount="$( LC_ALL=C awk 'END { print NR ; }' <<< "$idleBusy" )"

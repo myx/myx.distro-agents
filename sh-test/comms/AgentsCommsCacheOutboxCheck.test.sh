@@ -33,7 +33,17 @@ trap 'rm -rf -- "$rigTmp"' EXIT
 rigCache="$rigTmp/cache/slack/slack-CRIG"
 mkdir -p "$rigCache" || exit 1
 
+## THE RIG'S OWN WORKSPACE, and every call below runs with it as MMDAPP. The pusher reads the workspace's rate-limit pause,
+## `$MMDAPP/.local/agents/comms/pause`, and the append marks `$MMDAPP/.local/agents/comms/work/<session>`. Both are the
+## workspace's own, so with the real workspace as MMDAPP a live pause stands against this check's own hand-set clock and
+## stalls a pass that must post, and the check writes the team's live state. The rig's workspace holds neither.
+rigWs="$rigTmp/ws"
+mkdir -p "$rigWs/.local/temp" || exit 1
+
 . "$rigInclude"
+
+## From here on, every call is the rig's, never the workspace the check was started in.
+MMDAPP="$rigWs"
 
 ## The post the pusher makes, stubbed: it records what it was given and answers with rigPostRc. A refusal (1) is the expected
 ## outcome of a rate limit, which the state has to hold for the next pass.

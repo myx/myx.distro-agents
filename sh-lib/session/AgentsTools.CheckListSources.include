@@ -23,10 +23,36 @@ AgentsToolsCheckListSourcesList(){ ## the list file
 	sourcesStore="$( AgentsToolsCheckListSourcesPath "$1" )"
 	[ -n "$sourcesStore" ] && [ -f "$sourcesStore" ] || sourcesStore="/dev/null"
 	CHECKLIST_STORE="$sourcesStore" LC_ALL=C awk '
-		function itemText( line ) { sub( /^- \[[ x~]\] /, "", line ) ; sub( / \(due: [^)]*\)$/, "", line ) ; sub( / \(in progress: .*$/, "", line ) ; sub( / \[step\]$/, "", line ) ; sub( / \[parent\]$/, "", line ) ; return line ; }
+		function itemText( line ) { sub( /^- \[[ x~]\] /, "", line ) ; sub( / \(in progress: .*$/, "", line ) ; sub( / \(due: [^)]*\)$/, "", line ) ; sub( / \[step\]$/, "", line ) ; sub( / \[parent\]$/, "", line ) ; return line ; }
 		FILENAME == ENVIRON["CHECKLIST_STORE"] { at = index( $0, "\t" ) ; if ( at > 1 ) { mark[substr( $0, at + 1 )] = substr( $0, 1, at - 1 ) ; } ; next ; }
 		/^- \[[ x~]\] / { text = itemText( $0 ) ; print ( text in mark ? mark[text] : "own" ) ; }
 	' "$sourcesStore" "$1" 2> /dev/null
+}
+
+## A list as a reader of it sees it: its own text, with the source of each item that is not the member's own shown beside
+## it, ` [step]` or ` [parent]`, and nothing for `own`, so an item no mark names reads exactly as it always did.
+AgentsToolsCheckListSourcesTagged(){ ## the list file
+	local taggedStore
+	taggedStore="$( AgentsToolsCheckListSourcesPath "$1" )"
+	[ -n "$taggedStore" ] && [ -f "$taggedStore" ] || taggedStore="/dev/null"
+	CHECKLIST_STORE="$taggedStore" LC_ALL=C awk '
+		function itemText( line ) { sub( /^- \[[ x~]\] /, "", line ) ; sub( / \(in progress: .*$/, "", line ) ; sub( / \(due: [^)]*\)$/, "", line ) ; sub( / \[step\]$/, "", line ) ; sub( / \[parent\]$/, "", line ) ; return line ; }
+		FILENAME == ENVIRON["CHECKLIST_STORE"] { at = index( $0, "\t" ) ; if ( at > 1 ) { mark[substr( $0, at + 1 )] = substr( $0, 1, at - 1 ) ; } ; next ; }
+		{ if ( $0 ~ /^- \[[ x~]\] / ) { text = itemText( $0 ) ; if ( ( text in mark ) && mark[text] != "own" ) { print $0 " [" mark[text] "]" ; next ; } ; } ; print ; }
+	' "$taggedStore" "$1" 2> /dev/null
+}
+
+## Every open item a parent set, as the list holds it, one a line: the work a whole-list write keeps and no text-shaped
+## exemption reaches, so an item whose own words happen to name a wait or a handback is still that parent's item.
+AgentsToolsCheckListSourcesOpenParents(){ ## the list file
+	local parentsStore
+	parentsStore="$( AgentsToolsCheckListSourcesPath "$1" )"
+	[ -n "$parentsStore" ] && [ -f "$parentsStore" ] || parentsStore="/dev/null"
+	CHECKLIST_STORE="$parentsStore" LC_ALL=C awk '
+		function itemText( line ) { sub( /^- \[[ x~]\] /, "", line ) ; sub( / \(in progress: .*$/, "", line ) ; sub( / \(due: [^)]*\)$/, "", line ) ; sub( / \[step\]$/, "", line ) ; sub( / \[parent\]$/, "", line ) ; return line ; }
+		FILENAME == ENVIRON["CHECKLIST_STORE"] { at = index( $0, "\t" ) ; if ( at > 1 ) { mark[substr( $0, at + 1 )] = substr( $0, 1, at - 1 ) ; } ; next ; }
+		/^- \[[ ~]\] / { text = itemText( $0 ) ; if ( ( text in mark ) && mark[text] == "parent" ) { print $0 ; } }
+	' "$parentsStore" "$1" 2> /dev/null
 }
 
 ## Writes the marks of a list as it now stands, and drops a mark whose item has left the list: a member that deletes
@@ -41,7 +67,7 @@ AgentsToolsCheckListSourcesMark(){ ## the list file, the step names (a line each
 	: >> "$sourcesStore" 2> /dev/null || return 1
 	sourcesTemp="$( mktemp "$sourcesStore.XXXXXX" 2> /dev/null )" || return 1
 	CHECKLIST_STORE="$sourcesStore" CHECKLIST_STEPS="${2:-}" CHECKLIST_ADDED="${3:-}" LC_ALL=C awk '
-		function itemText( line ) { sub( /^- \[[ x~]\] /, "", line ) ; sub( / \(due: [^)]*\)$/, "", line ) ; sub( / \(in progress: .*$/, "", line ) ; sub( / \[step\]$/, "", line ) ; sub( / \[parent\]$/, "", line ) ; return line ; }
+		function itemText( line ) { sub( /^- \[[ x~]\] /, "", line ) ; sub( / \(in progress: .*$/, "", line ) ; sub( / \(due: [^)]*\)$/, "", line ) ; sub( / \[step\]$/, "", line ) ; sub( / \[parent\]$/, "", line ) ; return line ; }
 		FILENAME == ENVIRON["CHECKLIST_STORE"] { at = index( $0, "\t" ) ; if ( at > 1 ) { heldLine[++heldCount] = $0 ; heldText[heldCount] = substr( $0, at + 1 ) ; } ; next ; }
 		/^- \[[ x~]\] / { itemNo++ ; itemLine[itemNo] = itemText( $0 ) ; }
 		END {
@@ -77,7 +103,7 @@ AgentsToolsCheckListReplace(){ ## the list file, the step names of the routine n
 	replaceMarkTemp="$( mktemp "$replaceStore.XXXXXX" 2> /dev/null )" || replaceMarkTemp=""
 	replaceShape="$( CHECKLIST_STEPS="${2:-}" CHECKLIST_MARKS="$( AgentsToolsCheckListSourcesList "$replaceFile" )" \
 		CHECKLIST_LIST_OUT="$replaceTemp" CHECKLIST_MARKS_OUT="$replaceMarkTemp" LC_ALL=C awk '
-		function itemText( line ) { sub( /^- \[[ x~]\] /, "", line ) ; sub( / \(due: [^)]*\)$/, "", line ) ; sub( / \(in progress: .*$/, "", line ) ; sub( / \[step\]$/, "", line ) ; sub( / \[parent\]$/, "", line ) ; return line ; }
+		function itemText( line ) { sub( /^- \[[ x~]\] /, "", line ) ; sub( / \(in progress: .*$/, "", line ) ; sub( / \(due: [^)]*\)$/, "", line ) ; sub( / \[step\]$/, "", line ) ; sub( / \[parent\]$/, "", line ) ; return line ; }
 		{
 			if ( $0 ~ /^- \[[ x~]\] / ) { itemNo++ ; itemLine[itemNo] = $0 ; itemSay[itemNo] = itemText( $0 ) ; next ; }
 			otherLine[++otherNo] = $0

@@ -258,6 +258,7 @@ The run-dispatch brief — a dispatch that starts work, never a plan. It shapes 
   - `boundary:` — the edit target, the reference-only places, and what is not the worker's.
   - `handback:` — what comes back, in what shape, and where.
 - The floors are seeded onto the session's CheckList before it starts work, so an open floor stops its `idle-wait`. Seed them with `AgentDispatcherTools.fn.sh --supervise-checklist-add <run-id> --item <floor>`, run in the session's own workspace.
+- A floor seeded onto a session's CheckList is a parent item, and it is mandatory. The member's rewrite of its list keeps every open parent item. Only the member closes one, by marking it done. A hand back and an `idle-wait` are refused while a parent item is open, and the refusal names the item.
 - The reviewer settles the handback against these sections (`magic-team.handback-review.routine`, **review-against-brief**).
 
 ## Spawn & authority structure

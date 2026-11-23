@@ -97,9 +97,6 @@ def shownReads(state):
         entry = viewReadOf(state, row, part)
         if entry and (part != "feed" or modeOf(state)["feed"]):
             values["id"] = row["id"]
-            ## A PARTICIPANT'S READ NAMES ITS RUN: the row's own id is the spawn it stands for, and {run} is the id of the run the read is of. Empty,
-            ## every agent of a session asked the same question in the same words - one answer served them all, and the second showed the first.
-            values["run"] = ((row.get("run") or {}).get("id") or "")
             values["routine"] = (row.get("routine") or {}).get("selector", "")
             wanted.append((part, part + ":" + viewKeyOf(state), readWords(entry, state, values)))
     return wanted
@@ -136,6 +133,11 @@ def wantedReads(state, focus=True):
         peeked = READS.get("list:" + row["id"]) if row is not None and row["kind"] == "section" else None
         if peeked and peeked.get("peek"):
             wanted.append((peeked.get("kind", "list"), "list:" + row["id"], readWords(peeked, state, {})))
+    ## WHAT IS SHOWN IS WHAT IS READ: a list kept in hand for another level, and the count of another level's list, are not asked here - opening
+    ## Active Sessions reads Active Sessions and nothing else. What a level needs beyond its own read is the view of the row selected (below), and
+    ## the dialog's offers while it is open.
+    ## WHAT IS SHOWN IS WHAT IS READ - at a section: its own list and the views of its rows, and nothing of another level. At the root those lists
+    ## are shown as the root's own panels, so the root asks them: opening Active Sessions reads Active Sessions alone.
     for key in sorted(READS):
         entry = READS[key]
         if entry and entry.get("always") and not (shown and shown[0] == key):
@@ -300,10 +302,17 @@ def restOf(state, now, focused):
 ## the selection rests and the reads of its item are due sooner than that. A screen that has
 ## heard nothing for a second and has nothing reading turns once a second: a key ends this
 ## wait at once, so nothing a person does waits on it, and an idle screen costs a fifth.
+## The turn of a screen that is waiting on the tooling: the spinner turns eight times a second, and a turn this short shows every frame of it. The
+## terminal is sent only the cells that changed (curses keeps the difference), so a short turn costs the spinner, not the screen.
+WAITING_TURN_SECONDS = 0.125
+
+
 def keyWait(state, now):
     left = restLeft(state, now)
     if left > 0:
         return min(TURN_SECONDS, left + 0.005)
+    if state.reading or state.calls:
+        return WAITING_TURN_SECONDS
     if not state.reading and not state.calls and now - state.movedAt >= IDLE_QUIET_SECONDS:
         return IDLE_TURN_SECONDS
     return TURN_SECONDS
@@ -342,10 +351,14 @@ def startDueReads(state, reader, now):
         ## too, instead of the tooling being asked again.
         ## A LIST KEEPS ITS OWN PERIOD: only the reads of an item are shared this way, since a list must be asked again when its period passes or its
         ## order changes.
-        if due and key.startswith(("view:", "feed:", "acts:", "fact:")) and tuple(words) in state.answersByWords:
-            ## the answer stands, for this key too: an action that forced the read again changes nothing for a question already answered
+        shared = state.answersByWords.get(tuple(words))
+        ## THE SHARE LASTS WHILE THE ANSWER IS FRESH, NEVER LONGER: an item's facts are read again when its period passes (the session's state, the
+        ## agents in it and the lists it holds change under it), and a share kept for ever left the pane of a live session as it was when opened.
+        ## THE SHARE SERVES A RE-AKSK, NEVER A REFRESH: an action that forced the read again, or a key asking what another just answered, shares it;
+        ## a read whose period has passed is asked again, which is what keeps a live session's pane current.
+        if due and key.startswith(("view:", "feed:", "acts:", "fact:")) and shared is not None and not aged:
             if key not in state.answered:
-                applyResult(state, dict(state.answersByWords[tuple(words)], key=key))
+                applyResult(state, dict(shared, key=key))
             continue
         if due and reader.start(kind, key, words):
             state.started[key] = {"at": now, "words": words}
@@ -409,7 +422,7 @@ def formApplies(formFacts, state):
 def applyResult(state, result):
     key = result["key"]
     if result.get("status") == 0 and not key.startswith("action:"):
-        state.answersByWords[tuple(result["words"])] = result
+        state.answersByWords[tuple(result["words"])] = dict(result, at=nowEpoch())
     if key.startswith("action:"):
         applyCall(state, result)
         return
@@ -565,8 +578,15 @@ class OperationReader:
             inputFile.write(inputText.encode("utf-8", "replace"))
             inputFile.flush()
             inputFile.seek(0)
+        ## THE STORE OF THE TEAM DATA IS NAMED FOR THE OPERATION: an operation that reads the vault finds it by MDAT_DATA_ROOT, and a screen started
+        ## without it gave every epic item "no data" - the list found the files, the read of the same name did not.
+        childEnv = dict(os.environ)
+        if not childEnv.get("MDAT_DATA_ROOT"):
+            dataRoot = self.workspace or os.environ.get("MMDAPP", "")
+            if dataRoot:
+                childEnv["MDAT_DATA_ROOT"] = os.path.join(dataRoot, ".local", "agents", "team-data-root")
         try:
-            process = subprocess.Popen(self.toolsCommand + list(words),
+            process = subprocess.Popen(self.toolsCommand + list(words), env=childEnv,
                                        stdin=subprocess.DEVNULL if inputFile is None else inputFile,
                                        stdout=outputFile, stderr=errorFile, start_new_session=True)
         except OSError as failure:

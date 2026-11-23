@@ -44,6 +44,9 @@ def isEmoji(cluster):
     ## THE SYMBOL BLOCKS ARE TEXT UNLESS A MARK SAYS OTHERWISE: Miscellaneous Symbols, Dingbats, Miscellaneous Technical and Symbols and Arrows
     ## (▼ ▬ ✂ ☑ ⚙ ⌚) are drawn one cell wide by the terminals we use; counting them as emoji moved every column after them by one and made the
     ## list ragged. A selector (U+FE0F), a join or a keycap above already carries the ones meant as emoji.
+    ## THE SYMBOL BLOCKS ARE TEXT UNLESS A MARK SAYS OTHERWISE: Miscellaneous Symbols, Dingbats, Miscellaneous Technical and Symbols and Arrows
+    ## (▼ ▬ ✂ ☑ ⚙ ⌚) are drawn one cell wide by the terminals we use; counting them as emoji moved every column after them by one and made the
+    ## list ragged. A selector (U+FE0F), a join or a keycap above already carries the ones meant as emoji.
     return first >= 0x1F000
 
 

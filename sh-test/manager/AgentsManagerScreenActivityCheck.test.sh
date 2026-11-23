@@ -259,7 +259,9 @@ keys DOWN ENTER
 get in
 rowids ids
 keys DOWN
-wait view 30
+advance 0.3
+turn
+waitinfo 5
 show a1
 RIGSCRIPT
 rigAssert "Enter on a session lists its agents, and stays in the tree of Activity" "$( rigVal in.path ) | $( rigVal ids )" "magic-team/activity/active-sessions/$rigS1 | .. $rigA1 $rigA2 -2"
@@ -278,7 +280,9 @@ cells i1 3 85 119
 cells i2 4 85 119
 cells i3 5 85 119
 keys DOWN
-wait view 30
+advance 0.3
+turn
+waittext 5
 show chk
 at @activity active-agents $rigA1
 advance 0.3
@@ -304,15 +308,21 @@ rigCase kept none
 : > "$MANAGER_SCREEN_RIG/rows.--manager-session-checklist-read --session-id $rigS1 magic-tester"
 rigScript <<RIGSCRIPT
 at @activity active-sessions $rigS1 $rigA2
+advance 0.3
 turn
+waitrows 2 5
 keys DOWN
-wait view 30
+advance 0.3
+turn
+waittext 5
 show none
 at @activity active-sessions $rigS1 $rigA1
 advance 0.3
 turn
 keys DOWN
-wait view 30
+advance 0.3
+turn
+waittext 5
 show kept
 RIGSCRIPT
 rigAssert "a participant who kept no check list says so in the member's own name, and not as `no data`" "$( rigPaneHolds none 'magic-tester has no checklist in this session.' ) $( rigPaneHolds none 'no data' )" "1 0"
@@ -323,11 +333,13 @@ rigCase transcript
 rigScript <<RIGSCRIPT
 at @activity active-sessions $rigS1 $rigA1
 turn
+turn
 keys DOWN DOWN
-wait view 30
+waitinfo 5
 border t1 1 0 84
 show s1
 keys l
+waitlines 5
 wait feed 30
 border t2 1 0 84
 show s2
@@ -393,7 +405,7 @@ get dlg
 RIGSCRIPT
 rigAssert "Team Members stands under Magic-Team (Agents), and lists the members" "$( rigVal tg.path ) | $( rigVal team )" "magic-team/team | .. magic-coordinator"
 rigAssert "a member holds its folders, Member Settings before Member Help" "$( rigVal member )" ".. permissions files sessions settings help"
-rigAssert "Enter on a session of a member stays in the tree of the member, and lists the agents of that session" "$( rigVal ses.path ) | $( rigVal sesids )" "magic-team/team/magic-coordinator/sessions/$rigS1 | .. $rigA1"
+rigAssert "Enter on a session of a member stays in the tree of the member, and lists the agents of that session" "$( rigVal ses.path ) | $( rigVal sesids )" "magic-team/team/magic-coordinator/sessions/$rigS1 | .. $rigA1 -2"
 rigAssert "Member Settings lists the lines of the scope of that member, and none of another" "$( rigVal setids )" ".. EMAIL_USER SLACK_BOT_TOKEN"
 rigAssert "as a table of the settings, a credential only as configured" "$( rigPaneHolds st 'Email User       coordinator@rig.example  default  EMAIL_USER' ) $( rigPaneHolds st 'Slack bot token  configured' )" "1 1"
 rigAssert "Enter on a line opens the form of that setting, on its value" "$( rigVal dlg.dialog ) | $( rigVal dlg.dialogTitle )" "setting-text:words|coordinator@rig.example | Email User"

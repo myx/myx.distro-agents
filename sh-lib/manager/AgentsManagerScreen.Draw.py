@@ -72,7 +72,44 @@ def emptyViewLine(state):
 ## holds no line yet, a read that fills it has not answered, and none of them has failed.
 ## Its lines come from the read of the selected item, of its log in a mode that shows
 ## one, or from the list of the level the row opens, which its summary is made of.
-@onShownLevel
+## THE FRAMES OF THE SPINNER, BY THE STYLE: the `nu` styling turns a watch face, and the styles that keep to plain pseudographics turn the classic
+## bar - a slash, a dash and a bar, one cell each, so the character sits in a title bar and in a block alike.
+SPINNER_NU = ("\u25f4", "\u25f5", "\u25f6", "\u25f7")
+SPINNER_PLAIN = ("|", "/", "-", "\\")
+
+
+## The frames this style turns.
+def spinnerFrames():
+    return SPINNER_NU if STYLE.get("name") == "nu" else SPINNER_PLAIN
+
+
+## Every frame of either set, for the harness to read a title without the mark.
+SPINNER = SPINNER_NU + SPINNER_PLAIN
+
+
+## The frame of the spinner for this moment.
+def spinnerNow():
+    frames = spinnerFrames()
+    return frames[int(nowEpoch() * 8) % len(frames)]
+
+
+## Whether the screen is waiting on the tooling at all: a read out, a call queued, or a call acting.
+def loadingShown(state):
+    return bool(state.reading or state.calls or state.follow is not None)
+
+
+## A spinner where the left window waits: a big one centred while it holds nothing of its item yet.
+def drawLoading(surface, state, top, column, room, height):
+    if not loadingShown(state) or state.view["lines"] or room < 9 or height < 3:
+        return
+    frame = spinnerNow()
+    left = column + max(0, (room - 9) // 2)
+    middle = top + height // 2
+    surface.put(middle - 1, left, "\u250c" + "\u2500" * 7 + "\u2510", PLAIN)
+    surface.put(middle, left, "\u2502   " + frame + "   \u2502", PLAIN)
+    surface.put(middle + 1, left, "\u2514" + "\u2500" * 7 + "\u2518", PLAIN)
+
+
 def viewWaits(state):
     row = selectedRow(state)
     view = state.view
@@ -728,7 +765,9 @@ def drawLinesBody(surface, state, layout, box):
         putViewLine(surface, state, top + headHeight + offset, column, state.view["top"] + offset, room, placing, marked)
     if contentHeight > headHeight:
         drawLoading(surface, state, top + headHeight, column, room, contentHeight - headHeight)
-    if contentHeight > headHeight and not state.view["lines"] and viewAnswered(state):
+
+
+    elif contentHeight > headHeight and not state.view["lines"] and viewAnswered(state):
         surface.put(top + headHeight, column, cutToCells(emptyViewLine(state), room), DIM)
     if filterLineShown(state):
         ## the line of the filter, on the last line of the window; the cursor stands after what is typed while the line is open
@@ -737,45 +776,6 @@ def drawLinesBody(surface, state, layout, box):
         if state.view["table"].get("filterOpen") and state.focus == "view" and state.dialog is None and state.menu is None:
             surface.cursor(top + contentHeight, column + min(textWidth(typed), room - 1))
     return (len(state.view["lines"]), state.view["top"], contentHeight - headHeight)
-
-
-## The frames of the spinner, a quarter turn each.
-SPINNER = ("\u25dc", "\u25dd", "\u25de", "\u25df")
-
-## A spinner where a window waits: a big one centred in the window where it holds nothing of its item yet, and a small boxed one over what it
-## already shows while that is being read again. The frames turn with the clock, so one look follows another.
-def drawLoading(surface, state, top, column, room, height):
-    ## NOTHING READ OR RUNNING, AND NOTHING ANSWERED YET FOR THIS LEVEL EITHER: a level that has just been entered waits its rest before its read is
-    ## asked (REST_SECONDS), and that wait is loading too - the window shows the spinner from the moment the level changes, not from the moment the
-    ## call starts.
-    loading = bool(state.reading or state.calls or state.follow is not None)
-    if not state.view["lines"] and not loading and viewAnswered(state):
-        return
-    if state.view["lines"] and not loading:
-        return
-    if room < 6 or height < 1:
-        return
-    frame = SPINNER[int(nowEpoch() * 8) % len(SPINNER)]
-    ## OVER WHAT STANDS, A SMALL BOXED ONE AT THE FOOT OF THE PANE: what a list already gave of an item stands there as its summary, and the read of
-    ## that item fills it out with its facts, its agents and its lists. While that read - or any read of what is shown - is out, the box says so, on
-    ## the pane's last line, where nothing of the item stands beyond what it shows there.
-    if state.view["lines"]:
-        box = "[%s]" % frame
-        if height >= 1 and room > textWidth(box) + 1:
-            surface.put(top + height - 1, column + room - textWidth(box) - 1, box, PLAIN)
-        return
-    if height < 3:
-        surface.put(top, column + max(0, (room - 1) // 2), frame, PLAIN)
-        return
-    inner = 7
-    if room < inner + 2:
-        surface.put(top + height // 2, column + max(0, (room - 1) // 2), frame, PLAIN)
-        return
-    left = column + max(0, (room - inner - 2) // 2)
-    middle = top + height // 2
-    surface.put(middle - 1, left, "\u250c" + "\u2500" * inner + "\u2510", PLAIN)
-    surface.put(middle, left, "\u2502" + "   " + frame + "   " + "\u2502", PLAIN)
-    surface.put(middle + 1, left, "\u2514" + "\u2500" * inner + "\u2518", PLAIN)
 
 
 ## The body of a window that shows rows: the level of the list, its selection in the look
@@ -847,6 +847,16 @@ def drawWindow(surface, state, layout, window):
     drawFrame(surface, box, globals()[window["title"]](state), state.focus == window["name"], foot,
               held if window.get("bar") else None, state.focus == window["name"] and state.dialog is None,
               globals()[window["count"]](state) if window.get("count") else "")
+    ## ONE CHARACTER IN THE TITLE BAR once the wait has lasted a moment: a look that answers at once leaves the bar exactly as it was, and a wait
+    ## that goes on says so in the bar itself, after the frame, so no title string changes and no other window carries it.
+    if window["name"] == "view" and box[2] >= 8 and loadingShown(state):
+        since = state.view.get("loadingSince")
+        if since is None:
+            state.view["loadingSince"] = nowEpoch()
+        elif nowEpoch() - since >= 0.4:
+            surface.put(box[1], box[0] + box[2] - 2, spinnerNow(), PLAIN)
+    elif window["name"] == "view":
+        state.view["loadingSince"] = None
     rows = box[3] - 2
     if window.get("bar") and held is not None and held[0] > held[2] and rows >= 3:
         ## the scroll bar, where it stands (barLower): its upper half pages up, its lower half down

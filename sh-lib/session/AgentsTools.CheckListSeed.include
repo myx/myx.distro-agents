@@ -176,13 +176,20 @@ AgentsSessionChecklistFileInto(){ ## variable, run, member
 ## `wait-for-more`; the operation in a run's own words, with a capital and no dashes ("Wait for more: idle-wait"); and
 ## "Wait for the next arrival", measured on two live duties. Taken for open work, that item turned every idle wait back, so
 ## the run never returned to its checkpoint. The list is found by AgentsSessionChecklistFileInto. No process: a Wait round asks it.
+## AN ITEM A PARENT SET IS NO EXEMPTION'S: the forms above match on text, and a mandatory item whose words happen to name the
+## wait is still that parent's item, so only an item marked otherwise is skipped here.
 AgentsSessionChecklistOpenInto(){ ## variable, run, member
-	local openList="" openLine openBusy=""
+	local openList="" openLine openBusy="" openParents=""
 	printf -v "$1" '%s' ""
 	AgentsSessionChecklistFileInto openList "${2:-}" "${3:-}" || return 0
 	[ -f "$openList" ] || return 0
+	type AgentsToolsCheckListSourcesOpenParents > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.CheckListSources.include"
+	openParents="$( AgentsToolsCheckListSourcesOpenParents "$openList" )"
 	while IFS= read -r openLine || [ -n "$openLine" ] ; do
 		case "$openLine" in '- [ ] '*|'- [~] '*) ;; *) continue ;; esac
+		if [ -n "$openParents" ] ; then
+			case $'\n'"$openParents"$'\n' in *$'\n'"$openLine"$'\n'*) openBusy="$openBusy$openLine"$'\n' ; continue ;; esac
+		fi
 		case "$openLine" in *--idle-wait*|*[Ww]ait-for-more*|*[Ww]ait\ for\ more*|*[Ww]ait\ for\ the\ next\ arrival*) continue ;; esac
 		openBusy="$openBusy$openLine"$'\n'
 	done < "$openList"
@@ -190,8 +197,9 @@ AgentsSessionChecklistOpenInto(){ ## variable, run, member
 	return 0
 }
 
-## A member's CheckList in a session, its lines as they stand: the list the CheckList tool keeps in the folder of the
-## record of the session's founding run, else in the session's store. Nothing where the member kept none.
+## A member's CheckList in a session, its lines as a reader of the list sees them (the store owner's tagged form): the list the
+## CheckList tool keeps in the folder of the record of the session's founding run, else in the session's store. Nothing where
+## the member kept none.
 AgentsSessionChecklistText(){ ## session id, member
 	local textFolder="" textFile textStore=""
 	type AgentsSessionRunRecordInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
@@ -201,7 +209,8 @@ AgentsSessionChecklistText(){ ## session id, member
 	[ -n "$textFolder" ] || textFolder="$textStore/$1"
 	[ -f "$textFolder/$2.checklist.md" ] || textFolder="$textStore/$1"
 	[ -f "$textFolder/$2.checklist.md" ] || return 0
-	cat "$textFolder/$2.checklist.md" 2> /dev/null || :
+	type AgentsToolsCheckListSourcesTagged > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.CheckListSources.include"
+	AgentsToolsCheckListSourcesTagged "$textFolder/$2.checklist.md"
 }
 
 ## The one member whose CheckList a session's folder keeps, into the named variable: rc 0 with the member set where exactly one

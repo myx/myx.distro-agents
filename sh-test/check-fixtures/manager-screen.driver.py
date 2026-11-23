@@ -411,9 +411,6 @@ def scriptRun(module):
         elif command == "keys":
             for key in words:
                 turn(" " if key == "SPACE" else key)
-        elif command == "callsreset":
-            ## `callsreset`: forget the dispatcher calls so far, so one screen entry's calls are counted alone in a case that enters twice
-            open(os.path.join(os.environ["MANAGER_SCREEN_RIG"], "calls"), "w").close()
         elif command == "turn":
             for count in range(int(words[0]) if words else 1):
                 turn()
@@ -435,6 +432,31 @@ def scriptRun(module):
             deadline = time.time() + float(words[1])
             turn()
             while reader[0] is not None and reader[0].busy(words[0]) and time.time() < deadline:
+                time.sleep(0.05)
+                turn()
+            turn()
+        elif command == "callsreset":
+            ## `callsreset`: forget the dispatcher calls so far, so one screen entry's calls are counted alone
+            open(os.path.join(os.environ["MANAGER_SCREEN_RIG"], "calls"), "w").close()
+        elif command in ("waitlines", "waittext", "waitinfo"):
+            ## `waitlines|waittext|waitinfo <seconds>`: turn until the left window holds lines, holds a text, or the item's own read has answered -
+            ## whichever the case names - then once more, so a frame is read after what it shows exists
+            wanted = {"waitlines": lambda: bool(state.view.get("lines") or state.view.get("text")),
+                      "waittext": lambda: state.view.get("text") is not None,
+                      "waitinfo": lambda: state.view.get("info") is not None}[command]
+            deadline = time.time() + float(words[0] if words else 5)
+            turn()
+            while time.time() < deadline and not wanted():
+                time.sleep(0.05)
+                turn()
+            turn()
+        elif command == "waitrows":
+            ## `waitrows <count> <seconds>`: turn until the level shown holds that many rows, then once more - a folder entered by its path has no rows
+            ## to select from until the session's own list has answered
+            want = int(words[0]) if words else 1
+            deadline = time.time() + float(words[1] if len(words) > 1 else 5)
+            turn()
+            while time.time() < deadline and len(module.listedRows(state, state.path) or ()) < want:
                 time.sleep(0.05)
                 turn()
             turn()

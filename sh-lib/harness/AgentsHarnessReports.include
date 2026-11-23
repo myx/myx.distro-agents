@@ -117,7 +117,7 @@ AgentsHarnessReportRoute(){ ## the to the run gave, the address_to it gave
 	## and every post there reaches him. The run's own session thread, where it is a channel's, takes a report instead, addressed.
 	routeOwn="${MDAT_SESSION_THREAD:-}"
 	if [ -z "$routeOwn" ] ; then
-		## The one finder of a session's own thread: the session the run joined, its spawn record, else its sessions/<id>/session.thread.
+		## The one finder of a session's own thread: the session the run joined, its spawn record, else the session's recorded thread.
 		type AgentsToolsSessionCurrentThreadFind > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.SessionThreads.include"
 		routeOwn="$( AgentsToolsSessionCurrentThreadFind 2> /dev/null )" || routeOwn=""
 	fi
@@ -197,7 +197,7 @@ AgentsHarnessToolSubagentHandbackRun(){ ## task, outcome, findings, unfinished, 
 	type AgentsToolsSessionDismissHold > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionSeats.include"
 	local toolTo="$harnessParentName" toolTask="$1" toolOutcome="$2" toolFindings="$3" toolUnfinished="$4" toolAsBot="$5" toolAddressTo="" toolPendingCount="${6:-0}" toolBody
 	local toolDeliverables=""
-	local toolOpen="" toolOpenRc=0 toolOther="" toolLine="" toolOthers=0
+	local toolOpen="" toolOpenRc=0 toolOther="" toolLine="" toolBare="" toolOthers=0 toolParents=""
 	if [ -z "$toolOutcome" ] ; then
 		printf 'ERROR: SubagentHandback: outcome is required and was empty. A handback carrying no outcome reports nothing, so nothing was sent.\n' ; return 0
 	fi
@@ -211,18 +211,38 @@ AgentsHarnessToolSubagentHandbackRun(){ ## task, outcome, findings, unfinished, 
 	## below and never counted. Every other pending item is counted, and the call is refused unless that is the number it
 	## declares, so one refusal reconciles the caller's count with the list's. An item in progress is never counted. A session
 	## that kept no list says so in the handback and declares 0. Local files only: the list, and the count this call declared.
+	## AN ITEM A PARENT SET IS NEITHER EXEMPTED NOR RELEASED: the text-shaped exemption below applies to every other item only,
+	## so a mandatory item reading "hand back the design" is not that step, and a declared count never stands in for it.
 	toolOpen="$( AgentsHarnessCheckListOpenItems )" ; toolOpenRc=$?
 	case "$toolOpenRc" in
 		0)
+			type AgentsToolsCheckListSourcesOpenParents > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.CheckListSources.include"
+			## The read above ran in a subshell, so the place it resolved is not this shell's: resolve it again here.
+			toolParents=""
+			if AgentsHarnessCheckListPlace ; then
+				toolParents="$( AgentsToolsCheckListSourcesOpenParents "$checkListFolder/$checkListMember.checklist.md" )"
+			fi
 			while IFS= read -r toolLine ; do
 				case "$toolLine" in '') continue ;; esac
-				if AgentsHarnessCheckListNamesHandback "${toolLine#'- [ ] '}" ; then continue ; fi
+				toolBare="${toolLine% \[step\]}"
+				toolBare="${toolBare% \[parent\]}"
+				if [ -n "$toolParents" ] ; then
+					case $'\n'"$toolParents"$'\n' in
+						*$'\n'"$toolBare"$'\n'*) toolOther="$toolOther$toolLine"$'\n' ; toolOthers=$(( toolOthers + 1 )) ; continue ;;
+					esac
+				fi
+				if AgentsHarnessCheckListNamesHandback "${toolBare#'- [ ] '}" ; then continue ; fi
 				toolOther="$toolOther$toolLine"$'\n'
 				toolOthers=$(( toolOthers + 1 ))
 			done <<< "$toolOpen"
 		;;
 		1) toolUnfinished="${toolUnfinished:+$toolUnfinished$'\n'}No CheckList was kept in this session." ;;
 	esac
+	if [ -n "$toolParents" ] ; then
+		printf 'REFUSED: this run'"'"'s CheckList holds %s mandatory item(s) its parent set, and they are still open.\nA handback is not given while one of them is open, and checklist_pending_count does not release them.\nClose each with CheckList, writing the same text with status completed:\n%s\n' \
+			"$( LC_ALL=C awk 'END { print NR ; }' <<< "$toolParents" )" "$toolParents"
+		return 0
+	fi
 	if [ "$toolOthers" -ne "$toolPendingCount" ] ; then
 		printf 'REFUSED: the CheckList holds %s pending item(s), and this call declares %s. Close them with CheckList, or declare %s as checklist_pending_count to hand back with them listed as unfinished:\n%s' \
 			"$toolOthers" "$toolPendingCount" "$toolOthers" "$toolOther"

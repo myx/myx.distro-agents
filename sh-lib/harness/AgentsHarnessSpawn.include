@@ -463,7 +463,7 @@ AgentsHarnessToolTaskOutput(){ ## handle, byte offset, byte limit, output file
 	[ "$toolLimit" -le "$harnessReadCap" ] || toolLimit="$harnessReadCap"
 	if [ -n "$toolOutputFile" ] ; then
 		## Confined to the team data store and to the session logs the spawn proxy writes
-		## (sessions/<spawn-id>/session.log): this parameter would otherwise be a read of
+		## (the session's own log): this parameter would otherwise be a read of
 		## any path at all, around the access roots that bound Read, Glob and Grep.
 		case "$toolOutputFile" in
 			"$MDAT_DATA_ROOT"/*) ;;

@@ -343,11 +343,30 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD $listOp: syntax is no argument, got: $1" >&2
 			set +e ; return 1
 		fi
-		if [ -n "$listFast" ] ; then
-			AgentsToolsManagerRoutineFactsOnly "$listOp" || { set +e ; return 1 ; }
-			return 0
+		## THE LIST IS AN INDEX, NOT A SCAN: one builder reads every routine file once and writes the rows beside the workspace, and the list reads
+		## that file alone. A routine file changed since the index rebuilds it - a find over the members' own dirs costs milliseconds, where reading
+		## the frontmatter of every routine costs half a minute on this estate. The index is written aside and put in place by a rename.
+		local indexDir="$MMDAPP/.local/agents/stats" indexFile indexStale indexMember indexMemberDir
+		indexFile="$indexDir/routines.definitions"
+		mkdir -p "$indexDir" 2> /dev/null
+		indexStale=""
+		if [ ! -s "$indexFile" ] ; then
+			indexStale="missing"
+		else
+			## the routines live under the skillset root, one folder a member: one find over it answers whether any is newer than the index
+			if [ -n "$( find "${MDAT_SKILLSET_ROOT:-$MMDAPP/.local/agents/members}" -name '*.routine.md' -newer "$indexFile" 2> /dev/null | head -1 )" ] ; then
+				indexStale="changed"
+			fi
 		fi
-		AgentsToolsManagerRoutineRows "$listOp" || { set +e ; return 1 ; }
+		if [ -n "$indexStale" ] ; then
+			if AgentsToolsManagerRoutineRows "$listOp" > "$indexFile.part.$$" 2> /dev/null ; then
+				mv -f "$indexFile.part.$$" "$indexFile"
+			else
+				rm -f "$indexFile.part.$$"
+			fi
+		fi
+		[ -s "$indexFile" ] || { set +e ; return 1 ; }
+		cat "$indexFile"
 		return 0
 	;;
 

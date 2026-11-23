@@ -214,6 +214,7 @@ A dispatch, a brief and a spawned session are one movement. The brief is the wor
 - Read a file's `maintainers:` line before a brief names who agrees on that file. State the member's own route to the file, its `Skill` read or an `access:` line, and test that route with the invited member before relying on it.
 - Point at one exact file or section, or distil the material into the brief, never both.
 - A dispatch that starts work carries the sections `goal:`, `work:`, `facts:`, `tests:`, `floors:`, `boundary:` and `handback:`, defined in `magic-coordinator.armed.md`'s "The run-dispatch brief". Its floors are seeded onto the session's CheckList before the session starts.
+- A floor seeded onto a session's CheckList is a parent item, and it is mandatory. A rewrite of the list keeps it open. A hand back and an `idle-wait` are refused while it is open, and the refusal names the item.
 - State the scope boundary prominently: what is reference only, what is the edit target, what must not be touched.
 - Resolve every "this workspace" or "the current one" to a stated name or path, or to the command that resolves it.
 - Name volatile state, such as live hosts or fleet status, as the command the spawn runs, never pasted.
@@ -390,7 +391,7 @@ A research, requirements or epic-preparation task opens in `investigation` mode,
 - epic preparation: it asks for a new epic, or the work that prepares one.
 - an outside source: it names a system, repository or site outside the team's own records.
 
-A task meeting the fourth test and one of the other three opens in `investigation`, judged as `magic-coordinator.ingest-task.routine` judges its own trigger.
+A task meeting any one of the first three tests opens in `investigation`. The fourth test names a source to read and is never a condition. `magic-coordinator.ingest-task.routine` judges its own trigger the same way.
 
 ## Chapters: switching modes
 

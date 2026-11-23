@@ -105,8 +105,7 @@ def followSelection(state, idle=False):
         if state.startFilter:
             state.view["table"]["filter"] = state.startFilter
             state.startFilter = ""
-        ## a pane that is made new holds nothing of its item: its reads are due again,
-        ## whenever they were last made
+        ## a pane that is made new holds nothing of its item: its reads are due again, whenever they were last made
         for part in VIEW_PARTS:
             state.started.pop("%s:%s" % (part, viewKey), None)
         ## what an action answered stands on the item it was asked on, and goes with it
@@ -117,8 +116,11 @@ def followSelection(state, idle=False):
     ## the looks of the lines are made with them: those its maker set, and over them those a
     ## A LEVEL THAT IS NEW HOLDS NOTHING OF THE ONE BEFORE: the pane of an item is made for that item, and the list of a level for that level, so the
     ## screen never shows the level it has left while the new one is being read. Without this the previous table stood long after the level changed.
-    if state.view.get("level") != levelKey(state.path):
-        state.view["level"] = levelKey(state.path)
+    opened = listReadOf(state.path)
+    changed = state.view.get("level") != levelKey(state.path)
+    state.view["level"] = levelKey(state.path)
+    ## ONLY A LEVEL THAT IS STILL WAITING STARTS EMPTY: one whose rows the screen already holds (the sections share one list read) paints at once.
+    if changed and opened is not None and opened[0] not in state.levelsOf:
         state.view["lines"] = []
         state.view["head"] = []
         state.view["feed"] = None
