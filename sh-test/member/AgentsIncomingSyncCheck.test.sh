@@ -69,7 +69,7 @@ rigIncoming="$rigData/inboxes/rig-member/incoming"
 
 echo "-- 1. the one TTL table --"
 rigTtl="$( bash -c '. "$1/sh-lib/member/AgentsTools.SourceTtl.include" && for s in chat:s mail:rig-member trello:rig-member tagged:x scan:work-duty ; do printf "%s=%s " "${s%%:*}" "$( AgentsToolsSourceTtlOf "$s" )" ; done' rig "$rigPackage" 2> /dev/null )"
-rigAssert "chat 15, mail 300, trello 120, tagged 15, scan 300" "$rigTtl" "chat=15 mail=300 trello=120 tagged=15 scan=300 "
+rigAssert "chat 15, mail 180, trello 120, tagged 15, scan 300" "$rigTtl" "chat=15 mail=180 trello=120 tagged=15 scan=300 "
 
 echo "-- 2. a sync refills the member's incoming at once --"
 rigMailbox "201 unseen" "202 unseen"

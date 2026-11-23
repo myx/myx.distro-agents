@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+## The help of AgentExecutorTools.fn.sh: the chair of a session, the operations that act on a session as its executor, whoever it is.
+## The three forms are DistroAgentsTools.fn.sh's: no word the default syntax, the entry points a reader starts from;
+## --help-syntax the syntax line of every operation of the file, read from its own manual, sh-lib/help/Help.AgentExecutorTools.help.md;
+## --help the manual itself.
+## Every echo stays flush-left: --member-help cuts help files on a ^echo anchor.
+## Its syntax lines are echoed here, so `--help` and the console's help reader find them in one file.
+
+## The default syntax: the entry points a reader starts from. Every other operation's syntax sits behind
+## --help-syntax, and the manual behind --help.
+echo "📘 syntax: AgentExecutorTools.fn.sh --set-session-topic <text> [--escalate-wait [--timeout <s>]|--escalate-enqueue]" >&2
+echo "📘 syntax: AgentExecutorTools.fn.sh --set-session-chapter <text> [--escalate-wait [--timeout <s>]|--escalate-enqueue]" >&2
+echo "📘 syntax: AgentExecutorTools.fn.sh --get-uninvited-participants" >&2
+echo "📘 syntax: AgentExecutorTools.fn.sh --list-session-runs" >&2
+echo "📘 syntax: AgentExecutorTools.fn.sh --executor-queue [--session-id <id>] [--member <name>]" >&2
+echo "📘 syntax: AgentExecutorTools.fn.sh --executor-checklist-append (--item <text>)... [--session-id <id>] [--member <name>]" >&2
+echo "📘 syntax: AgentExecutorTools.fn.sh --executor-resume [--session-id <id>] [--reason <text>]" >&2
+echo "📘 syntax: AgentExecutorTools.fn.sh [--help-syntax [<op>]]" >&2
+echo "📘 syntax: AgentExecutorTools.fn.sh [--help]" >&2
+
+case "$1" in
+
+	--help-syntax)
+		type AgentsToolsFrontSyntax > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.FrontTable.Help.include"
+		AgentsToolsFrontSyntax "${MDSC_CMD:-AgentExecutorTools}" "${2:-}"
+		return $?
+	;;
+
+	--help)
+		## The manual, rendered where myx.common is on the path, and printed as it is where it is not: the help is the page either way.
+		if command -v myx.common > /dev/null 2>&1 ; then
+			myx.common lib/catMarkdown "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/help/Help.AgentExecutorTools.help.md" >&2
+		else
+			cat "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/help/Help.AgentExecutorTools.help.md" >&2
+		fi
+		return 0
+	;;
+
+esac
+return 0

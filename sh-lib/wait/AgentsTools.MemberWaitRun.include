@@ -360,7 +360,7 @@
 				fi
 
 				roundRc=0
-				## A source takes the cache's look, and one with under two seconds left is served what the cache holds, its refresh detached. Its clock is its own start, never the round's.
+				## A source takes the cache's look, and one with under two seconds left is served what the cache holds, the comms thread filling it. Its clock is its own start, never the round's.
 				sourceNow=$(( waitStart + SECONDS - waitSecs0 ))
 				roundStaleOk=""
 				## The first round is never served stale: it is the one read a short call makes, and a stale read returns nothing that arrived since.

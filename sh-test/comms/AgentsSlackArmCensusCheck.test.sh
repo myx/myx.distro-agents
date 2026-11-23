@@ -65,9 +65,9 @@ rigCensus(){ ## router file -- one line per arm: <label> <load>...
 			}
 		}
 		function flushArm(atDepth,   i, out) {
-			if ( atDepth < 1 || labelAt[atDepth] == "" ) { return }
+			if ( atDepth < 1 || labelAt[atDepth] == "" ) { return ; }
 			out = labelAt[atDepth]
-			for ( i = 1 ; i <= loadCountAt[atDepth] ; i++ ) { out = out " " loadAt[atDepth, i] }
+			for ( i = 1 ; i <= loadCountAt[atDepth] ; i++ ) { out = out " " loadAt[atDepth, i] ; }
 			printf "%s\n", out
 			labelAt[atDepth] = ""
 			loadCountAt[atDepth] = 0
@@ -75,11 +75,11 @@ rigCensus(){ ## router file -- one line per arm: <label> <load>...
 		{
 			lineText = $0
 			sub(/[ \t]+$/, "", lineText)
-			if ( lineText ~ /^[ \t]*$/ ) { next }
-			if ( lineText ~ /^[ \t]*#/ ) { next }
-			if ( lineText ~ /^[ \t]*case[ \t]/ ) { flushArm(depth) ; depth++ ; next }
-			if ( lineText ~ /^[ \t]*esac[ \t]*$/ ) { flushArm(depth) ; depth-- ; if ( depth < 0 ) { depth = 0 } ; next }
-			if ( depth < 1 ) { next }
+			if ( lineText ~ /^[ \t]*$/ ) { next ; }
+			if ( lineText ~ /^[ \t]*#/ ) { next ; }
+			if ( lineText ~ /^[ \t]*case[ \t]/ ) { flushArm(depth) ; depth++ ; next ; }
+			if ( lineText ~ /^[ \t]*esac[ \t]*$/ ) { flushArm(depth) ; depth-- ; if ( depth < 0 ) { depth = 0 ; } ; next ; }
+			if ( depth < 1 ) { next ; }
 			if ( labelAt[depth] == "" && match(lineText, /^[ \t]*[^) \t][^)]*\)/) ) {
 				labelAt[depth] = substr(lineText, 1, RLENGTH)
 				sub(/^[ \t]*/, "", labelAt[depth])
@@ -91,29 +91,29 @@ rigCensus(){ ## router file -- one line per arm: <label> <load>...
 			if ( labelAt[depth] != "" ) {
 				## an arm ends at its `;;`, wherever on the line it stands
 				closesHere = 0
-				if ( lineText ~ /^[ \t]*;;[ \t]*$/ ) { closesHere = 1 ; lineText = "" }
-				else if ( lineText ~ /;;[ \t]*$/ ) { closesHere = 1 ; sub(/;;[ \t]*$/, "", lineText) }
-				if ( lineText != "" ) { noteLoads(depth, lineText) }
-				if ( closesHere == 1 ) { flushArm(depth) }
+				if ( lineText ~ /^[ \t]*;;[ \t]*$/ ) { closesHere = 1 ; lineText = "" ; }
+				else if ( lineText ~ /;;[ \t]*$/ ) { closesHere = 1 ; sub(/;;[ \t]*$/, "", lineText) ; }
+				if ( lineText != "" ) { noteLoads(depth, lineText) ; }
+				if ( closesHere == 1 ) { flushArm(depth) ; }
 			}
 		}
-		END { flushArm(depth) }
+		END { flushArm(depth) ; }
 	' "$1"
 }
 rigAnswers(){ ## include file, word, exact|prefix -- rc 0 where the file holds a case arm that word names
 	LC_ALL=C awk -v word="$2" -v mode="$3" '
-		/^[[:space:]]*#/ { next }
+		/^[[:space:]]*#/ { next ; }
 		/^[[:space:]]*--/ {
 			label = $0
 			sub(/^[[:space:]]*/, "", label)
 			sub(/\).*$/, "", label)
 			labelParts = split(label, part, "|")
 			for ( partAt = 1 ; partAt <= labelParts ; partAt++ ) {
-				if ( mode == "exact" && part[partAt] == word ) { found = 1 ; exit }
-				if ( mode == "prefix" && index(part[partAt], word) == 1 ) { found = 1 ; exit }
+				if ( mode == "exact" && part[partAt] == word ) { found = 1 ; exit ; }
+				if ( mode == "prefix" && index(part[partAt], word) == 1 ) { found = 1 ; exit ; }
 			}
 		}
-		END { exit found ? 0 : 1 }
+		END { exit found ? 0 : 1 ; }
 	' "$1"
 }
 rigUnanswered(){ ## include file, arm label -- each word the label admits that the file does not answer, one a line

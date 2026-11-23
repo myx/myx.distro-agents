@@ -147,6 +147,25 @@ rigOp "$rigTmp/g1" --intern-team-data-final-gc-deletion magic-coordinator
 rigAssert "the old processed item goes, the young one stays, the old unprocessed one stays" \
 	"$( rigWhere note-20260918T0000Z-old.md ):$( rigWhere note-20261017T0000Z-young.md ):$( rigWhere note-20260918T0000Z-open-old.md )" "none:processed:incoming"
 
+echo "-- 7b. the GC over a folder whose file list is longer than one command line takes --"
+## Sized from this host's own limit, so the list outgrows it on every platform: the stamped half is read by the stamp,
+## the unstamped half by its file time, and the young item is the control that the GC still keeps what is due later.
+rigMany="$rigData/inboxes/rig-many/processed"
+mkdir -p "$rigMany" "$rigData/inboxes/rig-many/incoming"
+rigLongName="note-20260918T0000Z-$( printf '%0200d' 0 | tr 0 x )"
+rigManyCount=$(( $( getconf ARG_MAX ) / ( ${#rigMany} + ${#rigLongName} + 12 ) + 100 ))
+LC_ALL=C awk -v dir="$rigMany" -v stem="$rigLongName" -v count="$rigManyCount" -v stamp="$( rigDaysAgo 30 )" 'BEGIN {
+	for ( fileNo = 1 ; fileNo <= count ; fileNo++ ) {
+		stampedPath = dir "/" stem "-s" fileNo ".md" ; printf "---\ntype: note\nprocessed-at: %s\n---\n\nold\n", stamp > stampedPath ; close( stampedPath ) ;
+		plainPath = dir "/" stem "-u" fileNo ".md" ; printf "---\ntype: note\n---\n\nold\n" > plainPath ; close( plainPath ) ;
+	}
+}'
+( cd "$rigMany" && printf '%s\0' *.md | xargs -0 touch -t "$( rigStampAgo 30 )" )
+printf -- '---\ntype: note\nprocessed-at: %s\n---\n\nyoung\n' "$( rigDaysAgo 1 )" > "$rigMany/note-20261017T0000Z-young-many.md"
+rigOp "$rigTmp/g2" --intern-team-data-final-gc-deletion magic-coordinator
+rigAssert "every old item of a folder past the argument limit goes, stamped and unstamped, and the young one stays" \
+	"$( cat "$rigTmp/g2.rc" ):$( ls "$rigMany" | LC_ALL=C grep -c . ):$( rigHolds "$rigTmp/g2" 'Argument list too long' )" "0:1:no"
+
 echo "-- 8. a list takes --include-processed; by default it holds nothing processed --"
 rigOp "$rigTmp/l1" --manager-team-data-read inboxes rig-member
 rigAssert "by default: the incoming items, and no processed one" "$( cat "$rigTmp/l1.rc" ):$( rigHolds "$rigTmp/l1" note-20261018T0902Z-in.md ):$( rigHolds "$rigTmp/l1" note-20261018T0900Z-open.md )" "0:yes:no"

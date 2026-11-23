@@ -224,7 +224,8 @@ def buildFeed(state, row):
     held = view["lineKeys"][view["top"]] if not view["follow"] and view["top"] < len(view["lineKeys"]) else None
     view["lines"], view["lineKeys"] = feedLines(view["feed"], state.viewWidth)
     view["looks"] = {}
-    view["built"] = (state.viewWidth, state.viewMode)
+    ## THE STAMP NAMES WHAT WAS BUILT FROM, not only the width: a feed that has grown since is built again, and one that has not is left as it stands.
+    view["built"] = (state.viewWidth, state.viewMode, len(view["feed"]["logs"]), len(view["feed"]["rows"]))
     if held is not None:
         places = [position for position, key in enumerate(view["lineKeys"]) if key == held]
         if places:

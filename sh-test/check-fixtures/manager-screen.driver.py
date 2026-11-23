@@ -292,6 +292,7 @@ def scriptRun(module):
             ("focus", state.focus),
             ("filter", "active" if state.activeOnly else "all"),
             ("viewTop", state.view["top"]), ("viewLines", len(state.view["lines"])),
+            ("title", module.viewTitle(state)),
             ("viewHead", len(state.view["head"])), ("follow", "yes" if state.view["follow"] else "no"),
             ("rawLog", "yes" if module.rawShown(state) else "no"), ("viewMode", state.viewMode), ("textMode", getattr(state, "textMode", "")),
             ("wrap", "yes" if state.wrap else "no"), ("viewLeft", state.view.get("left", 0)),

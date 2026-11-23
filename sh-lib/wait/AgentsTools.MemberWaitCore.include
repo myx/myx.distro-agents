@@ -77,8 +77,8 @@ AgentsWaitTsNewer(){ ## candidate, floor
 
 ## THE TTL OF A SOURCE (F3.3). The timing of a source is a TTL and no interval: Wait loops, and a source whose previous check is
 ## still inside its own TTL is skipped on that pass. The TTLs are hardcoded, in seconds, and each is where its source is read:
-##   - the session thread, read into the chat file (AgentsWaitChatTopUp) when no other source of the wait reads it: after 5, and 1
-##     more for every 20 it has been quiet, from its newest message in the file, to 300 at most, so it is looked at ever more
+##   - the session thread, read into the chat file (AgentsWaitChatTopUp) when no other source of the wait reads it: after 3, and 1
+##     more for every 20 it has been quiet, from its newest message in the file, to 60 at most, so it is looked at ever more
 ##     rarely and stays watched;
 ##   - the replies to the run's own posts, a post at a time (AgentsWaitRepliesLookRead): 5, backing off linearly to a ceiling of
 ##     100 (20 times the base) once quiet reaches 1000 (200 times the base), never past it (S21.2);

@@ -18,12 +18,45 @@
 
 agentsMonitoringOutboxAlarm="${MDAT_MONITORING_OUTBOX_ALARM:-1000}"
 case "$agentsMonitoringOutboxAlarm" in ''|*[!0-9]*) agentsMonitoringOutboxAlarm=1000 ;; esac
+## The floor a spawn refuses under is read where it is used, by AgentsToolsSpawnDiskFreeRefused. The headroom over that floor which clears
+## the once-only disk alarm record is a percentage of the floor.
+agentsMonitoringDiskFreeClearPercent=25
 ## What the last lock read left: its state and its holder, set in this shell so a caller under `set -u` reads them.
 agentsMonitoringHolder="" agentsMonitoringState=""
 
 ## One line of the reading.
 AgentsToolsMonitoringLine(){ ## kind (health|alarm|muted), workspace name, asset, state, detail
 	printf '%s\t%s\t%s\t%s\t%s\n' "$1" "$2" "$3" "$4" "${5:-}"
+}
+
+## Whole GiB free on the filesystem a path sits on, rounded down, from `df -Pk` (the POSIX form: a header and one line of 1024-byte blocks).
+## Prints the number, or nothing and rc 1 where df cannot read the path. The health line and the spawn floor read through this one shape.
+AgentsToolsMonitoringDiskFree(){ ## path
+	local freePath="${1:-${MMDAPP:-}}" freeKb
+	freeKb="$( df -Pk "$freePath" 2> /dev/null | LC_ALL=C awk 'NR == 2 { print $4 ; }' )" || return 1
+	case "$freeKb" in ''|*[!0123456789]*) return 1 ;; esac
+	printf '%s\n' "$(( freeKb / 1048576 ))"
+}
+
+## THE ONCE-ONLY DISK ALARM: `$MMDAPP/.local/agents/disk-free.alert` holds one line, `<free-gib> <floor> <epoch>`, for the reading that last
+## alarmed. Under the floor the alarm is emitted where the record is written or rewritten: none yet, or one from another floor, which is stale.
+## While the record carries this floor it stays quiet. At the floor plus agentsMonitoringDiskFreeClearPercent the record goes, and the next fall
+## alarms again. The line goes to stderr, in the reading's own `alarm` shape, because the spawn path's stdout carries its results.
+AgentsToolsDiskFreeAlert(){ ## free-gib, floor
+	local alertFree="${1:-}" alertFloor="${2:-}" alertFile="${MMDAPP:-}/.local/agents/disk-free.alert" alertClear alertLine=""
+	local alertRecordFree="" alertRecordFloor="" alertRecordStamp="" alertWorkspaceName=""
+	case "$alertFree$alertFloor" in ''|*[!0123456789]*) return 1 ;; esac
+	alertClear=$(( alertFloor + alertFloor * agentsMonitoringDiskFreeClearPercent / 100 ))
+	if [ "$alertFree" -ge "$alertClear" ] ; then rm -f "$alertFile" 2> /dev/null || : ; return 0 ; fi
+	if [ "$alertFree" -ge "$alertFloor" ] ; then return 0 ; fi
+	{ IFS= read -r alertLine < "$alertFile" ; } 2> /dev/null || alertLine=""
+	read -r alertRecordFree alertRecordFloor alertRecordStamp <<< "$alertLine" || :
+	if [ "$alertRecordFloor" = "$alertFloor" ] ; then return 0 ; fi
+	mkdir -p "${MMDAPP:-}/.local/agents" 2> /dev/null || :
+	printf '%s %s %s\n' "$alertFree" "$alertFloor" "$( date +%s )" > "$alertFile" 2> /dev/null || :
+	alertWorkspaceName="${MMDAPP:-}" ; alertWorkspaceName="${alertWorkspaceName%/}" ; alertWorkspaceName="${alertWorkspaceName##*/}"
+	printf 'alarm\t%s\t%s\t%s\t%s\n' "${alertWorkspaceName:-unknown}" disk-free "" "$alertFree GiB free, under the $alertFloor GiB floor" >&2
+	return 0
 }
 
 ## A daemon's state from its lock file `<pid> <start>`: none (no lock), alive, dead, or unknown (cannot be told). Sets
@@ -66,8 +99,8 @@ AgentsToolsMonitoringHealth(){ ## workspace (default MMDAPP)
 		healthLoad="$( sysctl -n vm.loadavg 2> /dev/null | LC_ALL=C tr -d '{}' | LC_ALL=C sed 's/^ *//;s/ *$//' )" || healthLoad=""
 	fi
 	AgentsToolsMonitoringLine health "$healthName" machine-load "${healthLoad:-unknown}" "1 5 15 minutes"
-	healthDisk="$( df -Pk "$healthWs" 2> /dev/null | LC_ALL=C awk 'NR == 2 { printf "%s free, %s used", $4 * 1024, $5 ; }' )" || healthDisk=""
-	AgentsToolsMonitoringLine health "$healthName" machine-disk "${healthDisk:-unknown}" "bytes"
+	healthDisk="$( AgentsToolsMonitoringDiskFree "$healthWs" )" || healthDisk=""
+	AgentsToolsMonitoringLine health "$healthName" machine-disk "${healthDisk:-unknown}" "GiB free"
 
 	## THE RIG DAEMONS: the schedule thread and the communications reader, by their locks; a lock whose holder is gone is an alarm.
 	AgentsToolsMonitoringLockState "$healthWs/.local/agents/schedule-thread/thread.lock" ; healthState="$agentsMonitoringState"

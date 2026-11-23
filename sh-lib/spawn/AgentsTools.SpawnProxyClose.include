@@ -5,6 +5,8 @@
 ## AgentsTools.SpawnProxyClose.include -- closing a run: its dispatch, its sandbox, its asks, its park, its children, its dismissal. Split out of AgentsTools.SpawnSandbox.include by concern, its functions unchanged. Sourced, never
 ## run; it relies on what AgentsTools.SpawnSandbox.include sources for it.
 ##
+type AgentsToolsTempClaim > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.TempFiles.include"
+
 AgentsToolsSpawnProxyCloseDispatch(){
 	local itemName="$1" briefBody="$2" childExit="$3" childOutputFile="$4" outcome="$5"
 	## Defaulted rather than required, so the create path calls this exactly as it
@@ -123,6 +125,7 @@ AgentsToolsRunDismiss(){ ## spawn id, who dismissed it
 	if [ ! -f "$disFile" ] ; then
 		mkdir -p "${disFile%/*}" 2> /dev/null || return 1
 		disTemp="$( mktemp "$disFile.tmp.XXXXXX" 2> /dev/null )" || return 1
+		AgentsToolsTempClaim "$disTemp"
 		{ printf '%s\n' "$disBy" > "$disTemp" 2> /dev/null && chmod 644 "$disTemp" && mv -f "$disTemp" "$disFile" ; } 2> /dev/null \
 			|| { rm -f "$disTemp" ; return 1 ; }
 	fi
@@ -286,7 +289,7 @@ AgentsToolsSpawnProxyRunRecord(){ ## pid of the console process just started
 ## does whoever comes after a closer that was ended half way; never a record cut short.
 ## rc 0 closed; rc 1 where this try could not close it, the record as it was.
 AgentsToolsSpawnProxyCloseSandboxOnce(){ ## tracking file, outcome, exit code, end reason (optional)
-	local sandboxFile="$1" sandboxOutcome="$2" sandboxExit="$3" sandboxEndReason="${4:-}" sandboxOps sandboxBody sandboxReason="" sandboxRestarts="" sandboxRefused=""
+	local sandboxFile="$1" sandboxOutcome="$2" sandboxExit="$3" sandboxEndReason="${4:-}" sandboxOps sandboxBody sandboxReason="" sandboxRestarts="" sandboxRefused="" sandboxClosed=""
 	[ -f "$sandboxFile" ] || return 1
 	## A RECORD THAT HAS SETTLED IS LEFT AS IT IS (S6.26): a close ends a run that still runs. The accept of a
 	## review settles its run, and that run's own supervising shell closes it again a moment later, with the
@@ -297,6 +300,7 @@ AgentsToolsSpawnProxyCloseSandboxOnce(){ ## tracking file, outcome, exit code, e
 	## started (--spawn-session) close in subshells of that one shell, which have its
 	## $$, so two closing at once met on one name, and one read no changes and stayed started.
 	sandboxOps="$( mktemp "$MMDAPP/.local/temp/mdat-session-header-ops.XXXXXX" )" || return 1
+	AgentsToolsTempClaim "$sandboxOps"
 	{
 		## `status` carries the outcome, and `outcome` itself is deliberately absent:
 		## the entity model defines that name with a closed set of values for what an
@@ -592,12 +596,23 @@ AgentsToolsSpawnProxyCloseSandbox(){ ## tracking file, outcome, exit code, end r
 	## THE SESSION'S ROOT MESSAGE SHOWS ITS END (S6.37), placed here and only here: the one close a record takes, so a
 	## second close adds nothing, and the settled guard above is what makes that true.
 	if AgentsToolsSpawnProxyCloseSandboxOnce "$@" ; then
-		AgentsToolsSpawnProxyRootMarks "$1" || :
-		return 0
+		sandboxClosed=yes
+	else
+		sleep 1 || :
+		if AgentsToolsSpawnProxyCloseSandboxOnce "$@" ; then sandboxClosed=yes ; fi
 	fi
-	sleep 1 || :
-	if AgentsToolsSpawnProxyCloseSandboxOnce "$@" ; then
+	if [ -n "$sandboxClosed" ] ; then
 		AgentsToolsSpawnProxyRootMarks "$1" || :
+		## THE COPIES A CLOSED SANDBOX LEFT GO WHEN ITS LAST RECORD SETTLES: the release reads every record of the folder, and
+		## keeps them while one still reads as started. It never fails the close.
+		type AgentsToolsSpawnSandboxReleaseCopies > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandboxSweep.include"
+		AgentsToolsSpawnSandboxReleaseCopies "${1%/*}" || :
+		## THE STAMPED PASS: the close of a run starts it, detached, and a sweep that fails never fails the close.
+		type AgentsToolsCleanupSweepDetached > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.CleanupSweep.include"
+		AgentsToolsCleanupSweepDetached
+		## THE CLOSE OF A RUN CHANGES THE RUNNING REGISTRY, so the schedule is asked for here as a start asks: a dead thread is started, a live one costs one read of its lock.
+		type AgentsToolsScheduleThreadAskDue > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/schedule/AgentsTools.ScheduleThread.include"
+		AgentsToolsScheduleThreadAskDue view > /dev/null 2>&1 || :
 		return 0
 	fi
 	echo "⚠️ WARNING: ${MDSC_CMD:-DistroAgentsTools}: the spawn record $1 could not be closed as spawn-$2 (exit $3), tried twice: it still says what it said" >&2 || :

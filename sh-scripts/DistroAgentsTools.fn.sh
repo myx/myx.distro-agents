@@ -715,6 +715,11 @@ DistroAgentsTools(){
 			return $?
 		;;
 
+		--intern-cleanup-sweep)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.OpInternCleanupSweep.include"
+			return $?
+		;;
+
 		--client-sweep-*|--intern-op-client-sweep-input-scan)
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/client/AgentsTools.ClientSweep.include"
 			return $?

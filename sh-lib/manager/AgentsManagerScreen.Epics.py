@@ -45,8 +45,9 @@ registerPlugin({
              "when": {"shown": "teamDataHere", "says": "no team data is configured for this workspace"}},
     "summaries": {"epics": {"lines": "epicsSummary"}},
     "reads": {
-        ## Every epic item of the vault, one read: `--epic-list` with no folder reads that store.
-        "list:epics": {"operation": ["--epic-list"], "rows": "epics"},
+        ## Every epic item of the vault, one read: `--epic-list` with no folder reads that store. Its kind is its own, so no other
+        ## list holds this one's slot: one read of a kind runs at a time, and the session list's read runs long.
+        "list:epics": {"operation": ["--epic-list"], "rows": "epics", "kind": "epics"},
         ## One epic, whole, read once it is selected.
         "view:epics:epic": {"operation": ["--epic-read", "{id}"], "once": True},
     },

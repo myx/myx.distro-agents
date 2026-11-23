@@ -432,7 +432,10 @@ AgentsToolsSessionControlStateRead(){
 
 ## THE SESSION'S OWN ROWS, prepared in its folder where its state is written: the rows of its runs, as the registry renders them, in
 ## `control/live.rows`. A reader of the live sessions reads eleven small files, never the store and never the registry.
-AgentsToolsSessionControlLiveRowsWrite(){
+## THE SAME CALL WRITES THE SESSION'S LIVE BLOCK, `.local/agents/live/<session id>.rows`, with the `seq:` token that write of the
+## state carried: the block every session list of the console reads, in place of a walk of the store. One write, one block, so
+## the block and the state it was built from never disagree for longer than the write itself.
+AgentsToolsSessionControlLiveRowsWrite(){ ## the seq of the state write (may be empty)
 	[ -n "${controlSession:-}" ] && [ -n "${controlDir:-}" ] || return 0
 	type AgentsToolsSpawnedSessionRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include"
 	local rowsText rowsTemp
@@ -445,17 +448,26 @@ AgentsToolsSessionControlLiveRowsWrite(){
 		done <<< "$( AgentsToolsSpawnedSessionRecords "$controlSession" own 2> /dev/null )"
 	} | LC_ALL=C awk -v registryRows=spawned -v registryColumns=17 -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsRegistryHeaderRows.awk" > "$rowsTemp" 2> /dev/null
 	if [ -s "$rowsTemp" ] ; then mv -f "$rowsTemp" "$controlDir/live.rows" 2> /dev/null || rm -f "$rowsTemp" 2> /dev/null ; else rm -f "$rowsTemp" 2> /dev/null ; fi
+	type AgentsToolsSessionLiveBlockWrite > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStores.include"
+	AgentsToolsSessionLiveBlockWrite "$controlSession" "${1:-}" || :
 	return 0
 }
 
 ## Sets the state of the session: written aside and put in place by one rename, so a reader
-## never sees half a state. Called only where the word changes.
+## never sees half a state. Called only where the word changes. Its `seq:` line is the token of the
+## session's live block (`AgentsTools.SessionStores.include`): it counts every write of this file, from the
+## number the file holds now, so a block built from one write reads stale the moment the next one lands,
+## and the count survives a thread that execs itself.
 AgentsToolsSessionControlStateWrite(){ ## state word, reason
+	local stateSeq
+	stateSeq="$( LC_ALL=C awk '/^seq: / { print substr( $0, 6 ) ; exit ; }' "$controlDir/state" 2> /dev/null )" || stateSeq=""
+	case "$stateSeq" in ''|*[!0123456789]*) stateSeq=0 ;; esac
+	stateSeq=$(( stateSeq + 1 ))
 	{
-		printf 'state: %s\nstate-at: %s\nreason: %s\n' "$1" "$( date +"%Y-%m-%d %H:%M %z" )" "$2" > "$controlDir/state.$controlPid.aside" \
+		printf 'state: %s\nstate-at: %s\nreason: %s\nseq: %s\n' "$1" "$( date +"%Y-%m-%d %H:%M %z" )" "$2" "$stateSeq" > "$controlDir/state.$controlPid.aside" \
 			&& mv -f "$controlDir/state.$controlPid.aside" "$controlDir/state"
 	} 2> /dev/null || { rm -f "$controlDir/state.$controlPid.aside" 2> /dev/null ; return 1 ; }
-	AgentsToolsSessionControlLiveRowsWrite || :
+	AgentsToolsSessionControlLiveRowsWrite "$stateSeq" || :
 	return 0
 }
 
@@ -1000,6 +1012,12 @@ AgentsToolsSessionControlTick(){
 		fi
 	elif AgentsToolsSessionControlStateWrite "$tickWord" "$tickReason" ; then
 		AgentsToolsSessionControlSay event "session $controlSession: $tickWord: $tickReason"
+		## THE CLOSED LINE IS APPENDED HERE AND NOWHERE ELSE: this is the one call that knows every record of the session is
+		## closed, and it runs once for the session. AgentsSessionCloseRun is a run's own close and appends nothing.
+		if [ "$tickWord" = "finished" ] ; then
+			type AgentsToolsSessionClosedAppend > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStores.include"
+			AgentsToolsSessionClosedAppend "$controlSession" finished - || :
+		fi
 	else
 		AgentsToolsSessionControlOnce unwritten "the state $tickWord could not be written to $controlDir/state -- it is tried again at the next tick"
 		return 0

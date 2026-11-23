@@ -438,7 +438,7 @@ User-facing behaviour is in [docs/configuration.md](docs/configuration.md).
   in its `YYYYMM` folder, one a line in `messages.txt`; a long body is its own file, and a file a
   message carried is fetched once, on demand. `.local/cache/comms/.interest/<service>-<id>` is the
   channel's last read. A read stops refreshing a mark once it is 48 hours old, and the hourly
-  clean deletes one at 240 hours. Each reader keeps its own floor.
+  clean deletes one at 36 hours. Each reader keeps its own floor.
 - **Primary sources and our indices** (in `.local/agents`):
   - hooks: `AgentsToolsClientToolPolicyHookRecords` (`AgentsTools.ClientToolPolicy.include`) →
     `harness.hooks.index`, valid while its version and the `cksum` of the policy and
@@ -3024,7 +3024,8 @@ stores its state (AgentsWaitProbedFlush), so a probe writes no file of its own.
 ~~~text
 A ROUND TAKES THE CACHE'S LOOK, which pulls what arrived since its newest pull (waitCacheTtl above).
 A round with under two seconds left, too little for the probe wrapper to do anything, is served what
-the cache holds at once, its refresh detached (MDAT_COMMS_CACHE_STALE_OK, AgentsTools.CommsCache.include).
+the cache holds at once, and the comms thread fills it (MDAT_COMMS_CACHE_STALE_OK,
+AgentsTools.CommsCache.include).
 ~~~
 
 - Above `roundProbeTimeout=""`

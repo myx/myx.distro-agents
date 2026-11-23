@@ -183,7 +183,7 @@ get c
 cells row6 3 85 119
 cells row7 4 85 119
 RIGSCRIPT
-rigAssert "the screen asked for the list of the sessions, once, and for nothing more" "$( rigCalled --manager-session-list ) $( rigStarts ) $( rigElse ) $( rigVal a.rows ) $( rigVal c.rows )" "1 0 0 4 3"
+rigAssert "the screen asked for the live list once and the closed window once, where each list is shown, and for nothing more" "$( rigCalled --manager-session-list ) $( rigStarts ) $( rigElse ) $( rigVal a.rows ) $( rigVal c.rows )" "1 0 1 4 3"
 rigAssert "a running session whose thread is gone carries the mark ahead of its state" "[$( rigVal row3 )]" "[$( rigListRow "daily of Monday" "x running" )]"
 rigAssert "one whose thread lives carries none"                      "[$( rigVal row4 )]" "[$( rigListRow "weekly review" "running" )]"
 rigAssert "nor does one that ended in order, nor one that never had a thread" "[$( rigVal row6 )][$( rigVal row5 )]" "[$( rigListRow "magic-devops 33333333" "finished" )][$( rigListRow "far work" "waiting" )]"
@@ -238,7 +238,7 @@ rigAssert "a session that ended in order: no thread, the stored state finished, 
 rigAssert "a session that is not finished and never had a thread: nothing stored, and the key is named" "[$( rigPane s4 4 )][$( rigPane s4 5 )] [$( rigKeysNamed keys4 )]" "[  state    waiting][  control  none; stored -] [keys: k kill  c control]"
 rigAssert "where the stored state and the derived one differ, each is shown as it is" "$( rigVal s5.selected ) [$( rigPane s5 4 )][$( rigPane s5 5 )]" "$rigS5 [  state    finished][  control  gone; stored running, set 2026-10-12 09:40 +0000 (16h ago)]"
 rigAssert "a finished session names no such key, whatever its thread" "[$( rigKeysNamed keys5 )]" "[]"
-rigAssert "all of it came with the one list: nothing more was called" "$( rigCalled --manager-session-list ) $( rigStarts ) $( rigElse ) $( rigVal s5.spills )" "1 0 0 0"
+rigAssert "all of it came with the two lists of the store, one read each: nothing more was called" "$( rigCalled --manager-session-list ) $( rigStarts ) $( rigElse ) $( rigVal s5.spills )" "1 0 1 0"
 
 echo "-- the read of one session adds the pid of a thread that lives --"
 rigCase read
@@ -322,7 +322,7 @@ rigAssert "a thread that lives already: the operation is asked all the same, and
 rigAssert "a session that needs none: not needed, with the reason the row gives" "$( rigCalled "$rigStart $rigS3" ) [$( rigVal needless.notice )]" \
 	"1 [control: not needed: every run of it has closed its record, and a finished session needs no thread]"
 rigAssert "the reason is broken to the pane, and nothing of it is lost" "[$( rigPane nn 3 )] $( rigPaneHolds nn '   not needed: every run of it has closed its record, and a finished session' ) $( rigPaneHolds nn 'no thread' )" "[ the control start, answered 02:30:00:] 1 1"
-rigAssert "each was called once, no line was opened, and each answer was followed by a read of the list" "$( rigStarts ) [$( rigVal end.dialog )] $( rigCalled --manager-session-list ) $( rigElse )" "2 [] 3 0"
+rigAssert "each was called once, no line was opened, and each answer was followed by a read of the list" "$( rigStarts ) [$( rigVal end.dialog )] $( rigCalled --manager-session-list ) $( rigElse )" "2 [] 2 2"
 rigCase slow
 cp "$MANAGER_SCREEN_RIG/slow.rows" "$MANAGER_SCREEN_RIG/rows.$rigStart $rigS1"
 rigScript <<'RIGSCRIPT'

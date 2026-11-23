@@ -213,6 +213,8 @@
 📘 syntax: DistroAgentsTools.fn.sh --manager-wizard-apply cli-service --preset <name>
 📘 syntax: DistroAgentsTools.fn.sh --manager-wizard-apply git-settings
 📘 syntax: DistroAgentsTools.fn.sh --manager-session-list [--active]
+📘 syntax: DistroAgentsTools.fn.sh --manager-session-active-list
+📘 syntax: DistroAgentsTools.fn.sh --manager-session-closed-list [--page <n>]
 📘 syntax: DistroAgentsTools.fn.sh --manager-session-read --session-id <id> [--run]
 📘 syntax: DistroAgentsTools.fn.sh --manager-session-transcript-read --session-id <id> [--run] [--tail <lines>] [--log]
 📘 syntax: DistroAgentsTools.fn.sh --manager-session-checklist-read --session-id <id> <member>

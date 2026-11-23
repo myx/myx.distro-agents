@@ -1,0 +1,125 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.CleanupSweep.include -- the sweep of what nothing needs any more: aged scratch in the workspace's
+## temp folder, and the source-tree copies a settled sandbox left in its output/.
+##
+## One pass, `preview` or `apply`. Each entry is one line, the class, its age in hours, its bytes and its path, then
+## one summary line. The age of a temp entry is its own; the age of a sandbox is its folder's. Preview removes
+## nothing. Apply removes the aged scratch and releases the copies, and counts the record folders standing past
+## their retention without removing any of them. A pass stops at agentsCleanupSweepMost entries.
+##
+## The temp class reads one listing of the temp folder, and skips the wait folders, which keep their own
+## owner-based sweep. The output class takes its folder names from one listing of the spawned store, never from a
+## walk of it, and touches a folder only where it is settled and its work inactive.
+##
+## Sourced, never run. Functions only.
+##
+
+agentsCleanupSweepMost=200
+
+## One preview line: the class, the age in hours, the bytes and the path, the four fields two spaces apart. rc 0.
+AgentsToolsCleanupSweepLine(){ ## class age bytes path
+	printf '%s  %s  %s  %s\n' "$1" "$2" "$3" "$4"
+	return 0
+}
+
+AgentsToolsCleanupSweep(){ ## preview|apply
+	local sweepMode="${1:-preview}" sweepNow sweepHours sweepRetention sweepCount=0 sweepBytes=0 sweepRemoved=0 sweepStanding=0
+	local sweepList sweepPath sweepName sweepMtime sweepKb sweepSize sweepRoot="" sweepDir sweepOutput sweepOutputCount=0 sweepHeld sweepEntry
+	sweepNow="$( date +%s )" || return 0
+	sweepHours="${MDAT_CLEANUP_TEMP_AGE_HOURS:-24}"
+	case "$sweepHours" in ''|*[!0123456789]*) sweepHours=24 ;; esac
+	sweepRetention="${MDAT_CLEANUP_RETENTION_DAYS:-14}"
+	case "$sweepRetention" in ''|*[!0123456789]*) sweepRetention=14 ;; esac
+	type AgentsToolsSpawnSandboxLive > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandboxSweep.include"
+	sweepList="$( find "$MMDAPP/.local/temp" -mindepth 1 -maxdepth 1 -mmin +$(( sweepHours * 60 )) 2> /dev/null )" || sweepList=""
+	while IFS= read -r sweepPath ; do
+		[ -n "$sweepPath" ] || continue
+		[ "$sweepCount" -lt "$agentsCleanupSweepMost" ] || break
+		sweepName="${sweepPath##*/}"
+		case "$sweepName" in mdat-member-wait*) continue ;; esac
+		## An entry whose age cannot be read is left alone: nothing goes on a guess.
+		sweepMtime="$( stat -f %m "$sweepPath" 2> /dev/null || stat -c %Y "$sweepPath" 2> /dev/null )" || sweepMtime=""
+		case "$sweepMtime" in ''|*[!0123456789]*) continue ;; esac
+		sweepKb="$( du -sk "$sweepPath" 2> /dev/null )" || sweepKb=""
+		sweepKb="${sweepKb%%[!0123456789]*}" ; sweepSize=$(( ${sweepKb:-0} * 1024 ))
+		AgentsToolsCleanupSweepLine temp "$(( ( sweepNow - sweepMtime ) / 3600 ))" "$sweepSize" "$sweepPath"
+		sweepCount=$(( sweepCount + 1 ))
+		sweepBytes=$(( sweepBytes + sweepSize ))
+		[ "$sweepMode" = apply ] || continue
+		rm -rf -- "$sweepPath" 2> /dev/null || continue
+		sweepRemoved=$(( sweepRemoved + 1 ))
+	done <<< "$sweepList"
+	type AgentsSpawnedStoreDirInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.Paths.include"
+	AgentsSpawnedStoreDirInto sweepRoot "$MMDAPP" || sweepRoot=""
+	[ -d "$sweepRoot" ] || sweepRoot=""
+	## The record folders past their retention, in the run store and in the session store, counted by one find. The sweep removes no record at all.
+	sweepStanding="$( find ${sweepRoot:+"$sweepRoot"} "$MMDAPP/.local/agents/sessions" -mindepth 1 -maxdepth 1 -type d -mtime +"$sweepRetention" 2> /dev/null | LC_ALL=C wc -l )" || sweepStanding=0
+	sweepStanding="${sweepStanding//[!0123456789]/}"
+	sweepStanding="${sweepStanding:-0}"
+	[ "$sweepMode" != preview ] || [ "$sweepStanding" -eq 0 ] || printf '# %s: %s record folders are past the retention of %s days, and are left alone\n' "${MDSC_CMD:-DistroAgentsTools}" "$sweepStanding" "$sweepRetention" >&2
+	type AgentsToolsUndoHoldState > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/undo/AgentsTools.UndoHold.include"
+	sweepList=""
+	[ -z "$sweepRoot" ] || sweepList="$( find "$sweepRoot" -mindepth 2 -maxdepth 2 -name output -type d 2> /dev/null )" || sweepList=""
+	while IFS= read -r sweepOutput ; do
+		[ -n "$sweepOutput" ] || continue
+		[ "$sweepOutputCount" -lt "$agentsCleanupSweepMost" ] || break
+		sweepDir="${sweepOutput%/output}"
+		## A folder with nothing in its output/ has nothing to release: it is neither listed nor counted, so the bound is spent on folders that hold something.
+		sweepHeld=""
+		for sweepEntry in "$sweepOutput"/* "$sweepOutput"/.[!.]* ; do
+			[ -e "$sweepEntry" ] && { sweepHeld=yes ; break ; }
+		done
+		[ -n "$sweepHeld" ] || continue
+		[ "$( AgentsToolsUndoHoldState "$sweepDir/undo.hold" )" = absent ] || continue
+		[ "$( AgentsToolsSpawnSandboxLive "$sweepDir" )" = settled ] || continue
+		[ "$( AgentsToolsSpawnSandboxWorkActive "$sweepDir" )" = inactive ] || continue
+		sweepMtime="$( stat -f %m "$sweepDir" 2> /dev/null || stat -c %Y "$sweepDir" 2> /dev/null )" || sweepMtime="$sweepNow"
+		case "$sweepMtime" in ''|*[!0123456789]*) sweepMtime="$sweepNow" ;; esac
+		sweepKb="$( du -sk "$sweepOutput" 2> /dev/null )" || sweepKb=""
+		sweepKb="${sweepKb%%[!0123456789]*}" ; sweepSize=$(( ${sweepKb:-0} * 1024 ))
+		AgentsToolsCleanupSweepLine output "$(( ( sweepNow - sweepMtime ) / 3600 ))" "$sweepSize" "$sweepDir"
+		sweepOutputCount=$(( sweepOutputCount + 1 ))
+		sweepCount=$(( sweepCount + 1 ))
+		sweepBytes=$(( sweepBytes + sweepSize ))
+		[ "$sweepMode" = apply ] || continue
+		## Nothing is linked to work that still stands, no run lives and no undo is promised: the whole output/ goes, and the folder stays as the record's own.
+		find "$sweepOutput" -mindepth 1 -maxdepth 1 -exec rm -rf -- {} + 2> /dev/null || continue
+		sweepRemoved=$(( sweepRemoved + 1 ))
+	done <<< "$sweepList"
+	if [ "$sweepMode" = apply ] ; then
+		printf 'removed=%s left-records=%s\n' "$sweepRemoved" "$sweepStanding"
+	else
+		printf '%s entries, %s in all\n' "$sweepCount" "$sweepBytes"
+	fi
+	return 0
+}
+
+## Starts one detached apply pass, once an hour at most by the stamp beside the pending collect, and never holds its caller: the pass
+## walks the spawned store, so a call path only starts it, as the collector thread is started (AgentsToolsCollectThreadStart).
+AgentsToolsCleanupSweepDetached(){
+	local detachStamp="$MMDAPP/.local/agents/cleanup-sweep.stamp" detachNow detachWas="" detachMonitor detachDrop
+	detachNow="$( date +%s )"
+	{ IFS= read -r detachWas < "$detachStamp" ; } 2> /dev/null || detachWas=""
+	case "$detachWas" in ''|*[!0123456789]*) detachWas=0 ;; esac
+	[ $(( detachNow - detachWas )) -ge 3600 ] || return 0
+	mkdir -p "$MMDAPP/.local/agents" 2> /dev/null && printf '%s\n' "$detachNow" > "$detachStamp" 2> /dev/null || return 0
+	detachMonitor="$BASH_SUBSHELL:$-"
+	set -m
+	(
+		trap '' HUP
+		set +e
+		for detachDrop in ${!MDAT_SPAWN_@} MDAT_SESSION_ID MDAT_SESSION_THREAD MDAT_CONVERSATION_THREADS harnessSessionId harnessAgent CLAUDE_CODE_SESSION_ID ; do
+			unset "$detachDrop"
+		done
+		for (( detachDrop = 3 ; detachDrop < 64 ; detachDrop++ )) ; do
+			eval "exec $detachDrop>&-"
+		done
+		exec "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-cleanup-sweep --apply
+	) < /dev/null > /dev/null 2>&1 &
+	disown "$!" 2> /dev/null || :
+	case "$detachMonitor" in 0:*m*) ;; *) set +m ;; esac
+	return 0
+}

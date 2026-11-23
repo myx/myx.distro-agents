@@ -55,6 +55,14 @@ DistroAgentsDispatcherMoved(){
 			return $?
 		;;
 
+		## The runs this session may see: the executor's own front, AgentExecutorTools.fn.sh.
+		--list-session-runs)
+			echo "$MDSC_CMD: $1 moved to AgentExecutorTools.fn.sh $1 -- this name still works" >&2
+			type AgentExecutorTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/AgentExecutorTools.fn.sh"
+			AgentExecutorTools "$@"
+			return $?
+		;;
+
 		*)
 			echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
 			set +e ; return 1
@@ -111,16 +119,7 @@ DistroAgentsDispatcher(){
 			return $?
 		;;
 
-		## The runs this session may see, bound to the session of the call (ThisSession): its sub-sessions, the public
-		## coworking sessions and the caller's own -- never another member's private session, unless the call is made in it.
-		--list-session-runs)
-			shift
-			type AgentsToolsThisSessionRuns > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.ThisSession.include"
-			AgentsToolsThisSessionRuns "$@"
-			return $?
-		;;
-
-		## The BPMN/DMN diagrams older than the newest definition file: <definitions-dir> <diagrams-dir>, read-only.
+		## The runs this session may see: the executor's own front, AgentExecutorTools.fn.sh. DistroAgentsDispatcherMoved keeps the name as its stub.
 		--camunda-diagram-sync-stale)
 			local camundaOp="$1"
 			shift

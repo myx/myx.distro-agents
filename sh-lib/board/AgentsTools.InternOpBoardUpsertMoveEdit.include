@@ -489,6 +489,15 @@ case "$1" in
 			echo "# $MDSC_CMD: board-upsert-move-edit: $msgVerb ${targetPath#"$boardRoot"/}, tree: $boardRoot" >&2
 		fi
 
+		## THE WAITING-REPLIES LIST IS KEPT HERE, at the one write every board item lands through: the pending-replies
+		## registry reads it instead of walking a board state, so this line is what stands between that walk and every
+		## rebuild. It rewrites a small file only where this item's own line and its `blocked-on` disagree.
+		type AgentsToolsBoardWaitingRepliesIndexSet > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.BoardWaitingRepliesIndex.include"
+		case $'\n'"$body" in
+			*$'\n'"blocked-on: "*) AgentsToolsBoardWaitingRepliesIndexSet "$toState" "$itemName" yes || : ;;
+			*) AgentsToolsBoardWaitingRepliesIndexSet "$toState" "$itemName" no || : ;;
+		esac
+
 		## A dispatch item whose `references:` cite peers gives its session's run a seat on each: that session's permission files are written again here, once.
 		case $'\n'"$body" in
 			*$'\n'"references: "*)

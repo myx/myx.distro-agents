@@ -1,0 +1,60 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.ExecutorQueue.include -- the operation `--executor-queue`, sourced by AgentExecutorTools.fn.sh with the operation's
+## arguments. The chair's read of its own session's queue: one block per participant, with its open items, and whether it has a run in
+## the session. It reads only. The session's thread is read by AgentsToolsSessionControlLive, and a participant's presence by the
+## session's own record rule (AgentsToolsSessionMemberPresent): this operation starts no probe of its own.
+##
+
+AgentsToolsExecutorQueue(){ ## the operation's arguments
+	local queueSession="" queueNamed="" queueLive="" queueWanted="" queueMember="" queueFile="" queueLine="" queueSaid=""
+	while [ $# -gt 0 ] ; do
+		case "$1" in
+			--session-id)
+				[ -n "${2:-}" ] || { echo "$MDSC_CMD: ⛔ ERROR: --executor-queue: --session-id takes a session id. Nothing was read." >&2 ; return 1 ; }
+				queueSession="$2" ; shift 2
+			;;
+			--member)
+				[ -n "${2:-}" ] || { echo "$MDSC_CMD: ⛔ ERROR: --executor-queue: --member takes a member name. Nothing was read." >&2 ; return 1 ; }
+				queueNamed="$2" ; shift 2
+			;;
+			*)
+				echo "$MDSC_CMD: ⛔ ERROR: --executor-queue: invalid option: $1 -- syntax is --executor-queue [--session-id <id>] [--member <name>]" >&2
+				return 1
+			;;
+		esac
+	done
+	type AgentsToolsExecutorSeatInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.ExecutorSeat.include"
+	AgentsToolsExecutorSeatInto --executor-queue "$queueSession" || return 1
+	type AgentsToolsSessionControlLive > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionControlStart.include"
+	type AgentsToolsSessionMemberPresent > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionSeats.include"
+	type AgentsSessionChecklistFileInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.CheckListSeed.include"
+	queueLive="$( printf '%s\n' "$executorSeatSession" | AgentsToolsSessionControlLive )" || queueLive=""
+	queueWanted="$( AgentsToolsExecutorSeatMembers "$executorSeatSession" "$executorSeatFounder" )"
+	if [ -n "$queueNamed" ] ; then
+		case $'\n'"$queueWanted"$'\n' in
+			*$'\n'"$queueNamed"$'\n'*) ;;
+			*)
+				echo "$MDSC_CMD: ⛔ ERROR: --executor-queue: $queueNamed is neither the executor nor a participant of session $executorSeatSession, so it keeps no queue there. Nothing was read." >&2
+				return 1
+			;;
+		esac
+		queueWanted="$queueNamed"
+	fi
+	printf 'queue %s %s %s participant(s)\n' "$executorSeatSession" "${queueLive:+live}${queueLive:-no-control-thread}" "$( printf '%s\n' "$queueWanted" | LC_ALL=C awk 'NF { n++ ; } END { print n + 0 ; }' )"
+	for queueMember in $queueWanted ; do
+		if AgentsToolsSessionMemberPresent "$executorSeatSession" "$queueMember" ; then queueSaid="has a run in the session" ; else queueSaid="has no run in the session" ; fi
+		printf 'member %s: %s\n' "$queueMember" "$queueSaid"
+		AgentsSessionChecklistFileInto queueFile "$executorSeatSession" "$queueMember" || queueFile=""
+		if [ -z "$queueFile" ] ; then
+			printf '  (its queue has no place to be kept)\n'
+			continue
+		fi
+		queueLine="$( LC_ALL=C awk '/^- \[ \] / || /^- \[~\] / { print "  " $0 ; }' "$queueFile" 2> /dev/null )" || queueLine=""
+		[ -n "$queueLine" ] || queueLine="  (no open item)"
+		printf '%s\n' "$queueLine"
+	done
+	return 0
+}

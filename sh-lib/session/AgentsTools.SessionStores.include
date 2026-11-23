@@ -1,0 +1,258 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.SessionStores.include -- the three session stores, each written by the one process that changes it: the live
+## blocks `.local/agents/live/<session id>.rows`, the append-only closed index `.local/agents/closed-sessions.index`, and
+## the runs blocks `.local/agents/spawned-rows/<tracking name>.rows`. Sourced, never run. Functions only. A reader of one
+## reads blocks, so a list costs what it shows and never what the workspace holds.
+##
+## A BLOCK IS VALID WHEN THE TOKEN IT CARRIES IS THE TOKEN ITS OWN SOURCE CARRIES NOW. The live block's token is its
+## session's `seq:` counter, in `sessions/<id>/control/state`. The runs block's token is three headers of the record it was
+## built from. Neither is an mtime: mtime has one-second resolution, so two writes inside one second are one write to a
+## stat test (MAGIC.md, the store's own stamp). The closed index has no token, being append-only.
+##
+## A block holds the rows in the spawned-sessions registry's own seventeen columns, rendered by the registry's own reader
+## (AgentsRegistryHeaderRows.awk), so a block is a registry file of its own and no second renderer of a row exists.
+##
+
+AgentsToolsSessionLiveDirInto(){ ## variable, workspace
+	printf -v "$1" '%s' ""
+	case "${2:-}" in ''|/) return 1 ;; esac
+	printf -v "$1" '%s/.local/agents/live' "${2%/}"
+}
+
+AgentsToolsSpawnRowsDirInto(){ ## variable, workspace
+	printf -v "$1" '%s' ""
+	case "${2:-}" in ''|/) return 1 ;; esac
+	printf -v "$1" '%s/.local/agents/spawned-rows' "${2%/}"
+}
+
+## ONE SESSION'S ROWS, in the registry's rendered form: its state entry, its records from the session's own kept list, and, for
+## a session whose kept list names no record yet, the one row a sandbox with no record gets. The kept list is a file of the
+## session's folder, so no store is walked and no other session's record is opened. A session is always its own row, even
+## before its first run writes a record: a session just started is one the list shows.
+AgentsToolsSessionLiveRowsText(){ ## session id
+	local rowsId="${1:-}" rowsState rowsOne rowsSeen=""
+	case "$rowsId" in ''|-|.|..|*/*|*[[:space:]]*) return 0 ;; esac
+	rowsState="$MMDAPP/.local/agents/sessions/$rowsId/control/state"
+	{
+		[ ! -f "$rowsState" ] || printf 'T%s\n' "$rowsState"
+		printf 'D%s\n' "$rowsId"
+		while IFS= read -r rowsOne || [ -n "$rowsOne" ] ; do
+			case "$rowsOne" in
+				'own	'*)
+					rowsOne="${rowsOne#own	}"
+					case "$rowsOne" in ''|*/*/*.spawn.md) [ -f "$rowsOne" ] || continue ; rowsSeen="yes" ; printf 'S%s\n' "$rowsOne" ;; esac
+				;;
+			esac
+		done < "$MMDAPP/.local/agents/sessions/$rowsId/records.kept" 2> /dev/null || :
+		[ -n "$rowsSeen" ] || printf 'E\n'
+	} | LC_ALL=C awk -v registryRows=spawned -v registryColumns=17 -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsRegistryHeaderRows.awk" 2> /dev/null || :
+	return 0
+}
+
+## One session's live block, written whole beside itself and put in place by one rename: `seq:` and `owner:` first, then the
+## rows above. rc 1 where the session has no folder, since a block for an unknown id would read as a session of its own.
+AgentsToolsSessionLiveBlockWrite(){ ## session id, seq
+	local lwId="${1:-}" lwSeq="${2:-}" lwDir lwTemp lwOwner lwRows
+	case "$lwId" in ''|-|.|..|*/*|*[[:space:]]*) return 1 ;; esac
+	case "$lwSeq" in ''|*[!0123456789]*) return 1 ;; esac
+	[ -n "${MMDAPP:-}" ] || return 1
+	[ -d "$MMDAPP/.local/agents/sessions/$lwId" ] || return 1
+	AgentsToolsSessionLiveDirInto lwDir "$MMDAPP" || return 1
+	mkdir -p "$lwDir" 2> /dev/null || return 1
+	lwOwner="-"
+	{ IFS= read -r lwOwner < "$MMDAPP/.local/agents/sessions/$lwId/control/pid" ; } 2> /dev/null || lwOwner="-"
+	lwRows="$( AgentsToolsSessionLiveRowsText "$lwId" )" || lwRows=""
+	lwTemp="$( mktemp "$lwDir/$lwId.rows.XXXXXX" 2> /dev/null )" || return 1
+	{ printf 'seq: %s\nowner: %s\n%s\n' "$lwSeq" "$lwOwner" "$lwRows" ; } > "$lwTemp" 2> /dev/null \
+		|| { rm -f "$lwTemp" 2> /dev/null ; return 1 ; }
+	chmod 644 "$lwTemp" 2> /dev/null || :
+	mv -f "$lwTemp" "$lwDir/$lwId.rows" 2> /dev/null || { rm -f "$lwTemp" 2> /dev/null ; return 1 ; }
+	return 0
+}
+
+## THE LIVE BLOCKS, as one registry text: `<id><TAB><alive|gone|none><TAB><pid>` a block for the control column of every list,
+## and the block's own rows after it. The folder's own listing is the answer, and no store is walked for it. A block whose
+## `seq:` is not its session's is `stale`, and its rows are left out: its owner rewrites it at its next state write, and until
+## then it is no fact. A block whose thread is gone is still listed with its rows, so a crashed thread is read and never
+## hidden. The process list is read ONCE for every block, never once a block.
+AgentsToolsSessionLiveBlockText(){
+	local lvDir lvFile lvId lvHead lvSeq lvWord lvPid lvNow="" lvOut="" lvTab=$'\t'
+	AgentsToolsSessionLiveDirInto lvDir "${MMDAPP:-}" || return 0
+	[ -d "$lvDir" ] || return 0
+	type AgentsToolsRunProcessesBegan > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunProcesses.include"
+	for lvFile in "$lvDir"/*.rows ; do
+		[ -f "$lvFile" ] || continue
+		lvHead="$( LC_ALL=C awk '/^owner: / { print substr( $0, 8 ) ; exit ; }' "$lvFile" 2> /dev/null )" || lvHead=""
+		case "$lvHead" in ''|-) ;; *) lvNow="$lvNow$lvHead"$'\n' ;; esac
+	done
+	case "$lvNow" in '') lvNow="" ;; *) lvNow="$( printf '%s' "$lvNow" | AgentsToolsRunProcessesBegan 2> /dev/null )" || lvNow="" ;; esac
+	for lvFile in "$lvDir"/*.rows ; do
+		[ -f "$lvFile" ] || continue
+		lvId="${lvFile##*/}" ; lvId="${lvId%.rows}"
+		case "$lvId" in ''|-|.|..|*/*|*[[:space:]]*) continue ;; esac
+		lvSeq="$( LC_ALL=C awk '/^seq: / { print substr( $0, 6 ) ; exit ; }' "$lvFile" 2> /dev/null )" || lvSeq=""
+		lvHead="$( LC_ALL=C awk '/^owner: / { print substr( $0, 8 ) ; exit ; }' "$lvFile" 2> /dev/null )" || lvHead=""
+		lvWord="gone" lvPid="${lvHead%% *}"
+		case "$lvHead" in
+			''|-) lvWord="none" ; lvPid="-" ;;
+			*) case $'\n'"$lvNow"$'\n' in *$'\n'"$lvHead"$'\n'*) lvWord="alive" ;; esac ;;
+		esac
+		lvPid="$( printf '%s' "$lvPid" | LC_ALL=C awk '/^[0-9]+$/ { print ; }' )" || lvPid=""
+		[ -n "$lvPid" ] || lvPid="-"
+		lvState="$( LC_ALL=C awk '/^seq: / { print substr( $0, 6 ) ; exit ; }' "$MMDAPP/.local/agents/sessions/$lvId/control/state" 2> /dev/null )" || lvState=""
+		## A BLOCK ITS OWNER HAS NOT CAUGHT UP IS REBUILT HERE, by the same writer that owns it, at the token its state carries
+		## now: the reader never takes a stale block as fact, and never drops a live session from a list for want of a row.
+		if [ -z "$lvState" ] || [ "$lvState" != "$lvSeq" ] ; then
+			[ -z "$lvState" ] || AgentsToolsSessionLiveBlockWrite "$lvId" "$lvState" || :
+			[ -z "$lvState" ] || lvFile="$lvDir/$lvId.rows"
+			lvSeq="$lvState"
+		fi
+		lvOut="$lvOut$lvId$lvTab$lvWord$lvTab$lvPid"$'\n'
+		[ -z "$lvState" ] || lvOut="$lvOut$( LC_ALL=C awk 'NR > 2' "$lvFile" 2> /dev/null )"$'\n'
+	done
+	printf '%s' "$lvOut"
+	return 0
+}
+
+## One sandbox folder's runs block: `src:` first, three headers of the record it was built from, then that folder's state
+## entry, its `D` row and one `S` row a record. Written whole beside itself and renamed into place.
+AgentsToolsSpawnRowsBlockWrite(){ ## tracking name
+	local rwName="${1:-}" rwDir rwTemp rwToken rwOne rwFolder rwState
+	case "$rwName" in ''|-|.|..|-*|*/*|*[[:space:]]*) return 1 ;; esac
+	[ -n "${MMDAPP:-}" ] || return 1
+	rwFolder="$MMDAPP/.local/agents/spawned/$rwName"
+	[ -d "$rwFolder" ] || return 1
+	AgentsToolsSpawnRowsDirInto rwDir "$MMDAPP" || return 1
+	mkdir -p "$rwDir" 2> /dev/null || return 1
+	type AgentsToolsRegistryRowsEntry > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
+	type AgentsToolsFrontmatterKey > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.FrontmatterKey.include"
+	rwToken="- - -" rwState=""
+	for rwOne in "$rwFolder"/*.spawn.md ; do
+		[ -f "$rwOne" ] || continue
+		rwToken="$( AgentsToolsFrontmatterKey "$rwOne" status ) $( AgentsToolsFrontmatterKey "$rwOne" resolved-at ) $( AgentsToolsFrontmatterKey "$rwOne" exit-code )"
+		rwToken="$( printf '%s\n' "$rwToken" | LC_ALL=C awk '{ for ( at = 1 ; at <= 3 ; at++ ) if ( $at == "" ) $at = "-" ; print $1, $2, $3 ; }' )"
+		break
+	done
+	rwOne="$( AgentsToolsFrontmatterKey "$rwFolder/$rwName.spawn.md" session-id )" || rwOne="-"
+	[ "$rwOne" = "-" ] || rwState="$MMDAPP/.local/agents/sessions/$rwOne/control/state"
+	rwTemp="$( mktemp "$rwDir/$rwName.rows.XXXXXX" 2> /dev/null )" || return 1
+	{
+		printf 'src: %s\n' "$rwToken"
+		{
+			[ -z "$rwState" ] || [ ! -f "$rwState" ] || printf 'T%s\n' "$rwState"
+			AgentsToolsRegistryRowsEntry D "$rwName"
+			for rwOne in "$rwFolder"/*.spawn.md ; do
+				[ -f "$rwOne" ] || continue
+				AgentsToolsRegistryRowsEntry S "$rwOne"
+			done
+		} | LC_ALL=C awk -v registryRows=spawned -v registryColumns=17 -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsRegistryHeaderRows.awk"
+	} > "$rwTemp" 2> /dev/null || { rm -f "$rwTemp" 2> /dev/null ; return 1 ; }
+	chmod 644 "$rwTemp" 2> /dev/null || :
+	mv -f "$rwTemp" "$rwDir/$rwName.rows" 2> /dev/null || { rm -f "$rwTemp" 2> /dev/null ; return 1 ; }
+	return 0
+}
+
+## One folder's runs block removed with the folder it shadowed. Nothing where there is none.
+AgentsToolsSpawnRowsBlockRemove(){ ## tracking name
+	local rmName="${1:-}" rmDir
+	case "$rmName" in ''|-|.|..|-*|*/*|*[[:space:]]*) return 0 ;; esac
+	[ -n "${MMDAPP:-}" ] || return 0
+	AgentsToolsSpawnRowsDirInto rmDir "$MMDAPP" || return 0
+	[ ! -e "$rmDir/$rmName.rows" ] || rm -f -- "$rmDir/$rmName.rows" 2> /dev/null || :
+	return 0
+}
+
+## One folder's rows, and only while its token is the token its record carries now: a block whose record moved is stale, and
+## its rows are no fact. Its owner rewrites it at the next write of that record.
+AgentsToolsSpawnRowsBlockText(){ ## tracking name
+	local btName="${1:-}" btDir btFile btToken btNow btOne
+	case "$btName" in ''|-|.|..|-*|*/*|*[[:space:]]*) return 0 ;; esac
+	[ -n "${MMDAPP:-}" ] || return 0
+	AgentsToolsSpawnRowsDirInto btDir "$MMDAPP" || return 0
+	btFile="$btDir/$btName.rows"
+	[ -f "$btFile" ] || return 0
+	type AgentsToolsFrontmatterKey > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.FrontmatterKey.include"
+	btToken="$( LC_ALL=C awk '/^src: / { print substr( $0, 6 ) ; exit ; }' "$btFile" 2> /dev/null )" || btToken=""
+	btNow="- - -"
+	for btOne in "$MMDAPP/.local/agents/spawned/$btName"/*.spawn.md ; do
+		[ -f "$btOne" ] || continue
+		btNow="$( AgentsToolsFrontmatterKey "$btOne" status ) $( AgentsToolsFrontmatterKey "$btOne" resolved-at ) $( AgentsToolsFrontmatterKey "$btOne" exit-code )"
+		btNow="$( printf '%s\n' "$btNow" | LC_ALL=C awk '{ for ( at = 1 ; at <= 3 ; at++ ) if ( $at == "" ) $at = "-" ; print $1, $2, $3 ; }' )"
+		break
+	done
+	[ "$btToken" = "$btNow" ] || return 0
+	LC_ALL=C awk 'NR > 1' "$btFile" 2> /dev/null || :
+	return 0
+}
+
+## THE CLOSED INDEX, APPENDED BY THE ONE CLOSE THAT ENDS A SESSION. One line holds ten TAB-separated fields: the sequence
+## number, the session id, its member, its routine, its host, the moment it ended, its end word, the moment it started, its
+## token sum, and the sandbox folders of its runs comma-joined (`-` for none). Every date is the registry's own shape, a space
+## written `_`. Appended in end order and never rewritten: a session that closes again appends one more line, and a reader takes
+## a session's last line as its truth.
+AgentsToolsSessionClosedAppend(){ ## session id, end word, token sum
+	local cdId="${1:-}" cdWord="${2:-finished}" cdTokens="${3:--}" cdFile cdSeq cdLast cdOne cdRuns="" cdFirst=""
+	local cdMember="-" cdRoutine="-" cdHost="-" cdStart="-"
+	case "$cdId" in ''|-|.|..|*/*|*[[:space:]]*) return 1 ;; esac
+	[ -n "${MMDAPP:-}" ] || return 1
+	type AgentsToolsFrontmatterKey > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.FrontmatterKey.include"
+	type AgentsToolsSpawnedSessionRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include"
+	cdFile="$MMDAPP/.local/agents/closed-sessions.index"
+	mkdir -p "${cdFile%/*}" 2> /dev/null || return 1
+	cdSeq=0
+	if [ -s "$cdFile" ] ; then
+		cdLast="$( LC_ALL=C tail -1 "$cdFile" 2> /dev/null )" || cdLast=""
+		cdSeq="${cdLast%%"	"*}"
+		case "$cdSeq" in ''|*[!0123456789]*) cdSeq=0 ;; esac
+	fi
+	cdSeq=$(( cdSeq + 1 ))
+	## ONE PASS OVER THE SESSION'S OWN RECORDS, from its kept list: the folder of each of its runs, and the first of them,
+	## whose record carries the session's own headers.
+	while IFS=$'\t' read -r cdLast cdOne ; do
+		[ "$cdLast" = "own" ] || continue
+		[ -n "$cdOne" ] || continue
+		cdRuns="$cdRuns${cdRuns:+,}${cdOne%/*}"
+		[ -n "$cdFirst" ] || cdFirst="$cdOne"
+	done <<< "$( AgentsToolsSpawnedSessionRecords "$cdId" own 2> /dev/null )"
+	if [ -z "$cdRuns" ] ; then
+		cdRuns="-"
+	else
+		cdRuns="$( printf '%s\n' "$cdRuns" | LC_ALL=C tr ',' '\n' | LC_ALL=C sort -u | LC_ALL=C awk '{ printf "%s%s", ( NR > 1 ? "," : "" ), $0 ; }' )"
+	fi
+	[ ! -f "$cdFirst" ] || {
+		cdMember="$( AgentsToolsFrontmatterKey "$cdFirst" owner )"
+		cdRoutine="$( AgentsToolsFrontmatterKey "$cdFirst" routine )"
+		cdHost="$( AgentsToolsFrontmatterKey "$cdFirst" host )"
+		cdStart="$( AgentsToolsFrontmatterKey "$cdFirst" started-at )"
+	}
+	printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+		"$cdSeq" "$cdId" "${cdMember:--}" "${cdRoutine:--}" "${cdHost:--}" \
+		"$( date +"%Y-%m-%d_%H:%M_%z" )" "$cdWord" "${cdStart:--}" "$cdTokens" "$cdRuns" >> "$cdFile" 2> /dev/null || return 1
+	return 0
+}
+
+## THE CLOSED LIST'S WINDOW, newest first: `tail -n` of the index for the page's own lines, and one awk to turn them round.
+## Nothing proportional to the store is opened, and a page past the count is answered empty, never rebuilt.
+AgentsToolsSessionClosedWindow(){ ## page, page size
+	local wnPage="${1:-0}" wnSize="${2:-40}" wnFile wnWant
+	case "$wnPage" in ''|*[!0123456789]*) return 1 ;; esac
+	case "$wnSize" in ''|*[!0123456789]*|0) wnSize=40 ;; esac
+	[ -n "${MMDAPP:-}" ] || return 1
+	wnFile="$MMDAPP/.local/agents/closed-sessions.index"
+	[ -s "$wnFile" ] || return 0
+	wnWant=$(( wnSize * ( wnPage + 1 ) ))
+	LC_ALL=C tail -n "$wnWant" "$wnFile" 2> /dev/null \
+		| LC_ALL=C awk -F'\t' -v size="$wnSize" -v page="$wnPage" '
+			{ line[NR] = $0 ; }
+			END {
+				last = NR - ( page * size ) ;
+				if ( last > NR ) last = NR ;
+				first = last - size + 1 ;
+				if ( first < 1 ) first = 1 ;
+				for ( at = last ; at >= first ; at-- ) print line[at] ;
+			}'
+	return 0
+}

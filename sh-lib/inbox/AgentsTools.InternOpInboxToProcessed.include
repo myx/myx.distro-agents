@@ -223,7 +223,7 @@ case "$1" in
 		## retention clock), and a plain re-mark is a successful no-op -- no write,
 		## no commit. Edits still apply to an already-marked item.
 		local existingProcessedAt="" existingMarked="false" existingLine=""
-		existingLine="$( LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/inbox/AgentsInboxProcessedAtList.awk" "$sourcePath" )" || existingLine=""
+		existingLine="$( printf '%s\n' "$sourcePath" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/inbox/AgentsInboxProcessedAtList.awk" )" || existingLine=""
 		## `|| ...` because this file runs under `set -e`: a bare capture aborts the op instead of returning through its own error path.
 		if [ -n "$existingLine" ] ; then
 			existingMarked="true"

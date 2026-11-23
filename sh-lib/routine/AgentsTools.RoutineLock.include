@@ -60,8 +60,8 @@ AgentsToolsAdvanceBranchBring(){ ## store root, branch
 	fi
 	if [ -n "$bringAhead" ] ; then
 		printf 'failed\nthe branch holds %s commit(s) origin does not have, so it cannot be brought level by a fast-forward: %s\n' \
-			"$( printf '%s\n' "$bringAhead" | LC_ALL=C awk 'END { print NR + 0 }' )" \
-			"$( printf '%s\n' "$bringAhead" | LC_ALL=C awk 'BEGIN { ORS = "" } { printf "%s%s", ( NR > 1 ? " " : "" ), substr( $0, 1, 12 ) }' )"
+			"$( printf '%s\n' "$bringAhead" | LC_ALL=C awk 'END { print NR + 0 ; }' )" \
+			"$( printf '%s\n' "$bringAhead" | LC_ALL=C awk 'BEGIN { ORS = "" ; } { printf "%s%s", ( NR > 1 ? " " : "" ), substr( $0, 1, 12 ) ; }' )"
 		return 1
 	fi
 	printf 'ok\n'

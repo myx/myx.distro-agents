@@ -488,6 +488,11 @@ AgentsHarnessToolThisSession(){ ## operation, message, who the post is for, rout
 	esac
 	## The member this call resolved is the member the operation acts as, and the session is the one
 	## the call runs in: the tool file takes neither as an argument, which is what locks it to them.
+	## The chair's own words are the executor front's (AgentExecutorTools.fn.sh); every other word is
+	## ThisSession's own (DistroAgentsSession.fn.sh).
+	case "$toolOp" in
+		get-uninvited-participants|set-session-topic|set-session-chapter) toolFn="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/AgentExecutorTools.fn.sh" ;;
+	esac
 	toolOut="$( MDAT_SPAWN_AGENT="$harnessAgent" MDAT_SPAWN_SESSION_ID="${harnessSessionId:-${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}}" \
 		"$BASH" "$toolFn" ${toolArgs[@]+"${toolArgs[@]}"} 2>&1 )" || toolRc=$?
 	if [ "$toolRc" != "0" ] ; then

@@ -99,6 +99,20 @@ AgentsToolsSpawnLimitReached(){
 	printf '%s %s\n' "$limitRunning" "$limitValue"
 }
 
+## THE FREE-SPACE FLOOR. AgentsToolsSpawnDiskFreeRefused returns 0 saying nothing where the whole GiB free at $MMDAPP is at or above the floor,
+## and prints the refusal and returns 1 under it. The floor is MDAT_MONITORING_DISK_FREE_GIB (20), read as the outbox alarm is. A reading df
+## cannot make is not a refusal: the start goes on, and the health line says `unknown`. Its one alarm record lands on the same read.
+AgentsToolsSpawnDiskFreeRefused(){
+	local refuseFloor="${MDAT_MONITORING_DISK_FREE_GIB:-20}" refuseFree=""
+	case "$refuseFloor" in ''|*[!0123456789]*) refuseFloor=20 ;; esac
+	type AgentsToolsMonitoringDiskFree > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/monitoring/AgentsTools.Monitoring.include" || return 1
+	refuseFree="$( AgentsToolsMonitoringDiskFree "${MMDAPP:-}" )" || return 0
+	AgentsToolsDiskFreeAlert "$refuseFree" "$refuseFloor" || :
+	[ "$refuseFree" -lt "$refuseFloor" ] || return 0
+	echo "$MDSC_CMD: agent-spawn-proxy: ⛔ ERROR: $refuseFree GiB free at ${MMDAPP:-} is under the $refuseFloor GiB floor (MDAT_MONITORING_DISK_FREE_GIB) -- the start is refused, so the workspace does not fill its disk" >&2
+	return 1
+}
+
 ## The queue's one entry: the request of a spawn the limit turned away, filed where the coordinator reads (an inquiry in its inbox, carrying the routine, the members and the task) and added
 ## as an item to the CheckList of its running work-duty. Prints SPAWN_QUEUED=true, SPAWN_QUEUE_ITEM=<the inquiry> and SPAWN_QUEUE_CHECKLIST=<session>:magic-coordinator, or none where no work-duty
 ## runs to take it, the inquiry then waiting in the inbox. rc 1 where the inquiry could not be filed.

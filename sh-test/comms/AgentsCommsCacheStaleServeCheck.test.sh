@@ -1,15 +1,12 @@
 #!/usr/bin/env bash
 ## Behavioural check on the short-timeout read of a stale channel (sketch "Comms/Cache/Wait summary": stale-while-revalidate
-## for short-timeout calls -- a Wait call with a zero or small timeout gets what is ready, and the refresh runs detached).
-## The read operation here is SLOW, which is what separates the two paths: a call served stale returns at once and has paid no
-## pull, and the same call without that mark waits the slow read. With an instant read both paths answer at once, and neither
-## the elapsed time nor the pull count tells them apart.
+## for short-timeout calls -- a Wait call with a zero or small timeout gets what is ready). Epic `## Decisions` line 95 keeps
+## ruling 14: a reader never starts a refresh, and only the comms thread fills an entry. So a served-stale call answers from what
+## the cache holds and starts no pull of its own; the rows about a detached refresh that followed it went with that branch.
 ## Held:
-##   1. a stale folder is served as it stands by a call that marks itself short-timeout, at once and with no pull paid yet
-##   2. and one pull of its own then runs, detached, and brings the channel up to date for the next read
-##   3. control: the same call without that mark pays the slow pull, and is served the fresh messages
-##   4. control: a folder inside its TTL is served as it stands, and no pull is started for it
-## Each scene has a folder of its own, so a detached refresh of one scene never lands in another's.
+##   1. a stale folder is served as it stands by a call that marks itself short-timeout, at once and with no pull paid
+##   2. control: a folder inside its TTL is served as it stands, and no pull is started for it
+## Each scene has a folder of its own, so nothing of one scene lands in another's.
 ## Offline: the read operation and the rendering are stubbed by this file, so nothing leaves the machine.
 set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
@@ -66,16 +63,8 @@ rigStale(){ ## how old the pull moment is, in seconds
 	: > "$rigPulls"
 }
 rigPullsNow(){ LC_ALL=C wc -l < "$rigPulls" 2> /dev/null | LC_ALL=C tr -d ' ' ; }
-## A detached refresh of one scene is waited for before the next, so it never writes into another scene's folder.
-rigPullQuiet(){ ## bound in seconds
-	local quietLeft="$1"
-	while [ "$quietLeft" -gt 0 ] && [ -f "$rigCache/.pulling.txt" ] ; do
-		sleep 1 ; quietLeft=$(( quietLeft - 1 ))
-	done
-	[ ! -f "$rigCache/.pulling.txt" ]
-}
 
-echo "-- 1. a stale folder is served as it stands by a short-timeout call, at once and with no pull paid yet --"
+echo "-- 1. a stale folder is served as it stands by a short-timeout call, at once and with no pull paid at all --"
 rigStale 600
 rigFrom="$( date +%s )"
 MDAT_COMMS_CACHE_STALE_OK=true MDAT_SLACK_THREAD_CACHE_SECONDS=15 \
@@ -87,37 +76,19 @@ rigAssert "the call is served" "$rigRc" 0
 rigAssert "with the message the cache already held" "$( LC_ALL=C grep -c 'RIG-STALE' "$rigTmp/stale.txt" )" 1
 rigAssert "and it answered before the slow read could have finished" "$( [ "$rigElapsed" -lt "$rigSlow" ] && echo quick || echo slow )" quick
 rigAssert "and no pull had finished by then, so the answer was the cache's own" "$rigPullsAtReturn" 0
+## A reader starts no refresh (epic `## Decisions` line 95, ruling 14): the pull the old branch started detached is looked for
+## after a window longer than the slow read, so a refresh that began and has not yet finished is caught too.
+sleep $(( rigSlow + 2 ))
+rigAssert "and no pull starts afterwards either, the comms thread being what fills an entry" "$( rigPullsNow )" 0
 
-echo "-- 2. one pull of its own then runs, detached, and brings the channel up to date --"
-## Its effect is read from the channel, waited for with a bound, never from the call's own answer.
-rigWaited=0
-while [ "$rigWaited" -lt 30 ] && ! LC_ALL=C grep -q 'RIG-FRESH' "$rigCache/$rigMonth/messages.txt" 2> /dev/null ; do
-	sleep 1 ; rigWaited=$(( rigWaited + 1 ))
-done
-rigAssert "the detached pull finished once" "$( rigPullsNow )" 1
-rigAssert "and the channel now holds the fresh message" "$( LC_ALL=C grep -c 'RIG-FRESH' "$rigCache/$rigMonth/messages.txt" 2> /dev/null )" 1
-rigAssert "and the refresh left no lock behind" "$( rigPullQuiet 30 && echo free || echo held )" free
-
-echo "-- 3. control: the same call without that mark pays the slow pull --"
-rigStale 600
-rigFrom="$( date +%s )"
-MDAT_SLACK_THREAD_CACHE_SECONDS=15 \
-	AgentsToolsCommsCacheSlackThread "$rigMember" "$rigChannel:$rigThread" "$rigTmp/fresh.txt" true "$rigNow"
-rigRc=$?
-rigElapsed=$(( $( date +%s ) - rigFrom ))
-rigAssert "the call is served" "$rigRc" 0
-rigAssert "and it waited the slow read, where row 1 answered at once" "$( [ "$rigElapsed" -ge "$rigSlow" ] && echo paid || echo quick )" paid
-rigAssert "reaching the read operation once, in the call itself" "$( rigPullsNow )" 1
-rigAssert "and what it is served is the fresh read" "$( LC_ALL=C grep -c 'RIG-FRESH' "$rigTmp/fresh.txt" )" 1
-rigPullQuiet 30 || :
-
-echo "-- 4. control: a folder inside its TTL is served as it stands, and no pull is started --"
+echo "-- 2. control: a folder inside its TTL is served as it stands, and no pull is started for it --"
 rigStale 1
 MDAT_COMMS_CACHE_STALE_OK=true MDAT_SLACK_THREAD_CACHE_SECONDS=15 \
 	AgentsToolsCommsCacheSlackThread "$rigMember" "$rigChannel:$rigThread" "$rigTmp/freshFolder.txt" true "$rigNow"
 rigRc=$?
 rigAssert "the fresh folder is served" "$rigRc" 0
 rigAssert "with the message it holds" "$( LC_ALL=C grep -c 'RIG-STALE' "$rigTmp/freshFolder.txt" )" 1
+sleep $(( rigSlow + 1 ))
 rigAssert "and nothing is pulled for it" "$( rigPullsNow )" 0
 
 printf '\n%d passed, %d failed\n' "$rigPasses" "$rigFails"

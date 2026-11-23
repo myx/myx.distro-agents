@@ -471,6 +471,13 @@ AgentsHarnessEndTree(){ ## pid
 	kill -TERM "$1" 2> /dev/null
 }
 
+## THE LEG'S OWN SETTINGS STOP AT THE HARNESS. A leg stub exports the model table, the models and the
+## credential it runs on, and the core becomes that process, so every child a tool starts would inherit
+## them. A check or command run from a member's shell would then meet another service's family table and
+## another service's credential. The child gets the names to remove, read here where the harness is the
+## one deciding.
+harnessLegNames="${!HARNESS_@}"
+
 AgentsHarnessToolBashRun(){ ## cwd, command, timeout, detach, handle, stop, offset, limit, stdin, output mode
 	local toolCwd="$1" toolCommand="$2" toolTimeout="$3" toolDetach="$4" toolHandle="$5" toolStop="$6" toolOffset="$7" toolLimit="$8" toolStdin="$9" toolOutputMode="${10}" toolStatus=0 toolBytes
 	case "$toolOutputMode" in
@@ -715,6 +722,7 @@ AgentsHarnessToolBashRun(){ ## cwd, command, timeout, detach, handle, stop, offs
 		( set +m
 		  exec 10>&- 11>&- 12>&- 13>&- 14>&- 15>&- 16>&- 17>&- 18>&- 19>&-
 		  processStatus=0
+		  unset $harnessLegNames
 		  if [ -n "$toolStdin" ] ; then
 			( cd "$toolCwd" && set -e && eval "$toolCommand" ) < "$processDir/$toolHandle.in" > "$processDir/$toolHandle.out" 2> "$processDir/$toolHandle.err" &
 		  else
@@ -768,15 +776,15 @@ AgentsHarnessToolBashRun(){ ## cwd, command, timeout, detach, handle, stop, offs
 	[ -z "$toolStdin" ] || printf '%s' "$toolStdin" > "$harnessScratch/run.stdin"
 	if [ "$toolTimeout" = 0 ] ; then
 		if [ -n "$toolOutputMode" ] ; then
-			bash -c 'cd "$1" && set -e && eval "$2"' _ "$toolCwd" "$toolCommand" < "$harnessScratch/run.stdin" > "$harnessScratch/run.out" 2> "$harnessScratch/run.err" || toolStatus=$?
+			bash -c 'set -e ; unset $3 ; cd "$1" && eval "$2"' _ "$toolCwd" "$toolCommand" "$harnessLegNames" < "$harnessScratch/run.stdin" > "$harnessScratch/run.out" 2> "$harnessScratch/run.err" || toolStatus=$?
 		else
-			bash -c 'cd "$1" && set -e && eval "$2"' _ "$toolCwd" "$toolCommand" < "$harnessScratch/run.stdin" > "$harnessScratch/run.out" 2>&1 || toolStatus=$?
+			bash -c 'set -e ; unset $3 ; cd "$1" && eval "$2"' _ "$toolCwd" "$toolCommand" "$harnessLegNames" < "$harnessScratch/run.stdin" > "$harnessScratch/run.out" 2>&1 || toolStatus=$?
 		fi
 	elif [ -n "$harnessTimeoutCmd" ] ; then
 		if [ -n "$toolOutputMode" ] ; then
-			"$harnessTimeoutCmd" "$toolTimeout" bash -c 'cd "$1" && set -e && eval "$2"' _ "$toolCwd" "$toolCommand" < "$harnessScratch/run.stdin" > "$harnessScratch/run.out" 2> "$harnessScratch/run.err" || toolStatus=$?
+			"$harnessTimeoutCmd" "$toolTimeout" bash -c 'set -e ; unset $3 ; cd "$1" && eval "$2"' _ "$toolCwd" "$toolCommand" "$harnessLegNames" < "$harnessScratch/run.stdin" > "$harnessScratch/run.out" 2> "$harnessScratch/run.err" || toolStatus=$?
 		else
-			"$harnessTimeoutCmd" "$toolTimeout" bash -c 'cd "$1" && set -e && eval "$2"' _ "$toolCwd" "$toolCommand" < "$harnessScratch/run.stdin" > "$harnessScratch/run.out" 2>&1 || toolStatus=$?
+			"$harnessTimeoutCmd" "$toolTimeout" bash -c 'set -e ; unset $3 ; cd "$1" && eval "$2"' _ "$toolCwd" "$toolCommand" "$harnessLegNames" < "$harnessScratch/run.stdin" > "$harnessScratch/run.out" 2>&1 || toolStatus=$?
 		fi
 		[ "$toolStatus" != 124 ] || : > "$harnessScratch/run.timedout"
 	else
@@ -784,9 +792,9 @@ AgentsHarnessToolBashRun(){ ## cwd, command, timeout, detach, handle, stop, offs
 		{
 			## The command runs here, under its own `bash -c`, so the pid kept below is the command's own and a stop reaches it.
 			if [ -n "$toolOutputMode" ] ; then
-				bash -c 'cd "$1" && set -e && eval "$2"' _ "$toolCwd" "$toolCommand" < "$harnessScratch/run.stdin" > "$harnessScratch/run.out" 2> "$harnessScratch/run.err" &
+				bash -c 'set -e ; unset $3 ; cd "$1" && eval "$2"' _ "$toolCwd" "$toolCommand" "$harnessLegNames" < "$harnessScratch/run.stdin" > "$harnessScratch/run.out" 2> "$harnessScratch/run.err" &
 			else
-				bash -c 'cd "$1" && set -e && eval "$2"' _ "$toolCwd" "$toolCommand" < "$harnessScratch/run.stdin" > "$harnessScratch/run.out" 2>&1 &
+				bash -c 'set -e ; unset $3 ; cd "$1" && eval "$2"' _ "$toolCwd" "$toolCommand" "$harnessLegNames" < "$harnessScratch/run.stdin" > "$harnessScratch/run.out" 2>&1 &
 			fi
 			harnessRunPid=$!
 			printf '%s\n' "$harnessRunPid" > "$harnessScratch/run.pid"
@@ -894,7 +902,9 @@ AgentsHarnessToolBash(){ ## cwd, command, timeout, detach, handle, stop, offset,
 AgentsHarnessToolWorkspaceContextExecuteRun(){ ## command, workspace, timeout
 	local toolCommand="$1" toolWorkspace="$2" toolTimeout="$3" toolStatus=0 toolBytes
 	local toolTools="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
-	local toolArgs=( "$BASH" "$toolTools" --intern-mcp-execute )
+	local toolArgs=( "$BASH" "$toolTools" --intern-mcp-execute ) toolLegAt toolEnv=()
+	## The child is a shell of its own, so the leg's settings are removed in it, never in this process.
+	for toolLegAt in $harnessLegNames ; do toolEnv[${#toolEnv[@]}]=-u ; toolEnv[${#toolEnv[@]}]="$toolLegAt" ; done
 	[ -n "$toolCommand" ] || { printf 'ERROR: command is required: the shell script to run with the myx.distro workspace context already established. Nothing was run.\n' ; return 0 ; }
 	if [ ! -x "$toolTools" ] ; then
 		printf 'ERROR: the team tooling is not present at the origin this workspace resolves, %s. Nothing was run.\n' "$toolTools" ; return 0
@@ -915,11 +925,11 @@ AgentsHarnessToolWorkspaceContextExecuteRun(){ ## command, workspace, timeout
 	## establishes the workspace context (Distro, Require, Action). Output to a file and wait
 	## on the pid, never a capture: the script may leave a background child behind.
 	if [ "$toolTimeout" = 0 ] ; then
-		printf '%s' "$toolCommand" | ${toolArgs[@]+"${toolArgs[@]}"} > "$harnessScratch/run.out" 2>&1 || toolStatus=$?
+		printf '%s' "$toolCommand" | env ${toolEnv[@]+"${toolEnv[@]}"} ${toolArgs[@]+"${toolArgs[@]}"} > "$harnessScratch/run.out" 2>&1 || toolStatus=$?
 	else
 		{
 			set -m
-			( printf '%s' "$toolCommand" | ${toolArgs[@]+"${toolArgs[@]}"} ) > "$harnessScratch/run.out" 2>&1 &
+			( printf '%s' "$toolCommand" | env ${toolEnv[@]+"${toolEnv[@]}"} ${toolArgs[@]+"${toolArgs[@]}"} ) > "$harnessScratch/run.out" 2>&1 &
 			harnessRunPid=$!
 			printf '%s\n' "$harnessRunPid" > "$harnessScratch/run.pid"
 			## The watchdog ends the group the call leads, as the MCP execute ends its own: the

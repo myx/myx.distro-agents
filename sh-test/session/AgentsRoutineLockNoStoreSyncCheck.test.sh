@@ -180,7 +180,7 @@ rigAssert "the store's branch is level with origin" \
 printf '  WALL  the acquire took %ss on the level path\n' "$rigBehindSeconds"
 
 echo "-- 2. the checkout is left clean, so no later commit carries a path of this --"
-rigAssert "the checkout reports nothing" "$( git -C "$rigStore" status --porcelain --untracked-files=all | LC_ALL=C awk 'END { print NR + 0 }' )" "0"
+rigAssert "the checkout reports nothing" "$( git -C "$rigStore" status --porcelain --untracked-files=all | LC_ALL=C awk 'END { print NR + 0 ; }' )" "0"
 
 echo "-- 3. control: a store with its own commit is refused the fast-forward, and the thread carries it --"
 printf 'this store own work\n' > "$rigStore/OWN.md"
@@ -222,7 +222,7 @@ git -C "$rigStore" checkout -q -b rig-only 2> /dev/null || rigRefuse "the store 
 rigAcquire "$rigStore" nobranch
 rigAssert "the acquire refuses on a branch origin has never seen" "$( cat "$rigTmp/nobranch.rc" )" "1"
 rigAssert "and the refusal names the branch it could not bring level" "$( LC_ALL=C grep -c -F 'could not be brought level with origin' "$rigTmp/nobranch.out" || : )" "1"
-rigAssert "nothing is left staged" "$( git -C "$rigStore" diff --cached --name-only | LC_ALL=C awk 'END { print NR + 0 }' )" "0"
+rigAssert "nothing is left staged" "$( git -C "$rigStore" diff --cached --name-only | LC_ALL=C awk 'END { print NR + 0 ; }' )" "0"
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ ROUTINE LOCK NO STORE SYNC CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount ))" >&2 ; exit 1

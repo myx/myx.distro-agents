@@ -95,6 +95,8 @@ rigCase(){ ## name, the fixture of every start, then the fixtures of the starts 
 	: > "$MANAGER_SCREEN_RIG/calls"
 	echo rows > "$MANAGER_SCREEN_RIG/mode"
 	cp "$rigTmp/$2" "$MANAGER_SCREEN_RIG/rows"
+	## the closed window of the same store: a fixture of the whole list stands for it too
+	[ -f "$rigTmp/rows.--manager-session-list" ] && cp "$rigTmp/rows.--manager-session-list" "$MANAGER_SCREEN_RIG/rows.--manager-session-closed-list"
 	shift 2
 	local caseStart=0
 	for caseRows in "$@" ; do
@@ -142,6 +144,7 @@ cells row6 7 85 119
 looks k
 at @activity closed-sessions
 wait sessions 30
+wait closed-sessions 30
 get c
 border closedTitle 1 84 120
 cells crow1 2 85 119
@@ -151,7 +154,7 @@ looks cl
 RIGSCRIPT
 ## EACH LIST IS READ ON THE PAGE THAT SHOWS IT, and the second page is answered from the copy the operation keeps (39-50 ms): the count is the pages, not
 ## one read for every section of the screen.
-rigAssert "the operation is --manager-session-list, and read once for both lists"  "[$( rigCall 1 )] $( rigCalls )" "[--manager-session-list] 1"
+rigAssert "the live list is read once, and the closed lists read the closed window of the same store"  "[$( rigCall 1 )] $( rigCalls )" "[--manager-session-list] 2"
 rigAssert "Active Sessions holds the sessions that are not closed, the row that goes up first, in the order of the operation" "[$( rigVal row1 )] $( rigVal a.rows )" "[>..] 5"
 rigAssert "a session with a name shows its name, with its spaces, and its state" "[$( rigVal row2 )]" "[ daily of Monday         running ►]"
 rigAssert "one without a name shows the id of its session"           "[$( rigVal row3 )]" "[ 22222222-0000-4000-800… waiting ►]"

@@ -1,0 +1,62 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.ExecutorSeat.include -- who chairs a session: the member the call is made as, the session it names, and the member
+## that session's founding run belongs to. Sourced by the executor front's operations, never run. Functions only.
+##
+
+## The seat every chair operation asks first, into executorSeatSession, executorSeatCaller, executorSeatFounder and executorSeatMember:
+## the session the call names (its own where none is given), the member it is made as, the record of the session's founding run, and
+## that record's owner. rc 1, with its own line, for a call from no member's seat, a session unknown in this workspace, and a caller
+## that is not that session's executor. Nothing is written.
+AgentsToolsExecutorSeatInto(){ ## operation, session id (may be empty)
+	executorSeatSession="${2:-${MDAT_SESSION_ID:-}}"
+	executorSeatCaller="${MDAT_SPAWN_AGENT:-}"
+	executorSeatFounder="" executorSeatMember=""
+	if [ -z "$executorSeatCaller" ] ; then
+		echo "$MDSC_CMD: ⛔ ERROR: $1: a call from no member's seat -- the operation acts as the member that chairs the session. Nothing was done." >&2
+		return 1
+	fi
+	type AgentsToolsAssertBareName > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.BareName.include"
+	if ! AgentsToolsAssertBareName "$executorSeatSession" "the session" "${1#--}" 2> /dev/null ; then
+		echo "$MDSC_CMD: ⛔ ERROR: $1: it names no session of this workspace, and this call is in none -- pass --session-id <id>. Nothing was done." >&2
+		return 1
+	fi
+	type AgentsSessionKnown > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+	type AgentsToolsAuthorityFounder > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.Authority.include"
+	executorSeatFounder="$( AgentsToolsAuthorityFounder "$executorSeatSession" )" || executorSeatFounder=""
+	if [ -z "$executorSeatFounder" ] || ! AgentsSessionKnown "$executorSeatSession" ; then
+		echo "$MDSC_CMD: ⛔ ERROR: $1: session $executorSeatSession is unknown in this workspace, so it has no chair and no queue. Nothing was done." >&2
+		return 1
+	fi
+	type AgentsToolsFrontmatterKey > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.FrontmatterKey.include"
+	executorSeatMember="$( AgentsToolsFrontmatterKey "$executorSeatFounder" owner )"
+	case "$executorSeatMember" in
+		''|-)
+			echo "$MDSC_CMD: ⛔ ERROR: $1: the founding record of session $executorSeatSession names no member, so the session has no chair. Nothing was done." >&2
+			return 1
+		;;
+	esac
+	if [ "$executorSeatCaller" != "$executorSeatMember" ] ; then
+		echo "$MDSC_CMD: ⛔ ERROR: $1: $executorSeatCaller is not the executor of session $executorSeatSession, whose chair is $executorSeatMember. Nothing was done." >&2
+		return 1
+	fi
+	return 0
+}
+
+## Every member a session's queue is kept for, one a line, in order: its chair, the members its founding record names, and each member a
+## list is kept for in its folder. Bare names only, each once.
+AgentsToolsExecutorSeatMembers(){ ## session id, the founding record
+	local seatLine seatOne seatList="" seatFile
+	type AgentsToolsFrontmatterKey > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.FrontmatterKey.include"
+	type AgentsToolsAssertBareName > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.BareName.include"
+	seatLine="$( AgentsToolsFrontmatterKey "$2" owner ) $( AgentsToolsFrontmatterKey "$2" participants ) "
+	for seatOne in $seatLine "$( cd "$MMDAPP/.local/agents/sessions/$1" 2> /dev/null && for seatFile in *.checklist.md ; do [ -f "$seatFile" ] || continue ; seatFile="${seatFile%.checklist.md}" ; printf '%s\n' "$seatFile" ; done )" ; do
+		[ "$seatOne" != none ] || continue
+		AgentsToolsAssertBareName "$seatOne" "the member" AgentsToolsExecutorSeatMembers 2> /dev/null || continue
+		case " $seatList " in *" $seatOne "*) continue ;; esac
+		seatList="$seatList $seatOne"
+		printf '%s\n' "$seatOne"
+	done
+}

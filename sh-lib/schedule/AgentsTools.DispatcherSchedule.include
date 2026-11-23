@@ -752,7 +752,7 @@ AgentsToolsScheduleStartingAllowed(){
 }
 
 AgentsToolsScheduleSpawn(){ ## key, the arguments of --spawn-session...
-	local spawnKey="$1" spawnStore="$MMDAPP/.local/agents/schedule/starting" spawnDutySession="" spawnDutyFile="" spawnDayFirst="" spawnKeptRoot=""
+	local spawnKey="$1" spawnStore="$MMDAPP/.local/agents/schedule/starting" spawnDutySession="" spawnDutyFile="" spawnDayFirst="" spawnKeptRoot="" spawnDutyHeld=no spawnDutyRecord spawnDutyGiven
 	shift
 	## A THREAD TOLD TO END STARTS NOTHING MORE (S12.15), and that test precedes every read of the key's state: a start that is not made leaves
 	## the kept duty session, the day marker and the tags it would have moved exactly as the next thread finds them.
@@ -771,7 +771,23 @@ AgentsToolsScheduleSpawn(){ ## key, the arguments of --spawn-session...
 			## A kept session of an earlier day ends with that day: dropped, and the start opens today's session (AgentsToolsDutyKeptStale).
 			## Its read pointer into the tagged source is kept first (AgentsToolsDutyKeptTagFold).
 			type AgentsToolsDutyKeptStale > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include"
-			if [ -n "$spawnDutySession" ] && AgentsToolsDutyKeptStale "$spawnDutySession" ; then
+			## A KEPT SESSION THE OWNER KILLED, OR ONE THAT FINISHED, IS NO SESSION TO JOIN: it is dropped with an earlier
+			## day's below, and the start opens a session of its own. The kill mark is on a record of that session, and the
+			## given mark in the session folder a delivered handback writes it to.
+			if [ -n "$spawnDutySession" ] ; then
+				spawnDutyHeld=no
+				type AgentsSessionChecklistFileInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.CheckListSeed.include"
+				spawnDutyGiven=""
+				AgentsSessionChecklistFileInto spawnDutyGiven "$spawnDutySession" "${spawnKey#work-duty.}" || spawnDutyGiven=""
+				[ -z "$spawnDutyGiven" ] || [ ! -f "${spawnDutyGiven%/*}/handback.given" ] || spawnDutyHeld=yes
+				if [ "$spawnDutyHeld" = no ] ; then
+					while IFS= read -r spawnDutyRecord ; do
+						[ -n "$spawnDutyRecord" ] || continue
+						[ -z "$( AgentsToolsFrontmatterKey "$spawnDutyRecord" killed-at )" ] || { spawnDutyHeld=yes ; break ; }
+					done <<< "$( AgentsToolsSpawnedSessionRecords "$spawnDutySession" own )"
+				fi
+			fi
+			if [ -n "$spawnDutySession" ] && { AgentsToolsDutyKeptStale "$spawnDutySession" || [ "$spawnDutyHeld" = yes ] ; } ; then
 				AgentsToolsDutyKeptTagFold "${spawnKey#work-duty.}" "$spawnDutySession"
 				rm -f "$spawnDutyFile" ; spawnDutySession=""
 			fi

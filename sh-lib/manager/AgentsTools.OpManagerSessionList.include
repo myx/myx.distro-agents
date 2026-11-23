@@ -18,9 +18,8 @@ type AgentsToolsManagerSessionRows > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.d
 			esac
 		done
 		AgentsToolsManagerSessionRows "$listOp" "$listActive" || { set +e ; return 1 ; }
-		## THE CONSOLE THAT LOOKS ASKS FOR THE SCHEDULE: the owner's manager screen reads this list on every refresh, a live asker with no session, so a schedule
-		## thread that ended at night is started once the hour wants it (AgentsToolsScheduleThreadAskDue: a live thread costs one read of its lock).
+		## THE LIST OF THE SESSIONS ASKS FOR THE SCHEDULE: the manager screen reads it on every refresh, so a schedule thread that is dead is started
+		## at the look (AgentsToolsScheduleThreadAskDue view: a live thread costs one read of its lock, and the store holds the once-a-minute throttle).
 		type AgentsToolsScheduleThreadAskDue > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/schedule/AgentsTools.ScheduleThread.include"
-		type AgentsToolsScheduleThreadAskDue > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/schedule/AgentsTools.ScheduleThread.include"
-		AgentsToolsScheduleThreadAskDue > /dev/null 2>&1 || :
+		AgentsToolsScheduleThreadAskDue view > /dev/null 2>&1 || :
 		return 0

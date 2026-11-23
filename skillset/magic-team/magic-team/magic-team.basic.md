@@ -364,16 +364,28 @@ A member that passes on or uses what the human-owner said is doing one of three 
 
 ### Security context tiers
 
-`(draft)` Every session, task, spawn, message and question carries one tier. The tier decides who may read its content, and which channel its messages go to.
+Every session carries one tier. The tier decides who may read the session's content, and which channel its messages go to. A message that names an addressee goes where the address says, whatever the tier.
 
-- **private** — per-team NDA content, secrets, personal matters and confirmations. Its channel is the bot's direct message.
+- **private** — per-team NDA content, secrets, personal matters and confirmations. Its channel is the bot's direct conversation with the human-owner.
 - **system** — technicalities, details and organisation-wide work-task NDA content. Its channel is the session's own `event-track` thread.
-- **shared** — details and organisation-wide work-task NDA content, with no per-member or per-user personal information. Its channel is `magic-team`.
+- **shared** — details and organisation-wide work-task NDA content, with no per-member or per-user personal information. Its channel is the session's own session thread, or `magic-team` where it has no thread on record.
 - **public** — what the team says to a contact no tier reaches. It carries general questions on the organisation's public services, and a redirection to the official contacts with the escalation that validates it.
 
-`public` is not a tier the team works in. It is what leaves the team. Publishing to a public repository, forum, channel or comment crosses into it.
+`public` is no channel, and not a tier the team works in. It is what leaves the team. Publishing to a public repository, forum, channel or comment crosses into it. The tooling gives it no destination of its own. It refuses a handback, a report, and a send or question with no addressee, and names the contacts route.
 
-The defaults, per routine:
+A tier whose channel the session does not have refuses the post. It never falls through to a wider channel.
+
+The spawn settles the tier, first answer wins:
+
+- the spawn's own `--security-tier`, said by the spawn call or a dispatch. Grooming classifies a dispatch that needs another tier.
+- the routine's `security-tier:` key.
+- the workspace setting `SECURITY_TIER_DEFAULT`.
+
+Where none of those names one, `system` decides.
+
+A later run of the session keeps the tier it records. A session that records no tier keeps the channel rule it had before the tiers.
+
+The defaults, per routine, each set once on that routine's own `security-tier:` key:
 
 - a duty routine and a supervision routine default to `system`.
 - a coworking routine defaults to `shared`.
@@ -381,18 +393,20 @@ The defaults, per routine:
 
 A default removes a whole class of member decisions. A member that would need a default of its own proposes it, and the routine's own text names it.
 
-Three things override a default:
+The spawner and the human-owner may raise a session's tier. A member inside a run may not raise its own session's tier: it may detour one message. A goal that works with secrets requests a `private` session.
 
-- the spawn call, and the dispatch. Grooming classifies a dispatch that needs another tier.
-- a member that finds its content above its own tier.
-- a goal that works with secrets: it requests a `private` session.
+A handback goes to the address its run reports to. A report never goes into a direct conversation, so such a route sends the handback to the run's own session thread. A `public` session's handback is refused. A Permission set goes to the bot's direct conversation with the human-owner, whatever the tier.
 
-Handbacks, questions and permission requests follow the tier like every message. A question to a session participant stays in the session's channel. A question to anyone else goes to that person's best channel, with no invitation to the session. It carries a block reference to the related message in the session thread.
+A question that names no addressee goes where its run reports. Where that route names no place, the tier's channel decides: a `private` session asks in the bot's direct conversation with the human-owner, and a `system` session in its `event-track` thread. A `shared` session asks in its session channel, or in `magic-team` where it has none. A `public` session has no channel, so its question is refused.
 
-**tier-detour** — the detour is one operation. A member that must handle content above its tier:
+A question to a session participant stays in the session's channel. A question to anyone else goes to that person's best channel, with no invitation to the session. It carries a block reference to the related message in the session thread.
 
-- puts the private part in the bot's direct message.
-- puts a pointer in the open thread that names the direct conversation. The pointer carries no part of the content and never names its subject.
+**tier-detour** — the detour is one operation, in one order. A member that must handle content above its tier:
+
+- puts the private part in the bot's direct conversation first.
+- puts a pointer in the open thread once that post lands, naming the conversation it moved to. The pointer carries no part of the content and never names its subject.
+
+A pointer that fails reports `POINTER-FAILED=` and the conversation it was for. The private part stays where it landed, and is never reposted. Private content enters neither the session transcript nor the session chat file. They record the pointer line alone.
 
 Classifying content stays the member's job. The tooling picks the channel from the tier. A member that finds itself classifying at every message has the routine's default wrong, and that is a finding about the default.
 

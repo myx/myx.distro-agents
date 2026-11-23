@@ -7,6 +7,7 @@
 ##
 
 type AgentsSessionThread > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+type AgentsToolsTempClaim > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.TempFiles.include"
 
 AgentsSessionThreadSet(){ ## session, channel:ts
 	local setHere
@@ -62,7 +63,7 @@ AgentsSessionDiscard(){ ## session
 ## in its own second is not kept, since a write later in that second leaves it as it was (AgentsSpawnedStoreStampInto).
 
 AgentsSpawnRecordWrite(){ ## run or record path, folder (empty: the run's own), the record as it must still stand (optional)
-	local writeRecord="${1:-}" writeTemp writeIndex writeNow="" writeWhy="" writeSession writeKept writeKeptTemp writeStamp
+	local writeRecord="${1:-}" writeTemp writeIndex writeNow="" writeWhy="" writeSession writeKept writeKeptTemp writeStamp writeBlockSeq="" writeTracking=""
 
 	case "$writeRecord" in
 		*/../*|*/./*) writeWhy="its path holds a . or .. part" ;;
@@ -81,6 +82,7 @@ AgentsSpawnRecordWrite(){ ## run or record path, folder (empty: the run's own), 
 	fi
 	mkdir -p "${writeRecord%/*}" 2> /dev/null || return 1
 	writeTemp="$( mktemp "$writeRecord.XXXXXX" 2> /dev/null )" || return 1
+	AgentsToolsTempClaim "$writeTemp"
 	if cat > "$writeTemp" 2> /dev/null && chmod 644 "$writeTemp" 2> /dev/null ; then
 		[ $# -lt 3 ] || { IFS= read -r -d '' writeNow < "$writeRecord" 2> /dev/null || : ; }
 		if [ $# -lt 3 ] || [ "$writeNow" = "$3" ] ; then
@@ -89,6 +91,7 @@ AgentsSpawnRecordWrite(){ ## run or record path, folder (empty: the run's own), 
 				writeIndex="${writeRecord%/*/*}/.started-records"
 				type AgentsToolsFrontmatterKey > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.FrontmatterKey.include"
 				if writeTemp="$( mktemp "$writeIndex.XXXXXX" 2> /dev/null )" ; then
+					AgentsToolsTempClaim "$writeTemp"
 					if { [ ! -f "$writeIndex" ] || LC_ALL=C grep -v -x -F -- "$writeRecord" "$writeIndex" 2> /dev/null || : ; } > "$writeTemp" 2> /dev/null ; then
 						[ "$( AgentsToolsFrontmatterKey "$writeRecord" status )" != "spawn-started" ] || printf '%s\n' "$writeRecord" >> "$writeTemp" 2> /dev/null
 						mv -f "$writeTemp" "$writeIndex" 2> /dev/null || rm -f "$writeTemp" 2> /dev/null
@@ -96,10 +99,12 @@ AgentsSpawnRecordWrite(){ ## run or record path, folder (empty: the run's own), 
 						rm -f "$writeTemp" 2> /dev/null
 					fi
 				fi
-				## THE REGISTRY IS KEPT CURRENT HERE, one run's rows put in by a read and a rename: a reader takes the file as it stands, and
-				## no reader walks a store of thousands of runs for the eleven that are live.
-				type AgentsToolsRegistrySpawnedSessionsRowRefresh > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.RegistrySpawnedSessions.Refresh.include"
-				AgentsToolsRegistrySpawnedSessionsRowRefresh "$writeRecord" || :
+				## THE FOLDER'S ROWS BLOCK IS REWRITTEN HERE, for this one folder and no other: a reader takes the block as it
+				## stands, and no reader walks a store of thousands of runs for the eleven that are live. The block's own
+				## `src:` token is three headers of this record, so a block a failed write left behind reads stale, never as fact.
+				type AgentsToolsSpawnRowsBlockWrite > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStores.include"
+				writeTracking="${writeRecord%/*}" ; writeTracking="${writeTracking##*/}"
+				AgentsToolsSpawnRowsBlockWrite "$writeTracking" || :
 				## THE SESSION'S OWN LIST GROWS WITH ITS RECORD: the control thread of a session reads that list at every tick, and a walk of
 				## the store there was the whole load of a machine with eleven sessions on it. The stamp is taken after this write, so the
 				## list reads as current until the next record of any run changes the store.
@@ -111,6 +116,7 @@ AgentsSpawnRecordWrite(){ ## run or record path, folder (empty: the run's own), 
 					AgentsSpawnedStoreStampInto writeStamp "$MMDAPP"
 					if [ ! -f "$writeKept" ] || ! LC_ALL=C grep -q -x -F -- "own	$writeRecord" "$writeKept" 2> /dev/null ; then
 						writeKeptTemp="$( mktemp "$writeKept.XXXXXX" 2> /dev/null )" || writeKeptTemp=""
+						AgentsToolsTempClaim "$writeKeptTemp"
 						if [ -n "$writeKeptTemp" ] ; then
 							{
 								case "$writeStamp" in ''|*[!0123456789]*) ;; *) printf 'stamp:%s\n' "$writeStamp" ;; esac
@@ -119,6 +125,14 @@ AgentsSpawnRecordWrite(){ ## run or record path, folder (empty: the run's own), 
 							} > "$writeKeptTemp" 2> /dev/null && mv -f "$writeKeptTemp" "$writeKept" 2> /dev/null || rm -f "$writeKeptTemp" 2> /dev/null
 						fi
 					fi
+				fi
+				## AND THE SESSION'S LIVE BLOCK, where its thread keeps one: a run that opened, closed or handed back is what
+				## the block says, and its `seq:` token is the one that thread's state write last put there. A session with no
+				## block yet gets none here: its own thread writes the first one at its next state write.
+				if [ -n "$writeSession" ] ; then
+					writeBlockSeq="$( LC_ALL=C awk '/^seq: / { print substr( $0, 6 ) ; exit ; }' "${MMDAPP:-}/.local/agents/sessions/$writeSession/control/state" 2> /dev/null )" || writeBlockSeq=""
+					[ -f "${MMDAPP:-}/.local/agents/live/$writeSession.rows" ] || writeBlockSeq=""
+					[ -z "$writeBlockSeq" ] || AgentsToolsSessionLiveBlockWrite "$writeSession" "$writeBlockSeq" || :
 				fi
 				return 0
 			fi
@@ -170,11 +184,36 @@ AgentsToolsSessionStorePrune(){ ## days, at most
 ## THE LIVE LIST PRUNED, by the pass that can afford it: a line whose thread is gone, or whose pid is another process now (pids come round),
 ## leaves the list, and the count goes back. A reader still drops a line whose pid is dead by itself; this is what removes the line, and what
 ## catches a pid begun at another time, which no cheap read can tell. Prints the number removed, nothing where none was.
+## ITS LIVE BLOCK GOES WITH THE LINE, and nothing else does: the block is what a session list reads, so a block left behind would be a
+## session listed for ever. A block whose session's control state was written in the last ten minutes is kept, which is the linger the
+## session list shows an ended session for.
 AgentsToolsSessionLivePrune(){
-	local pruneFile pruneId prunePid pruneStart pruneNow pruneTemp pruneGone=0
+	local pruneFile pruneId prunePid pruneStart pruneNow pruneTemp pruneGone=0 pruneBlock pruneAt pruneCut
 	pruneFile="${MMDAPP:-/nonexistent}/.local/agents/live-sessions"
-	[ -s "$pruneFile" ] || return 0
+	pruneCut="$(( $( date +%s ) - 600 ))"
+	## ONE PASS OVER THE BLOCKS: a block whose session's state was written in the last ten minutes stays, which is the linger a list
+	## shows an ended session for. Every other block is kept only while its thread is that process still, by the pid file's own test.
+	while IFS= read -r pruneId ; do
+		case "$pruneId" in ''|*/*|-|.|..|*[[:space:]]*) continue ;; esac
+		pruneBlock="${MMDAPP:-/nonexistent}/.local/agents/live/$pruneId.rows"
+		[ -e "$pruneBlock" ] || continue
+		pruneAt="$( LC_ALL=C date -r "${MMDAPP:-/nonexistent}/.local/agents/sessions/$pruneId/control/state" +%s 2> /dev/null )" || pruneAt=""
+		case "$pruneAt" in ''|*[!0123456789]*) pruneAt=0 ;; esac
+		[ "$pruneAt" -eq 0 ] || [ "$pruneAt" -lt "$pruneCut" ] || continue
+		prunePid="" pruneStart=""
+		{ IFS=' ' read -r prunePid pruneStart < "${MMDAPP:-/nonexistent}/.local/agents/sessions/$pruneId/control/pid" ; } 2> /dev/null || :
+		case "$prunePid" in ''|*[!0123456789]*) ;; *)
+			kill -0 "$prunePid" 2> /dev/null || prunePid=""
+			[ -z "$prunePid" ] || [ -z "$pruneStart" ] || {
+				pruneNow="$( LC_ALL=C ps -o lstart= -p "$prunePid" 2> /dev/null | LC_ALL=C awk 'NF { gsub( / /, "_" ) ; print ; exit ; }' )" || pruneNow=""
+				[ -n "$pruneNow" ] && [ "$pruneNow" != "$pruneStart" ] || continue
+			}
+		;; esac
+		rm -f -- "$pruneBlock" 2> /dev/null && pruneGone=$(( pruneGone + 1 ))
+	done <<< "$( LC_ALL=C ls -1 "${MMDAPP:-/nonexistent}/.local/agents/live" 2> /dev/null | LC_ALL=C sed -n 's/\.rows$//p' )"
+	[ -s "$pruneFile" ] || { [ "$pruneGone" -eq 0 ] || printf '%s\n' "$pruneGone" ; return 0 ; }
 	pruneTemp="$( mktemp "$pruneFile.XXXXXX" 2> /dev/null )" || return 0
+	AgentsToolsTempClaim "$pruneTemp"
 	while IFS= read -r pruneId ; do
 		case "$pruneId" in ''|*/*|*[[:space:]]*) continue ;; esac
 		prunePid="" pruneStart=""
@@ -191,7 +230,7 @@ AgentsToolsSessionLivePrune(){
 }
 
 AgentsSpawnedRetentionPrune(){ ## days, at most -- stdin: the rows of the spawned-sessions registry
-	local pruneDays="${1:-14}" pruneMost="${2:-20}" pruneRun pruneFolder pruneAged pruneDone=0
+	local pruneDays="${1:-14}" pruneMost="${2:-20}" pruneRun pruneFolder pruneAged pruneHold pruneDone=0
 	case "$pruneDays" in ''|*[!0123456789]*) return 0 ;; esac
 	case "$pruneMost" in ''|*[!0123456789]*|0) pruneMost=20 ;; esac
 	[ "$pruneDays" -gt 0 ] || return 0
@@ -203,6 +242,21 @@ AgentsSpawnedRetentionPrune(){ ## days, at most -- stdin: the rows of the spawne
 		[ -d "$pruneFolder" ] || continue
 		pruneAged="$( find "$pruneFolder" -maxdepth 0 -mtime +"$pruneDays" 2> /dev/null )" || pruneAged=""
 		[ -n "$pruneAged" ] || continue
+		## A FOLDER A PROMISE OF UNDO HOLDS IS NEVER PRUNED (S13.19), whatever its age: the marker is the cleaner's own, and
+		## what it protects is the record it names. A marker naming no open record keeps the folder too, and says which it wanted.
+		type AgentsToolsUndoHoldState > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/undo/AgentsTools.UndoHold.include"
+		pruneHold="$( AgentsToolsUndoHoldState "$pruneFolder/undo.hold" )"
+		case "$pruneHold" in
+			absent) ;;
+			missing)
+				echo "# ${MDSC_CMD:-DistroAgentsTools}: kept the run folder $pruneRun, whose undo.hold names no open record: $( AgentsToolsUndoHoldUnresolved "$pruneFolder/undo.hold" | LC_ALL=C tr '\n' ' ' )" >&2
+				continue
+			;;
+			*)
+				echo "# ${MDSC_CMD:-DistroAgentsTools}: kept the run folder $pruneRun, whose undo.hold reads $pruneHold" >&2
+				continue
+			;;
+		esac
 		AgentsSpawnRecordRemove "$pruneRun" 2> /dev/null || continue
 		pruneDone=$(( pruneDone + 1 ))
 	done <<< "$( LC_ALL=C awk 'NF >= 13 && $6 != "spawn-started" && $1 != "" { print $1 ; }' | LC_ALL=C sort -u )"
@@ -220,8 +274,12 @@ AgentsSpawnRecordRemove(){ ## folder
 	rm -rf -- "$removeFolder" 2> /dev/null || :
 	[ ! -e "$removeFolder" ] || return 1
 	touch "${removeFolder%/*}" 2> /dev/null || :
+	## THE FOLDER'S ROWS BLOCK GOES WITH THE FOLDER, or a reader would list a sandbox the store no longer has.
+	type AgentsToolsSpawnRowsBlockRemove > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStores.include"
+	AgentsToolsSpawnRowsBlockRemove "$1" || :
 	removeIndex="${removeFolder%/*}/.started-records"
 	if [ -f "$removeIndex" ] && removeTemp="$( mktemp "$removeIndex.XXXXXX" 2> /dev/null )" ; then
+		AgentsToolsTempClaim "$removeTemp"
 		if LC_ALL=C awk -v gone="${removeFolder}/" 'index( $0, gone ) != 1' "$removeIndex" > "$removeTemp" 2> /dev/null ; then
 			mv -f "$removeTemp" "$removeIndex" 2> /dev/null || rm -f "$removeTemp" 2> /dev/null
 		else
@@ -240,6 +298,7 @@ AgentsSessionEffortSet(){ ## run or session id, effort word
 	AgentsSessionKnown "${1:-}" || return 1
 	printf -v effortFile '%s/%s/%s/effort' "${MMDAPP:-/nonexistent}" "$agentsSessionStoreLeaf" "$1"
 	effortAside="$( mktemp "$effortFile.XXXXXX" 2> /dev/null )" || return 2
+	AgentsToolsTempClaim "$effortAside"
 	{ printf '%s\n' "$2" > "$effortAside" && mv -f "$effortAside" "$effortFile" ; } 2> /dev/null || { rm -f "$effortAside" 2> /dev/null ; return 2 ; }
 	printf '%s\n' "$effortFile"
 }

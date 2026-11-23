@@ -1,0 +1,95 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.ExecutorAppend.include -- the operation `--executor-checklist-append`, sourced by AgentExecutorTools.fn.sh with the
+## operation's arguments. The chair puts work into a participant's queue: pending items at the end of that member's list, marked as
+## the chair's own, in the place the CheckList tool keeps it (AgentsSessionChecklistFileInto). Then it wakes the member, and where the
+## member has no live run in the session it resumes its executor.
+##
+
+AgentsToolsExecutorAppend(){ ## the operation's arguments
+	local appendSession="" appendNamed="" appendReason="" appendFolder="" appendFile="" appendItem appendCount=0 appendDue
+	local -a appendItems=()
+	while [ $# -gt 0 ] ; do
+		case "$1" in
+			--item)
+				[ -n "${2:-}" ] || { echo "$MDSC_CMD: ⛔ ERROR: --executor-checklist-append: --item takes the text of an item. Nothing was written." >&2 ; return 1 ; }
+				appendItems+=( "${2//[$'\n\r\t']/ }" ) ; shift 2
+			;;
+			--session-id)
+				[ -n "${2:-}" ] || { echo "$MDSC_CMD: ⛔ ERROR: --executor-checklist-append: --session-id takes a session id. Nothing was written." >&2 ; return 1 ; }
+				appendSession="$2" ; shift 2
+			;;
+			--member)
+				[ -n "${2:-}" ] || { echo "$MDSC_CMD: ⛔ ERROR: --executor-checklist-append: --member takes a member name. Nothing was written." >&2 ; return 1 ; }
+				appendNamed="$2" ; shift 2
+			;;
+			--reason)
+				[ -n "${2:-}" ] || { echo "$MDSC_CMD: ⛔ ERROR: --executor-checklist-append: --reason takes a text. Nothing was written." >&2 ; return 1 ; }
+				appendReason="$2" ; shift 2
+			;;
+			*)
+				echo "$MDSC_CMD: ⛔ ERROR: --executor-checklist-append: invalid option: $1 -- syntax is --executor-checklist-append (--item <text>)... [--session-id <id>] [--member <name>]" >&2
+				return 1
+			;;
+		esac
+	done
+	[ "${#appendItems[@]}" -gt 0 ] || { echo "$MDSC_CMD: ⛔ ERROR: --executor-checklist-append: give at least one --item, its text. Nothing was written." >&2 ; return 1 ; }
+	type AgentsToolsExecutorSeatInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.ExecutorSeat.include"
+	AgentsToolsExecutorSeatInto --executor-checklist-append "$appendSession" || return 1
+	appendNamed="${appendNamed:-$executorSeatMember}"
+	case $'\n'"$( AgentsToolsExecutorSeatMembers "$executorSeatSession" "$executorSeatFounder" )"$'\n' in
+		*$'\n'"$appendNamed"$'\n'*) ;;
+		*)
+			echo "$MDSC_CMD: ⛔ ERROR: --executor-checklist-append: $appendNamed is neither the executor nor a participant of session $executorSeatSession, so it has no queue there. Nothing was written." >&2
+			return 1
+		;;
+	esac
+	## A `(due: ...)` mark is a moment the one reader of a moment reads, as the CheckList tool reads it: an item carrying one nothing
+	## can read is refused here, never written into a list.
+	for appendItem in "${appendItems[@]}" ; do
+		case "$appendItem" in
+			*' (due: '*)
+				appendDue="${appendItem#* (due: }"
+				appendDue="${appendDue%%)*}"
+				[ -n "$( printf '%s\n' "$appendDue" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/output/LocalIsoToEpoch.awk" 2> /dev/null )" ] \
+					|| { echo "$MDSC_CMD: ⛔ ERROR: --executor-checklist-append: due must be a date-time this tooling can read, such as 2026-11-04 18:00 +0200, got: $appendDue. Nothing was written." >&2 ; return 1 ; }
+			;;
+		esac
+	done
+	type AgentsSessionChecklistFileInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.CheckListSeed.include"
+	AgentsSessionChecklistFileInto appendFile "$executorSeatSession" "$appendNamed" \
+		|| { echo "$MDSC_CMD: ⛔ ERROR: --executor-checklist-append: the queue of $appendNamed in session $executorSeatSession has no place to be kept. Nothing was written." >&2 ; return 1 ; }
+	appendFolder="${appendFile%/*}"
+	## THE LIST'S OWN LOCK, the one the CheckList tool takes: a folder beside the file, removed to release it.
+	type AgentsHarnessCheckListLock > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessBatch.include"
+	if ! mkdir -p "$appendFolder" 2> /dev/null || ! AgentsHarnessCheckListLock "$appendFile" ; then
+		echo "$MDSC_CMD: ⛔ ERROR: --executor-checklist-append: the queue of $appendNamed is being written by another call, and its lock was not taken in five seconds. Nothing was written." >&2
+		return 1
+	fi
+	for appendItem in "${appendItems[@]}" ; do
+		[ -n "$appendItem" ] || continue
+		! { printf -- '- [ ] %s\n' "$appendItem" >> "$appendFile" && printf -- '- [ ] %s\n' "$appendItem" >> "$appendFile.added" ; } 2> /dev/null \
+			|| appendCount=$(( appendCount + 1 ))
+	done
+	AgentsHarnessCheckListUnlock "$appendFile"
+	if [ "$appendCount" -ne "${#appendItems[@]}" ] ; then
+		echo "$MDSC_CMD: ⛔ ERROR: --executor-checklist-append: the queue of $appendNamed could not be written. Nothing more was written." >&2
+		return 1
+	fi
+	## WHAT THE CHAIR ADDED IS THE CHAIR'S (S6.27): each line just added is marked so, and nothing already marked moves.
+	type AgentsToolsCheckListSourcesMark > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.CheckListSources.include"
+	AgentsToolsCheckListSourcesMark "$appendFile" "" "$( printf '%s\n' "${appendItems[@]}" )" 2> /dev/null || :
+	## AN ADDED ITEM WAKES ITS OWNER: the member's wait naps on a fifo, and a poke ends the nap.
+	type AgentsHookFire > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.Hook.include"
+	AgentsHookFire store-changed wake "$appendNamed" || :
+	printf 'OK: %s item(s) added, as pending, to the queue of %s in session %s.\n' "$appendCount" "$appendNamed" "$executorSeatSession"
+	## A QUEUE THAT GREW IN A STOPPED SESSION RESUMES ITS EXECUTOR: no run of the member is there, and the work just added waits for one.
+	type AgentsToolsSessionMemberPresent > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionSeats.include"
+	if ! AgentsToolsSessionMemberPresent "$executorSeatSession" "$appendNamed" ; then
+		type AgentsToolsExecutorResume > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.ExecutorResume.include"
+		AgentsToolsExecutorResume --session-id "$executorSeatSession" --reason "the queue of $appendNamed grew" || :
+	fi
+	return 0
+}

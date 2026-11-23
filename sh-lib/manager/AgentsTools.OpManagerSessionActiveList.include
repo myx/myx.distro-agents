@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+type AgentsToolsManagerSessionRows > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.ManagerSessionRows.include"
+
+## AgentsTools.OpManagerSessionActiveList.include -- the operation `--manager-session-active-list`, sourced by
+## AgentsTools.ManagerSession.include with the operation's arguments. The sessions whose thread runs now, each with its runs,
+## then one row of counters: the same rows `--manager-session-list` prints, and built from the live blocks alone. It opens no
+## closed session's folder, record or store, so its cost is what is live and never what the workspace holds.
+		local listOp="$1"
+		shift
+		while [ $# -gt 0 ] ; do
+			echo "⛔ ERROR: $MDSC_CMD $listOp: syntax is [], got: $1" >&2
+			set +e ; return 1
+		done
+		AgentsToolsManagerSessionActiveRows "$listOp" || { set +e ; return 1 ; }
+		## THE LIST OF THE SESSIONS ASKS FOR THE SCHEDULE, as `--manager-session-list` does: a dead schedule thread is started at the look.
+		type AgentsToolsScheduleThreadAskDue > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/schedule/AgentsTools.ScheduleThread.include"
+		AgentsToolsScheduleThreadAskDue view > /dev/null 2>&1 || :
+		return 0

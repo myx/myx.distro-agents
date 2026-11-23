@@ -250,6 +250,10 @@ case "$1" in
 			echo "$MDSC_CMD: board-trash: ⛔ ERROR: item not found: $sourcePath" >&2
 			set +e ; return 1
 		fi
+		## THE WAITING-REPLIES LIST LOSES THE ITEM HERE, since this path deletes it without the board write that keeps the
+		## list current (AgentsToolsBoardWaitingRepliesIndexSet). A line left behind costs one existence test and no walk.
+		type AgentsToolsBoardWaitingRepliesIndexSet > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.BoardWaitingRepliesIndex.include"
+		AgentsToolsBoardWaitingRepliesIndexSet "$boardState" "$itemName" no || :
 		## A trash ends the item's child, ordered and recorded before the item goes
 		## (AgentsTools.ReviewFlow.include). Never fails the trash; said on stderr.
 		## A git store deletes the item, so there the ending goes to the session

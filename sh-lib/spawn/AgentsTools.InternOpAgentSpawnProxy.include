@@ -506,7 +506,7 @@ case "$1" in
 			echo "$MDSC_CMD: agent-spawn-proxy: ⛔ ERROR: use only one of --parent-session <session-id> | --parent-none" >&2
 			set +e ; return 1
 		fi
-		local dutyKeptFile="" dutyKeptId=""
+		local dutyKeptFile="" dutyKeptId="" dutyKeptHeld=no dutyKeptGiven="" dutyKeptRecord
 		type AgentsToolsDutyRoutineIs > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/routine/AgentsTools.DutyRoutine.include"
 		if AgentsToolsDutyRoutineIs "$routineSelector" ; then
 			dutyKeptFile="$MMDAPP/.local/agents/schedule/duty-session/$callerName"
@@ -525,6 +525,25 @@ case "$1" in
 					type AgentsToolsDutyKeptTagFold > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include"
 					AgentsToolsDutyKeptTagFold "$callerName" "$dutyKeptId"
 					rm -f "$dutyKeptFile" ; dutyKeptId=""
+				fi
+				## A KEPT SESSION THE OWNER KILLED, OR ONE THAT FINISHED, IS NO SESSION TO JOIN: dropped here as an earlier day's is,
+				## so the spawn opens a session of its own. The kill mark is on a record of that session, the given mark in its folder.
+				if [ -n "$dutyKeptId" ] ; then
+					dutyKeptHeld=no
+					type AgentsSessionChecklistFileInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.CheckListSeed.include"
+					type AgentsToolsFrontmatterKey > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.FrontmatterKey.include"
+					AgentsSessionChecklistFileInto dutyKeptGiven "$dutyKeptId" "$callerName" || dutyKeptGiven=""
+					[ -z "$dutyKeptGiven" ] || [ ! -f "${dutyKeptGiven%/*}/handback.given" ] || dutyKeptHeld=yes
+					if [ "$dutyKeptHeld" = no ] ; then
+						while IFS= read -r dutyKeptRecord ; do
+							[ -n "$dutyKeptRecord" ] || continue
+							[ -z "$( AgentsToolsFrontmatterKey "$dutyKeptRecord" killed-at )" ] || { dutyKeptHeld=yes ; break ; }
+						done <<< "$( AgentsToolsSpawnedSessionRecords "$dutyKeptId" own 2> /dev/null )"
+					fi
+					if [ "$dutyKeptHeld" = yes ] ; then
+						AgentsToolsDutyKeptTagFold "$callerName" "$dutyKeptId"
+						rm -f "$dutyKeptFile" ; dutyKeptId=""
+					fi
 				fi
 				if [ -n "$dutyKeptId" ] ; then joinSessionId="$dutyKeptId" ; sessionNew="" ; fi
 			fi
@@ -941,6 +960,19 @@ case "$1" in
 		fi
 
 		AgentsToolsStartStepMark scan-wait
+		## THE STAMPED CLEANUP PASS: a start only starts it, detached, once an hour at most.
+		type AgentsToolsCleanupSweepDetached > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.CleanupSweep.include"
+		AgentsToolsCleanupSweepDetached
+
+		## THE FREE-SPACE FLOOR, before a dispatch document or a routine lock is written: a read under the floor sweeps once, with apply, and the
+		## second read decides. Only a workspace still under the floor after the sweep refuses the start, with the refusal's own line.
+		type AgentsToolsSpawnDiskFreeRefused > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSessionParent.include"
+		if ! AgentsToolsSpawnDiskFreeRefused ; then
+			type AgentsToolsCleanupSweep > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.CleanupSweep.include"
+			AgentsToolsCleanupSweep apply || :
+			AgentsToolsSpawnDiskFreeRefused || { set +e ; return 1 ; }
+		fi
+
 		local routineLockDoc="" routineLockTaken="no" routineLockShort="" agentsRoutineLockTaken="no"
 		if [ -n "$routineFilePath" ] && [ -f "$routineFilePath" ] ; then
 			type AgentsToolsRoutineKey > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/routine/AgentsTools.RoutineRequirements.include"
@@ -1633,7 +1665,7 @@ case "$1" in
 			type AgentsToolsScheduleThreadAsk > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/schedule/AgentsTools.ScheduleThread.include"
 				scheduleSaid="$( AgentsToolsScheduleThreadAsk 2> /dev/null )" || :
 				case "$scheduleSaid" in
-					"started "*|"alive "*|off|waiting) ;;
+					"started "*|"alive "*|"ending "*|off|waiting) ;;
 					*) echo "$MDSC_CMD: agent-spawn-proxy: ⚠️ WARNING: the schedule's service thread could not be started: ${scheduleSaid#failed - } -- the run goes on without it, and the next start asks again" >&2 ;;
 				esac
 			## The event-track thread is the session's debug feed (AgentsTools.EventTrackFeed.include).

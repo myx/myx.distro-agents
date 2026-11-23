@@ -1151,6 +1151,7 @@ exec 8<&- 9<&-
 
 {
 	runPass=0 runNoteBlock="" runOwned=0 runUnowned=0 runFixed=0
+	runAssert=0 runRefused=0 runTimedOut=0
 	runRows=""
 	for runName in $( cut -d' ' -f1 "$runList" ) ; do
 		runRc="$( sed -n 's/^rc=//p' "$runDir/$runName.receipt" 2>/dev/null )"
@@ -1166,12 +1167,30 @@ exec 8<&- 9<&-
 			fi
 		else
 			if [ -n "$runKnown" ] ; then runOwned=$(( runOwned + 1 )) ; else runUnowned=$(( runUnowned + 1 )) ; fi
-			runRows="$runRows""FAIL $runName rc=${runRc:-none}${runEnded:+ $runEnded}$runKnown"$'\n'
+			## THREE FINDINGS, NEVER ONE: a check ended at its time limit by the stall keeper's own note, a check that
+			## refused ended a line on the refusal wording every check of the suite writes, and the rest failed an assertion.
+			runKind=""
+			if [ -n "$runEnded" ] ; then
+				runTimedOut=$(( runTimedOut + 1 ))
+				runKind=" kind=TIMEOUT"
+			else
+				runRefusedLine="$( LC_ALL=C grep -F 'refusing to report a result' "$runDir/$runName.log" 2>/dev/null | LC_ALL=C sed -n 1p )"
+				if [ -n "$runRefusedLine" ] ; then
+					runRefused=$(( runRefused + 1 ))
+					runKind=" kind=REFUSED"
+				else
+					runAssert=$(( runAssert + 1 ))
+				fi
+			fi
+			runRows="$runRows""FAIL $runName rc=${runRc:-none}${runEnded:+ $runEnded}$runKind$runKnown"$'\n'
 		fi
 	done
 	printf '%s' "$runRows" | sort -k1,1 -k2,2
 	printf '%s' "$runNoteBlock"
 	[ -z "$runStalled" ] || echo "STALLED  never ran $runNeverCount  never ended $runOpenCount"
+	## THE THREE KINDS COUNTED APART, on a line of their own: the totals line below keeps its shape, which three checks
+	## read as their instrument, and FAIL keeps its meaning as every check that did not pass, so TOTAL = PASS + FAIL.
+	echo "KINDS  ASSERT $runAssert  REFUSED $runRefused  TIMEOUT $runTimedOut"
 	echo "TOTAL $runCount  PASS $runPass  FAIL $(( runCount - runPass ))  WALL $(( $( date +%s ) - runStart ))s  OWNED $runOwned  UNOWNED $runUnowned  FIXED $runFixed"
 } > "$runDir/summary.txt"
 python3 -I -B "$runPassKeeper" prune "$runPassDir" "$runPassAge" 2>/dev/null || :

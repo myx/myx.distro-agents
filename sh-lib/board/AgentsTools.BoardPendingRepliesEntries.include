@@ -7,18 +7,24 @@
 ## questions/AgentsTools.RegistryPendingRepliesRows.include.
 ##
 
-## Both `running` and `blocked` are walked, because an item may be waiting without having been moved. The rows awk drops an
-## item not waiting on a reply, so the registry lists what is actually blocked, never every running item. No data root: none.
+## THE ITEMS COME FROM A KEPT LIST, never from a walk of `board/running` and `board/blocked`. The list
+## (`.local/agents/board/waiting-replies.index`, AgentsTools.BoardWaitingRepliesIndex.include) is written by the one board
+## write path that sets or clears an item's `blocked-on`, so a rebuild of this registry opens its size in items that wait on
+## a reply, never the size of a board state. An item the list names that has since lost its header is dropped by the rows awk,
+## as it always was. No data root: none.
 AgentsToolsBoardPendingRepliesEntries(){
 	type AgentsToolsRegistryRowsEntry > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
-	local boardState boardFile
+	type AgentsToolsBoardWaitingRepliesIndexInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.BoardWaitingRepliesIndex.include"
+	local waitFile waitLine waitState waitItem
 	[ -n "${MDAT_DATA_ROOT:-}" ] || return 0
-	for boardState in running blocked ; do
-		[ -d "$MDAT_DATA_ROOT/board/$boardState" ] || continue
-		for boardFile in "$MDAT_DATA_ROOT/board/$boardState"/*.md ; do
-			[ -f "$boardFile" ] || continue
-			AgentsToolsRegistryRowsEntry B "$boardFile"
-		done
-	done
+	AgentsToolsBoardWaitingRepliesIndexInto waitFile "${MMDAPP:-}" || return 0
+	[ -f "$waitFile" ] || return 0
+	while IFS= read -r waitLine ; do
+		waitState="${waitLine%%/*}" ; waitItem="${waitLine#*/}"
+		case "$waitState" in running|blocked) ;; *) continue ;; esac
+		case "$waitItem" in ''|.|..|*/*) continue ;; esac
+		[ -f "$MDAT_DATA_ROOT/board/$waitState/$waitItem" ] || continue
+		AgentsToolsRegistryRowsEntry B "$MDAT_DATA_ROOT/board/$waitState/$waitItem"
+	done < "$waitFile"
 	return 0
 }

@@ -37,7 +37,7 @@ AgentsToolsTeamDataRepairMoveFlatItems(){
 		for flatFile in "$flatMemberDir"*.md ; do
 			[ -f "$flatFile" ] || continue
 			flatStamped=""
-			if [ -n "$( LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/inbox/AgentsInboxProcessedAtList.awk" "$flatFile" 2>/dev/null )" ] ; then
+			if [ -n "$( printf '%s\n' "$flatFile" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/inbox/AgentsInboxProcessedAtList.awk" 2>/dev/null )" ] ; then
 				flatStamped="yes"
 			fi
 			if [ "$flatStamped" = "yes" ] ; then

@@ -115,6 +115,10 @@ def parseSessionRows(text):
 
 
 
+## The key the live list is kept under, which its read names (`"rows": "sessions"`).
+SESSIONS_OF = "sessions"
+
+
 ## What `--manager-session-list` printed, as what the screen keeps of it (SESSIONS_OF).
 def parseSessionLevels(text):
     return {SESSIONS_OF: parseSessionRows(text)}
@@ -123,6 +127,29 @@ def parseSessionLevels(text):
 ## The rows of the sessions the last read of the list gave, or None until it has answered.
 def sessionRowsHeld(state):
     return state.rows.get(SESSIONS_OF)
+
+
+## What `--manager-session-closed-list` printed, as what the screen keeps of it (CLOSED_OF): the same row form, from the window
+## of the append-only index rather than from the live blocks, so the closed list costs what it shows.
+CLOSED_OF = "closed-sessions"
+
+
+def parseClosedLevels(text):
+    return {CLOSED_OF: parseSessionRows(text)}
+
+
+## The rows of the closed window the last read gave, or None until it has answered.
+def closedRowsHeld(state):
+    return state.rows.get(CLOSED_OF)
+
+
+## Every session row the screen holds, the live ones first and then the closed window's: what a list that spans both reads from.
+def everySessionRow(state):
+    held = sessionRowsHeld(state)
+    closedHeld = closedRowsHeld(state)
+    if held is None and closedHeld is None:
+        return None
+    return list(held or ()) + list(closedHeld or ())
 
 
 ## A participant of a session, an agent, as a row of a list: its member, its state at the end of its row and for a live one
@@ -310,6 +337,9 @@ def runLines(run, width, info=None, limit=0):
         lines.extend(headingLines("CheckList"))
         for item in listed:
             lines.extend(wrapToCells(item, max(10, width - 1)))
+    elif info is not None:
+        ## ONE THAT KEPT NONE SAYS SO, in the participant's own name: silence there reads as an unread page, and `no data` reads as a missing one.
+        lines.extend(wrapToCells("%s has no checklist in this session." % unspaced(run["member"]), max(10, width - 1)))
     return lines[:limit] if limit else lines
 
 
@@ -1208,7 +1238,11 @@ def lingering(row):
 
 ## The sessions that are closed: every one the list gave a phase other than `active`.
 def closedSessionRows(state, path):
-    held = sessionRowsHeld(state)
+    ## THE LIVE LIST STANDS IN UNTIL THE WINDOW ANSWERS: the list carries the closed sessions of the store it read, and a screen that asked for
+    ## the window and has not its answer yet shows them rather than nothing.
+    held = closedRowsHeld(state)
+    if held is None:
+        held = sessionRowsHeld(state)
     if held is None:
         return None
     ## `Closed Sessions` is the sessions this console has seen closed: another host's, `unknown-foreign`, is never one of them.
@@ -1233,8 +1267,9 @@ def topTokenRows(state, path):
 
 ## The agents of every session that a test says to keep, in the order of the sessions, each by its member and the session it works
 ## in. Its id is the id of its run, or where it has none the session it is in and the place it stands in there.
-def agentRows(state, keep):
-    held = sessionRowsHeld(state)
+def agentRows(state, keep, held=None):
+    if held is None:
+        held = sessionRowsHeld(state)
     if held is None:
         return None
     rows = []
@@ -1264,7 +1299,7 @@ def waitingAgentRows(state, path):
 
 ## The agents that are closed: the runs that are finished or failed.
 def closedAgentRows(state, path):
-    return agentRows(state, lambda run: run["state"] in RUN_CLOSED_STATES)
+    return agentRows(state, lambda run: run["state"] in RUN_CLOSED_STATES, closedRowsHeld(state) if closedRowsHeld(state) is not None else sessionRowsHeld(state))
 
 
 ## The participants of the session the level at that path is: its agents, in the order of its runs. The session is found among
@@ -1280,8 +1315,8 @@ def participantRows(state, path):
             break
     ## A LEVEL REACHED WITHOUT ITS LIST READ, as a path jumps straight into it, takes the session from the store the screen keeps: the rows of the level above
     ## it were never asked for, and the pane would be empty.
-    ## A FOLDER ENTERED BY ITS PATH HAS ITS SESSION ONE LEVEL HIGHER: the parent is the session's own folder, whose list is the agents, so the session row
-    ## that carries the runs is in the section's list, named by the folder above this one.
+    ## A FOLDER ENTERED BY ITS PATH HAS ITS SESSION ONE LEVEL HIGHER: the parent is the session's own folder, whose list is the agents, and the session
+    ## row that carries the runs stands in the section's list, named by the folder above this one.
     if found is None and len(path) >= 2:
         for one in listedRows(state, path[:-2]) or ():
             if one["id"] == path[-2] and one.get("session"):
@@ -1395,8 +1430,16 @@ def activityTree():
             "summaries": {"activity": {"lines": "activitySummary", "counted": ("running", "waiting", "unclosed")}},
             "focus": {}, "derived": {},
             "reads": {
-                ## The coworking sessions with their runs, and last the row of counters of the status lines. Every list below is made of them.
+                ## THE SESSIONS THE TEAM HAS NOW, from the live blocks alone: one file a session whose thread runs, and never a
+                ## closed session's store. It is what every list of this root is made of.
+                ## THE SESSIONS THE TEAM HAS NOW, from the live blocks alone: one file a session whose thread runs, and never a
+                ## closed session's store. It is what every list of this root is made of.
                 "list:activity": {"operation": ["--manager-session-list"], "rows": "sessions", "kind": "sessions", "always": True},
+                ## THE SESSIONS THAT CLOSED, as a page of the append-only index: its own kind and its own key, so it costs its
+                ## window whatever the history holds, and its answer lands beside the live rows instead of replacing them.
+                "list:activity/closed-sessions": {"operation": ["--manager-session-closed-list"], "rows": "closed-sessions", "kind": "closed-sessions",
+                                              ## a page of an append-only index changes when a session closes: it is made once and held
+                                              "period": 300},
                 ## What the kill of a session, and of one agent, would do, and nothing is done: the rows of the kill itself, each with what
                 ## would become of it (KILL_ROWS). Read when the confirmation of that kill opens, and once more when it is confirmed
                 ## (submitKill), by the id it names, as a kind of its own; never on the period, so what the confirmation says does not
@@ -1411,19 +1454,30 @@ def activityTree():
         tree["derived"][level] = function
         tree["focus"][level] = "sessionsFocus"
         tree["summaries"][level] = {"lines": "sessionsSummary"}
-        ## No list of these has a read of its own: the list of the sessions fills it.
-        tree["reads"]["list:" + level] = {"from": "list:activity"}
+        ## CLOSED SESSIONS AND CLOSED AGENTS read the window of the index, where a closed session's runs are. The lists made of
+        ## the live sessions read the live blocks alone. `Top Tokens` reads the live figure, as its own row says.
+        if name in ("closed-sessions",):
+            ## THE CLOSED LISTS READ THE CLOSED WINDOW ITSELF: its key under the level's own name, so the read is wanted and started where the
+            ## level is shown - the tree's own alias named a key the registry never held, and the window was never asked.
+            tree["reads"]["list:" + level] = {"operation": ["--manager-session-closed-list"], "rows": "closed-sessions", "kind": "closed-sessions"}
+        else:
+            tree["reads"]["list:" + level] = {"from": "list:activity"}
         ## A session shows its facts, as read of that one session.
         tree["reads"]["view:%s:record" % level] = {"operation": ["--manager-session-read", "--session-id", "{id}"], "rows": "session-read", "needs": "session"}
         tree["derived"][level + "/*"] = "participantRows"
-        tree["reads"]["list:%s/*" % level] = {"from": "list:activity"}
+        tree["reads"]["list:%s/*" % level] = tree["reads"]["list:" + level]
         activityParticipants(tree, level + "/*")
     for name, label, function in ACTIVITY_AGENT_LISTS:
         level = "activity/" + name
         tree["agents"].append(level)
         tree["derived"][level] = function
         tree["summaries"][level] = {"lines": "agentsSummary"}
-        tree["reads"]["list:" + level] = {"from": "list:activity"}
+        ## CLOSED AGENTS reads the closed page, where its sessions' runs are. The rest read the live sessions, and no run of a
+        ## closed session is waiting or working.
+        if name == "closed-agents":
+            tree["reads"]["list:" + level] = {"from": "list:activity/closed-sessions"}
+        else:
+            tree["reads"]["list:" + level] = {"from": "list:activity"}
         activityParticipants(tree, level)
     return tree
 
@@ -1541,3 +1595,12 @@ def sessionsLevels(readKey, level, text):
 
 
 ROW_FORMS["sessions"] = {"parse": sessionsLevels}
+
+
+## The levels of the `closed-sessions` read: the same row form as the live sessions, kept under its own key, so a page of the
+## closed window lands beside the live rows rather than in their place.
+def closedSessionsLevels(readKey, level, text):
+    return parseClosedLevels(text)
+
+
+ROW_FORMS["closed-sessions"] = {"parse": closedSessionsLevels}

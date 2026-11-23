@@ -349,11 +349,11 @@ AgentsToolsManagerTeamMemberReadRows(){ ## the operation as it was called, membe
 	' "$readFile" 2> /dev/null )" || readBullets=""
 	## THE SESSIONS ARE THOSE IT HAS A RUN IN, AND THOSE ITS GRANTS NAME: a grant of a session is shown with the state of that session, and this read
 	## already carries the list of sessions.
-	readGrantSessions="$( printf '%s\n' "$readGrants" | LC_ALL=C awk -F'\t' 'match( $0, /session [^ ]+ (ends|runs)/ ) { held = substr( $0, RSTART + 8 ) ; sub( / .*/, "", held ) ; print held }' )" || readGrantSessions=""
+	readGrantSessions="$( printf '%s\n' "$readGrants" | LC_ALL=C awk -F'\t' 'match( $0, /session [^ ]+ (ends|runs)/ ) { held = substr( $0, RSTART + 8 ) ; sub( / .*/, "", held ) ; print held ; }' )" || readGrantSessions=""
 	## The sessions it has a run in: each session's own row, then the member's runs in it,
 	## as the list of sessions printed them; those where a run of it is alive come first.
 	readSessions="$( printf '%s\n' "$sessionRows" | LC_ALL=C awk -F'\t' -v wantMember="$readMember" -v wantGrants="$readGrantSessions" '
-		BEGIN { heldTotal = split( wantGrants, heldList, " " ) ; for ( heldAt = 1 ; heldAt <= heldTotal ; heldAt++ ) { wantSet[heldList[heldAt]] = 1 ; } }
+		BEGIN { heldTotal = split( wantGrants, heldList, " " ) ; for ( heldAt = 1 ; heldAt <= heldTotal ; heldAt++ ) { wantSet[heldList[heldAt]] = 1 ; } ; }
 		$1 == "session" { sessionRow[$2] = $0 ; sessionOf[++sessionTotal] = $2 ; next ; }
 		$1 == "run" && $4 == wantMember { sessionRuns[$2] = sessionRuns[$2] $0 "\n" ; if ( $6 == "running" ) { sessionLive[$2] = 1 ; } ; }
 		END {

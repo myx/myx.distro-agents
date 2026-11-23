@@ -7,6 +7,7 @@
 ## dot-sourced for $1/$@/$MDSC_CMD. Rationale and mechanism: myx.distro-agents/MAGIC.md.
 ##
 
+type AgentsToolsTempClaim > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.TempFiles.include"
 type AgentsToolsCommsSlackRun > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/slack/AgentsTools.CommsSlack.include"
 
 case "$1" in
@@ -34,7 +35,7 @@ case "$1" in
 				echo "⛔ ERROR: $MDSC_CMD --slack-read: target required -- <channel>:<ts> for one message, or a bare <channel>/<conversation-id>/magic-team/human-owner/event-track/event-alert for that conversation's own messages." >&2
 				set +e ; return 1
 			fi
-			local wantThread="false" identityAsBot="false" readOldest="" readWait=""
+			local wantThread="false" identityAsBot="false" readOldest="" readWait="" readTtl=""
 			while [ $# -gt 0 ] ; do
 				case "$1" in
 					--thread)
@@ -54,6 +55,12 @@ case "$1" in
 					--wait)
 						case "${2:-}" in ''|*[!0-9]*) echo "⛔ ERROR: $MDSC_CMD --slack-read: --wait: whole seconds required" >&2 ; set +e ; return 1 ;; esac
 						readWait="$2" ; shift 2
+					;;
+					## The age this call accepts, in whole seconds: it overrides MDAT_SLACK_THREAD_CACHE_SECONDS here. Not --wait,
+					## which is the budget for waiting on the comms thread.
+					--ttl)
+						case "${2:-}" in ''|*[!0-9]*) echo "⛔ ERROR: $MDSC_CMD --slack-read: --ttl: whole seconds required" >&2 ; set +e ; return 1 ;; esac
+						readTtl="$2" ; shift 2
 					;;
 					--identity-bot)
 						identityAsBot="true" ; shift
@@ -89,6 +96,7 @@ case "$1" in
 			esac
 			local readErrFile="" readRc=0
 			mkdir -p "$MMDAPP/.local/temp" 2> /dev/null && readErrFile="$( mktemp "$MMDAPP/.local/temp/mdat-slack-read.XXXXXX" 2> /dev/null )" || readErrFile=""
+			AgentsToolsTempClaim "$readErrFile"
 			## No <ts>: the target names a conversation, not a message. Read the
 			## conversation itself -- the case a caller is in when it wants the ts
 			## of something just posted and so cannot supply one. AgentsToolsSlackCheck
@@ -106,30 +114,107 @@ case "$1" in
 					[ -z "$readErrFile" ] || rm -f "$readErrFile"
 					set +e ; return 1
 				fi
-				## HUMAN-OWNER READS BOTH DMs: the bare macro name must reach AgentsToolsSlackCheck
-				## literally, never the one party id it resolves to above -- that id is a single DM,
-				## and the fan-out that reads both of the human-owner's DMs (one per identity, merged
-				## chronologically) only engages on the literal target. Delegated whole, uncached: the
-				## fan-out already reads both DMs itself, one conversation cache cannot cover two DMs.
-				if [ "$target" = "human-owner" ] ; then
-					local hoArgs=( "$memberName" human-owner )
-					local hoOut=""
-					[ "$identityAsBot" = "false" ] || hoArgs+=( --identity-bot )
-					[ -z "$readOldest" ] || hoArgs+=( --oldest "$readOldest" )
-					## Bounded as a thread read is (AgentsToolsSlackReadBounded): a read that never answers ends at the bound.
-					[ -z "$readErrFile" ] || hoOut="$( mktemp "$MMDAPP/.local/temp/mdat-slack-read-conv.XXXXXX" 2> /dev/null )" || hoOut=""
-					[ -n "$hoOut" ] || { echo "⛔ ERROR: $MDSC_CMD --slack-read: could not make a scratch file for the read in $MMDAPP/.local/temp" >&2 ; [ -z "$readErrFile" ] || rm -f "$readErrFile" ; set +e ; return 1 ; }
-					AgentsToolsSlackReadBounded "$hoOut" "$readErrFile" AgentsToolsSlackCheck ${hoArgs[@]+"${hoArgs[@]}"} || readRc=$?
-					[ "$readRc" != "0" ] || cat "$hoOut" || readRc=1
-					rm -f "$hoOut"
-					{ cat "$readErrFile" >&2 ; rm -f "$readErrFile" ; }
-					[ "$readRc" = "0" ] || { set +e ; return 1 ; }
-					return 0
+				## THE AGE THIS CALL ACCEPTS: its own --ttl, else the setting the cache reads at, else the thread default.
+				local convTtl="${readTtl:-${MDAT_SLACK_THREAD_CACHE_SECONDS:-15}}"
+				case "$convTtl" in ''|*[!0-9]*) convTtl=15 ;; esac
+				## HUMAN-OWNER READS BOTH DMs, EACH FROM THE CACHE: the macro names one party, and its two conversations are
+				## keyed one per identity, exactly as a read naming that conversation id keys them, so a later read of that id
+				## is served the same entry. A leg the cache does not hold is not fetched here: the comms thread fills it.
+				## So this read answers partial or absent rather than an empty conversation.
+				local hoParty=""
+				case "$channel" in
+					U*|W*) hoParty="$channel" ;;
+					*) hoParty="" ;;
+				esac
+				if [ "$target" = "human-owner" ] && [ -n "$hoParty" ] ; then
+					local hoProvenance="" hoFailReport="" hoMerged="" hoSorted="" hoOkCount=0 hoLegIndex=0 hoLegArgs=() tabChar=$'\t'
+					local hoLegIdentity hoLegDm hoLegInfo hoLegOut hoLegTagged hoLegReason hoLegRc hoLegDmRc
+					type AgentsToolsCommsSlackRun > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/slack/AgentsTools.CommsSlack.include"
+					type AgentsToolsMemberCommsSlackRun > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/slack/AgentsTools.MemberCommsSlack.include"
+					for hoLegIdentity in user bot ; do
+						hoLegIndex=$(( hoLegIndex + 1 ))
+						hoLegRc=0 hoLegDm="" hoLegReason="" hoLegOut="" hoLegTagged=""
+						## EACH LEG LEARNS ITS OWN CONVERSATION, then reads it as a read naming that id does.
+						hoLegInfo="$( AgentsToolsCommsSlackRun --intern-op-slack-call "$memberName" --api conversations.info --resolve-dm "$hoParty" --identity "$hoLegIdentity" --context "--slack-read human-owner ($hoLegIdentity identity, DM discovery)" )" || hoLegRc=$?
+						if [ "$hoLegRc" != "0" ] ; then
+							hoLegReason="the discovery call failed (rc=$hoLegRc), and its own diagnostic is above"
+						else
+							hoLegDmRc=0
+							hoLegDm="$( LC_ALL=C awk -v path=channel.id -v dialect=slack -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" <<< "$hoLegInfo" )" || hoLegDmRc=$?
+							if [ "$hoLegDmRc" != "0" ] || [ -z "$hoLegDm" ] ; then
+								hoLegReason="the discovery call reported no usable channel id (field reader rc=$hoLegDmRc), so that conversation was never read"
+							fi
+						fi
+						if [ -z "$hoLegReason" ] ; then
+							## THE LEG ASKS THE CACHE ALONE: the comms thread is the one thing that fills an entry.
+							## It carries the age this call accepts, and the budget the caller gave.
+							hoLegArgs=( "$memberName" "$hoLegDm" --oldest "$readOldest" --ttl "$convTtl" --wait "${readWait:-0}" )
+							[ "$hoLegIdentity" = "user" ] || hoLegArgs+=( --identity-bot )
+							hoLegRc=0
+							hoLegOut="$( AgentsToolsMemberCommsSlackRun --intern-op-comms-slack-read "${hoLegArgs[@]}" )" || hoLegRc=$?
+							case "$hoLegRc" in
+								0) ;;
+								3) hoLegReason="the cache does not hold that conversation yet (rc=3), so the comms thread fills it and this read is unread" ;;
+								*) hoLegReason="that conversation was not served (rc=$hoLegRc), and its own diagnostic is above" ;;
+							esac
+						fi
+						if [ -z "$hoLegReason" ] ; then
+							## EACH SERVED LINE IS TAGGED WITH ITS CONVERSATION AND ITS RECORD, for the chronological merge below.
+							hoLegTagged="$( printf '%s\n' "$hoLegOut" | LC_ALL=C awk -v dmId="$hoLegDm" -v legIndex="$hoLegIndex" '
+								/^## / { next ; }
+								/^[[:space:]]*$/ { next ; }
+								{
+									if ( $0 ~ /^[0-9][0-9]*\.[0-9][0-9]* \| / ) { recTs = $0 ; sub(/ .*/, "", recTs) ; recKind = "H" ; }
+									else { recKind = "C" ; }
+									print recTs "\t" legIndex "\t" NR "\t" dmId "\t" recKind "\t" $0 ;
+								}' )" || hoLegReason="its rendering could not be tagged for the merge"
+							[ -z "$hoLegTagged" ] || hoMerged="$hoMerged$hoLegTagged"$'\n'
+						fi
+						if [ -n "$hoLegReason" ] ; then
+							hoProvenance="$hoProvenance## dm=${hoLegDm:-<not resolved>} identity=$hoLegIdentity status=FAILED reason=$hoLegReason"$'\n'
+							hoFailReport="$hoFailReport the $hoLegIdentity identity conversation (${hoLegDm:-not resolved}) -- $hoLegReason ;"
+							continue
+						fi
+						hoOkCount=$(( hoOkCount + 1 ))
+						hoProvenance="$hoProvenance## dm=$hoLegDm identity=$hoLegIdentity status=ok"$'\n'
+					done
+		printf '## target=%s channel=%s (party id -- reads BOTH human-owner DMs, one per identity, each from the cache)\n' "$target" "$hoParty"
+					## Provenance first, always both legs, then the payload.
+					printf '%s' "$hoProvenance"
+					if [ -n "$hoMerged" ] ; then
+						hoSorted="$( LC_ALL=C sort -t "$tabChar" -k1,1 -k2,2n -k3,3n <<< "${hoMerged%$'\n'}" )" || {
+							echo "⛔ ERROR: $MDSC_CMD --slack-read: the lines served could not be sorted into one chronological conversation, so nothing is concluded from this call." >&2
+							set +e ; return 1
+						}
+						LC_ALL=C awk -F "$tabChar" '
+							{
+								body = $6 ;
+								for ( i = 7 ; i <= NF ; i++ ) { body = body "\t" $i ; }
+								if ( $5 == "H" ) { print $4 " | " body ; }
+								else { print body ; }
+							}' <<< "$hoSorted" || {
+							echo "⛔ ERROR: $MDSC_CMD --slack-read: the lines served were sorted but could not be rendered, so what is above is not the answer, and nothing is concluded from this call." >&2
+							set +e ; return 1
+						}
+					fi
+					if [ "$hoOkCount" = "2" ] ; then
+						if [ -n "$hoMerged" ] ; then
+							echo "# $MDSC_CMD --slack-read: BOTH human-owner DMs served from the cache, one entry per identity. The lines above are the two conversations merged chronologically, each carrying its own conversation id." >&2
+						else
+							echo "# $MDSC_CMD --slack-read: BOTH human-owner DMs served from the cache, and neither holds a message after ${readOldest}." >&2
+						fi
+						return 0
+					fi
+					if [ "$hoOkCount" = "1" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --slack-read: PARTIAL -- only ONE of the human-owner’s two DMs was served. Failed:$hoFailReport The output above is therefore HALF the conversation: a message the human-owner sent in the other DM is absent from it, and nothing here supports concluding that no such message exists. Fix the named leg and read again before treating this as an answer. rc=3 means exactly this partial state, distinct from rc=4 (neither DM served) and from rc=1 (this operation failed before any fan-out)." >&2
+						set +e ; return 3
+					fi
+					echo "⛔ ERROR: $MDSC_CMD --slack-read: NEITHER of the human-owner’s two DMs was served. Failed:$hoFailReport Nothing was read at all, so nothing whatsoever is known from this call about what the human-owner has or has not written. rc=4 means exactly this, distinct from rc=3 (one DM served, one not)." >&2
+					set +e ; return 4
 				fi
 				## THROUGH THE COMMS CACHE (AgentsTools.CommsCache.include), slack/<channel>: a read from a floor it covers is served from
 				## it; once its TTL has passed only what came after its newest is pulled from Slack and added. ONE PATH (epic S21.13).
-				local convFile="" convTmp="" convAt="" convFrom="" convNewest="" convNow="" convKey convFetch="$readOldest" convTtl="${MDAT_SLACK_THREAD_CACHE_SECONDS:-15}"
-				case "$convTtl" in ''|*[!0-9]*) convTtl=15 ;; esac
+				local convFile="" convTmp="" convAt="" convFrom="" convNewest="" convNow="" convKey convFetch="$readOldest"
 				local convFloorNum="${readOldest%%.*}"
 				type AgentsToolsCommsCacheSlackDir > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsCache.include"
 				## --wait <seconds>: this read is on the cache's terms, waiting on the comms service thread for that long at most.
@@ -188,12 +273,10 @@ case "$1" in
 					else
 						convFrom=""
 					fi
-					## STALE IS ENOUGH for a call that waits no longer than the TTL (MDAT_COMMS_CACHE_STALE_OK): it is served what the cache
-					## covers at once, and one detached read of its own brings the channel up to date for the next read.
+					## STALE IS ENOUGH for a call that waits no longer than the TTL (MDAT_COMMS_CACHE_STALE_OK): it is served what
+					## the cache covers at once, and the comms thread fills it. A reader starts no pull of its own.
 					if [ "${MDAT_COMMS_CACHE_STALE_OK:-}" = "true" ] && [ -n "$convFrom" ] && AgentsToolsCommsCacheServe "$convFile" "$readOldest" head ; then
-						type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
-						[ -f "$convFile/.pulling.txt" ] || ( MDAT_COMMS_CACHE_STALE_OK="" AgentsToolsMemberCommsSlackRun --intern-op-comms-slack-read "$memberName" "$channel" $( [ -z "$readOldest" ] || printf '%s\n' --oldest "$readOldest" ) $( [ "$identityAsBot" = "false" ] || printf '%s' --identity-bot ) ) > /dev/null 2>&1 < /dev/null &
-						echo "# $MDSC_CMD --slack-read: conversation $channel served from the cache as it stands, a pull of it runs, from ${readOldest:-the start}" >&2
+						echo "# $MDSC_CMD --slack-read: conversation $channel served from the cache as it stands, the comms thread pulls it, from ${readOldest:-the start}" >&2
 						[ -z "$readErrFile" ] || rm -f "$readErrFile"
 						return 0
 					fi
@@ -213,6 +296,7 @@ case "$1" in
 						convFile="" convFetch="$readOldest"
 					fi
 					[ -z "$convFile" ] || { mkdir -p "$convFile" 2> /dev/null && convTmp="$( mktemp "$convFile/read.XXXXXX" 2> /dev/null )" ; } || { AgentsToolsCommsCachePullGive "$convFile" ; convFile="" ; convTmp="" ; convFetch="$readOldest" ; }
+					AgentsToolsTempClaim "$convTmp"
 				fi
 				echo "# $MDSC_CMD --slack-read: GET conversations.history channel=$channel${convFetch:+ oldest=$convFetch} (whole conversation, acting member $memberName)" >&2
 				local conversationArgs=( "$memberName" "$channel" )
@@ -221,6 +305,7 @@ case "$1" in
 				[ -z "$convFetch" ] || conversationArgs+=( --oldest "$convFetch" )
 				## Bounded as a thread read is (AgentsToolsSlackReadBounded): a read that never answers ends at the bound. Outside the cache it reads into a scratch file.
 				[ -n "$convOut" ] || [ -z "$readErrFile" ] || convOut="$( mktemp "$MMDAPP/.local/temp/mdat-slack-read-conv.XXXXXX" 2> /dev/null )" || convOut=""
+				AgentsToolsTempClaim "$convOut"
 				if [ -z "$convOut" ] || [ -z "$readErrFile" ] ; then
 					echo "⛔ ERROR: $MDSC_CMD --slack-read: could not make a scratch file for the read in $MMDAPP/.local/temp" >&2
 					[ -z "$readErrFile" ] || rm -f "$readErrFile"
@@ -272,7 +357,9 @@ case "$1" in
 				local threadFile="" threadErrFile=""
 				mkdir -p "$MMDAPP/.local/temp" 2> /dev/null || :
 				threadFile="$( mktemp "$MMDAPP/.local/temp/mdat-slack-read-thread.XXXXXX" 2> /dev/null )" || threadFile=""
+				AgentsToolsTempClaim "$threadFile"
 				[ -z "$threadFile" ] || threadErrFile="$( mktemp "$MMDAPP/.local/temp/mdat-slack-read-thread-err.XXXXXX" 2> /dev/null )" || threadErrFile=""
+				AgentsToolsTempClaim "$threadErrFile"
 				[ -n "$threadErrFile" ] || { echo "⛔ ERROR: $MDSC_CMD --slack-read: could not make a scratch file for the read in $MMDAPP/.local/temp" >&2 ; [ -z "$readErrFile" ] || rm -f "$readErrFile" ; set +e ; return 1 ; }
 				AgentsToolsSlackReadBounded "$threadFile" "$threadErrFile" \
 					AgentsToolsCommsSlackRun --intern-op-slack-call "$memberName" \
@@ -316,7 +403,9 @@ case "$1" in
 				local response callRc=0 responseFile="" responseErrFile=""
 				mkdir -p "$MMDAPP/.local/temp" 2> /dev/null || :
 				responseFile="$( mktemp "$MMDAPP/.local/temp/mdat-slack-read-one.XXXXXX" 2> /dev/null )" || responseFile=""
+				AgentsToolsTempClaim "$responseFile"
 				[ -z "$responseFile" ] || responseErrFile="$( mktemp "$MMDAPP/.local/temp/mdat-slack-read-one-err.XXXXXX" 2> /dev/null )" || responseErrFile=""
+				AgentsToolsTempClaim "$responseErrFile"
 				[ -n "$responseErrFile" ] || { echo "⛔ ERROR: $MDSC_CMD --slack-read: could not make a scratch file for the read in $MMDAPP/.local/temp" >&2 ; set +e ; return 1 ; }
 				AgentsToolsSlackReadBounded "$responseFile" "$responseErrFile" \
 					AgentsToolsCommsSlackRun --intern-op-slack-call "$memberName" \

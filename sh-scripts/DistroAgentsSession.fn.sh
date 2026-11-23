@@ -66,6 +66,14 @@ DistroAgentsSessionMoved(){
 			return $?
 		;;
 
+		## Stubs: the operations that moved to the executor's own front. The call goes on there, and the place is said.
+		--get-uninvited-participants|--set-session-chapter|--set-session-topic)
+			echo "$MDSC_CMD: $1 moved to AgentExecutorTools.fn.sh $1 -- this name still works" >&2
+			type AgentExecutorTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/AgentExecutorTools.fn.sh"
+			AgentExecutorTools "$@"
+			return $?
+		;;
+
 		*)
 			echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
 			set +e ; return 1
@@ -186,13 +194,8 @@ DistroAgentsSession(){
 			return $?
 		;;
 
-		## The participants the session's record names that have no run in it yet, one a line: the executor's default list to invite from.
-		--get-uninvited-participants)
-			shift
-			type AgentsToolsThisSessionUninvited > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.ThisSession.include"
-			AgentsToolsThisSessionUninvited "$@"
-			return $?
-		;;
+		## The participants the session's record names that have no run in it yet: the executor's own front,
+		## AgentExecutorTools.fn.sh. DistroAgentsSessionMoved keeps the name as its stub.
 
 		## THE ROUTINE STACK'S MOVES (S6.27): one of --push <routine>, --replace <routine>, --rewind,
 		## --return or --return-to <frame>, with --reason <text> and --by <chair|routine|tool>. A move
@@ -274,25 +277,8 @@ DistroAgentsSession(){
 			return $?
 		;;
 
-		## The title of the session, what it is about (T4): the title in lists and statuses, and the thread's root post edited to
-		## match. Set by the session's executor; a participant's change escalates to the executor and up its chain; the person at
-		## the console sets it under the authority rule. [--escalate-wait [--timeout <s>]|--escalate-enqueue] are the rule's own.
-		--set-session-topic)
-			shift
-			DistroAgentsSessionTools
-			type AgentsToolsThisSessionSetTopic > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.ThisSession.include"
-			AgentsToolsThisSessionSetTopic "$@"
-			return $?
-		;;
-
-		## What the session does now (T4): kept in its own store and announced in the session thread. The same authority as the topic.
-		--set-session-chapter)
-			shift
-			DistroAgentsSessionTools
-			type AgentsToolsThisSessionSetChapter > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.ThisSession.include"
-			AgentsToolsThisSessionSetChapter "$@"
-			return $?
-		;;
+		## The session's title and chapter (T4): the executor's own front, AgentExecutorTools.fn.sh.
+		## DistroAgentsSessionMoved keeps both names as its stubs.
 
 		## The standing directives in force, and an order of the human-owner entered or taken out, magic-coordinator's
 		## (AgentsTools.CoordinatorSurface.include). AgentDispatcherTools.fn.sh keeps the three names as stubs of these.

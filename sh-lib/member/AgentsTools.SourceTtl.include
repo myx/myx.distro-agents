@@ -9,13 +9,13 @@
 ## Sourced, never run. Functions only.
 ##
 ## A source is timed here by the cadence at which it is READ. A member's own incoming is cached locally and refilled on a call when
-## stale, by these per-source TTLs (T2): the session chat short, the mail five minutes or more by worktime, the tags and mentions one
+## stale, by these per-source TTLs (T2): the session chat short, the mail three minutes, the tags and mentions one
 ## to five minutes. The one table holds both the cache TTLs and the live polling TTLs, which differ by source:
 ##   - the session thread, read into the session chat file (`chat:<session>`): 15, short -- the Wait times its own top-up reads by
 ##     the file's quietness (AgentsWaitChatTopUp), the table's value is the source's;
-##   - the mailbox of a member (`mail:<member>`): 300, five minutes () -- email has no source of its own in Wait, so its TTL is the
+##   - the mailbox of a member (`mail:<member>`): 180, three minutes () -- email has no source of its own in Wait, so its TTL is the
 
-##     cache's alone; the collection stretches it to 600, ten minutes, in worktime (AgentsToolsSourceTtlOf, T2);
+##     cache's alone, with no worktime stretch: the table's value is the whole of it (AgentsToolsSourceTtlOf, T2);
 ##   - the tags and mentions (`tagged:<member>`): 15, the live Wait floor -- a mention ends a collect at once; the schedule re-reads
 ##     the team channel that feeds the tags at its own cadence of one minute (AgentsToolsScheduleTeamTags, the 1-5 minute band);
 ##   - the mentions of a member anywhere (`mentions:<member>`): 60, one search call, its check kept by the session across Waits;
@@ -35,7 +35,7 @@ AgentsToolsSourceTtlOf(){ ## source
 		dms:*) printf '15\n' ;;
 		slack:*) printf '15\n' ;;
 		scan:*) printf '300\n' ;;
-		mail:*) printf '300\n' ;;
+		mail:*) printf '180\n' ;;
 		trello:*) printf '120\n' ;;
 		*) printf '0\n' ;;
 	esac

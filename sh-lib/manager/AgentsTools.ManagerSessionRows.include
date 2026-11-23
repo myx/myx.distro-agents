@@ -98,21 +98,22 @@ AgentsToolsManagerSessionControls(){ ## session id (every session of the workspa
 }
 
 ## The rows --manager-session-list prints: the sessions and their runs handed by the session store, then grouped, sorted and counted.
-## Fails, printing nothing, where the store's registries cannot be rebuilt: a stale file is never listed as though it were fresh.
+## THE BY-HAND FULL HISTORY, AND NO SCREEN'S READ: it walks the store, so it lists every session the workspace ever had with
+## every run of each. The console's two lists read the live blocks and the closed index instead, each its own operation, and
+## neither takes this path. Fails, printing nothing, where the store's registries cannot be rebuilt.
 AgentsToolsManagerSessionRows(){ ## the operation as it was called, "active" for the active sessions only (may be empty)
 	type AgentsSessionRowsInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
 	type AgentsToolsRegistryFile > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
-	local rowsOp="$1" rowsActive="${2:-}" rowsLearn="" rowsFile rowsPending rowsSpawned rowsTab=$'\t' rowsLine measuredDated=""
+	local rowsOp="$1" rowsActive="${2:-}" rowsLearn="" rowsFile rowsPending rowsSpawned rowsLine measuredDated=""
 	local rowsDated=()
 	[ "$rowsOp" != --schedule-learning ] || rowsLearn=1
-	## THE LIST IS PREPARED AND KEPT THIRTY SECONDS: the screen reads it on every look and on its period, and deriving every session and run again
-	## each time is what made its first page seconds. What moves minute by minute is the live list the threads keep, not this history.
+	## THE LIST IS PREPARED AND KEPT THIRTY SECONDS: a pass that asks for the whole history asks often, and deriving every
+	## session and run again each time is what made its first page seconds.
 	local rowsKept="$MMDAPP/.local/agents/manager-sessions.ready.${rowsOp#--}${rowsActive:+.active}" rowsKeptAt rowsKeptNow rowsKeep
 	case "$rowsOp" in
 		--all-sessions|--manager-session-list) [ -n "$MMDAPP" ] || rowsKept="" ;;
 		*) rowsKept="" ;;
 	esac
-	## A PASS THAT CAN AFFORD THE BUILD ASKS FOR THE COPY TO BE MADE AGAIN; a look of the screen never does. The copy is still written in that mode.
 	if [ -n "$rowsKept" ] && [ -s "$rowsKept" ] && [ -z "${MDAT_ROWS_REBUILD:-}" ] ; then
 		rowsKeptAt="$( LC_ALL=C date -r "$rowsKept" +%s 2> /dev/null )" || rowsKeptAt=""
 		rowsKeptNow="$( date +%s )" || rowsKeptNow=""
@@ -134,21 +135,100 @@ AgentsToolsManagerSessionRows(){ ## the operation as it was called, "active" for
 		return 1
 	}
 	[ -n "$rowsSpawned" ] && [ -d "$rowsSpawned" ] || echo "# $MDSC_CMD $rowsOp: no spawn sandbox root exists yet, so no session has run in this workspace" >&2
-	## The store's rows, one a line, as it measured them: the awk below reads them as it always read the registry's.
 	for rowsLine in ${rowsDated[@]+"${rowsDated[@]}"} ; do
 		measuredDated="$measuredDated$rowsLine"$'\n'
 	done
-	## What each run is doing is the state the store derived for it, in its rows: no store of a run is read for that a second time.
-	## The store's owner hands the three facts the awk takes of it in one walk: the tokens of each run, which it adds for the total of
-	## a session (AgentsManagerSessionTokens.awk), its usage-limit flag, and the chapter of a session.
+	AgentsToolsManagerSessionRowsRender "$measuredDated" "$rowsPending" "$rowsActive" "$rowsLearn" "$rowsKept" ""
+}
+
+## The list's own last steps, over the measured rows it is given: the store's facts of each run, the asks still open, then
+## grouped, ordered, counted and kept. THE ONE RENDER of every session list, so the reads that build their rows from the
+## live blocks and the closed index print exactly what the full read prints, and no second ordering is written here.
+AgentsToolsManagerSessionRowsRender(){ ## measured rows text, pending registry file, "active" or empty, 1 for learning or empty, kept copy or empty, control text or empty
+	local renderRows="$1" renderPending="$2" renderActive="${3:-}" renderLearn="${4:-}" renderKept="${5:-}" renderControl="${6:-}"
+	local renderTab=$'\t' renderKeep
 	type AgentsToolsManagerHostName > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.ManagerRunActivity.include"
 	type AgentsSessionRunFacts > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
-	printf '%s' "$measuredDated" \
-		| MDAT_MANAGER_CONTROL="$( AgentsToolsManagerSessionControls )" LC_ALL=C awk -v activeOnly="${rowsActive:+1}" -v learnOnly="$rowsLearn" -v loadAverage="$( AgentsToolsManagerLoadAverage )" -v hostName="$( AgentsToolsManagerHostName )" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerSessionTokens.awk" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerDateMinutes.awk" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerSessionRows.awk" \
-			<( printf '%s\n' "$measuredDated" | LC_ALL=C awk '{ print $8 ; print $2 ; }' | AgentsSessionRunFacts tokens usage-limit chapter ) "$rowsPending" - \
-		| LC_ALL=C sort -t "$rowsTab" -k1,1nr -k2,2n -k3,3n -k4,4n -k5,5n \
+	## THE CONTROL COLUMN COMES FROM THE BLOCKS when the caller hands one: a block's own header says whether its thread is
+	## alive, and an index row says `none`, so no session folder is probed for a row of the list.
+	[ -n "$renderControl" ] || renderControl="$( AgentsToolsManagerSessionControls )"
+	printf '%s' "$renderRows" \
+		| MDAT_MANAGER_CONTROL="$renderControl" LC_ALL=C awk -v activeOnly="${renderActive:+1}" -v learnOnly="$renderLearn" -v loadAverage="$( AgentsToolsManagerLoadAverage )" -v hostName="$( AgentsToolsManagerHostName )" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerSessionTokens.awk" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerDateMinutes.awk" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerSessionRows.awk" \
+			<( printf '%s\n' "$renderRows" | LC_ALL=C awk '{ print $8 ; print $2 ; }' | AgentsSessionRunFacts tokens usage-limit chapter ) "$renderPending" - \
+		| LC_ALL=C sort -t "$renderTab" -k1,1nr -k2,2n -k3,3n -k4,4n -k5,5n \
 		| LC_ALL=C cut -f6- \
-		| { if [ -n "$rowsKept" ] && rowsKeep="$( mktemp "$rowsKept.XXXXXX" 2> /dev/null )" ; then tee "$rowsKeep" 2> /dev/null ; if [ -s "$rowsKeep" ] ; then mv -f "$rowsKeep" "$rowsKept" 2> /dev/null || rm -f "$rowsKeep" 2> /dev/null ; else rm -f "$rowsKeep" 2> /dev/null ; fi ; else cat ; fi ; }
+		| { if [ -n "$renderKept" ] && renderKeep="$( mktemp "$renderKept.XXXXXX" 2> /dev/null )" ; then tee "$renderKeep" 2> /dev/null ; if [ -s "$renderKeep" ] ; then mv -f "$renderKeep" "$renderKept" 2> /dev/null || rm -f "$renderKeep" 2> /dev/null ; else rm -f "$renderKeep" 2> /dev/null ; fi ; else cat ; fi ; }
+}
+
+## The rows a list prints from the text it is handed: the stored rows of the three session stores, measured into live and
+## state, then rendered as every session list renders. The text is written to this call's own scratch file, which is the
+## one form AgentsToolsRegistryMeasureRows reads, and nothing of a store is walked for it.
+AgentsToolsManagerSessionStoreRows(){ ## stored rows text, the operation as it was called, "active" or empty, kept copy or empty, control text or empty
+	local storeRows="$1" storeOp="$2" storeActive="${3:-}" storeKept="${4:-}" storeControl="${5:-}" storeFile storePending
+	type AgentsToolsRegistryFile > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
+	storePending="$( AgentsToolsRegistryFile pending-replies )"
+	## THE ASKS ARE THE ONE REGISTRY THIS READ STILL ASKS FOR: its own writers rebuild it as an ask opens and closes, so it is
+	## read as it lies. Built once here only where it has never been built, so the first read of a fresh workspace counts the
+	## asks it has rather than none.
+	if [ ! -f "$storePending" ] ; then
+		type AgentsToolsRegistryRebuild > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
+		AgentsToolsRegistryRebuild pending-replies > /dev/null 2>&1 || :
+	fi
+	type AgentsToolsRegistryMeasureRows > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.RegistrySpawnedSessions.include"
+	## A SCRATCH FILE IS NEEDED, AND ITS ABSENCE IS SAID: the list printed nothing at all where the folder could not be made, and a screen then said
+	## "No sessions." over a full store without naming the reason.
+	mkdir -p "$MMDAPP/.local/temp" 2> /dev/null || {
+		echo "⛔ ERROR: $MDSC_CMD $storeOp: cannot make $MMDAPP/.local/temp, where the list measures its rows" >&2 ; return 1 ; }
+	storeFile="$( mktemp "$MMDAPP/.local/temp/mdat-session-store.XXXXXX" 2> /dev/null )" || {
+		echo "⛔ ERROR: $MDSC_CMD $storeOp: cannot write a scratch file under $MMDAPP/.local/temp" >&2 ; return 1 ; }
+	printf '%s\n' "$storeRows" > "$storeFile" 2> /dev/null || { rm -f "$storeFile" 2> /dev/null ; return 1 ; }
+	AgentsToolsRegistryMeasureRows "$storeFile" "" "" 17
+	rm -f "$storeFile" 2> /dev/null
+	AgentsToolsManagerSessionRowsRender "$measuredDated" "$storePending" "$storeActive" "" "$storeKept" "$storeControl"
+}
+
+## ACTIVE SESSIONS, FROM THE LIVE BLOCKS AND NOTHING ELSE: one block per session whose thread is running, and no closed
+## session's folder, record or store opened for it. A block is itself a registry file of the seventeen stored columns, so it
+## is measured as one, and its owner's `seq:` line is what proves it holds its session as the session is now. A block its
+## owner has not caught up reads `stale` and is left out. The count of files opened is the same at three closed sessions as
+## at sixteen hundred.
+AgentsToolsManagerSessionActiveRows(){ ## the operation as it was called, "active" or empty
+	type AgentsToolsSessionLiveBlockText > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStores.include"
+	local activeRows
+	activeRows="$( AgentsToolsSessionLiveBlockText )" || activeRows=""
+	AgentsToolsManagerSessionStoreRows "$activeRows" "$1" "" "" "$( AgentsToolsManagerSessionLiveControl "$activeRows" )"
+}
+
+## The ids the live blocks name whose thread is `alive`, `gone` or `none`, one `<id> <word> <pid>` a line: the control column
+## of a session list, from the blocks, so no session folder is probed for it.
+AgentsToolsManagerSessionLiveControl(){ ## the blocks' text
+	printf '%s\n' "${1:-}" | LC_ALL=C awk -F'\t' 'NF == 3 { print $1, $2, $3 ; }' || :
+	return 0
+}
+
+## CLOSED SESSIONS, FROM THE INDEX'S WINDOW: the newest page of the append-only index, then one runs block per row shown, and
+## nothing proportional to the store. A session's own row comes from the index alone, and each of its runs from the folder's
+## block, both in the registry's seventeen columns, so no session store and no record is opened for the page.
+AgentsToolsManagerSessionClosedRows(){ ## the operation as it was called, page
+	local closedPage="${2:-0}" closedRows closedText=""
+	type AgentsToolsSessionClosedWindow > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStores.include"
+	type AgentsToolsSpawnRowsBlockText > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStores.include"
+	closedRows="$( AgentsToolsSessionClosedWindow "$closedPage" 40 )" || closedRows=""
+	[ -n "$closedRows" ] || return 0
+	closedText="$( printf '%s\n' "$closedRows" | LC_ALL=C awk -F'\t' '{
+		printf "%s - - %s - spawn-succeeded - %s - - - %s %s - finished - -\n", $2, $5, $2, $8, $6 ;
+	}' )"$'\n'
+	local closedOne closedRuns
+	while IFS=$'\t' read -r closedOne closedRuns ; do
+		case "$closedRuns" in ''|-) continue ;; esac
+		closedText="$closedText$( printf '%s\n' "$closedRuns" | LC_ALL=C tr ',' '\n' | while IFS= read -r closedOne ; do
+			case "$closedOne" in
+				(''|-|*/*) continue ;;
+				(*) AgentsToolsSpawnRowsBlockText "$closedOne" || : ;;
+			esac
+		done )"$'\n'
+	done <<< "$( printf '%s\n' "$closedRows" | LC_ALL=C awk -F'\t' '{ print $2 "\t" $10 ; }' )"
+	AgentsToolsManagerSessionStoreRows "$closedText" "$1" "" ""
 }
 
 ## The record of each row of a spawned-sessions registry given on standard input, where it is

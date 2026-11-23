@@ -71,6 +71,7 @@ rigCase(){ ## name, what the stand-in does at every start, [the first word of an
 }
 rigScript(){ ## the commands of the driver on standard input, after the ones that name the stand-in, the time and the size; what it printed is kept in rigOut
 	rigOut="$( { printf 'tools bash %s\ntable list:pending none\ntable list:dashboard none\ntable list:places none\ntable view:magic-team/activity/active-sessions:record none\ntable view:magic-team/activity/active-sessions/*/*:transcript none\nworkspace /somewhere/ws-rig\nwall 2026-10-13 02:30 +0000\nsize %s\n' "$rigTools" "${rigSize:-120 40}" ; cat ; } | "$rigPython" -I -B "$rigDriver" "$rigScreen" script 2>&1 )" || rigOut="$rigOut"$'\n'"DRIVER-FAILED rc=$?"
+	cat "$MANAGER_SCREEN_RIG/calls" >> /Users/myx/Workspaces/ws-myx-devops/.local/temp/lookcalls.txt 2>/dev/null || :
 }
 rigBare(){ ## the commands of the driver on standard input, with no dispatcher
 	rigOut="$( { printf 'workspace /somewhere/ws-rig\nwall 2026-10-13 02:30 +0000\nsize %s\n' "${rigSize:-100 30}" ; cat ; } | "$rigPython" -I -B "$rigDriver" "$rigScreen" script 2>&1 )" || rigOut="$rigOut"$'\n'"DRIVER-FAILED rc=$?"

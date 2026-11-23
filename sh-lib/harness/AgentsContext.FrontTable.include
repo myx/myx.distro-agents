@@ -7,6 +7,13 @@
 agentsFrontTable='DistroAgentsSession	--append-transcript	member
 DistroAgentsSession	--settle-pending-reply	member
 DistroAgentsSession	--wait-for-input	member
+AgentExecutorTools	--get-uninvited-participants	member
+AgentExecutorTools	--list-session-runs	member
+AgentExecutorTools	--set-session-chapter	member
+AgentExecutorTools	--set-session-topic	member
+AgentExecutorTools	--executor-queue	member
+AgentExecutorTools	--executor-checklist-append	member
+AgentExecutorTools	--executor-resume	member
 DistroAgentsKnowledge	--get-path-history	member
 DistroAgentsKnowledge	--get-place-path	member
 DistroAgentsKnowledge	--get-roster	coordinator
@@ -165,7 +172,11 @@ AgentDispatcherTools	--sweep-state-upsert	coordinator'
 ## agentsFrontStubs: <tool file>, <name>, the file that owns the name now. The old file still knows the name (AgentsToolsFrontKnows), the call goes on in the owner,
 ## and a direct call of the old file says where the name lives.
 agentsFrontStubs='DistroAgentsQuestions	--request-permission-set	AgentDispatcherTools
-DistroAgentsQuestions	--settle-pending-reply	DistroAgentsSession'
+DistroAgentsQuestions	--settle-pending-reply	DistroAgentsSession
+DistroAgentsSession	--get-uninvited-participants	AgentExecutorTools
+DistroAgentsSession	--set-session-chapter	AgentExecutorTools
+DistroAgentsSession	--set-session-topic	AgentExecutorTools
+DistroAgentsDispatcher	--list-session-runs	AgentExecutorTools'
 
 agentsFrontJsonOps="--slack-delete-message --slack-send-message --upsert-inbox-inquiry --wait-for-input"
 

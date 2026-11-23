@@ -434,7 +434,7 @@ AgentsWaitProbeTagged(){
 			if [ "$probeIdentity" = "bot" ] && [ "$probeMember" != magic-coordinator ] ; then
 				printf '%s\n' "$probeRoster" | LC_ALL=C grep -q -E "^CONV\|identity=user\|.*\|id=$probeConv\|" || probeWhat="dm-mentions"
 			fi
-			## A DM is read as the cache holds it now (MDAT_COMMS_CACHE_STALE_OK): the read starts its own pull for the next round, and the round
+			## A DM is read as the cache holds it now (MDAT_COMMS_CACHE_STALE_OK): the comms thread fills it, and the round
 			## never waits on the comms thread for each of the roster's conversations (S12.321: 35 of them, minutes a round).
 			if MDAT_COMMS_CACHE_STALE_OK=true MDAT_WAIT_READ_AS_BOT="$( [ "$probeIdentity" = "bot" ] && printf true )" AgentsWaitReadRendered "$probeMember" "$probeConv" conversation "$probeFloor" "$probeOut.dm" ; then
 				probeText="$probeText$( AgentsWaitTaggedPart "$probeMember" "$probeConv" "$probeWhat" "$probeFloor" "$probeOut.dm" "$probeOut" )" || probeFailed=$(( probeFailed + 1 ))

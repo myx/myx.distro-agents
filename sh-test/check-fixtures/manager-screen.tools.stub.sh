@@ -63,12 +63,17 @@ case "$rigMode" in
 		exit 1
 	;;
 esac
-if [ -f "$MANAGER_SCREEN_RIG/rows.$rigStart" ] ; then
-	cat "$MANAGER_SCREEN_RIG/rows.$rigStart"
-elif [ -f "$MANAGER_SCREEN_RIG/rows.$*" ] ; then
+## THE WORDS THEMSELVES COME FIRST: a fixture named for the command is what the command answers, and a numbered one says only which start it
+## answers where no command names it - a case that swaps a fixture between two reads of the same command swaps it by its words.
+if [ -f "$MANAGER_SCREEN_RIG/rows.$*" ] ; then
 	cat "$MANAGER_SCREEN_RIG/rows.$*"
+elif [ -f "$MANAGER_SCREEN_RIG/rows.$rigStart" ] ; then
+	cat "$MANAGER_SCREEN_RIG/rows.$rigStart"
 elif [ -f "$MANAGER_SCREEN_RIG/rows.${1:-}" ] ; then
 	cat "$MANAGER_SCREEN_RIG/rows.${1:-}"
+elif { [ "${1:-}" = "--manager-session-active-list" ] || [ "${1:-}" = "--manager-session-closed-list" ] ; } && [ -f "$MANAGER_SCREEN_RIG/rows.--manager-session-list" ] ; then
+	## a window of the same store: a fixture that stands for the whole list stands for the active and the closed windows too
+	cat "$MANAGER_SCREEN_RIG/rows.--manager-session-list"
 elif [ -z "$rigOwn" ] && [ -f "$MANAGER_SCREEN_RIG/rows" ] ; then
 	cat "$MANAGER_SCREEN_RIG/rows"
 fi

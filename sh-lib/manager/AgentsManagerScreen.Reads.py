@@ -581,7 +581,10 @@ class OperationReader:
         ## THE STORE OF THE TEAM DATA IS NAMED FOR THE OPERATION: an operation that reads the vault finds it by MDAT_DATA_ROOT, and a screen started
         ## without it gave every epic item "no data" - the list found the files, the read of the same name did not.
         childEnv = dict(os.environ)
-        if not childEnv.get("MDAT_DATA_ROOT"):
+        ## THE STORE IS NAMED FOR THE OPERATIONS THAT READ IT, and only for them: setting it for every call moved the store the session list reads,
+        ## and the screen answered "No sessions." over a full store.
+        vaultOp = any(word in ("epic-list", "epic-read", "vault-item-list", "vault-item-read", "teamdata-read", "board-item-list") for word in words)
+        if vaultOp and not childEnv.get("MDAT_DATA_ROOT"):
             dataRoot = self.workspace or os.environ.get("MMDAPP", "")
             if dataRoot:
                 childEnv["MDAT_DATA_ROOT"] = os.path.join(dataRoot, ".local", "agents", "team-data-root")

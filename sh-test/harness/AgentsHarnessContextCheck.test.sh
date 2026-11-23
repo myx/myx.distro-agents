@@ -147,6 +147,9 @@ rigAssert "the tool result keeps its tool_use id" "$( rigHas "$rigTmp/x1/rec.3" 
 rigAssert "the answer is kept as the assistant turn it was" "$( cat "$rigTmp/x1/rec.4" )" '{"role":"assistant","content":[{"type":"text","text":"RIG-FINAL-MARKER"}]}'
 rigAssert "the header names session, model, service, API host and wire" \
 	"$( head -1 "$rigCtx" | LC_ALL=C grep -c -F "\"session\":\"$rigSid1\",\"member\":\"\",\"service\":\"context-check rig\",\"model\":\"rig-main\",\"api_host\":\"harness-context-check.invalid\",\"wire\":\"AnthropicMessages\"" )" 1
+rigWriterPid="$( head -1 "$rigCtx" | LC_ALL=C sed -n 's/.*"writer_pid":\([0-9][0-9]*\),.*/\1/p' )"
+rigAssert "the header names its writer, the run's process with its start, which has ended with the run" \
+	"$( [ -n "$rigWriterPid" ] && echo pid ):$( head -1 "$rigCtx" | LC_ALL=C grep -c -E '"writer_start":"[^"]+"' ):$( [ -n "$rigWriterPid" ] && ! kill -0 "$rigWriterPid" 2>/dev/null && echo ended )" "pid:1:ended"
 rigCtxBytes="$( wc -c < "$rigCtx" | tr -d ' ' )"
 printf '  (context.jsonl: %s bytes for 4 messages)\n' "$rigCtxBytes"
 rigAssert "nothing is kept with MDAT_HARNESS_CONTEXT=off" "$( rm -f "$rigCtx.off" ; mkdir -p "$rigTmp/s0" ; cp "$rigS1"/res.* "$rigTmp/s0/" ; rigSandboxWas="$rigSandbox" ; rigSandbox="$rigTmp/sb0" ; mkdir -p "$rigSandbox" ; rigRun "$rigTmp/s0" "eeee5555-0000-4000-8000-000000000000" MDAT_HARNESS_CONTEXT=off -- RIG-TASK-MARKER ; ls "$rigSandbox" | LC_ALL=C grep -c context ; rigSandbox="$rigSandboxWas" )" 0
@@ -360,6 +363,19 @@ rigAssert "and it says why" "$( rigHas "$rigS3/err" 'the context was kept for mo
 printf '{"type":"context"\n' > "$rigTmp/broken.jsonl"
 rigRun "$rigS3" "dddd4444-0000-4000-8000-000000000004" MDAT_HARNESS_RESUME_CONTEXT="$rigTmp/broken.jsonl" -- RIG-CORRECTIONS
 rigAssert "a file that does not parse: rc 7, no request" "$rigRunStatus:$rigRounds" 7:0
+## Two writers in one file number its records twice over, and the file then loads nowhere: a context whose writer still runs is not resumed.
+. "$rigHere/run/AgentsTools.RunProcesses.include"
+sleep 60 &
+rigHolder=$!
+rigProcNote "$rigHolder"
+rigHeld="$( head -1 "$rigCtx" | LC_ALL=C sed -E 's/,"writer_pid":[0-9]+,"writer_start":"[^"]*"//' )"
+{ printf '%s,"writer_pid":%s,"writer_start":"%s"}\n' "${rigHeld%\}}" "$rigHolder" "$( AgentsToolsRunProcessStart "$rigHolder" )" ; tail -n +2 "$rigCtx" ; } > "$rigTmp/held.jsonl"
+rigRun "$rigS3" "dddd4444-0000-4000-8000-000000000005" MDAT_HARNESS_RESUME_CONTEXT="$rigTmp/held.jsonl" -- RIG-CORRECTIONS
+rigAssert "a context whose writer still runs: rc 7, no request" "$rigRunStatus:$rigRounds" 7:0
+rigAssert "and it says why" "$( rigHas "$rigS3/err" "its writer is still running: process $rigHolder" )" 1
+rigProcSignal TERM "$rigHolder" ; wait "$rigHolder" 2>/dev/null
+rigRun "$rigS3" "dddd4444-0000-4000-8000-000000000006" MDAT_HARNESS_RESUME_CONTEXT="$rigTmp/held.jsonl" -- RIG-CORRECTIONS
+rigAssert "the same file once that writer has ended: resumed, in one request" "$rigRunStatus:$rigRounds" 0:1
 
 . "$rigHere/board/AgentsTools.ReviewFlow.include"
 . "$rigHere/harness/AgentsTools.HarnessResume.include"

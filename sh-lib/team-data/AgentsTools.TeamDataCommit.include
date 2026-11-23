@@ -75,11 +75,12 @@ AgentsToolsTeamDataAuditUntrackLocked(){ ## where
 	elif ! LC_ALL=C grep -qxF 'audit/**/*.log' "$untrackRoot/.gitignore" 2> /dev/null ; then
 		printf 'audit/**/*.log\n' >> "$untrackRoot/.gitignore"
 	fi
+	## A path list goes to git on stdin, never as its arguments: a store's whole audit family outgrows the system's argument limit.
 	while IFS= read -r untrackEntry ; do
 		[ -z "$untrackEntry" ] || untrackPending+=( "${MDAT_DATA_ROOT%/}/$untrackEntry" )
-	done <<< "$( git -C "$untrackRoot" status --porcelain -- ${untrackPaths[@]+"${untrackPaths[@]}"} 2> /dev/null | LC_ALL=C awk '{ print $NF ; }' || : )"
+	done <<< "$( git -C "$untrackRoot" status --porcelain -- audit 2> /dev/null | LC_ALL=C awk '$NF ~ /\.log$/ { print $NF ; }' || : )"
 	[ "${#untrackPending[@]}" -eq 0 ] || AgentsToolsTeamDataCommitPathsNow "the audit log lines a live session appended, kept in the branch before the family leaves the index" ${untrackPending[@]+"${untrackPending[@]}"}
-	untrackOut="$( git -C "$untrackRoot" rm -q --cached -- ${untrackPaths[@]+"${untrackPaths[@]}"} 2>&1 )" || {
+	untrackOut="$( printf '%s\0' ${untrackPaths[@]+"${untrackPaths[@]}"} | git -C "$untrackRoot" rm -q --cached --pathspec-from-file=- --pathspec-file-nul 2>&1 )" || {
 		echo "⚠️ WARNING: $MDSC_CMD: $1: the audit log family could not leave the store's index, so a pull is still refused over it: $untrackOut" >&2
 		return 1
 	}
@@ -272,31 +273,60 @@ AgentsToolsTeamDataCommitPathsNowLocked(){ ## context, path...
 			*) echo "# $MDSC_CMD: team-data commit: ⚠️ WARNING: not under the team-data store, not committed: $commitPath" >&2 ;;
 		esac
 	done
-	## THE DEBT IS PAID FIRST: paths a previous run could not commit are carried with this one.
+	## THE DEBT IS PAID FIRST: paths a previous run could not commit are carried with this one. A path named twice is classed once, below.
 	local owedPath=""
 	while IFS= read -r owedPath ; do
-		[ -n "$owedPath" ] || continue
-		case " ${commitPaths[*]} " in *" $owedPath "*) ;; *) commitPaths+=( "$owedPath" ) ;; esac
+		[ -z "$owedPath" ] || commitPaths+=( "$owedPath" )
 	done <<< "$( AgentsToolsTeamDataCommitOwedTake )"
 	## A path that is gone and that git never knew fails `git add -A` for the whole commit, and its entry would then be owed for good: a moved
 	## item names both of its places, an item created and trashed before its commit names one that is no more. Git is asked for the one it knew.
 	## A deletion already staged, gone from the index and held by HEAD, skips the add and is committed.
-	local knownPaths=() addPaths=()
+	## THE AUDIT LOG FAMILY IS NO TEAM DATA A COMMIT CARRIES (task-20261113T1619Z): it left the index and the store's
+	## .gitignore names it, so `git add` refuses it. Skipped and said, never owed: a debt for it would never be paid.
+	## Git is asked once per folder the paths sit in, and one awk pass classes every path: asked once a path, a GC's thousands of
+	## deletions took minutes under the store lock. A store's folders are few, so their names fit git's arguments.
+	local knownPaths=() addPaths=() commitKind="" commitDir="" commitDirs=$'\n' commitDirList=()
 	for commitPath in ${commitPaths[@]+"${commitPaths[@]}"} ; do
-		if [ -e "$commitPath" ] || git -C "$repoRoot" ls-files --error-unmatch -- "$commitPath" > /dev/null 2>&1 ; then
-			## THE AUDIT LOG FAMILY IS NO TEAM DATA A COMMIT CARRIES (task-20261113T1619Z): it left the index and the store's
-			## .gitignore names it, so `git add` refuses it. Skipped and said, never owed: a debt for it would never be paid.
-			if ! git -C "$repoRoot" ls-files --error-unmatch -- "$commitPath" > /dev/null 2>&1 && 
-				git -C "$repoRoot" check-ignore -q -- "$commitPath" 2> /dev/null ; then
-				echo "# $MDSC_CMD: team-data commit: the store ignores this path, so nothing of it is committed and it stays on disk: $commitPath" >&2
-				continue
-			fi
-			addPaths+=( "$commitPath" )
-		elif ! git -C "$repoRoot" ls-files --error-unmatch --with-tree=HEAD -- "$commitPath" > /dev/null 2>&1 ; then
-			continue
-		fi
-		knownPaths+=( "$commitPath" )
+		commitDir="${commitPath#"${MDAT_DATA_ROOT%/}/"}" ; commitDir="${commitDir#"$repoRoot/"}"
+		case "$commitDir" in */*) commitDir="${commitDir%/*}" ;; *) commitDir="." ;; esac
+		case "$commitDirs" in *$'\n'"$commitDir"$'\n'*) ;; *) commitDirs="$commitDirs$commitDir"$'\n' ; commitDirList+=( "$commitDir" ) ;; esac
 	done
+	while IFS=$'\t' read -r commitKind commitPath ; do
+		case "$commitKind" in
+			add) addPaths+=( "$commitPath" ) ; knownPaths+=( "$commitPath" ) ;;
+			known) knownPaths+=( "$commitPath" ) ;;
+			ignored) echo "# $MDSC_CMD: team-data commit: the store ignores this path, so nothing of it is committed and it stays on disk: $commitPath" >&2 ;;
+		esac
+	done <<< "$( {
+		git -C "$repoRoot" -c core.quotePath=false ls-files -- ${commitDirList[@]+"${commitDirList[@]}"} 2> /dev/null
+		printf '=\n'
+		git -C "$repoRoot" -c core.quotePath=false ls-tree -r --name-only HEAD -- ${commitDirList[@]+"${commitDirList[@]}"} 2> /dev/null
+		printf '=\n'
+		for commitPath in ${commitPaths[@]+"${commitPaths[@]}"} ; do [ ! -e "$commitPath" ] || printf '%s\n' "$commitPath" ; done \
+			| { git -C "$repoRoot" check-ignore --stdin 2> /dev/null || : ; }
+		printf '=\n'
+		for commitPath in ${commitPaths[@]+"${commitPaths[@]}"} ; do
+			if [ -e "$commitPath" ] ; then printf 'present\t%s\n' "$commitPath" ; else printf 'gone\t%s\n' "$commitPath" ; fi
+		done
+	} | commitStoreRoot="${MDAT_DATA_ROOT%/}/" commitRepoRoot="$repoRoot/" LC_ALL=C awk '
+		$0 == "=" && sectionNo < 3 { sectionNo++ ; next ; }
+		sectionNo == 0 { indexHeld[$0] = 1 ; next ; }
+		sectionNo == 1 { headHeld[$0] = 1 ; next ; }
+		sectionNo == 2 { ignoredPath[$0] = 1 ; next ; }
+		{
+			pathState = substr( $0, 1, index( $0, "\t" ) - 1 ) ; storePath = substr( $0, index( $0, "\t" ) + 1 ) ;
+			if ( storePath in seenPath ) { next ; } ;
+			seenPath[ storePath ] = 1 ;
+			relativePath = storePath ;
+			if ( index( relativePath, ENVIRON["commitStoreRoot"] ) == 1 ) { relativePath = substr( relativePath, length( ENVIRON["commitStoreRoot"] ) + 1 ) ; }
+			else if ( index( relativePath, ENVIRON["commitRepoRoot"] ) == 1 ) { relativePath = substr( relativePath, length( ENVIRON["commitRepoRoot"] ) + 1 ) ; }
+			if ( pathState == "present" || ( relativePath in indexHeld ) ) {
+				if ( ! ( relativePath in indexHeld ) && ( storePath in ignoredPath ) ) { print "ignored\t" storePath ; next ; } ;
+				print "add\t" storePath ; next ;
+			} ;
+			if ( relativePath in headHeld ) { print "known\t" storePath ; } ;
+		}
+	' )"
 	commitPaths=( ${knownPaths[@]+"${knownPaths[@]}"} )
 	[ "${#commitPaths[@]}" -gt 0 ] || return 0
 	gitAddStale(){
@@ -308,12 +338,13 @@ AgentsToolsTeamDataCommitPathsNowLocked(){ ## context, path...
 		rm -f "$lockFile" 2> /dev/null || return 1
 		return 0
 	}
-	[ "${#addPaths[@]}" -eq 0 ] || gitOut="$( git -C "$repoRoot" add -A -- ${addPaths[@]+"${addPaths[@]}"} 2>&1 )" || gitRc=$?
+	## Every path list goes to git on stdin, never as its arguments: a GC's deletions outgrow the system's argument limit.
+	[ "${#addPaths[@]}" -eq 0 ] || gitOut="$( printf '%s\0' ${addPaths[@]+"${addPaths[@]}"} | git -C "$repoRoot" add -A --pathspec-from-file=- --pathspec-file-nul 2>&1 )" || gitRc=$?
 	if [ "$gitRc" -ne 0 ] ; then
 		gitDir="$( git -C "$repoRoot" rev-parse --absolute-git-dir 2> /dev/null )" || gitDir=""
 		if gitAddStale "${gitDir:+$gitDir/index.lock}" ; then
 			gitRc=0
-			gitOut="$( git -C "$repoRoot" add -A -- ${addPaths[@]+"${addPaths[@]}"} 2>&1 )" || gitRc=$?
+			gitOut="$( printf '%s\0' ${addPaths[@]+"${addPaths[@]}"} | git -C "$repoRoot" add -A --pathspec-from-file=- --pathspec-file-nul 2>&1 )" || gitRc=$?
 		fi
 	fi
 	if [ "$gitRc" -ne 0 ] ; then
@@ -326,9 +357,19 @@ AgentsToolsTeamDataCommitPathsNowLocked(){ ## context, path...
 	local commitChanged=()
 	while IFS= read -r commitPath ; do
 		[ -z "$commitPath" ] || commitChanged+=( "$commitPath" )
-	done <<< "$( git -C "$repoRoot" diff --cached --no-renames --name-only -- ${commitPaths[@]+"${commitPaths[@]}"} 2>/dev/null )"
+	done <<< "$( { git -C "$repoRoot" diff --cached --no-renames --name-only 2>/dev/null ; printf '=\n' ; printf '%s\n' ${commitPaths[@]+"${commitPaths[@]}"} ; } \
+		| commitStoreRoot="${MDAT_DATA_ROOT%/}/" commitRepoRoot="$repoRoot/" LC_ALL=C awk '
+			! pathsListed && $0 == "=" { pathsListed = 1 ; next ; }
+			! pathsListed { stagedName[$0] = 1 ; next ; }
+			{
+				relativePath = $0 ;
+				if ( index( relativePath, ENVIRON["commitStoreRoot"] ) == 1 ) { relativePath = substr( relativePath, length( ENVIRON["commitStoreRoot"] ) + 1 ) ; }
+				else if ( index( relativePath, ENVIRON["commitRepoRoot"] ) == 1 ) { relativePath = substr( relativePath, length( ENVIRON["commitRepoRoot"] ) + 1 ) ; }
+				if ( ( relativePath in stagedName ) && ! ( relativePath in printedName ) ) { printedName[ relativePath ] = 1 ; print relativePath ; }
+			}
+		' )"
 	[ "${#commitChanged[@]}" -gt 0 ] || return 0
-	gitOut="$( git -C "$repoRoot" commit -m "$commitSubject" -- ${commitChanged[@]+"${commitChanged[@]}"} 2>&1 )" || gitRc=$?
+	gitOut="$( printf '%s\0' ${commitChanged[@]+"${commitChanged[@]}"} | git -C "$repoRoot" commit -m "$commitSubject" --pathspec-from-file=- --pathspec-file-nul 2>&1 )" || gitRc=$?
 	if [ "$gitRc" -ne 0 ] ; then
 		AgentsToolsTeamDataCommitOwedAdd ${commitPaths[@]+"${commitPaths[@]}"}
 		echo "# $MDSC_CMD: team-data commit: ⚠️ WARNING: git commit failed, so the commit is OWED and the next run carries it (${commitPaths[*]}): $gitOut" >&2

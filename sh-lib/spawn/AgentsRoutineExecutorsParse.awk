@@ -27,8 +27,8 @@ function routineExecutorsEntries( value, out,   rest, piece, depth, i, n, c, nam
 		depth = 0 ; openAt = 0 ; n = length( piece )
 		for ( i = 1 ; i <= n ; i++ ) {
 			c = substr( piece, i, 1 )
-			if ( c == "(" ) { depth++ ; if ( openAt == 0 ) openAt = i ; continue }
-			if ( c == ")" ) { if ( depth > 0 ) depth-- ; continue }
+			if ( c == "(" ) { depth++ ; if ( openAt == 0 ) openAt = i ; continue ; }
+			if ( c == ")" ) { if ( depth > 0 ) depth-- ; continue ; }
 			if ( c == "," && depth == 0 ) break
 		}
 		rest = ( i <= n ) ? substr( piece, i + 1 ) : ""
@@ -83,9 +83,9 @@ BEGIN {
 	if ( mode == "" ) { }
 	else if ( mode == "entries" ) {
 		count = routineExecutorsEntries( ENVIRON["EXECUTORS_VALUE"], entries )
-		for ( entryAt = 1 ; entryAt <= count ; entryAt++ ) { split( entries[entryAt], splitParts, "\034" ) ; printf "%s\t%s\n", splitParts[1], splitParts[2] }
+		for ( entryAt = 1 ; entryAt <= count ; entryAt++ ) { split( entries[entryAt], splitParts, "\034" ) ; printf "%s\t%s\n", splitParts[1], splitParts[2] ; }
 		exit 0
 	}
-	else if ( mode == "params" ) { print routineExecutorsParams( ENVIRON["EXECUTORS_VALUE"], ENVIRON["EXECUTORS_MEMBER"] ) ; exit 0 }
-	else { print routineExecutorsMemberList( ENVIRON["EXECUTORS_VALUE"] ) ; exit 0 }
+	else if ( mode == "params" ) { print routineExecutorsParams( ENVIRON["EXECUTORS_VALUE"], ENVIRON["EXECUTORS_MEMBER"] ) ; exit 0 ; }
+	else { print routineExecutorsMemberList( ENVIRON["EXECUTORS_VALUE"] ) ; exit 0 ; }
 }

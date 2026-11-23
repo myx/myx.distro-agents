@@ -165,6 +165,32 @@ rigPut "board backlog rig-tracked.md" "$( printf -- '---\nowner: rig\n---\ntrack
 rigAssert "board-trash tracked (control): exit 0, gone, clean" "$?:$( [ -e "$rigStore/board/backlog/rig-tracked.md" ] && printf present || printf gone ):$( rigClean )" "0:gone:clean"
 rigAssert "board-trash tracked (control): add plus delete in history" "$( rigHistory log --all --format=%H -- board/backlog/rig-tracked.md | LC_ALL=C awk 'END { print NR ; }' )" 2
 
+echo "-- a path list longer than one command line takes: a GC's deletions, and the audit logs leaving the index --"
+## Sized from this host's own limit by the shorter of the two lists, the logs' paths relative to the store, so both outgrow it on every
+## platform. Both calls are the store's own functions, run here directly, so the commit thread's wait is not what is measured.
+rigLongName="$( printf '%0200d' 0 | tr 0 x )"
+rigManyDir="$rigStore/inboxes/rig-many/processed"
+rigManyCount=$(( $( getconf ARG_MAX ) / ( ${#rigLongName} + 30 ) + 100 ))
+mkdir -p "$rigManyDir" "$rigStore/audit/2026-01"
+LC_ALL=C awk -v dir="$rigManyDir" -v logDir="$rigStore/audit/2026-01" -v stem="$rigLongName" -v count="$rigManyCount" 'BEGIN {
+	for ( fileNo = 1 ; fileNo <= count ; fileNo++ ) {
+		itemPath = dir "/note-" stem "-" fileNo ".md" ; printf "old\n" > itemPath ; close( itemPath ) ;
+		logPath = logDir "/session-" stem "-" fileNo ".log" ; printf "line\n" > logPath ; close( logPath ) ;
+	}
+}'
+git -C "$rigStore" add -f -A && git -C "$rigStore" commit -q -m "rig: many items and many tracked logs" || rigRefuse "could not commit the many items"
+rigManyPaths=()
+for rigManyPath in "$rigManyDir"/*.md ; do rigManyPaths+=( "$rigManyPath" ) ; done
+rm -rf -- "$rigManyDir"
+rigStep
+( MDSC_CMD=rig ; . "$rigHere/team-data/AgentsTools.TeamDataCommit.include" ; AgentsToolsTeamDataCommitPathsNow "- rig many deletions" "${rigManyPaths[@]}" ) > "$rigTmp/out" 2>&1
+rigAssert "many deletions: none is still in the index, and nothing says the argument list was too long" \
+	"$( git -C "$rigStore" ls-files -- inboxes/rig-many | LC_ALL=C awk 'END { print NR ; }' ):$( rigSaid | grep -q 'Argument list too long' && printf too-long || printf fits )" "0:fits"
+rigAfter "many deletions"
+( MDSC_CMD=rig ; . "$rigHere/team-data/AgentsTools.TeamDataCommit.include" ; AgentsToolsTeamDataAuditUntrackLocked "rig untrack" ) > "$rigTmp/out" 2>&1
+rigAssert "many tracked logs: every one left the index and stays on disk" \
+	"$( git -C "$rigStore" ls-files -- audit/2026-01 | LC_ALL=C awk 'END { print NR ; }' ):$( ls "$rigStore/audit/2026-01" | LC_ALL=C awk 'END { print NR ; }' )" "0:$rigManyCount"
+
 echo "-- push at a close point: a temp bare origin named by TEAM_DATA_GIT_REMOTE --"
 rigBare="$rigTmp/origin.git"
 git init -q --bare "$rigBare" || rigRefuse "could not init the temp bare origin"

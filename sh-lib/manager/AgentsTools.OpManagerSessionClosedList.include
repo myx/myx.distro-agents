@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+type AgentsToolsManagerSessionRows > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.ManagerSessionRows.include"
+
+## AgentsTools.OpManagerSessionClosedList.include -- the operation `--manager-session-closed-list [--page <n>]`, sourced by
+## AgentsTools.ManagerSession.include with the operation's arguments. A page of the sessions that closed, newest first: the
+## append-only closed index's last `40 x (page + 1)` lines, then one runs block per row shown. Nothing proportional to the
+## closed store is opened, and a page past the count is answered empty.
+		local listOp="$1" listPage=0
+		shift
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--page)
+					case "${2:-}" in ''|*[!0123456789]*) echo "⛔ ERROR: $MDSC_CMD $listOp: --page takes a number of a page, got: ${2:-nothing}" >&2 ; set +e ; return 1 ;; esac
+					listPage="$2"
+					shift 2
+				;;
+				*)
+					echo "⛔ ERROR: $MDSC_CMD $listOp: syntax is [--page <n>], got: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		AgentsToolsManagerSessionClosedRows "$listOp" "$listPage" || { set +e ; return 1 ; }

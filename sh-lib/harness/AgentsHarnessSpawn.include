@@ -685,6 +685,16 @@ AgentsHarnessToolTaskStop(){ ## handle, force, task_id, shell_id
 	## item there is nowhere to record it, which the result says.
 	[ -z "$itemPath" ] || "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-op-review-end "${harnessAgent:-unknown}" "$itemName" \
 		--reason taskstop --no-dismiss > /dev/null 2>&1 || :
+	## THE KILL IS MARKED ON THE RUN'S RECORD BEFORE THE SIGNAL, as the console kill marks it: `killed-by` and
+	## `killed-at` are what keeps the schedule from restarting a duty its owner stopped (AgentsToolsScheduleDutyRestartDue).
+	## A served call with no MDAT_SPAWN_AGENT is the human-owner's own session, which is who stopped it; any other is the tool.
+	local stopKillRecord="" stopKillBy=TaskStop
+	[ -n "${harnessToolOnly:-}" ] && [ -z "${MDAT_SPAWN_AGENT:-}" ] && stopKillBy=human-owner
+	AgentsSessionRunRecordInto stopKillRecord "$sessionId" || stopKillRecord=""
+	if [ -n "$stopKillRecord" ] ; then
+		type AgentsToolsManagerKillMark > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.ManagerSessionKill.include"
+		AgentsToolsManagerKillMark "$stopKillRecord" "$stopKillBy" "$( date +"%Y-%m-%d %H:%M %z" )" < /dev/null || :
+	fi
 	stopKept="$( printf '%s\n' "$stopPids" | AgentsHarnessStopKept )" || stopKept=""
 	for stopPid in $stopPids ; do
 		kill -TERM "$stopPid" 2>/dev/null || :

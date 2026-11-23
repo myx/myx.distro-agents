@@ -8,9 +8,10 @@
 ## items) and AgentsTools.InternTeamDataFinalGcDeletion.include (the
 ## retention clock).
 ##
-## Input: one or more item files as operands. Prints one line per file whose
+## Input: on stdin, one item file path a line, never as operands: a folder holds
+## more names than one command line takes. Prints one line per file whose
 ## frontmatter carries the field: `<path><TAB><value>` (value trimmed, possibly
-## empty). Files without it print nothing.
+## empty). Files without it, and paths that do not open, print nothing.
 ##
 ## Frontmatter is the block opened by a `---` FIRST line and closed by the next
 ## `---` line -- the same shape AgentsBoardItemHeaderOpsApply.awk writes, which
@@ -20,12 +21,18 @@
 ## Every closing `}` below is preceded by a `;` (magic-developer's
 ## reference/shell.md axiom).
 ##
-FNR == 1 { inFm = ($0 == "---") ; done = 0 ; next ; } ;
-inFm && $0 == "---" { inFm = 0 ; next ; } ;
-inFm && !done && $0 ~ /^processed-at:/ {
-	v = substr($0, length("processed-at:") + 1) ;
-	sub(/^[ \t]+/, "", v) ; sub(/[ \t\r]+$/, "", v) ;
-	print FILENAME "\t" v ;
-	done = 1 ;
-	next ;
+{
+	itemPath = $0 ; itemLineNo = 0 ;
+	while ((getline itemLine < itemPath) > 0) {
+		itemLineNo++ ;
+		if (itemLineNo == 1) { if (itemLine != "---") { break ; } ; continue ; } ;
+		if (itemLine == "---") { break ; } ;
+		if (itemLine ~ /^processed-at:/) {
+			stampValue = substr(itemLine, length("processed-at:") + 1) ;
+			sub(/^[ \t]+/, "", stampValue) ; sub(/[ \t\r]+$/, "", stampValue) ;
+			print itemPath "\t" stampValue ;
+			break ;
+		} ;
+	} ;
+	close(itemPath) ;
 } ;

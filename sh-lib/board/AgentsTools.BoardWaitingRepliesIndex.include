@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.BoardWaitingRepliesIndex.include -- the board items that may be waiting on a reply, kept as one line an item in
+## `.local/agents/board/waiting-replies.index`, `<state>/<item filename>`. Sourced, never run. Functions only.
+##
+## The pending-replies registry needs them on every rebuild, and the rebuild is on the pending-reply path. Reading them by a
+## walk of `board/running` and `board/blocked` cost one open an item of those states, at every rebuild. This file replaces
+## that walk with a list the one board write path keeps: the write that sets or clears an item's `blocked-on` rewrites this
+## list for that one item, and nothing else writes it. The list holds only items that carry `blocked-on`, so its size is the
+## number of asks waiting on an item, never the size of a board state.
+##
+
+AgentsToolsBoardWaitingRepliesIndexInto(){ ## variable, workspace
+	printf -v "$1" '%s' ""
+	case "${2:-}" in ''|/) return 1 ;; esac
+	printf -v "$1" '%s/.local/agents/board/waiting-replies.index' "${2%/}"
+}
+
+## One item's line put in or taken out, by the two facts the caller already holds: whether the body it just wrote carries a
+## `blocked-on:` header, and the state the item now stands in. The list is rewritten whole, beside itself, only where the
+## item's own line and those two facts disagree: every other board write of the workspace costs one grep of a small file.
+AgentsToolsBoardWaitingRepliesIndexSet(){ ## state, item filename, "yes" where the item carries blocked-on
+	local setState="${1:-}" setItem="${2:-}" setHeld="${3:-}" setFile setLine setWanted="" setTemp
+	case "$setState" in running|blocked) ;; *) setHeld="" ;; esac
+	case "$setItem" in ''|-|.|..|*/*) return 1 ;; esac
+	case "$setHeld" in yes) setWanted="$setState/$setItem" ;; esac
+	[ -n "${MMDAPP:-}" ] || return 1
+	AgentsToolsBoardWaitingRepliesIndexInto setFile "$MMDAPP" || return 1
+	setLine=""
+	[ ! -f "$setFile" ] || { setLine="$( LC_ALL=C grep -x -F -- "$setState/$setItem" "$setFile" 2> /dev/null )" || setLine="" ; }
+	[ "$setLine" != "$setWanted" ] || return 0
+	mkdir -p "${setFile%/*}" 2> /dev/null || return 1
+	setTemp="$( mktemp "$setFile.XXXXXX" 2> /dev/null )" || return 1
+	{
+		[ ! -f "$setFile" ] || LC_ALL=C grep -v -x -F -- "running/$setItem" "$setFile" 2> /dev/null || :
+		[ ! -f "$setFile" ] || LC_ALL=C grep -v -x -F -- "blocked/$setItem" "$setFile" 2> /dev/null || :
+		[ -z "$setWanted" ] || printf '%s\n' "$setWanted"
+	} > "$setTemp" 2> /dev/null || { rm -f "$setTemp" 2> /dev/null ; return 1 ; }
+	chmod 644 "$setTemp" 2> /dev/null || :
+	mv -f "$setTemp" "$setFile" 2> /dev/null || { rm -f "$setTemp" 2> /dev/null ; return 1 ; }
+	return 0
+}

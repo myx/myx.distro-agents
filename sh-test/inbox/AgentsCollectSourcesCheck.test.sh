@@ -2,7 +2,7 @@
 ## Behavioural check on the collection operation (F4.2, Settled): `--intern-op-collect-sources` brings the sources a member's input
 ## scan read directly -- its mailbox and its Trello -- into the member's inbox, through the tooling, which holds the credentials
 ## hidden, and never changes a source's read state. Held, against a fake imaplib and a fake curl, in a rig tree of this check's own:
-##   1. THE TTL TABLE is one: mail 300 s, Trello 120 s beside the 15 s of the tags and the chat and the 300 s of a scan, and Wait reads it
+##   1. THE TTL TABLE is one: mail 180 s, Trello 120 s beside the 15 s of the tags and the chat and the 300 s of a scan, and Wait reads it
 ##   2. A MAILBOX is collected as inbox notes, one for each unseen message (`note-<date>-email-u<uid>.md`, the channel id the
 ##      member needs to mark it read afterwards, the block the scan renders in the body), by one IMAP session that opens the
 ##      mailbox read-only and fetches with BODY.PEEK: no STORE, COPY or EXPUNGE is ever sent
@@ -102,7 +102,7 @@ rigNames(){ ## folder, glob -- the item names, one a line
 
 echo "-- 1. the one TTL table --"
 rigTtl="$( bash -c '. "$1/sh-lib/member/AgentsTools.SourceTtl.include" && for s in mail:rig-member trello:rig-member tagged:x scan:work-duty chat:s ; do printf "%s=%s " "${s%%:*}" "$( AgentsToolsSourceTtlOf "$s" )" ; done' rig "$rigPackage" 2> /dev/null )"
-rigAssert "mail 300, trello 120, tagged 15, scan 300, chat 15" "$rigTtl" "mail=300 trello=120 tagged=15 scan=300 chat=15 "
+rigAssert "mail 180, trello 120, tagged 15, scan 300, chat 15" "$rigTtl" "mail=180 trello=120 tagged=15 scan=300 chat=15 "
 rigAssert "Wait's table is that table" "$( LC_ALL=C grep -c -F "scan:*) printf '300" "$rigPackage/sh-lib/wait/AgentsTools.MemberWaitCore.include" ):$( LC_ALL=C grep -c -F 'AgentsToolsSourceTtlOf "$1"' "$rigPackage/sh-lib/wait/AgentsTools.MemberWaitCore.include" )" "0:1"
 
 echo "-- 2. a mailbox --"
@@ -125,7 +125,7 @@ rigAssert "the password is in no output, no state, no item" "$( LC_ALL=C grep -r
 
 echo "-- 3. the pointer, the TTL, the mail read elsewhere --"
 rigRun --member rig-member --kind mail
-rigAssert "inside its TTL the source is not asked again" "$( rigCount "$rigTmp/out" '^collect: mail:rig-member: fresh \(checked [0-9]+s ago, ttl 300s\)$' ):$( rigCount "$rigFix/imap.log" '^CONNECT ' )" "1:0"
+rigAssert "inside its TTL the source is not asked again" "$( rigCount "$rigTmp/out" '^collect: mail:rig-member: fresh \(checked [0-9]+s ago, ttl 180s\)$' ):$( rigCount "$rigFix/imap.log" '^CONNECT ' )" "1:0"
 rigRun --member rig-member --kind mail --force
 rigAssert "a forced pass finds nothing new, fetches nothing, and writes nothing twice" "$( rigCount "$rigTmp/out" '^collect: mail:rig-member: 0 new$' ):$( rigCount "$rigFix/imap.log" '^UID FETCH ' ):$( rigNames "$rigIncoming" 'note-*-email-u*.md' | wc -l | tr -d '[:space:]' )" "1:0:2"
 rigMailbox "201 seen" "202 unseen" "203 seen" "204 unseen"
@@ -230,18 +230,18 @@ rigAssert "all the members of a pass are one commit too" "$rigRc:$(( $( rigCommi
 rigRun --member rig-member --kind mail --force
 rigAssert "a pass that wrote nothing makes no commit" "$rigRc:$(( $( rigCommits ) - rigBefore - 1 ))" "0:0"
 
-echo "-- 9. the mail TTL in worktime: five minutes, no stretch --"
+echo "-- 9. the mail TTL in worktime: three minutes, no stretch --"
 rigMailbox "801 unseen"
 rm -f "$rigState/mail.rig-member.state"
 printf '1793008800\n' > "$rigTmp/now.epoch"
 rigRun --member rig-member --kind mail --force
 rigAssert "in worktime the mailbox is collected, its check time stamped" "$rigRc:$( rigCount "$rigTmp/out" '^collect: mail:rig-member: 1 new$' ):$( [ "$( rigKey mail.rig-member checked-at )" = "1793008800" ] && echo stamped || echo none )" "0:1:stamped"
+printf '1793008920\n' > "$rigTmp/now.epoch"
+rigRun --member rig-member --kind mail
+rigAssert "two minutes on, in worktime: fresh, its TTL three minutes, nothing fetched" "$rigRc:$( rigCount "$rigTmp/out" '^collect: mail:rig-member: fresh \(checked [0-9]+s ago, ttl 180s\)$' ):$( rigCount "$rigFix/imap.log" '^CONNECT ' )" "0:1:0"
 printf '1793009040\n' > "$rigTmp/now.epoch"
 rigRun --member rig-member --kind mail
-rigAssert "four minutes on, in worktime: fresh, its TTL five minutes, nothing fetched" "$rigRc:$( rigCount "$rigTmp/out" '^collect: mail:rig-member: fresh \(checked [0-9]+s ago, ttl 300s\)$' ):$( rigCount "$rigFix/imap.log" '^CONNECT ' )" "0:1:0"
-printf '1793009100\n' > "$rigTmp/now.epoch"
-rigRun --member rig-member --kind mail
-rigAssert "five minutes on, still in worktime: fetched again, worktime stretches nothing" "$rigRc:$( rigCount "$rigTmp/out" '^collect: mail:rig-member: 0 new$' ):$( rigCount "$rigFix/imap.log" '^CONNECT ' )" "0:1:1"
+rigAssert "four minutes on, still in worktime: fetched again, worktime stretches nothing" "$rigRc:$( rigCount "$rigTmp/out" '^collect: mail:rig-member: 0 new$' ):$( rigCount "$rigFix/imap.log" '^CONNECT ' )" "0:1:1"
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ COLLECT SOURCES CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

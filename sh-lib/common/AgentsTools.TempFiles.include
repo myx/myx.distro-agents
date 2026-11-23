@@ -1,0 +1,49 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.TempFiles.include -- the one way a tool's temp files are removed, whatever ends the shell.
+##
+## A tool claims each temp file when it makes it, with AgentsToolsTempClaim. The first claim arms the
+## release: an EXIT trap that removes every claimed path, chained over the caller's own EXIT trap, and
+## TERM, INT and HUP handlers that remove them and then re-raise the signal, so the caller still dies by
+## the signal it was sent. A claimed file goes with its shell, or the shell is already gone.
+##
+## Sourced, never run. Functions only. The list is the caller's own shell variable `agentsTempClaimed`,
+## and both ends print nothing.
+##
+
+agentsTempClaimed=()
+agentsTempArmed=""
+
+## Claims <path>... for removal when the shell ends, and arms the release on the first call.
+AgentsToolsTempClaim(){ ## path...
+	local claimPath
+	if [ -z "$agentsTempArmed" ] ; then
+		agentsTempArmed=yes
+		agentsTempPriorExit="$( trap -p EXIT )"
+		agentsTempPriorExit="${agentsTempPriorExit#*\'}"
+		agentsTempPriorExit="${agentsTempPriorExit%\'*}"
+		trap 'AgentsToolsTempRelease ; [ -z "${agentsTempPriorExit:-}" ] || eval "$agentsTempPriorExit"' EXIT
+		trap 'AgentsToolsTempRelease ; trap - TERM ; kill -s TERM $$' TERM
+		trap 'AgentsToolsTempRelease ; trap - INT ; kill -s INT $$' INT
+		trap 'AgentsToolsTempRelease ; trap - HUP ; kill -s HUP $$' HUP
+	fi
+	for claimPath in "$@" ; do
+		agentsTempClaimed[${#agentsTempClaimed[@]}]="$claimPath"
+	done
+	return 0
+}
+
+## Removes every claimed path and clears the list. Safe to run any number of times.
+AgentsToolsTempRelease(){
+	local claimIndex=0
+	while [ "$claimIndex" -lt "${#agentsTempClaimed[@]}" ] ; do
+		if [ -n "${agentsTempClaimed[$claimIndex]}" ] ; then
+			rm -f -- "${agentsTempClaimed[$claimIndex]}"
+		fi
+		claimIndex=$(( claimIndex + 1 ))
+	done
+	agentsTempClaimed=()
+	return 0
+}

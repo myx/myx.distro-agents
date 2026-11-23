@@ -78,7 +78,6 @@ rigList(){
 		'sh-lib/session/AgentsTools.SessionChat.include|AgentsToolsSessionChatMessagesToSince|1|@one-off' \
 		'sh-lib/inbox/AgentsTools.InternTeamDataReflectionSweep.include||1|@one-off' \
 		'sh-lib/inbox/AgentsTools.InboxPlace.include|AgentsToolsInboxFilesInto|1|@call-path' \
-		'sh-lib/board/AgentsTools.BoardPendingRepliesEntries.include|AgentsToolsBoardPendingRepliesEntries|1|@rebuild' \
 		'sh-lib/board/AgentsTools.BoardRoundScan.include|AgentsToolsBoardRoundSections|1|@one-off' \
 		'sh-lib/session/AgentsTools.RegistrySpawnedSessions.include|AgentsToolsRegistryRenderSpawnedSessions|1|@rebuild' \
 		'sh-lib/session/AgentsTools.RegistrySpawnedSessions.include|AgentsToolsRegistrySpawnedSessionsRebuild|1|@rebuild' \

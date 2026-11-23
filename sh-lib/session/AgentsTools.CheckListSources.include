@@ -51,7 +51,7 @@ AgentsToolsCheckListSourcesOpenParents(){ ## the list file
 	CHECKLIST_STORE="$parentsStore" LC_ALL=C awk '
 		function itemText( line ) { sub( /^- \[[ x~]\] /, "", line ) ; sub( / \(in progress: .*$/, "", line ) ; sub( / \(due: [^)]*\)$/, "", line ) ; sub( / \[step\]$/, "", line ) ; sub( / \[parent\]$/, "", line ) ; return line ; }
 		FILENAME == ENVIRON["CHECKLIST_STORE"] { at = index( $0, "\t" ) ; if ( at > 1 ) { mark[substr( $0, at + 1 )] = substr( $0, 1, at - 1 ) ; } ; next ; }
-		/^- \[[ ~]\] / { text = itemText( $0 ) ; if ( ( text in mark ) && mark[text] == "parent" ) { print $0 ; } }
+		/^- \[[ ~]\] / { text = itemText( $0 ) ; if ( ( text in mark ) && mark[text] == "parent" ) { print $0 ; } ; }
 	' "$parentsStore" "$1" 2> /dev/null
 }
 

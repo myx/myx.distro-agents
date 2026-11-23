@@ -12,6 +12,7 @@
 
 ## What each tool file is, in a sentence: the first line the tool index shows under it.
 agentsFrontSummary='DistroAgentsSession	ThisSession, your own session: post to its thread with --post-session-channel, and run its routine. Every wait already brings its thread replies.
+AgentExecutorTools	The chair of a session: what acts on a session as its executor, whoever that member is. It reads the session queue and puts work into it, and it resumes a session whose executor stopped.
 DistroAgentsKnowledge	What the team has written, searched; and the registries of projects, places, namespaces and members, read.
 DistroAgentsDispatcher	The runs of the team and everything about them: sessions, spawns, flags and the schedule.
 DistroAgentsTesting	The testing system: tests, retests and the report.

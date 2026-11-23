@@ -2,6 +2,7 @@
 # ^^^ for syntax checking in the editor only
 
 ## AgentsTools.InternOpSlackCall.include -- the operation `--intern-op-slack-call`, sourced by AgentsTools.CommsSlack.include with the operation's arguments.
+		type AgentsToolsTempClaim > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.TempFiles.include"
 		shift
 		local opContext="<no --context given>"
 		local ctxWanted="" ctxArg
@@ -362,7 +363,7 @@
 		## the headers file is created under noclobber, which fails on a name another call of this
 		## process holds, so a second random is drawn. mktemp cost a subshell and two processes per
 		## call, 22 of 40 call sites being inside `$( )`.
-		local rateAttempt=0 rateAttemptMax=5 rateLimitReason="" rateVerdict=0 rateHeaderFile callDir callClobber=""
+		local rateAttempt=0 rateAttemptMax=5 rateLimitReason="" rateVerdict=0 rateHeaderFile callDir callClobber="" formFileIndex=0 formPair
 		[ -d "$MMDAPP/.local/temp" ] || mkdir -p "$MMDAPP/.local/temp" 2> /dev/null || {
 			echo "$MDSC_CMD: slack-call: ⛔ ERROR: could not create the response-header file under $MMDAPP/.local/temp -- nothing was called" >&2
 			set +e ; return 1
@@ -374,6 +375,7 @@
 			[ -d "$MMDAPP/.local/temp" ] || break
 			callDir="$MMDAPP/.local/temp/mdat-slack-call.$$.$RANDOM$RANDOM"
 		done
+		AgentsToolsTempClaim "$callDir.headers"
 		[ -n "$callClobber" ] || set +C
 		[ -f "$callDir.headers" ] || {
 			echo "$MDSC_CMD: slack-call: ⛔ ERROR: could not create the response-header file under $MMDAPP/.local/temp -- nothing was called" >&2
@@ -505,13 +507,16 @@
 					if AgentsToolsSlackTransportRetry "$response" "$apiMethod" ; then failMsg="" ; continue ; fi
 					break
 				}
+				AgentsToolsTempClaim "$callDir.body"
 			else
 				## Each value travels in its own file, never argv, which a long message outgrows.
-				## Named by the argument count at that point, which no two pairs share.
+				## Named by its own ordinal, which no two pairs share.
 				response="$( curlArgs=( -sS --connect-timeout 10 --max-time 120 -D "$rateHeaderFile" "https://slack.com/api/$apiMethod" -H @- )
+					formFileIndex=0
 					for formPair in ${formArgs[@]+"${formArgs[@]}"} ; do
-						printf '%s' "${formPair#*=}" > "$callDir.form.${#curlArgs[@]}" || exit 1
-						curlArgs+=( --data-urlencode "${formPair%%=*}@$callDir.form.${#curlArgs[@]}" )
+						formFileIndex=$(( formFileIndex + 1 ))
+						printf '%s' "${formPair#*=}" > "$callDir.form.$formFileIndex" || exit 1
+						curlArgs+=( --data-urlencode "${formPair%%=*}@$callDir.form.$formFileIndex" )
 					done
 					curl ${curlArgs[@]+"${curlArgs[@]}"} <<< "$authHeader" 2>&1 )" || {
 					failMsg="$apiMethod transport failure under $sendIdentity identity: $response"
@@ -520,6 +525,11 @@
 					if AgentsToolsSlackTransportRetry "$response" "$apiMethod" ; then failMsg="" ; continue ; fi
 					break
 				}
+				formFileIndex=0
+				for formPair in ${formArgs[@]+"${formArgs[@]}"} ; do
+					formFileIndex=$(( formFileIndex + 1 ))
+					AgentsToolsTempClaim "$callDir.form.$formFileIndex"
+				done
 			fi
 			## RATE LIMIT: waited out and retried, one rule for every branch.
 			rateVerdict=0

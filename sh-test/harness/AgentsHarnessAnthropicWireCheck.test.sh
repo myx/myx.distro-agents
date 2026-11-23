@@ -248,10 +248,11 @@ rigAssert "nothing was sent"                                  "$( cat "$rigScena
 rigAssert "the refusal names the missing declaration"         "$( rigHolds "$rigScenarioDir/err" 'declares no HARNESS_OUTPUT_TOKENS_* for the normal tier' )" yes
 rigVerdict "no declared output maximum -- refused, never a number nobody chose"
 
-## The claude leaf's own normal tier, 1000000 window less 128000 max_tokens, reached
-## through the real leaf. The trigger reads the prompt plus the growth floor of one summary allowance (8192),
-## so a first round trips at a prompt of 872000 less 8192, 863808, and the stream's input_tokens carries 5000 of that as its cache creation. The fake curl first on PATH keeps its real endpoint unreached,
-## and the credential is a literal so a real key in this environment never enters.
+## The claude leaf's own normal tier: a 1000000 window, 128000 max_tokens, and the hard margin of the compaction
+## ritual -- the restart comes at the window less the output and less 5% of the window, so 822000. The trigger reads
+## the prompt plus the growth floor of one summary allowance (8192), so a first round trips at a prompt of
+## 822000 less 8192, 813808, and the stream's input_tokens carries 5000 of that as its cache creation. The fake curl
+## first on PATH keeps its real endpoint unreached, and the credential is a literal so a real key here never enters.
 rigClaudeRun(){ ## round 1 input_tokens
 	rigToolStream "$rigScenarioDir/res.1" "$1"
 	rigTextStream "$rigScenarioDir/res.2" RIG-SUMMARY-MARKER
@@ -265,14 +266,16 @@ rigClaudeRun(){ ## round 1 input_tokens
 	[ "$( cat "$rigScenarioDir/round" )" != 0 ] || rigRefuse "the claude leaf issued no request at all, so this scenario exercised nothing -- its stderr: $( head -5 "$rigScenarioDir/err" )"
 }
 rigStart claude-under-margin
-rigClaudeRun 858807
+rigClaudeRun 808807
 rigAssert "the claude leaf is the one that ran"               "$( rigHolds "$rigScenarioDir/err" 'Anthropic' )" yes
-rigAssert "a round of 871999 does not trip"                   "$( rigHolds "$rigScenarioDir/err" 'context threshold reached' )" no
+rigAssert "the threshold the leaf states is the window less the output and less 5% of the window: 822000" \
+	"$( rigHolds "$rigScenarioDir/err" 'restart at 822000 tokens' )" yes
+rigAssert "a round of 821999 does not trip"                   "$( rigHolds "$rigScenarioDir/err" 'context threshold reached' )" no
 rigStart claude-at-margin
-rigClaudeRun 858808
-rigAssert "a round of 872000 trips the threshold"             "$( rigHolds "$rigScenarioDir/err" 'at or over 872000' )" yes
+rigClaudeRun 808808
+rigAssert "a round of 822000 trips the threshold"             "$( rigHolds "$rigScenarioDir/err" 'at or over 822000' )" yes
 rigAssert "and the leg restarted onto its summary"            "$( cat "$rigScenarioDir/out" )" RIG-FINAL-MARKER
-rigVerdict "the claude leaf restarts at its window less its max_tokens, 872000"
+rigVerdict "the claude leaf restarts at its window less its output and less 5% of the window, 822000"
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ ANTHROPIC WIRE CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

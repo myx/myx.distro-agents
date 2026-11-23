@@ -15,7 +15,7 @@
 📘 syntax: DistroAgentsSlack.fn.sh --slack-socket-status [--team-member <team-member>]
 📘 syntax: DistroAgentsSlack.fn.sh --slack-socket-stop [--team-member <team-member>]
 📘 syntax: DistroAgentsSlack.fn.sh --slack-react [--team-member <team-member>] <channel>:<ts>|<alias>:<ts>|session-current|session-parent <emoji-name> [--identity-bot] [--remove]
-📘 syntax: DistroAgentsSlack.fn.sh --slack-read [--team-member <team-member>] (<channel>:<ts>|<alias>:<ts>|session-current|session-parent [--thread]|<channel>|<conversation-id>|magic-team|human-owner|event-track|event-alert [--oldest <ts>]) [--identity-bot] [--wait <seconds>]
+📘 syntax: DistroAgentsSlack.fn.sh --slack-read [--team-member <team-member>] (<channel>:<ts>|<alias>:<ts>|session-current|session-parent [--thread]|<channel>|<conversation-id>|magic-team|human-owner|event-track|event-alert [--oldest <ts>]) [--identity-bot] [--wait <seconds>] [--ttl <seconds>]
 📘 syntax: DistroAgentsSlack.fn.sh --slack-search-messages [--team-member <team-member>] <magic-team|human-owner|event-track|event-alert|<conversation-id>|<channel>> (--comms-since-date-time <v>|--comms-since-utime <v>) [--max-pages <n>] [--raw]
 
 ##  Summary:
@@ -89,13 +89,14 @@
 			A conversation the acting user identity cannot reach is reacted to once
 			under the team bot, and a note says so. `--identity-bot` forces the bot.
 
-		--slack-read (<channel>:<ts> [--thread]|<channel>|<conversation-id>|<alias> [--oldest <ts>]) [--wait <seconds>]
+		--slack-read (<channel>:<ts> [--thread]|<channel>|<conversation-id>|<alias> [--oldest <ts>]) [--wait <seconds>] [--ttl <seconds>]
 			Prints a conversation, the thread of one message with `--thread`, or the messages
 			after `--oldest`. A whole conversation needs `--oldest`: a read of one with no
 			floor is refused, since a read from the start is cached as floor zero and costs
 			every read after it. It is served from the comms cache. With `--wait`, a read that
 			the cache cannot serve yet waits for that many seconds on the comms service
-			thread, by fifo, for the data to arrive.
+			thread, by fifo, for the data to arrive. `--ttl` states the age this call
+			accepts, in seconds, which the cache reads instead of its own setting.
 
 		--slack-search-messages <magic-team|human-owner|event-track|event-alert|<conversation-id>|<channel>> (--comms-since-date-time <v>|--comms-since-utime <v>) [--max-pages <n>]
 			Prints the messages of that conversation since that moment, as far back as

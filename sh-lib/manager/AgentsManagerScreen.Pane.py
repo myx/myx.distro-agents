@@ -143,7 +143,8 @@ def followSelection(state, idle=False):
     else:
         state.view["looks"] = kept
     state.view["head"] = viewHead(state, row)
-    if state.view["feed"] is not None and state.view["built"] != (state.viewWidth, state.viewMode):
+    if state.view["feed"] is not None and state.view["built"] != (
+            state.viewWidth, state.viewMode, len(state.view["feed"]["logs"]), len(state.view["feed"]["rows"])):
         buildFeed(state, row)
     if local is None and state.view.get("text") is not None:
         viewText(state, row)

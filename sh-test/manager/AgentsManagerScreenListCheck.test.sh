@@ -4,7 +4,7 @@
 ## case feeds keys and reads the screen and the state back as text. Held: the root holds `Sessions (Activity)`,
 ## `Pending Questions`, `Team Members`, `Consoles`, `Settings` and `Configuration` in that order, the first one selected; Enter
 ## dives into a row, the first row below the root goes up, and so does Backspace from any row, back onto the row that was
-## dived into; in the list Right pages down as PageDown does, and Left pages up, on the first row climbs a level and at the root does nothing more,
+## dived into; in the list Right pages down as PageDown does, and Left pages up, on the first row it stays in the level and never climbs, and at the root does nothing more,
 ## and neither dives; inside `Sessions (Activity)` the first item is `Launchpad`, a level of its own; Up and Down stop at the
 ## first and at the last row and never wrap; PageDown and PageUp move the selection by the height of the pane, and
 ## the rows in view with it; Tab moves the focus, and the same keys then scroll the left pane while the selection of

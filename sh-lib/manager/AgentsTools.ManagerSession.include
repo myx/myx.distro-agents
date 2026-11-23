@@ -14,6 +14,14 @@ case "$1" in
 		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.OpManagerSessionList.include"
 	;;
 
+	--manager-session-active-list)
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.OpManagerSessionActiveList.include"
+	;;
+
+	--manager-session-closed-list)
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.OpManagerSessionClosedList.include"
+	;;
+
 	--manager-session-read)
 		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.OpManagerSessionRead.include"
 	;;

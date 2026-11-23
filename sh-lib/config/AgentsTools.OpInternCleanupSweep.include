@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+## AgentsTools.OpInternCleanupSweep.include -- the operation `--intern-cleanup-sweep`, sourced with the operation's arguments.
+## One pass of the cleanup sweep, `--preview` by default or `--apply`. It runs inside the intern operations' own
+## dispatcher, so its `local` and its `return` are the caller's.
+	shift
+	if [ $# -gt 1 ] ; then
+		echo "⛔ ERROR: $MDSC_CMD --intern-cleanup-sweep: takes one argument at most -- --preview or --apply" >&2
+		set +e ; return 1
+	fi
+	local cleanupSweepMode="${1:---preview}"
+	case "$cleanupSweepMode" in
+		--preview|--apply) cleanupSweepMode="${cleanupSweepMode#--}" ;;
+		*) echo "⛔ ERROR: $MDSC_CMD --intern-cleanup-sweep: takes only --preview or --apply, got: $cleanupSweepMode" >&2
+			set +e ; return 1
+		;;
+	esac
+	. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.CleanupSweep.include"
+	AgentsToolsCleanupSweep "$cleanupSweepMode"
+	return $?

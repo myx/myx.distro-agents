@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.ExecutorResume.include -- the operation `--executor-resume`, sourced by AgentExecutorTools.fn.sh with the operation's
+## arguments. Adding work to a stopped session's queue resumes its executor: the control thread of the session is started by the one
+## function that starts one (AgentsToolsSessionControlStart), and what became of the start is asked by the check beside it.
+## A dismissal is the owner's own word, and no rule undoes it, so a dismissed session is refused here.
+##
+
+AgentsToolsExecutorResume(){ ## the operation's arguments
+	local resumeSession="" resumeReason=""
+	while [ $# -gt 0 ] ; do
+		case "$1" in
+			--session-id)
+				[ -n "${2:-}" ] || { echo "$MDSC_CMD: ⛔ ERROR: --executor-resume: --session-id takes a session id. Nothing was started." >&2 ; return 1 ; }
+				resumeSession="$2" ; shift 2
+			;;
+			--reason)
+				[ -n "${2:-}" ] || { echo "$MDSC_CMD: ⛔ ERROR: --executor-resume: --reason takes a text. Nothing was started." >&2 ; return 1 ; }
+				resumeReason="$2" ; shift 2
+			;;
+			*)
+				echo "$MDSC_CMD: ⛔ ERROR: --executor-resume: invalid option: $1 -- syntax is --executor-resume [--session-id <id>] [--reason <text>]" >&2
+				return 1
+			;;
+		esac
+	done
+	type AgentsToolsExecutorSeatInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.ExecutorSeat.include"
+	AgentsToolsExecutorSeatInto --executor-resume "$resumeSession" || return 1
+	## A DISMISSAL IS THE OWNER'S WORD: the session store's mark, or the schedule's, and no rule undoes it.
+	type AgentsSessionMarked > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+	if AgentsSessionMarked "$executorSeatSession" dismissed || [ -e "$MMDAPP/.local/agents/schedule/dismissed/$executorSeatSession" ] ; then
+		echo "$MDSC_CMD: ⛔ ERROR: --executor-resume: session $executorSeatSession carries the owner's dismissal mark, and a dismissal is never undone by a rule. Nothing was started." >&2
+		return 1
+	fi
+	## A RUN THAT LIVES NEEDS NO RESUMING: the executor's own run in the session, by the session's own presence rule.
+	type AgentsToolsSessionMemberPresent > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionSeats.include"
+	if AgentsToolsSessionMemberPresent "$executorSeatSession" "$executorSeatMember" ; then
+		echo "$MDSC_CMD: ⛔ ERROR: --executor-resume: the run of $executorSeatMember in session $executorSeatSession is live, so nothing needs resuming. Nothing was started." >&2
+		return 1
+	fi
+	type AgentsToolsSessionControlStart > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionControlStart.include"
+	local resumeStart resumeWord resumePid resumeOutcome
+	resumeStart="$( AgentsToolsSessionControlStart "$executorSeatSession" )" || resumeStart="failed - the start said nothing"
+	resumeWord="${resumeStart%% *}"
+	resumePid="${resumeStart#* }"
+	[ "$resumeWord" != "failed" ] || { echo "$MDSC_CMD: ⛔ ERROR: --executor-resume: the control thread of session $executorSeatSession was not started: ${resumePid#- }. Nothing was started." >&2 ; return 1 ; }
+	resumeOutcome="$( AgentsToolsSessionControlStartOutcome "$executorSeatSession" "$resumePid" 5 )" || resumeOutcome="$resumeStart"
+	printf 'OK: --executor-resume: session %s: %s%s\n' "$executorSeatSession" "$resumeOutcome" "${resumeReason:+ -- $resumeReason}"
+	return 0
+}

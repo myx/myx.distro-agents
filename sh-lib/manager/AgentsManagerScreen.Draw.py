@@ -65,6 +65,13 @@ def emptyViewLine(state):
     if folder is None:
         return "no data"
     member = participantValues(state, folder).get("member")
+    ## THE FOLDER ABOVE NAMES IT where the item is entered by its path: the participant's own row of the session is the one that says whose checklist
+    ## this is, and a page that cannot name its owner is no better than `no data`.
+    if not member and len(state.path) >= 2:
+        for one in listedRows(state, state.path[:-1]) or ():
+            if one["id"] == state.path[-1]:
+                member = (one.get("session") or {}).get("member") or one.get("member")
+                break
     return CHECKLIST_NONE % member if member else CHECKLIST_NONE_UNNAMED
 
 
@@ -148,9 +155,8 @@ def listTitle(state):
 @onShownLevel
 ## The title of the left window as it stands: the one its pane was made with, so a pane held while the selection moves keeps its title with it.
 def viewTitle(state):
-    held = state.view.get("title")
-    if held is not None:
-        return held
+    ## THE TITLE IS THE ROW'S, TAKEN AS IT IS DRAWN: a held one described the row the cursor was on when it was written, and the frame after a key
+    ## then carried the title of the row left behind.
     return rowTitle(state, selectedRow(state))
 
 
@@ -158,7 +164,8 @@ def viewTitle(state):
 def rowTitle(state, row):
     if row is None:
         return ""
-    marks = readMarks(state, "view:" + (viewKeyOf(state) or "")) + readMarks(state, "feed:" + (viewKeyOf(state) or ""))
+    ## A LEVEL'S OWN TITLE CARRIES NO READ MARK: what stands in the pane of the row that goes up is the list itself, not an item read that could be old.
+    marks = "" if row.get("kind") in ("up", "section") else readMarks(state, "view:" + (viewKeyOf(state) or "")) + readMarks(state, "feed:" + (viewKeyOf(state) or ""))
     marks = "".join(mark for mark in (MARK_READING, MARK_OLD) if mark in marks)
     ## the mode of the window, where the item has a log: it shows in the title
     form = " " + modeOf(state)["mark"] if viewReadOf(state, row, "feed") is not None else ""
@@ -166,7 +173,8 @@ def rowTitle(state, row):
     if markdownShown(state, row):
         form = " " + (dict(VIEW_MODES)["raw"]["mark"] if textRawShown(state) else MARKDOWN["mark"])
     ## and whether its long lines are wrapped or cut: the title says it always
-    return (marks + " " if marks else "") + (row.get("title") or row["label"]) + form + " " + (WRAP_MARK if state.wrap or panelsShown(state) else CUT_MARK)
+    ## A LABEL'S HOT LETTER IS MARKUP, NOT TEXT: the title says the name, without the tildes that place the letter's look.
+    return (marks + " " if marks else "") + hotText(row.get("title") or row["label"]) + form + " " + (WRAP_MARK if state.wrap or panelsShown(state) else CUT_MARK)
 
 
 ## A label with its hot letter between tildes, as parts to draw: the letter in the one
@@ -763,10 +771,10 @@ def drawLinesBody(surface, state, layout, box):
             putLooked(surface, state, top + headHeight, column, stuck, room, PLAIN, stuck.looks, placing)
             continue
         putViewLine(surface, state, top + headHeight + offset, column, state.view["top"] + offset, room, placing, marked)
-    if contentHeight > headHeight:
+    ## THE SPINNER STANDS WHILE THE PANE IS STILL BEING READ, and the line an answered-but-empty view gives stands after it: one or the other, never
+    ## a spinner that hides the answer, and never nothing.
+    if contentHeight > headHeight and loadingShown(state) and not state.view["lines"]:
         drawLoading(surface, state, top + headHeight, column, room, contentHeight - headHeight)
-
-
     elif contentHeight > headHeight and not state.view["lines"] and viewAnswered(state):
         surface.put(top + headHeight, column, cutToCells(emptyViewLine(state), room), DIM)
     if filterLineShown(state):
@@ -849,7 +857,8 @@ def drawWindow(surface, state, layout, window):
               globals()[window["count"]](state) if window.get("count") else "")
     ## ONE CHARACTER IN THE TITLE BAR once the wait has lasted a moment: a look that answers at once leaves the bar exactly as it was, and a wait
     ## that goes on says so in the bar itself, after the frame, so no title string changes and no other window carries it.
-    if window["name"] == "view" and box[2] >= 8 and loadingShown(state):
+    ## ONE SPINNER AT A TIME: the big one stands where the pane holds nothing yet, so the title takes no character then.
+    if window["name"] == "view" and box[2] >= 8 and loadingShown(state) and state.view["lines"]:
         since = state.view.get("loadingSince")
         if since is None:
             state.view["loadingSince"] = nowEpoch()

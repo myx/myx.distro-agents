@@ -68,23 +68,28 @@ AgentsToolsScheduleThreadWantedInto(){
 
 ## THE ASK FROM A LIVE THREAD OF THE HOST (the comms reader's pass): where the thread is wanted now (above), ask for it. A live thread answers `alive` or
 ## `waiting` at the price of one file's test, a dead one is started. At most once a minute for the caller, whatever its pass.
+## A VIEW OF THE SESSIONS PASSES `view`: the list of the sessions is the schedule's own place, so it starts a dead thread whether or not the flags want it now.
 agentsScheduleThreadAskDueAt=-100000
 AgentsToolsScheduleThreadAskDue(){
 	[ "${MDAT_SCHEDULE_THREAD:-}" != "off" ] || return 0
 	## THE THROTTLE IS THE STORE'S, NOT THIS PROCESS'S: every look is a process of its own, so a counter here was zeroed each time and the whole ask
 	## ran on every look of the screen. The moment it last ran is kept beside the thread, read by the shell, and taken by one write.
-	local dueNow
+	local dueNow dueStamp="$MMDAPP/.local/agents/schedule-thread/ask-due.stamp"
+	## A view keeps a stamp of its own, so a reader's pass that comes every minute never spends the look a view is owed.
+	[ "${1:-}" != view ] || dueStamp="$MMDAPP/.local/agents/schedule-thread/ask-view.stamp"
 	dueNow="$( date +%s )"
-	{ IFS= read -r agentsScheduleThreadAskDueAt < "$MMDAPP/.local/agents/schedule-thread/ask-due.stamp" ; } 2> /dev/null || agentsScheduleThreadAskDueAt=""
+	{ IFS= read -r agentsScheduleThreadAskDueAt < "$dueStamp" ; } 2> /dev/null || agentsScheduleThreadAskDueAt=""
 	case "${agentsScheduleThreadAskDueAt:-}" in ''|*[!0123456789]*) agentsScheduleThreadAskDueAt=0 ;; esac
 	[ $(( dueNow - agentsScheduleThreadAskDueAt )) -ge 60 ] || return 0
-	printf '%s\n' "$dueNow" > "$MMDAPP/.local/agents/schedule-thread/ask-due.stamp" 2> /dev/null || :
+	printf '%s\n' "$dueNow" > "$dueStamp" 2> /dev/null || :
 	## A LIVE THREAD NEEDS NO ASK: its pass keeps it on the same test. Only a dead one is looked into, by the shell's own read of its lock.
 	local dueLock="" dueDir="$MMDAPP/.local/agents/schedule-thread"
 	{ IFS= read -r dueLock < "$dueDir/thread.lock" ; } 2> /dev/null || dueLock=""
 	[ -z "$dueLock" ] || ! AgentsToolsThreadLockHolderLives "$dueLock" 2> /dev/null || return 0
-	AgentsToolsScheduleThreadWantedInto
-	[ "$agentsScheduleThreadKeep" = yes ] || return 0
+	if [ "${1:-}" != view ] ; then
+		AgentsToolsScheduleThreadWantedInto
+		[ "$agentsScheduleThreadKeep" = yes ] || return 0
+	fi
 	AgentsToolsScheduleThreadAsk > /dev/null 2>&1 || :
 	return 0
 }
@@ -114,6 +119,7 @@ AgentsToolsScheduleThreadPass(){
 		passAt="$SECONDS" ; AgentsToolsBoardDependencies ; passTimes="$passTimes, dependencies $(( SECONDS - passAt ))s"
 		passAt="$SECONDS" ; AgentsToolsScheduleThreadChildrenKeep ; passTimes="$passTimes, children $(( SECONDS - passAt ))s"
 		passAt="$SECONDS" ; AgentsToolsScheduleThreadKnowledgeKeep ; passTimes="$passTimes, knowledge $(( SECONDS - passAt ))s"
+		passAt="$SECONDS" ; AgentsToolsScheduleThreadControlKeep ; passTimes="$passTimes, controls $(( SECONDS - passAt ))s"
 		passAt="$SECONDS" ; AgentsToolsScheduleThreadWantedInto ; passTimes="$passTimes, wanted $(( SECONDS - passAt ))s"
 		## A PASS LONGER THAN ITS GAP IS SAID: a pass is seconds, and one that ran into minutes (35 on MEL, in the DM look) left a log that read as a stopped
 		## schedule. The line names the pass's own length, so a reader tells a slow pass from a dead thread, and each step's, so the cost is found where it is.
@@ -124,6 +130,27 @@ AgentsToolsScheduleThreadPass(){
 		agentsScheduleThreadPassEnd="$SECONDS"
 	fi
 	[ "${agentsScheduleThreadKeep:-no}" != yes ] || return 2
+	return 0
+}
+
+## THE CONTROL THREADS KEPT ON A RIG WITH NO MAIN LOOP. The main loop starts the control thread of each session that is not finished and has none alive, once an
+## iteration (AgentsToolsSessionControlCheckWorkspace). A rig that runs the schedule thread alone never had it, so a session whose thread died stayed unwatched and
+## never asked for the schedule again. The pass makes the same check, in a subshell of its own, and says what it started. It runs while holding, since it starts no
+## agent. Never fails the pass.
+AgentsToolsScheduleThreadControlKeep(){
+	local keepLines="" keepSession keepWord keepPid keepWhy
+	keepLines="$(
+		set +e
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include" || exit 1
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionControlStart.include" || exit 1
+		AgentsToolsSessionControlCheckWorkspace 2> /dev/null
+	)" || return 0
+	while read -r keepSession keepWord keepPid keepWhy ; do
+		case "$keepWord" in
+			started) printf 'control: started the thread of session %s\n' "$keepSession" ;;
+			failed) printf 'control: the thread of session %s could not be started: %s\n' "$keepSession" "$keepWhy" ;;
+		esac
+	done <<< "$keepLines"
 	return 0
 }
 
@@ -200,7 +227,7 @@ AgentsToolsScheduleThreadKnowledgeKeep(){
 ## spawn proxy, at a start. Prints one line: off, waiting (looked too recently), alive <pid>, started <pid>, or failed - <why>. One look at most in
 ## MDAT_SCHEDULE_ASK_SECONDS: the ask is not a thing to check on every call, so a caller that comes often costs one test of one file.
 AgentsToolsScheduleThreadAsk(){
-	local askDir askNow askAsked askLock askHolder askTold askSaid
+	local askDir askNow askAsked askLock askHolder askTold askSaid askCode
 	[ "${MDAT_SCHEDULE_THREAD:-}" != "off" ] || { printf 'off\n' ; return 0 ; }
 	[ -n "${MMDAPP:-}" ] || { printf 'failed - %s\n' "no workspace is selected" ; return 1 ; }
 	askDir="$MMDAPP/.local/agents/schedule-thread"
@@ -215,6 +242,14 @@ AgentsToolsScheduleThreadAsk(){
 		askHolder="$( cat "$askLock" 2> /dev/null )" || askHolder=""
 		AgentsToolsThreadLockHolderLives "$askHolder" 2> /dev/null ; askTold=$?
 		if [ "$askTold" = 0 ] ; then
+			## A THREAD RUNS THE CODE IT LOADED AT ITS START, for hours. Where a file of its pass is newer than its lock it is told to end, and the next ask starts
+			## one on the current code, so a change to the schedule reaches a live rig with no hand on it. The shell's own test, no process.
+			for askCode in "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/schedule/AgentsTools.ScheduleThread.include" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/schedule/AgentsTools.DispatcherSchedule.include" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionControlStart.include" ; do
+				[ "$askCode" -nt "$askLock" ] || continue
+				kill -TERM "${askHolder%% *}" 2> /dev/null || :
+				printf 'ending - its code changed: %s\n' "${askCode##*/}"
+				return 0
+			done
 			if [ $(( askNow - askAsked )) -lt "$agentsScheduleAskGap" ] ; then printf 'waiting\n' ; return 0 ; fi
 			{ printf '%s\n' "$askNow" > "$askDir/thread.asked" ; date +%s > "$askDir/thread.wanted" ; } 2> /dev/null || :
 			printf 'alive %s\n' "${askHolder%% *}"

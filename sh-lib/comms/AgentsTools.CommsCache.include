@@ -10,7 +10,7 @@
 
 ## Every control file is `.<name>.txt`, one writer. Apart from the channels: .local/cache/comms/.interest/<service>-<id>, an empty
 
-## file whose time is the channel's last read (AgentsToolsCommsCacheInterest); one past S1 item 12's 240-hour age is deleted.
+## file whose time is the channel's last read (AgentsToolsCommsCacheInterest); one past the 36-hour delete age is deleted.
 ##   YYYYMM/messages.txt     the messages of that UTC month, one line each, oldest first, continuations joined by \037
 ##   YYYYMM/<ts>.body.txt    the whole text of a message whose line is over the cap; its line keeps the head and names the file
 ##   YYYYMM/<file id>.<name>   a file a message of that month carried (its line says `[file: <id> <name> ...]`), fetched once, on demand
@@ -72,7 +72,7 @@ agentsCommsMonthAwk='function monthOf(t,  z, era, doe, yoe, y, doy, mp, m) { z =
 
 ## A READ MARKS ITS CHANNEL AS OF INTEREST: .local/cache/comms/.interest/<service>-<id> holds `<epoch> <ttl>`, the read that marked it and
 ## the TTL it reads at. It is rewritten at most once an hour (), and at once for a reader that needs a shorter TTL, by the
-## shell alone. Interest stops being refreshed once a mark is 48 hours old (S1 item 12), a different moment from the 240-hour delete age.
+## shell alone. Interest stops being refreshed once a mark is 48 hours old (S1 item 12), a different moment from the 36-hour delete age.
 ## The rig's reader pulls only channels read lately, each from its mark's TTL (AgentsToolsCommsCachePullWatched).
 AgentsToolsCommsCacheInterest(){ ## cache folder, now, the reader's TTL (optional)
 	local interestName="${1##*/}" interestAt="" interestMark interestWas="" interestWasTtl="" interestTtl="${3:-}"
@@ -98,7 +98,7 @@ AgentsToolsCommsCacheInterest(){ ## cache folder, now, the reader's TTL (optiona
 		;;
 	esac
 	## Interest stops being refreshed at 48 hours (S1 item 12): a mark past that keeps its own time. Only the write is skipped, so a
-	## read of an old channel still starts the reader below. The clean deletes the mark at 240 hours, a different moment.
+	## read of an old channel still starts the reader below. The clean deletes the mark at 36 hours, a different moment.
 	if { [ -z "$interestWas" ] || [ $(( $2 - interestWas )) -lt 172800 ] ; } ; then
 		{ [ -d "${interestMark%/*}" ] || mkdir -p "${interestMark%/*}" ; } 2> /dev/null && printf '%s %s\n' "$2" "${interestTtl:-$interestWasTtl}" > "$interestMark" 2> /dev/null || :
 	fi
@@ -240,11 +240,8 @@ AgentsToolsCommsCacheSlackThread(){ ## member, <channel>:<thread ts>, the render
 		fi
 		tcFetch="$agentsCommsCacheNewest"
 		## STALE IS ENOUGH for a call that waits no longer than the TTL (MDAT_COMMS_CACHE_STALE_OK): it is served what the cache
-		## holds at once, and one pull of its own, detached, brings the channel up to date for the next read.
+		## holds at once, and the comms thread fills the channel. A reader starts no pull.
 		if [ "${MDAT_COMMS_CACHE_STALE_OK:-}" = "true" ] && AgentsToolsCommsCacheServe "$tcDir" 0 nohead > "$3" ; then
-			if [ ! -f "$tcDir/.pulling.txt" ] ; then
-				( MDAT_COMMS_CACHE_STALE_OK="" AgentsToolsCommsCacheSlackThread "$1" "$2" "$tcDir/.swr.rendered" "${4:-false}" "$tcNow" ; rm -f "$tcDir/.swr.rendered" "$tcDir/.swr.rendered.read" "$tcDir/.swr.rendered.err" ) > /dev/null 2>&1 < /dev/null &
-			fi
 			return 0
 		fi
 	fi
@@ -502,7 +499,7 @@ AgentsToolsCommsCacheSlackFile(){ ## member, cache folder, message ts, file id, 
 ## THE RIG'S PULL (), run by the session comms reader: every channel read in the last 61 minutes whose last pull is
 
 ## past its TTL is pulled once, by the way its state names, so a member's read on the rig is served from the cache and never waits on
-## the service. Once an hour it deletes the marks older than 240 hours, S1 item 12's earliest age, and the entry with them.
+## the service. Once an hour it deletes the marks older than 36 hours, and the entry with them.
 AgentsToolsCommsCachePullWatched(){ ## now, most (optional; the channels one call may pull, none or 0 for no bound)
 	local watchMarks="$MMDAPP/.local/cache/comms/.interest" watchService watchEntry watchEntryMark watchMark watchName watchDir watchHow watchTarget watchMember watchBot watchFloor watchQuiet watchBase watchMarkAt watchMarkTtl watchTtl="${MDAT_SLACK_THREAD_CACHE_SECONDS:-15}"
 	local watchMost="${2:-0}" watchDone=0
@@ -515,8 +512,8 @@ AgentsToolsCommsCachePullWatched(){ ## now, most (optional; the channels one cal
 	[ -n "${MMDAPP:-}" ] && [ -d "$watchMarks" ] || return 0
 	if [ $(( $1 - ${agentsCommsInterestCleanAt:-0} )) -ge 3600 ] ; then
 		agentsCommsInterestCleanAt="$1"
-		## The delete age is S1 item 12's; the 48-hour refresh stop is a different moment, and never this number.
-		find "$watchMarks" -type f -mmin +14400 -delete 2> /dev/null || :
+		## The delete age is 36 hours; the 48-hour refresh stop is a different moment, and never this number.
+		find "$watchMarks" -type f -mmin +2160 -delete 2> /dev/null || :
 		## An entry whose mark is gone or as old goes with it (): its folder, named from its fixed parts, and never one
 		## whose outbox still holds a post.
 		for watchService in $( ls -1 "$MMDAPP/.local/cache/comms" 2> /dev/null ) ; do
@@ -526,7 +523,7 @@ AgentsToolsCommsCachePullWatched(){ ## now, most (optional; the channels one cal
 				case "$watchEntry" in ''|.|..|*[!A-Za-z0-9._-]*) continue ;; esac
 				[ -d "$MMDAPP/.local/cache/comms/$watchService/$watchEntry" ] || continue
 				watchEntryMark="$watchMarks/$watchEntry"
-				[ ! -f "$watchEntryMark" ] || [ -n "$( find "$watchEntryMark" -mmin +14400 2> /dev/null )" ] || continue
+				[ ! -f "$watchEntryMark" ] || [ -n "$( find "$watchEntryMark" -mmin +2160 2> /dev/null )" ] || continue
 				[ ! -s "$MMDAPP/.local/cache/comms/$watchService/$watchEntry/outbox.messages.txt" ] || continue
 				[ ! -s "$MMDAPP/.local/cache/comms/$watchService/$watchEntry/outbox.pushing.txt" ] || continue
 				rm -rf -- "$MMDAPP/.local/cache/comms/$watchService/$watchEntry" 2> /dev/null || :
@@ -535,7 +532,7 @@ AgentsToolsCommsCachePullWatched(){ ## now, most (optional; the channels one cal
 	fi
 	## THE MARKS ARE READ BY A GLOB, one file read each (call-path audit row 22): a mark holds the moment of the read that wrote it
 	## and the TTL it reads at, so a mark older than an hour by the pass clock is passed over here, with no find and no sed on
-	## the pass. The hourly sweep above removes what is past S1 item 12's delete age.
+	## the pass. The hourly sweep above removes what is past the delete age.
 	for watchMark in "$watchMarks"/* ; do
 		[ -f "$watchMark" ] || continue
 		watchName="${watchMark##*/}"

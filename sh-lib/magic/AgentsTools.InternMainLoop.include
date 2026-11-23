@@ -10,6 +10,7 @@
 ## $1/$@/$MDSC_CMD from dot-sourcing. Mirrors --intern-mcp-server's own shape:
 ## usage blurb on no flag, set +e/set -e discipline.
 ##
+type AgentsToolsTempClaim > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.TempFiles.include"
 
 type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 type AgentsToolsOwnerSetupOptionSpec > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.OwnerSetupOptionSpec.include"
@@ -179,6 +180,7 @@ case "$1" in
 			(
 				mkdir -p "$MMDAPP/.local/agents"
 				stateTemp="$( mktemp "$mainLoopStateFile.XXXXXX" )"
+				AgentsToolsTempClaim "$stateTemp"   ## in the subshell too: its own exit removes the temp a failed mv leaves.
 				{
 					printf 'MAIN_LOOP_LAST_OUTCOME=%s\n' "$stateOutcome"
 					printf 'MAIN_LOOP_LAST_ITERATION_UTC=%s\n' "$( date -u +%Y-%m-%dT%H:%M:%SZ )"
@@ -301,6 +303,11 @@ case "$1" in
 			while IFS= read -r mainLoopHouseLine ; do
 				[ -z "$mainLoopHouseLine" ] || echo "# $MDSC_CMD --intern-main-loop: $mainLoopHouseLine" >&2
 			done <<< "$mainLoopHouse"
+
+			## The cleanup sweep: aged scratch in the temp folder, and the source-tree copies a settled sandbox
+			## left in its output/. One pass an iteration; a failure is not the loop's.
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.CleanupSweep.include"
+			AgentsToolsCleanupSweep apply || :
 			## Answers to questions whose session has ended, collected by the tooling before
 			## anything is spawned, each going to its asker's inbox. The result is kept as a
 			## file (pending-collect.last) that a work-duty scan reads; no model

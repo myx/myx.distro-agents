@@ -41,9 +41,8 @@
 ##
 
 ## Latest committed date per file of one directory, keyed by basename, in one
-## history walk rather than one per file. Newline/tab-delimited with a leading
-## and a trailing newline, so one `*"$LF<name>$TAB"*` case pattern reads it
-## back with no fork per candidate.
+## history walk rather than one per file. One `<name><TAB><epoch>` a line, read
+## by the scan's join, one awk pass for the whole folder.
 ## Sets (overwrites each call): gcGitTimes -- `local` in the caller, dynamic-scoped here.
 AgentsToolsFinalGcGitTimes(){
 	local scanDir="$1"
@@ -65,7 +64,7 @@ AgentsToolsFinalGcGitTimes(){
 }
 
 ## What one directory holds in git's index, and what it holds in HEAD, as bare
-## newline-delimited name sets read back by the same case pattern. Batched
+## newline-delimited name sets read by the scan's join. Batched
 ## `git ls-files`/`git ls-tree` rather than a `--error-unmatch` per candidate:
 ## one fork for a whole directory instead of one per item.
 ## Sets (overwrites each call): gcIndexNames, gcHeadNames.
@@ -103,9 +102,10 @@ AgentsToolsFinalGcMtimes(){
 	local scanDir="$1"
 	local statOut=""
 	gcMtimes="$LF"
+	## find batches the operands itself: a folder's names as stat's own operands outgrow the system's argument limit.
 	case "$gcStatMode" in
-		bsd) statOut="$( stat -f '%m %N' "$scanDir"/*.md 2>/dev/null )" || statOut="" ;;
-		gnu) statOut="$( stat -c '%Y %n' "$scanDir"/*.md 2>/dev/null )" || statOut="" ;;
+		bsd) statOut="$( find "$scanDir" -maxdepth 1 -type f -name '*.md' -exec stat -f '%m %N' {} + 2>/dev/null )" || statOut="" ;;
+		gnu) statOut="$( find "$scanDir" -maxdepth 1 -type f -name '*.md' -exec stat -c '%Y %n' {} + 2>/dev/null )" || statOut="" ;;
 	esac
 	[ -n "$statOut" ] || return 0
 	gcMtimes="$LF$( printf '%s\n' "$statOut" | LC_ALL=C awk -v tab="$TAB" '
@@ -186,8 +186,7 @@ AgentsToolsFinalGcDivertBoardItem(){
 ## concluded items retaining each other forever. Built once per run, before the
 ## board scan -- an item still in processed/ is not live, so its own pointers do
 ## not count until a later pass sees it somewhere live.
-## Sets gcDependedNames: newline-delimited, ALWAYS with a leading and a trailing
-## newline, so one `*"$LF<name>$LF"*` case pattern tests membership fork-free.
+## Sets gcDependedNames: newline-delimited names, read by the board scan's join.
 AgentsToolsFinalGcDependedNames(){
 	local boardRoot="$1"
 	local depState depFile depFiles=()
@@ -198,21 +197,7 @@ AgentsToolsFinalGcDependedNames(){
 		done
 	done
 	if [ "${#depFiles[@]}" -eq 0 ] ; then return 0 ; fi
-	gcDependedNames="$LF$( LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsToolsFinalGcDependedNames.awk" ${depFiles[@]+"${depFiles[@]}"} | sort -u )$LF"
-	return 0
-}
-
-## Reads one clock map back for one basename.
-## Sets gcLookupEpoch to that name's value, or to the empty string when absent.
-AgentsToolsFinalGcLookup(){
-	local mapValue="$1" fileBase="$2"
-	gcLookupEpoch=""
-	case "$mapValue" in
-		*"$LF$fileBase$TAB"*)
-			gcLookupEpoch="${mapValue#*"$LF$fileBase$TAB"}"
-			gcLookupEpoch="${gcLookupEpoch%%"$LF"*}"
-		;;
-	esac
+	gcDependedNames="$LF$( printf '%s\n' ${depFiles[@]+"${depFiles[@]}"} | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsToolsFinalGcDependedNames.awk" | sort -u )$LF"
 	return 0
 }
 
@@ -229,7 +214,7 @@ AgentsToolsFinalGcLookup(){
 AgentsToolsFinalGcScanInboxRoot(){
 	local scanDir="$1" nowEpoch="$2"
 	local path fileBase stampValue normValue thresholdDays ageSeconds clockEpoch inIndex inHead
-	local rootItems=() stampPaths=() stampValues=() epochList="" si
+	local rootItems=() stampPaths=() stampValues=() epochList=""
 	for path in "$scanDir"/*.md ; do
 		if [ -f "$path" ] ; then rootItems+=( "$path" ) ; fi
 	done
@@ -257,7 +242,7 @@ AgentsToolsFinalGcScanInboxRoot(){
 		stampPaths+=( "$path" )
 		stampValues+=( "$normValue" )
 	done <<EOF
-$( LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/inbox/AgentsInboxProcessedAtList.awk" ${rootItems[@]+"${rootItems[@]}"} )
+$( printf '%s\n' ${rootItems[@]+"${rootItems[@]}"} | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/inbox/AgentsInboxProcessedAtList.awk" )
 EOF
 	[ "${#stampPaths[@]}" -gt 0 ] || return 0
 	## One conversion for the whole root; every value was shape-checked above.
@@ -266,10 +251,8 @@ EOF
 		return 0
 	}
 	AgentsToolsFinalGcGitNames "$scanDir" top
-	si=0
-	while IFS= read -r clockEpoch ; do
-		path="${stampPaths[$si]}"
-		si=$(( si + 1 ))
+	## One awk pass pairs each path with its clock and its git sets: a case lookup per item costs the whole set, minutes on a large folder.
+	while IFS="$TAB" read -r path inIndex inHead clockEpoch ; do
 		if [ -z "$clockEpoch" ] || [ -z "$path" ] ; then continue ; fi
 		fileBase="${path##*/}"
 		gcSeenCount=$(( gcSeenCount + 1 ))
@@ -279,13 +262,6 @@ EOF
 		esac
 		ageSeconds=$(( nowEpoch - clockEpoch ))
 		if [ "$ageSeconds" -lt "$(( thresholdDays * 86400 ))" ] ; then continue ; fi
-		inIndex="false" ; inHead="false"
-		case "$gcIndexNames" in
-			*"$LF$fileBase$LF"*) inIndex="true" ;;
-		esac
-		case "$gcHeadNames" in
-			*"$LF$fileBase$LF"*) inHead="true" ;;
-		esac
 		if ! rm -f -- "$path" ; then
 			gcScanFailedPath="$path"
 			gcScanFailedWhat="delete"
@@ -296,7 +272,20 @@ EOF
 		if [ "$inIndex" = "true" ] ; then gcAddPaths+=( "$path" ) ; fi
 		if [ "$inHead" = "true" ] ; then gcCommitPaths+=( "$path" ) ; fi
 	done <<EOF
-$epochList
+$( { printf '%s\n' "$gcIndexNames" = "$gcHeadNames" = ; printf '%s\n' ${stampPaths[@]+"${stampPaths[@]}"} ; printf '=\n%s\n' "$epochList" ; } | LC_ALL=C awk -v tab="$TAB" '
+	$0 == "=" { joinSection++ ; next ; }
+	joinSection < 2 && $0 == "" { next ; }
+	joinSection == 0 { indexHeld[$0] = 1 ; next ; }
+	joinSection == 1 { headHeld[$0] = 1 ; next ; }
+	joinSection == 2 { pathAt[++pathCount] = $0 ; next ; }
+	{ epochAt[++epochCount] = $0 ; }
+	END {
+		for (joinAt = 1 ; joinAt <= pathCount ; joinAt++) {
+			itemBase = pathAt[joinAt] ; sub(/^.*\//, "", itemBase) ;
+			print pathAt[joinAt] tab ((itemBase in indexHeld) ? "true" : "false") tab ((itemBase in headHeld) ? "true" : "false") tab epochAt[joinAt] ;
+		} ;
+	}
+' )
 EOF
 	return 0
 }
@@ -321,7 +310,7 @@ AgentsToolsFinalGcScanSplitInbox(){ ## the member's inbox, resolved; now; the in
 	AgentsToolsFinalGcScanInboxRoot "$splitProcessed" "$2" || return 1
 	inboxDeletedCount=$(( inboxDeletedCount + gcDeletedCount ))
 	gcDeletedCount=0
-	gcStampedSet="$LF$( LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/inbox/AgentsInboxProcessedAtList.awk" "$splitProcessed"/*.md 2> /dev/null | cut -f1 )$LF"
+	gcStampedSet="$LF$( printf '%s\n' "$splitProcessed"/*.md | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/inbox/AgentsInboxProcessedAtList.awk" | cut -f1 )$LF"
 	if ! AgentsToolsFinalGcScanDir "$splitProcessed" "$2" "" inbox ; then
 		gcStampedSet=""
 		return 1
@@ -347,7 +336,7 @@ AgentsToolsFinalGcScanDir(){
 	local scanDir="$1" nowEpoch="$2" mode="$3" population="$4"
 	type AgentsToolsSpawnSandboxFoldersOfItem > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandboxSweep.include"
 	local path fileBase thresholdDays ageSeconds thresholdSeconds
-	local clockEpoch inIndex inHead
+	local clockEpoch inIndex inHead itemDepended
 	local gcSandboxFolders gcSandboxRemovable gcSandboxOpen gcFolderName
 	AgentsToolsFinalGcGitNames "$scanDir"
 	if [ "$mode" = "immediate" ] ; then
@@ -356,36 +345,20 @@ AgentsToolsFinalGcScanDir(){
 		AgentsToolsFinalGcGitTimes "$scanDir"
 		AgentsToolsFinalGcMtimes "$scanDir"
 	fi
-	for path in "$scanDir"/*.md ; do
+	## One awk pass joins each item to its git sets, its live pointer and its clock: a case lookup per item costs the whole set, minutes on a
+	## large folder. An item of a split inbox's processed/ that carries its stamp is left out there: collected by that stamp alone
+	## (AgentsToolsFinalGcScanSplitInbox), never by its file's age.
+	while IFS="$TAB" read -r path inIndex inHead itemDepended clockEpoch ; do
 		[ -f "$path" ] || continue
 		fileBase="${path##*/}"
-		## An item of a split inbox's processed/ that carries its stamp is collected by that stamp
-		## alone (AgentsToolsFinalGcScanSplitInbox), never by its file's age.
-		case "${gcStampedSet:-}" in
-			*"$LF$path$LF"*) continue ;;
-		esac
 		## Counts what the scan FOUND, before any decision about it. trash/'s
 		## summary segment keys on this, not on what was deleted.
 		gcSeenCount=$(( gcSeenCount + 1 ))
 
-		## Both asked before the `rm`, and answered by git's own bookkeeping
-		## rather than by the clock: an item staged and never committed has no
-		## commit date, yet the index still has to be told it is gone.
-		inIndex="false" ; inHead="false"
-		case "$gcIndexNames" in
-			*"$LF$fileBase$LF"*) inIndex="true" ;;
-		esac
-		case "$gcHeadNames" in
-			*"$LF$fileBase$LF"*) inHead="true" ;;
-		esac
-
+		## inIndex and inHead are git's own bookkeeping, not the clock: an item staged and never
+		## committed has no commit date, yet the index still has to be told it is gone. The clock
+		## is the commit date where git has one, else the file's mtime.
 		if [ "$mode" != "immediate" ] ; then
-			AgentsToolsFinalGcLookup "$gcGitTimes" "$fileBase"
-			clockEpoch="$gcLookupEpoch"
-			if [ -z "$clockEpoch" ] ; then
-				AgentsToolsFinalGcLookup "$gcMtimes" "$fileBase"
-				clockEpoch="$gcLookupEpoch"
-			fi
 			## No readable date at all: kept. Ageing out a file whose own date
 			## could not be established would delete on absence of evidence.
 			[ -n "$clockEpoch" ] || continue
@@ -416,13 +389,11 @@ AgentsToolsFinalGcScanDir(){
 				continue
 			fi
 			## 2. Failing that, still pointed at by a live board-item.
-			case "$gcDependedNames" in
-				*"$LF$fileBase$LF"*)
-					AgentsToolsFinalGcDivertBoardItem "$fileBase" retained || return 1
-					gcRetainedCount=$(( gcRetainedCount + 1 ))
-					continue
-				;;
-			esac
+			if [ "$itemDepended" = "true" ] ; then
+				AgentsToolsFinalGcDivertBoardItem "$fileBase" retained || return 1
+				gcRetainedCount=$(( gcRetainedCount + 1 ))
+				continue
+			fi
 		fi
 		## Board and trash alike (a dispatch deleted to trash/ still owns its sandbox): the item's spawn sandbox folders go with it,
 		## before it. An open one keeps the item for a later pass, a failed removal keeps it too.
@@ -463,7 +434,27 @@ AgentsToolsFinalGcScanDir(){
 		if [ "$inHead" = "true" ] ; then
 			gcCommitPaths+=( "$path" )
 		fi
-	done
+	done <<EOF
+$( { printf '%s\n' "${gcStampedSet:-}" = "$gcIndexNames" = "$gcHeadNames" = "${gcDependedNames:-}" = "$gcGitTimes" = "$gcMtimes" = ; printf '%s\n' "$scanDir"/*.md ; } | LC_ALL=C awk -v tab="$TAB" '
+	$0 == "=" && joinSection < 6 { joinSection++ ; next ; }
+	joinSection < 6 && $0 == "" { next ; }
+	joinSection == 0 { stampedPath[$0] = 1 ; next ; }
+	joinSection == 1 { indexHeld[$0] = 1 ; next ; }
+	joinSection == 2 { headHeld[$0] = 1 ; next ; }
+	joinSection == 3 { dependedName[$0] = 1 ; next ; }
+	joinSection == 4 || joinSection == 5 {
+		split($0, timeParts, tab) ;
+		if (!((joinSection, timeParts[1]) in itemClock)) { itemClock[joinSection, timeParts[1]] = timeParts[2] ; } ;
+		next ;
+	}
+	$0 in stampedPath { next ; }
+	{
+		itemBase = $0 ; sub(/^.*\//, "", itemBase) ;
+		clockEpoch = ((4, itemBase) in itemClock) ? itemClock[4, itemBase] : (((5, itemBase) in itemClock) ? itemClock[5, itemBase] : "") ;
+		print $0 tab ((itemBase in indexHeld) ? "true" : "false") tab ((itemBase in headHeld) ? "true" : "false") tab ((itemBase in dependedName) ? "true" : "false") tab clockEpoch ;
+	}
+' )
+EOF
 	return 0
 }
 
@@ -512,7 +503,7 @@ case "$1" in
 		local nowEpoch ; nowEpoch="$( date +%s )"
 		local gcDeletedPaths=() gcAddPaths=() gcCommitPaths=() gcDeletedCount=0
 		local gcScanFailedPath="" gcScanFailedWhat=""
-		local gcGitTimes="$LF" gcMtimes="$LF" gcLookupEpoch=""
+		local gcGitTimes="$LF" gcMtimes="$LF"
 		local gcIndexNames="$LF" gcHeadNames="$LF" gcItemArchived="false"
 		local gcArchivedCount=0 gcRetainedCount=0 gcSandboxCount=0 gcSandboxLog=""
 		local gcSeenCount=0 trashSeenCount=0

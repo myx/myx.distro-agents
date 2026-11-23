@@ -26,7 +26,7 @@ type AgentsWaitReadRendered > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-a
 AgentsWaitChatTopUp(){ ## member, session, thread (channel:ts), a name for the read's files
 	type AgentsToolsSessionChatPointer > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include"
 	local topNow topLast topNewest topQuiet=0 topTtl topReader
-	## Its TTL is 5 at least, so it is weighed at most every 5 seconds: a tick in between starts no process here.
+	## Its TTL is 3 at least, so it is weighed at most every 5 seconds: a tick in between starts no process here.
 	[ -z "${agentsWaitTopUpAt:-}" ] || [ $(( SECONDS - agentsWaitTopUpAt )) -ge 5 ] || return 0
 	agentsWaitTopUpAt="$SECONDS"
 	topNow="${roundNow:-}"
@@ -35,8 +35,8 @@ AgentsWaitChatTopUp(){ ## member, session, thread (channel:ts), a name for the r
 	case "$topLast" in ''|*[!0123456789]*) topLast=0 ;; esac
 	AgentsToolsSessionChatNewestInto topNewest "$2" "$3"
 	[ "$topNewest" -le 0 ] || [ "$topNow" -le "$topNewest" ] || topQuiet=$(( topNow - topNewest ))
-	topTtl=$(( 5 + topQuiet / 20 ))
-	[ "$topTtl" -le 300 ] || topTtl=300
+	topTtl=$(( 3 + topQuiet / 20 ))
+	[ "$topTtl" -le 60 ] || topTtl=60
 	[ $(( topNow - topLast )) -ge "$topTtl" ] || return 0
 	## The communications reader (F9.3) keeps the file up to date while it is current: a look of its own within the TTL and ten seconds
 	## more stands this one down, and only a reader that is late, or not running, leaves the reading to the wait.
