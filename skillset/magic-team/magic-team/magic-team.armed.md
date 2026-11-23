@@ -145,6 +145,8 @@ All statements apply at once, always. They override magic-team's own general `.a
 - This member may, and must, run every one of its own local procedures and duties exactly as written.
 - `magic-team` hands every work ask to `magic-coordinator`.
 - Everything a member emits is under "The output-style floor".
+- **the-sketch-is-the-reference**: the sketch and the running epic and sprint rows are a change's reference, never its tests. A test that contradicts them is wrong, and it changes with its reason written. A test is never made green by weakening the code or the test.
+- **test-first**: a change that adds or fixes behaviour starts with its failing test, shown to fail before the change. A task that arrives without one makes it first, as its step one.
 
 # Waiting
 

@@ -140,6 +140,7 @@ Steps:
     - It files reflections, for lasting improvements, assessments and investigations.
     - It sets the session's title and its chapters.
   - A second duty of this member answers what reaches it itself. Only its writes to the routine's state note wait for the lock.
+  - Its answers follow the four reply rules of `magic-team.work-duty.routine.md`'s local rules.
 - Work the input before you wait; never wait with input unworked.
 - A task whose nature is research, requirements or epic preparation is worked in `investigation` mode from its first round (`magic-team.armed.md`'s "Conversations").
 - A round is one run through the steps up to **post-the-round**. Where a rule below says "pass" or "round", it means that.
@@ -157,7 +158,7 @@ Steps:
   - accepting a trivial `board-review` item reviewed by this member.
 - The board round decides no go, resolves no blocker by judgement, scores no RICE and triages nothing: those are `magic-team.grooming.routine`'s. A parent's recorded approval is the go for its children, and a closed blocker is no judgement: `check-process-board` applies both. An open design question an investigation surfaced is flagged for grooming and `magic-architect`.
 - **Working an item**: decide what the item's gap needs, then act this round. Nothing left to decide: do the one concrete action (send, spawn, check) through its operation, verify it happened, and record what was done. A real choice: list the options with their outcome and risk, pick one, record the reasoning on the item, then act. Missing information: get it if one call away; otherwise flag it once, naming the missing fact. An outcome is done only when real state backs it: a message sent, a session spawned, a round run.
-- Staleness threshold: 1 hour. At most two respawns per round, oldest `date`/`owner-session-since` first. Work order: by real coverage of the item's goal, then by age; a sub-task count is never the measure.
+- Staleness threshold: 1 hour. At most two respawns per round, oldest `date`/`last-round-at` first. Work order: by real coverage of the item's goal, then by age; a sub-task count is never the measure.
 - Each item is a tracking document. Spawning work on it spawns the group its `participants` names, with the goal, the task, the document and its next iteration. No quorum among that group becomes the no-quorum document, carried the same way.
 - Every brief and nudge this duty sends is a direct message: it states its requirements in this member's own words, for the worker that has to act on them. `magic-team.basic.md`'s "Relay, direct, produce" tells it from a relay. It quotes the human-owner only for a name, path or flag whose exact form is load-bearing. The tracking document each item is, and the reports written on it, are produces.
 

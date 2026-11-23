@@ -152,7 +152,7 @@ Used by **rescore-backlog-rice** and by any member scoring an item.
 
 Run per item during **triage-per-item**. Steps:
 1. `interview-*`, or a `task-*`/`proposal-*` explicitly awaiting interview (read its content, not its title):
-   - `owner-session: interactive` with `owner-session-since` within about an hour: skip; a live session holds it.
+   - the digest marks the item `held` (by <holder>): skip; a live run holds it, and the line names it.
    - otherwise: `--grooming-to-pending`. `magic-coordinator.work-duty.routine`'s **start-pending** starts it, and `magic-team.advance.routine` runs its interview rounds.
 2. Any other item already carrying `approved-by`/`approved-at` (created approved by another routine) → `--grooming-to-pending`.
 3. Any other item, by the group's consensus this pass:

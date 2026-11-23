@@ -110,6 +110,8 @@ Document formats are all the tooling's own (`myx.distro-agents/sh-lib/templates/
 
 Every section a contract names is present, in contract order, with its lead-in, even when empty: write "none". Fix a gap when the file is next touched.
 
+A writer fills a contract's sections for a reader who has none of the writing session's context: the why, the scope and every term. Only a member's own CheckList is written for itself. The rule stands in `magic-team.basic.md`'s "The register".
+
 ### Routine
 
 `# Steps`, with its direct synchronous sub-calls, completes before any extended, dispatched or spawned run begins. `# Closure steps` run after all of that finishes. A board-tracked dispatch counts as finished once tracked. Its result still climbs to its own parent only as "The ladder: one rung at a time" directs.

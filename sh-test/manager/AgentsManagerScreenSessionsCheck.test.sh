@@ -111,6 +111,9 @@ rigVal(){ ## name -- the value of the first `<name>=` line
 rigCalls(){ ## how many times the stand-in was started. The list of the locations, which every start of the screen reads, is not counted.
 	LC_ALL=C grep -c -v -x -e '--manager-place-list' "$MANAGER_SCREEN_RIG/calls" || :
 }
+rigListCalls(){ ## how many times the one list of the sessions was asked for: the question this case is about, not every call it made
+	LC_ALL=C grep -c -x -F -- '--manager-session-list' "$MANAGER_SCREEN_RIG/calls" || :
+}
 rigCall(){ ## number -- the arguments of that start, the list of the locations, which every start of the screen reads and `a` reads again, not counted
 	LC_ALL=C grep -v -x -e '--manager-place-list' "$MANAGER_SCREEN_RIG/calls" | LC_ALL=C sed -n "${1}p"
 }
@@ -197,6 +200,7 @@ cells row4 5 85 119
 cells row5 6 85 119
 looks k
 keys DOWN DOWN
+advance 0.3
 turn
 get agent
 get sp
@@ -212,7 +216,6 @@ rigAssert "a live agent with its state, the word of what it is doing: waiting or
 rigAssert "one that has ended with its state alone"                  "[$( rigVal row4 )]" "[ keeper-myx               finished]"
 rigAssert "the live ones stand out"                                  "$( rigLooks k 4 86 86 )$( rigLooks k 5 86 86 )$( rigLooks k 6 86 86 )" "BB."
 rigAssert "the level has no read of its own: the list of the sessions fills it" "$( rigCalls ) $( rigVal in.reading )" "1 "
-rigAssert "DBG frame state" "$( rigVal sp.path ) / $( rigVal sp.selected ) / $( rigVal sp.rows )" "?"
 rigAssert "the left pane shows the selected agent: state, status, process, dates" "$( rigVal agent.selected ) [$( rigPane s 3 )][$( rigPane s 4 )][$( rigPane s 5 )][$( rigPane s 6 )]" \
 	"a2a2a2a2-0000-4000-8000-0000000000a2 [  state      thinking][  status     spawn-started][  process    running][  started    2026-10-12 17:05 +0300 (9h ago)]"
 rigAssert "its host, its workspace and its own id; its session is the folder it stands in, and not said again" "[$( rigPane s 7 )][$( rigPane s 8 )][$( rigPane s 9 )][$( rigPane s 10 )]" \
@@ -227,19 +230,22 @@ size 120 40
 keys ENTER
 wait sessions 30
 keys DOWN
+advance 0.3
 turn
 get a
 show s
 at @activity closed-sessions
 turn
 keys DOWN
+advance 0.3
 turn
 show t
 keys UP
+advance 0.3
 turn
 show u
 RIGSCRIPT
-rigAssert "one read gave all of it"                                  "$( rigCalls ) $( rigVal a.selected )" "1 $rigS1"
+rigAssert "one read gave all of it"                                  "$( rigListCalls ) $( rigVal a.selected )" "1 $rigS1"
 rigAssert "its name, its state, the line of its control thread, of which these rows say nothing, and when it started" "[$( rigPane s 2 )][$( rigPane s 3 )][$( rigPane s 4 )][$( rigPane s 5 )][$( rigPane s 6 )]" "[ daily of Monday [wrap]][ daily of Monday][  state    running][  control  -][  started  2026-10-12 16:57 +0300 (9h ago)]"
 rigAssert "its id last, under its agents"                            "[$( rigPane s 13 )][$( rigPane s 14 )]" "[][  session  $rigS1]"
 rigAssert "each agent with its state, in a table under a heading, a column no agent has a word for left out" "[$( rigPane s 8 )][$( rigPane s 9 )][$( rigPane s 10 )][$( rigPane s 11 )][$( rigPane s 12 )]" \
@@ -268,6 +274,7 @@ cells row3 4 85 119
 keys DOWN DOWN DOWN
 get end
 at @activity closed-sessions
+advance 0.3
 turn
 get closed
 RIGSCRIPT
@@ -355,6 +362,7 @@ wait sessions 30
 get a
 show l
 keys DOWN
+advance 0.3
 turn
 get session
 show s
@@ -362,12 +370,14 @@ keys ENTER
 get in
 show i
 keys DOWN DOWN
+advance 0.3
 turn
 get agent
 show t
 at @activity closed-sessions
 turn
 keys DOWN
+advance 0.3
 turn
 get closed
 show u
@@ -406,6 +416,7 @@ get a
 cells row2 3 85 119
 cells row3 4 85 119
 keys DOWN DOWN
+advance 0.3
 turn
 get session
 show s

@@ -103,6 +103,8 @@ All statements apply at the same time, always. These rules override a participan
 - A mechanical step is one plain run of the tooling; a tool unsafe to use is fixed itself, never wrapped.
 - Keep `event-track` current as the routine runs.
 - A red test comes before any implementation, and `magic-tester` prepares it. A test written after the change tests the change, not the fault.
+- The change answers the epic row it serves. A change that meets its tests but not its epic row is returned.
+- A build states its failing test as its first step, or names the test already in place.
 
 # Routine-specific tooling
 

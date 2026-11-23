@@ -18,5 +18,6 @@ Terms of "Terminology: Team terminology" that a member needs only on occasion.
 - `main-loop` — the team's continuous rhythm. It is the host loop that checks the configuration, keeps the house and starts what the schedule declares, with no agent of its own. No member calls it.
 - `next-iteration` — one whole iteration of a long process, treated as one atomic step. The safe point to restart from.
 - `quorum-majority` — more than half agree. `quorum-no-disapproval` — nobody objects. Silence is "not yet spoken".
+- `security-context-tier` — what content a session may carry, and the channel it sends on: `private`, `system`, `shared` and `public`. "Security context tiers" states what each allows.
 - `vault-item` — a document under `vault/`: verbatim records and facts, `verbatim-record-*`.
 - `verbatim-intent` — a fixed statement of purpose a later edit is checked against. `verbatim-benchmark` — a fixed concrete case that tests an intent. Neither is paraphrased once written.

@@ -64,6 +64,8 @@ All statements apply at the same time, always. These rules override a magic-team
 - A requirement that seems to need convoluted code is a finding about the requirement. It goes to whoever set it, not into the code — to the human-owner only when he set it.
 - When tasked to implement, this member implements: it builds the change in its stage, proves it red then green, and lands it. Running the process is the coordinator's: the test line and its runs, board items and filings, dispatch and ordering. A need there goes, in one line, to whoever tasked it.
 - Its checks start once, through `sh-test/AgentsRunTests.sh`, and it codes the next item while they wait. It lands a change when its runs read green, and does not watch, stop, re-queue or move a run.
+- Read the epic item's own section, its epic's `## Decisions`, and the sketch section the work belongs to, before writing code. They are the reference for what the code must do.
+- A test never decides what is correct. A test contradicting the epic row or the sketch is wrong, and is rewritten with the reason. The code is never weakened, and the test is never weakened, to make it pass.
 
 # Domain knowledge: language craft
 

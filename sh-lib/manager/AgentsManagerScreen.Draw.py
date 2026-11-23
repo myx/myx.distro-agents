@@ -34,7 +34,8 @@ def listWaits(state):
         return ""
     if demandWaits(state, shown):
         return ""
-    return POPULATING % levelName(state)
+    ## THE LIST SAYS NOTHING OF FILLING: the owner's rule is that a window holds ready, light information and no word of a process it waits on.
+    return ""
 
 
 ## Whether a read waits to be asked for (F11.7: the Config Checker): it is read on demand alone, and nobody asked, so nothing is being populated.
@@ -88,7 +89,8 @@ def viewWaits(state):
         waits.append((opened[0], opened[0] not in state.levelsOf))
     if any(key in state.failed for key, waiting in waits) or not any(waiting for key, waiting in waits):
         return ""
-    return POPULATING % row["label"]
+    ## THE WINDOW SAYS NOTHING OF FILLING EITHER, for the same rule.
+    return ""
 
 
 def listTitle(state):

@@ -14,7 +14,7 @@ cache-prefix: extended
 
 # Summary
 
-The coordinator's out-of-hours duty session: it works the light floor its scan found, handles five things inline, and leaves the rest as items for the work-duty, spawning nothing.
+The coordinator's out-of-hours duty session, the lazy duty. It works the light floor its scan found, handles five things inline, and leaves the rest as items for the work-duty, spawning nothing.
 
 ## Goals
 
@@ -82,6 +82,7 @@ All statements apply at the same time, always. These rules override a participan
 
 - This routine's own executor is permitted and obliged to execute every step exactly as written.
 - Nothing is spawned here, and no member is woken out of hours. A member stays technically available, and this duty never calls on it.
+- The run takes the cheapest service preset its rig offers. This duty carries no work whose quality depends on a larger one.
 - Nothing substantive is done here. An edit, an investigation, a fix, a review and a dispatch all wait for the work-duty.
 - Only a decided thing is applied. A judgement is never made out of hours: it is left for the work-duty.
 - The five handlers of **handle-inline** are closed. A sixth is a change to this file's design, never a live decision.
@@ -121,9 +122,7 @@ Every harness tool and `magic-tooling` operation this routine uses. A harness to
 
 A GAP is a planned tool the implementation lacks.
 
-- **GAP** the light floor: the scan's `--floor off-duty` option, which leaves email, Trello and the external due items off (epic S18.4). The scan refuses an option it does not know, so this routine cannot start first.
-- **GAP** the schedule choosing this routine out of hours, and its duty test reading a duty routine of any kind (epic S18.4). It resolves `<member>.work-duty.routine.md` alone today.
-- **GAP** the keep-or-stop end of a duty, decided by the schedule from the run's own record (epic S18.4). Until it lands, no rule ends this duty.
+none
 
 # Maintainer Notes
 

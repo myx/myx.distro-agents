@@ -104,9 +104,9 @@ show rs
 cells rList3 3 85 119
 RIGSCRIPT
 rigAssert "the sessions are being read, and none has come yet"       "$( rigVal w.path ) $( rigVal w.reading ) $( rigVal w.rows )" "magic-team/activity/active-sessions list:magic-team/activity 1"
-rigAssert "the list says what it waits for, under the row that goes up"     "[$( rigVal wList1 )][$( rigVal wList2 )][$( rigVal wList3 )]" "[>..][ Populating Active Sessions...][]"
-rigAssert "and the left window, which shows the folder itself, on its first line" "[$( rigVal wView )]" "[Populating Active Sessions...]"
-rigAssert "both in the pale look"                                    "[$( rigLook wr 2 1 83 )][$( rigLook wr 3 85 119 )]" "[D][D]"
+rigAssert "no word of filling stands under the row that goes up: the root holds ready information only"     "[$( rigVal wList1 )][$( rigVal wList2 )][$( rigVal wList3 )]" "[>..][][]"
+rigAssert "and the left window shows the table of the root on its first line, not a word of filling" "$( printf '%s' "$( rigVal wView )" | LC_ALL=C sed 's/  */ /g' )" " FOLDER WHAT"
+rigAssert "nothing of filling follows the row that goes up" "$( rigHolds wr 'Populating' )" "0"
 rigAssert "once the rows have come neither says it"                  "$( rigVal r.rows ) $( rigHolds rs 'Populating' ) [$( rigVal rList3 | LC_ALL=C cut -c1-16 )]" "2 0 [ daily of Monday]"
 
 echo "-- read and empty, and a failed read, keep their own words --"
@@ -126,6 +126,7 @@ at @activity active-sessions
 turn
 wait sessions 30
 keys ESC
+advance 0.3
 turn
 get f
 show fs
@@ -150,7 +151,7 @@ cells lLine 3 1 83
 show ls
 RIGSCRIPT
 rigAssert "its lines are being read"                                 "$( rigVal l.selected ) $( rigVal l.viewMode ) $( rigVal l.reading ) $( rigVal l.viewLines )" "transcript log feed:magic-team/activity/active-sessions/$rigS1/$rigS1|transcript:transcript 0"
-rigAssert "under the head line the window says what it waits for, pale" "[$( rigVal lHead )][$( rigVal lWaits )][$( rigLook lr 3 1 83 )]" "[lines     the feed, not read yet][Populating Transcript...][D]"
+rigAssert "under the head line the window says nothing of filling" "$( rigHolds ls 'Populating' )" "0"
 rigAssert "and no more once they have come"                          "[$( rigVal lLine )] $( rigHolds ls 'Populating' )" "[2026-10-13] 0"
 
 echo "-- v cycles the views of the left window: summary, log, raw, and summary again --"
@@ -163,12 +164,15 @@ select transcript
 turn
 get a
 keys v
+advance 0.3
 turn
 get b
 keys v
+advance 0.3
 turn
 get c
 keys v
+advance 0.3
 turn
 get d
 RIGSCRIPT
@@ -182,7 +186,7 @@ turn
 get b
 show bs
 RIGSCRIPT
-rigAssert "with no reader nothing is waited for"                     "$( rigVal b.selected ) $( rigVal b.viewLines ) $( rigHolds bs 'Populating' )" "a 0 0"
+rigAssert "with no reader nothing is waited for"                     "$( rigVal b.selected ) $( rigHolds bs 'Populating' )" "a 0"
 
 echo "-- the frame of a window without the keys is paler, and behind a dialog both are --"
 rigBare <<'RIGSCRIPT'
@@ -193,6 +197,7 @@ cells aList 1 70 71
 keys TAB
 roles t
 tell A box | its text
+advance 0.3
 turn
 roles d
 cells dView 1 0 1

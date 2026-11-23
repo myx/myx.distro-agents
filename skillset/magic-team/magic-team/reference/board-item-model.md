@@ -54,7 +54,6 @@ Not types: `talk-*` (use `interview-*`), `approve-*` (use `approval-*`), `epic-*
 - `epic` — the epic blueprint the item belongs to, by its vault name. With no `approved-by` of its own, the item takes that blueprint's go, and a recall to `board-backlog` is refused while the blueprint carries one.
 - `status` — free-text state label. Dropped when stale.
 - `recheck-date`/`condition` — when to look again, and what for, on a pending, blocked, parked, retained or running item.
-- `owner-session`/`owner-session-since` — the live session kind holding the item, and since when.
 - `session-id` — the active coworking session.
 - `participants` — who worked on it, added as they join.
 - `restart-session` — members to spawn as a coworking session instead of running inline.

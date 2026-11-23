@@ -45,6 +45,8 @@ An epic blueprint: the tracking document of the epic-* routines, kept as a stand
 | `jira-synced-at` | optional | member | `date-time` | When the hub ticket last matched. |
 | `confluence-page` | optional | member | `text` | The epic's page in the documents space, written by the mirror. |
 | `confluence-synced-at` | optional | member | `date-time` | When that page last matched. |
+| `approved-by` | optional | member | `approval-ref` | Who gave the go, with the session and the time. Written with `approved-at`. |
+| `approved-at` | optional | member | `date-time` | When the go was given. Written with `approved-by`. |
 
 ## Value forms
 
@@ -54,6 +56,7 @@ An epic blueprint: the tracking document of the epic-* routines, kept as a stand
 - `owner-name` — a `member`, or a non-acting owner such as an external contact.
 - `item-names` — bare item names, no folder, no `.md`, comma-separated, no brackets.
 - `enum` — one of the words listed after it.
+- `approval-ref` — `<member> (<session-id>, <iso-utc>)`.
 - `text` — free text on one line.
 
 ## Body

@@ -195,17 +195,20 @@ rigScript <<'RIGSCRIPT'
 keys ENTER
 wait sessions 30
 keys DOWN
+advance 0.3
 turn
 get s1
 show s1
 cells keys1 37 1 83
 cells keys1Status 39 0 120
 keys DOWN
+advance 0.3
 turn
 show s2
 cells keys2 37 1 83
 cells keys2Status 39 0 120
 keys DOWN
+advance 0.3
 turn
 show s4
 cells keys4 37 1 83
@@ -213,11 +216,13 @@ cells keys4Status 39 0 120
 at @activity closed-sessions
 turn
 keys DOWN
+advance 0.3
 turn
 show s3
 cells keys3 37 1 83
 cells keys3Status 39 0 120
 keys DOWN
+advance 0.3
 turn
 get s5
 show s5
@@ -242,10 +247,12 @@ keys ENTER
 wait sessions 30
 keys DOWN
 wait view 30
+advance 0.3
 turn
 show s1
 keys DOWN
 wait view 30
+advance 0.3
 turn
 get s2
 show s2
@@ -341,6 +348,7 @@ get refused
 show f
 keys ENTER
 wait sessions 30
+advance 0.3
 turn
 get after
 cells afterRow 3 85 119
@@ -364,6 +372,7 @@ get failed
 show f
 keys ENTER
 wait sessions 30
+advance 0.3
 turn
 get after
 cells afterRow 3 85 119
@@ -377,26 +386,33 @@ rigCase cannot
 rigScript <<RIGSCRIPT
 keys c
 get section
+advance 0.3
 turn
 keys ENTER
 wait sessions 30
 keys c
 get up
+advance 0.3
 turn
 root launch
+advance 0.3
 turn
 keys c
 get launch
+advance 0.3
 turn
 at @activity active-sessions $rigS1
+advance 0.3
 turn
 keys DOWN
+advance 0.3
 turn
 get agent
 cells agentKeys 37 1 83
 cells agentKeysStatus 39 0 120
 keys c
 get onAgent
+advance 0.3
 turn
 turn 3
 get end
@@ -451,9 +467,11 @@ get a
 cells row3 3 85 119
 show u
 keys DOWN DOWN
+advance 0.3
 turn
 show early
 wait view 30
+advance 0.3
 turn
 get s
 show s

@@ -153,7 +153,7 @@ AgentsToolsSpawnProxyCliKind(){ ## resolved cli
 		kindName="${kindFile##*/}"
 		kindName="${kindName#Agents}"
 		kindName="$( printf '%s' "${kindName%Harness.sh}" | LC_ALL=C tr 'ABCDEFGHIJKLMNOPQRSTUVWXYZ' 'abcdefghijklmnopqrstuvwxyz' )"
-		[ "$kindName" != "$1" ] || { printf 'harness' ; return 0 ; }
+		[ "${kindName//-/}" != "${1//-/}" ] || { printf 'harness' ; return 0 ; }
 	done
 	printf 'native'
 	return 0

@@ -93,7 +93,7 @@ Steps:
    Make the dispatch your best guess: the session type, the task, the members and the permissions. Work out the tools, access and expertise it needs from the task and its targets (paths, Confluence pages, any text). That tells whom to invite.
    A dispatch whose work is code, shell, awk or config names three required references in its brief: `magic-developer/reference/code-craft.md`, `magic-developer/reference/shell.md` and `magic-tester/reference/code-review.md`. The review runs the same three (`magic-team.handback-review.routine`, **review-code**). A prose, board or data dispatch names none of them.
 3. **spawn-ask-access-once**: Before the first spawn, ask what the work needs as one Permission set. Steps:
-   - work out every place, in every workspace, and every tool, for every member the work involves, from the brief's `access:` line and its targets.
+   - work out every place, in every workspace, and every tool, for every member the work involves. Take them from the brief's `access:` line and its targets.
    - ask it once with `--request-permission-set`, on the dispatch's item: one `--entry` per place, one `--participant` per planned member.
    - read what those members already hold with `--list-permissions --member <member>` (`DistroAgentsGrants`), and ask only for what that lacks.
 4. **spawn-launch**: Spawn with the team `Agent` tool (`mcp__myx_distro__Agent` in a native client), never a client's in-process subagent. Further members join by the session id the first spawn printed. `--spawn-session` starts a routine's own session with its executors in one call. Name the likely members, permissions and tools on it with `--participants`, `--likely-permission` and `--likely-tool`.
@@ -213,6 +213,9 @@ The fast gate at task creation: may this task exist, and may the asking member a
 
 - No task directs a member outside a domain another member owns.
 - No member creates a task telling another member to do something destructive or irreversible outside that action's established mandate. What counts as destructive is the acting member's own file (for infrastructure, `magic-devops.armed.md`'s "Destructive and irreversible actions").
+- No test decides what a task must build. Before a dispatch is written, the epic row and the sketch section it serves are read, and they are the reference.
+- A dispatch whose work adds or fixes behaviour states its failing test as the task's step one, or names the test already in place. A task with neither is not dispatched.
+- A brief tells the member that the epic row and the sketch are the reference, and that a test contradicting either is wrong.
 - This member asks once at the dispatch, before any member starts, for what the whole task needs (`spawn-one-dispatch`'s **spawn-ask-access-once**). A member's own ask is the rare fallback, for a gap the set left. A permission the session will need is planned into its `dispatch-*` item's `access-control:` rows, with `--request-permission-set`. An entry may name a place as `@<name>[:<glob>]`. `.skillset-shared` and `.skillset-.local` are two built-in places, needing no registration. The dispatch names the namespaces its work reads (`--list-namespaces`).
 - **`magic-coordinator` is the mandated channel to the human-owner**, for status, questions and approvals. No other member seeks his approval or verifies Slack, Trello or approval content on its own initiative. Inside a session it coordinates:
   - Members ask this member, by `AskQuestion`, for consent and decisions ("Escalation and chain of command"). Their permission asks go to `magic-coordinator.permission-escalation.routine`, which this member runs.

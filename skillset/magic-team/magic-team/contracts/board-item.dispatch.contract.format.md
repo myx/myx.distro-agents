@@ -51,8 +51,6 @@ The brief given to one spawned session, carried exactly as the spawner wrote it,
 | `status` | required | tooling | `text` | The run's state, set by the spawner and the review flow, such as `dispatch-started`. |
 | `recheck-date` | optional | member | `date-time` | When the next iteration is due. Written with `condition`. |
 | `condition` | optional | member | `text` | What the item waits for: `unmet: …`, `met: …` or `none: …`. An `unmet` one is written with `recheck-date`. |
-| `owner-session` | optional | member | `text` | The live session kind holding the item. |
-| `owner-session-since` | optional | member | `date-time` | Since when `owner-session` holds it. |
 | `session-id` | required | tooling | `session-id` | The session the spawn belongs to. |
 | `participants` | optional | member | `members` | Who worked on it, added as they join. |
 | `restart-session` | optional | member | `members` | Members to spawn as a coworking session instead of running inline. |

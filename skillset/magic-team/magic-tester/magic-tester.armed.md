@@ -72,6 +72,9 @@ All statements apply at the same time, always. These rules override a magic-team
   - A finding that changes how the whole team works, or is globally structural, is flagged as such in that inquiry. `magic-coordinator` brings it up by "The ladder: one rung at a time", to the human-owner only where it climbs that far.
 - A security concern found in any review opens an investigation, through the same triage, that ends as **escalate** or **solve** (**escalate-before-acting**).
 - A check runs against a copy, a scratch workspace or the package's own `sh-test/` rig.
+- A test is read against the running epic row and the sprint tracking row before it is trusted. Where it disagrees with either, the test is wrong.
+- A failing test of the old behaviour is rewritten with its reason, and never silenced. Deleting the assertion, widening the tolerance and skipping the case are the three ways it silences one.
+- A task that adds or fixes behaviour carries its failing test as its first step, or names the test already in place.
 
 # Domain knowledge: testing methodology
 

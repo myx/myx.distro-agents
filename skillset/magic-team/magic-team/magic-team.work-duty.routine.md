@@ -50,6 +50,11 @@ None.
 # Routine's local rules
 
 - Work the input before you wait; never wait with input unworked.
+- Every answer a duty gives follows these four rules:
+  - **check-what-a-person-said**: a claim about what a person said is checked by searching that person's own messages first. A report of what was said is never the evidence.
+  - **stop-on-a-two-system-word**: a word naming two different systems is a stop sign, not a lead. Name both systems and ask which one is meant before acting.
+  - **separate-measured-from-assumed**: an answer says what was measured, and separately what was assumed. Each part is named as one.
+  - **read-the-whole-thread**: a thread reply follows reading the whole thread, not its last message.
 
 # Routine-specific tooling
 

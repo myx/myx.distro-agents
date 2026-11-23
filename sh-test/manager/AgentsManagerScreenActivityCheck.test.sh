@@ -280,6 +280,7 @@ keys DOWN
 wait view 30
 show chk
 at @activity active-agents $rigA1
+advance 0.3
 turn
 rowids items2
 at @team magic-coordinator sessions $rigS1 $rigA1
@@ -307,6 +308,7 @@ keys DOWN
 wait view 30
 show none
 at @activity active-sessions $rigS1 $rigA1
+advance 0.3
 turn
 keys DOWN
 wait view 30
@@ -419,42 +421,53 @@ cells mrow2 4 85 119
 cells mrow3 5 85 119
 cells mrow4 6 85 119
 keys DOWN
+advance 0.3
 turn
 get plainSel
 keys ENTER
+advance 0.3
 turn
 get plain
 wait plan 30
+advance 0.3
 turn
 get plainLoaded
 keys BACKSPACE BACKSPACE BACKSPACE BACKSPACE BACKSPACE BACKSPACE BACKSPACE BACKSPACE BACKSPACE BACKSPACE BACKSPACE BACKSPACE BACKSPACE BACKSPACE BACKSPACE BACKSPACE BACKSPACE BACKSPACE BACKSPACE BACKSPACE BACKSPACE BACKSPACE BACKSPACE BACKSPACE BACKSPACE b o a r d
+advance 0.3
 turn
 get plainTyped
 keys ENTER
+advance 0.3
 turn
 wait action 30
 turn 2
 get plainSaved
 keys DOWN ENTER
+advance 0.3
 turn
 get enum
 show enum
 keys DOWN SPACE
+advance 0.3
 turn
 get enumPicked
 keys ENTER
+advance 0.3
 turn
 wait action 30
 turn 2
 get enumSaved
 keys DOWN ENTER
+advance 0.3
 turn
 get path
 wait plan 30
+advance 0.3
 turn
 get pathLoaded
 keys ESC
 keys DOWN ENTER
+advance 0.3
 turn
 get cred
 RIGSCRIPT
@@ -477,13 +490,16 @@ cells stAgents 39 0 120
 at @activity active-sessions
 turn
 keys m RIGHT RIGHT
+advance 0.3
 turn
 show viewmenu
 keys ESC
 at @team
+advance 0.3
 turn
 cells stTeam 39 0 120
 keys m RIGHT RIGHT
+advance 0.3
 turn
 show viewmenuTeam
 RIGSCRIPT

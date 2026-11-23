@@ -64,7 +64,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
    - otherwise: the type default from the table.
    - no row and no `handler-routine:`: flag the item for grooming once. Outcome `no-action`.
 2. **hand-or-run**: decide who runs the round, steps:
-   - the digest marks the item `held` (by <holder>): run nothing, and name the holder. Outcome `no-action`.
+   - the digest marks the item `held` (by <holder>): compare that holder's spawn id with this pass's own run. Another run holds it: run nothing, and name the holder. Outcome `no-action`. This pass's own run holds it: run the round, per the round's single-writer rule.
    - a live session holds the document: send it this pass's findings (`SendMessage`). Never start a second session for it. Outcome `nudged`.
    - the document's owner has a live duty: leave it to that duty, per the round's single-writer rule. Outcome `no-action`.
    - otherwise: run **run-a-round** with the picked routine, then **stop-or-go**. Outcome `advanced`, or the outcome **stop-or-go** ends on.

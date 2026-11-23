@@ -17,16 +17,76 @@
 ## "The advance lock paths: resync, conflict check, and the unlock order".
 ##
 
-## Runs the board's own resync primitive AS ONE REQUEST OF THE STORE'S THREAD (S12.13). Caller declares advanceSyncOut.
-## A DUTY START RUNS NO GIT OF ITS OWN. The team-data thread already serialises every commit and push of the one checkout, and its commits
-## already pull and push. A second serialising path in the acquiring process is what made one rig's starts break each other: the schedule
-## starts every due duty in one pass, so those git steps ran side by side on one working tree and answered `no such ref was fetched`.
-## The thread settles its writers before it moves the tree (S12.4), settles a merge the pull could not, runs the pull again, takes the audit
-## log family out of the index and pushes what it left ahead. So no caller sees a transient refusal of that kind.
+## THE WHOLE STORE'S RESYNC, AS ONE REQUEST OF THE STORE'S THREAD (S12.13). Caller declares advanceSyncOut.
+## It settles every writer, settles a merge the pull could not, runs the pull again, takes the audit log family out of the
+## index and pushes what it left ahead. It is the FALLBACK of a start's guard and never its normal path (S5.5): it moves the
+## whole store, and its caller waits for that, which is the wait a spawn may not have. A start's own git runs under the store
+## lock, so it never runs beside the thread's (AgentsToolsAdvanceLockSync).
 AgentsToolsAdvanceCloneSync(){
 	local syncRoot="$1" syncOrigin="$2" syncBranch="$3"
 	type AgentsToolsTeamDataRequestAsk > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataThread.include"
 	advanceSyncOut="$( AgentsToolsTeamDataRequestAsk sync "$syncRoot" "$syncOrigin" "$syncBranch" )" || return 1
+	return 0
+}
+
+## THE BRANCH IS BROUGHT LEVEL WITH ORIGIN BY A FETCH AND A FAST-FORWARD (S5.5, sketch 5.4). The lock a start guards is read
+## on this branch alone, so this moves the branch alone: no writer is settled, no merge is settled, nothing is pushed, and the
+## store thread is not asked. Prints `ok`, or `failed` and its reason, and answers that as its status. Four states of a store are
+## that failure, and each is the caller's signal to fall back to the whole sync: a branch holding its own commit on a path origin
+## moved, a path it holds edited while origin moves it, a branch origin does not have, and a branch the fast-forward leaves level
+## with nothing while it still holds commits of its own. A HEAD that is not the fetched commit is that last state: the merge
+## answers `Already up to date`, so the tip is compared here rather than trusted to git's status.
+AgentsToolsAdvanceBranchBring(){ ## store root, branch
+	local bringRoot="${1:-}" bringBranch="${2:-}" bringOut="" bringRc=0 bringAhead=""
+	if [ -z "$bringRoot" ] || [ -z "$bringBranch" ] ; then
+		printf 'failed\nthe bring needs the store and its branch\n'
+		return 1
+	fi
+	set +e
+	bringOut="$( git -C "$bringRoot" fetch -q origin "refs/heads/$bringBranch" 2>&1 )"
+	bringRc=$?
+	if [ "$bringRc" -eq 0 ] ; then
+		bringOut="$( git -C "$bringRoot" merge -q --ff-only FETCH_HEAD 2>&1 )"
+		bringRc=$?
+	fi
+	if [ "$bringRc" -eq 0 ] ; then
+		bringAhead="$( git -C "$bringRoot" rev-list FETCH_HEAD..HEAD 2>&1 )"
+		bringRc=$?
+	fi
+	set -e
+	if [ "$bringRc" -ne 0 ] ; then
+		printf 'failed\n%s\n' "${bringOut:-the branch could not be brought level with origin, and git said nothing}"
+		return 1
+	fi
+	if [ -n "$bringAhead" ] ; then
+		printf 'failed\nthe branch holds %s commit(s) origin does not have, so it cannot be brought level by a fast-forward: %s\n' \
+			"$( printf '%s\n' "$bringAhead" | LC_ALL=C awk 'END { print NR + 0 }' )" \
+			"$( printf '%s\n' "$bringAhead" | LC_ALL=C awk 'BEGIN { ORS = "" } { printf "%s%s", ( NR > 1 ? " " : "" ), substr( $0, 1, 12 ) }' )"
+		return 1
+	fi
+	printf 'ok\n'
+	return 0
+}
+
+## THE GUARD OF A START'S LOCK: the branch is brought level with origin, and the whole sync is asked for only where that is
+## refused. Caller declares advanceSyncOut. The store lock is taken for the bring as for every move of this tree, since a
+## fast-forward writes the tree. The take is re-entrant, so a call already holding it takes it again for free; a lock another
+## process holds is a fallback too, since the thread waits its turn for that same lock anyway.
+AgentsToolsAdvanceLockSync(){ ## repository root, origin url, branch
+	local guardRoot="${1:-}" guardOrigin="${2:-}" guardBranch="${3:-}" guardOut="" guardRc=0
+	advanceSyncOut=""
+	type AgentsToolsTeamDataStoreLockTake > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataStoreLock.include"
+	if AgentsToolsTeamDataStoreLockTake 1 "the start's branch bring" ; then
+		guardOut="$( AgentsToolsAdvanceBranchBring "$guardRoot" "$guardBranch" )" || guardRc=$?
+		AgentsToolsTeamDataStoreLockGive
+		if [ "$guardRc" = "0" ] ; then
+			return 0
+		fi
+	else
+		guardOut="the store lock was held, so the branch is brought level by the store thread"
+	fi
+	advanceSyncOut="$guardOut"
+	AgentsToolsAdvanceCloneSync "$guardRoot" "$guardOrigin" "$guardBranch" || return 1
 	return 0
 }
 
@@ -229,13 +289,13 @@ AgentsToolsRoutineLockAcquireOne(){ ## one routine-lock-document value, the sess
 			echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools}: LOCK_UNCHECKABLE -- the board checkout $repoRoot is not on a named branch" >&2
 			return 1
 		fi
-		AgentsToolsAdvanceLockStateCheck "$repoRoot" "$lockRelPath" "routine lock $lockNote" "before the board resync" || return 1
+		AgentsToolsAdvanceLockStateCheck "$repoRoot" "$lockRelPath" "routine lock $lockNote" "before the branch is brought level" || return 1
 		local advanceSyncOut
-		if ! AgentsToolsAdvanceCloneSync "$repoRoot" "$originUrl" "$lockBranch" ; then
-			echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools}: LOCK_UNCHECKABLE -- could not resync the board before taking the lock, so whether the local copy is the published one is UNKNOWN: $advanceSyncOut" >&2
+		if ! AgentsToolsAdvanceLockSync "$repoRoot" "$originUrl" "$lockBranch" ; then
+			echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools}: LOCK_UNCHECKABLE -- the board could not be brought level with origin before taking the lock, so whether the local copy is the published one is UNKNOWN: $advanceSyncOut" >&2
 			return 1
 		fi
-		AgentsToolsAdvanceLockStateCheck "$repoRoot" "$lockRelPath" "routine lock $lockNote" "after the board resync" || return 1
+		AgentsToolsAdvanceLockStateCheck "$repoRoot" "$lockRelPath" "routine lock $lockNote" "after the branch was brought level" || return 1
 		AgentsToolsAdvanceLockHeadCheck "$repoRoot" "$lockRelPath" "$lockBranch" "routine lock $lockNote" || return 1
 	fi
 	local lockRecheck
@@ -779,13 +839,13 @@ AgentsToolsRoutineLockTakeOwn(){ ## routine word, member, owner label
 				echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools}: $takeOp: LOCK_UNCHECKABLE -- the board checkout $repoRoot is not on a named branch" >&2
 				return 1
 			fi
-			AgentsToolsAdvanceLockStateCheck "$repoRoot" "$lockRelPath" "$takeOp" "before the board resync" || return 1
+			AgentsToolsAdvanceLockStateCheck "$repoRoot" "$lockRelPath" "$takeOp" "before the branch is brought level" || return 1
 			local advanceSyncOut
-			if ! AgentsToolsAdvanceCloneSync "$repoRoot" "$originUrl" "$lockBranch" ; then
-				echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools}: $takeOp: LOCK_UNCHECKABLE -- could not resync the board before taking the lock, so whether the local copy is the published one is UNKNOWN: $advanceSyncOut" >&2
+			if ! AgentsToolsAdvanceLockSync "$repoRoot" "$originUrl" "$lockBranch" ; then
+				echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools}: $takeOp: LOCK_UNCHECKABLE -- the board could not be brought level with origin before taking the lock, so whether the local copy is the published one is UNKNOWN: $advanceSyncOut" >&2
 				return 1
 			fi
-			AgentsToolsAdvanceLockStateCheck "$repoRoot" "$lockRelPath" "$takeOp" "after the board resync" || return 1
+			AgentsToolsAdvanceLockStateCheck "$repoRoot" "$lockRelPath" "$takeOp" "after the branch was brought level" || return 1
 			AgentsToolsAdvanceLockHeadCheck "$repoRoot" "$lockRelPath" "$lockBranch" "$takeOp" || return 1
 		fi
 	fi
@@ -901,6 +961,8 @@ AgentsToolsRoutineLockCloseOwn(){ ## routine word, member
 				if [ "$pushRc" -ne 0 ] ; then
 					echo "⚠️ WARNING: ${MDSC_CMD:-DistroAgentsTools} $closeOp: push failed after unlock commits landed locally -- closing anyway (same tolerance as AgentsToolsItemUpsert's own commit push): $pushOut" >&2
 				fi
+				## THE CLOSE'S RESYNC IS THE WHOLE ONE: the unlock is already committed and about to be pushed, so this is the
+				## state the store thread exists for, and a closing session is not a start (S5.5 binds starts alone).
 				if ! AgentsToolsAdvanceCloneSync "$repoRoot" "$originUrl" "$lockBranch" ; then
 					echo "⚠️ WARNING: ${MDSC_CMD:-DistroAgentsTools} $closeOp: board resync failed after the unlock landed locally -- closing anyway, the checkout is left unreconciled: $advanceSyncOut" >&2
 				fi

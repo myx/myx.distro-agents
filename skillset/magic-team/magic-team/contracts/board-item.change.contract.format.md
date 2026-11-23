@@ -51,8 +51,6 @@ A record of a change.
 | `status` | optional | member | `text` | A state label in free text; dropped when stale. |
 | `recheck-date` | optional | member | `date-time` | When the next iteration is due. Written with `condition`. |
 | `condition` | optional | member | `text` | What the item waits for: `unmet: …`, `met: …` or `none: …`. An `unmet` one is written with `recheck-date`. |
-| `owner-session` | optional | member | `text` | The live session kind holding the item. |
-| `owner-session-since` | optional | member | `date-time` | Since when `owner-session` holds it. |
 | `session-id` | optional | member | `session-id` | The active coworking session. |
 | `participants` | optional | member | `members` | Who worked on it, added as they join. |
 | `restart-session` | optional | member | `members` | Members to spawn as a coworking session instead of running inline. |

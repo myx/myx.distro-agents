@@ -164,6 +164,7 @@ keys DOWN
 wait view 10
 show ask
 at @teamdata
+advance 0.3
 turn
 wait list 10
 show teamdata
@@ -195,12 +196,14 @@ keys DOWN
 wait focus 10
 keys r
 wait check 30
+advance 0.3
 turn
 show checker
 roles checkerr
 keys DOWN
 wait focus 10
 wait plan 10
+advance 0.3
 turn
 show keys
 root manuals
@@ -211,6 +214,7 @@ keys DOWN DOWN
 wait focus 10
 show commands
 style bw
+advance 0.3
 turn
 show commandsBw
 style magic

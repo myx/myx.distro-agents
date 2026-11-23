@@ -18,6 +18,27 @@ def readWords(entry, state, values, filtered=True):
     ## the words a feature's own switch adds: the name of its function in this namespace, asked of the state
     if entry.get("extra"):
         words.extend(globals()[entry["extra"]](state))
+    ## A PLACEHOLDER WITH NO VALUE TAKES ITS OPTION WITH IT: `--pending-id {id}` with no id is no option at all, and an empty argument is not the same as
+    ## none. The tooling that reads the list of pending replies takes no id beside its --count, and refused one that was left dangling this way.
+    kept = []
+    index = 0
+    while index < len(words):
+        word = words[index]
+        if word.startswith("{") and word.endswith("}") and not values.get(word[1:-1]):
+            index += 1
+            continue
+        if word.startswith("--") and index + 1 < len(words) and words[index + 1].startswith("{") and words[index + 1].endswith("}") \
+                and not values.get(words[index + 1][1:-1]):
+            index += 2
+            continue
+        kept.append(word)
+        index += 1
+    words = kept
+    if "read-pending-reply" in words:
+        try:
+            open("/Users/myx/Workspaces/ws-myx-devops/.local/temp/pr.txt", "a").write("%s\n" % " ".join(words))
+        except Exception:
+            pass
     return [word.replace("{id}", values.get("id", "")).replace("{level}", values.get("level", "")).replace("{parent}", values.get("parent", ""))
             .replace("{session}", values.get("session", "")).replace("{member}", values.get("member", "")).replace("{run}", values.get("run", ""))
             .replace("{routine}", values.get("routine", ""))
@@ -233,6 +254,11 @@ def readNow(state, standToo=False):
         ## selection that changes brings other words, and that read is made.
         if (READS.get(key) or {}).get("once") and state.answered.get(key) and (state.started.get(key) or {}).get("words") == words:
             continue
+        ## A READ THAT HAS ANSWERED IN THESE WORDS IS NOT FORCED AGAIN: the action that brought the user here does not change what it asks, and
+        ## asking it again is the same question twice.
+        answered = state.answered.get(key) or (key in state.levelsOf and (state.started.get(key) or {}).get("words") == words)
+        if answered and (state.started.get(key) or {}).get("words") == words:
+            continue
         ## one that is read on demand alone is asked for by its own command, not by this;
         ## neither is one that is read seldom, but while it is the list shown
         if not (READS.get(key) or {}).get("demand") and not seldomNow(state, key):
@@ -306,6 +332,12 @@ def startDueReads(state, reader, now):
         declared = (readEntry(key) or {}).get("period")
         aged = now - last.get("ended", last["at"]) >= (declared if declared else max(REFRESH_SECONDS, 3 * took)) and not once if last else False
         due = key in state.forced or (not (READS.get(key) or {}).get("demand") and (last is None or last["words"] != words or aged))
+        ## the two calls of one participant read are not started here: this path never sees its words.
+        if key.startswith("view:") and "|" not in key:
+            try:
+                open("/Users/myx/Workspaces/ws-myx-devops/.local/temp/st.txt", "a").write("st=%s due=%s last=%s key=%s\n" % (id(state) % 100000, due, bool(last), key[-24:]))
+            except Exception:
+                pass
         if due and reader.start(kind, key, words):
             state.started[key] = {"at": now, "words": words}
             state.forced.discard(key)
