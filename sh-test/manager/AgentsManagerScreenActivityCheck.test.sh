@@ -254,6 +254,7 @@ rigCase participants
 rigScript <<RIGSCRIPT
 at @activity active-sessions
 wait sessions 30
+callsreset
 keys DOWN ENTER
 get in
 rowids ids

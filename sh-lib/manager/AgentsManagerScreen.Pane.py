@@ -115,6 +115,14 @@ def followSelection(state, idle=False):
     ## the title is the row's and its mode's, taken again each turn a pane follows: the mode changes without the key changing
     state.view["title"] = rowTitle(state, row)
     ## the looks of the lines are made with them: those its maker set, and over them those a
+    ## A LEVEL THAT IS NEW HOLDS NOTHING OF THE ONE BEFORE: the pane of an item is made for that item, and the list of a level for that level, so the
+    ## screen never shows the level it has left while the new one is being read. Without this the previous table stood long after the level changed.
+    if state.view.get("level") != levelKey(state.path):
+        state.view["level"] = levelKey(state.path)
+        state.view["lines"] = []
+        state.view["head"] = []
+        state.view["feed"] = None
+        state.view["text"] = None
     ## line carries (Looked); where no line is made new, those of the lines that stand
     kept = state.view["looks"]
     state.view["looks"] = {}

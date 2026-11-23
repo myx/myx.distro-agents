@@ -411,6 +411,9 @@ def scriptRun(module):
         elif command == "keys":
             for key in words:
                 turn(" " if key == "SPACE" else key)
+        elif command == "callsreset":
+            ## `callsreset`: forget the dispatcher calls so far, so one screen entry's calls are counted alone in a case that enters twice
+            open(os.path.join(os.environ["MANAGER_SCREEN_RIG"], "calls"), "w").close()
         elif command == "turn":
             for count in range(int(words[0]) if words else 1):
                 turn()

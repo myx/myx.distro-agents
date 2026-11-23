@@ -726,11 +726,9 @@ def drawLinesBody(surface, state, layout, box):
             putLooked(surface, state, top + headHeight, column, stuck, room, PLAIN, stuck.looks, placing)
             continue
         putViewLine(surface, state, top + headHeight + offset, column, state.view["top"] + offset, room, placing, marked)
-    if contentHeight > headHeight and viewWaits(state):
-        surface.put(top + headHeight, column, cutToCells(viewWaits(state), room), DIM)
-
-
-    elif contentHeight > headHeight and not state.view["lines"] and viewAnswered(state):
+    if contentHeight > headHeight:
+        drawLoading(surface, state, top + headHeight, column, room, contentHeight - headHeight)
+    if contentHeight > headHeight and not state.view["lines"] and viewAnswered(state):
         surface.put(top + headHeight, column, cutToCells(emptyViewLine(state), room), DIM)
     if filterLineShown(state):
         ## the line of the filter, on the last line of the window; the cursor stands after what is typed while the line is open
@@ -739,6 +737,45 @@ def drawLinesBody(surface, state, layout, box):
         if state.view["table"].get("filterOpen") and state.focus == "view" and state.dialog is None and state.menu is None:
             surface.cursor(top + contentHeight, column + min(textWidth(typed), room - 1))
     return (len(state.view["lines"]), state.view["top"], contentHeight - headHeight)
+
+
+## The frames of the spinner, a quarter turn each.
+SPINNER = ("\u25dc", "\u25dd", "\u25de", "\u25df")
+
+## A spinner where a window waits: a big one centred in the window where it holds nothing of its item yet, and a small boxed one over what it
+## already shows while that is being read again. The frames turn with the clock, so one look follows another.
+def drawLoading(surface, state, top, column, room, height):
+    ## NOTHING READ OR RUNNING, AND NOTHING ANSWERED YET FOR THIS LEVEL EITHER: a level that has just been entered waits its rest before its read is
+    ## asked (REST_SECONDS), and that wait is loading too - the window shows the spinner from the moment the level changes, not from the moment the
+    ## call starts.
+    loading = bool(state.reading or state.calls or state.follow is not None)
+    if not state.view["lines"] and not loading and viewAnswered(state):
+        return
+    if state.view["lines"] and not loading:
+        return
+    if room < 6 or height < 1:
+        return
+    frame = SPINNER[int(nowEpoch() * 8) % len(SPINNER)]
+    ## OVER WHAT STANDS, A SMALL BOXED ONE AT THE FOOT OF THE PANE: what a list already gave of an item stands there as its summary, and the read of
+    ## that item fills it out with its facts, its agents and its lists. While that read - or any read of what is shown - is out, the box says so, on
+    ## the pane's last line, where nothing of the item stands beyond what it shows there.
+    if state.view["lines"]:
+        box = "[%s]" % frame
+        if height >= 1 and room > textWidth(box) + 1:
+            surface.put(top + height - 1, column + room - textWidth(box) - 1, box, PLAIN)
+        return
+    if height < 3:
+        surface.put(top, column + max(0, (room - 1) // 2), frame, PLAIN)
+        return
+    inner = 7
+    if room < inner + 2:
+        surface.put(top + height // 2, column + max(0, (room - 1) // 2), frame, PLAIN)
+        return
+    left = column + max(0, (room - inner - 2) // 2)
+    middle = top + height // 2
+    surface.put(middle - 1, left, "\u250c" + "\u2500" * inner + "\u2510", PLAIN)
+    surface.put(middle, left, "\u2502" + "   " + frame + "   " + "\u2502", PLAIN)
+    surface.put(middle + 1, left, "\u2514" + "\u2500" * inner + "\u2518", PLAIN)
 
 
 ## The body of a window that shows rows: the level of the list, its selection in the look

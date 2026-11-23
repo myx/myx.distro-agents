@@ -262,7 +262,9 @@ def readNow(state, standToo=False):
         ## one that is read on demand alone is asked for by its own command, not by this;
         ## neither is one that is read seldom, but while it is the list shown
         if not (READS.get(key) or {}).get("demand") and not seldomNow(state, key):
-            state.forced.add(key)
+            ## A LEVEL THAT STANDS ON ANOTHER LEVEL'S READ FORCES THAT READ: the section's own key is an alias, and the list it stands on is what
+            ## an action must ask again - asking the alias started nothing, which left the list as it was before the action.
+            state.forced.add((READS.get(key) or {}).get("from") or key)
     ## a read that decides what stands in the list at all is asked again at each of these: what the user changed, or the refresh, may have changed it
     for key, entry in READS.items():
         if entry and entry.get("recheck"):
@@ -333,11 +335,15 @@ def startDueReads(state, reader, now):
         aged = now - last.get("ended", last["at"]) >= (declared if declared else max(REFRESH_SECONDS, 3 * took)) and not once if last else False
         due = key in state.forced or (not (READS.get(key) or {}).get("demand") and (last is None or last["words"] != words or aged))
         ## the two calls of one participant read are not started here: this path never sees its words.
-        if key.startswith("view:") and "|" not in key:
-            try:
-                open("/Users/myx/Workspaces/ws-myx-devops/.local/temp/st.txt", "a").write("st=%s due=%s last=%s key=%s\n" % (id(state) % 100000, due, bool(last), key[-24:]))
-            except Exception:
-                pass
+        ## THE SAME QUESTION ANSWERED ONCE: another key of the screen may name this operation in these very words, and its answer serves this key
+        ## too, instead of the tooling being asked again.
+        ## A LIST KEEPS ITS OWN PERIOD: only the reads of an item are shared this way, since a list must be asked again when its period passes or its
+        ## order changes.
+        if due and key.startswith(("view:", "feed:", "acts:", "fact:")) and tuple(words) in state.answersByWords:
+            ## the answer stands, for this key too: an action that forced the read again changes nothing for a question already answered
+            if key not in state.answered:
+                applyResult(state, dict(state.answersByWords[tuple(words)], key=key))
+            continue
         if due and reader.start(kind, key, words):
             state.started[key] = {"at": now, "words": words}
             state.forced.discard(key)
@@ -399,6 +405,8 @@ def formApplies(formFacts, state):
 ## an action goes to applyCall.
 def applyResult(state, result):
     key = result["key"]
+    if result.get("status") == 0 and not key.startswith("action:"):
+        state.answersByWords[tuple(result["words"])] = result
     if key.startswith("action:"):
         applyCall(state, result)
         return
@@ -533,6 +541,11 @@ class OperationReader:
         return dict((kind, call["key"]) for kind, call in self.running.items())
 
     def start(self, kind, key, words, inputText=None):
+        ## ONE QUESTION ONCE: another key may name the same operation in the same words - the frontmatter of a routine and its own view, a session
+        ## and its participant - and while that answer is out it serves both. This is the one place every call of the screen passes.
+        for other in self.running.values():
+            if list(other.get("words") or ()) == list(words):
+                return False
         if kind in self.running:
             return False
         folder = self.scratch()

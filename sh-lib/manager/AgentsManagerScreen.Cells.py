@@ -41,7 +41,10 @@ def isEmoji(cluster):
         return True
     if 0x1F1E6 <= first <= 0x1F1FF:
         return len(cluster) > 1
-    return first >= 0x1F000 or 0x2600 <= first < 0x27C0 or 0x2300 <= first < 0x2400 or 0x2B00 <= first < 0x2C00
+    ## THE SYMBOL BLOCKS ARE TEXT UNLESS A MARK SAYS OTHERWISE: Miscellaneous Symbols, Dingbats, Miscellaneous Technical and Symbols and Arrows
+    ## (▼ ▬ ✂ ☑ ⚙ ⌚) are drawn one cell wide by the terminals we use; counting them as emoji moved every column after them by one and made the
+    ## list ragged. A selector (U+FE0F), a join or a keycap above already carries the ones meant as emoji.
+    return first >= 0x1F000
 
 
 ## The cells a character of the screen takes on a line: an emoji EMOJI_CELLS, or its parts'

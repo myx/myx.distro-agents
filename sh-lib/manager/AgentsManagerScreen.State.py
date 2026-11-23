@@ -153,6 +153,9 @@ class ManagerState:
         ## The reads of views that have answered, by their read key: the wait and the empty state ask
         ## this, not a slot that may be empty or stale.
         self.answered = {}
+        ## THE ANSWERS, BY THE WORDS THEY WERE ASKED IN: one operation may be named by two keys of the screen (the frontmatter of a routine and its
+        ## own view, a session and its participant), and the one answer serves both instead of asking the tooling the same question twice.
+        self.answersByWords = {}
         ## the calls that act, asked for and not started yet, in their order, and what each
         ## call that was asked for is about, by its key (askCall)
         self.calls = []
