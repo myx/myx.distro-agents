@@ -97,6 +97,9 @@ def shownReads(state):
         entry = viewReadOf(state, row, part)
         if entry and (part != "feed" or modeOf(state)["feed"]):
             values["id"] = row["id"]
+            ## A PARTICIPANT'S READ NAMES ITS RUN: the row's own id is the spawn it stands for, and {run} is the id of the run the read is of. Empty,
+            ## every agent of a session asked the same question in the same words - one answer served them all, and the second showed the first.
+            values["run"] = ((row.get("run") or {}).get("id") or "")
             values["routine"] = (row.get("routine") or {}).get("selector", "")
             wanted.append((part, part + ":" + viewKeyOf(state), readWords(entry, state, values)))
     return wanted
