@@ -371,6 +371,11 @@ AgentsToolsSessionControlStartOutcome(){ ## session id, pid of the process that 
 ## the rows could not be read; a start that fails is a line, never a failure of the check.
 AgentsToolsSessionControlCheck(){ ## -- stdin: measured rows
 	local checkJudged checkWant="" checkLive checkSession checkWord checkHosts checkLog checkWritten checkNow="" checkAnswer checkNl=$'\n'
+	local checkStarted=0 checkMost="${MDAT_SESSION_CONTROL_START_MAX:-5}"
+	case "$checkMost" in ''|*[!0123456789]*|0) checkMost=5 ;; esac
+	## A SWITCH A PERSON FLIPS WHEN THE THREADS THEMSELVES ARE THE TROUBLE: with MDAT_SESSION_CONTROL_THREADS=off no check starts any, and the
+	## sessions' own runs carry on as they were. A person whose machine a pass leaves unusable sets it off and nothing of this is started.
+	case "${MDAT_SESSION_CONTROL_THREADS:-on}" in off) return 0 ;; esac
 	checkJudged="$( AgentsToolsSessionControlJudged )" || return 1
 	while read -r checkSession checkWord checkHosts ; do
 		case "$checkWord" in running|open) checkWant="$checkWant$checkSession$checkNl" ;; esac
@@ -396,7 +401,13 @@ AgentsToolsSessionControlCheck(){ ## -- stdin: measured rows
 				;;
 			esac
 		fi
+		## A pass starts at most checkMost threads; the rest wait for the next pass.
+		if [ "$checkStarted" -ge "$checkMost" ] ; then
+			printf '%s %s\n' "$checkSession" "deferred - this pass started $checkMost thread(s) already, and the next takes this one"
+			continue
+		fi
 		checkAnswer="$( AgentsToolsSessionControlStart "$checkSession" )" || :
+		checkStarted=$(( checkStarted + 1 ))
 		printf '%s %s\n' "$checkSession" "${checkAnswer:-failed - the start said nothing}"
 	done <<< "$checkWant"
 	return 0
@@ -434,7 +445,7 @@ AgentsSessionControlPidRows(){
 ## The epoch of the last write of a session's control-thread log, into the named variable. rc 1 where it has none.
 AgentsSessionControlLogEpochInto(){ ## variable, session
 	local controlLog="" controlAt="" controlStore=""
-	type AgentsSessionStoreDirInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+	type AgentsSessionStoreDirInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.Paths.include"
 	printf -v "$1" '%s' ""
 	case "${2:-}" in ''|-|.|..|*/*|*[[:space:]]*) return 1 ;; esac
 	AgentsSessionStoreDirInto controlStore "${MMDAPP:-}" || return 1

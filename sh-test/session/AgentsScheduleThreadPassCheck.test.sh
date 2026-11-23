@@ -36,6 +36,7 @@ rigAssert(){ ## what is asserted, got, want
 	return 0
 }
 ## THE STAND-INS, inherited by the include's own `type ... || . ` guards so no real one is sourced over them:
+
 ##   the flag reader prints the lines the pass reads, from RIG_FLAGS, a file of one `<flag>: yes|no` line each;
 ##   the pass's two steps count themselves in RIG_STEPS, so "a pass ran" and "a pass did not run" are told apart.
 rigRun(){ ## -- what the pass answers, and how many passes ran

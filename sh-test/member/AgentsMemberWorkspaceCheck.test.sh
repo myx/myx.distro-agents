@@ -226,7 +226,7 @@ rigTraceIn(){ ## workspace, args... -- the same under bash -x; the trace in $rig
 }
 rigResolve(){ ## workspace, member, operation -- the resolver on its own; stdout in resOut, stderr in resErr, rc in resRc
 	resRc=0
-	( env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWork/$1" MDSC_CMD=RigCmd bash -c '. "$1" ; '"$rigResolveFn"' "$2" "$3"' rig-resolve "$rigResolveInclude" "$2" "${3:-RigOp}" ) > "$rigTmp/resOut" 2> "$rigTmp/resErr" || resRc=$?
+	( env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWork/$1" MDLT_ORIGIN="$MDLT_ORIGIN" MDSC_CMD=RigCmd bash -c '. "$1" ; '"$rigResolveFn"' "$2" "$3"' rig-resolve "$rigResolveInclude" "$2" "${3:-RigOp}" ) > "$rigTmp/resOut" 2> "$rigTmp/resErr" || resRc=$?
 	resOut="$( cat "$rigTmp/resOut" )" ; resErr="$( cat "$rigTmp/resErr" )"
 }
 rigBring(){ ## workspace, member, operation -- the bring on its own, under the member set root rigPre carries, if any; stdout in brOut, stderr in brErr, rc in brRc

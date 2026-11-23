@@ -89,9 +89,15 @@ def newView(viewKey, feeds):
 ## of how a view shows, the feed or the raw log, is the user's for the run of the screen:
 ## it is kept as the selection moves.
 @onShownLevel
-def followSelection(state):
+def followSelection(state, idle=False):
     viewKey = viewKeyOf(state)
     row = selectedRow(state)
+    ## THE RUNNING SCREEN FOLLOWS A SELECTION THAT HAS RESTED, never one still moving: a person running down a menu passes every row on the way,
+    ## and rebuilding the pane for each of them is what makes it unreadable. 250 ms after the last change it follows, once. A caller driving its own
+    ## turns (the checks) gets every frame, so what it reads back is what it made.
+    if (state.view["key"] is not None and not getattr(state, "drivenByRig", False)
+            and viewKey != state.view["key"] and state.now - state.restSince < REST_SECONDS):
+        return
     if viewKey != state.view["key"]:
         state.view = newView(viewKey, logShown(state, row))
         ## D5: the filter a start names (--filter), applied once the pane of this item is built,
@@ -106,6 +112,8 @@ def followSelection(state):
         ## what an action answered stands on the item it was asked on, and goes with it
         if state.answer is not None and state.answer["key"] != viewKey:
             state.answer = None
+    ## the title is the row's and its mode's, taken again each turn a pane follows: the mode changes without the key changing
+    state.view["title"] = rowTitle(state, row)
     ## the looks of the lines are made with them: those its maker set, and over them those a
     ## line carries (Looked); where no line is made new, those of the lines that stand
     kept = state.view["looks"]

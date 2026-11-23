@@ -19,6 +19,7 @@ case "$1" in
 	## spawned session names only itself (AgentsToolsActingMemberCheck); tooling calls the
 	## --intern-op-escalation-read implementation below directly.
 	--read-escalation)
+		type AgentsToolsActingMemberCheck > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.ActingMember.include"
 		[ -z "${2:-}" ] || AgentsToolsActingMemberCheck "$2" "${1#--}" || { set +e ; return 1 ; }
 		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 		DistroAgentsTools --intern-op-escalation-read "${@:2}"

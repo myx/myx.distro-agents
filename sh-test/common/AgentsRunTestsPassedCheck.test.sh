@@ -57,8 +57,9 @@ rigPkg(){ ## session -- that copy of the package
 rigPackage(){ ## session -- that copy: the runner under test, two tiny tests, a fixture, a library file and project.inf, beside it a package of the tooling and one that is none of its. A tiny test says in the shared log when it begins and ends; it ends only once the rig lets it where the rig holds it (hold.<test>), and fails where the rig says so (fail.<test>)
 	local packageDir packageTest ; packageDir="$( rigPkg "$1" )"
 	mkdir -p "$packageDir/sh-test/check-fixtures" "$packageDir/sh-lib" "$( rigRoot "$1" )/myx/myx.distro-system/sh-lib" "$( rigRoot "$1" )/myx/rig-other"
-	cp "$rigRunner" "$packageDir/sh-test/AgentsRunTests.sh"
-	mkdir -p "$packageDir/sh-test/check-fixtures" && cp "$(dirname "$rigRunner")/check-fixtures"/runner-*.py "$packageDir/sh-test/check-fixtures"/
+	rsync -t "$rigRunner" "$packageDir/sh-test/AgentsRunTests.sh"
+	mkdir -p "$packageDir/sh-test/check-fixtures" && rsync -t "$(dirname "$rigRunner")/check-fixtures"/runner-*.py "$packageDir/sh-test/check-fixtures"/
+	mkdir -p "$packageDir/sh-test/runner" && rsync -t "$(dirname "$rigRunner")/runner"/*.sh "$packageDir/sh-test/runner"/
 	for packageTest in RigOne RigTwo ; do
 		cat > "$packageDir/sh-test/$packageTest.test.sh" <<'RIGTINY'
 #!/usr/bin/env bash

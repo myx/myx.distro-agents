@@ -30,6 +30,8 @@ rigWs="$rigTmp/ws"
 rigTests="$rigWs/source/myx/myx.distro-agents/sh-test"
 mkdir -p "$rigHome" "$rigWs/.local/.agents" "$rigTests/check-fixtures" || exit 1
 cp "$rigRunner" "$rigTests/AgentsRunTests.sh" || rigRefuse "the runner could not be copied into the rig"
+## THE RUNNER IS A ROUTER: its parts travel with it, or the rig copy finds none and runs nothing.
+mkdir -p "$rigTests/runner" && cp "$( dirname "$rigRunner" )"/runner/*.sh "$rigTests/runner"/ || rigRefuse "the runner parts could not be copied into the rig"
 cp "$(dirname "$rigRunner")/check-fixtures"/runner-*.py "$rigTests/check-fixtures/" || rigRefuse "the runner's keepers could not be copied into the rig"
 printf '#!/usr/bin/env bash\necho "RIG_TINY: OK"\n' > "$rigTests/RigTiny.test.sh"
 

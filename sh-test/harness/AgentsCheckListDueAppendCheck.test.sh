@@ -6,6 +6,7 @@
 ## skipped: it is refused by the CheckList tool when it is written." That holds for the tool's own
 ## whole-list write (:107-115). The append arm (:389-402) writes the item text verbatim, and the
 ## due reader drops an unreadable value at :308 with `continue`.
+
 ## Red today: 2 of 6. Green once an appended item's due mark is refused like a written one's.
 ## Offline: this rig's own trees only, no host reached.
 set -u

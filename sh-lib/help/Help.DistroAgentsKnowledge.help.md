@@ -7,16 +7,19 @@
 📘 syntax: DistroAgentsKnowledge.fn.sh --local-models-list
 📘 syntax: DistroAgentsKnowledge.fn.sh --magic-section-upsert <MAGIC.md path> --section <heading> (--text <text>|--from-stdin)
 📘 syntax: DistroAgentsKnowledge.fn.sh [--mdat-output-format json] [<project selector: --select-*|--filter-*|--remove-*>] (--add-source-docs|--add-board-items|--add-vault-items|--add-inbox-items)... (--query-keyword <text>|--query-pattern <regex>|--query-glob <glob>|--query-open-and|--query-open-or|--query-close)...
+📘 syntax: DistroAgentsKnowledge.fn.sh --add-source-docs [<project selector: --select-*|--filter-*|--remove-*>] (--query-keyword <text>|--query-pattern <regex>|--query-glob <glob>|--query-open-and|--query-open-or|--query-close)...
 📘 syntax: DistroAgentsKnowledge.fn.sh [--help-syntax [<op>]]
 📘 syntax: DistroAgentsKnowledge.fn.sh [--help]
 
 ##  Summary:
 
-		What the team has written, searched, and the registries read. A bare call
-		is a query: the sources added, the projects whose docs it reads, and the
-		terms it answers by, its result the sections that answer, each with its
-		source. The registry operations read the projects, the places, the
-		namespaces and the members, and one member's own help.
+		The lookup over what the team has written, and the registries read. A
+		lookup call adds the sources to read, one store each: `--add-source-docs`
+		and its three siblings, over the projects selected. It adds the terms to
+		answer by with `--query-keyword` and its siblings. Its result is the
+		sections that answer, each with its source. The registry operations read
+		the projects, the places, the namespaces and the members, and one
+		member's own help.
 
 ##  Options:
 

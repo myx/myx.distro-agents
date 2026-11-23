@@ -106,7 +106,7 @@ DistroAgentsSession(){
 		;;
 	esac
 	## The skillset root, as every operation of the tooling settles it (AgentsContext.UseAgentsTools.include).
-	type AgentsToolsSkillsetRootInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWorkspace.include"
+	type AgentsToolsSkillsetRootInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWorkspace.Root.include"
 	AgentsToolsSkillsetRootInto MDAT_SKILLSET_ROOT "${MMDAPP:-}"
 	export MDAT_SKILLSET_ROOT
 	case "$1" in

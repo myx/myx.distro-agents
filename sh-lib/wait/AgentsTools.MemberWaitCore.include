@@ -16,7 +16,7 @@ agentsWaitCoverSources=""
 ## questions store an authority ask is kept in (a contact's tier, a change of his). Printed; where none is, the live store's path, which
 ## is no file, so a caller's test of it says the ask is not there. Every reader of an ask: source resolves it here, never by its own path.
 AgentsWaitAskRecord(){ ## pending id
-	type AgentsToolsPendingRecordPath > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.Authority.include"
+	type AgentsToolsPendingRecordPath > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.PendingPaths.include"
 	AgentsToolsPendingRecordPath "$1" 2> /dev/null || printf '%s' "${MMDAPP:-/nonexistent}/.local/agents/pending/$1.md"
 }
 

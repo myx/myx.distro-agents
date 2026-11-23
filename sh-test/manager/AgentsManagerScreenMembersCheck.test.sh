@@ -313,7 +313,7 @@ show m
 cells keysLine 37 1 83
 cells keysLineStatus 39 0 120
 RIGSCRIPT
-rigAssert "the selection comes onto a member: nothing of it is read yet" "$( rigVal moved.selected ) [$( rigVal moved.reading )] $( rigVal moved.restLeft ) [$( rigVal resting.reading )]" "keeper-myx [] 0.33 []"
+rigAssert "the selection comes onto a member: nothing of it is read yet" "$( rigVal moved.selected ) [$( rigVal moved.reading )] $( rigVal moved.restLeft ) [$( rigVal resting.reading )]" "keeper-myx [] 0.25 []"
 rigAssert "until then the pane shows what the list holds of it, and says that the rest is not read" "[$( rigPane early 3 )][$( rigPane early 5 )][$( rigPane early 11 )]" "[ 📐 Sage Bourne, alias cronjob][ kind      keeper][ Team-member information: not read yet]"
 rigAssert "once it has rested it is read by its name, as a call of its own" "$( rigVal asked.reading ) $( rigCalled '--manager-team-member-read --full keeper-myx' ) $( rigOthers )" "view:magic-team/team|record:keeper-myx 1 0"
 rigAssert "its status, whether a run of it is alive, its workspace, and that n starts it" "[$( rigPane m 6 )][$( rigPane m 7 )][$( rigPane m 8 )][$( rigPane m 9 )]" \

@@ -235,6 +235,12 @@ AgentsHarnessIdleWait(){ ## timeout ('-' for none), then the sources, a leading 
 	type AgentsHarnessActivityWrite > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessWait.include"
 	type AgentsHarnessReply > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessRun.include"
 	local idleTimeout="${1:--}" idleSources idleShown idleOut idleHead idleTarget="" idleArrival idleText idleWaitSources idleKey idleKeepalive=0 idleSignal=""
+	## MDAT_HARNESS_MAX_QUIET_ROUNDS quiet rounds in a row end the idling: this call waits nothing more, and says why. The
+	## count is kept here, in the one function every idling path of a run passes through, so no path can idle past it.
+	if [ "${harnessMaxQuiet:-20}" != 0 ] && [ "${harnessQuietRounds:-0}" -ge "${harnessMaxQuiet:-20}" ] && [ "${1:--}" != signal ] ; then
+		printf '%s\n' "${harnessDim}💤 idle-wait -- $harnessQuietRounds quiet rounds in a row with nothing arriving: this run stops idling, and its next reply ends it${harnessOff}" >&2
+		return 0
+	fi
 	[ $# -eq 0 ] || shift
 	idleSources="$*"
 	case "$idleSources" in 'signal'|'signal '*) idleSignal=1 ; idleSources="${idleSources#signal}" ; idleSources="${idleSources# }" ;; esac
@@ -273,6 +279,7 @@ AgentsHarnessIdleWait(){ ## timeout ('-' for none), then the sources, a leading 
 	done
 	case "$idleHead" in
 		"WAIT-RESULT: RECEIVED")
+			harnessQuietRounds=0
 			## The Wait tool's own last line says to go on with Wait: not a Wait that goes on here, so that line is left off.
 			idleArrival="$( AgentsHarnessIdleDropNext "$idleOut" )"
 			## What arrived is given as a Wait result is: a long report is kept in the session's results/ and named (the one reply layer).
@@ -295,6 +302,7 @@ AgentsHarnessIdleWait(){ ## timeout ('-' for none), then the sources, a leading 
 		;;
 		"WAIT-RESULT: TIMEOUT"*)
 			if [ "$idleKeepalive" = 1 ] ; then
+				harnessQuietRounds=$(( ${harnessQuietRounds:-0} + 1 ))
 				## The keepalive: return to the checkpoint with a text that says the task was already worked, so the next turn is a cheap
 				## request over the cached prefix (the model spends a little to refresh the cache, never the whole history).
 				if [ -n "$idleTarget" ] ; then

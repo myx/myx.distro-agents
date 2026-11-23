@@ -180,7 +180,8 @@ rigAssert "the brief hands over session_thread_ts as <channel>:<ts>" \
 ## The post fails: magic-team names no channel.
 printf 'SLACK_BOT_TOKEN=rig-bot-token-TEAM\n' > "$rigWs/.local/.agents/magic-team.agent.env"
 ## A resolution that succeeded is kept a day (.local/cache/comms/slack/.resolve-<member>.txt, the
-## comms cache's own rule, owner 2026-10-28), so a setting taken away is not seen while its kept
+## comms cache's own rule, ), so a setting taken away is not seen while its kept
+
 ## answer stands. The file names begin with a dot, so they are removed by that name and never by
 ## `*.txt`. This scenario is about the post failing, so the kept answers go with the setting.
 rm -f "$rigWs/.local/cache/comms/slack/".resolve-*.txt

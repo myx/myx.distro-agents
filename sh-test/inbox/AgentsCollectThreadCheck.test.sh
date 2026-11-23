@@ -245,7 +245,7 @@ rigAssert "a pass of three mails is one commit, holding the three notes" "$rigRc
 rigOp mode-none
 rigAssert "no mode: a usage, and a failure" "$( [ "$rigRc" != 0 ] && printf failed ):$( LC_ALL=C grep -c -F -e '--run' "$rigDir/mode-none.err" | LC_ALL=C awk '{ print ( $1 > 0 ) ? "usage" : "none" ; }' )" "failed:usage"
 rigAssert "the main loop checks it on every iteration, as it checks the control threads" "$( LC_ALL=C grep -c -F 'AgentsToolsCollectThreadCheck main-loop' "$rigHere/magic/AgentsTools.InternMainLoop.include" )" 1
-rigAssert "the runner of the checks keeps it from every test" "$( LC_ALL=C grep -c -F 'export MDAT_COLLECT_THREAD=off' "$rigPackage/sh-test/AgentsRunTests.sh" )" 1
+rigAssert "the runner of the checks keeps it from every test" "$( LC_ALL=C grep -c -F 'export MDAT_COLLECT_THREAD=off' "$rigPackage/sh-test/runner/AgentsRunExecute.sh" )" 1
 rigAssert "the rig fixture that ends threads knows its start line and its lock" "$( LC_ALL=C grep -c -F -e 'collect/thread.log' -e 'collect/thread.lock' "$rigFixtures/rig-control-threads.include.sh" | LC_ALL=C awk '{ print ( $1 >= 2 ) ? "yes" : "no" ; }' )" yes
 
 if [ "$rigFailCount" -ne 0 ] ; then

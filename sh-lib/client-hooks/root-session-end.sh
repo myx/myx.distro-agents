@@ -32,12 +32,12 @@ hookWs="${hookWs%/}"
 MDLT_ORIGIN="${MDLT_ORIGIN:-$hookWs/.local}"
 hookLib="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib"
 ## A failed load leaves hookString undefined, so the next hookString call exits 0: the hook never fails the client.
-type hookString > /dev/null 2>&1 || . "$hookLib/client-hooks/AgentsHookPayload.include"
+type hookString > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/client-hooks/AgentsHookPayload.include"
 
 hookString session_id || exit 0
 hookSession="$hookValue"
 hookBare "$hookSession" || exit 0
-type AgentsSessionMarkerFileInto > /dev/null 2>&1 || . "$hookLib/session/AgentsTools.SessionStore.include"
+type AgentsSessionMarkerFileInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
 MMDAPP="$hookWs" AgentsSessionRunRecordInto hookRecord "$hookSession" || :
 [ -z "$hookRecord" ] || exit 0
 MMDAPP="$hookWs" AgentsSessionMarkerFileInto hookEnded "$hookSession" ended || exit 0

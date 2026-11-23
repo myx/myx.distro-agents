@@ -9,7 +9,8 @@
 ##      nothing on stdout, and an error line naming the mandatory key.
 ##   2. runs-at: due from its time on a day of its days, in the team's zone; not before that time; not on another day; once a day:
 ##      a run of it that started that day, whatever became of it, makes it not due again until the next such day. A run of another day,
-##      and one of another routine, do not. `workdays` and `weekend` read the weekend setting, or sat,sun where none is set (the owner, 2026-10-21).
+##      and one of another routine, do not. `workdays` and `weekend` read the weekend setting, or sat,sun where none is set ().
+
 ##   3. runs-after is the trigger: the routine is due when its time has come and the predecessor completed (spawn-succeeded) that
 ##      day; refused, naming the predecessor, while it has not (a run that failed, one that is still open and one of another day are
 ##      not completed); not due, with the time, before its time even when the predecessor completed.

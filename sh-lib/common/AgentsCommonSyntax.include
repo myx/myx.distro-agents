@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsCommonSyntax.include -- what an operation's own syntax line says of the common options: the ones it needs unbracketed,
+## and whether a member is its first argument. Read from a kept index of the manual (AgentsCommonSyntaxIndex.awk), built once per
+## manual change, so an entry point that only has to ask this question parses this file and not the whole option parser.
+##
+
+AgentsCommonSyntaxOf(){ ## tool script, operation -- sets agentsCommonNeeds and agentsCommonFirst, read from the kept index of the manual
+	local needsHelp="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/help/Help.DistroAgentsTools.help.md"
+	local needsBuilder="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsCommonSyntaxIndex.awk"
+	local needsIndex="${MMDAPP:-}/.local/agents/common-options/index"
+	local needsSaid needsLine needsOp needsValue needsFirst
+	agentsCommonNeeds=" " agentsCommonFirst=no
+	[ -f "$needsHelp" ] || return 1
+	## THE INDEX IS KEPT BY THE MANUAL'S OWN STAMP: rebuilt only where the manual is newer than it, or it is not there, into a file
+	## beside itself so a reader never sees half of one. A store that cannot be written is no reason to fail: the pass is made here,
+	## for this call alone, and the next call tries again.
+	needsStamp=""
+	[ ! -s "$needsIndex" ] || IFS= read -r needsStamp < "$needsIndex" 2> /dev/null || :
+	if [ -n "$needsStamp" ] && [ ! "$needsHelp" -nt "$needsIndex" ] && [ "$needsStamp" = "format: myx.distro common-syntax 1" ] ; then
+		needsSaid="$(<"$needsIndex")"
+	else
+		needsSaid="$( LC_ALL=C awk -f "$needsBuilder" "$needsHelp" )"
+		needsTemp=""
+		[ ! -w "${needsIndex%/*}" ] || needsTemp="$( mkdir -p "${needsIndex%/*}" 2> /dev/null && mktemp "$needsIndex.XXXXXX" 2> /dev/null )"
+		if [ -n "$needsTemp" ] && printf '%s\n' "$needsSaid" > "$needsTemp" 2> /dev/null && mv -f "$needsTemp" "$needsIndex" 2> /dev/null ; then : ; else rm -f "${needsTemp:-/nonexistent}" 2> /dev/null || : ; fi
+	fi
+	while IFS='|' read -r needsOp needsValue needsFirst ; do
+		[ "$needsOp" = "$2" ] || continue
+		agentsCommonNeeds=" $needsValue " agentsCommonFirst="${needsFirst:-no}"
+		break
+	done <<< "$needsSaid"
+}

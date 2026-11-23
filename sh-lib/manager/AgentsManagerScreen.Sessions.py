@@ -41,6 +41,9 @@ MARK_LIMIT = "⏳"
 ## beside MARK_LIMIT, since a session can carry both: the latest wording and the whole count.
 MARK_REFUSED = "⛔"
 
+## The states still in flight: a row printed before the phase column says its state here, and its phase is read from it, not taken for closed.
+ACTIVE_STATES = ("running", "busy", "starting", "waiting", "paused", "awaiting-review")
+
 
 ## The label of a session's row: its title, and after it the chapter it is in where it has one.
 def titledLabel(title, chapter):
@@ -81,7 +84,7 @@ def parseSessionRows(text):
                        "usageLimit": fields[12] if len(fields) >= 13 else "-",
                        "refused": fields[13] if len(fields) >= 14 else "-",
                        "chapter": unspaced(fields[14]) if len(fields) >= 15 else "",
-                       "phase": fields[15] if len(fields) >= 16 else "closed"}
+                       "phase": fields[15] if len(fields) >= 16 else ("active" if fields[3] in ACTIVE_STATES or fields[3] == "unknown-foreign" else "closed")}
             session["stored"], session["storedAt"], session["control"] = fields[8:11] if len(fields) >= 11 else ("-", "-", "-")
             row = newRow(fields[1], titledLabel(session["name"] or fields[1], session["chapter"]), "record", True, fields)
             row["session"] = session
@@ -202,7 +205,8 @@ def sessionLines(session, width, info=None, limit=0, wrap=True):
     if runs:
         lines.extend(headingLines("Agents") + agentsTable(runs, width, wrap))
     lines.extend(dispatchLines(dispatch, width))
-    ## The checklist of each member, as it keeps it (owner 2026-10-29): what is done, being done and still to do, at a glance.
+    ## The checklist of each member, as it keeps it (): what is done, being done and still to do, at a glance.
+
     for member, items in sorted(((info or {}).get("checklists") or {}).items()):
         lines.extend(headingLines("CheckList of " + member))
         for item in items:
@@ -298,7 +302,8 @@ def runLines(run, width, info=None, limit=0):
         ("run", unspaced(run["spawn"])),
     ], width)
     lines.extend(dispatchLines(info.get("dispatch") if info else None, width))
-    ## THE PARTICIPANT'S OWN CHECKLIST (owner 2026-10-30, sketch 14.5): the list its CheckList item holds, at the
+    ## THE PARTICIPANT'S OWN CHECKLIST (, sketch 14.5): the list its CheckList item holds, at the
+
     ## end of its Summary, as the session Summary shows the lists of its members.
     listed = ((info or {}).get("checklists") or {}).get(run["member"]) or []
     if listed:
@@ -328,13 +333,6 @@ def sessionsTable(state, held):
         [one["label"], one["tail"], ageText(registryEpoch(one["session"]["started"]), now) or "-", one["session"]["count"],
          tokensShort(one["session"]["tokens"]) if one["session"].get("tokens") else "-", membersText(one["session"]) or "-"] for one in held],
         ("key", "enum", "text", "text", "text", "text"), looks=[[None, stateLook(one["tail"])] + [None] * 4 for one in held])
-
-
-## What `Activity` holds, for the left pane while the section itself or the row that goes up is selected: every session
-## of the workspace, in the table of the sessions (sessionsTable). None until the list has answered.
-def activitySummary(state, path, row, form):
-    rows = sessionRowsHeld(state)
-    return None if rows is None else sessionsTable(state, rows)
 
 
 ## What a list of sessions holds, for the left pane while the folder is selected, or the row that goes up: the sessions of
@@ -1167,6 +1165,7 @@ def sessionsFocus(state, row):
 
 
 ## ... of the item selected in the folder of a participant: at its `Transcript` the summary of the participant, unless the log or
+
 ## the raw log is shown (the modes of the left window are that item's), which the pane then draws from its feed; at its `CheckList`
 ## nothing of its own, since the pane shows the text that was read, rendered as Markdown is.
 def participantFocus(state, row):
@@ -1177,6 +1176,7 @@ def participantFocus(state, row):
 
 
 ## ... of the row selected in `Launchpad`: the routine, or the free prompt.
+
 def launchFocus(state, row):
     if row.get("routine"):
         return routineLines(row["routine"], state.viewWidth)
@@ -1188,15 +1188,19 @@ def launchFocus(state, row):
 ## ---- the lists of `Activity`: made from the rows of the sessions the list read gave ----
 
 ## The sessions that are active, in the order of the list, and those that have just ended, by the phase the list gave each.
+## `Active Sessions` holds every session this console has not seen closed, another host's `unknown-foreign` among them: its row says closed, and its state is what the list is ruled by.
 def activeSessionRows(state, path):
     held = sessionRowsHeld(state)
-    return None if held is None else [lingering(one) for one in held if one["session"]["phase"] != "closed"]
+    if held is None:
+        return None
+    return [lingering(one) for one in held
+            if one["session"]["phase"] != "closed" or one["session"]["state"] == "unknown-foreign"]
 
 
 ## The row as the active list draws it: a session that has ended is dim and its tail says so with its age, `ended just now` under
 ## a minute and `ended <age> ago` after (S7.29), so a reader sees why a closed session still stands here. The list's own row is untouched.
 def lingering(row):
-    if row["session"]["phase"] == "active":
+    if row["session"]["phase"] == "active" or row["session"]["state"] == "unknown-foreign":
         return row
     age = ageText(registryEpoch(row["session"]["stateAt"]), nowEpoch())
     return dict(row, look=DIM, tail="ended just now" if age in ("", "0m") else "ended %s ago" % age)
@@ -1205,7 +1209,10 @@ def lingering(row):
 ## The sessions that are closed: every one the list gave a phase other than `active`.
 def closedSessionRows(state, path):
     held = sessionRowsHeld(state)
-    return None if held is None else [one for one in held if one["session"]["phase"] != "active"]
+    if held is None:
+        return None
+    ## `Closed Sessions` is the sessions this console has seen closed: another host's, `unknown-foreign`, is never one of them.
+    return [one for one in held if one["session"]["phase"] != "active" and one["session"]["state"] != "unknown-foreign"]
 
 
 ## The tokens of a session as a number, from its row of the list: the sum it gives, the `+` that ends it where some of its runs
@@ -1264,12 +1271,17 @@ def closedAgentRows(state, path):
 ## the sessions of the list read (the sessions of a member are there too), and where it is not there, among the rows of the list the
 ## level was entered from. None until one of them has been read.
 def participantRows(state, path):
-    found = sessionRowOf(state, path[-1])
+    ## THE SESSION IS THE ONE THE LEVEL ABOVE LISTS, and no other: a lookup by id among every session read anywhere made this list depend on a read some
+    ## other part of the screen had made, so a tree that lists live sessions showed the runs of a whole history it never asked for.
+    found = None
+    for one in listedRows(state, path[:-1]) or ():
+        if one["id"] == path[-1] and one.get("session"):
+            found = one
+            break
+    ## A LEVEL REACHED WITHOUT ITS LIST READ, as a path jumps straight into it, takes the session from the store the screen keeps: the rows of the level above
+    ## it were never asked for, and the pane would be empty.
     if found is None:
-        for one in listedRows(state, path[:-1]) or ():
-            if one["id"] == path[-1] and one.get("session"):
-                found = one
-                break
+        found = sessionRowOf(state, path[-1])
     if found is None:
         return None if listedRows(state, path[:-1]) is None else []
     ## EVERY run of the session is one of its agents, spawned or not.
@@ -1407,6 +1419,50 @@ def activityTree():
         tree["reads"]["list:" + level] = {"from": "list:activity"}
         activityParticipants(tree, level)
     return tree
+
+
+## Where the one line the root's pane prints stands: what `--manager-session-summary` answered, kept as the numbers of that page.
+ACTIVITY_STATE_OF = "activity:state"
+
+
+## What `Activity` holds, for the left pane while the root is selected: the table of its six subsections, which is the page the other roots draw, and
+## then what the team's sessions are at this moment. The numbers come from the rows already in hand -- the prepared list the screen keeps -- and this
+## page reads no store of its own.
+## What `Activity` holds, for the left pane while the root is selected: the table of its six subsections, which is the page the other roots draw, and then
+## what the team's sessions are at this moment. Those numbers are the whole of what the root reads -- one line, prepared beside the list -- so this page
+## shows exactly what it reads and nothing more.
+## What `Activity` holds, for the left pane while the root is selected: the table of its six subsections, which is the page the other roots draw, and then
+## what is alive in the team at this moment -- the sessions open, the agents running and waiting, and the newest of them. Dead history is storage, not a number
+## of this page: the rows the retention keeps say nothing about the team now.
+def activitySummary(state, path, row, form):
+    rows = [[label, FOLDER_WORDS.get(folderId, "-")] for folderId, label, kind, dive in fixedRowsShown(state, path)]
+    held = [one for one in sessionRowsHeld(state) or () if one.get("session") and one["session"]["phase"] == "active"]
+    agents = [run for one in held for run in one["session"]["runs"]]
+    running = len([run for run in agents if run.get("live") == "running"])
+    waiting = len([run for run in agents if run["state"] == "waiting"])
+    if held or running or waiting:
+        rows += [["", ""],
+                 ["STATE", ""],
+                 ["Open sessions", "%d" % len(held)],
+                 ["Agents", "%d running, %d waiting" % (running, waiting)],
+                 ["Newest session", held[0]["label"] if held else "-"]]
+    looks = [[None, None] for one in rows]
+    if held or running or waiting:
+        looks[len(rows) - 5] = [BOLD, None]
+    return tableSummaryLines(state, ("FOLDER", "WHAT"), rows, ("key", "text"), looks=looks)
+
+
+## The levels of the `activity-state` read: the one line `--manager-session-summary` printed, as the numbers the root's pane prints.
+def activityStateLevels(readKey, level, text):
+    for line in text.splitlines():
+        fields = line.split("|")
+        if len(fields) == 4 and all(field.isdigit() for field in fields[:3]):
+            return {ACTIVITY_STATE_OF: [{"open": int(fields[0]), "running": int(fields[1]), "waiting": int(fields[2]),
+                                          "newest": fields[3]}]}
+    return {ACTIVITY_STATE_OF: []}
+
+
+ROW_FORMS["activity-state"] = {"parse": activityStateLevels}
 
 
 ACTIVITY_TREE = activityTree()

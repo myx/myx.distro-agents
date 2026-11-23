@@ -12,6 +12,7 @@
 ## the next call and nothing depends on when the server started.
 ## Scratch lives under the SERVER's scratch root, `agent-mcp.<server pid>` in the calling session's
 ## output folder where it has one, else the workspace's .local/temp, written out in full at each use.
+
 ## set -e rules and design notes: see MAGIC.md.
 ##
 
@@ -319,6 +320,7 @@ case "$1" in
 
 		## The server's scratch root, by the rule the server made it with: the calling session's output folder
 		## where it has one, the workspace's .local/temp otherwise.
+
 		mcpScratchBase="$MMDAPP/.local/temp"
 		[ -z "${MDAT_SPAWN_SANDBOX_ROOT:-}" ] || mcpScratchBase="$MDAT_SPAWN_SANDBOX_ROOT/output"
 		mcpScratchRoot="$mcpScratchBase/agent-mcp.$mcpServerPid"
@@ -357,19 +359,18 @@ case "$1" in
 			esac
 			[ -z "$mcpRootSessionId" ] || export MDAT_SPAWN_SESSION_ID="$mcpRootSessionId"
 		fi
-		## THE MEMBER THE SESSION RUNS AS (owner 2026-11-20), read from the session's own record: a root-harness
-		## session is any member's, so a served call resolves its member there and never from the server's
-		## environment. A session minted before this record existed leaves it empty, and the environment answers.
+		## The member the session runs as, read from its own folder: the environment answers only when it recorded none.
 		mcpRootSessionMember=''
 		if [ -n "$mcpRootSessionId" ] ; then
 			type AgentsToolsSessionChatDir > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include"
 			mcpRootSessionDir="$( AgentsToolsSessionChatDir "$mcpRootSessionId" 2> /dev/null )" || mcpRootSessionDir=''
 			if [ -n "$mcpRootSessionDir" ] && [ -s "$mcpRootSessionDir/root-session.member" ] ; then
 				IFS= read -r mcpRootSessionMember < "$mcpRootSessionDir/root-session.member" || :
-				case "$mcpRootSessionMember" in *[!A-Za-z0-9-]*) mcpRootSessionMember='' ;; esac
+				case "$mcpRootSessionMember" in *[!abcdefghijklmnopqrstuvwxyz0123456789-]*) mcpRootSessionMember='' ;; esac
 			fi
 		fi
-		## THE SESSION THE CLIENT NAMED AT ITS HANDSHAKE (owner 2026-10-31): kept in this server's own scratch root, so a
+		## THE SESSION THE CLIENT NAMED AT ITS HANDSHAKE (): kept in this server's own scratch root, so a
+
 		## tool served here records what it does in that run's store as the harness's own loop does. A root session's own
 		## store stands above it, and a server whose client named none serves exactly as it did before.
 		mcpClientSession=''
@@ -560,6 +561,7 @@ case "$1" in
 				## Any other tool the floor rendered: run exactly that one tool in the
 				## harness and return its output. The harness may leave a background
 				## child, and a $( ) capture waits on the pipe's writers rather than on
+
 				## the process -- so the output goes to a file and the pid is waited on,
 				## the same shape the execute path below already uses for the same reason.
 				## A secondary tool the floor also serves passes the secondary gate first: a tool a member holds never reaches
@@ -583,8 +585,10 @@ case "$1" in
 					## names its hook source on stderr, and folding that in would put
 					## those lines inside the file a Read returned. A path tool's request
 					## and result summary come back through the .head file instead, and
+
 					## go out as their own content part. A refusal is already
 					## on stdout, as `ERROR: ...`, so nothing a caller needs is lost.
+
 					## The bound is this server's cap rather than its default, and no
 					## caller argument sets it: `timeout` belongs to Wait and to
 					## the tools that ask themselves. They block by design and carry their
@@ -695,6 +699,7 @@ case "$1" in
 				## A secondary tool: run the operation it names in the tool file that is the tool, never through
 				## DistroAgentsTools, which serves a file's other operations nowhere but its own. The operation may
 				## fork a service client, so its output goes to a file and the pid is waited on, never a $( ) capture.
+
 				elif [ -n "$mcpIsSecondaryTool" ] ; then
 					type AgentsToolsFrontSyntaxLines > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.FrontTable.Help.include"
 					if [ -z "$mcpSecondaryOp" ] ; then

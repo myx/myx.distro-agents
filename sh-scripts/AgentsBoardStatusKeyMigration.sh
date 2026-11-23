@@ -43,7 +43,7 @@ for rigState in "$rigBoard"/*/ ; do
 		rigHasKey "$rigItem" || continue
 		rigCarrying=$(( rigCarrying + 1 ))
 		[ -n "$rigApply" ] || continue
-		rigTmpItem="$rigItem.tmp.$$"
+		rigTmpItem="$( mktemp "$rigItem.tmp.XXXXXX" )" || { echo "⛔ ERROR: could not make a temp file beside $rigItem" >&2 ; exit 1 ; }
 		rigWithoutKey "$rigItem" > "$rigTmpItem" || { rm -f "$rigTmpItem" ; echo "⛔ ERROR: could not write $rigTmpItem" >&2 ; exit 1 ; }
 		mv -f "$rigTmpItem" "$rigItem" || { rm -f "$rigTmpItem" ; echo "⛔ ERROR: could not rename onto $rigItem" >&2 ; exit 1 ; }
 		rigRemoved=$(( rigRemoved + 1 ))

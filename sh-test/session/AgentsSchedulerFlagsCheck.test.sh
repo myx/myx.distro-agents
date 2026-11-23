@@ -4,7 +4,8 @@
 ## The flags are derived from the settings, the overrides and the clock, never stored (epic 1730); what persists is settings (1731, 1769).
 ## Held, run and not read, with a clock of the rig's own:
 ##   1. --current-flags prints worktime, weekend, holidays, emergency, overtime, learning and supervised, in that order, a line each, `<flag>: yes|no`;
-##      with nothing set, worktime and weekend read their defaults (the owner, 2026-10-21: the host's zone, sat,sun, 09:00 18:00 mon-fri),
+##      with nothing set, worktime and weekend read their defaults (: the host's zone, sat,sun, 09:00 18:00 mon-fri),
+
 ##      marked `(default)`, and the others `no`; it writes nothing.
 ##   2. The setters keep their value in the settings the epic names (Settled 2026-10-19): --set-country (two or three letters) in
 ##      MDAT_SCHEDULE_COUNTRY, --set-timezone (a zone name of the system) in MDAT_SCHEDULE_TIMEZONE, --set-worktime <start> <until>
@@ -17,7 +18,8 @@
 ##      takes no TTL; overtime is for outside worktime, ends at the TTL or, with none, when normal worktime starts, and is refused
 ##      during worktime; `--days <n>` makes overtime end n worktime starts ahead, the earlier end winning against a TTL, and no other
 ##      flag takes it; worktime and weekend are derived and have no override; a flag that is none of the six is refused.
-##   5. holidays (the owner's, 2026-10-20) is an override like emergency and overtime: `--override-flag holidays [<ttl>]`, with a TTL or, with none,
+##   5. holidays () is an override like emergency and overtime: `--override-flag holidays [<ttl>]`, with a TTL or, with none,
+
 ##      until `--no` clears it, at any hour; it shows in --current-flags with the seconds left. While it holds, worktime reads `no (holiday)`
 ##      whatever the hours say; it overrides worktime and nothing else: emergency and overtime stand (an overtime may be set while it holds, and
 ##      ends when normal worktime next starts); when it ends or is cleared, worktime is what the clock says.
@@ -26,7 +28,9 @@
 ##      An unknown flag is refused with a message naming all nine flags.
 ## RED RECIPES, both on one copy on 2026-11-14 (AgentsTools.DispatcherSchedule.include), 3 of 102 red and those three alone:
 ##   `planned-maintenance` taken out of the flag-line case at :191 -- both rows of 6 on its flag line fail, the control stands.
+
 ##   `holding, ` and ` and planned-maintenance` taken out of the unknown-flag message at :393 -- the nine-flags row of 6 fails, 7 of 9.
+
 ## Offline: a date first on PATH gives the rig's clock; every workspace is a folder of the rig's own.
 set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"

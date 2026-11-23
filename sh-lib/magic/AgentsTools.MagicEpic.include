@@ -121,7 +121,7 @@ AgentsToolsMagicEpicPut(){ ## the built copy, the file it was built from, the va
 		mv -f -- "$1" "$2" || { rm -f -- "$1" ; return 1 ; }
 		return 0
 	fi
-	type AgentsToolsActingMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.CallerCheck.include"
+	type AgentsToolsActingMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.ActingMember.include"
 	putMember="$( AgentsToolsActingMember )" ; putMember="${putMember:-magic-coordinator}"
 	## The member goes as --team-member (S21.3): the front door places the acting member first for this operation, and a positional one here
 	## was read as the item name ("magic-coordinator.md does not start with the type word").

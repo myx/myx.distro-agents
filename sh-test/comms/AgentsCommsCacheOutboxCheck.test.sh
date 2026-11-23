@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-## Behavioural check on the comms cache's outbox and its one pusher (S21.13, owner 2026-10-28): a send appends there and
+## Behavioural check on the comms cache's outbox and its one pusher (S21.13, ): a send appends there and
+
 ## returns, the pusher reads the state, posts after `sent` in order, and moves `sent` on success; a failure sets `retry-at`
 ## and nothing after it overtakes it; once all is sent the outbox is cut back to empty; one pusher at a time. Held:
 ##   1. the two appended records are both posted, in the order they were appended

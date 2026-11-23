@@ -23,7 +23,7 @@ AgentsToolsCoordinatorSpawnPlace(){ ## value of --select-workspace
 		/*) [ -d "$placeName" ] || { AgentsToolsCoordinatorSpawnRefuse "the path is no directory" ; return 1 ; } ; return 0 ;;
 		*/*) AgentsToolsCoordinatorSpawnRefuse "a workspace is named by a place name or by an absolute path" ; return 1 ;;
 	esac
-	type LocalToolsPlacesResolve > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/places/LocalTools.Places.include" 2> /dev/null || :
+	type LocalToolsPlacesResolve > /dev/null 2>&1 || { [ ! -f "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/places/LocalTools.Places.include" ] || . "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/places/LocalTools.Places.include" ; }
 	placePath="$( LocalToolsPlacesResolve "${MMDAPP%/}" "$placeName" 2> /dev/null )" || placePath=""
 	[ -n "$placePath" ] || { AgentsToolsCoordinatorSpawnRefuse "the place is not one the places API resolves" ; return 1 ; }
 	return 0

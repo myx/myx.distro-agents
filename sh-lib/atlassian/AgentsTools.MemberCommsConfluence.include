@@ -10,6 +10,7 @@ case "$1" in
 		## member too: what such a member holds for this system is the other organisation's.
 		--confluence-space-list|--confluence-page-read)
 			local -x MDAT_COMMS_SIDE=own MDAT_COMMS_OP=""
+			type AgentsToolsActingMemberCheck > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.ActingMember.include"
 			[ -z "${2:-}" ] || AgentsToolsActingMemberCheck "$2" "${1#--}" || { set +e ; return 1 ; }
 			## The stub reaches its implementation in this same file (S6.24): an include never re-enters
 			## the tool through DistroAgentsTools, which is no command in every context this file runs in.

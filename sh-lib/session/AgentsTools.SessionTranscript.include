@@ -8,9 +8,11 @@
 ##
 ## One transcript per spawned session, in the team data:
 ##   audit/YYYY-MM/session-<startUTC>-<member>-<sid8>.log  (then -part2.log, ... at 8 MB)
+
 ## found from the session id alone through $MMDAPP/.local/agents/sessions/<sid>/transcript,
 ## and named by a `transcript:` header on the spawn tracking file and the dispatch item.
 ## A line: `<ISO UTC> <KIND> key=val ... [-> outcome] [| "comment"]`, a body as `> ` lines.
+
 ## The tool line comes from the one formatter, AgentsSessionTranscriptFormat.awk, which the
 ## stream-json formatter of a native spawn and the MCP daemon log use too.
 ##
@@ -156,6 +158,7 @@ AgentsTranscriptAppend(){ ## file, text
 }
 
 ## `<ts> KIND key=val ...` through the formatter; an empty value drops its key.
+
 ## A value's newline, tab and carriage return become one space each by parameter expansion:
 ## the fork and pipe a `tr` per key set cost were the largest single block of the spawn's externals
 ## (8 of 95) and of every transcript line's. Proved equal to the `tr` on bash 3.2 for a
@@ -260,7 +263,8 @@ AgentsTranscriptMilestone(){ ## session id, reason
 	## The commit helper names its caller by this; a harness process has none of its own.
 	local MDSC_CMD="${MDSC_CMD:-DistroAgentsTools}"
 	milestoneDir="$( AgentsTranscriptSessionDir "$milestoneSession" )" || return 0
-	## THE LINE IS WRITTEN BEFORE ANY TRANSCRIPT IS ASKED FOR (owner 2026-10-31): a run idle in a Wait or an ask is read
+	## THE LINE IS WRITTEN BEFORE ANY TRANSCRIPT IS ASKED FOR (): a run idle in a Wait or an ask is read
+
 	## from these lines alone, and a run whose harness keeps no transcript has no other record that it waits.
 	mkdir -p "$milestoneDir" 2>/dev/null || :
 	printf '%s %s\n' "$( date -u +%Y-%m-%dT%H:%M:%SZ )" "$milestoneReason" >> "$milestoneDir/milestones" 2>/dev/null || return 0
@@ -660,12 +664,14 @@ AgentsSessionTokensLine(){ ## item name, or empty; session id
 ## item of an MCP result's content, a separate part of the model loop's tool message. It is never
 ## inside a tool's output, so every tool's own output stays exactly as printed. A kept file is a
 ## printed value as a reply is: whatever is done to the one is done to the other.
-## Halved from 8192 by the human-owner's ruling of 2026-11-10: a result stays in a run's context and is re-read on every later turn, which
+## Halved from 8192 by : a result stays in a run's context and is re-read on every later turn, which
+
 ## made half of a day's DeepSeek tokens; the rest of a kept result is read by line range when it is needed.
 agentsReplyLongBytes=4096
 
 ## The reference to a result kept in a file. The preview comes first, so the reply opens as the
 ## result does (WAIT-RESULT:, ERROR:, OK: ...), then the file, its size and how to read the rest.
+
 ## The preview is the whole lines that fit in 1 KB, or the first 10, whichever is more, and never
 ## over 3.5 KB, so the reply stays under the threshold. Writes nothing: a caller with a file of its
 ## own, such as a kept report, names it here as it is. For a Read's result, the file the Read read
@@ -759,6 +765,7 @@ AgentsTranscriptReplyFloor(){
 	AgentsToolsSessionChatKeyInto ; floorKey="$agentsSessionChatKey"
 	[ -n "$floorKey" ] || return 0
 	## A workspace that is selected -- the tooling stands in its .local -- and a run with a session id: the session's folder is made
+
 	## here, where it can be, before the run is served from it (F9.2). Without it those sessions lose their reads.
 	[ ! -d "$MMDAPP/.local/agents" ] || [ -d "$MMDAPP/.local/agents/sessions/$floorKey" ] || { AgentsToolsSessionChatDir "$floorKey" > /dev/null && mkdir -p "$MMDAPP/.local/agents/sessions/$floorKey" 2> /dev/null ; } || :
 	## THE THREAD IS KEPT OF INTEREST, AND FILLS THE FLOOR BETWEEN WAITS (S21.23). The session's own thread is marked of interest, so

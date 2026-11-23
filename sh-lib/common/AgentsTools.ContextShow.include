@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.ContextShow.include -- the `--intern-context-show` operation, and nothing else: the common option set this call resolved,
+## a line each, then the MDAT_*/MDLT_* variables it runs under. Split from AgentsTools.CommonOptions.include, which every member-first
+## call parses and which the context show is no part of.
+##
+
+## --intern-context-show: the context this call resolves, a line each in one form, `<name>: <value>`: the five resolved values first (team-member, session-id,
+## spawn-id, select-workspace, tooling-origin), then every MDAT_* and MDLT_* variable the tooling reads, by name. A variable that holds a secret (its name has
+## TOKEN, KEY, PASSWORD, PASSWD, SECRET or CREDENTIAL) is printed in the one form of a credential (AgentsToolsCredentialShown, F11.8). A value of several lines is
+## one line, its breaks written \n. Read-only; takes only the common options, which the entry has consumed.
+type AgentsToolsTeamMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.CommonOptions.include"
+

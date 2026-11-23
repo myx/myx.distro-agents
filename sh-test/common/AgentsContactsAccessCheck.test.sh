@@ -14,6 +14,7 @@
 ##   4. WHAT grant-open REFUSES: a contact is granted for a session or for the contact, not once and not for a task; the kind `contact` is for a
 ##      contact's refusal alone; the approver must hold what it approves (rc 3).
 ##   5. --contact-access answers with the chain's own words (`GRANT: ...` or `NO-GRANT: ...`, rc 1) for a call, and lists what the contact holds
+
 ##      standing without one; --intern-op-permission-contact-holds is the chain's listing.
 ##   6. --escalate-contact records the refusal for the contact, puts a line in its log and prints, from its template, the one call of the existing
 ##      escalation path that asks the human-owner (RequestPermission on that refusal); it sends nothing itself. Refused with no member's session, no
@@ -257,7 +258,8 @@ rigAcct="$( printf '%s' "$rigAcct" | LC_ALL=C tr -s ' \t\r\n' '_' )"
 printf 'HUMAN_OWNER_CONSOLE_ACCOUNT=%s\n' "$rigAcct" >> "$rigWs/.local/.agents/magic-team.agent.env"
 rigAs="" ; rigSid=""
 rigTool "$rigTmp/t1" --contacted-by bare@ndm.example
-## The tier words are the human-owner's of 2026-11-09 (epic S6.36): tier-moot, tier-contact, tier-client, tier-admin, tier-owner, each including
+## The tier words are  (epic S6.36): tier-moot, tier-contact, tier-client, tier-admin, tier-owner, each including
+
 ## the ones below it. The old words ingest, basic, partner and recorded are retired: no tier is named by them, and a call giving one is refused.
 rigAssert "no tier on the record: the five tiers, each including the ones before it, and no word of a tier the record does not give" "$( rigHas 'A request is in one of five tiers, each including the ones before it. Moot, always: read and understand it. Contact, no record needed: conversation, public information, consultation, expertise, nothing long-running or costly committed.' "$rigTmp/t1.out" ) $( rigHas 'This contact is a client.' "$rigTmp/t1.out" ) $( rigHas 'nothing standing, so Moot and Contact only' "$rigTmp/t1.out" )" "1 0 1"
 rigTool "$rigTmp/t2r" --collect-contact --id bare-one --tier partner --reached-by client-ndm

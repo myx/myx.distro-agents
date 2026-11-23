@@ -104,10 +104,11 @@ AgentsToolsManagerPendingReject(){ ## record file
 	esac
 }
 
-## Whether a question takes words alone as its answer: a plain question with no answer form.
+## Whether a question takes words alone as its answer: a plain question with no answer form, its options not standing either.
 AgentsToolsManagerPendingPlain(){ ## record file
 	case "$( AgentsToolsEscalationField "$1" kind )" in ''|question) ;; *) return 1 ;; esac
-	[ -z "$( AgentsToolsEscalationField "$1" select )" ]
+	type AgentsToolsPendingReplyAnswerForm > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.PendingReplyOptionAsk.include"
+	[ -z "$( AgentsToolsPendingReplyAnswerForm "$1" )" ]
 }
 
 ## Whether an answer with that standing is the human-owner's own verdict: a review, a held change
@@ -123,11 +124,13 @@ AgentsToolsManagerPendingOwnVerdict(){ ## record file, standing member
 ## The answers one question takes, a row each: `answer`, the number of an option or `-`,
 ## the word, what becomes of it for this operator, and its label or `-`. The words are the
 ## ones the reader of a reply takes for the kind (AgentsEscalationVerdict.awk); the options
-## of a decision and of a question with a form are the record's own, numbered as its post
-## numbers them. A plain question has no row: it takes words alone.
+## of a decision and of a question that offers options are the record's own, numbered as its
+## post numbers them. A plain question has no row: it takes words alone.
 AgentsToolsManagerPendingAnswers(){ ## record file, standing member
 	local answersKind answersForm answersWords="" answersWord answersLine answersNo=0 answersLabel
-	answersKind="$( AgentsToolsEscalationField "$1" kind )" ; answersForm="$( AgentsToolsEscalationField "$1" select )"
+	answersKind="$( AgentsToolsEscalationField "$1" kind )"
+	type AgentsToolsPendingReplyAnswerForm > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.PendingReplyOptionAsk.include"
+	answersForm="$( AgentsToolsPendingReplyAnswerForm "$1" )"
 	case "${answersKind:-question}:$answersForm" in
 		readback:*) answersWords="yes no correct" ;;
 		question:yes-no) answersWords="yes no" ;;
@@ -207,7 +210,7 @@ AgentsToolsManagerPendingRecord(){ ## the operation as it was called, its syntax
 	fi
 	AgentsToolsAssertBareName "$managerPendingId" "<pending-id>" "${recordOp#--}" || return 1
 	## In either store: the asks, and the requests for the authority (AgentsToolsPendingRecordPath).
-	type AgentsToolsPendingRecordPath > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.Authority.include"
+	type AgentsToolsPendingRecordPath > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.PendingPaths.include"
 	managerPendingFile="$( AgentsToolsPendingRecordPath "$managerPendingId" )" || {
 		echo "⛔ ERROR: $MDSC_CMD $recordOp: no pending question $managerPendingId -- nothing was done" >&2
 		return 1

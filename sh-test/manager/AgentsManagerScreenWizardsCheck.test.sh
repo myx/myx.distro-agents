@@ -29,6 +29,7 @@ rigDriver="$rigFixtures/manager-screen.driver.py"
 rigTools="$rigFixtures/manager-screen.tools.stub.sh"
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
+
 }
 [ -f "$rigScreen" ] || rigRefuse "the screen is not at the origin: $rigScreen"
 [ -f "$rigDriver" ] || rigRefuse "the driver of the screen tests is missing: $rigDriver"
@@ -366,7 +367,7 @@ turn
 RIGSCRIPT
 rigAssert "a form left as it is applies nothing: the operation is called with an empty standard input" "$( rigCalled '--manager-wizard-apply git-settings' ) / [$( rigInput --manager-wizard-apply )]" "1 / []"
 
-echo "-- 3b. Enter on an item that takes no Enter of its own runs its main action (owner, 2026-10-20): on a setting of the Git Settings it is c Configure --"
+echo "-- 3b. Enter on an item that takes no Enter of its own runs its main action : on a setting of the Git Settings it is c Configure --"
 rigCase gitenter
 rigScript <<'RIGSCRIPT'
 at @configuration git

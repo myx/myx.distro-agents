@@ -11,56 +11,7 @@ AgentsToolsGrantsHoldsDir(){ ## folder
 	return 1
 }
 
-##
-## AgentsTools.Grants.include -- the grants: declared, unrolled, and per session.
-##
-## Three files, each built from the one before, never edited at runtime:
-##   $MMDAPP/.local/agents/permissions.registry   this workspace's declared grants, one row
-##       `member:workspace:kind:grant` each, written by --make-agents-indices from project.inf
-##       (AgentsToolsGrantsRegistryWrite). The rows of the registered workspaces without agents
-##       are written here too, `.` unrolled to their own root. The machine-wide set is every
-##       workspace's own file, through the pointers in $HOME/.agents/magic-team.
-##   $MMDAPP/.local/agents/grants.index   every member's rows, fully unrolled: `*` one row per
-##       member, the floor, ceilings, unresolved names kept as rows that admit nothing
-##       (AgentsGrantsIndexBuild.awk). A grant written `approve:Edit(/glob)` is a write BY
-##       APPROVAL, a read row and an `approve` row: the member reads those files, and its Edit
-##       or Write of one is neither refused nor applied but HELD, shown to the human-owner and
-##       applied when he approves (AgentsTools.InternOpChange.include) -- unless a grant given
-##       for its task, its session or the one call allows it. What the member holds standing,
-##       or by the floor, never comes ahead of the approval.
-##       Built by --make-agents-indices; a reader finding it stale or missing rebuilds it
-##       (AgentsToolsGrantsIndexEnsure).
-##   $MMDAPP/.local/agents/sessions/<id>/permissions.<member>.index   one session's own:
-##       the member's rows joined with the session's grants (AgentsGrantsSessionIndex.awk),
-##       what the harness decides a file tool by, with builtins only: admitted, refused, or
-##       held for approval. A revoked grant (a
-##       marker in its store's revoked/) and a session grant whose session has ended are out.
-##       A session grant given to the member's run on a board item holds for its other runs on
-##       that item in the same coworking session too, the runs a review return or a resume
-##       starts under a new id, until the item is closed or that session ends
-##       (AgentsToolsGrantsItemRuns): a `runs` row of the index, the item and that session
-##       checked at the call. A task grant given to that run holds for those runs too, while
-##       the item it names is open: a `task` row like any other. A run started since the index
-##       was built is found on the way to a refusal (--intern-op-permission-grant-read).
-##
-## The workspace floor, every member's (section 3 of the plan):
-##   every tooling workspace       write .local/temp/**
-##   where agents are installed    read source/**/MAGIC.md, source/**/README.md, source/**/docs/**.md
-##                                 read source/**/*.epic.md (S6.41: every member reads an epic)
-##                                 write source/**/MAGIC.md
-##   the session's own sandbox     read input/, write output/ (per session)
-##   the run's own review          read the session record of a run it reviews (AgentsToolsGrantsRunSeats)
-## and, as before, the readable member directories and the reference read roots. All of
-## source/** is no floor's: magic-librarian holds a standing read of it, every other member
-## the namespace grants declared for it. The members this package carries hold their standing
-## grants as `magic-team:` directives of its project.inf (AgentsToolsGrantsDeclaredText).
-## magic-librarian's other one is a standing write by approval of the .md files of the team
-## members' skills this machine holds, where they are its to change
-## (AgentsToolsGrantsMemberSkills): it is never asked for the access, and each change of one
-## waits for the human-owner's approval.
-##
-## Dot-sourced; functions only.
-##
+## The prose that stood here is in the package's MAGIC.md, under "AgentsTools.Grants.include".
 
 agentsGrantsHere="${harnessHere:-$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib}"
 agentsGrantsIndexVersion="myx.distro grants.index 1"
@@ -71,15 +22,11 @@ agentsGrantsIndexText=""
 
 ## The index header: its format, and what its floor was read under.
 AgentsToolsGrantsIndexHeader(){ ## workspace -- sets agentsGrantsHeader
-	type AgentsToolsSkillsetRootInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWorkspace.include"
+	type AgentsToolsSkillsetRootInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWorkspace.Root.include"
 	AgentsToolsSkillsetRootInto agentsGrantsSkillsetRoot "$1"
 	agentsGrantsHeader="$agentsGrantsIndexVersion"$'\t'"MDAT_SKILLSET_ROOT=$agentsGrantsSkillsetRoot"$'\t'"HOME=${HOME:-}"
 }
 
-## Whether the index is current, by builtins only: its header is this run's, and it is newer
-## than everything it is made from -- every workspace's grants and places this machine
-## points at, the member registries and index, the member set root, the machine's skills
-## folder in HOME, and this code.
 AgentsToolsGrantsIndexFresh(){ ## workspace, index file
 	local freshWs="${1%/}" freshFile="$2" freshHead="" freshShared="${HOME:-}/.agents/magic-team" freshSrc freshRoot freshName
 	[ -f "$freshFile" ] || return 1
@@ -114,15 +61,6 @@ AgentsToolsGrantsIndexFresh(){ ## workspace, index file
 	return 0
 }
 
-## The team members' skills that are the machine's own and this workspace's to change, one
-## resolved folder per line, each once: the entries of the machine's skillset in HOME, a
-## built-in place (LocalToolsPlacesHomeSkills), that hold a member's own <name>.basic.md and
-## are no reference-only identity record, which is nobody's to write. A real folder there is
-## a skill that lives on this machine only. A link there counts where its target really lies
-## under this workspace's source/; one to anywhere else, another workspace's source tree or a
-## folder here that is itself a link out, never does. Resolved here, by the index builder,
-## once: a call is checked against the rows this gives, on its real file, whatever link it
-## came by.
 AgentsToolsGrantsMemberSkills(){ ## workspace
 	local skillsSource skillsEntry skillsName skillsReal skillsSeen=$'\n'
 	type LocalToolsPlacesHomeSkills > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/places/LocalTools.Places.include" || return 0
@@ -160,17 +98,14 @@ AgentsToolsGrantsIndexText(){ ## workspace
 		agentsGrantsPlaces="$( LocalToolsPlacesMergedText "$textWs" quiet )"
 		agentsGrantsRoots="$( LocalToolsPlacesWorkspaceRoots "$textWs" )"
 		printf '%s\n' "$agentsGrantsPlaces" | LC_ALL=C awk -F'\t' -v OFS='\t' 'NF >= 4 { print "place", $1, $2, $3, $4 ; }'
-		## The standing write of magic-librarian on the team members' skills this machine holds
-		## (AgentsToolsGrantsMemberSkills): their .md files, and nothing else in them, BY APPROVAL
-		## (`approve:`): each change is held for the human-owner and applied when he approves. Rows
-		## of this workspace's own index only, never of a registry, which every workspace reads.
-		## Their kind is `skillset`, and they come before every other grant: a call on such a file
-		## is decided by its row here, whatever else would admit it too (AgentsToolsGrantsCheckSkillset).
 		while IFS= read -r textRoot ; do
 			[ -n "$textRoot" ] || continue
 			printf 'grant\tmagic-librarian:%s:skillset:approve:Edit(/%s/**.md)\n' "${textWs##*/}" "$textRoot"
 		done <<< "$( AgentsToolsGrantsMemberSkills "$textWs" )"
 		AgentsToolsTeamGrantRows "$textWs" permissions.registry | LC_ALL=C awk '{ print "grant\t" $0 ; }'
+		## The temp floor holds for the given workspace itself, whatever folder it sits in. The
+		## source rows below hold for a workspace of the machine, and come from that list alone.
+		printf 'floor\twrite\t%s/.local/temp/**\n' "$textWs"
 		while IFS= read -r textRoot ; do
 			[ -n "$textRoot" ] || continue
 			printf 'floor\twrite\t%s/.local/temp/**\n' "$textRoot"
@@ -203,15 +138,10 @@ AgentsToolsGrantsIndexText(){ ## workspace
 	printf '%s\n%s\n' "$textReal" "$textStream" | LC_ALL=C awk -v self="${textWs##*/}" -f "$agentsGrantsHere/grants/AgentsGrantsPattern.awk" -f "$agentsGrantsHere/grants/AgentsGrantsIndexBuild.awk"
 }
 
-## Rebuilds the index the way the sibling myx.distro-* indices are rebuilt
-## (IndexCacheMissDistro.include): the generator in a tested subshell into a temp file
-## beside it, then mv -f. The temp is this write's own, by mktemp and never by $$, with
-## its mode set on it (AgentsToolsRegistryWrite, AgentsTools.Registries.include). On a
-## failure the old index stays, rc 1.
 AgentsToolsGrantsIndexWrite(){ ## workspace
 	local writeFile="${1%/}/.local/agents/grants.index" writeTemp writeSliceDir writeSliceNew
 	## One index per member set root, so callers under different roots never rebuild each other's: the workspace's own root keeps the plain name.
-	type AgentsToolsSkillsetRootInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWorkspace.include"
+	type AgentsToolsSkillsetRootInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWorkspace.Root.include"
 	AgentsToolsSkillsetRootInto agentsGrantsSkillsetRoot "$1"
 	[ "$agentsGrantsSkillsetRoot" = "${1%/}/.local/agents/members" ] || writeFile="$writeFile.${agentsGrantsSkillsetRoot//[!A-Za-z0-9._-]/_}"
 	writeTemp="$( mktemp "$writeFile.XXXXXX" )" || writeTemp=""
@@ -223,11 +153,6 @@ AgentsToolsGrantsIndexWrite(){ ## workspace
 	writeSliceDir="$writeFile.by-member"
 	writeSliceNew="$( mktemp -d "$writeSliceDir.new.XXXXXX" )" || writeSliceNew=""
 	[ -n "$writeSliceNew" ] || { rm -f -- "$writeTemp" ; return 1 ; }
-	## One slice per member, the `*` rows then that member's own, in the index's own row order:
-	## the rows AgentsToolsGrantsCommonCheckRows keeps. Two awk passes over the index -- the
-	## first collects the member names, the second writes the rows -- never a bash loop. The
-	## new folder is swapped into place before the index is renamed, so a slice is never newer
-	## than its index.
 	if ! ( umask 022 ; writeSliceNew="$writeSliceNew" LC_ALL=C awk -F'\t' '
 		BEGIN { writeSlicePass = 1 ; writeSliceMemberCount = 0 ; writeSliceOutDir = ENVIRON["writeSliceNew"] ; }
 		FNR == 1 && NR > 1 { writeSlicePass = 2 ; next ; }
@@ -261,7 +186,7 @@ AgentsToolsGrantsIndexEnsure(){ ## workspace
 	[ -n "$ensureWs" ] && [ -d "$ensureWs" ] || return 1
 	ensureDir="$ensureWs/.local/agents" ; ensureFile="$ensureDir/grants.index"
 	## One index per member set root, so callers under different roots never rebuild each other's: the workspace's own root keeps the plain name.
-	type AgentsToolsSkillsetRootInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWorkspace.include"
+	type AgentsToolsSkillsetRootInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWorkspace.Root.include"
 	AgentsToolsSkillsetRootInto agentsGrantsSkillsetRoot "$ensureWs"
 	[ "$agentsGrantsSkillsetRoot" = "$ensureWs/.local/agents/members" ] || ensureFile="$ensureFile.${agentsGrantsSkillsetRoot//[!A-Za-z0-9._-]/_}"
 	if AgentsToolsGrantsIndexFresh "$ensureWs" "$ensureFile" ; then
@@ -312,12 +237,6 @@ AgentsToolsGrantsCovers(){ ## glob, pattern, wanted target
 	[[ $3 == $2 ]]
 }
 
-## Whether a grant of one tool speaks for a call of another: the same tool, or a grant to Edit
-## or Write a path, which reads what it may change -- Read, Grep and Glob, in the same scope and
-## for as long as that grant holds. Never the other way: a grant to read changes nothing. THE
-## ONE PLACE this is decided, for every session, task, planned and routine grant a call is
-## checked against. An Allow once is one call of its own tool, and a standing write row is
-## every file tool already.
 AgentsToolsGrantsToolCovers(){ ## granted tool, called tool
 	[ "$1" != "$2" ] || return 0
 	case "$1:$2" in Edit:Read|Edit:Grep|Edit:Glob|Write:Read|Write:Grep|Write:Glob) return 0 ;; esac
@@ -359,260 +278,6 @@ AgentsToolsGrantsPlaceMatch(){ ## pattern
 	return 0
 }
 
-## THE TESTING DIRECTIVE, `magic-team:testing:<project-glob>:<sh-test-path>:<host-glob>` in the Declares of a
-## project, and its one reader. It names the sh-test folders of the projects of the declaring workspace whose
-## name (the last segment of the id) the glob matches, and it is read for two ends alike: magic-tester's write over
-## them (AgentsToolsGrantsDeclaredText) and the folders eligible for the testing system (AgentsToolsTestingFolders).
-## The host glob is the last field and works as a place directive's does, so a path keeps its own colons. A line for
-## another host gives nothing; a malformed line, and a path that leaves its project, are skipped with a warning; a
-## glob no project matches gives no row.
-## The rows of the projects selected (their ids, one a line): `<project id><TAB><sh-test-path>`. rc of the declares
-## read where it failed.
-AgentsToolsTestingDirectiveRows(){ ## selected project ids, op name for messages
-	local testOp="$2" testShort testFull testLines testLine testRest testGlob testPath testHost testId
-	testLines="$( MDSC_SELECT_PROJECTS="$1" Distro ListDistroDeclares --select-from-env --filter-and-cut 'magic-team:testing' )" || return $?
-	testShort="$( hostname -s 2> /dev/null )" || testShort=""
-	testFull="$( hostname 2> /dev/null )" || testFull=""
-	while IFS= read -r testLine ; do
-		[ -n "$testLine" ] || continue
-		testRest="${testLine#* }"
-		case "$testRest" in
-			?*:?*:?*) ;;
-			*) echo "🙋 WARNING: $testOp: ${testLine%% *}: malformed testing directive, skipped: magic-team:testing:$testRest (expected magic-team:testing:<project-glob>:<sh-test-path>:<host-glob>)" >&2 ; continue ;;
-		esac
-		testGlob="${testRest%%:*}" ; testRest="${testRest#*:}"
-		testHost="${testRest##*:}" ; testPath="${testRest%:*}"
-		testPath="${testPath#./}" ; testPath="${testPath%/}"
-		case "/$testPath/" in
-			//*|*/../*|*/./*|*//*) echo "🙋 WARNING: $testOp: ${testLine%% *}: the testing path stays inside the project, skipped: magic-team:testing:${testLine#* }" >&2 ; continue ;;
-		esac
-		case "$testShort" in
-			$testHost) ;;
-			*) case "$testFull" in $testHost) ;; *) continue ;; esac ;;
-		esac
-		while IFS= read -r testId ; do
-			[ -n "$testId" ] || continue
-			case "${testId##*/}" in
-				$testGlob) printf '%s\t%s\n' "$testId" "$testPath" ;;
-			esac
-		done <<< "$1"
-	done <<< "$testLines"
-}
-
-## The sh-test folders a workspace's testing directives name, absolute, one a line: the folders eligible for the
-## testing system, and no others. rc 0; 3 where the workspace has no source or no project (nothing is named);
-## 2 where it could not be read, said on stderr.
-AgentsToolsTestingFolders(){ ## workspace root, op name for messages
-	local foldersWs="${1%/}" foldersOp="$2" foldersSelected foldersRows
-	[ -d "$foldersWs/source" ] || return 3
-	type DistroAgentsContext > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.include"
-	DistroAgentsContext --distro-from-source || { echo "⛔ ERROR: $foldersOp: cannot establish an input spec for workspace $foldersWs" >&2 ; return 2 ; }
-	Require ListDistroProjects || :
-	Require ListDistroDeclares || :
-	foldersSelected="$( Distro ListDistroProjects --select-all )" || { echo "⛔ ERROR: $foldersOp: COULD-NOT-CHECK the testing directives: ListDistroProjects --select-all failed for workspace $foldersWs" >&2 ; return 2 ; }
-	[ -n "$foldersSelected" ] || return 3
-	foldersRows="$( AgentsToolsTestingDirectiveRows "$foldersSelected" "$foldersOp" )" || { echo "⛔ ERROR: $foldersOp: COULD-NOT-CHECK the testing directives: ListDistroDeclares failed for workspace $foldersWs" >&2 ; return 2 ; }
-	[ -z "$foldersRows" ] || printf '%s\n' "$foldersRows" | LC_ALL=C awk -F'\t' -v ws="$foldersWs" 'NF == 2 { print ws "/source/" $1 "/" $2 ; }'
-}
-
-## One declaring workspace's grants, read off its project.inf as it stands, and the floor
-## directives of the packages installed under its .local/myx, on stdout:
-##   row <TAB> member:workspace:kind:grant      for the permissions registry
-##   tag <TAB> member:workspace:tag:root        for the provenance tags
-## The selectors, `<scope>:<selector>:<verb>:<member>[:<glob>]`:
-##   namespace:<ns|.|*>     that namespace's source in every tooling workspace, `.` the
-##                          declaring project's, `*` every namespace the declaring one selects
-##   workspace:<name|.|*>   a workspace place, `.` the declaring workspace, `*` every one;
-##                          a pattern (`*-testbed`) every workspace place whose name matches
-##   directory:<name>       a registered place of any kind, capped at its ceiling
-##   project:<selector>     the estate's project resolver, in the declaring workspace
-## The testing directive (AgentsToolsTestingDirectiveRows) is the permissions one for
-## magic-tester alone: its write over the sh-test path it names, a `project` row.
-## A name no place carries becomes an `unresolved` row, with a warning; a pattern no place
-## matches gives no row and no warning. Reads the places from
-## agentsGrantsPlaces and the tooling workspaces from agentsGrantsRoots.
-## rc 0 trusted; 2 not trusted, said on stderr, and no row may be dropped on its strength;
-## 3 no project selected there, said as a note, the same.
-AgentsToolsGrantsDeclaredText(){ ## declaring workspace root, op name for messages
-	local declWs="${1%/}" declOp="$2" declName declSelected="" declSelectStatus=0 declStatus=0 declTrusted=0
-	local declNamespace="" declWorkspace="" declFloor="" declDirectory="" declProject="" declTesting="" declScope declLines declLine declSel declRest
-	local declVerb declPerm declMember declGlob declRoot declOne declTag declTagRoot declPattern declLocal=""
-	declName="${declWs##*/}"
-	## The permissions directives of the packages installed under .local/myx, `<package folder> <rest>`: read through the distro door
-	## (AgentsDistroDeclaresCut), never from the distro tooling's index or project.inf, which are the tooling's own. A read that
-	## fails is a fault, said, and no row may be dropped on its strength. Only the tooling package's rows are kept below.
-	if AgentsToolsGrantsHoldsDir "$declWs/.local/myx" ; then
-		type AgentsDistroDeclaresCut > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/distro/AgentsTools.DistroDoor.include"
-		declLocal="$( AgentsDistroDeclaresCut "$declWs" 'magic-team:permissions:workspace' )" \
-			|| { echo "⛔ ERROR: $declOp: COULD-NOT-CHECK declared grants: the distro tooling could not list the declares of $declWs" >&2 ; return 2 ; }
-		declLocal="$( printf '%s\n' "$declLocal" | LC_ALL=C awk -v pkg="$declWs/.local/myx/" 'NF { n = split( $1, id, "/" ) ; print pkg id[n] " " $2 ; }' )"
-		[ -z "$declLocal" ] || declLocal="$declLocal"$'\n'
-	fi
-	if [ -d "$declWs/source" ] ; then
-		## Source, never --distro-path-auto: the grants are read off project.inf as it stands, and
-		## a prepared or output cache that lags source drops real declarations a rewrite would drop.
-		type DistroAgentsContext > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.include"
-		DistroAgentsContext --distro-from-source || {
-			echo "⛔ ERROR: $declOp: cannot establish an input spec for workspace $declWs" >&2
-			return 2
-		}
-		Require ListDistroProjects || :
-		Require ListDistroDeclares || :
-		declSelected="$( Distro ListDistroProjects --select-all )" || declSelectStatus=$?
-	fi
-	## One cut per scope kind: each has its own vocabulary, and only `project` uses the
-	## estate's four-form resolver (--unroll-filter-and-cut, SystemContext.include).
-	if [ -n "$declSelected" ] ; then
-		declNamespace="$( MDSC_SELECT_PROJECTS="$declSelected" Distro ListDistroDeclares --select-from-env --filter-and-cut 'magic-team:permissions:namespace' )" || declStatus=$?
-		declWorkspace="$( MDSC_SELECT_PROJECTS="$declSelected" Distro ListDistroDeclares --select-from-env --filter-and-cut 'magic-team:permissions:workspace' )" || declStatus=$?
-		declDirectory="$( MDSC_SELECT_PROJECTS="$declSelected" Distro ListDistroDeclares --select-from-env --filter-and-cut 'magic-team:permissions:directory' )" || declStatus=$?
-		declProject="$( MDSC_SELECT_PROJECTS="$declSelected" Distro ListDistroDeclares --select-from-env --unroll-filter-and-cut 'magic-team:permissions:project:' cat )" || declStatus=$?
-		declTesting="$( AgentsToolsTestingDirectiveRows "$declSelected" "$declOp" )" || declStatus=$?
-	fi
-	## The tooling package's rows, from source and .local alike, each once: a named member's are standing rows, appended last. Its
-	## member `*` rows are the team floor and no registry row: the tools through AgentsToolsPermissionOriginFloorTools, the writes in the index.
-	declFloor="$( printf '%s\n%s\n' "$declWorkspace" "$declLocal" | LC_ALL=C awk '$1 ~ /(^|\/)myx\.distro-agents$/ && !floorSeen[$2]++ { split( $2, floorField, ":" ) ; if ( floorField[3] != "*" ) print ; }' )"
-	declWorkspace="$( printf '%s\n' "$declWorkspace" | LC_ALL=C awk '$1 !~ /(^|\/)myx\.distro-agents$/' )"$'\n'"$declFloor"
-	if [ "$declSelectStatus" != "0" ] ; then
-		echo "⛔ ERROR: $declOp: COULD-NOT-CHECK declared grants: ListDistroProjects --select-all exited $declSelectStatus for workspace $declWs" >&2
-		declTrusted=2
-	elif [ -z "$declSelected" ] && [ -z "$declFloor" ] ; then
-		## Neither a project nor an installed package declares a grant: a state, not a fault, said, nothing removed.
-		echo "# $declOp: workspace $declWs has no distro project in source/ and no package under .local/myx with a magic-team: floor directive, so none declares a grant -- nothing is removed" >&2
-		return 3
-	elif [ "$declStatus" != "0" ] ; then
-		echo "⛔ ERROR: $declOp: COULD-NOT-CHECK declared grants: ListDistroDeclares exited $declStatus for workspace $declWs" >&2
-		declTrusted=2
-	elif [ -z "$declFloor" ] ; then
-		echo "# $declOp: workspace $declWs: no magic-team: floor directive in source/ or under .local/myx, so it declares no floor rows of magic-architect and magic-tester" >&2
-	fi
-	## `<verb>:<member>[:<glob>]`, cut on the first colon each time so a glob keeps its own.
-	## allow-write and allow-read are one path grant, Edit(...) or Read(...); allow-tool a
-	## member's standing tool permission, its glob being <tool>[:<target>]. Any other verb is
-	## refused, never read as an allow.
-	declParse(){
-		declVerb="${declRest%%:*}" ; declRest="${declRest#*:}"
-		declMember="${declRest%%:*}"
-		case "$declRest" in *:*) declGlob="${declRest#*:}" ;; *) declGlob="" ;; esac
-		[ "$declVerb" = "allow-write" ] && declPerm="Edit" && return 0
-		[ "$declVerb" = "allow-read" ] && declPerm="Read" && return 0
-		[ "$declVerb" = "allow-tool" ] && [ -n "$declGlob" ] && return 0
-		## The deny twins: a deny row overrides every allow. They are kept as `DenyEdit(...)`, `DenyRead(...)` or a `deny` row, and are no grant.
-		[ "$declVerb" = "deny-write" ] && declPerm="DenyEdit" && return 0
-		[ "$declVerb" = "deny-read" ] && declPerm="DenyRead" && return 0
-		[ "$declVerb" = "deny-tool" ] && [ -n "$declGlob" ] && return 0
-		echo "⛔ ERROR: $declOp: unsupported permissions verb in $declLine: $declVerb (allow-write, allow-read, allow-tool, deny-write, deny-read and deny-tool with a <tool>[:<target>] are implemented)" >&2
-		declTrusted=2
-		return 1
-	}
-	declUnresolved(){ ## why
-		echo "⚠️ WARNING: $declOp: ${declLine%% *}: $2 -- kept as an unresolved row that grants nothing: magic-team:permissions:$1:${declLine#* }" >&2
-		printf 'row\t%s:%s:unresolved:%s:%s\n' "$declMember" "$declName" "$1" "${declLine#* }"
-	}
-	for declScope in namespace workspace directory project ; do
-		case "$declScope" in
-			namespace) declLines="$declNamespace" ;;
-			workspace) declLines="$declWorkspace" ;;
-			directory) declLines="$declDirectory" ;;
-			project) declLines="$declProject" ;;
-		esac
-		while IFS= read -r declLine ; do
-			[ -n "$declLine" ] || continue
-			declRest="${declLine#* }"
-			if [ "$declScope" != project ] ; then
-				declSel="${declRest%%:*}" ; declRest="${declRest#*:}"
-			fi
-			declParse || continue
-			## A tool row names no path: one row, whatever the selector.
-			if [ "$declVerb" = "allow-tool" ] ; then
-				printf 'row\t%s:%s:tool:%s\n' "$declMember" "$declName" "$declGlob"
-				continue
-			fi
-			if [ "$declVerb" = "deny-tool" ] ; then
-				printf 'row\t%s:%s:deny:deny-tool:%s\n' "$declMember" "$declName" "$declGlob"
-				continue
-			fi
-			case "$declScope" in
-				namespace)
-					## The declaring project's namespace is the leading segment of its id; `*`
-					## is every namespace the declaring workspace selects. Applied in every
-					## tooling workspace.
-					[ "$declSel" != "." ] || declSel="${declLine%%/*}"
-					while IFS= read -r declOne ; do
-						[ -n "$declOne" ] || continue
-						while IFS= read -r declRoot ; do
-							[ -n "$declRoot" ] || continue
-							printf 'row\t%s:%s:namespace:%s(/%s/source/%s/%s)\n' "$declMember" "$declName" "$declPerm" "$declRoot" "$declOne" "${declGlob:-**}"
-						done <<< "$agentsGrantsRoots"
-					done <<< "$( if [ "$declSel" = "*" ] ; then printf '%s\n' "$declSelected" | LC_ALL=C awk -F/ 'NF { if ( !seenNamespace[$1]++ ) print $1 ; }' ; else printf '%s\n' "$declSel" ; fi )"
-				;;
-				workspace)
-					## `.` the declaring workspace, `*` every tooling workspace, a name a
-					## workspace place, a pattern every workspace place whose name matches.
-					## Tagged for the copilot access fragment: own (the declaring workspace),
-					## explicit (named), wildcard (only swept by `*` or a pattern).
-					declPattern=0
-					case "$declSel" in
-						.|'*') ;;
-						*'*'*|*'?'*|*'['*) declPattern=1 ;;
-					esac
-					while IFS= read -r declRoot ; do
-						[ -n "$declRoot" ] || continue
-						printf 'row\t%s:%s:workspace:%s(/%s/%s)\n' "$declMember" "$declName" "$declPerm" "$declRoot" "$declGlob"
-						if [ "$declRoot" = "$declWs" ] ; then declTag=own
-						elif [ "$declSel" != "*" ] && [ "$declPattern" = 0 ] ; then declTag=explicit
-						else declTag=wildcard
-						fi
-						type AgentsToolsClientAccessWidenGrantRoot > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/client/AgentsTools.ClientAccessRoots.include"
-						declTagRoot="$( AgentsToolsClientAccessWidenGrantRoot "$declPerm(/$declRoot/$declGlob)" )"
-						[ -z "$declTagRoot" ] || printf 'tag\t%s:%s:%s:%s\n' "$declMember" "$declName" "$declTag" "$declTagRoot"
-					done <<< "$(
-						case "$declSel" in
-							(.) printf '%s\n' "$declWs" ;;
-							('*') printf '%s\n' "$agentsGrantsRoots" ;;
-							(*) if [ "$declPattern" = 1 ] ; then AgentsToolsGrantsPlaceMatch "$declSel"
-								else AgentsToolsGrantsPlaceFind "$declSel" workspace && printf '%s\n' "$agentsGrantsPlacePath"
-								fi ;;
-						esac
-					)"
-					case "$declSel" in
-						.|'*') ;;
-						*) [ "$declPattern" = 1 ] || AgentsToolsGrantsPlaceFind "$declSel" workspace || declUnresolved workspace "no workspace place is named $declSel" ;;
-					esac
-				;;
-				directory)
-					if ! AgentsToolsGrantsPlaceFind "$declSel" any ; then
-						declUnresolved directory "no place is named $declSel"
-						continue
-					fi
-					if [ "$declPerm" = Edit ] && [ "$agentsGrantsPlaceCeiling" = read-only ] ; then
-						echo "⚠️ WARNING: $declOp: ${declLine%% *}: the write grant of $declMember on $declSel is capped to read: $declSel is a read-only place" >&2
-						declPerm=Read
-					fi
-					printf 'row\t%s:%s:directory:%s(/%s/%s)\n' "$declMember" "$declName" "$declPerm" "$agentsGrantsPlacePath" "${declGlob:-**}"
-				;;
-				project)
-					## already resolved by --unroll-filter-and-cut: field 1 is the matched project
-					printf 'row\t%s:%s:project:%s(/%s/source/%s/%s)\n' "$declMember" "$declName" "$declPerm" "$declWs" "${declLine%% *}" "$declGlob"
-				;;
-			esac
-		done <<< "$declLines"
-	done
-	## The testing directive: magic-tester's write over each sh-test folder it names, a `project` row.
-	while IFS=$'\t' read -r declOne declSel ; do
-		[ -n "$declOne" ] || continue
-		printf 'row\tmagic-tester:%s:project:Edit(/%s/source/%s/%s/**)\n' "$declName" "$declWs" "$declOne" "$declSel"
-	done <<< "$declTesting"
-	return "$declTrusted"
-}
-
-## --make-agents-indices's grants step: this workspace's permissions registry and its tags,
-## rewritten whole, from what this workspace declares and what every registered tooling
-## workspace without agents declares (`.` there is that workspace). Plus the member rows --
-## each acting member of this workspace writes its own directory -- magic-librarian's standing
-## read of this workspace's source. A scan that is not trusted keeps the registry as
-## it stood (rc 0, said); another workspace's that is not keeps that workspace's rows.
-## Then the pointer in $HOME/.agents/magic-team. rc 1 on a failure to write.
 AgentsToolsGrantsRegistryWrite(){ ## workspace, op name for messages
 	local regWs regName regOp="$2" regText regRc=0 regRows regTags regRoot regSkillsetRoot regOtherName regOtherText regOtherRc
 	local regFile regTagsFile regLock regWait=0 regOld=""
@@ -621,9 +286,10 @@ AgentsToolsGrantsRegistryWrite(){ ## workspace, op name for messages
 	type LocalToolsPlacesMergedText > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/places/LocalTools.Places.include" || return 1
 	type AgentsToolsTeamGrantPointerUpsert > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamRegistry.include" || return 1
 	type AgentsToolsClientAccessRootsMembers > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/client/AgentsTools.ClientAccessRoots.include" || return 1
-	type AgentsToolsSkillsetRootInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWorkspace.include" || return 1
+	type AgentsToolsSkillsetRootInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWorkspace.Root.include" || return 1
 	agentsGrantsPlaces="$( LocalToolsPlacesMergedText "$regWs" quiet )"
 	agentsGrantsRoots="$( LocalToolsPlacesWorkspaceRoots "$regWs" )"
+	type AgentsToolsGrantsDeclaredText > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.Grants.Declared.include"
 	regText="$( AgentsToolsGrantsDeclaredText "$regWs" "$regOp" )" || regRc=$?
 	if [ "$regRc" != 0 ] ; then
 		[ "$regRc" = 3 ] || echo "🙋 WARNING: $regOp: declared allow-write was not determined for workspace $regWs, its permissions registry is kept as it stood" >&2
@@ -710,12 +376,6 @@ AgentsToolsGrantsSessionStores(){ ## workspace, session id
 	done
 }
 
-## The run seats of one run (S6.41): the session store of every run it reviews, one absolute
-## path a line. A run reviews the runs it spawned, and the runs of the peers its own dispatch
-## item cites in `references:` -- a dispatch names the peer it sends its run to review. Each
-## seat is that run's whole session record: its session chat, its log and its results, and the
-## output/ folder its sandbox kept. So a reviewer reads what it was sent to review with no ask.
-## rc 1, nothing printed, when the session has no record of its own or works no dispatch item.
 AgentsToolsGrantsRunSeats(){ ## workspace, session id
 	local seatsWs="${1%/}" seatsSession="$2" seatsRecord seatsFront seatsLine seatsOwn="" seatsRefs=""
 	local seatsReviewId seatsPath seatsSeen=$'\n' seatsRef seatsFolder seatsState
@@ -773,12 +433,6 @@ AgentsToolsGrantsRunSeats(){ ## workspace, session id
 	return 0
 }
 
-## Whether a session has ended, by builtins only: its spawn record
-## (spawned/*/<id>.spawn.md) closed with a spawn-* status other than spawn-started. A session with
-## no spawn record (a root session: the human-owner's own, an interactive native console) ends
-## by its client's SessionEnd hook instead (client-hooks/root-session-end.sh): an `ended`
-## marker in its own store, which a resume removes. rc 0 ended, 1 not.
-## It takes the session id and builds the store's folder itself: no caller builds a path into the session store.
 AgentsToolsGrantsSessionEnded(){ ## session id, workspace (default MMDAPP)
 	local endedId="" endedStore=""
 	type AgentsSessionFolderInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include" || return 1
@@ -820,18 +474,6 @@ AgentsToolsGrantsStoreEnded(){ ## session store directory
 
 ## ---- one member's runs on one board item ---------------------------------------------------
 
-## A session grant is given to one run, and a review return or a resume starts that run again
-## under a new id. So it holds for every run of the same member on the same board item in the
-## same coworking session, until the item is closed or that session ends, and never for another
-## member, another item or another session. What one run shares that way, read off the spawn
-## records with one awk (AgentsGrantsItemRuns.awk): agentsGrantsItemRunsItem, the item it works;
-## agentsGrantsItemRunsSession, the store of the coworking session whose end ends it, empty
-## where one of these runs started that session, which then lasts while the item is open; and
-## agentsGrantsItemRunsStores, the stores of the member's other runs there, one directory per
-## line. rc 1, with all three empty, when the run has no record, is another member's, works no
-## item, or is the only one.
-## A task grant given to one run is read from those same stores, and lives as ever while the
-## item it names is open, whatever became of that session.
 AgentsToolsGrantsItemRuns(){ ## workspace, session id, member
 	local runsWs="${1%/}" runsRecord runsFound="" runsKind runsValue runsItem="" runsSession="" runsStores="" runsCow="" runsCandidate runsFiles=() runsFolder
 	agentsGrantsItemRunsItem="" ; agentsGrantsItemRunsSession="" ; agentsGrantsItemRunsStores=""
@@ -878,12 +520,6 @@ AgentsToolsGrantsItemRunsLive(){ ## item, coworking session store (may be empty)
 	AgentsToolsBoardItemInStates "$1" ${agentsPermissionOpenStates:-running review blocked pending backlog parked}
 }
 
-## The lines AgentsGrantsSessionIndex.awk reads those stores by (ENVIRON
-## agentsGrantsItemRuns), from what AgentsToolsGrantsItemRuns set: one `<store><TAB><item><TAB>
-## <coworking session store, or -><TAB><only, task, or empty>` line each, `only` for a store that
-## is none of the session's own, listed one per line in the first argument. With `task` as the
-## second, what those runs share for the session has ended: such a store is marked `task`, to be
-## read for its task grants alone, and a store of the session's own gets no line.
 AgentsToolsGrantsItemRunsLines(){ ## the session's own stores, one per line; task (optional)
 	local linesStore linesOnly
 	while IFS= read -r linesStore ; do
@@ -894,13 +530,6 @@ AgentsToolsGrantsItemRunsLines(){ ## the session's own stores, one per line; tas
 	done <<< "$agentsGrantsItemRunsStores"
 }
 
-## The session index on stdout, with one awk, from the current grants index, and for a session
-## with a spawn record one more over the spawn records first: the stores of the member's other
-## runs on the same board item are joined too, for the session and task grants those runs share
-## (AgentsToolsGrantsItemRuns). The header, the sandbox folders, the origin and the stores go
-## to the awk in the environment: they are text, and -v decodes a backslash in a value and
-## takes no newline in every awk. The sandbox folders come resolved; this origin's skillset is
-## resolved here, at the rebuild only.
 AgentsToolsGrantsSessionText(){ ## workspace, member, session id, sandbox input, sandbox output, origin skillset
 	local textStore textRest textFiles=() agentsGrantsEnded="" agentsGrantsStores agentsGrantsItemRuns="" agentsGrantsRunSeats=""
 	local textOwn=""
@@ -942,11 +571,6 @@ AgentsToolsGrantsSessionText(){ ## workspace, member, session id, sandbox input,
 	fi
 }
 
-## The two files of a check, by name. A file that exists is used as it is: its writers keep it
-## current, so nothing here tests whether it is. A missing one is written once: the grants
-## index by its builder, the session file by AgentsToolsGrantsSessionWrite. Where that cannot
-## be written, or there is no session, the session rows are held in agentsGrantsSessionText.
-## rc 1 where there is no grants index to read.
 AgentsToolsGrantsSessionEnsure(){ ## workspace, member, session id (may be empty), sandbox input, sandbox output, origin skillset
 	local ensureWs="${1%/}"
 	AgentsToolsGrantsSessionLocate "$ensureWs" "$2" "$3"
@@ -962,20 +586,6 @@ AgentsToolsGrantsSessionEnsure(){ ## workspace, member, session id (may be empty
 	return 0
 }
 
-## One file-tool call decided by the session index rows on stdin, by builtins only. The
-## ceiling first: a write tool in a read-only place is refused, rc 3, agentsGrantsCheckPlace
-## its name. Then the rows in order: rc 0 admitted, agentsGrantsCheckLayer saying by what; for
-## a floor or standing row agentsGrantsCheckFrom its origin in the grants index, `floor` or
-## <workspace>:<kind>; for an Allow once agentsGrantsCheckOnce its refusal id, for its caller
-## to use up. A once row's expiry, its use, a task row's open item, a session row's end, and a
-## runs row's open item and coworking session are checked only on the row that matches; the
-## expiry with one `date`. A session, runs or task row of Edit or Write admits a read of its
-## path too (AgentsToolsGrantsToolCovers). rc 1 when no row admits the call.
-## An approve row stands ahead of the allow rows. A call one covers is admitted by no floor or
-## standing row after it: only by a session, runs, task or once row, a grant given for that
-## work. With none, rc 4: held for approval, agentsGrantsCheckLayer `approve <standing>` and
-## agentsGrantsCheckFrom the origin of that row, for its caller to keep the change and show
-## it, never to apply it (AgentsHarnessFileGate, AgentsUniversalHarness.sh).
 AgentsToolsGrantsSessionCheckRows(){ ## tool, resolved path, own session store
 	local checkKind checkA checkB checkC checkD checkE checkWrite="" checkCeiling="" checkNow checkTtl checkApprove="${agentsGrantsCommonApprove:-}" checkApproveFrom="${agentsGrantsCommonApproveFrom:-}"
 	agentsGrantsCheckLayer="" ; agentsGrantsCheckOnce="" ; agentsGrantsCheckPlace="" ; agentsGrantsCheckFrom=""
@@ -1044,10 +654,6 @@ AgentsToolsGrantsSessionCheckRows(){ ## tool, resolved path, own session store
 	return 1
 }
 
-## One file-tool call decided by the grants index on stdin, by builtins only: the ceiling, then
-## the member's standing rows. rc 3 refused by a read-only ceiling, rc 0 admitted, rc 1 not
-## admitted here. An approve row covering the call stands over every allow, and is left in
-## agentsGrantsCommonApprove for the session rows, which alone may admit such a call.
 AgentsToolsGrantsCommonCheckRows(){ ## tool, resolved path, member
 	local rowWho rowVerb rowGlob rowPattern rowFifth rowSixth rowTools rowWrite="" rowCeiling="" rowAllow="" rowLayer="" rowFrom=""
 	agentsGrantsCommonApprove="" ; agentsGrantsCommonApproveFrom=""
@@ -1089,7 +695,7 @@ AgentsToolsGrantsCommonCheckRows(){ ## tool, resolved path, member
 ## at run start and by whatever changes it, and the grants index by the builder.
 AgentsToolsGrantsSessionLocate(){ ## workspace, member, session id (may be empty)
 	local locateWs="${1%/}"
-	type AgentsToolsSkillsetRootInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWorkspace.include"
+	type AgentsToolsSkillsetRootInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWorkspace.Root.include"
 	agentsGrantsCheckMember="$2" ; agentsGrantsSessionFile="" ; agentsGrantsSessionText="" ; agentsGrantsIndexText=""
 	AgentsToolsSkillsetRootInto agentsGrantsSkillsetRoot "$locateWs"
 	agentsGrantsIndexFile="$locateWs/.local/agents/grants.index"
@@ -1198,13 +804,6 @@ AgentsToolsGrantsStoreTouchDir(){ ## session store directory
 	done < "$1/grants.joined"
 }
 
-## --intern-op-permission-list's rows (AgentsGrantsSessionIndex.awk, mode list): the member's
-## floor and standing rows of the grants index, then its live grants in every session store,
-## or in one session's own, coworking and parent stores. Each store's end and used-up once
-## grants are read here, for the awk. So are the session grants that hold for the member's
-## other runs on the same board item, while they are live (AgentsToolsGrantsItemRuns): with a
-## session, those of its other runs, and those runs' task grants, live or not; with none, those
-## of every ended run of the member.
 AgentsToolsGrantsMemberList(){ ## workspace, member, session id (may be empty)
 	local listWs="${1%/}" listStores listStore listUsed listFiles=() listTtl listRest listKind listRun listItem listCow listShared="" listRecords=()
 	local agentsGrantsEnded="" agentsGrantsUsed="" agentsGrantsBoard="${MDAT_DATA_ROOT:+$MDAT_DATA_ROOT/board}" agentsGrantsItemRuns=""

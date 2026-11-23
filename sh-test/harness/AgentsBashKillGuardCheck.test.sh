@@ -54,7 +54,14 @@ rigCall(){ ## argument object, call name
 rigTry(){ ## call name, command text (JSON-escaped already), detached (true|false)
 	rm -f "$rigTmp/inside/mark.$1"
 	rigCall "{\"command\":\"$2 ; touch $rigTmp/inside/mark.$1\",\"cwd\":\"$rigTmp/inside\",\"background\":$3}" "$1"
-	printf '%s:%s' "$( LC_ALL=C grep -c 'kills by pattern' "$rigTmp/$1.out" )" "$( [ -f "$rigTmp/inside/mark.$1" ] && printf ran || printf none )"
+	local triedSaid triedWaited=0 triedTasks="$rigTmp/ws/.local/agents/sessions/rig-session/processes"
+	triedSaid="$( LC_ALL=C grep -c 'kills by pattern' "$rigTmp/$1.out" )"
+	## The detached shape answers as a task: its refusal lands in the task's own output file a moment after the call returned.
+	if [ "$3" = true ] ; then
+		while [ "$triedWaited" -lt 20 ] && [ "$( cat "$triedTasks"/process-*.out 2> /dev/null | LC_ALL=C grep -c 'kills by pattern' )" = 0 ] ; do sleep 0.25 ; triedWaited=$(( triedWaited + 1 )) ; done
+		triedSaid="$( cat "$triedTasks"/process-*.out 2> /dev/null | LC_ALL=C grep -c 'kills by pattern' )"
+	fi
+	printf '%s:%s' "$triedSaid" "$( [ -f "$rigTmp/inside/mark.$1" ] && printf ran || printf none )"
 }
 ## The same, for the own-pid limit: the count of its refusal line, and whether the marker was written.
 rigTryOwn(){ ## call name, command text (JSON-escaped already), detached (true|false)

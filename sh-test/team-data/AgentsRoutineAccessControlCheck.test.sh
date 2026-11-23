@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-## Behavioural check on the routine key `access-control:` (epic S18.5; owner 2026-10-27: one grant grammar everywhere). A routine grants and refuses its
+## Behavioural check on the routine key `access-control:` (epic S18.5; : one grant grammar everywhere). A routine grants and refuses its
+
 ## participants tools and paths by one frontmatter line of rows `<member|executors|participants>:<verb>:<value>`, the verbs the project.inf rows have:
 ## allow-read, allow-write, allow-tool and their twins deny-read, deny-write, deny-tool. The keys it replaces, `allows:` and `denies:`, are gone, with no alias:
 ## the routine validator refuses a routine that still has one and names the key to write. Held, each as the verdict of the real validator on a rig routine:

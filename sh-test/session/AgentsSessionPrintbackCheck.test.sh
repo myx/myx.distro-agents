@@ -72,7 +72,7 @@ rigHome="$rigTmp/home"
 rigSkills="$rigTmp/skills"
 mkdir -p "$rigOrigin/myx" "$rigBin" "$rigHome" "$rigSkills/magic-coordinator" "$rigSkills/magic-tester" \
 	|| rigRefuse "cannot make the rig's own tree"
-cp -Rp "$rigPackage" "$rigOrigin/myx/myx.distro-agents" || rigRefuse "cannot copy the tree under test into the rig origin"
+rigCopyTree "$rigPackage" "$rigOrigin/myx/myx.distro-agents" || rigRefuse "cannot copy the tree under test into the rig origin"
 for rigSibling in myx.distro-system myx.distro-.local ; do
 	[ -d "$rigSource/myx/$rigSibling" ] || rigRefuse "this check runs the real $rigSibling read-only beside the package, and none is at $rigSource/myx/$rigSibling"
 	rigCopyTree "$rigSource/myx/$rigSibling" "$rigOrigin/myx/$rigSibling" || rigRefuse "cannot copy the real $rigSibling beside the rig's package"

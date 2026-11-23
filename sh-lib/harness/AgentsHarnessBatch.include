@@ -55,7 +55,7 @@ AgentsHarnessBatchCall(){ ## tool name, arguments file, call number
 	## An entry that reaches a server loads the client for itself, as the design says -- and only that entry pays.
 	case "$1" in
 		ListMcpResourcesTool|ReadMcpResourceTool|ReadMcpResourceDirTool|ToolSearch|mcp__*)
-			type AgentsHarnessMcpCall > /dev/null 2>&1 || . "$harnessHere/harness/AgentsHarnessMcpClient.sh"
+			type AgentsHarnessMcpCall > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessMcpClient.sh"
 		;;
 	esac
 	AgentsHarnessBatchCallBody "$1" "$2"

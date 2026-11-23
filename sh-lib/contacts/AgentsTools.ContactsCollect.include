@@ -12,7 +12,7 @@ AgentsToolsContactsCollectOrganisation(){ ## the operation, its arguments...
 	type AgentsToolsContactsOneLine > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/contacts/AgentsTools.ContactsRecord.include"
 	local colOp="$1" colId="" colName="" colDomain="" colNote="" colCorrect="" colFile colNew=no colBy colStamp colWas colNow colKeptLine
 	shift
-	type AgentsToolsActingMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.CallerCheck.include"
+	type AgentsToolsActingMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.ActingMember.include"
 	type AgentsToolsAssertBareName > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.BareName.include"
 	while [ $# -gt 0 ] ; do
 		case "$1" in
@@ -29,6 +29,7 @@ AgentsToolsContactsCollectOrganisation(){ ## the operation, its arguments...
 	[ "${#colName}" -le 200 ] && [ "${#colDomain}" -le 200 ] && [ "${#colNote}" -le 300 ] || { echo "$MDSC_CMD: ⛔ ERROR: $colOp: --name and --domain are at most 200 characters, --note at most 300" >&2 ; return 1 ; }
 	[ -n "$colName$colDomain$colNote" ] || { echo "$MDSC_CMD: ⛔ ERROR: $colOp: nothing is given to record: --name, --domain or --note" >&2 ; return 1 ; }
 	AgentsToolsContactsStore "$colOp" || return 1
+	type AgentsToolsActingMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.ActingMember.include"
 	colBy="$( AgentsToolsActingMember )"
 	colFile="$contactsOrgs/$colId.md"
 	AgentsToolsContactsLock "$colOp" || return 1
@@ -67,7 +68,7 @@ AgentsToolsContactsCollectContact(){ ## the operation, its arguments...
 	local colBy colFile colNew=no colStamp colNow colItem colKeptLine colSyntax colTierBy colTierAnswered colScopeTier=""
 	colSyntax="syntax is --id <slug> [--name <text>] [--organisation <slug>] [--role <text>] [--relationship <text>] [--how-to-meet <text>] [--language <word>] [--owner yes|no] [--tier tier-moot|tier-contact|tier-client|tier-admin|tier-owner] [--scope-tier <scope>=<tier>]... [--slack <team>:<id>]... [--slack-handle <team>:@<handle>]... [--slack-conversation <team>:<id>]... [--email <address>]... [--drop <coordinate>]... [--note <text>] [--correct]"
 	shift
-	type AgentsToolsActingMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.CallerCheck.include"
+	type AgentsToolsActingMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.ActingMember.include"
 	type AgentsToolsAssertBareName > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.BareName.include"
 	while [ $# -gt 0 ] ; do
 		case "$1" in
@@ -120,14 +121,15 @@ AgentsToolsContactsCollectContact(){ ## the operation, its arguments...
 	## mapped to him. The four words are the ladder, lowest first, and each includes the ones before it.
 	if [ -n "$colTier" ] ; then
 		[ -n "$( AgentsToolsContactsTierName "$colTier" )" ] || { echo "$MDSC_CMD: ⛔ ERROR: $colOp: --tier is tier-moot, tier-contact, tier-client, tier-admin and tier-owner: $colTier" >&2 ; return 1 ; }
-		colTier="$( AgentsToolsContactsTierName "$colTier" )"
 		AgentsToolsContactsStore "$colOp" || return 1
+		type AgentsToolsActingMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.ActingMember.include"
 		colTierBy="$( AgentsToolsActingMember )"
 		if [ -z "$colTierBy" ] ; then
-			type AgentsToolsConsoleAccount > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.CallerCheck.include"
+			type AgentsToolsConsoleAccount > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.ActingMember.include"
 			colTierBy="user-$( AgentsToolsConsoleAccount )"
 		fi
 		type AgentsToolsPermissionIsHumanOwner > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionHolds.include"
+		colTier="$( AgentsToolsContactsTierName "$colTier" )"
 		if ! AgentsToolsPermissionIsHumanOwner "$colTierBy" ; then
 			## A member's call writes a tier only where he has answered one ask about this contact and no tier has been set from that answer yet:
 			## the word he chose is the tier that is written, whatever word the caller proposed. Anything else asks him and writes nothing. The whole
@@ -147,11 +149,12 @@ AgentsToolsContactsCollectContact(){ ## the operation, its arguments...
 		if ! AgentsToolsContactsCallerIsOwner ; then
 			## A member's scope tier is asked of him as a record tier is, one scope a call: his answer, once given and not yet used, is the tier written,
 			## whatever the member proposed. Anything else asks him and writes nothing, the whole call refused.
-			local colScopeName="${colScopeTier%%=*}" colScopeAnswered=""
+			local colScopeName="${colScopeTier%%=*}" colScopeAnswered="" colAskSaid=""
 			case "$colScopeTier" in *,*) echo "$MDSC_CMD: ⛔ ERROR: $colOp: nothing in this call was written: a member asks one --scope-tier at a time" >&2 ; return 1 ;; esac
 			colScopeAnswered="$( AgentsToolsContactsTierAnswerWord "$colId" "$colScopeName" )" || {
-				AgentsToolsContactsTierAsk "$colOp" "$colId" "${colScopeTier#*=}" "$colScopeName" || :
+				colAskSaid="$( AgentsToolsContactsTierAsk "$colOp" "$colId" "${colScopeTier#*=}" "$colScopeName" 2>&1 )" || :
 				echo "$MDSC_CMD: ⛔ ERROR: $colOp: nothing in this call was written: --scope-tier is the human-owner's to set, as --tier is -- send the rest in a call without it" >&2
+				[ -z "$colAskSaid" ] || printf '%s\n' "$colAskSaid" >&2
 				return 1
 			}
 			colScopeTier="$colScopeName=$( AgentsToolsContactsTierName "$colScopeAnswered" || printf '%s' "$colScopeAnswered" )"
@@ -164,6 +167,7 @@ AgentsToolsContactsCollectContact(){ ## the operation, its arguments...
 	fi
 	[ -z "$colSlack$colHandle$colConv$colMail$colDrop$colName$colOrg$colRole$colRel$colHow$colLanguage$colOwner$colTier$colScopeTier$colNote" ] \
 		&& { echo "$MDSC_CMD: ⛔ ERROR: $colOp: nothing is given to record -- $colSyntax" >&2 ; return 1 ; }
+	type AgentsToolsActingMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.ActingMember.include"
 	colBy="$( AgentsToolsActingMember )"
 	if [ -n "$colBy" ] ; then
 		[ -z "$colMember" ] || [ "$colMember" = "$colBy" ] || { echo "$MDSC_CMD: ⛔ ERROR: $colOp: --reached-by names another member than the one this session acts as ($colBy); it is for a call from no member's session" >&2 ; return 1 ; }

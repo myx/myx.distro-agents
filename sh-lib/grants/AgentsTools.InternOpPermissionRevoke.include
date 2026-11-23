@@ -56,6 +56,7 @@ type AgentsToolsGrantsItemRuns > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distr
 			printf 'REVOKED: %s already\n' "$revokeRef"
 			return 0
 		fi
+		type AgentsToolsActingMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.ActingMember.include"
 		revokeBy="$( AgentsToolsActingMember )"
 		mkdir -p "$revokeStore/revoked" 2>/dev/null \
 			&& printf 'revoked-by: %s\nrevoked-at: %s\n' "${revokeBy:-human-owner}" "$( date +"%Y-%m-%d %H:%M %z" )" > "$revokeStore/revoked/$revokeRef" || {

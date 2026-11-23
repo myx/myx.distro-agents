@@ -75,7 +75,7 @@ at @magic-team
 turn
 rowids rig
 RIGSCRIPT
-rigAssert "a team rig whose team data is there: the screen starts at Manuals, and Team Data stands in Magic-Team (Agents)" "$( rigVal start.selected ) $( rigVal rig )" "manuals .. activity launch team teamdata routines schedule"
+rigAssert "a team rig whose team data is there: the screen starts at Manuals, and Team Data stands in Magic-Team (Agents)" "$( rigVal start.selected ) $( rigVal rig )" "manuals .. activity launch team teamdata contacts routines epics schedule"
 rigAssert "it was read at the start, by the block of the team data alone" "$( rigReads )" "1"
 rigCase agents just-agents yes
 rigScript <<'RIGSCRIPT'
@@ -113,7 +113,7 @@ keys u
 wait here 10
 rowids cleared
 RIGSCRIPT
-rigAssert "a workspace set to a team rig after the screen started shows Team Data at the refresh, with no restart, and cleared of it hides it at the next" "$( rigVal before ) / $( rigVal after ) / $( rigVal cleared )" ".. activity launch team routines schedule / .. activity launch team teamdata routines schedule / .. activity launch team routines schedule"
+rigAssert "a workspace set to a team rig after the screen started shows Team Data at the refresh, with no restart, and cleared of it hides it at the next" "$( rigVal before ) / $( rigVal after ) / $( rigVal cleared )" ".. activity launch team routines schedule / .. activity launch team teamdata contacts routines epics schedule / .. activity launch team routines schedule"
 ## the end of a command: the one that Team Data runs writes what a wizard writes, the settings, here the answer of the tooling
 rigCase run team-rig yes
 printf 'script purge.sh\n' > "$MANAGER_SCREEN_RIG/mode.--owner-cleanup-purge"

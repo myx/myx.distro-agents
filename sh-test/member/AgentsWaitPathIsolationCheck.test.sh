@@ -140,9 +140,10 @@ rigAlways="$rigAlwaysRun"
 echo "-- the rig: a copy of the package under check, a log line at the head of each include, a fake curl --"
 rigOrigin="$rigTmp/origin"
 mkdir -p "$rigOrigin/myx" "$rigTmp/bin" "$rigTmp/ws/.local/.agents" "$rigTmp/ws/.local/agents/pending" "$rigTmp/data" || exit 1
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-copy.include.sh" || exit 1
 for rigPkg in "$MDLT_ORIGIN"/myx/myx.distro-* "$MDLT_ORIGIN"/myx/myx.common ; do
 	[ -d "$rigPkg" ] || continue
-	cp -RL "$rigPkg" "$rigOrigin/myx/${rigPkg##*/}" || rigRefuse "the copy of ${rigPkg##*/} failed"
+	rigCopyTree "$rigPkg" "$rigOrigin/myx/${rigPkg##*/}" || rigRefuse "the copy of ${rigPkg##*/} failed"
 done
 [ "$( find "$rigOrigin" -type l | LC_ALL=C wc -l | LC_ALL=C tr -d ' ' )" = "0" ] || rigRefuse "the copy holds a link, so a rig could reach the real tree"
 find "$rigOrigin" -name .git -prune -exec rm -rf {} +

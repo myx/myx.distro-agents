@@ -329,9 +329,9 @@ rigList(){
 		'board/AgentsReviewFlowCheck.test.sh|1|kill "$pipedPid"|@probed' \
 		'mcp/AgentsRootSessionEndCheck.test.sh|1|kill -INT -"$rigRootPid"|to the group its own stand-in for a terminal made (setpgrp), a second after a probe found its leader waiting; the interrupt is what the check asserts on' \
 		'mcp/AgentsRootSessionEndCheck.test.sh|1|kill -KILL -"$rigRootPid"|@probed' \
-		'AgentsRunTests.sh|1|kill "-$endSignal" "$endPid"|@at-once' \
-		'AgentsRunTests.sh|1|kill "$watchSleep"|the one sleep this watch waits on at that very moment: the variable is emptied as soon as that wait returns' \
-		'AgentsRunTests.sh|1|kill "$runStallPid"|@running-job' \
+		'runner/AgentsRunExecute.sh|1|kill "-$endSignal" "$endPid"|@at-once' \
+		'runner/AgentsRunExecute.sh|1|kill "$watchSleep"|the one sleep this watch waits on at that very moment: the variable is emptied as soon as that wait returns' \
+		'runner/AgentsRunExecute.sh|1|kill "$runStallPid"|@running-job' \
 		'common/AgentsRunTestsQueueCheck.test.sh|1|kill -TERM "$rigPidB"|@at-once' \
 		'common/AgentsRunTestsQueueCheck.test.sh|1|kill -KILL "$rigSlotGiver" "$rigPidA"|@at-once' \
 		'common/AgentsRunTestsQueueCheck.test.sh|1|kill -KILL "$rigSlotPid"|@at-once' \

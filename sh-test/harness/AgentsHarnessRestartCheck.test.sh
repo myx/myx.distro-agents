@@ -241,13 +241,14 @@ rigAssert "the closing round's answer is the result" "$( cat "$rigScenarioDir/ou
 rigVerdict "the restart bound is spent -- closing round, exit 3"
 
 ## No bound set, so no bound: four restarts, one more than any cap this leg once carried.
+## The default is 12 now, so this scenario names 0, and its assertions stand.
 rigStart restart-unbounded
 for rigLeg in 1 3 5 7 ; do
 	rigToolStream "$rigScenarioDir/res.$rigLeg" 5000
 	rigTextStream "$rigScenarioDir/res.$(( rigLeg + 1 ))" RIG-SUMMARY-MARKER stop 20
 done
 rigTextStream "$rigScenarioDir/res.9" RIG-FINAL-MARKER stop 20
-rigRun 1000 ""
+rigRun 1000 0
 rigAssert "the run ends normally"                    "$rigRunStatus" 0
 rigAssert "nine rounds were requested"               "$rigRoundCount" 9
 rigAssert "the fourth restart was announced"         "$( rigHolds "$rigScenarioDir/err" 'summarising for restart 4' )" yes

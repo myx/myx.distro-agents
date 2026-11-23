@@ -5,6 +5,8 @@
 ## AgentsTools.SpawnProxyRootMarks.include -- the marks of the root session: their target, their place, retry, clear and pause. Split out of AgentsTools.SpawnSandbox.include by concern, its functions unchanged. Sourced, never
 ## run; it relies on what AgentsTools.SpawnSandbox.include sources for it.
 ##
+type AgentsSessionMarked > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+
 ## THE MARKS A SESSION'S ROOT MESSAGE SHOWS (S6.37). The root post of the session's own thread -- the one
 ## `session.thread` names, and never a tracking thread -- shows the session's end: `checkered_flag` once no run of the
 ## session is left, with `white_check_mark` where every run of it ended well, else `octagonal_sign`. A restart or a
@@ -32,7 +34,7 @@ AgentsToolsSpawnProxyRootMarkTarget(){ ## session id
 ## rather than half of it. Never fails its caller.
 AgentsToolsSpawnProxyRootMarkPlace(){ ## session id
 	local placeSession="$1" placeWant placeEnd placeTarget placeEmoji placeRc=0
-	type AgentsSessionMarkerFileInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include" || return 1
+	type AgentsSessionMarkerFileInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.Paths.include" || return 1
 	AgentsSessionMarkerFileInto placeWant "$placeSession" root.want || return 0
 	AgentsSessionMarkerFileInto placeEnd "$placeSession" root.end || return 0
 	[ -f "$placeWant" ] || return 0
@@ -59,7 +61,7 @@ AgentsToolsSpawnProxyRootMarks(){ ## tracking file of the run that just closed
 	markSession="$( AgentsToolsFrontmatterKey "$markRecord" session-id )"
 	case "$markSession" in ''|-|.|..|*/*) return 0 ;; esac
 	AgentsToolsSpawnProxyRootMarkTarget "$markSession" > /dev/null || return 0
-	type AgentsSessionMarkerFileInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include" || return 1
+	type AgentsSessionMarkerFileInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.Paths.include" || return 1
 	! AgentsSessionMarked "$markSession" root.end || return 0
 	AgentsSessionMarkerFileInto markWant "$markSession" root.want || return 0
 	type AgentsToolsSpawnedSessionRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include"
@@ -85,7 +87,7 @@ AgentsToolsSpawnProxyRootMarks(){ ## tracking file of the run that just closed
 ## restart finds. A removal that does not land keeps `root.end`, so the next clear takes it off. Never fails its caller.
 AgentsToolsSpawnProxyRootMarkClear(){ ## session id
 	local clearSession="$1" clearWant clearEnd clearTarget clearEmoji clearRc=0
-	type AgentsSessionMarkerFileInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include" || return 1
+	type AgentsSessionMarkerFileInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.Paths.include" || return 1
 	AgentsSessionMarkerFileInto clearWant "$clearSession" root.want || return 0
 	AgentsSessionMarkerFileInto clearEnd "$clearSession" root.end || return 0
 	rm -f "$clearWant" 2> /dev/null
@@ -108,7 +110,7 @@ AgentsToolsSpawnProxyRootMarkClear(){ ## session id
 ## left alone. Never fails its caller.
 AgentsToolsSpawnProxyRootPauseMarks(){ ## session id
 	local pauseSession="$1" pauseMark pauseTarget pauseWant="" pauseHeld="" pauseRc=0
-	type AgentsSessionMarkerFileInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include" || return 1
+	type AgentsSessionMarkerFileInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.Paths.include" || return 1
 	AgentsSessionMarkerFileInto pauseMark "$pauseSession" root.pause || return 0
 	AgentsSessionMarked "$pauseSession" paused && pauseWant="double_vertical_bar"
 	[ ! -f "$pauseMark" ] || IFS= read -r pauseHeld < "$pauseMark" || :

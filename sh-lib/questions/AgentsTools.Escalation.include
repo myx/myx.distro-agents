@@ -1084,7 +1084,7 @@ AgentsToolsEscalationSetEntry(){ ## session id, refusal id
 ## (AgentsToolsPendingRecordPath, AgentsTools.Authority.include). Prints its path.
 AgentsToolsEscalationRecord(){ ## request id
 	AgentsToolsAssertBareName "$1" "<request-id>" escalation || return 1
-	type AgentsToolsPendingRecordPath > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.Authority.include"
+	type AgentsToolsPendingRecordPath > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.PendingPaths.include"
 	AgentsToolsPendingRecordPath "$1" || {
 		echo "$MDSC_CMD: ⛔ ERROR: no escalation record $1" >&2
 		return 1

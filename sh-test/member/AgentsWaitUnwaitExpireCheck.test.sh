@@ -17,6 +17,7 @@ rigMember="magic-tester"
 
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
+
 }
 [ -f "$rigTools" ] || rigRefuse "DistroAgentsTools.fn.sh not found at the origin this workspace resolves: $rigTools"
 [ -r "${MDAT_SKILLSET_ROOT:-}/$rigMember/$rigMember.basic.md" ] || rigRefuse "MDAT_SKILLSET_ROOT does not hold $rigMember, so the tool would have no identity to act under"
@@ -97,7 +98,7 @@ rigAssert "it leaves the stored sources line, the floor staying: the replies, th
 rigOp --wait-for-input --team-member "$rigMember" --wait-default --wait-session-id "$rigSession1" --wait-source "ask:rig-unwait-001" --wait-timeout 5 --wait-poll-interval 1
 rigAssert "naming it again explicitly still works: dropping is not blocking" "$( rigFirstLine "$rigScenarioDir/out" )" "WAIT-RESULT: RECEIVED"
 
-echo "-- an answered question leaves the stored wait once a later call does not name it (owner 2026-10-31) --"
+echo "-- an answered question leaves the stored wait once a later call does not name it --"
 rigSession2="rig-wait-expire"
 rigRecord rig-expired-001 1600000000.000000
 : > "$rigScenarioDir/ws/quiet.txt"
@@ -124,5 +125,6 @@ rigAssert "no request went anywhere but a Slack method" \
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ WAIT UNWAIT EXPIRE CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1
+
 fi
 printf 'WAIT_UNWAIT_EXPIRE: OK (%d assertions, offline)\n' "$rigPassCount"

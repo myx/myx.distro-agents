@@ -8,7 +8,7 @@ type AgentsSessionRunDead > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-age
 ## registry stores whatever the tooling needs to work fast, so that a display does not
 ## read through the session folders, the date a run started and the date a state was
 ## recorded among it. Liveness is never stored: it is measured live. Each registry is
-## rebuilt by its owner, through the `registry-<name>` hook it declares in sh-lib/hooks.registry.
+## rebuilt by its owner, through the `registry-<name>` hook it declares in sh-lib/common/hooks.registry.
 ##   team-members        <- this workspace's own member registry, .local/agents/members.registry
 ##   team-members-names  <- those members' names, alias and mark
 ##   spawned-sessions    <- the spawn sandbox roots in this workspace
@@ -42,14 +42,14 @@ AgentsToolsRegistryWrite(){ ## registry name, rows function
 }
 
 ## Rebuilds one registry by its owner: fires the `registry-<name>` hook, whose handler the owner declares in
-## sh-lib/hooks.registry. A name no owner declares fails loudly, since an empty fire would leave a stale file.
+## sh-lib/common/hooks.registry. A name no owner declares fails loudly, since an empty fire would leave a stale file.
 AgentsToolsRegistryRebuild(){ ## registry name
 	local rebuildLine rebuildDeclared=""
 	while IFS= read -r rebuildLine ; do
 		case "$rebuildLine" in "registry-$1 "*) rebuildDeclared="true" ; break ;; esac
-	done < "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/hooks.registry"
+	done < "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/hooks.registry"
 	if [ -z "$rebuildDeclared" ] ; then
-		echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools} registry $1: no owner declares the registry-$1 hook in sh-lib/hooks.registry" >&2
+		echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools} registry $1: no owner declares the registry-$1 hook in sh-lib/common/hooks.registry" >&2
 		return 1
 	fi
 	type AgentsHookFire > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.Hook.include"
@@ -89,7 +89,7 @@ AgentsToolsRegistryFrontmatter(){ ## file
 registryPersonaMember="magic-coordinator"
 
 ## The one list of the registries, a name a line, in the order they are built. Another registry is one more
-## line here and its owner's `registry-<name>` line in sh-lib/hooks.registry.
+## line here and its owner's `registry-<name>` line in sh-lib/common/hooks.registry.
 AgentsToolsRegistryList(){
 	printf '%s\n' "team-members
 team-members-names
@@ -157,8 +157,8 @@ AgentsToolsRegistryRowsEntry(){ ## kind letter, text
 ## Rebuilds one registry and prints it, with its own column line. A registry that
 ## could not be rebuilt says so and never prints a stale file as though it were
 ## fresh; an empty one says it is empty, which is not the same statement.
-AgentsToolsRegistryRenderPlain(){ ## heading, registry name, columns
-	local registryFile registryRow sawRow="false"
+AgentsToolsRegistryRenderPlain(){ ## heading, registry name, columns, rows to show (may be empty)
+	local registryFile registryRow sawRow="false" showMax="${4:-}" showCount=0 showHidden=0
 	registryFile="$MMDAPP/.local/agents/$2.registry"
 	printf '%s\n\n' "## $1"
 	if ! AgentsToolsRegistryRebuild "$2" ; then
@@ -170,8 +170,13 @@ AgentsToolsRegistryRenderPlain(){ ## heading, registry name, columns
 	while IFS= read -r registryRow ; do
 		[ -n "$registryRow" ] || continue
 		sawRow="true"
-		printf '%s\n' "$registryRow"
+		showCount=$(( showCount + 1 ))
+		case "$showMax" in
+			''|0|*[!0123456789]*) printf '%s\n' "$registryRow" ; continue ;;
+		esac
+		if [ "$showCount" -le "$showMax" ] ; then printf '%s\n' "$registryRow" ; else showHidden=$(( showHidden + 1 )) ; fi
 	done < "$registryFile"
+	[ "$showHidden" -eq 0 ] || printf '... and %s more rows, not shown: the round that needs one names it\n' "$showHidden"
 	[ "$sawRow" = "true" ] || printf '%s\n' "**NOTE:** no rows -- the registry was rebuilt and its store holds none"
 	printf '\n'
 	return 0

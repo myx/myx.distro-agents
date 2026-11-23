@@ -392,7 +392,7 @@ done
 ## tools that send refuse, and every other tool is still served.
 ## The served member set root, resolved once here for the whole run by the one resolver: this
 ## workspace's member index view, or a root set here that names another folder.
-type AgentsToolsSkillsetRootInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWorkspace.include"
+type AgentsToolsSkillsetRootInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWorkspace.Root.include"
 harnessServedSkillset="${MDAT_SKILLSET_ROOT:-}"
 [ -z "${MMDAPP:-}" ] || AgentsToolsSkillsetRootInto harnessServedSkillset "$MMDAPP"
 ## AN INVITED MEMBER'S OWN FOLDER, resolved per call (S12 row 16): no launch hands a member set root on, so a member set up
@@ -526,6 +526,14 @@ case "$harnessTier" in
 		harnessModelHow="macro high, resolved by this leg" ; [ "${HARNESS_MODEL_FROM_MAIN:-}" != name ] || harnessModelHow="the model the preset names"
 	;;
 esac
+## The two ceilings this run stops itself at: 2000 rounds, a dozen times the longest run measured
+## on this rig, and 12 restarts, past every healthy run measured here. Each is read here, before
+## the start line, so that line can state it. 0 removes one; its own validation sits below.
+harnessMaxRounds="${MDAT_HARNESS_MAX_ROUNDS:-2000}"
+case "$harnessMaxRounds" in 0) harnessMaxRounds="" ;; esac
+harnessMaxRestarts="${MDAT_HARNESS_MAX_RESTARTS:-12}"
+case "$harnessMaxRestarts" in 0) harnessMaxRestarts="" ;; esac
+
 ## A tool call serves no model, so --intern-tool judges nothing and refuses nothing here.
 harnessContextTokens="" harnessNoneForm="" harnessLimitsSource="" harnessThresholdSource="" harnessEffortNote="" harnessThinkingOff=""
 if [ -z "$harnessToolOnly" ] ; then
@@ -542,8 +550,9 @@ if [ -z "$harnessToolOnly" ] ; then
 		echo "${harnessBad}⛔ ERROR:${harnessOff} $harnessSelfName: no credential -- $harnessCredentialNames must be set in this process's own environment. This leg reads those names itself, exactly as claude reads ANTHROPIC_API_KEY" >&2
 		exit 1
 	fi
-	## What this run costs, said once: the tier picked the model, and the model is metered.
-	printf '%s\n' "🤖 ${harnessDim}$harnessProviderName${harnessOff} ${harnessTool}$harnessModel${harnessOff} ${harnessDim}· $harnessTier tier, $harnessModelHow · context window ${harnessWindowTokens:-unknown}, output ${harnessOutputTokens:-unset}, restart at $harnessContextTokens tokens from $harnessThresholdSource; limits from $harnessLimitsSource · $harnessEffortNote${harnessOff}" >&2
+	## What this run costs, said once: the tier picked the model, and the model is metered. The
+	## ceilings are said with it, so a default nobody chose is stated before it stops anything.
+	printf '%s\n' "🤖 ${harnessDim}$harnessProviderName${harnessOff} ${harnessTool}$harnessModel${harnessOff} ${harnessDim}· $harnessTier tier, $harnessModelHow · context window ${harnessWindowTokens:-unknown}, output ${harnessOutputTokens:-unset}, restart at $harnessContextTokens tokens from $harnessThresholdSource; limits from $harnessLimitsSource · stops at ${harnessMaxRounds:-no} rounds, ${harnessMaxRestarts:-no} restarts · $harnessEffortNote${harnessOff}" >&2
 fi
 
 . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessAccess.include"
@@ -553,6 +562,7 @@ fi
 ## mechanism. AgentsTools.ClientAccessRoots.include is the one place it is defined, so a
 ## caller takes what that yields and never a rendered copy downstream of it.
 ## .claude/copilot-add-dir.fragment is exactly such a copy -- one of that include's own
+
 ## consumers. It stays generated and stays copilot's own integration, and nothing here
 ## reads it: it is output we publish, not a source anything of ours consults, which is
 ## the rule mcp.servers.json already follows beside it. Sourced rather than re-entered
@@ -972,6 +982,7 @@ harnessResolvedPath=""
 harnessGrantOpen=""
 harnessGrantOpenFor=""
 ## And what granted it, as the read says it (`standing floor`, `task <item>`, ...), for the gate.
+
 harnessGrantLayer=""
 
 
@@ -1214,10 +1225,12 @@ harnessToolSearchFloorFile="$harnessScratch/toolsearch.floor"
 ## THE PREFETCH (F10.8). What a harness member of a spawned session is told to read on its way to armed -- its own armed file, the
 ## sections of the team's armed file that its task names (the brief the spawner puts first in a dispatch, spawn-brief.document.format.md,
 ## gives them as `{name: .., file: .., section: ..}`), and, where the spawn record asks for the prefix of the routine, the routine's
+
 ## text mixed with its kind routine -- is read for it before its task: the text goes first in the first message of the run, as a block
 ## of its own, with the cache marker of the wire at its end (AgentsWireInitMessages). Exactly those reads and nothing more: the Skill
 ## tool's own answers to them, called here, so the skillset stays the one source and nothing is copied for an agent to read; the whole
 ## skill bundle stays what a default Skill load serves. Each read is kept in an internal cache under .local/agents/prefetch/, an
+
 ## entry for a read and one for a routine's text. An entry carries a stamp, the checksum, size and path of every file the text is
 ## made from and of the code that makes it, and it is used only where the stamp is the stamp of the files as they are now: an edited
 ## file is picked up by the very next spawn, and an entry made before a change is never served. Where the entry is not good, the text
@@ -1252,6 +1265,7 @@ agentsPrefetchRoutineFile=""
 ## any other string replaces it.
 ## Each top-level key spelled [A-Za-z0-9_] is also held as harnessArgV_<key>, and each
 ## `-<letters>` key (Grep's -n, -A ...) as harnessArgD_<letters>, holding exactly what
+
 ## "$( AgentsHarnessArgValue raw key )" yields: unset where that is empty, every
 ## trailing newline dropped as a command substitution drops it.
 harnessArgRaw=""
@@ -1510,6 +1524,7 @@ fi
 ## The local lock primitive Write and Edit take; absent, every write is refused as unlockable.
 [ ! -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.LocalLock.include" ] || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.LocalLock.include"
 ## The session transcript and token hooks; every one returns 0, and is called with || : besides.
+
 [ ! -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionTranscript.include" ] || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionTranscript.include"
 
 ## --intern-tool ends here: the tools, the hooks and, for a tool that reaches an MCP
@@ -1756,9 +1771,8 @@ AgentsHarnessCacheWatch(){
 	return 0
 }
 
-## No round ceiling by default: a round is one model turn, which tracks neither
-## cost nor progress, and a task is not finished by being cut off at one.
-## MDAT_HARNESS_MAX_ROUNDS sets one where a caller wants it; unset means none.
+## The round ceiling: 2000, a dozen times the longest run measured on this rig, so a looping
+## run ends and a healthy long batch does not. MDAT_HARNESS_MAX_ROUNDS moves it, and 0 removes it.
 ## One line in the run's own session thread, that a busy or empty provider has paused it (S6.18). Never fails the run:
 ## a thread it cannot reach, or a post that will not go, is said on stderr and the pause goes on.
 AgentsHarnessBusySay(){ ## the words
@@ -1786,7 +1800,6 @@ harnessRound=0
 ## The rounds of the leg being run: back to 0 where the conversation is replaced (a restart, a rewind) and where a wait ends in an arrival, so that
 ## round 1 of a leg is the first model call of a wake, whose prompt-cache line (AgentsAnthropicMessagesWire) is the figure of that wake.
 harnessLegRound=0
-harnessMaxRounds="${MDAT_HARNESS_MAX_ROUNDS:-}"
 ## Whole rounds, by explicit enumeration rather than a collation-dependent range.
 harnessMaxRoundsRest="$harnessMaxRounds"
 while [ -n "$harnessMaxRoundsRest" ] ; do
@@ -1800,14 +1813,18 @@ while [ -n "$harnessMaxRoundsRest" ] ; do
 		;;
 	esac
 done
+## THE QUIET-ROUND BOUND, BY NAME: MDAT_HARNESS_MAX_QUIET_ROUNDS rounds in a row with nothing arriving stop the idling,
+## 20 unless another is named, 0 for no bound. AgentsHarnessIdleWait reads it, and both the wait and the duty loop obey it.
+harnessMaxQuiet="${MDAT_HARNESS_MAX_QUIET_ROUNDS:-20}"
+if ! AgentsHarnessWholeNumber "$harnessMaxQuiet" ; then
+	echo "${harnessBad}⛔ ERROR:${harnessOff} $harnessSelfName: MDAT_HARNESS_MAX_QUIET_ROUNDS must be a whole number of rounds, got: $harnessMaxQuiet" >&2
+	exit 1
+fi
 ## At this many tokens in one round the leg asks the model to summarise its own work
 ## and restarts from that summary plus the original task, so nothing is dropped by age
 ## or by eviction -- the model judges what is worth carrying. 0 turns it off entirely.
 ## $harnessContextTokens is resolved with the tier above: the stub's own window for that
 ## model less its output maximum, and the core's 400000 only for a stub that declares none.
-## No restart bound by default, as there is no round cap: MDAT_HARNESS_MAX_RESTARTS sets
-## one where a caller wants it. Every restart is announced, so a cycle stays visible.
-harnessMaxRestarts="${MDAT_HARNESS_MAX_RESTARTS:-}"
 if ! AgentsHarnessWholeNumber "$harnessContextTokens" ; then
 	echo "${harnessBad}⛔ ERROR:${harnessOff} $harnessSelfName: the restart threshold (MDAT_HARNESS_CONTEXT_TOKENS or PRESET_CONTEXT_MAX_SIZE) must be a whole number of tokens, got: $harnessContextTokens" >&2
 	exit 1
@@ -1820,6 +1837,18 @@ if [ -n "$harnessOutputTokens" ] && ! AgentsHarnessWholeNumber "$harnessOutputTo
 	echo "${harnessBad}⛔ ERROR:${harnessOff} $harnessSelfName: HARNESS_OUTPUT_TOKENS_* for the $harnessTier tier must be a whole number of tokens, got: $harnessOutputTokens" >&2
 	exit 1
 fi
+## The spend statement: a line at every bound that stops the run, so a cut run says what it
+## spent instead of ending on a figure nobody kept. The four figures are the leg's own, and the
+## same line goes beside the run record, where `.restarts` and `.refused` already are.
+AgentsHarnessSpendSay(){ ## the bound, its value
+	local sayTotal=$(( harnessSpendIn + harnessSpendRead + harnessSpendWrite + harnessSpendOut )) sayLine
+	sayLine="rounds $harnessRound in $harnessSpendIn cache-read $harnessSpendRead cache-write $harnessSpendWrite out $harnessSpendOut total $sayTotal stopped-by $1${2:+ at $2}"
+	printf '%s\n' "${harnessWarn}💸 SPEND:${harnessOff} ${harnessDim}$sayLine${harnessOff}" >&2
+	[ -n "${MDAT_SPAWN_SANDBOX_ROOT:-}" ] && [ -n "${MDAT_SPAWN_SESSION_ID:-}" ] || return 0
+	case "$MDAT_SPAWN_SESSION_ID" in ''|.|..|*/*) return 0 ;; esac
+	printf '%s\n' "$sayLine" >> "$MDAT_SPAWN_SANDBOX_ROOT/$MDAT_SPAWN_SESSION_ID.spend" 2> /dev/null || :
+	return 0
+}
 ## A THRESHOLD FAR BELOW THE SERVICE'S OWN WINDOW IS A BUDGET FAULT, SAID AT START.
 ## A run that restarts at a fraction of the window re-sends its whole prompt at every leg
 ## and finishes far later than one left to the window -- the class that made an old
@@ -1911,8 +1940,13 @@ harnessOutputBudget="$harnessOutputTokens"
 harnessHandoverAsk="Your context is full for this leg and it is about to be restarted, so no further tool call can run in it. Write the handover a fresh leg needs: it will be given the original task again word for word, and nothing else from this conversation. State what you have already done, what you found -- exact paths, names, values and commands, not a description of them -- what is still to do, and what must not be repeated. Then, under the heading RULINGS, every ruling, correction and instruction the human-owner gave you in this leg: each verbatim, with the thread address it came in (its [reply-to] address), and whether it is already written into your CheckList or a tracking document. A ruling not on that list is lost with this leg. Write it as notes to yourself, in plain text, with no preamble."
 ## Read by the wire adapter; empty leaves that wire's own default in place.
 harnessToolChoice=""
-## Recorded and displayed, never enforced: this leg carries no budget.
+## Recorded and displayed: this leg carries no budget of its own.
 harnessUsagePrompt="" harnessUsageCompletion="" harnessUsageTotal=""
+## The spend statement's four figures, `in cache-read cache-write out`, summed across the leg.
+harnessSpendIn=0 harnessSpendRead=0 harnessSpendWrite=0 harnessSpendOut=0
+## Quiet rounds in a row, counted by AgentsHarnessIdleWait, end the idling at harnessMaxQuiet, and this condition keeps
+## the loop from spinning once that count is reached: the plain reply after it ends the run as a finished one does.
+harnessQuietRounds=0
 harnessClosingRound=0
 ## The session transcript's MODEL line, where the spawn proxy opened one.
 AgentsTranscriptHarnessStart || :
@@ -1929,6 +1963,7 @@ while : ; do
 		harnessToolChoice="none"
 		harnessClosingRound=1
 		printf '%s\n' "${harnessWarn}⚠️  round cap reached${harnessOff} ${harnessDim}-- closing round, tools off; MDAT_HARNESS_MAX_ROUNDS raises the cap${harnessOff}" >&2
+		AgentsHarnessSpendSay rounds "$harnessMaxRounds"
 	## The signal is the last round's prompt plus the largest single-round growth measured
 	## in this leg, never the running sum: every round re-sends the whole conversation, so
 	## the sum counts the same context once per round while one round's prompt is what sat
@@ -1940,6 +1975,7 @@ while : ; do
 			harnessToolChoice="none"
 			harnessClosingRound=1
 			printf '%s\n' "${harnessWarn}⚠️  context threshold reached with no restart left${harnessOff} ${harnessDim}-- closing round, tools off; MDAT_HARNESS_MAX_RESTARTS raises the bound${harnessOff}" >&2
+			AgentsHarnessSpendSay restarts "$harnessMaxRestarts"
 		else
 			harnessMessages+=( "$( AgentsWireUserRecord "$harnessHandoverAsk" )" )
 			harnessToolChoice="none"
@@ -2136,6 +2172,19 @@ while : ; do
 		harnessUsagePrompt=$(( harnessUsagePrompt + harnessRoundPrompt ))
 		harnessUsageCompletion=$(( harnessUsageCompletion + harnessRoundCompletion ))
 		harnessUsageTotal=$(( harnessUsageTotal + harnessRoundTotal ))
+		## The spend statement's own split, `in cache-read cache-write out` on both wires.
+		if [ -s "$harnessScratch/stream.usage.detail" ] ; then
+			read -r harnessRoundIn harnessRoundRead harnessRoundWrite harnessRoundOut < "$harnessScratch/stream.usage.detail" || :
+			case "${harnessRoundIn:-}${harnessRoundRead:-}${harnessRoundWrite:-}${harnessRoundOut:-}" in
+				''|*[!0123456789]*) ;;
+				*)
+					harnessSpendIn=$(( harnessSpendIn + harnessRoundIn ))
+					harnessSpendRead=$(( harnessSpendRead + harnessRoundRead ))
+					harnessSpendWrite=$(( harnessSpendWrite + harnessRoundWrite ))
+					harnessSpendOut=$(( harnessSpendOut + harnessRoundOut ))
+				;;
+			esac
+		fi
 	## Enabled and never fed: the threshold can never fire, and a run that then walks
 	## into the model's own limit reads exactly like one this managed. Said once.
 	elif [ "$harnessRound" = 1 ] && [ "$harnessContextTokens" != 0 ] ; then
@@ -2322,7 +2371,7 @@ while : ; do
 		## a coordinator that started the session natively, with another participant still running, is checked live here too, against the same
 		## executor record the task-block note above was built from (harnessExecutorRecord).
 		type AgentsToolsSessionOthersRunning > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionSeats.include"
-		if [ -z "$harnessDismissedEnd" ] && [ "${harnessDutyPlainRuns:-0}" -lt 10 ] \
+		if [ -z "$harnessDismissedEnd" ] && [ "${harnessDutyPlainRuns:-0}" -lt 10 ] && { [ "$harnessMaxQuiet" = 0 ] || [ "$harnessQuietRounds" -lt "$harnessMaxQuiet" ] ; } \
 			&& { AgentsHarnessWorkDuty || AgentsHarnessOthersRunning || { [ -n "$harnessExecutorRecord" ] && AgentsToolsSessionOthersRunning "$harnessExecutorRecord" > /dev/null 2>&1 ; } ; } \
 			&& ! AgentsSessionMarked "${MDAT_SPAWN_SESSION_ID:-}" dismissed ; then
 			harnessDutyPlainRuns=$(( ${harnessDutyPlainRuns:-0} + 1 ))

@@ -395,9 +395,9 @@ AgentsHarnessCwdAllowed(){ ## cwd
 	## A RELATIVE cwd IS THE RUN'S OWN FOLDER (129 refused calls on 2026-11-10 named `.`): `.` and a relative path mean where this run works,
 	## so they are made absolute against it before the gate decides, as the gate decides every other folder. Every cwd check comes here.
 	case "$1" in
-		.|./) set -- "$PWD" ;;
+		.|./) set -- "$( pwd -P )" ;;
 		''|/*) ;;
-		*) set -- "$PWD/${1#./}" ;;
+		*) set -- "$( pwd -P )/${1#./}" ;;
 	esac
 	AgentsHarnessFileGate Read "$1" read || cwdGateRc=$?
 	case "$cwdGateRc" in

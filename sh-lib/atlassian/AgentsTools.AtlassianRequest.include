@@ -13,6 +13,7 @@
 AgentsToolsAtlassianCall() {
 	local actingMember="$1" productName="$2" methodName="$3" pathText="$4" callContext="$5" jsonBody="$6" attachFile="${7:-}"
 	## curl -F reads ; , and a double quote in its value as its own syntax.
+
 	case "$attachFile" in
 		*';'*|*','*|*'"'*)
 			printf '%s\n' "⛔ ERROR: $MDSC_CMD --$callContext: an attachment path may not hold ; , or a double quote: $attachFile" >&2

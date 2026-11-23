@@ -58,6 +58,7 @@ The Opening steps of the routine it inherits from run first (its session kind's,
    - `magic-developer/reference/code-craft.md`, whole.
    - `magic-developer/reference/shell.md`, where the code is shell or awk.
    - rule: both stand read on every run of this routine. A feature that changes no code reads them anyway, because the gate is judged against them.
+   - rule: the handback names these two as read, or says which it did not read and why. A handback that names neither has not shown its reading.
 
 # Steps
 

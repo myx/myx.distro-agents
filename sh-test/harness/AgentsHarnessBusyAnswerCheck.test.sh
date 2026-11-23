@@ -206,6 +206,7 @@ echo "-- 5b. the same two repairs on the Messages wire --"
 ## Section 5 drives the chat wire alone, so every statement it makes is a statement about that wire.
 ## The broken-name refusal and the replay of the repaired name sit in AgentsUniversalHarness.sh, above
 ## both wires (:2238 to :2251, the repair at :2277), so the Messages wire owes its own red. Its own
+
 ## stream shape is what an answer is written in here, and its own request shape is what the red asserts.
 rigMessagesToolBad(){ ## file -- one tool_use block whose name the provider broke
 	printf 'event: message_start\ndata: {"type":"message_start","message":{"id":"msg_rigbusy_bad","type":"message","role":"assistant","content":[],"usage":{"input_tokens":100,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"output_tokens":1}}}\n\n' > "$1"

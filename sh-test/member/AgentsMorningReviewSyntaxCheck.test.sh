@@ -30,8 +30,8 @@ trap 'rm -rf -- "$rigTmp"' EXIT
 rigWs="$rigTmp/ws" rigSkills="$rigTmp/skills" rigData="$rigTmp/data" rigHome="$rigTmp/home"
 mkdir -p "$rigWs/.local/agents" "$rigHome" "$rigData" \
 	"$rigSkills/magic-librarian" "$rigSkills/magic-team" || exit 1
-cp -R "$rigPkg/skillset/magic-team/magic-librarian/." "$rigSkills/magic-librarian/" || rigRefuse "the skillset could not be copied into the rig"
-cp -R "$rigPkg/skillset/magic-team/magic-team/." "$rigSkills/magic-team/" || rigRefuse "the team routines could not be copied into the rig"
+rigCopyTree "$rigPkg/skillset/magic-team/magic-librarian" "$rigSkills/magic-librarian" || rigRefuse "the skillset could not be copied into the rig"
+rigCopyTree "$rigPkg/skillset/magic-team/magic-team" "$rigSkills/magic-team" || rigRefuse "the team routines could not be copied into the rig"
 rigRoutine="$rigSkills/magic-librarian/magic-librarian.morning-review.routine.md"
 
 rigPassCount=0

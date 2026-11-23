@@ -22,6 +22,8 @@
 ## Sourced from its op's own dispatcher arm, or for its functions only.
 ##
 
+type AgentsToolsClientCallerCheck > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.CallerCheck.include"
+
 agentsToolIndexHere="${harnessHere:-$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib}"
 agentsToolIndexFormat="format: myx.distro tool-index 1"
 agentsToolIndexFile=""
@@ -71,7 +73,7 @@ AgentsToolsToolIndexData(){ ## workspace
 	type AgentsToolsFrontOps > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.FrontTable.include" || return 1
 	type AgentsToolsGrantsIndexEnsure > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.Grants.include" || return 1
 	type AgentsToolsTeamMemberDirectoryText > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamRegistry.include" || return 1
-	type AgentsToolsSkillsetRootInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWorkspace.include" || return 1
+	type AgentsToolsSkillsetRootInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWorkspace.Root.include" || return 1
 	AgentsToolsSkillsetRootInto agentsGrantsSkillsetRoot "$dataWs"
 	dataMembers="$( MDAT_SKILLSET_ROOT="$agentsGrantsSkillsetRoot" AgentsToolsTeamMemberDirectoryText | LC_ALL=C awk -F'\t' 'NF && $1 != "" { print $1 ; }' | LC_ALL=C sort -u )" || return 1
 	while IFS= read -r dataMember ; do

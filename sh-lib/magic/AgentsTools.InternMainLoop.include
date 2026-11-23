@@ -135,6 +135,11 @@ case "$1" in
 		type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/settings/AgentsTools.ConfigOption.include"
 		sleepSeconds="$( AgentsToolsConfigOption magic-coordinator --select-default MAIN_LOOP_RESTART_DELAY_SECONDS 29 )"
 		case "$sleepSeconds" in *[!0123456789]*|'') sleepSeconds=29 ;; esac
+		## A delay under a second is a spin, not a loop: the floor is the guard.
+		if [ "$sleepSeconds" -lt 1 ] ; then
+			echo "# $MDSC_CMD --intern-main-loop: MAIN_LOOP_RESTART_DELAY_SECONDS=$sleepSeconds is a spin, not a delay; the loop runs at 1s" >&2
+			sleepSeconds=1
+		fi
 		type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/settings/AgentsTools.ConfigOption.include"
 		maxDelaySeconds="$( AgentsToolsConfigOption magic-coordinator --select-default MAIN_LOOP_RESTART_DELAY_MAX_SECONDS 1200 )"
 		case "$maxDelaySeconds" in *[!0123456789]*|'') maxDelaySeconds=1200 ;; esac
@@ -400,6 +405,26 @@ case "$1" in
 			[ 0 -eq "$mainLoopRc" ] && AgentsToolsMainLoopWriteState ok || AgentsToolsMainLoopWriteState failed
 			return "$mainLoopRc"
 		fi
+
+		## ONE LOOP A WORKSPACE: two of them measure the same store twice, pass over pass, and a laptop or a server with both stopped being usable
+		## before a session was even started. The pid file is the guard, its pid checked to be that process still, and a loop that ends takes its
+		## own line away.
+		local mainLoopPidFile="$MMDAPP/.local/agents/main-loop.pid" mainLoopOtherPid="" mainLoopOtherAt=""
+		{ read -r mainLoopOtherPid mainLoopOtherAt < "$mainLoopPidFile" ; } 2> /dev/null || mainLoopOtherPid=""
+		case "$mainLoopOtherPid" in ''|*[!0123456789]*) mainLoopOtherPid="" ;; esac
+		## Decided by a builtin alone and failing closed: a pid this shell can signal is a loop, whatever the process table would say.
+		if [ -n "$mainLoopOtherPid" ] && [ "$mainLoopOtherPid" != "$$" ] ; then
+			kill -0 "$mainLoopOtherPid" 2> /dev/null || mainLoopOtherPid=""
+		fi
+		if [ -n "$mainLoopOtherPid" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --intern-main-loop: a loop of this workspace is running already, pid $mainLoopOtherPid -- one loop a workspace; nothing was started" >&2
+			return 1
+		fi
+		trap 'case "$( cat "$MMDAPP/.local/agents/main-loop.pid" 2> /dev/null )" in "$$ "*) rm -f "$MMDAPP/.local/agents/main-loop.pid" ;; esac' EXIT
+		## The pass's reading is warmed beside the loop; nothing waits for it.
+		( . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.RegistrySpawnedSessions.include" ; AgentsToolsRegistryRenderSpawnedSessionsKept agents > /dev/null 2>&1 ) < /dev/null > /dev/null 2>&1 &
+
+		{ printf '%s %s\n' "$$" "$( date +%s )" > "$MMDAPP/.local/agents/main-loop.pid" ; } 2> /dev/null || :
 
 		while true ; do
 			AgentsToolsMainLoopIteration

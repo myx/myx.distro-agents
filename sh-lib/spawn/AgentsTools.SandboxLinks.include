@@ -89,7 +89,7 @@ AgentsToolsLinkMake(){ ## target, slot
 		[ ! -d "$2" ] || [ -L "$2" ] || { echo "⛔ ERROR: $2 is a folder, so it cannot take the copy of $makeEnd in place of a link" >&2 ; return 1 ; }
 		[ -e "$makeEnd" ] || { echo "⛔ ERROR: $2 would link into source at $makeEnd, which is not there to copy" >&2 ; return 1 ; }
 		rm -f -- "$2" || return 1
-		cp -RLcp "$makeEnd" "$2" 2> /dev/null || { rm -rf -- "$2" ; cp -RLp "$makeEnd" "$2" ; } || return 1
+		if [ -d "$makeEnd" ] ; then rsync -rtLO --delete --exclude=.git "$makeEnd/" "$2/" || return 1 ; else cp -Lp "$makeEnd" "$2" || return 1 ; fi
 		echo "# $2 is a copy of $makeEnd, never a link: a link in a sandbox tree into a source tree is not made" >&2
 		return 0
 	fi
@@ -116,7 +116,7 @@ AgentsToolsLnGuard(){ ## the arguments of ln
 	for guardArg in ${guardSources[@]+"${guardSources[@]}"} ; do
 		if [ -d "$guardDest" ] && [ ! -L "$guardDest" ] ; then guardSlot="$guardDest/${guardArg##*/}" ; else guardSlot="$guardDest" ; fi
 		if guardEnd="$( AgentsToolsLinkReaches "$guardArg" "$guardSlot" "$guardKind" )" ; then
-			echo "⛔ ERROR: ln: refusing a link from a sandbox into source: $guardSlot -> $guardArg ends at $guardEnd. Only a link in a sandbox tree whose target resolves inside a source tree is refused. A sandbox that needs a link makes a shadow copy of the source under .local/temp first (cp -RL) and links there." >&2
+			echo "⛔ ERROR: ln: refusing a link from a sandbox into source: $guardSlot -> $guardArg ends at $guardEnd. Only a link in a sandbox tree whose target resolves inside a source tree is refused. A sandbox that needs a link makes a shadow copy of the source under .local/temp first (rsync -rtLO --delete --exclude=.git) and links there." >&2
 			return 1
 		fi
 	done
@@ -126,7 +126,7 @@ AgentsToolsLnGuard(){ ## the arguments of ln
 AgentsToolsLnGuardMake(){ ## folder -- writes the guard `ln` there, for a run to put first on its PATH; a guard already there is kept
 	local guardHere="$( cd -P "${BASH_SOURCE[0]%/*}" && pwd -P )/${BASH_SOURCE[0]##*/}" guardText guardTemp
 	## The guard runs under the bash that wrote it, never a fixed path (AgentsBashPathGuardCheck).
-	guardText="#!${BASH:-/usr/bin/env bash}"$'\n'". '$guardHere' || exit 1"$'\n''AgentsToolsLnGuard "$@"'
+	guardText='#!/usr/bin/env bash'$'\n'". '$guardHere' || exit 1"$'\n''AgentsToolsLnGuard "$@"'
 	[ "$( cat "$1/ln" 2> /dev/null )" = "$guardText" ] && [ -x "$1/ln" ] && return 0
 	mkdir -p "$1" && guardTemp="$( mktemp "$1/ln.XXXXXX" )" && printf '%s\n' "$guardText" > "$guardTemp" && chmod +x "$guardTemp" && mv -f "$guardTemp" "$1/ln"
 }

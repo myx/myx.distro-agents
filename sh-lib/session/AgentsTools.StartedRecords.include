@@ -65,7 +65,9 @@ AgentsToolsSpawnedSessionRecords(){ ## session, kind (own|parent|any)
 	AgentsSpawnedStoreStampInto sessionStamp "$MMDAPP"
 	case "$sessionStamp" in ''|*[!0123456789]*) sessionStamp="" ;; esac
 	{ IFS= read -r sessionKept < "$sessionCache" ; } 2> /dev/null || sessionKept=""
-	if [ -z "$sessionStamp" ] || [ "$sessionKept" != "stamp:$sessionStamp" ] ; then
+	## A KEPT LIST IS TRUSTED, not re-walked when the store moves: its writer appends a record and removes one, so every record of a session
+	## stands in it. The walk is the first read of a session and nothing after it.
+	if [ ! -f "$sessionCache" ] || [ -z "$sessionKept" ] ; then
 		## The walk's own key: the clock first, then the stamp, so a stamp older than the clock was read in a second already gone.
 		sessionNow="$( date +%s )" || sessionNow=""
 		AgentsSpawnedStoreStampInto sessionStamp "$MMDAPP"
@@ -95,21 +97,54 @@ AgentsToolsSpawnedSessionRecords(){ ## session, kind (own|parent|any)
 ## of all the records takes, so no other part names the folders. A reader that hands the array to grep or awk adds
 ## /dev/null as a last file, so an empty store gives it nothing to read rather than its stdin. No process is started.
 AgentsToolsSpawnedAllRecordsInto(){ ## array variable, workspace (default MMDAPP)
-	local allWs="${2:-${MMDAPP:-/nonexistent}}" allOne
-	case "$1" in ''|*[!A-Za-z0-9_]*) return 1 ;; esac
-	eval "$1=()"
-	for allOne in "${allWs%/}/.local/agents/spawned"/*/*.spawn.md ; do
-		[ -f "$allOne" ] && eval "$1+=( \"\$allOne\" )"
-	done
+	## THE REGISTRY IS THE INDEX, and the list is one string until it is handed over: a `set --` a path, or an eval a path, copies the whole
+	## list each time -- 14,343 ms on a rig of 1,857 records, and what the machine swapped on. A path here holds no space or quote (the store's
+	## own names are ids), which is what makes the single expansion sound.
+	local allName="$1" allWs="${2:-${MMDAPP:-/nonexistent}}" allOne allList="" allRegistry allTracking allSpawn allPath
+	case "$allName" in ''|*[!A-Za-z0-9_]*) return 1 ;; esac
+	allRegistry="${allWs%/}/.local/agents/spawned-sessions.registry"
+	if [ -s "$allRegistry" ] ; then
+		while IFS=' ' read -r allTracking allSpawn allRest ; do
+			[ -n "$allTracking" ] || continue
+			case "$allTracking" in -*|*[!A-Za-z0-9._-]*) continue ;; esac
+			allSpawn="${allSpawn:-$allTracking}"
+			case "$allSpawn" in -*|*[!A-Za-z0-9._-]*) continue ;; esac
+			allPath="${allWs%/}/.local/agents/spawned/$allTracking/$allSpawn.spawn.md"
+			[ -f "$allPath" ] || continue
+			allList="$allList $allPath"
+		done < "$allRegistry"
+	else
+		for allOne in "${allWs%/}/.local/agents/spawned"/*/*.spawn.md ; do
+			[ -f "$allOne" ] || continue
+			allList="$allList $allOne"
+		done
+	fi
+	eval "$allName=( $allList )"
 	return 0
 }
 
 ## THE STARTED RECORDS, read from the index the store's writers keep (`<spawned>/.started-records`), never from a walk of the store: a
 ## line whose record no longer says `spawn-started` is dropped here. Where no index exists yet, one walk writes it.
 AgentsSpawnedStartedRecords(){ ## workspace (default MMDAPP) -- the paths of the started records, a line each
-	local startedWs="${1:-${MMDAPP:-/nonexistent}}" startedIndex startedPaths=() startedList=""
+	local startedWs="${1:-${MMDAPP:-/nonexistent}}" startedIndex startedPaths=() startedList="" startedTtl
 	startedIndex="${startedWs%/}/.local/agents/spawned/.started-records"
-	if [ ! -f "$startedIndex" ] ; then
+	## THE REGISTRY SAYS WHICH RECORDS STARTED, so a store that keeps one is read as one file: the walk and the grep over every record are
+	## the fallback of a store without it.
+	if [ -s "${startedWs%/}/.local/agents/spawned-sessions.registry" ] ; then
+		MDAT_STARTED_WS="${startedWs%/}" LC_ALL=C awk '
+			$6 == "spawn-started" {
+				path = ENVIRON["MDAT_STARTED_WS"] "/.local/agents/spawned/" $1 "/" ( $8 == "" ? $1 : $8 ) ".spawn.md"
+				print path
+			}' "${startedWs%/}/.local/agents/spawned-sessions.registry" 2> /dev/null | while IFS= read -r startedLine ; do
+			[ -f "$startedLine" ] || continue
+			printf '%s\n' "$startedLine"
+		done
+		return 0
+	fi
+	## THE INDEX IS READ FOR AS LONG AS A RECORD CANNOT APPEAR: a start written after it would never be seen, so it is rebuilt on its own TTL.
+	startedTtl="${MDAT_STARTED_RECORDS_SECONDS:-30}"
+	case "$startedTtl" in ''|*[!0123456789]*) startedTtl=30 ;; esac
+	if [ ! -f "$startedIndex" ] || [ "$startedTtl" -eq 0 ] || [ -n "$( find "$startedIndex" -mmin +$(( (startedTtl + 59) / 60 )) 2> /dev/null )" ] ; then
 		AgentsToolsSpawnedAllRecordsInto startedPaths "$startedWs" || startedPaths=()
 		startedList="$( LC_ALL=C grep -l -x -F 'status: spawn-started' ${startedPaths[@]+"${startedPaths[@]}"} /dev/null 2> /dev/null )" || startedList=""
 		[ -z "$startedList" ] || printf '%s\n' "$startedList" > "$startedIndex" 2> /dev/null

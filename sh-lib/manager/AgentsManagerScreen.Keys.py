@@ -131,7 +131,7 @@ def commandOfKey(state, key):
     return None
 
 
-## THE MAIN ACTION OF AN ITEM (owner, 2026-10-20): where the selected item does not handle Enter itself, Enter runs the item's main action, one framework rule and no rule of a
+## THE MAIN ACTION OF AN ITEM : where the selected item does not handle Enter itself, Enter runs the item's main action, one framework rule and no rule of a
 ## view. The action a command declares as main ("main": True) first; else the first of edit, configure, change and open the item has; else any other action it has, one that
 ## destroys last (DESTRUCTIVE_SAYS) -- every one asks for its confirmation, as it does by its own key. Within a kind, the first in the order the commands stand in, which is
 ## the status line's. Only an action on the row (a command that names its places, "on") is one; None where the item has none.

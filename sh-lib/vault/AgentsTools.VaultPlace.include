@@ -6,6 +6,7 @@
 ## reader and writer of the vault takes, beside the inbox's own (sh-lib/inbox/AgentsTools.InboxPlace.include).
 ## In-context helpers with no operation of their own. Sourced for its functions only:
 ##   type AgentsToolsVaultItemPath > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/vault/AgentsTools.VaultPlace.include"
+
 ##
 ## THE VAULT IS ONE STORE. An item is any file of $MDAT_DATA_ROOT/vault or of a folder of it, under any name, which
 ## is what the panel counts. A caller that names one item names a bare file name, and no path: that file is directly

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-## Behavioural check on the `--wait <seconds>` option of an input-scan-def: line (F7.12, the owner's addition of 2026-10-20; AgentsToolsInputScanDefAwait,
+## Behavioural check on the `--wait <seconds>` option of an input-scan-def: line (F7.12, AgentsToolsInputScanDefAwait,
 ## sh-lib/session/AgentsTools.InputScanDef.include, called by the spawn proxy before the lock): `input-scan-def: <scan> --wait 300`. Run through the spawn proxy
 ## with a stand-in console that records its brief and runs no model, as AgentsInputScanDefCheck does. Held:
 ##   1. a scan that is empty at the start and stays so for the whole time: the start ends with no spawn -- no brief reached a console, no sandbox, no record --

@@ -41,7 +41,7 @@ AgentsToolsManagerKillMark(){ ## spawn record file, who, when
 	markBody="$( LC_ALL=C awk -v opsFile="$markOps" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsBoardItemHeaderOpsApply.awk" < "$1" 2>/dev/null )" || markBody=""
 	rm -f "$markOps"
 	[ -n "$markBody" ] || return 1
-	type AgentsSpawnRecordWrite > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+	type AgentsSpawnRecordWrite > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.Write.include"
 	printf '%s\n' "$markBody" | AgentsSpawnRecordWrite "$1"
 }
 
@@ -139,8 +139,9 @@ AgentsToolsManagerKillWait(){ ## pids, space-separated
 ## ending is recorded under is the one the request of that console gives
 ## (AgentsTools.SessionControlRequest.include).
 AgentsToolsManagerSessionKill(){ ## the operation as it was called, the id, "run" where the id is a run's own alone (may be empty), the name the ending is recorded under where the console's user is another's (may be empty)
+	type AgentsSessionCloseRun > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.Write.include"
 	type AgentsToolsRegistrySpawnedSessionsRebuild > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.RegistrySpawnedSessions.include"
-	type AgentsSessionMarkerFile > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+	type AgentsSessionMarkerFile > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.Paths.include"
 	type AgentsToolsSpawnRecord > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunRecords.include"
 	type AgentsToolsRegistryHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
 	type AgentsToolsRunRecorded > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunProcesses.include"

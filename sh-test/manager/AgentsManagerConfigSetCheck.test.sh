@@ -36,7 +36,9 @@ rigWs="$rigTmp/ws" ; rigHome="$rigTmp/home" ; rigSkills="$rigTmp/skills"
 mkdir -p "$rigTmp/bin" "$rigWs/.local/.agents" "$rigWs/.local/agents" "$rigWs/.local/home/rig-other-user" "$rigHome" "$rigSkills"
 ## THE WORKSPACES OF THE RIG, registered as places of this one: one that has the tool family in its source, one
 ## that has it in its .local alone, one that has neither, and one whose folder is not there. A workspace has the
+
 ## family where the three files stand that a console loads first from its origin. This workspace's own .local has
+
 ## the settings reader alone, which a console needs to read its origin at all.
 rigFamily(){ ## origin -- the three files of the tool family there, empty
 	mkdir -p "$1/myx/myx.distro-agents/sh-lib/harness" "$1/myx/myx.distro-.local/sh-lib" "$1/myx/myx.distro-system/sh-lib"
@@ -220,7 +222,8 @@ rigRun "$rigWrite" MDLT_CONSOLE_HISTORY ; [ "$( rigRefused "⛔ ERROR: DistroAge
 rigRun "$rigWrite" MDLT_CONSOLE_HISTORY bash-default more ; [ "$( rigRefused "⛔ ERROR: DistroAgentsTools $rigWrite: syntax is $rigWrite <key> <value>, got 3 argument(s) -- nothing was saved" )" = "1 0 1 1" ] || rigBad="$rigBad three"
 rigAssert "no word, a key alone and a third word are refused with the syntax" "${rigBad:- each refused}" " each refused"
 rigCallerBad=""
-## magic-coordinator is not in this loop: the --manager-* gate exempts it on the owner's ruling of 2026-11-09
+## magic-coordinator is not in this loop: the --manager-* gate exempts it on 
+
 ## (AgentsTools.CallerCheck.include, AgentsToolsManagerCallerCheck), so its supervision runs can manage the runs
 ## they watch. The exemption covers every --manager-* operation, this writer too; its acceptance is asserted below.
 for rigOne in keeper-rig ; do

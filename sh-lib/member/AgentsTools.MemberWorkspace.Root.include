@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.MemberWorkspace.Root.include -- the member set root that serves a workspace, and nothing else.
+## It is split out of AgentsTools.MemberWorkspace.include because an entry point resolves that root on every call,
+## before its context is resolved, and nothing else of that file is read until an operation names a member.
+## Functions only; sourced at the entry of DistroAgentsTools, before its context is resolved.
+##
+
+## The member set root that serves a workspace, into the named variable: that workspace's own
+## member index view, which holds that workspace's members only (AgentsTools.TeamRegistry.include),
+## unless a root set here names another folder. That other folder is kept as it is, because it is
+## an invited member's own, and its session reads its own skillset there. ONE IMPLEMENTATION of
+## the rule: it fills a builtin, so a call path forks nothing, and every reader calls it.
+AgentsToolsSkillsetRootInto(){ ## variable, workspace path
+	case "${MDAT_SKILLSET_ROOT:-}" in
+		''|"${MMDAPP%/}/.local/agents/members") printf -v "$1" '%s' "${2%/}/.local/agents/members" ;;
+		*) printf -v "$1" '%s' "$MDAT_SKILLSET_ROOT" ;;
+	esac
+}

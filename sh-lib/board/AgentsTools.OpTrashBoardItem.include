@@ -26,6 +26,7 @@
 		fi
 		AgentsToolsAssertBareName "$memberName" "<team-member>" trash-board-item || { set +e ; return 1 ; }
 		AgentsToolsAssertBareName "$itemName" "<item-filename>" trash-board-item || { set +e ; return 1 ; }
+		type AgentsToolsActingMemberCheck > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.ActingMember.include"
 		AgentsToolsActingMemberCheck "$memberName" trash-board-item || { set +e ; return 1 ; }
 		if [ "$memberName" != magic-coordinator ] ; then
 			echo "⛔ ERROR: $MDSC_CMD --trash-board-item: only magic-coordinator writes the board; $memberName asks it with an inquiry" >&2

@@ -2,7 +2,8 @@
 ## Behavioural check on a Wait's bound (S5 item 4): no probe holds a wait far past its timeout, and a hit ends the
 ## round instead of paying a slow source after it. Held, run and not read:
 ##   1. A SLOW SOURCE COSTS AT MOST ONE READ BOUND. The bound decides when a wait returns, never which sources it reads
-##      (owner ruling 2026-10-31): a source not yet read gets its whole read bound, here 3 s, and Slack calls that take 5 s
+##      (): a source not yet read gets its whole read bound, here 3 s, and Slack calls that take 5 s
+
 ##      each end at it. Two slow sources under a 1 s bound, which reads every source in line, are each read once, and each
 ##      read ends at its 3 s bound by the read's own record. Wall-clock time is not the measure: under load it is noise.
 ##   2. A HIT ENDS THE ROUND. A source that has news, read first, with a sleeping source after it: the wait returns

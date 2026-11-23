@@ -308,6 +308,41 @@ rigConfirmed rb-gate-edit "$rigGate" "The rig ships on the next train." edit "Th
 rigOp gate7 --record-decision --team-member "$rigMember" "$rigGate" --kind resolved --text "The rig ships on the next train." --readback rb-gate-edit
 rigAssert "an edit lands the person's own words"   "$rigRc:$( rigSection "$rigBoard/running/$rigGate.md" | tail -1 | LC_ALL=C sed -E 's/.* resolved: //; s/ \(readback .*$//' )" "0:The rig ships after the audit."
 
+echo "-- a readback asked again, changed: the understanding it now holds is the one it records --"
+rigRbItem="task-20261008T2000Z-rig-revised-readback"
+printf -- '---\ntype: task\nowner: magic-tester\n---\n\n# Rig revised readback\n' > "$rigBoard/running/$rigRbItem.md"
+rigRbRecorded(){ ## text -- the item's lines recording it through a readback
+	rigSection "$rigBoard/running/$rigRbItem.md" | LC_ALL=C grep -c -F "resolved: $1 (readback " || :
+}
+rigRbBody(){ ## understanding text -- one readback body, as the post carries it
+	printf '# 🔁 Readback\n\nConfirm my reading.\n\n**📥 What I understood**\n%s\n\n**📎 Where it came from**\nthe rig\n' "$1"
+}
+## The revised record is driven through the store's own writers: the readback opened, then asked again changed.
+rigRbBody "The rig keeps the red wire on the left." \
+	| rigOp rev1 --intern-op-pending-reply-open "$rigMember" --to human-owner --session-id rig-session-rev --kind readback --address-to human-owner --item "$rigRbItem" \
+		--fields "$( printf 'understood\tThe rig keeps the red wire on the left.' )"
+rigRbId="$( head -1 "$rigTmp/rev1" )"
+[ -f "$rigStore/$rigRbId.md" ] || rigRefuse "the readback asked again was not opened: $( cat "$rigTmp/rev1.err" )"
+rigRbBody "The rig keeps the red wire on the left, and the blue one on the right." \
+	| rigOp rev2 --intern-op-pending-reply-revise "$rigRbId" --revision-ts 1700000300.000100 --revised-by "$rigMember" \
+		--fields "$( printf 'understood\tThe rig keeps the red wire on the left, and the blue one on the right.' )"
+rigAssert "the record keeps both versions"         "$rigRc:$( rigField "$rigStore/$rigRbId.md" revisions ):$( LC_ALL=C grep -c '^## Revision ' "$rigStore/$rigRbId.md" )" "0:1:1"
+rigOp rev3 --intern-op-pending-reply-close "$rigRbId" --if-open --status reply-received --verdict yes --answered-by URIGOWNER
+rigAssert "it is answered"                        "$( rigField "$rigStore/$rigRbId.md" status )" reply-received
+rigOp rev4 --record-decision --team-member "$rigMember" "$rigRbItem" --kind resolved --text "The rig keeps the red wire on the left." --readback "$rigRbId"
+rigAssert "the version it replaced records nothing" "$( [ "$rigRc" -ne 0 ] && echo refused || echo taken ):$( rigRbRecorded 'The rig keeps the red wire on the left.' ):$( LC_ALL=C grep -c 'differs from what readback' "$rigTmp/rev4.err" )" "refused:0:1"
+rigOp rev5 --record-decision --team-member "$rigMember" "$rigRbItem" --kind resolved --text "The rig keeps the red wire on the left, and the blue one on the right." --readback "$rigRbId"
+rigAssert "the understanding it now holds is recorded" "$rigRc:$( rigRbRecorded 'The rig keeps the red wire on the left, and the blue one on the right.' ):$( rigSection "$rigBoard/running/$rigRbItem.md" | LC_ALL=C grep -c -F '(readback '"$rigRbId"', confirmed by URIGOWNER at ' )" "0:1:1"
+## The control: a readback never asked again records the one understanding it holds, as before.
+rigRbBody "The rig keeps the white wire in the middle." \
+	| rigOp rev6 --intern-op-pending-reply-open "$rigMember" --to human-owner --session-id rig-session-rev --kind readback --address-to human-owner --item "$rigRbItem" \
+		--fields "$( printf 'understood\tThe rig keeps the white wire in the middle.' )"
+rigRbPlainId="$( head -1 "$rigTmp/rev6" )"
+[ -f "$rigStore/$rigRbPlainId.md" ] || rigRefuse "the control readback was not opened: $( cat "$rigTmp/rev6.err" )"
+rigOp rev7 --intern-op-pending-reply-close "$rigRbPlainId" --if-open --status reply-received --verdict yes --answered-by URIGOWNER
+rigOp rev8 --record-decision --team-member "$rigMember" "$rigRbItem" --kind resolved --text "The rig keeps the white wire in the middle." --readback "$rigRbPlainId"
+rigAssert "one understanding records as it always has" "$rigRc:$( rigRbRecorded 'The rig keeps the white wire in the middle.' ):$( rigSection "$rigBoard/running/$rigRbItem.md" | LC_ALL=C grep -c -F '(readback '"$rigRbPlainId"', confirmed by URIGOWNER at ' )" "0:1:1"
+
 echo "-- answer -> every other item that waits on the ask by name --"
 printf 'May the rig read the vendor tree?\n' | rigOp open7 --intern-op-pending-reply-open "$rigMember" --to human-owner \
 	--session-id rig-session-a --kind question --address-to human-owner --question-tag Q7 --question-key 777-77 --task-ref "for $rigTask.md, please"

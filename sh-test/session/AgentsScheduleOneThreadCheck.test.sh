@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-## Behavioural check on the two faults that let more than one schedule thread serve one rig (owner's measurement of 2026-11-04, 15 `--intern-schedule
+## Behavioural check on the two faults that let more than one schedule thread serve one rig (, 15 `--intern-schedule
+
 ## --run` processes alive at 3 to 32 minutes of age):
 ##   1. A SECOND SERVE OF THE SAME FOLDER ENDS AT ONCE. `AgentsToolsOnDemandThreadServe` takes the lock for the life of its process, and a serve that
 ##      finds another live holder says so and returns 1. The check drives the real function twice against one folder and counts what runs.

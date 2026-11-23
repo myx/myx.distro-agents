@@ -17,6 +17,7 @@
 ##      line (no line of a session log but a body line lacks it today, so the case is that g shows them)
 ##   5b. a spacer stands in any folder between its commands (FIXED_ROWS) and its children, as in Sessions after Launch;
 ##      MDLT_MANAGER_SPACERS=disable, the console user's setting of .local, turns every spacer off
+
 ##   6. summary mode (`b`) of the left window: a run in Wait shows `<what> for <duration>` on its `waits on` line, in
 ##      the screen's duration form (its wait taken from when its last milestone, the Wait, was reached)
 ##   4. the table colour rule, in every style and each of its colour schemes: the other rows of a table differ
@@ -31,7 +32,7 @@
 ## Offline: the only thing the screen calls here is the stand-in for the dispatcher.
 ## Reconciled for F11.5: `Launchpad` is a section of Magic-Team of its own, put at with `at @magic-team launch`, and the root list shows
 ## Magic-Team (Agents) where it showed Team Members (20261021-refactorings.sketch.md, `Magic-Team` -> `Reorder`).
-## Reconciled for the groups of the roots (owner, 2026-10-20): Pending Questions stands in a group with the Dashboard, and a spacer follows it, so the root holds four spacers.
+## Reconciled for the groups of the roots : Pending Questions stands in a group with the Dashboard, and a spacer follows it, so the root holds four spacers.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigScreen="$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/manager/LocalManagerScreen.py"
@@ -245,6 +246,7 @@ rigAssert "and no other spacer there"                          "$( rigListRows s
 rigAssert "every step of the cursor selects a row, never a spacer" "$( for rigStep in 0 1 2 3 4 5 6 7 8 9 10 11 12 ; do [ -n "$( rigVal "r$rigStep.selected" )" ] || printf 'empty-at-%s ' "$rigStep" ; done )" ""
 rigAssert "the number keys go to the roots by their order in the list: 2 Pending Questions, 5 Consoles" "$( rigVal n3.path ) $( rigVal n6.path )" "pending consoles"
 ## MDLT_MANAGER_SPACERS, the console user's own setting of .local beside MDLT_CONSOLE_HISTORY: `disable` turns every
+
 ## spacer off. Given here as the environment of the screen's start, as a console user's settings reach it.
 rigCase nospacers
 rigOut="$( { printf 'tools bash %s\ntable list:pending none\ntable view:magic-team/activity/active-sessions:record none\ntable view:magic-team/activity/active-sessions/*:record none\ntable view:magic-team/activity/active-sessions/*/*:transcript none\ntable feed:magic-team/activity/active-sessions/*/*:transcript none\nwall 2026-10-13 02:30 +0000\nsize 120 40\nroot magic-team\n' "$rigTools" ; printf 'turn\nwait sessions 30\nshow rootList\nat @magic-team launch\nturn\nwait list 30\nturn\nshow sessionsShown\n' ; } | MDLT_MANAGER_SPACERS=disable "$rigPython" -I -B "$rigDriver" "$rigScreen" script 2>&1 )" || rigOut="$rigOut"$'\n'"DRIVER-FAILED rc=$?"

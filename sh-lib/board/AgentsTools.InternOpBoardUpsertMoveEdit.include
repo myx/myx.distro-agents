@@ -44,9 +44,8 @@ case "$1" in
 			;;
 		esac
 		AgentsToolsAssertBareName "$itemName" "<item-filename>" board-upsert-move-edit || { set +e ; return 1 ; }
-		## A board item is a Markdown document: a name given without `.md` is that document, `<name>.md` (a matter may hold a dot), so
-		## no item is ever written where every reader of `*.md` passes it by.
-		case "$itemName" in *.md) ;; *) itemName="$itemName.md" ;; esac
+		## AN ITEM IS NAMED AS ITS CALLER NAMES IT: a name without `.md` is written without one, and the readers that ask the board for
+		## an item by name find it as it stands.
 
 		[ -n "${MDAT_DATA_ROOT:-}" ] || {
 			echo "$MDSC_CMD: board-upsert-move-edit: ⛔ ERROR: MDAT_DATA_ROOT is not set" >&2
@@ -317,19 +316,23 @@ case "$1" in
 
 		## A CLOSE IS NOT A WAY PAST A WAIT (task-20261117T2332Z): an item in board-parked, or one whose
 		## `condition:` stands, is a decision nobody has taken, so no close takes it. The closing moves are
-		## the three a finished item ends in. Read off the item as this write would leave it, so a close
-		## that answers the condition itself is let through.
+		## the three a finished item ends in. The condition is read off the body this write leaves, before
+		## its own `--header:` operations apply, so a close that answers the condition in its own body is
+		## let through and one that removes it by a header operation is still refused. A CONDITION THE
+		## MODEL CALLS CLEARED IS NO HOLD (task-20261122T1850Z): `met:` and `none:` clear the wait, and only
+		## the text the one test calls unmet refuses the close. The include holding that test is sourced at
+		## the top of this file.
 		case "$toState" in
 			processed|archived|retained)
 				## An item already closed and only being filed by housekeeping is no close of a live item.
 				if [ "$isCreate" != "true" ] && [ "$fromState" != "processed" ] ; then
 					local closeCondition=""
-					closeCondition="$( printf '%s\n' "$body" | LC_ALL=C awk 'NR == 1 { if ( $0 != "---" ) exit ; next ; } $0 == "---" { exit ; } index( $0, "condition: " ) == 1 { print substr( $0, 12 ) ; exit ; }' )"
+					closeCondition="$( printf '%s\n' "$body" | AgentsToolsRecheckConditionOf )"
 					if [ "$fromState" = "parked" ] ; then
 						echo "$MDSC_CMD: board-upsert-move-edit: ⛔ ERROR: ${itemName%.md} is parked, so it is not closed: a parked item waits for its condition, and the move that releases it comes first" >&2
 						set +e ; return 1
 					fi
-					if [ -n "$closeCondition" ] ; then
+					if AgentsToolsRecheckConditionUnmet "$closeCondition" ; then
 						echo "$MDSC_CMD: board-upsert-move-edit: ⛔ ERROR: ${itemName%.md} is not closed: its condition stands, and only an answer to it clears that -- $closeCondition" >&2
 						set +e ; return 1
 					fi
@@ -382,6 +385,7 @@ case "$1" in
 			fi
 			## A person at a console, with no session spawned, is user-<account> (the team member default of the common
 			## option set, F2.2); with not even an account, the create has no acting member and the gate refuses it.
+			type AgentsToolsConsoleAccount > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.ActingMember.include"
 			if [ -z "$createActing" ] && [ -z "${MDAT_SPAWN_AGENT:-}" ] && createAccount="$( AgentsToolsConsoleAccount )" && [ -n "$createAccount" ] ; then
 				createActing="user-$createAccount"
 				AgentsToolsAssertBareName "$createActing" "user-\$USER" board-upsert-move-edit 2>/dev/null || createActing=""
@@ -468,6 +472,7 @@ case "$1" in
 		[ -z "$handlerLock" ] || AgentsToolsLocalLockGive "$handlerLock"
 		if [ -n "$handlerChanged" ] ; then
 			type AgentsToolsDecisionsAppend > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemDecisions.include"
+			type AgentsToolsActingMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.ActingMember.include"
 			AgentsToolsDecisionsAppend "$( AgentsToolsActingMember )" "$itemName" handler "handler-routine: ${handlerOld:--} -> ${handlerNew:--}" "$opContext" "" "" > /dev/null \
 				|| echo "$MDSC_CMD: board-upsert-move-edit: ⚠️ WARNING: the handler-routine change of $itemName was written, but its Decisions line was not" >&2
 		fi

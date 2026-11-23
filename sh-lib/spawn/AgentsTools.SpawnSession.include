@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ^^^ for syntax checking in the editor only
-type AgentsSessionThreadSet > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+type AgentsSessionThreadSet > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.Write.include"
 
 ##
 ## AgentsTools.SpawnSession.include -- --spawn-session. Starts a coworking
@@ -182,6 +182,14 @@ case "$1" in
 						*$'\n'"$2"$'\n'*) ;;
 						*) partitionScopes+=( "$2" ) ;;
 					esac
+					shift 2
+				;;
+				--tracked-item)
+					if [ -z "${2:-}" ] ; then
+						echo "$MDSC_CMD: spawn-session: ⛔ ERROR: --tracked-item requires <item-filename>" >&2
+						set +e ; return 1
+					fi
+					sessionTrackedItem="$2"
 					shift 2
 				;;
 				--likely-tool)
@@ -438,6 +446,7 @@ case "$1" in
 		if [ "$partitionRoster" = "true" ] ; then
 			## The caller the parent stands for: its member, its session and its thread, read before any spawn.
 			type AgentsToolsRunRouteValid > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.RunRoute.include" || { set +e ; return 1 ; }
+			type AgentsToolsActingMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.ActingMember.include"
 			partitionMember="$( AgentsToolsActingMember 2> /dev/null )" || partitionMember=""
 			type AgentsToolsSessionCurrentId > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.SessionThreads.include"
 			partitionSession="$( AgentsToolsSessionCurrentId )"
@@ -482,6 +491,7 @@ case "$1" in
 			partitionShort="${partitionParentId:0:8}"
 			## The caller's thread is the parent's, so a child's session-parent is that thread from its first post.
 			if [ -n "$partitionThread" ] ; then
+				type AgentsSessionThreadSet > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.Write.include"
 				AgentsSessionThreadSet "$partitionParentId" "$partitionThread" \
 					|| { echo "$MDSC_CMD: spawn-session: ⛔ ERROR: could not record the caller's thread for the agent-less parent $partitionParentId -- nothing was started" >&2 ; set +e ; return 1 ; }
 			fi
@@ -494,7 +504,7 @@ case "$1" in
 			AgentsSpawnPartitionFileInto partitionIdentifyFile "$MMDAPP" "$partitionParentId" identify || return 1
 			AgentsSpawnPartitionFileInto partitionNotesFile "$MMDAPP" "$partitionParentId" notes || return 1
 			AgentsSpawnPartitionFileInto partitionScopesFile "$MMDAPP" "$partitionParentId" scopes || return 1
-			type AgentsSpawnRecordWrite > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+			type AgentsSpawnRecordWrite > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.Write.include"
 			{
 				printf '%s\n' "---"
 				printf 'session-id: %s\n' "$partitionParentId"
@@ -518,6 +528,7 @@ case "$1" in
 				printf 'started-at: %s\n' "$( date +"%Y-%m-%d %H:%M %z" )"
 				printf '%s\n' "---"
 				printf '\n# Agent-less parent session: %s\n' "$partitionParentId"
+			type AgentsSpawnRecordWrite > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.Write.include"
 			} | AgentsSpawnRecordWrite "$partitionRecord" || { echo "$MDSC_CMD: spawn-session: ⛔ ERROR: could not write the record of the agent-less parent $partitionParentId -- nothing was started" >&2 ; set +e ; return 1 ; }
 			## What every start of the queue is given, kept beside the record for its watcher (AgentsToolsSpawnSessionParentStart).
 			local partitionArgs=( --dispatch-doc:create )
@@ -547,6 +558,7 @@ case "$1" in
 			[ -z "$sessionNameOrComment" ] || spawnArgs+=( --session-name-or-comment "$sessionNameOrComment" )
 			[ -z "$sessionDescription" ] || spawnArgs+=( --description "$sessionDescription" )
 			[ -z "$sessionCliService" ] || spawnArgs+=( --spawn-cli-service "$sessionCliService" )
+			[ -z "${sessionTrackedItem:-}" ] || spawnArgs+=( --tracked-item "$sessionTrackedItem" )
 			[ -z "$sessionSettingsWorkspace" ] || spawnArgs+=( --spawn-settings-workspace "$sessionSettingsWorkspace" )
 			[ -z "${sessionParentMember:-}" ] || spawnArgs+=( --parent-member "$sessionParentMember" )
 			if [ "$partitionRoster" = "true" ] ; then

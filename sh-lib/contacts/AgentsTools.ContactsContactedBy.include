@@ -68,6 +68,7 @@ AgentsToolsContactsContactedBy(){ ## the operation, its arguments...
 		fi
 		case "$byValue" in
 			U[A-Z0-9][A-Z0-9][A-Z0-9][A-Z0-9][A-Z0-9][A-Z0-9][A-Z0-9][A-Z0-9]*)
+				type AgentsToolsActingMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.ActingMember.include"
 				byProfileMember="$( AgentsToolsActingMember 2> /dev/null )" ; [ -n "$byProfileMember" ] || byProfileMember=magic-coordinator
 				type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 				byProfileResp="$( DistroAgentsTools --intern-op-slack-call "$byProfileMember" --api users.info --identity bot --form "user=$byValue" --context "--contacted-by" 2> /dev/null )" || byProfileResp=""

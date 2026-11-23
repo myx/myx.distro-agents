@@ -11,6 +11,7 @@
 ## THE SESSION IS THE SERVER'S, for the life of the server, and the server's scratch root names it:
 ## `agent-mcp.<server pid>/root-session` holds its id and token, one line, in the calling session's
 ## output folder where it has one, else the workspace's .local/temp. Every
+
 ## request is a process of its own, so that file -- not the requesting process -- is what makes a
 ## second mint the same session (F1.1 S3).
 ##
@@ -41,26 +42,6 @@ agentsRootSessionUse="root-harness session of this myx.distro MCP server; give i
 
 ## The token kept for one session of this workspace, rc 1 where there is none: what a mint wrote,
 ## and the only thing an adopt takes as proof of the id.
-## The member a root-harness session runs as, kept beside its token (`root-session.member`): the member its
-## mint recorded. rc 1 where there is none, as for a session minted before this record existed.
-AgentsToolsRootSessionMemberRead(){ ## session folder
-	local memberFile="${1%/}/root-session.member" memberName=""
-	[ -s "$memberFile" ] || return 1
-	IFS= read -r memberName < "$memberFile" || :
-	case "$memberName" in ''|*[!A-Za-z0-9-]*) return 1 ;; esac
-	printf '%s' "$memberName"
-}
-
-## Writes that member, whole or not at all, by one rename. rc 1 where the name is no bare member name or the write fails.
-AgentsToolsRootSessionMemberWrite(){ ## session dir, member
-	local memberPath="${1%/}/root-session.member" memberTemp="" memberName="${2:-}"
-	case "$memberName" in ''|*[!A-Za-z0-9-]*) return 1 ;; esac
-	[ -d "${1:-}" ] || return 1
-	memberTemp="$( mktemp "$memberPath.XXXXXX" 2> /dev/null )" || return 1
-	printf '%s\n' "$memberName" > "$memberTemp" 2> /dev/null && mv -f "$memberTemp" "$memberPath" 2> /dev/null || { rm -f "$memberTemp" ; return 1 ; }
-	return 0
-}
-
 AgentsToolsRootSessionTokenRead(){ ## session folder
 	local tokenReadFile="$1/root-session.token" tokenRead=""
 	[ -s "$tokenReadFile" ] || return 1
@@ -110,17 +91,17 @@ AgentsToolsRootSessionFacts(){ ## id, token (empty: omit it)
 }
 
 ## Serves one RootSession call: prints the facts, rc 0. Prints `ERROR: ...`, rc 1, where the
+
 ## operation or its arguments are wrong, where the id is unknown, where the token is missing or
 ## does not match, or where a session cannot be made. A refusal writes nothing.
-## THE SESSION'S RUN RECORD (owner 2026-10-29): a root session is a session of this workspace, listed with the others. Its run is the
+## THE SESSION'S RUN RECORD (): a root session is a session of this workspace, listed with the others. Its run is the
+
 ## client's own, carried by this server, so the record names the server as its process: alive while the server lives. Written at a
 ## mint and at an adopt, one rename. Quiet, and never a reason for the call to fail.
-AgentsToolsRootSessionRecord(){ ## id, server pid, member (empty: the session's own, else magic-coordinator)
-	local recordStart recordMember="${3:-}"
+AgentsToolsRootSessionRecord(){ ## id, server pid, member
+	local recordStart recordMember="${3:-magic-coordinator}"
 	type AgentsToolsRunProcessStart > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunProcesses.include"
-	type AgentsSpawnRecordWrite > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
-	[ -n "$recordMember" ] || recordMember="$( AgentsToolsRootSessionMemberRead "$1" )" || recordMember=""
-	[ -n "$recordMember" ] || recordMember="magic-coordinator"
+	type AgentsSpawnRecordWrite > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.Write.include"
 	recordStart="$( AgentsToolsRunProcessStart "$2" )" || recordStart=""
 	[ -n "$recordStart" ] || return 0
 	{
@@ -145,19 +126,17 @@ AgentsToolsRootSessionServe(){ ## scratch root, server pid, operation, id given,
 		return 1
 	}
 	## The one folder convention of a session, and the gate every id is held to.
-	type AgentsSessionDiscard > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+	type AgentsSessionDiscard > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.Write.include"
 	type AgentsToolsSessionChatDir > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include"
 	if ! type AgentsToolsSessionChatDir > /dev/null 2>&1 ; then
 		AgentsToolsRootSessionLockGive "$rootLock"
 		printf 'ERROR: RootSession: the session store of this package is missing, so no session can be resolved.\n'
 		return 1
 	fi
-	## THE MEMBER THE SESSION RUNS AS (owner 2026-11-20): a root-harness session is any member's. magic-coordinator
-	## is only the default, and the one member whose behaviour carries a root-harness profile. A bare name, the gate
-	## every member name is held to; a name that is no member name makes no session at all.
+	## magic-coordinator is the default member, and the only one whose behaviour carries a root-harness profile.
 	rootMember="${rootMemberGiven:-${MDAT_SPAWN_AGENT:-}}"
 	[ -n "$rootMember" ] || rootMember="magic-coordinator"
-	case "$rootMember" in *[!A-Za-z0-9-]*) rootMember="" ;; esac
+	case "$rootMember" in *[!abcdefghijklmnopqrstuvwxyz0123456789-]*) rootMember="" ;; esac
 	if [ -z "$rootMember" ] ; then
 		AgentsToolsRootSessionLockGive "$rootLock"
 		printf 'ERROR: RootSession: the member given is no bare member name, so no session was made.\n'
@@ -218,16 +197,14 @@ AgentsToolsRootSessionServe(){ ## scratch root, server pid, operation, id given,
 				printf 'ERROR: RootSession: the channel kind of the session could not be kept, so no session was made.\n'
 				return 1
 			fi
-			## THE MEMBER, kept before the token: the session's own, so every request of it resolves the member from the
-			## session and never from the server's environment. A session whose member could not be kept is not made.
-			if ! AgentsToolsRootSessionMemberWrite "$rootDir" "$rootMember" ; then
+			## The member the session runs as, kept beside its token: every request resolves it from here.
+			if ! printf '%s\n' "$rootMember" > "$rootDir/root-session.member" 2> /dev/null ; then
 				AgentsSessionDiscard "$rootId" || :
 				AgentsToolsRootSessionLockGive "$rootLock"
 				printf 'ERROR: RootSession: the member of the session could not be kept, so no session was made.\n'
 				return 1
 			fi
-			## THE ROUTINE: magic-coordinator's root-harness profile, and only his. Another member's root-harness session
-			## runs that member's ordinary duty and keeps no profile, so its own declares govern it.
+			## Only magic-coordinator has a root-harness profile; another member's session runs its ordinary duty.
 			if [ "$rootMember" = magic-coordinator ] ; then
 				type AgentsToolsRootHarnessRoutineWrite > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/routine/AgentsTools.RoutineRootHarness.include"
 				if ! AgentsToolsRootHarnessRoutineWrite "$rootDir" ; then
@@ -287,8 +264,14 @@ AgentsToolsRootSessionServe(){ ## scratch root, server pid, operation, id given,
 				printf 'ERROR: RootSession: that session exists, but where this server keeps it could not be written, so it was not adopted.\n'
 				return 1
 			fi
+			## The session's own member wins over the environment and the default.
+			if [ -n "$rootDir" ] && [ -s "$rootDir/root-session.member" ] ; then
+				IFS= read -r rootMember < "$rootDir/root-session.member" || :
+				case "$rootMember" in *[!abcdefghijklmnopqrstuvwxyz0123456789-]*) rootMember="" ;; esac
+			fi
+			[ -n "$rootMember" ] || rootMember="magic-coordinator"
 			AgentsToolsRootSessionLockGive "$rootLock"
-			AgentsToolsRootSessionRecord "$rootGiven" "$rootPid"
+			AgentsToolsRootSessionRecord "$rootGiven" "$rootPid" "$rootMember"
 			AgentsToolsRootSessionFacts "$rootGiven" ""
 			return 0
 		;;

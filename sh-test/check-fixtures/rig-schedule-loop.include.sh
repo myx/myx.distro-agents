@@ -9,6 +9,7 @@
 . "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-owner-writes.include.sh" || exit 1
 ## rigAssert defined:
 ##   . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-schedule-loop.include.sh"
+
 ##   rigScheduleSetup <number of keepers>    builds the rig under $rigTmp/loop
 ##   rigAt <epoch>  rigMentionCache  rigOneRun <name>  rigWaitStarts  rigDispatch <words...>  rigTool <words...>  rigSaid  rigStartsOf  rigRecordsOf  rigCalls  rigDutyCount  rigItem  rigLive
 ##
@@ -55,7 +56,7 @@ rigScheduleSetup(){ ## number of keepers (01 up)
 	printf 'MAIN_LOOP_RESTART_DELAY_SECONDS=2\nSLACK_USER_TOKEN=rig-user-token-COORD\n' > "$rigWs/.local/.agents/magic-coordinator.agent.env"
 	for rigName in $rigNames magic-librarian ; do printf 'SLACK_USER_TOKEN=rig-user-token-%s\n' "${rigName##*-}" > "$rigWs/.local/.agents/$rigName.agent.env" ; done
 	printf '#!/bin/sh\n## cli-configured MDAT_SPAWN_LAUNCH_MARKER --cli)\ncat > /dev/null\necho "start $$ $MDAT_SPAWN_AGENT" >> "%s/console.log"\necho "end $$" >> "%s/console.log"\n' "$rigDir" "$rigDir" > "$rigWs/DistroAgentsConsole.sh"
-	cp "$rigPackage/sh-test/check-fixtures/session-chat.curl.stub.sh" "$rigDir/bin/curl" || rigRefuse "the fake curl fixture is missing"
+	rsync -t "$rigPackage/sh-test/check-fixtures/session-chat.curl.stub.sh" "$rigDir/bin/curl" || rigRefuse "the fake curl fixture is missing"
 	ln -s "$rigRealPs" "$rigDir/bin/ps.real" ; : > "$rigDir/ps.list"
 	cat > "$rigDir/bin/ps" <<'RIGPS'
 #!/bin/sh
@@ -156,6 +157,7 @@ rigMentionCache(){ ## -- the Slack ids of the members of the rig (URIG<last word
 rigAt(){ printf '%s' "$1" > "$rigDir/now.epoch" ; }
 
 ## THE START MARKS ON THE RIG'S CLOCK: the pass reads the age of a start mark (schedule/starting/: the start, .hold, .fails, .escalated) against
+
 ## its own clock, and the files carry the real one. Each mark an iteration wrote is dated at that iteration's instant, the now.epoch it ran at,
 ## kept in marks.since, whose own mtime is the real moment the iteration began: an iteration may run in a subshell of the check.
 rigMarksDate(){ ## -- the marks written since the last iteration began, dated at its instant
@@ -185,6 +187,7 @@ rigOneRun(){ ## name of its output files -- one iteration of the real loop
 rigWaitStarts(){ ## -- until the starts the loop made in the background have ended (at most 200 seconds)
 	local waitLeft=1000
 	## A live start is the bare <key> entry (AgentsToolsScheduleSpawn). Its markers -- .rc, .out, .fails, .hold and .escalated -- are records, never a start
+
 	## still going, and waiting on them ran every wait to its bound.
 	while [ -n "$( LC_ALL=C ls "$rigWs/.local/agents/schedule/starting" 2> /dev/null | LC_ALL=C grep -v -e '\.rc$' -e '\.out$' -e '\.fails$' -e '\.hold$' -e '\.escalated$' )" ] && [ "$waitLeft" -gt 0 ] ; do sleep 0.2 ; waitLeft=$(( waitLeft - 1 )) ; done
 	## The record of a start (spawn-started) is closed a moment after the start, by the run that ended (its exit-code is the mark): the loop no longer holds the check for the

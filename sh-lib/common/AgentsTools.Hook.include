@@ -7,7 +7,7 @@
 ## only AgentsHookFire; they never name the upper layer's function or file. Sourced, never run.
 ## Functions only. It calls nothing else in the package, so every layer may call it without a reach.
 ##
-## Two registries, read in this order, one handler a line. The package's own, sh-lib/hooks.registry: each
+## Two registries, read in this order, one handler a line. The package's own, sh-lib/common/hooks.registry: each
 ## upper layer declares its handler there, as a line it owns, so a fire finds it in every process and every
 ## workspace, with no registration first. Then the workspace's, $MMDAPP/.local/agents/hooks.registry, for
 ## a handler registered at run time (AgentsHookRegister). A line already read from the package's is not run
@@ -45,7 +45,7 @@ AgentsHookFire(){ ## hook, then the handler's arguments
 	[ -n "${MMDAPP:-}" ] || return 0
 	shift
 	local fireSeen=$'\n'
-	for fireRegistry in "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/hooks.registry" "$MMDAPP/.local/agents/hooks.registry" ; do
+	for fireRegistry in "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/hooks.registry" "$MMDAPP/.local/agents/hooks.registry" ; do
 	[ -f "$fireRegistry" ] || continue
 	while IFS= read -r fireLine ; do
 		case "$fireLine" in "$fireHook "*) ;; *) continue ;; esac

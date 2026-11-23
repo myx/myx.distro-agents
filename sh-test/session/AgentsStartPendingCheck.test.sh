@@ -3,9 +3,9 @@
 ## approved item of board-pending, with no agent, one an pass. The spawner, the pace, the items tool and the lookups of live sessions are stubs, so the check
 ## decides what the function chooses and nothing is started. Held: a slow machine (the pace gate) starts nothing; an item with no `approved-by` is not started;
 ## a recheck date that is not due holds an item whose condition stands, and one that is due does not; an item is started with its routine and its members and moved to running first;
-## an item whose start is its owner alone, and whose owner holds a live duty, is left for that duty, unless it is urgent or emergency or the emergency flag is
+## an item whose start is its owner alone, and whose owner holds a live duty, is left for that duty, unless it is emergency or the emergency flag is
 ## on; an item with a restart-session group is started whatever the owner's duty; a member that runs a session already gets another only at a median tool call
-## of 5 s or less, unless the item is urgent or emergency; one item is started a pass, the oldest by name, and an item the rules leave is no hold on the next.
+## of 5 s or less, unless the item is emergency, and an urgent item is an order and not a pass; one item is started a pass, the oldest by name, and an item the rules leave is no hold on the next.
 ## Offline: nothing is spawned, posted or moved.
 set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
@@ -37,8 +37,8 @@ rigOwnerBoardReady
 ## and the one items tool stubbed on top.
 rigOrigin="$rigTmp/origin"
 mkdir -p "$rigOrigin/myx/myx.distro-agents/sh-scripts"
-cp -RL "$rigRealOrigin/myx/myx.distro-.local" "$rigOrigin/myx/myx.distro-.local" || rigRefuse "the origin's local package is not there"
-cp -RL "$rigRealOrigin/myx/myx.distro-agents/sh-lib" "$rigOrigin/myx/myx.distro-agents/sh-lib" || rigRefuse "the origin's sh-lib is not there"
+rigCopyTree "$rigRealOrigin/myx/myx.distro-.local" "$rigOrigin/myx/myx.distro-.local" || rigRefuse "the origin's local package is not there"
+rigCopyTree "$rigRealOrigin/myx/myx.distro-agents/sh-lib" "$rigOrigin/myx/myx.distro-agents/sh-lib" || rigRefuse "the origin's sh-lib is not there"
 cat > "$rigOrigin/myx/myx.distro-agents/sh-scripts/DistroAgentsItems.fn.sh" <<'RIGITEMS'
 #!/usr/bin/env bash
 printf '%s\n' "$*" >> "${RIG_ITEMS_LOG:?}"
@@ -89,7 +89,7 @@ rigReset
 rigItem task-a.md 'approved-by: human-owner' 'owner: magic-developer'
 rigItem task-b.md 'approved-by: human-owner' 'owner: magic-tester' 'mark: urgent'
 rigMedian=9000 ; rigRunPass
-rigAssert "on a slow machine an urgent item starts whatever the pace, and the one with no mark waits" "$( rigSpawned ):$( awk '{ print $NF ; }' "$rigSpawnLog" )" "1:magic-tester"
+rigAssert "on a slow machine an urgent item waits for the pace like any other, and both are held" "$( rigSpawned ):$( printf '%s\n' "$rigOut" | grep -c 'held by the pace gate' )" "0:1"
 
 rigReset
 rigItem task-a.md 'approved-by: human-owner' 'owner: magic-developer'

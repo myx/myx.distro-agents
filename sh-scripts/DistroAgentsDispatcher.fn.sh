@@ -96,7 +96,7 @@ DistroAgentsDispatcher(){
 	esac
 	## The skillset root, resolved here for this call. NOT exported (S12 row 16): a child resolves its own at its own entry,
 	## so no process carries another's member folder.
-	type AgentsToolsSkillsetRootInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWorkspace.include"
+	type AgentsToolsSkillsetRootInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWorkspace.Root.include"
 	AgentsToolsSkillsetRootInto MDAT_SKILLSET_ROOT "${MMDAPP:-}"
 	case "$1" in
 
@@ -181,7 +181,7 @@ DistroAgentsDispatcher(){
 			[ $# -eq 0 ] || { echo "⛔ ERROR: $MDSC_CMD $stopOp: takes no argument, got: $1" >&2 ; return 1 ; }
 			## WHO MAY STOP A RIG: the console, or a session of magic-coordinator. Every other member's session is refused here, with what the refusal is,
 			## rather than through the list read and the console stop below, which refuse it in their own words two layers down.
-			type AgentsToolsActingMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.CallerCheck.include"
+			type AgentsToolsActingMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.ActingMember.include"
 			stopActing="$( AgentsToolsActingMember )"
 			if [ -n "$stopActing" ] && [ "$stopActing" != magic-coordinator ] ; then
 				echo "⛔ ERROR: $MDSC_CMD $stopOp: this session acts as $stopActing, and stopping a rig is the console's own: the session list (--scope all) and the console stop are both refused to a member's session -- nothing was ended. Run it at the console, or from magic-coordinator." >&2

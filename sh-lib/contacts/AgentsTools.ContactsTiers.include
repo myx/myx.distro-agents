@@ -12,18 +12,19 @@ type AgentsSlackIdentityId > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-ag
 ## project), admin (the almost-top step of the escalation ladder, several may answer for a quorum) and owner (the top step: asked last, only when every lower step cannot settle a matter, and its answer overrides any other answer or quorum at once).
 agentsContactTiers=" tier-moot tier-contact tier-client tier-admin tier-owner "
 
-## THE OLD WORDS ARE RETIRED (every stored record holds the new ones): ingest, basic, partner and recorded name no tier, and a call giving
-## one is refused with the five words shown. Prints the word of the ladder for a word of the ladder, else nothing, rc 1.
+## FOUR WORDS THE RECORD IS SET BY, each including the tiers below it: ingest is the lowest, then basic, partner and recorded. Prints the
+## word of the ladder for either vocabulary, else nothing, rc 1.
 AgentsToolsContactsTierName(){ ## word
 	case "$1" in
-		*)
-			case "$agentsContactTiers" in
-				*" $1 "*) printf '%s' "$1" ;;
-				*) return 1 ;;
-			esac
-		;;
+		ingest) printf '%s' "tier-moot" ; return 0 ;;
+		basic) printf '%s' "tier-contact" ; return 0 ;;
+		partner) printf '%s' "tier-client" ; return 0 ;;
+		recorded) printf '%s' "tier-admin" ; return 0 ;;
 	esac
-	return 0
+	case "$agentsContactTiers" in
+		*" $1 "*) printf '%s' "$1" ; return 0 ;;
+	esac
+	return 1
 }
 
 ## A person's record read into crId, crName, crOrg, crRole, crRel, crOwner, crTier, crReached, crSlackId, crSlackHandle, crSlackConv, crEmail, crHow,
@@ -32,9 +33,10 @@ crId="" crName="" crOrg="" crRole="" crRel="" crOwner="" crTier="" crScopeTiers=
 ## Whether this call is the human-owner's: his own member name, or the console account mapped to him. rc 0 where it is.
 AgentsToolsContactsCallerIsOwner(){
 	local ownerBy
+	type AgentsToolsActingMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.ActingMember.include"
 	ownerBy="$( AgentsToolsActingMember )"
 	if [ -z "$ownerBy" ] ; then
-		type AgentsToolsConsoleAccount > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.CallerCheck.include"
+		type AgentsToolsConsoleAccount > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.ActingMember.include"
 		ownerBy="user-$( AgentsToolsConsoleAccount )"
 	fi
 	type AgentsToolsPermissionIsHumanOwner > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionHolds.include"
@@ -75,6 +77,7 @@ AgentsToolsContactsTierAskOpen(){ ## contact id, [scope]
 ## Prints `ASKED <contact> <tier> <ask>`; the ask already standing is named instead, and nothing is posted.
 AgentsToolsContactsTierAsk(){ ## operation, contact id, the tier proposed, [scope]
 	local askScope="${4:-}" askWhat askOp="$1" askId="$2" askTier="$3" askBy askRun askAsked askText askOut askChannel askTs askThread askAddressees askAsking askPending askFields askOptions askQuestion
+	type AgentsToolsActingMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.ActingMember.include"
 	askBy="$( AgentsToolsActingMember )"
 	[ -n "$askBy" ] || { echo "$MDSC_CMD: ⛔ ERROR: $askOp: a tier is asked for by a member, and this call comes from no member's session" >&2 ; return 1 ; }
 	[ -f "$contactsPersons/$askId.md" ] || { echo "$MDSC_CMD: ⛔ ERROR: $askOp: the contact $askId is not recorded yet, and a tier is asked only of a contact on record: record it in a call without --tier, then ask for its tier" >&2 ; return 1 ; }
@@ -105,6 +108,7 @@ tier-owner: the highest. Asked last, only when every lower step cannot settle it
 	askThread="$( printf '%s\n' "$askOut" | LC_ALL=C sed -n 's/^SENT_MESSAGE_THREAD_TS=//p' | head -1 )"
 	askAddressees="$( printf '%s\n' "$askOut" | LC_ALL=C sed -n 's/^SENT_MESSAGE_ADDRESSEES=//p' | head -1 )"
 	askAsking="$( printf '%s\n' "$askOut" | LC_ALL=C grep '^{' | LC_ALL=C awk -v path=message.user -v optional=1 -v dialect=slack -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" 2> /dev/null | head -1 )"
+	type AgentsToolsActingSession > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.ActingMember.include"
 	askRun="$( AgentsToolsActingSession )"
 	askFields="$( AgentsToolsAskPostFieldsPack asked-as AskQuestion question "$askQuestion" )"
 	askPending="$( printf '%s\n' "$askText" | "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-op-pending-reply-open "$askBy" --store questions --to "$askChannel" \
@@ -160,8 +164,8 @@ AgentsToolsContactsTierApply(){ ## contact id, [--by <member>], [--scope <scope>
 	done
 	applyWord="$( AgentsToolsContactsTierAnswerWord "$applyId" "$applyScope" )" || { echo "$MDSC_CMD: ⛔ ERROR: --intern-op-contact-tier-apply: no answer of his stands unused for the tier of $applyId, so nothing was written" >&2 ; return 1 ; }
 	[ -z "$applyBy" ] || MDAT_SPAWN_AGENT="$applyBy"
+	type AgentsToolsContactsCollectContact > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/contacts/AgentsTools.ContactsCollect.include"
 	if [ -n "$applyScope" ] ; then
-		type AgentsToolsContactsCollectContact > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/contacts/AgentsTools.ContactsCollect.include"
 		AgentsToolsContactsCollectContact --collect-contact --id "$applyId" --scope-tier "$applyScope=$applyWord" || return 1
 	else
 		AgentsToolsContactsCollectContact --collect-contact --id "$applyId" --tier "$applyWord" || return 1
@@ -169,9 +173,10 @@ AgentsToolsContactsTierApply(){ ## contact id, [--by <member>], [--scope <scope>
 	## HIS ANSWER IS SPENT ONCE IT HAS SET A TIER (S6.36): the mark is set on the request he answered, so a second run of this action, and any
 	## later call reading that request, finds it used and asks him afresh instead of standing as if he had just ruled. A closed record lives in
 	## pending/closed/, so its path is asked for rather than built here.
-	type AgentsToolsPendingRecordPath > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.Authority.include"
+	type AgentsToolsPendingRecordPath > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.PendingPaths.include"
 	applySet="$( AgentsToolsPendingRecordPath "$MDAT_AUTHORITY_REQUEST" )" || applySet=""
 	[ -n "$applySet" ] || { echo "$MDSC_CMD: ⛔ ERROR: --intern-op-contact-tier-apply: the tier of $applyId was written, and the request $MDAT_AUTHORITY_REQUEST it came from is not found, so the answer could set a second tier" >&2 ; return 1 ; }
+	type AgentsToolsAuthorityFieldSet > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.Authority.include"
 	AgentsToolsAuthorityFieldSet "$applySet" acted-at "$( date +"%Y-%m-%d %H:%M %z" )" || { echo "$MDSC_CMD: ⛔ ERROR: --intern-op-contact-tier-apply: the tier of $applyId was written, and the answer it came from could not be marked as used, so it could set a second tier" >&2 ; return 1 ; }
 	return 0
 }

@@ -53,8 +53,8 @@ AgentsToolsClientToolPolicyClaudeDenyJson(){
 ## .claude/settings.json, one `<key><TAB><JSON scalar>` per line; each is set to exactly
 ## this value and no other key is touched. autoMemoryEnabled false: claude's own
 ## auto-memory (the prompt telling the model to keep ~/.claude/projects/<p>/memory/, and
-## the MEMORY.md it loads into context) is off -- that store is not team knowledge
-## (human-owner, 2026-10-07). Claude Code 2.1.236 reads it from project settings: "When
+## the MEMORY.md it loads into context) is off -- that store is not team knowledge.
+## Claude Code 2.1.236 reads it from project settings: "When
 ## false, Claude will not read from or write to the auto-memory directory."
 AgentsToolsClientToolPolicyClaudeSettings(){
 	printf '%s\t%s\n' "autoMemoryEnabled" "false"

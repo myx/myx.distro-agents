@@ -8,6 +8,8 @@
 ## Not standalone: relies on being dot-sourced for $1/$@/$MDSC_CMD.
 ##
 
+type AgentsToolsClientCallerCheck > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.CallerCheck.include"
+
 case "$1" in
 
 	--intern-op-client-sweep-input-scan)

@@ -311,7 +311,7 @@ AgentsHarnessToolSkill(){ ## name, file, list, offset, limit, skill, args, secti
 	local skillVendor=()
 	## A member of another workspace is found through the shared registry, never through this workspace's own index.
 	type AgentsToolsTeamMemberDirectory > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamRegistry.include"
-	type AgentsToolsSkillsetRootInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWorkspace.include"
+	type AgentsToolsSkillsetRootInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWorkspace.Root.include"
 	## skill is the native call shape: the name resolved and the skill rendered as the
 	## client does both. A path of its own, apart from name, file and list.
 	if [ -n "$toolSkill" ] ; then
@@ -336,6 +336,7 @@ AgentsHarnessToolSkill(){ ## name, file, list, offset, limit, skill, args, secti
 			## Team members from the member index, then a member of another workspace by its
 			## name; then a skill the user or a vendor put in $HOME/.claude/skills as a real
 			## folder. A link there is one our installer generated, and is never read back.
+			type AgentsToolsSkillsetRootInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWorkspace.Root.include"
 			AgentsToolsSkillsetRootInto skillOwnRoot "${MMDAPP:-}"
 			skillOther="$( AgentsToolsTeamMemberDirectory "$skillLeaf" 2> /dev/null )" || skillOther=""
 			skillVendor=()
@@ -435,7 +436,7 @@ AgentsHarnessToolSkill(){ ## name, file, list, offset, limit, skill, args, secti
 		## A run's whole read of its own skill is its reload: kept as skill.loaded, and the reload the supervisor marked is cleared.
 		if [ -n "$skillReader" ] && [ "$skillReader" = "$skillMember" ] && [ -z "$toolSection" ] && [ "${toolOffset:-1}" = 1 ] ; then
 			local skillLoaded="" skillDue=""
-			type AgentsSessionMarkerFileInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+			type AgentsSessionMarkerFileInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.Paths.include"
 			if AgentsSessionMarkerFileInto skillLoaded "${MDAT_SPAWN_SESSION_ID:-}" skill.loaded && AgentsSessionMarkerFileInto skillDue "${MDAT_SPAWN_SESSION_ID:-}" reload.due ; then
 				mkdir -p "${skillLoaded%/*}" 2> /dev/null && date -u +%Y-%m-%dT%H:%M:%SZ > "$skillLoaded" 2> /dev/null
 				rm -f "$skillDue" 2> /dev/null
@@ -461,6 +462,7 @@ AgentsHarnessToolSkill(){ ## name, file, list, offset, limit, skill, args, secti
 			skillset/*/*/*) toolFile="${toolFile#skillset/}" ; toolFile="${toolFile#*/}" ;;
 			*/.claude/skills/*/*) toolFile="${toolFile#*/.claude/skills/}" ;;
 		esac
+		type AgentsToolsSkillsetRootInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWorkspace.Root.include"
 		AgentsToolsSkillsetRootInto skillSelfRoot "${MMDAPP:-}"
 		case "$toolFile" in
 			*/*) skillCandidate="${toolFile%%/*}" ;;
@@ -490,6 +492,7 @@ AgentsHarnessToolSkill(){ ## name, file, list, offset, limit, skill, args, secti
 	## is found through the shared registry. A real folder in $HOME/.claude/skills is a
 	## skill the user or a vendor put there; a link there is our own generated output,
 	## never read back.
+	type AgentsToolsSkillsetRootInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWorkspace.Root.include"
 	AgentsToolsSkillsetRootInto skillSelfRoot "${MMDAPP:-}"
 	skillDir="$skillSelfRoot/$toolName"
 	[ -d "$skillDir" ] || ! skillOther="$( AgentsToolsTeamMemberDirectory "$toolName" 2> /dev/null )" || skillDir="$skillOther"

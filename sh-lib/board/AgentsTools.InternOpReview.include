@@ -17,6 +17,7 @@ case "$1" in
 	--intern-op-review-handback|--intern-op-review-request|--intern-op-review-accept|--intern-op-review-return|--intern-op-review-reject|--intern-op-review-follow-up|--intern-op-review-end|--intern-op-review-shutdown|--intern-op-review-next|\
 	--request-review|--accept-review|--return-review|--reject-review|--follow-up-review|--shutdown-runs)
 		local reviewOp="$1" reviewVerb
+		type AgentsToolsActingMemberCheck > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.ActingMember.include"
 		case "$reviewOp" in
 			--intern-op-review-*) reviewVerb="${reviewOp#--intern-op-review-}" ;;
 			--shutdown-runs) reviewVerb=shutdown ;;
@@ -70,6 +71,9 @@ case "$1" in
 		[ -z "$reviewNew" ] || AgentsToolsAssertBareName "$reviewNew" "<new-item-name>" review || { set +e ; return 1 ; }
 		[ -n "${MDAT_DATA_ROOT:-}" ] || { echo "$MDSC_CMD: ⛔ ERROR: MDAT_DATA_ROOT is not set" >&2 ; set +e ; return 1 ; }
 		## Who acts. An item not on the board is left to the op, which refuses it as before.
+		type AgentsToolsActingMemberCheck > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.ActingMember.include"
+		type AgentsToolsDecisionsItemPath > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemDecisions.include"
+		type AgentsToolsItemReviewer > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemReviewer.include"
 		local reviewPath=""
 		case "$reviewOp" in
 			--intern-op-review-*) ;;

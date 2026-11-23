@@ -42,6 +42,7 @@ type AgentsToolsGrantsItemRuns > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distr
 		AgentsToolsAssertBareName "$passTo" "--to" permission-pass || { set +e ; return 1 ; }
 		AgentsToolsAssertBareName "$passTool" "--tool" permission-pass || { set +e ; return 1 ; }
 		AgentsToolsAssertBareName "$passSession" "--session-id" permission-pass || { set +e ; return 1 ; }
+		type AgentsToolsActingMemberCheck > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.ActingMember.include"
 		[ "$passOp" != "--pass-permission" ] || AgentsToolsActingMemberCheck "$passBy" "${passOp#--}" || { set +e ; return 1 ; }
 		if [ "$passTo" = "$passBy" ] ; then
 			echo "$MDSC_CMD: ⛔ ERROR: $passBy cannot pass a permission to itself, so nothing is passed" >&2

@@ -55,7 +55,7 @@ AgentTestingTools(){
 			local requestOp="$1" requestMember requestWhy="" requestProject="" requestAbout="" requestPriority="no-wait" requestTests="" requestFiles=""
 			local requestArgs=() requestWhat="" requestOut="" requestPid requestId="" requestText requestFile="" requestRc=0 requestLeft
 			shift
-			type AgentsToolsActingMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.CallerCheck.include"
+			type AgentsToolsActingMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.ActingMember.include"
 			requestMember="$( AgentsToolsActingMember )"
 			if [ -z "$requestMember" ] ; then
 				echo "$MDSC_CMD: ⛔ ERROR: $requestOp: a testing need is raised by a member, and this call comes from no member's session -- a console user queues tests with --retest-queue --by <who>" >&2

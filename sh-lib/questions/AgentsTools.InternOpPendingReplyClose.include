@@ -24,6 +24,7 @@
 					shift
 				;;
 				## The ts of the reply taken as the answer, marked :eyes: once the record is closed.
+
 				--answer-ts)
 					pendingAnswerTs="${2:-}"
 					shift 2
@@ -118,7 +119,7 @@
 		local pendingFile="$MMDAPP/.local/agents/pending/$pendingId.md"
 		[ -f "$pendingFile" ] || pendingFile="$MMDAPP/.local/agents/pending/closed/$pendingId.md"
 		if [ ! -f "$pendingFile" ] ; then
-			type AgentsToolsPendingRecordPath > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.Authority.include"
+			type AgentsToolsPendingRecordPath > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.PendingPaths.include"
 			pendingFile="$( AgentsToolsPendingRecordPath "$pendingId" 2> /dev/null )" || pendingFile=""
 		fi
 		if [ ! -f "$pendingFile" ] ; then
@@ -232,9 +233,11 @@
 			type AgentsToolsDecisionsFromPending > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemDecisions.include"
 			AgentsToolsDecisionsFromPending "$pendingId" "$pendingFile" "$pendingStatus" "$pendingAmend" "$pendingAnswerTs" || :
 		fi
-		## A QUESTION CLOSED WITH NO VERDICT LEAVES THE ASK'S WAIT SOURCE (S21.6, owner 2026-10-30): a withdrawn one, or one settled elsewhere,
+		## A QUESTION CLOSED WITH NO VERDICT LEAVES THE ASK'S WAIT SOURCE (S21.6, ): a withdrawn one, or one settled elsewhere,
+
 		## can never answer the wait that watches it. An answered one is carried by the one call that shows its closed note and is stored no
-		## more (owner ruling 2026-10-31, AgentsWaitStateStore in AgentsTools.MemberWait.include): a later message in its thread reaches the
+		## more (, AgentsWaitStateStore in AgentsTools.MemberWait.include): a later message in its thread reaches the
+
 		## asker as the session floor's, never as a CLARIFIED of this question.
 		if [ -z "$pendingVerdict" ] ; then
 			local dropOwner="" dropSession=""
@@ -248,9 +251,12 @@
 		fi
 		## The outcome goes to the ask's item, where a reopened or continued task reads it.
 		## A resolved question shows it where people look: :eyes: on the reply taken as its
+
 		## answer, a mark on the question in its thread (:white_check_mark: answered,
 		## :ballot_box_with_check: settled), the answer emoji the tooling placed there taken off
+
 		## with that mark, and :white_check_mark: on the thread's opener in
+
 		## the conversation once no question in that thread is open. Best effort, after the
 		## record is closed: a reaction that fails is logged and never undoes the close. Never
 		## an answer either: only an addressee's reaction answers.
@@ -308,12 +314,14 @@
 			fi
 		fi
 		## Retention (T9): a record closed here leaves the live store for pending/closed/, its sidecars (.options, .fields and the rest) with it, so
+
 		## a scan of the store opens only the live ones. The record is already closed and read whole above; a failed move leaves it in place, still closed.
 		## Only a record of the live store moves; one of the team's questions store stays where the team keeps it.
 		if [ "$pendingStatus" != "reply-pending" ] && [ -f "$pendingFile" ] && [ "${pendingFile%/*}" = "$MMDAPP/.local/agents/pending" ] ; then
 			mkdir -p "$MMDAPP/.local/agents/pending/closed" 2>/dev/null || :
 			for pendingMove in "$pendingFile" "${pendingFile%.md}".* ; do
 				## The .options, .fields and .set sidecars move with the record. The .answered claim directory stays in pending/
+
 				## until the escalation apply has finished, and moves after that (AgentsToolsEscalationApplyFinish).
 				[ -e "$pendingMove" ] || continue
 				case "$pendingMove" in *.answered) continue ;; esac

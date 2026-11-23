@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-## Behavioural check on the two rules by which the schedule ends a run that should no longer stand (owner's ruling, 2026-11-20),
+## Behavioural check on the two rules by which the schedule ends a run that should no longer stand (),
+
 ## in AgentsTools.DispatcherSchedule.include, run rather than read. Both rules are driven here with the dismissal stubbed, so what
 ## is measured is the decision and never a post:
 ##   1. AN OFF-DUTY RUN ENDS once the flags allow a work-duty (AgentsToolsScheduleOffDutyEnd): a record naming
@@ -45,8 +46,9 @@ rigAssert(){ ## what is asserted, got, want
 
 ## THE DECISION, ASKED OF THE REAL FUNCTIONS. The dismissal is a counter: the rule is what is measured, never the post. Every
 ## other helper the two rules call is the package's own, so a rule that reached a different reader would show here.
-rigAsk(){ ## rule, record, allowed -- SET or STAYS, from the rule's own rc, and the reason the dismissal carried
+rigAsk(){ ## rule, record, [allowed] -- the rule's own rc, and the reason the dismissal carried
 	env -i HOME="$rigTmp/home" PATH="/usr/bin:/bin:/usr/sbin:/sbin" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" \
+		RIG_SAID="$rigTmp/said" \
 		MDLT_ORIGIN="$MDLT_ORIGIN" MDAT_WORKSPACE_MODE=team-rig MDSC_CMD=check bash -c '
 			set +e
 			. "$1" > /dev/null 2>&1
@@ -54,10 +56,10 @@ rigAsk(){ ## rule, record, allowed -- SET or STAYS, from the rule's own rc, and 
 			AgentsToolsScheduleDismiss(){ printf "DISMISSED %s\n" "$2" >> "$RIG_SAID" ; return 0 ; }
 			: > "$RIG_SAID"
 			case "$2" in
-				off-duty) AgentsToolsScheduleOffDutyEnd "$3" "$4" ; printf "%s %s\n" "$?" "$( cat "$RIG_SAID" )" ;;
-				idle) AgentsToolsScheduleIdleNoWorkEnd "$3" ; printf "%s %s\n" "$?" "$( cat "$RIG_SAID" )" ;;
+				off-duty) AgentsToolsScheduleOffDutyEnd "$3" "${4:-}" ; printf "%s %s\n" "$?" "$( cat "$RIG_SAID" 2> /dev/null )" ;;
+				idle) AgentsToolsScheduleIdleNoWorkEnd "$3" ; printf "%s %s\n" "$?" "$( cat "$RIG_SAID" 2> /dev/null )" ;;
 			esac
-		' rig "$rigInclude" "$1" "$2" "$3" 2> /dev/null
+		' rig "$rigInclude" "$1" "$2" "${3:-}" 2> /dev/null
 }
 
 rigRecord(){ ## run, routine -- the run's own record, placed where the session store keeps it

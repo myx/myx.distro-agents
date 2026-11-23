@@ -29,7 +29,7 @@
 		## THE GATE, and its last branch refuses. An epic's judgement is magic-coordinator's alone: a
 		## call from any other member, or from no member's session at all, settles nothing, and no
 		## branch reads silence as a settle.
-		type AgentsToolsActingMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.CallerCheck.include"
+		type AgentsToolsActingMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.ActingMember.include"
 		settleMember="$( AgentsToolsActingMember )"
 		case "$settleMember:${settleBy:-magic-coordinator}" in
 			magic-coordinator:magic-coordinator) ;;

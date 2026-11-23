@@ -4,6 +4,7 @@
 ## The one way a check of sh-test takes a tool's own result back out of the whole reply of a call.
 ## Sourced by the check:
 ##   . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-reply.include.sh"
+
 ##
 ## WHY. Every reply -- of the MCP server's own tools and of the harness tools it serves, and every tool
 ## result the harness's model loop hands its model -- passes through the one reply layer
@@ -20,6 +21,7 @@
 ##                     as a captured result has none. A reply naming a kept file gives that file.
 ##                     Any other reply passes as it is, the date part left out: the text item
 ##                     `{"type":"text","text":"current-date: ..."}` of an MCP reply or a tool message,
+
 ##                     and where the result is then the tool message's only part, the part folded
 ##                     back to the string `"content":"..."` the tool message had before it.
 ##

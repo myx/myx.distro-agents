@@ -7,6 +7,7 @@
 ## AgentsToolsCommsEmailMarkSeen, which has no operation of its own (MAGIC.md, section 1).
 ## DUAL USE: a name not its own runs nothing, so a caller sources it for the helper:
 ##   type AgentsToolsCommsEmailMarkSeen > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/email/AgentsTools.MemberCommsEmail.include"
+
 ##
 
 ## A member's own mailbox is read by the side of the call (AgentsToolsCommsOwnSideCheck).
@@ -70,6 +71,7 @@ case "$1" in
 		## member too: what such a member holds for this system is the other organisation's.
 		--email-check|--email-read|--email-mark-seen|--email-send)
 			local -x MDAT_COMMS_SIDE=own MDAT_COMMS_OP=""
+			type AgentsToolsActingMemberCheck > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.ActingMember.include"
 			[ -z "${2:-}" ] || AgentsToolsActingMemberCheck "$2" "${1#--}" || { set +e ; return 1 ; }
 			## A stub whose implementation is an in-context helper calls it by name, as --trello-check does.
 			case "$1" in

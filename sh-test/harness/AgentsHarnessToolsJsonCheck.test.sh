@@ -214,7 +214,7 @@ done
 checkSourcedBytes="$(
 	bash -c '. "$1" >/dev/null 2>&1 || : ; printf "%s" "${harnessToolsJson:-}"' _ "$checkWire" 2>/dev/null
 )"
-if [ "${#checkSourcedBytes}" -eq 0 ] ; then
+if [ -z "$checkSourcedBytes" ] ; then
 	echo "HARNESS_TOOLS_JSON: FAIL"
 	echo "  warn: the literal is valid text but the shell builds NOTHING from it. Sourcing"
 	echo "        ${checkWire##*/} leaves harnessToolsJson empty, which is what a run on this"
@@ -223,10 +223,13 @@ if [ "${#checkSourcedBytes}" -eq 0 ] ; then
 	echo "  fix:  remove the apostrophe from the description, or escape it as \\'"
 	exit 1
 fi
+## BOTH ARE COUNTED AS BYTES: `${#var}` counts characters, so an em dash in a description reads as
+## one against wc's three and the two readings part over prose that is not a defect.
+checkSourcedBytes="$( printf '%s' "$checkSourcedBytes" | wc -c | tr -d ' ' )"
 checkTextBytes="$( printf '%s' "$checkToolsJson" | wc -c | tr -d ' ' )"
-if [ "${#checkSourcedBytes}" != "$checkTextBytes" ] ; then
+if [ "$checkSourcedBytes" != "$checkTextBytes" ] ; then
 	echo "HARNESS_TOOLS_JSON: FAIL"
-	echo "  warn: the shell builds ${#checkSourcedBytes} bytes of literal, but the file's own text is"
+	echo "  warn: the shell builds $checkSourcedBytes bytes of literal, but the file's own text is"
 	echo "        $checkTextBytes. The two readings disagree, so something in the literal is not"
 	echo "        what the shell ends up with -- an escaped quote, or a broken string."
 	echo "  fix:  compare the source of the literal with what the shell builds, and repair the"

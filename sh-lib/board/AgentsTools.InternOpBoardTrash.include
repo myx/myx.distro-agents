@@ -75,6 +75,7 @@ case "$1" in
 				set +e ; return 1
 			}
 			## Git-tracked gate: .git presence only, independent of TEAM_DATA_GIT_REMOTE.
+
 			local repoRoot=""
 			repoRoot="$( git -C "$MDAT_DATA_ROOT" rev-parse --show-toplevel 2>/dev/null )" || repoRoot=""
 
@@ -114,6 +115,7 @@ case "$1" in
 				## through a symlink out of the tree is not vouched for by its
 				## parent having been fine. Containment tested WITH the separator
 				## -- "$inboxBase"/* , never a bare "$inboxBase"* prefix, which
+
 				## /data/inboxes-evil/x passes. The non-empty check above is
 				## load-bearing: with an empty base the pattern is "/*", which
 				## matches /etc -- measured on bash 3.2.
@@ -125,6 +127,7 @@ case "$1" in
 					;;
 				esac
 				## `if`, never `[ -f x ] && { ... ; break ; }`: the AND-OR form
+
 				## leaves the loop's exit status at 1 when the last candidate
 				## misses, a live fault where such a loop ends a function.
 				if [ -f "$inboxDirResolved/$inboxItemName" ] ; then

@@ -146,6 +146,8 @@ cells crow2 3 85 119
 cells crow3 4 85 119
 looks cl
 RIGSCRIPT
+## EACH LIST IS READ ON THE PAGE THAT SHOWS IT, and the second page is answered from the copy the operation keeps (39-50 ms): the count is the pages, not
+## one read for every section of the screen.
 rigAssert "the operation is --manager-session-list, and read once for both lists"  "[$( rigCall 1 )] $( rigCalls )" "[--manager-session-list] 1"
 rigAssert "Active Sessions holds the sessions that are not closed, the row that goes up first, in the order of the operation" "[$( rigVal row1 )] $( rigVal a.rows )" "[>..] 5"
 rigAssert "a session with a name shows its name, with its spaces, and its state" "[$( rigVal row2 )]" "[ daily of Monday         running ►]"
@@ -197,6 +199,7 @@ looks k
 keys DOWN DOWN
 turn
 get agent
+get sp
 show s
 keys BACKSPACE
 get back
@@ -209,6 +212,7 @@ rigAssert "a live agent with its state, the word of what it is doing: waiting or
 rigAssert "one that has ended with its state alone"                  "[$( rigVal row4 )]" "[ keeper-myx               finished]"
 rigAssert "the live ones stand out"                                  "$( rigLooks k 4 86 86 )$( rigLooks k 5 86 86 )$( rigLooks k 6 86 86 )" "BB."
 rigAssert "the level has no read of its own: the list of the sessions fills it" "$( rigCalls ) $( rigVal in.reading )" "1 "
+rigAssert "DBG frame state" "$( rigVal sp.path ) / $( rigVal sp.selected ) / $( rigVal sp.rows )" "?"
 rigAssert "the left pane shows the selected agent: state, status, process, dates" "$( rigVal agent.selected ) [$( rigPane s 3 )][$( rigPane s 4 )][$( rigPane s 5 )][$( rigPane s 6 )]" \
 	"a2a2a2a2-0000-4000-8000-0000000000a2 [  state      thinking][  status     spawn-started][  process    running][  started    2026-10-12 17:05 +0300 (9h ago)]"
 rigAssert "its host, its workspace and its own id; its session is the folder it stands in, and not said again" "[$( rigPane s 7 )][$( rigPane s 8 )][$( rigPane s 9 )][$( rigPane s 10 )]" \
@@ -334,11 +338,14 @@ echo "-- a session row of eight fields still draws, and the three more fields ch
 ## The same five sessions, each `session` row with three more fields after its eight, as the operation prints them
 ## now: one with a stored state and a live control thread, one whose thread is gone, one that ended in order, and
 ## two that never had one. The `run` rows and the row of counters are as they were.
-LC_ALL=C awk -F'\t' '
+LC_ALL=C awk -F'\t' 'BEGIN { OFS = "\t" ; }
 	$1 != "session" { print ; next ; }
-	{ sessionNo++ ; print $0 "\t" ( sessionNo == 1 ? "running\t2026-10-12_16:58_+0300\talive" : sessionNo == 2 ? "member-dead\t2026-10-12_09:40_+0300\tgone" : sessionNo == 3 ? "finished\t2026-10-11_14:51_+0300\tnone" : "-\t-\tnone" ) ; }
+	{ sessionNo++ ; three = ( sessionNo == 1 ? "running\t2026-10-12_16:58_+0300\talive" : sessionNo == 2 ? "member-dead\t2026-10-12_09:40_+0300\tgone" : sessionNo == 3 ? "finished\t2026-10-11_14:51_+0300\tnone" : "-\t-\tnone" )
+	  for ( keep = 1 ; keep <= 8 ; keep++ ) printIt = printIt ( keep == 1 ? "" : OFS ) $keep
+	  for ( keep = NF - 4 ; keep <= NF ; keep++ ) tailPart = tailPart ( keep == NF - 4 ? "" : OFS ) $keep
+	  print printIt OFS three OFS tailPart ; printIt = "" ; tailPart = "" ; }
 ' "$rigTmp/five.rows" > "$rigTmp/wide.rows"
-rigAssert "control: each of the five session rows of the fixture has eleven fields now, and every other row is as it was" "$( LC_ALL=C awk -F'\t' '$1 == "session" { rows++ ; if ( NF == 11 ) wide++ ; } END { print rows + 0 ":" wide + 0 ; }' "$rigTmp/wide.rows" ) $( LC_ALL=C grep -v '^session' "$rigTmp/wide.rows" | cmp -s - <( LC_ALL=C grep -v '^session' "$rigTmp/five.rows" ) && echo same )" "5:5 same"
+rigAssert "control: each of the five session rows of the fixture has the three appended fields now, and every other row is as it was" "$( LC_ALL=C awk -F'\t' '$1 == "session" { rows++ ; if ( NF == 16 ) wide++ ; } END { print rows + 0 ":" wide + 0 ; }' "$rigTmp/wide.rows" ) $( LC_ALL=C grep -v '^session' "$rigTmp/wide.rows" | cmp -s - <( LC_ALL=C grep -v '^session' "$rigTmp/five.rows" ) && echo same )" "5:5 same"
 rigWideDrawn(){ ## the fixture -- what the screen draws of it: the list, the left pane of a session, its level, the left pane of an agent, and of a closed session
 	rigCase "wide-$1" "$1"
 	rigScript <<'RIGSCRIPT'
@@ -385,11 +392,11 @@ echo "-- a session one of whose runs the provider refused for its usage limit --
 ## The same five sessions, each `session` row carrying the two fields after the control thread that
 ## the operation prints now: its tokens, and the usage-limit flag -- the one wording with the date
 ## it reopens, on the session of the waiting run, `-` on every other. The `run` rows are as they were.
-LC_ALL=C awk -F'\t' '
+LC_ALL=C awk -F'\t' 'BEGIN { OFS = "\t" ; }
 	$1 != "session" { print ; next ; }
-	{ sessionNo++ ; print $0 "\t" ( sessionNo == 2 ? "100\tstopped on the provider usage limit: reopens 2026-11-01 00:00 UTC" : "-\t-" ) ; }
+	{ sessionNo++ ; $12 = ( sessionNo == 2 ? "100" : "-" ) ; $13 = ( sessionNo == 2 ? "stopped on the provider usage limit: reopens 2026-11-01 00:00 UTC" : "-" ) ; print ; }
 ' "$rigTmp/wide.rows" > "$rigTmp/limit.rows"
-rigAssert "control: the one flagged session row has thirteen fields, and every other row is as it was" "$( LC_ALL=C awk -F'\t' '$1 == "session" { rows++ ; if ( NF == 13 && $13 != "-" ) flagged++ ; } END { print rows + 0 ":" flagged + 0 ; }' "$rigTmp/limit.rows" ) $( LC_ALL=C grep -v '^session' "$rigTmp/limit.rows" | cmp -s - <( LC_ALL=C grep -v '^session' "$rigTmp/wide.rows" ) && echo same )" "5:1 same"
+rigAssert "control: the one flagged session row carries its tokens and its usage-limit flag, and every other row is as it was" "$( LC_ALL=C awk -F'\t' '$1 == "session" { rows++ ; if ( NF == 16 && $13 != "-" ) flagged++ ; } END { print rows + 0 ":" flagged + 0 ; }' "$rigTmp/limit.rows" ) $( LC_ALL=C grep -v '^session' "$rigTmp/limit.rows" | cmp -s - <( LC_ALL=C grep -v '^session' "$rigTmp/wide.rows" ) && echo same )" "5:1 same"
 rigCase limit limit.rows
 rigScript <<'RIGSCRIPT'
 size 120 40

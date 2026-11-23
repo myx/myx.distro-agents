@@ -45,6 +45,19 @@ esac
 
 DistroAgentsTools(){
 	local MDSC_CMD='DistroAgentsTools'
+	## THE SERVICE THREADS START CHEAP: --intern-session-control and --intern-session-comms are started by the dozen and restarted
+	## lazily, each the shell process of one session, so a start sources its own include alone -- never the front table, the option
+	## parser or the context setup, which neither of them reads. A start cost 577,680 bytes before this.
+	case "${1:-}" in
+		--intern-session-control)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.InternSessionControl.include"
+			return $?
+		;;
+		--intern-session-comms)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.InternSessionComms.include"
+			return $?
+		;;
+	esac
 	## The one rule for the operations of the tool files (F1.4): a name of the table (sh-lib/harness/AgentsContext.FrontTable.include) runs in the file that owns it.
 	type AgentsToolsFrontAny > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.FrontTable.include"
 	if AgentsToolsFrontAny "$@" ; then
@@ -95,11 +108,11 @@ DistroAgentsTools(){
 			[ "$commonRc" = 9 ] || return "$commonRc"
 		;;
 	esac
-	type AgentsToolsMemberSkillsetBring > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWorkspace.include"
 	## We run from here: a member named by an operation uses this workspace; one set up elsewhere only has its skillset brought (AgentsToolsMemberSkillsetBring).
 	case "$1:${2:-}" in
 		--intern-op-agent-spawn-proxy:*|--intern-op-routine-lock-*:*|--intern-merge-md-files:*|--intern-mcp-execute:*|--intern-op-decisions-append:*|--intern-op-review-*:*|--intern-directory-*:*|--owner-workspace-*:*|--make-*:*|--manager-*:*|--session-floor-remove:*|--camunda-diagram-sync-stale:*|*:|*:-*) ;;
 		--*:*)
+			type AgentsToolsMemberSkillsetBring > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWorkspace.include"
 			## An invited member, set up only in another workspace: its operation runs here; only its skillset, and the settings this workspace lacks, are read from there.
 			## NOTHING CARRIES ITS FOLDER (S12 row 16): the bring answers whether the member can be brought at all, and which of its
 			## settings this workspace holds none of. Each reader of its folder resolves that folder from the member registries itself.
@@ -122,9 +135,15 @@ DistroAgentsTools(){
 	## The bare --manager is no --manager-* op: it starts the console app, and admits every
 	## caller, exactly as the start of the screen always did. Its own rule, asked here.
 	case "$1" in
-		--client-*) AgentsToolsClientCallerCheck "${2:-}" "${1#--}" || { set +e ; return 1 ; } ;;
+		--client-*)
+			type AgentsToolsClientCallerCheck > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.CallerCheck.include"
+			AgentsToolsClientCallerCheck "${2:-}" "${1#--}" || { set +e ; return 1 ; }
+		;;
 		--manager) ;;
-		--manager-*) AgentsToolsManagerCallerCheck "${1#--}" || { set +e ; return 1 ; } ;;
+		--manager-*)
+			type AgentsToolsManagerCallerCheck > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.CallerCheck.include"
+			AgentsToolsManagerCallerCheck "${1#--}" || { set +e ; return 1 ; }
+		;;
 	esac
 
 	## THE JUST-AGENTS GATE (F13.1): a workspace whose mode is no team rig keeps no team data, and refuses the operations that create or change
@@ -640,6 +659,7 @@ DistroAgentsTools(){
 						echo "$MDSC_CMD: mcp-execute: ⛔ ERROR: no such workspace: $2" >&2
 						set +e ; return 1
 					fi
+					type AgentsToolsWorkspaceSwitch > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWorkspace.include"
 					AgentsToolsWorkspaceSwitch "$2"
 					shift 2
 				;;
@@ -825,7 +845,7 @@ DistroAgentsTools(){
 
 		## The context this call resolves, a line each, `<name>: <value>` (F2.2): the common option set first, then the MDAT_* and MDLT_* variables. Read-only.
 		--intern-context-show)
-			type AgentsToolsContextShow > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.CommonOptions.include"
+			type AgentsToolsContextShow > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.ContextShow.include"
 			AgentsToolsContextShow "$@"
 			return $?
 		;;
@@ -904,7 +924,7 @@ case "$selfPath" in
 			;;
 		esac
 		if [ -n "$agentsWriteOp" ] ; then
-			type AgentsToolsActingMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.CallerCheck.include"
+			type AgentsToolsActingMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.ActingMember.include"
 			agentsWriteBy="$( AgentsToolsActingMember )"
 			if [ -z "$agentsWriteBy" ] ; then
 				agentsWriteNext=""
@@ -913,6 +933,7 @@ case "$selfPath" in
 					agentsWriteNext="$agentsWriteArg"
 				done
 			fi
+			type AgentsToolsCallerRefusalId > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.ActingMember.include"
 			echo "DistroAgentsTools: $agentsWriteOp: ⛔ ERROR: an Atlassian write runs only through its DistroAgentsAtlassian operation, never as a command of the internal layer -- nothing was sent.$( AgentsToolsCallerRefusalId "${agentsWriteBy:-human-owner}" "$agentsWriteOp" "internal Atlassian write called as a command" )" >&2
 			exit 1
 		fi

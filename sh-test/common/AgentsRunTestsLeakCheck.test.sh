@@ -34,8 +34,9 @@ rigHome="$rigTmp/home" rigWs="$rigTmp/ws"
 rigPkg="$rigWs/.local/temp/rig-lane/source/myx/myx.distro-agents"
 rigLaneDir="$rigHome/.agents/magic-team/suite-lanes"
 mkdir -p "$rigHome" "$rigWs/.local/temp" "$rigPkg/sh-test/check-fixtures"
-cp "$rigRunner" "$rigPkg/sh-test/AgentsRunTests.sh" || rigRefuse "the runner under test could not be copied into the rig"
-cp "$( dirname "$rigRunner" )/check-fixtures"/runner-*.py "$rigPkg/sh-test/check-fixtures/" || rigRefuse "the runner's keepers could not be copied into the rig"
+rsync -t "$rigRunner" "$rigPkg/sh-test/AgentsRunTests.sh" || rigRefuse "the runner under test could not be copied into the rig"
+rsync -t "$( dirname "$rigRunner" )/check-fixtures"/runner-*.py "$rigPkg/sh-test/check-fixtures/" || rigRefuse "the runner's keepers could not be copied into the rig"
+mkdir -p "$rigPkg/sh-test/runner" && rsync -t "$( dirname "$rigRunner" )"/runner/*.sh "$rigPkg/sh-test/runner/" || rigRefuse "the runner's parts could not be copied into the rig"
 
 rigPasses=0 rigFails=0
 rigAssert(){ ## what is asserted, got, want
@@ -158,9 +159,12 @@ echo "-- 6. the guard: no file of sh-test spins a stand-in round a sleep, in a l
 ## A stand-in that waits by polling a bare loop costs a wake-up a second for as long as it lives, and it lives past its
 ## check whenever the check is killed. It blocks on a pipe instead (check-fixtures/rig-blocking-stand-in.include.sh). This
 ## is the guard over that: the four checks that forked 32 such spinners, some 18 hours old, read `while : ; do sleep 1 ; done`.
+
 ## A bounded poll, `while [ ... ] && [ "$left" -gt 0 ] ; do sleep ...`, is no stand-in and is not what this reads.
+
 ## IT READS THE LOOP'S WHOLE BODY (S12.8). The pattern this replaces read the opening line alone, and so saw only a loop
 ## whose `do` and its `sleep` share that line. A spinner written the way anyone writes one -- `while : ; do`, then
+
 ## `:` or a bare wait, then `sleep 1`, then `done` -- is the same spinner and went unseen. A loop is flagged when its
 ## body holds nothing but waits: every line of it is blank, a comment, a bare `:`, a `sleep` or a nested `do`/`done`.
 rigSpinAwk='

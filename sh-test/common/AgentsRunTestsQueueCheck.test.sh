@@ -68,6 +68,8 @@ rigPackage(){ ## session, how many tests (default 1) -- that copy: the runner un
 	local packageTests packageIndex ; packageTests="$( rigRoot "$1" )/myx/myx.distro-agents/sh-test"
 	mkdir -p "$packageTests"
 	cp "$rigRunner" "$packageTests/AgentsRunTests.sh"
+	## THE RUNNER IS A ROUTER: its parts travel with it, or the rig copy finds none and runs nothing.
+	mkdir -p "$packageTests/runner" && cp "$( dirname "$rigRunner" )"/runner/*.sh "$packageTests/runner"/ || rigRefuse "the runner parts could not be copied into the rig"
 	mkdir -p "$packageTests/check-fixtures" && cp "$(dirname "$rigRunner")/check-fixtures"/runner-*.py "$packageTests/check-fixtures"/
 	cat > "$packageTests/RigTiny.test.sh" <<'RIGTINY'
 #!/usr/bin/env bash
@@ -860,6 +862,106 @@ rigUntil 'BEGIN b' "$rigTmp/log" || :
 rigLet b ; rigEnd "$rigPidB"
 rigAssert "control: the waiter then takes the lane and runs" "$rigRc $( LC_ALL=C grep -c '^END b$' "$rigTmp/log" || : )" "0 1"
 rigProcSignal TERM "$rigPidSib" "$rigPidStale" || : ; rm -f "$rigSibling" "$rigSibling.beat" "$rigSibling.yield" "$rigStale" "$rigStale.beat"
+
+echo "-- 15. a ticket past its hold gives the line up, and a lock a finished run left gives lane 1 back --"
+## TASK 2026-11-20 17:55Z. Two places stood held by nothing: a head ticket whose run passed its own hold and never took
+## a turn, and lane 1, left as a lock by a runner whose run folder held a receipt for every check of its list.
+## Each has its control: the same ticket inside its own hold, the same lock whose folder still owes a check, and a lock
+## whose holder names no run folder at all. Every control is waited behind, so a line that gave every place up would
+## fail here as loudly as one that gave none.
+rigStandIn(){ ## -- a process that reads as a live runner, its command line naming the runner; its pid in rigStandInPid
+	## one process and no child: the shell execs into the sleep itself, so ending the pid leaves nothing behind
+	bash -c 'exec -a rig-stand-in-AgentsRunTests.sh sleep 300' > /dev/null 2>&1 < /dev/null &
+	rigStandInPid=$!
+	rigStarted="$rigStarted $rigStandInPid"
+	rigProcNote "$rigStandInPid"
+}
+rigOldTicket(){ ## session, seconds ago -- a ticket in the line for that session, naming the live stand-in, joined that long ago
+	local oldSince oldFile
+	mkdir -p "$rigQueue" || return 1
+	oldSince="$( date -u -v-"$2"S '+%Y-%m-%dT%H:%M:%SZ' 2> /dev/null || date -u -r "$(( $( date +%s ) - $2 ))" '+%Y-%m-%dT%H:%M:%SZ' )"
+	oldFile="$rigQueue/$( printf '%017d' "$(( $( date +%s ) - $2 ))" ).000000.$rigStandInPid.ticket"
+	printf 'session=%s\norigin=%s\nkind=run\nsince=%s\npid=%s\npstart=%s\n' "$1" "$( rigRoot b )" "$oldSince" "$rigStandInPid" \
+		"$( ps -o lstart= -p "$rigStandInPid" 2> /dev/null | LC_ALL=C tr -s ' ' | LC_ALL=C sed 's/^ //;s/ $//' )" > "$oldFile"
+	printf '%s\n' "$( date +%s )" > "$oldFile.beat"
+}
+rigLockLeft(){ ## receipts, rundir-or-empty, checks-or-empty -- a clean line, a run folder of three checks holding that many receipts, and a lock in the shape a runner writes, held by a live process
+	rigFresh ; rigLanes 1 ; rigHoldLimit=86400 ; rigStallLimit=7200 ; rigQueueLimit=8
+	mkdir -p "$rigQueue" || return 1
+	rigLeftDir="$rigTmp/left-run"
+	rm -rf -- "$rigLeftDir"
+	mkdir -p "$rigLeftDir"
+	printf 'RigTiny1 900\nRigTiny2 900\nRigTiny3 900\n' > "$rigLeftDir/tests.list"
+	rigOne=0
+	while [ "$rigOne" -lt 3 ] ; do
+		rigOne=$(( rigOne + 1 ))
+		[ "$1" -lt "$rigOne" ] || printf 'rc=0\nseconds=1\nlast=RIG_TINY: OK\n' > "$rigLeftDir/RigTiny$rigOne.receipt"
+	done
+	rigStandIn
+	mkdir -p "$rigLock"
+	printf 'runner-pid: %s\nsession=rig-finished-run\nagent: AgentsRunTests.sh, a run from %s\nlanes: yes\ntaken: %s\n' \
+		"$rigStandInPid" "$( rigRoot a )" "$( date -u +%Y-%m-%dT%H:%M:%SZ )" > "$rigLock/holder.txt"
+	[ -z "${3:-}" ] || printf 'checks=%s\n' "$3" >> "$rigLock/holder.txt"
+	[ -z "${2:-}" ] || printf 'rundir=%s\n' "$2" >> "$rigLock/holder.txt"
+}
+
+## 15a. A TICKET PAST ITS HOLD IS GIVEN UP however alive its process is, and the run behind it goes on.
+rigFresh ; rigLanes 1 ; rigHoldLimit=600 ; rigStallLimit=7200
+rigStandIn ; rigOldTicket rig-session-old 7200
+rigRun a RigTiny ; rigEnd "$rigLast"
+rigAssert "a ticket 7,200s old, its process alive, past a hold of 600s: the run behind it goes on, says the place was given up, and leaves the line empty" \
+	"$rigRc $( LC_ALL=C grep -c -F -- 'a place given up in the line' "$rigTmp/a.out" || : ) $( rigTickets ) $( rigOrder )" "0 1 0 BEGIN a END a"
+rigFresh ; rigLanes 1 ; rigHoldLimit=86400 ; rigStallLimit=7200 ; rigQueueLimit=8
+rigStandIn ; rigOldTicket rig-session-old 7200
+rigRun a RigTiny ; rigEnd "$rigLast"
+rigAssert "control: with the hold longer than that ticket is old, the run waits behind it, says so, and is refused at its own bound having run nothing" \
+	"$rigRc [$( rigOrder )] $( rigWaits a )" "1 [] 1"
+
+## 15b. A LOCK A FINISHED RUN LEFT GIVES LANE 1 BACK, and a lock names the run folder it is judged by.
+rigFresh ; rigLanes 1 ; rigHold=1
+rigRun a RigTiny ; rigPidA=$rigLast
+rigUntil 'BEGIN a' "$rigTmp/log" || rigRefuse "the run that takes lane 1 never began, so the lock it writes below would be nobody's"
+rigLockDir="$( LC_ALL=C sed -n 's/^rundir=//p' "$rigLock/holder.txt" 2> /dev/null | LC_ALL=C sed -n 1p )"
+rigAssert "a run holding lane 1 writes its run folder on the lock, so a lock it leaves behind is judged by its own checks" \
+	"$( [ -n "$rigLockDir" ] && [ -f "$rigLockDir/tests.list" ] && printf named || printf absent )" named
+rigLet a ; rigEnd "$rigPidA" ; rigHold=""
+rigLockLeft 3 "$rigTmp/left-run" 3
+rigRun a RigTiny ; rigEnd "$rigLast"
+rigAssert "a lock whose own record names 3 checks, its folder holding a receipt for all 3: the run behind it goes on without a word of waiting" \
+	"$rigRc $( rigWaits a ) $( rigOrder )" "0 0 BEGIN a END a"
+rigAssert "and the line says it gave lane 1 back, naming the session that left the lock and the folder with its checks" \
+	"$( LC_ALL=C grep -c -F -- "gave lane 1 back: the run that left the lock, session rig-finished-run, is past its last check -- its run folder $rigTmp/left-run holds a receipt for all 3 of its checks" "$rigTmp/a.out" || : )" 1
+rigAssert "and the lock is gone, so lane 1 stands open again" "$( [ -d "$rigLock" ] && printf held || printf free )" free
+rigLockLeft 3 "$rigTmp/left-run"
+rigRun a RigTiny ; rigEnd "$rigLast"
+rigAssert "the same folder judged by its list where the record names no count: the run behind it goes on too" \
+	"$rigRc $( rigWaits a ) $( rigOrder )" "0 0 BEGIN a END a"
+rigLockLeft 2 "$rigTmp/left-run" 3
+rigRun a RigTiny ; rigEnd "$rigLast"
+rigAssert "control: a record naming 3 checks whose folder owes one of them holds the lane, and the run behind it waits and is refused at its own bound" \
+	"$rigRc [$( rigOrder )] $( rigWaits a ) $( [ -d "$rigLock" ] && printf held || printf free ) $( LC_ALL=C grep -c -F -- 'gave lane 1 back' "$rigTmp/a.out" || : )" "1 [] 1 held 0"
+rigLockLeft 3 "" 3
+rigRun a RigTiny ; rigEnd "$rigLast"
+rigAssert "control: a lock whose holder names no run folder keeps the lane, since nothing states its run has finished" \
+	"$rigRc [$( rigOrder )] $( rigWaits a ) $( [ -d "$rigLock" ] && printf held || printf free )" "1 [] 1 held"
+
+## 15c. THE FIRST CASE ON TWO LANES: a finished run's lock freed while its own ticket still stands at the head. A waiter that
+## took the free lane must not also wait behind the ticket of the run whose lane it just took.
+rigLockLeft 3 "$rigTmp/left-run" 3
+rigLanes 2
+## the ticket names the very process the lock names, as a run's lock and its ticket do
+rigLeftLocked="$( LC_ALL=C sed -n 's/^runner-pid: //p' "$rigLock/holder.txt" 2>/dev/null | LC_ALL=C sed -n 1p )"
+printf 'session=rig-finished-run\norigin=%s\nkind=run\nsince=%s\npid=%s\npstart=%s\nrundir=%s\n' \
+	"$( rigRoot a )" "$( date -u -v-50M '+%Y-%m-%dT%H:%M:%SZ' )" "$rigLeftLocked" \
+	"$( ps -o lstart= -p "$rigLeftLocked" 2> /dev/null | LC_ALL=C tr -s ' ' | LC_ALL=C sed 's/^ //;s/ $//' )" "$rigTmp/left-run" \
+	> "$rigQueue/$( printf '%017d' "$(( $( date +%s ) - 3000 ))" ).000000.$rigLeftLocked.ticket"
+date +%s > "$rigQueue/$( printf '%017d' "$(( $( date +%s ) - 3000 ))" ).000000.$rigLeftLocked.ticket.beat"
+rigRun a RigTiny ; rigEnd "$rigLast"
+rigAssert "a finished run's lock freed while its own ticket stands at the head, with a lane free: it says it gave the lane back, the waiter takes that lane and runs, and it does not wait behind the ticket" \
+	"$rigRc $( LC_ALL=C grep -c -F -- 'gave lane 1 back' "$rigTmp/a.out" || : ) $( rigWaits a ) $( rigOrder )" "0 1 0 BEGIN a END a"
+rigAssert "and that run's ticket goes with its lane, so nothing behind it waits for a turn that never comes" \
+	"$( ls "$rigQueue" 2> /dev/null | LC_ALL=C grep -F "$rigLeftLocked" | LC_ALL=C grep -c '\.ticket$' || : )" 0
+rigHoldLimit="" ; rigStallLimit="" ; rigQueueLimit=""
 
 if [ "$rigFails" -ne 0 ] ; then
 	echo "⛔ RUN TESTS QUEUE CHECK FAILED: $rigFails of $(( rigPasses + rigFails )) assertion(s)" >&2 ; exit 1

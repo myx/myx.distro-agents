@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-## Behavioural check on the two bounds of a schedule start that S12.12's first live pass showed were missing (owner's answer, 2026-11-04):
+## Behavioural check on the two bounds of a schedule start that S12.12's first live pass showed were missing ():
+
 ##   1. A START THAT FAILED IS HELD, not retried at the next pass. `AgentsToolsScheduleSpawn` leaves `<key>.hold` when a start ends with a failure,
 ##      and the guard reads it: a pass inside the ten minutes starts nothing, and one after them tries again. A start that succeeded leaves no hold,
 ##      so a duty that ended is restarted on its own rule (AgentsToolsScheduleDutyRestartDue).
@@ -90,6 +91,21 @@ printf 'live-one\n' > "$rigWs/.local/agents/schedule/duty-session/join-member"
 rigStart work-duty.join-member --routine magic-team.work-duty.routine.md join-member
 rigAssert "a join the spawner accepts is one call, and the id it answers is kept" \
 	"$( rigCalls 'join-member' ):$( cat "$rigWs/.local/agents/schedule/duty-session/join-member" 2> /dev/null )" "1:fresh-one"
+
+echo "-- 3. a hold made before this thread started is probed once --"
+mkdir -p "$rigWs/.local/agents/schedule-thread"
+: > "$rigWs/.local/agents/schedule/starting/escalated-key.escalated"
+printf '3\n' > "$rigWs/.local/agents/schedule/starting/escalated-key.fails"
+sleep 1
+printf "1 Sat_Nov_21_00:00:00_2026\n" > "$rigWs/.local/agents/schedule-thread/thread.lock"
+rigAssert "a thread newer than the hold probes the key: not held, the count cleared" \
+	"$( AgentsToolsScheduleStartHeld escalated-key ; printf '%s' "$?" ):$( [ -e "$rigWs/.local/agents/schedule/starting/escalated-key.fails" ] && echo kept || echo gone )" "1:gone"
+printf "1 Sat_Nov_21_00:00:00_2026\n" > "$rigWs/.local/agents/schedule-thread/thread.lock"
+sleep 1
+: > "$rigWs/.local/agents/schedule/starting/escalated-key.escalated"
+printf '3\n' > "$rigWs/.local/agents/schedule/starting/escalated-key.fails"
+rigAssert "CONTROL: a hold newer than the thread stands" \
+	"$( AgentsToolsScheduleStartHeld escalated-key ; printf '%s' "$?" ):$( [ -e "$rigWs/.local/agents/schedule/starting/escalated-key.escalated" ] && echo kept || echo gone )" "0:kept"
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ SCHEDULE START HOLD CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount ))" >&2 ; exit 1

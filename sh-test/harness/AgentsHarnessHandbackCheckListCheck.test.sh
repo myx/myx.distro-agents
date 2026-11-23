@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-## Behavioural check on what a handback does with the caller's own CheckList (owner 2026-10-31: members write a `Handback` step into
+## Behavioural check on what a handback does with the caller's own CheckList (: members write a `Handback` step into
+
 ## the list, and the tool must neither break on it nor spend a round asking about it). Through the real SubagentHandback tool, a
 ## Slack-shaped fake curl that opens no socket, and the list the CheckList tool keeps. Held:
 ##   1. an item that names the handback is that step: it never refuses, and a delivered handback closes it

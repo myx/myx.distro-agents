@@ -162,7 +162,8 @@ rigAssert "the first Wait delivers the arrival" "$( rigHas RIG-FIRST-ARRIVAL )" 
 rigDefault rig-miss-resume
 rigAssert "the second Wait, in the same session, does not deliver it again: it resumes after the newest message the first returned" "$( rigHas RIG-FIRST-ARRIVAL )" "0"
 
-echo "-- 6. a named set replaces the stored one (owner 2026-10-31), the floor stands beside it, and --unwait is how one goes on demand --"
+echo "-- 6. a named set replaces the stored one (), the floor stands beside it, and --unwait is how one goes on demand --"
+
 printf '{"ok":true,"messages":[],"has_more":false}\n' > "$rigScenario/history.json"
 : > "$rigWs/named-a.txt" ; : > "$rigWs/named-b.txt"
 rigSourcesOf(){ LC_ALL=C sed -n 's/^# sources: //p' "$rigTmp/out" | head -1 ; }

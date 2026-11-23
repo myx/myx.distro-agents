@@ -5,6 +5,7 @@
 ## recipient to be known to the outbound contact gate (AgentsToolsContactAssertKnown) has one without going through the tool that keeps the
 ## store. Sourced by the check:
 ##   . "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-contacts.include.sh"
+
 ##   rigContactSeed <data-root> <member> <id> (<slack-id>|-) (<e-mail>|-)
 ## writes <data-root>/contacts/persons/<id>-<member>.md: a person the member holds, with a Slack coordinate of the member's own team (the identity
 ## scope of a member is its name) and an e-mail address, either left out with `-`. The record has the front matter the tool writes.

@@ -28,6 +28,8 @@ rigHome="$rigTmp/home" rigWs="$rigTmp/ws" rigSource="$rigTmp/source"
 rigPkg="$rigSource/myx/myx.distro-agents"
 mkdir -p "$rigHome" "$rigWs/.local/agents/members" "$rigPkg/sh-test/check-fixtures"
 cp "$rigRunner" "$rigPkg/sh-test/AgentsRunTests.sh" || rigRefuse "the runner under test could not be copied into the rig"
+## THE RUNNER IS A ROUTER: its parts travel with it, or the rig's copy finds none and runs nothing.
+mkdir -p "$rigPkg/sh-test/runner" && cp "$( dirname "$rigRunner" )"/runner/*.sh "$rigPkg/sh-test/runner"/ || rigRefuse "the runner's parts could not be copied into the rig"
 cp "$( dirname "$rigRunner" )/check-fixtures"/runner-*.py "$rigPkg/sh-test/check-fixtures/" || rigRefuse "the runner's keepers could not be copied into the rig"
 
 rigPasses=0 rigFails=0

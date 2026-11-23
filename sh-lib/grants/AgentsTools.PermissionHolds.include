@@ -166,7 +166,7 @@ AgentsToolsPermissionPoster(){ ## owner
 	local posterMember
 	case "$1" in
 		contact:*)
-			type AgentsToolsActingMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.CallerCheck.include"
+			type AgentsToolsActingMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.ActingMember.include"
 			posterMember="$( AgentsToolsActingMember )"
 			printf '%s' "${posterMember:-magic-coordinator}"
 		;;

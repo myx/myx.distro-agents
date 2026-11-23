@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ^^^ for syntax checking in the editor only
-type AgentsSessionMarkerFile > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+type AgentsSessionMarkerFile > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.Paths.include"
 
 ##
 ## AgentsTools.SessionPause.include -- the paused state of a session or of one run (S19): the flag, the one question

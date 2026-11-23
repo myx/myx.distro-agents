@@ -36,8 +36,10 @@
 			set +e ; return 1
 		fi
 		if [ ! -f "$HOME/.claude.json" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --install-claude-workspace-trust: claude's own state file is absent, and this writes into that file rather than standing a replacement in its place -- start claude once so it writes $HOME/.claude.json, then re-run" >&2
-			set +e ; return 1
+			## CLAUDE THAT HAS NOT RUN HERE YET IS NOT A BROKEN INSTALL: its own state file is made by claude itself on its first run, so the
+			## trust line is added the next time this runs, and nothing else of the setup waits on it.
+			echo "🙋 WARNING: $MDSC_CMD --install-claude-workspace-trust: claude's own state file is absent ($HOME/.claude.json), so no trust line is written this run -- start claude once here, then run this again" >&2
+			set +e ; return 0
 		fi
 		local setupTrustLine="$( MYX_CLAUDEVERIFY_PROJECT_PATH="$workspace" \
 			MYX_CLAUDEVERIFY_PROJECT_TRUE="hasTrustDialogAccepted" \

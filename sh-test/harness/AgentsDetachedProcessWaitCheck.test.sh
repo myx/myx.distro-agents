@@ -19,6 +19,11 @@
 ##      output: the second start does not overwrite the first, and a read of the first still names the first
 ##   7. a stop stops the process group, not the wrapper shell alone: a command that ignores TERM is killed and
 ##      writes nothing after the stop, and a closed handle delivers nothing written to it after the close
+##   8. a stop signals the pid only while it is still the process that began under the handle: a record made to
+##      name another start is not signalled, and the same stop signals it once the record is put right
+##   9. the call itself returns while the process it started still runs: a caller that reads the call's result
+##      through a capture pipe, and keeps a descriptor at 10 on that pipe, is handed back in seconds while the
+##      process runs on -- a call that waited for the process would hold for that process's whole life
 ## The rig is a workspace of its own, under the scratch of this one, with its own MMDAPP and a member the
 ## served identity resolves; the package under it is the one at the origin, never a copy. Every call is
 ## bounded by its own alarm, and the check itself needs no endpoint, no credential and no network.
@@ -95,6 +100,31 @@ rigAwaitEnd(){ ## session, handle, call name -- reads the process by its handle 
 rigStart(){ ## session, command, call name -- one detached start of the command, in the rig's work folder
 	## The commands this check starts are plain shell words: no quote and no backslash, so they travel as they are.
 	rigCall Bash "{\"cwd\":\"$rigTmp/work\",\"command\":\"$2\",\"detach\":true}" "$1" "$3"
+}
+rigMilliNow(){ ## -- the wall clock in whole milliseconds
+	python3 -I -B -c 'import time ; print(int(time.time()*1000))' 2> /dev/null
+}
+rigServed(){ ## argument object, session, call name -- one served call of the harness, its stderr into <name>.err
+	printf '%s' "$1" | env -i HOME="$rigTmp/home" PATH="$rigTmp/bin:$rigPath" MMDAPP="$rigTmp/ws" MDLT_ORIGIN="$rigOrigin" \
+		MDAT_SKILLSET_ROOT="$rigTmp/skills" MDAT_SPAWN_AGENT="$rigMember" MDAT_SPAWN_SESSION_ID="$2" RIG_SCENARIO="$rigTmp/scenario" \
+		MDAT_WAIT_REMIND=off MDAT_WAIT_POLL_SECONDS=1 \
+		python3 -I -B "$rigOrigin/myx/myx.distro-agents/sh-test/check-fixtures/rig-exec.py" --alarm 200 -- bash "$rigHarness" --intern-tool Bash \
+		--access-read-root "$rigTmp" --access-write-root "$rigTmp" 2> "$rigTmp/$3.err"
+}
+rigPipedCall(){ ## argument object, session, call name -- one served call whose result the caller reads through a capture pipe, with a descriptor at 10 held on that pipe; what it printed in <name>.out, its status in <name>.rc, and how many whole milliseconds it held in <name>.ms
+	## A capture is the shape that shows a held call: `$( )` returns when the pipe has no writer left, so any fork of
+	## the call that keeps a descriptor on that pipe holds the caller through the whole life of what it started. The
+	## descriptor at 10 stands for the one bash itself saves there when it applies a redirection inside a capture.
+	local rigStatus=0 rigName="$3" rigOut="" rigT0 rigT1
+	rigT0="$( rigMilliNow )"
+	rigOut="$( cd "$rigTmp/ws" && rigServed "$1" "$2" "$rigName" 10>&1 )" || rigStatus=$?
+	rigT1="$( rigMilliNow )"
+	printf '%s' "$rigOut" > "$rigTmp/$rigName.out"
+	printf '%s' "$rigStatus" > "$rigTmp/$rigName.rc"
+	printf '%s' "$(( rigT1 - rigT0 ))" > "$rigTmp/$rigName.ms"
+}
+rigStillRuns(){ ## pid -- yes where that process is still there
+	kill -0 "$1" 2> /dev/null && printf 'running' || printf 'gone'
 }
 
 ## ---- 1. the handle of a detached start is one the Wait source resolves ----
@@ -267,6 +297,34 @@ rm -f "$rigProcessDir9/$rigHandle9.closed"
 rigCall Bash "{\"handle\":\"$rigHandle9\",\"stop\":true}" "$rigSession9" stop9c
 sleep 1
 rigAssert "put back, the same stop ends it" "$( kill -0 "$rigWrapper9" 2> /dev/null && printf running || printf gone )" "gone"
+
+## ---- 9. the call returns while the process it started still runs ----
+echo "-- 9. a detached start returns while its process runs, though the caller keeps a descriptor on its capture --"
+## A caller reads a tool call's result through a capture pipe, and a descriptor at 10 on that pipe is the state
+## bash itself leaves for a redirection it saves -- the first number it saves one at. Every fork of the call
+## inherits that descriptor, and a fork that keeps it keeps the pipe's write end open, so the caller waits for
+## the process instead of for the call. The start's wrapper is one such fork, and its reporter a second: the
+## reporter starts only where the session has a thread, so this row gives the session one.
+rigSession10="rig-detached-return"
+mkdir -p "$rigTmp/bin" "$rigTmp/scenario" "$rigTmp/ws/.local/agents/sessions/$rigSession10" || exit 1
+printf 'SLACK_CHANNEL_MAGIC_TEAM=CRIG00001\nSLACK_BOT_TOKEN=rig-bot-token-TEAM\n' > "$rigTmp/ws/.local/.agents/magic-team.agent.env"
+printf 'SLACK_USER_TOKEN=rig-user-token-A\n' > "$rigTmp/ws/.local/.agents/$rigMember.agent.env"
+printf 'CRIG00001:1760000000.000100\n' > "$rigTmp/ws/.local/agents/sessions/$rigSession10/session.thread"
+printf 0 > "$rigTmp/scenario/posts"
+cp "$rigOrigin/myx/myx.distro-agents/sh-test/check-fixtures/session-address-first.curl.stub.sh" "$rigTmp/bin/curl" && chmod +x "$rigTmp/bin/curl" || rigRefuse "cannot place the fake curl"
+rigPipedCall "{\"cwd\":\"$rigTmp/work\",\"command\":\"echo RIG-RETURN-ONE; sleep 60; echo RIG-RETURN-AFTER\",\"detach\":true}" "$rigSession10" start10
+rigHandle10="$( rigHandle start10 )"
+rigPid10="$( cat "$rigTmp/ws/.local/agents/sessions/$rigSession10/processes/$rigHandle10.pid" 2> /dev/null )"
+rigStill10="gone" ; [ -z "$rigPid10" ] || rigStill10="$( rigStillRuns "$rigPid10" )"
+rigHeld10="$( cat "$rigTmp/start10.ms" 2> /dev/null )"
+printf '  INFO  the call held %s ms, and the process it started was %s when the call returned\n' "${rigHeld10:-?}" "$rigStill10"
+rigAssert "control: the call started the process, and named its handle" \
+	"$( rigHead start10 ):$( printf '%s' "$rigHandle10" | LC_ALL=C grep -c -E '^process-[0-9]+$' )" "PROCESS-RESULT: RUNNING:1"
+rigAssert "the call returns while the process it started still runs: it did not wait that process out" \
+	"$rigStill10" "running"
+rigCall Bash "{\"handle\":\"$rigHandle10\",\"stop\":true}" "$rigSession10" stop10
+rigAssert "the process the call returned from is the one its handle stops: the caller was handed a live process, not a dead one" \
+	"$( rigSaid 'PROCESS-RESULT: CLOSED' stop10 ):$( rigStillRuns "$rigPid10" )" "1:gone"
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ DETACHED PROCESS WAIT CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

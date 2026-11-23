@@ -2,8 +2,8 @@
 ## Behavioural check on S23.4, run rather than read: A WORK-DUTY NAMES BOTH ITS TOOLING THREAD AND ITS SESSION THREAD, and a tag from another run of its member wakes it.
 ## The schedule starts a duty with `--spawn-session --session-thread:event-track` (AgentsToolsScheduleWork). Held here:
 ##   1. --spawn-session takes --session-thread:<event-track|magic-team> and refuses any other mode, so the schedule's own start is not turned away;
-##   2. a duty told to go with both threads is told in its session thread, and a record with no session thread falls back to its tooling thread (agent-log-thread), addressed to it;
-##   3. a record with neither thread is not told to go, and says why.
+##   2. a duty with a session is dismissed in its own session, by the tooling's mark and block, and nothing is posted;
+##   3. a record with no session at all is not told to go, and says why.
 ## What a duty's record holds after a real start, and that no header reaches the team channel, is AgentsWorkDutySingleThreadCheck's.
 ## Offline: the fake curl is the Slack send identity check's. The tree is this rig's own.
 set -u
@@ -83,6 +83,27 @@ rigDutyRecord rig-duty-none ''
 rigBodiesBefore="$( LC_ALL=C grep -c '' "$rigTmp/bodies" || : )"
 rigNoneOut="$( rigDismiss rig-duty-none )"
 rigAssert "it says it has neither thread, and posts nothing" "$( printf '%s' "$rigNoneOut" | LC_ALL=C grep -c -F 'neither a session thread nor a tooling thread' ):$( LC_ALL=C grep -c '' "$rigTmp/bodies" || : )" "1:$rigBodiesBefore"
+
+echo "-- 4. a record with no thread of its own is told in the thread its session folder names --"
+rigDutyRecord rig-duty-session 'session-id: rig-session-threaded'
+mkdir -p "$rigWs/.local/agents/sessions/rig-session-threaded"
+printf '%s\n' 'CRIG00002:1760000000.000200' > "$rigWs/.local/agents/sessions/rig-session-threaded/event-track.thread"
+rigBodiesBefore="$( LC_ALL=C grep -c '' "$rigTmp/bodies" || : )"
+rigSessionOut="$( rigDismiss rig-duty-session )"
+rigAssert "it is told to go" "$( printf '%s' "$rigSessionOut" | LC_ALL=C grep -c -F 'rig-duty-session of keeper-myx is told to go' )" "1"
+rigAssert "one post lands" "$( LC_ALL=C grep -c '' "$rigTmp/bodies" || : )" "$(( rigBodiesBefore + 1 ))"
+rigSessionPost="$( LC_ALL=C tail -n 1 "$rigTmp/bodies" )"
+rigAssert "the post is DISMISSED, in the thread its session folder names, addressed to it" \
+	"$( printf '%s' "$rigSessionPost" | LC_ALL=C grep -c -F '"text":"DISMISSED' ):$( printf '%s' "$rigSessionPost" | LC_ALL=C grep -c -F '"channel":"CRIG00002"' ):$( printf '%s' "$rigSessionPost" | LC_ALL=C grep -c -F '"thread_ts":"1760000000.000200"' )" "1:1:1"
+
+echo "-- 5. a record with no thread anywhere, and a session, is dismissed in its own session --"
+rigDutyRecord rig-duty-local 'session-id: rig-session-local'
+mkdir -p "$rigWs/.local/agents/sessions/rig-session-local"
+rigBodiesBefore="$( LC_ALL=C grep -c '' "$rigTmp/bodies" || : )"
+rigLocalOut="$( rigDismiss rig-duty-local )"
+rigAssert "it is told to go" "$( printf '%s' "$rigLocalOut" | LC_ALL=C grep -c -F 'rig-duty-local of keeper-myx is told to go' )" "1"
+rigAssert "its run carries the dismissal mark its next idle-wait reads" "$( [ -f "$rigWs/.local/agents/sessions/rig-duty-local/dismissed" ] && echo marked || echo none )" "marked"
+rigAssert "and nothing is posted" "$( LC_ALL=C grep -c '' "$rigTmp/bodies" || : )" "$rigBodiesBefore"
 
 if [ "$rigFails" -ne 0 ] ; then
 	echo "⛔ DUTY TOOLING THREAD CHECK FAILED: $rigFails of $(( rigPasses + rigFails )) assertion(s)" >&2 ; exit 1

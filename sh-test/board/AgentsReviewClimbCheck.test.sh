@@ -7,6 +7,10 @@
 ## session still needs is taken from it. Rows 1 and 2 are that fault; rows 3 to 7 are the controls, each a
 ## case the climb leaves exactly as it was: the parent gone, the duty's own item, the human-owner's own
 ## item, a bare member reviewer with no run of its own, and the reviewer's own run.
+## Section 3 is the second fault: a dispatch a duty round spawns reads that round as its reviewer, and the
+## round works through a run of its own, so the rung and the asking run are one session under two ids.
+## Its first row is that case, and its second row is the control: the same asking run, and a rung that
+## really is another session's.
 ## Offline: the fake `curl` first on PATH logs a Slack call and opens no socket; the board, the sandbox
 ## records and the workspace are this rig's own temp tree; the live parent is a stand-in of this check
 ## alone, ended at its end. Never the live team data or .local/agents.
@@ -79,6 +83,27 @@ rigChildRun(){ ## spawn id, reports-to value
 	printf -- '---\nsession-id: %s\nspawn-id: %s\nparent-spawn-id: none\nhost: %s\nowner: keeper-rig\nstatus: spawn-started\nreports-to: %s\n---\n\n# rig child run\n' \
 		"$1" "$1" "$rigHost" "$2" > "$rigSpawned/$1/$1.spawn.md"
 }
+## A run that joined a session: its own id, and the session its record names. A duty round works
+## through such a run, so the run that gives a verdict is not the session id the item reads.
+rigJoinedRun(){ ## run id, session id, the member that runs there
+	bash -c 'sleep 240 ; :' rig-joined-run --session-id "$1" > /dev/null 2>&1 < /dev/null &
+	local joinedPid=$!
+	rigLivePids="$rigLivePids $joinedPid"
+	rigProcNote "$joinedPid"
+	disown "$joinedPid" 2> /dev/null || :
+	local joinedBegan
+	joinedBegan="$( PATH="$rigProcPath" ps -o lstart= -p "$joinedPid" 2> /dev/null | PATH="$rigProcPath" LC_ALL=C awk 'NF { $1 = $1 ; gsub( / /, "_" ) ; print ; exit ; }' )"
+	[ -n "$joinedBegan" ] || rigRefuse "the joined run stand-in did not start, so nothing below would be measured"
+	mkdir -p "$rigSpawned/$1"
+	printf -- '---\nsession-id: %s\nspawn-id: %s\nparent-spawn-id: none\ntracking-name: %s\nhost: %s\nowner: %s\nstatus: spawn-started\nrun-process: %s %s\n---\n\n# rig joined run\n' \
+		"$2" "$1" "$1" "$rigHost" "$3" "$joinedPid" "$joinedBegan" > "$rigSpawned/$1/$1.spawn.md"
+}
+## A dispatch a session spawned: its own run, the session that spawned it, and the member there.
+rigChildRunIn(){ ## spawn id, parent session id, parent member
+	mkdir -p "$rigSpawned/$1"
+	printf -- '---\nsession-id: %s\nspawn-id: %s\nparent-spawn-id: none\nhost: %s\nowner: keeper-rig\nstatus: spawn-started\nparent-session-id: %s\nparent-member: %s\n---\n\n# rig dispatch\n' \
+		"$1" "$1" "$rigHost" "$2" "$3" > "$rigSpawned/$1/$1.spawn.md"
+}
 ## A review item: its name, its own run's spawn id, and its own header lines.
 rigReview(){ ## item stem, its run's spawn id, extra header lines
 	printf -- '---\ntype: dispatch\nowner: keeper-rig\nstatus: dispatch-started\nspawn-id: %s\n%s---\n\n# rig review item\n' \
@@ -122,6 +147,12 @@ rigReview task-rig-human-rung   ""              "review-by: human-owner
 rigReview task-rig-bare-member  rig-child-bare  ""
 rigReview task-rig-reviewer-run rig-child-own   "review-by: keeper-myx
 "
+## A duty round's run, joined into the round's own session, and the dispatch that session spawned.
+rigJoinedRun  rig-duty-run      rig-duty-session  magic-coordinator
+rigChildRunIn rig-child-owned   rig-duty-session  magic-coordinator
+rigChildRunIn rig-child-other   rig-parent-live   magic-coordinator
+rigReview task-rig-duty-own    rig-child-owned  ""
+rigReview task-rig-duty-other  rig-child-other  ""
 ## The duty acts from a session of its own, never from the parent's.
 rigEnv=( MDAT_SPAWN_AGENT=magic-coordinator MDAT_SPAWN_SESSION_ID=rig-duty-session )
 
@@ -148,6 +179,14 @@ rigEnv=( MDAT_SPAWN_AGENT=keeper-myx MDAT_SPAWN_SESSION_ID=rig-own-run )
 rigVerdict "$rigTmp/c7" --accept-review --team-member keeper-myx task-rig-reviewer-run
 rigEnv=()
 rigAssert "the reviewer's own run accepts its own item"        "$( cat "$rigTmp/c7.rc" ):$( rigLoc task-rig-reviewer-run )" 0:processed
+
+echo "-- 3. a duty round settles the dispatch it spawned, and only that --"
+rigEnv=( MDAT_SPAWN_AGENT=magic-coordinator MDAT_SPAWN_SESSION_ID=rig-duty-run )
+rigVerdict "$rigTmp/c8" --accept-review --team-member magic-coordinator task-rig-duty-own
+rigAssert "the round's run accepts the dispatch it spawned"     "$( cat "$rigTmp/c8.rc" ):$( rigLoc task-rig-duty-own )" 0:processed
+rigVerdict "$rigTmp/c9" --accept-review --team-member magic-coordinator task-rig-duty-other
+rigAssert "a rung in another live session still comes first"    "$( cat "$rigTmp/c9.rc" ):$( rigLoc task-rig-duty-other )" 1:review
+rigEnv=()
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ REVIEW CLIMB CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

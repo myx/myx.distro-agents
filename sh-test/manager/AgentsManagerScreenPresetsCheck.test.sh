@@ -242,7 +242,7 @@ RIGSCRIPT
 rigAssert "a preset's keys are n New and e Edit, and Enter edits it too, as the owner asked, not Enter opening it" "$( rigHolds keys ' n New  e Edit' ) $( rigHolds keys 'ENTER Edit' ) $( rigHolds keys 'ENTER Open' )" "1 1 0"
 
 echo "-- a preset edited --"
-## ON EDIT THE PRESET IS ALREADY THE SUBJECT (owner, 2026-10-21): no page asks which preset, the name field holds its own, and
+## ON EDIT THE PRESET IS ALREADY THE SUBJECT : no page asks which preset, the name field holds its own, and
 ## neither the form it was made in nor what it extends is offered again, since neither can change on an edit.
 rigCase edit
 rigScript <<'RIGSCRIPT'

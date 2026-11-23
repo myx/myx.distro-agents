@@ -1,13 +1,15 @@
 #!/usr/bin/env bash
-## Behavioural check on the comms cache's hourly cleanup (S21.13, owner 2026-10-29): an entry whose interest mark is gone, or
-## older than 48 hours, is removed with its folder; one whose mark is fresh stays; one with a post still in its outbox stays
-## whatever its mark says. Named paths only: the entry is spelled from `$MMDAPP/.local/cache/comms/<service>/<entry>`.
+## Behavioural check on the interest marks' two ages (S1 item 12): a read stops refreshing a mark once it is 48 hours old, and the
+## hourly clean removes a mark past 240 hours with its folder. One whose mark is inside the delete age stays; one with a post still
+## in its outbox stays whatever its mark says. Named paths only: the entry is spelled from
+## `$MMDAPP/.local/cache/comms/<service>/<entry>`.
 ## Held:
 ##   1. a marked, fresh entry SURVIVES the clean -- the case that fails where a mark is looked for under another name
 ##   2. an entry with no mark is removed
-##   3. an entry whose mark is 49 hours old is removed
-##   4. an entry with no mark but a post in outbox.messages.txt survives
-##   5. the clean does not run twice in one hour: a second call with the same clock leaves everything as it is
+##   3. a read does NOT refresh a mark 200 hours old: item 12 stops the refresh at 48 hours, and today the write time moves
+##   4. an entry whose mark is 72 hours old SURVIVES: item 12 forbids a delete before 240 hours
+##   5. an entry whose mark is 241 hours old is removed
+##   6. an entry with no mark but a post in outbox.messages.txt survives
 ## Offline: one mktemp tree, no network, nothing of the team's read.
 set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
@@ -34,14 +36,15 @@ rigMarks="$rigCache/.interest"
 mkdir -p "$rigMarks" || exit 1
 rigNow="$( date +%s )"
 
-## One entry as the cache lays it out, with its mark: `slack-<channel>-<ts>`, the folder and the mark named the same.
+## One entry as the cache lays it out, with its mark: `slack-<channel>-<ts>`, the folder and the mark named the same. The mark's
+## content and its mtime both carry the age: the clean reads the mtime, and the refresh reads the epoch inside.
 rigEntry(){ ## name, mark age in minutes or "none", outbox text or ""
 	mkdir -p "$rigCache/slack/$1/month" || exit 1
 	printf '202610/messages.txt\n' > "$rigCache/slack/$1/.state.txt"
 	case "$2" in
 		none) rm -f "$rigMarks/$1" ;;
 		*)
-			printf '%s 15\n' "$rigNow" > "$rigMarks/$1"
+			printf '%s 15\n' "$(( rigNow - $2 * 60 ))" > "$rigMarks/$1"
 			[ "$2" = 0 ] || touch -t "$( date -v-"$2"M '+%Y%m%d%H%M' 2>/dev/null || date -d "-$2 minutes" '+%Y%m%d%H%M' )" "$rigMarks/$1"
 		;;
 	esac
@@ -62,12 +65,31 @@ rigEntry 'slack-C0RIGCHAN-1793000000.000002' none ''
 ( MMDAPP="$rigTmp/ws" MDLT_ORIGIN="$MDLT_ORIGIN" bash -c '. "$1" ; AgentsToolsCommsCachePullWatched "$2"' _ "$rigInclude" "$rigNow" ) > /dev/null 2>&1 || :
 rigAssert "an entry with no mark is removed" "$( [ -d "$rigCache/slack/slack-C0RIGCHAN-1793000000.000002" ] && echo kept || echo gone )" gone
 
-## 3. A mark 49 hours old: the entry goes, as its mark does.
-rigEntry 'slack-C0RIGCHAN-1793000000.000003' 2940 ''
-( MMDAPP="$rigTmp/ws" MDLT_ORIGIN="$MDLT_ORIGIN" bash -c '. "$1" ; AgentsToolsCommsCachePullWatched "$(( $2 + 3600 ))"' _ "$rigInclude" "$rigNow" ) > /dev/null 2>&1 || :
-rigAssert "an entry whose mark is 49 hours old is removed" "$( [ -d "$rigCache/slack/slack-C0RIGCHAN-1793000000.000003" ] && echo kept || echo gone )" gone
+## 3. A mark 200 hours old is past the 48-hour refresh stop: a read leaves its write time alone. It moves on the code before item 12.
+rigEntry 'slack-C0RIGCHAN-1793000000.000006' 12000 ''
+rigBefore="$( LC_ALL=C stat -f '%m' "$rigMarks/slack-C0RIGCHAN-1793000000.000006" 2>/dev/null || LC_ALL=C stat -c '%Y' "$rigMarks/slack-C0RIGCHAN-1793000000.000006" 2>/dev/null )"
+( MMDAPP="$rigTmp/ws" MDLT_ORIGIN="$MDLT_ORIGIN" bash -c '. "$1" ; AgentsToolsCommsCacheInterest "$2" "$3" 15' _ "$rigInclude" "$rigCache/slack/slack-C0RIGCHAN-1793000000.000006" "$rigNow" ) > /dev/null 2>&1 || :
+rigAfter="$( LC_ALL=C stat -f '%m' "$rigMarks/slack-C0RIGCHAN-1793000000.000006" 2>/dev/null || LC_ALL=C stat -c '%Y' "$rigMarks/slack-C0RIGCHAN-1793000000.000006" 2>/dev/null )"
+rigAssert "a read leaves a mark 200 hours old unrefreshed" "$( [ "$rigBefore" = "$rigAfter" ] && echo unchanged || printf 'moved' )" unchanged
 
-## 4. No mark, but a post still to go out: never removed.
+## 3b. A mark 47 hours old is inside the refresh window, so the same read moves its write time. The control the row above needs.
+rigEntry 'slack-C0RIGCHAN-1793000000.000007' 2820 ''
+rigBefore="$( LC_ALL=C stat -f '%m' "$rigMarks/slack-C0RIGCHAN-1793000000.000007" 2>/dev/null || LC_ALL=C stat -c '%Y' "$rigMarks/slack-C0RIGCHAN-1793000000.000007" 2>/dev/null )"
+( MMDAPP="$rigTmp/ws" MDLT_ORIGIN="$MDLT_ORIGIN" bash -c '. "$1" ; AgentsToolsCommsCacheInterest "$2" "$3" 15' _ "$rigInclude" "$rigCache/slack/slack-C0RIGCHAN-1793000000.000007" "$rigNow" ) > /dev/null 2>&1 || :
+rigAfter="$( LC_ALL=C stat -f '%m' "$rigMarks/slack-C0RIGCHAN-1793000000.000007" 2>/dev/null || LC_ALL=C stat -c '%Y' "$rigMarks/slack-C0RIGCHAN-1793000000.000007" 2>/dev/null )"
+rigAssert "a read refreshes a mark 47 hours old" "$( [ "$rigBefore" = "$rigAfter" ] && echo unchanged || printf 'moved' )" moved
+
+## 3. A mark 72 hours old: past the 48-hour refresh stop, inside the 240-hour delete age, so the entry stays.
+rigEntry 'slack-C0RIGCHAN-1793000000.000003' 4320 ''
+( MMDAPP="$rigTmp/ws" MDLT_ORIGIN="$MDLT_ORIGIN" bash -c '. "$1" ; AgentsToolsCommsCachePullWatched "$(( $2 + 3600 ))"' _ "$rigInclude" "$rigNow" ) > /dev/null 2>&1 || :
+rigAssert "an entry whose mark is 72 hours old survives" "$( [ -d "$rigCache/slack/slack-C0RIGCHAN-1793000000.000003" ] && echo kept || echo gone )" kept
+
+## 4. A mark 241 hours old: past item 12's delete age, so the entry goes with it.
+rigEntry 'slack-C0RIGCHAN-1793000000.000005' 14460 ''
+( MMDAPP="$rigTmp/ws" MDLT_ORIGIN="$MDLT_ORIGIN" bash -c '. "$1" ; AgentsToolsCommsCachePullWatched "$(( $2 + 5400 ))"' _ "$rigInclude" "$rigNow" ) > /dev/null 2>&1 || :
+rigAssert "an entry whose mark is 241 hours old is removed" "$( [ -d "$rigCache/slack/slack-C0RIGCHAN-1793000000.000005" ] && echo kept || echo gone )" gone
+
+## 5. No mark, but a post still to go out: never removed.
 rigEntry 'slack-C0RIGCHAN-1793000000.000004' none 'a post nobody has sent yet'
 ( MMDAPP="$rigTmp/ws" MDLT_ORIGIN="$MDLT_ORIGIN" bash -c '. "$1" ; AgentsToolsCommsCachePullWatched "$(( $2 + 7200 ))"' _ "$rigInclude" "$rigNow" ) > /dev/null 2>&1 || :
 rigAssert "an entry with a post in its outbox is never removed" "$( [ -d "$rigCache/slack/slack-C0RIGCHAN-1793000000.000004" ] && echo kept || echo gone )" kept

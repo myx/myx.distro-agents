@@ -34,7 +34,7 @@
 ## (two empty lines under its top, one more under its buttons, three blank cells at each side), so its box is four
 ## cells wider and two lines taller and what it holds stands where it stood.
 ## Reconciled for F11.5: Pending Questions is the second root, key 2, and the list of the sessions is Active Sessions of Activity (`root active-sessions`, `table list:magic-team/activity`).
-## Reconciled for the count of Pending Questions (owner, 2026-10-20): the root reads the count of the asks (`--count`) whatever is shown, so the starts of the cases of the list leave it out (rigCalls, rigOtherCalls, rigReading); the cases of the count are the last.
+## Reconciled for the count of Pending Questions : the root reads the count of the asks (`--count`) whatever is shown, so the starts of the cases of the list leave it out (rigCalls, rigOtherCalls, rigReading); the cases of the count are the last.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigScreen="$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/manager/LocalManagerScreen.py"
@@ -175,7 +175,7 @@ get early
 advance 2
 wait list 30
 RIGSCRIPT
-## R16 (owner, 2026-10-26): the waiting word stands IN THE PANE ALONE and never in the notice, so what
+## R16 : the waiting word stands IN THE PANE ALONE and never in the notice, so what
 ## this reads here is that nothing of the asks is read yet; the word itself is `Focus`'s to check.
 rigAssert "at the root, before the selection has rested on the section, nothing of the asks is read" "$( rigVal first.selected ) [$( rigReading first )]" "pending []"
 rigAssert "entering the section starts the read"                     "$( rigVal asked.path ) $( rigReading asked )" "pending list:pending"
@@ -759,7 +759,7 @@ rowids zeroInRows
 cells zeroIn 3 85 119
 RIGSCRIPT
 rigAssert "before the count has come the row has none, at the root" "[$( rigVal unreadRoot )]" "[$( rigRowOf 'Pending Questions' )]"
-## R16 (owner, 2026-10-26): Pending Questions stands in the root alone, as the sketch has it: it is no child of
+## R16 : Pending Questions stands in the root alone, as the sketch has it: it is no child of
 ## Magic-Team (Agents) any more, so the count is shown at the root, and its children there are as the sketch lists them.
 rigAssert "with two that wait the row shows [2] at the root; Magic-Team (Agents) holds Activity, Launchpad, Team Members and Routines, and no Pending Questions of its own" "[$( rigVal twoRoot )] [$( rigVal twoIn )] [$( rigVal twoInRows )]" "[$( rigRowOf 'Pending Questions [2]' )] [$( rigRowOf 'Activity' )] [.. activity launch team routines schedule]"
 rigAssert "when the count is read again it follows at the root: none that wait, [0]; Magic-Team (Agents) has no row of it to carry the number" "[$( rigVal zeroRoot )] [$( rigVal zeroIn )] [$( rigVal zeroInRows )]" "[$( rigRowOf 'Pending Questions [0]' )] [$( rigRowOf 'Activity' )] [.. activity launch team routines schedule]"

@@ -118,7 +118,8 @@ rigAssert "install: its resume hook is wired under SessionStart, matcher resume,
 	"$( rigVerify SessionStart ".claude/hooks/root-session-end.sh resume" "$rigTmp/fresh/.claude/settings.json" ) / $( rigFlat "$rigTmp/fresh/.claude/settings.json" | LC_ALL=C grep -c -F '"matcher":"resume","hooks":[{"type":"command","command":"\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/root-session-end.shresume"}]' )" \
 	"hooks.SessionStart .claude/hooks/root-session-end.sh resume: OK / 1"
 rigAssert "install: its script is the package's, executable" "$( cmp -s "$rigHere/client-hooks/root-session-end.sh" "$rigTmp/fresh/.claude/hooks/root-session-end.sh" && [ -x "$rigTmp/fresh/.claude/hooks/root-session-end.sh" ] && printf same || printf differs )" same
-## The floor after a compaction (owner's question of 2026-10-27): the SessionStart hook with the matcher compact tells a spawned member to load its floor again.
+## The floor after a compaction (): the SessionStart hook with the matcher compact tells a spawned member to load its floor again.
+
 rigAssert "install: its compact hook is wired under SessionStart, matcher compact, and its script is the package's" \
 	"$( rigVerify SessionStart ".claude/hooks/floor-after-compact.sh serve" "$rigTmp/fresh/.claude/settings.json" ) / $( rigFlat "$rigTmp/fresh/.claude/settings.json" | LC_ALL=C grep -c -F '"matcher":"compact","hooks":[{"type":"command","command":"\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/floor-after-compact.shserve"}]' ) / $( cmp -s "$rigHere/client-hooks/floor-after-compact.sh" "$rigTmp/fresh/.claude/hooks/floor-after-compact.sh" && printf same || printf differs )" \
 	"hooks.SessionStart .claude/hooks/floor-after-compact.sh serve: OK / 1 / same"

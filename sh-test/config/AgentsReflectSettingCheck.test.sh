@@ -42,14 +42,14 @@ rigEqual(){ ## what is asserted, output, the exact text wanted
 ## Every call runs in a shell of its own with none of the calling session's identity: a
 ## coordinator's own operation is refused from a member's session, and this call is neither's.
 ## The tool names its own origin on stderr at every start; that line is not the call's answer.
-rigRun(){ ## args -- the call's whole output, both streams, the startup line left out; its status
+rigRun(){ ## args -- the call's whole output, both streams, the startup lines left out; its status
 	local runOut="" runRc=0
 	runOut="$( cd "$rigWs" && env -u MDAT_SPAWN_AGENT -u MDAT_SPAWN_SESSION_ID -u MDAT_SESSION_ID \
 		-u harnessAgent -u harnessSessionId -u JIRA_SITE -u JIRA_USER -u JIRA_API_TOKEN \
 		-u CONFLUENCE_SITE -u CONFLUENCE_USER -u CONFLUENCE_API_TOKEN -u REFLECT_MODELS \
 		PATH="$rigBin:$PATH" MDAT_SKILLSET_ROOT="$rigTmp/skills" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" \
 		bash "$rigTool" "$@" 2>&1 )" || runRc=$?
-	printf '%s\n' "$runOut" | LC_ALL=C sed '/^SystemContext: init: /d'
+	printf '%s\n' "$runOut" | LC_ALL=C sed -e '/^SystemContext: init: /d' -e '/^AgentsContext\.SetInputSpec: /d'
 	return "$runRc"
 }
 rigRc(){ ## args -- the status of that call, its output thrown away

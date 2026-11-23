@@ -1,0 +1,46 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.RegistrySpawnedSessions.Refresh.include -- one run's rows put into the spawned-sessions registry, where its record is written.
+## The registry is built by a walk once and then kept current here, by a read and a rename: a reader takes the file as it stands, and no
+## reader walks a store of thousands of runs for the eleven that are live.
+##
+
+AgentsToolsRegistrySpawnedSessionsRowRefresh(){ ## record path
+	local refRecord="${1:-}" refDir refTracking refFile refCount refRows refTemp refOne refKind refPath
+	case "$refRecord" in */*.spawn.md) ;; *) return 0 ;; esac
+	[ -n "${MMDAPP:-}" ] || return 0
+	refDir="${refRecord%/*}"
+	refTracking="${refDir##*/}"
+	refFile="$MMDAPP/.local/agents/spawned-sessions.registry"
+	[ -f "$refFile" ] || return 0
+	## A WRITE IS NOT A REBUILD: this rewrites the whole registry, so it stays off the store a person builds once and keeps by the TTL the
+	## registry's own header gives it. Under a few hundred rows the rewrite is smaller than the read that follows it; above, the rebuild does it.
+	refCount="$( LC_ALL=C wc -l < "$refFile" 2> /dev/null | tr -d ' ' )" || refCount=""
+	case "$refCount" in ''|*[!0123456789]*) return 0 ;; esac
+	[ "$refCount" -lt 500 ] || return 0
+	type AgentsToolsRegistryRowsEntry > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
+	refRows="$( mktemp "$refFile.rows.XXXXXX" 2> /dev/null )" || return 1
+	{
+		AgentsToolsRegistryRowsEntry D "$refTracking"
+		for refOne in "$refDir"/*.spawn.md ; do
+			[ -f "$refOne" ] || continue
+			AgentsToolsRegistryRowsEntry S "$refOne"
+		done
+	} | LC_ALL=C awk -v registryRows=spawned -v registryColumns=17 -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsRegistryHeaderRows.awk" > "$refRows" 2> /dev/null
+	refTemp="$( mktemp "$refFile.XXXXXX" 2> /dev/null )" || { rm -f "$refRows" ; return 1 ; }
+	LC_ALL=C awk -v tracking="$refTracking" -v rows="$refRows" '
+		BEGIN { while ( ( getline newLine < rows ) > 0 ) { newCount++ ; newRows[newCount] = newLine ; } ; close( rows ) ; }
+		$1 != tracking { print ; next ; }
+		!oldDropped { oldDropped = 1 ; for ( at = 1 ; at <= newCount ; at++ ) print newRows[at] ; }
+		END { if ( !oldDropped ) { for ( at = 1 ; at <= newCount ; at++ ) print newRows[at] ; } ; }
+	' "$refFile" > "$refTemp" 2> /dev/null
+	if [ ! -s "$refTemp" ] ; then
+		rm -f "$refTemp" "$refRows" 2> /dev/null
+		return 0
+	fi
+	mv -f "$refTemp" "$refFile" 2> /dev/null || rm -f "$refTemp" 2> /dev/null
+	rm -f "$refRows" 2> /dev/null
+	return 0
+}

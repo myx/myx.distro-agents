@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ^^^ for syntax checking in the editor only
-type AgentsToolsPendingRecordPath > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.Authority.include"
+type AgentsToolsPendingRecordPath > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.PendingPaths.include"
 
 ## AgentsHarnessAskPending.include: a question's pending reply: opened and closed, the answer it already has, and the answers a wait returned on it, read.
 ## Sourced by AgentsHarnessAsk.include, definitions only.

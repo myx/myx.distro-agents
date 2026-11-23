@@ -34,7 +34,7 @@ rigLink="l""n -s"
 rigOriginVar='$'"MDLT_ORIGIN"
 
 echo "-- 1. no file of sh-test links the origin into a rig --"
-rigFound="$( python3 -I -B "$rigScanner" "$rigHere"/*/*.test.sh "$rigHere"/*/*.include.sh "$rigHere"/check-fixtures/*.include.sh "$rigHere"/AgentsRunTests.sh 2>&1 )" || rigRefuse "the reader of a rig's links could not be run: $rigFound"
+rigFound="$( python3 -I -B "$rigScanner" "$rigHere"/*/*.test.sh "$rigHere"/*/*.include.sh "$rigHere"/check-fixtures/*.include.sh "$rigHere"/runner/*.sh "$rigHere"/AgentsRunTests.sh 2>&1 )" || rigRefuse "the reader of a rig's links could not be run: $rigFound"
 rigAssert "no file of sh-test holds a link into real source" "$( printf '%s' "$rigFound" )" ""
 
 echo "-- 2. the reader of rule 1 is not blind: each shape it must find, and the rig's own links it must not --"

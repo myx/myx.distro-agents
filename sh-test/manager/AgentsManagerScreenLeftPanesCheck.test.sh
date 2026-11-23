@@ -266,13 +266,15 @@ rigLineOf(){ ## tag, text -- the number of the line of the left pane that holds 
 }
 
 echo "-- Sessions, Launchpad, a session --"
-rigAssert "Sessions: one table of every session, finished ones too, in the order of the list, and nothing above it" \
-	"$( rigHas sessions '43 sessions' ) $( rigHas sessions '1 running, 1 unclosed, 41 finished' ) $( rigFirstHas sessions 'SESSION' ) $( rigHas sessions 'alpha work' ) $( rigHas sessions 'gamma work' ) $( [ "$( rigLineOf sessions 'alpha work' )" -lt "$( rigLineOf sessions 'gamma work' )" ] && echo ordered )" \
-	"0 0 1 1 1 ordered"
-rigAssert "Sessions: a running state in the look of what is well, a gone control thread in that of what is bad, a finished one dim" \
-	"$( rigRole sessions 'alpha work' k ) $( rigRole sessions 'beta work' X ) $( rigRole sessions 'gamma work' D )" "1 1 1"
-rigAssert "Sessions: more rows than the pane holds: no 'and N more', the title no count of rows, the status line no e; the count of its rows once, at the bottom right of the frame" \
-	"$( rigHas sessions 'more' ) $( rigTitle sessions | LC_ALL=C grep -c -E 'rows\]' ) $( rigStatus sessions | LC_ALL=C grep -c -E ' e (All|First) rows' ) $( rigCountAt sessions '43 rows' )" "0 0 0 bottom:1"
+rigAssert "Sessions: the Activity root is the table every root draws, its subsections and what each holds, and no session row" \
+	"$( rigHas sessions 'FOLDER' ) $( rigFirstHas sessions 'FOLDER' ) $( rigHas sessions 'Active Sessions' ) $( rigHas sessions 'Closed Agents' ) $( rigHas sessions 'alpha work' ) $( rigHas sessions '43 sessions' )" \
+	"1 1 1 1 1 0"
+rigAssert "Sessions: what is alive stands in the same table under STATE: the open sessions, the agents running and waiting, and the newest" \
+	"$( rigHas sessions 'STATE' ) $( rigHas sessions 'Open sessions' ) $( rigHas sessions 'Agents' ) $( rigHas sessions 'running' ) $( rigHas sessions 'Newest session' )" \
+	"1 1 1 1 1"
+rigAssert "Sessions: the table is all the root shows -- no count of rows above it, and no title claiming rows" \
+	"$( rigHas sessions 'more' ) $( rigTitle sessions | LC_ALL=C grep -c -E 'rows\]' )" \
+	"0 0"
 rigAssert "Launchpad: every routine as a table, its start in its colour" \
 	"$( rigHas launch 'ROUTINE' ) $( rigHas launch 'alpha-gap' ) $( rigHas launch 'beta-gap' ) $( rigRole launch 'alpha-gap' k ) $( rigRole launch 'beta-gap' X )" "1 1 1 1 1"
 rigAssert "a session: its agents as a table under a heading, its state in its colour; no thread ids; its id last" \

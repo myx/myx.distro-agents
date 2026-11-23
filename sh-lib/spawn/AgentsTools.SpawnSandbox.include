@@ -50,7 +50,7 @@ AgentsSessionSandboxRecordPath(){ ## sandbox, run id
 	case "$pathSandbox:$pathRun" in */*|*[[:space:]]*|:*) return 1 ;; esac
 	case "$pathSandbox" in ''|-|.|..) return 1 ;; esac
 	case "$pathRun" in ''|-|.|..) return 1 ;; esac
-	type AgentsSpawnedStoreDirInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+	type AgentsSpawnedStoreDirInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.Paths.include"
 	AgentsSpawnedStoreDirInto pathStore "${MMDAPP:-}" || return 1
 	printf -v pathFile '%s/%s/%s.spawn.md' "$pathStore" "$pathSandbox" "$pathRun"
 	[ -f "$pathFile" ] || return 1
@@ -63,7 +63,7 @@ AgentsSessionSandboxRecordPath(){ ## sandbox, run id
 AgentsSessionSandboxChecklist(){ ## sandbox, member
 	local listStore="" listDir="" listFiles=() listFile listKept=no listAt="-"
 	case "${1:-}" in ''|-|.|..|*/*|*[[:space:]]*) printf 'no\t-\t0\tno\t\n' ; return 0 ;; esac
-	type AgentsSpawnedStoreDirInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+	type AgentsSpawnedStoreDirInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.Paths.include"
 	AgentsSpawnedStoreDirInto listStore "${MMDAPP:-}" || { printf 'no\t-\t0\tno\t\n' ; return 0 ; }
 	printf -v listDir '%s/%s' "$listStore" "$1"
 	for listFile in "$listDir"/*.checklist.md ; do [ ! -f "$listFile" ] || listFiles+=( "$listFile" ) ; done
@@ -85,7 +85,7 @@ AgentsSessionSandboxChecklist(){ ## sandbox, member
 AgentsSessionSandboxChecklistLines(){ ## sandbox, member
 	local linesStore="" linesFile="" linesOne
 	case "${1:-}:${2:-}" in :*|*:|*/*|-:*|*:-|.:*|..:*|*:.|*:..) return 1 ;; esac
-	type AgentsSpawnedStoreDirInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+	type AgentsSpawnedStoreDirInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.Paths.include"
 	AgentsSpawnedStoreDirInto linesStore "${MMDAPP:-}" || return 1
 	printf -v linesFile '%s/%s/%s.checklist.md' "$linesStore" "${1:-}" "${2:-}"
 	[ -f "$linesFile" ] || return 1
@@ -97,7 +97,7 @@ AgentsSessionSandboxChecklistLines(){ ## sandbox, member
 ## The last lines of a run's session log: first the name of the log, then the lines. The log in its sandbox first, else its session's. rc 1 for none.
 AgentsSessionSandboxLogTail(){ ## sandbox, session, lines
 	local tailSpawned="" tailSessions="" tailLog
-	type AgentsSessionStoreDirInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+	type AgentsSessionStoreDirInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.Paths.include"
 	AgentsSpawnedStoreDirInto tailSpawned "${MMDAPP:-}" || return 1
 	AgentsSessionStoreDirInto tailSessions "${MMDAPP:-}" || return 1
 	for tailLog in "$tailSpawned/${1:-}/session.log" "$tailSessions/${2:-}/session.log" ; do
@@ -112,7 +112,7 @@ AgentsSessionSandboxLogTail(){ ## sandbox, session, lines
 ## The CheckList the calling run keeps: first its member, then its lines. The one under its native session's store, else under its spawn's sandbox.
 AgentsSessionOwnChecklistLines(){ ## native session id (may be empty), spawn sandbox (may be empty)
 	local ownSessionStore="" ownSpawnStore="" ownList ownLine ownMember
-	type AgentsSessionStoreDirInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+	type AgentsSessionStoreDirInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.Paths.include"
 	AgentsSessionStoreDirInto ownSessionStore "${MMDAPP:-}" || ownSessionStore="/nonexistent/.local/agents/sessions"
 	AgentsSpawnedStoreDirInto ownSpawnStore "${MMDAPP:-}" || ownSpawnStore="/nonexistent/.local/agents/spawned"
 	for ownList in "$ownSessionStore/${1:-none}"/*.checklist.md "$ownSpawnStore/${2:-none}"/*.checklist.md ; do
@@ -155,7 +155,7 @@ AgentsToolsHousekeepingReport(){ ## member, lines
 AgentsSessionRigControlRows(){
 	local rigKept="${MMDAPP:-/nonexistent}/.local/agents/schedule/supervise.rig-pids" rigStore=""
 	[ -n "${MMDAPP:-}" ] || return 0
-	type AgentsSpawnedStoreDirInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+	type AgentsSpawnedStoreDirInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.Paths.include"
 	AgentsSpawnedStoreDirInto rigStore "$MMDAPP" || return 0
 	local rigTtl="${MDAT_SUPERVISE_RIG_WALK_SECONDS:-900}" rigAt=0 rigFile rigPid rigRest rigSandbox rigWalker="" rigWalk=yes
 	case "$rigTtl" in ''|*[!0123456789]*) rigTtl=900 ;; esac
@@ -215,7 +215,7 @@ AgentsSessionRigControlRows(){
 ## when the rig does, and only the store's owner builds its path.
 AgentsSessionRigTermNoteInto(){ ## variable, sandbox, the pid file inside the sandbox, pid, the began moment
 	local termNote="" termLine="" termStore=""
-	type AgentsSpawnedStoreDirInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+	type AgentsSpawnedStoreDirInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.Paths.include"
 	printf -v "$1" '%s' "none"
 	case "${2:-}" in ''|-|.|..|*/*|*[[:space:]]*) return 0 ;; esac
 	case "${3:-}" in ''|/*|*..*|*[[:space:]]*) return 0 ;; esac
@@ -233,7 +233,7 @@ AgentsSessionRigTermNoteInto(){ ## variable, sandbox, the pid file inside the sa
 
 AgentsSessionRigTermNoteSet(){ ## sandbox, the pid file inside the sandbox, pid, the began moment
 	local termNote="" termStore="" setWorkspace="${MMDAPP:-/nonexistent}"
-	type AgentsSpawnedStoreDirInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+	type AgentsSpawnedStoreDirInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.Paths.include"
 	case "${1:-}" in ''|-|.|..|*/*|*[[:space:]]*) return 1 ;; esac
 	case "${2:-}" in ''|/*|*..*|*[[:space:]]*) return 1 ;; esac
 	AgentsSpawnedStoreDirInto termStore "$setWorkspace" || return 1
@@ -245,7 +245,7 @@ AgentsSessionRigTermNoteSet(){ ## sandbox, the pid file inside the sandbox, pid,
 
 AgentsSessionRigTermNoteClear(){ ## sandbox, the pid file inside the sandbox
 	local termNote="" termStore=""
-	type AgentsSpawnedStoreDirInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+	type AgentsSpawnedStoreDirInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.Paths.include"
 	case "${1:-}" in ''|-|.|..|*/*|*[[:space:]]*) return 1 ;; esac
 	case "${2:-}" in ''|/*|*..*|*[[:space:]]*) return 1 ;; esac
 	AgentsSpawnedStoreDirInto termStore "${MMDAPP:-}" || return 1

@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.PendingPaths.include -- where a pending record stands, in every store one lives in, and nothing else: the one reader a
+## thread of a session needs, split from AgentsTools.Authority.include, which carries the authority of an ask and 78 KB of it. A control
+## thread starts by the dozen and restarted lazily, so it reads this file, and the authority only where it asks one.
+##
+
+AgentsToolsPendingRecordPath(){ ## pending id
+	local pathStore
+	type AgentsToolsAssertBareName > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.BareName.include"
+	AgentsToolsAssertBareName "$1" "<pending-id>" pending-record 2> /dev/null || return 1
+	## A closed record lives in pending/closed/ (retention, T9): the live store first, then the closed one, then the questions store.
+	for pathStore in "${MMDAPP:-/nonexistent}/.local/agents/pending" "${MMDAPP:-/nonexistent}/.local/agents/pending/closed" "${MMDAPP:-/nonexistent}/.local/questions" ; do
+		[ ! -f "$pathStore/$1.md" ] || { printf '%s' "$pathStore/$1.md" ; return 0 ; }
+	done
+	return 1
+}

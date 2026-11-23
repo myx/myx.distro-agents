@@ -9,7 +9,7 @@
 ## run of its spawn-id reports to (AgentsToolsRunRoute), `none` included. Empty for an item with
 ## no review-by and no run of its own here, which magic-coordinator reviews, as it always did.
 AgentsToolsItemReviewer(){ ## item path
-	local reviewerBy reviewerSpawn reviewerRecord
+	local reviewerBy reviewerSpawn reviewerRecord reviewerRoute
 	type AgentsToolsAssertBareName > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.BareName.include"
 	type AgentsToolsFrontmatterKey > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.FrontmatterKey.include"
 	reviewerBy="$( AgentsToolsFrontmatterKey "$1" review-by )"
@@ -19,23 +19,35 @@ AgentsToolsItemReviewer(){ ## item path
 	type AgentsSessionRunRecordInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
 	AgentsSessionRunRecordInto reviewerRecord "$reviewerSpawn" || return 0
 	type AgentsToolsRunRoute > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.RunRoute.include"
-	AgentsToolsRunRoute "$reviewerRecord"
+	## No named reviewer, so the next rung's, never the person's: empty is magic-coordinator's.
+	reviewerRoute="$( AgentsToolsRunRoute "$reviewerRecord" )"
+	case "$reviewerRoute" in human-owner|user-*) reviewerRoute="" ;; esac
+	printf '%s\n' "$reviewerRoute"
 	return 0
 }
 
 ## THE RUNG BELOW THE DUTY (S6.28): the reviewer an item reads who can still take its verdict, as
 ## `<session>:<member>`, else rc 1 and the item is the duty's. Open: such a reviewer with a live run there.
-## The session itself, a bare member, a routine and the person read rc 1: the first gives its own verdict,
-## no record says which of a member's runs works an item, a routine takes its own next run, and the
-## person's item is the last resort's, as it always was.
+## The asking run's own session reads rc 1, whether the run carries that session's id or was joined into
+## it and carries its own: its record names the session it belongs to. A bare member, a routine and the
+## person read rc 1 too: no record says which of a member's runs works an item, a routine takes its own
+## next run, and the person's item is the last resort's, as it always was.
 AgentsToolsItemReviewerParentRung(){ ## item path
-	local rungReviewer rungSession rungMember
+	local rungReviewer rungSession rungMember rungAsking rungRecord=""
 	type AgentsToolsRunRouteAvailable > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.RunRoute.include"
 	rungReviewer="$( AgentsToolsItemReviewer "$1" )"
 	case "$rungReviewer" in
 		*:*)
 			rungSession="${rungReviewer%%:*}" ; rungMember="${rungReviewer#*:}"
-			[ "$( AgentsToolsActingSession )" != "$rungSession" ] || return 1
+			type AgentsToolsActingSession > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.ActingMember.include"
+			rungAsking="$( AgentsToolsActingSession )"
+			[ "$rungAsking" != "$rungSession" ] || return 1
+			if [ -n "$rungAsking" ] ; then
+				type AgentsSessionRunRecordInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+				type AgentsToolsFrontmatterKey > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.FrontmatterKey.include"
+				AgentsSessionRunRecordInto rungRecord "$rungAsking" || rungRecord=""
+				[ -z "$rungRecord" ] || [ "$( AgentsToolsFrontmatterKey "$rungRecord" session-id )" != "$rungSession" ] || return 1
+			fi
 			AgentsToolsRunRouteAvailable "$rungSession" "$rungMember" "" || return 1
 			printf '%s\n' "$rungReviewer"
 			return 0

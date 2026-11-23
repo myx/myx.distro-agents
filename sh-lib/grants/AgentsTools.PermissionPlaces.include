@@ -78,7 +78,7 @@ AgentsToolsPermissionPlaceHint(){ ## natural target, [workspace]
 	case "$hintBase" in *$'\n'*|*$'\t'*) return 0 ;; esac
 	case "$hintBase" in */'**') hintBase="${hintBase%/\*\*}" ; hintTail="/**" ;; esac
 	type LocalToolsPlacesOf > /dev/null 2>&1 \
-		|| . "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/places/LocalTools.Places.include" 2> /dev/null || return 0
+		|| { [ ! -f "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/places/LocalTools.Places.include" ] || . "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/places/LocalTools.Places.include" ; }
 	hintOf="$( LocalToolsPlacesOf "${hintRoot%/}" "$hintBase" 2> /dev/null )" || return 0
 	[ -n "$hintOf" ] || return 0
 	case "$hintOf:$hintTail" in *':.:/**') hintOf="${hintOf%.}" ; hintTail="**" ;; esac

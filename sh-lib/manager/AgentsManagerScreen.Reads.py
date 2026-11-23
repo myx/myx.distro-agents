@@ -44,8 +44,10 @@ def readEntry(key):
 ## The read that fills the list of a level: its key and its entry in READS, or None. A
 ## level another read fills ("from") has that read.
 def listReadOf(path):
+    ## THE LEVEL'S OWN KEY FIRST, then the pattern it stands as: a level the tree names outright has its read under that name, and only an id among
+    ## them stands as `*`.
     key = "list:" + levelKey(path)
-    entry = READS.get("list:" + levelPattern(path))
+    entry = READS.get(key) or READS.get("list:" + levelPattern(path))
     if entry and entry.get("from"):
         key = entry["from"]
         entry = READS.get(key)
@@ -97,7 +99,10 @@ def wantedReads(state, focus=True):
     shown = listReadOf(state.path)
     if shown:
         own = shown[0] == "list:" + levelKey(state.path)
-        wanted.append((shown[1].get("kind", "list"), shown[0], readWords(shown[1], state, values, own)))
+        ## A LEVEL THAT STANDS ON ANOTHER'S READ ASKS IT IN THAT READ'S OWN WORDS, not in the words of the level showing it: the values of two sections differ,
+        ## and the one source would be read again for each of them. A read of the level's own keeps them.
+        stands = not own and bool((READS.get("list:" + levelKey(state.path)) or {}).get("from"))
+        wanted.append((shown[1].get("kind", "list"), shown[0], readWords(shown[1], state, {} if stands else values, own)))
         for also in (READS.get("list:" + pattern) or {}).get("also", ()):
             wanted.append((READS[also].get("kind", "also"), also, readWords(READS[also], state, {})))
     elif not state.path:
@@ -216,9 +221,18 @@ def seldomNow(state, key):
     return bool((READS.get(key) or {}).get("seldom")) and key != (listReadOf(state.path) or ("",))[0]
 
 
-## What is shown is read at the next chance, whatever the period says.
-def readNow(state):
+## What is shown is read at the next chance, whatever the period says; a list that is only stood on is read when it was wanted, unless the caller
+## says the change was in what stands on it too (`standToo`, after an action).
+def readNow(state, standToo=False):
+    shown = listReadOf(state.path)
     for kind, key, words in wantedReads(state):
+        ## A LIST THE LEVEL ONLY STANDS ON IS NOT WHAT CHANGED: its own page reads it and holds it for its period.
+        if shown and key == shown[0] and shown[0] != "list:" + levelKey(state.path) and not standToo:
+            continue
+        ## A READ MADE ONCE IS NOT ASKED AGAIN IN THE SAME WORDS: forcing it at every rest put the same question to the tooling again and again. A
+        ## selection that changes brings other words, and that read is made.
+        if (READS.get(key) or {}).get("once") and state.answered.get(key) and (state.started.get(key) or {}).get("words") == words:
+            continue
         ## one that is read on demand alone is asked for by its own command, not by this;
         ## neither is one that is read seldom, but while it is the list shown
         if not (READS.get(key) or {}).get("demand") and not seldomNow(state, key):
@@ -287,7 +301,10 @@ def startDueReads(state, reader, now):
         once = readEntry(key).get("once") or seldomNow(state, key) or (key in focused and not came)
         ## the period runs from the end of the last read, three times its length where that is longer: a slow read never runs back to back
         took = last["ended"] - last["at"] if last and "ended" in last else 0.0
-        aged = now - last.get("ended", last["at"]) >= max(REFRESH_SECONDS, 3 * took) and not once if last else False
+        ## A READ MAY KEEP ITS OWN PERIOD, and it wins over the screen's: what every section stands on is read once and held for that long, and a section
+        ## opened after it takes that answer rather than make the same read again.
+        declared = (readEntry(key) or {}).get("period")
+        aged = now - last.get("ended", last["at"]) >= (declared if declared else max(REFRESH_SECONDS, 3 * took)) and not once if last else False
         due = key in state.forced or (not (READS.get(key) or {}).get("demand") and (last is None or last["words"] != words or aged))
         if due and reader.start(kind, key, words):
             state.started[key] = {"at": now, "words": words}
@@ -359,7 +376,10 @@ def applyResult(state, result):
     wantedNow = dict((wantedKey, words) for kind, wantedKey, words in wantedReads(state))
     if key.partition(":")[0] in VIEW_PARTS and key not in wantedNow:
         return
-    if key in wantedNow and wantedNow[key] != result["words"]:
+    ## AN ANSWER ASKED FOR IN THESE WORDS IS TAKEN, whatever the screen wants by the time it comes: a selection that moved while the read ran asked for the
+    ## same list in its own words, and dropping the answer here is what made the one source read again for the next section.
+    startedWords = (state.started.get(key) or {}).get("words")
+    if key in wantedNow and wantedNow[key] != result["words"] and result["words"] != startedWords:
         state.forced.add(key)
         return
     if key.startswith("plan:"):

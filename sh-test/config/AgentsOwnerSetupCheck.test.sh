@@ -40,7 +40,7 @@ rigExpect(){ ## what is asserted, output, the text it must hold
 			rigPasses=$(( rigPasses + 1 ))
 		;;
 		*)
-			printf '  FAIL  %s\n        want: %s\n        got:  %s\n' "$1" "$3" "$( printf '%s' "$2" | grep -v 'SystemContext' | head -3 )"
+			printf '  FAIL  %s\n        want: %s\n        got:  %s\n' "$1" "$3" "$( printf '%s' "$2" | grep -v 'SystemContext' | tail -8 )"
 			rigFails=$(( rigFails + 1 ))
 		;;
 	esac

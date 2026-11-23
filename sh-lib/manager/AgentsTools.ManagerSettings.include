@@ -327,9 +327,10 @@ AgentsToolsManagerConfigMode(){
 ## usable, which a leg is with one of its credentials set and a vendor CLI where its binary
 ## is, since it works off the sign-in of the machine; and its wait round.
 AgentsToolsManagerConfigCli(){
+	type AgentsToolsSpawnSettingsWorkspace > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWorkspace.Settings.include"
 	local cliHere="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib" cliKnown cliVendor cliLegs="" cliLeg cliName cliFile cliKey cliKeys cliValue cliPath cliUsable
 	type AgentsToolsCliServiceWaitRound > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsTools.CliService.include"
-	type AgentsToolsSpawnSettingsWorkspace > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWorkspace.include"
+	type AgentsToolsSpawnSettingsWorkspace > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWorkspace.Settings.include"
 	for cliKey in SPAWN_HARNESS_TIER WAIT_ROUND_SECONDS WAIT_COLLECT_SECONDS WAIT_MENTIONS_SEARCHER ; do
 		type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/settings/AgentsTools.ConfigOption.include"
 		cliValue="$( AgentsToolsConfigOption magic-team --select "$cliKey" 2> /dev/null )" || cliValue=""
@@ -339,6 +340,7 @@ AgentsToolsManagerConfigCli(){
 			AgentsToolsManagerConfigLine cli workspace "$cliKey" missing ""
 		fi
 	done
+	type AgentsToolsSpawnSettingsWorkspace > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWorkspace.Settings.include"
 	if cliPath="$( AgentsToolsSpawnSettingsWorkspace 2> /dev/null )" ; then
 		AgentsToolsManagerConfigLine cli workspace spawn-settings-workspace set "${cliPath:-${MMDAPP%/}}"
 	else

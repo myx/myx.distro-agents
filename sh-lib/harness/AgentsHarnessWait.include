@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ^^^ for syntax checking in the editor only
-type AgentsSessionMarkerFileInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+type AgentsSessionMarkerFileInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.Paths.include"
 
 ## AgentsHarnessWait.include: dismissal records, seats, the Wait tool and the CheckList it names on every return. Sourced by AgentsUniversalHarness.sh, definitions only.
 
@@ -48,7 +48,7 @@ AgentsHarnessParked(){
 ## never what it achieved. The round and the time travel beside the word, so a reader compares it
 ## against the run instead of trusting it, and a word left by a dead process is never the answer.
 AgentsHarnessActivityWrite(){ ## the word: `thinking`, or `tool <name>`
-	type AgentsSessionActivityWrite > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+	type AgentsSessionActivityWrite > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.Write.include"
 	AgentsSessionActivityWrite "${MDAT_SPAWN_SESSION_ID:-}" "${harnessRound:-0} $( date +%s 2> /dev/null ) $1"
 }
 
@@ -154,7 +154,7 @@ AgentsHarnessDismissedAfter(){ ## tool name
 		done
 		[ -n "$afterPids" ] || [ -n "$afterWord" ] || afterPids="$( AgentsHarnessSessionPids "$afterSession" )"
 		[ -n "$afterPids" ] || exit 0
-		type AgentsSessionLogAppend > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+		type AgentsSessionLogAppend > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.Write.include"
 		AgentsSessionLogAppend "$afterSession" "# $( date -u +%Y-%m-%dT%H:%M:%SZ ): the tooling ends this run: it was dismissed, its handback is given, and it did not end by itself"
 		for afterPid in $afterPids ; do
 			kill -TERM "$afterPid" 2> /dev/null
@@ -305,7 +305,8 @@ AgentsHarnessWaitCheckListDue(){
 	return 0
 }
 
-## The idle Wait (owner 2026-10-31): a call naming no source of its own, from a session that has handed back since the floor last
+## The idle Wait (): a call naming no source of its own, from a session that has handed back since the floor last
+
 ## returned an arrival, or that is a work duty's own quiet loop, is that member asking for more work, a review or DISMISSED. Its open
 ## items are returned at once then, before any probe and any wait, so it finishes or closes them first; what the floor already holds
 ## comes with this return, from the reply layer every tool result carries, so nothing is probed for it and no network is read.
@@ -600,6 +601,7 @@ AgentsHarnessToolWait(){
 		[ -z "$waitDefaultThread" ] || [ -n "$toolSince" ] || [ "$waitStateful" = "true" ] || toolSince="$( date +%s )"
 	fi
 	## slack:session-current and slack:session-parent each name that session's thread as a :conversation source, the values SendMessage to takes.
+
 	for waitName in "$harnessCurrentName" "$harnessParentName" ; do
 		case " $toolSources " in
 			*" slack:$waitName "*)

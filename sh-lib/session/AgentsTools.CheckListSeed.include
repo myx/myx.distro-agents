@@ -42,7 +42,7 @@ AgentsToolsCheckListEpicItems(){ ## the workspace the text may name the epic fil
 		/*) [ ! -f "$epicToken" ] || epicPath="$epicToken" ;;
 		*/*)
 			epicPlace="${epicToken%%/*}" ; epicRest="${epicToken#*/}"
-			type LocalToolsPlacesResolve > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/places/LocalTools.Places.include" 2> /dev/null || :
+			type LocalToolsPlacesResolve > /dev/null 2>&1 || { [ ! -f "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/places/LocalTools.Places.include" ] || . "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/places/LocalTools.Places.include" ; }
 			epicPath="$( LocalToolsPlacesResolve "${MMDAPP%/}" "$epicPlace" 2> /dev/null )" || epicPath=""
 			[ -z "$epicPath" ] || epicPath="$epicPath/$epicRest"
 			[ -n "$epicPath" ] && [ -f "$epicPath" ] || epicPath="$1/$epicToken"
@@ -195,7 +195,7 @@ AgentsSessionChecklistOpenInto(){ ## variable, run, member
 AgentsSessionChecklistText(){ ## session id, member
 	local textFolder="" textFile textStore=""
 	type AgentsSessionRunRecordInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
-	type AgentsSessionStoreDirInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+	type AgentsSessionStoreDirInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.Paths.include"
 	AgentsSessionRunRecordInto textFile "${1:-}" && textFolder="${textFile%/*}"
 	AgentsSessionStoreDirInto textStore "${MMDAPP:-}" || textStore="/nonexistent/.local/agents/sessions"
 	[ -n "$textFolder" ] || textFolder="$textStore/$1"

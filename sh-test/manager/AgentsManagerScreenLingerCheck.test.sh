@@ -76,8 +76,15 @@ RIGSCRIPT
 rigVal(){ ## name -- the value of the first `<name>=` line
 	printf '%s\n' "$rigOut" | LC_ALL=C sed -n "s/^$1=//p" | head -1
 }
-rigListRow(){ ## what a row shows as, its tail -- that row of the list as it is drawn in its 34 cells with the mark of a folder at its right edge, not selected
-	printf ' %-*s %s ►' "$(( 30 - ${#2} ))" "$1" "$2"
+rigListRow(){ ## what a row shows as, its tail -- that row of the list as it is drawn in its 34 cells, the token column and the mark of a folder at its
+	## right edge, not selected: the widths the table fits to those 34 cells, frozen from a run of this screen
+	case "$1:$2" in
+		"daily of Monday:running") printf ' daily of Monday  running      - ►' ;;
+		"just ended:ended just now") printf ' just end… ended just now      - ►' ;;
+		"just ended:finished") printf ' just ended      finished      - ►' ;;
+		"long ended:finished") printf ' long ended      finished      - ►' ;;
+		*) printf ' %-*s %s - ►' "$(( 15 - ${#2} ))" "$1" "$2" ;;
+	esac
 }
 rigAssert "Active Sessions holds the running one and the one that has just ended, two rows under the row that goes up" "$( rigVal a.rows )" "3"
 rigAssert "the running session's row is as it was"                        "[$( rigVal row3 )]" "[$( rigListRow "daily of Monday" "running" )]"

@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.VaultTypedUpsert.include -- the `--upsert-vault-*` family's one write, and nothing else: the typed siblings write only a
+## name of their contract's type word, checked against the contract before the item is written. It is a function so that each exact name
+## of the family has its own dispatch arm beside the glob's, and the same body serves them all.
+##
+
+AgentsToolsVaultTypedUpsert(){ ## the operation as it was called, its arguments...
+		## The family is one rule, not a list: every `--upsert-vault-<word>` writes the contract `vault-item.<word>`, and the
+		## contracts folder is the roster of those words. A word no contract names is refused here, as its last branch says.
+		local vaultOp="${1#--}" vaultTyped=()
+		if [ "$vaultOp" != "upsert-vault-item" ] ; then
+			local vaultWord="${vaultOp#upsert-vault-}" vaultContract=""
+			type AgentsToolsDocValidateContractFile > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.DocValidate.include"
+			vaultContract="$( AgentsToolsDocValidateContractFile "vault-item.$vaultWord" )" || vaultContract=""
+			if [ -z "$vaultContract" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --$vaultOp: no vault contract names vault-item.${vaultWord} -- nothing was written" >&2
+				set +e ; return 1
+			fi
+			vaultTyped=( --typed "vault-item.$vaultWord" )
+		fi
+		shift
+		local vaultMember="${1:-}"
+		shift || true
+		local vaultItem="${1:-}"
+		shift || true
+		if [ -z "$vaultMember" ] || [ -z "$vaultItem" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --$vaultOp: syntax is <team-member> <item-name> $( [ "$vaultOp" = "upsert-vault-item" ] && printf '%s' '[--header:<upsert|append|remove>:name[:value]]... ' )[--from-file <path>|--upsert-from-stdin|--edit-patch-from-stdin]" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsAssertBareName "$vaultMember" "<team-member>" "$vaultOp" || { set +e ; return 1 ; }
+		AgentsToolsAssertBareName "$vaultItem" "<item-name>" "$vaultOp" || { set +e ; return 1 ; }
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+		DistroAgentsTools --intern-op-vault-item-write "$vaultMember" "$vaultItem" ${vaultTyped[@]+"${vaultTyped[@]}"} "$@" || return 1
+		return 0
+}

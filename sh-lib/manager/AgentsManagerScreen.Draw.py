@@ -107,8 +107,16 @@ def listTitle(state):
 
 
 @onShownLevel
+## The title of the left window as it stands: the one its pane was made with, so a pane held while the selection moves keeps its title with it.
 def viewTitle(state):
-    row = selectedRow(state)
+    held = state.view.get("title")
+    if held is not None:
+        return held
+    return rowTitle(state, selectedRow(state))
+
+
+## The title one row's pane carries, as the window draws it.
+def rowTitle(state, row):
     if row is None:
         return ""
     marks = readMarks(state, "view:" + (viewKeyOf(state) or "")) + readMarks(state, "feed:" + (viewKeyOf(state) or ""))
@@ -979,17 +987,25 @@ def screenTurn(surface, state, reader, now, key, idle=False):
         sizeTaken(surface, state)
     if reader is not None:
         results = reader.collect()
+        wantedNow = wantedReads(state) if results else ()
         for result in results:
             ## when its read ended: the period of a read is counted from there (startDueReads)
             if result.get("key") in state.started:
                 state.started[result["key"]]["ended"] = now
             applyResult(state, result)
+            ## ONE OPERATION, ONE CALL: a read asked under another name in the same words takes this result too, so the next turn
+            ## finds its answer and does not ask the tool a second time for what it has already read.
+            for aliasKind, aliasKey, aliasWords in wantedNow:
+                if aliasKey == result["key"] or list(aliasWords) != list(result.get("words") or ()) or aliasKey in state.started:
+                    continue
+                state.started[aliasKey] = {"at": now, "words": list(aliasWords), "ended": now}
+                applyResult(state, dict(result, key=aliasKey))
         startCalls(state, reader)
         startDueReads(state, reader, now)
         state.reading = reader.runningKeys()
     if state.dialog is not None and state.dialog["name"] in DIALOG_FILLS:
         DIALOG_FILLS[state.dialog["name"]](state, state.dialog)
-    followSelection(state)
+    followSelection(state, idle)
     ## THE FRAME IS DRAWN WHEN SOMETHING OF IT CHANGED, and an idle screen draws nothing: a key,
     ## a read that ended, an operation that ran, another second on the clock, another size or
     ## style, or a frame that was never drawn. The screen turned five times a second and drew

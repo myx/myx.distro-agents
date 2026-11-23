@@ -4,7 +4,8 @@
 ##
 ## AgentsTools.TeamRegistry.include -- where the team's data lives, and the member index.
 ##
-## TWO PLACES, NEVER A THIRD (human-owner, 2026-10-07):
+## TWO PLACES, NEVER A THIRD ():
+
 ##   $MMDAPP/.local/agents/              ALL of a workspace's own data: its member
 ##                                       registry, its grants and tags, its indices.
 ##   $HOME/.agents/magic-team/           ONLY the machine-wide directory of what exists
@@ -13,6 +14,7 @@
 ##                                       workspaces, and which workspaces publish grants.
 ## The vendor link folders ($HOME/.claude/skills, $HOME/.agents/skills,
 ## $HOME/.copilot/skills and a workspace's .claude/.agents/skills) are generated from
+
 ## this data for the vendors' clients, and nothing of ours reads them back.
 ##
 ## Files, by function:
@@ -140,8 +142,9 @@ AgentsToolsTeamMemberIndexText(){ ## workspace
 ## point of use by a reader that names members of other workspaces (routing, a spawn, the
 ## client sweeps); never written into a workspace. Each name once.
 AgentsToolsTeamMemberDirectoryText(){
-	type AgentsToolsSkillsetRootInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWorkspace.include"
+	type AgentsToolsSkillsetRootInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWorkspace.Root.include"
 	local directoryRoot="" directoryShared directoryHomes directoryEntry
+	type AgentsToolsSkillsetRootInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWorkspace.Root.include"
 	AgentsToolsSkillsetRootInto directoryRoot "${MMDAPP:-}"
 	directoryShared="${HOME:-}/.agents/magic-team/members.registry"
 	[ -f "$directoryShared" ] || directoryShared=/dev/null
@@ -169,8 +172,9 @@ AgentsToolsTeamMemberDirectoryText(){
 ## where it is one, else the one another workspace publishes. rc 1, nothing printed, when
 ## no workspace publishes it or its directory is not on this machine.
 AgentsToolsTeamMemberDirectory(){ ## member
-	type AgentsToolsSkillsetRootInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWorkspace.include"
+	type AgentsToolsSkillsetRootInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWorkspace.Root.include"
 	local directoryRoot="" directoryFound
+	type AgentsToolsSkillsetRootInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWorkspace.Root.include"
 	AgentsToolsSkillsetRootInto directoryRoot "${MMDAPP:-}"
 	[ -n "$1" ] || return 1
 	if [ -n "$directoryRoot" ] && [ -d "$directoryRoot/$1" ] ; then

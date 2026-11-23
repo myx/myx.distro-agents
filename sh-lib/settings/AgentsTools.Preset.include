@@ -382,11 +382,11 @@ AgentsToolsPresetWriteCheck(){ ## workspace root, scope, operation, key, value (
 ## (SPAWN_SETTINGS_WORKSPACE, AgentsTools.MemberWorkspace.include); a member's own are its scope's here.
 ##
 
-type AgentsToolsSpawnSettingsWorkspace > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWorkspace.include"
 
 ## The workspace the team's tier settings and the presets are read in: the one that pays for the spawn, else this one.
 ## rc 1, said by the function it asks, where the workspace that pays names none.
 AgentsToolsPresetPayRoot(){
+	type AgentsToolsSpawnSettingsWorkspace > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWorkspace.Settings.include"
 	local payRoot
 	payRoot="$( AgentsToolsSpawnSettingsWorkspace )" || return 1
 	printf '%s' "${payRoot:-${MMDAPP%/}}"
@@ -576,6 +576,7 @@ AgentsToolsPresetCacheTimeCheck(){ ## preset of the spawn, `<preset>[:<effort>]`
 ## reads: what the team's scope holds of another service, or of the same, is not given to a spawn of a preset.
 AgentsToolsPresetOverlay(){ ## spawn setting key
 	local ovRoot ovSpec ovName ovEffort="" ovCli ovMacro ovAsked ovTier ovValue ovNamed
+	type AgentsToolsSpawnSettingKey > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWorkspace.Settings.include"
 	AgentsToolsSpawnSettingKey "$1" || return 1
 	case "${MDAT_SPAWN_PRESET:-}" in
 		-*)

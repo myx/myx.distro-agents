@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+type AgentsToolsPendingRecordPath > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.PendingPaths.include"
 # ^^^ for syntax checking in the editor only
 type AgentsSessionThread > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
 
@@ -42,16 +43,6 @@ type AgentsSessionThread > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agen
 
 
 ## The record of a pending question by its id, in either store: printed, rc 0; rc 1 where none is.
-AgentsToolsPendingRecordPath(){ ## pending id
-	local pathStore
-	type AgentsToolsAssertBareName > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.BareName.include"
-	AgentsToolsAssertBareName "$1" "<pending-id>" pending-record 2> /dev/null || return 1
-	## A closed record lives in pending/closed/ (retention, T9): the live store first, then the closed one, then the questions store.
-	for pathStore in "${MMDAPP:-/nonexistent}/.local/agents/pending" "${MMDAPP:-/nonexistent}/.local/agents/pending/closed" "${MMDAPP:-/nonexistent}/.local/questions" ; do
-		[ ! -f "$pathStore/$1.md" ] || { printf '%s' "$pathStore/$1.md" ; return 0 ; }
-	done
-	return 1
-}
 
 ## One header of a record: its first `<name>: ` line within the frontmatter.
 AgentsToolsAuthorityField(){ ## file, name
@@ -84,7 +75,7 @@ AgentsToolsAuthorityFieldSet(){ ## file, name, value, ...
 ## `person`, with agentsAuthorityCallerId `user-<account>`.
 AgentsToolsAuthorityCaller(){
 	agentsAuthorityCallerKind="person"
-	{ type AgentsToolsConsoleAccount > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.CallerCheck.include" ; }
+	{ type AgentsToolsConsoleAccount > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.ActingMember.include" ; }
 	agentsAuthorityCallerId="user-$( AgentsToolsConsoleAccount || printf 'unknown\n' )"
 	agentsAuthorityCallerRun="" agentsAuthorityCallerSession="" agentsAuthorityCallerRecord=""
 	[ -n "${MDAT_SPAWN_AGENT:-}" ] || return 0
@@ -750,18 +741,25 @@ AgentsToolsAuthorityRequestAct(){ ## request record
 	while IFS= read -r actWord ; do actWords[${#actWords[@]}]="$actWord" ; done < "${actFile%.md}.action"
 	actRun="$( AgentsToolsAuthorityField "$actFile" requester-run )"
 	actBy="$( AgentsToolsAuthorityField "$actFile" requester )"
+	## THE ACTION'S OWN WORDS ARE KEPT: a failure says why, in the line this prints, instead of a bare exit code that leaves the answer applied to
+	## nothing and no reason anywhere.
+	local actOut=""
 	if [ "${actWords[0]:-}" = "@harness" ] ; then
-		printf '%s' "${actWords[2]:-}" | env -u CLAUDE_CODE_SESSION_ID MDAT_SPAWN_SESSION_ID="$actRun" MDAT_SPAWN_AGENT="$actBy" MDAT_AUTHORITY_REQUEST="$actId" \
-			"$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsUniversalHarness.sh" --intern-tool "${actWords[1]:-}" > /dev/null 2>&1 || actRc=$?
+		actOut="$( printf '%s' "${actWords[2]:-}" | env -u CLAUDE_CODE_SESSION_ID MDAT_SPAWN_SESSION_ID="$actRun" MDAT_SPAWN_AGENT="$actBy" MDAT_AUTHORITY_REQUEST="$actId" \
+			"$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsUniversalHarness.sh" --intern-tool "${actWords[1]:-}" 2>&1 )" || actRc=$?
 	elif [ -n "$actRun" ] ; then
-		env -u CLAUDE_CODE_SESSION_ID MDAT_SPAWN_SESSION_ID="$actRun" MDAT_SPAWN_AGENT="$actBy" MDAT_AUTHORITY_REQUEST="$actId" \
-			"$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" ${actWords[@]+"${actWords[@]}"} > /dev/null 2>&1 < /dev/null || actRc=$?
+		actOut="$( env -u CLAUDE_CODE_SESSION_ID MDAT_SPAWN_SESSION_ID="$actRun" MDAT_SPAWN_AGENT="$actBy" MDAT_AUTHORITY_REQUEST="$actId" \
+			"$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" ${actWords[@]+"${actWords[@]}"} 2>&1 < /dev/null )" || actRc=$?
 	else
-		env -u CLAUDE_CODE_SESSION_ID -u MDAT_SPAWN_SESSION_ID -u MDAT_SPAWN_AGENT -u MDAT_SESSION_ID MDAT_AUTHORITY_REQUEST="$actId" \
-			"$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" ${actWords[@]+"${actWords[@]}"} > /dev/null 2>&1 < /dev/null || actRc=$?
+		actOut="$( env -u CLAUDE_CODE_SESSION_ID -u MDAT_SPAWN_SESSION_ID -u MDAT_SPAWN_AGENT -u MDAT_SESSION_ID MDAT_AUTHORITY_REQUEST="$actId" \
+			"$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" ${actWords[@]+"${actWords[@]}"} 2>&1 < /dev/null )" || actRc=$?
 	fi
 	AgentsToolsAuthorityFieldSet "$actFile" act-result "$actRc" || :
-	printf 'ACTED %s: %s, exit %s\n' "$actId" "${actWords[*]}" "$actRc"
+	if [ "$actRc" = 0 ] ; then
+		printf 'ACTED %s: %s, exit %s\n' "$actId" "${actWords[*]}" "$actRc"
+	else
+		printf 'ACTED-NOT %s: %s, exit %s: %s\n' "$actId" "${actWords[*]}" "$actRc" "$( printf '%s\n' "$actOut" | LC_ALL=C grep -v '^SystemContext' | LC_ALL=C tail -1 )"
+	fi
 	[ "$actRc" = 0 ]
 }
 

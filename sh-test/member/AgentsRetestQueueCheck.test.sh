@@ -54,7 +54,7 @@ rigTake(){ ## folder below the origin, folder below the rig's tree -- that folde
 }
 rigTake myx/myx.distro-agents/sh-lib myx/myx.distro-agents/sh-lib || rigRefuse "the tooling's sh-lib could not be copied into the rig"
 rigTake myx/myx.distro-agents/sh-scripts myx/myx.distro-agents/sh-scripts || rigRefuse "the tooling's sh-scripts could not be copied into the rig"
-cp "$rigPackage/project.inf" "$rigLive/myx/myx.distro-agents/project.inf"
+rsync -t "$rigPackage/project.inf" "$rigLive/myx/myx.distro-agents/project.inf"
 for rigSibling in myx.distro-.local myx.distro-system ; do rigTake "myx/$rigSibling" "myx/$rigSibling" || rigRefuse "the tooling's $rigSibling could not be copied into the rig" ; done
 rigTake myx/myx.common/os-myx.common/host/tarball/share/myx.common myx/myx.common/os-myx.common/host/tarball/share/myx.common || rigRefuse "myx.common could not be copied into the rig"
 rigTool="$rigLive/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
@@ -65,8 +65,9 @@ rigRoot(){ ## copy -- its source root: `live` is the workspace's own tree, any o
 rigTests(){ ## copy, test... -- that copy's tests: the runner under test and the tiny tests named. Each says in the shared log when it begins and ends and which copy it ran in; it ends only once the rig lets it where the rig holds it (hold.<test>), and fails where the rig says so (fail.<test>)
 	local testsDir testsName ; testsDir="$( rigRoot "$1" )/myx/myx.distro-agents/sh-test" ; shift
 	rm -rf "$testsDir" ; mkdir -p "$testsDir"
-	cp "$rigPackage/sh-test/AgentsRunTests.sh" "$testsDir/AgentsRunTests.sh"
-	mkdir -p "$testsDir/check-fixtures" && cp "$rigPackage/sh-test/check-fixtures"/runner-*.py "$testsDir/check-fixtures"/
+	rsync -t "$rigPackage/sh-test/AgentsRunTests.sh" "$testsDir/AgentsRunTests.sh"
+	mkdir -p "$testsDir/check-fixtures" && rsync -t "$rigPackage/sh-test/check-fixtures"/runner-*.py "$testsDir/check-fixtures"/
+	mkdir -p "$testsDir/runner" && rsync -t "$rigPackage/sh-test/runner"/*.sh "$testsDir/runner"/
 	for testsName in "$@" ; do
 		cat > "$testsDir/$testsName.test.sh" <<'RIGTINY'
 #!/usr/bin/env bash

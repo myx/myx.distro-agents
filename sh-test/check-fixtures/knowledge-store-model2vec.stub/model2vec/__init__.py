@@ -30,7 +30,12 @@ class StaticModel(object):
         return [self._vectorOf(text) for text in texts]
 
     def _vectorOf(self, text):
-        vector = [0.0, 0.0]
+        # A REAL STATIC MODEL NEVER ANSWERS A ZERO VECTOR. A query of words it does not know still lands somewhere, and
+        # the live potion-base-8M scores such a query 0.3347 against its nearest row. A stand-in that answered
+        # [0.0, 0.0] gave the vector leg nothing to rank, so the shipped rig could not reproduce a query no section
+        # holds and a check of that fault was green before any fix. The baseline stands under every text, and the
+        # concepts stand far above it, so a query of known words still wins its own axis.
+        vector = [0.05, 0.05]
         for word in text.lower().replace(">", " ").replace("-", " ").split():
             axis = CONCEPTS.get(word.strip(".,:;`'\"#*()"))
             if axis is not None:

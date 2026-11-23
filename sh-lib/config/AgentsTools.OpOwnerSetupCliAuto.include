@@ -7,7 +7,7 @@
 ## The detection is here, run by a person or by the console, and never at a spawn: a spawn resolves its tier's preset and scans no PATH (AgentsReviewCliResolved).
 ## Declared ahead of --owner-setup-*), which would take it for a domain of that family.
 		shift
-		local autoOperation="--check" autoPick="" autoOne autoWhy autoRc autoNow autoToolPath="${MMDAPP%/}/.local/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+		local autoOperation="--check" autoPick="" autoOne autoWhy autoRc autoNow autoToolPath="DistroAgentsTools.fn.sh"
 		case "${1:-}" in
 			''|--check) ;;
 			--apply) autoOperation="--apply" ;;

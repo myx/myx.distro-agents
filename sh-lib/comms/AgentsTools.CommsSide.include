@@ -71,7 +71,7 @@ AgentsToolsCommsOwnSideLine(){ ## member, the system in a word, the operation as
 	type AgentsToolsFrontAudience > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.FrontTable.include"
 	[ -z "${MDAT_COMMS_OP:-}" ] || [ "$( AgentsToolsFrontAudience "$MDAT_COMMS_OP" )" != coordinator ] || sideCoordinator=yes
 	## A name the members and the coordinator share is the coordinator's own when its session runs it: its way is the same.
-	type AgentsToolsActingMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.CallerCheck.include"
+	type AgentsToolsActingMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.ActingMember.include"
 	[ "$( AgentsToolsActingMember )" = magic-coordinator ] && sideCoordinator=yes
 	case "$3" in
 		--client-*|--intern-op-client-sweep-input-scan) sideTwin="$3" ;;

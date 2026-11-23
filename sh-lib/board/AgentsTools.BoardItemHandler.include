@@ -167,10 +167,11 @@ AgentsToolsBoardItemHandler(){ ## item file, [--at-gate]
 
 AgentsToolsBoardHandlerSetMay(){ ## -- rc 0 may; rc 4 refused, the reason on stdout
 	local setMember setSession setRecord setRoutine=""
-	type AgentsToolsActingMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.CallerCheck.include"
+	type AgentsToolsActingMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.ActingMember.include"
 	setMember="$( AgentsToolsActingMember )"
 	[ -n "$setMember" ] || return 0
 	[ "$setMember" != magic-coordinator ] || return 0
+	type AgentsToolsActingSession > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.ActingMember.include"
 	setSession="$( AgentsToolsActingSession )"
 	case "$setSession" in ''|*/*|.|..) ;; *)
 		type AgentsSessionRunRecordInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
@@ -244,9 +245,10 @@ AgentsToolsBoardItemHolders(){ ## item file -- the live runs of the owner and th
 
 AgentsToolsBoardItemRoundMay(){ ## item file -- rc 0 may run a round on it; rc 4 refused, the reason on stdout
 	local roundHolders roundMember roundSession roundHolder roundSpawn roundHolderSession
-	type AgentsToolsActingMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.CallerCheck.include"
+	type AgentsToolsActingMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.ActingMember.include"
 	roundHolders="$( AgentsToolsBoardItemHolders "$1" )"
 	roundMember="$( AgentsToolsActingMember )"
+	type AgentsToolsActingSession > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.ActingMember.include"
 	roundSession="$( AgentsToolsActingSession )"
 	if [ -n "$roundHolders" ] ; then
 		if [ -n "$roundSession" ] ; then

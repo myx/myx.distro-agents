@@ -112,7 +112,8 @@ case "$1" in
 			case "$mcpLine" in
 				*'"RootSession"'*) case "$mcpLine" in *'"mint"'*) : > "$mcpScratchRoot/mint-pending.$AGENTS_MCP_REQ_SEQ" ;; esac ;;
 			esac
-			## THE SESSION THE CLIENT NAMES AT ITS HANDSHAKE (owner 2026-10-31) is kept here, in the order the messages are
+			## THE SESSION THE CLIENT NAMES AT ITS HANDSHAKE () is kept here, in the order the messages are
+
 			## read, so the next request of this server already carries it: every request is a process of its own, and one of
 			## them writing it would race the request that follows.
 			case "$mcpLine" in

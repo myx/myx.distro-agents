@@ -25,7 +25,7 @@
 ## Who the call acts as, else a refusal: `librarian` is magic-librarian alone, `member` is any member's session. Prints the member.
 AgentsToolsLibrarianCaller(){ ## op, who (librarian|member)
 	local callerMember
-	type AgentsToolsActingMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.CallerCheck.include"
+	type AgentsToolsActingMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.ActingMember.include"
 	type AgentsToolsAssertBareName > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.BareName.include"
 	type AgentsToolsInboxItemFind > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/inbox/AgentsTools.InboxPlace.include"
 	callerMember="$( AgentsToolsActingMember )"
@@ -164,7 +164,7 @@ AgentsToolsLibrarianPathCheck(){ ## pathname
 ## reason in `librarianWhy`. The file is below the copy and not out of it by a link, and no link or folder itself.
 AgentsToolsLibrarianSkillFile(){ ## target
 	local fileMember fileRest fileCopy fileTarget fileAncestor fileReason
-	type AgentsToolsActingMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.CallerCheck.include"
+	type AgentsToolsActingMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.ActingMember.include"
 	type AgentsToolsAssertBareName > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.BareName.include"
 	type AgentsToolsInboxItemFind > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/inbox/AgentsTools.InboxPlace.include"
 	librarianWhy="" librarianFile=""
@@ -222,7 +222,7 @@ AgentsToolsLibrarianSkillsetCore(){ ## op, team-member, pathname, producer, prod
 type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 	local upOp="$1" upMember="$2" upPath="$3" upProducer="$4" upTarget upText upRows upRc=0 upReason
 	shift 4
-	type AgentsToolsActingMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.CallerCheck.include"
+	type AgentsToolsActingMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.ActingMember.include"
 	type AgentsToolsAssertBareName > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.BareName.include"
 	type AgentsToolsInboxItemFind > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/inbox/AgentsTools.InboxPlace.include"
 	AgentsToolsAssertBareName "$upMember" "<team-member>" "${upOp#--}" || return 1
@@ -349,7 +349,7 @@ AgentsToolsLibrarianBase(){ ## request file
 ## The update requests that wait: the inquiries in magic-librarian's incoming/ that carry an `update-kind`, oldest name first, one path a line.
 AgentsToolsLibrarianWaiting(){
 	local waitFile
-	type AgentsToolsActingMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.CallerCheck.include"
+	type AgentsToolsActingMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.ActingMember.include"
 	type AgentsToolsAssertBareName > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.BareName.include"
 	type AgentsToolsInboxFilesInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/inbox/AgentsTools.InboxPlace.include"
 	local waitFiles=()
@@ -637,7 +637,7 @@ AgentsToolsLibrarianQueueDone(){ ## the operation, its arguments...
 		esac
 	done
 	[ -n "$doneMode" ] || { echo "$MDSC_CMD: ⛔ ERROR: $doneOp: syntax is <name> (--apply | --refuse <reason> | --result <text>)" >&2 ; return 1 ; }
-	type AgentsToolsActingMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.CallerCheck.include"
+	type AgentsToolsActingMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.ActingMember.include"
 	type AgentsToolsAssertBareName > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.BareName.include"
 	type AgentsToolsInboxItemProcessed > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/inbox/AgentsTools.InboxPlace.include"
 	AgentsToolsAssertBareName "$doneName" "<name>" "${doneOp#--}" || return 1
@@ -691,7 +691,7 @@ AgentsToolsLibrarianQueueDone(){ ## the operation, its arguments...
 AgentsToolsLibrarianRequestResult(){ ## the operation, name
 	local resultFile resultKind
 	[ -n "${2:-}" ] && [ $# -eq 2 ] || { echo "$MDSC_CMD: ⛔ ERROR: $1: syntax is <name>" >&2 ; return 1 ; }
-	type AgentsToolsActingMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.CallerCheck.include"
+	type AgentsToolsActingMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.ActingMember.include"
 	type AgentsToolsAssertBareName > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.BareName.include"
 	type AgentsToolsInboxItemFind > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/inbox/AgentsTools.InboxPlace.include"
 	AgentsToolsAssertBareName "$2" "<name>" "${1#--}" || return 1
@@ -784,7 +784,7 @@ AgentsToolsLibrarianDocDrift(){ ## the operation, its arguments...
 			*) driftNamed+=( "$1" ) ; shift ;;
 		esac
 	done
-	type AgentsToolsActingMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.CallerCheck.include"
+	type AgentsToolsActingMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.ActingMember.include"
 	type AgentsToolsAssertBareName > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.BareName.include"
 	type AgentsToolsInboxItemFind > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/inbox/AgentsTools.InboxPlace.include"
 	if [ -n "$driftQueue" ] ; then
@@ -873,12 +873,13 @@ AgentsToolsLibrarianQueueAsk(){ ## the operation, name
 type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 	local askOp="$1" askName="${2:-}" askFile askKind askForm askTarget askFrom askText askId askHolder askOptions askRequester askRequesterRun
 	[ -n "$askName" ] && [ $# -eq 2 ] || { echo "$MDSC_CMD: ⛔ ERROR: $askOp: syntax is <name>" >&2 ; return 1 ; }
-	type AgentsToolsActingSession > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.CallerCheck.include"
+	type AgentsToolsActingSession > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.ActingMember.include"
 	type AgentsToolsAssertBareName > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.BareName.include"
 	type AgentsToolsInboxItemInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/inbox/AgentsTools.InboxPlace.include"
 	AgentsToolsAssertBareName "$askName" "<name>" "${askOp#--}" || return 1
 	[ -n "${MDAT_DATA_ROOT:-}" ] || { echo "$MDSC_CMD: ⛔ ERROR: $askOp: MDAT_DATA_ROOT is not set" >&2 ; return 1 ; }
 	askRequester="$( AgentsToolsLibrarianCaller "$askOp" librarian )" || return 1
+	type AgentsToolsActingSession > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.ActingMember.include"
 	askRequesterRun="$( AgentsToolsActingSession )"
 	askFile=""
 	type AgentsToolsInboxItemInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/inbox/AgentsTools.InboxPlace.include"

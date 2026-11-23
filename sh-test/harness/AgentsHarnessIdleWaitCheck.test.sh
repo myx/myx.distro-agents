@@ -151,6 +151,7 @@ rigPrefetch="on"
 rigRun(){ ## further harness arguments
 	( cd "$rigWs" && env -i HOME="$rigTmp/home" PATH="$rigTmp/bin:/usr/bin:/bin" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
 		MDAT_SKILLSET_ROOT="$rigSkills" MDAT_SPAWN_SESSION_ID="$rigSpawn" MDAT_SPAWN_AGENT=rig-a MDAT_SPAWN_SANDBOX_ROOT="$rigSandbox" MDAT_HARNESS_PREFETCH="$rigPrefetch" RIG_SCENARIO="$rigDir" \
+MDAT_HARNESS_MAX_QUIET_ROUNDS="${MDAT_HARNESS_MAX_QUIET_ROUNDS:-20}" \
 		HARNESS_PROVIDER_NAME="idle-wait rig" HARNESS_SELF_NAME="AgentsHarnessIdleWaitCheck.test.sh" HARNESS_WIRE="AnthropicMessages" HARNESS_CREDENTIAL_NAMES="none" \
 		HARNESS_ENDPOINT="https://harness-idle-wait.invalid/v1/messages" HARNESS_HOST="harness-idle-wait.invalid" HARNESS_EXTRA_HEADERS="anthropic-version: 2023-06-01" \
 		HARNESS_MODEL_LIGHT="rig-light" HARNESS_MODEL_MAIN="rig-main" HARNESS_TOKEN_LIGHT="rig-not-a-credential" HARNESS_TOKEN_MAIN="rig-not-a-credential" \
@@ -312,6 +313,43 @@ rigLoad="$( uptime | LC_ALL=C sed -n 's/.*load averages*: *\([0-9]*\).*/\1/p' )"
 [ "${rigLoad:-0}" -le 8 ] 2> /dev/null || rigBound=20
 printf '  measured: the wake came %ss after the post (bound %ss, load %s)\n' "$(( rigWoke - $( cat "$rigDir/posted" 2> /dev/null || echo 0 ) ))" "$rigBound" "${rigLoad:-?}"
 rigAssert "it woke within $rigBound s of the post, not at the 30 s bound"                          "$( [ -n "$rigWoke" ] && [ -s "$rigDir/posted" ] && [ $(( rigWoke - $( cat "$rigDir/posted" ) )) -le "$rigBound" ] && printf yes )" yes
+
+echo "-- 10. twenty quiet rounds end a duty's idling, and a plain reply then ends the run --"
+rigScene quietstop rigquiet
+printf 'WAIT_ROUND_SECONDS=1\n' > "$rigWs/.local/.agents/magic-team.agent.env"
+## Twenty keepalive rounds, then the plain reply that follows them. Nothing is dismissed and nothing arrives, so the only
+## thing that can end the idling is the count itself. One canned stream a round, so a run that never stops idling asks for a
+## stream the rig does not have, and its own failure is the red this scenario must not report as a pass.
+rigQuietRound=1
+while [ "$rigQuietRound" -le 20 ] ; do
+	rigToolStream "$rigDir/res.$rigQuietRound" Bash "$( rigOp --idle-wait )"
+	rigQuietRound=$(( rigQuietRound + 1 ))
+done
+rigTextStream "$rigDir/res.21" RIG-DONE ; rigRun
+rigAssert "the twenty-first round is the plain reply, and the run ends normally" "$rigRunStatus:$( cat "$rigDir/round" )" 0:21
+rigAssert "twenty keepalive rounds were taken, and not one more" "$( rigCount "$rigDir/err" 'waking the model with a keepalive' )" 20
+rigAssert "the run stopped asking for work: no idle-wait follows the twentieth" "$( rigCount "$rigDir/req.21" 'OK: --idle-wait' )" "$( rigCount "$rigDir/req.20" 'OK: --idle-wait' )"
+rigAssert "its own answer is the result, as a finished run's is" "$( cat "$rigDir/out" )" RIG-DONE
+rigAssert "nothing but the model was called" "$( rigOther )" 0
+
+echo "-- 11. the quiet bound is a name, and naming another moves the stop --"
+rigScene quietknob rigquiet
+printf 'WAIT_ROUND_SECONDS=1\n' > "$rigWs/.local/.agents/magic-team.agent.env"
+## The same shape as scenario 10 with the bound named at 3 instead of the default 20, so an assertion counting the
+## keepalive rounds tells the knob's value from the built-in one. The rig passes its own environment through to the run.
+## The fourth round asks to idle again at the bound, which the wait's own guard refuses, and its refusal is the proof the
+## guard reads the name rather than a built-in 20.
+rigQuietRound=1
+while [ "$rigQuietRound" -le 4 ] ; do
+	rigToolStream "$rigDir/res.$rigQuietRound" Bash "$( rigOp --idle-wait )"
+	rigQuietRound=$(( rigQuietRound + 1 ))
+done
+rigTextStream "$rigDir/res.5" RIG-DONE
+MDAT_HARNESS_MAX_QUIET_ROUNDS=3 rigRun
+rigAssert "the fifth round is the plain reply, and the run ends normally" "$rigRunStatus:$( cat "$rigDir/round" )" 0:5
+rigAssert "three keepalive rounds were taken, so the named bound moved the stop" "$( rigCount "$rigDir/err" 'waking the model with a keepalive' )" 3
+rigAssert "the wait refuses to idle at the bound, naming the count it reached" "$( rigIn "$( cat "$rigDir/err" )" '3 quiet rounds in a row' )" yes
+rigAssert "its own answer is the result" "$( cat "$rigDir/out" )" RIG-DONE
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ HARNESS IDLE WAIT CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

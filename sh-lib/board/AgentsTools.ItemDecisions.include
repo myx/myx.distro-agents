@@ -24,6 +24,7 @@
 agentsDecisionsKinds=" answer verdict resolved dismissed clarification handback review handler "
 
 ## The board path of an item, by name (with or without .md, a board/<state>/ prefix dropped).
+
 ## Prints nothing and rc 1 when no board state holds it.
 AgentsToolsDecisionsItemPath(){ ## item name
 	local pathFound
@@ -127,8 +128,13 @@ AgentsToolsBoardItemInto(){ ## variable, item name (with or without .md)
 	for itemState in $agentsBoardActiveStates $agentsBoardStates ; do
 		case "$itemSeen" in *" $itemState "*) continue ;; esac
 		itemSeen="$itemSeen$itemState "
-		[ -f "$MDAT_DATA_ROOT/board/$itemState/$itemName.md" ] || continue
-		printf -v "$1" '%s' "$MDAT_DATA_ROOT/board/$itemState/$itemName.md"
+		## AN ITEM NAMED WITHOUT `.md` IS THE SAME ITEM: the name as it stands is tried first, then the `.md` form every writer gives it.
+		[ -f "$MDAT_DATA_ROOT/board/$itemState/$itemName" ] || [ -f "$MDAT_DATA_ROOT/board/$itemState/$itemName.md" ] || continue
+		if [ -f "$MDAT_DATA_ROOT/board/$itemState/$itemName" ] ; then
+			printf -v "$1" '%s' "$MDAT_DATA_ROOT/board/$itemState/$itemName"
+		else
+			printf -v "$1" '%s' "$MDAT_DATA_ROOT/board/$itemState/$itemName.md"
+		fi
 		return 0
 	done
 	return 1
@@ -165,6 +171,7 @@ AgentsToolsBoardItemSignatureInto(){ ## variable, item name (with or without .md
 }
 
 ## The item an ask belongs to, as its name without .md: the first item name in <task ref>
+
 ## that a board state holds, else the `spawns:` dispatch item of the session's own spawn
 ## record, else nothing (rc 1).
 AgentsToolsDecisionsItemFromRef(){ ## task ref text, session id
@@ -201,7 +208,9 @@ AgentsToolsDecisionsNorm(){ ## text
 ## The marker line that makes a `## Decisions` heading the item's own.
 ## awk functions over line[1..n], shared by the reader and the board edit, so both take the
 ## same section: decisionsOwn() is the own heading's line number (0 when none), and
+
 ## decisionsEnd() the section's last non-blank line before the next heading.
+
 agentsDecisionsOwnAwk='
 	function struckBase( s ) {
 		while ( sub( / \[(struck by|confirmed by|backfilled) [^]]*\]$/, "", s ) ) { }
@@ -530,6 +539,7 @@ AgentsToolsItemIsReviewer(){ ## item path, member
 		;;
 		none) return 1 ;;
 		human-owner|user-?*)
+			type AgentsToolsActingMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.ActingMember.include"
 			[ -z "$( AgentsToolsActingMember )" ] && return 0
 			return 1
 		;;
@@ -549,7 +559,8 @@ AgentsToolsItemIsReviewer(){ ## item path, member
 	esac
 	[ -z "$irMember" ] || [ "$2" != "$irMember" ] || return 0
 	[ -n "$irSession" ] || return 1
-	[ "$( AgentsToolsActingSession )" != "$irSession" ] || return 0
+	type AgentsToolsActingSessionIs > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.ActingMember.include"
+	AgentsToolsActingSessionIs "$irSession" && return 0
 	[ "$( AgentsToolsSessionMember "$irSession" )" != "$2" ] || return 0
 	return 1
 }
@@ -568,6 +579,7 @@ AgentsToolsItemIsOwnerOrParent(){ ## item path, member
 		[ -f "$opParent" ] || continue
 		opParent="$( AgentsToolsDecisionsField "$opParent" parent-spawn-id )"
 		case "$opParent" in ''|-|none) return 1 ;; esac
+		type AgentsToolsActingSession > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.ActingMember.include"
 		[ "$( AgentsToolsActingSession )" != "$opParent" ] || return 0
 		[ "$( AgentsToolsSessionMember "$opParent" )" != "$2" ] || return 0
 		return 1
@@ -874,7 +886,7 @@ AgentsToolsDecisionReadbackOpen(){ ## member, item, kind, text, source (may be e
 	printf '%s\n' "$roOut"
 	## Asked means recorded: with no record, nothing was asked, and the harness said why above.
 	roId="$( printf '%s\n' "$roOut" | LC_ALL=C grep -o -E '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}' | head -1 )"
-	type AgentsToolsPendingRecordPath > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.Authority.include"
+	type AgentsToolsPendingRecordPath > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.PendingPaths.include"
 	if [ -z "$roId" ] || ! roFile="$( AgentsToolsPendingRecordPath "$roId" )" ; then
 		printf 'DECISION-NOT-ASKED %s: no readback was recorded, so nothing was asked or recorded; what the ask said is above\n' "$roItem"
 		return 1
@@ -1169,7 +1181,8 @@ AgentsToolsDecisionsStrike(){ ## who, item, the exact line, the reason, source (
 	return 0
 }
 
-## HIS OWN MESSAGE IS HIS DECISION (owner 2026-11-19): where the source's first part names a Slack message, `slack:<channel>:<ts>`,
+## HIS OWN MESSAGE IS HIS DECISION (): where the source's first part names a Slack message, `slack:<channel>:<ts>`,
+
 ## that the comms cache holds and whose author is the human-owner's own account here, it prints the provenance
 ## `his message slack:<channel>:<ts>, by <account> at <time>`, rc 0. Anything else, or a message the cache does not hold, is rc 1.
 AgentsToolsDecisionSourceOwnerMessage(){ ## source

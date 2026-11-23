@@ -113,6 +113,7 @@ case "$1" in
 		## member too: what such a member holds for this system is the other organisation's.
 		--google-whoami|--google-file-find|--google-sheet-read|--google-sheet-info|--google-sheet-write|--google-sheet-clear|--google-doc-read|--google-doc-write|--google-comment-read|--google-comment-post)
 			local -x MDAT_COMMS_SIDE=own MDAT_COMMS_OP=""
+			type AgentsToolsActingMemberCheck > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.ActingMember.include"
 			[ -z "${2:-}" ] || AgentsToolsActingMemberCheck "$2" "${1#--}" || { set +e ; return 1 ; }
 			## The stub reaches its implementation in this file, never through the dispatcher (S6.24):
 			## an include calls the include that holds the code, and DistroAgentsTools is no command here.

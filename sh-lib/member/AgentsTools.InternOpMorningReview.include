@@ -113,8 +113,8 @@ case "$1" in
 		mkdir -p "$MMDAPP/.local/temp" 2> /dev/null && mrEndedFile="$( mktemp "$MMDAPP/.local/temp/mdat-morning-review-ended.XXXXXX" )" || mrEndedFile=""
 		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
 		if [ -n "$mrEndedFile" ] ; then
-			type AgentsToolsRegistryRenderSpawnedSessions > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.RegistrySpawnedSessions.include"
-			mrRegistryText="$( AgentsToolsRegistryRenderSpawnedSessions agents 2>/dev/null )" || mrRegistryText=""
+			type AgentsToolsRegistryRenderSpawnedSessionsKept > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.RegistrySpawnedSessions.include"
+			mrRegistryText="$( AgentsToolsRegistryRenderSpawnedSessionsKept agents 60 2>/dev/null )" || mrRegistryText=""
 			case "$mrRegistryText" in
 				*"no spawn sandbox root exists"*) : ;;
 				""|*"**NOTE:** no scan was made"*)

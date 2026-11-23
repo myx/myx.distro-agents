@@ -66,12 +66,20 @@ FOLDER_WORDS = {
     "user": "the README.md of each project, in build order",
     "maintainer": "the MAGIC.md of each project, in build order",
     "activity": "the sessions of the team and the agents in them",
+    "active-sessions": "the sessions a console holds now, with their agents and their tokens",
+    "closed-sessions": "every session that has ended, and what its runs left behind",
+    "top-tokens": "the sessions that spent the most tokens first",
+    "active-agents": "the agents running now, each with what it is doing",
+    "waiting-agents": "the agents waiting on an answer, and for how long",
+    "closed-agents": "the agents whose work is done, and how it ended",
     "launch": "the starts you make by hand: a coworking, standalone, work-duty, routine or free-prompt session",
     "routines": "every routine of the team, with its state, its members and when it runs",
     "schedule": "the week by hour: which routines run when, in the order they run",
     "pending": "the questions that wait for an answer",
     "team": "each member of the team, its permissions, files, sessions, settings and help",
     "teamdata": "the board, the audit and the vault of the team data, and its operations",
+    "contacts": "the people and organisations the team deals with, the tier each stands at and how each is reached",
+    "epics": "the epic items of the team's vault: the planning record of its process flow, each with its sections",
 }
 ## What each of those is given the words typed beside it with, where any were typed.
 CALL_WORDS = {"answer": "--text", "reject": "--text", "dismiss": "--reason"}

@@ -28,7 +28,9 @@
 			set +e ; return 1
 		fi
 		set -- ${inquiryArgs[@]+"${inquiryArgs[@]}"}
+		type AgentsToolsActingMemberCheck > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.ActingMember.include"
 		[ -z "$inquiryFrom" ] || AgentsToolsActingMemberCheck "$inquiryFrom" upsert-inbox-inquiry || { set +e ; return 1 ; }
+		type AgentsToolsActingMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.ActingMember.include"
 		[ -n "$inquiryFrom" ] || inquiryFrom="$( AgentsToolsActingMember )"
 		## AN INQUIRY GOES TO ONE EXACT PLACE (the human-owner's routing): magic-coordinator by default, which files it, resolves it or starts a
 		## session. A target alias names the kind of inquiry, never a list; several targets are one inquiry to the coordinator, never a fan-out.
@@ -63,9 +65,11 @@
 		esac
 		## In an emergency a member target stays direct: no detour through the coordinator (AgentsToolsEmergencyHolds); an alias still resolves.
 		case "$inquiryTarget" in @*|*,*) ;; *) { type AgentsToolsEmergencyHolds > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.Emergency.include"; } ; ! AgentsToolsEmergencyHolds || inquiryRouted="" ;; esac
+		## The target is spent here either way: shift only on the reroute left a plain member target to be read again as the item filename.
+		shift
 		if [ -n "$inquiryRouted" ] && [ "$inquiryRouted" != "$inquiryTarget" ] ; then
 			echo "# $MDSC_CMD --upsert-inbox-inquiry: routed to $inquiryRouted, not $inquiryTarget: an inquiry goes to one place, the coordinator by default; a member is written to directly only as the reply to its own inquiry, or as a domain owner." >&2
-			shift ; set -- "$inquiryRouted" "$@"
+			set -- "$inquiryRouted" "$@"
 		fi
 		## The reflection is checked before anything is written: a bare name of a reflection still in the filing member's own incoming/.
 		if [ -n "$inquiryReflection" ] ; then

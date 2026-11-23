@@ -25,6 +25,7 @@ type AgentsToolsSlackOneWayLine > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.dist
 ## Resolves alias|<channel>|<channel>:<ts> to CHANNEL= + THREAD_TS=; shared by every op taking a target.
 ## client:<addressee> names a conversation or a person on the other organisation's side of a
 ## client-* member, by id, with or without :<ts>: the marker stays on CHANNEL, so whatever
+
 ## the address is handed to next reaches the same side. On that side, by the marker or for
 ## the acting member an operation names as the second argument, the team's own named
 ## conversations and the two session addresses name nothing, and the marker names nothing for
@@ -32,8 +33,10 @@ type AgentsToolsSlackOneWayLine > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.dist
 ## the address works on (AgentsToolsSlackOneWayLine). With no member named the team's own
 ## names resolve as they always have, so the tooling's own posts name them from inside any
 ## operation.
-## THE RESOLUTION IS CACHED (owner 2026-10-28), with the comms cache's TTL mechanics: what an address resolves to for an acting member
+## THE RESOLUTION IS CACHED (), with the comms cache's TTL mechanics: what an address resolves to for an acting member
+
 ## is kept a day in .local/cache/comms/slack/.resolve-<member>.txt, one writer a member, and read on demand. A session address is never
+
 ## kept: it follows the run. Only a resolution that succeeded is kept.
 ## Whether an address's first word names a session this workspace's store holds, so the address reads that session's thread by its id
 ## (`<session>:<member>[:<run>]`, S12.15, S12.29). A name the store does not hold is no session address, so the address is read by the
@@ -147,6 +150,7 @@ DistroAgentsToolsResolveTargetFresh(){ ## address, acting member (optional)
 		## started it. A third line names the parent session. A name that names nowhere is refused, rc 3:
 		## the one line printed says why and what to pass instead, for the caller to show as it is.
 		## With :<ts> the name is the message with that ts in the conversation that thread is in, as
+
 		## <alias>:<ts> is for every alias above: one message, with no conversation id to know.
 		## THE ROOT-NATIVE PRINTBACK KIND (F2.3): a session whose external side is its own printback channel
 		## has no thread, and the address names that channel -- `printback:<session>`, with no ts to add. It

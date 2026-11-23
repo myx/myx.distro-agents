@@ -3,9 +3,10 @@
 ## (sh-lib/manager/LocalManagerScreen.py) runs through the stand-in terminal of the driver (check-fixtures/manager-screen.driver.py); no reader is started.
 ## A stand-in app feature gives each of its rows a table by its focus handler, as a real one does.
 ## Held (F11.3: "The full-pane table view, in python, has a high ceiling ... a header that stays while the rows scroll, where the viewport holds more than
+
 ## five rows; horizontal scrolling of a table wider than the pane, where the view allows it, as most will; the view names a usable column to pin, such as
 ## its key, and it is pinned only where the width allows; sorting by any column, by a key, and back to the source order; a live filter, typed, narrowing
-## the rows; the existing wrap and unwrap, with no resizing of columns"; the filter as the owner agreed it, 2026-10-19):
+## the rows; the existing wrap and unwrap, with no resizing of columns"; the filter as the owner agreed it):
 ##   1. the header stays over the rows while they scroll, where the window holds more than five lines of rows, and goes up with them where it does not
 ##   2. sideways: the table cut to its words is wider than the window and scrolls; the column the view pins stays at the left while the rest scrolls, where
 ##      the width leaves the scrolling part twenty cells at least; where it does not, nothing is pinned and the whole line scrolls; a view that names no

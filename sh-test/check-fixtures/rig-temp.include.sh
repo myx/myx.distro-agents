@@ -4,12 +4,14 @@
 ## The one way a check of sh-test makes the folder its rig lives in, and its turn in the machine's one line of
 ## test runs. Sourced by the check:
 ##   . "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh"
+
 ##
 ## WHY THE FOLDER. No file of this package is ever kept in the system's temp folder (the owner's rule, held for
 ## every file of the package by AgentsTempNamesCheck): a rig lives in the workspace the check runs in, under
-## .local/agents/scratch/sh-test/, beside the harness's own scratch and like it outside every member's floor
-## (AgentsTools.Grants.include), so no grant of the workspace reaches a path of a rig. Where there is no
-## workspace there is no rig, and no result.
+## .local/agents/scratch/sh-test/, beside the harness's own scratch. A rig is no workspace of the machine, so no
+## workspace's source rows reach it. Its own .local/temp is the one floor row it carries, that floor belonging
+## to any workspace an index is built for (AgentsTools.Grants.include). Where there is no workspace there is no
+## rig, and no result.
 ##
 ## WHY THE TURN. A check started by hand, `bash <check>.test.sh`, used to run beside every other: sessions running
 ## checks that way at once, around the suite queue, took this machine to load 133 on 2026-11-03. So a check takes

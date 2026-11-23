@@ -14,7 +14,7 @@
 type AgentsToolsSpawnRoutineResolve > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnRoutine.include"
 type AgentsToolsRoutineKeyLinesOwn > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/routine/AgentsTools.RoutineRequirements.include"
 type AgentsToolsInputScanDefRun > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.InputScanDef.include"
-type AgentsToolsActingMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.CallerCheck.include"
+type AgentsToolsActingMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.ActingMember.include"
 
 ## The text of a routine run inline: its steps with the Opening and Closure steps, the rules and the tooling of
 ## `magic-team.inline.routine` mixed in, the routine's frontmatter and its Maintainer Notes left out.
@@ -43,6 +43,7 @@ AgentsToolsRoutineRunInline(){ ## routine selector
 	fi
 	inlineScans="$( AgentsToolsRoutineKeyLinesOwn "$inlineFile" input-scan-def | LC_ALL=C grep -v -x 'none' || : )"
 	if [ -n "$inlineScans" ] ; then
+		type AgentsToolsActingMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.ActingMember.include"
 		inlineMember="$( AgentsToolsActingMember )"
 		inlineSpawn="${MDAT_SPAWN_SESSION_ID:-shell-console}"
 		inlineSession=""
@@ -56,6 +57,7 @@ AgentsToolsRoutineRunInline(){ ## routine selector
 				break
 			done
 		fi
+		type AgentsToolsActingSession > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.ActingMember.include"
 		[ -n "$inlineSession" ] || inlineSession="$( AgentsToolsActingSession )"
 		if [ -z "$inlineMember" ] ; then
 			echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsSession}: --routine-run-inline $1: $inlineName declares an input scan, and this call comes from no member's session to run it for -- nothing was handed" >&2

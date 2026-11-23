@@ -20,6 +20,7 @@
 ##       the server's, not one tool's: an `execute` script sees `MDAT_SPAWN_SESSION_ID`.
 ##   S3. A server with no session executes every call as today: CheckList refuses on the call
 ##       ("this call belongs to no session yet ... no place to be kept"), its refusal a hint
+
 ##       that names `RootSession operation=mint` and `operation=adopt`, not a denial that the
 ##       tool is unoffered; Wait returns today's `--wait-default needs --wait-session-id`
 ##       refusal, Skill works, an `execute` script sees no session id, `ToolSearch` finds
@@ -108,7 +109,7 @@ rigSkills="$rigTmp/skills"
 mkdir -p "$rigOrigin/myx" \
 	"$rigHome" "$rigBin" "$rigSlack" "$rigSkills/magic-coordinator" "$rigSkills/rig-skill" \
 	|| rigRefuse "cannot make the rig's own tree"
-cp -Rp "$rigPackage" "$rigOrigin/myx/myx.distro-agents" || rigRefuse "cannot copy the tree under test into the rig origin"
+rigCopyTree "$rigPackage" "$rigOrigin/myx/myx.distro-agents" || rigRefuse "cannot copy the tree under test into the rig origin"
 for rigSibling in myx.distro-system myx.distro-.local ; do
 	[ -d "$rigSource/myx/$rigSibling" ] || rigRefuse "this check runs the real $rigSibling read-only beside the package, and none is at $rigSource/myx/$rigSibling"
 	rigCopyTree "$rigSource/myx/$rigSibling" "$rigOrigin/myx/$rigSibling" || rigRefuse "cannot copy the real $rigSibling beside the rig's package"
@@ -254,7 +255,8 @@ rigSessionDir(){ ## workspace, id -- the session's own record folder
 }
 rigSpawnRecords(){ ## workspace -- how many CONSOLE RUN records it holds
 	## A record of a console run, never a root-harness session's own: a mint writes one of those by the
-	## owner's ruling of 2026-10-29 (AgentsToolsRootSessionRecord), so counting every record would count
+	##  (AgentsToolsRootSessionRecord), so counting every record would count
+
 	## the session this very check minted, and a row that says "no console run" would fail on its own subject.
 	local rigSpawnOne=""
 	for rigSpawnOne in "$1/.local/agents/spawned"/*/*.spawn.md ; do

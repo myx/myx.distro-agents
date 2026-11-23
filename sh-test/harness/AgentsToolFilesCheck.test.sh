@@ -134,9 +134,10 @@ rigCall DistroAgentsItems --help-syntax --grooming-
 rigAssert "a prefix ending in a dash: the lines of every name it begins" "$( LC_ALL=C grep -c -F -- ' --grooming-' "$rigTmp/call.out" )" "$( LC_ALL=C grep -c -F 'DistroAgentsItems.fn.sh --grooming-' "$( rigSyntaxSource DistroAgentsItems )" )"
 rigCall DistroAgentsKnowledge --help-syntax --list-places
 rigAssert "an ordinary name of another file: its own line alone" "$( LC_ALL=C grep -c -F '📘 syntax: ' "$rigTmp/call.out" ):$( LC_ALL=C grep -c -F -- 'DistroAgentsKnowledge.fn.sh --list-places' "$rigTmp/call.out" )" "1:1"
+## A lookup line leads `--add-source-docs`, and the general bracketed line carries it too, so both answer either word.
 for rigWord in --query-keyword --add-source-docs ; do
 	rigCall DistroAgentsKnowledge --help-syntax "$rigWord"
-	rigAssert "a word inside a line, $rigWord: the query line, which carries it" "$( LC_ALL=C grep -c -F '📘 syntax: ' "$rigTmp/call.out" ):$( LC_ALL=C grep -F '📘 syntax: ' "$rigTmp/call.out" | LC_ALL=C grep -c -F -e '--add-source-docs|' | LC_ALL=C tr -d ' ' )" "1:1"
+	rigAssert "a word inside a line, $rigWord: every lookup line, which carries it" "$( LC_ALL=C grep -c -F '📘 syntax: ' "$rigTmp/call.out" ):$( LC_ALL=C grep -F '📘 syntax: ' "$rigTmp/call.out" | LC_ALL=C grep -c -v -F -e '--add-source-docs' )" "2:0"
 done
 rigCall DistroAgentsTools --help-syntax --from-stdin
 rigAssert "DistroAgentsTools answers alike: an option no line has as its operation gives the lines that carry it, and only those" "$( [ "$( LC_ALL=C grep -c -F '📘 syntax: ' "$rigTmp/call.out" )" -gt 0 ] && printf some || printf none ):$( LC_ALL=C grep -F '📘 syntax: ' "$rigTmp/call.out" | LC_ALL=C grep -c -v -F -e '--from-stdin' )" "some:0"

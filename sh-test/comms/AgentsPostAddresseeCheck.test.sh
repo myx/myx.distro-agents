@@ -9,6 +9,9 @@
 ## of a spawned session (ReportFindings) is addressed the same way, whatever address_to it
 ## gives. A word is an account or a conversation only by the whole shape of a Slack id,
 ## never by its first letters, and a word that names nobody is refused in one plain line.
+## An account or a conversation the caller names is one the tooling resolved: a coordinate of a
+## contact the sending member holds, or an id the send read itself. One it never resolved is
+## refused, and nothing is sent.
 ## A DISMISSED sent with SendMessage and address_to dismisses the member it names and nobody
 ## else, read by the one dismissal rule the Wait uses, and no text inside a message body
 ## dismisses anybody. Offline: the Slack-shaped fake curl is first on PATH, model CLIs on
@@ -19,6 +22,7 @@ set -u
 rigHere="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib"
 rigTest="${rigHere%/sh-lib}/sh-test"
 rigTool="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+rigContacts="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsContacts.fn.sh"
 rigHarness="$rigHere/harness/AgentsUniversalHarness.sh"
 rigWire="$rigHere/harness/AgentsOpenAiChatWire.sh"
 ## The posting member, the member whose session started it, and a third one.
@@ -30,6 +34,7 @@ rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }
 [ -f "$rigTool" ] || rigRefuse "the tool is not at the origin this workspace resolves: $rigTool"
+[ -f "$rigContacts" ] || rigRefuse "the contacts tool is not at the origin this workspace resolves: $rigContacts"
 rigTmp="$( mkdir -p "$MMDAPP/.local/temp" && mktemp -d "$MMDAPP/.local/temp/AgentsPostAddresseeCheck.XXXXXX" )" || exit 1
 ## The parent's run, alive by the one rule a run is alive by: a stand-in whose own --session-id is
 ## the parent's id, ended with the rig, through the one way a check signals what it kept
@@ -123,6 +128,23 @@ rigRow(){ ## scenario name, tool, arguments JSON
 	rigScene "$1"
 	rigCall "$2" "$3"
 }
+## The contact the sending member holds, whose coordinates are the shaped rows' Slack ids: recorded by the tool
+## that keeps contacts, so a change to that store's own write contract reddens these rows.
+rigPeer(){
+	( cd "$rigScenarioDir/ws" && env -u MDAT_DATA_ROOT -u MDAT_SPAWN_SESSION_ID \
+		MDAT_WORKSPACE_MODE=team-rig MMDAPP="$rigScenarioDir/ws" MDLT_ORIGIN="$MDLT_ORIGIN" MDAT_DATA_ROOT="$rigScenarioDir/data" \
+		MDAT_SPAWN_AGENT="$rigMember" \
+		bash "$rigContacts" --collect-contact --id rig-peer --name "Rig Peer" \
+			--slack rigteam:URIGSOME1 --slack rigteam:U0RIGSOME11 \
+			--slack-conversation rigteam:CRIGSOME1 --slack-conversation rigteam:DRIGSOME1 \
+		> "$rigScenarioDir/contact.out" 2> "$rigScenarioDir/contact.err" )
+}
+## One scenario whose shaped rows name an id the sending member holds.
+rigRowKnown(){ ## scenario name, tool, arguments JSON
+	rigScene "$1"
+	rigPeer
+	rigCall "$2" "$3"
+}
 rigPosts(){
 	ls "$rigScenarioDir"/post.* 2>/dev/null | wc -l | tr -d ' '
 }
@@ -201,8 +223,8 @@ rigAssert "and that shape names him and his account"                 "$( rigHead
 rigRow sendSeveral SendMessage "{\"to\":\"session-current\",\"address_to\":\"$rigOther $rigLead\",\"message\":\"m\"}"
 rigAssert "several, separated by spaces: each named, in the order given" "$( rigHeader )" "${rigFrom}🤖 *_${rigOther}_*; 🤖 *_${rigLead}_*."
 rigAssert "several: each named is woken" "$( rigWoke "$rigOther" ) $( rigWoke "$rigLead" )" "yes yes"
-rigRow sendAccount SendMessage '{"to":"session-current","address_to":"URIGSOME1","message":"m"}'
-rigAssert "a Slack account, by its id"                               "$( rigHeader )" "${rigFrom}<@URIGSOME1>."
+rigRowKnown sendAccount SendMessage '{"to":"session-current","address_to":"URIGSOME1","message":"m"}'
+rigAssert "a Slack account, by its id, resolved as a coordinate the sending member holds" "$( rigPosts ):$( rigHeader )" "1:${rigFrom}<@URIGSOME1>."
 rigRow sendUnknown SendMessage '{"to":"session-current","address_to":"rig-nobody","message":"m"}'
 rigAssert "a name that is no team member: refused as a question to it is, nothing posted" \
 	"$( rigPosts ):$( rigFirst | LC_ALL=C cut -c1-22 ):$( LC_ALL=C grep -c -F -- "--address-to 'rig-nobody': no such team member and no contact of that id -- expected a team member the tooling holds" "$rigScenarioDir/tool.out" )" "0:ERROR: the send failed:1"
@@ -293,14 +315,22 @@ rigCall SubagentHandback '{"outcome":"x"}'
 rigAssert "a record written before that line, its parent with no record: the coordinator; a body line never read as one" "$( rigPosts ):$( rigHeader )" "1:$rigToCoord"
 
 echo "-- a word is an account or a conversation only by the whole shape of a Slack id --"
-rigRow shapeAccount SendMessage '{"to":"session-current","address_to":"URIGSOME1","message":"m"}'
+rigRowKnown shapeAccount SendMessage '{"to":"session-current","address_to":"URIGSOME1","message":"m"}'
 rigAssert "an account: U, then upper-case letters and digits, nine characters in all" "$( rigPosts ):$( rigHeader )" "1:${rigFrom}<@URIGSOME1>."
-rigRow shapeAccountLong SendMessage '{"to":"session-current","address_to":"U0RIGSOME11","message":"m"}'
+rigRowKnown shapeAccountLong SendMessage '{"to":"session-current","address_to":"U0RIGSOME11","message":"m"}'
 rigAssert "an account of eleven characters"                          "$( rigPosts ):$( rigHeader )" "1:${rigFrom}<@U0RIGSOME11>."
-rigRow shapePlace SendMessage '{"to":"session-current","address_to":"CRIGSOME1","message":"m"}'
+rigRowKnown shapePlace SendMessage '{"to":"session-current","address_to":"CRIGSOME1","message":"m"}'
 rigAssert "a conversation: C, D or G the same way"                   "$( rigPosts ):$( rigHeader )" "1:${rigFrom}<#CRIGSOME1>."
-rigRow shapeBoth SendMessage "{\"to\":\"session-current\",\"address_to\":\"URIGSOME1 $rigOther DRIGSOME1\",\"message\":\"m\"}"
+rigRowKnown shapeBoth SendMessage "{\"to\":\"session-current\",\"address_to\":\"URIGSOME1 $rigOther DRIGSOME1\",\"message\":\"m\"}"
 rigAssert "an account, a member and a conversation, each named as what it is" "$( rigPosts ):$( rigHeader )" "1:${rigFrom}<@URIGSOME1>; 🤖 *_${rigOther}_*; <#DRIGSOME1>."
+## A well-shaped id says only what a word IS. Whether the tooling holds it is the gate's own question,
+## asked of every id the caller names: one the send never resolved is refused, and nothing is posted.
+rigRow shapeUnresolvedAccount SendMessage '{"to":"session-current","address_to":"URIGNEVER1","message":"m"}'
+rigAssert "an account of the right shape that no contact holds: refused, nothing posted" \
+	"$( rigPosts ):$( LC_ALL=C grep -c -F -- "REFUSED -- 'URIGNEVER1' is not a known contact" "$rigScenarioDir/tool.out" )" "0:1"
+rigRow shapeUnresolvedPlace SendMessage '{"to":"session-current","address_to":"CRIGNEVER1","message":"m"}'
+rigAssert "a conversation of the right shape that no contact holds: refused the same way" \
+	"$( rigPosts ):$( LC_ALL=C grep -c -F -- "REFUSED -- 'CRIGNEVER1' is not a known contact" "$rigScenarioDir/tool.out" )" "0:1"
 ## What the member send says of a word that names nobody: one line, whole.
 rigRefusal(){ ## the word as it was given
 	LC_ALL=C grep -c -F -- "⛔ ERROR: DistroAgentsTools --slack-send-message: --address-to '$1': no such team member and no contact of that id -- expected a team member the tooling holds, or a contact id the store holds. The word is no Slack id either: an account is U and a conversation C, D or G, then upper-case letters and digits only, nine characters or more in all. Nothing was sent." "$rigScenarioDir/tool.out"

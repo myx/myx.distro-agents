@@ -3,7 +3,7 @@
 
 ## AgentsHarnessAsk.include: the ask tools, pending replies and escalations. Sourced by AgentsUniversalHarness.sh, definitions only.
 
-type AgentsToolsPendingRecordPath > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.Authority.include"
+type AgentsToolsPendingRecordPath > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.PendingPaths.include"
 
 ## The parts of the ask tools, one file per concern (AgentsHarnessAsk*.include). Loaded unconditionally: the
 ## harness stubs some of their functions to load this file, so a type test would find the stub and load nothing.

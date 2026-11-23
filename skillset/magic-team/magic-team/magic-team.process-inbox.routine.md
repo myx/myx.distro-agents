@@ -55,13 +55,16 @@ None of its own: the Opening steps of the routine it inherits from run first (it
 
 Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate it, and never skip it silently.
 
-1. **read-and-classify**: read the inbox from this run's input scan result, and each body with `--get-inbox-item` where it was truncated. Classify each item by what it says: a status or block report, a request or question, a hand-off, a reflection, anything else.
+1. **read-and-classify**: read the inbox from this run's input scan result, and each body with `--get-inbox-item` where it was truncated. Classify each item by what it says: a status or block report, a request or question, a hand-off, a reflection, anything else. Read the new arrivals only. A standing note is never this routine's to drain: leave it, and its presence does not make the pass unfinished. A reflection is routed, not consolidated here: send this member's own reflections to `magic-librarian` in one inquiry, then mark them processed in the same pass.
 2. **act-lightweight**: per item, steps:
    - reply, route it on with `post-inquiry`, or resolve it inline when it is simple, obvious and within this member's own duties. Failing that bar, route it.
+   - a kind of item that one action covers is handled once for the whole kind, never one ask each: this member's reflections go to the librarian in one inquiry, and a hundred of them cost the same pass as one.
+   - a batch of writes goes in one `BatchTools` call, one entry per item, never one round each: `--mark-inbox-processed` takes one item per call, so a hundred marks are one batch and not a hundred rounds.
+   - do not read an item twice, and do not weigh which items collide: an item that needs work larger than a reply is routed, and the work happens where it was routed to.
    - a needed board change: `magic-coordinator` makes it; any other member routes it to `magic-coordinator`, however small.
    - an item of a type other than `note-*`, `inquiry-*` or `reflection-*` is misfiled: report it to `magic-coordinator`.
 3. **reply-on-cross-member-handoff**: a reply, route or hand-off touching another member gets an immediate compact post into the session thread: who, and which item. `magic-coordinator` posts it for a hand-off it decided, even where another member did the write. Unsure whether it is significant: post it.
-4. **mark-handled**: mark each handled item processed with `--mark-inbox-processed`: it moves to the inbox's `processed/`, out of the scan and of `Wait`. An item still wanted stays unmarked, in `incoming/`; a standing note is never marked.
+4. **mark-handled**: mark each handled item processed with `--mark-inbox-processed`: it moves to the inbox's `processed/`, out of the scan and of `Wait`. Replying to, routing on or resolving an item handles it, so the pass marks it at once. An item this member still works stays unmarked until it finishes; a standing note is never marked. The pass reads every item once and ends. A member runs this routine on new arrivals, never again on a scan it has already read.
 
 # Closure steps
 

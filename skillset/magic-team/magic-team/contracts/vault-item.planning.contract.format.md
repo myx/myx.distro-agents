@@ -21,7 +21,7 @@ A planning document is the recurrent work document of one planning cycle. It clo
 
 A planning round always runs the same way. It closes gaps, identifies goals, agrees deliverables, sets constraints, decomposes, then structures the plan. The sections below follow that order, so an open gap stands above the work that waits on it.
 
-Planning is one kind with modes. The human-owner settled on 2026-11-09 that a mode deserving its own name and prefix extends planning, and that `epic-blueprint` is the epic mode's name. No prefix extends planning in the tooling yet, so this contract governs the `planning-*` documents alone.
+Planning is one kind with modes: a mode deserving its own name and prefix extends planning, and `epic-blueprint` is the epic mode's name. No prefix extends planning in the tooling yet, so this contract governs the `planning-*` documents alone.
 
 # Contract
 

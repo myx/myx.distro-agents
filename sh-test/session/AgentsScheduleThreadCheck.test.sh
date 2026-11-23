@@ -229,9 +229,9 @@ echo "-- 5c. a change to any include a pass sources ends the thread, not only to
 ## the same process holding the same lock.
 rigOrigin="$rigDir/origin"
 mkdir -p "$rigOrigin/myx/myx.distro-agents"
-cp -RL "$MDLT_ORIGIN/myx/myx.distro-system" "$rigOrigin/myx/myx.distro-system" || rigRefuse "the origin's system package is not there"
-cp -RL "$MDLT_ORIGIN/myx/myx.distro-.local" "$rigOrigin/myx/myx.distro-.local" || rigRefuse "the origin's local package is not there"
-cp -RL "$rigPackage/sh-lib" "$rigPackage/sh-scripts" "$rigOrigin/myx/myx.distro-agents/" || rigRefuse "the package's sh-lib and sh-scripts could not be copied"
+rigCopyTree "$MDLT_ORIGIN/myx/myx.distro-system" "$rigOrigin/myx/myx.distro-system" || rigRefuse "the origin's system package is not there"
+rigCopyTree "$MDLT_ORIGIN/myx/myx.distro-.local" "$rigOrigin/myx/myx.distro-.local" || rigRefuse "the origin's local package is not there"
+rigCopyTree "$rigPackage/sh-lib" "$rigOrigin/myx/myx.distro-agents/sh-lib" && rigCopyTree "$rigPackage/sh-scripts" "$rigOrigin/myx/myx.distro-agents/sh-scripts" || rigRefuse "the package's sh-lib and sh-scripts could not be copied"
 rm -rf "$rigWs/.local/agents/schedule-thread"
 rigAsk ask6 MDLT_ORIGIN="$rigOrigin" "MDLT_OPTION=--run-from-path $rigOrigin" PKG="$rigOrigin/myx/myx.distro-agents"
 rigThreadUp ; sleep 1 ; rigPid7="$( rigThreadPid )"

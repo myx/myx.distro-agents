@@ -59,10 +59,10 @@
 ## parked: its handback waits for a verdict. Not `finished`, and not `failed`, every run of it died on its start: a failed session is ended;
 ## and not `unknown-foreign`, which is another host's: nothing can be done with it from here. `starting`, a run the main
 ## loop is still starting (its start marker has no result yet), whose process is not seen yet.
-## A SESSION THAT ENDED IN THE LAST MINUTE STAYS IN THE ACTIVE LIST, finished or failed, so a run that dies between two refreshes is seen (S7.29).
+## A SESSION THAT ENDED IN THE LAST TEN MINUTES STAYS IN THE ACTIVE LIST, finished or failed, so a run that dies between two refreshes is seen (S7.29).
 function recentlyEnded(sessionKey) {
 	if (nowMinutes == "") { nowMinutes = ENVIRON["MDAT_MANAGER_NOW_MINUTES"] ; if (nowMinutes == "") { srand() ; nowMinutes = int(srand() / 60) ; } ; }
-	return ( ( sessionState[sessionKey] == "finished" || sessionState[sessionKey] == "failed" ) && sessionEnd[sessionKey] >= 0 && nowMinutes - sessionEnd[sessionKey] <= 1 ) ;
+	return ( ( sessionState[sessionKey] == "finished" || sessionState[sessionKey] == "failed" ) && sessionEnd[sessionKey] >= 0 && nowMinutes - sessionEnd[sessionKey] <= 10 ) ;
 }
 
 function activeState(stateWord) {

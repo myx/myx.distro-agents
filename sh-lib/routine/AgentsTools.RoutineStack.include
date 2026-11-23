@@ -123,8 +123,16 @@ AgentsToolsRoutineStackMoved(){ ## verb, the routine file a push, replace or ret
 		{ if ( $0 != "" ) splitFrame( $0 ) ; }
 		END {
 			if ( verb == "push" || verb == "replace" ) {
-				if ( frameCount > 0 ) { frameState[frameCount] = ( verb == "push" ? "open" : "skipped" ) ; }
-				frameName[++frameCount] = want ; frameState[frameCount] = "current"
+				target = 0
+				if ( verb == "push" ) { for ( i = frameCount ; i >= 1 ; i-- ) { if ( frameName[i] == want && ( frameState[i] == "open" || frameState[i] == "current" ) ) { target = i ; break ; } ; } ; }
+				if ( target > 0 ) {
+					## A re-entry of a frame already open returns to it: pushing again stacked copies of one routine, and the run looped inside them.
+					for ( i = target + 1 ; i <= frameCount ; i++ ) { if ( frameState[i] != "skipped" ) { frameState[i] = "done" ; } ; }
+					frameState[target] = "current"
+				} else {
+					if ( frameCount > 0 ) { frameState[frameCount] = ( verb == "push" ? "open" : "skipped" ) ; }
+					frameName[++frameCount] = want ; frameState[frameCount] = "current"
+				}
 			} else if ( verb == "return" || verb == "return-to" ) {
 				target = 0
 				for ( i = frameCount - 1 ; i >= 1 ; i-- ) { if ( verb == "return" || frameName[i] == want ) { target = i ; break ; } ; }
@@ -162,8 +170,9 @@ AgentsToolsRoutineStackFrameClosed(){ ## session id, the item whose accept close
 		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.LocalLock.include"
 		AgentsToolsLocalLockTake "routine-stack-$closedSession" 30 "the routine stack of $closedSession" || return 1
 		closedLock="$agentsLocalLockPath"
-		type AgentsSpawnRecordWrite > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+		type AgentsSpawnRecordWrite > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.Write.include"
 		closedText="$( STACK_FRAMES_NEW="$closedNew" STACK_MOVE_LINE="" AgentsToolsRoutineStackRecordText < "$closedRecord" 2> /dev/null )" || closedText=""
+		type AgentsSpawnRecordWrite > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.Write.include"
 		if [ -z "$closedText" ] || ! printf '%s\n' "$closedText" | AgentsSpawnRecordWrite "$closedRecord" ; then
 			AgentsToolsLocalLockGive "$closedLock"
 			return 1
@@ -342,9 +351,10 @@ AgentsToolsRoutineStackMove(){ ## the verb, the routine file a push, replace or 
 		return 1
 	}
 	moveLock="$agentsLocalLockPath"
-	type AgentsSpawnRecordWrite > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+	type AgentsSpawnRecordWrite > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.Write.include"
 	moveText="$( STACK_FRAMES_NEW="$moveNew" STACK_MOVE_LINE="$moveLine" AgentsToolsRoutineStackRecordText < "$moveRecord" 2> /dev/null )" || moveText=""
 	case $'\n'"$moveText"$'\n' in *$'\n'"$moveLine"$'\n'*) ;; *) moveText="" ;; esac
+	type AgentsSpawnRecordWrite > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.Write.include"
 	if [ -z "$moveText" ] || ! printf '%s\n' "$moveText" | AgentsSpawnRecordWrite "$moveRecord" ; then
 		AgentsToolsLocalLockGive "$moveLock"
 		echo "$MDSC_CMD: ⛔ ERROR: --routine-stack $moveVerb: the stack of session $moveSession could not be written. Nothing was done." >&2

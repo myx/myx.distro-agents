@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ^^^ for syntax checking in the editor only
-type AgentsSessionMarkerFile > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+type AgentsSessionMarkerFile > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.Paths.include"
 
 ##
 ## AgentsTools.ManagerSessionRows.include -- the rows of the --manager-session-* family: the console's own
@@ -36,7 +36,20 @@ AgentsToolsManagerSessionControls(){ ## session id (every session of the workspa
 	local controlsRoot="" controlsFile controlsId controlsLine controlsNamed="" controlsFound="" controlsTab=$'\t' controlsNl=$'\n'
 	AgentsSessionStoreDirInto controlsRoot "${MMDAPP:-}" || return 0
 	case "${1:-}" in
-		'') set -- "$controlsRoot"/*/control/pid "$controlsRoot"/*/control/lock ;;
+		'')
+			## THE LIVE LIST, NOT A GLOB OF EVERY SESSION: the sessions a thread holds are the only ones with a control state to read, and
+			## they name themselves in one file. A store of thousands of folders is not walked for the eleven that have a thread.
+			type AgentsToolsSessionLiveIds > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.Paths.include"
+			if [ -s "${MMDAPP:-/nonexistent}/.local/agents/live-sessions" ] ; then
+				set --
+				while IFS= read -r controlsId ; do
+					[ -n "$controlsId" ] || continue
+					set -- "$@" "$controlsRoot/$controlsId/control/pid" "$controlsRoot/$controlsId/control/lock"
+				done <<< "$( AgentsToolsSessionLiveIds 2> /dev/null )"
+			else
+				set -- "$controlsRoot"/*/control/pid "$controlsRoot"/*/control/lock
+			fi
+		;;
 		-|.|..|*/*) return 0 ;;
 		*) set -- "$controlsRoot/$1/control/pid" "$controlsRoot/$1/control/lock" ;;
 	esac
@@ -92,6 +105,27 @@ AgentsToolsManagerSessionRows(){ ## the operation as it was called, "active" for
 	local rowsOp="$1" rowsActive="${2:-}" rowsLearn="" rowsFile rowsPending rowsSpawned rowsTab=$'\t' rowsLine measuredDated=""
 	local rowsDated=()
 	[ "$rowsOp" != --schedule-learning ] || rowsLearn=1
+	## THE LIST IS PREPARED AND KEPT THIRTY SECONDS: the screen reads it on every look and on its period, and deriving every session and run again
+	## each time is what made its first page seconds. What moves minute by minute is the live list the threads keep, not this history.
+	local rowsKept="$MMDAPP/.local/agents/manager-sessions.ready.${rowsOp#--}${rowsActive:+.active}" rowsKeptAt rowsKeptNow rowsKeep
+	case "$rowsOp" in
+		--all-sessions|--manager-session-list) [ -n "$MMDAPP" ] || rowsKept="" ;;
+		*) rowsKept="" ;;
+	esac
+	## A PASS THAT CAN AFFORD THE BUILD ASKS FOR THE COPY TO BE MADE AGAIN; a look of the screen never does. The copy is still written in that mode.
+	if [ -n "$rowsKept" ] && [ -s "$rowsKept" ] && [ -z "${MDAT_ROWS_REBUILD:-}" ] ; then
+		rowsKeptAt="$( LC_ALL=C date -r "$rowsKept" +%s 2> /dev/null )" || rowsKeptAt=""
+		rowsKeptNow="$( date +%s )" || rowsKeptNow=""
+		case "$rowsKeptAt$rowsKeptNow" in
+			''|*[!0123456789]*) ;;
+			*)
+				if [ "$(( rowsKeptNow - rowsKeptAt ))" -lt 30 ] ; then
+					cat "$rowsKept" 2> /dev/null
+					return 0
+				fi
+			;;
+		esac
+	fi
 	rowsFile="$( AgentsToolsRegistryFile spawned-sessions )"
 	rowsPending="$( AgentsToolsRegistryFile pending-replies )"
 	AgentsSpawnedStoreDirInto rowsSpawned "${MMDAPP:-}" || rowsSpawned=""
@@ -113,7 +147,8 @@ AgentsToolsManagerSessionRows(){ ## the operation as it was called, "active" for
 		| MDAT_MANAGER_CONTROL="$( AgentsToolsManagerSessionControls )" LC_ALL=C awk -v activeOnly="${rowsActive:+1}" -v learnOnly="$rowsLearn" -v loadAverage="$( AgentsToolsManagerLoadAverage )" -v hostName="$( AgentsToolsManagerHostName )" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerSessionTokens.awk" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerDateMinutes.awk" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerSessionRows.awk" \
 			<( printf '%s\n' "$measuredDated" | LC_ALL=C awk '{ print $8 ; print $2 ; }' | AgentsSessionRunFacts tokens usage-limit chapter ) "$rowsPending" - \
 		| LC_ALL=C sort -t "$rowsTab" -k1,1nr -k2,2n -k3,3n -k4,4n -k5,5n \
-		| LC_ALL=C cut -f6-
+		| LC_ALL=C cut -f6- \
+		| { if [ -n "$rowsKept" ] && rowsKeep="$( mktemp "$rowsKept.XXXXXX" 2> /dev/null )" ; then tee "$rowsKeep" 2> /dev/null ; if [ -s "$rowsKeep" ] ; then mv -f "$rowsKeep" "$rowsKept" 2> /dev/null || rm -f "$rowsKeep" 2> /dev/null ; else rm -f "$rowsKeep" 2> /dev/null ; fi ; else cat ; fi ; }
 }
 
 ## The record of each row of a spawned-sessions registry given on standard input, where it is
@@ -179,7 +214,7 @@ AgentsToolsManagerSessionScope(){ ## the operation as it was called, the id, "ru
 	local scopeOp="$1" scopeId="$2" scopeOwn="${3:-}" scopeNot="${4:-nothing is shown}" scopeNow="${5:-}" scopeFile scopePending scopeStore scopePicked="" scopeRows="" scopeAge="" scopeFresh=""
 	local scopeLib="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib" scopeIds scopeReread
 	local scopeTracking scopeSkip scopeSpawn scopeRest scopeTemp scopeState="" scopeTab=$'\t' scopeNl=$'\n'
-	local measuredRows="" measuredDated="" measuredAny="false"
+	local measuredDated=""
 	scopeSession="" ; scopeRun="" ; scopeMeasured="" ; scopeListed="" ; scopeControl=""
 	scopeFile="$MMDAPP/.local/agents/spawned-sessions.registry"
 	scopePending="$MMDAPP/.local/agents/pending-replies.registry"
@@ -268,7 +303,7 @@ AgentsToolsManagerSessionScope(){ ## the operation as it was called, the id, "ru
 ## One session, or one run of it, in full: the rows --manager-session-read prints and the Dispatcher's
 ## --session-record (DistroAgentsDispatcher.fn.sh) prints, the one function both call. The records and
 ## the stores of that one session are read, never another's.
-## THE CHECKLISTS OF A SESSION'S MEMBERS, for its summary (owner 2026-10-29): `checklist <session> <member> <line>`, a row a line of each
+## THE CHECKLISTS OF A SESSION'S MEMBERS, for its summary : `checklist <session> <member> <line>`, a row a line of each
 ## member's list, read where its run keeps it (the folder of a record of the session), else in the session's store. A member once.
 ## The id given is a session's or a run's: a run read gives the list of its own member, and that is what its Summary shows.
 ## The runs of the session are its rows in the spawned-sessions registry, and a run's record is found

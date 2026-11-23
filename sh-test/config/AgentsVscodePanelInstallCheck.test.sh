@@ -45,13 +45,10 @@ rigAssert(){ ## what is asserted, got, want
 	fi
 }
 
-## A private origin: this package copied, so its team text can change; the rest linked.
+## A private origin: every package copied, so its team text can change.
 mkdir -p "$rigTmp/origin/myx"
 for rigDir in "$rigOrigin"/myx/* ; do
-	case "${rigDir##*/}" in
-		myx.distro-agents) cp -R "$rigDir" "$rigTmp/origin/myx/" ;;
-		*) rigCopyTree "$rigDir" "$rigTmp/origin/myx/${rigDir##*/}" ;;
-	esac
+	rigCopyTree "$rigDir" "$rigTmp/origin/myx/${rigDir##*/}"
 done
 for rigDir in "$rigOrigin"/* ; do
 	[ "${rigDir##*/}" = "myx" ] || rigCopyTree "$rigDir" "$rigTmp/origin/${rigDir##*/}"

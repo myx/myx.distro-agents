@@ -207,7 +207,7 @@ if ! type AgentsToolsEventTrackThreadIs > /dev/null 2>&1 ; then
 	## when no such conversation is configured. A caller that asks for many threads reads the
 	## conversation once and passes it, so no configuration is read per thread.
 	## OPEN: the S2 ruling gives this position a session id instead, and six live callers pass the
-	## conversation. Which it takes is the human-owner's to settle, asked 2026-11-15 22:12 +0200, so
+	## conversation. Which it takes is the human-owner's to settle, so
 	## it keeps the conversation until that verdict.
 	AgentsToolsEventTrackThreadIs(){ ## <channel>:<ts>, the event-track conversation where the caller has read it (optional)
 		local isChannel="${2:-}"

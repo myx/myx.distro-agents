@@ -70,6 +70,7 @@ agentsSessionCommsPullsPerPass=2
 ## The folder of the reader's files. rc 1 for no workspace.
 ## Printed for a one-off reader. A caller on a tick or a served call writes the path itself, $MMDAPP/.local/agents/comms, after its own
 ## test of MMDAPP: a print-helper in $( ) is a fork a call (call-path audit row 50).
+
 AgentsToolsSessionCommsDir(){
 	[ -n "${MMDAPP:-}" ] || return 1
 	printf '%s' "$MMDAPP/.local/agents/comms"
@@ -585,6 +586,7 @@ AgentsToolsSessionCommsOrder(){
 ## and the beat of fifteen passes ago and the one of sixty are the two moments asked about, so the test starts no process (S5.6). A beat
 ## that is not there yet -- a reader's first fifteen passes, a call of `--one`, a caller outside the reader -- leaves that one test on the
 ## file's own date, exactly as it was before. So a reader that has been running a minute stops paying for stat(), and nothing else moves.
+
 AgentsToolsSessionCommsActive(){ ## session, now
 	local activeDir activeAt
 	## The folder of AgentsToolsSessionChatDir, built here: asked of every listed session every pass, so it starts no process.
@@ -626,7 +628,8 @@ AgentsToolsSessionCommsDue(){ ## session, now
 }
 
 ## Keeps the moment of a read of the session and the gap to the next: three seconds where it is active, else backed off linearly
-## from the moment it went quiet, to twenty times that at two hundred times it, 60 s after ten minutes (owner 2026-10-29).
+## from the moment it went quiet, to twenty times that at two hundred times it, 60 s after ten minutes ().
+
 AgentsToolsSessionCommsLookedSet(){ ## session, now
 	local setDir setLine="" setLast setGap="" setQuiet="" setFor setNext
 	[ -n "${MMDAPP:-}" ] || return 0 ; setDir="$MMDAPP/.local/agents/comms"
@@ -1043,6 +1046,7 @@ AgentsToolsSessionCommsInject(){ ## session, from, to (comma-joined; empty for a
 	[ -n "$injectTo" ] || injectTo="all"
 	mkdir -p "$injectDir/chat.inbox" 2> /dev/null || { echo "⛔ ERROR: $MDSC_CMD --intern-session-comms --inject: $injectDir/chat.inbox could not be made" >&2 ; return 1 ; }
 	## Named by its time, then a name of mktemp's, so that two left in one second are two; it is a message only once it ends in .msg.
+
 	injectName="$( mktemp "$injectDir/chat.inbox/$( date -u +%Y%m%dT%H%M%SZ ).XXXXXX" 2> /dev/null )" || injectName=""
 	{ [ -n "$injectName" ] && { printf '%s -> %s:\n' "$injectFrom" "$injectTo" ; cat ; } > "$injectName" && mv -f "$injectName" "$injectName.msg" ; } 2> /dev/null \
 		|| { rm -f "$injectName" 2> /dev/null ; echo "⛔ ERROR: $MDSC_CMD --intern-session-comms --inject: the message could not be written to $injectDir/chat.inbox" >&2 ; return 1 ; }

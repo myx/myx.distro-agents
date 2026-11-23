@@ -41,6 +41,9 @@ GRANT_SESSION = re.compile(r"session (\S+) (?:ends|runs)")
 ## the list gave it, else finished, and not its condition; the session is found among the sessions the list read gave. A grant of any other
 ## kind is as it was read, and so is one whose session that list does not hold.
 def grantShown(state, grant):
+    ## A GRANT OF A SESSION CARRIES ITS SESSION'S STATE FROM THE READ THAT PRINTED IT, where that read named the session.
+    if grant.get("sessionState"):
+        return dict(grant, ends=grant["sessionState"])
     named = GRANT_SESSION.search(grant["ends"]) if grant["kind"] == "session" else None
     held = sessionRowOf(state, named.group(1)) if named else None
     if held is None:
@@ -293,6 +296,10 @@ def parseMemberRead(text):
         elif fields[0] == "setting" and len(fields) >= 5:
             info["settings"].append({"key": fields[1], "state": fields[2], "value": absent(fields[3]),
                                      "workspace": absent(fields[4])})
+    sessionStates = dict((held["id"], held["state"]) for held in info["sessions"])
+    for grant in info["grants"]:
+        named = GRANT_SESSION.search(grant["ends"]) if grant["kind"] == "session" else None
+        grant["sessionState"] = None if named is None or named.group(1) not in sessionStates else ("finished" if sessionStates[named.group(1)] == "finished" else "active")
     return info
 
 

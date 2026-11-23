@@ -5,6 +5,7 @@
 ## check, before its rig puts anything of its own on PATH, as the rig's process helper is, through which it
 ## signals (rig-processes.include.sh, sourced here where the check has not):
 ##   . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-control-threads.include.sh"
+
 ##
 ## WHY. The control thread of a session is a detached process of the tooling that outlives the call that
 ## started it (sh-lib/session/AgentsTools.SessionControlStart.include), and the check with it. The advance input scan
@@ -14,6 +15,7 @@
 ## is then removed never ends by itself: at its next tick it makes its folder again, finds no record to watch,
 ## and stays. So a check that calls one of those operations ends what they started before it removes its tree:
 ##   trap 'rigControlThreadsEnd "$rigTmp" ; ... ; rm -rf -- "$rigTmp"' EXIT
+
 ## sh-test/session/AgentsSessionControlStartCheck.test.sh holds this file, and is the guard over every check of sh-test
 ## that names one of those operations.
 ##

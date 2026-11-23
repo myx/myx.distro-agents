@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ^^^ for syntax checking in the editor only
-type AgentsToolsPendingRecordPath > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.Authority.include"
+type AgentsToolsPendingRecordPath > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.PendingPaths.include"
 
 ## AgentsHarnessAskPost.include: the post of a question: its tool's row, its party, its answer form and checks, its body, its fields and its emoji.
 ## Sourced by AgentsHarnessAsk.include, definitions only.
@@ -18,7 +18,7 @@ AgentsHarnessAskParty(){ ## name
 		human-owner) return 0 ;;
 		''|event-track|event-alert|magic-team|*[!abcdefghijklmnopqrstuvwxyz0123456789-]*) return 1 ;;
 	esac
-	type AgentsToolsSkillsetRootInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWorkspace.include"
+	type AgentsToolsSkillsetRootInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWorkspace.Root.include"
 	AgentsToolsSkillsetRootInto partyRoot "${MMDAPP:-}"
 	[ -d "$partyRoot/$1" ]
 }

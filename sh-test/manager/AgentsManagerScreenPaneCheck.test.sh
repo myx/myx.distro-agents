@@ -94,7 +94,7 @@ rigFeedR2(){ ## count -- that many lines of the tester, a second apart
 rigLogR3(){ rigRow log "$rigR3" keeper-myx 'starting keeper-myx' ; rigRow log "$rigR3" keeper-myx '  -> tool: read the index — Read' ; rigRow log "$rigR3" keeper-myx '  answering: done.' ; }
 {
 	rigSessionS1 ; rigRunS1 ; rigRunR2 ; rigRunR3 ; rigRunR4
-	rigRow session "$rigS2" - finished 2026-10-11_14:28_+0000 2026-10-11_14:51_+0000 1 finished=1 - - - '' - - - closed
+	rigRow session "$rigS2" - finished 2026-10-11_14:28_+0000 2026-10-11_14:51_+0000 1 finished=1
 	rigRow run "$rigS2" "$rigS2" magic-devops spawn-succeeded no-process finished 2026-10-11_14:28_+0000 2026-10-11_14:51_+0000 rig-host ws-rig -
 	rigRow counters 1 0 1 1 3 0.42
 } > "$rigF/rows"
@@ -103,7 +103,7 @@ rigLogR3(){ rigRow log "$rigR3" keeper-myx 'starting keeper-myx' ; rigRow log "$
 { rigSessionS1 ; rigDispatchS1 ; rigRunR2 ; rigStoreR2 ; } > "$rigF/rows.--manager-session-read --session-id $rigR2 --run"
 { rigSessionS1 ; rigDispatchS1 ; rigRunR3 ; rigStoreR3 ; } > "$rigF/rows.--manager-session-read --session-id $rigR3 --run"
 {
-	rigRow session "$rigS2" - finished 2026-10-11_14:28_+0000 2026-10-11_14:51_+0000 1 finished=1 - - - '' - - - closed
+	rigRow session "$rigS2" - finished 2026-10-11_14:28_+0000 2026-10-11_14:51_+0000 1 finished=1
 	rigRow dispatch "$rigS2" no-record - - - - - -
 	rigRow tokens "$rigS2" 90 0 0 10 1 0 final 0
 	rigRow run "$rigS2" "$rigS2" magic-devops spawn-succeeded no-process finished 2026-10-11_14:28_+0000 2026-10-11_14:51_+0000 rig-host ws-rig -
@@ -470,9 +470,9 @@ wait view 30
 wait feed 30
 RIGSCRIPT
 rigAssert "a row with nothing to read of it needs no rest"           "$( rigVal up.selected ) $( rigVal up.restLeft ) $( rigVal up.keyWait )" ".. 0.00 0.200"
-rigAssert "the selection comes onto an agent: nothing of it is read yet, a third of a second is left" "$( rigVal moved.selected ) [$( rigVal moved.reading )] $( rigVal moved.restLeft )" "$rigS1 [] 0.33"
-rigAssert "after a fifth of a second still nothing, and the screen waits for a key no longer than the rest lasts" "[$( rigVal early.reading )] $( rigVal early.restLeft ) $( rigVal early.keyWait )" "[] 0.13 0.138"
-rigAssert "the selection moves on before the rest is over: the next item rests from then" "$( rigVal passed.selected ) [$( rigVal passed.reading )] $( rigVal passed.restLeft )" "$rigR2 [] 0.13"
+rigAssert "the selection comes onto an agent: nothing of it is read yet, a quarter of a second is left" "$( rigVal moved.selected ) [$( rigVal moved.reading )] $( rigVal moved.restLeft )" "$rigS1 [] 0.25"
+rigAssert "after a fifth of a second still nothing, and the screen waits for a key no longer than the rest lasts" "[$( rigVal early.reading )] $( rigVal early.restLeft ) $( rigVal early.keyWait )" "[] 0.05 0.055"
+rigAssert "the selection moves on before the rest is over: the next item rests from then" "$( rigVal passed.selected ) [$( rigVal passed.reading )] $( rigVal passed.restLeft )" "$rigR2 [] 0.05"
 rigAssert "once it has rested, its facts are read"                   "$( rigVal rested.reading ) $( rigVal rested.restLeft ) $( rigVal rested.keyWait )" "view:magic-team/activity/active-sessions/$rigS1|record:$rigR2 0.00 0.200"
 rigAssert "the agent the selection ran over was never read"          "$( rigCalled "--manager-session-read --session-id $rigS1 --run" ) $( rigCalled "--manager-session-read --session-id $rigR2 --run" )" "0 1"
 rigCase fro
@@ -482,7 +482,7 @@ at @activity active-sessions $rigS1
 turn 1
 wait sessions 30
 keys DOWN DOWN DOWN UP DOWN UP DOWN UP
-advance 0.3
+advance 0.2
 turn
 get back
 advance 0.1
@@ -490,7 +490,7 @@ turn
 get again
 wait view 30
 RIGSCRIPT
-rigAssert "a selection that goes to and fro between two agents starts nothing while it moves" "$( rigVal back.selected ) [$( rigVal back.reading )] $( rigVal back.restLeft )" "$rigR2 [] 0.03"
+rigAssert "a selection that goes to and fro between two agents starts nothing while it moves" "$( rigVal back.selected ) [$( rigVal back.reading )] $( rigVal back.restLeft )" "$rigR2 [] 0.05"
 rigAssert "where it comes to rest, that item is read"                "$( rigVal again.reading )" "view:magic-team/activity/active-sessions/$rigS1|record:$rigR2"
 rigAssert "that one alone, once, for all those keys"                 "$( rigCalled "--manager-session-read --session-id $rigS1 --run" ) $( rigCalled "--manager-session-read --session-id $rigR2 --run" ) $( rigCalled "--manager-session-read --session-id $rigR3 --run" ) $( rigCalls )" "0 1 0 2"
 

@@ -94,7 +94,7 @@ AgentsToolsManagerRoutineFactsOnly(){ ## the operation as it was called
 			done
 		done <<< "$( AgentsToolsTeamMemberDirectoryText )"
 	} > "$factsList"
-	factsRows="$( LC_ALL=C awk -F'\t' '
+	factsRows="$( LC_ALL=C awk -F'\t' -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsRoutineExecutorsParse.awk" '
 		function head( file, key,   line, held, inHead ) {
 			held = "" ; inHead = 0
 			while ( ( getline line < file ) > 0 ) {
@@ -132,16 +132,18 @@ AgentsToolsManagerRoutineFactsOnly(){ ## the operation as it was called
 			## and is refused there with its own reason. The full list, which asks the contract, the
 			## resolver and the roster, is what a row an operator selects can ask for.
 			start = "startable" ; reason = "" ; needs = "-"
+			entryCount = routineExecutorsEntries( execs, entry )
+			entryList = routineExecutorsMemberList( execs )
 			if ( execs == "" ) {
 				start = "broken" ; reason = "its executors is not in a frontmatter block"
-			} else if ( execs == "magic-team" || execs == "*" || execs == "all-present-members" ) {
+			} else if ( entryList == "magic-team" || entryList == "*" || entryList == "all-present-members" ) {
 				start = "not-startable" ; needs = "members"
-				reason = "its executors, " execs ", is any member: the session spawner starts it only with members named"
+				reason = "its executors, " entryList ", is any member: the session spawner starts it only with members named"
 			} else {
 				## A <type>-? entry asks which member; so does a list that holds one. A <type>-* is startable: the spawner partitions it.
-				entryCount = split( execs, entry, /,[ \t]*/ )
 				for ( entryAt = 1 ; entryAt <= entryCount ; entryAt++ ) {
-					if ( entry[entryAt] ~ /^[A-Za-z0-9_.-]+-[?]$/ ) {
+					split( entry[entryAt], entryParts, "\034" )
+					if ( entryParts[1] ~ /^[A-Za-z0-9_.-]+-[?]$/ ) {
 						start = "not-startable" ; needs = "members"
 						reason = "its executors asks which member: the session spawner starts it only with that member named"
 						break
@@ -223,6 +225,8 @@ AgentsToolsManagerRoutineRows(){ ## the operation as it was called
 				rowsExecutors="${rowsContract%%$'\n'*}"
 				rowsExecutors="${rowsExecutors#executors: }"
 				! AgentsToolsSpawnRoutineIsCoworking "$rowsFile" || rowsSession="coworking"
+				type AgentsToolsRoutineExecutorsMemberList > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.RoutineExecutors.include"
+				rowsExecutorSet="$( AgentsToolsRoutineExecutorsMemberList "$rowsExecutors" )"
 				## Selected by its own file name and no member, as a console start does: the spawner's
 				## own resolver decides, so a file whose name is part of another routine file's name
 				## reads not-startable with the spawner's refusal, and the longer name reads startable.

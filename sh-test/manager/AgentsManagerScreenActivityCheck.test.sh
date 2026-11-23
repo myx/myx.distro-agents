@@ -192,7 +192,7 @@ rigAssert "Active Sessions, Closed Sessions, Top Tokens, Active Agents, Waiting 
 	"$( rigVal act )" ".. active-sessions closed-sessions top-tokens active-agents waiting-agents closed-agents"
 rigAssert "they show by those names" "[$( rigVal row2 )][$( rigVal row3 )][$( rigVal row4 )][$( rigVal row5 )][$( rigVal row6 )][$( rigVal row7 )]" \
 	"[ Active Sessions                 ►][ Closed Sessions                 ►][ Top Tokens                      ►][ Active Agents                   ►][ Waiting Agents                  ►][ Closed Agents                   ►]"
-rigAssert "the left pane on Activity is the table of the sessions, as the root had it" "[$( rigVal head )]" "[ SESSION                      STATE     AGE AGENTS TOKENS MEMBERS]"
+rigAssert "the left pane on Activity is the table every root draws: its subsections and what each holds, and no session of any of them" "$( printf '%s' "$( rigVal head )" | LC_ALL=C sed 's/  */ /g' )" " FOLDER WHAT"
 
 echo "-- 3. the lists of sessions --"
 rigCase sessions

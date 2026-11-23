@@ -50,6 +50,7 @@
 		fi
 		AgentsToolsAssertBareName "$settleMember" "<team-member>" pending-reply-settle || { set +e ; return 1 ; }
 		AgentsToolsAssertBareName "$settleId" "<pending-id>" pending-reply-settle || { set +e ; return 1 ; }
+		type AgentsToolsActingMemberCheck > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.ActingMember.include"
 		AgentsToolsActingMemberCheck "$settleMember" "${settleOp#--}" || { set +e ; return 1 ; }
 		## A closed record lives in pending/closed/ (retention, T9): settling one says ALREADY-CLOSED, so it is found there.
 		settleFile="$MMDAPP/.local/agents/pending/$settleId.md"

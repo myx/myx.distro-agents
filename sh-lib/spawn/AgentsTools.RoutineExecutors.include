@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.RoutineExecutors.include -- the ONE parse of a routine's `executors:` value, for the shell
+## callers of it. Sourced, never run. Functions only.
+##
+## The rule itself is AgentsRoutineExecutorsParse.awk beside this file, read by every caller here and
+## preloaded by the awk programs that read many routine files in one pass. An entry is a member, then
+## optionally one parenthetical of its own parameters; entries are separated by a comma or by whitespace, and
+## a whitespace run before a parenthetical binds it to the entry before it.
+##
+## What a parameter means, and whether the grammar has it, is AgentsToolsPresetDeclaredSpec's
+## (sh-lib/settings/AgentsTools.Preset.include).
+##
+
+## The rule's own file: the answer to one question about one value.
+AgentsToolsRoutineExecutorsParse(){ ## the mode (entries|member-list|params), the value, the member
+	EXECUTORS_VALUE="$2" EXECUTORS_MEMBER="${3:-}" LC_ALL=C awk -v mode="$1" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsRoutineExecutorsParse.awk" < /dev/null
+}
+
+## The entries of one executors value, one a line as `<member><TAB><parameters>`, both trimmed, an entry
+## naming neither left out: the form a reader takes that judges each entry on its own.
+AgentsToolsRoutineExecutorsEntries(){ ## executors value
+	AgentsToolsRoutineExecutorsParse entries "${1:-}"
+}
+
+## The members one executors value names, its parameters stripped, on one line space-separated: the form a
+## reader that tests one name against the set takes.
+AgentsToolsRoutineExecutorsMemberList(){ ## executors value
+	AgentsToolsRoutineExecutorsParse member-list "${1:-}"
+}
+
+## The parameters the entry for a member carries, as written, and nothing where the entry carries none.
+AgentsToolsRoutineExecutorsParams(){ ## executors value, member
+	AgentsToolsRoutineExecutorsParse params "${1:-}" "${2:-}"
+}

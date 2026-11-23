@@ -104,6 +104,7 @@ type AgentsToolsGrantsToolCovers > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.dis
 				set +e ; return 1
 			fi
 			AgentsToolsAssertBareName "$setBy" "<asking-member>" permission-set-ask || { set +e ; return 1 ; }
+			type AgentsToolsActingMemberCheck > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.ActingMember.include"
 			AgentsToolsActingMemberCheck "$setBy" "--intern-op-permission-set-ask" || { set +e ; return 1 ; }
 			AgentsToolsAssertBareName "$setSession" "--session-id" permission-set-ask || { set +e ; return 1 ; }
 			AgentsToolsAssertBareName "$setRefusal" "--refusal-id" permission-set-ask || { set +e ; return 1 ; }
@@ -131,6 +132,7 @@ type AgentsToolsGrantsToolCovers > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.dis
 				set +e ; return 1
 			fi
 			AgentsToolsAssertBareName "$setBy" "<magic-coordinator>" permission-set-request || { set +e ; return 1 ; }
+			type AgentsToolsMagicCallerCheck > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.CallerCheck.include"
 			AgentsToolsMagicCallerCheck "--request-permission-set" || { set +e ; return 1 ; }
 			setItem="${setItem##*/}" ; setItem="${setItem%.md}"
 			AgentsToolsAssertBareName "$setItem" "<item>" permission-set-request || { set +e ; return 1 ; }

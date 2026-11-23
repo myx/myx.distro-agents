@@ -13,6 +13,8 @@
 ##   8. OUT OF WORKTIME WITH NO FLAG ON the coordinator alone is started, on demand: its off-duty. The keepers wait.
 ##   9. A WORKSPACE THAT KEEPS NO TEAM DATA starts nothing, and says why: its board, inbox and note writes are refused there,
 ##      and its spawns fail with no agent launched. Its control is the row after it, the same pass in a team rig.
+##  10. THE ROUTINE FOLLOWS THE PERMISSION: a duty the schedule allows runs the work-duty routine, and one started on demand
+##      with no permission runs the off-duty one.
 ## Offline: no clock is faked, no workspace is read, and the spawner is a counter.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
@@ -55,6 +57,7 @@ rigPending(){ ## stem, owner, mark
 }
 rigNoPending(){ rm -f "$rigData/board/pending"/*.md ; }
 ## THE STAND-INS. Every one is inherited by the include's `type ... || . ` guards, so no real one is sourced over it.
+
 ##   the flags come from RIG_FLAGS, one `<flag>: yes|no` line each;
 ##   the spawner counts its calls in RIG_CALLS and always answers success;
 ##   the roster is the two rig members;
@@ -79,7 +82,10 @@ rigRun(){ ## -- the reasons the pass stated, from RIG_CALLS, and the line of eac
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/schedule/AgentsTools.DispatcherSchedule.include" > /dev/null 2>&1
 			## The include defines every helper this pass calls, so the stand-ins go in AFTER it is sourced, never before.
 			AgentsToolsScheduleCurrentFlags(){ cat "$RIG_FLAGS" ; return 0 ; }
+			## The pace gate reads the live machine own measure, so an offline check must stand it in. Without this the rows
+			## follow the speed of the computer they run on: one at a 7s median refused every start and turned 16 rows red.
 			AgentsToolsSchedulePaceText(){ printf "pace: 1 of 9 calls in 30 minutes -- under 7000, a duty start is allowed\n" ; return 0 ; }
+			AgentsToolsSchedulePaceAllows(){ return 0 ; }
 			AgentsToolsScheduleDutyStaleClose(){ return 0 ; }
 			AgentsToolsScheduleTeamTags(){ return 0 ; }
 			AgentsToolsScheduleDmTags(){ return 0 ; }
@@ -90,7 +96,7 @@ rigRun(){ ## -- the reasons the pass stated, from RIG_CALLS, and the line of eac
 			AgentsToolsScheduleTagCarry(){ return 0 ; }
 			AgentsToolsScheduleDemand(){ return 0 ; }
 			AgentsToolsScheduleDutyRestartDue(){ return 1 ; }
-			AgentsToolsScheduleWorkDutyRecord(){ { [ -s "$RIG_DUTY" ] && [ "$( cat "$RIG_DUTY" )" = "$1" ] ; } || LC_ALL=C awk -F "\t" -v want="work-duty.$1" \"\$1 == want { seen = 1 } END { exit ( seen ? 0 : 1 ) }\" "$RIG_CALLS" && { printf "%s/rig.spawn.md\n" "$RIG_SPAWNED" ; return 0 ; } ; return 1 ; }
+			AgentsToolsScheduleWorkDutyRecord(){ { [ -s "$RIG_DUTY" ] && [ "$( cat "$RIG_DUTY" )" = "$1" ] ; } || LC_ALL=C cut -f1 "$RIG_CALLS" 2> /dev/null | LC_ALL=C grep -q -x -F "work-duty.$1" && { printf "%s/rig.spawn.md\n" "$RIG_SPAWNED" ; return 0 ; } ; return 1 ; }
 			AgentsToolsScheduleDutyLifetime(){ return 0 ; }
 			AgentsToolsScheduleWorkDuty 2>> "$RIG_REASONS"
 		' > "$rigTmp/run.out" 2> /dev/null
@@ -125,6 +131,7 @@ echo "-- 2. overtime alone --"
 rigOvertime ; rigNoPending
 ## Team overtime gives a duty to a magic-* member alone (the owner's ruling): the keepers are started in worktime, or for a task of their own marked urgent or emergency.
 rigAssert "with overtime on and worktime off, the magic members with work are started and the keepers are not" "$( rigRun )" "magic-coordinator "
+rigAssert "and the coordinator's duty runs its work-duty routine" "$( rigRoutineOf magic-coordinator )" "magic-coordinator.work-duty.routine.md"
 
 echo "-- 3. emergency alone, a marked pending task --"
 rigEmergency
@@ -177,6 +184,20 @@ rigAssert "out of worktime it runs its off-duty routine" "$( rigRoutineOf magic-
 rigInWorktime ; rigNoPending
 rigAssert "CONTROL: in worktime its duty is started" "$( rigRun )" "magic-coordinator keeper-rig-one keeper-rig-two "
 rigAssert "in worktime it runs its work-duty routine" "$( rigRoutineOf magic-coordinator )" "magic-coordinator.work-duty.routine.md"
+
+echo "-- 10. which routine the permission gives --"
+## THE DISCRIMINATING CASE: the coordinator is allowed a duty in emergency out of hours, where the clock word and the
+## permission word differ. The permission decides, so it runs the work-duty routine.
+rigEmergency ; rigNoPending
+rigAssert "in emergency out of hours the coordinator duty is started" "$( rigRun )" "magic-coordinator "
+rigAssert "out of worktime, allowed by emergency, it runs its work-duty routine" "$( rigRoutineOf magic-coordinator )" "magic-coordinator.work-duty.routine.md"
+rigInWorktime ; rigNoPending
+rigAssert "CONTROL: in worktime the whole roster starts" "$( rigRun )" "magic-coordinator keeper-rig-one keeper-rig-two "
+rigAssert "CONTROL: and the coordinator routine is the work-duty one" "$( rigRoutineOf magic-coordinator )" "magic-coordinator.work-duty.routine.md"
+## THE PLAIN CASE, beside the discriminating one: no permission, and the duty is started on demand, so it is the off-duty one.
+rigOutOfTime ; rigNoPending
+rigAssert "out of worktime, allowed by nothing, it still runs its off-duty routine" "$( rigRun )" "magic-coordinator "
+rigAssert "and that routine is the off-duty one" "$( rigRoutineOf magic-coordinator )" "magic-coordinator.off-duty.routine.md"
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ SCHEDULE WORK DUTY CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount ))" >&2 ; exit 1

@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-## Behavioural check on what calls a work-duty at any hour (F7.12, the owner's rulings of 2026-10-20; AgentsToolsScheduleTagNews, AgentsToolsScheduleTeamTags,
+## Behavioural check on what calls a work-duty at any hour (F7.12, ; AgentsToolsScheduleTagNews, AgentsToolsScheduleTeamTags,
+
 ## AgentsToolsScheduleDmTags, sh-lib/schedule/AgentsTools.DispatcherSchedule.include, and AgentsTools.TrackingDrop.include). The real loop (--one) and the real
 ## spawner run, as in AgentsScheduleLoopCheck; the console, curl, date and every setting are this rig's own. GUARD: every tooling call goes through one `env -i`
 ## whose child refuses to start unless MMDAPP and MDAT_DATA_ROOT sit under this rig's tree and PATH holds no agent CLI. Held:

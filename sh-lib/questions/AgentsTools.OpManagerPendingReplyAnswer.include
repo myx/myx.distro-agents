@@ -32,6 +32,7 @@
 			set +e ; return 1
 		fi
 		AgentsToolsAssertBareName "$answerMember" "<team-member>" escalation-answer || { set +e ; return 1 ; }
+		type AgentsToolsActingMemberCheck > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.ActingMember.include"
 		AgentsToolsActingMemberCheck "$answerMember" "${answerOp#--}" || { set +e ; return 1 ; }
 		answerFile="$( AgentsToolsEscalationRecord "$answerId" )" || { set +e ; return 1 ; }
 		## A request for the authority is answered by whom it asks, and its answer acts on what it asked for.
@@ -72,6 +73,7 @@
 			## answer through it has no session to be bound to and is refused. The console's own arm
 			## (`--manager-pending-reply-answer`) carries its account — `console:<account>` — and is
 			## applied; the guard is never entered for it (proved: session=[console:myx], 15 calls).
+			type AgentsToolsActingMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.ActingMember.include"
 			if [ "$answerOp" = "--answer-escalation" ] || [ -n "$( AgentsToolsActingMember )" ] ; then
 				echo "$MDSC_CMD: ⛔ ERROR: this caller carries no session id, so the answer cannot be bound to a session and is not applied; $answerId stays open" >&2
 				set +e ; return 1
@@ -98,7 +100,8 @@
 			## plain question with no answer form takes words alone: they are its answer, kept
 			## as the first line of a reply is kept.
 			local answerTyped="$answerVerdict"
-			if { [ -z "$answerKind" ] || [ "$answerKind" = "question" ] ; } && [ -z "$( AgentsToolsEscalationField "$answerFile" select )" ] ; then
+			type AgentsToolsPendingReplyAnswerForm > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.PendingReplyOptionAsk.include"
+			if { [ -z "$answerKind" ] || [ "$answerKind" = "question" ] ; } && [ -z "$( AgentsToolsPendingReplyAnswerForm "$answerFile" )" ] ; then
 				answerVerdict="$( printf '%s' "$answerTyped${answerText:+ $answerText}" | LC_ALL=C tr -s '\r\n\t' '   ' )" ; answerText=""
 				case "$answerVerdict" in *[!\ ]*) answerFound=1 ;; esac
 			else

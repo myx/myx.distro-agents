@@ -33,7 +33,7 @@
 ## Reconciled for F11.5: the plugins now include magic-team, activity and launch, with Pending Questions second after the Dashboard and standing at
 ## the root alone (20261021-refactorings.sketch.md, `Magic-Team` -> `Reorder`), and each is registered by its own part. The stand-in button takes
 ## `q`: the screen's own glance key `e` (full-table) is a command of every level, and a plugin may not take a key its view already has.
-## Reconciled for the groups of the roots (owner, 2026-10-20): the stand-in root of the group `team` stands with Magic-Team (Agents); the Dashboard is in a group with Pending Questions.
+## Reconciled for the groups of the roots : the stand-in root of the group `team` stands with Magic-Team (Agents); the Dashboard is in a group with Pending Questions.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigPackage="$MDLT_ORIGIN/myx/myx.distro-agents"
@@ -256,6 +256,7 @@ def strip(text):
 
 def registered(kind):
     ## what the registries hold of the declaration of kid(), as its paths without the mount: mounted under a plugin (prefix) or at the root
+
     if kind == "mounted":
         rows = [strip(key) for key in screen.FIXED_ROWS if key.startswith("rigroot/parent/kid")]
         summaries = [strip(key) for key in screen.SUMMARIES if key.startswith("rigroot/parent/kid")]

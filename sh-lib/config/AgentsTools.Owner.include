@@ -122,7 +122,7 @@ AgentsToolsOwnerSetupMcpRegistrationRow(){
 		## Verified the way the installer verifies it: an upsert that changes nothing.
 		if [ -z "$mcpRowUnreadable" ] && ! MYX_MCPUPSERT_TOPKEY="mcpServers" \
 			MYX_MCPUPSERT_ENTRYKEY="myx.distro" \
-			MYX_MCPUPSERT_COMMAND="$1/.local/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" \
+			MYX_MCPUPSERT_COMMAND="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" \
 			MYX_MCPUPSERT_ARGS='["--intern-mcp-server","--run"]' \
 			MYX_MCPUPSERT_ENV="{\"MMDAPP\":\"$( printf '%s' "$1" | LC_ALL=C awk -f "$MYXROOT/include/data/agentMcpJsonEscape.awk" )\"}" \
 			LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/mcp/AgentsMcpServerJsonUpsert.awk" "$1/.mcp.json" 2>/dev/null \
@@ -671,6 +671,8 @@ case "$1" in
 				(
 					MMDAPP="${setupWorkspaceRoot:-${MMDAPP%/}}"
 					unset MDAT_SKILLSET_ROOT MDAT_DATA_ROOT
+					## The data root belongs to this subshell, not to the store step's own: a root resolved in there is gone before the board is made ready.
+					MDAT_DATA_ROOT="${MMDAPP%/}/.local/agents/team-data-root"
 					## Every step runs inside a subshell of its own and is tested
 					## explicitly, so a failure ends the sequence at the step that
 					## failed and is reported by name. Both halves are needed on
@@ -806,9 +808,16 @@ case "$1" in
 				## A repository store needs an author for the commits the tooling makes.
 				if [ -n "${MDAT_DATA_ROOT:-}" ] && [ -e "$MDAT_DATA_ROOT/.git" ] ; then
 					if [ -z "$( git -C "$MDAT_DATA_ROOT" config user.name 2>/dev/null )" ] || [ -z "$( git -C "$MDAT_DATA_ROOT" config user.email 2>/dev/null )" ] ; then
-						echo "TEAM_DATA_GIT_IDENTITY: FAIL"
-						echo "  fail: git has no author identity for $MDAT_DATA_ROOT, so the tooling's team-data commits fail -- set TEAM_DATA_GIT_USER_NAME and TEAM_DATA_GIT_USER_EMAIL and run --owner-setup-storage --apply"
-						setupRc=1
+						## A DIAGNOSIS REPORTS, IT DOES NOT REFUSE: the author identity is a setting, so --check says what is missing with its fix and
+						## the apply is the run that stops, because there the commits that need that author would fail.
+						if [ "$setupOperation" = "--check" ] ; then
+							echo "TEAM_DATA_GIT_IDENTITY: SKIP"
+							echo "  fix: set TEAM_DATA_GIT_USER_NAME and TEAM_DATA_GIT_USER_EMAIL, then run --owner-setup-storage --apply: git has no author identity for $MDAT_DATA_ROOT"
+						else
+							echo "TEAM_DATA_GIT_IDENTITY: FAIL"
+							echo "  fail: git has no author identity for $MDAT_DATA_ROOT, so the tooling's team-data commits fail -- set TEAM_DATA_GIT_USER_NAME and TEAM_DATA_GIT_USER_EMAIL and run --owner-setup-storage --apply"
+							setupRc=1
+						fi
 					elif [ "$setupOperation" = "--check" ] ; then
 						echo "TEAM_DATA_GIT_IDENTITY: OK"
 					fi
@@ -865,7 +874,7 @@ case "$1" in
 			## pass stays in that arm alone, which already runs this leg's own check.
 			grok)
 				local setupHere="${setupWorkspaceRoot:-${MMDAPP%/}}"
-				local setupToolPath="$setupHere/.local/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+				local setupToolPath="DistroAgentsTools.fn.sh"
 				if [ -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsGrokHarness.sh" ] ; then
 					[ "$setupOperation" != "--check" ] || echo "GROK_HARNESS_INSTALLED: OK"
 					AgentsToolsOwnerSetupRow "Grok harness" "installed"
@@ -909,7 +918,7 @@ case "$1" in
 			;;
 			deepseek)
 				local setupHere="${setupWorkspaceRoot:-${MMDAPP%/}}"
-				local setupToolPath="$setupHere/.local/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+				local setupToolPath="DistroAgentsTools.fn.sh"
 				if [ -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsDeepseekHarness.sh" ] ; then
 					[ "$setupOperation" != "--check" ] || echo "DEEPSEEK_HARNESS_INSTALLED: OK"
 					AgentsToolsOwnerSetupRow "DeepSeek harness" "installed"
@@ -950,7 +959,7 @@ case "$1" in
 			;;
 			scaleway)
 				local setupHere="${setupWorkspaceRoot:-${MMDAPP%/}}"
-				local setupToolPath="$setupHere/.local/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+				local setupToolPath="DistroAgentsTools.fn.sh"
 				if [ -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsScalewayHarness.sh" ] ; then
 					[ "$setupOperation" != "--check" ] || echo "SCALEWAY_HARNESS_INSTALLED: OK"
 					AgentsToolsOwnerSetupRow "Scaleway harness" "installed"
@@ -1408,7 +1417,7 @@ case "$1" in
 			;;
 			claude-native)
 				local setupHere="${setupWorkspaceRoot:-${MMDAPP%/}}"
-				local setupToolPath="$setupHere/.local/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+				local setupToolPath="DistroAgentsTools.fn.sh"
 				local setupBlockers="" setupSetupSteps="" setupNeedsApply="" setupApplyDefault=""
 				local setupCliValue setupConsole setupFragment setupAuthLine setupTrustLine
 				local setupFragmentRoots setupCurrentRoots setupRootLine
@@ -1662,7 +1671,7 @@ case "$1" in
 				## Each of those is a subject below. Authentication
 				## is the one gate nothing here can read.
 				local setupHere="${setupWorkspaceRoot:-${MMDAPP%/}}"
-				local setupToolPath="$setupHere/.local/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+				local setupToolPath="DistroAgentsTools.fn.sh"
 				## setupSetupSteps carries only what --apply cannot do; a finding
 				## --apply closes sets setupNeedsApply instead, and one that also has
 				## to repoint an existing selection sets setupApplyDefault with it.
@@ -1998,7 +2007,7 @@ case "$1" in
 						echo "  warn: the team's machine-wide member directory is missing or empty,"
 						echo "        so there is no list of workspaces to diagnose"
 						echo "  path: $setupRegistry"
-						echo "  fix:  $setupHere/.local/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh --make-workspace-integrations"
+						echo "  fix:  DistroAgentsTools.fn.sh --make-workspace-integrations"
 						set +e ; return 1
 					fi
 					setupTargets="$( LC_ALL=C awk -F'\t' 'NF >= 5 && $2 ~ /^\// && !seen[$2]++ { print $2 ; }' "$setupRegistry" )"
@@ -2007,7 +2016,7 @@ case "$1" in
 						echo "  warn: the directory holds no line carrying a workspace root, so it names"
 						echo "        nothing to diagnose -- a non-empty file is not a readable one"
 						echo "  path: $setupRegistry"
-						echo "  fix:  $setupHere/.local/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh --make-workspace-integrations"
+						echo "  fix:  DistroAgentsTools.fn.sh --make-workspace-integrations"
 						set +e ; return 1
 					fi
 					setupTargets="$setupTargets"$'\n'
@@ -2083,7 +2092,7 @@ case "$1" in
 					fi
 					setupDiagnosed=$(( setupDiagnosed + 1 ))
 					[ "$setupOperation" != "--check" ] || echo "WORKSPACE_ROOT: OK"
-					setupToolPath="$setupRoot/.local/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+					setupToolPath="DistroAgentsTools.fn.sh"
 					if [ -n "$setupClaudeMissing" ] ; then
 						setupNeedsApply="yes"
 						setupBlockers="$setupBlockers CLAUDE_CLI_INSTALLED"

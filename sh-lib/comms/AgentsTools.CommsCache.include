@@ -1,15 +1,20 @@
 #!/usr/bin/env bash
-## THE COMMS CACHE (owner 2026-10-28): $MMDAPP/.local/cache/comms/<service>/<communication channel id>/, one folder per channel for
+## THE COMMS CACHE (): $MMDAPP/.local/cache/comms/<service>/<communication channel id>/, one folder per channel for
+
 ## the machine: the service again as a partition, then the whole id as one filename-safe name, its service first
 ## (slack/slack-<channel>, slack/slack-<channel>-<thread ts>). Any service keeps the same form:
 ##   .state.txt              rewritten whole by the puller: `<pulled at> <covered from> <newest>`, the read's head line, and how it is
+
 ##                           pulled, `<how> <target> <member> <as bot>`
 ##   .pulling.txt            the one-pull lock, made only where absent (noclobber), its epoch inside (AgentsToolsCommsCachePullTake)
+
 ## Every control file is `.<name>.txt`, one writer. Apart from the channels: .local/cache/comms/.interest/<service>-<id>, an empty
-## file whose time is the channel's last read (AgentsToolsCommsCacheInterest); one older than a week is deleted.
+
+## file whose time is the channel's last read (AgentsToolsCommsCacheInterest); one past S1 item 12's 240-hour age is deleted.
 ##   YYYYMM/messages.txt     the messages of that UTC month, one line each, oldest first, continuations joined by \037
 ##   YYYYMM/<ts>.body.txt    the whole text of a message whose line is over the cap; its line keeps the head and names the file
 ##   YYYYMM/<file id>.<name>   a file a message of that month carried (its line says `[file: <id> <name> ...]`), fetched once, on demand
+
 ## Each reader keeps its own floor. Detail is in MAGIC.md.
 
 agentsCommsCacheLineCap=2000
@@ -24,7 +29,8 @@ AgentsToolsCommsCacheDir(){ ## service, the id within the service
 ## THE SLACK CHANNEL ID OF THE CACHE: a channel or thread `slack-<channel>[-<thread ts>]`; a direct conversation is account-bound,
 ## `slack-<user id>-<dm id>[-<thread ts>]`, the user id the reading account's (`bot` for the team bot), never a member's name. A person
 ## named as the target (U..., W...: the DM with that person) is the same, `slack-<user id>-<person's user id>`. A read through a client-*
-## account, whose ids are its own workspace's only, carries that account first: `slack-<client account>-...` (owner 2026-10-28).
+## account, whose ids are its own workspace's only, carries that account first: `slack-<client account>-...` ().
+
 ## Sets agentsCommsCacheDir. rc 1 where the account of a direct one cannot be told: that read is not cached.
 AgentsToolsCommsCacheSlackDir(){ ## member, as bot (true|false), channel, thread ts (optional)
 	local slackId="${3#client:}"
@@ -65,8 +71,9 @@ AgentsToolsCommsCacheSlackAccount(){ ## member, as bot (true|false)
 agentsCommsMonthAwk='function monthOf(t,  z, era, doe, yoe, y, doy, mp, m) { z = int(t / 86400) + 719468 ; era = int(z / 146097) ; doe = z - era * 146097 ; yoe = int((doe - int(doe / 1460) + int(doe / 36524) - int(doe / 146096)) / 365) ; y = yoe + era * 400 ; doy = doe - (365 * yoe + int(yoe / 4) - int(yoe / 100)) ; mp = int((5 * doy + 2) / 153) ; m = mp + (mp < 10 ? 3 : -9) ; if (m <= 2) { y++ ; } ; return sprintf("%04d%02d", y, m) ; }'
 
 ## A READ MARKS ITS CHANNEL AS OF INTEREST: .local/cache/comms/.interest/<service>-<id> holds `<epoch> <ttl>`, the read that marked it and
-## the TTL it reads at. It is rewritten at most once an hour (owner 2026-10-29), and at once for a reader that needs a shorter TTL, by the
-## shell alone. The rig's reader pulls only channels read lately, each from its mark's TTL (AgentsToolsCommsCachePullWatched).
+## the TTL it reads at. It is rewritten at most once an hour (), and at once for a reader that needs a shorter TTL, by the
+## shell alone. Interest stops being refreshed once a mark is 48 hours old (S1 item 12), a different moment from the 240-hour delete age.
+## The rig's reader pulls only channels read lately, each from its mark's TTL (AgentsToolsCommsCachePullWatched).
 AgentsToolsCommsCacheInterest(){ ## cache folder, now, the reader's TTL (optional)
 	local interestName="${1##*/}" interestAt="" interestMark interestWas="" interestWasTtl="" interestTtl="${3:-}"
 	case "$interestTtl" in ''|*[!0-9]*) interestTtl="" ;; esac
@@ -90,9 +97,14 @@ AgentsToolsCommsCacheInterest(){ ## cache folder, now, the reader's TTL (optiona
 			fi
 		;;
 	esac
-	{ [ -d "${interestMark%/*}" ] || mkdir -p "${interestMark%/*}" ; } 2> /dev/null && printf '%s %s\n' "$2" "${interestTtl:-$interestWasTtl}" > "$interestMark" 2> /dev/null || :
+	## Interest stops being refreshed at 48 hours (S1 item 12): a mark past that keeps its own time. Only the write is skipped, so a
+	## read of an old channel still starts the reader below. The clean deletes the mark at 240 hours, a different moment.
+	if { [ -z "$interestWas" ] || [ $(( $2 - interestWas )) -lt 172800 ] ; } ; then
+		{ [ -d "${interestMark%/*}" ] || mkdir -p "${interestMark%/*}" ; } 2> /dev/null && printf '%s %s\n' "$2" "${interestTtl:-$interestWasTtl}" > "$interestMark" 2> /dev/null || :
+	fi
 	## ON A TEAM RIG the reader that pulls what is read lately runs whenever anything is read: started here where it is not running
-	## (lazy, owner 2026-10-29), its mode read once a process. Elsewhere a read pulls by itself, past its TTL.
+	## (lazy, ), its mode read once a process. Elsewhere a read pulls by itself, past its TTL.
+
 	if [ -z "${agentsCommsRigMode+set}" ] ; then
 		type AgentsToolsWorkspaceMode > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataGate.include"
 		agentsCommsRigMode="$( AgentsToolsWorkspaceMode 2> /dev/null )" || agentsCommsRigMode=""
@@ -268,6 +280,7 @@ AgentsToolsCommsCacheSlackThread(){ ## member, <channel>:<thread ts>, the render
 ## a record of an older release simply carries no reason. An own post's local id is kept the same way, as `local=<id>` before the reason, so
 ## the pusher records the ts against it when it posts (AgentsToolsCommsCachePostLink). The pusher takes the file
 ## aside as outbox.pushing.txt and keeps how far it got in .push.txt (`<sent> <retry-at> <attempts>`, its one writer). Once all of it
+
 ## is sent that file is gone, so the outbox is cut back to nothing; a send made meanwhile is in the next one. rc 1 not appended.
 AgentsToolsCommsCacheOutboxAppend(){ ## cache folder, session, block, member, identity, method, payload, why (may be empty), local id (may be empty)
 	local appendPayload="${7//$'\n'/$'\037'}" appendWhy appendLocal appendSep=$'\037'
@@ -486,9 +499,10 @@ AgentsToolsCommsCacheSlackFile(){ ## member, cache folder, message ts, file id, 
 	printf '%s\n' "$filePath"
 }
 
-## THE RIG'S PULL (owner 2026-10-28), run by the session comms reader: every channel read in the last 61 minutes whose last pull is
+## THE RIG'S PULL (), run by the session comms reader: every channel read in the last 61 minutes whose last pull is
+
 ## past its TTL is pulled once, by the way its state names, so a member's read on the rig is served from the cache and never waits on
-## the service. Once an hour it deletes the marks older than 48 hours (owner 2026-10-29).
+## the service. Once an hour it deletes the marks older than 240 hours, S1 item 12's earliest age, and the entry with them.
 AgentsToolsCommsCachePullWatched(){ ## now, most (optional; the channels one call may pull, none or 0 for no bound)
 	local watchMarks="$MMDAPP/.local/cache/comms/.interest" watchService watchEntry watchEntryMark watchMark watchName watchDir watchHow watchTarget watchMember watchBot watchFloor watchQuiet watchBase watchMarkAt watchMarkTtl watchTtl="${MDAT_SLACK_THREAD_CACHE_SECONDS:-15}"
 	local watchMost="${2:-0}" watchDone=0
@@ -501,8 +515,9 @@ AgentsToolsCommsCachePullWatched(){ ## now, most (optional; the channels one cal
 	[ -n "${MMDAPP:-}" ] && [ -d "$watchMarks" ] || return 0
 	if [ $(( $1 - ${agentsCommsInterestCleanAt:-0} )) -ge 3600 ] ; then
 		agentsCommsInterestCleanAt="$1"
-		find "$watchMarks" -type f -mmin +2880 -delete 2> /dev/null || :
-		## An entry whose mark is gone or as old goes with it (owner 2026-10-29): its folder, named from its fixed parts, and never one
+		## The delete age is S1 item 12's; the 48-hour refresh stop is a different moment, and never this number.
+		find "$watchMarks" -type f -mmin +14400 -delete 2> /dev/null || :
+		## An entry whose mark is gone or as old goes with it (): its folder, named from its fixed parts, and never one
 		## whose outbox still holds a post.
 		for watchService in $( ls -1 "$MMDAPP/.local/cache/comms" 2> /dev/null ) ; do
 			case "$watchService" in ''|.*) continue ;; esac
@@ -511,7 +526,7 @@ AgentsToolsCommsCachePullWatched(){ ## now, most (optional; the channels one cal
 				case "$watchEntry" in ''|.|..|*[!A-Za-z0-9._-]*) continue ;; esac
 				[ -d "$MMDAPP/.local/cache/comms/$watchService/$watchEntry" ] || continue
 				watchEntryMark="$watchMarks/$watchEntry"
-				[ ! -f "$watchEntryMark" ] || [ -n "$( find "$watchEntryMark" -mmin +2880 2> /dev/null )" ] || continue
+				[ ! -f "$watchEntryMark" ] || [ -n "$( find "$watchEntryMark" -mmin +14400 2> /dev/null )" ] || continue
 				[ ! -s "$MMDAPP/.local/cache/comms/$watchService/$watchEntry/outbox.messages.txt" ] || continue
 				[ ! -s "$MMDAPP/.local/cache/comms/$watchService/$watchEntry/outbox.pushing.txt" ] || continue
 				rm -rf -- "$MMDAPP/.local/cache/comms/$watchService/$watchEntry" 2> /dev/null || :
@@ -520,7 +535,7 @@ AgentsToolsCommsCachePullWatched(){ ## now, most (optional; the channels one cal
 	fi
 	## THE MARKS ARE READ BY A GLOB, one file read each (call-path audit row 22): a mark holds the moment of the read that wrote it
 	## and the TTL it reads at, so a mark older than an hour by the pass clock is passed over here, with no find and no sed on
-	## the pass. The hourly sweep above removes what is older than two days.
+	## the pass. The hourly sweep above removes what is past S1 item 12's delete age.
 	for watchMark in "$watchMarks"/* ; do
 		[ -f "$watchMark" ] || continue
 		watchName="${watchMark##*/}"
@@ -542,7 +557,8 @@ AgentsToolsCommsCachePullWatched(){ ## now, most (optional; the channels one cal
 			agentsCommsCacheAt=0 agentsCommsCacheFrom="" agentsCommsCacheNewest=""
 		fi
 		case "$watchMarkTtl" in ''|*[!0-9]*|0) ;; *) watchBase="$watchMarkTtl" ;; esac
-		## The puller's own clock (owner 2026-10-29): a channel quiet since its newest message is pulled ever more rarely, to
+		## The puller's own clock (): a channel quiet since its newest message is pulled ever more rarely, to
+
 		## nineteen times the TTL at two hundred and ten times it, so a reader that needs it sooner pulls it itself.
 		watchQuiet="${agentsCommsCacheNewest%%.*}"
 		case "$watchQuiet" in ''|*[!0-9]*) watchQuiet="$1" ;; esac
@@ -655,6 +671,7 @@ AgentsToolsCommsCacheServe(){ ## cache folder, floor ts, head|nohead
 }
 
 ## Merges a fresh read (rendered: `<ts> | ...` lines, its first line a `## target=` head or not) into a channel's cache: each
+
 ## message once, in its month's folder, oldest first, the fresh copy of an edited one winning. A message newer than the newest
 ## held is appended; a month an older or edited one falls in is merged whole. The pointers only widen. A read holding no message
 ## still moves `pulled at`.
@@ -731,7 +748,8 @@ AgentsToolsCommsCacheMerge(){ ## cache folder, fresh read, covered from (ts), no
 	{ printf '%s %s %s\n%s\n%s\n' "$4" "$mergeFrom" "$mergeNewest" "$mergeHead" "${5:-$agentsCommsCacheRecipe}" ; } > "$mergeStateTmp" && mv -f "$mergeStateTmp" "$1/.state.txt"
 }
 
-## A SEARCH ANSWER KEPT BY ITS QUERY (owner 2026-11-01, option one): the one entry a query signature names, with its own TTL,
+## A SEARCH ANSWER KEPT BY ITS QUERY (, option one): the one entry a query signature names, with its own TTL,
+
 ## so a repeated search inside that TTL asks Slack nothing. The signature is the question itself -- target, query, cut-off,
 ## page bound and shape -- so two callers asking the same thing share one answer, and any difference names another.
 AgentsToolsCommsCacheSearchSignature(){ ## target, query, cutoff, max pages, pretty

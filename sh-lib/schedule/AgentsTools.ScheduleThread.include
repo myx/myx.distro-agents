@@ -3,7 +3,8 @@
 
 ##
 ## AgentsTools.ScheduleThread.include -- the schedule as one service thread (S12.12): a shell process of the tooling and no agent, which runs the
-## schedule's steps and the board's dependencies on an interval. NO DEDICATED WATCHER AND NO CHECK ON EVERY CALL (owner, 2026-11-04): the thread is
+## schedule's steps and the board's dependencies on an interval. NO DEDICATED WATCHER AND NO CHECK ON EVERY CALL (): the thread is
+
 ## asked for by the periodic places that already look at the workspace -- the control thread of a session, whose full read comes once a minute, and
 ## the spawn proxy, once a start -- through AgentsToolsScheduleThreadAsk alone, and that ask is throttled to one look in MDAT_SCHEDULE_ASK_SECONDS.
 ## Sourced, never run. Functions only; the operation that runs it is the dispatcher's arm `--intern-schedule` (AgentsTools.InternSchedule.include),
@@ -36,7 +37,8 @@ AgentsToolsScheduleThreadDir(){
 
 ## When the last pass began, on this thread's own clock: it is one process, and this is the state it holds.
 agentsScheduleThreadLastPass=-100000
-## THE END OF THE LAST PASS (owner 2026-11-20): the thread rests MDAT_SCHEDULE_PASS_REST_SECONDS (default: the gap) after a pass ends, so a pass
+## THE END OF THE LAST PASS (): the thread rests MDAT_SCHEDULE_PASS_REST_SECONDS (default: the gap) after a pass ends, so a pass
+
 ## longer than its gap never starts the next one at once and the thread is never busy all the time.
 agentsScheduleThreadPassEnd=-100000
 
@@ -69,8 +71,14 @@ AgentsToolsScheduleThreadWantedInto(){
 agentsScheduleThreadAskDueAt=-100000
 AgentsToolsScheduleThreadAskDue(){
 	[ "${MDAT_SCHEDULE_THREAD:-}" != "off" ] || return 0
-	[ $(( SECONDS - agentsScheduleThreadAskDueAt )) -ge 60 ] || return 0
-	agentsScheduleThreadAskDueAt="$SECONDS"
+	## THE THROTTLE IS THE STORE'S, NOT THIS PROCESS'S: every look is a process of its own, so a counter here was zeroed each time and the whole ask
+	## ran on every look of the screen. The moment it last ran is kept beside the thread, read by the shell, and taken by one write.
+	local dueNow
+	dueNow="$( date +%s )"
+	{ IFS= read -r agentsScheduleThreadAskDueAt < "$MMDAPP/.local/agents/schedule-thread/ask-due.stamp" ; } 2> /dev/null || agentsScheduleThreadAskDueAt=""
+	case "${agentsScheduleThreadAskDueAt:-}" in ''|*[!0123456789]*) agentsScheduleThreadAskDueAt=0 ;; esac
+	[ $(( dueNow - agentsScheduleThreadAskDueAt )) -ge 60 ] || return 0
+	printf '%s\n' "$dueNow" > "$MMDAPP/.local/agents/schedule-thread/ask-due.stamp" 2> /dev/null || :
 	## A LIVE THREAD NEEDS NO ASK: its pass keeps it on the same test. Only a dead one is looked into, by the shell's own read of its lock.
 	local dueLock="" dueDir="$MMDAPP/.local/agents/schedule-thread"
 	{ IFS= read -r dueLock < "$dueDir/thread.lock" ; } 2> /dev/null || dueLock=""
@@ -155,7 +163,8 @@ AgentsToolsScheduleThreadKnowledgeKeep(){
 	## A build stands, it is newer than anything wanted, and it sits inside the bound: nothing to do, at two stats and one find.
 	## `built` newer than `wanted` is the test, never "not older": a write and a build inside the same second cannot be ordered by
 	## mtime, and a build that may have missed the write is no reason to skip one.
-	## A BUILD YOUNGER THAN THE MINIMUM STANDS (owner 2026-11-20): writes come all the time, so "wanted is newer" alone rebuilt the index
+	## A BUILD YOUNGER THAN THE MINIMUM STANDS (): writes come all the time, so "wanted is newer" alone rebuilt the index
+
 	## every pass. Inside MDAT_SCHEDULE_KNOWLEDGE_INDEX_MIN_SECONDS (default 1800) of the last build nothing is rebuilt, whatever was written.
 	local keepMin="${MDAT_SCHEDULE_KNOWLEDGE_INDEX_MIN_SECONDS:-1800}"
 	case "$keepMin" in ''|*[!0123456789]*) keepMin=1800 ;; esac

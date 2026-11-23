@@ -1,0 +1,63 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.SessionStore.Paths.include -- the session and spawn stores' own paths, and the one marker test that needs nothing but a
+## path. Split from AgentsTools.SessionStore.include: a concern that only needs a path (the wait's pause check does) asks these and
+## does not parse the store's readers and writers.
+##
+
+agentsSessionStoreLeaf=".local/agents/sessions"
+agentsSpawnedStoreLeaf=".local/agents/spawned"
+AgentsSessionMarkerFileInto(){ ## variable, run or session id, marker -- rc 1 for an id or a marker that is none
+	case "${2:-}" in ''|-|.|..|*/*|*[[:space:]]*) return 1 ;; esac
+	case "${3:-}" in paused|parked|dismissed|stop.left|control/closed|control/state|root.want|root.end|root.pause|ended|floor-dropped|reload.due|skill.loaded) ;; *) return 1 ;; esac
+	printf -v "$1" '%s/%s/%s/%s' "${MMDAPP:-/nonexistent}" "$agentsSessionStoreLeaf" "$2" "$3"
+}
+
+AgentsSessionMarkerFile(){ ## run or session id, marker
+	local markerPath
+	AgentsSessionMarkerFileInto markerPath "${1:-}" "${2:-}" || return 1
+	printf '%s\n' "$markerPath"
+}
+
+## THE SPAWNED STORE'S OWN PATHS, built here and nowhere else: a spawn record is `spawned/<run>/<run>.spawn.md`, and its folder holds
+## the context the run keeps beside it. Any concern that needs one asks these and never spells the store itself.
+## The store's folder, kept a function so that another concern asks the owner rather than spelling the store itself.
+AgentsSpawnedRunDir(){ ## run or session id
+	printf '%s\n' "$MMDAPP/.local/agents/spawned/$1"
+}
+
+## A run's record, built from the folder so that the store's shape is written once, here.
+AgentsSpawnedRecord(){ ## run or session id
+	printf '%s/%s.spawn.md\n' "$( AgentsSpawnedRunDir "$1" )" "$1"
+}
+
+AgentsSessionStoreDirInto(){ ## variable, workspace
+	printf -v "$1" '%s' ""
+	case "${2:-}" in ''|/) return 1 ;; esac
+	printf -v "$1" '%s/%s' "${2%/}" "$agentsSessionStoreLeaf"
+}
+
+AgentsSpawnedStoreDirInto(){ ## variable, workspace
+	printf -v "$1" '%s' ""
+	case "${2:-}" in ''|/) return 1 ;; esac
+	printf -v "$1" '%s/%s' "${2%/}" "$agentsSpawnedStoreLeaf"
+}
+
+## THE LIVE SESSIONS A THREAD STILL HOLDS, one id a line: the list's own lines, each kept only while its own pid file names a process that
+## is still there. A thread that died without running its leave leaves its line behind, and a reader drops what names no thread -- no
+## fork per id, so a look that reads this list pays nothing for the check.
+AgentsToolsSessionLiveIds(){
+	local liveFile liveId livePid liveStart
+	liveFile="${MMDAPP:-/nonexistent}/.local/agents/live-sessions"
+	[ -s "$liveFile" ] || return 0
+	while IFS= read -r liveId ; do
+		case "$liveId" in ''|*/*|*[[:space:]]*) continue ;; esac
+		livePid="" liveStart=""
+		{ IFS=' ' read -r livePid liveStart < "${MMDAPP:-/nonexistent}/.local/agents/sessions/$liveId/control/pid" ; } 2> /dev/null || :
+		case "$livePid" in ''|*[!0-9]*) continue ;; esac
+		kill -0 "$livePid" 2> /dev/null || continue
+		printf '%s\n' "$liveId"
+	done < "$liveFile"
+}

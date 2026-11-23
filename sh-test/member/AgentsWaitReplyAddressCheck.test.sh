@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-## Behavioural check on the reply address a Wait puts on every message it shows (owner 2026-11-01: the communication id of
+## Behavioural check on the reply address a Wait puts on every message it shows (: the communication id of
+
 ## any message is its full pointer, `<driver>:<container>:<message-id>` -- for Slack `slack:<conversation>:<ts>` -- and a
 ## message shown without one is answered at the top of the conversation instead of in the thread it belongs to). Held, run and
 ## not read:

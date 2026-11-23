@@ -4,6 +4,7 @@
 ## The rig of a `--supervise-scan` check: one workspace, its spawn records, its session stores, its team data and its home, all
 ## this rig's own, and the scan run against them. Sourced by the checks of sh-test/session that hold one scan kind:
 ##   . "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/supervise-scan.rig.include.sh"
+
 ##
 ## The caller sets MMDAPP (the workspace its scratch lives in) and MDLT_ORIGIN (the tree under test), then calls
 ## rigScanBegin <check name>. The folder comes from rig-temp.include.sh, so the check takes its turn in the machine's one line

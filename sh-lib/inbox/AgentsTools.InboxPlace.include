@@ -7,6 +7,7 @@
 ## and processed/"). In-context helpers with no operation of their own. Sourced for its
 ## functions only:
 ##   type AgentsToolsInboxFolders > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/inbox/AgentsTools.InboxPlace.include"
+
 ##
 ## THE SPLIT INBOX. An inbox holds two folders, `incoming/` and `processed/`, and an item's
 ## processed stamp (`processed-at` in its front matter) decides its folder: no stamp, incoming/;

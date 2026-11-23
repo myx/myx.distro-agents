@@ -251,7 +251,8 @@ case "$1" in
 				;;
 			esac
 			local searchQuery="$inTerm after:$afterDate"
-			## THE ANSWER ONCE, KEPT BY ITS QUERY (owner 2026-11-01, option one): a repeated search inside its TTL calls Slack not
+			## THE ANSWER ONCE, KEPT BY ITS QUERY (, option one): a repeated search inside its TTL calls Slack not
+
 			## at all. The answer is filed only where the search finished, and its own ttl state says when it goes stale.
 			local searchSig="" searchAnswer="" searchRc=0
 			## The cache is loaded where it is used; a load that left it undefined refuses here, not at a silent call.

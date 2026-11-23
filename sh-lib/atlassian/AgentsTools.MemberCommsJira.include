@@ -10,6 +10,7 @@ case "$1" in
 		## member too: what such a member holds for this system is the other organisation's.
 		--jira-board-list|--jira-board-read|--jira-board-issue-search|--jira-issue-link-list|--jira-issue-read|--jira-sprint-issue-search|--jira-sprint-list)
 			local -x MDAT_COMMS_SIDE=own MDAT_COMMS_OP=""
+			type AgentsToolsActingMemberCheck > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.ActingMember.include"
 			[ -z "${2:-}" ] || AgentsToolsActingMemberCheck "$2" "${1#--}" || { set +e ; return 1 ; }
 			## A stub whose implementation is an in-context helper calls it by name, as --trello-check does:
 			## the helper needs no dispatcher, and the dispatcher is no command in every context this file

@@ -306,7 +306,7 @@ AgentsHarnessToolSendMessage(){ ## target, message, as bot, address to, broadcas
 ## view/session_id/state are optional filters onto that same registry -- see
 ## AgentsToolsRegistryRenderSpawnedSessions's own header for what each composes with.
 AgentsHarnessToolListAgents(){
-	type AgentsToolsRegistryRenderSpawnedSessions > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.RegistrySpawnedSessions.include"
+	type AgentsToolsRegistryRenderSpawnedSessionsKept > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.RegistrySpawnedSessions.include"
 	local toolView="${1:-agents}" toolSessionId="$2" toolState="$3"
 	local listRegistries="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
 	if [ -z "${MMDAPP:-}" ] ; then
@@ -329,7 +329,7 @@ AgentsHarnessToolListAgents(){
 	## marker: its reason comes from control/dead of the session instead, the found= moment of
 	## its own line there.
 	type AgentsSessionRunDeathFound > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
-	( . "$listRegistries" ; AgentsToolsRegistryRenderSpawnedSessions "$toolView" "$toolSessionId" "$toolState" ) 2>&1 \
+	( . "$listRegistries" ; AgentsToolsRegistryRenderSpawnedSessionsKept "$toolView" 60 "$toolSessionId" "$toolState" ) 2>&1 \
 		| while IFS= read -r listRow || [ -n "$listRow" ] ; do
 			printf '%s\n' "$listRow"
 			read -r -a listWords <<< "$listRow"

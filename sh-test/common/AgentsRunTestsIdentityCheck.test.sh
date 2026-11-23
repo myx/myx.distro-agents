@@ -44,6 +44,8 @@ rigAssert(){ ## what is asserted, got, want
 ## ---- the fixture ----
 ## The copy: the runner under test, and its tiny test, which writes down every variable of the tooling it finds.
 cp "$rigRunner" "$rigTests/AgentsRunTests.sh"
+## THE RUNNER IS A ROUTER: its parts travel with it, or the rig copy finds none and runs nothing.
+mkdir -p "$rigTests/runner" && cp "$( dirname "$rigRunner" )"/runner/*.sh "$rigTests/runner"/ || rigRefuse "the runner parts could not be copied into the rig"
 mkdir -p "$rigTests/check-fixtures" && cp "$(dirname "$rigRunner")/check-fixtures"/runner-*.py "$rigTests/check-fixtures"/
 cat > "$rigTests/RigEnv.test.sh" <<'RIGTINY'
 #!/usr/bin/env bash

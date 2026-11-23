@@ -6,6 +6,7 @@
 ## AgentsTools.InternOpUrlPostBytes.include -- AgentsToolsUrlPostBytes, an in-context helper
 ## with no operation of its own (MAGIC.md, section 1). Sourced for its function only:
 ##   type AgentsToolsUrlPostBytes > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.InternOpUrlPostBytes.include"
+
 ## NOT A SLACK HELPER: this file never sources AgentsTools.CommsSlack.include, and the function
 ## is never named into the Slack family. See MAGIC.md.
 ##

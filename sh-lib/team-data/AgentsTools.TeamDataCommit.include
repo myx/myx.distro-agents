@@ -1,21 +1,7 @@
 #!/usr/bin/env bash
 # ^^^ for syntax checking in the editor only
 
-##
-## AgentsTools.TeamDataCommit.include -- the commit step of every writer into the team-data
-## store, and the push. Sourced, never run. Functions only.
-##
-## A writer leaves an entry, and the one team-data thread commits it and pushes
-## (AgentsToolsTeamDataCommitPaths, AgentsTools.TeamDataThread.include). The gate is a
-## git directory under $MDAT_DATA_ROOT, independent of TEAM_DATA_GIT_REMOTE. A failed
-## commit warns on stderr and never fails the write that came before it: the write has
-## happened, and the dirty-store warning at a spawn close names what is left. The closes,
-## the main loop and the set-up push through AgentsToolsTeamDataPushIfAhead as before.
-##
-## With TEAM_DATA_GIT_REMOTE set, the store's step of the set-up and the close push call
-## myx.common's git/cloneSync for a store that has a remote, as the main loop's pass does,
-## and a store with no origin, or another one, is given the remote first.
-##
+## The prose that stood here is in the package's MAGIC.md, under "AgentsTools.TeamDataCommit.include".
 
 ## Where the entries and the lock of the one thread of a store are: team-data-commit/ inside the store's own git directory, so that every
 ## workspace that writes the store meets the one thread. rc 1, nothing printed, for a store that is no repository.
@@ -25,11 +11,6 @@ AgentsToolsTeamDataThreadDir(){
 	printf '%s' "$dirGit/team-data-commit"
 }
 
-## THE STORE'S WRITERS ARE SETTLED BEFORE ANYTHING MOVES ITS TREE (S12.4). The store's checkout is also its writers' working tree, so a
-## writer's file that waits for its commit is an uncommitted change to that tree. Git refuses to move a tree whose file origin changed
-## holds such a change, which is how a duty start met LOCK_UNCHECKABLE and a retry a minute later passed. So a caller about to move the
-## tree settles what waits first. A store with nothing waiting costs one git status and no process.
-## rc 0 where nothing waited, or everything did and is committed; rc 1 where a writer was still uncommitted at the bound.
 AgentsToolsTeamDataSettleDirty(){ ## -- the store's uncommitted tracked paths, one a line, absolute
 	## `-z` prints no quotes at all, so a path holding a blank or a quote stays one word: the plain form wraps such a path in
 	## quotes, and the commit step then refuses the pieces of it as not under the store. Each entry reads `<XY> <path>`.
@@ -51,10 +32,6 @@ AgentsToolsTeamDataSettle(){ ## bound seconds
 		settlePath=""
 	done
 	[ -n "$settlePath" ] || [ -n "$( AgentsToolsTeamDataSettleDirty )" ] || return 0
-	## With the thread off, as the checks have it, the writers are committed here: there is no thread to ask. A thread's own pass
-	## asks nobody either: it runs the same commit path a request to it would, so every writer keeps the context it left. And a
-	## caller that HOLDS THE STORE LOCK commits here too: the thread takes that same lock for itself, so asking it from inside a
-	## hold is a process waiting on a lock its own caller holds (AgentsTools.TeamDataStoreLock.include).
 	type AgentsToolsTeamDataStoreLockHeld > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataStoreLock.include"
 	if [ "${MDAT_TEAM_DATA_COMMIT_THREAD:-}" != "off" ] && [ -z "${serveFolder:-}" ] && ! AgentsToolsTeamDataStoreLockHeld ; then
 		type AgentsToolsOnDemandThreadStart > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.OnDemandThread.include"
@@ -72,13 +49,6 @@ AgentsToolsTeamDataSettle(){ ## bound seconds
 	[ -z "$( AgentsToolsTeamDataSettleDirty )" ]
 }
 
-## THE AUDIT LOG FAMILY IS NO TEAM DATA A PULL MAY MOVE (task-20261113T1619Z). A live session appends to audit/<month>/*.log for its whole
-## run, so a tracked one is dirty whenever any session runs, the set rotates each pass, and every other member's pull is refused over it.
-## The family leaves the store's index and enters the store's own .gitignore: the files stay, and no pull moves them.
-## NOTHING IS LOST IN THE CROSSING. A tracked log whose last lines are uncommitted is committed first, so the lines a session appended
-## exist in the branch before the index stops carrying the file, and a merge that takes origin's copy of it loses no line that was
-## recorded. A store that tracks no log is left untouched: no commit, and no rule written for a file it never carried.
-## The store's one lock held for the whole untrack, which writes .gitignore, stages and commits (AgentsTools.TeamDataStoreLock.include).
 AgentsToolsTeamDataAuditUntrack(){ ## where
 	local untrackLockRc=0
 	type AgentsToolsTeamDataStoreLockTake > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataStoreLock.include"
@@ -122,12 +92,6 @@ AgentsToolsTeamDataAuditUntrackLocked(){ ## where
 	return 0
 }
 
-## A PULL MOVES A TREE, AND NEVER OVER A PATH IT DID NOT WRITE (task-20261113T1619Z). Every caller that pulls the store comes through
-## AgentsToolsTeamDataSyncWithRemote below, so one rule holds at all of them: the writers are settled first, so a path any member's run left
-## uncommitted is a commit rather than a refusal, and a path origin also moves that is still uncommitted here is carried as this store's own
-## commit, untracked ones included. A path this store's own rules will not commit is named in one line a caller can act on, and nothing is
-## moved over it.
-## The store's one lock held for the whole prepare, which settles the writers, fetches and commits what origin also moved.
 AgentsToolsTeamDataPrepareSync(){ ## where, branch
 	local prepareLockRc=0
 	type AgentsToolsTeamDataStoreLockTake > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataStoreLock.include"
@@ -156,13 +120,6 @@ AgentsToolsTeamDataPrepareSyncLocked(){ ## where, branch
 	return 1
 }
 
-## ONE PULL OF THE STORE, AND EVERY CALLER'S. myx.common's git/cloneSync does the pull and the push, as before; this adds the three steps
-## the store needs around them, in the only order that loses nothing. The writers are settled first, so no member's uncommitted path refuses
-## it. A pull that stopped on a conflict is taken again by the tooling's own merge and settled inside the file (AgentsToolsTeamDataMergeAgain),
-## as the close push settles one, and the pull runs once more: a store whose two sides both changed one item still comes level. The audit log
-## family leaves the tracked set only after that: a log both sides appended is merged line by line first, so the crossing loses no line.
-## Flags go before the three paths, as cloneSync takes them.
-## The store's one lock held for the whole sync: the prepare, the pull, the settle of a conflict and the audit untrack are one span.
 AgentsToolsTeamDataSyncWithRemote(){ ## where, repository root, origin url, branch, then the cloneSync flags
 	local syncLockRc=0
 	type AgentsToolsTeamDataStoreLockTake > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataStoreLock.include"
@@ -196,14 +153,6 @@ AgentsToolsTeamDataSyncWithRemoteLocked(){ ## where, repository root, origin url
 	return "$syncRc"
 }
 
-## A write into the team data that is to be committed and pushed. The writer runs no git: the paths and what to say of them are left as
-## one entry file in the thread's folder (AgentsToolsTeamDataThreadDir), and the one thread that commits and pushes (--intern-team-data-commit,
-## AgentsTools.InternTeamDataCommit.include) is started where none lives and asked to commit. A lock another writer holds can no longer
-## fail the write, and the thread commits one entry after another. Never fails its caller.
-## The context is the subject of the commit, `* ` before it unless it starts with `+ `, `- ` or `* `. MDAT_TEAM_DATA_COMMIT_WAIT=yes in front
-## of the call keeps it until the thread has committed the entry, for a writer that deletes what it has just written: the history of a
-## file is made before the file goes. With MDAT_TEAM_DATA_COMMIT_THREAD=off the commit is made here, in the caller, as the rigs and the
-## checks have it.
 AgentsToolsTeamDataCommitPaths(){ ## context, path...
 	local queueContext="$1" queueDir queueEntry queueStart
 	shift
@@ -252,11 +201,6 @@ AgentsToolsTeamDataCommitPaths(){ ## context, path...
 	return 0
 }
 
-## A COMMIT THAT COULD NOT BE MADE IS OWED, LIKE A PUSH. This system runs unattended: a lock,
-## a full disk or a concurrent writer must not leave a write that "warned" and never landed. The
-## paths are recorded here, and the NEXT commit call of any kind picks them up and commits them
-## with this one, so the store heals itself on the next run instead of waiting for a person to
-## read a warning. A path is dropped from the debt only once a commit has actually carried it.
 AgentsToolsTeamDataCommitOwedPath(){
 	[ -n "${MMDAPP:-}" ] || return 1
 	printf '%s\n' "${MMDAPP%/}/.local/agents/team-data-commit.owed"
@@ -355,12 +299,6 @@ AgentsToolsTeamDataCommitPathsNowLocked(){ ## context, path...
 	done
 	commitPaths=( ${knownPaths[@]+"${knownPaths[@]}"} )
 	[ "${#commitPaths[@]}" -gt 0 ] || return 0
-	## A STALE index.lock IS NOT A FAILED WRITE, IT IS A LOCK NOBODY HOLDS. An index upsert that
-	## was killed leaves one behind, and every commit after it fails "Unable to create .git/index.lock"
-	## -- the write lands on disk and NEVER reaches the branch, which is how items sat uncommitted
-	## for days while each tool run reported a warning nobody could act on. So when the add fails
-	## and the lock is there, ask whether a live git holds it: if none does, the lock is stale, it is
-	## removed and the add is tried ONCE more. A live holder is never touched.
 	gitAddStale(){
 		local lockFile="$1" holder=""
 		[ -n "$lockFile" ] && [ -e "$lockFile" ] || return 1
@@ -411,21 +349,6 @@ AgentsToolsTeamDataChangeStamp(){ ## file
 	' "$1"
 }
 
-## A merge the sync left unfinished -- origin and the local commits changed one file -- is settled here, inside the file itself, with no
-## person and no extra file: a conflict is never committed, no line of either side is lost, and the local commits can go out.
-## The conflicting blocks of a file (git merge-file, the 3-way merge) are resolved by what the block is:
-##   - line records, every line of the block starting with a timestamp (logs, registries): the lines of both sides, each once, in time order;
-##   - the header of a document: a key both sides changed ends with one line, the value of the side whose own last-change stamp is later
-##     (AgentsToolsTeamDataChangeStamp), origin's where neither has one; a key only one side holds stays;
-##   - the body of a document: origin's block, then the lines of the local block it does not already hold -- both versions in the one file,
-##     with no marker.
-## A file that one side deleted and the other changed keeps the changed one. The merge is then committed. rc 0 where no merge was in
-## progress or it was settled; rc 1, the merge left as it was and one warning, where it could not be.
-## THE MERGE TAKEN AGAIN, where the sync gave up on a conflict: cloneSync aborts a merge it cannot settle and leaves no MERGE_HEAD behind,
-## so origin's branch is merged here by the tooling's own merge, which the settling engine (AgentsToolsTeamDataMergeSettle) can work, and a
-## merge left with no conflict is committed. One step for every caller that integrates origin: the close push and the checkout repair.
-## rc 0 where the merge is committed and nothing is open; rc 1 where a conflict stays, the merge aborted and the checkout as before.
-## The store's one lock held for the whole re-taken merge: the fetch, the merge, the settle and its commit.
 AgentsToolsTeamDataMergeAgain(){ ## where, repository root, branch
 	local againLockRc=0
 	type AgentsToolsTeamDataStoreLockTake > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataStoreLock.include"
@@ -526,26 +449,6 @@ AgentsToolsTeamDataMergeSettleLocked(){ ## where
 	return 0
 }
 
-## Pushes the store's branch when it is ahead of origin, at a close point, never per
-## write: one push carries everything committed since. A conflict between origin and the local commits is settled and
-## committed first (AgentsToolsTeamDataMergeSettle), so the commits always go out and none is committed with a marker in it. The primitive is item-upsert's:
-## push origin HEAD; when the remote moved, integrate with myx.common git/cloneSync
-## --no-push and push once more; then read origin back and require it to equal HEAD.
-## Never a reset or a force, and local commits are never discarded: a failure is a
-## stated warning naming the reason and the ahead count, and the next close retries.
-## Pushes only when the store is its repository's own root; an origin that is not
-## TEAM_DATA_GIT_REMOTE is set to it first (AgentsToolsTeamDataRemoteAlign), where before
-## it returned there and said nothing. Always returns 0.
-## One process at a time moves the store's branch: every close can call this, async spawn
-## closes concurrently, and item-upsert pushes from its own process, so the body runs under
-## the store's one lock (AgentsTools.TeamDataStoreLock.include), keyed to the store's own
-## git directory. A BUSY LOCK IS A PUSH OWED, NEVER A SKIP: the holder's `git push origin
-## HEAD` may have resolved HEAD before this process committed, so returning quietly leaves
-## this process's commits local with nothing recorded to bring them out -- which is how five
-## commits sat local and unmerged from August to October. So a call that finds the lock busy
-## records the debt and goes; the NEXT push waits the holder out (a push is bounded) and
-## carries the debt to the remote, and the debt goes only where the store is verified not
-## ahead. A debt left unpaid is therefore re-attempted on every later push.
 AgentsToolsTeamDataPushIfAhead(){ ## where
 	[ -n "${MDAT_DATA_ROOT:-}" ] || return 0
 	type AgentsToolsTeamDataStoreLockTake > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataStoreLock.include"
@@ -660,12 +563,6 @@ AgentsToolsTeamDataPushIfAheadLocked(){ ## where
 			echo "⚠️ WARNING: $MDSC_CMD: $pushWhere: team-data push rejected (origin moved) and myx.common git/cloneSync is unreachable to integrate; ${aheadCount:-some} commit(s) stay local, kept, and the next close retries" >&2
 			return 0
 		fi
-		## cloneSync's pull needs a reconcile mode when the two sides diverged: a merge,
-		## which keeps both sides' commits and rewrites none. No merge was in progress
-		## above, so one present after a failure is this call's own, and only that is aborted.
-		## cloneSync aborts a merge it cannot settle and leaves no MERGE_HEAD behind, so the conflict is taken again
-		## here, by our own merge of origin's branch, which the settling engine can work. A merge that came in clean is
-		## committed too, so the push below runs on a store with nothing left open.
 		pushOut="$( GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=pull.rebase GIT_CONFIG_VALUE_0=false LC_ALL=C \
 			"$MYXROOT/bin/git/cloneSync.Common" --no-push "$repoRoot" "$originUrl" "$pushBranch" 2>&1 )" || {
 			if AgentsToolsTeamDataMergeAgain "$pushWhere" "$repoRoot" "$pushBranch" ; then
@@ -692,15 +589,6 @@ AgentsToolsTeamDataPushIfAheadLocked(){ ## where
 	return 0
 }
 
-## A store that is a repository of its own and has no origin, or another one than
-## TEAM_DATA_GIT_REMOTE, is given the remote as its origin, and one line says so. Such a
-## store was made before the remote was set: myx.common's git/clonePull and git/cloneSync
-## only `remote set-url origin`, which fails where there is none, and the close push skipped
-## a store whose origin was another. Its branch, never renamed, is told to follow its
-## namesake at the origin, which their `git pull` needs. Never a force; a store inside a
-## larger repository is never touched. rc 0 where the origin is the remote, now or already.
-## THE STORE'S OWN CONFIG IS THE STORE'S TREE'S: written under the one lock, as every commit and push is, so no process reads a half-written
-## remote (AgentsTools.TeamDataStoreLock.include). rc 0 where the origin is the remote, now or already.
 AgentsToolsTeamDataRemoteAlign(){ ## where, remote
 	local alignLockRc=0
 	type AgentsToolsTeamDataStoreLockTake > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataStoreLock.include"
@@ -735,10 +623,6 @@ AgentsToolsTeamDataRemoteAlignLocked(){ ## where, remote
 	return 0
 }
 
-## When TEAM_DATA_GIT_REMOTE is set and no local board exists yet -- the store is
-## missing or empty -- clones it with myx.common git/clonePull, the main loop's own
-## primitive, on TEAM_DATA_BRANCH. A store holding content that is not a clone is left
-## alone and said: adopting it is the main loop's decision, never a writer's. Returns 0.
 AgentsToolsTeamDataEnsureClone(){ ## where
 	[ -n "${MDAT_DATA_ROOT:-}" ] || return 0
 	[ ! -e "$MDAT_DATA_ROOT/.git" ] || return 0
@@ -796,15 +680,6 @@ AgentsToolsTeamDataEnsureCloneLocked(){ ## where, remote
 	return 0
 }
 
-## The store step of --owner-setup-storage --apply. MDAT_DATA_ROOT is an explicit input: the set-up
-## front resolves it (AgentsContext.UseAgentsTools.include), which also clones a missing or empty store
-## when a remote is set. With no remote the store is initialised. With a remote set, a store holding
-## content that is not a clone is handed to myx.common git/cloneSync, as the main loop's pass hands it; a
-## store that is a repository is given the remote as its origin where it has none or another
-## (AgentsToolsTeamDataRemoteAlign) and pushed (AgentsToolsTeamDataPushIfAhead, which integrates a remote
-## that moved with git/cloneSync). The configured author identity is written into the store repository's
-## own config. The board is made ready by the set-up front after this returns, never here. Non-zero only
-## on a failure.
 AgentsToolsTeamDataPrepareStore(){
 	local MDSC_CMD="${MDSC_CMD:-DistroAgentsTools}" prepareRemote="" prepareName="" prepareEmail=""
 	[ -n "${MDAT_DATA_ROOT:-}" ] || { echo "⛔ ERROR: $MDSC_CMD --owner-setup-storage: the team-data store could not be resolved" >&2 ; return 1 ; }

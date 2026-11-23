@@ -119,30 +119,6 @@ done
 ## The machine-local memory store is the memory guards' alone.
 case "$hookReal" in */.claude/projects/*/memory|*/.claude/projects/*/memory/*) exit 0 ;; esac
 
-## The session, its sandbox and this origin, as the harness gate hands them to the index,
-## so the two share one session index rather than rebuilding it in turn.
-hookSession="${MDAT_SPAWN_SESSION_ID:-}"
-[ -n "$hookSession" ] || ! hookString "$hookInput" session_id || hookSession="$hookValue"
-case "$hookSession" in */*|.|..) hookSession="" ;; esac
-hookIn="" hookOut=""
-if [ -n "${MDAT_SPAWN_SANDBOX_ROOT:-}" ] ; then
-	if [ -n "${MDAT_SPAWN_SANDBOX_ROOT_REAL:-}" ] && [ "${MDAT_SPAWN_SANDBOX_ROOT_REAL#/}" != "$MDAT_SPAWN_SANDBOX_ROOT_REAL" ] \
-		&& [ "$MDAT_SPAWN_SANDBOX_ROOT" -ef "$MDAT_SPAWN_SANDBOX_ROOT_REAL" ] \
-		&& [ -d "$MDAT_SPAWN_SANDBOX_ROOT_REAL/input" ] && [ ! -L "$MDAT_SPAWN_SANDBOX_ROOT_REAL/input" ] \
-		&& [ -d "$MDAT_SPAWN_SANDBOX_ROOT_REAL/output" ] && [ ! -L "$MDAT_SPAWN_SANDBOX_ROOT_REAL/output" ] ; then
-		hookIn="$MDAT_SPAWN_SANDBOX_ROOT_REAL/input" hookOut="$MDAT_SPAWN_SANDBOX_ROOT_REAL/output"
-	else
-		hookIn="$( cd "$MDAT_SPAWN_SANDBOX_ROOT/input" 2>/dev/null && pwd -P )" || hookIn="$MDAT_SPAWN_SANDBOX_ROOT/input"
-		hookOut="$( cd "$MDAT_SPAWN_SANDBOX_ROOT/output" 2>/dev/null && pwd -P )" || hookOut="$MDAT_SPAWN_SANDBOX_ROOT/output"
-	fi
-fi
-
-. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.Grants.include" || exit 0
-AgentsToolsGrantsSessionEnsure "$hookWs" "$hookMember" "$hookSession" "$hookIn" "$hookOut" "$MDLT_ORIGIN/myx/myx.distro-agents/skillset" 2>/dev/null || exit 0
-hookRc=0
-## The session id and this workspace: the check asks the session store for the folder itself.
-AgentsToolsGrantsSessionCheck "$hookTool" "$hookReal" "$hookSession" "$hookWs" || hookRc=$?
-
 ## One JSON string, escaped for a document: backslash, quote, and the control characters a path may hold.
 hookJson(){ ## text
 	local jsonText="${1//\\/\\\\}"
@@ -162,6 +138,36 @@ hookAnswer(){ ## allow|deny, reason
 	printf '}\n'
 	exit 0
 }
+
+## The session, its sandbox and this origin, as the harness gate hands them to the index,
+## so the two share one session index rather than rebuilding it in turn.
+hookSession="${MDAT_SPAWN_SESSION_ID:-}"
+[ -n "$hookSession" ] || ! hookString "$hookInput" session_id || hookSession="$hookValue"
+case "$hookSession" in */*|.|..) hookSession="" ;; esac
+hookIn="" hookOut=""
+if [ -n "${MDAT_SPAWN_SANDBOX_ROOT:-}" ] ; then
+	if [ -n "${MDAT_SPAWN_SANDBOX_ROOT_REAL:-}" ] && [ "${MDAT_SPAWN_SANDBOX_ROOT_REAL#/}" != "$MDAT_SPAWN_SANDBOX_ROOT_REAL" ] \
+		&& [ "$MDAT_SPAWN_SANDBOX_ROOT" -ef "$MDAT_SPAWN_SANDBOX_ROOT_REAL" ] \
+		&& [ -d "$MDAT_SPAWN_SANDBOX_ROOT_REAL/input" ] && [ ! -L "$MDAT_SPAWN_SANDBOX_ROOT_REAL/input" ] \
+		&& [ -d "$MDAT_SPAWN_SANDBOX_ROOT_REAL/output" ] && [ ! -L "$MDAT_SPAWN_SANDBOX_ROOT_REAL/output" ] ; then
+		hookIn="$MDAT_SPAWN_SANDBOX_ROOT_REAL/input" hookOut="$MDAT_SPAWN_SANDBOX_ROOT_REAL/output"
+	else
+		hookIn="$( cd "$MDAT_SPAWN_SANDBOX_ROOT/input" 2>/dev/null && pwd -P )" || hookIn="$MDAT_SPAWN_SANDBOX_ROOT/input"
+		hookOut="$( cd "$MDAT_SPAWN_SANDBOX_ROOT/output" 2>/dev/null && pwd -P )" || hookOut="$MDAT_SPAWN_SANDBOX_ROOT/output"
+	fi
+	## The session sandbox is always open, no row of any kind needed: its input/ is read and its output/ written.
+	case "$hookReal" in
+		"$hookIn"/*) hookAnswer allow "the session sandbox: its input/ is open to this session" ;;
+		"$hookOut"/*) hookAnswer allow "the session sandbox: its output/ is open to this session" ;;
+	esac
+fi
+
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.Grants.include" || exit 0
+AgentsToolsGrantsSessionEnsure "$hookWs" "$hookMember" "$hookSession" "$hookIn" "$hookOut" "$MDLT_ORIGIN/myx/myx.distro-agents/skillset" 2>/dev/null || exit 0
+hookRc=0
+## The session id and this workspace: the check asks the session store for the folder itself.
+AgentsToolsGrantsSessionCheck "$hookTool" "$hookReal" "$hookSession" "$hookWs" || hookRc=$?
+
 
 ## A deny row over this path (project.inf, or the access-control rows of the session
 ## routine) refuses first, whatever was granted. The session sandbox is exempt.

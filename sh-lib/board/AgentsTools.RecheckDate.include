@@ -51,9 +51,14 @@ AgentsToolsRecheckConditionUnmet(){ ## condition text
 ## A RECHECK-DATE ON A PENDING ITEM RE-CHECKS AN UNMET CONDITION, for every writer into board-pending: the item's text on stdin, printed back.
 ## Beside no unmet `condition:`, a date the write sets (an `upsert` or `append` of `recheck-date` among its header operations) is refused, rc 1
 ## and nothing printed, and a date the text carries is dropped with a warning.
+## The item's own `condition:` line, on stdin: one line, and nothing where the text carries none or does not open with front matter.
+AgentsToolsRecheckConditionOf(){
+	LC_ALL=C awk 'NR == 1 { if ( $0 != "---" ) exit ; next ; } $0 == "---" { exit ; } index( $0, "condition: " ) == 1 { print substr( $0, 12 ) ; exit ; }'
+}
+
 AgentsToolsRecheckPendingBody(){ ## writer label, item name, header operations (`<op>TAB<name>TAB<value>` lines)
 	local pendingBody="$( cat )"
-	local pendingCondition="$( printf '%s\n' "$pendingBody" | LC_ALL=C awk 'NR == 1 { if ( $0 != "---" ) exit ; next ; } $0 == "---" { exit ; } index( $0, "condition: " ) == 1 { print substr( $0, 12 ) ; exit ; }' )"
+	local pendingCondition="$( printf '%s\n' "$pendingBody" | AgentsToolsRecheckConditionOf )"
 	if AgentsToolsRecheckConditionUnmet "$pendingCondition" ; then printf '%s\n' "$pendingBody" ; return 0 ; fi
 	case $'\n'"${3:-}" in
 		*$'\n'upsert$'\t'recheck-date$'\t'*|*$'\n'append$'\t'recheck-date$'\t'*)

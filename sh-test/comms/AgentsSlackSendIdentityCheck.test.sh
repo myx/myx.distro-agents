@@ -72,7 +72,8 @@ rigAssert "--identity-bot to human-owner, a member with its own user token" \
 	"$( rigSend keeper-myx human-owner --identity-bot )" rig-bot-token-TEAM
 rigAssert "--identity-bot to a channel posts with the bot token" \
 	"$( rigSend keeper-myx magic-team --identity-bot )" rig-bot-token-TEAM
-## HIS CONVERSATION IS THE BOT'S (the owner, 2026-11-10): a member's own token never posts to him; the send takes the bot itself.
+## HIS CONVERSATION IS THE BOT'S (): a member's own token never posts to him; the send takes the bot itself.
+
 rigAssert "no flag, a member with its own user token to human-owner: the team bot's token posts" \
 	"$( rigSend keeper-myx human-owner )" rig-bot-token-TEAM
 rigAssert "no flag, the same member to a channel keeps its own token" \

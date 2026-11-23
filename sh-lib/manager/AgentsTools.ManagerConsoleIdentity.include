@@ -9,7 +9,7 @@
 ## The name the console's user has in the operating system: one word, as a Decisions line and a record header take it.
 ## Nothing and rc 1 where the system gives none.
 AgentsToolsManagerConsoleAccount(){
-	type AgentsToolsConsoleAccount > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.CallerCheck.include"
+	type AgentsToolsConsoleAccount > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.ActingMember.include"
 	AgentsToolsConsoleAccount
 }
 

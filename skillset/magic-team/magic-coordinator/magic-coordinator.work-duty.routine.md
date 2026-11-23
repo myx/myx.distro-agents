@@ -42,7 +42,7 @@ The Opening steps of its session kind run first. Then:
    - the inbox: run `magic-team.process-inbox.routine magic-coordinator` inline (`--routine-run-inline magic-team.process-inbox.routine`). This is the round's one inbox processing.
    - the due items of the human-owner and the external contacts: `magic-coordinator.external-inbox-handle-loop.routine`, inline (`--routine-run-inline magic-coordinator.external-inbox-handle-loop.routine`).
    - the permission asks: `magic-coordinator.permission-escalation.routine`, inline (`--routine-run-inline magic-coordinator.permission-escalation.routine`).
-   - the board and what is tagged to you: the board steps below, **reconcile-sessions** to **release-held-work**, against the scan's sections. Keep the round's tracking note current as the round proceeds (`--update-routine-state`), referencing items by name rather than copying them.
+   - the board and what is tagged to you: the board steps below, **reconcile-sessions** to **release-held-work**, against the scan's sections. Keep the round's tracking note current as the round proceeds (`--update-routine-state`), referencing items by name rather than copying them. This group comes before every other input in the round: a round that reaches the end of the communication sweep without a board step has not done its work, so the remaining input waits for the next round.
    - each new input, whatever its source, is worked this way:
      - analyse how it affects the board's state and the running sessions, and act on that.
      - check before you state or judge.
@@ -55,6 +55,7 @@ The Opening steps of its session kind run first. Then:
    - **reconcile-finished-session**: a live session whose tracked work reports finished and which nothing else needs is dismissed (`spawn-one-dispatch`'s **spawn-dismiss**). This covers sessions an earlier round dispatched.
    - **reconcile-lost-reply**: a `board-blocked` item waiting on a reply the registry no longer holds open: read its `communication-channel-id` thread. The addressee's answer is there: apply it and continue the item. None: re-ask the same party in that thread (`AskQuestion`, `wait: false`) and keep the item blocked, outcome `nudged`. A missing record is never consent and never a deny. An open ask never expires by age: the human may be away for weeks. It is closed only when its question is no longer current, is a duplicate, was resolved another way, or its session is complete and closed.
 3. **review-items**: for each `board-review` item whose `review-by` is `magic-coordinator`, or is empty and its run reports to `magic-coordinator` (the scan's review-items section lists them), steps:
+   - rule: a queue longer than ten is the round's first work. It comes before **answer-run-asks** and before any escalation is answered: thirty-five runs make roughly ten handbacks in seven minutes, and one reviewer behind that queue settles nothing.
    - apply `magic-team.handback-review.routine` to it, inline (`--routine-run-inline magic-team.handback-review.routine`). Every such item is reviewed here, whatever its size.
    - a verdict this member cannot settle alone, such as one that binds the team, climbs by "The ladder: one rung at a time". The item stays in `board-review` meanwhile.
    - a check that times out on both the old and the new tree compares nothing: drop it from the gate as not measurable under load.
@@ -62,6 +63,7 @@ The Opening steps of its session kind run first. Then:
    - sound work: accept the item. Then move each proven epic item to Done at once, with its evidence in one line (`--epic-update <epic-file> --set-status <feature-id> done`), and validate the epic (`--intern-doc-validate`).
    - a handback whose deliverable is staged source: leave it in `board-review` for the run that lands it. That run accepts it after the landing, naming the landing.
    - a handback that closes one round of an item still open: accept the round in the session thread. Then send the session on to the next round.
+   - at most three items this round, oldest first, while an item is startable. With nothing startable in this round's scan, keep reviewing to the end of the queue: a queue no start waits behind is what the round is for. The round goes on to **start-pending** and **continue-running** either way.
 5. **check-process-board**: run `check-process-board` against this round's read.
 6. **start-pending**: start decided `board-pending` work, steps:
    - candidates: approved `board-pending` items with no dispatch recorded, a child that `check-process-board` promoted from an approved parent included. The approval is the go; the running session covers the spawn.

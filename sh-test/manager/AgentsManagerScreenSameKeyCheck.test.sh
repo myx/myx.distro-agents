@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-## Behavioural check on a key that stands under more than one scope in `Outside Systems` of the Configuration (the owner's report, 2026-10-21: every Slack Channel row under a member
+## Behavioural check on a key that stands under more than one scope in `Outside Systems` of the Configuration (a defect: every Slack Channel row under a member
 ## scope jumped the selection to the top and drew no left pane), run rather than read. The screen's own code runs through the stand-in terminal of the driver
 ## (check-fixtures/manager-screen.driver.py), and where it would call the dispatcher it calls a stand-in script (check-fixtures/manager-screen.tools.stub.sh) that prints the fixture.
 ## THE CAUSE: the id of a line of a subject was its group and its key, so the same key held by two scopes of one outside system (SLACK_CHANNEL_MAGIC_TEAM under magic-team and under

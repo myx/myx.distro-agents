@@ -28,7 +28,8 @@ AgentsWaitOtherLiveThreads(){ ## member, session to exclude
 	## THE EXCLUDED SESSION'S OWN THREAD, whatever session-id names it: a session the exclusion's own id does not
 	## match (a child spawned into the same thread, a resumed run under a second record) still carries the SAME
 	## thread as the one excluded, and must be kept too -- excluding by session-id alone once missed this, and a
-	## session was found to lose mentions in its own thread (owner 2026-10-30).
+	## session was found to lose mentions in its own thread ().
+
 	[ -z "$otherExclude" ] || { type AgentsToolsSessionChatThread > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include" ; }
 	[ -z "$otherExclude" ] || otherOwnThread="$( AgentsToolsSessionChatThread "$otherExclude" 2> /dev/null )" || otherOwnThread=""
 	## THE MEMBER'S RECORDS AMONG THE STARTED ONES (call-path audit row 33): a run that is alive has a record in status spawn-started,
@@ -127,7 +128,8 @@ AgentsWaitMentionsPull(){ ## member, cache folder, now
 	mkdir -p "$pullDir" 2> /dev/null || return 1
 	pullTemp="$( mktemp "$pullDir/found.json.XXXXXX" 2> /dev/null )" || return 1
 	printf '%s\n' "$pullJson" > "$pullTemp" && mv -f "$pullTemp" "$pullDir/found.json" || { rm -f "$pullTemp" ; return 1 ; }
-	printf '%s 0 0\n\nslack-mentions %s\n' "$pullNow" "$pullMember" > "$pullDir/.state.txt" 2> /dev/null || :
+	pullState="$( mktemp "$pullDir/.state.XXXXXX" 2> /dev/null )" || return 1
+	printf '%s 0 0\n\nslack-mentions %s\n' "$pullNow" "$pullMember" > "$pullState" && mv -f "$pullState" "$pullDir/.state.txt" || { rm -f "$pullState" ; return 1 ; }
 	return 0
 }
 
@@ -242,6 +244,7 @@ AgentsWaitProbeMentions(){
 	esac
 	fi
 	## A search that found nothing leaves no .found file: an empty one stands for it, so a quiet search is a read (S21.2).
+
 	[ -e "$probeOut.found" ] || : > "$probeOut.found"
 	## Strictly newer than the pointer: the one returned last is not returned again. The conversation of each goes on a `# in` line before it.
 	## A mention in a conversation or thread another source of this wait reads is left to that source, so it is returned once (AgentsWaitCoveredSet).
@@ -279,6 +282,7 @@ AgentsWaitProbeMentions(){
 	AgentsWaitOwnFile "$probeOut" || return 2
 	## The newest ts of what was kept, read by the shell off the lines in hand (call-path audit row 18): the last line of the form
 	## `<digits>.<digits> | ...`, as the awk over the written file took it.
+
 	local probeLine probeWord
 	probeNewest=""
 	while IFS= read -r probeLine ; do
@@ -320,6 +324,7 @@ AgentsWaitMentionsCommit(){ ## member, the file holding the newest ts
 ## all the same. Local: one grep over the pending records, then the open ones alone. AN OPEN ASK FROM BEFORE THE FLOOR IS STILL
 ## THE MEMBER'S: one the member was never shown is returned once all the same -- it was asked while nothing read it -- and is kept
 ## in .local/agents/wait/asks-shown.<member>, so no later call shows it again.
+
 AgentsWaitAddressedAsks(){ ## member, floor (a ts or epoch seconds; empty for none)
 	local askMember="$1" askFloor="${2:-}" askFile askHead askTs askLine askShown="${MMDAPP:-/nonexistent}/.local/agents/wait/asks-shown.$1" askShownList=""
 	[ ! -f "$askShown" ] || askShownList=" $( LC_ALL=C tr '\n' ' ' < "$askShown" 2> /dev/null ) "

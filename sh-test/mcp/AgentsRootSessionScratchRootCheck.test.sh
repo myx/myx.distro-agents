@@ -55,7 +55,7 @@ rigOrigin="$rigTmp/origin"
 mkdir -p "$rigOrigin/myx/myx.distro-agents" "$rigOrigin/myx/myx.distro-system/sh-lib" \
 	"$rigOrigin/myx/myx.distro-.local/sh-lib" "$rigOrigin/myx/myx.distro-agents/sh-test" "$rigTmp/bin" "$rigTmp/home"
 for rigPart in sh-lib sh-scripts project.inf ; do
-	[ ! -e "$rigPackage/$rigPart" ] || cp -Rp "$rigPackage/$rigPart" "$rigOrigin/myx/myx.distro-agents/" \
+	[ ! -e "$rigPackage/$rigPart" ] || rigCopyTree "$rigPackage/$rigPart" "$rigOrigin/myx/myx.distro-agents/$rigPart" \
 		|| rigRefuse "cannot copy $rigPart into the rig origin"
 done
 printf '%s\n' '#!/usr/bin/env bash' \

@@ -40,6 +40,7 @@ AgentsToolsCollectStateGet(){ ## kind, member, key
 }
 
 ## Sets keys of a source's state: key, value, key, value ...; an empty value removes the key. Written whole, then renamed.
+
 AgentsToolsCollectStateSet(){ ## kind, member, key, value, ...
 	local setKind="$1" setMember="$2" setPath setDir setTmp setPairs=""
 	shift 2
@@ -334,12 +335,6 @@ AgentsToolsCollectSinceOf(){ ## member
 	return 0
 }
 
-## THE TTL OF A COLLECTED SOURCE: its table's (AgentsToolsSourceTtlOf), the one place a source's base TTL is written. A member's
-## mailbox is five minutes (owner 2026-10-29), in worktime and out of it.
-AgentsToolsCollectTtlOf(){ ## kind, member
-	AgentsToolsSourceTtlOf "$1:$2"
-}
-
 ## ONE SOURCE, if it is due: takes its lock, looks at its TTL, collects, keeps the state. Leaves the line it says in
 ## agentsCollectLine and the count in agentsCollectNew. rc 0 collected, fresh, or busy; 3 failed; 4 not
 ## configured; 5 not ours to read here.
@@ -357,7 +352,7 @@ AgentsToolsCollectOne(){ ## kind, member, force (yes|no), since (dd-Mon-yyyy, or
 		return 0
 	fi
 	oneLockPath="$agentsLocalLockPath"
-	oneTtl="$( AgentsToolsCollectTtlOf "$oneKind" "$oneMember" )"
+	oneTtl="$( AgentsToolsSourceTtlOf "$oneKind:$oneMember" )"
 	oneChecked="$( AgentsToolsCollectStateGet "$oneKind" "$oneMember" checked-at )"
 	case "$oneChecked" in ''|*[!0123456789]*) oneChecked=0 ;; esac
 	oneNow="$( date +%s )"

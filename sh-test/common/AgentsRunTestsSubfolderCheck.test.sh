@@ -44,11 +44,11 @@ rigAssert(){ ## what is asserted, got, want
 ## ---- the fixture ----
 ## The copy: the package's own code by copy, and its sh-test this rig's own: the runner under test, two tiny tests
 ## that each write down that they ran, and a fixture that would say so too, were it ever run.
-for rigPart in sh-lib sh-scripts project.inf ; do
+for rigPart in sh-lib sh-scripts sh-test/runner project.inf ; do
 	rigCopyTree "$rigPackage/$rigPart" "$rigCopy/myx/myx.distro-agents/$rigPart" || rigRefuse "the rig copy could not be made: $rigPart"
 done
-cp "$rigRunner" "$rigTests/AgentsRunTests.sh" || rigRefuse "the runner could not be copied into the rig"
-mkdir -p "$rigTests/check-fixtures" && cp "$(dirname "$rigRunner")/check-fixtures"/runner-*.py "$rigTests/check-fixtures"/
+rsync -t "$rigRunner" "$rigTests/AgentsRunTests.sh" || rigRefuse "the runner could not be copied into the rig"
+mkdir -p "$rigTests/check-fixtures" && rsync -t "$(dirname "$rigRunner")/check-fixtures"/runner-*.py "$rigTests/check-fixtures"/
 rigTiny(){ ## file
 	printf '#!/usr/bin/env bash\nprintf "RAN %%s\\n" "${0##*/}" >> "$RIG_SHARED/log"\necho "RIG_TINY: OK"\n' > "$1"
 }

@@ -19,6 +19,7 @@ set -u
 rigPackage="$MDLT_ORIGIN/myx/myx.distro-agents"
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
+
 }
 for rigFixture in collect-sources.imaplib.stub.py collect-sources.curl.stub.sh rig-temp.include.sh ; do
 	[ -f "$rigPackage/sh-test/check-fixtures/$rigFixture" ] || rigRefuse "the fixture $rigFixture is missing from the package"
@@ -42,7 +43,7 @@ printf 'EMAIL_IMAP_HOST=imap.rig.invalid\nEMAIL_USER=rig@rig.invalid\nEMAIL_APP_
 printf 'EMAIL_IMAP_HOST=imap.rig.invalid\nEMAIL_USER=client@rig.invalid\nEMAIL_APP_PASSWORD=%s\n' "$rigSecret" > "$rigWs/.local/.agents/client-rig.agent.env"
 ## A clock of the rig's own: `date +%s` reads the fixed instant in now.epoch (a Sunday out of worktime by default, so the mail TTL of the
 ## collection is its five-minute floor), every other call goes to the real date. MDAT_SCHEDULE_TIMEZONE=UTC above makes the offset 0, so
-## worktime is decided by now.epoch alone (AgentsToolsCollectTtlOf, the table's TTL).
+## worktime is decided by now.epoch alone (AgentsToolsSourceTtlOf, the table's TTL).
 rigRealTool date "$rigTmp/bin/date.real" 2> /dev/null || rigRefuse "no real date on PATH"
 cat > "$rigTmp/bin/date" <<'RIGDATE'
 #!/bin/sh
@@ -229,7 +230,7 @@ rigAssert "all the members of a pass are one commit too" "$rigRc:$(( $( rigCommi
 rigRun --member rig-member --kind mail --force
 rigAssert "a pass that wrote nothing makes no commit" "$rigRc:$(( $( rigCommits ) - rigBefore - 1 ))" "0:0"
 
-echo "-- 9. the mail TTL in worktime: five minutes, no stretch (owner 2026-10-29) --"
+echo "-- 9. the mail TTL in worktime: five minutes, no stretch --"
 rigMailbox "801 unseen"
 rm -f "$rigState/mail.rig-member.state"
 printf '1793008800\n' > "$rigTmp/now.epoch"
@@ -244,5 +245,6 @@ rigAssert "five minutes on, still in worktime: fetched again, worktime stretches
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ COLLECT SOURCES CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1
+
 fi
 printf 'COLLECT_SOURCES: OK (%d assertions, offline, rig tree only)\n' "$rigPassCount"

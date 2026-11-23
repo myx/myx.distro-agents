@@ -37,8 +37,10 @@ type AgentsToolsGrantsMemberList > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.dis
 		AgentsToolsAssertBareName "$listMember" "<member>" permission-list || { set +e ; return 1 ; }
 		[ -z "$listSession" ] || AgentsToolsAssertBareName "$listSession" "--session-id" permission-list || { set +e ; return 1 ; }
 		if [ "$listOp" = "--list-permissions" ] ; then
+			type AgentsToolsActingMemberCheck > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.ActingMember.include"
 			AgentsToolsActingMemberCheck "$listActing" "${listOp#--}" || { set +e ; return 1 ; }
 			## Another member's grants are magic-coordinator's to list, or the console's.
+			type AgentsToolsActingMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.ActingMember.include"
 			if [ "$listMember" != "$listActing" ] && [ -n "$( AgentsToolsActingMember )" ] && [ "$( AgentsToolsActingMember )" != magic-coordinator ] ; then
 				echo "$MDSC_CMD: ⛔ ERROR: $listActing lists its own grants, and $listMember's are magic-coordinator's to list -- nothing was done" >&2
 				set +e ; return 1

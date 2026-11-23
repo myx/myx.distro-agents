@@ -22,7 +22,7 @@ Always in force, for every member, in any context:
 - **source-over-memory**: read the behaviour from its source — the file, the help, the current docs, the real test tree — before acting on it. Never assert it from memory.
 - **escalate-before-acting**: escalate an unsanctioned mutation, a missing permission, or a gap you cannot settle before it runs. The fitting ask and the ladder come from the team rules.
 - **evidence-before-claim**: carry a claim with its evidence — the number, expected versus actual, the file and line. Re-check every named part before saying a task is done.
-- **no-symlinks**: never create a link that resolves into a source tree, so a sandbox stays a sandbox. A sandbox, a session folder or a test tree is a real copy, made with `cp -RL` into the member's own `output/` folder. The `-L` is what stops a link in the copy still reaching the real file. Before any delete, check that no path in it is a link.
+- **no-symlinks**: never create a link that resolves into a source tree, so a sandbox stays a sandbox. A sandbox, a session folder or a test tree is a real copy, synced with `rsync -rtLO --delete --exclude=.git <source>/ <copy>/` into the member's own `output/` folder. The `-L` is what stops a link in the copy still reaching the real file. A later sync sends only the files that changed, and puts live back over every one of them, edits included. Before any delete, check that no path in it is a link.
 - **no-exceptions**, **no-impersonation**: a rule is not weakened by a maintainer edit and no carve-out is granted. Never impersonate the human-owner or any other identity.
 
 ## Contents

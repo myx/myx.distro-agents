@@ -22,6 +22,7 @@ case "$1" in
 		## client-* member too, unless its address is a client: one.
 		--slack-read|--slack-search-messages|--slack-react|--slack-delete-message|--slack-edit-message|--slack-file-info|--slack-file-fetch|--slack-file-share|--slack-send-message|--slack-presence-keep|--slack-presence-status|--slack-presence-stop|--slack-profile-set|--slack-profile-get|--slack-socket-start|--slack-socket-status|--slack-socket-stop)
 			local -x MDAT_COMMS_SIDE=own MDAT_COMMS_OP=""
+			type AgentsToolsActingMemberCheck > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.ActingMember.include"
 			case "${2:-}" in
 				''|--print-required-scopes) ;;
 				*) AgentsToolsActingMemberCheck "$2" "${1#--}" || { set +e ; return 1 ; } ;;
@@ -82,7 +83,7 @@ case "$1" in
 		;;
 		## Own file for size only; the service keeps one dispatcher arm.
 		--intern-op-comms-slack-profile-*)
-			type AgentsToolsCommsSlackProfileEmitField > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/slack/AgentsTools.MemberCommsSlackProfile.include"
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/slack/AgentsTools.MemberCommsSlackProfile.include"
 			return $?
 		;;
 		## Own file for size only; the service keeps one dispatcher arm.
@@ -100,7 +101,7 @@ case "$1" in
 			return $?
 		;;
 		--intern-op-comms-slack-search-messages)
-			type AgentsToolsCommsSlackSearchAnswer > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/slack/AgentsTools.InternOpCommsSlackSearch.include"
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/slack/AgentsTools.InternOpCommsSlackSearch.include"
 			return $?
 		;;
 		--intern-op-comms-slack-react)
@@ -124,7 +125,7 @@ case "$1" in
 			return $?
 		;;
 		--intern-op-comms-slack-send-message)
-			type AgentsToolsCommsSlackPresentationField > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/slack/AgentsTools.InternOpCommsSlackSend.include"
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/slack/AgentsTools.InternOpCommsSlackSend.include"
 			return $?
 		;;
 		*)

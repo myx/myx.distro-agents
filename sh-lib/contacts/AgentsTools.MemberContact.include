@@ -31,6 +31,7 @@ case "$1" in
 				shift || true
 			;;
 		esac
+		type AgentsToolsActingMemberCheck > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.ActingMember.include"
 		AgentsToolsActingMemberCheck "$digestMember" send-contact-digest || { set +e ; return 1 ; }
 		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 		DistroAgentsTools --intern-op-contact-digest-send "$digestMember" "$digestOrigin" "$@" \

@@ -3,7 +3,7 @@
 ## of its ask is never recorded as that ask's answer. An ask that OFFERS options is a
 ## disambiguation ask, and takes only one of them: the record's `select` field is no witness
 ## to that, since a revise can leave the options standing with no form beside them.
-## Held as six rows, each through the real operation --intern-op-pending-reply-collect:
+## Held as eight rows, each through the real operation --intern-op-pending-reply-collect:
 ##   A. an ask with options and a form, the reply `asdf`: no answer, the record stays open.
 ##   B. the same ask answered `Switch`, its own first option: answered, with `switch`.
 ##   C. an ask whose options stand beside it with NO form, the reply `asdf`: no answer.
@@ -13,12 +13,18 @@
 ##      no answer.
 ##   F. a free-text question, no form and no options, the reply `asdf, why not`: answered as
 ##      typed. The control on what the three rows above must not take away.
+##   G. the same ask as C, answered by an option's whole line as the post shows it: answered,
+##      with that option's own word.
+##   H. the same ask again, answered in words that are no option's line and name none: no
+##      answer. The control on G, so a reply is not read as an option it never named.
 ##
 ## RED RECIPE, measured on the code before the fix at 2026-11-20 18:57 +0200: C is red,
 ## answered `asdf`. D is red too, answered `Switch` unlowered: the ask's options were never
-## read there, so no option word was ever matched against them. A, B, E and F pass on the live
-## tree. E's own red comes from the collect keeping any reaction line as an answer to a
-## free-text ask, which its recorded store shows seven times over.
+## read there, so no option word was ever matched against them. G is red, its whole option
+## line kept as the answer instead of the word that line names. H is red the same way, its
+## words kept as typed. A, B, E and F pass on the live tree. E's own red comes from the
+## collect keeping any reaction line as an answer to a free-text ask, which its recorded
+## store shows seven times over.
 ##
 ## Offline: a Slack-shaped fake curl is first on PATH, and every record, thread and workspace
 ## is this check's own under the workspace's temp folder.
@@ -150,6 +156,22 @@ rigReplies ',{"ts":"1700000001.000200","user":"URIGOWNER","text":"asdf, why not"
 rigCollect
 rigAssert "a free-text ask takes the reply as typed"       "$( rigField "$rigQ1" verdict )" "asdf, why not"
 rigAssert "and closes as received"                         "$( rigStatus "$rigQ1" )" reply-received
+
+echo "-- G. the same ask answered by an option's whole line, as the post shows it --"
+rigStart optionsWithoutFormItsWholeLine
+rigAsk "$rigQ1" Q1 "" "$rigOptions"
+rigReplies ',{"ts":"1700000001.000200","user":"URIGOWNER","text":"Switch: turn the rig left","thread_ts":"1700000001.000100"}'
+rigCollect
+rigAssert "its option's line answers with that option's word" "$( rigField "$rigQ1" verdict )" switch
+rigAssert "and the record closes"                         "$( rigStatus "$rigQ1" )" reply-received
+
+echo "-- H. the same ask answered in words naming no option: the control on G --"
+rigStart optionsWithoutFormOtherWords
+rigAsk "$rigQ1" Q1 "" "$rigOptions"
+rigReplies ',{"ts":"1700000001.000200","user":"URIGOWNER","text":"Turn the rig right","thread_ts":"1700000001.000100"}'
+rigCollect
+rigAssert "words naming no option are no answer"             "$( rigField "$rigQ1" verdict )" ""
+rigAssert "and the record stays open"                       "$( rigStatus "$rigQ1" )" reply-pending
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ PENDING REPLY COLLECT NONSENSE CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

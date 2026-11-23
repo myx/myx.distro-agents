@@ -64,6 +64,7 @@
 		fi
 		AgentsToolsAssertBareName "$memberName" "<member>" trash-inbox-item || { set +e ; return 1 ; }
 		AgentsToolsAssertBareName "$itemName" "<item-filename>" trash-inbox-item || { set +e ; return 1 ; }
+		type AgentsToolsActingMemberCheck > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.ActingMember.include"
 		AgentsToolsActingMemberCheck "$memberName" trash-inbox-item || { set +e ; return 1 ; }
 		## A stray here is repaired first, never refused: its own gate would leave it unclosable for ever.
 		local repairedAnswer repairedName repairedHow

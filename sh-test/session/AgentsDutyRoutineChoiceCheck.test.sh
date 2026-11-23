@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
 ## Behavioural check on how the schedule picks the routine of a member's duty (S18.4): AgentsToolsScheduleDutyRoutine
-## answers the off-duty routine out of the member's hours, and its work-duty routine in them. Held, over a skill folder
-## standing the routines up as plain files:
-##   1. OUT OF ITS HOURS a member that holds `<member>.off-duty.routine.md` is given that one.
-##   2. THE CONTROL: in its hours the same member, over the same folder, is given its work-duty routine. A resolver that
-##      ignored the hours passes row 1 or row 2, never both.
-##   3. A MEMBER WITH NO OFF-DUTY ROUTINE keeps its own work-duty one out of hours too, and one that holds both takes its
-##      off-duty one out of hours and its work-duty one in them.
-##   4. A MEMBER HOLDING NEITHER is given the team's work-duty routine, out of hours as in them.
-##   5. NO FOLDER AT ALL is given the team's routine, so a missing folder never turns into a crash, and an unstated hour
-##      is not out of hours.
+## answers the off-duty routine to a duty no permission allows, and its work-duty routine to one the schedule allows. Held,
+## over a skill folder standing the routines up as plain files:
+##   1. ALLOWED NOTHING a member that holds `<member>.off-duty.routine.md` is given that one.
+##   2. THE CONTROL: with a work-duty allowed the same member, over the same folder, is given its work-duty routine. A
+##      resolver that ignored the permission passes row 1 or row 2, never both.
+##   3. A MEMBER WITH NO OFF-DUTY ROUTINE keeps its own work-duty one when allowed nothing too, and one that holds both takes
+##      its off-duty one when allowed nothing and its work-duty one when allowed.
+##   4. A MEMBER HOLDING NEITHER is given the team's work-duty routine, allowed nothing or allowed.
+##   5. NO FOLDER AT ALL is given the team's routine, so a missing folder never turns into a crash, and an unstated
+##      permission is not "allowed nothing".
 ## Offline: the schedule include alone, no tool call. No rig folder.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
@@ -42,7 +42,7 @@ rigAssert(){ ## what is asserted, got, want
 	fi
 	return 0
 }
-rigChoice(){ ## member, folder, hours word (may be empty) -- what the resolver prints
+rigChoice(){ ## member, folder, allowed word (may be empty) -- what the resolver prints
 	env -i HOME="$rigTmp/home" PATH="/usr/bin:/bin:/usr/sbin:/sbin" MMDAPP="$rigTmp/ws" MDAT_DATA_ROOT="$rigTmp/data" \
 		MDLT_ORIGIN="$MDLT_ORIGIN" bash -c '
 			set +e
@@ -51,20 +51,20 @@ rigChoice(){ ## member, folder, hours word (may be empty) -- what the resolver p
 		' rig "$rigInclude" "$1" "${2:-}" "${3:-}" "${4:-}" 2> /dev/null
 }
 
-echo "-- 1 and 2. the hours decide, not the files --"
-rigAssert "out of its hours, the coordinator's off-duty routine"      "$( rigChoice magic-coordinator "$rigSkills/magic-coordinator" no )" "magic-coordinator.off-duty.routine.md"
-rigAssert "in its hours, its work-duty routine (CONTROL)"             "$( rigChoice magic-coordinator "$rigSkills/magic-coordinator" yes )" "magic-coordinator.work-duty.routine.md"
+echo "-- 1 and 2. the permission decides, not the files --"
+rigAssert "allowed nothing, the coordinator's off-duty routine"       "$( rigChoice magic-coordinator "$rigSkills/magic-coordinator" no )" "magic-coordinator.off-duty.routine.md"
+rigAssert "allowed a work-duty, its work-duty routine (CONTROL)"      "$( rigChoice magic-coordinator "$rigSkills/magic-coordinator" yes )" "magic-coordinator.work-duty.routine.md"
 
 echo "-- 3. a member with no off-duty routine keeps its work-duty one --"
-rigAssert "a keeper with only a work-duty routine, out of hours"      "$( rigChoice keeper-work "$rigSkills/keeper-work" no )" "keeper-work.work-duty.routine.md"
-rigAssert "a keeper holding both, out of hours, takes its off-duty"   "$( rigChoice keeper-both "$rigSkills/keeper-both" no )" "keeper-both.off-duty.routine.md"
-rigAssert "the same keeper in its hours takes its work-duty one"      "$( rigChoice keeper-both "$rigSkills/keeper-both" yes )" "keeper-both.work-duty.routine.md"
+rigAssert "a keeper with only a work-duty routine, allowed nothing"   "$( rigChoice keeper-work "$rigSkills/keeper-work" no )" "keeper-work.work-duty.routine.md"
+rigAssert "a keeper holding both, allowed nothing, takes its off-duty" "$( rigChoice keeper-both "$rigSkills/keeper-both" no )" "keeper-both.off-duty.routine.md"
+rigAssert "the same keeper allowed a work-duty takes its work-duty one" "$( rigChoice keeper-both "$rigSkills/keeper-both" yes )" "keeper-both.work-duty.routine.md"
 
 echo "-- 4 and 5. no routine of its own, and no folder at all --"
-rigAssert "a member holding neither, out of hours: the team's"        "$( rigChoice keeper-none "$rigSkills/keeper-none" no )" "magic-team.work-duty.routine.md"
-rigAssert "and in its hours: the team's"                              "$( rigChoice keeper-none "$rigSkills/keeper-none" yes )" "magic-team.work-duty.routine.md"
-rigAssert "with no folder given, out of hours: the team's"            "$( rigChoice magic-coordinator "" no )" "magic-team.work-duty.routine.md"
-rigAssert "with the hour unstated, a holding member's work-duty one"  "$( rigChoice magic-coordinator "$rigSkills/magic-coordinator" )" "magic-coordinator.work-duty.routine.md"
+rigAssert "a member holding neither, allowed nothing: the team's"     "$( rigChoice keeper-none "$rigSkills/keeper-none" no )" "magic-team.work-duty.routine.md"
+rigAssert "and allowed a work-duty: the team's"                       "$( rigChoice keeper-none "$rigSkills/keeper-none" yes )" "magic-team.work-duty.routine.md"
+rigAssert "with no folder given, allowed nothing: the team's"         "$( rigChoice magic-coordinator "" no )" "magic-team.work-duty.routine.md"
+rigAssert "with the permission unstated, a holding member's work-duty one" "$( rigChoice magic-coordinator "$rigSkills/magic-coordinator" )" "magic-coordinator.work-duty.routine.md"
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ DUTY ROUTINE CHOICE CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2

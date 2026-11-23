@@ -68,7 +68,7 @@ case "$1" in
 		type AgentsToolsTeamMemberDirectory > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamRegistry.include"
 		if ! AgentsToolsTeamMemberDirectory "$memberName" > /dev/null ; then
 			local memberSetRoot=""
-			type AgentsToolsSkillsetRootInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWorkspace.include"
+			type AgentsToolsSkillsetRootInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWorkspace.Root.include"
 			AgentsToolsSkillsetRootInto memberSetRoot "${MMDAPP:-}"
 			echo "$MDSC_CMD: member-inbox-upsert: ⛔ ERROR: no member record of that name on this machine: $memberName -- nothing was written. Looked for its directory under $memberSetRoot, and for a row of it in the machine members index (${HOME:-}/.agents/magic-team/members.registry)." >&2
 			set +e ; return 1
@@ -257,6 +257,7 @@ case "$1" in
 			[ -n "$fromMember" ] && AgentsToolsAssertBareName "$fromMember" "MDAT_SPAWN_AGENT" member-inbox-upsert 2>/dev/null || fromMember=""
 			## A person at a console, with no session spawned, is user-<account> (the team member default of the common
 			## option set, F2.2); with not even an account, the item has no writer and the gate refuses it.
+			type AgentsToolsConsoleAccount > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.ActingMember.include"
 			if [ -z "$fromMember" ] && [ -z "${MDAT_SPAWN_AGENT:-}" ] && fromAccount="$( AgentsToolsConsoleAccount )" && [ -n "$fromAccount" ] ; then
 				fromMember="user-$fromAccount"
 				AgentsToolsAssertBareName "$fromMember" "user-\$USER" member-inbox-upsert 2>/dev/null || fromMember=""

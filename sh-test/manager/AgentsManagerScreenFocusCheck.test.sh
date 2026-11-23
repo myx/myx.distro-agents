@@ -22,7 +22,7 @@
 ## Offline: no operation of the real tooling is called.
 ## Reconciled for F11.0: `Launch / Spawn` is named `Launchpad`, `Consoles (Tools)` `Consoles`.
 ## Reconciled for F11.0, the table lines: two spaces between the columns of every table.
-## Reconciled for the count of Pending Questions (owner, 2026-10-20): the root reads the count of the asks (`--count`) whatever is shown, and that start is no read of a folder: the helpers leave it out.
+## The count of Pending Questions: the root reads the count of the asks (`--count`) whatever is shown, and that start is no read of a folder: the helpers leave it out.
 ## Reconciled for F11.5: the roots are Dashboard, Pending Questions, Magic-Team (Agents), Locations, Consoles, Settings and Configuration, so the selection steps through those, and the sessions and the members are read inside Magic-Team (Agents) (Activity, Team Members); the asks, the places and the consoles keep their cases.
 ## Reconciled for the removal of Pending Questions from Magic-Team (owner-approved: it is a root alone now, "we keep those in root and not duplicating it in Magic-Team"): the sections of Magic-Team are `.. activity launch team teamdata routines`, so the sessions are the first one after the row that goes up and every step inside Magic-Team is one nearer the top.
 ## Reconciled for the subject `Configure Harness` of the configuration (the folder mounted after `Git Settings`): the digest of the configuration lists it among its folders, as AgentsManagerScreenConfigurationCheck does.

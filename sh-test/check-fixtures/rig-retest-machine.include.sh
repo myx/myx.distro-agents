@@ -3,14 +3,17 @@
 ##
 ## The rig of the checks of the testing system (AgentsTestbedCheck, AgentsRetestQueueOptionsCheck, AgentsRequestTestsCheck): a machine of its own,
 ## built under $rigTmp -- a HOME, whose .agents/magic-team/retest-queue is the machine's one queue; a workspace whose own tree (source/) is a copy of
+
 ## the tooling as it stands at the origin, with three tiny tests and the test runner in place of the package's tests, and beside it a scratch copy with
 ## two; a team data root with the inbox of magic-tester and of two members; and a skillset root with those members. Every call goes through one
 ## `env -i` whose child refuses to start unless MMDAPP and MDAT_DATA_ROOT sit under this rig's tree, so nothing reaches outside it.
 ## Sourced by the check, after rig-processes.include.sh and rig-temp.include.sh, with rigTmp made, rigRefuse and rigAssert defined:
 ##   . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-retest-machine.include.sh"
+
 ##   rigMachineSetup                  builds the rig
 ##   rigCall <prefix> <words...>      one call of the script in rigScript (DistroAgentsTools, DistroAgentsTesting or AgentTestingTools), in the background;
 ##                                    <prefix>.out .err, its pid in rigLast         rigEnd <pid>  rigOp <prefix> <words...>  (rigRc)
+
 ##   rigAs <member>                   the member the calls act as (MDAT_SPAWN_AGENT); empty for the console
 ##   rigDirective <sh-test path|off> [host glob]   the testing directive in the project.inf of the rig's package (sh-test, any host, to begin with): the folders eligible for the nightly and the oldest untested
 ##   rigFresh   rigRoot   rigTests   rigUntil   rigBegins   rigBegun   rigHolds   rigLine   rigStands   rigInbox
@@ -52,8 +55,9 @@ rigRoot(){ ## copy -- its source root: `live` is the workspace's own tree, any o
 rigTests(){ ## copy, test... -- that copy's tests: the runner under test and the tiny tests named. Each says in the shared log when it begins and ends and which copy it ran in; it ends only once the rig lets it where the rig holds it (hold.<test>), and fails where the rig says so (fail.<test>)
 	local testsDir testsName ; testsDir="$( rigRoot "$1" )/myx/myx.distro-agents/sh-test" ; shift
 	rm -rf "$testsDir" ; mkdir -p "$testsDir"
-	cp "$rigPackage/sh-test/AgentsRunTests.sh" "$testsDir/AgentsRunTests.sh"
-	mkdir -p "$testsDir/check-fixtures" && cp "$rigPackage/sh-test/check-fixtures"/runner-*.py "$testsDir/check-fixtures"/
+	rsync -t "$rigPackage/sh-test/AgentsRunTests.sh" "$testsDir/AgentsRunTests.sh"
+	mkdir -p "$testsDir/check-fixtures" && rsync -t "$rigPackage/sh-test/check-fixtures"/runner-*.py "$testsDir/check-fixtures"/
+	mkdir -p "$testsDir/runner" && rsync -t "$rigPackage/sh-test/runner"/*.sh "$testsDir/runner"/
 	for testsName in "$@" ; do
 		cat > "$testsDir/$testsName.test.sh" <<'RIGTINY'
 #!/usr/bin/env bash

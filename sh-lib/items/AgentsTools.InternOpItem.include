@@ -6,6 +6,7 @@
 ## team-data item read/lock and write/commit pair: in-context helpers with no operation of
 ## their own (MAGIC.md, section 1). Sourced for its functions only:
 ##   type AgentsToolsItemUpsert > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/items/AgentsTools.InternOpItem.include"
+
 ## Their caller holds the context they act in: a member is the caller's own, never switched to.
 ##
 
@@ -325,6 +326,7 @@ AgentsToolsItemUpsertLocked(){ ## <team-member> [<selector>|<item-filename>] [--
 	local commitMessageOverride="" noPush="false"
 	## Header ops accumulate here and are materialised once, immediately before
 	## the .awk that reads them by path -- so no early return can leak a file.
+
 	local headerOps=""
 	local content contentFromFile="false" bodyMode="" bodyModeCount=0
 	local headerOp headerSpec headerRest headerName headerValue

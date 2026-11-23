@@ -55,6 +55,8 @@ for rigSession in a b c ; do
 	rigTests="$( rigRoot "$rigSession" )/myx/myx.distro-agents/sh-test"
 	mkdir -p "$rigTests/check-fixtures" || rigRefuse "the copy could not be made: $rigSession"
 	cp "$rigRunner" "$rigTests/AgentsRunTests.sh" && cp "$( dirname "$rigRunner" )/check-fixtures"/runner-*.py "$rigTests/check-fixtures"/ || rigRefuse "the runner could not be copied: $rigSession"
+	## THE RUNNER IS A ROUTER: its parts travel with it, or the rig copy finds none and runs nothing.
+	mkdir -p "$rigTests/runner" && cp "$( dirname "$rigRunner" )"/runner/*.sh "$rigTests/runner"/ || rigRefuse "the runner parts could not be copied into the rig"
 	cat > "$rigTests/RigTiny.test.sh" <<'RIGTINY'
 #!/usr/bin/env bash
 printf 'BEGIN %s\n' "$RIG_SUITE" >> "$RIG_SHARED/log"

@@ -54,7 +54,7 @@ For a death the control thread asks this reviewer a decision instead: `resume`, 
 ## Scope
 
 - Does:
-  - Read the item, the handback, the output and the item's `## Decisions`.
+  - Read the item, the handback, the output, the item's `## Decisions` and the dispatch's brief.
   - Choose a verdict, or a combination, and run its operations.
 - Doesn't:
   - Move the item or dismiss the child by hand: the operations do that, and record it.
@@ -69,13 +69,15 @@ None of its own: the Opening steps of the routine it inherits from run first (it
 Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate it, and never skip it silently.
 
 1. **review-read**: Read the item, its handback, the output it names, its `## Decisions`, and any end-of-run note the tooling left in the session's own thread.
-2. **review-code**: Where the handback changed code, read every changed line against `magic-tester/reference/code-review.md`, its checks run one finding each. Its rules are `magic-developer/reference/code-craft.md` and, for shell and awk, `shell.md`. A green test is the gate before review, never the review. A line that fails a check is returned, and the finding names the check it failed. Where the change adds a read of a store, ask the call-path rule in `magic-team.armed.md`, "Engineering & operating discipline". `AgentsHotPathWalksCheck` (`sh-test/session`) answers it.
-3. **review-choose**: Choose a verdict, or a combination of them:
+2. **review-against-brief**: Read the dispatch's brief the item records, its `floors:` and `tests:` above all. Every floor is closed, and its closure names its evidence. Every `work:` item has a decision. Each `tests:` check failed before the change and passes after it, and the reviewer reruns it from a fresh copy of live with the change applied. The change stays inside the `boundary:`. A handback with an open floor, an item without a decision, a check without a run or a change outside the boundary is returned, and the finding names which.
+3. **review-against-spec**: Where the brief names a spec, a sketch or an epic row, read every changed hunk in full against that section, with the live code around it. Quote the line each hunk serves. A hunk that no line calls for is returned. A test that contradicts the section is changed, and the reason is written. Staged source is landed hunk by hunk onto live, then the touched operations run from a fresh process, before accept (`magic-coordinator.armed.md`, "What to hand off").
+4. **review-code**: Where the handback changed code, read every changed line against `magic-tester/reference/code-review.md`, its checks run one finding each. Its rules are `magic-developer/reference/code-craft.md` and, for shell and awk, `shell.md`. A green test is the gate before review, never the review. A line that fails a check is returned, and the finding names the check it failed. Where the change adds a read of a store, ask the call-path rule in `magic-team.armed.md`, "Engineering & operating discipline". `AgentsHotPathWalksCheck` (`sh-test/session`) answers it.
+5. **review-choose**: Choose a verdict, or a combination of them:
    - accept: the work is done.
    - return: the same session continues, with your corrections. You may edit its documents or its sandbox first.
    - reject: the item goes back to `board-pending`, for a fresh session, with your corrections.
    - follow-up: a new pending item for work the handback left open.
-4. **review-apply**: Run the operation of each chosen verdict.
+6. **review-apply**: Run the operation of each chosen verdict.
 
 # Closure steps
 

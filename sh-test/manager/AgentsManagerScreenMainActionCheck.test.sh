@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-## Check on the main action of an item (owner, 2026-10-20): where the selected item does not handle Enter itself, Enter runs the item's main action, one rule of the
+## Check on the main action of an item : where the selected item does not handle Enter itself, Enter runs the item's main action, one rule of the
 ## framework (mainActionOf, AgentsManagerScreen.Keys.py) and no rule of a view. The order: the action a command declares as main; else the first of edit, configure, change
 ## and open the item has; else any other action, one that destroys last (each of them asks for its confirmation, as it does by its own key); within a kind the first in the order
 ## of the commands, which is the status line's. An item that handles Enter itself is unchanged: it has no main action.

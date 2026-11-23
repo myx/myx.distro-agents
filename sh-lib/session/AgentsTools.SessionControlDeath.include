@@ -68,8 +68,6 @@
 type AgentsToolsFrontmatterKey > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.FrontmatterKey.include"
 type AgentsToolsRunRoute > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.RunRoute.include"
 type AgentsToolsSessionParentThreadFind > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.SessionThreads.include"
-type AgentsToolsSpawnProxyCloseSandbox > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnProxyClose.include"
-type AgentsToolsBoardItemHeadersInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemDecisions.include"
 type AgentsToolsSpawnProxyEndNotice > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnProxyNotices.include"
 type AgentsToolsSpawnRecord > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunRecords.include"
 
@@ -79,7 +77,7 @@ agentsSessionControlDeathOutcome="ended-without-close"
 
 ## The line of one run in control/dead of its session; rc 1 where it has none.
 ## The record of a question, open or closed (retention, T9): AgentsToolsPendingRecordPath, the one reader of both stores.
-type AgentsToolsPendingRecordPath > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.Authority.include"
+type AgentsToolsPendingRecordPath > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.PendingPaths.include"
 
 AgentsToolsSessionControlDeathLine(){ ## session id, run id
 	local lineFile lineOne
@@ -146,7 +144,7 @@ AgentsToolsSessionControlDeathRecordMark(){ ## spawn record file, header, value
 	markBody="$( LC_ALL=C awk -v opsFile="$markOps" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsBoardItemHeaderOpsApply.awk" < "$markFile" 2> /dev/null )" || markBody=""
 	rm -f "$markOps"
 	[ -n "$markBody" ] || return 1
-	type AgentsSpawnRecordWrite > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+	type AgentsSpawnRecordWrite > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.Write.include"
 	printf '%s\n' "$markBody" | AgentsSpawnRecordWrite "$markFile"
 }
 
@@ -160,6 +158,7 @@ AgentsToolsSessionControlDeathClose(){ ## record file
 	[ -f "$closeRecord" ] || return 1
 	closeRun="${closeRecord##*/}" ; closeRun="${closeRun%.spawn.md}"
 	[ "$( AgentsToolsFrontmatterKey "$closeRecord" status )" = "spawn-started" ] || return 1
+type AgentsToolsSpawnProxyCloseSandbox > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnProxyClose.include"
 	AgentsToolsSpawnProxyCloseSandbox "$closeRecord" "$agentsSessionControlDeathOutcome" unknown
 	[ "$( AgentsToolsFrontmatterKey "$closeRecord" status )" = "spawn-$agentsSessionControlDeathOutcome" ] || return 1
 	[ -n "${MDAT_DATA_ROOT:-}" ] || return 0
@@ -359,6 +358,7 @@ AgentsToolsSessionControlDeathAsk(){ ## session id, record file, where it is ask
 ## once the line of the death holds the answer, it is carried out
 ## (AgentsToolsSessionControlDeathAct).
 AgentsToolsSessionControlDeathWork(){ ## session id, run id, the file its result goes to
+	type AgentsToolsBoardItemHeadersInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemDecisions.include"
 	type AgentsToolsSpawnRecord > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunRecords.include"
 	type AgentsToolsSpawnRuns > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunProcesses.include"
 	type AgentsToolsSpawnConversationThreadValid > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandboxInput.include"
@@ -576,6 +576,7 @@ AgentsToolsSessionControlDeathSay(){ ## thread, member, whom it is told, line, r
 ## next question does. The result says `back: <item>`, and the note and the next question
 ## name it.
 AgentsToolsSessionControlDeathAct(){ ## session id, record file, the line of the death, the file its result goes to
+	type AgentsToolsBoardItemHeadersInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemDecisions.include"
 	type AgentsToolsSpawnRuns > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunProcesses.include"
 	type AgentsToolsSpawnConversationThreadValid > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandboxInput.include"
 	local actSession="$1" actRecord="$2" actLine="$3" actResult="$4"

@@ -252,7 +252,8 @@
 
 			if [[ " $ownedNames " == *" $dcMember "* ]] ; then
 				## Same name, same member: every declared source resolves to the slot's own folder,
-				## so it is one entity declared twice and not a collision (human-owner, 2026-08-27).
+				## so it is one entity declared twice and not a collision ().
+
 				local dcOwnedReal="" dcSame="true"
 				dcOwnedReal="$( printf '%s\n' "$ownedMembers" | LC_ALL=C awk -v m="$dcMember" 'NF && $1 == m { sub( /^[^ ]+ /, "" ) ; print ; exit ; }' )"
 				dcOwnedReal="$( cd "$dcOwnedReal" 2>/dev/null && pwd -P )" || dcOwnedReal=""
@@ -529,7 +530,8 @@
 									## here is what AgentsToolsMemberWorkspaceResolve reads, so this
 									## workspace still registers its own row, from its own bundled
 									## path -- the slot itself is left exactly as found, not relinked
-									## (human-owner, 2026-10-06).
+									## ().
+
 									## `rigown` reaches the same answer for another reason: a rig has ONE workspace per
 									## machine, so a link outside this workspace and its origin is not another
 									## workspace's copy -- it is the rig's own skillset (AgentsToolsInstallRigOwnSkillset),
@@ -687,6 +689,7 @@
 						continue
 					fi
 					## a rules-file link lives beside the workspace's .claude/skills, not
+
 					## under it; a member link is unlinked from every folder of this scope.
 					local rcSlots="" rcScopeRoot
 					case "$rcType" in

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-## Behavioural check on how long a work-duty lives (F7.12, the owner's rulings of 2026-10-20; AgentsToolsScheduleDutyLifetime, sh-lib/session/
+## Behavioural check on how long a work-duty lives (F7.12; AgentsToolsScheduleDutyLifetime, sh-lib/session/
 ## AgentsTools.DispatcherSchedule.include, taken at each iteration of --intern-main-loop). The real loop (--one) and the real spawner run, as in
 ## AgentsScheduleLoopCheck; the console, curl, date and every setting are this rig's own, the runs are stand-in processes with milestones and a log
 ## of their own. GUARD: every tooling call goes through one `env -i` whose child refuses to start unless MMDAPP and MDAT_DATA_ROOT sit under this
@@ -84,6 +84,14 @@ rigTold(){ ## run name, member -- how many lines of that iteration say the membe
 	eval "toldSpawn=\"\$rigSpawnOf$( rigNo "$2" )\""
 	rigSaid "$1" "work-duty: $toldSpawn of $2 is told to go"
 }
+rigDismissed(){ ## -- how many dismissals the schedule delivered, one mark to a run: the tooling's own store, never a post
+	local dismissedCount=0 dismissedMark
+	for dismissedMark in "$rigWs/.local/agents/schedule/dismissed"/* ; do
+		[ -f "$dismissedMark" ] || continue
+		dismissedCount=$(( dismissedCount + 1 ))
+	done
+	printf '%s\n' "$dismissedCount"
+}
 
 echo "-- 0. a duty is lazy: it starts when something arrives --"
 rigAt "$rigMon13"
@@ -118,7 +126,7 @@ rigAssert "worktime, no cache figure known: idle for three hours, it stays" "$( 
 rigAssert "the cache read nothing, idle 19 minutes: it stays" "$( rigTold on1 keeper-rig-04 )" "0"
 
 echo "-- 2. the cache read nothing: 20 minutes idle, whatever the flags --"
-rigAssert "the cache wrote at the last wake and read nothing, idle 21 minutes, worktime on: it is told to go (an older line that read does not count)" "$( rigTold on1 keeper-rig-05 ):$( LC_ALL=C grep -l -F DISMISSED "$rigScn"/post.* 2> /dev/null | wc -l | tr -d ' ' )" "1:1"
+rigAssert "the cache wrote at the last wake and read nothing, idle 21 minutes, worktime on: it is told to go (an older line that read does not count)" "$( rigTold on1 keeper-rig-05 ):$( rigDismissed )" "1:1"
 rigOneRun on2
 rigAssert "...once" "$( rigTold on2 keeper-rig-05 )" "0"
 rigAt $(( rigMon13 + 180 ))
@@ -161,7 +169,7 @@ rigProcSignal TERM "$rigOtherPid" ; sleep 1
 rigOneRun off2
 rigAssert "two minutes on: the one told already is not told again" "$( rigTold off2 keeper-rig-06 ):$( rigTold off2 keeper-rig-08 )" "0:0"
 rigAssert "the other run ended, idle for hours: told in the holidays iteration already, not again" "$( rigTold off2 keeper-rig-09 )" "0"
-rigAssert "...and nothing is told twice" "$( LC_ALL=C grep -l -F DISMISSED "$rigScn"/post.* 2> /dev/null | wc -l | tr -d ' ' )" "9"
+rigAssert "...and nothing is told twice" "$( rigDismissed )" "9"
 
 
 if [ "$rigFailCount" -ne 0 ] ; then

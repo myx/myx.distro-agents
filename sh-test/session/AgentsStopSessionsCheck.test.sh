@@ -15,8 +15,11 @@
 ## it is `<copy>/myx/{myx.distro-agents,myx.distro-system,myx.distro-source,myx.common,myx.distro-.local}` and named with RIG_PACKAGE,
 ## run with MDLT_ORIGIN=<copy>:
 ##   the holding gate at :192-195 deleted — row 1 fails on both its assertions, and row 2 on the flag it then never sets.
+
 ## RED RECIPE for row 4, measured on a copy on 2026-11-14: the list read's `|| { ... return 1 ; }` (DistroAgentsDispatcher.fn.sh:213-215)
+
 ##   replaced by `|| :` — the refused stop answers 0 with no cause line, and ends the thread.
+
 ## Offline: the dispatcher and a rig of its own; the thread is a sleeper of this check, ended through the shared helper.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"

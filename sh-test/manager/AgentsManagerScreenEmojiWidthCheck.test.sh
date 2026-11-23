@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-## Behavioural check on the width of text in the manager screen (owner, 2026-10-20: "in previous versions we solved EMOJI and width completely"): every text path of
+## Behavioural check on the width of text in the manager screen (: "in previous versions we solved EMOJI and width completely"): every text path of
 ## the left window measures a line with the one function of the screen (textCells, AgentsManagerScreen.Cells.py), so an emoji never makes a line wider than its
 ## pane and never breaks the border or the pane at its right. The block `as posted:` of a pending question holds the post as it was sent: keycap digits (a digit,
 ## U+FE0F, U+20E3), 📋 and ❓, an emoji joined by U+200D, a flag. Held:

@@ -21,6 +21,7 @@ rigRefuse(){
 [ -f "$rigTool" ] || rigRefuse "the tool is not at the origin this workspace resolves: $rigTool"
 . "$rigTest/check-fixtures/rig-control-threads.include.sh" || rigRefuse "the rig's fixture that ends control threads is missing from the package"
 . "$rigTest/check-fixtures/rig-temp.include.sh" || exit 1
+. "$rigTest/check-fixtures/rig-owner-writes.include.sh" || rigRefuse "the rig's owner-writes fixture is missing from the package"
 rigTmp="$( rigTempDir AgentsWorkDutyOffDutyFloorCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 trap 'rigControlThreadsEnd "$rigTmp" ; rm -rf -- "$rigTmp"' EXIT
@@ -32,8 +33,8 @@ printf 'rig\n' > "$rigTmp/skills/magic-coordinator/magic-coordinator.armed.md"
 cp "$rigTest/check-fixtures/work-duty.curl.stub.sh" "$rigTmp/bin/curl" || rigRefuse "the fake curl fixture is missing from the package"
 chmod +x "$rigTmp/bin/curl"
 printf 'SLACK_CHANNEL_MAGIC_TEAM=CRIG00001\nSLACK_BOT_TOKEN=rig-bot-token-TEAM\nWAIT_COLLECT_SECONDS=1\n' > "$rigWs/.local/.agents/magic-team.agent.env"
-## One item of an owner who is no member, so the external owners' section has a row to carry when it is read at all.
-printf -- '---\ntype: task\nowner: human-owner\n---\n\n# rig\n' > "$rigData/inboxes/magic-coordinator/incoming/note-20261019T0101Z-rig-ext.md"
+## One item of an owner who is no member, so the external owners' section has a row to carry when it is read at all: put by the store's owner.
+printf -- '---\ntype: task\nowner: human-owner\n---\n\n# rig\n' | rigOwnerInboxPut magic-coordinator note-20261019T0101Z-rig-ext.md || rigRefuse "the rig inbox item could not be put by the store's owner"
 
 rigPassCount=0
 rigFailCount=0

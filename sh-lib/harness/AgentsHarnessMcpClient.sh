@@ -161,6 +161,7 @@ AgentsHarnessMcpRun(){ ## server name, wall-clock bound in whole seconds, awaite
 	done
 
 	## Answers go to a file, never through `$( )`: a capture returns on pipe-EOF rather
+
 	## than on process exit, so one child the server leaves behind would hang this leg
 	## for that child's whole lifetime.
 	## stdin stays open until the awaited answer is in, or the server has gone: EOF is a
@@ -175,7 +176,8 @@ AgentsHarnessMcpRun(){ ## server name, wall-clock bound in whole seconds, awaite
 	{
 		cat "$harnessScratch/mcp.req"
 		runPoll=0.05
-		## A WHOLE-SECOND NAP FORKS NOTHING (owner 2026-11-20): a long call (a Wait of minutes) polled here with a `sleep` process every second, in
+		## A WHOLE-SECOND NAP FORKS NOTHING (): a long call (a Wait of minutes) polled here with a `sleep` process every second, in
+
 		## every live run. From one second on the nap is the builtin `read -t` on a fifo nobody writes, which times out without a process. The
 		## fractions before it stay `sleep`: bash 3.2 takes whole seconds only.
 		[ -p "$harnessScratch/mcp.nap" ] || mkfifo "$harnessScratch/mcp.nap" 2> /dev/null || :
@@ -269,7 +271,8 @@ AgentsHarnessMcpReply(){ ## request id
 }
 
 ## The three lines every exchange opens with; only the last request differs. The handshake names the session this run
-## serves, so a tool served through the server writes to that run's own store (owner 2026-10-31); a run that knows no
+## serves, so a tool served through the server writes to that run's own store (); a run that knows no
+
 ## session sends the handshake it always sent.
 AgentsHarnessMcpHandshake(){
 	local handshakeSession="${harnessSessionId:-${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}}"
@@ -315,6 +318,7 @@ AgentsHarnessMcpStale(){
 
 ## The per-call path. Its whole contract is that it always prints a tool result: a
 ## server that dies mid-run, refuses, or answers unreadably becomes an `ERROR: ...`
+
 ## the model reads and the round carries on -- never a silent restart and never an
 ## exit. Named outside the AgentsHarnessTool* family on purpose: that family is the
 ## STATIC tool class AgentsHarnessSelfCheck.test.awk matches site by site, and a runtime

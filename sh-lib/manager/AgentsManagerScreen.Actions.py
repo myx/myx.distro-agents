@@ -156,7 +156,7 @@ def applyCall(state, result):
     state.notice = summary
     state.noticeOf = None
     state.answer = {"key": about["viewKey"], "lines": [title] + lines} if about["viewKey"] == viewKeyOf(state) else None
-    readNow(state)
+    readNow(state, standToo=True)
 
 
 ## An answer, reject, dismissal or kill refused for the authority it needs (F6.10, the status

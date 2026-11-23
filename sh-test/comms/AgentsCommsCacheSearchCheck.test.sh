@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-## Behavioural check on the search-answer cache (epic S21.13, owner 2026-11-01, option one): the answer of one search kept by
+## Behavioural check on the search-answer cache (epic S21.13, , option one): the answer of one search kept by
+
 ## its query signature, with its own TTL, so a repeated search inside that TTL asks Slack nothing. Held:
 ##   1. the same question names the same signature, and any part of it changing names another
 ##   2. a signature never filed is a miss, with rc 1 and nothing printed

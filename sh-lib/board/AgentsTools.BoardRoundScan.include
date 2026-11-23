@@ -57,11 +57,12 @@ AgentsToolsBoardRoundSections(){ ## calling member, the operation the scan is ca
 	## actually running and what is waiting on an answer. The rescan is what keeps each one a cache rather than a record anyone maintains by
 	## hand. The instruction to poll these and compare them with the board's own running items lives in magic-team.advance.routine.
 	type AgentsToolsRegistryRenderPlain > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
-	type AgentsToolsRegistryRenderSpawnedSessions > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.RegistrySpawnedSessions.include"
+	type AgentsToolsRegistryRenderSpawnedSessionsKept > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.RegistrySpawnedSessions.include"
 	printf '\n'
 	AgentsToolsRegistryRenderPlain "team members" team-members "member workspace link-kind skillset-path" || :
-	AgentsToolsRegistryRenderSpawnedSessions || :
-	AgentsToolsRegistryRenderPlain "pending replies" pending-replies "key source session-id owner status blocked-on communication-channel-id" || :
+	AgentsToolsRegistryRenderSpawnedSessionsKept agents 60 2> /dev/null \
+		| LC_ALL=C awk 'NR <= 60 { print ; next ; } { scanHidden++ ; } END { if ( scanHidden ) printf "... and %d more lines, not shown: the round that needs a session names it\n", scanHidden ; }' || :
+	AgentsToolsRegistryRenderPlain "pending replies" pending-replies "key source session-id owner status blocked-on communication-channel-id" 40 || :
 	return "$roundRc"
 }
 

@@ -1,0 +1,222 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.Grants.Declared.include -- what the workspace and the projects declare of the testing directives, and the text of the
+## registry they feed. Split from AgentsTools.Grants.include: the permission operations never build the registry, so they parse neither
+## this nor the declarations it reads.
+##
+
+type AgentsToolsGrantsHoldsDir > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.Grants.include"
+
+AgentsToolsTestingDirectiveRows(){ ## selected project ids, op name for messages
+	local testOp="$2" testShort testFull testLines testLine testRest testGlob testPath testHost testId
+	testLines="$( MDSC_SELECT_PROJECTS="$1" Distro ListDistroDeclares --select-from-env --filter-and-cut 'magic-team:testing' )" || return $?
+	testShort="$( hostname -s 2> /dev/null )" || testShort=""
+	testFull="$( hostname 2> /dev/null )" || testFull=""
+	while IFS= read -r testLine ; do
+		[ -n "$testLine" ] || continue
+		testRest="${testLine#* }"
+		case "$testRest" in
+			?*:?*:?*) ;;
+			*) echo "🙋 WARNING: $testOp: ${testLine%% *}: malformed testing directive, skipped: magic-team:testing:$testRest (expected magic-team:testing:<project-glob>:<sh-test-path>:<host-glob>)" >&2 ; continue ;;
+		esac
+		testGlob="${testRest%%:*}" ; testRest="${testRest#*:}"
+		testHost="${testRest##*:}" ; testPath="${testRest%:*}"
+		testPath="${testPath#./}" ; testPath="${testPath%/}"
+		case "/$testPath/" in
+			//*|*/../*|*/./*|*//*) echo "🙋 WARNING: $testOp: ${testLine%% *}: the testing path stays inside the project, skipped: magic-team:testing:${testLine#* }" >&2 ; continue ;;
+		esac
+		case "$testShort" in
+			$testHost) ;;
+			*) case "$testFull" in $testHost) ;; *) continue ;; esac ;;
+		esac
+		while IFS= read -r testId ; do
+			[ -n "$testId" ] || continue
+			case "${testId##*/}" in
+				$testGlob) printf '%s\t%s\n' "$testId" "$testPath" ;;
+			esac
+		done <<< "$1"
+	done <<< "$testLines"
+}
+
+## The sh-test folders a workspace's testing directives name, absolute, one a line: the folders eligible for the
+## testing system, and no others. rc 0; 3 where the workspace has no source or no project (nothing is named);
+## 2 where it could not be read, said on stderr.
+AgentsToolsTestingFolders(){ ## workspace root, op name for messages
+	local foldersWs="${1%/}" foldersOp="$2" foldersSelected foldersRows
+	[ -d "$foldersWs/source" ] || return 3
+	type DistroAgentsContext > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.include"
+	DistroAgentsContext --distro-from-source || { echo "⛔ ERROR: $foldersOp: cannot establish an input spec for workspace $foldersWs" >&2 ; return 2 ; }
+	Require ListDistroProjects || :
+	Require ListDistroDeclares || :
+	foldersSelected="$( Distro ListDistroProjects --select-all )" || { echo "⛔ ERROR: $foldersOp: COULD-NOT-CHECK the testing directives: ListDistroProjects --select-all failed for workspace $foldersWs" >&2 ; return 2 ; }
+	[ -n "$foldersSelected" ] || return 3
+	foldersRows="$( AgentsToolsTestingDirectiveRows "$foldersSelected" "$foldersOp" )" || { echo "⛔ ERROR: $foldersOp: COULD-NOT-CHECK the testing directives: ListDistroDeclares failed for workspace $foldersWs" >&2 ; return 2 ; }
+	[ -z "$foldersRows" ] || printf '%s\n' "$foldersRows" | LC_ALL=C awk -F'\t' -v ws="$foldersWs" 'NF == 2 { print ws "/source/" $1 "/" $2 ; }'
+}
+
+AgentsToolsGrantsDeclaredText(){ ## declaring workspace root, op name for messages
+	local declWs="${1%/}" declOp="$2" declName declSelected="" declSelectStatus=0 declStatus=0 declTrusted=0
+	local declNamespace="" declWorkspace="" declFloor="" declDirectory="" declProject="" declTesting="" declScope declLines declLine declSel declRest
+	local declVerb declPerm declMember declGlob declRoot declOne declTag declTagRoot declPattern declLocal=""
+	declName="${declWs##*/}"
+	## The permissions directives of the packages installed under .local/myx, `<package folder> <rest>`: read through the distro door
+	## (AgentsDistroDeclaresCut), never from the distro tooling's index or project.inf, which are the tooling's own. A read that
+	## fails is a fault, said, and no row may be dropped on its strength. Only the tooling package's rows are kept below.
+	if AgentsToolsGrantsHoldsDir "$declWs/.local/myx" ; then
+		type AgentsDistroDeclaresCut > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/distro/AgentsTools.DistroDoor.include"
+		declLocal="$( AgentsDistroDeclaresCut "$declWs" 'magic-team:permissions:workspace' )" \
+			|| { echo "⛔ ERROR: $declOp: COULD-NOT-CHECK declared grants: the distro tooling could not list the declares of $declWs" >&2 ; return 2 ; }
+		declLocal="$( printf '%s\n' "$declLocal" | LC_ALL=C awk -v pkg="$declWs/.local/myx/" 'NF { n = split( $1, id, "/" ) ; print pkg id[n] " " $2 ; }' )"
+		[ -z "$declLocal" ] || declLocal="$declLocal"$'\n'
+	fi
+	if [ -d "$declWs/source" ] ; then
+		## Source, never --distro-path-auto: the grants are read off project.inf as it stands, and
+		## a prepared or output cache that lags source drops real declarations a rewrite would drop.
+		type DistroAgentsContext > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.include"
+		DistroAgentsContext --distro-from-source || {
+			echo "⛔ ERROR: $declOp: cannot establish an input spec for workspace $declWs" >&2
+			return 2
+		}
+		Require ListDistroProjects || :
+		Require ListDistroDeclares || :
+		declSelected="$( Distro ListDistroProjects --select-all )" || declSelectStatus=$?
+	fi
+	## One cut per scope kind: each has its own vocabulary, and only `project` uses the
+	## estate's four-form resolver (--unroll-filter-and-cut, SystemContext.include).
+	if [ -n "$declSelected" ] ; then
+		declNamespace="$( MDSC_SELECT_PROJECTS="$declSelected" Distro ListDistroDeclares --select-from-env --filter-and-cut 'magic-team:permissions:namespace' )" || declStatus=$?
+		declWorkspace="$( MDSC_SELECT_PROJECTS="$declSelected" Distro ListDistroDeclares --select-from-env --filter-and-cut 'magic-team:permissions:workspace' )" || declStatus=$?
+		declDirectory="$( MDSC_SELECT_PROJECTS="$declSelected" Distro ListDistroDeclares --select-from-env --filter-and-cut 'magic-team:permissions:directory' )" || declStatus=$?
+		declProject="$( MDSC_SELECT_PROJECTS="$declSelected" Distro ListDistroDeclares --select-from-env --unroll-filter-and-cut 'magic-team:permissions:project:' cat )" || declStatus=$?
+		declTesting="$( AgentsToolsTestingDirectiveRows "$declSelected" "$declOp" )" || declStatus=$?
+	fi
+	## The tooling package's rows, from source and .local alike, each once: a named member's are standing rows, appended last. Its
+	## member `*` rows are the team floor and no registry row: the tools through AgentsToolsPermissionOriginFloorTools, the writes in the index.
+	declFloor="$( printf '%s\n%s\n' "$declWorkspace" "$declLocal" | LC_ALL=C awk '$1 ~ /(^|\/)myx\.distro-agents$/ && !floorSeen[$2]++ { split( $2, floorField, ":" ) ; if ( floorField[3] != "*" ) print ; }' )"
+	declWorkspace="$( printf '%s\n' "$declWorkspace" | LC_ALL=C awk '$1 !~ /(^|\/)myx\.distro-agents$/' )"$'\n'"$declFloor"
+	if [ "$declSelectStatus" != "0" ] ; then
+		echo "⛔ ERROR: $declOp: COULD-NOT-CHECK declared grants: ListDistroProjects --select-all exited $declSelectStatus for workspace $declWs" >&2
+		declTrusted=2
+	elif [ -z "$declSelected" ] && [ -z "$declFloor" ] ; then
+		## Neither a project nor an installed package declares a grant: a state, not a fault, said, nothing removed.
+		echo "# $declOp: workspace $declWs has no distro project in source/ and no package under .local/myx with a magic-team: floor directive, so none declares a grant -- nothing is removed" >&2
+		return 3
+	elif [ "$declStatus" != "0" ] ; then
+		echo "⛔ ERROR: $declOp: COULD-NOT-CHECK declared grants: ListDistroDeclares exited $declStatus for workspace $declWs" >&2
+		declTrusted=2
+	elif [ -z "$declFloor" ] ; then
+		echo "# $declOp: workspace $declWs: no magic-team: floor directive in source/ or under .local/myx, so it declares no floor rows of magic-architect and magic-tester" >&2
+	fi
+	declParse(){
+		declVerb="${declRest%%:*}" ; declRest="${declRest#*:}"
+		declMember="${declRest%%:*}"
+		case "$declRest" in *:*) declGlob="${declRest#*:}" ;; *) declGlob="" ;; esac
+		[ "$declVerb" = "allow-write" ] && declPerm="Edit" && return 0
+		[ "$declVerb" = "allow-read" ] && declPerm="Read" && return 0
+		[ "$declVerb" = "allow-tool" ] && [ -n "$declGlob" ] && return 0
+		## The deny twins: a deny row overrides every allow. They are kept as `DenyEdit(...)`, `DenyRead(...)` or a `deny` row, and are no grant.
+		[ "$declVerb" = "deny-write" ] && declPerm="DenyEdit" && return 0
+		[ "$declVerb" = "deny-read" ] && declPerm="DenyRead" && return 0
+		[ "$declVerb" = "deny-tool" ] && [ -n "$declGlob" ] && return 0
+		echo "⛔ ERROR: $declOp: unsupported permissions verb in $declLine: $declVerb (allow-write, allow-read, allow-tool, deny-write, deny-read and deny-tool with a <tool>[:<target>] are implemented)" >&2
+		declTrusted=2
+		return 1
+	}
+	declUnresolved(){ ## why
+		echo "⚠️ WARNING: $declOp: ${declLine%% *}: $2 -- kept as an unresolved row that grants nothing: magic-team:permissions:$1:${declLine#* }" >&2
+		printf 'row\t%s:%s:unresolved:%s:%s\n' "$declMember" "$declName" "$1" "${declLine#* }"
+	}
+	for declScope in namespace workspace directory project ; do
+		case "$declScope" in
+			namespace) declLines="$declNamespace" ;;
+			workspace) declLines="$declWorkspace" ;;
+			directory) declLines="$declDirectory" ;;
+			project) declLines="$declProject" ;;
+		esac
+		while IFS= read -r declLine ; do
+			[ -n "$declLine" ] || continue
+			declRest="${declLine#* }"
+			if [ "$declScope" != project ] ; then
+				declSel="${declRest%%:*}" ; declRest="${declRest#*:}"
+			fi
+			declParse || continue
+			## A tool row names no path: one row, whatever the selector.
+			if [ "$declVerb" = "allow-tool" ] ; then
+				printf 'row\t%s:%s:tool:%s\n' "$declMember" "$declName" "$declGlob"
+				continue
+			fi
+			if [ "$declVerb" = "deny-tool" ] ; then
+				printf 'row\t%s:%s:deny:deny-tool:%s\n' "$declMember" "$declName" "$declGlob"
+				continue
+			fi
+			case "$declScope" in
+				namespace)
+					## The declaring project's namespace is the leading segment of its id; `*`
+					## is every namespace the declaring workspace selects. Applied in every
+					## tooling workspace.
+					[ "$declSel" != "." ] || declSel="${declLine%%/*}"
+					while IFS= read -r declOne ; do
+						[ -n "$declOne" ] || continue
+						while IFS= read -r declRoot ; do
+							[ -n "$declRoot" ] || continue
+							printf 'row\t%s:%s:namespace:%s(/%s/source/%s/%s)\n' "$declMember" "$declName" "$declPerm" "$declRoot" "$declOne" "${declGlob:-**}"
+						done <<< "$agentsGrantsRoots"
+					done <<< "$( if [ "$declSel" = "*" ] ; then printf '%s\n' "$declSelected" | LC_ALL=C awk -F/ 'NF { if ( !seenNamespace[$1]++ ) print $1 ; }' ; else printf '%s\n' "$declSel" ; fi )"
+				;;
+				workspace)
+					declPattern=0
+					case "$declSel" in
+						.|'*') ;;
+						*'*'*|*'?'*|*'['*) declPattern=1 ;;
+					esac
+					while IFS= read -r declRoot ; do
+						[ -n "$declRoot" ] || continue
+						printf 'row\t%s:%s:workspace:%s(/%s/%s)\n' "$declMember" "$declName" "$declPerm" "$declRoot" "$declGlob"
+						if [ "$declRoot" = "$declWs" ] ; then declTag=own
+						elif [ "$declSel" != "*" ] && [ "$declPattern" = 0 ] ; then declTag=explicit
+						else declTag=wildcard
+						fi
+						type AgentsToolsClientAccessWidenGrantRoot > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/client/AgentsTools.ClientAccessRoots.include"
+						declTagRoot="$( AgentsToolsClientAccessWidenGrantRoot "$declPerm(/$declRoot/$declGlob)" )"
+						[ -z "$declTagRoot" ] || printf 'tag\t%s:%s:%s:%s\n' "$declMember" "$declName" "$declTag" "$declTagRoot"
+					done <<< "$(
+						case "$declSel" in
+							(.) printf '%s\n' "$declWs" ;;
+							('*') printf '%s\n' "$agentsGrantsRoots" ;;
+							(*) if [ "$declPattern" = 1 ] ; then AgentsToolsGrantsPlaceMatch "$declSel"
+								else AgentsToolsGrantsPlaceFind "$declSel" workspace && printf '%s\n' "$agentsGrantsPlacePath"
+								fi ;;
+						esac
+					)"
+					case "$declSel" in
+						.|'*') ;;
+						*) [ "$declPattern" = 1 ] || AgentsToolsGrantsPlaceFind "$declSel" workspace || declUnresolved workspace "no workspace place is named $declSel" ;;
+					esac
+				;;
+				directory)
+					if ! AgentsToolsGrantsPlaceFind "$declSel" any ; then
+						declUnresolved directory "no place is named $declSel"
+						continue
+					fi
+					if [ "$declPerm" = Edit ] && [ "$agentsGrantsPlaceCeiling" = read-only ] ; then
+						echo "⚠️ WARNING: $declOp: ${declLine%% *}: the write grant of $declMember on $declSel is capped to read: $declSel is a read-only place" >&2
+						declPerm=Read
+					fi
+					printf 'row\t%s:%s:directory:%s(/%s/%s)\n' "$declMember" "$declName" "$declPerm" "$agentsGrantsPlacePath" "${declGlob:-**}"
+				;;
+				project)
+					## already resolved by --unroll-filter-and-cut: field 1 is the matched project
+					printf 'row\t%s:%s:project:%s(/%s/source/%s/%s)\n' "$declMember" "$declName" "$declPerm" "$declWs" "${declLine%% *}" "$declGlob"
+				;;
+			esac
+		done <<< "$declLines"
+	done
+	## The testing directive: magic-tester's write over each sh-test folder it names, a `project` row.
+	while IFS=$'\t' read -r declOne declSel ; do
+		[ -n "$declOne" ] || continue
+		printf 'row\tmagic-tester:%s:project:Edit(/%s/source/%s/%s/**)\n' "$declName" "$declWs" "$declOne" "$declSel"
+	done <<< "$declTesting"
+	return "$declTrusted"
+}

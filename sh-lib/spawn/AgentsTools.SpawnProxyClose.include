@@ -118,7 +118,7 @@ AgentsToolsRunDismiss(){ ## spawn id, who dismissed it
 	type AgentsToolsAssertBareName > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.BareName.include"
 	AgentsToolsAssertBareName "$disSpawn" "the run" AgentsToolsRunDismiss 2> /dev/null || return 1
 	[ -n "${MMDAPP:-}" ] || return 1
-	type AgentsSessionMarkerFileInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include" || return 1
+	type AgentsSessionMarkerFileInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.Paths.include" || return 1
 	AgentsSessionMarkerFileInto disFile "$disSpawn" dismissed || return 1
 	if [ ! -f "$disFile" ] ; then
 		mkdir -p "${disFile%/*}" 2> /dev/null || return 1
@@ -262,7 +262,7 @@ AgentsToolsSpawnProxyRunRecord(){ ## pid of the console process just started
 		[ -z "$runStart" ] || printf 'upsert\trun-process\t%s %s\n' "$1" "$runStart"
 		[ -z "${agentsSpawnProxyShellIs:-}" ] || printf 'upsert\tsupervisor-process\t%s\n' "$agentsSpawnProxyShellIs"
 	} > "$runOps" 2> /dev/null || return 0
-	type AgentsSpawnRecordWrite > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+	type AgentsSpawnRecordWrite > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.Write.include"
 	while [ "$runTries" -lt 3 ] ; do
 		runTries=$(( runTries + 1 ))
 		runSeen="" ; IFS= read -r -d '' runSeen < "$runFile" 2> /dev/null || :
@@ -358,7 +358,7 @@ AgentsToolsSpawnProxyCloseSandboxOnce(){ ## tracking file, outcome, exit code, e
 	rm -f "$sandboxOps"
 	[ -n "$sandboxBody" ] || return 1
 	## One rename by the store's own writer, its temp named by mktemp: its supervising shell and an advance pass may close one record at once.
-	type AgentsSpawnRecordWrite > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+	type AgentsSpawnRecordWrite > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.Write.include"
 	printf '%s\n' "$sandboxBody" | AgentsSpawnRecordWrite "$sandboxFile" || return 1
 	## A RUN STOPPED ON THE PROVIDER'S USAGE LIMIT is flagged in its own store, from the same
 	## reason the record keeps: the one wording the session list, the Dashboard and the end
@@ -545,7 +545,7 @@ AgentsToolsSpawnProxyParkClear(){ ## tracking file of the closing run
 	pcSession="$( AgentsToolsFrontmatterKey "$pcRecord" session-id )"
 	case "$pcSpawn" in ''|-|.|..|*/*) pcSpawn="" ;; esac
 	case "$pcSession" in ''|-|.|..|*/*) pcSession="" ;; esac
-	type AgentsSessionMarkerFileInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include" || return 1
+	type AgentsSessionMarkerFileInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.Paths.include" || return 1
 	[ -z "$pcSpawn" ] || ! AgentsSessionMarkerFileInto pcParked "$pcSpawn" parked || rm -f "$pcParked" 2> /dev/null || :
 	[ -z "$pcSession" ] || [ "$pcSession" = "$pcSpawn" ] || ! AgentsSessionMarkerFileInto pcParked "$pcSession" parked || rm -f "$pcParked" 2> /dev/null || :
 	return 0

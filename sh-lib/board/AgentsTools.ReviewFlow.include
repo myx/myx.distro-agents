@@ -1036,11 +1036,33 @@ AgentsReviewChildrenDismiss(){ ## the closing run's record path, the member clos
 	return 0
 }
 
+## WHAT A RED VERIFY RETURNS TO: the routine that produced the handback, read from the records that name the item, one header op a line.
+## The producer where there is one on record, else the handler removed. Nothing where the item's routine is no verify.
+AgentsReviewReworkHandlerOps(){ ## item path, item name
+	local reworkPath="$1" reworkItem="${2%.md}.md" reworkRoutine="" reworkProducer="" reworkPaths=()
+	type AgentsToolsBoardItemHandler > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.BoardItemHandler.include"
+	reworkRoutine="$( AgentsToolsBoardItemHandler "$reworkPath" 2> /dev/null | LC_ALL=C awk -F '\t' '$1 == "routine" { print $2 ; exit ; }' )"
+	type AgentsToolsDecisionsField > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemDecisions.include"
+	[ -n "$reworkRoutine" ] || reworkRoutine="$( AgentsToolsDecisionsField "$reworkPath" handler-routine )"
+	case "$reworkRoutine" in *verify.routine.md) ;; *) return 0 ;; esac
+	type AgentsToolsSpawnedAllRecordsInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include"
+	AgentsToolsSpawnedAllRecordsInto reworkPaths
+	reworkProducer="$( LC_ALL=C grep -l -F "Board item $reworkItem" ${reworkPaths[@]+"${reworkPaths[@]}"} /dev/null 2> /dev/null | while IFS= read -r reworkRecord ; do
+		LC_ALL=C awk 'NR > 1 && $0 == "---" { exit ; } index( $0, "started-at: " ) == 1 { at = substr( $0, 13 ) ; } index( $0, "routine: " ) == 1 { r = substr( $0, 10 ) ; } END { if ( at != "" && r != "" ) printf "%s\t%s\n", at, r ; }' "$reworkRecord" 2> /dev/null
+	done | LC_ALL=C awk -F '\t' '$2 !~ /[.]verify[.]routine[.]md$/ { print ; }' | LC_ALL=C sort | tail -1 | LC_ALL=C cut -f2 )"
+	if [ -n "$reworkProducer" ] ; then
+		printf -- '--header:upsert:handler-routine:%s\n' "$reworkProducer"
+	else
+		printf '%s\n' '--header:remove:handler-routine'
+	fi
+	return 0
+}
+
 ## The one entry of the review ops (AgentsTools.InternOpReview.include), by verb.
 AgentsReviewOp(){ ## verb, who, item, new item, text, reason, session id, dismiss (yes|no)
 	type AgentsToolsDecisionsItemPath > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemDecisions.include"
 	local opVerb="$1" opWho="$2" opItem="${3%.md}" opNew="${4%.md}" opText="$5" opReason="$6" opSession="$7" opDismiss="${8:-yes}"
-	local opPath opState opRecord opWhy opOut
+	local opPath opState opRecord opWhy opOut opHandler="" opHandlerOps=()
 	[ -z "$opItem" ] || opItem="$opItem.md"
 	case "$opVerb" in
 		handback)
@@ -1102,8 +1124,11 @@ AgentsReviewOp(){ ## verb, who, item, new item, text, reason, session id, dismis
 				echo "$MDSC_CMD: ⛔ ERROR: ${opItem%.md} could not be put into review from $opState, so nothing was returned" >&2
 				return 1
 			}
+			## A RED VERIFY IS RE-ARMED TO THE ROUTINE THAT PRODUCED THE WORK: the corrections run there, never on the default verify again.
+			opHandlerOps=()
+			while IFS= read -r opHandler ; do [ -z "$opHandler" ] || opHandlerOps+=( "$opHandler" ) ; done <<< "$( AgentsReviewReworkHandlerOps "$opPath" "$opItem" )"
 			AgentsReviewMoveWithSection "$opItem" review running "## Review: returned ($( date -u +%Y-%m-%dT%H:%MZ ), $opWho)" "$opText" \
-				--header:remove:review-since-epoch --header:remove:review-reason > /dev/null 2>&1 || {
+				--header:remove:review-since-epoch --header:remove:review-reason ${opHandlerOps[@]+"${opHandlerOps[@]}"} > /dev/null 2>&1 || {
 				echo "$MDSC_CMD: ⛔ ERROR: the move of ${opItem%.md} back to running failed, so nothing was returned" >&2
 				return 1
 			}
@@ -1126,8 +1151,11 @@ AgentsReviewOp(){ ## verb, who, item, new item, text, reason, session id, dismis
 			[ -n "$opText" ] || { echo "$MDSC_CMD: ⛔ ERROR: the corrections are required, with --message <text> or --from-stdin" >&2 ; return 1 ; }
 			opPath="$( AgentsReviewVerdictPath "$opItem" "review running" )" || return 1
 			opState="$( statePath="${opPath%/*}" ; printf '%s' "${statePath##*/}" )"
+			## A RED VERIFY IS RE-ARMED TO THE ROUTINE THAT PRODUCED THE WORK: the corrections run there, never on the default verify again.
+			opHandlerOps=()
+			while IFS= read -r opHandler ; do [ -z "$opHandler" ] || opHandlerOps+=( "$opHandler" ) ; done <<< "$( AgentsReviewReworkHandlerOps "$opPath" "$opItem" )"
 			AgentsReviewMoveWithSection "$opItem" "$opState" pending "## Review: rejected ($( date -u +%Y-%m-%dT%H:%MZ ), $opWho)" "$opText" \
-				--header:upsert:status:review-rejected --header:remove:review-since-epoch --header:remove:review-reason > /dev/null 2>&1 || {
+				--header:upsert:status:review-rejected --header:remove:review-since-epoch --header:remove:review-reason ${opHandlerOps[@]+"${opHandlerOps[@]}"} > /dev/null 2>&1 || {
 				echo "$MDSC_CMD: ⛔ ERROR: the move of ${opItem%.md} to pending failed, so nothing was rejected" >&2
 				return 1
 			}

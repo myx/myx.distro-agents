@@ -10,6 +10,7 @@
 ## the result through. Sets caller vars scanMemberNames / scanMemberSources /
 ## scanDiscoveryTrusted / scanDiscoveryError, so it always returns 0. Needs
 ## DistroAgentsTools() on the stack for $MDSC_CMD and $MDLT_ORIGIN.
+
 AgentsToolsInstallScanMembers(){
 	local scanWorkspace="$1" scanRemoveMode="$2" scanBundleRoot="$3"
 	local scanMemberDir
@@ -54,6 +55,7 @@ AgentsToolsInstallScanMembers(){
 			return 0
 		fi
 		## Require loads by origin path -- Distro() alone resolves through PATH, which only a console session carries.
+
 		Require ListDistroProjects || :
 		Require ListDistroDeclares || :
 
@@ -61,7 +63,7 @@ AgentsToolsInstallScanMembers(){
 		if [ -z "$scanSwitch" ] ; then
 			selectedProjects="$( Distro ListDistroProjects --select-all )" || selectStatus=$?
 		else
-			selectedProjects="$( AgentsToolsWorkspaceSwitch "$scanSwitch" ; DistroAgentsContext --distro-from-source || exit 97 ; Distro ListDistroProjects --select-all )" || selectStatus=$?
+			selectedProjects="$( type AgentsToolsWorkspaceSwitch > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWorkspace.include" ; AgentsToolsWorkspaceSwitch "$scanSwitch" ; DistroAgentsContext --distro-from-source || exit 97 ; Distro ListDistroProjects --select-all )" || selectStatus=$?
 			if [ "$selectStatus" = "97" ] ; then
 				echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: COULD-NOT-CHECK declared team-members: cannot establish an input spec for workspace $scanWorkspace" >&2
 				scanDiscoveryError="true" ; scanDiscoveryTrusted="false"
@@ -75,7 +77,7 @@ AgentsToolsInstallScanMembers(){
 		if [ -z "$scanSwitch" ] ; then
 			[ -z "$selectedProjects" ] || declaredMembers="$( MDSC_SELECT_PROJECTS="$selectedProjects" Distro ListDistroDeclares --select-from-env --filter-and-cut 'magic-team:team-member' )" || declaredStatus=$?
 		else
-			[ -z "$selectedProjects" ] || declaredMembers="$( AgentsToolsWorkspaceSwitch "$scanSwitch" ; DistroAgentsContext --distro-from-source || exit 97 ; MDSC_SELECT_PROJECTS="$selectedProjects" Distro ListDistroDeclares --select-from-env --filter-and-cut 'magic-team:team-member' )" || declaredStatus=$?
+			[ -z "$selectedProjects" ] || declaredMembers="$( type AgentsToolsWorkspaceSwitch > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWorkspace.include" ; AgentsToolsWorkspaceSwitch "$scanSwitch" ; DistroAgentsContext --distro-from-source || exit 97 ; MDSC_SELECT_PROJECTS="$selectedProjects" Distro ListDistroDeclares --select-from-env --filter-and-cut 'magic-team:team-member' )" || declaredStatus=$?
 		fi
 
 		if [ "$selectStatus" != "0" ] ; then
@@ -90,6 +92,7 @@ AgentsToolsInstallScanMembers(){
 			## removal stays suppressed.
 			## A RIG HAS NO DISTRO PROJECTS TO SELECT, AND THAT IS NOT A DEFECT TO REPORT. A deployed
 			## workspace carries its tooling in .local and its members in the BUNDLED skillset beside
+
 			## it: `source` holds no project.inf at all (measured on both rigs), so the selection is
 			## empty by construction, not by failure. Warning here made every install print the same
 			## pair of warnings in four directories -- a warning on a successful install is an error,
@@ -160,6 +163,7 @@ AgentsToolsInstallClassifyTarget(){
 
 ## Links one authoritative path into every folder the workspace's generated
 ## .code-workspace lists, as <folder>/<slot>: the workspace root is never a VS Code folder,
+
 ## so what VS Code reads per folder reaches it only this way (MAGIC.md). The link form is
 ## --install-skillset-symlinks' own: a dangling link is reclaimed, a link already to the
 ## authoritative path is kept, and a link elsewhere or real content is reported and never
@@ -242,7 +246,8 @@ AgentsToolsInstallReportIcon(){
 }
 
 ## A user-home slot that already links to another workspace's copy of a member: which copy
-## holds it (human-owner, 2026-10-09). Prints `claim` when this workspace holds the member in
+## holds it (). Prints `claim` when this workspace holds the member in
+
 ## its own source/ and the link reaches another workspace's installed copy (under
 ## <workspace>/.local/myx/): the source workspace relinks the slot to its own copy. Prints
 ## `keep` when the link reaches another workspace's source copy: the link stays and this
@@ -253,6 +258,7 @@ AgentsToolsInstallSlotClaim(){ ## scope, workspace, slot, this workspace's own c
 	local claimScope="$1" claimWorkspace="$2" claimSlot="$3" claimOwn="$4" claimMember="$5" claimLinked
 	## In the workspace scope the same rule holds: an installed copy never takes the slot from a source one. A member link
 	## into any .local/myx install, this workspace's own included, is relinked to the bundled copy where that is a source copy.
+
 	if [ "$claimScope" = "workspace" ] && [ -L "$claimSlot" ] && [ ! "$claimSlot" -ef "$claimOwn" ] ; then
 		claimLinked="$( readlink "$claimSlot" )"
 		case "$claimLinked" in
@@ -351,11 +357,12 @@ AgentsToolsInstallDshPatchValue(){ ## text
 ## DSH's own hand install used and the shape the brief fixes.
 AgentsToolsInstallDshPatchRow(){ ## workspace, file
 	local rowWorkspace="$1" rowFile="$2" rowCommand rowRoot rowOrigin
-	AgentsToolsInstallDshPatchValue "$rowWorkspace/.local/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+	AgentsToolsInstallDshPatchValue "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 	rowCommand="$agentsDshValue"
 	AgentsToolsInstallDshPatchValue "$rowWorkspace"
 	rowRoot="$agentsDshValue"
 	## The origin is named here as the .mcp.json rows name it, so the two published
+
 	## shapes of one server cannot disagree.
 	AgentsToolsInstallDshPatchValue "$MDLT_ORIGIN"
 	rowOrigin="$agentsDshValue"
@@ -386,6 +393,7 @@ AgentsToolsInstallDshPatchId(){ ## line
 	local idLine="$1" idTrim idValue
 	idTrim="${idLine#"${idLine%%[![:space:]]*}"}"
 	## The id of an insert row sits on a sequence item of its own: `- id: ...`, and the
+
 	## indentation is the only thing between the two forms of the same row.
 	case "$idTrim" in
 		-\ *) idTrim="${idTrim#- }" ; idTrim="${idTrim#"${idTrim%%[![:space:]]*}"}" ;;

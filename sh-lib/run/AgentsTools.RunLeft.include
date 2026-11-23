@@ -36,7 +36,7 @@ AgentsToolsRunLeft(){ ## spawn id, the processes signalled as `<pid> <start>` li
 ## it left behind alive is still this run's to end. The file is removed by the read that
 ## finds nothing of it left, and by the stop or the kill after which nothing is left.
 AgentsToolsRunLeftFile(){ ## spawn id -- prints the path; rc 1 for an id that names no store
-	type AgentsSessionMarkerFile > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+	type AgentsSessionMarkerFile > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.Paths.include"
 	[ -n "${MMDAPP:-}" ] || return 1
 	AgentsSessionMarkerFile "${1:-}" stop.left
 }

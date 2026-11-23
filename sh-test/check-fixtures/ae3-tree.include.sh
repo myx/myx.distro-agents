@@ -4,6 +4,7 @@
 ## The AE3 tree, and the two classpaths a check of one AE3 source file needs. Sourced by a check
 ## before it builds its arm:
 ##   . "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/ae3-tree.include.sh"
+
 ##
 ## WHY A PLACE, NOT A PATH. The AE3 tree is outside every workspace's own source. A check asks the
 ## workspace's own places for it, and never carries one machine's path.

@@ -63,8 +63,8 @@ echo "-- and no other place asks the system for the account --"
 rigCount(){ ## file... -- how many lines that are no comment ask `id -un` or SUDO_USER
 	cat "$@" | LC_ALL=C grep -v '^[[:space:]]*#' | LC_ALL=C grep -c -e 'id -un' -e 'SUDO_USER' || :
 }
-rigAssert "the layer of the callers holds the one reading of the account; the console's account, its member, the authority gate and the common options hold none of their own" \
-	"$( rigCount "$rigPackage/sh-lib/member/AgentsTools.CallerCheck.include" ) $( rigCount "$rigPackage/sh-lib/manager/AgentsTools.ManagerConsoleIdentity.include" ) $( rigCount "$rigPackage/sh-lib/questions/AgentsTools.Authority.include" ) $( rigCount "$rigPackage/sh-lib/common/AgentsTools.CommonOptions.include" ) $( rigCount "$rigPackage/sh-lib/inbox/AgentsTools.InternOpMemberInboxUpsert.include" "$rigPackage/sh-lib/board/AgentsTools.InternOpBoardUpsertMoveEdit.include" )" "2 0 0 0 0"
+rigAssert "the callers' own layer holds the one reading of the account; the console's account, its member, the authority gate and the common options hold none of their own" \
+	"$( rigCount "$rigPackage/sh-lib/member/AgentsTools.ActingMember.include" ) $( rigCount "$rigPackage/sh-lib/manager/AgentsTools.ManagerConsoleIdentity.include" ) $( rigCount "$rigPackage/sh-lib/questions/AgentsTools.Authority.include" ) $( rigCount "$rigPackage/sh-lib/common/AgentsTools.CommonOptions.include" ) $( rigCount "$rigPackage/sh-lib/inbox/AgentsTools.InternOpMemberInboxUpsert.include" "$rigPackage/sh-lib/board/AgentsTools.InternOpBoardUpsertMoveEdit.include" )" "2 0 0 0 0"
 
 if [ "$rigFails" -ne 0 ] ; then
 	echo "⛔ CONSOLE PERSON CHECK FAILED: $rigFails of $(( rigPasses + rigFails )) assertion(s)" >&2 ; exit 1

@@ -20,6 +20,7 @@
 			set +e ; return 1
 		fi
 		AgentsToolsAssertBareName "$rbMember" "<team-member>" escalation-readback || { set +e ; return 1 ; }
+		type AgentsToolsActingMemberCheck > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.ActingMember.include"
 		AgentsToolsActingMemberCheck "$rbMember" "readback-escalation" || { set +e ; return 1 ; }
 		rbFile="$( AgentsToolsEscalationRecord "$rbId" )" || { set +e ; return 1 ; }
 		rbKind="$( AgentsToolsEscalationField "$rbFile" kind )"
@@ -28,7 +29,8 @@
 			decision) ;;
 			## A plain question with an answer form is closed the same way.
 			''|question)
-				rbSelect="$( AgentsToolsEscalationField "$rbFile" select )"
+				type AgentsToolsPendingReplyAnswerForm > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.PendingReplyOptionAsk.include"
+				rbSelect="$( AgentsToolsPendingReplyAnswerForm "$rbFile" )"
 				[ -n "$rbSelect" ] || {
 					echo "$MDSC_CMD: ⛔ ERROR: $rbId is a question with no answer form, and a readback closes only a decision or a question with one" >&2
 					set +e ; return 1

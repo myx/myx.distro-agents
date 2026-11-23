@@ -63,6 +63,7 @@ case "$1" in
 			esac
 			[ -n "$decMentions" ] && { echo "$MDSC_CMD: ⛔ ERROR: invalid option: --clear-if-mentions" >&2 ; set +e ; return 1 ; }
 			## Who records, with or without --clears-blocker: the item's own parties only; magic-coordinator also strikes and reviews.
+			type AgentsToolsActingMemberCheck > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.ActingMember.include"
 			AgentsToolsActingMemberCheck "$decWho" record-decision || { set +e ; return 1 ; }
 			local decPath=""
 			if decPath="$( AgentsToolsDecisionsItemPath "$decItem" )" && ! AgentsToolsItemIsParty "$decPath" "$decWho" \
@@ -134,7 +135,8 @@ case "$1" in
 				echo "$MDSC_CMD: ⛔ ERROR: --with asks a new readback and --readback names one already answered, so give one of them; nothing was asked or recorded" >&2
 				set +e ; return 1
 			fi
-			## HIS OWN MESSAGE IS HIS DECISION (owner 2026-11-19): a source that is his own Slack message, its author read from the comms cache,
+			## HIS OWN MESSAGE IS HIS DECISION (): a source that is his own Slack message, its author read from the comms cache,
+
 			## records the decision from it at once, with that provenance, and asks him nothing. A strike still goes through its readback.
 			if [ -z "$decReadback" ] && [ -z "$decStrike" ] && [ -n "$decSource" ] ; then
 				type AgentsToolsDecisionSourceOwnerMessage > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemDecisions.include"
@@ -156,13 +158,15 @@ case "$1" in
 				fi
 				return 0
 			fi
-			type AgentsToolsPendingRecordPath > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.Authority.include"
+			type AgentsToolsPendingRecordPath > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.PendingPaths.include"
 			local decRbFile decRbKind="" decRbStatus="" decRbItem="" decRbVerdict="" decRbEdit="" decRbBy="" decRbAt="" decRbUnderstood=""
 			decRbFile="$( AgentsToolsPendingRecordPath "$decReadback" )" || { echo "$MDSC_CMD: ⛔ ERROR: no readback $decReadback in the ask store, so nothing was recorded" >&2 ; set +e ; return 1 ; }
 			IFS=$'\037' read -r decRbKind decRbStatus decRbItem decRbVerdict decRbEdit decRbBy decRbAt decRbUnderstood < <( LC_ALL=C awk '
 				$0 == "---" { dashes++ ; next ; }
 				dashes == 1 { colon = index( $0, ": " ) ; if ( colon > 1 ) { field[ substr( $0, 1, colon - 1 ) ] = substr( $0, colon + 2 ) ; } next ; }
-				dashes >= 2 && index( $0, "**📥 What I understood**" ) == 1 { inside = 1 ; next ; }
+				## A record asked again, changed, keeps one understanding a version under `## Revision <n>`:
+				## the latest block is the one its answer was given to, so each heading starts the value afresh.
+				dashes >= 2 && index( $0, "**📥 What I understood**" ) == 1 { inside = 1 ; understood = "" ; next ; }
 				inside && $0 ~ /^[ \t]*$/ { if ( understood != "" ) { inside = 0 ; } next ; }
 				inside { understood = ( understood == "" ? $0 : understood " " $0 ) ; }
 				END { printf "%s\037%s\037%s\037%s\037%s\037%s\037%s\037%s\n", field["kind"], field["status"], field["item"], field["verdict"], field["verdict-text"], field["answered-by"], field["resolved-at"], understood ; }

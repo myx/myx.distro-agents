@@ -259,7 +259,7 @@ case "$1" in
 					## setting persisted here would make that system this workspace's from then on, and
 					## leave it here without its token. So where the scope's settings of the key's system
 					## are read from elsewhere, the resolved value is reported and not persisted.
-					type AgentsToolsConfigOptionElsewhere > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWorkspace.include"
+					type AgentsToolsConfigOptionElsewhere > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWorkspace.Settings.include"
 					AgentsToolsConfigOptionElsewhere "$callingMember" "$resolveWorkspaceKey" 2> /dev/null || :
 					if [ -n "$agentsConfigOptionElsewhere" ] ; then
 						echo "$resolveWorkspaceKey: OK (resolved $wsUrl, not persisted here: this scope's settings of that system are read from $agentsConfigOptionElsewhere, the workspace $callingMember is set up in)"

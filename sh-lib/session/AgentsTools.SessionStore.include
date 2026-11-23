@@ -1,42 +1,8 @@
 #!/usr/bin/env bash
 # ^^^ for syntax checking in the editor only
 
-##
-## AgentsTools.SessionStore.include -- where a workspace keeps its sessions and its spawn records: the one answer, so no other part
-## builds the path. Sourced, never run. A session's folder is `<sessions store>/<session id>`, a spawn's `<spawned store>/<spawn id>`.
-## The files inside a session's folder are the session subsystem's own; another part asks for what it needs rather than reading them.
-##
-## Every path here is built by printf -v, never by a command substitution, so a call in a hot path forks no process; each printing
-## query has an `...Into <variable>` form for a caller that wants the path without a fork.
-##
-## AgentsSessionStoreDirInto <variable> <workspace>   the sessions store of that workspace, into the variable
-## AgentsSpawnedStoreDirInto <variable> <workspace>   the spawn records of that workspace, into the variable
-## AgentsSessionThread <session>       the session's Slack thread `<channel>:<ts>`, as its folder records it, else as its founding
-##                                      run's record names it (then kept in the folder); nothing where it has none
-## AgentsSessionThreadSet <session> <channel:ts>   records the session's thread in its folder
-## AgentsSpawnedThreadOfRecord <spawn record>       the thread the folder of a spawn record keeps; nothing for none
-## AgentsSessionHasDeathRecord <session>             rc 0 where the session records a death
-## AgentsSessionRunDead <session> <run>              rc 0 where the session's record of deaths names the run
-## AgentsSessionDeathSessions                         the sessions with a death recorded, one a line
-## AgentsSessionDeathLines <session>                  the lines of the session's record of deaths
-## AgentsSessionMarkerFile <id> <marker>             a run's or a session's lifecycle marker: paused, parked, dismissed, stop.left, control/closed,
-##                                                    and the root message's marks root.want, root.end, root.pause (...Into)
-## AgentsSessionMarked <id> <marker>                  rc 0 where that marker is set
-## AgentsSessionsMarked <marker>                      the sessions with that marker set, one a line
-## AgentsSessionChangedWithin <minutes> <session>...  rc 0 where a file in one of those sessions' folders changed within that many minutes
-## AgentsSessionRunOwnRecordInto <var> <run> [ws]     the record a run keeps in its own folder, rc 1 where it has none there
-## AgentsSpawnedFolderRecords <folder>               the records one folder of the spawned store holds, one a line
-## AgentsSessionRunClosed <session> <run>             rc 0 where the session's control/closed names the run (`-`: the session itself)
-## AgentsSessionCloseRun <session> <run> <who> <when> names the run in the session's control/closed, once
-## AgentsSessionPartInto <var> <ws> <session> <part>   one file of a session's folder, by its part name (`chapter`, `session.thread`)
-## AgentsSpawnPartInto <var> <ws> <folder> <part>    one file of a spawn's folder, by its part name (`session.thread`)
-## AgentsSpawnRecordFindInto <var> <ws> <run>        the record of a run, wherever in the store its folder stands; rc 1 for none
-## AgentsSpawnPartitionFileInto <var> <ws> <parent> <part>  one file an agent-less parent keeps for its starts (`args`, `task`, `scopes`)
-## AgentsSessionFolderFilesInto <array> <ws> <session> <suffix>   the files of a session's folder whose name ends in that suffix
-## AgentsSessionStoreTreeIs <path>                   rc 0 where that path lies in a sessions or spawn store
-## AgentsSessionParentLogInto <var> <ws> <parent>        the launcher's log of an agent-less parent, at the store's root
-agentsSessionStoreLeaf=".local/agents/sessions"
-agentsSpawnedStoreLeaf=".local/agents/spawned"
+## The prose that stood here is in the package's MAGIC.md, under "AgentsTools.SessionStore.include".
+type AgentsSessionMarkerFileInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.Paths.include" || return 1
 AgentsSessionThread(){ ## session
 	local threadSession="${1:-}" threadHere threadValue="" threadRecord
 	case "$threadSession" in ''|-|.|..|*/*|*[[:space:]]*) return 0 ;; esac
@@ -51,11 +17,6 @@ AgentsSessionThread(){ ## session
 		case "$threadValue" in [A-Z]*:[0-9]*.[0-9]*) printf '%s\n' "$threadValue" > "$threadHere/session.thread" 2> /dev/null || : ;; *) threadValue="" ;; esac
 	fi
 	printf '%s' "$threadValue"
-}
-AgentsSessionThreadSet(){ ## session, channel:ts
-	local setHere
-	printf -v setHere '%s/%s/%s' "${MMDAPP%/}" "$agentsSessionStoreLeaf" "$1"
-	mkdir -p "$setHere" && printf '%s\n' "$2" > "$setHere/session.thread"
 }
 AgentsSpawnedThreadOfRecord(){ ## spawn record path
 	local recordThread=""
@@ -80,16 +41,6 @@ AgentsSessionDeathSessions(){
 AgentsSessionDeathLines(){ ## session
 	AgentsSessionHasDeathRecord "$1" || return 0
 	cat "${MMDAPP:-/nonexistent}/.local/agents/sessions/$1/control/dead" 2> /dev/null
-}
-AgentsSessionMarkerFileInto(){ ## variable, run or session id, marker -- rc 1 for an id or a marker that is none
-	case "${2:-}" in ''|-|.|..|*/*|*[[:space:]]*) return 1 ;; esac
-	case "${3:-}" in paused|parked|dismissed|stop.left|control/closed|control/state|root.want|root.end|root.pause|ended|floor-dropped|reload.due|skill.loaded) ;; *) return 1 ;; esac
-	printf -v "$1" '%s/%s/%s/%s' "${MMDAPP:-/nonexistent}" "$agentsSessionStoreLeaf" "$2" "$3"
-}
-AgentsSessionMarkerFile(){ ## run or session id, marker
-	local markerPath
-	AgentsSessionMarkerFileInto markerPath "${1:-}" "${2:-}" || return 1
-	printf '%s\n' "$markerPath"
 }
 AgentsSessionMarked(){ ## run or session id, marker
 	local markedFile
@@ -135,28 +86,6 @@ AgentsSessionRunClosed(){ ## session, run (`-` or empty: the session itself)
 	[ -e "$closedFile" ] || return 1
 	LC_ALL=C awk -v want="$closedWant" '$1 == want { found = 1 ; exit ; } END { exit ( found ? 0 : 1 ) ; }' "$closedFile" 2> /dev/null
 }
-AgentsSessionCloseRun(){ ## session, run (`-`: the session itself), who, when
-	local closeFile closeRun="${2:-}"
-	case "$closeRun" in ''|-) closeRun="$1" ;; esac
-	AgentsSessionRunClosed "$1" "$closeRun" && return 0
-	AgentsSessionMarkerFileInto closeFile "$1" control/closed || return 1
-	{ mkdir -p "${closeFile%/*}" && printf '%s %s %s\n' "$closeRun" "$3" "$4" >> "$closeFile" ; } 2> /dev/null
-}
-
-## The session-store values the harness reads and writes, returned as data, so no other part builds
-## or reads a path into the store: the session log append, the launch word, the live background jobs,
-## the stored wait's sources line, the held dismissal, and whether a session has a spawn record.
-## A value that must not fork on a hot path has an `...Into <variable>` form, which the caller reads
-## without a subshell.
-
-## Appends one line to a session's log. Nothing where the session is no bare name.
-AgentsSessionLogAppend(){ ## session, line
-	case "${1:-}" in ''|-|.|..|*/*|*[[:space:]]*) return 0 ;; esac
-	printf '%s\n' "$2" >> "${MMDAPP:-/nonexistent}/$agentsSessionStoreLeaf/$1/session.log" 2> /dev/null || :
-	return 0
-}
-
-## The launch word of a session, into the named variable: the cli service it runs on. Nothing for none.
 AgentsSessionLaunchWordInto(){ ## variable, session
 	local launchLine=""
 	printf -v "$1" '%s' ""
@@ -216,13 +145,6 @@ AgentsSessionKnown(){ ## session
 	[ -d "${MMDAPP:-/nonexistent}/$agentsSessionStoreLeaf/$1" ]
 }
 
-## The record of a run into the named variable, as the store's walks hand a record (AgentsToolsSpawnedSessionRecords).
-## THE RECORD FILE OF A RUN, found the one way: a file named <spawn-id>.spawn.md in whatever folder of spawned/ holds it --
-## spawned/<run>/ first, else a session's folder (spawned/<session>/<run>.spawn.md). The folder's own name is NOT the id: a
-## relocated or renamed sandbox keeps its record's name. A file whose own `spawn-id:` names another run is not its record.
-## Read with the shell's own `read`, so a lookup on a Wait round starts no process. rc 1, the variable empty, where the run
-## has no record. The record is a handle for a reader of a record (AgentsToolsRunRoute and its kin), never a path to build
-## on. The workspace is this one (MMDAPP) unless one is named.
 AgentsSessionRunRecordInto(){ ## variable, run id, workspace (default MMDAPP)
 	local recordOne="" recordWs="${3:-${MMDAPP:-/nonexistent}}" recordLine recordSaid
 	printf -v "$1" '%s' ""
@@ -264,19 +186,6 @@ AgentsSessionHasSpawnRecord(){ ## session
 	[ -n "$usualRecord" ] && [ -f "$usualRecord" ]
 }
 
-## Writes the activity word of a run: one line, overwritten, what the run is doing and never what it achieved.
-## Nothing where the run is no bare name or no workspace is set. A failed write is no error: the word is a hint.
-AgentsSessionActivityWrite(){ ## run id, line
-	local activityDir
-	case "${1:-}" in ''|-|.|..|*/*|*[[:space:]]*) return 0 ;; esac
-	[ -n "${MMDAPP:-}" ] || return 0
-	printf -v activityDir '%s/%s/%s' "$MMDAPP" "$agentsSessionStoreLeaf" "$1"
-	mkdir -p "$activityDir" 2> /dev/null || return 0
-	printf '%s\n' "$2" > "$activityDir/activity" 2> /dev/null || :
-	return 0
-}
-
-## Whether a path names a change kept for that session to apply: rc 0 where it is the session's own kept change.
 AgentsSessionKeptChangeIs(){ ## session, change path
 	local keptWant
 	case "${1:-}" in ''|-|.|..|*/*|*[[:space:]]*) return 1 ;; esac
@@ -365,11 +274,6 @@ AgentsSessionActivityInto(){ ## epoch variable, word variable, run, session (may
 	return 1
 }
 
-## Whether a live run sits inside a call waiting on a person, into the named variable: `waiting` when the last line of its milestones is
-## `wait going idle`, which a Wait writes as it starts, and its wait/state, which a wait writes as it ends, is older than that line or
-## was never written; or when the last line is `ask going idle`, an ask that writes that as it starts and ends the block with a line of its
-## own; `working` otherwise, a run with no milestones among them. Working is one thing here: no file of a run's store says a tool call
-## from thinking. Asked of a live run only. A run of another workspace is a run here has no store, which reads working.
 AgentsSessionRunActivityInto(){ ## word variable, run (may be empty)
 	local activityVar="$1" activityDir="" activityLine activityLast="" activityEnded="" activityYear activityMonth activityStamp
 	case "$activityVar" in ''|*[!A-Za-z0-9_]*) return 1 ;; esac
@@ -397,10 +301,6 @@ AgentsSessionRunActivityInto(){ ## word variable, run (may be empty)
 	return 0
 }
 
-## THE SESSIONS AND THEIR RUNS, into the named array, one element a row: the registry's measured rows, as the store measured them. A row
-## carries its run's id, its session's id, its owner, whether it is live and the state derived for it, and its dates, so a reader joins a
-## session to its runs on the session field and asks no file again. The registries are rebuilt for this workspace alone; another workspace
-## is read as it lies. rc 1 where they could not be rebuilt, and the array is then empty.
 AgentsSessionRowsInto(){ ## array variable, workspace (default MMDAPP)
 	local rowsVar="$1" rowsWs="${2:-${MMDAPP:-}}" rowsFile rowsLine measuredRows="" measuredDated="" measuredAny="false"
 	case "$rowsVar" in ''|*[!A-Za-z0-9_]*) return 1 ;; esac
@@ -462,90 +362,6 @@ AgentsSessionFeedLinesSince(){ ## since epoch, since ISO stamp
 	' "${feedFeeds[@]}"
 }
 
-## Removes a session's folder from the store, for a session whose making could not be finished. Only a bare id, and only a
-## folder of this workspace's store: nothing else is ever removed. rc 1 for a name that is no session.
-AgentsSessionDiscard(){ ## session
-	case "${1:-}" in ''|-|.|..|*/*|*[[:space:]]*) return 1 ;; esac
-	[ -n "${MMDAPP:-}" ] || return 1
-	[ ! -d "$MMDAPP/$agentsSessionStoreLeaf/$1" ] || rm -rf -- "$MMDAPP/$agentsSessionStoreLeaf/$1" 2> /dev/null || :
-	return 0
-}
-
-## THE STORE'S STAMP: spawned/ itself, its own clock moved by the two functions below after every record they create, rewrite, close
-## or remove, and by nothing else. A reader keeps the clock it read before its walk and walks again when the clock differs; a clock read
-## in its own second is not kept, since a write later in that second leaves it as it was (AgentsSpawnedStoreStampInto).
-
-## Writes a spawn record, its whole text on stdin, in one rename, then moves the store's stamp: a reader sees the old record or the new
-## one, never a part. The record is named by its run, in the run's own folder or the folder given, or by its path in a spawned/ store.
-## With the text the record must still hold, it is written only where it still holds that text. rc 1 where it was not written, the
-## record then left as it was. A record named outside a spawned/ store, `<workspace>/.local/agents/spawned/<folder>/<run>.spawn.md`, where
-## every reader looks and the stamp is, is refused, and the refusal says so on stderr.
-AgentsSpawnRecordWrite(){ ## run or record path, folder (empty: the run's own), the record as it must still stand (optional)
-	local writeRecord="${1:-}" writeTemp writeIndex writeNow="" writeWhy=""
-	case "$writeRecord" in
-		*/../*|*/./*) writeWhy="its path holds a . or .. part" ;;
-		*/*.spawn.md) ;;
-		''|-|.|..|*/*|*[[:space:]]*) writeWhy="it names no run and no record" ;;
-		*)
-			case "${2:-$writeRecord}" in -|.|..|*/*|*[[:space:]]*) writeWhy="its folder is no folder name" ;; esac
-			[ -n "${MMDAPP:-}" ] || writeWhy="${writeWhy:-no workspace (MMDAPP) to write it in}"
-			printf -v writeRecord '%s/%s/%s/%s.spawn.md' "${MMDAPP:-}" "$agentsSpawnedStoreLeaf" "${2:-$writeRecord}" "$writeRecord"
-		;;
-	esac
-	case "${writeRecord%/*/*}" in */.local/agents/spawned) ;; *) writeWhy="${writeWhy:-it lies in no spawned/ store, where its readers look}" ;; esac
-	if [ -n "$writeWhy" ] ; then
-		echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools}: the spawn record $writeRecord was not written: $writeWhy" >&2
-		return 1
-	fi
-	mkdir -p "${writeRecord%/*}" 2> /dev/null || return 1
-	writeTemp="$( mktemp "$writeRecord.XXXXXX" 2> /dev/null )" || return 1
-	if cat > "$writeTemp" 2> /dev/null && chmod 644 "$writeTemp" 2> /dev/null ; then
-		[ $# -lt 3 ] || { IFS= read -r -d '' writeNow < "$writeRecord" 2> /dev/null || : ; }
-		if [ $# -lt 3 ] || [ "$writeNow" = "$3" ] ; then
-			if mv -f "$writeTemp" "$writeRecord" 2> /dev/null ; then
-				touch "${writeRecord%/*/*}" 2> /dev/null || :
-				writeIndex="${writeRecord%/*/*}/.started-records"
-				type AgentsToolsFrontmatterKey > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.FrontmatterKey.include"
-				if writeTemp="$( mktemp "$writeIndex.XXXXXX" 2> /dev/null )" ; then
-					if { [ ! -f "$writeIndex" ] || LC_ALL=C grep -v -x -F -- "$writeRecord" "$writeIndex" 2> /dev/null || : ; } > "$writeTemp" 2> /dev/null ; then
-						[ "$( AgentsToolsFrontmatterKey "$writeRecord" status )" != "spawn-started" ] || printf '%s\n' "$writeRecord" >> "$writeTemp" 2> /dev/null
-						mv -f "$writeTemp" "$writeIndex" 2> /dev/null || rm -f "$writeTemp" 2> /dev/null
-					else
-						rm -f "$writeTemp" 2> /dev/null
-					fi
-				fi
-				return 0
-			fi
-		fi
-	fi
-	rm -f "$writeTemp" 2> /dev/null
-	return 1
-}
-
-## Removes one folder of spawned/ with every record in it, the write permission a record may have lost given back first, then moves the
-## store's stamp. rc 1 where the folder stayed.
-AgentsSpawnRecordRemove(){ ## folder
-	local removeFolder removeIndex removeTemp
-	case "${1:-}" in ''|-|.|..|-*|*/*|*[[:space:]]*) return 1 ;; esac
-	[ -n "${MMDAPP:-}" ] || return 1
-	printf -v removeFolder '%s/%s/%s' "$MMDAPP" "$agentsSpawnedStoreLeaf" "$1"
-	[ -e "$removeFolder" ] || return 0
-	chmod -R u+w "$removeFolder" 2> /dev/null || :
-	rm -rf -- "$removeFolder" 2> /dev/null || :
-	[ ! -e "$removeFolder" ] || return 1
-	touch "${removeFolder%/*}" 2> /dev/null || :
-	removeIndex="${removeFolder%/*}/.started-records"
-	if [ -f "$removeIndex" ] && removeTemp="$( mktemp "$removeIndex.XXXXXX" 2> /dev/null )" ; then
-		if LC_ALL=C awk -v gone="${removeFolder}/" 'index( $0, gone ) != 1' "$removeIndex" > "$removeTemp" 2> /dev/null ; then
-			mv -f "$removeTemp" "$removeIndex" 2> /dev/null || rm -f "$removeTemp" 2> /dev/null
-		else
-			rm -f "$removeTemp" 2> /dev/null
-		fi
-	fi
-	return 0
-}
-
-## The started run records of one folder of spawned/, a record a line, as the store's walks hand a record. One read of the folder.
 AgentsSessionFolderStartedRecords(){ ## spawned folder name
 	case "${1:-}" in ''|-|.|..|*/*|*[[:space:]]*) return 0 ;; esac
 	LC_ALL=C awk '
@@ -558,18 +374,6 @@ AgentsSessionFolderStartedRecords(){ ## spawned folder name
 
 ## The sessions store of a workspace, the folder of one of its sessions, and the record file of one of its runs, into the named
 ## variable. Every reader of them asks here: no other part builds a path into the store. Nothing is created here.
-AgentsSessionStoreDirInto(){ ## variable, workspace
-	printf -v "$1" '%s' ""
-	case "${2:-}" in ''|/) return 1 ;; esac
-	printf -v "$1" '%s/%s' "${2%/}" "$agentsSessionStoreLeaf"
-}
-
-AgentsSpawnedStoreDirInto(){ ## variable, workspace
-	printf -v "$1" '%s' ""
-	case "${2:-}" in ''|/) return 1 ;; esac
-	printf -v "$1" '%s/%s' "${2%/}" "$agentsSpawnedStoreLeaf"
-}
-
 AgentsSessionFolderInto(){ ## variable, workspace, session
 	local folderStore=""
 	printf -v "$1" '%s' ""
@@ -688,15 +492,6 @@ AgentsSessionStorePartsInto(){ ## workspace variable, session variable, store di
 	printf -v "$1" '%s' "${partsDir%"/$agentsSessionStoreLeaf/"*}"
 }
 
-## The store's facts of the ids read on standard input, one id a line, read by one awk that opens each id's files once:
-## `<id> TAB <fact> TAB <value>` a row, the rest of the row the value, which may be empty. The facts asked for by name:
-##   tokens, usage-limit, chapter, model   the first line of that file
-##   milestone                             the last line of `milestones` that is not empty
-##   wait                                  what the stored wait's `sources:` line says
-##   log, transcript                       the file itself, where it is there; the transcript's pointer read first
-##   mark                                  every marker of dismissed, dismissed.handback, ended and review-expired the store
-##                                         holds, one row each as `mark:<marker>`, its first line the value
-## Nothing is printed for a fact the store keeps none of.
 AgentsSessionRunFacts(){ ## fact... -- stdin: run or session ids
 	MDAT_SESSION_FACTS_STORE="${MMDAPP:-/nonexistent}/$agentsSessionStoreLeaf" LC_ALL=C awk -v factsWanted="$*" '
 		function firstOf(filePath,    lineText, readRc) {
@@ -745,10 +540,6 @@ AgentsSessionRunFacts(){ ## fact... -- stdin: run or session ids
 	'
 }
 
-## The headers of the record of each run read on standard input, one run a line, each record found the one way
-## (AgentsSessionRunRecordInto) and read once: `<run> TAB <n> TAB <name> TAB <value>` a row, in the record's own order.
-## A header is a line of the record's first frontmatter block with a `:` past its first character, its value trimmed.
-## Nothing is printed for a run whose record is not there.
 AgentsSessionRunHeaderRows(){ ## -- stdin: run ids
 	local headerRun headerRecord headerIds=" " headerFiles=()
 	while IFS= read -r headerRun ; do
@@ -793,19 +584,6 @@ AgentsSessionLogTail(){ ## run or session id, lines
 	tail -n "$2" "$tailLog" 2> /dev/null
 }
 
-## Saves the effort a run or a session asks of its model, for the harness to read at its next round, and prints the file
-## it wrote. rc 1 where that id has no store in this workspace; rc 2 where the write failed.
-AgentsSessionEffortSet(){ ## run or session id, effort word
-	local effortFile effortAside
-	AgentsSessionKnown "${1:-}" || return 1
-	printf -v effortFile '%s/%s/%s/effort' "${MMDAPP:-/nonexistent}" "$agentsSessionStoreLeaf" "$1"
-	effortAside="$( mktemp "$effortFile.XXXXXX" 2> /dev/null )" || return 2
-	{ printf '%s\n' "$2" > "$effortAside" && mv -f "$effortAside" "$effortFile" ; } 2> /dev/null || { rm -f "$effortAside" 2> /dev/null ; return 2 ; }
-	printf '%s\n' "$effortFile"
-}
-
-## The name of one folder of a workspace's spawned store, from its path, into the named variable: rc 1, the variable empty,
-## where that path is not a folder of that store. No process.
 AgentsSpawnedFolderNameInto(){ ## variable, path
 	local nameStore="" nameFolder=""
 	printf -v "$1" '%s' ""
@@ -862,4 +640,10 @@ AgentsSessionStoreChangedWithin(){ ## minutes, files|entries, spawned folder, se
 		*) changedFound="$( find "${changedPaths[@]}" -mmin "-$changedMinutes" 2> /dev/null | head -1 )" ;;
 	esac
 	[ -n "$changedFound" ]
+}
+
+## Every spawn record the store holds, one a line: the owner's own walk, so that a concern outside this one asks for the list rather than
+## globbing the store, and a glob is written once.
+AgentsSpawnedRecords(){
+	printf '%s\n' "$MMDAPP"/.local/agents/spawned/*/*.spawn.md 2> /dev/null | LC_ALL=C grep -v '[*]' | LC_ALL=C sort -u
 }

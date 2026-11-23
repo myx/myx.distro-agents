@@ -24,6 +24,8 @@
 ##      named by its heading path; with the store not installed or the index not standing the answer is today's text
 ##      search, byte for byte; a hit of a file outside the sources added (another member's inbox) is dropped and counted;
 ##      and one resolver answers the path the index is built at
+##  12. the limit is spent on the files the call may read: 24 rows of another member's inbox do not hide the acting
+##      member's own row, which the group alone would have pushed past the limit
 ## Red before F7.3: there is no DistroAgentsKnowledge.fn.sh (every case fails).
 ## Offline: the rig's own team data store and workspace.
 set -u
@@ -229,6 +231,18 @@ if printf '%s' "$rigIxSections" | env -i HOME="$rigTmp/home" PATH="/usr/bin:/bin
 	rigAssert "a fused query answers a section whose words the query does not share, naming its file and heading path" "$( cat "$rigTmp/fused.rc" ):$( rigHolds fused 'A failed deployment goes back to the earlier build.' ):$( rigHolds fused 'undo' ):$( LC_ALL=C grep -c -x -F '# vault/note-20260101T0000Z-deploy.md' "$rigTmp/fused.out" || : ):$( LC_ALL=C grep -c -x -F '## A deployment' "$rigTmp/fused.out" || : )" "0:yes:no:1:1"
 	rigIxQuery exact --add-vault-items --query-keyword RIGIXEXACTWORD
 	rigAssert "an exact term is answered by the section that holds it, named by its heading path" "$( cat "$rigTmp/exact.rc" ):$( rigHolds exact 'The RIGIXEXACTWORD stands here.' )" "0:yes"
+	## THE NO-HIT CASE, and the one the fault was measured on: a query of words no section holds. The vector leg ranks
+	## every row it is shown, so with the floor removed the index answers here with the vault's sections anyway. The
+	## stand-in's baseline vector is what lets the rig reach that: a model that answered a zero vector gave the vector leg
+	## nothing to rank, and this row was green before any fix.
+	rigIxQuery nohit --add-vault-items --query-keyword RIGIXNOHITWORD
+	rigAssert "a query of words no section holds answers nothing, and says so" "$( cat "$rigTmp/nohit.rc" ):$( LC_ALL=C grep -c . "$rigTmp/nohit.out" || : ):$( LC_ALL=C grep -c -F 'no section answers the query' "$rigTmp/nohit.err" || : )" "0:0:1"
+	rigIxQuery nohitjson --mdat-output-format json --add-vault-items --query-keyword RIGIXNOHITWORD
+	rigAssert "and its JSON carries no entry" "$( python3 -I -c 'import json, sys
+data = json.load( open( sys.argv[1] ) )
+print( "empty" if not data["entries"] else "entries" )' "$rigTmp/nohitjson.out" 2> /dev/null )" "empty"
+	rigIxQuery nohitcontrol --add-vault-items --query-keyword 'RIGIXNOHITWORD RIGIXEXACTWORD'
+	rigAssert "CONTROL: the same query with one word a section holds answers that section" "$( cat "$rigTmp/nohitcontrol.rc" ):$( rigHolds nohitcontrol 'The RIGIXEXACTWORD stands here.' )" "0:yes"
 	## Not installed is the store's Python moved aside: the install is the whole switch, with no setting.
 	mv "$rigIx/.local/lancedb" "$rigIx/.local/lancedb.aside"
 	rigIxQuery keptoff --add-vault-items --query-keyword RIGIXEXACTWORD
@@ -237,8 +251,12 @@ if printf '%s' "$rigIxSections" | env -i HOME="$rigTmp/home" PATH="/usr/bin:/bin
 	rigIxQuery keptgone --add-vault-items --query-keyword RIGIXEXACTWORD
 	mv "$rigIx/.local/knowledge-index.aside" "$rigIx/.local/knowledge-index"
 	rigAssert "with the store not installed, or the index not standing, the answer is today's text search" "$( cat "$rigTmp/keptoff.rc" ):$( cat "$rigTmp/keptgone.rc" ):$( cmp -s "$rigTmp/keptoff.out" "$rigTmp/keptgone.out" && printf same || printf differs ):$( rigHolds keptgone RIGIXEXACTWORD )" "0:0:same:yes"
+	## A FILE THE CALL MAY NOT READ IS FILTERED BEFORE THE LIMIT, never dropped after it: the engine takes the files the
+	## call may read, so a row of another member's inbox is never handed to the drop test, and its row cannot spend the
+	## limit (case 12). What the answer says is the same either way: the other member's words do not answer.
 	rigIxQuery dropped --add-vault-items --add-inbox-items --query-keyword 'undo the last release'
-	rigAssert "a hit of a file outside the sources added (another member's inbox) is dropped, and the drop is counted" "$( cat "$rigTmp/dropped.rc" ):$( rigHolds dropped 'A failed release returns to the previous build.' ):$( LC_ALL=C grep -c -F -e 'section(s) of the index were left out' "$rigTmp/dropped.err" || : )" "0:no:1"
+	rigAssert "a file outside the sources added does not answer, and no row is dropped after the limit" "$( cat "$rigTmp/dropped.rc" ):$( rigHolds dropped 'A failed release returns to the previous build.' ):$( LC_ALL=C grep -c -F -e 'section(s) of the index were left out' "$rigTmp/dropped.err" || : )" "0:no:0"
+	rigAssert "CONTROL: the same query answers the vault's own sections, so the empty drop count is not an empty answer" "$( rigHolds dropped 'A failed deployment goes back to the earlier build.' ):$( rigHolds dropped 'The RIGIXEXACTWORD stands here.' )" "yes:yes"
 	rigIxQuery fusedjson --mdat-output-format json --add-vault-items --query-keyword 'undo the last release'
 	rigAssert "the JSON shape is unchanged on the fused path: its source, its store and its heading path" "$( python3 -I -c 'import json, sys
 data = json.load( open( sys.argv[1] ) )
@@ -247,6 +265,47 @@ print( ",".join( sorted( e["source"] + ":" + e["store"] + ":" + e["section"] for
 	rigAssert "the store include names no index path of its own: the place include is the one place" "$( LC_ALL=C grep -c -F -e '.local/knowledge-index' "$rigIxPackage/sh-lib/knowledge/AgentsTools.KnowledgeStore.include" || : )" 0
 else
 	rigAssert "the rig index could be built (the store's Python and the two stand-ins)" "$( LC_ALL=C head -2 "$rigTmp/ixbuild.err" | LC_ALL=C tr '\n' ' ' )" "built"
+fi
+
+echo "-- 12. the limit is spent on the files the call may read, not on rows it would drop --"
+## THE FAULT THIS HOLDS: the index holds every member's inbox, where a call reads its own. The group is coarser than the
+## caller's files, so rows it drops after the limit were spending it, and a call answered nothing of its own while 24
+## rows of another member's inbox stood in the way. Twenty-four of those rows outrank one of the acting member's own.
+rigLx="$rigTmp/ixlimit" rigLxData="$rigTmp/ixlimitdata" rigLxLib="$rigTmp/ixlimitlib"
+mkdir -p "$rigLx/.local/lancedb/venv/bin" "$rigLx/.local/lancedb/model/potion-base-8M" "$rigLx/.local/agents" "$rigLxLib"
+cp "$rigIxPackage/sh-test/check-fixtures/knowledge-store.python.stub.sh" "$rigLx/.local/lancedb/venv/bin/python" || rigRefuse "the Python stand-in is missing"
+chmod +x "$rigLx/.local/lancedb/venv/bin/python"
+printf 'LANCEDB_MODEL_NAME=potion-base-8M\nLANCEDB_MODEL_REVISION=rig111\nLANCEDB_MODEL_DIM=2\n' > "$rigLx/.local/lancedb/lancedb.env"
+cp -R "$rigIxPackage/sh-test/check-fixtures/knowledge-store-lancedb.stub/lancedb" "$rigLxLib/lancedb" || rigRefuse "cannot stage the lancedb stand-in"
+cp -R "$rigIxPackage/sh-test/check-fixtures/knowledge-store-model2vec.stub/model2vec" "$rigLxLib/model2vec" || rigRefuse "cannot stage the model2vec stand-in"
+rigLxFiles=""
+rigLxAt=0
+while [ "$rigLxAt" -lt 24 ] ; do
+	rigLxAt=$(( rigLxAt + 1 ))
+	rigStoreItem "$rigTmp" "$rigLxData" "$rigLx" magic-coordinator "inbox keeper-other note-20260101T0100Z-other$rigLxAt.md" \
+		"$( rigStoreBody "$( printf -- '---\ntype: note\n---\n\n# Another member %s\n\nA failed release returns to the previous build.\n' "$rigLxAt" )" )" > /dev/null 2>&1 \
+		|| rigRefuse "could not build the inbox fixture note-20260101T0100Z-other$rigLxAt.md"
+done
+rigStoreItem "$rigTmp" "$rigLxData" "$rigLx" keeper-rig "inbox keeper-rig note-20260101T0200Z-own.md" \
+	"$( rigStoreBody "$( printf -- '---\ntype: note\n---\n\n# The acting member\n\nA failed release returns to the previous build.\n' )" )" > /dev/null 2>&1 \
+	|| rigRefuse "could not build the inbox fixture note-20260101T0200Z-own.md"
+rigLxOwn="$( find "$rigLxData/inboxes/keeper-rig" -type f -name note-20260101T0200Z-own.md 2> /dev/null | LC_ALL=C sed -n 1p )"
+[ -n "$rigLxOwn" ] || rigRefuse "the own inbox fixture is not in keeper-rig's inbox"
+rigLxFiles="$( find "$rigLxData/inboxes" -type f -name '*.md' 2> /dev/null | LC_ALL=C sort )"
+set -- $rigLxFiles
+[ "$#" -ge 25 ] || rigRefuse "the limit rig holds $# inbox files, and 25 are wanted"
+rigLxSections="$( printf '%s\n' $rigLxFiles | LC_ALL=C awk -v format=index -v dataRoot="${rigLxData%/}/" -f "$rigIxPackage/sh-lib/knowledge/AgentsKnowledgeScan.awk" )"
+if printf '%s' "$rigLxSections" | env -i HOME="$rigTmp/home" PATH="/usr/bin:/bin:/usr/sbin:/sbin:$rigPythonDir" RIG_LANCEDB_STUB="$rigLxLib" \
+	"$rigLx/.local/lancedb/venv/bin/python" "$rigIxPackage/sh-lib/knowledge/AgentsKnowledgeStore.py" build --index "$rigLx/.local/knowledge-index" \
+	--model-dir "$rigLx/.local/lancedb/model/potion-base-8M" --model-stamp 'potion-base-8M@rig111@2' > "$rigTmp/lxbuild.out" 2> "$rigTmp/lxbuild.err" ; then
+	( cd "$rigLx" && env -i HOME="$rigTmp/home" PATH="/usr/bin:/bin:/usr/sbin:/sbin:$rigPythonDir" MMDAPP="$rigLx" MDLT_ORIGIN="$rigOrigin" MDLT_OPTION="--run-from-path $rigOrigin" \
+		MDAT_DATA_ROOT="$rigLxData" MDAT_SKILLSET_ROOT="$rigTmp/skills" MDAT_SPAWN_AGENT=keeper-rig MDAT_SPAWN_SESSION_ID=rig-limit-run \
+		RIG_LANCEDB_STUB="$rigLxLib" \
+		bash "$rigKnowledge" --add-inbox-items --query-keyword 'undo the last release' ) > "$rigTmp/lx.out" 2> "$rigTmp/lx.err" < /dev/null || rigLxRc=$?
+	rigAssert "with 24 rows of another member's inbox outranking it, the acting member's own row answers" \
+		"${rigLxRc:-0}:$( LC_ALL=C grep -c -F 'The acting member' "$rigTmp/lx.out" || : ):$( LC_ALL=C grep -c -F 'Another member' "$rigTmp/lx.out" || : )" "0:1:0"
+else
+	rigAssert "the limit rig's index could be built (the store's Python and the two stand-ins)" "$( LC_ALL=C head -2 "$rigTmp/lxbuild.err" | LC_ALL=C tr '\n' ' ' )" "built"
 fi
 
 if [ "$rigFailCount" -ne 0 ] ; then

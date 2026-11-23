@@ -79,6 +79,8 @@ Exact instructions. Execute in order, every step, literally as written — not l
 6. **name-what-each-piece-needs**: for each piece, make the best guess its dispatch can carry, steps:
    - the members and expertise, the access permissions, and the tools, worked out from its targets: paths, pages, any text.
    - every piece's access together, as one Permission set asked at the first dispatch, per `spawn-one-dispatch`'s **spawn-ask-access-once**.
+   - the standards it is written to, named in the piece: `magic-developer/reference/code-craft.md`, and `shell.md` where the code is shell or awk. The reviewer's `magic-tester/reference/code-review.md` belongs to the piece's check, beside it.
+   - nothing that moves: an open `warning-*` item and a standing note are read by the tooling at the start, never copied into the piece. A piece outlives them by weeks, and a copied warning is read as current when it is not.
    - its verification: the check that proves it done, and the case it must fail on. Agree both with the member who will verify it (`magic-tester` for software).
    - a destructive or irreversible step inside it, marked for confirmation before it runs.
 7. **imagine-it-failed**: assume the plan was carried out and failed, steps:
@@ -91,6 +93,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
    - a disagreement becomes the no-quorum document, per "The ladder: one rung at a time".
 9. **propose-and-route**: write the plan into the task's tracking document, put it up for approval, and name the next flow step, steps:
    - the outcome and done criteria, the pieces in order, each piece's needs and checks, and the accepted risks.
+   - each piece reaches the board with `handler-routine: magic-team.epic-build.routine` in its own headers. A piece that names no handler is skipped by the start pass for want of a builder, and nothing else adds it later.
    - the document stands alone: the goal, why, the scope, the current state, the next step, the decisions taken and the open points, each a plain present-tense statement. It is a produce under `magic-team.basic.md`'s "Relay, direct, produce", so a session restarted a month later continues from it alone.
    - a plan that binds the team, or needs the human-owner's go, goes through `magic-team.proposal.routine`.
    - otherwise the session's own parent approves it, per "The ladder: one rung at a time".

@@ -159,8 +159,9 @@ rigAssert "control: it reports no failed probe"                  "$( rigHas "$ri
 echo "-- 5. a check ended at its time limit --"
 rigRunHome="$rigTmp/runhome" rigRunWs="$rigTmp/runws" rigRunRoot="$rigTmp/runws/.local/temp/rig-scratch-run/source"
 mkdir -p "$rigRunHome" "$rigRunWs/.local/temp" "$rigRunRoot/myx/myx.distro-agents/sh-test/check-fixtures" || exit 1
-cp "$rigRunner" "$rigRunRoot/myx/myx.distro-agents/sh-test/AgentsRunTests.sh" || exit 1
-cp "$( dirname "$rigRunner" )"/check-fixtures/runner-*.py "$rigRunRoot/myx/myx.distro-agents/sh-test/check-fixtures/" || exit 1
+rsync -t "$rigRunner" "$rigRunRoot/myx/myx.distro-agents/sh-test/AgentsRunTests.sh" || exit 1
+rsync -t "$( dirname "$rigRunner" )"/check-fixtures/runner-*.py "$rigRunRoot/myx/myx.distro-agents/sh-test/check-fixtures/" || exit 1
+mkdir -p "$rigRunRoot/myx/myx.distro-agents/sh-test/runner" && rsync -t "$( dirname "$rigRunner" )"/runner/*.sh "$rigRunRoot/myx/myx.distro-agents/sh-test/runner/" || exit 1
 cat > "$rigRunRoot/myx/myx.distro-agents/sh-test/RigHang.test.sh" <<'RIGHANG'
 #!/usr/bin/env bash
 echo "RIG-HANG-STARTED"

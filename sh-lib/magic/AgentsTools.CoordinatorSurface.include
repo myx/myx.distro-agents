@@ -34,7 +34,7 @@ AgentsToolsSurfaceTool(){ ## the script, its arguments...
 ## The tool runs as magic-coordinator, or from no member's session (the console, automation) for what only reads.
 AgentsToolsSurfaceCaller(){ ## the operation, write|read
 	local callerMember
-	type AgentsToolsActingMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.CallerCheck.include"
+	type AgentsToolsActingMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.ActingMember.include"
 	callerMember="$( AgentsToolsActingMember )"
 	if [ -n "$callerMember" ] && [ "$callerMember" != magic-coordinator ] ; then
 		echo "$MDSC_CMD: ⛔ ERROR: $1: runs only as magic-coordinator, and this call comes from $callerMember -- nothing was done" >&2

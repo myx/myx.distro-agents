@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 ## Behavioural check on a source's first read inside a short Wait (AgentsTools.MemberWaitRun.include, "THE SOURCE'S OWN BOUND").
-## The bound decides when a wait returns, never which sources it reads (owner ruling 2026-10-31): a source not yet read in the
+## The bound decides when a wait returns, never which sources it reads (): a source not yet read in the
+
 ## call gets its whole read bound (MDAT_SLACK_READ_BOUND_SECONDS), and only a source read once is cut to the deadline. Held:
 ##   1. a 1 s bound over one Slack thread whose replies call takes 3 s and holds news: RECEIVED with the news, nothing never-read
 ##   2. the guard: a Slack thread that never answers, then one with news, a 1 s bound and a read bound of 4 s: the wait names the

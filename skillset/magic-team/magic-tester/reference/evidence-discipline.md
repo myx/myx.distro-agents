@@ -609,7 +609,7 @@ rather than by line. Do not treat it as the finding being false.
   `sh-test/check-fixtures/`, named by their type, such as `<check>.<command>.stub.sh`.
   Nothing but a check ends in `.test.sh`.** A check finds its package from its own location, with an override variable for
   a mutated copy. It does not assume `MDLT_ORIGIN` points at the package.
-- **A row is shown able to fail on a copy.** Copy the package tree with `cp -RL` into the run's own `output/` folder: a real copy, no `.git`.
+- **A row is shown able to fail on a copy.** Sync the package tree into the run's own `output/` folder with `rsync -rtLO --delete --exclude=.git`: a real copy, no `.git`.
 Break the one line the row guards. Run the same check against the copy, once
 per behaviour.
 - **A reader for words, dates or names proves only that those patterns are

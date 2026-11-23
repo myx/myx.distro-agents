@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-## Behavioural check on what a Wait says about the caller's own CheckList (owner 2026-10-31: an idle Wait returns the unclosed items
+## Behavioural check on what a Wait says about the caller's own CheckList (: an idle Wait returns the unclosed items
+
 ## instead of waiting, so a member finishes or closes them before it waits for DISMISSED, and every other Wait carries the count
 ## alone). Through the real Wait tool (AgentsUniversalHarness.sh --intern-tool Wait) and its own stateful call, offline: a plain
 ## file: source where a source is named, and a curl that fails at once, so no request leaves the machine. Held:

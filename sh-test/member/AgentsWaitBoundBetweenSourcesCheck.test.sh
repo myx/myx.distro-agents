@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 ## Behavioural check on a bound inside a round (AgentsTools.MemberWait.include, "A ROUND READS EVERY SOURCE IT HOLDS").
-## A bound decides when a wait RETURNS, never which sources its round reads (owner ruling 2026-10-31): a round reads every
+## A bound decides when a wait RETURNS, never which sources its round reads (): a round reads every
+
 ## source it holds, an arrival found early included, and a probe that cannot finish inside the bound is handed to the task
 ## wrapper and named in WAIT-NEVER-READ. Held, with the board probe, the first of the round, made slow by an `ls` that sleeps
 ## when it lists the board's pending folder (the listing that probe makes), and a floor of 1 so that what is there counts:

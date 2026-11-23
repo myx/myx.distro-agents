@@ -8,6 +8,7 @@
 ## helper AgentsToolsContactAssertKnown, which has no operation of its own (MAGIC.md,
 ## section 1). DUAL USE: a name not its own runs nothing, so a send op sources it for the helper:
 ##   type AgentsToolsContactAssertKnown > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/contacts/AgentsTools.InternContact.include"
+
 ## Contracts in MAGIC.md.
 ##
 

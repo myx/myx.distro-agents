@@ -94,10 +94,10 @@ AgentsToolsPendingAskHousekeeping(){ ## stale hours, calling member
 
 AgentsToolsAdvanceSpawnHousekeeping(){ ## stale hours, calling member, [no-threads: the control threads are left to the caller's own check]
 	## This call is the housekeeping, so the registry read below starts no second pass: that one ends this pass's leftovers first and takes their lines.
-	local AGENTS_HOUSEKEEPING_PASS_RUNNING=1
+	local AGENTS_HOUSEKEEPING_PASS_RUNNING=1 prunedRuns="" prunedLive="" prunedSessions=""
 	type AgentsToolsFrontmatterKey > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.FrontmatterKey.include"
 	type AgentsToolsHousekeepingReport > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandbox.include"
-	type AgentsToolsRegistryRenderSpawnedSessions > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.RegistrySpawnedSessions.include"
+	type AgentsToolsRegistryRenderSpawnedSessionsKept > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.RegistrySpawnedSessions.include"
 	type AgentsToolsRegistryPendingSessionOpen > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.RegistryPendingReplies.include"
 	type AgentsToolsRegistryFile > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
 	type AgentsToolsRunRecordedSupervisor > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunProcesses.include"
@@ -111,7 +111,7 @@ AgentsToolsAdvanceSpawnHousekeeping(){ ## stale hours, calling member, [no-threa
 	local recordPath recordCandidate recordStatus recordExit rowSide linkField linkStem itemName itemState itemPath itemSpawn itemOutput targetState closeOutcome
 	local controlLines controlSession controlWord controlPid controlWhy controlStarted="" controlCount=0
 	local leftoverSession leftoverEnded leftoverLine leftoverHandle
-	measureText="$( AgentsToolsRegistryRenderSpawnedSessions agents )"
+	measureText="$( AgentsToolsRegistryRenderSpawnedSessionsKept agents "" "" live )"
 	case "$measureText" in
 		*"**NOTE:** no scan was made"*) return 0 ;;
 	esac
@@ -236,7 +236,7 @@ AgentsToolsAdvanceSpawnHousekeeping(){ ## stale hours, calling member, [no-threa
 	## A sandbox whose launch never wrote its record is a failed launch: a launch writes it within minutes, so after an hour it gets a record saying so,
 	## so it stays listed, as every sandbox is, and reads failed rather than unclosed.
 	local emptyDir emptyName
-	type AgentsSpawnRecordWrite > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+	type AgentsSpawnRecordWrite > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.Write.include"
 	for emptyDir in "$spawnRoot"/*/ ; do
 		[ -d "$emptyDir" ] || continue
 		emptyName="${emptyDir%/}" ; emptyName="${emptyName##*/}"
@@ -250,7 +250,7 @@ AgentsToolsAdvanceSpawnHousekeeping(){ ## stale hours, calling member, [no-threa
 	housekeepingLog="${housekeepingLog}$( AgentsToolsReviewUnseenEscalate "$2" )
 "
 	## A review item whose named reviewer session has ended goes to the coordinator. A bare member name, `human-owner`, a live session and a missing review-by stay as they are.
-	measureText="$( AgentsToolsRegistryRenderSpawnedSessions agents )"
+	## The rows of that pass, kept: the second read of them here would take the same kept copy and say the same thing.
 	for itemPath in "$MDAT_DATA_ROOT"/board/review/*.md ; do
 		[ -f "$itemPath" ] || continue
 		itemName="${itemPath##*/}"
@@ -325,6 +325,21 @@ AgentsToolsAdvanceSpawnHousekeeping(){ ## stale hours, calling member, [no-threa
 		esac
 	done <<< "$controlLines"
 	[ "$controlCount" -eq 0 ] || housekeepingLog="${housekeepingLog}housekeeping: started the control thread of $controlCount session(s):$controlStarted"$'\n'
+	type AgentsSpawnedRetentionPrune > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.Write.include"
+	if prunedRuns="$( printf '%s\n' "$measureText" | AgentsSpawnedRetentionPrune 14 20 2> /dev/null )" && [ -n "$prunedRuns" ] ; then
+		housekeepingLog="${housekeepingLog}housekeeping: removed $prunedRuns dead run(s) past the retention"$'\n'
+	fi
+	## THE LIVE LIST'S OWN PRUNE: a line whose thread is gone, or whose pid is another process now, leaves here -- the one place that can
+	## afford the start-time test, since a reader of the list pays one builtin and nothing more.
+	type AgentsToolsSessionLivePrune > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.Write.include"
+	if prunedLive="$( AgentsToolsSessionLivePrune 2> /dev/null )" && [ -n "$prunedLive" ] ; then
+		housekeepingLog="${housekeepingLog}housekeeping: removed $prunedLive dead line(s) from the live list"$'\n'
+	fi
+	## THE SESSIONS STORE KEEPS THE SAME DAYS THE RUNS DO: a folder nothing has written for that long, whose thread is gone, is history -- and
+	## a store of thousands of them is what every rebuild walks.
+	if prunedSessions="$( AgentsToolsSessionStorePrune 14 20 2> /dev/null )" && [ -n "$prunedSessions" ] ; then
+		housekeepingLog="${housekeepingLog}housekeeping: removed $prunedSessions dead session folder(s) past the retention"$'\n'
+	fi
 	## What was done never enters the lock's output; it goes to the event-track thread of this spawn's coworking session.
 	AgentsToolsHousekeepingReport "$2" "${housekeepingLog%$'\n'}"
 	return 0

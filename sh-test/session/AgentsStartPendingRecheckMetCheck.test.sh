@@ -32,8 +32,8 @@ rigOwnerBoardReady
 ## A tree of the origin's own, as real copies, so the function loads what it loads, and the one items tool stubbed on top.
 rigOrigin="$rigTmp/origin"
 mkdir -p "$rigOrigin/myx/myx.distro-agents/sh-scripts"
-cp -RL "$rigRealOrigin/myx/myx.distro-.local" "$rigOrigin/myx/myx.distro-.local" || rigRefuse "the origin's local package is not there"
-cp -RL "$rigRealOrigin/myx/myx.distro-agents/sh-lib" "$rigOrigin/myx/myx.distro-agents/sh-lib" || rigRefuse "the origin's sh-lib is not there"
+rigCopyTree "$rigRealOrigin/myx/myx.distro-.local" "$rigOrigin/myx/myx.distro-.local" || rigRefuse "the origin's local package is not there"
+rigCopyTree "$rigRealOrigin/myx/myx.distro-agents/sh-lib" "$rigOrigin/myx/myx.distro-agents/sh-lib" || rigRefuse "the origin's sh-lib is not there"
 printf '%s\n' '#!/usr/bin/env bash' 'printf '"'"'%s\n'"'"' "$*" >> "${RIG_ITEMS_LOG:?}"' > "$rigOrigin/myx/myx.distro-agents/sh-scripts/DistroAgentsItems.fn.sh"
 export RIG_ITEMS_LOG="$rigItemsLog"
 export MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDSC_CMD=check

@@ -23,7 +23,7 @@ rigRefuse(){
 rigTmp="$( rigTempDir AgentsHarnessEditIntegrityCheck )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
 rigTmp="$( cd "$rigTmp" && pwd -P )"
-cp -R "$rigHere" "$rigTmp/sh-lib" || rigRefuse "could not copy sh-lib into the rig"
+rigCopyTree "$rigHere" "$rigTmp/sh-lib" || rigRefuse "could not copy sh-lib into the rig"
 rigHarness="$rigTmp/sh-lib/harness/AgentsUniversalHarness.sh"
 cp "$rigHarness" "$rigTmp/harness.intact"
 mkdir -p "$rigTmp/ws/IN"

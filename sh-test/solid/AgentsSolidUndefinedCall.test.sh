@@ -9,6 +9,7 @@
 ##   3. a call in the `else` of the block that loads the file is a row
 ##   4. a call a file-scope load precedes is no row
 ##   5. a call its own `type <Fn> || . <file>` guard precedes is no row
+
 ##   6. an awk program's `if ( … ) { … }` is no branch: the call after it in the same function is no row
 ##   7. a call to a name no file defines is a row, whatever the branch state
 ## Red on the package before the fix: rows 2, 3 and 7 missing; the same fixture under the fixed scan gives all seven.

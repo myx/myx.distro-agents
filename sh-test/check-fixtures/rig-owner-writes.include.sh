@@ -33,6 +33,7 @@
 ##   rigOwnerInboxWrite <member> <item> <format> [args...]  one inbox item, its content by printf
 ##   rigOwnerInboxPutHandled <member> <item> <stamp>        one already-handled inbox item, in processed/
 ##   rigOwnerVaultPut <item> / rigOwnerVaultWrite <item> <format> [args...]     one vault item
+##   rigOwnerCommsState <member> <bot> <channel> <ts|-> <recipe>   a Slack cache folder's own state line
 ##   rigOwnerSpawnPut <run>                                 one spawn record, its frontmatter on stdin
 ##   rigOwnerSessionFolder <session>                        that session's folder, by the session store's own writer
 ##   rigOwnerSessionThreadSet <session> <channel:ts>        the session's Slack thread
@@ -164,12 +165,29 @@ rigOwnerVaultWrite(){ ## item, format, arguments...
 	printf -- "$ownerFormat" "$@" | rigOwnerVaultPut "$ownerItem"
 }
 
+## A CACHE FOLDER'S OWN STATE LINE, by the cache's own writers: the folder from AgentsToolsCommsCacheSlackDir, the reader's own
+## resolution, since a direct conversation's folder carries the reading account and AgentsToolsCommsCacheDir names another there.
+## The line comes from AgentsToolsCommsCacheMerge over a read holding no message. The store writes that line where it is absent
+## only (AgentsToolsCommsCachePostStore), so a folder a check stood up itself is read as holding none, and every reader that keys
+## on the recipe skips it. A check seeds it here before the write its reader reads. Slack only: another service resolves its own
+## folder through AgentsToolsCommsCacheDir, and takes a call of its own when a check needs one.
+rigOwnerCommsState(){ ## member, as bot (true|false), channel, thread ts (`-` for none), the recipe line
+	rigOwnerWrap ". \"\$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsCache.include\" || exit 1
+seedThread='$4' ; [ \"\$seedThread\" != '-' ] || seedThread=''
+AgentsToolsCommsCacheSlackDir '$1' '$2' '$3' \"\$seedThread\" || exit 1
+mkdir -p \"\$agentsCommsCacheDir\" || exit 1
+seedAt=\"\$( date +%s )\"
+seedRead=\"\$( mktemp \"\$agentsCommsCacheDir/.seed.XXXXXX\" )\" || exit 1
+: > \"\$seedRead\"
+AgentsToolsCommsCacheMerge \"\$agentsCommsCacheDir\" \"\$seedRead\" \"\$seedAt\" \"\$seedAt\" '$5' ; seedRc=\$? ; rm -f -- \"\$seedRead\" ; exit \$seedRc" "seed the cache folder of $1 at $3"
+}
+
 ## The session store's own functions, sourced for this shell: its writers, never a hand-built file under a session's
 ## or a spawn's folder.
 rigOwnerStoreFns(){
 	local ownerOrigin
 	ownerOrigin="$( rigOwnerOf rigOwnerOrigin rigOrigin "${MDLT_ORIGIN:-}" )"
-	type AgentsSpawnRecordWrite > /dev/null 2>&1 || . "$ownerOrigin/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include" || return 1
+	type AgentsSpawnRecordWrite > /dev/null 2>&1 || . "$ownerOrigin/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.Write.include" || return 1
 	MMDAPP="$( rigOwnerOf rigOwnerWs rigWs )"
 }
 

@@ -54,6 +54,7 @@ fi
 ## records either way (AgentsHarnessHooksLoad.include).
 . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessHooksLoad.include"
 if AgentsHarnessHooksRecords "${MMDAPP:-}" ; then
+	harnessHooksSource="$agentsHooksFrom"
 	AgentsHarnessHooksFromRecords "$agentsHooksRecords"
 else
 	harnessHooksFault="the client tool policy could not state the hooks this estate installs"
@@ -61,8 +62,10 @@ fi
 
 if [ -n "$harnessHooksFault" ] ; then
 	printf '%s\n' "${harnessWarn}🪝 hooks${harnessOff} ${harnessBad}unreadable${harnessOff} ${harnessDim}-- every tool call will be refused: $harnessHooksFault${harnessOff}" >&2
-elif [ -n "$harnessHooksList" ] ; then
-	if [ "$agentsHooksFrom" = "harness.hooks.index" ] ; then
+## THE SOURCE IS SAID EVEN WHEN EVERY HOOK WAS SKIPPED: a set narrowed to nothing still came from somewhere, and a silent line reads
+## as an estate that installs no hooks at all.
+elif [ -n "$harnessHooksSource" ] ; then
+	if [ "$harnessHooksSource" = "harness.hooks.index" ] ; then
 		printf '%s\n' "🪝 ${harnessDim}PreToolUse hooks from${harnessOff} ${harnessValue}$MMDAPP/.local/agents/harness.hooks.index${harnessOff}" >&2
 	else
 		printf '%s\n' "🪝 ${harnessDim}PreToolUse hooks computed from${harnessOff} ${harnessValue}the client tool policy${harnessOff}" >&2

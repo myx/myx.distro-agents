@@ -330,7 +330,7 @@ AgentsToolsSlackSideNote(){ ## acting member
 				type AgentsToolsFrontAudience > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.FrontTable.include"
 				[ -z "${MDAT_COMMS_OP:-}" ] || [ "$( AgentsToolsFrontAudience "$MDAT_COMMS_OP" )" != coordinator ] || noteRun=", which magic-coordinator runs with --client-operation-run,"
 				## A name the members and the coordinator share is the coordinator's own when its session runs it.
-				type AgentsToolsActingMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.CallerCheck.include"
+				type AgentsToolsActingMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.ActingMember.include"
 				[ "$( AgentsToolsActingMember )" = magic-coordinator ] && noteRun=", which magic-coordinator runs with --client-operation-run,"
 				printf ' -- this call is on our own organisation'"'"'s side, where %s has no Slack settings of its own: what it holds is the other organisation'"'"'s, read in a --client-* operation%s or for a client:<addressee> address' "$1" "$noteRun"
 			fi
@@ -477,10 +477,12 @@ AgentsToolsResolveSlackWorkspaceDomain(){
 ## as a bot missing from a channel.
 AgentsToolsSlackWhere(){ ## acting member
 	## The invited member's own settings are read below; the include that answers where they are is taken here, not hoped for.
-	type AgentsToolsConfigOptionElsewhere > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWorkspace.include"
+	type AgentsToolsConfigOptionElsewhere > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWorkspace.Settings.include"
+	type AgentsToolsConfigOptionElsewhere > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWorkspace.Settings.include"
 	local whereDomain="" whereOwn=""
 	whereDomain="$( AgentsToolsResolveSlackWorkspaceDomain "${1:-}" 2> /dev/null )" || whereDomain=""
 	## An invited member's own Slack settings, where this workspace holds none for it, are those of the workspace it is set up in (AgentsToolsConfigOptionElsewhere): said where the call reads its own at all.
+	type AgentsToolsConfigOptionElsewhere > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWorkspace.Settings.include"
 	if AgentsToolsCommsOwnSettingsApply "${1:-}" && AgentsToolsConfigOptionElsewhere "${1:-}" SLACK_USER_TOKEN 2> /dev/null && [ -n "$agentsConfigOptionElsewhere" ] ; then
 		whereOwn=", the member's own Slack settings read from $agentsConfigOptionElsewhere, the workspace it is set up in"
 	fi

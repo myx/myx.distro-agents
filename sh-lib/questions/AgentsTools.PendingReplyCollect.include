@@ -1,29 +1,7 @@
 #!/usr/bin/env bash
 # ^^^ for syntax checking in the editor only
 
-##
-## AgentsTools.PendingReplyCollect.include -- collects the answers to AskQuestion
-## questions nobody is waiting on. Definitions only, sourced by the
-## --intern-op-pending-reply-collect arm (AgentsTools.InternOpPendingReply.include).
-##
-## Each open record is read once and never waited on: one --wait-for-input round
-## with a zero bound, over the question's own thread, since the question -- the same
-## probe and the same answer rules a live wait uses. A plain question its item's Decisions
-## already answer is closed from there. A readback, decision or permission is read only by
-## the main loop's pass over ended and stale records, through the escalation op that reads
-## and applies every verdict; a session's own collect never reads, closes or grants one.
-##
-## Pure tooling, run by the tooling itself: no model is called anywhere here.
-##
-## One line per record examined, first word the outcome:
-##   ANSWERED <id> <tag> | <question first line> | <answer>   -- closed as received
-##   UNMATCHED <id> <tag> | <question first line>              -- a reply seen and not taken
-##   OPEN <id> <tag> | <question first line>                   -- nothing yet
-##   UNREADABLE <id> <tag> | <why>                             -- nothing is known; stays open
-##   ALREADY-CLOSED <id> <status>                              -- closed by another closer first
-##   DROPPED <id> <tag> | <question first line>                -- a held change, at its session's end
-## then `COLLECT: answered=<n> unmatched=<n> open=<n> unreadable=<n>`.
-##
+## The prose that stood here is in the package's MAGIC.md, under "AgentsTools.PendingReplyCollect.include".
 
 ## The header fields a collect needs, one line each as `<field>\t<value>`, in one pass.
 AgentsToolsPendingReplyCollectFields(){ ## record file
@@ -58,24 +36,12 @@ AgentsToolsPendingReplyMarkEnded(){ ## pending id, record file
 	return 0
 }
 
-## The sessions not known to have ended, as ` <id> <id> ... `: every session-id with a
-## spawned-sessions row whose process is running (alive on this host) or remote with an open
-## record (another host's, not closed, unmeasurable from here) -- the same render
-## and states the review hand-over reads. And every asker that is itself alive, said by the
-## one function that says it of an asker (AgentsToolsRegistryAskersLive, by the one rule a
-## run is recognised by): an ask carries the id of the run that asked, which is a session's
-## id only for a lone spawn and the founder of a coworking session, so a member that joined
-## a session and lives is listed by its own id, and one whose run has ended is not, whoever
-## else of its session lives. A session with no spawn record and a store of its own (a root
-## session) that asked is listed until that store says it ended (the marker its SessionEnd
-## hook writes, which that function reads), never by the age of its ask; one with neither
-## record nor store is listed only while a process runs as it.
 AgentsToolsPendingReplySessionsRunning(){
-	type AgentsToolsRegistryRenderSpawnedSessions > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.RegistrySpawnedSessions.include"
+	type AgentsToolsRegistryRenderSpawnedSessionsKept > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.RegistrySpawnedSessions.include"
 	type AgentsToolsRunProcessArgs > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunProcesses.include"
 	local runningIds runningLine runningRoot
 	type AgentsSessionKnown > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
-	runningIds="$( AgentsToolsRegistryRenderSpawnedSessions agents 2> /dev/null | LC_ALL=C awk '
+	runningIds="$( AgentsToolsRegistryRenderSpawnedSessionsKept agents 60 2> /dev/null | LC_ALL=C awk '
 		NF == 13 && $2 != "-" && ( $12 == "running" || ( $12 == "remote" && $13 == "unclosed" ) ) && ! seen[$2]++ { printf "%s ", $2 ; }
 	' )"
 	while IFS= read -r runningLine ; do
@@ -152,11 +118,6 @@ AgentsToolsPendingReplyCollectOne(){ ## record file
 		printf 'DROPPED %s %s | %s\n' "$oneId" "${oneTag:--}" "$oneFirst"
 		return 0
 	fi
-	## A readback, decision or permission is read only for a session that is gone (collectTyped,
-	## set by the main loop's pass): its verdict is read and applied by the escalation op, the one
-	## place that does it, exactly as the asking session's own wait would have.
-	## A plain question with an answer form (select) takes its verdict by the same op, in any
-	## collect: it is a question, read whenever one is.
 	case "$oneKind:$oneSelect" in
 		:|question:) ;;
 		*)

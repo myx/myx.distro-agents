@@ -1,16 +1,8 @@
 #!/usr/bin/env bash
 # ^^^ for syntax checking in the editor only
 
-##
-## AgentsContext.FrontTable.include -- the tool files and the operations each of them owns (F1.4 of the refactorings epic). Sourced, never run.
-## Declarations and functions only.
-##
-## agentsFrontTable is one line a name: the entry function of the tool file that owns it (the file is sh-scripts/<function>.fn.sh), the name, and who
-## may call it, `member` (any member) or `coordinator` (magic-coordinator's only, as the --magic-* operations were). A tool file asks AgentsToolsFrontKnows
-## first; DistroAgentsTools.fn.sh has one rule for the names of the table, AgentsToolsFrontRoute, and no arm for any of them.
-## The names the operations had, and the refusal of one, are in AgentsContext.FrontTable.Retired.include: only a call of a
-## name this table does not hold, under a --member-* or --magic-* prefix, reads it.
-##
+## What the table is, and how a name of it is routed, is in the package's MAGIC.md, under
+## "sh-lib/harness/AgentsContext.FrontTable.include".
 
 agentsFrontTable='DistroAgentsSession	--append-transcript	member
 DistroAgentsSession	--settle-pending-reply	member
@@ -182,7 +174,13 @@ AgentsToolsFrontKnows(){ ## entry function name, arguments...
 	local knowsOp="${2:-}"
 	[ "${2:-}" != --mdat-output-format ] || [ "${3:-}" != json ] || knowsOp="${4:-}"
 	[ -n "$knowsOp" ] || return 1
-	printf '%s\n%s\n' "$agentsFrontTable" "$agentsFrontStubs" | LC_ALL=C awk -F'\t' -v key="$1" -v op="$knowsOp" '$1 == key && ( $2 == op || op == "--help-syntax" ) { found = 1 ; exit ; } END { exit ( found ? 0 : 1 ) ; }'
+	local knowsFile knowsName knowsWho
+	while IFS=$'\t' read -r knowsFile knowsName knowsWho ; do
+		[ "$knowsFile" = "$1" ] || continue
+		[ "$knowsName" = "$knowsOp" ] || [ "$knowsOp" = "--help-syntax" ] || continue
+		return 0
+	done <<< "${agentsFrontTable}"$'\n'"${agentsFrontStubs}"
+	return 1
 }
 
 ## The tool file a name was moved to from the file given, or rc 1: the stub row of that file.
@@ -195,26 +193,48 @@ AgentsToolsFrontAny(){ ## arguments...
 	local anyOp="${1:-}"
 	[ "${1:-}" != --mdat-output-format ] || [ "${2:-}" != json ] || anyOp="${3:-}"
 	[ -n "$anyOp" ] || return 1
-	printf '%s\n' "$agentsFrontTable" | LC_ALL=C awk -F'\t' -v op="$anyOp" '$2 == op { found = 1 ; exit ; } END { exit ( found ? 0 : 1 ) ; }'
+	local anyFile anyOpName anyWho
+	while IFS=$'\t' read -r anyFile anyOpName anyWho ; do
+		[ "$anyOpName" = "$anyOp" ] && return 0
+	done <<< "$agentsFrontTable"
+	return 1
 }
 
 ## The tool file that owns a name, and who may call the name.
 AgentsToolsFrontFile(){ ## name
-	printf '%s\n' "$agentsFrontTable" | LC_ALL=C awk -F'\t' -v op="$1" '$2 == op { print $1 ; exit ; }'
+	local fileFile fileOp fileWho
+	while IFS=$'\t' read -r fileFile fileOp fileWho ; do
+		[ "$fileOp" = "$1" ] || continue
+		printf '%s\n' "$fileFile" ; return 0
+	done <<< "$agentsFrontTable"
+	return 0
 }
 AgentsToolsFrontAudience(){ ## name
-	printf '%s\n' "$agentsFrontTable" | LC_ALL=C awk -F'\t' -v op="$1" '$2 == op { print $3 ; exit ; }'
+	local audFile audOp audWho
+	while IFS=$'\t' read -r audFile audOp audWho ; do
+		[ "$audOp" = "$1" ] || continue
+		printf '%s\n' "$audWho" ; return 0
+	done <<< "$agentsFrontTable"
+	return 0
 }
 
 ## Who may call every name that begins with a prefix (a name is its own prefix): `coordinator` where there is at least one and all are the coordinator's only,
 ## else `member`.
 AgentsToolsFrontPrefixAudience(){ ## prefix
-	printf '%s\n' "$agentsFrontTable" | LC_ALL=C awk -F'\t' -v want="$1" 'index( $2, want ) == 1 { n++ ; if ( $3 != "coordinator" ) other = 1 ; } END { print ( n > 0 && !other ) ? "coordinator" : "member" ; }'
+	local preFile preOp preWho preCount=0 preOther=0
+	while IFS=$'\t' read -r preFile preOp preWho ; do
+		case "$preOp" in "$1"*) preCount=$(( preCount + 1 )) ; [ "$preWho" = coordinator ] || preOther=1 ;; esac
+	done <<< "$agentsFrontTable"
+	if [ "$preCount" -gt 0 ] && [ "$preOther" = 0 ] ; then printf 'coordinator\n' ; else printf 'member\n' ; fi
 }
 
 ## Every name whose audience is the one given (`member`, `coordinator`), one a line.
 AgentsToolsFrontNamesOf(){ ## audience
-	printf '%s\n' "$agentsFrontTable" | LC_ALL=C awk -F'\t' -v who="$1" '$3 == who { print $2 ; }'
+	local namesFile namesOp namesWho
+	while IFS=$'\t' read -r namesFile namesOp namesWho ; do
+		[ "$namesWho" = "$1" ] && printf '%s\n' "$namesOp"
+	done <<< "$agentsFrontTable"
+	return 0
 }
 
 ## The names of a tool file, one a line; and what a bare call of a tool file prints: the syntax line of each of its

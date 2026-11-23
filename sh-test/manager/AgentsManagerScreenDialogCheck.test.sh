@@ -33,7 +33,7 @@
 ## under its buttons, three blank cells at each side), so its box is four cells wider and two lines taller and what it
 ## holds stands where it stood.
 ## Reconciled for F11.5, the lists of Activity: the key `a` (all or only the active) is not offered there, as it has nothing to take: not in the status line, and not in the menu View.
-## Reconciled for the count of Pending Questions (owner, 2026-10-20): the count of the asks is read whatever is shown, so the key that reads now forces it as well.
+## Reconciled for the count of Pending Questions : the count of the asks is read whatever is shown, so the key that reads now forces it as well.
 ## Reconciled for F11.6: the status line of a session names the send-message key too, `M Message`, between `k Kill` and `u Read`.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"

@@ -11,8 +11,8 @@ export PYTHONDONTWRITEBYTECODE=1
 ## The bare-name gate, in an include of its own that has no other effect.
 type AgentsToolsAssertBareName > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.BareName.include"
 
-## The caller-check layer, in an include of its own that has no other effect.
-type AgentsToolsManagerCallerCheck > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.CallerCheck.include"
+## The caller-check layer is read by the arms that ask it, and by the two operations that ask it themselves
+## (--client-*, --manager-*): a call that asks no caller check does not parse it.
 
 ## Guarded like MDAT_SKILLSET_ROOT below: identical behaviour when set, and
 ## no unbound-variable death for a caller that runs under `set -u`. No
@@ -26,7 +26,7 @@ set -e
 ## is found through the shared registry. Never a vendor link folder ($HOME/.claude/skills and the rest are
 ## generated from this data, and nothing of ours reads them back). An index not built
 ## yet is built by --make-workspace-integrations; the rule of the root is the resolver's alone.
-type AgentsToolsSkillsetRootInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWorkspace.include"
+type AgentsToolsSkillsetRootInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWorkspace.Root.include"
 AgentsToolsSkillsetRootInto MDAT_SKILLSET_ROOT "${MMDAPP:-}"
 export MDAT_SKILLSET_ROOT
 

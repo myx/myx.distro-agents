@@ -15,11 +15,14 @@
 ##      line and on a clean one: a reader that cannot fail is no check.
 ##   7. ONE GUARD AN ARGUMENT (S6.23). In the two arms the review names, `--jira-issue-read` and
 ##      `--jira-sprint-issue-search`, no `shift` carries a missing-argument `{ ... }`: a shift
+
 ##      answers only whether a word remains, so each such guard said again what the `[ -n ... ]`
+
 ##      test beside it already said. The two that were fixed are held here as text, and the
 ##      control is the sibling arm that was already written that way.
 ## Red recipe: on the includes as they stand before S6.24, section 2 fails on twelve
 ## operations with `... : line 14: DistroAgentsTools: command not found` and their status is
+
 ## 127; sections 1, 3 and 4 pass.
 ## Offline: a workspace, a member set and a fake curl of the rig's own under
 ## $MMDAPP/.local/agents/scratch/sh-test; no socket is opened, and no credential is read.
@@ -187,6 +190,7 @@ rigAssert "and the include reaches the stub itself, its own missing-credential l
 
 ## One arm's `shift` guards that carry a missing-argument block, counted in the arm's own lines. A guard of that shape says
 ## again what the `[ -n ... ]` test beside it says, and a shift that answers only whether a word remains cannot tell an empty
+
 ## one: that is the fault S6.23 names. Read from the file's text, so an arm that regains the shape is caught before a run.
 rigArmShiftGuards(){ ## file, arm name -- how many such guards that arm holds
 	LC_ALL=C awk -v arm="$2" '

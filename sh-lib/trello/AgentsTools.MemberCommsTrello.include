@@ -7,6 +7,7 @@
 ## (unread notifications) and AgentsToolsCommsTrelloWhoami, which have no operation of their
 ## own (MAGIC.md, section 1). DUAL USE: a name not its own runs nothing, so a caller sources it:
 ##   type AgentsToolsCommsTrelloCheck > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/trello/AgentsTools.MemberCommsTrello.include"
+
 ## A member's own Trello account is read by the side of the call (AgentsToolsCommsOwnSideCheck).
 ##
 

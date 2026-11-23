@@ -11,6 +11,7 @@
 ##
 ## Sourced by the check, after rig-temp.include.sh, with rigTmp made and rigRefuse defined:
 ##   . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/manager-screen.live-rig.include.sh"
+
 ##
 ##   rigLiveSetup                   builds the rig; sets rigWs rigHome rigStore rigLog rigTools rigOut, rigScreen,
 ##                                  rigDriver, rigFn, rigPython
@@ -130,6 +131,7 @@ session-comment: $liveId
 # Spawn session: $liveId
 EOF
 	## a command line that carries `--session-id <id>`: `bash -c 'sleep N'` alone execs the sleep and loses it, so `; :` keeps bash
+
 	bash -c 'sleep 600; :' "$liveId" --session-id "$liveId" > /dev/null 2>&1 &
 	livePid=$!
 	rigProcNote "$livePid"

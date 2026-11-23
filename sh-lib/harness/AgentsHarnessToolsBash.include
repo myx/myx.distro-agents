@@ -103,7 +103,8 @@ AgentsHarnessProcessPost(){ ## session, handle, thread, address to, [--again], s
 AgentsHarnessProcessReporter(){ ## session, handle, wrapper pid, thread, address to
 	local repSession="$1" repDir="${MMDAPP:-/nonexistent}/.local/agents/sessions/$1/processes" repHandle="$2" repPid="$3" repThread="$4" repCaller="$5"
 	local repAlive="${MDAT_PROCESS_ALIVE_SECONDS:-600}" repIdle="${MDAT_PROCESS_INPUT_IDLE_SECONDS:-30}" repPoll="${MDAT_PROCESS_POLL_SECONDS:-5}"
-	## A REPORTER'S NAP FORKS NOTHING (owner 2026-11-20): it polled once a second with a `sleep` (and more) in every background job. It now
+	## A REPORTER'S NAP FORKS NOTHING (): it polled once a second with a `sleep` (and more) in every background job. It now
+
 	## polls every MDAT_PROCESS_POLL_SECONDS (default 5) and naps with the builtin `read -t` on a fifo nobody writes.
 	local repNap="$repDir/$repHandle.nap"
 	[ -p "$repNap" ] || mkfifo "$repNap" 2> /dev/null || :
@@ -303,6 +304,7 @@ AgentsHarnessToolStreams(){ ## stdin file, stdout file, stderr file, output mode
 
 ## No sandboxing beyond the cwd bound, matching copilot's own --allow-all-tools trust
 ## model. Output goes to a scratch file rather than $( ): a model-supplied command may
+
 ## background a child that holds a capture pipe open forever.
 ## Whether a command text kills by pattern (epic S10.20): `pkill` or `killall` standing as a command (first on the line, or
 ## after `;`, `&&`, `||`, `|`, `(`, `$(`, a backtick, `then`, `do`, `exec`, `sudo`, `xargs` or `nohup`); a `kill` whose
@@ -314,6 +316,7 @@ AgentsHarnessBashKillByPattern(){ ## command text
 	## Comments and single-quoted strings go, line by line, so a word quoted as data is not a command.
 	killText="$( printf '%s\n' "$1" | LC_ALL=C sed -e "s/'[^']*'/''/g" -e 's/^[[:space:]]*#.*$//' -e 's/[[:space:]]#.*$//' )"
 	## A command stands first on its line or after a separator, with any run of wrapper words (sudo, nohup, exec, ...) before it.
+
 	local killAt='(^|[;&|(`])[[:space:]]*((then|do|else|exec|sudo|xargs|nohup|command|builtin|time)[[:space:]]+)*'
 	if printf '%s\n' "$killText" | LC_ALL=C grep -q -E "$killAt"'(pkill|killall)([[:space:]]|$)' ; then
 		harnessKillPattern="pkill or killall" ; return 0
@@ -334,6 +337,7 @@ AgentsHarnessBashKillByPattern(){ ## command text
 ## inside a flag run such as -rln) or a `find`, standing as a command, whose path is a workspace root, a store root or the
 ## source tree as a whole -- `/`, `~`, `$HOME`, `$MMDAPP`, `.local`, `.local/agents`, one store under it (`spawned`,
 ## `sessions`, `inboxes`, `team-data-root`, ...), `source` or one namespace under it, `/Users/<u>/Workspaces/<ws>`,
+
 ## `/Volumes/<v>/<ws>` and those same places under them, or `.` when the call's cwd is one of them. A workspace has about
 ## 1300 folders and 900 projects, so such a scan costs every other call its pace for minutes; four of them held this
 ## machine at a load of 60 to 80 for an afternoon. rc 0 when the text scans wide, with the path in harnessScanWide.

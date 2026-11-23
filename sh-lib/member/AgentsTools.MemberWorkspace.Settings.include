@@ -1,0 +1,135 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.MemberWorkspace.Settings.include -- the settings a spawn reads from the workspace a member is set up in, and the record of
+## what was read: split from AgentsTools.MemberWorkspace.include, because the member-first paths bring a member and never settle a spawn's
+## settings, and this half is parsed only by the spawns that do. The prose that stood in it is in the package's MAGIC.md, under
+## "AgentsTools.MemberWorkspace.Settings.include".
+##
+
+type AgentsToolsWorkspaceByName > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWorkspace.include"
+
+
+AgentsToolsSpawnSettingKey(){ ## key
+	local keyNames
+	case "$1" in
+		SPAWN_CLI_SERVICE|SPAWN_HARNESS_TIER|HARNESS_MODEL_LIGHT|HARNESS_MODEL_MAIN|HARNESS_EFFORT|HARNESS_ENDPOINT_URL|HARNESS_INPUT_CACHE_TIME|HARNESS_MODEL_TAKES_IMAGES|PRESET_CONTEXT_MAX_SIZE) return 0 ;;
+		''|SPAWN_*|*[!ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_]*) return 1 ;;
+	esac
+	keyNames="$( LC_ALL=C sed -n 's/^HARNESS_CREDENTIAL_NAMES=//p' "${BASH_SOURCE[0]%/*}/../harness/"Agents*Harness.sh 2> /dev/null | LC_ALL=C tr -c 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_' ' ' )" || keyNames=""
+	case " $keyNames " in
+		*" $1 "*) return 0 ;;
+	esac
+	return 1
+}
+
+
+AgentsToolsSpawnSettingsWorkspace(){
+	local payName="" payPath
+	if [ -n "${MDAT_SPAWN_SETTINGS_WORKSPACE:-}" ] ; then
+		[ "${MDAT_SPAWN_SETTINGS_WORKSPACE%/}" = "${MMDAPP%/}" ] || printf '%s\n' "${MDAT_SPAWN_SETTINGS_WORKSPACE%/}"
+		return 0
+	fi
+	type AgentsSettingsRead > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/settings/AgentsTools.Settings.include"
+	payName="$( AgentsSettingsRead "${MMDAPP%/}" magic-team --select SPAWN_SETTINGS_WORKSPACE 2> /dev/null )" || payName=""
+	[ -n "$payName" ] || return 0
+	## The name is resolved by the member-workspace reader, which lives in the file that had this one split out of it.
+	type AgentsToolsWorkspaceByName > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWorkspace.include"
+	payPath="$( AgentsToolsWorkspaceByName "$payName" )" || {
+		echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools}: '$payName' is named to pay for every spawn of ${MMDAPP%/} (SPAWN_SETTINGS_WORKSPACE in its magic-team scope), and $payPath -- no spawn setting was read. Name a workspace this machine knows, or remove the setting so this workspace pays for itself." >&2
+		return 1
+	}
+	[ "$payPath" = "${MMDAPP%/}" ] || printf '%s\n' "$payPath"
+	return 0
+}
+
+agentsMemberSettingSystems="SLACK EMAIL JIRA CONFLUENCE TRELLO GOOGLE"
+
+## The system a key is a setting of, as its key prefix. Nothing for a key that is no system's.
+AgentsToolsMemberSettingSystemOf(){ ## key
+	local ofSystem
+	for ofSystem in $agentsMemberSettingSystems ; do
+		case "$1" in "$ofSystem"_*) printf '%s_' "$ofSystem" ; return 0 ;; esac
+	done
+	return 0
+}
+
+
+AgentsToolsSpawnSettingsSettle(){ ## member, the workspace named for this one spawn (may be empty), the caller's label in a message
+	local settleName="$2" settleBy="--spawn-settings-workspace" settlePath
+	if [ -z "$settleName" ] && [ -n "${MDAT_SPAWN_SETTINGS_WORKSPACE:-}" ] ; then
+		## An inherited payer is a path already, settled by the spawn this one is made from:
+		## it holds for every spawn below that one until one of them names its own. Checked as
+		## a name is, because every other rung refuses a payer it cannot resolve: a path that
+		## is no directory would otherwise pay this spawn from the caller's own default.
+		settleName="${MDAT_SPAWN_SETTINGS_WORKSPACE%/}"
+		[ -d "$settleName" ] || {
+			echo "$MDSC_CMD: $3: ⛔ ERROR: '$settleName' is the payer this spawn of $1 inherited (MDAT_SPAWN_SETTINGS_WORKSPACE), and it is no directory on this machine -- nothing was started. Name one with --spawn-settings-workspace, or clear it so this workspace pays." >&2
+			return 1
+		}
+		printf '%s\n' "$settleName" ; return 0
+	fi
+	if [ -z "$settleName" ] ; then
+		settleBy="SPAWN_SETTINGS_WORKSPACE in the $1 scope"
+		type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/settings/AgentsTools.ConfigOption.include"
+		settleName="$( AgentsToolsConfigOption "$1" --select SPAWN_SETTINGS_WORKSPACE 2> /dev/null )" || settleName=""
+	fi
+	[ -n "$settleName" ] || return 0
+	settlePath="$( AgentsToolsWorkspaceByName "$settleName" )" || {
+		echo "$MDSC_CMD: $3: ⛔ ERROR: '$settleName' is named to pay for this spawn of $1 ($settleBy), and $settlePath -- nothing was started. Name a workspace this machine knows." >&2
+		return 1
+	}
+	printf '%s\n' "$settlePath"
+}
+
+
+AgentsToolsMemberSettingsBorrowEndedSay(){ ## member, the key written, the workspace the member is set up in
+	local endedPrefix endedKeys
+	endedPrefix="$( AgentsToolsMemberSettingSystemOf "$2" )"
+	[ -n "$endedPrefix" ] || return 0
+	AgentsSettingsHoldsKeys "${MMDAPP%/}" "$1" "$endedPrefix" || return 0
+	endedKeys="$( AgentsSettingsKeyNamesJoined "$3" "$1" "$endedPrefix" "$2" )"
+	[ -n "$endedKeys" ] || return 0
+	echo "# $MDSC_CMD --agents-config-option: member '$1' now holds $2 in ${MMDAPP%/}, so its ${endedPrefix}* settings are read here alone from now on -- no longer read from ${3%/}, the workspace it is set up in: $endedKeys" >&2
+	return 0
+}
+
+
+AgentsToolsMemberSettingsBorrowBegunSay(){ ## member, the key deleted, the workspace the member is set up in
+	local begunPrefix begunKeys
+	begunPrefix="$( AgentsToolsMemberSettingSystemOf "$2" )"
+	[ -n "$begunPrefix" ] || return 0
+	! AgentsSettingsHoldsKeys "${MMDAPP%/}" "$1" "$begunPrefix" || return 0
+	begunKeys="$( AgentsSettingsKeyNamesJoined "$3" "$1" "$begunPrefix" "" )"
+	[ -n "$begunKeys" ] || return 0
+	echo "# $MDSC_CMD --agents-config-option: member '$1' holds no ${begunPrefix}* setting in ${MMDAPP%/} now that $2 is deleted, so its ${begunPrefix}* settings are read from ${3%/}, the workspace it is set up in, from now on$( AgentsToolsMemberSettingsSideClause "$1" ): $begunKeys" >&2
+	return 0
+}
+
+agentsConfigOptionElsewhere=""
+
+AgentsToolsConfigOptionElsewhere(){ ## scope, key
+	local elsewhereSystem elsewhereFound=""
+	agentsConfigOptionElsewhere=""
+	case "$1" in
+		'') return 0 ;;
+		magic-team)
+			[ -n "${MDAT_SPAWN_SETTINGS_WORKSPACE:-}" ] || AgentsSettingsHoldsKeys "${MMDAPP%/}" magic-team SPAWN_SETTINGS_WORKSPACE || return 0
+			## A tier setting is the paying workspace's as a spawn setting is, so that the console's tier row and its write are one value, and a tier may name a preset only that workspace holds.
+			case "$2" in SPAWN_TIER_LOW|SPAWN_TIER_NORMAL|SPAWN_TIER_HIGH) ;; *) AgentsToolsSpawnSettingKey "$2" || return 0 ;; esac
+			agentsConfigOptionElsewhere="$( AgentsToolsSpawnSettingsWorkspace )" || return 1
+			return 0
+		;;
+	esac
+	for elsewhereSystem in $agentsMemberSettingSystems ; do
+		case "$2" in "$elsewhereSystem"_*) elsewhereFound="${elsewhereSystem}_" ; break ;; esac
+	done
+	[ -n "$elsewhereFound" ] || return 0
+	! AgentsSettingsHoldsKeys "${MMDAPP%/}" "$1" "$elsewhereFound" || return 0
+	## Its failures were said where the operation began, by the bring: here it only answers.
+	agentsConfigOptionElsewhere="$( AgentsToolsMemberWorkspaceResolve "$1" "--agents-config-option" 2> /dev/null )" || agentsConfigOptionElsewhere=""
+	[ -n "$agentsConfigOptionElsewhere" ] || return 0
+	AgentsSettingsHoldsKeys "$agentsConfigOptionElsewhere" "$1" "$elsewhereFound" || agentsConfigOptionElsewhere=""
+	return 0
+}

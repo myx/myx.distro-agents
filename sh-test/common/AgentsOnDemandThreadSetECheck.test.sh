@@ -9,7 +9,9 @@
 ##   4. AND THAT THREAD WRITES ITS END LINE as well.
 ## The real serve function runs in a process of its own, over a folder of this rig's own; the tick and the handler are the rig's.
 ## RED RECIPE, measured on a copy under this check's own scratch on 2026-11-06: change the tick call at :278 to `"$serveTick" ; serveRc=$?`
+
 ## and the handler calls at :262 and :264 to drop their `||`, and rows 1 to 4 fail: the thread ends at the first failing tick.
+
 ## Offline: the include this check loads, a rig of its own, and no spawner, git or network.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"

@@ -9,6 +9,7 @@
 ## helpers are in the parts, AgentsTools.Permission*.include, one concern each; each function
 ## loads what it calls itself. A caller that needs one helper sources the part that holds it:
 ##   type AgentsToolsPermissionSetApply > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionSetApply.include"
+
 ## Sourced with no operation, this file loads every part (DEFINITIONS-ONLY SOURCE, below).
 ##
 ## A permission refusal is a logged fact with an id, never a verdict. It is recorded
@@ -16,6 +17,7 @@
 ## it and a grant can take its tool and target from it rather than from the text of
 ## a request. The store is local runtime state and never a git tree:
 ## .local/agents/sessions/<session-id>/, beside the pending-reply store.
+
 ##
 
 case "$1" in

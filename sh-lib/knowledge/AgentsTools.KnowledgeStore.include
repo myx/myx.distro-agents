@@ -165,7 +165,8 @@ AgentsToolsKnowledgeIndexBuild(){ ## the arguments after the operation word: non
 		AgentsToolsKnowledgeFiles --add-source-docs --add-board-items --add-vault-items --
 		[ ! -d "$buildData/inboxes" ] || find "$buildData/inboxes" -type f -name '*.md' 2> /dev/null | LC_ALL=C sort
 	} | LC_ALL=C awk '!seen[$0]++' )"
-	## NOTHING CHANGED, NOTHING IS BUILT (owner 2026-11-20): files change about one a minute, yet every build re-split every file and
+	## NOTHING CHANGED, NOTHING IS BUILT (): files change about one a minute, yet every build re-split every file and
+
 	## rewrote the whole table. The stamp's first line is the digest of the sorted file list, so a move or a removal changes it, since a
 	## move keeps its mtime. With the same list and no file newer than the stamp, the stamp is renewed and nothing is read or written.
 	buildListSum="$( printf '%s\n' "$buildFiles" | LC_ALL=C sort | shasum 2> /dev/null | cut -c1-40 )"

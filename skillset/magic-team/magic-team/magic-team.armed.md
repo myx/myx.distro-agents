@@ -211,6 +211,7 @@ A dispatch, a brief and a spawned session are one movement. The brief is the wor
 - An ambiguous go-ahead, such as `next` or `continue`, never approves a spawn or a mutation.
 - Read a file's `maintainers:` line before a brief names who agrees on that file. State the member's own route to the file, its `Skill` read or an `access:` line, and test that route with the invited member before relying on it.
 - Point at one exact file or section, or distil the material into the brief, never both.
+- A dispatch that starts work carries the sections `goal:`, `work:`, `facts:`, `tests:`, `floors:`, `boundary:` and `handback:`, defined in `magic-coordinator.armed.md`'s "The run-dispatch brief". Its floors are seeded onto the session's CheckList before the session starts.
 - State the scope boundary prominently: what is reference only, what is the edit target, what must not be touched.
 - Resolve every "this workspace" or "the current one" to a stated name or path, or to the command that resolves it.
 - Name volatile state, such as live hosts or fleet status, as the command the spawn runs, never pasted.

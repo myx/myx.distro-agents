@@ -371,6 +371,7 @@ say("ruleDeclared", " ".join("%s=%s" % (style, bool(entry.get("rowRule"))) for s
 
 def shape(table):
     ## each group (the header, then each row) as its lines: T text, R the rule, . an empty line
+
     head, blocks = table
     return " ".join("".join("R" if ruleOnly(line) else "T" if line.strip() else "." for line in group) for group in [head] + blocks)
 

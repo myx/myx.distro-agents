@@ -13,7 +13,7 @@ type AgentsSlackIdentityId > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-ag
 AgentsToolsContactsAllowAdd(){ ## id, entry, the natural target (for the log line)
 	type AgentsToolsContactsStore > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/contacts/AgentsTools.ContactsRecord.include"
 	local allowId="$1" allowEntry="$2" allowNatural="$3" allowFile allowKey allowTool allowRest allowBy
-	type AgentsToolsActingMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.CallerCheck.include"
+	type AgentsToolsActingMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.ActingMember.include"
 	type AgentsToolsAssertBareName > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.BareName.include"
 	AgentsToolsContactsStore allow-add || return 1
 	allowFile="$contactsPersons/$allowId.md"
@@ -66,7 +66,7 @@ AgentsToolsContactsAccess(){ ## the operation, its arguments...
 			*) echo "$MDSC_CMD: ⛔ ERROR: $accOp: unknown option: $1 -- syntax is <id> [--tool <tool> --target <target>] [--session-id <id>]" >&2 ; return 1 ;;
 		esac
 	done
-	type AgentsToolsActingMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.CallerCheck.include"
+	type AgentsToolsActingMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.ActingMember.include"
 	type AgentsToolsAssertBareName > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.BareName.include"
 	type AgentsToolsContactsSlug > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/contacts/AgentsTools.ContactsRecord.include"
 	AgentsToolsContactsSlug "$accId" || { echo "$MDSC_CMD: ⛔ ERROR: $accOp: <id> is a contact's id, lowercase letters, digits and hyphens: $accId" >&2 ; return 1 ; }
@@ -105,11 +105,12 @@ AgentsToolsContactsEscalate(){ ## the operation, its arguments...
 			*) echo "$MDSC_CMD: ⛔ ERROR: $escOp: unknown option: $1 -- syntax is <id> --tool <tool> --target <target> --asked <text> [--session-id <id>]" >&2 ; return 1 ;;
 		esac
 	done
-	type AgentsToolsActingMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.CallerCheck.include"
+	type AgentsToolsActingMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.ActingMember.include"
 	type AgentsToolsAssertBareName > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.BareName.include"
 	AgentsToolsContactsSlug "$escId" || { echo "$MDSC_CMD: ⛔ ERROR: $escOp: <id> is a contact's id, lowercase letters, digits and hyphens: $escId" >&2 ; return 1 ; }
 	[ -n "$escTool" ] && [ -n "$escTarget" ] && [ -n "$escAsked" ] || { echo "$MDSC_CMD: ⛔ ERROR: $escOp: --tool, --target and --asked are needed: the call the contact asks for, and who wants what" >&2 ; return 1 ; }
 	[ "${#escAsked}" -le 400 ] || { echo "$MDSC_CMD: ⛔ ERROR: $escOp: --asked is at most 400 characters" >&2 ; return 1 ; }
+	type AgentsToolsActingMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.ActingMember.include"
 	escBy="$( AgentsToolsActingMember )"
 	[ -n "$escBy" ] || { echo "$MDSC_CMD: ⛔ ERROR: $escOp: a ruling is asked by a member, and this call comes from no member's session" >&2 ; return 1 ; }
 	escSession="${escSession:-${MDAT_SPAWN_SESSION_ID:-}}"
@@ -154,13 +155,14 @@ AgentsToolsContactsAllow(){ ## the operation, its arguments...
 			*) echo "$MDSC_CMD: ⛔ ERROR: $allowOp: unknown option: $1 -- syntax is <id> --session-id <id> --refusal-id <id> --kind session|contact" >&2 ; return 1 ;;
 		esac
 	done
-	type AgentsToolsActingMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.CallerCheck.include"
+	type AgentsToolsActingMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.ActingMember.include"
 	type AgentsToolsAssertBareName > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.BareName.include"
 	AgentsToolsContactsSlug "$allowId" || { echo "$MDSC_CMD: ⛔ ERROR: $allowOp: <id> is a contact's id, lowercase letters, digits and hyphens: $allowId" >&2 ; return 1 ; }
 	[ -n "$allowSession" ] && [ -n "$allowRefusal" ] && [ -n "$allowKind" ] || { echo "$MDSC_CMD: ⛔ ERROR: $allowOp: --session-id, --refusal-id and --kind are needed" >&2 ; return 1 ; }
 	case "$allowKind" in session|contact) ;; *) echo "$MDSC_CMD: ⛔ ERROR: $allowOp: --kind is session (this session) or contact (the contact, standing): $allowKind" >&2 ; return 1 ;; esac
 	AgentsToolsAssertBareName "$allowSession" "--session-id" "${allowOp#--}" || return 1
 	AgentsToolsAssertBareName "$allowRefusal" "--refusal-id" "${allowOp#--}" || return 1
+	type AgentsToolsActingMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.ActingMember.include"
 	allowBy="$( AgentsToolsActingMember )"
 	[ -n "$allowBy" ] || { echo "$MDSC_CMD: ⛔ ERROR: $allowOp: a grant is signed by a member, and this call comes from no member's session" >&2 ; return 1 ; }
 	AgentsToolsContactsStore "$allowOp" || return 1

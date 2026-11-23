@@ -16,11 +16,8 @@ agentsWaitKindUnbounded="file inbox board process checklist wake"
 ## The seconds of the tick, when no interval was named: an arrival in a local source is woken on within it.
 agentsWaitTickSeconds=10
 ## The fallback nap of a wait that is woken by pokes (AgentsToolsWakePoke): the seconds it naps when no interval was named and none of its sources is a file,
-## a process or an ask, which no writer pokes. The chat file and the wake marker end the nap at once, so only a writer that does not poke waits this long.
 agentsWaitIdleSeconds="${MDAT_WAIT_IDLE_SECONDS:-30}"
 ## Kinds whose rendering holds arrivals only start from an empty baseline, so an arrival already there returns at once.
-## The inbox is among them: an item standing in incoming/ when a wait begins is input not yet handled, so it arrives at once rather
-## than being taken as the baseline of a fresh wait (a member busy while four items came found nothing on its idle wait).
 agentsWaitKindEmptyBaseline="ask replies chat scan tagged dms mentions inbox"
 ## The kinds of THE FLOOR: delivered ahead of every other source of a return, and by every plain Wait.
 agentsWaitKindFloor="replies chat"
@@ -51,6 +48,7 @@ AgentsWaitProbedFlush(){
 
 ## A wait on its floor alone is idle: the mark of its run is rewritten as idle in the round it holds.
 AgentsWaitActivityIdle(){ ## the sources of the wait, as they stand after the floor is added
+	type AgentsSessionActivityWrite > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.Write.include"
 	local idleRound="" idleEpoch="" idleWord="" idleDefaults idleOne idleBusy
 	[ -n "${MDAT_SPAWN_SESSION_ID:-}" ] || return 0
 	type AgentsSessionChecklistOpenInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.CheckListSeed.include"
@@ -65,10 +63,9 @@ AgentsWaitActivityIdle(){ ## the sources of the wait, as they stand after the fl
 		return 0
 	done
 	## A run whose own list still holds open work is waiting on that work, never idle: an executor collecting its
-	## participants' reports waits on the floor too. The list is found as --idle-wait finds it, and its recurring
-	## wait-for-more item is no open work, by the same words.
 	AgentsSessionChecklistOpenInto idleBusy "$MDAT_SPAWN_SESSION_ID" "${MDAT_SPAWN_AGENT:-}"
 	[ -z "$idleBusy" ] || return 0
+	type AgentsSessionActivityWrite > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.Write.include"
 	AgentsSessionActivityWrite "$MDAT_SPAWN_SESSION_ID" "$idleRound $( date +%s 2> /dev/null ) idle"
 	return 0
 }

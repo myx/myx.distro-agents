@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-## Behavioural check on the session identity an MCP server carries for the run it serves (owner 2026-10-31): a member
+## Behavioural check on the session identity an MCP server carries for the run it serves (): a member
+
 ## idle in a plain Wait shows RUNNING because the harness's own tools are served through this server, which was told no
 ## session, so the served harness recorded nothing of the wait. Held: the harness names its session in the handshake it
 ## opens every exchange with, the server keeps that name for every later request of its own process, and a served Wait
@@ -22,7 +23,7 @@ done
 for rigEntry in "$rigSource"/myx/* ; do
 	[ "${rigEntry##*/}" = myx.distro-agents ] || rigCopyTree "$rigEntry" "$rigTmp/origin/myx/${rigEntry##*/}"
 done
-cp -R "$rigSource/myx/myx.distro-agents" "$rigTmp/origin/myx/myx.distro-agents"
+rigCopyTree "$rigSource/myx/myx.distro-agents" "$rigTmp/origin/myx/myx.distro-agents"
 rigTool="$rigTmp/origin/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 rigClient="$rigTmp/origin/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessMcpClient.sh"
 rigRunId="served-run-1"

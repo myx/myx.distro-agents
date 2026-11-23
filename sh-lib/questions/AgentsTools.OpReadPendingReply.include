@@ -49,7 +49,7 @@
 			[ -z "$readCount" ] || { echo "$MDSC_CMD: ⛔ ERROR: --count counts the list, and takes no <pending-id>" >&2 ; set +e ; return 1 ; }
 			AgentsToolsAssertBareName "$readId" "<pending-id>" pending-reply-read || { set +e ; return 1 ; }
 			## In either store: the asks, and the requests for the authority (AgentsToolsPendingRecordPath).
-			type AgentsToolsPendingRecordPath > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.Authority.include"
+			type AgentsToolsPendingRecordPath > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.PendingPaths.include"
 			readFile="$( AgentsToolsPendingRecordPath "$readId" )" || { echo "$MDSC_CMD: ⛔ ERROR: no pending-reply record $readId" >&2 ; set +e ; return 1 ; }
 			[ "$( AgentsToolsPendingReplyField "$readFile" status )" != "reply-pending" ] \
 				|| readAskers="$( AgentsToolsPendingReplyField "$readFile" session-id | AgentsToolsPendingReplyAskers )"

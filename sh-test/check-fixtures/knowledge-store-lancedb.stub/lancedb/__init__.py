@@ -30,6 +30,7 @@ class _Search(object):
         self._vector = vector
         self._text = text
         self._count = 0
+        self._where = None
 
     def vector(self, vector):
         self._vector = vector
@@ -43,6 +44,7 @@ class _Search(object):
         return self
 
     def where(self, condition, prefilter=True):
+        self._where = condition
         return self
 
     def select(self, columns):
@@ -54,6 +56,8 @@ class _Search(object):
 
     def to_list(self):
         rows = self._table.rows()
+        if self._where:
+            rows = [row for row in rows if _matches(row, self._where)]
         if self._vector is None and not self._text:
             return rows[:self._count]
         if not self._table.hasIndex():
@@ -92,7 +96,7 @@ def _literals(text):
 def _matches(row, where):
     # The predicate forms the store writes, joined by AND: `<column> = '<text>'` and `<column> IN ('<text>', ...)`.
     for clause in _clauses(where):
-        column = clause.split()[0]
+        column = clause.split()[0].strip("`")
         if row.get(column, "") not in _literals(clause):
             return False
     return True

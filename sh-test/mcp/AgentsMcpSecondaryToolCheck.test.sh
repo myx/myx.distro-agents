@@ -226,9 +226,10 @@ for rigGate in 10 11 12 13 ; do
 	[ -s "$rigTmp/gate$rigGate" ] || rigRefuse "gate call $rigGate was never answered, so the gate was never observed"
 done
 echo "-- the gate takes an operation word only, its reader loaded wherever the call comes --"
+## A lookup call begins two ways: the general bracketed line, and the line leading --add-source-docs, so both are taken.
 rigAssert "the gate's reader: an option inside a line is no operation, and a word a call begins with is one" \
 	"$( . "$rigHere/harness/AgentsContext.FrontTable.Help.include" && for rigWord in --team-member --query-keyword --list-places --add-source-docs ; do printf '%s:%s ' "$rigWord" "$( AgentsToolsFrontSyntaxLines DistroAgentsKnowledge "$rigWord" operation-word | LC_ALL=C grep -c . )" ; done )" \
-	"--team-member:0 --query-keyword:0 --list-places:1 --add-source-docs:1 "
+	"--team-member:0 --query-keyword:0 --list-places:1 --add-source-docs:2 "
 rigAssert "on the wire, an option inside a syntax line is refused as an operation" \
 	"$( rigHolds "$( rigValue "$rigTmp/gate10" error.message )" 'not an operation of that tool file' )" yes
 rigAssert "a row of the front table is still taken" \

@@ -81,7 +81,7 @@ for rigEntry in "$rigSource"/myx/* ; do
 done
 for rigEntry in "$rigPackage"/* ; do
 	if [ "${rigEntry##*/}" = sh-lib ] ; then
-		cp -R "$rigEntry" "$rigTmp/origin/myx/myx.distro-agents/sh-lib" || rigRefuse "sh-lib could not be copied"
+		rigCopyTree "$rigEntry" "$rigTmp/origin/myx/myx.distro-agents/sh-lib" || rigRefuse "sh-lib could not be copied"
 	else
 		rigCopyTree "$rigEntry" "$rigTmp/origin/myx/myx.distro-agents/${rigEntry##*/}"
 	fi

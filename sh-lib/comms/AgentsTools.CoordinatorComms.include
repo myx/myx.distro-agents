@@ -130,6 +130,7 @@ case "$1" in
 			## Every member reads as itself; a delete stays the coordinator's.
 			case "$fwdOp:$actingMember" in
 				jira-issue-search:*|jira-comment-read:*|confluence-page-search:*|confluence-comment-read:*)
+					type AgentsToolsActingMemberCheck > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.ActingMember.include"
 					AgentsToolsActingMemberCheck "$actingMember" "$fwdOp" || { set +e ; return 1 ; }
 				;;
 				*:magic-coordinator) ;;

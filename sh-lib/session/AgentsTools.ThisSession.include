@@ -708,6 +708,8 @@ AgentsToolsThisSessionRuns(){ ## the operation's arguments (none)
 	type AgentsToolsDispatcherManager > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/schedule/AgentsTools.Dispatcher.include"
 	AgentsToolsDispatcherManager || return 1
 	type AgentsToolsManagerSessionRows > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.ManagerSessionRows.include"
+	## THE KINDS ARE READ, NOT DERIVED: one prepared file, written with the registry, and a tool call takes it in place of a pass over every
+	## session the store ever had.
 	runsRows="$( AgentsToolsManagerSessionRows --all-sessions "" )" || return 1
 	runsKinds="$( AgentsToolsDispatcherKinds "$runsRows" )"
 	runsBound="$( AgentsToolsDispatcherSubSessions "$runsSession" | LC_ALL=C sort -u )"

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-## Behavioural check on what the tooling posted itself, and the readers that decide whether something is input (F7.12, the owner's additions of 2026-10-20;
+## Behavioural check on what the tooling posted itself, and the readers that decide whether something is input (F7.12;
 ## sh-lib/wait/AgentsTools.TrackingDrop.include and AgentsTrackingDrop.awk, the metadata of the send in AgentsTools.MemberCommsSlack.include, the chat file's
 ## import in AgentsSessionChatImport.awk). Held, run through the real send and the real read against a Slack-shaped fake curl:
 ##   1. what the tooling sends itself is marked `tracking: tooling` in the post's metadata, and a member's own send is not

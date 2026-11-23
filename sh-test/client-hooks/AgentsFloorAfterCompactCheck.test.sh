@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
-## Behavioural check on the floor of a spawned native session after its client compacted the conversation (owner's question of 2026-10-27:
-## a compaction replaces the history with a summary, so what the member loaded on its way to armed may be gone). client-hooks/floor-after-compact.sh
+## Behavioural check on the floor of a spawned native session after its client compacted the conversation (## a compaction replaces the history with a summary, so what the member loaded on its way to armed may be gone). client-hooks/floor-after-compact.sh
 ## tells the member to load its floor again. Held:
 ##   1. Claude Code: the hook `serve` prints the pointer on stdout, naming the team's armed file and the member's own, and the client tool policy
 ##      states it as a native SessionStart hook with the matcher `compact`; the harness has no counterpart for it

@@ -11,7 +11,8 @@
 # and the person it was for never sees it where he was reading. The rendering carries a `thread_ts` for a reply but the conversation
 # of the read, never the two together, so the address is decided here, once, by the one reader that knows both.
 #
-# The address is the message's communication id, the full pointer of the owner's 2026-11-01 ruling, so a reply pasted from it is a
+# The address is the message's communication id, the full pointer of  ruling, so a reply pasted from it is a
+
 # Wait source as it stands. Its form is built once, by AgentsToolsCommsChannelMessageId (AgentsTools.CommsChannel.include).
 #
 # Read on stdin, printed on stdout, every line kept in its place. A head whose conversation is unknown is printed as it stands:

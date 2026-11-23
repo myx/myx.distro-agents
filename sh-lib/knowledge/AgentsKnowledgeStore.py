@@ -25,12 +25,16 @@
 ##                                        the records whose `section` matches a glob of the file (one glob a line) are
 ##                                        deleted; prints how many
 ##   query  --index <dir> --model-dir <dir> --out-dir <dir> --text <text> [--limit <n>] [--groups <docs,board,vault,inbox>]
+##          [--sources <file>]
 ##                                        the fused answer: full text and vector in one ranked call (RRF). Each hit's
 ##                                        section is written to a scratch file in --out-dir, holding the section as the
 ##                                        walk wrote it, and one `<scratch><TAB><source><TAB><store>` a line on stdout.
+##                                        --sources names the refs the caller may read, one a line, and they filter
+##                                        before the limit: the groups are coarser than a caller's files.
 ##                                        rc 3 when the index does not stand, so the caller answers with the text alone
 ##
 ## NOTE: the full-scan LanceDB call (`search(None).limit(...).to_list()`) is written against the pinned LanceDB
+
 ## 0.40.0 API and is the one part of this file that a live install must confirm: the query, spread and retire all
 ## stand behind it, and a store built another way is read the same way.
 ##
@@ -288,6 +292,7 @@ def _query(argv):
     text = None
     limit = 24
     groups = None
+    sourcesFile = None
     at = 0
     while at < len(argv):
         word = argv[at]
@@ -303,6 +308,8 @@ def _query(argv):
             limit = int(argv[at + 1])
         elif word == "--groups":
             groups = [group for group in argv[at + 1].split(",") if group]
+        elif word == "--sources":
+            sourcesFile = argv[at + 1]
         else:
             return _refuse("query: invalid option: " + word)
         at += 2
@@ -318,15 +325,33 @@ def _query(argv):
     vector = [float(value) for value in model.encode([text])[0]]
     table = db.open_table("sections")
     try:
+        # THE FLOOR IS THE FULL-TEXT LEG. A fused rank answers with a row for everything it is shown, so its score
+        # says a row's place in the ranking and never whether the query was found: a term no section holds scores
+        # exactly as a rare term does. A row counts only where the full-text leg matched it, so a query nothing holds
+        # answers nothing, and each row that answers carries the words the query shares with it.
+        textIds = set()
+        for textHit in table.search(text, query_type="fts").limit(_LIMIT).to_list():
+            textIds.add(textHit.get("section-id"))
         search = table.search(query_type="hybrid").vector(vector).text(text)
-        # The groups asked for filter the rows before the limit, so the limit is spent on the sources the caller added:
-        # filtered after it, a board query came back empty whenever inbox or docs rows filled the first places.
+        # The predicates filter the rows before the limit, so the limit is spent on the rows the caller may read.
+        # THE GROUP IS COARSER THAN THE CALLER'S FILES for docs and for the inbox: the index holds every project's
+        # docs and every member's inbox, where a call reads the projects it selected and its own inbox. So the caller
+        # passes those files as --sources, and a row of a file it may not read must not spend its limit.
+        clauses = []
         if groups:
             for group in groups:
                 if group not in ("docs", "board", "vault", "inbox"):
                     return _refuse("query: --groups: no such group: " + group)
-            search = search.where("`group` IN (" + ", ".join("'" + group + "'" for group in groups) + ")", prefilter=True)
-        hits = search.rerank(RRFReranker()).limit(limit).to_list()
+            clauses.append("`group` IN (" + ", ".join("'" + group + "'" for group in groups) + ")")
+        if sourcesFile is not None:
+            with open(sourcesFile, "r") as handle:
+                allowedRefs = [line.rstrip("\n") for line in handle if line.rstrip("\n")]
+            if not allowedRefs:
+                return 0
+            clauses.append("source IN (" + ", ".join(_sqlText(ref) for ref in allowedRefs) + ")")
+        if clauses:
+            search = search.where(" AND ".join(clauses), prefilter=True)
+        hits = [hit for hit in search.rerank(RRFReranker()).limit(limit).to_list() if hit.get("section-id") in textIds]
     except ValueError:
         # LanceDB refuses a fusion over a table with no full-text index, and the text alone answers then.
         return _NO_INDEX
@@ -376,7 +401,8 @@ def _buildLocked(indexDir, modelDir, modelStamp, sections):
             rows[at]["vector"] = [float(value) for value in vector]
     # A vanished row is one whose id the pass no longer produces: a changed row is re-embedded, never deleted.
     deleted = len(set(storedRows) - set(row["section-id"] for row in rows))
-    # Nothing to embed and nothing gone: the stored table already is this build, so it is not dropped and rewritten (owner 2026-11-20).
+    # Nothing to embed and nothing gone: the stored table already is this build, so it is not dropped and rewritten ().
+
     if not rebuild and not needsEmbed and deleted == 0 and "sections" in db.list_tables().tables:
         sys.stdout.write("built: %d section(s), unchanged\n" % len(rows))
         return 0

@@ -19,7 +19,7 @@
 			*) echo "⛔ ERROR: $MDSC_CMD $effortOp: the effort is unset, none, low, normal or high -- nothing was saved" >&2 ; set +e ; return 1 ;;
 		esac
 		effortFile="" ; effortRc=0
-		type AgentsSessionEffortSet > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+		type AgentsSessionEffortSet > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.Write.include"
 		effortFile="$( AgentsSessionEffortSet "$effortId" "$effortValue" )" || effortRc=$?
 		case "$effortRc" in
 			0) ;;

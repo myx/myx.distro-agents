@@ -3,7 +3,13 @@
 ## item whose `condition:` stands, and one in board-parked, are closed by neither --accept-review
 ## nor --move-to-processed, and the refusal names what the item waits on. Each refusal is proved
 ## against a control that must still close: a review item with no condition, accepted and moved
-## alike. Offline: a fake `curl` first on PATH opens no socket, and the board is this rig's own
+## alike.
+## A CONDITION THE MODEL CALLS CLEARED IS NO HOLD (board task 2026-11-22T1850Z): `met:` and `none:`
+## close, `unmet:` is refused, and a close that removes the `condition:` line in its own call is
+## measured either way. The clearing rows are the ones a `-n` test of the condition text refuses.
+## The `condition:` line is read before the same call's header operations, so removing it in the
+## closing call does not clear an `unmet:` condition, and the row for it asserts the refusal.
+## Offline: a fake `curl` first on PATH opens no socket, and the board is this rig's own
 ## temp store, written through the owner fixtures.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
@@ -140,6 +146,38 @@ rigAssert "the item is processed"                     "$( rigLoc task-rig-plain.
 printf -- '---\ntype: task\nowner: rig\n---\n\nrig item whose condition was cleared\n' | rigOwnerBoardPut running task-rig-cleared.md
 rigOp "$rigTmp/m4" --move-to-processed --team-member magic-coordinator task-rig-cleared.md --from-state:running
 rigAssert "with no condition, an item closes"          "$( cat "$rigTmp/m4.rc" ):$( rigLoc task-rig-cleared.md )" 0:processed
+
+echo "-- the closes a condition the model calls cleared does not stop --"
+printf -- '---\ntype: task\nowner: rig\ncondition: met: 2026-11-22 20:58 +0200: the quiet-tree gate was withdrawn\n---\n\nrig item whose condition is met\n' \
+	| rigOwnerBoardPut running task-rig-met.md
+rigOp "$rigTmp/m5" --move-to-processed --team-member magic-coordinator task-rig-met.md --from-state:running
+rigAssert "a met: condition closes"                    "$( cat "$rigTmp/m5.rc" ):$( rigLoc task-rig-met.md )" 0:processed
+printf -- '---\ntype: task\nowner: rig\ncondition: none: the rig waits for nothing\n---\n\nrig item that waits for nothing\n' \
+	| rigOwnerBoardPut running task-rig-none.md
+rigOp "$rigTmp/m6" --move-to-processed --team-member magic-coordinator task-rig-none.md --from-state:running
+rigAssert "a none: condition closes"                   "$( cat "$rigTmp/m6.rc" ):$( rigLoc task-rig-none.md )" 0:processed
+printf -- '---\ntype: task\nowner: rig\ncondition: none. Started by the rig\n---\n\nrig item whose cleared condition carries no colon\n' \
+	| rigOwnerBoardPut running task-rig-none-dot.md
+rigOp "$rigTmp/m7" --move-to-processed --team-member magic-coordinator task-rig-none-dot.md --from-state:running
+rigAssert "a none. condition closes"                   "$( cat "$rigTmp/m7.rc" ):$( rigLoc task-rig-none-dot.md )" 0:processed
+printf -- '---\ntype: task\nowner: rig\ncondition: unmet: the rig answer has not arrived\n---\n\nrig item that really waits\n' \
+	| rigOwnerBoardPut running task-rig-unmet.md
+rigOp "$rigTmp/m8" --move-to-processed --team-member magic-coordinator task-rig-unmet.md --from-state:running
+rigAssert "an unmet: condition is refused"             "$( cat "$rigTmp/m8.rc" )" 1
+rigAssert "the item stays where it was"                "$( rigLoc task-rig-unmet.md )" running
+rigAssert "the refusal names the unmet condition"      "$( LC_ALL=C grep -c 'the rig answer has not arrived' "$rigTmp/m8" )" 1
+printf -- '---\ntype: task\nowner: rig\ncondition: met: 2026-11-22 20:58 +0200: a close may answer it\n---\n\nrig item whose close removes its condition\n' \
+	| rigOwnerBoardPut running task-rig-removed.md
+rigOp "$rigTmp/m9" --move-to-processed --team-member magic-coordinator task-rig-removed.md --from-state:running --header:remove:condition
+rigAssert "a close removing a met condition closes"     "$( cat "$rigTmp/m9.rc" ):$( rigLoc task-rig-removed.md )" 0:processed
+rigAssert "the closed item carries no condition"       "$( LC_ALL=C grep -c '^condition: ' "$rigData/board/processed/task-rig-removed.md" )" 0
+printf -- '---\ntype: task\nowner: rig\ncondition: unmet: the rig answer has not arrived\n---\n\nrig item whose close removes an unmet condition\n' \
+	| rigOwnerBoardPut running task-rig-unmet-removed.md
+rigOp "$rigTmp/m10" --move-to-processed --team-member magic-coordinator task-rig-unmet-removed.md --from-state:running --header:remove:condition
+rigAssert "removing an unmet condition does not clear it" "$( cat "$rigTmp/m10.rc" )" 1
+rigAssert "the item stays where it was"                "$( rigLoc task-rig-unmet-removed.md )" running
+rigAssert "the refusal names the unmet condition"      "$( LC_ALL=C grep -c 'the rig answer has not arrived' "$rigTmp/m10" )" 1
+rigAssert "and the item keeps its condition line"      "$( LC_ALL=C grep -c '^condition: unmet: ' "$rigData/board/running/task-rig-unmet-removed.md" )" 1
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ CLOSE REFUSES WAITING ITEM CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

@@ -137,7 +137,7 @@ AgentsToolsCamundaDiagramSyncStale(){ ## the operation, its arguments...
 ## one owner (T5): each executor its own runs -- this session and its sub-sessions, or all its own; the coordinator also
 ## one user's or any user's. A member's session, with no --scope, lists its own runs; the coordinator and the console, all.
 AgentsToolsDispatcherSessions(){ ## the operation as it was called, its arguments...
-	local sessionsOp="$1" sessionsKind="" sessionsWaiting="" sessionsActive="" sessionsRows sessionsKept=""
+	local sessionsOp="$1" sessionsKind="" sessionsWaiting="" sessionsActive="" sessionsRows sessionsKept="" sessionsLive=""
 	local sessionsScope="" sessionsScopeMember="" keptKind="" keptScope="" scopeAll="" scopeActing scopeCoordinator scopeSession
 	shift
 	while [ $# -gt 0 ] ; do
@@ -176,7 +176,7 @@ AgentsToolsDispatcherSessions(){ ## the operation as it was called, its argument
 	esac
 	## The caller: the member a member's session acts as (empty for the console), and whether that is
 	## the coordinator -- the wider scopes are its, and the console's.
-	type AgentsToolsActingMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.CallerCheck.include"
+	type AgentsToolsActingMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.ActingMember.include"
 	scopeActing="$( AgentsToolsActingMember )"
 	scopeCoordinator=""
 	if [ -n "$scopeActing" ] ; then
@@ -184,6 +184,7 @@ AgentsToolsDispatcherSessions(){ ## the operation as it was called, its argument
 	else
 		scopeCoordinator=yes
 	fi
+	type AgentsToolsActingSession > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.ActingMember.include"
 	scopeSession="$( AgentsToolsActingSession )"
 	## The scope, given or default: a member's own runs, else any user's.
 	[ -n "$sessionsScope" ] || sessionsScope="$([ -n "$scopeCoordinator" ] && printf all || printf own)"
@@ -203,6 +204,10 @@ AgentsToolsDispatcherSessions(){ ## the operation as it was called, its argument
 			return 1
 		}
 	fi
+	## LOOKING AT THE LIST STARTS WHAT IS MISSING: the housekeeping fires detached, once in its five minutes, and starts the threads of the
+	## sessions that need one.
+	type AgentsToolsRegistryHousekeepingDue > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.RegistrySpawnedSessions.include"
+	AgentsToolsRegistryHousekeepingDue > /dev/null 2>&1 || :
 	AgentsToolsDispatcherManager || return 1
 	if [ -z "$sessionsKind$sessionsWaiting" ] && [ "$sessionsScope" = all ] ; then
 		type AgentsToolsManagerSessionRows > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.ManagerSessionRows.include"
@@ -221,7 +226,18 @@ AgentsToolsDispatcherSessions(){ ## the operation as it was called, its argument
 		this-session) keptScope="$( AgentsToolsDispatcherSubSessions "$scopeSession" | LC_ALL=C sort -u )" ;;
 	esac
 	sessionsKept="$keptKind"
-	printf '%s\n' "$sessionsRows" | DISPATCH_STATE="$sessionsWaiting" DISPATCH_KIND="$sessionsKind" DISPATCH_KEPT="$sessionsKept" DISPATCH_SCOPE_ALL="$scopeAll" DISPATCH_SCOPE_KEPT="$keptScope" LC_ALL=C awk -F'\t' '
+	## DEAD SESSIONS ARE NOT THE DEFAULT VIEW: the active list is the sessions a thread holds now, and the whole store is asked for by name.
+	sessionsLive=""
+	case "$sessionsOp" in
+		--active-sessions)
+			## THE LIST FILTERS ONLY WHERE IT STANDS: a workspace whose threads have never written it lists what its rows say, as it always did.
+			## THE LIST NAMES THREADS, and its owner answers for them: a line left behind by a thread that died is not a live session.
+			type AgentsToolsSessionLiveIds > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.Paths.include"
+			sessionsLive=" $( AgentsToolsSessionLiveIds 2> /dev/null | tr '\n' ' ' ) "
+			## A session whose thread ended minutes ago is still active: its line is the minute it ended, and only the grace keeps it.
+		;;
+	esac
+	printf '%s\n' "$sessionsRows" | DISPATCH_LIVE="$sessionsLive" DISPATCH_STATE="$sessionsWaiting" DISPATCH_KIND="$sessionsKind" DISPATCH_KEPT="$sessionsKept" DISPATCH_SCOPE_ALL="$scopeAll" DISPATCH_SCOPE_KEPT="$keptScope" LC_ALL=C awk -F'\t' '
 		BEGIN {
 			wantState = ENVIRON["DISPATCH_STATE"] ; wantKind = ENVIRON["DISPATCH_KIND"] ;
 			scopeAll = ENVIRON["DISPATCH_SCOPE_ALL"] ;
@@ -231,6 +247,9 @@ AgentsToolsDispatcherSessions(){ ## the operation as it was called, its argument
 			for (scopeAt = 1 ; scopeAt <= scopeCount ; scopeAt++) if (scopeList[scopeAt] != "") scopeOf[scopeList[scopeAt]] = 1 ;
 		}
 		$1 == "session" {
+			## THE TEN-MINUTE GRACE SURVIVES THE LIVE FILTER: a session whose thread has left is still in the active list while its own row says
+			## it ended a moment ago, which is the whole of S7.29 -- the filter alone dropped it the minute its thread left.
+			if ( ENVIRON["DISPATCH_LIVE"] != "" && index( ENVIRON["DISPATCH_LIVE"], " " $2 " " ) == 0 && $16 != "ended" ) next ;
 			sessionKept = ( ( wantState == "" || $4 == wantState ) && ( wantKind == "" || ( $2 in kindOf ) ) && ( scopeAll == "yes" || ( $2 in scopeOf ) ) ) ;
 			if (sessionKept) { keptSession[$2] = 1 ; print ; }
 			next ;
@@ -280,7 +299,8 @@ AgentsToolsDispatcherHistory(){
 	## THE RECORDS COME FROM A GLOB, NEVER FROM A WALK: one level of sandboxes is the shell's own listing, so no `find` process
 	## reads the store. Measured 2026-11-20 over three alternating rounds at load 123: the glob 1012, 634 and 576 ms, the walk
 	## 4203, 1657 and 1270 ms for the same records, and the two lists are identical.
-	historyRecords="$( printf '%s\n' "$MMDAPP"/.local/agents/spawned/*/*.spawn.md 2> /dev/null | LC_ALL=C grep -v '[*]' | LC_ALL=C sort -u )"
+	type AgentsSpawnedRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+	historyRecords="$( AgentsSpawnedRecords )"
 	[ -n "$historyRecords" ] || return 1
 	printf '%s\n' "$historyRecords" | LC_ALL=C awk -f "$historyLib/manager/AgentsManagerDateMinutes.awk" -f "$historyLib/schedule/AgentsDispatcherCompleted.awk"
 }

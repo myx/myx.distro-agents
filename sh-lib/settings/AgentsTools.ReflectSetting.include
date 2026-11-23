@@ -64,7 +64,7 @@ AgentsToolsReflectKeyValue(){ ## key
 	local valueHeld="" valueMember=""
 	valueHeld="${!1:-}"
 	if [ -z "$valueHeld" ] ; then
-		type AgentsToolsActingMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.CallerCheck.include"
+		type AgentsToolsActingMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.ActingMember.include"
 		valueMember="$( AgentsToolsActingMember )" || valueMember=""
 		if [ -n "$valueMember" ] ; then
 			type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/settings/AgentsTools.ConfigOption.include"

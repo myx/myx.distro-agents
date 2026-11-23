@@ -92,6 +92,10 @@ case "$1" in
 		set -- --workspace "$MMDAPP" --tools "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 		[ -z "$managerStyle" ] || set -- "$@" --style "$managerStyle"
 
+		## LOOKING AT THE SCREEN STARTS WHAT IS MISSING: the housekeeping fires detached and starts the thread of every session that needs one.
+		type AgentsToolsRegistryHousekeepingDue > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.RegistrySpawnedSessions.include"
+		AgentsToolsRegistryHousekeepingDue > /dev/null 2>&1 || :
+
 		## -I: nothing of the caller's own Python setup reaches the screen. -B: no bytecode is written into the source tree.
 		python3 -I -B "$managerScreenFile" "$@"
 		return $?

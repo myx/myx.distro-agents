@@ -233,6 +233,14 @@ rigEnv=()
 rm -f "$rigTmp/post-exits"
 rigAssert "a failed Slack send moves nothing"              "$( LC_ALL=C grep -c '^ERROR: the send failed' "$rigTmp/h1d" ):$( rigLoc dispatch-20261008T1200Z-sf ):$( rigDecisions "$rigData/board/running/dispatch-20261008T1200Z-sf.md" 'handback:' )" 1:running:0
 
+echo "-- 1c. a rejected verify is re-armed to its build routine --"
+rigItem review dispatch-20261008T1200Z-rejv "" 'handler-routine: magic-coordinator.verify.routine.md
+'
+printf 'the verify failed\nfix it' | rigOp "$rigTmp/v4b" --reject-review --team-member magic-coordinator dispatch-20261008T1200Z-rejv --from-stdin
+rigAssert "the op succeeds"                                "$( cat "$rigTmp/v4b.rc" )" 0
+rigAssert "the item is pending"                            "$( rigLoc dispatch-20261008T1200Z-rejv )" pending
+rigAssert "its verify handler is gone, so the build routine runs next" "$( LC_ALL=C grep -c -x 'handler-routine: magic-coordinator.verify.routine.md' "$rigData/board/pending/dispatch-20261008T1200Z-rejv.md" )" 0
+
 echo "-- 2. a review request (a member or the human): running -> review with its reason --"
 rigItem running dispatch-20261008T1200Z-rq ""
 rigOp "$rigTmp/q0" --request-review --team-member magic-tester dispatch-20261008T1200Z-rq --reason "not mine"

@@ -67,7 +67,7 @@ AgentsToolsKnowledgeFiles(){ ## sources, -- selector words...
 		esac
 		case "$filesSources" in
 			*" --add-inbox-items"*)
-				type AgentsToolsActingMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.CallerCheck.include"
+				type AgentsToolsActingMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.ActingMember.include"
 				filesMember="$( AgentsToolsActingMember )"
 				type AgentsToolsInboxFilesInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/inbox/AgentsTools.InboxPlace.include"
 				local filesInbox=()
@@ -217,8 +217,26 @@ AgentsToolsKnowledgeRun(){ ## format (md|json), arguments...
 			case "$knowSources " in *" --add-board-items "*) knowIndexGroups="$knowIndexGroups,board" ;; esac
 			case "$knowSources " in *" --add-vault-items "*) knowIndexGroups="$knowIndexGroups,vault" ;; esac
 			case "$knowSources " in *" --add-inbox-items "*) knowIndexGroups="$knowIndexGroups,inbox" ;; esac
+			## THE FILES THE CALL MAY READ, for the two sources whose group is coarser than them: the index holds every
+			## project's docs and every member's inbox, where this call reads the projects it selected and its own inbox.
+			## A source ref is the path below the root it stands under, as the scan writes it, so a row of a file
+			## outside these is filtered before the limit rather than dropped after it (AgentsKnowledgeStore.py --sources).
+			knowIndexSources=""
+			case "$knowSources " in *" --add-source-docs "*|*" --add-inbox-items "*)
+				knowIndexSources="$knowIndexScratch/sources"
+				: > "$knowIndexSources" || exit 1
+				while IFS= read -r knowIndexPath ; do
+					[ -n "$knowIndexPath" ] || continue
+					case "$knowIndexPath" in
+						"${MDAT_DATA_ROOT%/}/"*) printf '%s\n' "${knowIndexPath#"${MDAT_DATA_ROOT%/}/"}" ;;
+						"${MMDAPP%/}/"*) printf '%s\n' "${knowIndexPath#"${MMDAPP%/}/"}" ;;
+					esac
+				done <<< "$knowFiles" >> "$knowIndexSources"
+			;;
+			esac
 			knowIndexHits="$( "$( AgentsToolsKnowledgeStorePython )" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/knowledge/AgentsKnowledgeStore.py" query \
-				--index "$knowIndex" --model-dir "$knowIndexModelDir" --out-dir "$knowIndexScratch" --text "$knowIndexText" --groups "${knowIndexGroups#,}" )" || knowIndexRc=$?
+				--index "$knowIndex" --model-dir "$knowIndexModelDir" --out-dir "$knowIndexScratch" --text "$knowIndexText" --groups "${knowIndexGroups#,}" \
+				${knowIndexSources:+--sources "$knowIndexSources"} )" || knowIndexRc=$?
 			if [ "$knowIndexRc" = 0 ] ; then
 				knowIndexAllowed=$'\n'"$knowFiles"$'\n'
 				knowFiles="" knowStoreMap=""
@@ -249,7 +267,7 @@ AgentsToolsKnowledgeRun(){ ## format (md|json), arguments...
 		## rather than a store that silently did not stand. The answer text is left byte for byte as it was.
 		case "$knowIndex" in
 			'') echo "# $knowOp: answered from the text alone: $( [ -n "$knowStoreOn" ] && printf 'no index stands' || printf 'the knowledge store is not installed' )" >&2 ;;
-			*) echo "# $knowOp: answered from the index" >&2 ;;
+			*) echo "# $knowOp: answered from the index, by a section the query's own words match" >&2 ;;
 		esac
 		if [ -n "$knowStoreList" ] && [ -z "$knowIndex" ] ; then
 			mkdir -p "$MMDAPP/.local/temp" || exit 1

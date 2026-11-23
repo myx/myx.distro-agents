@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-## Behavioural check on the plain-language floor of the spawn brief's mechanical block (owner 2026-10-31): the template
+## Behavioural check on the plain-language floor of the spawn brief's mechanical block (): the template
+
 ## `sh-lib/templates/spawn-brief.document.format.md` is what every spawn receives, so the floor binds it as it binds a
 ## brief. Held, over the block as the filler emits it with its tags stripped: every sentence is at most 25 words, no line
 ## holds more than six sentences, a line that is not a list item never carries a run of instructions, and every list item

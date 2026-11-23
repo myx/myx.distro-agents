@@ -13,21 +13,28 @@ case "$1" in
 
 	--member-help)
 		shift
-		## THE MEMBER AS ITS HELP STATES IT: `--member-help [--team-member <team-member>]`, the calling member where none is named. A bare name
-		## is the same word, and a name given twice the same way is one name (112 refused calls on 2026-11-10 gave it so). Two different
-		## names are refused.
-		local targetMember="" helpWord
+		## THE MEMBER AS ITS HELP STATES IT: `--member-help [--team-member <team-member>]`, the calling member where none is named. One
+		## positional stands for it -- the member this call acts as, which the front door puts ahead of the operation -- and a second one,
+		## an empty one included, is one argument too many and is refused (S21.3).
+		local targetMember="" helpWord helpCount=0
 		while [ $# -gt 0 ] ; do
 			case "$1" in
-				--team-member) helpWord="${2:-}" ; shift 2 || shift ;;
-				*) helpWord="$1" ; shift ;;
+				--team-member)
+					helpWord="${2:-}"
+					[ -n "$helpWord" ] || { echo "⛔ ERROR: $MDSC_CMD --member-help: --team-member takes a member" >&2 ; set +e ; return 1 ; }
+					targetMember="$helpWord"
+					shift 2 || shift
+				;;
+				*)
+					helpCount=$(( helpCount + 1 ))
+					if [ "$helpCount" -gt 1 ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --member-help: takes exactly one argument, --team-member <team-member>, got: $1" >&2
+						set +e ; return 1
+					fi
+					targetMember="$1"
+					shift
+				;;
 			esac
-			[ -n "$helpWord" ] || continue
-			if [ -n "$targetMember" ] && [ "$targetMember" != "$helpWord" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --member-help: two members named, $targetMember and $helpWord: name one, or none for your own" >&2
-				set +e ; return 1
-			fi
-			targetMember="$helpWord"
 		done
 		[ -n "$targetMember" ] || targetMember="${MDAT_SPAWN_AGENT:-}"
 		if [ -z "$targetMember" ] ; then

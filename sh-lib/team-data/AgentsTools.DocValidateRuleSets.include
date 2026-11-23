@@ -78,7 +78,7 @@ AgentsToolsDocValidateRoutineRef(){ ## the references line
 		case "$refRest" in */*) refRest="${refRest#*/}" ;; *) refRest="" ;; esac
 		case "$refSeg" in ''|.|..|*[!A-Za-z0-9._-]*) printf 'references: %s names a path that is not a bare file inside a member folder\n' "$refOne" ; return 1 ;; esac
 	done
-	type AgentsToolsSkillsetRootInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWorkspace.include"
+	type AgentsToolsSkillsetRootInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWorkspace.Root.include"
 	AgentsToolsSkillsetRootInto refRoot "${MMDAPP:-}"
 	[ -z "$refRoot" ] || [ -f "$refRoot/$refMember/$refFile" ] || { printf 'references: %s is not a file there is, so no run could read it\n' "$refOne" ; return 1 ; }
 	return 0

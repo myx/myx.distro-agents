@@ -167,7 +167,7 @@ AgentsToolsBoardDependencies(){
 		type AgentsReviewPutIntoReview > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ReviewFlow.include"
 		if AgentsReviewPutIntoReview "$depWaveItem" "$depWaveState" "feature $depWaveId is done in $depWaveEpic" 2> /dev/null ; then
 			type AgentsToolsDecisionsAppend > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemDecisions.include"
-			type AgentsToolsActingMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.CallerCheck.include"
+			type AgentsToolsActingMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.ActingMember.include"
 			AgentsToolsDecisionsAppend "$( AgentsToolsActingMember )" "$depWaveItem" review "feature $depWaveId reads done in $depWaveEpic: ${depWaveLine:0:240} -- put into review from $depWaveState for its reviewer to accept" "the board's done pass" "" "" > /dev/null 2>&1 || :
 			printf 'done features: %s is in review, its feature %s done in %s\n' "${depWaveItem%.md}" "$depWaveId" "$depWaveEpic"
 		else

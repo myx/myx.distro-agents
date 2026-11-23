@@ -58,7 +58,7 @@ mkdir -p "$rigOrigin/myx/myx.distro-system/sh-lib" "$rigOrigin/myx/myx.distro-.l
 	"$rigHome" "$rigBin" "$rigSlack"
 ## The ground rule is a COPY, never a link: a tool of the rig that writes into its own origin
 ## must never reach the package under test.
-cp -Rp "$rigPackage" "$rigOrigin/myx/myx.distro-agents" || rigRefuse "cannot copy the tree under test into the rig origin"
+rigCopyTree "$rigPackage" "$rigOrigin/myx/myx.distro-agents" || rigRefuse "cannot copy the tree under test into the rig origin"
 printf '%s\n' '#!/usr/bin/env bash' \
 	'## Rig stand-in for the system context: this origin may carry myx.distro-agents alone.' \
 	'DistroSystemContext(){ return 0 ; }' \

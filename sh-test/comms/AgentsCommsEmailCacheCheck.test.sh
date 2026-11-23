@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-## Behavioural check on the email side of the comms cache (epic S21.13, owner 2026-10-28): the form every service keeps,
+## Behavioural check on the email side of the comms cache (epic S21.13, ): the form every service keeps,
+
 ## `email/email-<account>-<mailbox>/YYYYMM/messages.txt` with the whole body in `YYYYMM/<uid>.body.txt` and the pointers in
 ## `.state.txt`. Held:
 ##   1. the folder a mailbox resolves to carries the service, the account and the mailbox

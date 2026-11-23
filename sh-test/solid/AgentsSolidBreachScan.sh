@@ -116,7 +116,7 @@ sh-test/grants/AgentsGrantsIndexCheck.test.sh:421|the index folder of an install
 sh-test/grants/AgentsGrantsIndexCheck.test.sh:422|that index rows, which the ingest builds from the installed project.inf
 sh-test/grants/AgentsGrantsIndexCheck.test.sh:423|one row only the index holds, the case a stale project.inf must not win
 sh-test/session/AgentsScheduleLoopCheck.test.sh:199|the clock of the review folder moved as a team-data sync moves it, no item written: a sync has no owner function a rig can drive
-sh-test/check-fixtures/rig-owner-writes.include.sh:116|a pending item as old data left it, a recheck-date beside no unmet condition: every writer into board-pending drops that date, so no owner writes it'
+sh-test/check-fixtures/rig-owner-writes.include.sh:117|a pending item as old data left it, a recheck-date beside no unmet condition: every writer into board-pending drops that date, so no owner writes it'
 rows(){
 	## foreign-package
 	LC_ALL=C grep -rnoE --include='*.include' --include='*.sh' --include='*.py' --include='*.awk' -e '\$MDLT_ORIGIN/myx/myx\.common/' sh-lib sh-scripts |

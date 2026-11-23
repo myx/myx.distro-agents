@@ -4,8 +4,10 @@
 ## The one way a check of sh-test keeps a stand-in run alive for as long as it needs it, and no longer.
 ## Sourced by the check before its rig puts anything of its own on PATH:
 ##   . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-blocking-stand-in.include.sh"
+
 ##
 ## WHY. A stand-in that spins (`while : ; do sleep 1 ; done`) burns a process and a wake-up a second for as long
+
 ## as it lives, and it lives past its check whenever the check does not end it: a kill, a timeout, a trap that
 ## never runs. That is the high-load practice the owner ruled out, and it came back: 32 such spinners were found
 ## on 2026-11-03, some 18 hours old, forked by four checks of this suite.

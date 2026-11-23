@@ -12,6 +12,7 @@
 ## rc 1, nothing changed, while a child is open or queued or the record is closed already. Its watcher calls it, and
 ## housekeeping does for a parent whose watcher is gone.
 AgentsToolsSpawnSessionParentClose(){ ## parent record
+	type AgentsSpawnRecordWrite > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.Write.include"
 	local closeRecord="$1" closeChild closeChildRecord closeStatus closeOutcome="succeeded" closeList="" closeText closeThread closeFailed
 	type AgentsToolsFrontmatterKey > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.FrontmatterKey.include"
 	type AgentsSessionRunOwnRecordInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include" || return 1
@@ -37,6 +38,7 @@ AgentsToolsSpawnSessionParentClose(){ ## parent record
 		$0 == "status: spawn-started" { print "status: spawn-" outcome ; next ; }
 		{ print ; }
 	' "$closeRecord" )" && [ -n "$closeText" ] || return 1
+	type AgentsSpawnRecordWrite > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.Write.include"
 	printf '%s\n' "$closeText" | AgentsSpawnRecordWrite "$closeRecord" || return 1
 	## Its handback, in the caller's thread, where the parent has one. Best-effort, never the parent's outcome.
 	closeThread="$( AgentsToolsFrontmatterKey "$closeRecord" session-thread )"
@@ -53,7 +55,7 @@ AgentsToolsSpawnSessionParentClose(){ ## parent record
 AgentsToolsSpawnSessionRecordNote(){ ## spawn record file
 	local noteFile="$1" noteOps noteSeen noteBody noteTries=0
 	[ -f "$noteFile" ] || return 1
-	type AgentsSpawnRecordWrite > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include" || return 1
+	type AgentsSpawnRecordWrite > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.Write.include" || return 1
 	noteOps="$( mktemp "$noteFile.ops.XXXXXX" )" || return 1
 	LC_ALL=C awk -F'\t' 'NF >= 2 { printf "upsert\t%s\t%s\n", $1, $2 ; }' > "$noteOps"
 	while [ "$noteTries" -lt 3 ] ; do
@@ -62,6 +64,7 @@ AgentsToolsSpawnSessionRecordNote(){ ## spawn record file
 		[ -n "$noteSeen" ] || break
 		noteBody="$( printf '%s' "$noteSeen" | LC_ALL=C awk -v opsFile="$noteOps" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsBoardItemHeaderOpsApply.awk" 2> /dev/null )" || noteBody=""
 		[ -n "$noteBody" ] || break
+		type AgentsSpawnRecordWrite > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.Write.include"
 		printf '%s\n' "$noteBody" | AgentsSpawnRecordWrite "$noteFile" "" "$noteSeen" && { rm -f "$noteOps" ; return 0 ; }
 	done
 	rm -f "$noteOps"
@@ -110,6 +113,7 @@ AgentsToolsSpawnQueue(){ ## the limit line, the routine, the members, the descri
 		printf 'The limit of %s runs at once was reached with %s running, so this spawn was not made. Start it when a run ends.\n\n' "${1#* }" "${1%% *}"
 		printf -- '- routine: %s\n- members: %s\n- description: %s\n\n## Task\n\n%s\n' "$2" "$3" "${4:--}" "${5:--}"
 	} > "$queueFile"
+	type AgentsToolsActingMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.ActingMember.include"
 	queueBy="$( AgentsToolsActingMember 2> /dev/null )" || queueBy=""
 	[ -n "$queueBy" ] || queueBy="magic-coordinator"
 	type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"

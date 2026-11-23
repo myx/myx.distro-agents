@@ -56,9 +56,9 @@ rigKill(){ ## pid... -- killed, and waited for until the process is no process o
 		while kill -0 "$killPid" 2> /dev/null && [ "$killLeft" -gt 0 ] ; do sleep 0.1 ; killLeft=$(( killLeft - 1 )) ; done
 	done
 }
-rigRecord(){ ## file, spawn id, owner, status, host, run pid (may be empty), shell pid (may be empty)
+rigRecord(){ ## file, spawn id, owner, status, host, run pid (may be empty), shell pid (may be empty), its own session id (may be empty: a duty inside rig-sess)
 	{
-		printf -- '---\nspawn-id: %s\nsession-id: rig-sess\nowner: %s\nstatus: %s\nroutine: magic-coordinator.work-duty.routine.md\nhost: %s\n' "$2" "$3" "$4" "$5"
+		printf -- '---\nspawn-id: %s\nsession-id: %s\nowner: %s\nstatus: %s\nroutine: magic-coordinator.work-duty.routine.md\nhost: %s\n' "$2" "${8:-rig-sess}" "$3" "$4" "$5"
 		[ -z "$6" ] || printf 'run-process: %s %s\n' "$6" "$( rigStartOf "$6" )"
 		[ -z "$7" ] || printf 'supervisor-process: %s %s\n' "$7" "$( rigStartOf "$7" )"
 		printf -- '---\n\n# Spawn session: %s\n' "$2"
@@ -124,7 +124,7 @@ rigAssert "the stale close waits for the one and closes neither" "$( rigFn Agent
 
 echo "-- 5. the loop's work-duty step --"
 rigRun4="$( rigProcess )" rigShell4="$( rigProcess )"
-rigRecord "$rigSp/rigduty04.spawn.md" rigduty04 magic-coordinator spawn-started "$rigHost" "$rigRun4" "$rigShell4"
+rigRecord "$rigSp/rigduty04.spawn.md" rigduty04 magic-coordinator spawn-started "$rigHost" "$rigRun4" "$rigShell4" rigduty04
 rigKill "$rigRun4" "$rigShell4"
 rigAssert "the step closes a duty record whose run and shell are gone, and says so" "$( rigFn AgentsToolsScheduleWorkDuty | LC_ALL=C grep -c 'rigduty04 is open with no process and no supervisor' ):$( rigStatus "$rigSp/rigduty04.spawn.md" )" "1:spawn-failed"
 

@@ -6,27 +6,19 @@
 ## Sourced, never run. Functions only. Each function loads what it calls itself. The registry mechanics are AgentsTools.Registries.include.
 ##
 
-## The shell globs the store, so the row order is the shell's own; one awk reads every
-## record's headers (AgentsRegistryHeaderRows.awk) -- never a process per file or per
-## column, which cost minutes over a few hundred records. The same awk reads the state of a
-## session from that session's own folder, once for a session: each state file there is
-## named to it first, by the shell that found it to be a file.
 AgentsToolsRegistrySpawnedSessionsRows(){
 	type AgentsToolsRegistryRowsEntry > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
-	local sandboxDir sessionFile sawRecord rowTracking
+	local sandboxDir sessionFile sawRecord rowTracking recordPath
 	{
 		for sessionFile in "$MMDAPP/.local/agents/sessions"/*/control/state ; do
 			[ -f "$sessionFile" ] || continue
 			AgentsToolsRegistryRowsEntry T "$sessionFile"
 		done
+		## THE RECORDS FROM THE STORE'S OWN LIST when it keeps one: a rebuild reads one file, not a directory of every run.
 		for sandboxDir in "$MMDAPP/.local/agents/spawned"/*/ ; do
 			[ -d "$sandboxDir" ] || continue
-			## The sandbox root's own name is the tracking name, and is the fallback for
-			## a record carrying no header of its own: a sandbox that exists is listable,
-			## which is the whole reason it is created even when empty. The record's own
-			## tracking-name wins over the folder name where it has one -- they agree
-			## unless a sandbox was moved by hand, and then the record is what the spawn
-			## itself wrote; the awk applies that.
+			## The sandbox root's own name is the tracking name, and is the fallback for a record carrying no header of its own: a sandbox that
+			## exists is listable, which is the whole reason it is created even when empty.
 			rowTracking="${sandboxDir%/}"
 			rowTracking="${rowTracking##*/}"
 			AgentsToolsRegistryRowsEntry D "$rowTracking"
@@ -37,8 +29,7 @@ AgentsToolsRegistrySpawnedSessionsRows(){
 				sawRecord="true"
 				AgentsToolsRegistryRowsEntry S "$sessionFile"
 			done
-			## An empty sandbox is a listed session, not a missing one. It has no session
-			## id to be reached by, and saying so is the point.
+			## An empty sandbox is a listed session, not a missing one. It has no session id to be reached by, and saying so is the point.
 			[ "$sawRecord" = "true" ] || printf 'E\n'
 		done
 	} | LC_ALL=C awk -v registryRows=spawned -v registryColumns=17 -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsRegistryHeaderRows.awk"
@@ -47,7 +38,7 @@ AgentsToolsRegistrySpawnedSessionsRows(){
 
 ## The registry is a cache with a TTL: at most every 5 minutes a read of it starts the housekeeping that closes
 ## what a dead spawn left open, detached, so the read never waits on it. The board runs it, by the
-## `spawned-housekeeping` hook it declares in sh-lib/hooks.registry.
+## `spawned-housekeeping` hook it declares in sh-lib/common/hooks.registry.
 AgentsToolsRegistryHousekeepingDue(){
 	[ -z "${AGENTS_REGISTRY_HOUSEKEEPING:-}" ] || return 0
 	local dueStamp="$MMDAPP/.local/agents/spawned/.housekeeping.txt" collectTmp
@@ -165,10 +156,9 @@ $( LC_ALL=C awk '$2 ~ /\\/ { print $2 ; }' "$measuredFile" 2> /dev/null | LC_ALL
 		[ -e "$startingMark.rc" ] || startingKeys="$startingKeys${startingMark##*/} "
 	done
 	if [ "$startingKeys" != " " ] ; then
-		local startingAll=()
-		type AgentsToolsSpawnedAllRecordsInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include"
-		AgentsToolsSpawnedAllRecordsInto startingAll
-		startingRecords="$( printf '%s\n' ${startingAll[@]+"${startingAll[@]}"} )"
+		## THE STARTED RECORDS COME FROM THE STORE'S OWN INDEX: a store of thousands paid a walk and an array of every path on each measure.
+		type AgentsSpawnedStartedRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include"
+		startingRecords="$( AgentsSpawnedStartedRecords 2> /dev/null )"
 	fi
 	## ONE awk for every row: the rows of thirteen words and the wider rows the manager list
 	## reads, each line tagged with the block it belongs to, and the three variables split below.
@@ -379,11 +369,64 @@ $( LC_ALL=C awk '$2 ~ /\\/ { print $2 ; }' "$measuredFile" 2> /dev/null | LC_ALL
 ## filter narrows the sessions view to sessions holding at least one agent in that
 ## state, keeping each matching session's own full state-tally rather than trimming
 ## it to the filtered state alone.
+## The render a pass takes: the same reading, kept 600 seconds by its own age. A pass runs every few seconds, and measuring every run the
+## store ever had at every pass is the whole load of a machine with no work in it. A view a person asks for reads fresh, through
+## AgentsToolsRegistryRenderSpawnedSessions itself.
+AgentsToolsRegistryRenderSpawnedSessionsKept(){ ## view, seconds the copy may stand, then the render's own filters
+	## THE CACHE IS PER QUESTION: view and both filters shape the text, and one file for all of them served a wrong answer that looked fresh.
+	local keptName="${3:-all}.${4:-all}"
+	case "$keptName" in *[!A-Za-z0-9._-]*) keptName="unfiltered" ;; esac
+	local keptFile="$MMDAPP/.local/agents/spawned-sessions.render.${1:-agents}.$keptName" keptAt keptNow keptTtl keptTemp keptStale keptRefresh
+	keptTtl="${2:-600}"
+	case "$keptTtl" in ''|*[!0123456789]*) keptTtl=600 ;; esac
+	keptAt="$( LC_ALL=C date -r "$keptFile" +%s 2> /dev/null )" || keptAt=""
+	keptNow="$( date +%s )" || keptNow=""
+	case "$keptAt$keptNow" in
+		''|*[!0123456789]*) ;;
+		*)
+			## THE AGE ALONE: a registry moves whenever any record of the store does, so a copy held only while the registry stood still is no
+			## copy at all, and the pass measured every run again at every pass -- 24,830 ms of a 29 s loop, a machine that never rests.
+			if [ "$(( keptNow - keptAt ))" -lt "$keptTtl" ] ; then
+				cat "$keptFile" 2> /dev/null && return 0
+			fi
+		;;
+	esac
+	## A STALE COPY IS ANSWERED AT ONCE AND THE READING IS MADE BESIDE IT: a pass must never wait on the measure of every run the store ever
+	## had. The next pass takes the fresh copy; a pass whose copy is missing waits once, for there is nothing else to answer with.
+	keptStale=""
+	[ ! -f "$keptFile" ] || keptStale="$( cat "$keptFile" 2> /dev/null )" || keptStale=""
+	if [ -n "$keptStale" ] ; then
+		(
+			keptRefresh="$( mktemp "$MMDAPP/.local/agents/spawned-sessions.render.XXXXXX" 2> /dev/null )" || keptRefresh=""
+			if [ -n "$keptRefresh" ] ; then
+				if AgentsToolsRegistryRenderSpawnedSessions "${1:-agents}" "${3:-}" "${4:-}" "${5:-}" > "$keptRefresh" 2> /dev/null && [ -s "$keptRefresh" ] ; then
+					mv -f "$keptRefresh" "$keptFile" 2> /dev/null || rm -f "$keptRefresh" 2> /dev/null
+				else
+					rm -f "$keptRefresh" 2> /dev/null
+				fi
+			fi
+		) < /dev/null > /dev/null 2>&1 &
+		printf '%s\n' "$keptStale"
+		return 0
+	fi
+	keptTemp="$( mktemp "$MMDAPP/.local/agents/spawned-sessions.render.XXXXXX" 2> /dev/null )" || keptTemp=""
+	if [ -n "$keptTemp" ] ; then
+		if AgentsToolsRegistryRenderSpawnedSessions "${1:-agents}" "${3:-}" "${4:-}" "${5:-}" > "$keptTemp" 2> /dev/null && [ -s "$keptTemp" ] ; then
+			cat "$keptTemp"
+			mv -f "$keptTemp" "$keptFile" 2> /dev/null || rm -f "$keptTemp" 2> /dev/null
+			return 0
+		fi
+		rm -f "$keptTemp" 2> /dev/null
+	fi
+	AgentsToolsRegistryRenderSpawnedSessions "${1:-agents}" "${3:-}" "${4:-}" "${5:-}"
+}
+
 AgentsToolsRegistryRenderSpawnedSessions(){ ## view, session-id filter, state filter
 	type AgentsToolsRegistryRebuild > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
 	local viewWanted="${1:-agents}" filterSession="${2:-}" filterState="${3:-}"
+	local measureFile="$MMDAPP/.local/agents/spawned-sessions.registry"
 	local registryFile thisHost thisWorkspace rowState rowLive
-	local extendedRows="" registryRow sawRow="false" sawAny="false" measuredRows="" measuredDated="" measuredAny="false"
+	local extendedRows="" registryRow sawRow="false" sawAny="false" measuredRows="" measuredDated="" measuredAny="false" liveIds liveId liveKind livePath livePrepared liveUnprepared liveRowsFile
 	registryFile="$MMDAPP/.local/agents/spawned-sessions.registry"
 	printf '%s\n\n' "## spawned sessions"
 	if [ ! -d "$MMDAPP/.local/agents/spawned" ] ; then
@@ -403,7 +446,35 @@ AgentsToolsRegistryRenderSpawnedSessions(){ ## view, session-id filter, state fi
 	printf 'this-host: %s\n' "$thisHost"
 	printf 'this-workspace: %s\n' "$thisWorkspace"
 	## The three appended columns of a measured row are not this view's: it prints thirteen.
-	AgentsToolsRegistryMeasureRows "$registryFile" "$thisHost" "$filterSession"
+	## The live sessions' own list names the eleven threads of this moment; their rows are a handful of files, and no registry is read.
+	case "${4:-}" in
+		live)
+			type AgentsToolsSpawnedSessionRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include"
+			## THE OWNER ANSWERS FOR ITS LIST: a line whose thread is gone is not a live session, and its reader drops it.
+			type AgentsToolsSessionLiveIds > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.Paths.include"
+			liveIds="$( AgentsToolsSessionLiveIds 2> /dev/null )"
+			[ -n "$liveIds" ] || return 0
+			## The prepared rows, in one cat: a session writes its own where its state is written.
+			livePrepared="" liveUnprepared=""
+			for liveId in $liveIds ; do
+				liveRowsFile="${MMDAPP:-/nonexistent}/.local/agents/sessions/$liveId/control/live.rows"
+				if [ -s "$liveRowsFile" ] ; then livePrepared="$livePrepared $liveRowsFile" ; else liveUnprepared="$liveUnprepared $liveId" ; fi
+			done
+			[ -z "$livePrepared" ] || cat $livePrepared 2> /dev/null || :
+			[ -n "$liveUnprepared" ] || return 0
+			{
+				for liveId in $liveUnprepared ; do
+					while IFS=$'\t' read -r liveKind livePath ; do
+						[ "$liveKind" = "own" ] || continue
+						[ -f "$livePath" ] || continue
+						AgentsToolsRegistryRowsEntry S "$livePath"
+					done <<< "$( AgentsToolsSpawnedSessionRecords "$liveId" own 2> /dev/null )"
+				done
+			} | LC_ALL=C awk -v registryRows=spawned -v registryColumns=17 -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsRegistryHeaderRows.awk"
+			return 0
+		;;
+	esac
+	AgentsToolsRegistryMeasureRows "$measureFile" "$thisHost" "$filterSession"
 	extendedRows="$measuredRows" ; sawAny="$measuredAny"
 	if [ "$viewWanted" = "sessions" ] ; then
 		AgentsToolsRegistryRenderSpawnedSessionsGrouped "$extendedRows" "$filterState"

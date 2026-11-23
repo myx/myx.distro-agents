@@ -1,0 +1,186 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.CommsSlackPresentation.include -- the rows a Slack send shows a reader: a member's presentation, the alias it is shown by,
+## who is unreachable, and the "resent" marks. Split from AgentsTools.InternOpCommsSlackSend.include, whose operation body was over the
+## size gate with them inside it.
+##
+
+## One field, counted from 1, of a tab-separated presentation line. Empty
+## fields count, which a plain `read` would collapse.
+AgentsToolsCommsSlackPresentationField(){ ## number, line
+	printf '%s\n' "$2" | LC_ALL=C awk -F'\t' -v wanted="$1" '{ print $wanted ; }'
+}
+## One member's row of one team-members-names registry, as "<mark> TAB <first> TAB
+## <family> TAB <alias>", an absent value empty. A registry that is not there, or holds
+## no row for the member, returns 1. The registry holds a name's spaces as underscores,
+## so they are turned back here for the two name fields.
+AgentsToolsCommsSlackMemberPresentationRow(){ ## member, registry file
+	[ -f "$2" ] || return 1
+	LC_ALL=C awk -v who="$1" '
+		$1 == who {
+			for ( fieldIndex = 2 ; fieldIndex <= 5 ; fieldIndex++ ) { if ( $fieldIndex == "-" ) { $fieldIndex = "" ; } ; }
+			gsub( /_/, " ", $3 ) ;
+			gsub( /_/, " ", $4 ) ;
+			printf "%s\t%s\t%s\t%s\n", $2, $3, $4, $5 ;
+			found = 1 ;
+			exit ;
+		}
+		END { exit found ? 0 : 1 ; }
+	' "$2"
+}
+## A member's presentation, in that form. It reads a team-members-names registry and
+## nothing else: no member file, no config, no check that the registry is current. Its
+## mark and alias come from the workspace the member is set up in: the registry of the
+## workspace this runs from holds that workspace's own members, so a member invited here,
+## set up only in another workspace on this machine, is read from that workspace's registry
+## (AgentsToolsMemberInvitedWorkspace, AgentsTools.MemberWorkspace.include). A member with
+## no row in either, or no registry at all, returns 1.
+AgentsToolsCommsSlackMemberPresentation(){ ## member
+	type AgentsToolsRegistryFile > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
+	local presentationRoot="$MMDAPP"
+	while : ; do
+		! AgentsToolsCommsSlackMemberPresentationRow "$1" "$( MMDAPP="$presentationRoot" ; AgentsToolsRegistryFile team-members-names )" || return 0
+		## No row in the workspace this runs from: an invited member's is where it is set up.
+		[ "$presentationRoot" = "$MMDAPP" ] || return 1
+		type AgentsToolsMemberInvitedWorkspace > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWorkspace.include"
+		presentationRoot="$( AgentsToolsMemberInvitedWorkspace "$1" )" || return 1
+	done
+}
+## Whether an alias is one a member of this workspace already goes by: the alias of another
+## member's row in this workspace's names registry, or another member's own name there. A
+## client's row is not asked for its alias: that one is its persona's, for the other
+## organisation, and inside our team a client goes by its member name.
+AgentsToolsCommsSlackAliasTakenHere(){ ## alias, the member that would take it
+	type AgentsToolsRegistryFile > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
+	LC_ALL=C awk -v want="$1" -v who="$2" '
+		$1 == who { next ; }
+		$1 == want || ( $1 !~ /^client-/ && $5 == want ) { taken = 1 ; exit ; }
+		END { exit taken ? 0 : 1 ; }
+	' "$( AgentsToolsRegistryFile team-members-names )" 2> /dev/null
+}
+## A member as our own team sees it, "<mark> TAB <alias>", neither ever empty: what the
+## author line of a message shows for its sender, and for a member it is addressed to, in
+## every send that is not a client's presentation to the other organisation. Its mark and
+## alias are those of its row (AgentsToolsCommsSlackMemberPresentation), which no rule here
+## changes, read under the rules of our own team:
+##   - a member's own mark is the one shown. Only a member with no mark at all, no row or
+##     a row without one, is shown with the default icon of its prefix group, from the one
+##     list of them (AgentsToolsTeamMemberKindIcon, the member table's);
+##   - every client-* member goes by its own member name here. The alias of its row is its
+##     persona's, for the other organisation alone, so here no alias names two members;
+##   - a member invited from another workspace whose alias a member here already goes by
+##     is shown by its member name, and one line on stderr says so;
+##   - a member with no row anywhere is shown by its member name, and for a sender one
+##     line on stderr says so.
+AgentsToolsCommsSlackMemberTeamPresentation(){ ## member, its part in the send (sender|addressee)
+	type AgentsToolsRegistryFile > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
+	local teamPres teamMark="" teamAlias=""
+	if teamPres="$( AgentsToolsCommsSlackMemberPresentation "$1" )" ; then
+		teamMark="$( AgentsToolsCommsSlackPresentationField 1 "$teamPres" )"
+		case "$1" in
+			client-*) ;;
+			*)
+				teamAlias="$( AgentsToolsCommsSlackPresentationField 4 "$teamPres" )"
+				## Its row is another workspace's where this one's registry holds none for it.
+				if [ -n "$teamAlias" ] && [ "$teamAlias" != "$1" ] \
+					&& ! AgentsToolsCommsSlackMemberPresentationRow "$1" "$( AgentsToolsRegistryFile team-members-names )" > /dev/null \
+					&& AgentsToolsCommsSlackAliasTakenHere "$teamAlias" "$1" ; then
+					echo "# $MDSC_CMD --slack-send-message: member '$1' is invited from another workspace, where its alias is '$teamAlias', which a member of ${MMDAPP%/} already goes by, so here it is shown by its member name" >&2
+					teamAlias=""
+				fi
+			;;
+		esac
+	elif [ "${2:-}" = "sender" ] ; then
+		echo "# $MDSC_CMD --slack-send-message: member '$1' has no row in the team-members-names registry of ${MMDAPP%/}, nor in that of a workspace it is set up in, so this message is posted under its member name as its alias, with the default icon of its prefix group (--make-agents-indices builds the registry)" >&2
+	fi
+	if [ -z "$teamMark" ] ; then
+		type AgentsToolsTeamMemberKindIcon > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamRegistry.include"
+		teamMark="$( AgentsToolsTeamMemberKindIcon "$1" )"
+	fi
+	printf '%s\t%s\n' "$teamMark" "${teamAlias:-$1}"
+}
+## The alias of a member as the author line shows it beside its name: `@<alias>`, and
+## nothing where the alias is the name itself, which the line then says once. The one rule
+## for a sender and for a member a message is addressed to, whoever it is: a client inside
+## our team, a member with no alias of its own, a routine. What reads the line takes both
+## forms (memberSendHeaderLength, AgentsDismissalMatch.awk): a member is known by its name,
+## WHICH ADDRESSEES HAVE NO LIVE RUN (S5.4), printed as SENT_MESSAGE_UNREACHABLE_MEMBERS where there are any. A message
+## addressed to a member reaches a run of that member's; one with none reads it at its next start. Saying so where the
+## message is sent shows the fault then, not hours later at the far end, and changes nothing about the post.
+## WHERE THE COST IS PAID, AND WHY IT IS ONE READ: every message of every member takes this path, so every spawn record is
+## read once for all the addressees by one awk, and only the records of an addressee still open are asked to be live.
+## A scan an addressee was how a post to three members cost three reads of the whole sandbox.
+AgentsToolsCommsSlackUnreachableReport(){ ## the addressees, the sending member
+	local reportMembers="$1" reportSender="$2" reportMember reportLive=" " reportRecord reportRecords="" reportOut="" reportHost
+	[ -n "$reportMembers" ] || return 0
+	type AgentsToolsSessionRecordLive > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionSeats.include"
+	## The member's own words are no addressee, and neither is an empty one: the list the one read is told to match.
+	reportHost=" "
+	for reportMember in $reportMembers ; do
+		[ -n "$reportMember" ] && [ "$reportMember" != "$reportSender" ] || continue
+		reportHost="$reportHost$reportMember "
+	done
+	[ "$reportHost" != " " ] || return 0
+	## ONE READ OF EVERY RECORD FOR EVERY ADDRESSEE: the records that are still open, a row `<owner> TAB <record>` each. A
+	## record that has closed is no run of anybody's, and its status is the record's own word, read here and nowhere else.
+	local reportAll=()
+	type AgentsToolsSpawnedAllRecordsInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include"
+	AgentsToolsSpawnedAllRecordsInto reportAll
+	reportRecords="$( LC_ALL=C awk -v wanted="$reportHost" '
+		function flush( ) {
+			if ( owner != "" && status == "spawn-started" && index( wanted, " " owner " " ) ) { print owner "\t" record ; }
+			owner = "" ; status = "" ; fence = 0 ;
+		}
+		FNR == 1 { flush() ; record = FILENAME ; }
+		$0 == "---" { fence++ ; if ( fence > 1 ) { next ; } ; next ; }
+		fence != 1 { next ; }
+		index( $0, "owner: " ) == 1 && owner == "" { owner = substr( $0, 8 ) ; next ; }
+		index( $0, "status: " ) == 1 && status == "" { status = substr( $0, 9 ) ; next ; }
+		END { flush() ; }
+	' ${reportAll[@]+"${reportAll[@]}"} /dev/null 2> /dev/null )" || reportRecords=""
+	## Its own tree, the tooling's one reading of a run's liveness, asked of the records that may still be live: a member
+	## with one is not named, and the rest of its records are never read. The list keeps a blank at each end, so the same
+	## whole-word test finds the first member as the last.
+	[ -z "$reportRecords" ] || while IFS=$'\t' read -r reportMember reportRecord ; do
+		[ -n "$reportMember" ] && [ -n "$reportRecord" ] || continue
+		case "$reportLive" in *" $reportMember "*) continue ;; esac
+		! AgentsToolsSessionRecordLive "$reportRecord" || reportLive="$reportLive$reportMember "
+	done <<< "$reportRecords"
+	for reportMember in $reportMembers ; do
+		[ -n "$reportMember" ] && [ "$reportMember" != "$reportSender" ] || continue
+		case "$reportLive" in *" $reportMember "*) continue ;; esac
+		reportOut="$reportOut$reportMember "
+	done
+	[ -z "$reportOut" ] || printf 'SENT_MESSAGE_UNREACHABLE_MEMBERS=%s\n' "${reportOut% }"
+	## The same said plainly, for the agent that reads the send's answer: the key line is for the readers that pick it out by name.
+	[ -z "$reportOut" ] || printf 'NOTE: no live run of %s: the message was posted, and is read at that member'"'"'s next start\n' "$( printf '%s' "${reportOut% }" | LC_ALL=C sed 's/ /, /g' )"
+}
+
+## between `*_` and `_*`, never by its alias.
+## The last sends of this run, kept by the send that makes them: one message is sent once, which is the sender's problem.
+## The store answers every path into a session's folder (AgentsSessionFolderInto), so no part of it is built here, and the
+## repeat guard reads them with no process.
+
+## A run's last sends into the named variable, a line each: `<epoch>\t<place>\t<cksum of the body>`. Nothing for none.
+AgentsSessionSentRecentInto(){ ## variable, session
+	local recentFolder="" recentLine recentAll=""
+	printf -v "$1" '%s' ""
+	case "${2:-}" in ''|-|.|..|*/*|*[[:space:]]*) return 0 ;; esac
+	type AgentsSessionFolderInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+	AgentsSessionFolderInto recentFolder "${MMDAPP:-}" "$2" || return 0
+	[ -f "$recentFolder/sent.recent" ] || return 0
+	while IFS= read -r recentLine ; do recentAll="$recentAll$recentLine"$'\n' ; done < "$recentFolder/sent.recent"
+	printf -v "$1" '%s' "$recentAll"
+}
+
+## Adds one send to a run's last sends, keeping the last fifty.
+AgentsSessionSentRecentAdd(){ ## session, epoch, place, cksum of the body
+	local recentFolder=""
+	case "${1:-}" in ''|-|.|..|*/*|*[[:space:]]*) return 0 ;; esac
+	type AgentsSessionFolderInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+	AgentsSessionFolderInto recentFolder "${MMDAPP:-}" "$1" || return 0
+	{ [ ! -f "$recentFolder/sent.recent" ] || tail -n 49 "$recentFolder/sent.recent" ; printf '%s\t%s\t%s\n' "$2" "$3" "$4" ; } > "$recentFolder/sent.recent.tmp" 2> /dev/null && mv -f "$recentFolder/sent.recent.tmp" "$recentFolder/sent.recent" 2> /dev/null || :
+	return 0
+}

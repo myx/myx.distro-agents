@@ -22,6 +22,8 @@ rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 rigStarted=""
 rigThreadsEnd(){
 	[ -z "$rigStarted" ] || rigProcSignalWithChildren KILL $rigStarted 2> /dev/null || :
+	## THE THREAD IS THE SHELL THE CHECK FORKED: a walk that cannot see it still leaves it running, so each pid is signalled here too.
+	[ -z "$rigStarted" ] || kill -KILL $rigStarted 2> /dev/null || :
 	rigStarted=""
 }
 rigStop(){

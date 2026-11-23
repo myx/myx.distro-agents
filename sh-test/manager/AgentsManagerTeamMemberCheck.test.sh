@@ -214,6 +214,7 @@ rigRec(){ ## sandbox, record name, session id, spawn id, owner, status, started-
 	} > "$rigSp/$1/$2.spawn.md"
 }
 ## The tooling keeps the process list it read for 10 s (AgentsToolsRunProcessArgs, .local/temp/ps-args.txt): a change of
+
 ## the rig's list drops the kept one, so the next call reads the list as it stands.
 rigPsChanged(){ rm -f "$rigWs/.local/temp/ps-args.txt" ; }
 rigLive(){ ## spawn id... -- the rig's process list: each a run by its own --session-id word
@@ -531,7 +532,7 @@ done
 rigPre=()
 rigAssert "from inside a member's session both are refused, rc 1, nothing on stdout, in the one line of the family: a member's by its spawn, and one known by its spawn record alone" "${rigCallerBad:-each refused}" "each refused"
 rigAssert "and a refused call rebuilt nothing: the registries are the files they were" "$( rigPrint "$rigAgents/team-members.registry" ) $( rigPrint "$rigAgents/spawned-sessions.registry" )" "$rigRegBefore"
-## The human-owner's ruling (2026-11-09): the coordinator can do what a console admin does, so the acting magic-coordinator is admitted to the family.
+## The coordinator can do what a console admin does, so the acting magic-coordinator is admitted to the family.
 rigPre=( "MDAT_SPAWN_AGENT=magic-coordinator" )
 rigRun "$rigListOp"
 rigCoordRc="$rigRc"

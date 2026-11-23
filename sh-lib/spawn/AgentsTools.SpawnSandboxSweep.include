@@ -16,7 +16,7 @@
 ## that waits on its session, or another run whose line holds this sandbox's path.
 AgentsToolsSpawnSandboxSweep(){ ## where
 	local sweepRoot="" sweepDir sweepRecord sweepSession sweepHost sweepLive sweepHold thisHost
-	type AgentsSpawnedStoreDirInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+	type AgentsSpawnedStoreDirInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.Paths.include"
 	AgentsSpawnedStoreDirInto sweepRoot "$MMDAPP" || return 0
 	type AgentsToolsSpawnSandboxCleanInput > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandboxInput.include"
 	[ -d "$sweepRoot" ] || return 0
@@ -163,7 +163,7 @@ AgentsToolsSpawnSandboxFolderState(){ ## folder name, item stem going away
 AgentsToolsSpawnSandboxRemove(){ ## folder name
 	local removeName="$1" removeFolder=""
 	case "$removeName" in ''|.|..|-*|*/*|*[[:space:]]*) printf '%s\n' "${removeName:--}" ; return 1 ;; esac
-	type AgentsSpawnRecordRemove > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+	type AgentsSpawnRecordRemove > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.Write.include"
 	AgentsSpawnRecordRemove "$removeName" && return 0
 	AgentsSpawnedStoreDirInto removeFolder "$MMDAPP" || :
 	printf '%s\n' "${removeFolder:+$removeFolder/}$removeName"

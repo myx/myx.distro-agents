@@ -29,6 +29,7 @@ rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 trap 'chmod -R u+rwX -- "$rigTmp" 2> /dev/null ; rm -rf -- "$rigTmp"' EXIT
 trap 'exit 1' INT TERM
 ## The pass runs with MMDAPP at the rig's own root, and the store under its .local, so the schedule's kept files and the
+
 ## store's own makers both see one rig.
 rigWs="$rigTmp" rigData="$rigTmp/.local/agents/team-data" rigMembers="$rigTmp/members" rigSpawned="$rigTmp/.local/agents/spawned"
 rigMember=magic-coordinator
@@ -74,7 +75,7 @@ rigRecord(){ ## the spawn id, the session id, its age in minutes, the routine
 ## store's own upsert, as the spawner writes it; what the spawner's own take costs is AgentsWorkDutyLockCheck's subject.
 rigLock(){ ## the holding session id
 	{
-		printf -- '---\ntype: note\nfrom: %s\nowner: %s\nstate: work-duty-running\n' "$rigMember" "$rigMember"
+		printf -- '---\ntype: note\ndocument-contract: inbox-item.note\nfrom: %s\nowner: %s\nstate: work-duty-running\ndate: %s\n' "$rigMember" "$rigMember" "$( date '+%Y-%m-%d %H:%M %z' )"
 		printf 'session-id: %s\nrecheck-date: %s\nheld-on: %s %s\nheld-at: %s\n---\n\n' "$1" "$( date -r $(( $( date +%s ) + 7200 )) '+%Y-%m-%d %H:%M %z' )" "$( hostname -s )" "${rigWs##*/}" "$( date '+%Y-%m-%d %H:%M %z' )"
 		printf '# the state of the work-duty routine, locked by the spawner while it runs.\n'
 	} > "$rigTmp/body.lock.md" || return 1
@@ -85,10 +86,11 @@ rigField(){ ## file, field
 	LC_ALL=C awk -v want="$2: " 'NR == 1 { next ; } $0 == "---" { exit ; } index( $0, want ) == 1 { print substr( $0, length( want ) + 1 ) ; exit ; }' "$1" 2> /dev/null
 }
 ## The stand-ins. Every one is inherited by the include's `type ... || . ` guards, so no real one is sourced over it.
+
 rigRun(){ ## -- the members this pass started, in its order
 	: > "$rigTmp/calls"
 	env -i PATH="/usr/bin:/bin:/usr/sbin:/sbin" MDLT_ORIGIN="$MDLT_ORIGIN" \
-		MDAT_DUTY_BLOCKED_SECONDS="$rigBound" \
+		MDAT_SCHEDULE_THREAD=off MDAT_WORKSPACE_MODE=team-rig MDAT_DUTY_BLOCKED_SECONDS="$rigBound" \
 		RIG_FLAGS="$rigTmp/flags" RIG_CALLS="$rigTmp/calls" RIG_MEMBERS="$rigMembers" \
 		RIG_DATA="$rigData" RIG_WS="$rigWs" RIG_SPAWNED="$rigSpawned" RIG_MEMBER="$rigMember" \
 		bash -c '

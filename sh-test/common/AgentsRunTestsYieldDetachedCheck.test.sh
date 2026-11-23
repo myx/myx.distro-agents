@@ -46,6 +46,8 @@ rigPackage(){ ## session, how many tests
 	local packageTests packageIndex ; packageTests="$( rigRoot "$1" )/myx/myx.distro-agents/sh-test"
 	mkdir -p "$packageTests/check-fixtures" || rigRefuse "the copy could not be made: $1"
 	cp "$rigRunner" "$packageTests/AgentsRunTests.sh" && cp "$( dirname "$rigRunner" )/check-fixtures"/runner-*.py "$packageTests/check-fixtures"/ || rigRefuse "the runner could not be copied: $1"
+	## THE RUNNER IS A ROUTER: its parts travel with it, or the rig copy finds none and runs nothing.
+	mkdir -p "$packageTests/runner" && cp "$( dirname "$rigRunner" )"/runner/*.sh "$packageTests/runner"/ || rigRefuse "the runner parts could not be copied into the rig"
 	cat > "$packageTests/RigTiny.test.sh" <<'RIGTINY'
 #!/usr/bin/env bash
 rigTinyId="${0##*/RigTiny}" ; rigTinyId="${rigTinyId%.test.sh}"

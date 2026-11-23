@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-## Behavioural check on the full pointer as a Slack target (epic S11 item 1; owner 2026-11-01: the communication id of any message is its
+## Behavioural check on the full pointer as a Slack target (epic S11 item 1; : the communication id of any message is its
+
 ## full pointer, `slack:<conversation>:<ts>`). A Wait shows every message by that pointer, so the one resolver every Slack operation
 ## takes its target through (DistroAgentsToolsResolveTarget) must read it as it stands: a reply typed to the pointer lands in that
 ## message's thread, in a channel (C...) and in a direct conversation (D...) alike. Held, run and not read:

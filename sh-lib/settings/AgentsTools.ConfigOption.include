@@ -11,10 +11,11 @@
 ##
 
 AgentsToolsConfigOption(){ ## the arguments after --agents-config-option
+	type AgentsToolsConfigOptionElsewhere > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWorkspace.Settings.include"
 	## The borrowing rules this arm reads (AgentsToolsMemberSettingsBorrow*Say, AgentsToolsMemberSettingSystemOf,
 	## and the settings store's AgentsSettingsHoldsKeys) are taken here, once, whatever branch the call takes.
 	type AgentsSettingsHoldsKeys > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/settings/AgentsTools.Settings.include"
-	type AgentsToolsConfigOptionElsewhere > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWorkspace.include"
+	type AgentsToolsConfigOptionElsewhere > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWorkspace.Settings.include"
 	set -- --agents-config-option "$@"
 			## A write into a preset, or of a key that belongs to presets or to the tiers, asks the write check first.
 			case "${3:-}" in
@@ -28,7 +29,7 @@ AgentsToolsConfigOption(){ ## the arguments after --agents-config-option
 								local presetStdinThere=""
 								case "$2:${4:-}" in
 									magic-team:SPAWN_TIER_LOW|magic-team:SPAWN_TIER_NORMAL|magic-team:SPAWN_TIER_HIGH)
-										type AgentsToolsConfigOptionElsewhere > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWorkspace.include"
+										type AgentsToolsConfigOptionElsewhere > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWorkspace.Settings.include"
 										AgentsToolsConfigOptionElsewhere "$2" "${4:-}" || { set +e ; return 1 ; }
 										presetStdinThere="$agentsConfigOptionElsewhere"
 									;;
@@ -89,7 +90,7 @@ AgentsToolsConfigOption(){ ## the arguments after --agents-config-option
 							*) set +e ; return 1 ;;
 						esac
 					fi
-					type AgentsToolsConfigOptionElsewhere > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWorkspace.include"
+					type AgentsToolsConfigOptionElsewhere > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWorkspace.Settings.include"
 					AgentsToolsConfigOptionElsewhere "$2" "${4:-}" || { set +e ; return 1 ; }
 					if [ -n "$agentsConfigOptionElsewhere" ] ; then
 						( MMDAPP="$agentsConfigOptionElsewhere" ; . "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/LocalTools.Config.include" )

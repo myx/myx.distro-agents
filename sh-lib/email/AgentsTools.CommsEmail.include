@@ -55,7 +55,8 @@ AgentsToolsCommsEmailSend(){ ## member, channel-id or declared name, subject, th
 	DistroAgentsTools --intern-op-comms-email-send "$emailMember" "$emailAddress" -- "$emailSubject" -- --from-stdin
 }
 
-## THE MESSAGE CACHE, the form every service keeps (epic S21.13, owner 2026-10-28): `<service>/<service>-<id>/YYYYMM/messages.txt`,
+## THE MESSAGE CACHE, the form every service keeps (epic S21.13, ): `<service>/<service>-<id>/YYYYMM/messages.txt`,
+
 ## one line a message, the whole body in `YYYYMM/<uid>.body.txt` where a line would pass the cap, and `.state.txt` for the
 ## pointers. Email keys on its account and mailbox, a message on its UID, and a message's month on its own date: a mailbox's
 ## UIDs say nothing of when a mail came. Nothing of a body is ever cut away, a 25 MB mail included.

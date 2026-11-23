@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-## Behavioural check on S18 item 3: the harness serves no `Agent` tool, and the one spawn that remains is
-## `AgentDispatcherTools --spawn-run`, which delegates to `DistroAgentsDispatcher --spawn-session`.
+## Behavioural check on the harness's own spawn surface: the wire declares its native `Agent` tool, and the
+## dispatcher's `AgentDispatcherTools --spawn-run` delegates to `DistroAgentsDispatcher --spawn-session`.
+## The MCP server is a proxy mirror of these tools, used when the native harness is not available, and it carries more methods.
 ## Read from the two files themselves, offline: the harness wire's own tool list, and the dispatcher's arms.
-## Fails today: the wire still declares `Agent`.
 set -u
 : "${MMDAPP:?MMDAPP is not set}"
 rigOrigin="${MDLT_ORIGIN:-$MMDAPP/.local}"
@@ -15,9 +15,9 @@ rigAssert(){ ## what is asserted, got, want
 }
 [ -f "$rigWire" ] || { echo "⛔ no wire at $rigWire" >&2 ; exit 1 ; }
 
-echo "-- the harness serves one spawn, and it is not Agent --"
-rigAssert "the wire no longer declares an Agent tool" \
-	"$( LC_ALL=C grep -c '"name":"Agent"' "$rigWire" )" 0
+echo "-- the harness serves its own spawn, and the dispatcher delegates it --"
+rigAssert "the wire declares its native Agent tool" \
+	"$( LC_ALL=C grep -c '"name":"Agent"' "$rigWire" )" 1
 rigAssert "the dispatcher serves --spawn-run" \
 	"$( LC_ALL=C grep -c -- '--spawn-run)' "$rigDispatcher" )" 1
 rigAssert "and the spawn delegates to DistroAgentsDispatcher --spawn-session" \
